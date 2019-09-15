@@ -12,6 +12,7 @@
   },
   "main": "background.js",
   "dependencies": {
+    "jimp": "^0.8.2",
     "vue": "^2.6.10"
   },
   "devDependencies": {
