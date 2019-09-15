@@ -1,4 +1,4 @@
-# glitch-studio
+# Glitch Studio
 
 ## Project setup
 ```
