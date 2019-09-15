@@ -3,12 +3,18 @@
 	<div class="view">
 		<canvas :width="width" :height="height" ref="canvas"/>
 	</div>
+	<div class="nav">
+		<div class="layers">
+			<XLayers/>
+		</div>
+	</div>
 </main>
 </template>
 
 <script lang="ts">
 import Vue from 'vue';
-import HelloWorld from './components/HelloWorld.vue';
+import * as Jimp from 'jimp';
+import XLayers from './components/layers.vue';
 import { chooseFile } from './choose-file';
 import { render } from './glitch';
 
@@ -16,26 +22,48 @@ export default Vue.extend({
 	name: 'app',
 
 	components: {
-		HelloWorld
+		XLayers
 	},
 
 	data() {
 		return {
+			img: null,
 			width: 0,
 			height: 0,
 		};
 	},
 
+	computed: {
+		canvas(): HTMLCanvasElement {
+			return this.$refs.canvas as HTMLCanvasElement;
+		}
+	},
+
 	mounted() {
-		chooseFile().then(path => {
-			render(path, (w, h) => new Promise((res, rej) => {
+		this.chooseFile();
+
+		this.$watch('$store.state.layers', () => {
+			this.render();
+		}, { deep: true });
+	},
+
+	methods: {
+		chooseFile() {
+			chooseFile().then(async path => {
+				this.img = await Jimp.default.read(path);
+				this.render();
+			});
+		},
+
+		render() {
+			render(this.img, this.$store.state.layers, (w, h) => new Promise((res, rej) => {
 				this.width = w;
 				this.height = h;
 				this.$nextTick(() => {
-					res(this.$refs.canvas.getContext('2d'));
+					res(this.canvas.getContext('2d')!);
 				});
 			}));
-		});
+		}
 	}
 });
 </script>
@@ -56,6 +84,7 @@ body {
 }
 
 #app {
+	display: flex;
 	height: 100%;
 
 	> .view {
@@ -68,6 +97,11 @@ body {
 			height: 100%;
 			object-fit: contain;
 		}
+	}
+
+	> .nav {
+		width: 30%;
+		height: 100%;
 	}
 }
 </style>

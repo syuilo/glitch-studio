@@ -7,7 +7,7 @@ export type FX = (
 	params: Record<string, any>,
 ) => void;
 
-export function fx(name: string, paramDef: any, fx: FX) {
+export function fx(paramDef: any, fx: FX) {
 	return (input, params = {}) => {
 		const output = input.clone();
 
@@ -29,10 +29,7 @@ export function fx(name: string, paramDef: any, fx: FX) {
 			defaults[k] = v.default;
 		}
 
-		const label = `FX: ${name}`;
-		console.time(label);
 		fx(input.bitmap.width, input.bitmap.height, get, set, { ...defaults, ...params });
-		console.timeEnd(label);
 
 		return output;
 	}

@@ -3,7 +3,7 @@ import { fx } from '../core';
 const paramDef = {
 };
 
-export default fx('swap', paramDef, (w, h, get, set) => {
+const fn = fx(paramDef, (w, h, get, set) => {
 	for (let x = 0; x < w; x++) {
 		for (let y = 0; y < h; y++) {
 			const [r, g, b] = get(x, y);
@@ -11,3 +11,9 @@ export default fx('swap', paramDef, (w, h, get, set) => {
 		}
 	}
 });
+
+export default {
+	name: 'swap',
+	paramDef,
+	fn
+};

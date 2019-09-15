@@ -12,7 +12,7 @@ const paramDef = {
 	}
 };
 
-export default fx('tearBulk', paramDef, (w, h, get, set, params) => {
+const fn = fx(paramDef, (w, h, get, set, params) => {
 	const rnd = seedrandom(params.seed.toString());
 
 	for (let i = 0; i < params.times; i++) {
@@ -56,3 +56,9 @@ export default fx('tearBulk', paramDef, (w, h, get, set, params) => {
 		}
 	}
 });
+
+export default {
+	name: 'tearBulk',
+	paramDef,
+	fn
+};

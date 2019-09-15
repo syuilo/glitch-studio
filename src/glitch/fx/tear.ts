@@ -19,7 +19,7 @@ const paramDef = {
 	},
 };
 
-export default fx('tear', paramDef, (w, h, get, set, params) => {
+const fn = fx(paramDef, (w, h, get, set, params) => {
 	const { thickness, pos, amount, direction } = params;
 
 	if (direction === 'right') {
@@ -56,3 +56,9 @@ export default fx('tear', paramDef, (w, h, get, set, params) => {
 		}
 	}
 });
+
+export default {
+	name: 'tear',
+	paramDef,
+	fn
+};
