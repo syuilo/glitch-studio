@@ -87,6 +87,24 @@ body {
 	margin: 0;
 }
 
+input {
+	display: block;
+	box-sizing: border-box;
+	appearance: none;
+	border: solid 1px rgba(255, 255, 255, 0.1);
+	border-radius: 4px;
+	background: rgba(0, 0, 0, 0.3);
+	box-shadow: 0 2px 1px rgba(0, 0, 0, 0.5) inset;
+	color: #fff;
+	padding: 4px 6px;
+	outline: none;
+	max-width: 100%;
+
+	&:focus {
+		border-color: #bb6100;
+	}
+}
+
 #app {
 	display: flex;
 	height: 100%;
