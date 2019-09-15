@@ -4,11 +4,11 @@ export type FX = (
 	width: number, height: number,
 	get: (x: number, y: number) => Pixel,
 	set: (x: number, y: number, color: Pixel) => void,
-	params: Record<string, any>
+	params: Record<string, any>,
 ) => void;
 
 export function fx(name: string, paramDef: any, fx: FX) {
-	return (input) => {
+	return (input, params = {}) => {
 		const output = input.clone();
 
 		function get(x: number, y: number) {
@@ -23,15 +23,15 @@ export function fx(name: string, paramDef: any, fx: FX) {
 			output.bitmap.data[idx + 2] = rgb[2];
 		}
 
-		const params = {};
+		const defaults = {} as any;
 
 		for (const [k, v] of Object.entries(paramDef)) {
-			params[k] = v.default;
+			defaults[k] = v.default;
 		}
 
 		const label = `FX: ${name}`;
 		console.time(label);
-		fx(input.bitmap.width, input.bitmap.height, get, set, params);
+		fx(input.bitmap.width, input.bitmap.height, get, set, { ...defaults, ...params });
 		console.timeEnd(label);
 
 		return output;

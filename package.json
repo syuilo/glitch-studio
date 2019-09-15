@@ -12,7 +12,9 @@
   },
   "main": "background.js",
   "dependencies": {
+    "@types/seedrandom": "^2.4.28",
     "jimp": "^0.8.2",
+    "seedrandom": "^3.0.3",
     "vue": "^2.6.10"
   },
   "devDependencies": {
