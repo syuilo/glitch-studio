@@ -8,6 +8,7 @@ export const fxs = {
 	swap, tear, tearBulk, blur
 } as Record<string, {
 	name: string;
+	displayName: string;
 	paramDef: any;
 	fn: ReturnType<typeof fx>;
 }>;

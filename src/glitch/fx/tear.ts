@@ -59,6 +59,7 @@ const fn = fx(paramDef, (w, h, get, set, params) => {
 
 export default {
 	name: 'tear',
+	displayName: 'Tear',
 	paramDef,
 	fn
 };

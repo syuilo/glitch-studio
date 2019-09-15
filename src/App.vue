@@ -69,6 +69,10 @@ export default Vue.extend({
 </script>
 
 <style lang="scss">
+* {
+	user-select: none;
+}
+
 html {
 	height: 100%;
 	background: #222;

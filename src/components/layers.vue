@@ -3,9 +3,7 @@
 	<header>
 		<select @change="$event => { addFx($event.target.value); $event.target.value = ''; }">
 			<option value="" selected disabled>Add FX...</option>
-			<option value="tear">Tear</option>
-			<option value="tearBulk">Bulk tear</option>
-			<option value="blur">Blur</option>
+			<option v-for="k in Object.keys(fxs)" :value="fxs[k].name" :key="fxs[k].name">{{ fxs[k].displayName }}</option>
 		</select>
 	</header>
 	<div class="layers">
@@ -17,10 +15,17 @@
 <script lang="ts">
 import Vue from 'vue';
 import XLayer from './layer.vue';
+import { fxs } from '../glitch/fxs';
 
 export default Vue.extend({
 	components: {
 		XLayer
+	},
+
+	data() {
+		return {
+			fxs: fxs
+		};
 	},
 
 	methods: {

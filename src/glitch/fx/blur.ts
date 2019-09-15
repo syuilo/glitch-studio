@@ -70,6 +70,7 @@ const fn = fx(paramDef, (w, h, get, set, params) => {
 
 export default {
 	name: 'blur',
+	displayName: 'Blur',
 	paramDef,
 	fn
 };

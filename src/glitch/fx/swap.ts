@@ -14,6 +14,7 @@ const fn = fx(paramDef, (w, h, get, set) => {
 
 export default {
 	name: 'swap',
+	displayName: 'Swap',
 	paramDef,
 	fn
 };
