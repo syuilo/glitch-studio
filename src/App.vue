@@ -1,6 +1,8 @@
 <template>
 <main id="app">
-	<img ref="canvas"/>
+	<div class="view">
+		<img ref="canvas"/>
+	</div>
 </main>
 </template>
 
@@ -47,5 +49,16 @@ body {
 
 #app {
 	height: 100%;
+
+	> .view {
+		width: 70%;
+		height: 100%;
+
+		> img {
+			width: 100%;
+			height: 100%;
+			object-fit: contain;
+		}
+	}
 }
 </style>
