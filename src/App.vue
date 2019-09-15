@@ -1,7 +1,7 @@
 <template>
 <main id="app">
 	<div class="view">
-		<img ref="canvas"/>
+		<canvas :width="width" :height="height" ref="canvas"/>
 	</div>
 </main>
 </template>
@@ -19,14 +19,22 @@ export default Vue.extend({
 		HelloWorld
 	},
 
+	data() {
+		return {
+			width: 0,
+			height: 0,
+		};
+	},
+
 	mounted() {
 		chooseFile().then(path => {
-			render(path).then(async img => {
-				console.log('Generating buffer');
-				const buffer = await img.getBufferAsync('image/png');
-				console.log('Generated');
-				this.$refs.canvas.src = URL.createObjectURL(new Blob([buffer], {type: 'image/png'}));
-			});
+			render(path, (w, h) => new Promise((res, rej) => {
+				this.width = w;
+				this.height = h;
+				this.$nextTick(() => {
+					res(this.$refs.canvas.getContext('2d'));
+				});
+			}));
 		});
 	}
 });
@@ -54,7 +62,7 @@ body {
 		width: 70%;
 		height: 100%;
 
-		> img {
+		> * {
 			display: block;
 			width: 100%;
 			height: 100%;
