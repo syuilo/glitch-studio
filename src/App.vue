@@ -90,7 +90,7 @@ body {
 	margin: 0;
 }
 
-input {
+input[type=number] {
 	display: block;
 	box-sizing: border-box;
 	appearance: none;
@@ -106,6 +106,37 @@ input {
 	&:focus {
 		border-color: #bb6100;
 	}
+}
+
+select, button {
+	display: block;
+	box-sizing: border-box;
+	appearance: none;
+	border: solid 1px rgba(0, 0, 0, 0.7);
+	border-radius: 4px;
+	background: linear-gradient(0deg, rgba(0, 0, 0, 0), rgba(255, 255, 255, 0.05));
+	box-shadow: 0 1px 1px rgba(0, 0, 0, 0.1), 0 1px 0 rgba(255, 255, 255, 0.1) inset;
+	color: #fff;
+	padding: 4px 6px;
+	outline: none;
+	width: 100%;
+	cursor: pointer;
+
+	&:focus {
+		border-color: #bb6100;
+	}
+
+	&:hover {
+		background: linear-gradient(0deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0.07));
+	}
+
+	&:active {
+		background: linear-gradient(180deg, rgba(0, 0, 0, 0), rgba(255, 255, 255, 0.05));
+	}
+}
+
+option {
+	background: #222;
 }
 
 #app {
