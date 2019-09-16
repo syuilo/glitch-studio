@@ -7,7 +7,8 @@ import { genEmptyValue } from './glitch/core';
 
 export const store = () => new Vuex.Store({
 	state: {
-		layers: [] as Layer[]
+		macros: [] as Macro[],
+		layers: [] as Layer[],
 	},
 
 	mutations: {

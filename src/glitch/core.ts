@@ -10,8 +10,10 @@ export type FX = (
 	params: Record<string, any>,
 ) => void;
 
+type DataType = 'number' | 'range' | 'enum' | 'bool' | 'blendMode' | 'signal';
+
 export type ParamDef = {
-	type: 'number' | 'range' | 'enum' | 'bool' | 'blendMode' | 'signal';
+	type: DataType;
 	default: {
 		type: 'literal' | 'expression';
 		value: any;
@@ -19,6 +21,12 @@ export type ParamDef = {
 };
 
 export type ParamDefs = Record<string, ParamDef>;
+
+export type Macro = {
+	label: string;
+	name: string;
+	type: DataType;
+};
 
 export function fx(paramDefs: ParamDefs, fx: FX) {
 	return (input: any, params = {}) => {
