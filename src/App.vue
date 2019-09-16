@@ -72,6 +72,8 @@ export default Vue.extend({
 </script>
 
 <style lang="scss">
+$theme-color: #bb6100;
+
 * {
 	user-select: none;
 
@@ -118,7 +120,7 @@ input[type=number] {
 	width: 100%;
 
 	&:focus {
-		border-color: #bb6100;
+		border-color: $theme-color;
 	}
 }
 
@@ -137,7 +139,7 @@ select, button {
 	cursor: pointer;
 
 	&:focus {
-		border-color: #bb6100;
+		border-color: $theme-color;
 	}
 
 	&:hover {
@@ -146,6 +148,20 @@ select, button {
 
 	&:active {
 		background: linear-gradient(180deg, rgba(0, 0, 0, 0), rgba(255, 255, 255, 0.05));
+	}
+
+	&.primary {
+		background: linear-gradient(0deg, darken($theme-color, 5%), lighten($theme-color, 10%));
+		background-clip: padding-box;
+		box-shadow: 0 1px 1px rgba(0, 0, 0, 0.1), 0 1px 0 rgba(255, 255, 255, 0.3) inset;
+
+		&:hover {
+			background: linear-gradient(0deg, darken($theme-color, 0%), lighten($theme-color, 15%));
+		}
+
+		&:active {
+			background: linear-gradient(180deg, darken($theme-color, 10%), lighten($theme-color, 5%));
+		}
 	}
 }
 

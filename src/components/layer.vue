@@ -19,6 +19,9 @@
 					<option v-for="o in paramDef[param].options" :value="o" :key="o">{{ decamelize(o) }}</option>
 				</select>
 			</div>
+			<div v-if="paramDef[param].type === 'signal'">
+				<XSignal :signal="getParam(param)" @input="updateParam(param, $event)"/>
+			</div>
 		</div>
 	</div>
 </div>
@@ -26,9 +29,14 @@
 
 <script lang="ts">
 import Vue from 'vue';
+import XSignal from './signal.vue';
 import { fxs } from '../glitch/fxs';
 
 export default Vue.extend({
+	components: {
+		XSignal
+	},
+
 	props: {
 		layer: {
 			required: true
@@ -109,6 +117,7 @@ export default Vue.extend({
 				padding-top: 4px;
 				padding-right: 4px;
 				flex-shrink: 0;
+				white-space: nowrap;
 				text-overflow: ellipsis;
 				overflow: hidden;
 				font-size: 14px;

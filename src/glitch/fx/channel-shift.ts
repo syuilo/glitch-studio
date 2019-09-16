@@ -5,34 +5,24 @@ const paramDef = {
 		type: 'range',
 		default: 8
 	},
-	leftR: {
-		type: 'bool',
-		default: true
+	leftSignal: {
+		type: 'signal',
+		default: [true, false, false]
 	},
-	leftG: {
-		type: 'bool',
-		default: false
-	},
-	leftB: {
-		type: 'bool',
-		default: false
-	},
-	rightR: {
-		type: 'bool',
-		default: false
-	},
-	rightG: {
-		type: 'bool',
-		default: false
-	},
-	rightB: {
-		type: 'bool',
-		default: true
+	rightSignal: {
+		type: 'signal',
+		default: [false, false, true]
 	},
 };
 
 const fn = fx(paramDef, (w, h, get, set, params) => {
-	const { amount, leftR, leftG, leftB, rightR, rightG, rightB } = params;
+	const { amount, leftSignal, rightSignal } = params;
+	const leftR = leftSignal[0];
+	const leftG = leftSignal[1];
+	const leftB = leftSignal[2];
+	const rightR = rightSignal[0];
+	const rightG = rightSignal[1];
+	const rightB = rightSignal[2];
 
 	for (let x = 0; x < w; x++) {
 		for (let y = 0; y < h; y++) {
