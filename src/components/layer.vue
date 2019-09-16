@@ -6,10 +6,10 @@
 		<div v-for="param in Object.keys(paramDef)" :key="param">
 			<label>{{ decamelize(param) }}</label>
 			<div v-if="paramDef[param].type === 'range'">
-				<input type="number" :value="getParam(param)" step="1" @change="updateParam(param, $event.target.value)"/>
+				<input type="number" :value="getParam(param)" step="1" @change="updateParam(param, parseInt($event.target.value, 10))"/>
 			</div>
 			<div v-if="paramDef[param].type === 'number'">
-				<input type="number" :value="getParam(param)" @change="updateParam(param, $event.target.value)"/>
+				<input type="number" :value="getParam(param)" @change="updateParam(param, parseInt($event.target.value, 10))"/>
 			</div>
 			<div v-if="paramDef[param].type === 'bool'">
 				<button @click="updateParam(param, !getParam(param))">{{ getParam(param) ? 'On' : 'Off' }}</button>

@@ -25,17 +25,7 @@ export async function render(
 		console.timeEnd(label);
 	}
 
-	console.log('Rendering...');
-	const width = img.bitmap.width;
-	const height = img.bitmap.height;
-	const bitmap = img.bitmap.data;
-	for (let x = 0; x < width; x++) {
-		for (let y = 0; y < height; y++) {
-			const idx = (width * y + x) << 2;
-			const [r, g, b] = [bitmap[idx + 0], bitmap[idx + 1], bitmap[idx + 2]];
-			ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
-			ctx.fillRect(x, y, 1, 1);
-		}
-	}
-	console.log('Render finished');
+	console.time('Render');
+	ctx.putImageData(new ImageData(new Uint8ClampedArray(img.bitmap.data), img.bitmap.width, img.bitmap.height), 0, 0);
+	console.timeEnd('Render');
 }
