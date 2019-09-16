@@ -98,6 +98,19 @@ app.on('ready', async () => {
 			role: 'quit'
 		}]
 	}, {
+		label: 'Edit',
+		submenu: [{
+			label: 'Undo',
+			click: () => {
+				win!.webContents.send('undo');
+			}
+		}, {
+			label: 'Redo',
+			click: () => {
+				win!.webContents.send('redo');
+			}
+		}]
+	}, {
 		label: 'FX',
 		submenu: Object.entries(fxs).map(([k, v]) => ({
 			label: v.displayName,

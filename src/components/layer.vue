@@ -120,8 +120,8 @@ export default Vue.extend({
 	> button {
 		position: absolute;
 		top: 4px;
-		width: 24px;
-		height: 24px;
+		width: 23px;
+		height: 23px;
 		font-size: 12px;
 		padding-left: 0;
 		padding-right: 0;

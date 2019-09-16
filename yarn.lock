@@ -8419,6 +8419,11 @@ vuedraggable@^2.23.0:
   dependencies:
     sortablejs "^1.9.0"
 
+vuex-undo-redo@^1.1.4:
+  version "1.1.4"
+  resolved "https://registry.yarnpkg.com/vuex-undo-redo/-/vuex-undo-redo-1.1.4.tgz#daf9b3192b68e1715386d77ad1d607c36522a849"
+  integrity sha512-IfuizJGwCxOa9ZDmLRuWafLBnUYXFhDbbO676oemyz9Kw3ncjo/QNH6SfEEZVOJOrZS9vdiEs5c47qBXPKrWTQ==
+
 vuex@^3.1.1:
   version "3.1.1"
   resolved "https://registry.yarnpkg.com/vuex/-/vuex-3.1.1.tgz#0c264bfe30cdbccf96ab9db3177d211828a5910e"

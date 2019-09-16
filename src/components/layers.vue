@@ -17,6 +17,7 @@
 
 <script lang="ts">
 import Vue from 'vue';
+import uuid from 'uuid/v4';
 const XDraggable = require('vuedraggable');
 import XLayer from './layer.vue';
 import { fxs } from '../glitch/fxs';
@@ -48,7 +49,10 @@ export default Vue.extend({
 	methods: {
 		addFx(fx: string) {
 			if (fx == '') return;
-			this.$store.commit('addLayer', { fx: fx });
+			this.$store.commit('addLayer', {
+				fx: fx,
+				id: uuid()
+			});
 		}
 	}
 });

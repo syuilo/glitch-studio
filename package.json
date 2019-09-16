@@ -24,7 +24,8 @@
 		"uuid": "^3.3.3",
 		"vue": "^2.6.10",
 		"vuedraggable": "^2.23.0",
-		"vuex": "^3.1.1"
+		"vuex": "^3.1.1",
+		"vuex-undo-redo": "^1.1.4"
 	},
 	"devDependencies": {
 		"@types/mathjs": "^6.0.2",

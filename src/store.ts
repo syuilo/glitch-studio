@@ -1,6 +1,5 @@
 import Vue from 'vue';
 import Vuex from 'vuex';
-import uuid from 'uuid/v4';
 import { Layer } from './glitch';
 import { fxs } from './glitch/fxs';
 import { genEmptyValue, Macro } from './glitch/core';
@@ -12,6 +11,14 @@ export const store = () => new Vuex.Store({
 	},
 
 	mutations: {
+		// for vuex-undo-redo
+		emptyState() {
+			this.replaceState({
+				macros: [],
+				layers: [],
+			});
+		},
+		
 		addLayer(state, payload) {
 			const paramDefs = fxs[payload.fx].paramDefs;
 			
@@ -22,7 +29,7 @@ export const store = () => new Vuex.Store({
 			}
 
 			state.layers.push({
-				id: uuid(),
+				id: payload.id,
 				isEnabled: true,
 				fx: payload.fx,
 				params: params,
@@ -42,9 +49,9 @@ export const store = () => new Vuex.Store({
 			Vue.set(state, 'layers', payload.layers);
 		},
 
-		addMacro(state) {
+		addMacro(state, payload) {
 			state.macros.push({
-				id: uuid(),
+				id: payload.id,
 				type: 'number',
 				label: 'Macro',
 				name: 'macro',

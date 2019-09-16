@@ -27,6 +27,7 @@
 <script lang="ts">
 import * as fs from 'fs';
 import * as electron from 'electron';
+import uuid from 'uuid/v4';
 import { faLayerGroup, faSlidersH, faInfoCircle } from '@fortawesome/free-solid-svg-icons';
 import Vue from 'vue';
 const Jimp = require('jimp');
@@ -78,7 +79,18 @@ export default Vue.extend({
 		});
 
 		ipcRenderer.on('addFx', (_, name) => {
-			this.$store.commit('addLayer', { fx: name });
+			this.$store.commit('addLayer', {
+				fx: name,
+				id: uuid()
+			});
+		});
+
+		ipcRenderer.on('undo', () => {
+			if ((this as any).canUndo) (this as any).undo();
+		});
+
+		ipcRenderer.on('redo', () => {
+			if ((this as any).canRedo) (this as any).redo();
 		});
 	},
 
@@ -308,7 +320,7 @@ optgroup {
 					margin-bottom: -1px;
 					z-index: 1;
 					position: relative;
-					font-size: 14px;
+					font-size: 12px;
 					cursor: pointer;
 					color: rgba(255, 255, 255, 0.7);
 

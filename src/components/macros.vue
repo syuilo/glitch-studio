@@ -35,6 +35,7 @@
 
 <script lang="ts">
 import Vue from 'vue';
+import uuid from 'uuid/v4';
 import XControl from './control.vue';
 import { Macro } from '../glitch/core';
 
@@ -45,7 +46,9 @@ export default Vue.extend({
 
 	methods: {
 		addMacro() {
-			this.$store.commit('addMacro');
+			this.$store.commit('addMacro', {
+				id: uuid()
+			});
 		},
 
 		updateMacroAsLiteral(macro: Macro, value: any) {
