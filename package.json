@@ -14,12 +14,14 @@
 	"dependencies": {
 		"color-blend": "^2.0.7",
 		"jimp": "^0.8.2",
+		"mathjs": "^6.2.1",
 		"seedrandom": "^3.0.3",
 		"uuid": "^3.3.3",
 		"vue": "^2.6.10",
 		"vuex": "^3.1.1"
 	},
 	"devDependencies": {
+		"@types/mathjs": "^6.0.2",
 		"@types/seedrandom": "^2.4.28",
 		"@types/uuid": "^3.4.5",
 		"@vue/cli-plugin-typescript": "^3.11.0",
