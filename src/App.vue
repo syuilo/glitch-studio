@@ -12,6 +12,7 @@
 	</div>
 	<footer class="footer">
 		<span class="file">{{ width }} x {{ height }} px</span>
+		<span class="progress">{{ status }}</span>
 	</footer>
 </main>
 </template>
@@ -37,6 +38,7 @@ export default Vue.extend({
 			img: null,
 			width: 0,
 			height: 0,
+			status: null as string | null,
 		};
 	},
 
@@ -113,7 +115,15 @@ export default Vue.extend({
 				this.$nextTick(() => {
 					res(this.canvas.getContext('2d')!);
 				});
-			}));
+			}), (max, done, status) => {
+				this.status = status;
+
+				return new Promise((res) => {
+					this.$nextTick(() => {
+						setTimeout(res, 1);
+					});
+				});
+			});
 		}
 	}
 });
@@ -286,6 +296,10 @@ optgroup {
 
 		> .file {
 			opacity: 0.8;
+		}
+
+		> .progress {
+			margin-left: 16px;
 		}
 	}
 }
