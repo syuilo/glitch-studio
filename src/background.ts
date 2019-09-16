@@ -1,6 +1,6 @@
 'use strict';
 
-import { app, protocol, BrowserWindow } from 'electron';
+import { app, protocol, BrowserWindow, Menu } from 'electron';
 import {
 	createProtocol,
 	installVueDevtools
@@ -72,6 +72,24 @@ app.on('ready', async () => {
 		// }
 
 	}
+
+	const menu = Menu.buildFromTemplate([{
+		label: 'File',
+		submenu: [{
+			label: 'Open image',
+			click: () => {
+				win!.webContents.send('openImage');
+			}
+		}, {
+			label: 'Save image',
+		}, {
+			type: 'separator'
+		}, {
+			role: 'quit'
+		}]
+	}]);
+	Menu.setApplicationMenu(menu);
+
 	createWindow();
 })
 

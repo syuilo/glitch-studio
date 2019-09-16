@@ -20,6 +20,7 @@ import * as Jimp from 'jimp';
 import XLayers from './components/layers.vue';
 import { chooseFile } from './choose-file';
 import { render } from './glitch';
+import { ipcRenderer } from 'electron';
 
 export default Vue.extend({
 	name: 'app',
@@ -43,11 +44,13 @@ export default Vue.extend({
 	},
 
 	mounted() {
-		this.chooseFile();
-
 		this.$watch('$store.state.layers', () => {
 			this.render();
 		}, { deep: true });
+
+		ipcRenderer.on('openImage', () => {
+			this.chooseFile();
+		});
 	},
 
 	methods: {
