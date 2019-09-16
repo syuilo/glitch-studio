@@ -1,7 +1,8 @@
 <template>
 <div class="layer-component">
 	<header class="drag-handle">{{ name }}</header>
-	<button @click="remove()"><fa :icon="faTimes"/></button>
+	<button class="active" :class="{ primary: layer.isEnabled }" @click="toggleEnable()" :title="layer.isEnabled ? 'Click to disable' : 'Click to enable'"><fa :icon="layer.isEnabled ? faEye : faEyeSlash"/></button>
+	<button class="remove" @click="remove()" title="Remove effect"><fa :icon="faTimes"/></button>
 
 	<div>
 		<div v-for="param in Object.keys(paramDefs)" :key="param">
@@ -18,6 +19,7 @@
 <script lang="ts">
 import Vue from 'vue';
 import { faTimes } from '@fortawesome/free-solid-svg-icons';
+import { faEye, faEyeSlash } from '@fortawesome/free-regular-svg-icons';
 import XControl from './control.vue';
 import { fxs } from '../glitch/fxs';
 import { ParamDefs } from '../glitch/core';
@@ -38,7 +40,7 @@ export default Vue.extend({
 		return {
 			name: null as string | null,
 			paramDefs: null as ParamDefs | null,
-			faTimes
+			faTimes, faEye, faEyeSlash
 		};
 	},
 
@@ -86,6 +88,12 @@ export default Vue.extend({
 				layerId: this.layer.id,
 			});
 		},
+
+		toggleEnable() {
+			this.$store.commit('toggleEnable', {
+				layerId: this.layer.id,
+			});
+		},
 	}
 });
 </script>
@@ -112,13 +120,22 @@ export default Vue.extend({
 	> button {
 		position: absolute;
 		top: 4px;
-		right: 4px;
 		width: 24px;
 		height: 24px;
 		font-size: 12px;
+		padding-left: 0;
+		padding-right: 0;
 
 		> * {
 			height: 100%;
+		}
+
+		&.remove {
+			right: 4px;
+		}
+
+		&.active {
+			right: 32px;
 		}
 	}
 

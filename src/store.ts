@@ -23,13 +23,19 @@ export const store = () => new Vuex.Store({
 
 			state.layers.push({
 				id: uuid(),
+				isEnabled: true,
 				fx: payload.fx,
-				params: params
+				params: params,
 			});
 		},
 
 		removeLayer(state, payload) {
 			Vue.set(state, 'layers', state.layers.filter(layer => layer.id !== payload.layerId));
+		},
+
+		toggleEnable(state, payload) {
+			const layer = state.layers.find(layer => layer.id === payload.layerId)!;
+			Vue.set(layer, 'isEnabled', !layer.isEnabled);
 		},
 
 		setLayers(state, payload) {

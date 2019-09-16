@@ -26,7 +26,7 @@
 					<option value="number">Number</option>
 					<option value="bool">Flag</option>
 				</select>
-				<button class="remove">x</button>
+				<button class="remove" title="Remove macro">x</button>
 			</div>
 		</div>
 	</div>

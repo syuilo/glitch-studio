@@ -4,6 +4,7 @@ import { Macro } from './core';
 export type Layer = {
 	id: string;
 	fx: string;
+	isEnabled: boolean;
 	params: Record<string, {
 		type: 'literal' | 'expression';
 		value: any;
@@ -27,6 +28,8 @@ export async function render(
 	console.log('Apply FXs...');
 	let i = 0;
 	for (const layer of layers) {
+		if (!layer.isEnabled) { i++; continue; } // Skip disabled effect
+
 		const label = `FX: ${layer.fx}`;
 		await progress(layers.length, i, `Applying ${layer.fx}...`);
 		console.time(label);
