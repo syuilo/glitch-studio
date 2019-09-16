@@ -3,7 +3,7 @@ import Vuex from 'vuex';
 import uuid from 'uuid/v4';
 import { Layer } from './glitch';
 import { fxs } from './glitch/fxs';
-import { genEmptyValue } from './glitch/core';
+import { genEmptyValue, Macro } from './glitch/core';
 
 export const store = () => new Vuex.Store({
 	state: {

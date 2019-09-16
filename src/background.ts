@@ -21,6 +21,7 @@ function createWindow () {
 		width: 1000, height: 700,
 		title: 'Glitch Studio',
 		icon: __dirname + '/../icon.png',
+		frame: false,
 		webPreferences: {
 			nodeIntegration: true,
 			webSecurity: false
