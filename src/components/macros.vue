@@ -103,6 +103,7 @@ export default Vue.extend({
 		flex: 1;
 		padding: 0 16px;
 		margin-bottom: 8px;
+		overflow: auto;
 
 		> div {
 			display: flex;
@@ -144,6 +145,7 @@ export default Vue.extend({
 	> .macros-editor {
 		flex: 1;
 		padding: 8px;
+		overflow: auto;
 
 		> header {
 			display: flex;
