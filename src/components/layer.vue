@@ -1,6 +1,7 @@
 <template>
 <div class="layer-component">
 	<header class="drag-handle">{{ name }}</header>
+	<button @click="remove()"><fa :icon="faTimes"/></button>
 
 	<div>
 		<div v-for="param in Object.keys(paramDefs)" :key="param">
@@ -16,6 +17,7 @@
 
 <script lang="ts">
 import Vue from 'vue';
+import { faTimes } from '@fortawesome/free-solid-svg-icons';
 import XControl from './control.vue';
 import { fxs } from '../glitch/fxs';
 import { ParamDefs } from '../glitch/core';
@@ -35,7 +37,8 @@ export default Vue.extend({
 	data() {
 		return {
 			name: null as string | null,
-			paramDefs: null as ParamDefs | null
+			paramDefs: null as ParamDefs | null,
+			faTimes
 		};
 	},
 
@@ -77,25 +80,46 @@ export default Vue.extend({
 				param: param,
 			});
 		},
+
+		remove() {
+			this.$store.commit('removeLayer', {
+				layerId: this.layer.id,
+			});
+		},
 	}
 });
 </script>
 
 <style scoped lang="scss">
 .layer-component {
+	position: relative;
 	background: rgba(255, 255, 255, 0.1);
 	border: solid 1px rgba(255, 255, 255, 0.1);
 	border-radius: 4px;
-	box-shadow: 0 1px 1px rgba(0, 0, 0, 0.5);
+	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.7);
 	overflow: hidden;
 
 	> header {
-		padding: 8px 16px;
+		padding: 0 16px;
 		font-size: 14px;
 		font-weight: bold;
 		background: linear-gradient(0deg, rgba(0, 0, 0, 0.2), rgba(255, 255, 255, 0.025));
 		border-bottom: solid 1px rgba(0, 0, 0, 0.5);
 		cursor: move;
+		line-height: 32px;
+	}
+
+	> button {
+		position: absolute;
+		top: 4px;
+		right: 4px;
+		width: 24px;
+		height: 24px;
+		font-size: 12px;
+
+		> * {
+			height: 100%;
+		}
 	}
 
 	> div {

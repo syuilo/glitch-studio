@@ -28,6 +28,10 @@ export const store = () => new Vuex.Store({
 			});
 		},
 
+		removeLayer(state, payload) {
+			Vue.set(state, 'layers', state.layers.filter(layer => layer.id !== payload.layerId));
+		},
+
 		setLayers(state, payload) {
 			Vue.set(state, 'layers', payload.layers);
 		},

@@ -12,6 +12,10 @@
 	},
 	"main": "background.js",
 	"dependencies": {
+		"@fortawesome/fontawesome-svg-core": "^1.2.22",
+		"@fortawesome/free-regular-svg-icons": "^5.10.2",
+		"@fortawesome/free-solid-svg-icons": "^5.10.2",
+		"@fortawesome/vue-fontawesome": "^0.1.7",
 		"color-blend": "^2.0.7",
 		"custom-electron-titlebar": "^3.1.0",
 		"jimp": "^0.8.2",
