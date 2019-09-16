@@ -56,7 +56,6 @@
 import Vue from 'vue';
 import XSignal from './signal.vue';
 import { fxs } from '../glitch/fxs';
-import { ParamDefs } from '../glitch/core';
 
 export default Vue.extend({
 	components: {

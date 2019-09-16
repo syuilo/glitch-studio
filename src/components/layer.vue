@@ -102,6 +102,7 @@ export default Vue.extend({
 		font-weight: bold;
 		background: linear-gradient(0deg, rgba(0, 0, 0, 0.2), rgba(255, 255, 255, 0.025));
 		border-bottom: solid 1px rgba(0, 0, 0, 0.5);
+		cursor: move;
 	}
 
 	> div {

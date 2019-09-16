@@ -18,6 +18,8 @@ export async function render(
 	init: (w: number, h: number) => Promise<CanvasRenderingContext2D>,
 	progress: (max: number, done: number, status: string) => Promise<void>
 ) {
+	if (src == null) return;
+
 	let img = src.clone();
 
 	const ctx = await init(img.bitmap.width, img.bitmap.height);

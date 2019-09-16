@@ -14,6 +14,7 @@
 			</div>
 			<XLayers v-show="tab === 'fx'"/>
 			<XMacros v-show="tab === 'macro'"/>
+			<div v-show="tab === 'meta'" class="meta ui-container"></div>
 		</div>
 	</div>
 	<footer class="footer">
@@ -334,6 +335,14 @@ optgroup {
 
 			> .tab + * + * {
 				border-top-left-radius: 0;
+			}
+
+			> .meta {
+				display: flex;
+				flex-direction: column;
+				box-sizing: border-box;
+				height: 100%;
+				padding: 8px;
 			}
 		}
 	}

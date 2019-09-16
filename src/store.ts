@@ -28,6 +28,10 @@ export const store = () => new Vuex.Store({
 			});
 		},
 
+		setLayers(state, payload) {
+			Vue.set(state, 'layers', payload.layers);
+		},
+
 		addMacro(state) {
 			state.macros.push({
 				id: uuid(),
