@@ -13,12 +13,15 @@ Vue.use(VuexUndoRedo);
 
 Vue.component('fa', FontAwesomeIcon);
 
-new Vue({
+const app = new Vue({
+	data() {
+		return {
+			titleBar: new Titlebar({
+				icon: 'icon.png',
+				backgroundColor: Color.fromHex('#222')
+			})
+		};
+	},
 	render: h => h(App),
 	store: store(),
 }).$mount('#app');
-
-new Titlebar({
-	icon: 'icon.png',
-	backgroundColor: Color.fromHex('#222')
-});

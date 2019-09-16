@@ -2,7 +2,7 @@
 <main id="app">
 	<div class="a">
 		<div class="view">
-			<div class="ui-container">
+			<div class="ui-container" dropzone="copy" @dragover.prevent="e => { e.dataTransfer.dropEffect = 'copy'; }" @drop.prevent="onDrop">
 				<canvas :width="width" :height="height" ref="canvas"/>
 			</div>
 		</div>
@@ -101,7 +101,7 @@ export default Vue.extend({
 	},
 
 	methods: {
-		async openImage() {
+		openImage() {
 			const paths = electron.remote.dialog.showOpenDialogSync(electron.remote.BrowserWindow.getFocusedWindow()!, {
 				properties: ['openFile'],
 				filters: [{
@@ -110,7 +110,13 @@ export default Vue.extend({
 				}]
 			});
 			if (paths == null) return;
-			this.img = await Jimp.read(paths[0]);
+			this.openImageFromPath(paths[0]);
+		},
+
+		async openImageFromPath(path: string) {
+			this.img = await Jimp.read(path);
+			document.title = `Glitch Studio (${path})`;
+			(this.$root as any).titleBar.updateTitle();
 			this.render();
 		},
 
@@ -152,6 +158,10 @@ export default Vue.extend({
 					});
 				});
 			});
+		},
+
+		onDrop(ev: DragEvent) {
+			this.openImageFromPath(ev.dataTransfer!.files[0].path);
 		}
 	}
 });
