@@ -11,6 +11,14 @@
 			<div v-if="paramDef[param].type === 'number'">
 				<input type="number" :value="getParam(param)" @change="updateParam(param, $event.target.value)"/>
 			</div>
+			<div v-if="paramDef[param].type === 'bool'">
+				<button @click="updateParam(param, !getParam(param))">{{ getParam(param) ? 'On' : 'Off' }}</button>
+			</div>
+			<div v-if="paramDef[param].type === 'enum'">
+				<select :value="getParam(param)" @change="updateParam(param, $event.target.value)">
+					<option v-for="o in paramDef[param].options" :value="o" :key="o">{{ decamelize(o) }}</option>
+				</select>
+			</div>
 		</div>
 	</div>
 </div>

@@ -9,7 +9,7 @@
 		</div>
 	</div>
 	<footer class="footer">
-
+		<span class="file">{{ width }} x {{ height }} px</span>
 	</footer>
 </main>
 </template>
@@ -74,11 +74,25 @@ export default Vue.extend({
 <style lang="scss">
 * {
 	user-select: none;
+
+	&::-webkit-scrollbar {
+		width: 6px;
+		height: 6px;
+	}
+
+	&::-webkit-scrollbar-track {
+		background: transparent;
+	}
+
+	&::-webkit-scrollbar-thumb {
+		background: #333;
+		border-radius: 4px;
+	}
 }
 
 html {
 	height: 100%;
-	background: #222;
+	background: #181818;
 	color: #fff;
 	font-family: 'Avenir', Helvetica, Arial, sans-serif;
 	-webkit-font-smoothing: antialiased;
@@ -101,7 +115,7 @@ input[type=number] {
 	color: #fff;
 	padding: 4px 6px;
 	outline: none;
-	max-width: 100%;
+	width: 100%;
 
 	&:focus {
 		border-color: #bb6100;
@@ -175,6 +189,13 @@ option {
 		box-sizing: border-box;
 		background: linear-gradient(0deg, rgba(0, 0, 0, 0.1), rgba(255, 255, 255, 0.025));
 		border-top: solid 1px rgba(255, 255, 255, 0.1);
+		line-height: 32px;
+		font-size: 12px;
+		padding: 0 12px;
+
+		> .file {
+			opacity: 0.8;
+		}
 	}
 }
 </style>

@@ -15,6 +15,7 @@ const paramDef = {
 	},
 	direction: {
 		type: 'enum',
+		options: ['left', 'right'],
 		default: 'left'
 	},
 };

@@ -21,6 +21,7 @@ const paramDef = {
 	},
 	direction: {
 		type: 'enum',
+		options: ['left', 'right'],
 		default: 'left'
 	},
 	range: {
@@ -61,7 +62,7 @@ const fn = fx(paramDef, (w, h, get, set, params) => {
 						1 - (i / velocity)
 					));
 				} else {
-					set(dstX, dstY + j, get(dstX, dstY));
+					set(dstX, dstY + j, get(pxX, pxY + j));
 				}
 			}
 		}
