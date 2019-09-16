@@ -8,8 +8,8 @@
 		</div>
 		<div class="side">
 			<div class="tab">
-				<div :class="{ active: tab === 'fx' }" @click="tab = 'fx'">FX</div>
-				<div :class="{ active: tab === 'macro' }" @click="tab = 'macro'">Macro</div>
+				<div :class="{ active: tab === 'fx' }" @click="tab = 'fx'">FX<span>({{ $store.state.layers.length }})</span></div>
+				<div :class="{ active: tab === 'macro' }" @click="tab = 'macro'">Macro<span>({{ $store.state.macros.length }})</span></div>
 			</div>
 			<XLayers v-show="tab === 'fx'"/>
 			<XMacros v-show="tab === 'macro'"/>
@@ -311,6 +311,12 @@ optgroup {
 						border-bottom: solid 1px #202020;
 						cursor: default;
 						font-weight: bold;
+					}
+
+					> span {
+						margin-left: 8px;
+						opacity: 0.7;
+						font-size: 80%;
 					}
 				}
 			}
