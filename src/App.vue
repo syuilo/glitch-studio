@@ -10,6 +10,7 @@
 			<div class="tab">
 				<div :class="{ active: tab === 'fx' }" @click="tab = 'fx'">FX<span>({{ $store.state.layers.length }})</span></div>
 				<div :class="{ active: tab === 'macro' }" @click="tab = 'macro'">Macro<span>({{ $store.state.macros.length }})</span></div>
+				<div :class="{ active: tab === 'meta' }" @click="tab = 'meta'">Meta</div>
 			</div>
 			<XLayers v-show="tab === 'fx'"/>
 			<XMacros v-show="tab === 'macro'"/>
@@ -366,5 +367,12 @@ body > .titlebar.inactive + div {
 	border-radius: 4px;
 	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
 	overflow: hidden;
+}
+
+.ui-no-contents {
+	margin: 16px;
+	text-align: center;
+	font-size: 12px;
+	opacity: 0.7;
 }
 </style>

@@ -8,6 +8,7 @@
 			</div>
 			<XControl v-else :type="macro.type" :value="macro.value.value" @input="updateMacroAsLiteral(macro, $event)"/>
 		</div>
+		<p v-if="$store.state.macros.length === 0" class="ui-no-contents">No Macros</p>
 	</div>
 	<div class="macros-editor ui-container">
 		<button @click="addMacro()">Add macro</button>

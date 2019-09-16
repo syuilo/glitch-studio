@@ -8,6 +8,7 @@
 	</header>
 	<div class="layers">
 		<XLayer v-for="layer in $store.state.layers" :layer="layer" :key="layer.id"/>
+		<p v-if="$store.state.layers.length === 0" class="ui-no-contents">No FXs</p>
 	</div>
 </div>
 </template>
@@ -57,7 +58,7 @@ export default Vue.extend({
 		box-shadow: 0 2px 2px rgba(0, 0, 0, 0.7) inset;
 		border-radius: 6px;
 
-		> * {
+		> *:not(p) {
 			margin: 8px;
 		}
 	}
