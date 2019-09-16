@@ -2,7 +2,9 @@
 <main id="app">
 	<div class="a">
 		<div class="view">
-			<canvas :width="width" :height="height" ref="canvas"/>
+			<div class="ui-container">
+				<canvas :width="width" :height="height" ref="canvas"/>
+			</div>
 		</div>
 		<div class="side">
 			<XLayers/>
@@ -232,7 +234,8 @@ optgroup {
 	margin: 0 $padding $padding $padding;
 	background: #181818;
 	border: solid 1px rgba(255, 255, 255, 0.1);
-	border-radius: 4px;
+	border-radius: 6px;
+	overflow: hidden;
 
 	> .a {
 		display: flex;
@@ -242,12 +245,21 @@ optgroup {
 		> .view {
 			width: 70%;
 			height: 100%;
+			box-sizing: border-box;
+			padding: 4px;
 
-			> * {
-				display: block;
+			> div {
 				width: 100%;
 				height: 100%;
-				object-fit: contain;
+				box-sizing: border-box;
+				padding: 8px;
+
+				> * {
+					display: block;
+					width: 100%;
+					height: 100%;
+					object-fit: contain;
+				}
 			}
 		}
 
@@ -280,5 +292,12 @@ optgroup {
 
 body > .titlebar.inactive + div {
 	background: #2c2c2c;
+}
+
+.ui-container {
+	border: solid 1px rgba(255, 255, 255, 0.1);
+	border-radius: 4px;
+	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+	overflow: hidden;
 }
 </style>
