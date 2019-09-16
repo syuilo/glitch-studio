@@ -2,43 +2,43 @@ import seedrandom from 'seedrandom';
 import { fx } from '../core';
 import { blend } from '../color';
 
-const paramDef = {
+const paramDefs = {
 	times: {
-		type: 'range',
-		default: 256
+		type: 'range' as const,
+		default: { type: 'literal' as const, value: 256 }
 	},
 	velocity: {
-		type: 'range',
-		default: 32
+		type: 'range' as const,
+		default: { type: 'literal' as const, value: 32 }
 	},
 	size: {
-		type: 'range',
-		default: 1
+		type: 'range' as const,
+		default: { type: 'literal' as const, value: 1 }
 	},
 	fade: {
-		type: 'bool',
-		default: true
+		type: 'bool' as const,
+		default: { type: 'literal' as const, value: true }
 	},
 	direction: {
-		type: 'enum',
+		type: 'enum' as const,
 		options: ['left', 'right'],
-		default: 'left'
+		default: { type: 'literal' as const, value: 'left' }
 	},
 	range: {
-		type: 'range',
-		default: 64
+		type: 'range' as const,
+		default: { type: 'literal' as const, value: 64 }
 	},
 	pos: {
-		type: 'range',
-		default: 0
+		type: 'range' as const,
+		default: { type: 'literal' as const, value: 0 }
 	},
 	seed: {
-		type: 'number',
-		default: 0,
+		type: 'number' as const,
+		default: { type: 'literal' as const, value: 0 },
 	}
 };
 
-const fn = fx(paramDef, (w, h, get, set, params) => {
+const fn = fx(paramDefs, (w, h, get, set, params) => {
 	const { times, velocity, size, fade, seed } = params;
 
 	const rnd = seedrandom(seed.toString());
@@ -72,6 +72,6 @@ const fn = fx(paramDef, (w, h, get, set, params) => {
 export default {
 	name: 'blur',
 	displayName: 'Blur',
-	paramDef,
+	paramDefs,
 	fn
 };

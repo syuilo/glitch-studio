@@ -2,50 +2,50 @@ import * as blend from 'color-blend';
 import { fx, Pixel } from '../core';
 import seedrandom from 'seedrandom';
 
-const paramDef = {
+const paramDefs = {
 	times: {
-		type: 'range',
-		default: 128
+		type: 'range' as const,
+		default: { type: 'literal' as const, value: 128 }
 	},
 	size: {
-		type: 'range',
-		default: 8
+		type: 'range' as const,
+		default: { type: 'literal' as const, value: 8 }
 	},
 	range: {
-		type: 'range',
-		default: 128
+		type: 'range' as const,
+		default: { type: 'expression' as const, value: 'HEIGHT' }
 	},
 	pos: {
-		type: 'range',
-		default: 0
+		type: 'range' as const,
+		default: { type: 'literal' as const, value: 0 }
 	},
 	rgb: {
-		type: 'bool',
-		default: true
+		type: 'bool' as const,
+		default: { type: 'literal' as const, value: true }
 	},
 	cmy: {
-		type: 'bool',
-		default: true
+		type: 'bool' as const,
+		default: { type: 'literal' as const, value: true }
 	},
 	black: {
-		type: 'bool',
-		default: true
+		type: 'bool' as const,
+		default: { type: 'literal' as const, value: true }
 	},
 	white: {
-		type: 'bool',
-		default: true
+		type: 'bool' as const,
+		default: { type: 'literal' as const, value: true }
 	},
 	blendMode: {
-		type: 'blendMode',
-		default: 'normal'
+		type: 'blendMode' as const,
+		default: { type: 'literal' as const, value: 'normal' }
 	},
 	seed: {
-		type: 'number',
-		default: 0,
+		type: 'number' as const,
+		default: { type: 'literal' as const, value: 0 },
 	}
 };
 
-const fn = fx(paramDef, (w, h, get, set, params) => {
+const fn = fx(paramDefs, (w, h, get, set, params) => {
 	const { times, size, range, pos, rgb, cmy, black, white, blendMode, seed } = params;
 
 	const rnd = seedrandom(seed.toString());
@@ -114,6 +114,6 @@ const fn = fx(paramDef, (w, h, get, set, params) => {
 export default {
 	name: 'colorBlocks',
 	displayName: 'Color blocks',
-	paramDef,
+	paramDefs,
 	fn
 };

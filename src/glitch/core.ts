@@ -1,3 +1,6 @@
+import * as math from 'mathjs';
+import { Layer } from '.';
+
 export type Pixel = [number, number, number];
 
 export type FX = (
@@ -7,7 +10,17 @@ export type FX = (
 	params: Record<string, any>,
 ) => void;
 
-export function fx(paramDef: Record<string, any>, fx: FX) {
+export type ParamDef = {
+	type: 'number' | 'range' | 'enum' | 'bool' | 'blendMode' | 'signal';
+	default: {
+		type: 'literal' | 'expression';
+		value: any;
+	};
+};
+
+export type ParamDefs = Record<string, ParamDef>;
+
+export function fx(paramDefs: ParamDefs, fx: FX) {
 	return (input: any, params = {}) => {
 		const output = input.clone();
 
@@ -23,14 +36,53 @@ export function fx(paramDef: Record<string, any>, fx: FX) {
 			output.bitmap.data[idx + 2] = rgb[2];
 		}
 
-		const defaults = {} as any;
+		const defaults = {} as Layer['params'];
 
-		for (const [k, v] of Object.entries(paramDef)) {
+		for (const [k, v] of Object.entries(paramDefs)) {
 			defaults[k] = v.default;
 		}
 
-		fx(input.bitmap.width, input.bitmap.height, get, set, { ...defaults, ...params });
+		const mergedParams = { ...defaults, ...params } as Layer['params'];
+
+		const evaluatedParams = {} as Record<string, any>;
+
+		const scope = {
+			WIDTH: input.bitmap.width,
+			HEIGHT: input.bitmap.height,
+		};
+
+		for (const [k, v] of Object.entries(mergedParams)) {
+			evaluatedParams[k] =
+				v.type === 'literal'
+					? v.value
+					: v.value
+						? math.evaluate(v.value, scope)
+						: genEmptyValue(paramDefs[k]);
+		}
+
+		console.debug('EVAL', evaluatedParams);
+
+		fx(input.bitmap.width, input.bitmap.height, get, set, evaluatedParams);
 
 		return output;
+	}
+}
+
+export function genEmptyValue(paramDef: ParamDef): any {
+	if (paramDef.type === 'number') {
+		return 0;
+	} else if (paramDef.type === 'range') {
+		let v = 0;
+		if (paramDef.hasOwnProperty('min')) v = Math.max((paramDef as any)['min'], v);
+		if (paramDef.hasOwnProperty('max')) v = Math.min((paramDef as any)['max'], v);
+		return v;
+	} else if (paramDef.type === 'enum') {
+		return (paramDef as any)['options'][0];
+	} else if (paramDef.type === 'bool') {
+		return false;
+	} else if (paramDef.type === 'blendMode') {
+		return 'normal';
+	} else if (paramDef.type === 'signal') {
+		return [false, false, false];
 	}
 }

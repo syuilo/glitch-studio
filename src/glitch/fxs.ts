@@ -1,4 +1,4 @@
-import { fx } from './core';
+import { fx, ParamDefs } from './core';
 import swap from './fx/swap';
 import tear from './fx/tear';
 import tearBulk from './fx/tear-bulk';
@@ -11,6 +11,6 @@ export const fxs = {
 } as Record<string, {
 	name: string;
 	displayName: string;
-	paramDef: Record<string, any>;
+	paramDefs: ParamDefs;
 	fn: ReturnType<typeof fx>;
 }>;

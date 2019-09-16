@@ -1,9 +1,9 @@
 import { fx } from '../core';
 
-const paramDef = {
+const paramDefs = {
 };
 
-const fn = fx(paramDef, (w, h, get, set) => {
+const fn = fx(paramDefs, (w, h, get, set) => {
 	for (let x = 0; x < w; x++) {
 		for (let y = 0; y < h; y++) {
 			const [r, g, b] = get(x, y);
@@ -15,6 +15,6 @@ const fn = fx(paramDef, (w, h, get, set) => {
 export default {
 	name: 'swap',
 	displayName: 'Swap',
-	paramDef,
+	paramDefs,
 	fn
 };

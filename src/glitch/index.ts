@@ -3,7 +3,10 @@ import { fxs } from './fxs';
 export type Layer = {
 	id: string;
 	fx: string;
-	params: Record<string, any>;
+	params: Record<string, {
+		type: 'literal' | 'expression';
+		value: any;
+	}>;
 };
 
 /**

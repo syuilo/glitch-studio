@@ -1,21 +1,21 @@
 import { fx } from '../core';
 
-const paramDef = {
+const paramDefs = {
 	amount: {
-		type: 'range',
-		default: 8
+		type: 'range' as const,
+		default: { type: 'literal' as const, value: 8 }
 	},
 	leftSignal: {
-		type: 'signal',
-		default: [true, false, false]
+		type: 'signal' as const,
+		default: { type: 'literal' as const, value: [true, false, false] }
 	},
 	rightSignal: {
-		type: 'signal',
-		default: [false, false, true]
+		type: 'signal' as const,
+		default: { type: 'literal' as const, value: [false, false, true] }
 	},
 };
 
-const fn = fx(paramDef, (w, h, get, set, params) => {
+const fn = fx(paramDefs, (w, h, get, set, params) => {
 	const { amount, leftSignal, rightSignal } = params;
 	const leftR = leftSignal[0];
 	const leftG = leftSignal[1];
@@ -46,6 +46,6 @@ const fn = fx(paramDef, (w, h, get, set, params) => {
 export default {
 	name: 'channelShift',
 	displayName: 'Channel shift',
-	paramDef,
+	paramDefs,
 	fn
 };

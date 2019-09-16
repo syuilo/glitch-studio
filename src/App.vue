@@ -142,6 +142,7 @@ body {
 	margin: 0;
 }
 
+input[type=text],
 input[type=number] {
 	display: block;
 	box-sizing: border-box;
@@ -158,6 +159,10 @@ input[type=number] {
 	&:focus {
 		border-color: $theme-color;
 	}
+}
+
+input.expression {
+	background: rgba(55, 64, 28, 0.3);
 }
 
 select, button {

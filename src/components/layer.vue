@@ -3,24 +3,27 @@
 	<header>{{ name }}</header>
 
 	<div>
-		<div v-for="param in Object.keys(paramDef)" :key="param">
-			<label>{{ decamelize(param) }}</label>
-			<div v-if="paramDef[param].type === 'range'">
-				<input type="number" :value="getParam(param)" step="1" @change="updateParam(param, parseInt($event.target.value, 10))"/>
+		<div v-for="param in Object.keys(paramDefs)" :key="param">
+			<label :class="{ expression: isExpression(param) }" @dblclick="toggleValueType(param)">{{ decamelize(param) }}</label>
+			<div v-if="isExpression(param)">
+				<input type="text" class="expression" :value="getParam(param)" @change="updateParamAsExpression(param, $event.target.value)"/>
 			</div>
-			<div v-if="paramDef[param].type === 'number'">
-				<input type="number" :value="getParam(param)" @change="updateParam(param, parseInt($event.target.value, 10))"/>
+			<div v-else-if="paramDefs[param].type === 'range'">
+				<input type="number" :value="getParam(param)" step="1" @change="updateParamAsLiteral(param, parseInt($event.target.value, 10))"/>
 			</div>
-			<div v-if="paramDef[param].type === 'bool'">
-				<button @click="updateParam(param, !getParam(param))" :class="{ primary: getParam(param) }">{{ getParam(param) ? 'On' : 'Off' }}</button>
+			<div v-else-if="paramDefs[param].type === 'number'">
+				<input type="number" :value="getParam(param)" @change="updateParamAsLiteral(param, parseInt($event.target.value, 10))"/>
 			</div>
-			<div v-if="paramDef[param].type === 'enum'">
-				<select :value="getParam(param)" @change="updateParam(param, $event.target.value)">
-					<option v-for="o in paramDef[param].options" :value="o" :key="o">{{ decamelize(o) }}</option>
+			<div v-else-if="paramDefs[param].type === 'bool'">
+				<button @click="updateParamAsLiteral(param, !getParam(param))" :class="{ primary: getParam(param) }">{{ getParam(param) ? 'On' : 'Off' }}</button>
+			</div>
+			<div v-else-if="paramDefs[param].type === 'enum'">
+				<select :value="getParam(param)" @change="updateParamAsLiteral(param, $event.target.value)">
+					<option v-for="o in paramDefs[param].options" :value="o" :key="o">{{ decamelize(o) }}</option>
 				</select>
 			</div>
-			<div v-if="paramDef[param].type === 'blendMode'">
-				<select :value="getParam(param)" @change="updateParam(param, $event.target.value)">
+			<div v-else-if="paramDefs[param].type === 'blendMode'">
+				<select :value="getParam(param)" @change="updateParamAsLiteral(param, $event.target.value)">
 					<optgroup label="Normal">
 						<option value="normal">Normal</option>
 					</optgroup>
@@ -51,8 +54,8 @@
 					</optgroup>
 				</select>
 			</div>
-			<div v-if="paramDef[param].type === 'signal'">
-				<XSignal :signal="getParam(param)" @input="updateParam(param, $event)"/>
+			<div v-else-if="paramDefs[param].type === 'signal'">
+				<XSignal :signal="getParam(param)" @input="updateParamAsLiteral(param, $event)"/>
 			</div>
 		</div>
 	</div>
@@ -63,6 +66,7 @@
 import Vue from 'vue';
 import XSignal from './signal.vue';
 import { fxs } from '../glitch/fxs';
+import { ParamDefs } from '../glitch/core';
 
 export default Vue.extend({
 	components: {
@@ -79,26 +83,46 @@ export default Vue.extend({
 	data() {
 		return {
 			name: null as string | null,
-			paramDef: null as Record<string, any> | null
+			paramDefs: null as ParamDefs | null
 		};
 	},
 
 	created() {
 		this.name = fxs[this.layer.fx].displayName;
-		this.paramDef = fxs[this.layer.fx].paramDef;
+		this.paramDefs = fxs[this.layer.fx].paramDefs;
 	},
 
 	methods: {
-		getParam(param: string) {
+		isExpression(param: string) {
 			const layer = this.$store.state.layers.find((layer: any) => layer.id === this.layer.id)!;
-			return layer.params[param];
+			return layer.params[param].type === 'expression';
 		},
 
-		updateParam(param: string, value: any) {
-			this.$store.commit('updateParam', {
+		getParam(param: string) {
+			const layer = this.$store.state.layers.find((layer: any) => layer.id === this.layer.id)!;
+			return layer.params[param].value;
+		},
+
+		updateParamAsLiteral(param: string, value: any) {
+			this.$store.commit('updateParamAsLiteral', {
 				layerId: this.layer.id,
 				param: param,
 				value: value
+			});
+		},
+
+		updateParamAsExpression(param: string, value: string) {
+			this.$store.commit('updateParamAsExpression', {
+				layerId: this.layer.id,
+				param: param,
+				value: value
+			});
+		},
+
+		toggleValueType(param: string) {
+			this.$store.commit('toggleValueType', {
+				layerId: this.layer.id,
+				param: param,
 			});
 		},
 
@@ -155,6 +179,11 @@ export default Vue.extend({
 				overflow: hidden;
 				font-size: 14px;
 				color: rgba(255, 255, 255, 0.9);
+				cursor: pointer;
+
+				&.expression {
+					color: #9edc29;
+				}
 			}
 
 			> div {

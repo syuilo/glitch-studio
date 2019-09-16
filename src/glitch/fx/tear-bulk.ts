@@ -1,18 +1,18 @@
 import seedrandom from 'seedrandom';
 import { fx } from '../core';
 
-const paramDef = {
+const paramDefs = {
 	times: {
-		type: 'range',
-		default: 32,
+		type: 'range' as const,
+		default: { type: 'literal' as const, value: 32 },
 	},
 	seed: {
-		type: 'number',
-		default: 0,
+		type: 'number' as const,
+		default: { type: 'literal' as const, value: 0 },
 	}
 };
 
-const fn = fx(paramDef, (w, h, get, set, params) => {
+const fn = fx(paramDefs, (w, h, get, set, params) => {
 	const rnd = seedrandom(params.seed.toString());
 
 	for (let i = 0; i < params.times; i++) {
@@ -60,6 +60,6 @@ const fn = fx(paramDef, (w, h, get, set, params) => {
 export default {
 	name: 'tearBulk',
 	displayName: 'Tear (bulk)',
-	paramDef,
+	paramDefs,
 	fn
 };

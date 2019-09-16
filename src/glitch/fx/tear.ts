@@ -1,26 +1,26 @@
 import { fx } from '../core';
 
-const paramDef = {
+const paramDefs = {
 	thickness: {
-		type: 'range',
-		default: 64
+		type: 'range' as const,
+		default: { type: 'literal' as const, value: 64 }
 	},
 	pos: {
-		type: 'range',
-		default: 0
+		type: 'range' as const,
+		default: { type: 'literal' as const, value: 0 }
 	},
 	amount: {
-		type: 'range',
-		default: 32
+		type: 'range' as const,
+		default: { type: 'literal' as const, value: 32 }
 	},
 	direction: {
-		type: 'enum',
+		type: 'enum' as const,
 		options: ['left', 'right'],
-		default: 'left'
+		default: { type: 'literal' as const, value: 'left' }
 	},
 };
 
-const fn = fx(paramDef, (w, h, get, set, params) => {
+const fn = fx(paramDefs, (w, h, get, set, params) => {
 	const { thickness, pos, amount, direction } = params;
 
 	if (direction === 'right') {
@@ -61,6 +61,6 @@ const fn = fx(paramDef, (w, h, get, set, params) => {
 export default {
 	name: 'tear',
 	displayName: 'Tear',
-	paramDef,
+	paramDefs,
 	fn
 };
