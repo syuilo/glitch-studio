@@ -1794,6 +1794,11 @@ collection-visit@^1.0.0:
     map-visit "^1.0.0"
     object-visit "^1.0.0"
 
+color-blend@^2.0.7:
+  version "2.0.7"
+  resolved "https://registry.yarnpkg.com/color-blend/-/color-blend-2.0.7.tgz#04e3cad0f7b75780f5878867ae8110d21b6546a7"
+  integrity sha512-MXXaVpj6PenKusV4jsL0dX5WcH05RVxxiy0NSvgGMewlkCo5UUUf0/naavjKBKrnU2F+hwxPxN6mfS3cScsuCQ==
+
 color-convert@^1.9.0, color-convert@^1.9.1:
   version "1.9.3"
   resolved "https://registry.npm.taobao.org/color-convert/download/color-convert-1.9.3.tgz#bb71850690e1f136567de629d2d5471deda4c1e8"

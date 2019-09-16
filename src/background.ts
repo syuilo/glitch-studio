@@ -17,10 +17,15 @@ protocol.registerSchemesAsPrivileged([{scheme: 'app', privileges: { secure: true
 
 function createWindow () {
 	// Create the browser window.
-	win = new BrowserWindow({ width: 1000, height: 700, title: 'Glitch Studio', webPreferences: {
-		nodeIntegration: true,
-		webSecurity: false
-	}});
+	win = new BrowserWindow({
+		width: 1000, height: 700,
+		title: 'Glitch Studio',
+		icon: __dirname + '/../icon.png',
+		webPreferences: {
+			nodeIntegration: true,
+			webSecurity: false
+		}
+	});
 
 	if (process.env.WEBPACK_DEV_SERVER_URL) {
 		// Load the url of the dev server if in development mode

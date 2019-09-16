@@ -205,6 +205,10 @@ option {
 	background: #222;
 }
 
+optgroup {
+	background: #333;
+}
+
 #app {
 	height: 100%;
 

@@ -12,11 +12,43 @@
 				<input type="number" :value="getParam(param)" @change="updateParam(param, parseInt($event.target.value, 10))"/>
 			</div>
 			<div v-if="paramDef[param].type === 'bool'">
-				<button @click="updateParam(param, !getParam(param))">{{ getParam(param) ? 'On' : 'Off' }}</button>
+				<button @click="updateParam(param, !getParam(param))" :class="{ primary: getParam(param) }">{{ getParam(param) ? 'On' : 'Off' }}</button>
 			</div>
 			<div v-if="paramDef[param].type === 'enum'">
 				<select :value="getParam(param)" @change="updateParam(param, $event.target.value)">
 					<option v-for="o in paramDef[param].options" :value="o" :key="o">{{ decamelize(o) }}</option>
+				</select>
+			</div>
+			<div v-if="paramDef[param].type === 'blendMode'">
+				<select :value="getParam(param)" @change="updateParam(param, $event.target.value)">
+					<optgroup label="Normal">
+						<option value="normal">Normal</option>
+					</optgroup>
+					<optgroup label="Darken">
+						<option value="darken">Darken</option>
+						<option value="multiply">Multiply</option>
+						<option value="colorBurn">Color Burn</option>
+					</optgroup>
+					<optgroup label="Lighten">
+						<option value="lighten">Lighten</option>
+						<option value="screen">Screen</option>
+						<option value="colorDodge">Color Dodge</option>
+					</optgroup>
+					<optgroup label="Contrast">
+						<option value="overlay">Overlay</option>
+						<option value="softLight">Soft Light</option>
+						<option value="hardLight">Hard Light</option>
+					</optgroup>
+					<optgroup label="Inversion">
+						<option value="difference">Difference</option>
+						<option value="exclusion">Exclusion</option>
+					</optgroup>
+					<optgroup label="Component">
+						<option value="hue">Hue</option>
+						<option value="saturation">Saturation</option>
+						<option value="color">Color</option>
+						<option value="luminosity">Luminosity</option>
+					</optgroup>
 				</select>
 			</div>
 			<div v-if="paramDef[param].type === 'signal'">

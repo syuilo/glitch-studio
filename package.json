@@ -1,33 +1,34 @@
 {
-  "name": "glitch-studio",
-  "version": "0.1.0",
-  "private": true,
-  "scripts": {
-    "serve": "vue-cli-service serve",
-    "build": "vue-cli-service build",
-    "electron:build": "vue-cli-service electron:build",
-    "electron:serve": "vue-cli-service electron:serve",
-    "postinstall": "electron-builder install-app-deps",
-    "postuninstall": "electron-builder install-app-deps"
-  },
-  "main": "background.js",
-  "dependencies": {
-    "jimp": "^0.8.2",
-    "seedrandom": "^3.0.3",
-    "uuid": "^3.3.3",
-    "vue": "^2.6.10",
-    "vuex": "^3.1.1"
-  },
-  "devDependencies": {
-    "@types/seedrandom": "^2.4.28",
-    "@types/uuid": "^3.4.5",
-    "@vue/cli-plugin-typescript": "^3.11.0",
-    "@vue/cli-service": "^3.11.0",
-    "electron": "^6.0.0",
-    "sass": "^1.18.0",
-    "sass-loader": "^7.1.0",
-    "typescript": "^3.4.3",
-    "vue-cli-plugin-electron-builder": "^1.4.0",
-    "vue-template-compiler": "^2.6.10"
-  }
+	"name": "glitch-studio",
+	"version": "0.1.0",
+	"private": true,
+	"scripts": {
+		"serve": "vue-cli-service serve",
+		"build": "vue-cli-service build",
+		"electron:build": "vue-cli-service electron:build",
+		"electron:serve": "vue-cli-service electron:serve",
+		"postinstall": "electron-builder install-app-deps",
+		"postuninstall": "electron-builder install-app-deps"
+	},
+	"main": "background.js",
+	"dependencies": {
+		"color-blend": "^2.0.7",
+		"jimp": "^0.8.2",
+		"seedrandom": "^3.0.3",
+		"uuid": "^3.3.3",
+		"vue": "^2.6.10",
+		"vuex": "^3.1.1"
+	},
+	"devDependencies": {
+		"@types/seedrandom": "^2.4.28",
+		"@types/uuid": "^3.4.5",
+		"@vue/cli-plugin-typescript": "^3.11.0",
+		"@vue/cli-service": "^3.11.0",
+		"electron": "^6.0.0",
+		"sass": "^1.18.0",
+		"sass-loader": "^7.1.0",
+		"typescript": "^3.4.3",
+		"vue-cli-plugin-electron-builder": "^1.4.0",
+		"vue-template-compiler": "^2.6.10"
+	}
 }
