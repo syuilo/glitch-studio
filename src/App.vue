@@ -305,12 +305,18 @@ optgroup {
 					position: relative;
 					font-size: 14px;
 					cursor: pointer;
+					color: rgba(255, 255, 255, 0.7);
+
+					&:hover {
+						color: #fff;
+					}
 
 					&.active {
 						background: #202020;
 						border-bottom: solid 1px #202020;
 						cursor: default;
 						font-weight: bold;
+						color: #fff;
 					}
 
 					> span {
