@@ -9,7 +9,7 @@ const paramDefs = {
 	},
 	size: {
 		type: 'range' as const,
-		default: { type: 'literal' as const, value: 8 }
+		default: { type: 'literal' as const, value: 64 }
 	},
 	range: {
 		type: 'range' as const,
@@ -37,7 +37,7 @@ const paramDefs = {
 	},
 	blendMode: {
 		type: 'blendMode' as const,
-		default: { type: 'literal' as const, value: 'normal' }
+		default: { type: 'literal' as const, value: 'darken' }
 	},
 	seed: {
 		type: 'number' as const,

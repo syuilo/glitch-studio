@@ -130,7 +130,7 @@ $theme-color: #bb6100;
 
 html {
 	height: 100%;
-	background: #181818;
+	background: #222;
 	color: #fff;
 	font-family: 'Avenir', Helvetica, Arial, sans-serif;
 	-webkit-font-smoothing: antialiased;
@@ -139,7 +139,6 @@ html {
 
 body {
 	height: 100%;
-	margin: 0;
 }
 
 input[type=text],
@@ -215,11 +214,20 @@ optgroup {
 }
 
 #app {
-	height: 100%;
+	$padding: 6px;
+
+	box-sizing: border-box;
+	height: calc(100% - #{$padding});
+	width: calc(100% - (#{$padding} * 2));
+	margin: 0 $padding $padding $padding;
+	background: #181818;
+	border: solid 1px rgba(255, 255, 255, 0.1);
+	border-radius: 4px;
 
 	> .a {
 		display: flex;
 		height: calc(100% - 32px);
+		box-shadow: 0 2px 2px -1px rgba(0, 0, 0, 0.3) inset;
 
 		> .view {
 			width: 70%;
@@ -258,5 +266,9 @@ optgroup {
 			opacity: 0.8;
 		}
 	}
+}
+
+body > .titlebar.inactive + div {
+	background: #2c2c2c;
 }
 </style>
