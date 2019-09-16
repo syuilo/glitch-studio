@@ -4,59 +4,11 @@
 
 	<div>
 		<div v-for="param in Object.keys(paramDefs)" :key="param">
-			<label :class="{ expression: isExpression(param) }" @dblclick="toggleValueType(param)">{{ decamelize(param) }}</label>
+			<label :class="{ expression: isExpression(param) }" @dblclick="toggleParamValueType(param)">{{ decamelize(param) }}</label>
 			<div v-if="isExpression(param)">
 				<input type="text" class="expression" :value="getParam(param)" @change="updateParamAsExpression(param, $event.target.value)"/>
 			</div>
-			<div v-else-if="paramDefs[param].type === 'range'">
-				<input type="number" :value="getParam(param)" step="1" @change="updateParamAsLiteral(param, parseInt($event.target.value, 10))"/>
-			</div>
-			<div v-else-if="paramDefs[param].type === 'number'">
-				<input type="number" :value="getParam(param)" @change="updateParamAsLiteral(param, parseInt($event.target.value, 10))"/>
-			</div>
-			<div v-else-if="paramDefs[param].type === 'bool'">
-				<button @click="updateParamAsLiteral(param, !getParam(param))" :class="{ primary: getParam(param) }">{{ getParam(param) ? 'On' : 'Off' }}</button>
-			</div>
-			<div v-else-if="paramDefs[param].type === 'enum'">
-				<select :value="getParam(param)" @change="updateParamAsLiteral(param, $event.target.value)">
-					<option v-for="o in paramDefs[param].options" :value="o" :key="o">{{ decamelize(o) }}</option>
-				</select>
-			</div>
-			<div v-else-if="paramDefs[param].type === 'blendMode'">
-				<select :value="getParam(param)" @change="updateParamAsLiteral(param, $event.target.value)">
-					<optgroup label="Normal">
-						<option value="normal">Normal</option>
-					</optgroup>
-					<optgroup label="Darken">
-						<option value="darken">Darken</option>
-						<option value="multiply">Multiply</option>
-						<option value="colorBurn">Color Burn</option>
-					</optgroup>
-					<optgroup label="Lighten">
-						<option value="lighten">Lighten</option>
-						<option value="screen">Screen</option>
-						<option value="colorDodge">Color Dodge</option>
-					</optgroup>
-					<optgroup label="Contrast">
-						<option value="overlay">Overlay</option>
-						<option value="softLight">Soft Light</option>
-						<option value="hardLight">Hard Light</option>
-					</optgroup>
-					<optgroup label="Inversion">
-						<option value="difference">Difference</option>
-						<option value="exclusion">Exclusion</option>
-					</optgroup>
-					<optgroup label="Component">
-						<option value="hue">Hue</option>
-						<option value="saturation">Saturation</option>
-						<option value="color">Color</option>
-						<option value="luminosity">Luminosity</option>
-					</optgroup>
-				</select>
-			</div>
-			<div v-else-if="paramDefs[param].type === 'signal'">
-				<XSignal :signal="getParam(param)" @input="updateParamAsLiteral(param, $event)"/>
-			</div>
+			<XControl v-else :type="paramDefs[param].type" :value="getParam(param)" @input="updateParamAsLiteral(param, $event)"/>
 		</div>
 	</div>
 </div>
@@ -64,13 +16,13 @@
 
 <script lang="ts">
 import Vue from 'vue';
-import XSignal from './signal.vue';
+import XControl from './control.vue';
 import { fxs } from '../glitch/fxs';
 import { ParamDefs } from '../glitch/core';
 
 export default Vue.extend({
 	components: {
-		XSignal
+		XControl
 	},
 
 	props: {
@@ -119,8 +71,8 @@ export default Vue.extend({
 			});
 		},
 
-		toggleValueType(param: string) {
-			this.$store.commit('toggleValueType', {
+		toggleParamValueType(param: string) {
+			this.$store.commit('toggleParamValueType', {
 				layerId: this.layer.id,
 				param: param,
 			});

@@ -28,7 +28,20 @@ export const store = () => new Vuex.Store({
 			});
 		},
 
-		toggleValueType(state, payload) {
+		addMacro(state) {
+			state.macros.push({
+				id: uuid(),
+				type: 'number',
+				label: 'Macro',
+				name: 'macro',
+				value: {
+					type: 'literal',
+					value: 0
+				}
+			});
+		},
+
+		toggleParamValueType(state, payload) {
 			const layer = state.layers.find(layer => layer.id === payload.layerId)!;
 			const isLiteral = layer.params[payload.param].type === 'literal';
 			if (isLiteral) {
@@ -45,7 +58,6 @@ export const store = () => new Vuex.Store({
 		},
 
 		updateParamAsLiteral(state, payload) {
-			console.debug('UPDATE', payload.param, payload.value);
 			const layer = state.layers.find(layer => layer.id === payload.layerId)!;
 			Vue.set(layer.params, payload.param, {
 				type: 'literal',
@@ -54,12 +66,58 @@ export const store = () => new Vuex.Store({
 		},
 
 		updateParamAsExpression(state, payload) {
-			console.debug('UPDATE', payload.param, payload.value);
 			const layer = state.layers.find(layer => layer.id === payload.layerId)!;
 			Vue.set(layer.params, payload.param, {
 				type: 'expression',
 				value: payload.value
 			});
+		},
+
+		toggleMacroValueType(state, payload) {
+			const macro = state.macros.find(macro => macro.id === payload.macroId)!;
+			const isLiteral = macro.value.type === 'literal';
+			if (isLiteral) {
+				Vue.set(macro, 'value', {
+					type: 'expression',
+					value: ''
+				});
+			} else {
+				Vue.set(macro, 'value', {
+					type: 'literal',
+					value: genEmptyValue(macro)
+				});
+			}
+		},
+
+		updateMacroAsLiteral(state, payload) {
+			const macro = state.macros.find(macro => macro.id === payload.macroId)!;
+			Vue.set(macro, 'value', {
+				type: 'literal',
+				value: payload.value
+			});
+		},
+
+		updateMacroAsExpression(state, payload) {
+			const macro = state.macros.find(macro => macro.id === payload.macroId)!;
+			Vue.set(macro, 'value', {
+				type: 'expression',
+				value: payload.value
+			});
+		},
+
+		updateMacroLabel(state, payload) {
+			const macro = state.macros.find(macro => macro.id === payload.macroId)!;
+			Vue.set(macro, 'label', payload.value);
+		},
+
+		updateMacroName(state, payload) {
+			const macro = state.macros.find(macro => macro.id === payload.macroId)!;
+			Vue.set(macro, 'name', payload.value);
+		},
+
+		updateMacroType(state, payload) {
+			const macro = state.macros.find(macro => macro.id === payload.macroId)!;
+			Vue.set(macro, 'type', payload.value);
 		},
 	}
 });

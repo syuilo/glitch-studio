@@ -1,4 +1,5 @@
 import { fxs } from './fxs';
+import { Macro } from './core';
 
 export type Layer = {
 	id: string;
@@ -13,7 +14,7 @@ export type Layer = {
  * Apply FX and render it to a canvas
  */
 export async function render(
-	src: any, layers: Layer[],
+	src: any, layers: Layer[], macros: Macro[],
 	init: (w: number, h: number) => Promise<CanvasRenderingContext2D>,
 	progress: (max: number, done: number, status: string) => Promise<void>
 ) {
@@ -27,7 +28,7 @@ export async function render(
 		const label = `FX: ${layer.fx}`;
 		await progress(layers.length, i, `Applying ${layer.fx}...`);
 		console.time(label);
-		img = fxs[layer.fx].fn(img, layer.params);
+		img = fxs[layer.fx].fn(img, layer.params, macros);
 		console.timeEnd(label);
 		i++;
 	}

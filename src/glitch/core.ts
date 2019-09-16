@@ -23,13 +23,18 @@ export type ParamDef = {
 export type ParamDefs = Record<string, ParamDef>;
 
 export type Macro = {
+	id: string;
 	label: string;
 	name: string;
 	type: DataType;
+	value: {
+		type: 'literal' | 'expression';
+		value: any;
+	};
 };
 
 export function fx(paramDefs: ParamDefs, fx: FX) {
-	return (input: any, params = {}) => {
+	return (input: any, params: Layer['params'], macros: Macro[]) => {
 		const output = input.clone();
 
 		function get(x: number, y: number) {
@@ -59,12 +64,28 @@ export function fx(paramDefs: ParamDefs, fx: FX) {
 			HEIGHT: input.bitmap.height,
 		};
 
+		// Mixin macros
+		const macroScope = {} as Record<string, any>;
+		for (const macro of macros) {
+			macroScope[macro.name] =
+				macro.value.type === 'literal'
+					? macro.value.value
+					: macro.value.value
+						? math.evaluate(macro.value.value, scope)
+						: genEmptyValue(macro);
+		}
+
+		const mixedScope = {
+			...macroScope,
+			...scope,
+		};
+
 		for (const [k, v] of Object.entries(mergedParams)) {
 			evaluatedParams[k] =
 				v.type === 'literal'
 					? v.value
 					: v.value
-						? math.evaluate(v.value, scope)
+						? math.evaluate(v.value, mixedScope)
 						: genEmptyValue(paramDefs[k]);
 		}
 
@@ -76,7 +97,7 @@ export function fx(paramDefs: ParamDefs, fx: FX) {
 	}
 }
 
-export function genEmptyValue(paramDef: ParamDef): any {
+export function genEmptyValue(paramDef: Omit<ParamDef, 'default'>): any {
 	if (paramDef.type === 'number') {
 		return 0;
 	} else if (paramDef.type === 'range') {

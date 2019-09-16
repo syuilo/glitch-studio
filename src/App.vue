@@ -7,7 +7,12 @@
 			</div>
 		</div>
 		<div class="side">
-			<XLayers/>
+			<div class="tab">
+				<div :class="{ active: tab === 'fx' }" @click="tab = 'fx'">FX</div>
+				<div :class="{ active: tab === 'macro' }" @click="tab = 'macro'">Macro</div>
+			</div>
+			<XLayers v-show="tab === 'fx'"/>
+			<XMacros v-show="tab === 'macro'"/>
 		</div>
 	</div>
 	<footer class="footer">
@@ -23,6 +28,7 @@ import * as electron from 'electron';
 import Vue from 'vue';
 const Jimp = require('jimp');
 import XLayers from './components/layers.vue';
+import XMacros from './components/macros.vue';
 import { render } from './glitch';
 import { ipcRenderer } from 'electron';
 
@@ -30,7 +36,8 @@ export default Vue.extend({
 	name: 'app',
 
 	components: {
-		XLayers
+		XLayers,
+		XMacros
 	},
 
 	data() {
@@ -39,6 +46,7 @@ export default Vue.extend({
 			width: 0,
 			height: 0,
 			status: null as string | null,
+			tab: 'fx'
 		};
 	},
 
@@ -50,6 +58,10 @@ export default Vue.extend({
 
 	mounted() {
 		this.$watch('$store.state.layers', () => {
+			this.render();
+		}, { deep: true });
+
+		this.$watch('$store.state.macros', () => {
 			this.render();
 		}, { deep: true });
 
@@ -109,7 +121,7 @@ export default Vue.extend({
 		},
 
 		render() {
-			render(this.img, this.$store.state.layers, (w, h) => new Promise((res, rej) => {
+			render(this.img, this.$store.state.layers, this.$store.state.macros, (w, h) => new Promise((res, rej) => {
 				this.width = w;
 				this.height = h;
 				this.$nextTick(() => {
@@ -250,19 +262,19 @@ optgroup {
 	> .a {
 		display: flex;
 		height: calc(100% - 32px);
-		box-shadow: 0 2px 2px -1px rgba(0, 0, 0, 0.3) inset;
+		box-shadow: 0 2px 2px -1px rgba(0, 0, 0, 0.7) inset;
 
 		> .view {
 			width: 70%;
 			height: 100%;
 			box-sizing: border-box;
-			padding: 4px;
+			padding: 8px 0 8px 8px;
 
 			> div {
 				width: 100%;
 				height: 100%;
 				box-sizing: border-box;
-				padding: 8px;
+				padding: 16px;
 
 				> * {
 					display: block;
@@ -276,11 +288,39 @@ optgroup {
 		> .side {
 			width: 30%;
 			height: 100%;
+			box-sizing: border-box;
 			display: flex;
 			flex-direction: column;
+			padding: 8px;
 
-			> * {
-				margin: 4px;
+			> .tab {
+				> div {
+					display: inline-block;
+					border: solid 1px rgba(255, 255, 255, 0.1);
+					border-bottom: solid 1px transparent;
+					border-radius: 4px 4px 0 0;
+					padding: 8px 12px;
+					margin-bottom: -1px;
+					z-index: 1;
+					position: relative;
+					font-size: 14px;
+					cursor: pointer;
+
+					&.active {
+						background: #202020;
+						border-bottom: solid 1px #202020;
+						cursor: default;
+						font-weight: bold;
+					}
+				}
+			}
+
+			> .tab + * {
+				border-top-left-radius: 0;
+			}
+
+			> .tab + * + * {
+				border-top-left-radius: 0;
 			}
 		}
 	}
@@ -309,6 +349,7 @@ body > .titlebar.inactive + div {
 }
 
 .ui-container {
+	background: #202020;
 	border: solid 1px rgba(255, 255, 255, 0.1);
 	border-radius: 4px;
 	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);

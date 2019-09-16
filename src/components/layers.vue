@@ -54,7 +54,7 @@ export default Vue.extend({
 		overflow: auto;
 		border: solid 1px rgba(255, 255, 255, 0.1);
 		background: rgba(0, 0, 0, 0.3);
-		box-shadow: 0 1px 1px rgba(0, 0, 0, 0.5) inset;
+		box-shadow: 0 2px 2px rgba(0, 0, 0, 0.7) inset;
 		border-radius: 6px;
 
 		> * {
