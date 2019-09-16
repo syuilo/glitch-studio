@@ -8,9 +8,9 @@
 		</div>
 		<div class="side">
 			<div class="tab">
-				<div :class="{ active: tab === 'fx' }" @click="tab = 'fx'">FX<span>({{ $store.state.layers.length }})</span></div>
-				<div :class="{ active: tab === 'macro' }" @click="tab = 'macro'">Macro<span>({{ $store.state.macros.length }})</span></div>
-				<div :class="{ active: tab === 'meta' }" @click="tab = 'meta'">Meta</div>
+				<div :class="{ active: tab === 'fx' }" @click="tab = 'fx'"><fa :icon="faLayerGroup"/>FX<span>({{ $store.state.layers.length }})</span></div>
+				<div :class="{ active: tab === 'macro' }" @click="tab = 'macro'"><fa :icon="faSlidersH"/>Macro<span>({{ $store.state.macros.length }})</span></div>
+				<div :class="{ active: tab === 'meta' }" @click="tab = 'meta'"><fa :icon="faInfoCircle"/>Meta</div>
 			</div>
 			<XLayers v-show="tab === 'fx'"/>
 			<XMacros v-show="tab === 'macro'"/>
@@ -27,6 +27,7 @@
 <script lang="ts">
 import * as fs from 'fs';
 import * as electron from 'electron';
+import { faLayerGroup, faSlidersH, faInfoCircle } from '@fortawesome/free-solid-svg-icons';
 import Vue from 'vue';
 const Jimp = require('jimp');
 import XLayers from './components/layers.vue';
@@ -48,7 +49,8 @@ export default Vue.extend({
 			width: 0,
 			height: 0,
 			status: null as string | null,
-			tab: 'fx'
+			tab: 'fx',
+			faLayerGroup, faSlidersH, faInfoCircle
 		};
 	},
 
@@ -320,6 +322,10 @@ optgroup {
 						cursor: default;
 						font-weight: bold;
 						color: #fff;
+					}
+
+					> *:first-child {
+						margin-right: 6px;
 					}
 
 					> span {
