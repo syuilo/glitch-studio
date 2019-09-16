@@ -15,10 +15,11 @@
 </template>
 
 <script lang="ts">
+import * as fs from 'fs';
+import * as electron from 'electron';
 import Vue from 'vue';
 import * as Jimp from 'jimp';
 import XLayers from './components/layers.vue';
-import { chooseFile } from './choose-file';
 import { render } from './glitch';
 import { ipcRenderer } from 'electron';
 
@@ -49,15 +50,47 @@ export default Vue.extend({
 		}, { deep: true });
 
 		ipcRenderer.on('openImage', () => {
-			this.chooseFile();
+			this.openImage();
+		});
+
+		ipcRenderer.on('saveImage', () => {
+			this.saveImage();
 		});
 	},
 
 	methods: {
-		chooseFile() {
-			chooseFile().then(async path => {
-				this.img = await Jimp.default.read(path);
-				this.render();
+		async openImage() {
+			const paths = electron.remote.dialog.showOpenDialogSync(electron.remote.BrowserWindow.getFocusedWindow()!, {
+				properties: ['openFile'],
+				filters: [{
+					name: 'Image',
+					extensions: ['png', 'jpg']
+				}]
+			});
+			if (paths == null) return;
+			this.img = await Jimp.default.read(paths[0]);
+			this.render();
+		},
+
+		saveImage() {
+			const path = electron.remote.dialog.showSaveDialogSync(electron.remote.BrowserWindow.getFocusedWindow()!, {
+				filters: [{
+					name: 'Image',
+					extensions: ['png']
+				}]
+			});
+			if (path == null) return;
+			this.canvas.toBlob(blob => {
+				const reader = new FileReader();
+				reader.onload = () => {
+					fs.writeFile(path, new Buffer(reader.result), error => {
+						if (error != null) {
+								alert("save error.");
+								return;
+						}
+					})
+				};
+				reader.readAsArrayBuffer(blob);
 			});
 		},
 
