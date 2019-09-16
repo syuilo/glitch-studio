@@ -1,13 +1,16 @@
 <template>
 <main id="app">
-	<div class="view">
-		<canvas :width="width" :height="height" ref="canvas"/>
-	</div>
-	<div class="nav">
-		<div class="layers">
+	<div class="a">
+		<div class="view">
+			<canvas :width="width" :height="height" ref="canvas"/>
+		</div>
+		<div class="side">
 			<XLayers/>
 		</div>
 	</div>
+	<footer class="footer">
+
+	</footer>
 </main>
 </template>
 
@@ -106,24 +109,41 @@ input {
 }
 
 #app {
-	display: flex;
 	height: 100%;
 
-	> .view {
-		width: 70%;
-		height: 100%;
+	> .a {
+		display: flex;
+		height: calc(100% - 32px);
 
-		> * {
-			display: block;
-			width: 100%;
+		> .view {
+			width: 70%;
 			height: 100%;
-			object-fit: contain;
+
+			> * {
+				display: block;
+				width: 100%;
+				height: 100%;
+				object-fit: contain;
+			}
+		}
+
+		> .side {
+			width: 30%;
+			height: 100%;
+			display: flex;
+			flex-direction: column;
+
+			> * {
+				margin: 4px;
+			}
 		}
 	}
 
-	> .nav {
-		width: 30%;
-		height: 100%;
+	> .footer {
+		height: 32px;
+		box-sizing: border-box;
+		background: linear-gradient(0deg, rgba(0, 0, 0, 0.1), rgba(255, 255, 255, 0.025));
+		border-top: solid 1px rgba(255, 255, 255, 0.1);
 	}
 }
 </style>

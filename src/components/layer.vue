@@ -1,5 +1,5 @@
 <template>
-<div class="layer">
+<div class="layer-component">
 	<header>{{ name }}</header>
 
 	<div>
@@ -64,7 +64,8 @@ export default Vue.extend({
 </script>
 
 <style scoped lang="scss">
-.layer {
+.layer-component {
+	background: rgba(255, 255, 255, 0.1);
 	border: solid 1px rgba(255, 255, 255, 0.1);
 	border-radius: 4px;
 	box-shadow: 0 1px 1px rgba(0, 0, 0, 0.5);
