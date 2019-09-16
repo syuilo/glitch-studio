@@ -1,29 +1,6 @@
 # Glitch Studio
 
-## Project setup
-```
-yarn install
-```
-
-### Compiles and hot-reloads for development
-```
-yarn run serve
-```
-
-### Compiles and minifies for production
-```
-yarn run build
-```
-
-### Run your tests
-```
-yarn run test
-```
-
-### Lints and fixes files
-```
-yarn run lint
-```
-
-### Customize configuration
-See [Configuration Reference](https://cli.vuejs.org/config/).
+Glitch Studioはグリッチエフェクト(画像が壊れたような効果)に特化した画像加工ソフトです。
+チャンネルシフトFXで画像の個々のシグナルを分離してフリンジ付加したり、各種のノイズFXで意図的なピクセルエラーを発生させたりできます。
+しかも、それらのエフェクトは無制限にカスケード可能で組み合わせも自由なので、ほぼ無限の自由度で画像をグリッチさせることができます。
+お気に入りのエフェクトが完成したら、プリセットに保存していつでも呼び出せるようにすることもできます。プリセットはエクスポート可能なので、他の人とシェアすることもできます。
