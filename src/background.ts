@@ -5,6 +5,7 @@ import {
 	createProtocol,
 	installVueDevtools
 } from 'vue-cli-plugin-electron-builder/lib';
+import { fxs } from './glitch/fxs';
 
 const isDevelopment = process.env.NODE_ENV !== 'production';
 
@@ -96,6 +97,14 @@ app.on('ready', async () => {
 		}, {
 			role: 'quit'
 		}]
+	}, {
+		label: 'FX',
+		submenu: Object.entries(fxs).map(([k, v]) => ({
+			label: v.displayName,
+			click: () => {
+				win!.webContents.send('addFx', v.name);
+			}
+		}))
 	}]);
 	Menu.setApplicationMenu(menu);
 

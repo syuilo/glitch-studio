@@ -56,6 +56,16 @@ export default Vue.extend({
 		ipcRenderer.on('saveImage', () => {
 			this.saveImage();
 		});
+
+		ipcRenderer.on('addFx', (_, name) => {
+			this.$store.commit('addLayer', { fx: name });
+		});
+	},
+
+	beforeDestroy() {
+		ipcRenderer.removeAllListeners('openImage');
+		ipcRenderer.removeAllListeners('saveImage');
+		ipcRenderer.removeAllListeners('addFx');
 	},
 
 	methods: {
