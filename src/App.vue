@@ -68,7 +68,7 @@ export default Vue.extend({
 				}]
 			});
 			if (paths == null) return;
-			this.img = await Jimp.default.read(paths[0]);
+			this.img = await Jimp.read(paths[0]);
 			this.render();
 		},
 
