@@ -14,6 +14,7 @@ type DataType = 'number' | 'range' | 'enum' | 'bool' | 'blendMode' | 'signal';
 
 export type ParamDef = {
 	type: DataType;
+	label: string;
 	default: {
 		type: 'literal' | 'expression';
 		value: any;
@@ -106,7 +107,7 @@ export function genEmptyValue(paramDef: Omit<ParamDef, 'default'>): any {
 		if (paramDef.hasOwnProperty('max')) v = Math.min((paramDef as any)['max'], v);
 		return v;
 	} else if (paramDef.type === 'enum') {
-		return (paramDef as any)['options'][0];
+		return (paramDef as any)['options'][0].value;
 	} else if (paramDef.type === 'bool') {
 		return false;
 	} else if (paramDef.type === 'blendMode') {

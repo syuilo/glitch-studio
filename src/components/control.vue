@@ -11,7 +11,7 @@
 	</div>
 	<div v-else-if="type === 'enum'">
 		<select :value="value" @change="changeValue($event.target.value)">
-			<option v-for="o in paramDefs[param].options" :value="o" :key="o">{{ decamelize(o) }}</option>
+			<option v-for="o in options" :value="o.value" :key="o.value">{{ o.label }}</option>
 		</select>
 	</div>
 	<div v-else-if="type === 'blendMode'">
@@ -68,7 +68,10 @@ export default Vue.extend({
 		},
 		value: {
 			required: true
-		}
+		},
+		options: {
+			required: false
+		},
 	},
 
 	methods: {

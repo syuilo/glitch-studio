@@ -4,42 +4,52 @@ import seedrandom from 'seedrandom';
 
 const paramDefs = {
 	times: {
+		label: 'Times',
 		type: 'range' as const,
 		default: { type: 'literal' as const, value: 128 }
 	},
 	size: {
+		label: 'Size',
 		type: 'range' as const,
 		default: { type: 'literal' as const, value: 64 }
 	},
 	range: {
+		label: 'Range',
 		type: 'range' as const,
 		default: { type: 'expression' as const, value: 'HEIGHT' }
 	},
 	pos: {
+		label: 'Position',
 		type: 'range' as const,
 		default: { type: 'literal' as const, value: 0 }
 	},
 	rgb: {
+		label: 'RGB',
 		type: 'bool' as const,
 		default: { type: 'literal' as const, value: true }
 	},
 	cmy: {
+		label: 'CMY',
 		type: 'bool' as const,
 		default: { type: 'literal' as const, value: true }
 	},
 	black: {
+		label: 'Black',
 		type: 'bool' as const,
 		default: { type: 'literal' as const, value: true }
 	},
 	white: {
+		label: 'White',
 		type: 'bool' as const,
 		default: { type: 'literal' as const, value: true }
 	},
 	blendMode: {
+		label: 'Blend mode',
 		type: 'blendMode' as const,
 		default: { type: 'literal' as const, value: 'darken' }
 	},
 	seed: {
+		label: 'Seed',
 		type: 'number' as const,
 		default: { type: 'literal' as const, value: 0 },
 	}

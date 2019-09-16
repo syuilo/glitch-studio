@@ -9,7 +9,7 @@
 	<div class="layers" v-if="layers.length === 0">
 		<p class="ui-no-contents">No FXs</p>
 	</div>
-	<XDraggable class="layers" v-else v-model="layers" animation="150" swap-threshold="0.5">
+	<XDraggable class="layers" v-else v-model="layers" tag="div" handle=".drag-handle" animation="150" swap-threshold="0.5">
 		<XLayer v-for="layer in layers" :layer="layer" :key="layer.id"/>
 	</XDraggable>
 </div>
@@ -17,9 +17,10 @@
 
 <script lang="ts">
 import Vue from 'vue';
-import XDraggable from 'vuedraggable';
+const XDraggable = require('vuedraggable');
 import XLayer from './layer.vue';
 import { fxs } from '../glitch/fxs';
+import { Layer } from '@/glitch';
 
 export default Vue.extend({
 	components: {
@@ -35,11 +36,11 @@ export default Vue.extend({
 
 	computed: {
 		layers: {
-			get() {
-				return this.$store.state.layers;
+			get(): Layer[] {
+				return (this as any).$store.state.layers;
 			},
-			set(val) {
-				this.$store.commit('setLayers', { layers: val });
+			set(val): void {
+				(this as any).$store.commit('setLayers', { layers: val });
 			}
 		}
 	},

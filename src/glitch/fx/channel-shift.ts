@@ -2,14 +2,17 @@ import { fx } from '../core';
 
 const paramDefs = {
 	amount: {
+		label: 'Amount',
 		type: 'range' as const,
 		default: { type: 'literal' as const, value: 8 }
 	},
 	leftSignal: {
+		label: 'L signal',
 		type: 'signal' as const,
 		default: { type: 'literal' as const, value: [true, false, false] }
 	},
 	rightSignal: {
+		label: 'R signal',
 		type: 'signal' as const,
 		default: { type: 'literal' as const, value: [false, false, true] }
 	},

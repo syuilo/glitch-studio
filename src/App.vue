@@ -224,6 +224,7 @@ select, button {
 
 	&:active {
 		background: linear-gradient(180deg, rgba(0, 0, 0, 0), rgba(255, 255, 255, 0.05));
+		box-shadow: 0 1px 1px rgba(0, 0, 0, 0.1) inset;
 	}
 
 	&.primary {

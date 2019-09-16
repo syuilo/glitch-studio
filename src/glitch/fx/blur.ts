@@ -4,35 +4,49 @@ import { blend } from '../color';
 
 const paramDefs = {
 	times: {
+		label: 'Times',
 		type: 'range' as const,
 		default: { type: 'literal' as const, value: 256 }
 	},
 	velocity: {
+		label: 'Velocity',
 		type: 'range' as const,
 		default: { type: 'literal' as const, value: 32 }
 	},
 	size: {
+		label: 'Size',
 		type: 'range' as const,
 		default: { type: 'literal' as const, value: 1 }
 	},
 	fade: {
+		label: 'Fade',
 		type: 'bool' as const,
 		default: { type: 'literal' as const, value: true }
 	},
 	direction: {
+		label: 'Direction',
 		type: 'enum' as const,
-		options: ['left', 'right'],
+		options: [{
+			label: 'Left',
+			value: 'left',
+		}, {
+			label: 'Right',
+			value: 'right',
+		}],
 		default: { type: 'literal' as const, value: 'left' }
 	},
 	range: {
+		label: 'Range',
 		type: 'range' as const,
 		default: { type: 'literal' as const, value: 64 }
 	},
 	pos: {
+		label: 'Position',
 		type: 'range' as const,
 		default: { type: 'literal' as const, value: 0 }
 	},
 	seed: {
+		label: 'Seed',
 		type: 'number' as const,
 		default: { type: 'literal' as const, value: 0 },
 	}

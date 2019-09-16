@@ -1,14 +1,14 @@
 <template>
 <div class="layer-component">
-	<header>{{ name }}</header>
+	<header class="drag-handle">{{ name }}</header>
 
 	<div>
 		<div v-for="param in Object.keys(paramDefs)" :key="param">
-			<label :class="{ expression: isExpression(param) }" @dblclick="toggleParamValueType(param)">{{ decamelize(param) }}</label>
+			<label :class="{ expression: isExpression(param) }" @dblclick="toggleParamValueType(param)">{{ paramDefs[param].label }}</label>
 			<div v-if="isExpression(param)">
 				<input type="text" class="expression" :value="getParam(param)" @change="updateParamAsExpression(param, $event.target.value)"/>
 			</div>
-			<XControl v-else :type="paramDefs[param].type" :value="getParam(param)" @input="updateParamAsLiteral(param, $event)"/>
+			<XControl v-else :type="paramDefs[param].type" :options="paramDefs[param].options" :value="getParam(param)" @input="updateParamAsLiteral(param, $event)"/>
 		</div>
 	</div>
 </div>
@@ -77,13 +77,6 @@ export default Vue.extend({
 				param: param,
 			});
 		},
-
-		decamelize(str: string) {
-			return str[0].toUpperCase() + str.substr(1)
-				.replace(/([a-z\d])([A-Z])/g, '$1 $2')
-				.replace(/([A-Z]+)([A-Z][a-z\d]+)/g, '$1 $2')
-				.toLowerCase();
-		}
 	}
 });
 </script>

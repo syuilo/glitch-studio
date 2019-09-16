@@ -2,20 +2,30 @@ import { fx } from '../core';
 
 const paramDefs = {
 	thickness: {
+		label: 'Thickness',
 		type: 'range' as const,
 		default: { type: 'literal' as const, value: 64 }
 	},
 	pos: {
+		label: 'Position',
 		type: 'range' as const,
 		default: { type: 'literal' as const, value: 0 }
 	},
 	amount: {
+		label: 'Amount',
 		type: 'range' as const,
 		default: { type: 'literal' as const, value: 32 }
 	},
 	direction: {
+		label: 'Direction',
 		type: 'enum' as const,
-		options: ['left', 'right'],
+		options: [{
+			label: 'Left',
+			value: 'left',
+		}, {
+			label: 'Right',
+			value: 'right',
+		}],
 		default: { type: 'literal' as const, value: 'left' }
 	},
 };

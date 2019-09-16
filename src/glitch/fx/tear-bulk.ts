@@ -3,10 +3,12 @@ import { fx } from '../core';
 
 const paramDefs = {
 	times: {
+		label: 'Times',
 		type: 'range' as const,
 		default: { type: 'literal' as const, value: 32 },
 	},
 	seed: {
+		label: 'Seed',
 		type: 'number' as const,
 		default: { type: 'literal' as const, value: 0 },
 	}
