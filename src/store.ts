@@ -12,7 +12,7 @@ export const store = () => new Vuex.Store({
 		addLayer(state, payload) {
 			const paramDef = fxs[payload.fx].paramDef;
 			
-			const params = {};
+			const params = {} as any;
 
 			for (const [k, v] of Object.entries(paramDef)) {
 				params[k] = v.default;

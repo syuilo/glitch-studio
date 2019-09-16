@@ -18,7 +18,7 @@
 import * as fs from 'fs';
 import * as electron from 'electron';
 import Vue from 'vue';
-import * as Jimp from 'jimp';
+const Jimp = require('jimp');
 import XLayers from './components/layers.vue';
 import { render } from './glitch';
 import { ipcRenderer } from 'electron';
@@ -83,14 +83,14 @@ export default Vue.extend({
 			this.canvas.toBlob(blob => {
 				const reader = new FileReader();
 				reader.onload = () => {
-					fs.writeFile(path, new Buffer(reader.result), error => {
+					fs.writeFile(path, new Buffer(reader.result as ArrayBuffer), error => {
 						if (error != null) {
 								alert("save error.");
 								return;
 						}
 					})
 				};
-				reader.readAsArrayBuffer(blob);
+				reader.readAsArrayBuffer(blob!);
 			});
 		},
 

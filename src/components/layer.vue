@@ -39,14 +39,15 @@ export default Vue.extend({
 
 	props: {
 		layer: {
+			type: Object,
 			required: true
 		}
 	},
 
 	data() {
 		return {
-			name: null,
-			paramDef: null
+			name: null as string | null,
+			paramDef: null as Record<string, any> | null
 		};
 	},
 
@@ -57,7 +58,7 @@ export default Vue.extend({
 
 	methods: {
 		getParam(param: string) {
-			const layer = this.$store.state.layers.find(layer => layer.id === this.layer.id)!;
+			const layer = this.$store.state.layers.find((layer: any) => layer.id === this.layer.id)!;
 			return layer.params[param];
 		},
 
@@ -69,7 +70,7 @@ export default Vue.extend({
 			});
 		},
 
-		decamelize(str){
+		decamelize(str: string) {
 			return str[0].toUpperCase() + str.substr(1)
 				.replace(/([a-z\d])([A-Z])/g, '$1 $2')
 				.replace(/([A-Z]+)([A-Z][a-z\d]+)/g, '$1 $2')

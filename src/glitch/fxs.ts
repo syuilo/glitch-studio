@@ -10,6 +10,6 @@ export const fxs = {
 } as Record<string, {
 	name: string;
 	displayName: string;
-	paramDef: any;
+	paramDef: Record<string, any>;
 	fn: ReturnType<typeof fx>;
 }>;

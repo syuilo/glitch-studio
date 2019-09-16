@@ -12,6 +12,7 @@ import Vue from 'vue';
 export default Vue.extend({
 	props: {
 		signal: {
+			type: Array,
 			required: true
 		}
 	},
@@ -25,14 +26,14 @@ export default Vue.extend({
 	},
 
 	created() {
-		this.r = this.signal[0];
-		this.g = this.signal[1];
-		this.b = this.signal[2];
+		this.r = this.signal[0] as boolean;
+		this.g = this.signal[1] as boolean;
+		this.b = this.signal[2] as boolean;
 	},
 
 	methods: {
-		change(color) {
-			this[color] = !this[color];
+		change(color: string) {
+			(this as any)[color] = !(this as any)[color];
 			this.$emit('input', [
 				this.r,
 				this.g,

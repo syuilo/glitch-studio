@@ -29,7 +29,7 @@ export default Vue.extend({
 	},
 
 	methods: {
-		addFx(fx) {
+		addFx(fx: string) {
 			if (fx == '') return;
 			this.$store.commit('addLayer', { fx: fx });
 		}

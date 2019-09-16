@@ -7,8 +7,8 @@ export type FX = (
 	params: Record<string, any>,
 ) => void;
 
-export function fx(paramDef: any, fx: FX) {
-	return (input, params = {}) => {
+export function fx(paramDef: Record<string, any>, fx: FX) {
+	return (input: any, params = {}) => {
 		const output = input.clone();
 
 		function get(x: number, y: number) {
