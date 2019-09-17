@@ -1,7 +1,7 @@
 import * as math from 'mathjs';
 import { Macro, genEmptyValue } from './core';
 import Renderer from 'worker-loader!./workers/renderer';
-import HistgramWorker from 'worker-loader!./workers/histgram';
+import HistogramWorker from 'worker-loader!./workers/histogram';
 import { fxs } from './fxs';
 
 export type Layer = {
@@ -14,8 +14,20 @@ export type Layer = {
 	}>;
 };
 
+export type Histogram = {
+	bins: {
+		v1: number[]; v2: number[]; v3: number[];
+	};
+	max: number;
+	rAmount: number;
+	gAmount: number;
+	bAmount: number;
+	amountMax: number;
+	amountMin: number;
+};
+
 const renderer = new Renderer();
-const histgram = new HistgramWorker();
+const histogramWorker = new HistogramWorker();
 
 const evaluate = (expression: string, scope: Record<string, any>) => {
 	const value = math.evaluate(expression, scope);
@@ -31,8 +43,8 @@ const evaluate = (expression: string, scope: Record<string, any>) => {
  */
 export async function render(
 	src: any, layers: Layer[], macros: Macro[],
-	histogram: HTMLCanvasElement,
 	init: (w: number, h: number) => Promise<CanvasRenderingContext2D>,
+	histogram: (histogram: Histogram) => void,
 	progress: (max: number, done: number, status: string) => void
 ) {
 	if (src == null) return;
@@ -101,27 +113,6 @@ export async function render(
 		evaluatedParamses
 	});
 
-	function drawHistogram(ctx, bins) {
-		ctx.clearRect(0, 0, 300, 200);
-		var h = histogram.height;
-		var sh = 16;
-		var baseStr = '#';
-		ctx.globalAlpha = 1;
-		for(var ch in bins) {
-			for(var j=0;j<256;j++) {
-				ctx.strokeStyle = baseStr + (j << sh).toString(16);
-				ctx.beginPath();
-				ctx.moveTo(j, h);
-				ctx.lineTo(j, Math.max(0.0, h - bins[ch][j]*h/bins.max));
-				ctx.stroke();
-				ctx.closePath();
-			}
-			sh -= 8;
-			if(sh < 0) break;
-			baseStr += '00';
-		}
-	}
-
 	const onMessage = (e: MessageEvent) => {
 		if (e.data.type === 'rendered') {
 			ctx.putImageData(new ImageData(new Uint8ClampedArray(e.data.data), img.bitmap.width, img.bitmap.height), 0, 0);
@@ -129,17 +120,12 @@ export async function render(
 			progress(layers.length, layers.length, 'Finished!');
 
 			const finishHist = (e: MessageEvent) => {
-				histgram.removeEventListener('message', finishHist);
-				drawHistogram(histogram.getContext('2d'), e.data);
+				histogramWorker.removeEventListener('message', finishHist);
+				histogram(e.data);
 			};
 
-			histgram.addEventListener('message', finishHist);
-
-			histgram.postMessage({
-				width: img.bitmap.width,
-				height: img.bitmap.height,
-				data: e.data.data,
-			});
+			histogramWorker.addEventListener('message', finishHist);
+			histogramWorker.postMessage(e.data.data);
 		} else if (e.data.type === 'progress') {
 			progress(layers.length, e.data.i, e.data.status);
 		}

@@ -1,6 +1,6 @@
 <template>
 <main id="app">
-	<div class="histogram">
+	<div class="histogram" v-if="histogram">
 		<canvas width="300" height="200" ref="histogram"/>
 	</div>
 	<div class="a">
@@ -26,6 +26,18 @@
 		</div>
 	</div>
 	<footer class="footer">
+		<div class="histogram">
+			<template v-if="histogram">
+				<div class="r"><div :style="{ height: ((histogram.rAmount / histogram.amountMax) * 100) + '%' }"></div></div>
+				<div class="g"><div :style="{ height: ((histogram.gAmount / histogram.amountMax) * 100) + '%' }"></div></div>
+				<div class="b"><div :style="{ height: ((histogram.bAmount / histogram.amountMax) * 100) + '%' }"></div></div>
+			</template>
+			<template v-else>
+				<div class="r"><div></div></div>
+				<div class="g"><div></div></div>
+				<div class="b"><div></div></div>
+			</template>
+		</div>
 		<div class="file">{{ width }} x {{ height }} px</div>
 		<div class="progress">
 			<div><div :style="{ width: progress + '%' }"></div></div>
@@ -50,7 +62,7 @@ import XMacros from './components/macros.vue';
 import XAbout from './components/about.vue';
 import XSavePreset from './components/save-preset.vue';
 import XExportPreset from './components/export-preset.vue';
-import { render } from './glitch';
+import { render, Histogram } from './glitch';
 import { ipcRenderer } from 'electron';
 import { SettingsStore } from './settings';
 import { version } from './version';
@@ -72,6 +84,7 @@ export default Vue.extend({
 			img: null,
 			width: 0,
 			height: 0,
+			histogram: null as Histogram | null,
 			status: null as string | null,
 			progress: 0,
 			tab: 'fx',
@@ -86,6 +99,16 @@ export default Vue.extend({
 	computed: {
 		canvas(): HTMLCanvasElement {
 			return this.$refs.canvas as HTMLCanvasElement;
+		}
+	},
+
+	watch: {
+		histogram() {
+			if (this.histogram == null) {
+
+			} else {
+				
+			}
 		}
 	},
 
@@ -216,13 +239,15 @@ export default Vue.extend({
 		},
 
 		render() {
-			render(this.img, this.$store.state.layers, this.$store.state.macros, this.$refs.histogram, (w, h) => new Promise((res, rej) => {
+			render(this.img, this.$store.state.layers, this.$store.state.macros, (w, h) => new Promise((res, rej) => {
 				this.width = w;
 				this.height = h;
 				this.$nextTick(() => {
 					res(this.canvas.getContext('2d')!);
 				});
-			}), (max, done, status) => {
+			}), (histogram: Histogram) => {
+				this.histogram = histogram;
+			}, (max, done, status) => {
 				this.status = status;
 				this.progress = done / max * 100;
 			});
@@ -514,6 +539,46 @@ optgroup {
 
 		> * {
 			float: left;
+		}
+
+		> .histogram {
+			margin-right: 16px;
+			padding: 4px 0 0 0;
+
+			> div {
+				display: inline-block;
+				width: 4px;
+				height: 16px;
+				border-top: solid 1px transparent;
+				border-bottom: solid 1px #383838;
+				background: #111;
+				box-shadow: 0px 1px 1px rgba(0, 0, 0, 0.3) inset;
+				position: relative;
+				border-radius: 2px;
+				overflow: hidden;
+
+				&:not(:last-child) {
+					margin-right: 8px;
+				}
+
+				> div {
+					position: absolute;
+					bottom: 0;
+					width: 4px;
+				}
+
+				&.r > div {
+					background: #f00;
+				}
+
+				&.g > div {
+					background: #0f0;
+				}
+
+				&.b > div {
+					background: #00f;
+				}
+			}
 		}
 
 		> .file {
