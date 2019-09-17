@@ -4,6 +4,7 @@ import * as electron from 'electron';
 import { encode, decode } from "@msgpack/msgpack";
 import { Layer } from './glitch';
 import { Macro } from './glitch/core';
+import { version } from './version';
 
 const userDataPath = (electron.app || electron.remote.app).getPath('userData');
 const filePath = path.join(userDataPath, 'settings');
@@ -23,7 +24,7 @@ export type Settings = {
 };
 
 const defaultSettings: Settings = {
-	version: electron.app.getVersion(),
+	version: version,
 	presets: []
 };
 
@@ -40,7 +41,7 @@ export class SettingsStore {
 	}
 
 	public save() {
-		this.settings.version = electron.app.getVersion();
+		this.settings.version = version;
 		fs.writeFileSync(filePath, encode(this.settings));
 		console.debug('Settings saved', filePath);
 	}
