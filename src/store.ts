@@ -95,6 +95,11 @@ export const store = () => new Vuex.Store({
 			});
 		},
 
+		updateParams(state, payload) {
+			const layer = state.layers.find(layer => layer.id === payload.layerId)!;
+			Vue.set(layer, 'params', payload.params);
+		},
+
 		toggleMacroValueType(state, payload) {
 			const macro = state.macros.find(macro => macro.id === payload.macroId)!;
 			const isLiteral = macro.value.type === 'literal';

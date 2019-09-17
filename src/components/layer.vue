@@ -1,10 +1,13 @@
 <template>
 <div class="layer-component">
 	<header class="drag-handle">{{ name }}</header>
-	<button class="active" :class="{ primary: layer.isEnabled }" @click="toggleEnable()" :title="layer.isEnabled ? 'Click to disable' : 'Click to enable'"><fa :icon="layer.isEnabled ? faEye : faEyeSlash"/></button>
-	<button class="remove" @click="remove()" title="Remove effect"><fa :icon="faTimes"/></button>
+	<div class="buttons">
+		<button class="randomize" @click="randomize()" title="Randomize"><fa :icon="faRandom"/></button>
+		<button class="active" :class="{ primary: layer.isEnabled }" @click="toggleEnable()" :title="layer.isEnabled ? 'Click to disable' : 'Click to enable'"><fa :icon="layer.isEnabled ? faEye : faEyeSlash"/></button>
+		<button class="remove" @click="remove()" title="Remove effect"><fa :icon="faTimes"/></button>
+	</div>
 
-	<div>
+	<div class="params">
 		<div v-for="param in Object.keys(paramDefs)" :key="param">
 			<label :class="{ expression: isExpression(param) }" @dblclick="toggleParamValueType(param)">{{ paramDefs[param].label }}</label>
 			<div v-if="isExpression(param)">
@@ -18,11 +21,12 @@
 
 <script lang="ts">
 import Vue from 'vue';
-import { faTimes } from '@fortawesome/free-solid-svg-icons';
+import { faTimes, faRandom } from '@fortawesome/free-solid-svg-icons';
 import { faEye, faEyeSlash } from '@fortawesome/free-regular-svg-icons';
 import XControl from './control.vue';
 import { fxs } from '../glitch/fxs';
 import { ParamDefs } from '../glitch/core';
+import { Layer } from '../glitch';
 
 export default Vue.extend({
 	components: {
@@ -40,7 +44,7 @@ export default Vue.extend({
 		return {
 			name: null as string | null,
 			paramDefs: null as ParamDefs | null,
-			faTimes, faEye, faEyeSlash
+			faTimes, faEye, faEyeSlash, faRandom
 		};
 	},
 
@@ -94,6 +98,58 @@ export default Vue.extend({
 				layerId: this.layer.id,
 			});
 		},
+
+		randomize() {
+			const rnd = () => 1 - Math.sqrt(Math.random());
+			const blendModes = [
+				'none',
+				'normal',
+				'darken',
+				'multiply',
+				'colorBurn',
+				'lighten',
+				'screen',
+				'colorDodge',
+				'overlay',
+				'softLight',
+				'hardLight',
+				'difference',
+				'exclusion',
+				'hue',
+				'saturation',
+				'color',
+				'luminosity',
+			];
+			const params = {} as Layer['params'];
+			for (const [k, p] of Object.entries(this.paramDefs!)) {
+				const set = (v: any) => {
+					params[k] = {
+						type: 'literal',
+						value: v
+					};
+				};
+
+				if (p.type === 'number') {
+					set(Math.floor(rnd() * 2048));
+				} else if (p.type === 'range') {
+					set(Math.floor(Math.random() * ((p as any)['max'] - (p as any)['min']) + (p as any)['min']));
+				} else if (p.type === 'enum') {
+					set((p as any)['options'][Math.floor(Math.random() * (p as any)['options'].length)].value);
+				} else if (p.type === 'bool') {
+					set(Math.floor(Math.random() * 2) === 0);
+				} else if (p.type === 'blendMode') {
+					set(blendModes[Math.floor(Math.random() * blendModes.length)]);
+				} else if (p.type === 'signal') {
+					set([Math.floor(Math.random() * 2) === 0, Math.floor(Math.random() * 2) === 0, Math.floor(Math.random() * 2) === 0]);
+				} else if (p.type === 'xy') {
+					set([Math.floor(rnd() * 2048), Math.floor(rnd() * 2048)]);
+				}
+			}
+			this.$store.commit('updateParams', {
+				layerId: this.layer.id,
+				params: params,
+			});
+		},
 	}
 });
 </script>
@@ -118,29 +174,32 @@ export default Vue.extend({
 		text-shadow: 0 -1px #000;
 	}
 
-	> button {
+	> .buttons {
 		position: absolute;
 		top: 4px;
-		width: 23px;
-		height: 23px;
-		font-size: 12px;
-		padding-left: 0;
-		padding-right: 0;
+		right: 4px;
+		text-align: right;
+		width: 85px;
 
-		> * {
-			height: 100%;
-		}
+		> button {
+			display: inline-block;
+			width: 23px;
+			height: 23px;
+			font-size: 12px;
+			padding-left: 0;
+			padding-right: 0;
 
-		&.remove {
-			right: 4px;
-		}
+			&:not(:first-child) {
+				margin-left: 6px;
+			}
 
-		&.active {
-			right: 32px;
+			> * {
+				height: 100%;
+			}
 		}
 	}
 
-	> div {
+	> .params {
 		background: rgba(0, 0, 0, 0.3);
 		padding: 0 16px;
 
