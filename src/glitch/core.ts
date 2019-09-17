@@ -2,12 +2,12 @@ import * as blend from 'color-blend';
 import * as math from 'mathjs';
 import { Layer } from '.';
 
-export type Pixel = [number, number, number];
+export type Color = [number, number, number, number];
 
 export type FX = (
 	width: number, height: number,
-	get: (x: number, y: number) => Pixel,
-	set: (x: number, y: number, color: Pixel) => void,
+	get: (x: number, y: number) => Color,
+	set: (x: number, y: number, color: Color) => void,
 	params: Record<string, any>,
 ) => void;
 
@@ -122,32 +122,39 @@ export function fx(paramDefs: ParamDefs, fx: FX) {
 
 		let get = (x: number, y: number) => {
 			const idx = (input.bitmap.width * y + x) << 2;
-			return [input.bitmap.data[idx + 0], input.bitmap.data[idx + 1], input.bitmap.data[idx + 2]] as Pixel;
+			return [
+				input.bitmap.data[idx + 0],
+				input.bitmap.data[idx + 1],
+				input.bitmap.data[idx + 2],
+				input.bitmap.data[idx + 3],
+			] as Color;
 		};
 
-		let set = evaluatedParams['_alpha'] === 255 && evaluatedParams['_blendMode'] === 'noraml'
-			? (x: number, y: number, rgb: Pixel) => {
+		let set = evaluatedParams['_alpha'] === 255 && evaluatedParams['_blendMode'] === 'normal'
+			? (x: number, y: number, rgba: Color) => {
 				const idx = (input.bitmap.width * y + x) << 2;
-				output.bitmap.data[idx + 0] = rgb[0];
-				output.bitmap.data[idx + 1] = rgb[1];
-				output.bitmap.data[idx + 2] = rgb[2];
+				output.bitmap.data[idx + 0] = rgba[0];
+				output.bitmap.data[idx + 1] = rgba[1];
+				output.bitmap.data[idx + 2] = rgba[2];
+				output.bitmap.data[idx + 3] = rgba[3];
 			}
-			: (x: number, y: number, rgb: Pixel) => {
+			: (x: number, y: number, rgba: Color) => {
 				const idx = (input.bitmap.width * y + x) << 2;
-				const { r, g, b } = (blend as any)[evaluatedParams['_blendMode']]({
+				const { r, g, b, a } = (blend as any)[evaluatedParams['_blendMode']]({
 					r: input.bitmap.data[idx + 0],
 					g: input.bitmap.data[idx + 1],
 					b: input.bitmap.data[idx + 2],
-					a: 255
+					a: input.bitmap.data[idx + 3],
 				}, {
-					r: rgb[0],
-					g: rgb[1],
-					b: rgb[2],
-					a: evaluatedParams['_alpha'] / 255
+					r: rgba[0],
+					g: rgba[1],
+					b: rgba[2],
+					a: Math.min(rgba[3], evaluatedParams['_alpha'] / 255)
 				});
 				output.bitmap.data[idx + 0] = r;
 				output.bitmap.data[idx + 1] = g;
 				output.bitmap.data[idx + 2] = b;
+				output.bitmap.data[idx + 3] = Math.floor(a * 255);
 			};
 
 		if (evaluatedParams['_pos'][0] !== 0 || evaluatedParams['_pos'][1] !== 0) {
@@ -155,36 +162,43 @@ export function fx(paramDefs: ParamDefs, fx: FX) {
 				x = x + evaluatedParams['_pos'][0];
 				y = y + evaluatedParams['_pos'][1];
 				const idx = (input.bitmap.width * y + x) << 2;
-				return [input.bitmap.data[idx + 0], input.bitmap.data[idx + 1], input.bitmap.data[idx + 2]] as Pixel;
+				return [
+					input.bitmap.data[idx + 0],
+					input.bitmap.data[idx + 1],
+					input.bitmap.data[idx + 2],
+					input.bitmap.data[idx + 3],
+				] as Color;
 			};
 
 			set = evaluatedParams['_alpha'] === 255 && evaluatedParams['_blendMode'] === 'noraml'
-				? (x: number, y: number, rgb: Pixel) => {
+				? (x: number, y: number, rgba: Color) => {
 					x = x + evaluatedParams['_pos'][0];
 					y = y + evaluatedParams['_pos'][1];
 					const idx = (input.bitmap.width * y + x) << 2;
-					output.bitmap.data[idx + 0] = rgb[0];
-					output.bitmap.data[idx + 1] = rgb[1];
-					output.bitmap.data[idx + 2] = rgb[2];
+					output.bitmap.data[idx + 0] = rgba[0];
+					output.bitmap.data[idx + 1] = rgba[1];
+					output.bitmap.data[idx + 2] = rgba[2];
+					output.bitmap.data[idx + 3] = rgba[3];
 				}
-				: (x: number, y: number, rgb: Pixel) => {
+				: (x: number, y: number, rgba: Color) => {
 					x = x + evaluatedParams['_pos'][0];
 					y = y + evaluatedParams['_pos'][1];	
 					const idx = (input.bitmap.width * y + x) << 2;
-					const { r, g, b } = (blend as any)[evaluatedParams['_blendMode']]({
+					const { r, g, b, a } = (blend as any)[evaluatedParams['_blendMode']]({
 						r: input.bitmap.data[idx + 0],
 						g: input.bitmap.data[idx + 1],
 						b: input.bitmap.data[idx + 2],
-						a: 255
+						a: 1
 					}, {
-						r: rgb[0],
-						g: rgb[1],
-						b: rgb[2],
-						a: evaluatedParams['_alpha'] / 255
+						r: rgba[0],
+						g: rgba[1],
+						b: rgba[2],
+						a: Math.min(rgba[3], evaluatedParams['_alpha'] / 255)
 					});
 					output.bitmap.data[idx + 0] = r;
 					output.bitmap.data[idx + 1] = g;
 					output.bitmap.data[idx + 2] = b;
+					output.bitmap.data[idx + 3] = Math.floor(a * 255);
 				};
 		}
 

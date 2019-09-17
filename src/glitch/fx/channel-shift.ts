@@ -33,7 +33,7 @@ const fn = fx(paramDefs, (w, h, get, set, params) => {
 		for (let y = 0; y < h; y++) {
 			const [lr, lg, lb] = get(Math.min(w, x + amount), y);
 			const [rr, rg, rb] = get(Math.max(0, x - amount), y);
-			const [r, g, b] = get(x, y);
+			const [r, g, b, a] = get(x, y);
 			let _r = r;
 			if (leftR) _r = Math.max(_r, lr);
 			if (rightR) _r = Math.max(_r, rr);
@@ -43,7 +43,7 @@ const fn = fx(paramDefs, (w, h, get, set, params) => {
 			let _b = b;
 			if (leftB) _b = Math.max(_b, lb);
 			if (rightB) _b = Math.max(_b, rb);
-			set(x, y, [_r, _g, _b]);
+			set(x, y, [_r, _g, _b, a]);
 		}
 	}
 });

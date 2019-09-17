@@ -1,5 +1,5 @@
 import * as blend from 'color-blend';
-import { fx, Pixel, basicParamDefs } from '../core';
+import { fx, Color, basicParamDefs } from '../core';
 import seedrandom from 'seedrandom';
 
 const paramDefs = {
@@ -47,26 +47,26 @@ const fn = fx(paramDefs, (w, h, get, set, params) => {
 
 	const rnd = seedrandom(seed.toString());
 
-	const colors = [] as Pixel[];
+	const colors = [] as Color[];
 
 	if (rgb) {
-		colors.push([255, 0, 0]);
-		colors.push([0, 255, 0]);
-		colors.push([0, 0, 255]);
+		colors.push([255, 0, 0, 255]);
+		colors.push([0, 255, 0, 255]);
+		colors.push([0, 0, 255, 255]);
 	}
 
 	if (cmy) {
-		colors.push([255, 255, 0]);
-		colors.push([255, 0, 255]);
-		colors.push([0, 255, 255]);
+		colors.push([255, 255, 0, 255]);
+		colors.push([255, 0, 255, 255]);
+		colors.push([0, 255, 255, 255]);
 	}
 
 	if (black) {
-		colors.push([0, 0, 0]);
+		colors.push([0, 0, 0, 255]);
 	}
 
 	if (white) {
-		colors.push([255, 255, 255]);
+		colors.push([255, 255, 255, 255]);
 	}
 
 	for (let _ = 0; _ < times; _++) {
