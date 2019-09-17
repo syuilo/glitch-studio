@@ -16,6 +16,7 @@
 	</div>
 	<div v-else-if="type === 'blendMode'">
 		<select :value="value" @change="changeValue($event.target.value)">
+			<option value="none">None</option>
 			<optgroup label="Normal">
 				<option value="normal">Normal</option>
 			</optgroup>

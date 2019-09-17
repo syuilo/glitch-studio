@@ -1,6 +1,7 @@
-import * as blend from 'color-blend';
+import * as blendModes from 'color-blend';
 import * as math from 'mathjs';
 import { Layer } from '.';
+import { blend } from './color';
 
 export type Color = [number, number, number, number];
 
@@ -130,9 +131,15 @@ export function fx(paramDefs: ParamDefs, fx: FX) {
 			] as Color;
 		};
 
-		let set = evaluatedParams['_alpha'] === 255 && evaluatedParams['_blendMode'] === 'normal'
+		let set = evaluatedParams['_blendMode'] === 'none'
 			? (x: number, y: number, rgba: Color) => {
 				const idx = (input.bitmap.width * y + x) << 2;
+				rgba = blend([
+					input.bitmap.data[idx + 0],
+					input.bitmap.data[idx + 1],
+					input.bitmap.data[idx + 2],
+					input.bitmap.data[idx + 3]
+				], rgba, evaluatedParams['_alpha'] / 255);
 				output.bitmap.data[idx + 0] = rgba[0];
 				output.bitmap.data[idx + 1] = rgba[1];
 				output.bitmap.data[idx + 2] = rgba[2];
@@ -140,7 +147,7 @@ export function fx(paramDefs: ParamDefs, fx: FX) {
 			}
 			: (x: number, y: number, rgba: Color) => {
 				const idx = (input.bitmap.width * y + x) << 2;
-				const { r, g, b, a } = (blend as any)[evaluatedParams['_blendMode']]({
+				const { r, g, b, a } = (blendModes as any)[evaluatedParams['_blendMode']]({
 					r: input.bitmap.data[idx + 0],
 					g: input.bitmap.data[idx + 1],
 					b: input.bitmap.data[idx + 2],
@@ -149,7 +156,7 @@ export function fx(paramDefs: ParamDefs, fx: FX) {
 					r: rgba[0],
 					g: rgba[1],
 					b: rgba[2],
-					a: Math.min(rgba[3], evaluatedParams['_alpha'] / 255)
+					a: Math.min(evaluatedParams['_alpha'], rgba[3]) / Math.max(evaluatedParams['_alpha'], rgba[3]),
 				});
 				output.bitmap.data[idx + 0] = r;
 				output.bitmap.data[idx + 1] = g;
@@ -170,11 +177,17 @@ export function fx(paramDefs: ParamDefs, fx: FX) {
 				] as Color;
 			};
 
-			set = evaluatedParams['_alpha'] === 255 && evaluatedParams['_blendMode'] === 'noraml'
+			set = evaluatedParams['_blendMode'] === 'none'
 				? (x: number, y: number, rgba: Color) => {
 					x = x + evaluatedParams['_pos'][0];
 					y = y + evaluatedParams['_pos'][1];
 					const idx = (input.bitmap.width * y + x) << 2;
+					rgba = blend([
+						input.bitmap.data[idx + 0],
+						input.bitmap.data[idx + 1],
+						input.bitmap.data[idx + 2],
+						input.bitmap.data[idx + 3]
+					], rgba, evaluatedParams['_alpha'] / 255);
 					output.bitmap.data[idx + 0] = rgba[0];
 					output.bitmap.data[idx + 1] = rgba[1];
 					output.bitmap.data[idx + 2] = rgba[2];
@@ -184,7 +197,7 @@ export function fx(paramDefs: ParamDefs, fx: FX) {
 					x = x + evaluatedParams['_pos'][0];
 					y = y + evaluatedParams['_pos'][1];	
 					const idx = (input.bitmap.width * y + x) << 2;
-					const { r, g, b, a } = (blend as any)[evaluatedParams['_blendMode']]({
+					const { r, g, b, a } = (blendModes as any)[evaluatedParams['_blendMode']]({
 						r: input.bitmap.data[idx + 0],
 						g: input.bitmap.data[idx + 1],
 						b: input.bitmap.data[idx + 2],
@@ -193,7 +206,7 @@ export function fx(paramDefs: ParamDefs, fx: FX) {
 						r: rgba[0],
 						g: rgba[1],
 						b: rgba[2],
-						a: Math.min(rgba[3], evaluatedParams['_alpha'] / 255)
+						a: Math.min(evaluatedParams['_alpha'], rgba[3]) / Math.max(evaluatedParams['_alpha'], rgba[3]),
 					});
 					output.bitmap.data[idx + 0] = r;
 					output.bitmap.data[idx + 1] = g;
