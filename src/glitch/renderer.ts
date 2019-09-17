@@ -13,11 +13,11 @@ function render(input: {
 	for (const layer of layers) {
 		if (!layer.isEnabled) { i++; continue; } // Skip disabled effect
 
-		const label = `FX: ${layer.fx}`;
 		progress(i, `Applying ${layer.fx}...`);
-		console.time(label);
+		const startTime = performance.now();
 		input.data = fxs[layer.fx].fn(input, paramses[i]);
-		console.timeEnd(label);
+		const endTime = performance.now();
+		console.log(`FX: ${layer.fx}`, endTime - startTime);
 		i++;
 	}
 	return input;
