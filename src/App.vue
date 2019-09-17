@@ -522,17 +522,17 @@ optgroup {
 
 		> .progress {
 			margin-left: 16px;
-			padding: 11px 0 0 0;
+			padding: 13px 0 0 0;
 
 			> div {
 				width: 150px;
-				height: 8px;
+				height: 4px;
 				border-top: solid 1px transparent;
 				border-bottom: solid 1px #383838;
 				background: #111;
 				box-shadow: 0px 1px 1px rgba(0, 0, 0, 0.3) inset;
 				position: relative;
-				border-radius: 4px;
+				border-radius: 2px;
 				overflow: hidden;
 
 				> div {
