@@ -1,13 +1,13 @@
 <template>
 <div class="layer-component">
-	<header class="drag-handle">{{ name }}</header>
+	<header class="drag-handle" @dblclick="minimized = !minimized">{{ name }}</header>
 	<div class="buttons">
 		<button class="randomize" @click="randomize()" title="Randomize"><fa :icon="faRandom"/></button>
 		<button class="active" :class="{ primary: layer.isEnabled }" @click="toggleEnable()" :title="layer.isEnabled ? 'Click to disable' : 'Click to enable'"><fa :icon="layer.isEnabled ? faEye : faEyeSlash"/></button>
 		<button class="remove" @click="remove()" title="Remove effect"><fa :icon="faTimes"/></button>
 	</div>
 
-	<div class="params">
+	<div class="params" v-show="!minimized">
 		<div v-for="param in Object.keys(paramDefs)" :key="param">
 			<label :class="{ expression: isExpression(param) }" @dblclick="toggleParamValueType(param)">{{ paramDefs[param].label }}</label>
 			<div v-if="isExpression(param)">
@@ -44,6 +44,7 @@ export default Vue.extend({
 		return {
 			name: null as string | null,
 			paramDefs: null as ParamDefs | null,
+			minimized: false,
 			faTimes, faEye, faEyeSlash, faRandom
 		};
 	},

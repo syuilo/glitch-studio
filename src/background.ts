@@ -105,6 +105,14 @@ function renderMenu(presets: { id: string; name: string; }[]) {
 			click: () => {
 				win!.webContents.send('redo');
 			}
+		}, {
+			type: 'separator'
+		}, {
+			label: 'Randomize All',
+			enabled: false,
+		}, {
+			label: 'Randomize World',
+			enabled: false,
 		}]
 	}, {
 		label: 'FX',
