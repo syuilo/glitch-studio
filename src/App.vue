@@ -395,7 +395,7 @@ optgroup {
 					}
 
 					> span {
-						margin-left: 8px;
+						margin-left: 6px;
 						opacity: 0.7;
 						font-size: 80%;
 					}
