@@ -1,5 +1,5 @@
 import * as blend from 'color-blend';
-import { fx, Pixel } from '../core';
+import { fx, Pixel, basicParamDefs } from '../core';
 import seedrandom from 'seedrandom';
 
 const paramDefs = {
@@ -12,16 +12,6 @@ const paramDefs = {
 		label: 'Size',
 		type: 'range' as const,
 		default: { type: 'literal' as const, value: 64 }
-	},
-	range: {
-		label: 'Range',
-		type: 'range' as const,
-		default: { type: 'expression' as const, value: 'HEIGHT' }
-	},
-	pos: {
-		label: 'Position',
-		type: 'range' as const,
-		default: { type: 'literal' as const, value: 0 }
 	},
 	rgb: {
 		label: 'RGB',
@@ -43,20 +33,17 @@ const paramDefs = {
 		type: 'bool' as const,
 		default: { type: 'literal' as const, value: true }
 	},
-	blendMode: {
-		label: 'Blend mode',
-		type: 'blendMode' as const,
-		default: { type: 'literal' as const, value: 'darken' }
-	},
 	seed: {
 		label: 'Seed',
 		type: 'number' as const,
 		default: { type: 'literal' as const, value: 0 },
-	}
+	},
+
+	...basicParamDefs,
 };
 
 const fn = fx(paramDefs, (w, h, get, set, params) => {
-	const { times, size, range, pos, rgb, cmy, black, white, blendMode, seed } = params;
+	const { times, size, rgb, cmy, black, white, seed } = params;
 
 	const rnd = seedrandom(seed.toString());
 
@@ -84,7 +71,7 @@ const fn = fx(paramDefs, (w, h, get, set, params) => {
 
 	for (let _ = 0; _ < times; _++) {
 		let blockX = Math.floor(rnd() * w);
-		let blockY = Math.floor(rnd() * range) + pos;
+		let blockY = Math.floor(rnd() * h);
 
 		// Snap
 		blockX = Math.round(blockX / size) * size;
@@ -99,23 +86,7 @@ const fn = fx(paramDefs, (w, h, get, set, params) => {
 			const dstX = blockX + x;
 			for (let y = 0; y < size - yOver; y++) {
 				const dstY = blockY + y;
-				if (blendMode === 'normal') {
-					set(dstX, dstY, color);
-				} else {
-					const [dstR, dstG, dstB] = get(dstX, dstY);
-					const { r, g, b } = (blend as any)[blendMode]({
-						r: dstR,
-						g: dstG,
-						b: dstB,
-						a: 255
-					}, {
-						r: color[0],
-						g: color[1],
-						b: color[2],
-						a: 255
-					});
-					set(dstX, dstY, [r, g, b]);
-				}
+				set(dstX, dstY, color);
 			}
 		}
 	}

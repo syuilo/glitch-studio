@@ -1,4 +1,4 @@
-import { fx } from '../core';
+import { fx, basicParamDefs } from '../core';
 
 const paramDefs = {
 	amount: {
@@ -16,6 +16,8 @@ const paramDefs = {
 		type: 'signal' as const,
 		default: { type: 'literal' as const, value: [false, false, true] }
 	},
+	
+	...basicParamDefs,
 };
 
 const fn = fx(paramDefs, (w, h, get, set, params) => {

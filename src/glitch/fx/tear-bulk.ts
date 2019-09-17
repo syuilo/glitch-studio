@@ -1,5 +1,5 @@
 import seedrandom from 'seedrandom';
-import { fx } from '../core';
+import { fx, basicParamDefs } from '../core';
 
 const paramDefs = {
 	times: {
@@ -11,7 +11,9 @@ const paramDefs = {
 		label: 'Seed',
 		type: 'number' as const,
 		default: { type: 'literal' as const, value: 0 },
-	}
+	},
+
+	...basicParamDefs,
 };
 
 const fn = fx(paramDefs, (w, h, get, set, params) => {

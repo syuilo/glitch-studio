@@ -1,6 +1,7 @@
-import { fx } from '../core';
+import { fx, basicParamDefs } from '../core';
 
 const paramDefs = {
+	...basicParamDefs,
 };
 
 const fn = fx(paramDefs, (w, h, get, set) => {

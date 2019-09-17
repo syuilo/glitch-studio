@@ -1,17 +1,17 @@
 import seedrandom from 'seedrandom';
-import { fx } from '../core';
+import { fx, basicParamDefs } from '../core';
 import { blend } from '../color';
 
 const paramDefs = {
 	times: {
 		label: 'Times',
 		type: 'range' as const,
-		default: { type: 'literal' as const, value: 256 }
+		default: { type: 'literal' as const, value: 1024 }
 	},
 	velocity: {
 		label: 'Velocity',
 		type: 'range' as const,
-		default: { type: 'literal' as const, value: 32 }
+		default: { type: 'literal' as const, value: 64 }
 	},
 	size: {
 		label: 'Size',
@@ -35,21 +35,13 @@ const paramDefs = {
 		}],
 		default: { type: 'literal' as const, value: 'left' }
 	},
-	range: {
-		label: 'Range',
-		type: 'range' as const,
-		default: { type: 'literal' as const, value: 64 }
-	},
-	pos: {
-		label: 'Position',
-		type: 'range' as const,
-		default: { type: 'literal' as const, value: 0 }
-	},
 	seed: {
 		label: 'Seed',
 		type: 'number' as const,
 		default: { type: 'literal' as const, value: 0 },
-	}
+	},
+
+	...basicParamDefs,
 };
 
 const fn = fx(paramDefs, (w, h, get, set, params) => {
