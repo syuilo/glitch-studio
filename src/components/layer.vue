@@ -142,7 +142,7 @@ export default Vue.extend({
 				} else if (p.type === 'signal') {
 					set([Math.floor(Math.random() * 2) === 0, Math.floor(Math.random() * 2) === 0, Math.floor(Math.random() * 2) === 0]);
 				} else if (p.type === 'xy') {
-					set([Math.floor(rnd() * 2048), Math.floor(rnd() * 2048)]);
+					set([Math.floor(rnd() * 1024), Math.floor(rnd() * 1024)]);
 				}
 			}
 			this.$store.commit('updateParams', {
