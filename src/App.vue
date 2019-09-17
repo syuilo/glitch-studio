@@ -48,6 +48,7 @@ import { render } from './glitch';
 import { ipcRenderer } from 'electron';
 import { SettingsStore } from './settings';
 import { version } from './version';
+import { decode } from '@msgpack/msgpack';
 
 export default Vue.extend({
 	name: 'app',
@@ -123,6 +124,26 @@ export default Vue.extend({
 
 		ipcRenderer.on('exportPreset', () => {
 			this.showExportPresetDialog = true;
+		});
+
+		ipcRenderer.on('importPreset', () => {
+			const paths = electron.remote.dialog.showOpenDialogSync(electron.remote.BrowserWindow.getFocusedWindow()!, {
+				properties: ['openFile', 'multiSelections'],
+				filters: [{
+					name: 'Glitch Studio Preset',
+					extensions: ['gsp']
+				}]
+			});
+			if (paths == null) return;
+			for (const path of paths) {
+				const data = fs.readFileSync(path);
+				const preset = decode(data);
+				((this as any).$root.settingsStore as SettingsStore).settings.presets.push(preset as any);
+				((this as any).$root.settingsStore as SettingsStore).save();
+				ipcRenderer.send('updatePresets', ((this as any).$root.settingsStore as SettingsStore).settings.presets.map(p => ({
+					id: p.id, name: p.name
+				})));
+			}
 		});
 
 		ipcRenderer.on('applyPreset', (_, id) => {
