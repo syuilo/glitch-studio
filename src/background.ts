@@ -1,12 +1,12 @@
 'use strict';
 
-import { app, protocol, BrowserWindow, Menu, ipcMain } from 'electron';
+import { app, protocol, BrowserWindow, Menu, ipcMain, shell } from 'electron';
 import {
 	createProtocol,
 	installVueDevtools
 } from 'vue-cli-plugin-electron-builder/lib';
 import { fxs } from './glitch/fxs';
-import { settingsStore } from './settings';
+import { settingsStore, userDataPath } from './settings';
 
 const isDevelopment = process.env.NODE_ENV !== 'production';
 
@@ -128,6 +128,16 @@ function renderMenu(presets: { id: string; name: string; }[]) {
 	}, {
 		label: 'Help',
 		submenu: [{
+			label: 'Open Data Folder',
+			click: () => {
+				shell.openItem(userDataPath);
+			}
+		}, {
+			label: 'Toggle Developer Tools',
+			role: 'toggleDevTools',
+		}, {
+			type: 'separator',
+		}, {
 			label: 'About',
 			click: () => {
 				win!.webContents.send('about');

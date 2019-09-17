@@ -6,7 +6,7 @@ import { Layer } from './glitch';
 import { Macro } from './glitch/core';
 import { version } from './version';
 
-const userDataPath = (electron.app || electron.remote.app).getPath('userData');
+export const userDataPath = (electron.app || electron.remote.app).getPath('userData');
 const filePath = path.join(userDataPath, 'settings');
 
 export type Preset = {
