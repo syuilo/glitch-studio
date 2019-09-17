@@ -129,6 +129,14 @@ export default Vue.extend({
 			const preset = ((this as any).$root.settingsStore as SettingsStore).settings.presets.find(p => p.id === id);
 			this.$store.commit('applyPreset', preset);
 		});
+
+		ipcRenderer.on('removePreset', (_, id) => {
+			((this as any).$root.settingsStore as SettingsStore).settings.presets = ((this as any).$root.settingsStore as SettingsStore).settings.presets.filter(p => p.id !== id);
+			((this as any).$root.settingsStore as SettingsStore).save();
+			ipcRenderer.send('updatePresets', ((this as any).$root.settingsStore as SettingsStore).settings.presets.map(p => ({
+				id: p.id, name: p.name
+			})));
+		});
 	},
 
 	beforeDestroy() {

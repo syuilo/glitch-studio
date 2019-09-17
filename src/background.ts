@@ -78,6 +78,19 @@ function renderMenu(presets: { id: string; name: string; }[]) {
 		}, {
 			type: 'separator'
 		}, {
+			label: 'Remove preset',
+			submenu: presets.length === 0 ? [{
+				label: 'No presets',
+				enabled: false
+			}] : presets.map(p => ({
+				label: p.name,
+				click: () => {
+					win!.webContents.send('removePreset', p.id);
+				},
+			}))
+		}, {
+			type: 'separator'
+		}, {
 			role: 'quit'
 		}]
 	}, {
@@ -110,7 +123,7 @@ function renderMenu(presets: { id: string; name: string; }[]) {
 			label: p.name,
 			click: () => {
 				win!.webContents.send('applyPreset', p.id);
-			}
+			},
 		}))
 	}, {
 		label: 'Help',
