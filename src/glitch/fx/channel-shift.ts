@@ -20,7 +20,7 @@ const paramDefs = {
 	...basicParamDefs,
 };
 
-const fn = fx(paramDefs, (w, h, get, set, params) => {
+const fn = fx((w, h, get, set, params) => {
 	const { amount, leftSignal, rightSignal } = params;
 	const leftR = leftSignal[0];
 	const leftG = leftSignal[1];

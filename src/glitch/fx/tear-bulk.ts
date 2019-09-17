@@ -16,7 +16,7 @@ const paramDefs = {
 	...basicParamDefs,
 };
 
-const fn = fx(paramDefs, (w, h, get, set, params) => {
+const fn = fx((w, h, get, set, params) => {
 	const rnd = seedrandom(params.seed.toString());
 
 	for (let i = 0; i < params.times; i++) {

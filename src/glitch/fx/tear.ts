@@ -27,7 +27,7 @@ const paramDefs = {
 	...basicParamDefs,
 };
 
-const fn = fx(paramDefs, (w, h, get, set, params) => {
+const fn = fx((w, h, get, set, params) => {
 	const { thickness, amount, direction } = params;
 
 	if (direction === 'right') {

@@ -172,12 +172,6 @@ export default Vue.extend({
 				});
 			}), (max, done, status) => {
 				this.status = status;
-
-				return new Promise((res) => {
-					this.$nextTick(() => {
-						setTimeout(res, 1);
-					});
-				});
 			});
 		},
 

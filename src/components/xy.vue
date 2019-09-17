@@ -40,5 +40,9 @@ export default Vue.extend({
 <style scoped lang="scss">
 .xy-component {
 	display: flex;
+
+	> *:first-child {
+		margin-right: 4px;
+	}
 }
 </style>
