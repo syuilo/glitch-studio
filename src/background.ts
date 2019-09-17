@@ -109,6 +109,14 @@ function renderMenu(presets: { id: string; name: string; }[]) {
 				win!.webContents.send('applyPreset', p.id);
 			}
 		}))
+	}, {
+		label: 'Help',
+		submenu: [{
+			label: 'About',
+			click: () => {
+				win!.webContents.send('about');
+			}
+		}]
 	}]);
 
 	Menu.setApplicationMenu(menu);

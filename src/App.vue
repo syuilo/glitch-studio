@@ -2,7 +2,7 @@
 <main id="app">
 	<div class="a">
 		<div class="view">
-			<div class="ui-container" dropzone="copy" @dragover.prevent="e => { e.dataTransfer.dropEffect = 'copy'; }" @drop.prevent="onDrop">
+			<div class="_gs-container" dropzone="copy" @dragover.prevent="e => { e.dataTransfer.dropEffect = 'copy'; }" @drop.prevent="onDrop">
 				<canvas :width="width" :height="height" ref="canvas"/>
 			</div>
 		</div>
@@ -14,7 +14,7 @@
 			</div>
 			<XLayers v-show="tab === 'fx'"/>
 			<XMacros v-show="tab === 'macro'"/>
-			<div v-show="tab === 'meta'" class="meta ui-container">
+			<div v-show="tab === 'meta'" class="meta _gs-container">
 				<input type="text" v-model="presetName"/>
 				<button @click="savePreset()">Save preset</button>
 			</div>
@@ -24,6 +24,7 @@
 		<span class="file">{{ width }} x {{ height }} px</span>
 		<span class="progress">{{ status }}</span>
 	</footer>
+	<XAbout v-if="showAbout" @ok="showAbout = false"/>
 </main>
 </template>
 
@@ -36,6 +37,7 @@ import Vue from 'vue';
 const Jimp = require('jimp');
 import XLayers from './components/layers.vue';
 import XMacros from './components/macros.vue';
+import XAbout from './components/about.vue';
 import { render } from './glitch';
 import { ipcRenderer } from 'electron';
 import { SettingsStore } from './settings';
@@ -45,7 +47,8 @@ export default Vue.extend({
 
 	components: {
 		XLayers,
-		XMacros
+		XMacros,
+		XAbout,
 	},
 
 	data() {
@@ -56,6 +59,7 @@ export default Vue.extend({
 			status: null as string | null,
 			tab: 'fx',
 			presetName: '',
+			showAbout: false,
 			faLayerGroup, faSlidersH, faInfoCircle
 		};
 	},
@@ -96,6 +100,10 @@ export default Vue.extend({
 
 		ipcRenderer.on('redo', () => {
 			if ((this as any).canRedo) (this as any).redo();
+		});
+
+		ipcRenderer.on('about', () => {
+			this.showAbout = true;
 		});
 	},
 
@@ -219,6 +227,16 @@ html {
 
 body {
 	height: 100%;
+}
+
+._gs-link {
+	color: $theme-color;
+	cursor: pointer;
+	text-decoration: none;
+
+	&:hover {
+		text-decoration: underline;
+	}
 }
 
 input[type=text],
@@ -419,7 +437,7 @@ body > .titlebar.inactive + div {
 	background: #2c2c2c;
 }
 
-.ui-container {
+._gs-container {
 	background: #202020;
 	border: solid 1px rgba(255, 255, 255, 0.1);
 	border-radius: 4px;
@@ -427,7 +445,7 @@ body > .titlebar.inactive + div {
 	overflow: hidden;
 }
 
-.ui-no-contents {
+._gs-no-contents {
 	margin: 16px;
 	text-align: center;
 	font-size: 12px;

@@ -1,6 +1,6 @@
 <template>
-<div class="macros-componet ui-container">
-	<div class="macros ui-container">
+<div class="macros-componet _gs-container">
+	<div class="macros _gs-container">
 		<div v-for="macro in $store.state.macros" :key="macro.id">
 			<label :class="{ expression: macro.value.type === 'expression' }" @dblclick="toggleMacroValueType(macro)">{{ macro.label }}</label>
 			<div v-if="macro.value.type === 'expression'">
@@ -8,9 +8,9 @@
 			</div>
 			<XControl v-else :type="macro.type" :value="macro.value.value" @input="updateMacroAsLiteral(macro, $event)"/>
 		</div>
-		<p v-if="$store.state.macros.length === 0" class="ui-no-contents">No macros</p>
+		<p v-if="$store.state.macros.length === 0" class="_gs-no-contents">No macros</p>
 	</div>
-	<div class="macros-editor ui-container">
+	<div class="macros-editor _gs-container">
 		<button @click="addMacro()">Add macro</button>
 		<header>
 			<div>Label</div>
