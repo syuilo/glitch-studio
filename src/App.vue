@@ -520,7 +520,8 @@ optgroup {
 			> div {
 				width: 150px;
 				height: 8px;
-				border: solid 1px #383838;
+				border-top: solid 1px transparent;
+				border-bottom: solid 1px #383838;
 				background: #111;
 				box-shadow: 0px 1px 1px rgba(0, 0, 0, 0.3) inset;
 				position: relative;
