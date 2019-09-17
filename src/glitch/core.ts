@@ -37,12 +37,12 @@ export type Macro = {
 export const basicParamDefs = {
 	_width: {
 		label: 'Width',
-		type: 'range' as const,
+		type: 'number' as const,
 		default: { type: 'expression' as const, value: 'WIDTH' }
 	},
 	_height: {
 		label: 'Height',
-		type: 'range' as const,
+		type: 'number' as const,
 		default: { type: 'expression' as const, value: 'HEIGHT' }
 	},
 	_pos: {

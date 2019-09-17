@@ -3,7 +3,7 @@ import { fx, basicParamDefs } from '../core';
 const paramDefs = {
 	amount: {
 		label: 'Amount',
-		type: 'range' as const,
+		type: 'number' as const,
 		default: { type: 'literal' as const, value: 8 }
 	},
 	leftSignal: {

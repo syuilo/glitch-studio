@@ -295,6 +295,40 @@ input[type=number] {
 	}
 }
 
+input[type=range] {
+	appearance: none;
+	height: 5px;
+	width: 100%;
+	background: #111;
+	border-bottom: solid 1px rgba(255, 255, 255, 0.1);
+	border-radius: 4px;
+	margin: 0 0 7px 0;
+
+	&::-webkit-slider-thumb {
+		appearance: none;
+		border: solid 1px rgba(0, 0, 0, 0.7);
+		background: linear-gradient(0deg, #1b1b1b, #2a2a2a);
+		box-shadow: 0 1px 1px rgba(0, 0, 0, 0.1), 0 1px 0 rgba(255, 255, 255, 0.1) inset;
+		height: 20px;
+		width: 20px;
+		border-radius: 20px;
+		cursor: ew-resize;
+		margin-top: 0px;
+
+		&:hover {
+			background: linear-gradient(0deg, #252525, #303030);
+		}
+	}
+
+	&:focus {
+		outline: none;
+
+		&::-webkit-slider-thumb {
+			border-color: $theme-color;
+		}
+	}
+}
+
 input.expression {
 	background: rgba(55, 64, 28, 0.3);
 }

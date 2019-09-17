@@ -4,7 +4,7 @@ import { fx, basicParamDefs } from '../core';
 const paramDefs = {
 	times: {
 		label: 'Times',
-		type: 'range' as const,
+		type: 'number' as const,
 		default: { type: 'literal' as const, value: 32 },
 	},
 	seed: {

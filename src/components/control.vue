@@ -1,7 +1,7 @@
 <template>
 <div class="control-component">
 	<div v-if="type === 'range'">
-		<input type="number" :value="value" step="1" @change="changeValue(parseInt($event.target.value, 10))"/>
+		<input type="range" :value="value" step="1" :min="options.min" :max="options.max" @change="changeValue(parseInt($event.target.value, 10))"/>
 	</div>
 	<div v-else-if="type === 'number'">
 		<input type="number" :value="value" @change="changeValue(parseInt($event.target.value, 10))"/>
@@ -11,7 +11,7 @@
 	</div>
 	<div v-else-if="type === 'enum'">
 		<select :value="value" @change="changeValue($event.target.value)">
-			<option v-for="o in options" :value="o.value" :key="o.value">{{ o.label }}</option>
+			<option v-for="o in options.options" :value="o.value" :key="o.value">{{ o.label }}</option>
 		</select>
 	</div>
 	<div v-else-if="type === 'blendMode'">

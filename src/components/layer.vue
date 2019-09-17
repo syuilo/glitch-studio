@@ -10,7 +10,7 @@
 			<div v-if="isExpression(param)">
 				<input type="text" class="expression" :value="getParam(param)" @change="updateParamAsExpression(param, $event.target.value)"/>
 			</div>
-			<XControl v-else :type="paramDefs[param].type" :options="paramDefs[param].options" :value="getParam(param)" @input="updateParamAsLiteral(param, $event)"/>
+			<XControl v-else :type="paramDefs[param].type" :options="paramDefs[param]" :value="getParam(param)" @input="updateParamAsLiteral(param, $event)"/>
 		</div>
 	</div>
 </div>

@@ -5,17 +5,17 @@ import { blend } from '../color';
 const paramDefs = {
 	times: {
 		label: 'Times',
-		type: 'range' as const,
+		type: 'number' as const,
 		default: { type: 'literal' as const, value: 1024 }
 	},
 	velocity: {
 		label: 'Velocity',
-		type: 'range' as const,
+		type: 'number' as const,
 		default: { type: 'literal' as const, value: 64 }
 	},
 	size: {
 		label: 'Size',
-		type: 'range' as const,
+		type: 'number' as const,
 		default: { type: 'literal' as const, value: 1 }
 	},
 	fade: {

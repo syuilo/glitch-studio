@@ -1,16 +1,15 @@
-import * as blend from 'color-blend';
 import { fx, Color, basicParamDefs } from '../core';
 import seedrandom from 'seedrandom';
 
 const paramDefs = {
 	times: {
 		label: 'Times',
-		type: 'range' as const,
+		type: 'number' as const,
 		default: { type: 'literal' as const, value: 128 }
 	},
 	size: {
 		label: 'Size',
-		type: 'range' as const,
+		type: 'number' as const,
 		default: { type: 'literal' as const, value: 64 }
 	},
 	rgb: {
