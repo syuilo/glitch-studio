@@ -3,7 +3,7 @@
 	<div class="a">
 		<div class="view">
 			<div class="_gs-container" dropzone="copy" @dragover.prevent="e => { e.dataTransfer.dropEffect = 'copy'; }" @drop.prevent="onDrop">
-				<div>
+				<div @click="img ? () => {} : openImage()">
 					<canvas :width="width" :height="height" ref="canvas"/>
 				</div>
 			</div>
@@ -27,6 +27,7 @@
 		<span class="progress">{{ status }}</span>
 	</footer>
 	<XSavePreset v-if="showSavePresetDialog" @ok="showSavePresetDialog = false"/>
+	<XExportPreset v-if="showExportPresetDialog" @ok="showExportPresetDialog = false"/>
 	<XAbout v-if="showAbout" @ok="showAbout = false"/>
 </main>
 </template>
@@ -42,6 +43,7 @@ import XLayers from './components/layers.vue';
 import XMacros from './components/macros.vue';
 import XAbout from './components/about.vue';
 import XSavePreset from './components/save-preset.vue';
+import XExportPreset from './components/export-preset.vue';
 import { render } from './glitch';
 import { ipcRenderer } from 'electron';
 import { SettingsStore } from './settings';
@@ -55,6 +57,7 @@ export default Vue.extend({
 		XMacros,
 		XAbout,
 		XSavePreset,
+		XExportPreset,
 	},
 
 	data() {
@@ -67,6 +70,7 @@ export default Vue.extend({
 			presetName: '',
 			showAbout: false,
 			showSavePresetDialog: false,
+			showExportPresetDialog: false,
 			faLayerGroup, faSlidersH, faInfoCircle
 		};
 	},
@@ -115,6 +119,10 @@ export default Vue.extend({
 
 		ipcRenderer.on('savePreset', () => {
 			this.showSavePresetDialog = true;
+		});
+
+		ipcRenderer.on('exportPreset', () => {
+			this.showExportPresetDialog = true;
 		});
 
 		ipcRenderer.on('applyPreset', (_, id) => {
