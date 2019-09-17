@@ -23,8 +23,11 @@
 		</div>
 	</div>
 	<footer class="footer">
-		<span class="file">{{ width }} x {{ height }} px</span>
-		<span class="progress">{{ status }}</span>
+		<div class="file">{{ width }} x {{ height }} px</div>
+		<div class="progress">
+			<div><div :style="{ width: progress + '%' }"></div></div>
+		</div>
+		<div class="status">{{ status }}</div>
 	</footer>
 	<XSavePreset v-if="showSavePresetDialog" @ok="showSavePresetDialog = false"/>
 	<XExportPreset v-if="showExportPresetDialog" @ok="showExportPresetDialog = false"/>
@@ -67,6 +70,7 @@ export default Vue.extend({
 			width: 0,
 			height: 0,
 			status: null as string | null,
+			progress: 0,
 			tab: 'fx',
 			presetName: '',
 			showAbout: false,
@@ -199,8 +203,8 @@ export default Vue.extend({
 				reader.onload = () => {
 					fs.writeFile(path, new Buffer(reader.result as ArrayBuffer), error => {
 						if (error != null) {
-								alert("save error.");
-								return;
+							alert("save error.");
+							return;
 						}
 					})
 				};
@@ -217,6 +221,7 @@ export default Vue.extend({
 				});
 			}), (max, done, status) => {
 				this.status = status;
+				this.progress = done / max * 100;
 			});
 		},
 
@@ -466,11 +471,37 @@ optgroup {
 		font-size: 12px;
 		padding: 0 12px;
 
+		> * {
+			float: left;
+		}
+
 		> .file {
 			opacity: 0.8;
 		}
 
 		> .progress {
+			margin-left: 16px;
+			padding: 11px 0 0 0;
+
+			> div {
+				width: 150px;
+				height: 8px;
+				border: solid 1px #383838;
+				background: #111;
+				box-shadow: 0px 1px 1px rgba(0, 0, 0, 0.3) inset;
+				position: relative;
+				border-radius: 4px;
+				overflow: hidden;
+
+				> div {
+					position: absolute;
+					height: 8px;
+					background: $theme-color;
+				}
+			}
+		}
+
+		> .status {
 			margin-left: 16px;
 		}
 	}
