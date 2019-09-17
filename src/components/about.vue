@@ -40,7 +40,7 @@ export default Vue.extend({
 <style scoped lang="scss">
 .about-componet {
 	position: fixed;
-	z-index: 1000;
+	z-index: 2000;
 	top: 35px;
 	left: 8px;
 	width: calc(100% - (8px * 2));
@@ -62,6 +62,10 @@ export default Vue.extend({
 
 		> div {
 			margin: 0 0 16px 0;
+		}
+
+		> button {
+			margin-top: 24px;
 		}
 	}
 }

@@ -115,6 +115,7 @@ export default Vue.extend({
 		border-bottom: solid 1px rgba(0, 0, 0, 0.5);
 		cursor: move;
 		line-height: 32px;
+		text-shadow: 0 -1px #000;
 	}
 
 	> button {

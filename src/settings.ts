@@ -35,8 +35,10 @@ export class SettingsStore {
 		try {
 			const data = fs.readFileSync(filePath);
 			this.settings = decode(data) as Settings;
+			console.debug('Settings loaded', filePath);
 		} catch (e) {
 			this.settings = defaultSettings;
+			console.debug('Settings is not created yet', filePath);
 		}
 	}
 

@@ -103,7 +103,10 @@ function renderMenu(presets: { id: string; name: string; }[]) {
 		}))
 	}, {
 		label: 'Presets',
-		submenu: presets.map(p => ({
+		submenu: presets.length === 0 ? [{
+			label: 'No presets',
+			enabled: false
+		}] : presets.map(p => ({
 			label: p.name,
 			click: () => {
 				win!.webContents.send('applyPreset', p.id);

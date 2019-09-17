@@ -27,6 +27,7 @@
 		<span class="progress">{{ status }}</span>
 	</footer>
 	<XAbout v-if="showAbout" @ok="showAbout = false"/>
+	<XSavePreset v-if="showSavePresetDialog" @ok="showSavePresetDialog = false"/>
 </main>
 </template>
 
@@ -40,6 +41,7 @@ const Jimp = require('jimp');
 import XLayers from './components/layers.vue';
 import XMacros from './components/macros.vue';
 import XAbout from './components/about.vue';
+import XSavePreset from './components/save-preset.vue';
 import { render } from './glitch';
 import { ipcRenderer } from 'electron';
 import { SettingsStore } from './settings';
@@ -52,6 +54,7 @@ export default Vue.extend({
 		XLayers,
 		XMacros,
 		XAbout,
+		XSavePreset,
 	},
 
 	data() {
@@ -63,6 +66,7 @@ export default Vue.extend({
 			tab: 'fx',
 			presetName: '',
 			showAbout: false,
+			showSavePresetDialog: false,
 			faLayerGroup, faSlidersH, faInfoCircle
 		};
 	},
@@ -107,6 +111,10 @@ export default Vue.extend({
 
 		ipcRenderer.on('about', () => {
 			this.showAbout = true;
+		});
+
+		ipcRenderer.on('savePreset', () => {
+			this.showSavePresetDialog = true;
 		});
 
 		ipcRenderer.on('applyPreset', (_, id) => {
@@ -178,21 +186,6 @@ export default Vue.extend({
 		onDrop(ev: DragEvent) {
 			this.openImageFromPath(ev.dataTransfer!.files[0].path);
 		},
-
-		savePreset() {
-			((this as any).$root.settingsStore as SettingsStore).settings.presets.push({
-				id: uuid(),
-				gsVersion: version,
-				name: this.presetName,
-				author: '',
-				layers: this.$store.state.layers,
-				macros: this.$store.state.macros,
-			});
-			((this as any).$root.settingsStore as SettingsStore).save();
-			ipcRenderer.send('updatePresets', ((this as any).$root.settingsStore as SettingsStore).settings.presets.map(p => ({
-				id: p.id, name: p.name
-			})));
-		}
 	}
 });
 </script>
@@ -351,7 +344,7 @@ optgroup {
 					background-color: $color1;
 					background-image: linear-gradient(45deg, $color2 25%, transparent 25%, transparent 75%, $color2 75%, $color2), linear-gradient(-45deg, $color2 25%, transparent 25%, transparent 75%, $color2 75%, $color2);
 					background-size: 24px 24px;
-					animation: bg 0.5s linear infinite;
+					animation: bg 0.7s linear infinite;
 
 					> * {
 						display: block;
