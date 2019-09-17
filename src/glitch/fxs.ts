@@ -5,9 +5,10 @@ import tearBulk from './fx/tear-bulk';
 import blur from './fx/blur';
 import channelShift from './fx/channel-shift';
 import colorBlocks from './fx/color-blocks';
+import replace from './fx/replace';
 
 export const fxs = {
-	swap, tear, tearBulk, blur, channelShift, colorBlocks
+	swap, tear, tearBulk, blur, channelShift, colorBlocks, replace
 } as Record<string, {
 	name: string;
 	displayName: string;
