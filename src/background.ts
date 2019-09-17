@@ -1,11 +1,12 @@
 'use strict';
 
-import { app, protocol, BrowserWindow, Menu } from 'electron';
+import { app, protocol, BrowserWindow, Menu, ipcMain } from 'electron';
 import {
 	createProtocol,
 	installVueDevtools
 } from 'vue-cli-plugin-electron-builder/lib';
 import { fxs } from './glitch/fxs';
+import { settingsStore } from './settings';
 
 const isDevelopment = process.env.NODE_ENV !== 'production';
 
@@ -44,6 +45,76 @@ function createWindow () {
 	});
 }
 
+function renderMenu(presets: { id: string; name: string; }[]) {
+	const menu = Menu.buildFromTemplate([{
+		label: 'File',
+		submenu: [{
+			label: 'Open image',
+			click: () => {
+				win!.webContents.send('openImage');
+			}
+		}, {
+			label: 'Save image',
+			click: () => {
+				win!.webContents.send('saveImage');
+			}
+		}, {
+			type: 'separator'
+		}, {
+			label: 'Save preset',
+			click: () => {
+				win!.webContents.send('savePreset');
+			}
+		}, {
+			label: 'Export preset',
+			click: () => {
+				win!.webContents.send('exportPreset');
+			}
+		}, {
+			label: 'Import preset',
+			click: () => {
+				win!.webContents.send('importPreset');
+			}
+		}, {
+			type: 'separator'
+		}, {
+			role: 'quit'
+		}]
+	}, {
+		label: 'Edit',
+		submenu: [{
+			label: 'Undo',
+			click: () => {
+				win!.webContents.send('undo');
+			}
+		}, {
+			label: 'Redo',
+			click: () => {
+				win!.webContents.send('redo');
+			}
+		}]
+	}, {
+		label: 'FX',
+		submenu: Object.entries(fxs).map(([k, v]) => ({
+			label: v.displayName,
+			click: () => {
+				win!.webContents.send('addFx', v.name);
+			}
+		}))
+	}, {
+		label: 'Presets',
+		submenu: presets.map(p => ({
+			label: p.name,
+			click: () => {
+				win!.webContents.send('applyPreset', p.id);
+			}
+		}))
+	}]);
+
+	Menu.setApplicationMenu(menu);
+	if (win) win.webContents.send('updateMenu');
+}
+
 // Quit when all windows are closed.
 app.on('window-all-closed', () => {
 	// On macOS it is common for applications and their menu bar
@@ -80,46 +151,7 @@ app.on('ready', async () => {
 
 	}
 
-	const menu = Menu.buildFromTemplate([{
-		label: 'File',
-		submenu: [{
-			label: 'Open image',
-			click: () => {
-				win!.webContents.send('openImage');
-			}
-		}, {
-			label: 'Save image',
-			click: () => {
-				win!.webContents.send('saveImage');
-			}
-		}, {
-			type: 'separator'
-		}, {
-			role: 'quit'
-		}]
-	}, {
-		label: 'Edit',
-		submenu: [{
-			label: 'Undo',
-			click: () => {
-				win!.webContents.send('undo');
-			}
-		}, {
-			label: 'Redo',
-			click: () => {
-				win!.webContents.send('redo');
-			}
-		}]
-	}, {
-		label: 'FX',
-		submenu: Object.entries(fxs).map(([k, v]) => ({
-			label: v.displayName,
-			click: () => {
-				win!.webContents.send('addFx', v.name);
-			}
-		}))
-	}]);
-	Menu.setApplicationMenu(menu);
+	renderMenu(settingsStore.settings.presets);
 
 	createWindow();
 })
@@ -138,3 +170,7 @@ if (isDevelopment) {
 		});
 	}
 }
+
+ipcMain.on('updatePresets', (ev, presets) => {
+	renderMenu(presets);
+});

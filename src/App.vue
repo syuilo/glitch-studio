@@ -14,7 +14,10 @@
 			</div>
 			<XLayers v-show="tab === 'fx'"/>
 			<XMacros v-show="tab === 'macro'"/>
-			<div v-show="tab === 'meta'" class="meta ui-container"></div>
+			<div v-show="tab === 'meta'" class="meta ui-container">
+				<input type="text" v-model="presetName"/>
+				<button @click="savePreset()">Save preset</button>
+			</div>
 		</div>
 	</div>
 	<footer class="footer">
@@ -35,6 +38,7 @@ import XLayers from './components/layers.vue';
 import XMacros from './components/macros.vue';
 import { render } from './glitch';
 import { ipcRenderer } from 'electron';
+import { SettingsStore } from './settings';
 
 export default Vue.extend({
 	name: 'app',
@@ -51,6 +55,7 @@ export default Vue.extend({
 			height: 0,
 			status: null as string | null,
 			tab: 'fx',
+			presetName: '',
 			faLayerGroup, faSlidersH, faInfoCircle
 		};
 	},
@@ -162,6 +167,20 @@ export default Vue.extend({
 
 		onDrop(ev: DragEvent) {
 			this.openImageFromPath(ev.dataTransfer!.files[0].path);
+		},
+
+		savePreset() {
+			((this as any).$root.settingsStore as SettingsStore).settings.presets.push({
+				id: uuid(),
+				name: this.presetName,
+				author: '',
+				layers: this.$store.state.layers,
+				macros: this.$store.state.macros,
+			});
+			((this as any).$root.settingsStore as SettingsStore).save();
+			ipcRenderer.send('updatePresets', ((this as any).$root.settingsStore as SettingsStore).settings.presets.map(p => ({
+				id: p.id, name: p.name
+			})));
 		}
 	}
 });

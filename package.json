@@ -16,6 +16,7 @@
 		"@fortawesome/free-regular-svg-icons": "^5.10.2",
 		"@fortawesome/free-solid-svg-icons": "^5.10.2",
 		"@fortawesome/vue-fontawesome": "^0.1.7",
+		"@msgpack/msgpack": "^1.9.0",
 		"color-blend": "^2.0.7",
 		"custom-electron-titlebar": "^3.1.0",
 		"jimp": "^0.8.2",
