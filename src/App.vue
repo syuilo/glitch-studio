@@ -3,7 +3,9 @@
 	<div class="a">
 		<div class="view">
 			<div class="_gs-container" dropzone="copy" @dragover.prevent="e => { e.dataTransfer.dropEffect = 'copy'; }" @drop.prevent="onDrop">
-				<canvas :width="width" :height="height" ref="canvas"/>
+				<div>
+					<canvas :width="width" :height="height" ref="canvas"/>
+				</div>
 			</div>
 		</div>
 		<div class="side">
@@ -347,11 +349,22 @@ optgroup {
 				box-sizing: border-box;
 				padding: 16px;
 
-				> * {
-					display: block;
+				> div {
 					width: 100%;
 					height: 100%;
-					object-fit: contain;
+					$color1: #3a3a3a;
+					$color2: #303030;
+					background-color: $color1;
+					background-image: linear-gradient(45deg, $color2 25%, transparent 25%, transparent 75%, $color2 75%, $color2), linear-gradient(-45deg, $color2 25%, transparent 25%, transparent 75%, $color2 75%, $color2);
+					background-size: 24px 24px;
+					animation: bg 0.5s linear infinite;
+
+					> * {
+						display: block;
+						width: 100%;
+						height: 100%;
+						object-fit: contain;
+					}
 				}
 			}
 		}
@@ -456,5 +469,15 @@ body > .titlebar.inactive + div {
 	text-align: center;
 	font-size: 12px;
 	opacity: 0.7;
+}
+
+@keyframes bg {
+	0% {
+		background-position: 0 0;
+	}
+
+	100% {
+		background-position: -24px -24px;
+	}
 }
 </style>
