@@ -41,6 +41,7 @@ import XAbout from './components/about.vue';
 import { render } from './glitch';
 import { ipcRenderer } from 'electron';
 import { SettingsStore } from './settings';
+import { version } from './version';
 
 export default Vue.extend({
 	name: 'app',
@@ -104,6 +105,11 @@ export default Vue.extend({
 
 		ipcRenderer.on('about', () => {
 			this.showAbout = true;
+		});
+
+		ipcRenderer.on('applyPreset', (_, id) => {
+			const preset = ((this as any).$root.settingsStore as SettingsStore).settings.presets.find(p => p.id === id);
+			this.$store.commit('applyPreset', preset);
 		});
 	},
 
@@ -180,7 +186,7 @@ export default Vue.extend({
 		savePreset() {
 			((this as any).$root.settingsStore as SettingsStore).settings.presets.push({
 				id: uuid(),
-				gsVersion: electron.app.getVersion(),
+				gsVersion: version,
 				name: this.presetName,
 				author: '',
 				layers: this.$store.state.layers,

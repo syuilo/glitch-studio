@@ -3,6 +3,7 @@ import Vuex from 'vuex';
 import { Layer } from './glitch';
 import { fxs } from './glitch/fxs';
 import { genEmptyValue, Macro } from './glitch/core';
+import { Preset } from './settings';
 
 export const store = () => new Vuex.Store({
 	state: {
@@ -140,5 +141,10 @@ export const store = () => new Vuex.Store({
 			const macro = state.macros.find(macro => macro.id === payload.macroId)!;
 			Vue.set(macro, 'type', payload.value);
 		},
+
+		applyPreset(state, payload: Preset) {
+			Vue.set(state, 'layers', payload.layers);
+			Vue.set(state, 'macros', payload.macros);
+		}
 	}
 });
