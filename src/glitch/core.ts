@@ -11,7 +11,7 @@ export type FX = (
 	params: Record<string, any>,
 ) => void;
 
-type DataType = 'number' | 'range' | 'enum' | 'bool' | 'blendMode' | 'signal';
+type DataType = 'number' | 'range' | 'enum' | 'bool' | 'blendMode' | 'signal' | 'xy';
 
 export type ParamDef = {
 	type: DataType;
@@ -46,15 +46,10 @@ export const basicParamDefs = {
 		type: 'range' as const,
 		default: { type: 'expression' as const, value: 'HEIGHT' }
 	},
-	_x: {
-		label: 'X',
-		type: 'range' as const,
-		default: { type: 'literal' as const, value: 0 }
-	},
-	_y: {
-		label: 'Y',
-		type: 'range' as const,
-		default: { type: 'literal' as const, value: 0 }
+	_pos: {
+		label: 'XY',
+		type: 'xy' as const,
+		default: { type: 'literal' as const, value: [0, 0] }
 	},
 	_alpha: {
 		label: 'Alpha',
@@ -80,6 +75,15 @@ export function fx(paramDefs: ParamDefs, fx: FX) {
 			defaults[k] = v.default;
 		}
 
+		const evaluate = (expression: string, scope: Record<string, any>) => {
+			const value = math.evaluate(expression, scope);
+			if (value.constructor.name === 'Matrix') {
+				return value.toArray();
+			} else {
+				return value;
+			}
+		};
+
 		const mergedParams = { ...defaults, ...params } as Layer['params'];
 
 		const evaluatedParams = {} as Record<string, any>;
@@ -96,7 +100,7 @@ export function fx(paramDefs: ParamDefs, fx: FX) {
 				macro.value.type === 'literal'
 					? macro.value.value
 					: macro.value.value
-						? math.evaluate(macro.value.value, scope)
+						? evaluate(macro.value.value, scope)
 						: genEmptyValue(macro);
 		}
 
@@ -110,7 +114,7 @@ export function fx(paramDefs: ParamDefs, fx: FX) {
 				v.type === 'literal'
 					? v.value
 					: v.value
-						? math.evaluate(v.value, mixedScope)
+						? evaluate(v.value, mixedScope)
 						: genEmptyValue(paramDefs[k]);
 		}
 
@@ -146,26 +150,26 @@ export function fx(paramDefs: ParamDefs, fx: FX) {
 				output.bitmap.data[idx + 2] = b;
 			};
 
-		if (evaluatedParams['_x'] !== 0 || evaluatedParams['_y'] !== 0) {
+		if (evaluatedParams['_pos'][0] !== 0 || evaluatedParams['_pos'][1] !== 0) {
 			get = (x: number, y: number) => {
-				x = x + evaluatedParams['_x'];
-				y = y + evaluatedParams['_y'];
+				x = x + evaluatedParams['_pos'][0];
+				y = y + evaluatedParams['_pos'][1];
 				const idx = (input.bitmap.width * y + x) << 2;
 				return [input.bitmap.data[idx + 0], input.bitmap.data[idx + 1], input.bitmap.data[idx + 2]] as Pixel;
 			};
 
 			set = evaluatedParams['_alpha'] === 255 && evaluatedParams['_blendMode'] === 'noraml'
 				? (x: number, y: number, rgb: Pixel) => {
-					x = x + evaluatedParams['_x'];
-					y = y + evaluatedParams['_y'];
+					x = x + evaluatedParams['_pos'][0];
+					y = y + evaluatedParams['_pos'][1];
 					const idx = (input.bitmap.width * y + x) << 2;
 					output.bitmap.data[idx + 0] = rgb[0];
 					output.bitmap.data[idx + 1] = rgb[1];
 					output.bitmap.data[idx + 2] = rgb[2];
 				}
 				: (x: number, y: number, rgb: Pixel) => {
-					x = x + evaluatedParams['_x'];
-					y = y + evaluatedParams['_y'];
+					x = x + evaluatedParams['_pos'][0];
+					y = y + evaluatedParams['_pos'][1];	
 					const idx = (input.bitmap.width * y + x) << 2;
 					const { r, g, b } = (blend as any)[evaluatedParams['_blendMode']]({
 						r: input.bitmap.data[idx + 0],
@@ -187,16 +191,16 @@ export function fx(paramDefs: ParamDefs, fx: FX) {
 		let width = evaluatedParams['_width'];
 		let height = evaluatedParams['_height'];
 
-		if (evaluatedParams['_x'] + width > input.bitmap.width) {
+		if (evaluatedParams['_pos'][0] + width > input.bitmap.width) {
 			width = Math.max(
-				input.bitmap.width - evaluatedParams['_x'],
-				input.bitmap.width - ((evaluatedParams['_x'] + width) - input.bitmap.width));
+				input.bitmap.width - evaluatedParams['_pos'][0],
+				input.bitmap.width - ((evaluatedParams['_pos'][0] + width) - input.bitmap.width));
 		}
 
-		if (evaluatedParams['_y'] + height > input.bitmap.height) {
+		if (evaluatedParams['_pos'][1] + height > input.bitmap.height) {
 			height = Math.max(
-				input.bitmap.height - evaluatedParams['_y'],
-				input.bitmap.height - ((evaluatedParams['_y'] + height) - input.bitmap.height));
+				input.bitmap.height - evaluatedParams['_pos'][1],
+				input.bitmap.height - ((evaluatedParams['_pos'][1] + height) - input.bitmap.height));
 		}
 
 		fx(width, height, get, set, evaluatedParams);
@@ -221,5 +225,7 @@ export function genEmptyValue(paramDef: Omit<ParamDef, 'default'>): any {
 		return 'normal';
 	} else if (paramDef.type === 'signal') {
 		return [false, false, false];
+	} else if (paramDef.type === 'xy') {
+		return [0, 0];
 	}
 }

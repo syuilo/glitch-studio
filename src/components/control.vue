@@ -49,17 +49,21 @@
 	<div v-else-if="type === 'signal'">
 		<XSignal :signal="value" @input="changeValue($event)"/>
 	</div>
+	<div v-else-if="type === 'xy'">
+		<XXy :xy="value" @input="changeValue($event)"/>
+	</div>
 </div>
 </template>
 
 <script lang="ts">
 import Vue from 'vue';
 import XSignal from './signal.vue';
+import XXy from './xy.vue';
 import { fxs } from '../glitch/fxs';
 
 export default Vue.extend({
 	components: {
-		XSignal
+		XSignal, XXy
 	},
 
 	props: {
