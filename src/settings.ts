@@ -10,6 +10,7 @@ const filePath = path.join(userDataPath, 'settings');
 
 export type Preset = {
 	id: string;
+	gsVersion: string;
 	author: string;
 	name: string;
 	layers: Layer[];
@@ -17,10 +18,12 @@ export type Preset = {
 };
 
 export type Settings = {
+	version: string;
 	presets: Preset[];
 };
 
 const defaultSettings: Settings = {
+	version: electron.app.getVersion(),
 	presets: []
 };
 
@@ -37,6 +40,7 @@ export class SettingsStore {
 	}
 
 	public save() {
+		this.settings.version = electron.app.getVersion();
 		fs.writeFileSync(filePath, encode(this.settings));
 		console.debug('Settings saved', filePath);
 	}

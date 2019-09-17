@@ -172,6 +172,7 @@ export default Vue.extend({
 		savePreset() {
 			((this as any).$root.settingsStore as SettingsStore).settings.presets.push({
 				id: uuid(),
+				gsVersion: electron.app.getVersion(),
 				name: this.presetName,
 				author: '',
 				layers: this.$store.state.layers,
