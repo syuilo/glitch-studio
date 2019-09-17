@@ -26,8 +26,8 @@
 		<span class="file">{{ width }} x {{ height }} px</span>
 		<span class="progress">{{ status }}</span>
 	</footer>
-	<XAbout v-if="showAbout" @ok="showAbout = false"/>
 	<XSavePreset v-if="showSavePresetDialog" @ok="showSavePresetDialog = false"/>
+	<XAbout v-if="showAbout" @ok="showAbout = false"/>
 </main>
 </template>
 

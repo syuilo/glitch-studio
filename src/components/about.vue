@@ -1,6 +1,6 @@
 <template>
-<div class="about-componet">
-	<div class="_gs-container">
+<XDialog>
+	<div class="about-componet">
 		<div>
 			<div><b>Glitch Studio</b></div>
 			<div style="margin-bottom: 4px;">{{ version }}</div>
@@ -14,15 +14,18 @@
 		</div>
 		<button @click="$emit('ok')">OK</button>
 	</div>
-</div>
+</XDialog>
 </template>
 
 <script lang="ts">
 import Vue from 'vue';
 import { version } from '../version';
 import { shell } from 'electron';
+import XDialog from './dialog.vue';
 
 export default Vue.extend({
+	components: { XDialog },
+
 	data() {
 		return {
 			version: version
@@ -39,34 +42,12 @@ export default Vue.extend({
 
 <style scoped lang="scss">
 .about-componet {
-	position: fixed;
-	z-index: 2000;
-	top: 35px;
-	left: 8px;
-	width: calc(100% - (8px * 2));
-	height: calc(100% - 43px);
-	background: rgba(0, 0, 0, 0.1);
-	backdrop-filter: blur(4px);
-	border-radius: 6px;
-
 	> div {
-		position: absolute;
-		top: 128px;
-		right: 0;
-		left: 0;
-		width: 300px;
-		margin: auto;
-		padding: 32px;
-		text-align: center;
-		font-size: 14px;
+		margin: 0 0 16px 0;
+	}
 
-		> div {
-			margin: 0 0 16px 0;
-		}
-
-		> button {
-			margin-top: 24px;
-		}
+	> button {
+		margin-top: 24px;
 	}
 }
 </style>

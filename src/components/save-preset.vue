@@ -1,12 +1,15 @@
 <template>
-<div class="save-preset-componet">
-	<div class="_gs-container">
+<XDialog>
+	<div class="save-preset-componet">
 		<div>
 			<input type="text" v-model="name"/>
 		</div>
-		<button @click="save()">Save</button>
+		<footer>
+			<button @click="cancel()">Cancel</button>
+			<button class="primary" @click="save()">Save</button>
+		</footer>
 	</div>
-</div>
+</XDialog>
 </template>
 
 <script lang="ts">
@@ -15,8 +18,11 @@ import uuid from 'uuid/v4';
 import { SettingsStore } from '@/settings';
 import { version } from '@/version';
 import { ipcRenderer } from 'electron';
+import XDialog from './dialog.vue';
 
 export default Vue.extend({
+	components: { XDialog },
+
 	data() {
 		return {
 			name: ''
@@ -38,6 +44,10 @@ export default Vue.extend({
 				id: p.id, name: p.name
 			})));
 			this.$emit('ok');
+		},
+
+		cancel() {
+			this.$emit('ok');
 		}
 	}
 });
@@ -45,33 +55,16 @@ export default Vue.extend({
 
 <style scoped lang="scss">
 .save-preset-componet {
-	position: fixed;
-	z-index: 1000;
-	top: 35px;
-	left: 8px;
-	width: calc(100% - (8px * 2));
-	height: calc(100% - 43px);
-	background: rgba(0, 0, 0, 0.1);
-	backdrop-filter: blur(4px);
-	border-radius: 6px;
-
 	> div {
-		position: absolute;
-		top: 128px;
-		right: 0;
-		left: 0;
-		width: 300px;
-		margin: auto;
-		padding: 32px;
-		text-align: center;
-		font-size: 14px;
+		margin: 0 0 16px 0;
+	}
 
-		> div {
-			margin: 0 0 16px 0;
-		}
+	> footer {
+		display: flex;
+		margin-top: 24px;
 
-		> button {
-			margin-top: 24px;
+		> button:first-child {
+			margin-right: 16px;
 		}
 	}
 }
