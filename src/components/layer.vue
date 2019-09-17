@@ -144,6 +144,8 @@ export default Vue.extend({
 					set([Math.floor(Math.random() * 2) === 0, Math.floor(Math.random() * 2) === 0, Math.floor(Math.random() * 2) === 0]);
 				} else if (p.type === 'xy') {
 					set([Math.floor(rnd() * 1024), Math.floor(rnd() * 1024)]);
+				} else if (p.type === 'wh') {
+					set([Math.floor(rnd() * 2048), Math.floor(rnd() * 2048)]);
 				}
 			}
 			this.$store.commit('updateParams', {

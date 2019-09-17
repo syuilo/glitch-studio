@@ -10,7 +10,7 @@ export type FX = (
 	params: Record<string, any>,
 ) => void;
 
-type DataType = 'number' | 'range' | 'enum' | 'bool' | 'blendMode' | 'signal' | 'xy';
+type DataType = 'number' | 'range' | 'enum' | 'bool' | 'blendMode' | 'signal' | 'xy' | 'wh';
 
 export type ParamDef = {
 	type: DataType;
@@ -35,15 +35,10 @@ export type Macro = {
 };
 
 export const basicParamDefs = {
-	_width: {
-		label: 'Width',
-		type: 'number' as const,
-		default: { type: 'expression' as const, value: 'WIDTH' }
-	},
-	_height: {
-		label: 'Height',
-		type: 'number' as const,
-		default: { type: 'expression' as const, value: 'HEIGHT' }
+	_wh: {
+		label: 'WH',
+		type: 'wh' as const,
+		default: { type: 'expression' as const, value: '[WIDTH, HEIGHT]' }
 	},
 	_pos: {
 		label: 'XY',
@@ -162,8 +157,8 @@ export function fx(fx: FX) {
 				};
 		}
 
-		let width = evaluatedParams['_width'];
-		let height = evaluatedParams['_height'];
+		let width = evaluatedParams['_wh'][0];
+		let height = evaluatedParams['_wh'][1];
 
 		if (evaluatedParams['_pos'][0] + width > input.width) {
 			width = input.width - evaluatedParams['_pos'][0];
@@ -197,5 +192,7 @@ export function genEmptyValue(paramDef: Omit<ParamDef, 'default'>): any {
 		return [false, false, false];
 	} else if (paramDef.type === 'xy') {
 		return [0, 0];
+	} else if (paramDef.type === 'wh') {
+		return [1024, 1024];
 	}
 }

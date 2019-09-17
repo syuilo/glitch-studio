@@ -1,5 +1,5 @@
-import { fxs } from './fxs';
-import { Layer } from '.';
+import { fxs } from '../fxs';
+import { Layer } from '..';
 
 const ctx: Worker = self as any;
 

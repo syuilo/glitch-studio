@@ -1,5 +1,8 @@
 <template>
 <main id="app">
+	<div class="histogram">
+		<canvas width="300" height="200" ref="histogram"/>
+	</div>
 	<div class="a">
 		<div class="view">
 			<div class="_gs-container" dropzone="copy" @dragover.prevent="e => { e.dataTransfer.dropEffect = 'copy'; }" @drop.prevent="onDrop">
@@ -213,7 +216,7 @@ export default Vue.extend({
 		},
 
 		render() {
-			render(this.img, this.$store.state.layers, this.$store.state.macros, (w, h) => new Promise((res, rej) => {
+			render(this.img, this.$store.state.layers, this.$store.state.macros, this.$refs.histogram, (w, h) => new Promise((res, rej) => {
 				this.width = w;
 				this.height = h;
 				this.$nextTick(() => {
@@ -394,6 +397,10 @@ optgroup {
 	border: solid 1px rgba(255, 255, 255, 0.1);
 	border-radius: 6px;
 	overflow: hidden;
+
+	> .histogram {
+		position: fixed;
+	}
 
 	> .a {
 		display: flex;

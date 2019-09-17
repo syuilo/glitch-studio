@@ -1,6 +1,7 @@
 import * as math from 'mathjs';
 import { Macro, genEmptyValue } from './core';
-import Worker from 'worker-loader!./renderer';
+import Renderer from 'worker-loader!./workers/renderer';
+import HistgramWorker from 'worker-loader!./workers/histgram';
 import { fxs } from './fxs';
 
 export type Layer = {
@@ -13,7 +14,8 @@ export type Layer = {
 	}>;
 };
 
-const worker = new Worker();
+const renderer = new Renderer();
+const histgram = new HistgramWorker();
 
 const evaluate = (expression: string, scope: Record<string, any>) => {
 	const value = math.evaluate(expression, scope);
@@ -29,6 +31,7 @@ const evaluate = (expression: string, scope: Record<string, any>) => {
  */
 export async function render(
 	src: any, layers: Layer[], macros: Macro[],
+	histogram: HTMLCanvasElement,
 	init: (w: number, h: number) => Promise<CanvasRenderingContext2D>,
 	progress: (max: number, done: number, status: string) => void
 ) {
@@ -88,7 +91,7 @@ export async function render(
 		evaluatedParamses.push(evaluatedParams);
 	}
 
-	worker.postMessage({
+	renderer.postMessage({
 		img: {
 			width: img.bitmap.width,
 			height: img.bitmap.height,
@@ -98,15 +101,49 @@ export async function render(
 		evaluatedParamses
 	});
 
+	function drawHistogram(ctx, bins) {
+		ctx.clearRect(0, 0, 300, 200);
+		var h = histogram.height;
+		var sh = 16;
+		var baseStr = '#';
+		ctx.globalAlpha = 1;
+		for(var ch in bins) {
+			for(var j=0;j<256;j++) {
+				ctx.strokeStyle = baseStr + (j << sh).toString(16);
+				ctx.beginPath();
+				ctx.moveTo(j, h);
+				ctx.lineTo(j, Math.max(0.0, h - bins[ch][j]*h/bins.max));
+				ctx.stroke();
+				ctx.closePath();
+			}
+			sh -= 8;
+			if(sh < 0) break;
+			baseStr += '00';
+		}
+	}
+
 	const onMessage = (e: MessageEvent) => {
 		if (e.data.type === 'rendered') {
 			ctx.putImageData(new ImageData(new Uint8ClampedArray(e.data.data), img.bitmap.width, img.bitmap.height), 0, 0);
-			worker.removeEventListener('message', onMessage);
+			renderer.removeEventListener('message', onMessage);
 			progress(layers.length, layers.length, 'Finished!');
+
+			const finishHist = (e: MessageEvent) => {
+				histgram.removeEventListener('message', finishHist);
+				drawHistogram(histogram.getContext('2d'), e.data);
+			};
+
+			histgram.addEventListener('message', finishHist);
+
+			histgram.postMessage({
+				width: img.bitmap.width,
+				height: img.bitmap.height,
+				data: e.data.data,
+			});
 		} else if (e.data.type === 'progress') {
 			progress(layers.length, e.data.i, e.data.status);
 		}
 	};
 
-	worker.addEventListener('message', onMessage, false);
+	renderer.addEventListener('message', onMessage, false);
 }
