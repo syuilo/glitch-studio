@@ -172,7 +172,7 @@ export default Vue.extend({
 				properties: ['openFile'],
 				filters: [{
 					name: 'Image',
-					extensions: ['png', 'jpg']
+					extensions: ['png', 'jpg', 'jpe', 'jpeg', 'bmp', 'tiff']
 				}]
 			});
 			if (paths == null) return;

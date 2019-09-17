@@ -49,36 +49,36 @@ function renderMenu(presets: { id: string; name: string; }[]) {
 	const menu = Menu.buildFromTemplate([{
 		label: 'File',
 		submenu: [{
-			label: 'Open image',
+			label: 'Open Image',
 			click: () => {
 				win!.webContents.send('openImage');
 			}
 		}, {
-			label: 'Save image',
+			label: 'Save Image',
 			click: () => {
 				win!.webContents.send('saveImage');
 			}
 		}, {
 			type: 'separator'
 		}, {
-			label: 'Save preset',
+			label: 'Save Preset',
 			click: () => {
 				win!.webContents.send('savePreset');
 			}
 		}, {
-			label: 'Export preset',
+			label: 'Export Preset',
 			click: () => {
 				win!.webContents.send('exportPreset');
 			}
 		}, {
-			label: 'Import preset',
+			label: 'Import Preset',
 			click: () => {
 				win!.webContents.send('importPreset');
 			}
 		}, {
 			type: 'separator'
 		}, {
-			label: 'Remove preset',
+			label: 'Remove Preset',
 			submenu: presets.length === 0 ? [{
 				label: 'No presets',
 				enabled: false
