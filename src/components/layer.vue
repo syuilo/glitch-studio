@@ -1,6 +1,7 @@
 <template>
 <div class="layer-component">
 	<header class="drag-handle" @dblclick="minimized = !minimized">{{ name }}</header>
+	<div class="indicator" :class="{ active: layer.isEnabled, processing }"></div>
 	<div class="buttons">
 		<button class="randomize" @click="randomize()" title="Randomize"><fa :icon="faRandom"/></button>
 		<button class="active" :class="{ primary: layer.isEnabled }" @click="toggleEnable()" :title="layer.isEnabled ? 'Click to disable' : 'Click to enable'"><fa :icon="layer.isEnabled ? faEye : faEyeSlash"/></button>
@@ -37,7 +38,13 @@ export default Vue.extend({
 		layer: {
 			type: Object,
 			required: true
-		}
+		},
+
+		processing: {
+			type: Boolean,
+			required: false,
+			default: false
+		},
 	},
 
 	data() {
@@ -175,6 +182,29 @@ export default Vue.extend({
 		cursor: move;
 		line-height: 32px;
 		text-shadow: 0 -1px #000;
+	}
+
+	> .indicator {
+		position: absolute;
+		top: 9px;
+		left: 6px;
+		width: 4px;
+		height: 12px;
+		border-top: solid 1px transparent;
+		border-bottom: solid 1px #383838;
+		background: #111;
+		box-shadow: 0px 1px 1px rgba(0, 0, 0, 0.3) inset;
+		border-radius: 2px;
+
+		&.active {
+			background: #26cfe0;
+			background-clip: content-box;
+		}
+
+		&.processing {
+			background: #ff0;
+			background-clip: content-box;
+		}
 	}
 
 	> .buttons {

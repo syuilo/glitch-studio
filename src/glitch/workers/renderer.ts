@@ -7,14 +7,14 @@ function render(input: {
 	width: number;
 	height: number;
 	data: Uint8Array;
-}, layers: Layer[], paramses: Record<string, any>[], progress: (i: number, status: string) => void) {
+}, layers: Layer[], paramses: Record<string, any>[], progress: (i: number, status: string, args?: any) => void) {
 	console.log('Apply FXs...');
 	let i = 0;
 	for (const layer of layers) {
 		if (!layer.isEnabled) { i++; continue; } // Skip disabled effect
 
 		const label = `FX: ${layer.fx}`;
-		progress(i, `Applying ${layer.fx}...`);
+		progress(i, `Applying ${layer.fx}...`, { processingFxId: layer.id });
 		console.time(label);
 		input.data = fxs[layer.fx].fn(input, paramses[i]);
 		console.timeEnd(label);
@@ -25,10 +25,10 @@ function render(input: {
 
 ctx.addEventListener('message', e => {
 	const data = e.data;
-	const out = render(data.img, data.layers, data.evaluatedParamses, (i: number, status: string) => {
+	const out = render(data.img, data.layers, data.evaluatedParamses, (i: number, status: string, args?: any) => {
 		ctx.postMessage({
 			type: 'progress',
-			i, status
+			i, status, args
 		});
 	});
 	ctx.postMessage({

@@ -17,7 +17,7 @@
 				<div :class="{ active: tab === 'macro' }" @click="tab = 'macro'"><fa :icon="faSlidersH"/>Macro<span>({{ $store.state.macros.length }})</span></div>
 				<div :class="{ active: tab === 'meta' }" @click="tab = 'meta'"><fa :icon="faInfoCircle"/>Meta</div>
 			</div>
-			<XLayers v-show="tab === 'fx'"/>
+			<XLayers v-show="tab === 'fx'" :processing-fx-id="processingFxId"/>
 			<XMacros v-show="tab === 'macro'"/>
 			<div v-show="tab === 'meta'" class="meta _gs-container">
 				<input type="text" v-model="presetName"/>
@@ -84,8 +84,10 @@ export default Vue.extend({
 			img: null,
 			width: 0,
 			height: 0,
+			isRendering: false,
 			histogram: null as Histogram | null,
 			status: null as string | null,
+			processingFxId: null,
 			progress: 0,
 			tab: 'fx',
 			presetName: '',
@@ -238,8 +240,10 @@ export default Vue.extend({
 			});
 		},
 
-		render() {
-			render(this.img, this.$store.state.layers, this.$store.state.macros, (w, h) => new Promise((res, rej) => {
+		async render() {
+			this.isRendering = true;
+
+			await render(this.img, this.$store.state.layers, this.$store.state.macros, (w, h) => new Promise((res, rej) => {
 				this.width = w;
 				this.height = h;
 				this.$nextTick(() => {
@@ -247,10 +251,14 @@ export default Vue.extend({
 				});
 			}), (histogram: Histogram) => {
 				this.histogram = histogram;
-			}, (max, done, status) => {
+			}, (max, done, status, args) => {
 				this.status = status;
 				this.progress = done / max * 100;
+				if (args && args.processingFxId) this.processingFxId = args.processingFxId;
 			});
+
+			this.processingFxId = null;
+			this.isRendering = false;
 		},
 
 		onDrop(ev: DragEvent) {
