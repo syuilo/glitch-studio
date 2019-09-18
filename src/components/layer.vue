@@ -182,7 +182,10 @@ export default Vue.extend({
 	overflow: hidden;
 
 	> header {
-		padding: 0 16px;
+		padding: 0 88px 0 20px;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
 		font-size: 14px;
 		font-weight: bold;
 		background: linear-gradient(0deg, rgba(0, 0, 0, 0.2), rgba(255, 255, 255, 0.025));
@@ -199,7 +202,7 @@ export default Vue.extend({
 	> .indicator {
 		position: absolute;
 		top: 9px;
-		left: 6px;
+		left: 8px;
 		width: 4px;
 		height: 12px;
 		border-top: solid 1px transparent;
