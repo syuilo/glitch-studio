@@ -14,7 +14,7 @@ const paramDefs = {
 	},
 	seed: {
 		label: 'Seed',
-		type: 'number' as const,
+		type: 'seed' as const,
 		default: { type: 'literal' as const, value: 0 },
 	},
 	direction: {

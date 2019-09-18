@@ -323,6 +323,7 @@ input[type=number] {
 	padding: 4px 6px;
 	outline: none;
 	width: 100%;
+	line-height: 15px;
 
 	&:focus {
 		border-color: $theme-color;

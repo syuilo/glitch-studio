@@ -59,11 +59,15 @@
 	<div v-else-if="type === 'color'">
 		<XColor :color="value" @input="changeValue($event)"/>
 	</div>
+	<div v-else-if="type === 'seed'" class="seed">
+		<input type="number" :value="value" @change="changeValue(parseInt($event.target.value, 10))"/><button title="Random" @click="() => changeValue(Math.floor(Math.random() * 16384))"><fa :icon="faRandom"/></button>
+	</div>
 </div>
 </template>
 
 <script lang="ts">
 import Vue from 'vue';
+import { faRandom } from '@fortawesome/free-solid-svg-icons';
 import XSignal from './signal.vue';
 import XXy from './xy.vue';
 import XWh from './wh.vue';
@@ -87,6 +91,12 @@ export default Vue.extend({
 		},
 	},
 
+	data() {
+		return {
+			faRandom
+		};
+	},
+
 	methods: {
 		changeValue(value: any) {
 			this.$emit('input', value);
@@ -96,4 +106,15 @@ export default Vue.extend({
 </script>
 
 <style scoped lang="scss">
+.control-component {
+	> .seed {
+		display: flex;
+
+		> button {
+			width: 38px;
+			height: 24px;
+			margin-left: 6px;
+		}
+	}
+}
 </style>

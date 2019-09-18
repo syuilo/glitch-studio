@@ -10,7 +10,7 @@ export type FX = (
 	params: Record<string, any>,
 ) => void;
 
-type DataType = 'number' | 'range' | 'enum' | 'bool' | 'blendMode' | 'signal' | 'xy' | 'wh' | 'color';
+type DataType = 'number' | 'range' | 'enum' | 'bool' | 'blendMode' | 'signal' | 'xy' | 'wh' | 'color' | 'seed';
 
 export type ParamDef = {
 	type: DataType;
@@ -196,5 +196,7 @@ export function genEmptyValue(paramDef: Omit<ParamDef, 'default'>): any {
 		return [1024, 1024];
 	} else if (paramDef.type === 'color') {
 		return [0, 0, 0];
+	} else if (paramDef.type === 'seed') {
+		return 0;
 	}
 }
