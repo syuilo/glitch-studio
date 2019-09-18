@@ -28,9 +28,9 @@
 	<footer class="footer">
 		<div class="histogram">
 			<template v-if="histogram">
-				<div class="r"><div :style="{ height: ((histogram.rAmount / histogram.amountMax) * 100) + '%' }"></div></div>
-				<div class="g"><div :style="{ height: ((histogram.gAmount / histogram.amountMax) * 100) + '%' }"></div></div>
-				<div class="b"><div :style="{ height: ((histogram.bAmount / histogram.amountMax) * 100) + '%' }"></div></div>
+				<div class="r"><div :style="{ height: ((histogram.rAmount / (255 * width * height)) * 100) + '%' }"></div></div>
+				<div class="g"><div :style="{ height: ((histogram.gAmount / (255 * width * height)) * 100) + '%' }"></div></div>
+				<div class="b"><div :style="{ height: ((histogram.bAmount / (255 * width * height)) * 100) + '%' }"></div></div>
 			</template>
 			<template v-else>
 				<div class="r"><div></div></div>
