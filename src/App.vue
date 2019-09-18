@@ -20,8 +20,6 @@
 			<XLayers v-show="tab === 'fx'" :processing-fx-id="processingFxId" :rendering="isRendering"/>
 			<XMacros v-show="tab === 'macro'"/>
 			<div v-show="tab === 'meta'" class="meta _gs-container">
-				<input type="text" v-model="presetName"/>
-				<button @click="savePreset()">Save preset</button>
 			</div>
 		</div>
 	</div>
@@ -369,7 +367,9 @@ input.expression {
 	background: rgba(55, 64, 28, 0.3);
 }
 
-select, button {
+button,
+select,
+input[type=color] {
 	display: block;
 	box-sizing: border-box;
 	appearance: none;
@@ -409,6 +409,10 @@ select, button {
 			background: linear-gradient(180deg, darken($theme-color, 10%), lighten($theme-color, 5%));
 		}
 	}
+}
+
+input[type=color] {
+	padding: 0 2px;
 }
 
 option {

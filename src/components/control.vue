@@ -56,6 +56,9 @@
 	<div v-else-if="type === 'wh'">
 		<XWh :wh="value" @input="changeValue($event)"/>
 	</div>
+	<div v-else-if="type === 'color'">
+		<XColor :color="value" @input="changeValue($event)"/>
+	</div>
 </div>
 </template>
 
@@ -64,11 +67,12 @@ import Vue from 'vue';
 import XSignal from './signal.vue';
 import XXy from './xy.vue';
 import XWh from './wh.vue';
+import XColor from './color.vue';
 import { fxs } from '../glitch/fxs';
 
 export default Vue.extend({
 	components: {
-		XSignal, XXy, XWh
+		XSignal, XXy, XWh, XColor
 	},
 
 	props: {

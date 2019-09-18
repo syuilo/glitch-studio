@@ -62,8 +62,8 @@ const fn = fx((w, h, get, set, params) => {
 });
 
 export default {
-	name: 'tearBulk',
-	displayName: 'Tear (bulk)',
+	name: 'tearings',
+	displayName: 'Tearings',
 	paramDefs,
 	fn
 };
