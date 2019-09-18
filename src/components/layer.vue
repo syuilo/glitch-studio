@@ -1,14 +1,14 @@
 <template>
 <div class="layer-component">
-	<header class="drag-handle" @dblclick="minimized = !minimized">{{ name }}</header>
+	<header class="drag-handle" :class="{ disabled: rendering }" @dblclick="minimized = !minimized">{{ name }}</header>
 	<div class="indicator" :class="{ active: layer.isEnabled, processing }"></div>
-	<div class="buttons">
+	<div class="buttons" :class="{ disabled: rendering }">
 		<button class="randomize" @click="randomize()" title="Randomize"><fa :icon="faRandom"/></button>
 		<button class="active" :class="{ primary: layer.isEnabled }" @click="toggleEnable()" :title="layer.isEnabled ? 'Click to disable' : 'Click to enable'"><fa :icon="layer.isEnabled ? faEye : faEyeSlash"/></button>
 		<button class="remove" @click="remove()" title="Remove effect"><fa :icon="faTimes"/></button>
 	</div>
 
-	<div class="params" v-show="!minimized">
+	<div class="params" v-show="!minimized" :class="{ disabled: rendering }">
 		<div v-for="param in Object.keys(paramDefs)" :key="param">
 			<label :class="{ expression: isExpression(param) }" @dblclick="toggleParamValueType(param)">{{ paramDefs[param].label }}</label>
 			<div v-if="isExpression(param)">
@@ -42,8 +42,12 @@ export default Vue.extend({
 
 		processing: {
 			type: Boolean,
-			required: false,
-			default: false
+			required: true,
+		},
+
+		rendering: {
+			type: Boolean,
+			required: true,
 		},
 	},
 
@@ -182,6 +186,10 @@ export default Vue.extend({
 		cursor: move;
 		line-height: 32px;
 		text-shadow: 0 -1px #000;
+
+		&.disabled {
+			pointer-events: none;
+		}
 	}
 
 	> .indicator {
@@ -214,6 +222,11 @@ export default Vue.extend({
 		text-align: right;
 		width: 85px;
 
+		&.disabled {
+			opacity: 0.7;
+			pointer-events: none;
+		}
+
 		> button {
 			display: inline-block;
 			width: 23px;
@@ -235,6 +248,11 @@ export default Vue.extend({
 	> .params {
 		background: rgba(0, 0, 0, 0.3);
 		padding: 0 16px;
+
+		&.disabled {
+			opacity: 0.7;
+			pointer-events: none;
+		}
 
 		> div {
 			display: flex;

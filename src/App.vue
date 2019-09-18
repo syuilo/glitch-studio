@@ -17,7 +17,7 @@
 				<div :class="{ active: tab === 'macro' }" @click="tab = 'macro'"><fa :icon="faSlidersH"/>Macro<span>({{ $store.state.macros.length }})</span></div>
 				<div :class="{ active: tab === 'meta' }" @click="tab = 'meta'"><fa :icon="faInfoCircle"/>Meta</div>
 			</div>
-			<XLayers v-show="tab === 'fx'" :processing-fx-id="processingFxId"/>
+			<XLayers v-show="tab === 'fx'" :processing-fx-id="processingFxId" :rendering="isRendering"/>
 			<XMacros v-show="tab === 'macro'"/>
 			<div v-show="tab === 'meta'" class="meta _gs-container">
 				<input type="text" v-model="presetName"/>
