@@ -11,6 +11,7 @@ import fill from './fx/fill';
 import threshold from './fx/threshold';
 import blockStretch from './fx/block-stretch';
 import continuousGhost from './fx/continuous-ghost';
+import pixelSort from './fx/pixel-sort';
 
 export const fxs = {
 	swap,
@@ -25,6 +26,7 @@ export const fxs = {
 	threshold,
 	blockStretch,
 	continuousGhost,
+	pixelSort,
 } as Record<string, {
 	name: string;
 	displayName: string;
