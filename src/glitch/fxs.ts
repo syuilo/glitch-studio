@@ -13,7 +13,7 @@ import blockStretch from './fx/block-stretch';
 import continuousGhost from './fx/continuous-ghost';
 import pixelSort from './fx/pixel-sort';
 
-export const fxs = {
+const _fxs = {
 	swap,
 	tearing,
 	tearings,
@@ -33,3 +33,10 @@ export const fxs = {
 	paramDefs: ParamDefs;
 	fn: ReturnType<typeof fx>;
 }>;
+
+const fxs = {} as typeof _fxs;
+Object.keys(_fxs).sort().forEach(key => {
+	fxs[key] = _fxs[key];
+});
+
+export { fxs };
