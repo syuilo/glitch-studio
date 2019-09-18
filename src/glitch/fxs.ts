@@ -9,6 +9,7 @@ import replace from './fx/replace';
 import crt from './fx/crt';
 import fill from './fx/fill';
 import threshold from './fx/threshold';
+import blockStretch from './fx/block-stretch';
 
 export const fxs = {
 	swap,
@@ -21,6 +22,7 @@ export const fxs = {
 	crt,
 	fill,
 	threshold,
+	blockStretch,
 } as Record<string, {
 	name: string;
 	displayName: string;

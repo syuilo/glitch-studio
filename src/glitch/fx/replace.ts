@@ -1,4 +1,4 @@
-import { fx, Color, basicParamDefs } from '../core';
+import { fx, basicParamDefs } from '../core';
 import seedrandom from 'seedrandom';
 
 const paramDefs = {

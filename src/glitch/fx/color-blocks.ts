@@ -93,7 +93,7 @@ const fn = fx((w, h, get, set, params) => {
 
 export default {
 	name: 'colorBlocks',
-	displayName: 'Color blocks',
+	displayName: 'Color Blocks',
 	paramDefs,
 	fn
 };

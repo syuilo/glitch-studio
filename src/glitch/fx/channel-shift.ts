@@ -50,7 +50,7 @@ const fn = fx((w, h, get, set, params) => {
 
 export default {
 	name: 'channelShift',
-	displayName: 'Channel shift',
+	displayName: 'Channel Shift',
 	paramDefs,
 	fn
 };
