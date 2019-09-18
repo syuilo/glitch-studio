@@ -12,6 +12,21 @@ const paramDefs = {
 		type: 'number' as const,
 		default: { type: 'literal' as const, value: 32 }
 	},
+	direction: {
+		label: 'Direction',
+		type: 'enum' as const,
+		options: [{
+			label: 'V',
+			value: 'v',
+		}, {
+			label: 'H',
+			value: 'h',
+		}, {
+			label: 'Any',
+			value: 'any',
+		}],
+		default: { type: 'literal' as const, value: 'h' }
+	},
 	size: {
 		label: 'Size',
 		type: 'wh' as const,
@@ -32,15 +47,15 @@ const paramDefs = {
 };
 
 const fn = fx((w, h, get, set, params) => {
-	const { times, velocity, size, seed, cut } = params;
+	const { times, velocity, direction, size, seed, cut } = params;
 
 	const rnd = seedrandom(seed.toString());
 
 	for (let _ = 0; _ < times; _++) {
 		const srcX = Math.floor(rnd() * w);
 		const srcY = Math.floor(rnd() * h);
-		const dstX = srcX + Math.floor((rnd() * (velocity * 2)) - velocity);
-		const dstY = srcY + Math.floor((rnd() * (velocity * 2)) - velocity);
+		const dstX = direction === 'h' || direction === 'any' ? srcX + Math.floor((rnd() * (velocity * 2)) - velocity) : srcX;
+		const dstY = direction === 'v' || direction === 'any' ? srcY + Math.floor((rnd() * (velocity * 2)) - velocity) : srcY;
 
 		if (cut) {
 			for (let x = 0; x < size[0]; x++) {
