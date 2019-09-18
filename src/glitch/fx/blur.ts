@@ -33,10 +33,19 @@ const paramDefs = {
 			label: 'Right',
 			value: 'right',
 		}, {
-			label: 'Both',
-			value: 'both',
+			label: 'Top',
+			value: 'top',
+		}, {
+			label: 'Bottom',
+			value: 'bottom',
+		}, {
+			label: 'Left + Right',
+			value: 'leftRight',
+		}, {
+			label: 'Top + Bottom',
+			value: 'topBottom',
 		}],
-		default: { type: 'literal' as const, value: 'left' }
+		default: { type: 'literal' as const, value: 'right' }
 	},
 	seed: {
 		label: 'Seed',
@@ -56,7 +65,7 @@ const fn = fx((w, h, get, set, params) => {
 		const pxX = Math.floor(rnd() * w);
 		const pxY = Math.floor(rnd() * h);
 
-		function draw(dir: 'left' | 'right') {
+		const drawH = (dir: 'left' | 'right') => {
 			for (let i = 0; i < velocity; i++) {
 				const dstX = dir === 'right' ? pxX + i : pxX - i;
 				const dstY = pxY;
@@ -77,13 +86,41 @@ const fn = fx((w, h, get, set, params) => {
 					}
 				}
 			}
-		}
+		};
+
+		const drawV = (dir: 'top' | 'bottom') => {
+			for (let i = 0; i < velocity; i++) {
+				const dstX = pxX;
+				const dstY = dir === 'bottom' ? pxY + i : pxY - i;
+
+				if (dstY >= h) continue;
+				if (dstY < 0) continue;
+
+				for (let j = 0; j < size; j++) {
+					if (dstX + j >= w) continue;
+
+					if (fade) {
+						set(dstX + j, dstY, blend(
+							get(dstX + j, dstY), get(pxX + j, pxY),
+							1 - (i / velocity)
+						));
+					} else {
+						set(dstX + j, dstY, get(pxX + j, pxY));
+					}
+				}
+			}
+		};
 
 		if (direction === 'left' || direction === 'right') {
-			draw(direction);
-		} else {
-			draw('left');
-			draw('right');
+			drawH(direction);
+		} else if (direction === 'leftRight') {
+			drawH('left');
+			drawH('right');
+		} else if (direction === 'top' || direction === 'bottom') {
+			drawV(direction);
+		} else if (direction === 'topBottom') {
+			drawV('top');
+			drawV('bottom');
 		}
 	}
 });
