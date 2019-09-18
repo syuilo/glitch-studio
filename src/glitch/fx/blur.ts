@@ -32,6 +32,9 @@ const paramDefs = {
 		}, {
 			label: 'Right',
 			value: 'right',
+		}, {
+			label: 'Both',
+			value: 'both',
 		}],
 		default: { type: 'literal' as const, value: 'left' }
 	},
@@ -45,7 +48,7 @@ const paramDefs = {
 };
 
 const fn = fx((w, h, get, set, params) => {
-	const { times, velocity, size, fade, seed } = params;
+	const { times, velocity, size, fade, seed, direction } = params;
 
 	const rnd = seedrandom(seed.toString());
 
@@ -53,24 +56,34 @@ const fn = fx((w, h, get, set, params) => {
 		const pxX = Math.floor(rnd() * w);
 		const pxY = Math.floor(rnd() * h);
 
-		for (let i = 0; i < velocity; i++) {
-			const dstX = pxX + i;
-			const dstY = pxY;
+		function draw(dir: 'left' | 'right') {
+			for (let i = 0; i < velocity; i++) {
+				const dstX = dir === 'right' ? pxX + i : pxX - i;
+				const dstY = pxY;
 
-			if (dstX >= w) continue;
+				if (dstX >= w) continue;
+				if (dstX < 0) continue;
 
-			for (let j = 0; j < size; j++) {
-				if (dstY + j >= h) continue;
+				for (let j = 0; j < size; j++) {
+					if (dstY + j >= h) continue;
 
-				if (fade) {
-					set(dstX, dstY + j, blend(
-						get(dstX, dstY + j), get(pxX, pxY + j),
-						1 - (i / velocity)
-					));
-				} else {
-					set(dstX, dstY + j, get(pxX, pxY + j));
+					if (fade) {
+						set(dstX, dstY + j, blend(
+							get(dstX, dstY + j), get(pxX, pxY + j),
+							1 - (i / velocity)
+						));
+					} else {
+						set(dstX, dstY + j, get(pxX, pxY + j));
+					}
 				}
 			}
+		}
+
+		if (direction === 'left' || direction === 'right') {
+			draw(direction);
+		} else {
+			draw('left');
+			draw('right');
 		}
 	}
 });
