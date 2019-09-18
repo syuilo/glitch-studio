@@ -12,6 +12,7 @@ import threshold from './fx/threshold';
 import blockStretch from './fx/block-stretch';
 import continuousGhost from './fx/continuous-ghost';
 import pixelSort from './fx/pixel-sort';
+import noise from './fx/noise';
 
 const _fxs = {
 	swap,
@@ -27,6 +28,7 @@ const _fxs = {
 	blockStretch,
 	continuousGhost,
 	pixelSort,
+	noise,
 } as Record<string, {
 	name: string;
 	displayName: string;
