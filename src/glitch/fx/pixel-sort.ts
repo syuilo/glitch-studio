@@ -1,3 +1,4 @@
+import seedrandom from 'seedrandom';
 import { fx, basicParamDefs, Color } from '../core';
 
 const paramDefs = {
@@ -32,8 +33,8 @@ const paramDefs = {
 		}],
 		default: { type: 'literal' as const, value: 'ab' }
 	},
-	mode: {
-		label: 'Mode',
+	trigger: {
+		label: 'Trigger',
 		type: 'enum' as const,
 		options: [{
 			label: 'Luminance',
@@ -41,8 +42,16 @@ const paramDefs = {
 		}, {
 			label: 'Brightness',
 			value: 'brightness',
+		}, {
+			label: 'Random',
+			value: 'random',
 		}],
 		default: { type: 'literal' as const, value: 'luminance' }
+	},
+	seed: {
+		label: 'Seed',
+		type: 'seed' as const,
+		default: { type: 'literal' as const, value: 0 },
 	},
 
 	...basicParamDefs,
@@ -50,7 +59,9 @@ const paramDefs = {
 
 
 const fn = fx((w, h, get, set, params) => {
-	const { threshold, direction, mode, sort: sortMode } = params;
+	const { threshold, direction, trigger, sort: sortMode, seed } = params;
+
+	const rnd = seedrandom(seed.toString());
 
 	function getLuminance(color: Color) {
 		return (color[0] * 0.299) + (color[1] * 0.587) + (color[2] * 0.114);
@@ -60,9 +71,14 @@ const fn = fx((w, h, get, set, params) => {
 		return ((color[0] + color[1] + color[2]) / (255 * 3)) * 255;
 	}
 
-	const getValue = mode === 'luminance' ?
-		getLuminance :
-		getBrightness;
+	function getRandom(color: Color) {
+		return rnd() * 255;
+	}
+
+	const getValue =
+		trigger === 'luminance' ? getLuminance :
+		trigger === 'brightness' ? getBrightness :
+		getRandom;
 
 	const sort = sortMode === 'ab' ?
 		(a: Color, b: Color) => getLuminance(a) - getLuminance(b) :
