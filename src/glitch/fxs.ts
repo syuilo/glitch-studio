@@ -8,6 +8,7 @@ import colorBlocks from './fx/color-blocks';
 import replace from './fx/replace';
 import crt from './fx/crt';
 import fill from './fx/fill';
+import threshold from './fx/threshold';
 
 export const fxs = {
 	swap,
@@ -19,6 +20,7 @@ export const fxs = {
 	replace,
 	crt,
 	fill,
+	threshold,
 } as Record<string, {
 	name: string;
 	displayName: string;
