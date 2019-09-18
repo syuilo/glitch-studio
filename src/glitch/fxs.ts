@@ -10,6 +10,7 @@ import crt from './fx/crt';
 import fill from './fx/fill';
 import threshold from './fx/threshold';
 import blockStretch from './fx/block-stretch';
+import continuousGhost from './fx/continuous-ghost';
 
 export const fxs = {
 	swap,
@@ -23,6 +24,7 @@ export const fxs = {
 	fill,
 	threshold,
 	blockStretch,
+	continuousGhost,
 } as Record<string, {
 	name: string;
 	displayName: string;

@@ -112,7 +112,7 @@ export default Vue.extend({
 
 		> button {
 			width: 38px;
-			height: 24px;
+			height: 25px;
 			margin-left: 6px;
 		}
 	}
