@@ -31,7 +31,7 @@ const histogramWorker = new HistogramWorker();
 
 const evaluate = (expression: string, scope: Record<string, any>) => {
 	const value = math.evaluate(expression, scope);
-	if (value.constructor.name === 'Matrix') {
+	if (value.toArray) {
 		return value.toArray();
 	} else {
 		return value;
@@ -103,7 +103,9 @@ export async function render(
 	
 			evaluatedParamses.push(evaluatedParams);
 		}
-	
+
+		console.debug('EVAL', evaluatedParamses);
+
 		renderer.postMessage({
 			img: {
 				width: img.bitmap.width,
