@@ -7,6 +7,16 @@ const paramDefs = {
 		type: 'number' as const,
 		default: { type: 'literal' as const, value: 32 },
 	},
+	amount: {
+		label: 'amount',
+		type: 'number' as const,
+		default: { type: 'literal' as const, value: 64 },
+	},
+	thickness: {
+		label: 'Thickness',
+		type: 'number' as const,
+		default: { type: 'literal' as const, value: 64 },
+	},
 	seed: {
 		label: 'Seed',
 		type: 'seed' as const,
@@ -20,9 +30,9 @@ const fn = fx((w, h, get, set, params) => {
 	const rnd = seedrandom(params.seed.toString());
 
 	for (let i = 0; i < params.times; i++) {
-		const thickness = Math.floor(rnd() * 64);
+		const thickness = Math.floor(rnd() * params.thickness);
 		const pos = Math.floor(rnd() * h);
-		const amount = Math.floor(rnd() * 64);
+		const amount = Math.floor(rnd() * params.amount);
 		const direction = Math.floor(rnd() * 2) === 0 ? 'left' : 'right';
 	
 		if (direction === 'right') {
