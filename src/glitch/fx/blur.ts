@@ -47,6 +47,11 @@ const paramDefs = {
 		}],
 		default: { type: 'literal' as const, value: 'right' }
 	},
+	randomVelocity: {
+		label: 'Random Velocity',
+		type: 'bool' as const,
+		default: { type: 'literal' as const, value: false }
+	},
 	seed: {
 		label: 'Seed',
 		type: 'seed' as const,
@@ -57,16 +62,17 @@ const paramDefs = {
 };
 
 const fn = fx((w, h, get, set, params) => {
-	const { times, velocity, size, fade, seed, direction } = params;
+	const { times, velocity, size, fade, seed, direction, randomVelocity } = params;
 
 	const rnd = seedrandom(seed.toString());
 
 	for (let _ = 0; _ < times; _++) {
 		const pxX = Math.floor(rnd() * w);
 		const pxY = Math.floor(rnd() * h);
+		const _velocity = randomVelocity ? Math.floor(rnd() * velocity) : velocity;
 
 		const drawH = (dir: 'left' | 'right') => {
-			for (let i = 0; i < velocity; i++) {
+			for (let i = 0; i < _velocity; i++) {
 				const dstX = dir === 'right' ? pxX + i : pxX - i;
 				const dstY = pxY;
 
@@ -79,7 +85,7 @@ const fn = fx((w, h, get, set, params) => {
 					if (fade) {
 						set(dstX, dstY + j, blend(
 							get(dstX, dstY + j), get(pxX, pxY + j),
-							1 - (i / velocity)
+							1 - (i / _velocity)
 						));
 					} else {
 						set(dstX, dstY + j, get(pxX, pxY + j));
@@ -89,7 +95,7 @@ const fn = fx((w, h, get, set, params) => {
 		};
 
 		const drawV = (dir: 'top' | 'bottom') => {
-			for (let i = 0; i < velocity; i++) {
+			for (let i = 0; i < _velocity; i++) {
 				const dstX = pxX;
 				const dstY = dir === 'bottom' ? pxY + i : pxY - i;
 
@@ -102,7 +108,7 @@ const fn = fx((w, h, get, set, params) => {
 					if (fade) {
 						set(dstX + j, dstY, blend(
 							get(dstX + j, dstY), get(pxX + j, pxY),
-							1 - (i / velocity)
+							1 - (i / _velocity)
 						));
 					} else {
 						set(dstX + j, dstY, get(pxX + j, pxY));
