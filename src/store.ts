@@ -54,6 +54,7 @@ export const store = () => new Vuex.Store({
 			state.macros.push({
 				id: payload.id,
 				type: 'number',
+				typeOptions: {},
 				label: 'Macro',
 				name: 'macro',
 				value: {
@@ -145,6 +146,11 @@ export const store = () => new Vuex.Store({
 		updateMacroType(state, payload) {
 			const macro = state.macros.find(macro => macro.id === payload.macroId)!;
 			Vue.set(macro, 'type', payload.value);
+		},
+
+		updateMacroTypeOption(state, payload) {
+			const macro = state.macros.find(macro => macro.id === payload.macroId)!;
+			Vue.set(macro.typeOptions, payload.key, payload.value);
 		},
 
 		removeMacro(state, payload) {

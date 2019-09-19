@@ -6,7 +6,7 @@
 			<div v-if="macro.value.type === 'expression'">
 				<input type="text" class="expression" :value="macro.value.value" @change="updateMacroAsExpression(macro, $event.target.value)"/>
 			</div>
-			<XControl v-else :type="macro.type" :value="macro.value.value" @input="updateMacroAsLiteral(macro, $event)"/>
+			<XControl v-else :type="macro.type" :value="macro.value.value" :options="macro.typeOptions" @input="updateMacroAsLiteral(macro, $event)"/>
 		</div>
 		<p v-if="$store.state.macros.length === 0" class="_gs-no-contents">No macros</p>
 	</div>
@@ -20,13 +20,23 @@
 		</header>
 		<div class="list">
 			<div v-for="macro in $store.state.macros" :key="macro.id" class="macro">
-				<input type="text" :value="macro.label" @change="updateMacroLabel(macro, $event.target.value)"/>
-				<input type="text" :value="macro.name" @change="updateMacroName(macro, $event.target.value)"/>
-				<select :value="macro.type" @change="updateMacroType(macro, $event.target.value)">
-					<option value="number">Number</option>
-					<option value="bool">Flag</option>
-				</select>
-				<button class="remove" title="Remove macro" @click="remove(macro.id)"><fa :icon="faTimes"/></button>
+				<div>
+					<input type="text" :value="macro.label" @change="updateMacroLabel(macro, $event.target.value)"/>
+					<input type="text" :value="macro.name" @change="updateMacroName(macro, $event.target.value)"/>
+					<select :value="macro.type" @change="updateMacroType(macro, $event.target.value)">
+						<option value="number">Number</option>
+						<option value="range">Range</option>
+						<option value="bool">Flag</option>
+					</select>
+					<button class="remove" title="Remove macro" @click="remove(macro.id)"><fa :icon="faTimes"/></button>
+				</div>
+				<div v-if="macro.type === 'range'" class="range">
+					<label>Min/Max</label>
+					<div class="minmax">
+						<input type="number" :value="macro.typeOptions.min" @change="updateMacroTypeOption(macro, 'min', parseInt($event.target.value, 10))"/>
+						<input type="number" :value="macro.typeOptions.max" @change="updateMacroTypeOption(macro, 'max', parseInt($event.target.value, 10))"/>
+					</div>
+				</div>
 			</div>
 		</div>
 	</div>
@@ -95,6 +105,14 @@ export default Vue.extend({
 		updateMacroType(macro: Macro, value: string) {
 			this.$store.commit('updateMacroType', {
 				macroId: macro.id,
+				value: value
+			});
+		},
+
+		updateMacroTypeOption(macro: Macro, key: string, value: any) {
+			this.$store.commit('updateMacroTypeOption', {
+				macroId: macro.id,
+				key: key,
 				value: value
 			});
 		},
@@ -191,7 +209,6 @@ export default Vue.extend({
 
 		> .list {
 			> .macro {
-				display: flex;
 				padding: 8px 0;
 
 				&:not(:first-child) {
@@ -202,19 +219,62 @@ export default Vue.extend({
 					border-bottom: solid 1px rgba(0, 0, 0, 0.5);
 				}
 
-				> * {
-					margin: 0 2px;
+				> div:first-child {
+					display: flex;
 
-					&:first-child {
-						margin-left: 0;
+					> * {
+						margin: 0 2px;
+
+						&:first-child {
+							margin-left: 0;
+						}
+
+						&:last-child {
+							margin-right: 0;
+						}
+
+						&.remove {
+							width: 64px;
+						}
+					}
+				}
+
+				> div:not(:first-child) {
+					display: flex;
+					padding: 8px 0;
+
+					> label {
+						width: 30%;
+						box-sizing: border-box;
+						padding-left: 8px;
+						padding-top: 4px;
+						padding-right: 8px;
+						flex-shrink: 0;
+						white-space: nowrap;
+						text-overflow: ellipsis;
+						overflow: hidden;
+						font-size: 14px;
+						color: rgba(255, 255, 255, 0.9);
+						cursor: pointer;
+
+						&.expression {
+							color: #9edc29;
+						}
 					}
 
-					&:last-child {
-						margin-right: 0;
+					> div {
+						width: 70%;
+						flex-shrink: 1;
 					}
 
-					&.remove {
-						width: 64px;
+					&.range {
+						> .minmax {
+							display: flex;
+
+							> *:first-child {
+								margin-right: 4px;
+							}
+						}
 					}
 				}
 			}

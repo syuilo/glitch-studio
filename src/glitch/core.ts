@@ -28,6 +28,7 @@ export type Macro = {
 	label: string;
 	name: string;
 	type: DataType;
+	typeOptions: Record<string, any>;
 	value: {
 		type: 'literal' | 'expression';
 		value: any;
