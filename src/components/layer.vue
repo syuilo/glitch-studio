@@ -277,7 +277,7 @@ export default Vue.extend({
 				width: 30%;
 				box-sizing: border-box;
 				padding-top: 4px;
-				padding-right: 4px;
+				padding-right: 8px;
 				flex-shrink: 0;
 				white-space: nowrap;
 				text-overflow: ellipsis;
