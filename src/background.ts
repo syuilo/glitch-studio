@@ -178,6 +178,13 @@ function renderMenu() {
 		}, {
 			type: 'separator',
 		}, {
+			label: 'Support Us on Patreon',
+			click: () => {
+				shell.openExternal('https://www.patreon.com/syuilo');
+			}
+		}, {
+			type: 'separator',
+		}, {
 			label: 'About',
 			click: () => {
 				win!.webContents.send('about');
