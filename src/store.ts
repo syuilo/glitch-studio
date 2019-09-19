@@ -147,6 +147,10 @@ export const store = () => new Vuex.Store({
 			Vue.set(macro, 'type', payload.value);
 		},
 
+		removeMacro(state, payload) {
+			Vue.set(state, 'macros', state.macros.filter(macro => macro.id !== payload.macroId));
+		},
+
 		applyPreset(state, payload: Preset) {
 			Vue.set(state, 'layers', payload.layers);
 			Vue.set(state, 'macros', payload.macros);

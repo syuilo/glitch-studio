@@ -26,7 +26,7 @@
 					<option value="number">Number</option>
 					<option value="bool">Flag</option>
 				</select>
-				<button class="remove" title="Remove macro">x</button>
+				<button class="remove" title="Remove macro" @click="remove(macro.id)"><fa :icon="faTimes"/></button>
 			</div>
 		</div>
 	</div>
@@ -36,12 +36,19 @@
 <script lang="ts">
 import Vue from 'vue';
 import uuid from 'uuid/v4';
+import { faTimes } from '@fortawesome/free-solid-svg-icons';
 import XControl from './control.vue';
 import { Macro } from '../glitch/core';
 
 export default Vue.extend({
 	components: {
 		XControl
+	},
+
+	data() {
+		return {
+			faTimes
+		};
 	},
 
 	methods: {
@@ -91,6 +98,12 @@ export default Vue.extend({
 				value: value
 			});
 		},
+
+		remove(macroId: string) {
+			this.$store.commit('removeMacro', {
+				macroId: macroId,
+			});
+		}
 	}
 });
 </script>
