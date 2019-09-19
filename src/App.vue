@@ -17,7 +17,7 @@
 				<div :class="{ active: tab === 'macro' }" @click="tab = 'macro'"><fa :icon="faSlidersH"/>Macro<span>({{ $store.state.macros.length }})</span></div>
 				<div :class="{ active: tab === 'meta' }" @click="tab = 'meta'"><fa :icon="faInfoCircle"/>Meta</div>
 			</div>
-			<XLayers v-show="tab === 'fx'" :processing-fx-id="processingFxId" :rendering="isRendering"/>
+			<XLayers v-show="tab === 'fx'" :processing-fx-id="processingFxId" :rendering="isRendering" :show-all-params="showAllParams"/>
 			<XMacros v-show="tab === 'macro'"/>
 			<div v-show="tab === 'meta'" class="meta _gs-container">
 			</div>
@@ -87,6 +87,7 @@ export default Vue.extend({
 			status: null as string | null,
 			processingFxId: null,
 			progress: 0,
+			showAllParams: true,
 			tab: 'fx',
 			presetName: '',
 			showAbout: false,
@@ -187,6 +188,10 @@ export default Vue.extend({
 			ipcRenderer.send('updatePresets', ((this as any).$root.settingsStore as SettingsStore).settings.presets.map(p => ({
 				id: p.id, name: p.name
 			})));
+		});
+
+		ipcRenderer.on('changeShowAllParams', (_, v) => {
+			this.showAllParams = v;
 		});
 	},
 

@@ -9,7 +9,7 @@
 	</div>
 
 	<div class="params" v-show="!minimized" :class="{ disabled: rendering }">
-		<div v-for="param in Object.keys(paramDefs)" :key="param">
+		<div v-for="param in Object.keys(paramDefs).filter(k => showAllParams ? true : !k.startsWith('_'))" :key="param">
 			<label :class="{ expression: isExpression(param) }" @dblclick="toggleParamValueType(param)">{{ paramDefs[param].label }}</label>
 			<div v-if="isExpression(param)">
 				<input type="text" class="expression" :value="getParam(param)" @change="updateParamAsExpression(param, $event.target.value)"/>
@@ -48,6 +48,11 @@ export default Vue.extend({
 		rendering: {
 			type: Boolean,
 			required: true,
+		},
+
+		showAllParams: {
+			type: Boolean,
+			required: true
 		},
 	},
 

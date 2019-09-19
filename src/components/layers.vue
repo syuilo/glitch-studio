@@ -10,7 +10,7 @@
 		<p class="_gs-no-contents">No FXs</p>
 	</div>
 	<XDraggable class="layers" v-else v-model="layers" tag="div" handle=".drag-handle" animation="150" swap-threshold="0.5">
-		<XLayer v-for="layer in layers" :layer="layer" :key="layer.id" :processing="processingFxId === layer.id" :rendering="rendering"/>
+		<XLayer v-for="layer in layers" :layer="layer" :key="layer.id" :processing="processingFxId === layer.id" :rendering="rendering" :show-all-params="showAllParams"/>
 	</XDraggable>
 </div>
 </template>
@@ -38,7 +38,12 @@ export default Vue.extend({
 		processingFxId: {
 			type: String,
 			required: false
-		}
+		},
+
+		showAllParams: {
+			type: Boolean,
+			required: true
+		},
 	},
 
 	data() {

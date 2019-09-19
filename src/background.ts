@@ -50,7 +50,10 @@ function createWindow () {
 	});
 }
 
-function renderMenu(presets: { id: string; name: string; }[]) {
+let showAllParams = true;
+let presets = settingsStore.settings.presets;
+
+function renderMenu() {
 	const menu = Menu.buildFromTemplate([{
 		label: 'File',
 		submenu: [{
@@ -118,6 +121,18 @@ function renderMenu(presets: { id: string; name: string; }[]) {
 		}, {
 			label: 'Randomize World',
 			enabled: false,
+		}]
+	}, {
+		label: 'View',
+		submenu: [{
+			label: 'Show All Params',
+			type: 'checkbox',
+			checked: showAllParams,
+			click: () => {
+				showAllParams = !showAllParams;
+				win!.webContents.send('changeShowAllParams', showAllParams);
+				renderMenu();
+			}
 		}]
 	}, {
 		label: 'FX',
@@ -210,7 +225,7 @@ app.on('ready', async () => {
 
 	}
 
-	renderMenu(settingsStore.settings.presets);
+	renderMenu();
 
 	createWindow();
 })
@@ -230,6 +245,7 @@ if (isDevelopment) {
 	}
 }
 
-ipcMain.on('updatePresets', (ev, presets) => {
-	renderMenu(presets);
+ipcMain.on('updatePresets', (ev, _presets) => {
+	presets = _presets;
+	renderMenu();
 });
