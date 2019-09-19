@@ -1,4 +1,5 @@
 import { fx, basicParamDefs } from '../core';
+import seedrandom from 'seedrandom';
 
 const paramDefs = {
 	frequency: {
@@ -11,15 +12,34 @@ const paramDefs = {
 		type: 'number' as const,
 		default: { type: 'literal' as const, value: 16 }
 	},
+	randomFrequency: {
+		label: 'Random Frequency',
+		type: 'bool' as const,
+		default: { type: 'literal' as const, value: false }
+	},
+	randomAmount: {
+		label: 'Random Amount',
+		type: 'bool' as const,
+		default: { type: 'literal' as const, value: false }
+	},
+	seed: {
+		label: 'Seed',
+		type: 'seed' as const,
+		default: { type: 'literal' as const, value: 0 },
+	},
 	
 	...basicParamDefs,
 };
 
 const fn = fx((w, h, get, set, params) => {
-	const { frequency, amount } = params;
+	const { frequency, amount, randomFrequency, randomAmount, seed } = params;
+
+	const rnd = seedrandom(seed.toString());
 
 	for (let y = 0; y < h; y++) {
-		const velocity = Math.floor(Math.sin(y / frequency) * amount);
+		const f = (randomFrequency ? rnd() : 1) * frequency;
+		const a = (randomAmount ? rnd() : 1) * amount;
+		const velocity = Math.floor(Math.sin(y / f) * a);
 
 		if (velocity < 0) {
 			// 端をミラーリング
