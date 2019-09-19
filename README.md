@@ -28,7 +28,8 @@ Glitch Studioには専用に設計された様々なエフェクトが組み込�
 > ワオ！こんなにイカした写真を簡単に作れるようにするなんてジャパニーズの器用さはクレイジーだね
 
 ## ダウンロード
-Coming soon
+現在Windows版のみが提供されています。
+[ダウンロード](https://github.com/syuilo/glitch-studio/releases)
 
 ## 使い方
 ### エフェクト
