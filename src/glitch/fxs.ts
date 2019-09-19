@@ -15,6 +15,7 @@ import pixelSort from './fx/pixel-sort';
 import noise from './fx/noise';
 import granular from './fx/granular';
 import distortion from './fx/distortion';
+import grayscale from './fx/grayscale';
 
 const _fxs = {
 	swap,
@@ -33,6 +34,7 @@ const _fxs = {
 	noise,
 	granular,
 	distortion,
+	grayscale,
 } as Record<string, {
 	name: string;
 	displayName: string;
