@@ -212,12 +212,12 @@ export default Vue.extend({
 		border-radius: 2px;
 
 		&.active {
-			background: #26cfe0;
+			background: #ace620;
 			background-clip: content-box;
 		}
 
 		&.processing {
-			background: #ff0;
+			background: #e87900;
 			background-clip: content-box;
 		}
 	}
