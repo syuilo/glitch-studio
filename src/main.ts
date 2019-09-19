@@ -1,12 +1,17 @@
+// UI RENDERER PROCESS
+
 import Vue from 'vue';
 import Vuex from 'vuex';
 const VuexUndoRedo = require('vuex-undo-redo');
 import { Titlebar, Color } from 'custom-electron-titlebar';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
+import { ipcRenderer, remote } from 'electron';
+const unhandled = require('electron-unhandled');
 import App from './App.vue';
 import { store } from './store';
 import { settingsStore } from './settings';
-import { ipcRenderer, remote } from 'electron';
+
+unhandled();
 
 Vue.config.productionTip = false;
 

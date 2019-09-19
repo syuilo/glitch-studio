@@ -1,12 +1,15 @@
-'use strict';
+// MAIN BACKGROUND PROCESS
 
 import { app, protocol, BrowserWindow, Menu, ipcMain, shell } from 'electron';
 import {
 	createProtocol,
 	installVueDevtools
 } from 'vue-cli-plugin-electron-builder/lib';
+const unhandled = require('electron-unhandled');
 import { fxs } from './glitch/fxs';
 import { settingsStore, userDataPath } from './settings';
+
+unhandled();
 
 const isDevelopment = process.env.NODE_ENV !== 'production';
 
