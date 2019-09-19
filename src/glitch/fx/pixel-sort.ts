@@ -93,6 +93,7 @@ const fn = fx((w, h, get, set, params) => {
 				if (v <= threshold && x < w - 1) {
 					pixels.push([r, g, b, a]);
 				} else if (pixels.length > 0) { // Start sort
+					pixels.push([r, g, b, a]);
 					pixels.sort(sort);
 					for (let p = 0; p < pixels.length; p++) {
 						set(x - p, y, pixels[p]);
@@ -110,6 +111,7 @@ const fn = fx((w, h, get, set, params) => {
 				if (v <= threshold && y < h - 1) {
 					pixels.push([r, g, b, a]);
 				} else if (pixels.length > 0) { // Start sort
+					pixels.push([r, g, b, a]);
 					pixels.sort(sort);
 					for (let p = 0; p < pixels.length; p++) {
 						set(x, y - p, pixels[p]);
