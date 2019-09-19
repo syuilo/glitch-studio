@@ -18,7 +18,9 @@ const isDevelopment = process.env.NODE_ENV !== 'production';
 let win: BrowserWindow | null;
 
 // Scheme must be registered before the app is ready
-protocol.registerSchemesAsPrivileged([{scheme: 'app', privileges: { secure: true, standard: true } }]);
+protocol.registerSchemesAsPrivileged([{
+	scheme: 'app', privileges: { secure: true, standard: true }
+}]);
 
 function createWindow () {
 	// Create the browser window.
@@ -146,6 +148,18 @@ function renderMenu(presets: { id: string; name: string; }[]) {
 		}, {
 			label: 'Toggle Developer Tools',
 			role: 'toggleDevTools',
+		}, {
+			type: 'separator',
+		}, {
+			label: 'Report Issue',
+			click: () => {
+				shell.openExternal('https://github.com/syuilo/glitch-studio/issues/new?assignees=&labels=⚠️bug%3F&template=01_bug-report.md&title=');
+			}
+		}, {
+			label: 'Feature Request',
+			click: () => {
+				shell.openExternal('https://github.com/syuilo/glitch-studio/issues/new?assignees=&labels=✨enhancement%3F&template=02_feature-request.md&title=');
+			}
 		}, {
 			type: 'separator',
 		}, {
