@@ -14,6 +14,7 @@ import continuousGhost from './fx/continuous-ghost';
 import pixelSort from './fx/pixel-sort';
 import noise from './fx/noise';
 import granular from './fx/granular';
+import distortion from './fx/distortion';
 
 const _fxs = {
 	swap,
@@ -31,6 +32,7 @@ const _fxs = {
 	pixelSort,
 	noise,
 	granular,
+	distortion,
 } as Record<string, {
 	name: string;
 	displayName: string;
