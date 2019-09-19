@@ -210,7 +210,7 @@ export default Vue.extend({
 		},
 
 		async openImageFromPath(path: string) {
-			this.img = await Jimp.read(path);
+			this.img = await Jimp.read('file://' + path);
 			document.title = `Glitch Studio (${path})`;
 			(this.$root as any).titleBar.updateTitle();
 			this.render();
