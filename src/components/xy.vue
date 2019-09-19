@@ -16,22 +16,21 @@ export default Vue.extend({
 		}
 	},
 
-	data() {
-		return {
-			x: 0,
-			y: 0,
-		};
-	},
-
-	created() {
-		this.x = this.xy[0] as number;
-		this.y = this.xy[1] as number;
+	computed: {
+		x(): number {
+			return this.xy[0] as number;
+		},
+		y(): number {
+			return this.xy[1] as number;
+		},
 	},
 
 	methods: {
 		change(xy: string, value: number) {
-			(this as any)[xy] = value;
-			this.$emit('input', [this.x, this.y]);
+			this.$emit('input', [
+				xy === 'x' ? value : this.x,
+				xy === 'y' ? value : this.y,
+			]);
 		}
 	}
 });

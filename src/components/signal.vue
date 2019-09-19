@@ -17,27 +17,24 @@ export default Vue.extend({
 		}
 	},
 
-	data() {
-		return {
-			r: false,
-			g: false,
-			b: false
-		};
-	},
-
-	created() {
-		this.r = this.signal[0] as boolean;
-		this.g = this.signal[1] as boolean;
-		this.b = this.signal[2] as boolean;
+	computed: {
+		r(): boolean {
+			return this.signal[0] as boolean;
+		},
+		g(): boolean {
+			return this.signal[1] as boolean;
+		},
+		b(): boolean {
+			return this.signal[2] as boolean;
+		},
 	},
 
 	methods: {
 		change(color: string) {
-			(this as any)[color] = !(this as any)[color];
 			this.$emit('input', [
-				this.r,
-				this.g,
-				this.b,
+				color === 'r' ? !this.r : this.r,
+				color === 'g' ? !this.g : this.g,
+				color === 'b' ? !this.b : this.b,
 			]);
 		}
 	}
