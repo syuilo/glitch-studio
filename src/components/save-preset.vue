@@ -19,6 +19,7 @@ import { SettingsStore } from '@/settings';
 import { version } from '@/version';
 import { ipcRenderer } from 'electron';
 import XDialog from './dialog.vue';
+import { subStore } from '../sub-store';
 
 export default Vue.extend({
 	components: { XDialog },
@@ -31,7 +32,7 @@ export default Vue.extend({
 
 	methods: {
 		save() {
-			((this as any).$root.settingsStore as SettingsStore).settings.presets.push({
+			subStore.settingsStore.settings.presets.push({
 				id: uuid(),
 				gsVersion: version,
 				name: this.name,
@@ -39,8 +40,8 @@ export default Vue.extend({
 				layers: this.$store.state.layers,
 				macros: this.$store.state.macros,
 			});
-			((this as any).$root.settingsStore as SettingsStore).save();
-			ipcRenderer.send('updatePresets', ((this as any).$root.settingsStore as SettingsStore).settings.presets.map(p => ({
+			subStore.settingsStore.save();
+			ipcRenderer.send('updatePresets', subStore.settingsStore.settings.presets.map(p => ({
 				id: p.id, name: p.name
 			})));
 			this.$emit('ok');

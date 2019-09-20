@@ -7,7 +7,7 @@
 		<div class="view">
 			<div class="_gs-container" dropzone="copy" @dragover.prevent="e => { e.dataTransfer.dropEffect = 'copy'; }" @drop.prevent="onDrop">
 				<div @click="img ? () => {} : openImage()">
-					<canvas :width="width" :height="height" ref="canvas"/>
+					<canvas :width="subStore.imageWidth" :height="subStore.imageHeight" ref="canvas"/>
 				</div>
 			</div>
 		</div>
@@ -17,7 +17,7 @@
 				<div :class="{ active: tab === 'macro' }" @click="tab = 'macro'"><fa :icon="faSlidersH"/>Macro<span>({{ $store.state.macros.length }})</span></div>
 				<div :class="{ active: tab === 'meta' }" @click="tab = 'meta'"><fa :icon="faInfoCircle"/>Meta</div>
 			</div>
-			<XLayers v-show="tab === 'fx'" :processing-fx-id="processingFxId" :rendering="isRendering" :show-all-params="showAllParams"/>
+			<XLayers v-show="tab === 'fx'"/>
 			<XMacros v-show="tab === 'macro'"/>
 			<div v-show="tab === 'meta'" class="meta _gs-container">
 			</div>
@@ -26,9 +26,9 @@
 	<footer class="footer">
 		<div class="histogram">
 			<template v-if="histogram">
-				<div class="r"><div :style="{ height: ((histogram.rAmount / (255 * width * height)) * 100) + '%' }"></div></div>
-				<div class="g"><div :style="{ height: ((histogram.gAmount / (255 * width * height)) * 100) + '%' }"></div></div>
-				<div class="b"><div :style="{ height: ((histogram.bAmount / (255 * width * height)) * 100) + '%' }"></div></div>
+				<div class="r"><div :style="{ height: ((histogram.rAmount / (255 * subStore.imageWidth * subStore.imageHeight)) * 100) + '%' }"></div></div>
+				<div class="g"><div :style="{ height: ((histogram.gAmount / (255 * subStore.imageWidth * subStore.imageHeight)) * 100) + '%' }"></div></div>
+				<div class="b"><div :style="{ height: ((histogram.bAmount / (255 * subStore.imageWidth * subStore.imageHeight)) * 100) + '%' }"></div></div>
 			</template>
 			<template v-else>
 				<div class="r"><div></div></div>
@@ -36,7 +36,7 @@
 				<div class="b"><div></div></div>
 			</template>
 		</div>
-		<div class="file">{{ width }} x {{ height }} px</div>
+		<div class="file">{{ subStore.imageWidth }} x {{ subStore.imageHeight }} px</div>
 		<div class="progress">
 			<div><div :style="{ width: progress + '%' }"></div></div>
 		</div>
@@ -65,6 +65,7 @@ import { ipcRenderer } from 'electron';
 import { SettingsStore } from './settings';
 import { version } from './version';
 import { decode } from '@msgpack/msgpack';
+import { subStore } from './sub-store';
 
 export default Vue.extend({
 	name: 'app',
@@ -79,15 +80,11 @@ export default Vue.extend({
 
 	data() {
 		return {
+			subStore,
 			img: null,
-			width: 0,
-			height: 0,
-			isRendering: false,
 			histogram: null as Histogram | null,
 			status: null as string | null,
-			processingFxId: null,
 			progress: 0,
-			showAllParams: true,
 			tab: 'fx',
 			presetName: '',
 			showAbout: false,
@@ -169,29 +166,29 @@ export default Vue.extend({
 			for (const path of paths) {
 				const data = fs.readFileSync(path);
 				const preset = decode(data);
-				((this as any).$root.settingsStore as SettingsStore).settings.presets.push(preset as any);
-				((this as any).$root.settingsStore as SettingsStore).save();
-				ipcRenderer.send('updatePresets', ((this as any).$root.settingsStore as SettingsStore).settings.presets.map(p => ({
+				subStore.settingsStore.settings.presets.push(preset as any);
+				subStore.settingsStore.save();
+				ipcRenderer.send('updatePresets', subStore.settingsStore.settings.presets.map(p => ({
 					id: p.id, name: p.name
 				})));
 			}
 		});
 
 		ipcRenderer.on('applyPreset', (_, id) => {
-			const preset = ((this as any).$root.settingsStore as SettingsStore).settings.presets.find(p => p.id === id);
+			const preset = subStore.settingsStore.settings.presets.find(p => p.id === id);
 			this.$store.commit('applyPreset', preset);
 		});
 
 		ipcRenderer.on('removePreset', (_, id) => {
-			((this as any).$root.settingsStore as SettingsStore).settings.presets = ((this as any).$root.settingsStore as SettingsStore).settings.presets.filter(p => p.id !== id);
-			((this as any).$root.settingsStore as SettingsStore).save();
-			ipcRenderer.send('updatePresets', ((this as any).$root.settingsStore as SettingsStore).settings.presets.map(p => ({
+			subStore.settingsStore.settings.presets = subStore.settingsStore.settings.presets.filter(p => p.id !== id);
+			subStore.settingsStore.save();
+			ipcRenderer.send('updatePresets', subStore.settingsStore.settings.presets.map(p => ({
 				id: p.id, name: p.name
 			})));
 		});
 
 		ipcRenderer.on('changeShowAllParams', (_, v) => {
-			this.showAllParams = v;
+			subStore.showAllParams = v;
 		});
 	},
 
@@ -244,11 +241,11 @@ export default Vue.extend({
 		},
 
 		async render() {
-			this.isRendering = true;
+			subStore.rendering = true;
 
 			await render(this.img, this.$store.state.layers, this.$store.state.macros, (w, h) => new Promise((res, rej) => {
-				this.width = w;
-				this.height = h;
+				subStore.imageWidth = w;
+				subStore.imageHeight = h;
 				this.$nextTick(() => {
 					res(this.canvas.getContext('2d')!);
 				});
@@ -257,11 +254,11 @@ export default Vue.extend({
 			}, (max, done, status, args) => {
 				this.status = status;
 				this.progress = done / max * 100;
-				if (args && args.processingFxId) this.processingFxId = args.processingFxId;
+				if (args && args.processingFxId) subStore.processingFxId = args.processingFxId;
 			});
 
-			this.processingFxId = null;
-			this.isRendering = false;
+			subStore.processingFxId = null;
+			subStore.rendering = false;
 		},
 
 		onDrop(ev: DragEvent) {

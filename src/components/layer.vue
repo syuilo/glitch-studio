@@ -1,15 +1,15 @@
 <template>
 <div class="layer-component">
-	<header class="drag-handle" :class="{ disabled: rendering }" @dblclick="minimized = !minimized">{{ name }}</header>
-	<div class="indicator" :class="{ active: layer.isEnabled, processing }"></div>
-	<div class="buttons" :class="{ disabled: rendering }">
+	<header class="drag-handle" :class="{ disabled: subStore.rendering }" @dblclick="minimized = !minimized">{{ name }}</header>
+	<div class="indicator" :class="{ active: layer.isEnabled, processing: subStore.processing }"></div>
+	<div class="buttons" :class="{ disabled: subStore.rendering }">
 		<button class="randomize" @click="randomize()" title="Randomize"><fa :icon="faRandom"/></button>
 		<button class="active" :class="{ primary: layer.isEnabled }" @click="toggleEnable()" :title="layer.isEnabled ? 'Click to disable' : 'Click to enable'"><fa :icon="layer.isEnabled ? faEye : faEyeSlash"/></button>
 		<button class="remove" @click="remove()" title="Remove effect"><fa :icon="faTimes"/></button>
 	</div>
 
-	<div class="params" v-show="!minimized" :class="{ disabled: rendering }">
-		<div v-for="param in Object.keys(paramDefs).filter(k => showAllParams ? true : !k.startsWith('_'))" :key="param">
+	<div class="params" v-show="!minimized" :class="{ disabled: subStore.rendering }">
+		<div v-for="param in Object.keys(paramDefs).filter(k => subStore.showAllParams ? true : !k.startsWith('_'))" :key="param">
 			<label :class="{ expression: isExpression(param) }" @dblclick="toggleParamValueType(param)">{{ paramDefs[param].label }}</label>
 			<div v-if="isExpression(param)">
 				<input type="text" class="expression" :value="getParam(param)" @change="updateParamAsExpression(param, $event.target.value)"/>
@@ -28,6 +28,7 @@ import XControl from './control.vue';
 import { fxs } from '../glitch/fxs';
 import { ParamDefs } from '../glitch/core';
 import { Layer } from '../glitch';
+import { subStore } from '../sub-store';
 
 export default Vue.extend({
 	components: {
@@ -39,30 +40,22 @@ export default Vue.extend({
 			type: Object,
 			required: true
 		},
-
-		processing: {
-			type: Boolean,
-			required: true,
-		},
-
-		rendering: {
-			type: Boolean,
-			required: true,
-		},
-
-		showAllParams: {
-			type: Boolean,
-			required: true
-		},
 	},
 
 	data() {
 		return {
+			subStore,
 			name: null as string | null,
 			paramDefs: null as ParamDefs | null,
 			minimized: false,
 			faTimes, faEye, faEyeSlash, faRandom
 		};
+	},
+
+	computed: {
+		processing(): boolean {
+			return subStore.processingFxId === this.layer.id;
+		}
 	},
 
 	created() {

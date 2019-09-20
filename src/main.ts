@@ -9,7 +9,6 @@ import { ipcRenderer, remote } from 'electron';
 const unhandled = require('electron-unhandled');
 import App from './App.vue';
 import { store } from './store';
-import { settingsStore } from './settings';
 
 unhandled();
 
@@ -29,7 +28,6 @@ new Vue({
 	data() {
 		return {
 			titleBar,
-			settingsStore
 		};
 	},
 	render: h => h(App),
