@@ -111,6 +111,7 @@ export default Vue.extend({
 
 		randomize() {
 			const rnd = () => 1 - Math.sqrt(Math.random());
+
 			const blendModes = [
 				'none',
 				'normal',
@@ -130,7 +131,12 @@ export default Vue.extend({
 				'color',
 				'luminosity',
 			];
+
 			const params = {} as Layer['params'];
+
+			const fullScreen = Math.floor(Math.random() * 2) === 0;
+			const withAlpha = Math.floor(Math.random() * 3) === 0;
+
 			for (const [k, p] of Object.entries(this.paramDefs!)) {
 				const set = (v: any) => {
 					params[k] = {
@@ -138,6 +144,51 @@ export default Vue.extend({
 						value: v
 					};
 				};
+
+				const setExpression = (v: string) => {
+					params[k] = {
+						type: 'expression',
+						value: v
+					};
+				};
+
+				if (k === '_alpha') {
+					if (withAlpha) {
+						set(255 - Math.floor(rnd() * 255));
+					} else {
+						set(255);
+					}
+					continue;
+				}
+
+				if (k === '_blendMode') {
+					if (withAlpha || Math.floor(Math.random() * 3) === 0) {
+						set(blendModes[Math.floor(Math.random() * blendModes.length)]);
+					} else {
+						set(blendModes[Math.floor(Math.random() * 2)]); // none or normal
+					}
+					continue;
+				}
+
+				if (k === '_wh') {
+					if (fullScreen) {
+						setExpression('[WIDTH, HEIGHT]');
+					} else {
+						set([Math.floor(Math.random() * 2048), Math.floor(Math.random() * 2048)]);
+					}
+					continue;
+				}
+
+				console.log(this.$root);
+
+				if (k === '_pos') {
+					if (fullScreen) {
+						set([0, 0]);
+					} else {
+						set([Math.floor(Math.random() * subStore.imageWidth), Math.floor(Math.random() * subStore.imageHeight)]);
+					}
+					continue;
+				}
 
 				if (p.type === 'number') {
 					set(Math.floor(rnd() * 2048));
