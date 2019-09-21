@@ -1,4 +1,5 @@
 import { fx, basicParamDefs, Color } from '../core';
+import { getLuminance, getBrightness } from '../color';
 
 const paramDefs = {
 	mode: {
@@ -18,14 +19,6 @@ const paramDefs = {
 };
 
 const fn = fx((w, h, get, set, params) => {
-	function getLuminance(color: Color) {
-		return (color[0] * 0.299) + (color[1] * 0.587) + (color[2] * 0.114);
-	}
-
-	function getBrightness(color: Color) {
-		return ((color[0] + color[1] + color[2]) / (255 * 3)) * 255;
-	}
-
 	const fn = params.mode === 'luminance'
 		? getLuminance
 		: getBrightness;

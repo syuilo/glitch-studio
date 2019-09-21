@@ -1,5 +1,6 @@
 import seedrandom from 'seedrandom';
 import { fx, basicParamDefs, Color } from '../core';
+import { getLuminance, getBrightness } from '../color';
 
 const paramDefs = {
 	threshold: {
@@ -62,14 +63,6 @@ const fn = fx((w, h, get, set, params) => {
 	const { threshold, direction, trigger, sort: sortMode, seed } = params;
 
 	const rnd = seedrandom(seed.toString());
-
-	function getLuminance(color: Color) {
-		return (color[0] * 0.299) + (color[1] * 0.587) + (color[2] * 0.114);
-	}
-
-	function getBrightness(color: Color) {
-		return ((color[0] + color[1] + color[2]) / (255 * 3)) * 255;
-	}
 
 	function getRandom(color: Color) {
 		return rnd() * 255;

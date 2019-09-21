@@ -1,4 +1,5 @@
 import { fx, basicParamDefs } from '../core';
+import { getLuminance } from '../color';
 
 const paramDefs = {
 	threshold: {
@@ -27,8 +28,8 @@ const fn = fx((w, h, get, set, params) => {
 
 	for (let x = 0; x < w; x++) {
 		for (let y = 0; y < h; y++) {
-			const [r, g, b] = get(x, y);
-			const luminance = (r * 0.299) + (g * 0.587) + (b * 0.114);
+			const [r, g, b, a] = get(x, y);
+			const luminance = getLuminance([r, g, b, a]);
 			if (luminance >= threshold) {
 				set(x, y, [colorA[0], colorA[1], colorA[2], 255]);
 			} else {
