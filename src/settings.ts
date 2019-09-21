@@ -3,7 +3,7 @@ import * as path from 'path';
 import * as electron from 'electron';
 import { encode, decode } from "@msgpack/msgpack";
 import { Layer } from './glitch';
-import { Macro } from './glitch/core';
+import { Macro, Asset } from './glitch/core';
 import { version } from './version';
 
 export const userDataPath = (electron.app || electron.remote.app).getPath('userData');
@@ -16,6 +16,7 @@ export type Preset = {
 	name: string;
 	layers: Layer[];
 	macros: Macro[];
+	assets: Asset[];
 };
 
 export type Settings = {

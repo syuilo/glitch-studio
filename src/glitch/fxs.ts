@@ -16,6 +16,7 @@ import noise from './fx/noise';
 import granular from './fx/granular';
 import distortion from './fx/distortion';
 import grayscale from './fx/grayscale';
+import overlay from './fx/overlay';
 
 const _fxs = {
 	swap,
@@ -35,6 +36,7 @@ const _fxs = {
 	granular,
 	distortion,
 	grayscale,
+	overlay,
 } as Record<string, {
 	name: string;
 	displayName: string;

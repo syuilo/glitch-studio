@@ -2,13 +2,14 @@ import Vue from 'vue';
 import Vuex from 'vuex';
 import { Layer } from './glitch';
 import { fxs } from './glitch/fxs';
-import { genEmptyValue, Macro } from './glitch/core';
+import { genEmptyValue, Macro, Asset } from './glitch/core';
 import { Preset } from './settings';
 
 export const store = () => new Vuex.Store({
 	state: {
 		macros: [] as Macro[],
 		layers: [] as Layer[],
+		assets: [] as Asset[],
 	},
 
 	mutations: {
@@ -17,6 +18,7 @@ export const store = () => new Vuex.Store({
 			this.replaceState({
 				macros: [],
 				layers: [],
+				assets: [],
 			});
 		},
 		
@@ -160,6 +162,17 @@ export const store = () => new Vuex.Store({
 		applyPreset(state, payload: Preset) {
 			Vue.set(state, 'layers', payload.layers);
 			Vue.set(state, 'macros', payload.macros);
-		}
+			Vue.set(state, 'assets', payload.assets || []);
+		},
+
+		addAsset(state, payload) {
+			state.assets.push({
+				id: payload.id,
+				name: payload.name,
+				width: payload.width,
+				height: payload.height,
+				data: payload.data,
+			});
+		},
 	}
 });

@@ -13,14 +13,13 @@
 		</div>
 		<div class="side">
 			<div class="tab">
-				<div :class="{ active: tab === 'fx' }" @click="tab = 'fx'"><fa :icon="faLayerGroup"/>FX<span>({{ $store.state.layers.length }})</span></div>
-				<div :class="{ active: tab === 'macro' }" @click="tab = 'macro'"><fa :icon="faSlidersH"/>Macro<span>({{ $store.state.macros.length }})</span></div>
-				<div :class="{ active: tab === 'meta' }" @click="tab = 'meta'"><fa :icon="faInfoCircle"/>Meta</div>
+				<div :class="{ active: tab === 'layers' }" @click="tab = 'layers'"><fa :icon="faLayerGroup"/>FX<span>({{ $store.state.layers.length }})</span></div>
+				<div :class="{ active: tab === 'macros' }" @click="tab = 'macros'"><fa :icon="faSlidersH"/>Macro<span>({{ $store.state.macros.length }})</span></div>
+				<div :class="{ active: tab === 'assets' }" @click="tab = 'assets'"><fa :icon="faFolderOpen"/>Asset<span>({{ $store.state.assets.length }})</span></div>
 			</div>
-			<XLayers v-show="tab === 'fx'"/>
-			<XMacros v-show="tab === 'macro'"/>
-			<div v-show="tab === 'meta'" class="meta _gs-container">
-			</div>
+			<XLayers v-show="tab === 'layers'"/>
+			<XMacros v-show="tab === 'macros'"/>
+			<XAssets v-show="tab === 'assets'"/>
 		</div>
 	</div>
 	<footer class="footer">
@@ -52,11 +51,13 @@
 import * as fs from 'fs';
 import * as electron from 'electron';
 import uuid from 'uuid/v4';
-import { faLayerGroup, faSlidersH, faInfoCircle } from '@fortawesome/free-solid-svg-icons';
+import { faLayerGroup, faSlidersH } from '@fortawesome/free-solid-svg-icons';
+import { faFolderOpen } from '@fortawesome/free-regular-svg-icons';
 import Vue from 'vue';
 const Jimp = require('jimp');
 import XLayers from './components/layers.vue';
 import XMacros from './components/macros.vue';
+import XAssets from './components/assets.vue';
 import XAbout from './components/about.vue';
 import XSavePreset from './components/save-preset.vue';
 import XExportPreset from './components/export-preset.vue';
@@ -73,6 +74,7 @@ export default Vue.extend({
 	components: {
 		XLayers,
 		XMacros,
+		XAssets,
 		XAbout,
 		XSavePreset,
 		XExportPreset,
@@ -85,12 +87,12 @@ export default Vue.extend({
 			histogram: null as Histogram | null,
 			status: null as string | null,
 			progress: 0,
-			tab: 'fx',
+			tab: 'layers',
 			presetName: '',
 			showAbout: false,
 			showSavePresetDialog: false,
 			showExportPresetDialog: false,
-			faLayerGroup, faSlidersH, faInfoCircle
+			faLayerGroup, faSlidersH, faFolderOpen
 		};
 	},
 
@@ -243,7 +245,7 @@ export default Vue.extend({
 		async render() {
 			subStore.rendering = true;
 
-			await render(this.img, this.$store.state.layers, this.$store.state.macros, (w, h) => new Promise((res, rej) => {
+			await render(this.img, this.$store.state.layers, this.$store.state.macros, this.$store.state.assets, (w, h) => new Promise((res, rej) => {
 				subStore.imageWidth = w;
 				subStore.imageHeight = h;
 				this.$nextTick(() => {
@@ -334,12 +336,12 @@ input[type=number] {
 
 input[type=range] {
 	appearance: none;
-	height: 5px;
+	height: 4px;
 	width: 100%;
 	background: #111;
 	border-bottom: solid 1px rgba(255, 255, 255, 0.1);
 	border-radius: 4px;
-	margin: 0 0 7px 0;
+	margin: 10px 0 10px 0;
 
 	&::-webkit-slider-thumb {
 		appearance: none;
@@ -371,11 +373,15 @@ input.expression {
 }
 
 button,
+input[type=color] {
+	appearance: none;
+}
+
+button,
 select,
 input[type=color] {
 	display: block;
 	box-sizing: border-box;
-	appearance: none;
 	border: solid 1px rgba(0, 0, 0, 0.7);
 	border-radius: 4px;
 	background: linear-gradient(0deg, rgba(0, 0, 0, 0), rgba(255, 255, 255, 0.05));
@@ -412,6 +418,10 @@ input[type=color] {
 			background: linear-gradient(180deg, darken($theme-color, 10%), lighten($theme-color, 5%));
 		}
 	}
+}
+
+select {
+	padding: 3px 6px;
 }
 
 input[type=color] {
@@ -531,14 +541,6 @@ optgroup {
 
 			> .tab + * + * {
 				border-top-left-radius: 0;
-			}
-
-			> .meta {
-				display: flex;
-				flex-direction: column;
-				box-sizing: border-box;
-				height: 100%;
-				padding: 8px;
 			}
 		}
 	}

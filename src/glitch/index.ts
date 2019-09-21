@@ -1,5 +1,5 @@
 import * as math from 'mathjs';
-import { Macro, genEmptyValue } from './core';
+import { Macro, genEmptyValue, Asset } from './core';
 import Renderer from 'worker-loader!./workers/renderer';
 import HistogramWorker from 'worker-loader!./workers/histogram';
 import { fxs } from './fxs';
@@ -42,7 +42,7 @@ const evaluate = (expression: string, scope: Record<string, any>) => {
  * Apply FX and render it to a canvas
  */
 export async function render(
-	src: any, layers: Layer[], macros: Macro[],
+	src: any, layers: Layer[], macros: Macro[], assets: Asset[],
 	init: (w: number, h: number) => Promise<CanvasRenderingContext2D>,
 	histogram: (histogram: Histogram) => void,
 	progress: (max: number, done: number, status: string, args?: any) => void
@@ -85,6 +85,10 @@ export async function render(
 						: macro.value.value
 							? evaluate(macro.value.value, scope)
 							: genEmptyValue(macro);
+
+				if (macro.type === 'image') {
+					macroScope[macro.name] = assets.find(a => a.id === macroScope[macro.name]);
+				}
 			}
 	
 			const mixedScope = {
@@ -99,6 +103,10 @@ export async function render(
 						: v.value
 							? evaluate(v.value, mixedScope)
 							: genEmptyValue(paramDefs[k]);
+
+				if (paramDefs[k].type === 'image') {
+					evaluatedParams[k] = assets.find(a => a.id === evaluatedParams[k]);
+				}
 			}
 	
 			evaluatedParamses.push(evaluatedParams);

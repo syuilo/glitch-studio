@@ -1,5 +1,5 @@
 import * as blendModes from 'color-blend';
-import { blend } from './color';
+import { blend, getBrightness } from './color';
 
 export type Color = [number, number, number, number];
 
@@ -10,7 +10,7 @@ export type FX = (
 	params: Record<string, any>,
 ) => void;
 
-type DataType = 'number' | 'range' | 'enum' | 'bool' | 'blendMode' | 'signal' | 'xy' | 'wh' | 'color' | 'seed';
+type DataType = 'number' | 'range' | 'enum' | 'bool' | 'blendMode' | 'signal' | 'xy' | 'wh' | 'color' | 'seed' | 'image';
 
 export type ParamDef = {
 	type: DataType;
@@ -35,6 +35,14 @@ export type Macro = {
 	};
 };
 
+export type Asset = {
+	id: string;
+	name: string;
+	width: number;
+	height: number;
+	data: Uint8Array;
+};
+
 export const basicParamDefs = {
 	_wh: {
 		label: 'WH',
@@ -45,6 +53,11 @@ export const basicParamDefs = {
 		label: 'XY',
 		type: 'xy' as const,
 		default: { type: 'literal' as const, value: [0, 0] }
+	},
+	_mask: {
+		label: 'Mask',
+		type: 'image' as const,
+		default: { type: 'literal' as const, value: null }
 	},
 	_alpha: {
 		label: 'Alpha',
@@ -71,6 +84,16 @@ export function fx(fx: FX) {
 				input.data[idx + 1],
 				input.data[idx + 2],
 				input.data[idx + 3],
+			] as Color;
+		};
+
+		let getMaskPx = (x: number, y: number) => {
+			const idx = (mask!.width * y + x) << 2;
+			return [
+				mask!.data[idx + 0],
+				mask!.data[idx + 1],
+				mask!.data[idx + 2],
+				mask!.data[idx + 3],
 			] as Color;
 		};
 
@@ -171,8 +194,63 @@ export function fx(fx: FX) {
 
 		fx(width, height, get, set, evaluatedParams);
 
+		const mask = evaluatedParams['_mask'];
+		if (mask) { // Apply mask
+			for (let x = 0; x < width; x++) {
+				for (let y = 0; y < height; y++) {
+					const idx = (width * y + x) << 2;
+					const maskIdx = (mask.width * y + x) << 2;
+					
+					const mix = getBrightness([
+						mask.data[maskIdx + 0],
+						mask.data[maskIdx + 1],
+						mask.data[maskIdx + 2],
+						mask.data[maskIdx + 3],
+					]);
+
+					const color = blend([
+						input.data[idx + 0],
+						input.data[idx + 1],
+						input.data[idx + 2],
+						input.data[idx + 3],
+					], [
+						output[idx + 0],
+						output[idx + 1],
+						output[idx + 2],
+						output[idx + 3],
+					], mix / 255);
+
+					output[idx + 0] = color[0];
+					output[idx + 1] = color[1];
+					output[idx + 2] = color[2];
+					output[idx + 3] = color[3];
+				}
+			}
+		}
+
 		return output;
 	}
+}
+
+export function makePxGetter(containerWidth: number, containerHeight: number, image: Asset) {
+	const widthRatio = containerWidth / image.width;
+	const heightRatio = containerHeight / image.height;
+	const n = Math.max(widthRatio, heightRatio); // 拡大率
+	const finalWidth = image.width * n;
+	const finalHeight = image.height * n;
+	const overX = finalWidth - containerWidth;
+	const overY = finalHeight - containerHeight;
+	return (x: number, y: number) => {
+		const _x = Math.floor((x + Math.floor(overX / 2)) / n);
+		const _y = Math.floor((y + Math.floor(overY / 2)) / n);
+		const idx = (image.width * _y + _x) << 2;
+		return [
+			image.data[idx + 0],
+			image.data[idx + 1],
+			image.data[idx + 2],
+			image.data[idx + 3],
+		] as Color;
+	};
 }
 
 export function genEmptyValue(paramDef: Omit<ParamDef, 'default'>): any {
@@ -199,5 +277,7 @@ export function genEmptyValue(paramDef: Omit<ParamDef, 'default'>): any {
 		return [0, 0, 0];
 	} else if (paramDef.type === 'seed') {
 		return 0;
+	} else if (paramDef.type === 'image') {
+		return null;
 	}
 }
