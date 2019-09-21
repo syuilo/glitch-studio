@@ -1,7 +1,7 @@
 <template>
 <div class="layer-component">
 	<header class="drag-handle" :class="{ disabled: subStore.rendering }" @dblclick="minimized = !minimized">{{ name }}</header>
-	<div class="indicator" :class="{ active: layer.isEnabled, processing: subStore.processing }"></div>
+	<div class="indicator" :class="{ active: layer.isEnabled, processing: subStore.processingFxId === layer.id }"></div>
 	<div class="buttons" :class="{ disabled: subStore.rendering }">
 		<button class="randomize" @click="randomize()" title="Randomize"><fa :icon="faRandom"/></button>
 		<button class="active" :class="{ primary: layer.isEnabled }" @click="toggleEnable()" :title="layer.isEnabled ? 'Click to disable' : 'Click to enable'"><fa :icon="layer.isEnabled ? faEye : faEyeSlash"/></button>
