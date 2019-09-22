@@ -57,11 +57,13 @@ function renderMenu() {
 		label: 'File',
 		submenu: [{
 			label: 'Open Image',
+			accelerator: 'Ctrl+O',
 			click: () => {
 				win!.webContents.send('openImage');
 			}
 		}, {
 			label: 'Save Image',
+			accelerator: 'Ctrl+S',
 			click: () => {
 				win!.webContents.send('saveImage');
 			}
@@ -104,11 +106,13 @@ function renderMenu() {
 		label: 'Edit',
 		submenu: [{
 			label: 'Undo',
+			accelerator: 'Ctrl+Z',
 			click: () => {
 				win!.webContents.send('undo');
 			}
 		}, {
 			label: 'Redo',
+			accelerator: 'Ctrl+Y',
 			click: () => {
 				win!.webContents.send('redo');
 			}
