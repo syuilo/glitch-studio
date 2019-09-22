@@ -41,6 +41,7 @@ export default Vue.extend({
 				author: '',
 				layers: this.$store.state.layers,
 				macros: this.$store.state.macros,
+				assets: this.$store.state.assets,
 			});
 			const path = electron.remote.dialog.showSaveDialogSync(electron.remote.BrowserWindow.getFocusedWindow()!, {
 				defaultPath: this.name,

@@ -36,7 +36,7 @@ export default Vue.extend({
 			});
 			if (paths == null) return;
 			const path = paths[0];
-			Jimp.read('file://' + path).then(img => {
+			Jimp.read('file://' + path).then((img: any) => {
 				this.$store.commit('addAsset', {
 					id: uuid(),
 					name: path.replace(/\\/g, '/').split('/').pop(),
