@@ -2,7 +2,7 @@
 <XDialog>
 	<div class="input-dialog-componet">
 		<div>
-			<input type="text" v-model="value"/>
+			<input type="text" v-model="value" ref="input"/>
 		</div>
 		<footer>
 			<button @click="cancel()">Cancel</button>
@@ -23,6 +23,12 @@ export default Vue.extend({
 		return {
 			value: ''
 		};
+	},
+
+	mounted() {
+		this.$nextTick(() => {
+			(this.$refs.input as HTMLInputElement).focus();
+		});
 	},
 
 	methods: {
