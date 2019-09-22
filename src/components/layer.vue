@@ -9,7 +9,7 @@
 	</div>
 
 	<div class="params" v-show="!minimized" :class="{ disabled: subStore.rendering }">
-		<div v-for="param in Object.keys(paramDefs).filter(k => subStore.showAllParams ? true : !k.startsWith('_'))" :key="param">
+		<div v-for="param in Object.keys(paramDefs).filter(k => subStore.showAllParams ? true : !k.startsWith('_'))" :key="param" v-show="paramDefs[param].visibility == null || paramDefs[param].visibility(layer.params)">
 			<label :class="{ expression: isExpression(param) }" @dblclick="toggleParamValueType(param)">{{ paramDefs[param].label }}</label>
 			<div v-if="isExpression(param)">
 				<input type="text" class="expression" :value="getParam(param)" @change="updateParamAsExpression(param, $event.target.value)"/>
@@ -65,13 +65,11 @@ export default Vue.extend({
 
 	methods: {
 		isExpression(param: string) {
-			const layer = this.$store.state.layers.find((layer: any) => layer.id === this.layer.id)!;
-			return layer.params[param].type === 'expression';
+			return this.layer.params[param].type === 'expression';
 		},
 
 		getParam(param: string) {
-			const layer = this.$store.state.layers.find((layer: any) => layer.id === this.layer.id)!;
-			return layer.params[param].value;
+			return this.layer.params[param].value;
 		},
 
 		updateParamAsLiteral(param: string, value: any) {

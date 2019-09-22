@@ -12,13 +12,16 @@ export type FX = (
 
 type DataType = 'number' | 'range' | 'enum' | 'bool' | 'blendMode' | 'signal' | 'xy' | 'wh' | 'color' | 'seed' | 'image';
 
+export type Value = {
+	type: 'literal' | 'expression';
+	value: any;
+};
+
 export type ParamDef = {
 	type: DataType;
 	label: string;
-	default: {
-		type: 'literal' | 'expression';
-		value: any;
-	};
+	default: Value;
+	visibility?: (state: Record<string, Value>) => boolean;
 };
 
 export type ParamDefs = Record<string, ParamDef>;
@@ -29,10 +32,7 @@ export type Macro = {
 	name: string;
 	type: DataType;
 	typeOptions: Record<string, any>;
-	value: {
-		type: 'literal' | 'expression';
-		value: any;
-	};
+	value: Value;
 };
 
 export type Asset = {

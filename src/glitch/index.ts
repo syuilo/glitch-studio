@@ -1,5 +1,5 @@
 import * as math from 'mathjs';
-import { Macro, genEmptyValue, Asset } from './core';
+import { Macro, genEmptyValue, Asset, Value } from './core';
 import Renderer from 'worker-loader!./workers/renderer';
 import HistogramWorker from 'worker-loader!./workers/histogram';
 import { fxs } from './fxs';
@@ -8,10 +8,7 @@ export type Layer = {
 	id: string;
 	fx: string;
 	isEnabled: boolean;
-	params: Record<string, {
-		type: 'literal' | 'expression';
-		value: any;
-	}>;
+	params: Record<string, Value>;
 };
 
 export type Histogram = {

@@ -53,6 +53,9 @@ const paramDefs = {
 		label: 'Seed',
 		type: 'seed' as const,
 		default: { type: 'literal' as const, value: 0 },
+		visibility: (state: any) => {
+			return state.trigger.type === 'expression' || state.trigger.value === 'random';
+		}
 	},
 
 	...basicParamDefs,
