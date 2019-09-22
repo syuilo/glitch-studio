@@ -87,16 +87,6 @@ export function fx(fx: FX) {
 			] as Color;
 		};
 
-		let getMaskPx = (x: number, y: number) => {
-			const idx = (mask!.width * y + x) << 2;
-			return [
-				mask!.data[idx + 0],
-				mask!.data[idx + 1],
-				mask!.data[idx + 2],
-				mask!.data[idx + 3],
-			] as Color;
-		};
-
 		let set = evaluatedParams['_blendMode'] === 'none'
 			? (x: number, y: number, rgba: Color) => {
 				const idx = (input.width * y + x) << 2;
