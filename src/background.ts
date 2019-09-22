@@ -21,7 +21,7 @@ protocol.registerSchemesAsPrivileged([{
 	scheme: 'app', privileges: { secure: true, standard: true }
 }]);
 
-function createWindow () {
+function createWindow() {
 	// Create the browser window.
 	win = new BrowserWindow({
 		width: 1000, height: 700,
@@ -236,7 +236,7 @@ app.on('window-all-closed', () => {
 	if (process.platform !== 'darwin') {
 		app.quit();
 	}
-})
+});
 
 app.on('activate', () => {
 	// On macOS it's common to re-create a window in the app when the
@@ -244,7 +244,7 @@ app.on('activate', () => {
 	if (win === null) {
 		createWindow();
 	}
-})
+});
 
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
@@ -268,7 +268,7 @@ app.on('ready', async () => {
 	renderMenu();
 
 	createWindow();
-})
+});
 
 // Exit cleanly on request from parent process in development mode.
 if (isDevelopment) {
