@@ -1,6 +1,6 @@
 <template>
 <div class="layer-component">
-	<header class="drag-handle" :class="{ disabled: subStore.rendering }" @dblclick="minimized = !minimized">{{ name }}</header>
+	<header class="drag-handle" :class="{ disabled: subStore.rendering }" @dblclick="expanded = !expanded">{{ name }}</header>
 	<div class="indicator" :class="{ active: layer.isEnabled, processing: subStore.processingFxId === layer.id }"></div>
 	<div class="buttons" :class="{ disabled: subStore.rendering }">
 		<button class="randomize" @click="randomize()" title="Randomize"><fa :icon="faRandom"/></button>
@@ -8,7 +8,7 @@
 		<button class="remove" @click="remove()" title="Remove effect"><fa :icon="faTimes"/></button>
 	</div>
 
-	<div class="params" v-show="!minimized" :class="{ disabled: subStore.rendering }">
+	<div class="params" v-show="expanded" :class="{ disabled: subStore.rendering }">
 		<div v-for="param in Object.keys(paramDefs).filter(k => subStore.showAllParams ? true : !k.startsWith('_'))" :key="param" v-show="paramDefs[param].visibility == null || paramDefs[param].visibility(layer.params)">
 			<label :class="{ expression: isExpression(param) }" @dblclick="toggleParamValueType(param)">{{ paramDefs[param].label }}</label>
 			<div v-if="isExpression(param)">
@@ -29,6 +29,7 @@ import { fxs } from '../glitch/fxs';
 import { ParamDefs } from '../glitch/core';
 import { Layer } from '../glitch';
 import { subStore } from '../sub-store';
+import { ipcRenderer } from 'electron';
 
 export default Vue.extend({
 	components: {
@@ -47,7 +48,7 @@ export default Vue.extend({
 			subStore,
 			name: null as string | null,
 			paramDefs: null as ParamDefs | null,
-			minimized: false,
+			expanded: true,
 			faTimes, faEye, faEyeSlash, faRandom
 		};
 	},
@@ -61,6 +62,14 @@ export default Vue.extend({
 	created() {
 		this.name = fxs[this.layer.fx].displayName;
 		this.paramDefs = fxs[this.layer.fx].paramDefs;
+
+		ipcRenderer.on('expandAllFx', () => {
+			this.expanded = true;
+		});
+
+		ipcRenderer.on('collapseAllFx', () => {
+			this.expanded = false;
+		});
 	},
 
 	methods: {

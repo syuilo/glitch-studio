@@ -133,6 +133,18 @@ function renderMenu() {
 				win!.webContents.send('changeShowAllParams', showAllParams);
 				renderMenu();
 			}
+		}, {
+			type: 'separator'
+		}, {
+			label: 'Collapse All FX',
+			click: () => {
+				win!.webContents.send('collapseAllFx');
+			}
+		}, {
+			label: 'Expand All FX',
+			click: () => {
+				win!.webContents.send('expandAllFx');
+			}
 		}]
 	}, {
 		label: 'FX',
