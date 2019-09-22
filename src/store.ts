@@ -160,7 +160,31 @@ export const store = () => new Vuex.Store({
 		},
 
 		applyPreset(state, payload: Preset) {
-			Vue.set(state, 'layers', payload.layers);
+			//#region 後方互換性のため
+			const layers = [] as Layer[];
+
+			for (const layer of payload.layers) {
+				const paramDefs = fxs[layer.fx].paramDefs;
+			
+				const defaults = {} as Layer['params'];
+	
+				for (const [k, v] of Object.entries(paramDefs)) {
+					defaults[k] = v.default;
+				}
+	
+				layers.push({
+					id: layer.id,
+					fx: layer.fx,
+					isEnabled: layer.isEnabled,
+					params: {
+						...defaults,
+						...layer.params
+					}
+				});
+			}
+			//#endregion
+
+			Vue.set(state, 'layers', layers);
 			Vue.set(state, 'macros', payload.macros);
 			Vue.set(state, 'assets', payload.assets || []);
 		},
