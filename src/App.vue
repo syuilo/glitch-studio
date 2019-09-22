@@ -479,7 +479,7 @@ optgroup {
 					background-size: 24px 24px;
 					animation: bg 0.7s linear infinite;
 
-					> * {
+					> canvas {
 						display: block;
 						width: 100%;
 						height: 100%;

@@ -174,5 +174,24 @@ export const store = () => new Vuex.Store({
 				data: payload.data,
 			});
 		},
+
+		removeAsset(state, payload) {
+			Vue.set(state, 'assets', state.assets.filter(asset => asset.id !== payload.assetId));
+
+			// そのAssetを参照しているパラメータをnullにする
+			for (const layer of state.layers) {
+				const imageParams = Object.entries(fxs[layer.fx].paramDefs).filter(([k, v]) => v.type === 'image').map(([k, v]) => k);
+				for (const p of imageParams) {
+					if (layer.params[p].type === 'literal' && layer.params[p].value === payload.assetId) {
+						Vue.set(layer.params[p], 'value', null);
+					}
+				}
+			}
+
+			// そのAssetを参照しているマクロ1をnullにする
+			for (const macro of state.macros.filter(m => m.type === 'image' && m.value.type === 'literal')) {
+				Vue.set(macro, 'value', null);
+			}
+		},
 	}
 });
