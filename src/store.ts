@@ -188,7 +188,7 @@ export const store = () => new Vuex.Store({
 				}
 			}
 
-			// そのAssetを参照しているマクロ1をnullにする
+			// そのAssetを参照しているマクロをnullにする
 			for (const macro of state.macros.filter(m => m.type === 'image' && m.value.type === 'literal')) {
 				Vue.set(macro, 'value', null);
 			}
