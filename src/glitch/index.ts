@@ -31,7 +31,7 @@ const histogramWorker = new HistogramWorker();
 
 const evaluate = (expression: string, scope: Record<string, any>) => {
 	const value = math.evaluate(expression, scope);
-	if (value.toArray) {
+	if (value != null && value.toArray) {
 		return value.toArray();
 	} else {
 		return value;
@@ -88,6 +88,7 @@ export async function render(
 
 				if (macro.type === 'image') {
 					macroScope[macro.name] = assets.find(a => a.id === macroScope[macro.name]);
+					console.log(macroScope[macro.name]);
 				}
 			}
 	
@@ -104,7 +105,7 @@ export async function render(
 							? evaluate(v.value, mixedScope)
 							: genEmptyValue(paramDefs[k]);
 
-				if (paramDefs[k].type === 'image') {
+				if (paramDefs[k].type === 'image' && v.type === 'literal') {
 					evaluatedParams[k] = assets.find(a => a.id === evaluatedParams[k]);
 				}
 			}

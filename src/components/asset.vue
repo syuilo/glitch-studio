@@ -104,6 +104,7 @@ export default Vue.extend({
 
 	> .body {
 		height: 120px;
+		padding: 8px;
 
 		> canvas {
 			display: block;

@@ -27,6 +27,7 @@
 						<option value="number">Number</option>
 						<option value="range">Range</option>
 						<option value="bool">Flag</option>
+						<option value="image">Image</option>
 					</select>
 					<button class="remove" title="Remove macro" @click="remove(macro.id)"><fa :icon="faTimes"/></button>
 				</div>
