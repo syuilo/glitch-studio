@@ -6,7 +6,6 @@ import {
 	installVueDevtools
 } from 'vue-cli-plugin-electron-builder/lib';
 const unhandled = require('electron-unhandled');
-import { fxs } from './glitch/fxs';
 import { settingsStore, userDataPath } from './settings';
 
 unhandled();
@@ -146,14 +145,6 @@ function renderMenu() {
 				win!.webContents.send('expandAllFx');
 			}
 		}]
-	}, {
-		label: 'FX',
-		submenu: Object.entries(fxs).map(([k, v]) => ({
-			label: v.displayName,
-			click: () => {
-				win!.webContents.send('addFx', v.name);
-			}
-		}))
 	}, {
 		label: 'Presets',
 		submenu: presets.length === 0 ? [{

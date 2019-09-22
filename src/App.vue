@@ -129,13 +129,6 @@ export default Vue.extend({
 			this.saveImage();
 		});
 
-		ipcRenderer.on('addFx', (_, name) => {
-			this.$store.commit('addLayer', {
-				fx: name,
-				id: uuid()
-			});
-		});
-
 		ipcRenderer.on('undo', () => {
 			if ((this as any).canUndo) (this as any).undo();
 		});
