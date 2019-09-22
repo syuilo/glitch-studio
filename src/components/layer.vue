@@ -186,8 +186,6 @@ export default Vue.extend({
 					continue;
 				}
 
-				console.log(this.$root);
-
 				if (k === '_pos') {
 					if (fullScreen) {
 						set([0, 0]);
