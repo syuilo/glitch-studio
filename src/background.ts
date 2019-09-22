@@ -148,6 +148,31 @@ function renderMenu() {
 			click: () => {
 				win!.webContents.send('expandAllFx');
 			}
+		}, {
+			type: 'separator'
+		}, {
+			label: 'Zoom In',
+			role: 'zoomIn',
+			click: () => {
+				win!.webContents.send('zoomIn');
+			}
+		}, {
+			label: 'Zoom Out',
+			role: 'zoomOut',
+			click: () => {
+				win!.webContents.send('zoomOut');
+			}
+		}, {
+			label: 'Reset Zoom',
+			role: 'resetZoom',
+			click: () => {
+				win!.webContents.send('resetZoom');
+			}
+		}, {
+			type: 'separator'
+		}, {
+			label: 'Toggle Fullscreen',
+			role: 'togglefullscreen',
 		}]
 	}, {
 		label: 'Presets',
@@ -193,6 +218,7 @@ function renderMenu() {
 			type: 'separator',
 		}, {
 			label: 'About',
+			role: 'about',
 			click: () => {
 				win!.webContents.send('about');
 			}

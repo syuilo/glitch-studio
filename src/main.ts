@@ -5,7 +5,7 @@ import Vuex from 'vuex';
 const VuexUndoRedo = require('vuex-undo-redo');
 import { Titlebar, Color } from 'custom-electron-titlebar';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
-import { ipcRenderer, remote } from 'electron';
+import { ipcRenderer, remote, webFrame } from 'electron';
 const unhandled = require('electron-unhandled');
 import App from './App.vue';
 import InputDialog from './components/input-dialog.vue';
@@ -47,7 +47,7 @@ new Vue({
 		},
 
 		input(opts: { default?: string; }) {
-			const vm = this.new(InputDialog, opts);
+			const vm = (this as any).new(InputDialog, opts);
 
 			const p = new Promise((res) => {
 				vm.$once('ok', (result: string) => res({ canceled: false, result }));
@@ -58,12 +58,30 @@ new Vue({
 				vm.$destroy();
 				if (vm.$el.parentNode) vm.$el.parentNode.removeChild(vm.$el);
 			});
-			
+
 			return p;
 		}
 	}
 }).$mount('#app');
 
+let zoom = 1;
+
 ipcRenderer.on('updateMenu', () => {
 	titleBar.updateMenu(remote.Menu.getApplicationMenu()!);
 });
+
+ipcRenderer.on('zoomIn', () => {
+	zoom += 0.1;
+	webFrame.setZoomFactor(zoom);
+});
+
+ipcRenderer.on('zoomOut', () => {
+	zoom -= 0.1;
+	webFrame.setZoomFactor(zoom);
+});
+
+ipcRenderer.on('resetZoom', () => {
+	zoom = 1;
+	webFrame.setZoomFactor(zoom);
+});
+
