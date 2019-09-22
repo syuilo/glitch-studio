@@ -175,6 +175,11 @@ export const store = () => new Vuex.Store({
 			});
 		},
 
+		renameAsset(state, payload) {
+			const asset = state.assets.find(asset => asset.id === payload.assetId)!;
+			Vue.set(asset, 'name', payload.name);
+		},
+
 		removeAsset(state, payload) {
 			Vue.set(state, 'assets', state.assets.filter(asset => asset.id !== payload.assetId));
 

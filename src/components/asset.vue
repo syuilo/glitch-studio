@@ -2,6 +2,7 @@
 <div class="asset-component">
 	<header>{{ asset.name }}</header>
 	<div class="buttons">
+		<button class="replace" @click="replace()" title="Replace"><fa :icon="faSyncAlt"/></button>
 		<button class="rename" @click="rename()" title="Rename"><fa :icon="faICursor"/></button>
 		<button class="remove" @click="remove()" title="Remove asset"><fa :icon="faTrashAlt"/></button>
 	</div>
@@ -13,7 +14,7 @@
 
 <script lang="ts">
 import Vue from 'vue';
-import { faICursor } from '@fortawesome/free-solid-svg-icons';
+import { faICursor, faSyncAlt } from '@fortawesome/free-solid-svg-icons';
 import { faTrashAlt } from '@fortawesome/free-regular-svg-icons';
 
 export default Vue.extend({
@@ -26,7 +27,7 @@ export default Vue.extend({
 
 	data() {
 		return {
-			faICursor, faTrashAlt
+			faICursor, faTrashAlt, faSyncAlt
 		};
 	},
 
@@ -45,6 +46,15 @@ export default Vue.extend({
 		remove() {
 			this.$store.commit('removeAsset', {
 				assetId: this.asset.id,
+			});
+		},
+
+		async rename() {
+			const { canceled, result } = await (this.$root as any).input({ default: this.asset.name });
+			if (canceled) return;
+			this.$store.commit('renameAsset', {
+				assetId: this.asset.id,
+				name: result
 			});
 		}
 	}
