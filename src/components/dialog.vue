@@ -33,11 +33,12 @@ export default Vue.extend({
 
 	> div {
 		position: absolute;
-		top: 128px;
+		top: 50%;
 		right: 0;
 		left: 0;
 		width: 300px;
-		margin: auto;
+		margin: 0 auto;
+		transform: translateY(-50%);
 		padding: 32px;
 		text-align: center;
 		font-size: 14px;

@@ -71,7 +71,7 @@ export default Vue.extend({
 	overflow: hidden;
 
 	> header {
-		padding: 0 88px 0 20px;
+		padding: 0 88px 0 8px;
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
