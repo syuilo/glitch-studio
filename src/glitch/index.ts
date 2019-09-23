@@ -90,7 +90,6 @@ export async function render(
 
 				if (macro.type === 'image') {
 					macroScope[macro.name] = assets.find(a => a.id === macroScope[macro.name]);
-					console.log(macroScope[macro.name]);
 				}
 			}
 	
