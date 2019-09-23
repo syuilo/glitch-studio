@@ -13,9 +13,12 @@
 </template>
 
 <script lang="ts">
+import * as fs from 'fs';
 import Vue from 'vue';
+import * as electron from 'electron';
 import { faICursor, faSyncAlt } from '@fortawesome/free-solid-svg-icons';
 import { faTrashAlt } from '@fortawesome/free-regular-svg-icons';
+import { loadImage } from '@/load-image';
 
 export default Vue.extend({
 	props: {
@@ -56,6 +59,32 @@ export default Vue.extend({
 				assetId: this.asset.id,
 				name: result
 			});
+		},
+
+		replace() {
+			const paths = electron.remote.dialog.showOpenDialogSync(electron.remote.BrowserWindow.getFocusedWindow()!, {
+				properties: ['openFile'],
+				filters: [{
+					name: 'Image',
+					extensions: ['png', 'jpg', 'jpe', 'jpeg', '.jfif', '.jfi', '.jif', 'bmp', 'tiff']
+				}]
+			});
+			if (paths == null) return;
+			const path = paths[0];
+			const buffer = fs.readFileSync(path);
+			const img = loadImage(buffer);
+			this.$store.commit('replaceAsset', {
+				assetId: this.asset.id,
+				width: img.width,
+				height: img.height,
+				data: img.data,
+				buffer: buffer,
+			});
+			this.$nextTick(() => {
+				const ctx = this.canvas.getContext('2d')!;
+				ctx.putImageData(new ImageData(new Uint8ClampedArray(this.asset.data), this.asset.width, this.asset.height), 0, 0);
+			});
+			(this.$root.$children[0] as any).render();
 		}
 	}
 });

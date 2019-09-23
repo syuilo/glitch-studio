@@ -208,6 +208,14 @@ export const store = () => new Vuex.Store({
 			Vue.set(asset, 'name', payload.name);
 		},
 
+		replaceAsset(state, payload) {
+			const asset = state.assets.find(asset => asset.id === payload.assetId)!;
+			Vue.set(asset, 'width', payload.width);
+			Vue.set(asset, 'height', payload.height);
+			Vue.set(asset, 'data', payload.data);
+			Vue.set(asset, 'buffer', payload.buffer);
+		},
+
 		removeAsset(state, payload) {
 			Vue.set(state, 'assets', state.assets.filter(asset => asset.id !== payload.assetId));
 
