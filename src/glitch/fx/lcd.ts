@@ -4,6 +4,7 @@ const paramDefs = {
 	size: {
 		label: 'Size',
 		type: 'number' as const,
+		min: 3,
 		default: { type: 'literal' as const, value: 3 }
 	},
 	

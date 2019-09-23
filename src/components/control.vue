@@ -4,7 +4,7 @@
 		<input type="range" :value="value" step="1" :min="options.min" :max="options.max" :title="`${options.min} ~ ${options.max}`" @change="changeValue(parseInt($event.target.value, 10))"/>
 	</div>
 	<div v-else-if="type === 'number'">
-		<input type="number" :value="value" @change="changeValue(parseInt($event.target.value, 10))"/>
+		<input type="number" :value="value" :min="options.min" :max="options.max" @change="changeValue(parseInt($event.target.value, 10))"/>
 	</div>
 	<div v-else-if="type === 'bool'">
 		<button @click="changeValue(!value)" :class="{ primary: value }">{{ value ? 'On' : 'Off' }}</button>
