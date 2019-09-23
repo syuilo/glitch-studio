@@ -196,6 +196,7 @@ export default Vue.extend({
 				}
 
 				if (p.type === 'number') {
+					// TODO: min以下またはmax以上にならないようにする
 					set(Math.floor(rnd() * 2048));
 				} else if (p.type === 'range') {
 					set(Math.floor(Math.random() * ((p as any)['max'] - (p as any)['min']) + (p as any)['min']));
