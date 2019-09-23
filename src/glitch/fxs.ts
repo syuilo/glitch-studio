@@ -19,6 +19,7 @@ import grayscale from './fx/grayscale';
 import overlay from './fx/overlay';
 import copy from './fx/copy';
 import lcd from './fx/lcd';
+import pixelization from './fx/pixelization';
 
 const _fxs = {
 	swap,
@@ -41,6 +42,7 @@ const _fxs = {
 	overlay,
 	copy,
 	lcd,
+	pixelization,
 } as Record<string, {
 	name: string;
 	displayName: string;
