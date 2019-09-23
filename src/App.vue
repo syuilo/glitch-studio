@@ -239,7 +239,7 @@ export default Vue.extend({
 		async render() {
 			subStore.rendering = true;
 
-			await render(this.img, this.$store.state.layers, this.$store.state.macros, this.$store.state.assets, (w, h) => new Promise((res, rej) => {
+			await render(this.img!, this.$store.state.layers, this.$store.state.macros, this.$store.state.assets, (w, h) => new Promise((res, rej) => {
 				subStore.imageWidth = w;
 				subStore.imageHeight = h;
 				this.$nextTick(() => {
