@@ -139,7 +139,9 @@ export default Vue.extend({
 				'luminosity',
 			];
 
-			const params = {} as Layer['params'];
+			const params = {
+				...this.layer.params
+			} as Layer['params'];
 
 			const fullScreen = Math.floor(Math.random() * 2) === 0;
 			const withAlpha = Math.floor(Math.random() * 3) === 0;
@@ -218,6 +220,7 @@ export default Vue.extend({
 					set(Math.floor(Math.random() * 16384));
 				}
 			}
+
 			this.$store.commit('updateParams', {
 				layerId: this.layer.id,
 				params: params,
