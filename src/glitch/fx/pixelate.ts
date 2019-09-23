@@ -51,8 +51,8 @@ const fn = fx((w, h, get, set, params) => {
 });
 
 export default {
-	name: 'pixelization',
-	displayName: 'Pixelization',
+	name: 'pixelate',
+	displayName: 'Pixelate',
 	paramDefs,
 	fn
 };
