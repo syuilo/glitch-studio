@@ -20,8 +20,10 @@
 		"color-blend": "^2.0.7",
 		"custom-electron-titlebar": "^3.1.0",
 		"electron-unhandled": "^3.0.0",
-		"jimp": "^0.8.2",
+		"image-type": "^4.1.0",
+		"jpeg-js": "^0.3.6",
 		"mathjs": "^6.2.1",
+		"pngjs": "^3.4.0",
 		"seedrandom": "^3.0.3",
 		"uuid": "^3.3.3",
 		"vue": "^2.6.10",
@@ -30,7 +32,9 @@
 		"vuex-undo-redo": "^1.1.4"
 	},
 	"devDependencies": {
+		"@types/jpeg-js": "^0.3.7",
 		"@types/mathjs": "^6.0.2",
+		"@types/pngjs": "^3.3.2",
 		"@types/seedrandom": "^2.4.28",
 		"@types/uuid": "^3.4.5",
 		"@vue/cli-plugin-typescript": "^3.11.0",

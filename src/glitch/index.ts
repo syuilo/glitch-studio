@@ -3,6 +3,7 @@ import { Macro, genEmptyValue, Asset, Value } from './core';
 import Renderer from 'worker-loader!./workers/renderer';
 import HistogramWorker from 'worker-loader!./workers/histogram';
 import { fxs } from './fxs';
+import { Image } from '@/core';
 
 export type Layer = {
 	id: string;
@@ -39,7 +40,7 @@ const evaluate = (expression: string, scope: Record<string, any>) => {
  * Apply FX and render it to a canvas
  */
 export async function render(
-	src: any, layers: Layer[], macros: Macro[], assets: Asset[],
+	src: Image, layers: Layer[], macros: Macro[], assets: Asset[],
 	init: (w: number, h: number) => Promise<CanvasRenderingContext2D>,
 	histogram: (histogram: Histogram) => void,
 	progress: (max: number, done: number, status: string, args?: any) => void
@@ -47,9 +48,13 @@ export async function render(
 	return new Promise(async (res, rej) => {
 		if (src == null) return res();
 
-		let img = src.clone();
+		let img = {
+			width: src.width,
+			height: src.height,
+			data: src.data.slice(0),
+		};
 	
-		const ctx = await init(img.bitmap.width, img.bitmap.height);
+		const ctx = await init(img.width, img.height);
 	
 		const evaluatedParamses = [];
 	
@@ -69,8 +74,8 @@ export async function render(
 			const evaluatedParams = {} as Record<string, any>;
 	
 			const scope = {
-				WIDTH: img.bitmap.width,
-				HEIGHT: img.bitmap.height,
+				WIDTH: img.width,
+				HEIGHT: img.height,
 			};
 	
 			// Mixin macros
@@ -114,9 +119,9 @@ export async function render(
 
 		renderer.postMessage({
 			img: {
-				width: img.bitmap.width,
-				height: img.bitmap.height,
-				data: img.bitmap.data,
+				width: img.width,
+				height: img.height,
+				data: img.data,
 			},
 			layers: layers,
 			evaluatedParamses
@@ -124,7 +129,7 @@ export async function render(
 	
 		const onMessage = (e: MessageEvent) => {
 			if (e.data.type === 'rendered') {
-				ctx.putImageData(new ImageData(new Uint8ClampedArray(e.data.data), img.bitmap.width, img.bitmap.height), 0, 0);
+				ctx.putImageData(new ImageData(new Uint8ClampedArray(e.data.data), img.width, img.height), 0, 0);
 				renderer.removeEventListener('message', onMessage);
 				progress(layers.length, layers.length, 'Finished!');
 				res();

@@ -15,10 +15,10 @@
 <script lang="ts">
 import * as fs from 'fs';
 import * as electron from 'electron';
-const Jimp = require('jimp');
 import Vue from 'vue';
 import uuid from 'uuid/v4';
 import XAsset from './asset.vue';
+import { loadImage } from '../load-image';
 
 export default Vue.extend({
 	components: {
@@ -36,14 +36,15 @@ export default Vue.extend({
 			});
 			if (paths == null) return;
 			const path = paths[0];
-			Jimp.read('file://' + path).then((img: any) => {
-				this.$store.commit('addAsset', {
-					id: uuid(),
-					name: path.replace(/\\/g, '/').split('/').pop(),
-					width: img.bitmap.width,
-					height: img.bitmap.height,
-					data: img.bitmap.data,
-				});
+			const buffer = fs.readFileSync(path);
+			const img = loadImage(buffer);
+			this.$store.commit('addAsset', {
+				id: uuid(),
+				name: path.replace(/\\/g, '/').split('/').pop(),
+				width: img.width,
+				height: img.height,
+				data: img.data,
+				buffer: buffer,
 			});
 		}
 	}

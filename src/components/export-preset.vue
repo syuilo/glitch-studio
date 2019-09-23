@@ -19,6 +19,7 @@ import uuid from 'uuid/v4';
 import * as electron from 'electron';
 import { SettingsStore } from '@/settings';
 import { version } from '@/version';
+import { encodeAssets } from '@/encode-assets';
 import { ipcRenderer } from 'electron';
 import XDialog from './dialog.vue';
 import { encode } from '@msgpack/msgpack';
@@ -41,7 +42,7 @@ export default Vue.extend({
 				author: '',
 				layers: this.$store.state.layers,
 				macros: this.$store.state.macros,
-				assets: this.$store.state.assets,
+				assets: encodeAssets(this.$store.state.assets),
 			});
 			const path = electron.remote.dialog.showSaveDialogSync(electron.remote.BrowserWindow.getFocusedWindow()!, {
 				defaultPath: this.name,

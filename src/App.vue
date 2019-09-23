@@ -54,7 +54,6 @@ import uuid from 'uuid/v4';
 import { faLayerGroup, faSlidersH } from '@fortawesome/free-solid-svg-icons';
 import { faFolderOpen } from '@fortawesome/free-regular-svg-icons';
 import Vue from 'vue';
-const Jimp = require('jimp');
 import XLayers from './components/layers.vue';
 import XMacros from './components/macros.vue';
 import XAssets from './components/assets.vue';
@@ -67,6 +66,8 @@ import { SettingsStore } from './settings';
 import { version } from './version';
 import { decode } from '@msgpack/msgpack';
 import { subStore } from './sub-store';
+import { loadImage } from './load-image';
+import { Image } from './core';
 
 export default Vue.extend({
 	name: 'app',
@@ -83,7 +84,7 @@ export default Vue.extend({
 	data() {
 		return {
 			subStore,
-			img: null,
+			img: null as Image | null,
 			histogram: null as Histogram | null,
 			status: null as string | null,
 			progress: 0,
@@ -207,7 +208,7 @@ export default Vue.extend({
 		},
 
 		async openImageFromPath(path: string) {
-			this.img = await Jimp.read('file://' + path);
+			this.img = loadImage(fs.readFileSync(path));
 			document.title = `Glitch Studio (${path})`;
 			(this.$root as any).titleBar.updateTitle();
 			this.render();

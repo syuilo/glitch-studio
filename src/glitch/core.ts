@@ -41,6 +41,7 @@ export type Asset = {
 	width: number;
 	height: number;
 	data: Uint8Array;
+	buffer: Buffer;
 };
 
 export const basicParamDefs = {

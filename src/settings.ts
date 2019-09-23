@@ -5,6 +5,7 @@ import { encode, decode } from "@msgpack/msgpack";
 import { Layer } from './glitch';
 import { Macro, Asset } from './glitch/core';
 import { version } from './version';
+import { encodeAssets } from './encode-assets';
 
 export const userDataPath = (electron.app || electron.remote.app).getPath('userData');
 const filePath = path.join(userDataPath, 'settings');
@@ -45,7 +46,17 @@ export class SettingsStore {
 
 	public save() {
 		this.settings.version = version;
-		fs.writeFileSync(filePath, encode(this.settings));
+		const data: any = this.settings;
+		data.presets = this.settings.presets.map(preset => ({
+			id: preset.id,
+			gsVersion: preset.gsVersion,
+			author: preset.author,
+			name: preset.name,
+			layers: preset.layers,
+			macros: preset.macros,
+			assets: encodeAssets(preset.assets || []),
+		}));
+		fs.writeFileSync(filePath, encode(data));
 		console.debug('Settings saved', filePath);
 	}
 }

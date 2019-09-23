@@ -4,6 +4,7 @@ import { Layer } from './glitch';
 import { fxs } from './glitch/fxs';
 import { genEmptyValue, Macro, Asset } from './glitch/core';
 import { Preset } from './settings';
+import { decodeAssets } from './decode-assets';
 
 export const store = () => new Vuex.Store({
 	state: {
@@ -184,9 +185,11 @@ export const store = () => new Vuex.Store({
 			}
 			//#endregion
 
+			const assets = decodeAssets(payload.assets || []);
+
 			Vue.set(state, 'layers', layers);
 			Vue.set(state, 'macros', payload.macros);
-			Vue.set(state, 'assets', payload.assets || []);
+			Vue.set(state, 'assets', assets);
 		},
 
 		addAsset(state, payload) {
@@ -196,6 +199,7 @@ export const store = () => new Vuex.Store({
 				width: payload.width,
 				height: payload.height,
 				data: payload.data,
+				buffer: payload.buffer,
 			});
 		},
 
