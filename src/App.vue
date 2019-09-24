@@ -448,6 +448,7 @@ optgroup {
 		background: rgba(0, 0, 0, 0.5);
 		backdrop-filter: blur(8px);
 		box-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+		border-radius: 4px;
 	}
 
 	> .a {
