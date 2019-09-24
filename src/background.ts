@@ -50,6 +50,7 @@ function createWindow() {
 }
 
 let showAllParams = true;
+let showHistogram = false;
 let presets = settingsStore.settings.presets;
 
 function renderMenu() {
@@ -134,6 +135,15 @@ function renderMenu() {
 			click: () => {
 				showAllParams = !showAllParams;
 				win!.webContents.send('changeShowAllParams', showAllParams);
+				renderMenu();
+			}
+		}, {
+			label: 'Show Histogram',
+			type: 'checkbox',
+			checked: showHistogram,
+			click: () => {
+				showHistogram = !showHistogram;
+				win!.webContents.send('changeShowHistogram', showHistogram);
 				renderMenu();
 			}
 		}, {

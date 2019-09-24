@@ -131,30 +131,30 @@ const fn = fx((w, h, get, set, params) => {
 
 			//#region Master
 			r = Math.floor(Math.min(255, Math.max(0, (r - masterBlackLevel) * 255 / (masterWhiteLevel - masterBlackLevel))));
-			r = Math.min(255, r + (masterOutputBlackLevel * (1 - (r / 255))));
-			r = Math.max(0, r - ((255 - masterOutputWhiteLevel) * (r / 255)));
+			r = Math.floor(Math.min(255, r + (masterOutputBlackLevel * (1 - (r / 255)))));
+			r = Math.floor(Math.max(0, r - ((255 - masterOutputWhiteLevel) * (r / 255))));
 
 			g = Math.floor(Math.min(255, Math.max(0, (g - masterBlackLevel) * 255 / (masterWhiteLevel - masterBlackLevel))));
-			g = Math.min(255, g + (masterOutputBlackLevel * (1 - (g / 255))));
-			g = Math.max(0, g - ((255 - masterOutputWhiteLevel) * (g / 255)));
+			g = Math.floor(Math.min(255, g + (masterOutputBlackLevel * (1 - (g / 255)))));
+			g = Math.floor(Math.max(0, g - ((255 - masterOutputWhiteLevel) * (g / 255))));
 
 			b = Math.floor(Math.min(255, Math.max(0, (b - masterBlackLevel) * 255 / (masterWhiteLevel - masterBlackLevel))));
-			b = Math.min(255, b + (masterOutputBlackLevel * (1 - (b / 255))));
-			b = Math.max(0, b - ((255 - masterOutputWhiteLevel) * (b / 255)));
+			b = Math.floor(Math.min(255, b + (masterOutputBlackLevel * (1 - (b / 255)))));
+			b = Math.floor(Math.max(0, b - ((255 - masterOutputWhiteLevel) * (b / 255))));
 			//#endregion
 
 			//#region Per color
 			r = Math.floor(Math.min(255, Math.max(0, (r - rBlackLevel) * 255 / (rWhiteLevel - rBlackLevel))));
-			r = Math.min(255, r + (rOutputBlackLevel * (1 - (r / 255))));
-			r = Math.max(0, r - ((255 - rOutputWhiteLevel) * (r / 255)));
+			r = Math.floor(Math.min(255, r + (rOutputBlackLevel * (1 - (r / 255)))));
+			r = Math.floor(Math.max(0, r - ((255 - rOutputWhiteLevel) * (r / 255))));
 
 			g = Math.floor(Math.min(255, Math.max(0, (g - gBlackLevel) * 255 / (gWhiteLevel - gBlackLevel))));
-			g = Math.min(255, g + (gOutputBlackLevel * (1 - (g / 255))));
-			g = Math.max(0, g - ((255 - gOutputWhiteLevel) * (g / 255)));
+			g = Math.floor(Math.min(255, g + (gOutputBlackLevel * (1 - (g / 255)))));
+			g = Math.floor(Math.max(0, g - ((255 - gOutputWhiteLevel) * (g / 255))));
 
 			b = Math.floor(Math.min(255, Math.max(0, (b - bBlackLevel) * 255 / (bWhiteLevel - bBlackLevel))));
-			b = Math.min(255, b + (bOutputBlackLevel * (1 - (b / 255))));
-			b = Math.max(0, b - ((255 - bOutputWhiteLevel) * (b / 255)));
+			b = Math.floor(Math.min(255, b + (bOutputBlackLevel * (1 - (b / 255)))));
+			b = Math.floor(Math.max(0, b - ((255 - bOutputWhiteLevel) * (b / 255))));
 			//#endregion
 
 			set(x, y, [r, g, b, a]);

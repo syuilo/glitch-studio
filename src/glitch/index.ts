@@ -14,7 +14,7 @@ export type Layer = {
 
 export type Histogram = {
 	bins: {
-		v1: number[]; v2: number[]; v3: number[];
+		r: number[]; g: number[]; b: number[];
 	};
 	max: number;
 	rAmount: number;
@@ -22,6 +22,10 @@ export type Histogram = {
 	bAmount: number;
 	amountMax: number;
 	amountMin: number;
+	rMax: number;
+	gMax: number;
+	bMax: number;
+	rgbMax: number;
 };
 
 const renderer = new Renderer();

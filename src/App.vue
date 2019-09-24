@@ -1,7 +1,7 @@
 <template>
 <main id="app">
-	<div class="histogram" v-if="histogram">
-		<canvas width="300" height="200" ref="histogram"/>
+	<div class="histogram" v-if="histogram && showHistogram">
+		<XHistogram :histogram="histogram"/>
 	</div>
 	<div class="a">
 		<div class="view">
@@ -60,6 +60,7 @@ import XAssets from './components/assets.vue';
 import XAbout from './components/about.vue';
 import XSavePreset from './components/save-preset.vue';
 import XExportPreset from './components/export-preset.vue';
+import XHistogram from './components/histogram.vue';
 import { render, Histogram } from './glitch';
 import { ipcRenderer } from 'electron';
 import { SettingsStore } from './settings';
@@ -79,6 +80,7 @@ export default Vue.extend({
 		XAbout,
 		XSavePreset,
 		XExportPreset,
+		XHistogram,
 	},
 
 	data() {
@@ -90,6 +92,7 @@ export default Vue.extend({
 			progress: 0,
 			tab: 'layers',
 			presetName: '',
+			showHistogram: false,
 			showAbout: false,
 			showSavePresetDialog: false,
 			showExportPresetDialog: false,
@@ -100,16 +103,6 @@ export default Vue.extend({
 	computed: {
 		canvas(): HTMLCanvasElement {
 			return this.$refs.canvas as HTMLCanvasElement;
-		}
-	},
-
-	watch: {
-		histogram() {
-			if (this.histogram == null) {
-
-			} else {
-				
-			}
 		}
 	},
 
@@ -185,6 +178,10 @@ export default Vue.extend({
 
 		ipcRenderer.on('changeShowAllParams', (_, v) => {
 			subStore.showAllParams = v;
+		});
+
+		ipcRenderer.on('changeShowHistogram', (_, v) => {
+			this.showHistogram = v;
 		});
 	},
 
@@ -444,6 +441,13 @@ optgroup {
 
 	> .histogram {
 		position: fixed;
+		bottom: 64px + 8px;
+		left: 32px + 8px;
+		padding: 16px;
+		pointer-events: none;
+		background: rgba(0, 0, 0, 0.5);
+		backdrop-filter: blur(8px);
+		box-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
 	}
 
 	> .a {
