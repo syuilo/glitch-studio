@@ -50,6 +50,7 @@
 <script lang="ts">
 import * as fs from 'fs';
 import * as electron from 'electron';
+import * as semver from 'semver';
 import uuid from 'uuid/v4';
 import { faLayerGroup, faSlidersH } from '@fortawesome/free-solid-svg-icons';
 import { faFolderOpen } from '@fortawesome/free-regular-svg-icons';
@@ -63,7 +64,7 @@ import XExportPreset from './components/export-preset.vue';
 import XHistogram from './components/histogram.vue';
 import { render, Histogram } from './glitch';
 import { ipcRenderer } from 'electron';
-import { SettingsStore } from './settings';
+import { SettingsStore, Preset } from './settings';
 import { version } from './version';
 import { decode } from '@msgpack/msgpack';
 import { subStore } from './sub-store';
@@ -154,8 +155,13 @@ export default Vue.extend({
 			if (paths == null) return;
 			for (const path of paths) {
 				const data = fs.readFileSync(path);
-				const preset = decode(data);
-				subStore.settingsStore.settings.presets.push(preset as any);
+				const preset = decode(data) as Preset;
+				if (semver.gt(preset.gsVersion, version)) {
+					alert(`This preset cannot be imported because it was created with a newer version (${preset.gsVersion}) than your Glitch Studio version (${version}).\n`
+						+ 'To import this preset, please update Glitch Studio to the latest version.');
+					return;
+				}
+				subStore.settingsStore.settings.presets.push(preset);
 				subStore.settingsStore.save();
 				ipcRenderer.send('updatePresets', subStore.settingsStore.settings.presets.map(p => ({
 					id: p.id, name: p.name
