@@ -189,6 +189,10 @@ export default Vue.extend({
 		ipcRenderer.on('changeShowHistogram', (_, v) => {
 			this.showHistogram = v;
 		});
+
+		ipcRenderer.on('init', (_, id) => {
+			this.$store.commit('init');
+		});
 	},
 
 	beforeDestroy() {

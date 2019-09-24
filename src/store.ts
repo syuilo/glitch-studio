@@ -22,6 +22,12 @@ export const store = () => new Vuex.Store({
 				assets: [],
 			});
 		},
+
+		init(state) {
+			Vue.set(state, 'layers', []);
+			Vue.set(state, 'macros', []);
+			Vue.set(state, 'assets', []);
+		},
 		
 		addLayer(state, payload) {
 			const paramDefs = fxs[payload.fx].paramDefs;

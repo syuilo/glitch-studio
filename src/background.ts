@@ -125,6 +125,14 @@ function renderMenu() {
 		}, {
 			label: 'Randomize World',
 			enabled: false,
+		}, {
+			type: 'separator'
+		}, {
+			label: 'Init',
+			accelerator: 'Ctrl+N',
+			click: () => {
+				win!.webContents.send('init');
+			}
 		}]
 	}, {
 		label: 'View',
