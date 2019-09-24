@@ -20,6 +20,8 @@ import overlay from './fx/overlay';
 import copy from './fx/copy';
 import lcd from './fx/lcd';
 import pixelate from './fx/pixelate';
+import levels from './fx/levels';
+import colorRange from './fx/color-range';
 
 const _fxs = {
 	swap,
@@ -43,6 +45,8 @@ const _fxs = {
 	copy,
 	lcd,
 	pixelate,
+	levels,
+	colorRange,
 } as Record<string, {
 	name: string;
 	displayName: string;
