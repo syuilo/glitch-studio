@@ -19,7 +19,7 @@
 			<div class="padding"></div>
 		</header>
 		<div class="list">
-			<div v-for="macro in $store.state.macros" :key="macro.id" class="macro">
+			<div v-for="macro in $store.state.macros" :key="macro.id" class="macro" :class="macro.type">
 				<div>
 					<input type="text" :value="macro.label" @change="updateMacroLabel(macro, $event.target.value)"/>
 					<input type="text" :value="macro.name" @change="updateMacroName(macro, $event.target.value)"/>
@@ -31,11 +31,17 @@
 					</select>
 					<button class="remove" title="Remove macro" @click="remove(macro.id)"><fa :icon="faTimes"/></button>
 				</div>
-				<div v-if="macro.type === 'range'" class="range">
+				<div class="minmax" v-if="['number', 'range'].includes(macro.type)">
 					<label>Min/Max</label>
-					<div class="minmax">
-						<input type="number" :value="macro.typeOptions.min" @change="updateMacroTypeOption(macro, 'min', parseInt($event.target.value, 10))"/>
-						<input type="number" :value="macro.typeOptions.max" @change="updateMacroTypeOption(macro, 'max', parseInt($event.target.value, 10))"/>
+					<div>
+						<input type="number" :value="macro.typeOptions.min" @change="updateMacroTypeOption(macro, 'min', parseFloat($event.target.value, 10))"/>
+						<input type="number" :value="macro.typeOptions.max" @change="updateMacroTypeOption(macro, 'max', parseFloat($event.target.value, 10))"/>
+					</div>
+				</div>
+				<div class="step" v-if="['number', 'range'].includes(macro.type)">
+					<label>Step</label>
+					<div>
+						<input type="number" :value="macro.typeOptions.step" @change="updateMacroTypeOption(macro, 'step', parseFloat($event.target.value, 10))"/>
 					</div>
 				</div>
 			</div>
@@ -267,14 +273,14 @@ export default Vue.extend({
 						width: 70%;
 						flex-shrink: 1;
 					}
+				}
 
-					&.range {
-						> .minmax {
-							display: flex;
+				&.range {
+					> .minmax > div {
+						display: flex;
 
-							> *:first-child {
-								margin-right: 4px;
-							}
+						> *:first-child {
+							margin-right: 4px;
 						}
 					}
 				}
