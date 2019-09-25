@@ -8,7 +8,7 @@ const paramDefs = {
 		default: { type: 'literal' as const, value: 32 },
 	},
 	amount: {
-		label: 'amount',
+		label: 'Amount',
 		type: 'number' as const,
 		default: { type: 'literal' as const, value: 64 },
 	},
