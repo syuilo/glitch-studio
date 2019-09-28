@@ -1,6 +1,5 @@
 import { fxs } from '../fxs';
 import { Layer } from '..';
-import { Asset } from '../core';
 
 const ctx: Worker = self as any;
 
