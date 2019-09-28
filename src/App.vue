@@ -222,6 +222,7 @@ export default Vue.extend({
 			const buffer = fs.readFileSync(path);
 			this.img = loadImage(buffer);
 			this.imgHash = hasha(buffer);
+			document.title = `Glitch Studio (${path})`;
 			(this.$root as any).titleBar.updateTitle(`<b>Glitch Studio</b> <span style="opacity: 0.7;">(${path})</span>`);
 			this.render();
 		},

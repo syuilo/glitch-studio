@@ -137,10 +137,10 @@
     error-stack-parser "^2.0.0"
     string-width "^2.0.0"
 
-"@syuilo/custom-electron-titlebar@^3.1.0":
-  version "3.1.0"
-  resolved "https://registry.yarnpkg.com/@syuilo/custom-electron-titlebar/-/custom-electron-titlebar-3.1.0.tgz#2949aba793c8f9159cf246b73876ab578f41f899"
-  integrity sha512-l+Vo3KsSYn1Y2LY13fHyRuYrMF7VzfwJMy/jxN4xYW6t7+134u+2dBsaCqrrstDG+eWI2ByxGRfv7dxstaHyHg==
+"@syuilo/custom-electron-titlebar@^3.2.0":
+  version "3.2.0"
+  resolved "https://registry.yarnpkg.com/@syuilo/custom-electron-titlebar/-/custom-electron-titlebar-3.2.0.tgz#ee9a45d5551f16bcd2718c624d7fac52293c4d22"
+  integrity sha512-cYP0TjIcF6rAURdpbCT+PUNmWNxrKDAsNqA8tVp1sOWSAynNIRMsPD3MUbPJWCiI/iG1FJ1oaHIvOOEAFWuwnA==
 
 "@szmarczak/http-timer@^1.1.2":
   version "1.1.2"
