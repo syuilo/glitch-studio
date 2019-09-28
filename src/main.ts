@@ -3,7 +3,7 @@
 import Vue from 'vue';
 import Vuex from 'vuex';
 const VuexUndoRedo = require('vuex-undo-redo');
-import { Titlebar, Color } from 'custom-electron-titlebar';
+import { Titlebar, Color } from '@syuilo/custom-electron-titlebar';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import { ipcRenderer, remote, webFrame } from 'electron';
 const unhandled = require('electron-unhandled');

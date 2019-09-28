@@ -137,6 +137,11 @@
     error-stack-parser "^2.0.0"
     string-width "^2.0.0"
 
+"@syuilo/custom-electron-titlebar@^3.1.0":
+  version "3.1.0"
+  resolved "https://registry.yarnpkg.com/@syuilo/custom-electron-titlebar/-/custom-electron-titlebar-3.1.0.tgz#2949aba793c8f9159cf246b73876ab578f41f899"
+  integrity sha512-l+Vo3KsSYn1Y2LY13fHyRuYrMF7VzfwJMy/jxN4xYW6t7+134u+2dBsaCqrrstDG+eWI2ByxGRfv7dxstaHyHg==
+
 "@szmarczak/http-timer@^1.1.2":
   version "1.1.2"
   resolved "https://registry.npm.taobao.org/@szmarczak/http-timer/download/@szmarczak/http-timer-1.1.2.tgz#b1665e2c461a2cd92f4c1bbf50d5454de0d4b421"
@@ -2134,11 +2139,6 @@ currently-unhandled@^0.4.1:
   integrity sha1-mI3zP+qxke95mmE2nddsF635V+o=
   dependencies:
     array-find-index "^1.0.1"
-
-custom-electron-titlebar@^3.1.0:
-  version "3.1.0"
-  resolved "https://registry.yarnpkg.com/custom-electron-titlebar/-/custom-electron-titlebar-3.1.0.tgz#3516652714168a0843323db5b103d25ac8193ae3"
-  integrity sha512-EF7J3YfWkp+2FP2ihm0mGK/l6HmMpZRQR9SwSgOMJWXK0aErqv12KWwiak/vuv7Q/ohgAZCdj4y/0PCjiJmpsQ==
 
 cyclist@^1.0.1:
   version "1.0.1"
