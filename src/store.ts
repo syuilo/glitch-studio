@@ -155,6 +155,10 @@ export const store = () => new Vuex.Store({
 		updateMacroType(state, payload) {
 			const macro = state.macros.find(macro => macro.id === payload.macroId)!;
 			Vue.set(macro, 'type', payload.value);
+			Vue.set(macro, 'value', {
+				type: 'literal',
+				value: genEmptyValue(macro)
+			});
 		},
 
 		updateMacroTypeOption(state, payload) {
