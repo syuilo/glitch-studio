@@ -4,6 +4,7 @@ import Renderer from 'worker-loader!./workers/renderer';
 import HistogramWorker from 'worker-loader!./workers/histogram';
 import { fxs } from './fxs';
 import { Image } from '@/core';
+import { genCacheKey } from '@/gen-cache-key';
 
 export type Layer = {
 	id: string;
@@ -39,6 +40,9 @@ const evaluate = (expression: string, scope: Record<string, any>) => {
 		return value;
 	}
 };
+
+const renderCache = {} as Record<string, Uint8ClampedArray>;
+const histogramCache = {} as Record<string, any>;
 
 /**
  * Apply FX and render it to a canvas
@@ -120,6 +124,19 @@ export async function render(
 
 		console.debug('EVAL', evaluatedParamses);
 
+		const hash = genCacheKey(layers, evaluatedParamses);
+		console.debug('HASH:', hash);
+
+		const cachedImage = renderCache[hash];
+		const cachedHistogram = histogramCache[hash];
+		if (cachedImage && cachedHistogram) {
+			ctx.putImageData(new ImageData(cachedImage, img.width, img.height), 0, 0);
+			progress(layers.length, layers.length, 'Finished!');
+			res();
+			histogram(cachedHistogram);
+			return;
+		}
+
 		renderer.postMessage({
 			img: {
 				width: img.width,
@@ -132,14 +149,18 @@ export async function render(
 	
 		const onMessage = (e: MessageEvent) => {
 			if (e.data.type === 'rendered') {
-				ctx.putImageData(new ImageData(new Uint8ClampedArray(e.data.data), img.width, img.height), 0, 0);
+				const data = new Uint8ClampedArray(e.data.data);
+				renderCache[hash] = data;
+				ctx.putImageData(new ImageData(data, img.width, img.height), 0, 0);
 				renderer.removeEventListener('message', onMessage);
 				progress(layers.length, layers.length, 'Finished!');
 				res();
 	
 				const finishHist = (e: MessageEvent) => {
+					const data = e.data;
 					histogramWorker.removeEventListener('message', finishHist);
-					histogram(e.data);
+					histogramCache[hash] = data;
+					histogram(data);
 				};
 	
 				histogramWorker.addEventListener('message', finishHist);

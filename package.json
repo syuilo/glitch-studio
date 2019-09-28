@@ -20,6 +20,7 @@
 		"color-blend": "^2.0.7",
 		"custom-electron-titlebar": "^3.1.0",
 		"electron-unhandled": "^3.0.0",
+		"hasha": "^5.1.0",
 		"image-type": "^4.1.0",
 		"jpeg-js": "^0.3.6",
 		"mathjs": "^6.2.1",
@@ -33,6 +34,7 @@
 		"vuex-undo-redo": "^1.1.4"
 	},
 	"devDependencies": {
+		"@types/hasha": "^3.0.1",
 		"@types/jpeg-js": "^0.3.7",
 		"@types/mathjs": "^6.0.2",
 		"@types/pngjs": "^3.3.2",
