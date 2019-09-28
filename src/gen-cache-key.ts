@@ -1,7 +1,7 @@
 import hasha from 'hasha';
 import { Layer } from './glitch';
 
-export function genCacheKey(layers: Layer[], paramses: Record<string, any>[]) {
+export function genCacheKey(srcImgHash: string, layers: Layer[], paramses: Record<string, any>[]) {
 	const data = [];
 
 	for (let i = 0; i < layers.length; i++) {
@@ -15,5 +15,5 @@ export function genCacheKey(layers: Layer[], paramses: Record<string, any>[]) {
 		});
 	}
 
-	return hasha(JSON.stringify(data), { algorithm: 'md5' });
+	return hasha(JSON.stringify(data + srcImgHash), { algorithm: 'md5' });
 }

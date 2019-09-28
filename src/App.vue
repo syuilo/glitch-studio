@@ -51,6 +51,7 @@
 import * as fs from 'fs';
 import * as electron from 'electron';
 import * as semver from 'semver';
+import hasha from 'hasha';
 import uuid from 'uuid/v4';
 import { faLayerGroup, faSlidersH } from '@fortawesome/free-solid-svg-icons';
 import { faFolderOpen } from '@fortawesome/free-regular-svg-icons';
@@ -88,6 +89,7 @@ export default Vue.extend({
 		return {
 			subStore,
 			img: null as Image | null,
+			imgHash: null as string | null,
 			histogram: null as Histogram | null,
 			status: null as string | null,
 			progress: 0,
@@ -215,7 +217,9 @@ export default Vue.extend({
 		},
 
 		async openImageFromPath(path: string) {
-			this.img = loadImage(fs.readFileSync(path));
+			const buffer = fs.readFileSync(path);
+			this.img = loadImage(buffer);
+			this.imgHash = hasha(buffer);
 			document.title = `Glitch Studio (${path})`;
 			(this.$root as any).titleBar.updateTitle();
 			this.render();
@@ -246,7 +250,7 @@ export default Vue.extend({
 		async render() {
 			subStore.rendering = true;
 
-			await render(this.img!, this.$store.state.layers, this.$store.state.macros, this.$store.state.assets, (w, h) => new Promise((res, rej) => {
+			await render(this.img!, this.imgHash!, this.$store.state.layers, this.$store.state.macros, this.$store.state.assets, (w, h) => new Promise((res, rej) => {
 				subStore.imageWidth = w;
 				subStore.imageHeight = h;
 				this.$nextTick(() => {

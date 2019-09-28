@@ -48,7 +48,7 @@ const histogramCache = {} as Record<string, any>;
  * Apply FX and render it to a canvas
  */
 export async function render(
-	src: Image, layers: Layer[], macros: Macro[], assets: Asset[],
+	src: Image, srcHash: string, layers: Layer[], macros: Macro[], assets: Asset[],
 	init: (w: number, h: number) => Promise<CanvasRenderingContext2D>,
 	histogram: (histogram: Histogram) => void,
 	progress: (max: number, done: number, status: string, args?: any) => void
@@ -124,7 +124,7 @@ export async function render(
 
 		console.debug('EVAL', evaluatedParamses);
 
-		const hash = genCacheKey(layers, evaluatedParamses);
+		const hash = genCacheKey(srcHash, layers, evaluatedParamses);
 		console.debug('HASH:', hash);
 
 		const cachedImage = renderCache[hash];
