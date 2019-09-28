@@ -15,5 +15,5 @@ export function genCacheKey(srcImgHash: string, layers: Layer[], paramses: Recor
 		});
 	}
 
-	return hasha(JSON.stringify(data + srcImgHash), { algorithm: 'md5' });
+	return hasha(JSON.stringify(data) + srcImgHash, { algorithm: 'md5' });
 }
