@@ -2,9 +2,9 @@
 <div class="asset-component">
 	<header>{{ asset.name }}</header>
 	<div class="buttons">
-		<button class="replace" @click="replace()" title="Replace"><fa :icon="faSyncAlt"/></button>
-		<button class="rename" @click="rename()" title="Rename"><fa :icon="faICursor"/></button>
-		<button class="remove" @click="remove()" title="Remove asset"><fa :icon="faTrashAlt"/></button>
+		<button class="replace" @click="replace()" :title="$t('ReplaceAsset')"><fa :icon="faSyncAlt"/></button>
+		<button class="rename" @click="rename()" :title="$t('RenameAsset')"><fa :icon="faICursor"/></button>
+		<button class="remove" @click="remove()" :title="$t('RemoveAsset')"><fa :icon="faTrashAlt"/></button>
 	</div>
 	<div class="body">
 		<canvas :width="asset.width" :height="asset.height" ref="canvas"/>

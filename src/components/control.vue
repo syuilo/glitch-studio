@@ -16,34 +16,34 @@
 	</div>
 	<div v-else-if="type === 'blendMode'">
 		<select :value="value" @change="changeValue($event.target.value)">
-			<option value="none">None</option>
-			<optgroup label="Normal">
-				<option value="normal">Normal</option>
+			<option value="none">{{ $t('_BlendModes.None') }}</option>
+			<optgroup :label="$t('_BlendModes._Categories.Basic')">
+				<option value="normal">{{ $t('_BlendModes.Normal') }}</option>
 			</optgroup>
-			<optgroup label="Darken">
-				<option value="darken">Darken</option>
-				<option value="multiply">Multiply</option>
-				<option value="colorBurn">Color Burn</option>
+			<optgroup :label="$t('_BlendModes._Categories.Darken')">
+				<option value="darken">{{ $t('_BlendModes.Darken') }}</option>
+				<option value="multiply">{{ $t('_BlendModes.Multiply') }}</option>
+				<option value="colorBurn">{{ $t('_BlendModes.ColorBurn') }}</option>
 			</optgroup>
-			<optgroup label="Lighten">
-				<option value="lighten">Lighten</option>
-				<option value="screen">Screen</option>
-				<option value="colorDodge">Color Dodge</option>
+			<optgroup :label="$t('_BlendModes._Categories.Lighten')">
+				<option value="lighten">{{ $t('_BlendModes.Lighten') }}</option>
+				<option value="screen">{{ $t('_BlendModes.Screen') }}</option>
+				<option value="colorDodge">{{ $t('_BlendModes.ColorDodge') }}</option>
 			</optgroup>
-			<optgroup label="Contrast">
-				<option value="overlay">Overlay</option>
-				<option value="softLight">Soft Light</option>
-				<option value="hardLight">Hard Light</option>
+			<optgroup :label="$t('_BlendModes._Categories.Contrast')">
+				<option value="overlay">{{ $t('_BlendModes.Overlay') }}</option>
+				<option value="softLight">{{ $t('_BlendModes.SoftLight') }}</option>
+				<option value="hardLight">{{ $t('_BlendModes.HardLight') }}</option>
 			</optgroup>
-			<optgroup label="Inversion">
-				<option value="difference">Difference</option>
-				<option value="exclusion">Exclusion</option>
+			<optgroup :label="$t('_BlendModes._Categories.Comparative')">
+				<option value="difference">{{ $t('_BlendModes.Difference') }}</option>
+				<option value="exclusion">{{ $t('_BlendModes.Exclusion') }}</option>
 			</optgroup>
-			<optgroup label="Component">
-				<option value="hue">Hue</option>
-				<option value="saturation">Saturation</option>
-				<option value="color">Color</option>
-				<option value="luminosity">Luminosity</option>
+			<optgroup :label="$t('_BlendModes._Categories.Hsl')">
+				<option value="hue">{{ $t('_BlendModes.Hue') }}</option>
+				<option value="saturation">{{ $t('_BlendModes.Saturation') }}</option>
+				<option value="color">{{ $t('_BlendModes.Color') }}</option>
+				<option value="luminosity">{{ $t('_BlendModes.Luminosity') }}</option>
 			</optgroup>
 		</select>
 	</div>

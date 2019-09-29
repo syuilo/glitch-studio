@@ -12,6 +12,7 @@
 			"ExportPreset": "Export Preset",
 			"ImportPreset": "Import Preset",
 			"RemovePreset": "Remove Preset",
+			"Preferences": "Preferences",
 			"Exit": "Exit"
 		},
 		"_Edit": {
@@ -53,5 +54,36 @@
 	"ClickToDisable": "Click to Disable",
 	"ClickToEnable": "Click to Enable",
 	"RemoveEffect": "Remove Effect",
-	"Randomize": "Randomize"
+	"Randomize": "Randomize",
+	"Language": "Language",
+	"ReplaceAsset": "Replace Asset",
+	"RenameAsset": "Rename Asset",
+	"RemoveAsset": "Remove Asset",
+	"_BlendModes": {
+		"_Categories": {
+			"Basic": "Basic",
+			"Darken": "Darken",
+			"Lighten": "Lighten",
+			"Contrast": "Contrast",
+			"Comparative": "Comparative",
+			"Hsl": "HSL"
+		},
+		"None": "None",
+		"Normal": "Normal",
+		"Darken": "Darken",
+		"Multiply": "Multiply",
+		"ColorBurn": "Color Burn",
+		"Lighten": "Lighten",
+		"Screen": "Screen",
+		"ColorDodge": "Color Dodge",
+		"Overlay": "Overlay",
+		"SoftLight": "Soft Light",
+		"HardLight": "Hard Light",
+		"Difference": "Difference",
+		"Exclusion": "Exclusion",
+		"Hue": "Hue",
+		"Saturation": "Saturation",
+		"Color": "Color",
+		"Luminosity": "Luminosity"
+	}
 }

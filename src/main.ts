@@ -110,8 +110,6 @@ function renderMenu() {
 				v.$emit('importPreset');
 			}
 		}, {
-			type: 'separator'
-		}, {
 			label: v.$t('Menu._File.RemovePreset') as string,
 			submenu: settingsStore.settings.presets.length === 0 ? [{
 				label: v.$t('NoPresets') as string,
@@ -122,6 +120,24 @@ function renderMenu() {
 					v.$emit('removePreset', p.id);
 				},
 			}))
+		}, {
+			type: 'separator'
+		}, {
+			label: v.$t('Menu._File.Preferences') as string,
+			submenu: [{
+				label: v.$t('Language') as string,
+				submenu: [{
+					label: 'English',
+					click: () => {
+						v.$emit('changeLang', 'en');
+					},
+				}, {
+					label: '日本語',
+					click: () => {
+						v.$emit('changeLang', 'ja');
+					},
+				}]
+			}]
 		}, {
 			type: 'separator'
 		}, {
@@ -297,4 +313,10 @@ v.$on('resetZoom', () => {
 v.$on('updateMenu', () => {
 	renderMenu();
 });
+
+v.$on('changeLang', (locale: string) => {
+	i18n.locale = locale;
+	renderMenu();
+});
+
 

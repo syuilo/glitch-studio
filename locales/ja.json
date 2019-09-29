@@ -12,6 +12,7 @@
 			"ExportPreset": "プリセットをエクスポート",
 			"ImportPreset": "プリセットをインポート",
 			"RemovePreset": "プリセットを削除",
+			"Preferences": "設定",
 			"Exit": "終了"
 		},
 		"_Edit": {
@@ -53,5 +54,36 @@
 	"ClickToDisable": "クリックして無効化",
 	"ClickToEnable": "クリックして有効化",
 	"RemoveEffect": "エフェクトを削除",
-	"Randomize": "ランダマイズ"
+	"Randomize": "ランダマイズ",
+	"Language": "言語",
+	"ReplaceAsset": "アセットを置き換え",
+	"RenameAsset": "名前を変更",
+	"RemoveAsset": "アセットを削除",
+	"_BlendModes": {
+		"_Categories": {
+			"Basic": "基本",
+			"Darken": "暗く",
+			"Lighten": "明るく",
+			"Contrast": "コントラスト",
+			"Comparative": "比較",
+			"Hsl": "HSL"
+		},
+		"None": "なし",
+		"Normal": "通常",
+		"Darken": "比較(暗)",
+		"Multiply": "乗算",
+		"ColorBurn": "焼き込みカラー",
+		"Lighten": "比較(明)",
+		"Screen": "スクリーン",
+		"ColorDodge": "覆い焼きカラー",
+		"Overlay": "オーバーレイ",
+		"SoftLight": "ソフトライト",
+		"HardLight": "ハードライト",
+		"Difference": "差の絶対値",
+		"Exclusion": "除外",
+		"Hue": "色相",
+		"Saturation": "彩度",
+		"Color": "カラー",
+		"Luminosity": "輝度"
+	}
 }
