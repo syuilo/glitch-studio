@@ -50,7 +50,6 @@ function createWindow() {
 }
 
 let showAllParams = true;
-let showHistogram = false;
 let presets = settingsStore.settings.presets;
 
 function renderMenu() {
@@ -286,10 +285,6 @@ app.on('ready', async () => {
 	renderMenu();
 
 	createWindow();
-});
-
-app.on('before-quit', () => {
-	settingsStore.save();
 });
 
 // Exit cleanly on request from parent process in development mode.

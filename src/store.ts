@@ -210,6 +210,7 @@ export const store = () => new Vuex.Store({
 				height: payload.height,
 				data: payload.data,
 				buffer: payload.buffer,
+				hash: payload.hash,
 			});
 		},
 
@@ -224,6 +225,7 @@ export const store = () => new Vuex.Store({
 			Vue.set(asset, 'height', payload.height);
 			Vue.set(asset, 'data', payload.data);
 			Vue.set(asset, 'buffer', payload.buffer);
+			Vue.set(asset, 'hash', payload.hash);
 		},
 
 		removeAsset(state, payload) {

@@ -192,6 +192,7 @@ export default Vue.extend({
 
 		ipcRenderer.on('changeShowHistogram', (_, v) => {
 			this.showHistogram = v;
+			subStore.settingsStore.settings.showHistogram = v;
 		});
 
 		ipcRenderer.on('init', (_, id) => {
@@ -203,6 +204,7 @@ export default Vue.extend({
 		ipcRenderer.removeAllListeners('openImage');
 		ipcRenderer.removeAllListeners('saveImage');
 		ipcRenderer.removeAllListeners('addFx');
+		subStore.settingsStore.save();
 	},
 
 	methods: {

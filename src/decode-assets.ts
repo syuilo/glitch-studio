@@ -9,5 +9,6 @@ export function decodeAssets(assets: Asset[]) {
 		height: asset.height,
 		data: loadImage(asset.buffer).data,
 		buffer: asset.buffer,
+		hash: asset.hash,
 	}));
 }

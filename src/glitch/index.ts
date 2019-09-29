@@ -44,6 +44,17 @@ const evaluate = (expression: string, scope: Record<string, any>) => {
 const renderCache = {} as Record<string, Uint8ClampedArray>;
 const histogramCache = {} as Record<string, any>;
 
+function serializeAsset(asset: Asset | undefined) {
+	if (asset == null) return null;
+	return {
+		id: asset.id,
+		width: asset.width,
+		height: asset.height,
+		data: asset.data,
+		hash: asset.hash,
+	};
+}
+
 /**
  * Apply FX and render it to a canvas
  */
@@ -64,7 +75,7 @@ export async function render(
 	
 		const ctx = await init(img.width, img.height);
 	
-		const evaluatedParamses = [];
+		const evaluatedParamsList = [];
 	
 		for (const layer of layers) {
 			const params = layer.params;
@@ -97,7 +108,8 @@ export async function render(
 							: genEmptyValue(macro);
 
 				if (macro.type === 'image') {
-					macroScope[macro.name] = assets.find(a => a.id === macroScope[macro.name]);
+					macroScope[macro.name] = serializeAsset(
+						assets.find(a => a.id === macroScope[macro.name]));
 				}
 			}
 	
@@ -115,16 +127,17 @@ export async function render(
 							: genEmptyValue(paramDefs[k]);
 
 				if (paramDefs[k].type === 'image' && v.type === 'literal') {
-					evaluatedParams[k] = assets.find(a => a.id === evaluatedParams[k]);
+					evaluatedParams[k] = serializeAsset(
+						assets.find(a => a.id === evaluatedParams[k]));
 				}
 			}
 	
-			evaluatedParamses.push(evaluatedParams);
+			evaluatedParamsList.push(evaluatedParams);
 		}
 
-		console.debug('EVAL', evaluatedParamses);
+		console.debug('EVAL', evaluatedParamsList);
 
-		const hash = genCacheKey(srcHash, layers, evaluatedParamses);
+		const hash = genCacheKey(srcHash, layers, evaluatedParamsList);
 		console.debug('HASH:', hash);
 
 		const cachedImage = renderCache[hash];
@@ -144,7 +157,7 @@ export async function render(
 				data: img.data,
 			},
 			layers: layers,
-			evaluatedParamses
+			evaluatedParamsList
 		});
 	
 		const onMessage = (e: MessageEvent) => {

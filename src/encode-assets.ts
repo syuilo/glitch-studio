@@ -7,5 +7,6 @@ export function encodeAssets(assets: Asset[]) {
 		width: asset.width,
 		height: asset.height,
 		buffer: asset.buffer,
+		hash: asset.hash,
 	}));
 }

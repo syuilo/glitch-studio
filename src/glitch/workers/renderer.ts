@@ -7,7 +7,7 @@ function render(input: {
 	width: number;
 	height: number;
 	data: Uint8Array;
-}, layers: Layer[], paramses: Record<string, any>[], progress: (i: number, status: string, args?: any) => void) {
+}, layers: Layer[], paramsList: Record<string, any>[], progress: (i: number, status: string, args?: any) => void) {
 	console.log('Apply FXs...');
 	let i = 0;
 	for (const layer of layers) {
@@ -16,7 +16,7 @@ function render(input: {
 		const label = `FX: ${layer.fx}`;
 		progress(i, `Applying ${layer.fx}...`, { processingFxId: layer.id });
 		console.time(label);
-		input.data = fxs[layer.fx].fn(input, paramses[i]);
+		input.data = fxs[layer.fx].fn(input, paramsList[i]);
 		console.timeEnd(label);
 		i++;
 	}
@@ -25,7 +25,7 @@ function render(input: {
 
 ctx.addEventListener('message', e => {
 	const data = e.data;
-	const out = render(data.img, data.layers, data.evaluatedParamses, (i: number, status: string, args?: any) => {
+	const out = render(data.img, data.layers, data.evaluatedParamsList, (i: number, status: string, args?: any) => {
 		ctx.postMessage({
 			type: 'progress',
 			i, status, args

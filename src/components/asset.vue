@@ -16,6 +16,7 @@
 import * as fs from 'fs';
 import Vue from 'vue';
 import * as electron from 'electron';
+import hasha from 'hasha';
 import { faICursor, faSyncAlt } from '@fortawesome/free-solid-svg-icons';
 import { faTrashAlt } from '@fortawesome/free-regular-svg-icons';
 import { loadImage } from '@/load-image';
@@ -73,12 +74,14 @@ export default Vue.extend({
 			const path = paths[0];
 			const buffer = fs.readFileSync(path);
 			const img = loadImage(buffer);
+			const hash = hasha(buffer);
 			this.$store.commit('replaceAsset', {
 				assetId: this.asset.id,
 				width: img.width,
 				height: img.height,
 				data: img.data,
 				buffer: buffer,
+				hash: hash,
 			});
 			this.$nextTick(() => {
 				const ctx = this.canvas.getContext('2d')!;

@@ -17,6 +17,7 @@ import * as fs from 'fs';
 import * as electron from 'electron';
 import Vue from 'vue';
 import uuid from 'uuid/v4';
+import hasha from 'hasha';
 import XAsset from './asset.vue';
 import { loadImage } from '../load-image';
 
@@ -38,6 +39,7 @@ export default Vue.extend({
 			const path = paths[0];
 			const buffer = fs.readFileSync(path);
 			const img = loadImage(buffer);
+			const hash = hasha(buffer);
 			this.$store.commit('addAsset', {
 				id: uuid(),
 				name: path.replace(/\\/g, '/').split('/').pop(),
@@ -45,6 +47,7 @@ export default Vue.extend({
 				height: img.height,
 				data: img.data,
 				buffer: buffer,
+				hash: hash,
 			});
 		}
 	}
