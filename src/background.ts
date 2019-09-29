@@ -23,7 +23,7 @@ protocol.registerSchemesAsPrivileged([{
 function createWindow() {
 	// Create the browser window.
 	win = new BrowserWindow({
-		width: 1000, height: 700,
+		width: 1050, height: 735,
 		title: 'Glitch Studio',
 		icon: __dirname + '/../icon.png',
 		frame: false,

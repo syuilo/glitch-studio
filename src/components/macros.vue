@@ -8,10 +8,10 @@
 			</div>
 			<XControl v-else :type="macro.type" :value="macro.value.value" :options="macro.typeOptions" @input="updateMacroAsLiteral(macro, $event)"/>
 		</div>
-		<p v-if="$store.state.macros.length === 0" class="_gs-no-contents">No macros</p>
+		<p v-if="$store.state.macros.length === 0" class="_gs-no-contents">{{ $t('NoMacros') }}</p>
 	</div>
 	<div class="macros-editor _gs-container">
-		<button @click="addMacro()">Add macro</button>
+		<button @click="addMacro()">{{ $t('AddMacro') }}</button>
 		<header>
 			<div>Label</div>
 			<div>Name</div>

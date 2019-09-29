@@ -3,9 +3,9 @@
 	<header class="drag-handle" :class="{ disabled: subStore.rendering }" @dblclick="expanded = !expanded">{{ name }}</header>
 	<div class="indicator" :class="{ active: layer.isEnabled, processing: subStore.processingFxId === layer.id }"></div>
 	<div class="buttons" :class="{ disabled: subStore.rendering }">
-		<button class="randomize" @click="randomize()" title="Randomize"><fa :icon="faRandom"/></button>
-		<button class="active" :class="{ primary: layer.isEnabled }" @click="toggleEnable()" :title="layer.isEnabled ? 'Click to disable' : 'Click to enable'"><fa :icon="layer.isEnabled ? faEye : faEyeSlash"/></button>
-		<button class="remove" @click="remove()" title="Remove effect"><fa :icon="faTimes"/></button>
+		<button class="randomize" @click="randomize()" :title="$t('Randomize')"><fa :icon="faRandom"/></button>
+		<button class="active" :class="{ primary: layer.isEnabled }" @click="toggleEnable()" :title="layer.isEnabled ? $t('ClickToDisable') : $t('ClickToEnable')"><fa :icon="layer.isEnabled ? faEye : faEyeSlash"/></button>
+		<button class="remove" @click="remove()" :title="$t('RemoveEffect')"><fa :icon="faTimes"/></button>
 	</div>
 
 	<div class="params" v-show="expanded" :class="{ disabled: subStore.rendering }">

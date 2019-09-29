@@ -13,9 +13,9 @@
 		</div>
 		<div class="side">
 			<div class="tab">
-				<div :class="{ active: tab === 'layers' }" @click="tab = 'layers'"><fa :icon="faLayerGroup"/>FX<span>({{ $store.state.layers.length }})</span></div>
-				<div :class="{ active: tab === 'macros' }" @click="tab = 'macros'"><fa :icon="faSlidersH"/>Macro<span>({{ $store.state.macros.length }})</span></div>
-				<div :class="{ active: tab === 'assets' }" @click="tab = 'assets'"><fa :icon="faFolderOpen"/>Asset<span>({{ $store.state.assets.length }})</span></div>
+				<div :class="{ active: tab === 'layers' }" @click="tab = 'layers'"><fa :icon="faLayerGroup"/>{{ $t('Fx') }}<span>({{ $store.state.layers.length }})</span></div>
+				<div :class="{ active: tab === 'macros' }" @click="tab = 'macros'"><fa :icon="faSlidersH"/>{{ $t('Macro') }}<span>({{ $store.state.macros.length }})</span></div>
+				<div :class="{ active: tab === 'assets' }" @click="tab = 'assets'"><fa :icon="faFolderOpen"/>{{ $t('Asset') }}<span>({{ $store.state.assets.length }})</span></div>
 			</div>
 			<XLayers v-show="tab === 'layers'"/>
 			<XMacros v-show="tab === 'macros'"/>
@@ -394,6 +394,7 @@ input[type=color] {
 	outline: none;
 	width: 100%;
 	cursor: pointer;
+	line-height: 15px;
 
 	&:focus {
 		border-color: $theme-color;
@@ -521,6 +522,7 @@ optgroup {
 					font-size: 12px;
 					cursor: pointer;
 					color: rgba(255, 255, 255, 0.7);
+					line-height: 16px;
 
 					&:hover {
 						color: #fff;

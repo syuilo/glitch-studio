@@ -1,10 +1,10 @@
 <template>
 <div class="assets-componet _gs-container">
 	<header>
-		<button @click="addAsset()">Add Asset...</button>
+		<button @click="addAsset()">{{ $t('AddAsset') }}...</button>
 	</header>
 	<div class="assets" v-if="$store.state.assets.length === 0">
-		<p class="_gs-no-contents">No Assets</p>
+		<p class="_gs-no-contents">{{ $t('NoAssets') }}</p>
 	</div>
 	<div class="assets" v-else>
 		<XAsset v-for="asset in $store.state.assets" :asset="asset" :key="asset.id"/>

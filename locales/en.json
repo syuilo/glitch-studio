@@ -40,5 +40,18 @@
 			"About": "About"
 		}
 	},
-	"NoPresets": "No presets"
+	"NoPresets": "No presets",
+	"NoEffects": "No FX",
+	"NoMacros": "No macros",
+	"NoAssets": "No assets",
+	"Fx": "FX",
+	"Macro": "Macro",
+	"Asset": "Aseet",
+	"AddEffect": "Add Effect",
+	"AddMacro": "Add Macro",
+	"AddAsset": "Add Asset",
+	"ClickToDisable": "Click to Disable",
+	"ClickToEnable": "Click to Enable",
+	"RemoveEffect": "Remove Effect",
+	"Randomize": "Randomize"
 }

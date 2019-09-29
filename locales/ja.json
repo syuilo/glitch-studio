@@ -40,5 +40,18 @@
 			"About": "このソフトについて"
 		}
 	},
-	"NoPresets": "プリセットなし"
+	"NoPresets": "プリセットなし",
+	"NoEffects": "エフェクトなし",
+	"NoMacros": "マクロなし",
+	"NoAssets": "アセットなし",
+	"Fx": "FX",
+	"Macro": "マクロ",
+	"Asset": "アセット",
+	"AddEffect": "エフェクトを追加",
+	"AddMacro": "マクロを追加",
+	"AddAsset": "アセットを追加",
+	"ClickToDisable": "クリックして無効化",
+	"ClickToEnable": "クリックして有効化",
+	"RemoveEffect": "エフェクトを削除",
+	"Randomize": "ランダマイズ"
 }

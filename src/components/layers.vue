@@ -2,12 +2,12 @@
 <div class="layers-componet _gs-container">
 	<header>
 		<select @change="$event => { addFx($event.target.value); $event.target.value = ''; }">
-			<option value="" selected disabled>Add FX...</option>
+			<option value="" selected disabled>{{ $t('AddEffect') }}...</option>
 			<option v-for="k in Object.keys(fxs)" :value="fxs[k].name" :key="fxs[k].name">{{ fxs[k].displayName }}</option>
 		</select>
 	</header>
 	<div class="layers" v-if="layers.length === 0">
-		<p class="_gs-no-contents">No FXs</p>
+		<p class="_gs-no-contents">{{ $t('NoEffects') }}</p>
 	</div>
 	<XDraggable class="layers" v-else v-model="layers" tag="div" handle=".drag-handle" animation="150" swap-threshold="0.5">
 		<XLayer v-for="layer in layers" :layer="layer" :key="layer.id"/>
