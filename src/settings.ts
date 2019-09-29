@@ -23,11 +23,13 @@ export type Preset = {
 export type Settings = {
 	version: string;
 	presets: Preset[];
+	showHistogram: boolean;
 };
 
 const defaultSettings: Settings = {
 	version: version,
-	presets: []
+	presets: [],
+	showHistogram: false,
 };
 
 export class SettingsStore {

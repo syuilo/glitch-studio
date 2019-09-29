@@ -148,10 +148,10 @@ function renderMenu() {
 		}, {
 			label: 'Show Histogram',
 			type: 'checkbox',
-			checked: showHistogram,
+			checked: settingsStore.settings.showHistogram,
 			click: () => {
-				showHistogram = !showHistogram;
-				win!.webContents.send('changeShowHistogram', showHistogram);
+				settingsStore.settings.showHistogram = !settingsStore.settings.showHistogram;
+				win!.webContents.send('changeShowHistogram', settingsStore.settings.showHistogram);
 				renderMenu();
 			}
 		}, {
@@ -286,6 +286,10 @@ app.on('ready', async () => {
 	renderMenu();
 
 	createWindow();
+});
+
+app.on('before-quit', () => {
+	settingsStore.save();
 });
 
 // Exit cleanly on request from parent process in development mode.

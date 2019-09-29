@@ -95,7 +95,7 @@ export default Vue.extend({
 			progress: 0,
 			tab: 'layers',
 			presetName: '',
-			showHistogram: false,
+			showHistogram: subStore.settingsStore.settings.showHistogram,
 			showAbout: false,
 			showSavePresetDialog: false,
 			showExportPresetDialog: false,
