@@ -1,0 +1,44 @@
+{
+	"Menu": {
+		"File": "File",
+		"Edit": "Edit",
+		"View": "View",
+		"Presets": "Presets",
+		"Help": "Help",
+		"_File": {
+			"OpenImage": "Open Image",
+			"SaveImage": "Save Image",
+			"SavePreset": "Save Preset",
+			"ExportPreset": "Export Preset",
+			"ImportPreset": "Import Preset",
+			"RemovePreset": "Remove Preset",
+			"Exit": "Exit"
+		},
+		"_Edit": {
+			"Undo": "Undo",
+			"Redo": "Redo",
+			"RandomizeAll": "Randomize All",
+			"RandomFx": "Random FX",
+			"Init": "Init"
+		},
+		"_View": {
+			"ShowAllParams": "Show All Params",
+			"ShowHistogram": "Show Histogram",
+			"CollapseAllFx": "Collapse All FX",
+			"ExpandAllFx": "Expand All FX",
+			"ZoomIn": "Zoom In",
+			"ZoomOut": "Zoom Out",
+			"ResetZoom": "Reset Zoom",
+			"ToggleFullscreen": "Toggle Fullscreen"
+		},
+		"_Help": {
+			"OpenDataFolder": "Open Data Folder",
+			"ToggleDeveloperTools": "Toggle Developer Tools",
+			"ReportIssue": "Report Issue",
+			"FeatureRequest": "Feature Request",
+			"SupportUsOnPatreon": "Support Us on Patreon",
+			"About": "About"
+		}
+	},
+	"NoPresets": "No presets"
+}

@@ -1,0 +1,44 @@
+{
+	"Menu": {
+		"File": "ファイル",
+		"Edit": "編集",
+		"View": "表示",
+		"Presets": "プリセット",
+		"Help": "ヘルプ",
+		"_File": {
+			"OpenImage": "画像を開く",
+			"SaveImage": "画像を保存",
+			"SavePreset": "プリセットを保存",
+			"ExportPreset": "プリセットをエクスポート",
+			"ImportPreset": "プリセットをインポート",
+			"RemovePreset": "プリセットを削除",
+			"Exit": "終了"
+		},
+		"_Edit": {
+			"Undo": "元に戻す",
+			"Redo": "やり直す",
+			"RandomizeAll": "全てランダマイズ",
+			"RandomFx": "ランダムエフェクト",
+			"Init": "初期化"
+		},
+		"_View": {
+			"ShowAllParams": "全てのパラメータを表示",
+			"ShowHistogram": "ヒストグラムを表示",
+			"CollapseAllFx": "全てのエフェクトを折りたたむ",
+			"ExpandAllFx": "全てのエフェクトを展開",
+			"ZoomIn": "拡大",
+			"ZoomOut": "縮小",
+			"ResetZoom": "ズームリセット",
+			"ToggleFullscreen": "フルスクリーン切り替え"
+		},
+		"_Help": {
+			"OpenDataFolder": "データフォルダを開く",
+			"ToggleDeveloperTools": "開発者ツール切り替え",
+			"ReportIssue": "問題を報告",
+			"FeatureRequest": "機能を要望",
+			"SupportUsOnPatreon": "Patreonで開発者をサポート",
+			"About": "このソフトについて"
+		}
+	},
+	"NoPresets": "プリセットなし"
+}

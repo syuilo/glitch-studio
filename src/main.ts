@@ -2,6 +2,7 @@
 
 import Vue from 'vue';
 import Vuex from 'vuex';
+import VueI18n from 'vue-i18n';
 const VuexUndoRedo = require('vuex-undo-redo');
 import { Titlebar, Color } from '@syuilo/custom-electron-titlebar';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
@@ -11,6 +12,7 @@ import App from './App.vue';
 import InputDialog from './components/input-dialog.vue';
 import { store } from './store';
 import { settingsStore, userDataPath } from './settings';
+import { locales } from './locales';
 
 unhandled();
 
@@ -18,8 +20,14 @@ Vue.config.productionTip = false;
 
 Vue.use(Vuex);
 Vue.use(VuexUndoRedo);
+Vue.use(VueI18n);
 
 Vue.component('fa', FontAwesomeIcon);
+
+const i18n = new VueI18n({
+	locale: 'ja',
+	messages: locales,
+});
 
 const titleBar = new Titlebar({
 	icon: 'icon.png',
@@ -27,6 +35,8 @@ const titleBar = new Titlebar({
 });
 
 const v = new Vue({
+	i18n,
+
 	data() {
 		return {
 			titleBar,
@@ -69,15 +79,15 @@ let showAllParams = true;
 
 function renderMenu() {
 	const menu = remote.Menu.buildFromTemplate([{
-		label: 'File',
+		label: v.$t('Menu.File') as string,
 		submenu: [{
-			label: 'Open Image',
+			label: v.$t('Menu._File.OpenImage') as string,
 			accelerator: 'Ctrl+O',
 			click: () => {
 				v.$emit('openImage');
 			}
 		}, {
-			label: 'Save Image',
+			label: v.$t('Menu._File.SaveImage') as string,
 			accelerator: 'Ctrl+S',
 			click: () => {
 				v.$emit('saveImage');
@@ -85,26 +95,26 @@ function renderMenu() {
 		}, {
 			type: 'separator'
 		}, {
-			label: 'Save Preset',
+			label: v.$t('Menu._File.SavePreset') as string,
 			click: () => {
 				v.$emit('savePreset');
 			}
 		}, {
-			label: 'Export Preset',
+			label: v.$t('Menu._File.ExportPreset') as string,
 			click: () => {
 				v.$emit('exportPreset');
 			}
 		}, {
-			label: 'Import Preset',
+			label: v.$t('Menu._File.ImportPreset') as string,
 			click: () => {
 				v.$emit('importPreset');
 			}
 		}, {
 			type: 'separator'
 		}, {
-			label: 'Remove Preset',
+			label: v.$t('Menu._File.RemovePreset') as string,
 			submenu: settingsStore.settings.presets.length === 0 ? [{
-				label: 'No presets',
+				label: v.$t('NoPresets') as string,
 				enabled: false
 			}] : settingsStore.settings.presets.map(p => ({
 				label: p.name,
@@ -115,18 +125,19 @@ function renderMenu() {
 		}, {
 			type: 'separator'
 		}, {
+			label: v.$t('Menu._File.Exit') as string,
 			role: 'quit'
 		}]
 	}, {
-		label: 'Edit',
+		label: v.$t('Menu.Edit') as string,
 		submenu: [{
-			label: 'Undo',
+			label: v.$t('Menu._Edit.Undo') as string,
 			accelerator: 'Ctrl+Z',
 			click: () => {
 				v.$emit('undo');
 			}
 		}, {
-			label: 'Redo',
+			label: v.$t('Menu._Edit.Redo') as string,
 			accelerator: 'Ctrl+Y',
 			click: () => {
 				v.$emit('redo');
@@ -134,24 +145,24 @@ function renderMenu() {
 		}, {
 			type: 'separator'
 		}, {
-			label: 'Randomize All',
+			label: v.$t('Menu._Edit.RandomizeAll') as string,
 			enabled: false,
 		}, {
-			label: 'Randomize World',
+			label: v.$t('Menu._Edit.RandomFx') as string,
 			enabled: false,
 		}, {
 			type: 'separator'
 		}, {
-			label: 'Init',
+			label: v.$t('Menu._Edit.Init') as string,
 			accelerator: 'Ctrl+N',
 			click: () => {
 				v.$emit('init');
 			}
 		}]
 	}, {
-		label: 'View',
+		label: v.$t('Menu.View') as string,
 		submenu: [{
-			label: 'Show All Params',
+			label: v.$t('Menu._View.ShowAllParams') as string,
 			type: 'checkbox',
 			checked: showAllParams,
 			click: () => {
@@ -160,7 +171,7 @@ function renderMenu() {
 				renderMenu();
 			}
 		}, {
-			label: 'Show Histogram',
+			label: v.$t('Menu._View.ShowHistogram') as string,
 			type: 'checkbox',
 			checked: settingsStore.settings.showHistogram,
 			click: () => {
@@ -172,31 +183,31 @@ function renderMenu() {
 		}, {
 			type: 'separator'
 		}, {
-			label: 'Collapse All FX',
+			label: v.$t('Menu._View.CollapseAllFx') as string,
 			click: () => {
 				v.$emit('collapseAllFx');
 			}
 		}, {
-			label: 'Expand All FX',
+			label: v.$t('Menu._View.ExpandAllFx') as string,
 			click: () => {
 				v.$emit('expandAllFx');
 			}
 		}, {
 			type: 'separator'
 		}, {
-			label: 'Zoom In',
+			label: v.$t('Menu._View.ZoomIn') as string,
 			role: 'zoomIn',
 			click: () => {
 				v.$emit('zoomIn');
 			}
 		}, {
-			label: 'Zoom Out',
+			label: v.$t('Menu._View.ZoomOut') as string,
 			role: 'zoomOut',
 			click: () => {
 				v.$emit('zoomOut');
 			}
 		}, {
-			label: 'Reset Zoom',
+			label: v.$t('Menu._View.ResetZoom') as string,
 			role: 'resetZoom',
 			click: () => {
 				v.$emit('resetZoom');
@@ -204,13 +215,13 @@ function renderMenu() {
 		}, {
 			type: 'separator'
 		}, {
-			label: 'Toggle Fullscreen',
+			label: v.$t('Menu._View.ToggleFullscreen') as string,
 			role: 'togglefullscreen',
 		}]
 	}, {
-		label: 'Presets',
+		label: v.$t('Menu.Presets') as string,
 		submenu: settingsStore.settings.presets.length === 0 ? [{
-			label: 'No presets',
+			label: v.$t('NoPresets') as string,
 			enabled: false
 		}] : settingsStore.settings.presets.map(p => ({
 			label: p.name,
@@ -219,38 +230,38 @@ function renderMenu() {
 			},
 		}))
 	}, {
-		label: 'Help',
+		label: v.$t('Menu.Help') as string,
 		submenu: [{
-			label: 'Open Data Folder',
+			label: v.$t('Menu._Help.OpenDataFolder') as string,
 			click: () => {
 				shell.openItem(userDataPath);
 			}
 		}, {
-			label: 'Toggle Developer Tools',
+			label: v.$t('Menu._Help.ToggleDeveloperTools') as string,
 			role: 'toggleDevTools',
 		}, {
 			type: 'separator',
 		}, {
-			label: 'Report Issue',
+			label: v.$t('Menu._Help.ReportIssue') as string,
 			click: () => {
 				shell.openExternal('https://github.com/syuilo/glitch-studio/issues/new?assignees=&labels=⚠️bug%3F&template=01_bug-report.md&title=');
 			}
 		}, {
-			label: 'Feature Request',
+			label: v.$t('Menu._Help.FeatureRequest') as string,
 			click: () => {
 				shell.openExternal('https://github.com/syuilo/glitch-studio/issues/new?assignees=&labels=✨enhancement%3F&template=02_feature-request.md&title=');
 			}
 		}, {
 			type: 'separator',
 		}, {
-			label: 'Support Us on Patreon',
+			label: v.$t('Menu._Help.SupportUsOnPatreon') as string,
 			click: () => {
 				shell.openExternal('https://www.patreon.com/syuilo');
 			}
 		}, {
 			type: 'separator',
 		}, {
-			label: 'About',
+			label: v.$t('Menu._Help.About') as string,
 			role: 'about',
 			click: () => {
 				v.$emit('about');
