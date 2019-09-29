@@ -63,11 +63,11 @@ export default Vue.extend({
 		this.name = fxs[this.layer.fx].displayName;
 		this.paramDefs = fxs[this.layer.fx].paramDefs;
 
-		ipcRenderer.on('expandAllFx', () => {
+		this.$root.$on('expandAllFx', () => {
 			this.expanded = true;
 		});
 
-		ipcRenderer.on('collapseAllFx', () => {
+		this.$root.$on('collapseAllFx', () => {
 			this.expanded = false;
 		});
 	},

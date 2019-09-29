@@ -1,12 +1,11 @@
 // MAIN BACKGROUND PROCESS
 
-import { app, protocol, BrowserWindow, Menu, ipcMain, shell } from 'electron';
+import { app, protocol, BrowserWindow } from 'electron';
 import {
 	createProtocol,
 	installVueDevtools
 } from 'vue-cli-plugin-electron-builder/lib';
 const unhandled = require('electron-unhandled');
-import { settingsStore, userDataPath } from './settings';
 
 unhandled();
 
@@ -49,203 +48,6 @@ function createWindow() {
 	});
 }
 
-let showAllParams = true;
-let presets = settingsStore.settings.presets;
-
-function renderMenu() {
-	const menu = Menu.buildFromTemplate([{
-		label: 'File',
-		submenu: [{
-			label: 'Open Image',
-			accelerator: 'Ctrl+O',
-			click: () => {
-				win!.webContents.send('openImage');
-			}
-		}, {
-			label: 'Save Image',
-			accelerator: 'Ctrl+S',
-			click: () => {
-				win!.webContents.send('saveImage');
-			}
-		}, {
-			type: 'separator'
-		}, {
-			label: 'Save Preset',
-			click: () => {
-				win!.webContents.send('savePreset');
-			}
-		}, {
-			label: 'Export Preset',
-			click: () => {
-				win!.webContents.send('exportPreset');
-			}
-		}, {
-			label: 'Import Preset',
-			click: () => {
-				win!.webContents.send('importPreset');
-			}
-		}, {
-			type: 'separator'
-		}, {
-			label: 'Remove Preset',
-			submenu: presets.length === 0 ? [{
-				label: 'No presets',
-				enabled: false
-			}] : presets.map(p => ({
-				label: p.name,
-				click: () => {
-					win!.webContents.send('removePreset', p.id);
-				},
-			}))
-		}, {
-			type: 'separator'
-		}, {
-			role: 'quit'
-		}]
-	}, {
-		label: 'Edit',
-		submenu: [{
-			label: 'Undo',
-			accelerator: 'Ctrl+Z',
-			click: () => {
-				win!.webContents.send('undo');
-			}
-		}, {
-			label: 'Redo',
-			accelerator: 'Ctrl+Y',
-			click: () => {
-				win!.webContents.send('redo');
-			}
-		}, {
-			type: 'separator'
-		}, {
-			label: 'Randomize All',
-			enabled: false,
-		}, {
-			label: 'Randomize World',
-			enabled: false,
-		}, {
-			type: 'separator'
-		}, {
-			label: 'Init',
-			accelerator: 'Ctrl+N',
-			click: () => {
-				win!.webContents.send('init');
-			}
-		}]
-	}, {
-		label: 'View',
-		submenu: [{
-			label: 'Show All Params',
-			type: 'checkbox',
-			checked: showAllParams,
-			click: () => {
-				showAllParams = !showAllParams;
-				win!.webContents.send('changeShowAllParams', showAllParams);
-				renderMenu();
-			}
-		}, {
-			label: 'Show Histogram',
-			type: 'checkbox',
-			checked: settingsStore.settings.showHistogram,
-			click: () => {
-				settingsStore.settings.showHistogram = !settingsStore.settings.showHistogram;
-				win!.webContents.send('changeShowHistogram', settingsStore.settings.showHistogram);
-				renderMenu();
-			}
-		}, {
-			type: 'separator'
-		}, {
-			label: 'Collapse All FX',
-			click: () => {
-				win!.webContents.send('collapseAllFx');
-			}
-		}, {
-			label: 'Expand All FX',
-			click: () => {
-				win!.webContents.send('expandAllFx');
-			}
-		}, {
-			type: 'separator'
-		}, {
-			label: 'Zoom In',
-			role: 'zoomIn',
-			click: () => {
-				win!.webContents.send('zoomIn');
-			}
-		}, {
-			label: 'Zoom Out',
-			role: 'zoomOut',
-			click: () => {
-				win!.webContents.send('zoomOut');
-			}
-		}, {
-			label: 'Reset Zoom',
-			role: 'resetZoom',
-			click: () => {
-				win!.webContents.send('resetZoom');
-			}
-		}, {
-			type: 'separator'
-		}, {
-			label: 'Toggle Fullscreen',
-			role: 'togglefullscreen',
-		}]
-	}, {
-		label: 'Presets',
-		submenu: presets.length === 0 ? [{
-			label: 'No presets',
-			enabled: false
-		}] : presets.map(p => ({
-			label: p.name,
-			click: () => {
-				win!.webContents.send('applyPreset', p.id);
-			},
-		}))
-	}, {
-		label: 'Help',
-		submenu: [{
-			label: 'Open Data Folder',
-			click: () => {
-				shell.openItem(userDataPath);
-			}
-		}, {
-			label: 'Toggle Developer Tools',
-			role: 'toggleDevTools',
-		}, {
-			type: 'separator',
-		}, {
-			label: 'Report Issue',
-			click: () => {
-				shell.openExternal('https://github.com/syuilo/glitch-studio/issues/new?assignees=&labels=⚠️bug%3F&template=01_bug-report.md&title=');
-			}
-		}, {
-			label: 'Feature Request',
-			click: () => {
-				shell.openExternal('https://github.com/syuilo/glitch-studio/issues/new?assignees=&labels=✨enhancement%3F&template=02_feature-request.md&title=');
-			}
-		}, {
-			type: 'separator',
-		}, {
-			label: 'Support Us on Patreon',
-			click: () => {
-				shell.openExternal('https://www.patreon.com/syuilo');
-			}
-		}, {
-			type: 'separator',
-		}, {
-			label: 'About',
-			role: 'about',
-			click: () => {
-				win!.webContents.send('about');
-			}
-		}]
-	}]);
-
-	Menu.setApplicationMenu(menu);
-	if (win) win.webContents.send('updateMenu');
-}
-
 // Quit when all windows are closed.
 app.on('window-all-closed', () => {
 	// On macOS it is common for applications and their menu bar
@@ -282,8 +84,6 @@ app.on('ready', async () => {
 
 	}
 
-	renderMenu();
-
 	createWindow();
 });
 
@@ -301,8 +101,3 @@ if (isDevelopment) {
 		});
 	}
 }
-
-ipcMain.on('updatePresets', (ev, _presets) => {
-	presets = _presets;
-	renderMenu();
-});

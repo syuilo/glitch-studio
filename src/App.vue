@@ -120,35 +120,35 @@ export default Vue.extend({
 			this.render();
 		}, { deep: true });
 
-		ipcRenderer.on('openImage', () => {
+		this.$root.$on('openImage', () => {
 			this.openImage();
 		});
 
-		ipcRenderer.on('saveImage', () => {
+		this.$root.$on('saveImage', () => {
 			this.saveImage();
 		});
 
-		ipcRenderer.on('undo', () => {
+		this.$root.$on('undo', () => {
 			if ((this as any).canUndo) (this as any).undo();
 		});
 
-		ipcRenderer.on('redo', () => {
+		this.$root.$on('redo', () => {
 			if ((this as any).canRedo) (this as any).redo();
 		});
 
-		ipcRenderer.on('about', () => {
+		this.$root.$on('about', () => {
 			this.showAbout = true;
 		});
 
-		ipcRenderer.on('savePreset', () => {
+		this.$root.$on('savePreset', () => {
 			this.showSavePresetDialog = true;
 		});
 
-		ipcRenderer.on('exportPreset', () => {
+		this.$root.$on('exportPreset', () => {
 			this.showExportPresetDialog = true;
 		});
 
-		ipcRenderer.on('importPreset', () => {
+		this.$root.$on('importPreset', () => {
 			const paths = electron.remote.dialog.showOpenDialogSync(electron.remote.BrowserWindow.getFocusedWindow()!, {
 				properties: ['openFile', 'multiSelections'],
 				filters: [{
@@ -167,44 +167,38 @@ export default Vue.extend({
 				}
 				subStore.settingsStore.settings.presets.push(preset);
 				subStore.settingsStore.save();
-				ipcRenderer.send('updatePresets', subStore.settingsStore.settings.presets.map(p => ({
-					id: p.id, name: p.name
-				})));
+				this.$root.$emit('updateMenu');
 			}
 		});
 
-		ipcRenderer.on('applyPreset', (_, id) => {
+		this.$root.$on('applyPreset', (id: string) => {
 			const preset = subStore.settingsStore.settings.presets.find(p => p.id === id);
 			this.$store.commit('applyPreset', preset);
 		});
 
-		ipcRenderer.on('removePreset', (_, id) => {
+		this.$root.$on('removePreset', (id: string) => {
 			subStore.settingsStore.settings.presets = subStore.settingsStore.settings.presets.filter(p => p.id !== id);
 			subStore.settingsStore.save();
-			ipcRenderer.send('updatePresets', subStore.settingsStore.settings.presets.map(p => ({
-				id: p.id, name: p.name
-			})));
+			this.$root.$emit('updateMenu');
 		});
 
-		ipcRenderer.on('changeShowAllParams', (_, v) => {
+		this.$root.$on('changeShowAllParams', (v: boolean) => {
 			subStore.showAllParams = v;
 		});
 
-		ipcRenderer.on('changeShowHistogram', (_, v) => {
+		this.$root.$on('changeShowHistogram', (v: boolean) => {
 			this.showHistogram = v;
-			subStore.settingsStore.settings.showHistogram = v;
 		});
 
-		ipcRenderer.on('init', (_, id) => {
+		this.$root.$on('init', () => {
 			this.$store.commit('init');
 		});
 	},
 
 	beforeDestroy() {
-		ipcRenderer.removeAllListeners('openImage');
-		ipcRenderer.removeAllListeners('saveImage');
-		ipcRenderer.removeAllListeners('addFx');
-		subStore.settingsStore.save();
+		this.$root.$off('openImage');
+		this.$root.$off('saveImage');
+		this.$root.$off('addFx');
 	},
 
 	methods: {

@@ -42,9 +42,7 @@ export default Vue.extend({
 				assets: this.$store.state.assets,
 			});
 			subStore.settingsStore.save();
-			ipcRenderer.send('updatePresets', subStore.settingsStore.settings.presets.map(p => ({
-				id: p.id, name: p.name
-			})));
+			this.$root.$emit('updateMenu');
 			this.$emit('ok');
 		},
 
