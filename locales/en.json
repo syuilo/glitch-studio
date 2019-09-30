@@ -85,5 +85,17 @@
 		"Saturation": "Saturation",
 		"Color": "Color",
 		"Luminosity": "Luminosity"
+	},
+	"_Macro": {
+		"Name": "Name",
+		"Label": "Label",
+		"Type": "Type",
+		"_Types": {
+			"Number": "Number",
+			"Range": "Range",
+			"Flag": "Flag",
+			"Color": "Color",
+			"Image": "Image"
+		}
 	}
 }

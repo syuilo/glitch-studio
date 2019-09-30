@@ -13,9 +13,9 @@
 	<div class="macros-editor _gs-container">
 		<button @click="addMacro()">{{ $t('AddMacro') }}</button>
 		<header>
-			<div>Label</div>
-			<div>Name</div>
-			<div>Type</div>
+			<div>{{ $t('_Macro.Label') }}</div>
+			<div>{{ $t('_Macro.Name') }}</div>
+			<div>{{ $t('_Macro.Type') }}</div>
 			<div class="padding"></div>
 		</header>
 		<div class="list">
@@ -24,11 +24,11 @@
 					<input type="text" :value="macro.label" @change="updateMacroLabel(macro, $event.target.value)"/>
 					<input type="text" :value="macro.name" @change="updateMacroName(macro, $event.target.value)"/>
 					<select :value="macro.type" @change="updateMacroType(macro, $event.target.value)">
-						<option value="number">Number</option>
-						<option value="range">Range</option>
-						<option value="bool">Flag</option>
-						<option value="color">Color</option>
-						<option value="image">Image</option>
+						<option value="number">{{ $t('_Macro._Types.Number') }}</option>
+						<option value="range">{{ $t('_Macro._Types.Range') }}</option>
+						<option value="bool">{{ $t('_Macro._Types.Flag') }}</option>
+						<option value="color">{{ $t('_Macro._Types.Color') }}</option>
+						<option value="image">{{ $t('_Macro._Types.Image') }}</option>
 					</select>
 					<button class="remove" title="Remove macro" @click="remove(macro.id)"><fa :icon="faTimes"/></button>
 				</div>

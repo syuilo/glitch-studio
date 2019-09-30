@@ -85,5 +85,17 @@
 		"Saturation": "彩度",
 		"Color": "カラー",
 		"Luminosity": "輝度"
+	},
+	"_Macro": {
+		"Name": "名前",
+		"Label": "ラベル",
+		"Type": "種類",
+		"_Types": {
+			"Number": "数値",
+			"Range": "範囲",
+			"Flag": "フラグ",
+			"Color": "色",
+			"Image": "画像"
+		}
 	}
 }

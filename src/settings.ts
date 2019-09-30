@@ -24,12 +24,14 @@ export type Settings = {
 	version: string;
 	presets: Preset[];
 	showHistogram: boolean;
+	locale: string;
 };
 
 const defaultSettings: Settings = {
 	version: version,
 	presets: [],
 	showHistogram: false,
+	locale: 'en',
 };
 
 export class SettingsStore {
@@ -38,7 +40,10 @@ export class SettingsStore {
 	constructor() {
 		try {
 			const data = fs.readFileSync(filePath);
-			this.settings = decode(data) as Settings;
+			this.settings = {
+				...defaultSettings,
+				...decode(data)
+			} as Settings;
 			console.debug('Settings loaded', filePath);
 		} catch (e) {
 			this.settings = defaultSettings;

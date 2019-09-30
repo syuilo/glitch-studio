@@ -25,7 +25,7 @@ Vue.use(VueI18n);
 Vue.component('fa', FontAwesomeIcon);
 
 const i18n = new VueI18n({
-	locale: 'ja',
+	locale: settingsStore.settings.locale,
 	messages: locales,
 });
 
@@ -128,11 +128,13 @@ function renderMenu() {
 				label: v.$t('Language') as string,
 				submenu: [{
 					label: 'English',
+					checked: settingsStore.settings.locale === 'en',
 					click: () => {
 						v.$emit('changeLang', 'en');
 					},
 				}, {
 					label: '日本語',
+					checked: settingsStore.settings.locale === 'ja',
 					click: () => {
 						v.$emit('changeLang', 'ja');
 					},
@@ -315,6 +317,8 @@ v.$on('updateMenu', () => {
 });
 
 v.$on('changeLang', (locale: string) => {
+	settingsStore.settings.locale = locale;
+	settingsStore.save();
 	i18n.locale = locale;
 	renderMenu();
 });
