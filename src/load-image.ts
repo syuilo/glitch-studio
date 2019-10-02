@@ -1,4 +1,5 @@
 const imageType = require('image-type');
+import TIFF from 'utif';
 import { PNG } from 'pngjs';
 import JPEG from 'jpeg-js';
 import { Image } from './core';
@@ -6,8 +7,6 @@ import { Image } from './core';
 export function loadImage(image: Buffer): Image {
 	const { mime: type } = imageType(image);
 
-	console.log(type);
-	
 	if (type === 'image/png') {
 		const png = PNG.sync.read(image);
 		return {
@@ -17,6 +16,14 @@ export function loadImage(image: Buffer): Image {
 		};
 	} else if (type === 'image/jpeg') {
 		return JPEG.decode(image, true);
+	} else if (type === 'image/tiff') {
+		const ifds = TIFF.decode(image)[0];
+		TIFF.decodeImage(image, ifds);
+		return {
+			width: ifds.width,
+			height: ifds.height,
+			data: TIFF.toRGBA8(ifds),
+		};
 	} else {
 		throw new Error('Unsupported image type: ' + type);
 	}
