@@ -1,7 +1,7 @@
 <template>
 <div class="control-component">
 	<div v-if="type === 'range'">
-		<input type="range" :value="value" :step="options.step || 1" :min="options.min" :max="options.max" :title="`${options.min} ~ ${options.max}`" @change="changeValue(parseFloat($event.target.value, 10))"/>
+		<XSlider :value="value" :step="options.step || 1" :min="options.min" :max="options.max" :title="`${options.min} ~ ${options.max}`" @change="changeValue(parseFloat($event, 10))"/>
 	</div>
 	<div v-else-if="type === 'number'">
 		<input type="number" :value="value" :min="options.min" :max="options.max" @change="changeValue(parseFloat($event.target.value, 10))"/>
@@ -80,11 +80,12 @@ import XSignal from './signal.vue';
 import XXy from './xy.vue';
 import XWh from './wh.vue';
 import XColor from './color.vue';
+import XSlider from './slider.vue';
 import { fxs } from '../glitch/fxs';
 
 export default Vue.extend({
 	components: {
-		XSignal, XXy, XWh, XColor
+		XSignal, XXy, XWh, XColor, XSlider
 	},
 
 	props: {

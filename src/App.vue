@@ -347,6 +347,8 @@ input[type=range] {
 
 	&::-webkit-slider-thumb {
 		appearance: none;
+		position: relative;
+		z-index: 1;
 		border: solid 1px rgba(0, 0, 0, 0.7);
 		background: linear-gradient(0deg, #1b1b1b, #2a2a2a);
 		box-shadow: 0 1px 1px rgba(0, 0, 0, 0.1), 0 1px 0 rgba(255, 255, 255, 0.1) inset;
