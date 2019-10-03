@@ -19,7 +19,6 @@ function render(input: {
 	if (args.length === 0) return input;
 
 	const apply = (i: number): Uint8Array => {
-		if (renderCache[args[i].cacheKey]) console.log('hit', args[i].cacheKey, i);
 		if (renderCache[args[i].cacheKey]) return renderCache[args[i].cacheKey];
 
 		if (i > 0) input.data = apply(i - 1);
