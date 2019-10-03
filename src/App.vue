@@ -161,8 +161,7 @@ export default Vue.extend({
 				const data = fs.readFileSync(path);
 				const preset = decode(data) as Preset;
 				if (semver.gt(preset.gsVersion, version)) {
-					alert(`This preset cannot be imported because it was created with a newer version (${preset.gsVersion}) than your Glitch Studio version (${version}).\n`
-						+ 'To import this preset, please update Glitch Studio to the latest version.');
+					alert(this.$t('PresetVersionWarn', { current: version, newer: preset.gsVersion }));
 					return;
 				}
 				subStore.settingsStore.settings.presets.push(preset);

@@ -97,5 +97,6 @@
 			"Color": "色",
 			"Image": "画像"
 		}
-	}
+	},
+	"PresetVersionWarn": "このプリセットはお使いのGlitch Studioのバージョン({current})よりも新しいバージョン({newer})で作られているためインポートできません。\nこのプリセットをインポートするには、お使いのGlitch Studioを最新バージョンに更新してください。"
 }

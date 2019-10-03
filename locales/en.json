@@ -97,5 +97,6 @@
 			"Color": "Color",
 			"Image": "Image"
 		}
-	}
+	},
+	"PresetVersionWarn": "This preset cannot be imported because it was created with a newer version ({newer}) than your Glitch Studio version ({current}).\nTo import this preset, please update Glitch Studio to the latest version."
 }
