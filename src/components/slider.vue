@@ -62,6 +62,7 @@ export default Vue.extend({
 		height: 2px;
 		background: #bb6100;
 		border-radius: 2px;
+		pointer-events: none;
 	}
 }
 </style>
