@@ -5,6 +5,7 @@ import HistogramWorker from 'worker-loader!./workers/histogram';
 import { fxs } from './fxs';
 import { Image } from '@/core';
 import { genCacheKey } from '@/gen-cache-key';
+import { Args } from './workers/renderer';
 
 export type Layer = {
 	id: string;
@@ -150,14 +151,31 @@ export async function render(
 			return;
 		}
 
+		const args: Args = [];
+
+		for (let i = 0; i < layers.length; i++) {
+			const layer = layers[i];
+			const params = evaluatedParamsList[i];
+			if (!layer.isEnabled) { continue; } // Skip disabled effect
+
+			const key = genCacheKey(srcHash,
+				args.map(x => x.layer).concat(layer),
+				args.map(x => x.params).concat(params));
+
+			args.push({
+				layer: layer,
+				params: params,
+				cacheKey: key
+			});
+		}
+
 		renderer.postMessage({
 			img: {
 				width: img.width,
 				height: img.height,
 				data: img.data,
 			},
-			layers: layers,
-			evaluatedParamsList
+			args: args
 		});
 	
 		const onMessage = (e: MessageEvent) => {
