@@ -224,7 +224,7 @@ export function fx(fx: FX) {
 	}
 }
 
-export function makePxGetter(containerWidth: number, containerHeight: number, image: Asset) {
+export function makePxGetter(containerWidth: number, containerHeight: number, image: Asset, align: string) {
 	const widthRatio = containerWidth / image.width;
 	const heightRatio = containerHeight / image.height;
 	const n = Math.max(widthRatio, heightRatio); // 拡大率
@@ -232,17 +232,67 @@ export function makePxGetter(containerWidth: number, containerHeight: number, im
 	const finalHeight = image.height * n;
 	const overX = finalWidth - containerWidth;
 	const overY = finalHeight - containerHeight;
-	return (x: number, y: number) => {
-		const _x = Math.floor((x + Math.floor(overX / 2)) / n);
-		const _y = Math.floor((y + Math.floor(overY / 2)) / n);
-		const idx = (image.width * _y + _x) << 2;
-		return [
-			image.data[idx + 0],
-			image.data[idx + 1],
-			image.data[idx + 2],
-			image.data[idx + 3],
-		] as Color;
-	};
+	if (align === 'left') {
+		return (x: number, y: number) => {
+			const _x = Math.floor(x / n);
+			const _y = Math.floor((y + Math.floor(overY / 2)) / n);
+			const idx = (image.width * _y + _x) << 2;
+			return [
+				image.data[idx + 0],
+				image.data[idx + 1],
+				image.data[idx + 2],
+				image.data[idx + 3],
+			] as Color;
+		};
+	} else if (align === 'right') {
+		return (x: number, y: number) => {
+			const _x = Math.floor((x + (Math.floor(overX / 2) * 2)) / n);
+			const _y = Math.floor((y + Math.floor(overY / 2)) / n);
+			const idx = (image.width * _y + _x) << 2;
+			return [
+				image.data[idx + 0],
+				image.data[idx + 1],
+				image.data[idx + 2],
+				image.data[idx + 3],
+			] as Color;
+		};
+	} else if (align === 'top') {
+		return (x: number, y: number) => {
+			const _x = Math.floor((x + Math.floor(overX / 2)) / n);
+			const _y = Math.floor(y / n);
+			const idx = (image.width * _y + _x) << 2;
+			return [
+				image.data[idx + 0],
+				image.data[idx + 1],
+				image.data[idx + 2],
+				image.data[idx + 3],
+			] as Color;
+		};
+	} else if (align === 'bottom') {
+		return (x: number, y: number) => {
+			const _x = Math.floor((x + Math.floor(overX / 2)) / n);
+			const _y = Math.floor((y + (Math.floor(overY / 2) * 2)) / n);
+			const idx = (image.width * _y + _x) << 2;
+			return [
+				image.data[idx + 0],
+				image.data[idx + 1],
+				image.data[idx + 2],
+				image.data[idx + 3],
+			] as Color;
+		};
+	} else {
+		return (x: number, y: number) => {
+			const _x = Math.floor((x + Math.floor(overX / 2)) / n);
+			const _y = Math.floor((y + Math.floor(overY / 2)) / n);
+			const idx = (image.width * _y + _x) << 2;
+			return [
+				image.data[idx + 0],
+				image.data[idx + 1],
+				image.data[idx + 2],
+				image.data[idx + 3],
+			] as Color;
+		};
+	}
 }
 
 export function genEmptyValue(paramDef: Omit<ParamDef, 'default'>): any {
