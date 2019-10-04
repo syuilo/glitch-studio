@@ -38,13 +38,32 @@ export default Vue.extend({
 		}
 	},
 
+	data() {
+		return {
+			v: 0
+		};
+	},
+
+	watch: {
+		value() {
+			this.v = this.value;
+			this.render();
+		}
+	},
+
 	mounted() {
-		(this.$refs.indicator as HTMLElement).style.width = ((this.value - this.min) / (this.max - this.min) * 100) + '%';
+		this.v = this.value;
+		this.render();
 	},
 
 	methods: {
+		render() {
+			(this.$refs.indicator as HTMLElement).style.width = ((this.v - this.min) / (this.max - this.min) * 100) + '%';
+		},
+
 		onInput(v: number) {
-			(this.$refs.indicator as HTMLElement).style.width = ((v - this.min) / (this.max - this.min) * 100) + '%';
+			this.v = v;
+			this.render();
 			this.$emit('input', v);
 		}
 	}

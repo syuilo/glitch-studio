@@ -51,6 +51,15 @@ export default Vue.extend({
 		},
 	},
 
+	watch: {
+		value() {
+			const range = this.max - this.min;
+			this.a = (this.value[0] - this.min) / range;
+			this.b = (this.value[1] - this.min) / range;
+			this.render();
+		}
+	},
+
 	created() {
 		const range = this.max - this.min;
 		this.a = (this.value[0] - this.min) / range;
@@ -108,9 +117,9 @@ export default Vue.extend({
 		},
 
 		onMouseup() {
+			if (this.aDragging || this.bDragging) this.$emit('change', this.v);
 			this.aDragging = false;
 			this.bDragging = false;
-			this.$emit('change', this.v);
 		}
 	}
 });
