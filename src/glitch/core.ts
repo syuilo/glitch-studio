@@ -10,7 +10,7 @@ export type FX = (
 	params: Record<string, any>,
 ) => void;
 
-type DataType = 'number' | 'range' | 'enum' | 'bool' | 'blendMode' | 'signal' | 'xy' | 'wh' | 'color' | 'seed' | 'image';
+type DataType = 'number' | 'range' | 'range2' | 'enum' | 'bool' | 'blendMode' | 'signal' | 'xy' | 'wh' | 'color' | 'seed' | 'image';
 
 export type Value = {
 	type: 'literal' | 'expression';
@@ -303,6 +303,8 @@ export function genEmptyValue(paramDef: Omit<ParamDef, 'default'>): any {
 		if (paramDef.hasOwnProperty('min')) v = Math.max((paramDef as any)['min'], v);
 		if (paramDef.hasOwnProperty('max')) v = Math.min((paramDef as any)['max'], v);
 		return v;
+	} else if (paramDef.type === 'range2') {
+		return [(paramDef as any)['min'], (paramDef as any)['max']];
 	} else if (paramDef.type === 'enum') {
 		return (paramDef as any)['options'][0].value;
 	} else if (paramDef.type === 'bool') {

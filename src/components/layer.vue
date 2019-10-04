@@ -202,6 +202,10 @@ export default Vue.extend({
 					set(Math.floor(rnd() * 2048));
 				} else if (p.type === 'range') {
 					set(Math.floor(Math.random() * ((p as any)['max'] - (p as any)['min']) + (p as any)['min']));
+				} else if (p.type === 'range2') {
+					const a = Math.floor(Math.random() * ((p as any)['max'] - (p as any)['min']) + (p as any)['min']);
+					const b = Math.floor(Math.random() * ((p as any)['max'] - (p as any)['min']) + (p as any)['min']);
+					set([Math.min(a, b), Math.max(a, b)]);
 				} else if (p.type === 'enum') {
 					set((p as any)['options'][Math.floor(Math.random() * (p as any)['options'].length)].value);
 				} else if (p.type === 'bool') {

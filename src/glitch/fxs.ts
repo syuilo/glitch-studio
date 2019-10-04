@@ -21,7 +21,8 @@ import copy from './fx/copy';
 import lcd from './fx/lcd';
 import pixelate from './fx/pixelate';
 import levels from './fx/levels';
-import colorRange from './fx/color-range';
+import colorRange_2 from './fx/color-range';
+import colorRange from './fx/legacy/color-range';
 
 const _fxs = {
 	swap,
@@ -46,6 +47,7 @@ const _fxs = {
 	lcd,
 	pixelate,
 	levels,
+	colorRange_2,
 	colorRange,
 } as Record<string, {
 	name: string;
