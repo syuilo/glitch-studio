@@ -60,11 +60,11 @@
 		<XColor :color="value" @input="changeValue($event)"/>
 	</div>
 	<div v-else-if="type === 'seed'" class="seed">
-		<input type="number" :value="value" @change="changeValue(parseInt($event.target.value, 10))"/><button title="Random" @click="() => changeValue(Math.floor(Math.random() * 16384))"><fa :icon="faRandom"/></button>
+		<input type="number" :value="value" @change="changeValue(parseInt($event.target.value, 10))"/><button :title="$t('Random')" @click="() => changeValue(Math.floor(Math.random() * 16384))"><fa :icon="faRandom"/></button>
 	</div>
 	<div v-else-if="type === 'image'">
 		<select :value="value" @change="changeValue($event.target.value)">
-			<option :value="null">None</option>
+			<option :value="null">{{ $t('None') }}</option>
 			<optgroup label="Assets" v-if="$store.state.assets.length > 0">
 				<option v-for="asset in $store.state.assets" :value="asset.id" :key="asset.id">{{ asset.name }}</option>
 			</optgroup>

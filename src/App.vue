@@ -341,7 +341,7 @@ input[type=range] {
 	height: 4px;
 	width: 100%;
 	background: #111;
-	border-bottom: solid 1px rgba(255, 255, 255, 0.1);
+	border-bottom: solid 1px rgba(255, 255, 255, 0.12);
 	border-radius: 4px;
 	margin: 10px 0 10px 0;
 
