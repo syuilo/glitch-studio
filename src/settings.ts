@@ -42,7 +42,7 @@ export class SettingsStore {
 			const data = fs.readFileSync(filePath);
 			this.settings = {
 				...defaultSettings,
-				...decode(data)
+				...(decode(data) as Record<string, any>)
 			} as Settings;
 			console.debug('Settings loaded', filePath);
 		} catch (e) {
