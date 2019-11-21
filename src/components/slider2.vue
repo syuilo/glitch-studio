@@ -74,11 +74,12 @@ export default Vue.extend({
 
 		document.addEventListener('mousemove', this.onMousemove);
 		document.addEventListener('mouseup', this.onMouseup);
-	},
 
-	beforeDestroy() {
-		document.removeEventListener('mousemove', this.onMousemove);
-		document.removeEventListener('mouseup', this.onMouseup);
+		this.$once('hook:beforeDestroy', () => {
+			resizeObserver.disconnect();
+			document.removeEventListener('mousemove', this.onMousemove);
+			document.removeEventListener('mouseup', this.onMouseup);
+		});
 	},
 
 	methods: {
