@@ -1,6 +1,6 @@
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import type { Ref } from 'vue';
-import type { PreviewOptions } from './audio-preview-types.ts';
+import type { PreviewOptions } from './audio/audio-preview-types.ts';
 import { engine } from './app.ts';
 
 export function useAudioPreview(canvas: Readonly<Ref<HTMLCanvasElement | null>>, options: Readonly<Ref<PreviewOptions>>) {

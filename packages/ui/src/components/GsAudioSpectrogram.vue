@@ -11,7 +11,7 @@
 import { computed, useTemplateRef } from 'vue';
 import GsDetachableView from './GsDetachableView.vue';
 import type { SpectrogramSettings } from '@glitch/shared/utility/audio-spectrogram/audio-spectrogram.ts';
-import type { PreviewOptions } from '@/audio-preview-types.ts';
+import type { PreviewOptions } from '@/audio/audio-preview-types.ts';
 import { useAudioPreview } from '@/use-audio-preview.ts';
 
 const props = defineProps<{ options?: Partial<SpectrogramSettings> }>();

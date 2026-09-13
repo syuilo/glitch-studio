@@ -30,7 +30,7 @@
 import { computed, ref, useTemplateRef } from 'vue';
 import GsDetachableView from './GsDetachableView.vue';
 import { useAudioPreview } from '@/use-audio-preview.ts';
-import type { PreviewOptions } from '@/audio-preview-types.ts';
+import type { PreviewOptions } from '@/audio/audio-preview-types.ts';
 
 const props = defineProps<{ mode: 'spectrum' | 'waveform' }>();
 const overlay = defineModel<boolean>('overlay', { default: false });

@@ -4,7 +4,8 @@ import { deepEqual } from '@glitch/shared/utility/deep-equal.ts';
 import { deepClone } from '@glitch/shared/utility/deep-clone.ts';
 import { projectAudioSourceId } from '@glitch/shared/audio.ts';
 import { isVideoFrameAvailable, playVideoAfterFirstFrameIsReady } from './utility/video.ts';
-import { AudioInputs } from './audio-inputs.ts';
+import { AudioInputs } from './audio/audio-inputs.ts';
+import { setupWebcam } from './utility/webcam.ts';
 import type { Asset, GsAutomation, GsNode, Macro, Player } from '@glitch/shared/types.ts';
 import type { Renderer } from '@glitch/renderer/renderer.ts';
 import type { EffectStatus } from '@glitch/shared/effect-status.ts';
@@ -13,32 +14,6 @@ import * as ui from '@/ui.ts';
 type RendererMethods = {
 	[K in keyof Renderer as Renderer[K] extends (...args: never[]) => unknown ? K : never]: Renderer[K];
 };
-
-function setupWebcam(): Promise<MediaStream> {
-	return new Promise((resolve, reject) => {
-		navigator.mediaDevices.getUserMedia({
-			video: true,
-			audio: false,
-		}).then(localMediaStream => {
-			resolve(localMediaStream);
-		}).catch(err => {
-			if (err.name === 'PermissionDeniedError') {
-				ui.alert({
-					type: 'error',
-					title: 'Failed to access webcam',
-					text: 'denied permission',
-				});
-			} else {
-				ui.alert({
-					type: 'error',
-					title: 'Failed to access webcam',
-					text: err.message,
-				});
-			}
-			reject(err);
-		});
-	});
-}
 
 export class Engine {
 	public canvas: HTMLCanvasElement;
@@ -357,28 +332,6 @@ export class Engine {
 
 	public async updatePointerPosition(newPointerPosition: { x: number; y: number }) {
 		this.call('updatePointerPosition', [newPointerPosition]);
-	}
-
-	public saveImage(options: {
-		resolution: {
-			width: number;
-			height: number;
-		};
-	}) {
-		const canvas = window.document.createElement('canvas');
-		canvas.width = options.resolution.width;
-		canvas.height = options.resolution.height;
-
-		//const path = await api.showSaveDialog({
-		//	filters: [{
-		//		name: 'Image',
-		//		extensions: ['png']
-		//	}]
-		//});
-		//if (path == null) return;
-		//canvas.value!.toBlob(async blob => {
-		//	api.saveFile(path, await blob.arrayBuffer());
-		//});
 	}
 
 	public changeFpsLimit(newFpsLimit: number | null) {
