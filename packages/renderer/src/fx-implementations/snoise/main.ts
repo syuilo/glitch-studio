@@ -18,6 +18,13 @@ export default implementEffect<typeof definition>({
 		});
 
 		const shaderDataDefinitions = makeShaderDataDefinitions(code);
+		// データ入力はtextureLoadで読み、32bitテクスチャのフィルタリング機能を要求しない。
+		const layout = wgpu.device.createBindGroupLayout({ entries: [
+			{ binding: 1, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },
+			...[2, 3, 4, 5].map(binding => ({
+				binding, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'unfilterable-float' as const },
+			})),
+		] });
 
 		const pipeline = wgpu.device.createRenderPipeline({
 			vertex: {
@@ -32,7 +39,7 @@ export default implementEffect<typeof definition>({
 			primitive: {
 				topology: 'triangle-list',
 			},
-			layout: 'auto',
+			layout: wgpu.device.createPipelineLayout({ bindGroupLayouts: [layout] }),
 		});
 
 		const uniformValues = makeStructuredView(shaderDataDefinitions.uniforms.uniforms);
@@ -42,23 +49,21 @@ export default implementEffect<typeof definition>({
 			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
 		});
 
-		const bindGroup = wgpu.device.createBindGroup({
-			layout: pipeline.getBindGroupLayout(0),
-			entries: [
-				{ binding: 1, resource: { buffer: uniformBuffer } },
-			],
-		});
+		uniformValues.set({ aspectRatio: resolution.width / resolution.height });
+		wgpu.device.queue.writeBuffer(uniformBuffer, 0, uniformValues.arrayBuffer);
+		let textures: GPUTexture[] = [];
+		let bindGroup: GPUBindGroup;
 
 		return {
 			render: (ctx) => {
-				uniformValues.set({
-					aspectRatio: resolution.width / resolution.height,
-					scale: ctx.params.scale,
-					outputMin: ctx.params.outputMin,
-					outputMax: ctx.params.outputMax,
-					time: ctx.params.time,
-				});
-				wgpu.device.queue.writeBuffer(uniformBuffer, 0, uniformValues.arrayBuffer);
+				const inputs = [ctx.params.scale, ctx.params.outputMin, ctx.params.outputMax, ctx.params.time];
+				if (inputs.some((texture, i) => texture !== textures[i])) {
+					textures = inputs;
+					bindGroup = wgpu.device.createBindGroup({ layout, entries: [
+						{ binding: 1, resource: { buffer: uniformBuffer } },
+						...textures.map((texture, i) => ({ binding: i + 2, resource: texture.createView() })),
+					] });
+				}
 
 				const passEncoder = ctx.createPassEncoderFor(ctx.commandEncoder, ctx.outputDataMap.output.textureView);
 				passEncoder.setPipeline(pipeline);
