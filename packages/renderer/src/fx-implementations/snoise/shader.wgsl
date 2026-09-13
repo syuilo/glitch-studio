@@ -93,6 +93,6 @@ struct FragmentIn {
 @fragment
 fn fs(fragData: FragmentIn) -> @location(0) f32 {
 	let aspectUv = scaleUvToCoverGivenAspectRatio(fragData.uv, uniforms.aspectRatio);
-	var uv = aspectUv * uniforms.scale;
+	let uv = aspectUv * uniforms.scale;
 	return snoise(vec3f(uv.x, uv.y, uniforms.time));
 }

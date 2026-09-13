@@ -53,7 +53,7 @@ export default implementEffect<typeof definition>({
 			render: (ctx) => {
 				uniformValues.set({
 					aspectRatio: resolution.width / resolution.height,
-					scale: [ctx.params.x, ctx.params.y],
+					scale: [1, 1], // TODO
 					time: ctx.params.time,
 				});
 				wgpu.device.queue.writeBuffer(uniformBuffer, 0, uniformValues.arrayBuffer);
