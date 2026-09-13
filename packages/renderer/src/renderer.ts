@@ -381,7 +381,7 @@ export class Renderer {
 			throw new Error('circular dependency detected');
 		}
 
-		let key = `node=${JSON.stringify(node.id)};isBypass=${node.isBypass};`;
+		let key = `node=${node.id};isBypass=${node.isBypass};`;
 
 		if (node.type === 'group' || !node.isBypass) {
 			// 出力に寄与しない入力やdisableCacheには依存しない。
