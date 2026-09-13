@@ -21,6 +21,7 @@ import image from './fx-implementations/image/main.ts';
 import lcd from './fx-implementations/lcd/main.ts';
 import liquidMetal from './fx-implementations/liquidMetal/main.ts';
 import multiply from './fx-implementations/multiply/main.ts';
+import remap from './fx-implementations/remap/main.ts';
 import opticalFlow from './fx-implementations/opticalFlow/main.ts';
 import vectorDisplacement from './fx-implementations/vectorDisplacement/main.ts';
 import pixelSort from './fx-implementations/pixelSort/main.ts';
@@ -63,6 +64,7 @@ const _fxImplementations = {
 	lcd,
 	liquidMetal,
 	multiply,
+	remap,
 	opticalFlow,
 	vectorDisplacement,
 	pixelSort,

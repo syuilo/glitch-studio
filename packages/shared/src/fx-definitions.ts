@@ -16,6 +16,7 @@ import image from './fx-definitions/image.ts';
 import liquidMetal from './fx-definitions/liquidMetal.ts';
 import lcd from './fx-definitions/lcd.ts';
 import multiply from './fx-definitions/multiply.ts';
+import remap from './fx-definitions/remap.ts';
 import opticalFlow from './fx-definitions/opticalFlow.ts';
 import vectorDisplacement from './fx-definitions/vectorDisplacement.ts';
 import pixelSort from './fx-definitions/pixelSort.ts';
@@ -59,6 +60,7 @@ const _fxDefinitions = {
 	lcd,
 	liquidMetal,
 	multiply,
+	remap,
 	opticalFlow,
 	vectorDisplacement,
 	pixelSort,
