@@ -13,7 +13,7 @@ fn hash32(value: u32) -> u32 {
 }
 
 fn random(cell: vec2i, seed: u32, salt: u32) -> f32 {
-	let cellHash = bitcast<u32>(cell.x) * 0x9e3779b9u ^ bitcast<u32>(cell.y) * 0x85ebca6bu;
+	let cellHash = (bitcast<u32>(cell.x) * 0x9e3779b9u) ^ (bitcast<u32>(cell.y) * 0x85ebca6bu);
 	return f32(hash32(cellHash ^ seed ^ salt) >> 8u) / 16777216.0;
 }
 
