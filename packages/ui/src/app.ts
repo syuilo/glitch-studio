@@ -267,6 +267,8 @@ export const engine = markRaw(new Engine({
 	fpsLimit: fpsLimit.value,
 }));
 
+(window as any).engine = engine; // debug
+
 watch(fpsLimit, () => {
 	engine.changeFpsLimit(fpsLimit.value);
 });

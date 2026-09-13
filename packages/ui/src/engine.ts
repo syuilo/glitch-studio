@@ -374,4 +374,8 @@ export class Engine {
 		this.rendererWorker = null;
 		this.isReady.value = false;
 	}
+
+	public reload() {
+		// TODO
+	}
 }
