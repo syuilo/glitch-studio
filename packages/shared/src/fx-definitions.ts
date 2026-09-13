@@ -4,14 +4,17 @@ import audioSpectrum from './fx-definitions/audioSpectrum.ts';
 import audioSpectrogram from './fx-definitions/audioSpectrogram.ts';
 import bloom from './fx-definitions/bloom.ts';
 import blur from './fx-definitions/blur.ts';
+import blockShuffle from './fx-definitions/blockShuffle.ts';
 import channelShift from './fx-definitions/channelShift.ts';
 import chromaticAberration from './fx-definitions/chromaticAberration.ts';
+import colorBlocks from './fx-definitions/colorBlocks.ts';
 import fill from './fx-definitions/fill.ts';
 import frameDifference from './fx-definitions/frameDifference.ts';
 import gradient from './fx-definitions/gradient.ts';
 import histogram from './fx-definitions/histogram.ts';
 import image from './fx-definitions/image.ts';
 import liquidMetal from './fx-definitions/liquidMetal.ts';
+import lcd from './fx-definitions/lcd.ts';
 import multiply from './fx-definitions/multiply.ts';
 import opticalFlow from './fx-definitions/opticalFlow.ts';
 import vectorDisplacement from './fx-definitions/vectorDisplacement.ts';
@@ -33,6 +36,7 @@ import colorBlend from './fx-definitions/colorBlend.ts';
 import colorMix from './fx-definitions/colorMix.ts';
 import dataBlend from './fx-definitions/dataBlend.ts';
 import dataMix from './fx-definitions/dataMix.ts';
+import drosteRegression from './fx-definitions/drosteRegression.ts';
 import type { EffectDefinition } from './fx-definition.ts';
 import type { FxParamDefs } from '@glitch/shared/types.ts';
 
@@ -43,13 +47,16 @@ const _fxDefinitions = {
 	accumulate,
 	bloom,
 	blur,
+	blockShuffle,
 	channelShift,
 	chromaticAberration,
+	colorBlocks,
 	fill,
 	frameDifference,
 	gradient,
 	histogram,
 	image,
+	lcd,
 	liquidMetal,
 	multiply,
 	opticalFlow,
@@ -72,6 +79,7 @@ const _fxDefinitions = {
 	colorMix,
 	dataBlend,
 	dataMix,
+	drosteRegression,
 } as Record<string, Omit<EffectDefinition<any>, 'paramDefs'> & { paramDefs: FxParamDefs }>;
 
 const fxDefinitions = {} as typeof _fxDefinitions;
