@@ -10,16 +10,7 @@ export default defineEffect({
 		leftSignal: { type: 'signal', label: 'L signal', default: () => ({ type: 'literal', value: [true, false, false] }) },
 		rightSignal: { type: 'signal', label: 'R signal', default: () => ({ type: 'literal', value: [false, false, true] }) },
 		blendMode: { type: 'blendMode', label: 'Blend mode', default: () => ({ type: 'literal', value: 'lighten' }) },
-		wrap: {
-			type: 'enum',
-			label: 'Wrap',
-			options: [
-				{ label: 'Clamp to edge', value: 'clampToEdge' },
-				{ label: 'Repeat', value: 'repeat' },
-				{ label: 'Repeat (Mirrored)', value: 'repeatMirrored' },
-			],
-			default: () => ({ type: 'literal', value: 'repeatMirrored' }),
-		},
+		wrap: { type: 'wrapMode', label: 'Wrap', default: () => ({ type: 'literal', value: 'repeatMirrored' }) },
 	},
 	outputs: {
 		output: { primary: true, dataType: 'color' },

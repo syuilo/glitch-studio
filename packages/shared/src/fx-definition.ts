@@ -48,6 +48,12 @@ export type FitModeOptionSchema = {
 	canNode?: false;
 };
 
+export type WrapModeOptionSchema = {
+	type: 'wrapMode';
+	label: string;
+	canNode?: false;
+};
+
 export type SeedOptionSchema = {
 	type: 'seed';
 	label: string;
@@ -101,6 +107,7 @@ export type EffectOptionsSchema = Record<string,
 	SignalOptionSchema |
 	BlendModeOptionSchema |
 	FitModeOptionSchema |
+	WrapModeOptionSchema |
 	SeedOptionSchema |
 	EnumOptionSchema |
 	RangeOptionSchema |
@@ -118,6 +125,7 @@ type EffectOptionValue<T extends EffectOptionsSchema[string]> =
 	T extends SignalOptionSchema ? Readonly<[boolean, boolean, boolean]> :
 	T extends BlendModeOptionSchema ? string :
 	T extends FitModeOptionSchema ? 'stretch' | 'cover' | 'contain' :
+	T extends WrapModeOptionSchema ? 'clampToEdge' | 'repeat' | 'repeatMirrored' :
 	T extends SeedOptionSchema ? number :
 	T extends EnumOptionSchema ? T['options'][number]['value'] :
 	T extends RangeOptionSchema ? number :

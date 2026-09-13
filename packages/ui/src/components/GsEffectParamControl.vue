@@ -37,6 +37,18 @@
 			@update:modelValue="v => changeValue(v)"
 		/>
 	</div>
+	<div v-else-if="type === 'wrapMode'">
+		<GsSelect
+			small
+			:modelValue="value"
+			:items="[
+				{ label: 'Clamp to edge', value: 'clampToEdge' },
+				{ label: 'Repeat', value: 'repeat' },
+				{ label: 'Repeat (Mirrored)', value: 'repeatMirrored' },
+			]"
+			@update:modelValue="v => changeValue(v)"
+		/>
+	</div>
 	<div v-else-if="type === 'blendMode'">
 		<GsSelect
 			small

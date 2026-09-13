@@ -23,6 +23,8 @@ export function genEmptyValue(paramDef: Omit<FxParamDef, 'default'>): any {
 		return 'normal';
 	} else if (paramDef.type === 'fitMode') {
 		return 'stretch';
+	} else if (paramDef.type === 'wrapMode') {
+		return 'repeatMirrored';
 	} else if (paramDef.type === 'signal') {
 		return [false, false, false];
 	} else if (paramDef.type === 'xy') {

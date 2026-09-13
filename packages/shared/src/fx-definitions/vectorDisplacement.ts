@@ -11,11 +11,7 @@ export default defineEffect({
 		flipX: { type: 'bool', label: 'Flip X', default: () => ({ type: 'literal', value: false }) },
 		flipY: { type: 'bool', label: 'Flip Y', default: () => ({ type: 'literal', value: false }) },
 		rotation: { type: 'range', label: 'Rotation (deg)', min: -180, max: 180, step: 0.1, default: () => ({ type: 'literal', value: 0 }) },
-		wrap: { type: 'enum', label: 'Wrap', options: [
-			{ label: 'Clamp to edge', value: 'clampToEdge' },
-			{ label: 'Repeat', value: 'repeat' },
-			{ label: 'Repeat (Mirrored)', value: 'repeatMirrored' },
-		], default: () => ({ type: 'literal', value: 'repeatMirrored' }) },
+		wrap: { type: 'wrapMode', label: 'Wrap', default: () => ({ type: 'literal', value: 'repeatMirrored' }) },
 	},
 	outputs: {
 		output: { primary: true, dataType: 'color' },

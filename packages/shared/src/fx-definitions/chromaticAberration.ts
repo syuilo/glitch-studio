@@ -14,16 +14,7 @@ export default defineEffect({
 		start: { type: 'range', min: 0, max: 1, step: 0.01, label: 'Start', default: () => ({ type: 'literal', value: 0 }) },
 		vector: { type: 'vector', step: 0.01, min: -5, max: 5, label: 'Vector', default: () => ({ type: 'literal', value: [0, 0] }) },
 		normalize: { type: 'bool', label: 'Normalize', default: () => ({ type: 'literal', value: false }) },
-		wrap: {
-			type: 'enum',
-			label: 'Wrap',
-			options: [
-				{ label: 'Clamp to edge', value: 'clampToEdge' },
-				{ label: 'Repeat', value: 'repeat' },
-				{ label: 'Repeat (Mirrored)', value: 'repeatMirrored' },
-			],
-			default: () => ({ type: 'literal', value: 'repeatMirrored' }),
-		},
+		wrap: { type: 'wrapMode', label: 'Wrap', default: () => ({ type: 'literal', value: 'repeatMirrored' }) },
 	},
 	outputs: {
 		output: { primary: true, dataType: 'color' },

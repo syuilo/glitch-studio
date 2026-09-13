@@ -12,16 +12,7 @@ export default defineEffect({
 		angle: { type: 'range', min: -180, max: 180, step: 0.01, label: 'Angle', default: () => ({ type: 'literal', value: 0 }) },
 		channelShift: { type: 'range', min: 0, max: 10, step: 0.01, label: 'Ch shift', default: () => ({ type: 'literal', value: 0.5 }) },
 		seed: { type: 'seed', label: 'Seed', default: () => ({ type: 'expression', expression: 'TIME' }) },
-		wrap: {
-			type: 'enum',
-			label: 'Wrap',
-			options: [
-				{ label: 'Clamp to edge', value: 'clampToEdge' },
-				{ label: 'Repeat', value: 'repeat' },
-				{ label: 'Repeat (Mirrored)', value: 'repeatMirrored' },
-			],
-			default: () => ({ type: 'literal', value: 'repeatMirrored' }),
-		},
+		wrap: { type: 'wrapMode', label: 'Wrap', default: () => ({ type: 'literal', value: 'repeatMirrored' }) },
 	},
 	outputs: {
 		output: { primary: true, dataType: 'color' },
