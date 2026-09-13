@@ -36,7 +36,8 @@ fn fs(@location(0) position: vec2f) -> @location(0) vec4f {
 	let uv = vec2f(position.x, -position.y) * 0.5 + 0.5;
 	let translation = sampleParameter(translationTexture, uv).rg;
 	let scale = sampleParameter(scaleTexture, uv).rg;
-	let rotation = sampleParameter(rotationTexture, uv).r * 0.017453292519943295;
+	// +Yが上の座標系なので、時計回りの角度は符号を反転する。
+	let rotation = -sampleParameter(rotationTexture, uv).r * 3.141592653589793;
 	if (any(abs(scale) < vec2f(0.000001))) {
 		return vec4f(0.0);
 	}
@@ -56,7 +57,7 @@ fn fs(@location(0) position: vec2f) -> @location(0) vec4f {
 	);
 	let outputExtent = vec2f(uniforms.aspectRatio, 1.0);
 	let offset = translation * (outputExtent + rotatedExtent);
-	// 拡大縮小→回転→移動の逆変換。+Xは右、+Yは上、正の回転は反時計回り。
+	// 拡大縮小→回転→移動の逆変換。+Xは右、+Yは上。
 	// 縦横の単位を揃えて回転し、長方形の出力でも画像を歪ませない。
 	let translated = position * outputExtent - offset;
 	let rotated = vec2f(cosine * translated.x + sine * translated.y, -sine * translated.x + cosine * translated.y);

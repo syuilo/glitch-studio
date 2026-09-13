@@ -90,7 +90,7 @@ export default implementEffect<typeof definition>({
 
 				uniformValues.set({
 					amount,
-					angle: ctx.params.angle * Math.PI / 180,
+					angle: ctx.params.angle * Math.PI,
 					channelShift: ctx.params.channelShift,
 					shifts,
 				});

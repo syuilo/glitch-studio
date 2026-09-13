@@ -1,4 +1,4 @@
-export type FxParamDataType = 'number' | 'range' | 'range2' | 'enum' | 'bool' | 'blendMode' | 'fitMode' | 'wrapMode' | 'signal' | 'xy' | 'wh' | 'color' | 'vector' | 'seed' | 'time' | 'image' | 'player' | 'node' | 'nodes';
+export type FxParamDataType = 'number' | 'angle' | 'range' | 'range2' | 'enum' | 'bool' | 'blendMode' | 'fitMode' | 'wrapMode' | 'signal' | 'xy' | 'wh' | 'color' | 'vector' | 'seed' | 'time' | 'image' | 'player' | 'node' | 'nodes';
 
 export type NodeOutputReference = { nodeId: string; outputPort: string };
 export type NodeParamValue = { type: 'node' } & (NodeOutputReference | { nodeId: null; outputPort: null });
@@ -59,7 +59,7 @@ export type EvaledParams<T extends FxParamDefs> = {
 	T[K]['type'] extends 'nodes' ? (NodeOutputReference | null)[] :
 	T[K]['type'] extends 'image' ? string :
 	T[K]['type'] extends 'player' ? string :
-	T[K]['type'] extends 'range' ? number :
+	T[K]['type'] extends 'range' | 'angle' ? number :
 	T[K]['type'] extends 'bool' ? boolean :
 	any;
 };

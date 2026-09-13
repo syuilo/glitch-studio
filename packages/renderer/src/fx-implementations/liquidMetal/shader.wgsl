@@ -14,7 +14,7 @@ struct Uniforms {
 	shiftBlue: f32, // B-channel dispersion (-1 to 1)
 	distortion: f32, // Noise distortion over the stripes pattern (0 to 1)
 	contour: f32, // Strength of the distortion on the shape edges (0 to 1)
-	angle: f32, // Direction of pattern animation in degrees
+	angle: f32, // Direction of pattern animation in half turns (-1 to +1)
 };
 @group(0) @binding(0) var<uniform> uniforms: Uniforms;
 @group(0) @binding(1) var sourceSampler: sampler;
@@ -122,7 +122,7 @@ fn fs(frag: FragmentIn) -> @location(0) vec4f {
   var edge = 0.0;
 
   var rotatedUV = uv - vec2f(0.5);
-  var angle = (-uniforms.angle + 70.0) * PI / 180.0;
+  var angle = (-uniforms.angle + 70.0 / 180.0) * PI;
   var cosA = cos(angle);
   var sinA = sin(angle);
   rotatedUV = vec2f(

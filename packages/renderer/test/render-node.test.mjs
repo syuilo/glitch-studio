@@ -142,13 +142,13 @@ test('renderer graph traversal and frame history', async t => {
 			assertUpload(inputs[3], 'r', [0]);
 
 			run.renderer.updateNodes([source, fx('root', 'transform', {
-				input: 'source', translation: [-0.5, 0.25], scale: [-1, 0.5], rotation: -90,
+				input: 'source', translation: [-0.5, 0.25], scale: [-1, 0.5], rotation: -0.5,
 			})]);
 			inputs = run.frame().at(-1).inputs;
 			// 16bitの期待値はIEEE 754 binary16のビット列。変換関数を期待値に流用しない。
 			assertUpload(inputs[1], 'rg', enableFloat32Filtering ? [-0.5, 0.25] : [0xb800, 0x3400]);
 			assertUpload(inputs[2], 'rg', enableFloat32Filtering ? [-1, 0.5] : [0xbc00, 0x3800]);
-			assertUpload(inputs[3], 'r', [enableFloat32Filtering ? -90 : 0xd5a0]);
+			assertUpload(inputs[3], 'r', [enableFloat32Filtering ? -0.5 : 0xb800]);
 		});
 	}
 

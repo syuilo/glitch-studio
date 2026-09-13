@@ -15,6 +15,14 @@ export type BooleanOptionSchema = {
 	canNode?: false;
 };
 
+// -1〜+1を-180〜+180度として扱う角度。正の値は画面上で時計回り。
+export type AngleOptionSchema = {
+	type: 'angle';
+	label: string;
+	step?: number;
+	canNode?: boolean;
+};
+
 export type ColorOptionSchema = {
 	type: 'color';
 	label: string;
@@ -115,6 +123,7 @@ export type EffectOptionsSchema = Record<string,
 	SeedOptionSchema |
 	EnumOptionSchema |
 	RangeOptionSchema |
+	AngleOptionSchema |
 	ImageOptionSchema |
 	PlayerOptionSchema |
 	NodeOptionSchema
@@ -133,6 +142,7 @@ type EffectOptionValue<T extends EffectOptionsSchema[string]> =
 	T extends SeedOptionSchema ? number :
 	T extends EnumOptionSchema ? T['options'][number]['value'] :
 	T extends RangeOptionSchema ? number :
+	T extends AngleOptionSchema ? number :
 	T extends ImageOptionSchema ? null :
 	T extends PlayerOptionSchema ? null :
 	T extends NodeOptionSchema ? NodeOutputReference | null :

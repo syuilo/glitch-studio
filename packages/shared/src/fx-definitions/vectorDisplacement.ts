@@ -10,7 +10,7 @@ export default defineEffect({
 		amount: { type: 'range', label: 'Amount', min: -1, max: 1, step: 0.001, default: () => ({ type: 'literal', value: 0.05 }) },
 		flipX: { type: 'bool', label: 'Flip X', default: () => ({ type: 'literal', value: false }) },
 		flipY: { type: 'bool', label: 'Flip Y', default: () => ({ type: 'literal', value: false }) },
-		rotation: { type: 'range', label: 'Rotation (deg)', min: -180, max: 180, step: 0.1, default: () => ({ type: 'literal', value: 0 }) },
+		rotation: { type: 'angle', label: 'Rotation', default: () => ({ type: 'literal', value: 0 }) },
 		wrap: { type: 'wrapMode', label: 'Wrap', default: () => ({ type: 'literal', value: 'repeatMirrored' }) },
 	},
 	outputs: {

@@ -55,7 +55,8 @@ export default implementEffect<typeof definition>({
 					aspectRatio: resolution.width / resolution.height,
 					start: ctx.params.start,
 					end: ctx.params.end,
-					angle: ctx.params.angle * Math.PI / 180,
+					// +Yが上の座標系で、正の値を時計回りにする。
+					angle: -ctx.params.angle * Math.PI,
 					easing: ctx.params.interpolation === 'easing' ? 1 : 0,
 				});
 				wgpu.device.queue.writeBuffer(uniformBuffer, 0, uniformValues.arrayBuffer);
@@ -72,4 +73,3 @@ export default implementEffect<typeof definition>({
 		};
 	},
 });
-

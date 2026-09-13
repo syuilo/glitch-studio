@@ -6,7 +6,7 @@ export function genEmptyValue(paramDef: Omit<FxParamDef, 'default'>): any {
 		return null;
 	}
 
-	if (paramDef.type === 'number') {
+	if (paramDef.type === 'number' || paramDef.type === 'angle') {
 		return 0;
 	} else if (paramDef.type === 'range') {
 		let v = 0;

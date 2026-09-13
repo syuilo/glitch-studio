@@ -50,7 +50,8 @@ export default implementEffect<typeof definition>({
 					group = createGroup();
 				}
 				values[0] = vector == null ? 0 : ctx.params.amount;
-				values[1] = (ctx.params.rotation ?? 0) * Math.PI / 180;
+				// ベクトルは+Yが上なので、正の値を時計回りにする。
+				values[1] = -(ctx.params.rotation ?? 0) * Math.PI;
 				values[2] = ctx.params.flipX ? -1 : 1;
 				values[3] = ctx.params.flipY ? -1 : 1;
 				device.queue.writeBuffer(uniforms, 0, values);

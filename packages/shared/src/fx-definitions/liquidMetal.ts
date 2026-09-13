@@ -16,7 +16,7 @@ export default defineEffect({
 		shiftBlue: { type: 'range', label: 'Shift blue', min: -1, max: 1, step: 0.01, default: () => ({ type: 'literal', value: 0.3 }) },
 		distortion: { type: 'range', label: 'Distortion', min: 0, max: 1, step: 0.01, default: () => ({ type: 'literal', value: 0.07 }) },
 		contour: { type: 'range', label: 'Contour', min: 0, max: 1, step: 0.01, default: () => ({ type: 'literal', value: 1 }) },
-		angle: { type: 'range', label: 'Angle', min: 0, max: 360, step: 0.01, default: () => ({ type: 'literal', value: 70 }) },
+		angle: { type: 'angle', label: 'Angle', default: () => ({ type: 'literal', value: 70 / 180 }) },
 		time: { type: 'number', label: 'Time (s)', step: 0.01, default: () => ({ type: 'expression', expression: 'TIME' }) },
 		speed: { type: 'number', label: 'Speed', step: 0.01, default: () => ({ type: 'literal', value: 1 }) },
 		frame: { type: 'number', label: 'Frame offset (ms)', step: 1, default: () => ({ type: 'literal', value: 0 }) },
