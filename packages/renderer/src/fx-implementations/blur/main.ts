@@ -4,6 +4,9 @@ import code from './shader.wgsl?raw';
 import type definition from '@glitch/shared/fx-definitions/blur.ts';
 
 export default implementEffect<typeof definition>({
+	textureRequirements: {
+		input: { mipmaps: true },
+	},
 	getOut: ({ wgpu, resolution }) => {
 		const out = wgpu.device.createTexture({
 			size: resolution,
@@ -33,6 +36,7 @@ export default implementEffect<typeof definition>({
 		const sampler = wgpu.device.createSampler({
 			magFilter: 'linear',
 			minFilter: 'linear',
+			mipmapFilter: 'linear',
 			addressModeU: 'mirror-repeat',
 			addressModeV: 'mirror-repeat',
 		});

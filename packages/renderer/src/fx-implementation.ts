@@ -53,6 +53,9 @@ export type EffectInstance<Options extends EffectOptionsSchema = any, Outputs ex
 export type EffectImplementation<Definition extends Pick<EffectDefinition, 'paramDefs' | 'outputs'> = EffectDefinition, Options extends EffectOptionsSchema = Definition['paramDefs']> = {
 	disableCache?: boolean;
 	needsPreviousFrame?: boolean;
+	textureRequirements?: Partial<Record<keyof Options, {
+		mipmaps?: boolean;
+	}>>;
 	getOut: (args: {
 		resolution: { width: number; height: number; },
 		wgpu: {

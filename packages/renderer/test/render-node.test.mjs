@@ -50,6 +50,7 @@ test('renderer graph traversal and frame history', async t => {
 	function setup(t, nodes) {
 		const device = createDevice(false);
 		const passes = [];
+		const mipmapPasses = [];
 		const statuses = new Map();
 		const statusChanges = [];
 		const clears = [];
@@ -64,7 +65,8 @@ test('renderer graph traversal and frame history', async t => {
 			encoder.beginRenderPass = descriptor => {
 				const pass = beginPass(descriptor);
 				const output = descriptor.colorAttachments[0].view.texture;
-				if (!output.canvas && descriptor.colorAttachments[0].loadOp === 'clear') {
+				const isMipmapPass = (descriptor.colorAttachments[0].view.descriptor.baseMipLevel ?? 0) > 0;
+				if (!output.canvas && !isMipmapPass && descriptor.colorAttachments[0].loadOp === 'clear') {
 					clears.push(descriptor.colorAttachments[0]);
 				}
 				const inputs = [];
@@ -74,8 +76,8 @@ test('renderer graph traversal and frame history', async t => {
 					}
 				};
 				pass.draw = () => {
-					assert.ok(!inputs.includes(output), 'a render pass must not read its output texture');
-					if (!output.canvas) passes.push({ output, inputs: [...inputs] });
+					if (!isMipmapPass) assert.ok(!inputs.includes(output), 'a render pass must not read its output texture');
+					if (!output.canvas) (isMipmapPass ? mipmapPasses : passes).push({ output, inputs: [...inputs] });
 					else if (inputs.length > 0) canvasInput = inputs[0];
 				};
 				return pass;
@@ -88,7 +90,7 @@ test('renderer graph traversal and frame history', async t => {
 		};
 		const renderer = new Renderer({
 			gpuDevice: device, gpuContext: context, histogramGpuContext: context, waveformGpuContext: context,
-			resolution: { width: 64, height: 64 }, enableFloat32Filtering: false, enableStats: false,
+			resolution: { width: 64, height: 64 }, enableFloat32Filtering: false, intermediateTextureFormat: 'rgba16float', enableStats: false,
 			fpsLimit: null, assets: [], macros: [], automations: [], nodes,
 			onEffectStatus: (id, status) => {
 				statusChanges.push({ id, status });
@@ -102,9 +104,11 @@ test('renderer graph traversal and frame history', async t => {
 			renderer,
 			statuses, statusChanges,
 			clears,
+			get mipmapPasses() { return [...mipmapPasses]; },
 			get canvasInput() { return canvasInput; },
 			frame(id = 'root') {
 				passes.length = 0;
+				mipmapPasses.length = 0;
 				clears.length = 0;
 				renderer.render(id, { time: time += 16 });
 				return [...passes];
@@ -250,6 +254,69 @@ test('renderer graph traversal and frame history', async t => {
 		}
 	});
 
+	await t.test('generates mipmaps only for an active blur input and reuses them on cache hits', t => {
+		const run = setup(t, [fx('input', 'fill'), fx('root', 'blur', { input: 'input' })]);
+		const passes = run.frame();
+		assert.equal(passes.length, 2);
+		assert.equal(passes[0].output.mipLevelCount, 7);
+		assert.equal(passes[1].output.mipLevelCount, 1);
+		assert.equal(run.mipmapPasses.length, 6);
+		assert.ok(run.mipmapPasses.every(pass => pass.output === passes[0].output));
+		assert.equal(run.frame().length, 0);
+		assert.equal(run.mipmapPasses.length, 0, 'cached input does not regenerate mipmaps');
+	});
+
+	await t.test('does not allocate or generate mipmaps for a bypassed blur', t => {
+		const run = setup(t, [fx('input', 'fill'), disabled(fx('root', 'blur', { input: 'input' }))]);
+		const passes = run.frame();
+		assert.equal(passes.length, 1);
+		assert.equal(passes[0].output.mipLevelCount, 1);
+		assert.equal(run.mipmapPasses.length, 0);
+	});
+
+	await t.test('ignores mipmap consumers inside a bypassed group', t => {
+		const input = fx('input', 'fill');
+		const hiddenBlur = disabled(group('unused', [fx('blur', 'blur', { input: 'input' })]));
+		const run = setup(t, [input, hiddenBlur, fx('root', 'multiply', { input: 'input' })]);
+		const passes = run.frame();
+		assert.equal(passes[0].output.mipLevelCount, 1);
+		assert.equal(run.mipmapPasses.length, 0);
+	});
+
+	await t.test('shares one generated mip chain between blur consumers', t => {
+		const run = setup(t, [
+			fx('input', 'fill'),
+			fx('blurA', 'blur', { input: 'input' }),
+			fx('blurB', 'blur', { input: 'input' }),
+			fx('root', 'colorMix', { inputA: 'blurA', inputB: 'blurB' }),
+		]);
+		const passes = run.frame();
+		assert.equal(passes.length, 4);
+		assert.equal(passes[0].output.mipLevelCount, 7);
+		assert.equal(run.mipmapPasses.length, 6);
+		assert.ok(run.mipmapPasses.every(pass => pass.output === passes[0].output));
+	});
+
+	await t.test('reallocates a producer when mipmap demand changes', t => {
+		const input = fx('input', 'fill');
+		const withoutBlur = [input, fx('root', 'multiply', { input: 'input' })];
+		const run = setup(t, withoutBlur);
+		const initial = run.frame();
+		assert.equal(initial[0].output.mipLevelCount, 1);
+
+		run.renderer.updateNodes([input, fx('blur', 'blur', { input: 'input' }), fx('root', 'multiply', { input: 'blur' })]);
+		const withBlur = run.frame();
+		assert.notEqual(withBlur[0].output, initial[0].output);
+		assert.equal(withBlur[0].output.mipLevelCount, 7);
+		assert.equal(run.mipmapPasses.length, 6);
+
+		run.renderer.updateNodes(withoutBlur);
+		const restored = run.frame();
+		assert.notEqual(restored[0].output, withBlur[0].output);
+		assert.equal(restored[0].output.mipLevelCount, 1);
+		assert.equal(run.mipmapPasses.length, 0);
+	});
+
 	for (const name of ['colorBlend', 'colorMix', 'dataBlend', 'dataMix']) {
 		await t.test(`${name} preserves output precision and renders node-driven amount`, t => {
 			const run = setup(t, [fx('a', 'fill'), fx('b', 'fill'), fx('weight', 'multiply'), fx('root', name, { inputA: 'a', inputB: 'b', amount: 'weight' })]);
@@ -344,6 +411,8 @@ test('renderer graph traversal and frame history', async t => {
 		const run = setup(t, [fx('a', 'multiply'), group('g', [group('inner', [disabled(fx('b', 'multiply', { input: 'a' }))])]), disabled(fx('empty', 'pointerTrail')), fx('root', 'blur', { input: 'g', amount: 'empty' })]);
 		const passes = run.frame();
 		assert.equal(passes.length, 2);
+		assert.equal(passes[0].output.mipLevelCount, 7, 'mipmap demand follows the group and bypassed child');
+		assert.equal(run.mipmapPasses.length, 6);
 		assert.equal(passes[1].inputs[0], passes[0].output);
 		assert.equal(passes[1].inputs[1].format, 'r16float');
 		assert.equal(passes[1].inputs[1].width, 1);
@@ -361,18 +430,20 @@ test('renderer graph traversal and frame history', async t => {
 			const input = grouped ? 'group' : 'shared';
 			const nodes = grouped ? [group('group', [trail, shared])] : [trail, shared];
 			nodes.push(fx('root', 'blur', { input, amount: input }));
-			const { frame } = setup(t, nodes);
-			const first = frame();
+			const run = setup(t, nodes);
+			const first = run.frame();
 			assert.equal(first.length, 3, 'trail, shared and root each draw once');
 			assert.equal(first[0].output.format, 'rg16float');
+			assert.equal(first[1].output.mipLevelCount, 7, 'blur demand resolves through a group output');
+			assert.equal(run.mipmapPasses.length, 6);
 			assert.equal(first[1].inputs[0], first[0].output, 'downstream reads this frame');
 			assert.deepEqual(first[2].inputs, [first[1].output, first[1].output]);
-			const second = frame();
+			const second = run.frame();
 			assert.equal(second.length, 3, 'rendered set resets on the next frame');
 			assert.equal(second[0].inputs[0], first[0].output);
 			assert.equal(second[0].output, first[0].inputs[0]);
 			assert.equal(second[1].inputs[0], second[0].output);
-			const third = frame();
+			const third = run.frame();
 			assert.equal(third[0].output, first[0].output);
 			assert.equal(third[0].inputs[0], second[0].output);
 		});

@@ -13,6 +13,7 @@ import { GpuHistogram } from './utility/histogram/GpuHistogram.ts';
 import { GpuWaveform } from './utility/waveform/GpuWaveform.ts';
 import { GpuMemoryTracker } from './utility/GpuMemoryTracker.ts';
 import { float32ToFloat16Bits } from './utility/float32ToFloat16Bits.ts';
+import { generateMipmaps, getMipLevelCount } from './utility/generateMipmaps.ts';
 import type { EffectStatus } from '@glitch/shared/effect-status.ts';
 import type { AudioCaptureMessage, AudioSourceId } from '@glitch/shared/audio.ts';
 import type { Asset, Macro, GsAutomation, GsFxNode, GsNode, GsGroupNode, Player, NodeOutputReference } from '@glitch/shared/types.ts';
@@ -77,6 +78,7 @@ export class Renderer {
 		previousFrameTextureView?: GPUTextureView;
 	}>> = new Map();
 	private effectCacheKeys: Map<GsFxNode['id'], string> = new Map();
+	private mipmapRequirements = new Map<GsFxNode['id'], Set<string>>();
 	private timingHelper: TimingHelper;
 	private finalRenderPipeline: GPURenderPipeline;
 	private finalRenderUniformValues: ReturnType<typeof makeStructuredView>;
@@ -259,6 +261,151 @@ export class Renderer {
 		const output = this.getOutputNode(node, outputPort);
 		if (output == null) return undefined;
 		return this.outDataMapPerNodes.get(output.node.id)![output.outputPort].texture;
+	}
+
+	private getNodeOutputReference(node: GsFxNode, paramName: string): NodeOutputReference | null {
+		const param = node.params[paramName];
+		const value = param.type === 'literal'
+			? param.value
+			: param.type === 'node' && param.nodeId != null
+				? { nodeId: param.nodeId, outputPort: param.outputPort }
+				: null;
+		if (value == null || typeof value !== 'object' || !('nodeId' in value) || !('outputPort' in value)) return null;
+		return value as NodeOutputReference;
+	}
+
+	private collectMipmapRequirements(nodes: GsNode[]): Map<GsFxNode['id'], Set<string>> {
+		const requirements = new Map<GsFxNode['id'], Set<string>>();
+		const getActiveConsumers = (targets: GsNode[]): GsFxNode[] => targets.flatMap(target => {
+			if (!target.isBypass) return [];
+			return target.type === 'group' ? getActiveConsumers(target.nodes) : [target];
+		});
+		const findNode = (nodeId: GsNode['id']): GsNode | undefined => {
+			const search = (targets: GsNode[]): GsNode | undefined => {
+				for (const target of targets) {
+					if (target.id === nodeId) return target;
+					if (target.type === 'group') {
+						const found = search(target.nodes);
+						if (found) return found;
+					}
+				}
+				return undefined;
+			};
+			return search(nodes);
+		};
+		const resolveOutput = (
+			node: GsNode,
+			outputPort: string | undefined,
+			visited = new Set<GsNode['id']>(),
+		): { node: GsFxNode; outputPort: string } | undefined => {
+			if (visited.has(node.id)) return undefined;
+			const nextVisited = new Set(visited).add(node.id);
+			if (node.type === 'group') {
+				const lastNode = node.nodes.at(-1);
+				return node.isBypass && lastNode != null ? resolveOutput(lastNode, outputPort, nextVisited) : undefined;
+			}
+			if (node.isBypass) {
+				const port = outputPort ?? Object.entries(fxDefinitions[node.fx].outputs).find(([, definition]) => definition.primary)?.[0];
+				return port == null ? undefined : { node, outputPort: port };
+			}
+			const primaryInput = Object.entries(fxDefinitions[node.fx].paramDefs).find(([, definition]) => definition.type === 'node' && definition.primary)?.[0];
+			const reference = primaryInput == null ? null : this.getNodeOutputReference(node, primaryInput);
+			if (reference == null) return undefined;
+			const source = findNode(reference.nodeId);
+			return source == null ? undefined : resolveOutput(source, reference.outputPort, nextVisited);
+		};
+
+		for (const consumer of getActiveConsumers(nodes)) {
+			for (const [paramName, requirement] of Object.entries(fxImplementations[consumer.fx].textureRequirements ?? {})) {
+				if (!requirement?.mipmaps) continue;
+				const reference = this.getNodeOutputReference(consumer, paramName);
+				if (reference == null) continue;
+				const source = findNode(reference.nodeId);
+				const output = source == null ? undefined : resolveOutput(source, reference.outputPort);
+				if (output == null) continue;
+				let ports = requirements.get(output.node.id);
+				if (ports == null) {
+					ports = new Set();
+					requirements.set(output.node.id, ports);
+				}
+				ports.add(output.outputPort);
+			}
+		}
+		return requirements;
+	}
+
+	private hasSameMipmapRequirements(nodeId: GsFxNode['id'], next: Map<GsFxNode['id'], Set<string>>): boolean {
+		const currentPorts = this.mipmapRequirements.get(nodeId) ?? new Set<string>();
+		const nextPorts = next.get(nodeId) ?? new Set<string>();
+		return currentPorts.size === nextPorts.size && [...currentPorts].every(port => nextPorts.has(port));
+	}
+
+	private withRequiredMipLevels(texture: GPUTexture, required: boolean): GPUTexture {
+		if (!required) return texture;
+		if (texture.dimension !== '2d' || texture.depthOrArrayLayers !== 1 || texture.sampleCount !== 1) {
+			throw new Error('mipmap inputs must be two-dimensional, single-layer, single-sampled textures');
+		}
+		const mipLevelCount = getMipLevelCount(texture.width, texture.height);
+		if (texture.mipLevelCount === mipLevelCount) return texture;
+
+		const replacement = this.gpuDevice.createTexture({
+			label: texture.label,
+			size: {
+				width: texture.width,
+				height: texture.height,
+				depthOrArrayLayers: texture.depthOrArrayLayers,
+			},
+			format: texture.format,
+			dimension: texture.dimension,
+			mipLevelCount,
+			sampleCount: texture.sampleCount,
+			usage: texture.usage | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
+		});
+		texture.destroy();
+		return replacement;
+	}
+
+	private createOutputDataMap(node: GsFxNode) {
+		const effect = fxImplementations[node.fx];
+		const createOutputs = () => effect.getOut({
+			wgpu: { device: this.gpuDevice, enableFloat32Filtering: this.enableFloat32Filtering, intermediateTextureFormat: this.intermediateTextureFormat },
+			resolution: { width: this.resolution.width, height: this.resolution.height },
+		});
+		const outputTextures = createOutputs();
+		const previousFrameTextures: Partial<Record<string, GPUTexture>> = effect.needsPreviousFrame ? createOutputs() : {};
+		const requiredPorts = this.mipmapRequirements.get(node.id);
+		const outputDataMap: Record<string, {
+			texture: GPUTexture;
+			textureView: GPUTextureView;
+			previousFrameTexture: GPUTexture | undefined;
+			previousFrameTextureView: GPUTextureView | undefined;
+		}> = {};
+		for (const [port, originalTexture] of Object.entries(outputTextures)) {
+			const required = requiredPorts?.has(port) ?? false;
+			const texture = this.withRequiredMipLevels(originalTexture, required);
+			const originalPreviousFrameTexture = previousFrameTextures[port];
+			const previousFrameTexture = originalPreviousFrameTexture == null
+				? undefined
+				: this.withRequiredMipLevels(originalPreviousFrameTexture, required);
+			outputDataMap[port] = {
+				texture,
+				// effectの描画先は常にmip 0。後段はGPUTextureから全mipのviewを作る。
+				textureView: texture.createView({ baseMipLevel: 0, mipLevelCount: 1 }),
+				previousFrameTexture,
+				previousFrameTextureView: previousFrameTexture?.createView({ baseMipLevel: 0, mipLevelCount: 1 }),
+			};
+		}
+		this.outDataMapPerNodes.set(node.id, outputDataMap);
+	}
+
+	private destroyOutputDataMap(nodeId: GsFxNode['id']) {
+		const outputDataMap = this.outDataMapPerNodes.get(nodeId);
+		if (outputDataMap == null) return;
+		for (const data of Object.values(outputDataMap)) {
+			data.texture.destroy();
+			data.previousFrameTexture?.destroy();
+		}
+		this.outDataMapPerNodes.delete(nodeId);
 	}
 
 	private evalNodeParams(nodes: GsNode[], provideVars: Record<string, any> = {}) {
@@ -596,6 +743,16 @@ export class Renderer {
 			},
 		});
 
+		const requiredMipmapPorts = this.mipmapRequirements.get(node.id);
+		if (requiredMipmapPorts != null) {
+			for (const [port, outputData] of Object.entries(resolvedOutputDataMap)) {
+				if (!requiredMipmapPorts.has(port)) continue;
+				generateMipmaps(this.gpuDevice, commandEncoder, outputData.texture, (encoder, descriptor) => {
+					return this.enableStats ? this.timingHelper.beginRenderPass(encoder, descriptor) : encoder.beginRenderPass(descriptor);
+				});
+			}
+		}
+
 		if (effect.needsPreviousFrame) {
 			for (const [k, v] of Object.entries(outDataMap)) {
 				// 今回書いた結果を後段へ公開
@@ -701,35 +858,22 @@ export class Renderer {
 		const newNodeIds = new Set(newFxNodes.map(node => node.id));
 		const addedNodes = newFxNodes.filter(node => !oldNodeIds.has(node.id));
 		const removedNodes = oldFxNodes.filter(node => !newNodeIds.has(node.id));
+		const nextMipmapRequirements = this.collectMipmapRequirements(newNodes);
+		const reallocatedNodes = newFxNodes.filter(node => oldNodeIds.has(node.id) && !this.hasSameMipmapRequirements(node.id, nextMipmapRequirements));
 
+		if (reallocatedNodes.length > 0) {
+			// 出力テクスチャの参照が変わるため、既存の後段bind groupも次回描画で更新させる。
+			this.effectCacheKeys.clear();
+			this.finalRenderBindGroup = null;
+			this.finalRenderInputTexture = null;
+			for (const node of reallocatedNodes) this.destroyOutputDataMap(node.id);
+		}
+		this.mipmapRequirements = nextMipmapRequirements;
+
+		for (const node of [...addedNodes, ...reallocatedNodes]) {
+			this.createOutputDataMap(node);
+		}
 		for (const node of addedNodes) {
-			const effect = fxImplementations[node.fx];
-			const outTextureMap = effect.getOut({
-				wgpu: { device: this.gpuDevice, enableFloat32Filtering: this.enableFloat32Filtering, intermediateTextureFormat: this.intermediateTextureFormat },
-				resolution: { width: this.resolution.width, height: this.resolution.height },
-			});
-			let previousFrameTextureMap: Record<string, GPUTexture> = {};
-			if (effect.needsPreviousFrame) {
-				previousFrameTextureMap = effect.getOut({
-					wgpu: { device: this.gpuDevice, enableFloat32Filtering: this.enableFloat32Filtering, intermediateTextureFormat: this.intermediateTextureFormat },
-					resolution: { width: this.resolution.width, height: this.resolution.height },
-				});
-			}
-			const outDataMap = {} as Record<string, {
-				texture: GPUTexture;
-				textureView: GPUTextureView;
-				previousFrameTexture: GPUTexture | undefined;
-				previousFrameTextureView: GPUTextureView | undefined;
-			}>;
-			for (const [k, tex] of Object.entries(outTextureMap)) {
-				outDataMap[k] = {
-					texture: tex,
-					textureView: tex.createView(),
-					previousFrameTexture: previousFrameTextureMap[k],
-					previousFrameTextureView: previousFrameTextureMap[k]?.createView(),
-				};
-			}
-			this.outDataMapPerNodes.set(node.id, outDataMap);
 			const paramDefs = fxDefinitions[node.fx].paramDefs;
 			const scalarFieldTextures: Record<string, GPUTexture> = {};
 			for (const k in paramDefs) {
@@ -749,14 +893,7 @@ export class Renderer {
 			this.clearEffectStatus(node.id);
 			// 出力を破棄するため、リサイズや同じIDでの復元後は再描画が必要。
 			this.effectCacheKeys.delete(node.id);
-			const outDataMap = this.outDataMapPerNodes.get(node.id);
-			if (outDataMap) {
-				for (const data of Object.values(outDataMap)) {
-					data.texture.destroy();
-					data.previousFrameTexture?.destroy();
-				}
-				this.outDataMapPerNodes.delete(node.id);
-			}
+			this.destroyOutputDataMap(node.id);
 			const instance = this.effectInstances.get(node.id);
 			if (instance) {
 				instance.dispose();

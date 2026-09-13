@@ -31,9 +31,13 @@ export function createDevice(canTimestamp) {
 			size, data: new ArrayBuffer(size),
 			async mapAsync() {}, getMappedRange() { return this.data; }, unmap() {}, destroy() {},
 		}),
-		createTexture: ({ size = [64, 64], format = 'bgra8unorm', dimension = '2d', mipLevelCount = 1, sampleCount = 1 } = {}) => {
+		createTexture: ({ size = [64, 64], format = 'bgra8unorm', dimension = '2d', mipLevelCount = 1, sampleCount = 1, usage = 0, label = '' } = {}) => {
 			const [width, height = 1, depthOrArrayLayers = 1] = Array.isArray(size) ? size : [size.width, size.height, size.depthOrArrayLayers];
-			return { width, height, depthOrArrayLayers, format, dimension, mipLevelCount, sampleCount, createView() { return { texture: this }; }, destroy() {} };
+			return {
+				width, height, depthOrArrayLayers, format, dimension, mipLevelCount, sampleCount, usage, label,
+				createView(descriptor = {}) { return { descriptor, texture: this }; },
+				destroy() {},
+			};
 		},
 		createShaderModule() { return {}; },
 		createComputePipeline() { return { getBindGroupLayout() { return {}; } }; },
