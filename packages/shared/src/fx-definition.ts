@@ -51,8 +51,12 @@ export type FitModeOptionSchema = {
 export type WrapModeOptionSchema = {
 	type: 'wrapMode';
 	label: string;
+	canTransparent?: boolean;
 	canNode?: false;
 };
+
+export type WrapModeValue<T extends WrapModeOptionSchema> = 'clampToEdge' | 'repeat' | 'repeatMirrored'
+	| ('canTransparent' extends keyof T ? true extends T['canTransparent'] ? 'transparent' : never : never);
 
 export type SeedOptionSchema = {
 	type: 'seed';
@@ -125,7 +129,7 @@ type EffectOptionValue<T extends EffectOptionsSchema[string]> =
 	T extends SignalOptionSchema ? Readonly<[boolean, boolean, boolean]> :
 	T extends BlendModeOptionSchema ? string :
 	T extends FitModeOptionSchema ? 'stretch' | 'cover' | 'contain' :
-	T extends WrapModeOptionSchema ? 'clampToEdge' | 'repeat' | 'repeatMirrored' :
+	T extends WrapModeOptionSchema ? WrapModeValue<T> :
 	T extends SeedOptionSchema ? number :
 	T extends EnumOptionSchema ? T['options'][number]['value'] :
 	T extends RangeOptionSchema ? number :

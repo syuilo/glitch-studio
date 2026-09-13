@@ -42,6 +42,7 @@
 			small
 			:modelValue="value"
 			:items="[
+				...(options?.canTransparent === true ? [{ label: 'Transparent', value: 'transparent' }] : []),
 				{ label: 'Clamp to edge', value: 'clampToEdge' },
 				{ label: 'Repeat', value: 'repeat' },
 				{ label: 'Repeat (Mirrored)', value: 'repeatMirrored' },

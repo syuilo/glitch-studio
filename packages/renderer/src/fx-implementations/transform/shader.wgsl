@@ -1,6 +1,6 @@
 struct Uniforms {
 	aspectRatio: f32,
-	wrapMode: u32, // 0: transparent, 1: clamp to edge, 2: repeat, 3: mirrored repeat
+	transparentOutside: u32,
 };
 
 @group(0) @binding(0) var<uniform> uniforms: Uniforms;
@@ -8,6 +8,7 @@ struct Uniforms {
 @group(0) @binding(2) var translationTexture: texture_2d<f32>;
 @group(0) @binding(3) var scaleTexture: texture_2d<f32>;
 @group(0) @binding(4) var rotationTexture: texture_2d<f32>;
+@group(0) @binding(5) var sourceSampler: sampler;
 
 fn sampleParameter(tex: texture_2d<f32>, uv: vec2f) -> vec4f {
 	// 定数の1x1テクスチャを含め、各パラメータを出力全体に対応付ける。
@@ -16,54 +17,20 @@ fn sampleParameter(tex: texture_2d<f32>, uv: vec2f) -> vec4f {
 	return textureLoad(tex, coord, 0);
 }
 
-fn loadSource(coord: vec2i) -> vec4f {
-	let size = vec2i(textureDimensions(sourceTexture));
-	var wrapped = coord;
-	switch uniforms.wrapMode {
-		case 1u: {
-			wrapped = clamp(coord, vec2i(0), size - 1);
-		}
-		case 2u: {
-			wrapped = ((coord % size) + size) % size;
-		}
-		case 3u: {
-			let period = size * 2;
-			let repeated = ((coord % period) + period) % period;
-			wrapped = select(repeated, period - 1 - repeated, repeated >= size);
-		}
-		default: {
-			if (any(coord < vec2i(0)) || any(coord >= size)) {
-				return vec4f(0.0);
-			}
-		}
-	}
-	return textureLoad(sourceTexture, wrapped, 0);
-}
-
 fn sampleSource(uv: vec2f) -> vec4f {
-	// 補間する各画素にもwrapを適用し、繰り返しの境界で透明色を混ぜない。
-	if (uniforms.wrapMode == 0u && (any(uv < vec2f(0.0)) || any(uv > vec2f(1.0)))) {
+	// samplerには透明な境界色の指定がないため、透明モードだけ範囲外を処理する。
+	if (uniforms.transparentOutside != 0u && (any(uv < vec2f(0.0)) || any(uv > vec2f(1.0)))) {
 		return vec4f(0.0);
 	}
-	// 大きな座標を整数化する前に範囲内へ戻す。反転周期はloadSourceで処理する。
-	var wrappedUv = uv;
-	if (uniforms.wrapMode == 1u) {
-		wrappedUv = clamp(uv, vec2f(0.0), vec2f(1.0));
-	} else if (uniforms.wrapMode == 2u) {
-		wrappedUv = fract(uv);
-	} else if (uniforms.wrapMode == 3u) {
-		wrappedUv = uv - floor(uv * 0.5) * 2.0;
+	let color = textureSampleLevel(sourceTexture, sourceSampler, uv, 0.0);
+	if (uniforms.transparentOutside != 0u) {
+		// clampで引き延ばされた端の色に、透明な隣接画素との補間分を反映する。
+		// 乗算済みRGBA全体に掛けることで、従来の透明境界の補間を維持する。
+		let edgeCoverage = clamp(min(uv, 1.0 - uv) * vec2f(textureDimensions(sourceTexture)) + 0.5, vec2f(0.0), vec2f(1.0));
+		return color * edgeCoverage.x * edgeCoverage.y;
 	}
-	let pixel = wrappedUv * vec2f(textureDimensions(sourceTexture)) - 0.5;
-	let base = vec2i(floor(pixel));
-	let weight = fract(pixel);
-	return mix(
-		mix(loadSource(base), loadSource(base + vec2i(1, 0)), weight.x),
-		mix(loadSource(base + vec2i(0, 1)), loadSource(base + vec2i(1, 1)), weight.x),
-		weight.y,
-	);
+	return color;
 }
-
 @fragment
 fn fs(@location(0) position: vec2f) -> @location(0) vec4f {
 	let uv = vec2f(position.x, -position.y) * 0.5 + 0.5;

@@ -1,5 +1,6 @@
 import type { BlendModeOptionSchema, FitModeOptionSchema, BooleanOptionSchema, ColorOptionSchema, EffectDefinition, EffectOptionsSchema, EnumOptionSchema, ImageOptionSchema, NodeOptionSchema, NumberOptionSchema, RangeOptionSchema, SeedOptionSchema, SignalOptionSchema, VectorOptionSchema, PlayerOptionSchema, EffectOutputsSchema } from '@glitch/shared/fx-definition.ts';
 import type { AudioHistory } from '@glitch/shared/audio-history.ts';
+import type { WrapModeOptionSchema, WrapModeValue } from '@glitch/shared/fx-definition.ts';
 import type { EffectStatus } from '@glitch/shared/effect-status.ts';
 
 // 画像の中間処理でフィルタリング・ブレンド可能なRGBA形式。
@@ -14,6 +15,7 @@ type RuntimeEffectOptionValue<T extends EffectOptionsSchema[string]> =
 	T extends SignalOptionSchema ? Readonly<[boolean, boolean, boolean]> :
 	T extends BlendModeOptionSchema ? string :
 	T extends FitModeOptionSchema ? 'stretch' | 'cover' | 'contain' :
+	T extends WrapModeOptionSchema ? WrapModeValue<T> :
 	T extends SeedOptionSchema ? number :
 	T extends EnumOptionSchema ? T['options'][number]['value'] :
 	T extends RangeOptionSchema ? number :

@@ -15,9 +15,11 @@ export default implementEffect<typeof definition>({
 		// パラメータの32bitデータテクスチャもフィルタリング機能に依存せず読み取る。
 		const layout = device.createBindGroupLayout({ entries: [
 			{ binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },
-			...[1, 2, 3, 4].map(binding => ({
+			{ binding: 1, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float' } },
+			...[2, 3, 4].map(binding => ({
 				binding, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'unfilterable-float' as const },
 			})),
+			{ binding: 5, visibility: GPUShaderStage.FRAGMENT, sampler: { type: 'filtering' } },
 		] });
 		const pipeline = device.createRenderPipeline({
 			layout: device.createPipelineLayout({ bindGroupLayouts: [layout] }),
@@ -28,20 +30,32 @@ export default implementEffect<typeof definition>({
 		const uniformBuffer = device.createBuffer({ size: 8, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
 		const uniformData = new ArrayBuffer(8);
 		new Float32Array(uniformData)[0] = resolution.width / resolution.height;
-		const wrapModes = { transparent: 0, clampToEdge: 1, repeat: 2, repeatMirrored: 3 };
+		const createSampler = (addressMode: GPUAddressMode) => device.createSampler({
+			minFilter: 'linear', magFilter: 'linear', addressModeU: addressMode, addressModeV: addressMode,
+		});
+		const clampSampler = createSampler('clamp-to-edge');
+		const samplers = {
+			transparent: clampSampler,
+			clampToEdge: clampSampler,
+			repeat: createSampler('repeat'),
+			repeatMirrored: createSampler('mirror-repeat'),
+		};
 		let textures: GPUTexture[] = [];
+		let sampler: GPUSampler;
 		let bindGroup: GPUBindGroup;
 		return {
 			render: ctx => {
 				const p = ctx.params;
-				new Uint32Array(uniformData)[1] = wrapModes[p.wrap];
+				new Uint32Array(uniformData)[1] = p.wrap === 'transparent' ? 1 : 0;
 				device.queue.writeBuffer(uniformBuffer, 0, uniformData);
 				const inputs = [p.input ?? fallbackTexture, p.translation, p.scale, p.rotation];
-				if (inputs.some((texture, i) => texture !== textures[i])) {
+				if (inputs.some((texture, i) => texture !== textures[i]) || sampler !== samplers[p.wrap]) {
 					textures = inputs;
+					sampler = samplers[p.wrap];
 					bindGroup = device.createBindGroup({ layout, entries: [
 						{ binding: 0, resource: { buffer: uniformBuffer } },
 						...textures.map((texture, i) => ({ binding: i + 1, resource: texture.createView() })),
+						{ binding: 5, resource: sampler },
 					] });
 				}
 				const pass = ctx.createPassEncoderFor(ctx.commandEncoder, ctx.outputDataMap.output.textureView);
