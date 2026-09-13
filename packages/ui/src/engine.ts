@@ -22,6 +22,12 @@ export class Engine {
 
 	//private renderer: Renderer | null = null;
 	private rendererWorker: Worker | null = null;
+	private resolution = { width: 1, height: 1 };
+	private renderLoopRunning = false;
+	private reloadPromise: Promise<void> | null = null;
+	private rejectInitialization: ((reason: Error) => void) | null = null;
+	private pendingCalls: { message: unknown; options?: StructuredSerializeOptions }[] = [];
+	private pointerPosition = { x: 0, y: 0 };
 
 	private enableFloat32Filtering = false;
 	private intermediateTextureFormat = navigator.gpu.getPreferredCanvasFormat(); // TODO: 設定でrgba16floatも指定できるようにする(レンダリングの精度は上がるがパフォーマンスは落ちる)
@@ -70,11 +76,17 @@ export class Engine {
 	}
 
 	private call<FN extends keyof RendererMethods>(fn: FN, args: Parameters<RendererMethods[FN]>, options?: StructuredSerializeOptions | Transferable[]): void {
+		const message = { type: 'call', fn, args };
+		const serializeOptions = Array.isArray(options) ? { transfer: options } : options;
 		if (!this.isReady.value) {
+			if (this.rendererWorker != null && this.rejectInitialization != null) {
+				this.pendingCalls.push({ message, options: serializeOptions });
+				return;
+			}
 			throw new Error('Renderer is not initialized');
 		}
 		if (this.rendererWorker != null) {
-			this.rendererWorker.postMessage({ type: 'call', fn, args }, Array.isArray(options) ? { transfer: options } : options);
+			this.rendererWorker.postMessage(message, serializeOptions);
 		//} else if (this.renderer != null) {
 		//	this.renderer[fn](...args);
 		} else {
@@ -116,14 +128,23 @@ export class Engine {
 
 		this.canvas.width = resolution.width;
 		this.canvas.height = resolution.height;
+		this.resolution = resolution;
 
 		const offscreen = this.canvas.transferControlToOffscreen();
 		const histogramOffscreen = this.histogramCanvas.transferControlToOffscreen();
 		const waveformOffscreen = this.waveformCanvas.transferControlToOffscreen();
 
-		const { promise: ready, resolve: resolveReady } = Promise.withResolvers<void>();
+		const { promise: ready, resolve: resolveReady, reject: rejectReady } = Promise.withResolvers<void>();
+		this.rejectInitialization = rejectReady;
 
 		this.rendererWorker = createRendererWorker();
+		const worker = this.rendererWorker;
+		worker.onerror = (event) => {
+			if (this.rendererWorker !== worker) return;
+			this.isReady.value = false;
+			this.rejectInitialization?.(new Error(event.message || 'Renderer worker initialization failed'));
+			this.rejectInitialization = null;
+		};
 		this.rendererWorker.postMessage({
 			type: 'init',
 			canvas: offscreen,
@@ -142,9 +163,13 @@ export class Engine {
 			},
 		}, [offscreen, histogramOffscreen, waveformOffscreen]);
 		this.rendererWorker.onmessage = (event) => {
+			if (this.rendererWorker !== worker) return;
 			switch (event.data?.type) {
 				case 'inited': {
 					this.isReady.value = true;
+					this.rejectInitialization = null;
+					for (const { message, options } of this.pendingCalls) worker.postMessage(message, options);
+					this.pendingCalls = [];
 					for (const playerId of this.pendingVideoFrames.keys()) this.sendPendingVideoFrame(playerId);
 					console.log('Renderer worker initialized!');
 					resolveReady();
@@ -189,10 +214,12 @@ export class Engine {
 
 	public startRenderLoop() {
 		this.call('startRenderLoop', []);
+		this.renderLoopRunning = true;
 	}
 
 	public stopRenderLoop() {
 		this.call('stopRenderLoop', []);
+		this.renderLoopRunning = false;
 	}
 
 	public async updatePlayers(newPlayers: Player[]) {
@@ -331,6 +358,7 @@ export class Engine {
 	}
 
 	public async updatePointerPosition(newPointerPosition: { x: number; y: number }) {
+		this.pointerPosition = { ...newPointerPosition };
 		this.call('updatePointerPosition', [newPointerPosition]);
 	}
 
@@ -343,12 +371,19 @@ export class Engine {
 		width: number;
 		height: number;
 	}) {
+		this.resolution = { ...resolution };
 		if (this.rendererWorker != null) {
-			this.rendererWorker.postMessage({ type: 'resize', resolution });
+			const message = { type: 'resize', resolution };
+			if (this.rejectInitialization != null) this.pendingCalls.push({ message });
+			else this.rendererWorker.postMessage(message);
 		}
 	}
 
 	public destroy() {
+		this.rejectInitialization?.(new Error('Engine destroyed during initialization'));
+		this.rejectInitialization = null;
+		this.pendingCalls = [];
+		this.renderLoopRunning = false;
 		this.effectStatuses.clear();
 		this.audioInputs.dispose();
 		for (const [id, media] of this.videoElements) {
@@ -375,7 +410,47 @@ export class Engine {
 		this.isReady.value = false;
 	}
 
-	public reload() {
-		// TODO
+	public reload(): Promise<void> {
+		if (this.reloadPromise) return this.reloadPromise;
+		if (!this.rendererWorker || this.rejectInitialization != null) return Promise.reject(new Error('Renderer is not initialized'));
+		this.reloadPromise = this.reloadRenderer().finally(() => { this.reloadPromise = null; });
+		return this.reloadPromise;
+	}
+
+	private async reloadRenderer() {
+		this.isReady.value = false;
+		this.rendererWorker?.terminate();
+		this.rendererWorker = null;
+		this.inFlightVideoFrames.clear();
+		for (const frame of this.pendingVideoFrames.values()) frame.close();
+		this.pendingVideoFrames.clear();
+		this.effectStatuses.clear();
+		this.gpuMemoryUsage.value = null;
+		this.fpsDisplay.value = 0;
+		this.gpuAverageDisplayFast.value = 0;
+		this.gpuAverageDisplayMedium.value = 0;
+		this.gpuAverageDisplaySlow.value = 0;
+
+		// 転送済みcanvasは再転送できない。属性と表示先を保った新しい要素に置き換える。
+		for (const key of ['canvas', 'histogramCanvas', 'waveformCanvas'] as const) {
+			const previous = this[key];
+			this[key] = previous.cloneNode(false) as HTMLCanvasElement;
+			previous.replaceWith(this[key]);
+		}
+
+		const ready = this.init(this.resolution);
+		const worker = this.rendererWorker;
+		await ready;
+		if (this.rendererWorker !== worker) throw new Error('Engine destroyed during reload');
+		this.audioInputs.reconnectRenderer();
+		// 一時停止中の動画には新しいフレーム通知が来ないため、現在のフレームも送り直す。
+		for (const [id, media] of this.videoElements) {
+			if (!(media instanceof HTMLVideoElement) || !isVideoFrameAvailable(media)) continue;
+			this.pendingVideoFrames.get(id)?.close();
+			this.pendingVideoFrames.set(id, new VideoFrame(media));
+			this.sendPendingVideoFrame(id);
+		}
+		this.call('updatePointerPosition', [this.pointerPosition]);
+		if (this.renderLoopRunning) this.startRenderLoop();
 	}
 }

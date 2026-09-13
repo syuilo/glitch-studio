@@ -214,6 +214,17 @@ export class AudioInputs {
 		entry.capture.setState(!entry.media.paused && !entry.media.seeking, entry.generation);
 	}
 
+	public reconnectRenderer() {
+		// メディア要素・再生位置・試聴出力を保ち、終了したworkerへの接続だけを作り直す。
+		for (const [id, entry] of this.players) {
+			if (!entry.capture || !entry.source) continue;
+			entry.capture.dispose();
+			entry.capture = null;
+			entry.capture = this.captureSource(playerAudioSourceId(id), entry.source);
+			entry.capture.setState(!entry.media.paused && !entry.media.seeking && !entry.media.ended, entry.generation);
+		}
+	}
+
 	public setPreviewVolume(volume: number) {
 		if (!Number.isFinite(volume)) return;
 		this.previewVolume.value = Math.min(1, Math.max(0, volume));
