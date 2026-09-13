@@ -31,32 +31,29 @@ struct FragmentIn {
 @fragment
 fn fs(fragData: FragmentIn) -> @location(0) vec4f {
 	let centerUv = convertTexCoords(fragData.uv);
-	
+
 	let r = textureSampleLevel(blurRadiusTexture, sourceSampler, centerUv, 0.0).r;
 	if (r <= 0.0) {
 		return textureSampleLevel(sourceTexture, sourceSampler, centerUv, 0.0);
 	}
 
-	let targetDimensions = textureDimensions(sourceTexture, 0);
-	let radiusPx = r * 0.5 * f32(targetDimensions.x);
-	let sampleFootprintPx = radiusPx / sqrt(f32(uniforms.samples));
-	let maxLod = f32(textureNumLevels(sourceTexture) - 1u);
-	let sampleLod = clamp(log2(max(sampleFootprintPx, 1.0)) + blurLodBias, 0.0, maxLod);
-
 	var result = vec4f(0.0);
-	var totalWeight = 0.0;
+	var totalSamples = 0.0;
+	//let sampleCount = 256;
+	let sampleCount = uniforms.samples;
 	let jitter = rand(fragData.uv / vec2f(1.0, uniforms.aspectRatio)) * 4.0;
 
-	for (var i: u32 = 0u; i < uniforms.samples; i++) {
-		let radius = sqrt((f32(i) + 0.5) / f32(uniforms.samples));
+	for (var i: u32 = 0u; i < sampleCount; i++) {
+		let radius = sqrt((f32(i) + 0.5) / f32(sampleCount));
 		let theta = (f32(i) + jitter) * goldenAngle;
 		let direction = vec2f(cos(theta), sin(theta));
 		let offset = direction * (r * radius);
 		let weight = exp(-radius * radius * 4.0);
-		let sampleUv = fragData.uv + (offset * vec2f(1.0, uniforms.aspectRatio));
-		result += textureSampleLevel(sourceTexture, sourceSampler, convertTexCoords(sampleUv), sampleLod) * weight;
-		totalWeight += weight;
+		var sampleUv = fragData.uv + (offset * vec2f(1.0, uniforms.aspectRatio));
+		result += textureSampleLevel(sourceTexture, sourceSampler, convertTexCoords(sampleUv), 0.0) * weight;
+		//result += vec3f(snoiseFractal(vec3f((uv + offset + 1.0) * 0.75, time * 0.5))) * weight;
+		totalSamples += weight;
 	}
 
-	return result / totalWeight;
+	return result / totalSamples;
 }
