@@ -47,8 +47,12 @@ test('renderer graph traversal and frame history', async t => {
 	});
 	const group = (id, nodes) => ({ id, type: 'group', isBypass: true, macros: [], nodes });
 
-	function setup(t, nodes) {
+	function setup(t, nodes, { enableFloat32Filtering = false } = {}) {
 		const device = createDevice(false);
+		const textureWrites = new Map();
+		device.queue.writeTexture = ({ texture }, data, layout, size) => {
+			textureWrites.set(texture, { data: data.slice(), layout, size });
+		};
 		const passes = [];
 		const statuses = new Map();
 		const statusChanges = [];
@@ -88,7 +92,7 @@ test('renderer graph traversal and frame history', async t => {
 		};
 		const renderer = new Renderer({
 			gpuDevice: device, gpuContext: context, histogramGpuContext: context, waveformGpuContext: context,
-			resolution: { width: 64, height: 64 }, enableFloat32Filtering: false, enableStats: false,
+			resolution: { width: 64, height: 64 }, enableFloat32Filtering, enableStats: false,
 			fpsLimit: null, assets: [], macros: [], automations: [], nodes,
 			onEffectStatus: (id, status) => {
 				statusChanges.push({ id, status });
@@ -100,6 +104,7 @@ test('renderer graph traversal and frame history', async t => {
 		let time = performance.now();
 		return {
 			renderer,
+			textureWrites,
 			statuses, statusChanges,
 			clears,
 			get canvasInput() { return canvasInput; },
@@ -113,6 +118,39 @@ test('renderer graph traversal and frame history', async t => {
 	}
 
 	const disabled = node => ({ ...node, isBypass: false });
+
+	for (const enableFloat32Filtering of [true, false]) {
+		const precision = enableFloat32Filtering ? '32' : '16';
+		await t.test(`canNode uploads vector XY and scalar values as float${precision}`, t => {
+			const source = fx('source', 'fill');
+			const run = setup(t, [source, fx('root', 'transform', { input: 'source' })], { enableFloat32Filtering });
+			function assertUpload(texture, channels, expected) {
+				assert.equal(texture.format, `${channels}${precision}float`);
+				assert.equal(texture.width, 1);
+				assert.equal(texture.height, 1);
+				const upload = run.textureWrites.get(texture);
+				assert.ok(upload, 'the texture bound to the effect must receive the parameter value');
+				assert.ok(upload.data instanceof (enableFloat32Filtering ? Float32Array : Uint16Array));
+				assert.deepEqual([...upload.data], expected);
+				assert.equal(upload.layout.bytesPerRow, expected.length * (enableFloat32Filtering ? 4 : 2));
+				assert.deepEqual(upload.size, { width: 1, height: 1 });
+			}
+			let inputs = run.frame().at(-1).inputs;
+			// 初期値[0, 0]をスカラーへ変換するとNaNになる不具合の回帰テスト。
+			assertUpload(inputs[1], 'rg', [0, 0]);
+			assertUpload(inputs[2], 'rg', enableFloat32Filtering ? [1, 1] : [0x3c00, 0x3c00]);
+			assertUpload(inputs[3], 'r', [0]);
+
+			run.renderer.updateNodes([source, fx('root', 'transform', {
+				input: 'source', translation: [-0.5, 0.25], scale: [2, 0.5], rotation: -90,
+			})]);
+			inputs = run.frame().at(-1).inputs;
+			// 16bitの期待値はIEEE 754 binary16のビット列。変換関数を期待値に流用しない。
+			assertUpload(inputs[1], 'rg', enableFloat32Filtering ? [-0.5, 0.25] : [0xb800, 0x3400]);
+			assertUpload(inputs[2], 'rg', enableFloat32Filtering ? [2, 0.5] : [0x4000, 0x3800]);
+			assertUpload(inputs[3], 'r', [enableFloat32Filtering ? -90 : 0xd5a0]);
+		});
+	}
 
 	await t.test('symbols caches async output, ignores obsolete loads and releases textures', async t => {
 		const { requests } = await server.ssrLoadModule('test:symbol-images');

@@ -34,6 +34,7 @@ import snoise from './fx-implementations/snoise/main.ts';
 import symbols from './fx-implementations/symbols/main.ts';
 import tearings from './fx-implementations/tearings/main.ts';
 import test from './fx-implementations/test/main.ts';
+import transform from './fx-implementations/transform/main.ts';
 import video from './fx-implementations/video/main.ts';
 import water from './fx-implementations/water/main.ts';
 import waveform from './fx-implementations/waveform/main.ts';
@@ -77,6 +78,7 @@ const _fxImplementations = {
 	symbols,
 	tearings,
 	test,
+	transform,
 	video,
 	water,
 	waveform,

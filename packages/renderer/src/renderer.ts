@@ -324,9 +324,11 @@ export class Renderer {
 			for (const [k, v] of Object.entries(evaluatedParams)) {
 				if (paramDefs[k].canNode && node.params[k].type !== 'node') {
 					const tex = this.effectScalarFieldTextures.get(node.id)![k];
+					// ベクトルを数値1個へ変換するとNaNになるため、XYを別チャンネルに書き込む。
+					const components = paramDefs[k].type === 'vector' ? [v?.[0] ?? 0, v?.[1] ?? 0] : [v ?? 0];
 					const pixelData = this.enableFloat32Filtering
-						? new Float32Array([v ?? 0])
-						: new Uint16Array([float32ToFloat16Bits(v ?? 0)]);
+						? new Float32Array(components)
+						: new Uint16Array(components.map(component => float32ToFloat16Bits(component)));
 
 					this.gpuDevice.queue.writeTexture(
 						{ texture: tex },
@@ -734,9 +736,12 @@ export class Renderer {
 			const scalarFieldTextures: Record<string, GPUTexture> = {};
 			for (const k in paramDefs) {
 				if (paramDefs[k].canNode) {
+					const format = paramDefs[k].type === 'vector'
+						? (this.enableFloat32Filtering ? 'rg32float' : 'rg16float')
+						: (this.enableFloat32Filtering ? 'r32float' : 'r16float');
 					const tex = this.gpuDevice.createTexture({
 						size: [1, 1],
-						format: this.enableFloat32Filtering ? 'r32float' : 'r16float',
+						format,
 						usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_DST,
 					});
 					scalarFieldTextures[k] = tex;

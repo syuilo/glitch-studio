@@ -29,6 +29,7 @@ import snoise from './fx-definitions/snoise.ts';
 import symbols from './fx-definitions/symbols.ts';
 import tearings from './fx-definitions/tearings.ts';
 import test from './fx-definitions/test.ts';
+import transform from './fx-definitions/transform.ts';
 import video from './fx-definitions/video.ts';
 import water from './fx-definitions/water.ts';
 import waveform from './fx-definitions/waveform.ts';
@@ -73,6 +74,7 @@ const _fxDefinitions = {
 	symbols,
 	tearings,
 	test,
+	transform,
 	video,
 	water,
 	waveform,
