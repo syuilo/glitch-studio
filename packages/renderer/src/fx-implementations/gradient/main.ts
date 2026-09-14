@@ -1,7 +1,7 @@
 import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
-import type definition from '@glitch/shared/fx-definitions/gradient.ts';
 import { implementEffect } from '../../fx-implementation.ts';
 import code from './shader.wgsl?raw';
+import type definition from '@glitch/shared/fx-definitions/gradient.ts';
 
 export default implementEffect<typeof definition>({
 	getOut: ({ wgpu, resolution }) => {
@@ -55,8 +55,7 @@ export default implementEffect<typeof definition>({
 					aspectRatio: resolution.width / resolution.height,
 					start: ctx.params.start,
 					end: ctx.params.end,
-					// +Yが上の座標系で、正の値を時計回りにする。
-					angle: -ctx.params.angle * Math.PI,
+					angle: -ctx.params.angle * Math.PI, // +Yが上の座標系で、正の値を時計回りにする
 					easing: ctx.params.interpolation === 'easing' ? 1 : 0,
 				});
 				wgpu.device.queue.writeBuffer(uniformBuffer, 0, uniformValues.arrayBuffer);
