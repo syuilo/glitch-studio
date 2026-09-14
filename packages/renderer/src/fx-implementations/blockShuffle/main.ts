@@ -76,6 +76,7 @@ export default implementEffect<typeof definition>({
 				uniformValues.set({
 					resolution: [resolution.width, resolution.height],
 					fitMode: fitModes[ctx.params.fitMode],
+					randomSwap: ctx.params.randomSwap ? 1 : 0,
 					randomRotation: ctx.params.randomRotation ? 1 : 0,
 					randomFlipX: ctx.params.randomFlipX ? 1 : 0,
 					randomFlipY: ctx.params.randomFlipY ? 1 : 0,

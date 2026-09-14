@@ -22,6 +22,7 @@ struct Uniforms {
 	amount: f32,
 	seed: u32,
 	fitMode: u32,
+	randomSwap: u32,
 	randomRotation: u32,
 	randomFlipX: u32,
 	randomFlipY: u32,
@@ -52,11 +53,15 @@ fn fs(fragData: FragmentIn) -> @location(0) vec4f {
 	}
 	let cellSize = max(blockScale * extent, vec2f(1.0)) / uniforms.resolution;
 	let cell = vec2i(round((uv - 0.5) / cellSize));
+	// Amountで選ばれたタイルだけに、位置のシャッフル・回転・反転を適用する。
+	let selected = random(cell, uniforms.seed, 0u) < uniforms.amount;
+	if (!selected) {
+		return textureSampleLevel(sourceTexture, sourceSampler, uv, 0.0);
+	}
 	let shift = vec2f(
 		random(cell, uniforms.seed, 1u) - 0.5,
 		random(cell, uniforms.seed, 2u) - 0.5,
 	);
-	let shuffled = random(cell, uniforms.seed, 0u) < uniforms.amount;
 	let cellCenter = 0.5 + vec2f(cell) * cellSize;
 	// 物理的な縦横の単位を揃え、長方形のタイルでも回転によって歪ませない。
 	var localPosition = (uv - cellCenter) * uniforms.resolution;
@@ -75,7 +80,7 @@ fn fs(fragData: FragmentIn) -> @location(0) vec4f {
 	if (uniforms.randomFlipY != 0u && random(cell, uniforms.seed, 5u) < 0.5) {
 		localPosition.y = -localPosition.y;
 	}
-	let sourceUv = cellCenter + localPosition / uniforms.resolution + select(vec2f(0.0), shift, shuffled);
+	let sourceUv = cellCenter + localPosition / uniforms.resolution + select(vec2f(0.0), shift, uniforms.randomSwap != 0u);
 	// 入力は既にpremultiplied alphaなので、そのまま返す。
 	return textureSampleLevel(sourceTexture, sourceSampler, sourceUv, 0.0);
 }
