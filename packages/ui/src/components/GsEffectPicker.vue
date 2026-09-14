@@ -10,7 +10,7 @@
 			<div :class="$style.leftArea">
 			</div>
 			<div :class="$style.rightArea">
-				<div v-for="[k, effect] in Object.entries(fxDefinitions)" :key="k" :class="$style.effect">
+				<div v-for="[k, effect] in Object.entries(fxDefinitions)" :key="k" :class="$style.effect" @click="emit('chosen', effect)">
 					{{ effect.displayName }}
 				</div>
 			</div>
