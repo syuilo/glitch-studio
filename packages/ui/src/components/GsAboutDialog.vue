@@ -12,6 +12,12 @@
 				<a class="_gs-link" href="https://github.com/syuilo/glitch-studio-web" target="_blank">https://github.com/syuilo/glitch-studio-web</a>
 			</small>
 		</div>
+		<div style="font-size: 110%;">
+			<small style="display: block;">
+				<div>UIなど一部の実装はMisskeyから移植しています</div>
+				<a class="_gs-link" href="https://github.com/misskey-dev/misskey" target="_blank">https://github.com/misskey-dev/misskey</a>
+			</small>
+		</div>
 		<GsButton inline @click="ok">OK</GsButton>
 	</div>
 </GsModal>
