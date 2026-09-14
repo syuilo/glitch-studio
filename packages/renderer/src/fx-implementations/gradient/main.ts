@@ -53,8 +53,8 @@ export default implementEffect<typeof definition>({
 			render: (ctx) => {
 				uniformValues.set({
 					aspectRatio: resolution.width / resolution.height,
-					start: ctx.params.start,
-					end: ctx.params.end,
+					startValue: ctx.params.startValue,
+					endValue: ctx.params.endValue,
 					angle: -ctx.params.angle * Math.PI, // +Yが上の座標系で、正の値を時計回りにする
 					easing: ctx.params.interpolation === 'easing' ? 1 : 0,
 				});

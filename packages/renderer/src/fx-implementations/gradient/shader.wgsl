@@ -1,7 +1,7 @@
 struct Uniforms {
 	aspectRatio: f32,
-	start: f32,
-	end: f32,
+	startValue: f32,
+	endValue: f32,
 	angle: f32,
 	easing: u32,
 };
@@ -22,5 +22,5 @@ fn fs(fragData: FragmentIn) -> @location(0) f32 {
 	if (uniforms.easing != 0u) {
 		t = smoothstep(0.0, 1.0, t);
 	}
-	return mix(uniforms.start, uniforms.end, t);
+	return mix(uniforms.startValue, uniforms.endValue, t);
 }
