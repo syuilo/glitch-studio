@@ -104,7 +104,7 @@ class AppContext {
 
 	constructor() {
 		this.state = {
-			resolution: ref<{ width: number; height: number }>({ width: 2048, height: 2048 }),
+			resolution: ref<{ width: number; height: number }>({ width: 1024, height: 1024 }),
 			assets: ref<Asset[]>([]), // TODO: バイナリをリアクティブでwrapするのをやめる
 			players: ref<Player[]>([]),
 			nodes: ref<GsNode[]>([]),
@@ -302,7 +302,7 @@ export async function newProject() {
 		assets: [],
 		macros: [],
 		automations: [],
-		resolution: { width: 2048, height: 2048 },
+		resolution: { width: 1024, height: 1024 },
 	});
 }
 
@@ -321,7 +321,7 @@ export async function newProjectFromImageOrVideo(file?: File) {
 		assets: [],
 		macros: [],
 		automations: [],
-		resolution: { width: result.width || 2048, height: result.height || 2048 },
+		resolution: { width: result.width || 1024, height: result.height || 1024 },
 	});
 
 	appContext.commit('addAsset', {
