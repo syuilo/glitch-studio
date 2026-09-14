@@ -1,10 +1,10 @@
 <template>
 <div :class="$style.footer">
-	<div v-for="port in ports" :key="port" :class="$style.output">
-		<div :ref="el => setPort(port, el)" :class="$style.point">・</div>
-		<span>{{ port }}</span>
-	</div>
 	<code :class="$style.nodeId">{{ node.id }}</code>
+	<div v-for="port in ports" :key="port" :class="$style.output">
+		<span>{{ port }}</span>
+		<div :ref="el => setPort(port, el)" :class="$style.point">・</div>
+	</div>
 </div>
 </template>
 
@@ -48,6 +48,7 @@ onUnmounted(() => {
 }
 
 .output {
+	margin-left: auto;
 	display: flex;
 	min-width: 0;
 	overflow-wrap: anywhere;
@@ -60,8 +61,7 @@ onUnmounted(() => {
 }
 
 .nodeId {
-	margin-left: auto;
-	padding-right: 8px;
+	padding-left: 8px;
 	opacity: 0.5;
 }
 </style>
