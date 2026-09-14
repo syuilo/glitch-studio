@@ -1,4 +1,5 @@
 import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
+import seedrandom from 'seedrandom';
 import { implementEffect } from '../../fx-implementation.ts';
 import code from './shader.wgsl?raw';
 import type definition from '@glitch/shared/fx-definitions/snoise.ts';
@@ -21,7 +22,7 @@ export default implementEffect<typeof definition>({
 		// データ入力はtextureLoadで読み、32bitテクスチャのフィルタリング機能を要求しない。
 		const layout = wgpu.device.createBindGroupLayout({ entries: [
 			{ binding: 1, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },
-			...[2, 3, 4, 5].map(binding => ({
+			...[2, 3, 4].map(binding => ({
 				binding, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'unfilterable-float' as const },
 			})),
 		] });
@@ -50,13 +51,22 @@ export default implementEffect<typeof definition>({
 		});
 
 		uniformValues.set({ aspectRatio: resolution.width / resolution.height });
-		wgpu.device.queue.writeBuffer(uniformBuffer, 0, uniformValues.arrayBuffer);
+		let previousSeed: number | undefined;
 		let textures: GPUTexture[] = [];
 		let bindGroup: GPUBindGroup;
 
 		return {
 			render: (ctx) => {
-				const inputs = [ctx.params.scale, ctx.params.outputMin, ctx.params.outputMax, ctx.params.time];
+				if (ctx.params.seed !== previousSeed) {
+					previousSeed = ctx.params.seed;
+					const random = seedrandom(String(previousSeed));
+					// Seedから決定的な空間オフセットを作る。0では従来の模様を維持する。
+					// 時間座標には加算せず、Timeの精度を落とさない。
+					uniformValues.set({ seedOffset: previousSeed === 0 ? [0, 0] : [random() * 256, random() * 256] });
+				}
+				uniformValues.set({ time: ctx.params.time });
+				wgpu.device.queue.writeBuffer(uniformBuffer, 0, uniformValues.arrayBuffer);
+				const inputs = [ctx.params.scale, ctx.params.outputMin, ctx.params.outputMax];
 				if (inputs.some((texture, i) => texture !== textures[i])) {
 					textures = inputs;
 					bindGroup = wgpu.device.createBindGroup({ layout, entries: [

@@ -80,13 +80,14 @@ fn scaleUvToCoverGivenAspectRatio(uv: vec2f, aspectRatio: f32) -> vec2f {
 
 struct Uniforms {
 	aspectRatio: f32,
+	time: f32,
+	seedOffset: vec2f,
 };
 
 @group(0) @binding(1) var<uniform> uniforms: Uniforms;
 @group(0) @binding(2) var scaleTexture: texture_2d<f32>;
 @group(0) @binding(3) var outputMinTexture: texture_2d<f32>;
 @group(0) @binding(4) var outputMaxTexture: texture_2d<f32>;
-@group(0) @binding(5) var timeTexture: texture_2d<f32>;
 
 fn sampleParameter(tex: texture_2d<f32>, uv: vec2f) -> vec4f {
 	// 定数の1x1テクスチャを含め、各入力を出力全体に対応付ける。
@@ -105,10 +106,9 @@ fn fs(fragData: FragmentIn) -> @location(0) f32 {
 	let scale = sampleParameter(scaleTexture, paramUv).rg;
 	let outputMin = sampleParameter(outputMinTexture, paramUv).r;
 	let outputMax = sampleParameter(outputMaxTexture, paramUv).r;
-	let time = sampleParameter(timeTexture, paramUv).r;
 	let aspectUv = scaleUvToCoverGivenAspectRatio(fragData.uv, uniforms.aspectRatio);
-	let uv = aspectUv * scale;
-	let noise = snoise(vec3f(uv.x, uv.y, time));
+	let uv = aspectUv * scale + uniforms.seedOffset;
+	let noise = snoise(vec3f(uv.x, uv.y, uniforms.time));
 	// -1〜+1を指定範囲へ写像する。丸め誤差による範囲外の値も抑える。
 	let normalizedNoise = clamp(noise * 0.5 + 0.5, 0.0, 1.0);
 	return mix(outputMin, outputMax, normalizedNoise);
