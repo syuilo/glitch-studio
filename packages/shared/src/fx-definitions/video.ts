@@ -3,7 +3,6 @@ import { defineEffect } from '../fx-definition.ts';
 export default defineEffect({
 	name: 'video',
 	displayName: 'Video',
-	category: '',
 	paramDefs: {
 		player: {
 			label: 'Player',

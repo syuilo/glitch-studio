@@ -3,7 +3,6 @@ import { defineEffect } from '../fx-definition.ts';
 export default defineEffect({
 	name: 'rainDropsOnWindow1',
 	displayName: 'Rain Drops On Window (Type 1)',
-	category: 'effect',
 	paramDefs: {
 		input: { type: 'node', label: 'Input', dataType: 'color', primary: true, default: () => ({ type: 'literal', value: null }) },
 		density: { type: 'range', min: 0, max: 1, step: 0.01, label: 'Density', default: () => ({ type: 'literal', value: 0.6 }) },

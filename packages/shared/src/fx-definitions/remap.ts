@@ -3,7 +3,6 @@ import { defineEffect } from '../fx-definition.ts';
 export default defineEffect({
 	name: 'remap',
 	displayName: 'Remap',
-	category: 'utility',
 	paramDefs: {
 		input: { type: 'node', label: 'Input', dataType: 'scalar', primary: true, default: () => ({ type: 'literal', value: null }) },
 		inMin: { type: 'number', label: 'In Min', step: 0.01, canNode: true, default: () => ({ type: 'literal', value: 0 }) },

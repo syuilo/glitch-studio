@@ -3,7 +3,6 @@ import { defineEffect } from '../fx-definition.ts';
 export default defineEffect({
 	name: 'image',
 	displayName: 'Image',
-	category: '',
 	paramDefs: {
 		image: {
 			label: 'Image',

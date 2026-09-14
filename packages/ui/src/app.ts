@@ -5,6 +5,7 @@ import { genId } from '@glitch/shared/utility/id.ts';
 import { loadProjectFile, saveProjectFile, decodeAssets } from './api.ts';
 import { Engine } from './engine.ts';
 import { COMMAND_DEFS } from './commands.ts';
+import GsEffectPicker from './components/GsEffectPicker.vue';
 import type { CommandDef } from './commands.ts';
 import type { AppState } from './types.ts';
 import type { WorkspaceDivider } from './types/workspace.ts';
@@ -172,85 +173,20 @@ export const wireMap = reactive<{
 	allIn: {},
 });
 
-export function showAddNodeMenu(ev: MouseEvent, group?: GsGroupNode) {
-	ui.popupMenu([{
-		text: 'Group',
-		action: () => {
-			appContext.commit('addGroupNode', {
-				groupId: group?.id,
-				id: genId(),
-			});
-		},
-	}, ...Object.entries(fxDefinitions).filter(([_, v]) => v.category === '').map(x => ({
-		text: x[1].displayName,
-		action: () => {
+export function showAddNodeMenu(ev: PointerEvent, group?: GsGroupNode) {
+	const { dispose } = ui.popup(GsEffectPicker, {
+	}, {
+		'chosen': effect => {
 			appContext.commit('addFxNode', {
 				groupId: group?.id,
-				fx: x[1].name,
+				fx: effect.name,
 				id: genId(),
 			});
 		},
-	})), {
-		type: 'label',
-		text: 'Glitch',
-	}, ...Object.entries(fxDefinitions).filter(([_, v]) => v.category === 'glitch').map(x => ({
-		text: x[1].displayName,
-		action: () => {
-			appContext.commit('addFxNode', {
-				groupId: group?.id,
-				fx: x[1].name,
-				id: genId(),
-			});
+		closed: () => {
+			dispose();
 		},
-	})), {
-		type: 'label',
-		text: 'Effect',
-	}, ...Object.entries(fxDefinitions).filter(([_, v]) => v.category === 'effect').map(x => ({
-		text: x[1].displayName,
-		action: () => {
-			appContext.commit('addFxNode', {
-				groupId: group?.id,
-				fx: x[1].name,
-				id: genId(),
-			});
-		},
-	})), {
-		type: 'label',
-		text: 'Draw',
-	}, ...Object.entries(fxDefinitions).filter(([_, v]) => v.category === 'draw').map(x => ({
-		text: x[1].displayName,
-		action: () => {
-			appContext.commit('addFxNode', {
-				groupId: group?.id,
-				fx: x[1].name,
-				id: genId(),
-			});
-		},
-	})), {
-		type: 'label',
-		text: 'Color',
-	}, ...Object.entries(fxDefinitions).filter(([_, v]) => v.category === 'color').map(x => ({
-		text: x[1].displayName,
-		action: () => {
-			appContext.commit('addFxNode', {
-				groupId: group?.id,
-				fx: x[1].name,
-				id: genId(),
-			});
-		},
-	})), {
-		type: 'label',
-		text: 'Utility',
-	}, ...Object.entries(fxDefinitions).filter(([_, v]) => v.category === 'utility').map(x => ({
-		text: x[1].displayName,
-		action: () => {
-			appContext.commit('addFxNode', {
-				groupId: group?.id,
-				fx: x[1].name,
-				id: genId(),
-			});
-		},
-	}))], ev.currentTarget ?? ev.target);
+	});
 }
 
 export const frameMax = ref(59);

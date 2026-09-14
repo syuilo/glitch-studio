@@ -3,7 +3,6 @@ import { defineEffect } from '../fx-definition.ts';
 export default defineEffect({
 	name: 'histogram',
 	displayName: 'Histogram',
-	category: 'effect',
 	paramDefs: {
 		input: { type: 'node', label: 'Input', dataType: 'color', primary: true, default: () => ({ type: 'literal', value: null }) },
 		resolution: { type: 'enum', label: 'Sampling resolution', options: [

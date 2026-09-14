@@ -3,7 +3,6 @@ import { defineEffect } from '../fx-definition.ts';
 export default defineEffect({
 	name: 'gradient',
 	displayName: 'Gradient',
-	category: 'utility',
 	paramDefs: {
 		start: { type: 'range', min: -1, max: 1, step: 0.01, label: 'Start', default: () => ({ type: 'literal', value: -1 }) },
 		end: { type: 'range', min: -1, max: 1, step: 0.01, label: 'End', default: () => ({ type: 'literal', value: 1 }) },

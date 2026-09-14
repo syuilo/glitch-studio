@@ -6,7 +6,6 @@ const { color, rightColor, ...analysisParams } = spectrum.paramDefs;
 export default defineEffect({
 	name: 'audioSpectrogram',
 	displayName: 'Audio Spectrogram',
-	category: 'draw',
 	paramDefs: {
 		...analysisParams,
 		channel: { ...analysisParams.channel, default: () => ({ type: 'literal', value: 'mix' }) },

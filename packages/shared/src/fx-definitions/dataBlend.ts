@@ -3,7 +3,6 @@ import { defineEffect } from '../fx-definition.ts';
 export default defineEffect({
 	name: 'dataBlend',
 	displayName: 'Blend (Data)',
-	category: 'utility',
 	paramDefs: {
 		inputA: { type: 'node', label: 'A', dataType: 'any', primary: true, default: () => ({ type: 'literal', value: null }) },
 		inputB: { type: 'node', label: 'B', dataType: 'any', default: () => ({ type: 'literal', value: null }) },

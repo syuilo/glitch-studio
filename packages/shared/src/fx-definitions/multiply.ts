@@ -3,7 +3,6 @@ import { defineEffect } from '../fx-definition.ts';
 export default defineEffect({
 	name: 'multiply',
 	displayName: 'multiply',
-	category: 'utility',
 	paramDefs: {
 		input: { type: 'node', label: 'Input', dataType: 'scalar', primary: true, default: () => ({ type: 'literal', value: null }) },
 		v: { type: 'range', min: -10, max: 10, step: 0.01, label: 'Value', default: () => ({ type: 'literal', value: 2 }) },

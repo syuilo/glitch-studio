@@ -5,7 +5,6 @@ import { defineEffect } from '../fx-definition.ts';
 export default defineEffect({
 	name: 'water',
 	displayName: 'Water',
-	category: 'effect',
 	paramDefs: {
 		input: { type: 'node', label: 'Input', dataType: 'color', primary: true, default: () => ({ type: 'literal', value: null }) },
 		colorHighlight: { type: 'color', label: 'Highlight color', default: () => ({ type: 'literal', value: [1, 1, 1, 1] }) },

@@ -5,7 +5,6 @@ import { defineEffect } from '../fx-definition.ts';
 export default defineEffect({
 	name: 'liquidMetal',
 	displayName: 'Liquid Metal',
-	category: 'effect',
 	paramDefs: {
 		input: { type: 'node', label: 'Input', dataType: 'color', primary: true, default: () => ({ type: 'literal', value: null }) },
 		colorBack: { type: 'color', label: 'Background color', default: () => ({ type: 'literal', value: [170 / 255, 170 / 255, 172 / 255, 0] }) },

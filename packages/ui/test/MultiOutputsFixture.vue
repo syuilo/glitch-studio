@@ -22,7 +22,7 @@ import GsWires from '../src/components/GsWires.vue';
 
 // UIだけを実物のコンポーネントで確認する。レンダラーへのテスト用エフェクトの登録は不要。
 fxDefinitions.multiOutputFixture = {
-	name: 'multiOutputFixture', displayName: 'Multi', category: 'test', paramDefs: {},
+	name: 'multiOutputFixture', displayName: 'Multi', paramDefs: {},
 	outputs: { output: { dataType: 'color', primary: true }, subOutput: { dataType: 'scalar', primary: false } },
 };
 appContext.commit('addFxNode', { id: 'fooNode', fx: 'fill' });

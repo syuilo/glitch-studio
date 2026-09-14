@@ -3,7 +3,6 @@ import { defineEffect } from '../fx-definition.ts';
 export default defineEffect({
 	name: 'drosteRegression',
 	displayName: 'Droste Regression',
-	category: 'effect',
 	paramDefs: {
 		input: { type: 'node', label: 'Input', dataType: 'color', primary: true, default: () => ({ type: 'literal', value: null }) },
 		amount: { type: 'range', min: 0, max: 32, step: 0.01, label: 'Amount', default: () => ({ type: 'literal', value: 0.5 }) },

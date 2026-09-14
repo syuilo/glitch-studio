@@ -3,7 +3,6 @@ import { defineEffect } from '../fx-definition.ts';
 export default defineEffect({
 	name: 'lcd',
 	displayName: 'LCD',
-	category: 'effect',
 	paramDefs: {
 		input: { type: 'node', label: 'Input', dataType: 'color', primary: true, default: () => ({ type: 'literal', value: null }) },
 		size: { type: 'range', min: 1, max: 200, step: 0.01, label: 'Size', default: () => ({ type: 'literal', value: 50 }) },

@@ -3,7 +3,6 @@ import { defineEffect } from '../fx-definition.ts';
 export default defineEffect({
 	name: 'quadtreeFilter',
 	displayName: 'Quadtree filter',
-	category: 'effect',
 	paramDefs: {
 		input: { type: 'node', label: 'Input', dataType: 'color', primary: true, default: () => ({ type: 'literal', value: null }) },
 		threshold: { type: 'range', min: 0, max: 0.15, step: 0.00001, label: 'Thresold', default: () => ({ type: 'literal', value: 0.005 }) },

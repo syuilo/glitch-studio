@@ -3,7 +3,6 @@ import { defineEffect } from '../fx-definition.ts';
 export default defineEffect({
 	name: 'tearings',
 	displayName: 'Tearings',
-	category: 'glitch',
 	paramDefs: {
 		input: { type: 'node', label: 'Input', dataType: 'color', primary: true, default: () => ({ type: 'literal', value: null }) },
 		amount: { type: 'range', min: 0, max: 100, label: 'Amount', default: () => ({ type: 'literal', value: 3 }) },

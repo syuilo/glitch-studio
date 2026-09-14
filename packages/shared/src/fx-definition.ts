@@ -169,10 +169,12 @@ type EffectOptionsSchemaDefaults<T extends EffectOptionsSchema> = {
 
 export type EffectOutputsSchema = Record<string, { dataType: 'color' | 'scalar' | 'vector' | 'any'; primary: boolean; }>;
 
+export type EffectTags = string; // TODO
+
 export type EffectDefinition<OpSc extends EffectOptionsSchema = EffectOptionsSchema, Outputs extends EffectOutputsSchema = EffectOutputsSchema> = {
 	name: string;
 	displayName: string;
-	category: string;
+	tags: EffectTags;
 	paramDefs: OpSc;
 	outputs: Outputs;
 };
