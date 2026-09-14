@@ -18,14 +18,19 @@ fn random(cell: vec2i, seed: u32, salt: u32) -> f32 {
 }
 
 struct Uniforms {
-	cellSize: vec2f,
+	resolution: vec2f,
 	amount: f32,
 	seed: u32,
+	fitMode: u32,
+	randomRotation: u32,
+	randomFlipX: u32,
+	randomFlipY: u32,
 };
 
 @group(0) @binding(1) var<uniform> uniforms: Uniforms;
 @group(0) @binding(2) var sourceSampler: sampler;
 @group(0) @binding(3) var sourceTexture: texture_2d<f32>;
+@group(0) @binding(4) var sizeTexture: texture_2d<f32>;
 
 struct FragmentIn {
 	@location(0) uv: vec2f,
@@ -34,13 +39,43 @@ struct FragmentIn {
 @fragment
 fn fs(fragData: FragmentIn) -> @location(0) vec4f {
 	let uv = convertTexCoords(fragData.uv);
-	let cell = vec2i(round((uv - 0.5) / uniforms.cellSize));
+	// 定数の1x1テクスチャもノード入力も、出力全体に対応付ける。
+	let sizeDimensions = textureDimensions(sizeTexture);
+	let sizeCoord = clamp(vec2i(uv * vec2f(sizeDimensions)), vec2i(0), vec2i(sizeDimensions) - 1);
+	let blockScale = 1.0 - clamp(textureLoad(sizeTexture, sizeCoord, 0).rg, vec2f(0.0), vec2f(1.0));
+	var extent = uniforms.resolution;
+	// 正方形の基準領域をcoverでは長辺、containでは短辺に合わせる。
+	if (uniforms.fitMode == 1u) {
+		extent = vec2f(max(uniforms.resolution.x, uniforms.resolution.y));
+	} else if (uniforms.fitMode == 2u) {
+		extent = vec2f(min(uniforms.resolution.x, uniforms.resolution.y));
+	}
+	let cellSize = max(blockScale * extent, vec2f(1.0)) / uniforms.resolution;
+	let cell = vec2i(round((uv - 0.5) / cellSize));
 	let shift = vec2f(
 		random(cell, uniforms.seed, 1u) - 0.5,
 		random(cell, uniforms.seed, 2u) - 0.5,
 	);
 	let shuffled = random(cell, uniforms.seed, 0u) < uniforms.amount;
-	let sourceUv = select(uv, uv + shift, shuffled);
+	let cellCenter = 0.5 + vec2f(cell) * cellSize;
+	// 物理的な縦横の単位を揃え、長方形のタイルでも回転によって歪ませない。
+	var localPosition = (uv - cellCenter) * uniforms.resolution;
+	if (uniforms.randomRotation != 0u) {
+		let quarterTurns = u32(random(cell, uniforms.seed, 3u) * 4.0);
+		switch quarterTurns {
+			case 1u: { localPosition = vec2f(-localPosition.y, localPosition.x); }
+			case 2u: { localPosition = -localPosition; }
+			case 3u: { localPosition = vec2f(localPosition.y, -localPosition.x); }
+			default: {}
+		}
+	}
+	if (uniforms.randomFlipX != 0u && random(cell, uniforms.seed, 4u) < 0.5) {
+		localPosition.x = -localPosition.x;
+	}
+	if (uniforms.randomFlipY != 0u && random(cell, uniforms.seed, 5u) < 0.5) {
+		localPosition.y = -localPosition.y;
+	}
+	let sourceUv = cellCenter + localPosition / uniforms.resolution + select(vec2f(0.0), shift, shuffled);
 	// 入力は既にpremultiplied alphaなので、そのまま返す。
 	return textureSampleLevel(sourceTexture, sourceSampler, sourceUv, 0.0);
 }
