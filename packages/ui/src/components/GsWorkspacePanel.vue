@@ -290,6 +290,7 @@ function onDrop(ev: DragEvent, area: 'top' | 'bottom' | 'left' | 'right' | 'cent
 	contain: strict;
 
 	&.collapsed {
+		flex-grow: 0 !important;
 		flex-basis: var(--headerHeight);
 		min-height: var(--headerHeight);
 
