@@ -5,20 +5,33 @@
 	</template>
 
 	<div :class="$style.root">
-		<GsButton v-for="choice in choices" :key="choice.type" small @click="panel.type = choice.type">{{ choice.label }}</GsButton>
+		<GsButton v-for="choice in choices" :key="choice.type" small @click="switchType(choice.type)">{{ choice.label }}</GsButton>
 	</div>
 </GsWorkspacePanel>
 </template>
 
 <script lang="ts" setup>
+import { deepClone } from '@glitch/shared/utility/deep-clone.js';
+import { preferences } from '@/preferences.ts';
+import { findWorkspaceParent } from '@/utility/workspace.ts';
 import GsWorkspacePanel from './GsWorkspacePanel.vue';
 import GsButton from './common/GsButton.vue';
-import { workspacePanelChoices as choices, type WorkspacePanel } from '@/types/workspace.ts';
+import type { WorkspacePanel } from '@/types/workspace.ts';
+import { workspacePanelChoices as choices } from '@/types/workspace.ts';
 
 const props = defineProps<{
 	panel: WorkspacePanel;
 	isStacked?: boolean;
 }>();
+
+function switchType(type: WorkspacePanel['type']) {
+	const workspace = deepClone(preferences.s.workspaceDefinition);
+	const parent = findWorkspaceParent(workspace, props.panel.id);
+	const panel = parent?.children.find(child => child.id === props.panel.id);
+	if (!panel || panel.type === null) return;
+	panel.type = type;
+	preferences.commit('workspaceDefinition', workspace);
+}
 </script>
 
 <style module lang="scss">

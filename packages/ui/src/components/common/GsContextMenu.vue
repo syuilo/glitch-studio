@@ -1,10 +1,10 @@
 <template>
 <Transition
 	appear
-	:enterActiveClass="prefer.s.animation ? $style.transition_fade_enterActive : ''"
-	:leaveActiveClass="prefer.s.animation ? $style.transition_fade_leaveActive : ''"
-	:enterFromClass="prefer.s.animation ? $style.transition_fade_enterFrom : ''"
-	:leaveToClass="prefer.s.animation ? $style.transition_fade_leaveTo : ''"
+	:enterActiveClass="preferences.s.animation ? $style.transition_fade_enterActive : ''"
+	:leaveActiveClass="preferences.s.animation ? $style.transition_fade_leaveActive : ''"
+	:enterFromClass="preferences.s.animation ? $style.transition_fade_enterFrom : ''"
+	:leaveToClass="preferences.s.animation ? $style.transition_fade_leaveTo : ''"
 >
 	<div ref="rootEl" :class="$style.root" :style="{ zIndex }" @contextmenu.prevent.stop="() => {}">
 		<GsMenu :items="items" :align="'left'" @close="emit('closed')"/>
@@ -17,7 +17,7 @@ import { onMounted, onBeforeUnmount, useTemplateRef, ref } from 'vue';
 import GsMenu from './GsMenu.vue';
 import type { MenuItem } from '@/types/menu.ts';
 import { elementContains } from '@/utility/element-contains.ts';
-import { prefer } from '@/preferences.ts';
+import { preferences } from '@/preferences.ts';
 import * as ui from '@/ui.ts';
 
 const props = defineProps<{

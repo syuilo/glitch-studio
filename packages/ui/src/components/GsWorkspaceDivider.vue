@@ -37,6 +37,7 @@
 </template>
 
 <script lang="ts" setup>
+import { deepClone } from '@glitch/shared/utility/deep-clone.js';
 import { computed, nextTick, ref, useTemplateRef } from 'vue';
 import type { WorkspaceDivider } from '@/types/workspace.ts';
 import XEmpty from '@/components/GsWorkspacePanel.Empty.vue';
@@ -54,7 +55,7 @@ import XPlayers from '@/components/GsWorkspacePanel.Players.vue';
 import XTimeline from '@/components/GsWorkspacePanel.Timeline.vue';
 import { appContext, workspacePanelDraggingContext } from '@/app.ts';
 import { cleanupWorkspaceDefinition, findWorkspaceParent } from '@/utility/workspace.ts';
-import { prefer } from '@/preferences.ts';
+import { preferences } from '@/preferences.ts';
 
 const panelComponents = {
 	empty: XEmpty,
@@ -96,8 +97,8 @@ let dragState: {
 	pairRatio: number;
 	totalRatio: number;
 	availableSize: number;
-	before: WorkspaceDivider['children'][number];
-	after: WorkspaceDivider['children'][number];
+	beforeId: string;
+	afterId: string;
 } | null = null;
 
 function onPointerDown(ev: PointerEvent, index: number) {
@@ -120,8 +121,8 @@ function onPointerDown(ev: PointerEvent, index: number) {
 		pairRatio: before.ratio + after.ratio,
 		totalRatio,
 		availableSize,
-		before,
-		after,
+		beforeId: before.id,
+		afterId: after.id,
 	};
 
 	ev.currentTarget.setPointerCapture(ev.pointerId);
@@ -138,8 +139,15 @@ function onPointerMove(ev: PointerEvent) {
 		Math.max(minRatio, dragState.startRatio + deltaRatio),
 	);
 
-	dragState.before.ratio = beforeRatio;
-	dragState.after.ratio = dragState.pairRatio - beforeRatio;
+	const { beforeId, afterId } = dragState;
+	const workspace = deepClone(preferences.s.workspaceDefinition);
+	const parent = findWorkspaceParent(workspace, beforeId);
+	const before = parent?.children.find(child => child.id === beforeId);
+	const after = parent?.children.find(child => child.id === afterId);
+	if (!before || !after) return;
+	before.ratio = beforeRatio;
+	after.ratio = dragState.pairRatio - beforeRatio;
+	preferences.commit('workspaceDefinition', workspace);
 }
 
 function onPointerEnd(ev: PointerEvent) {
@@ -168,7 +176,7 @@ function onDrop(ev: DragEvent, index: number) {
 	workspacePanelDraggingContext.draggingId.value = null;
 	if (draggingId == null) return;
 
-	const workspace = prefer.s.workspaceDefinition;
+	const workspace = deepClone(preferences.s.workspaceDefinition);
 	const sourceParent = findWorkspaceParent(workspace, draggingId);
 	if (!sourceParent) return;
 
@@ -176,17 +184,21 @@ function onDrop(ev: DragEvent, index: number) {
 	const panel = sourceParent.children[sourceIndex];
 	if (panel.type === null) return;
 
+	const target = workspace.id === props.divider.id
+		? workspace
+		: findWorkspaceParent(workspace, props.divider.id)?.children.find(child => child.id === props.divider.id);
+	if (!target || target.type !== null) return;
+
 	let insertionIndex = index + 1;
-	if (sourceParent === props.divider) {
+	if (sourceParent === target) {
 		if (sourceIndex < insertionIndex) insertionIndex--;
 	} else {
 		// 別のdividerから移す場合は、移動先の子の平均サイズを割り当てる。
 		panel.ratio = totalRatio.value / props.divider.children.length;
 	}
 	sourceParent.children.splice(sourceIndex, 1);
-	props.divider.children.splice(insertionIndex, 0, panel);
-	cleanupWorkspaceDefinition(workspace);
-	prefer.commit('workspaceDefinition', workspace);
+	target.children.splice(insertionIndex, 0, panel);
+	preferences.commit('workspaceDefinition', cleanupWorkspaceDefinition(workspace));
 }
 
 </script>

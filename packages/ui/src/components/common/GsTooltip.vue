@@ -1,10 +1,10 @@
 <template>
 <Transition
-	:enterActiveClass="prefer.s.animation ? $style.transition_tooltip_enterActive : ''"
-	:leaveActiveClass="prefer.s.animation ? $style.transition_tooltip_leaveActive : ''"
-	:enterFromClass="prefer.s.animation ? $style.transition_tooltip_enterFrom : ''"
-	:leaveToClass="prefer.s.animation ? $style.transition_tooltip_leaveTo : ''"
-	appear :css="prefer.s.animation"
+	:enterActiveClass="preferences.s.animation ? $style.transition_tooltip_enterActive : ''"
+	:leaveActiveClass="preferences.s.animation ? $style.transition_tooltip_leaveActive : ''"
+	:enterFromClass="preferences.s.animation ? $style.transition_tooltip_enterFrom : ''"
+	:leaveToClass="preferences.s.animation ? $style.transition_tooltip_leaveTo : ''"
+	appear :css="preferences.s.animation"
 	@afterLeave="emit('closed')"
 >
 	<div v-show="showing" ref="el" :class="$style.root" class="_acrylic _shadow" :style="{ zIndex, maxWidth: maxWidth + 'px' }">
@@ -21,7 +21,7 @@
 import { nextTick, onMounted, onUnmounted, useTemplateRef } from 'vue';
 import * as ui from '@/ui.ts';
 import { calcPopupPosition } from '@/utility/popup-position.ts';
-import { prefer } from '@/preferences.ts';
+import { preferences } from '@/preferences.ts';
 
 const props = withDefaults(defineProps<{
 	showing: boolean;

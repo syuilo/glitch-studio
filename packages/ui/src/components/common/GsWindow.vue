@@ -1,9 +1,9 @@
 <template>
 <Transition
-	:enterActiveClass="prefer.s.animation ? $style.transition_window_enterActive : ''"
-	:leaveActiveClass="prefer.s.animation ? $style.transition_window_leaveActive : ''"
-	:enterFromClass="prefer.s.animation ? $style.transition_window_enterFrom : ''"
-	:leaveToClass="prefer.s.animation ? $style.transition_window_leaveTo : ''"
+	:enterActiveClass="preferences.s.animation ? $style.transition_window_enterActive : ''"
+	:leaveActiveClass="preferences.s.animation ? $style.transition_window_leaveActive : ''"
+	:enterFromClass="preferences.s.animation ? $style.transition_window_enterFrom : ''"
+	:leaveToClass="preferences.s.animation ? $style.transition_window_leaveTo : ''"
 	appear
 	@afterLeave="emit('closed')"
 >
@@ -53,7 +53,7 @@ import type { MenuItem } from '@/types/menu.ts';
 import { elementContains } from '@/utility/element-contains.ts';
 import * as ui from '@/ui.ts';
 import { i18n } from '@/i18n.ts';
-import { prefer } from '@/preferences.ts';
+import { preferences } from '@/preferences.ts';
 
 type WindowButton = {
 	title: string;

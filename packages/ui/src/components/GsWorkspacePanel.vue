@@ -69,6 +69,7 @@
 </template>
 
 <script lang="ts" setup>
+import { deepClone } from '@glitch/shared/utility/deep-clone.js';
 import { onBeforeUnmount, onMounted, provide, watch, useTemplateRef, ref, computed, nextTick } from 'vue';
 import { genId } from '@glitch/shared/utility/id.ts';
 import type { MenuItem } from '@/types/menu.ts';
@@ -79,7 +80,7 @@ import { i18n } from '@/i18n.ts';
 import { appContext, workspacePanelDraggingContext } from '@/app.ts';
 import { getDragData, setDragData } from '@/utility/drag-and-drop.ts';
 import { cleanupWorkspaceDefinition, findWorkspaceParent, splitWorkspacePanel } from '@/utility/workspace.ts';
-import { prefer } from '@/preferences.ts';
+import { preferences } from '@/preferences.ts';
 //import { checkDragDataType, getDragData, setDragData } from '@/drag-and-drop.ts';
 
 const props = withDefaults(defineProps<{
@@ -104,27 +105,27 @@ function toggleActive() {
 }
 
 function addPanel(position: 'below' | 'above' | 'left' | 'right') {
-	const workspace = prefer.s.workspaceDefinition;
+	const workspace = deepClone(preferences.s.workspaceDefinition);
 	const parent = findWorkspaceParent(workspace, props.panel.id);
 	if (!parent) return;
 
 	const direction = position === 'below' || position === 'above' ? 'vertical' : 'horizontal';
 	const before = position === 'above' || position === 'left';
 	const panel: WorkspacePanel = { id: genId(), type: 'empty', ratio: 1 };
-	splitWorkspacePanel(parent, props.panel, panel, direction, before);
-	cleanupWorkspaceDefinition(workspace);
-	prefer.commit('workspaceDefinition', workspace);
+	const target = parent.children.find(child => child.id === props.panel.id);
+	if (!target || target.type === null) return;
+	splitWorkspacePanel(parent, target, panel, direction, before);
+	preferences.commit('workspaceDefinition', cleanupWorkspaceDefinition(workspace));
 }
 
 function closePanel() {
-	const workspace = prefer.s.workspaceDefinition;
+	const workspace = deepClone(preferences.s.workspaceDefinition);
 	const parent = findWorkspaceParent(workspace, props.panel.id);
 	if (!parent) return;
 
 	const index = parent.children.findIndex(child => child.id === props.panel.id);
 	parent.children.splice(index, 1);
-	cleanupWorkspaceDefinition(workspace);
-	prefer.commit('workspaceDefinition', workspace);
+	preferences.commit('workspaceDefinition', cleanupWorkspaceDefinition(workspace));
 }
 
 function getMenu() {
@@ -145,7 +146,14 @@ function getMenu() {
 		text: 'Switch type to',
 		children: workspacePanelChoices.map(choice => ({
 			text: choice.label,
-			action: () => { props.panel.type = choice.type; },
+			action: () => {
+				const workspace = deepClone(preferences.s.workspaceDefinition);
+				const parent = findWorkspaceParent(workspace, props.panel.id);
+				const panel = parent?.children.find(child => child.id === props.panel.id);
+				if (!panel || panel.type === null) return;
+				panel.type = choice.type;
+				preferences.commit('workspaceDefinition', workspace);
+			},
 		})),
 	}, { type: 'divider' }, {
 		icon: 'ti ti-box-align-top',
@@ -232,7 +240,7 @@ function onDrop(ev: DragEvent, area: 'top' | 'bottom' | 'left' | 'right' | 'cent
 	workspacePanelDraggingContext.draggingId.value = null;
 	if (draggingId == null || draggingId === props.panel.id) return;
 
-	const workspace = prefer.s.workspaceDefinition;
+	const workspace = deepClone(preferences.s.workspaceDefinition);
 	const sourceParent = findWorkspaceParent(workspace, draggingId);
 	const targetParent = findWorkspaceParent(workspace, props.panel.id);
 	if (!sourceParent || !targetParent) return;
@@ -241,19 +249,21 @@ function onDrop(ev: DragEvent, area: 'top' | 'bottom' | 'left' | 'right' | 'cent
 	const panel = sourceParent.children[sourceIndex];
 	if (panel.type === null) return;
 
+	const targetIndex = targetParent.children.findIndex(child => child.id === props.panel.id);
+	const target = targetParent.children[targetIndex];
+	if (target.type === null) return;
+
 	if (area === 'center') {
-		const targetIndex = targetParent.children.findIndex(child => child.id === props.panel.id);
 		// パネルのサイズではなく、移動先の領域のサイズを維持する。
-		[panel.ratio, props.panel.ratio] = [props.panel.ratio, panel.ratio];
-		sourceParent.children[sourceIndex] = props.panel;
+		[panel.ratio, target.ratio] = [target.ratio, panel.ratio];
+		sourceParent.children[sourceIndex] = target;
 		targetParent.children[targetIndex] = panel;
 	} else {
 		sourceParent.children.splice(sourceIndex, 1);
 		const direction = area === 'top' || area === 'bottom' ? 'vertical' : 'horizontal';
-		splitWorkspacePanel(targetParent, props.panel, panel, direction, area === 'top' || area === 'left');
+		splitWorkspacePanel(targetParent, target, panel, direction, area === 'top' || area === 'left');
 	}
-	cleanupWorkspaceDefinition(workspace);
-	prefer.commit('workspaceDefinition', workspace);
+	preferences.commit('workspaceDefinition', cleanupWorkspaceDefinition(workspace));
 }
 </script>
 

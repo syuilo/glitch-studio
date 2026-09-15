@@ -1,4 +1,3 @@
-import { deepClone } from '@glitch/shared/utility/deep-clone.js';
 import { customRef, ref, watch, onScopeDispose } from 'vue';
 import { EventEmitter } from 'eventemitter3';
 import { deepEqual } from '@glitch/shared/utility/deep-equal.js';
@@ -248,4 +247,4 @@ export class PreferencesManager extends EventEmitter<PreferencesManagerEvents> {
 	}
 }
 
-export const prefer = new PreferencesManager();
+export const preferences = new PreferencesManager();

@@ -6,7 +6,7 @@
 	<template #default="{ detached }">
 		<div :class="$style.root" @dragover.prevent.stop @drop.prevent.stop="onDrop">
 			<div :class="$style.time" class="_monospace">{{ formatTime(time) }}</div>
-			<div ref="containerContainer" :class="[$style.containerContainer, { [$style.animatedBg]: prefer.r.animatedBgInPreview.value }]" @wheel="onViewWheel" @click="onViewClick(detached)" @pointermove="onPointermove">
+			<div ref="containerContainer" :class="[$style.containerContainer, { [$style.animatedBg]: preferences.r.animatedBgInPreview.value }]" @wheel="onViewWheel" @click="onViewClick(detached)" @pointermove="onPointermove">
 				<div ref="canvasContainer" :class="$style.canvasContainer" :style="{ scale: zoom }"></div>
 			</div>
 		</div>
@@ -20,7 +20,7 @@ import { genId } from '@glitch/shared/utility/id.ts';
 import GsDetachableView from './GsDetachableView.vue';
 import * as api from '@/api.ts';
 import { appContext, engine, rendererEnv, resolutionFactor } from '@/app.ts';
-import { prefer } from '@/preferences.ts';
+import { preferences } from '@/preferences.ts';
 
 const canvasContainer = useTemplateRef('canvasContainer');
 const containerContainer = useTemplateRef('containerContainer');
