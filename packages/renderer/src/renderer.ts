@@ -648,6 +648,7 @@ export class Renderer {
 			time: args.time,
 			vars: {
 				TIME: args.time / 1000, // ms to seconds
+				TIME_MS: args.time,
 			},
 		});
 
