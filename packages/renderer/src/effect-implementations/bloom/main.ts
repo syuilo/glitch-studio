@@ -49,6 +49,12 @@ export default implementEffect<typeof definition>({
 		const compositePipeline = makePipeline('composite', wgpu.intermediateTextureFormat);
 		const longestSide = Math.max(resolution.width, resolution.height);
 		const clamp = (value: number, max: number, fallback: number) => Number.isFinite(value) ? Math.min(max, Math.max(0, value)) : fallback;
+		const getRadiusSettings = (value: readonly number[]) => {
+			const x = clamp(value[0], 1, 0.7);
+			const y = clamp(value[1], 1, 0.7);
+			const radius = Math.max(x, y);
+			return { radius, scaleX: radius > 0 ? x / radius : 0, scaleY: radius > 0 ? y / radius : 0 };
+		};
 		const getWorkingSize = (quality: number) => Math.min(device.limits.maxTextureDimension2D, Math.max(haloSize, Math.round(longestSide * Math.max(0.1, clamp(quality, 1, 0.5)))));
 		const makeBindGroup = (source: GPUTextureView, detail = source) => device.createBindGroup({
 			layout: bindGroupLayout,
@@ -62,30 +68,35 @@ export default implementEffect<typeof definition>({
 		const makePass = (view: GPUTextureView, loadOp: GPULoadOp = 'clear'): GPURenderPassDescriptor => ({
 			colorAttachments: [{ view, loadOp, storeOp: 'store', clearValue: [0, 0, 0, 0] }],
 		});
-		const makePyramid = (workingSize: number) => {
+		const makePyramid = (workingSize: number, scaleX: number, scaleY: number) => {
 			const sizes: number[] = [];
 			// 一度に大きく縮小すると細い光を取りこぼすため、最大でも約1/2ずつ縮小する。
 			for (let size = workingSize; size > haloSize; size /= 2) sizes.push(size);
 			const detailLevelCount = sizes.length;
 			for (let i = 0; i < haloLevelCount; i++) sizes.push(haloSize / 2 ** i);
 			const levels = sizes.map(size => {
-				const scale = size / longestSide;
+				// 半径の小さい軸は縮小を抑え、0の軸は全段で作業解像度を維持する。
+				// 両軸が同じ半径なら従来と同じピラミッドになる。
+				const reduction = workingSize / size - 1;
+				const width = resolution.width * workingSize / longestSide / (1 + reduction * scaleX);
+				const height = resolution.height * workingSize / longestSide / (1 + reduction * scaleY);
 				const texture = device.createTexture({
-					size: [Math.max(1, Math.round(resolution.width * scale)), Math.max(1, Math.round(resolution.height * scale))],
+					size: [Math.max(1, Math.round(width)), Math.max(1, Math.round(height))],
 					format: wgpu.intermediateTextureFormat,
 					usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
 				});
 				return { texture, view: texture.createView() };
 			});
 			return {
-				workingSize, detailLevelCount, levels,
+				workingSize, scaleX, scaleY, detailLevelCount, levels,
 				downPasses: levels.map(({ view }) => makePass(view)),
 				upPasses: levels.slice(0, -1).map(({ view }) => makePass(view, 'load')),
 				downGroups: levels.slice(0, -1).map(({ view }) => makeBindGroup(view)),
 				upGroups: levels.slice(1).map(({ view }) => makeBindGroup(view)),
 			};
 		};
-		let pyramid = makePyramid(getWorkingSize(params.quality));
+		const initialRadius = getRadiusSettings(params.radius);
+		let pyramid = makePyramid(getWorkingSize(params.quality), initialRadius.scaleX, initialRadius.scaleY);
 		let inputTexture: GPUTexture | null | undefined;
 		let prefilterGroup: GPUBindGroup;
 		let compositeGroup: GPUBindGroup;
@@ -106,17 +117,18 @@ export default implementEffect<typeof definition>({
 		return {
 			render: (ctx) => {
 				const workingSize = getWorkingSize(ctx.params.quality);
-				const resized = workingSize !== pyramid.workingSize;
+				const { radius, scaleX, scaleY } = getRadiusSettings(ctx.params.radius);
+				const resized = workingSize !== pyramid.workingSize || scaleX !== pyramid.scaleX || scaleY !== pyramid.scaleY;
 				if (resized) {
 					for (const { texture } of pyramid.levels) texture.destroy();
-					pyramid = makePyramid(workingSize);
+					pyramid = makePyramid(workingSize, scaleX, scaleY);
 				}
 				if (resized || ctx.params.input !== inputTexture) updateInput(ctx.params.input);
 				const { levels, downPasses, upPasses, downGroups, upGroups } = pyramid;
 				const strength = inputTexture == null ? 0 : clamp(ctx.params.strength, 5, 1);
-				const radius = clamp(ctx.params.radius, 1, 0.7);
 				uniformValues.set({
 					strength,
+					radiusScale: [scaleX, scaleY],
 					threshold: clamp(ctx.params.threshold, 1, 0.7),
 					softKnee: clamp(ctx.params.softKnee, 1, 0.5),
 					prefilterTexel: [1 / levels[0].texture.width, 1 / levels[0].texture.height],

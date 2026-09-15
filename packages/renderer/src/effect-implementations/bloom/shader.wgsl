@@ -3,6 +3,7 @@ struct Uniforms {
 	threshold: f32,
 	softKnee: f32,
 	prefilterTexel: vec2f,
+	radiusScale: vec2f,
 };
 
 @group(0) @binding(0) var<uniform> uniforms: Uniforms;
@@ -51,7 +52,8 @@ fn prefilter(frag: FragmentIn) -> @location(0) vec4f {
 @fragment
 fn downsample(frag: FragmentIn) -> @location(0) vec4f {
 	let uv = texCoords(frag.uv);
-	let d = 1.0 / vec2f(textureDimensions(sourceTexture));
+	// 軸ごとに広がりを調整し、半径0の軸では隣接画素を混ぜない。
+	let d = uniforms.radiusScale / vec2f(textureDimensions(sourceTexture));
 	// Overlapping 13-tap filter reduces flicker as bright features move.
 	let corners = sampleSource(uv + vec2f(-2.0, -2.0) * d)
 		+ sampleSource(uv + vec2f(2.0, -2.0) * d)
@@ -71,7 +73,7 @@ fn downsample(frag: FragmentIn) -> @location(0) vec4f {
 @fragment
 fn upsample(frag: FragmentIn) -> @location(0) vec4f {
 	let uv = texCoords(frag.uv);
-	let d = 1.0 / vec2f(textureDimensions(sourceTexture));
+	let d = uniforms.radiusScale / vec2f(textureDimensions(sourceTexture));
 	let corners = sampleSource(uv + vec2f(-d.x, -d.y))
 		+ sampleSource(uv + vec2f(d.x, -d.y))
 		+ sampleSource(uv + vec2f(-d.x, d.y))
