@@ -19,6 +19,7 @@
 	</div>
 	<div :class="$style.footer">
 		<div :class="$style.footerLeft">
+			<div>sRGB</div>
 			<div @click="openResolutionMenu">{{ appContext.state.resolution.value.width }} x {{ appContext.state.resolution.value.height }} px ({{ resolutionFactor }}x) | {{ Math.round(engine.fpsDisplay.value) }}fps</div>
 			<div :class="$style.previewVolume">
 				<i :class="previewVolume === 0 ? 'ti ti-volume-off' : 'ti ti-volume'"></i>
@@ -233,6 +234,7 @@ onMounted(() => {
 
 .footerLeft {
 	display: flex;
+	gap: 16px;
 }
 
 .footerRight {

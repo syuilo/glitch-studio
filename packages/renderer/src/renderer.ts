@@ -163,7 +163,7 @@ export class Renderer {
 			device: this.gpuDevice,
 			format: navigator.gpu.getPreferredCanvasFormat(),
 			alphaMode: 'premultiplied',
-			colorSpace: 'display-p3',
+			colorSpace: 'srgb',
 			usage: GPUTextureUsage.RENDER_ATTACHMENT,
 		});
 
