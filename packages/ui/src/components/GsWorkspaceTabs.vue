@@ -61,14 +61,14 @@ function select(tab: typeof props.tabs.children[0]) {
 }
 
 function addTab(ev: PointerEvent) {
-	const menuItems: MenuItem[] = workspacePanelDefinitions.map(choice => ({
-		text: choice.label,
+	const menuItems: MenuItem[] = Object.entries(workspacePanelDefinitions).map(([type, info]) => ({
+		text: info.label,
 		action: () => {
 			const workspace = deepClone(preferences.s.workspaceDefinition);
 			const tabs = findWorkspaceElement(workspace, props.tabs.id);
 			if (tabs?.type !== 'tabs') return;
 			const id = genId();
-			tabs.children.push({ name: choice.label, element: { id, type: 'panel', contentType: choice.type } });
+			tabs.children.push({ name: info.label, element: { id, type: 'panel', contentType: type } });
 			preferences.commit('workspaceDefinition', workspace);
 			selectedTabId.value = id;
 		},
@@ -124,6 +124,7 @@ function toggleCollapse() {
 	gap: 16px;
 	box-sizing: border-box;
 	height: var(--headerHeight);
+	border-top: solid 3px #111;
 }
 
 .tab {

@@ -69,13 +69,13 @@ export function getElementMenu(element: WorkspaceElement) {
 	menuItems.push({
 		type: 'parent',
 		text: 'Switch type to',
-		children: workspacePanelDefinitions.map(choice => ({
-			text: choice.label,
+		children: Object.entries(workspacePanelDefinitions).map(([type, info]) => ({
+			text: info.label,
 			action: () => {
 				const workspace = replaceWorkspaceElement(preferences.s.workspaceDefinition, element.id, {
 					id: element.id,
 					type: 'panel',
-					contentType: choice.type,
+					contentType: type,
 				});
 				preferences.commit('workspaceDefinition', workspace);
 			},
