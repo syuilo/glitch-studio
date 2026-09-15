@@ -3,10 +3,10 @@ import renderShaderCode from './waveform-render.wgsl?raw';
 
 const MAX_SAMPLE_EDGE = 1024;
 const WORKGROUP_SIZE = 16;
-const WAVEFORM_WIDTH = 512;
+const POSITION_COUNT = 512;
 const LEVEL_COUNT = 256;
 const CHANNEL_COUNT = 3;
-const WAVEFORM_VALUE_COUNT = WAVEFORM_WIDTH * LEVEL_COUNT * CHANNEL_COUNT;
+const WAVEFORM_VALUE_COUNT = POSITION_COUNT * LEVEL_COUNT * CHANNEL_COUNT;
 
 export function fitWaveformSampleSize(width: number, height: number) {
 	const scale = Math.min(1, MAX_SAMPLE_EDGE / Math.max(width, height));
@@ -31,6 +31,7 @@ export class GpuWaveform {
 		private readonly device: GPUDevice,
 		context: GPUCanvasContext,
 		format: GPUTextureFormat,
+		positionAxis: 'x' | 'y' = 'x',
 	) {
 		this.context = context;
 		this.context.configure({
@@ -83,6 +84,7 @@ export class GpuWaveform {
 			compute: {
 				module: computeModule,
 				entryPoint: 'accumulate',
+				constants: { VERTICAL_POSITION: positionAxis === 'y' ? 1 : 0 },
 			},
 		});
 
@@ -107,6 +109,7 @@ export class GpuWaveform {
 			fragment: {
 				module: renderModule,
 				entryPoint: 'fs',
+				constants: { VERTICAL_POSITION: positionAxis === 'y' ? 1 : 0 },
 				targets: [{ format }],
 			},
 			primitive: { topology: 'triangle-list' },

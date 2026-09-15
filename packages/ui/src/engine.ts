@@ -18,7 +18,8 @@ type RendererMethods = {
 export class Engine {
 	public canvas: HTMLCanvasElement;
 	public histogramCanvas: HTMLCanvasElement;
-	public waveformCanvas: HTMLCanvasElement;
+	public waveformHorizontalCanvas: HTMLCanvasElement;
+	public waveformVerticalCanvas: HTMLCanvasElement;
 
 	//private renderer: Renderer | null = null;
 	private rendererWorker: Worker | null = null;
@@ -67,11 +68,16 @@ export class Engine {
 		this.histogramCanvas.height = 150;
 		this.histogramCanvas.style.width = '100%';
 		this.histogramCanvas.style.height = '100%';
-		this.waveformCanvas = window.document.createElement('canvas');
-		this.waveformCanvas.width = 512;
-		this.waveformCanvas.height = 256;
-		this.waveformCanvas.style.width = '100%';
-		this.waveformCanvas.style.height = '100%';
+		this.waveformHorizontalCanvas = window.document.createElement('canvas');
+		this.waveformHorizontalCanvas.width = 512;
+		this.waveformHorizontalCanvas.height = 256;
+		this.waveformHorizontalCanvas.style.width = '100%';
+		this.waveformHorizontalCanvas.style.height = '100%';
+		this.waveformVerticalCanvas = window.document.createElement('canvas');
+		this.waveformVerticalCanvas.width = 256;
+		this.waveformVerticalCanvas.height = 512;
+		this.waveformVerticalCanvas.style.width = '100%';
+		this.waveformVerticalCanvas.style.height = '100%';
 		this.fpsLimit = options.fpsLimit;
 	}
 
@@ -132,7 +138,8 @@ export class Engine {
 
 		const offscreen = this.canvas.transferControlToOffscreen();
 		const histogramOffscreen = this.histogramCanvas.transferControlToOffscreen();
-		const waveformOffscreen = this.waveformCanvas.transferControlToOffscreen();
+		const waveformHorizontalOffscreen = this.waveformHorizontalCanvas.transferControlToOffscreen();
+		const waveformVerticalOffscreen = this.waveformVerticalCanvas.transferControlToOffscreen();
 
 		const { promise: ready, resolve: resolveReady, reject: rejectReady } = Promise.withResolvers<void>();
 		this.rejectInitialization = rejectReady;
@@ -149,7 +156,8 @@ export class Engine {
 			type: 'init',
 			canvas: offscreen,
 			histogramCanvas: histogramOffscreen,
-			waveformCanvas: waveformOffscreen,
+			waveformHorizontalCanvas: waveformHorizontalOffscreen,
+			waveformVerticalCanvas: waveformVerticalOffscreen,
 			options: {
 				resolution,
 				enableFloat32Filtering: this.enableFloat32Filtering,
@@ -161,7 +169,7 @@ export class Engine {
 				automations: this.automations,
 				nodes: this.nodes,
 			},
-		}, [offscreen, histogramOffscreen, waveformOffscreen]);
+		}, [offscreen, histogramOffscreen, waveformHorizontalOffscreen, waveformVerticalOffscreen]);
 		this.rendererWorker.onmessage = (event) => {
 			if (this.rendererWorker !== worker) return;
 			switch (event.data?.type) {
@@ -432,7 +440,7 @@ export class Engine {
 		this.gpuAverageDisplaySlow.value = 0;
 
 		// 転送済みcanvasは再転送できない。属性と表示先を保った新しい要素に置き換える。
-		for (const key of ['canvas', 'histogramCanvas', 'waveformCanvas'] as const) {
+		for (const key of ['canvas', 'histogramCanvas', 'waveformHorizontalCanvas', 'waveformVerticalCanvas'] as const) {
 			const previous = this[key];
 			this[key] = previous.cloneNode(false) as HTMLCanvasElement;
 			previous.replaceWith(this[key]);

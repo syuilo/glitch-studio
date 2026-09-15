@@ -4,6 +4,7 @@ import { evalAutomationValue, genEmptyValue } from '@glitch/shared/utility/misc.
 import { fxDefinitions } from '@glitch/shared/fx-definitions.ts';
 import { playerAudioSourceId } from '@glitch/shared/audio.ts';
 import { AudioHistory } from '@glitch/shared/audio-history.ts';
+import { float32ToFloat16Bits } from '@glitch/shared/utility/float32ToFloat16Bits.ts';
 import defaultVertexShaderCode from './vertex.wgsl?raw';
 import TimingHelper from './utility/TimingHelper.ts';
 import { fxImplementations } from './fx-implementations.ts';
@@ -12,7 +13,6 @@ import { NonNegativeRollingAverage } from './utility/NonNegativeRollingAverage.t
 import { GpuHistogram } from './utility/histogram/GpuHistogram.ts';
 import { GpuWaveform } from './utility/waveform/GpuWaveform.ts';
 import { GpuMemoryTracker } from './utility/GpuMemoryTracker.ts';
-import { float32ToFloat16Bits } from '@glitch/shared/utility/float32ToFloat16Bits.ts';
 import type { EffectStatus } from '@glitch/shared/effect-status.ts';
 import type { AudioCaptureMessage, AudioSourceId } from '@glitch/shared/audio.ts';
 import type { Asset, Macro, GsAutomation, GsFxNode, GsNode, GsGroupNode, Player, NodeOutputReference } from '@glitch/shared/types.ts';
@@ -92,9 +92,10 @@ export class Renderer {
 	private pointerPositionPrev: { x: number; y: number } = { x: -99999, y: -99999 };
 	private lastPointerUpdateTimestamp = 0;
 	private histogramGpuContext: GPUCanvasContext;
-	private waveformGpuContext: GPUCanvasContext;
+	private waveformHorizontalGpuContext: GPUCanvasContext;
 	private gpuHistogram: GpuHistogram;
-	private gpuWaveform: GpuWaveform;
+	private gpuWaveformHorizontal: GpuWaveform;
+	private gpuWaveformVertical: GpuWaveform;
 	private timeDelta = 0;
 	public gpuAverageFast = new NonNegativeRollingAverage(10);
 	public gpuAverageMedium = new NonNegativeRollingAverage(100);
@@ -123,7 +124,8 @@ export class Renderer {
 		automations: GsAutomation[];
 		nodes: GsNode[];
 		histogramGpuContext: GPUCanvasContext;
-		waveformGpuContext: GPUCanvasContext;
+		waveformHorizontalGpuContext: GPUCanvasContext;
+		waveformVerticalGpuContext: GPUCanvasContext;
 	}) {
 		this.resolution = options.resolution;
 		this.onEffectStatus = options.onEffectStatus;
@@ -140,11 +142,18 @@ export class Renderer {
 			this.histogramGpuContext,
 			navigator.gpu.getPreferredCanvasFormat(),
 		);
-		this.waveformGpuContext = options.waveformGpuContext;
-		this.gpuWaveform = new GpuWaveform(
+		this.waveformHorizontalGpuContext = options.waveformHorizontalGpuContext;
+		this.gpuWaveformHorizontal = new GpuWaveform(
 			this.gpuDevice,
-			this.waveformGpuContext,
+			this.waveformHorizontalGpuContext,
 			navigator.gpu.getPreferredCanvasFormat(),
+		);
+
+		this.gpuWaveformVertical = new GpuWaveform(
+			this.gpuDevice,
+			options.waveformVerticalGpuContext,
+			navigator.gpu.getPreferredCanvasFormat(),
+			'y',
 		);
 
 		this.timingHelper = new TimingHelper(this.gpuDevice);
@@ -678,7 +687,8 @@ export class Renderer {
 		passEncoder.end();
 
 		this.gpuHistogram.render(commandEncoder, this.finalRenderInputTexture);
-		this.gpuWaveform.render(commandEncoder, this.finalRenderInputTexture);
+		this.gpuWaveformHorizontal.render(commandEncoder, this.finalRenderInputTexture);
+		this.gpuWaveformVertical.render(commandEncoder, this.finalRenderInputTexture);
 
 		this.gpuDevice.queue.submit([commandEncoder.finish()]);
 		//#endregion
@@ -942,7 +952,8 @@ export class Renderer {
 		this.videoFrames.clear();
 		this.videoFrameVersions.clear();
 		this.gpuHistogram.dispose();
-		this.gpuWaveform.dispose();
+		this.gpuWaveformHorizontal.dispose();
+		this.gpuWaveformVertical.dispose();
 
 		for (const id of this.effectStatuses.keys()) this.clearEffectStatus(id);
 		for (const instance of this.effectInstances.values()) {

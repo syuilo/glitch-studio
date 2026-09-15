@@ -60,6 +60,8 @@ const panelComponents = {
 	nodesEditor: XNodesEditor,
 	histogram: XHistogram,
 	waveform: XWaveform,
+	waveformHorizontal: XWaveform,
+	waveformVertical: XWaveform,
 	audioSpectrum: XAudioSpectrum,
 	audioSpectrogram: XAudioSpectrogram,
 	audioWaveform: XAudioWaveform,

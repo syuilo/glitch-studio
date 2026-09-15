@@ -3,7 +3,8 @@ import { Renderer } from './renderer.ts';
 let renderer: Renderer | null = null;
 let canvas: OffscreenCanvas | null = null;
 let histogramCanvas: OffscreenCanvas | null = null;
-let waveformCanvas: OffscreenCanvas | null = null;
+let waveformHorizontalCanvas: OffscreenCanvas | null = null;
+let waveformVerticalCanvas: OffscreenCanvas | null = null;
 
 setInterval(() => {
 	if (renderer == null) return;
@@ -29,7 +30,8 @@ onmessage = async (event) => {
 		case 'init': {
 			canvas = event.data.canvas as OffscreenCanvas;
 			histogramCanvas = event.data.histogramCanvas as OffscreenCanvas;
-			waveformCanvas = event.data.waveformCanvas as OffscreenCanvas;
+			waveformHorizontalCanvas = event.data.waveformHorizontalCanvas as OffscreenCanvas;
+			waveformVerticalCanvas = event.data.waveformVerticalCanvas as OffscreenCanvas;
 
 			const adapter = await navigator.gpu?.requestAdapter({
 				powerPreference: 'high-performance',
@@ -48,8 +50,9 @@ onmessage = async (event) => {
 
 			const context = canvas.getContext('webgpu');
 			const histogramContext = histogramCanvas.getContext('webgpu');
-			const waveformContext = waveformCanvas.getContext('webgpu');
-			if (context == null || histogramContext == null || waveformContext == null) {
+			const waveformHorizontalContext = waveformHorizontalCanvas.getContext('webgpu');
+			const waveformVerticalContext = waveformVerticalCanvas.getContext('webgpu');
+			if (context == null || histogramContext == null || waveformHorizontalContext == null || waveformVerticalContext == null) {
 				//window.alert('cannot get webgpu context');
 				throw new Error('cannot get webgpu context');
 			}
@@ -68,7 +71,8 @@ onmessage = async (event) => {
 				automations: event.data.options.automations,
 				nodes: event.data.options.nodes,
 				histogramGpuContext: histogramContext,
-				waveformGpuContext: waveformContext,
+				waveformHorizontalGpuContext: waveformHorizontalContext,
+				waveformVerticalGpuContext: waveformVerticalContext,
 			});
 
 			//renderer.on('ev', ({ type, ctx }) => {

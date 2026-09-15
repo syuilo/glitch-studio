@@ -59,7 +59,7 @@ class AppContext {
 					}, {
 						id: 'b3d6059aaa554ae79441286cd2beb685',
 						ratio: 0.33,
-						type: 'waveform',
+						type: 'audioWaveform',
 					}, {
 						id: '47edf72197d94d28b6b2811bfecc97e5',
 						ratio: 0.33,
@@ -87,10 +87,14 @@ class AppContext {
 					}, {
 						id: '136c0ccc916c438787756c07da414be7',
 						ratio: 0.25,
-						type: 'audioWaveform',
+						type: 'waveformHorizontal',
+					}, {
+						id: 'ca5eba2936d4423891377972de6a41f5',
+						ratio: 0.25,
+						type: 'waveformVertical',
 					}, {
 						id: '15bd089777d440a0baaf2953c8020e24',
-						ratio: 0.5,
+						ratio: 0.25,
 						type: 'players',
 					}],
 				}],

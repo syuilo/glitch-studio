@@ -91,7 +91,7 @@ test('renderer graph traversal and frame history', async t => {
 			getCurrentTexture: () => Object.assign(device.createTexture(), { canvas: true }),
 		};
 		const renderer = new Renderer({
-			gpuDevice: device, gpuContext: context, histogramGpuContext: context, waveformGpuContext: context,
+			gpuDevice: device, gpuContext: context, histogramGpuContext: context, waveformHorizontalGpuContext: context,
 			resolution: { width: 64, height: 64 }, enableFloat32Filtering, enableStats: false,
 			fpsLimit: null, assets: [], macros: [], automations: [], nodes,
 			onEffectStatus: (id, status) => {

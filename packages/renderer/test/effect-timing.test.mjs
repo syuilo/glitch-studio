@@ -119,7 +119,7 @@ test('effect GPU statistics include compute and render passes', async t => {
 					const device = createDevice(canTimestamp);
 					const context = { configure() {}, unconfigure() {}, getCurrentTexture: () => device.createTexture() };
 					const renderer = new Renderer({
-						gpuDevice: device, gpuContext: context, histogramGpuContext: context, waveformGpuContext: context,
+						gpuDevice: device, gpuContext: context, histogramGpuContext: context, waveformHorizontalGpuContext: context,
 						resolution: { width: 64, height: 64 }, enableFloat32Filtering: false, enableStats, fpsLimit: null,
 						assets: [], macros: [], automations: [],
 						nodes: makeNodes(),

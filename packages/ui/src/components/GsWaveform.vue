@@ -1,16 +1,10 @@
 <template>
-<GsDetachableView title="Waveform">
-<div :class="$style.root">
-	<!--
-	<div :class="$style.header">
-		<b>{{ i18n.ts.Waveform }}</b>
-		<span style="opacity: 0.5;">RGB</span>
+<GsDetachableView :title="direction === 'horizontal' ? 'Waveform (X)' : 'Waveform (Y)'">
+	<div :class="$style.root">
+		<div :class="$style.scope">
+			<div ref="canvasContainer" :class="$style.canvas"></div>
+		</div>
 	</div>
-	-->
-	<div :class="$style.scope">
-		<div ref="canvasContainer" :class="$style.canvas"></div>
-	</div>
-</div>
 </GsDetachableView>
 </template>
 
@@ -18,19 +12,25 @@
 import { onBeforeUnmount, onMounted, useTemplateRef } from 'vue';
 import GsDetachableView from './GsDetachableView.vue';
 import { engine } from '@/app.ts';
-import { i18n } from '@/i18n.ts';
+
+const props = defineProps<{
+	direction: 'horizontal' | 'vertical';
+}>();
+
+// エンジンの再読み込みでCanvasが交換されるため、利用時に現在の要素を取得する。
+const getCanvas = () => props.direction === 'horizontal' ? engine.waveformHorizontalCanvas : engine.waveformVerticalCanvas;
 
 const canvasContainer = useTemplateRef('canvasContainer');
 
 onMounted(() => {
 	if (canvasContainer.value != null) {
-		canvasContainer.value.appendChild(engine.waveformCanvas);
+		canvasContainer.value.appendChild(getCanvas());
 	}
 });
 
 onBeforeUnmount(() => {
 	if (canvasContainer.value != null) {
-		canvasContainer.value.removeChild(engine.waveformCanvas);
+		canvasContainer.value.removeChild(getCanvas());
 	}
 });
 </script>
