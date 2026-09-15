@@ -9,6 +9,85 @@ export const PREF_DEF = definePreferences({
 	menuStyle: { default: 'auto' },
 	locale: { default: 'en' },
 	animatedBgInPreview: { default: false },
+	workspaceDefinition: {
+		default: {
+			id: 'root',
+			ratio: 1,
+			type: null,
+			direction: 'horizontal',
+			children: [{
+				id: 'c138f76ec1d84ba5b83b0cc3766a1266',
+				ratio: 0.7,
+				type: null,
+				direction: 'vertical',
+				children: [{
+					id: '938e3eedc00d4287885b6894ee3ea8c3',
+					ratio: 0.6,
+					type: null,
+					direction: 'horizontal',
+					children: [{
+						id: '53ef52d7a5a44b41ba34a0491b4f5d8e',
+						ratio: 0.25,
+						type: null,
+						direction: 'vertical',
+						children: [{
+							id: '0f34c5f4c9cb449683c7f1281851b759',
+							ratio: 0.33,
+							type: 'histogram',
+						}, {
+							id: 'b3d6059aaa554ae79441286cd2beb685',
+							ratio: 0.33,
+							type: 'audioWaveform',
+						}, {
+							id: '47edf72197d94d28b6b2811bfecc97e5',
+							ratio: 0.33,
+							type: 'stats',
+						}],
+					}, {
+						id: '5ec0a586d9654755acdaa2ae6837f28e',
+						ratio: 0.75,
+						type: 'preview',
+					}],
+				}, {
+					id: '8aec4dd7bf82460eba420680fda4f652',
+					ratio: 0.4,
+					type: null,
+					direction: 'vertical',
+					children: [{
+						id: 'ba8f8efaa9a54a109340b2f3e329cda2',
+						ratio: 0.5,
+						type: null,
+						direction: 'horizontal',
+						children: [{
+							id: '251858d938b0448aafd613b73c7e352c',
+							ratio: 0.25,
+							type: 'audioSpectrogram',
+						}, {
+							id: '136c0ccc916c438787756c07da414be7',
+							ratio: 0.25,
+							type: 'waveformHorizontal',
+						}, {
+							id: 'ca5eba2936d4423891377972de6a41f5',
+							ratio: 0.25,
+							type: 'waveformVertical',
+						}, {
+							id: '15bd089777d440a0baaf2953c8020e24',
+							ratio: 0.25,
+							type: 'players',
+						}],
+					}, {
+						id: '2d9d8a38ce9a4d24bc70a500f892f124',
+						ratio: 0.5,
+						type: 'timeline',
+					}],
+				}],
+			}, {
+				id: '441518aeb37940b2af7fb0027fd530a9',
+				ratio: 0.3,
+				type: 'nodesEditor',
+			}],
+		},
+	},
 });
 
 type PREF = typeof PREF_DEF;
@@ -67,7 +146,13 @@ export class PreferencesManager extends EventEmitter<PreferencesManagerEvents> {
 	constructor() {
 		super();
 
-		const states = this.genStates();
+		const savedStatesRaw = window.localStorage.getItem('preferences');
+		const savedStates = savedStatesRaw ? JSON.parse(savedStatesRaw) : {};
+
+		const states = {
+			...this.genStates(),
+			...savedStates,
+		};
 
 		// apply states
 		for (const key in states) {
@@ -81,7 +166,6 @@ export class PreferencesManager extends EventEmitter<PreferencesManagerEvents> {
 		this.r[key].value = this.s[key] = v;
 	}
 
-	// TODO: desync対策 cloudの値のfetchが正常に完了していない状態でcommitすると多分値が上書きされる
 	public commit<K extends keyof PREF>(key: K, value: ValueOf<K>) {
 		const v = JSON.parse(JSON.stringify(value)); // deep copy 兼 vueのプロキシ解除
 
@@ -154,7 +238,8 @@ export class PreferencesManager extends EventEmitter<PreferencesManagerEvents> {
 	}
 
 	public save() {
-		this.io.save({ profile: this.profile });
+		// TODO: Throttle
+		window.localStorage.setItem('preferences', JSON.stringify(this.s));
 	}
 
 	public getPerPrefMenu<K extends keyof PREF>(key: K): MenuItem[] {

@@ -54,6 +54,7 @@ import XPlayers from '@/components/GsWorkspacePanel.Players.vue';
 import XTimeline from '@/components/GsWorkspacePanel.Timeline.vue';
 import { appContext, workspacePanelDraggingContext } from '@/app.ts';
 import { cleanupWorkspaceDefinition, findWorkspaceParent } from '@/utility/workspace.ts';
+import { prefer } from '@/preferences.ts';
 
 const panelComponents = {
 	empty: XEmpty,
@@ -167,7 +168,7 @@ function onDrop(ev: DragEvent, index: number) {
 	workspacePanelDraggingContext.draggingId.value = null;
 	if (draggingId == null) return;
 
-	const workspace = appContext.workspaceDefinition.value;
+	const workspace = prefer.s.workspaceDefinition;
 	const sourceParent = findWorkspaceParent(workspace, draggingId);
 	if (!sourceParent) return;
 
@@ -185,6 +186,7 @@ function onDrop(ev: DragEvent, index: number) {
 	sourceParent.children.splice(sourceIndex, 1);
 	props.divider.children.splice(insertionIndex, 0, panel);
 	cleanupWorkspaceDefinition(workspace);
+	prefer.commit('workspaceDefinition', workspace);
 }
 
 </script>

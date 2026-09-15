@@ -1,4 +1,5 @@
 import { genId } from '@glitch/shared/utility/id.ts';
+import { deepClone } from '@glitch/shared/utility/deep-clone.js';
 import type { WorkspaceDivider, WorkspacePanel } from '@/types/workspace.ts';
 
 export function findWorkspaceParent(divider: WorkspaceDivider, id: string): WorkspaceDivider | undefined {
@@ -24,7 +25,8 @@ export function splitWorkspacePanel(parent: WorkspaceDivider, target: WorkspaceP
 	});
 }
 
-export function cleanupWorkspaceDefinition(divider: WorkspaceDivider): void {
+export function cleanupWorkspaceDefinition(_divider: WorkspaceDivider): WorkspaceDivider {
+	const divider = deepClone(_divider);
 	divider.children = divider.children.flatMap((child): WorkspaceDivider['children'] => {
 		if (child.type !== null) return [child];
 		cleanupWorkspaceDefinition(child);
@@ -45,4 +47,5 @@ export function cleanupWorkspaceDefinition(divider: WorkspaceDivider): void {
 		divider.direction = onlyChild.direction;
 		divider.children = onlyChild.children;
 	}
+	return divider;
 }

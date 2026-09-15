@@ -79,6 +79,7 @@ import { i18n } from '@/i18n.ts';
 import { appContext, workspacePanelDraggingContext } from '@/app.ts';
 import { getDragData, setDragData } from '@/utility/drag-and-drop.ts';
 import { cleanupWorkspaceDefinition, findWorkspaceParent, splitWorkspacePanel } from '@/utility/workspace.ts';
+import { prefer } from '@/preferences.ts';
 //import { checkDragDataType, getDragData, setDragData } from '@/drag-and-drop.ts';
 
 const props = withDefaults(defineProps<{
@@ -103,7 +104,7 @@ function toggleActive() {
 }
 
 function addPanel(position: 'below' | 'above' | 'left' | 'right') {
-	const workspace = appContext.workspaceDefinition.value;
+	const workspace = prefer.s.workspaceDefinition;
 	const parent = findWorkspaceParent(workspace, props.panel.id);
 	if (!parent) return;
 
@@ -112,16 +113,18 @@ function addPanel(position: 'below' | 'above' | 'left' | 'right') {
 	const panel: WorkspacePanel = { id: genId(), type: 'empty', ratio: 1 };
 	splitWorkspacePanel(parent, props.panel, panel, direction, before);
 	cleanupWorkspaceDefinition(workspace);
+	prefer.commit('workspaceDefinition', workspace);
 }
 
 function closePanel() {
-	const workspace = appContext.workspaceDefinition.value;
+	const workspace = prefer.s.workspaceDefinition;
 	const parent = findWorkspaceParent(workspace, props.panel.id);
 	if (!parent) return;
 
 	const index = parent.children.findIndex(child => child.id === props.panel.id);
 	parent.children.splice(index, 1);
 	cleanupWorkspaceDefinition(workspace);
+	prefer.commit('workspaceDefinition', workspace);
 }
 
 function getMenu() {
@@ -229,7 +232,7 @@ function onDrop(ev: DragEvent, area: 'top' | 'bottom' | 'left' | 'right' | 'cent
 	workspacePanelDraggingContext.draggingId.value = null;
 	if (draggingId == null || draggingId === props.panel.id) return;
 
-	const workspace = appContext.workspaceDefinition.value;
+	const workspace = prefer.s.workspaceDefinition;
 	const sourceParent = findWorkspaceParent(workspace, draggingId);
 	const targetParent = findWorkspaceParent(workspace, props.panel.id);
 	if (!sourceParent || !targetParent) return;
@@ -250,6 +253,7 @@ function onDrop(ev: DragEvent, area: 'top' | 'bottom' | 'left' | 'right' | 'cent
 		splitWorkspacePanel(targetParent, props.panel, panel, direction, area === 'top' || area === 'left');
 	}
 	cleanupWorkspaceDefinition(workspace);
+	prefer.commit('workspaceDefinition', workspace);
 }
 </script>
 

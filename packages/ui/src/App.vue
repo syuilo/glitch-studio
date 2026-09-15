@@ -13,7 +13,7 @@
 		<button class="_button" @click="showAbout">about</button>
 	</div>
 	<div :class="$style.body">
-		<GsWorkspaceDivider style="flex: 1" :divider="appContext.workspaceDefinition.value"/>
+		<GsWorkspaceDivider style="flex: 1" :divider="prefer.r.workspaceDefinition.value"/>
 	</div>
 	<div :class="$style.footer">
 		<div :class="$style.footerLeft">
@@ -43,6 +43,7 @@
 <script lang="ts" setup>
 import { computed, nextTick, onMounted, onBeforeUnmount, ref, shallowRef, useTemplateRef, watch } from 'vue';
 import { engine, resolutionFactor, fpsLimit, appContext } from './app';
+import { prefer } from './preferences.ts';
 import GsAboutDialog from '@/components/GsAboutDialog.vue';
 import GsDashboardDialog from '@/components/GsDashboardDialog.vue';
 import GsWorkspaceDivider from '@/components/GsWorkspaceDivider.vue';
