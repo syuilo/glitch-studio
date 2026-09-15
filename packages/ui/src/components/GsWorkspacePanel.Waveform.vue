@@ -1,18 +1,11 @@
 <template>
-<GsWorkspacePanel :panel="panel">
-	<template #header>
-		<i class="ti ti-chart-column"></i><span style="margin-left: 8px;">{{ verticalPosition ? 'Waveform (Y)' : 'Waveform (X)' }}</span>
-	</template>
-
-	<div :class="$style.root">
-		<GsWaveform :key="panel.contentType" :direction="verticalPosition ? 'vertical' : 'horizontal'"/>
-	</div>
-</GsWorkspacePanel>
+<div :class="$style.root">
+	<GsWaveform :key="panel.contentType" :direction="verticalPosition ? 'vertical' : 'horizontal'"/>
+</div>
 </template>
 
 <script lang="ts" setup>
 import { computed } from 'vue';
-import GsWorkspacePanel from './GsWorkspacePanel.vue';
 import type { WorkspacePanel } from '@/workspace.ts';
 import GsWaveform from '@/components/GsWaveform.vue';
 

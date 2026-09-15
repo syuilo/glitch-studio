@@ -23,7 +23,7 @@ import { computed, ref, watch } from 'vue';
 import { genId } from '@glitch/shared/utility/id.js';
 import type { MenuItem } from '@/types/menu.ts';
 import type { WorkspaceTabs } from '@/workspace.ts';
-import { getElementMenu, workspacePanelChoices } from '@/workspace.ts';
+import { getElementMenu, workspacePanelDefinitions } from '@/workspace.ts';
 import { findWorkspaceElement } from '@/utility/workspace.ts';
 import * as ui from '@/ui.ts';
 import { preferences } from '@/preferences.ts';
@@ -51,7 +51,7 @@ function select(tab: typeof props.tabs.children[0]) {
 }
 
 function addTab(ev: PointerEvent) {
-	const menuItems: MenuItem[] = workspacePanelChoices.map(choice => ({
+	const menuItems: MenuItem[] = workspacePanelDefinitions.map(choice => ({
 		text: choice.label,
 		action: () => {
 			const workspace = deepClone(preferences.s.workspaceDefinition);

@@ -1,20 +1,13 @@
 <template>
-<GsWorkspacePanel :panel="panel">
-	<template #header>
-		<i class="ti ti-logs"></i><span style="margin-left: 8px;">Command Log</span>
-	</template>
-
-	<div :class="$style.root">
-		<div v-for="value in appContext.undoStack.value">
-			<div>{{ COMMAND_DEFS[value.type].label }}</div>
-		</div>
+<div :class="$style.root">
+	<div v-for="value in appContext.undoStack.value">
+		<div>{{ COMMAND_DEFS[value.type].label }}</div>
 	</div>
-</GsWorkspacePanel>
+</div>
 </template>
 
 <script lang="ts" setup>
 import { watch, useTemplateRef, ref, onMounted } from 'vue';
-import GsWorkspacePanel from './GsWorkspacePanel.vue';
 import type { WorkspacePanel } from '@/workspace.ts';
 import { i18n } from '@/i18n.ts';
 import { appContext } from '@/app.ts';

@@ -59,7 +59,7 @@
 					<template v-else><i class="ti ti-chevron-left"></i></template>
 				</template>
 			</button>
-			<span :class="$style.title"><slot name="header"></slot></span>
+			<span :class="$style.title"><i :class="workspacePanelDefinitions[panel.contentType].icon" style="margin-right: 0.5em;"></i>{{ workspacePanelDefinitions[panel.contentType].label }}</span>
 			<div :class="$style.grabber" draggable="true" @dragstart.stop="onDragstart">
 				<svg viewBox="0 0 16 16" version="1.1" :class="$style.grabberSvg">
 					<path fill="currentColor" d="M10 13a1 1 0 1 1 0-2 1 1 0 0 1 0 2Zm0-4a1 1 0 1 1 0-2 1 1 0 0 1 0 2Zm-4 4a1 1 0 1 1 0-2 1 1 0 0 1 0 2Zm5-9a1 1 0 1 1-2 0 1 1 0 0 1 2 0ZM7 8a1 1 0 1 1-2 0 1 1 0 0 1 2 0ZM6 5a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z"></path>
@@ -68,7 +68,10 @@
 			<button :class="$style.menu" class="_button" @click.stop="showSettingsMenu"><i class="ti ti-dots"></i></button>
 		</header>
 		<div v-if="!collapsed" ref="body" :class="$style.body">
-			<slot></slot>
+			<component
+				:is="workspacePanelDefinitions[panel.contentType].component"
+				:panel="panel"
+			/>
 		</div>
 	</div>
 </div>
@@ -79,7 +82,7 @@ import { deepClone } from '@glitch/shared/utility/deep-clone.js';
 import { useTemplateRef, ref, computed, nextTick } from 'vue';
 import type { MenuItem } from '@/types/menu.ts';
 import type { WorkspacePanel } from '@/workspace.ts';
-import { getElementMenu } from '@/workspace.ts';
+import { getElementMenu, workspacePanelDefinitions } from '@/workspace.ts';
 import * as ui from '@/ui.ts';
 import { workspacePanelDraggingContext } from '@/app.ts';
 import { setDragData } from '@/utility/drag-and-drop.ts';
@@ -88,10 +91,7 @@ import { preferences } from '@/preferences.ts';
 
 const props = withDefaults(defineProps<{
 	panel: WorkspacePanel;
-	handleScrollToTop?: boolean;
-	menu?: MenuItem[];
 }>(), {
-	handleScrollToTop: true,
 });
 
 const emit = defineEmits<{
@@ -113,17 +113,12 @@ function toggleCollapse() {
 	preferences.commit('workspaceDefinition', workspace);
 }
 
-function getMenu(): MenuItem[] {
-	return props.menu?.length ? [...props.menu, { type: 'divider' }, ...getElementMenu(props.panel)] : getElementMenu(props.panel);
-}
-
 function showSettingsMenu(ev: PointerEvent) {
-	ui.popupMenu(getMenu(), ev.currentTarget ?? ev.target);
+	ui.popupMenu(getElementMenu(props.panel), ev.currentTarget ?? ev.target);
 }
 
 function goTop(ev: PointerEvent) {
 	emit('headerClick', ev);
-	if (!props.handleScrollToTop) return;
 
 	if (body.value) {
 		body.value.scrollTo({

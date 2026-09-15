@@ -1,28 +1,43 @@
 import { genId } from '@glitch/shared/utility/id.js';
+import { markRaw } from 'vue';
 import { findWorkspaceElement, removeWorkspaceElement, replaceWorkspaceElement, splitAndAddWorkspacePanel } from './utility/workspace.ts';
 import type { MenuItem } from './types/menu.ts';
 import { preferences } from '@/preferences.ts';
+import XBlank from '@/components/GsWorkspacePanel.Blank.vue';
+import XPreview from '@/components/GsWorkspacePanel.Preview.vue';
+import XNodesEditor from '@/components/GsWorkspacePanel.NodesEditor.vue';
+import XHistogram from '@/components/GsWorkspacePanel.Histogram.vue';
+import XWaveform from '@/components/GsWorkspacePanel.Waveform.vue';
+import XAudioSpectrum from '@/components/GsWorkspacePanel.AudioSpectrum.vue';
+import XAudioSpectrogram from '@/components/GsWorkspacePanel.AudioSpectrogram.vue';
+import XAudioWaveform from '@/components/GsWorkspacePanel.AudioWaveform.vue';
+import XStats from '@/components/GsWorkspacePanel.Stats.vue';
+import XCommandLog from '@/components/GsWorkspacePanel.CommandLog.vue';
+import XMacros from '@/components/GsWorkspacePanel.Macros.vue';
+import XPlayers from '@/components/GsWorkspacePanel.Players.vue';
+import XTimeline from '@/components/GsWorkspacePanel.Timeline.vue';
 
-export const workspacePanelChoices = [
-	{ type: 'audioSpectrum', label: 'Audio Spectrum' },
-	{ type: 'audioSpectrogram', label: 'Audio Spectrogram' },
-	{ type: 'audioWaveform', label: 'Audio Waveform' },
-	{ type: 'histogram', label: 'Histogram' },
-	{ type: 'waveformHorizontal', label: 'Waveform (X)' },
-	{ type: 'waveformVertical', label: 'Waveform (Y)' },
-	{ type: 'preview', label: 'Preview' },
-	{ type: 'players', label: 'Players' },
-	{ type: 'nodesEditor', label: 'Nodes' },
-	{ type: 'macros', label: 'Macros' },
-	{ type: 'stats', label: 'Stats' },
-	{ type: 'commandLog', label: 'Command Log' },
-	{ type: 'timeline', label: 'Timeline' },
-] as const;
+export const workspacePanelDefinitions = markRaw({
+	blank: { label: 'Blank', icon: '', component: XBlank },
+	audioSpectrum: { label: 'Audio Spectrum', icon: 'ti ti-chart-column', component: XAudioSpectrum },
+	audioSpectrogram: { label: 'Audio Spectrogram', icon: 'ti ti-chart-area', component: XAudioSpectrogram },
+	audioWaveform: { label: 'Audio Waveform', icon: 'ti ti-wave-sine', component: XAudioWaveform },
+	histogram: { label: 'Histogram', icon: 'ti ti-chart-column', component: XHistogram },
+	waveformHorizontal: { label: 'Waveform (X)', icon: 'ti ti-chart-column', component: XWaveform },
+	waveformVertical: { label: 'Waveform (Y)', icon: 'ti ti-chart-column', component: XWaveform },
+	preview: { label: 'Preview', icon: 'ti ti-device-desktop', component: XPreview },
+	players: { label: 'Players', icon: 'ti ti-player-play', component: XPlayers },
+	nodesEditor: { label: 'Nodes', icon: 'ti ti-chart-dots-3', component: XNodesEditor },
+	macros: { label: 'Macros', icon: 'ti ti-adjustments-horizontal', component: XMacros },
+	stats: { label: 'Stats', icon: 'ti ti-activity', component: XStats },
+	commandLog: { label: 'Command Log', icon: 'ti ti-logs', component: XCommandLog },
+	timeline: { label: 'Timeline', icon: 'ti ti-timeline', component: XTimeline },
+} as const);
 
 export type WorkspacePanel = {
 	id: string;
 	type: 'panel';
-	contentType: 'empty' | 'waveform' | typeof workspacePanelChoices[number]['type'];
+	contentType: keyof typeof workspacePanelDefinitions;
 	collapsed?: boolean;
 };
 
@@ -53,7 +68,7 @@ export function getElementMenu(element: WorkspaceElement) {
 	menuItems.push({
 		type: 'parent',
 		text: 'Switch type to',
-		children: workspacePanelChoices.map(choice => ({
+		children: workspacePanelDefinitions.map(choice => ({
 			text: choice.label,
 			action: () => {
 				const workspace = replaceWorkspaceElement(preferences.s.workspaceDefinition, element.id, {
@@ -74,7 +89,7 @@ export function getElementMenu(element: WorkspaceElement) {
 				id: genId(),
 				type: 'tabs',
 				children: [{
-					name: target.type === 'panel' ? workspacePanelChoices.find(choice => choice.type === target.contentType)?.label ?? 'Tab 1' : 'Tab 1',
+					name: target.type === 'panel' ? workspacePanelDefinitions.find(choice => choice.type === target.contentType)?.label ?? 'Tab 1' : 'Tab 1',
 					element: target,
 				}],
 			};

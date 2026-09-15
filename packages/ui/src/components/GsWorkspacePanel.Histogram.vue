@@ -1,18 +1,11 @@
 <template>
-<GsWorkspacePanel :panel="panel">
-	<template #header>
-		<i class="ti ti-chart-column"></i><span style="margin-left: 8px;">Histogram</span>
-	</template>
-
-	<div :class="$style.root">
-		<GsHistogram/>
-	</div>
-</GsWorkspacePanel>
+<div :class="$style.root">
+	<GsHistogram/>
+</div>
 </template>
 
 <script lang="ts" setup>
 import { watch, useTemplateRef, ref, onMounted } from 'vue';
-import GsWorkspacePanel from './GsWorkspacePanel.vue';
 import type { WorkspacePanel } from '@/workspace.ts';
 import { i18n } from '@/i18n.ts';
 import GsHistogram from '@/components/GsHistogram.vue';

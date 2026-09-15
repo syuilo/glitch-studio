@@ -69,11 +69,12 @@ export function cleanupWorkspaceDefinition(_root: WorkspaceElement): WorkspaceEl
 		});
 		return element;
 	}
-	return cleanup(deepClone(_root)) ?? { id: genId(), type: 'panel', contentType: 'empty' };
+
+	return cleanup(deepClone(_root)) ?? { id: genId(), type: 'panel', contentType: 'blank' };
 }
 
 export function removeWorkspaceElement(_root: WorkspaceElement, _target: WorkspaceElement): WorkspaceElement {
-	if (_root.id === _target.id) return { id: genId(), type: 'panel', contentType: 'empty' };
+	if (_root.id === _target.id) return { id: genId(), type: 'panel', contentType: 'blank' };
 	const root = deepClone(_root);
 	const parent = findWorkspaceParent(root, _target.id);
 	if (parent) {
@@ -86,6 +87,6 @@ export function removeWorkspaceElement(_root: WorkspaceElement, _target: Workspa
 export function splitAndAddWorkspacePanel(_root: WorkspaceElement, _target: WorkspaceElement, position: 'below' | 'above' | 'left' | 'right') {
 	const direction = position === 'below' || position === 'above' ? 'vertical' : 'horizontal';
 	const before = position === 'above' || position === 'left';
-	const panel: WorkspacePanel = { id: genId(), type: 'panel', contentType: 'empty' };
+	const panel: WorkspacePanel = { id: genId(), type: 'panel', contentType: 'blank' };
 	return cleanupWorkspaceDefinition(splitWorkspaceElement(_root, _target, panel, direction, before));
 }

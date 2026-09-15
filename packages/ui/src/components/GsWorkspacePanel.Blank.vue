@@ -1,23 +1,16 @@
 <template>
-<GsWorkspacePanel :panel="panel">
-	<template #header>
-		Select panel
-	</template>
-
-	<div :class="$style.root">
-		<GsButton v-for="choice in choices" :key="choice.type" small @click="switchType(choice.type)">{{ choice.label }}</GsButton>
-	</div>
-</GsWorkspacePanel>
+<div :class="$style.root">
+	<GsButton v-for="choice in choices" :key="choice.type" small @click="switchType(choice.type)">{{ choice.label }}</GsButton>
+</div>
 </template>
 
 <script lang="ts" setup>
 import { deepClone } from '@glitch/shared/utility/deep-clone.js';
-import GsWorkspacePanel from './GsWorkspacePanel.vue';
 import GsButton from './common/GsButton.vue';
 import type { WorkspacePanel } from '@/workspace.ts';
 import { findWorkspaceElement } from '@/utility/workspace.ts';
 import { preferences } from '@/preferences.ts';
-import { workspacePanelChoices as choices } from '@/workspace.ts';
+import { workspacePanelDefinitions as choices } from '@/workspace.ts';
 
 const props = defineProps<{
 	panel: WorkspacePanel;
