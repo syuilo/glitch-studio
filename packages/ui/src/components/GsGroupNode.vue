@@ -17,7 +17,7 @@
 	</div>
 
 	<div v-show="expanded" :class="$style.params">
-		<div v-for="macro in Object.values(node.macros)" :key="macro.id" :class="$style.param">
+		<div v-for="macro in Object.values(node.macros)" :key="macro.id" :class="$style.param" data-wire-input-row>
 			<label :class="[$style.paramLabel, { [$style.expression]: isExpression(macro) }]" @dblclick="toggleMacroValueType(macro.id)">{{ macro.label }}</label>
 			<div v-if="isExpression(macro)" :class="$style.paramBody">
 				<input type="text" :class="$style.expression" :value="macro.value.value" @change="updateMacroAsExpression(macro.id, $event.target.value)"/>

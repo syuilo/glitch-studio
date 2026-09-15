@@ -12,7 +12,7 @@
 	</div>
 
 	<div v-show="expanded" :class="$style.params" :inert="!node.isBypass">
-		<div v-for="param in Object.keys(paramDefs)" v-show="paramDefs[param].visibility == null || paramDefs[param].visibility(node.params)" :key="param" :class="$style.param">
+		<div v-for="param in Object.keys(paramDefs)" v-show="paramDefs[param].visibility == null || paramDefs[param].visibility(node.params)" :key="param" :class="$style.param" data-wire-input-row>
 			<div :class="[$style.paramLabel, { [$style.expression]: isExpression(param) }]" @click="showPerParamMenu(param, $event)">
 				<GsCondensedLine>{{ paramDefs[param].label }}</GsCondensedLine>
 			</div>

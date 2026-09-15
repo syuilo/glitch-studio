@@ -61,9 +61,9 @@ export function startWireDrag(event: PointerEvent, connection: NodeOutputReferen
 		// capture中のevent.targetは出力ポートなので、実際のドロップ位置を調べる。
 		let target = doc.elementFromPoint(event.clientX, event.clientY);
 		let connect: ((connection: NodeOutputReference) => void) | undefined;
-		while (target instanceof HTMLElement) {
+		while (target != null) {
 			if (target.closest('[inert]')) break;
-			connect = inputPorts.get(target);
+			connect = target instanceof HTMLElement ? inputPorts.get(target) : undefined;
 			if (connect) break;
 			target = target.parentElement;
 		}

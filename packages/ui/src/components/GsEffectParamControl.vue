@@ -255,7 +255,9 @@ function onFinishChanging() {
 watchEffect(onCleanup => {
 	const el = portEl.value;
 	if (el == null) return;
-	onCleanup(registerWireInput(el, connection => {
+	// 描画上の接続点はポートに保ち、ドロップはラベルを含む行全体で受け付ける。
+	const row = el.closest<HTMLElement>('[data-wire-input-row]') ?? el.parentElement ?? el;
+	onCleanup(registerWireInput(row, connection => {
 		if (nodeOutputItems.value.some(item => item.value === nodeOutputKey(connection))) changeValue(connection);
 	}));
 });

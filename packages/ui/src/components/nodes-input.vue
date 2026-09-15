@@ -66,7 +66,7 @@ watchEffect(onCleanup => {
 	for (const item of value.value) {
 		const el = portEls.value[item.id];
 		if (el == null) continue;
-		onCleanup(registerWireInput(el, connection => {
+		onCleanup(registerWireInput(el.parentElement ?? el, connection => {
 			if (items.value.some(output => output.value === nodeOutputKey(connection))) item.node = connection;
 		}));
 	}
