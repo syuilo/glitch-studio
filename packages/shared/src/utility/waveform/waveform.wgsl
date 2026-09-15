@@ -3,6 +3,8 @@ struct Params {
 	intensity: f32,
 	size: vec2u,
 	verticalPosition: u32,
+	showGrid: u32,
+	sampleSize: vec2u,
 };
 
 @group(0) @binding(0) var<uniform> params: Params;
@@ -39,10 +41,10 @@ fn addSample(column: u32, value: f32, channel: u32, weight: f32) {
 
 @compute @workgroup_size(16, 16)
 fn accumulate(@builtin(global_invocation_id) id: vec3u) {
-	if (any(id.xy >= params.size)) {
+	if (any(id.xy >= params.sampleSize)) {
 		return;
 	}
-	let uv = (vec2f(id.xy) + 0.5) / vec2f(params.size);
+	let uv = (vec2f(id.xy) + 0.5) / vec2f(params.sampleSize);
 	let color = textureSampleLevel(source, sourceSampler, uv, 0.0);
 	let weight = clamp(color.a, 0.0, 1.0) * 65535.0;
 	if (weight == 0.0) {
@@ -50,7 +52,10 @@ fn accumulate(@builtin(global_invocation_id) id: vec3u) {
 	}
 	// 入力はpremultiplied alpha。色の強度を復元し、透明度は集計の重みに使う。
 	let rgb = color.rgb / color.a;
-	let column = select(id.x, id.y, params.verticalPosition == 1u);
+	// サンプル解像度と表示の位置分解能は独立。入力全体をstretchで対応付ける。
+	let samplePosition = select(id.x, id.y, params.verticalPosition == 1u);
+	let positionSamples = select(params.sampleSize.x, params.sampleSize.y, params.verticalPosition == 1u);
+	let column = min(samplePosition * waveformSize().x / positionSamples, waveformSize().x - 1u);
 	if (params.mode == 1u) {
 		let luminance = dot(rgb, vec3f(0.2126, 0.7152, 0.0722));
 		addSample(column, luminance, 0u, weight);
@@ -64,7 +69,7 @@ fn accumulate(@builtin(global_invocation_id) id: vec3u) {
 fn density(column: u32, level: u32) -> vec3f {
 	let offset = index(column, level, 0u);
 	let rgb = vec3f(f32(waveform[offset]), f32(waveform[offset + 1u]), f32(waveform[offset + 2u]));
-	// Level count and samples per column match, so their normalization cancels.
+	// 透明度で重み付けした画素数に戻す。表示の濃さは呼び出し側のintensityで指定する。
 	return select(rgb, vec3f(rgb.r), params.mode == 1u) / 65535.0;
 }
 
@@ -83,5 +88,13 @@ fn fs(@location(0) uv: vec2f) -> @location(0) vec4f {
 		mix(density(lower.x, upper.y), density(upper.x, upper.y), fraction.x),
 		fraction.y,
 	);
-	return vec4f(vec3f(1.0) - exp(-value * params.intensity), 1.0);
+	let signal = vec3f(1.0) - exp(-value * params.intensity);
+	var background = 0.0;
+	if (params.showGrid == 1u) {
+		let cell = vec2u(round(position));
+		let spacing = max(size / 4u, vec2u(1u));
+		let onGrid = cell.x % spacing.x == 0u || cell.y % spacing.y == 0u;
+		background = 0.012 + select(0.0, 0.055, onGrid);
+	}
+	return vec4f(min(signal + vec3f(background), vec3f(1.0)), 1.0);
 }
