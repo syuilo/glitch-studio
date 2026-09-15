@@ -12,7 +12,7 @@
 	</div>
 
 	<div v-show="expanded" :class="$style.params" :inert="!node.isBypass">
-		<div v-for="param in Object.keys(paramDefs)" v-show="paramDefs[param].visibility == null || paramDefs[param].visibility(node.params)" :key="param" :class="$style.param" data-wire-input-row>
+		<div v-for="param in Object.keys(paramDefs)" v-show="paramDefs[param].visibility == null || paramDefs[param].visibility(node.params)" :key="param" :ref="el => setParamRow(param, el)" :class="$style.param" data-wire-input-row>
 			<div :class="[$style.paramLabel, { [$style.expression]: isExpression(param) }]" @click="showPerParamMenu(param, $event)">
 				<GsCondensedLine>{{ paramDefs[param].label }}</GsCondensedLine>
 			</div>
@@ -51,7 +51,7 @@
 </template>
 
 <script lang="ts" setup>
-import { ref, computed, shallowRef, onMounted } from 'vue';
+import { ref, computed, shallowRef, onMounted, watchEffect } from 'vue';
 import { effectDefinitions } from '@glitch/shared/effect-definitions.ts';
 import { genId } from '@glitch/shared/utility/id.ts';
 import GsNodeOutputs from './GsNodeOutputs.vue';
@@ -59,10 +59,13 @@ import GsEffectParamControl from './GsEffectParamControl.vue';
 import GsButton from './common/GsButton.vue';
 import GsInput from './common/GsInput.vue';
 import GsCondensedLine from './common/GsCondensedLine.vue';
+import type { ComponentPublicInstance } from 'vue';
 import type { GsAutomation, GsEffectNode, GsGroupNode, GsNode } from '@glitch/shared/types.ts';
 import type { MenuItem } from '@/types/menu.ts';
 import { i18n } from '@/i18n.ts';
 import { appContext, engine, wireMap } from '@/app.ts';
+import { getNodeOutputItems, nodeOutputKey } from '@/utility/node-outputs.ts';
+import { registerWireInput } from '@/utility/wire-drag.ts';
 import * as ui from '@/ui.ts';
 
 const props = defineProps<{
@@ -74,6 +77,24 @@ const name = ref<string>(effectDefinitions[props.node.effectId].displayName);
 const paramDefs = effectDefinitions[props.node.effectId].paramDefs;
 const expanded = ref(true);
 const allInPortEl = shallowRef<HTMLElement>();
+const paramRows = ref<Record<string, HTMLElement>>({});
+const nodeOutputItems = computed(() => getNodeOutputItems(appContext.state.nodes.value, props.node.id));
+
+function setParamRow(param: string, el: Element | ComponentPublicInstance | null) {
+	if (el instanceof HTMLElement) paramRows.value[param] = el;
+	else delete paramRows.value[param];
+}
+
+watchEffect(onCleanup => {
+	for (const [param, row] of Object.entries(paramRows.value)) {
+		// node型の入力はコントロール側で登録する。それ以外もcanNodeなら型ごと切り替えられる。
+		if (!paramDefs[param].canNode || isNode(param)) continue;
+		onCleanup(registerWireInput(row, connection => {
+			if (!nodeOutputItems.value.some(item => item.value === nodeOutputKey(connection))) return;
+			appContext.commit('updateParamAsNode', { nodeId: props.node.id, param, value: connection });
+		}));
+	}
+});
 
 const effectStatus = computed(() => engine.effectStatuses.get(props.node.id));
 
