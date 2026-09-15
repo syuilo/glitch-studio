@@ -904,6 +904,7 @@ onMounted(() => {
 	position: absolute;
 	top: 0;
 	height: 100%;
+	line-height: var(--xTicksHeight);
 	font-size: 12px;
 	padding: 0 0 0 8px;
 	border-left: solid 1px #fff3;
