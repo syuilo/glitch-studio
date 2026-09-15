@@ -22,7 +22,7 @@
 			<div :class="$style.ticksCorner"></div>
 			<div :class="$style.tlRange" :style="{ width: tlRangeElWidth + 'px', left: tlRangeElPosX + 'px' }"></div>
 			<div :class="$style.selectedArea" :style="{ width: selectedAreaElWidth + 'px', height: selectedAreaElHeight + 'px', bottom: selectedAreaElPosY + 'px', left: selectedAreaElPosX + 'px' }"></div>
-			<div v-for="frame of xTicks" :class="[$style.inTlXTick]" :style="{ left: timeToDomX(time) + 'px' }"></div>
+			<div v-for="time of xTicks" :class="[$style.inTlXTick]" :style="{ left: timeToDomX(time) + 'px' }"></div>
 			<div v-for="v of yTicks" :class="[$style.inTlYTick, { [$style.inTlYTickZero]: v.toFixed(2).replace('-', '') === '0.00', [$style.inTlYTickActive]: snappingY != null && nearlyEqual(snappingY, v) }]" :style="{ top: valueToDomY(v) + 'px' }"></div>
 			<div :class="$style.seekBar" :style="{ left: seekBarPos + 'px' }"><div :class="$style.seekBarFrame">{{ time }}</div></div>
 			<div :class="$style.valueBar" :style="{ top: valueBarPos + 'px' }"><div :class="$style.valueBarValue">{{ currentValue.toFixed(2) }}</div></div>
@@ -137,9 +137,9 @@ const time = ref(0);
 const tlEl = useTemplateRef('tlEl');
 const tlElWidth = ref(0);
 const tlElHeight = ref(0);
-const tlRangeX = ref(60 * 3);
+const tlRangeX = ref(30000);
 const tlRangeY = ref(5);
-const tlPosX = ref(-30);
+const tlPosX = ref(-3000);
 const tlPosY = ref(-2.5);
 const snappingY = ref<number | null>(null);
 const selectedAutomation = ref<GsAutomation | null>(null);
@@ -315,12 +315,12 @@ function addAutomation() {
 			timeMs: 0,
 			value: 0,
 			bezierControlPointA: [0, 0],
-			bezierControlPointB: [10, 0],
+			bezierControlPointB: [1000, 0],
 		}, {
 			id: genId(),
 			timeMs: duration.value,
 			value: 1,
-			bezierControlPointA: [-10, 0],
+			bezierControlPointA: [-1000, 0],
 			bezierControlPointB: [0, 0],
 		}],
 	};
@@ -339,8 +339,8 @@ function addKeyframe(time: number, value: number): GsKeyframe {
 		id: genId(),
 		timeMs: time,
 		value,
-		bezierControlPointA: [-10, 0],
-		bezierControlPointB: [10, 0],
+		bezierControlPointA: [-1000, 0],
+		bezierControlPointB: [1000, 0],
 	};
 	let pushed = false;
 	if (selectedAutomation.value.keyframes.filter(kf => kf.timeMs === time).length > 1) return;
@@ -784,7 +784,7 @@ function onTlKeydown(ev: KeyboardEvent) {
 function toggleBezierA() {
 	if (selectedKeyframe.value == null) return;
 	if (isBezierAZero.value) {
-		selectedKeyframe.value.bezierControlPointA = [-10, 0];
+		selectedKeyframe.value.bezierControlPointA = [-1000, 0];
 	} else {
 		selectedKeyframe.value.bezierControlPointA = [0, 0];
 	}
@@ -793,7 +793,7 @@ function toggleBezierA() {
 function toggleBezierB() {
 	if (selectedKeyframe.value == null) return;
 	if (isBezierBZero.value) {
-		selectedKeyframe.value.bezierControlPointB = [10, 0];
+		selectedKeyframe.value.bezierControlPointB = [1000, 0];
 	} else {
 		selectedKeyframe.value.bezierControlPointB = [0, 0];
 	}
