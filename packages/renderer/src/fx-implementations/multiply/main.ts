@@ -42,6 +42,7 @@ export default implementEffect<typeof definition>({
 			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
 		});
 
+		const sampler = wgpu.device.createSampler({ minFilter: 'linear', magFilter: 'linear' });
 		let inputTexture: GPUTexture | null | undefined;
 		let bindGroup: GPUBindGroup;
 		const updateBindGroup = (texture: GPUTexture | null | undefined) => {
@@ -50,7 +51,7 @@ export default implementEffect<typeof definition>({
 				layout: pipeline.getBindGroupLayout(0),
 				entries: [
 					{ binding: 1, resource: { buffer: uniformBuffer } },
-					//{ binding: 2, resource: sampler },
+					{ binding: 3, resource: sampler },
 					{ binding: 2, resource: (texture ?? fallbackTexture).createView() },
 				],
 			});

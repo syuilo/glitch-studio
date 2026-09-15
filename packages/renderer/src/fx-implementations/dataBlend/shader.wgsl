@@ -9,6 +9,7 @@ struct Uniforms {
 @group(0) @binding(1) var inputA: texture_2d<f32>;
 @group(0) @binding(2) var inputB: texture_2d<f32>;
 @group(0) @binding(3) var amountTexture: texture_2d<f32>;
+@group(0) @binding(4) var inputSampler: sampler;
 
 // 入力ごとの実寸から比率を求める。stretch以外は縦横を同じ倍率で拡大縮小する。
 fn fittedSample(tex: texture_2d<f32>, position: vec2f, mode: u32) -> vec4f {
@@ -21,16 +22,8 @@ fn fittedSample(tex: texture_2d<f32>, position: vec2f, mode: u32) -> vec4f {
 	// containの余白は画像なら透明、データなら全成分0。端を引き延ばさない。
 	if (mode == 2u && (any(uv < vec2f(0.0)) || any(uv > vec2f(1.0)))) { return vec4f(0.0); }
 
-	// 手動の双線形補間により、32bit精度を保ちつつfloat32-filterableを不要にする。
-	let pixel = uv * size - 0.5;
-	let base = vec2i(floor(pixel));
-	let weight = fract(pixel);
-	let last = vec2i(size) - 1;
-	let c00 = textureLoad(tex, clamp(base, vec2i(0), last), 0);
-	let c10 = textureLoad(tex, clamp(base + vec2i(1, 0), vec2i(0), last), 0);
-	let c01 = textureLoad(tex, clamp(base + vec2i(0, 1), vec2i(0), last), 0);
-	let c11 = textureLoad(tex, clamp(base + vec2i(1, 1), vec2i(0), last), 0);
-	return mix(mix(c00, c10, weight.x), mix(c01, c11, weight.x), weight.y);
+	// containの分岐後でも微分を必要としないようLODを明示する。
+	return textureSampleLevel(tex, inputSampler, uv, 0.0);
 }
 
 // モード番号はmain.tsと揃える。合成やpremultiplyは呼び出し側で行う。

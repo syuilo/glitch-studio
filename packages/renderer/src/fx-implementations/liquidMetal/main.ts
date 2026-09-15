@@ -27,14 +27,15 @@ export default implementEffect<typeof definition>({
 		const uniformValues = makeStructuredView(makeShaderDataDefinitions(code).uniforms.uniforms);
 		const uniformBuffer = device.createBuffer({ size: uniformValues.arrayBuffer.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
 		const sampler = device.createSampler({ magFilter: 'linear', minFilter: 'linear' });
+		const gradientFormat = wgpu.enableFloat32Filtering ? 'rgba32float' : 'rgba16float';
 		const computeLayout = device.createBindGroupLayout({ entries: [
 			{ binding: 0, visibility: GPUShaderStage.COMPUTE, texture: {} },
 			{ binding: 1, visibility: GPUShaderStage.COMPUTE, sampler: {} },
 			{ binding: 2, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'storage' } },
 			{ binding: 3, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'storage' } },
-			{ binding: 4, visibility: GPUShaderStage.COMPUTE, storageTexture: { access: 'write-only', format: 'rgba16float' } },
+			{ binding: 4, visibility: GPUShaderStage.COMPUTE, storageTexture: { access: 'write-only', format: gradientFormat } },
 		] });
-		const computeModule = device.createShaderModule({ code: preprocessCode });
+		const computeModule = device.createShaderModule({ code: preprocessCode.replace('rgba16float', gradientFormat) });
 		const layout = device.createPipelineLayout({ bindGroupLayouts: [computeLayout] });
 		const makeCompute = (entryPoint: string, constants?: Record<string, number>) => device.createComputePipeline({ layout, compute: { module: computeModule, entryPoint, constants } });
 		const initialize = makeCompute('initialize');
@@ -63,7 +64,7 @@ export default implementEffect<typeof definition>({
 				pixels?.destroy();
 				width = nextWidth;
 				height = nextHeight;
-				gradient = device.createTexture({ size: [width, height], format: 'rgba16float', usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING });
+				gradient = device.createTexture({ size: [width, height], format: gradientFormat, usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING });
 				pixels = device.createBuffer({ size: width * height * 8, usage: GPUBufferUsage.STORAGE });
 			}
 			computeGroup = device.createBindGroup({ layout: computeLayout, entries: [

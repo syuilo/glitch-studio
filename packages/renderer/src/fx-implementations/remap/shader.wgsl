@@ -1,3 +1,5 @@
+@group(0) @binding(5) var inputSampler: sampler;
+
 @group(0) @binding(0) var inputTexture: texture_2d<f32>;
 @group(0) @binding(1) var inMinTexture: texture_2d<f32>;
 @group(0) @binding(2) var inMaxTexture: texture_2d<f32>;
@@ -7,9 +9,7 @@
 fn sampleScalar(tex: texture_2d<f32>, uv: vec2f) -> f32 {
 	// 各入力のサイズで座標を求め、定数の1x1テクスチャや異なる解像度にも対応する。
 	// 入力は出力全体にstretchして対応付ける。
-	let size = textureDimensions(tex);
-	let coord = clamp(vec2i(uv * vec2f(size)), vec2i(0), vec2i(size) - 1);
-	return textureLoad(tex, coord, 0).r;
+	return textureSample(tex, inputSampler, uv).r;
 }
 
 @fragment

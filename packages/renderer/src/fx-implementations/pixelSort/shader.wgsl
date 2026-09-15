@@ -27,6 +27,7 @@ fn coordinates(index: u32, line: u32) -> vec2u {
 }
 
 fn samplePixel(index: u32, line: u32) -> vec4f {
+	// ソート対象の画素値と閾値判定を変えないよう、補間せずに読む。
 	let size = textureDimensions(source);
 	let uv = (vec2f(coordinates(index, line)) + 0.5) / vec2f(f32(uniforms.width), f32(uniforms.height));
 	return textureLoad(source, vec2i(min(vec2u(uv * vec2f(size)), size - 1u)), 0);

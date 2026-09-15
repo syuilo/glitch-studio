@@ -1,3 +1,5 @@
+@group(0) @binding(5) var inputSampler: sampler;
+
 fn mod289_3(x: vec3f) -> vec3f {
 	return x - floor(x * (1.0 / 289.0)) * 289.0;
 }
@@ -91,9 +93,7 @@ struct Uniforms {
 
 fn sampleParameter(tex: texture_2d<f32>, uv: vec2f) -> vec4f {
 	// 定数の1x1テクスチャを含め、各入力を出力全体に対応付ける。
-	let size = textureDimensions(tex);
-	let coord = clamp(vec2i(uv * vec2f(size)), vec2i(0), vec2i(size) - 1);
-	return textureLoad(tex, coord, 0);
+	return textureSample(tex, inputSampler, uv);
 }
 
 struct FragmentIn {

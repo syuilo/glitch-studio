@@ -12,10 +12,13 @@ export default implementEffect<typeof definition>({
 	}),
 	init: ({ wgpu, fallbackTexture }) => {
 		const device = wgpu.device;
-		// textureLoadを使い、float32-filterable非対応でも32bitの入力を受け取る。
-		const layout = device.createBindGroupLayout({ entries: [0, 1, 2, 3, 4].map(binding => ({
-			binding, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'unfilterable-float' as const },
-		})) });
+		const sampler = device.createSampler({ minFilter: 'linear', magFilter: 'linear' });
+		const layout = device.createBindGroupLayout({ entries: [
+			{ binding: 5, visibility: GPUShaderStage.FRAGMENT, sampler: { type: 'filtering' } },
+			...[0, 1, 2, 3, 4].map(binding => ({
+				binding, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float' as const },
+			})),
+		] });
 		const pipeline = device.createRenderPipeline({
 			layout: device.createPipelineLayout({ bindGroupLayouts: [layout] }),
 			vertex: { module: wgpu.defaultVertexShaderModule },
@@ -30,9 +33,12 @@ export default implementEffect<typeof definition>({
 				const inputs = [p.input ?? fallbackTexture, p.inMin, p.inMax, p.outMin, p.outMax];
 				if (inputs.some((texture, i) => texture !== textures[i])) {
 					textures = inputs;
-					bindGroup = device.createBindGroup({ layout, entries: textures.map((texture, binding) => ({
-						binding, resource: texture.createView(),
-					})) });
+					bindGroup = device.createBindGroup({ layout, entries: [
+						{ binding: 5, resource: sampler },
+						...textures.map((texture, binding) => ({
+							binding, resource: texture.createView(),
+						})),
+					] });
 				}
 				const pass = ctx.createPassEncoderFor(ctx.commandEncoder, ctx.outputDataMap.output.textureView);
 				pass.setPipeline(pipeline);

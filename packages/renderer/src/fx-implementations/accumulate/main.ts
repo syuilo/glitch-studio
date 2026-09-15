@@ -14,11 +14,13 @@ export default implementEffect<typeof definition>({
 		return { output: out };
 	},
 	init: ({ wgpu: { device, defaultVertexShaderModule, enableFloat32Filtering }, params, fallbackTexture }) => {
+		const sampler = device.createSampler({ minFilter: 'linear', magFilter: 'linear' });
 		const module = device.createShaderModule({ code });
 		const layout = device.createBindGroupLayout({
 			entries: [
 				{ binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },
-				{ binding: 1, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'unfilterable-float' } },
+				{ binding: 1, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float' } },
+				{ binding: 3, visibility: GPUShaderStage.FRAGMENT, sampler: { type: 'filtering' } },
 				{ binding: 2, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'unfilterable-float' } },
 			],
 		});
@@ -55,6 +57,7 @@ export default implementEffect<typeof definition>({
 							{ binding: 0, resource: { buffer: uniforms } },
 							{ binding: 1, resource: (input ?? fallbackTexture).createView() },
 							{ binding: 2, resource: previous },
+							{ binding: 3, resource: sampler },
 						],
 					});
 					groups.set(previous, group);

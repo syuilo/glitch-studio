@@ -53,6 +53,7 @@ fn fs(fragData: FragmentIn) -> @location(0) vec2f {
 	);
 
 	let uv = scaleUvToCoverGivenAspectRatio(fragData.uv, uniforms.aspectRatio);
+	// 履歴のベクトル場を補間で拡散させず、同じ画素に力を蓄積する。
 	var before = textureLoad(sourceTexture, coord, 0).rg;
 	before *= exp2(-uniforms.timeDelta / uniforms.halfLife);
 	let v = getPointerForceVector(uv) * uniforms.strength;

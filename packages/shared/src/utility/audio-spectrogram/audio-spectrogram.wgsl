@@ -8,6 +8,7 @@ struct Uniforms {
 };
 @group(0) @binding(0) var<uniform> uniforms: Uniforms;
 @group(0) @binding(1) var history: texture_2d_array<f32>;
+@group(0) @binding(2) var historySampler: sampler;
 
 fn heatmap(value: f32) -> vec3f {
 	let x = clamp(value, 0.0, 1.0);
@@ -40,10 +41,9 @@ fn fs(@location(0) uv: vec2f) -> @location(0) vec4f {
 	if (uniforms.timeline.y < 0.5 || offset >= i32(uniforms.timeline.y)) { return vec4f(0.0, 0.0, 0.0, 1.0); }
 	let row = (i32(uniforms.timeline.x) - offset + i32(dimensions.y)) % i32(dimensions.y);
 	let bin = frequency * f32(dimensions.x - 1u);
-	let low = i32(floor(bin));
-	let high = min(low + 1, i32(dimensions.x) - 1);
-	let amplitude = mix(textureLoad(history, vec2i(low, row), layer, 0).r,
-		textureLoad(history, vec2i(high, row), layer, 0).r, fract(bin));
+	// 行の中心を指定して時間方向の混合を避け、周波数方向だけ線形補間する。
+	let sampleUv = (vec2f(bin, f32(row)) + 0.5) / vec2f(dimensions);
+	let amplitude = textureSampleLevel(history, historySampler, sampleUv, layer, 0.0).r;
 	let db = 20.0 * log2(max(amplitude, 0.000000000001)) / log2(10.0);
 	let value = (db - uniforms.levels.x) / (uniforms.levels.y - uniforms.levels.x);
 	return vec4f(heatmap(value), 1.0);

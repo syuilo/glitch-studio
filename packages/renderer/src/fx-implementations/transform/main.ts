@@ -12,13 +12,13 @@ export default implementEffect<typeof definition>({
 	}),
 	init: ({ wgpu, resolution, fallbackTexture }) => {
 		const device = wgpu.device;
-		// パラメータの32bitデータテクスチャもフィルタリング機能に依存せず読み取る。
 		const layout = device.createBindGroupLayout({ entries: [
 			{ binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },
 			{ binding: 1, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float' } },
 			...[2, 3, 4].map(binding => ({
-				binding, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'unfilterable-float' as const },
+				binding, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float' as const },
 			})),
+			{ binding: 6, visibility: GPUShaderStage.FRAGMENT, sampler: { type: 'filtering' } },
 			{ binding: 5, visibility: GPUShaderStage.FRAGMENT, sampler: { type: 'filtering' } },
 		] });
 		const pipeline = device.createRenderPipeline({
@@ -56,6 +56,7 @@ export default implementEffect<typeof definition>({
 						{ binding: 0, resource: { buffer: uniformBuffer } },
 						...textures.map((texture, i) => ({ binding: i + 1, resource: texture.createView() })),
 						{ binding: 5, resource: sampler },
+						{ binding: 6, resource: clampSampler },
 					] });
 				}
 				const pass = ctx.createPassEncoderFor(ctx.commandEncoder, ctx.outputDataMap.output.textureView);

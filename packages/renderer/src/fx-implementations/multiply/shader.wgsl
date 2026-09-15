@@ -14,6 +14,7 @@ struct Uniforms {
 
 @group(0) @binding(1) var<uniform> uniforms: Uniforms;
 @group(0) @binding(2) var sourceTexture: texture_2d<f32>;
+@group(0) @binding(3) var sourceSampler: sampler;
 
 struct FragmentIn {
 	@location(0) uv: vec2f,
@@ -21,17 +22,8 @@ struct FragmentIn {
 
 @fragment
 fn fs(fragData: FragmentIn) -> @location(0) vec4f {
-	let size = textureDimensions(sourceTexture, 0);
-	let maxCoord = vec2<i32>(size) - vec2<i32>(1);
-
-	let coord = clamp(
-		vec2<i32>((vec2f(fragData.uv.x, -fragData.uv.y) + vec2<f32>(1)) * vec2<f32>(size) / 2.0),
-		vec2<i32>(0),
-		maxCoord,
-	);
-
 	let uv = convertTexCoords(fragData.uv);
-	var color = textureLoad(sourceTexture, coord, 0);
+	var color = textureSample(sourceTexture, sourceSampler, uv);
 	color.r *= uniforms.v;
 	color.g *= uniforms.v;
 	color.b *= uniforms.v;

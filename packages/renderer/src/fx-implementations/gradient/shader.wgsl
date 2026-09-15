@@ -1,3 +1,5 @@
+@group(0) @binding(5) var inputSampler: sampler;
+
 struct Uniforms {
 	aspectRatio: f32,
 	angle: f32,
@@ -12,9 +14,7 @@ struct Uniforms {
 
 fn sampleScalar(tex: texture_2d<f32>, uv: vec2f) -> f32 {
 	// 各入力を出力全体にstretchし、定数の1x1や異なる解像度にも対応する。
-	let size = textureDimensions(tex);
-	let coord = clamp(vec2i(uv * vec2f(size)), vec2i(0), vec2i(size) - 1);
-	return textureLoad(tex, coord, 0).r;
+	return textureSample(tex, inputSampler, uv).r;
 }
 
 struct FragmentIn {

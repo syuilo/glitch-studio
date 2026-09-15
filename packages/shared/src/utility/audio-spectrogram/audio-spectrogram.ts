@@ -1,3 +1,4 @@
+import { float32ToFloat16Bits } from '../float32ToFloat16Bits.ts';
 import { audioChannel, AudioSpectrum, finiteNumber } from '../audio-spectrum.ts';
 import shader from './audio-spectrogram.wgsl?raw';
 import type { AudioHistory } from '../../audio-history.ts';
@@ -20,15 +21,18 @@ export type SpectrogramSettings = {
 };
 
 // 入力音声と描画先は呼び出し側が決める。Playerやエフェクトの定義には依存しない。
-export function createAudioSpectrogram(device: GPUDevice, vertexShaderModule: GPUShaderModule, format: GPUTextureFormat = navigator.gpu.getPreferredCanvasFormat()) {
+export function createAudioSpectrogram(device: GPUDevice, vertexShaderModule: GPUShaderModule, format: GPUTextureFormat = navigator.gpu.getPreferredCanvasFormat(), enableFloat32Filtering = false) {
 	const bands = 512;
 
 	const module = device.createShaderModule({ code: shader });
 
-	// r32floatをtextureLoadで読むため、float32-filterable機能を要求しない。
+	// ノードからはレンダラーの精度設定を受け取り、独立した音声プレビューは16bitを使う。
+	const sampler = device.createSampler({ minFilter: 'linear', magFilter: 'linear' });
+	const uploadRow = new Uint16Array(bands);
 	const layout = device.createBindGroupLayout({ entries: [
+		{ binding: 2, visibility: GPUShaderStage.FRAGMENT, sampler: { type: 'filtering' } },
 		{ binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },
-		{ binding: 1, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'unfilterable-float', viewDimension: '2d-array' } },
+		{ binding: 1, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float', viewDimension: '2d-array' } },
 	] });
 
 	const pipeline = device.createRenderPipeline({
@@ -70,10 +74,11 @@ export function createAudioSpectrogram(device: GPUDevice, vertexShaderModule: GP
 				capacity = required;
 				texture = device.createTexture({
 					size: [bands, capacity, 2],
-					format: 'r32float',
+					format: enableFloat32Filtering ? 'r32float' : 'r16float',
 					usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
 				});
 				bindGroup = device.createBindGroup({ layout, entries: [
+					{ binding: 2, resource: sampler },
 					{ binding: 0, resource: { buffer: uniformBuffer } },
 					{ binding: 1, resource: texture.createView({ dimension: '2d-array' }) },
 				] });
@@ -115,8 +120,12 @@ export function createAudioSpectrogram(device: GPUDevice, vertexShaderModule: GP
 						}
 						rows[side][band] = Math.max(rows[side][band], amplitude);
 					}
-					device.queue.writeTexture({ texture: texture!, origin: [0, bucket % capacity, side] }, rows[side],
-						{ bytesPerRow: bands * 4 }, [bands, 1, 1]);
+					if (!enableFloat32Filtering) {
+						for (let band = 0; band < bands; band++) uploadRow[band] = float32ToFloat16Bits(rows[side][band]);
+					}
+					const data = enableFloat32Filtering ? rows[side] : uploadRow;
+					device.queue.writeTexture({ texture: texture!, origin: [0, bucket % capacity, side] }, data,
+						{ bytesPerRow: data.byteLength }, [bands, 1, 1]);
 				}
 			});
 			if (!spectrum!.hasData) filled = 0;

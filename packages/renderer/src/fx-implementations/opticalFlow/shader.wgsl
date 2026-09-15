@@ -32,6 +32,7 @@ fn capture(@location(0) uv: vec2f) -> @location(0) f32 {
 }
 
 fn intensities(point: vec2i) -> vec2f {
+	// 整数グリッド上の差分を求めるため、隣接画素を混ぜずに読む。
 	let coord = clamp(point, vec2i(0), vec2i(textureDimensions(current)) - 1);
 	return vec2f(textureLoad(previous, coord, 0).r, textureLoad(current, coord, 0).r);
 }

@@ -16,12 +16,12 @@ export default implementEffect<typeof definition>({
 	},
 	init: ({ wgpu, resolution, params, fallbackTexture }) => {
 		const shaderModule = wgpu.device.createShaderModule({ code });
-		// Sizeの32bitデータテクスチャはフィルタリングせず読み取る。
 		const layout = wgpu.device.createBindGroupLayout({ entries: [
+			{ binding: 5, visibility: GPUShaderStage.FRAGMENT, sampler: { type: 'filtering' } },
 			{ binding: 1, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },
 			{ binding: 2, visibility: GPUShaderStage.FRAGMENT, sampler: { type: 'filtering' } },
 			{ binding: 3, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float' } },
-			{ binding: 4, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'unfilterable-float' } },
+			{ binding: 4, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float' } },
 		] });
 		const pipeline = wgpu.device.createRenderPipeline({
 			vertex: { module: wgpu.defaultVertexShaderModule },
@@ -45,6 +45,8 @@ export default implementEffect<typeof definition>({
 			addressModeV: 'mirror-repeat',
 		});
 
+		const parameterSampler = wgpu.device.createSampler({ minFilter: 'linear', magFilter: 'linear' });
+
 		let inputTexture = params.input;
 		let sizeTexture = params.size;
 		let bindGroup: GPUBindGroup;
@@ -56,6 +58,7 @@ export default implementEffect<typeof definition>({
 					{ binding: 2, resource: sampler },
 					{ binding: 3, resource: (inputTexture ?? fallbackTexture).createView() },
 					{ binding: 4, resource: sizeTexture.createView() },
+					{ binding: 5, resource: parameterSampler },
 				],
 			});
 		};

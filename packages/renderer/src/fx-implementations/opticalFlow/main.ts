@@ -7,12 +7,12 @@ export default implementEffect<typeof definition>({
 	getOut: ({ wgpu, resolution }) => {
 		const out = wgpu.device.createTexture({
 			size: resolution,
-			format: 'r16float',
+			format: wgpu.enableFloat32Filtering ? 'rg32float' : 'rg16float',
 			usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
 		});
 		return { output: out };
 	},
-	init: ({ wgpu: { device, defaultVertexShaderModule }, resolution, params, fallbackTexture }) => {
+	init: ({ wgpu: { device, defaultVertexShaderModule, enableFloat32Filtering }, resolution, params, fallbackTexture }) => {
 		const scale = Math.min(1, 256 / Math.max(resolution.width, resolution.height));
 		const size = {
 			width: Math.max(1, Math.round(resolution.width * scale)),
@@ -25,15 +25,17 @@ export default implementEffect<typeof definition>({
 			fragment: { module, entryPoint, targets: [{ format }] },
 			primitive: { topology: 'triangle-list' },
 		});
-		const capture = createPipeline('capture', 'r16float');
-		const estimate = createPipeline('estimate', 'rg16float');
-		const output = createPipeline('output', 'rg16float');
+		const scalarFormat = enableFloat32Filtering ? 'r32float' : 'r16float';
+		const vectorFormat = enableFloat32Filtering ? 'rg32float' : 'rg16float';
+		const capture = createPipeline('capture', scalarFormat);
+		const estimate = createPipeline('estimate', vectorFormat);
+		const output = createPipeline('output', vectorFormat);
 		const createTexture = (format: GPUTextureFormat) => device.createTexture({
 			size, format, usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
 		});
-		const frames = [createTexture('r16float'), createTexture('r16float')];
+		const frames = [createTexture(scalarFormat), createTexture(scalarFormat)];
 		const frameViews = frames.map(texture => texture.createView());
-		const flow = createTexture('rg16float');
+		const flow = createTexture(vectorFormat);
 		const flowView = flow.createView();
 		const values = new Float32Array(6);
 		values.set([1 / size.width, 1 / size.height]);

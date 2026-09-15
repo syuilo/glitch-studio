@@ -19,11 +19,12 @@ export default implementEffect<typeof definition>({
 		});
 
 		const shaderDataDefinitions = makeShaderDataDefinitions(code);
-		// データ入力はtextureLoadで読み、32bitテクスチャのフィルタリング機能を要求しない。
+		const sampler = wgpu.device.createSampler({ minFilter: 'linear', magFilter: 'linear' });
 		const layout = wgpu.device.createBindGroupLayout({ entries: [
+			{ binding: 5, visibility: GPUShaderStage.FRAGMENT, sampler: { type: 'filtering' } },
 			{ binding: 1, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },
 			...[2, 3, 4].map(binding => ({
-				binding, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'unfilterable-float' as const },
+				binding, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float' as const },
 			})),
 		] });
 
@@ -70,6 +71,7 @@ export default implementEffect<typeof definition>({
 				if (inputs.some((texture, i) => texture !== textures[i])) {
 					textures = inputs;
 					bindGroup = wgpu.device.createBindGroup({ layout, entries: [
+						{ binding: 5, resource: sampler },
 						{ binding: 1, resource: { buffer: uniformBuffer } },
 						...textures.map((texture, i) => ({ binding: i + 2, resource: texture.createView() })),
 					] });

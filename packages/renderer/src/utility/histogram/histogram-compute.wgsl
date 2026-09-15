@@ -22,6 +22,7 @@ fn accumulate(@builtin(global_invocation_id) id: vec3u) {
 		(sampleCenter * sourceSize) / (SAMPLE_SIZE * 2u),
 		sourceSize - vec2u(1u),
 	);
+	// 補間で分布を変えないよう、集計対象の画素を直接読む。
 	let color = textureLoad(sourceTexture, vec2i(coord), 0);
 	let displayedRgb = clamp(color.rgb * color.a, vec3f(0.0), vec3f(1.0));
 	let bins = vec3u(displayedRgb * 255.0 + vec3f(0.5));

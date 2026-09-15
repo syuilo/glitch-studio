@@ -9,12 +9,11 @@ struct Uniforms {
 @group(0) @binding(3) var scaleTexture: texture_2d<f32>;
 @group(0) @binding(4) var rotationTexture: texture_2d<f32>;
 @group(0) @binding(5) var sourceSampler: sampler;
+@group(0) @binding(6) var parameterSampler: sampler;
 
 fn sampleParameter(tex: texture_2d<f32>, uv: vec2f) -> vec4f {
 	// 定数の1x1テクスチャを含め、各パラメータを出力全体に対応付ける。
-	let size = textureDimensions(tex);
-	let coord = clamp(vec2i(uv * vec2f(size)), vec2i(0), vec2i(size) - 1);
-	return textureLoad(tex, coord, 0);
+	return textureSample(tex, parameterSampler, uv);
 }
 
 fn sampleSource(uv: vec2f) -> vec4f {

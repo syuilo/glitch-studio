@@ -12,8 +12,8 @@ export default implementEffect<typeof definition>({
 		});
 		return { output: out };
 	},
-	init: ({ wgpu: { device, defaultVertexShaderModule, intermediateTextureFormat } }) => {
-		const spectrogram = createAudioSpectrogram(device, defaultVertexShaderModule, intermediateTextureFormat);
+	init: ({ wgpu: { device, defaultVertexShaderModule, intermediateTextureFormat, enableFloat32Filtering } }) => {
+		const spectrogram = createAudioSpectrogram(device, defaultVertexShaderModule, intermediateTextureFormat, enableFloat32Filtering);
 		return {
 			render(ctx) {
 				const pass = ctx.createPassEncoderFor(ctx.commandEncoder, ctx.outputDataMap.output.textureView);

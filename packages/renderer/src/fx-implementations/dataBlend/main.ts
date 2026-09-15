@@ -30,7 +30,7 @@ const blendModes: Record<string, number> = {
 export default implementEffect<typeof definition>({
 	getOut: ({ wgpu, resolution }) => {
 		const out = wgpu.device.createTexture({
-			size: resolution, format: 'rgba32float', usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
+			size: resolution, format: wgpu.enableFloat32Filtering ? 'rgba32float' : 'rgba16float', usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
 		});
 		return { output: out };
 	},
@@ -38,15 +38,16 @@ export default implementEffect<typeof definition>({
 		const device = wgpu.device;
 		const values = makeStructuredView(makeShaderDataDefinitions(code).uniforms.uniforms);
 		const buffer = device.createBuffer({ size: values.arrayBuffer.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
-		// float32-filterableの有無にかかわらず32bit入力を受け入れる。補間はtextureLoadで行う。
+		const sampler = device.createSampler({ minFilter: 'linear', magFilter: 'linear' });
 		const layout = device.createBindGroupLayout({ entries: [
+			{ binding: 4, visibility: GPUShaderStage.FRAGMENT, sampler: { type: 'filtering' } },
 			{ binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },
-			...[1, 2, 3].map(binding => ({ binding, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'unfilterable-float' as const } })),
+			...[1, 2, 3].map(binding => ({ binding, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float' as const } })),
 		] });
 		const pipeline = device.createRenderPipeline({
 			layout: device.createPipelineLayout({ bindGroupLayouts: [layout] }),
 			vertex: { module: wgpu.defaultVertexShaderModule },
-			fragment: { module: device.createShaderModule({ code }), targets: [{ format: 'rgba32float' }] },
+			fragment: { module: device.createShaderModule({ code }), targets: [{ format: wgpu.enableFloat32Filtering ? 'rgba32float' : 'rgba16float' }] },
 			primitive: { topology: 'triangle-list' },
 		});
 		let textures: GPUTexture[] = [];
@@ -58,6 +59,7 @@ export default implementEffect<typeof definition>({
 				if (inputs.some((texture, i) => texture !== textures[i])) {
 					textures = inputs;
 					bindGroup = device.createBindGroup({ layout, entries: [
+						{ binding: 4, resource: sampler },
 						{ binding: 0, resource: { buffer } },
 						...textures.map((texture, i) => ({ binding: i + 1, resource: texture.createView() })),
 					] });

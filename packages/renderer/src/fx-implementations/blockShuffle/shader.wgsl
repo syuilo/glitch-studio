@@ -1,3 +1,5 @@
+@group(0) @binding(5) var parameterSampler: sampler;
+
 fn convertTexCoords(uv: vec2f) -> vec2f {
 	return vec2f(uv.x, -uv.y) * 0.5 + vec2f(0.5);
 }
@@ -41,9 +43,7 @@ struct FragmentIn {
 fn fs(fragData: FragmentIn) -> @location(0) vec4f {
 	let uv = convertTexCoords(fragData.uv);
 	// 定数の1x1テクスチャもノード入力も、出力全体に対応付ける。
-	let sizeDimensions = textureDimensions(sizeTexture);
-	let sizeCoord = clamp(vec2i(uv * vec2f(sizeDimensions)), vec2i(0), vec2i(sizeDimensions) - 1);
-	let blockScale = 1.0 - clamp(textureLoad(sizeTexture, sizeCoord, 0).rg, vec2f(0.0), vec2f(1.0));
+	let blockScale = 1.0 - clamp(textureSample(sizeTexture, parameterSampler, uv).rg, vec2f(0.0), vec2f(1.0));
 	var extent = uniforms.resolution;
 	// 正方形の基準領域をcoverでは長辺、containでは短辺に合わせる。
 	if (uniforms.fitMode == 1u) {

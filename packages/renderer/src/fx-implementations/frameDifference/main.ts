@@ -13,10 +13,15 @@ export default implementEffect<typeof definition>({
 		});
 		return { output: out };
 	},
-	init: ({ wgpu: { device, defaultVertexShaderModule, intermediateTextureFormat }, resolution, params, fallbackTexture }) => {
+	init: ({ wgpu: { device, defaultVertexShaderModule, intermediateTextureFormat, enableFloat32Filtering }, resolution, params, fallbackTexture }) => {
+		const historyFormat = enableFloat32Filtering ? 'rgba32float' : 'rgba16float';
+		const sampler = device.createSampler({ minFilter: 'linear', magFilter: 'linear' });
 		const module = device.createShaderModule({ code });
 		const inputLayout = device.createBindGroupLayout({
-			entries: [{ binding: 0, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'unfilterable-float' } }],
+			entries: [
+				{ binding: 0, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float' } },
+				{ binding: 1, visibility: GPUShaderStage.FRAGMENT, sampler: { type: 'filtering' } },
+			],
 		});
 		const historyLayout = device.createBindGroupLayout({
 			entries: [
@@ -27,19 +32,19 @@ export default implementEffect<typeof definition>({
 		const difference = device.createRenderPipeline({
 			layout: device.createPipelineLayout({ bindGroupLayouts: [inputLayout, historyLayout] }),
 			vertex: { module: defaultVertexShaderModule },
-			fragment: { module, entryPoint: 'difference', targets: [{ format: intermediateTextureFormat }] },
+			fragment: { module, entryPoint: 'difference', constants: { HALF_PRECISION: Number(!enableFloat32Filtering) }, targets: [{ format: intermediateTextureFormat }] },
 			primitive: { topology: 'triangle-list' },
 		});
 		const capture = device.createRenderPipeline({
 			layout: device.createPipelineLayout({ bindGroupLayouts: [inputLayout] }),
 			vertex: { module: defaultVertexShaderModule },
-			fragment: { module, entryPoint: 'capture', targets: [{ format: 'rgba32float' }] },
+			fragment: { module, entryPoint: 'capture', constants: { HALF_PRECISION: Number(!enableFloat32Filtering) }, targets: [{ format: historyFormat }] },
 			primitive: { topology: 'triangle-list' },
 		});
-		// Preserve f32 values so history quantization cannot produce differences in a static image.
+		// シェーダー側でも同じ保存精度に丸め、静止画に量子化由来の差分が出ないようにする。
 		const history = device.createTexture({
 			size: resolution,
-			format: 'rgba32float',
+			format: historyFormat,
 			usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
 		});
 		const historyView = history.createView();
@@ -60,7 +65,10 @@ export default implementEffect<typeof definition>({
 		let input = params.input;
 		const createInputGroup = () => device.createBindGroup({
 			layout: inputLayout,
-			entries: [{ binding: 0, resource: (input ?? fallbackTexture).createView() }],
+			entries: [
+				{ binding: 0, resource: (input ?? fallbackTexture).createView() },
+				{ binding: 1, resource: sampler },
+			],
 		});
 		let inputGroup = createInputGroup();
 		let hasPrevious = false;

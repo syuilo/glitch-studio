@@ -12,7 +12,7 @@ import { NonNegativeRollingAverage } from './utility/NonNegativeRollingAverage.t
 import { GpuHistogram } from './utility/histogram/GpuHistogram.ts';
 import { GpuWaveform } from './utility/waveform/GpuWaveform.ts';
 import { GpuMemoryTracker } from './utility/GpuMemoryTracker.ts';
-import { float32ToFloat16Bits } from './utility/float32ToFloat16Bits.ts';
+import { float32ToFloat16Bits } from '@glitch/shared/utility/float32ToFloat16Bits.ts';
 import type { EffectStatus } from '@glitch/shared/effect-status.ts';
 import type { AudioCaptureMessage, AudioSourceId } from '@glitch/shared/audio.ts';
 import type { Asset, Macro, GsAutomation, GsFxNode, GsNode, GsGroupNode, Player, NodeOutputReference } from '@glitch/shared/types.ts';
@@ -78,6 +78,7 @@ export class Renderer {
 	}>> = new Map();
 	private effectCacheKeys: Map<GsFxNode['id'], string> = new Map();
 	private timingHelper: TimingHelper;
+	private finalRenderSampler: GPUSampler;
 	private finalRenderPipeline: GPURenderPipeline;
 	private finalRenderUniformValues: ReturnType<typeof makeStructuredView>;
 	private finalRenderUniformBuffer: GPUBuffer;
@@ -189,6 +190,7 @@ export class Renderer {
 
 		const finalRenderShaderDataDefinitions = makeShaderDataDefinitions(finalRenderShaderCode);
 
+		this.finalRenderSampler = this.gpuDevice.createSampler({ minFilter: 'linear', magFilter: 'linear' });
 		this.finalRenderPipeline = this.gpuDevice.createRenderPipeline({
 			vertex: {
 				module: this.defaultVertexShaderModule,
@@ -651,6 +653,7 @@ export class Renderer {
 				layout: this.finalRenderPipeline.getBindGroupLayout(0),
 				entries: [
 					{ binding: 1, resource: { buffer: this.finalRenderUniformBuffer } },
+					{ binding: 3, resource: this.finalRenderSampler },
 					{ binding: 2, resource: this.finalRenderInputTexture.createView() }, // TODO: cache view
 				],
 			});

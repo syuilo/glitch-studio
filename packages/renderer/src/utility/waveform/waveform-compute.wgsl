@@ -29,6 +29,7 @@ fn accumulate(@builtin(global_invocation_id) id: vec3u) {
 		(sampleCenter * sourceSize) / (params.sampleSize * 2u),
 		sourceSize - vec2u(1u),
 	);
+	// 補間で輝度の分布を変えないよう、集計対象の画素を直接読む。
 	let color = textureLoad(sourceTexture, vec2i(coord), 0);
 	let rgb = clamp(color.rgb * color.a, vec3f(0.0), vec3f(1.0));
 	let levels = vec3u(rgb * 255.0 + vec3f(0.5));
