@@ -1,4 +1,5 @@
 <template>
+<!-- TODO: 重いからなんとかする -->
 <div ref="rootEl" :class="$style.root">
 	<svg v-for="(wire, index) in wires" :key="wire.key" version="1.1" :viewBox="`0 0 ${width} ${height}`" :class="$style.wire">
 		<defs>
