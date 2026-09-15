@@ -192,7 +192,7 @@ function onDrop(ev: DragEvent, area: 'top' | 'bottom' | 'left' | 'right' | 'cent
 
 <style lang="scss" module>
 .root {
-	--headerHeight: 32px;
+	--headerHeight: 30px;
 
 	position: relative;
 	height: 100%;
