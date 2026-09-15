@@ -3,6 +3,7 @@ import { defineEffect } from '../fx-definition.ts';
 export default defineEffect({
 	name: 'chromaticAberration',
 	displayName: 'Chromatic Aberration',
+	tags: [],
 	paramDefs: {
 		input: { type: 'node', label: 'Input', dataType: 'color', primary: true, default: () => ({ type: 'literal', value: null }) },
 		amount: { type: 'range', min: 0, max: 1, step: 0.01, label: 'Amount', default: () => ({ type: 'literal', value: 0.1 }) },

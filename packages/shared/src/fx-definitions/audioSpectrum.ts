@@ -3,6 +3,7 @@ import { defineEffect } from '../fx-definition.ts';
 export default defineEffect({
 	name: 'audioSpectrum',
 	displayName: 'Audio Spectrum',
+	tags: [],
 	paramDefs: {
 		player: { type: 'player', label: 'Player', default: () => ({ type: 'literal', value: null }) },
 		channel: { type: 'enum', label: 'Channel', options: [

@@ -3,6 +3,7 @@ import { defineEffect } from '../fx-definition.ts';
 export default defineEffect({
 	name: 'waveform',
 	displayName: 'Waveform',
+	tags: [],
 	paramDefs: {
 		input: { type: 'node', label: 'Input', dataType: 'color', primary: true, default: () => ({ type: 'literal', value: null }) },
 		resolution: { type: 'enum', label: 'Resolution', options: [

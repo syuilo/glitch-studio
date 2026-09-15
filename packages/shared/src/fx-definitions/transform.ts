@@ -3,6 +3,7 @@ import { defineEffect } from '../fx-definition.ts';
 export default defineEffect({
 	name: 'transform',
 	displayName: 'Transform',
+	tags: [],
 	paramDefs: {
 		input: { type: 'node', label: 'Input', dataType: 'color', primary: true, default: () => ({ type: 'literal', value: null }) },
 		translation: { type: 'vector', label: 'Translation', min: -1, max: 1, step: 0.01, canNode: true, default: () => ({ type: 'literal', value: [0, 0] }) },

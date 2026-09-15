@@ -3,6 +3,7 @@ import { defineEffect } from '../fx-definition.ts';
 export default defineEffect({
 	name: 'vectorDisplacement',
 	displayName: 'Vector displacement',
+	tags: [],
 	paramDefs: {
 		input: { type: 'node', label: 'Input', dataType: 'color', primary: true, default: () => ({ type: 'literal', value: null }) },
 		vector: { type: 'node', label: 'Vector', dataType: 'vector', default: () => ({ type: 'literal', value: null }) },

@@ -3,6 +3,7 @@ import { defineEffect } from '../fx-definition.ts';
 export default defineEffect({
 	name: 'accumulate',
 	displayName: 'Accumulate',
+	tags: [],
 	paramDefs: {
 		input: { type: 'node', label: 'Input', dataType: 'any', primary: true, default: () => ({ type: 'literal', value: null }) },
 		strength: { type: 'range', label: 'Strength', min: 0, max: 10, step: 0.01, default: () => ({ type: 'literal', value: 1 }) },

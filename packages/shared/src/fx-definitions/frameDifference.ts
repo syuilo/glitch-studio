@@ -3,6 +3,7 @@ import { defineEffect } from '../fx-definition.ts';
 export default defineEffect({
 	name: 'frameDifference',
 	displayName: 'Frame difference',
+	tags: [],
 	paramDefs: {
 		input: { type: 'node', label: 'Input', dataType: 'color', primary: true, default: () => ({ type: 'literal', value: null }) },
 		mode: { type: 'enum', label: 'Mode', options: [

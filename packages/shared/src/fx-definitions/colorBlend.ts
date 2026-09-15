@@ -3,6 +3,7 @@ import { defineEffect } from '../fx-definition.ts';
 export default defineEffect({
 	name: 'colorBlend',
 	displayName: 'Blend (Color)',
+	tags: [],
 	paramDefs: {
 		inputA: { type: 'node', label: 'A', dataType: 'color', primary: true, default: () => ({ type: 'literal', value: null }) },
 		inputB: { type: 'node', label: 'B', dataType: 'color', default: () => ({ type: 'literal', value: null }) },

@@ -3,6 +3,7 @@ import { defineEffect } from '../fx-definition.ts';
 export default defineEffect({
 	name: 'colorBlocks',
 	displayName: 'Color blocks',
+	tags: [],
 	paramDefs: {
 		amount: { type: 'range', min: 0, max: 100, step: 1, label: 'Amount', default: () => ({ type: 'literal', value: 50 }) },
 		alphaRandomness: { type: 'range', min: 0, max: 1, step: 0.01, label: 'Alpha randomness', default: () => ({ type: 'literal', value: 1 }) },

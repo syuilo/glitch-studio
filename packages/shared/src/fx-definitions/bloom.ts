@@ -3,6 +3,7 @@ import { defineEffect } from '../fx-definition.ts';
 export default defineEffect({
 	name: 'bloom',
 	displayName: 'Bloom',
+	tags: [],
 	paramDefs: {
 		input: { type: 'node', label: 'Input', dataType: 'color', primary: true, default: () => ({ type: 'literal', value: null }) },
 		strength: { type: 'range', label: 'Strength', min: 0, max: 5, step: 0.01, default: () => ({ type: 'literal', value: 1 }) },

@@ -174,7 +174,7 @@ export type EffectTags = string; // TODO
 export type EffectDefinition<OpSc extends EffectOptionsSchema = EffectOptionsSchema, Outputs extends EffectOutputsSchema = EffectOutputsSchema> = {
 	name: string;
 	displayName: string;
-	tags: EffectTags;
+	tags: EffectTags[];
 	paramDefs: OpSc;
 	outputs: Outputs;
 };
