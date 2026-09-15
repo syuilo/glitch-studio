@@ -340,7 +340,6 @@ export class Engine {
 		else await this.videoElements.get(playerId)?.play();
 	}
 
-	public get previewVolume() { return this.audioInputs.previewVolume; }
 	public setPreviewVolume(volume: number) { this.audioInputs.setPreviewVolume(volume); }
 	public get audioPreview() { return this.audioInputs.preview; }
 	public retainAudioOutputCapture() { return this.audioInputs.retainOutputCapture(); }

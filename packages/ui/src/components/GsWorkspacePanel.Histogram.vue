@@ -18,7 +18,7 @@ const props = defineProps<{
 <style module lang="scss">
 .root {
 	height: 100%;
-	padding: 2px 12px 12px 12px;
+	padding: 2px 10px 10px 10px;
 	box-sizing: border-box;
 }
 </style>
