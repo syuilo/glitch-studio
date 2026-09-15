@@ -10,7 +10,8 @@
 		"strictFunctionTypes": true,
 		"noImplicitReturns": true,
 		"verbatimModuleSyntax": true,
-		"rootDir": ".."
+		"rootDir": "..",
+		"types": ["@webgpu/types", "vite/client"]
 	},
 	"include": [
 		"@types/**/*.ts",

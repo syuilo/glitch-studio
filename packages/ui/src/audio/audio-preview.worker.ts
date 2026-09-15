@@ -45,7 +45,12 @@ function configurePanel(panel: Panel) {
 	panel.spectrogram = undefined;
 	panel.spectrum = undefined;
 	panel.waveform = undefined;
-	if (panel.options.mode === 'spectrogram') panel.spectrogram = createAudioSpectrogram(device, vertex!);
+	if (panel.options.mode === 'spectrogram') panel.spectrogram = createAudioSpectrogram({
+		device,
+		vertexShaderModule: vertex!,
+		format: navigator.gpu.getPreferredCanvasFormat(),
+		enableFloat32Filtering: false,
+	});
 	else if (panel.options.mode === 'spectrum') panel.spectrum = createPreviewSpectrum(device);
 	else panel.waveform = createPreviewWaveform(device);
 }
@@ -108,8 +113,7 @@ onmessage = ({ data }: MessageEvent<PreviewRequest>) => {
 				const changedMode = panel.options.mode !== data.options.mode;
 				panel.options = data.options;
 				if (changedMode) {
-					try { configurePanel(panel); }
-					catch (error) { removePanel(data.id); send({ type: 'error', id: data.id, message: String(error) }); }
+					try { configurePanel(panel); } catch (error) { removePanel(data.id); send({ type: 'error', id: data.id, message: String(error) }); }
 				}
 			}
 			break;
@@ -129,8 +133,7 @@ onmessage = ({ data }: MessageEvent<PreviewRequest>) => {
 				if (message.type === 'reset') history.reset(message.generation);
 				else {
 					const rate = history.sampleRate;
-					try { history.append(message); }
-					finally { port.postMessage({ type: 'recycle', buffer: message.buffer }, [message.buffer]); }
+					try { history.append(message); } finally { port.postMessage({ type: 'recycle', buffer: message.buffer }, [message.buffer]); }
 					if (rate !== history.sampleRate) send({ type: 'sampleRate', sampleRate: history.sampleRate });
 				}
 			};
@@ -146,8 +149,8 @@ onmessage = ({ data }: MessageEvent<PreviewRequest>) => {
 				const previous = readings.get(id);
 				// 通知待ちの間もピークを保持し、UI復帰時に古い通知を連続配送しない。
 				readings.set(id, { id, generation: reading.generation,
-					left: Math.max(reading.left, previous?.generation === reading.generation ? previous.left : 0),
-					right: Math.max(reading.right, previous?.generation === reading.generation ? previous.right : 0) });
+																							left: Math.max(reading.left, previous?.generation === reading.generation ? previous.left : 0),
+																							right: Math.max(reading.right, previous?.generation === reading.generation ? previous.right : 0) });
 				port.postMessage({ type: 'meterReceived' });
 			};
 			break;
@@ -181,7 +184,7 @@ function drawFrame() {
 			if (panel.canvas.height !== pixelHeight) panel.canvas.height = pixelHeight;
 			const encoder = device.createCommandEncoder();
 			const pass = encoder.beginRenderPass({ colorAttachments: [{ view: panel.context.getCurrentTexture().createView(),
-				loadOp: 'clear', storeOp: 'store', clearValue: [0, 0, 0, 0] }] });
+																																																															loadOp: 'clear', storeOp: 'store', clearValue: [0, 0, 0, 0] }] });
 			const options = panel.options;
 			if (options.mode === 'spectrogram') panel.spectrogram!.render(history, options.settings, pass);
 			else if (options.mode === 'spectrum') panel.spectrum!.render(running ? history : null, options.settings, pass, width);

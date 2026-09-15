@@ -12,7 +12,9 @@
 	},
 	"devDependencies": {
 		"@typescript-eslint/eslint-plugin": "8.59.2",
-		"@typescript-eslint/parser": "8.59.2"
+		"@typescript-eslint/parser": "8.59.2",
+		"vite": "8.2.2",
+		"@webgpu/types": "0.1.72"
 	},
 	"dependencies": {
 		"bezier-easing": "3.0.1"
