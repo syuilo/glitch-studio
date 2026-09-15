@@ -21,6 +21,7 @@ export default defineEffect({
 			{ label: 'Luminance', value: 'luminance' },
 		], default: () => ({ type: 'literal', value: 'rgb' }) },
 		intensity: { type: 'range', label: 'Intensity', min: 0, max: 10, step: 0.01, default: () => ({ type: 'literal', value: 1 }) },
+		showGrid: { type: 'bool', label: 'Grid', default: () => ({ type: 'literal', value: false }) },
 	},
 	outputs: {
 		output: { primary: true, dataType: 'color' },

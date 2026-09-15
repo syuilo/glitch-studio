@@ -89,12 +89,16 @@ fn fs(@location(0) uv: vec2f) -> @location(0) vec4f {
 		fraction.y,
 	);
 	let signal = vec3f(1.0) - exp(-value * params.intensity);
-	var background = 0.0;
+	var color = signal;
 	if (params.showGrid == 1u) {
 		let cell = vec2u(round(position));
 		let spacing = max(size / 4u, vec2u(1u));
 		let onGrid = cell.x % spacing.x == 0u || cell.y % spacing.y == 0u;
-		background = 0.012 + select(0.0, 0.055, onGrid);
+		color = min(signal + vec3f(0.012), vec3f(1.0));
+		// 加算では白い波形に埋もれるため、明るいグレーを波形の上から合成する。
+		if (onGrid) {
+			color = mix(color, vec3f(0.3), 0.75);
+		}
 	}
-	return vec4f(min(signal + vec3f(background), vec3f(1.0)), 1.0);
+	return vec4f(color, 1.0);
 }
