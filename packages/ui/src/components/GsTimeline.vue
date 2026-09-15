@@ -13,10 +13,10 @@
 		</div>
 		<div ref="tlEl" :class="$style.tl" tabindex="-1" @wheel="onTlWheel" @mousemove="onTlMousemove" @mousedown="onTlMousedown" @keydown="onTlKeydown">
 			<div :class="$style.yTicks" @wheel="onYTicksWheel">
-				<div v-for="v of yTicks" :class="[$style.yTick, { [$style.yTickActive]: snappingY != null && nearlyEqual(snappingY, v) }]" :style="{ top: valueToDomY(v) + 'px' }">{{ v.toFixed(2) }}</div>
+				<div v-for="v of yTicks" class="_monospace" :class="[$style.yTick, { [$style.yTickActive]: snappingY != null && nearlyEqual(snappingY, v) }]" :style="{ top: valueToDomY(v) + 'px' }">{{ v.toFixed(2) }}</div>
 			</div>
 			<div :class="$style.xTicks" @wheel="onXTicksWheel">
-				<div v-for="time of xTicks" :class="$style.xTick" :style="{ left: timeToDomX(time) + 'px' }">{{ time }}</div>
+				<div v-for="time of xTicks" :class="$style.xTick" class="_monospace" :style="{ left: timeToDomX(time) + 'px' }">{{ formatMsToTimecode(time) }}</div>
 				<div :class="$style.xTicksSeekBar" :style="{ left: (seekBarPos - 1) + 'px' }" @mousedown="onSeekBarMousedown"></div>
 			</div>
 			<div :class="$style.ticksCorner"></div>
@@ -24,8 +24,8 @@
 			<div :class="$style.selectedArea" :style="{ width: selectedAreaElWidth + 'px', height: selectedAreaElHeight + 'px', bottom: selectedAreaElPosY + 'px', left: selectedAreaElPosX + 'px' }"></div>
 			<div v-for="time of xTicks" :class="[$style.inTlXTick]" :style="{ left: timeToDomX(time) + 'px' }"></div>
 			<div v-for="v of yTicks" :class="[$style.inTlYTick, { [$style.inTlYTickZero]: v.toFixed(2).replace('-', '') === '0.00', [$style.inTlYTickActive]: snappingY != null && nearlyEqual(snappingY, v) }]" :style="{ top: valueToDomY(v) + 'px' }"></div>
-			<div :class="$style.seekBar" :style="{ left: seekBarPos + 'px' }"><div :class="$style.seekBarFrame">{{ time }}</div></div>
-			<div :class="$style.valueBar" :style="{ top: valueBarPos + 'px' }"><div :class="$style.valueBarValue">{{ currentValue.toFixed(2) }}</div></div>
+			<div :class="$style.seekBar" class="_monospace" :style="{ left: seekBarPos + 'px' }"><div :class="$style.seekBarFrame">{{ formatMsToTimecode(time) }}</div></div>
+			<div :class="$style.valueBar" class="_monospace" :style="{ top: valueBarPos + 'px' }"><div :class="$style.valueBarValue">{{ currentValue.toFixed(2) }}</div></div>
 			<div :class="$style.crossPoint" :style="{ left: seekBarPos + 'px', top: valueBarPos + 'px' }"></div>
 			<div v-if="!bezierDragging" :class="$style.cursorBar" :style="{ left: cursorBarPos + 'px' }"></div>
 			<div v-if="selectedAutomation" :class="$style.automation">
@@ -68,8 +68,8 @@
 				></div>
 			</div>
 
-			<div v-if="(nowSelecting || selectedKeyframes.length === 0) && tooltipDomPos" :class="$style.tooltip" :style="{ left: tooltipDomPos[0] + 'px', top: tooltipDomPos[1] + 'px' }">
-				<div>F: {{ cursorTime }}</div>
+			<div v-if="(nowSelecting || selectedKeyframes.length === 0) && tooltipDomPos" :class="$style.tooltip" class="_monospace" :style="{ left: tooltipDomPos[0] + 'px', top: tooltipDomPos[1] + 'px' }">
+				<div>T: {{ formatMsToTimecode(cursorTime) }}</div>
 				<div>V: {{ cursorValue }}</div>
 			</div>
 
@@ -131,7 +131,10 @@ import { dragListen } from '@/utility/drag.ts';
 const X_TICKS_HEIGHT = 20;
 const Y_TICKS_WIDTH = 60;
 
-const duration = ref(10000);
+// 最も長いtimeMsをもつkeyframeのtimeMs
+const duration = computed(() => {
+	return selectedAutomation.value?.keyframes.reduce((max, kf) => Math.max(max, kf.timeMs), 0) ?? 0;
+});
 const time = ref(0);
 
 const tlEl = useTemplateRef('tlEl');
@@ -318,7 +321,7 @@ function addAutomation() {
 			bezierControlPointB: [1000, 0],
 		}, {
 			id: genId(),
-			timeMs: duration.value,
+			timeMs: 1000 * 10,
 			value: 1,
 			bezierControlPointA: [-1000, 0],
 			bezierControlPointB: [0, 0],
@@ -410,9 +413,7 @@ function onYTicksWheel(ev: WheelEvent) {
 
 function onTlDblclick(ev: MouseEvent) {
 	if (ev.button === 1) return;
-	if (selectedAutomation.value == null) {
-		addAutomation();
-	}
+	if (selectedAutomation.value == null) return;
 
 	const rect = tlEl.value.getBoundingClientRect();
 	const clickX = ev.clientX - rect.left;
@@ -547,7 +548,7 @@ function onKeyframesXYHandleMousedown(ev: MouseEvent, keyframe: GsKeyframe, trea
 
 		for (let i = 0; i < selectedKeyframes.value.length; i++) {
 			const keyframe = selectedKeyframes.value[i];
-			if (treatX) keyframe.timeMs = baseNewTime + (baseFrames[i] - baseTime);
+			if (treatX) keyframe.timeMs = Math.max(0, baseNewTime + (baseFrames[i] - baseTime));
 			if (treatY) keyframe.value = baseNewValue + (baseValues[i] - baseValue);
 		}
 	}
@@ -797,6 +798,14 @@ function toggleBezierB() {
 	} else {
 		selectedKeyframe.value.bezierControlPointB = [0, 0];
 	}
+}
+
+function formatMsToTimecode(ms: number) {
+	const totalSeconds = Math.floor(ms / 1000);
+	const minutes = Math.floor(totalSeconds / 60);
+	const seconds = totalSeconds % 60;
+	const milliseconds = ms % 1000;
+	return `${minutes}:${seconds.toString().padStart(2, '0')}.${milliseconds.toString()}`;
 }
 
 onMounted(() => {
