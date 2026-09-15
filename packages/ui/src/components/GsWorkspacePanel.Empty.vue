@@ -15,7 +15,7 @@ import { deepClone } from '@glitch/shared/utility/deep-clone.js';
 import GsWorkspacePanel from './GsWorkspacePanel.vue';
 import GsButton from './common/GsButton.vue';
 import type { WorkspacePanel } from '@/workspace.ts';
-import { findWorkspaceParent } from '@/utility/workspace.ts';
+import { findWorkspaceElement } from '@/utility/workspace.ts';
 import { preferences } from '@/preferences.ts';
 import { workspacePanelChoices as choices } from '@/workspace.ts';
 
@@ -23,12 +23,11 @@ const props = defineProps<{
 	panel: WorkspacePanel;
 }>();
 
-function switchType(type: WorkspacePanel['type']) {
+function switchType(type: WorkspacePanel['contentType']) {
 	const workspace = deepClone(preferences.s.workspaceDefinition);
-	const parent = findWorkspaceParent(workspace, props.panel.id);
-	const panel = parent?.children.find(child => child.id === props.panel.id);
-	if (!panel || panel.type === null) return;
-	panel.type = type;
+	const panel = findWorkspaceElement(workspace, props.panel.id);
+	if (!panel || panel.type !== 'panel') return;
+	panel.contentType = type;
 	preferences.commit('workspaceDefinition', workspace);
 }
 </script>

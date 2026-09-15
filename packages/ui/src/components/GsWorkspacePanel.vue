@@ -49,7 +49,7 @@
 				</g>
 			</svg>
 			<div :class="$style.color"></div>
-			<button :class="$style.toggleCollapse" class="_button" @click="toggleCollapse">
+			<button v-if="canCollapse" :class="$style.toggleCollapse" class="_button" @click="toggleCollapse">
 				<template v-if="stackingDirection === 'vertical'">
 					<template v-if="collapsed"><i class="ti ti-chevron-down"></i></template>
 					<template v-else><i class="ti ti-chevron-up"></i></template>
@@ -76,18 +76,15 @@
 
 <script lang="ts" setup>
 import { deepClone } from '@glitch/shared/utility/deep-clone.js';
-import { onBeforeUnmount, onMounted, provide, watch, useTemplateRef, ref, computed, nextTick } from 'vue';
-import { genId } from '@glitch/shared/utility/id.ts';
+import { useTemplateRef, ref, computed, nextTick } from 'vue';
 import type { MenuItem } from '@/types/menu.ts';
-import type { WorkspacePanel } from '@/workspace';
-import { getElementMenu, workspacePanelChoices } from '@/workspace';
+import type { WorkspacePanel } from '@/workspace.ts';
+import { getElementMenu } from '@/workspace.ts';
 import * as ui from '@/ui.ts';
-import { i18n } from '@/i18n.ts';
-import { appContext, workspacePanelDraggingContext } from '@/app.ts';
-import { getDragData, setDragData } from '@/utility/drag-and-drop.ts';
-import { cleanupWorkspaceDefinition, findWorkspaceParent, splitAndAddWorkspacePanel } from '@/utility/workspace.ts';
+import { workspacePanelDraggingContext } from '@/app.ts';
+import { setDragData } from '@/utility/drag-and-drop.ts';
+import { cleanupWorkspaceDefinition, findWorkspaceElement, findWorkspaceParent, splitWorkspaceElement } from '@/utility/workspace.ts';
 import { preferences } from '@/preferences.ts';
-//import { checkDragDataType, getDragData, setDragData } from '@/drag-and-drop.ts';
 
 const props = withDefaults(defineProps<{
 	panel: WorkspacePanel;
@@ -103,26 +100,25 @@ const emit = defineEmits<{
 
 const body = useTemplateRef('body');
 
-const stackingDirection = computed(() => {
-	const parent = findWorkspaceParent(preferences.r.workspaceDefinition.value, props.panel.id);
-	return parent?.direction ?? 'horizontal';
-});
-const collapsed = computed(() => props.panel.collapsed === true);
+const parent = computed(() => findWorkspaceParent(preferences.r.workspaceDefinition.value, props.panel.id));
+const canCollapse = computed(() => parent.value?.type === 'divider');
+const stackingDirection = computed(() => parent.value?.type === 'divider' ? parent.value.direction : 'vertical');
+const collapsed = computed(() => canCollapse.value && props.panel.collapsed === true);
 
 function toggleCollapse() {
 	const workspace = deepClone(preferences.s.workspaceDefinition);
-	const panel = findWorkspaceParent(workspace, props.panel.id)?.children.find(child => child.id === props.panel.id);
-	if (!panel || panel.type === null) return;
+	const panel = findWorkspaceElement(workspace, props.panel.id);
+	if (!panel || panel.type !== 'panel') return;
 	panel.collapsed = !panel.collapsed;
 	preferences.commit('workspaceDefinition', workspace);
 }
 
-function showSettingsMenu(ev: PointerEvent) {
-	ui.popupMenu(getElementMenu(props.panel), ev.currentTarget ?? ev.target);
+function getMenu(): MenuItem[] {
+	return props.menu?.length ? [...props.menu, { type: 'divider' }, ...getElementMenu(props.panel)] : getElementMenu(props.panel);
 }
 
-function onContextmenu(ev: PointerEvent) {
-	ui.contextMenu(getElementMenu(props.panel), ev);
+function showSettingsMenu(ev: PointerEvent) {
+	ui.popupMenu(getMenu(), ev.currentTarget ?? ev.target);
 }
 
 function goTop(ev: PointerEvent) {
@@ -174,28 +170,26 @@ function onDrop(ev: DragEvent, area: 'top' | 'bottom' | 'left' | 'right' | 'cent
 	workspacePanelDraggingContext.draggingId.value = null;
 	if (draggingId == null || draggingId === props.panel.id) return;
 
-	const workspace = deepClone(preferences.s.workspaceDefinition);
+	let workspace = deepClone(preferences.s.workspaceDefinition);
 	const sourceParent = findWorkspaceParent(workspace, draggingId);
 	const targetParent = findWorkspaceParent(workspace, props.panel.id);
 	if (!sourceParent || !targetParent) return;
 
-	const sourceIndex = sourceParent.children.findIndex(child => child.id === draggingId);
+	const sourceIndex = sourceParent.children.findIndex(child => child.element.id === draggingId);
 	const panel = sourceParent.children[sourceIndex];
-	if (panel.type === null) return;
+	if (panel.element.type !== 'panel') return;
 
-	const targetIndex = targetParent.children.findIndex(child => child.id === props.panel.id);
+	const targetIndex = targetParent.children.findIndex(child => child.element.id === props.panel.id);
 	const target = targetParent.children[targetIndex];
-	if (target.type === null) return;
+	if (target.element.type !== 'panel') return;
 
 	if (area === 'center') {
-		// パネルのサイズではなく、移動先の領域のサイズを維持する。
-		[panel.ratio, target.ratio] = [target.ratio, panel.ratio];
-		sourceParent.children[sourceIndex] = target;
-		targetParent.children[targetIndex] = panel;
+		// 比率やタブ名は領域に属するため、要素だけを入れ替える。
+		[panel.element, target.element] = [target.element, panel.element];
 	} else {
 		sourceParent.children.splice(sourceIndex, 1);
 		const direction = area === 'top' || area === 'bottom' ? 'vertical' : 'horizontal';
-		splitAndAddWorkspacePanel(targetParent, target, panel, direction, area === 'top' || area === 'left');
+		workspace = splitWorkspaceElement(workspace, target.element, panel.element, direction, area === 'top' || area === 'left');
 	}
 	preferences.commit('workspaceDefinition', cleanupWorkspaceDefinition(workspace));
 }

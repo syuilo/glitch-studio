@@ -13,7 +13,7 @@
 		<button class="_button" @click="showAbout">about</button>
 	</div>
 	<div :class="$style.body">
-		<GsWorkspaceDivider style="flex: 1" :divider="preferences.r.workspaceDefinition.value"/>
+		<GsWorkspaceElement style="flex: 1" :element="preferences.r.workspaceDefinition.value"/>
 	</div>
 	<div :class="$style.footer">
 		<div :class="$style.footerLeft">
@@ -46,7 +46,7 @@ import { engine, resolutionFactor, fpsLimit, appContext } from './app';
 import { preferences } from './preferences.ts';
 import GsAboutDialog from '@/components/GsAboutDialog.vue';
 import GsDashboardDialog from '@/components/GsDashboardDialog.vue';
-import GsWorkspaceDivider from '@/components/GsWorkspaceDivider.vue';
+import GsWorkspaceElement from '@/components/GsWorkspaceElement.vue';
 import { i18n } from '@/i18n.ts';
 import GsButton from '@/components/common/GsButton.vue';
 import GsAudioLevelMeter from '@/components/common/GsAudioLevelMeter.vue';

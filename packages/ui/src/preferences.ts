@@ -11,7 +11,7 @@ export const PREF_DEF = definePreferences({
 	locale: { default: () => 'en' },
 	animatedBgInPreview: { default: () => false },
 	workspaceDefinition: {
-		default: () => {
+		default: (): WorkspaceElement => {
 			return {
 				id: 'root',
 				type: 'divider',
@@ -46,14 +46,14 @@ export const PREF_DEF = definePreferences({
 											element: {
 												id: 'f39599fc1ada4c328688818c01c84ae0',
 												type: 'panel',
-												contentType: 'audioWaveform',
+												contentType: 'waveformHorizontal',
 											},
 										}, {
 											ratio: 0.33,
 											element: {
 												id: '6f4f6e2dc72d493cb92ebdfab475545c',
 												type: 'panel',
-												contentType: 'stats',
+												contentType: 'waveformVertical',
 											},
 										}],
 									},
@@ -72,33 +72,47 @@ export const PREF_DEF = definePreferences({
 								id: 'dac041d318254045b0f55e90f4fb84a0',
 								type: 'tabs',
 								children: [{
-									name: 'Tab 1',
-									element: {
-										id: 'fa26d3ac8c29473aab3514f916c5b67d',
-										type: 'panel',
-										contentType: 'timeline',
-									},
-								}, {
-									name: 'Tab 2',
+									name: 'Main',
 									element: {
 										id: '6c618b181173442ab88ec696b51cf936',
 										type: 'divider',
 										direction: 'horizontal',
 										children: [{
-											ratio: 0.5,
+											ratio: 0.25,
 											element: {
 												id: '77688f4068ee4f929f78eb6423c5da24',
 												type: 'panel',
-												contentType: 'waveformHorizontal',
+												contentType: 'audioSpectrogram',
 											},
 										}, {
-											ratio: 0.5,
+											ratio: 0.25,
 											element: {
 												id: 'b933bae5a21e43c88b7ca481c71c40c2',
 												type: 'panel',
-												contentType: 'waveformVertical',
+												contentType: 'audioWaveform',
+											},
+										}, {
+											ratio: 0.25,
+											element: {
+												id: 'e0b66dac15844bc5a27801d4c729dbdf',
+												type: 'panel',
+												contentType: 'players',
+											},
+										}, {
+											ratio: 0.25,
+											element: {
+												id: 'b1274afa651a405988e29c508c0c02d5',
+												type: 'panel',
+												contentType: 'stats',
 											},
 										}],
+									},
+								}, {
+									name: 'Timeline',
+									element: {
+										id: 'fa26d3ac8c29473aab3514f916c5b67d',
+										type: 'panel',
+										contentType: 'timeline',
 									},
 								}],
 							},

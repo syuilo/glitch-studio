@@ -10,12 +10,13 @@
 <component
 	:is="panelComponents[element.contentType]"
 	v-else
+	:key="element.id + element.contentType"
 	:panel="element"
 />
 </template>
 
 <script lang="ts" setup>
-import type { WorkspaceElement } from '@/workspace';
+import type { WorkspaceElement } from '@/workspace.ts';
 import GsWorkspaceDivider from '@/components/GsWorkspaceDivider.vue';
 import GsWorkspaceTabs from '@/components/GsWorkspaceTabs.vue';
 import XEmpty from '@/components/GsWorkspacePanel.Empty.vue';

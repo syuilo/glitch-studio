@@ -5,7 +5,7 @@
 	</template>
 
 	<div :class="$style.root">
-		<GsWaveform :key="panel.type" :direction="verticalPosition ? 'vertical' : 'horizontal'"/>
+		<GsWaveform :key="panel.contentType" :direction="verticalPosition ? 'vertical' : 'horizontal'"/>
 	</div>
 </GsWorkspacePanel>
 </template>
@@ -20,7 +20,7 @@ const props = defineProps<{
 	panel: WorkspacePanel;
 }>();
 
-const verticalPosition = computed(() => props.panel.type === 'waveformVertical');
+const verticalPosition = computed(() => props.panel.contentType === 'waveformVertical');
 </script>
 
 <style module lang="scss">

@@ -1,6 +1,5 @@
-import { deepClone } from '@glitch/shared/utility/deep-clone.js';
 import { genId } from '@glitch/shared/utility/id.js';
-import { findWorkspaceParent, removeWorkspaceElement, splitAndAddWorkspacePanel } from './utility/workspace.ts';
+import { findWorkspaceElement, removeWorkspaceElement, replaceWorkspaceElement, splitAndAddWorkspacePanel } from './utility/workspace.ts';
 import type { MenuItem } from './types/menu.ts';
 import { preferences } from '@/preferences.ts';
 
@@ -18,12 +17,12 @@ export const workspacePanelChoices = [
 	{ type: 'stats', label: 'Stats' },
 	{ type: 'commandLog', label: 'Command Log' },
 	{ type: 'timeline', label: 'Timeline' },
-];
+] as const;
 
 export type WorkspacePanel = {
 	id: string;
 	type: 'panel';
-	contentType: string;
+	contentType: 'empty' | 'waveform' | typeof workspacePanelChoices[number]['type'];
 	collapsed?: boolean;
 };
 
@@ -57,36 +56,54 @@ export function getElementMenu(element: WorkspaceElement) {
 		children: workspacePanelChoices.map(choice => ({
 			text: choice.label,
 			action: () => {
-				const workspace = deepClone(preferences.s.workspaceDefinition);
-				// TODO
+				const workspace = replaceWorkspaceElement(preferences.s.workspaceDefinition, element.id, {
+					id: element.id,
+					type: 'panel',
+					contentType: choice.type,
+				});
 				preferences.commit('workspaceDefinition', workspace);
 			},
 		})),
+	}, {
+		icon: 'ti ti-layout-navbar',
+		text: 'Group in tabs',
+		action: () => {
+			const target = findWorkspaceElement(preferences.s.workspaceDefinition, element.id);
+			if (!target) return;
+			const tabs: WorkspaceTabs = {
+				id: genId(),
+				type: 'tabs',
+				children: [{
+					name: target.type === 'panel' ? workspacePanelChoices.find(choice => choice.type === target.contentType)?.label ?? 'Tab 1' : 'Tab 1',
+					element: target,
+				}],
+			};
+			preferences.commit('workspaceDefinition', replaceWorkspaceElement(preferences.s.workspaceDefinition, element.id, tabs));
+		},
 	}, { type: 'divider' }, {
 		icon: 'ti ti-box-align-top',
 		text: 'Add panel to above',
-		action: () => splitAndAddWorkspacePanel(preferences.s.workspaceDefinition, element, 'above'),
+		action: () => preferences.commit('workspaceDefinition', splitAndAddWorkspacePanel(preferences.s.workspaceDefinition, element, 'above')),
 	}, {
 		icon: 'ti ti-box-align-bottom',
 		text: 'Add panel to below',
-		action: () => splitAndAddWorkspacePanel(preferences.s.workspaceDefinition, element, 'below'),
+		action: () => preferences.commit('workspaceDefinition', splitAndAddWorkspacePanel(preferences.s.workspaceDefinition, element, 'below')),
 	}, {
 		icon: 'ti ti-box-align-left',
 		text: 'Add panel to left',
-		action: () => splitAndAddWorkspacePanel(preferences.s.workspaceDefinition, element, 'left'),
+		action: () => preferences.commit('workspaceDefinition', splitAndAddWorkspacePanel(preferences.s.workspaceDefinition, element, 'left')),
 	}, {
 		icon: 'ti ti-box-align-right',
 		text: 'Add panel to right',
-		action: () => splitAndAddWorkspacePanel(preferences.s.workspaceDefinition, element, 'right'),
+		action: () => preferences.commit('workspaceDefinition', splitAndAddWorkspacePanel(preferences.s.workspaceDefinition, element, 'right')),
 	});
 
 	menuItems.push({ type: 'divider' }, {
 		icon: 'ti ti-x',
 		text: 'Close',
 		danger: true,
-		action: () => removeWorkspaceElement(preferences.s.workspaceDefinition, element),
+		action: () => preferences.commit('workspaceDefinition', removeWorkspaceElement(preferences.s.workspaceDefinition, element)),
 	});
 
 	return menuItems;
 }
-
