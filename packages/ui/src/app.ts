@@ -1,4 +1,4 @@
-import { ref, markRaw, reactive, watch, shallowRef, triggerRef } from 'vue';
+import { ref, markRaw, reactive, watch, shallowRef, triggerRef, computed } from 'vue';
 import { deepClone } from '@glitch/shared/utility/deep-clone.ts';
 import { genId } from '@glitch/shared/utility/id.ts';
 import { loadProjectFile, saveProjectFile, decodeAssets } from './api.ts';
@@ -27,6 +27,8 @@ class AppContext {
 	public state: AppState;
 	public undoStack = shallowRef([] as CommandLog[]);
 	public redoStack = shallowRef([] as CommandLog[]);
+	public canUndo = computed(() => this.undoStack.value.length > 0);
+	public canRedo = computed(() => this.redoStack.value.length > 0);
 	private maxUndoStackSize = 100;
 
 	constructor() {

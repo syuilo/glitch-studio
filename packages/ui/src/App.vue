@@ -9,6 +9,8 @@
 
 <div :class="$style.root">
 	<div :class="$style.header">
+		<button class="_button" :class="$style.undoRedo" :disabled="!appContext.canUndo.value" @click="appContext.undo"><i class="ti ti-arrow-back-up"></i></button>
+		<button class="_button" :class="$style.undoRedo" :disabled="!appContext.canRedo.value" @click="appContext.redo"><i class="ti ti-arrow-forward-up"></i></button>
 		<button class="_button" @click="exportToWebp">export</button>
 		<button class="_button" @click="showAbout">about</button>
 	</div>
@@ -204,6 +206,13 @@ onMounted(() => {
 	height: 32px;
 	line-height: 32px;
 	gap: 16px;
+}
+
+.undoRedo {
+	&:disabled {
+		// opacityはブラウザにとって高コストなので
+		color: color-mix(in srgb, var(--THEME-fg), var(--THEME-bg) 50%);
+	}
 }
 
 .body {
