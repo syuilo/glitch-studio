@@ -18,7 +18,7 @@ export type WorkspacePanel = {
 	id: string;
 	ratio: number;
 	type: string;
-	active?: boolean;
+	collapsed?: boolean;
 };
 
 export type WorkspaceDivider = {

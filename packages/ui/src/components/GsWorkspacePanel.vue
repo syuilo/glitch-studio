@@ -1,6 +1,6 @@
 <template>
 <div
-	:class="[$style.root]"
+	:class="[$style.root, { [$style.collapsed]: collapsed }]"
 >
 	<div
 		v-if="workspacePanelDraggingContext.draggingId.value != null && workspacePanelDraggingContext.draggingId.value !== panel.id"
@@ -38,7 +38,7 @@
 		@drop.prevent.stop="onDrop($event, 'center')"
 	></div>
 
-	<div :class="[$style.main, { [$style.active]: active }]">
+	<div :class="[$style.main]">
 		<header
 			:class="[$style.header]"
 			@click="goTop"
@@ -49,9 +49,15 @@
 				</g>
 			</svg>
 			<div :class="$style.color"></div>
-			<button :class="$style.toggleActive" class="_button" @click="toggleActive">
-				<template v-if="active"><i class="ti ti-chevron-up"></i></template>
-				<template v-else><i class="ti ti-chevron-down"></i></template>
+			<button :class="$style.toggleCollapse" class="_button" @click="toggleCollapse">
+				<template v-if="stackingDirection === 'vertical'">
+					<template v-if="collapsed"><i class="ti ti-chevron-down"></i></template>
+					<template v-else><i class="ti ti-chevron-up"></i></template>
+				</template>
+				<template v-else>
+					<template v-if="collapsed"><i class="ti ti-chevron-right"></i></template>
+					<template v-else><i class="ti ti-chevron-left"></i></template>
+				</template>
 			</button>
 			<span :class="$style.title"><slot name="header"></slot></span>
 			<div :class="$style.grabber" draggable="true" @dragstart.stop="onDragstart">
@@ -61,7 +67,7 @@
 			</div>
 			<button :class="$style.menu" class="_button" @click.stop="showSettingsMenu"><i class="ti ti-dots"></i></button>
 		</header>
-		<div v-if="active" ref="body" :class="$style.body">
+		<div v-if="!collapsed" ref="body" :class="$style.body">
 			<slot></slot>
 		</div>
 	</div>
@@ -98,11 +104,17 @@ const emit = defineEmits<{
 const body = useTemplateRef('body');
 
 const stackingDirection = computed(() => {
-	// TODO
+	const parent = findWorkspaceParent(preferences.r.workspaceDefinition.value, props.panel.id);
+	return parent?.direction ?? 'horizontal';
 });
-const active = computed(() => props.panel.active !== false);
+const collapsed = computed(() => props.panel.collapsed === true);
 
-function toggleActive() {
+function toggleCollapse() {
+	const workspace = deepClone(preferences.s.workspaceDefinition);
+	const panel = findWorkspaceParent(workspace, props.panel.id)?.children.find(child => child.id === props.panel.id);
+	if (!panel || panel.type === null) return;
+	panel.collapsed = !panel.collapsed;
+	preferences.commit('workspaceDefinition', workspace);
 }
 
 function addPanel(position: 'below' | 'above' | 'left' | 'right') {
@@ -270,25 +282,28 @@ function onDrop(ev: DragEvent, area: 'top' | 'bottom' | 'left' | 'right' | 'cent
 
 <style lang="scss" module>
 .root {
-	position: relative;
-	height: 100%;
-	overflow: clip;
-	contain: strict;
-}
-
-.main {
 	--headerHeight: 32px;
 
 	position: relative;
 	height: 100%;
-	border-radius: 10px;
 	overflow: clip;
+	contain: strict;
 
-	&:not(.active) {
+	&.collapsed {
 		flex-basis: var(--headerHeight);
 		min-height: var(--headerHeight);
-		border-bottom-right-radius: 0;
+
+		> .main {
+			border-bottom-right-radius: 0;
+		}
 	}
+}
+
+.main {
+	position: relative;
+	height: 100%;
+	border-radius: 10px;
+	overflow: clip;
 }
 
 .header {
@@ -330,7 +345,7 @@ function onDrop(ev: DragEvent, area: 'top' | 'bottom' | 'left' | 'right' | 'cent
 	width: 100%;
 }
 
-.toggleActive,
+.toggleCollapse,
 .menu {
 	z-index: 1;
 	width: var(--headerHeight);
@@ -338,7 +353,7 @@ function onDrop(ev: DragEvent, area: 'top' | 'bottom' | 'left' | 'right' | 'cent
 	font-size: 90%;
 }
 
-.toggleActive {
+.toggleCollapse {
 	margin-left: -16px;
 }
 
