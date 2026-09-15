@@ -18,6 +18,13 @@ export default implementEffect<typeof definition>({
 		});
 
 		const shaderDataDefinitions = makeShaderDataDefinitions(code);
+		// textureLoadで読み取り、float32-filterable非対応の入力も受け取る。
+		const bindGroupLayout = wgpu.device.createBindGroupLayout({ entries: [
+			{ binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },
+			...[1, 2, 3, 4].map(binding => ({
+				binding, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'unfilterable-float' as const },
+			})),
+		] });
 
 		const pipeline = wgpu.device.createRenderPipeline({
 			vertex: {
@@ -32,7 +39,7 @@ export default implementEffect<typeof definition>({
 			primitive: {
 				topology: 'triangle-list',
 			},
-			layout: 'auto',
+			layout: wgpu.device.createPipelineLayout({ bindGroupLayouts: [bindGroupLayout] }),
 		});
 
 		const uniformValues = makeStructuredView(shaderDataDefinitions.uniforms.uniforms);
@@ -42,25 +49,28 @@ export default implementEffect<typeof definition>({
 			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
 		});
 
-		const bindGroup = wgpu.device.createBindGroup({
-			layout: pipeline.getBindGroupLayout(0),
-			entries: [
-				{ binding: 1, resource: { buffer: uniformBuffer } },
-			],
-		});
+		let textures: GPUTexture[] = [];
+		let bindGroup: GPUBindGroup;
 
 		return {
 			render: (ctx) => {
 				uniformValues.set({
 					aspectRatio: resolution.width / resolution.height,
-					startPosition: ctx.params.startPosition,
-					endPosition: ctx.params.endPosition,
-					startValue: ctx.params.startValue,
-					endValue: ctx.params.endValue,
 					angle: -ctx.params.angle * Math.PI, // +Yが上の座標系で、正の値を時計回りにする
-					interpolation: { linear: 0, smoothstep: 1, smootherstep: 2 }[ctx.params.interpolation],
+					interpolation: { linear: 0, smoothstep: 1, smootherstep: 2, cosine: 3, circular: 4, back: 5, elastic: 6 }[ctx.params.interpolation],
 				});
 				wgpu.device.queue.writeBuffer(uniformBuffer, 0, uniformValues.arrayBuffer);
+				const inputs = [ctx.params.startPosition, ctx.params.endPosition, ctx.params.startValue, ctx.params.endValue];
+				if (inputs.some((texture, i) => texture !== textures[i])) {
+					textures = inputs;
+					bindGroup = wgpu.device.createBindGroup({
+						layout: bindGroupLayout,
+						entries: [
+							{ binding: 0, resource: { buffer: uniformBuffer } },
+							...textures.map((texture, i) => ({ binding: i + 1, resource: texture.createView() })),
+						],
+					});
+				}
 
 				const passEncoder = ctx.createPassEncoderFor(ctx.commandEncoder, ctx.outputDataMap.output.textureView);
 				passEncoder.setPipeline(pipeline);
