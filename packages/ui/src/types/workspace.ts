@@ -11,6 +11,7 @@ export const workspacePanelChoices = [
 	{ type: 'macros', label: 'Macros' },
 	{ type: 'stats', label: 'Stats' },
 	{ type: 'commandLog', label: 'Command Log' },
+	{ type: 'timeline', label: 'Timeline' },
 ];
 
 export type WorkspacePanel = {

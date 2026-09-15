@@ -51,6 +51,7 @@ import XStats from '@/components/GsWorkspacePanel.Stats.vue';
 import XCommandLog from '@/components/GsWorkspacePanel.CommandLog.vue';
 import XMacros from '@/components/GsWorkspacePanel.Macros.vue';
 import XPlayers from '@/components/GsWorkspacePanel.Players.vue';
+import XTimeline from '@/components/GsWorkspacePanel.Timeline.vue';
 import { appContext, workspacePanelDraggingContext } from '@/app.ts';
 import { cleanupWorkspaceDefinition, findWorkspaceParent } from '@/utility/workspace.ts';
 
@@ -69,6 +70,7 @@ const panelComponents = {
 	commandLog: XCommandLog,
 	macros: XMacros,
 	players: XPlayers,
+	timeline: XTimeline,
 };
 
 const props = withDefaults(defineProps<{

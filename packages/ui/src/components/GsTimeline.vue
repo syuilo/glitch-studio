@@ -9,7 +9,7 @@
 		<div :class="$style.side">
 			<GsButton @click="addAutomation">Add automation</GsButton>
 
-			<GsButton v-for="automation of store.automations" :key="automation.id" :primary="selectedAutomation?.id === automation.id" @click="switchAutomation(automation)">{{ automation.name }}</GsButton>
+			<GsButton v-for="automation of appContext.state.automations.value" :key="automation.id" :primary="selectedAutomation?.id === automation.id" @click="switchAutomation(automation)">{{ automation.name }}</GsButton>
 		</div>
 		<div ref="tlEl" :class="$style.tl" tabindex="-1" @wheel="onTlWheel" @mousemove="onTlMousemove" @mousedown="onTlMousedown" @keydown="onTlKeydown">
 			<div :class="$style.yTicks" @wheel="onYTicksWheel">
@@ -120,16 +120,16 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, onMounted, ref, shallowRef, watch } from 'vue';
+import { computed, onMounted, ref, shallowRef, useTemplateRef, watch } from 'vue';
+import { niceScale } from '@glitch/shared/utility/misc.js';
 import GsButton from './common/GsButton.vue';
-import { playing, frame, frameMax } from '@/app.ts';
+import { playing, frame, frameMax, appContext } from '@/app.ts';
+import { dragListen } from '@/utility/drag.ts';
 
 const X_TICKS_HEIGHT = 20;
 const Y_TICKS_WIDTH = 60;
 
-const store = useStore();
-
-const tlEl = shallowRef<HTMLElement>();
+const tlEl = useTemplateRef('tlEl');
 const tlElWidth = ref(0);
 const tlElHeight = ref(0);
 const tlRangeX = ref(60 * 3);
@@ -318,7 +318,7 @@ function addAutomation() {
 			bezierControlPointB: [0, 0],
 		}],
 	};
-	store.automations.push(automation);
+	appContext.state.automations.value.push(automation);
 	selectedAutomation.value = automation;
 }
 

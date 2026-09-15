@@ -38,12 +38,12 @@ class AppContext {
 		direction: 'horizontal',
 		children: [{
 			id: 'c138f76ec1d84ba5b83b0cc3766a1266',
-			ratio: 0.75,
+			ratio: 0.7,
 			type: null,
 			direction: 'vertical',
 			children: [{
 				id: '938e3eedc00d4287885b6894ee3ea8c3',
-				ratio: 0.7,
+				ratio: 0.6,
 				type: null,
 				direction: 'horizontal',
 				children: [{
@@ -71,12 +71,12 @@ class AppContext {
 				}],
 			}, {
 				id: '8aec4dd7bf82460eba420680fda4f652',
-				ratio: 0.3,
+				ratio: 0.4,
 				type: null,
 				direction: 'vertical',
 				children: [{
 					id: 'ba8f8efaa9a54a109340b2f3e329cda2',
-					ratio: 0.3,
+					ratio: 0.5,
 					type: null,
 					direction: 'horizontal',
 					children: [{
@@ -96,11 +96,15 @@ class AppContext {
 						ratio: 0.25,
 						type: 'players',
 					}],
+				}, {
+					id: '2d9d8a38ce9a4d24bc70a500f892f124',
+					ratio: 0.5,
+					type: 'timeline',
 				}],
 			}],
 		}, {
 			id: '441518aeb37940b2af7fb0027fd530a9',
-			ratio: 0.25,
+			ratio: 0.3,
 			type: 'nodesEditor',
 		}],
 	});
