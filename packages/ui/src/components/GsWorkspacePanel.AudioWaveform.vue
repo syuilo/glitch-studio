@@ -1,5 +1,5 @@
 <template>
-<GsWorkspacePanel :panel="panel" :isStacked="isStacked">
+<GsWorkspacePanel :panel="panel">
 	<template #header><i class="ti ti-wave-sine"></i><span style="margin-left: 8px;">Audio Waveform</span></template>
 	<div :class="$style.root"><GsAudioWaveform/></div>
 </GsWorkspacePanel>
@@ -9,7 +9,10 @@
 import GsWorkspacePanel from './GsWorkspacePanel.vue';
 import GsAudioWaveform from './GsAudioWaveform.vue';
 import type { WorkspacePanel } from '@/types/workspace.ts';
-defineProps<{ panel: WorkspacePanel; isStacked?: boolean }>();
+
+defineProps<{
+	panel: WorkspacePanel;
+}>();
 </script>
 
 <style module lang="scss">

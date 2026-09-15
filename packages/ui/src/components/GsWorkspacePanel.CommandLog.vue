@@ -1,5 +1,5 @@
 <template>
-<GsWorkspacePanel :panel="panel" :isStacked="isStacked">
+<GsWorkspacePanel :panel="panel">
 	<template #header>
 		<i class="ti ti-logs"></i><span style="margin-left: 8px;">Command Log</span>
 	</template>
@@ -22,7 +22,6 @@ import { COMMAND_DEFS } from '@/commands.ts';
 
 const props = defineProps<{
 	panel: WorkspacePanel;
-	isStacked?: boolean;
 }>();
 </script>
 

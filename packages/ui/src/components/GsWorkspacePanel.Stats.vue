@@ -1,5 +1,5 @@
 <template>
-<GsWorkspacePanel :panel="panel" :isStacked="isStacked">
+<GsWorkspacePanel :panel="panel">
 	<template #header>
 		<i class="ti ti-activity"></i><span style="margin-left: 8px;">Stats</span>
 	</template>
@@ -19,7 +19,6 @@ import GsRenderingStats from '@/components/GsRenderingStats.vue';
 
 const props = defineProps<{
 	panel: WorkspacePanel;
-	isStacked?: boolean;
 }>();
 </script>
 

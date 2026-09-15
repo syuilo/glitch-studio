@@ -1,5 +1,5 @@
 <template>
-<GsWorkspacePanel :panel="panel" :isStacked="isStacked">
+<GsWorkspacePanel :panel="panel">
 	<template #header>
 		<i class="ti ti-chart-column"></i><span style="margin-left: 8px;">Histogram</span>
 	</template>
@@ -19,7 +19,6 @@ import GsHistogram from '@/components/GsHistogram.vue';
 
 const props = defineProps<{
 	panel: WorkspacePanel;
-	isStacked?: boolean;
 }>();
 </script>
 

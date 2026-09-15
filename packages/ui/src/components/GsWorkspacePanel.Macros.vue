@@ -1,5 +1,5 @@
 <template>
-<GsWorkspacePanel :panel="panel" :isStacked="isStacked">
+<GsWorkspacePanel :panel="panel">
 	<template #header>
 		<i class="ti ti-adjustments-horizontal"></i><span style="margin-left: 8px;">Macros</span>
 	</template>
@@ -19,7 +19,6 @@ import GsMacros from '@/components/GsMacros.vue';
 
 const props = defineProps<{
 	panel: WorkspacePanel;
-	isStacked?: boolean;
 }>();
 </script>
 

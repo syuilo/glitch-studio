@@ -1,5 +1,5 @@
 <template>
-<GsWorkspacePanel :panel="panel" :isStacked="isStacked">
+<GsWorkspacePanel :panel="panel">
 	<template #header>
 		<i class="ti ti-chart-column"></i><span style="margin-left: 8px;">{{ verticalPosition ? 'Waveform (Y)' : 'Waveform (X)' }}</span>
 	</template>
@@ -18,7 +18,6 @@ import GsWaveform from '@/components/GsWaveform.vue';
 
 const props = defineProps<{
 	panel: WorkspacePanel;
-	isStacked?: boolean;
 }>();
 
 const verticalPosition = computed(() => props.panel.type === 'waveformVertical');

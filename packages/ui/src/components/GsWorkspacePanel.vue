@@ -49,7 +49,7 @@
 				</g>
 			</svg>
 			<div :class="$style.color"></div>
-			<button v-if="isStacked" :class="$style.toggleActive" class="_button" @click="toggleActive">
+			<button :class="$style.toggleActive" class="_button" @click="toggleActive">
 				<template v-if="active"><i class="ti ti-chevron-up"></i></template>
 				<template v-else><i class="ti ti-chevron-down"></i></template>
 			</button>
@@ -85,11 +85,9 @@ import { preferences } from '@/preferences.ts';
 
 const props = withDefaults(defineProps<{
 	panel: WorkspacePanel;
-	isStacked?: boolean;
 	handleScrollToTop?: boolean;
 	menu?: MenuItem[];
 }>(), {
-	isStacked: false,
 	handleScrollToTop: true,
 });
 
@@ -99,6 +97,9 @@ const emit = defineEmits<{
 
 const body = useTemplateRef('body');
 
+const stackingDirection = computed(() => {
+	// TODO
+});
 const active = computed(() => props.panel.active !== false);
 
 function toggleActive() {

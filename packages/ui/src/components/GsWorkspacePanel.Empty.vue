@@ -1,5 +1,5 @@
 <template>
-<GsWorkspacePanel :panel="panel" :isStacked="isStacked">
+<GsWorkspacePanel :panel="panel">
 	<template #header>
 		Select panel
 	</template>
@@ -21,7 +21,6 @@ import { workspacePanelChoices as choices } from '@/types/workspace.ts';
 
 const props = defineProps<{
 	panel: WorkspacePanel;
-	isStacked?: boolean;
 }>();
 
 function switchType(type: WorkspacePanel['type']) {

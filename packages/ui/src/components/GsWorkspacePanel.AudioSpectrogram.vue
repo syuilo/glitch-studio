@@ -1,5 +1,5 @@
 <template>
-<GsWorkspacePanel :panel="panel" :isStacked="isStacked">
+<GsWorkspacePanel :panel="panel">
 	<template #header><i class="ti ti-chart-area"></i><span style="margin-left: 8px;">Audio Spectrogram</span></template>
 	<div :class="$style.root"><GsAudioSpectrogram :options="options"/></div>
 </GsWorkspacePanel>
@@ -12,7 +12,6 @@ import type { WorkspacePanel } from '@/types/workspace.ts';
 
 defineProps<{
 	panel: WorkspacePanel;
-	isStacked?: boolean;
 	options?: any;
 }>();
 </script>

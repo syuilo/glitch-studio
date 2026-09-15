@@ -1,5 +1,5 @@
 <template>
-<GsWorkspacePanel :panel="panel" :isStacked="isStacked">
+<GsWorkspacePanel :panel="panel">
 	<template #header>
 		<i class="ti ti-chart-dots-3"></i><span style="margin-left: 8px;">Node Editor</span>
 	</template>
@@ -19,7 +19,6 @@ import GsNodesEditor from '@/components/GsNodesEditor.vue';
 
 const props = defineProps<{
 	panel: WorkspacePanel;
-	isStacked?: boolean;
 }>();
 </script>
 

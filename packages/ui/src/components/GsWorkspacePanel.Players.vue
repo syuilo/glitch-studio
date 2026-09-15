@@ -1,5 +1,5 @@
 <template>
-<GsWorkspacePanel :panel="panel" :isStacked="isStacked">
+<GsWorkspacePanel :panel="panel">
 	<template #header>
 		<i class="ti ti-player-play"></i><span style="margin-left: 8px;">Players</span>
 	</template>
@@ -19,7 +19,6 @@ import GsPlayers from '@/components/GsPlayers.vue';
 
 const props = defineProps<{
 	panel: WorkspacePanel;
-	isStacked?: boolean;
 }>();
 </script>
 

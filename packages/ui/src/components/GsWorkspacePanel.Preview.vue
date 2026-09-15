@@ -1,5 +1,5 @@
 <template>
-<GsWorkspacePanel :panel="panel" :isStacked="isStacked">
+<GsWorkspacePanel :panel="panel">
 	<template #header>
 		<i class="ti ti-device-desktop"></i><span style="margin-left: 8px;">Preview</span>
 	</template>
@@ -19,7 +19,6 @@ import { i18n } from '@/i18n.ts';
 
 const props = defineProps<{
 	panel: WorkspacePanel;
-	isStacked?: boolean;
 }>();
 
 </script>

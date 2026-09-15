@@ -1,5 +1,5 @@
 <template>
-<GsWorkspacePanel :panel="panel" :isStacked="isStacked">
+<GsWorkspacePanel :panel="panel">
 	<template #header>
 		<i class="ti ti-timeline"></i><span style="margin-left: 8px;">Timeline</span>
 	</template>
@@ -19,7 +19,6 @@ import GsTimeline from '@/components/GsTimeline.vue';
 
 const props = defineProps<{
 	panel: WorkspacePanel;
-	isStacked?: boolean;
 }>();
 </script>
 
