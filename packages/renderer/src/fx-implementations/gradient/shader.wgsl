@@ -5,7 +5,7 @@ struct Uniforms {
 	startValue: f32,
 	endValue: f32,
 	angle: f32,
-	easing: u32,
+	interpolation: u32,
 };
 
 @group(0) @binding(1) var<uniform> uniforms: Uniforms;
@@ -27,8 +27,11 @@ fn fs(fragData: FragmentIn) -> @location(0) f32 {
 	if (span != 0.0) {
 		t = clamp((projectedPosition - uniforms.startPosition) / span, 0.0, 1.0);
 	}
-	if (uniforms.easing != 0u) {
+	if (uniforms.interpolation == 1u) {
 		t = smoothstep(0.0, 1.0, t);
+	} else if (uniforms.interpolation == 2u) {
+		// 両端で1階・2階微分が0になる5次補間（6t^5 - 15t^4 + 10t^3）。
+		t = t * t * t * (t * (t * 6.0 - 15.0) + 10.0);
 	}
 	return mix(uniforms.startValue, uniforms.endValue, t);
 }

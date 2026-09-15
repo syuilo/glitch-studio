@@ -58,7 +58,7 @@ export default implementEffect<typeof definition>({
 					startValue: ctx.params.startValue,
 					endValue: ctx.params.endValue,
 					angle: -ctx.params.angle * Math.PI, // +Yが上の座標系で、正の値を時計回りにする
-					easing: ctx.params.interpolation === 'easing' ? 1 : 0,
+					interpolation: { linear: 0, smoothstep: 1, smootherstep: 2 }[ctx.params.interpolation],
 				});
 				wgpu.device.queue.writeBuffer(uniformBuffer, 0, uniformValues.arrayBuffer);
 
