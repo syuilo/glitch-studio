@@ -7,12 +7,12 @@ export default implementEffect<typeof definition>({
 	getOut: ({ wgpu, resolution }) => {
 		const out = wgpu.device.createTexture({
 			size: resolution,
-			format: wgpu.enableFloat32Filtering ? 'rg32float' : 'rg16float',
+			format: wgpu.enable32bitDataTextures ? 'rg32float' : 'rg16float',
 			usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
 		});
 		return { output: out };
 	},
-	init: ({ wgpu: { device, defaultVertexShaderModule, enableFloat32Filtering }, resolution, params, fallbackTexture }) => {
+	init: ({ wgpu: { device, defaultVertexShaderModule, enable32bitDataTextures }, resolution, params, fallbackTexture }) => {
 		const scale = Math.min(1, 256 / Math.max(resolution.width, resolution.height));
 		const size = {
 			width: Math.max(1, Math.round(resolution.width * scale)),
@@ -25,8 +25,8 @@ export default implementEffect<typeof definition>({
 			fragment: { module, entryPoint, targets: [{ format }] },
 			primitive: { topology: 'triangle-list' },
 		});
-		const scalarFormat = enableFloat32Filtering ? 'r32float' : 'r16float';
-		const vectorFormat = enableFloat32Filtering ? 'rg32float' : 'rg16float';
+		const scalarFormat = enable32bitDataTextures ? 'r32float' : 'r16float';
+		const vectorFormat = enable32bitDataTextures ? 'rg32float' : 'rg16float';
 		const capture = createPipeline('capture', scalarFormat);
 		const estimate = createPipeline('estimate', vectorFormat);
 		const output = createPipeline('output', vectorFormat);

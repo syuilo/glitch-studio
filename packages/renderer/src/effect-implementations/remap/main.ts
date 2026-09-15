@@ -6,7 +6,7 @@ export default implementEffect<typeof definition>({
 	getOut: ({ wgpu, resolution }) => ({
 		output: wgpu.device.createTexture({
 			size: resolution,
-			format: wgpu.enableFloat32Filtering ? 'r32float' : 'r16float',
+			format: wgpu.enable32bitDataTextures ? 'r32float' : 'r16float',
 			usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
 		}),
 	}),
@@ -22,7 +22,7 @@ export default implementEffect<typeof definition>({
 		const pipeline = device.createRenderPipeline({
 			layout: device.createPipelineLayout({ bindGroupLayouts: [layout] }),
 			vertex: { module: wgpu.defaultVertexShaderModule },
-			fragment: { module: device.createShaderModule({ code }), targets: [{ format: wgpu.enableFloat32Filtering ? 'r32float' : 'r16float' }] },
+			fragment: { module: device.createShaderModule({ code }), targets: [{ format: wgpu.enable32bitDataTextures ? 'r32float' : 'r16float' }] },
 			primitive: { topology: 'triangle-list' },
 		});
 		let textures: GPUTexture[] = [];

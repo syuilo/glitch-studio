@@ -12,12 +12,12 @@ export default implementEffect<typeof definition>({
 		});
 		return { output: out };
 	},
-	init: ({ wgpu: { device, defaultVertexShaderModule, intermediateTextureFormat, enableFloat32Filtering } }) => {
+	init: ({ wgpu: { device, defaultVertexShaderModule, intermediateTextureFormat, enable32bitDataTextures } }) => {
 		const spectrogram = createAudioSpectrogram({
 			device,
 			vertexShaderModule: defaultVertexShaderModule,
 			format: intermediateTextureFormat,
-			enableFloat32Filtering,
+			enable32bitDataTextures,
 		});
 		return {
 			render(ctx) {

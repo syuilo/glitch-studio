@@ -49,7 +49,7 @@ function configurePanel(panel: Panel) {
 		device,
 		vertexShaderModule: vertex!,
 		format: navigator.gpu.getPreferredCanvasFormat(),
-		enableFloat32Filtering: false,
+		enable32bitDataTextures: false,
 	});
 	else if (panel.options.mode === 'spectrum') panel.spectrum = createPreviewSpectrum(device);
 	else panel.waveform = createPreviewWaveform(device);

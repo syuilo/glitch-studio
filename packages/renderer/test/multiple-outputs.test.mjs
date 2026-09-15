@@ -59,7 +59,7 @@ test('multiple output rendering', async t => {
 			};
 		}
 		const context = { configure() {}, unconfigure() {}, getCurrentTexture: () => device.createTexture() };
-		const renderer = new Renderer({ gpuDevice: device, gpuContext: context, histogramGpuContext: context, waveformHorizontalGpuContext: context, resolution: { width: 16, height: 16 }, enableFloat32Filtering: false, enableStats: false, fpsLimit: null, assets: [], macros: [], automations: [], nodes });
+		const renderer = new Renderer({ gpuDevice: device, gpuContext: context, histogramGpuContext: context, waveformHorizontalGpuContext: context, resolution: { width: 16, height: 16 }, enable32bitDataTextures: false, enableStats: false, fpsLimit: null, assets: [], macros: [], automations: [], nodes });
 		t.after(() => renderer.destroy());
 		t.mock.method(renderer, 'startRenderLoop', () => {});
 		return { renderer, allocated, get canvasInput() { return canvasInput; }, frame(id = 'sink') {

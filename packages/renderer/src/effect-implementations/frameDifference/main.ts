@@ -13,8 +13,8 @@ export default implementEffect<typeof definition>({
 		});
 		return { output: out };
 	},
-	init: ({ wgpu: { device, defaultVertexShaderModule, intermediateTextureFormat, enableFloat32Filtering }, resolution, params, fallbackTexture }) => {
-		const historyFormat = enableFloat32Filtering ? 'rgba32float' : 'rgba16float';
+	init: ({ wgpu: { device, defaultVertexShaderModule, intermediateTextureFormat, enable32bitDataTextures }, resolution, params, fallbackTexture }) => {
+		const historyFormat = enable32bitDataTextures ? 'rgba32float' : 'rgba16float';
 		const sampler = device.createSampler({ minFilter: 'linear', magFilter: 'linear' });
 		const module = device.createShaderModule({ code });
 		const inputLayout = device.createBindGroupLayout({
@@ -32,13 +32,13 @@ export default implementEffect<typeof definition>({
 		const difference = device.createRenderPipeline({
 			layout: device.createPipelineLayout({ bindGroupLayouts: [inputLayout, historyLayout] }),
 			vertex: { module: defaultVertexShaderModule },
-			fragment: { module, entryPoint: 'difference', constants: { HALF_PRECISION: Number(!enableFloat32Filtering) }, targets: [{ format: intermediateTextureFormat }] },
+			fragment: { module, entryPoint: 'difference', constants: { HALF_PRECISION: Number(!enable32bitDataTextures) }, targets: [{ format: intermediateTextureFormat }] },
 			primitive: { topology: 'triangle-list' },
 		});
 		const capture = device.createRenderPipeline({
 			layout: device.createPipelineLayout({ bindGroupLayouts: [inputLayout] }),
 			vertex: { module: defaultVertexShaderModule },
-			fragment: { module, entryPoint: 'capture', constants: { HALF_PRECISION: Number(!enableFloat32Filtering) }, targets: [{ format: historyFormat }] },
+			fragment: { module, entryPoint: 'capture', constants: { HALF_PRECISION: Number(!enable32bitDataTextures) }, targets: [{ format: historyFormat }] },
 			primitive: { topology: 'triangle-list' },
 		});
 		// シェーダー側でも同じ保存精度に丸め、静止画に量子化由来の差分が出ないようにする。

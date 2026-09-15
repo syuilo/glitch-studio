@@ -30,7 +30,7 @@ const blendModes: Record<string, number> = {
 export default implementEffect<typeof definition>({
 	getOut: ({ wgpu, resolution }) => {
 		const out = wgpu.device.createTexture({
-			size: resolution, format: wgpu.enableFloat32Filtering ? 'rgba32float' : 'rgba16float', usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
+			size: resolution, format: wgpu.enable32bitDataTextures ? 'rgba32float' : 'rgba16float', usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
 		});
 		return { output: out };
 	},
@@ -47,7 +47,7 @@ export default implementEffect<typeof definition>({
 		const pipeline = device.createRenderPipeline({
 			layout: device.createPipelineLayout({ bindGroupLayouts: [layout] }),
 			vertex: { module: wgpu.defaultVertexShaderModule },
-			fragment: { module: device.createShaderModule({ code }), targets: [{ format: wgpu.enableFloat32Filtering ? 'rgba32float' : 'rgba16float' }] },
+			fragment: { module: device.createShaderModule({ code }), targets: [{ format: wgpu.enable32bitDataTextures ? 'rgba32float' : 'rgba16float' }] },
 			primitive: { topology: 'triangle-list' },
 		});
 		let textures: GPUTexture[] = [];

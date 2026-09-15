@@ -84,7 +84,7 @@ export class Renderer {
 	private finalRenderUniformBuffer: GPUBuffer;
 	private finalRenderBindGroup: GPUBindGroup | null = null;
 	private finalRenderInputTexture: GPUTexture | null = null;
-	private enableFloat32Filtering = false;
+	private enable32bitDataTextures = false;
 	private readonly intermediateTextureFormat: IntermediateTextureFormat;
 	private evaledNodeParams: Map<GsNode['id'], Record<string, any>> = new Map();
 	private latestTimestamp: number = performance.now();
@@ -114,7 +114,7 @@ export class Renderer {
 			width: number;
 			height: number;
 		};
-		enableFloat32Filtering: boolean;
+		enable32bitDataTextures: boolean;
 		/** 画像の中間テクスチャ形式。省略時はrgba16float。Canvas・データ用テクスチャには適用しない。 */
 		intermediateTextureFormat: IntermediateTextureFormat;
 		enableStats: boolean;
@@ -130,7 +130,7 @@ export class Renderer {
 		this.resolution = options.resolution;
 		this.onEffectStatus = options.onEffectStatus;
 		this.enableStats = options.enableStats;
-		this.enableFloat32Filtering = options.enableFloat32Filtering;
+		this.enable32bitDataTextures = options.enable32bitDataTextures;
 		this.intermediateTextureFormat = options.intermediateTextureFormat;
 		this.fpsLimit = options.fpsLimit;
 		this.gpuDevice = options.gpuDevice;
@@ -174,11 +174,11 @@ export class Renderer {
 
 		this.fallbackScalarFieldTexture = this.gpuDevice.createTexture({
 			size: [1, 1],
-			format: this.enableFloat32Filtering ? 'r32float' : 'r16float',
+			format: this.enable32bitDataTextures ? 'r32float' : 'r16float',
 			usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_DST,
 		});
 
-		const pixelData = this.enableFloat32Filtering
+		const pixelData = this.enable32bitDataTextures
 			? new Float32Array([0])
 			: new Uint16Array([float32ToFloat16Bits(0)]);
 
@@ -337,7 +337,7 @@ export class Renderer {
 					const tex = this.effectScalarFieldTextures.get(node.id)![k];
 					// ベクトルを数値1個へ変換するとNaNになるため、XYを別チャンネルに書き込む。
 					const components = paramDefs[k].type === 'vector' ? [v?.[0] ?? 0, v?.[1] ?? 0] : [v ?? 0];
-					const pixelData = this.enableFloat32Filtering
+					const pixelData = this.enable32bitDataTextures
 						? new Float32Array(components)
 						: new Uint16Array(components.map(component => float32ToFloat16Bits(component)));
 
@@ -550,7 +550,7 @@ export class Renderer {
 					this.setEffectStatus(node.id, status);
 				},
 				resolution: { width: this.resolution.width, height: this.resolution.height },
-				wgpu: { device: this.gpuDevice, context: this.gpuContext, defaultVertexShaderModule: this.defaultVertexShaderModule, enableFloat32Filtering: this.enableFloat32Filtering, intermediateTextureFormat: this.intermediateTextureFormat },
+				wgpu: { device: this.gpuDevice, context: this.gpuContext, defaultVertexShaderModule: this.defaultVertexShaderModule, enable32bitDataTextures: this.enable32bitDataTextures, intermediateTextureFormat: this.intermediateTextureFormat },
 				params: resolvedParams,
 				fallbackTexture: this.fallbackTexture,
 			});
@@ -720,13 +720,13 @@ export class Renderer {
 		for (const node of addedNodes) {
 			const effect = effectImplementations[node.effectId];
 			const outTextureMap = effect.getOut({
-				wgpu: { device: this.gpuDevice, enableFloat32Filtering: this.enableFloat32Filtering, intermediateTextureFormat: this.intermediateTextureFormat },
+				wgpu: { device: this.gpuDevice, enable32bitDataTextures: this.enable32bitDataTextures, intermediateTextureFormat: this.intermediateTextureFormat },
 				resolution: { width: this.resolution.width, height: this.resolution.height },
 			});
 			let previousFrameTextureMap: Record<string, GPUTexture> = {};
 			if (effect.needsPreviousFrame) {
 				previousFrameTextureMap = effect.getOut({
-					wgpu: { device: this.gpuDevice, enableFloat32Filtering: this.enableFloat32Filtering, intermediateTextureFormat: this.intermediateTextureFormat },
+					wgpu: { device: this.gpuDevice, enable32bitDataTextures: this.enable32bitDataTextures, intermediateTextureFormat: this.intermediateTextureFormat },
 					resolution: { width: this.resolution.width, height: this.resolution.height },
 				});
 			}
@@ -750,8 +750,8 @@ export class Renderer {
 			for (const k in paramDefs) {
 				if (paramDefs[k].canNode) {
 					const format = paramDefs[k].type === 'vector'
-						? (this.enableFloat32Filtering ? 'rg32float' : 'rg16float')
-						: (this.enableFloat32Filtering ? 'r32float' : 'r16float');
+						? (this.enable32bitDataTextures ? 'rg32float' : 'rg16float')
+						: (this.enable32bitDataTextures ? 'r32float' : 'r16float');
 					const tex = this.gpuDevice.createTexture({
 						size: [1, 1],
 						format,

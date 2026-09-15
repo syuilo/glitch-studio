@@ -27,7 +27,7 @@ export default implementEffect<typeof definition>({
 		const uniformValues = makeStructuredView(makeShaderDataDefinitions(code).uniforms.uniforms);
 		const uniformBuffer = device.createBuffer({ size: uniformValues.arrayBuffer.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
 		const sampler = device.createSampler({ magFilter: 'linear', minFilter: 'linear' });
-		const gradientFormat = wgpu.enableFloat32Filtering ? 'rgba32float' : 'rgba16float';
+		const gradientFormat = wgpu.enable32bitDataTextures ? 'rgba32float' : 'rgba16float';
 		const computeLayout = device.createBindGroupLayout({ entries: [
 			{ binding: 0, visibility: GPUShaderStage.COMPUTE, texture: {} },
 			{ binding: 1, visibility: GPUShaderStage.COMPUTE, sampler: {} },

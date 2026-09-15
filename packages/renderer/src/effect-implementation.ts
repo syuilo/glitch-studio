@@ -60,7 +60,7 @@ export type EffectImplementation<Definition extends Pick<EffectDefinition, 'para
 		resolution: { width: number; height: number; },
 		wgpu: {
 			device: GPUDevice;
-			enableFloat32Filtering: boolean;
+			enable32bitDataTextures: boolean;
 			intermediateTextureFormat: IntermediateTextureFormat;
 		};
 	}) => {
@@ -74,7 +74,7 @@ export type EffectImplementation<Definition extends Pick<EffectDefinition, 'para
 			device: GPUDevice;
 			context: GPUCanvasContext;
 			defaultVertexShaderModule: GPUShaderModule;
-			enableFloat32Filtering: boolean;
+			enable32bitDataTextures: boolean;
 			intermediateTextureFormat: IntermediateTextureFormat;
 		};
 		params: GetRuntimeEffectOptionsSchemaValues<Options>;

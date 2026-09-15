@@ -8,12 +8,12 @@ export default implementEffect<typeof definition>({
 	getOut: ({ wgpu, resolution }) => {
 		const out = wgpu.device.createTexture({
 			size: resolution,
-			format: wgpu.enableFloat32Filtering ? 'rgba32float' : 'rgba16float',
+			format: wgpu.enable32bitDataTextures ? 'rgba32float' : 'rgba16float',
 			usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
 		});
 		return { output: out };
 	},
-	init: ({ wgpu: { device, defaultVertexShaderModule, enableFloat32Filtering }, params, fallbackTexture }) => {
+	init: ({ wgpu: { device, defaultVertexShaderModule, enable32bitDataTextures }, params, fallbackTexture }) => {
 		const sampler = device.createSampler({ minFilter: 'linear', magFilter: 'linear' });
 		const module = device.createShaderModule({ code });
 		const layout = device.createBindGroupLayout({
@@ -29,8 +29,8 @@ export default implementEffect<typeof definition>({
 			vertex: { module: defaultVertexShaderModule },
 			fragment: {
 				module,
-				constants: { MAX_VALUE: enableFloat32Filtering ? 3.402823466e38 : 65504 },
-				targets: [{ format: enableFloat32Filtering ? 'rgba32float' : 'rgba16float' }],
+				constants: { MAX_VALUE: enable32bitDataTextures ? 3.402823466e38 : 65504 },
+				targets: [{ format: enable32bitDataTextures ? 'rgba32float' : 'rgba16float' }],
 			},
 			primitive: { topology: 'triangle-list' },
 		});

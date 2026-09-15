@@ -62,7 +62,7 @@ test('effect GPU statistics include compute and render passes', async t => {
 			try {
 				await server.ssrLoadModule('/src/worker.ts');
 				await globalThis.onmessage({ data: { type: 'init', canvas, histogramCanvas: canvas, waveformCanvas: canvas, options: {
-					resolution: { width: 64, height: 64 }, enableStats: false, enableFloat32Filtering: false,
+					resolution: { width: 64, height: 64 }, enableStats: false, enable32bitDataTextures: false,
 					fpsLimit: null, assets: [], macros: [], automations: [], nodes: [],
 				} } });
 				const initial = messages.find(message => message.type === 'gpuMemory');
@@ -120,7 +120,7 @@ test('effect GPU statistics include compute and render passes', async t => {
 					const context = { configure() {}, unconfigure() {}, getCurrentTexture: () => device.createTexture() };
 					const renderer = new Renderer({
 						gpuDevice: device, gpuContext: context, histogramGpuContext: context, waveformHorizontalGpuContext: context,
-						resolution: { width: 64, height: 64 }, enableFloat32Filtering: false, enableStats, fpsLimit: null,
+						resolution: { width: 64, height: 64 }, enable32bitDataTextures: false, enableStats, fpsLimit: null,
 						assets: [], macros: [], automations: [],
 						nodes: makeNodes(),
 					});

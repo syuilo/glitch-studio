@@ -30,7 +30,7 @@ export class Engine {
 	private pendingCalls: { message: unknown; options?: StructuredSerializeOptions }[] = [];
 	private pointerPosition = { x: 0, y: 0 };
 
-	private enableFloat32Filtering = false;
+	private enable32bitDataTextures = false;
 	private intermediateTextureFormat = navigator.gpu.getPreferredCanvasFormat(); // TODO: 設定でrgba16floatも指定できるようにする(レンダリングの精度は上がるがパフォーマンスは落ちる)
 	private enableStats = true;
 	private nodes: GsNode[] = [];
@@ -160,7 +160,7 @@ export class Engine {
 			waveformVerticalCanvas: waveformVerticalOffscreen,
 			options: {
 				resolution,
-				enableFloat32Filtering: this.enableFloat32Filtering,
+				enable32bitDataTextures: this.enable32bitDataTextures,
 				intermediateTextureFormat: this.intermediateTextureFormat,
 				fpsLimit: this.fpsLimit,
 				enableStats: this.enableStats,

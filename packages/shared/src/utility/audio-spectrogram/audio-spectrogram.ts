@@ -25,7 +25,7 @@ export function createAudioSpectrogram(options: {
 	device: GPUDevice;
 	vertexShaderModule: GPUShaderModule;
 	format: GPUTextureFormat;
-	enableFloat32Filtering: boolean;
+	enable32bitDataTextures: boolean;
 }) {
 	const bands = 512;
 
@@ -79,7 +79,7 @@ export function createAudioSpectrogram(options: {
 				capacity = required;
 				texture = options.device.createTexture({
 					size: [bands, capacity, 2],
-					format: options.enableFloat32Filtering ? 'r32float' : 'r16float',
+					format: options.enable32bitDataTextures ? 'r32float' : 'r16float',
 					usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
 				});
 				bindGroup = options.device.createBindGroup({ layout, entries: [
@@ -125,10 +125,10 @@ export function createAudioSpectrogram(options: {
 						}
 						rows[side][band] = Math.max(rows[side][band], amplitude);
 					}
-					if (!options.enableFloat32Filtering) {
+					if (!options.enable32bitDataTextures) {
 						for (let band = 0; band < bands; band++) uploadRow[band] = float32ToFloat16Bits(rows[side][band]);
 					}
-					const data = options.enableFloat32Filtering ? rows[side] : uploadRow;
+					const data = options.enable32bitDataTextures ? rows[side] : uploadRow;
 					options.device.queue.writeTexture({ texture: texture!, origin: [0, bucket % capacity, side] }, data,
 						{ bytesPerRow: data.byteLength }, [bands, 1, 1]);
 				}

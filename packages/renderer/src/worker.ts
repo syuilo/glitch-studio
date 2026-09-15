@@ -39,7 +39,7 @@ onmessage = async (event) => {
 
 			const device = await adapter?.requestDevice({
 				requiredFeatures: [
-					...(event.data.options.enableFloat32Filtering ? ['float32-filterable'] as const : []),
+					...(event.data.options.enable32bitDataTextures ? ['float32-filterable'] as const : []),
 					...(event.data.options.enableStats ? ['timestamp-query'] as const : []),
 				],
 			});
@@ -62,7 +62,7 @@ onmessage = async (event) => {
 				gpuDevice: device,
 				gpuContext: context,
 				resolution: event.data.options.resolution,
-				enableFloat32Filtering: event.data.options.enableFloat32Filtering,
+				enable32bitDataTextures: event.data.options.enable32bitDataTextures,
 				intermediateTextureFormat: event.data.options.intermediateTextureFormat,
 				enableStats: event.data.options.enableStats,
 				fpsLimit: event.data.options.fpsLimit,
