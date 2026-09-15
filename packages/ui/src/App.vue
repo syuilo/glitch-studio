@@ -19,10 +19,9 @@
 		<div :class="$style.footerLeft">
 			<div @click="openResolutionMenu">{{ appContext.state.resolution.value.width }} x {{ appContext.state.resolution.value.height }} px ({{ resolutionFactor }}x) | {{ Math.round(engine.fpsDisplay.value) }}fps</div>
 			<div :class="$style.previewVolume">
-				<i :class="engine.previewVolume.value === 0 ? 'ti ti-volume-off' : 'ti ti-volume'"></i>
-				<span>Preview</span>
-				<input type="range" min="0" max="1" step="0.01" :value="engine.previewVolume.value" @input="setPreviewVolume">
-				<span :class="$style.volumeValue">{{ Math.round(engine.previewVolume.value * 100) }}%</span>
+				<i :class="previewVolume === 0 ? 'ti ti-volume-off' : 'ti ti-volume'"></i>
+				<GsRange v-model="previewVolume" :min="0" :max="1" :step="0.01" :continuousUpdate="true" style="width: 150px;"/>
+				<span :class="$style.volumeValue">{{ Math.round(previewVolume * 100) }}%</span>
 			</div>
 		</div>
 		<div :class="$style.footerRight">
@@ -44,6 +43,7 @@
 import { computed, nextTick, onMounted, onBeforeUnmount, ref, shallowRef, useTemplateRef, watch } from 'vue';
 import { engine, resolutionFactor, fpsLimit, appContext } from './app';
 import { preferences } from './preferences.ts';
+import GsRange from './components/common/GsRange.vue';
 import GsAboutDialog from '@/components/GsAboutDialog.vue';
 import GsDashboardDialog from '@/components/GsDashboardDialog.vue';
 import GsWorkspaceElement from '@/components/GsWorkspaceElement.vue';
@@ -52,14 +52,13 @@ import GsButton from '@/components/common/GsButton.vue';
 import GsAudioLevelMeter from '@/components/common/GsAudioLevelMeter.vue';
 import * as ui from '@/ui.ts';
 
-const presetName = '';
-
 const releaseOutputCapture = engine.retainAudioOutputCapture();
 onBeforeUnmount(releaseOutputCapture);
 
-function setPreviewVolume(event: Event) {
-	engine.setPreviewVolume((event.target as HTMLInputElement).valueAsNumber);
-}
+const previewVolume = preferences.model('previewVolume');
+watch(previewVolume, (newValue) => {
+	engine.setPreviewVolume(newValue);
+}, { immediate: true });
 
 const gpuMemoryTooltip = computed(() => {
 	const usage = engine.gpuMemoryUsage.value;
