@@ -114,6 +114,27 @@ export const PREF_DEF = definePreferences({
 										type: 'panel',
 										contentType: 'timeline',
 									},
+								}, {
+									name: 'Macros',
+									element: {
+										id: '7391e834d63948ebb6cf40f17a242b5e',
+										type: 'panel',
+										contentType: 'macros',
+									},
+								}, {
+									name: 'Console',
+									element: {
+										id: '8d5628e4e3ca4404b4f3cbb905dc35d7',
+										type: 'panel',
+										contentType: 'blank',
+									},
+								}, {
+									name: 'Logs',
+									element: {
+										id: 'da1be20a82c84a2f964760fab25c75a3',
+										type: 'panel',
+										contentType: 'commandLog',
+									},
 								}],
 							},
 						}],
