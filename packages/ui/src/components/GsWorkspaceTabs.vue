@@ -124,7 +124,8 @@ function toggleCollapse() {
 	gap: 16px;
 	box-sizing: border-box;
 	height: var(--headerHeight);
-	border-top: solid 3px #111;
+	border-bottom: solid 3px #111;
+	margin-bottom: 5px;
 }
 
 .tab {
@@ -135,10 +136,10 @@ function toggleCollapse() {
 		content: '';
 		display: block;
 		position: absolute;
-		bottom: 4px;
+		bottom: -3px;
 		left: 0;
 		width: 100%;
-		height: 2px;
+		height: 3px;
 		pointer-events: none;
 	}
 
@@ -157,7 +158,7 @@ function toggleCollapse() {
 }
 
 .tabName {
-	padding: 4px 0 8px 6px;
+	padding: 4px 0 4px 6px;
 	box-sizing: border-box;
 	height: 100%;
 }
@@ -168,7 +169,6 @@ function toggleCollapse() {
 
 .addTabButton {
 	font-size: 90%;
-	padding-bottom: 4px;
 }
 
 .menuButton {
@@ -177,7 +177,6 @@ function toggleCollapse() {
 
 .toggleCollapse {
 	font-size: 90%;
-	padding-bottom: 4px;
 }
 
 .tabContent {
