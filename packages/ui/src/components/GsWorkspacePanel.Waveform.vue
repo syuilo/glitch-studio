@@ -13,7 +13,7 @@
 <script lang="ts" setup>
 import { computed } from 'vue';
 import GsWorkspacePanel from './GsWorkspacePanel.vue';
-import type { WorkspacePanel } from '@/types/workspace.ts';
+import type { WorkspacePanel } from '@/workspace.ts';
 import GsWaveform from '@/components/GsWaveform.vue';
 
 const props = defineProps<{

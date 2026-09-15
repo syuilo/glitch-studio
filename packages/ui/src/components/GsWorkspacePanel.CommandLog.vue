@@ -15,7 +15,7 @@
 <script lang="ts" setup>
 import { watch, useTemplateRef, ref, onMounted } from 'vue';
 import GsWorkspacePanel from './GsWorkspacePanel.vue';
-import type { WorkspacePanel } from '@/types/workspace.ts';
+import type { WorkspacePanel } from '@/workspace.ts';
 import { i18n } from '@/i18n.ts';
 import { appContext } from '@/app.ts';
 import { COMMAND_DEFS } from '@/commands.ts';

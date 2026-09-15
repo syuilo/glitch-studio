@@ -7,7 +7,7 @@ import { COMMAND_DEFS } from './commands.ts';
 import GsEffectPicker from './components/GsEffectPicker.vue';
 import type { CommandDef } from './commands.ts';
 import type { AppState } from './types.ts';
-import type { WorkspaceDivider } from './types/workspace.ts';
+import type { WorkspaceDivider } from './workspace.ts';
 import type { Asset, GsNode, Macro, GsAutomation, GsGroupNode, Player } from '@glitch/shared/types.ts';
 import type { RawProject } from './settings.ts';
 import * as ui from '@/ui.ts';

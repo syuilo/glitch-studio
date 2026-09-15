@@ -1,18 +1,8 @@
 <template>
 <div ref="root" :class="[$style.root, { [$style.horizontal]: divider.direction === 'horizontal', [$style.vertical]: divider.direction === 'vertical' }]">
-	<template v-for="(child, i) in divider.children" :key="child.id">
-		<GsWorkspaceDivider
-			v-if="child.type === null"
-			:divider="child"
-			:class="$style.child"
-			:style="{ flexGrow: `calc(${child.ratio} / ${minimumRatioCss})` }"
-		/>
-		<component
-			:is="panelComponents[child.type]"
-			v-else
-			:ref="child.id"
-			:key="child.id"
-			:panel="child"
+	<template v-for="(child, i) in divider.children" :key="child.element.id">
+		<GsWorkspaceElement
+			:element="child.element"
 			:class="$style.child"
 			:style="{ flexGrow: `calc(${child.ratio} / ${minimumRatioCss})` }"
 		/>
@@ -39,41 +29,11 @@
 <script lang="ts" setup>
 import { deepClone } from '@glitch/shared/utility/deep-clone.js';
 import { computed, nextTick, ref, useTemplateRef } from 'vue';
-import type { WorkspaceDivider } from '@/types/workspace.ts';
-import XEmpty from '@/components/GsWorkspacePanel.Empty.vue';
-import XPreview from '@/components/GsWorkspacePanel.Preview.vue';
-import XNodesEditor from '@/components/GsWorkspacePanel.NodesEditor.vue';
-import XHistogram from '@/components/GsWorkspacePanel.Histogram.vue';
-import XWaveform from '@/components/GsWorkspacePanel.Waveform.vue';
-import XAudioSpectrum from '@/components/GsWorkspacePanel.AudioSpectrum.vue';
-import XAudioSpectrogram from '@/components/GsWorkspacePanel.AudioSpectrogram.vue';
-import XAudioWaveform from '@/components/GsWorkspacePanel.AudioWaveform.vue';
-import XStats from '@/components/GsWorkspacePanel.Stats.vue';
-import XCommandLog from '@/components/GsWorkspacePanel.CommandLog.vue';
-import XMacros from '@/components/GsWorkspacePanel.Macros.vue';
-import XPlayers from '@/components/GsWorkspacePanel.Players.vue';
-import XTimeline from '@/components/GsWorkspacePanel.Timeline.vue';
+import type { WorkspaceDivider } from '@/workspace';
+import GsWorkspaceElement from '@/components/GsWorkspaceElement.vue';
 import { appContext, workspacePanelDraggingContext } from '@/app.ts';
 import { cleanupWorkspaceDefinition, findWorkspaceParent } from '@/utility/workspace.ts';
 import { preferences } from '@/preferences.ts';
-
-const panelComponents = {
-	empty: XEmpty,
-	preview: XPreview,
-	nodesEditor: XNodesEditor,
-	histogram: XHistogram,
-	waveform: XWaveform,
-	waveformHorizontal: XWaveform,
-	waveformVertical: XWaveform,
-	audioSpectrum: XAudioSpectrum,
-	audioSpectrogram: XAudioSpectrogram,
-	audioWaveform: XAudioWaveform,
-	stats: XStats,
-	commandLog: XCommandLog,
-	macros: XMacros,
-	players: XPlayers,
-	timeline: XTimeline,
-};
 
 const props = withDefaults(defineProps<{
 	divider: WorkspaceDivider;

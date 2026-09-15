@@ -12,12 +12,12 @@
 
 <script lang="ts" setup>
 import { deepClone } from '@glitch/shared/utility/deep-clone.js';
-import { preferences } from '@/preferences.ts';
-import { findWorkspaceParent } from '@/utility/workspace.ts';
 import GsWorkspacePanel from './GsWorkspacePanel.vue';
 import GsButton from './common/GsButton.vue';
-import type { WorkspacePanel } from '@/types/workspace.ts';
-import { workspacePanelChoices as choices } from '@/types/workspace.ts';
+import type { WorkspacePanel } from '@/workspace.ts';
+import { findWorkspaceParent } from '@/utility/workspace.ts';
+import { preferences } from '@/preferences.ts';
+import { workspacePanelChoices as choices } from '@/workspace.ts';
 
 const props = defineProps<{
 	panel: WorkspacePanel;

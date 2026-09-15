@@ -1,51 +1,61 @@
-import { genId } from '@glitch/shared/utility/id.ts';
+// NOTE: このファイルはpreferencesへの参照・知識を持っていてはならない
+// また、引数をmutateしてはならない
+
 import { deepClone } from '@glitch/shared/utility/deep-clone.js';
-import type { WorkspaceDivider, WorkspacePanel } from '@/types/workspace.ts';
+import { genId } from '@glitch/shared/utility/id.js';
+import type { WorkspaceElement, WorkspaceDivider, WorkspaceTabs, WorkspacePanel } from '@/workspace.ts';
 
-export function findWorkspaceParent(divider: WorkspaceDivider, id: string): WorkspaceDivider | undefined {
-	for (const child of divider.children) {
-		if (child.id === id) return divider;
-		if (child.type === null) {
-			const parent = findWorkspaceParent(child, id);
-			if (parent) return parent;
+export function findWorkspaceParent(root: WorkspaceElement, id: string): WorkspaceDivider | WorkspaceTabs | null {
+	if (root.type === 'tabs' || root.type === 'divider') {
+		for (const child of root.children) {
+			if (child.element.id === id) return root;
+			const parent = findWorkspaceParent(child.element, id);
+			if (parent != null) return parent;
 		}
 	}
+	return null;
 }
 
-export function splitWorkspacePanel(parent: WorkspaceDivider, target: WorkspacePanel, panel: WorkspacePanel, direction: WorkspaceDivider['direction'], before: boolean) {
-	const index = parent.children.findIndex(child => child.id === target.id);
-	const ratio = target.ratio;
-	target.ratio = panel.ratio = 1;
-	parent.children.splice(index, 1, {
+export function splitWorkspaceElement(_root: WorkspaceElement, _target: WorkspaceElement, _newEl: WorkspaceElement, direction: WorkspaceDivider['direction'], before: boolean): WorkspaceElement {
+	const root = deepClone(_root);
+	const target = deepClone(_target);
+	const newEl = deepClone(_newEl);
+	const parent = findWorkspaceParent(root, target.id);
+	if (parent == null) throw new Error('Parent not found');
+	const index = parent.children.findIndex(child => child.element.id === target.id);
+	parent.children[index].element = {
 		id: genId(),
-		type: null,
-		ratio,
+		type: 'divider',
 		direction,
-		children: before ? [panel, target] : [target, panel],
-	});
+		children: before ? [{ ratio: 0.5, element: newEl }, { ratio: 0.5, element: target }] : [{ ratio: 0.5, element: target }, { ratio: 0.5, element: newEl }],
+	};
+	return root;
 }
 
-export function cleanupWorkspaceDefinition(_divider: WorkspaceDivider): WorkspaceDivider {
-	const divider = deepClone(_divider);
-	divider.children = divider.children.flatMap((child): WorkspaceDivider['children'] => {
-		if (child.type !== null) return [child];
-		cleanupWorkspaceDefinition(child);
-		if (child.children.length === 0) return [];
-		if (child.children.length !== 1 && child.direction !== divider.direction) return [child];
+/*
+ * 子が1つしかないdividerがあれば、そのdividerを削除して子を上の階層に引き上げる処理や、dividerの直下の子に同じdirectionのdividerが含まれる場合はその子を削除して孫を自身の子に引き上げる
+ * 引き上げる場合、表示したときの視覚的な比率は引き上げ前を保つようにする(内部的なratioプロパティを調整する)
+ */
+export function cleanupWorkspaceDefinition(_root: WorkspaceElement): WorkspaceElement {
+	const root = deepClone(_root);
+	// TODO
+	return root;
+}
 
-		// 親の中で占めていた比率を、子同士の比率に応じて配分する。
-		const totalRatio = child.children.reduce((total, grandchild) => total + grandchild.ratio, 0);
-		for (const grandchild of child.children) {
-			grandchild.ratio = child.ratio * grandchild.ratio / totalRatio;
-		}
-		return child.children;
-	});
+export function removeWorkspaceElement(_root: WorkspaceElement, _target: WorkspaceElement) {
+	const root = deepClone(_root);
+	const target = deepClone(_target);
+	// TODO
+	return cleanupWorkspaceDefinition(root);
+}
 
-	// ルートは常にdividerとして扱うため、唯一の子がdividerならその内容を引き継ぐ。
-	const onlyChild = divider.children[0];
-	if (divider.children.length === 1 && onlyChild.type === null) {
-		divider.direction = onlyChild.direction;
-		divider.children = onlyChild.children;
-	}
-	return divider;
+export function splitAndAddWorkspacePanel(_root: WorkspaceElement, _target: WorkspaceElement, position: 'below' | 'above' | 'left' | 'right') {
+	const root = deepClone(_root);
+	const parent = findWorkspaceParent(root, _target.id);
+	if (!parent) return;
+
+	const direction = position === 'below' || position === 'above' ? 'vertical' : 'horizontal';
+	const before = position === 'above' || position === 'left';
+	const panel: WorkspacePanel = { id: genId(), type: 'panel', contentType: 'empty' };
+	return cleanupWorkspaceDefinition(splitWorkspaceElement(parent, _target, panel, direction, before));
 }

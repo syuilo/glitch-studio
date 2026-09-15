@@ -8,7 +8,7 @@
 <script lang="ts" setup>
 import GsWorkspacePanel from './GsWorkspacePanel.vue';
 import GsAudioSpectrogram from './GsAudioSpectrogram.vue';
-import type { WorkspacePanel } from '@/types/workspace.ts';
+import type { WorkspacePanel } from '@/workspace.ts';
 
 defineProps<{
 	panel: WorkspacePanel;

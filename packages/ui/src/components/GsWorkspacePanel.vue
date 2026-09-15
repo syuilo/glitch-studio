@@ -79,13 +79,13 @@ import { deepClone } from '@glitch/shared/utility/deep-clone.js';
 import { onBeforeUnmount, onMounted, provide, watch, useTemplateRef, ref, computed, nextTick } from 'vue';
 import { genId } from '@glitch/shared/utility/id.ts';
 import type { MenuItem } from '@/types/menu.ts';
-import type { WorkspacePanel } from '@/types/workspace.ts';
-import { workspacePanelChoices } from '@/types/workspace.ts';
+import type { WorkspacePanel } from '@/workspace';
+import { getElementMenu, workspacePanelChoices } from '@/workspace';
 import * as ui from '@/ui.ts';
 import { i18n } from '@/i18n.ts';
 import { appContext, workspacePanelDraggingContext } from '@/app.ts';
 import { getDragData, setDragData } from '@/utility/drag-and-drop.ts';
-import { cleanupWorkspaceDefinition, findWorkspaceParent, splitWorkspacePanel } from '@/utility/workspace.ts';
+import { cleanupWorkspaceDefinition, findWorkspaceParent, splitAndAddWorkspacePanel } from '@/utility/workspace.ts';
 import { preferences } from '@/preferences.ts';
 //import { checkDragDataType, getDragData, setDragData } from '@/drag-and-drop.ts';
 
@@ -117,91 +117,12 @@ function toggleCollapse() {
 	preferences.commit('workspaceDefinition', workspace);
 }
 
-function addPanel(position: 'below' | 'above' | 'left' | 'right') {
-	const workspace = deepClone(preferences.s.workspaceDefinition);
-	const parent = findWorkspaceParent(workspace, props.panel.id);
-	if (!parent) return;
-
-	const direction = position === 'below' || position === 'above' ? 'vertical' : 'horizontal';
-	const before = position === 'above' || position === 'left';
-	const panel: WorkspacePanel = { id: genId(), type: 'empty', ratio: 1 };
-	const target = parent.children.find(child => child.id === props.panel.id);
-	if (!target || target.type === null) return;
-	splitWorkspacePanel(parent, target, panel, direction, before);
-	preferences.commit('workspaceDefinition', cleanupWorkspaceDefinition(workspace));
-}
-
-function closePanel() {
-	const workspace = deepClone(preferences.s.workspaceDefinition);
-	const parent = findWorkspaceParent(workspace, props.panel.id);
-	if (!parent) return;
-
-	const index = parent.children.findIndex(child => child.id === props.panel.id);
-	parent.children.splice(index, 1);
-	preferences.commit('workspaceDefinition', cleanupWorkspaceDefinition(workspace));
-}
-
-function getMenu() {
-	const menuItems: MenuItem[] = [];
-
-	if (props.menu) {
-		menuItems.push(...props.menu);
-	}
-
-	if (menuItems.length > 0) {
-		menuItems.push({
-			type: 'divider',
-		});
-	}
-
-	menuItems.push({
-		type: 'parent',
-		text: 'Switch type to',
-		children: workspacePanelChoices.map(choice => ({
-			text: choice.label,
-			action: () => {
-				const workspace = deepClone(preferences.s.workspaceDefinition);
-				const parent = findWorkspaceParent(workspace, props.panel.id);
-				const panel = parent?.children.find(child => child.id === props.panel.id);
-				if (!panel || panel.type === null) return;
-				panel.type = choice.type;
-				preferences.commit('workspaceDefinition', workspace);
-			},
-		})),
-	}, { type: 'divider' }, {
-		icon: 'ti ti-box-align-top',
-		text: 'Add panel to above',
-		action: () => addPanel('above'),
-	}, {
-		icon: 'ti ti-box-align-bottom',
-		text: 'Add panel to below',
-		action: () => addPanel('below'),
-	}, {
-		icon: 'ti ti-box-align-left',
-		text: 'Add panel to left',
-		action: () => addPanel('left'),
-	}, {
-		icon: 'ti ti-box-align-right',
-		text: 'Add panel to right',
-		action: () => addPanel('right'),
-	});
-
-	menuItems.push({ type: 'divider' }, {
-		icon: 'ti ti-x',
-		text: 'Close panel',
-		danger: true,
-		action: closePanel,
-	});
-
-	return menuItems;
-}
-
 function showSettingsMenu(ev: PointerEvent) {
-	ui.popupMenu(getMenu(), ev.currentTarget ?? ev.target);
+	ui.popupMenu(getElementMenu(props.panel), ev.currentTarget ?? ev.target);
 }
 
 function onContextmenu(ev: PointerEvent) {
-	ui.contextMenu(getMenu(), ev);
+	ui.contextMenu(getElementMenu(props.panel), ev);
 }
 
 function goTop(ev: PointerEvent) {
@@ -274,7 +195,7 @@ function onDrop(ev: DragEvent, area: 'top' | 'bottom' | 'left' | 'right' | 'cent
 	} else {
 		sourceParent.children.splice(sourceIndex, 1);
 		const direction = area === 'top' || area === 'bottom' ? 'vertical' : 'horizontal';
-		splitWorkspacePanel(targetParent, target, panel, direction, area === 'top' || area === 'left');
+		splitAndAddWorkspacePanel(targetParent, target, panel, direction, area === 'top' || area === 'left');
 	}
 	preferences.commit('workspaceDefinition', cleanupWorkspaceDefinition(workspace));
 }
