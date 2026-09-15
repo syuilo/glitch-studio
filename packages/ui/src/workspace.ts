@@ -48,6 +48,7 @@ export type WorkspaceTabs = {
 		name: string;
 		element: WorkspaceElement;
 	}[];
+	collapsed?: boolean;
 };
 
 export type WorkspaceDivider = {
