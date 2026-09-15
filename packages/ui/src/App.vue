@@ -211,6 +211,7 @@ onMounted(() => {
 	display: flex;
 	flex: 2;
 	min-height: 0;
+	padding: 0 8px;
 }
 
 .footer {
