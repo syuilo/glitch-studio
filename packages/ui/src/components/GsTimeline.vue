@@ -47,7 +47,7 @@
 						:y1="valueToDomY(selectedKeyframe.value)"
 						:x2="bezierHandleADomPos[0]"
 						:y2="bezierHandleADomPos[1]"
-						style="stroke: #00f3ff; stroke-width: 1;"
+						style="stroke: var(--THEME-accentSecondary); stroke-width: 1;"
 					/>
 					<line
 						v-if="bezierHandleBDomPos"
@@ -55,7 +55,7 @@
 						:y1="valueToDomY(selectedKeyframe.value)"
 						:x2="bezierHandleBDomPos[0]"
 						:y2="bezierHandleBDomPos[1]"
-						style="stroke: #00f3ff; stroke-width: 1;"
+						style="stroke: var(--THEME-accentSecondary); stroke-width: 1;"
 					/>
 				</svg>
 
@@ -825,7 +825,7 @@ onMounted(() => {
 	--accentAlphaMiddle: color(from var(--THEME-accent) srgb r g b / 0.5);
 	--accentAlphaLow: color(from var(--THEME-accent) srgb r g b / 0.25);
 	--accentAlphaMiddleLow: color(from var(--THEME-accent) srgb r g b / 0.35);
-	--accentAlphaVeryLow: color(from var(--THEME-accent) srgb r g b / 0.0625);
+	--accentAlphaVeryLow: color(from var(--THEME-accent) srgb r g b / 0);
 }
 
 .header {
@@ -1166,7 +1166,7 @@ onMounted(() => {
 		left: 5px;
 		width: 10px;
 		height: 10px;
-		background: #00f3ff;
+		background: var(--THEME-accentSecondary);
 		border-radius: 100%;
 		pointer-events: none;
 	}
