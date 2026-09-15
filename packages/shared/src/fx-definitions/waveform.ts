@@ -12,6 +12,10 @@ export default defineEffect({
 			{ label: '1/8', value: 8 },
 			{ label: '1/16', value: 16 },
 		], default: () => ({ type: 'literal', value: 1 }) },
+		direction: { type: 'enum', label: 'Direction', options: [
+			{ label: 'Horizontal', value: 'horizontal' },
+			{ label: 'Vertical', value: 'vertical' },
+		], default: () => ({ type: 'literal', value: 'horizontal' }) },
 		mode: { type: 'enum', label: 'Mode', options: [
 			{ label: 'RGB', value: 'rgb' },
 			{ label: 'Luminance', value: 'luminance' },

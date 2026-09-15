@@ -2,6 +2,7 @@ struct Params {
 	mode: u32,
 	intensity: f32,
 	size: vec2u,
+	verticalPosition: u32,
 };
 
 @group(0) @binding(0) var<uniform> params: Params;
@@ -10,16 +11,21 @@ struct Params {
 @group(0) @binding(3) var<storage, read> waveform: array<u32>;
 @group(0) @binding(4) var sourceSampler: sampler;
 
+// バッファは常に「位置×強度」で扱い、縦位置モードでは幅と高さを交換する。
+fn waveformSize() -> vec2u {
+	return select(params.size, params.size.yx, params.verticalPosition == 1u);
+}
+
 fn index(column: u32, level: u32, channel: u32) -> u32 {
-	return (level * params.size.x + column) * 3u + channel;
+	return (level * waveformSize().x + column) * 3u + channel;
 }
 
 fn addSample(column: u32, value: f32, channel: u32, weight: f32) {
-	let level = clamp(value, 0.0, 1.0) * f32(params.size.y - 1u);
+	let level = clamp(value, 0.0, 1.0) * f32(waveformSize().y - 1u);
 	// Cover at least one 8-bit step to fill quantization gaps at high resolutions.
-	let radius = max(1.0, f32(params.size.y - 1u) / 255.0);
+	let radius = max(1.0, f32(waveformSize().y - 1u) / 255.0);
 	let first = u32(max(0.0, ceil(level - radius)));
-	let last = u32(min(f32(params.size.y - 1u), floor(level + radius)));
+	let last = u32(min(f32(waveformSize().y - 1u), floor(level + radius)));
 	var total = 0.0;
 	for (var row = first; row <= last; row++) {
 		total += max(0.0, 1.0 - abs(f32(row) - level) / radius);
@@ -42,13 +48,16 @@ fn accumulate(@builtin(global_invocation_id) id: vec3u) {
 	if (weight == 0.0) {
 		return;
 	}
+	// 入力はpremultiplied alpha。色の強度を復元し、透明度は集計の重みに使う。
+	let rgb = color.rgb / color.a;
+	let column = select(id.x, id.y, params.verticalPosition == 1u);
 	if (params.mode == 1u) {
-		let luminance = dot(color.rgb, vec3f(0.2126, 0.7152, 0.0722));
-		addSample(id.x, luminance, 0u, weight);
+		let luminance = dot(rgb, vec3f(0.2126, 0.7152, 0.0722));
+		addSample(column, luminance, 0u, weight);
 	} else {
-		addSample(id.x, color.r, 0u, weight);
-		addSample(id.x, color.g, 1u, weight);
-		addSample(id.x, color.b, 2u, weight);
+		addSample(column, rgb.r, 0u, weight);
+		addSample(column, rgb.g, 1u, weight);
+		addSample(column, rgb.b, 2u, weight);
 	}
 }
 
@@ -61,11 +70,13 @@ fn density(column: u32, level: u32) -> vec3f {
 
 @fragment
 fn fs(@location(0) uv: vec2f) -> @location(0) vec4f {
-	// Shared UVs run from -1 to 1, with positive Y at the top.
-	let position = clamp((uv * 0.5 + 0.5) * vec2f(params.size) - 0.5,
-		vec2f(0.0), vec2f(params.size - vec2u(1u)));
+	// 共通UVは上が+1。縦位置は上から下、強度は左0から右1に対応させる。
+	let scopeUv = select(uv, vec2f(-uv.y, uv.x), params.verticalPosition == 1u);
+	let size = waveformSize();
+	let position = clamp((scopeUv * 0.5 + 0.5) * vec2f(size) - 0.5,
+		vec2f(0.0), vec2f(size - vec2u(1u)));
 	let lower = vec2u(floor(position));
-	let upper = min(lower + vec2u(1u), params.size - vec2u(1u));
+	let upper = min(lower + vec2u(1u), size - vec2u(1u));
 	let fraction = fract(position);
 	let value = mix(
 		mix(density(lower.x, lower.y), density(upper.x, lower.y), fraction.x),

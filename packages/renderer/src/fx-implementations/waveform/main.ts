@@ -3,10 +3,12 @@ import { implementEffect } from '../../fx-implementation.ts';
 import code from './shader.wgsl?raw';
 
 export default implementEffect<typeof definition>({
-	getOut: ({ wgpu, resolution }) => wgpu.device.createTexture({
-		size: resolution,
-		format: wgpu.intermediateTextureFormat,
-		usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
+	getOut: ({ wgpu, resolution }) => ({
+		output: wgpu.device.createTexture({
+			size: resolution,
+			format: wgpu.intermediateTextureFormat,
+			usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
+		}),
 	}),
 	init: ({ wgpu: { device, defaultVertexShaderModule, intermediateTextureFormat }, resolution, params, fallbackTexture }) => {
 		const getSize = (divisor: number) => ({
@@ -53,7 +55,7 @@ export default implementEffect<typeof definition>({
 			primitive: { topology: 'triangle-list' },
 		});
 		let waveform = createWaveform(size);
-		const values = new ArrayBuffer(16);
+		const values = new ArrayBuffer(24);
 		const integers = new Uint32Array(values);
 		const floats = new Float32Array(values);
 		const uniforms = device.createBuffer({
@@ -99,6 +101,7 @@ export default implementEffect<typeof definition>({
 				integers[0] = ctx.params.mode === 'luminance' ? 1 : 0;
 				floats[1] = Math.max(0, ctx.params.intensity);
 				integers.set([size.width, size.height], 2);
+				integers[4] = ctx.params.direction === 'vertical' ? 1 : 0;
 				device.queue.writeBuffer(uniforms, 0, values);
 				ctx.commandEncoder.clearBuffer(waveform);
 				if (input != null) {
