@@ -16,6 +16,7 @@ import XCommandLog from '@/components/GsWorkspacePanel.CommandLog.vue';
 import XMacros from '@/components/GsWorkspacePanel.Macros.vue';
 import XPlayers from '@/components/GsWorkspacePanel.Players.vue';
 import XTimeline from '@/components/GsWorkspacePanel.Timeline.vue';
+import XAssets from '@/components/GsWorkspacePanel.Assets.vue';
 
 export const workspacePanelDefinitions = markRaw({
 	blank: { label: 'Blank', icon: '', component: XBlank },
@@ -32,6 +33,7 @@ export const workspacePanelDefinitions = markRaw({
 	stats: { label: 'Stats', icon: 'ti ti-activity', component: XStats },
 	commandLog: { label: 'Command Log', icon: 'ti ti-logs', component: XCommandLog },
 	timeline: { label: 'Timeline', icon: 'ti ti-timeline', component: XTimeline },
+	assets: { label: 'Assets', icon: 'ti ti-folder-open', component: XAssets },
 } as const);
 
 export type WorkspacePanel = {

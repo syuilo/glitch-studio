@@ -123,6 +123,13 @@ export const PREF_DEF = definePreferences({
 										contentType: 'macros',
 									},
 								}, {
+									name: 'Assets',
+									element: {
+										id: '824a5486145c4ba4911518b2bfc74a7c',
+										type: 'panel',
+										contentType: 'assets',
+									},
+								}, {
 									name: 'Console',
 									element: {
 										id: '8d5628e4e3ca4404b4f3cbb905dc35d7',
