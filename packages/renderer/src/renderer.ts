@@ -35,7 +35,7 @@ function evaluateExpression(expression: string, scope: Record<string, any>, para
 		const aisVal = aiscript.execSync(aisParser.parse(expression));
 		if (aisVal === undefined) return null;
 		return AiScript.utils.valToJs(aisVal);
-	} catch (err) {
+	} catch (err) { // パース失敗時など
 		return genEmptyValue(paramDefForFallback);
 	}
 }
