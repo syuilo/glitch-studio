@@ -142,7 +142,7 @@ onBeforeUnmount(() => {
 
 .legendItem {
 	display: grid;
-	grid-template-columns: 8px auto 5em;
+	grid-template-columns: 8px auto 4em;
 	align-items: center;
 	gap: 6px;
 }
