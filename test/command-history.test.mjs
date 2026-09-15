@@ -22,7 +22,7 @@ test('node creation keeps supplied and default parameters separate from state', 
 	for (const groupId of [undefined, 'group']) {
 		const app = new AppContext();
 		if (groupId) app.commit('addGroupNode', { id: groupId });
-		app.commit('addFxNode', { id: 'n', fx: 'test', groupId, params: { supplied: { type: 'literal', value: [1, 2] } } });
+		app.commit('addEffectNode', { id: 'n', effectId: 'test', groupId, params: { supplied: { type: 'literal', value: [1, 2] } } });
 		const nodes = () => groupId ? app.state.nodes.value[0].nodes : app.state.nodes.value;
 		nodes()[0].params.supplied.value[0] = 99;
 		nodes()[0].params.xy.value[0] = 99;
@@ -80,7 +80,7 @@ test('macro values and type options are isolated on every application', () => {
 
 test('merged parameter history preserves both endpoints across repeated undo/redo', () => {
 	const app = new AppContext();
-	app.commit('addFxNode', { id: 'n', fx: 'test' });
+	app.commit('addEffectNode', { id: 'n', effectId: 'test' });
 	for (const value of [[1, 1], [2, 2]]) app.commit('updateParamAsLiteral', { nodeId: 'n', param: 'xy', value }, 'drag');
 	app.state.nodes.value[0].params.xy.value[0] = 99;
 	app.undo();

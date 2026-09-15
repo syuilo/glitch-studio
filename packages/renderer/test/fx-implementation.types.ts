@@ -1,7 +1,7 @@
-import definition from '@glitch/shared/fx-definitions/test.ts';
-import { defineEffect, type GetEffectOptionsSchemaValues } from '@glitch/shared/fx-definition.ts';
-import { implementEffect } from '../src/fx-implementation.ts';
-import '../src/fx-implementations/test/main.ts';
+import definition from '@glitch/shared/effect-definitions/test.ts';
+import { defineEffect, type GetEffectOptionsSchemaValues } from '@glitch/shared/effect-definition.ts';
+import { implementEffect } from '../src/effect-implementation.ts';
+import '../src/effect-implementations/test/main.ts';
 
 implementEffect<typeof definition>({
 	getOut: ({ wgpu }) => wgpu.device.createTexture({ size: [1, 1], format: 'rgba8unorm', usage: GPUTextureUsage.RENDER_ATTACHMENT }),

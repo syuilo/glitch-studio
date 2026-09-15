@@ -11,7 +11,7 @@
 			</div>
 			<div :class="$style.rightArea">
 				<div :class="$style.effects">
-					<button v-for="[k, effect] in Object.entries(fxDefinitions)" :key="k" class="_button" :class="$style.effect" @click="choose(effect)">
+					<button v-for="[k, effect] in Object.entries(effectDefinitions)" :key="k" class="_button" :class="$style.effect" @click="choose(effect)">
 						{{ effect.displayName }}
 					</button>
 				</div>
@@ -23,7 +23,7 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, useTemplateRef, watch } from 'vue';
-import { fxDefinitions } from '@glitch/shared/fx-definitions.js';
+import { effectDefinitions } from '@glitch/shared/effect-definitions.js';
 import GsModal from './common/GsModal.vue';
 import GsButton from './common/GsButton.vue';
 import * as ui from '@/ui.ts';
@@ -32,7 +32,7 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-	(ev: 'chosen', effect: typeof fxDefinitions[keyof typeof fxDefinitions]): void;
+	(ev: 'chosen', effect: typeof effectDefinitions[keyof typeof effectDefinitions]): void;
 	(ev: 'closed'): void;
 }>();
 
@@ -42,7 +42,7 @@ function close() {
 	modal.value?.close();
 }
 
-function choose(effect: typeof fxDefinitions[keyof typeof fxDefinitions]) {
+function choose(effect: typeof effectDefinitions[keyof typeof effectDefinitions]) {
 	emit('chosen', effect);
 	close();
 }

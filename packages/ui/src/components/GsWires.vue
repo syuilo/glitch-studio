@@ -20,7 +20,7 @@
 
 <script lang="ts" setup>
 import { onMounted, onUnmounted, ref, useId, useTemplateRef, watch } from 'vue';
-import { fxDefinitions } from '@glitch/shared/fx-definitions.ts';
+import { effectDefinitions } from '@glitch/shared/effect-definitions.ts';
 import type { GsNode } from '@glitch/shared/types.ts';
 import { appContext, wireMap } from '@/app.ts';
 
@@ -85,8 +85,8 @@ function draw() {
 				if (node.type === 'group') {
 					scan(node.nodes);
 				} else {
-					const fx = fxDefinitions[node.fx];
-					for (const [k, v] of Object.entries(fx.paramDefs)) {
+					const effect = effectDefinitions[node.effectId];
+					for (const [k, v] of Object.entries(effect.paramDefs)) {
 						const param = node.params[k];
 						const connections = param.type === 'node'
 							? [param.nodeId == null ? null : param]

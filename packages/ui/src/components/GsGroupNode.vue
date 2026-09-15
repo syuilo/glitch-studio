@@ -134,7 +134,7 @@ function collectAssets(): Asset[] {
 	for (const node of props.node.nodes) {
 		if (node.type === 'group') {
 			// TODO
-		} else if (node.fx === 'image') {
+		} else if (node.effectId === 'image') {
 			const asset = appContext.state.assets.value.find(asset => asset.id === node.params.image.value);
 			if (asset) {
 				assets.push(asset);

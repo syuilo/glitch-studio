@@ -1,4 +1,4 @@
-import { fxDefinitions } from '@glitch/shared/fx-definitions.ts';
+import { effectDefinitions } from '@glitch/shared/effect-definitions.ts';
 import { getNodeOutputs } from '@glitch/shared/utility/node-outputs.ts';
 import type { GsNode, NodeOutputReference } from '@glitch/shared/types.ts';
 
@@ -10,7 +10,7 @@ export function nodeOutputKey(connection: NodeOutputReference | null): string | 
 export function getNodeOutputItems(nodes: GsNode[], excludedNodeId?: string): { label: string; value: string; connection: NodeOutputReference }[] {
 	return nodes.flatMap(node => {
 		if (node.id === excludedNodeId) return [];
-		const name = node.type === 'fx' ? fxDefinitions[node.fx].displayName : node.name;
+		const name = node.type === 'effect' ? effectDefinitions[node.effectId].displayName : node.name;
 		const outputs = Object.keys(getNodeOutputs(node)).map(outputPort => {
 			const connection = { nodeId: node.id, outputPort };
 			return { label: `${name} [${node.id}]: ${outputPort}`, value: nodeOutputKey(connection)!, connection };

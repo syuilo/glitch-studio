@@ -19,7 +19,7 @@ test('renderer graph traversal and frame history', async t => {
 					}`;
 			},
 			transform(code, id) {
-				if (id.endsWith('/fx-implementations/symbols/main.ts')) {
+				if (id.endsWith('/effect-implementations/symbols/main.ts')) {
 					return code.replace('createTextureFromImages, ', '') + '\nimport { createTextureFromImages } from "test:symbol-images";';
 				}
 			},
@@ -30,10 +30,10 @@ test('renderer graph traversal and frame history', async t => {
 	navigator.gpu = { getPreferredCanvasFormat: () => 'bgra8unorm' };
 	t.after(() => { navigator.gpu = previousGpu; });
 	const { Renderer } = await server.ssrLoadModule('/src/renderer.ts');
-	const { fxImplementations } = await server.ssrLoadModule('/src/fx-implementations.ts');
-	const { fxDefinitions } = await server.ssrLoadModule('@glitch/shared/fx-definitions.ts');
+	const { fxImplementations } = await server.ssrLoadModule('/src/effect-implementations.ts');
+	const { fxDefinitions } = await server.ssrLoadModule('@glitch/shared/effect-definitions.ts');
 	const fx = (id, name, params = {}) => ({
-		id, type: 'fx', fx: name, isBypass: true,
+		id, type: 'effect', effectId: name, isBypass: true,
 		params: {
 			...Object.fromEntries(Object.entries(fxDefinitions[name].paramDefs).map(([key, param]) => [
 				key, param.default(),

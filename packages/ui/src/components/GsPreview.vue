@@ -79,8 +79,8 @@ async function addMedia(file?: File) {
 	});
 
 	if (result.type.startsWith('image/')) {
-		appContext.commit('addFxNode', {
-			fx: 'image',
+		appContext.commit('addEffectNode', {
+			effectId: 'image',
 			id: genId(),
 			params: {
 				image: { type: 'literal', value: assetId },
@@ -96,8 +96,8 @@ async function addMedia(file?: File) {
 			assetId: assetId,
 		});
 
-		appContext.commit('addFxNode', {
-			fx: result.type.startsWith('audio/') ? 'audioWaveform' : 'video',
+		appContext.commit('addEffectNode', {
+			effectId: result.type.startsWith('audio/') ? 'audioWaveform' : 'video',
 			id: genId(),
 			params: {
 				player: { type: 'literal', value: playerId },

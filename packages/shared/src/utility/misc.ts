@@ -1,7 +1,7 @@
 import { rawBezierEasing } from './bezier.ts';
-import type { FxParamDef, GsAutomation } from '../types.ts';
+import type { EffectParamDef, GsAutomation } from '../types.ts';
 
-export function genEmptyValue(paramDef: Omit<FxParamDef, 'default'>): any {
+export function genEmptyValue(paramDef: Omit<EffectParamDef, 'default'>): any {
 	if (paramDef.canNode) {
 		return null;
 	}

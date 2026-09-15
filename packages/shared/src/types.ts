@@ -1,9 +1,9 @@
-export type FxParamDataType = 'number' | 'angle' | 'range' | 'range2' | 'enum' | 'bool' | 'blendMode' | 'fitMode' | 'wrapMode' | 'signal' | 'xy' | 'wh' | 'color' | 'vector' | 'seed' | 'time' | 'image' | 'player' | 'node' | 'nodes';
+export type EffectParamDataType = 'number' | 'angle' | 'range' | 'range2' | 'enum' | 'bool' | 'blendMode' | 'fitMode' | 'wrapMode' | 'signal' | 'xy' | 'wh' | 'color' | 'vector' | 'seed' | 'time' | 'image' | 'player' | 'node' | 'nodes';
 
 export type NodeOutputReference = { nodeId: string; outputPort: string };
 export type NodeParamValue = { type: 'node' } & (NodeOutputReference | { nodeId: null; outputPort: null });
 
-export type FxParamValue = {
+export type EffectParamValue = {
 	type: 'literal';
 	value: any; // TODO: literalにリネーム
 } | {
@@ -18,9 +18,9 @@ export type Macro = {
 	id: string;
 	label: string;
 	name: string;
-	type: FxParamDataType;
+	type: EffectParamDataType;
 	typeOptions: Record<string, any>;
-	value: FxParamValue;
+	value: EffectParamValue;
 };
 
 export type Asset = {
@@ -41,19 +41,19 @@ export type Player = {
 	assetId?: Asset['id'] | null;
 };
 
-export type FxParamDef = Record<string, any> & {
-	type: FxParamDataType;
+export type EffectParamDef = Record<string, any> & {
+	type: EffectParamDataType;
 	label: string;
 	canNode?: boolean;
-	default: () => FxParamValue;
-	visibility?: (state: Record<string, FxParamValue>) => boolean;
+	default: () => EffectParamValue;
+	visibility?: (state: Record<string, EffectParamValue>) => boolean;
 };
 
-export type FxParamDefs = Record<string, FxParamDef>;
+export type EffectParamDefs = Record<string, EffectParamDef>;
 
 type OmitNever<T> = { [K in keyof T as T[K] extends never ? never : K]: T[K] };
 
-export type EvaledParams<T extends FxParamDefs> = {
+export type EvaledParams<T extends EffectParamDefs> = {
 	[K in keyof T]:
 	T[K]['type'] extends 'node' ? NodeOutputReference | null :
 	T[K]['type'] extends 'nodes' ? (NodeOutputReference | null)[] :
@@ -64,7 +64,7 @@ export type EvaledParams<T extends FxParamDefs> = {
 	any;
 };
 
-export type InputNodeTexs<T extends FxParamDefs> = OmitNever<{
+export type InputNodeTexs<T extends EffectParamDefs> = OmitNever<{
 	[K in keyof T]:
 	T[K]['type'] extends 'node' ? WebGLTexture :
 	T[K]['type'] extends 'nodes' ? WebGLTexture[] :
@@ -85,12 +85,12 @@ export type GsAutomation = {
 	keyframes: GsKeyframe[];
 };
 
-export type GsFxNode = {
+export type GsEffectNode = {
 	id: string;
-	type: 'fx';
-	fx: string;
+	type: 'effect';
+	effectId: string;
 	isBypass: boolean;
-	params: Record<string, FxParamValue>;
+	params: Record<string, EffectParamValue>;
 
 	// 2D平面上でノードを配置できるようになった時のため
 	pos?: { x: number; y: number };
@@ -108,4 +108,4 @@ export type GsGroupNode = {
 	pos?: { x: number; y: number };
 };
 
-export type GsNode = GsFxNode | GsGroupNode;
+export type GsNode = GsEffectNode | GsGroupNode;

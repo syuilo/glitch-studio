@@ -25,7 +25,6 @@
 
 <script lang="ts" setup>
 import { computed, defineAsyncComponent, ref, watch, watchEffect } from 'vue';
-import { fxDefinitions } from '@glitch/shared/fx-definitions.ts';
 import { genId } from '@glitch/shared/utility/id.ts';
 import GsButton from './common/GsButton.vue';
 import GsSelect from './common/GsSelect.vue';

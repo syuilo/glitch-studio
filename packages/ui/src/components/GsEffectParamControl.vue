@@ -198,7 +198,6 @@
 
 <script lang="ts" setup>
 import { computed, watchEffect, shallowRef } from 'vue';
-import { fxDefinitions } from '@glitch/shared/fx-definitions.ts';
 import GsSignal from './common/GsSignal.vue';
 import GsXy from './common/GsXy.vue';
 import XXySlider from './common/xy-slider.vue';

@@ -15,12 +15,12 @@ test('multiple output rendering', async t => {
 	navigator.gpu = { getPreferredCanvasFormat: () => 'bgra8unorm' };
 	t.after(() => { navigator.gpu = previousGpu; });
 	const { Renderer } = await server.ssrLoadModule('/src/renderer.ts');
-	const { fxDefinitions } = await server.ssrLoadModule('@glitch/shared/fx-definitions.ts');
-	const { fxImplementations } = await server.ssrLoadModule('/src/fx-implementations.ts');
+	const { fxDefinitions } = await server.ssrLoadModule('@glitch/shared/effect-definitions.ts');
+	const { fxImplementations } = await server.ssrLoadModule('/src/effect-implementations.ts');
 	const connection = (nodeId, outputPort = 'color') => ({ nodeId, outputPort });
-	const source = (id = 'source') => ({ id, type: 'fx', fx: 'testSource', isBypass: true, params: {} });
+	const source = (id = 'source') => ({ id, type: 'effect', effectId: 'testSource', isBypass: true, params: {} });
 	const sink = (input, scalar = null) => ({
-		id: 'sink', type: 'fx', fx: 'testSink', isBypass: true,
+		id: 'sink', type: 'effect', effectId: 'testSink', isBypass: true,
 		params: { input: { type: 'literal', value: input }, amount: scalar == null ? { type: 'literal', value: 0 } : { type: 'node', ...scalar } },
 	});
 	const group = nodes => ({ id: 'group', type: 'group', isBypass: true, nodes, macros: [] });

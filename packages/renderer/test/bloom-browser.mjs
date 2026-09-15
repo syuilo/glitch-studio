@@ -1,5 +1,5 @@
 // Run Vite with packages/renderer as root, then open /test/bloom-browser.html.
-import bloom from '../src/fx-implementations/bloom/main.ts';
+import bloom from '../src/effect-implementations/bloom/main.ts';
 import vertex from '../src/vertex.wgsl?raw';
 
 const results = document.querySelector('#results');

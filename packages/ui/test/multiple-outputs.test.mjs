@@ -1,22 +1,22 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { createServer } from 'vite';
 import { fileURLToPath } from 'node:url';
+import { createServer } from 'vite';
 
 test('UI multi-output connections', async t => {
 	const server = await createServer({ root: fileURLToPath(new URL('..', import.meta.url)), configFile: false, server: { middlewareMode: true, hmr: false, ws: false, watch: null }, appType: 'custom', optimizeDeps: { noDiscovery: true, include: [] } });
 	t.after(() => server.close());
 	const { COMMAND_DEFS } = await server.ssrLoadModule('/src/commands.ts');
-	const { fxDefinitions } = await server.ssrLoadModule('@glitch/shared/fx-definitions.ts');
+	const { fxDefinitions } = await server.ssrLoadModule('@glitch/shared/effect-definitions.ts');
 	fxDefinitions.multiTest = { displayName: 'Multi', paramDefs: {}, outputs: { output: { dataType: 'color', primary: true }, subOutput: { dataType: 'scalar', primary: false } } };
 	const ref = (nodeId, outputPort = 'output') => ({ nodeId, outputPort });
-	const fx = (id, name = 'multiTest', params = {}) => ({ id, type: 'fx', fx: name, isBypass: true, params });
+	const fx = (id, name = 'multiTest', params = {}) => ({ id, type: 'effect', effectId: name, isBypass: true, params });
 	const group = (id, nodes) => ({ id, type: 'group', name: id, nodes, macros: [], isBypass: true });
 	const state = nodes => ({ nodes: { value: nodes } });
 	await t.test('automatic connection records the primary port of the previous node or group', () => {
 		for (const previous of [fx('a'), group('g', [group('inner', [fx('a')])])]) {
 			const s = state([previous]);
-			const command = COMMAND_DEFS.addFxNode.create({ id: 'b', fx: 'multiply' });
+			const command = COMMAND_DEFS.addEffectNode.create({ id: 'b', effectId: 'multiply' });
 			command.execute(s);
 			assert.deepEqual(s.nodes.value[1].params.input, { type: 'literal', value: ref(previous.id) });
 			command.undo(s);

@@ -1,13 +1,13 @@
 import { createTextureFromSource, makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import * as AiScript from '@syuilo/aiscript';
 import { evalAutomationValue, genEmptyValue } from '@glitch/shared/utility/misc.ts';
-import { fxDefinitions } from '@glitch/shared/fx-definitions.ts';
+import { effectDefinitions } from '@glitch/shared/effect-definitions.ts';
 import { playerAudioSourceId } from '@glitch/shared/audio.ts';
 import { AudioHistory } from '@glitch/shared/audio-history.ts';
 import { float32ToFloat16Bits } from '@glitch/shared/utility/float32ToFloat16Bits.ts';
 import defaultVertexShaderCode from './vertex.wgsl?raw';
 import TimingHelper from './utility/TimingHelper.ts';
-import { fxImplementations } from './fx-implementations.ts';
+import { effectImplementations } from './effect-implementations.ts';
 import finalRenderShaderCode from './render.wgsl?raw';
 import { NonNegativeRollingAverage } from './utility/NonNegativeRollingAverage.ts';
 import { GpuHistogram } from './utility/histogram/GpuHistogram.ts';
@@ -15,8 +15,8 @@ import { GpuWaveform } from './utility/waveform/GpuWaveform.ts';
 import { GpuMemoryTracker } from './utility/GpuMemoryTracker.ts';
 import type { EffectStatus } from '@glitch/shared/effect-status.ts';
 import type { AudioCaptureMessage, AudioSourceId } from '@glitch/shared/audio.ts';
-import type { Asset, Macro, GsAutomation, GsFxNode, GsNode, GsGroupNode, Player, NodeOutputReference } from '@glitch/shared/types.ts';
-import type { EffectInstance, IntermediateTextureFormat } from './fx-implementation.ts';
+import type { Asset, Macro, GsAutomation, GsEffectNode, GsNode, GsGroupNode, Player, NodeOutputReference } from '@glitch/shared/types.ts';
+import type { EffectInstance, IntermediateTextureFormat } from './effect-implementation.ts';
 
 const aisParser = new AiScript.Parser();
 
@@ -47,8 +47,8 @@ function serializeAsset(asset: Asset | undefined) {
 	};
 }
 
-function getFxNodes(nodes: GsNode[]): GsFxNode[] {
-	return nodes.flatMap(node => node.type === 'group' ? getFxNodes(node.nodes) : [node]);
+function getEffectNodes(nodes: GsNode[]): GsEffectNode[] {
+	return nodes.flatMap(node => node.type === 'group' ? getEffectNodes(node.nodes) : [node]);
 }
 
 export class Renderer {
@@ -68,15 +68,15 @@ export class Renderer {
 	private videoFrameVersions: Map<Player['id'], number> = new Map();
 	private audioSources = new Map<AudioSourceId, AudioHistory>();
 	private audioPorts = new Map<AudioSourceId, MessagePort>();
-	private effectInstances: Map<GsFxNode['id'], EffectInstance | null> = new Map();
-	private effectScalarFieldTextures: Map<GsFxNode['id'], Record<string, GPUTexture>> = new Map();
-	private outDataMapPerNodes: Map<GsFxNode['id'], Record<string, {
+	private effectInstances: Map<GsEffectNode['id'], EffectInstance | null> = new Map();
+	private effectScalarFieldTextures: Map<GsEffectNode['id'], Record<string, GPUTexture>> = new Map();
+	private outDataMapPerNodes: Map<GsEffectNode['id'], Record<string, {
 		texture: GPUTexture;
 		textureView: GPUTextureView;
 		previousFrameTexture?: GPUTexture;
 		previousFrameTextureView?: GPUTextureView;
 	}>> = new Map();
-	private effectCacheKeys: Map<GsFxNode['id'], string> = new Map();
+	private effectCacheKeys: Map<GsEffectNode['id'], string> = new Map();
 	private timingHelper: TimingHelper;
 	private finalRenderSampler: GPUSampler;
 	private finalRenderPipeline: GPURenderPipeline;
@@ -246,9 +246,9 @@ export class Renderer {
 		return search(nodes);
 	}
 
-	// 無効なFXは主入力をそのまま公開する。テクスチャの所有権や履歴は元のノードに残す。
+	// 無効なエフェクトは主入力をそのまま公開する。テクスチャの所有権や履歴は元のノードに残す。
 	// 描画・入力参照・キャッシュが同じ接続関係を扱うよう、ここで共通して解決する。
-	private getOutputNode(node: GsNode, outputPort?: string, visited: GsNode['id'][] = []): { node: GsFxNode; outputPort: string } | undefined {
+	private getOutputNode(node: GsNode, outputPort?: string, visited: GsNode['id'][] = []): { node: GsEffectNode; outputPort: string } | undefined {
 		if (visited.includes(node.id)) throw new Error('circular dependency detected');
 		const nextVisited = [...visited, node.id];
 		if (node.type === 'group') {
@@ -257,10 +257,10 @@ export class Renderer {
 			return node.isBypass && lastNode != null ? this.getOutputNode(lastNode, outputPort, nextVisited) : undefined;
 		}
 		if (node.isBypass) {
-			const port = outputPort ?? Object.entries(fxDefinitions[node.fx].outputs).find(([, def]) => def.primary)?.[0];
+			const port = outputPort ?? Object.entries(effectDefinitions[node.effectId].outputs).find(([, def]) => def.primary)?.[0];
 			return port == null ? undefined : { node, outputPort: port };
 		}
-		const primary = Object.entries(fxDefinitions[node.fx].paramDefs).find(([, def]) => def.type === 'node' && def.primary);
+		const primary = Object.entries(effectDefinitions[node.effectId].paramDefs).find(([, def]) => def.type === 'node' && def.primary);
 		const input: NodeOutputReference | null = primary ? this.evaledNodeParams.get(node.id)![primary[0]] : null;
 		// バイパスでは自身の出力名ではなく、主入力が選択した出力ポートを公開する。
 		return input == null ? undefined : this.getOutputNode(this.findNode(input.nodeId)!, input.outputPort, nextVisited);
@@ -304,8 +304,8 @@ export class Renderer {
 			automationScope[automation.name] = evalAutomationValue(automation, this.frame);
 		}
 
-		for (const node of nodes.filter((n): n is GsFxNode => n.type === 'fx')) {
-			const paramDefs = fxDefinitions[node.fx].paramDefs;
+		for (const node of nodes.filter((n): n is GsEffectNode => n.type === 'effect')) {
+			const paramDefs = effectDefinitions[node.effectId].paramDefs;
 
 			const evaluatedParams = {} as Record<string, any>;
 
@@ -404,17 +404,17 @@ export class Renderer {
 			const outputKey = this.evalCacheKey(output.node, [...visited, node.id]);
 			return outputKey == null ? null : `${key}port=${output.outputPort};output=${outputKey};`;
 		} else {
-			if (fxImplementations[node.fx].disableCache) {
+			if (effectImplementations[node.effectId].disableCache) {
 				return null;
 			}
 			// 非同期のリソース更新も後続ノードのキャッシュキーに伝播させる。
 			key += `cacheVersion=${this.effectInstances.get(node.id)?.cacheVersion ?? 0};`;
 
-			const paramDefs = fxDefinitions[node.fx].paramDefs;
+			const paramDefs = effectDefinitions[node.effectId].paramDefs;
 
 			for (const [k, v] of Object.entries(this.evaledNodeParams.get(node.id)!)) {
 				key += `${k}=${JSON.stringify(v)};`;
-				if (node.fx === 'video' && paramDefs[k].type === 'player') {
+				if (node.effectId === 'video' && paramDefs[k].type === 'player') {
 					key += `${k}:videoFrameVersion=${v == null ? 0 : this.videoFrameVersions.get(v) ?? 0};`;
 				}
 
@@ -446,10 +446,10 @@ export class Renderer {
 		return key;
 	}
 
-	private resolveParams(node: GsFxNode, params: Record<string, any>): Record<string, any> {
+	private resolveParams(node: GsEffectNode, params: Record<string, any>): Record<string, any> {
 		const resolvedParams: Record<string, any> = {};
 		for (const [k, v] of Object.entries(params)) {
-			const typeDef = fxDefinitions[node.fx].paramDefs[k].type;
+			const typeDef = effectDefinitions[node.effectId].paramDefs[k].type;
 			if (typeDef === 'node') {
 				const input: NodeOutputReference | null = v;
 				resolvedParams[k] = input == null
@@ -463,7 +463,7 @@ export class Renderer {
 					audio: this.audioSources.get(playerAudioSourceId(v)) ?? null,
 				};
 			} else {
-				if (fxDefinitions[node.fx].paramDefs[k].canNode) {
+				if (effectDefinitions[node.effectId].paramDefs[k].canNode) {
 					// 出力なしの扱いは参照側の型で決める（画像は透明、スカラー場は0）。
 					resolvedParams[k] = v == null ? this.fallbackScalarFieldTexture : node.params[k].type === 'node' ? this.getOutputTexture(this.findNode(v.nodeId)!, v.outputPort) ?? this.fallbackScalarFieldTexture : this.effectScalarFieldTextures.get(node.id)![k];
 				} else {
@@ -499,11 +499,11 @@ export class Renderer {
 			return;
 		}
 
-		const effect = fxImplementations[node.fx];
+		const effect = effectImplementations[node.effectId];
 
 		const params = this.evaledNodeParams.get(node.id)!;
 
-		for (const [k, _] of Object.entries(fxDefinitions[node.fx].paramDefs).filter(([, v]) => v.type === 'node')) {
+		for (const [k, _] of Object.entries(effectDefinitions[node.effectId].paramDefs).filter(([, v]) => v.type === 'node')) {
 			const v = params[k];
 			if (v == null) {
 				continue;
@@ -525,7 +525,7 @@ export class Renderer {
 		//		}
 		//	}
 		//}
-		for (const [k, _] of Object.entries(fxDefinitions[node.fx].paramDefs).filter(([, v]) => v.canNode)) {
+		for (const [k, _] of Object.entries(effectDefinitions[node.effectId].paramDefs).filter(([, v]) => v.canNode)) {
 			const v = params[k];
 			if (node.params[k].type !== 'node' || v == null) {
 				continue;
@@ -710,15 +710,15 @@ export class Renderer {
 
 	// (非workerで)呼び出すときはnewNodesを独立した参照にすること！ パフォーマンス上の理由でこちら側ではdeepCloneしません
 	public updateNodes(newNodes: GsNode[]) {
-		const oldFxNodes = getFxNodes(this.nodes);
-		const newFxNodes = getFxNodes(newNodes);
-		const oldNodeIds = new Set(oldFxNodes.map(node => node.id));
-		const newNodeIds = new Set(newFxNodes.map(node => node.id));
-		const addedNodes = newFxNodes.filter(node => !oldNodeIds.has(node.id));
-		const removedNodes = oldFxNodes.filter(node => !newNodeIds.has(node.id));
+		const oldEffectNodes = getEffectNodes(this.nodes);
+		const newEffectNodes = getEffectNodes(newNodes);
+		const oldNodeIds = new Set(oldEffectNodes.map(node => node.id));
+		const newNodeIds = new Set(newEffectNodes.map(node => node.id));
+		const addedNodes = newEffectNodes.filter(node => !oldNodeIds.has(node.id));
+		const removedNodes = oldEffectNodes.filter(node => !newNodeIds.has(node.id));
 
 		for (const node of addedNodes) {
-			const effect = fxImplementations[node.fx];
+			const effect = effectImplementations[node.effectId];
 			const outTextureMap = effect.getOut({
 				wgpu: { device: this.gpuDevice, enableFloat32Filtering: this.enableFloat32Filtering, intermediateTextureFormat: this.intermediateTextureFormat },
 				resolution: { width: this.resolution.width, height: this.resolution.height },
@@ -745,7 +745,7 @@ export class Renderer {
 				};
 			}
 			this.outDataMapPerNodes.set(node.id, outDataMap);
-			const paramDefs = fxDefinitions[node.fx].paramDefs;
+			const paramDefs = effectDefinitions[node.effectId].paramDefs;
 			const scalarFieldTextures: Record<string, GPUTexture> = {};
 			for (const k in paramDefs) {
 				if (paramDefs[k].canNode) {

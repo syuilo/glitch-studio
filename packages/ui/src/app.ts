@@ -1,5 +1,4 @@
 import { ref, markRaw, reactive, watch, shallowRef, triggerRef } from 'vue';
-import { fxDefinitions } from '@glitch/shared/fx-definitions.ts';
 import { deepClone } from '@glitch/shared/utility/deep-clone.ts';
 import { genId } from '@glitch/shared/utility/id.ts';
 import { loadProjectFile, saveProjectFile, decodeAssets } from './api.ts';
@@ -181,9 +180,9 @@ export function showAddNodeMenu(ev: PointerEvent, group?: GsGroupNode) {
 	const { dispose } = ui.popup(GsEffectPicker, {
 	}, {
 		'chosen': effect => {
-			appContext.commit('addFxNode', {
+			appContext.commit('addEffectNode', {
 				groupId: group?.id,
-				fx: effect.name,
+				effectId: effect.id,
 				id: genId(),
 			});
 		},
@@ -253,7 +252,7 @@ export async function appReady(project: RawProject) {
 		engine.updateNodes(deepClone(appContext.state.nodes.value));
 
 		//// TODO: グループ考慮
-		//if (store.nodes.some(n => n.type === 'fx' && n.fx === 'webcamera')) {
+		//if (store.nodes.some(n => n.type === 'effect' && n.effectId === 'webcamera')) {
 		//	glitchRenderer.setupWebcam();
 		//}
 	}, { deep: true, immediate: true });
@@ -340,8 +339,8 @@ export async function newProjectFromImageOrVideo(file?: File) {
 	});
 
 	if (result.type.startsWith('image/')) {
-		appContext.commit('addFxNode', {
-			fx: 'image',
+		appContext.commit('addEffectNode', {
+			effectId: 'image',
 			id: genId(),
 			params: {
 				image: { type: 'literal', value: assetId },
@@ -357,8 +356,8 @@ export async function newProjectFromImageOrVideo(file?: File) {
 			assetId: assetId,
 		});
 
-		appContext.commit('addFxNode', {
-			fx: result.type.startsWith('audio/') ? 'audioWaveform' : 'video',
+		appContext.commit('addEffectNode', {
+			effectId: result.type.startsWith('audio/') ? 'audioWaveform' : 'video',
 			id: genId(),
 			params: {
 				player: { type: 'literal', value: playerId },

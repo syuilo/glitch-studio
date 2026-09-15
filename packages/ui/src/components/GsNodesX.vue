@@ -2,14 +2,14 @@
 <div>
 	<template v-for="element in nodes">
 		<XGroupNode v-if="element.type === 'group'" :key="element.id" :class="$style.node" :node="element" :group="group" :style="{ top: element.x + 'px', left: element.y + 'px' }"/>
-		<XFxNode v-else :key="element.id" :class="$style.node" :node="element" :group="group" :style="{ top: element.x + 'px', left: element.y + 'px' }"/>
+		<XEffectNode v-else :key="element.id" :class="$style.node" :node="element" :group="group" :style="{ top: element.x + 'px', left: element.y + 'px' }"/>
 	</template>
 </div>
 </template>
 
 <script lang="ts" setup>
 import { computed, defineAsyncComponent } from 'vue';
-import XFxNode from './GsFxNode.vue';
+import XEffectNode from './GsEffectNode.vue';
 import XGroupNode from './GsGroupNode.vue';
 import type { GsGroupNode, GsNode } from '@glitch/shared/types.ts';
 import { i18n } from '@/i18n.ts';
