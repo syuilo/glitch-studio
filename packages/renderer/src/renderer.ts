@@ -15,7 +15,7 @@ import { GpuWaveform } from './utility/waveform/GpuWaveform.ts';
 import { GpuMemoryTracker } from './utility/GpuMemoryTracker.ts';
 import type { EffectStatus } from '@glitch/shared/effect-status.ts';
 import type { AudioCaptureMessage, AudioSourceId } from '@glitch/shared/audio.ts';
-import type { Asset, Macro, GsAutomation, GsEffectNode, GsNode, GsGroupNode, Player, NodeOutputReference } from '@glitch/shared/types.ts';
+import type { Asset, Macro, GsAutomation, GsEffectNode, GsNode, GsGroupNode, Player, NodeOutputReference, EffectParamDef } from '@glitch/shared/types.ts';
 import type { EffectInstance, IntermediateTextureFormat } from './effect-implementation.ts';
 
 const aisParser = new AiScript.Parser();
@@ -23,17 +23,21 @@ const aisParser = new AiScript.Parser();
 const aiscript = new AiScript.Interpreter({});
 
 // TODO: 毎回parseしているのが無駄感あるからどうにかする
-function evaluateExpression(expression: string, scope: Record<string, any>): any {
-	for (const key in scope) {
-		if (aiscript.scope.exists(key)) {
-			aiscript.scope.assign(key, AiScript.utils.jsToVal(scope[key]));
-		} else {
-			aiscript.scope.add(key, { isMutable: true, value: AiScript.utils.jsToVal(scope[key]) });
+function evaluateExpression(expression: string, scope: Record<string, any>, paramDefForFallback: Omit<EffectParamDef, 'default'>): any {
+	try {
+		for (const key in scope) {
+			if (aiscript.scope.exists(key)) {
+				aiscript.scope.assign(key, AiScript.utils.jsToVal(scope[key]));
+			} else {
+				aiscript.scope.add(key, { isMutable: true, value: AiScript.utils.jsToVal(scope[key]) });
+			}
 		}
+		const aisVal = aiscript.execSync(aisParser.parse(expression));
+		if (aisVal === undefined) return null;
+		return AiScript.utils.valToJs(aisVal);
+	} catch (err) {
+		return genEmptyValue(paramDefForFallback);
 	}
-	const aisVal = aiscript.execSync(aisParser.parse(expression));
-	if (aisVal === undefined) return null;
-	return AiScript.utils.valToJs(aisVal);
 }
 
 function serializeAsset(asset: Asset | undefined) {
@@ -272,7 +276,7 @@ export class Renderer {
 				macro.value.type === 'literal'
 					? macro.value.value
 					: macro.value.expression
-						? evaluateExpression(macro.value.expression, scope)
+						? evaluateExpression(macro.value.expression, scope, macro)
 						: genEmptyValue(macro);
 
 			if (macro.type === 'image') {
@@ -306,7 +310,7 @@ export class Renderer {
 					v.type === 'literal'
 						? v.value
 						: v.type === 'expression' && v.expression
-							? evaluateExpression(v.expression, mixedScope)
+							? evaluateExpression(v.expression, mixedScope, paramDefs[k])
 							: v.type === 'automation' && v.automationId
 								? evalAutomationValue(this.automations.find(a => a.id === v.automationId)!, options.time)
 								: v.type === 'node' && v.nodeId
@@ -344,7 +348,7 @@ export class Renderer {
 					macro.value.type === 'literal'
 						? macro.value.value
 						: macro.value.expression
-							? evaluateExpression(macro.value.expression, scope)
+							? evaluateExpression(macro.value.expression, scope, macro)
 							: genEmptyValue(macro);
 
 				if (macro.type === 'image') {
