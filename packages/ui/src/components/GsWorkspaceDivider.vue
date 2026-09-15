@@ -5,7 +5,7 @@
 			v-if="child.type === null"
 			:divider="child"
 			:class="$style.child"
-			:style="{ flexGrow: child.ratio / totalRatio }"
+			:style="{ flexGrow: `calc(${child.ratio} / ${minimumRatioCss})` }"
 		/>
 		<component
 			:is="panelComponents[child.type]"
@@ -14,7 +14,7 @@
 			:key="child.id"
 			:panel="child"
 			:class="$style.child"
-			:style="{ flexGrow: child.ratio / totalRatio }"
+			:style="{ flexGrow: `calc(${child.ratio} / ${minimumRatioCss})` }"
 		/>
 		<div
 			v-if="i < divider.children.length - 1"
@@ -83,7 +83,9 @@ const props = withDefaults(defineProps<{
 
 const root = useTemplateRef('root');
 
-// flex-grow の合計が 1 未満だと余白が残るため、兄弟間で正規化
+// 各 flex-grow を 1 以上にし、collapse で兄弟が縮んでも残りのパネルで余白を埋める。
+// 共通の最小値で割るため、ratio 自体を変更せずパネル間の比率を維持できる。
+const minimumRatioCss = computed(() => `min(${props.divider.children.map(child => child.ratio).join(', ')})`);
 const totalRatio = computed(() => props.divider.children.reduce((total, child) => total + child.ratio, 0));
 
 const handleSize = 5;

@@ -1,6 +1,6 @@
 <template>
 <div
-	:class="[$style.root, { [$style.collapsed]: collapsed }]"
+	:class="[$style.root, { [$style.collapsed]: collapsed, [$style.horizontal]: stackingDirection === 'horizontal' }]"
 >
 	<div
 		v-if="workspacePanelDraggingContext.draggingId.value != null && workspacePanelDraggingContext.draggingId.value !== panel.id"
@@ -291,11 +291,55 @@ function onDrop(ev: DragEvent, area: 'top' | 'bottom' | 'left' | 'right' | 'cent
 
 	&.collapsed {
 		flex-grow: 0 !important;
+		flex-shrink: 0;
 		flex-basis: var(--headerHeight);
 		min-height: var(--headerHeight);
 
-		> .main {
-			border-bottom-right-radius: 0;
+		&.horizontal {
+			min-width: var(--headerHeight);
+
+			> .main > .header {
+				flex-direction: column;
+				align-items: center;
+				box-sizing: border-box;
+				width: var(--headerHeight);
+				height: 100%;
+				padding: 14px 0 0;
+				background: linear-gradient(-90deg, var(--THEME-workspacePanelHeader), hsl(from var(--THEME-workspacePanelHeader) h s calc(l + 5)));
+
+				> .tabShape {
+					display: none;
+				}
+
+				> .color {
+					width: calc(100% - 24px);
+					height: 3px;
+				}
+
+				> .title {
+					writing-mode: sideways-lr;
+					text-align: end;
+					flex: 1;
+					min-height: 0;
+				}
+
+				> .toggleCollapse,
+				> .menu,
+				> .grabber {
+					flex-shrink: 0;
+					margin: 0;
+				}
+
+				> .grabber {
+					margin-top: 10px;
+				}
+			}
+		}
+
+		&:not(.horizontal) {
+			> .main {
+				border-bottom-right-radius: 0;
+			}
 		}
 	}
 }
