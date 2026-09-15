@@ -45,7 +45,7 @@
 		>
 			<svg viewBox="0 0 256 128" :class="$style.tabShape">
 				<g transform="matrix(6.2431,0,0,6.2431,-677.417,-29.3839)">
-					<path d="M149.512,4.707L108.507,4.707C116.252,4.719 118.758,14.958 118.758,14.958C118.758,14.958 121.381,25.283 129.009,25.209L149.512,25.209L149.512,4.707Z" style="fill:var(--THEME-bg);"/>
+					<path d="M149.512,4.707L108.507,4.707C116.252,4.719 118.758,14.958 118.758,14.958C118.758,14.958 121.381,25.283 129.009,25.209L149.512,25.209L149.512,4.707Z" style="fill:var(--THEME-globalBg);"/>
 				</g>
 			</svg>
 			<div :class="$style.color"></div>
@@ -270,6 +270,7 @@ function onDrop(ev: DragEvent, area: 'top' | 'bottom' | 'left' | 'right' | 'cent
 	padding: 0 16px 0 30px;
 	font-size: 85%;
 	background: linear-gradient(0deg, var(--THEME-workspacePanelHeader), hsl(from var(--THEME-workspacePanelHeader) h s calc(l + 5)));
+	//background: var(--THEME-workspacePanelHeader);
 	user-select: none;
 }
 

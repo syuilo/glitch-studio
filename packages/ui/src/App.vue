@@ -194,7 +194,6 @@ onMounted(() => {
 	position: absolute;
 	display: flex;
 	flex-direction: column;
-	gap: 4px;
 	box-sizing: border-box;
 	height: 100%;
 	width: 100%;
@@ -205,7 +204,6 @@ onMounted(() => {
 	display: flex;
 	height: 32px;
 	line-height: 32px;
-	background: var(--THEME-workspacePanelBody);
 	gap: 16px;
 }
 
@@ -222,7 +220,6 @@ onMounted(() => {
 	line-height: 32px;
 	font-size: 90%;
 	padding: 0 12px;
-	background: var(--THEME-workspacePanelBody);
 }
 
 .footerLeft {

@@ -4,6 +4,7 @@
 	--THEME-accentSecondary: #c2fe0c;
 	--THEME-fgOnAccent: #000;
 	--THEME-accentedBg: color(from var(--THEME-accent) srgb r g b / 0.2);
+	--THEME-globalBg: #000;
 	--THEME-bg: #060606;
 	--THEME-fg: #e7e7e7;
 	--THEME-workspacePanelBody: #111;
@@ -31,7 +32,7 @@ html, body, #app {
 	width: 100%;
 	height: 100%;
 	overscroll-behavior: none;
-	background: var(--THEME-bg);
+	background: var(--THEME-globalBg);
 }
 
 html {
