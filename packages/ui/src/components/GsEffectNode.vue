@@ -275,7 +275,8 @@ onMounted(() => {
 	font-weight: bold;
 	cursor: move;
 	line-height: 32px;
-	background: linear-gradient(0deg, var(--THEME-nodeBg), hsl(from var(--THEME-nodeBg) h s calc(l + 5)));
+	//background: linear-gradient(0deg, var(--THEME-nodeBg), hsl(from var(--THEME-nodeBg) h s calc(l + 5)));
+	background: var(--THEME-nodeBg);
 
 	&.disabled {
 		pointer-events: none;
