@@ -196,11 +196,8 @@ export function showAddNodeMenu(ev: PointerEvent, group?: GsGroupNode) {
 	});
 }
 
-export const frameMax = ref(59);
-export const frame = ref(0);
 export const fpsLimit = ref(60);
 export const resolutionFactor = ref(1);
-export const playing = ref(false);
 
 export const rendererEnv = {
 	mouseX: 0,

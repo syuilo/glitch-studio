@@ -42,12 +42,11 @@
 
 <script lang="ts" setup>
 import { computed, nextTick, onMounted, onBeforeUnmount, ref, shallowRef, useTemplateRef, watch } from 'vue';
-import { frame, frameMax, appReady, rendererEnv, saveProject, engine, openProject, resolutionFactor, fpsLimit, appContext } from './app';
+import { engine, resolutionFactor, fpsLimit, appContext } from './app';
 import GsAboutDialog from '@/components/GsAboutDialog.vue';
 import GsDashboardDialog from '@/components/GsDashboardDialog.vue';
 import GsWorkspaceDivider from '@/components/GsWorkspaceDivider.vue';
 import { i18n } from '@/i18n.ts';
-import * as api from '@/api.ts';
 import GsButton from '@/components/common/GsButton.vue';
 import GsAudioLevelMeter from '@/components/common/GsAudioLevelMeter.vue';
 import * as ui from '@/ui.ts';

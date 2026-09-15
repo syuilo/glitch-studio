@@ -1,9 +1,6 @@
 <template>
 <div :class="$style.root">
 	<div :class="$style.header">
-		<GsButton v-if="playing" @click="stop"><i class="ti ti-player-pause"></i> Stop</GsButton>
-		<GsButton v-else @click="play"><i class="ti ti-player-play"></i> Play</GsButton>
-		<div :class="$style.frameCount">{{ time }}</div>
 	</div>
 	<div :class="$style.body">
 		<div :class="$style.side">
@@ -125,7 +122,7 @@ import { evalAutomationValue, insertIntermediateNumbers, nearlyEqual, niceScale 
 import { genId } from '@glitch/shared/utility/id.js';
 import GsButton from './common/GsButton.vue';
 import type { GsAutomation, GsKeyframe } from '@glitch/shared/types.js';
-import { playing, appContext } from '@/app.ts';
+import { appContext } from '@/app.ts';
 import { dragListen } from '@/utility/drag.ts';
 
 const X_TICKS_HEIGHT = 20;
@@ -298,14 +295,6 @@ function domYToLogicalY(y: number): number {
 
 function domYToValue(y: number): number {
 	return domYToLogicalY(y) + tlPosY.value;
-}
-
-function play() {
-	playing.value = true;
-}
-
-function stop() {
-	playing.value = false;
 }
 
 function addAutomation() {
@@ -843,11 +832,8 @@ onMounted(() => {
 
 .header {
 	display: flex;
-	height: 32px;
-	line-height: 32px;
-}
-.frameCount {
-	font-size: 18px;
+	//height: 32px;
+	//line-height: 32px;
 }
 
 .body {
