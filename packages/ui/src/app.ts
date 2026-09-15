@@ -117,6 +117,20 @@ export function showAddNodeMenu(ev: PointerEvent, group?: GsGroupNode) {
 	});
 }
 
+function benchmark(count = 100) {
+	for (let i = 0; i < count; i++) {
+		appContext.commit('addEffectNode', {
+			effectId: 'blockShuffle',
+			id: genId(),
+			params: {
+				seed: { type: 'literal', value: Math.random() * 1000 },
+			},
+		});
+	}
+}
+
+(window as any).benchmark = benchmark; // debug
+
 export const fpsLimit = ref(60);
 export const resolutionFactor = ref(1);
 
