@@ -30,8 +30,8 @@ test('renderer graph traversal and frame history', async t => {
 	navigator.gpu = { getPreferredCanvasFormat: () => 'bgra8unorm' };
 	t.after(() => { navigator.gpu = previousGpu; });
 	const { Renderer } = await server.ssrLoadModule('/src/renderer.ts');
-	const { fxImplementations } = await server.ssrLoadModule('/src/effect-implementations.ts');
-	const { fxDefinitions } = await server.ssrLoadModule('@glitch/shared/effect-definitions.ts');
+	const { effectImplementations: fxImplementations } = await server.ssrLoadModule('/src/effect-implementations.ts');
+	const { effectDefinitions: fxDefinitions } = await server.ssrLoadModule('@glitch/shared/effect-definitions.ts');
 	const fx = (id, name, params = {}) => ({
 		id, type: 'effect', effectId: name, isBypass: true,
 		params: {
@@ -92,6 +92,7 @@ test('renderer graph traversal and frame history', async t => {
 		};
 		const renderer = new Renderer({
 			gpuDevice: device, gpuContext: context, histogramGpuContext: context, waveformHorizontalGpuContext: context,
+			waveformVerticalGpuContext: context, intermediateTextureFormat: 'rgba16float',
 			resolution: { width: 64, height: 64 }, enable32bitDataTextures, enableStats: false,
 			fpsLimit: null, assets: [], macros: [], automations: [], nodes,
 			onEffectStatus: (id, status) => {
@@ -118,6 +119,24 @@ test('renderer graph traversal and frame history', async t => {
 	}
 
 	const disabled = node => ({ ...node, isBypass: false });
+
+	await t.test('image selects an asset after its first empty render and switches back to empty', t => {
+		const run = setup(t, [fx('root', 'image')]);
+		const assets = [
+			{ id: 'red', width: 1, height: 1, fileDataType: 'image/png', data: new Uint8Array([255, 0, 0, 255]) },
+			{ id: 'blue', width: 1, height: 1, fileDataType: 'image/png', data: new Uint8Array([0, 0, 255, 255]) },
+		];
+		run.renderer.updateAssets(assets);
+		const emptyTexture = run.frame()[0].inputs[0];
+		for (const asset of assets) {
+			run.renderer.updateNodes([fx('root', 'image', { image: asset.id })]);
+			const input = run.frame()[0].inputs[0];
+			assert.notEqual(input, emptyTexture, 'selecting an asset must replace the transparent input');
+			assert.deepEqual(run.textureWrites.get(input).data, asset.data);
+		}
+		run.renderer.updateNodes([fx('root', 'image')]);
+		assert.equal(run.frame()[0].inputs[0], emptyTexture);
+	});
 
 	for (const enable32bitDataTextures of [true, false]) {
 		const precision = enable32bitDataTextures ? '32' : '16';

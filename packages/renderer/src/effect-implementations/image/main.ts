@@ -12,7 +12,7 @@ export default implementEffect<typeof definition>({
 		});
 		return { output: out };
 	},
-	init: ({ wgpu, resolution, params, fallbackTexture }) => {
+	init: ({ wgpu, resolution, fallbackTexture }) => {
 		const shaderModule = wgpu.device.createShaderModule({
 			code: code,
 		});
@@ -51,20 +51,21 @@ export default implementEffect<typeof definition>({
 			addressModeW: 'mirror-repeat',
 		});
 
-		const bindGroup = wgpu.device.createBindGroup({
-			layout: pipeline.getBindGroupLayout(0),
-			entries: [
-				{ binding: 1, resource: { buffer: uniformBuffer } },
-				{ binding: 2, resource: sampler },
-				{ binding: 3, resource: (params.image ?? fallbackTexture).createView() },
-			],
-		});
-
 		return {
 			render: (ctx) => {
+				// 初期化後のAsset選択・変更も描画に反映する。
+				const sourceTexture = ctx.params.image ?? fallbackTexture;
+				const bindGroup = wgpu.device.createBindGroup({
+					layout: pipeline.getBindGroupLayout(0),
+					entries: [
+						{ binding: 1, resource: { buffer: uniformBuffer } },
+						{ binding: 2, resource: sampler },
+						{ binding: 3, resource: sourceTexture.createView() },
+					],
+				});
 				uniformValues.set({
 					aspectRatio: resolution.width / resolution.height,
-					sourceAspectRatio: (ctx.params.image ?? fallbackTexture).width / (ctx.params.image ?? fallbackTexture).height,
+					sourceAspectRatio: sourceTexture.width / sourceTexture.height,
 					mode: ctx.params.sizeMode,
 				});
 				wgpu.device.queue.writeBuffer(uniformBuffer, 0, uniformValues.arrayBuffer);
