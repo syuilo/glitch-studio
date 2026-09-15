@@ -805,7 +805,11 @@ function formatMsToTimecode(ms: number) {
 	const minutes = Math.floor(totalSeconds / 60);
 	const seconds = totalSeconds % 60;
 	const milliseconds = ms % 1000;
-	return `${minutes}:${seconds.toString().padStart(2, '0')}.${milliseconds.toString()}`;
+	if (milliseconds === 0) {
+		return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+	} else {
+		return `${minutes}:${seconds.toString().padStart(2, '0')}.${milliseconds.toString().replace(/0+$/, '')}`;
+	}
 }
 
 onMounted(() => {
