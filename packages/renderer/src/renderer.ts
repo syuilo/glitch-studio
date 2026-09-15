@@ -272,11 +272,11 @@ export class Renderer {
 		return this.outDataMapPerNodes.get(output.node.id)![output.outputPort].texture;
 	}
 
-	private evalNodeParams(nodes: GsNode[], provideVars: Record<string, any> = {}) {
+	private evalNodeParams(nodes: GsNode[], options: { time: number; vars: Record<string, any> }) {
 		const scope = {
 			WIDTH: this.resolution.width,
 			HEIGHT: this.resolution.height,
-			...provideVars,
+			...options.vars,
 		};
 
 		// Mixin (global) macros
@@ -301,7 +301,7 @@ export class Renderer {
 		// TODO: 各automationをフレーム数を引数にとる関数として定義する
 		const automationScope = {} as Record<string, any>;
 		for (const automation of this.automations) {
-			automationScope[automation.name] = evalAutomationValue(automation, this.frame);
+			automationScope[automation.name] = evalAutomationValue(automation, options.time);
 		}
 
 		for (const node of nodes.filter((n): n is GsEffectNode => n.type === 'effect')) {
@@ -324,7 +324,7 @@ export class Renderer {
 						: v.type === 'expression' && v.expression
 							? evaluateExpression(v.expression, mixedScope)
 							: v.type === 'automation' && v.automationId
-								? evalAutomationValue(this.automations.find(a => a.id === v.automationId)!, this.frame)
+								? evalAutomationValue(this.automations.find(a => a.id === v.automationId)!, options.time)
 								: v.type === 'node' && v.nodeId
 									? { nodeId: v.nodeId, outputPort: v.outputPort }
 									: genEmptyValue(paramDefs[k]);
@@ -370,8 +370,11 @@ export class Renderer {
 			}
 
 			this.evalNodeParams(node.nodes, {
-				...scope,
-				...groupMacroValues,
+				time: options.time,
+				vars: {
+					...scope,
+					...groupMacroValues,
+				},
 			});
 		}
 	}
@@ -642,7 +645,10 @@ export class Renderer {
 		}
 
 		this.evalNodeParams(this.nodes, {
-			TIME: args.time / 1000, // ms to seconds
+			time: args.time,
+			vars: {
+				TIME: args.time / 1000, // ms to seconds
+			},
 		});
 
 		const commandEncoder = this.gpuDevice.createCommandEncoder();

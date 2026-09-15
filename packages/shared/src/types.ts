@@ -73,7 +73,7 @@ export type InputNodeTexs<T extends EffectParamDefs> = OmitNever<{
 
 export type GsKeyframe = {
 	id: string;
-	frame: number;
+	timeMs: number;
 	value: number;
 	bezierControlPointA: [number, number];
 	bezierControlPointB: [number, number];
