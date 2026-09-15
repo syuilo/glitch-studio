@@ -57,6 +57,7 @@ export default implementEffect<typeof definition>({
 			render: (ctx) => {
 				uniformValues.set({
 					aspectRatio: resolution.width / resolution.height,
+					fitMode: { stretch: 0, cover: 1, contain: 2 }[ctx.params.fitMode],
 					angle: -ctx.params.angle * Math.PI, // +Yが上の座標系で、正の値を時計回りにする
 					interpolation: { linear: 0, smoothstep: 1, smootherstep: 2, cosine: 3, circular: 4, back: 5, elastic: 6 }[ctx.params.interpolation],
 				});

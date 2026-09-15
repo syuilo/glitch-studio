@@ -4,6 +4,7 @@ export default defineEffect({
 	name: 'gradient',
 	displayName: 'Gradient',
 	paramDefs: {
+		fitMode: { type: 'fitMode', label: 'Fit mode', default: () => ({ type: 'literal', value: 'cover' }) },
 		startPosition: { type: 'range', min: -1, max: 1, step: 0.01, label: 'Start Position', canNode: true, default: () => ({ type: 'literal', value: -1 }) },
 		endPosition: { type: 'range', min: -1, max: 1, step: 0.01, label: 'End Position', canNode: true, default: () => ({ type: 'literal', value: 1 }) },
 		startValue: { type: 'number', step: 0.01, label: 'Start Value', canNode: true, default: () => ({ type: 'literal', value: 0 }) },

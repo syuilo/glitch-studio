@@ -16,7 +16,7 @@
 	<div v-if="type === 'angle'">
 		<GsAngle
 			:modelValue="value"
-			:step="options?.step"
+			:step="0.125"
 			@beginChanging="onBeginChanging"
 			@update:modelValue="changeContinuous"
 			@changeFinished="onFinishChanging"

@@ -2,6 +2,7 @@
 
 struct Uniforms {
 	aspectRatio: f32,
+	fitMode: u32,
 	angle: f32,
 	interpolation: u32,
 };
@@ -29,10 +30,15 @@ fn fs(fragData: FragmentIn) -> @location(0) f32 {
 	let startValue = sampleScalar(startValueTexture, uv);
 	let endValue = sampleScalar(endValueTexture, uv);
 	let direction = vec2f(cos(uniforms.angle), sin(uniforms.angle));
-	let position = fragData.uv * vec2f(uniforms.aspectRatio, 1.0);
-	// 角度によらず画像の両端が -1 / +1 になるように射影を正規化する。
-	let extent = dot(abs(direction), vec2f(uniforms.aspectRatio, 1.0));
-	let projectedPosition = dot(position, direction) / extent;
+	var position = fragData.uv;
+	// 正方形の基準領域をcoverでは長辺、containでは短辺に合わせてから射影する。
+	// stretchは出力全体に引き延ばす。角度に応じた再正規化はせず、勾配の幅を保つ。
+	if (uniforms.fitMode == 1u) {
+		position *= vec2f(uniforms.aspectRatio, 1.0) / max(uniforms.aspectRatio, 1.0);
+	} else if (uniforms.fitMode == 2u) {
+		position *= vec2f(uniforms.aspectRatio, 1.0) / min(uniforms.aspectRatio, 1.0);
+	}
+	let projectedPosition = dot(position, direction);
 	let span = endPosition - startPosition;
 	// 開始・終了が同じ位置なら、その位置を境界とするステップにして0除算を避ける。
 	var t = step(startPosition, projectedPosition);
