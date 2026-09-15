@@ -100,6 +100,7 @@ export function niceScale(lowerBound: number, upperBound: number, ticks: number)
 }
 
 export function evalAutomationValue(automation: GsAutomation, timeMs: number): number {
+	timeMs = timeMs % (automation.keyframes.reduce((max, kf) => Math.max(max, kf.timeMs), 0) ?? 0);
 	const prevKeyframe = automation.keyframes.filter(k => k.timeMs <= timeMs)
 		.sort((a, b) => b.timeMs - a.timeMs)
 		.sort((a, b) => automation.keyframes.indexOf(b) - automation.keyframes.indexOf(a))[0]; // 同一フレーム内に複数のキーフレームがある場合は、後のものを選択
