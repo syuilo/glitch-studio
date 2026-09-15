@@ -214,6 +214,7 @@ import { i18n } from '@/i18n.ts';
 import { appContext, engine, wireMap } from '@/app.ts';
 import { getNodeOutputItems, nodeOutputKey } from '@/utility/node-outputs.ts';
 import { normalizeColor } from '@/utility/color-input.ts';
+import { registerWireInput } from '@/utility/wire-drag.ts';
 
 const props = defineProps<{
 	type: string;
@@ -250,6 +251,14 @@ function changeContinuous(value: any) {
 function onFinishChanging() {
 	emit('changeFinished');
 }
+
+watchEffect(onCleanup => {
+	const el = portEl.value;
+	if (el == null) return;
+	onCleanup(registerWireInput(el, connection => {
+		if (nodeOutputItems.value.some(item => item.value === nodeOutputKey(connection))) changeValue(connection);
+	}));
+});
 
 watchEffect(onCleanup => {
 	const el = portEl.value;

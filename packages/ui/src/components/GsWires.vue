@@ -24,6 +24,7 @@ import { onMounted, onUnmounted, ref, useId, useTemplateRef, watch } from 'vue';
 import { effectDefinitions } from '@glitch/shared/effect-definitions.ts';
 import type { GsNode } from '@glitch/shared/types.ts';
 import { appContext, wireMap } from '@/app.ts';
+import { wireDrag } from '@/utility/wire-drag.ts';
 
 // 配線全長に含まれる模様の周期数（正の数）。
 const gradientRepeatCount = 4;
@@ -80,6 +81,16 @@ function isHidden(el: HTMLElement) {
 function draw() {
 	try {
 		wires.value = [];
+		if (rootEl.value == null) return;
+		const drag = wireDrag.value;
+		if (drag && drag.source.isConnected && !isHidden(drag.source)) {
+			const rect = rootEl.value.getBoundingClientRect();
+			wires.value.push({
+				key: 'drag',
+				from: getElementPosition(drag.source),
+				to: [drag.clientX - rect.left, drag.clientY - rect.top],
+			});
+		}
 
 		function scan(nodes: GsNode[]) {
 			for (const node of nodes) {
@@ -119,6 +130,8 @@ function draw() {
 watch(wireMap, () => {
 	draw();
 }, { deep: true, immediate: true });
+
+watch(wireDrag, draw, { flush: 'sync' });
 
 let drawInterval: ReturnType<typeof window.setInterval>;
 onMounted(() => {

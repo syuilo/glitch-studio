@@ -33,6 +33,7 @@ import type { GsGroupNode, GsNode, NodeOutputReference } from '@glitch/shared/ty
 import { i18n } from '@/i18n.ts';
 import { appContext, wireMap } from '@/app.ts';
 import { getNodeOutputItems, nodeOutputKey } from '@/utility/node-outputs.ts';
+import { registerWireInput } from '@/utility/wire-drag.ts';
 
 const Sortable = defineAsyncComponent(() => import('vuedraggable').then(x => x.default));
 
@@ -60,6 +61,16 @@ function setPort(id: string, el: Element | ComponentPublicInstance | null) {
 	if (el instanceof HTMLElement) portEls.value[id] = el;
 	else delete portEls.value[id];
 }
+
+watchEffect(onCleanup => {
+	for (const item of value.value) {
+		const el = portEls.value[item.id];
+		if (el == null) continue;
+		onCleanup(registerWireInput(el, connection => {
+			if (items.value.some(output => output.value === nodeOutputKey(connection))) item.node = connection;
+		}));
+	}
+});
 
 watchEffect(onCleanup => {
 	const name = props.name;
