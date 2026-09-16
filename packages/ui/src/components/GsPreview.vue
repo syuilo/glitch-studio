@@ -142,12 +142,12 @@ const animatedBgInPreview = preferences.model('animatedBgInPreview');
 
 function showMenu(ev: PointerEvent) {
 	ui.popupMenu([{
-		text: 'highlight Clipping',
+		text: 'Highlight Clipping',
 		icon: 'ti ti-alert-triangle',
 		type: 'switch',
 		ref: highlightClipping,
 	}, {
-		text: 'animated Background',
+		text: 'Animated Background',
 		icon: 'ti ti-background',
 		type: 'switch',
 		ref: animatedBgInPreview,
