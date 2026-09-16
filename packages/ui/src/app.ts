@@ -265,6 +265,13 @@ export async function newProjectFromImageOrVideo(file?: File) {
 
 	const assetId = genId();
 
+	if (result.width > 1500 || result.height > 1500) {
+		resolutionFactor.value = 0.5;
+	}
+	if (result.width > 3000 || result.height > 3000) {
+		resolutionFactor.value = 0.25;
+	}
+
 	await appReady({
 		id: genId(),
 		gsVersion: _VERSION_,
