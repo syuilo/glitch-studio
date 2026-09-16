@@ -152,6 +152,7 @@
 	</div>
 	<div v-else-if="type === 'node'" style="display: flex;">
 		<div ref="portEl">・</div>
+		<i v-if="hasTypeMismatch" v-tooltip="'Data type mismatch'" class="ti ti-alert-triangle" :class="$style.typeWarning"></i>
 		<GsSelect
 			small
 			style="flex: 1; min-width: 0;"
@@ -213,7 +214,7 @@ import GsVideoControls from './common/GsVideoControls.vue';
 import type { GsGroupNode, GsNode } from '@glitch/shared/types.ts';
 import { i18n } from '@/i18n.ts';
 import { appContext, engine, wireMap } from '@/app.ts';
-import { getNodeOutputItems, nodeOutputKey } from '@/utility/node-outputs.ts';
+import { getNodeOutputItems, hasNodeInputTypeMismatch, nodeOutputKey } from '@/utility/node-outputs.ts';
 import { normalizeColor } from '@/utility/color-input.ts';
 import { registerWireInput } from '@/utility/wire-drag.ts';
 
@@ -237,6 +238,7 @@ const emit = defineEmits<{
 const portEl = shallowRef<HTMLElement>();
 const inputDataType = computed(() => getNodeInputDataType({ ...props.options, type: props.options?.type ?? props.type }));
 const nodeOutputItems = computed(() => getNodeOutputItems(appContext.state.nodes.value, props.node?.id, inputDataType.value));
+const hasTypeMismatch = computed(() => props.type === 'node' && hasNodeInputTypeMismatch(appContext.state.nodes.value, props.value, inputDataType.value));
 
 function changeValue(value: any) {
 	emit('input', value);
@@ -278,6 +280,12 @@ watchEffect(onCleanup => {
 
 <style module lang="scss">
 .root {
+}
+
+.typeWarning {
+	align-self: center;
+	margin-right: 6px;
+	color: var(--THEME-warn);
 }
 
 .seed {

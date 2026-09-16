@@ -4,6 +4,7 @@
 		<template #item="{element}">
 			<div style="display: flex;">
 				<div :ref="el => setPort(element.id, el)" class="port">・</div>
+				<i v-if="hasNodeInputTypeMismatch(appContext.state.nodes.value, element.node, dataType)" v-tooltip="'Data type mismatch'" class="ti ti-alert-triangle type-warning"></i>
 				<GsSelect
 					:modelValue="nodeOutputKey(element.node)"
 					:items="[{ label: i18n.ts.None, value: null }, ...items]"
@@ -33,7 +34,7 @@ import type { GsGroupNode, GsNode, NodeOutputReference } from '@glitch/shared/ty
 import type { NodeDataType } from '@glitch/shared/utility/node-outputs.ts';
 import { i18n } from '@/i18n.ts';
 import { appContext, wireMap } from '@/app.ts';
-import { getNodeOutputItems, nodeOutputKey } from '@/utility/node-outputs.ts';
+import { getNodeOutputItems, hasNodeInputTypeMismatch, nodeOutputKey } from '@/utility/node-outputs.ts';
 import { registerWireInput } from '@/utility/wire-drag.ts';
 
 const Sortable = defineAsyncComponent(() => import('vuedraggable').then(x => x.default));
@@ -100,6 +101,12 @@ function remove(element: { id: string; node: NodeOutputReference | null; }) {
 </script>
 
 <style scoped lang="scss">
+.type-warning {
+	align-self: center;
+	margin-right: 6px;
+	color: var(--THEME-warn);
+}
+
 .grabber {
 	display: block;
 	padding: 4px 0px;
