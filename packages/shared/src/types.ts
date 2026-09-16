@@ -51,26 +51,6 @@ export type EffectParamDef = Record<string, any> & {
 
 export type EffectParamDefs = Record<string, EffectParamDef>;
 
-type OmitNever<T> = { [K in keyof T as T[K] extends never ? never : K]: T[K] };
-
-export type EvaledParams<T extends EffectParamDefs> = {
-	[K in keyof T]:
-	T[K]['type'] extends 'node' ? NodeOutputReference | null :
-	T[K]['type'] extends 'nodes' ? (NodeOutputReference | null)[] :
-	T[K]['type'] extends 'image' ? string :
-	T[K]['type'] extends 'player' ? string :
-	T[K]['type'] extends 'range' | 'angle' ? number :
-	T[K]['type'] extends 'bool' ? boolean :
-	any;
-};
-
-export type InputNodeTexs<T extends EffectParamDefs> = OmitNever<{
-	[K in keyof T]:
-	T[K]['type'] extends 'node' ? WebGLTexture :
-	T[K]['type'] extends 'nodes' ? WebGLTexture[] :
-	never;
-}>;
-
 export type GsKeyframe = {
 	id: string;
 	timeMs: number;

@@ -111,6 +111,13 @@ export type NodeOptionSchema = {
 	canNode?: false;
 };
 
+export type NodesOptionSchema = {
+	type: 'nodes';
+	label: string;
+	dataType: 'color' | 'scalar' | 'vector' | 'any';
+	canNode?: false;
+};
+
 export type EffectOptionsSchema = Record<string,
 	NumberOptionSchema |
 	BooleanOptionSchema |
@@ -126,7 +133,8 @@ export type EffectOptionsSchema = Record<string,
 	AngleOptionSchema |
 	ImageOptionSchema |
 	PlayerOptionSchema |
-	NodeOptionSchema
+	NodeOptionSchema |
+	NodesOptionSchema
 >;
 
 // A type parameter distributes the conditional over unions of option schemas.
@@ -146,6 +154,7 @@ type EffectOptionValue<T extends EffectOptionsSchema[string]> =
 	T extends ImageOptionSchema ? null :
 	T extends PlayerOptionSchema ? null :
 	T extends NodeOptionSchema ? NodeOutputReference | null :
+	T extends NodesOptionSchema ? (NodeOutputReference | null)[] :
 	never;
 
 export type GetEffectOptionsSchemaValues<T extends EffectOptionsSchema> = {
