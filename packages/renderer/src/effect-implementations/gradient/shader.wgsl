@@ -45,7 +45,7 @@ fn fs(fragData: FragmentIn) -> @location(0) f32 {
 	if (span != 0.0) {
 		t = clamp((projectedPosition - startPosition) / span, 0.0, 1.0);
 	}
-	// 範囲外と両端は指定値を厳密に保つ（elasticの指数項も端点では評価しない）。
+	// 範囲外と両端は指定値を厳密に保つ（elastic・expoの指数項も端点では評価しない）。
 	if (t <= 0.0) { return startValue; }
 	if (t >= 1.0) { return endValue; }
 	if (uniforms.interpolation == 1u) {
@@ -70,6 +70,15 @@ fn fs(fragData: FragmentIn) -> @location(0) f32 {
 		let x = min(t, 1.0 - t);
 		let y = -0.5 * exp2(20.0 * x - 10.0) * sin((20.0 * x - 11.125) * (6.283185307179586 / 4.5));
 		t = select(1.0 - y, y, t < 0.5);
+	} else if (uniforms.interpolation == 7u) {
+		// 対称なease-in-out expo。前半を指数関数で加速し、後半は反転して減速する。
+		let x = min(t, 1.0 - t);
+		let y = 0.5 * exp2(20.0 * x - 10.0);
+		t = select(1.0 - y, y, t < 0.5);
+	} else if (uniforms.interpolation == 8u) {
+		t = exp2(10.0 * t - 10.0);
+	} else if (uniforms.interpolation == 9u) {
+		t = 1.0 - exp2(-10.0 * t);
 	}
 	return mix(startValue, endValue, t);
 }

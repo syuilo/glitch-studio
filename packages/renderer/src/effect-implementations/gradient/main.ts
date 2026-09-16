@@ -59,7 +59,7 @@ export default implementEffect<typeof definition>({
 					aspectRatio: resolution.width / resolution.height,
 					fitMode: { stretch: 0, cover: 1, contain: 2 }[ctx.params.fitMode],
 					angle: -ctx.params.angle * Math.PI, // +Yが上の座標系で、正の値を時計回りにする
-					interpolation: { linear: 0, smoothstep: 1, smootherstep: 2, cosine: 3, circular: 4, back: 5, elastic: 6 }[ctx.params.interpolation],
+					interpolation: { linear: 0, smoothstep: 1, smootherstep: 2, cosine: 3, circular: 4, back: 5, elastic: 6, expo: 7, 'expo-in': 8, 'expo-out': 9 }[ctx.params.interpolation],
 				});
 				wgpu.device.queue.writeBuffer(uniformBuffer, 0, uniformValues.arrayBuffer);
 				const inputs = [ctx.params.startPosition, ctx.params.endPosition, ctx.params.startValue, ctx.params.endValue];
