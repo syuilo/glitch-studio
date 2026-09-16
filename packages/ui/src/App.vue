@@ -19,11 +19,11 @@
 	</div>
 	<div :class="$style.footer" class="_monospace">
 		<div :class="$style.footerLeft">
-			<div>sRGB</div>
-			<div @click="openResolutionMenu">Proj res: {{ appContext.state.resolution.value.width }} x {{ appContext.state.resolution.value.height }} px; Preview res: {{ appContext.state.resolution.value.width * resolutionFactor }} x {{ appContext.state.resolution.value.height * resolutionFactor }} px ({{ resolutionFactor }}x)</div>
-			<div @click="openFpsMenu">{{ Math.round(engine.fpsDisplay.value) }}fps</div>
-			<div @click="openTimeFactorMenu">TIME: {{ timeFactor }}x</div>
-			<div :class="$style.previewVolume">
+			<div :class="$style.footerItem">sRGB</div>
+			<button :class="$style.footerItem" class="_button" @click="openResolutionMenu">Proj: {{ appContext.state.resolution.value.width }} x {{ appContext.state.resolution.value.height }} px; Preview: {{ appContext.state.resolution.value.width * resolutionFactor }} x {{ appContext.state.resolution.value.height * resolutionFactor }} px ({{ resolutionFactor }}x)</button>
+			<button :class="$style.footerItem" class="_button" @click="openFpsMenu">{{ Math.round(engine.fpsDisplay.value) }}fps</button>
+			<button :class="$style.footerItem" class="_button" @click="openTimeFactorMenu">TIME: {{ timeFactor }}x</button>
+			<div :class="[$style.footerItem, $style.previewVolume]">
 				<i :class="previewVolume === 0 ? 'ti ti-volume-off' : 'ti ti-volume'"></i>
 				<GsRange v-model="previewVolume" :min="0" :max="1" :step="0.01" :continuousUpdate="true" style="width: 150px;"/>
 				<span :class="$style.volumeValue">{{ Math.round(previewVolume * 100) }}%</span>
@@ -142,76 +142,88 @@ function showAbout() {
 
 function openTimeFactorMenu(ev: PointerEvent) {
 	ui.popupMenu([{
-		type: 'radio',
-		text: 'Time Factor',
-		caption: timeFactor.value + 'x',
-		options: [{
-			label: '-1x',
-			value: -1,
-		}, {
-			label: '0x',
-			value: 0,
-		}, {
-			label: '0.5x',
-			value: 0.5,
-		}, {
-			label: '1x',
-			value: 1,
-		}, {
-			label: '2x',
-			value: 2,
-		}],
-		ref: timeFactor,
+		type: 'radioOption',
+		text: '-1x',
+		active: computed(() => timeFactor.value === -1),
+		action: () => timeFactor.value = -1,
+	}, {
+		type: 'radioOption',
+		text: '0x',
+		active: computed(() => timeFactor.value === 0),
+		action: () => timeFactor.value = 0,
+	}, {
+		type: 'radioOption',
+		text: '0.5x',
+		active: computed(() => timeFactor.value === 0.5),
+		action: () => timeFactor.value = 0.5,
+	}, {
+		type: 'radioOption',
+		text: '1x',
+		active: computed(() => timeFactor.value === 1),
+		action: () => timeFactor.value = 1,
+	}, {
+		type: 'radioOption',
+		text: '2x',
+		active: computed(() => timeFactor.value === 2),
+		action: () => timeFactor.value = 2,
 	}], ev.currentTarget ?? ev.target);
 }
 
 function openResolutionMenu(ev: PointerEvent) {
 	ui.popupMenu([{
-		type: 'radio',
-		text: 'Resolution',
-		caption: resolutionFactor.value + 'x',
-		options: [{
-			label: '4x',
-			value: 4,
-		}, {
-			label: '2x',
-			value: 2,
-		}, {
-			label: '1x',
-			value: 1,
-		}, {
-			label: '0.5x',
-			value: 0.5,
-		}, {
-			label: '0.25x',
-			value: 0.25,
-		}],
-		ref: resolutionFactor,
+		type: 'radioOption',
+		text: '4x',
+		active: computed(() => resolutionFactor.value === 4),
+		action: () => resolutionFactor.value = 4,
+	}, {
+		type: 'radioOption',
+		text: '2x',
+		active: computed(() => resolutionFactor.value === 2),
+		action: () => resolutionFactor.value = 2,
+	}, {
+		type: 'radioOption',
+		text: '1x',
+		active: computed(() => resolutionFactor.value === 1),
+		action: () => resolutionFactor.value = 1,
+	}, {
+		type: 'radioOption',
+		text: '0.5x',
+		active: computed(() => resolutionFactor.value === 0.5),
+		action: () => resolutionFactor.value = 0.5,
+	}, {
+		type: 'radioOption',
+		text: '0.25x',
+		active: computed(() => resolutionFactor.value === 0.25),
+		action: () => resolutionFactor.value = 0.25,
 	}], ev.currentTarget ?? ev.target);
 }
 
 function openFpsMenu(ev: PointerEvent) {
 	ui.popupMenu([{
-		type: 'radio',
-		text: 'FPS Limitation',
-		caption: fpsLimit.value == null ? 'Max' : `~${fpsLimit.value}fps`,
-		options: [{
-			label: 'Max',
-			value: null,
-		}, {
-			label: '~120fps',
-			value: 120,
-		}, {
-			label: '~60fps',
-			value: 60,
-		}, {
-			label: '~30fps',
-			value: 30,
-		}, {
-			label: '~15fps',
-			value: 15,
-		}],
-		ref: fpsLimit,
+		type: 'radioOption',
+		text: 'Max',
+		active: computed(() => fpsLimit.value === null),
+		action: () => fpsLimit.value = null,
+	}, {
+		type: 'radioOption',
+		text: '120fps',
+		active: computed(() => fpsLimit.value === 120),
+		action: () => fpsLimit.value = 120,
+	}, {
+		type: 'radioOption',
+		text: '60fps',
+		active: computed(() => fpsLimit.value === 60),
+		action: () => fpsLimit.value = 60,
+	}, {
+		type: 'radioOption',
+		text: '30fps',
+		active: computed(() => fpsLimit.value === 30),
+		action: () => fpsLimit.value = 30,
+	}, {
+		type: 'radioOption',
+		text: '15fps',
+		active: computed(() => fpsLimit.value === 15),
+		action: () => fpsLimit.value = 15,
 	}], ev.currentTarget ?? ev.target);
 }
 
@@ -265,13 +277,21 @@ onMounted(() => {
 
 .footerLeft {
 	display: flex;
-	gap: 16px;
+	gap: 0.5em;
 }
 
 .footerRight {
 	display: flex;
 	margin-left: auto;
 	gap: 16px;
+}
+
+.footerItem {
+	padding: 0 1em;
+
+	&:hover {
+		background: #fff1;
+	}
 }
 
 .footerStats {

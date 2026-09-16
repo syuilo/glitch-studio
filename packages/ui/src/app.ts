@@ -133,7 +133,7 @@ function benchmark(count = 100) {
 
 (window as any).benchmark = benchmark; // debug
 
-export const fpsLimit = ref(60);
+export const fpsLimit = ref<number | null>(60);
 export const timeFactor = ref(1);
 export const resolutionFactor = ref(1);
 export const highlightClipping = ref(false);
