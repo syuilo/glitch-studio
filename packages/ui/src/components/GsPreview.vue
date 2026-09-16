@@ -3,7 +3,7 @@
 	<template #default="{ detached }">
 		<div :class="$style.root" @dragover.prevent.stop @drop.prevent.stop="onDrop">
 			<div :class="$style.topLeft">
-				<div :class="$style.time" class="_monospace">{{ formatTime(time) }}</div>
+				<div v-if="showTimecodeInPreview" :class="$style.time" class="_monospace">{{ formatTime(time) }}</div>
 			</div>
 			<div :class="$style.topRight">
 				<div :class="$style.zoom">ZOOM: {{ Math.round(zoom * 100) }}%</div>
@@ -22,7 +22,7 @@ import { watch, useTemplateRef, ref, onBeforeUnmount, onMounted } from 'vue';
 import { genId } from '@glitch/shared/utility/id.ts';
 import GsDetachableView from './GsDetachableView.vue';
 import * as api from '@/api.ts';
-import { appContext, engine, highlightClipping, rendererEnv, resolutionFactor } from '@/app.ts';
+import { appContext, engine, highlightClipping, rendererEnv, resolutionFactor, timeFactor } from '@/app.ts';
 import { preferences } from '@/preferences.ts';
 import * as ui from '@/ui.ts';
 
@@ -32,8 +32,12 @@ const ZOOM_STEP = 1.25;
 const zoom = ref(1 / ZOOM_STEP / ZOOM_STEP / ZOOM_STEP);
 const time = ref(0);
 
+let latestTime = 0;
+
 window.requestAnimationFrame(function update(t) {
-	time.value = t;
+	const delta = t - latestTime;
+	latestTime = t;
+	time.value += delta * timeFactor.value;
 	window.requestAnimationFrame(update);
 });
 
@@ -138,6 +142,7 @@ function formatTime(timeMs: number): string {
 }
 
 const animatedBgInPreview = preferences.model('animatedBgInPreview');
+const showTimecodeInPreview = preferences.model('showTimecodeInPreview');
 
 function showMenu(ev: PointerEvent) {
 	ui.popupMenu([{
@@ -150,6 +155,11 @@ function showMenu(ev: PointerEvent) {
 		icon: 'ti ti-background',
 		type: 'switch',
 		ref: animatedBgInPreview,
+	}, {
+		text: 'Show Timecode',
+		icon: 'ti ti-clock',
+		type: 'switch',
+		ref: showTimecodeInPreview,
 	}], ev.currentTarget ?? ev.target);
 }
 </script>

@@ -12,6 +12,7 @@ export const PREF_DEF = definePreferences({
 	animatedBgInPreview: { default: () => false },
 	previewVolume: { default: () => 0.5 },
 	forceTypeSafety: { default: () => false },
+	showTimecodeInPreview: { default: () => true },
 	workspaceDefinition: {
 		default: (): WorkspaceElement => {
 			return {

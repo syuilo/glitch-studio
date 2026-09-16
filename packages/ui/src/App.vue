@@ -21,7 +21,7 @@
 		<div :class="$style.footerLeft">
 			<div>sRGB</div>
 			<div @click="openResolutionMenu">{{ appContext.state.resolution.value.width }} x {{ appContext.state.resolution.value.height }} px ({{ resolutionFactor }}x) | {{ Math.round(engine.fpsDisplay.value) }}fps</div>
-			<div @click="openTimeFactorMenu">{{ timeFactor }}x</div>
+			<div @click="openTimeFactorMenu">TIME: {{ timeFactor }}x</div>
 			<div :class="$style.previewVolume">
 				<i :class="previewVolume === 0 ? 'ti ti-volume-off' : 'ti ti-volume'"></i>
 				<GsRange v-model="previewVolume" :min="0" :max="1" :step="0.01" :continuousUpdate="true" style="width: 150px;"/>
