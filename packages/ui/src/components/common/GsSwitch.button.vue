@@ -37,6 +37,10 @@ const toggle = () => {
 <style lang="scss" module>
 .button {
 	--height: 21px;
+	--switchOffBg: #fff3;
+	--switchOnBg: var(--THEME-accent);
+	--switchOffFg: #fff;
+	--switchOnFg: #fff;
 
 	position: relative;
 	display: inline-flex;
@@ -46,9 +50,9 @@ const toggle = () => {
 	width: calc(var(--height) * 1.6);
 	height: calc(var(--height) + 2px); // 枠線
 	outline: none;
-	background: var(--THEME-switchOffBg);
+	background: var(--switchOffBg);
 	background-clip: content-box;
-	border: solid 1px var(--THEME-switchOffBg);
+	border: solid 1px var(--switchOffBg);
 	border-radius: 999px;
 	cursor: pointer;
 	transition: inherit;
@@ -56,8 +60,8 @@ const toggle = () => {
 }
 
 .buttonChecked {
-	background-color: var(--THEME-switchOnBg) !important;
-	border-color: var(--THEME-switchOnBg) !important;
+	background-color: var(--switchOnBg) !important;
+	border-color: var(--switchOnBg) !important;
 }
 
 .buttonDisabled {
@@ -75,12 +79,12 @@ const toggle = () => {
 
 	&:not(.knobChecked) {
 		left: 3px;
-		background: var(--THEME-switchOffFg);
+		background: var(--switchOffFg);
 	}
 }
 
 .knobChecked {
 	left: calc(calc(100% - var(--height)) + 3px);
-	background: var(--THEME-switchOnFg);
+	background: var(--switchOnFg);
 }
 </style>

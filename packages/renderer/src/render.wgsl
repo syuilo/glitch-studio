@@ -5,7 +5,7 @@ fn convertTexCoords(uv: vec2f) -> vec2f {
 }
 
 struct Uniforms {
-	test: f32,
+	highlightClipping: u32,
 };
 
 @group(0) @binding(1) var<uniform> uniforms: Uniforms;
@@ -18,8 +18,17 @@ struct FragmentIn {
 
 @fragment
 fn fs(fragData: FragmentIn) -> @location(0) vec4f {
-	let testValue = uniforms.test;
 	let color = textureSample(sourceTexture, sourceSampler, convertTexCoords(fragData.uv));
+	if (uniforms.highlightClipping != 0u && color.a > 0.0) {
+		// 乗算済みRGBでの白の境界はalpha。除算せずに未乗算色の0/1と比較する。
+		// 全成分が範囲外の黒・白だけを対象とし、元の透明度を保つ。
+		if (all(color.rgb <= vec3f(0.0))) {
+			return vec4f(0.0, color.a, 0.0, color.a);
+		}
+		if (all(color.rgb >= vec3f(color.a))) {
+			return vec4f(color.a, 0.0, color.a, color.a);
+		}
+	}
 	// Node outputs already contain premultiplied RGB.
 	return color;
 }

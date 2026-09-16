@@ -3,6 +3,7 @@ import { deepClone } from '@glitch/shared/utility/deep-clone.ts';
 import { genId } from '@glitch/shared/utility/id.ts';
 import { loadProjectFile, saveProjectFile, decodeAssets } from './api.ts';
 import { Engine } from './engine.ts';
+import { preferences } from './preferences.ts';
 import { COMMAND_DEFS } from './commands.ts';
 import GsEffectPicker from './components/GsEffectPicker.vue';
 import type { CommandDef } from './commands.ts';
@@ -141,7 +142,12 @@ export const rendererEnv = {
 };
 export const engine = markRaw(new Engine({
 	fpsLimit: fpsLimit.value,
+	highlightClipping: preferences.s.highlightClipping,
 }));
+
+watch(preferences.r.highlightClipping, value => {
+	engine.setHighlightClipping(value);
+});
 
 (window as any).engine = engine; // debug
 

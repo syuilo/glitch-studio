@@ -6,11 +6,6 @@
 	</div>
 	<div v-show="!viewWindow" ref="home" :class="$style.root">
 		<div ref="view" :class="$style.root" @contextmenu.prevent.stop="onContextmenu">
-			<div v-if="viewWindow || $slots.controls" :class="$style.controls">
-				<button v-if="viewWindow && windowMode === 'window'" class="_button" @click.stop="toggleFullscreen">{{ fullscreen ? 'Exit fullscreen' : 'Fullscreen' }}</button>
-				<button v-if="viewWindow" class="_button" @click.stop="closeView">Return {{ title.toLowerCase() }}</button>
-				<slot name="controls"></slot>
-			</div>
 			<slot :detached="!!viewWindow"></slot>
 		</div>
 	</div>
@@ -141,17 +136,6 @@ function onContextmenu(ev: PointerEvent) {
 	position: relative;
 	width: 100%;
 	height: 100%;
-}
-
-.controls {
-	display: flex;
-	gap: 12px;
-	position: absolute;
-	z-index: 1;
-	top: 0;
-	right: 0;
-	padding: 4px 8px;
-	background: #0008;
 }
 
 .placeholder {

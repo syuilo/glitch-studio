@@ -63,6 +63,7 @@ export class Renderer {
 	private fallbackTexture: GPUTexture;
 	private fallbackScalarFieldTexture: GPUTexture;
 	private enableStats = true;
+	private highlightClipping = false;
 	private nodes: GsNode[] = [];
 	private allNodeIdMap: Map<GsNode['id'], GsNode> = new Map(); // group内のnodeもフラット化して含む。高速に特定のノードを見つける用のキャッシュ
 	private assets: Asset[] = [];
@@ -123,6 +124,8 @@ export class Renderer {
 		/** 画像の中間テクスチャ形式。省略時はrgba16float。Canvas・データ用テクスチャには適用しない。 */
 		intermediateTextureFormat: IntermediateTextureFormat;
 		enableStats: boolean;
+		/** 最終出力の黒つぶれを緑、白飛びをマゼンタで表示する。 */
+		highlightClipping?: boolean;
 		fpsLimit: number | null;
 		assets: Asset[];
 		macros: Macro[];
@@ -135,6 +138,7 @@ export class Renderer {
 		this.resolution = options.resolution;
 		this.onEffectStatus = options.onEffectStatus;
 		this.enableStats = options.enableStats;
+		this.highlightClipping = options.highlightClipping ?? false;
 		this.enable32bitDataTextures = options.enable32bitDataTextures;
 		this.intermediateTextureFormat = options.intermediateTextureFormat;
 		this.fpsLimit = options.fpsLimit;
@@ -664,7 +668,7 @@ export class Renderer {
 		}
 
 		this.finalRenderUniformValues.set({
-			test: 1,
+			highlightClipping: this.highlightClipping ? 1 : 0,
 		});
 		this.gpuDevice.queue.writeBuffer(this.finalRenderUniformBuffer, 0, this.finalRenderUniformValues.arrayBuffer);
 
@@ -884,6 +888,10 @@ export class Renderer {
 		this.fpsLimit = newFpsLimit;
 		this.stopRenderLoop();
 		this.startRenderLoop();
+	}
+
+	public setHighlightClipping(enabled: boolean) {
+		this.highlightClipping = enabled;
 	}
 
 	public startRenderLoop() {

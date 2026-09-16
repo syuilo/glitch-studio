@@ -1,11 +1,14 @@
 <template>
 <GsDetachableView title="Preview">
-	<template #controls>
-		<div :class="$style.zoom">ZOOM: {{ Math.round(zoom * 100) }}%</div>
-	</template>
 	<template #default="{ detached }">
 		<div :class="$style.root" @dragover.prevent.stop @drop.prevent.stop="onDrop">
-			<div :class="$style.time" class="_monospace">{{ formatTime(time) }}</div>
+			<div :class="$style.topLeft">
+				<div :class="$style.time" class="_monospace">{{ formatTime(time) }}</div>
+			</div>
+			<div :class="$style.topRight">
+				<div :class="$style.zoom">ZOOM: {{ Math.round(zoom * 100) }}%</div>
+				<button :class="$style.menuButton" class="_button" @click="showMenu"><i class="ti ti-dots"></i></button>
+			</div>
 			<div ref="containerContainer" :class="[$style.containerContainer, { [$style.animatedBg]: preferences.r.animatedBgInPreview.value }]" @wheel="onViewWheel" @click="onViewClick(detached)" @pointermove="onPointermove">
 				<div ref="canvasContainer" :class="$style.canvasContainer" :style="{ scale: zoom }"></div>
 			</div>
@@ -21,6 +24,7 @@ import GsDetachableView from './GsDetachableView.vue';
 import * as api from '@/api.ts';
 import { appContext, engine, rendererEnv, resolutionFactor } from '@/app.ts';
 import { preferences } from '@/preferences.ts';
+import * as ui from '@/ui.ts';
 
 const canvasContainer = useTemplateRef('canvasContainer');
 const containerContainer = useTemplateRef('containerContainer');
@@ -132,6 +136,23 @@ function formatTime(timeMs: number): string {
 	const milliseconds = String(ms % 1000).padStart(3, '0');
 	return `${hours}:${minutes}:${seconds}.${milliseconds}`;
 }
+
+const highlightClipping = preferences.model('highlightClipping');
+const animatedBgInPreview = preferences.model('animatedBgInPreview');
+
+function showMenu(ev: PointerEvent) {
+	ui.popupMenu([{
+		text: 'highlight Clipping',
+		icon: 'ti ti-alert-triangle',
+		type: 'switch',
+		ref: highlightClipping,
+	}, {
+		text: 'animated Background',
+		icon: 'ti ti-background',
+		type: 'switch',
+		ref: animatedBgInPreview,
+	}], ev.currentTarget ?? ev.target);
+}
 </script>
 
 <style module lang="scss">
@@ -163,17 +184,37 @@ function formatTime(timeMs: number): string {
 	display: block;
 }
 
+.topLeft {
+	position: absolute;
+	top: 0;
+	left: 0;
+	z-index: 1;
+	background: #0008;
+}
+
+.topRight {
+	position: absolute;
+	top: 0;
+	right: 0;
+	z-index: 1;
+	display: flex;
+	background: #0008;
+}
+
 .time {
 	display: flex;
 	gap: 12px;
-	position: absolute;
-	z-index: 1;
-	top: 0;
-	left: 0;
 	padding: 4px 8px;
 	color: var(--THEME-accent);
-	background: #0008;
 	font-variant-numeric: tabular-nums;
+}
+
+.zoom {
+	padding: 4px 8px;
+}
+
+.menuButton {
+	font-size: 90%;
 }
 
 @keyframes bg {

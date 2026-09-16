@@ -33,6 +33,7 @@ export class Engine {
 	private enable32bitDataTextures = false;
 	private intermediateTextureFormat = navigator.gpu.getPreferredCanvasFormat(); // TODO: 設定でrgba16floatも指定できるようにする(レンダリングの精度は上がるがパフォーマンスは落ちる)
 	private enableStats = true;
+	private highlightClipping = false;
 	private nodes: GsNode[] = [];
 	private assets: Asset[] = [];
 	private players: Player[] = [];
@@ -60,6 +61,7 @@ export class Engine {
 
 	constructor(options: {
 		fpsLimit: number | null;
+		highlightClipping?: boolean;
 	}) {
 		this.canvas = window.document.createElement('canvas');
 		this.canvas.style.imageRendering = 'pixelated';
@@ -79,6 +81,7 @@ export class Engine {
 		this.waveformVerticalCanvas.style.width = '100%';
 		this.waveformVerticalCanvas.style.height = '100%';
 		this.fpsLimit = options.fpsLimit;
+		this.highlightClipping = options.highlightClipping ?? false;
 	}
 
 	private call<FN extends keyof RendererMethods>(fn: FN, args: Parameters<RendererMethods[FN]>, options?: StructuredSerializeOptions | Transferable[]): void {
@@ -164,6 +167,7 @@ export class Engine {
 				intermediateTextureFormat: this.intermediateTextureFormat,
 				fpsLimit: this.fpsLimit,
 				enableStats: this.enableStats,
+				highlightClipping: this.highlightClipping,
 				assets: this.assets,
 				macros: this.macros,
 				automations: this.automations,
@@ -372,6 +376,14 @@ export class Engine {
 	public changeFpsLimit(newFpsLimit: number | null) {
 		this.fpsLimit = newFpsLimit;
 		this.call('changeFpsLimit', [this.fpsLimit]);
+	}
+
+	public setHighlightClipping(enabled: boolean) {
+		this.highlightClipping = enabled;
+		// 初期化前は保持だけ行い、初期化中の変更は既存のキューで送る。
+		if (this.isReady.value || (this.rendererWorker != null && this.rejectInitialization != null)) {
+			this.call('setHighlightClipping', [enabled]);
+		}
 	}
 
 	public resize(resolution: {

@@ -65,6 +65,7 @@ onmessage = async (event) => {
 				enable32bitDataTextures: event.data.options.enable32bitDataTextures,
 				intermediateTextureFormat: event.data.options.intermediateTextureFormat,
 				enableStats: event.data.options.enableStats,
+				highlightClipping: event.data.options.highlightClipping,
 				fpsLimit: event.data.options.fpsLimit,
 				assets: event.data.options.assets,
 				macros: event.data.options.macros,

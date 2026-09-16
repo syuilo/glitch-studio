@@ -56,6 +56,24 @@ function setup() {
 	return { engine: new exports.Engine({ fpsLimit: 30 }), workers, Video, Frame };
 }
 
+test('clipping highlight settings survive initialization, live changes and reload', async () => {
+	const { engine, workers } = setup();
+	engine.setHighlightClipping(true);
+	const init = engine.init({ width: 640, height: 480 });
+	assert.equal(workers[0].messages[0].options.highlightClipping, true);
+	engine.setHighlightClipping(false);
+	workers[0].ready();
+	await init;
+	assert.equal(workers[0].messages.find(message => message.fn === 'setHighlightClipping').args[0], false);
+	engine.setHighlightClipping(true);
+	assert.equal(workers[0].messages.at(-1).args[0], true);
+	const reload = engine.reload();
+	assert.equal(workers[1].messages[0].options.highlightClipping, true);
+	workers[1].ready();
+	await reload;
+	engine.destroy();
+});
+
 test('reload replaces the worker and mounted canvases, restores settings and waits for readiness', async () => {
 	const { engine, workers } = setup();
 	const init = engine.init({ width: 640, height: 480 });

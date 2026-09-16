@@ -10,6 +10,7 @@ export const PREF_DEF = definePreferences({
 	menuStyle: { default: () => 'auto' },
 	locale: { default: () => 'en' },
 	animatedBgInPreview: { default: () => false },
+	highlightClipping: { default: () => true },
 	previewVolume: { default: () => 0.5 },
 	forceTypeSafety: { default: () => false },
 	workspaceDefinition: {
