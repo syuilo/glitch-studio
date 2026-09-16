@@ -21,6 +21,7 @@
 		<div :class="$style.footerLeft">
 			<div>sRGB</div>
 			<div @click="openResolutionMenu">{{ appContext.state.resolution.value.width }} x {{ appContext.state.resolution.value.height }} px ({{ resolutionFactor }}x) | {{ Math.round(engine.fpsDisplay.value) }}fps</div>
+			<div @click="openTimeFactorMenu">{{ timeFactor }}x</div>
 			<div :class="$style.previewVolume">
 				<i :class="previewVolume === 0 ? 'ti ti-volume-off' : 'ti ti-volume'"></i>
 				<GsRange v-model="previewVolume" :min="0" :max="1" :step="0.01" :continuousUpdate="true" style="width: 150px;"/>
@@ -44,7 +45,7 @@
 
 <script lang="ts" setup>
 import { computed, nextTick, onMounted, onBeforeUnmount, ref, shallowRef, useTemplateRef, watch } from 'vue';
-import { engine, resolutionFactor, fpsLimit, appContext } from './app';
+import { engine, resolutionFactor, fpsLimit, timeFactor, appContext } from './app';
 import { preferences } from './preferences.ts';
 import GsRange from './components/common/GsRange.vue';
 import GsAboutDialog from '@/components/GsAboutDialog.vue';
@@ -136,6 +137,31 @@ function showAbout() {
 	const { dispose } = ui.popup(GsAboutDialog, {}, {
 		closed: () => dispose(),
 	});
+}
+
+function openTimeFactorMenu(ev: PointerEvent) {
+	ui.popupMenu([{
+		type: 'radio',
+		text: 'Time Factor',
+		caption: timeFactor.value + 'x',
+		options: [{
+			label: '-1x',
+			value: -1,
+		}, {
+			label: '0x',
+			value: 0,
+		}, {
+			label: '0.5x',
+			value: 0.5,
+		}, {
+			label: '1x',
+			value: 1,
+		}, {
+			label: '2x',
+			value: 2,
+		}],
+		ref: timeFactor,
+	}], ev.currentTarget ?? ev.target);
 }
 
 function openResolutionMenu(ev: PointerEvent) {

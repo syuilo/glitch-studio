@@ -134,6 +134,7 @@ function benchmark(count = 100) {
 (window as any).benchmark = benchmark; // debug
 
 export const fpsLimit = ref(60);
+export const timeFactor = ref(1);
 export const resolutionFactor = ref(1);
 
 export const rendererEnv = {
@@ -142,6 +143,7 @@ export const rendererEnv = {
 };
 export const engine = markRaw(new Engine({
 	fpsLimit: fpsLimit.value,
+	timeFactor: timeFactor.value,
 	highlightClipping: preferences.s.highlightClipping,
 }));
 
@@ -153,6 +155,10 @@ watch(preferences.r.highlightClipping, value => {
 
 watch(fpsLimit, () => {
 	engine.changeFpsLimit(fpsLimit.value);
+});
+
+watch(timeFactor, value => {
+	engine.setTimeFactor(value);
 });
 
 watch([appContext.state.resolution, resolutionFactor], () => {

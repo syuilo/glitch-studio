@@ -64,6 +64,7 @@ export class Renderer {
 	private fallbackScalarFieldTexture: GPUTexture;
 	private enableStats = true;
 	private highlightClipping = false;
+	private timeFactor = 1;
 	private nodes: GsNode[] = [];
 	private allNodeIdMap: Map<GsNode['id'], GsNode> = new Map(); // group内のnodeもフラット化して含む。高速に特定のノードを見つける用のキャッシュ
 	private assets: Asset[] = [];
@@ -108,7 +109,7 @@ export class Renderer {
 	public gpuAverageSlow = new NonNegativeRollingAverage(1000);
 	public fpsAverage = new NonNegativeRollingAverage(30);
 	public readonly gpuMemory: GpuMemoryTracker;
-	private frame = 0; // TODO
+	private time = 0;
 	private effectStatuses = new Map<string, { sent?: EffectStatus }>();
 	private onEffectStatus?: (nodeId: string, status: EffectStatus | null) => void;
 
@@ -126,6 +127,7 @@ export class Renderer {
 		enableStats: boolean;
 		/** 最終出力の黒つぶれを緑、白飛びをマゼンタで表示する。 */
 		highlightClipping?: boolean;
+		timeFactor?: number;
 		fpsLimit: number | null;
 		assets: Asset[];
 		macros: Macro[];
@@ -139,6 +141,7 @@ export class Renderer {
 		this.onEffectStatus = options.onEffectStatus;
 		this.enableStats = options.enableStats;
 		this.highlightClipping = options.highlightClipping ?? false;
+		this.timeFactor = options.timeFactor ?? 1;
 		this.enable32bitDataTextures = options.enable32bitDataTextures;
 		this.intermediateTextureFormat = options.intermediateTextureFormat;
 		this.fpsLimit = options.fpsLimit;
@@ -264,7 +267,7 @@ export class Renderer {
 		return this.outDataMapPerNodes.get(output.node.id)![output.outputPort].texture;
 	}
 
-	private evalNodeParams(nodes: GsNode[], options: { time: number; vars: Record<string, any> }) {
+	private evalNodeParams(nodes: GsNode[], options: { vars: Record<string, any> }) {
 		const scope = {
 			WIDTH: this.resolution.width,
 			HEIGHT: this.resolution.height,
@@ -293,7 +296,7 @@ export class Renderer {
 		// TODO: 各automationをフレーム数を引数にとる関数として定義する
 		const automationScope = {} as Record<string, any>;
 		for (const automation of this.automations) {
-			automationScope[automation.name] = evalAutomationValue(automation, options.time);
+			automationScope[automation.name] = evalAutomationValue(automation, this.time);
 		}
 
 		for (const node of nodes.filter((n): n is GsEffectNode => n.type === 'effect')) {
@@ -316,7 +319,7 @@ export class Renderer {
 						: v.type === 'expression' && v.expression
 							? evaluateExpression(v.expression, mixedScope, paramDefs[k])
 							: v.type === 'automation' && v.automationId
-								? evalAutomationValue(this.automations.find(a => a.id === v.automationId)!, options.time)
+								? evalAutomationValue(this.automations.find(a => a.id === v.automationId)!, this.time)
 								: v.type === 'node' && v.nodeId
 									? { nodeId: v.nodeId, outputPort: v.outputPort }
 									: genEmptyValue(paramDefs[k]);
@@ -362,7 +365,6 @@ export class Renderer {
 			}
 
 			this.evalNodeParams(node.nodes, {
-				time: options.time,
 				vars: {
 					...scope,
 					...groupMacroValues,
@@ -575,7 +577,7 @@ export class Renderer {
 		}
 
 		effectInstance.render({
-			time: performance.now() / 1000,
+			time: this.time / 1000,
 			timeDelta: this.timeDelta,
 			pointerPosition: this.pointerPosition,
 			pointerVector: {
@@ -630,17 +632,18 @@ export class Renderer {
 		const node = this.allNodeIdMap.get(renderNodeId);
 		if (node == null) return;
 
-		this.timeDelta = args.time - this.latestTimestamp;
+		const realTimeDelta = args.time - this.latestTimestamp;
+		this.timeDelta = realTimeDelta * this.timeFactor;
+		this.time += this.timeDelta;
 
 		if (this.lastPointerUpdateTimestamp + 30 < performance.now()) {
 			this.pointerPosition = { x: -99999, y: -99999 };
 		}
 
 		this.evalNodeParams(this.nodes, {
-			time: args.time,
 			vars: {
-				TIME: args.time / 1000, // ms to seconds
-				TIME_MS: args.time,
+				TIME: this.time / 1000, // ms to seconds
+				TIME_MS: this.time,
 			},
 		});
 
@@ -696,7 +699,7 @@ export class Renderer {
 
 		this.latestTimestamp = args.time;
 
-		this.fpsAverage.addSample(1000 / this.timeDelta);
+		this.fpsAverage.addSample(1000 / realTimeDelta);
 
 		if (this.enableStats) {
 			this.timingHelper.getResult().then(gpuTime => {
@@ -892,6 +895,10 @@ export class Renderer {
 
 	public setHighlightClipping(enabled: boolean) {
 		this.highlightClipping = enabled;
+	}
+
+	public setTimeFactor(value: number) {
+		this.timeFactor = value;
 	}
 
 	public startRenderLoop() {

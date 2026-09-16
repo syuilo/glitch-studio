@@ -66,6 +66,7 @@ onmessage = async (event) => {
 				intermediateTextureFormat: event.data.options.intermediateTextureFormat,
 				enableStats: event.data.options.enableStats,
 				highlightClipping: event.data.options.highlightClipping,
+				timeFactor: event.data.options.timeFactor,
 				fpsLimit: event.data.options.fpsLimit,
 				assets: event.data.options.assets,
 				macros: event.data.options.macros,
