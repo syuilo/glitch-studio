@@ -1,5 +1,6 @@
 import { shallowRef } from 'vue';
 import type { NodeOutputReference } from '@glitch/shared/types.ts';
+import { preferences } from '@/preferences.ts';
 
 export const wireDrag = shallowRef<{
 	source: HTMLElement;
@@ -9,22 +10,23 @@ export const wireDrag = shallowRef<{
 
 type WireInput = {
 	connect: (connection: NodeOutputReference) => void;
-	canConnect: (connection: NodeOutputReference) => boolean;
+	// nullは自己接続などで接続不可。falseは型だけが不一致で、設定次第で接続可能。
+	getTypeCompatibility: (connection: NodeOutputReference) => boolean | null;
 };
 
 const inputPorts = new WeakMap<HTMLElement, WireInput>();
 let cancelCurrentDrag: (() => void) | undefined;
 let highlightedInput: HTMLElement | null = null;
 
-function highlightInput(el: HTMLElement | null) {
-	if (highlightedInput === el) return;
-	highlightedInput?.removeAttribute('data-wire-drop-target');
+function highlightInput(el: HTMLElement | null, typeCompatible = true) {
+	if (highlightedInput !== el) highlightedInput?.removeAttribute('data-wire-drop-target');
 	highlightedInput = el;
-	highlightedInput?.setAttribute('data-wire-drop-target', '');
+	const state = typeCompatible ? 'compatible' : 'mismatch';
+	if (el && el.getAttribute('data-wire-drop-target') !== state) el.setAttribute('data-wire-drop-target', state);
 }
 
-export function registerWireInput(el: HTMLElement, connect: WireInput['connect'], canConnect: WireInput['canConnect']) {
-	const input = { connect, canConnect };
+export function registerWireInput(el: HTMLElement, connect: WireInput['connect'], getTypeCompatibility: WireInput['getTypeCompatibility']) {
+	const input = { connect, getTypeCompatibility };
 	inputPorts.set(el, input);
 	return () => {
 		if (inputPorts.get(el) !== input) return;
@@ -52,7 +54,11 @@ export function startWireDrag(event: PointerEvent, connection: NodeOutputReferen
 		while (target != null) {
 			if (target.closest('[inert]')) return null;
 			const input = target instanceof HTMLElement ? inputPorts.get(target) : undefined;
-			if (input) return input.canConnect(connection) ? { el: target as HTMLElement, input } : null;
+			if (input) {
+				const typeCompatible = input.getTypeCompatibility(connection);
+				if (typeCompatible == null || (!typeCompatible && preferences.s.forceTypeSafety)) return null;
+				return { el: target as HTMLElement, input, typeCompatible };
+			}
 			target = target.parentElement;
 		}
 		return null;
@@ -60,7 +66,8 @@ export function startWireDrag(event: PointerEvent, connection: NodeOutputReferen
 
 	function updateHighlight() {
 		const drag = wireDrag.value;
-		highlightInput(drag ? findInput(drag.clientX, drag.clientY)?.el ?? null : null);
+		const target = drag ? findInput(drag.clientX, drag.clientY) : null;
+		highlightInput(target?.el ?? null, target?.typeCompatible);
 		// ポインターが静止したままスクロールや行の更新が起きた場合も追従する。
 		highlightFrame = view.requestAnimationFrame(updateHighlight);
 	}

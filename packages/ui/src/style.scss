@@ -30,6 +30,10 @@
 	background-color: var(--THEME-accentedBg);
 }
 
+[data-wire-drop-target='mismatch'] {
+	background-color: color(from var(--THEME-error) srgb r g b / 0.2);
+}
+
 html, body, #app {
 	margin: 0;
 	padding: 0;

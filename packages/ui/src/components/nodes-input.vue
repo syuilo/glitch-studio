@@ -70,7 +70,7 @@ watchEffect(onCleanup => {
 		if (el == null) continue;
 		onCleanup(registerWireInput(el.parentElement ?? el, connection => {
 			item.node = connection;
-		}, connection => items.value.some(output => output.value === nodeOutputKey(connection))));
+		}, connection => items.value.find(output => output.value === nodeOutputKey(connection))?.typeCompatible ?? null));
 	}
 });
 

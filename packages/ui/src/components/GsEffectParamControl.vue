@@ -260,7 +260,7 @@ watchEffect(onCleanup => {
 	// 描画上の接続点はポートに保ち、ドロップはラベルを含む行全体で受け付ける。
 	const row = el.closest<HTMLElement>('[data-wire-input-row]') ?? el.parentElement ?? el;
 	onCleanup(registerWireInput(row, changeValue,
-		connection => nodeOutputItems.value.some(item => item.value === nodeOutputKey(connection))));
+		connection => nodeOutputItems.value.find(item => item.value === nodeOutputKey(connection))?.typeCompatible ?? null));
 });
 
 watchEffect(onCleanup => {

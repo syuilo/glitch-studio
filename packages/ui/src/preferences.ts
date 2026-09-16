@@ -11,6 +11,7 @@ export const PREF_DEF = definePreferences({
 	locale: { default: () => 'en' },
 	animatedBgInPreview: { default: () => false },
 	previewVolume: { default: () => 0.5 },
+	forceTypeSafety: { default: () => false },
 	workspaceDefinition: {
 		default: (): WorkspaceElement => {
 			return {

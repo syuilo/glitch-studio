@@ -98,8 +98,10 @@ watchEffect(onCleanup => {
 		if (!paramDefs[param].canNode || isNode(param)) continue;
 		onCleanup(registerWireInput(row, connection => {
 			appContext.commit('updateParamAsNode', { nodeId: props.node.id, param, value: connection });
-		}, connection => nodeOutputItems.value.some(item => item.value === nodeOutputKey(connection)
-			&& areNodeDataTypesCompatible(item.dataType, getNodeInputDataType(paramDefs[param])))));
+		}, connection => {
+			const output = nodeOutputItems.value.find(item => item.value === nodeOutputKey(connection));
+			return output ? areNodeDataTypesCompatible(output.dataType, getNodeInputDataType(paramDefs[param])) : null;
+		}));
 	}
 });
 
