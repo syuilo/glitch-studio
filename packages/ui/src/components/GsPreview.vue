@@ -22,7 +22,7 @@ import { watch, useTemplateRef, ref, onBeforeUnmount, onMounted } from 'vue';
 import { genId } from '@glitch/shared/utility/id.ts';
 import GsDetachableView from './GsDetachableView.vue';
 import * as api from '@/api.ts';
-import { appContext, engine, rendererEnv, resolutionFactor } from '@/app.ts';
+import { appContext, engine, highlightClipping, rendererEnv, resolutionFactor } from '@/app.ts';
 import { preferences } from '@/preferences.ts';
 import * as ui from '@/ui.ts';
 
@@ -137,7 +137,6 @@ function formatTime(timeMs: number): string {
 	return `${hours}:${minutes}:${seconds}.${milliseconds}`;
 }
 
-const highlightClipping = preferences.model('highlightClipping');
 const animatedBgInPreview = preferences.model('animatedBgInPreview');
 
 function showMenu(ev: PointerEvent) {

@@ -136,6 +136,7 @@ function benchmark(count = 100) {
 export const fpsLimit = ref(60);
 export const timeFactor = ref(1);
 export const resolutionFactor = ref(1);
+export const highlightClipping = ref(false);
 
 export const rendererEnv = {
 	mouseX: 0,
@@ -144,10 +145,10 @@ export const rendererEnv = {
 export const engine = markRaw(new Engine({
 	fpsLimit: fpsLimit.value,
 	timeFactor: timeFactor.value,
-	highlightClipping: preferences.s.highlightClipping,
+	highlightClipping: highlightClipping.value,
 }));
 
-watch(preferences.r.highlightClipping, value => {
+watch(highlightClipping, value => {
 	engine.setHighlightClipping(value);
 });
 
