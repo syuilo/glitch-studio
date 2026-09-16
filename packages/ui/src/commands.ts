@@ -1,7 +1,7 @@
 import { effectDefinitions } from '@glitch/shared/effect-definitions.ts';
 import { AiSON } from '@syuilo/aiscript';
 import { deepClone } from '@glitch/shared/utility/deep-clone.ts';
-import { getNodeOutputs } from '@glitch/shared/utility/node-outputs.ts';
+import { areNodeDataTypesCompatible, getNodeInputDataType, getNodeOutputs } from '@glitch/shared/utility/node-outputs.ts';
 import { genEmptyValue } from '@glitch/shared/utility/misc.ts';
 import type { AppState } from './types.ts';
 import type { Asset, EffectParamDataType, EffectParamDefs, GsEffectNode, GsGroupNode, GsNode, Player, NodeOutputReference } from '@glitch/shared/types.ts';
@@ -71,7 +71,7 @@ const addEffectNodeCommandDef = defineCommand<{ id: string; effectId: string; pa
 					if (v.type === 'node' && v.primary && params[k].type === 'literal' && params[k].value === null) {
 						if ((group ? group.nodes : state.nodes.value).length > 0) {
 							const previous = (group ? group.nodes : state.nodes.value).at(-1)!;
-							const port = Object.entries(getNodeOutputs(previous)).find(([, output]) => output.primary)?.[0];
+							const port = Object.entries(getNodeOutputs(previous)).find(([, output]) => output.primary && areNodeDataTypesCompatible(output.dataType, getNodeInputDataType(v)))?.[0];
 							if (port != null) params[k] = { type: 'literal', value: { nodeId: previous.id, outputPort: port } };
 						}
 					}
@@ -189,12 +189,14 @@ const removeNodeCommandDef = defineCommand<{ nodeId: string }>({
 						}
 						for (const [key, param] of Object.entries(node.params)) {
 							const def = effectDefinitions[node.effectId].paramDefs[key];
+							const replacementOutput = replacement == null ? undefined : getNodeOutputs(stateUtility.findNode(state, replacement.nodeId))[replacement.outputPort];
+							const compatibleReplacement = areNodeDataTypesCompatible(replacementOutput?.dataType, getNodeInputDataType(def)) ? replacement : null;
 							// A → B → CのBを削除したら、Cの参照をAへ書き換える。
 							// 主入力のないFXやグループ（子も含む）の削除では未接続にする。
 							if (def.type === 'node' && param.type === 'literal' && removedIds.has(param.value?.nodeId)) {
-								node.params[key] = { type: 'literal', value: deepClone(replacement) };
+								node.params[key] = { type: 'literal', value: deepClone(compatibleReplacement) };
 							} else if ((def.type === 'node' || def.canNode) && param.type === 'node' && param.nodeId != null && removedIds.has(param.nodeId)) {
-								node.params[key] = replacement ? { type: 'node', ...deepClone(replacement) } : { type: 'node', nodeId: null, outputPort: null };
+								node.params[key] = compatibleReplacement ? { type: 'node', ...deepClone(compatibleReplacement) } : { type: 'node', nodeId: null, outputPort: null };
 							}
 						}
 					}

@@ -30,6 +30,7 @@ import GsButton from './common/GsButton.vue';
 import GsSelect from './common/GsSelect.vue';
 import type { ComponentPublicInstance } from 'vue';
 import type { GsGroupNode, GsNode, NodeOutputReference } from '@glitch/shared/types.ts';
+import type { NodeDataType } from '@glitch/shared/utility/node-outputs.ts';
 import { i18n } from '@/i18n.ts';
 import { appContext, wireMap } from '@/app.ts';
 import { getNodeOutputItems, nodeOutputKey } from '@/utility/node-outputs.ts';
@@ -42,13 +43,14 @@ const props = defineProps<{
 	node: GsNode;
 	group?: GsGroupNode | null;
 	name?: string;
+	dataType: NodeDataType | null;
 }>();
 
 const emit = defineEmits<{
 	(ev: 'update:modelValue', value: (NodeOutputReference | null)[]): void;
 }>();
 
-const items = computed(() => getNodeOutputItems(appContext.state.nodes.value, props.node.id));
+const items = computed(() => getNodeOutputItems(appContext.state.nodes.value, props.node.id, props.dataType));
 
 const portEls = ref<Record<string, HTMLElement>>({});
 

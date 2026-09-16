@@ -1,8 +1,9 @@
 <template>
 <div :class="$style.footer">
 	<code :class="$style.nodeId">{{ node.id }}</code>
-	<div v-for="port in ports" :key="port" :class="$style.output">
+	<div v-for="(output, port) in ports" :key="port" :class="$style.output">
 		<span>{{ port }}</span>
+		<span :class="$style.dataType">{{ output.dataType }}</span>
 		<div :ref="el => setPort(port, el)" :class="$style.point" @pointerdown="startDrag($event, port)">・</div>
 	</div>
 </div>
@@ -17,7 +18,7 @@ import { wireMap } from '@/app.ts';
 import { startWireDrag } from '@/utility/wire-drag.ts';
 
 const props = defineProps<{ node: GsNode }>();
-const ports = computed(() => Object.keys(getNodeOutputs(props.node)));
+const ports = computed(() => getNodeOutputs(props.node));
 const elements = new Map<string, HTMLElement>();
 let cancelDrag: (() => void) | undefined;
 
@@ -60,6 +61,12 @@ onUnmounted(() => {
 	display: flex;
 	min-width: 0;
 	overflow-wrap: anywhere;
+}
+
+.dataType {
+	margin-left: 6px;
+	font-size: 0.85em;
+	opacity: 0.6;
 }
 
 .point {

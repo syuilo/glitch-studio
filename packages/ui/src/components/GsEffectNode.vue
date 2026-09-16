@@ -28,8 +28,9 @@
 					type="node"
 					:node="node"
 					:group="group"
-					:name="param"
-					:value="getParam(param)"
+						:name="param"
+						:options="paramDefs[param]"
+						:value="getParam(param)"
 					@input="value => appContext.commit('updateParamAsNode', { nodeId: node.id, param, value })"
 				/>
 				<GsEffectParamControl
@@ -58,6 +59,7 @@
 import { ref, computed, shallowRef, onMounted, watchEffect } from 'vue';
 import { effectDefinitions } from '@glitch/shared/effect-definitions.ts';
 import { genId } from '@glitch/shared/utility/id.ts';
+import { areNodeDataTypesCompatible, getNodeInputDataType } from '@glitch/shared/utility/node-outputs.ts';
 import * as AiScript from '@syuilo/aiscript';
 import GsNodeOutputs from './GsNodeOutputs.vue';
 import GsEffectParamControl from './GsEffectParamControl.vue';
@@ -96,7 +98,8 @@ watchEffect(onCleanup => {
 		if (!paramDefs[param].canNode || isNode(param)) continue;
 		onCleanup(registerWireInput(row, connection => {
 			appContext.commit('updateParamAsNode', { nodeId: props.node.id, param, value: connection });
-		}, connection => nodeOutputItems.value.some(item => item.value === nodeOutputKey(connection))));
+		}, connection => nodeOutputItems.value.some(item => item.value === nodeOutputKey(connection)
+			&& areNodeDataTypesCompatible(item.dataType, getNodeInputDataType(paramDefs[param])))));
 	}
 });
 

@@ -161,7 +161,7 @@
 		/>
 	</div>
 	<div v-else-if="type === 'nodes' && node">
-		<XNodesInput :modelValue="value" :node="node" :group="group" :name="name" @update:modelValue="v => changeValue(v)"/>
+		<XNodesInput :modelValue="value" :node="node" :group="group" :name="name" :dataType="inputDataType" @update:modelValue="v => changeValue(v)"/>
 	</div>
 	<div v-else-if="type === 'image'">
 		<GsSelect
@@ -198,6 +198,7 @@
 
 <script lang="ts" setup>
 import { computed, watchEffect, shallowRef } from 'vue';
+import { getNodeInputDataType } from '@glitch/shared/utility/node-outputs.ts';
 import GsSignal from './common/GsSignal.vue';
 import GsXy from './common/GsXy.vue';
 import XXySlider from './common/xy-slider.vue';
@@ -234,7 +235,8 @@ const emit = defineEmits<{
 }>();
 
 const portEl = shallowRef<HTMLElement>();
-const nodeOutputItems = computed(() => getNodeOutputItems(appContext.state.nodes.value, props.node?.id));
+const inputDataType = computed(() => getNodeInputDataType({ ...props.options, type: props.options?.type ?? props.type }));
+const nodeOutputItems = computed(() => getNodeOutputItems(appContext.state.nodes.value, props.node?.id, inputDataType.value));
 
 function changeValue(value: any) {
 	emit('input', value);
