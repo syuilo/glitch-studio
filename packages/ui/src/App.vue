@@ -17,7 +17,7 @@
 	<div :class="$style.body">
 		<GsWorkspaceElement style="flex: 1" :element="preferences.r.workspaceDefinition.value"/>
 	</div>
-	<div :class="$style.footer">
+	<div :class="$style.footer" class="_monospace">
 		<div :class="$style.footerLeft">
 			<div>sRGB</div>
 			<div @click="openResolutionMenu">Proj res: {{ appContext.state.resolution.value.width }} x {{ appContext.state.resolution.value.height }} px; Preview res: {{ appContext.state.resolution.value.width * resolutionFactor }} x {{ appContext.state.resolution.value.height * resolutionFactor }} px ({{ resolutionFactor }}x)</div>
