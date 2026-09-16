@@ -95,9 +95,8 @@ watchEffect(onCleanup => {
 		// node型の入力はコントロール側で登録する。それ以外もcanNodeなら型ごと切り替えられる。
 		if (!paramDefs[param].canNode || isNode(param)) continue;
 		onCleanup(registerWireInput(row, connection => {
-			if (!nodeOutputItems.value.some(item => item.value === nodeOutputKey(connection))) return;
 			appContext.commit('updateParamAsNode', { nodeId: props.node.id, param, value: connection });
-		}));
+		}, connection => nodeOutputItems.value.some(item => item.value === nodeOutputKey(connection))));
 	}
 });
 

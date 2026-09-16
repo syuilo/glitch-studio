@@ -26,6 +26,10 @@
 	color-scheme: dark;
 }
 
+[data-wire-drop-target] {
+	background-color: var(--THEME-accentedBg);
+}
+
 html, body, #app {
 	margin: 0;
 	padding: 0;

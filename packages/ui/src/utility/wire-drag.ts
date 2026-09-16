@@ -7,13 +7,29 @@ export const wireDrag = shallowRef<{
 	clientY: number;
 } | null>(null);
 
-const inputPorts = new WeakMap<HTMLElement, (connection: NodeOutputReference) => void>();
-let cancelCurrentDrag: (() => void) | undefined;
+type WireInput = {
+	connect: (connection: NodeOutputReference) => void;
+	canConnect: (connection: NodeOutputReference) => boolean;
+};
 
-export function registerWireInput(el: HTMLElement, connect: (connection: NodeOutputReference) => void) {
-	inputPorts.set(el, connect);
+const inputPorts = new WeakMap<HTMLElement, WireInput>();
+let cancelCurrentDrag: (() => void) | undefined;
+let highlightedInput: HTMLElement | null = null;
+
+function highlightInput(el: HTMLElement | null) {
+	if (highlightedInput === el) return;
+	highlightedInput?.removeAttribute('data-wire-drop-target');
+	highlightedInput = el;
+	highlightedInput?.setAttribute('data-wire-drop-target', '');
+}
+
+export function registerWireInput(el: HTMLElement, connect: WireInput['connect'], canConnect: WireInput['canConnect']) {
+	const input = { connect, canConnect };
+	inputPorts.set(el, input);
 	return () => {
-		if (inputPorts.get(el) === connect) inputPorts.delete(el);
+		if (inputPorts.get(el) !== input) return;
+		inputPorts.delete(el);
+		if (highlightedInput === el) highlightInput(null);
 	};
 }
 
@@ -28,6 +44,26 @@ export function startWireDrag(event: PointerEvent, connection: NodeOutputReferen
 	const doc = source.ownerDocument;
 	const view = doc.defaultView!;
 	let active = true;
+	let highlightFrame = 0;
+
+	function findInput(clientX: number, clientY: number) {
+		// capture中のevent.targetは出力ポートなので、実際のポインター位置を調べる。
+		let target = doc.elementFromPoint(clientX, clientY);
+		while (target != null) {
+			if (target.closest('[inert]')) return null;
+			const input = target instanceof HTMLElement ? inputPorts.get(target) : undefined;
+			if (input) return input.canConnect(connection) ? { el: target as HTMLElement, input } : null;
+			target = target.parentElement;
+		}
+		return null;
+	}
+
+	function updateHighlight() {
+		const drag = wireDrag.value;
+		highlightInput(drag ? findInput(drag.clientX, drag.clientY)?.el ?? null : null);
+		// ポインターが静止したままスクロールや行の更新が起きた場合も追従する。
+		highlightFrame = view.requestAnimationFrame(updateHighlight);
+	}
 
 	function move(event: PointerEvent) {
 		if (event.pointerId !== pointerId) return;
@@ -37,6 +73,8 @@ export function startWireDrag(event: PointerEvent, connection: NodeOutputReferen
 	function cancel() {
 		if (!active) return;
 		active = false;
+		view.cancelAnimationFrame(highlightFrame);
+		highlightInput(null);
 		view.removeEventListener('pointermove', move);
 		view.removeEventListener('pointerup', drop);
 		view.removeEventListener('pointercancel', onCancel);
@@ -58,22 +96,15 @@ export function startWireDrag(event: PointerEvent, connection: NodeOutputReferen
 
 	function drop(event: PointerEvent) {
 		if (event.pointerId !== pointerId) return;
-		// capture中のevent.targetは出力ポートなので、実際のドロップ位置を調べる。
-		let target = doc.elementFromPoint(event.clientX, event.clientY);
-		let connect: ((connection: NodeOutputReference) => void) | undefined;
-		while (target != null) {
-			if (target.closest('[inert]')) break;
-			connect = target instanceof HTMLElement ? inputPorts.get(target) : undefined;
-			if (connect) break;
-			target = target.parentElement;
-		}
+		const target = findInput(event.clientX, event.clientY);
 		cancel();
-		connect?.(connection);
+		target?.input.connect(connection);
 	}
 
 	source.setPointerCapture(pointerId);
 	cancelCurrentDrag = cancel;
 	move(event);
+	updateHighlight();
 	view.addEventListener('pointermove', move);
 	view.addEventListener('pointerup', drop);
 	view.addEventListener('pointercancel', onCancel);
