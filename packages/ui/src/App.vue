@@ -20,7 +20,8 @@
 	<div :class="$style.footer">
 		<div :class="$style.footerLeft">
 			<div>sRGB</div>
-			<div @click="openResolutionMenu">{{ appContext.state.resolution.value.width }} x {{ appContext.state.resolution.value.height }} px ({{ resolutionFactor }}x) | {{ Math.round(engine.fpsDisplay.value) }}fps</div>
+			<div @click="openResolutionMenu">Proj res: {{ appContext.state.resolution.value.width }} x {{ appContext.state.resolution.value.height }} px; Preview res: {{ appContext.state.resolution.value.width * resolutionFactor }} x {{ appContext.state.resolution.value.height * resolutionFactor }} px ({{ resolutionFactor }}x)</div>
+			<div @click="openFpsMenu">{{ Math.round(engine.fpsDisplay.value) }}fps</div>
 			<div @click="openTimeFactorMenu">TIME: {{ timeFactor }}x</div>
 			<div :class="$style.previewVolume">
 				<i :class="previewVolume === 0 ? 'ti ti-volume-off' : 'ti ti-volume'"></i>
@@ -167,27 +168,6 @@ function openTimeFactorMenu(ev: PointerEvent) {
 function openResolutionMenu(ev: PointerEvent) {
 	ui.popupMenu([{
 		type: 'radio',
-		text: 'FPS Limitation',
-		caption: fpsLimit.value == null ? 'Max' : `~${fpsLimit.value}fps`,
-		options: [{
-			label: 'Max',
-			value: null,
-		}, {
-			label: '~120fps',
-			value: 120,
-		}, {
-			label: '~60fps',
-			value: 60,
-		}, {
-			label: '~30fps',
-			value: 30,
-		}, {
-			label: '~15fps',
-			value: 15,
-		}],
-		ref: fpsLimit,
-	}, {
-		type: 'radio',
 		text: 'Resolution',
 		caption: resolutionFactor.value + 'x',
 		options: [{
@@ -207,6 +187,31 @@ function openResolutionMenu(ev: PointerEvent) {
 			value: 0.25,
 		}],
 		ref: resolutionFactor,
+	}], ev.currentTarget ?? ev.target);
+}
+
+function openFpsMenu(ev: PointerEvent) {
+	ui.popupMenu([{
+		type: 'radio',
+		text: 'FPS Limitation',
+		caption: fpsLimit.value == null ? 'Max' : `~${fpsLimit.value}fps`,
+		options: [{
+			label: 'Max',
+			value: null,
+		}, {
+			label: '~120fps',
+			value: 120,
+		}, {
+			label: '~60fps',
+			value: 60,
+		}, {
+			label: '~30fps',
+			value: 30,
+		}, {
+			label: '~15fps',
+			value: 15,
+		}],
+		ref: fpsLimit,
 	}], ev.currentTarget ?? ev.target);
 }
 
