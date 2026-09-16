@@ -269,8 +269,8 @@ function onDrop(ev: DragEvent, area: 'top' | 'bottom' | 'left' | 'right' | 'cent
 	height: var(--headerHeight);
 	padding: 0 16px 0 30px;
 	font-size: 85%;
-	//background: linear-gradient(0deg, var(--THEME-workspacePanelHeader), hsl(from var(--THEME-workspacePanelHeader) h s calc(l + 5)));
-	background: var(--THEME-workspacePanelHeader);
+	background: linear-gradient(0deg, var(--THEME-workspacePanelHeader), hsl(from var(--THEME-workspacePanelHeader) h s calc(l + 5)));
+	//background: var(--THEME-workspacePanelHeader);
 	user-select: none;
 }
 
