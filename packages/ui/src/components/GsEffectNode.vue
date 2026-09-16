@@ -17,7 +17,11 @@
 				<GsCondensedLine>{{ paramDefs[param].label }}</GsCondensedLine>
 			</div>
 			<div :class="$style.paramBody">
-				<GsInput v-if="isExpression(param)" type="text" :modelValue="getParam(param)" @update:modelValue="updateParamAsExpression(param, $event)"/>
+				<GsInput v-if="isExpression(param)" type="text" :modelValue="getParam(param)" @update:modelValue="updateParamAsExpression(param, $event)">
+					<template #caption>
+						<div v-if="isExpressionSyntaxError[param]" style="color: var(--THEME-error);"><i class="ti ti-alert-triangle"></i> Syntax error!</div>
+					</template>
+				</GsInput>
 				<GsButton v-else-if="isAutomation(param)" @click="selectAutomation(param, $event)">{{ node.params[param].automationId ? appContext.state.automations.value.find(a => a.id === node.params[param].automationId).name : '(none)' }}</GsButton>
 				<GsEffectParamControl
 					v-else-if="isNode(param)"
@@ -54,6 +58,7 @@
 import { ref, computed, shallowRef, onMounted, watchEffect } from 'vue';
 import { effectDefinitions } from '@glitch/shared/effect-definitions.ts';
 import { genId } from '@glitch/shared/utility/id.ts';
+import * as AiScript from '@syuilo/aiscript';
 import GsNodeOutputs from './GsNodeOutputs.vue';
 import GsEffectParamControl from './GsEffectParamControl.vue';
 import GsButton from './common/GsButton.vue';
@@ -114,6 +119,23 @@ function isAutomation(param: string) {
 function isNode(param: string) {
 	return props.node.params[param].type === 'node';
 }
+
+const aisParser = new AiScript.Parser();
+
+const aiscript = new AiScript.Interpreter({});
+
+const isExpressionSyntaxError = computed(() => {
+	const result: Record<string, boolean> = {};
+	for (const param in props.node.params) {
+		if (!isExpression(param)) continue;
+		try {
+			aisParser.parse(props.node.params[param].expression);
+		} catch (err) {
+			result[param] = true;
+		}
+	}
+	return result;
+});
 
 function getParam(param: string) {
 	const value = props.node.params[param];
