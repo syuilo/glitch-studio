@@ -1,6 +1,6 @@
 <template>
 <div :class="$style.root">
-	<div ref="allInPortEl" :class="$style.allInPort">・</div>
+	<GsNodePort :class="$style.allInPort" @update:element="allInPortEl = $event"/>
 	<header class="drag-handle" :class="$style.header" @dblclick="expanded = !expanded">Group: {{ node.name }}</header>
 	<div :class="[$style.indicator, { [$style.active]: node.isBypass }]"></div>
 	<div :class="$style.buttons">
@@ -47,9 +47,10 @@
 </template>
 
 <script lang="ts" setup>
-import { ref, onMounted, shallowRef } from 'vue';
+import { ref, watchEffect, shallowRef } from 'vue';
 import { genId } from '@glitch/shared/utility/id.ts';
 import GsNodeOutputs from './GsNodeOutputs.vue';
+import GsNodePort from './GsNodePort.vue';
 import GsNodes from './GsNodes.vue';
 import GsEffectParamControl from './GsEffectParamControl.vue';
 import GsMacroEditor from './GsMacroEditor.vue';
@@ -66,7 +67,7 @@ const props = defineProps<{
 
 const expanded = ref(true);
 const showSettings = ref(false);
-const allInPortEl = shallowRef<HTMLElement>();
+const allInPortEl = shallowRef<HTMLElement | null>(null);
 
 function add(ev: PointerEvent) {
 	showAddNodeMenu(ev, props.node);
@@ -164,8 +165,14 @@ async function exportPreset() {
 	});
 }
 
-onMounted(() => {
-	if (allInPortEl.value) wireMap.allIn[props.node.id] = allInPortEl.value;
+watchEffect(onCleanup => {
+	const el = allInPortEl.value;
+	const nodeId = props.node.id;
+	if (el == null) return;
+	wireMap.allIn[nodeId] = el;
+	onCleanup(() => {
+		if (wireMap.allIn[nodeId] === el) delete wireMap.allIn[nodeId];
+	});
 });
 </script>
 

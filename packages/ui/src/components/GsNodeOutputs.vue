@@ -4,7 +4,7 @@
 	<div v-for="(output, port) in ports" :key="port" :class="$style.output">
 		<span>{{ port }}</span>
 		<span :class="$style.dataType">{{ output.dataType }}</span>
-		<div :ref="el => setPort(port, el)" :class="$style.point" @pointerdown="startDrag($event, port)">・</div>
+		<GsNodePort output @update:element="el => setPort(port, el)" @pointerdown="startDrag($event, port)"/>
 	</div>
 </div>
 </template>
@@ -12,7 +12,7 @@
 <script lang="ts" setup>
 import { computed, onUnmounted } from 'vue';
 import { getNodeOutputs } from '@glitch/shared/utility/node-outputs.ts';
-import type { ComponentPublicInstance } from 'vue';
+import GsNodePort from './GsNodePort.vue';
 import type { GsNode } from '@glitch/shared/types.ts';
 import { wireMap } from '@/app.ts';
 import { startWireDrag } from '@/utility/wire-drag.ts';
@@ -27,8 +27,8 @@ function startDrag(event: PointerEvent, port: string) {
 	if (cancel) cancelDrag = cancel;
 }
 
-function setPort(port: string, el: Element | ComponentPublicInstance | null) {
-	if (el instanceof HTMLElement) {
+function setPort(port: string, el: HTMLElement | null) {
+	if (el != null) {
 		elements.set(port, el);
 		wireMap.out[props.node.id] ??= {};
 		wireMap.out[props.node.id][port] = el;
@@ -67,15 +67,6 @@ onUnmounted(() => {
 	margin-left: 6px;
 	font-size: 0.85em;
 	opacity: 0.6;
-}
-
-.point {
-	cursor: crosshair;
-	touch-action: none;
-	user-select: none;
-	width: 24px;
-	flex-shrink: 0;
-	text-align: center;
 }
 
 .nodeId {

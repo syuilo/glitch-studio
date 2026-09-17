@@ -151,7 +151,7 @@
 		<input type="number" :value="value" @change="changeValue(parseInt($event.target.value, 10))"/><button :title="i18n.ts.Random" @click="() => changeValue(Math.floor(Math.random() * 16384))"><i class="ti ti-dice-5"></i></button>
 	</div>
 	<div v-else-if="type === 'node'" style="display: flex;">
-		<div ref="portEl">・</div>
+		<GsNodePort @update:element="portEl = $event"/>
 		<i v-if="hasTypeMismatch" v-tooltip="'Data type mismatch'" class="ti ti-alert-triangle" :class="$style.typeWarning"></i>
 		<GsSelect
 			small
@@ -208,6 +208,7 @@ import GsInput from './common/GsInput.vue';
 import GsRange from './common/GsRange.vue';
 import GsAngle from './common/GsAngle.vue';
 import XNodesInput from './nodes-input.vue';
+import GsNodePort from './GsNodePort.vue';
 import GsButton from './common/GsButton.vue';
 import GsSelect from './common/GsSelect.vue';
 import GsVideoControls from './common/GsVideoControls.vue';
@@ -235,7 +236,7 @@ const emit = defineEmits<{
 	(ev: 'changeContinuous', value: any): void;
 }>();
 
-const portEl = shallowRef<HTMLElement>();
+const portEl = shallowRef<HTMLElement | null>(null);
 const inputDataType = computed(() => getNodeInputDataType({ ...props.options, type: props.options?.type ?? props.type }));
 const nodeOutputItems = computed(() => getNodeOutputItems(appContext.state.nodes.value, props.node?.id, inputDataType.value));
 const hasTypeMismatch = computed(() => props.type === 'node' && hasNodeInputTypeMismatch(appContext.state.nodes.value, props.value, inputDataType.value));

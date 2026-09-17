@@ -1,6 +1,6 @@
 <template>
 <div :class="[$style.root, { [$style.isBypass]: node.isBypass }]">
-	<div ref="allInPortEl" :class="$style.allInPort">・</div>
+	<GsNodePort :class="$style.allInPort" @update:element="allInPortEl = $event"/>
 	<div :class="[$style.header, { [$style.hasStatus]: effectStatus?.type === 'loading' || effectStatus?.type === 'error' }]" class="drag-handle" @dblclick="expanded = !expanded">{{ name }}</div>
 	<div :class="[$style.indicator]"></div>
 	<div :class="$style.headerButtons">
@@ -56,12 +56,13 @@
 </template>
 
 <script lang="ts" setup>
-import { ref, computed, shallowRef, onMounted, watchEffect } from 'vue';
+import { ref, computed, shallowRef, watchEffect } from 'vue';
 import { effectDefinitions } from '@glitch/shared/effect-definitions.ts';
 import { genId } from '@glitch/shared/utility/id.ts';
 import { areNodeDataTypesCompatible, getNodeInputDataType } from '@glitch/shared/utility/node-outputs.ts';
 import * as AiScript from '@syuilo/aiscript';
 import GsNodeOutputs from './GsNodeOutputs.vue';
+import GsNodePort from './GsNodePort.vue';
 import GsEffectParamControl from './GsEffectParamControl.vue';
 import GsButton from './common/GsButton.vue';
 import GsInput from './common/GsInput.vue';
@@ -83,7 +84,7 @@ const props = defineProps<{
 const name = ref<string>(effectDefinitions[props.node.effectId].displayName);
 const paramDefs = effectDefinitions[props.node.effectId].paramDefs;
 const expanded = ref(true);
-const allInPortEl = shallowRef<HTMLElement>();
+const allInPortEl = shallowRef<HTMLElement | null>(null);
 const paramRows = ref<Record<string, HTMLElement>>({});
 const nodeOutputItems = computed(() => getNodeOutputItems(appContext.state.nodes.value, props.node.id));
 
@@ -286,8 +287,14 @@ function toggleBypass() {
 	});
 }
 
-onMounted(() => {
-	if (allInPortEl.value) wireMap.allIn[props.node.id] = allInPortEl.value;
+watchEffect(onCleanup => {
+	const el = allInPortEl.value;
+	const nodeId = props.node.id;
+	if (el == null) return;
+	wireMap.allIn[nodeId] = el;
+	onCleanup(() => {
+		if (wireMap.allIn[nodeId] === el) delete wireMap.allIn[nodeId];
+	});
 });
 </script>
 

@@ -3,7 +3,7 @@
 	<Sortable v-model="value" class="nodes _gaps_s" itemKey="id" tag="div" handle=".drag-handle" :animation="150" :swapThreshold="0.5">
 		<template #item="{element}">
 			<div style="display: flex;">
-				<div :ref="el => setPort(element.id, el)" class="port">・</div>
+				<GsNodePort class="port" @update:element="el => setPort(element.id, el)"/>
 				<i v-if="hasNodeInputTypeMismatch(appContext.state.nodes.value, element.node, dataType)" v-tooltip="'Data type mismatch'" class="ti ti-alert-triangle type-warning"></i>
 				<GsSelect
 					:modelValue="nodeOutputKey(element.node)"
@@ -29,7 +29,7 @@ import { computed, defineAsyncComponent, ref, watch, watchEffect } from 'vue';
 import { genId } from '@glitch/shared/utility/id.ts';
 import GsButton from './common/GsButton.vue';
 import GsSelect from './common/GsSelect.vue';
-import type { ComponentPublicInstance } from 'vue';
+import GsNodePort from './GsNodePort.vue';
 import type { GsGroupNode, GsNode, NodeOutputReference } from '@glitch/shared/types.ts';
 import type { NodeDataType } from '@glitch/shared/utility/node-outputs.ts';
 import { i18n } from '@/i18n.ts';
@@ -60,8 +60,8 @@ const value = ref(props.modelValue.map(x => ({
 	node: x,
 })));
 
-function setPort(id: string, el: Element | ComponentPublicInstance | null) {
-	if (el instanceof HTMLElement) portEls.value[id] = el;
+function setPort(id: string, el: HTMLElement | null) {
+	if (el != null) portEls.value[id] = el;
 	else delete portEls.value[id];
 }
 
