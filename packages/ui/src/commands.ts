@@ -6,7 +6,7 @@ import { genEmptyValue } from '@glitch/shared/utility/misc.ts';
 import type { AppState } from './types.ts';
 import type { Asset, EffectParamDataType, EffectParamDefs, EffectParamValue, GsEffectNode, GsGroupNode, GsNode, Player, NodeOutputReference } from '@glitch/shared/types.ts';
 import { canConnectNodeDataTypes } from '@/utility/node-outputs.ts';
-import { getArrayElementDef, resolveNodeParam, walkNodeParams } from '@/utility/node-params.ts';
+import { resolveNodeParam, walkNodeParams } from '@/utility/node-params.ts';
 import type { NodeParamTarget, NodeParamValue } from '@/utility/node-params.ts';
 
 export type CommandDef<Payload> = {
@@ -170,7 +170,7 @@ const removeNodeCommandDef = defineCommand<{ nodeId: string }>({
 				const removedNode = stateUtility.findNode(state, payload.nodeId);
 				if (removedNode == null) return;
 				const primary = removedNode.type === 'effect'
-					? [...walkNodeParams(removedNode)].find(({ def }) => def.type !== 'struct' && def.canNode && 'primary' in def && def.primary)
+					? [...walkNodeParams(removedNode)].find(({ def }) => def.type !== 'struct' && def.type !== 'array' && def.canNode && 'primary' in def && def.primary)
 					: undefined;
 				// UIでは式を評価できないため、静的に指定されている主入力だけを接続先に使う。
 				const input = primary?.value;
@@ -190,7 +190,7 @@ const removeNodeCommandDef = defineCommand<{ nodeId: string }>({
 							continue;
 						}
 						for (const { path, def, value } of walkNodeParams(node)) {
-							if (def.type === 'struct' || !def.canNode || value.type !== 'node' || value.nodeId == null || !removedIds.has(value.nodeId)) continue;
+							if (def.type === 'struct' || def.type === 'array' || !def.canNode || value.type !== 'node' || value.nodeId == null || !removedIds.has(value.nodeId)) continue;
 							const replacementOutput = replacement == null || removedIds.has(replacement.nodeId) ? undefined : getNodeOutputs(stateUtility.findNode(state, replacement.nodeId))[replacement.outputPort];
 							const compatibleReplacement = canConnectNodeDataTypes(replacementOutput?.dataType, getNodeInputDataType(def)) ? replacement : null;
 							// A → B → CのBを削除したら、ネスト内の参照もAへ書き換える。
@@ -597,7 +597,7 @@ function defineNodeParamCommand<Payload extends NodeParamTarget>(
 }
 
 function assertLeafParam(target: ReturnType<typeof resolveNodeParam>) {
-	if (target.def.array || target.def.type === 'struct' || Array.isArray(target.value)) {
+	if (target.def.type === 'array' || target.def.type === 'struct' || Array.isArray(target.value)) {
 		throw new Error('Struct and array containers cannot change value type');
 	}
 }
@@ -661,9 +661,8 @@ const updateParamAsNodeCommandDef = defineNodeParamCommand<NodeParamTarget & { v
 const addArrayParamElementCommandDef = defineNodeParamCommand<NodeParamTarget>(
 	'Add array parameter element',
 	({ def, value }) => {
-		if (!def.array || !Array.isArray(value)) throw new Error('Expected array parameter');
-		const element = getArrayElementDef(def).default();
-		if (Array.isArray(element)) throw new Error('Expected single parameter');
+		if (def.type !== 'array' || !Array.isArray(value)) throw new Error('Expected array parameter');
+		const element = def.item.default();
 		return [...value, element];
 	},
 );
@@ -671,7 +670,7 @@ const addArrayParamElementCommandDef = defineNodeParamCommand<NodeParamTarget>(
 const removeArrayParamElementCommandDef = defineNodeParamCommand<NodeParamTarget & { index: number }>(
 	'Remove array parameter element',
 	({ def, value }, { index }) => {
-		if (!def.array || !Array.isArray(value)) throw new Error('Expected array parameter');
+		if (def.type !== 'array' || !Array.isArray(value)) throw new Error('Expected array parameter');
 		if (!Number.isInteger(index) || index < 0 || index >= value.length) throw new Error('Invalid array index');
 		return value.filter((_, i) => i !== index);
 	},

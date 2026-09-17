@@ -1,4 +1,4 @@
-import type { BlendModeOptionSchema, FitModeOptionSchema, BooleanOptionSchema, ColorOptionSchema, EffectDefinition, EffectOptionsSchema, EnumOptionSchema, ImageOptionSchema, NumberOptionSchema, RangeOptionSchema, SeedOptionSchema, SignalOptionSchema, StructOptionSchema, VectorOptionSchema, PlayerOptionSchema, EffectOutputsSchema } from '@glitch/shared/effect-definition.ts';
+import type { ArrayOptionSchema, BlendModeOptionSchema, FitModeOptionSchema, BooleanOptionSchema, ColorOptionSchema, EffectDefinition, EffectOptionsSchema, EnumOptionSchema, ImageOptionSchema, NumberOptionSchema, RangeOptionSchema, SeedOptionSchema, SignalOptionSchema, StructOptionSchema, VectorOptionSchema, PlayerOptionSchema, EffectOutputsSchema } from '@glitch/shared/effect-definition.ts';
 import type { AudioHistory } from '@glitch/shared/audio-history.ts';
 import type { AngleOptionSchema, WrapModeOptionSchema, WrapModeValue } from '@glitch/shared/effect-definition.ts';
 import type { EffectStatus } from '@glitch/shared/effect-status.ts';
@@ -28,7 +28,7 @@ type RuntimeEffectOptionScalarValue<T extends EffectOptionsSchema[string]> =
 	never;
 
 type RuntimeEffectOptionValue<T extends EffectOptionsSchema[string]> = T extends unknown ?
-	T extends { array: true } ? RuntimeEffectOptionScalarValue<T>[] : RuntimeEffectOptionScalarValue<T> :
+	T extends ArrayOptionSchema ? RuntimeEffectOptionValue<T['item']>[] : RuntimeEffectOptionScalarValue<T> :
 	never;
 
 export type GetRuntimeEffectOptionsSchemaValues<T extends EffectOptionsSchema> = {

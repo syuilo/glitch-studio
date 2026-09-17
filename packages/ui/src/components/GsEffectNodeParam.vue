@@ -5,7 +5,7 @@
 			<GsCondensedLine>{{ label ?? paramDef.label }}</GsCondensedLine>
 		</div>
 		<div :class="$style.paramBody">
-			<template v-if="paramDef.array">
+			<template v-if="paramDef.type === 'array'">
 				<span :class="$style.count">{{ arrayValues.length }}</span>
 				<GsButton small iconOnly title="Add element" @click="addElement"><i class="ti ti-plus"></i></GsButton>
 			</template>
@@ -42,13 +42,13 @@
 			<slot name="actions"></slot>
 		</div>
 	</div>
-	<div v-if="paramDef.array" :key="arrayVersion" :class="$style.children">
+	<div v-if="paramDef.type === 'array'" :key="arrayVersion" :class="$style.children">
 		<GsEffectNodeParam
 			v-for="(value, index) in arrayValues"
 			:key="index"
 			:node="node"
 			:paramPath="[...paramPath, index]"
-			:paramDef="getArrayElementDef(paramDef, index)"
+			:paramDef="paramDef.item"
 			:paramValue="value"
 			:label="'[' + index + ']'"
 		>
@@ -86,7 +86,7 @@ import type { MenuItem } from '@/types/menu.ts';
 import type { NodeParamDef, NodeParamValue, ParamPath } from '@/utility/node-params.ts';
 import { i18n } from '@/i18n.ts';
 import { appContext, wireMap } from '@/app.ts';
-import { getArrayElementDef, paramPathKey } from '@/utility/node-params.ts';
+import { paramPathKey } from '@/utility/node-params.ts';
 import { getNodeOutputItems, hasNodeInputTypeMismatch, nodeOutputKey } from '@/utility/node-outputs.ts';
 import { registerWireInput } from '@/utility/wire-drag.ts';
 import * as ui from '@/ui.ts';
@@ -109,8 +109,8 @@ const visibleFields = computed(() => {
 	const fields: Record<string, NodeParamDef> = props.paramDef.fields;
 	return Object.entries(fields).filter(([, def]) => !def.visibility || def.visibility(structValues.value ?? {}));
 });
-const canNode = computed(() => !props.paramDef.array && props.paramDef.type !== 'struct' && props.paramDef.canNode);
-const inputDataType = computed(() => !props.paramDef.array && props.paramDef.type !== 'struct' ? getNodeInputDataType(props.paramDef) : null);
+const canNode = computed(() => props.paramDef.type !== 'array' && props.paramDef.type !== 'struct' && props.paramDef.canNode);
+const inputDataType = computed(() => props.paramDef.type !== 'array' && props.paramDef.type !== 'struct' ? getNodeInputDataType(props.paramDef) : null);
 const nodeOutputItems = computed(() => getNodeOutputItems(appContext.state.nodes.value, props.node.id, inputDataType.value));
 const nodeConnection = computed<NodeOutputReference | null>(() => scalarValue.value?.type === 'node' && scalarValue.value.nodeId != null ? scalarValue.value : null);
 const automationName = computed(() => {
@@ -124,7 +124,7 @@ onBeforeUnmount(() => { mounted = false; });
 const arrayVersion = ref(0);
 // 構造変更時は子を作り直し、同じindexになった別要素へ編集中の状態を引き継がない。
 watch(() => props.paramValue, () => {
-	if (props.paramDef.array) arrayVersion.value++;
+	if (props.paramDef.type === 'array') arrayVersion.value++;
 });
 watch(() => JSON.stringify([props.node.id, props.paramPath]), () => { commandMergeKey = null; });
 
@@ -188,7 +188,7 @@ function showMenu(ev: PointerEvent) {
 		action: menuAction(() => appContext.commit('resetNodeParam', target())),
 	}];
 	// コンテナ自体は静的な構造を維持し、値の種類を変更できるのは末端だけにする。
-	if (!props.paramDef.array && props.paramDef.type !== 'struct') {
+	if (props.paramDef.type !== 'array' && props.paramDef.type !== 'struct') {
 		menuItems.push({ type: 'label', text: 'Type' });
 		const types: { text: string; type: EffectParamValue['type'] }[] = [
 			{ text: 'Literal', type: 'literal' },

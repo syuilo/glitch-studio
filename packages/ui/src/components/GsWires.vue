@@ -119,7 +119,7 @@ function draw() {
 					scan(node.nodes);
 				} else {
 					for (const { path, def, value } of walkNodeParams(node)) {
-						if (value.type !== 'node' || value.nodeId == null || def.type === 'struct') continue;
+						if (value.type !== 'node' || value.nodeId == null || def.type === 'struct' || def.type === 'array') continue;
 						const from = wireMap.out[value.nodeId]?.[value.outputPort];
 						const key = paramPathKey(path);
 						const input = wireMap.in[node.id]?.[key];

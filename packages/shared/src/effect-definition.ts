@@ -1,12 +1,8 @@
-import type { NodeOutputReference, NodeParamValue } from './types.ts';
+import type { NodeParamValue } from './types.ts';
 
 type EffectOptionSchemaBase = {
 	label: string;
-} & ({
-	array?: false;
-} | {
-	array: true;
-});
+};
 
 export type NumberOptionSchema = EffectOptionSchemaBase & {
 	type: 'number';
@@ -102,6 +98,11 @@ export type StructOptionSchema = EffectOptionSchemaBase & {
 	fields: EffectOptionsSchemaWithDefaults;
 };
 
+export type ArrayOptionSchema = EffectOptionSchemaBase & {
+	type: 'array';
+	item: EffectOptionsSchemaWithDefaults[string];
+};
+
 export type EffectOptionsSchema = Record<string,
 	NumberOptionSchema |
 	BooleanOptionSchema |
@@ -117,7 +118,8 @@ export type EffectOptionsSchema = Record<string,
 	AngleOptionSchema |
 	ImageOptionSchema |
 	PlayerOptionSchema |
-	StructOptionSchema
+	StructOptionSchema |
+	ArrayOptionSchema
 >;
 
 // A type parameter distributes the conditional over unions of option schemas.
@@ -142,7 +144,7 @@ type EffectOptionScalarValue<T extends EffectOptionsSchema[string]> =
 	never;
 
 type EffectOptionValue<T extends EffectOptionsSchema[string]> = T extends unknown ?
-	T extends { array: true } ? EffectOptionScalarValue<T>[] : EffectOptionScalarValue<T> :
+	T extends ArrayOptionSchema ? EffectOptionValue<T['item']>[] : EffectOptionScalarValue<T> :
 	never;
 
 export type GetEffectOptionsSchemaValues<T extends EffectOptionsSchema> = {
@@ -156,7 +158,9 @@ type EffectOptionSerializedValue<T extends EffectOptionsSchema[string]> =
 	NodeParamValue;
 
 type EffectOptionDefaultValue<T extends EffectOptionsSchema[string]> = T extends unknown ?
-	T extends { array: true } ? EffectOptionSerializedValue<T>[] : EffectOptionSerializedValue<T> :
+	T extends ArrayOptionSchema ? EffectOptionDefaultValue<T['item']>[] :
+	T extends StructOptionSchema ? { type: 'literal'; value: EffectOptionScalarValue<T> } :
+	EffectOptionSerializedValue<T> :
 	never;
 
 type EffectOptionsSchemaDefaultValue<T extends EffectOptionsSchema, K extends keyof T> =
