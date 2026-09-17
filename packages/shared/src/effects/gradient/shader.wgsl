@@ -7,6 +7,8 @@ struct Uniforms {
 	interpolation: u32,
 	clampEdge: u32,
 	mirrorRepeat: u32,
+	mode: u32,
+	center: vec2f,
 };
 
 @group(0) @binding(0) var<uniform> uniforms: Uniforms;
@@ -39,23 +41,32 @@ fn fs(fragData: FragmentIn) -> @location(0) f32 {
 	let skew = clamp(sampleScalar(skewTexture, uv), -1.0, 1.0);
 	let direction = vec2f(sin(uniforms.angle), cos(uniforms.angle));
 	var position = fragData.uv;
-	// 正方形の基準領域をcoverでは長辺、containでは短辺に合わせてから射影する。
+	// Centerは画面座標（左下-1,-1、右上+1,+1）。比率補正前に引いて中心位置を保つ。
+	if (uniforms.mode == 1u) {
+		position -= uniforms.center;
+	}
+	// 正方形の基準領域をcoverでは長辺、containでは短辺に合わせる。
 	// stretchは出力全体に引き延ばす。角度に応じた再正規化はせず、勾配の幅を保つ。
 	if (uniforms.fitMode == 1u) {
 		position *= vec2f(uniforms.aspectRatio, 1.0) / max(uniforms.aspectRatio, 1.0);
 	} else if (uniforms.fitMode == 2u) {
 		position *= vec2f(uniforms.aspectRatio, 1.0) / min(uniforms.aspectRatio, 1.0);
 	}
-	let projectedPosition = dot(position, direction);
+	// Linearは基準区間の両端を0/1に変換する。区間外の値は反復のため残す。
+	var gradientPosition = dot(position, direction) * 0.5 + 0.5;
+	if (uniforms.mode == 1u) {
+		// Radialは中心が0、基準半径が1。Angleには依存しない。
+		gradientPosition = length(position);
+	}
 	let span = endPosition - startPosition;
 	// 開始・終了が同じ位置なら、その位置を境界とするステップにして0除算を避ける。
-	var t = step(startPosition, projectedPosition);
+	var t = step(startPosition, gradientPosition);
 	if (span != 0.0) {
 		if (uniforms.clampEdge != 0u) {
-			t = clamp((projectedPosition - startPosition) / span, 0.0, 1.0);
+			t = clamp((gradientPosition - startPosition) / span, 0.0, 1.0);
 		} else {
 			// 周期化する前に制限すると、斜め方向のコーナーなど区間外で反復が止まる。
-			t = (projectedPosition - startPosition) / span;
+			t = (gradientPosition - startPosition) / span;
 		}
 	}
 	// 開始〜終了の幅を基準に、区間外にも周期を繰り返す。phaseは1ごとに同じ表示に戻る。

@@ -5,9 +5,18 @@ export default defineEffect({
 	displayName: 'Gradient',
 	tags: [],
 	paramDefs: {
+		mode: {
+			type: 'enum', label: 'Type',
+			options: [
+				{ value: 'linear', label: 'Linear' },
+				{ value: 'radial', label: 'Radial' },
+			],
+			default: () => ({ type: 'literal', value: 'linear' }),
+		},
 		fitMode: { type: 'fitMode', label: 'Fit mode', default: () => ({ type: 'literal', value: 'cover' }) },
-		startPosition: { type: 'range', min: -1, max: 1, step: 0.01, label: 'Start Position', canNode: true, default: () => ({ type: 'literal', value: -1 }) },
-		endPosition: { type: 'range', min: -1, max: 1, step: 0.01, label: 'End Position', canNode: true, default: () => ({ type: 'literal', value: 1 }) },
+		center: { type: 'vector', min: -1, max: 1, step: 0.01, label: 'Center', default: () => ({ type: 'literal', value: [0, 0] }) },
+		startPosition: { type: 'range', min: 0, max: 1, step: 0.01, label: 'Start Position', canNode: true, default: () => ({ type: 'literal', value: 0 }) },
+		endPosition: { type: 'range', min: 0, max: 1, step: 0.01, label: 'End Position', canNode: true, default: () => ({ type: 'literal', value: 1 }) },
 		startValue: { type: 'number', step: 0.01, label: 'Start Value', canNode: true, default: () => ({ type: 'literal', value: 0 }) },
 		endValue: { type: 'number', step: 0.01, label: 'End Value', canNode: true, default: () => ({ type: 'literal', value: 1 }) },
 		clampEdge: { type: 'bool', label: 'Clamp to edge', default: () => ({ type: 'literal', value: true }) },

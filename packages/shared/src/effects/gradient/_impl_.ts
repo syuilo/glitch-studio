@@ -57,6 +57,8 @@ export default implementEffect<typeof definition>({
 			render: (ctx) => {
 				uniformValues.set({
 					aspectRatio: resolution.width / resolution.height,
+					mode: ctx.params.mode === 'radial' ? 1 : 0,
+					center: ctx.params.center,
 					fitMode: { stretch: 0, cover: 1, contain: 2 }[ctx.params.fitMode],
 					angle: ctx.params.angle * Math.PI, // 正の角度で時計回り
 					clampEdge: ctx.params.clampEdge ? 1 : 0,
