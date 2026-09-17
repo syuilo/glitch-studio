@@ -1,6 +1,6 @@
 import { audioChannel, AudioSpectrum, finiteNumber } from '@glitch/shared/utility/audio-spectrum.js';
 import { implementEffect } from '../../effect-implementation.ts';
-import { createAudioPlot } from '../audio-plot.ts';
+import shader from './shader.wgsl?raw';
 import type definition from './_def_.ts';
 
 export default implementEffect<typeof definition>({
@@ -15,7 +15,25 @@ export default implementEffect<typeof definition>({
 	},
 	init: ({ wgpu, resolution }) => {
 		const columns = Math.max(2, Math.min(2048, resolution.width));
-		const plot = createAudioPlot(wgpu.device, wgpu.defaultVertexShaderModule, columns, wgpu.intermediateTextureFormat);
+		const device = wgpu.device;
+		const module = device.createShaderModule({ code: shader });
+		const pipeline = device.createRenderPipeline({
+			layout: 'auto',
+			vertex: { module: wgpu.defaultVertexShaderModule },
+			fragment: { module, targets: [{ format: wgpu.intermediateTextureFormat }] },
+			primitive: { topology: 'triangle-list' },
+		});
+		const uniformBuffer = device.createBuffer({ size: 48, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+		const dataBuffer = device.createBuffer({ size: columns * 16, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
+		const data = new Float32Array(columns * 4);
+		const uniforms = new Float32Array(12);
+		const bindGroup = device.createBindGroup({
+			layout: pipeline.getBindGroupLayout(0),
+			entries: [
+				{ binding: 0, resource: { buffer: uniformBuffer } },
+				{ binding: 1, resource: { buffer: dataBuffer } },
+			],
+		});
 		let spectrum: AudioSpectrum | null = null;
 		return {
 			render(ctx) {
@@ -25,7 +43,7 @@ export default implementEffect<typeof definition>({
 				const history = params.player?.audio ?? null;
 				const channel = audioChannel(params.channel);
 				spectrum.update(history, channel, finiteNumber(params.smoothing, 0.15, 0, 2));
-				plot.data.fill(0);
+				data.fill(0);
 				if (history && spectrum.hasData) {
 					const nyquist = history.sampleRate / 2;
 					const minFrequency = finiteNumber(params.minFrequency, 20, params.logarithmic ? 1 : 0, nyquist - 1);
@@ -50,17 +68,27 @@ export default implementEffect<typeof definition>({
 								for (let bin = Math.ceil(from); bin <= Math.min(size / 2, Math.floor(to)); bin++) amplitude = Math.max(amplitude, values[bin]);
 							}
 							const db = 20 * Math.log10(Math.max(amplitude, 1e-12));
-							plot.data[x * 4 + side * 2 + 1] = Math.min(1, Math.max(0, (db - minDb) / (maxDb - minDb)));
+							data[x * 4 + side * 2 + 1] = Math.min(1, Math.max(0, (db - minDb) / (maxDb - minDb)));
 						}
 					}
 				}
-				plot.render(ctx, {
-					color: params.color,
-					rightColor: params.rightColor,
-					stereo: channel === 'stereo', spectrum: true, lineWidth: 0,
-					aspectRatio: resolution.width / resolution.height, valid: spectrum.hasData });
+				uniforms.set([
+					params.color[0], params.color[1], params.color[2], 1,
+					params.rightColor[0], params.rightColor[1], params.rightColor[2], 1,
+					columns, Number(channel === 'stereo'), Number(spectrum.hasData), 0,
+				]);
+				device.queue.writeBuffer(uniformBuffer, 0, uniforms);
+				device.queue.writeBuffer(dataBuffer, 0, data);
+				const pass = ctx.createPassEncoderFor(ctx.commandEncoder, ctx.outputDataMap.output.textureView);
+				pass.setPipeline(pipeline);
+				pass.setBindGroup(0, bindGroup);
+				pass.draw(6);
+				pass.end();
 			},
-			dispose: () => plot.dispose(),
+			dispose() {
+				uniformBuffer.destroy();
+				dataBuffer.destroy();
+			},
 		};
 	},
 });

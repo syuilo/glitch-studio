@@ -1,6 +1,6 @@
 import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
-import definition from '@glitch/shared/effect-definitions/test.ts';
 import { implementEffect } from '../../effect-implementation.ts';
+import definition from './_def_.ts';
 import code from './shader.wgsl?raw';
 
 export default implementEffect<typeof definition>({

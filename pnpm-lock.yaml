@@ -162,16 +162,10 @@ importers:
       '@syuilo/aiscript':
         specifier: 1.2.1
         version: 1.2.1
-      seedrandom:
-        specifier: 3.0.5
-        version: 3.0.5
       webgpu-utils:
         specifier: 2.1.1
         version: 2.1.1
     devDependencies:
-      '@types/seedrandom':
-        specifier: 3.0.8
-        version: 3.0.8
       '@typescript-eslint/eslint-plugin':
         specifier: 8.59.2
         version: 8.59.2(@typescript-eslint/parser@8.59.2(@typescript/typescript6@6.0.2)(eslint@9.39.5(supports-color@7.2.0))(supports-color@7.2.0))(@typescript/typescript6@6.0.2)(eslint@9.39.5(supports-color@7.2.0))(supports-color@7.2.0)
@@ -193,10 +187,16 @@ importers:
       bezier-easing:
         specifier: 3.0.1
         version: 3.0.1
+      seedrandom:
+        specifier: 3.0.5
+        version: 3.0.5
       webgpu-utils:
         specifier: 2.1.1
         version: 2.1.1
     devDependencies:
+      '@types/seedrandom':
+        specifier: 3.0.8
+        version: 3.0.8
       '@typescript-eslint/eslint-plugin':
         specifier: 8.59.2
         version: 8.59.2(@typescript-eslint/parser@8.59.2(@typescript/typescript6@6.0.2)(eslint@9.39.5(supports-color@7.2.0))(supports-color@7.2.0))(@typescript/typescript6@6.0.2)(eslint@9.39.5(supports-color@7.2.0))(supports-color@7.2.0)
@@ -248,9 +248,6 @@ importers:
       sanitize-html:
         specifier: 2.17.7
         version: 2.17.7
-      seedrandom:
-        specifier: 3.0.5
-        version: 3.0.5
       semver:
         specifier: 7.8.5
         version: 7.8.5
@@ -285,9 +282,6 @@ importers:
       '@types/sanitize-html':
         specifier: 2.16.1
         version: 2.16.1
-      '@types/seedrandom':
-        specifier: ^3.0.8
-        version: 3.0.8
       '@types/semver':
         specifier: 7.5.8
         version: 7.5.8

@@ -1,9 +1,9 @@
 struct Uniforms {
 	color: vec4f,
 	rightColor: vec4f,
-	// x: 列数、y: stereo、z: spectrum、w: 線幅（出力高さに対する比率）
+	// x: 列数、y: stereo、z: 線幅（出力高さに対する比率）、w: 出力アスペクト比
 	options: vec4f,
-	// x: 出力アスペクト比、y: 有効な音声データ
+	// x: 有効な音声データ
 	dimensions: vec4f,
 };
 @group(0) @binding(0) var<uniform> uniforms: Uniforms;
@@ -17,7 +17,7 @@ fn segmentDistance(point: vec2f, a: vec2f, b: vec2f) -> f32 {
 
 fn waveformCoverage(point: vec2f, index: u32, right: bool, center: f32, scale: f32) -> f32 {
 	let count = u32(uniforms.options.x);
-	let aspect = uniforms.dimensions.x;
+	let aspect = uniforms.options.w;
 	let position = vec2f(point.x * aspect, point.y);
 	var distance = 100000.0;
 	// 前後の列まで線分でつなぎ、急な立ち上がりも途切れさせない。
@@ -33,38 +33,23 @@ fn waveformCoverage(point: vec2f, index: u32, right: bool, center: f32, scale: f
 		distance = min(distance, segmentDistance(position, vec2f(x, span.x), vec2f(x, span.y)));
 		distance = min(distance, segmentDistance(position, vec2f(x, (span.x + span.y) * 0.5), vec2f(nextX, (nextSpan.x + nextSpan.y) * 0.5)));
 	}
-	let radius = uniforms.options.w;
+	let radius = uniforms.options.z;
 	let aa = max(fwidth(point.y), 0.000001);
 	return 1.0 - smoothstep(max(0.0, radius - aa), radius + aa, distance);
 }
 
 @fragment
 fn fs(@location(0) uv: vec2f) -> @location(0) vec4f {
-	if (uniforms.dimensions.y < 0.5) { return vec4f(0.0); }
+	if (uniforms.dimensions.x < 0.5) { return vec4f(0.0); }
 	let count = u32(uniforms.options.x);
 	let x = clamp(uv.x * 0.5 + 0.5, 0.0, 1.0);
 	let index = min(u32(x * f32(count)), count - 1u);
 	let stereo = uniforms.options.y > 0.5;
-	let spectrum = uniforms.options.z > 0.5;
 	var left: f32;
 	var right = 0.0;
-	if (spectrum) {
-		let values = columns[index];
-		let bottom = -1.0;
-		let scale = select(2.0, 1.0, stereo);
-		let leftBottom = select(bottom, 0.0, stereo);
-		let aa = max(fwidth(uv.y), 0.000001);
-		left = (1.0 - smoothstep(leftBottom + values.y * scale - aa, leftBottom + values.y * scale + aa, uv.y))
-			* step(leftBottom, uv.y) * select(0.0, 1.0, values.y > 0.0);
-		if (stereo) {
-			right = (1.0 - smoothstep(bottom + values.w - aa, bottom + values.w + aa, uv.y))
-				* step(bottom, uv.y) * select(0.0, 1.0, values.w > 0.0);
-		}
-	} else {
-		let scale = select(1.0, 0.45, stereo);
-		left = waveformCoverage(uv, index, false, select(0.0, 0.5, stereo), scale);
-		if (stereo) { right = waveformCoverage(uv, index, true, -0.5, scale); }
-	}
+	let scale = select(1.0, 0.45, stereo);
+	left = waveformCoverage(uv, index, false, select(0.0, 0.5, stereo), scale);
+	if (stereo) { right = waveformCoverage(uv, index, true, -0.5, scale); }
 	let alpha = max(left, right);
 	let color = (uniforms.color.rgb * left + uniforms.rightColor.rgb * right) / max(left + right, 0.000001);
 	return vec4f(color, alpha);

@@ -1,6 +1,6 @@
 import { audioChannel, finiteNumber } from '@glitch/shared/utility/audio-spectrum.js';
 import { implementEffect } from '../../effect-implementation.ts';
-import { createAudioPlot } from '../audio-plot.ts';
+import shader from './shader.wgsl?raw';
 import type definition from './_def_.ts';
 
 export default implementEffect<typeof definition>({
@@ -15,7 +15,25 @@ export default implementEffect<typeof definition>({
 	},
 	init: ({ wgpu, resolution }) => {
 		const columns = Math.max(2, Math.min(4096, resolution.width));
-		const plot = createAudioPlot(wgpu.device, wgpu.defaultVertexShaderModule, columns, wgpu.intermediateTextureFormat);
+		const device = wgpu.device;
+		const module = device.createShaderModule({ code: shader });
+		const pipeline = device.createRenderPipeline({
+			layout: 'auto',
+			vertex: { module: wgpu.defaultVertexShaderModule },
+			fragment: { module, targets: [{ format: wgpu.intermediateTextureFormat }] },
+			primitive: { topology: 'triangle-list' },
+		});
+		const uniformBuffer = device.createBuffer({ size: 64, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+		const dataBuffer = device.createBuffer({ size: columns * 16, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
+		const data = new Float32Array(columns * 4);
+		const uniforms = new Float32Array(16);
+		const bindGroup = device.createBindGroup({
+			layout: pipeline.getBindGroupLayout(0),
+			entries: [
+				{ binding: 0, resource: { buffer: uniformBuffer } },
+				{ binding: 1, resource: { buffer: dataBuffer } },
+			],
+		});
 		return {
 			render(ctx) {
 				const { params } = ctx;
@@ -23,7 +41,7 @@ export default implementEffect<typeof definition>({
 				const channel = audioChannel(params.channel);
 				const duration = finiteNumber(params.duration, 0.05, 0.005, 1);
 				const amplitude = finiteNumber(params.amplitude, 1, 0, 10);
-				plot.data.fill(0);
+				data.fill(0);
 				if (history?.channelCount) {
 					const frames = Math.max(2, Math.round(duration * history.sampleRate));
 					const start = history.endFrame - frames;
@@ -47,19 +65,29 @@ export default implementEffect<typeof definition>({
 									max = Math.max(max, sample);
 								}
 							}
-							plot.data[x * 4 + side * 2] = min * amplitude;
-							plot.data[x * 4 + side * 2 + 1] = max * amplitude;
+							data[x * 4 + side * 2] = min * amplitude;
+							data[x * 4 + side * 2 + 1] = max * amplitude;
 						}
 					}
 				}
-				plot.render(ctx, {
-					color: params.color,
-					rightColor: params.rightColor,
-					stereo: channel === 'stereo', spectrum: false,
-					lineWidth: finiteNumber(params.lineWidth, 0.003, 0.001, 0.05),
-					aspectRatio: resolution.width / resolution.height, valid: !!history?.channelCount });
+				uniforms.set([
+					params.color[0], params.color[1], params.color[2], 1,
+					params.rightColor[0], params.rightColor[1], params.rightColor[2], 1,
+					columns, Number(channel === 'stereo'), finiteNumber(params.lineWidth, 0.003, 0.001, 0.05), resolution.width / resolution.height,
+					Number(!!history?.channelCount), 0, 0, 0,
+				]);
+				device.queue.writeBuffer(uniformBuffer, 0, uniforms);
+				device.queue.writeBuffer(dataBuffer, 0, data);
+				const pass = ctx.createPassEncoderFor(ctx.commandEncoder, ctx.outputDataMap.output.textureView);
+				pass.setPipeline(pipeline);
+				pass.setBindGroup(0, bindGroup);
+				pass.draw(6);
+				pass.end();
 			},
-			dispose: () => plot.dispose(),
+			dispose() {
+				uniformBuffer.destroy();
+				dataBuffer.destroy();
+			},
 		};
 	},
 });
