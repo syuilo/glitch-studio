@@ -10,7 +10,17 @@ export default implementEffect<typeof definition>({
 			format: wgpu.intermediateTextureFormat,
 			usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
 		});
-		return { output: out };
+		const out2 = wgpu.device.createTexture({
+			size: resolution,
+			format: wgpu.enable32bitDataTextures ? 'r32float' : 'r16float',
+			usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
+		});
+		const out3 = wgpu.device.createTexture({
+			size: resolution,
+			format: wgpu.enable32bitDataTextures ? 'rg32float' : 'rg16float',
+			usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
+		});
+		return { output: out, output2: out2, output3: out3 };
 	},
 	init: ({ wgpu }) => {
 		const shaderModule = wgpu.device.createShaderModule({
@@ -51,7 +61,7 @@ export default implementEffect<typeof definition>({
 
 		return {
 			render: (ctx) => {
-				console.log(ctx.params.inputs);
+				console.log(ctx.params);
 
 				//uniformValues.set({
 				//});

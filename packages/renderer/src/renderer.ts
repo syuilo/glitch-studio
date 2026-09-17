@@ -8,6 +8,7 @@ import { float32ToFloat16Bits } from '@glitch/shared/utility/float32ToFloat16Bit
 import { effectImplementations } from '@glitch/shared/effect-implementations.js';
 import defaultVertexShaderCode from './vertex.wgsl?raw';
 import TimingHelper from './utility/TimingHelper.ts';
+import { getEvaluatedParam, mapNodeParam, walkNodeParams } from './utility/node-params.ts';
 import finalRenderShaderCode from './render.wgsl?raw';
 import { NonNegativeRollingAverage } from './utility/NonNegativeRollingAverage.ts';
 import { GpuHistogram } from './utility/histogram/GpuHistogram.ts';
@@ -310,39 +311,32 @@ export class Renderer {
 				...scope,
 			};
 
-			for (const [k, v] of Object.entries(node.params)) {
-				// 無効時はバイパス先だけが必要。使わない式やオートメーションも評価しない。
-				if (node.isBypass && !(paramDefs[k].primary)) continue;
-				evaluatedParams[k] =
-					v.type === 'literal'
-						? v.value
-						: v.type === 'expression' && v.expression
-							? evaluateExpression(v.expression, mixedScope, paramDefs[k])
-							: v.type === 'automation' && v.automationId
-								? evalAutomationValue(this.automations.find(a => a.id === v.automationId)!, this.time)
-								: v.type === 'node' && v.nodeId
-									? { nodeId: v.nodeId, outputPort: v.outputPort }
-									: genEmptyValue(paramDefs[k]);
+			for (const [key, def] of Object.entries(paramDefs)) {
+				// 無効時はバイパス先だけが必要。使わない子の式も評価しない。
+				if (node.isBypass && !def.primary) continue;
+				evaluatedParams[key] = mapNodeParam(def, node.params[key], [key], (def, param) => {
+					if (param.type === 'literal') return param.value;
+					if (param.type === 'expression') return param.expression ? evaluateExpression(param.expression, mixedScope, def) : genEmptyValue(def);
+					if (param.type === 'automation') {
+						const automation = this.automations.find(a => a.id === param.automationId);
+						return automation ? evalAutomationValue(automation, this.time) : genEmptyValue(def);
+					}
+					return param.nodeId == null ? null : { nodeId: param.nodeId, outputPort: param.outputPort };
+				});
 			}
-
 			this.evaledNodeParams.set(node.id, evaluatedParams);
 
-			for (const [k, v] of Object.entries(evaluatedParams)) {
-				if (paramDefs[k].canNode && node.params[k].type !== 'node') {
-					const tex = this.effectPerParamConstFieldTextures.get(node.id)![k];
-					// TODO: 全てのtypeに対応 & 別関数にする
-					const components = paramDefs[k].type === 'color' ? [v?.[0] ?? 0, v?.[1] ?? 0, v?.[2] ?? 0, v?.[3] ?? 0] : paramDefs[k].type === 'vector' ? [v?.[0] ?? 0, v?.[1] ?? 0] : [v ?? 0];
-					const pixelData = this.enable32bitDataTextures
-						? new Float32Array(components)
-						: new Uint16Array(components.map(component => float32ToFloat16Bits(component)));
-
-					this.gpuDevice.queue.writeTexture(
-						{ texture: tex },
-						pixelData,
-						{ bytesPerRow: pixelData.byteLength, rowsPerImage: 1 },
-						{ width: 1, height: 1 },
-					);
-				}
+			for (const { def, param, path } of walkNodeParams(paramDefs, node.params, node.isBypass)) {
+				if (!def.canNode || param.type === 'node') continue;
+				const v = getEvaluatedParam(evaluatedParams, path);
+				const tex = this.effectPerParamConstFieldTextures.get(node.id)![JSON.stringify(path)];
+				// TODO: 全てのtypeに対応 & 別関数にする
+				const components = def.type === 'color' ? [v?.[0] ?? 0, v?.[1] ?? 0, v?.[2] ?? 0, v?.[3] ?? 0] : def.type === 'vector' ? [v?.[0] ?? 0, v?.[1] ?? 0] : [v ?? 0];
+				const pixelData = this.enable32bitDataTextures
+					? new Float32Array(components)
+					: new Uint16Array(components.map(component => float32ToFloat16Bits(component)));
+				this.gpuDevice.queue.writeTexture({ texture: tex }, pixelData,
+					{ bytesPerRow: pixelData.byteLength, rowsPerImage: 1 }, { width: 1, height: 1 });
 			}
 		}
 
@@ -409,17 +403,23 @@ export class Renderer {
 
 			const paramDefs = effectDefinitions[node.effectId].paramDefs;
 
-			for (const [k, v] of Object.entries(this.evaledNodeParams.get(node.id)!)) {
-				key += `${k}=${JSON.stringify(v)};`;
-				if (node.effectId === 'video' && paramDefs[k].type === 'player') {
-					key += `${k}:videoFrameVersion=${v == null ? 0 : this.videoFrameVersions.get(v) ?? 0};`;
+			const params = this.evaledNodeParams.get(node.id)!;
+			// 空配列・空structや要素数の変化もキーに含める。
+			key += JSON.stringify(params);
+			for (const { def, param, path } of walkNodeParams(paramDefs, node.params)) {
+				const v = getEvaluatedParam(params, path);
+				key += JSON.stringify([path, param.type]);
+				if (def.type === 'player') {
+					key += JSON.stringify([path, 'videoFrameVersion', v == null ? 0 : this.videoFrameVersions.get(v) ?? 0]);
+					const audio = v == null ? undefined : this.audioSources.get(playerAudioSourceId(v));
+					key += JSON.stringify([path, 'audio', audio == null ? null : [audio.generation, audio.revision, audio.endFrame]]);
 				}
-
-				if (paramDefs[k].canNode && node.params[k].type === 'node' && node.params[k].nodeId != null) {
-					const targetNode = this.allNodeIdMap.get(node.params[k].nodeId)!;
+				if (def.canNode && param.type === 'node' && param.nodeId != null) {
+					const targetNode = this.allNodeIdMap.get(param.nodeId);
+					if (targetNode == null) throw new Error('Referenced node not found');
 					const targetNodeCacheKey = this.evalCacheKey(targetNode, [...visited, node.id]);
 					if (targetNodeCacheKey == null) return null;
-					key += `${k}=${targetNodeCacheKey};`;
+					key += JSON.stringify([path, targetNodeCacheKey]);
 				}
 			}
 		}
@@ -429,26 +429,23 @@ export class Renderer {
 
 	private resolveParams(node: GsEffectNode, params: Record<string, any>): Record<string, any> {
 		const resolvedParams: Record<string, any> = {};
-		for (const [k, v] of Object.entries(params)) {
-			const typeDef = effectDefinitions[node.effectId].paramDefs[k].type;
-			if (typeDef === 'image') {
-				resolvedParams[k] = this.assetTextures.get(v)!;
-			} else if (typeDef === 'player') {
-				resolvedParams[k] = v == null ? null : {
+		for (const [key, def] of Object.entries(effectDefinitions[node.effectId].paramDefs)) {
+			resolvedParams[key] = mapNodeParam(def, node.params[key], [key], (def, param, path) => {
+				const v = getEvaluatedParam(params, path);
+				if (def.type === 'image') return this.assetTextures.get(v) ?? null;
+				if (def.type === 'player') return v == null ? null : {
 					videoFrame: this.videoFrames.get(v) ?? null,
 					audio: this.audioSources.get(playerAudioSourceId(v)) ?? null,
 				};
-			} else {
-				if (effectDefinitions[node.effectId].paramDefs[k].canNode) {
-					resolvedParams[k] = v == null
-						? this.fallbackScalarFieldTexture
-						: node.params[k].type === 'node' && node.params[k].nodeId != null
-							? this.getOutputTexture(this.allNodeIdMap.get(v.nodeId)!, v.outputPort) ?? this.fallbackScalarFieldTexture
-							: this.effectPerParamConstFieldTextures.get(node.id)![k];
-				} else {
-					resolvedParams[k] = v;
+				if (def.canNode) {
+					if (param.type === 'node') {
+						if (param.nodeId == null) return this.fallbackScalarFieldTexture;
+						return this.getOutputTexture(this.allNodeIdMap.get(param.nodeId)!, param.outputPort) ?? this.fallbackScalarFieldTexture;
+					}
+					return this.effectPerParamConstFieldTextures.get(node.id)![JSON.stringify(path)];
 				}
-			}
+				return v;
+			});
 		}
 		return resolvedParams;
 	}
@@ -482,12 +479,10 @@ export class Renderer {
 
 		const params = this.evaledNodeParams.get(node.id)!;
 
-		for (const [k, _] of Object.entries(effectDefinitions[node.effectId].paramDefs).filter(([, v]) => v.canNode)) {
-			const v = params[k];
-			if (node.params[k].type !== 'node' || node.params[k].nodeId == null || v == null) {
-				continue;
-			}
-			const targetNode = this.allNodeIdMap.get(v.nodeId)!;
+		for (const { def, param } of walkNodeParams(effectDefinitions[node.effectId].paramDefs, node.params)) {
+			if (!def.canNode || param.type !== 'node' || param.nodeId == null) continue;
+			const targetNode = this.allNodeIdMap.get(param.nodeId);
+			if (targetNode == null) throw new Error('Referenced node not found');
 			this.renderNode(targetNode, commandEncoder, {
 				visited: new Set([...context.visited, node.id]),
 				rendered: context.rendered,
@@ -707,25 +702,33 @@ export class Renderer {
 				};
 			}
 			this.outDataMapPerNodes.set(node.id, outDataMap);
-			const paramDefs = effectDefinitions[node.effectId].paramDefs;
-			const scalarFieldTextures: Record<string, GPUTexture> = {};
-			for (const k in paramDefs) {
-				if (paramDefs[k].canNode) {
-					// TODO: 全typeについて定義 & 別関数に切り出し
-					const format = paramDefs[k].type === 'color'
-						? (this.enable32bitDataTextures ? 'rgba32float' : 'rgba16float')
-						: paramDefs[k].type === 'vector'
-							? (this.enable32bitDataTextures ? 'rg32float' : 'rg16float')
-							: (this.enable32bitDataTextures ? 'r32float' : 'r16float');
-					const tex = this.gpuDevice.createTexture({
-						size: [1, 1],
-						format,
-						usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_DST,
-					});
-					scalarFieldTextures[k] = tex;
-				}
+		}
+
+		// 配列の追加・削除でも末端の定数テクスチャを同期する。同じパスのリソースは再利用する。
+		for (const node of newEffectNodes) {
+			const textures = this.effectPerParamConstFieldTextures.get(node.id) ?? {};
+			const used = new Set<string>();
+			for (const { def, path } of walkNodeParams(effectDefinitions[node.effectId].paramDefs, node.params)) {
+				if (!def.canNode) continue;
+				const key = JSON.stringify(path);
+				used.add(key);
+				// TODO: 全typeについて定義 & 別関数に切り出し
+				const channels = def.type === 'color' ? 'rgba' : def.type === 'vector' ? 'rg' : 'r';
+				const format = (channels + (this.enable32bitDataTextures ? '32float' : '16float')) as GPUTextureFormat;
+				if (textures[key]?.format === format) continue;
+				textures[key]?.destroy();
+				textures[key] = this.gpuDevice.createTexture({
+					size: [1, 1],
+					format,
+					usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_DST,
+				});
 			}
-			this.effectPerParamConstFieldTextures.set(node.id, scalarFieldTextures);
+			for (const key of Object.keys(textures)) {
+				if (used.has(key)) continue;
+				textures[key].destroy();
+				delete textures[key];
+			}
+			this.effectPerParamConstFieldTextures.set(node.id, textures);
 		}
 
 		for (const node of removedNodes) {
@@ -757,9 +760,13 @@ export class Renderer {
 		this.nodes = newNodes;
 
 		this.allNodeIdMap.clear();
-		for (const node of newNodes) {
-			this.allNodeIdMap.set(node.id, node);
-		}
+		const indexNodes = (nodes: GsNode[]) => {
+			for (const node of nodes) {
+				this.allNodeIdMap.set(node.id, node);
+				if (node.type === 'group') indexNodes(node.nodes);
+			}
+		};
+		indexNodes(newNodes);
 	}
 
 	// (非workerで)呼び出すときはnewAssetsを独立した参照にすること！ パフォーマンス上の理由でこちら側ではdeepCloneしません
@@ -825,6 +832,8 @@ export class Renderer {
 	}
 
 	public async bakeAssets() {
+		// 同じAsset IDでもテクスチャを作り直すため、ネスト内の画像参照も再解決する。
+		this.effectCacheKeys.clear();
 		for (const [k, v] of this.assetTextures.entries()) {
 			v.destroy();
 			this.assetTextures.delete(k);

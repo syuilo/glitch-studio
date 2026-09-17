@@ -4,7 +4,7 @@ import type { EffectParamDataType, GsNode } from '../types.ts';
 
 export type NodeDataType = EffectOutputsSchema[string]['dataType'];
 
-export function getNodeInputDataType(param: { type: EffectParamDataType; dataType?: NodeDataType; canNode?: boolean }): NodeDataType | null {
+export function getNodeInputDataType(param: { type: EffectParamDataType | 'struct' | 'array'; dataType?: NodeDataType; canNode?: boolean }): NodeDataType | null {
 	if (!param.canNode) return null;
 	// canNodeは元のパラメータ型に応じたデータテクスチャを受け取る。
 	switch (param.type) {

@@ -1,10 +1,10 @@
-import definition from '@glitch/shared/effect-definitions/test.ts';
+import definition from '@glitch/shared/effects/test/_def_.ts';
 import { defineEffect, type GetEffectOptionsSchemaValues } from '@glitch/shared/effect-definition.ts';
-import { implementEffect } from '../src/effect-implementation.ts';
-import '../src/effect-implementations/test/main.ts';
+import { implementEffect } from '@glitch/shared/effect-implementation.ts';
+import '@glitch/shared/effects/test/_impl_.ts';
 
 implementEffect<typeof definition>({
-	getOut: ({ wgpu }) => wgpu.device.createTexture({ size: [1, 1], format: 'rgba8unorm', usage: GPUTextureUsage.RENDER_ATTACHMENT }),
+	getOut: ({ wgpu }) => ({ output: wgpu.device.createTexture({ size: [1, 1], format: 'rgba8unorm', usage: GPUTextureUsage.RENDER_ATTACHMENT }) }),
 	init: ({ params }) => {
 		params.x.toFixed();
 		// @ts-expect-error Range parameters are numbers, not strings.
@@ -29,10 +29,31 @@ const boolean: UnionValues = { value: true };
 const invalid: UnionValues = { value: 'wrong' };
 
 defineEffect({
-	name: 'invalid', displayName: 'invalid',
+	id: 'invalid', displayName: 'invalid', tags: [],
 	paramDefs: {
 		// @ts-expect-error Literal defaults must match their parameter schema.
 		x: { type: 'range', label: 'X', min: -1, max: 1, default: () => ({ type: 'literal', value: 'wrong' }) },
 	},
-	outputs: { output: { dataType: 'color' } },
+	outputs: { output: { dataType: 'color', primary: true } },
 });
+
+// struct/arrayのラッパーはrendererで除かれ、canNodeの末端だけがGPUTextureになる。
+import nestedDefinition from '@glitch/shared/effects/testStructArray/_def_.ts';
+import type { GetRuntimeEffectOptionsSchemaValues } from '@glitch/shared/effect-implementation.ts';
+declare const nested: GetRuntimeEffectOptionsSchemaValues<typeof nestedDefinition.paramDefs>;
+nested.inputs[0].x.toFixed();
+nested.inputs[0].image.createView();
+// @ts-expect-error 実行時のstruct要素にliteralラッパーは残らない。
+nested.inputs[0].value;
+// @ts-expect-error canNodeは数値配列ではなくテクスチャ。
+nested.inputs[0].image.map(x => x);
+
+type Matrix = GetRuntimeEffectOptionsSchemaValues<{
+	matrix: { type: 'array'; label: 'Matrix'; item: {
+		type: 'array'; label: 'Row'; item: { type: 'number'; label: 'Cell'; default: () => { type: 'literal'; value: number } };
+		default: () => { type: 'literal'; value: [] };
+	} };
+}>;
+const matrix: Matrix = { matrix: [[1, 2], []] };
+// @ts-expect-error 配列のネストと末端の数値型を保持する。
+const invalidMatrix: Matrix = { matrix: [['wrong']] };

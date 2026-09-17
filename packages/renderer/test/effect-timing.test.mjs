@@ -18,11 +18,11 @@ test('effect GPU statistics include compute and render passes', async t => {
 	navigator.gpu = { getPreferredCanvasFormat: () => 'bgra8unorm' };
 	try {
 		const { Renderer } = await server.ssrLoadModule('/src/renderer.ts');
-		const { fxDefinitions } = await server.ssrLoadModule('@glitch/shared/effect-definitions.ts');
+		const { effectDefinitions: fxDefinitions } = await server.ssrLoadModule('@glitch/shared/effect-definitions.ts');
 		const { default: TimingHelper } = await server.ssrLoadModule('/src/utility/TimingHelper.ts');
 		await t.test('liquidMetal uploads RGBA colors unchanged', async () => {
-			const { default: effect } = await server.ssrLoadModule('/src/effect-implementations/liquidMetal/main.ts');
-			const { default: shader } = await server.ssrLoadModule('/src/effect-implementations/liquidMetal/shader.wgsl?raw');
+			const { default: effect } = await server.ssrLoadModule('@glitch/shared/effects/liquidMetal/_impl_.ts');
+			const { default: shader } = await server.ssrLoadModule('@glitch/shared/effects/liquidMetal/shader.wgsl?raw');
 			const uniforms = makeShaderDataDefinitions(shader).uniforms.uniforms;
 			const device = createDevice(false);
 			let uploaded;
@@ -61,8 +61,8 @@ test('effect GPU statistics include compute and render passes', async t => {
 			const canvas = { getContext: () => context };
 			try {
 				await server.ssrLoadModule('/src/worker.ts');
-				await globalThis.onmessage({ data: { type: 'init', canvas, histogramCanvas: canvas, waveformCanvas: canvas, options: {
-					resolution: { width: 64, height: 64 }, enableStats: false, enable32bitDataTextures: false,
+				await globalThis.onmessage({ data: { type: 'init', canvas, histogramCanvas: canvas, waveformHorizontalCanvas: canvas, waveformVerticalCanvas: canvas, options: {
+					resolution: { width: 64, height: 64 }, intermediateTextureFormat: 'rgba16float', enableStats: false, enable32bitDataTextures: false,
 					fpsLimit: null, assets: [], macros: [], automations: [], nodes: [],
 				} } });
 				const initial = messages.find(message => message.type === 'gpuMemory');
@@ -73,7 +73,7 @@ test('effect GPU statistics include compute and render passes', async t => {
 				buffer.destroy();
 				callbacks.get(1000)();
 				assert.deepEqual(messages.at(-1).usage, initial.usage);
-				const node = { id: 'status-node', type: 'effect', effectId: 'fill', isBypass: true,
+				const node = { id: 'status-node', type: 'effect', effectId: 'fill', isBypass: false,
 					params: Object.fromEntries(Object.entries(fxDefinitions.fill.paramDefs).map(([key, param]) => [key, param.default()])) };
 				await globalThis.onmessage({ data: { type: 'call', fn: 'updateNodes', args: [[node]] } });
 				await globalThis.onmessage({ data: { type: 'call', fn: 'render', args: [node.id, { time: 16 }] } });
@@ -105,13 +105,13 @@ test('effect GPU statistics include compute and render passes', async t => {
 		});
 		for (const [fx, expected, count] of [['pixelSort', 7.1, 1], ['liquidMetal', 83.1, 1], ['bloom', 1.2, 1], ['bloom', 2.4, 2]]) {
 			const makeNodes = (patch = {}) => Array.from({ length: count }, (_, i) => ({
-				id: i === count - 1 ? 'effect' : `input-${i}`, type: 'effect', fx, isBypass: true,
+				id: i === count - 1 ? 'effect' : `input-${i}`, type: 'effect', effectId: fx, isBypass: false,
 				params: {
 					...Object.fromEntries(Object.entries(fxDefinitions[fx].paramDefs).map(([key, param]) => [
 						key, param.default(),
 					])),
 					...patch,
-					input: { type: 'literal', value: i === 0 ? null : { nodeId: `input-${i - 1}`, outputPort: 'output' } },
+					input: { type: 'node', nodeId: i === 0 ? null : `input-${i - 1}`, outputPort: i === 0 ? null : 'output' },
 				},
 			}));
 			for (const [enableStats, canTimestamp] of [[true, true], [false, true], [true, false]]) {
@@ -119,7 +119,7 @@ test('effect GPU statistics include compute and render passes', async t => {
 					const device = createDevice(canTimestamp);
 					const context = { configure() {}, unconfigure() {}, getCurrentTexture: () => device.createTexture() };
 					const renderer = new Renderer({
-						gpuDevice: device, gpuContext: context, histogramGpuContext: context, waveformHorizontalGpuContext: context,
+						gpuDevice: device, gpuContext: context, histogramGpuContext: context, waveformHorizontalGpuContext: context, waveformVerticalGpuContext: context, intermediateTextureFormat: 'rgba16float',
 						resolution: { width: 64, height: 64 }, enable32bitDataTextures: false, enableStats, fpsLimit: null,
 						assets: [], macros: [], automations: [],
 						nodes: makeNodes(),

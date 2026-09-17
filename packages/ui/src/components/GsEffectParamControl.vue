@@ -228,36 +228,6 @@ function changeContinuous(value: any) {
 function onFinishChanging() {
 	emit('changeFinished');
 }
-
-/*
-import { getNodeInputDataType } from '@glitch/shared/utility/node-outputs.ts';
-import { getNodeOutputItems, nodeOutputKey } from '@/utility/node-outputs.ts';
-import { registerWireInput } from '@/utility/wire-drag.ts';
-
-const inputDataType = computed(() => getNodeInputDataType({ ...props.options, type: props.options?.type ?? props.type }));
-const nodeOutputItems = computed(() => getNodeOutputItems(appContext.state.nodes.value, props.node?.id, inputDataType.value));
-
-watchEffect(onCleanup => {
-	const el = portEl.value;
-	if (el == null) return;
-	// 描画上の接続点はポートに保ち、ドロップはラベルを含む行全体で受け付ける。
-	const row = el.closest<HTMLElement>('[data-wire-input-row]') ?? el.parentElement ?? el;
-	onCleanup(registerWireInput(row, changeValue,
-		connection => nodeOutputItems.value.find(item => item.value === nodeOutputKey(connection))?.typeCompatible ?? null));
-});
-
-watchEffect(onCleanup => {
-	const el = portEl.value;
-	const nodeId = props.node?.id;
-	const name = props.name;
-	if (el == null || nodeId == null || name == null) return;
-	if (wireMap.in[nodeId] == null) wireMap.in[nodeId] = {};
-	wireMap.in[nodeId][name] = el;
-	onCleanup(() => {
-		if (wireMap.in[nodeId]?.[name] === el) delete wireMap.in[nodeId][name];
-	});
-});
-*/
 </script>
 
 <style module lang="scss">

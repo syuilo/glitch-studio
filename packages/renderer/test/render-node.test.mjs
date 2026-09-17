@@ -19,7 +19,7 @@ test('renderer graph traversal and frame history', async t => {
 					}`;
 			},
 			transform(code, id) {
-				if (id.endsWith('/effect-implementations/symbols/main.ts')) {
+				if (id.endsWith('/effects/symbols/_impl_.ts')) {
 					return code.replace('createTextureFromImages, ', '') + '\nimport { createTextureFromImages } from "test:symbol-images";';
 				}
 			},
@@ -30,10 +30,10 @@ test('renderer graph traversal and frame history', async t => {
 	navigator.gpu = { getPreferredCanvasFormat: () => 'bgra8unorm' };
 	t.after(() => { navigator.gpu = previousGpu; });
 	const { Renderer } = await server.ssrLoadModule('/src/renderer.ts');
-	const { effectImplementations: fxImplementations } = await server.ssrLoadModule('/src/effect-implementations.ts');
+	const { effectImplementations: fxImplementations } = await server.ssrLoadModule('@glitch/shared/effect-implementations.js');
 	const { effectDefinitions: fxDefinitions } = await server.ssrLoadModule('@glitch/shared/effect-definitions.ts');
 	const fx = (id, name, params = {}) => ({
-		id, type: 'effect', effectId: name, isBypass: true,
+		id, type: 'effect', effectId: name, isBypass: false,
 		params: {
 			...Object.fromEntries(Object.entries(fxDefinitions[name].paramDefs).map(([key, param]) => [
 				key, param.default(),
@@ -45,7 +45,7 @@ test('renderer graph traversal and frame history', async t => {
 			])),
 		},
 	});
-	const group = (id, nodes) => ({ id, type: 'group', isBypass: true, macros: [], nodes });
+	const group = (id, nodes) => ({ id, type: 'group', isBypass: false, macros: [], nodes });
 
 	function setup(t, nodes, { enable32bitDataTextures = false } = {}) {
 		const device = createDevice(false);
@@ -118,7 +118,7 @@ test('renderer graph traversal and frame history', async t => {
 		};
 	}
 
-	const disabled = node => ({ ...node, isBypass: false });
+	const disabled = node => ({ ...node, isBypass: true });
 
 	await t.test('image selects an asset after its first empty render and switches back to empty', t => {
 		const run = setup(t, [fx('root', 'image')]);

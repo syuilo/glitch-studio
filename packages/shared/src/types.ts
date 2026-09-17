@@ -42,7 +42,7 @@ export type Player = {
 };
 
 export type EffectParamDef = Record<string, any> & {
-	type: EffectParamDataType;
+	type: EffectParamDataType | 'struct' | 'array';
 	label: string;
 	canNode?: boolean;
 	default: () => EffectParamValue;

@@ -1,8 +1,11 @@
 <template>
 <div :class="$style.root">
 	<div ref="rowEl" :class="$style.row" data-wire-input-row>
-		<div :class="[$style.paramLabel, { [$style.expression]: paramValue.type === 'expression' }]" @click="showMenu">
-			<GsCondensedLine>{{ label ?? paramDef.label }}</GsCondensedLine>
+		<div :class="[$style.paramHeader, { [$style.expression]: paramValue.type === 'expression' }]">
+			<button v-if="paramDef.type === 'array' || paramDef.type === 'struct'" class="_button"><i class="ti ti-chevron-down" style="vertical-align: middle;"></i></button>
+			<div :class="$style.paramLabel" @click="showMenu">
+				<GsCondensedLine>{{ label ?? paramDef.label }}</GsCondensedLine>
+			</div>
 		</div>
 		<div :class="$style.paramBody">
 			<template v-if="paramDef.type === 'array'">
@@ -40,6 +43,7 @@
 				</div>
 			</template>
 			<slot name="actions"></slot>
+			<button class="_button" :class="$style.menuButton" @click="showMenu"><i class="ti ti-dots"></i></button>
 		</div>
 	</div>
 	<div v-if="paramDef.type === 'array'" :key="arrayVersion" :class="$style.children">
@@ -53,7 +57,7 @@
 			:label="'[' + index + ']'"
 		>
 			<template #actions>
-				<GsButton small iconOnly title="Remove element" @click="removeElement(index)"><i class="ti ti-x"></i></GsButton>
+				<GsButton small iconOnly danger title="Remove element" @click="removeElement(index)"><i class="ti ti-x"></i></GsButton>
 			</template>
 		</GsEffectNodeParam>
 	</div>
@@ -252,24 +256,36 @@ function removeElement(index: number) {
 
 	&:hover {
 		background: #ffffff08;
+
+		.menuButton {
+			opacity: 1; // TODO: opacityを使わない実装にする
+		}
 	}
 }
 
-.paramLabel {
+.paramHeader {
+	display: flex;
+	align-items: center;
+	gap: 8px;
 	place-content: center left;
 	width: 35%;
 	box-sizing: border-box;
 	padding-right: 12px;
 	flex-shrink: 0;
-	white-space: nowrap;
-	text-overflow: ellipsis;
-	overflow: clip;
 	font-size: 95%;
-	cursor: pointer;
 
 	&.expression {
 		color: var(--THEME-expression);
 	}
+}
+
+.paramLabel {
+	flex: 1;
+	min-width: 0;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+	overflow: clip;
+	cursor: pointer;
 }
 
 .paramBody {
@@ -290,6 +306,10 @@ function removeElement(index: number) {
 .children {
 	margin-left: 16px;
 	border-left: 1px solid #ffffff18;
+
+	&:hover {
+		border-left: 1px solid #ffffff30;
+	}
 }
 
 .count {
@@ -298,5 +318,9 @@ function removeElement(index: number) {
 
 .typeWarning {
 	color: var(--THEME-warn);
+}
+
+.menuButton {
+	opacity: 0.3; // TODO: opacityを使わない実装にする
 }
 </style>
