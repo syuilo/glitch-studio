@@ -13,6 +13,7 @@ export default defineEffect({
 		clampEdge: { type: 'bool', label: 'Clamp to edge', default: () => ({ type: 'literal', value: true }) },
 		frequency: { type: 'number', step: 0.01, label: 'Frequency', canNode: true, default: () => ({ type: 'literal', value: 1 }) },
 		mirrorRepeat: { type: 'bool', label: 'Mirror Repeat', default: () => ({ type: 'literal', value: false }) },
+		skew: { type: 'range', min: -1, max: 1, step: 0.01, label: 'Skew', canNode: true, default: () => ({ type: 'literal', value: 0 }) },
 		phase: { type: 'range', min: -1, max: 1, step: 0.01, label: 'Phase', canNode: true, default: () => ({ type: 'literal', value: 0 }) },
 		angle: { type: 'angle', label: 'Angle', default: () => ({ type: 'literal', value: 0 }) },
 		interpolation: {

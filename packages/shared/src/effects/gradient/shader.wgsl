@@ -1,4 +1,4 @@
-@group(0) @binding(7) var inputSampler: sampler;
+@group(0) @binding(8) var inputSampler: sampler;
 
 struct Uniforms {
 	aspectRatio: f32,
@@ -16,6 +16,7 @@ struct Uniforms {
 @group(0) @binding(4) var endValueTexture: texture_2d<f32>;
 @group(0) @binding(5) var frequencyTexture: texture_2d<f32>;
 @group(0) @binding(6) var phaseTexture: texture_2d<f32>;
+@group(0) @binding(7) var skewTexture: texture_2d<f32>;
 
 fn sampleScalar(tex: texture_2d<f32>, uv: vec2f) -> f32 {
 	// 各入力を出力全体にstretchし、定数の1x1や異なる解像度にも対応する。
@@ -35,6 +36,7 @@ fn fs(fragData: FragmentIn) -> @location(0) f32 {
 	let endValue = sampleScalar(endValueTexture, uv);
 	let frequency = sampleScalar(frequencyTexture, uv);
 	let phase = sampleScalar(phaseTexture, uv);
+	let skew = clamp(sampleScalar(skewTexture, uv), -1.0, 1.0);
 	let direction = vec2f(sin(uniforms.angle), cos(uniforms.angle));
 	var position = fragData.uv;
 	// 正方形の基準領域をcoverでは長辺、containでは短辺に合わせてから射影する。
@@ -59,13 +61,24 @@ fn fs(fragData: FragmentIn) -> @location(0) f32 {
 	// 開始〜終了の幅を基準に、区間外にも周期を繰り返す。phaseは1ごとに同じ表示に戻る。
 	let cycle = t * frequency + fract(phase);
 	let repeatedPosition = fract(cycle);
+	var skewedPosition = repeatedPosition;
+	if (skew != 0.0 && repeatedPosition > 0.0) {
+		// 周期内の中間点（ミラー時の頂点）を移動し、前後の幅を変える。
+		// 位相0を保持し、分岐で幅0の側を評価しないことでskew=±1でも0除算を避ける。
+		let midpoint = (skew + 1.0) * 0.5;
+		if (repeatedPosition < midpoint) {
+			skewedPosition = 0.5 * repeatedPosition / midpoint;
+		} else {
+			skewedPosition = 0.5 + 0.5 * (repeatedPosition - midpoint) / (1.0 - midpoint);
+		}
+	}
 	if (uniforms.mirrorRepeat != 0u) {
 		// 1周期で0→1→0と往復し、後段の補間も同じ曲線を逆向きにたどる。
-		t = 1.0 - abs(2.0 * repeatedPosition - 1.0);
+		t = 1.0 - abs(2.0 * skewedPosition - 1.0);
 	} else {
 		// 基準区間の終端で周期が完了した場合は従来どおり終了値を保つ。
 		// その他の周期境界は開始値へ折り返す。
-		t = select(repeatedPosition, 1.0, t == 1.0 && cycle > 0.0 && repeatedPosition == 0.0);
+		t = select(skewedPosition, 1.0, t == 1.0 && cycle > 0.0 && repeatedPosition == 0.0);
 	}
 	// 両端は指定値を厳密に保つ（elastic・expoの指数項も端点では評価しない）。
 	if (t <= 0.0) { return startValue; }
