@@ -1,62 +1,73 @@
 <template>
-<div ref="root" :class="$style.root" class="_shadow _popup" :style="{ zIndex }" tabindex="-1" @keydown.stop="onKeydown">
-	<div :class="$style.header">
-		<b>{{ title ?? 'Color' }}</b>
-		<div :class="$style.actions">
-			<div v-if="EyeDropper" :class="[$style.button, { [$style.busy]: picking }]" title="画面から色を取得" tabindex="0" @click="pickFromScreen" @keydown.enter.prevent="pickFromScreen"><i class="ti ti-color-picker"></i></div>
-			<div :class="$style.button" title="閉じる" tabindex="0" @click="close" @keydown.enter.prevent="close"><i class="ti ti-x"></i></div>
-		</div>
-	</div>
-	<div :class="$style.body">
-		<div :class="$style.leftArea">
-			<div :class="$style.map" :style="{ backgroundColor: `hsl(${hue} 100% 50%)` }" @pointerdown="startDrag($event, 'map')" @pointermove="moveDrag" @pointerup="endDrag" @pointercancel="endDrag" @lostpointercapture="endDrag">
-				<div :class="$style.thumb" :style="{ left: `${saturation * 100}%`, top: `${(1 - brightness) * 100}%`, background: colorCss(color) }"></div>
+<GsModal
+	ref="modal"
+	:manualShowing="manualShowing"
+	:zPriority="'high'"
+	:anchorElement="anchorElement"
+	:transparentBg="true"
+	@click="close"
+	@close="onModalClose"
+	@closed="onModalClosed"
+>
+	<div :class="$style.root" class="_shadow _popup" tabindex="-1" @keydown.stop="onKeydown">
+		<div :class="$style.header">
+			<b>{{ title ?? 'Color' }}</b>
+			<div :class="$style.actions">
+				<div v-if="EyeDropper" :class="[$style.button, { [$style.busy]: picking }]" title="画面から色を取得" tabindex="0" @click="pickFromScreen" @keydown.enter.prevent="pickFromScreen"><i class="ti ti-color-picker"></i></div>
+				<div :class="$style.button" title="閉じる" tabindex="0" @click="close" @keydown.enter.prevent="close"><i class="ti ti-x"></i></div>
 			</div>
-			<div :class="$style.sliderRow">
-				<div :class="[$style.track, $style.hue]" @pointerdown="startDrag($event, 'hue')" @pointermove="moveDrag" @pointerup="endDrag" @pointercancel="endDrag" @lostpointercapture="endDrag">
-					<div :class="$style.thumb" :style="{ left: `${hue / 360 * 100}%` }"></div>
+		</div>
+		<div :class="$style.body">
+			<div :class="$style.leftArea">
+				<div :class="$style.map" :style="{ backgroundColor: `hsl(${hue} 100% 50%)` }" @pointerdown="startDrag($event, 'map')" @pointermove="moveDrag" @pointerup="endDrag" @pointercancel="endDrag" @lostpointercapture="endDrag">
+					<div :class="$style.thumb" :style="{ left: `${saturation * 100}%`, top: `${(1 - brightness) * 100}%`, background: colorCss(color) }"></div>
+				</div>
+				<div :class="$style.sliderRow">
+					<div :class="[$style.track, $style.hue]" @pointerdown="startDrag($event, 'hue')" @pointermove="moveDrag" @pointerup="endDrag" @pointercancel="endDrag" @lostpointercapture="endDrag">
+						<div :class="$style.thumb" :style="{ left: `${hue / 360 * 100}%` }"></div>
+					</div>
+				</div>
+				<div :class="$style.sliderRow">
+					<div :class="[$style.track, $style.checker]" @pointerdown="startDrag($event, 'alpha')" @pointermove="moveDrag" @pointerup="endDrag" @pointercancel="endDrag" @lostpointercapture="endDrag">
+						<div :class="$style.alpha" :style="{ background: `linear-gradient(to right, ${colorCss([color[0], color[1], color[2], 0])}, ${colorCss([color[0], color[1], color[2], 1])})` }"></div>
+						<div :class="$style.thumb" :style="{ left: `${color[3] * 100}%` }"></div>
+					</div>
 				</div>
 			</div>
-			<div :class="$style.sliderRow">
-				<div :class="[$style.track, $style.checker]" @pointerdown="startDrag($event, 'alpha')" @pointermove="moveDrag" @pointerup="endDrag" @pointercancel="endDrag" @lostpointercapture="endDrag">
-					<div :class="$style.alpha" :style="{ background: `linear-gradient(to right, ${colorCss([color[0], color[1], color[2], 0])}, ${colorCss([color[0], color[1], color[2], 1])})` }"></div>
-					<div :class="$style.thumb" :style="{ left: `${color[3] * 100}%` }"></div>
+			<div :class="$style.rightArea">
+				<div v-for="row in rows" :key="row.name" :class="$style.row">
+					<span :class="$style.format">{{ row.name }}</span>
+					<div v-for="field in row.fields" :key="field.key" :class="$style.field">
+						<span :class="$style.label">{{ field.label }}</span>
+						<div
+							:class="[$style.editor, { [$style.invalid]: invalid === field.key }]"
+							class="_monospace"
+							contenteditable="plaintext-only" :spellcheck="false" :inputmode="row.name === 'HEX' ? 'text' : 'decimal'"
+							@focus="editing = field.key" @input="editField($event, row.name, field.index, field.key)"
+							@blur="finishEdit($event, field.key)" @keydown.enter.prevent="blurEditor" @keydown.esc.stop.prevent="blurEditor"
+							v-text="drafts[field.key]"
+						></div>
+					</div>
 				</div>
+				<div v-if="error" :class="$style.error">{{ error }}</div>
 			</div>
 		</div>
-		<div :class="$style.rightArea">
-			<div v-for="row in rows" :key="row.name" :class="$style.row">
-				<span :class="$style.format">{{ row.name }}</span>
-				<div v-for="field in row.fields" :key="field.key" :class="$style.field">
-					<span :class="$style.label">{{ field.label }}</span>
-					<div
-						:class="[$style.editor, { [$style.invalid]: invalid === field.key }]"
-						class="_monospace"
-						contenteditable="plaintext-only" :spellcheck="false" :inputmode="row.name === 'HEX' ? 'text' : 'decimal'"
-						@focus="editing = field.key" @input="editField($event, row.name, field.index, field.key)"
-						@blur="finishEdit($event, field.key)" @keydown.enter.prevent="blurEditor" @keydown.esc.stop.prevent="blurEditor"
-						v-text="drafts[field.key]"
-					></div>
-				</div>
+		<div :class="$style.recentTitle">Recent colors</div>
+		<div :class="$style.recent">
+			<div v-for="(recentColor, index) in recent" :key="index" :class="[$style.swatch, $style.checker]" :title="colorHex(recentColor)" tabindex="0" @click="setColor(recentColor)" @keydown.enter.prevent="setColor(recentColor)">
+				<div :class="$style.fill" :style="{ background: colorCss(recentColor) }"></div>
 			</div>
-			<div v-if="error" :class="$style.error">{{ error }}</div>
+			<span v-if="recent.length === 0" :class="$style.empty">まだありません</span>
 		</div>
 	</div>
-	<div :class="$style.recentTitle">Recent colors</div>
-	<div :class="$style.recent">
-		<div v-for="(recentColor, index) in recent" :key="index" :class="[$style.swatch, $style.checker]" :title="colorHex(recentColor)" tabindex="0" @click="setColor(recentColor)" @keydown.enter.prevent="setColor(recentColor)">
-			<div :class="$style.fill" :style="{ background: colorCss(recentColor) }"></div>
-		</div>
-		<span v-if="recent.length === 0" :class="$style.empty">まだありません</span>
-	</div>
-</div>
+</GsModal>
 </template>
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, useTemplateRef, watch } from 'vue';
 import type { RgbaColor } from '@/utility/color-input.ts';
 import { clampColorValue, colorCss, colorHex, hsvToHsl, hsvToRgb, normalizeColor, parseColorHex, rgbToHsv } from '@/utility/color-input.ts';
-import { calcPopupPosition } from '@/utility/popup-position.ts';
+import GsModal from '@/components/common/GsModal.vue';
 import * as ui from '@/ui.ts';
 
 const props = defineProps<{
@@ -65,13 +76,16 @@ const props = defineProps<{
 	title?: string;
 }>();
 
+const modal = useTemplateRef('modal');
+const manualShowing = ref(true);
+const hiding = ref(false);
+
 const emit = defineEmits<{
 	(ev: 'update:modelValue', value: RgbaColor): void;
 	(ev: 'closed'): void;
+	(ev: 'closing'): void;
 }>();
 
-const root = useTemplateRef('root');
-const zIndex = ui.claimZIndex('high');
 const color = ref<RgbaColor>(normalizeColor(props.modelValue));
 const initialHsv = rgbToHsv(color.value, 0);
 const hue = ref(initialHsv[0]);
@@ -82,7 +96,6 @@ const invalid = ref<string | null>(null);
 const drafts = ref<Record<string, string>>({});
 const error = ref('');
 const picking = ref(false);
-let closed = false;
 let changed = false;
 const storageKey = 'glitch-studio:recent-colors';
 const recent = ref<RgbaColor[]>(readRecent());
@@ -234,27 +247,18 @@ function remember() {
 }
 
 async function pickFromScreen() {
-	if (!EyeDropper || picking.value || closed) return;
+	if (!EyeDropper || picking.value) return;
 	picking.value = true;
 	error.value = '';
 	try {
 		const result = await new EyeDropper().open({ signal: eyeDropperAbort.signal });
-		if (closed) return;
 		const next = parseColorHex(result.sRGBHex, color.value[3]);
 		if (next) setColor(next);
 	} catch (err) {
-		if (!closed && !(err instanceof DOMException && err.name === 'AbortError')) error.value = '画面から色を取得できませんでした。';
+		throw err;
 	} finally {
 		picking.value = false;
 	}
-}
-
-function close() {
-	if (closed) return;
-	closed = true;
-	remember();
-	eyeDropperAbort.abort();
-	emit('closed');
 }
 
 function onKeydown(event: KeyboardEvent) {
@@ -264,50 +268,39 @@ function onKeydown(event: KeyboardEvent) {
 	}
 }
 
-function outsidePointer(event: PointerEvent) {
-	if (!picking.value && !drag && !event.composedPath().includes(root.value!)) close();
-}
-
-let frame = 0;
-
-function position() {
-	const el = root.value;
-	if (!el || closed) return;
-	if (!props.anchorElement.isConnected) { close(); return; }
-	const anchor = props.anchorElement.getBoundingClientRect();
-	const data = calcPopupPosition(el, {
-		anchorElement: props.anchorElement,
-		direction: anchor.bottom + el.offsetHeight + 8 > window.innerHeight ? 'top' : 'bottom',
-		align: 'center', innerMargin: 8,
-	});
-	el.style.left = data.left + 'px';
-	el.style.top = Math.max(window.scrollY, Math.min(data.top, window.scrollY + window.innerHeight - el.offsetHeight)) + 'px';
-	el.style.transformOrigin = data.transformOrigin;
-	frame = requestAnimationFrame(position);
-}
-
-onMounted(() => {
-	position();
-	root.value?.focus({ preventScroll: true });
-	document.addEventListener('pointerdown', outsidePointer, true);
-});
+let rafId = 0;
 
 onBeforeUnmount(() => {
-	closed = true;
-	remember();
 	eyeDropperAbort.abort();
-	cancelAnimationFrame(frame);
-	document.removeEventListener('pointerdown', outsidePointer, true);
+	cancelAnimationFrame(rafId);
 });
+
+function onModalClose() {
+	emit('closing');
+}
+
+function onModalClosed() {
+	if (!hiding.value) {
+		// hidingでなければclosedを発火
+		emit('closed');
+	}
+}
+
+function close() {
+	remember();
+	manualShowing.value = false;
+
+	// closeは呼ぶ必要がある
+	modal.value?.close();
+}
 </script>
 
 <style module lang="scss">
 .root {
-	position: absolute;
 	box-sizing: border-box;
 	width: 600px;
 	max-width: 100vw;
-	max-height: 100dvh;
+	height: 350px;
 	overflow: auto;
 	padding: 14px;
 	border-radius: 10px;
