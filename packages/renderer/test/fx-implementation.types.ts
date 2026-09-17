@@ -41,12 +41,14 @@ defineEffect({
 import nestedDefinition from '@glitch/shared/effects/testStructArray/_def_.ts';
 import type { GetRuntimeEffectOptionsSchemaValues } from '@glitch/shared/effect-implementation.ts';
 declare const nested: GetRuntimeEffectOptionsSchemaValues<typeof nestedDefinition.paramDefs>;
-nested.inputs[0].x.toFixed();
-nested.inputs[0].image.createView();
+nested.foo.node.createView();
+nested.bars[0][0].toFixed();
+nested.buzzs[0].x.toFixed();
+nested.buzzs[0].image.createView();
 // @ts-expect-error 実行時のstruct要素にliteralラッパーは残らない。
-nested.inputs[0].value;
+nested.buzzs[0].value;
 // @ts-expect-error canNodeは数値配列ではなくテクスチャ。
-nested.inputs[0].image.map(x => x);
+nested.buzzs[0].image.map(x => x);
 
 type Matrix = GetRuntimeEffectOptionsSchemaValues<{
 	matrix: { type: 'array'; label: 'Matrix'; item: {

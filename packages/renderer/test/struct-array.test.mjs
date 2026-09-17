@@ -154,4 +154,30 @@ test('struct and array renderer parameters', async t => {
 		assert.throws(() => run.renderer.updateNodes([node('root', 'fallback', { values: { type: 'expression', expression: '[1]' } })]), /must be literal/);
 	});
 
+	await t.test('array reordering preserves values at each path and node removal frees nested textures', t => {
+		const defs = { reorder: { rows: { type: 'array', item: { type: 'struct', fields: { value: { ...number, canNode: true } } } }, 'rows.0.value': { ...number, canNode: true } } };
+		const nodes = values => [node('root', 'reorder', { rows: literal(values.map(value => literal({ value: literal(value) }))), 'rows.0.value': literal(3) })];
+		const run = setup(t, defs, nodes([1, 2]), true);
+		const first = run.frame()[0].params;
+		assert.notEqual(first.rows[0].value, first['rows.0.value']);
+		run.renderer.updateNodes(nodes([2, 1]));
+		const reordered = run.frame()[0].params;
+		assert.deepEqual(reordered.rows.map(row => [...run.writes.get(row.value)]), [[2], [1]]);
+		assert.deepEqual([...run.writes.get(reordered['rows.0.value'])], [3]);
+		run.renderer.updateNodes([]);
+		for (const texture of [first.rows[0].value, first.rows[1].value, first['rows.0.value']]) assert.equal(run.destroyed.get(texture), 1);
+	});
+
+	await t.test('shared uncached nested inputs render once per frame and update their consumer', t => {
+		const defs = { changing: {}, repeated: { inputs: { type: 'array', item: { type: 'color', canNode: true } } } };
+		const run = setup(t, defs, [node('source', 'changing'), node('root', 'repeated', { inputs: literal([connection('source'), connection('source')]) })]);
+		implementations.changing.disableCache = true;
+		for (let i = 0; i < 2; i++) {
+			const draws = run.frame();
+			assert.deepEqual(draws.map(draw => draw.id), ['changing', 'repeated']);
+			assert.equal(draws[1].params.inputs[0], draws[0].outputs.output.texture);
+			assert.equal(draws[1].params.inputs[1], draws[0].outputs.output.texture);
+		}
+	});
+
 });
