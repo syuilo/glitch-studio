@@ -17,6 +17,7 @@
 		"@webgpu/types": "0.1.72"
 	},
 	"dependencies": {
-		"bezier-easing": "3.0.1"
+		"bezier-easing": "3.0.1",
+		"webgpu-utils": "2.1.1"
 	}
 }

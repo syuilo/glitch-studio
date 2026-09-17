@@ -193,6 +193,9 @@ importers:
       bezier-easing:
         specifier: 3.0.1
         version: 3.0.1
+      webgpu-utils:
+        specifier: 2.1.1
+        version: 2.1.1
     devDependencies:
       '@typescript-eslint/eslint-plugin':
         specifier: 8.59.2
