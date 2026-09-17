@@ -38,6 +38,7 @@ import colorMix from './effects/colorMix/_def_.ts';
 import dataBlend from './effects/dataBlend/_def_.ts';
 import dataMix from './effects/dataMix/_def_.ts';
 import drosteRegression from './effects/drosteRegression/_def_.ts';
+import testStructArray from './effects/testStructArray/_def_.ts';
 import type { EffectDefinition } from './effect-definition.ts';
 import type { EffectParamDefs } from '@glitch/shared/types.ts';
 
@@ -82,6 +83,7 @@ const _effectDefinitions = {
 	dataBlend,
 	dataMix,
 	drosteRegression,
+	testStructArray,
 } as Record<string, Omit<EffectDefinition<any>, 'paramDefs'> & { paramDefs: EffectParamDefs }>;
 
 const effectDefinitions = {} as typeof _effectDefinitions;

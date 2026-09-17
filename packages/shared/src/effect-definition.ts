@@ -1,64 +1,63 @@
 import type { NodeOutputReference, NodeParamValue } from './types.ts';
 
-export type NumberOptionSchema = {
-	type: 'number';
+type EffectOptionSchemaBase = {
 	label: string;
+} & ({
+	array?: false;
+} | {
+	array: true;
+});
+
+export type NumberOptionSchema = EffectOptionSchemaBase & {
+	type: 'number';
 	min?: number;
 	max?: number;
 	step?: number;
 	canNode?: boolean;
 };
 
-export type BooleanOptionSchema = {
+export type BooleanOptionSchema = EffectOptionSchemaBase & {
 	type: 'bool';
-	label: string;
 	canNode?: false;
 };
 
 // -1〜+1を-180〜+180度として扱う角度。正の値は画面上で時計回り。
-export type AngleOptionSchema = {
+export type AngleOptionSchema = EffectOptionSchemaBase & {
 	type: 'angle';
-	label: string;
 	step?: number;
 	canNode?: boolean;
 };
 
-export type ColorOptionSchema = {
+export type ColorOptionSchema = EffectOptionSchemaBase & {
 	type: 'color';
-	label: string;
 	canNode?: boolean;
 };
 
-export type VectorOptionSchema = {
+export type VectorOptionSchema = EffectOptionSchemaBase & {
 	type: 'vector';
-	label: string;
 	min?: number;
 	max?: number;
 	step?: number;
 	canNode?: boolean;
 };
 
-export type SignalOptionSchema = {
+export type SignalOptionSchema = EffectOptionSchemaBase & {
 	type: 'signal';
-	label: string;
 	canNode?: false;
 };
 
-export type BlendModeOptionSchema = {
+export type BlendModeOptionSchema = EffectOptionSchemaBase & {
 	type: 'blendMode';
-	label: string;
 	canNode?: false;
 };
 
-export type FitModeOptionSchema = {
+export type FitModeOptionSchema = EffectOptionSchemaBase & {
 	type: 'fitMode';
-	label: string;
 	canNode?: false;
 };
 
-export type WrapModeOptionSchema = {
+export type WrapModeOptionSchema = EffectOptionSchemaBase & {
 	type: 'wrapMode';
-	label: string;
 	canTransparent?: boolean;
 	canNode?: false;
 };
@@ -66,15 +65,13 @@ export type WrapModeOptionSchema = {
 export type WrapModeValue<T extends WrapModeOptionSchema> = 'clampToEdge' | 'repeat' | 'repeatMirrored'
 	| ('canTransparent' extends keyof T ? true extends T['canTransparent'] ? 'transparent' : never : never);
 
-export type SeedOptionSchema = {
+export type SeedOptionSchema = EffectOptionSchemaBase & {
 	type: 'seed';
-	label: string;
 	canNode?: false;
 };
 
-export type EnumOptionSchema = {
+export type EnumOptionSchema = EffectOptionSchemaBase & {
 	type: 'enum';
-	label: string;
 	options: readonly {
 		value: string | number | null;
 		label: string;
@@ -82,25 +79,27 @@ export type EnumOptionSchema = {
 	canNode?: false;
 };
 
-export type RangeOptionSchema = {
+export type RangeOptionSchema = EffectOptionSchemaBase & {
 	type: 'range';
-	label: string;
 	min: number;
 	max: number;
 	step?: number;
 	canNode?: boolean;
 };
 
-export type ImageOptionSchema = {
+export type ImageOptionSchema = EffectOptionSchemaBase & {
 	type: 'image';
-	label: string;
 	canNode?: false;
 };
 
-export type PlayerOptionSchema = {
+export type PlayerOptionSchema = EffectOptionSchemaBase & {
 	type: 'player';
-	label: string;
 	canNode?: false;
+};
+
+export type StructOptionSchema = EffectOptionSchemaBase & {
+	type: 'struct';
+	fields: EffectOptionsSchemaWithDefaults;
 };
 
 export type EffectOptionsSchema = Record<string,
@@ -117,11 +116,12 @@ export type EffectOptionsSchema = Record<string,
 	RangeOptionSchema |
 	AngleOptionSchema |
 	ImageOptionSchema |
-	PlayerOptionSchema
+	PlayerOptionSchema |
+	StructOptionSchema
 >;
 
 // A type parameter distributes the conditional over unions of option schemas.
-type EffectOptionValue<T extends EffectOptionsSchema[string]> =
+type EffectOptionScalarValue<T extends EffectOptionsSchema[string]> =
 	T extends NumberOptionSchema ? number :
 	T extends BooleanOptionSchema ? boolean :
 	T extends ColorOptionSchema ? Readonly<[number, number, number, number]> :
@@ -136,22 +136,38 @@ type EffectOptionValue<T extends EffectOptionsSchema[string]> =
 	T extends AngleOptionSchema ? number :
 	T extends ImageOptionSchema ? null :
 	T extends PlayerOptionSchema ? null :
+	T extends StructOptionSchema ? {
+		[K in keyof T['fields']]: EffectOptionDefaultValue<T['fields'][K]>;
+	} :
+	never;
+
+type EffectOptionValue<T extends EffectOptionsSchema[string]> = T extends unknown ?
+	T extends { array: true } ? EffectOptionScalarValue<T>[] : EffectOptionScalarValue<T> :
 	never;
 
 export type GetEffectOptionsSchemaValues<T extends EffectOptionsSchema> = {
 	[K in keyof T]: EffectOptionValue<T[K]>;
 };
 
-type EffectOptionsSchemaDefaultValue<T extends EffectOptionsSchema, K extends keyof T> =
-	{ type: 'literal'; value: GetEffectOptionsSchemaValues<T>[K] } |
+type EffectOptionSerializedValue<T extends EffectOptionsSchema[string]> =
+	{ type: 'literal'; value: EffectOptionScalarValue<T> } |
 	{ type: 'expression'; expression: string } |
 	{ type: 'automation'; automationId: string | null } |
 	NodeParamValue;
+
+type EffectOptionDefaultValue<T extends EffectOptionsSchema[string]> = T extends unknown ?
+	T extends { array: true } ? EffectOptionSerializedValue<T>[] : EffectOptionSerializedValue<T> :
+	never;
+
+type EffectOptionsSchemaDefaultValue<T extends EffectOptionsSchema, K extends keyof T> =
+	EffectOptionDefaultValue<T[K]>;
 
 // コールバックの戻り値にも、パラメータの種類に応じた型を付ける。
 type EffectOptionSchemaWithDefault<T extends EffectOptionsSchema[string]> = T extends unknown ? T & {
 	default: () => EffectOptionsSchemaDefaultValue<{ param: T }, 'param'>;
 } : never;
+
+type EffectOptionsSchemaWithDefaults = Record<string, EffectOptionSchemaWithDefault<EffectOptionsSchema[string]>>;
 
 type EffectOptionsSchemaDefaults<T extends EffectOptionsSchema> = {
 	[K in keyof T]: { default: () => EffectOptionsSchemaDefaultValue<NoInfer<T>, K> };

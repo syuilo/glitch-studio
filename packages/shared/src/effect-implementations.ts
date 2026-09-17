@@ -38,6 +38,7 @@ import video from './effects/video/_impl_.ts';
 import water from './effects/water/_impl_.ts';
 import waveform from './effects/waveform/_impl_.ts';
 import pointerTrail from './effects/pointerTrail/_impl_.ts';
+import testStructArray from './effects/testStructArray/_impl_.ts';
 import type { EffectImplementation } from '@glitch/shared/effect-implementation.js';
 
 const _effectImplementations = {
@@ -81,6 +82,7 @@ const _effectImplementations = {
 	water,
 	waveform,
 	pointerTrail,
+	testStructArray,
 } as Record<string, EffectImplementation<any>>;
 
 const effectImplementations = {} as typeof _effectImplementations;

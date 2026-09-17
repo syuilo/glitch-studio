@@ -18,45 +18,7 @@
 	</div>
 
 	<div v-show="expanded" :class="$style.params" :inert="node.isBypass">
-		<div v-for="param in Object.keys(paramDefs)" v-show="paramDefs[param].visibility == null || paramDefs[param].visibility(node.params)" :key="param" :ref="el => setParamRow(param, el)" :class="$style.param" data-wire-input-row>
-			<div :class="[$style.paramLabel, { [$style.expression]: isExpression(param) }]" @click="showPerParamMenu(param, $event)">
-				<GsCondensedLine>{{ paramDefs[param].label }}</GsCondensedLine>
-			</div>
-			<div :class="$style.paramBody">
-				<GsNodePort v-if="paramDefs[param].canNode" :dataType="getNodeInputDataType(paramDefs[param])" @update:element="portEl = $event"/>
-				<i v-if="hasNodeInputTypeMismatch(appContext.state.nodes.value, getParam(param))" v-tooltip="'Data type mismatch'" class="ti ti-alert-triangle" :class="$style.typeWarning"></i>
-
-				<div style="flex: 1;">
-					<GsInput v-if="isExpression(param)" type="text" :modelValue="getParam(param)" @update:modelValue="updateParamAsExpression(param, $event)">
-						<template #caption>
-							<div v-if="isExpressionSyntaxError[param]" style="color: var(--THEME-error);"><i class="ti ti-alert-triangle"></i> Syntax error!</div>
-						</template>
-					</GsInput>
-					<GsButton v-else-if="isAutomation(param)" @click="selectAutomation(param, $event)">{{ node.params[param].automationId ? appContext.state.automations.value.find(a => a.id === node.params[param].automationId).name : '(none)' }}</GsButton>
-					<div v-else-if="isNode(param)">
-						<GsSelect
-							small
-							style="flex: 1; min-width: 0;"
-							:modelValue="nodeOutputKey(node.params[param])"
-							:items="[{ label: i18n.ts.None, value: null }, ...getNodeOutputItems(appContext.state.nodes.value, props.node.id)]"
-							@update:modelValue="updateParamAsNode(param, $event)"
-						/>
-					</div>
-					<GsEffectParamControl
-						v-else
-						:type="paramDefs[param].type"
-						:name="param"
-						:title="paramDefs[param].label"
-						:options="paramDefs[param]"
-						:value="getParam(param)"
-						@input="updateParamAsLiteral(param, $event)"
-						@beginChanging="onBeginChanging(param)"
-						@changeContinuous="changeContinuous(param, $event)"
-						@changeFinished="onFinishChanging(param)"
-					/>
-				</div>
-			</div>
-		</div>
+		<GsEffectNodeParam v-for="param in Object.keys(paramDefs)" :key="param" :ref="el => setParamRow(param, el)" :node="node" :paramDef="paramDefs[param]" :paramValue="node.params[param]" :class="$style.param"/>
 	</div>
 
 	<GsNodeOutputs :node="node"/>
@@ -66,22 +28,16 @@
 <script lang="ts" setup>
 import { ref, computed, shallowRef, watchEffect } from 'vue';
 import { effectDefinitions } from '@glitch/shared/effect-definitions.ts';
-import { genId } from '@glitch/shared/utility/id.ts';
 import { areNodeDataTypesCompatible, getNodeInputDataType } from '@glitch/shared/utility/node-outputs.ts';
-import * as AiScript from '@syuilo/aiscript';
 import GsNodeOutputs from './GsNodeOutputs.vue';
 import GsNodePort from './GsNodePort.vue';
-import GsEffectParamControl from './GsEffectParamControl.vue';
+import GsEffectNodeParam from './GsEffectNodeParam.vue';
 import GsButton from './common/GsButton.vue';
-import GsInput from './common/GsInput.vue';
-import GsCondensedLine from './common/GsCondensedLine.vue';
-import GsSelect from './common/GsSelect.vue';
 import type { ComponentPublicInstance } from 'vue';
-import type { GsAutomation, GsEffectNode, GsGroupNode, GsNode } from '@glitch/shared/types.ts';
-import type { MenuItem } from '@/types/menu.ts';
+import type { GsEffectNode, GsGroupNode } from '@glitch/shared/types.ts';
 import { i18n } from '@/i18n.ts';
 import { appContext, engine, wireMap } from '@/app.ts';
-import { getNodeOutputItems, hasNodeInputTypeMismatch, nodeOutputKey } from '@/utility/node-outputs.ts';
+import { getNodeOutputItems, nodeOutputKey } from '@/utility/node-outputs.ts';
 import { registerWireInput } from '@/utility/wire-drag.ts';
 import * as ui from '@/ui.ts';
 
@@ -120,175 +76,6 @@ const effectStatus = computed(() => engine.effectStatuses.get(props.node.id));
 function showEffectError() {
 	if (effectStatus.value?.type !== 'error') return;
 	void ui.alert({ type: 'error', title: name.value, text: effectStatus.value.message });
-}
-
-function isExpression(param: string) {
-	return props.node.params[param].type === 'expression';
-}
-
-function isAutomation(param: string) {
-	return props.node.params[param].type === 'automation';
-}
-
-function isNode(param: string) {
-	return props.node.params[param].type === 'node';
-}
-
-const aisParser = new AiScript.Parser();
-
-const aiscript = new AiScript.Interpreter({});
-
-const isExpressionSyntaxError = computed(() => {
-	const result: Record<string, boolean> = {};
-	for (const param in props.node.params) {
-		if (!isExpression(param)) continue;
-		try {
-			aisParser.parse(props.node.params[param].expression);
-		} catch (err) {
-			result[param] = true;
-		}
-	}
-	return result;
-});
-
-function getParam(param: string) {
-	const value = props.node.params[param];
-	switch (value.type) {
-		case 'expression': return value.expression;
-		case 'automation': return value.automationId;
-		case 'node': return value.nodeId == null ? null : { nodeId: value.nodeId, outputPort: value.outputPort };
-		case 'literal': return value.value;
-	}
-}
-
-async function selectAutomation(param: string, ev: MouseEvent) {
-	const a = await new Promise<GsAutomation | null>((res) => {
-		ui.popupMenu([{
-			text: '(none)',
-			action: () => {
-				res(null);
-			},
-		}, ...(appContext.state.automations.value.map(a => ({
-			text: a.name,
-			action: () => {
-				res(a);
-			},
-		})))], ev.currentTarget ?? ev.target);
-	});
-
-	appContext.commit('updateParamAsAutomation', {
-		nodeId: props.node.id,
-		param: param,
-		value: a?.id ?? null,
-	});
-}
-
-async function showPerParamMenu(param: string, ev: PointerEvent) {
-	const menuItems: MenuItem[] = [{
-		text: 'Copy',
-		action: () => {
-		},
-	}, {
-		text: 'Paste',
-		action: () => {
-		},
-	}, {
-		text: 'Reset',
-		danger: true,
-		action: () => {
-			appContext.commit('resetNodeParam', {
-				nodeId: props.node.id,
-				param: param,
-			});
-		},
-	}, {
-		type: 'label',
-		text: 'Type',
-	}, {
-		text: 'Literal',
-		action: () => {
-			appContext.commit('changeParamValueType', {
-				nodeId: props.node.id,
-				param: param,
-				type: 'literal',
-			});
-		},
-	}, {
-		text: 'Automation',
-		action: () => {
-			appContext.commit('changeParamValueType', {
-				nodeId: props.node.id,
-				param: param,
-				type: 'automation',
-			});
-		},
-	}, {
-		text: 'Expression',
-		action: () => {
-			appContext.commit('changeParamValueType', {
-				nodeId: props.node.id,
-				param: param,
-				type: 'expression',
-			});
-		},
-	}];
-
-	if (paramDefs[param].canNode) {
-		menuItems.push({
-			text: 'Node',
-			action: () => {
-				appContext.commit('changeParamValueType', {
-					nodeId: props.node.id,
-					param: param,
-					type: 'node',
-				});
-			},
-		});
-	}
-
-	ui.popupMenu(menuItems, ev.currentTarget ?? ev.target);
-}
-
-let commandMergeKey: string | null = null;
-
-function onBeginChanging(param: string) {
-	commandMergeKey = genId();
-}
-
-function changeContinuous(param: string, value: any) {
-	appContext.commit('updateParamAsLiteral', {
-		nodeId: props.node.id,
-		param: param,
-		value: value,
-	}, commandMergeKey);
-}
-
-function onFinishChanging(param: string) {
-	commandMergeKey = null;
-}
-
-function updateParamAsLiteral(param: string, value: any) {
-	appContext.commit('updateParamAsLiteral', {
-		nodeId: props.node.id,
-		param: param,
-		value: value,
-	});
-}
-
-function updateParamAsExpression(param: string, value: string) {
-	appContext.commit('updateParamAsExpression', {
-		nodeId: props.node.id,
-		param: param,
-		value: value,
-	});
-}
-
-function updateParamAsNode(param: string, key) {
-	appContext.commit('updateParamAsNode', {
-		nodeId: props.node.id,
-		param: param,
-		value: getNodeOutputItems(appContext.state.nodes.value, props.node?.id, getNodeInputDataType(paramDefs[param])).find(item => item.value === key)?.connection,
-	});
 }
 
 function remove() {
@@ -406,45 +193,5 @@ watchEffect(onCleanup => {
 		opacity: 0.7;
 		pointer-events: none;
 	}
-}
-
-.param {
-	display: flex;
-	padding: 3px 16px;
-	box-sizing: border-box;
-	min-height: 30px;
-
-	&:hover {
-		background: #ffffff08;
-	}
-}
-
-.paramLabel {
-	place-content: center left;
-	width: 35%;
-	box-sizing: border-box;
-	padding-right: 12px;
-	flex-shrink: 0;
-	white-space: nowrap;
-	text-overflow: ellipsis;
-	overflow: clip;
-	font-size: 95%;
-	cursor: pointer;
-
-	&.expression {
-		color: var(--THEME-expression);
-	}
-}
-
-.paramBody {
-	display: flex;
-	width: 65%;
-	flex-shrink: 1;
-	align-items: center;
-	gap: 8px;
-}
-
-.typeWarning {
-	color: var(--THEME-warn);
 }
 </style>

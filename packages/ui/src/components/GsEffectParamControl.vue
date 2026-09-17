@@ -203,7 +203,6 @@ const props = defineProps<{
 	type: string;
 	value: any;
 	options?: any;
-	name?: string;
 	title?: string;
 }>();
 
