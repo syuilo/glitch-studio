@@ -6,7 +6,7 @@ export default defineEffect({
 	tags: [],
 	paramDefs: {
 		input: { type: 'color', label: 'Input', canNode: true, primary: true, default: () => ({ type: 'node', nodeId: null, outputPort: null }) },
-		vector: { type: 'node', label: 'Vector', dataType: 'vector', default: () => ({ type: 'literal', value: null }) },
+		vector: { type: 'vector', label: 'Vector', canNode: true, mim: -1, max: 1, default: () => ({ type: 'literal', value: [0, 0] }) },
 		amount: { type: 'range', label: 'Amount', min: -1, max: 1, step: 0.001, default: () => ({ type: 'literal', value: 0.05 }) },
 		flipX: { type: 'bool', label: 'Flip X', default: () => ({ type: 'literal', value: false }) },
 		flipY: { type: 'bool', label: 'Flip Y', default: () => ({ type: 'literal', value: false }) },

@@ -1,13 +1,16 @@
-import type definition from './_def_.ts';
 import { implementEffect } from '../../effect-implementation.ts';
 import code from './shader.wgsl?raw';
+import type definition from './_def_.ts';
 
 export default implementEffect<typeof definition>({
-	getOut: ({ wgpu, resolution }) => wgpu.device.createTexture({
-		size: resolution,
-		format: wgpu.intermediateTextureFormat,
-		usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
-	}),
+	getOut: ({ wgpu, resolution }) => {
+		const out = wgpu.device.createTexture({
+			size: resolution,
+			format: wgpu.intermediateTextureFormat,
+			usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
+		});
+		return { output: out };
+	},
 	init: ({ wgpu: { device, defaultVertexShaderModule, intermediateTextureFormat }, resolution, params, fallbackTexture }) => {
 		const module = device.createShaderModule({ code });
 		const pipeline = device.createRenderPipeline({
