@@ -1,6 +1,6 @@
 export type EffectParamDataType = 'number' | 'angle' | 'range' | 'range2' | 'enum' | 'bool' | 'blendMode' | 'fitMode' | 'wrapMode' | 'signal' | 'xy' | 'wh' | 'color' | 'vector' | 'seed' | 'time' | 'image' | 'player';
 
-export type NodeOutputReference = { nodeId: string; outputPort: string };
+export type NodeOutputReference = { nodeId: string; outputPort: string; fitMode?: string; wrapMode?: string };
 export type NodeParamValue = { type: 'node' } & (NodeOutputReference | { nodeId: null; outputPort: null });
 
 export type EffectParamValue = {
