@@ -261,7 +261,7 @@ export async function newProject() {
 
 export async function newProjectFromImageOrVideo(file?: File) {
 	const result = await api.openMediaFile({ file });
-	if (result == null) return;
+	if (result == null) return false;
 
 	const assetId = genId();
 
@@ -321,6 +321,8 @@ export async function newProjectFromImageOrVideo(file?: File) {
 			},
 		});
 	}
+
+	return true;
 }
 
 export const workspacePanelDraggingContext = {

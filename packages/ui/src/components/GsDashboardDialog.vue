@@ -38,8 +38,10 @@ async function _newProject() {
 }
 
 async function _newProjectFromImageOrVideo() {
-	await newProjectFromImageOrVideo();
-	modal.value!.close();
+	const opened = await newProjectFromImageOrVideo();
+	if (opened) {
+		modal.value!.close();
+	}
 }
 
 async function onDrop(event: DragEvent) {
