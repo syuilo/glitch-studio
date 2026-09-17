@@ -1,8 +1,8 @@
 <template>
 <div :class="[$style.root, { [$style.isBypass]: node.isBypass }]">
-	<GsNodePort :class="$style.allInPort" dataType="any" @update:element="allInPortEl = $event"/>
 	<div :class="[$style.header, { [$style.hasStatus]: effectStatus?.type === 'loading' || effectStatus?.type === 'error' }]" class="drag-handle" @dblclick="expanded = !expanded">
 		<div :class="$style.headerLeft">
+			<GsNodePort :class="$style.allInPort" dataType="any" @update:element="allInPortEl = $event"/>
 			<div :class="$style.effectName">{{ name }}</div>
 			<div v-if="effectStatus?.type === 'loading'" :class="$style.headerButton" inline small iconOnly title="Loading…"><i class="ti ti-loader-2" :class="$style.loading"></i></div>
 			<div v-else-if="effectStatus?.type === 'error'" :class="[$style.headerButton, $style.error]" inline small iconOnly :title="effectStatus.message" @click.stop="showEffectError"><i class="ti ti-alert-triangle"></i></div>
@@ -320,23 +320,19 @@ watchEffect(onCleanup => {
 }
 
 .allInPort {
-	position: absolute;
-	top: 0;
-	left: 0;
 }
 
 .header {
 	display: flex;
-	padding: 0 0 0 20px;
 	&.hasStatus { padding-right: 117px; }
 	white-space: nowrap;
-	overflow: hidden;
+	overflow: clip;
+	height: 32px;
 	text-overflow: ellipsis;
 	font-size: 95%;
 	cursor: move;
-	line-height: 32px;
-	//background: linear-gradient(0deg, var(--THEME-nodeBg), hsl(from var(--THEME-nodeBg) h s calc(l + 5)));
-	background: var(--THEME-nodeBg);
+	background: linear-gradient(0deg, var(--THEME-nodeBg), hsl(from var(--THEME-nodeBg) h s calc(l + 5)));
+	//background: var(--THEME-nodeBg);
 
 	&.disabled {
 		pointer-events: none;
@@ -346,11 +342,16 @@ watchEffect(onCleanup => {
 .headerLeft {
 	display: flex;
 	margin-right: auto;
+	padding-left: 8px;
+	align-items: center;
+	gap: 8px;
 }
 
 .headerRight {
 	display: flex;
 	margin-left: auto;
+	align-items: center;
+	gap: 8px;
 }
 
 .effectName {
