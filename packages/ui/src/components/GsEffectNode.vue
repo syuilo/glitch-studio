@@ -1,14 +1,20 @@
 <template>
 <div :class="[$style.root, { [$style.isBypass]: node.isBypass }]">
 	<GsNodePort :class="$style.allInPort" dataType="any" @update:element="allInPortEl = $event"/>
-	<div :class="[$style.header, { [$style.hasStatus]: effectStatus?.type === 'loading' || effectStatus?.type === 'error' }]" class="drag-handle" @dblclick="expanded = !expanded">{{ name }}</div>
-	<div :class="[$style.indicator]"></div>
-	<div :class="$style.headerButtons">
-		<GsButton v-if="effectStatus?.type === 'loading'" :class="$style.headerButton" inline small iconOnly title="Loading…"><i class="ti ti-loader-2" :class="$style.loading"></i></GsButton>
-		<GsButton v-else-if="effectStatus?.type === 'error'" :class="[$style.headerButton, $style.error]" inline small iconOnly :title="effectStatus.message" @click.stop="showEffectError"><i class="ti ti-alert-triangle"></i></GsButton>
-		<GsButton :class="[$style.headerButton]" inline small iconOnly @click="expanded = !expanded"><i class="ti" :class="expanded ? 'ti-chevron-up' : 'ti-chevron-down'"></i></GsButton>
-		<GsButton :class="[$style.headerButton]" inline small iconOnly :primary="node.isBypass" :title="node.isBypass ? i18n.ts.ClickToDisable : i18n.ts.ClickToEnable" @click="toggleBypass()"><i class="ti" :class="node.isBypass ? 'ti-eye' : 'ti-eye-off'"></i></GsButton>
-		<GsButton :class="[$style.headerButton]" inline small iconOnly :title="i18n.ts.RemoveEffect" @click="remove()"><i class="ti ti-x"></i></GsButton>
+	<div :class="[$style.header, { [$style.hasStatus]: effectStatus?.type === 'loading' || effectStatus?.type === 'error' }]" class="drag-handle" @dblclick="expanded = !expanded">
+		<div :class="$style.headerLeft">
+			<div :class="$style.effectName">{{ name }}</div>
+			<div v-if="effectStatus?.type === 'loading'" :class="$style.headerButton" inline small iconOnly title="Loading…"><i class="ti ti-loader-2" :class="$style.loading"></i></div>
+			<div v-else-if="effectStatus?.type === 'error'" :class="[$style.headerButton, $style.error]" inline small iconOnly :title="effectStatus.message" @click.stop="showEffectError"><i class="ti ti-alert-triangle"></i></div>
+		</div>
+		<div :class="$style.headerRight">
+			<div :class="$style.nodeId" class="_monospace">{{ node.id }}</div>
+			<div :class="$style.headerButtons">
+				<GsButton :class="[$style.headerButton]" inline small iconOnly @click="expanded = !expanded"><i class="ti" :class="expanded ? 'ti-chevron-up' : 'ti-chevron-down'"></i></GsButton>
+				<GsButton :class="[$style.headerButton]" inline small iconOnly :primary="node.isBypass" :title="node.isBypass ? i18n.ts.ClickToDisable : i18n.ts.ClickToEnable" @click="toggleBypass()"><i class="ti" :class="node.isBypass ? 'ti-eye' : 'ti-eye-off'"></i></GsButton>
+				<GsButton :class="[$style.headerButton]" inline small iconOnly :title="i18n.ts.RemoveEffect" @click="remove()"><i class="ti ti-x"></i></GsButton>
+			</div>
+		</div>
 	</div>
 
 	<div v-show="expanded" :class="$style.params" :inert="!node.isBypass">
@@ -28,9 +34,9 @@
 					type="node"
 					:node="node"
 					:group="group"
-						:name="param"
-						:options="paramDefs[param]"
-						:value="getParam(param)"
+					:name="param"
+					:options="paramDefs[param]"
+					:value="getParam(param)"
 					@input="value => appContext.commit('updateParamAsNode', { nodeId: node.id, param, value })"
 				/>
 				<GsEffectParamControl
@@ -320,13 +326,13 @@ watchEffect(onCleanup => {
 }
 
 .header {
-	padding: 0 88px 0 20px;
+	display: flex;
+	padding: 0 0 0 20px;
 	&.hasStatus { padding-right: 117px; }
 	white-space: nowrap;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	font-size: 95%;
-	font-weight: bold;
 	cursor: move;
 	line-height: 32px;
 	//background: linear-gradient(0deg, var(--THEME-nodeBg), hsl(from var(--THEME-nodeBg) h s calc(l + 5)));
@@ -337,34 +343,24 @@ watchEffect(onCleanup => {
 	}
 }
 
-.indicator {
-	position: absolute;
-	top: 9px;
-	left: 8px;
-	width: 4px;
-	height: 12px;
-	border-top: solid 1px transparent;
-	border-bottom: solid 1px #383838;
-	background: #111;
-	box-shadow: 0px 1px 1px rgba(0, 0, 0, 0.3) inset;
-	border-radius: 2px;
+.headerLeft {
+	display: flex;
+	margin-right: auto;
+}
 
-	&.active {
-		background: #ace620;
-		background-clip: content-box;
-	}
+.headerRight {
+	display: flex;
+	margin-left: auto;
+}
+
+.effectName {
+	font-weight: bold;
+}
+
+.nodeId {
 }
 
 .headerButtons {
-	position: absolute;
-	top: 4px;
-	right: 4px;
-	text-align: right;
-
-	&.disabled {
-		opacity: 0.7;
-		pointer-events: none;
-	}
 }
 
 .headerButton {

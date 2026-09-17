@@ -1,6 +1,5 @@
 <template>
 <div :class="$style.footer">
-	<code :class="$style.nodeId">{{ node.id }}</code>
 	<div v-for="(output, port) in ports" :key="port" :class="$style.output">
 		<span>{{ port }}</span>
 		<span :class="$style.dataType" :style="{ color: getNodeDataTypeColor(output.dataType) }">{{ output.dataType }}</span>
