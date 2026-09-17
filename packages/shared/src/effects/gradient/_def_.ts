@@ -43,6 +43,7 @@ export default defineEffect({
 		},
 	},
 	outputs: {
-		output: { primary: true, dataType: 'scalar' },
+		scalar: { primary: true, dataType: 'scalar' },
+		vector: { primary: false, dataType: 'vector' },
 	},
 });

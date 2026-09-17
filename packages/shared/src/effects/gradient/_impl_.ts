@@ -5,12 +5,18 @@ import type definition from './_def_.ts';
 
 export default implementEffect<typeof definition>({
 	getOut: ({ wgpu, resolution }) => {
-		const out = wgpu.device.createTexture({
-			size: resolution,
-			format: wgpu.enable32bitDataTextures ? 'r32float' : 'r16float',
-			usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
-		});
-		return { output: out };
+		return {
+			scalar: wgpu.device.createTexture({
+				size: resolution,
+				format: wgpu.enable32bitDataTextures ? 'r32float' : 'r16float',
+				usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
+			}),
+			vector: () => wgpu.device.createTexture({
+				size: resolution,
+				format: wgpu.enable32bitDataTextures ? 'rg32float' : 'rg16float',
+				usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
+			}),
+		};
 	},
 	init: ({ wgpu, resolution }) => {
 		const shaderModule = wgpu.device.createShaderModule({
@@ -33,6 +39,7 @@ export default implementEffect<typeof definition>({
 			},
 			fragment: {
 				module: shaderModule,
+				entryPoint: 'fs',
 				targets: [{
 					format: wgpu.enable32bitDataTextures ? 'r32float' : 'r16float',
 				}],
@@ -40,6 +47,23 @@ export default implementEffect<typeof definition>({
 			primitive: {
 				topology: 'triangle-list',
 			},
+			layout: wgpu.device.createPipelineLayout({ bindGroupLayouts: [bindGroupLayout] }),
+		});
+
+		// 勾配を使うまで追加パイプラインも作成しない。
+		let gradientPipeline: GPURenderPipeline | undefined;
+		const getGradientPipeline = () => gradientPipeline ??= wgpu.device.createRenderPipeline({
+			vertex: { module: wgpu.defaultVertexShaderModule },
+			fragment: {
+				module: shaderModule,
+				entryPoint: 'fsWithGradient',
+				constants: { CALCULATE_GRADIENT: 1 },
+				targets: [
+					{ format: wgpu.enable32bitDataTextures ? 'r32float' : 'r16float' },
+					{ format: wgpu.enable32bitDataTextures ? 'rg32float' : 'rg16float' },
+				],
+			},
+			primitive: { topology: 'triangle-list' },
 			layout: wgpu.device.createPipelineLayout({ bindGroupLayouts: [bindGroupLayout] }),
 		});
 
@@ -79,8 +103,15 @@ export default implementEffect<typeof definition>({
 					});
 				}
 
-				const passEncoder = ctx.createPassEncoderFor(ctx.commandEncoder, ctx.outputDataMap.output.textureView);
-				passEncoder.setPipeline(pipeline);
+				const needsGradient = ctx.usedOutputPorts?.has('gradient') ?? true;
+				const passEncoder = needsGradient
+					? ctx.createPassEncoder(ctx.commandEncoder, {
+						colorAttachments: [ctx.outputDataMap.scalar.textureView, ctx.outputDataMap.vector.textureView].map(view => ({
+							view, clearValue: { r: 0, g: 0, b: 0, a: 0 }, loadOp: 'clear' as const, storeOp: 'store' as const,
+						})),
+					})
+					: ctx.createPassEncoderFor(ctx.commandEncoder, ctx.outputDataMap.scalar.textureView);
+				passEncoder.setPipeline(needsGradient ? getGradientPipeline() : pipeline);
 				passEncoder.setBindGroup(0, bindGroup);
 				passEncoder.draw(6);
 				passEncoder.end();
