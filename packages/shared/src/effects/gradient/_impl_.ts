@@ -20,9 +20,9 @@ export default implementEffect<typeof definition>({
 		const shaderDataDefinitions = makeShaderDataDefinitions(code);
 		const sampler = wgpu.device.createSampler({ minFilter: 'linear', magFilter: 'linear' });
 		const bindGroupLayout = wgpu.device.createBindGroupLayout({ entries: [
-			{ binding: 5, visibility: GPUShaderStage.FRAGMENT, sampler: { type: 'filtering' } },
+			{ binding: 7, visibility: GPUShaderStage.FRAGMENT, sampler: { type: 'filtering' } },
 			{ binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },
-			...[1, 2, 3, 4].map(binding => ({
+			...[1, 2, 3, 4, 5, 6].map(binding => ({
 				binding, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float' as const },
 			})),
 		] });
@@ -62,13 +62,13 @@ export default implementEffect<typeof definition>({
 					interpolation: { linear: 0, smoothstep: 1, smootherstep: 2, cosine: 3, circular: 4, back: 5, elastic: 6, expo: 7, 'expo-in': 8, 'expo-out': 9 }[ctx.params.interpolation],
 				});
 				wgpu.device.queue.writeBuffer(uniformBuffer, 0, uniformValues.arrayBuffer);
-				const inputs = [ctx.params.startPosition, ctx.params.endPosition, ctx.params.startValue, ctx.params.endValue];
+				const inputs = [ctx.params.startPosition, ctx.params.endPosition, ctx.params.startValue, ctx.params.endValue, ctx.params.frequency, ctx.params.phase];
 				if (inputs.some((texture, i) => texture !== textures[i])) {
 					textures = inputs;
 					bindGroup = wgpu.device.createBindGroup({
 						layout: bindGroupLayout,
 						entries: [
-							{ binding: 5, resource: sampler },
+							{ binding: 7, resource: sampler },
 							{ binding: 0, resource: { buffer: uniformBuffer } },
 							...textures.map((texture, i) => ({ binding: i + 1, resource: texture.createView() })),
 						],

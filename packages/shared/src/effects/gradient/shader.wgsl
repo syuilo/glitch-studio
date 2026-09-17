@@ -1,4 +1,4 @@
-@group(0) @binding(5) var inputSampler: sampler;
+@group(0) @binding(7) var inputSampler: sampler;
 
 struct Uniforms {
 	aspectRatio: f32,
@@ -12,6 +12,8 @@ struct Uniforms {
 @group(0) @binding(2) var endPositionTexture: texture_2d<f32>;
 @group(0) @binding(3) var startValueTexture: texture_2d<f32>;
 @group(0) @binding(4) var endValueTexture: texture_2d<f32>;
+@group(0) @binding(5) var frequencyTexture: texture_2d<f32>;
+@group(0) @binding(6) var phaseTexture: texture_2d<f32>;
 
 fn sampleScalar(tex: texture_2d<f32>, uv: vec2f) -> f32 {
 	// 各入力を出力全体にstretchし、定数の1x1や異なる解像度にも対応する。
@@ -29,6 +31,8 @@ fn fs(fragData: FragmentIn) -> @location(0) f32 {
 	let endPosition = sampleScalar(endPositionTexture, uv);
 	let startValue = sampleScalar(startValueTexture, uv);
 	let endValue = sampleScalar(endValueTexture, uv);
+	let frequency = sampleScalar(frequencyTexture, uv);
+	let phase = sampleScalar(phaseTexture, uv);
 	let direction = vec2f(sin(uniforms.angle), cos(uniforms.angle));
 	var position = fragData.uv;
 	// 正方形の基準領域をcoverでは長辺、containでは短辺に合わせてから射影する。
@@ -45,7 +49,13 @@ fn fs(fragData: FragmentIn) -> @location(0) f32 {
 	if (span != 0.0) {
 		t = clamp((projectedPosition - startPosition) / span, 0.0, 1.0);
 	}
-	// 範囲外と両端は指定値を厳密に保つ（elastic・expoの指数項も端点では評価しない）。
+	// 開始〜終了の区間内で周期を繰り返す。phaseは1ごとに同じ表示に戻る。
+	let cycle = t * frequency + fract(phase);
+	let repeatedPosition = fract(cycle);
+	// 区間の終端で周期が完了した場合は終了値を保ち、初期設定の表示を維持する。
+	// 区間内部の周期境界は開始値へ折り返す。
+	t = select(repeatedPosition, 1.0, t == 1.0 && cycle > 0.0 && repeatedPosition == 0.0);
+	// 両端は指定値を厳密に保つ（elastic・expoの指数項も端点では評価しない）。
 	if (t <= 0.0) { return startValue; }
 	if (t >= 1.0) { return endValue; }
 	if (uniforms.interpolation == 1u) {
