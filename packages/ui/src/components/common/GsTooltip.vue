@@ -99,7 +99,7 @@ onUnmounted(() => {
 
 .root {
 	position: absolute;
-	font-size: 0.8em;
+	font-size: 90%;
 	padding: 8px 12px;
 	box-sizing: border-box;
 	text-align: center;

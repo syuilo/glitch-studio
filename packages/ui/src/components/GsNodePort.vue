@@ -27,6 +27,9 @@ onBeforeUnmount(() => emit('update:element', null));
 .root {
 	flex-shrink: 0;
 	text-align: center;
+	width: 24px;
+	height: 24px;
+	line-height: 24px;
 	user-select: none;
 }
 
