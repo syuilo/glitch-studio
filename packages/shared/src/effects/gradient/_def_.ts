@@ -44,6 +44,6 @@ export default defineEffect({
 	},
 	outputs: {
 		scalar: { primary: true, dataType: 'scalar' },
-		vector: { primary: false, dataType: 'vector' },
+		vector: { primary: false, dataType: 'vector', canLazyAllocation: true },
 	},
 });

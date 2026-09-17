@@ -3,13 +3,13 @@ import code from './shader.wgsl?raw';
 import type definition from './_def_.ts';
 
 export default implementEffect<typeof definition>({
-	getOut: ({ wgpu, resolution }) => ({
-		output: wgpu.device.createTexture({
+	outputTextureFactories: {
+		output: ({ wgpu, resolution }) => wgpu.device.createTexture({
 			size: resolution,
 			format: wgpu.enable32bitDataTextures ? 'r32float' : 'r16float',
 			usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
 		}),
-	}),
+	},
 	init: ({ wgpu, fallbackTexture }) => {
 		const device = wgpu.device;
 		const sampler = device.createSampler({ minFilter: 'linear', magFilter: 'linear' });

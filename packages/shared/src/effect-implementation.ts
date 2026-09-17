@@ -64,16 +64,16 @@ export type EffectInstance<Options extends EffectOptionsSchema = any, Outputs ex
 export type EffectImplementation<Definition extends Pick<EffectDefinition, 'paramDefs' | 'outputs'> = EffectDefinition, Options extends EffectOptionsSchema = Definition['paramDefs']> = {
 	disableCache?: boolean;
 	needsPreviousFrame?: boolean;
-	getOut: (args: {
-		resolution: { width: number; height: number; },
-		wgpu: {
-			device: GPUDevice;
-			enable32bitDataTextures: boolean;
-			intermediateTextureFormat: IntermediateTextureFormat;
-		};
-	}) => {
-		// 関数で返した出力は、使用時だけ確保される（未使用時はoutputDataMapにも存在しない）。
-		[K in keyof Definition['outputs']]: GPUTexture | (() => GPUTexture)
+	outputTextureFactories: {
+		// canLazyAllocation=trueのポートだけ遅延確保する。それ以外はノード追加時に確保する。
+		[K in keyof Definition['outputs']]: (args: {
+			resolution: { width: number; height: number; };
+			wgpu: {
+				device: GPUDevice;
+				enable32bitDataTextures: boolean;
+				intermediateTextureFormat: IntermediateTextureFormat;
+			};
+		}) => GPUTexture;
 	};
 	shader?: string;
 	init: (args: {

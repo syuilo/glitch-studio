@@ -8,13 +8,12 @@ const haloSize = 512;
 const haloLevelCount = 6;
 
 export default implementEffect<typeof definition>({
-	getOut: ({ wgpu, resolution }) => {
-		const out = wgpu.device.createTexture({
+	outputTextureFactories: {
+		output: ({ wgpu, resolution }) => wgpu.device.createTexture({
 			size: resolution,
 			format: wgpu.intermediateTextureFormat,
 			usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
-		});
-		return { output: out };
+		}),
 	},
 	init: ({ wgpu, params, resolution, fallbackTexture }) => {
 		const { device } = wgpu;

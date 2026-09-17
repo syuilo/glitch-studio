@@ -7,13 +7,12 @@ import type definition from './_def_.ts';
 const maxTearings = 128;
 
 export default implementEffect<typeof definition>({
-	getOut: ({ wgpu, resolution }) => {
-		const out = wgpu.device.createTexture({
+	outputTextureFactories: {
+		output: ({ wgpu, resolution }) => wgpu.device.createTexture({
 			size: resolution,
 			format: wgpu.intermediateTextureFormat,
 			usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
-		});
-		return { output: out };
+		}),
 	},
 	init: ({ wgpu, params, fallbackTexture }) => {
 		const shaderModule = wgpu.device.createShaderModule({ code });

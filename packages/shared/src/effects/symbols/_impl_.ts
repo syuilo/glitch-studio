@@ -85,13 +85,12 @@ function getSymbolTextureUrls(type: string) {
 }
 
 export default implementEffect<typeof definition>({
-	getOut: ({ wgpu, resolution }) => {
-		const out = wgpu.device.createTexture({
+	outputTextureFactories: {
+		output: ({ wgpu, resolution }) => wgpu.device.createTexture({
 			size: resolution,
 			format: wgpu.intermediateTextureFormat,
 			usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
-		});
-		return { output: out };
+		}),
 	},
 	init: ({ wgpu, params, fallbackTexture, resolution, reportStatus }) => {
 		const shaderModule = wgpu.device.createShaderModule({

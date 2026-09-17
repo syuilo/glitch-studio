@@ -4,7 +4,7 @@ import { implementEffect } from '@glitch/shared/effect-implementation.ts';
 import '@glitch/shared/effects/test/_impl_.ts';
 
 implementEffect<typeof definition>({
-	getOut: ({ wgpu }) => ({ output: wgpu.device.createTexture({ size: [1, 1], format: 'rgba8unorm', usage: GPUTextureUsage.RENDER_ATTACHMENT }) }),
+	outputTextureFactories: { output: ({ wgpu }) => wgpu.device.createTexture({ size: [1, 1], format: 'rgba8unorm', usage: GPUTextureUsage.RENDER_ATTACHMENT }) },
 	init: ({ params }) => {
 		params.x.toFixed();
 		// @ts-expect-error Range parameters are numbers, not strings.

@@ -717,17 +717,10 @@ export class Renderer {
 
 		for (const node of addedNodes) {
 			const effect = effectImplementations[node.effectId];
-			const outTextureMap = effect.getOut({
+			const allocationArgs = {
 				wgpu: { device: this.gpuDevice, enable32bitDataTextures: this.enable32bitDataTextures, intermediateTextureFormat: this.intermediateTextureFormat },
 				resolution: { width: this.resolution.width, height: this.resolution.height },
-			});
-			let previousFrameTextureMap: Record<string, GPUTexture | (() => GPUTexture)> = {};
-			if (effect.needsPreviousFrame) {
-				previousFrameTextureMap = effect.getOut({
-					wgpu: { device: this.gpuDevice, enable32bitDataTextures: this.enable32bitDataTextures, intermediateTextureFormat: this.intermediateTextureFormat },
-					resolution: { width: this.resolution.width, height: this.resolution.height },
-				});
-			}
+			};
 			const outDataMap = {} as Record<string, {
 				texture: GPUTexture;
 				textureView: GPUTextureView;
@@ -735,11 +728,10 @@ export class Renderer {
 				previousFrameTextureView: GPUTextureView | undefined;
 			}>;
 			const lazy: Record<string, () => void> = {};
-			for (const [k, resource] of Object.entries(outTextureMap)) {
+			for (const [k, createTexture] of Object.entries(effect.outputTextureFactories)) {
 				const allocate = () => {
-					const tex = typeof resource === 'function' ? resource() : resource;
-					const previous = previousFrameTextureMap[k];
-					const previousTexture = typeof previous === 'function' ? previous() : previous;
+					const tex = createTexture(allocationArgs);
+					const previousTexture = effect.needsPreviousFrame ? createTexture(allocationArgs) : undefined;
 					outDataMap[k] = {
 						texture: tex,
 						textureView: tex.createView(),
@@ -747,7 +739,7 @@ export class Renderer {
 						previousFrameTextureView: previousTexture?.createView(),
 					};
 				};
-				if (typeof resource === 'function') lazy[k] = allocate;
+				if (effectDefinitions[node.effectId].outputs[k].canLazyAllocation === true) lazy[k] = allocate;
 				else allocate();
 			}
 			if (Object.keys(lazy).length > 0) this.lazyOutputs.set(node.id, lazy);

@@ -3,13 +3,13 @@ import { createWaveform } from '@glitch/shared/utility/waveform/waveform.ts';
 import { implementEffect } from '../../effect-implementation.ts';
 
 export default implementEffect<typeof definition>({
-	getOut: ({ wgpu, resolution }) => ({
-		output: wgpu.device.createTexture({
+	outputTextureFactories: {
+		output: ({ wgpu, resolution }) => wgpu.device.createTexture({
 			size: resolution,
 			format: wgpu.intermediateTextureFormat,
 			usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
 		}),
-	}),
+	},
 	init: ({ wgpu: { device, defaultVertexShaderModule, intermediateTextureFormat }, resolution }) => {
 		const waveform = createWaveform({ device, vertexShaderModule: defaultVertexShaderModule, format: intermediateTextureFormat });
 		return {

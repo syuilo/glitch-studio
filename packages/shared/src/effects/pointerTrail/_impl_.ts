@@ -6,13 +6,12 @@ import type definition from './_def_.ts';
 export default implementEffect<typeof definition>({
 	disableCache: true,
 	needsPreviousFrame: true,
-	getOut: ({ wgpu, resolution }) => {
-		const out = wgpu.device.createTexture({
+	outputTextureFactories: {
+		output: ({ wgpu, resolution }) => wgpu.device.createTexture({
 			size: resolution,
 			format: wgpu.enable32bitDataTextures ? 'rg32float' : 'rg16float',
 			usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
-		});
-		return { output: out };
+		}),
 	},
 	init: ({ wgpu, resolution }) => {
 		const shaderModule = wgpu.device.createShaderModule({

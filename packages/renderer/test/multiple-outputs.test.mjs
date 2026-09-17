@@ -40,12 +40,12 @@ test('multiple output rendering', async t => {
 		for (const name of ['testSource', 'testSink']) {
 			fxImplementations[name] = {
 				needsPreviousFrame: history && name === 'testSource', disableCache: history && name === 'testSource',
-				getOut: () => Object.fromEntries(Object.keys(fxDefinitions[name].outputs).map(port => {
+				outputTextureFactories Object.fromEntries(Object.keys(fxDefinitions[name].outputs).map(port => [port, () => {
 					const texture = device.createTexture({ size: [16, 16] });
 					texture.destroy = () => destroyed.set(texture, (destroyed.get(texture) ?? 0) + 1);
 					allocated.push(texture);
-					return [port, texture];
-				})),
+					return texture;
+				}])),
 				init: () => ({ dispose() {}, render(ctx) {
 					const outputs = Object.fromEntries(Object.entries(ctx.outputDataMap).map(([port, data]) => [port, { ...data }]));
 					for (const data of Object.values(outputs)) {

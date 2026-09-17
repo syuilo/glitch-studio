@@ -39,7 +39,7 @@ test('struct and array renderer parameters', async t => {
 		for (const [id, paramDefs] of Object.entries(defs)) {
 			definitions[id] = { id, paramDefs, outputs: { output: { dataType: 'color', primary: true }, mask: { dataType: 'scalar', primary: false } } };
 			implementations[id] = {
-				getOut: () => ({ output: device.createTexture(), mask: device.createTexture() }),
+				outputTextureFactories: { output: () => device.createTexture(), mask: () => device.createTexture() },
 				init: () => ({ dispose() {}, render(ctx) { draws.push({ id, params: ctx.params, outputs: { ...ctx.outputDataMap } }); } }),
 			};
 			t.after(() => { delete definitions[id]; delete implementations[id]; });

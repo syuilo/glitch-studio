@@ -5,13 +5,12 @@ import type definition from './_def_.ts';
 export default implementEffect<typeof definition>({
 	disableCache: true,
 	needsPreviousFrame: true,
-	getOut: ({ wgpu, resolution }) => {
-		const out = wgpu.device.createTexture({
+	outputTextureFactories: {
+		output: ({ wgpu, resolution }) => wgpu.device.createTexture({
 			size: resolution,
 			format: wgpu.enable32bitDataTextures ? 'rgba32float' : 'rgba16float',
 			usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
-		});
-		return { output: out };
+		}),
 	},
 	init: ({ wgpu: { device, defaultVertexShaderModule, enable32bitDataTextures }, params, fallbackTexture }) => {
 		const sampler = device.createSampler({ minFilter: 'linear', magFilter: 'linear' });

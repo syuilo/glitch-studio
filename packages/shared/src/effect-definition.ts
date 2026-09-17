@@ -177,7 +177,12 @@ type EffectOptionsSchemaDefaults<T extends EffectOptionsSchema> = {
 	[K in keyof T]: { default: () => EffectOptionsSchemaDefaultValue<NoInfer<T>, K> };
 };
 
-export type EffectOutputsSchema = Record<string, { dataType: 'color' | 'scalar' | 'vector' | 'any'; primary: boolean; }>;
+export type EffectOutputsSchema = Record<string, {
+	dataType: 'color' | 'scalar' | 'vector' | 'any';
+	primary: boolean;
+	// trueの出力のみ、必要になるまで確保を遅らせ、未使用になったら解放する。
+	canLazyAllocation?: boolean;
+}>;
 
 export type EffectTags = string; // TODO
 

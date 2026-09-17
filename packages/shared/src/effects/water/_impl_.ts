@@ -6,11 +6,13 @@ import { implementEffect } from '../../effect-implementation.ts';
 import code from './shader.wgsl?raw';
 
 export default implementEffect<typeof definition>({
-	getOut: ({ wgpu, resolution }) => wgpu.device.createTexture({
-		size: resolution,
-		format: wgpu.intermediateTextureFormat,
-		usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
-	}),
+	outputTextureFactories: {
+		output: ({ wgpu, resolution }) => wgpu.device.createTexture({
+			size: resolution,
+			format: wgpu.intermediateTextureFormat,
+			usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
+		}),
+	},
 	init: ({ wgpu, resolution, params, fallbackTexture }) => {
 		const { device } = wgpu;
 		const module = device.createShaderModule({ code });
