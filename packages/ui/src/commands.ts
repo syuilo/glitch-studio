@@ -7,7 +7,7 @@ import type { AppState } from './types.ts';
 import type { Asset, EffectParamDataType, EffectParamDefs, EffectParamValue, GsEffectNode, GsGroupNode, GsNode, Player, NodeOutputReference } from '@glitch/shared/types.ts';
 import { canConnectNodeDataTypes } from '@/utility/node-outputs.ts';
 import { resolveNodeParam, walkNodeParams } from '@/utility/node-params.ts';
-import type { NodeParamTarget, NodeParamValue } from '@/utility/node-params.ts';
+import type { NodeParamTarget } from '@/utility/node-params.ts';
 
 export type CommandDef<Payload> = {
 	label: string;
@@ -567,13 +567,13 @@ const updateMacroTypeOptionCommandDef = defineCommand<{ groupId?: GsGroupNode['i
 // 対象は実行・Undoのたびに解決する。配列の置換やUndo後の古い参照を保持しない。
 function defineNodeParamCommand<Payload extends NodeParamTarget>(
 	label: string,
-	update: (target: ReturnType<typeof resolveNodeParam>, payload: Payload) => NodeParamValue,
+	update: (target: ReturnType<typeof resolveNodeParam>, payload: Payload) => EffectParamValue,
 ) {
 	return defineCommand<Payload>({
 		label,
 		create: payload => {
-			let before: NodeParamValue;
-			let after: NodeParamValue | undefined;
+			let before: EffectParamValue;
+			let after: EffectParamValue | undefined;
 			return {
 				execute(state) {
 					const node = stateUtility.findNode(state, payload.nodeId);
@@ -597,7 +597,7 @@ function defineNodeParamCommand<Payload extends NodeParamTarget>(
 }
 
 function assertLeafParam(target: ReturnType<typeof resolveNodeParam>) {
-	if (target.def.type === 'array' || target.def.type === 'struct' || Array.isArray(target.value)) {
+	if (target.def.type === 'array' || target.def.type === 'struct') {
 		throw new Error('Struct and array containers cannot change value type');
 	}
 }
@@ -607,8 +607,8 @@ const changeParamValueTypeCommandDef = defineNodeParamCommand<NodeParamTarget & 
 	'Change param value type',
 	(target, payload) => {
 		assertLeafParam(target);
-		const currentValue = target.value as EffectParamValue;
-		const defaultValue = target.def.default() as EffectParamValue;
+		const currentValue = target.value;
+		const defaultValue = target.def.default();
 		const emptyValue = genEmptyValue(target.def);
 		switch (payload.type) {
 			case 'expression': return {
@@ -661,18 +661,18 @@ const updateParamAsNodeCommandDef = defineNodeParamCommand<NodeParamTarget & { v
 const addArrayParamElementCommandDef = defineNodeParamCommand<NodeParamTarget>(
 	'Add array parameter element',
 	({ def, value }) => {
-		if (def.type !== 'array' || !Array.isArray(value)) throw new Error('Expected array parameter');
+		if (def.type !== 'array' || value.type !== 'literal' || !Array.isArray(value.value)) throw new Error('Expected array parameter');
 		const element = def.item.default();
-		return [...value, element];
+		return { type: 'literal', value: [...value.value, element] };
 	},
 );
 
 const removeArrayParamElementCommandDef = defineNodeParamCommand<NodeParamTarget & { index: number }>(
 	'Remove array parameter element',
 	({ def, value }, { index }) => {
-		if (def.type !== 'array' || !Array.isArray(value)) throw new Error('Expected array parameter');
-		if (!Number.isInteger(index) || index < 0 || index >= value.length) throw new Error('Invalid array index');
-		return value.filter((_, i) => i !== index);
+		if (def.type !== 'array' || value.type !== 'literal' || !Array.isArray(value.value)) throw new Error('Expected array parameter');
+		if (!Number.isInteger(index) || index < 0 || index >= value.value.length) throw new Error('Invalid array index');
+		return { type: 'literal', value: value.value.filter((_, i) => i !== index) };
 	},
 );
 

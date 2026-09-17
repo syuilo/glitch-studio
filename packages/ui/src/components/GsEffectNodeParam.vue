@@ -1,7 +1,7 @@
 <template>
 <div :class="$style.root">
 	<div ref="rowEl" :class="$style.row" data-wire-input-row>
-		<div :class="[$style.paramLabel, { [$style.expression]: scalarValue?.type === 'expression' }]" @click="showMenu">
+		<div :class="[$style.paramLabel, { [$style.expression]: paramValue.type === 'expression' }]" @click="showMenu">
 			<GsCondensedLine>{{ label ?? paramDef.label }}</GsCondensedLine>
 		</div>
 		<div :class="$style.paramBody">
@@ -9,18 +9,18 @@
 				<span :class="$style.count">{{ arrayValues.length }}</span>
 				<GsButton small iconOnly title="Add element" @click="addElement"><i class="ti ti-plus"></i></GsButton>
 			</template>
-			<template v-else-if="paramDef.type !== 'struct' && scalarValue">
+			<template v-else-if="paramDef.type !== 'struct'">
 				<GsNodePort v-if="canNode" :dataType="inputDataType" @update:element="portEl = $event"/>
 				<i v-if="hasNodeInputTypeMismatch(appContext.state.nodes.value, nodeConnection, inputDataType)" v-tooltip="'Data type mismatch'" class="ti ti-alert-triangle" :class="$style.typeWarning"></i>
 				<div :class="$style.control">
-					<GsInput v-if="scalarValue.type === 'expression'" type="text" :modelValue="scalarValue.expression" @update:modelValue="updateParamAsExpression">
+					<GsInput v-if="paramValue.type === 'expression'" type="text" :modelValue="paramValue.expression" @update:modelValue="updateParamAsExpression">
 						<template #caption>
 							<div v-if="isExpressionSyntaxError" style="color: var(--THEME-error);"><i class="ti ti-alert-triangle"></i> Syntax error!</div>
 						</template>
 					</GsInput>
-					<GsButton v-else-if="scalarValue.type === 'automation'" small @click="selectAutomation">{{ automationName }}</GsButton>
+					<GsButton v-else-if="paramValue.type === 'automation'" small @click="selectAutomation">{{ automationName }}</GsButton>
 					<GsSelect
-						v-else-if="scalarValue.type === 'node'"
+						v-else-if="paramValue.type === 'node'"
 						small
 						:modelValue="nodeOutputKey(nodeConnection)"
 						:items="[{ label: i18n.ts.None, value: null }, ...nodeOutputItems]"
@@ -31,7 +31,7 @@
 						:type="paramDef.type"
 						:title="label ?? paramDef.label"
 						:options="paramDef"
-						:value="scalarValue.value"
+						:value="paramValue.value"
 						@input="updateParamAsLiteral"
 						@beginChanging="onBeginChanging"
 						@changeContinuous="changeContinuous"
@@ -83,7 +83,7 @@ import GsCondensedLine from './common/GsCondensedLine.vue';
 import GsSelect from './common/GsSelect.vue';
 import type { EffectParamValue, GsEffectNode, NodeOutputReference } from '@glitch/shared/types.ts';
 import type { MenuItem } from '@/types/menu.ts';
-import type { NodeParamDef, NodeParamValue, ParamPath } from '@/utility/node-params.ts';
+import type { NodeParamDef, ParamPath } from '@/utility/node-params.ts';
 import { i18n } from '@/i18n.ts';
 import { appContext, wireMap } from '@/app.ts';
 import { paramPathKey } from '@/utility/node-params.ts';
@@ -95,15 +95,14 @@ const props = defineProps<{
 	node: GsEffectNode;
 	paramPath: ParamPath;
 	paramDef: NodeParamDef;
-	paramValue: NodeParamValue;
+	paramValue: EffectParamValue;
 	label?: string;
 }>();
 
 const rowEl = useTemplateRef('rowEl');
 const portEl = shallowRef<HTMLElement | null>(null);
-const scalarValue = computed(() => Array.isArray(props.paramValue) ? null : props.paramValue);
-const arrayValues = computed(() => Array.isArray(props.paramValue) ? props.paramValue : []);
-const structValues = computed<Record<string, NodeParamValue> | null>(() => props.paramDef.type === 'struct' && scalarValue.value?.type === 'literal' ? scalarValue.value.value : null);
+const arrayValues = computed<EffectParamValue[]>(() => props.paramDef.type === 'array' && props.paramValue.type === 'literal' ? props.paramValue.value : []);
+const structValues = computed<Record<string, EffectParamValue> | null>(() => props.paramDef.type === 'struct' && props.paramValue.type === 'literal' ? props.paramValue.value : null);
 const visibleFields = computed(() => {
 	if (props.paramDef.type !== 'struct') return [];
 	const fields: Record<string, NodeParamDef> = props.paramDef.fields;
@@ -112,9 +111,9 @@ const visibleFields = computed(() => {
 const canNode = computed(() => props.paramDef.type !== 'array' && props.paramDef.type !== 'struct' && props.paramDef.canNode);
 const inputDataType = computed(() => props.paramDef.type !== 'array' && props.paramDef.type !== 'struct' ? getNodeInputDataType(props.paramDef) : null);
 const nodeOutputItems = computed(() => getNodeOutputItems(appContext.state.nodes.value, props.node.id, inputDataType.value));
-const nodeConnection = computed<NodeOutputReference | null>(() => scalarValue.value?.type === 'node' && scalarValue.value.nodeId != null ? scalarValue.value : null);
+const nodeConnection = computed<NodeOutputReference | null>(() => props.paramValue.type === 'node' && props.paramValue.nodeId != null ? props.paramValue : null);
 const automationName = computed(() => {
-	const value = scalarValue.value;
+	const value = props.paramValue;
 	return value?.type === 'automation' ? appContext.state.automations.value.find(a => a.id === value.automationId)?.name ?? '(none)' : '(none)';
 });
 
@@ -153,9 +152,9 @@ watchEffect(onCleanup => {
 
 const aisParser = new AiScript.Parser();
 const isExpressionSyntaxError = computed(() => {
-	if (scalarValue.value?.type !== 'expression') return false;
+	if (props.paramValue.type !== 'expression') return false;
 	try {
-		aisParser.parse(scalarValue.value.expression);
+		aisParser.parse(props.paramValue.expression);
 		return false;
 	} catch {
 		return true;
@@ -197,7 +196,7 @@ function showMenu(ev: PointerEvent) {
 		];
 		if (canNode.value) types.push({ text: 'Node', type: 'node' });
 		for (const { text, type } of types) {
-			menuItems.push({ text, active: scalarValue.value?.type === type, action: menuAction(() => appContext.commit('changeParamValueType', { ...target(), type })) });
+			menuItems.push({ text, active: props.paramValue.type === type, action: menuAction(() => appContext.commit('changeParamValueType', { ...target(), type })) });
 		}
 	}
 	ui.popupMenu(menuItems, ev.currentTarget ?? ev.target);

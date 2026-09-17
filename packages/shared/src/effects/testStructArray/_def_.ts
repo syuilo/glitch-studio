@@ -25,14 +25,17 @@ export default defineEffect({
 					},
 				}),
 			},
-			default: () => ([{
+			default: () => ({
 				type: 'literal',
-				value: {
-					image: { type: 'node', nodeId: null, outputPort: null },
-					x: { type: 'literal', value: 0 },
-					y: { type: 'literal', value: 0 },
-				},
-			}]),
+				value: [{
+					type: 'literal',
+					value: {
+						image: { type: 'node', nodeId: null, outputPort: null },
+						x: { type: 'literal', value: 0 },
+						y: { type: 'literal', value: 0 },
+					},
+				}],
+			}),
 		},
 	},
 	outputs: {

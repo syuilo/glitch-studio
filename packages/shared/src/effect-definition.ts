@@ -158,7 +158,7 @@ type EffectOptionSerializedValue<T extends EffectOptionsSchema[string]> =
 	NodeParamValue;
 
 type EffectOptionDefaultValue<T extends EffectOptionsSchema[string]> = T extends unknown ?
-	T extends ArrayOptionSchema ? EffectOptionDefaultValue<T['item']>[] :
+	T extends ArrayOptionSchema ? { type: 'literal'; value: EffectOptionDefaultValue<T['item']>[] } :
 	T extends StructOptionSchema ? { type: 'literal'; value: EffectOptionScalarValue<T> } :
 	EffectOptionSerializedValue<T> :
 	never;
