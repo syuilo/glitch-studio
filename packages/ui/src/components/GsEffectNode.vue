@@ -398,9 +398,9 @@ watchEffect(onCleanup => {
 
 .param {
 	display: flex;
-	padding: 4px 16px;
+	padding: 3px 16px;
 	box-sizing: border-box;
-	min-height: 32px;
+	min-height: 30px;
 
 	&:hover {
 		background: #ffffff08;
