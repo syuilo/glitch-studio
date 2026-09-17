@@ -18,7 +18,7 @@
 	</div>
 
 	<div v-show="expanded" :class="$style.params" :inert="node.isBypass">
-		<GsEffectNodeParam v-for="param in Object.keys(paramDefs)" :key="param" :ref="el => setParamRow(param, el)" :node="node" :paramDef="paramDefs[param]" :paramValue="node.params[param]" :class="$style.param"/>
+		<GsEffectNodeParam v-for="[param, def] in visibleParams" :key="param" :node="node" :paramPath="[param]" :paramDef="def" :paramValue="node.params[param]"/>
 	</div>
 
 	<GsNodeOutputs :node="node"/>
@@ -28,17 +28,14 @@
 <script lang="ts" setup>
 import { ref, computed, shallowRef, watchEffect } from 'vue';
 import { effectDefinitions } from '@glitch/shared/effect-definitions.ts';
-import { areNodeDataTypesCompatible, getNodeInputDataType } from '@glitch/shared/utility/node-outputs.ts';
 import GsNodeOutputs from './GsNodeOutputs.vue';
 import GsNodePort from './GsNodePort.vue';
 import GsEffectNodeParam from './GsEffectNodeParam.vue';
 import GsButton from './common/GsButton.vue';
-import type { ComponentPublicInstance } from 'vue';
 import type { GsEffectNode, GsGroupNode } from '@glitch/shared/types.ts';
 import { i18n } from '@/i18n.ts';
 import { appContext, engine, wireMap } from '@/app.ts';
-import { getNodeOutputItems, nodeOutputKey } from '@/utility/node-outputs.ts';
-import { registerWireInput } from '@/utility/wire-drag.ts';
+import { getNodeParamDefs } from '@/utility/node-params.ts';
 import * as ui from '@/ui.ts';
 
 const props = defineProps<{
@@ -47,30 +44,9 @@ const props = defineProps<{
 }>();
 
 const name = ref<string>(effectDefinitions[props.node.effectId].displayName);
-const paramDefs = effectDefinitions[props.node.effectId].paramDefs;
+const visibleParams = computed(() => Object.entries(getNodeParamDefs(props.node)).filter(([, def]) => !def.visibility || def.visibility(props.node.params)));
 const expanded = ref(true);
 const allInPortEl = shallowRef<HTMLElement | null>(null);
-const paramRows = ref<Record<string, HTMLElement>>({});
-const nodeOutputItems = computed(() => getNodeOutputItems(appContext.state.nodes.value, props.node.id));
-
-function setParamRow(param: string, el: Element | ComponentPublicInstance | null) {
-	if (el instanceof HTMLElement) paramRows.value[param] = el;
-	else delete paramRows.value[param];
-}
-
-watchEffect(onCleanup => {
-	for (const [param, row] of Object.entries(paramRows.value)) {
-		// node型の入力はコントロール側で登録する。それ以外もcanNodeなら型ごと切り替えられる。
-		if (!paramDefs[param].canNode || isNode(param)) continue;
-		onCleanup(registerWireInput(row, connection => {
-			appContext.commit('updateParamAsNode', { nodeId: props.node.id, param, value: connection });
-		}, connection => {
-			const output = nodeOutputItems.value.find(item => item.value === nodeOutputKey(connection));
-			return output ? areNodeDataTypesCompatible(output.dataType, getNodeInputDataType(paramDefs[param])) : null;
-		}));
-	}
-});
-
 const effectStatus = computed(() => engine.effectStatuses.get(props.node.id));
 
 function showEffectError() {

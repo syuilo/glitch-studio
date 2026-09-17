@@ -28,13 +28,13 @@
 
 <script lang="ts" setup>
 import { onMounted, onUnmounted, ref, useId, useTemplateRef, watch } from 'vue';
-import { effectDefinitions } from '@glitch/shared/effect-definitions.ts';
 import { getNodeInputDataType } from '@glitch/shared/utility/node-outputs.ts';
 import type { NodeDataType } from '@glitch/shared/utility/node-outputs.ts';
 import type { GsNode } from '@glitch/shared/types.ts';
 import { appContext, wireMap } from '@/app.ts';
 import { wireDrag } from '@/utility/wire-drag.ts';
 import { getNodeDataTypeColor } from '@/utility/node-outputs.ts';
+import { paramPathKey, walkNodeParams } from '@/utility/node-params.ts';
 
 // 配線全長に含まれる模様の周期数（正の数）。
 const gradientRepeatCount = 4;
@@ -118,24 +118,19 @@ function draw() {
 				if (node.type === 'group') {
 					scan(node.nodes);
 				} else {
-					const effect = effectDefinitions[node.effectId];
-					for (const [k, v] of Object.entries(effect.paramDefs)) {
-						const param = node.params[k];
-						const connections = param.type === 'node'
-							? [param.nodeId == null ? null : param] : [];
-						for (const [index, connection] of connections.entries()) {
-							if (connection == null) continue;
-							const from = wireMap.out[connection.nodeId]?.[connection.outputPort];
-							const input = wireMap.in[node.id]?.[k];
-							const to = input && !isHidden(input) ? input : wireMap.allIn[node.id];
-							if (!from || !to || isHidden(from) || isHidden(to)) continue;
-							wires.value.push({
-								key: JSON.stringify([node.id, k, index, connection.nodeId, connection.outputPort]),
-								from: getElementPosition(from),
-								to: getElementPosition(to),
-								...getWireColors((from.dataset.type as NodeDataType) ?? 'any', getNodeInputDataType(v) ?? 'any'),
-							});
-						}
+					for (const { path, def, value } of walkNodeParams(node)) {
+						if (value.type !== 'node' || value.nodeId == null || def.type === 'struct') continue;
+						const from = wireMap.out[value.nodeId]?.[value.outputPort];
+						const key = paramPathKey(path);
+						const input = wireMap.in[node.id]?.[key];
+						const to = input && !isHidden(input) ? input : wireMap.allIn[node.id];
+						if (!from || !to || isHidden(from) || isHidden(to)) continue;
+						wires.value.push({
+							key: JSON.stringify([node.id, path, value.nodeId, value.outputPort]),
+							from: getElementPosition(from),
+							to: getElementPosition(to),
+							...getWireColors((from.dataset.type as NodeDataType) ?? 'any', getNodeInputDataType(def) ?? 'any'),
+						});
 					}
 				}
 			}
