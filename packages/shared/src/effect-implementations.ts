@@ -16,6 +16,8 @@ import colorBlocks from './effects/colorBlocks/_impl_.ts';
 import fill from './effects/fill/_impl_.ts';
 import frameDifference from './effects/frameDifference/_impl_.ts';
 import gradient from './effects/gradient/_impl_.ts';
+import scalarGradient from './effects/scalarGradient/_impl_.ts';
+import composeVector from './effects/composeVector/_impl_.ts';
 import histogram from './effects/histogram/_impl_.ts';
 import image from './effects/image/_impl_.ts';
 import lcd from './effects/lcd/_impl_.ts';
@@ -60,6 +62,8 @@ const _effectImplementations = {
 	fill,
 	frameDifference,
 	gradient,
+	scalarGradient,
+	composeVector,
 	histogram,
 	image,
 	lcd,
