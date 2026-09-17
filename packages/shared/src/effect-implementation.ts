@@ -50,8 +50,8 @@ export type EffectInstance<Options extends EffectOptionsSchema = any, Outputs ex
 				textureView: GPUTextureView;
 			};
 		};
-		// この描画で必要な出力。省略時は全出力を必要とする。
-		usedOutputPorts?: ReadonlySet<string>;
+		// この描画で必要な出力。定義済みのポート名だけを許可する。省略時は全出力を必要とする。
+		usedOutputPorts?: ReadonlySet<Extract<keyof Outputs, string>>;
 		commandEncoder: GPUCommandEncoder;
 		createPassEncoderFor: (commandEncoder: GPUCommandEncoder, view: GPUTextureView) => GPURenderPassEncoder;
 		createPassEncoder: (commandEncoder: GPUCommandEncoder, descriptor: GPURenderPassDescriptor) => GPURenderPassEncoder;

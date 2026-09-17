@@ -101,7 +101,7 @@ export default implementEffect<typeof definition>({
 					});
 				}
 
-				const needsGradient = ctx.usedOutputPorts?.has('gradient') ?? true;
+				const needsGradient = ctx.usedOutputPorts?.has('vector') ?? true;
 				const passEncoder = needsGradient
 					? ctx.createPassEncoder(ctx.commandEncoder, {
 						colorAttachments: [ctx.outputDataMap.scalar.textureView, ctx.outputDataMap.vector.textureView].map(view => ({
