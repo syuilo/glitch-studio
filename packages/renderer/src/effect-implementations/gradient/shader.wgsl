@@ -29,7 +29,7 @@ fn fs(fragData: FragmentIn) -> @location(0) f32 {
 	let endPosition = sampleScalar(endPositionTexture, uv);
 	let startValue = sampleScalar(startValueTexture, uv);
 	let endValue = sampleScalar(endValueTexture, uv);
-	let direction = vec2f(cos(uniforms.angle), sin(uniforms.angle));
+	let direction = vec2f(sin(uniforms.angle), cos(uniforms.angle));
 	var position = fragData.uv;
 	// 正方形の基準領域をcoverでは長辺、containでは短辺に合わせてから射影する。
 	// stretchは出力全体に引き延ばす。角度に応じた再正規化はせず、勾配の幅を保つ。
