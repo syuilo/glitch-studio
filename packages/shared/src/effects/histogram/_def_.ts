@@ -5,7 +5,7 @@ export default defineEffect({
 	displayName: 'Histogram',
 	tags: [],
 	paramDefs: {
-		input: { type: 'node', label: 'Input', dataType: 'color', primary: true, default: () => ({ type: 'literal', value: null }) },
+		input: { type: 'color', label: 'Input', canNode: true, primary: true, default: () => ({ type: 'node', nodeId: null, outputPort: null }) },
 		resolution: { type: 'enum', label: 'Sampling resolution', options: [
 			{ label: '1/1', value: 1 },
 			{ label: '1/2', value: 2 },

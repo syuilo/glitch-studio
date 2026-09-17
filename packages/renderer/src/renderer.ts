@@ -76,7 +76,7 @@ export class Renderer {
 	private audioSources = new Map<AudioSourceId, AudioHistory>();
 	private audioPorts = new Map<AudioSourceId, MessagePort>();
 	private effectInstances: Map<GsEffectNode['id'], EffectInstance | null> = new Map();
-	private effectScalarFieldTextures: Map<GsEffectNode['id'], Record<string, GPUTexture>> = new Map();
+	private effectPerParamConstFieldTextures: Map<GsEffectNode['id'], Record<string, GPUTexture>> = new Map();
 	private outDataMapPerNodes: Map<GsEffectNode['id'], Record<string, {
 		texture: GPUTexture;
 		textureView: GPUTextureView;
@@ -190,14 +190,14 @@ export class Renderer {
 			usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_DST,
 		});
 
-		const pixelData = this.enable32bitDataTextures
+		const sclarPixelData = this.enable32bitDataTextures
 			? new Float32Array([0])
 			: new Uint16Array([float32ToFloat16Bits(0)]);
 
 		this.gpuDevice.queue.writeTexture(
 			{ texture: this.fallbackScalarFieldTexture },
-			pixelData,
-			{ bytesPerRow: pixelData.byteLength, rowsPerImage: 1 },
+			sclarPixelData,
+			{ bytesPerRow: sclarPixelData.byteLength, rowsPerImage: 1 },
 			{ width: 1, height: 1 },
 		);
 
@@ -249,13 +249,13 @@ export class Renderer {
 		if (node.type === 'group') {
 			// グループには主入力がないため、無効時は子の出力も公開しない。
 			const lastNode = node.nodes.at(-1);
-			return node.isBypass && lastNode != null ? this.getOutputNode(lastNode, outputPort, nextVisited) : undefined;
+			return !node.isBypass && lastNode != null ? this.getOutputNode(lastNode, outputPort, nextVisited) : undefined;
 		}
-		if (node.isBypass) {
+		if (!node.isBypass) {
 			const port = outputPort ?? Object.entries(effectDefinitions[node.effectId].outputs).find(([, def]) => def.primary)?.[0];
 			return port == null ? undefined : { node, outputPort: port };
 		}
-		const primary = Object.entries(effectDefinitions[node.effectId].paramDefs).find(([, def]) => def.type === 'node' && def.primary);
+		const primary = Object.entries(effectDefinitions[node.effectId].paramDefs).find(([, def]) => def.primary);
 		const input: NodeOutputReference | null = primary ? this.evaledNodeParams.get(node.id)![primary[0]] : null;
 		// バイパスでは自身の出力名ではなく、主入力が選択した出力ポートを公開する。
 		return input == null ? undefined : this.getOutputNode(this.allNodeIdMap.get(input.nodeId)!, input.outputPort, nextVisited);
@@ -312,7 +312,7 @@ export class Renderer {
 
 			for (const [k, v] of Object.entries(node.params)) {
 				// 無効時はバイパス先だけが必要。使わない式やオートメーションも評価しない。
-				if (!node.isBypass && !(paramDefs[k].type === 'node' && paramDefs[k].primary)) continue;
+				if (node.isBypass && !(paramDefs[k].primary)) continue;
 				evaluatedParams[k] =
 					v.type === 'literal'
 						? v.value
@@ -329,9 +329,9 @@ export class Renderer {
 
 			for (const [k, v] of Object.entries(evaluatedParams)) {
 				if (paramDefs[k].canNode && node.params[k].type !== 'node') {
-					const tex = this.effectScalarFieldTextures.get(node.id)![k];
-					// ベクトルを数値1個へ変換するとNaNになるため、XYを別チャンネルに書き込む。
-					const components = paramDefs[k].type === 'vector' ? [v?.[0] ?? 0, v?.[1] ?? 0] : [v ?? 0];
+					const tex = this.effectPerParamConstFieldTextures.get(node.id)![k];
+					// TODO: 全てのtypeに対応 & 別関数にする
+					const components = paramDefs[k].type === 'color' ? [v?.[0] ?? 0, v?.[1] ?? 0, v?.[2] ?? 0, v?.[3] ?? 0] : paramDefs[k].type === 'vector' ? [v?.[0] ?? 0, v?.[1] ?? 0] : [v ?? 0];
 					const pixelData = this.enable32bitDataTextures
 						? new Float32Array(components)
 						: new Uint16Array(components.map(component => float32ToFloat16Bits(component)));
@@ -393,7 +393,7 @@ export class Renderer {
 
 		let key = `node=${node.id};isBypass=${node.isBypass};`;
 
-		if (node.type === 'group' || !node.isBypass) {
+		if (node.type === 'group' || node.isBypass) {
 			// 出力に寄与しない入力やdisableCacheには依存しない。
 			// 出力元のIDもキーに含め、同じパラメータの別ノードへの切り替えを検出する。
 			const output = this.getOutputNode(node);
@@ -401,7 +401,7 @@ export class Renderer {
 			const outputKey = this.evalCacheKey(output.node, [...visited, node.id]);
 			return outputKey == null ? null : `${key}port=${output.outputPort};output=${outputKey};`;
 		} else {
-			if (effectImplementations[node.effectId].disableCache) {
+			if (effectImplementations[node.effectId].disableCache) { // TODO: 廃止(cacheVersionに一本化)
 				return null;
 			}
 			// 非同期のリソース更新も後続ノードのキャッシュキーに伝播させる。
@@ -415,27 +415,11 @@ export class Renderer {
 					key += `${k}:videoFrameVersion=${v == null ? 0 : this.videoFrameVersions.get(v) ?? 0};`;
 				}
 
-				if (paramDefs[k].type === 'node') {
-					if (v) {
-						const targetNode = this.allNodeIdMap.get(v.nodeId)!;
-						const targetNodeCacheKey = this.evalCacheKey(targetNode, [...visited, node.id]);
-						if (targetNodeCacheKey == null) return null;
-						key += `${k}=${targetNodeCacheKey};`;
-					}
-				} else if (paramDefs[k].type === 'nodes') {
-					for (const n of v) {
-						const targetNode = this.allNodeIdMap.get(n)!;
-						const targetNodeCacheKey = this.evalCacheKey(targetNode, [...visited, node.id]);
-						if (targetNodeCacheKey == null) return null;
-						key += `${k}=${targetNodeCacheKey};`;
-					}
-				} else if (paramDefs[k].canNode && node.params[k].type === 'node') {
-					if (v) {
-						const targetNode = this.allNodeIdMap.get(v.nodeId)!;
-						const targetNodeCacheKey = this.evalCacheKey(targetNode, [...visited, node.id]);
-						if (targetNodeCacheKey == null) return null;
-						key += `${k}=${targetNodeCacheKey};`;
-					}
+				if (paramDefs[k].canNode && node.params[k].type === 'node' && node.params[k].nodeId != null) {
+					const targetNode = this.allNodeIdMap.get(node.params[k].nodeId)!;
+					const targetNodeCacheKey = this.evalCacheKey(targetNode, [...visited, node.id]);
+					if (targetNodeCacheKey == null) return null;
+					key += `${k}=${targetNodeCacheKey};`;
 				}
 			}
 		}
@@ -447,12 +431,7 @@ export class Renderer {
 		const resolvedParams: Record<string, any> = {};
 		for (const [k, v] of Object.entries(params)) {
 			const typeDef = effectDefinitions[node.effectId].paramDefs[k].type;
-			if (typeDef === 'node') {
-				const input: NodeOutputReference | null = v;
-				resolvedParams[k] = input == null
-					? this.fallbackTexture
-					: this.getOutputTexture(this.allNodeIdMap.get(input.nodeId)!, input.outputPort) ?? this.fallbackTexture;
-			} else if (typeDef === 'image') {
+			if (typeDef === 'image') {
 				resolvedParams[k] = this.assetTextures.get(v)!;
 			} else if (typeDef === 'player') {
 				resolvedParams[k] = v == null ? null : {
@@ -461,8 +440,11 @@ export class Renderer {
 				};
 			} else {
 				if (effectDefinitions[node.effectId].paramDefs[k].canNode) {
-					// 出力なしの扱いは参照側の型で決める（画像は透明、スカラー場は0）。
-					resolvedParams[k] = v == null ? this.fallbackScalarFieldTexture : node.params[k].type === 'node' ? this.getOutputTexture(this.allNodeIdMap.get(v.nodeId)!, v.outputPort) ?? this.fallbackScalarFieldTexture : this.effectScalarFieldTextures.get(node.id)![k];
+					resolvedParams[k] = v == null
+						? this.fallbackScalarFieldTexture
+						: node.params[k].type === 'node' && node.params[k].nodeId != null
+							? this.getOutputTexture(this.allNodeIdMap.get(v.nodeId)!, v.outputPort) ?? this.fallbackScalarFieldTexture
+							: this.effectPerParamConstFieldTextures.get(node.id)![k];
 				} else {
 					resolvedParams[k] = v;
 				}
@@ -479,7 +461,7 @@ export class Renderer {
 			return;
 		}
 
-		if (node.type === 'group' || !node.isBypass) {
+		if (node.type === 'group' || node.isBypass) {
 			// 無効中は自身を描画せず、主入力だけを更新する。履歴は保持して再有効化時に再開する。
 			const output = this.getOutputNode(node);
 			if (output == null) return;
@@ -500,31 +482,9 @@ export class Renderer {
 
 		const params = this.evaledNodeParams.get(node.id)!;
 
-		for (const [k, _] of Object.entries(effectDefinitions[node.effectId].paramDefs).filter(([, v]) => v.type === 'node')) {
-			const v = params[k];
-			if (v == null) {
-				continue;
-			}
-			const targetNode = this.allNodeIdMap.get(v.nodeId)!;
-			this.renderNode(targetNode, commandEncoder, {
-				visited: new Set([...context.visited, node.id]),
-				rendered: context.rendered,
-			});
-		}
-		//for (const [k, _] of Object.entries(fx.paramDefs).filter(([k, v]) => v.type === 'nodes')) {
-		//	inputNodeTexs[k] = [];
-		//	for (const v of params[k]) {
-		//		const targetNode = this.allNodeIdMap.get(v.nodeId);
-		//		if (targetNode) {
-		//			inputNodeTexs[k].push(this.renderNode(targetNode, [...visited, node.id]));
-		//		} else {
-		//			inputNodeTexs[k].push(this.placeholderTexture);
-		//		}
-		//	}
-		//}
 		for (const [k, _] of Object.entries(effectDefinitions[node.effectId].paramDefs).filter(([, v]) => v.canNode)) {
 			const v = params[k];
-			if (node.params[k].type !== 'node' || v == null) {
+			if (node.params[k].type !== 'node' || node.params[k].nodeId == null || v == null) {
 				continue;
 			}
 			const targetNode = this.allNodeIdMap.get(v.nodeId)!;
@@ -751,9 +711,12 @@ export class Renderer {
 			const scalarFieldTextures: Record<string, GPUTexture> = {};
 			for (const k in paramDefs) {
 				if (paramDefs[k].canNode) {
-					const format = paramDefs[k].type === 'vector'
-						? (this.enable32bitDataTextures ? 'rg32float' : 'rg16float')
-						: (this.enable32bitDataTextures ? 'r32float' : 'r16float');
+					// TODO: 全typeについて定義 & 別関数に切り出し
+					const format = paramDefs[k].type === 'color'
+						? (this.enable32bitDataTextures ? 'rgba32float' : 'rgba16float')
+						: paramDefs[k].type === 'vector'
+							? (this.enable32bitDataTextures ? 'rg32float' : 'rg16float')
+							: (this.enable32bitDataTextures ? 'r32float' : 'r16float');
 					const tex = this.gpuDevice.createTexture({
 						size: [1, 1],
 						format,
@@ -762,7 +725,7 @@ export class Renderer {
 					scalarFieldTextures[k] = tex;
 				}
 			}
-			this.effectScalarFieldTextures.set(node.id, scalarFieldTextures);
+			this.effectPerParamConstFieldTextures.set(node.id, scalarFieldTextures);
 		}
 
 		for (const node of removedNodes) {
@@ -782,12 +745,12 @@ export class Renderer {
 				instance.dispose();
 				this.effectInstances.delete(node.id);
 			}
-			const scalarFieldTextures = this.effectScalarFieldTextures.get(node.id);
+			const scalarFieldTextures = this.effectPerParamConstFieldTextures.get(node.id);
 			if (scalarFieldTextures) {
 				for (const k in scalarFieldTextures) {
 					scalarFieldTextures[k].destroy();
 				}
-				this.effectScalarFieldTextures.delete(node.id);
+				this.effectPerParamConstFieldTextures.delete(node.id);
 			}
 		}
 

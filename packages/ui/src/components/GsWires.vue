@@ -122,13 +122,11 @@ function draw() {
 					for (const [k, v] of Object.entries(effect.paramDefs)) {
 						const param = node.params[k];
 						const connections = param.type === 'node'
-							? [param.nodeId == null ? null : param]
-							: param.type === 'literal' && v.type === 'node' ? [param.value]
-							: param.type === 'literal' && v.type === 'nodes' ? param.value : [];
+							? [param.nodeId == null ? null : param] : [];
 						for (const [index, connection] of connections.entries()) {
 							if (connection == null) continue;
 							const from = wireMap.out[connection.nodeId]?.[connection.outputPort];
-							const input = v.type === 'nodes' ? wireMap.in[node.id]?.[k]?.[index] : wireMap.in[node.id]?.[k];
+							const input = wireMap.in[node.id]?.[k];
 							const to = input && !isHidden(input) ? input : wireMap.allIn[node.id];
 							if (!from || !to || isHidden(from) || isHidden(to)) continue;
 							wires.value.push({

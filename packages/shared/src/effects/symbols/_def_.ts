@@ -5,7 +5,7 @@ export default defineEffect({
 	displayName: 'Symbols',
 	tags: [],
 	paramDefs: {
-		input: { type: 'node', label: 'Input', dataType: 'color', primary: true, default: () => ({ type: 'literal', value: null }) },
+		input: { type: 'color', label: 'Input', canNode: true, primary: true, default: () => ({ type: 'node', nodeId: null, outputPort: null }) },
 		iconset: { type: 'enum', label: 'Iconset', options: [{
 			value: 'symbols_numbers', label: 'Symbols + Numbers',
 		}, {
@@ -26,7 +26,7 @@ export default defineEffect({
 		colorB: { type: 'color', label: 'Color B', default: () => ({ type: 'literal', value: [0.8, 1, 0, 1] }) },
 		colorC: { type: 'color', label: 'Color C', default: () => ({ type: 'literal', value: [1, 0.3, 0, 1] }) },
 		similarityThresholdFactor: { type: 'range', min: 0, max: 32, step: 0.1, label: 'Similarity Threshold Factor', default: () => ({ type: 'literal', value: 2 }) },
-		forceField: { type: 'node', dataType: 'vector', label: 'Force Field', default: () => ({ type: 'literal', value: null }) },
+		forceField: { type: 'vector', canNode: true, label: 'Force Field', min: -1, max: 1, default: () => ({ type: 'literal', value: [0, 0] }) },
 		forceFieldShift: { type: 'bool', label: 'Force Field Shift', default: () => ({ type: 'literal', value: true }) },
 		forceFieldWarp: { type: 'bool', label: 'Force Field Warp', default: () => ({ type: 'literal', value: true }) },
 	},

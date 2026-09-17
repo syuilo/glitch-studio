@@ -5,7 +5,6 @@ import type { EffectParamDataType, GsNode } from '../types.ts';
 export type NodeDataType = EffectOutputsSchema[string]['dataType'];
 
 export function getNodeInputDataType(param: { type: EffectParamDataType; dataType?: NodeDataType; canNode?: boolean }): NodeDataType | null {
-	if (param.type === 'node' || param.type === 'nodes') return param.dataType ?? 'any';
 	if (!param.canNode) return null;
 	// canNodeは元のパラメータ型に応じたデータテクスチャを受け取る。
 	switch (param.type) {
@@ -13,6 +12,7 @@ export function getNodeInputDataType(param: { type: EffectParamDataType; dataTyp
 		case 'angle':
 		case 'range': return 'scalar';
 		case 'vector': return 'vector';
+		case 'color': return 'color';
 		default: return null;
 	}
 }

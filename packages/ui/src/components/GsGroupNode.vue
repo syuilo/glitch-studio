@@ -2,7 +2,7 @@
 <div :class="$style.root">
 	<GsNodePort :class="$style.allInPort" dataType="any" @update:element="allInPortEl = $event"/>
 	<header class="drag-handle" :class="$style.header" @dblclick="expanded = !expanded">Group: {{ node.name }}</header>
-	<div :class="[$style.indicator, { [$style.active]: node.isBypass }]"></div>
+	<div :class="[$style.indicator, { [$style.isBypass]: node.isBypass }]"></div>
 	<div :class="$style.buttons">
 		<GsButton :class="$style.headerButton" @click="expanded = !expanded"><i class="ti" :class="expanded ? 'ti-chevron-up' : 'ti-chevron-down'"></i></GsButton>
 		<GsButton :class="$style.headerButton" @click="showSettings = !showSettings"><i class="ti ti-settings"></i></GsButton>
@@ -214,16 +214,6 @@ watchEffect(onCleanup => {
 	background: #111;
 	box-shadow: 0px 1px 1px rgba(0, 0, 0, 0.3) inset;
 	border-radius: 2px;
-
-	&.active {
-		background: #ace620;
-		background-clip: content-box;
-	}
-
-	&.processing {
-		background: #e87900;
-		background-clip: content-box;
-	}
 }
 
 .buttons {

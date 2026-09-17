@@ -5,7 +5,7 @@ export default defineEffect({
 	displayName: 'Chromatic Aberration',
 	tags: [],
 	paramDefs: {
-		input: { type: 'node', label: 'Input', dataType: 'color', primary: true, default: () => ({ type: 'literal', value: null }) },
+		input: { type: 'color', label: 'Input', canNode: true, primary: true, default: () => ({ type: 'node', nodeId: null, outputPort: null }) },
 		amount: { type: 'range', min: 0, max: 1, step: 0.01, label: 'Amount', default: () => ({ type: 'literal', value: 0.1 }) },
 		rStrength: { type: 'range', min: -10, max: 10, step: 0.01, label: 'R strength', default: () => ({ type: 'literal', value: 1 }) },
 		gStrength: { type: 'range', min: -10, max: 10, step: 0.01, label: 'G strength', default: () => ({ type: 'literal', value: 1.5 }) },

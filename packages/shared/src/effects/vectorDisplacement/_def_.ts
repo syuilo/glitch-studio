@@ -5,7 +5,7 @@ export default defineEffect({
 	displayName: 'Vector displacement',
 	tags: [],
 	paramDefs: {
-		input: { type: 'node', label: 'Input', dataType: 'color', primary: true, default: () => ({ type: 'literal', value: null }) },
+		input: { type: 'color', label: 'Input', canNode: true, primary: true, default: () => ({ type: 'node', nodeId: null, outputPort: null }) },
 		vector: { type: 'node', label: 'Vector', dataType: 'vector', default: () => ({ type: 'literal', value: null }) },
 		amount: { type: 'range', label: 'Amount', min: -1, max: 1, step: 0.001, default: () => ({ type: 'literal', value: 0.05 }) },
 		flipX: { type: 'bool', label: 'Flip X', default: () => ({ type: 'literal', value: false }) },

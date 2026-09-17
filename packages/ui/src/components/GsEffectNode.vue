@@ -11,48 +11,50 @@
 			<div :class="$style.nodeId" class="_monospace">{{ node.id }}</div>
 			<div :class="$style.headerButtons">
 				<GsButton :class="[$style.headerButton]" inline small iconOnly @click="expanded = !expanded"><i class="ti" :class="expanded ? 'ti-chevron-up' : 'ti-chevron-down'"></i></GsButton>
-				<GsButton :class="[$style.headerButton]" inline small iconOnly :primary="node.isBypass" :title="node.isBypass ? i18n.ts.ClickToDisable : i18n.ts.ClickToEnable" @click="toggleBypass()"><i class="ti" :class="node.isBypass ? 'ti-eye' : 'ti-eye-off'"></i></GsButton>
+				<GsButton :class="[$style.headerButton]" inline small iconOnly :primary="!node.isBypass" :title="node.isBypass ? i18n.ts.ClickToEnable : i18n.ts.ClickToDisable" @click="toggleBypass()"><i class="ti" :class="node.isBypass ? 'ti-eye' : 'ti-eye-off'"></i></GsButton>
 				<GsButton :class="[$style.headerButton]" inline small iconOnly :title="i18n.ts.RemoveEffect" @click="remove()"><i class="ti ti-x"></i></GsButton>
 			</div>
 		</div>
 	</div>
 
-	<div v-show="expanded" :class="$style.params" :inert="!node.isBypass">
+	<div v-show="expanded" :class="$style.params" :inert="node.isBypass">
 		<div v-for="param in Object.keys(paramDefs)" v-show="paramDefs[param].visibility == null || paramDefs[param].visibility(node.params)" :key="param" :ref="el => setParamRow(param, el)" :class="$style.param" data-wire-input-row>
 			<div :class="[$style.paramLabel, { [$style.expression]: isExpression(param) }]" @click="showPerParamMenu(param, $event)">
 				<GsCondensedLine>{{ paramDefs[param].label }}</GsCondensedLine>
 			</div>
 			<div :class="$style.paramBody">
-				<GsInput v-if="isExpression(param)" type="text" :modelValue="getParam(param)" @update:modelValue="updateParamAsExpression(param, $event)">
-					<template #caption>
-						<div v-if="isExpressionSyntaxError[param]" style="color: var(--THEME-error);"><i class="ti ti-alert-triangle"></i> Syntax error!</div>
-					</template>
-				</GsInput>
-				<GsButton v-else-if="isAutomation(param)" @click="selectAutomation(param, $event)">{{ node.params[param].automationId ? appContext.state.automations.value.find(a => a.id === node.params[param].automationId).name : '(none)' }}</GsButton>
-				<GsEffectParamControl
-					v-else-if="isNode(param)"
-					type="node"
-					:node="node"
-					:group="group"
-					:name="param"
-					:options="paramDefs[param]"
-					:value="getParam(param)"
-					@input="value => appContext.commit('updateParamAsNode', { nodeId: node.id, param, value })"
-				/>
-				<GsEffectParamControl
-					v-else
-					:type="paramDefs[param].type"
-					:group="group"
-					:node="node"
-					:name="param"
-					:title="paramDefs[param].label"
-					:options="paramDefs[param]"
-					:value="getParam(param)"
-					@input="updateParamAsLiteral(param, $event)"
-					@beginChanging="onBeginChanging(param)"
-					@changeContinuous="changeContinuous(param, $event)"
-					@changeFinished="onFinishChanging(param)"
-				/>
+				<GsNodePort v-if="paramDefs[param].canNode" :dataType="getNodeInputDataType(paramDefs[param])" @update:element="portEl = $event"/>
+				<i v-if="hasNodeInputTypeMismatch(appContext.state.nodes.value, getParam(param))" v-tooltip="'Data type mismatch'" class="ti ti-alert-triangle" :class="$style.typeWarning"></i>
+
+				<div style="flex: 1;">
+					<GsInput v-if="isExpression(param)" type="text" :modelValue="getParam(param)" @update:modelValue="updateParamAsExpression(param, $event)">
+						<template #caption>
+							<div v-if="isExpressionSyntaxError[param]" style="color: var(--THEME-error);"><i class="ti ti-alert-triangle"></i> Syntax error!</div>
+						</template>
+					</GsInput>
+					<GsButton v-else-if="isAutomation(param)" @click="selectAutomation(param, $event)">{{ node.params[param].automationId ? appContext.state.automations.value.find(a => a.id === node.params[param].automationId).name : '(none)' }}</GsButton>
+					<div v-else-if="isNode(param)">
+						<GsSelect
+							small
+							style="flex: 1; min-width: 0;"
+							:modelValue="nodeOutputKey(node.params[param])"
+							:items="[{ label: i18n.ts.None, value: null }, ...getNodeOutputItems(appContext.state.nodes.value, props.node.id)]"
+							@update:modelValue="updateParamAsNode(param, $event)"
+						/>
+					</div>
+					<GsEffectParamControl
+						v-else
+						:type="paramDefs[param].type"
+						:name="param"
+						:title="paramDefs[param].label"
+						:options="paramDefs[param]"
+						:value="getParam(param)"
+						@input="updateParamAsLiteral(param, $event)"
+						@beginChanging="onBeginChanging(param)"
+						@changeContinuous="changeContinuous(param, $event)"
+						@changeFinished="onFinishChanging(param)"
+					/>
+				</div>
 			</div>
 		</div>
 	</div>
@@ -73,12 +75,13 @@ import GsEffectParamControl from './GsEffectParamControl.vue';
 import GsButton from './common/GsButton.vue';
 import GsInput from './common/GsInput.vue';
 import GsCondensedLine from './common/GsCondensedLine.vue';
+import GsSelect from './common/GsSelect.vue';
 import type { ComponentPublicInstance } from 'vue';
 import type { GsAutomation, GsEffectNode, GsGroupNode, GsNode } from '@glitch/shared/types.ts';
 import type { MenuItem } from '@/types/menu.ts';
 import { i18n } from '@/i18n.ts';
 import { appContext, engine, wireMap } from '@/app.ts';
-import { getNodeOutputItems, nodeOutputKey } from '@/utility/node-outputs.ts';
+import { getNodeOutputItems, hasNodeInputTypeMismatch, nodeOutputKey } from '@/utility/node-outputs.ts';
 import { registerWireInput } from '@/utility/wire-drag.ts';
 import * as ui from '@/ui.ts';
 
@@ -280,6 +283,14 @@ function updateParamAsExpression(param: string, value: string) {
 	});
 }
 
+function updateParamAsNode(param: string, key) {
+	appContext.commit('updateParamAsNode', {
+		nodeId: props.node.id,
+		param: param,
+		value: getNodeOutputItems(appContext.state.nodes.value, props.node?.id, getNodeInputDataType(paramDefs[param])).find(item => item.value === key)?.connection,
+	});
+}
+
 function remove() {
 	appContext.commit('removeNode', {
 		nodeId: props.node.id,
@@ -312,7 +323,7 @@ watchEffect(onCleanup => {
 	overflow: clip;
 	contain: content;
 
-	&:not(.isBypass) {
+	&.isBypass {
 		.params {
 			opacity: 0.5;
 		}
@@ -426,8 +437,14 @@ watchEffect(onCleanup => {
 }
 
 .paramBody {
+	display: flex;
 	width: 65%;
 	flex-shrink: 1;
+	align-items: center;
+	gap: 8px;
 }
 
+.typeWarning {
+	color: var(--THEME-warn);
+}
 </style>

@@ -5,7 +5,7 @@ export default defineEffect({
 	displayName: 'Block shuffle',
 	tags: [],
 	paramDefs: {
-		input: { type: 'node', label: 'Input', dataType: 'color', primary: true, default: () => ({ type: 'literal', value: null }) },
+		input: { type: 'color', label: 'Input', canNode: true, primary: true, default: () => ({ type: 'node', nodeId: null, outputPort: null }) },
 		amount: { type: 'range', min: 0, max: 1, step: 0.01, label: 'Amount', default: () => ({ type: 'literal', value: 0.5 }) },
 		size: { type: 'vector', min: 0, max: 1, step: 0.01, label: 'Size', canNode: true, default: () => ({ type: 'literal', value: [0.9, 0.9] }) },
 		fitMode: { type: 'fitMode', label: 'Fit mode', default: () => ({ type: 'literal', value: 'contain' }) },

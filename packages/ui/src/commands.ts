@@ -63,25 +63,24 @@ const addEffectNodeCommandDef = defineCommand<{ id: string; effectId: string; pa
 			execute(state) {
 				const paramDefs = effectDefinitions[payload.effectId].paramDefs as EffectParamDefs;
 				const group = payload.groupId ? stateUtility.findNode(state, payload.groupId) as GsGroupNode : undefined;
+				const previous = (group ? group.nodes : state.nodes.value).at(-1);
 
 				const params = {} as GsEffectNode['params'];
 
 				for (const [k, v] of Object.entries(paramDefs)) {
 					params[k] = v.default();
-					// primary 入力が未接続なら、直前のノードに自動接続する。
-					if (v.type === 'node' && v.primary && params[k].type === 'literal' && params[k].value === null) {
-						if ((group ? group.nodes : state.nodes.value).length > 0) {
-							const previous = (group ? group.nodes : state.nodes.value).at(-1)!;
-							const port = Object.entries(getNodeOutputs(previous)).find(([, output]) => output.primary && canConnectNodeDataTypes(output.dataType, getNodeInputDataType(v)))?.[0];
-							if (port != null) params[k] = { type: 'literal', value: { nodeId: previous.id, outputPort: port } };
-						}
+
+					// 直前のノードに自動接続
+					if (v.primary && previous != null) {
+						const port = Object.entries(getNodeOutputs(previous)).find(([, output]) => output.primary && canConnectNodeDataTypes(output.dataType, getNodeInputDataType(v)))?.[0];
+						if (port != null) params[k] = { type: 'node', nodeId: previous.id, outputPort: port };
 					}
 				}
 
 				if (group) {
 					group.nodes.push({
 						id: payload.id,
-						isBypass: true,
+						isBypass: false,
 						type: 'effect',
 						effectId: payload.effectId,
 						params: {
@@ -93,7 +92,7 @@ const addEffectNodeCommandDef = defineCommand<{ id: string; effectId: string; pa
 				} else {
 					state.nodes.value.push({
 						id: payload.id,
-						isBypass: true,
+						isBypass: false,
 						type: 'effect',
 						effectId: payload.effectId,
 						params: {
@@ -238,7 +237,7 @@ const addGroupNodeCommandDef = defineCommand<{ id: string; groupId?: GsGroupNode
 					const group = state.nodes.value.find(node => node.id === payload.groupId) as GsGroupNode;
 					group.nodes.push({
 						id: payload.id,
-						isBypass: true,
+						isBypass: false,
 						type: 'group',
 						nodes: [],
 						macros: [],
@@ -248,7 +247,7 @@ const addGroupNodeCommandDef = defineCommand<{ id: string; groupId?: GsGroupNode
 				} else {
 					state.nodes.value.push({
 						id: payload.id,
-						isBypass: true,
+						isBypass: false,
 						type: 'group',
 						nodes: [],
 						macros: [],

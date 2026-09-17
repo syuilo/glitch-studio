@@ -2,10 +2,6 @@ import { rawBezierEasing } from './bezier.ts';
 import type { EffectParamDef, GsAutomation } from '../types.ts';
 
 export function genEmptyValue(paramDef: Omit<EffectParamDef, 'default'>): any {
-	if (paramDef.canNode) {
-		return null;
-	}
-
 	if (paramDef.type === 'number' || paramDef.type === 'angle') {
 		return 0;
 	} else if (paramDef.type === 'range') {
@@ -34,7 +30,7 @@ export function genEmptyValue(paramDef: Omit<EffectParamDef, 'default'>): any {
 	} else if (paramDef.type === 'vector') {
 		return [0, 0];
 	} else if (paramDef.type === 'color') {
-		return [0, 0, 0];
+		return [0, 0, 0, 1];
 	} else if (paramDef.type === 'seed') {
 		return 0;
 	} else if (paramDef.type === 'time') {
