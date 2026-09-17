@@ -1,6 +1,6 @@
 <template>
 <div :class="$style.root">
-	<GsNodePort v-if="options.canNode || type === 'node'" :dataType="inputDataType" @update:element="portEl = $event"/>
+	<GsNodePort v-if="options?.canNode || type === 'node'" :dataType="inputDataType" @update:element="portEl = $event"/>
 	<i v-if="hasTypeMismatch" v-tooltip="'Data type mismatch'" class="ti ti-alert-triangle" :class="$style.typeWarning"></i>
 
 	<div style="flex: 1;">
@@ -261,6 +261,8 @@ function onFinishChanging() {
 }
 
 watchEffect(onCleanup => {
+	// canNodeの定数入力は親がnode型へ切り替えるため、通常の値更新で上書き登録しない。
+	if (props.type !== 'node') return;
 	const el = portEl.value;
 	if (el == null) return;
 	// 描画上の接続点はポートに保ち、ドロップはラベルを含む行全体で受け付ける。
