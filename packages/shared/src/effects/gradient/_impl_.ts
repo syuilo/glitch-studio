@@ -59,6 +59,8 @@ export default implementEffect<typeof definition>({
 					aspectRatio: resolution.width / resolution.height,
 					fitMode: { stretch: 0, cover: 1, contain: 2 }[ctx.params.fitMode],
 					angle: ctx.params.angle * Math.PI, // 正の角度で時計回り
+					clampEdge: ctx.params.clampEdge ? 1 : 0,
+					mirrorRepeat: ctx.params.mirrorRepeat ? 1 : 0,
 					interpolation: { linear: 0, smoothstep: 1, smootherstep: 2, cosine: 3, circular: 4, back: 5, elastic: 6, expo: 7, 'expo-in': 8, 'expo-out': 9 }[ctx.params.interpolation],
 				});
 				wgpu.device.queue.writeBuffer(uniformBuffer, 0, uniformValues.arrayBuffer);

@@ -10,7 +10,9 @@ export default defineEffect({
 		endPosition: { type: 'range', min: -1, max: 1, step: 0.01, label: 'End Position', canNode: true, default: () => ({ type: 'literal', value: 1 }) },
 		startValue: { type: 'number', step: 0.01, label: 'Start Value', canNode: true, default: () => ({ type: 'literal', value: 0 }) },
 		endValue: { type: 'number', step: 0.01, label: 'End Value', canNode: true, default: () => ({ type: 'literal', value: 1 }) },
+		clampEdge: { type: 'bool', label: 'Clamp to edge', default: () => ({ type: 'literal', value: true }) },
 		frequency: { type: 'number', step: 0.01, label: 'Frequency', canNode: true, default: () => ({ type: 'literal', value: 1 }) },
+		mirrorRepeat: { type: 'bool', label: 'Mirror Repeat', default: () => ({ type: 'literal', value: false }) },
 		phase: { type: 'range', min: -1, max: 1, step: 0.01, label: 'Phase', canNode: true, default: () => ({ type: 'literal', value: 0 }) },
 		angle: { type: 'angle', label: 'Angle', default: () => ({ type: 'literal', value: 0 }) },
 		interpolation: {

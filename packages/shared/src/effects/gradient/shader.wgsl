@@ -5,6 +5,8 @@ struct Uniforms {
 	fitMode: u32,
 	angle: f32,
 	interpolation: u32,
+	clampEdge: u32,
+	mirrorRepeat: u32,
 };
 
 @group(0) @binding(0) var<uniform> uniforms: Uniforms;
@@ -47,14 +49,24 @@ fn fs(fragData: FragmentIn) -> @location(0) f32 {
 	// 開始・終了が同じ位置なら、その位置を境界とするステップにして0除算を避ける。
 	var t = step(startPosition, projectedPosition);
 	if (span != 0.0) {
-		t = clamp((projectedPosition - startPosition) / span, 0.0, 1.0);
+		if (uniforms.clampEdge != 0u) {
+			t = clamp((projectedPosition - startPosition) / span, 0.0, 1.0);
+		} else {
+			// 周期化する前に制限すると、斜め方向のコーナーなど区間外で反復が止まる。
+			t = (projectedPosition - startPosition) / span;
+		}
 	}
-	// 開始〜終了の区間内で周期を繰り返す。phaseは1ごとに同じ表示に戻る。
+	// 開始〜終了の幅を基準に、区間外にも周期を繰り返す。phaseは1ごとに同じ表示に戻る。
 	let cycle = t * frequency + fract(phase);
 	let repeatedPosition = fract(cycle);
-	// 区間の終端で周期が完了した場合は終了値を保ち、初期設定の表示を維持する。
-	// 区間内部の周期境界は開始値へ折り返す。
-	t = select(repeatedPosition, 1.0, t == 1.0 && cycle > 0.0 && repeatedPosition == 0.0);
+	if (uniforms.mirrorRepeat != 0u) {
+		// 1周期で0→1→0と往復し、後段の補間も同じ曲線を逆向きにたどる。
+		t = 1.0 - abs(2.0 * repeatedPosition - 1.0);
+	} else {
+		// 基準区間の終端で周期が完了した場合は従来どおり終了値を保つ。
+		// その他の周期境界は開始値へ折り返す。
+		t = select(repeatedPosition, 1.0, t == 1.0 && cycle > 0.0 && repeatedPosition == 0.0);
+	}
 	// 両端は指定値を厳密に保つ（elastic・expoの指数項も端点では評価しない）。
 	if (t <= 0.0) { return startValue; }
 	if (t >= 1.0) { return endValue; }
