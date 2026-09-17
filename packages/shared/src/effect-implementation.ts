@@ -50,6 +50,8 @@ export type EffectInstance<Options extends EffectOptionsSchema = any, Outputs ex
 				textureView: GPUTextureView;
 			};
 		};
+		// この描画で必要な出力。省略時は全出力を必要とする。
+		usedOutputPorts?: ReadonlySet<string>;
 		commandEncoder: GPUCommandEncoder;
 		createPassEncoderFor: (commandEncoder: GPUCommandEncoder, view: GPUTextureView) => GPURenderPassEncoder;
 		createPassEncoder: (commandEncoder: GPUCommandEncoder, descriptor: GPURenderPassDescriptor) => GPURenderPassEncoder;
@@ -70,7 +72,8 @@ export type EffectImplementation<Definition extends Pick<EffectDefinition, 'para
 			intermediateTextureFormat: IntermediateTextureFormat;
 		};
 	}) => {
-		[K in keyof Definition['outputs']]: GPUTexture
+		// 関数で返した出力は、使用時だけ確保される（未使用時はoutputDataMapにも存在しない）。
+		[K in keyof Definition['outputs']]: GPUTexture | (() => GPUTexture)
 	};
 	shader?: string;
 	init: (args: {

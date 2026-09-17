@@ -85,6 +85,8 @@ export class Renderer {
 		previousFrameTextureView?: GPUTextureView;
 	}>> = new Map();
 	private effectCacheKeys: Map<GsEffectNode['id'], string> = new Map();
+	private lazyOutputs = new Map<string, Record<string, () => void>>();
+	private usedOutputPorts = new Map<string, Set<string>>();
 	private timingHelper: TimingHelper;
 	private finalRenderSampler: GPUSampler;
 	private finalRenderPipeline: GPURenderPipeline;
@@ -400,6 +402,8 @@ export class Renderer {
 			}
 			// 非同期のリソース更新も後続ノードのキャッシュキーに伝播させる。
 			key += `cacheVersion=${this.effectInstances.get(node.id)?.cacheVersion ?? 0};`;
+			// 出力の利用開始・停止でも、依存先を含めキャッシュを更新する。
+			if (this.lazyOutputs.has(node.id)) key += `ports=${JSON.stringify([...(this.usedOutputPorts.get(node.id) ?? [])].sort())};`;
 
 			const paramDefs = effectDefinitions[node.effectId].paramDefs;
 
@@ -448,6 +452,41 @@ export class Renderer {
 			});
 		}
 		return resolvedParams;
+	}
+
+	private prepareOutputPorts(node: GsNode): void {
+		this.usedOutputPorts.clear();
+		const visit = (target: GsNode, port?: string) => {
+			const output = this.getOutputNode(target, port);
+			if (output == null) return;
+			const ports = this.usedOutputPorts.get(output.node.id);
+			if (ports != null) {
+				ports.add(output.outputPort);
+				return;
+			}
+			this.usedOutputPorts.set(output.node.id, new Set([output.outputPort]));
+			for (const { def, param } of walkNodeParams(effectDefinitions[output.node.effectId].paramDefs, output.node.params)) {
+				if (!def.canNode || param.type !== 'node' || param.nodeId == null) continue;
+				const source = this.allNodeIdMap.get(param.nodeId);
+				if (source != null) visit(source, param.outputPort ?? undefined);
+			}
+		};
+		visit(node);
+		// 描画順によらず必要なポートを先に集め、同じノードは1回の描画で全需要を満たす。
+		for (const [id, factories] of this.lazyOutputs) {
+			const outputs = this.outDataMapPerNodes.get(id)!;
+			for (const [port, allocate] of Object.entries(factories)) {
+				if (this.usedOutputPorts.get(id)?.has(port)) {
+					if (outputs[port] == null) allocate();
+				} else if (outputs[port] != null) {
+					outputs[port].texture.destroy();
+					outputs[port].previousFrameTexture?.destroy();
+					delete outputs[port];
+					// 後で再確保した際に古い描画済みキャッシュを使わない。
+					this.effectCacheKeys.delete(id);
+				}
+			}
+		}
 	}
 
 	private renderNode(node: GsNode, commandEncoder: GPUCommandEncoder, context: { visited: Set<GsNode['id']>; rendered: Set<GsNode['id']>; }): void {
@@ -541,6 +580,7 @@ export class Renderer {
 			},
 			params: resolvedParams,
 			outputDataMap: resolvedOutputDataMap,
+			usedOutputPorts: this.usedOutputPorts.get(node.id),
 			commandEncoder: commandEncoder,
 			createPassEncoderFor: (commandEncoder, view) => {
 				const descriptor = {
@@ -602,6 +642,7 @@ export class Renderer {
 			},
 		});
 
+		this.prepareOutputPorts(node);
 		const commandEncoder = this.gpuDevice.createCommandEncoder();
 
 		this.renderNode(node, commandEncoder, {
@@ -680,7 +721,7 @@ export class Renderer {
 				wgpu: { device: this.gpuDevice, enable32bitDataTextures: this.enable32bitDataTextures, intermediateTextureFormat: this.intermediateTextureFormat },
 				resolution: { width: this.resolution.width, height: this.resolution.height },
 			});
-			let previousFrameTextureMap: Record<string, GPUTexture> = {};
+			let previousFrameTextureMap: Record<string, GPUTexture | (() => GPUTexture)> = {};
 			if (effect.needsPreviousFrame) {
 				previousFrameTextureMap = effect.getOut({
 					wgpu: { device: this.gpuDevice, enable32bitDataTextures: this.enable32bitDataTextures, intermediateTextureFormat: this.intermediateTextureFormat },
@@ -693,14 +734,23 @@ export class Renderer {
 				previousFrameTexture: GPUTexture | undefined;
 				previousFrameTextureView: GPUTextureView | undefined;
 			}>;
-			for (const [k, tex] of Object.entries(outTextureMap)) {
-				outDataMap[k] = {
-					texture: tex,
-					textureView: tex.createView(),
-					previousFrameTexture: previousFrameTextureMap[k],
-					previousFrameTextureView: previousFrameTextureMap[k]?.createView(),
+			const lazy: Record<string, () => void> = {};
+			for (const [k, resource] of Object.entries(outTextureMap)) {
+				const allocate = () => {
+					const tex = typeof resource === 'function' ? resource() : resource;
+					const previous = previousFrameTextureMap[k];
+					const previousTexture = typeof previous === 'function' ? previous() : previous;
+					outDataMap[k] = {
+						texture: tex,
+						textureView: tex.createView(),
+						previousFrameTexture: previousTexture,
+						previousFrameTextureView: previousTexture?.createView(),
+					};
 				};
+				if (typeof resource === 'function') lazy[k] = allocate;
+				else allocate();
 			}
+			if (Object.keys(lazy).length > 0) this.lazyOutputs.set(node.id, lazy);
 			this.outDataMapPerNodes.set(node.id, outDataMap);
 		}
 
@@ -732,6 +782,8 @@ export class Renderer {
 		}
 
 		for (const node of removedNodes) {
+			this.lazyOutputs.delete(node.id);
+			this.usedOutputPorts.delete(node.id);
 			this.clearEffectStatus(node.id);
 			// 出力を破棄するため、リサイズや同じIDでの復元後は再描画が必要。
 			this.effectCacheKeys.delete(node.id);
@@ -925,6 +977,8 @@ export class Renderer {
 			}
 		}
 		this.outDataMapPerNodes.clear();
+		this.lazyOutputs.clear();
+		this.usedOutputPorts.clear();
 
 		const currentNodes = this.nodes;
 		this.updateNodes([]);
@@ -957,6 +1011,8 @@ export class Renderer {
 			}
 		}
 		this.outDataMapPerNodes.clear();
+		this.lazyOutputs.clear();
+		this.usedOutputPorts.clear();
 
 		this.gpuDevice?.destroy();
 	}
