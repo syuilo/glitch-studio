@@ -3,7 +3,7 @@
 	<Sortable v-model="value" class="nodes _gaps_s" itemKey="id" tag="div" handle=".drag-handle" :animation="150" :swapThreshold="0.5">
 		<template #item="{element}">
 			<div style="display: flex;">
-				<GsNodePort class="port" @update:element="el => setPort(element.id, el)"/>
+				<GsNodePort class="port" :dataType="dataType" @update:element="el => setPort(element.id, el)"/>
 				<i v-if="hasNodeInputTypeMismatch(appContext.state.nodes.value, element.node, dataType)" v-tooltip="'Data type mismatch'" class="ti ti-alert-triangle type-warning"></i>
 				<GsSelect
 					:modelValue="nodeOutputKey(element.node)"

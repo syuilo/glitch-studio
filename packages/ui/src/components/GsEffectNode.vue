@@ -1,6 +1,6 @@
 <template>
 <div :class="[$style.root, { [$style.isBypass]: node.isBypass }]">
-	<GsNodePort :class="$style.allInPort" @update:element="allInPortEl = $event"/>
+	<GsNodePort :class="$style.allInPort" dataType="any" @update:element="allInPortEl = $event"/>
 	<div :class="[$style.header, { [$style.hasStatus]: effectStatus?.type === 'loading' || effectStatus?.type === 'error' }]" class="drag-handle" @dblclick="expanded = !expanded">{{ name }}</div>
 	<div :class="[$style.indicator]"></div>
 	<div :class="$style.headerButtons">

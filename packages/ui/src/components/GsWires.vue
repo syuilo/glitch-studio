@@ -3,18 +3,25 @@
 <div ref="rootEl" :class="$style.root">
 	<svg v-for="(wire, index) in wires" :key="wire.key" version="1.1" :viewBox="`0 0 ${width} ${height}`" :class="$style.wire">
 		<defs>
+			<linearGradient :id="`${gradientId}-${index}-color`" gradientUnits="userSpaceOnUse" :gradientTransform="getGradientTransform(wire)" x1="0" y1="0" x2="1" y2="0">
+				<stop offset="0" :stop-color="wire.fromColor"/>
+				<stop offset="1" :stop-color="wire.toColor"/>
+			</linearGradient>
 			<linearGradient :id="`${gradientId}-${index}`" gradientUnits="userSpaceOnUse" :gradientTransform="getGradientTransform(wire)" x1="0" y1="0" :x2="gradientPeriod" y2="0" spreadMethod="repeat">
-				<stop offset="0" stop-color="currentColor" stop-opacity="0"/>
-				<stop offset="0.25" stop-color="currentColor" stop-opacity="0"/>
-				<stop offset="0.5" stop-color="currentColor" stop-opacity="0.9"/>
-				<stop offset="0.75" stop-color="currentColor" stop-opacity="0"/>
-				<stop offset="1" stop-color="currentColor" stop-opacity="0"/>
+				<stop offset="0" stop-color="white" stop-opacity="0"/>
+				<stop offset="0.25" stop-color="white" stop-opacity="0"/>
+				<stop offset="0.5" stop-color="white" stop-opacity="0.9"/>
+				<stop offset="0.75" stop-color="white" stop-opacity="0"/>
+				<stop offset="1" stop-color="white" stop-opacity="0"/>
 				<animate attributeName="x1" from="0" :to="gradientPeriod" :dur="gradientAnimationDuration" repeatCount="indefinite"/>
 				<animate attributeName="x2" :from="gradientPeriod" :to="gradientPeriod * 2" :dur="gradientAnimationDuration" repeatCount="indefinite"/>
 			</linearGradient>
+			<mask :id="`${gradientId}-${index}-pulse`" maskUnits="userSpaceOnUse" x="0" y="0" :width="width" :height="height">
+				<line :x1="wire.from[0]" :y1="wire.from[1]" :x2="wire.to[0]" :y2="wire.to[1]" :stroke="`url(#${gradientId}-${index})`" stroke-width="3"/>
+			</mask>
 		</defs>
-		<line :x1="wire.from[0]" :y1="wire.from[1]" :x2="wire.to[0]" :y2="wire.to[1]" stroke="currentColor" stroke-width="3" opacity="0.3"/>
-		<line :x1="wire.from[0]" :y1="wire.from[1]" :x2="wire.to[0]" :y2="wire.to[1]" :stroke="`url(#${gradientId}-${index})`" stroke-width="3"/>
+		<line :x1="wire.from[0]" :y1="wire.from[1]" :x2="wire.to[0]" :y2="wire.to[1]" :stroke="`url(#${gradientId}-${index}-color)`" stroke-width="3" opacity="0.3"/>
+		<line :x1="wire.from[0]" :y1="wire.from[1]" :x2="wire.to[0]" :y2="wire.to[1]" :stroke="`url(#${gradientId}-${index}-color)`" :mask="`url(#${gradientId}-${index}-pulse)`" stroke-width="3"/>
 	</svg>
 </div>
 </template>
@@ -22,9 +29,12 @@
 <script lang="ts" setup>
 import { onMounted, onUnmounted, ref, useId, useTemplateRef, watch } from 'vue';
 import { effectDefinitions } from '@glitch/shared/effect-definitions.ts';
+import { getNodeInputDataType } from '@glitch/shared/utility/node-outputs.ts';
+import type { NodeDataType } from '@glitch/shared/utility/node-outputs.ts';
 import type { GsNode } from '@glitch/shared/types.ts';
 import { appContext, wireMap } from '@/app.ts';
 import { wireDrag } from '@/utility/wire-drag.ts';
+import { getNodeDataTypeColor } from '@/utility/node-outputs.ts';
 
 // 配線全長に含まれる模様の周期数（正の数）。
 const gradientRepeatCount = 4;
@@ -54,7 +64,17 @@ const wires = ref<{
 	key: string;
 	from: [number, number];
 	to: [number, number];
+	fromColor: string;
+	toColor: string;
 }[]>([]);
+
+function getWireColors(outputType: NodeDataType, inputType: NodeDataType) {
+	// anyは相手側の型の色に揃え、両側がanyのときだけ中立色を使う。
+	return {
+		fromColor: getNodeDataTypeColor(outputType === 'any' ? inputType : outputType),
+		toColor: getNodeDataTypeColor(inputType === 'any' ? outputType : inputType),
+	};
+}
 
 function getGradientTransform(wire: typeof wires.value[number]): string {
 	const dx = wire.to[0] - wire.from[0];
@@ -89,6 +109,7 @@ function draw() {
 				key: 'drag',
 				from: getElementPosition(drag.source),
 				to: [drag.clientX - rect.left, drag.clientY - rect.top],
+				...getWireColors((drag.source.dataset.type as NodeDataType) ?? 'any', 'any'),
 			});
 		}
 
@@ -114,6 +135,7 @@ function draw() {
 								key: JSON.stringify([node.id, k, index, connection.nodeId, connection.outputPort]),
 								from: getElementPosition(from),
 								to: getElementPosition(to),
+								...getWireColors((from.dataset.type as NodeDataType) ?? 'any', getNodeInputDataType(v) ?? 'any'),
 							});
 						}
 					}
@@ -161,6 +183,5 @@ onUnmounted(() => {
 	left: 0;
 	width: 100%;
 	height: 100%;
-	color: var(--THEME-accent);
 }
 </style>

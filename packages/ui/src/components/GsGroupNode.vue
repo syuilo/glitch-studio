@@ -1,6 +1,6 @@
 <template>
 <div :class="$style.root">
-	<GsNodePort :class="$style.allInPort" @update:element="allInPortEl = $event"/>
+	<GsNodePort :class="$style.allInPort" dataType="any" @update:element="allInPortEl = $event"/>
 	<header class="drag-handle" :class="$style.header" @dblclick="expanded = !expanded">Group: {{ node.name }}</header>
 	<div :class="[$style.indicator, { [$style.active]: node.isBypass }]"></div>
 	<div :class="$style.buttons">

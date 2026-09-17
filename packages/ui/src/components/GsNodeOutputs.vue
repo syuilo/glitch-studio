@@ -3,8 +3,8 @@
 	<code :class="$style.nodeId">{{ node.id }}</code>
 	<div v-for="(output, port) in ports" :key="port" :class="$style.output">
 		<span>{{ port }}</span>
-		<span :class="$style.dataType">{{ output.dataType }}</span>
-		<GsNodePort output @update:element="el => setPort(port, el)" @pointerdown="startDrag($event, port)"/>
+		<span :class="$style.dataType" :style="{ color: getNodeDataTypeColor(output.dataType) }">{{ output.dataType }}</span>
+		<GsNodePort output :dataType="output.dataType" @update:element="el => setPort(port, el)" @pointerdown="startDrag($event, port)"/>
 	</div>
 </div>
 </template>
@@ -16,6 +16,7 @@ import GsNodePort from './GsNodePort.vue';
 import type { GsNode } from '@glitch/shared/types.ts';
 import { wireMap } from '@/app.ts';
 import { startWireDrag } from '@/utility/wire-drag.ts';
+import { getNodeDataTypeColor } from '@/utility/node-outputs.ts';
 
 const props = defineProps<{ node: GsNode }>();
 const ports = computed(() => getNodeOutputs(props.node));

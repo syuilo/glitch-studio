@@ -1,12 +1,15 @@
 <template>
-<div ref="rootEl" :class="[$style.root, { [$style.output]: output }]">・</div>
+<div ref="rootEl" :class="[$style.root, { [$style.output]: output }]" :data-type="dataType ?? 'any'" :style="{ color: getNodeDataTypeColor(dataType) }"><i class="ti ti-circle-dot"></i></div>
 </template>
 
 <script lang="ts" setup>
 import { onMounted, onBeforeUnmount, useTemplateRef } from 'vue';
+import type { NodeDataType } from '@glitch/shared/utility/node-outputs.ts';
+import { getNodeDataTypeColor } from '@/utility/node-outputs.ts';
 
 defineProps<{
 	output?: boolean;
+	dataType: NodeDataType | null;
 }>();
 
 const emit = defineEmits<{

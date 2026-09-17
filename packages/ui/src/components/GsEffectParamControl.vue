@@ -150,8 +150,8 @@
 	<div v-else-if="type === 'time'" class="time">
 		<input type="number" :value="value" @change="changeValue(parseInt($event.target.value, 10))"/><button :title="i18n.ts.Random" @click="() => changeValue(Math.floor(Math.random() * 16384))"><i class="ti ti-dice-5"></i></button>
 	</div>
-	<div v-else-if="type === 'node'" style="display: flex;">
-		<GsNodePort @update:element="portEl = $event"/>
+	<div v-else-if="type === 'node'" style="display: flex; align-items: center;">
+		<GsNodePort :dataType="inputDataType" @update:element="portEl = $event"/>
 		<i v-if="hasTypeMismatch" v-tooltip="'Data type mismatch'" class="ti ti-alert-triangle" :class="$style.typeWarning"></i>
 		<GsSelect
 			small

@@ -4,6 +4,10 @@ import type { NodeDataType } from '@glitch/shared/utility/node-outputs.ts';
 import type { GsNode, NodeOutputReference } from '@glitch/shared/types.ts';
 import { preferences } from '@/preferences.ts';
 
+export function getNodeDataTypeColor(dataType: NodeDataType | null | undefined): string {
+	return `var(--THEME-dataType-${dataType ?? 'any'})`;
+}
+
 export function canConnectNodeDataTypes(output: NodeDataType | undefined, input: NodeDataType | null): boolean {
 	if (output == null || input == null) return false;
 	return !preferences.s.forceTypeSafety || areNodeDataTypesCompatible(output, input);
