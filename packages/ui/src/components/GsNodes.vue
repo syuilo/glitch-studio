@@ -1,8 +1,7 @@
 <template>
 <Sortable :modelValue="nodes" :class="$style.nodes" itemKey="id" tag="div" :group="{ name: 'nodes' }" handle=".drag-handle" :animation="150" :swapThreshold="0.5" @change="onChange">
 	<template #item="{element}">
-		<XGroupNode v-if="element.type === 'group'" :key="element.id" :node="element" :group="group"/>
-		<XEffectNode v-else :key="element.id" :node="element" :group="group"/>
+		<XEffectNode :key="element.id" :node="element" :group="group"/>
 	</template>
 </Sortable>
 </template>
@@ -10,7 +9,6 @@
 <script lang="ts" setup>
 import { computed, defineAsyncComponent } from 'vue';
 import XEffectNode from './GsEffectNode.vue';
-import XGroupNode from './GsGroupNode.vue';
 import type { GsGroupNode, GsNode } from '@glitch/shared/types.ts';
 import { appContext } from '@/app.ts';
 
