@@ -24,7 +24,9 @@ struct Uniforms {
 	white: u32,
 };
 
+@group(0) @binding(0) var inputTexture: texture_2d<f32>;
 @group(0) @binding(1) var<uniform> uniforms: Uniforms;
+@group(0) @binding(2) var inputSampler: sampler;
 
 fn getColorsCount() -> u32 {
 	return uniforms.rgb * 3u + uniforms.cmy * 3u + uniforms.black + uniforms.white;
@@ -65,15 +67,17 @@ struct FragmentIn {
 @fragment
 fn fs(fragData: FragmentIn) -> @location(0) vec4f {
 	let uv = vec2f(fragData.uv.x, -fragData.uv.y) * 0.5 + vec2f(0.5);
+	// 入力は出力全体にstretchして対応付ける。1x1の定数色も同じUVで読み取る。
+	let inputColor = textureSample(inputTexture, inputSampler, uv);
 	let cell = vec2i(round((uv - 0.5) / uniforms.cellSize));
 	let colorsCount = getColorsCount();
 	if (colorsCount == 0u || random(cell, uniforms.seed, 0u) >= uniforms.amount) {
-		return vec4f(0.0);
+		return inputColor;
 	}
 
 	let colorIndex = min(u32(floor(random(cell, uniforms.seed, 1u) * f32(colorsCount))), colorsCount - 1u);
 	let color = getColor(colorIndex);
 	let alpha = 1.0 - random(cell, uniforms.seed, 2u) * uniforms.alphaRandomness;
-	// 生成色は未乗算なので、ノード間形式に合わせてpremultiplyして出力する。
-	return vec4f(color * alpha, alpha);
+	// 生成色だけをpremultiplyし、乗算済みの入力へsource-overで合成する。
+	return vec4f(color * alpha, alpha) + inputColor * (1.0 - alpha);
 }

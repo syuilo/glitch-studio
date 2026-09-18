@@ -28,12 +28,9 @@ export default implementEffect<typeof definition>({
 			size: uniformValues.arrayBuffer.byteLength,
 			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
 		});
-		const bindGroup = wgpu.device.createBindGroup({
-			layout: pipeline.getBindGroupLayout(0),
-			entries: [
-				{ binding: 1, resource: { buffer: uniformBuffer } },
-			],
-		});
+		const sampler = wgpu.device.createSampler({ minFilter: 'linear', magFilter: 'linear' });
+		let inputTexture: GPUTexture | undefined;
+		let bindGroup: GPUBindGroup;
 
 		const shortDimension = Math.min(resolution.width, resolution.height);
 		const seedValue = new Float64Array(1);
@@ -41,6 +38,18 @@ export default implementEffect<typeof definition>({
 
 		return {
 			render: (ctx) => {
+				const input = ctx.params.input;
+				if (input !== inputTexture) {
+					inputTexture = input;
+					bindGroup = wgpu.device.createBindGroup({
+						layout: pipeline.getBindGroupLayout(0),
+						entries: [
+							{ binding: 0, resource: input.createView() },
+							{ binding: 1, resource: { buffer: uniformBuffer } },
+							{ binding: 2, resource: sampler },
+						],
+					});
+				}
 				seedValue[0] = ctx.params.seed;
 				const blockScaleX = 1 - Math.min(1, Math.max(0, ctx.params.size[0]));
 				const blockScaleY = 1 - Math.min(1, Math.max(0, ctx.params.size[1]));
