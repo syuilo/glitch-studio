@@ -164,8 +164,8 @@ watch(timeFactor, value => {
 
 watch([appContext.state.resolution, resolutionFactor], () => {
 	engine.resize({
-		width: appContext.state.resolution.value.width * resolutionFactor.value,
-		height: appContext.state.resolution.value.height * resolutionFactor.value,
+		width: Math.round(appContext.state.resolution.value.width * resolutionFactor.value), // 解像度が少数になるとバグるので丸める
+		height: Math.round(appContext.state.resolution.value.height * resolutionFactor.value), // 解像度が少数になるとバグるので丸める
 	});
 });
 
@@ -173,8 +173,8 @@ export async function appReady(project: RawProject) {
 	window.document.title = `Glitch Studio (${project.name})`;
 
 	await engine.init({
-		width: appContext.state.resolution.value.width * resolutionFactor.value,
-		height: appContext.state.resolution.value.height * resolutionFactor.value,
+		width: Math.round(appContext.state.resolution.value.width * resolutionFactor.value), // 解像度が少数になるとバグるので丸める
+		height: Math.round(appContext.state.resolution.value.height * resolutionFactor.value), // 解像度が少数になるとバグるので丸める
 	});
 
 	appContext.projectId = project.id;

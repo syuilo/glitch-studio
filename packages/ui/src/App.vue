@@ -20,7 +20,7 @@
 	<div :class="$style.footer" class="_monospace">
 		<div :class="$style.footerLeft">
 			<div :class="$style.footerItem">sRGB</div>
-			<button :class="$style.footerItem" class="_button" @click="openResolutionMenu">Proj: {{ appContext.state.resolution.value.width }} x {{ appContext.state.resolution.value.height }} px; Preview: {{ appContext.state.resolution.value.width * resolutionFactor }} x {{ appContext.state.resolution.value.height * resolutionFactor }} px ({{ resolutionFactor }}x)</button>
+			<button :class="$style.footerItem" class="_button" @click="openResolutionMenu">Proj: {{ appContext.state.resolution.value.width }} x {{ appContext.state.resolution.value.height }} px; Preview: {{ Math.round(appContext.state.resolution.value.width * resolutionFactor) }} x {{ Math.round(appContext.state.resolution.value.height * resolutionFactor) }} px ({{ resolutionFactor }}x)</button>
 			<button :class="$style.footerItem" class="_button" @click="openFpsMenu">{{ Math.round(engine.fpsDisplay.value) }}fps</button>
 			<button :class="$style.footerItem" class="_button" @click="openTimeFactorMenu">TIME: {{ timeFactor }}x</button>
 			<div :class="[$style.footerItem, $style.previewVolume]">
