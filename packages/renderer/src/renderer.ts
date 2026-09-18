@@ -16,7 +16,7 @@ import { GpuWaveform } from './utility/waveform/GpuWaveform.ts';
 import { GpuMemoryTracker } from './utility/GpuMemoryTracker.ts';
 import type { EffectStatus } from '@glitch/shared/effect-status.ts';
 import type { AudioCaptureMessage, AudioSourceId } from '@glitch/shared/audio.ts';
-import type { Asset, Macro, GsAutomation, GsEffectNode, GsNode, GsGroupNode, Player, NodeOutputReference, EffectParamDef } from '@glitch/shared/types.ts';
+import type { Asset, Macro, GsAutomation, GsEffectNode, GsNode, GsGroupNode, Player, NodeOutputReference, EffectParamDef, HogeLayer, Timeline } from '@glitch/shared/types.ts';
 import type { EffectInstance, IntermediateTextureFormat } from '@glitch/shared/effect-implementation.js';
 
 const aisParser = new AiScript.Parser();
@@ -52,26 +52,20 @@ function serializeAsset(asset: Asset | undefined) {
 	};
 }
 
-export class Renderer {
-	private gpuContext: GPUCanvasContext;
+type NodeGraphRenderContext = {
+	//globalTime: number; // タイムラインの再生位置を示すが、使わなそう
+	localTime: number;
+	localTimeDelta: number;
+	pointerPosition: { x: number; y: number };
+	pointerPositionPrev: { x: number; y: number }
+};
+
+class NodeGraphRenderer {
 	private gpuDevice: GPUDevice;
 	private resolution: { width: number; height: number; };
-	private defaultVertexShaderModule: GPUShaderModule;
-	private fallbackTexture: GPUTexture;
-	private fallbackScalarFieldTexture: GPUTexture;
-	private enableStats = true;
-	private highlightClipping = false;
-	private timeFactor = 1;
 	private nodes: GsNode[] = [];
 	private allNodeIdMap: Map<GsNode['id'], GsNode> = new Map(); // group内のnodeもフラット化して含む。高速に特定のノードを見つける用のキャッシュ
-	private assets: Asset[] = [];
-	private macros: Macro[] = [];
-	private automations: GsAutomation[] = [];
-	private assetTextures: Map<string, GPUTexture> = new Map();
-	private videoFrames: Map<Player['id'], VideoFrame> = new Map();
-	private videoFrameVersions: Map<Player['id'], number> = new Map();
-	private audioSources = new Map<AudioSourceId, AudioHistory>();
-	private audioPorts = new Map<AudioSourceId, MessagePort>();
+	private evaledNodeParams: Map<GsNode['id'], Record<string, any>> = new Map();
 	private effectInstances: Map<GsEffectNode['id'], EffectInstance | null> = new Map();
 	private effectPerParamConstFieldTextures: Map<GsEffectNode['id'], Record<string, GPUTexture>> = new Map();
 	private outDataMapPerNodes: Map<GsEffectNode['id'], Record<string, {
@@ -83,182 +77,27 @@ export class Renderer {
 	private effectCacheKeys: Map<GsEffectNode['id'], string> = new Map();
 	private lazyOutputs = new Map<string, Record<string, () => void>>();
 	private usedOutputPorts = new Map<string, Set<string>>();
-	private timingHelper: TimingHelper;
-	private finalRenderSampler: GPUSampler;
-	private finalRenderPipeline: GPURenderPipeline;
-	private finalRenderUniformValues: ReturnType<typeof makeStructuredView>;
-	private finalRenderUniformBuffer: GPUBuffer;
-	private finalRenderBindGroup: GPUBindGroup | null = null;
-	private finalRenderInputTexture: GPUTexture | null = null;
-	private enable32bitDataTextures = false;
-	private readonly intermediateTextureFormat: IntermediateTextureFormat;
-	private evaledNodeParams: Map<GsNode['id'], Record<string, any>> = new Map();
-	private latestTimestamp: number = performance.now();
-	private pointerPosition: { x: number; y: number } = { x: -99999, y: -99999 };
-	private pointerPositionPrev: { x: number; y: number } = { x: -99999, y: -99999 };
-	private lastPointerUpdateTimestamp = 0;
-	private histogramGpuContext: GPUCanvasContext;
-	private waveformHorizontalGpuContext: GPUCanvasContext;
-	private gpuHistogram: GpuHistogram;
-	private gpuWaveformHorizontal: GpuWaveform;
-	private gpuWaveformVertical: GpuWaveform;
-	private timeDelta = 0;
-	public gpuAverageFast = new NonNegativeRollingAverage(10);
-	public gpuAverageMedium = new NonNegativeRollingAverage(100);
-	public gpuAverageSlow = new NonNegativeRollingAverage(1000);
-	public fpsAverage = new NonNegativeRollingAverage(30);
-	public readonly gpuMemory: GpuMemoryTracker;
-	private time = 0;
 	private effectStatuses = new Map<string, { sent?: EffectStatus }>();
 	private onEffectStatus?: (nodeId: string, status: EffectStatus | null) => void;
+	private assets: Asset[] = [];
+	private macros: Macro[] = [];
+	private automations: GsAutomation[] = [];
+	private enable32bitDataTextures = false;
+	private readonly intermediateTextureFormat: IntermediateTextureFormat;
+	private videoFrames: Map<string, VideoFrame> = new Map();
+	private videoFrameVersions: Map<string, number> = new Map();
+	public renderNodeId: GsNode['id'] | null = null;
 
 	constructor(options: {
-		onEffectStatus?: (nodeId: string, status: EffectStatus | null) => void;
 		gpuDevice: GPUDevice;
-		gpuContext: GPUCanvasContext;
-		resolution: {
-			width: number;
-			height: number;
-		};
+		resolution: { width: number; height: number; };
 		enable32bitDataTextures: boolean;
-		/** 画像の中間テクスチャ形式。省略時はrgba16float。Canvas・データ用テクスチャには適用しない。 */
 		intermediateTextureFormat: IntermediateTextureFormat;
-		enableStats: boolean;
-		/** 最終出力の黒つぶれを緑、白飛びをマゼンタで表示する。 */
-		highlightClipping?: boolean;
-		timeFactor?: number;
-		fpsLimit: number | null;
-		assets: Asset[];
-		macros: Macro[];
-		automations: GsAutomation[];
-		nodes: GsNode[];
-		histogramGpuContext: GPUCanvasContext;
-		waveformHorizontalGpuContext: GPUCanvasContext;
-		waveformVerticalGpuContext: GPUCanvasContext;
 	}) {
+		this.gpuDevice = options.gpuDevice;
 		this.resolution = options.resolution;
-		this.onEffectStatus = options.onEffectStatus;
-		this.enableStats = options.enableStats;
-		this.highlightClipping = options.highlightClipping ?? false;
-		this.timeFactor = options.timeFactor ?? 1;
 		this.enable32bitDataTextures = options.enable32bitDataTextures;
 		this.intermediateTextureFormat = options.intermediateTextureFormat;
-		this.fpsLimit = options.fpsLimit;
-		this.gpuDevice = options.gpuDevice;
-		this.gpuMemory = new GpuMemoryTracker(this.gpuDevice);
-		this.gpuContext = options.gpuContext;
-		this.histogramGpuContext = options.histogramGpuContext;
-		this.gpuHistogram = new GpuHistogram(
-			this.gpuDevice,
-			this.histogramGpuContext,
-			navigator.gpu.getPreferredCanvasFormat(),
-		);
-		this.waveformHorizontalGpuContext = options.waveformHorizontalGpuContext;
-		this.gpuWaveformHorizontal = new GpuWaveform(
-			this.gpuDevice,
-			this.waveformHorizontalGpuContext,
-			navigator.gpu.getPreferredCanvasFormat(),
-		);
-
-		this.gpuWaveformVertical = new GpuWaveform(
-			this.gpuDevice,
-			options.waveformVerticalGpuContext,
-			navigator.gpu.getPreferredCanvasFormat(),
-			'y',
-		);
-
-		this.timingHelper = new TimingHelper(this.gpuDevice);
-
-		this.gpuContext.configure({
-			device: this.gpuDevice,
-			format: navigator.gpu.getPreferredCanvasFormat(),
-			alphaMode: 'premultiplied',
-			colorSpace: 'srgb',
-			usage: GPUTextureUsage.RENDER_ATTACHMENT,
-		});
-
-		this.fallbackTexture = this.gpuDevice.createTexture({
-			size: [1, 1],
-			format: this.intermediateTextureFormat,
-			usage: GPUTextureUsage.TEXTURE_BINDING,
-		});
-
-		this.fallbackScalarFieldTexture = this.gpuDevice.createTexture({
-			size: [1, 1],
-			format: this.enable32bitDataTextures ? 'r32float' : 'r16float',
-			usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_DST,
-		});
-
-		const sclarPixelData = this.enable32bitDataTextures
-			? new Float32Array([0])
-			: new Uint16Array([float32ToFloat16Bits(0)]);
-
-		this.gpuDevice.queue.writeTexture(
-			{ texture: this.fallbackScalarFieldTexture },
-			sclarPixelData,
-			{ bytesPerRow: sclarPixelData.byteLength, rowsPerImage: 1 },
-			{ width: 1, height: 1 },
-		);
-
-		this.defaultVertexShaderModule = this.gpuDevice.createShaderModule({
-			code: defaultVertexShaderCode,
-		});
-
-		const finalRenderShaderModule = this.gpuDevice.createShaderModule({
-			code: finalRenderShaderCode,
-		});
-
-		const finalRenderShaderDataDefinitions = makeShaderDataDefinitions(finalRenderShaderCode);
-
-		this.finalRenderSampler = this.gpuDevice.createSampler({ minFilter: 'linear', magFilter: 'linear' });
-		this.finalRenderPipeline = this.gpuDevice.createRenderPipeline({
-			vertex: {
-				module: this.defaultVertexShaderModule,
-			},
-			fragment: {
-				module: finalRenderShaderModule,
-				targets: [{
-					format: navigator.gpu.getPreferredCanvasFormat(),
-				}],
-			},
-			primitive: {
-				topology: 'triangle-list',
-			},
-			layout: 'auto',
-		});
-
-		this.finalRenderUniformValues = makeStructuredView(finalRenderShaderDataDefinitions.uniforms.uniforms);
-
-		this.finalRenderUniformBuffer = this.gpuDevice.createBuffer({
-			size: this.finalRenderUniformValues.arrayBuffer.byteLength,
-			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-		});
-
-		this.updateAssets(options.assets);
-		this.updateMacros(options.macros);
-		this.updateAutomations(options.automations);
-		this.updateNodes(options.nodes);
-	}
-
-	// 無効なエフェクトは主入力をそのまま公開する。テクスチャの所有権や履歴は元のノードに残す。
-	// 描画・入力参照・キャッシュが同じ接続関係を扱うよう、ここで共通して解決する。
-	private getOutputNode(node: GsNode, outputPort?: string, visited: GsNode['id'][] = []): { node: GsEffectNode; outputPort: string } | undefined {
-		if (visited.includes(node.id)) throw new Error('circular dependency detected');
-		const nextVisited = [...visited, node.id];
-		if (!node.isBypass) {
-			const port = outputPort ?? Object.entries(effectDefinitions[node.effectId].outputs).find(([, def]) => def.primary)?.[0];
-			return port == null ? undefined : { node, outputPort: port };
-		}
-		const primary = Object.entries(effectDefinitions[node.effectId].paramDefs).find(([, def]) => def.primary);
-		const input: NodeOutputReference | null = primary ? this.evaledNodeParams.get(node.id)![primary[0]] : null;
-		// バイパスでは自身の出力名ではなく、主入力が選択した出力ポートを公開する。
-		return input == null ? undefined : this.getOutputNode(this.allNodeIdMap.get(input.nodeId)!, input.outputPort, nextVisited);
-	}
-
-	private getOutputTexture(node: GsNode, outputPort: string): GPUTexture | undefined {
-		const output = this.getOutputNode(node, outputPort);
-		if (output == null) return undefined;
-		return this.outDataMapPerNodes.get(output.node.id)![output.outputPort].texture;
 	}
 
 	private evalNodeParams(nodes: GsNode[], options: { vars: Record<string, any> }) {
@@ -454,223 +293,6 @@ export class Renderer {
 		}
 	}
 
-	private renderNode(node: GsNode, commandEncoder: GPUCommandEncoder, context: { visited: Set<GsNode['id']>; rendered: Set<GsNode['id']>; }): void {
-		if (context.visited.has(node.id)) {
-			throw new Error('circular dependency detected');
-		}
-		if (context.rendered.has(node.id)) { // キャッシュが無効だったとしても同じフレーム内に同じノードを複数回レンダリングするのは無駄(というかping-pongするエフェクトなら結果がおかしくなる)なため弾く
-			return;
-		}
-
-		if (node.isBypass) {
-			// 無効中は自身を描画せず、主入力だけを更新する。履歴は保持して再有効化時に再開する。
-			const output = this.getOutputNode(node);
-			if (output == null) return;
-			return this.renderNode(output.node, commandEncoder, {
-				visited: new Set([...context.visited, node.id]),
-				rendered: context.rendered,
-			});
-		}
-
-		const key = this.evalCacheKey(node);
-		//console.log('Cache key for node', node.id, ':', key);
-		const prevKey = this.effectCacheKeys.get(node.id);
-		if (key != null && key === prevKey) {
-			return;
-		}
-
-		const effect = effectImplementations[node.effectId];
-
-		const params = this.evaledNodeParams.get(node.id)!;
-
-		for (const { def, param } of walkNodeParams(effectDefinitions[node.effectId].paramDefs, node.params)) {
-			if (!def.canNode || param.type !== 'node' || param.nodeId == null) continue;
-			const targetNode = this.allNodeIdMap.get(param.nodeId);
-			if (targetNode == null) throw new Error('Referenced node not found');
-			this.renderNode(targetNode, commandEncoder, {
-				visited: new Set([...context.visited, node.id]),
-				rendered: context.rendered,
-			});
-		}
-
-		const resolvedParams = this.resolveParams(node, params);
-
-		let effectInstance = this.effectInstances.get(node.id);
-		if (effectInstance == null) {
-			const state: { sent?: EffectStatus } = {};
-			this.effectStatuses.set(node.id, state);
-			effectInstance = effect.init({
-				reportStatus: status => {
-					// 初期化中の通知も受け取るが、破棄・再作成後の古い通知は無視する。
-					if (this.effectStatuses.get(node.id) !== state) return;
-					this.setEffectStatus(node.id, status);
-				},
-				resolution: { width: this.resolution.width, height: this.resolution.height },
-				wgpu: { device: this.gpuDevice, context: this.gpuContext, defaultVertexShaderModule: this.defaultVertexShaderModule, enable32bitDataTextures: this.enable32bitDataTextures, intermediateTextureFormat: this.intermediateTextureFormat },
-				params: resolvedParams,
-				fallbackTexture: this.fallbackTexture,
-			});
-			this.effectInstances.set(node.id, effectInstance);
-			// init中に状態が報告されなかった同期エフェクトは、この時点でready。
-			if (state.sent == null) this.setEffectStatus(node.id, { type: 'ready' });
-		}
-
-		const outDataMap = this.outDataMapPerNodes.get(node.id)!;
-
-		const resolvedOutputDataMap = {} as Record<string, {
-			previousFrameTexture: GPUTexture | undefined;
-			previousFrameTextureView: GPUTextureView | undefined;
-			texture: GPUTexture;
-			textureView: GPUTextureView;
-		}>;
-		for (const [k, v] of Object.entries(outDataMap)) {
-			resolvedOutputDataMap[k] = {
-				// 現在公開されている出力を、前回の結果として読む
-				previousFrameTexture: effect.needsPreviousFrame ? v.texture : undefined,
-				previousFrameTextureView: effect.needsPreviousFrame ? v.textureView : undefined,
-
-				// もう1枚へ書く
-				texture: effect.needsPreviousFrame ? v.previousFrameTexture! : v.texture,
-				textureView: effect.needsPreviousFrame ? v.previousFrameTextureView! : v.textureView,
-			};
-		}
-
-		effectInstance.render({
-			time: this.time / 1000,
-			timeDelta: this.timeDelta,
-			pointerPosition: this.pointerPosition,
-			pointerVector: {
-				x: this.pointerPositionPrev.x === -99999 ? 0 : this.pointerPosition.x - this.pointerPositionPrev.x,
-				y: this.pointerPositionPrev.y === -99999 ? 0 : this.pointerPosition.y - this.pointerPositionPrev.y,
-			},
-			params: resolvedParams,
-			outputDataMap: resolvedOutputDataMap,
-			usedOutputPorts: this.usedOutputPorts.get(node.id),
-			commandEncoder: commandEncoder,
-			createPassEncoderFor: (commandEncoder, view) => {
-				const descriptor = {
-					colorAttachments: [{
-						view: view,
-						clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
-						loadOp: 'clear',
-						storeOp: 'store',
-					}],
-				} satisfies GPURenderPassDescriptor;
-				return this.enableStats ? this.timingHelper.beginRenderPass(commandEncoder, descriptor) : commandEncoder.beginRenderPass(descriptor);
-			},
-			createPassEncoder: (commandEncoder, descriptor) => {
-				return this.enableStats ? this.timingHelper.beginRenderPass(commandEncoder, descriptor) : commandEncoder.beginRenderPass(descriptor);
-			},
-			createComputePassEncoder: (commandEncoder, descriptor) => {
-				return this.enableStats ? this.timingHelper.beginComputePass(commandEncoder, descriptor) : commandEncoder.beginComputePass(descriptor);
-			},
-		});
-
-		if (effect.needsPreviousFrame) {
-			for (const [k, v] of Object.entries(outDataMap)) {
-				// 今回書いた結果を後段へ公開
-				v.texture = resolvedOutputDataMap[k].texture;
-				v.textureView = resolvedOutputDataMap[k].textureView;
-
-				// 今回読んだものを次回の書き込み先として保持
-				v.previousFrameTexture = resolvedOutputDataMap[k].previousFrameTexture!;
-				v.previousFrameTextureView = resolvedOutputDataMap[k].previousFrameTextureView!;
-			}
-		}
-
-		context.rendered.add(node.id);
-		if (key != null) this.effectCacheKeys.set(node.id, key);
-	}
-
-	public render(renderNodeId: string | null | undefined, args: {
-		time: number;
-		mouseX?: number;
-		mouseY?: number;
-		frame?: number;
-	}) {
-		if (renderNodeId == null) return;
-		const node = this.allNodeIdMap.get(renderNodeId);
-		if (node == null) return;
-
-		const realTimeDelta = args.time - this.latestTimestamp;
-		this.timeDelta = realTimeDelta * this.timeFactor;
-		this.time += this.timeDelta;
-
-		if (this.lastPointerUpdateTimestamp + 30 < performance.now()) {
-			this.pointerPosition = { x: -99999, y: -99999 };
-		}
-
-		this.evalNodeParams(this.nodes, {
-			vars: {
-				TIME: this.time / 1000, // ms to seconds
-				TIME_MS: this.time,
-			},
-		});
-
-		this.prepareOutputPorts(node);
-		const commandEncoder = this.gpuDevice.createCommandEncoder();
-
-		this.renderNode(node, commandEncoder, {
-			visited: new Set<GsNode['id']>(),
-			rendered: new Set<GsNode['id']>(),
-		});
-
-		//#region nodeのoutをcanvasに描画
-		// 末尾が無効でもバイパス先を表示する。出力なしでも描画し、前の画像を残さない。
-		const output = this.getOutputNode(node);
-		const outputTexture = (output == null ? undefined : this.getOutputTexture(output.node, output.outputPort)) ?? this.fallbackTexture;
-		if (this.finalRenderBindGroup == null || this.finalRenderInputTexture !== outputTexture) {
-			this.finalRenderInputTexture = outputTexture;
-			this.finalRenderBindGroup = this.gpuDevice.createBindGroup({
-				layout: this.finalRenderPipeline.getBindGroupLayout(0),
-				entries: [
-					{ binding: 1, resource: { buffer: this.finalRenderUniformBuffer } },
-					{ binding: 3, resource: this.finalRenderSampler },
-					{ binding: 2, resource: this.finalRenderInputTexture.createView() }, // TODO: cache view
-				],
-			});
-		}
-
-		this.finalRenderUniformValues.set({
-			highlightClipping: this.highlightClipping ? 1 : 0,
-		});
-		this.gpuDevice.queue.writeBuffer(this.finalRenderUniformBuffer, 0, this.finalRenderUniformValues.arrayBuffer);
-
-		const passEncoder = commandEncoder.beginRenderPass({
-			colorAttachments: [{
-				view: this.gpuContext.getCurrentTexture().createView(),
-				clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
-				loadOp: 'clear',
-				storeOp: 'store',
-			}],
-		});
-		passEncoder.setPipeline(this.finalRenderPipeline);
-		passEncoder.setBindGroup(0, this.finalRenderBindGroup);
-		passEncoder.draw(6);
-		passEncoder.end();
-
-		this.gpuHistogram.render(commandEncoder, this.finalRenderInputTexture);
-		this.gpuWaveformHorizontal.render(commandEncoder, this.finalRenderInputTexture);
-		this.gpuWaveformVertical.render(commandEncoder, this.finalRenderInputTexture);
-
-		this.gpuDevice.queue.submit([commandEncoder.finish()]);
-		//#endregion
-
-		this.pointerPositionPrev = { ...this.pointerPosition };
-
-		this.latestTimestamp = args.time;
-
-		this.fpsAverage.addSample(1000 / realTimeDelta);
-
-		if (this.enableStats) {
-			this.timingHelper.getResult().then(gpuTime => {
-				this.gpuAverageFast.addSample(gpuTime / 1000);
-				this.gpuAverageMedium.addSample(gpuTime / 1000);
-				this.gpuAverageSlow.addSample(gpuTime / 1000);
-			});
-		}
-	}
-
 	// (非workerで)呼び出すときはnewNodesを独立した参照にすること！ パフォーマンス上の理由でこちら側ではdeepCloneしません
 	public updateNodes(newNodes: GsNode[]) {
 		const oldEffectNodes = this.nodes;
@@ -777,6 +399,468 @@ export class Renderer {
 		indexNodes(newNodes);
 	}
 
+	// 無効なエフェクトは主入力をそのまま公開する。テクスチャの所有権や履歴は元のノードに残す。
+	// 描画・入力参照・キャッシュが同じ接続関係を扱うよう、ここで共通して解決する。
+	private getOutputNode(node: GsNode, outputPort?: string, visited: GsNode['id'][] = []): { node: GsEffectNode; outputPort: string } | undefined {
+		if (visited.includes(node.id)) throw new Error('circular dependency detected');
+		const nextVisited = [...visited, node.id];
+		if (!node.isBypass) {
+			const port = outputPort ?? Object.entries(effectDefinitions[node.effectId].outputs).find(([, def]) => def.primary)?.[0];
+			return port == null ? undefined : { node, outputPort: port };
+		}
+		const primary = Object.entries(effectDefinitions[node.effectId].paramDefs).find(([, def]) => def.primary);
+		const input: NodeOutputReference | null = primary ? this.evaledNodeParams.get(node.id)![primary[0]] : null;
+		// バイパスでは自身の出力名ではなく、主入力が選択した出力ポートを公開する。
+		return input == null ? undefined : this.getOutputNode(this.allNodeIdMap.get(input.nodeId)!, input.outputPort, nextVisited);
+	}
+
+	private getOutputTexture(node: GsNode, outputPort: string): GPUTexture | undefined {
+		const output = this.getOutputNode(node, outputPort);
+		if (output == null) return undefined;
+		return this.outDataMapPerNodes.get(output.node.id)![output.outputPort].texture;
+	}
+
+	private renderNode(node: GsNode, commandEncoder: GPUCommandEncoder, context: NodeGraphRenderContext & {
+		visited: Set<GsNode['id']>;
+		rendered: Set<GsNode['id']>;
+	}): void {
+		if (context.visited.has(node.id)) {
+			throw new Error('circular dependency detected');
+		}
+		if (context.rendered.has(node.id)) { // キャッシュが無効だったとしても同じフレーム内に同じノードを複数回レンダリングするのは無駄(というかping-pongするエフェクトなら結果がおかしくなる)なため弾く
+			return;
+		}
+
+		if (node.isBypass) {
+			// 無効中は自身を描画せず、主入力だけを更新する。履歴は保持して再有効化時に再開する。
+			const output = this.getOutputNode(node);
+			if (output == null) return;
+			return this.renderNode(output.node, commandEncoder, {
+				...context,
+				visited: new Set([...context.visited, node.id]),
+				rendered: context.rendered,
+			});
+		}
+
+		const key = this.evalCacheKey(node);
+		//console.log('Cache key for node', node.id, ':', key);
+		const prevKey = this.effectCacheKeys.get(node.id);
+		if (key != null && key === prevKey) {
+			return;
+		}
+
+		const effect = effectImplementations[node.effectId];
+
+		const params = this.evaledNodeParams.get(node.id)!;
+
+		for (const { def, param } of walkNodeParams(effectDefinitions[node.effectId].paramDefs, node.params)) {
+			if (!def.canNode || param.type !== 'node' || param.nodeId == null) continue;
+			const targetNode = this.allNodeIdMap.get(param.nodeId);
+			if (targetNode == null) throw new Error('Referenced node not found');
+			this.renderNode(targetNode, commandEncoder, {
+				...context,
+				visited: new Set([...context.visited, node.id]),
+				rendered: context.rendered,
+			});
+		}
+
+		const resolvedParams = this.resolveParams(node, params);
+
+		let effectInstance = this.effectInstances.get(node.id);
+		if (effectInstance == null) {
+			const state: { sent?: EffectStatus } = {};
+			this.effectStatuses.set(node.id, state);
+			effectInstance = effect.init({
+				reportStatus: status => {
+					// 初期化中の通知も受け取るが、破棄・再作成後の古い通知は無視する。
+					if (this.effectStatuses.get(node.id) !== state) return;
+					this.setEffectStatus(node.id, status);
+				},
+				resolution: { width: this.resolution.width, height: this.resolution.height },
+				wgpu: { device: this.gpuDevice, context: this.gpuContext, defaultVertexShaderModule: this.defaultVertexShaderModule, enable32bitDataTextures: this.enable32bitDataTextures, intermediateTextureFormat: this.intermediateTextureFormat },
+				params: resolvedParams,
+				fallbackTexture: this.fallbackTexture,
+			});
+			this.effectInstances.set(node.id, effectInstance);
+			// init中に状態が報告されなかった同期エフェクトは、この時点でready。
+			if (state.sent == null) this.setEffectStatus(node.id, { type: 'ready' });
+		}
+
+		const outDataMap = this.outDataMapPerNodes.get(node.id)!;
+
+		const resolvedOutputDataMap = {} as Record<string, {
+			previousFrameTexture: GPUTexture | undefined;
+			previousFrameTextureView: GPUTextureView | undefined;
+			texture: GPUTexture;
+			textureView: GPUTextureView;
+		}>;
+		for (const [k, v] of Object.entries(outDataMap)) {
+			resolvedOutputDataMap[k] = {
+				// 現在公開されている出力を、前回の結果として読む
+				previousFrameTexture: effect.needsPreviousFrame ? v.texture : undefined,
+				previousFrameTextureView: effect.needsPreviousFrame ? v.textureView : undefined,
+
+				// もう1枚へ書く
+				texture: effect.needsPreviousFrame ? v.previousFrameTexture! : v.texture,
+				textureView: effect.needsPreviousFrame ? v.previousFrameTextureView! : v.textureView,
+			};
+		}
+
+		effectInstance.render({
+			time: context.localTime / 1000,
+			timeDelta: context.localTimeDelta,
+			pointerPosition: context.pointerPosition,
+			pointerVector: {
+				x: context.pointerPositionPrev.x === -99999 ? 0 : context.pointerPosition.x - context.pointerPositionPrev.x,
+				y: context.pointerPositionPrev.y === -99999 ? 0 : context.pointerPosition.y - context.pointerPositionPrev.y,
+			},
+			params: resolvedParams,
+			outputDataMap: resolvedOutputDataMap,
+			usedOutputPorts: this.usedOutputPorts.get(node.id),
+			commandEncoder: commandEncoder,
+			createPassEncoderFor: (commandEncoder, view) => {
+				const descriptor = {
+					colorAttachments: [{
+						view: view,
+						clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
+						loadOp: 'clear',
+						storeOp: 'store',
+					}],
+				} satisfies GPURenderPassDescriptor;
+				return this.enableStats ? this.timingHelper.beginRenderPass(commandEncoder, descriptor) : commandEncoder.beginRenderPass(descriptor);
+			},
+			createPassEncoder: (commandEncoder, descriptor) => {
+				return this.enableStats ? this.timingHelper.beginRenderPass(commandEncoder, descriptor) : commandEncoder.beginRenderPass(descriptor);
+			},
+			createComputePassEncoder: (commandEncoder, descriptor) => {
+				return this.enableStats ? this.timingHelper.beginComputePass(commandEncoder, descriptor) : commandEncoder.beginComputePass(descriptor);
+			},
+		});
+
+		if (effect.needsPreviousFrame) {
+			for (const [k, v] of Object.entries(outDataMap)) {
+				// 今回書いた結果を後段へ公開
+				v.texture = resolvedOutputDataMap[k].texture;
+				v.textureView = resolvedOutputDataMap[k].textureView;
+
+				// 今回読んだものを次回の書き込み先として保持
+				v.previousFrameTexture = resolvedOutputDataMap[k].previousFrameTexture!;
+				v.previousFrameTextureView = resolvedOutputDataMap[k].previousFrameTextureView!;
+			}
+		}
+
+		context.rendered.add(node.id);
+		if (key != null) this.effectCacheKeys.set(node.id, key);
+	}
+
+	public render(context: NodeGraphRenderContext) {
+		if (this.renderNodeId == null) return;
+		const node = this.allNodeIdMap.get(this.renderNodeId);
+		if (node == null) return;
+
+		this.evalNodeParams(this.nodes, {
+			vars: {
+				TIME: context.localTime / 1000, // ms to seconds
+				TIME_MS: context.localTime,
+			},
+		});
+
+		this.prepareOutputPorts(node);
+		const commandEncoder = this.gpuDevice.createCommandEncoder();
+
+		this.renderNode(node, commandEncoder, {
+			...context,
+			visited: new Set<GsNode['id']>(),
+			rendered: new Set<GsNode['id']>(),
+		});
+	}
+
+	// TODO: もっとスマートなリソース更新方法を考える
+	public resize(resolution: {
+		width: number;
+		height: number;
+	}) {
+		this.resolution = resolution;
+
+		for (const id of this.effectStatuses.keys()) this.clearEffectStatus(id);
+		for (const instance of this.effectInstances.values()) {
+			instance?.dispose();
+		}
+		this.effectInstances.clear();
+
+		for (const outDataMap of this.outDataMapPerNodes.values()) {
+			for (const outData of Object.values(outDataMap)) {
+				outData.texture.destroy();
+				if (outData.previousFrameTexture) {
+					outData.previousFrameTexture.destroy();
+				}
+			}
+		}
+		this.outDataMapPerNodes.clear();
+		this.lazyOutputs.clear();
+		this.usedOutputPorts.clear();
+
+		const currentNodes = this.nodes;
+		this.updateNodes([]);
+		this.updateNodes(currentNodes);
+	}
+
+	public destroy() {
+		for (const id of this.effectStatuses.keys()) this.clearEffectStatus(id);
+		for (const instance of this.effectInstances.values()) {
+			instance?.dispose();
+		}
+		this.effectInstances.clear();
+
+		for (const outDataMap of this.outDataMapPerNodes.values()) {
+			for (const outData of Object.values(outDataMap)) {
+				outData.texture.destroy();
+				if (outData.previousFrameTexture) {
+					outData.previousFrameTexture.destroy();
+				}
+			}
+		}
+		this.outDataMapPerNodes.clear();
+		this.lazyOutputs.clear();
+		this.usedOutputPorts.clear();
+	}
+}
+
+export class MainRenderer {
+	private gpuContext: GPUCanvasContext;
+	private gpuDevice: GPUDevice;
+	private resolution: { width: number; height: number; };
+	private defaultVertexShaderModule: GPUShaderModule;
+	private fallbackTexture: GPUTexture;
+	private fallbackScalarFieldTexture: GPUTexture;
+	private enableStats = true;
+	private highlightClipping = false;
+	private timeFactor = 1;
+
+	private timeline: Timeline = [];
+	private assets: Asset[] = [];
+	private macros: Macro[] = [];
+	private automations: GsAutomation[] = [];
+	private assetTextures: Map<string, GPUTexture> = new Map();
+	private videoFrames: Map<Player['id'], VideoFrame> = new Map();
+	private videoFrameVersions: Map<Player['id'], number> = new Map();
+	private audioSources = new Map<AudioSourceId, AudioHistory>();
+	private audioPorts = new Map<AudioSourceId, MessagePort>();
+	private nodeGraphRenderers: Map<Timeline[number]['id'], NodeGraphRenderer> = new Map();
+	private timingHelper: TimingHelper;
+	private finalRenderSampler: GPUSampler;
+	private finalRenderPipeline: GPURenderPipeline;
+	private finalRenderUniformValues: ReturnType<typeof makeStructuredView>;
+	private finalRenderUniformBuffer: GPUBuffer;
+	private finalRenderBindGroup: GPUBindGroup | null = null;
+	private finalRenderInputTexture: GPUTexture | null = null;
+	private enable32bitDataTextures = false;
+	private readonly intermediateTextureFormat: IntermediateTextureFormat;
+	private latestTimestamp: number = performance.now();
+	private pointerPosition: { x: number; y: number } = { x: -99999, y: -99999 };
+	private pointerPositionPrev: { x: number; y: number } = { x: -99999, y: -99999 };
+	private lastPointerUpdateTimestamp = 0;
+	private histogramGpuContext: GPUCanvasContext;
+	private waveformHorizontalGpuContext: GPUCanvasContext;
+	private gpuHistogram: GpuHistogram;
+	private gpuWaveformHorizontal: GpuWaveform;
+	private gpuWaveformVertical: GpuWaveform;
+	private timeDelta = 0;
+	public gpuAverageFast = new NonNegativeRollingAverage(10);
+	public gpuAverageMedium = new NonNegativeRollingAverage(100);
+	public gpuAverageSlow = new NonNegativeRollingAverage(1000);
+	public fpsAverage = new NonNegativeRollingAverage(30);
+	public readonly gpuMemory: GpuMemoryTracker;
+	private time = 0;
+
+	constructor(options: {
+		onEffectStatus?: (nodeId: string, status: EffectStatus | null) => void;
+		gpuDevice: GPUDevice;
+		gpuContext: GPUCanvasContext;
+		resolution: {
+			width: number;
+			height: number;
+		};
+		enable32bitDataTextures: boolean;
+		/** 画像の中間テクスチャ形式。省略時はrgba16float。Canvas・データ用テクスチャには適用しない。 */
+		intermediateTextureFormat: IntermediateTextureFormat;
+		enableStats: boolean;
+		/** 最終出力の黒つぶれを緑、白飛びをマゼンタで表示する。 */
+		highlightClipping?: boolean;
+		timeFactor?: number;
+		fpsLimit: number | null;
+		assets: Asset[];
+		macros: Macro[];
+		automations: GsAutomation[];
+		nodes: GsNode[];
+		histogramGpuContext: GPUCanvasContext;
+		waveformHorizontalGpuContext: GPUCanvasContext;
+		waveformVerticalGpuContext: GPUCanvasContext;
+	}) {
+		this.resolution = options.resolution;
+		this.enableStats = options.enableStats;
+		this.highlightClipping = options.highlightClipping ?? false;
+		this.timeFactor = options.timeFactor ?? 1;
+		this.enable32bitDataTextures = options.enable32bitDataTextures;
+		this.intermediateTextureFormat = options.intermediateTextureFormat;
+		this.fpsLimit = options.fpsLimit;
+		this.gpuDevice = options.gpuDevice;
+		this.gpuMemory = new GpuMemoryTracker(this.gpuDevice);
+		this.gpuContext = options.gpuContext;
+		this.histogramGpuContext = options.histogramGpuContext;
+		this.gpuHistogram = new GpuHistogram(
+			this.gpuDevice,
+			this.histogramGpuContext,
+			navigator.gpu.getPreferredCanvasFormat(),
+		);
+		this.waveformHorizontalGpuContext = options.waveformHorizontalGpuContext;
+		this.gpuWaveformHorizontal = new GpuWaveform(
+			this.gpuDevice,
+			this.waveformHorizontalGpuContext,
+			navigator.gpu.getPreferredCanvasFormat(),
+		);
+
+		this.gpuWaveformVertical = new GpuWaveform(
+			this.gpuDevice,
+			options.waveformVerticalGpuContext,
+			navigator.gpu.getPreferredCanvasFormat(),
+			'y',
+		);
+
+		this.timingHelper = new TimingHelper(this.gpuDevice);
+
+		this.gpuContext.configure({
+			device: this.gpuDevice,
+			format: navigator.gpu.getPreferredCanvasFormat(),
+			alphaMode: 'premultiplied',
+			colorSpace: 'srgb',
+			usage: GPUTextureUsage.RENDER_ATTACHMENT,
+		});
+
+		this.fallbackTexture = this.gpuDevice.createTexture({
+			size: [1, 1],
+			format: this.intermediateTextureFormat,
+			usage: GPUTextureUsage.TEXTURE_BINDING,
+		});
+
+		this.fallbackScalarFieldTexture = this.gpuDevice.createTexture({
+			size: [1, 1],
+			format: this.enable32bitDataTextures ? 'r32float' : 'r16float',
+			usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_DST,
+		});
+
+		const sclarPixelData = this.enable32bitDataTextures
+			? new Float32Array([0])
+			: new Uint16Array([float32ToFloat16Bits(0)]);
+
+		this.gpuDevice.queue.writeTexture(
+			{ texture: this.fallbackScalarFieldTexture },
+			sclarPixelData,
+			{ bytesPerRow: sclarPixelData.byteLength, rowsPerImage: 1 },
+			{ width: 1, height: 1 },
+		);
+
+		this.defaultVertexShaderModule = this.gpuDevice.createShaderModule({
+			code: defaultVertexShaderCode,
+		});
+
+		const finalRenderShaderModule = this.gpuDevice.createShaderModule({
+			code: finalRenderShaderCode,
+		});
+
+		const finalRenderShaderDataDefinitions = makeShaderDataDefinitions(finalRenderShaderCode);
+
+		this.finalRenderSampler = this.gpuDevice.createSampler({ minFilter: 'linear', magFilter: 'linear' });
+		this.finalRenderPipeline = this.gpuDevice.createRenderPipeline({
+			vertex: {
+				module: this.defaultVertexShaderModule,
+			},
+			fragment: {
+				module: finalRenderShaderModule,
+				targets: [{
+					format: navigator.gpu.getPreferredCanvasFormat(),
+				}],
+			},
+			primitive: {
+				topology: 'triangle-list',
+			},
+			layout: 'auto',
+		});
+
+		this.finalRenderUniformValues = makeStructuredView(finalRenderShaderDataDefinitions.uniforms.uniforms);
+
+		this.finalRenderUniformBuffer = this.gpuDevice.createBuffer({
+			size: this.finalRenderUniformValues.arrayBuffer.byteLength,
+			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+		});
+
+		this.updateAssets(options.assets);
+		this.updateMacros(options.macros);
+		this.updateAutomations(options.automations);
+	}
+
+	public render(renderNodeId: string | null | undefined, args: {
+		time: number;
+		mouseX?: number;
+		mouseY?: number;
+		frame?: number;
+	}) {
+		// TODO
+
+		//#region canvasに描画
+		// 末尾が無効でもバイパス先を表示する。出力なしでも描画し、前の画像を残さない。
+		if (this.finalRenderBindGroup == null || this.finalRenderInputTexture !== outputTexture) {
+			this.finalRenderInputTexture = outputTexture;
+			this.finalRenderBindGroup = this.gpuDevice.createBindGroup({
+				layout: this.finalRenderPipeline.getBindGroupLayout(0),
+				entries: [
+					{ binding: 1, resource: { buffer: this.finalRenderUniformBuffer } },
+					{ binding: 3, resource: this.finalRenderSampler },
+					{ binding: 2, resource: this.finalRenderInputTexture.createView() }, // TODO: cache view
+				],
+			});
+		}
+
+		this.finalRenderUniformValues.set({
+			highlightClipping: this.highlightClipping ? 1 : 0,
+		});
+		this.gpuDevice.queue.writeBuffer(this.finalRenderUniformBuffer, 0, this.finalRenderUniformValues.arrayBuffer);
+
+		const passEncoder = commandEncoder.beginRenderPass({
+			colorAttachments: [{
+				view: this.gpuContext.getCurrentTexture().createView(),
+				clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
+				loadOp: 'clear',
+				storeOp: 'store',
+			}],
+		});
+		passEncoder.setPipeline(this.finalRenderPipeline);
+		passEncoder.setBindGroup(0, this.finalRenderBindGroup);
+		passEncoder.draw(6);
+		passEncoder.end();
+
+		this.gpuHistogram.render(commandEncoder, this.finalRenderInputTexture);
+		this.gpuWaveformHorizontal.render(commandEncoder, this.finalRenderInputTexture);
+		this.gpuWaveformVertical.render(commandEncoder, this.finalRenderInputTexture);
+
+		this.gpuDevice.queue.submit([commandEncoder.finish()]);
+		//#endregion
+
+		this.pointerPositionPrev = { ...this.pointerPosition };
+
+		this.latestTimestamp = args.time;
+
+		this.fpsAverage.addSample(1000 / realTimeDelta);
+
+		if (this.enableStats) {
+			this.timingHelper.getResult().then(gpuTime => {
+				this.gpuAverageFast.addSample(gpuTime / 1000);
+				this.gpuAverageMedium.addSample(gpuTime / 1000);
+				this.gpuAverageSlow.addSample(gpuTime / 1000);
+			});
+		}
+	}
+
 	// (非workerで)呼び出すときはnewAssetsを独立した参照にすること！ パフォーマンス上の理由でこちら側ではdeepCloneしません
 	public updateAssets(newAssets: Asset[]) {
 		this.assets = newAssets;
@@ -870,7 +954,7 @@ export class Renderer {
 	public changeFpsLimit(newFpsLimit: number | null) {
 		this.fpsLimit = newFpsLimit;
 		this.stopRenderLoop();
-		this.startRenderLoop();
+		this.startRenderLoopForLive();
 	}
 
 	public setHighlightClipping(enabled: boolean) {
@@ -881,7 +965,12 @@ export class Renderer {
 		this.timeFactor = value;
 	}
 
-	public startRenderLoop() {
+	public renderTimelineAt(time: number) {
+		// TODO: 表示layerを算出して処理
+		// https://github.com/syuilo/glitch-studio-web/issues/65#issuecomment-5730058970
+	}
+
+	public startRenderLoopForLive() {
 		this.stopRenderLoop();
 		let then = 0;
 		const interval = 1000 / (this.fpsLimit ?? 999);
@@ -895,7 +984,7 @@ export class Renderer {
 				then = timeStamp - (delta % interval);
 			}
 
-			this.render(this.nodes.at(-1)?.id, {
+			this.renderSingleNodeGraph(this.liveNodeGraph, {
 				time: timeStamp,
 			});
 		};
@@ -910,7 +999,6 @@ export class Renderer {
 		}
 	}
 
-	// TODO: もっとスマートなリソース更新方法を考える
 	public resize(resolution: {
 		width: number;
 		height: number;
@@ -918,29 +1006,11 @@ export class Renderer {
 		this.stopRenderLoop();
 		this.resolution = resolution;
 
-		for (const id of this.effectStatuses.keys()) this.clearEffectStatus(id);
-		for (const instance of this.effectInstances.values()) {
-			instance?.dispose();
+		for (const nodeGraphRenderer of this.nodeGraphRenderers.values()) {
+			nodeGraphRenderer?.resize(resolution);
 		}
-		this.effectInstances.clear();
 
-		for (const outDataMap of this.outDataMapPerNodes.values()) {
-			for (const outData of Object.values(outDataMap)) {
-				outData.texture.destroy();
-				if (outData.previousFrameTexture) {
-					outData.previousFrameTexture.destroy();
-				}
-			}
-		}
-		this.outDataMapPerNodes.clear();
-		this.lazyOutputs.clear();
-		this.usedOutputPorts.clear();
-
-		const currentNodes = this.nodes;
-		this.updateNodes([]);
-		this.updateNodes(currentNodes);
-
-		this.startRenderLoop();
+		this.startRenderLoopForLive();
 	}
 
 	public destroy() {
@@ -952,23 +1022,10 @@ export class Renderer {
 		this.gpuWaveformHorizontal.dispose();
 		this.gpuWaveformVertical.dispose();
 
-		for (const id of this.effectStatuses.keys()) this.clearEffectStatus(id);
-		for (const instance of this.effectInstances.values()) {
-			instance?.dispose();
+		for (const nodeGraphRenderer of this.nodeGraphRenderers.values()) {
+			nodeGraphRenderer?.destroy();
 		}
-		this.effectInstances.clear();
-
-		for (const outDataMap of this.outDataMapPerNodes.values()) {
-			for (const outData of Object.values(outDataMap)) {
-				outData.texture.destroy();
-				if (outData.previousFrameTexture) {
-					outData.previousFrameTexture.destroy();
-				}
-			}
-		}
-		this.outDataMapPerNodes.clear();
-		this.lazyOutputs.clear();
-		this.usedOutputPorts.clear();
+		this.nodeGraphRenderers.clear();
 
 		this.gpuDevice?.destroy();
 	}

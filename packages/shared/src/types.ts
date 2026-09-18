@@ -79,3 +79,24 @@ export type GsEffectNode = {
 export type GsGroupNode = GsEffectNode; // とりあえず
 
 export type GsNode = GsEffectNode | GsGroupNode;
+
+export type Hoge = {
+	id: string;
+	name: string;
+	nodes: GsNode[];
+	finalRenderNodeId: string | null;
+};
+
+export type HogeLayer = {
+	type: 'hoge';
+	hogeId: string;
+};
+
+export type Layer = HogeLayer;
+
+export type Timeline = {
+	id: string;
+	layer: Layer;
+	startTimeMs: number;
+	endTimeMs: number;
+}[];
