@@ -77,6 +77,8 @@ export type EnumOptionSchema = EffectOptionSchemaBase & {
 
 export type RangeOptionSchema = EffectOptionSchemaBase & {
 	type: 'range';
+
+	// あくまで「UI上ではこれくらいの範囲でスライダーを操作できると便利」を示すもので、必ずこの範囲内に値が設定されることを要求するものではない
 	min: number;
 	max: number;
 	step?: number;
