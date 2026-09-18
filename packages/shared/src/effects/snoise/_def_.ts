@@ -6,6 +6,7 @@ export default defineEffect({
 	tags: [],
 	paramDefs: {
 		scale: { type: 'vector', label: 'Scale', min: 0, max: 16, step: 0.01, canNode: true, default: () => ({ type: 'literal', value: [1, 1] }) },
+		offset: { type: 'vector', label: 'Offset', min: 0, max: 16, step: 0.01, default: () => ({ type: 'literal', value: [0, 0] }) },
 		outputMin: { type: 'number', label: 'Output Min', step: 0.01, canNode: true, default: () => ({ type: 'literal', value: -1 }) },
 		outputMax: { type: 'number', label: 'Output Max', step: 0.01, canNode: true, default: () => ({ type: 'literal', value: 1 }) },
 		// canNodeでは環境によってTimeが16bitテクスチャに丸められ、経過時間とともに

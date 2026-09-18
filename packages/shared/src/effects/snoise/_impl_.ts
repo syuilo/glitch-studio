@@ -58,6 +58,7 @@ export default implementEffect<typeof definition>({
 				uniformValues.set({
 					time: ctx.params.time,
 					seedOffset: [ctx.params.seed, ctx.params.seed],
+					offset: ctx.params.offset,
 				});
 				wgpu.device.queue.writeBuffer(uniformBuffer, 0, uniformValues.arrayBuffer);
 				const inputs = [ctx.params.scale, ctx.params.outputMin, ctx.params.outputMax];

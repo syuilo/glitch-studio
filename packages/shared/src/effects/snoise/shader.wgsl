@@ -84,6 +84,7 @@ struct Uniforms {
 	aspectRatio: f32,
 	time: f32,
 	seedOffset: vec2f,
+	offset: vec2f,
 };
 
 @group(0) @binding(1) var<uniform> uniforms: Uniforms;
@@ -107,7 +108,7 @@ fn fs(fragData: FragmentIn) -> @location(0) f32 {
 	let outputMin = sampleParameter(outputMinTexture, paramUv).r;
 	let outputMax = sampleParameter(outputMaxTexture, paramUv).r;
 	let aspectUv = scaleUvToCoverGivenAspectRatio(fragData.uv, uniforms.aspectRatio);
-	let uv = aspectUv * scale + uniforms.seedOffset;
+	let uv = aspectUv * scale + uniforms.offset + uniforms.seedOffset;
 	let noise = snoise(vec3f(uv.x, uv.y, uniforms.time));
 	// -1〜+1を指定範囲へ写像する。丸め誤差による範囲外の値も抑える。
 	let normalizedNoise = clamp(noise * 0.5 + 0.5, 0.0, 1.0);
