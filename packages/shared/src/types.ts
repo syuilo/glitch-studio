@@ -80,19 +80,19 @@ export type GsGroupNode = GsEffectNode; // とりあえず
 
 export type GsNode = GsEffectNode | GsGroupNode;
 
-export type Hoge = {
+export type NodeGraph = {
 	id: string;
 	name: string;
 	nodes: GsNode[];
 	finalRenderNodeId: string | null;
 };
 
-export type HogeLayer = {
-	type: 'hoge';
+export type NodeGraphLayer = {
+	type: 'nodeGraph';
 	hogeId: string;
 };
 
-export type Layer = HogeLayer;
+export type Layer = NodeGraphLayer;
 
 export type Timeline = {
 	id: string;

@@ -16,7 +16,7 @@ import { GpuWaveform } from './utility/waveform/GpuWaveform.ts';
 import { GpuMemoryTracker } from './utility/GpuMemoryTracker.ts';
 import type { EffectStatus } from '@glitch/shared/effect-status.ts';
 import type { AudioCaptureMessage, AudioSourceId } from '@glitch/shared/audio.ts';
-import type { Asset, Macro, GsAutomation, GsEffectNode, GsNode, GsGroupNode, Player, NodeOutputReference, EffectParamDef, HogeLayer, Timeline } from '@glitch/shared/types.ts';
+import type { Asset, Macro, GsAutomation, GsEffectNode, GsNode, GsGroupNode, Player, NodeOutputReference, EffectParamDef, HogeLayer, Timeline, NodeGraph } from '@glitch/shared/types.ts';
 import type { EffectInstance, IntermediateTextureFormat } from '@glitch/shared/effect-implementation.js';
 
 const aisParser = new AiScript.Parser();
@@ -638,6 +638,7 @@ export class MainRenderer {
 	private timeFactor = 1;
 
 	private timeline: Timeline = [];
+	private nodeGraphs: Map<string, NodeGraph> = new Map();
 	private assets: Asset[] = [];
 	private macros: Macro[] = [];
 	private automations: GsAutomation[] = [];
