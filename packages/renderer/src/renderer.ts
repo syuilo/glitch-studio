@@ -52,10 +52,6 @@ function serializeAsset(asset: Asset | undefined) {
 	};
 }
 
-function getEffectNodes(nodes: GsNode[]): GsEffectNode[] {
-	return nodes.flatMap(node => node.type === 'group' ? getEffectNodes(node.nodes) : [node]);
-}
-
 export class Renderer {
 	private gpuContext: GPUCanvasContext;
 	private gpuDevice: GPUDevice;
@@ -249,11 +245,6 @@ export class Renderer {
 	private getOutputNode(node: GsNode, outputPort?: string, visited: GsNode['id'][] = []): { node: GsEffectNode; outputPort: string } | undefined {
 		if (visited.includes(node.id)) throw new Error('circular dependency detected');
 		const nextVisited = [...visited, node.id];
-		if (node.type === 'group') {
-			// グループには主入力がないため、無効時は子の出力も公開しない。
-			const lastNode = node.nodes.at(-1);
-			return !node.isBypass && lastNode != null ? this.getOutputNode(lastNode, outputPort, nextVisited) : undefined;
-		}
 		if (!node.isBypass) {
 			const port = outputPort ?? Object.entries(effectDefinitions[node.effectId].outputs).find(([, def]) => def.primary)?.[0];
 			return port == null ? undefined : { node, outputPort: port };
@@ -341,32 +332,6 @@ export class Renderer {
 					{ bytesPerRow: pixelData.byteLength, rowsPerImage: 1 }, { width: 1, height: 1 });
 			}
 		}
-
-		for (const node of nodes.filter((n): n is GsGroupNode => n.type === 'group')) {
-			const groupMacroValues = {} as Record<string, any>;
-			// TODO: automation support
-			// TODO: node support
-			for (const macro of node.macros) {
-				groupMacroValues[macro.name] =
-					macro.value.type === 'literal'
-						? macro.value.value
-						: macro.value.expression
-							? evaluateExpression(macro.value.expression, scope, macro)
-							: genEmptyValue(macro);
-
-				if (macro.type === 'image') {
-					groupMacroValues[macro.name] = serializeAsset(
-						this.assets.find(a => a.id === groupMacroValues[macro.name]));
-				}
-			}
-
-			this.evalNodeParams(node.nodes, {
-				vars: {
-					...scope,
-					...groupMacroValues,
-				},
-			});
-		}
 	}
 
 	private setEffectStatus(nodeId: string, status: EffectStatus) {
@@ -389,7 +354,7 @@ export class Renderer {
 
 		let key = `node=${node.id};isBypass=${node.isBypass};`;
 
-		if (node.type === 'group' || node.isBypass) {
+		if (node.isBypass) {
 			// 出力に寄与しない入力やdisableCacheには依存しない。
 			// 出力元のIDもキーに含め、同じパラメータの別ノードへの切り替えを検出する。
 			const output = this.getOutputNode(node);
@@ -497,7 +462,7 @@ export class Renderer {
 			return;
 		}
 
-		if (node.type === 'group' || node.isBypass) {
+		if (node.isBypass) {
 			// 無効中は自身を描画せず、主入力だけを更新する。履歴は保持して再有効化時に再開する。
 			const output = this.getOutputNode(node);
 			if (output == null) return;
@@ -708,8 +673,8 @@ export class Renderer {
 
 	// (非workerで)呼び出すときはnewNodesを独立した参照にすること！ パフォーマンス上の理由でこちら側ではdeepCloneしません
 	public updateNodes(newNodes: GsNode[]) {
-		const oldEffectNodes = getEffectNodes(this.nodes);
-		const newEffectNodes = getEffectNodes(newNodes);
+		const oldEffectNodes = this.nodes;
+		const newEffectNodes = newNodes;
 		const oldNodeIds = new Set(oldEffectNodes.map(node => node.id));
 		const newNodeIds = new Set(newEffectNodes.map(node => node.id));
 		const addedNodes = newEffectNodes.filter(node => !oldNodeIds.has(node.id));
@@ -807,7 +772,6 @@ export class Renderer {
 		const indexNodes = (nodes: GsNode[]) => {
 			for (const node of nodes) {
 				this.allNodeIdMap.set(node.id, node);
-				if (node.type === 'group') indexNodes(node.nodes);
 			}
 		};
 		indexNodes(newNodes);

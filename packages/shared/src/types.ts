@@ -76,16 +76,6 @@ export type GsEffectNode = {
 	pos?: { x: number; y: number };
 };
 
-export type GsGroupNode = {
-	id: string;
-	type: 'group';
-	isBypass: boolean;
-	name: string;
-	nodes: GsNode[];
-	macros: Macro[];
-
-	// 2D平面上でノードを配置できるようになった時のため
-	pos?: { x: number; y: number };
-};
+export type GsGroupNode = GsEffectNode; // とりあえず
 
 export type GsNode = GsEffectNode | GsGroupNode;
