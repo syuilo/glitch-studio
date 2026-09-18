@@ -1,9 +1,9 @@
 <template>
 <div :class="$style.footer">
-	<div v-for="(output, port) in ports" :key="port" :class="$style.output">
+	<div v-for="(output, port) in ports" :key="port" :class="$style.output" @pointerdown="startDrag($event, port)">
 		<span>{{ port }}</span>
 		<span :class="$style.dataType" :style="{ color: getNodeDataTypeColor(output.dataType) }">{{ output.dataType }}</span>
-		<GsNodePort output :dataType="output.dataType" @update:element="el => setPort(port, el)" @pointerdown="startDrag($event, port)"/>
+		<GsNodePort output :dataType="output.dataType" @update:element="el => setPort(port, el)"/>
 	</div>
 </div>
 </template>
@@ -23,7 +23,9 @@ const elements = new Map<string, HTMLElement>();
 let cancelDrag: (() => void) | undefined;
 
 function startDrag(event: PointerEvent, port: string) {
-	const cancel = startWireDrag(event, { nodeId: props.node.id, outputPort: port });
+	const source = elements.get(port);
+	if (!source) return;
+	const cancel = startWireDrag(event, { nodeId: props.node.id, outputPort: port }, { source });
 	if (cancel) cancelDrag = cancel;
 }
 
@@ -57,6 +59,9 @@ onUnmounted(() => {
 }
 
 .output {
+	cursor: crosshair;
+	touch-action: none;
+	user-select: none;
 	margin-left: auto;
 	display: flex;
 	min-width: 0;
