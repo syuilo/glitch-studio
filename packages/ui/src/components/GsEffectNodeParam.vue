@@ -1,6 +1,6 @@
 <template>
 <div :class="$style.root">
-	<div ref="rowEl" :class="$style.row" data-wire-input-row>
+	<div ref="rowEl" :class="$style.row" data-wire-input-row @contextmenu.prevent.stop="onRowContextmenu">
 		<div :class="[$style.paramHeader, { [$style.expression]: paramValue.type === 'expression' }]">
 			<button v-if="paramDef.type === 'array' || paramDef.type === 'struct'" class="_button"><i class="ti ti-chevron-down" style="vertical-align: middle;"></i></button>
 			<div :class="$style.paramLabel" @click="showMenu">
@@ -31,6 +31,7 @@
 					/>
 					<GsEffectParamControl
 						v-else
+						ref="controlComponent"
 						:type="paramDef.type"
 						:title="label ?? paramDef.label"
 						:options="paramDef"
@@ -39,6 +40,7 @@
 						@beginChanging="onBeginChanging"
 						@changeContinuous="changeContinuous"
 						@changeFinished="onFinishChanging"
+						@reset="onReset"
 					/>
 				</div>
 			</template>
@@ -120,6 +122,7 @@ const automationName = computed(() => {
 	const value = props.paramValue;
 	return value?.type === 'automation' ? appContext.state.automations.value.find(a => a.id === value.automationId)?.name ?? '(none)' : '(none)';
 });
+const controlComponent = useTemplateRef('controlComponent');
 
 let commandMergeKey: string | null = null;
 let mounted = true;
@@ -165,45 +168,55 @@ const isExpressionSyntaxError = computed(() => {
 	}
 });
 
-// ポップアップ表示中に配列要素が消えた場合、古いメニューから別要素を変更しない。
-function menuAction(action: () => void) {
-	const nodeId = props.node.id;
-	const key = paramPathKey(props.paramPath);
-	return () => {
-		if (mounted && props.node.id === nodeId && paramPathKey(props.paramPath) === key) action();
-	};
-}
-
 function selectAutomation(ev: PointerEvent) {
 	ui.popupMenu([
-		{ text: '(none)', action: menuAction(() => appContext.commit('updateParamAsAutomation', { ...target(), value: null })) },
+		{ text: '(none)', action: () => appContext.commit('updateParamAsAutomation', { ...target(), value: null }) },
 		...appContext.state.automations.value.map(a => ({
 			text: a.name,
-			action: menuAction(() => appContext.commit('updateParamAsAutomation', { ...target(), value: a.id })),
+			action: () => appContext.commit('updateParamAsAutomation', { ...target(), value: a.id }),
 		})),
 	], ev.currentTarget ?? ev.target);
 }
 
-function showMenu(ev: PointerEvent) {
+function getMenu() {
 	const menuItems: MenuItem[] = [{
+		text: 'Direct Edit',
+		icon: 'ti ti-forms',
+		action: () => controlComponent.value?.directEdit?.(),
+	}, {
 		text: 'Reset',
+		icon: 'ti ti-refresh',
 		danger: true,
-		action: menuAction(() => appContext.commit('resetNodeParam', target())),
+		action: () => appContext.commit('resetNodeParam', target()),
 	}];
+
 	// コンテナ自体は静的な構造を維持し、値の種類を変更できるのは末端だけにする。
 	if (props.paramDef.type !== 'array' && props.paramDef.type !== 'struct') {
 		menuItems.push({ type: 'label', text: 'Type' });
 		const types: { text: string; type: EffectParamValue['type'] }[] = [
-			{ text: 'Literal', type: 'literal' },
-			{ text: 'Automation', type: 'automation' },
-			{ text: 'Expression', type: 'expression' },
+			{ text: 'Literal', type: 'literal', icon: 'ti ti-adjustments-horizontal' },
+			{ text: 'Automation', type: 'automation', icon: 'ti ti-timeline' },
+			{ text: 'Expression', type: 'expression', icon: 'ti ti-math-function' },
 		];
-		if (canNode.value) types.push({ text: 'Node', type: 'node' });
-		for (const { text, type } of types) {
-			menuItems.push({ text, active: props.paramValue.type === type, action: menuAction(() => appContext.commit('changeParamValueType', { ...target(), type })) });
+		if (canNode.value) types.push({ text: 'Node', type: 'node', icon: 'ti ti-plug' });
+		for (const { text, type, icon } of types) {
+			menuItems.push({
+				text,
+				icon,
+				active: props.paramValue.type === type,
+				action: () => appContext.commit('changeParamValueType', { ...target(), type }),
+			});
 		}
 	}
-	ui.popupMenu(menuItems, ev.currentTarget ?? ev.target);
+	return menuItems;
+}
+
+function showMenu(ev: PointerEvent) {
+	ui.popupMenu(getMenu(), ev.currentTarget ?? ev.target);
+}
+
+function onRowContextmenu(ev: PointerEvent) {
+	ui.contextMenu(getMenu(), ev);
 }
 
 function onBeginChanging() {
@@ -240,6 +253,10 @@ function addElement() {
 
 function removeElement(index: number) {
 	appContext.commit('removeArrayParamElement', { ...target(), index });
+}
+
+function onReset() {
+	appContext.commit('resetNodeParam', target());
 }
 </script>
 

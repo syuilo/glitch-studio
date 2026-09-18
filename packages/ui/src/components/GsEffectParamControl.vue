@@ -1,7 +1,13 @@
 <template>
 <div :class="$style.root">
-	<div v-if="type === 'range'">
+	<div v-if="directEditMode" :class="$style.directEditForm">
+		<GsInput v-model="tempValueForDirectEdit" small :class="$style.directEditFormInput" @enter="finishDirectEdit"/>
+		<GsButton small iconOnly primary @click="finishDirectEdit"><i class="ti ti-check"></i></GsButton>
+		<GsButton small iconOnly @click="directEditMode = false"><i class="ti ti-x"></i></GsButton>
+	</div>
+	<div v-else-if="type === 'range'">
 		<GsRange
+			v-if="value >= options.min && value <= options.max"
 			:modelValue="value"
 			:step="options.step ?? 1"
 			:min="options.min"
@@ -11,9 +17,11 @@
 			@beginChanging="onBeginChanging"
 			@update:modelValue="changeContinuous"
 			@changeFinished="onFinishChanging"
+			@thumbDoubleClicked="reset"
 		/>
+		<GsInput v-else small type="number" :modelValue="value" @update:modelValue="changeValue(parseFloat($event, 10))"/>
 	</div>
-	<div v-if="type === 'angle'">
+	<div v-else-if="type === 'angle'">
 		<GsAngle
 			:modelValue="value"
 			:step="0.125"
@@ -184,7 +192,7 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, watchEffect, shallowRef } from 'vue';
+import { computed, watchEffect, shallowRef, ref } from 'vue';
 import GsSignal from './common/GsSignal.vue';
 import GsXy from './common/GsXy.vue';
 import XXySlider from './common/xy-slider.vue';
@@ -211,7 +219,10 @@ const emit = defineEmits<{
 	(ev: 'beginChanging'): void;
 	(ev: 'changeFinished'): void;
 	(ev: 'changeContinuous', value: any): void;
+	(ev: 'reset'): void;
 }>();
+
+const directEditMode = ref(false);
 
 function changeValue(value: any) {
 	emit('input', value);
@@ -228,6 +239,28 @@ function changeContinuous(value: any) {
 function onFinishChanging() {
 	emit('changeFinished');
 }
+
+function reset() {
+	emit('reset');
+}
+
+const tempValueForDirectEdit = ref('');
+
+function directEdit() {
+	tempValueForDirectEdit.value = JSON.stringify(props.value);
+	directEditMode.value = true;
+}
+
+function finishDirectEdit() {
+	// TODO: 値がパースできるか・できたとして妥当かどうか(真理値パラメータなのに数値になっていないかなど)のバリデーションを追加
+	// なお、数値のmin/max指定など"型"以外のバリデーションは行わない(範囲外の値を強制設定したいときのためという目的も兼ねているので)
+	changeValue(JSON.parse(tempValueForDirectEdit.value));
+	directEditMode.value = false;
+}
+
+defineExpose({
+	directEdit,
+});
 </script>
 
 <style module lang="scss">
@@ -244,7 +277,13 @@ function onFinishChanging() {
 	margin-left: 6px;
 }
 
-.player {
-	margin-top: 8px;
+.directEditForm {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.directEditFormInput {
+	flex: 1;
 }
 </style>
