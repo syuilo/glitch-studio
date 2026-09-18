@@ -23,7 +23,7 @@ export default defineEffect({
 		frequency: { type: 'number', step: 0.01, label: 'Frequency', canNode: true, default: () => ({ type: 'literal', value: 1 }) },
 		mirrorRepeat: { type: 'bool', label: 'Mirror Repeat', default: () => ({ type: 'literal', value: false }) },
 		skew: { type: 'range', min: -1, max: 1, step: 0.01, label: 'Skew', canNode: true, default: () => ({ type: 'literal', value: 0 }) },
-		phase: { type: 'range', min: -1, max: 1, step: 0.01, label: 'Phase', canNode: true, default: () => ({ type: 'literal', value: 0 }) },
+		phase: { type: 'range', min: -1, max: 1, step: 0.01, label: 'Phase', canNode: true, default: () => ({ type: 'literal', value: 0 }) }, // TIPS: expressionでこれにTIMEを渡したいときは `TIME % 1` と書くことを推奨。そうしないと16bitの精度の問題で刻みが粗くなる。0~1の位相なので1で折り返して問題ない
 		angle: { type: 'angle', label: 'Angle', default: () => ({ type: 'literal', value: 0 }) },
 		interpolation: {
 			type: 'enum', label: 'Interpolation',
