@@ -152,11 +152,13 @@
 			@changeFinished="onFinishChanging"
 		/>
 	</div>
-	<div v-else-if="type === 'seed'" class="seed">
-		<input type="number" :value="value" @change="changeValue(parseInt($event.target.value, 10))"/><button :title="i18n.ts.Random" @click="() => changeValue(Math.floor(Math.random() * 16384))"><i class="ti ti-dice-5"></i></button>
+	<div v-else-if="type === 'seed'" style="display: flex;">
+		<GsInput style="flex: 1;" type="number" :modelValue="value" @update:modelValue="changeValue(parseInt($event, 10))"/>
+		<GsButton small iconOnly :title="i18n.ts.Random" @click="() => changeValue(Math.floor(Math.random() * 16384))"><i class="ti ti-dice-5"></i></GsButton>
 	</div>
 	<div v-else-if="type === 'time'" class="time">
-		<input type="number" :value="value" @change="changeValue(parseInt($event.target.value, 10))"/><button :title="i18n.ts.Random" @click="() => changeValue(Math.floor(Math.random() * 16384))"><i class="ti ti-dice-5"></i></button>
+		<GsInput type="number" :modelValue="value" @update:modelValue="changeValue(parseInt($event, 10))"/>
+		<GsButton small iconOnly :title="i18n.ts.Random" @click="() => changeValue(Math.floor(Math.random() * 16384))"><i class="ti ti-dice-5"></i></GsButton>
 	</div>
 	<div v-else-if="type === 'image'">
 		<GsSelect
