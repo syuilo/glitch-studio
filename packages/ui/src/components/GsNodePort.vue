@@ -1,9 +1,9 @@
 <template>
-<div ref="rootEl" :class="[$style.root, { [$style.output]: output }]" :data-type="dataType ?? 'any'" :style="{ color: getNodeDataTypeColor(dataType) }"><i class="ti ti-circle-dot"></i></div>
+<div ref="rootEl" :class="[$style.root, { [$style.output]: output }]" :data-type="dataType ?? 'any'" :data-wire-anchor="anchorName" :style="{ color: getNodeDataTypeColor(dataType), anchorName }"><i class="ti ti-circle-dot"></i></div>
 </template>
 
 <script lang="ts" setup>
-import { onMounted, onBeforeUnmount, useTemplateRef } from 'vue';
+import { onMounted, onBeforeUnmount, useId, useTemplateRef } from 'vue';
 import type { NodeDataType } from '@glitch/shared/utility/node-outputs.ts';
 import { getNodeDataTypeColor } from '@/utility/node-outputs.ts';
 
@@ -17,6 +17,7 @@ const emit = defineEmits<{
 }>();
 
 const rootEl = useTemplateRef('rootEl');
+const anchorName = `--wire-port-${useId()}`;
 
 // ワイヤーの座標計算やドロップ判定には、コンポーネントではなく実際のDOMを渡す。
 onMounted(() => emit('update:element', rootEl.value));

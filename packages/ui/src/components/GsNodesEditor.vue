@@ -1,20 +1,19 @@
 <template>
 <div :class="$style.root">
 	<div :class="$style.nodesContainer">
-		<GsNodes :group="null"/>
+		<div :class="$style.nodesContent">
+			<GsNodes :group="null"/>
 
-		<GsButton :class="$style.addButton" full @click="showAddNodeMenu">Add node</GsButton>
+			<GsButton :class="$style.addButton" full @click="showAddNodeMenu">Add node</GsButton>
 
-		<!--<GsNodesX/>-->
-		<GsWires/>
+			<GsWires/>
+		</div>
 	</div>
 </div>
 </template>
 
 <script lang="ts" setup>
-import { onMounted, ref, shallowRef } from 'vue';
 import GsNodes from './GsNodes.vue';
-import GsNodesX from './GsNodesX.vue';
 import GsWires from './GsWires.vue';
 import GsButton from './common/GsButton.vue';
 import { showAddNodeMenu } from '@/app.ts';
@@ -29,6 +28,12 @@ import { showAddNodeMenu } from '@/app.ts';
 	height: 100%;
 	overflow: auto;
 	background: var(--THEME-bg);
+}
+
+.nodesContent {
+	// ポートと配線を同じ座標系でスクロールさせる。
+	position: relative;
+	min-height: 100%;
 	padding: 8px;
 	box-sizing: border-box;
 }

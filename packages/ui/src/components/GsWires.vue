@@ -1,5 +1,15 @@
 <template>
-<!-- TODO: 重いからなんとかする -->
+<!-- 測定要素の包含ブロックは、ポートも含むnodesContentに揃える。 -->
+<div
+	v-for="port in measuredPorts"
+	:key="port.anchorName"
+	:ref="el => setMeasureElement(port.element, el)"
+	:class="$style.portMeasure"
+	:style="{
+		right: `anchor(${port.anchorName} center, 100%)`,
+		bottom: `anchor(${port.anchorName} center, 100%)`,
+	}"
+/>
 <div ref="rootEl" :class="$style.root">
 	<svg v-for="(wire, index) in wires" :key="wire.key" version="1.1" :viewBox="`0 0 ${width} ${height}`" :class="$style.wire">
 		<defs>
@@ -27,8 +37,9 @@
 </template>
 
 <script lang="ts" setup>
-import { onMounted, onUnmounted, ref, useId, useTemplateRef, watch } from 'vue';
-import { getNodeInputDataType } from '@glitch/shared/utility/node-outputs.ts';
+import { computed, onMounted, onBeforeUnmount, ref, shallowReactive, shallowRef, useId, useTemplateRef, watch } from 'vue';
+import type { ComponentPublicInstance } from 'vue';
+import { getNodeInputDataType, getNodeOutputs } from '@glitch/shared/utility/node-outputs.ts';
 import type { NodeDataType } from '@glitch/shared/utility/node-outputs.ts';
 import type { GsNode } from '@glitch/shared/types.ts';
 import { appContext, wireMap } from '@/app.ts';
@@ -50,23 +61,128 @@ const gradientId = useId();
 const width = ref(0);
 const height = ref(0);
 
-const ro = new ResizeObserver(() => {
-	if (rootEl.value == null) return;
-	width.value = rootEl.value.clientWidth;
-	height.value = rootEl.value.clientHeight;
-});
-
-onMounted(() => {
-	if (rootEl.value) ro.observe(rootEl.value);
-});
-
-const wires = ref<{
+type Position = [number, number];
+type Wire = {
 	key: string;
-	from: [number, number];
-	to: [number, number];
+	from: Position;
+	to: Position;
 	fromColor: string;
 	toColor: string;
-}[]>([]);
+};
+
+// 接続先の列挙はレイアウトから独立させ、座標変更では再走査しない。
+const nodesById = computed(() => {
+	const result = new Map<string, GsNode>();
+	function visit(nodes: GsNode[]) {
+		for (const node of nodes) {
+			result.set(node.id, node);
+			if (node.type === 'group') visit(node.nodes);
+		}
+	}
+	visit(appContext.state.nodes.value);
+	return result;
+});
+
+const connections = computed(() => {
+	const result: {
+		key: string;
+		from: HTMLElement;
+		input: HTMLElement | undefined;
+		allIn: HTMLElement | undefined;
+		fromColor: string;
+		toColor: string;
+	}[] = [];
+	for (const node of nodesById.value.values()) {
+		if (node.type === 'group') continue;
+		for (const { path, def, value } of walkNodeParams(node)) {
+			if (value.type !== 'node' || value.nodeId == null || def.type === 'struct' || def.type === 'array') continue;
+			const from = wireMap.out[value.nodeId]?.[value.outputPort];
+			if (!from) continue;
+			result.push({
+				key: JSON.stringify([node.id, path, value.nodeId, value.outputPort]),
+				from,
+				input: wireMap.in[node.id]?.[paramPathKey(path)],
+				allIn: wireMap.allIn[node.id],
+				...getWireColors(getNodeOutputs(nodesById.value.get(value.nodeId))[value.outputPort]?.dataType ?? 'any', getNodeInputDataType(def) ?? 'any'),
+			});
+		}
+	}
+	return result;
+});
+
+const dragSource = computed(() => wireDrag.value?.source);
+const measuredPorts = computed(() => {
+	const elements = new Set<HTMLElement>();
+	for (const connection of connections.value) {
+		elements.add(connection.from);
+		if (connection.input) elements.add(connection.input);
+		if (connection.allIn) elements.add(connection.allIn);
+	}
+	if (dragSource.value) elements.add(dragSource.value);
+	return [...elements].map(element => ({ element, anchorName: element.dataset.wireAnchor! }));
+});
+
+const positions = shallowReactive(new Map<HTMLElement, Position>());
+const measureElements = new Map<HTMLElement, HTMLElement>();
+const measurePorts = new WeakMap<Element, HTMLElement>();
+const dragPosition = shallowRef<Position | null>(null);
+
+const ro = new ResizeObserver(entries => {
+	for (const entry of entries) {
+		const { width: x, height: y } = entry.contentRect;
+		if (entry.target === rootEl.value) {
+			width.value = x;
+			height.value = y;
+			continue;
+		}
+		const port = measurePorts.get(entry.target);
+		if (!port) continue;
+		// 非表示・未解決のアンカーはCSSのfallbackで0×0になる。
+		// nodesContentのpaddingにより、表示中のポート中心は常に正の座標を持つ。
+		if (x === 0 || y === 0) {
+			positions.delete(port);
+		} else {
+			const previous = positions.get(port);
+			if (previous?.[0] !== x || previous[1] !== y) positions.set(port, [x, y]);
+		}
+	}
+	updateDragPosition();
+});
+
+function setMeasureElement(port: HTMLElement, element: Element | ComponentPublicInstance | null) {
+	const previous = measureElements.get(port);
+	if (previous === element) return;
+	if (previous) {
+		ro.unobserve(previous);
+		measurePorts.delete(previous);
+		measureElements.delete(port);
+		positions.delete(port);
+	}
+	if (!(element instanceof HTMLElement)) return;
+	measureElements.set(port, element);
+	measurePorts.set(element, port);
+	ro.observe(element);
+}
+
+const wires = computed(() => {
+	const result: Wire[] = [];
+	for (const connection of connections.value) {
+		const from = positions.get(connection.from);
+		const to = (connection.input && positions.get(connection.input))
+			?? (connection.allIn && positions.get(connection.allIn));
+		if (!from || !to) continue;
+		result.push({ key: connection.key, from, to, fromColor: connection.fromColor, toColor: connection.toColor });
+	}
+	const source = dragSource.value;
+	const from = source && positions.get(source);
+	if (source && from && dragPosition.value) {
+		result.push({
+			key: 'drag', from, to: dragPosition.value,
+			...getWireColors((source.dataset.type as NodeDataType) ?? 'any', 'any'),
+		});
+	}
+	return result;
+});
 
 function getWireColors(outputType: NodeDataType, inputType: NodeDataType) {
 	// anyは相手側の型の色に揃え、両側がanyのときだけ中立色を使う。
@@ -85,88 +201,50 @@ function getGradientTransform(wire: typeof wires.value[number]): string {
 	return `matrix(${x} ${dy} ${-dy} ${x} ${wire.from[0]} ${wire.from[1]})`;
 }
 
-function getElementPosition(el: HTMLElement): [number, number] {
-	const rootElRect = rootEl.value!.getBoundingClientRect();
-	const rect = el.getBoundingClientRect();
-	return [
-		rect.left - rootElRect.left + rect.width / 2,
-		rect.top - rootElRect.top + rect.height / 2,
-	];
-}
-
-function isHidden(el: HTMLElement) {
-	return (el.offsetParent === null);
-}
-
-function draw() {
-	try {
-		wires.value = [];
-		if (rootEl.value == null) return;
-		const drag = wireDrag.value;
-		if (drag && drag.source.isConnected && !isHidden(drag.source)) {
-			const rect = rootEl.value.getBoundingClientRect();
-			wires.value.push({
-				key: 'drag',
-				from: getElementPosition(drag.source),
-				to: [drag.clientX - rect.left, drag.clientY - rect.top],
-				...getWireColors((drag.source.dataset.type as NodeDataType) ?? 'any', 'any'),
-			});
-		}
-
-		function scan(nodes: GsNode[]) {
-			for (const node of nodes) {
-				if (node.type === 'group') {
-					scan(node.nodes);
-				} else {
-					for (const { path, def, value } of walkNodeParams(node)) {
-						if (value.type !== 'node' || value.nodeId == null || def.type === 'struct' || def.type === 'array') continue;
-						const from = wireMap.out[value.nodeId]?.[value.outputPort];
-						const key = paramPathKey(path);
-						const input = wireMap.in[node.id]?.[key];
-						const to = input && !isHidden(input) ? input : wireMap.allIn[node.id];
-						if (!from || !to || isHidden(from) || isHidden(to)) continue;
-						wires.value.push({
-							key: JSON.stringify([node.id, path, value.nodeId, value.outputPort]),
-							from: getElementPosition(from),
-							to: getElementPosition(to),
-							...getWireColors((from.dataset.type as NodeDataType) ?? 'any', getNodeInputDataType(def) ?? 'any'),
-						});
-					}
-				}
-			}
-		}
-
-		scan(appContext.state.nodes.value);
-	} catch (e) {
-		console.error(e);
+function updateDragPosition() {
+	const drag = wireDrag.value;
+	if (!drag || !rootEl.value) {
+		dragPosition.value = null;
+		return;
 	}
+	// ポインターだけはviewport座標なので、ドラッグ中のイベント時に変換する。
+	const rect = rootEl.value.getBoundingClientRect();
+	const x = drag.clientX - rect.left;
+	const y = drag.clientY - rect.top;
+	if (dragPosition.value?.[0] !== x || dragPosition.value[1] !== y) dragPosition.value = [x, y];
 }
 
-watch(wireMap, () => {
-	draw();
-}, { deep: true, immediate: true });
+watch(wireDrag, updateDragPosition, { flush: 'post' });
 
-watch(wireDrag, draw, { flush: 'sync' });
-
-let drawInterval: ReturnType<typeof window.setInterval>;
 onMounted(() => {
-	drawInterval = window.setInterval(() => {
-		draw();
-	}, 10);
+	if (rootEl.value) ro.observe(rootEl.value);
+	// 通常の配線はスクロールで座標が変わらない。ドラッグ中の終点だけ更新する。
+	window.addEventListener('scroll', updateDragPosition, { capture: true, passive: true });
+	window.addEventListener('resize', updateDragPosition);
+	updateDragPosition();
 });
-onUnmounted(() => {
-	window.clearInterval(drawInterval);
+onBeforeUnmount(() => {
 	ro.disconnect();
+	measureElements.clear();
+	positions.clear();
+	window.removeEventListener('scroll', updateDragPosition, true);
+	window.removeEventListener('resize', updateDragPosition);
 });
 </script>
 
 <style module lang="scss">
 .root {
 	position: absolute;
+	inset: 0;
+	pointer-events: none;
+}
+
+.portMeasure {
+	// 原点からポート中心までの矩形を作り、位置の変化をサイズの変化として監視する。
+	position: absolute;
 	top: 0;
 	left: 0;
-	width: 100%;
-	height: 100%;
+	visibility: hidden;
 	pointer-events: none;
 }
 
