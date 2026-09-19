@@ -1,6 +1,5 @@
 :root {
 	--THEME-accent: #ff8400;
-	--THEME-accent2: #ffca00;
 	--THEME-accentSecondary: #c2fe0c;
 	--THEME-fgOnAccent: #000;
 	--THEME-accentedBg: color(from var(--THEME-accent) srgb r g b / 0.2);
@@ -21,7 +20,7 @@
 	--THEME-shadow: #0006;
 	--THEME-modalBg: #0006;
 
-	--THEME-dataType-color: #ff8400;
+	--THEME-dataType-color: var(--THEME-accent);
 	--THEME-dataType-scalar: #86c94a;
 	--THEME-dataType-vector: #b780ff;
 	--THEME-dataType-any: var(--THEME-fg);

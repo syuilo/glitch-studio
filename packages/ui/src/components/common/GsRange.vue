@@ -341,14 +341,16 @@ function onMousedown(ev: MouseEvent | TouchEvent) {
 				> .highlight.right {
 					> .shine.right {
 						right: calc(#{$thumbInnerWidth} / 2);
-						background: linear-gradient(-90deg, var(--THEME-accent2), color(from var(--THEME-accent) srgb r g b / 0));
+						//background: linear-gradient(-90deg, var(--THEME-accent2), color(from var(--THEME-accent) srgb r g b / 0));
+						background: color(from var(--THEME-accent) srgb r g b / 0);
 					}
 				}
 
 				> .highlight.left {
 					> .shine.left {
 						left: calc(#{$thumbInnerWidth} / 2);
-						background: linear-gradient(90deg, var(--THEME-accent2), color(from var(--THEME-accent) srgb r g b / 0));
+						//background: linear-gradient(90deg, var(--THEME-accent2), color(from var(--THEME-accent) srgb r g b / 0));
+						background: color(from var(--THEME-accent) srgb r g b / 0);
 					}
 				}
 			}
