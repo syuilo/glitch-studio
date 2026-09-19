@@ -5,7 +5,7 @@ import ts from 'typescript';
 import { ref, shallowRef } from 'vue';
 
 function preview(request) {
-	const source = readFileSync(new URL('../src/components/GsPreview.vue', import.meta.url), 'utf8');
+	const source = readFileSync(new URL('../src/components/GsDetachableView.vue', import.meta.url), 'utf8');
 	const script = source.split('<script lang="ts" setup>')[1].split('</script>')[0].replace(/^import .*;\r?\n/gm, '');
 	const compiled = ts.transpileModule(script, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
 	const cleanup = [];
@@ -24,31 +24,36 @@ function preview(request) {
 	};
 	const document = { querySelectorAll: () => [] };
 	let requests = 0;
-	const window = { open: () => pip, addEventListener() {}, removeEventListener() {}, document, documentPictureInPicture: { requestWindow: () => { requests++; return request ? request(pip) : Promise.resolve(pip); } } };
+	const window = { requestAnimationFrame() {}, open: () => pip, addEventListener() {}, removeEventListener() {}, document, documentPictureInPicture: { requestWindow: () => { requests++; return request ? request(pip) : Promise.resolve(pip); } } };
 	const env = {
-		ref, shallowRef, resolutionFactor: ref(1), watch() {}, useTemplateRef: name => shallowRef(name === 'preview' ? element : name === 'canvasContainer' ? container : home),
+		ref, shallowRef, defineProps: () => ({ title: 'Preview' }), defineEmits: () => () => {}, resolutionFactor: ref(1), watch() {}, useTemplateRef: name => shallowRef(name === 'view' ? element : name === 'canvasContainer' ? container : home),
 		onBeforeUnmount: fn => cleanup.push(fn), onMounted: fn => fn(),
-		window, document, engine: { canvas },
+		window, document, engine: { canvas }, preferences: { model: () => ref(false) },
 		ui: { alert: options => errors.push(options), contextMenu() {} },
 	};
-	const api = new Function(...Object.keys(env), compiled + '\nreturn { openPreview, closePreview, previewWindow, toggleFullscreen, fullscreen };')(...Object.values(env));
+	const api = new Function(...Object.keys(env), compiled + '\nreturn { openView, closeView, viewWindow, toggleFullscreen, fullscreen };')(...Object.values(env));
+	const previewSource = readFileSync(new URL('../src/components/GsPreview.vue', import.meta.url), 'utf8');
+	const previewScript = previewSource.split('<script lang="ts" setup>')[1].split('</script>')[0].replace(/^import .*;\r?\n/gm, '');
+	const previewCode = ts.transpileModule(previewScript, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
+	new Function(...Object.keys(env), previewCode)(...Object.values(env));
+
 	return { ...api, element, home, pip, window, errors, canvas, container, requests: () => requests, unmount: () => cleanup.forEach(fn => fn()) };
 }
 
 test('PiP moves the existing preview and restores it on native close and repeated opening', async () => {
 	const p = preview();
 	assert.equal(p.canvas.parentNode, p.container);
-	await p.openPreview('pip');
+	await p.openView('pip');
 	assert.equal(p.canvas.parentNode, p.container);
 	assert.equal(p.element.parentNode, p.pip.document.body);
-	await p.openPreview('pip');
+	await p.openView('pip');
 	assert.equal(p.requests(), 1);
 	p.pip.close();
 	assert.equal(p.element.parentNode, p.home);
-	assert.equal(p.previewWindow.value, null);
+	assert.equal(p.viewWindow.value, null);
 	p.pip.closed = false;
-	await p.openPreview('pip');
-	p.closePreview();
+	await p.openView('pip');
+	p.closeView();
 	assert.equal(p.element.parentNode, p.home);
 	assert.equal(p.pip.closed, true);
 	assert.equal(p.canvas.parentNode, p.container);
@@ -56,7 +61,7 @@ test('PiP moves the existing preview and restores it on native close and repeate
 
 test('unmount releases the engine canvas without destroying it', async () => {
 	const p = preview();
-	await p.openPreview('window');
+	await p.openView('window');
 	p.unmount();
 	assert.equal(p.canvas.parentNode, null);
 	p.container.appendChild(p.canvas);
@@ -73,8 +78,8 @@ test('unmount does not detach the shared canvas from a newer preview', () => {
 
 test('PiP failure leaves the preview at home and permits retry', async () => {
 	const p = preview(() => Promise.reject(new Error('blocked')));
-	await p.openPreview('pip');
-	await p.openPreview('pip');
+	await p.openView('pip');
+	await p.openView('pip');
 	assert.equal(p.requests(), 2);
 	assert.equal(p.errors.length, 2);
 	assert.equal(p.element.parentNode, p.home);
@@ -82,7 +87,7 @@ test('PiP failure leaves the preview at home and permits retry', async () => {
 
 test('ordinary window supports fullscreen and returns the same preview on close', async () => {
 	const p = preview();
-	await p.openPreview('window');
+	await p.openView('window');
 	assert.equal(p.element.parentNode, p.pip.document.body);
 	await p.toggleFullscreen();
 	assert.equal(p.pip.document.fullscreenElement, p.pip.document.documentElement);
@@ -95,11 +100,11 @@ test('ordinary window supports fullscreen and returns the same preview on close'
 test('blocked popup leaves the preview in place and allows a retry', async () => {
 	const p = preview();
 	p.window.open = () => null;
-	await p.openPreview('window');
+	await p.openView('window');
 	assert.equal(p.errors.length, 1);
 	assert.equal(p.element.parentNode, p.home);
 	p.window.open = () => p.pip;
-	await p.openPreview('window');
+	await p.openView('window');
 	assert.equal(p.element.parentNode, p.pip.document.body);
 	p.unmount();
 	assert.equal(p.pip.closed, true);
@@ -108,8 +113,8 @@ test('blocked popup leaves the preview in place and allows a retry', async () =>
 test('unmount during opening closes the late window; duplicate requests are ignored', async () => {
 	let resolve;
 	const p = preview(() => new Promise(r => { resolve = r; }));
-	const pending = p.openPreview('pip');
-	await p.openPreview('pip');
+	const pending = p.openView('pip');
+	await p.openView('pip');
 	assert.equal(p.requests(), 1);
 	p.unmount();
 	resolve(p.pip);
@@ -120,7 +125,7 @@ test('unmount during opening closes the late window; duplicate requests are igno
 
 test('unmount returns the preview before Vue removes its DOM', async () => {
 	const p = preview();
-	await p.openPreview('pip');
+	await p.openView('pip');
 	p.unmount();
 	assert.equal(p.element.parentNode, p.home);
 	assert.equal(p.pip.closed, true);
@@ -129,9 +134,9 @@ test('unmount returns the preview before Vue removes its DOM', async () => {
 test('partial PiP setup failure restores the preview and closes the window', async () => {
 	const p = preview();
 	p.pip.document.body.append = () => { throw new Error('setup failed'); };
-	await p.openPreview('pip');
+	await p.openView('pip');
 	assert.equal(p.element.parentNode, p.home);
 	assert.equal(p.pip.closed, true);
-	assert.equal(p.previewWindow.value, null);
+	assert.equal(p.viewWindow.value, null);
 	assert.equal(p.errors.length, 1);
 });

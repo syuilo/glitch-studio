@@ -1,4 +1,4 @@
-import { GpuHistogram } from '../src/engine/GpuHistogram.ts';
+import { GpuHistogram } from '../src/utility/histogram/GpuHistogram.ts';
 
 const status = document.querySelector<HTMLDivElement>('#status')!;
 const canvas = document.querySelector<HTMLCanvasElement>('#histogram')!;
@@ -31,7 +31,7 @@ try {
 	device.pushErrorScope('validation');
 	const histogram = new GpuHistogram(
 		device,
-		canvas,
+		canvas.getContext('webgpu')!,
 		navigator.gpu.getPreferredCanvasFormat(),
 	);
 	const commandEncoder = device.createCommandEncoder();

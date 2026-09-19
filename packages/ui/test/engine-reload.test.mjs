@@ -79,30 +79,30 @@ test('reload replaces the worker and mounted canvases, restores settings and wai
 	const init = engine.init({ width: 640, height: 480 });
 	workers[0].ready();
 	await init;
-	engine.startRenderLoop();
+	engine.startLiveRenderLoopFor('module');
 	engine.resize({ width: 800, height: 600 });
-	engine.updateMacros([{ id: 'macro' }]);
-	const previous = [engine.canvas, engine.histogramCanvas, engine.waveformCanvas];
+	engine.updateVisualModules([{ id: 'macro' }]);
+	const previous = [engine.canvas, engine.histogramCanvas, engine.waveformHorizontalCanvas, engine.waveformVerticalCanvas];
 	for (const canvas of previous) canvas.parent = { canvas };
 	const reload = engine.reload();
 	assert.equal(workers[0].terminated, true);
 	assert.equal(engine.isReady.value, false);
 	assert.equal(workers.length, 2);
-	for (const [index, canvas] of [engine.canvas, engine.histogramCanvas, engine.waveformCanvas].entries()) {
+	for (const [index, canvas] of [engine.canvas, engine.histogramCanvas, engine.waveformHorizontalCanvas].entries()) {
 		assert.notEqual(canvas, previous[index]);
 		assert.equal(previous[index].parent.canvas, canvas);
 	}
 	assert.equal(workers[1].messages[0].options.resolution.width, 800);
-	assert.equal(workers[1].messages[0].options.macros[0].id, 'macro');
+	assert.equal(workers[1].messages[0].options.visualModules[0].id, 'macro');
 	workers[1].ready();
 	await reload;
 	assert.equal(engine.isReady.value, true);
-	assert.ok(workers[1].messages.some(message => message.fn === 'startRenderLoop'));
+	assert.equal(workers[1].messages.find(message => message.fn === 'startLiveRenderLoopFor').args[0], 'module');
 	engine.stopRenderLoop();
 	const nextReload = engine.reload();
 	workers[2].ready();
 	await nextReload;
-	assert.ok(!workers[2].messages.some(message => message.fn === 'startRenderLoop'));
+	assert.ok(!workers[2].messages.some(message => message.fn === 'startLiveRenderLoopFor'));
 });
 
 test('concurrent reloads share initialization and updates reach the new worker after readiness', async () => {
@@ -113,14 +113,14 @@ test('concurrent reloads share initialization and updates reach the new worker a
 	const reload = engine.reload();
 	assert.equal(engine.reload(), reload);
 	engine.changeLiveModeFpsLimit(60);
-	engine.updateNodes([{ id: 'new-node' }]);
+	engine.updateVisualModules([{ id: 'new-node' }]);
 	assert.equal(workers[1].messages.length, 1);
 	workers[0].ready();
 	assert.equal(engine.isReady.value, false, 'late messages from the old worker are ignored');
 	workers[1].ready();
 	await reload;
 	assert.equal(workers[1].messages.find(message => message.fn === 'changeLiveModeFpsLimit').args[0], 60);
-	assert.equal(workers[1].messages.find(message => message.fn === 'updateNodes').args[0][0].id, 'new-node');
+	assert.equal(workers[1].messages.find(message => message.fn === 'updateVisualModules').args[0][0].id, 'new-node');
 });
 
 test('worker initialization failure rejects reload and allows retry', async () => {

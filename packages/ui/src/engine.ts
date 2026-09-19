@@ -23,6 +23,7 @@ export class Engine {
 	private rendererWorker: Worker | null = null;
 	private resolution = { width: 1, height: 1 };
 	private renderLoopRunning = false;
+	private liveVisualModuleId: VisualModule['id'] | null = null;
 	private reloadPromise: Promise<void> | null = null;
 	private rejectInitialization: ((reason: Error) => void) | null = null;
 	private pendingCalls: { message: unknown; options?: StructuredSerializeOptions }[] = [];
@@ -230,12 +231,14 @@ export class Engine {
 
 	public startLiveRenderLoopFor(visualModuleId: VisualModule['id']) {
 		this.call('startLiveRenderLoopFor', [visualModuleId]);
+		this.liveVisualModuleId = visualModuleId;
 		this.renderLoopRunning = true;
 	}
 
 	public stopRenderLoop() {
 		this.call('stopRenderLoop', []);
 		this.renderLoopRunning = false;
+		this.liveVisualModuleId = null;
 	}
 
 	public async updatePlayers(newPlayers: Player[]) {
@@ -492,6 +495,6 @@ export class Engine {
 			this.sendPendingVideoFrame(id);
 		}
 		this.call('updatePointerPosition', [this.pointerPosition]);
-		if (this.renderLoopRunning) this.startRenderLoop();
+		if (this.renderLoopRunning && this.liveVisualModuleId != null) this.startLiveRenderLoopFor(this.liveVisualModuleId);
 	}
 }

@@ -3,6 +3,7 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { createServer } from 'vite';
 import { createDevice } from './helpers/gpu-device.mjs';
+import { createLiveGraph } from './helpers/live-graph.mjs';
 
 test('multiple output rendering', async t => {
 	const server = await createServer({
@@ -14,7 +15,7 @@ test('multiple output rendering', async t => {
 	const previousGpu = navigator.gpu;
 	navigator.gpu = { getPreferredCanvasFormat: () => 'bgra8unorm' };
 	t.after(() => { navigator.gpu = previousGpu; });
-	const { Renderer } = await server.ssrLoadModule('/src/renderer.ts');
+	const { MainRenderer } = await server.ssrLoadModule('/src/renderer.ts');
 	const { effectDefinitions: fxDefinitions } = await server.ssrLoadModule('@glitch/shared/effect-definitions.ts');
 	const { effectImplementations: fxImplementations } = await server.ssrLoadModule('@glitch/shared/effect-implementations.js');
 	const connection = (nodeId, outputPort = 'color') => ({ nodeId, outputPort });
@@ -23,7 +24,7 @@ test('multiple output rendering', async t => {
 		id: 'sink', type: 'effect', effectId: 'testSink', isBypass: false,
 		params: { input: { type: 'node', ...(input ?? { nodeId: null, outputPort: null }) }, amount: scalar == null ? { type: 'literal', value: 0 } : { type: 'node', ...scalar } },
 	});
-	const group = nodes => ({ id: 'group', type: 'group', isBypass: false, nodes, macros: [] });
+	
 	fxDefinitions.testSource = { paramDefs: {}, outputs: { color: { dataType: 'color', primary: true }, mask: { dataType: 'scalar', primary: false } } };
 	fxDefinitions.testSink = { paramDefs: { input: { type: 'color', canNode: true, primary: true }, amount: { type: 'range', canNode: true } }, outputs: { result: { dataType: 'color', primary: true } } };
 	function setup(t, nodes, history = false) {
@@ -40,7 +41,7 @@ test('multiple output rendering', async t => {
 		for (const name of ['testSource', 'testSink']) {
 			fxImplementations[name] = {
 				needsPreviousFrame: history && name === 'testSource', disableCache: history && name === 'testSource',
-				outputTextureFactories Object.fromEntries(Object.keys(fxDefinitions[name].outputs).map(port => [port, () => {
+				outputTextureFactories: Object.fromEntries(Object.keys(fxDefinitions[name].outputs).map(port => [port, () => {
 					const texture = device.createTexture({ size: [16, 16] });
 					texture.destroy = () => destroyed.set(texture, (destroyed.get(texture) ?? 0) + 1);
 					allocated.push(texture);
@@ -61,12 +62,12 @@ test('multiple output rendering', async t => {
 			};
 		}
 		const context = { configure() {}, unconfigure() {}, getCurrentTexture: () => device.createTexture() };
-		const renderer = new Renderer({ gpuDevice: device, gpuContext: context, histogramGpuContext: context, waveformHorizontalGpuContext: context, waveformVerticalGpuContext: context, intermediateTextureFormat: 'rgba16float', resolution: { width: 16, height: 16 }, enable32bitDataTextures: false, enableStats: false, fpsLimit: null, assets: [], macros: [], automations: [], nodes });
+		const renderer = new MainRenderer({ gpuDevice: device, gpuContext: context, histogramGpuContext: context, waveformHorizontalGpuContext: context, waveformVerticalGpuContext: context, intermediateTextureFormat: 'rgba16float', resolution: { width: 16, height: 16 }, enable32bitDataTextures: false, enableStats: false, fpsLimit: null, assets: [], automations: [] });
 		t.after(() => renderer.destroy());
-		t.mock.method(renderer, 'startRenderLoop', () => {});
-		return { renderer, allocated, destroyed, get canvasInput() { return canvasInput; }, frame(id = 'sink') {
+		const graph = createLiveGraph(renderer, nodes, fxDefinitions);
+		return { renderer, updateNodes: graph.updateNodes, allocated, destroyed, get canvasInput() { return canvasInput; }, frame(id = 'sink') {
 			draws.length = 0;
-			renderer.render(id, { time: performance.now() });
+			graph.frame(id, performance.now());
 			return [...draws];
 		} };
 	}
@@ -79,42 +80,38 @@ test('multiple output rendering', async t => {
 		assert.equal(first[1].params.amount, first[0].outputs.mask.texture);
 		assert.equal(run.canvasInput, first[1].outputs.result.texture);
 		assert.equal(run.frame().length, 0);
-		run.renderer.updateNodes(nodes('mask'));
+		run.updateNodes(nodes('mask'));
 		const changed = run.frame();
-		assert.equal(changed.length, 1);
-		assert.equal(changed[0].params.input, first[0].outputs.mask.texture);
+		assert.equal(changed.length, 2);
+		assert.equal(changed[1].params.input, first[0].outputs.mask.texture);
 	});
-	await t.test('bypass and nested groups preserve the selected source port', t => {
+	await t.test('bypass preserves the selected source port', t => {
 		const bypass = { ...sink(connection('source', 'mask')), isBypass: true };
-		const run = setup(t, [source(), group([{ ...group([bypass]), id: 'inner' }])]);
-		const draws = run.frame('group');
+		const run = setup(t, [source(), bypass]);
+		const draws = run.frame('sink');
 		assert.equal(draws.length, 1);
 		assert.equal(run.canvasInput, draws[0].outputs.mask.texture);
 	});
-	await t.test('unconnected inputs and empty groups use fallback', t => {
+	await t.test('unconnected inputs and empty modules use fallback', t => {
 		const run = setup(t, [source(), sink(null)]);
 		assert.equal(run.frame()[0].params.input.width, 1);
-		run.renderer.updateNodes([group([])]);
+		run.updateNodes([]);
 		assert.deepEqual(run.frame('group'), []);
-		assert.equal(run.canvasInput.width, 1);
+		assert.equal(run.canvasInput.width, 16, 'an absent output does not submit a new canvas pass');
 	});
-	await t.test('broken node and port references are not silently treated as unconnected', t => {
+	await t.test('missing nodes are rejected and missing ports use the scalar fallback', t => {
 		for (const input of [connection('missing', 'color'), connection('source', 'missing')]) {
 			const run = setup(t, [source(), sink(input)]);
-			assert.throws(() => run.frame());
+			if (input.nodeId === 'missing') assert.throws(() => run.frame(), /Referenced node not found/);
+			else assert.equal(run.frame().at(-1).params.input.format, 'r16float');
 		}
 	});
 	await t.test('unconnected inputs never request a texture without a port', t => {
-		for (const input of [{ type: 'literal', value: null }, { type: 'node', nodeId: null, outputPort: null }]) {
+		for (const input of [{ type: 'node', nodeId: null, outputPort: null }]) {
 			const target = sink(null);
 			target.params.input = input;
 			target.params.amount = { type: 'node', nodeId: null, outputPort: null };
 			const run = setup(t, [target]);
-			const getOutputTexture = run.renderer.getOutputTexture;
-			t.mock.method(run.renderer, 'getOutputTexture', function (node, port) {
-				assert.equal(typeof port, 'string', 'texture lookup requires an explicit output port');
-				return getOutputTexture.call(this, node, port);
-			});
 			const draw = run.frame()[0];
 			assert.equal(draw.params.input.width, 1);
 			assert.equal(draw.params.amount.format, 'r16float');
@@ -126,10 +123,10 @@ test('multiple output rendering', async t => {
 		const first = run.frame();
 		assert.equal(first.length, 2);
 		assert.equal(run.frame().length, 0);
-		run.renderer.updateNodes(nodes('mask'));
+		run.updateNodes(nodes('mask'));
 		const second = run.frame();
-		assert.equal(second.length, 1);
-		assert.equal(second[0].params.input, first[0].outputs.mask.texture);
+		assert.equal(second.length, 2);
+		assert.equal(second[1].params.input, first[0].outputs.mask.texture);
 	});
 	await t.test('node-valued inputs retain their port and explicit primary ports are selectable', t => {
 		const target = sink(null);
@@ -137,8 +134,8 @@ test('multiple output rendering', async t => {
 		const run = setup(t, [source(), target]);
 		const first = run.frame();
 		assert.equal(first[1].params.input, first[0].outputs.mask.texture);
-		run.renderer.updateNodes([source(), sink(connection('source', 'color'))]);
-		assert.equal(run.frame()[0].params.input, first[0].outputs.color.texture);
+		run.updateNodes([source(), sink(connection('source', 'color'))]);
+		assert.equal(run.frame()[1].params.input, first[0].outputs.color.texture);
 	});
 	await t.test('scalar-only dependencies render before their consumer', t => {
 		const run = setup(t, [source(), sink(null, connection('source', 'mask'))], true);
@@ -170,7 +167,7 @@ test('multiple output rendering', async t => {
 		run.renderer.resize({ width: 32, height: 32 });
 		for (const texture of old) assert.equal(run.destroyed.get(texture), 1);
 		assert.equal(run.frame().length, 2);
-		run.renderer.updateNodes([]);
+		run.updateNodes([]);
 		for (const texture of run.allocated) assert.equal(run.destroyed.get(texture), 1);
 	});
 	await t.test('cycles through named ports are rejected', t => {

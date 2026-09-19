@@ -1,80 +1,81 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { fileURLToPath } from 'node:url';
-import { createServer } from 'vite';
+import { createTestServer } from './helpers/server.mjs';
 
 test('UI multi-output connections', async t => {
-	const server = await createServer({ root: fileURLToPath(new URL('..', import.meta.url)), configFile: false, server: { middlewareMode: true, hmr: false, ws: false, watch: null }, appType: 'custom', optimizeDeps: { noDiscovery: true, include: [] } });
-	t.after(() => server.close());
+	const server = await createTestServer(t);
 	const { COMMAND_DEFS } = await server.ssrLoadModule('/src/commands.ts');
-	const { fxDefinitions } = await server.ssrLoadModule('@glitch/shared/effect-definitions.ts');
+	const { effectDefinitions: fxDefinitions } = await server.ssrLoadModule('@glitch/shared/effect-definitions.ts');
 	fxDefinitions.multiTest = { displayName: 'Multi', paramDefs: {}, outputs: { output: { dataType: 'color', primary: true }, subOutput: { dataType: 'scalar', primary: false } } };
 	const ref = (nodeId, outputPort = 'output') => ({ nodeId, outputPort });
 	const fx = (id, name = 'multiTest', params = {}) => ({ id, type: 'effect', effectId: name, isBypass: true, params });
-	const group = (id, nodes) => ({ id, type: 'group', name: id, nodes, macros: [], isBypass: true });
-	const state = nodes => ({ nodes: { value: nodes } });
-	await t.test('automatic connection records the primary port of the previous node or group', () => {
-		for (const previous of [fx('a'), group('g', [group('inner', [fx('a')])])]) {
-			const s = state([previous]);
-			const command = COMMAND_DEFS.addEffectNode.create({ id: 'b', effectId: 'multiply' });
+	const state = nodes => ({ visualModules: { value: [{ id: 'module', nodes, paramDefs: [], outputDefs: [{ id: 'result', name: 'Result', dataType: 'color', isPrimaryOutput: true }] }] } });
+	const nodes = s => s.visualModules.value[0].nodes;
+	await t.test('automatic connection inserts a node before Out and preserves its upstream port', () => {
+		for (const previous of [fx('a')]) {
+			const s = state([previous, { id: 'out', type: 'globalOut', inputs: { result: ref(previous.id) } }]);
+			const command = COMMAND_DEFS.addEffectNode.create({ visualModuleId: 'module', id: 'b', effectId: 'blur' });
 			command.execute(s);
-			assert.deepEqual(s.nodes.value[1].params.input, { type: 'literal', value: ref(previous.id) });
+			assert.deepEqual(nodes(s)[1].params.input, { type: 'node', ...ref(previous.id) });
 			command.undo(s);
-			assert.equal(s.nodes.value.length, 1);
+			assert.equal(nodes(s).length, 2);
 		}
 	});
 	await t.test('changing a node-driven parameter preserves its port through undo and redo', () => {
 		const before = { type: 'node', nodeId: null, outputPort: null };
-		const s = state([fx('b', 'multiply', { input: before })]);
-		const command = COMMAND_DEFS.updateParamAsNode.create({ nodeId: 'b', param: 'input', value: ref('a', 'subOutput') });
+		const s = state([fx('b', 'blur', { input: before })]);
+		const command = COMMAND_DEFS.updateParamAsNode.create({ visualModuleId: 'module', nodeId: 'b', paramPath: ['input'], value: ref('a', 'subOutput') });
 		command.execute(s);
-		assert.deepEqual(s.nodes.value[0].params.input, { type: 'node', ...ref('a', 'subOutput') });
+		assert.deepEqual(nodes(s)[0].params.input, { type: 'node', ...ref('a', 'subOutput') });
 		command.undo(s);
-		assert.deepEqual(s.nodes.value[0].params.input, before);
+		assert.deepEqual(nodes(s)[0].params.input, before);
 		command.execute(s);
-		assert.equal(s.nodes.value[0].params.input.outputPort, 'subOutput');
+		assert.equal(nodes(s)[0].params.input.outputPort, 'subOutput');
 	});
-	await t.test('removal reconnects literal and node-driven inputs to the original upstream port', () => {
-		const s = state([fx('a'), fx('b', 'multiply', { input: { type: 'literal', value: ref('a', 'subOutput') } }), fx('c', 'blur', { input: { type: 'literal', value: ref('b') }, amount: { type: 'node', ...ref('b') } })]);
-		const command = COMMAND_DEFS.removeNode.create({ nodeId: 'b' });
+	await t.test('removal reconnects inputs to the original upstream port', () => {
+		const s = state([fx('a'), fx('b', 'blur', { input: { type: 'node', ...ref('a', 'subOutput') } }), fx('c', 'blur', { input: { type: 'node', ...ref('b') }, amount: { type: 'node', ...ref('b') } })]);
+		const command = COMMAND_DEFS.removeNode.create({ visualModuleId: 'module', nodeId: 'b' });
 		command.execute(s);
-		assert.deepEqual(s.nodes.value[1].params.input.value, ref('a', 'subOutput'));
-		assert.deepEqual(s.nodes.value[1].params.amount, { type: 'node', ...ref('a', 'subOutput') });
+		assert.deepEqual(nodes(s)[1].params.input, { type: 'node', ...ref('a', 'subOutput') });
+		assert.deepEqual(nodes(s)[1].params.amount, { type: 'node', ...ref('a', 'subOutput') });
 		command.undo(s);
-		assert.deepEqual(s.nodes.value[2].params.amount, { type: 'node', ...ref('b') });
+		assert.deepEqual(nodes(s)[2].params.amount, { type: 'node', ...ref('b') });
 	});
-	await t.test('removing a group clears references to all descendants with both fields null', () => {
-		const s = state([group('g', [fx('a')]), fx('c', 'blur', { input: { type: 'literal', value: ref('g') }, amount: { type: 'node', ...ref('a', 'subOutput') } })]);
-		COMMAND_DEFS.removeNode.create({ nodeId: 'g' }).execute(s);
-		assert.equal(s.nodes.value[0].params.input.value, null);
-		assert.deepEqual(s.nodes.value[0].params.amount, { type: 'node', nodeId: null, outputPort: null });
+	await t.test('removing a source clears node and Out references and undo restores them', () => {
+		const s = state([fx('a'), fx('c', 'blur', { input: { type: 'node', ...ref('a') }, amount: { type: 'node', ...ref('a', 'subOutput') } }), { id: 'out', type: 'globalOut', inputs: { result: ref('a') } }]);
+		const command = COMMAND_DEFS.removeNode.create({ visualModuleId: 'module', nodeId: 'a' });
+		command.execute(s);
+		assert.deepEqual(nodes(s)[0].params.input, { type: 'node', nodeId: null, outputPort: null });
+		assert.deepEqual(nodes(s)[1].inputs.result, { nodeId: null, outputPort: null });
+		command.undo(s);
+		assert.deepEqual(nodes(s)[2].inputs.result, ref('a'));
 	});
 	await t.test('switching parameter modes clears both fields and can be undone', () => {
 		const original = { type: 'literal', value: 0.5 };
 		const s = state([fx('b', 'blur', { amount: original })]);
-		const command = COMMAND_DEFS.changeParamValueType.create({ nodeId: 'b', param: 'amount', type: 'node' });
+		const command = COMMAND_DEFS.changeParamValueType.create({ visualModuleId: 'module', nodeId: 'b', paramPath: ['amount'], type: 'node' });
 		command.execute(s);
-		assert.deepEqual(s.nodes.value[0].params.amount, { type: 'node', nodeId: null, outputPort: null });
+		assert.deepEqual(nodes(s)[0].params.amount, { type: 'node', nodeId: null, outputPort: null });
 		command.undo(s);
-		assert.deepEqual(s.nodes.value[0].params.amount, original);
+		assert.deepEqual(nodes(s)[0].params.amount, original);
 		command.execute(s);
-		COMMAND_DEFS.changeParamValueType.create({ nodeId: 'b', param: 'amount', type: 'literal' }).execute(s);
-		assert.equal(typeof s.nodes.value[0].params.amount.value, 'number');
+		COMMAND_DEFS.changeParamValueType.create({ visualModuleId: 'module', nodeId: 'b', paramPath: ['amount'], type: 'literal' }).execute(s);
+		assert.equal(typeof nodes(s)[0].params.amount.value, 'number');
 	});
 	await t.test('clearing a connection and undoing restores the full port reference', () => {
 		const original = { type: 'node', ...ref('a', 'subOutput') };
 		const s = state([fx('b', 'blur', { amount: original })]);
-		const command = COMMAND_DEFS.updateParamAsNode.create({ nodeId: 'b', param: 'amount', value: null });
+		const command = COMMAND_DEFS.updateParamAsNode.create({ visualModuleId: 'module', nodeId: 'b', paramPath: ['amount'], value: null });
 		command.execute(s);
-		assert.deepEqual(s.nodes.value[0].params.amount, { type: 'node', nodeId: null, outputPort: null });
+		assert.deepEqual(nodes(s)[0].params.amount, { type: 'node', nodeId: null, outputPort: null });
 		command.undo(s);
-		assert.deepEqual(s.nodes.value[0].params.amount, original);
+		assert.deepEqual(nodes(s)[0].params.amount, original);
 	});
-	await t.test('menus flatten every port, retain stable select keys, and expose group ports', async () => {
+	await t.test('menus expose every port and retain stable select keys', async () => {
 		const { getNodeOutputItems, nodeOutputKey } = await server.ssrLoadModule('/src/utility/node-outputs.ts');
-		const nodes = [fx('a'), group('g', [fx('b')]), fx('self')];
+		const nodes = [fx('a'), fx('b'), fx('self')];
 		const items = getNodeOutputItems(nodes, 'self');
-		assert.deepEqual(items.map(i => i.label), ['Multi [a]: output', 'Multi [a]: subOutput', 'g [g]: output', 'g [g]: subOutput', 'Multi [b]: output', 'Multi [b]: subOutput']);
+		assert.deepEqual(items.map(i => i.label), ['Multi [a]: output', 'Multi [a]: subOutput', 'Multi [b]: output', 'Multi [b]: subOutput']);
 		assert.equal(items[1].value, nodeOutputKey(ref('a', 'subOutput')));
 		assert.deepEqual(items[1].connection, ref('a', 'subOutput'));
 	});

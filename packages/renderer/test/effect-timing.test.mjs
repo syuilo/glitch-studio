@@ -5,6 +5,7 @@ import { createServer } from 'vite';
 import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 
 import { createDevice } from './helpers/gpu-device.mjs';
+import { createLiveGraph, visualModule } from './helpers/live-graph.mjs';
 
 test('effect GPU statistics include compute and render passes', async t => {
 	const server = await createServer({
@@ -17,7 +18,7 @@ test('effect GPU statistics include compute and render passes', async t => {
 	const previousGpu = navigator.gpu;
 	navigator.gpu = { getPreferredCanvasFormat: () => 'bgra8unorm' };
 	try {
-		const { Renderer } = await server.ssrLoadModule('/src/renderer.ts');
+		const { MainRenderer } = await server.ssrLoadModule('/src/renderer.ts');
 		const { effectDefinitions: fxDefinitions } = await server.ssrLoadModule('@glitch/shared/effect-definitions.ts');
 		const { default: TimingHelper } = await server.ssrLoadModule('/src/utility/TimingHelper.ts');
 		await t.test('liquidMetal uploads RGBA colors unchanged', async () => {
@@ -49,6 +50,11 @@ test('effect GPU statistics include compute and render passes', async t => {
 		});
 		await t.test('worker publishes memory every second even when GPU timing is disabled', async t => {
 			const callbacks = new Map();
+			let frame;
+			const oldRaf = globalThis.requestAnimationFrame, oldCancel = globalThis.cancelAnimationFrame;
+			globalThis.requestAnimationFrame = cb => { frame = cb; return 1; };
+			globalThis.cancelAnimationFrame = () => {};
+			t.after(() => { if (oldRaf) globalThis.requestAnimationFrame = oldRaf; else delete globalThis.requestAnimationFrame; if (oldCancel) globalThis.cancelAnimationFrame = oldCancel; else delete globalThis.cancelAnimationFrame; });
 			const messages = [];
 			const previousSelf = globalThis.self;
 			const previousOnmessage = globalThis.onmessage;
@@ -63,7 +69,7 @@ test('effect GPU statistics include compute and render passes', async t => {
 				await server.ssrLoadModule('/src/worker.ts');
 				await globalThis.onmessage({ data: { type: 'init', canvas, histogramCanvas: canvas, waveformHorizontalCanvas: canvas, waveformVerticalCanvas: canvas, options: {
 					resolution: { width: 64, height: 64 }, intermediateTextureFormat: 'rgba16float', enableStats: false, enable32bitDataTextures: false,
-					fpsLimit: null, assets: [], macros: [], automations: [], nodes: [],
+					fpsLimit: null, assets: [], automations: [], visualModules: [], timeline: [],
 				} } });
 				const initial = messages.find(message => message.type === 'gpuMemory');
 				assert.ok(initial?.usage.total > 0, 'publish the initial allocation');
@@ -75,10 +81,11 @@ test('effect GPU statistics include compute and render passes', async t => {
 				assert.deepEqual(messages.at(-1).usage, initial.usage);
 				const node = { id: 'status-node', type: 'effect', effectId: 'fill', isBypass: false,
 					params: Object.fromEntries(Object.entries(fxDefinitions.fill.paramDefs).map(([key, param]) => [key, param.default()])) };
-				await globalThis.onmessage({ data: { type: 'call', fn: 'updateNodes', args: [[node]] } });
-				await globalThis.onmessage({ data: { type: 'call', fn: 'render', args: [node.id, { time: 16 }] } });
+				await globalThis.onmessage({ data: { type: 'call', fn: 'updateVisualModules', args: [[visualModule([node], node.id, fxDefinitions)]] } });
+				await globalThis.onmessage({ data: { type: 'call', fn: 'startLiveRenderLoopFor', args: ['test-module'] } });
+				frame(16);
 				assert.ok(messages.some(message => message.type === 'effectStatus' && message.nodeId === node.id && message.status?.type === 'ready'));
-				await globalThis.onmessage({ data: { type: 'call', fn: 'updateNodes', args: [[]] } });
+				await globalThis.onmessage({ data: { type: 'call', fn: 'updateVisualModules', args: [[]] } });
 				assert.ok(messages.some(message => message.type === 'effectStatus' && message.nodeId === node.id && message.status === null));
 				await globalThis.onmessage({ data: { type: 'call', fn: 'destroy', args: [] } });
 				callbacks.get(1000)();
@@ -115,32 +122,33 @@ test('effect GPU statistics include compute and render passes', async t => {
 				},
 			}));
 			for (const [enableStats, canTimestamp] of [[true, true], [false, true], [true, false]]) {
-				await t.test(`${count} x ${fx}: stats=${enableStats}, timestamp-query=${canTimestamp}`, async () => {
+				await t.test(`${count} x ${fx}: stats=${enableStats}, timestamp-query=${canTimestamp}`, async t => {
 					const device = createDevice(canTimestamp);
 					const context = { configure() {}, unconfigure() {}, getCurrentTexture: () => device.createTexture() };
-					const renderer = new Renderer({
+					const renderer = new MainRenderer({
 						gpuDevice: device, gpuContext: context, histogramGpuContext: context, waveformHorizontalGpuContext: context, waveformVerticalGpuContext: context, intermediateTextureFormat: 'rgba16float',
 						resolution: { width: 64, height: 64 }, enable32bitDataTextures: false, enableStats, fpsLimit: null,
-						assets: [], macros: [], automations: [],
-						nodes: makeNodes(),
+						assets: [], automations: [],
+
 					});
+					const graph = createLiveGraph(renderer, makeNodes(), fxDefinitions);
 					try {
 						const initialMemory = renderer.gpuMemory.getUsage();
 						assert.ok(initialMemory.total > 0);
-						renderer.render('effect', { time: 1000 });
+						graph.frame('effect', 1000);
 						// Wait for timestamp mapping and the statistics callback.
 						await new Promise(resolve => setImmediate(resolve));
 						assert.ok(renderer.gpuMemory.getUsage().buffers > initialMemory.buffers, 'include effect-local working buffers');
 						assert.equal(renderer.gpuAverageFast.get(), enableStats ? canTimestamp ? expected : 0 : NaN);
 						if (enableStats && canTimestamp) {
 							// Reusing cached output records no effect passes, then a parameter change resumes timing.
-							renderer.render('effect', { time: 1000 });
+							graph.frame('effect', 1000);
 							await new Promise(resolve => setImmediate(resolve));
 							assert.equal(renderer.gpuAverageFast.get(), expected / 2);
-							renderer.updateNodes(makeNodes({
+							graph.updateNodes(makeNodes({
 								[fx === 'liquidMetal' ? 'speed' : 'threshold']: { type: 'literal', value: 0.25 },
 							}));
-							renderer.render('effect', { time: 1000 });
+							graph.frame('effect', 1000);
 							await new Promise(resolve => setImmediate(resolve));
 							assert.equal(renderer.gpuAverageFast.get(), expected * 2 / 3);
 						}

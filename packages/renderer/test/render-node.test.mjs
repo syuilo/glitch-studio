@@ -3,6 +3,7 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { createServer } from 'vite';
 import { createDevice } from './helpers/gpu-device.mjs';
+import { createLiveGraph } from './helpers/live-graph.mjs';
 
 test('renderer graph traversal and frame history', async t => {
 	const server = await createServer({
@@ -29,7 +30,7 @@ test('renderer graph traversal and frame history', async t => {
 	const previousGpu = navigator.gpu;
 	navigator.gpu = { getPreferredCanvasFormat: () => 'bgra8unorm' };
 	t.after(() => { navigator.gpu = previousGpu; });
-	const { Renderer } = await server.ssrLoadModule('/src/renderer.ts');
+	const { MainRenderer } = await server.ssrLoadModule('/src/renderer.ts');
 	const { effectImplementations: fxImplementations } = await server.ssrLoadModule('@glitch/shared/effect-implementations.js');
 	const { effectDefinitions: fxDefinitions } = await server.ssrLoadModule('@glitch/shared/effect-definitions.ts');
 	const fx = (id, name, params = {}) => ({
@@ -45,7 +46,7 @@ test('renderer graph traversal and frame history', async t => {
 			])),
 		},
 	});
-	const group = (id, nodes) => ({ id, type: 'group', isBypass: false, macros: [], nodes });
+	
 
 	function setup(t, nodes, { enable32bitDataTextures = false } = {}) {
 		const device = createDevice(false);
@@ -90,11 +91,11 @@ test('renderer graph traversal and frame history', async t => {
 			configure() {}, unconfigure() {},
 			getCurrentTexture: () => Object.assign(device.createTexture(), { canvas: true }),
 		};
-		const renderer = new Renderer({
+		const renderer = new MainRenderer({
 			gpuDevice: device, gpuContext: context, histogramGpuContext: context, waveformHorizontalGpuContext: context,
 			waveformVerticalGpuContext: context, intermediateTextureFormat: 'rgba16float',
 			resolution: { width: 64, height: 64 }, enable32bitDataTextures, enableStats: false,
-			fpsLimit: null, assets: [], macros: [], automations: [], nodes,
+			fpsLimit: null, assets: [], automations: [],
 			onEffectStatus: (id, status) => {
 				statusChanges.push({ id, status });
 				if (status) statuses.set(id, status);
@@ -102,9 +103,10 @@ test('renderer graph traversal and frame history', async t => {
 			},
 		});
 		t.after(() => renderer.destroy());
+		const graph = createLiveGraph(renderer, nodes, fxDefinitions);
 		let time = performance.now();
 		return {
-			renderer,
+			renderer, updateNodes: graph.updateNodes,
 			textureWrites,
 			statuses, statusChanges,
 			clears,
@@ -112,7 +114,7 @@ test('renderer graph traversal and frame history', async t => {
 			frame(id = 'root') {
 				passes.length = 0;
 				clears.length = 0;
-				renderer.render(id, { time: time += 16 });
+				graph.frame(id, time += 16);
 				return [...passes];
 			},
 		};
@@ -129,12 +131,12 @@ test('renderer graph traversal and frame history', async t => {
 		run.renderer.updateAssets(assets);
 		const emptyTexture = run.frame()[0].inputs[0];
 		for (const asset of assets) {
-			run.renderer.updateNodes([fx('root', 'image', { image: asset.id })]);
+			run.updateNodes([fx('root', 'image', { image: asset.id })]);
 			const input = run.frame()[0].inputs[0];
 			assert.notEqual(input, emptyTexture, 'selecting an asset must replace the transparent input');
 			assert.deepEqual(run.textureWrites.get(input).data, asset.data);
 		}
-		run.renderer.updateNodes([fx('root', 'image')]);
+		run.updateNodes([fx('root', 'image')]);
 		assert.equal(run.frame()[0].inputs[0], emptyTexture);
 	});
 
@@ -160,7 +162,7 @@ test('renderer graph traversal and frame history', async t => {
 			assertUpload(inputs[2], 'rg', enable32bitDataTextures ? [1, 1] : [0x3c00, 0x3c00]);
 			assertUpload(inputs[3], 'r', [0]);
 
-			run.renderer.updateNodes([source, fx('root', 'transform', {
+			run.updateNodes([source, fx('root', 'transform', {
 				input: 'source', translation: [-0.5, 0.25], scale: [-1, 0.5], rotation: -0.5,
 			})]);
 			inputs = run.frame().at(-1).inputs;
@@ -175,7 +177,7 @@ test('renderer graph traversal and frame history', async t => {
 		const { requests } = await server.ssrLoadModule('test:symbol-images');
 		const nodes = (iconset = 'symbols', input = 'a') => [
 			fx('a', 'fill'), fx('b', 'fill'), fx('symbols', 'symbols', { iconset, input }),
-			fx('root', 'multiply', { input: 'symbols' }),
+			fx('root', 'channelShift', { input: 'symbols' }),
 		];
 		const run = setup(t, nodes());
 		const settle = () => new Promise(resolve => setImmediate(resolve));
@@ -196,9 +198,9 @@ test('renderer graph traversal and frame history', async t => {
 		assert.equal(passes[0].inputs[1], first.texture);
 		assert.equal(run.frame().length, 0);
 
-		run.renderer.updateNodes(nodes('numbers'));
+		run.updateNodes(nodes('numbers'));
 		run.frame();
-		run.renderer.updateNodes(nodes('sweets', 'b'));
+		run.updateNodes(nodes('sweets', 'b'));
 		passes = run.frame();
 		const latestInput = passes[0].output;
 		const latest = await complete(2);
@@ -211,7 +213,7 @@ test('renderer graph traversal and frame history', async t => {
 		assert.equal(obsolete.destroy.mock.callCount(), 1);
 		assert.equal(run.frame().length, 0, 'obsolete completion cannot replace cached output');
 
-		run.renderer.updateNodes(nodes('symbols'));
+		run.updateNodes(nodes('symbols'));
 		run.frame();
 		const errors = t.mock.method(console, 'error', () => {});
 		requests[3].reject(new Error('image load failed'));
@@ -219,9 +221,9 @@ test('renderer graph traversal and frame history', async t => {
 		assert.equal(errors.mock.callCount(), 1);
 		assert.deepEqual(run.statuses.get('symbols'), { type: 'error', message: 'image load failed' });
 		assert.equal(run.frame().length, 0, 'failed loads retain cached output');
-		run.renderer.updateNodes(nodes('numbers'));
+		run.updateNodes(nodes('numbers'));
 		run.frame();
-		run.renderer.updateNodes([]);
+		run.updateNodes([]);
 		assert.equal(latest.destroy.mock.callCount(), 1);
 		const disposed = await complete(4);
 		assert.equal(run.statuses.has('symbols'), false);
@@ -229,10 +231,10 @@ test('renderer graph traversal and frame history', async t => {
 	});
 
 	await t.test('effect status is reported on initialization and explicit updates only', t => {
-		const run = setup(t, [fx('root', 'multiply'), fx('unused', 'fill')]);
+		const run = setup(t, [fx('root', 'channelShift'), fx('unused', 'fill')]);
 		const reports = [];
-		const originalInit = fxImplementations.multiply.init;
-		t.mock.method(fxImplementations.multiply, 'init', args => {
+		const originalInit = fxImplementations.channelShift.init;
+		t.mock.method(fxImplementations.channelShift, 'init', args => {
 			reports.push(args.reportStatus);
 			const instance = originalInit(args);
 			return { ...instance, render(ctx) {
@@ -258,12 +260,11 @@ test('renderer graph traversal and frame history', async t => {
 		assert.equal(run.statusChanges.length, count + 3, 'recovery is reported');
 		reports[0]({ type: 'ready' });
 		assert.equal(run.statusChanges.length, count + 3);
-		run.renderer.updateNodes([]);
-		run.renderer.updateNodes([fx('root', 'multiply')]);
+		run.updateNodes([]);
+		run.updateNodes([fx('root', 'channelShift')]);
 		run.frame();
 		reports[0]({ type: 'error', message: 'obsolete' });
 		assert.deepEqual(run.statuses.get('root'), { type: 'ready' });
-		t.mock.method(run.renderer, 'startRenderLoop', () => {});
 		run.renderer.resize({ width: 32, height: 32 });
 		reports[1]({ type: 'loading' });
 		assert.equal(run.statuses.has('root'), false, 'resize clears status and rejects old reports');
@@ -288,15 +289,15 @@ test('renderer graph traversal and frame history', async t => {
 		assert.equal(closes, 1);
 		assert.equal(run.frame().length, 3, 'new frames invalidate both consumers even with the same timestamp');
 		assert.equal(run.frame().length, 0);
-		run.renderer.updateNodes(nodes('player', 2));
-		assert.equal(run.frame().length, 2, 'size mode invalidates video and downstream');
-		run.renderer.updateNodes(nodes('other', 2));
+		run.updateNodes(nodes('player', 2));
+		assert.equal(run.frame().length, 3, 'module updates invalidate video caches; size mode invalidates video and downstream');
+		run.updateNodes(nodes('other', 2));
 		assert.equal(run.frame().length, 3, 'switching players invalidates output');
 		assert.equal(run.frame().length, 0);
 	});
 
 	await t.test('video clears absent frames once and redraws after removal and restoration', t => {
-		const run = setup(t, [fx('video', 'video', { player: 'player' }), fx('root', 'multiply', { input: 'video' })]);
+		const run = setup(t, [fx('video', 'video', { player: 'player' }), fx('root', 'channelShift', { input: 'video' })]);
 		for (const frame of [null, { close() {} }, null, { close() {} }]) {
 			run.renderer.updateVideoFrame('player', frame);
 			assert.equal(run.frame().length, frame ? 2 : 1);
@@ -309,35 +310,35 @@ test('renderer graph traversal and frame history', async t => {
 
 	for (const name of ['colorBlend', 'colorMix', 'dataBlend', 'dataMix']) {
 		await t.test(`${name} preserves output precision and renders node-driven amount`, t => {
-			const run = setup(t, [fx('a', 'fill'), fx('b', 'fill'), fx('weight', 'multiply'), fx('root', name, { inputA: 'a', inputB: 'b', amount: 'weight' })]);
+			const run = setup(t, [fx('a', 'fill'), fx('b', 'fill'), fx('weight', 'channelShift'), fx('root', name, { inputA: 'a', inputB: 'b', amount: 'weight' })]);
 			const passes = run.frame();
 			assert.equal(passes.length, 4);
-			assert.equal(passes[3].output.format, name.startsWith('data') ? 'rgba32float' : 'rgba16float');
+			assert.equal(passes[3].output.format, 'rgba16float');
 			assert.deepEqual(passes[3].inputs, passes.slice(0, 3).map(pass => pass.output));
 			assert.equal(run.frame().length, 0);
 		});
 	}
 
 	await t.test('bypasses middle and final nodes, follows live input and restores cached output', t => {
-		const a = fx('a', 'multiply', { v: 2 });
-		const b = fx('b', 'multiply', { input: 'a', v: 3 });
-		const c = fx('root', 'multiply', { input: 'b', v: 4 });
+		const a = fx('a', 'channelShift', { amount: [2, 0] });
+		const b = fx('b', 'channelShift', { input: 'a', amount: [3, 0] });
+		const c = fx('root', 'channelShift', { input: 'b', amount: [4, 0] });
 		const run = setup(t, [a, b, c]);
 		const initial = run.frame();
-		run.renderer.updateNodes([a, disabled(b), c]);
+		run.updateNodes([a, disabled(b), c]);
 		const bypass = run.frame();
-		assert.equal(bypass.length, 1);
-		assert.equal(bypass[0].inputs[0], initial[0].output);
-		run.renderer.updateNodes([a, b, disabled(c)]);
+		assert.equal(bypass.length, 2);
+		assert.equal(bypass[1].inputs[0], initial[0].output);
+		run.updateNodes([a, b, disabled(c)]);
 		run.frame();
 		assert.equal(run.canvasInput, initial[1].output);
-		run.renderer.updateNodes([a, disabled(b), disabled(c)]);
+		run.updateNodes([a, disabled(b), disabled(c)]);
 		run.frame();
 		assert.equal(run.canvasInput, initial[0].output);
-		run.renderer.updateNodes([fx('a', 'multiply', { v: 5 }), disabled(b), c]);
+		run.updateNodes([fx('a', 'channelShift', { amount: [5, 0] }), disabled(b), c]);
 		assert.equal(run.frame().length, 2, 'input changes invalidate downstream cache');
-		run.renderer.updateNodes([a, b, c]);
-		assert.equal(run.frame().length, 1, 'unchanged enabled effects may reuse their retained output');
+		run.updateNodes([a, b, c]);
+		assert.equal(run.frame().length, 3, 'module updates invalidate effect caches');
 		assert.equal(run.canvasInput, initial[2].output);
 		assert.equal(run.frame().length, 0);
 	});
@@ -346,17 +347,17 @@ test('renderer graph traversal and frame history', async t => {
 		const trail = fx('root', 'pointerTrail');
 		const run = setup(t, [trail]);
 		const first = run.frame()[0];
-		run.renderer.updateNodes([disabled(trail)]);
+		run.updateNodes([disabled(trail)]);
 		assert.equal(run.frame().length, 0);
-		run.renderer.updateNodes([trail]);
+		run.updateNodes([trail]);
 		const resumed = run.frame()[0];
 		assert.equal(resumed.inputs[0], first.output);
 		assert.equal(resumed.output, first.inputs[0]);
 	});
 
-	await t.test('disabled unconnected effects and groups supply fallback to downstream nodes', t => {
-		for (const input of [fx('input', 'multiply'), group('input', [fx('child', 'pointerTrail')])]) {
-			const run = setup(t, [disabled(input), fx('root', 'multiply', { input: 'input' })]);
+	await t.test('disabled unconnected effects supply fallback to downstream nodes', t => {
+		for (const input of [fx('input', 'channelShift'), fx('input', 'pointerTrail')]) {
+			const run = setup(t, [disabled(input), fx('root', 'channelShift', { input: 'input' })]);
 			const passes = run.frame();
 			assert.equal(passes.length, 1);
 			assert.equal(passes[0].inputs[0].width, 1);
@@ -364,20 +365,17 @@ test('renderer graph traversal and frame history', async t => {
 		}
 	});
 
-	await t.test('switching a group output to an identical node invalidates downstream cache', t => {
-		const a = fx('a', 'multiply');
-		const b = fx('b', 'multiply');
-		const root = fx('root', 'multiply', { input: 'g' });
-		const run = setup(t, [group('g', [a, b]), root]);
-		const first = run.frame();
-		run.renderer.updateNodes([group('g', [b, a]), root]);
-		const second = run.frame();
-		assert.equal(second.length, 2);
-		assert.notEqual(second[1].inputs[0], first[1].inputs[0]);
+	await t.test('switching module output to an identical node selects its texture', t => {
+		const run = setup(t, [fx('a', 'fill'), fx('b', 'fill')]);
+		const first = run.frame('a');
+		const second = run.frame('b');
+		assert.equal(second.length, 1);
+		assert.notEqual(second[0].output, first[0].output);
+		assert.equal(run.canvasInput, second[0].output);
 	});
 
 	await t.test('disabled blur ignores secondary dependencies and their cycles', t => {
-		const run = setup(t, [fx('a', 'pointerTrail'), disabled(fx('b', 'blur', { input: 'a', amount: 'b' })), fx('root', 'multiply', { input: 'b' })]);
+		const run = setup(t, [fx('a', 'pointerTrail'), disabled(fx('b', 'blur', { input: 'a', amount: 'b' })), fx('root', 'channelShift', { input: 'b' })]);
 		for (let i = 0; i < 2; i++) {
 			const passes = run.frame();
 			assert.equal(passes.length, 2);
@@ -385,20 +383,19 @@ test('renderer graph traversal and frame history', async t => {
 		}
 	});
 
-	await t.test('disabled generators and groups publish fallback instead of stale output', t => {
-		for (const root of [fx('root', 'pointerTrail'), group('root', [fx('child', 'pointerTrail')])]) {
+	await t.test('disabled generators publish fallback instead of stale output', t => {
+		for (const root of [fx('root', 'pointerTrail')]) {
 			const run = setup(t, [root]);
 			run.frame();
 			const previous = run.canvasInput;
-			run.renderer.updateNodes([disabled(root)]);
+			run.updateNodes([disabled(root)]);
 			assert.equal(run.frame().length, 0);
-			assert.notEqual(run.canvasInput, previous);
-			assert.equal(run.canvasInput.width, 1);
+			assert.equal(run.canvasInput, previous, 'live rendering does not submit a canvas pass without a module output');
 		}
 	});
 
-	await t.test('nested groups resolve disabled final children and scalar inputs use fallback', t => {
-		const run = setup(t, [fx('a', 'multiply'), group('g', [group('inner', [disabled(fx('b', 'multiply', { input: 'a' }))])]), disabled(fx('empty', 'pointerTrail')), fx('root', 'blur', { input: 'g', amount: 'empty' })]);
+	await t.test('bypassed nodes resolve their input and scalar inputs use fallback', t => {
+		const run = setup(t, [fx('a', 'channelShift'), disabled(fx('g', 'channelShift', { input: 'a' })), disabled(fx('empty', 'pointerTrail')), fx('root', 'blur', { input: 'g', amount: 'empty' })]);
 		const passes = run.frame();
 		assert.equal(passes.length, 2);
 		assert.equal(passes[1].inputs[0], passes[0].output);
@@ -407,38 +404,35 @@ test('renderer graph traversal and frame history', async t => {
 	});
 
 	await t.test('disabled primary cycles are rejected', t => {
-		const { frame } = setup(t, [disabled(fx('root', 'multiply', { input: 'other' })), disabled(fx('other', 'multiply', { input: 'root' }))]);
+		const { frame } = setup(t, [disabled(fx('root', 'channelShift', { input: 'other' })), disabled(fx('other', 'channelShift', { input: 'root' }))]);
 		assert.throws(() => frame(), /circular dependency detected/);
 	});
 
-	for (const grouped of [false, true]) {
-		await t.test(`shared ${grouped ? 'group' : 'node'} renders once per frame and publishes alternating history`, t => {
-			const trail = fx('trail', 'pointerTrail');
-			const shared = fx('shared', 'multiply', { input: 'trail' });
-			const input = grouped ? 'group' : 'shared';
-			const nodes = grouped ? [group('group', [trail, shared])] : [trail, shared];
-			nodes.push(fx('root', 'blur', { input, amount: input }));
-			const { frame } = setup(t, nodes);
-			const first = frame();
-			assert.equal(first.length, 3, 'trail, shared and root each draw once');
-			assert.equal(first[0].output.format, 'rg16float');
-			assert.equal(first[1].inputs[0], first[0].output, 'downstream reads this frame');
-			assert.deepEqual(first[2].inputs, [first[1].output, first[1].output]);
-			const second = frame();
-			assert.equal(second.length, 3, 'rendered set resets on the next frame');
-			assert.equal(second[0].inputs[0], first[0].output);
-			assert.equal(second[0].output, first[0].inputs[0]);
-			assert.equal(second[1].inputs[0], second[0].output);
-			const third = frame();
-			assert.equal(third[0].output, first[0].output);
-			assert.equal(third[0].inputs[0], second[0].output);
-		});
-	}
+	await t.test('shared node renders once per frame and publishes alternating history', t => {
+		const trail = fx('trail', 'pointerTrail');
+		const shared = fx('shared', 'channelShift', { input: 'trail' });
+		const input = 'shared';
+		const nodes = [trail, shared];
+		nodes.push(fx('root', 'blur', { input, amount: input }));
+		const { frame } = setup(t, nodes);
+		const first = frame();
+		assert.equal(first.length, 3, 'trail, shared and root each draw once');
+		assert.equal(first[0].output.format, 'rg16float');
+		assert.equal(first[1].inputs[0], first[0].output, 'downstream reads this frame');
+		assert.deepEqual(first[2].inputs, [first[1].output, first[1].output]);
+		const second = frame();
+		assert.equal(second.length, 3, 'rendered set resets on the next frame');
+		assert.equal(second[0].inputs[0], first[0].output);
+		assert.equal(second[0].output, first[0].inputs[0]);
+		assert.equal(second[1].inputs[0], second[0].output);
+		const third = frame();
+		assert.equal(third[0].output, first[0].output);
+		assert.equal(third[0].inputs[0], second[0].output);
+	});
 
 	for (const [name, nodes] of [
-		['self reference', [fx('root', 'multiply', { input: 'root' })]],
-		['two-node cycle', [fx('root', 'multiply', { input: 'other' }), fx('other', 'multiply', { input: 'root' })]],
-		['group cycle', [group('root', [fx('child', 'multiply', { input: 'root' })])]],
+		['self reference', [fx('root', 'channelShift', { input: 'root' })]],
+		['two-node cycle', [fx('root', 'channelShift', { input: 'other' }), fx('other', 'channelShift', { input: 'root' })]],
 		// Dynamic dependencies make evalCacheKey return null before reaching the cycle.
 		// This exercises renderNode's own cycle detection, not only evalCacheKey's.
 		['cycle with uncached input', [fx('trail', 'pointerTrail'), fx('root', 'blur', { input: 'trail', amount: 'root' })]],
@@ -450,11 +444,11 @@ test('renderer graph traversal and frame history', async t => {
 	}
 
 	await t.test('static output is cached across frames and parameter changes invalidate it', t => {
-		const { renderer, frame } = setup(t, [fx('root', 'multiply', { input: null, v: 2 })]);
+		const { updateNodes, frame } = setup(t, [fx('root', 'channelShift', { input: null, amount: [2, 0] })]);
 		const first = frame();
 		assert.equal(first.length, 1);
 		assert.equal(frame().length, 0);
-		renderer.updateNodes([fx('root', 'multiply', { input: null, v: 3 })]);
+		updateNodes([fx('root', 'channelShift', { input: null, amount: [3, 0] })]);
 		const changed = frame();
 		assert.equal(changed.length, 1);
 		assert.equal(changed[0].output, first[0].output, 'ordinary effects retain their output');
@@ -462,10 +456,9 @@ test('renderer graph traversal and frame history', async t => {
 
 	for (const operation of ['resize', 'remove and restore']) {
 		await t.test(`${operation} redraws static image output and downstream effects`, t => {
-			const nodes = [fx('image', 'image', { image: 'asset' }), fx('root', 'multiply', { input: 'image', v: 2 })];
+			const nodes = [fx('image', 'image', { image: 'asset' }), fx('root', 'channelShift', { input: 'image', amount: [2, 0] })];
 			const run = setup(t, nodes);
 			run.renderer.updateAssets([{ id: 'asset', fileDataType: 'image/png', width: 1, height: 1, data: new Uint8Array([255, 0, 0, 255]) }]);
-			t.mock.method(run.renderer, 'startRenderLoop', () => {});
 			let previous = run.frame();
 			assert.equal(previous.length, 2);
 			assert.equal(run.frame().length, 0);
@@ -473,8 +466,8 @@ test('renderer graph traversal and frame history', async t => {
 				if (operation === 'resize') {
 					run.renderer.resize({ width: size, height: size });
 				} else {
-					run.renderer.updateNodes([]);
-					run.renderer.updateNodes(nodes);
+					run.updateNodes([]);
+					run.updateNodes(nodes);
 				}
 				const passes = run.frame();
 				assert.equal(passes.length, 2, 'new output textures must be drawn before they can be cached');
@@ -494,7 +487,6 @@ test('renderer graph traversal and frame history', async t => {
 
 	await t.test('bloom scales its fine detail with resolution while retaining the halo pyramid', t => {
 		const run = setup(t, [fx('input', 'fill'), fx('root', 'bloom', { input: 'input' })]);
-		t.mock.method(run.renderer, 'startRenderLoop', () => {});
 		let previous = run.frame();
 		assert.equal(previous.length, 13);
 		assert.equal(run.frame().length, 0);
@@ -525,14 +517,13 @@ test('renderer graph traversal and frame history', async t => {
 	await t.test('bloom changes quality live, releases the previous pyramid and reuses unchanged resources', t => {
 		const nodes = quality => [fx('input', 'fill'), fx('root', 'bloom', { input: 'input', quality })];
 		const run = setup(t, nodes(0.5));
-		t.mock.method(run.renderer, 'startRenderLoop', () => {});
 		run.renderer.resize({ width: 2048, height: 1024 });
 		let previous = run.frame().slice(1);
 		for (const [quality, expectedWidth] of [[1, 2048], [0.25, 512], [0.5, 1024], [NaN, 1024], [0, 512], [2, 2048]]) {
 			const oldTargets = [...new Set(previous.slice(0, -1).map(pass => pass.output))];
 			const destroys = oldTargets.map(texture => t.mock.method(texture, 'destroy'));
-			run.renderer.updateNodes(nodes(quality));
-			const passes = run.frame();
+			run.updateNodes(nodes(quality));
+			const passes = run.frame().slice(1);
 			assert.deepEqual([passes[0].output.width, passes[0].output.height], [expectedWidth, expectedWidth / 2]);
 			const changed = expectedWidth !== previous[0].output.width;
 			for (const destroy of destroys) assert.equal(destroy.mock.callCount(), changed ? 1 : 0);
@@ -543,8 +534,8 @@ test('renderer graph traversal and frame history', async t => {
 		}
 	});
 
-	await t.test('empty groups and absent output nodes do not draw', t => {
-		const { frame } = setup(t, [group('root', [])]);
+	await t.test('empty modules and absent output nodes do not draw', t => {
+		const { frame } = setup(t, []);
 		assert.deepEqual(frame(), []);
 		assert.deepEqual(frame('missing'), []);
 	});

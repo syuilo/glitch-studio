@@ -9,6 +9,7 @@
 		"packages/ui"
 	],
 	"scripts": {
+		"test": "pnpm --no-bail -r test",
 		"dev": "pnpm --dir packages/ui dev",
 		"build": "pnpm --dir packages/ui build",
 		"preview": "pnpm --dir packages/ui preview",

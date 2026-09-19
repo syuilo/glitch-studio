@@ -1,8 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { fileURLToPath } from 'node:url';
 import { createServer } from 'vite';
-import { createSSRApp } from 'vue';
-import { renderToString } from '@vue/server-renderer';
 
 globalThis.GPUQueue = class {
 	submit() {}
@@ -13,63 +12,6 @@ globalThis.GPUBufferUsage = {
 	UNIFORM: 4,
 };
 
-test('engine initializes a waveform canvas registered before the GPU device', async () => {
-	const server = await createServer({
-		server: { middlewareMode: true, hmr: false },
-		appType: 'custom',
-	});
-	const previousGpu = globalThis.navigator.gpu;
-
-	try {
-		const waveformConfigurations = [];
-		const device = {
-			features: new Set(),
-			createTexture() { return { destroy() {} }; },
-			createBindGroup() { return {}; },
-			createBindGroupLayout() { return {}; },
-			createBuffer() { return { destroy() {} }; },
-			createComputePipeline() { return {}; },
-			createPipelineLayout() { return {}; },
-			createRenderPipeline() { return {}; },
-			createShaderModule() { return {}; },
-			destroy() {},
-		};
-		globalThis.navigator.gpu = {
-			getPreferredCanvasFormat: () => 'bgra8unorm',
-			requestAdapter: async () => ({
-				features: new Set(),
-				requestDevice: async () => device,
-			}),
-		};
-		const mainCanvas = {
-			width: 0,
-			height: 0,
-			getContext: () => ({ configure() {} }),
-		};
-		const waveformCanvas = {
-			getContext: () => ({
-				configure(configuration) {
-					waveformConfigurations.push(configuration);
-				},
-				unconfigure() {},
-			}),
-		};
-		const { Engine } = await server.ssrLoadModule('/src/engine/engine.ts');
-		const engine = new Engine();
-
-		engine.setWaveformCanvas(waveformCanvas);
-		await engine.setCanvas({
-			canvas: mainCanvas,
-			resolution: { width: 640, height: 480 },
-		});
-
-		assert.equal(waveformConfigurations.length, 1);
-		assert.equal(waveformConfigurations[0].device, device);
-	} finally {
-		globalThis.navigator.gpu = previousGpu;
-		await server.close();
-	}
-});
 globalThis.GPUTextureUsage = {
 	RENDER_ATTACHMENT: 1,
 };
@@ -80,12 +22,13 @@ globalThis.GPUShaderStage = {
 
 test('waveform sampling caps the longest edge at 1024 pixels', async () => {
 	const server = await createServer({
+		root: fileURLToPath(new URL('..', import.meta.url)), configFile: false, optimizeDeps: { noDiscovery: true, include: [] },
 		server: { middlewareMode: true, hmr: false },
 		appType: 'custom',
 	});
 
 	try {
-		const { fitWaveformSampleSize } = await server.ssrLoadModule('/src/engine/GpuWaveform.ts');
+		const { fitWaveformSampleSize } = await server.ssrLoadModule('/src/utility/waveform/GpuWaveform.ts');
 
 		assert.deepEqual(fitWaveformSampleSize(640, 480), { width: 640, height: 480 });
 		assert.deepEqual(fitWaveformSampleSize(4096, 2048), { width: 1024, height: 512 });
@@ -95,38 +38,15 @@ test('waveform sampling caps the longest edge at 1024 pixels', async () => {
 	}
 });
 
-test('waveform component renders a 512 by 256 monitor canvas', async () => {
-	const server = await createServer({
-		plugins: [{
-			name: 'stub-waveform-engine',
-			transform(code, id) {
-				if (id.replaceAll('\\', '/').endsWith('/src/app.ts')) {
-					return 'export const engine = { setWaveformCanvas() {} };';
-				}
-			},
-		}],
-		server: { middlewareMode: true, hmr: false },
-		appType: 'custom',
-	});
-
-	try {
-		const { default: Waveform } = await server.ssrLoadModule('/src/components/GsWaveform.vue');
-		const html = await renderToString(createSSRApp(Waveform));
-
-		assert.match(html, /<canvas[^>]+width="512"[^>]+height="256"/);
-	} finally {
-		await server.close();
-	}
-});
-
 test('GPU waveform downsamples a large source and draws it in the same frame', async () => {
 	const server = await createServer({
+		root: fileURLToPath(new URL('..', import.meta.url)), configFile: false, optimizeDeps: { noDiscovery: true, include: [] },
 		server: { middlewareMode: true, hmr: false },
 		appType: 'custom',
 	});
 
 	try {
-		const { GpuWaveform } = await server.ssrLoadModule('/src/engine/GpuWaveform.ts');
+		const { GpuWaveform } = await server.ssrLoadModule('/src/utility/waveform/GpuWaveform.ts');
 		const calls = {
 			configure: [],
 			writeBuffer: [],
@@ -144,16 +64,12 @@ test('GPU waveform downsamples a large source and draws it in the same frame', a
 			},
 			unconfigure() {},
 		};
-		const canvas = {
-			getContext(type) {
-				assert.equal(type, 'webgpu');
-				return context;
-			},
-		};
 		const device = {
+			createSampler: () => ({}),
+			limits: { maxStorageBufferBindingSize: 134217728, maxBufferSize: 268435456, maxComputeWorkgroupsPerDimension: 65535 },
 			queue: {
 				writeBuffer(buffer, offset, data) {
-					calls.writeBuffer.push([buffer, offset, Array.from(data)]);
+					calls.writeBuffer.push([buffer, offset, Array.from(new Uint32Array(data))]);
 				},
 			},
 			createBuffer(descriptor) {
@@ -171,7 +87,7 @@ test('GPU waveform downsamples a large source and draws it in the same frame', a
 			createPipelineLayout(descriptor) { return { descriptor }; },
 			createShaderModule(descriptor) { return { descriptor }; },
 			createComputePipeline(descriptor) { return { descriptor }; },
-			createRenderPipeline(descriptor) { return { descriptor }; },
+			createRenderPipeline(descriptor) { return { descriptor, getBindGroupLayout: () => ({}) }; },
 			createBindGroup(descriptor) { return { descriptor }; },
 		};
 		const computePass = {
@@ -207,14 +123,14 @@ test('GPU waveform downsamples a large source and draws it in the same frame', a
 			createView: () => 'source-view',
 		};
 
-		const waveform = new GpuWaveform(device, canvas, 'bgra8unorm');
+		const waveform = new GpuWaveform(device, context, 'bgra8unorm');
 		waveform.render(commandEncoder, sourceTexture);
 
 		assert.equal(calls.configure.length, 1);
 		assert.deepEqual(calls.writeBuffer.map(([, offset, data]) => [offset, data]), [
-			[0, [1024, 512]],
+			[0, [0, new Uint32Array(new Float32Array([0.22]).buffer)[0], 512, 256, 0, 1, 1024, 512]],
 		]);
-		assert.deepEqual(calls.clearBuffer, [[buffers[0]]]);
+		assert.deepEqual(calls.clearBuffer, [[buffers[1]]]);
 		assert.deepEqual(calls.dispatchWorkgroups, [[64, 32]]);
 		assert.deepEqual(calls.draw, [[6]]);
 

@@ -3,6 +3,7 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { createServer } from 'vite';
 import { createDevice } from './helpers/gpu-device.mjs';
+import { createLiveGraph } from './helpers/live-graph.mjs';
 
 const literal = value => ({ type: 'literal', value });
 const number = { type: 'number', label: 'Number', default: () => literal(0) };
@@ -18,7 +19,7 @@ test('struct and array renderer parameters', async t => {
 	const previousGpu = navigator.gpu;
 	navigator.gpu = { getPreferredCanvasFormat: () => 'bgra8unorm' };
 	t.after(() => { navigator.gpu = previousGpu; });
-	const { Renderer } = await server.ssrLoadModule('/src/renderer.ts');
+	const { MainRenderer } = await server.ssrLoadModule('/src/renderer.ts');
 	const { effectDefinitions: definitions } = await server.ssrLoadModule('@glitch/shared/effect-definitions.ts');
 	const { effectImplementations: implementations } = await server.ssrLoadModule('@glitch/shared/effect-implementations.js');
 	const node = (id, effectId, params = {}) => ({ id, type: 'effect', effectId, params, isBypass: false });
@@ -45,15 +46,16 @@ test('struct and array renderer parameters', async t => {
 			t.after(() => { delete definitions[id]; delete implementations[id]; });
 		}
 		const context = { configure() {}, unconfigure() {}, getCurrentTexture: () => device.createTexture() };
-		const renderer = new Renderer({ gpuDevice: device, gpuContext: context, histogramGpuContext: context,
+		const renderer = new MainRenderer({ gpuDevice: device, gpuContext: context, histogramGpuContext: context,
 			waveformHorizontalGpuContext: context, waveformVerticalGpuContext: context,
 			resolution: { width: 16, height: 16 }, intermediateTextureFormat: 'rgba16float', enable32bitDataTextures,
-			enableStats: false, fpsLimit: null, assets: [], macros: [], automations: [], nodes });
+			enableStats: false, fpsLimit: null, assets: [], automations: [] });
 		t.after(() => renderer.destroy());
+		const graph = createLiveGraph(renderer, nodes, definitions);
 		let time = performance.now();
-		return { renderer, writes, allocated, destroyed, frame(id = 'root') {
+		return { renderer, updateNodes: graph.updateNodes, writes, allocated, destroyed, frame(id = 'root') {
 			draws.length = 0;
-			renderer.render(id, { time: time += 16 });
+			graph.frame(id, time += 16);
 			return [...draws];
 		} };
 	}
@@ -80,14 +82,14 @@ test('struct and array renderer parameters', async t => {
 		assert.equal(first[0].color.format, precision ? 'rgba32float' : 'rgba16float');
 		assert.deepEqual([...run.writes.get(first[0].amount)], [precision ? 0.5 : 0x3800]);
 		assert.deepEqual([...run.writes.get(first[0].vector)], precision ? [0.5, -1] : [0x3800, 0xbc00]);
-		run.renderer.updateNodes(nodes([1]));
+		run.updateNodes(nodes([1]));
 		assert.equal(run.destroyed.get(first[1].amount), 1);
 		const changed = run.frame()[0].params.rows;
 		assert.equal(changed[0].amount, first[0].amount);
-		run.renderer.updateNodes(nodes([]));
+		run.updateNodes(nodes([]));
 		assert.deepEqual(run.frame()[0].params.rows, []);
 		assert.equal(run.destroyed.get(first[0].amount), 1);
-		run.renderer.updateNodes(nodes([0.5]));
+		run.updateNodes(nodes([0.5]));
 		assert.notEqual(run.frame()[0].params.rows[0].amount, first[0].amount);
 	});
 
@@ -99,12 +101,12 @@ test('struct and array renderer parameters', async t => {
 		assert.deepEqual(first.map(d => d.id), ['source', 'sink']);
 		assert.equal(first[1].params.rows[0].input, first[0].outputs.output.texture);
 		assert.equal(run.frame().length, 0);
-		run.renderer.updateNodes(nodes(2, 'mask'));
+		run.updateNodes(nodes(2, 'mask'));
 		const second = run.frame();
 		assert.equal(second[1].params.rows[0].input, second[0].outputs.mask.texture);
 		const cyclic = nodes();
 		cyclic[1].params.rows.value[0].value.input = connection('root');
-		run.renderer.updateNodes(cyclic);
+		run.updateNodes(cyclic);
 		assert.throws(() => run.frame(), /circular dependency/);
 	});
 	await t.test('nested image and player resources invalidate cache when their contents change', async t => {
@@ -131,19 +133,19 @@ test('struct and array renderer parameters', async t => {
 		assert.equal(run.frame().length, 0);
 	});
 
-	await t.test('group macros, nested group dependencies, bypass and null inputs', t => {
+	await t.test('nested dependencies, bypass and null inputs', t => {
 		const defs = { producer: { x: number }, consumer: { input: { type: 'color', canNode: true, primary: true }, nested: { type: 'struct', fields: { x: number, input: { type: 'color', canNode: true } } } } };
-		const root = node('root', 'consumer', { input: connection('group'), nested: literal({ x: literal(1), input: connection(null, null) }) });
-		const group = { id: 'group', type: 'group', isBypass: false, macros: [{ name: 'LOCAL', type: 'number', value: literal(6) }], nodes: [node('inside', 'producer', { x: { type: 'expression', expression: 'LOCAL' } })] };
-		const run = setup(t, defs, [group, root]);
+		const root = node('root', 'consumer', { input: connection('inside'), nested: literal({ x: literal(1), input: connection(null, null) }) });
+		const producer = node('inside', 'producer', { x: literal(6) });
+		const run = setup(t, defs, [producer, root]);
 		const draws = run.frame();
 		assert.equal(draws[0].params.x, 6);
 		assert.equal(draws[1].params.input, draws[0].outputs.output.texture);
 		assert.equal(draws[1].params.nested.input.width, 1);
-		const next = structuredClone([group, root]);
+		const next = structuredClone([producer, root]);
 		next[1].isBypass = true;
 		next[1].params.nested.value.input = connection('root');
-		run.renderer.updateNodes(next);
+		run.updateNodes(next);
 		assert.doesNotThrow(() => run.frame());
 	});
 
@@ -151,7 +153,7 @@ test('struct and array renderer parameters', async t => {
 		const defs = { fallback: { values: { type: 'array', item: number } } };
 		const run = setup(t, defs, [node('root', 'fallback', { values: literal([{ type: 'expression', expression: '(' }]) })]);
 		assert.deepEqual(run.frame()[0].params.values, [0]);
-		assert.throws(() => run.renderer.updateNodes([node('root', 'fallback', { values: { type: 'expression', expression: '[1]' } })]), /must be literal/);
+		assert.throws(() => run.updateNodes([node('root', 'fallback', { values: { type: 'expression', expression: '[1]' } })]), /must be literal/);
 	});
 
 	await t.test('array reordering preserves values at each path and node removal frees nested textures', t => {
@@ -160,11 +162,11 @@ test('struct and array renderer parameters', async t => {
 		const run = setup(t, defs, nodes([1, 2]), true);
 		const first = run.frame()[0].params;
 		assert.notEqual(first.rows[0].value, first['rows.0.value']);
-		run.renderer.updateNodes(nodes([2, 1]));
+		run.updateNodes(nodes([2, 1]));
 		const reordered = run.frame()[0].params;
 		assert.deepEqual(reordered.rows.map(row => [...run.writes.get(row.value)]), [[2], [1]]);
 		assert.deepEqual([...run.writes.get(reordered['rows.0.value'])], [3]);
-		run.renderer.updateNodes([]);
+		run.updateNodes([]);
 		for (const texture of [first.rows[0].value, first.rows[1].value, first['rows.0.value']]) assert.equal(run.destroyed.get(texture), 1);
 	});
 

@@ -1,9 +1,9 @@
 // Run from a Vite-served page:
-// await (await import('/glitch-studio-web/test/water.browser.mjs')).testWater()
+// await (await import('/test/water.browser.mjs')).testWater()
 export async function testWater() {
-	const path = '../src/engine/fx/water/main.ts';
-	const { default: effect } = await import(/* @vite-ignore */ path);
-	const { default: vertex } = await import('../src/engine/vertex.wgsl?raw');
+	const { default: effect } = await import('@glitch/shared/effects/water/_impl_.ts');
+	const { default: definition } = await import('@glitch/shared/effects/water/_def_.ts');
+	const { default: vertex } = await import('../src/vertex.wgsl?raw');
 	const assert = (ok, message) => { if (!ok) throw new Error(message); };
 	const device = await (await navigator.gpu.requestAdapter()).requestDevice();
 	device.pushErrorScope('validation');
@@ -13,14 +13,17 @@ export async function testWater() {
 	const pixels = new Uint8Array(size * size * 4);
 	for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) pixels.set([x * 2, y * 2, 64, 128], (y * size + x) * 4);
 	device.queue.writeTexture({ texture: source }, pixels, { bytesPerRow: size * 4 }, [size, size]);
-	const params = Object.fromEntries(Object.entries(effect.getDefaultParams()).map(([key, entry]) => [key, entry.type === 'literal' ? entry.value : 0]));
+	const params = Object.fromEntries(Object.entries(definition.paramDefs).map(([key, def]) => {
+		const entry = def.default();
+		return [key, entry.type === 'literal' ? entry.value : 0];
+	}));
 	Object.assign(params, { input: source, highlights: 0, waves: 0, caustic: 0 });
-	const target = device.createTexture({ size: [size, size], format: navigator.gpu.getPreferredCanvasFormat(), usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC });
+	const target = device.createTexture({ size: [size, size], format: 'rgba8unorm', usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC });
 	const readback = device.createBuffer({ size: pixels.length, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
-	const instance = effect.init({ wgpu: { device, defaultVertexShaderModule: device.createShaderModule({ code: vertex }) }, resolution: { width: size, height: size }, params, fallbackTexture: empty });
+	const instance = effect.init({ wgpu: { device, intermediateTextureFormat: 'rgba8unorm', enable32bitDataTextures: false, defaultVertexShaderModule: device.createShaderModule({ code: vertex }) }, resolution: { width: size, height: size }, params, fallbackTexture: empty });
 	async function render() {
 		const encoder = device.createCommandEncoder();
-		instance.render({ params, time: params.time, timeDelta: 0, commandEncoder: encoder, createPassEncoder: () => encoder.beginRenderPass({ colorAttachments: [{ view: target.createView(), loadOp: 'clear', storeOp: 'store', clearValue: [0, 0, 0, 0] }] }) });
+		instance.render({ params, time: params.time, timeDelta: 0, commandEncoder: encoder, createComputePassEncoder: commandEncoder => commandEncoder.beginComputePass(), outputDataMap: { output: { texture: target, textureView: target.createView() } }, createPassEncoderFor: () => encoder.beginRenderPass({ colorAttachments: [{ view: target.createView(), loadOp: 'clear', storeOp: 'store', clearValue: [0, 0, 0, 0] }] }) });
 		encoder.copyTextureToBuffer({ texture: target }, { buffer: readback, bytesPerRow: size * 4 }, [size, size]);
 		device.queue.submit([encoder.finish()]);
 		await readback.mapAsync(GPUMapMode.READ);
@@ -36,7 +39,7 @@ export async function testWater() {
 		Object.assign(params, { waves: 0.3, caustic: 0.1, highlights: 0.07 });
 		const first = await render();
 		assert(first.some((v, i) => v !== neutral[i]), 'water must distort the input');
-		for (const [key, value] of [['layering', 0], ['edges', 0], ['waves', 1], ['caustic', 1], ['size', 0.01], ['highlights', 1], ['colorHighlight', [1, 0, 0]]]) {
+		for (const [key, value] of [['layering', 0], ['edges', 0], ['waves', 1], ['caustic', 1], ['size', 0.01], ['highlights', 1], ['colorHighlight', [1, 0, 0, 1]]]) {
 			const previous = params[key];
 			params[key] = value;
 			assert((await render()).some((v, i) => v !== first[i]), `${key} must affect the rendered water`);
