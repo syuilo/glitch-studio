@@ -30,7 +30,7 @@
 		/>
 	</div>
 
-	<GsNodeOutputs :node="node"/>
+	<GsNodeOutputs style="margin-top: 4px;" :node="node"/>
 </div>
 </template>
 
