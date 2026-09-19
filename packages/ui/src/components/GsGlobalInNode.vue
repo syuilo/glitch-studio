@@ -6,35 +6,19 @@
 		</div>
 	</div>
 
-	<div :class="$style.parameter">
-		<GsSelect small :modelValue="selectedParamId" :items="paramItems" @update:modelValue="selectParam"/>
-		<span v-if="selectedParamId == null" :class="$style.missing">Select a node-capable parameter</span>
-	</div>
-
 	<GsNodeOutputs :node="node" :paramDefs="visualModule.paramDefs"/>
 </div>
 </template>
 
 <script lang="ts" setup>
-import { computed } from 'vue';
+import { ref } from 'vue';
 import GsNodeOutputs from './GsNodeOutputs.vue';
-import GsSelect from './common/GsSelect.vue';
 import type { GsGlobalInNode, VisualModule } from '@glitch/shared/types.ts';
-import { appContext } from '@/app.ts';
 
 const props = defineProps<{
 	visualModule: VisualModule,
 	node: GsGlobalInNode,
 }>();
-
-const paramItems = computed(() => props.visualModule.paramDefs.filter(def => def.canNode)
-	.map(def => ({ label: `${def.label} (${def.name})`, value: def.id })));
-const selectedParamId = computed(() => paramItems.value.some(item => item.value === props.node.paramId) ? props.node.paramId : null);
-
-function selectParam(paramId: string | null) {
-	if (paramId == null) return;
-	appContext.commit('updateGlobalInParam', { visualModuleId: props.visualModule.id, nodeId: props.node.id, paramId });
-}
 </script>
 
 <style module lang="scss">
@@ -44,18 +28,6 @@ function selectParam(paramId: string | null) {
 	border-radius: 6px;
 	overflow: clip;
 	contain: content;
-}
-
-.parameter {
-	display: flex;
-	flex-direction: column;
-	gap: 4px;
-	padding: 8px 16px;
-}
-
-.missing {
-	color: var(--THEME-warn);
-	font-size: 85%;
 }
 
 .header {

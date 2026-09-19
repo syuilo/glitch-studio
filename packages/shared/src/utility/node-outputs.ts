@@ -26,21 +26,24 @@ export function areNodeDataTypesCompatible(output: NodeDataType | undefined, inp
 export function getNodeOutputs(node: GsNode | undefined, paramDefs: VisualModule['paramDefs'] = []): EffectOutputsSchema {
 	if (node == null) return {};
 	if (node.type === 'globalIn') {
-		const def = paramDefs.find(def => def.id === node.paramId);
-		if (def == null || !def.canNode) return {};
-		let dataType: NodeDataType;
-		switch (def.type) {
-			case 'number': case 'angle': case 'range': case 'seed': case 'time': case 'bool':
-				dataType = 'scalar'; break;
-			case 'vector': case 'xy': case 'wh': case 'range2':
-				dataType = 'vector'; break;
-			case 'color': case 'image':
-				dataType = 'color'; break;
-			case 'signal': dataType = 'any'; break;
-			default: return {};
+		// 表示名や配列順を変更しても配線を維持するため、パラメータIDをポートIDにする。
+		const outputs: EffectOutputsSchema = {};
+		for (const def of paramDefs) {
+			if (!def.canNode) continue;
+			let dataType: NodeDataType;
+			switch (def.type) {
+				case 'number': case 'angle': case 'range': case 'seed': case 'time': case 'bool':
+					dataType = 'scalar'; break;
+				case 'vector': case 'xy': case 'wh': case 'range2':
+					dataType = 'vector'; break;
+				case 'color': case 'image':
+					dataType = 'color'; break;
+				case 'signal': dataType = 'any'; break;
+				default: continue;
+			}
+			outputs[def.id] = { dataType, primary: def.isPrimaryInput };
 		}
-		// primaryはノード内の主出力を示し、モジュールのisPrimaryInputとは独立する。
-		return { output: { dataType, primary: true } };
+		return outputs;
 	}
 	if (node.type === 'globalOut') return {};
 	return effectDefinitions[node.effectId].outputs;

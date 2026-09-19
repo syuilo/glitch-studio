@@ -73,6 +73,7 @@ type Wire = {
 
 // 接続先の列挙はレイアウトから独立させ、座標変更では再走査しない。
 const paramDefs = computed(() => appContext.state.visualModules.value.find(module => module.id === props.visualModuleId)?.paramDefs ?? []);
+const outputDefs = computed(() => appContext.state.visualModules.value.find(module => module.id === props.visualModuleId)?.outputDefs ?? []);
 const nodesById = computed(() => {
 	const nodes = appContext.state.visualModules.value.find(visualModule => visualModule.id === props.visualModuleId)?.nodes ?? [];
 	return new Map(nodes.map(node => [node.id, node]));
@@ -89,16 +90,19 @@ const connections = computed(() => {
 	}[] = [];
 	for (const node of nodesById.value.values()) {
 		if (node.type === 'globalOut') {
-			const { nodeId, outputPort } = node.input;
-			if (nodeId == null || !nodesById.value.has(nodeId)) continue;
-			const from = wireMap.out[nodeId]?.[outputPort];
-			if (from) result.push({
-				key: JSON.stringify([props.visualModuleId, node.id, 'input', nodeId, outputPort]),
-				from,
-				input: undefined,
-				allIn: wireMap.allIn[node.id],
-				...getWireColors(getNodeOutputs(nodesById.value.get(nodeId), paramDefs.value)[outputPort]?.dataType ?? 'any', 'color'),
-			});
+			for (const def of outputDefs.value) {
+				const connection = node.inputs[def.id];
+				if (connection?.nodeId == null || !nodesById.value.has(connection.nodeId)) continue;
+				const { nodeId, outputPort } = connection;
+				const from = wireMap.out[nodeId]?.[outputPort];
+				if (from) result.push({
+					key: JSON.stringify([props.visualModuleId, node.id, def.id, nodeId, outputPort]),
+					from,
+					input: wireMap.in[node.id]?.[def.id],
+					allIn: undefined,
+					...getWireColors(getNodeOutputs(nodesById.value.get(nodeId), paramDefs.value)[outputPort]?.dataType ?? 'any', def.dataType),
+				});
+			}
 			continue;
 		}
 		if (node.type !== 'effect') continue;

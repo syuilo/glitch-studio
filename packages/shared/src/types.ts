@@ -73,7 +73,6 @@ export type GsEffectNode = {
 export type GsGlobalInNode = {
 	id: string;
 	type: 'globalIn';
-	paramId: string;
 
 	// 2D平面上でノードを配置できるようになった時のため
 	pos?: { x: number; y: number };
@@ -82,7 +81,8 @@ export type GsGlobalInNode = {
 export type GsGlobalOutNode = {
 	id: string;
 	type: 'globalOut';
-	input: { nodeId: string; outputPort: string } | { nodeId: null; outputPort: null };
+	// キーはVisualModule.outputDefsのID。未設定のポートは未接続として扱う。
+	inputs: Record<string, { nodeId: string; outputPort: string } | { nodeId: null; outputPort: null }>;
 
 	// 2D平面上でノードを配置できるようになった時のため
 	pos?: { x: number; y: number };
@@ -96,6 +96,13 @@ export type VisualModule = {
 	id: string;
 	name: string;
 	nodes: GsNode[];
+	outputDefs: {
+		id: string;
+		label: string;
+		name: string;
+		dataType: 'color' | 'scalar' | 'vector' | 'any';
+		isPrimaryOutput: boolean;
+	}[];
 	paramDefs: {
 		id: string;
 		label: string;

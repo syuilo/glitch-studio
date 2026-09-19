@@ -1,3 +1,4 @@
+import { getNodeOutputs } from '@glitch/shared/utility/node-outputs.ts';
 import { createTextureFromSource, makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import * as AiScript from '@syuilo/aiscript';
 import { evalAutomationValue, genEmptyValue } from '@glitch/shared/utility/misc.ts';
@@ -45,6 +46,8 @@ function evaluateExpression(expression: string, scope: Record<string, any>, para
 }
 
 type VisualModuleRenderContext = {
+	// 省略時はタイムライン・プレビュー用の主出力だけを評価する。
+	outputIds?: readonly string[];
 	//globalTime: number; // タイムラインの再生位置を示すが、使わなそう
 	localTime: number;
 	localTimeDelta: number;
@@ -63,6 +66,7 @@ class VisualModuleRenderer {
 	private resolution: { width: number; height: number; };
 	private nodes: GsNode[] = [];
 	private paramDefs: VisualModule['paramDefs'];
+	private outputDefs: VisualModule['outputDefs'] = [];
 	private paramValues = new Map<string, any>();
 	private paramTextures: ReadonlyMap<string, GPUTexture> = new Map();
 	private paramConstTextures = new Map<string, GPUTexture>();
@@ -141,6 +145,14 @@ class VisualModuleRenderer {
 	}
 
 	public updateVisualModule(visualModule: VisualModule) {
+		for (const type of ['globalIn', 'globalOut'] as const) {
+			if (visualModule.nodes.filter(node => node.type === type).length > 1) throw new Error('Only one In/Out node is allowed');
+		}
+		const primaryOutputs = visualModule.outputDefs.filter(def => def.isPrimaryOutput);
+		if (primaryOutputs.length > 1 || primaryOutputs.some(def => def.dataType !== 'color')) throw new Error('The primary output must be a single color output');
+		if (new Set(visualModule.outputDefs.map(def => def.id)).size !== visualModule.outputDefs.length
+			|| new Set(visualModule.outputDefs.map(def => def.name)).size !== visualModule.outputDefs.length) throw new Error('Output IDs and names must be unique');
+		this.outputDefs = visualModule.outputDefs;
 		const primaryInputs = visualModule.paramDefs.filter(def => def.isPrimaryInput);
 		if (primaryInputs.length > 1 || primaryInputs.some(def => !def.canNode || def.type !== 'color')) {
 			throw new Error('The primary input must be a single node-capable color parameter');
@@ -382,7 +394,7 @@ class VisualModuleRenderer {
 		return resolvedParams;
 	}
 
-	private prepareOutputPorts(node: GsNode): void {
+	private prepareOutputPorts(node: GsNode, outputIds: readonly string[]): void {
 		this.usedOutputPorts.clear();
 		const visit = (target: GsNode, port?: string) => {
 			const output = this.getOutputNode(target, port);
@@ -400,7 +412,7 @@ class VisualModuleRenderer {
 				if (source != null) visit(source, param.outputPort ?? undefined);
 			}
 		};
-		visit(node);
+		for (const id of outputIds) visit(node, id);
 		// 描画順によらず必要なポートを先に集め、同じノードは1回の描画で全需要を満たす。
 		for (const [id, factories] of this.lazyOutputs) {
 			const outputs = this.outDataMapPerNodes.get(id)!;
@@ -537,10 +549,16 @@ class VisualModuleRenderer {
 	private getOutputNode(node: GsNode, outputPort?: string, visited: GsNode['id'][] = []): { node: GsEffectNode | GsGlobalInNode; outputPort: string } | undefined {
 		if (visited.includes(node.id)) throw new Error('circular dependency detected');
 		const nextVisited = [...visited, node.id];
-		if (node.type === 'globalIn') return { node, outputPort: 'output' };
+		if (node.type === 'globalIn') {
+			const port = outputPort ?? this.paramDefs.find(def => def.isPrimaryInput)?.id;
+			return port != null && getNodeOutputs(node, this.paramDefs)[port] != null ? { node, outputPort: port } : undefined;
+		}
 		if (node.type === 'globalOut') {
-			const source = node.input.nodeId == null ? undefined : this.allNodeIdMap.get(node.input.nodeId);
-			return source == null ? undefined : this.getOutputNode(source, node.input.outputPort ?? undefined, nextVisited);
+			const port = outputPort ?? this.outputDefs.find(def => def.isPrimaryOutput)?.id;
+			if (port == null || !this.outputDefs.some(def => def.id === port)) return;
+			const input = node.inputs[port];
+			const source = input?.nodeId == null ? undefined : this.allNodeIdMap.get(input.nodeId);
+			return source == null ? undefined : this.getOutputNode(source, input.outputPort ?? undefined, nextVisited);
 		}
 		if (!node.isBypass) {
 			const port = outputPort ?? Object.entries(effectDefinitions[node.effectId].outputs).find(([, def]) => def.primary)?.[0];
@@ -556,7 +574,7 @@ class VisualModuleRenderer {
 	private getOutputTexture(node: GsNode, outputPort: string): GPUTexture | undefined {
 		const output = this.getOutputNode(node, outputPort);
 		if (output == null) return undefined;
-		if (output.node.type === 'globalIn') return this.getParamTexture(output.node.paramId);
+		if (output.node.type === 'globalIn') return this.getParamTexture(output.outputPort);
 		return this.outDataMapPerNodes.get(output.node.id)?.[output.outputPort]?.texture;
 	}
 
@@ -566,8 +584,10 @@ class VisualModuleRenderer {
 	}): void {
 		if (node.type === 'globalIn') return;
 		if (node.type === 'globalOut') {
-			const output = this.getOutputNode(node);
-			if (output != null) this.renderNode(output.node, commandEncoder, context);
+			for (const id of this.getRequestedOutputIds(context)) {
+				const output = this.getOutputNode(node, id);
+				if (output != null) this.renderNode(output.node, commandEncoder, context);
+			}
 			return;
 		}
 		if (context.visited.has(node.id)) {
@@ -706,7 +726,7 @@ class VisualModuleRenderer {
 		const node = this.renderNodeId == null ? undefined : this.allNodeIdMap.get(this.renderNodeId);
 		if (node == null) return;
 		this.evalNodeParams(this.nodes, context);
-		this.prepareOutputPorts(node);
+		this.prepareOutputPorts(node, this.getRequestedOutputIds(context));
 		const prepared = new Set<string>();
 		const visit = (target: GsNode, visited: string[], port?: string) => {
 			if (visited.includes(target.id)) throw new Error('circular dependency detected');
@@ -725,7 +745,7 @@ class VisualModuleRenderer {
 			this.initializeEffect(effectNode, params).prepare?.(params);
 			prepared.add(effectNode.id);
 		};
-		visit(node, []);
+		for (const id of this.getRequestedOutputIds(context)) visit(node, [], id);
 		await new Promise<void>((resolve, reject) => {
 			const check = () => {
 				const states = [...prepared].map(id => this.effectStatuses.get(id)!);
@@ -743,16 +763,28 @@ class VisualModuleRenderer {
 		if (!signal.aborted && !this.destroyed) this.preparedContext = context;
 	}
 
+	private getRequestedOutputIds(context: VisualModuleRenderContext): readonly string[] {
+		return context.outputIds ?? this.outputDefs.filter(def => def.isPrimaryOutput).map(def => def.id);
+	}
+
 	public render(context: VisualModuleRenderContext, commandEncoder: GPUCommandEncoder): GPUTexture | undefined {
-		if (this.renderNodeId == null) return;
+		const outputs = this.renderOutputs(context, commandEncoder);
+		const primary = this.outputDefs.find(def => def.isPrimaryOutput);
+		return primary == null ? undefined : outputs.get(primary.id);
+	}
+
+	// 複数出力が同じエフェクトを共有しても、1フレームにつき一度だけ描画する。
+	public renderOutputs(context: VisualModuleRenderContext, commandEncoder: GPUCommandEncoder): Map<string, GPUTexture> {
+		const outputs = new Map<string, GPUTexture>();
+		if (this.renderNodeId == null) return outputs;
 		const node = this.allNodeIdMap.get(this.renderNodeId);
-		if (node == null) return;
+		if (node == null) return outputs;
 
 		// 準備時と同じ評価結果を使い、式の再評価によるリソースの再読み込みを防ぐ。
 		if (this.preparedContext !== context) this.evalNodeParams(this.nodes, context);
 		this.preparedContext = null;
 
-		this.prepareOutputPorts(node);
+		this.prepareOutputPorts(node, this.getRequestedOutputIds(context));
 
 		this.renderNode(node, commandEncoder, {
 			...context,
@@ -760,11 +792,12 @@ class VisualModuleRenderer {
 			rendered: new Set<GsNode['id']>(),
 		});
 
-		const output = this.getOutputNode(node);
-		const outputTexture = output == null ? undefined : this.getOutputTexture(output.node, output.outputPort);
+		for (const id of this.getRequestedOutputIds(context)) {
+			const texture = this.getOutputTexture(node, id);
+			if (texture != null) outputs.set(id, texture);
+		}
 		this.lastRenderedLocalTime = context.localTime;
-
-		return outputTexture ?? (node.type === 'globalOut' ? undefined : this.fallbackTexture);
+		return outputs;
 	}
 
 	// TODO: もっとスマートなリソース更新方法を考える

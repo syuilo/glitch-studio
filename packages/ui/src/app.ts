@@ -242,14 +242,17 @@ export async function openProject() {
 export async function newProject() {
 	const initialEffectNodeId = genId();
 	const initialInputParamId = genId();
+	const initialOutputId = genId();
 	const initialVisualModule = {
 		id: genId(),
 		name: 'My Visual Module',
+		outputDefs: [{ id: initialOutputId, label: 'Output', name: 'output', dataType: 'color', isPrimaryOutput: true }],
 		paramDefs: [{
 			id: initialInputParamId,
 			label: 'My Input',
 			name: 'myInput',
 			type: 'color',
+			typeOptions: {},
 			defaultValue: [0, 0, 0, 0],
 			canNode: true,
 			isPrimaryInput: true,
@@ -257,7 +260,6 @@ export async function newProject() {
 		nodes: [{
 			id: genId(),
 			type: 'globalIn',
-			paramId: initialInputParamId,
 		}, {
 			id: initialEffectNodeId,
 			type: 'effect',
@@ -269,10 +271,10 @@ export async function newProject() {
 		} satisfies EffectNodeOf<typeof fillEffectDef>, {
 			id: genId(),
 			type: 'globalOut',
-			input: {
+			inputs: { [initialOutputId]: {
 				nodeId: initialEffectNodeId,
 				outputPort: 'output',
-			},
+			} },
 		}],
 	} satisfies VisualModule;
 	await appReady({
@@ -329,14 +331,17 @@ export async function newProjectFromImageOrVideo(file?: File) {
 
 	const initialEffectNodeId = genId();
 	const initialInputParamId = genId();
+	const initialOutputId = genId();
 	const initialVisualModule = {
 		id: genId(),
 		name: 'My Visual Module',
+		outputDefs: [{ id: initialOutputId, label: 'Output', name: 'output', dataType: 'color', isPrimaryOutput: true }],
 		paramDefs: [{
 			id: initialInputParamId,
 			label: 'My Input',
 			name: 'myInput',
 			type: 'color',
+			typeOptions: {},
 			defaultValue: [0, 0, 0, 0],
 			canNode: true,
 			isPrimaryInput: true,
@@ -344,7 +349,6 @@ export async function newProjectFromImageOrVideo(file?: File) {
 		nodes: [{
 			id: genId(),
 			type: 'globalIn',
-			paramId: initialInputParamId,
 		}, result.type.startsWith('image/') ? {
 			id: initialEffectNodeId,
 			type: 'effect',
@@ -388,10 +392,10 @@ export async function newProjectFromImageOrVideo(file?: File) {
 		} satisfies EffectNodeOf<typeof fillEffectDef>, {
 			id: genId(),
 			type: 'globalOut',
-			input: {
+			inputs: { [initialOutputId]: {
 				nodeId: initialEffectNodeId,
 				outputPort: 'output',
-			},
+			} },
 		}],
 	} satisfies VisualModule;
 

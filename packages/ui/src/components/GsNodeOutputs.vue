@@ -1,7 +1,7 @@
 <template>
 <div :class="$style.footer">
 	<div v-for="(output, port) in ports" :key="port" :class="$style.output" @pointerdown="startDrag($event, port)">
-		<span>{{ port }}</span>
+		<span>{{ node.type === 'globalIn' ? paramDefs?.find(def => def.id === port)?.label ?? port : port }}</span>
 		<span :class="$style.dataType" :style="{ color: getNodeDataTypeColor(output.dataType) }">{{ output.dataType }}</span>
 		<GsNodePort output :dataType="output.dataType" @update:element="el => setPort(port, el)"/>
 	</div>

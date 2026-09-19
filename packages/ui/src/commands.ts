@@ -41,7 +41,8 @@ const addEffectNodeCommandDef = defineCommand<{ visualModuleId: string; id: stri
 		let addedNode: GsEffectNode | undefined;
 		let outputConnection: {
 			nodeId: string;
-			before: { nodeId: string; outputPort: string } | { nodeId: null; outputPort: null };
+			outputId: string;
+			before: { nodeId: string; outputPort: string } | { nodeId: null; outputPort: null } | undefined;
 			after: { nodeId: string; outputPort: string };
 		} | undefined;
 		return {
@@ -50,7 +51,8 @@ const addEffectNodeCommandDef = defineCommand<{ visualModuleId: string; id: stri
 				if (addedNode == null) {
 					const paramDefs = effectDefinitions[payload.effectId].paramDefs as EffectParamDefs;
 					const globalOut = visualModule.nodes.find(node => node.type === 'globalOut');
-					const previousInput = globalOut?.input;
+					const primaryOutput = visualModule.outputDefs.find(def => def.isPrimaryOutput);
+					const previousInput = primaryOutput == null ? undefined : globalOut?.inputs[primaryOutput.id];
 					const previous = previousInput?.nodeId == null ? undefined : visualModule.nodes.find(node => node.id === previousInput.nodeId);
 					const params: GsEffectNode['params'] = {};
 					for (const [key, def] of Object.entries(paramDefs)) {
@@ -67,10 +69,11 @@ const addEffectNodeCommandDef = defineCommand<{ visualModuleId: string; id: stri
 					addedNode = { id: payload.id, type: 'effect', effectId: payload.effectId, isBypass: false,
 																			params: { ...params, ...deepClone(payload.params ?? {}) }, pos: { x: 0, y: 0 } };
 					const outputPort = Object.entries(getNodeOutputs(addedNode, visualModule.paramDefs)).find(([, output]) => output.primary && canConnectNodeDataTypes(output.dataType, 'color'))?.[0];
-					if (globalOut != null && outputPort != null) {
+					if (globalOut != null && primaryOutput != null && outputPort != null) {
 						outputConnection = {
 							nodeId: globalOut.id,
-							before: deepClone(globalOut.input),
+							outputId: primaryOutput.id,
+							before: deepClone(previousInput),
 							after: { nodeId: addedNode.id, outputPort },
 						};
 					}
@@ -79,7 +82,7 @@ const addEffectNodeCommandDef = defineCommand<{ visualModuleId: string; id: stri
 				visualModule.nodes.splice(outputIndex < 0 ? visualModule.nodes.length : outputIndex, 0, deepClone(addedNode));
 				if (outputConnection != null) {
 					const globalOut = visualModule.nodes.find(node => node.id === outputConnection.nodeId);
-					if (globalOut?.type === 'globalOut') globalOut.input = deepClone(outputConnection.after);
+					if (globalOut?.type === 'globalOut') globalOut.inputs[outputConnection.outputId] = deepClone(outputConnection.after);
 				}
 			},
 			undo(state) {
@@ -87,7 +90,10 @@ const addEffectNodeCommandDef = defineCommand<{ visualModuleId: string; id: stri
 				visualModule.nodes = visualModule.nodes.filter(node => node.id !== payload.id);
 				if (outputConnection != null) {
 					const globalOut = visualModule.nodes.find(node => node.id === outputConnection.nodeId);
-					if (globalOut?.type === 'globalOut') globalOut.input = deepClone(outputConnection.before);
+					if (globalOut?.type === 'globalOut') {
+						if (outputConnection.before == null) delete globalOut.inputs[outputConnection.outputId];
+						else globalOut.inputs[outputConnection.outputId] = deepClone(outputConnection.before);
+					}
 				}
 			},
 		};
@@ -103,6 +109,10 @@ const moveNodeCommandDef = defineCommand<NodeTarget & { index: number }>({
 			const source = nodes.findIndex(node => node.id === payload.nodeId);
 			if (source < 0) throw new Error('Node not found');
 			if (!Number.isInteger(index) || index < 0 || index >= nodes.length) throw new Error('Invalid node index');
+			if (nodes[source].type !== 'effect') throw new Error('In/Out nodes cannot be moved');
+			const min = nodes[0]?.type === 'globalIn' ? 1 : 0;
+			const max = nodes.at(-1)?.type === 'globalOut' ? nodes.length - 2 : nodes.length - 1;
+			index = Math.max(min, Math.min(max, index));
 			const [node] = nodes.splice(source, 1);
 			nodes.splice(index, 0, node);
 			return source;
@@ -124,6 +134,7 @@ const removeNodeCommandDef = defineCommand<NodeTarget>({
 				before = deepClone(visualModule.nodes);
 				const removedNode = stateUtility.findNode(state, payload);
 				if (removedNode == null) return;
+				if (removedNode.type !== 'effect') throw new Error('In/Out nodes cannot be removed');
 				const primary = removedNode.type === 'effect'
 					? [...walkNodeParams(removedNode)].find(({ def }) => def.type !== 'struct' && def.type !== 'array' && def.canNode && 'primary' in def && def.primary)
 					: undefined;
@@ -135,8 +146,10 @@ const removeNodeCommandDef = defineCommand<NodeTarget>({
 				for (const node of visualModule.nodes) {
 					if (node.id === payload.nodeId) continue;
 					if (node.type === 'globalOut') {
-						if (node.input.nodeId === payload.nodeId) {
-							node.input = replacement != null && canConnectNodeDataTypes(replacementOutput?.dataType, 'color')
+						for (const [id, input] of Object.entries(node.inputs)) {
+							if (input.nodeId !== payload.nodeId) continue;
+							const def = visualModule.outputDefs.find(def => def.id === id);
+							node.inputs[id] = replacement != null && canConnectNodeDataTypes(replacementOutput?.dataType, def?.dataType ?? null)
 								? deepClone(replacement) : { nodeId: null, outputPort: null };
 						}
 						continue;
@@ -603,26 +616,29 @@ const resetNodeParamCommandDef = defineNodeParamCommand<NodeParamTarget>(
 	({ def }) => def.default(),
 );
 
-const updateGlobalOutInputCommandDef = defineCommand<NodeTarget & { value: NodeOutputReference | null }>({
+const updateGlobalOutInputCommandDef = defineCommand<NodeTarget & { outputId: string; value: NodeOutputReference | null }>({
 	label: 'Update global output input',
 	create: payload => {
-		let before: { nodeId: string; outputPort: string } | { nodeId: null; outputPort: null };
+		let before: { nodeId: string; outputPort: string } | { nodeId: null; outputPort: null } | undefined;
 		return {
 			execute(state) {
 				const node = stateUtility.findNode(state, payload);
 				if (node?.type !== 'globalOut') throw new Error('Global output node not found');
+				const module = stateUtility.getVisualModule(state, payload.visualModuleId);
+				if (!module.outputDefs.some(def => def.id === payload.outputId)) throw new Error('Module output not found');
 				if (payload.value != null) {
 					const source = stateUtility.findNode(state, { visualModuleId: payload.visualModuleId, nodeId: payload.value.nodeId });
 					if (getNodeOutputs(source, stateUtility.getVisualModule(state, payload.visualModuleId).paramDefs)[payload.value.outputPort] == null) throw new Error('Node output not found in this visualModule');
 				}
-				before = deepClone(node.input);
-				node.input = payload.value == null ? { nodeId: null, outputPort: null }
+				before = deepClone(node.inputs[payload.outputId]);
+				node.inputs[payload.outputId] = payload.value == null ? { nodeId: null, outputPort: null }
 					: { nodeId: payload.value.nodeId, outputPort: payload.value.outputPort };
 			},
 			undo(state) {
 				const node = stateUtility.findNode(state, payload);
 				if (node?.type !== 'globalOut') throw new Error('Global output node not found');
-				node.input = deepClone(before);
+				if (before == null) delete node.inputs[payload.outputId];
+				else node.inputs[payload.outputId] = deepClone(before);
 			},
 		};
 	},
@@ -702,33 +718,87 @@ const updateVisualModuleParamDefCommandDef = defineCommand<{
 	},
 });
 
-const updateGlobalInParamCommandDef = defineCommand<NodeTarget & { paramId: string }>({
-	label: 'Update global input parameter',
+type VisualModuleOutputDef = VisualModule['outputDefs'][number];
+
+function validateVisualModuleOutputDef(module: VisualModule, def: VisualModuleOutputDef, previousId?: string) {
+	if (module.outputDefs.some(item => item.id !== previousId && (item.id === def.id || item.name === def.name))) {
+		throw new Error('Output ID and name must be unique');
+	}
+	if (def.isPrimaryOutput && (def.dataType !== 'color'
+		|| module.outputDefs.some(item => item.id !== previousId && item.isPrimaryOutput))) {
+		throw new Error('Only one color output can be the primary output');
+	}
+}
+
+const addVisualModuleOutputDefCommandDef = defineCommand<{ visualModuleId: string; def: VisualModuleOutputDef }>({
+	label: 'Add visual module output',
+	create: payload => ({
+		execute(state) {
+			const module = stateUtility.getVisualModule(state, payload.visualModuleId);
+			validateVisualModuleOutputDef(module, payload.def);
+			module.outputDefs.push(deepClone(payload.def));
+		},
+		undo(state) {
+			const module = stateUtility.getVisualModule(state, payload.visualModuleId);
+			module.outputDefs = module.outputDefs.filter(def => def.id !== payload.def.id);
+		},
+	}),
+});
+
+const removeVisualModuleOutputDefCommandDef = defineCommand<{ visualModuleId: string; defId: string }>({
+	label: 'Remove visual module output',
 	create: payload => {
-		let before: string;
+		let before: VisualModuleOutputDef;
+		let index: number;
 		return {
 			execute(state) {
 				const module = stateUtility.getVisualModule(state, payload.visualModuleId);
-				const node = stateUtility.findNode(state, payload);
-				if (node?.type !== 'globalIn') throw new Error('Global input node not found');
-				if (!module.paramDefs.some(def => def.id === payload.paramId && def.canNode)) throw new Error('Node-capable parameter not found');
-				before = node.paramId;
-				node.paramId = payload.paramId;
+				index = module.outputDefs.findIndex(def => def.id === payload.defId);
+				if (index < 0) throw new Error('Visual module output not found');
+				before = deepClone(module.outputDefs[index]);
+				// Outの接続はIDとともに保持し、Undoで定義を戻したときに再び有効にする。
+				module.outputDefs.splice(index, 1);
 			},
 			undo(state) {
-				const node = stateUtility.findNode(state, payload);
-				if (node?.type !== 'globalIn') throw new Error('Global input node not found');
-				node.paramId = before;
+				stateUtility.getVisualModule(state, payload.visualModuleId).outputDefs.splice(index, 0, deepClone(before));
+			},
+		};
+	},
+});
+
+const updateVisualModuleOutputDefCommandDef = defineCommand<{
+	visualModuleId: string; defId: string; changes: Partial<Omit<VisualModuleOutputDef, 'id'>>;
+}>({
+	label: 'Update visual module output',
+	create: payload => {
+		let before: VisualModuleOutputDef;
+		return {
+			execute(state) {
+				const module = stateUtility.getVisualModule(state, payload.visualModuleId);
+				const index = module.outputDefs.findIndex(def => def.id === payload.defId);
+				if (index < 0) throw new Error('Visual module output not found');
+				const next = { ...module.outputDefs[index], ...deepClone(payload.changes), id: payload.defId };
+				validateVisualModuleOutputDef(module, next, payload.defId);
+				before = deepClone(module.outputDefs[index]);
+				module.outputDefs[index] = next;
+			},
+			undo(state) {
+				const module = stateUtility.getVisualModule(state, payload.visualModuleId);
+				const index = module.outputDefs.findIndex(def => def.id === payload.defId);
+				if (index < 0) throw new Error('Visual module output not found');
+				module.outputDefs[index] = deepClone(before);
 			},
 		};
 	},
 });
 
 export const COMMAND_DEFS = {
+	addVisualModuleOutputDef: addVisualModuleOutputDefCommandDef,
+	removeVisualModuleOutputDef: removeVisualModuleOutputDefCommandDef,
+	updateVisualModuleOutputDef: updateVisualModuleOutputDefCommandDef,
 	addVisualModuleParamDef: addVisualModuleParamDefCommandDef,
 	removeVisualModuleParamDef: removeVisualModuleParamDefCommandDef,
 	updateVisualModuleParamDef: updateVisualModuleParamDefCommandDef,
-	updateGlobalInParam: updateGlobalInParamCommandDef,
 	updateGlobalOutInput: updateGlobalOutInputCommandDef,
 	addEffectNode: addEffectNodeCommandDef,
 	moveNode: moveNodeCommandDef,

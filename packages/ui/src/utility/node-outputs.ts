@@ -37,7 +37,7 @@ export function getNodeOutputItems(nodes: GsNode[], excludedNodeId?: string, inp
 		const outputs = Object.entries(getNodeOutputs(node, paramDefs)).filter(([, output]) => inputDataType === undefined || canConnectNodeDataTypes(output.dataType, inputDataType)).map(([outputPort, output]) => {
 			const connection = { nodeId: node.id, outputPort };
 			const typeCompatible = inputDataType === undefined || areNodeDataTypesCompatible(output.dataType, inputDataType);
-			return { label: `${name} [${node.id}]: ${outputPort}`, value: nodeOutputKey(connection)!, connection, dataType: output.dataType,
+			return { label: `${name} [${node.id}]: ${node.type === 'globalIn' ? paramDefs.find(def => def.id === outputPort)?.label ?? outputPort : outputPort}`, value: nodeOutputKey(connection)!, connection, dataType: output.dataType,
 				typeCompatible, icon: typeCompatible ? undefined : 'ti ti-alert-triangle' };
 		});
 		return outputs;

@@ -32,11 +32,19 @@
 	<div :class="$style.option">
 		<GsSwitch :modelValue="def.canNode" @update:modelValue="updateCanNode">Allow node input</GsSwitch>
 	</div>
+	<div v-if="def.canNode && def.type === 'color'" :class="$style.option">
+		<GsSwitch
+			:modelValue="def.isPrimaryInput"
+			:disabled="!def.isPrimaryInput && hasPrimaryInput"
+			@update:modelValue="update({ isPrimaryInput: $event })"
+		>Primary input</GsSwitch>
+	</div>
 	<GsButton small danger @click="remove">Remove parameter</GsButton>
 </div>
 </template>
 
 <script lang="ts" setup>
+import { computed } from 'vue';
 import GsSelect from './common/GsSelect.vue';
 import GsInput from './common/GsInput.vue';
 import GsButton from './common/GsButton.vue';
@@ -51,6 +59,9 @@ const props = defineProps<{
 	visualModuleId: string;
 	def: ParamDef;
 }>();
+
+const hasPrimaryInput = computed(() => appContext.state.visualModules.value
+	.find(module => module.id === props.visualModuleId)?.paramDefs.some(def => def.isPrimaryInput) ?? false);
 
 function update(changes: Partial<Omit<ParamDef, 'id'>>) {
 	appContext.commit('updateVisualModuleParamDef', { visualModuleId: props.visualModuleId, defId: props.def.id, changes });
