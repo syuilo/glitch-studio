@@ -2,8 +2,10 @@
 <div :class="$style.root">
 	<div :class="$style.header">
 		<button class="_button" style="padding: 4px 6px;"><i class="ti ti-chevron-down"></i> Module: {{ visualModule?.name ?? '' }} [{{ visualModule?.id ?? '' }}]</button>
+		<GsButton :class="$style.liveButton" small primary><i class="ti ti-player-play"></i> LIVE</GsButton>
+
 		<div v-if="visualModule != null">
-			Graph / Param Defs / Param Preview
+			Nodes / Param Defs / Param Preview / Other
 		</div>
 		<div v-if="visualModule != null && false">
 			<XVisualModuleParamDefsEditor :visualModule="visualModule"/>
@@ -170,6 +172,13 @@ function onSorted(nodes: GsNode[]) {
 }
 
 .header {
+	position: relative;
+}
+
+.liveButton {
+	position: absolute;
+	top: 8px;
+	right: 8px;
 }
 
 .nodesContainer {
