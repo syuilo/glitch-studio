@@ -1,6 +1,6 @@
 import { encode, decode } from '@msgpack/msgpack';
 import { encodeAssets } from './api.ts';
-import type { GsNode, Macro, GsAutomation, Asset } from '@glitch/shared/types.ts';
+import type { GsNode, Macro, GsAutomation, Asset, NodeGraph, Timeline } from '@glitch/shared/types.ts';
 
 //export const userDataPath = electron.remote.app.getPath('userData');
 //const filePath = path.join(userDataPath, 'settings');
@@ -11,11 +11,12 @@ export type RawProject = {
 	gsVersion: string;
 	author: string;
 	name: string;
-	nodes: GsNode[];
+	nodeGraphs: NodeGraph[];
 	macros: Macro[];
 	automations: GsAutomation[];
 	resolution: { width: number; height: number; };
 	assets: Omit<Asset, 'data'>[];
+	timeline: Timeline;
 };
 
 export type RawPreset = {

@@ -5,9 +5,9 @@ import { getNodeInputDataType, getNodeOutputs } from '@glitch/shared/utility/nod
 import { genEmptyValue } from '@glitch/shared/utility/misc.ts';
 import type { AppState } from './types.ts';
 import type { Asset, EffectParamDataType, EffectParamDefs, EffectParamValue, GsEffectNode, GsGroupNode, GsNode, Player, NodeOutputReference } from '@glitch/shared/types.ts';
+import type { NodeParamTarget } from '@/utility/node-params.ts';
 import { canConnectNodeDataTypes } from '@/utility/node-outputs.ts';
 import { resolveNodeParam, walkNodeParams } from '@/utility/node-params.ts';
-import type { NodeParamTarget } from '@/utility/node-params.ts';
 
 export type CommandDef<Payload> = {
 	label: string;
@@ -27,12 +27,6 @@ const stateUtility = {
 			for (const node of nodes) {
 				if (node.id === nodeId) {
 					return node;
-				}
-				if (node.type === 'group') {
-					const found = search(node.nodes);
-					if (found) {
-						return found;
-					}
 				}
 			}
 		};

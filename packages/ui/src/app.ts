@@ -246,10 +246,11 @@ export async function newProject() {
 		gsVersion: _VERSION_,
 		name: 'untitled',
 		author: 'TODO',
-		nodes: [],
+		nodeGraphs: [],
 		assets: [],
 		macros: [],
 		automations: [],
+		timeline: [],
 		resolution: { width: 1024, height: 1024 },
 	});
 }
@@ -272,10 +273,11 @@ export async function newProjectFromImageOrVideo(file?: File) {
 		gsVersion: _VERSION_,
 		name: result.name,
 		author: 'TODO',
-		nodes: [],
+		nodeGraphs: [],
 		assets: [],
 		macros: [],
 		automations: [],
+		timeline: [],
 		resolution: { width: result.width || 1024, height: result.height || 1024 },
 	});
 
