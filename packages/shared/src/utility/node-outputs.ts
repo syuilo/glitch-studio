@@ -22,8 +22,10 @@ export function areNodeDataTypesCompatible(output: NodeDataType | undefined, inp
 	return output === input || output === 'any' || input === 'any';
 }
 
-// グループは末尾の子ノードの出力ポートを公開する。無効化してもポートの定義は変えない。
+// 無効化してもポートの定義は変えない。globalOutは入力だけを持つ。
 export function getNodeOutputs(node: GsNode | undefined): EffectOutputsSchema {
 	if (node == null) return {};
+	if (node.type === 'globalIn') return { output: { dataType: 'color', primary: true } };
+	if (node.type === 'globalOut') return {};
 	return effectDefinitions[node.effectId].outputs;
 }
