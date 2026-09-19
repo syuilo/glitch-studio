@@ -17,7 +17,7 @@
 		@drop.prevent.stop="onEmptyDrop($event)"
 	>
 	</div>
-	<div
+	<section
 		v-for="(item, i) in modelValue"
 		:key="`GsDraggableRoot:${item.id}`"
 		:class="$style.item"
@@ -39,7 +39,7 @@
 			@dragleave="onDragleave($event, item)"
 			@drop.prevent.stop="onDrop($event, item, true)"
 		></div>
-	</div>
+	</section>
 	<slot name="footer"></slot>
 </TransitionGroup>
 </template>
@@ -192,11 +192,41 @@ function onEmptyDrop(ev: DragEvent) {
 .items.horizontal.withGaps .item {
 	padding-left: calc(var(--margin) / 2);
 	padding-right: calc(var(--margin) / 2);
+
+	&:first-of-type {
+		padding-left: 0;
+
+		.forwardArea {
+			left: calc(0px - (var(--margin) / 2));
+		}
+	}
+	&:last-of-type {
+		padding-right: 0;
+
+		.backwardArea {
+			right: calc(0px - (var(--margin) / 2));
+		}
+	}
 }
 
 .items.vertical.withGaps .item {
 	padding-top: calc(var(--margin) / 2);
 	padding-bottom: calc(var(--margin) / 2);
+
+	&:first-of-type {
+		padding-top: 0;
+
+		.forwardArea {
+			top: calc(0px - (var(--margin) / 2));
+		}
+	}
+	&:last-of-type {
+		padding-bottom: 0;
+
+		.backwardArea {
+			bottom: calc(0px - (var(--margin) / 2));
+		}
+	}
 }
 
 .forwardArea, .backwardArea {

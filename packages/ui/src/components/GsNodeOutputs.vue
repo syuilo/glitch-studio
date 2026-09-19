@@ -1,7 +1,7 @@
 <template>
-<div :class="$style.footer">
+<div :class="$style.root">
 	<div v-for="(output, port) in ports" :key="port" :class="$style.output" @pointerdown="startDrag($event, port)">
-		<span>{{ node.type === 'globalIn' ? paramDefs?.find(def => def.id === port)?.label ?? port : port }}</span>
+		<span style="flex: 1; text-align: right;">{{ node.type === 'globalIn' ? paramDefs?.find(def => def.id === port)?.label ?? port : port }}</span>
 		<span :class="$style.dataType" :style="{ color: getNodeDataTypeColor(output.dataType) }">{{ output.dataType }}</span>
 		<GsNodePort output :dataType="output.dataType" @update:element="el => setPort(port, el)"/>
 	</div>
@@ -48,11 +48,7 @@ onUnmounted(() => {
 </script>
 
 <style module lang="scss">
-.footer {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 0 12px;
-	margin-top: 4px;
+.root {
 	line-height: 24px;
 	background-color: #2d2d2d;
 	background-image: repeating-linear-gradient(45deg, transparent, transparent 6px, #222222 6px, #222222 12px);
@@ -62,7 +58,6 @@ onUnmounted(() => {
 	cursor: crosshair;
 	touch-action: none;
 	user-select: none;
-	margin-left: auto;
 	display: flex;
 	min-width: 0;
 	overflow-wrap: anywhere;

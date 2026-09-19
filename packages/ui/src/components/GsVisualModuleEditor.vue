@@ -27,54 +27,56 @@
 		</div>
 	</div>
 
-	<div v-if="tab === 'nodes' && visualModule != null" :class="$style.nodesContainer">
-		<div :class="$style.nodesContent" class="_gaps_s">
-			<XGlobalInNode v-if="globalInNode" :visualModule="visualModule" :node="globalInNode" :class="$style.node"/>
+	<div v-if="visualModule != null" :key="visualModule.id" style="flex: 1; min-height: 0;">
+		<div v-if="tab === 'nodes'" style="height: 100%; overflow: auto; background: var(--THEME-bg);">
+			<div :class="$style.nodesContent" class="_gaps_s">
+				<XGlobalInNode v-if="globalInNode" :visualModule="visualModule" :node="globalInNode" :class="$style.node"/>
 
-			<hr>
+				<hr>
 
-			<GsDraggable
-				:modelValue="visualModule.nodes.filter(node => node.type !== 'globalIn' && node.type !== 'globalOut')"
-				direction="vertical"
-				manualDragStart
-				withGaps
-				@update:modelValue="onSorted"
-			>
-				<template #default="{ item: node, dragStart }">
-					<XEffectNode v-if="node.type === 'effect'" :visualModuleId="visualModule.id" :node="node" :class="$style.node" @dragStart="dragStart"/>
-				</template>
-				<template #footer>
-					<GsButton :class="$style.addButton" full style="margin-top: 4px;" @click="showAddNodeMenu(visualModule.id, $event)"><i class="ti ti-plus"></i> Add node...</GsButton>
-				</template>
-			</GsDraggable>
+				<GsDraggable
+					:modelValue="visualModule.nodes.filter(node => node.type !== 'globalIn' && node.type !== 'globalOut')"
+					direction="vertical"
+					manualDragStart
+					withGaps
+					@update:modelValue="onSorted"
+				>
+					<template #default="{ item: node, dragStart }">
+						<XEffectNode v-if="node.type === 'effect'" :visualModuleId="visualModule.id" :node="node" :class="$style.node" @dragStart="dragStart"/>
+					</template>
+					<template #footer>
+						<GsButton :class="$style.addButton" full style="margin-top: 8px;" @click="showAddNodeMenu(visualModule.id, $event)"><i class="ti ti-plus"></i> Add node...</GsButton>
+					</template>
+				</GsDraggable>
 
-			<hr>
+				<hr>
 
-			<XGlobalOutNode v-if="globalOutNode" :node="globalOutNode" :visualModuleId="visualModule.id" :class="$style.node"/>
+				<XGlobalOutNode v-if="globalOutNode" :node="globalOutNode" :visualModuleId="visualModule.id" :class="$style.node"/>
 
-			<GsWires :visualModuleId="visualModule.id"/>
+				<GsWires :visualModuleId="visualModule.id"/>
+			</div>
 		</div>
-	</div>
 
-	<div v-if="tab === 'paramDefs' && visualModule != null" style="flex: 1; overflow: auto;">
-		<XVisualModuleParamDefsEditor :visualModule="visualModule"/>
-	</div>
-
-	<div v-if="tab === 'paramPreview' && visualModule != null" style="flex: 1; overflow: auto;">
-		<div :class="$style.previewParams">
-			<GsVisualParam
-				v-for="paramDef of visualModule.paramDefs"
-				:key="paramDef.id"
-				:paramPath="[paramDef.id]"
-				:paramDef="paramDef"
-				:paramValue="previewParamValues[paramDef.id]"
-				@edit="onPreviewParamEdit"
-			/>
+		<div v-if="tab === 'paramDefs'" style="height: 100%; overflow: auto;">
+			<XVisualModuleParamDefsEditor :visualModule="visualModule"/>
 		</div>
-	</div>
 
-	<div v-if="tab === 'outputDefs' && visualModule != null" style="flex: 1; overflow: auto;">
-		<XVisualModuleOutputDefsEditor :visualModule="visualModule"/>
+		<div v-if="tab === 'paramPreview'" style="height: 100%; overflow: auto;">
+			<div :class="$style.previewParams">
+				<GsVisualParam
+					v-for="paramDef of visualModule.paramDefs"
+					:key="paramDef.id"
+					:paramPath="[paramDef.id]"
+					:paramDef="paramDef"
+					:paramValue="previewParamValues[paramDef.id]"
+					@edit="onPreviewParamEdit"
+				/>
+			</div>
+		</div>
+
+		<div v-if="tab === 'outputDefs'" style="height: 100%; overflow: auto;">
+			<XVisualModuleOutputDefsEditor :visualModule="visualModule"/>
+		</div>
 	</div>
 </div>
 </template>
@@ -188,12 +190,6 @@ function onSorted(nodes: GsNode[]) {
 	position: absolute;
 	top: 8px;
 	right: 8px;
-}
-
-.nodesContainer {
-	flex: 1;
-	overflow: auto;
-	background: var(--THEME-bg);
 }
 
 .nodesContent {
