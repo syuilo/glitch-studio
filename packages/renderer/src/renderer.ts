@@ -100,7 +100,7 @@ class NodeGraphRenderer {
 	private audioSources = new Map<AudioSourceId, AudioHistory>();
 	private timingHelper: TimingHelper;
 	private enableStats = true;
-	public renderNodeId: GsNode['id'] | null = null;
+	private renderNodeId: GsNode['id'] | null = null;
 	public lastRenderedLocalTime: number | null = null;
 
 	constructor(options: {
@@ -448,6 +448,11 @@ class NodeGraphRenderer {
 			}
 		};
 		indexNodes(newNodes);
+
+		const output = this.nodes.find(node => node.type === 'globalOut');
+		if (output != null) {
+			this.renderNodeId = output.id;
+		}
 	}
 
 	public updateAssets(assets: Asset[]) {
@@ -765,6 +770,7 @@ export class MainRenderer {
 	private enableStats = true;
 	private highlightClipping = false;
 	private timeFactor = 1;
+	private liveNodeGraphId: NodeGraph['id'] | null = null;
 	private liveNodeGraphRenderer: NodeGraphRenderer | null = null;
 	private timeline: Timeline = [];
 	private assets: Asset[] = [];
@@ -975,6 +981,9 @@ export class MainRenderer {
 	public updateNodeGraphs(newNodeGraphs: NodeGraph[]) {
 		this.clearTimelineRenderers();
 		this.nodeGraphs = newNodeGraphs;
+		if (this.liveNodeGraphRenderer != null) {
+			this.liveNodeGraphRenderer.updateNodes(this.nodeGraphs.find(graph => graph.id === this.liveNodeGraphId)!.nodes);
+		}
 	}
 
 	public updateTimeline(newTimeline: Timeline) {
@@ -1113,8 +1122,7 @@ export class MainRenderer {
 			// 配列の先頭が最下層。終端は含めず、隣接する期間が境界で重ならないようにする。
 			for (const entry of activeEntries) {
 				const graph = this.nodeGraphs.find(graph => graph.id === entry.layer.nodeGraphId);
-				const output = graph?.nodes.find(node => node.type === 'globalOut');
-				if (graph == null || output == null || output.input.nodeId == null) continue;
+				if (graph == null) continue;
 				let renderer = this.perLayerNodeGraphRenderers.get(entry.id);
 				if (renderer == null) {
 					renderer = new NodeGraphRenderer({
@@ -1140,7 +1148,6 @@ export class MainRenderer {
 					});
 					this.perLayerNodeGraphRenderers.set(entry.id, renderer);
 				}
-				renderer.renderNodeId = output.id;
 				const context: NodeGraphRenderContext = {
 					localTime: time - entry.startTimeMs,
 					// 後方シークでも履歴は保持し、負の時間差だけを0に抑える。
@@ -1187,6 +1194,7 @@ export class MainRenderer {
 		const graph = this.nodeGraphs.find(g => g.id === nodeGraphId);
 		if (graph == null) return;
 
+		this.liveNodeGraphId = nodeGraphId;
 		this.liveNodeGraphRenderer = new NodeGraphRenderer({
 			gpuDevice: this.gpuDevice,
 			gpuContext: this.gpuContext,
@@ -1257,6 +1265,9 @@ export class MainRenderer {
 			cancelAnimationFrame(this.currentLiveModeRafId);
 			this.currentLiveModeRafId = null;
 		}
+		this.liveNodeGraphId = null;
+		this.liveNodeGraphRenderer?.destroy();
+		this.liveNodeGraphRenderer = null;
 	}
 
 	public resize(resolution: {
@@ -1271,7 +1282,6 @@ export class MainRenderer {
 	public destroy() {
 		this.stopRenderLoop();
 		this.clearTimelineRenderers();
-		this.liveNodeGraphRenderer?.destroy();
 		for (const id of this.audioPorts.keys()) this.resetAudioSource(id, null);
 		for (const frame of this.videoFrames.values()) frame.close();
 		this.videoFrames.clear();
