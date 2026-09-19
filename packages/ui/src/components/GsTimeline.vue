@@ -368,36 +368,42 @@ function onTlMousemove(ev: MouseEvent) {
 function onTlWheel(ev: WheelEvent) {
 	ev.preventDefault();
 
+	const rect = tlEl.value.getBoundingClientRect();
+	const x = ev.clientX - rect.left;
+	const y = ev.clientY - rect.top;
+	const anchorTime = domXToLogicalX(x) + tlPosX.value;
+	const anchorValue = domYToValue(y);
+
 	tlRangeX.value *= 1 + (ev.deltaY / 1000);
 	tlRangeY.value *= 1 + (ev.deltaY / 1000);
 
-	const rect = tlEl.value.getBoundingClientRect();
-	const x = ((ev.clientX - rect.left) * 2) - (tlElWidth.value / 2);
-	const y = ((ev.clientY - rect.top) * 2) - (tlElHeight.value / 2);
-	tlPosX.value = domXToLogicalX(x) - ((domXToLogicalX(x) - tlPosX.value) * (1 + (ev.deltaY / 1000)));
-	tlPosY.value = domYToLogicalY(y) - ((domYToLogicalY(y) - tlPosY.value) * (1 + (ev.deltaY / 1000)));
+	// 拡大・縮小前にカーソル直下にあった時刻・値が、同じ画面位置に留まるように補正する。
+	tlPosX.value = anchorTime - domXToLogicalX(x);
+	tlPosY.value = anchorValue - domYToLogicalY(y);
 }
 
 function onXTicksWheel(ev: WheelEvent) {
 	ev.preventDefault();
 	ev.stopPropagation();
 
-	tlRangeX.value *= 1 + (ev.deltaY / 1000);
-
 	const rect = tlEl.value.getBoundingClientRect();
-	const x = ((ev.clientX - rect.left) * 2) - (tlElWidth.value / 2);
-	tlPosX.value = domXToLogicalX(x) - ((domXToLogicalX(x) - tlPosX.value) * (1 + (ev.deltaY / 1000)));
+	const x = ev.clientX - rect.left;
+	const anchorTime = domXToLogicalX(x) + tlPosX.value;
+
+	tlRangeX.value *= 1 + (ev.deltaY / 1000);
+	tlPosX.value = anchorTime - domXToLogicalX(x);
 }
 
 function onYTicksWheel(ev: WheelEvent) {
 	ev.preventDefault();
 	ev.stopPropagation();
 
-	tlRangeY.value *= 1 + (ev.deltaY / 1000);
-
 	const rect = tlEl.value.getBoundingClientRect();
-	const y = ((ev.clientY - rect.top) * 2) - (tlElHeight.value / 2);
-	tlPosY.value = domYToLogicalY(y) - ((domYToLogicalY(y) - tlPosY.value) * (1 + (ev.deltaY / 1000)));
+	const y = ev.clientY - rect.top;
+	const anchorValue = domYToValue(y);
+
+	tlRangeY.value *= 1 + (ev.deltaY / 1000);
+	tlPosY.value = anchorValue - domYToLogicalY(y);
 }
 
 function onTlDblclick(ev: MouseEvent) {
