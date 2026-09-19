@@ -674,7 +674,7 @@ export class MainRenderer {
 	private enableStats = true;
 	private highlightClipping = false;
 	private timeFactor = 1;
-
+	private liveNodeGraphRenderer: NodeGraphRenderer | null = null;
 	private timeline: Timeline = [];
 	private nodeGraphs: Map<string, NodeGraph> = new Map();
 	private assets: Asset[] = [];
@@ -711,6 +711,8 @@ export class MainRenderer {
 	public fpsAverage = new NonNegativeRollingAverage(30);
 	public readonly gpuMemory: GpuMemoryTracker;
 	private time = 0;
+	private liveModeFpsLimit: number | null;
+	private currentLiveModeRafId: number | null = null;
 
 	constructor(options: {
 		onEffectStatus?: (nodeId: string, status: EffectStatus | null) => void;
@@ -742,7 +744,7 @@ export class MainRenderer {
 		this.timeFactor = options.timeFactor ?? 1;
 		this.enable32bitDataTextures = options.enable32bitDataTextures;
 		this.intermediateTextureFormat = options.intermediateTextureFormat;
-		this.fpsLimit = options.fpsLimit;
+		this.liveModeFpsLimit = options.fpsLimit;
 		this.gpuDevice = options.gpuDevice;
 		this.gpuMemory = new GpuMemoryTracker(this.gpuDevice);
 		this.gpuContext = options.gpuContext;
@@ -838,47 +840,6 @@ export class MainRenderer {
 		this.updateAutomations(options.automations);
 	}
 
-	public renderToCanvas(tex: GPUTexture, commandEncoder: GPUCommandEncoder) {
-		//#region canvasに描画
-		// 末尾が無効でもバイパス先を表示する。出力なしでも描画し、前の画像を残さない。
-		if (this.finalRenderBindGroup == null || this.latestRenderedToCanasTexture !== tex) {
-			this.latestRenderedToCanasTexture = tex;
-			this.finalRenderBindGroup = this.gpuDevice.createBindGroup({
-				layout: this.finalRenderPipeline.getBindGroupLayout(0),
-				entries: [
-					{ binding: 1, resource: { buffer: this.finalRenderUniformBuffer } },
-					{ binding: 3, resource: this.finalRenderSampler },
-					{ binding: 2, resource: tex.createView() }, // TODO: cache view
-				],
-			});
-		}
-
-		this.finalRenderUniformValues.set({
-			highlightClipping: this.highlightClipping ? 1 : 0,
-		});
-		this.gpuDevice.queue.writeBuffer(this.finalRenderUniformBuffer, 0, this.finalRenderUniformValues.arrayBuffer);
-
-		const passEncoder = commandEncoder.beginRenderPass({
-			colorAttachments: [{
-				view: this.gpuContext.getCurrentTexture().createView(),
-				clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
-				loadOp: 'clear',
-				storeOp: 'store',
-			}],
-		});
-		passEncoder.setPipeline(this.finalRenderPipeline);
-		passEncoder.setBindGroup(0, this.finalRenderBindGroup);
-		passEncoder.draw(6);
-		passEncoder.end();
-
-		this.gpuHistogram.render(commandEncoder, tex);
-		this.gpuWaveformHorizontal.render(commandEncoder, tex);
-		this.gpuWaveformVertical.render(commandEncoder, tex);
-
-		this.gpuDevice.queue.submit([commandEncoder.finish()]);
-		//#endregion
-	}
-
 	// (非workerで)呼び出すときはnewAssetsを独立した参照にすること！ パフォーマンス上の理由でこちら側ではdeepCloneしません
 	public updateAssets(newAssets: Asset[]) {
 		this.assets = newAssets;
@@ -963,11 +924,8 @@ export class MainRenderer {
 		this.lastPointerUpdateTimestamp = performance.now();
 	}
 
-	private fpsLimit: number | null;
-	private currentRafId: number | null = null;
-
 	public changeFpsLimit(newFpsLimit: number | null) {
-		this.fpsLimit = newFpsLimit;
+		this.liveModeFpsLimit = newFpsLimit;
 		this.stopRenderLoop();
 		this.startRenderLoopForLive();
 	}
@@ -980,6 +938,44 @@ export class MainRenderer {
 		this.timeFactor = value;
 	}
 
+	private renderToCanvas(tex: GPUTexture, commandEncoder: GPUCommandEncoder) {
+		if (this.finalRenderBindGroup == null || this.latestRenderedToCanasTexture !== tex) {
+			this.latestRenderedToCanasTexture = tex;
+			this.finalRenderBindGroup = this.gpuDevice.createBindGroup({
+				layout: this.finalRenderPipeline.getBindGroupLayout(0),
+				entries: [
+					{ binding: 1, resource: { buffer: this.finalRenderUniformBuffer } },
+					{ binding: 3, resource: this.finalRenderSampler },
+					{ binding: 2, resource: tex.createView() }, // TODO: cache view
+				],
+			});
+		}
+
+		this.finalRenderUniformValues.set({
+			highlightClipping: this.highlightClipping ? 1 : 0,
+		});
+		this.gpuDevice.queue.writeBuffer(this.finalRenderUniformBuffer, 0, this.finalRenderUniformValues.arrayBuffer);
+
+		const passEncoder = commandEncoder.beginRenderPass({
+			colorAttachments: [{
+				view: this.gpuContext.getCurrentTexture().createView(),
+				clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
+				loadOp: 'clear',
+				storeOp: 'store',
+			}],
+		});
+		passEncoder.setPipeline(this.finalRenderPipeline);
+		passEncoder.setBindGroup(0, this.finalRenderBindGroup);
+		passEncoder.draw(6);
+		passEncoder.end();
+
+		this.gpuHistogram.render(commandEncoder, tex);
+		this.gpuWaveformHorizontal.render(commandEncoder, tex);
+		this.gpuWaveformVertical.render(commandEncoder, tex);
+
+		this.gpuDevice.queue.submit([commandEncoder.finish()]);
+	}
+
 	public renderTimelineAt(time: number) {
 		const commandEncoder = this.gpuDevice.createCommandEncoder();
 
@@ -990,23 +986,32 @@ export class MainRenderer {
 	public startRenderLoopForLive() {
 		this.stopRenderLoop();
 		let then = 0;
-		const interval = 1000 / (this.fpsLimit ?? 999);
+		const interval = 1000 / (this.liveModeFpsLimit ?? 999);
 
 		const renderLoop = (timeStamp: number) => {
-			this.currentRafId = requestAnimationFrame(renderLoop);
+			this.currentLiveModeRafId = requestAnimationFrame(renderLoop);
+
+			if (this.liveNodeGraphRenderer == null) return;
 
 			const delta = timeStamp - then;
-			if (this.fpsLimit != null) {
+			if (this.liveModeFpsLimit != null) {
 				if (delta <= interval) return;
 				then = timeStamp - (delta % interval);
 			}
 
-			this.renderSingleNodeGraph(this.liveNodeGraph, {
-				time: timeStamp,
-			});
+			const commandEncoder = this.gpuDevice.createCommandEncoder();
+
+			const tex = this.liveNodeGraphRenderer.render({
+				localTime: timeStamp,
+				localTimeDelta: delta,
+				pointerPosition: this.pointerPosition,
+				pointerPositionPrev: this.pointerPositionPrev,
+			}, commandEncoder);
+			if (tex == null) return;
+
+			this.renderToCanvas(tex, commandEncoder);
 
 			this.pointerPositionPrev = { ...this.pointerPosition };
-
 			this.latestTimestamp = timeStamp;
 
 			this.fpsAverage.addSample(1000 / delta);
@@ -1020,13 +1025,13 @@ export class MainRenderer {
 			}
 		};
 
-		this.currentRafId = requestAnimationFrame(renderLoop);
+		this.currentLiveModeRafId = requestAnimationFrame(renderLoop);
 	}
 
 	public stopRenderLoop() {
-		if (this.currentRafId != null) {
-			cancelAnimationFrame(this.currentRafId);
-			this.currentRafId = null;
+		if (this.currentLiveModeRafId != null) {
+			cancelAnimationFrame(this.currentLiveModeRafId);
+			this.currentLiveModeRafId = null;
 		}
 	}
 
