@@ -1,6 +1,6 @@
 <template>
 <div :class="[$style.root]">
-	<div :class="[$style.header]" class="drag-handle">
+	<div :class="[$style.header]">
 		<div :class="$style.headerLeft">
 			<div :class="$style.effectName">In</div>
 		</div>
@@ -13,11 +13,11 @@
 <script lang="ts" setup>
 import { ref, computed, shallowRef, watchEffect } from 'vue';
 import GsNodeOutputs from './GsNodeOutputs.vue';
-import type { GsEffectNode } from '@glitch/shared/types.ts';
+import type { GsGlobalInNode } from '@glitch/shared/types.ts';
 import { wireMap } from '@/app.ts';
 
 const props = defineProps<{
-	node: GsEffectNode,
+	node: GsGlobalInNode,
 }>();
 
 const allInPortEl = shallowRef<HTMLElement | null>(null);

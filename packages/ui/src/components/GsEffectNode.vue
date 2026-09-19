@@ -1,6 +1,6 @@
 <template>
 <div :class="[$style.root, { [$style.isBypass]: node.isBypass }]">
-	<div :class="[$style.header, { [$style.hasStatus]: effectStatus?.type === 'loading' || effectStatus?.type === 'error' }]" class="drag-handle">
+	<div :class="[$style.header, { [$style.hasStatus]: effectStatus?.type === 'loading' || effectStatus?.type === 'error' }]" :draggable="true" @dragstart.stop="emit('dragStart', $event)">
 		<div :class="$style.headerLeft">
 			<GsNodePort :class="$style.allInPort" dataType="any" @update:element="allInPortEl = $event"/>
 			<div :class="$style.effectName">{{ name }}</div>
@@ -41,6 +41,10 @@ import * as ui from '@/ui.ts';
 const props = defineProps<{
 	nodeGraphId: string;
 	node: GsEffectNode,
+}>();
+
+const emit = defineEmits<{
+	(ev: 'dragStart', event: DragEvent): void;
 }>();
 
 const name = ref<string>(effectDefinitions[props.node.effectId].displayName);

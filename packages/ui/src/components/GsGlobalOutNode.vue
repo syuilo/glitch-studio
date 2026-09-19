@@ -1,6 +1,6 @@
 <template>
 <div :class="[$style.root]">
-	<div :class="[$style.header]" class="drag-handle">
+	<div :class="[$style.header]">
 		<div :class="$style.headerLeft">
 			<div :class="$style.effectName">Out</div>
 		</div>

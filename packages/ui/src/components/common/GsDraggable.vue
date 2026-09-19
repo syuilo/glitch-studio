@@ -162,6 +162,8 @@ function onEmptyDrop(ev: DragEvent) {
 }
 
 .items {
+	--margin: 8px;
+
 	display: flex;
 	align-items: center;
 	justify-content: left;
@@ -184,17 +186,17 @@ function onEmptyDrop(ev: DragEvent) {
 }
 
 .items.horizontal.withGaps {
-	row-gap: var(--MI-margin);
+	row-gap: var(--margin);
 }
 
 .items.horizontal.withGaps .item {
-	padding-left: calc(var(--MI-margin) / 2);
-	padding-right: calc(var(--MI-margin) / 2);
+	padding-left: calc(var(--margin) / 2);
+	padding-right: calc(var(--margin) / 2);
 }
 
 .items.vertical.withGaps .item {
-	padding-top: calc(var(--MI-margin) / 2);
-	padding-bottom: calc(var(--MI-margin) / 2);
+	padding-top: calc(var(--margin) / 2);
+	padding-bottom: calc(var(--margin) / 2);
 }
 
 .forwardArea, .backwardArea {
@@ -257,7 +259,7 @@ function onEmptyDrop(ev: DragEvent) {
 	content: '';
 	position: absolute;
 	z-index: 99999;
-	background: var(--MI_THEME-accent);
+	background: var(--THEME-accent);
 	border-radius: 999px;
 	pointer-events: none;
 }

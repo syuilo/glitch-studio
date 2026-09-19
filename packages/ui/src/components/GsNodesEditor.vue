@@ -2,13 +2,20 @@
 <div :class="$style.root">
 	<div v-if="nodeGraph != null" :key="nodeGraph.id" :class="$style.nodesContainer">
 		<div :class="$style.nodesContent">
-			<Sortable :modelValue="nodeGraph.nodes" :class="$style.nodes" itemKey="id" tag="div" :group="{ name: 'nodes' }" handle=".drag-handle" :animation="150" :swapThreshold="0.5" @change="onSorted">
-				<template #item="{element}">
-					<XEffectNode v-if="element.type === 'effect'" :key="element.id" :nodeGraphId="nodeGraph.id" :node="element"/>
-					<XGlobalInNode v-else-if="element.type === 'globalIn'" :key="element.id" :node="element"/>
-					<XGlobalOutNode v-else-if="element.type === 'globalOut'" :key="element.id" :nodeGraphId="nodeGraph.id" :node="element"/>
+			<GsDraggable
+				:class="$style.nodes"
+				:modelValue="nodeGraph.nodes"
+				direction="vertical"
+				manualDragStart
+				withGaps
+				@update:modelValue="onSorted"
+			>
+				<template #default="{ item: node, dragStart }">
+					<XEffectNode v-if="node.type === 'effect'" :nodeGraphId="nodeGraph.id" :node="node" @dragStart="dragStart"/>
+					<XGlobalInNode v-else-if="node.type === 'globalIn'" :node="node"/>
+					<XGlobalOutNode v-else-if="node.type === 'globalOut'" :nodeGraphId="nodeGraph.id" :node="node"/>
 				</template>
-			</Sortable>
+			</GsDraggable>
 
 			<GsButton :class="$style.addButton" full @click="showAddNodeMenu(nodeGraph.id, $event)">Add node</GsButton>
 
@@ -19,10 +26,10 @@
 </template>
 
 <script lang="ts" setup>
-import Sortable from 'vuedraggable';
 import { ref, watch } from 'vue';
 import GsWires from './GsWires.vue';
 import GsButton from './common/GsButton.vue';
+import GsDraggable from './common/GsDraggable.vue';
 import XEffectNode from './GsEffectNode.vue';
 import XGlobalInNode from './GsGlobalInNode.vue';
 import XGlobalOutNode from './GsGlobalOutNode.vue';
@@ -36,17 +43,10 @@ watch(appContext.state.nodeGraphs, () => {
 	if (appContext.state.nodeGraphs.value.length > 0) nodeGraph.value = appContext.state.nodeGraphs.value[0];
 });
 
-function onSorted(event: {
-	added?: { element: GsNode; newIndex: number };
-	moved?: { element: GsNode; newIndex: number; oldIndex: number };
-}) {
-	// A cross-group drag also emits removed on the source; commit only at the destination.
-	const change = event.added ?? event.moved;
-	if (!change || (event.moved && event.moved.oldIndex === event.moved.newIndex)) return;
+function onSorted(nodes: GsNode[]) {
+	// TODO
 	appContext.commit('moveNode', {
 		nodeGraphId: nodeGraph.value.id,
-		nodeId: change.element.id,
-		index: change.newIndex,
 	});
 }
 </script>
@@ -71,9 +71,6 @@ function onSorted(event: {
 }
 
 .nodes {
-	display: flex;
-	flex-direction: column;
-	gap: 6px;
 }
 
 .addButton {
