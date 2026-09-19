@@ -6,11 +6,11 @@
 				<template #item="{element}">
 					<XEffectNode v-if="element.type === 'effect'" :key="element.id" :nodeGraphId="nodeGraph.id" :node="element"/>
 					<XGlobalInNode v-else-if="element.type === 'globalIn'" :key="element.id" :node="element"/>
-					<XGlobalOutNode v-else-if="element.type === 'globalOut'" :key="element.id" :node="element"/>
+					<XGlobalOutNode v-else-if="element.type === 'globalOut'" :key="element.id" :nodeGraphId="nodeGraph.id" :node="element"/>
 				</template>
 			</Sortable>
 
-			<GsButton :class="$style.addButton" full @click="showAddNodeMenu">Add node</GsButton>
+			<GsButton :class="$style.addButton" full @click="showAddNodeMenu(nodeGraph.id, $event)">Add node</GsButton>
 
 			<GsWires :nodeGraphId="nodeGraph.id"/>
 		</div>

@@ -35,10 +35,11 @@ export function registerWireInput(el: HTMLElement, connect: WireInput['connect']
 	};
 }
 
-export function startWireDrag(event: PointerEvent, connection: NodeOutputReference) {
+export function startWireDrag(event: PointerEvent, connection: NodeOutputReference, options?: { source: HTMLElement }) {
 	if (event.button !== 0 || !event.isPrimary) return;
 	if (!(event.currentTarget instanceof HTMLElement)) return;
-	const source = event.currentTarget;
+	// 配線の始点には、出力行ではなく登録済みのポート要素を使う。
+	const source = options?.source ?? event.currentTarget;
 	event.preventDefault();
 	event.stopPropagation();
 	cancelCurrentDrag?.();

@@ -567,7 +567,33 @@ const resetNodeParamCommandDef = defineNodeParamCommand<NodeParamTarget>(
 	({ def }) => def.default(),
 );
 
+const updateGlobalOutInputCommandDef = defineCommand<NodeTarget & { value: NodeOutputReference | null }>({
+	label: 'Update global output input',
+	create: payload => {
+		let before: { nodeId: string; outputPort: string } | { nodeId: null; outputPort: null };
+		return {
+			execute(state) {
+				const node = stateUtility.findNode(state, payload);
+				if (node?.type !== 'globalOut') throw new Error('Global output node not found');
+				if (payload.value != null) {
+					const source = stateUtility.findNode(state, { nodeGraphId: payload.nodeGraphId, nodeId: payload.value.nodeId });
+					if (getNodeOutputs(source)[payload.value.outputPort] == null) throw new Error('Node output not found in this graph');
+				}
+				before = deepClone(node.input);
+				node.input = payload.value == null ? { nodeId: null, outputPort: null }
+					: { nodeId: payload.value.nodeId, outputPort: payload.value.outputPort };
+			},
+			undo(state) {
+				const node = stateUtility.findNode(state, payload);
+				if (node?.type !== 'globalOut') throw new Error('Global output node not found');
+				node.input = deepClone(before);
+			},
+		};
+	},
+});
+
 export const COMMAND_DEFS = {
+	updateGlobalOutInput: updateGlobalOutInputCommandDef,
 	addEffectNode: addEffectNodeCommandDef,
 	moveNode: moveNodeCommandDef,
 	removeNode: removeNodeCommandDef,

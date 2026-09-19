@@ -103,12 +103,12 @@ export const wireMap = reactive<{
 	allIn: {},
 });
 
-export function showAddNodeMenu(ev: PointerEvent, group?: GsGroupNode) {
+export function showAddNodeMenu(nodeGraphId: NodeGraph['id'], ev: PointerEvent) {
 	const { dispose } = ui.popup(GsEffectPicker, {
 	}, {
 		'chosen': effect => {
 			appContext.commit('addEffectNode', {
-				groupId: group?.id,
+				nodeGraphId: nodeGraphId,
 				effectId: effect.id,
 				id: genId(),
 			});
