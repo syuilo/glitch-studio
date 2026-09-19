@@ -4,14 +4,9 @@
 	</div>
 	<div :class="$style.body">
 		<div :class="$style.side">
-			<GsButton @click="addAutomation">Add automation</GsButton>
-
-			<GsButton v-for="automation of appContext.state.automations.value" :key="automation.id" :primary="selectedAutomation?.id === automation.id" @click="switchAutomation(automation)">{{ automation.name }}</GsButton>
+			<GsButton v-for="layer of appContext.state.timeline.value" :key="layer.id" :primary="selectedLayer?.id === layer.id" @click="switchLayer(layer)">{{ layer.id }}</GsButton>
 		</div>
 		<div ref="tlEl" :class="$style.tl" tabindex="-1" @wheel="onTlWheel" @mousemove="onTlMousemove" @mousedown="onTlMousedown" @keydown="onTlKeydown">
-			<div :class="$style.yTicks" @wheel="onYTicksWheel">
-				<div v-for="v of yTicks" class="_monospace" :class="[$style.yTick, { [$style.yTickActive]: snappingY != null && nearlyEqual(snappingY, v) }]" :style="{ top: valueToDomY(v) + 'px' }">{{ v.toFixed(2) }}</div>
-			</div>
 			<div :class="$style.xTicks" @wheel="onXTicksWheel">
 				<div v-for="time of xTicks" :class="$style.xTick" class="_monospace" :style="{ left: timeToDomX(time) + 'px' }">{{ formatMsToTimecode(time) }}</div>
 				<div :class="$style.xTicksSeekBar" :style="{ left: (seekBarPos - 1) + 'px' }" @mousedown="onSeekBarMousedown"></div>
@@ -22,95 +17,21 @@
 			<div v-for="time of xTicks" :class="[$style.inTlXTick]" :style="{ left: timeToDomX(time) + 'px' }"></div>
 			<div v-for="v of yTicks" :class="[$style.inTlYTick, { [$style.inTlYTickZero]: v.toFixed(2).replace('-', '') === '0.00', [$style.inTlYTickActive]: snappingY != null && nearlyEqual(snappingY, v) }]" :style="{ top: valueToDomY(v) + 'px' }"></div>
 			<div :class="$style.seekBar" class="_monospace" :style="{ left: seekBarPos + 'px' }"><div :class="$style.seekBarFrame">{{ formatMsToTimecode(time) }}</div></div>
-			<div :class="$style.valueBar" class="_monospace" :style="{ top: valueBarPos + 'px' }"><div :class="$style.valueBarValue">{{ currentValue.toFixed(2) }}</div></div>
-			<div :class="$style.crossPoint" :style="{ left: seekBarPos + 'px', top: valueBarPos + 'px' }"></div>
-			<div v-if="!bezierDragging" :class="$style.cursorBar" :style="{ left: cursorBarPos + 'px' }"></div>
-			<div v-if="selectedAutomation" :class="$style.automation">
-				<svg version="1.1" :viewBox="`0 0 ${tlElWidth} ${tlElHeight}`" :class="$style.lines">
-					<defs>
-						<linearGradient id="tlAutomationGradient" x1="0" x2="0" y1="0" y2="1">
-							<stop offset="0%" stop-color="var(--accentAlphaMiddleLow)"/>
-							<stop :offset="automationPathGradientCenter + '%'" stop-color="var(--accentAlphaVeryLow)"/>
-							<stop offset="100%" stop-color="var(--accentAlphaMiddleLow)"/>
-						</linearGradient>
-					</defs>
-					<path :d="automationSvgPath" style="stroke: currentColor; fill: url(#tlAutomationGradient); stroke-width: 2;"/>
-				</svg>
+			<div :class="$style.cursorBar" :style="{ left: cursorBarPos + 'px' }"></div>
 
-				<svg v-if="!nowSelecting && selectedKeyframe" version="1.1" :viewBox="`0 0 ${tlElWidth} ${tlElHeight}`" :class="$style.lines">
-					<line
-						v-if="bezierHandleADomPos"
-						:x1="timeToDomX(selectedKeyframe.timeMs)"
-						:y1="valueToDomY(selectedKeyframe.value)"
-						:x2="bezierHandleADomPos[0]"
-						:y2="bezierHandleADomPos[1]"
-						style="stroke: var(--THEME-accentSecondary); stroke-width: 1;"
-					/>
-					<line
-						v-if="bezierHandleBDomPos"
-						:x1="timeToDomX(selectedKeyframe.timeMs)"
-						:y1="valueToDomY(selectedKeyframe.value)"
-						:x2="bezierHandleBDomPos[0]"
-						:y2="bezierHandleBDomPos[1]"
-						style="stroke: var(--THEME-accentSecondary); stroke-width: 1;"
-					/>
-				</svg>
-
-				<div
-					v-for="keyframe of selectedAutomation.keyframes"
-					:class="[$style.keyframe, { [$style.selectedKeyframe]: selectedKeyframes.includes(keyframe) }]"
-					:style="{ left: timeToDomX(keyframe.timeMs) + 'px', top: valueToDomY(keyframe.value) + 'px' }"
-					@mousedown="onKeyframeMousedown($event, keyframe)"
-					@contextmenu="onKeyframeContextmenu($event, keyframe)"
-				></div>
-			</div>
-
+			<!--
 			<div v-if="(nowSelecting || selectedKeyframes.length === 0) && tooltipDomPos" :class="$style.tooltip" class="_monospace" :style="{ left: tooltipDomPos[0] + 'px', top: tooltipDomPos[1] + 'px' }">
 				<div>T: {{ formatMsToTimecode(cursorTime) }}</div>
 				<div>V: {{ cursorValue }}</div>
 			</div>
-
-			<div v-if="!nowSelecting && contextmenuKeyframe" :class="$style.keyframeContextmenu" :style="{ left: keyframeContextmenuDomPos[0] + 'px', top: keyframeContextmenuDomPos[1] + 'px' }">
-				<div>
-					<div :class="$style.keyframeContextmenuHandle" style="cursor: ns-resize;" @mousedown="onKeyframeYHandleMousedown"><i class="ti ti-arrows-vertical"></i></div>
-					<div :class="$style.keyframeContextmenuInput">V: {{ contextmenuKeyframe.value.toFixed(2) }}</div>
-				</div>
-				<div>
-					<div :class="$style.keyframeContextmenuHandle" style="cursor: ew-resize;" @mousedown="onKeyframeXHandleMousedown"><i class="ti ti-arrows-horizontal"></i></div>
-					<div :class="$style.keyframeContextmenuInput">F: {{ contextmenuKeyframe.timeMs }}</div>
-				</div>
-			</div>
-
-			<div v-if="!nowSelecting && !isBezierAZero && bezierHandleADomPos" :class="$style.bezierHandle" :style="{ left: bezierHandleADomPos[0] + 'px', top: bezierHandleADomPos[1] + 'px' }" @mousedown="onBezierHandleAMousedown">
-			</div>
-			<div v-if="!nowSelecting && !isBezierBZero && bezierHandleBDomPos" :class="$style.bezierHandle" :style="{ left: bezierHandleBDomPos[0] + 'px', top: bezierHandleBDomPos[1] + 'px' }" @mousedown="onBezierHandleBMousedown">
-			</div>
-
-			<template v-if="bezierDragging">
-				<div
-					v-for="line of bezierSnapLinesX"
-					:class="[$style.bezierSnapLineX, { [$style.bezierSnapLineXActive]: line.active }]"
-					:style="{ left: line.x + 'px' }"
-				></div>
-				<div
-					v-for="line of bezierSnapLinesY"
-					:class="[$style.bezierSnapLineY, { [$style.bezierSnapLineYActive]: line.active }]"
-					:style="{ left: line.x + 'px', top: line.y + 'px', width: line.width + 'px' }"
-				></div>
-			</template>
+			-->
 
 			<div :class="$style.infoBar">
 				<div><b>TL Offset</b><code>{{ tlPosX.toFixed(2) }}</code>, <code>{{ tlPosY.toFixed(2) }}</code></div>
 				<div><b>Cursor</b><code>{{ cursorTime }}</code>, <code>{{ cursorValue }}</code></div>
-				<div><b>Current</b><code>{{ time }}</code>, <code>{{ currentValue.toFixed(2) }}</code></div>
-				<div><b>Min/Max</b><code>{{ minMaxValuesInTheAutomation.min.toFixed(2) }}</code>, <code>{{ minMaxValuesInTheAutomation.max.toFixed(2) }}</code></div>
-				<div><b>Automation ID</b><code>{{ selectedAutomation ? selectedAutomation.id.toUpperCase() : '-' }}</code></div>
 			</div>
 		</div>
-		<div v-if="selectedKeyframe" :class="$style.rightSidePanel">
-			<div>Bezier</div>
-			<GsButton :primary="!isBezierAZero" @click="toggleBezierA">A</GsButton>
-			<GsButton :primary="!isBezierBZero" @click="toggleBezierB">B</GsButton>
+		<div v-if="selectedLayer != null" :class="$style.rightSidePanel">
 		</div>
 	</div>
 </div>
@@ -118,21 +39,20 @@
 
 <script lang="ts" setup>
 import { computed, onMounted, ref, shallowRef, useTemplateRef, watch } from 'vue';
-import { evalAutomationValue, insertIntermediateNumbers, nearlyEqual, niceScale } from '@glitch/shared/utility/misc.js';
+import { insertIntermediateNumbers, nearlyEqual, niceScale } from '@glitch/shared/utility/misc.js';
 import { genId } from '@glitch/shared/utility/id.js';
 import GsButton from './common/GsButton.vue';
-import type { GsAutomation, GsKeyframe } from '@glitch/shared/types.js';
-import { appContext } from '@/app.ts';
+import type { Layer } from '@glitch/shared/types.js';
+import { appContext, currentTimelineTime } from '@/app.ts';
 import { dragListen } from '@/utility/drag.ts';
 
 const X_TICKS_HEIGHT = 20;
 const Y_TICKS_WIDTH = 60;
 
-// 最も長いtimeMsをもつkeyframeのtimeMs
 const duration = computed(() => {
-	return selectedAutomation.value?.keyframes.reduce((max, kf) => Math.max(max, kf.timeMs), 0) ?? 0;
+	return appContext.state.timeline.value.reduce((max, layer) => Math.max(max, layer.endTimeMs), 0) ?? 0;
 });
-const time = ref(0);
+const time = currentTimelineTime;
 
 const tlEl = useTemplateRef('tlEl');
 const tlElWidth = ref(0);
@@ -142,18 +62,8 @@ const tlRangeY = ref(5);
 const tlPosX = ref(-3000);
 const tlPosY = ref(-2.5);
 const snappingY = ref<number | null>(null);
-const selectedAutomation = ref<GsAutomation | null>(null);
-const selectedKeyframes = ref<GsKeyframe[]>([]);
-const selectedKeyframe = computed(() => selectedKeyframes.value.length === 1 ? selectedKeyframes.value[0] : null);
-const contextmenuKeyframe = ref<GsKeyframe | null>(null);
 const seekBarPos = computed(() => {
 	return timeToDomX(time.value);
-});
-const currentValue = computed(() => {
-	return selectedAutomation.value ? evalAutomationValue(selectedAutomation.value, time.value) : 0;
-});
-const valueBarPos = computed(() => {
-	return valueToDomY(currentValue.value);
 });
 const cursorBarPos = ref(0);
 const tlRangeElPosX = computed(() => {
@@ -163,35 +73,6 @@ const tlRangeElWidth = computed(() => {
 	return (duration.value / tlRangeX.value) * tlElWidth.value;
 });
 const tooltipDomPos = ref<null | [0, 0]>(null);
-const keyframeContextmenuDomPos = computed(() => {
-	if (!contextmenuKeyframe.value) return null;
-	return [
-		timeToDomX(contextmenuKeyframe.value.timeMs) + 5,
-		valueToDomY(contextmenuKeyframe.value.value) + 5,
-	];
-});
-const bezierHandleADomPos = computed(() => {
-	if (!selectedKeyframe.value) return null;
-	return [
-		logicalXToDomX(selectedKeyframe.value.timeMs + selectedKeyframe.value.bezierControlPointA[0]),
-		logicalYToDomY(selectedKeyframe.value.value + selectedKeyframe.value.bezierControlPointA[1]),
-	];
-});
-const bezierHandleBDomPos = computed(() => {
-	if (!selectedKeyframe.value) return null;
-	return [
-		logicalXToDomX(selectedKeyframe.value.timeMs + selectedKeyframe.value.bezierControlPointB[0]),
-		logicalYToDomY(selectedKeyframe.value.value + selectedKeyframe.value.bezierControlPointB[1]),
-	];
-});
-const isBezierAZero = computed(() => {
-	if (!selectedKeyframe.value) return false;
-	return selectedKeyframe.value.bezierControlPointA[0] === 0 && selectedKeyframe.value.bezierControlPointA[1] === 0;
-});
-const isBezierBZero = computed(() => {
-	if (!selectedKeyframe.value) return false;
-	return selectedKeyframe.value.bezierControlPointB[0] === 0 && selectedKeyframe.value.bezierControlPointB[1] === 0;
-});
 const cursorTime = ref(0);
 const cursorValue = ref(0);
 const nowSelecting = ref(false);
@@ -212,9 +93,7 @@ const selectedAreaElHeight = computed(() => {
 	return (((selectedAreaHeight.value) / tlRangeY.value) * tlElHeight.value);
 });
 
-const bezierDragging = ref(false);
-const bezierSnapLinesX = ref<{ active?: boolean; x: number }[]>([]);
-const bezierSnapLinesY = ref<{ active?: boolean; x: number; y: number; width: number }[]>([]);
+const selectedLayer = ref<Layer | null>(null);
 
 // TODO: TLの表示DOMサイズに応じて変更
 const xTicksCount = ref(15);
@@ -223,47 +102,6 @@ const xTicksWithHalf = computed(() => insertIntermediateNumbers(xTicks.value));
 const yTicksCount = ref(6);
 const yTicks = computed(() => niceScale(tlPosY.value, tlPosY.value + tlRangeY.value, yTicksCount.value));
 const yTicksWithHalf = computed(() => insertIntermediateNumbers(yTicks.value));
-
-// TODO: もっと高速に計算する方法ないだろうか
-const minMaxValuesInTheAutomation = computed(() => {
-	if (!selectedAutomation.value) return { min: 0, max: 0 };
-	let min = 0;
-	let max = 0;
-	for (let i = 0; i < duration.value; i++) {
-		const fv = evalAutomationValue(selectedAutomation.value, i);
-		if (fv < min) min = fv;
-		if (fv > max) max = fv;
-	}
-	return {
-		min,
-		max,
-	};
-});
-
-const automationSvgPath = computed(() => {
-	if (!selectedAutomation.value) return '';
-	const keyframes = selectedAutomation.value.keyframes;
-	let d = `M ${timeToDomX(0)}, ${valueToDomY(0)} L ${timeToDomX(keyframes[0].timeMs)}, ${valueToDomY(keyframes[0].value)}`;
-	for (let i = 0; i < keyframes.length - 1; i++) {
-		const keyframe = keyframes[i];
-		const dx1 = timeToDomX(Math.min(keyframes[i + 1].timeMs, keyframe.timeMs + (keyframe.bezierControlPointB[0])));
-		const dy1 = valueToDomY(keyframe.value + (keyframe.bezierControlPointB[1]));
-		const dx2 = timeToDomX(Math.max(keyframe.timeMs, keyframes[i + 1].timeMs + (keyframes[i + 1].bezierControlPointA[0])));
-		const dy2 = valueToDomY(keyframes[i + 1].value + (keyframes[i + 1].bezierControlPointA[1]));
-		const dx = timeToDomX(keyframes[i + 1].timeMs);
-		const dy = valueToDomY(keyframes[i + 1].value);
-		d += ` C ${dx1}, ${dy1} ${dx2}, ${dy2} ${dx}, ${dy}`;
-	}
-	d += ` L ${timeToDomX(keyframes[keyframes.length - 1].timeMs)}, ${valueToDomY(0)}`;
-	return d;
-});
-const automationPathGradientCenter = computed(() => {
-	if (!selectedAutomation.value) return 0;
-	const max = minMaxValuesInTheAutomation.value.max;
-	const min = Math.min(0, minMaxValuesInTheAutomation.value.min);
-	if (max === 0 && min === 0) return 0;
-	return ((max) / (max + Math.abs(min))) * 100;
-});
 
 function timeToDomX(time: number): number {
 	return ((time - tlPosX.value) / tlRangeX.value) * tlElWidth.value;
@@ -297,61 +135,6 @@ function domYToValue(y: number): number {
 	return domYToLogicalY(y) + tlPosY.value;
 }
 
-function addAutomation() {
-	const id = genId();
-	const automation: GsAutomation = {
-		id: id,
-		name: 'kf_' + id,
-		keyframes: [{
-			id: genId(),
-			timeMs: 0,
-			value: 0,
-			bezierControlPointA: [0, 0],
-			bezierControlPointB: [1000, 0],
-		}, {
-			id: genId(),
-			timeMs: 1000 * 10,
-			value: 1,
-			bezierControlPointA: [-1000, 0],
-			bezierControlPointB: [0, 0],
-		}],
-	};
-	appContext.state.automations.value.push(automation);
-	selectedAutomation.value = automation;
-}
-
-function switchAutomation(automation: GsAutomation) {
-	selectedAutomation.value = automation;
-}
-
-function addKeyframe(time: number, value: number): GsKeyframe {
-	if (selectedAutomation.value == null) throw new Error('no selected automation');
-	const keyframes = [] as GsKeyframe[];
-	const keyframe: GsKeyframe = {
-		id: genId(),
-		timeMs: time,
-		value,
-		bezierControlPointA: [-1000, 0],
-		bezierControlPointB: [1000, 0],
-	};
-	let pushed = false;
-	if (selectedAutomation.value.keyframes.filter(kf => kf.timeMs === time).length > 1) return;
-	for (const kf of selectedAutomation.value.keyframes) {
-		if (!pushed && kf.timeMs > time) {
-			keyframes.push(keyframe);
-			keyframes.push(kf);
-			pushed = true;
-		} else {
-			keyframes.push(kf);
-		}
-	}
-	if (!pushed) {
-		keyframes.push(keyframe);
-	}
-	selectedAutomation.value.keyframes = keyframes;
-	return keyframe;
-}
-
 function onTlMousemove(ev: MouseEvent) {
 	const rect = tlEl.value.getBoundingClientRect();
 	const mouseX = ev.clientX - rect.left;
@@ -359,8 +142,6 @@ function onTlMousemove(ev: MouseEvent) {
 	const time = domXToTime(mouseX);
 	cursorBarPos.value = timeToDomX(time);
 
-	const value = domYToValue(mouseY);
-	cursorValue.value = value.toFixed(2);
 	cursorTime.value = time;
 	tooltipDomPos.value = [mouseX + 10, mouseY + 10];
 }
@@ -404,32 +185,6 @@ function onYTicksWheel(ev: WheelEvent) {
 
 	tlRangeY.value *= 1 + (ev.deltaY / 1000);
 	tlPosY.value = anchorValue - domYToLogicalY(y);
-}
-
-function onTlDblclick(ev: MouseEvent) {
-	if (ev.button === 1) return;
-	if (selectedAutomation.value == null) return;
-
-	const rect = tlEl.value.getBoundingClientRect();
-	const clickX = ev.clientX - rect.left;
-	const clickY = ev.clientY - rect.top;
-	const time = domXToTime(clickX);
-	let value = domYToValue(clickY);
-
-	// snap
-	for (const step of [...yTicksWithHalf.value, 1]) { // 1は重要なのでどんな時でもスナップ候補
-		const stepY = valueToDomY(step);
-		if (clickY > stepY - SNAP_THRESHOLD && clickY < stepY + SNAP_THRESHOLD) {
-			value = step;
-			break;
-		}
-	}
-
-	const keyframe = addKeyframe(time, value);
-
-	selectedKeyframes.value = [keyframe];
-
-	onKeyframeMousedown(ev, keyframe);
 }
 
 let beforeClickedAt = 0;
@@ -506,252 +261,17 @@ function onTlMousedown(ev: MouseEvent) {
 
 const SNAP_THRESHOLD = 5;
 
-function onKeyframesXYHandleMousedown(ev: MouseEvent, keyframe: GsKeyframe, treatX: boolean, treatY: boolean) {
-	ev.stopPropagation();
-	const prevKeyframe = selectedAutomation.value?.keyframes[selectedAutomation.value.keyframes.indexOf(selectedKeyframes.value[0]) - 1];
-	const nextKeyframe = selectedAutomation.value?.keyframes[selectedAutomation.value.keyframes.indexOf(selectedKeyframes.value[selectedKeyframes.value.length - 1]) + 1];
-	const position = tlEl.value.getBoundingClientRect();
-	const moveBaseX = ev.clientX - position.left;
-	const moveBaseY = ev.clientY - position.top;
-	const baseTime = keyframe.timeMs;
-	const baseValue = keyframe.value;
-	const baseFrames = selectedKeyframes.value.map(keyframe => keyframe.timeMs);
-	const baseValues = selectedKeyframes.value.map(keyframe => keyframe.value);
-	const firstFrameOffset = baseTime - baseFrames[0];
-	const lastFrameOffset = baseTime - baseFrames[baseFrames.length - 1];
-
-	function move(x: number, y: number) {
-		const baseNewTime = treatX ? Math.max((prevKeyframe?.timeMs ?? -Infinity) + firstFrameOffset, Math.min((nextKeyframe?.timeMs ?? Infinity) + lastFrameOffset, baseTime + (domXToTime(x) - domXToTime(moveBaseX)))) : baseTime;
-		let baseNewValue = treatY ? baseValue + (domYToValue(y) - domYToValue(moveBaseY)) : baseValue;
-
-		if (treatY) {
-			snappingY.value = null;
-			// snap
-			for (const step of [...yTicksWithHalf.value, prevKeyframe?.value ?? 1, nextKeyframe?.value ?? 1, 1]) { // 1は重要なのでどんな時でもスナップ候補
-				const stepY = valueToDomY(step);
-				if (valueToDomY(baseValue) + (y - moveBaseY) > stepY - SNAP_THRESHOLD && valueToDomY(baseValue) + (y - moveBaseY) < stepY + SNAP_THRESHOLD) {
-					baseNewValue = step;
-					snappingY.value = step;
-					break;
-				}
-			}
-
-			// TODO: 比率を維持して制御点を再スケール
-			//keyframe.bezierControlPointA[1] = ?
-			//keyframe.bezierControlPointB[1] = ?
-		}
-
-		for (let i = 0; i < selectedKeyframes.value.length; i++) {
-			const keyframe = selectedKeyframes.value[i];
-			if (treatX) keyframe.timeMs = Math.max(0, baseNewTime + (baseFrames[i] - baseTime));
-			if (treatY) keyframe.value = baseNewValue + (baseValues[i] - baseValue);
-		}
-	}
-
-	dragListen(me => {
-		move(me.clientX - position.left, me.clientY - position.top);
-	}, () => {
-		snappingY.value = null;
-	});
-}
-
-function onKeyframeXHandleMousedown(ev: MouseEvent) {
-	ev.stopPropagation();
-	onKeyframesXYHandleMousedown(ev, contextmenuKeyframe.value, true, false);
-}
-
-function onKeyframeYHandleMousedown(ev: MouseEvent) {
-	ev.stopPropagation();
-	onKeyframesXYHandleMousedown(ev, contextmenuKeyframe.value, false, true);
-}
-
-function onKeyframeMousedown(ev: MouseEvent, keyframe: GsKeyframe) {
-	ev.stopPropagation();
-	if (ev.button !== 0) return;
-
-	if (selectedKeyframes.value.length === 0) {
-		selectedKeyframes.value = [keyframe];
-	} else if (!selectedKeyframes.value.includes(keyframe)) {
-		selectedKeyframes.value = [keyframe];
-	}
-
-	onKeyframesXYHandleMousedown(ev, keyframe, true, true);
-}
-
-function onKeyframeContextmenu(ev: MouseEvent, keyframe: GsKeyframe) {
-	ev.preventDefault();
-	ev.stopPropagation();
-
-	if (selectedKeyframes.value.length === 0) {
-		selectedKeyframes.value = [keyframe];
-	} else if (!selectedKeyframes.value.includes(keyframe)) {
-		selectedKeyframes.value = [keyframe];
-	}
-
-	contextmenuKeyframe.value = keyframe;
-}
-
-const BEZIER_SNAP_THRESHOLD = 8;
-const BEZIER_X_SNAP_STEPS = [0, 0.25, 0.5, 0.75, 1];
-const BEZIER_Y_SNAP_STEPS = [-2, -1.5, -1, -0.5, 0, 0.5, 1];
-
-function onBezierHandleAMousedown(ev: MouseEvent) {
-	ev.stopPropagation();
-	const keyframe = selectedAutomation.value.keyframes.find(kf => kf.id === selectedKeyframe.value.id)!;
-	const prevKeyframe = selectedAutomation.value?.keyframes[selectedAutomation.value.keyframes.indexOf(selectedKeyframe.value) - 1];
-	if (prevKeyframe == null) return;
-	const position = tlEl.value.getBoundingClientRect();
-	const moveBaseX = ev.clientX - position.left;
-	const moveBaseY = ev.clientY - position.top;
-	const baseTime = keyframe.timeMs;
-	const baseValue = keyframe.value;
-	const baseControlPointX = keyframe.bezierControlPointA[0];
-	const baseControlPointY = keyframe.bezierControlPointA[1];
-
-	bezierSnapLinesX.value = BEZIER_X_SNAP_STEPS.map(step => ({
-		x: timeToDomX(keyframe.timeMs - ((keyframe.timeMs - prevKeyframe.timeMs) * step)),
-	}));
-	bezierSnapLinesY.value = BEZIER_Y_SNAP_STEPS.map(step => ({
-		x: timeToDomX(prevKeyframe.timeMs),
-		y: valueToDomY(keyframe.value - ((prevKeyframe.value - keyframe.value) * step)),
-		width: timeToDomX(keyframe.timeMs) - timeToDomX(prevKeyframe.timeMs),
-	}));
-
-	function move(x: number, y: number) {
-		keyframe.bezierControlPointA = [
-			Math.min(0, baseControlPointX + ((domXToLogicalX(x) - domXToLogicalX(moveBaseX)))),
-			baseControlPointY + ((domYToLogicalY(y) - domYToLogicalY(moveBaseY))),
-		];
-
-		for (const line of bezierSnapLinesX.value) {
-			line.active = false;
-		}
-		for (const line of bezierSnapLinesY.value) {
-			line.active = false;
-		}
-
-		// snap
-		const domX = bezierHandleADomPos.value[0];
-		for (let i = 0; i < BEZIER_X_SNAP_STEPS.length; i++) {
-			const step = BEZIER_X_SNAP_STEPS[i];
-			const stepX = timeToDomX(baseTime - ((baseTime - prevKeyframe.timeMs) * step));
-			if (domX > stepX - BEZIER_SNAP_THRESHOLD && domX < stepX + BEZIER_SNAP_THRESHOLD) {
-				keyframe.bezierControlPointA[0] = 0 - ((baseTime - prevKeyframe.timeMs) * step);
-				bezierSnapLinesX.value[i].active = true;
-				break;
-			}
-		}
-		const domY = bezierHandleADomPos.value[1];
-		for (let i = 0; i < BEZIER_Y_SNAP_STEPS.length; i++) {
-			const step = BEZIER_Y_SNAP_STEPS[i];
-			const stepY = valueToDomY(baseValue - ((prevKeyframe.value - baseValue) * step));
-			if (domY > stepY - BEZIER_SNAP_THRESHOLD && domY < stepY + BEZIER_SNAP_THRESHOLD) {
-				keyframe.bezierControlPointA[1] = (baseValue - prevKeyframe.value) * step;
-				bezierSnapLinesY.value[i].active = true;
-				break;
-			}
-		}
-	}
-
-	bezierDragging.value = true;
-
-	dragListen(me => {
-		move(me.clientX - position.left, me.clientY - position.top);
-	}, () => {
-		bezierDragging.value = false;
-		bezierSnapLinesX.value = [];
-		bezierSnapLinesY.value = [];
-	});
-}
-
-function onBezierHandleBMousedown(ev: MouseEvent) {
-	ev.stopPropagation();
-	const keyframe = selectedAutomation.value.keyframes.find(kf => kf.id === selectedKeyframe.value.id)!;
-	const nextKeyframe = selectedAutomation.value?.keyframes[selectedAutomation.value.keyframes.indexOf(selectedKeyframe.value) + 1];
-	if (nextKeyframe == null) return;
-	const position = tlEl.value.getBoundingClientRect();
-	const moveBaseX = ev.clientX - position.left;
-	const moveBaseY = ev.clientY - position.top;
-	const baseTime = keyframe.timeMs;
-	const baseValue = keyframe.value;
-	const baseControlPointX = keyframe.bezierControlPointB[0];
-	const baseControlPointY = keyframe.bezierControlPointB[1];
-
-	bezierSnapLinesX.value = BEZIER_X_SNAP_STEPS.map(step => ({
-		x: timeToDomX(keyframe.timeMs - ((keyframe.timeMs - nextKeyframe.timeMs) * step)),
-	}));
-	bezierSnapLinesY.value = BEZIER_Y_SNAP_STEPS.map(step => ({
-		x: timeToDomX(keyframe.timeMs),
-		y: valueToDomY(keyframe.value - ((nextKeyframe.value - keyframe.value) * step)),
-		width: timeToDomX(nextKeyframe.timeMs) - timeToDomX(keyframe.timeMs),
-	}));
-
-	function move(x: number, y: number) {
-		keyframe.bezierControlPointB = [
-			Math.max(0, baseControlPointX + ((domXToLogicalX(x) - domXToLogicalX(moveBaseX)))),
-			baseControlPointY + ((domYToLogicalY(y) - domYToLogicalY(moveBaseY))),
-		];
-
-		for (const line of bezierSnapLinesX.value) {
-			line.active = false;
-		}
-		for (const line of bezierSnapLinesY.value) {
-			line.active = false;
-		}
-
-		// snap
-		const domX = bezierHandleBDomPos.value[0];
-		for (let i = 0; i < BEZIER_X_SNAP_STEPS.length; i++) {
-			const step = BEZIER_X_SNAP_STEPS[i];
-			const stepX = timeToDomX(baseTime - ((baseTime - nextKeyframe.timeMs) * step));
-			if (domX > stepX - BEZIER_SNAP_THRESHOLD && domX < stepX + BEZIER_SNAP_THRESHOLD) {
-				keyframe.bezierControlPointB[0] = 0 - ((baseTime - nextKeyframe.timeMs) * step);
-				bezierSnapLinesX.value[i].active = true;
-				break;
-			}
-		}
-		const domY = bezierHandleBDomPos.value[1];
-		for (let i = 0; i < BEZIER_Y_SNAP_STEPS.length; i++) {
-			const step = BEZIER_Y_SNAP_STEPS[i];
-			const stepY = valueToDomY(baseValue - ((nextKeyframe.value - baseValue) * step));
-			if (domY > stepY - BEZIER_SNAP_THRESHOLD && domY < stepY + BEZIER_SNAP_THRESHOLD) {
-				keyframe.bezierControlPointB[1] = (baseValue - nextKeyframe.value) * step;
-				bezierSnapLinesY.value[i].active = true;
-				break;
-			}
-		}
-	}
-
-	bezierDragging.value = true;
-
-	dragListen(me => {
-		move(me.clientX - position.left, me.clientY - position.top);
-	}, () => {
-		bezierDragging.value = false;
-		bezierSnapLinesX.value = [];
-		bezierSnapLinesY.value = [];
-	});
-}
-
 function onSeekBarMousedown(ev: MouseEvent) {
 	ev.stopPropagation();
 	const position = tlEl.value.getBoundingClientRect();
 
 	function move(x: number, y: number) {
-		time.value = domXToTime(x);
+		time.value = Math.min(duration.value, Math.max(0, domXToTime(x)));
 	}
 
 	dragListen(me => {
 		move(me.clientX - position.left, me.clientY - position.top);
 	});
-}
-
-function deleteKeyframe(keyframe: GsKeyframe) {
-	const automation = selectedAutomation.value;
-	if (!automation) return;
-	const index = automation.keyframes.indexOf(keyframe);
-	if (index === -1) return;
-	automation.keyframes.splice(index, 1);
 }
 
 let copyingKeyframes = null;
@@ -759,39 +279,8 @@ let copyingKeyframes = null;
 function onTlKeydown(ev: KeyboardEvent) {
 	console.log(ev.key, ev.ctrlKey);
 	if (ev.key === 'Backspace') {
-		const kfs = selectedKeyframes.value;
-		selectedKeyframes.value = [];
-		contextmenuKeyframe.value = null;
-		for (const kf of kfs) {
-			deleteKeyframe(kf);
-		}
 	} else if (ev.ctrlKey && ev.key === 'c') {
-		copyingKeyframes = JSON.parse(JSON.stringify(selectedKeyframes.value));
 	} else if (ev.ctrlKey && ev.key === 'v') {
-		if (copyingKeyframes == null) return;
-		if (selectedAutomation.value == null) return;
-		const baseTime = copyingKeyframes[0].timeMs;
-		for (const kf of copyingKeyframes) {
-			addKeyframe(cursorTime.value + (kf.frame - baseTime), kf.value);
-		}
-	}
-}
-
-function toggleBezierA() {
-	if (selectedKeyframe.value == null) return;
-	if (isBezierAZero.value) {
-		selectedKeyframe.value.bezierControlPointA = [-1000, 0];
-	} else {
-		selectedKeyframe.value.bezierControlPointA = [0, 0];
-	}
-}
-
-function toggleBezierB() {
-	if (selectedKeyframe.value == null) return;
-	if (isBezierBZero.value) {
-		selectedKeyframe.value.bezierControlPointB = [1000, 0];
-	} else {
-		selectedKeyframe.value.bezierControlPointB = [0, 0];
 	}
 }
 

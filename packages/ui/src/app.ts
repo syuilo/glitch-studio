@@ -13,7 +13,7 @@ import GsEffectPicker from './components/GsEffectPicker.vue';
 import type { CommandDef } from './commands.ts';
 import type { AppState } from './types.ts';
 import type { EffectNodeOf } from '@glitch/shared/effect-definition.ts';
-import type { Asset, GsNode, Macro, GsAutomation, GsGroupNode, Player, NodeGraph } from '@glitch/shared/types.ts';
+import type { Asset, GsNode, Macro, GsAutomation, GsGroupNode, Player, NodeGraph, Timeline } from '@glitch/shared/types.ts';
 import type { Project } from './gsproj.ts';
 import * as ui from '@/ui.ts';
 import * as api from '@/api.ts';
@@ -45,6 +45,7 @@ class AppContext {
 			nodeGraphs: ref<NodeGraph[]>([]),
 			macros: ref<Macro[]>([]),
 			automations: ref<GsAutomation[]>([]),
+			timeline: ref<Timeline>([]),
 		};
 	}
 
@@ -97,6 +98,8 @@ class AppContext {
 export const appContext = new AppContext();
 
 (window as any).appContext = appContext; // debug
+
+export const currentTimelineTime = ref(0);
 
 export const wireMap = reactive<{
 	in: Record<string, any>;
@@ -191,6 +194,7 @@ export async function appReady(project: Project) {
 	appContext.state.macros.value = project.macros;
 	appContext.state.automations.value = project.automations;
 	appContext.state.players.value = project.players;
+	appContext.state.timeline.value = project.timeline;
 
 	watch(appContext.state.automations, () => {
 		engine.updateAutomations(deepClone(appContext.state.automations.value));
@@ -210,6 +214,14 @@ export async function appReady(project: Project) {
 
 	watch(appContext.state.macros, () => {
 		engine.updateMacros(deepClone(appContext.state.macros.value));
+	}, { deep: true, immediate: true });
+
+	watch(appContext.state.timeline, () => {
+		engine.updateTimeline(deepClone(appContext.state.timeline.value));
+	}, { deep: true, immediate: true });
+
+	watch(currentTimelineTime, () => {
+		engine.renderTimelineAt(currentTimelineTime.value);
 	}, { deep: true, immediate: true });
 
 	engine.startLiveRenderLoopFor(project.nodeGraphs[0].id);

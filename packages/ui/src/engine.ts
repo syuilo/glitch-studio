@@ -6,7 +6,7 @@ import { projectAudioSourceId } from '@glitch/shared/audio.ts';
 import { isVideoFrameAvailable, playVideoAfterFirstFrameIsReady } from './utility/video.ts';
 import { AudioInputs } from './audio/audio-inputs.ts';
 import { setupWebcam } from './utility/webcam.ts';
-import type { Asset, GsAutomation, GsNode, Macro, NodeGraph, Player } from '@glitch/shared/types.ts';
+import type { Asset, GsAutomation, GsNode, Macro, NodeGraph, Player, Timeline } from '@glitch/shared/types.ts';
 import type { MainRenderer } from '@glitch/renderer/renderer.ts';
 import type { EffectStatus } from '@glitch/shared/effect-status.ts';
 import * as ui from '@/ui.ts';
@@ -37,6 +37,7 @@ export class Engine {
 	private players: Player[] = [];
 	private macros: Macro[] = [];
 	private automations: GsAutomation[] = [];
+	private timeline: Timeline = [];
 	private videoElements = shallowReactive(new Map<Player['id'], HTMLMediaElement>());
 	private playerAssetFiles = new Map<Player['id'], Blob>();
 	private audioInputs = new AudioInputs(
@@ -174,6 +175,7 @@ export class Engine {
 				macros: this.macros,
 				automations: this.automations,
 				nodeGraphs: this.nodeGraphs,
+				timeline: this.timeline,
 			},
 		}, [offscreen, histogramOffscreen, waveformHorizontalOffscreen, waveformVerticalOffscreen]);
 		this.rendererWorker.onmessage = (event) => {
@@ -370,6 +372,11 @@ export class Engine {
 		await this.updateNodeGraphs(this.nodeGraphs);
 	}
 
+	public updateTimeline(newTimeline: Timeline) {
+		this.timeline = deepClone(newTimeline);
+		this.call('updateTimeline', [this.timeline]);
+	}
+
 	public async updatePointerPosition(newPointerPosition: { x: number; y: number }) {
 		this.pointerPosition = { ...newPointerPosition };
 		this.call('updatePointerPosition', [newPointerPosition]);
@@ -392,6 +399,12 @@ export class Engine {
 		this.timeFactor = value;
 		if (this.isReady.value || (this.rendererWorker != null && this.rejectInitialization != null)) {
 			this.call('setTimeFactor', [value]);
+		}
+	}
+
+	public renderTimelineAt(time: number) {
+		if (this.isReady.value || (this.rendererWorker != null && this.rejectInitialization != null)) {
+			this.call('renderTimelineAt', [time]);
 		}
 	}
 
