@@ -39,29 +39,56 @@ const addEffectNodeCommandDef = defineCommand<{ nodeGraphId: string; id: string;
 	label: 'Add fx node',
 	create: payload => {
 		let addedNode: GsEffectNode | undefined;
+		let outputConnection: {
+			nodeId: string;
+			before: { nodeId: string; outputPort: string } | { nodeId: null; outputPort: null };
+			after: { nodeId: string; outputPort: string };
+		} | undefined;
 		return {
 			execute(state) {
 				const graph = stateUtility.getNodeGraph(state, payload.nodeGraphId);
 				if (addedNode == null) {
 					const paramDefs = effectDefinitions[payload.effectId].paramDefs as EffectParamDefs;
-					const previous = graph.nodes.at(-1);
+					const globalOut = graph.nodes.find(node => node.type === 'globalOut');
+					const previousInput = globalOut?.input;
+					const previous = previousInput?.nodeId == null ? undefined : graph.nodes.find(node => node.id === previousInput.nodeId);
 					const params: GsEffectNode['params'] = {};
 					for (const [key, def] of Object.entries(paramDefs)) {
 						params[key] = def.default();
-						if (def.primary && previous != null) {
-							const port = Object.entries(getNodeOutputs(previous)).find(([, output]) => output.primary && canConnectNodeDataTypes(output.dataType, getNodeInputDataType(def)))?.[0];
-							if (port != null) params[key] = { type: 'node', nodeId: previous.id, outputPort: port };
+						if (def.primary && previousInput?.nodeId != null) {
+							// 元の接続が副出力でも、その出力ポートをそのまま引き継ぐ。
+							const output = getNodeOutputs(previous)[previousInput.outputPort];
+							if (canConnectNodeDataTypes(output?.dataType, getNodeInputDataType(def))) {
+								params[key] = { type: 'node', ...deepClone(previousInput) };
+							}
 						}
 					}
 					// ランダムな初期値や自動接続もRedo時に変えない。
 					addedNode = { id: payload.id, type: 'effect', effectId: payload.effectId, isBypass: false,
 						params: { ...params, ...deepClone(payload.params ?? {}) }, pos: { x: 0, y: 0 } };
+					const outputPort = Object.entries(getNodeOutputs(addedNode)).find(([, output]) => output.primary && canConnectNodeDataTypes(output.dataType, 'color'))?.[0];
+					if (globalOut != null && outputPort != null) {
+						outputConnection = {
+							nodeId: globalOut.id,
+							before: deepClone(globalOut.input),
+							after: { nodeId: addedNode.id, outputPort },
+						};
+					}
 				}
-				graph.nodes.push(deepClone(addedNode));
+				const outputIndex = graph.nodes.findIndex(node => node.type === 'globalOut');
+				graph.nodes.splice(outputIndex < 0 ? graph.nodes.length : outputIndex, 0, deepClone(addedNode));
+				if (outputConnection != null) {
+					const globalOut = graph.nodes.find(node => node.id === outputConnection.nodeId);
+					if (globalOut?.type === 'globalOut') globalOut.input = deepClone(outputConnection.after);
+				}
 			},
 			undo(state) {
 				const graph = stateUtility.getNodeGraph(state, payload.nodeGraphId);
 				graph.nodes = graph.nodes.filter(node => node.id !== payload.id);
+				if (outputConnection != null) {
+					const globalOut = graph.nodes.find(node => node.id === outputConnection.nodeId);
+					if (globalOut?.type === 'globalOut') globalOut.input = deepClone(outputConnection.before);
+				}
 			},
 		};
 	},
