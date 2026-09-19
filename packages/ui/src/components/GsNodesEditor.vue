@@ -4,20 +4,20 @@
 		<div :class="$style.nodesContent">
 			<GsDraggable
 
-				:modelValue="nodeGraph.nodes"
+				:modelValue="nodeGraph.nodes.filter(node => node.type !== 'globalIn' && node.type !== 'globalOut')"
 				direction="vertical"
 				manualDragStart
 				withGaps
 				@update:modelValue="onSorted"
 			>
 				<template #header>
-					<XGlobalInNode v-if="globalInNode != null" :node="globalInNode" :class="$style.node"/>
+					<XGlobalInNode v-if="globalInNode != null" :node="globalInNode" :class="$style.node" style="margin-bottom: 4px;"/>
 				</template>
 				<template #default="{ item: node, dragStart }">
 					<XEffectNode v-if="node.type === 'effect'" :nodeGraphId="nodeGraph.id" :node="node" :class="$style.node" @dragStart="dragStart"/>
 				</template>
 				<template #footer>
-					<XGlobalOutNode v-if="globalOutNode != null" :node="globalOutNode" :nodeGraphId="nodeGraph.id" :class="$style.node"/>
+					<XGlobalOutNode v-if="globalOutNode != null" :node="globalOutNode" :nodeGraphId="nodeGraph.id" :class="$style.node" style="margin-top: 4px;"/>
 				</template>
 			</GsDraggable>
 
