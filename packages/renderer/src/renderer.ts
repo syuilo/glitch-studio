@@ -592,7 +592,7 @@ class NodeGraphRenderer {
 		if (key != null) this.effectCacheKeys.set(node.id, key);
 	}
 
-	public render(context: NodeGraphRenderContext) {
+	public render(context: NodeGraphRenderContext, commandEncoder: GPUCommandEncoder): GPUTexture | undefined {
 		if (this.renderNodeId == null) return;
 		const node = this.allNodeIdMap.get(this.renderNodeId);
 		if (node == null) return;
@@ -605,13 +605,17 @@ class NodeGraphRenderer {
 		});
 
 		this.prepareOutputPorts(node);
-		const commandEncoder = this.gpuDevice.createCommandEncoder();
 
 		this.renderNode(node, commandEncoder, {
 			...context,
 			visited: new Set<GsNode['id']>(),
 			rendered: new Set<GsNode['id']>(),
 		});
+
+		const output = this.getOutputNode(node);
+		const outputTexture = (output == null ? undefined : this.getOutputTexture(output.node, output.outputPort)) ?? this.fallbackTexture;
+
+		return outputTexture;
 	}
 
 	// TODO: もっとスマートなリソース更新方法を考える
@@ -693,7 +697,7 @@ export class MainRenderer {
 	private finalRenderUniformValues: ReturnType<typeof makeStructuredView>;
 	private finalRenderUniformBuffer: GPUBuffer;
 	private finalRenderBindGroup: GPUBindGroup | null = null;
-	private finalRenderInputTexture: GPUTexture | null = null;
+	private latestRenderedToCanasTexture: GPUTexture | null = null;
 	private enable32bitDataTextures = false;
 	private readonly intermediateTextureFormat: IntermediateTextureFormat;
 	private latestTimestamp: number = performance.now();
@@ -839,24 +843,17 @@ export class MainRenderer {
 		this.updateAutomations(options.automations);
 	}
 
-	public render(renderNodeId: string | null | undefined, args: {
-		time: number;
-		mouseX?: number;
-		mouseY?: number;
-		frame?: number;
-	}) {
-		// TODO
-
+	public renderToCanvas(tex: GPUTexture, commandEncoder: GPUCommandEncoder) {
 		//#region canvasに描画
 		// 末尾が無効でもバイパス先を表示する。出力なしでも描画し、前の画像を残さない。
-		if (this.finalRenderBindGroup == null || this.finalRenderInputTexture !== outputTexture) {
-			this.finalRenderInputTexture = outputTexture;
+		if (this.finalRenderBindGroup == null || this.latestRenderedToCanasTexture !== tex) {
+			this.latestRenderedToCanasTexture = tex;
 			this.finalRenderBindGroup = this.gpuDevice.createBindGroup({
 				layout: this.finalRenderPipeline.getBindGroupLayout(0),
 				entries: [
 					{ binding: 1, resource: { buffer: this.finalRenderUniformBuffer } },
 					{ binding: 3, resource: this.finalRenderSampler },
-					{ binding: 2, resource: this.finalRenderInputTexture.createView() }, // TODO: cache view
+					{ binding: 2, resource: tex.createView() }, // TODO: cache view
 				],
 			});
 		}
@@ -879,26 +876,12 @@ export class MainRenderer {
 		passEncoder.draw(6);
 		passEncoder.end();
 
-		this.gpuHistogram.render(commandEncoder, this.finalRenderInputTexture);
-		this.gpuWaveformHorizontal.render(commandEncoder, this.finalRenderInputTexture);
-		this.gpuWaveformVertical.render(commandEncoder, this.finalRenderInputTexture);
+		this.gpuHistogram.render(commandEncoder, tex);
+		this.gpuWaveformHorizontal.render(commandEncoder, tex);
+		this.gpuWaveformVertical.render(commandEncoder, tex);
 
 		this.gpuDevice.queue.submit([commandEncoder.finish()]);
 		//#endregion
-
-		this.pointerPositionPrev = { ...this.pointerPosition };
-
-		this.latestTimestamp = args.time;
-
-		this.fpsAverage.addSample(1000 / realTimeDelta);
-
-		if (this.enableStats) {
-			this.timingHelper.getResult().then(gpuTime => {
-				this.gpuAverageFast.addSample(gpuTime / 1000);
-				this.gpuAverageMedium.addSample(gpuTime / 1000);
-				this.gpuAverageSlow.addSample(gpuTime / 1000);
-			});
-		}
 	}
 
 	// (非workerで)呼び出すときはnewAssetsを独立した参照にすること！ パフォーマンス上の理由でこちら側ではdeepCloneしません
@@ -1003,6 +986,8 @@ export class MainRenderer {
 	}
 
 	public renderTimelineAt(time: number) {
+		const commandEncoder = this.gpuDevice.createCommandEncoder();
+
 		// TODO: 表示layerを算出して処理
 		// https://github.com/syuilo/glitch-studio-web/issues/65#issuecomment-5730058970
 	}
@@ -1015,8 +1000,8 @@ export class MainRenderer {
 		const renderLoop = (timeStamp: number) => {
 			this.currentRafId = requestAnimationFrame(renderLoop);
 
+			const delta = timeStamp - then;
 			if (this.fpsLimit != null) {
-				const delta = timeStamp - then;
 				if (delta <= interval) return;
 				then = timeStamp - (delta % interval);
 			}
@@ -1024,6 +1009,20 @@ export class MainRenderer {
 			this.renderSingleNodeGraph(this.liveNodeGraph, {
 				time: timeStamp,
 			});
+
+			this.pointerPositionPrev = { ...this.pointerPosition };
+
+			this.latestTimestamp = timeStamp;
+
+			this.fpsAverage.addSample(1000 / delta);
+
+			if (this.enableStats) {
+				this.timingHelper.getResult().then(gpuTime => {
+					this.gpuAverageFast.addSample(gpuTime / 1000);
+					this.gpuAverageMedium.addSample(gpuTime / 1000);
+					this.gpuAverageSlow.addSample(gpuTime / 1000);
+				});
+			}
 		};
 
 		this.currentRafId = requestAnimationFrame(renderLoop);
