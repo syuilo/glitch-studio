@@ -1,5 +1,5 @@
 import * as msgpack from '@msgpack/msgpack';
-import type { RawPreset, RawProject } from './settings';
+import type { RawPreset, Project } from './settings';
 import type { Asset } from '@glitch/shared/types.ts';
 
 type DecodedImage = { width: number; height: number; data: Uint8Array };
@@ -92,8 +92,8 @@ export function openMediaFile(options: { multiple?: boolean; file?: File } = {})
 				media.preload = 'metadata';
 				media.onloadedmetadata = () => {
 					resolve({ width: media instanceof HTMLVideoElement ? media.videoWidth : 0,
-						height: media instanceof HTMLVideoElement ? media.videoHeight : 0,
-						data: null, name: file.name, type: file.type, fileData: file });
+															height: media instanceof HTMLVideoElement ? media.videoHeight : 0,
+															data: null, name: file.name, type: file.type, fileData: file });
 					cleanup();
 				};
 				media.onerror = () => { const error = media.error; cleanup(); reject(error ?? new Error('Could not decode media')); };
@@ -186,7 +186,7 @@ export function exportPresetFile(preset: RawPreset) {
 	URL.revokeObjectURL(url);
 }
 
-export function saveProjectFile(project: RawProject) {
+export function saveProjectFile(project: Project) {
 	console.log('saveProjectFile', project);
 	const buffer = msgpack.encode(project); // NOTE: バイナリはUint8Arrayである必要がある
 	const blob = new Blob([buffer], { type: 'application/octet-stream' });
@@ -199,7 +199,7 @@ export function saveProjectFile(project: RawProject) {
 }
 
 export function loadProjectFile(): Promise<{
-	project: RawProject;
+	project: Project;
 	name: string;
 }> {
 	return new Promise((resolve, reject) => {
@@ -213,14 +213,14 @@ export function loadProjectFile(): Promise<{
 			if (file.stream) {
 				msgpack.decodeAsync(file.stream()).then(parsed => {
 					resolve({
-						project: parsed as RawProject,
+						project: parsed as Project,
 						name: file.name,
 					});
 				}).catch(reject);
 			} else {
 				file.arrayBuffer().then(buffer => {
 					resolve({
-						project: msgpack.decode(buffer) as RawProject,
+						project: msgpack.decode(buffer) as Project,
 						name: file.name,
 					});
 				}).catch(reject);

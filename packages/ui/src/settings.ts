@@ -6,20 +6,6 @@ import type { GsNode, Macro, GsAutomation, Asset, NodeGraph, Timeline, Player } 
 //const filePath = path.join(userDataPath, 'settings');
 const filePath = '';
 
-export type RawProject = {
-	id: string;
-	gsVersion: string;
-	author: string;
-	name: string;
-	nodeGraphs: NodeGraph[];
-	macros: Macro[];
-	automations: GsAutomation[];
-	resolution: { width: number; height: number; };
-	assets: Omit<Asset, 'data'>[];
-	players: Player[];
-	timeline: Timeline;
-};
-
 export type RawPreset = {
 	id: string;
 	gsVersion: string;

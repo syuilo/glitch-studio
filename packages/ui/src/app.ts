@@ -1,6 +1,10 @@
 import { ref, markRaw, reactive, watch, shallowRef, triggerRef, computed } from 'vue';
 import { deepClone } from '@glitch/shared/utility/deep-clone.ts';
 import { genId } from '@glitch/shared/utility/id.ts';
+import fillEffectDef from '@glitch/shared/effects/fill/_def_.ts';
+import imageEffectDef from '@glitch/shared/effects/image/_def_.ts';
+import videoEffectDef from '@glitch/shared/effects/video/_def_.ts';
+import audioWaveformEffectDef from '@glitch/shared/effects/audioWaveform/_def_.ts';
 import { loadProjectFile, saveProjectFile, decodeAssets } from './api.ts';
 import { Engine } from './engine.ts';
 import { preferences } from './preferences.ts';
@@ -9,7 +13,7 @@ import GsEffectPicker from './components/GsEffectPicker.vue';
 import type { CommandDef } from './commands.ts';
 import type { AppState } from './types.ts';
 import type { Asset, GsNode, Macro, GsAutomation, GsGroupNode, Player, NodeGraph } from '@glitch/shared/types.ts';
-import type { RawProject } from './settings.ts';
+import type { Project } from './gsproj.ts';
 import * as ui from '@/ui.ts';
 import * as api from '@/api.ts';
 
@@ -169,7 +173,7 @@ watch([appContext.state.resolution, resolutionFactor], () => {
 	});
 });
 
-export async function appReady(project: RawProject) {
+export async function appReady(project: Project) {
 	window.document.title = `Glitch Studio (${project.name})`;
 
 	await engine.init({
@@ -181,7 +185,6 @@ export async function appReady(project: RawProject) {
 	appContext.projectName = project.name;
 	appContext.projectAuthor = project.author;
 	appContext.state.resolution.value = project.resolution;
-	//appContext.state.assets.value = await decodeAssets(project.assets); // TODO
 	appContext.state.assets.value = project.assets;
 	appContext.state.nodeGraphs.value = project.nodeGraphs;
 	appContext.state.macros.value = project.macros;
@@ -212,26 +215,7 @@ export async function appReady(project: RawProject) {
 }
 
 export function saveProject() {
-	//saveProjectFile({
-	//	id: store.id,
-	//	gsVersion: _VERSION_,
-	//	name: store.name,
-	//	author: store.author,
-	//	macros: store.macros,
-	//	nodes: store.nodes,
-	//	automations: store.automations,
-	//	renderWidth: store.renderWidth,
-	//	renderHeight: store.renderHeight,
-	//	assets: store.assets.map(asset => ({
-	//		id: asset.id,
-	//		name: asset.name,
-	//		width: asset.width,
-	//		height: asset.height,
-	//		fileDataType: asset.fileDataType,
-	//		fileData: asset.fileData,
-	//		hash: asset.hash,
-	//	})),
-	//});
+	// TODO
 }
 
 export async function openProject() {
@@ -258,7 +242,7 @@ export async function newProject() {
 				color: { type: 'literal', value: [0, 1, 0, 1] },
 			},
 			isBypass: false,
-		}, {
+		} satisfies EffectNodeOf<typeof fillEffectDef>, {
 			id: genId(),
 			type: 'globalOut',
 			input: {
@@ -334,15 +318,16 @@ export async function newProjectFromImageOrVideo(file?: File) {
 				sizeMode: { type: 'literal', value: 1 },
 			},
 			isBypass: false,
-		} : result.type.startsWith('video/') ? {
+		} satisfies EffectNodeOf<typeof imageEffectDef> : result.type.startsWith('video/') ? {
 			id: initialEffectNodeId,
 			type: 'effect',
 			effectId: 'video',
 			params: {
 				player: { type: 'literal', value: player!.id },
+				sizeMode: { type: 'literal', value: 1 },
 			},
 			isBypass: false,
-		} : result.type.startsWith('audio/') ? {
+		} satisfies EffectNodeOf<typeof videoEffectDef> : result.type.startsWith('audio/') ? {
 			id: initialEffectNodeId,
 			type: 'effect',
 			effectId: 'audioWaveform',
@@ -350,7 +335,7 @@ export async function newProjectFromImageOrVideo(file?: File) {
 				player: { type: 'literal', value: player!.id },
 			},
 			isBypass: false,
-		} : {
+		} satisfies EffectNodeOf<typeof audioWaveformEffectDef> : {
 			id: initialEffectNodeId,
 			type: 'effect',
 			effectId: 'fill',
@@ -358,7 +343,7 @@ export async function newProjectFromImageOrVideo(file?: File) {
 				color: { type: 'literal', value: [0, 1, 0, 1] },
 			},
 			isBypass: false,
-		}, {
+		} satisfies EffectNodeOf<typeof fillEffectDef>, {
 			id: genId(),
 			type: 'globalOut',
 			input: {
@@ -367,8 +352,6 @@ export async function newProjectFromImageOrVideo(file?: File) {
 			},
 		}],
 	} satisfies NodeGraph;
-
-	console.log('Initial Node Graph:', initialNodeGraph);
 
 	await appReady({
 		id: genId(),
