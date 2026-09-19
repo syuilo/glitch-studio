@@ -8,7 +8,7 @@
 
 	<div ref="inputRow" :class="$style.inputRow" data-wire-input-row>
 		<GsNodePort dataType="color" @update:element="allInPortEl = $event"/>
-		<i v-if="hasNodeInputTypeMismatch(nodes, connection, 'color')" v-tooltip="'Data type mismatch'" class="ti ti-alert-triangle" :class="$style.typeWarning"></i>
+		<i v-if="hasNodeInputTypeMismatch(nodes, connection, 'color', paramDefs)" v-tooltip="'Data type mismatch'" class="ti ti-alert-triangle" :class="$style.typeWarning"></i>
 		<GsSelect
 			small
 			:modelValue="nodeOutputKey(connection)"
@@ -36,9 +36,10 @@ const props = defineProps<{
 
 const allInPortEl = shallowRef<HTMLElement | null>(null);
 const inputRow = useTemplateRef('inputRow');
+const paramDefs = computed(() => appContext.state.visualModules.value.find(module => module.id === props.visualModuleId)?.paramDefs ?? []);
 const nodes = computed(() => appContext.state.visualModules.value.find(visualModule => visualModule.id === props.visualModuleId)?.nodes ?? []);
 const connection = computed(() => props.node.input.nodeId == null ? null : props.node.input);
-const outputItems = computed(() => getNodeOutputItems(nodes.value, props.node.id, 'color'));
+const outputItems = computed(() => getNodeOutputItems(nodes.value, props.node.id, 'color', paramDefs.value));
 
 function connect(value: NodeOutputReference | null) {
 	if (value != null && !outputItems.value.some(item => item.value === nodeOutputKey(value))) return;

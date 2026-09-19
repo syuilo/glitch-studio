@@ -57,7 +57,7 @@ const addEffectNodeCommandDef = defineCommand<{ visualModuleId: string; id: stri
 						params[key] = def.default();
 						if (def.primary && previousInput?.nodeId != null) {
 							// 元の接続が副出力でも、その出力ポートをそのまま引き継ぐ。
-							const output = getNodeOutputs(previous)[previousInput.outputPort];
+							const output = getNodeOutputs(previous, visualModule.paramDefs)[previousInput.outputPort];
 							if (canConnectNodeDataTypes(output?.dataType, getNodeInputDataType(def))) {
 								params[key] = { type: 'node', ...deepClone(previousInput) };
 							}
@@ -66,7 +66,7 @@ const addEffectNodeCommandDef = defineCommand<{ visualModuleId: string; id: stri
 					// ランダムな初期値や自動接続もRedo時に変えない。
 					addedNode = { id: payload.id, type: 'effect', effectId: payload.effectId, isBypass: false,
 																			params: { ...params, ...deepClone(payload.params ?? {}) }, pos: { x: 0, y: 0 } };
-					const outputPort = Object.entries(getNodeOutputs(addedNode)).find(([, output]) => output.primary && canConnectNodeDataTypes(output.dataType, 'color'))?.[0];
+					const outputPort = Object.entries(getNodeOutputs(addedNode, visualModule.paramDefs)).find(([, output]) => output.primary && canConnectNodeDataTypes(output.dataType, 'color'))?.[0];
 					if (globalOut != null && outputPort != null) {
 						outputConnection = {
 							nodeId: globalOut.id,
@@ -130,7 +130,7 @@ const removeNodeCommandDef = defineCommand<NodeTarget>({
 				const input = primary?.value;
 				const replacement: NodeOutputReference | null = input?.type === 'node' && input.nodeId != null && input.nodeId !== payload.nodeId
 					? { nodeId: input.nodeId, outputPort: input.outputPort } : null;
-				const replacementOutput = replacement == null ? undefined : getNodeOutputs(visualModule.nodes.find(node => node.id === replacement.nodeId))[replacement.outputPort];
+				const replacementOutput = replacement == null ? undefined : getNodeOutputs(visualModule.nodes.find(node => node.id === replacement.nodeId), visualModule.paramDefs)[replacement.outputPort];
 				// 削除したノードの主入力へ接続し直す。globalOutの参照も同じ操作で復元可能にする。
 				for (const node of visualModule.nodes) {
 					if (node.id === payload.nodeId) continue;
@@ -613,7 +613,7 @@ const updateGlobalOutInputCommandDef = defineCommand<NodeTarget & { value: NodeO
 				if (node?.type !== 'globalOut') throw new Error('Global output node not found');
 				if (payload.value != null) {
 					const source = stateUtility.findNode(state, { visualModuleId: payload.visualModuleId, nodeId: payload.value.nodeId });
-					if (getNodeOutputs(source)[payload.value.outputPort] == null) throw new Error('Node output not found in this visualModule');
+					if (getNodeOutputs(source, stateUtility.getVisualModule(state, payload.visualModuleId).paramDefs)[payload.value.outputPort] == null) throw new Error('Node output not found in this visualModule');
 				}
 				before = deepClone(node.input);
 				node.input = payload.value == null ? { nodeId: null, outputPort: null }

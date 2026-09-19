@@ -72,6 +72,7 @@ type Wire = {
 };
 
 // 接続先の列挙はレイアウトから独立させ、座標変更では再走査しない。
+const paramDefs = computed(() => appContext.state.visualModules.value.find(module => module.id === props.visualModuleId)?.paramDefs ?? []);
 const nodesById = computed(() => {
 	const nodes = appContext.state.visualModules.value.find(visualModule => visualModule.id === props.visualModuleId)?.nodes ?? [];
 	return new Map(nodes.map(node => [node.id, node]));
@@ -96,7 +97,7 @@ const connections = computed(() => {
 				from,
 				input: undefined,
 				allIn: wireMap.allIn[node.id],
-				...getWireColors(getNodeOutputs(nodesById.value.get(nodeId))[outputPort]?.dataType ?? 'any', 'color'),
+				...getWireColors(getNodeOutputs(nodesById.value.get(nodeId), paramDefs.value)[outputPort]?.dataType ?? 'any', 'color'),
 			});
 			continue;
 		}
@@ -111,7 +112,7 @@ const connections = computed(() => {
 				from,
 				input: wireMap.in[node.id]?.[paramPathKey(path)],
 				allIn: wireMap.allIn[node.id],
-				...getWireColors(getNodeOutputs(nodesById.value.get(value.nodeId))[value.outputPort]?.dataType ?? 'any', getNodeInputDataType(def) ?? 'any'),
+				...getWireColors(getNodeOutputs(nodesById.value.get(value.nodeId), paramDefs.value)[value.outputPort]?.dataType ?? 'any', getNodeInputDataType(def) ?? 'any'),
 			});
 		}
 	}

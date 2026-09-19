@@ -14,7 +14,7 @@
 			</template>
 			<template v-else-if="paramDef.type !== 'struct'">
 				<GsNodePort v-if="canNode" :dataType="inputDataType" @update:element="portEl = $event"/>
-				<i v-if="hasNodeInputTypeMismatch(nodes, nodeConnection, inputDataType)" v-tooltip="'Data type mismatch'" class="ti ti-alert-triangle" :class="$style.typeWarning"></i>
+				<i v-if="hasNodeInputTypeMismatch(nodes, nodeConnection, inputDataType, paramDefs)" v-tooltip="'Data type mismatch'" class="ti ti-alert-triangle" :class="$style.typeWarning"></i>
 				<div :class="$style.control">
 					<GsInput v-if="paramValue.type === 'expression'" type="text" :modelValue="paramValue.expression" @update:modelValue="updateParamAsExpression">
 						<template #caption>
@@ -156,10 +156,11 @@ const visibleFields = computed(() => {
 });
 const canNode = computed(() => paramDef.value.type !== 'array' && paramDef.value.type !== 'struct' && paramDef.value.canNode);
 const inputDataType = computed(() => paramDef.value.type !== 'array' && paramDef.value.type !== 'struct' ? getNodeInputDataType(paramDef.value) : null);
+const paramDefs = computed(() => appContext.state.visualModules.value.find(module => module.id === props.visualModuleId)?.paramDefs ?? []);
 const nodes = computed(() => appContext.state.visualModules.value.find(visualModule => visualModule.id === props.visualModuleId)?.nodes ?? []);
 const macroItems = computed(() => (props.node == null ? [] : appContext.state.visualModules.value.find(module => module.id === props.visualModuleId)?.paramDefs ?? [])
 	.map(def => ({ label: `${def.label} (${def.name})`, value: def.id })));
-const nodeOutputItems = computed(() => props.node == null ? [] : getNodeOutputItems(nodes.value, props.node.id, inputDataType.value));
+const nodeOutputItems = computed(() => props.node == null ? [] : getNodeOutputItems(nodes.value, props.node.id, inputDataType.value, paramDefs.value));
 const nodeConnection = computed<NodeOutputReference | null>(() => props.paramValue.type === 'node' && props.paramValue.nodeId != null ? props.paramValue : null);
 const automationName = computed(() => {
 	const value = props.paramValue;

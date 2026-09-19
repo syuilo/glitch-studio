@@ -1,7 +1,7 @@
 import { effectDefinitions } from '@glitch/shared/effect-definitions.ts';
 import { areNodeDataTypesCompatible, getNodeOutputs } from '@glitch/shared/utility/node-outputs.ts';
 import type { NodeDataType } from '@glitch/shared/utility/node-outputs.ts';
-import type { GsNode, NodeOutputReference } from '@glitch/shared/types.ts';
+import type { GsNode, NodeOutputReference, VisualModule } from '@glitch/shared/types.ts';
 import { preferences } from '@/preferences.ts';
 
 export function getNodeDataTypeColor(dataType: NodeDataType | null | undefined): string {
@@ -19,22 +19,22 @@ export function nodeOutputKey(connection: NodeOutputReference | null): string | 
 }
 
 // 接続済みの警告は、forceTypeSafetyによる候補の絞り込みとは独立して判定する。
-export function hasNodeInputTypeMismatch(nodes: GsNode[], connection: NodeOutputReference | null, inputDataType: NodeDataType | null): boolean {
+export function hasNodeInputTypeMismatch(nodes: GsNode[], connection: NodeOutputReference | null, inputDataType: NodeDataType | null, paramDefs: VisualModule['paramDefs'] = []): boolean {
 	if (connection == null || inputDataType == null) return false;
 	return nodes.some(node => {
 		if (node.id === connection.nodeId) {
-			const output = getNodeOutputs(node)[connection.outputPort];
+			const output = getNodeOutputs(node, paramDefs)[connection.outputPort];
 			return output != null && !areNodeDataTypesCompatible(output.dataType, inputDataType);
 		}
 		return false;
 	});
 }
 
-export function getNodeOutputItems(nodes: GsNode[], excludedNodeId?: string, inputDataType?: NodeDataType | null): { label: string; value: string; connection: NodeOutputReference; dataType: NodeDataType; typeCompatible: boolean; icon?: string }[] {
+export function getNodeOutputItems(nodes: GsNode[], excludedNodeId?: string, inputDataType?: NodeDataType | null, paramDefs: VisualModule['paramDefs'] = []): { label: string; value: string; connection: NodeOutputReference; dataType: NodeDataType; typeCompatible: boolean; icon?: string }[] {
 	return nodes.flatMap(node => {
 		if (node.id === excludedNodeId) return [];
 		const name = node.type === 'effect' ? effectDefinitions[node.effectId].displayName : node.type === 'globalIn' ? 'In' : 'Out';
-		const outputs = Object.entries(getNodeOutputs(node)).filter(([, output]) => inputDataType === undefined || canConnectNodeDataTypes(output.dataType, inputDataType)).map(([outputPort, output]) => {
+		const outputs = Object.entries(getNodeOutputs(node, paramDefs)).filter(([, output]) => inputDataType === undefined || canConnectNodeDataTypes(output.dataType, inputDataType)).map(([outputPort, output]) => {
 			const connection = { nodeId: node.id, outputPort };
 			const typeCompatible = inputDataType === undefined || areNodeDataTypesCompatible(output.dataType, inputDataType);
 			return { label: `${name} [${node.id}]: ${outputPort}`, value: nodeOutputKey(connection)!, connection, dataType: output.dataType,

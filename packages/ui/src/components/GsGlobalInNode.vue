@@ -11,7 +11,7 @@
 		<span v-if="selectedParamId == null" :class="$style.missing">Select a node-capable parameter</span>
 	</div>
 
-	<GsNodeOutputs :node="node"/>
+	<GsNodeOutputs :node="node" :paramDefs="visualModule.paramDefs"/>
 </div>
 </template>
 
