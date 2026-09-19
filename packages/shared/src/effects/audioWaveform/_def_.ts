@@ -9,7 +9,7 @@ export default defineEffect({
 		channel: { type: 'enum', label: 'Channel', options: [
 			{ label: 'Left', value: 'left' }, { label: 'Right', value: 'right' },
 			{ label: 'Mix (L + R)', value: 'mix' }, { label: 'Stereo', value: 'stereo' },
-		], default: () => ({ type: 'literal', value: 'stereo' }) },
+		], default: () => ({ type: 'literal', value: 'stereo' as const }) },
 		duration: { type: 'range', label: 'Time span (seconds)', min: 0.005, max: 1, step: 0.005, default: () => ({ type: 'literal', value: 0.05 }) },
 		amplitude: { type: 'range', label: 'Amplitude', min: 0, max: 10, step: 0.01, default: () => ({ type: 'literal', value: 1 }) },
 		lineWidth: { type: 'range', label: 'Line width', min: 0.001, max: 0.05, step: 0.001, default: () => ({ type: 'literal', value: 0.003 }) },

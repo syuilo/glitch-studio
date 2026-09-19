@@ -23,7 +23,7 @@ export default defineEffect({
 				label: 'Contain',
 				value: 2,
 			}],
-			default: () => ({ type: 'literal', value: 1 }),
+			default: () => ({ type: 'literal', value: 1 as const }),
 		},
 	},
 	outputs: {
