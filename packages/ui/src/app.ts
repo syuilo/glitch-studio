@@ -12,6 +12,7 @@ import { COMMAND_DEFS } from './commands.ts';
 import GsEffectPicker from './components/GsEffectPicker.vue';
 import type { CommandDef } from './commands.ts';
 import type { AppState } from './types.ts';
+import type { EffectNodeOf } from '@glitch/shared/effect-definition.ts';
 import type { Asset, GsNode, Macro, GsAutomation, GsGroupNode, Player, NodeGraph } from '@glitch/shared/types.ts';
 import type { Project } from './gsproj.ts';
 import * as ui from '@/ui.ts';
@@ -315,7 +316,7 @@ export async function newProjectFromImageOrVideo(file?: File) {
 			effectId: 'image',
 			params: {
 				image: { type: 'literal', value: asset.id },
-				sizeMode: { type: 'literal', value: 1 },
+				sizeMode: imageEffectDef.paramDefs.sizeMode.default(),
 			},
 			isBypass: false,
 		} satisfies EffectNodeOf<typeof imageEffectDef> : result.type.startsWith('video/') ? {
@@ -324,7 +325,7 @@ export async function newProjectFromImageOrVideo(file?: File) {
 			effectId: 'video',
 			params: {
 				player: { type: 'literal', value: player!.id },
-				sizeMode: { type: 'literal', value: 1 },
+				sizeMode: videoEffectDef.paramDefs.sizeMode.default(),
 			},
 			isBypass: false,
 		} satisfies EffectNodeOf<typeof videoEffectDef> : result.type.startsWith('audio/') ? {
@@ -333,6 +334,12 @@ export async function newProjectFromImageOrVideo(file?: File) {
 			effectId: 'audioWaveform',
 			params: {
 				player: { type: 'literal', value: player!.id },
+				channel: audioWaveformEffectDef.paramDefs.channel.default(),
+				duration: audioWaveformEffectDef.paramDefs.duration.default(),
+				amplitude: audioWaveformEffectDef.paramDefs.amplitude.default(),
+				lineWidth: audioWaveformEffectDef.paramDefs.lineWidth.default(),
+				colorL: audioWaveformEffectDef.paramDefs.colorL.default(),
+				colorR: audioWaveformEffectDef.paramDefs.colorR.default(),
 			},
 			isBypass: false,
 		} satisfies EffectNodeOf<typeof audioWaveformEffectDef> : {
