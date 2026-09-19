@@ -1,7 +1,7 @@
 <template>
 <div :class="$style.root">
 	<div :class="$style.header">
-		<button class="_button" style="padding: 4px 6px;"><i class="ti ti-chevron-down"></i> Graph: {{ nodeGraph?.id ?? '' }}</button>
+		<button class="_button" style="padding: 4px 6px;"><i class="ti ti-chevron-down"></i> Graph: {{ nodeGraph?.name ?? '' }} [{{ nodeGraph?.id ?? '' }}]</button>
 	</div>
 	<div v-if="nodeGraph != null" :key="nodeGraph.id" :class="$style.nodesContainer">
 		<div :class="$style.nodesContent">

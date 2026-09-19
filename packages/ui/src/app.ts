@@ -231,7 +231,7 @@ export async function newProject() {
 	const initialEffectNodeId = genId();
 	const initialNodeGraph = {
 		id: genId(),
-		name: '',
+		name: 'My Graph',
 		nodes: [{
 			id: genId(),
 			type: 'globalIn',
@@ -306,7 +306,7 @@ export async function newProjectFromImageOrVideo(file?: File) {
 	const initialEffectNodeId = genId();
 	const initialNodeGraph = {
 		id: genId(),
-		name: '',
+		name: 'My Graph',
 		nodes: [{
 			id: genId(),
 			type: 'globalIn',
