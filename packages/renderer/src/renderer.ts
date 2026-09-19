@@ -6,6 +6,7 @@ import { playerAudioSourceId } from '@glitch/shared/audio.ts';
 import { AudioHistory } from '@glitch/shared/audio-history.ts';
 import { float32ToFloat16Bits } from '@glitch/shared/utility/float32ToFloat16Bits.ts';
 import { effectImplementations } from '@glitch/shared/effect-implementations.js';
+import { deepClone } from '@glitch/shared/utility/deep-clone.js';
 import defaultVertexShaderCode from './vertex.wgsl?raw';
 import TimingHelper from './utility/TimingHelper.ts';
 import { getEvaluatedParam, mapNodeParam, walkNodeParams } from './utility/node-params.ts';
@@ -172,12 +173,12 @@ class VisualModuleRenderer {
 			}
 			if (this.paramTextures.has(def.id)) continue;
 			const fallbackDef = { ...def.typeOptions, type: def.type, label: def.label };
-			let evaluated = def.defaultValue;
+			let evaluated = deepClone(def.defaultValue); // 参照が共有されないように切る
 			if (value?.type === 'literal') evaluated = value.value;
 			if (value?.type === 'expression') evaluated = evaluateExpression(value.expression, scope, fallbackDef);
 			if (value?.type === 'automation') {
 				const automation = this.automations.find(automation => automation.id === value.automationId);
-				evaluated = automation == null ? def.defaultValue : evalAutomationValue(automation, context.localTime);
+				evaluated = automation == null ? deepClone(def.defaultValue) : evalAutomationValue(automation, context.localTime);
 			}
 			this.paramValues.set(def.id, evaluated);
 		}

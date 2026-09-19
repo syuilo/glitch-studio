@@ -23,6 +23,13 @@
 					</GsInput>
 					<GsButton v-else-if="paramValue.type === 'automation'" small @click="selectAutomation">{{ automationName }}</GsButton>
 					<GsSelect
+						v-else-if="paramValue.type === 'macro'"
+						small
+						:modelValue="paramValue.macroId"
+						:items="[{ label: i18n.ts.None, value: '' }, ...macroItems]"
+						@update:modelValue="value => emit('edit', { kind: 'macro', ...target(), value })"
+					/>
+					<GsSelect
 						v-else-if="paramValue.type === 'node'"
 						small
 						:modelValue="nodeOutputKey(nodeConnection)"
@@ -30,7 +37,7 @@
 						@update:modelValue="updateParamAsNode"
 					/>
 					<GsEffectParamControl
-						v-else
+						v-else-if="paramValue.type === 'literal'"
 						ref="controlComponent"
 						:type="paramDef.type"
 						:title="label ?? paramDef.label"
@@ -58,6 +65,7 @@
 			:paramDef="paramDef.item"
 			:paramValue="value"
 			:label="'[' + index + ']'"
+			@edit="emit('edit', $event)"
 		>
 			<template #actions>
 				<GsButton small iconOnly danger title="Remove element" @click="removeElement(index)"><i class="ti ti-x"></i></GsButton>
@@ -73,10 +81,28 @@
 			:paramPath="[...paramPath, key]"
 			:paramDef="def"
 			:paramValue="structValues[key]"
+			@edit="emit('edit', $event)"
 		/>
 	</div>
 </div>
 </template>
+
+<script lang="ts">
+import type { EffectParamValue, NodeOutputReference } from '@glitch/shared/types.ts';
+import type { ParamPath } from '@/utility/node-params.ts';
+import { deepClone } from '@glitch/shared/utility/deep-clone.js';
+
+export type ParamEdit = { paramPath: ParamPath; mergeKey?: string | null } & (
+	| { kind: 'literal'; value: any }
+	| { kind: 'expression'; value: string }
+	| { kind: 'automation'; value: string | null }
+	| { kind: 'node'; value: NodeOutputReference | null }
+	| { kind: 'macro'; value: string }
+	| { kind: 'type'; type: EffectParamValue['type'] }
+	| { kind: 'reset' | 'addElement' }
+	| { kind: 'removeElement'; index: number }
+);
+</script>
 
 <script lang="ts" setup>
 import { computed, onBeforeUnmount, ref, shallowRef, useTemplateRef, watch, watchEffect } from 'vue';
@@ -89,9 +115,9 @@ import GsButton from './common/GsButton.vue';
 import GsInput from './common/GsInput.vue';
 import GsCondensedLine from './common/GsCondensedLine.vue';
 import GsSelect from './common/GsSelect.vue';
-import type { EffectParamValue, GsEffectNode, NodeOutputReference } from '@glitch/shared/types.ts';
+import type { EffectParamDef, GsEffectNode, VisualModule } from '@glitch/shared/types.ts';
 import type { MenuItem } from '@/types/menu.ts';
-import type { NodeParamDef, ParamPath } from '@/utility/node-params.ts';
+import type { NodeParamDef } from '@/utility/node-params.ts';
 import { i18n } from '@/i18n.ts';
 import { appContext, wireMap } from '@/app.ts';
 import { paramPathKey } from '@/utility/node-params.ts';
@@ -100,27 +126,40 @@ import { registerWireInput } from '@/utility/wire-drag.ts';
 import * as ui from '@/ui.ts';
 
 const props = defineProps<{
-	visualModuleId: string;
-	node: GsEffectNode;
+	visualModuleId?: string;
+	node?: GsEffectNode;
 	paramPath: ParamPath;
-	paramDef: NodeParamDef;
+	paramDef: NodeParamDef | VisualModule['paramDefs'][number];
 	paramValue: EffectParamValue;
 	label?: string;
 }>();
 
+const emit = defineEmits<{ edit: [event: ParamEdit] }>();
+// VisualModuleのtypeOptions/defaultValueを既存の入力コントロール用に正規化する。
+const paramDef = computed<EffectParamDef>(() => {
+	const def = props.paramDef;
+	if ('defaultValue' in def) return {
+		...def.typeOptions, type: def.type, label: def.label, canNode: def.canNode,
+		default: () => ({ type: 'literal', value: deepClone(def.defaultValue) }),
+	};
+	return def as EffectParamDef;
+});
+
 const rowEl = useTemplateRef('rowEl');
 const portEl = shallowRef<HTMLElement | null>(null);
-const arrayValues = computed<EffectParamValue[]>(() => props.paramDef.type === 'array' && props.paramValue.type === 'literal' ? props.paramValue.value : []);
-const structValues = computed<Record<string, EffectParamValue> | null>(() => props.paramDef.type === 'struct' && props.paramValue.type === 'literal' ? props.paramValue.value : null);
+const arrayValues = computed<EffectParamValue[]>(() => paramDef.value.type === 'array' && props.paramValue.type === 'literal' ? props.paramValue.value : []);
+const structValues = computed<Record<string, EffectParamValue> | null>(() => paramDef.value.type === 'struct' && props.paramValue.type === 'literal' ? props.paramValue.value : null);
 const visibleFields = computed(() => {
-	if (props.paramDef.type !== 'struct') return [];
-	const fields: Record<string, NodeParamDef> = props.paramDef.fields;
+	if (paramDef.value.type !== 'struct') return [];
+	const fields: Record<string, NodeParamDef> = paramDef.value.fields;
 	return Object.entries(fields).filter(([, def]) => !def.visibility || def.visibility(structValues.value ?? {}));
 });
-const canNode = computed(() => props.paramDef.type !== 'array' && props.paramDef.type !== 'struct' && props.paramDef.canNode);
-const inputDataType = computed(() => props.paramDef.type !== 'array' && props.paramDef.type !== 'struct' ? getNodeInputDataType(props.paramDef) : null);
+const canNode = computed(() => paramDef.value.type !== 'array' && paramDef.value.type !== 'struct' && paramDef.value.canNode);
+const inputDataType = computed(() => paramDef.value.type !== 'array' && paramDef.value.type !== 'struct' ? getNodeInputDataType(paramDef.value) : null);
 const nodes = computed(() => appContext.state.visualModules.value.find(visualModule => visualModule.id === props.visualModuleId)?.nodes ?? []);
-const nodeOutputItems = computed(() => getNodeOutputItems(nodes.value, props.node.id, inputDataType.value));
+const macroItems = computed(() => (props.node == null ? [] : appContext.state.visualModules.value.find(module => module.id === props.visualModuleId)?.paramDefs ?? [])
+	.map(def => ({ label: `${def.label} (${def.name})`, value: def.id })));
+const nodeOutputItems = computed(() => props.node == null ? [] : getNodeOutputItems(nodes.value, props.node.id, inputDataType.value));
 const nodeConnection = computed<NodeOutputReference | null>(() => props.paramValue.type === 'node' && props.paramValue.nodeId != null ? props.paramValue : null);
 const automationName = computed(() => {
 	const value = props.paramValue;
@@ -134,12 +173,12 @@ onBeforeUnmount(() => { mounted = false; });
 const arrayVersion = ref(0);
 // 構造変更時は子を作り直し、同じindexになった別要素へ編集中の状態を引き継がない。
 watch(() => props.paramValue, () => {
-	if (props.paramDef.type === 'array') arrayVersion.value++;
+	if (paramDef.value.type === 'array') arrayVersion.value++;
 });
-watch(() => JSON.stringify([props.visualModuleId, props.node.id, props.paramPath]), () => { commandMergeKey = null; });
+watch(() => JSON.stringify([props.visualModuleId, props.node?.id, props.paramPath]), () => { commandMergeKey = null; });
 
 function target() {
-	return { visualModuleId: props.visualModuleId, nodeId: props.node.id, paramPath: props.paramPath };
+	return { paramPath: props.paramPath };
 }
 
 watchEffect(onCleanup => {
@@ -151,9 +190,9 @@ watchEffect(onCleanup => {
 
 watchEffect(onCleanup => {
 	const el = portEl.value;
-	const nodeId = props.node.id;
+	const nodeId = props.node?.id;
 	const key = paramPathKey(props.paramPath);
-	if (el == null || !canNode.value) return;
+	if (el == null || nodeId == null || !canNode.value) return;
 	wireMap.in[nodeId] ??= {};
 	wireMap.in[nodeId][key] = el;
 	onCleanup(() => {
@@ -174,10 +213,10 @@ const isExpressionSyntaxError = computed(() => {
 
 function selectAutomation(ev: PointerEvent) {
 	ui.popupMenu([
-		{ text: '(none)', action: () => appContext.commit('updateParamAsAutomation', { ...target(), value: null }) },
+		{ text: '(none)', action: () => emit('edit', { kind: 'automation', ...target(), value: null }) },
 		...appContext.state.automations.value.map(a => ({
 			text: a.name,
-			action: () => appContext.commit('updateParamAsAutomation', { ...target(), value: a.id }),
+			action: () => emit('edit', { kind: 'automation', ...target(), value: a.id }),
 		})),
 	], ev.currentTarget ?? ev.target);
 }
@@ -191,25 +230,25 @@ function getMenu() {
 		text: 'Reset',
 		icon: 'ti ti-refresh',
 		danger: true,
-		action: () => appContext.commit('resetNodeParam', target()),
+		action: () => emit('edit', { kind: 'reset', ...target() }),
 	}];
 
 	// コンテナ自体は静的な構造を維持し、値の種類を変更できるのは末端だけにする。
-	if (props.paramDef.type !== 'array' && props.paramDef.type !== 'struct') {
+	if (paramDef.value.type !== 'array' && paramDef.value.type !== 'struct') {
 		menuItems.push({ type: 'label', text: 'Type' });
 		const types: { text: string; type: EffectParamValue['type']; icon: string }[] = [
 			{ text: 'Literal', type: 'literal', icon: 'ti ti-adjustments-horizontal' },
-			{ text: 'Macro', type: 'macro', icon: 'ti ti-star' }, // TODO: なんか良いアイコンを探す
 			{ text: 'Automation', type: 'automation', icon: 'ti ti-timeline' },
 			{ text: 'Expression', type: 'expression', icon: 'ti ti-math-function' },
 		];
+		types.push({ text: 'Macro', type: 'macro', icon: 'ti ti-star' });
 		if (canNode.value) types.push({ text: 'Node', type: 'node', icon: 'ti ti-plug' });
 		for (const { text, type, icon } of types) {
 			menuItems.push({
 				text,
 				icon,
 				active: props.paramValue.type === type,
-				action: () => appContext.commit('changeParamValueType', { ...target(), type }),
+				action: () => emit('edit', { kind: 'type', ...target(), type }),
 			});
 		}
 	}
@@ -229,7 +268,7 @@ function onBeginChanging() {
 }
 
 function changeContinuous(value: any) {
-	if (mounted) appContext.commit('updateParamAsLiteral', { ...target(), value }, commandMergeKey);
+	if (mounted) emit('edit', { kind: 'literal', ...target(), value, mergeKey: commandMergeKey });
 }
 
 function onFinishChanging() {
@@ -237,17 +276,18 @@ function onFinishChanging() {
 }
 
 function updateParamAsLiteral(value: any) {
-	if (mounted) appContext.commit('updateParamAsLiteral', { ...target(), value });
+	if (mounted) emit('edit', { kind: 'literal', ...target(), value });
 }
 
 function updateParamAsExpression(value: string) {
-	if (mounted) appContext.commit('updateParamAsExpression', { ...target(), value });
+	if (mounted) emit('edit', { kind: 'expression', ...target(), value });
 }
 
 function connectNode(value: NodeOutputReference | null) {
+	if (!canNode.value) return;
 	// 別のVisualModuleや、グラフ切り替え前の候補へ接続しない。
 	if (value != null && !nodeOutputItems.value.some(item => item.value === nodeOutputKey(value))) return;
-	if (mounted) appContext.commit('updateParamAsNode', { ...target(), value });
+	if (mounted) emit('edit', { kind: 'node', ...target(), value });
 }
 
 function updateParamAsNode(key: string | null) {
@@ -255,15 +295,15 @@ function updateParamAsNode(key: string | null) {
 }
 
 function addElement() {
-	appContext.commit('addArrayParamElement', target());
+	emit('edit', { kind: 'addElement', ...target() });
 }
 
 function removeElement(index: number) {
-	appContext.commit('removeArrayParamElement', { ...target(), index });
+	emit('edit', { kind: 'removeElement', ...target(), index });
 }
 
 function onReset() {
-	appContext.commit('resetNodeParam', target());
+	emit('edit', { kind: 'reset', ...target() });
 }
 </script>
 

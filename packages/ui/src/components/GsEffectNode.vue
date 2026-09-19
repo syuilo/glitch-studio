@@ -18,7 +18,7 @@
 	</div>
 
 	<div v-show="expanded" :class="$style.params" :inert="node.isBypass">
-		<GsEffectNodeParam v-for="[param, def] in Object.entries(getNodeParamDefs(props.node))" :key="param" :visualModuleId="visualModuleId" :node="node" :paramPath="[param]" :paramDef="def" :paramValue="node.params[param]"/>
+		<GsEffectNodeParam v-for="[param, def] in Object.entries(getNodeParamDefs(props.node))" :key="param" :visualModuleId="visualModuleId" :node="node" :paramPath="[param]" :paramDef="def" :paramValue="node.params[param]" @edit="onParamEdit"/>
 	</div>
 
 	<GsNodeOutputs :node="node"/>
@@ -31,6 +31,7 @@ import { effectDefinitions } from '@glitch/shared/effect-definitions.ts';
 import GsNodeOutputs from './GsNodeOutputs.vue';
 import GsNodePort from './GsNodePort.vue';
 import GsEffectNodeParam from './GsEffectNodeParam.vue';
+import type { ParamEdit } from './GsEffectNodeParam.vue';
 import GsButton from './common/GsButton.vue';
 import type { GsEffectNode } from '@glitch/shared/types.ts';
 import { i18n } from '@/i18n.ts';
@@ -51,6 +52,21 @@ const name = ref<string>(effectDefinitions[props.node.effectId].displayName);
 const expanded = ref(true);
 const allInPortEl = shallowRef<HTMLElement | null>(null);
 const effectStatus = computed(() => engine.effectStatuses.get(props.node.id));
+
+function onParamEdit(event: ParamEdit) {
+	const target = { visualModuleId: props.visualModuleId, nodeId: props.node.id, paramPath: event.paramPath };
+	switch (event.kind) {
+		case 'literal': appContext.commit('updateParamAsLiteral', { ...target, value: event.value }, event.mergeKey); break;
+		case 'expression': appContext.commit('updateParamAsExpression', { ...target, value: event.value }); break;
+		case 'automation': appContext.commit('updateParamAsAutomation', { ...target, value: event.value }); break;
+		case 'node': appContext.commit('updateParamAsNode', { ...target, value: event.value }); break;
+		case 'macro': appContext.commit('updateParamAsMacro', { ...target, value: event.value }); break;
+		case 'type': appContext.commit('changeParamValueType', { ...target, type: event.type }); break;
+		case 'reset': appContext.commit('resetNodeParam', target); break;
+		case 'addElement': appContext.commit('addArrayParamElement', target); break;
+		case 'removeElement': appContext.commit('removeArrayParamElement', { ...target, index: event.index }); break;
+	}
+}
 
 function showEffectError() {
 	if (effectStatus.value?.type !== 'error') return;

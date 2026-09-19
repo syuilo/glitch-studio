@@ -510,6 +510,7 @@ const changeParamValueTypeCommandDef = defineNodeParamCommand<NodeParamTarget & 
 			};
 			case 'literal': return { type: 'literal', value: defaultValue.type === 'literal' ? defaultValue.value : emptyValue };
 			case 'automation': return { type: 'automation', automationId: null };
+			case 'macro': return { type: 'macro', macroId: '' };
 			case 'node': {
 				if (!('canNode' in target.def) || !target.def.canNode) throw new Error('Parameter does not support node input');
 				return { type: 'node', nodeId: null, outputPort: null };
@@ -539,6 +540,14 @@ const updateParamAsAutomationCommandDef = defineNodeParamCommand<NodeParamTarget
 	(target, payload) => {
 		assertLeafParam(target);
 		return { type: 'automation', automationId: payload.value };
+	},
+);
+
+const updateParamAsMacroCommandDef = defineNodeParamCommand<NodeParamTarget & { value: string }>(
+	'Update param as macro',
+	(target, payload) => {
+		assertLeafParam(target);
+		return { type: 'macro', macroId: payload.value };
 	},
 );
 
@@ -744,6 +753,7 @@ export const COMMAND_DEFS = {
 	updateParamAsExpression: updateParamAsExpressionCommandDef,
 	updateParamAsAutomation: updateParamAsAutomationCommandDef,
 	updateParamAsNode: updateParamAsNodeCommandDef,
+	updateParamAsMacro: updateParamAsMacroCommandDef,
 	changeNodeBypassState: changeNodeBypassStateCommandDef,
 	resetNodeParam: resetNodeParamCommandDef,
 	addArrayParamElement: addArrayParamElementCommandDef,
