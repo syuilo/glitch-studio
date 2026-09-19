@@ -1042,10 +1042,8 @@ export class MainRenderer {
 		this.lastPointerUpdateTimestamp = performance.now();
 	}
 
-	public changeFpsLimit(newFpsLimit: number | null) {
+	public changeLiveModeFpsLimit(newFpsLimit: number | null) {
 		this.liveModeFpsLimit = newFpsLimit;
-		this.stopRenderLoop();
-		this.startRenderLoopForLive();
 	}
 
 	public setHighlightClipping(enabled: boolean) {
@@ -1182,11 +1180,36 @@ export class MainRenderer {
 		}
 	}
 
-	public startRenderLoopForLive() {
+	public startLiveRenderLoopFor(nodeGraphId: string) {
 		this.clearTimelineRenderers();
 		this.stopRenderLoop();
+
+		const graph = this.nodeGraphs.find(g => g.id === nodeGraphId);
+		if (graph == null) return;
+
+		this.liveNodeGraphRenderer = new NodeGraphRenderer({
+			gpuDevice: this.gpuDevice,
+			gpuContext: this.gpuContext,
+			defaultVertexShaderModule: this.defaultVertexShaderModule,
+			fallbackTexture: this.fallbackTexture,
+			fallbackScalarFieldTexture: this.fallbackScalarFieldTexture,
+			resolution: this.resolution,
+			enable32bitDataTextures: this.enable32bitDataTextures,
+			intermediateTextureFormat: this.intermediateTextureFormat,
+			enableStats: this.enableStats,
+			timingHelper: this.timingHelper,
+			onEffectStatus: this.onEffectStatus,
+			videoFrames: this.videoFrames,
+			videoFrameVersions: this.videoFrameVersions,
+			assets: this.assets,
+			macros: this.macros,
+			automations: this.automations,
+			nodes: graph.nodes,
+			assetTextures: this.assetTextures,
+			audioSources: this.audioSources,
+		});
+
 		let then = 0;
-		const interval = 1000 / (this.liveModeFpsLimit ?? 999);
 
 		const renderLoop = (timeStamp: number) => {
 			this.currentLiveModeRafId = requestAnimationFrame(renderLoop);
@@ -1195,6 +1218,7 @@ export class MainRenderer {
 
 			const delta = timeStamp - then;
 			if (this.liveModeFpsLimit != null) {
+				const interval = 1000 / this.liveModeFpsLimit;
 				if (delta <= interval) return;
 				then = timeStamp - (delta % interval);
 			}
@@ -1239,12 +1263,9 @@ export class MainRenderer {
 		width: number;
 		height: number;
 	}) {
-		const wasLive = this.currentLiveModeRafId != null;
-		this.stopRenderLoop();
 		this.clearTimelineRenderers();
 		this.resolution = resolution;
 		this.liveNodeGraphRenderer?.resize(resolution);
-		if (wasLive) this.startRenderLoopForLive();
 	}
 
 	public destroy() {

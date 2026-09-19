@@ -112,14 +112,14 @@ test('concurrent reloads share initialization and updates reach the new worker a
 	await init;
 	const reload = engine.reload();
 	assert.equal(engine.reload(), reload);
-	engine.changeFpsLimit(60);
+	engine.changeLiveModeFpsLimit(60);
 	engine.updateNodes([{ id: 'new-node' }]);
 	assert.equal(workers[1].messages.length, 1);
 	workers[0].ready();
 	assert.equal(engine.isReady.value, false, 'late messages from the old worker are ignored');
 	workers[1].ready();
 	await reload;
-	assert.equal(workers[1].messages.find(message => message.fn === 'changeFpsLimit').args[0], 60);
+	assert.equal(workers[1].messages.find(message => message.fn === 'changeLiveModeFpsLimit').args[0], 60);
 	assert.equal(workers[1].messages.find(message => message.fn === 'updateNodes').args[0][0].id, 'new-node');
 });
 

@@ -85,6 +85,7 @@ export class Engine {
 	}
 
 	private call<FN extends keyof RendererMethods>(fn: FN, args: Parameters<RendererMethods[FN]>, options?: StructuredSerializeOptions | Transferable[]): void {
+		//console.log('Calling renderer method:', fn, 'with args:', args);
 		const message = { type: 'call', fn, args };
 		const serializeOptions = Array.isArray(options) ? { transfer: options } : options;
 		if (!this.isReady.value) {
@@ -225,8 +226,8 @@ export class Engine {
 		await ready;
 	}
 
-	public startRenderLoop() {
-		this.call('startRenderLoopForLive', []);
+	public startLiveRenderLoopFor(nodeGraphId: NodeGraph['id']) {
+		this.call('startLiveRenderLoopFor', [nodeGraphId]);
 		this.renderLoopRunning = true;
 	}
 
@@ -374,9 +375,9 @@ export class Engine {
 		this.call('updatePointerPosition', [newPointerPosition]);
 	}
 
-	public changeFpsLimit(newFpsLimit: number | null) {
+	public changeLiveModeFpsLimit(newFpsLimit: number | null) {
 		this.fpsLimit = newFpsLimit;
-		this.call('changeFpsLimit', [this.fpsLimit]);
+		this.call('changeLiveModeFpsLimit', [this.fpsLimit]);
 	}
 
 	public setHighlightClipping(enabled: boolean) {

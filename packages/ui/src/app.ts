@@ -155,7 +155,7 @@ watch(highlightClipping, value => {
 (window as any).engine = engine; // debug
 
 watch(fpsLimit, () => {
-	engine.changeFpsLimit(fpsLimit.value);
+	engine.changeLiveModeFpsLimit(fpsLimit.value);
 });
 
 watch(timeFactor, value => {
@@ -206,7 +206,7 @@ export async function appReady(project: RawProject) {
 		engine.updateMacros(deepClone(appContext.state.macros.value));
 	}, { deep: true, immediate: true });
 
-	engine.startRenderLoop();
+	engine.startLiveRenderLoopFor(project.nodeGraphs[0].id);
 }
 
 export function saveProject() {
