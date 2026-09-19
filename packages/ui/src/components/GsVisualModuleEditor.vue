@@ -2,17 +2,22 @@
 <div :class="$style.root">
 	<div :class="$style.header">
 		<button class="_button" style="padding: 4px 6px;"><i class="ti ti-chevron-down"></i> Module: {{ visualModule?.name ?? '' }} [{{ visualModule?.id ?? '' }}]</button>
-		<XVisualModuleParamDefsEditor v-if="visualModule != null" :visualModule="visualModule"/>
-		<div>Preview:</div>
-		<div v-if="visualModule != null" :class="$style.previewParams">
-			<GsVisualParam
-				v-for="paramDef of visualModule.paramDefs"
-				:key="paramDef.id"
-				:paramPath="[paramDef.id]"
-				:paramDef="paramDef"
-				:paramValue="previewParamValues[paramDef.id]"
-				@edit="onPreviewParamEdit"
-			/>
+		<div v-if="visualModule != null">
+			Graph / Param Defs / Param Preview
+		</div>
+		<div v-if="visualModule != null && false">
+			<XVisualModuleParamDefsEditor :visualModule="visualModule"/>
+			<div>Preview:</div>
+			<div :class="$style.previewParams">
+				<GsVisualParam
+					v-for="paramDef of visualModule.paramDefs"
+					:key="paramDef.id"
+					:paramPath="[paramDef.id]"
+					:paramDef="paramDef"
+					:paramValue="previewParamValues[paramDef.id]"
+					@edit="onPreviewParamEdit"
+				/>
+			</div>
 		</div>
 	</div>
 	<div v-if="visualModule != null" :key="visualModule.id" :class="$style.nodesContainer">
