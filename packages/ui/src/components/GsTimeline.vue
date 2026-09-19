@@ -1,7 +1,7 @@
 <template>
 <div :class="$style.root">
 	<div :class="$style.header">
-		<GsButton v-for="layer of appContext.state.timeline.value" :key="layer.id" :primary="selectedLayer?.id === layer.id" @click="switchLayer(layer)">{{ layer.id }}</GsButton>
+		<GsButton @click="addLayer">addLayer</GsButton>
 	</div>
 	<div :class="$style.body">
 		<div :class="$style.tlBgWrapper">
@@ -10,7 +10,6 @@
 				<div :class="$style.ticksCorner"></div>
 				<div :class="$style.tlRange" :style="{ width: tlRangeElWidth + 'px', left: tlRangeElPosX + 'px' }"></div>
 				<div v-for="time of xTicks" :class="[$style.inTlXTick]" :style="{ left: timeToDomX(time) + 'px' }"></div>
-				<div v-for="v of yTicks" :class="[$style.inTlYTick, { [$style.inTlYTickZero]: v.toFixed(2).replace('-', '') === '0.00', [$style.inTlYTickActive]: snappingY != null && nearlyEqual(snappingY, v) }]" :style="{ top: valueToDomY(v) + 'px' }"></div>
 			</div>
 		</div>
 		<div :class="$style.layers">
@@ -36,7 +35,6 @@
 				<div :class="$style.ticksCorner"></div>
 				<div :class="$style.selectedArea" :style="{ width: selectedAreaElWidth + 'px', height: selectedAreaElHeight + 'px', bottom: selectedAreaElPosY + 'px', left: selectedAreaElPosX + 'px' }"></div>
 				<div v-for="time of xTicks" :class="[$style.inTlXTick]" :style="{ left: timeToDomX(time) + 'px' }"></div>
-				<div v-for="v of yTicks" :class="[$style.inTlYTick, { [$style.inTlYTickZero]: v.toFixed(2).replace('-', '') === '0.00', [$style.inTlYTickActive]: snappingY != null && nearlyEqual(snappingY, v) }]" :style="{ top: valueToDomY(v) + 'px' }"></div>
 				<div :class="$style.seekBar" class="_monospace" :style="{ left: seekBarPos + 'px' }"><div :class="$style.seekBarFrame">{{ formatMsToTimecode(time) }}</div></div>
 				<div :class="$style.cursorBar" :style="{ left: cursorBarPos + 'px' }"></div>
 
@@ -298,7 +296,7 @@ function onSeekBarMousedown(ev: MouseEvent) {
 	const position = tlEl.value.getBoundingClientRect();
 
 	function move(x: number, y: number) {
-		time.value = Math.min(duration.value, Math.max(0, domXToTime(x)));
+		time.value = Math.min(duration.value - 1, Math.max(0, domXToTime(x)));
 	}
 
 	dragListen(me => {
