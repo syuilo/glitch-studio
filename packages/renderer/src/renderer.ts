@@ -62,8 +62,11 @@ type NodeGraphRenderContext = {
 
 class NodeGraphRenderer {
 	private gpuDevice: GPUDevice;
+	private gpuContext: GPUCanvasContext;
+	private defaultVertexShaderModule: GPUShaderModule;
+	private fallbackTexture: GPUTexture;
 	private resolution: { width: number; height: number; };
-	private nodes: GsNode[] = [];
+	private nodes: GsNode[];
 	private allNodeIdMap: Map<GsNode['id'], GsNode> = new Map(); // group内のnodeもフラット化して含む。高速に特定のノードを見つける用のキャッシュ
 	private evaledNodeParams: Map<GsNode['id'], Record<string, any>> = new Map();
 	private effectInstances: Map<GsEffectNode['id'], EffectInstance | null> = new Map();
@@ -79,25 +82,55 @@ class NodeGraphRenderer {
 	private usedOutputPorts = new Map<string, Set<string>>();
 	private effectStatuses = new Map<string, { sent?: EffectStatus }>();
 	private onEffectStatus?: (nodeId: string, status: EffectStatus | null) => void;
-	private assets: Asset[] = [];
-	private macros: Macro[] = [];
-	private automations: GsAutomation[] = [];
+	private assets: Asset[];
+	private macros: Macro[];
+	private automations: GsAutomation[];
 	private enable32bitDataTextures = false;
 	private readonly intermediateTextureFormat: IntermediateTextureFormat;
-	private videoFrames: Map<string, VideoFrame> = new Map();
-	private videoFrameVersions: Map<string, number> = new Map();
+	private videoFrames: Map<string, VideoFrame>;
+	private videoFrameVersions: Map<string, number>;
+	private fallbackScalarFieldTexture: GPUTexture;
+	private assetTextures: Map<string, GPUTexture>;
+	private audioSources = new Map<AudioSourceId, AudioHistory>();
+	private timingHelper: TimingHelper;
+	private enableStats = true;
 	public renderNodeId: GsNode['id'] | null = null;
 
 	constructor(options: {
 		gpuDevice: GPUDevice;
+		gpuContext: GPUCanvasContext;
+		defaultVertexShaderModule: GPUShaderModule;
+		fallbackTexture: GPUTexture;
 		resolution: { width: number; height: number; };
 		enable32bitDataTextures: boolean;
 		intermediateTextureFormat: IntermediateTextureFormat;
+		videoFrames: Map<string, VideoFrame>;
+		videoFrameVersions: Map<string, number>;
+		fallbackScalarFieldTexture: GPUTexture;
+		assets: Asset[];
+		macros: Macro[];
+		automations: GsAutomation[];
+		nodes: GsNode[];
+		assetTextures: Map<string, GPUTexture>;
+		audioSources: Map<AudioSourceId, AudioHistory>;
 	}) {
 		this.gpuDevice = options.gpuDevice;
+		this.gpuContext = options.gpuContext;
+		this.defaultVertexShaderModule = options.defaultVertexShaderModule;
+		this.fallbackTexture = options.fallbackTexture;
 		this.resolution = options.resolution;
 		this.enable32bitDataTextures = options.enable32bitDataTextures;
 		this.intermediateTextureFormat = options.intermediateTextureFormat;
+		this.videoFrames = options.videoFrames;
+		this.videoFrameVersions = options.videoFrameVersions;
+		this.fallbackScalarFieldTexture = options.fallbackScalarFieldTexture;
+		this.assets = options.assets;
+		this.macros = options.macros;
+		this.automations = options.automations;
+		this.nodes = options.nodes;
+		this.assetTextures = options.assetTextures;
+		this.audioSources = options.audioSources;
+		this.timingHelper = new TimingHelper(this.gpuDevice);
 	}
 
 	private evalNodeParams(nodes: GsNode[], options: { vars: Record<string, any> }) {
@@ -397,6 +430,12 @@ class NodeGraphRenderer {
 			}
 		};
 		indexNodes(newNodes);
+	}
+
+	public updateAssets(assets: Asset[]) {
+		this.assets = assets;
+		// 同じAsset IDでもテクスチャを作り直すため、ネスト内の画像参照も再解決する。
+		this.effectCacheKeys.clear();
 	}
 
 	// 無効なエフェクトは主入力をそのまま公開する。テクスチャの所有権や履歴は元のノードに残す。
@@ -865,7 +904,24 @@ export class MainRenderer {
 	// (非workerで)呼び出すときはnewAssetsを独立した参照にすること！ パフォーマンス上の理由でこちら側ではdeepCloneしません
 	public updateAssets(newAssets: Asset[]) {
 		this.assets = newAssets;
-		this.bakeAssets();
+		for (const [k, v] of this.assetTextures.entries()) {
+			v.destroy();
+			this.assetTextures.delete(k);
+		}
+
+		for (const asset of this.assets) {
+			if (asset.fileDataType.startsWith('image/') && asset.data != null) {
+				const tex = createTextureFromSource(this.gpuDevice, {
+					data: asset.data,
+					width: asset.width,
+					height: asset.height,
+				});
+				this.assetTextures.set(asset.id, tex);
+			}
+		}
+		for (const nodeGraphRenderer of this.nodeGraphRenderers.values()) {
+			nodeGraphRenderer.updateAssets(this.assets);
+		}
 	}
 
 	// (非workerで)呼び出すときはnewMacrosを独立した参照にすること！ パフォーマンス上の理由でこちら側ではdeepCloneしません
@@ -921,26 +977,6 @@ export class MainRenderer {
 			this.videoFrames.set(playerId, videoFrame);
 		} else {
 			this.videoFrames.delete(playerId);
-		}
-	}
-
-	public async bakeAssets() {
-		// 同じAsset IDでもテクスチャを作り直すため、ネスト内の画像参照も再解決する。
-		this.effectCacheKeys.clear();
-		for (const [k, v] of this.assetTextures.entries()) {
-			v.destroy();
-			this.assetTextures.delete(k);
-		}
-
-		for (const asset of this.assets) {
-			if (asset.fileDataType.startsWith('image/') && asset.data != null) {
-				const tex = createTextureFromSource(this.gpuDevice, {
-					data: asset.data,
-					width: asset.width,
-					height: asset.height,
-				});
-				this.assetTextures.set(asset.id, tex);
-			}
 		}
 	}
 
