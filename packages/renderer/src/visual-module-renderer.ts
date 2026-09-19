@@ -138,22 +138,7 @@ export class VisualModuleRenderer {
 	}
 
 	public updateVisualModule(visualModule: VisualModule) {
-		for (const type of ['globalIn', 'globalOut'] as const) {
-			if (visualModule.nodes.filter(node => node.type === type).length > 1) throw new Error('Only one In/Out node is allowed');
-		}
-		const primaryOutputs = visualModule.outputDefs.filter(def => def.isPrimaryOutput);
-		if (primaryOutputs.length > 1 || primaryOutputs.some(def => def.dataType !== 'color')) throw new Error('The primary output must be a single color output');
-		if (new Set(visualModule.outputDefs.map(def => def.id)).size !== visualModule.outputDefs.length
-			|| new Set(visualModule.outputDefs.map(def => def.name)).size !== visualModule.outputDefs.length) throw new Error('Output IDs and names must be unique');
 		this.outputDefs = visualModule.outputDefs;
-		const primaryInputs = visualModule.paramDefs.filter(def => def.isPrimaryInput);
-		if (primaryInputs.length > 1 || primaryInputs.some(def => !def.canNode || def.type !== 'color')) {
-			throw new Error('The primary input must be a single node-capable color parameter');
-		}
-		if (new Set(visualModule.paramDefs.map(def => def.id)).size !== visualModule.paramDefs.length
-			|| new Set(visualModule.paramDefs.map(def => def.name)).size !== visualModule.paramDefs.length) {
-			throw new Error('Visual module parameter IDs and names must be unique');
-		}
 		this.paramDefs = visualModule.paramDefs;
 		this.preparedContext = null;
 		this.paramValues.clear();
