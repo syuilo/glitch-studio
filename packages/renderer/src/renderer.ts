@@ -16,7 +16,7 @@ import { GpuWaveform } from './utility/waveform/GpuWaveform.ts';
 import { GpuMemoryTracker } from './utility/GpuMemoryTracker.ts';
 import type { EffectStatus } from '@glitch/shared/effect-status.ts';
 import type { AudioCaptureMessage, AudioSourceId } from '@glitch/shared/audio.ts';
-import type { Asset, Macro, GsAutomation, GsEffectNode, GsNode, GsGroupNode, Player, NodeOutputReference, EffectParamDef, HogeLayer, Timeline, NodeGraph } from '@glitch/shared/types.ts';
+import type { Asset, Macro, GsAutomation, GsEffectNode, GsNode, GsGroupNode, Player, NodeOutputReference, EffectParamDef, Timeline, NodeGraph } from '@glitch/shared/types.ts';
 import type { EffectInstance, IntermediateTextureFormat } from '@glitch/shared/effect-implementation.js';
 
 const aisParser = new AiScript.Parser();
@@ -133,36 +133,36 @@ class NodeGraphRenderer {
 		this.timingHelper = new TimingHelper(this.gpuDevice);
 	}
 
-	private evalNodeParams(nodes: GsNode[], options: { vars: Record<string, any> }) {
+	private evalNodeParams(nodes: GsNode[], context: NodeGraphRenderContext) {
 		const scope = {
 			WIDTH: this.resolution.width,
 			HEIGHT: this.resolution.height,
-			...options.vars,
+			TIME: context.localTime / 1000, // ms to seconds
+			TIME_MS: context.localTime,
 		};
 
 		// Mixin (global) macros
 		// TODO: automation support
 		// TODO: node support
 		const macroScope = {} as Record<string, any>;
-		for (const macro of this.macros) {
-			macroScope[macro.name] =
-				macro.value.type === 'literal'
-					? macro.value.value
-					: macro.value.expression
-						? evaluateExpression(macro.value.expression, scope, macro)
-						: genEmptyValue(macro);
-
-			if (macro.type === 'image') {
-				macroScope[macro.name] = serializeAsset(
-					this.assets.find(a => a.id === macroScope[macro.name]));
-			}
-		}
+		//for (const macro of this.macros) {
+		//	macroScope[macro.name] =
+		//		macro.value.type === 'literal'
+		//			? macro.value.value
+		//			: macro.value.expression
+		//				? evaluateExpression(macro.value.expression, scope, macro)
+		//				: genEmptyValue(macro);
+		//	if (macro.type === 'image') {
+		//		macroScope[macro.name] = serializeAsset(
+		//			this.assets.find(a => a.id === macroScope[macro.name]));
+		//	}
+		//}
 
 		// Mixin (global) automations
 		// TODO: 各automationをフレーム数を引数にとる関数として定義する
 		const automationScope = {} as Record<string, any>;
 		for (const automation of this.automations) {
-			automationScope[automation.name] = evalAutomationValue(automation, this.time);
+			automationScope[automation.name] = evalAutomationValue(automation, context.localTime);
 		}
 
 		for (const node of nodes.filter((n): n is GsEffectNode => n.type === 'effect')) {
@@ -184,7 +184,7 @@ class NodeGraphRenderer {
 					if (param.type === 'expression') return param.expression ? evaluateExpression(param.expression, mixedScope, def) : genEmptyValue(def);
 					if (param.type === 'automation') {
 						const automation = this.automations.find(a => a.id === param.automationId);
-						return automation ? evalAutomationValue(automation, this.time) : genEmptyValue(def);
+						return automation ? evalAutomationValue(automation, context.localTime) : genEmptyValue(def);
 					}
 					return param.nodeId == null ? null : { nodeId: param.nodeId, outputPort: param.outputPort };
 				});
@@ -597,12 +597,7 @@ class NodeGraphRenderer {
 		const node = this.allNodeIdMap.get(this.renderNodeId);
 		if (node == null) return;
 
-		this.evalNodeParams(this.nodes, {
-			vars: {
-				TIME: context.localTime / 1000, // ms to seconds
-				TIME_MS: context.localTime,
-			},
-		});
+		this.evalNodeParams(this.nodes, context);
 
 		this.prepareOutputPorts(node);
 
