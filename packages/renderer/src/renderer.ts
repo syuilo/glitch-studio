@@ -16,7 +16,7 @@ import { GpuWaveform } from './utility/waveform/GpuWaveform.ts';
 import { GpuMemoryTracker } from './utility/GpuMemoryTracker.ts';
 import type { EffectStatus } from '@glitch/shared/effect-status.ts';
 import type { AudioCaptureMessage, AudioSourceId } from '@glitch/shared/audio.ts';
-import type { Asset, Macro, GsAutomation, GsEffectNode, GsNode, GsGroupNode, Player, NodeOutputReference, EffectParamDef, Timeline, NodeGraph } from '@glitch/shared/types.ts';
+import type { Asset, Macro, GsAutomation, GsEffectNode, GsGlobalInNode, GsNode, Player, NodeOutputReference, EffectParamDef, Timeline, NodeGraph } from '@glitch/shared/types.ts';
 import type { EffectInstance, IntermediateTextureFormat } from '@glitch/shared/effect-implementation.js';
 
 const aisParser = new AiScript.Parser();
@@ -56,6 +56,8 @@ type NodeGraphRenderContext = {
 	//globalTime: number; // タイムラインの再生位置を示すが、使わなそう
 	localTime: number;
 	localTimeDelta: number;
+	layerDurationMs?: number;
+	globalInput?: GPUTexture;
 	pointerPosition: { x: number; y: number };
 	pointerPositionPrev: { x: number; y: number }
 };
@@ -66,7 +68,11 @@ class NodeGraphRenderer {
 	private defaultVertexShaderModule: GPUShaderModule;
 	private fallbackTexture: GPUTexture;
 	private resolution: { width: number; height: number; };
-	private nodes: GsNode[];
+	private nodes: GsNode[] = [];
+	private globalInput: GPUTexture;
+	private preparedContext: NodeGraphRenderContext | null = null;
+	private statusWaiters = new Set<() => void>();
+	private destroyed = false;
 	private allNodeIdMap: Map<GsNode['id'], GsNode> = new Map(); // group内のnodeもフラット化して含む。高速に特定のノードを見つける用のキャッシュ
 	private evaledNodeParams: Map<GsNode['id'], Record<string, any>> = new Map();
 	private effectInstances: Map<GsEffectNode['id'], EffectInstance | null> = new Map();
@@ -95,8 +101,12 @@ class NodeGraphRenderer {
 	private timingHelper: TimingHelper;
 	private enableStats = true;
 	public renderNodeId: GsNode['id'] | null = null;
+	public lastRenderedLocalTime: number | null = null;
 
 	constructor(options: {
+		onEffectStatus?: (nodeId: string, status: EffectStatus | null) => void;
+		enableStats: boolean;
+		timingHelper: TimingHelper;
 		gpuDevice: GPUDevice;
 		gpuContext: GPUCanvasContext;
 		defaultVertexShaderModule: GPUShaderModule;
@@ -118,6 +128,9 @@ class NodeGraphRenderer {
 		this.gpuContext = options.gpuContext;
 		this.defaultVertexShaderModule = options.defaultVertexShaderModule;
 		this.fallbackTexture = options.fallbackTexture;
+		this.globalInput = options.fallbackTexture;
+		this.onEffectStatus = options.onEffectStatus;
+		this.enableStats = options.enableStats;
 		this.resolution = options.resolution;
 		this.enable32bitDataTextures = options.enable32bitDataTextures;
 		this.intermediateTextureFormat = options.intermediateTextureFormat;
@@ -127,10 +140,10 @@ class NodeGraphRenderer {
 		this.assets = options.assets;
 		this.macros = options.macros;
 		this.automations = options.automations;
-		this.nodes = options.nodes;
 		this.assetTextures = options.assetTextures;
 		this.audioSources = options.audioSources;
-		this.timingHelper = new TimingHelper(this.gpuDevice);
+		this.timingHelper = options.timingHelper;
+		this.updateNodes(options.nodes);
 	}
 
 	private evalNodeParams(nodes: GsNode[], context: NodeGraphRenderContext) {
@@ -139,6 +152,7 @@ class NodeGraphRenderer {
 			HEIGHT: this.resolution.height,
 			TIME: context.localTime / 1000, // ms to seconds
 			TIME_MS: context.localTime,
+			PROGRESS: context.layerDurationMs != null ? context.localTime / context.layerDurationMs : 0,
 		};
 
 		// Mixin (global) macros
@@ -212,6 +226,7 @@ class NodeGraphRenderer {
 		const previous = state.sent;
 		if (previous?.type === status.type && (status.type !== 'error' || (previous.type === 'error' && previous.message === status.message))) return;
 		state.sent = status;
+		for (const notify of this.statusWaiters) notify();
 		this.onEffectStatus?.(nodeId, status);
 	}
 
@@ -298,6 +313,7 @@ class NodeGraphRenderer {
 		const visit = (target: GsNode, port?: string) => {
 			const output = this.getOutputNode(target, port);
 			if (output == null) return;
+			if (output.node.type === 'globalIn') return;
 			const ports = this.usedOutputPorts.get(output.node.id);
 			if (ports != null) {
 				ports.add(output.outputPort);
@@ -442,29 +458,42 @@ class NodeGraphRenderer {
 
 	// 無効なエフェクトは主入力をそのまま公開する。テクスチャの所有権や履歴は元のノードに残す。
 	// 描画・入力参照・キャッシュが同じ接続関係を扱うよう、ここで共通して解決する。
-	private getOutputNode(node: GsNode, outputPort?: string, visited: GsNode['id'][] = []): { node: GsEffectNode; outputPort: string } | undefined {
+	private getOutputNode(node: GsNode, outputPort?: string, visited: GsNode['id'][] = []): { node: GsEffectNode | GsGlobalInNode; outputPort: string } | undefined {
 		if (visited.includes(node.id)) throw new Error('circular dependency detected');
 		const nextVisited = [...visited, node.id];
+		if (node.type === 'globalIn') return { node, outputPort: 'output' };
+		if (node.type === 'globalOut') {
+			const source = node.input.nodeId == null ? undefined : this.allNodeIdMap.get(node.input.nodeId);
+			return source == null ? undefined : this.getOutputNode(source, node.input.outputPort ?? undefined, nextVisited);
+		}
 		if (!node.isBypass) {
 			const port = outputPort ?? Object.entries(effectDefinitions[node.effectId].outputs).find(([, def]) => def.primary)?.[0];
-			return port == null ? undefined : { node, outputPort: port };
+			return port == null || effectDefinitions[node.effectId].outputs[port] == null ? undefined : { node, outputPort: port };
 		}
 		const primary = Object.entries(effectDefinitions[node.effectId].paramDefs).find(([, def]) => def.primary);
 		const input: NodeOutputReference | null = primary ? this.evaledNodeParams.get(node.id)![primary[0]] : null;
 		// バイパスでは自身の出力名ではなく、主入力が選択した出力ポートを公開する。
-		return input == null ? undefined : this.getOutputNode(this.allNodeIdMap.get(input.nodeId)!, input.outputPort, nextVisited);
+		const source = input == null ? undefined : this.allNodeIdMap.get(input.nodeId);
+		return source == null ? undefined : this.getOutputNode(source, input!.outputPort, nextVisited);
 	}
 
 	private getOutputTexture(node: GsNode, outputPort: string): GPUTexture | undefined {
 		const output = this.getOutputNode(node, outputPort);
 		if (output == null) return undefined;
-		return this.outDataMapPerNodes.get(output.node.id)![output.outputPort].texture;
+		if (output.node.type === 'globalIn') return this.globalInput;
+		return this.outDataMapPerNodes.get(output.node.id)?.[output.outputPort]?.texture;
 	}
 
 	private renderNode(node: GsNode, commandEncoder: GPUCommandEncoder, context: NodeGraphRenderContext & {
 		visited: Set<GsNode['id']>;
 		rendered: Set<GsNode['id']>;
 	}): void {
+		if (node.type === 'globalIn') return;
+		if (node.type === 'globalOut') {
+			const output = this.getOutputNode(node);
+			if (output != null) this.renderNode(output.node, commandEncoder, context);
+			return;
+		}
 		if (context.visited.has(node.id)) {
 			throw new Error('circular dependency detected');
 		}
@@ -507,25 +536,7 @@ class NodeGraphRenderer {
 
 		const resolvedParams = this.resolveParams(node, params);
 
-		let effectInstance = this.effectInstances.get(node.id);
-		if (effectInstance == null) {
-			const state: { sent?: EffectStatus } = {};
-			this.effectStatuses.set(node.id, state);
-			effectInstance = effect.init({
-				reportStatus: status => {
-					// 初期化中の通知も受け取るが、破棄・再作成後の古い通知は無視する。
-					if (this.effectStatuses.get(node.id) !== state) return;
-					this.setEffectStatus(node.id, status);
-				},
-				resolution: { width: this.resolution.width, height: this.resolution.height },
-				wgpu: { device: this.gpuDevice, context: this.gpuContext, defaultVertexShaderModule: this.defaultVertexShaderModule, enable32bitDataTextures: this.enable32bitDataTextures, intermediateTextureFormat: this.intermediateTextureFormat },
-				params: resolvedParams,
-				fallbackTexture: this.fallbackTexture,
-			});
-			this.effectInstances.set(node.id, effectInstance);
-			// init中に状態が報告されなかった同期エフェクトは、この時点でready。
-			if (state.sent == null) this.setEffectStatus(node.id, { type: 'ready' });
-		}
+		const effectInstance = this.initializeEffect(node, resolvedParams);
 
 		const outDataMap = this.outDataMapPerNodes.get(node.id)!;
 
@@ -594,12 +605,78 @@ class NodeGraphRenderer {
 		if (key != null) this.effectCacheKeys.set(node.id, key);
 	}
 
+	private initializeEffect(node: GsEffectNode, params: Record<string, any>): EffectInstance {
+		const existing = this.effectInstances.get(node.id);
+		if (existing != null) return existing;
+		const state: { sent?: EffectStatus } = {};
+		this.effectStatuses.set(node.id, state);
+		const instance = effectImplementations[node.effectId].init({
+			reportStatus: status => {
+				// 破棄・再作成後の古い通知は無視する。
+				if (this.effectStatuses.get(node.id) === state) this.setEffectStatus(node.id, status);
+			},
+			resolution: { ...this.resolution },
+			wgpu: { device: this.gpuDevice, context: this.gpuContext, defaultVertexShaderModule: this.defaultVertexShaderModule, enable32bitDataTextures: this.enable32bitDataTextures, intermediateTextureFormat: this.intermediateTextureFormat },
+			params,
+			fallbackTexture: this.fallbackTexture,
+		});
+		this.effectInstances.set(node.id, instance);
+		if (state.sent == null) this.setEffectStatus(node.id, { type: 'ready' });
+		return instance;
+	}
+
+	// 描画せずに初期化・パラメータ変更の準備を行い、履歴を余分に進めない。
+	public async prepare(context: NodeGraphRenderContext, signal: AbortSignal): Promise<void> {
+		this.globalInput = context.globalInput ?? this.fallbackTexture;
+		const node = this.renderNodeId == null ? undefined : this.allNodeIdMap.get(this.renderNodeId);
+		if (node == null) return;
+		this.evalNodeParams(this.nodes, context);
+		this.prepareOutputPorts(node);
+		const prepared = new Set<string>();
+		const visit = (target: GsNode, visited: string[], port?: string) => {
+			if (visited.includes(target.id)) throw new Error('circular dependency detected');
+			if (prepared.has(target.id)) return;
+			const output = this.getOutputNode(target, port);
+			if (output == null || output.node.type === 'globalIn') return;
+			const effectNode = output.node;
+			if (prepared.has(effectNode.id)) return;
+			for (const { def, param } of walkNodeParams(effectDefinitions[effectNode.effectId].paramDefs, effectNode.params)) {
+				if (!def.canNode || param.type !== 'node' || param.nodeId == null) continue;
+				const source = this.allNodeIdMap.get(param.nodeId);
+				if (source == null) throw new Error('Referenced node not found');
+				visit(source, [...visited, target.id, effectNode.id], param.outputPort ?? undefined);
+			}
+			const params = this.resolveParams(effectNode, this.evaledNodeParams.get(effectNode.id)!);
+			this.initializeEffect(effectNode, params).prepare?.(params);
+			prepared.add(effectNode.id);
+		};
+		visit(node, []);
+		await new Promise<void>((resolve, reject) => {
+			const check = () => {
+				const states = [...prepared].map(id => this.effectStatuses.get(id)!);
+				const error = states.find(state => state.sent?.type === 'error')?.sent;
+				if (!signal.aborted && !this.destroyed && error == null && states.some(state => state.sent?.type === 'loading')) return;
+				this.statusWaiters.delete(check);
+				signal.removeEventListener('abort', check);
+				if (!signal.aborted && !this.destroyed && error?.type === 'error') reject(new Error(error.message));
+				else resolve();
+			};
+			this.statusWaiters.add(check);
+			signal.addEventListener('abort', check);
+			check();
+		});
+		if (!signal.aborted && !this.destroyed) this.preparedContext = context;
+	}
+
 	public render(context: NodeGraphRenderContext, commandEncoder: GPUCommandEncoder): GPUTexture | undefined {
+		this.globalInput = context.globalInput ?? this.fallbackTexture;
 		if (this.renderNodeId == null) return;
 		const node = this.allNodeIdMap.get(this.renderNodeId);
 		if (node == null) return;
 
-		this.evalNodeParams(this.nodes, context);
+		// 準備時と同じ評価結果を使い、式の再評価によるリソースの再読み込みを防ぐ。
+		if (this.preparedContext !== context) this.evalNodeParams(this.nodes, context);
+		this.preparedContext = null;
 
 		this.prepareOutputPorts(node);
 
@@ -610,9 +687,10 @@ class NodeGraphRenderer {
 		});
 
 		const output = this.getOutputNode(node);
-		const outputTexture = (output == null ? undefined : this.getOutputTexture(output.node, output.outputPort)) ?? this.fallbackTexture;
+		const outputTexture = output == null ? undefined : this.getOutputTexture(output.node, output.outputPort);
+		this.lastRenderedLocalTime = context.localTime;
 
-		return outputTexture;
+		return outputTexture ?? (node.type === 'globalOut' ? undefined : this.fallbackTexture);
 	}
 
 	// TODO: もっとスマートなリソース更新方法を考える
@@ -621,6 +699,8 @@ class NodeGraphRenderer {
 		height: number;
 	}) {
 		this.resolution = resolution;
+		this.lastRenderedLocalTime = null;
+		this.preparedContext = null;
 
 		for (const id of this.effectStatuses.keys()) this.clearEffectStatus(id);
 		for (const instance of this.effectInstances.values()) {
@@ -646,6 +726,12 @@ class NodeGraphRenderer {
 	}
 
 	public destroy() {
+		this.destroyed = true;
+		for (const notify of this.statusWaiters) notify();
+		for (const textures of this.effectPerParamConstFieldTextures.values()) {
+			for (const texture of Object.values(textures)) texture.destroy();
+		}
+		this.effectPerParamConstFieldTextures.clear();
 		for (const id of this.effectStatuses.keys()) this.clearEffectStatus(id);
 		for (const instance of this.effectInstances.values()) {
 			instance?.dispose();
@@ -667,6 +753,9 @@ class NodeGraphRenderer {
 }
 
 export class MainRenderer {
+	private timelineRenderVersion = 0;
+	private timelineRenderAbort: AbortController | null = null;
+	private onEffectStatus?: (nodeId: string, status: EffectStatus | null) => void;
 	private gpuContext: GPUCanvasContext;
 	private gpuDevice: GPUDevice;
 	private resolution: { width: number; height: number; };
@@ -732,6 +821,8 @@ export class MainRenderer {
 		highlightClipping?: boolean;
 		timeFactor?: number;
 		fpsLimit: number | null;
+		nodeGraphs?: NodeGraph[];
+		timeline?: Timeline;
 		assets: Asset[];
 		macros: Macro[];
 		automations: GsAutomation[];
@@ -741,6 +832,9 @@ export class MainRenderer {
 		waveformVerticalGpuContext: GPUCanvasContext;
 	}) {
 		this.resolution = options.resolution;
+		this.onEffectStatus = options.onEffectStatus;
+		this.nodeGraphs = options.nodeGraphs ?? [];
+		this.timeline = options.timeline ?? [];
 		this.enableStats = options.enableStats;
 		this.highlightClipping = options.highlightClipping ?? false;
 		this.timeFactor = options.timeFactor ?? 1;
@@ -844,6 +938,7 @@ export class MainRenderer {
 
 	// (非workerで)呼び出すときはnewAssetsを独立した参照にすること！ パフォーマンス上の理由でこちら側ではdeepCloneしません
 	public updateAssets(newAssets: Asset[]) {
+		this.clearTimelineRenderers();
 		this.assets = newAssets;
 		for (const [k, v] of this.assetTextures.entries()) {
 			v.destroy();
@@ -867,16 +962,33 @@ export class MainRenderer {
 
 	// (非workerで)呼び出すときはnewMacrosを独立した参照にすること！ パフォーマンス上の理由でこちら側ではdeepCloneしません
 	public updateMacros(newMacros: Macro[]) {
+		this.clearTimelineRenderers();
 		this.macros = newMacros;
 	}
 
 	// (非workerで)呼び出すときはnewAutomationsを独立した参照にすること！ パフォーマンス上の理由でこちら側ではdeepCloneしません
 	public updateAutomations(newAutomations: GsAutomation[]) {
+		this.clearTimelineRenderers();
 		this.automations = newAutomations;
 	}
 
 	public updateNodeGraphs(newNodeGraphs: NodeGraph[]) {
+		this.clearTimelineRenderers();
 		this.nodeGraphs = newNodeGraphs;
+	}
+
+	public updateTimeline(newTimeline: Timeline) {
+		this.clearTimelineRenderers();
+		this.timeline = newTimeline;
+	}
+
+	private clearTimelineRenderers() {
+		this.timelineRenderAbort?.abort();
+		this.timelineRenderVersion++;
+		for (const renderer of this.perLayerNodeGraphRenderers.values()) renderer.destroy();
+		this.perLayerNodeGraphRenderers.clear();
+		this.finalRenderBindGroup = null;
+		this.latestRenderedToCanasTexture = null;
 	}
 
 	public attachAudioSource(id: AudioSourceId, port: MessagePort) {
@@ -982,14 +1094,96 @@ export class MainRenderer {
 		this.gpuDevice.queue.submit([commandEncoder.finish()]);
 	}
 
-	public renderTimelineAt(time: number) {
-		const commandEncoder = this.gpuDevice.createCommandEncoder();
-
-		// TODO: 表示layerを算出して処理
-		// https://github.com/syuilo/glitch-studio-web/issues/65#issuecomment-5730058970
+	/** timeはミリ秒。表示期間中はレイヤーごとのインスタンスと履歴を保持する。 */
+	public async renderTimelineAt(time: number): Promise<void> {
+		if (!Number.isFinite(time)) throw new Error('Timeline time must be finite');
+		this.stopRenderLoop();
+		this.timelineRenderAbort?.abort();
+		const controller = new AbortController();
+		this.timelineRenderAbort = controller;
+		const version = ++this.timelineRenderVersion;
+		const activeEntries = this.timeline.filter(entry => entry.startTimeMs <= time && time < entry.endTimeMs);
+		const activeIds = new Set(activeEntries.map(entry => entry.id));
+		for (const [id, renderer] of this.perLayerNodeGraphRenderers) {
+			if (activeIds.has(id)) continue;
+			renderer.destroy();
+			this.perLayerNodeGraphRenderers.delete(id);
+		}
+		let texture = this.fallbackTexture;
+		let gpuTime = 0;
+		try {
+			// 配列の先頭が最下層。終端は含めず、隣接する期間が境界で重ならないようにする。
+			for (const entry of activeEntries) {
+				const graph = this.nodeGraphs.find(graph => graph.id === entry.layer.hogeId);
+				const output = graph?.nodes.find(node => node.type === 'globalOut');
+				if (graph == null || output == null || output.input.nodeId == null) continue;
+				let renderer = this.perLayerNodeGraphRenderers.get(entry.id);
+				if (renderer == null) {
+					renderer = new NodeGraphRenderer({
+						gpuDevice: this.gpuDevice,
+						gpuContext: this.gpuContext,
+						defaultVertexShaderModule: this.defaultVertexShaderModule,
+						fallbackTexture: this.fallbackTexture,
+						fallbackScalarFieldTexture: this.fallbackScalarFieldTexture,
+						resolution: this.resolution,
+						enable32bitDataTextures: this.enable32bitDataTextures,
+						intermediateTextureFormat: this.intermediateTextureFormat,
+						enableStats: this.enableStats,
+						timingHelper: this.timingHelper,
+						onEffectStatus: this.onEffectStatus,
+						videoFrames: this.videoFrames,
+						videoFrameVersions: this.videoFrameVersions,
+						assets: this.assets,
+						macros: this.macros,
+						automations: this.automations,
+						nodes: graph.nodes,
+						assetTextures: this.assetTextures,
+						audioSources: this.audioSources,
+					});
+					this.perLayerNodeGraphRenderers.set(entry.id, renderer);
+				}
+				renderer.renderNodeId = output.id;
+				const context: NodeGraphRenderContext = {
+					localTime: time - entry.startTimeMs,
+					// 後方シークでも履歴は保持し、負の時間差だけを0に抑える。
+					localTimeDelta: renderer.lastRenderedLocalTime == null ? 0 : Math.max(0, time - entry.startTimeMs - renderer.lastRenderedLocalTime),
+					layerDurationMs: entry.endTimeMs - entry.startTimeMs,
+					globalInput: texture,
+					pointerPosition: { x: -99999, y: -99999 },
+					pointerPositionPrev: { x: -99999, y: -99999 },
+				};
+				await renderer.prepare(context, controller.signal);
+				// 待機中に別のシーク・編集・破棄が行われた場合、古い結果を表示しない。
+				if (version !== this.timelineRenderVersion) return;
+				const commandEncoder = this.gpuDevice.createCommandEncoder();
+				let result: GPUTexture | undefined;
+				try {
+					result = renderer.render(context, commandEncoder);
+				} finally {
+					// 描画途中の例外でもエンコーダーと計測を完了し、次のシークで再利用できるようにする。
+					this.gpuDevice.queue.submit([commandEncoder.finish()]);
+					if (this.enableStats) gpuTime += await this.timingHelper.getResult();
+				}
+				if (version !== this.timelineRenderVersion) return;
+				// 各ノードが自身の出力を所有するため、レイヤー間のコピーや追加の合成は不要。
+				if (result != null) texture = result;
+			}
+			// 有効なレイヤーがなくても透明で描画し、直前の表示を残さない。
+			this.renderToCanvas(texture, this.gpuDevice.createCommandEncoder());
+			if (this.enableStats) {
+				this.gpuAverageFast.addSample(gpuTime / 1000);
+				this.gpuAverageMedium.addSample(gpuTime / 1000);
+				this.gpuAverageSlow.addSample(gpuTime / 1000);
+			}
+		} catch (error) {
+			if (version !== this.timelineRenderVersion) return;
+			this.clearTimelineRenderers();
+			throw error;
+		}
 	}
 
 	public startRenderLoopForLive() {
+		this.clearTimelineRenderers();
 		this.stopRenderLoop();
 		let then = 0;
 		const interval = 1000 / (this.liveModeFpsLimit ?? 999);
@@ -1045,17 +1239,18 @@ export class MainRenderer {
 		width: number;
 		height: number;
 	}) {
+		const wasLive = this.currentLiveModeRafId != null;
 		this.stopRenderLoop();
+		this.clearTimelineRenderers();
 		this.resolution = resolution;
-
-		for (const nodeGraphRenderer of this.perLayerNodeGraphRenderers.values()) {
-			nodeGraphRenderer?.resize(resolution);
-		}
-
-		this.startRenderLoopForLive();
+		this.liveNodeGraphRenderer?.resize(resolution);
+		if (wasLive) this.startRenderLoopForLive();
 	}
 
 	public destroy() {
+		this.stopRenderLoop();
+		this.clearTimelineRenderers();
+		this.liveNodeGraphRenderer?.destroy();
 		for (const id of this.audioPorts.keys()) this.resetAudioSource(id, null);
 		for (const frame of this.videoFrames.values()) frame.close();
 		this.videoFrames.clear();
