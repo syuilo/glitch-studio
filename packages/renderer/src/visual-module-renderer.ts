@@ -152,15 +152,9 @@ export class VisualModuleRenderer {
 	private evaluateParams(context: VisualModuleRenderContext, scope: Record<string, any>) {
 		this.paramValues.clear();
 		this.paramTextures = context.paramTextures ?? new Map();
-		for (const [id] of this.paramTextures) {
-			if (!this.paramDefs.some(def => def.id === id && def.canNode)) throw new Error(`Invalid texture parameter: ${id}`);
-		}
+		
 		for (const def of this.paramDefs) {
 			const value = context.paramValues[def.id];
-			// RPC経由の値も検査する。外部にはnode/macroによる参照を許可しない。
-			if (value != null && value.type !== 'literal' && value.type !== 'expression' && value.type !== 'automation') {
-				throw new Error(`Invalid external parameter value: ${def.id}`);
-			}
 			if (this.paramTextures.has(def.id)) continue;
 			const fallbackDef = { ...def.typeOptions, type: def.type, label: def.label };
 			let evaluated = deepClone(def.defaultValue); // 参照が共有されないように切る
@@ -251,7 +245,6 @@ export class VisualModuleRenderer {
 			};
 
 			for (const [key, def] of Object.entries(paramDefs)) {
-				// 無効時はバイパス先だけが必要。使わない子の式も評価しない。
 				if (node.isBypass && !def.primary) continue;
 				evaluatedParams[key] = mapNodeParam(def, node.params[key], [key], (def, param) => {
 					if (param.type === 'literal') return param.value;
