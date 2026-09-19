@@ -16,7 +16,7 @@ import { GpuWaveform } from './utility/waveform/GpuWaveform.ts';
 import { GpuMemoryTracker } from './utility/GpuMemoryTracker.ts';
 import type { EffectStatus } from '@glitch/shared/effect-status.ts';
 import type { AudioCaptureMessage, AudioSourceId } from '@glitch/shared/audio.ts';
-import type { Asset, Macro, GsAutomation, GsEffectNode, GsGlobalInNode, GsNode, Player, NodeOutputReference, EffectParamDef, Timeline, NodeGraph } from '@glitch/shared/types.ts';
+import type { Asset, Macro, GsAutomation, GsEffectNode, GsGlobalInNode, GsNode, Player, NodeOutputReference, EffectParamDef, Timeline, NodeGraph, EffectParamValue } from '@glitch/shared/types.ts';
 import type { EffectInstance, IntermediateTextureFormat } from '@glitch/shared/effect-implementation.js';
 
 const aisParser = new AiScript.Parser();
@@ -24,7 +24,7 @@ const aisParser = new AiScript.Parser();
 const aiscript = new AiScript.Interpreter({});
 
 // TODO: 毎回parseしているのが無駄感あるからどうにかする
-function evaluateExpression(expression: string, scope: Record<string, any>, paramDefForFallback: Omit<EffectParamDef, 'default'>): any {
+function evaluateExpression(expression: string, scope: Record<string, any>, paramDefForFallback: Omit<EffectParamDef, 'default'>) {
 	try {
 		for (const key in scope) {
 			if (aiscript.scope.exists(key)) {
@@ -38,6 +38,19 @@ function evaluateExpression(expression: string, scope: Record<string, any>, para
 		return AiScript.utils.valToJs(aisVal);
 	} catch (err) { // パース失敗時など
 		return genEmptyValue(paramDefForFallback);
+	}
+}
+
+function evaluateMacro(macroValue: EffectParamValue) {
+	if (macroValue.type === 'literal') {
+		return macroValue.value;
+	} else if (macroValue.type === 'expression') {
+		return evaluateExpression(macroValue.expression);
+	} else if (macroValue.type === 'automation') {
+		return evalAutomationValue(macroValue.automationId);
+	} else if (macroValue.type === 'macro') {
+		const targetMacro = 'TODO';
+		return evaluateMacro(targetMacro);
 	}
 }
 
@@ -59,7 +72,8 @@ type NodeGraphRenderContext = {
 	layerDurationMs?: number;
 	globalInput?: GPUTexture;
 	pointerPosition: { x: number; y: number };
-	pointerPositionPrev: { x: number; y: number }
+	pointerPositionPrev: { x: number; y: number };
+	macroValues: Record<string, EffectParamValue>;
 };
 
 class NodeGraphRenderer {
@@ -102,6 +116,7 @@ class NodeGraphRenderer {
 	private enableStats = true;
 	private renderNodeId: GsNode['id'] | null = null;
 	public lastRenderedLocalTime: number | null = null;
+	public macroValues: Record<string, EffectParamValue> = {};
 
 	constructor(options: {
 		onEffectStatus?: (nodeId: string, status: EffectStatus | null) => void;
@@ -196,7 +211,7 @@ class NodeGraphRenderer {
 				evaluatedParams[key] = mapNodeParam(def, node.params[key], [key], (def, param) => {
 					if (param.type === 'literal') return param.value;
 					if (param.type === 'expression') return param.expression ? evaluateExpression(param.expression, mixedScope, def) : genEmptyValue(def);
-					if (param.type === 'macro') return param.macroId ? evaluateMacro() : genEmptyValue(def);
+					if (param.type === 'macro') return param.macroId ? evaluateMacro(this.macroValues[param.macroId]) : genEmptyValue(def);
 					if (param.type === 'automation') {
 						const automation = this.automations.find(a => a.id === param.automationId);
 						return automation ? evalAutomationValue(automation, context.localTime) : genEmptyValue(def);
