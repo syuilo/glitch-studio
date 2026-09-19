@@ -1,6 +1,6 @@
-import { Renderer } from './renderer.ts';
+import { MainRenderer } from './renderer.ts';
 
-let renderer: Renderer | null = null;
+let renderer: MainRenderer | null = null;
 let canvas: OffscreenCanvas | null = null;
 let histogramCanvas: OffscreenCanvas | null = null;
 let waveformHorizontalCanvas: OffscreenCanvas | null = null;
@@ -57,7 +57,7 @@ onmessage = async (event) => {
 				throw new Error('cannot get webgpu context');
 			}
 
-			renderer = new Renderer({
+			renderer = new MainRenderer({
 				onEffectStatus: (nodeId, status) => self.postMessage({ type: 'effectStatus', nodeId, status }),
 				gpuDevice: device,
 				gpuContext: context,
@@ -69,9 +69,9 @@ onmessage = async (event) => {
 				timeFactor: event.data.options.timeFactor,
 				fpsLimit: event.data.options.fpsLimit,
 				assets: event.data.options.assets,
-				macros: event.data.options.macros,
 				automations: event.data.options.automations,
-				nodes: event.data.options.nodes,
+				visualModules: event.data.options.visualModules,
+				timeline: event.data.options.timeline,
 				histogramGpuContext: histogramContext,
 				waveformHorizontalGpuContext: waveformHorizontalContext,
 				waveformVerticalGpuContext: waveformVerticalContext,

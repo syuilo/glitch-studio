@@ -1,6 +1,6 @@
 <template>
 <div :class="[$style.root, { [$style.isBypass]: node.isBypass }]">
-	<div :class="[$style.header, { [$style.hasStatus]: effectStatus?.type === 'loading' || effectStatus?.type === 'error' }]" class="drag-handle" @dblclick="expanded = !expanded">
+	<div :class="[$style.header, { [$style.hasStatus]: effectStatus?.type === 'loading' || effectStatus?.type === 'error' }]" :draggable="true" @dragstart.stop="emit('dragStart', $event)">
 		<div :class="$style.headerLeft">
 			<GsNodePort :class="$style.allInPort" dataType="any" @update:element="allInPortEl = $event"/>
 			<div :class="$style.effectName">{{ name }}</div>
@@ -18,7 +18,16 @@
 	</div>
 
 	<div v-show="expanded" :class="$style.params" :inert="node.isBypass">
-		<GsEffectNodeParam v-for="[param, def] in visibleParams" :key="param" :node="node" :paramPath="[param]" :paramDef="def" :paramValue="node.params[param]"/>
+		<GsVisualParam
+			v-for="[param, def] in Object.entries(getNodeParamDefs(props.node))"
+			:key="param"
+			:visualModuleId="visualModuleId"
+			:node="node"
+			:paramPath="[param]"
+			:paramDef="def"
+			:paramValue="node.params[param]"
+			@edit="onParamEdit"
+		/>
 	</div>
 
 	<GsNodeOutputs :node="node"/>
@@ -30,24 +39,43 @@ import { ref, computed, shallowRef, watchEffect } from 'vue';
 import { effectDefinitions } from '@glitch/shared/effect-definitions.ts';
 import GsNodeOutputs from './GsNodeOutputs.vue';
 import GsNodePort from './GsNodePort.vue';
-import GsEffectNodeParam from './GsEffectNodeParam.vue';
+import GsVisualParam from './GsVisualParam.vue';
 import GsButton from './common/GsButton.vue';
-import type { GsEffectNode, GsGroupNode } from '@glitch/shared/types.ts';
+import type { ParamEdit } from './GsVisualParam.vue';
+import type { GsEffectNode } from '@glitch/shared/types.ts';
 import { i18n } from '@/i18n.ts';
 import { appContext, engine, wireMap } from '@/app.ts';
 import { getNodeParamDefs } from '@/utility/node-params.ts';
 import * as ui from '@/ui.ts';
 
 const props = defineProps<{
+	visualModuleId: string;
 	node: GsEffectNode,
-	group: GsGroupNode | null,
+}>();
+
+const emit = defineEmits<{
+	(ev: 'dragStart', event: DragEvent): void;
 }>();
 
 const name = ref<string>(effectDefinitions[props.node.effectId].displayName);
-const visibleParams = computed(() => Object.entries(getNodeParamDefs(props.node)).filter(([, def]) => !def.visibility || def.visibility(props.node.params)));
 const expanded = ref(true);
 const allInPortEl = shallowRef<HTMLElement | null>(null);
 const effectStatus = computed(() => engine.effectStatuses.get(props.node.id));
+
+function onParamEdit(event: ParamEdit) {
+	const target = { visualModuleId: props.visualModuleId, nodeId: props.node.id, paramPath: event.paramPath };
+	switch (event.kind) {
+		case 'literal': appContext.commit('updateParamAsLiteral', { ...target, value: event.value }, event.mergeKey); break;
+		case 'expression': appContext.commit('updateParamAsExpression', { ...target, value: event.value }); break;
+		case 'automation': appContext.commit('updateParamAsAutomation', { ...target, value: event.value }); break;
+		case 'node': appContext.commit('updateParamAsNode', { ...target, value: event.value }); break;
+		case 'macro': appContext.commit('updateParamAsMacro', { ...target, value: event.value }); break;
+		case 'type': appContext.commit('changeParamValueType', { ...target, type: event.type }); break;
+		case 'reset': appContext.commit('resetNodeParam', target); break;
+		case 'addElement': appContext.commit('addArrayParamElement', target); break;
+		case 'removeElement': appContext.commit('removeArrayParamElement', { ...target, index: event.index }); break;
+	}
+}
 
 function showEffectError() {
 	if (effectStatus.value?.type !== 'error') return;
@@ -56,12 +84,14 @@ function showEffectError() {
 
 function remove() {
 	appContext.commit('removeNode', {
+		visualModuleId: props.visualModuleId,
 		nodeId: props.node.id,
 	});
 }
 
 function toggleBypass() {
 	appContext.commit('changeNodeBypassState', {
+		visualModuleId: props.visualModuleId,
 		nodeId: props.node.id,
 		bypass: !props.node.isBypass,
 	});
@@ -82,7 +112,7 @@ watchEffect(onCleanup => {
 .root {
 	position: relative;
 	background: var(--THEME-nodeBg);
-	border-radius: 4px;
+	border-radius: 6px;
 	overflow: clip;
 	contain: content;
 

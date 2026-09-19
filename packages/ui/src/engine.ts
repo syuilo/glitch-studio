@@ -6,13 +6,13 @@ import { projectAudioSourceId } from '@glitch/shared/audio.ts';
 import { isVideoFrameAvailable, playVideoAfterFirstFrameIsReady } from './utility/video.ts';
 import { AudioInputs } from './audio/audio-inputs.ts';
 import { setupWebcam } from './utility/webcam.ts';
-import type { Asset, GsAutomation, GsNode, Macro, Player } from '@glitch/shared/types.ts';
-import type { Renderer } from '@glitch/renderer/renderer.ts';
+import type { Asset, GsAutomation, GsNode, Macro, VisualModule, Player, Timeline } from '@glitch/shared/types.ts';
+import type { MainRenderer } from '@glitch/renderer/renderer.ts';
 import type { EffectStatus } from '@glitch/shared/effect-status.ts';
 import * as ui from '@/ui.ts';
 
 type RendererMethods = {
-	[K in keyof Renderer as Renderer[K] extends (...args: never[]) => unknown ? K : never]: Renderer[K];
+	[K in keyof MainRenderer as MainRenderer[K] extends (...args: never[]) => unknown ? K : never]: MainRenderer[K];
 };
 
 export class Engine {
@@ -20,8 +20,6 @@ export class Engine {
 	public histogramCanvas: HTMLCanvasElement;
 	public waveformHorizontalCanvas: HTMLCanvasElement;
 	public waveformVerticalCanvas: HTMLCanvasElement;
-
-	//private renderer: Renderer | null = null;
 	private rendererWorker: Worker | null = null;
 	private resolution = { width: 1, height: 1 };
 	private renderLoopRunning = false;
@@ -29,17 +27,17 @@ export class Engine {
 	private rejectInitialization: ((reason: Error) => void) | null = null;
 	private pendingCalls: { message: unknown; options?: StructuredSerializeOptions }[] = [];
 	private pointerPosition = { x: 0, y: 0 };
-
 	private enable32bitDataTextures = false;
 	private intermediateTextureFormat = navigator.gpu.getPreferredCanvasFormat(); // TODO: 設定でrgba16floatも指定できるようにする(レンダリングの精度は上がるがパフォーマンスは落ちる)
 	private enableStats = true;
 	private highlightClipping = false;
 	private timeFactor = 1;
-	private nodes: GsNode[] = [];
+	private visualModules: VisualModule[] = [];
 	private assets: Asset[] = [];
 	private players: Player[] = [];
 	private macros: Macro[] = [];
 	private automations: GsAutomation[] = [];
+	private timeline: Timeline = [];
 	private videoElements = shallowReactive(new Map<Player['id'], HTMLMediaElement>());
 	private playerAssetFiles = new Map<Player['id'], Blob>();
 	private audioInputs = new AudioInputs(
@@ -56,7 +54,7 @@ export class Engine {
 	public gpuAverageDisplayMedium = ref(0);
 	public gpuAverageDisplaySlow = ref(0);
 	public fpsDisplay = ref(0);
-	public gpuMemoryUsage = ref<ReturnType<Renderer['gpuMemory']['getUsage']> | null>(null);
+	public gpuMemoryUsage = ref<ReturnType<MainRenderer['gpuMemory']['getUsage']> | null>(null);
 	public isReady = ref(false);
 	public effectStatuses = shallowReactive(new Map<string, EffectStatus>());
 
@@ -88,6 +86,7 @@ export class Engine {
 	}
 
 	private call<FN extends keyof RendererMethods>(fn: FN, args: Parameters<RendererMethods[FN]>, options?: StructuredSerializeOptions | Transferable[]): void {
+		//console.log('Calling renderer method:', fn, 'with args:', args);
 		const message = { type: 'call', fn, args };
 		const serializeOptions = Array.isArray(options) ? { transfer: options } : options;
 		if (!this.isReady.value) {
@@ -175,7 +174,8 @@ export class Engine {
 				assets: this.assets,
 				macros: this.macros,
 				automations: this.automations,
-				nodes: this.nodes,
+				visualModules: this.visualModules,
+				timeline: this.timeline,
 			},
 		}, [offscreen, histogramOffscreen, waveformHorizontalOffscreen, waveformVerticalOffscreen]);
 		this.rendererWorker.onmessage = (event) => {
@@ -228,8 +228,8 @@ export class Engine {
 		await ready;
 	}
 
-	public startRenderLoop() {
-		this.call('startRenderLoop', []);
+	public startLiveRenderLoopFor(visualModuleId: VisualModule['id']) {
+		this.call('startLiveRenderLoopFor', [visualModuleId]);
 		this.renderLoopRunning = true;
 	}
 
@@ -329,9 +329,9 @@ export class Engine {
 		await Promise.all(this.videoLoads.values());
 	}
 
-	public updateNodes(newNodes: GsNode[]) {
-		this.nodes = deepClone(newNodes);
-		this.call('updateNodes', [this.nodes]);
+	public updateVisualModules(newVisualModules: VisualModule[]) {
+		this.visualModules = deepClone(newVisualModules);
+		this.call('updateVisualModules', [this.visualModules]);
 	}
 
 	public getVideoElement(playerId: Player['id']): HTMLVideoElement | null {
@@ -369,7 +369,12 @@ export class Engine {
 		this.assets = deepClone(newAssets);
 		await this.call('updateAssets', [this.assets]);
 		await this.updatePlayers(this.players);
-		await this.updateNodes(this.nodes);
+		await this.updateVisualModules(this.visualModules);
+	}
+
+	public updateTimeline(newTimeline: Timeline) {
+		this.timeline = deepClone(newTimeline);
+		this.call('updateTimeline', [this.timeline]);
 	}
 
 	public async updatePointerPosition(newPointerPosition: { x: number; y: number }) {
@@ -377,9 +382,9 @@ export class Engine {
 		this.call('updatePointerPosition', [newPointerPosition]);
 	}
 
-	public changeFpsLimit(newFpsLimit: number | null) {
+	public changeLiveModeFpsLimit(newFpsLimit: number | null) {
 		this.fpsLimit = newFpsLimit;
-		this.call('changeFpsLimit', [this.fpsLimit]);
+		this.call('changeLiveModeFpsLimit', [this.fpsLimit]);
 	}
 
 	public setHighlightClipping(enabled: boolean) {
@@ -394,6 +399,12 @@ export class Engine {
 		this.timeFactor = value;
 		if (this.isReady.value || (this.rendererWorker != null && this.rejectInitialization != null)) {
 			this.call('setTimeFactor', [value]);
+		}
+	}
+
+	public renderTimelineAt(time: number) {
+		if (this.isReady.value || (this.rendererWorker != null && this.rejectInitialization != null)) {
+			this.call('renderTimelineAt', [time]);
 		}
 	}
 

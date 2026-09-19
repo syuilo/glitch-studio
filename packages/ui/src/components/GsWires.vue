@@ -9,7 +9,7 @@
 		right: `anchor(${port.anchorName} center, 100%)`,
 		bottom: `anchor(${port.anchorName} center, 100%)`,
 	}"
-/>
+></div>
 <div ref="rootEl" :class="$style.root">
 	<svg v-for="(wire, index) in wires" :key="wire.key" version="1.1" :viewBox="`0 0 ${width} ${height}`" :class="$style.wire">
 		<defs>
@@ -38,14 +38,15 @@
 
 <script lang="ts" setup>
 import { computed, onMounted, onBeforeUnmount, ref, shallowReactive, shallowRef, useId, useTemplateRef, watch } from 'vue';
-import type { ComponentPublicInstance } from 'vue';
 import { getNodeInputDataType, getNodeOutputs } from '@glitch/shared/utility/node-outputs.ts';
+import type { ComponentPublicInstance } from 'vue';
 import type { NodeDataType } from '@glitch/shared/utility/node-outputs.ts';
-import type { GsNode } from '@glitch/shared/types.ts';
 import { appContext, wireMap } from '@/app.ts';
 import { wireDrag } from '@/utility/wire-drag.ts';
 import { getNodeDataTypeColor } from '@/utility/node-outputs.ts';
 import { paramPathKey, walkNodeParams } from '@/utility/node-params.ts';
+
+const props = defineProps<{ visualModuleId: string }>();
 
 // 配線全長に含まれる模様の周期数（正の数）。
 const gradientRepeatCount = 4;
@@ -71,16 +72,10 @@ type Wire = {
 };
 
 // 接続先の列挙はレイアウトから独立させ、座標変更では再走査しない。
+const paramDefs = computed(() => appContext.state.visualModules.value.find(module => module.id === props.visualModuleId)?.paramDefs ?? []);
 const nodesById = computed(() => {
-	const result = new Map<string, GsNode>();
-	function visit(nodes: GsNode[]) {
-		for (const node of nodes) {
-			result.set(node.id, node);
-			if (node.type === 'group') visit(node.nodes);
-		}
-	}
-	visit(appContext.state.nodes.value);
-	return result;
+	const nodes = appContext.state.visualModules.value.find(visualModule => visualModule.id === props.visualModuleId)?.nodes ?? [];
+	return new Map(nodes.map(node => [node.id, node]));
 });
 
 const connections = computed(() => {
@@ -93,24 +88,42 @@ const connections = computed(() => {
 		toColor: string;
 	}[] = [];
 	for (const node of nodesById.value.values()) {
-		if (node.type === 'group') continue;
+		if (node.type === 'globalOut') {
+			const { nodeId, outputPort } = node.input;
+			if (nodeId == null || !nodesById.value.has(nodeId)) continue;
+			const from = wireMap.out[nodeId]?.[outputPort];
+			if (from) result.push({
+				key: JSON.stringify([props.visualModuleId, node.id, 'input', nodeId, outputPort]),
+				from,
+				input: undefined,
+				allIn: wireMap.allIn[node.id],
+				...getWireColors(getNodeOutputs(nodesById.value.get(nodeId), paramDefs.value)[outputPort]?.dataType ?? 'any', 'color'),
+			});
+			continue;
+		}
+		if (node.type !== 'effect') continue;
 		for (const { path, def, value } of walkNodeParams(node)) {
 			if (value.type !== 'node' || value.nodeId == null || def.type === 'struct' || def.type === 'array') continue;
+			if (!nodesById.value.has(value.nodeId)) continue;
 			const from = wireMap.out[value.nodeId]?.[value.outputPort];
 			if (!from) continue;
 			result.push({
-				key: JSON.stringify([node.id, path, value.nodeId, value.outputPort]),
+				key: JSON.stringify([props.visualModuleId, node.id, path, value.nodeId, value.outputPort]),
 				from,
 				input: wireMap.in[node.id]?.[paramPathKey(path)],
 				allIn: wireMap.allIn[node.id],
-				...getWireColors(getNodeOutputs(nodesById.value.get(value.nodeId))[value.outputPort]?.dataType ?? 'any', getNodeInputDataType(def) ?? 'any'),
+				...getWireColors(getNodeOutputs(nodesById.value.get(value.nodeId), paramDefs.value)[value.outputPort]?.dataType ?? 'any', getNodeInputDataType(def) ?? 'any'),
 			});
 		}
 	}
 	return result;
 });
 
-const dragSource = computed(() => wireDrag.value?.source);
+const dragSource = computed(() => {
+	const source = wireDrag.value?.source;
+	if (!source) return undefined;
+	return [...nodesById.value.keys()].some(id => Object.values(wireMap.out[id] ?? {}).includes(source)) ? source : undefined;
+});
 const measuredPorts = computed(() => {
 	const elements = new Set<HTMLElement>();
 	for (const connection of connections.value) {
@@ -203,7 +216,7 @@ function getGradientTransform(wire: typeof wires.value[number]): string {
 
 function updateDragPosition() {
 	const drag = wireDrag.value;
-	if (!drag || !rootEl.value) {
+	if (!drag || !dragSource.value || !rootEl.value) {
 		dragPosition.value = null;
 		return;
 	}
@@ -214,7 +227,7 @@ function updateDragPosition() {
 	if (dragPosition.value?.[0] !== x || dragPosition.value[1] !== y) dragPosition.value = [x, y];
 }
 
-watch(wireDrag, updateDragPosition, { flush: 'post' });
+watch([wireDrag, dragSource], updateDragPosition, { flush: 'post' });
 
 onMounted(() => {
 	if (rootEl.value) ro.observe(rootEl.value);

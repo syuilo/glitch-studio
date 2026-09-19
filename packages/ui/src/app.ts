@@ -1,6 +1,10 @@
 import { ref, markRaw, reactive, watch, shallowRef, triggerRef, computed } from 'vue';
 import { deepClone } from '@glitch/shared/utility/deep-clone.ts';
 import { genId } from '@glitch/shared/utility/id.ts';
+import fillEffectDef from '@glitch/shared/effects/fill/_def_.ts';
+import imageEffectDef from '@glitch/shared/effects/image/_def_.ts';
+import videoEffectDef from '@glitch/shared/effects/video/_def_.ts';
+import audioWaveformEffectDef from '@glitch/shared/effects/audioWaveform/_def_.ts';
 import { loadProjectFile, saveProjectFile, decodeAssets } from './api.ts';
 import { Engine } from './engine.ts';
 import { preferences } from './preferences.ts';
@@ -8,8 +12,9 @@ import { COMMAND_DEFS } from './commands.ts';
 import GsEffectPicker from './components/GsEffectPicker.vue';
 import type { CommandDef } from './commands.ts';
 import type { AppState } from './types.ts';
-import type { Asset, GsNode, Macro, GsAutomation, GsGroupNode, Player } from '@glitch/shared/types.ts';
-import type { RawProject } from './settings.ts';
+import type { EffectNodeOf } from '@glitch/shared/effect-definition.ts';
+import type { Asset, GsNode, Macro, GsAutomation, GsGroupNode, Player, VisualModule, Timeline } from '@glitch/shared/types.ts';
+import type { Project } from './gsproj.ts';
 import * as ui from '@/ui.ts';
 import * as api from '@/api.ts';
 
@@ -37,9 +42,10 @@ class AppContext {
 			resolution: ref<{ width: number; height: number }>({ width: 1024, height: 1024 }),
 			assets: ref<Asset[]>([]), // TODO: バイナリをリアクティブでwrapするのをやめる
 			players: ref<Player[]>([]),
-			nodes: ref<GsNode[]>([]),
+			visualModules: ref<VisualModule[]>([]),
 			macros: ref<Macro[]>([]),
 			automations: ref<GsAutomation[]>([]),
+			timeline: ref<Timeline>([]),
 		};
 	}
 
@@ -93,6 +99,8 @@ export const appContext = new AppContext();
 
 (window as any).appContext = appContext; // debug
 
+export const currentTimelineTime = ref(0);
+
 export const wireMap = reactive<{
 	in: Record<string, any>;
 	out: Record<string, Record<string, HTMLElement>>;
@@ -103,12 +111,12 @@ export const wireMap = reactive<{
 	allIn: {},
 });
 
-export function showAddNodeMenu(ev: PointerEvent, group?: GsGroupNode) {
+export function showAddNodeMenu(visualModuleId: VisualModule['id'], ev: PointerEvent) {
 	const { dispose } = ui.popup(GsEffectPicker, {
 	}, {
 		'chosen': effect => {
 			appContext.commit('addEffectNode', {
-				groupId: group?.id,
+				visualModuleId: visualModuleId,
 				effectId: effect.id,
 				id: genId(),
 			});
@@ -155,7 +163,7 @@ watch(highlightClipping, value => {
 (window as any).engine = engine; // debug
 
 watch(fpsLimit, () => {
-	engine.changeFpsLimit(fpsLimit.value);
+	engine.changeLiveModeFpsLimit(fpsLimit.value);
 });
 
 watch(timeFactor, value => {
@@ -169,7 +177,7 @@ watch([appContext.state.resolution, resolutionFactor], () => {
 	});
 });
 
-export async function appReady(project: RawProject) {
+export async function appReady(project: Project) {
 	window.document.title = `Glitch Studio (${project.name})`;
 
 	await engine.init({
@@ -181,10 +189,12 @@ export async function appReady(project: RawProject) {
 	appContext.projectName = project.name;
 	appContext.projectAuthor = project.author;
 	appContext.state.resolution.value = project.resolution;
-	appContext.state.assets.value = await decodeAssets(project.assets);
-	appContext.state.nodes.value = project.nodes;
+	appContext.state.assets.value = project.assets;
+	appContext.state.visualModules.value = project.visualModules;
 	appContext.state.macros.value = project.macros;
 	appContext.state.automations.value = project.automations;
+	appContext.state.players.value = project.players;
+	appContext.state.timeline.value = project.timeline;
 
 	watch(appContext.state.automations, () => {
 		engine.updateAutomations(deepClone(appContext.state.automations.value));
@@ -198,43 +208,27 @@ export async function appReady(project: RawProject) {
 		engine.updatePlayers(deepClone(appContext.state.players.value));
 	}, { deep: true, immediate: true });
 
-	watch(appContext.state.nodes, () => {
-		engine.updateNodes(deepClone(appContext.state.nodes.value));
-
-		//// TODO: グループ考慮
-		//if (store.nodes.some(n => n.type === 'effect' && n.effectId === 'webcamera')) {
-		//	glitchRenderer.setupWebcam();
-		//}
+	watch(appContext.state.visualModules, () => {
+		engine.updateVisualModules(deepClone(appContext.state.visualModules.value));
 	}, { deep: true, immediate: true });
 
-	watch(appContext.state.macros, () => {
-		engine.updateMacros(deepClone(appContext.state.macros.value));
+	//watch(appContext.state.macros, () => {
+	//	engine.updateMacros(deepClone(appContext.state.macros.value));
+	//}, { deep: true, immediate: true });
+
+	watch(appContext.state.timeline, () => {
+		engine.updateTimeline(deepClone(appContext.state.timeline.value));
 	}, { deep: true, immediate: true });
 
-	engine.startRenderLoop();
+	watch(currentTimelineTime, () => {
+		engine.renderTimelineAt(currentTimelineTime.value);
+	}, { deep: true, immediate: true });
+
+	engine.startLiveRenderLoopFor(project.visualModules[0].id);
 }
 
 export function saveProject() {
-	//saveProjectFile({
-	//	id: store.id,
-	//	gsVersion: _VERSION_,
-	//	name: store.name,
-	//	author: store.author,
-	//	macros: store.macros,
-	//	nodes: store.nodes,
-	//	automations: store.automations,
-	//	renderWidth: store.renderWidth,
-	//	renderHeight: store.renderHeight,
-	//	assets: store.assets.map(asset => ({
-	//		id: asset.id,
-	//		name: asset.name,
-	//		width: asset.width,
-	//		height: asset.height,
-	//		fileDataType: asset.fileDataType,
-	//		fileData: asset.fileData,
-	//		hash: asset.hash,
-	//	})),
-	//});
+	// TODO
 }
 
 export async function openProject() {
@@ -246,15 +240,61 @@ export async function openProject() {
 }
 
 export async function newProject() {
+	const initialEffectNodeId = genId();
+	const initialInputParamId = genId();
+	const initialVisualModule = {
+		id: genId(),
+		name: 'My Visual Module',
+		paramDefs: [{
+			id: initialInputParamId,
+			label: 'My Input',
+			name: 'myInput',
+			type: 'color',
+			defaultValue: [0, 0, 0, 0],
+			canNode: true,
+			isPrimaryInput: true,
+		}],
+		nodes: [{
+			id: genId(),
+			type: 'globalIn',
+			paramId: initialInputParamId,
+		}, {
+			id: initialEffectNodeId,
+			type: 'effect',
+			effectId: 'fill',
+			params: {
+				color: { type: 'literal', value: [0, 1, 0, 1] },
+			},
+			isBypass: false,
+		} satisfies EffectNodeOf<typeof fillEffectDef>, {
+			id: genId(),
+			type: 'globalOut',
+			input: {
+				nodeId: initialEffectNodeId,
+				outputPort: 'output',
+			},
+		}],
+	} satisfies VisualModule;
 	await appReady({
 		id: genId(),
 		gsVersion: _VERSION_,
 		name: 'untitled',
 		author: 'TODO',
-		nodes: [],
+		visualModules: [initialVisualModule],
 		assets: [],
 		macros: [],
 		automations: [],
+		players: [],
+		timeline: [{
+			id: genId(),
+			layer: {
+				type: 'visualModule',
+				visualModuleId: initialVisualModule.id,
+				paramValues: {},
+			},
+			startTimeMs: 0,
+			endTimeMs: 1000 * 10,
+		}],
 		resolution: { width: 1024, height: 1024 },
 	});
 }
@@ -262,9 +302,6 @@ export async function newProject() {
 export async function newProjectFromImageOrVideo(file?: File) {
 	const result = await api.openMediaFile({ file });
 	if (result == null) return false;
-
-	const assetId = genId();
-
 	if (result.width > 1500 || result.height > 1500) {
 		resolutionFactor.value = 0.5;
 	}
@@ -272,20 +309,8 @@ export async function newProjectFromImageOrVideo(file?: File) {
 		resolutionFactor.value = 0.25;
 	}
 
-	await appReady({
+	const asset = {
 		id: genId(),
-		gsVersion: _VERSION_,
-		name: result.name,
-		author: 'TODO',
-		nodes: [],
-		assets: [],
-		macros: [],
-		automations: [],
-		resolution: { width: result.width || 1024, height: result.height || 1024 },
-	});
-
-	appContext.commit('addAsset', {
-		id: assetId,
 		name: result.name,
 		width: result.width,
 		height: result.height,
@@ -293,34 +318,105 @@ export async function newProjectFromImageOrVideo(file?: File) {
 		fileDataType: result.type,
 		fileData: result.fileData,
 		hash: result.hash,
-	});
+	} satisfies Asset;
 
-	if (result.type.startsWith('image/')) {
-		appContext.commit('addEffectNode', {
+	const player = result.type.startsWith('video/') || result.type.startsWith('audio/') ? {
+		id: genId(),
+		name: result.name,
+		type: 'asset',
+		assetId: asset.id,
+	} satisfies Player : null;
+
+	const initialEffectNodeId = genId();
+	const initialInputParamId = genId();
+	const initialVisualModule = {
+		id: genId(),
+		name: 'My Visual Module',
+		paramDefs: [{
+			id: initialInputParamId,
+			label: 'My Input',
+			name: 'myInput',
+			type: 'color',
+			defaultValue: [0, 0, 0, 0],
+			canNode: true,
+			isPrimaryInput: true,
+		}],
+		nodes: [{
+			id: genId(),
+			type: 'globalIn',
+			paramId: initialInputParamId,
+		}, result.type.startsWith('image/') ? {
+			id: initialEffectNodeId,
+			type: 'effect',
 			effectId: 'image',
-			id: genId(),
 			params: {
-				image: { type: 'literal', value: assetId },
+				image: { type: 'literal', value: asset.id },
+				sizeMode: imageEffectDef.paramDefs.sizeMode.default(),
 			},
-		});
-	} else if (result.type.startsWith('video/') || result.type.startsWith('audio/')) {
-		const playerId = genId();
-
-		appContext.commit('addPlayer', {
-			id: playerId,
-			name: result.name,
-			type: 'asset',
-			assetId: assetId,
-		});
-
-		appContext.commit('addEffectNode', {
-			effectId: result.type.startsWith('audio/') ? 'audioWaveform' : 'video',
-			id: genId(),
+			isBypass: false,
+		} satisfies EffectNodeOf<typeof imageEffectDef> : result.type.startsWith('video/') ? {
+			id: initialEffectNodeId,
+			type: 'effect',
+			effectId: 'video',
 			params: {
-				player: { type: 'literal', value: playerId },
+				player: { type: 'literal', value: player!.id },
+				sizeMode: videoEffectDef.paramDefs.sizeMode.default(),
 			},
-		});
-	}
+			isBypass: false,
+		} satisfies EffectNodeOf<typeof videoEffectDef> : result.type.startsWith('audio/') ? {
+			id: initialEffectNodeId,
+			type: 'effect',
+			effectId: 'audioWaveform',
+			params: {
+				player: { type: 'literal', value: player!.id },
+				channel: audioWaveformEffectDef.paramDefs.channel.default(),
+				duration: audioWaveformEffectDef.paramDefs.duration.default(),
+				amplitude: audioWaveformEffectDef.paramDefs.amplitude.default(),
+				lineWidth: audioWaveformEffectDef.paramDefs.lineWidth.default(),
+				colorL: audioWaveformEffectDef.paramDefs.colorL.default(),
+				colorR: audioWaveformEffectDef.paramDefs.colorR.default(),
+			},
+			isBypass: false,
+		} satisfies EffectNodeOf<typeof audioWaveformEffectDef> : {
+			id: initialEffectNodeId,
+			type: 'effect',
+			effectId: 'fill',
+			params: {
+				color: { type: 'literal', value: [0, 1, 0, 1] },
+			},
+			isBypass: false,
+		} satisfies EffectNodeOf<typeof fillEffectDef>, {
+			id: genId(),
+			type: 'globalOut',
+			input: {
+				nodeId: initialEffectNodeId,
+				outputPort: 'output',
+			},
+		}],
+	} satisfies VisualModule;
+
+	await appReady({
+		id: genId(),
+		gsVersion: _VERSION_,
+		name: result.name,
+		author: 'TODO',
+		visualModules: [initialVisualModule],
+		assets: [asset],
+		players: player ? [player] : [],
+		macros: [],
+		automations: [],
+		timeline: [{
+			id: genId(),
+			layer: {
+				type: 'visualModule',
+				visualModuleId: initialVisualModule.id,
+				paramValues: {},
+			},
+			startTimeMs: 0,
+			endTimeMs: 1000 * 10,
+		}],
+		resolution: { width: result.width || 1024, height: result.height || 1024 },
+	});
 
 	return true;
 }

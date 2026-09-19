@@ -1,4 +1,4 @@
-import type { NodeParamValue } from './types.ts';
+import type { GsEffectNode, NodeParamValue } from './types.ts';
 
 type EffectOptionSchemaBase = {
 	label: string;
@@ -138,8 +138,8 @@ type EffectOptionScalarValue<T extends EffectOptionsSchema[string]> =
 	T extends EnumOptionSchema ? T['options'][number]['value'] :
 	T extends RangeOptionSchema ? number :
 	T extends AngleOptionSchema ? number :
-	T extends ImageOptionSchema ? null :
-	T extends PlayerOptionSchema ? null :
+	T extends ImageOptionSchema ? string | null :
+	T extends PlayerOptionSchema ? string | null :
 	T extends StructOptionSchema ? {
 		[K in keyof T['fields']]: EffectOptionDefaultValue<T['fields'][K]>;
 	} :
@@ -194,6 +194,13 @@ export type EffectDefinition<OpSc extends EffectOptionsSchema = EffectOptionsSch
 	tags: EffectTags[];
 	paramDefs: OpSc;
 	outputs: Outputs;
+};
+
+export type EffectNodeOf<DEF extends EffectDefinition> = Omit<GsEffectNode, 'effectId' | 'params'> & {
+	effectId: DEF['id'];
+	params: {
+		[K in keyof DEF['paramDefs']]-?: EffectOptionDefaultValue<DEF['paramDefs'][K]>;
+	};
 };
 
 export function defineEffect<const OpSc extends Record<string, EffectOptionSchemaWithDefault<EffectOptionsSchema[string]>>, const Outputs extends EffectOutputsSchema>(

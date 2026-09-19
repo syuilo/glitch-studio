@@ -181,17 +181,21 @@ export default implementEffect<typeof definition>({
 			});
 		};
 		loadSymbolTextures(iconset);
+		const prepare = (nextParams: typeof params) => {
+			if (nextParams.iconset !== iconset) {
+				iconset = nextParams.iconset;
+				loadSymbolTextures(iconset);
+			}
+		};
 
 		return {
 			get cacheVersion() { return cacheVersion; },
+			prepare,
 			render: (ctx) => {
 				if (ctx.params.input !== inputTexture || ctx.params.forceField !== forceFieldTexture) {
 					updateBindGroup(ctx.params.input, ctx.params.forceField);
 				}
-				if (ctx.params.iconset !== iconset) {
-					iconset = ctx.params.iconset;
-					loadSymbolTextures(iconset);
-				}
+				prepare(ctx.params);
 
 				uniformValues.set({
 					aspectRatio: resolution.width / resolution.height,

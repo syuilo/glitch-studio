@@ -70,8 +70,8 @@ export default implementEffect<typeof definition>({
 					}
 				}
 				uniforms.set([
-					params.color[0], params.color[1], params.color[2], 1,
-					params.rightColor[0], params.rightColor[1], params.rightColor[2], 1,
+					params.colorL[0], params.colorL[1], params.colorL[2], 1,
+					params.colorR[0], params.colorR[1], params.colorR[2], 1,
 					columns, Number(channel === 'stereo'), finiteNumber(params.lineWidth, 0.003, 0.001, 0.05), resolution.width / resolution.height,
 					Number(!!history?.channelCount), 0, 0, 0,
 				]);

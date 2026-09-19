@@ -154,7 +154,7 @@ export const PREF_DEF = definePreferences({
 					element: {
 						id: '9547a31d6fcb4d9698ceb5136cc7621c',
 						type: 'panel',
-						contentType: 'nodesEditor',
+						contentType: 'visualModuleEditor',
 					},
 				}],
 			} satisfies WorkspaceElement;

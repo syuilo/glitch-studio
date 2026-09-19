@@ -37,6 +37,8 @@ export type GetRuntimeEffectOptionsSchemaValues<T extends EffectOptionsSchema> =
 
 export type EffectInstance<Options extends EffectOptionsSchema = any, Outputs extends EffectOutputsSchema = any> = {
 	readonly cacheVersion?: number;
+	/** パラメータ変更による非同期の準備を開始する。完了はreportStatusで通知する。 */
+	prepare?: (params: GetRuntimeEffectOptionsSchemaValues<Options>) => void;
 	render: (ctx: {
 		time: number;
 		timeDelta: number;

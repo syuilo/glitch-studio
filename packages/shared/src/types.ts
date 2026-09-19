@@ -10,18 +10,12 @@ export type EffectParamValue = {
 	type: 'expression';
 	expression: string;
 } | {
+	type: 'macro';
+	macroId: string;
+} | {
 	type: 'automation';
 	automationId: string | null;
 } | NodeParamValue;
-
-export type Macro = {
-	id: string;
-	label: string;
-	name: string;
-	type: EffectParamDataType;
-	typeOptions: Record<string, any>;
-	value: EffectParamValue;
-};
 
 export type Asset = {
 	id: string;
@@ -76,6 +70,58 @@ export type GsEffectNode = {
 	pos?: { x: number; y: number };
 };
 
-export type GsGroupNode = GsEffectNode; // とりあえず
+export type GsGlobalInNode = {
+	id: string;
+	type: 'globalIn';
+	paramId: string;
 
-export type GsNode = GsEffectNode | GsGroupNode;
+	// 2D平面上でノードを配置できるようになった時のため
+	pos?: { x: number; y: number };
+};
+
+export type GsGlobalOutNode = {
+	id: string;
+	type: 'globalOut';
+	input: { nodeId: string; outputPort: string } | { nodeId: null; outputPort: null };
+
+	// 2D平面上でノードを配置できるようになった時のため
+	pos?: { x: number; y: number };
+};
+
+export type GsGroupNode = any; // とりあえず
+
+export type GsNode = GsEffectNode | GsGlobalInNode | GsGlobalOutNode;
+
+export type VisualModule = {
+	id: string;
+	name: string;
+	nodes: GsNode[];
+	paramDefs: {
+		id: string;
+		label: string;
+		name: string;
+		type: EffectParamDataType;
+		typeOptions: Record<string, any>;
+		defaultValue: any;
+		canNode: boolean;
+		isPrimaryInput: boolean;
+	}[];
+};
+
+// レイヤー・live modeからは、モジュール内部のノードやパラメータを参照しない。
+export type VisualModuleParamValues = Record<string, Exclude<EffectParamValue, { type: 'node' | 'macro' }>>;
+
+export type VisualModuleLayer = {
+	type: 'visualModule';
+	visualModuleId: string;
+	paramValues: VisualModuleParamValues;
+};
+
+export type Layer = VisualModuleLayer;
+
+export type Timeline = {
+	id: string;
+	layer: Layer;
+	startTimeMs: number;
+	endTimeMs: number;
+}[];

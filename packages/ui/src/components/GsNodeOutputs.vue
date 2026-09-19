@@ -12,13 +12,13 @@
 import { computed, onUnmounted } from 'vue';
 import { getNodeOutputs } from '@glitch/shared/utility/node-outputs.ts';
 import GsNodePort from './GsNodePort.vue';
-import type { GsNode } from '@glitch/shared/types.ts';
+import type { GsNode, VisualModule } from '@glitch/shared/types.ts';
 import { wireMap } from '@/app.ts';
 import { startWireDrag } from '@/utility/wire-drag.ts';
 import { getNodeDataTypeColor } from '@/utility/node-outputs.ts';
 
-const props = defineProps<{ node: GsNode }>();
-const ports = computed(() => getNodeOutputs(props.node));
+const props = defineProps<{ node: GsNode; paramDefs?: VisualModule['paramDefs'] }>();
+const ports = computed(() => getNodeOutputs(props.node, props.paramDefs));
 const elements = new Map<string, HTMLElement>();
 let cancelDrag: (() => void) | undefined;
 
