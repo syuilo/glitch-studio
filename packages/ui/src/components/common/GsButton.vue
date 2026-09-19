@@ -74,7 +74,6 @@ onMounted(() => {
 <style lang="scss" module>
 .root {
 	position: relative;
-	z-index: 1; // 他コンポーネントのbox-shadowに隠されないようにするため
 	display: block;
 	min-width: 80px;
 	width: max-content;

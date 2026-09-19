@@ -1,5 +1,8 @@
 <template>
 <div :class="$style.root">
+	<div :class="$style.header">
+		<button class="_button">Graph: {{ nodeGraph?.id ?? '' }}</button>
+	</div>
 	<div v-if="nodeGraph != null" :key="nodeGraph.id" :class="$style.nodesContainer">
 		<div :class="$style.nodesContent">
 			<GsDraggable
@@ -17,11 +20,11 @@
 					<XEffectNode v-if="node.type === 'effect'" :nodeGraphId="nodeGraph.id" :node="node" :class="$style.node" @dragStart="dragStart"/>
 				</template>
 				<template #footer>
-					<XGlobalOutNode v-if="globalOutNode != null" :node="globalOutNode" :nodeGraphId="nodeGraph.id" :class="$style.node" style="margin-top: 4px;"/>
+					<GsButton :class="$style.addButton" full style="margin-top: 4px;" @click="showAddNodeMenu(nodeGraph.id, $event)"><i class="ti ti-plus"></i> Add node...</GsButton>
+
+					<XGlobalOutNode v-if="globalOutNode != null" :node="globalOutNode" :nodeGraphId="nodeGraph.id" :class="$style.node" style="margin-top: 8px;"/>
 				</template>
 			</GsDraggable>
-
-			<GsButton :class="$style.addButton" full @click="showAddNodeMenu(nodeGraph.id, $event)">Add node</GsButton>
 
 			<GsWires :nodeGraphId="nodeGraph.id"/>
 		</div>

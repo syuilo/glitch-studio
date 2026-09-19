@@ -9,7 +9,7 @@
 		right: `anchor(${port.anchorName} center, 100%)`,
 		bottom: `anchor(${port.anchorName} center, 100%)`,
 	}"
-/>
+></div>
 <div ref="rootEl" :class="$style.root">
 	<svg v-for="(wire, index) in wires" :key="wire.key" version="1.1" :viewBox="`0 0 ${width} ${height}`" :class="$style.wire">
 		<defs>
@@ -38,8 +38,8 @@
 
 <script lang="ts" setup>
 import { computed, onMounted, onBeforeUnmount, ref, shallowReactive, shallowRef, useId, useTemplateRef, watch } from 'vue';
-import type { ComponentPublicInstance } from 'vue';
 import { getNodeInputDataType, getNodeOutputs } from '@glitch/shared/utility/node-outputs.ts';
+import type { ComponentPublicInstance } from 'vue';
 import type { NodeDataType } from '@glitch/shared/utility/node-outputs.ts';
 import { appContext, wireMap } from '@/app.ts';
 import { wireDrag } from '@/utility/wire-drag.ts';
