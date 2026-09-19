@@ -2,7 +2,7 @@
 <div :class="[$style.root]">
 	<div :class="[$style.header]">
 		<div :class="$style.headerLeft">
-			<div :class="$style.effectName">In</div>
+			<b>In <i class="ti ti-arrow-right"></i></b>
 		</div>
 	</div>
 
