@@ -87,6 +87,7 @@ export type GsGlobalInNode = {
 export type GsGlobalOutNode = {
 	id: string;
 	type: 'globalOut';
+	input: { nodeId: string; outputPort: string } | { nodeId: null; outputPort: null };
 
 	// 2D平面上でノードを配置できるようになった時のため
 	pos?: { x: number; y: number };
