@@ -241,16 +241,48 @@ export async function openProject() {
 }
 
 export async function newProject() {
+	const initialEffectNodeId = genId();
+	const initialNodeGraph = {
+		id: genId(),
+		name: '',
+		nodes: [{
+			id: genId(),
+			type: 'globalIn',
+		}, {
+			id: initialEffectNodeId,
+			type: 'effect',
+			effectId: 'fill',
+			params: {
+				color: { type: 'literal', value: [0, 1, 0, 1] },
+			},
+			isBypass: false,
+		}, {
+			id: genId(),
+			type: 'globalOut',
+			input: {
+				nodeId: initialEffectNodeId,
+				outputPort: 'output',
+			},
+		}],
+	} satisfies NodeGraph;
 	await appReady({
 		id: genId(),
 		gsVersion: _VERSION_,
 		name: 'untitled',
 		author: 'TODO',
-		nodeGraphs: [],
+		nodeGraphs: [initialNodeGraph],
 		assets: [],
 		macros: [],
 		automations: [],
-		timeline: [],
+		timeline: [{
+			id: genId(),
+			layer: {
+				type: 'nodeGraph',
+				nodeGraphId: initialNodeGraph.id,
+			},
+			startTimeMs: 0,
+			endTimeMs: 1000 * 10,
+		}],
 		resolution: { width: 1024, height: 1024 },
 	});
 }

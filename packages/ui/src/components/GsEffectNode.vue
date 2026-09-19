@@ -18,7 +18,7 @@
 	</div>
 
 	<div v-show="expanded" :class="$style.params" :inert="node.isBypass">
-		<GsEffectNodeParam v-for="[param, def] in visibleParams" :key="param" :node="node" :paramPath="[param]" :paramDef="def" :paramValue="node.params[param]"/>
+		<GsEffectNodeParam v-for="[param, def] in Object.entries(getNodeParamDefs(props.node))" :key="param" :node="node" :paramPath="[param]" :paramDef="def" :paramValue="node.params[param]"/>
 	</div>
 
 	<GsNodeOutputs :node="node"/>
@@ -32,7 +32,7 @@ import GsNodeOutputs from './GsNodeOutputs.vue';
 import GsNodePort from './GsNodePort.vue';
 import GsEffectNodeParam from './GsEffectNodeParam.vue';
 import GsButton from './common/GsButton.vue';
-import type { GsEffectNode, GsGroupNode } from '@glitch/shared/types.ts';
+import type { GsEffectNode } from '@glitch/shared/types.ts';
 import { i18n } from '@/i18n.ts';
 import { appContext, engine, wireMap } from '@/app.ts';
 import { getNodeParamDefs } from '@/utility/node-params.ts';
@@ -40,11 +40,9 @@ import * as ui from '@/ui.ts';
 
 const props = defineProps<{
 	node: GsEffectNode,
-	group: GsGroupNode | null,
 }>();
 
 const name = ref<string>(effectDefinitions[props.node.effectId].displayName);
-const visibleParams = computed(() => Object.entries(getNodeParamDefs(props.node)).filter(([, def]) => !def.visibility || def.visibility(props.node.params)));
 const expanded = ref(true);
 const allInPortEl = shallowRef<HTMLElement | null>(null);
 const effectStatus = computed(() => engine.effectStatuses.get(props.node.id));

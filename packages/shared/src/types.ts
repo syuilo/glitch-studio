@@ -105,7 +105,7 @@ export type NodeGraph = {
 
 export type NodeGraphLayer = {
 	type: 'nodeGraph';
-	hogeId: string;
+	nodeGraphId: string;
 };
 
 export type Layer = NodeGraphLayer;

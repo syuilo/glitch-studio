@@ -1114,7 +1114,7 @@ export class MainRenderer {
 		try {
 			// 配列の先頭が最下層。終端は含めず、隣接する期間が境界で重ならないようにする。
 			for (const entry of activeEntries) {
-				const graph = this.nodeGraphs.find(graph => graph.id === entry.layer.hogeId);
+				const graph = this.nodeGraphs.find(graph => graph.id === entry.layer.nodeGraphId);
 				const output = graph?.nodes.find(node => node.type === 'globalOut');
 				if (graph == null || output == null || output.input.nodeId == null) continue;
 				let renderer = this.perLayerNodeGraphRenderers.get(entry.id);
