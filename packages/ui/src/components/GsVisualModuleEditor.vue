@@ -5,7 +5,7 @@
 		<XVisualModuleParamDefsEditor v-if="visualModule != null" :visualModule="visualModule"/>
 	</div>
 	<div v-if="visualModule != null" :key="visualModule.id" :class="$style.nodesContainer">
-		<div :class="$style.nodesContent">
+		<div :class="$style.nodesContent" class="_gaps_s">
 			<GsDraggable
 				:modelValue="globalInNodes"
 				direction="vertical"
@@ -14,9 +14,11 @@
 				@update:modelValue="onSorted"
 			>
 				<template #default="{ item: node, dragStart }">
-					<XGlobalInNode :visualModuleId="visualModule" :node="node" :class="$style.node"/>
+					<XGlobalInNode :visualModule="visualModule" :node="node" :class="$style.node"/>
 				</template>
 			</GsDraggable>
+
+			<hr>
 
 			<GsDraggable
 				:modelValue="visualModule.nodes.filter(node => node.type !== 'globalIn' && node.type !== 'globalOut')"
@@ -32,6 +34,8 @@
 					<GsButton :class="$style.addButton" full style="margin-top: 4px;" @click="showAddNodeMenu(visualModule.id, $event)"><i class="ti ti-plus"></i> Add node...</GsButton>
 				</template>
 			</GsDraggable>
+
+			<hr>
 
 			<GsDraggable
 				:modelValue="globalOutNodes"
@@ -88,11 +92,16 @@ function onSorted(nodes: GsNode[]) {
 
 <style module lang="scss">
 .root {
+	display: flex;
+	flex-direction: column;
 	height: 100%;
 }
 
+.header {
+}
+
 .nodesContainer {
-	height: 100%;
+	flex: 1;
 	overflow: auto;
 	background: var(--THEME-bg);
 }

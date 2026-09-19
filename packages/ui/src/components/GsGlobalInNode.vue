@@ -6,36 +6,35 @@
 		</div>
 	</div>
 
-	<!-- TODO -->
-	<GsSelect/>
+	<div :class="$style.parameter">
+		<GsSelect small :modelValue="selectedParamId" :items="paramItems" @update:modelValue="selectParam"/>
+		<span v-if="selectedParamId == null" :class="$style.missing">Select a node-capable parameter</span>
+	</div>
 
 	<GsNodeOutputs :node="node"/>
 </div>
 </template>
 
 <script lang="ts" setup>
-import { ref, computed, shallowRef, watchEffect } from 'vue';
+import { computed } from 'vue';
 import GsNodeOutputs from './GsNodeOutputs.vue';
-import GsSelect from './GsSelect.vue';
+import GsSelect from './common/GsSelect.vue';
 import type { GsGlobalInNode, VisualModule } from '@glitch/shared/types.ts';
-import { wireMap } from '@/app.ts';
+import { appContext } from '@/app.ts';
 
 const props = defineProps<{
 	visualModule: VisualModule,
 	node: GsGlobalInNode,
 }>();
 
-const allInPortEl = shallowRef<HTMLElement | null>(null);
+const paramItems = computed(() => props.visualModule.paramDefs.filter(def => def.canNode)
+	.map(def => ({ label: `${def.label} (${def.name})`, value: def.id })));
+const selectedParamId = computed(() => paramItems.value.some(item => item.value === props.node.paramId) ? props.node.paramId : null);
 
-watchEffect(onCleanup => {
-	const el = allInPortEl.value;
-	const nodeId = props.node.id;
-	if (el == null) return;
-	wireMap.allIn[nodeId] = el;
-	onCleanup(() => {
-		if (wireMap.allIn[nodeId] === el) delete wireMap.allIn[nodeId];
-	});
-});
+function selectParam(paramId: string | null) {
+	if (paramId == null) return;
+	appContext.commit('updateGlobalInParam', { visualModuleId: props.visualModule.id, nodeId: props.node.id, paramId });
+}
 </script>
 
 <style module lang="scss">
@@ -45,6 +44,18 @@ watchEffect(onCleanup => {
 	border-radius: 6px;
 	overflow: clip;
 	contain: content;
+}
+
+.parameter {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	padding: 8px 16px;
+}
+
+.missing {
+	color: var(--THEME-warn);
+	font-size: 85%;
 }
 
 .header {

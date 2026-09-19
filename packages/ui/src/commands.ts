@@ -4,7 +4,7 @@ import { deepClone } from '@glitch/shared/utility/deep-clone.ts';
 import { getNodeInputDataType, getNodeOutputs } from '@glitch/shared/utility/node-outputs.ts';
 import { genEmptyValue } from '@glitch/shared/utility/misc.ts';
 import type { AppState } from './types.ts';
-import type { Asset, EffectParamDataType, EffectParamDefs, EffectParamValue, GsEffectNode, GsNode, Player, NodeOutputReference } from '@glitch/shared/types.ts';
+import type { Asset, EffectParamDataType, EffectParamDefs, EffectParamValue, GsEffectNode, GsNode, Player, NodeOutputReference, VisualModule } from '@glitch/shared/types.ts';
 import type { NodeParamTarget as EffectNodeParamTarget } from '@/utility/node-params.ts';
 import { canConnectNodeDataTypes } from '@/utility/node-outputs.ts';
 import { resolveNodeParam, walkNodeParams } from '@/utility/node-params.ts';
@@ -619,7 +619,107 @@ const updateGlobalOutInputCommandDef = defineCommand<NodeTarget & { value: NodeO
 	},
 });
 
+type VisualModuleParamDef = VisualModule['paramDefs'][number];
+
+function validateVisualModuleParamDef(module: VisualModule, def: VisualModuleParamDef, previousId?: string) {
+	if (module.paramDefs.some(item => item.id !== previousId && (item.id === def.id || item.name === def.name))) {
+		throw new Error('Parameter ID and name must be unique');
+	}
+	if (def.isPrimaryInput && (!def.canNode || def.type !== 'color'
+		|| module.paramDefs.some(item => item.id !== previousId && item.isPrimaryInput))) {
+		throw new Error('Only one node-capable color parameter can be the primary input');
+	}
+}
+
+const addVisualModuleParamDefCommandDef = defineCommand<{ visualModuleId: string; def: VisualModuleParamDef }>({
+	label: 'Add visual module parameter',
+	create: payload => ({
+		execute(state) {
+			const module = stateUtility.getVisualModule(state, payload.visualModuleId);
+			validateVisualModuleParamDef(module, payload.def);
+			module.paramDefs.push(deepClone(payload.def));
+		},
+		undo(state) {
+			const module = stateUtility.getVisualModule(state, payload.visualModuleId);
+			module.paramDefs = module.paramDefs.filter(def => def.id !== payload.def.id);
+		},
+	}),
+});
+
+const removeVisualModuleParamDefCommandDef = defineCommand<{ visualModuleId: string; defId: string }>({
+	label: 'Remove visual module parameter',
+	create: payload => {
+		let before: VisualModuleParamDef;
+		let index: number;
+		return {
+			execute(state) {
+				const module = stateUtility.getVisualModule(state, payload.visualModuleId);
+				index = module.paramDefs.findIndex(def => def.id === payload.defId);
+				if (index < 0) throw new Error('Visual module parameter not found');
+				before = deepClone(module.paramDefs[index]);
+				// 参照IDやレイヤーの値は保持する。未解決になった参照はUndoで再び有効になる。
+				module.paramDefs.splice(index, 1);
+			},
+			undo(state) {
+				stateUtility.getVisualModule(state, payload.visualModuleId).paramDefs.splice(index, 0, deepClone(before));
+			},
+		};
+	},
+});
+
+const updateVisualModuleParamDefCommandDef = defineCommand<{
+	visualModuleId: string; defId: string; changes: Partial<Omit<VisualModuleParamDef, 'id'>>;
+}>({
+	label: 'Update visual module parameter',
+	create: payload => {
+		let before: VisualModuleParamDef;
+		return {
+			execute(state) {
+				const module = stateUtility.getVisualModule(state, payload.visualModuleId);
+				const index = module.paramDefs.findIndex(def => def.id === payload.defId);
+				if (index < 0) throw new Error('Visual module parameter not found');
+				const next = { ...module.paramDefs[index], ...deepClone(payload.changes), id: payload.defId };
+				validateVisualModuleParamDef(module, next, payload.defId);
+				before = deepClone(module.paramDefs[index]);
+				module.paramDefs[index] = next;
+			},
+			undo(state) {
+				const module = stateUtility.getVisualModule(state, payload.visualModuleId);
+				const index = module.paramDefs.findIndex(def => def.id === payload.defId);
+				if (index < 0) throw new Error('Visual module parameter not found');
+				module.paramDefs[index] = deepClone(before);
+			},
+		};
+	},
+});
+
+const updateGlobalInParamCommandDef = defineCommand<NodeTarget & { paramId: string }>({
+	label: 'Update global input parameter',
+	create: payload => {
+		let before: string;
+		return {
+			execute(state) {
+				const module = stateUtility.getVisualModule(state, payload.visualModuleId);
+				const node = stateUtility.findNode(state, payload);
+				if (node?.type !== 'globalIn') throw new Error('Global input node not found');
+				if (!module.paramDefs.some(def => def.id === payload.paramId && def.canNode)) throw new Error('Node-capable parameter not found');
+				before = node.paramId;
+				node.paramId = payload.paramId;
+			},
+			undo(state) {
+				const node = stateUtility.findNode(state, payload);
+				if (node?.type !== 'globalIn') throw new Error('Global input node not found');
+				node.paramId = before;
+			},
+		};
+	},
+});
+
 export const COMMAND_DEFS = {
+	addVisualModuleParamDef: addVisualModuleParamDefCommandDef,
+	removeVisualModuleParamDef: removeVisualModuleParamDefCommandDef,
+	updateVisualModuleParamDef: updateVisualModuleParamDefCommandDef,
+	updateGlobalInParam: updateGlobalInParamCommandDef,
 	updateGlobalOutInput: updateGlobalOutInputCommandDef,
 	addEffectNode: addEffectNodeCommandDef,
 	moveNode: moveNodeCommandDef,

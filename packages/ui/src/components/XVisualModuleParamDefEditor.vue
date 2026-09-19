@@ -1,8 +1,8 @@
 <template>
 <div :class="$style.root">
 	<div :class="$style.fields">
-		<GsInput :class="$style.field" type="text" :modelValue="def.label" @update:modelValue="updateMacroLabel"/>
-		<GsInput :class="$style.field" type="text" :modelValue="def.name" @update:modelValue="updateMacroName"/>
+		<GsInput :class="$style.field" type="text" :modelValue="def.label" @update:modelValue="value => update({ label: value })"/>
+		<GsInput :class="$style.field" type="text" :modelValue="def.name" @update:modelValue="value => update({ name: value })"/>
 		<GsSelect
 			:class="$style.field"
 			:modelValue="def.type"
@@ -13,22 +13,23 @@
 				{ label: i18n.ts._Macro._Types.Color, value: 'color' },
 				{ label: i18n.ts._Macro._Types.Image, value: 'image' },
 			]"
-			@update:modelValue="v => updateMacroType(v)"
+			@update:modelValue="updateType"
 		/>
 	</div>
 	<div v-if="['number', 'range'].includes(def.type)" :class="$style.option">
 		<label :class="$style.optionLabel">Min/Max</label>
 		<div :class="[$style.optionControl, { [$style.rangeBounds]: def.type === 'range' }]">
-			<GsInput type="number" :modelValue="def.typeOptions.min" @update:modelValue="updateMacroTypeOption(def, 'min', parseFloat($event, 10))"/>
-			<GsInput type="number" :modelValue="def.typeOptions.max" @update:modelValue="updateMacroTypeOption(def, 'max', parseFloat($event, 10))"/>
+			<GsInput type="number" :modelValue="def.typeOptions.min" @update:modelValue="updateTypeOption('min', Number($event))"/>
+			<GsInput type="number" :modelValue="def.typeOptions.max" @update:modelValue="updateTypeOption('max', Number($event))"/>
 		</div>
 	</div>
 	<div v-if="['number', 'range'].includes(def.type)" :class="$style.option">
 		<label :class="$style.optionLabel">Step</label>
 		<div :class="$style.optionControl">
-			<GsInput type="number" :modelValue="def.typeOptions.step" @update:modelValue="updateMacroTypeOption(def, 'step', parseFloat($event, 10))"/>
+			<GsInput type="number" :modelValue="def.typeOptions.step" @update:modelValue="updateTypeOption('step', Number($event))"/>
 		</div>
 	</div>
+	<GsButton small danger @click="remove">Remove parameter</GsButton>
 </div>
 </template>
 
@@ -36,52 +37,34 @@
 import GsSelect from './common/GsSelect.vue';
 import GsInput from './common/GsInput.vue';
 import GsButton from './common/GsButton.vue';
-import type { GsGroupNode, Macro, VisualModule } from '@glitch/shared/types.ts';
+import { genEmptyValue } from '@glitch/shared/utility/misc.ts';
+import type { EffectParamDataType, VisualModule } from '@glitch/shared/types.ts';
 import { appContext } from '@/app.ts';
 import { i18n } from '@/i18n.ts';
 
+type ParamDef = VisualModule['paramDefs'][number];
 const props = defineProps<{
-	def: VisualModule['paramDefs'][number];
+	visualModuleId: string;
+	def: ParamDef;
 }>();
 
-function updateMacroLabel(def: Macro, value: string) {
-	appContext.commit('updateMacroLabel', {
-		defId: def.id,
-		value: value,
-		groupId: props.group?.id,
-	});
+function update(changes: Partial<Omit<ParamDef, 'id'>>) {
+	appContext.commit('updateVisualModuleParamDef', { visualModuleId: props.visualModuleId, defId: props.def.id, changes });
 }
 
-function updateMacroName(def: Macro, value: string) {
-	appContext.commit('updateMacroName', {
-		defId: def.id,
-		value: value,
-		groupId: props.group?.id,
-	});
+function updateType(type: EffectParamDataType) {
+	if (type === props.def.type) return;
+	const typeOptions = type === 'range' ? { min: 0, max: 1, step: 0.01 } : {};
+	update({ type, typeOptions, defaultValue: genEmptyValue({ type, label: props.def.label, ...typeOptions }),
+		isPrimaryInput: type === 'color' && props.def.canNode && props.def.isPrimaryInput });
 }
 
-function updateMacroType(def: Macro, value: FxParamDataType) {
-	appContext.commit('updateMacroType', {
-		defId: def.id,
-		value: value,
-		groupId: props.group?.id,
-	});
+function updateTypeOption(key: string, value: number) {
+	update({ typeOptions: { ...props.def.typeOptions, [key]: value } });
 }
 
-function updateMacroTypeOption(def: Macro, key: string, value: any) {
-	appContext.commit('updateMacroTypeOption', {
-		defId: def.id,
-		key: key,
-		value: value,
-		groupId: props.group?.id,
-	});
-}
-
-function remove(defId: string) {
-	appContext.commit('removeMacro', {
-		defId: defId,
-		groupId: props.group?.id,
-	});
+function remove() {
+	appContext.commit('removeVisualModuleParamDef', { visualModuleId: props.visualModuleId, defId: props.def.id });
 }
 </script>
 

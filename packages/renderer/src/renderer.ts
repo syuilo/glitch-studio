@@ -16,53 +16,31 @@ import { GpuWaveform } from './utility/waveform/GpuWaveform.ts';
 import { GpuMemoryTracker } from './utility/GpuMemoryTracker.ts';
 import type { EffectStatus } from '@glitch/shared/effect-status.ts';
 import type { AudioCaptureMessage, AudioSourceId } from '@glitch/shared/audio.ts';
-import type { Asset, Macro, GsAutomation, GsEffectNode, GsGlobalInNode, GsNode, Player, NodeOutputReference, EffectParamDef, Timeline, VisualModule, EffectParamValue } from '@glitch/shared/types.ts';
+import type { Asset, GsAutomation, GsEffectNode, GsGlobalInNode, GsNode, Player, NodeOutputReference, EffectParamDef, Timeline, VisualModule, VisualModuleParamValues } from '@glitch/shared/types.ts';
 import type { EffectInstance, IntermediateTextureFormat } from '@glitch/shared/effect-implementation.js';
 
 const aisParser = new AiScript.Parser();
 
-const aiscript = new AiScript.Interpreter({});
-
-// TODO: 毎回parseしているのが無駄感あるからどうにかする
-function evaluateExpression(expression: string, scope: Record<string, any>, paramDefForFallback: Omit<EffectParamDef, 'default'>) {
+// 評価ごとにスコープを分離し、別モジュールや外側の式にPARAMが漏れないようにする。
+function evaluateExpression(expression: string, scope: Record<string, any>, paramDefForFallback: Omit<EffectParamDef, 'default'>, getParam?: (name: string) => any): any {
 	try {
-		for (const key in scope) {
-			if (aiscript.scope.exists(key)) {
-				aiscript.scope.assign(key, AiScript.utils.jsToVal(scope[key]));
-			} else {
-				aiscript.scope.add(key, { isMutable: true, value: AiScript.utils.jsToVal(scope[key]) });
-			}
+		const constants = Object.fromEntries(Object.entries(scope).map(([key, value]) => [key, AiScript.utils.jsToVal(value)]));
+		if (getParam != null) {
+			const readParam = (args: AiScript.values.Value[]) => {
+				if (args.length !== 1 || args[0]?.type !== 'str') throw new Error('PARAM requires a parameter name');
+				return AiScript.utils.jsToVal(getParam(args[0].value));
+			};
+			constants.PARAM = AiScript.values.FN_NATIVE(readParam, readParam);
+		} else {
+			// 同名のAutomationがあっても外部パラメータの式にPARAMを公開しない。
+			delete constants.PARAM;
 		}
-		const aisVal = aiscript.execSync(aisParser.parse(expression));
-		if (aisVal === undefined) return null;
-		return AiScript.utils.valToJs(aisVal);
-	} catch (err) { // パース失敗時など
+		const interpreter = new AiScript.Interpreter(constants);
+		const value = interpreter.execSync(aisParser.parse(expression));
+		return value === undefined ? null : AiScript.utils.valToJs(value);
+	} catch {
 		return genEmptyValue(paramDefForFallback);
 	}
-}
-
-function evaluateMacro(macroValue: EffectParamValue) {
-	if (macroValue.type === 'literal') {
-		return macroValue.value;
-	} else if (macroValue.type === 'expression') {
-		return evaluateExpression(macroValue.expression);
-	} else if (macroValue.type === 'automation') {
-		return evalAutomationValue(macroValue.automationId);
-	} else if (macroValue.type === 'macro') {
-		const targetMacro = 'TODO';
-		return evaluateMacro(targetMacro);
-	}
-}
-
-function serializeAsset(asset: Asset | undefined) {
-	if (asset == null) return null;
-	return {
-		id: asset.id,
-		width: asset.width,
-		height: asset.height,
-		data: asset.data,
-		hash: asset.hash,
-	};
 }
 
 type VisualModuleRenderContext = {
@@ -70,10 +48,10 @@ type VisualModuleRenderContext = {
 	localTime: number;
 	localTimeDelta: number;
 	layerDurationMs?: number;
-	globalInput?: GPUTexture;
+	paramTextures?: ReadonlyMap<string, GPUTexture>;
 	pointerPosition: { x: number; y: number };
 	pointerPositionPrev: { x: number; y: number };
-	macroValues: Record<string, EffectParamValue>;
+	paramValues: VisualModuleParamValues;
 };
 
 class VisualModuleRenderer {
@@ -83,11 +61,14 @@ class VisualModuleRenderer {
 	private fallbackTexture: GPUTexture;
 	private resolution: { width: number; height: number; };
 	private nodes: GsNode[] = [];
-	private globalInput: GPUTexture;
+	private paramDefs: VisualModule['paramDefs'];
+	private paramValues = new Map<string, any>();
+	private paramTextures: ReadonlyMap<string, GPUTexture> = new Map();
+	private paramConstTextures = new Map<string, GPUTexture>();
 	private preparedContext: VisualModuleRenderContext | null = null;
 	private statusWaiters = new Set<() => void>();
 	private destroyed = false;
-	private allNodeIdMap: Map<GsNode['id'], GsNode> = new Map(); // group内のnodeもフラット化して含む。高速に特定のノードを見つける用のキャッシュ
+	private allNodeIdMap: Map<GsNode['id'], GsNode> = new Map(); // モジュール内のノードをIDで解決する。
 	private evaledNodeParams: Map<GsNode['id'], Record<string, any>> = new Map();
 	private effectInstances: Map<GsEffectNode['id'], EffectInstance | null> = new Map();
 	private effectPerParamConstFieldTextures: Map<GsEffectNode['id'], Record<string, GPUTexture>> = new Map();
@@ -103,7 +84,6 @@ class VisualModuleRenderer {
 	private effectStatuses = new Map<string, { sent?: EffectStatus }>();
 	private onEffectStatus?: (nodeId: string, status: EffectStatus | null) => void;
 	private assets: Asset[];
-	private macros: Macro[];
 	private automations: GsAutomation[];
 	private enable32bitDataTextures = false;
 	private readonly intermediateTextureFormat: IntermediateTextureFormat;
@@ -116,7 +96,6 @@ class VisualModuleRenderer {
 	private enableStats = true;
 	private renderNodeId: GsNode['id'] | null = null;
 	public lastRenderedLocalTime: number | null = null;
-	public macroValues: Record<string, EffectParamValue> = {};
 
 	constructor(options: {
 		onEffectStatus?: (nodeId: string, status: EffectStatus | null) => void;
@@ -133,9 +112,8 @@ class VisualModuleRenderer {
 		videoFrameVersions: Map<string, number>;
 		fallbackScalarFieldTexture: GPUTexture;
 		assets: Asset[];
-		macros: Macro[];
 		automations: GsAutomation[];
-		nodes: GsNode[];
+		visualModule: VisualModule;
 		assetTextures: Map<string, GPUTexture>;
 		audioSources: Map<AudioSourceId, AudioHistory>;
 	}) {
@@ -143,7 +121,7 @@ class VisualModuleRenderer {
 		this.gpuContext = options.gpuContext;
 		this.defaultVertexShaderModule = options.defaultVertexShaderModule;
 		this.fallbackTexture = options.fallbackTexture;
-		this.globalInput = options.fallbackTexture;
+		this.paramDefs = options.visualModule.paramDefs;
 		this.onEffectStatus = options.onEffectStatus;
 		this.enableStats = options.enableStats;
 		this.resolution = options.resolution;
@@ -153,12 +131,104 @@ class VisualModuleRenderer {
 		this.videoFrameVersions = options.videoFrameVersions;
 		this.fallbackScalarFieldTexture = options.fallbackScalarFieldTexture;
 		this.assets = options.assets;
-		this.macros = options.macros;
+
 		this.automations = options.automations;
 		this.assetTextures = options.assetTextures;
 		this.audioSources = options.audioSources;
 		this.timingHelper = options.timingHelper;
-		this.updateNodes(options.nodes);
+		this.updateVisualModule(options.visualModule);
+	}
+
+	public updateVisualModule(visualModule: VisualModule) {
+		const primaryInputs = visualModule.paramDefs.filter(def => def.isPrimaryInput);
+		if (primaryInputs.length > 1 || primaryInputs.some(def => !def.canNode || def.type !== 'color')) {
+			throw new Error('The primary input must be a single node-capable color parameter');
+		}
+		if (new Set(visualModule.paramDefs.map(def => def.id)).size !== visualModule.paramDefs.length
+			|| new Set(visualModule.paramDefs.map(def => def.name)).size !== visualModule.paramDefs.length) {
+			throw new Error('Visual module parameter IDs and names must be unique');
+		}
+		this.paramDefs = visualModule.paramDefs;
+		this.preparedContext = null;
+		this.paramValues.clear();
+		this.paramTextures = new Map();
+		for (const texture of this.paramConstTextures.values()) texture.destroy();
+		this.paramConstTextures.clear();
+		this.effectCacheKeys.clear();
+		this.updateNodes(visualModule.nodes);
+	}
+
+	private evaluateParams(context: VisualModuleRenderContext, scope: Record<string, any>) {
+		this.paramValues.clear();
+		this.paramTextures = context.paramTextures ?? new Map();
+		for (const [id] of this.paramTextures) {
+			if (!this.paramDefs.some(def => def.id === id && def.canNode)) throw new Error(`Invalid texture parameter: ${id}`);
+		}
+		for (const def of this.paramDefs) {
+			const value = context.paramValues[def.id];
+			// RPC経由の値も検査する。外部にはnode/macroによる参照を許可しない。
+			if (value != null && value.type !== 'literal' && value.type !== 'expression' && value.type !== 'automation') {
+				throw new Error(`Invalid external parameter value: ${def.id}`);
+			}
+			if (this.paramTextures.has(def.id)) continue;
+			const fallbackDef = { ...def.typeOptions, type: def.type, label: def.label };
+			let evaluated = def.defaultValue;
+			if (value?.type === 'literal') evaluated = value.value;
+			if (value?.type === 'expression') evaluated = evaluateExpression(value.expression, scope, fallbackDef);
+			if (value?.type === 'automation') {
+				const automation = this.automations.find(automation => automation.id === value.automationId);
+				evaluated = automation == null ? def.defaultValue : evalAutomationValue(automation, context.localTime);
+			}
+			this.paramValues.set(def.id, evaluated);
+		}
+	}
+
+	private readParam(name: string): any {
+		const def = this.paramDefs.find(def => def.name === name);
+		if (def == null) throw new Error(`Unknown parameter: ${name}`);
+		if (this.paramTextures.has(def.id)) throw new Error(`Texture parameter cannot be read by PARAM: ${name}`);
+		return this.paramValues.get(def.id);
+	}
+
+	private getParamTexture(paramId: string): GPUTexture | undefined {
+		const def = this.paramDefs.find(def => def.id === paramId);
+		if (def == null || !def.canNode) return undefined;
+		const input = this.paramTextures.get(paramId);
+		if (input != null) return input; // 呼び出し元のテクスチャは所有・破棄しない。
+		const value = this.paramValues.get(paramId);
+		if (def.type === 'image') return this.assetTextures.get(value) ?? this.fallbackTexture;
+		let components: number[];
+		if (def.type === 'color') {
+			const alpha = value?.[3] ?? 0;
+			// 定数色を画像として出力する境界だけでpremultiplyする。macro/PARAMの値は変更しない。
+			components = [(value?.[0] ?? 0) * alpha, (value?.[1] ?? 0) * alpha, (value?.[2] ?? 0) * alpha, alpha];
+		} else if (['vector', 'xy', 'wh', 'range2'].includes(def.type)) {
+			components = [value?.[0] ?? 0, value?.[1] ?? 0];
+		} else if (def.type === 'signal') {
+			components = [Number(value?.[0] ?? 0), Number(value?.[1] ?? 0), Number(value?.[2] ?? 0), 0];
+		} else if (['number', 'angle', 'range', 'seed', 'time', 'bool'].includes(def.type)) {
+			components = [Number(value ?? 0)];
+		} else {
+			throw new Error(`Parameter type cannot be converted to a texture: ${def.type}`);
+		}
+		let texture = this.paramConstTextures.get(paramId);
+		if (texture == null) {
+			const channels = components.length === 4 ? 'rgba' : components.length === 2 ? 'rg' : 'r';
+			texture = this.gpuDevice.createTexture({
+				size: [1, 1],
+				format: `${channels}${this.enable32bitDataTextures ? '32float' : '16float'}` as GPUTextureFormat,
+				usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
+			});
+			this.paramConstTextures.set(paramId, texture);
+		}
+		const data = this.enable32bitDataTextures ? new Float32Array(components) : new Uint16Array(components.map(float32ToFloat16Bits));
+		this.gpuDevice.queue.writeTexture({ texture }, data, { bytesPerRow: data.byteLength }, [1, 1]);
+		return texture;
+	}
+
+	public updateAutomations(automations: GsAutomation[]) {
+		this.automations = automations;
+		this.preparedContext = null;
 	}
 
 	private evalNodeParams(nodes: GsNode[], context: VisualModuleRenderContext) {
@@ -167,25 +237,8 @@ class VisualModuleRenderer {
 			HEIGHT: this.resolution.height,
 			TIME: context.localTime / 1000, // ms to seconds
 			TIME_MS: context.localTime,
-			PROGRESS: context.layerDurationMs != null ? context.localTime / context.layerDurationMs : 0,
+			PROGRESS: context.layerDurationMs != null && context.layerDurationMs > 0 ? context.localTime / context.layerDurationMs : 0,
 		};
-
-		// Mixin (global) macros
-		// TODO: automation support
-		// TODO: node support
-		const macroScope = {} as Record<string, any>;
-		//for (const macro of this.macros) {
-		//	macroScope[macro.name] =
-		//		macro.value.type === 'literal'
-		//			? macro.value.value
-		//			: macro.value.expression
-		//				? evaluateExpression(macro.value.expression, scope, macro)
-		//				: genEmptyValue(macro);
-		//	if (macro.type === 'image') {
-		//		macroScope[macro.name] = serializeAsset(
-		//			this.assets.find(a => a.id === macroScope[macro.name]));
-		//	}
-		//}
 
 		// Mixin (global) automations
 		// TODO: 各automationをフレーム数を引数にとる関数として定義する
@@ -194,13 +247,14 @@ class VisualModuleRenderer {
 			automationScope[automation.name] = evalAutomationValue(automation, context.localTime);
 		}
 
+		this.evaluateParams(context, { ...automationScope, ...scope });
+
 		for (const node of nodes.filter((n): n is GsEffectNode => n.type === 'effect')) {
 			const paramDefs = effectDefinitions[node.effectId].paramDefs;
 
 			const evaluatedParams = {} as Record<string, any>;
 
 			const mixedScope = {
-				...macroScope,
 				...automationScope,
 				...scope,
 			};
@@ -210,8 +264,11 @@ class VisualModuleRenderer {
 				if (node.isBypass && !def.primary) continue;
 				evaluatedParams[key] = mapNodeParam(def, node.params[key], [key], (def, param) => {
 					if (param.type === 'literal') return param.value;
-					if (param.type === 'expression') return param.expression ? evaluateExpression(param.expression, mixedScope, def) : genEmptyValue(def);
-					if (param.type === 'macro') return param.macroId ? evaluateMacro(this.macroValues[param.macroId]) : genEmptyValue(def);
+					if (param.type === 'expression') return param.expression ? evaluateExpression(param.expression, mixedScope, def, name => this.readParam(name)) : genEmptyValue(def);
+					if (param.type === 'macro') {
+						if (!this.paramValues.has(param.macroId) || this.paramTextures.has(param.macroId)) return genEmptyValue(def);
+						return this.paramValues.get(param.macroId);
+					}
 					if (param.type === 'automation') {
 						const automation = this.automations.find(a => a.id === param.automationId);
 						return automation ? evalAutomationValue(automation, context.localTime) : genEmptyValue(def);
@@ -465,10 +522,7 @@ class VisualModuleRenderer {
 		};
 		indexNodes(newNodes);
 
-		const output = this.nodes.find(node => node.type === 'globalOut');
-		if (output != null) {
-			this.renderNodeId = output.id;
-		}
+		this.renderNodeId = this.nodes.find(node => node.type === 'globalOut')?.id ?? null;
 	}
 
 	public updateAssets(assets: Asset[]) {
@@ -501,7 +555,7 @@ class VisualModuleRenderer {
 	private getOutputTexture(node: GsNode, outputPort: string): GPUTexture | undefined {
 		const output = this.getOutputNode(node, outputPort);
 		if (output == null) return undefined;
-		if (output.node.type === 'globalIn') return this.globalInput;
+		if (output.node.type === 'globalIn') return this.getParamTexture(output.node.paramId);
 		return this.outDataMapPerNodes.get(output.node.id)?.[output.outputPort]?.texture;
 	}
 
@@ -648,7 +702,6 @@ class VisualModuleRenderer {
 
 	// 描画せずに初期化・パラメータ変更の準備を行い、履歴を余分に進めない。
 	public async prepare(context: VisualModuleRenderContext, signal: AbortSignal): Promise<void> {
-		this.globalInput = context.globalInput ?? this.fallbackTexture;
 		const node = this.renderNodeId == null ? undefined : this.allNodeIdMap.get(this.renderNodeId);
 		if (node == null) return;
 		this.evalNodeParams(this.nodes, context);
@@ -690,7 +743,6 @@ class VisualModuleRenderer {
 	}
 
 	public render(context: VisualModuleRenderContext, commandEncoder: GPUCommandEncoder): GPUTexture | undefined {
-		this.globalInput = context.globalInput ?? this.fallbackTexture;
 		if (this.renderNodeId == null) return;
 		const node = this.allNodeIdMap.get(this.renderNodeId);
 		if (node == null) return;
@@ -748,6 +800,8 @@ class VisualModuleRenderer {
 
 	public destroy() {
 		this.destroyed = true;
+		for (const texture of this.paramConstTextures.values()) texture.destroy();
+		this.paramConstTextures.clear();
 		for (const notify of this.statusWaiters) notify();
 		for (const textures of this.effectPerParamConstFieldTextures.values()) {
 			for (const texture of Object.values(textures)) texture.destroy();
@@ -787,10 +841,11 @@ export class MainRenderer {
 	private highlightClipping = false;
 	private timeFactor = 1;
 	private liveVisualModuleId: VisualModule['id'] | null = null;
+	private liveParamValues: VisualModuleParamValues = {};
 	private liveVisualModuleRenderer: VisualModuleRenderer | null = null;
 	private timeline: Timeline = [];
 	private assets: Asset[] = [];
-	private macros: Macro[] = [];
+
 	private automations: GsAutomation[] = [];
 	private visualModules: VisualModule[] = [];
 	private assetTextures: Map<string, GPUTexture> = new Map();
@@ -846,9 +901,7 @@ export class MainRenderer {
 		visualModules?: VisualModule[];
 		timeline?: Timeline;
 		assets: Asset[];
-		macros: Macro[];
 		automations: GsAutomation[];
-		nodes: GsNode[];
 		histogramGpuContext: GPUCanvasContext;
 		waveformHorizontalGpuContext: GPUCanvasContext;
 		waveformVerticalGpuContext: GPUCanvasContext;
@@ -954,7 +1007,7 @@ export class MainRenderer {
 		});
 
 		this.updateAssets(options.assets);
-		this.updateMacros(options.macros);
+
 		this.updateAutomations(options.automations);
 	}
 
@@ -980,25 +1033,23 @@ export class MainRenderer {
 		for (const visualModuleRenderer of this.perLayerVisualModuleRenderers.values()) {
 			visualModuleRenderer.updateAssets(this.assets);
 		}
-	}
-
-	// (非workerで)呼び出すときはnewMacrosを独立した参照にすること！ パフォーマンス上の理由でこちら側ではdeepCloneしません
-	public updateMacros(newMacros: Macro[]) {
-		this.clearTimelineRenderers();
-		this.macros = newMacros;
+		this.liveVisualModuleRenderer?.updateAssets(this.assets);
 	}
 
 	// (非workerで)呼び出すときはnewAutomationsを独立した参照にすること！ パフォーマンス上の理由でこちら側ではdeepCloneしません
 	public updateAutomations(newAutomations: GsAutomation[]) {
 		this.clearTimelineRenderers();
 		this.automations = newAutomations;
+		this.liveVisualModuleRenderer?.updateAutomations(newAutomations);
 	}
 
 	public updateVisualModules(newVisualModules: VisualModule[]) {
 		this.clearTimelineRenderers();
 		this.visualModules = newVisualModules;
 		if (this.liveVisualModuleRenderer != null) {
-			this.liveVisualModuleRenderer.updateNodes(this.visualModules.find(visualModule => visualModule.id === this.liveVisualModuleId)!.nodes);
+			const visualModule = this.visualModules.find(visualModule => visualModule.id === this.liveVisualModuleId);
+			if (visualModule == null) this.stopRenderLoop();
+			else this.liveVisualModuleRenderer.updateVisualModule(visualModule);
 		}
 	}
 
@@ -1156,9 +1207,8 @@ export class MainRenderer {
 						videoFrames: this.videoFrames,
 						videoFrameVersions: this.videoFrameVersions,
 						assets: this.assets,
-						macros: this.macros,
 						automations: this.automations,
-						nodes: visualModule.nodes,
+						visualModule,
 						assetTextures: this.assetTextures,
 						audioSources: this.audioSources,
 					});
@@ -1169,7 +1219,8 @@ export class MainRenderer {
 					// 後方シークでも履歴は保持し、負の時間差だけを0に抑える。
 					localTimeDelta: renderer.lastRenderedLocalTime == null ? 0 : Math.max(0, time - entry.startTimeMs - renderer.lastRenderedLocalTime),
 					layerDurationMs: entry.endTimeMs - entry.startTimeMs,
-					globalInput: texture,
+					paramValues: entry.layer.paramValues,
+					paramTextures: new Map(visualModule.paramDefs.filter(def => def.isPrimaryInput).map(def => [def.id, texture])),
 					pointerPosition: { x: -99999, y: -99999 },
 					pointerPositionPrev: { x: -99999, y: -99999 },
 				};
@@ -1203,7 +1254,11 @@ export class MainRenderer {
 		}
 	}
 
-	public startLiveRenderLoopFor(visualModuleId: string) {
+	public updateLiveParamValues(paramValues: VisualModuleParamValues) {
+		this.liveParamValues = paramValues;
+	}
+
+	public startLiveRenderLoopFor(visualModuleId: string, paramValues: VisualModuleParamValues = {}) {
 		this.clearTimelineRenderers();
 		this.stopRenderLoop();
 
@@ -1211,6 +1266,7 @@ export class MainRenderer {
 		if (visualModule == null) return;
 
 		this.liveVisualModuleId = visualModuleId;
+		this.liveParamValues = paramValues;
 		this.liveVisualModuleRenderer = new VisualModuleRenderer({
 			gpuDevice: this.gpuDevice,
 			gpuContext: this.gpuContext,
@@ -1226,9 +1282,8 @@ export class MainRenderer {
 			videoFrames: this.videoFrames,
 			videoFrameVersions: this.videoFrameVersions,
 			assets: this.assets,
-			macros: this.macros,
 			automations: this.automations,
-			nodes: visualModule.nodes,
+			visualModule,
 			assetTextures: this.assetTextures,
 			audioSources: this.audioSources,
 		});
@@ -1250,6 +1305,7 @@ export class MainRenderer {
 			const commandEncoder = this.gpuDevice.createCommandEncoder();
 
 			const tex = this.liveVisualModuleRenderer.render({
+				paramValues: this.liveParamValues,
 				localTime: timeStamp,
 				localTimeDelta: delta,
 				pointerPosition: this.pointerPosition,

@@ -212,9 +212,9 @@ export async function appReady(project: Project) {
 		engine.updateVisualModules(deepClone(appContext.state.visualModules.value));
 	}, { deep: true, immediate: true });
 
-	watch(appContext.state.macros, () => {
-		engine.updateMacros(deepClone(appContext.state.macros.value));
-	}, { deep: true, immediate: true });
+	//watch(appContext.state.macros, () => {
+	//	engine.updateMacros(deepClone(appContext.state.macros.value));
+	//}, { deep: true, immediate: true });
 
 	watch(appContext.state.timeline, () => {
 		engine.updateTimeline(deepClone(appContext.state.timeline.value));

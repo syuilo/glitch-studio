@@ -108,10 +108,13 @@ export type VisualModule = {
 	}[];
 };
 
+// レイヤー・live modeからは、モジュール内部のノードやパラメータを参照しない。
+export type VisualModuleParamValues = Record<string, Exclude<EffectParamValue, { type: 'node' | 'macro' }>>;
+
 export type VisualModuleLayer = {
 	type: 'visualModule';
 	visualModuleId: string;
-	paramValues: Record<string, EffectParamValue>;
+	paramValues: VisualModuleParamValues;
 };
 
 export type Layer = VisualModuleLayer;
