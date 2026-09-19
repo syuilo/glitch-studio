@@ -676,16 +676,16 @@ export class MainRenderer {
 	private timeFactor = 1;
 	private liveNodeGraphRenderer: NodeGraphRenderer | null = null;
 	private timeline: Timeline = [];
-	private nodeGraphs: Map<string, NodeGraph> = new Map();
 	private assets: Asset[] = [];
 	private macros: Macro[] = [];
 	private automations: GsAutomation[] = [];
+	private nodeGraphs: NodeGraph[] = [];
 	private assetTextures: Map<string, GPUTexture> = new Map();
 	private videoFrames: Map<Player['id'], VideoFrame> = new Map();
 	private videoFrameVersions: Map<Player['id'], number> = new Map();
 	private audioSources = new Map<AudioSourceId, AudioHistory>();
 	private audioPorts = new Map<AudioSourceId, MessagePort>();
-	private nodeGraphRenderers: Map<Timeline[number]['id'], NodeGraphRenderer> = new Map();
+	private perLayerNodeGraphRenderers: Map<Timeline[number]['id'], NodeGraphRenderer> = new Map();
 	private timingHelper: TimingHelper;
 	private finalRenderSampler: GPUSampler;
 	private finalRenderPipeline: GPURenderPipeline;
@@ -858,7 +858,7 @@ export class MainRenderer {
 				this.assetTextures.set(asset.id, tex);
 			}
 		}
-		for (const nodeGraphRenderer of this.nodeGraphRenderers.values()) {
+		for (const nodeGraphRenderer of this.perLayerNodeGraphRenderers.values()) {
 			nodeGraphRenderer.updateAssets(this.assets);
 		}
 	}
@@ -871,6 +871,10 @@ export class MainRenderer {
 	// (非workerで)呼び出すときはnewAutomationsを独立した参照にすること！ パフォーマンス上の理由でこちら側ではdeepCloneしません
 	public updateAutomations(newAutomations: GsAutomation[]) {
 		this.automations = newAutomations;
+	}
+
+	public updateNodeGraphs(newNodeGraphs: NodeGraph[]) {
+		this.nodeGraphs = newNodeGraphs;
 	}
 
 	public attachAudioSource(id: AudioSourceId, port: MessagePort) {
@@ -1042,7 +1046,7 @@ export class MainRenderer {
 		this.stopRenderLoop();
 		this.resolution = resolution;
 
-		for (const nodeGraphRenderer of this.nodeGraphRenderers.values()) {
+		for (const nodeGraphRenderer of this.perLayerNodeGraphRenderers.values()) {
 			nodeGraphRenderer?.resize(resolution);
 		}
 
@@ -1058,10 +1062,10 @@ export class MainRenderer {
 		this.gpuWaveformHorizontal.dispose();
 		this.gpuWaveformVertical.dispose();
 
-		for (const nodeGraphRenderer of this.nodeGraphRenderers.values()) {
+		for (const nodeGraphRenderer of this.perLayerNodeGraphRenderers.values()) {
 			nodeGraphRenderer?.destroy();
 		}
-		this.nodeGraphRenderers.clear();
+		this.perLayerNodeGraphRenderers.clear();
 
 		this.gpuDevice?.destroy();
 	}

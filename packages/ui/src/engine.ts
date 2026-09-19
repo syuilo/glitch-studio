@@ -6,13 +6,13 @@ import { projectAudioSourceId } from '@glitch/shared/audio.ts';
 import { isVideoFrameAvailable, playVideoAfterFirstFrameIsReady } from './utility/video.ts';
 import { AudioInputs } from './audio/audio-inputs.ts';
 import { setupWebcam } from './utility/webcam.ts';
-import type { Asset, GsAutomation, GsNode, Macro, Player } from '@glitch/shared/types.ts';
-import type { Renderer } from '@glitch/renderer/renderer.ts';
+import type { Asset, GsAutomation, GsNode, Macro, NodeGraph, Player } from '@glitch/shared/types.ts';
+import type { MainRenderer } from '@glitch/renderer/renderer.ts';
 import type { EffectStatus } from '@glitch/shared/effect-status.ts';
 import * as ui from '@/ui.ts';
 
 type RendererMethods = {
-	[K in keyof Renderer as Renderer[K] extends (...args: never[]) => unknown ? K : never]: Renderer[K];
+	[K in keyof MainRenderer as MainRenderer[K] extends (...args: never[]) => unknown ? K : never]: MainRenderer[K];
 };
 
 export class Engine {
@@ -20,8 +20,6 @@ export class Engine {
 	public histogramCanvas: HTMLCanvasElement;
 	public waveformHorizontalCanvas: HTMLCanvasElement;
 	public waveformVerticalCanvas: HTMLCanvasElement;
-
-	//private renderer: Renderer | null = null;
 	private rendererWorker: Worker | null = null;
 	private resolution = { width: 1, height: 1 };
 	private renderLoopRunning = false;
@@ -29,13 +27,12 @@ export class Engine {
 	private rejectInitialization: ((reason: Error) => void) | null = null;
 	private pendingCalls: { message: unknown; options?: StructuredSerializeOptions }[] = [];
 	private pointerPosition = { x: 0, y: 0 };
-
 	private enable32bitDataTextures = false;
 	private intermediateTextureFormat = navigator.gpu.getPreferredCanvasFormat(); // TODO: 設定でrgba16floatも指定できるようにする(レンダリングの精度は上がるがパフォーマンスは落ちる)
 	private enableStats = true;
 	private highlightClipping = false;
 	private timeFactor = 1;
-	private nodes: GsNode[] = [];
+	private nodeGraphs: NodeGraph[] = [];
 	private assets: Asset[] = [];
 	private players: Player[] = [];
 	private macros: Macro[] = [];
@@ -56,7 +53,7 @@ export class Engine {
 	public gpuAverageDisplayMedium = ref(0);
 	public gpuAverageDisplaySlow = ref(0);
 	public fpsDisplay = ref(0);
-	public gpuMemoryUsage = ref<ReturnType<Renderer['gpuMemory']['getUsage']> | null>(null);
+	public gpuMemoryUsage = ref<ReturnType<MainRenderer['gpuMemory']['getUsage']> | null>(null);
 	public isReady = ref(false);
 	public effectStatuses = shallowReactive(new Map<string, EffectStatus>());
 
@@ -175,7 +172,7 @@ export class Engine {
 				assets: this.assets,
 				macros: this.macros,
 				automations: this.automations,
-				nodes: this.nodes,
+				nodeGraphs: this.nodeGraphs,
 			},
 		}, [offscreen, histogramOffscreen, waveformHorizontalOffscreen, waveformVerticalOffscreen]);
 		this.rendererWorker.onmessage = (event) => {
@@ -229,7 +226,7 @@ export class Engine {
 	}
 
 	public startRenderLoop() {
-		this.call('startRenderLoop', []);
+		this.call('startRenderLoopForLive', []);
 		this.renderLoopRunning = true;
 	}
 
@@ -329,9 +326,9 @@ export class Engine {
 		await Promise.all(this.videoLoads.values());
 	}
 
-	public updateNodes(newNodes: GsNode[]) {
-		this.nodes = deepClone(newNodes);
-		this.call('updateNodes', [this.nodes]);
+	public updateNodeGraphs(newNodeGraphs: NodeGraph[]) {
+		this.nodeGraphs = deepClone(newNodeGraphs);
+		this.call('updateNodeGraphs', [this.nodeGraphs]);
 	}
 
 	public getVideoElement(playerId: Player['id']): HTMLVideoElement | null {
@@ -369,7 +366,7 @@ export class Engine {
 		this.assets = deepClone(newAssets);
 		await this.call('updateAssets', [this.assets]);
 		await this.updatePlayers(this.players);
-		await this.updateNodes(this.nodes);
+		await this.updateNodeGraphs(this.nodeGraphs);
 	}
 
 	public async updatePointerPosition(newPointerPosition: { x: number; y: number }) {

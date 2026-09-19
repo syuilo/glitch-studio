@@ -8,7 +8,7 @@ import { COMMAND_DEFS } from './commands.ts';
 import GsEffectPicker from './components/GsEffectPicker.vue';
 import type { CommandDef } from './commands.ts';
 import type { AppState } from './types.ts';
-import type { Asset, GsNode, Macro, GsAutomation, GsGroupNode, Player } from '@glitch/shared/types.ts';
+import type { Asset, GsNode, Macro, GsAutomation, GsGroupNode, Player, NodeGraph } from '@glitch/shared/types.ts';
 import type { RawProject } from './settings.ts';
 import * as ui from '@/ui.ts';
 import * as api from '@/api.ts';
@@ -37,7 +37,7 @@ class AppContext {
 			resolution: ref<{ width: number; height: number }>({ width: 1024, height: 1024 }),
 			assets: ref<Asset[]>([]), // TODO: バイナリをリアクティブでwrapするのをやめる
 			players: ref<Player[]>([]),
-			nodes: ref<GsNode[]>([]),
+			nodeGraphs: ref<NodeGraph[]>([]),
 			macros: ref<Macro[]>([]),
 			automations: ref<GsAutomation[]>([]),
 		};
@@ -182,7 +182,7 @@ export async function appReady(project: RawProject) {
 	appContext.projectAuthor = project.author;
 	appContext.state.resolution.value = project.resolution;
 	appContext.state.assets.value = await decodeAssets(project.assets);
-	appContext.state.nodes.value = project.nodes;
+	appContext.state.nodeGraphs.value = project.nodeGraphs;
 	appContext.state.macros.value = project.macros;
 	appContext.state.automations.value = project.automations;
 
@@ -198,13 +198,8 @@ export async function appReady(project: RawProject) {
 		engine.updatePlayers(deepClone(appContext.state.players.value));
 	}, { deep: true, immediate: true });
 
-	watch(appContext.state.nodes, () => {
-		engine.updateNodes(deepClone(appContext.state.nodes.value));
-
-		//// TODO: グループ考慮
-		//if (store.nodes.some(n => n.type === 'effect' && n.effectId === 'webcamera')) {
-		//	glitchRenderer.setupWebcam();
-		//}
+	watch(appContext.state.nodeGraphs, () => {
+		engine.updateNodeGraphs(deepClone(appContext.state.nodeGraphs.value));
 	}, { deep: true, immediate: true });
 
 	watch(appContext.state.macros, () => {
