@@ -37,7 +37,7 @@ watchEffect(onCleanup => {
 .root {
 	position: relative;
 	background: var(--THEME-nodeBg);
-	border-radius: 4px;
+	border-radius: 6px;
 	overflow: clip;
 	contain: content;
 }
