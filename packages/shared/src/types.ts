@@ -76,15 +76,30 @@ export type GsEffectNode = {
 	pos?: { x: number; y: number };
 };
 
-export type GsGroupNode = GsEffectNode; // とりあえず
+export type GsGlobalInNode = {
+	id: string;
+	type: 'globalIn';
 
-export type GsNode = GsEffectNode | GsGroupNode;
+	// 2D平面上でノードを配置できるようになった時のため
+	pos?: { x: number; y: number };
+};
+
+export type GsGlobalOutNode = {
+	id: string;
+	type: 'globalOut';
+
+	// 2D平面上でノードを配置できるようになった時のため
+	pos?: { x: number; y: number };
+};
+
+export type GsGroupNode = any; // とりあえず
+
+export type GsNode = GsEffectNode | GsGlobalInNode | GsGlobalOutNode;
 
 export type NodeGraph = {
 	id: string;
 	name: string;
 	nodes: GsNode[];
-	finalRenderNodeId: string | null;
 };
 
 export type NodeGraphLayer = {

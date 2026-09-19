@@ -224,6 +224,8 @@ class NodeGraphRenderer {
 			throw new Error('circular dependency detected');
 		}
 
+		if (node.type === 'globalIn' || node.type === 'globalOut') return null;
+
 		let key = `node=${node.id};isBypass=${node.isBypass};`;
 
 		if (node.isBypass) {
@@ -328,8 +330,8 @@ class NodeGraphRenderer {
 
 	// (非workerで)呼び出すときはnewNodesを独立した参照にすること！ パフォーマンス上の理由でこちら側ではdeepCloneしません
 	public updateNodes(newNodes: GsNode[]) {
-		const oldEffectNodes = this.nodes;
-		const newEffectNodes = newNodes;
+		const oldEffectNodes = this.nodes.filter(node => node.type === 'effect');
+		const newEffectNodes = newNodes.filter(node => node.type === 'effect');
 		const oldNodeIds = new Set(oldEffectNodes.map(node => node.id));
 		const newNodeIds = new Set(newEffectNodes.map(node => node.id));
 		const addedNodes = newEffectNodes.filter(node => !oldNodeIds.has(node.id));
