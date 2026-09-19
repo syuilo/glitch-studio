@@ -1,7 +1,7 @@
 <template>
 <div :class="$style.root">
 	<div :class="$style.header">
-		<button class="_button" style="padding: 4px 6px;"><i class="ti ti-chevron-down"></i> Module: {{ visualModule?.name ?? '' }} [{{ visualModule?.id ?? '' }}]</button>
+		<button class="_button" style="padding: 4px 6px;" @click="showSwitchMenu"><i class="ti ti-chevron-down"></i> Module: {{ visualModule?.name ?? '' }} [{{ visualModule?.id ?? '' }}]</button>
 		<GsButton :class="$style.liveButton" small primary><i class="ti ti-player-play"></i> LIVE</GsButton>
 
 		<div style="padding: 8px;">
@@ -99,6 +99,7 @@ import type { ParamEdit } from './GsVisualParam.vue';
 import type { EffectParamValue, GsGlobalInNode, GsGlobalOutNode, GsNode, VisualModule } from '@glitch/shared/types.js';
 import { showAddNodeMenu } from '@/app.ts';
 import { appContext } from '@/app.ts';
+import * as ui from '@/ui.ts';
 
 const tab = ref('nodes');
 const visualModule = ref<VisualModule | null>();
@@ -172,6 +173,24 @@ function onSorted(nodes: GsNode[]) {
 	appContext.commit('moveNode', {
 		visualModuleId: visualModule.value.id,
 	});
+}
+
+function showSwitchMenu(ev: PointerEvent) {
+	ui.popupMenu([{
+		text: 'New',
+		icon: 'ti ti-plus',
+		action: () => {
+
+		},
+	}, {
+		type: 'divider',
+	}, ...appContext.state.visualModules.value.map(_visualModule => ({
+		text: _visualModule.name,
+		active: _visualModule.id === visualModule.value?.id,
+		action: () => {
+			visualModule.value = _visualModule;
+		},
+	}))], ev.currentTarget ?? ev.target);
 }
 </script>
 
