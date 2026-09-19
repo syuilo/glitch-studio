@@ -244,6 +244,7 @@ export async function newProject() {
 	const initialNodeGraph = {
 		id: genId(),
 		name: 'My Graph',
+		paramDefs: [],
 		nodes: [{
 			id: genId(),
 			type: 'globalIn',
@@ -279,6 +280,7 @@ export async function newProject() {
 			layer: {
 				type: 'nodeGraph',
 				nodeGraphId: initialNodeGraph.id,
+				paramValues: {},
 			},
 			startTimeMs: 0,
 			endTimeMs: 1000 * 10,
@@ -319,6 +321,7 @@ export async function newProjectFromImageOrVideo(file?: File) {
 	const initialNodeGraph = {
 		id: genId(),
 		name: 'My Graph',
+		paramDefs: [],
 		nodes: [{
 			id: genId(),
 			type: 'globalIn',
@@ -387,6 +390,7 @@ export async function newProjectFromImageOrVideo(file?: File) {
 			layer: {
 				type: 'nodeGraph',
 				nodeGraphId: initialNodeGraph.id,
+				paramValues: {},
 			},
 			startTimeMs: 0,
 			endTimeMs: 1000 * 10,

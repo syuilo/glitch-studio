@@ -196,6 +196,7 @@ class NodeGraphRenderer {
 				evaluatedParams[key] = mapNodeParam(def, node.params[key], [key], (def, param) => {
 					if (param.type === 'literal') return param.value;
 					if (param.type === 'expression') return param.expression ? evaluateExpression(param.expression, mixedScope, def) : genEmptyValue(def);
+					if (param.type === 'macro') return param.macroId ? evaluateMacro() : genEmptyValue(def);
 					if (param.type === 'automation') {
 						const automation = this.automations.find(a => a.id === param.automationId);
 						return automation ? evalAutomationValue(automation, context.localTime) : genEmptyValue(def);

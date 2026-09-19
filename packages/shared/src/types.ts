@@ -10,6 +10,9 @@ export type EffectParamValue = {
 	type: 'expression';
 	expression: string;
 } | {
+	type: 'macro';
+	macroId: string;
+} | {
 	type: 'automation';
 	automationId: string | null;
 } | NodeParamValue;
@@ -101,11 +104,19 @@ export type NodeGraph = {
 	id: string;
 	name: string;
 	nodes: GsNode[];
+	paramDefs: {
+		id: string;
+		label: string;
+		name: string;
+		type: EffectParamDataType;
+		typeOptions: Record<string, any>;
+	}[];
 };
 
 export type NodeGraphLayer = {
 	type: 'nodeGraph';
 	nodeGraphId: string;
+	paramValues: Record<string, EffectParamValue>;
 };
 
 export type Layer = NodeGraphLayer;

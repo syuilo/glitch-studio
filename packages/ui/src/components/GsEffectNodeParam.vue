@@ -199,6 +199,7 @@ function getMenu() {
 		menuItems.push({ type: 'label', text: 'Type' });
 		const types: { text: string; type: EffectParamValue['type']; icon: string }[] = [
 			{ text: 'Literal', type: 'literal', icon: 'ti ti-adjustments-horizontal' },
+			{ text: 'Macro', type: 'macro', icon: 'ti ti-star' }, // TODO: なんか良いアイコンを探す
 			{ text: 'Automation', type: 'automation', icon: 'ti ti-timeline' },
 			{ text: 'Expression', type: 'expression', icon: 'ti ti-math-function' },
 		];
