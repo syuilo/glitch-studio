@@ -16,7 +16,7 @@ import { GpuWaveform } from './utility/waveform/GpuWaveform.ts';
 import { GpuMemoryTracker } from './utility/GpuMemoryTracker.ts';
 import type { EffectStatus } from '@glitch/shared/effect-status.ts';
 import type { AudioCaptureMessage, AudioSourceId } from '@glitch/shared/audio.ts';
-import type { Asset, Macro, GsAutomation, GsEffectNode, GsGlobalInNode, GsNode, Player, NodeOutputReference, EffectParamDef, Timeline, NodeGraph, EffectParamValue } from '@glitch/shared/types.ts';
+import type { Asset, Macro, GsAutomation, GsEffectNode, GsGlobalInNode, GsNode, Player, NodeOutputReference, EffectParamDef, Timeline, VisualModule, EffectParamValue } from '@glitch/shared/types.ts';
 import type { EffectInstance, IntermediateTextureFormat } from '@glitch/shared/effect-implementation.js';
 
 const aisParser = new AiScript.Parser();
@@ -65,7 +65,7 @@ function serializeAsset(asset: Asset | undefined) {
 	};
 }
 
-type NodeGraphRenderContext = {
+type VisualModuleRenderContext = {
 	//globalTime: number; // タイムラインの再生位置を示すが、使わなそう
 	localTime: number;
 	localTimeDelta: number;
@@ -76,7 +76,7 @@ type NodeGraphRenderContext = {
 	macroValues: Record<string, EffectParamValue>;
 };
 
-class NodeGraphRenderer {
+class VisualModuleRenderer {
 	private gpuDevice: GPUDevice;
 	private gpuContext: GPUCanvasContext;
 	private defaultVertexShaderModule: GPUShaderModule;
@@ -84,7 +84,7 @@ class NodeGraphRenderer {
 	private resolution: { width: number; height: number; };
 	private nodes: GsNode[] = [];
 	private globalInput: GPUTexture;
-	private preparedContext: NodeGraphRenderContext | null = null;
+	private preparedContext: VisualModuleRenderContext | null = null;
 	private statusWaiters = new Set<() => void>();
 	private destroyed = false;
 	private allNodeIdMap: Map<GsNode['id'], GsNode> = new Map(); // group内のnodeもフラット化して含む。高速に特定のノードを見つける用のキャッシュ
@@ -161,7 +161,7 @@ class NodeGraphRenderer {
 		this.updateNodes(options.nodes);
 	}
 
-	private evalNodeParams(nodes: GsNode[], context: NodeGraphRenderContext) {
+	private evalNodeParams(nodes: GsNode[], context: VisualModuleRenderContext) {
 		const scope = {
 			WIDTH: this.resolution.width,
 			HEIGHT: this.resolution.height,
@@ -505,7 +505,7 @@ class NodeGraphRenderer {
 		return this.outDataMapPerNodes.get(output.node.id)?.[output.outputPort]?.texture;
 	}
 
-	private renderNode(node: GsNode, commandEncoder: GPUCommandEncoder, context: NodeGraphRenderContext & {
+	private renderNode(node: GsNode, commandEncoder: GPUCommandEncoder, context: VisualModuleRenderContext & {
 		visited: Set<GsNode['id']>;
 		rendered: Set<GsNode['id']>;
 	}): void {
@@ -647,7 +647,7 @@ class NodeGraphRenderer {
 	}
 
 	// 描画せずに初期化・パラメータ変更の準備を行い、履歴を余分に進めない。
-	public async prepare(context: NodeGraphRenderContext, signal: AbortSignal): Promise<void> {
+	public async prepare(context: VisualModuleRenderContext, signal: AbortSignal): Promise<void> {
 		this.globalInput = context.globalInput ?? this.fallbackTexture;
 		const node = this.renderNodeId == null ? undefined : this.allNodeIdMap.get(this.renderNodeId);
 		if (node == null) return;
@@ -689,7 +689,7 @@ class NodeGraphRenderer {
 		if (!signal.aborted && !this.destroyed) this.preparedContext = context;
 	}
 
-	public render(context: NodeGraphRenderContext, commandEncoder: GPUCommandEncoder): GPUTexture | undefined {
+	public render(context: VisualModuleRenderContext, commandEncoder: GPUCommandEncoder): GPUTexture | undefined {
 		this.globalInput = context.globalInput ?? this.fallbackTexture;
 		if (this.renderNodeId == null) return;
 		const node = this.allNodeIdMap.get(this.renderNodeId);
@@ -786,19 +786,19 @@ export class MainRenderer {
 	private enableStats = true;
 	private highlightClipping = false;
 	private timeFactor = 1;
-	private liveNodeGraphId: NodeGraph['id'] | null = null;
-	private liveNodeGraphRenderer: NodeGraphRenderer | null = null;
+	private liveVisualModuleId: VisualModule['id'] | null = null;
+	private liveVisualModuleRenderer: VisualModuleRenderer | null = null;
 	private timeline: Timeline = [];
 	private assets: Asset[] = [];
 	private macros: Macro[] = [];
 	private automations: GsAutomation[] = [];
-	private nodeGraphs: NodeGraph[] = [];
+	private visualModules: VisualModule[] = [];
 	private assetTextures: Map<string, GPUTexture> = new Map();
 	private videoFrames: Map<Player['id'], VideoFrame> = new Map();
 	private videoFrameVersions: Map<Player['id'], number> = new Map();
 	private audioSources = new Map<AudioSourceId, AudioHistory>();
 	private audioPorts = new Map<AudioSourceId, MessagePort>();
-	private perLayerNodeGraphRenderers: Map<Timeline[number]['id'], NodeGraphRenderer> = new Map();
+	private perLayerVisualModuleRenderers: Map<Timeline[number]['id'], VisualModuleRenderer> = new Map();
 	private timingHelper: TimingHelper;
 	private finalRenderSampler: GPUSampler;
 	private finalRenderPipeline: GPURenderPipeline;
@@ -843,7 +843,7 @@ export class MainRenderer {
 		highlightClipping?: boolean;
 		timeFactor?: number;
 		fpsLimit: number | null;
-		nodeGraphs?: NodeGraph[];
+		visualModules?: VisualModule[];
 		timeline?: Timeline;
 		assets: Asset[];
 		macros: Macro[];
@@ -855,7 +855,7 @@ export class MainRenderer {
 	}) {
 		this.resolution = options.resolution;
 		this.onEffectStatus = options.onEffectStatus;
-		this.nodeGraphs = options.nodeGraphs ?? [];
+		this.visualModules = options.visualModules ?? [];
 		this.timeline = options.timeline ?? [];
 		this.enableStats = options.enableStats;
 		this.highlightClipping = options.highlightClipping ?? false;
@@ -977,8 +977,8 @@ export class MainRenderer {
 				this.assetTextures.set(asset.id, tex);
 			}
 		}
-		for (const nodeGraphRenderer of this.perLayerNodeGraphRenderers.values()) {
-			nodeGraphRenderer.updateAssets(this.assets);
+		for (const visualModuleRenderer of this.perLayerVisualModuleRenderers.values()) {
+			visualModuleRenderer.updateAssets(this.assets);
 		}
 	}
 
@@ -994,11 +994,11 @@ export class MainRenderer {
 		this.automations = newAutomations;
 	}
 
-	public updateNodeGraphs(newNodeGraphs: NodeGraph[]) {
+	public updateVisualModules(newVisualModules: VisualModule[]) {
 		this.clearTimelineRenderers();
-		this.nodeGraphs = newNodeGraphs;
-		if (this.liveNodeGraphRenderer != null) {
-			this.liveNodeGraphRenderer.updateNodes(this.nodeGraphs.find(graph => graph.id === this.liveNodeGraphId)!.nodes);
+		this.visualModules = newVisualModules;
+		if (this.liveVisualModuleRenderer != null) {
+			this.liveVisualModuleRenderer.updateNodes(this.visualModules.find(visualModule => visualModule.id === this.liveVisualModuleId)!.nodes);
 		}
 	}
 
@@ -1010,8 +1010,8 @@ export class MainRenderer {
 	private clearTimelineRenderers() {
 		this.timelineRenderAbort?.abort();
 		this.timelineRenderVersion++;
-		for (const renderer of this.perLayerNodeGraphRenderers.values()) renderer.destroy();
-		this.perLayerNodeGraphRenderers.clear();
+		for (const renderer of this.perLayerVisualModuleRenderers.values()) renderer.destroy();
+		this.perLayerVisualModuleRenderers.clear();
 		this.finalRenderBindGroup = null;
 		this.latestRenderedToCanasTexture = null;
 	}
@@ -1127,21 +1127,21 @@ export class MainRenderer {
 		const version = ++this.timelineRenderVersion;
 		const activeEntries = this.timeline.filter(entry => entry.startTimeMs <= time && time < entry.endTimeMs);
 		const activeIds = new Set(activeEntries.map(entry => entry.id));
-		for (const [id, renderer] of this.perLayerNodeGraphRenderers) {
+		for (const [id, renderer] of this.perLayerVisualModuleRenderers) {
 			if (activeIds.has(id)) continue;
 			renderer.destroy();
-			this.perLayerNodeGraphRenderers.delete(id);
+			this.perLayerVisualModuleRenderers.delete(id);
 		}
 		let texture = this.fallbackTexture;
 		let gpuTime = 0;
 		try {
 			// 配列の先頭が最下層。終端は含めず、隣接する期間が境界で重ならないようにする。
 			for (const entry of activeEntries) {
-				const graph = this.nodeGraphs.find(graph => graph.id === entry.layer.nodeGraphId);
-				if (graph == null) continue;
-				let renderer = this.perLayerNodeGraphRenderers.get(entry.id);
+				const visualModule = this.visualModules.find(visualModule => visualModule.id === entry.layer.visualModuleId);
+				if (visualModule == null) continue;
+				let renderer = this.perLayerVisualModuleRenderers.get(entry.id);
 				if (renderer == null) {
-					renderer = new NodeGraphRenderer({
+					renderer = new VisualModuleRenderer({
 						gpuDevice: this.gpuDevice,
 						gpuContext: this.gpuContext,
 						defaultVertexShaderModule: this.defaultVertexShaderModule,
@@ -1158,13 +1158,13 @@ export class MainRenderer {
 						assets: this.assets,
 						macros: this.macros,
 						automations: this.automations,
-						nodes: graph.nodes,
+						nodes: visualModule.nodes,
 						assetTextures: this.assetTextures,
 						audioSources: this.audioSources,
 					});
-					this.perLayerNodeGraphRenderers.set(entry.id, renderer);
+					this.perLayerVisualModuleRenderers.set(entry.id, renderer);
 				}
-				const context: NodeGraphRenderContext = {
+				const context: VisualModuleRenderContext = {
 					localTime: time - entry.startTimeMs,
 					// 後方シークでも履歴は保持し、負の時間差だけを0に抑える。
 					localTimeDelta: renderer.lastRenderedLocalTime == null ? 0 : Math.max(0, time - entry.startTimeMs - renderer.lastRenderedLocalTime),
@@ -1203,15 +1203,15 @@ export class MainRenderer {
 		}
 	}
 
-	public startLiveRenderLoopFor(nodeGraphId: string) {
+	public startLiveRenderLoopFor(visualModuleId: string) {
 		this.clearTimelineRenderers();
 		this.stopRenderLoop();
 
-		const graph = this.nodeGraphs.find(g => g.id === nodeGraphId);
-		if (graph == null) return;
+		const visualModule = this.visualModules.find(g => g.id === visualModuleId);
+		if (visualModule == null) return;
 
-		this.liveNodeGraphId = nodeGraphId;
-		this.liveNodeGraphRenderer = new NodeGraphRenderer({
+		this.liveVisualModuleId = visualModuleId;
+		this.liveVisualModuleRenderer = new VisualModuleRenderer({
 			gpuDevice: this.gpuDevice,
 			gpuContext: this.gpuContext,
 			defaultVertexShaderModule: this.defaultVertexShaderModule,
@@ -1228,7 +1228,7 @@ export class MainRenderer {
 			assets: this.assets,
 			macros: this.macros,
 			automations: this.automations,
-			nodes: graph.nodes,
+			nodes: visualModule.nodes,
 			assetTextures: this.assetTextures,
 			audioSources: this.audioSources,
 		});
@@ -1238,7 +1238,7 @@ export class MainRenderer {
 		const renderLoop = (timeStamp: number) => {
 			this.currentLiveModeRafId = requestAnimationFrame(renderLoop);
 
-			if (this.liveNodeGraphRenderer == null) return;
+			if (this.liveVisualModuleRenderer == null) return;
 
 			const delta = timeStamp - then;
 			if (this.liveModeFpsLimit != null) {
@@ -1249,7 +1249,7 @@ export class MainRenderer {
 
 			const commandEncoder = this.gpuDevice.createCommandEncoder();
 
-			const tex = this.liveNodeGraphRenderer.render({
+			const tex = this.liveVisualModuleRenderer.render({
 				localTime: timeStamp,
 				localTimeDelta: delta,
 				pointerPosition: this.pointerPosition,
@@ -1281,9 +1281,9 @@ export class MainRenderer {
 			cancelAnimationFrame(this.currentLiveModeRafId);
 			this.currentLiveModeRafId = null;
 		}
-		this.liveNodeGraphId = null;
-		this.liveNodeGraphRenderer?.destroy();
-		this.liveNodeGraphRenderer = null;
+		this.liveVisualModuleId = null;
+		this.liveVisualModuleRenderer?.destroy();
+		this.liveVisualModuleRenderer = null;
 	}
 
 	public resize(resolution: {
@@ -1292,7 +1292,7 @@ export class MainRenderer {
 	}) {
 		this.clearTimelineRenderers();
 		this.resolution = resolution;
-		this.liveNodeGraphRenderer?.resize(resolution);
+		this.liveVisualModuleRenderer?.resize(resolution);
 	}
 
 	public destroy() {
@@ -1306,10 +1306,10 @@ export class MainRenderer {
 		this.gpuWaveformHorizontal.dispose();
 		this.gpuWaveformVertical.dispose();
 
-		for (const nodeGraphRenderer of this.perLayerNodeGraphRenderers.values()) {
-			nodeGraphRenderer?.destroy();
+		for (const visualModuleRenderer of this.perLayerVisualModuleRenderers.values()) {
+			visualModuleRenderer?.destroy();
 		}
-		this.perLayerNodeGraphRenderers.clear();
+		this.perLayerVisualModuleRenderers.clear();
 
 		this.gpuDevice?.destroy();
 	}

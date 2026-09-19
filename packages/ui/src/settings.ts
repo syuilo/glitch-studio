@@ -1,6 +1,6 @@
 import { encode, decode } from '@msgpack/msgpack';
 import { encodeAssets } from './api.ts';
-import type { GsNode, Macro, GsAutomation, Asset, NodeGraph, Timeline, Player } from '@glitch/shared/types.ts';
+import type { GsNode, Macro, GsAutomation, Asset, VisualModule, Timeline, Player } from '@glitch/shared/types.ts';
 
 //export const userDataPath = electron.remote.app.getPath('userData');
 //const filePath = path.join(userDataPath, 'settings');

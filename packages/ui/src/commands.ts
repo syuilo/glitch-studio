@@ -21,21 +21,21 @@ function defineCommand<Payload>(def: CommandDef<Payload>) {
 	return def;
 }
 
-type NodeTarget = { nodeGraphId: string; nodeId: string };
-type NodeParamTarget = EffectNodeParamTarget & { nodeGraphId: string };
+type NodeTarget = { visualModuleId: string; nodeId: string };
+type NodeParamTarget = EffectNodeParamTarget & { visualModuleId: string };
 
 const stateUtility = {
-	getNodeGraph: (state: AppState, nodeGraphId: string) => {
-		const graph = state.nodeGraphs.value.find(graph => graph.id === nodeGraphId);
-		if (graph == null) throw new Error('Node graph not found');
-		return graph;
+	getVisualModule: (state: AppState, visualModuleId: string) => {
+		const visualModule = state.visualModules.value.find(visualModule => visualModule.id === visualModuleId);
+		if (visualModule == null) throw new Error('Node visualModule not found');
+		return visualModule;
 	},
 	findNode: (state: AppState, target: NodeTarget): GsNode | undefined => {
-		return stateUtility.getNodeGraph(state, target.nodeGraphId).nodes.find(node => node.id === target.nodeId);
+		return stateUtility.getVisualModule(state, target.visualModuleId).nodes.find(node => node.id === target.nodeId);
 	},
 };
 
-const addEffectNodeCommandDef = defineCommand<{ nodeGraphId: string; id: string; effectId: string; params?: Record<string, EffectParamValue> }>({
+const addEffectNodeCommandDef = defineCommand<{ visualModuleId: string; id: string; effectId: string; params?: Record<string, EffectParamValue> }>({
 	label: 'Add fx node',
 	create: payload => {
 		let addedNode: GsEffectNode | undefined;
@@ -46,12 +46,12 @@ const addEffectNodeCommandDef = defineCommand<{ nodeGraphId: string; id: string;
 		} | undefined;
 		return {
 			execute(state) {
-				const graph = stateUtility.getNodeGraph(state, payload.nodeGraphId);
+				const visualModule = stateUtility.getVisualModule(state, payload.visualModuleId);
 				if (addedNode == null) {
 					const paramDefs = effectDefinitions[payload.effectId].paramDefs as EffectParamDefs;
-					const globalOut = graph.nodes.find(node => node.type === 'globalOut');
+					const globalOut = visualModule.nodes.find(node => node.type === 'globalOut');
 					const previousInput = globalOut?.input;
-					const previous = previousInput?.nodeId == null ? undefined : graph.nodes.find(node => node.id === previousInput.nodeId);
+					const previous = previousInput?.nodeId == null ? undefined : visualModule.nodes.find(node => node.id === previousInput.nodeId);
 					const params: GsEffectNode['params'] = {};
 					for (const [key, def] of Object.entries(paramDefs)) {
 						params[key] = def.default();
@@ -65,7 +65,7 @@ const addEffectNodeCommandDef = defineCommand<{ nodeGraphId: string; id: string;
 					}
 					// ランダムな初期値や自動接続もRedo時に変えない。
 					addedNode = { id: payload.id, type: 'effect', effectId: payload.effectId, isBypass: false,
-						params: { ...params, ...deepClone(payload.params ?? {}) }, pos: { x: 0, y: 0 } };
+																			params: { ...params, ...deepClone(payload.params ?? {}) }, pos: { x: 0, y: 0 } };
 					const outputPort = Object.entries(getNodeOutputs(addedNode)).find(([, output]) => output.primary && canConnectNodeDataTypes(output.dataType, 'color'))?.[0];
 					if (globalOut != null && outputPort != null) {
 						outputConnection = {
@@ -75,18 +75,18 @@ const addEffectNodeCommandDef = defineCommand<{ nodeGraphId: string; id: string;
 						};
 					}
 				}
-				const outputIndex = graph.nodes.findIndex(node => node.type === 'globalOut');
-				graph.nodes.splice(outputIndex < 0 ? graph.nodes.length : outputIndex, 0, deepClone(addedNode));
+				const outputIndex = visualModule.nodes.findIndex(node => node.type === 'globalOut');
+				visualModule.nodes.splice(outputIndex < 0 ? visualModule.nodes.length : outputIndex, 0, deepClone(addedNode));
 				if (outputConnection != null) {
-					const globalOut = graph.nodes.find(node => node.id === outputConnection.nodeId);
+					const globalOut = visualModule.nodes.find(node => node.id === outputConnection.nodeId);
 					if (globalOut?.type === 'globalOut') globalOut.input = deepClone(outputConnection.after);
 				}
 			},
 			undo(state) {
-				const graph = stateUtility.getNodeGraph(state, payload.nodeGraphId);
-				graph.nodes = graph.nodes.filter(node => node.id !== payload.id);
+				const visualModule = stateUtility.getVisualModule(state, payload.visualModuleId);
+				visualModule.nodes = visualModule.nodes.filter(node => node.id !== payload.id);
 				if (outputConnection != null) {
-					const globalOut = graph.nodes.find(node => node.id === outputConnection.nodeId);
+					const globalOut = visualModule.nodes.find(node => node.id === outputConnection.nodeId);
 					if (globalOut?.type === 'globalOut') globalOut.input = deepClone(outputConnection.before);
 				}
 			},
@@ -99,7 +99,7 @@ const moveNodeCommandDef = defineCommand<NodeTarget & { index: number }>({
 	create: payload => {
 		let before: number;
 		const move = (state: AppState, index: number) => {
-			const nodes = stateUtility.getNodeGraph(state, payload.nodeGraphId).nodes;
+			const nodes = stateUtility.getVisualModule(state, payload.visualModuleId).nodes;
 			const source = nodes.findIndex(node => node.id === payload.nodeId);
 			if (source < 0) throw new Error('Node not found');
 			if (!Number.isInteger(index) || index < 0 || index >= nodes.length) throw new Error('Invalid node index');
@@ -120,8 +120,8 @@ const removeNodeCommandDef = defineCommand<NodeTarget>({
 		let before: GsNode[];
 		return {
 			execute(state) {
-				const graph = stateUtility.getNodeGraph(state, payload.nodeGraphId);
-				before = deepClone(graph.nodes);
+				const visualModule = stateUtility.getVisualModule(state, payload.visualModuleId);
+				before = deepClone(visualModule.nodes);
 				const removedNode = stateUtility.findNode(state, payload);
 				if (removedNode == null) return;
 				const primary = removedNode.type === 'effect'
@@ -130,9 +130,9 @@ const removeNodeCommandDef = defineCommand<NodeTarget>({
 				const input = primary?.value;
 				const replacement: NodeOutputReference | null = input?.type === 'node' && input.nodeId != null && input.nodeId !== payload.nodeId
 					? { nodeId: input.nodeId, outputPort: input.outputPort } : null;
-				const replacementOutput = replacement == null ? undefined : getNodeOutputs(graph.nodes.find(node => node.id === replacement.nodeId))[replacement.outputPort];
+				const replacementOutput = replacement == null ? undefined : getNodeOutputs(visualModule.nodes.find(node => node.id === replacement.nodeId))[replacement.outputPort];
 				// 削除したノードの主入力へ接続し直す。globalOutの参照も同じ操作で復元可能にする。
-				for (const node of graph.nodes) {
+				for (const node of visualModule.nodes) {
 					if (node.id === payload.nodeId) continue;
 					if (node.type === 'globalOut') {
 						if (node.input.nodeId === payload.nodeId) {
@@ -150,10 +150,10 @@ const removeNodeCommandDef = defineCommand<NodeTarget>({
 							: { type: 'node', nodeId: null, outputPort: null });
 					}
 				}
-				graph.nodes = graph.nodes.filter(node => node.id !== payload.nodeId);
+				visualModule.nodes = visualModule.nodes.filter(node => node.id !== payload.nodeId);
 			},
 			undo(state) {
-				stateUtility.getNodeGraph(state, payload.nodeGraphId).nodes = deepClone(before);
+				stateUtility.getVisualModule(state, payload.visualModuleId).nodes = deepClone(before);
 			},
 		};
 	},
@@ -187,20 +187,20 @@ const removeAssetCommandDef = defineCommand<{ assetId: string }>({
 	create: payload => {
 		let before: {
 			assets: Asset[];
-			graphs: { id: string; nodes: GsNode[] }[];
+			visualModules: { id: string; nodes: GsNode[] }[];
 			macros: AppState['macros']['value'];
 		};
 		return {
 			execute(state) {
 				before = {
 					assets: deepClone(state.assets.value),
-					graphs: state.nodeGraphs.value.map(graph => ({ id: graph.id, nodes: deepClone(graph.nodes) })),
+					visualModules: state.visualModules.value.map(visualModule => ({ id: visualModule.id, nodes: deepClone(visualModule.nodes) })),
 					macros: deepClone(state.macros.value),
 				};
 				state.assets.value = state.assets.value.filter(asset => asset.id !== payload.assetId);
-				// Assetはプロジェクト共有なので、全NodeGraphの参照を解除する。
-				for (const graph of state.nodeGraphs.value) {
-					for (const node of graph.nodes) {
+				// Assetはプロジェクト共有なので、全VisualModuleの参照を解除する。
+				for (const visualModule of state.visualModules.value) {
+					for (const node of visualModule.nodes) {
 						if (node.type !== 'effect') continue;
 						for (const { path, def, value } of walkNodeParams(node)) {
 							if (def.type === 'image' && value.type === 'literal' && value.value === payload.assetId) {
@@ -217,8 +217,8 @@ const removeAssetCommandDef = defineCommand<{ assetId: string }>({
 			},
 			undo(state) {
 				state.assets.value = deepClone(before.assets);
-				for (const graph of before.graphs) {
-					stateUtility.getNodeGraph(state, graph.id).nodes = deepClone(graph.nodes);
+				for (const visualModule of before.visualModules) {
+					stateUtility.getVisualModule(state, visualModule.id).nodes = deepClone(visualModule.nodes);
 				}
 				state.macros.value = deepClone(before.macros);
 			},
@@ -603,8 +603,8 @@ const updateGlobalOutInputCommandDef = defineCommand<NodeTarget & { value: NodeO
 				const node = stateUtility.findNode(state, payload);
 				if (node?.type !== 'globalOut') throw new Error('Global output node not found');
 				if (payload.value != null) {
-					const source = stateUtility.findNode(state, { nodeGraphId: payload.nodeGraphId, nodeId: payload.value.nodeId });
-					if (getNodeOutputs(source)[payload.value.outputPort] == null) throw new Error('Node output not found in this graph');
+					const source = stateUtility.findNode(state, { visualModuleId: payload.visualModuleId, nodeId: payload.value.nodeId });
+					if (getNodeOutputs(source)[payload.value.outputPort] == null) throw new Error('Node output not found in this visualModule');
 				}
 				before = deepClone(node.input);
 				node.input = payload.value == null ? { nodeId: null, outputPort: null }

@@ -18,7 +18,7 @@
 	</div>
 
 	<div v-show="expanded" :class="$style.params" :inert="node.isBypass">
-		<GsEffectNodeParam v-for="[param, def] in Object.entries(getNodeParamDefs(props.node))" :key="param" :nodeGraphId="nodeGraphId" :node="node" :paramPath="[param]" :paramDef="def" :paramValue="node.params[param]"/>
+		<GsEffectNodeParam v-for="[param, def] in Object.entries(getNodeParamDefs(props.node))" :key="param" :visualModuleId="visualModuleId" :node="node" :paramPath="[param]" :paramDef="def" :paramValue="node.params[param]"/>
 	</div>
 
 	<GsNodeOutputs :node="node"/>
@@ -39,7 +39,7 @@ import { getNodeParamDefs } from '@/utility/node-params.ts';
 import * as ui from '@/ui.ts';
 
 const props = defineProps<{
-	nodeGraphId: string;
+	visualModuleId: string;
 	node: GsEffectNode,
 }>();
 
@@ -59,14 +59,14 @@ function showEffectError() {
 
 function remove() {
 	appContext.commit('removeNode', {
-		nodeGraphId: props.nodeGraphId,
+		visualModuleId: props.visualModuleId,
 		nodeId: props.node.id,
 	});
 }
 
 function toggleBypass() {
 	appContext.commit('changeNodeBypassState', {
-		nodeGraphId: props.nodeGraphId,
+		visualModuleId: props.visualModuleId,
 		nodeId: props.node.id,
 		bypass: !props.node.isBypass,
 	});

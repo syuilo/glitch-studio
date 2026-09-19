@@ -46,7 +46,7 @@ import { wireDrag } from '@/utility/wire-drag.ts';
 import { getNodeDataTypeColor } from '@/utility/node-outputs.ts';
 import { paramPathKey, walkNodeParams } from '@/utility/node-params.ts';
 
-const props = defineProps<{ nodeGraphId: string }>();
+const props = defineProps<{ visualModuleId: string }>();
 
 // 配線全長に含まれる模様の周期数（正の数）。
 const gradientRepeatCount = 4;
@@ -73,7 +73,7 @@ type Wire = {
 
 // 接続先の列挙はレイアウトから独立させ、座標変更では再走査しない。
 const nodesById = computed(() => {
-	const nodes = appContext.state.nodeGraphs.value.find(graph => graph.id === props.nodeGraphId)?.nodes ?? [];
+	const nodes = appContext.state.visualModules.value.find(visualModule => visualModule.id === props.visualModuleId)?.nodes ?? [];
 	return new Map(nodes.map(node => [node.id, node]));
 });
 
@@ -92,7 +92,7 @@ const connections = computed(() => {
 			if (nodeId == null || !nodesById.value.has(nodeId)) continue;
 			const from = wireMap.out[nodeId]?.[outputPort];
 			if (from) result.push({
-				key: JSON.stringify([props.nodeGraphId, node.id, 'input', nodeId, outputPort]),
+				key: JSON.stringify([props.visualModuleId, node.id, 'input', nodeId, outputPort]),
 				from,
 				input: undefined,
 				allIn: wireMap.allIn[node.id],
@@ -107,7 +107,7 @@ const connections = computed(() => {
 			const from = wireMap.out[value.nodeId]?.[value.outputPort];
 			if (!from) continue;
 			result.push({
-				key: JSON.stringify([props.nodeGraphId, node.id, path, value.nodeId, value.outputPort]),
+				key: JSON.stringify([props.visualModuleId, node.id, path, value.nodeId, value.outputPort]),
 				from,
 				input: wireMap.in[node.id]?.[paramPathKey(path)],
 				allIn: wireMap.allIn[node.id],

@@ -1,13 +1,13 @@
 <template>
 <div :class="$style.root">
 	<div :class="$style.header">
-		<button class="_button" style="padding: 4px 6px;"><i class="ti ti-chevron-down"></i> Graph: {{ nodeGraph?.name ?? '' }} [{{ nodeGraph?.id ?? '' }}]</button>
-		<XNodeGraphParamDefsEditor :nodeGraph="nodeGraph"/>
+		<button class="_button" style="padding: 4px 6px;"><i class="ti ti-chevron-down"></i> Module: {{ visualModule?.name ?? '' }} [{{ visualModule?.id ?? '' }}]</button>
+		<XVisualModuleParamDefsEditor :visualModule="visualModule"/>
 	</div>
-	<div v-if="nodeGraph != null" :key="nodeGraph.id" :class="$style.nodesContainer">
+	<div v-if="visualModule != null" :key="visualModule.id" :class="$style.nodesContainer">
 		<div :class="$style.nodesContent">
 			<GsDraggable
-				:modelValue="nodeGraph.nodes.filter(node => node.type !== 'globalIn' && node.type !== 'globalOut')"
+				:modelValue="visualModule.nodes.filter(node => node.type !== 'globalIn' && node.type !== 'globalOut')"
 				direction="vertical"
 				manualDragStart
 				withGaps
@@ -17,16 +17,16 @@
 					<XGlobalInNode v-if="globalInNode != null" :node="globalInNode" :class="$style.node" style="margin-bottom: 4px;"/>
 				</template>
 				<template #default="{ item: node, dragStart }">
-					<XEffectNode v-if="node.type === 'effect'" :nodeGraphId="nodeGraph.id" :node="node" :class="$style.node" @dragStart="dragStart"/>
+					<XEffectNode v-if="node.type === 'effect'" :visualModuleId="visualModule.id" :node="node" :class="$style.node" @dragStart="dragStart"/>
 				</template>
 				<template #footer>
-					<GsButton :class="$style.addButton" full style="margin-top: 4px;" @click="showAddNodeMenu(nodeGraph.id, $event)"><i class="ti ti-plus"></i> Add node...</GsButton>
+					<GsButton :class="$style.addButton" full style="margin-top: 4px;" @click="showAddNodeMenu(visualModule.id, $event)"><i class="ti ti-plus"></i> Add node...</GsButton>
 
-					<XGlobalOutNode v-if="globalOutNode != null" :node="globalOutNode" :nodeGraphId="nodeGraph.id" :class="$style.node" style="margin-top: 8px;"/>
+					<XGlobalOutNode v-if="globalOutNode != null" :node="globalOutNode" :visualModuleId="visualModule.id" :class="$style.node" style="margin-top: 8px;"/>
 				</template>
 			</GsDraggable>
 
-			<GsWires :nodeGraphId="nodeGraph.id"/>
+			<GsWires :visualModuleId="visualModule.id"/>
 		</div>
 	</div>
 </div>
@@ -40,29 +40,29 @@ import GsDraggable from './common/GsDraggable.vue';
 import XEffectNode from './GsEffectNode.vue';
 import XGlobalInNode from './GsGlobalInNode.vue';
 import XGlobalOutNode from './GsGlobalOutNode.vue';
-import XNodeGraphParamDefsEditor from './XNodeGraphParamDefsEditor.vue';
-import type { GsNode, NodeGraph } from '@glitch/shared/types.js';
+import XVisualModuleParamDefsEditor from './XVisualModuleParamDefsEditor.vue';
+import type { GsNode, VisualModule } from '@glitch/shared/types.js';
 import { showAddNodeMenu } from '@/app.ts';
 import { appContext } from '@/app.ts';
 
-const nodeGraph = ref<NodeGraph | null>();
+const visualModule = ref<VisualModule | null>();
 
-watch(appContext.state.nodeGraphs, () => {
-	if (appContext.state.nodeGraphs.value.length > 0) nodeGraph.value = appContext.state.nodeGraphs.value[0];
+watch(appContext.state.visualModules, () => {
+	if (appContext.state.visualModules.value.length > 0) visualModule.value = appContext.state.visualModules.value[0];
 });
 
 const globalInNode = computed(() => {
-	return nodeGraph.value?.nodes.find(node => node.type === 'globalIn') ?? null;
+	return visualModule.value?.nodes.find(node => node.type === 'globalIn') ?? null;
 });
 
 const globalOutNode = computed(() => {
-	return nodeGraph.value?.nodes.find(node => node.type === 'globalOut') ?? null;
+	return visualModule.value?.nodes.find(node => node.type === 'globalOut') ?? null;
 });
 
 function onSorted(nodes: GsNode[]) {
 	// TODO
 	appContext.commit('moveNode', {
-		nodeGraphId: nodeGraph.value.id,
+		visualModuleId: visualModule.value.id,
 	});
 }
 </script>

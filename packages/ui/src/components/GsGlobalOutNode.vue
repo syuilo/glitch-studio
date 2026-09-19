@@ -30,19 +30,19 @@ import { getNodeOutputItems, hasNodeInputTypeMismatch, nodeOutputKey } from '@/u
 import { registerWireInput } from '@/utility/wire-drag.ts';
 
 const props = defineProps<{
-	nodeGraphId: string;
+	visualModuleId: string;
 	node: GsGlobalOutNode;
 }>();
 
 const allInPortEl = shallowRef<HTMLElement | null>(null);
 const inputRow = useTemplateRef('inputRow');
-const nodes = computed(() => appContext.state.nodeGraphs.value.find(graph => graph.id === props.nodeGraphId)?.nodes ?? []);
+const nodes = computed(() => appContext.state.visualModules.value.find(visualModule => visualModule.id === props.visualModuleId)?.nodes ?? []);
 const connection = computed(() => props.node.input.nodeId == null ? null : props.node.input);
 const outputItems = computed(() => getNodeOutputItems(nodes.value, props.node.id, 'color'));
 
 function connect(value: NodeOutputReference | null) {
 	if (value != null && !outputItems.value.some(item => item.value === nodeOutputKey(value))) return;
-	appContext.commit('updateGlobalOutInput', { nodeGraphId: props.nodeGraphId, nodeId: props.node.id, value });
+	appContext.commit('updateGlobalOutInput', { visualModuleId: props.visualModuleId, nodeId: props.node.id, value });
 }
 
 function selectInput(key: string | null) {

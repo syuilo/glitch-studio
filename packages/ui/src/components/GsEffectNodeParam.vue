@@ -52,7 +52,7 @@
 		<GsEffectNodeParam
 			v-for="(value, index) in arrayValues"
 			:key="index"
-			:nodeGraphId="nodeGraphId"
+			:visualModuleId="visualModuleId"
 			:node="node"
 			:paramPath="[...paramPath, index]"
 			:paramDef="paramDef.item"
@@ -68,7 +68,7 @@
 		<GsEffectNodeParam
 			v-for="[key, def] in visibleFields"
 			:key="key"
-			:nodeGraphId="nodeGraphId"
+			:visualModuleId="visualModuleId"
 			:node="node"
 			:paramPath="[...paramPath, key]"
 			:paramDef="def"
@@ -100,7 +100,7 @@ import { registerWireInput } from '@/utility/wire-drag.ts';
 import * as ui from '@/ui.ts';
 
 const props = defineProps<{
-	nodeGraphId: string;
+	visualModuleId: string;
 	node: GsEffectNode;
 	paramPath: ParamPath;
 	paramDef: NodeParamDef;
@@ -119,7 +119,7 @@ const visibleFields = computed(() => {
 });
 const canNode = computed(() => props.paramDef.type !== 'array' && props.paramDef.type !== 'struct' && props.paramDef.canNode);
 const inputDataType = computed(() => props.paramDef.type !== 'array' && props.paramDef.type !== 'struct' ? getNodeInputDataType(props.paramDef) : null);
-const nodes = computed(() => appContext.state.nodeGraphs.value.find(graph => graph.id === props.nodeGraphId)?.nodes ?? []);
+const nodes = computed(() => appContext.state.visualModules.value.find(visualModule => visualModule.id === props.visualModuleId)?.nodes ?? []);
 const nodeOutputItems = computed(() => getNodeOutputItems(nodes.value, props.node.id, inputDataType.value));
 const nodeConnection = computed<NodeOutputReference | null>(() => props.paramValue.type === 'node' && props.paramValue.nodeId != null ? props.paramValue : null);
 const automationName = computed(() => {
@@ -136,10 +136,10 @@ const arrayVersion = ref(0);
 watch(() => props.paramValue, () => {
 	if (props.paramDef.type === 'array') arrayVersion.value++;
 });
-watch(() => JSON.stringify([props.nodeGraphId, props.node.id, props.paramPath]), () => { commandMergeKey = null; });
+watch(() => JSON.stringify([props.visualModuleId, props.node.id, props.paramPath]), () => { commandMergeKey = null; });
 
 function target() {
-	return { nodeGraphId: props.nodeGraphId, nodeId: props.node.id, paramPath: props.paramPath };
+	return { visualModuleId: props.visualModuleId, nodeId: props.node.id, paramPath: props.paramPath };
 }
 
 watchEffect(onCleanup => {
@@ -245,7 +245,7 @@ function updateParamAsExpression(value: string) {
 }
 
 function connectNode(value: NodeOutputReference | null) {
-	// 別のNodeGraphや、グラフ切り替え前の候補へ接続しない。
+	// 別のVisualModuleや、グラフ切り替え前の候補へ接続しない。
 	if (value != null && !nodeOutputItems.value.some(item => item.value === nodeOutputKey(value))) return;
 	if (mounted) appContext.commit('updateParamAsNode', { ...target(), value });
 }

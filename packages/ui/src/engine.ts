@@ -6,7 +6,7 @@ import { projectAudioSourceId } from '@glitch/shared/audio.ts';
 import { isVideoFrameAvailable, playVideoAfterFirstFrameIsReady } from './utility/video.ts';
 import { AudioInputs } from './audio/audio-inputs.ts';
 import { setupWebcam } from './utility/webcam.ts';
-import type { Asset, GsAutomation, GsNode, Macro, NodeGraph, Player, Timeline } from '@glitch/shared/types.ts';
+import type { Asset, GsAutomation, GsNode, Macro, VisualModule, Player, Timeline } from '@glitch/shared/types.ts';
 import type { MainRenderer } from '@glitch/renderer/renderer.ts';
 import type { EffectStatus } from '@glitch/shared/effect-status.ts';
 import * as ui from '@/ui.ts';
@@ -32,7 +32,7 @@ export class Engine {
 	private enableStats = true;
 	private highlightClipping = false;
 	private timeFactor = 1;
-	private nodeGraphs: NodeGraph[] = [];
+	private visualModules: VisualModule[] = [];
 	private assets: Asset[] = [];
 	private players: Player[] = [];
 	private macros: Macro[] = [];
@@ -174,7 +174,7 @@ export class Engine {
 				assets: this.assets,
 				macros: this.macros,
 				automations: this.automations,
-				nodeGraphs: this.nodeGraphs,
+				visualModules: this.visualModules,
 				timeline: this.timeline,
 			},
 		}, [offscreen, histogramOffscreen, waveformHorizontalOffscreen, waveformVerticalOffscreen]);
@@ -228,8 +228,8 @@ export class Engine {
 		await ready;
 	}
 
-	public startLiveRenderLoopFor(nodeGraphId: NodeGraph['id']) {
-		this.call('startLiveRenderLoopFor', [nodeGraphId]);
+	public startLiveRenderLoopFor(visualModuleId: VisualModule['id']) {
+		this.call('startLiveRenderLoopFor', [visualModuleId]);
 		this.renderLoopRunning = true;
 	}
 
@@ -329,9 +329,9 @@ export class Engine {
 		await Promise.all(this.videoLoads.values());
 	}
 
-	public updateNodeGraphs(newNodeGraphs: NodeGraph[]) {
-		this.nodeGraphs = deepClone(newNodeGraphs);
-		this.call('updateNodeGraphs', [this.nodeGraphs]);
+	public updateVisualModules(newVisualModules: VisualModule[]) {
+		this.visualModules = deepClone(newVisualModules);
+		this.call('updateVisualModules', [this.visualModules]);
 	}
 
 	public getVideoElement(playerId: Player['id']): HTMLVideoElement | null {
@@ -369,7 +369,7 @@ export class Engine {
 		this.assets = deepClone(newAssets);
 		await this.call('updateAssets', [this.assets]);
 		await this.updatePlayers(this.players);
-		await this.updateNodeGraphs(this.nodeGraphs);
+		await this.updateVisualModules(this.visualModules);
 	}
 
 	public updateTimeline(newTimeline: Timeline) {

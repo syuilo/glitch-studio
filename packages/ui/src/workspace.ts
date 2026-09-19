@@ -5,7 +5,7 @@ import type { MenuItem } from './types/menu.ts';
 import { preferences } from '@/preferences.ts';
 import XBlank from '@/components/GsWorkspacePanel.Blank.vue';
 import XPreview from '@/components/GsWorkspacePanel.Preview.vue';
-import XNodesEditor from '@/components/GsWorkspacePanel.NodesEditor.vue';
+import XVisualModuleEditor from '@/components/GsWorkspacePanel.VisualModuleEditor.vue';
 import XHistogram from '@/components/GsWorkspacePanel.Histogram.vue';
 import XWaveform from '@/components/GsWorkspacePanel.Waveform.vue';
 import XAudioSpectrum from '@/components/GsWorkspacePanel.AudioSpectrum.vue';
@@ -28,7 +28,7 @@ export const workspacePanelDefinitions = markRaw({
 	waveformVertical: { label: 'Waveform (Y)', icon: 'ti ti-chart-column', component: XWaveform },
 	preview: { label: 'Preview', icon: 'ti ti-device-desktop', component: XPreview },
 	players: { label: 'Players', icon: 'ti ti-player-play', component: XPlayers },
-	nodesEditor: { label: 'Nodes', icon: 'ti ti-chart-dots-3', component: XNodesEditor },
+	visualModuleEditor: { label: 'Visual Module Editor', icon: 'ti ti-chart-dots-3', component: XVisualModuleEditor },
 	macros: { label: 'Macros', icon: 'ti ti-adjustments-horizontal', component: XMacros },
 	stats: { label: 'Stats', icon: 'ti ti-activity', component: XStats },
 	commandLog: { label: 'Command Log', icon: 'ti ti-logs', component: XCommandLog },

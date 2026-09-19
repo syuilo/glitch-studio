@@ -100,7 +100,7 @@ export type GsGroupNode = any; // とりあえず
 
 export type GsNode = GsEffectNode | GsGlobalInNode | GsGlobalOutNode;
 
-export type NodeGraph = {
+export type VisualModule = {
 	id: string;
 	name: string;
 	nodes: GsNode[];
@@ -113,13 +113,13 @@ export type NodeGraph = {
 	}[];
 };
 
-export type NodeGraphLayer = {
-	type: 'nodeGraph';
-	nodeGraphId: string;
+export type VisualModuleLayer = {
+	type: 'visualModule';
+	visualModuleId: string;
 	paramValues: Record<string, EffectParamValue>;
 };
 
-export type Layer = NodeGraphLayer;
+export type Layer = VisualModuleLayer;
 
 export type Timeline = {
 	id: string;

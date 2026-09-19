@@ -13,7 +13,7 @@ import GsEffectPicker from './components/GsEffectPicker.vue';
 import type { CommandDef } from './commands.ts';
 import type { AppState } from './types.ts';
 import type { EffectNodeOf } from '@glitch/shared/effect-definition.ts';
-import type { Asset, GsNode, Macro, GsAutomation, GsGroupNode, Player, NodeGraph, Timeline } from '@glitch/shared/types.ts';
+import type { Asset, GsNode, Macro, GsAutomation, GsGroupNode, Player, VisualModule, Timeline } from '@glitch/shared/types.ts';
 import type { Project } from './gsproj.ts';
 import * as ui from '@/ui.ts';
 import * as api from '@/api.ts';
@@ -42,7 +42,7 @@ class AppContext {
 			resolution: ref<{ width: number; height: number }>({ width: 1024, height: 1024 }),
 			assets: ref<Asset[]>([]), // TODO: バイナリをリアクティブでwrapするのをやめる
 			players: ref<Player[]>([]),
-			nodeGraphs: ref<NodeGraph[]>([]),
+			visualModules: ref<VisualModule[]>([]),
 			macros: ref<Macro[]>([]),
 			automations: ref<GsAutomation[]>([]),
 			timeline: ref<Timeline>([]),
@@ -111,12 +111,12 @@ export const wireMap = reactive<{
 	allIn: {},
 });
 
-export function showAddNodeMenu(nodeGraphId: NodeGraph['id'], ev: PointerEvent) {
+export function showAddNodeMenu(visualModuleId: VisualModule['id'], ev: PointerEvent) {
 	const { dispose } = ui.popup(GsEffectPicker, {
 	}, {
 		'chosen': effect => {
 			appContext.commit('addEffectNode', {
-				nodeGraphId: nodeGraphId,
+				visualModuleId: visualModuleId,
 				effectId: effect.id,
 				id: genId(),
 			});
@@ -190,7 +190,7 @@ export async function appReady(project: Project) {
 	appContext.projectAuthor = project.author;
 	appContext.state.resolution.value = project.resolution;
 	appContext.state.assets.value = project.assets;
-	appContext.state.nodeGraphs.value = project.nodeGraphs;
+	appContext.state.visualModules.value = project.visualModules;
 	appContext.state.macros.value = project.macros;
 	appContext.state.automations.value = project.automations;
 	appContext.state.players.value = project.players;
@@ -208,8 +208,8 @@ export async function appReady(project: Project) {
 		engine.updatePlayers(deepClone(appContext.state.players.value));
 	}, { deep: true, immediate: true });
 
-	watch(appContext.state.nodeGraphs, () => {
-		engine.updateNodeGraphs(deepClone(appContext.state.nodeGraphs.value));
+	watch(appContext.state.visualModules, () => {
+		engine.updateVisualModules(deepClone(appContext.state.visualModules.value));
 	}, { deep: true, immediate: true });
 
 	watch(appContext.state.macros, () => {
@@ -224,7 +224,7 @@ export async function appReady(project: Project) {
 		engine.renderTimelineAt(currentTimelineTime.value);
 	}, { deep: true, immediate: true });
 
-	engine.startLiveRenderLoopFor(project.nodeGraphs[0].id);
+	engine.startLiveRenderLoopFor(project.visualModules[0].id);
 }
 
 export function saveProject() {
@@ -241,9 +241,9 @@ export async function openProject() {
 
 export async function newProject() {
 	const initialEffectNodeId = genId();
-	const initialNodeGraph = {
+	const initialVisualModule = {
 		id: genId(),
-		name: 'My Graph',
+		name: 'My Visual Module',
 		paramDefs: [],
 		nodes: [{
 			id: genId(),
@@ -264,13 +264,13 @@ export async function newProject() {
 				outputPort: 'output',
 			},
 		}],
-	} satisfies NodeGraph;
+	} satisfies VisualModule;
 	await appReady({
 		id: genId(),
 		gsVersion: _VERSION_,
 		name: 'untitled',
 		author: 'TODO',
-		nodeGraphs: [initialNodeGraph],
+		visualModules: [initialVisualModule],
 		assets: [],
 		macros: [],
 		automations: [],
@@ -278,8 +278,8 @@ export async function newProject() {
 		timeline: [{
 			id: genId(),
 			layer: {
-				type: 'nodeGraph',
-				nodeGraphId: initialNodeGraph.id,
+				type: 'visualModule',
+				visualModuleId: initialVisualModule.id,
 				paramValues: {},
 			},
 			startTimeMs: 0,
@@ -318,9 +318,9 @@ export async function newProjectFromImageOrVideo(file?: File) {
 	} satisfies Player : null;
 
 	const initialEffectNodeId = genId();
-	const initialNodeGraph = {
+	const initialVisualModule = {
 		id: genId(),
-		name: 'My Graph',
+		name: 'My Visual Module',
 		paramDefs: [],
 		nodes: [{
 			id: genId(),
@@ -373,14 +373,14 @@ export async function newProjectFromImageOrVideo(file?: File) {
 				outputPort: 'output',
 			},
 		}],
-	} satisfies NodeGraph;
+	} satisfies VisualModule;
 
 	await appReady({
 		id: genId(),
 		gsVersion: _VERSION_,
 		name: result.name,
 		author: 'TODO',
-		nodeGraphs: [initialNodeGraph],
+		visualModules: [initialVisualModule],
 		assets: [asset],
 		players: player ? [player] : [],
 		macros: [],
@@ -388,8 +388,8 @@ export async function newProjectFromImageOrVideo(file?: File) {
 		timeline: [{
 			id: genId(),
 			layer: {
-				type: 'nodeGraph',
-				nodeGraphId: initialNodeGraph.id,
+				type: 'visualModule',
+				visualModuleId: initialVisualModule.id,
 				paramValues: {},
 			},
 			startTimeMs: 0,

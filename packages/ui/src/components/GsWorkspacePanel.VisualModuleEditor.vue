@@ -1,6 +1,6 @@
 <template>
 <div :class="$style.root">
-	<GsNodesEditor/>
+	<GsVisualModuleEditor/>
 </div>
 </template>
 
@@ -8,7 +8,7 @@
 import { watch, useTemplateRef, ref, onMounted } from 'vue';
 import type { WorkspacePanel } from '@/workspace.ts';
 import { i18n } from '@/i18n.ts';
-import GsNodesEditor from '@/components/GsNodesEditor.vue';
+import GsVisualModuleEditor from '@/components/GsVisualModuleEditor.vue';
 
 const props = defineProps<{
 	panel: WorkspacePanel;
