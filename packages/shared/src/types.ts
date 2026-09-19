@@ -17,15 +17,6 @@ export type EffectParamValue = {
 	automationId: string | null;
 } | NodeParamValue;
 
-export type Macro = {
-	id: string;
-	label: string;
-	name: string;
-	type: EffectParamDataType;
-	typeOptions: Record<string, any>;
-	value: EffectParamValue;
-};
-
 export type Asset = {
 	id: string;
 	name: string;
@@ -110,6 +101,8 @@ export type VisualModule = {
 		name: string;
 		type: EffectParamDataType;
 		typeOptions: Record<string, any>;
+		defaultValue: any;
+		canNode: boolean;
 	}[];
 };
 

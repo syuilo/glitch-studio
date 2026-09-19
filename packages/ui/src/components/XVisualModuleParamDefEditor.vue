@@ -1,11 +1,11 @@
 <template>
 <div :class="$style.root">
 	<div :class="$style.fields">
-		<GsInput :class="$style.field" type="text" :modelValue="macro.label" @update:modelValue="updateMacroLabel(macro, $event)"/>
-		<GsInput :class="$style.field" type="text" :modelValue="macro.name" @update:modelValue="updateMacroName(macro, $event)"/>
+		<GsInput :class="$style.field" type="text" :modelValue="def.label" @update:modelValue="updateMacroLabel"/>
+		<GsInput :class="$style.field" type="text" :modelValue="def.name" @update:modelValue="updateMacroName"/>
 		<GsSelect
 			:class="$style.field"
-			:modelValue="macro.type"
+			:modelValue="def.type"
 			:items="[
 				{ label: i18n.ts._Macro._Types.Number, value: 'number' },
 				{ label: i18n.ts._Macro._Types.Range, value: 'range' },
@@ -13,21 +13,20 @@
 				{ label: i18n.ts._Macro._Types.Color, value: 'color' },
 				{ label: i18n.ts._Macro._Types.Image, value: 'image' },
 			]"
-			@update:modelValue="v => updateMacroType(macro, v)"
+			@update:modelValue="v => updateMacroType(v)"
 		/>
-		<GsButton v-tooltip="'Remove macro'" danger :class="[$style.field, $style.remove]" @click="remove(macro.id)"><i class="ti ti-x"></i></GsButton>
 	</div>
-	<div v-if="['number', 'range'].includes(macro.type)" :class="$style.option">
+	<div v-if="['number', 'range'].includes(def.type)" :class="$style.option">
 		<label :class="$style.optionLabel">Min/Max</label>
-		<div :class="[$style.optionControl, { [$style.rangeBounds]: macro.type === 'range' }]">
-			<GsInput type="number" :modelValue="macro.typeOptions.min" @update:modelValue="updateMacroTypeOption(macro, 'min', parseFloat($event, 10))"/>
-			<GsInput type="number" :modelValue="macro.typeOptions.max" @update:modelValue="updateMacroTypeOption(macro, 'max', parseFloat($event, 10))"/>
+		<div :class="[$style.optionControl, { [$style.rangeBounds]: def.type === 'range' }]">
+			<GsInput type="number" :modelValue="def.typeOptions.min" @update:modelValue="updateMacroTypeOption(def, 'min', parseFloat($event, 10))"/>
+			<GsInput type="number" :modelValue="def.typeOptions.max" @update:modelValue="updateMacroTypeOption(def, 'max', parseFloat($event, 10))"/>
 		</div>
 	</div>
-	<div v-if="['number', 'range'].includes(macro.type)" :class="$style.option">
+	<div v-if="['number', 'range'].includes(def.type)" :class="$style.option">
 		<label :class="$style.optionLabel">Step</label>
 		<div :class="$style.optionControl">
-			<GsInput type="number" :modelValue="macro.typeOptions.step" @update:modelValue="updateMacroTypeOption(macro, 'step', parseFloat($event, 10))"/>
+			<GsInput type="number" :modelValue="def.typeOptions.step" @update:modelValue="updateMacroTypeOption(def, 'step', parseFloat($event, 10))"/>
 		</div>
 	</div>
 </div>
@@ -37,49 +36,50 @@
 import GsSelect from './common/GsSelect.vue';
 import GsInput from './common/GsInput.vue';
 import GsButton from './common/GsButton.vue';
-import type { GsGroupNode, Macro } from '@glitch/shared/types.ts';
+import type { GsGroupNode, Macro, VisualModule } from '@glitch/shared/types.ts';
 import { appContext } from '@/app.ts';
 import { i18n } from '@/i18n.ts';
 
 const props = defineProps<{
+	def: VisualModule['paramDefs'][number];
 }>();
 
-function updateMacroLabel(macro: Macro, value: string) {
+function updateMacroLabel(def: Macro, value: string) {
 	appContext.commit('updateMacroLabel', {
-		macroId: macro.id,
+		defId: def.id,
 		value: value,
 		groupId: props.group?.id,
 	});
 }
 
-function updateMacroName(macro: Macro, value: string) {
+function updateMacroName(def: Macro, value: string) {
 	appContext.commit('updateMacroName', {
-		macroId: macro.id,
+		defId: def.id,
 		value: value,
 		groupId: props.group?.id,
 	});
 }
 
-function updateMacroType(macro: Macro, value: FxParamDataType) {
+function updateMacroType(def: Macro, value: FxParamDataType) {
 	appContext.commit('updateMacroType', {
-		macroId: macro.id,
+		defId: def.id,
 		value: value,
 		groupId: props.group?.id,
 	});
 }
 
-function updateMacroTypeOption(macro: Macro, key: string, value: any) {
+function updateMacroTypeOption(def: Macro, key: string, value: any) {
 	appContext.commit('updateMacroTypeOption', {
-		macroId: macro.id,
+		defId: def.id,
 		key: key,
 		value: value,
 		groupId: props.group?.id,
 	});
 }
 
-function remove(macroId: string) {
+function remove(defId: string) {
 	appContext.commit('removeMacro', {
-		macroId: macroId,
+		defId: defId,
 		groupId: props.group?.id,
 	});
 }

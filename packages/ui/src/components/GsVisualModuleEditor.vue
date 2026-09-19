@@ -2,7 +2,7 @@
 <div :class="$style.root">
 	<div :class="$style.header">
 		<button class="_button" style="padding: 4px 6px;"><i class="ti ti-chevron-down"></i> Module: {{ visualModule?.name ?? '' }} [{{ visualModule?.id ?? '' }}]</button>
-		<XVisualModuleParamDefsEditor :visualModule="visualModule"/>
+		<XVisualModuleParamDefsEditor v-if="visualModule != null" :visualModule="visualModule"/>
 	</div>
 	<div v-if="visualModule != null" :key="visualModule.id" :class="$style.nodesContainer">
 		<div :class="$style.nodesContent">
