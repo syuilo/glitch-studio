@@ -1,34 +1,56 @@
 <template>
 <div :class="$style.root">
 	<div :class="$style.header">
+		<GsButton v-for="layer of appContext.state.timeline.value" :key="layer.id" :primary="selectedLayer?.id === layer.id" @click="switchLayer(layer)">{{ layer.id }}</GsButton>
 	</div>
 	<div :class="$style.body">
-		<div :class="$style.side">
-			<GsButton v-for="layer of appContext.state.timeline.value" :key="layer.id" :primary="selectedLayer?.id === layer.id" @click="switchLayer(layer)">{{ layer.id }}</GsButton>
-		</div>
-		<div ref="tlEl" :class="$style.tl" tabindex="-1" @wheel="onTlWheel" @mousemove="onTlMousemove" @mousedown="onTlMousedown" @keydown="onTlKeydown">
-			<div :class="$style.xTicks" @wheel="onXTicksWheel">
-				<div v-for="time of xTicks" :class="$style.xTick" class="_monospace" :style="{ left: timeToDomX(time) + 'px' }">{{ formatMsToTimecode(time) }}</div>
-				<div :class="$style.xTicksSeekBar" :style="{ left: (seekBarPos - 1) + 'px' }" @mousedown="onSeekBarMousedown"></div>
+		<div :class="$style.tlBgWrapper">
+			<div :class="$style.tlBgSideSpacer"></div>
+			<div ref="tlEl" :class="$style.tlBg" tabindex="-1" @wheel="onTlWheel" @mousemove="onTlMousemove" @mousedown="onTlMousedown" @keydown="onTlKeydown">
+				<div :class="$style.ticksCorner"></div>
+				<div :class="$style.tlRange" :style="{ width: tlRangeElWidth + 'px', left: tlRangeElPosX + 'px' }"></div>
+				<div v-for="time of xTicks" :class="[$style.inTlXTick]" :style="{ left: timeToDomX(time) + 'px' }"></div>
+				<div v-for="v of yTicks" :class="[$style.inTlYTick, { [$style.inTlYTickZero]: v.toFixed(2).replace('-', '') === '0.00', [$style.inTlYTickActive]: snappingY != null && nearlyEqual(snappingY, v) }]" :style="{ top: valueToDomY(v) + 'px' }"></div>
 			</div>
-			<div :class="$style.ticksCorner"></div>
-			<div :class="$style.tlRange" :style="{ width: tlRangeElWidth + 'px', left: tlRangeElPosX + 'px' }"></div>
-			<div :class="$style.selectedArea" :style="{ width: selectedAreaElWidth + 'px', height: selectedAreaElHeight + 'px', bottom: selectedAreaElPosY + 'px', left: selectedAreaElPosX + 'px' }"></div>
-			<div v-for="time of xTicks" :class="[$style.inTlXTick]" :style="{ left: timeToDomX(time) + 'px' }"></div>
-			<div v-for="v of yTicks" :class="[$style.inTlYTick, { [$style.inTlYTickZero]: v.toFixed(2).replace('-', '') === '0.00', [$style.inTlYTickActive]: snappingY != null && nearlyEqual(snappingY, v) }]" :style="{ top: valueToDomY(v) + 'px' }"></div>
-			<div :class="$style.seekBar" class="_monospace" :style="{ left: seekBarPos + 'px' }"><div :class="$style.seekBarFrame">{{ formatMsToTimecode(time) }}</div></div>
-			<div :class="$style.cursorBar" :style="{ left: cursorBarPos + 'px' }"></div>
+		</div>
+		<div :class="$style.layers">
+			<div :class="$style.layersHeader">
+				header
+			</div>
+			<div v-for="layer of appContext.state.timeline.value" :key="layer.id" :class="$style.layersRow">
+				<div :class="$style.layersSide">
+					<GsButton>{{ layer.id }}</GsButton>
+				</div>
+				<div :class="$style.layersTl">
+					<div :class="$style.layerBlock" :style="{ width: layerRects[layer.id].width + 'px', left: layerRects[layer.id].left + 'px' }">{{ layer.id }}</div>
+				</div>
+			</div>
+		</div>
+		<div :class="$style.tlOverlayWrapper">
+			<div :class="$style.tlOverlaySideSpacer"></div>
+			<div :class="$style.tlOverlay">
+				<div :class="$style.xTicks" @wheel="onXTicksWheel">
+					<div v-for="time of xTicks" :class="$style.xTick" class="_monospace" :style="{ left: timeToDomX(time) + 'px' }">{{ formatMsToTimecode(time) }}</div>
+					<div :class="$style.xTicksSeekBar" :style="{ left: (seekBarPos - 1) + 'px' }" @mousedown="onSeekBarMousedown"></div>
+				</div>
+				<div :class="$style.ticksCorner"></div>
+				<div :class="$style.selectedArea" :style="{ width: selectedAreaElWidth + 'px', height: selectedAreaElHeight + 'px', bottom: selectedAreaElPosY + 'px', left: selectedAreaElPosX + 'px' }"></div>
+				<div v-for="time of xTicks" :class="[$style.inTlXTick]" :style="{ left: timeToDomX(time) + 'px' }"></div>
+				<div v-for="v of yTicks" :class="[$style.inTlYTick, { [$style.inTlYTickZero]: v.toFixed(2).replace('-', '') === '0.00', [$style.inTlYTickActive]: snappingY != null && nearlyEqual(snappingY, v) }]" :style="{ top: valueToDomY(v) + 'px' }"></div>
+				<div :class="$style.seekBar" class="_monospace" :style="{ left: seekBarPos + 'px' }"><div :class="$style.seekBarFrame">{{ formatMsToTimecode(time) }}</div></div>
+				<div :class="$style.cursorBar" :style="{ left: cursorBarPos + 'px' }"></div>
 
-			<!--
+				<!--
 			<div v-if="(nowSelecting || selectedKeyframes.length === 0) && tooltipDomPos" :class="$style.tooltip" class="_monospace" :style="{ left: tooltipDomPos[0] + 'px', top: tooltipDomPos[1] + 'px' }">
 				<div>T: {{ formatMsToTimecode(cursorTime) }}</div>
 				<div>V: {{ cursorValue }}</div>
 			</div>
 			-->
 
-			<div :class="$style.infoBar">
-				<div><b>TL Offset</b><code>{{ tlPosX.toFixed(2) }}</code>, <code>{{ tlPosY.toFixed(2) }}</code></div>
-				<div><b>Cursor</b><code>{{ cursorTime }}</code>, <code>{{ cursorValue }}</code></div>
+				<div :class="$style.infoBar">
+					<div><b>TL Offset</b><code>{{ tlPosX.toFixed(2) }}</code>, <code>{{ tlPosY.toFixed(2) }}</code></div>
+					<div><b>Cursor</b><code>{{ cursorTime }}</code>, <code>{{ cursorValue }}</code></div>
+				</div>
 			</div>
 		</div>
 		<div v-if="selectedLayer != null" :class="$style.rightSidePanel">
@@ -91,6 +113,16 @@ const selectedAreaElWidth = computed(() => {
 });
 const selectedAreaElHeight = computed(() => {
 	return (((selectedAreaHeight.value) / tlRangeY.value) * tlElHeight.value);
+});
+
+const layerRects = computed(() => {
+	const obj = {};
+	for (const layer of appContext.state.timeline.value) {
+		const left = timeToDomX(layer.startTimeMs);
+		const width = timeToDomX(layer.endTimeMs) - left;
+		obj[layer.id] = { left, width };
+	}
+	return obj;
 });
 
 const selectedLayer = ref<Layer | null>(null);
@@ -316,6 +348,7 @@ onMounted(() => {
 	height: 100%;
 	contain: content;
 
+	--sideWidth: 300px;
 	--xTicksHeight: v-bind('X_TICKS_HEIGHT + "px"');
 	--yTicksWidth: v-bind('Y_TICKS_WIDTH + "px"');
 
@@ -332,15 +365,47 @@ onMounted(() => {
 }
 
 .body {
+	position: relative;
 	flex: 1;
 	display: flex;
 }
 
-.side {
+.layers {
+	display: flex;
+	flex-direction: column;
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	overflow: auto;
+	scrollbar-gutter: stable;
+	direction: rtl; /* スクロールバーを左に表示したいため */
+}
+
+.layersHeader {
+	direction: ltr;
+	height: 40px;
+}
+
+.layersRow {
+	display: flex;
+	flex-direction: row;
+	width: 100%;
+	direction: ltr;
+}
+
+.layersSide {
 	box-sizing: border-box;
-	width: 300px;
-	padding: 16px;
+	width: var(--sideWidth);
 	background: #181818;
+	direction: ltr;
+}
+
+.layersTl {
+	position: relative;
+	flex: 1;
+	direction: ltr;
 }
 
 .yTicks {
@@ -380,6 +445,7 @@ onMounted(() => {
 	backdrop-filter: blur(24px);
 	overflow: clip;
 	contain: content;
+	pointer-events: auto;
 }
 .xTick {
 	position: absolute;
@@ -401,14 +467,66 @@ onMounted(() => {
 	background: #181818;
 }
 
-.tl {
-	position: relative;
+.tlBgWrapper { /* tl自体はスクロールバーを表示しないが、layers側で表示するスクロールバーにより位置がずれるため、補正するためにこっちでもスクロールバーの幅だけは確保しておく */
+	display: flex;
+	flex-direction: row;
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	overflow: auto;
+	scrollbar-gutter: stable;
+	direction: rtl; /* スクロールバーを左に表示したいため */
+	flex-direction: row-reverse;
+}
+.tlBgSideSpacer {
+	box-sizing: border-box;
+	width: var(--sideWidth);
+}
+
+.tlBg {
+	height: 100%;
 	flex: 1;
 	overflow: clip;
 	background-size: auto auto;
 	background-color: #2d2d2d;
 	background-image: repeating-linear-gradient(45deg, transparent, transparent 6px, #222222 6px, #222222 12px );
 	contain: content;
+	direction: ltr;
+
+	&:focus {
+		outline: none;
+		//outline: solid 7px #fff;
+	}
+}
+
+.tlOverlayWrapper { /* tl自体はスクロールバーを表示しないが、layers側で表示するスクロールバーにより位置がずれるため、補正するためにこっちでもスクロールバーの幅だけは確保しておく */
+	display: flex;
+	flex-direction: row;
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	overflow: auto;
+	scrollbar-gutter: stable;
+	direction: rtl; /* スクロールバーを左に表示したいため */
+	flex-direction: row-reverse;
+	pointer-events: none;
+}
+.tlOverlaySideSpacer {
+	box-sizing: border-box;
+	width: var(--sideWidth);
+}
+
+.tlOverlay {
+	height: 100%;
+	flex: 1;
+	overflow: clip;
+	contain: content;
+	pointer-events: none;
+	direction: ltr;
 
 	&:focus {
 		outline: none;
@@ -739,5 +857,12 @@ onMounted(() => {
 	background: #0008;
 	backdrop-filter: blur(4px);
 	color: #fff;
+}
+
+.layerBlock {
+	position: absolute;
+	height: 30px;
+	background: #00f;
+	cursor: pointer;
 }
 </style>
