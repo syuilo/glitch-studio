@@ -241,13 +241,23 @@ export async function openProject() {
 
 export async function newProject() {
 	const initialEffectNodeId = genId();
+	const initialInputParamId = genId();
 	const initialVisualModule = {
 		id: genId(),
 		name: 'My Visual Module',
-		paramDefs: [],
+		paramDefs: [{
+			id: initialInputParamId,
+			label: 'My Input',
+			name: 'myInput',
+			type: 'color',
+			defaultValue: [0, 0, 0, 0],
+			canNode: true,
+			isPrimaryInput: true,
+		}],
 		nodes: [{
 			id: genId(),
 			type: 'globalIn',
+			paramId: initialInputParamId,
 		}, {
 			id: initialEffectNodeId,
 			type: 'effect',
@@ -318,13 +328,23 @@ export async function newProjectFromImageOrVideo(file?: File) {
 	} satisfies Player : null;
 
 	const initialEffectNodeId = genId();
+	const initialInputParamId = genId();
 	const initialVisualModule = {
 		id: genId(),
 		name: 'My Visual Module',
-		paramDefs: [],
+		paramDefs: [{
+			id: initialInputParamId,
+			label: 'My Input',
+			name: 'myInput',
+			type: 'color',
+			defaultValue: [0, 0, 0, 0],
+			canNode: true,
+			isPrimaryInput: true,
+		}],
 		nodes: [{
 			id: genId(),
 			type: 'globalIn',
+			paramId: initialInputParamId,
 		}, result.type.startsWith('image/') ? {
 			id: initialEffectNodeId,
 			type: 'effect',

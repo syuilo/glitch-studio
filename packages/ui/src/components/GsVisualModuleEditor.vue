@@ -7,22 +7,41 @@
 	<div v-if="visualModule != null" :key="visualModule.id" :class="$style.nodesContainer">
 		<div :class="$style.nodesContent">
 			<GsDraggable
+				:modelValue="globalInNodes"
+				direction="vertical"
+				manualDragStart
+				withGaps
+				@update:modelValue="onSorted"
+			>
+				<template #default="{ item: node, dragStart }">
+					<XGlobalInNode :visualModuleId="visualModule" :node="node" :class="$style.node"/>
+				</template>
+			</GsDraggable>
+
+			<GsDraggable
 				:modelValue="visualModule.nodes.filter(node => node.type !== 'globalIn' && node.type !== 'globalOut')"
 				direction="vertical"
 				manualDragStart
 				withGaps
 				@update:modelValue="onSorted"
 			>
-				<template #header>
-					<XGlobalInNode v-if="globalInNode != null" :node="globalInNode" :class="$style.node" style="margin-bottom: 4px;"/>
-				</template>
 				<template #default="{ item: node, dragStart }">
 					<XEffectNode v-if="node.type === 'effect'" :visualModuleId="visualModule.id" :node="node" :class="$style.node" @dragStart="dragStart"/>
 				</template>
 				<template #footer>
 					<GsButton :class="$style.addButton" full style="margin-top: 4px;" @click="showAddNodeMenu(visualModule.id, $event)"><i class="ti ti-plus"></i> Add node...</GsButton>
+				</template>
+			</GsDraggable>
 
-					<XGlobalOutNode v-if="globalOutNode != null" :node="globalOutNode" :visualModuleId="visualModule.id" :class="$style.node" style="margin-top: 8px;"/>
+			<GsDraggable
+				:modelValue="globalOutNodes"
+				direction="vertical"
+				manualDragStart
+				withGaps
+				@update:modelValue="onSorted"
+			>
+				<template #default="{ item: node, dragStart }">
+					<XGlobalOutNode :node="node" :visualModuleId="visualModule.id" :class="$style.node"/>
 				</template>
 			</GsDraggable>
 
@@ -41,7 +60,7 @@ import XEffectNode from './GsEffectNode.vue';
 import XGlobalInNode from './GsGlobalInNode.vue';
 import XGlobalOutNode from './GsGlobalOutNode.vue';
 import XVisualModuleParamDefsEditor from './XVisualModuleParamDefsEditor.vue';
-import type { GsNode, VisualModule } from '@glitch/shared/types.js';
+import type { GsGlobalInNode, GsGlobalOutNode, GsNode, VisualModule } from '@glitch/shared/types.js';
 import { showAddNodeMenu } from '@/app.ts';
 import { appContext } from '@/app.ts';
 
@@ -51,12 +70,12 @@ watch(appContext.state.visualModules, () => {
 	if (appContext.state.visualModules.value.length > 0) visualModule.value = appContext.state.visualModules.value[0];
 });
 
-const globalInNode = computed(() => {
-	return visualModule.value?.nodes.find(node => node.type === 'globalIn') ?? null;
+const globalInNodes = computed(() => {
+	return visualModule.value?.nodes.filter((node): node is GsGlobalInNode => node.type === 'globalIn');
 });
 
-const globalOutNode = computed(() => {
-	return visualModule.value?.nodes.find(node => node.type === 'globalOut') ?? null;
+const globalOutNodes = computed(() => {
+	return visualModule.value?.nodes.filter((node): node is GsGlobalOutNode => node.type === 'globalOut');
 });
 
 function onSorted(nodes: GsNode[]) {

@@ -6,6 +6,9 @@
 		</div>
 	</div>
 
+	<!-- TODO -->
+	<GsSelect/>
+
 	<GsNodeOutputs :node="node"/>
 </div>
 </template>
@@ -13,10 +16,12 @@
 <script lang="ts" setup>
 import { ref, computed, shallowRef, watchEffect } from 'vue';
 import GsNodeOutputs from './GsNodeOutputs.vue';
-import type { GsGlobalInNode } from '@glitch/shared/types.ts';
+import GsSelect from './GsSelect.vue';
+import type { GsGlobalInNode, VisualModule } from '@glitch/shared/types.ts';
 import { wireMap } from '@/app.ts';
 
 const props = defineProps<{
+	visualModule: VisualModule,
 	node: GsGlobalInNode,
 }>();
 

@@ -73,6 +73,7 @@ export type GsEffectNode = {
 export type GsGlobalInNode = {
 	id: string;
 	type: 'globalIn';
+	paramId: string;
 
 	// 2D平面上でノードを配置できるようになった時のため
 	pos?: { x: number; y: number };
@@ -103,6 +104,7 @@ export type VisualModule = {
 		typeOptions: Record<string, any>;
 		defaultValue: any;
 		canNode: boolean;
+		isPrimaryInput: boolean;
 	}[];
 };
 
