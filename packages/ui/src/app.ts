@@ -181,10 +181,12 @@ export async function appReady(project: RawProject) {
 	appContext.projectName = project.name;
 	appContext.projectAuthor = project.author;
 	appContext.state.resolution.value = project.resolution;
-	appContext.state.assets.value = await decodeAssets(project.assets);
+	//appContext.state.assets.value = await decodeAssets(project.assets); // TODO
+	appContext.state.assets.value = project.assets;
 	appContext.state.nodeGraphs.value = project.nodeGraphs;
 	appContext.state.macros.value = project.macros;
 	appContext.state.automations.value = project.automations;
+	appContext.state.players.value = project.players;
 
 	watch(appContext.state.automations, () => {
 		engine.updateAutomations(deepClone(appContext.state.automations.value));
@@ -274,6 +276,7 @@ export async function newProject() {
 		assets: [],
 		macros: [],
 		automations: [],
+		players: [],
 		timeline: [{
 			id: genId(),
 			layer: {
@@ -290,9 +293,6 @@ export async function newProject() {
 export async function newProjectFromImageOrVideo(file?: File) {
 	const result = await api.openMediaFile({ file });
 	if (result == null) return false;
-
-	const assetId = genId();
-
 	if (result.width > 1500 || result.height > 1500) {
 		resolutionFactor.value = 0.5;
 	}
@@ -300,21 +300,8 @@ export async function newProjectFromImageOrVideo(file?: File) {
 		resolutionFactor.value = 0.25;
 	}
 
-	await appReady({
+	const asset = {
 		id: genId(),
-		gsVersion: _VERSION_,
-		name: result.name,
-		author: 'TODO',
-		nodeGraphs: [],
-		assets: [],
-		macros: [],
-		automations: [],
-		timeline: [],
-		resolution: { width: result.width || 1024, height: result.height || 1024 },
-	});
-
-	appContext.commit('addAsset', {
-		id: assetId,
 		name: result.name,
 		width: result.width,
 		height: result.height,
@@ -322,34 +309,88 @@ export async function newProjectFromImageOrVideo(file?: File) {
 		fileDataType: result.type,
 		fileData: result.fileData,
 		hash: result.hash,
-	});
+	} satisfies Asset;
 
-	if (result.type.startsWith('image/')) {
-		appContext.commit('addEffectNode', {
+	const player = result.type.startsWith('video/') || result.type.startsWith('audio/') ? {
+		id: genId(),
+		name: result.name,
+		type: 'asset',
+		assetId: asset.id,
+	} satisfies Player : null;
+
+	const initialEffectNodeId = genId();
+	const initialNodeGraph = {
+		id: genId(),
+		name: '',
+		nodes: [{
+			id: genId(),
+			type: 'globalIn',
+		}, result.type.startsWith('image/') ? {
+			id: initialEffectNodeId,
+			type: 'effect',
 			effectId: 'image',
-			id: genId(),
 			params: {
-				image: { type: 'literal', value: assetId },
+				image: { type: 'literal', value: asset.id },
+				sizeMode: { type: 'literal', value: 1 },
 			},
-		});
-	} else if (result.type.startsWith('video/') || result.type.startsWith('audio/')) {
-		const playerId = genId();
-
-		appContext.commit('addPlayer', {
-			id: playerId,
-			name: result.name,
-			type: 'asset',
-			assetId: assetId,
-		});
-
-		appContext.commit('addEffectNode', {
-			effectId: result.type.startsWith('audio/') ? 'audioWaveform' : 'video',
-			id: genId(),
+			isBypass: false,
+		} : result.type.startsWith('video/') ? {
+			id: initialEffectNodeId,
+			type: 'effect',
+			effectId: 'video',
 			params: {
-				player: { type: 'literal', value: playerId },
+				player: { type: 'literal', value: player!.id },
 			},
-		});
-	}
+			isBypass: false,
+		} : result.type.startsWith('audio/') ? {
+			id: initialEffectNodeId,
+			type: 'effect',
+			effectId: 'audioWaveform',
+			params: {
+				player: { type: 'literal', value: player!.id },
+			},
+			isBypass: false,
+		} : {
+			id: initialEffectNodeId,
+			type: 'effect',
+			effectId: 'fill',
+			params: {
+				color: { type: 'literal', value: [0, 1, 0, 1] },
+			},
+			isBypass: false,
+		}, {
+			id: genId(),
+			type: 'globalOut',
+			input: {
+				nodeId: initialEffectNodeId,
+				outputPort: 'output',
+			},
+		}],
+	} satisfies NodeGraph;
+
+	console.log('Initial Node Graph:', initialNodeGraph);
+
+	await appReady({
+		id: genId(),
+		gsVersion: _VERSION_,
+		name: result.name,
+		author: 'TODO',
+		nodeGraphs: [initialNodeGraph],
+		assets: [asset],
+		players: player ? [player] : [],
+		macros: [],
+		automations: [],
+		timeline: [{
+			id: genId(),
+			layer: {
+				type: 'nodeGraph',
+				nodeGraphId: initialNodeGraph.id,
+			},
+			startTimeMs: 0,
+			endTimeMs: 1000 * 10,
+		}],
+		resolution: { width: result.width || 1024, height: result.height || 1024 },
+	});
 
 	return true;
 }
