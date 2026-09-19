@@ -56,7 +56,7 @@
 		</div>
 	</div>
 	<div v-if="paramDef.type === 'array'" :key="arrayVersion" :class="$style.children">
-		<GsEffectNodeParam
+		<GsVisualParam
 			v-for="(value, index) in arrayValues"
 			:key="index"
 			:visualModuleId="visualModuleId"
@@ -70,10 +70,10 @@
 			<template #actions>
 				<GsButton small iconOnly danger title="Remove element" @click="removeElement(index)"><i class="ti ti-x"></i></GsButton>
 			</template>
-		</GsEffectNodeParam>
+		</GsVisualParam>
 	</div>
 	<div v-else-if="paramDef.type === 'struct' && structValues" :class="$style.children">
-		<GsEffectNodeParam
+		<GsVisualParam
 			v-for="[key, def] in visibleFields"
 			:key="key"
 			:visualModuleId="visualModuleId"

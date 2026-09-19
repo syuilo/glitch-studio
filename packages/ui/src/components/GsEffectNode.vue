@@ -18,7 +18,16 @@
 	</div>
 
 	<div v-show="expanded" :class="$style.params" :inert="node.isBypass">
-		<GsEffectNodeParam v-for="[param, def] in Object.entries(getNodeParamDefs(props.node))" :key="param" :visualModuleId="visualModuleId" :node="node" :paramPath="[param]" :paramDef="def" :paramValue="node.params[param]" @edit="onParamEdit"/>
+		<GsVisualParam
+			v-for="[param, def] in Object.entries(getNodeParamDefs(props.node))"
+			:key="param"
+			:visualModuleId="visualModuleId"
+			:node="node"
+			:paramPath="[param]"
+			:paramDef="def"
+			:paramValue="node.params[param]"
+			@edit="onParamEdit"
+		/>
 	</div>
 
 	<GsNodeOutputs :node="node"/>
@@ -30,9 +39,9 @@ import { ref, computed, shallowRef, watchEffect } from 'vue';
 import { effectDefinitions } from '@glitch/shared/effect-definitions.ts';
 import GsNodeOutputs from './GsNodeOutputs.vue';
 import GsNodePort from './GsNodePort.vue';
-import GsEffectNodeParam from './GsEffectNodeParam.vue';
-import type { ParamEdit } from './GsEffectNodeParam.vue';
+import GsVisualParam from './GsVisualParam.vue';
 import GsButton from './common/GsButton.vue';
+import type { ParamEdit } from './GsVisualParam.vue';
 import type { GsEffectNode } from '@glitch/shared/types.ts';
 import { i18n } from '@/i18n.ts';
 import { appContext, engine, wireMap } from '@/app.ts';
