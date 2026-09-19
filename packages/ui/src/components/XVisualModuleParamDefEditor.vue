@@ -29,6 +29,9 @@
 			<GsInput type="number" :modelValue="def.typeOptions.step" @update:modelValue="updateTypeOption('step', Number($event))"/>
 		</div>
 	</div>
+	<div :class="$style.option">
+		<GsSwitch :modelValue="def.canNode" @update:modelValue="updateCanNode">Allow node input</GsSwitch>
+	</div>
 	<GsButton small danger @click="remove">Remove parameter</GsButton>
 </div>
 </template>
@@ -37,6 +40,7 @@
 import GsSelect from './common/GsSelect.vue';
 import GsInput from './common/GsInput.vue';
 import GsButton from './common/GsButton.vue';
+import GsSwitch from './common/GsSwitch.vue';
 import { genEmptyValue } from '@glitch/shared/utility/misc.ts';
 import type { EffectParamDataType, VisualModule } from '@glitch/shared/types.ts';
 import { appContext } from '@/app.ts';
@@ -61,6 +65,10 @@ function updateType(type: EffectParamDataType) {
 
 function updateTypeOption(key: string, value: number) {
 	update({ typeOptions: { ...props.def.typeOptions, [key]: value } });
+}
+
+function updateCanNode(canNode: boolean) {
+	update({ canNode, isPrimaryInput: canNode && props.def.isPrimaryInput });
 }
 
 function remove() {
