@@ -4,15 +4,15 @@
 		<div :class="$style.nodesContent">
 			<Sortable :modelValue="nodeGraph.nodes" :class="$style.nodes" itemKey="id" tag="div" :group="{ name: 'nodes' }" handle=".drag-handle" :animation="150" :swapThreshold="0.5" @change="onSorted">
 				<template #item="{element}">
-					<XEffectNode v-if="element.type === 'effect'" :key="element.id" :node="element"/>
-					<XGlobalInNode v-if="element.type === 'globalIn'" :key="element.id" :node="element"/>
-					<XGlobalOutNode v-if="element.type === 'globalOut'" :key="element.id" :node="element"/>
+					<XEffectNode v-if="element.type === 'effect'" :key="element.id" :nodeGraphId="nodeGraph.id" :node="element"/>
+					<XGlobalInNode v-else-if="element.type === 'globalIn'" :key="element.id" :node="element"/>
+					<XGlobalOutNode v-else-if="element.type === 'globalOut'" :key="element.id" :node="element"/>
 				</template>
 			</Sortable>
 
 			<GsButton :class="$style.addButton" full @click="showAddNodeMenu">Add node</GsButton>
 
-			<GsWires/>
+			<GsWires :nodeGraphId="nodeGraph.id"/>
 		</div>
 	</div>
 </div>

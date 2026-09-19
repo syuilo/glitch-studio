@@ -14,7 +14,7 @@
 			</template>
 			<template v-else-if="paramDef.type !== 'struct'">
 				<GsNodePort v-if="canNode" :dataType="inputDataType" @update:element="portEl = $event"/>
-				<i v-if="hasNodeInputTypeMismatch(appContext.state.nodes.value, nodeConnection, inputDataType)" v-tooltip="'Data type mismatch'" class="ti ti-alert-triangle" :class="$style.typeWarning"></i>
+				<i v-if="hasNodeInputTypeMismatch(nodes, nodeConnection, inputDataType)" v-tooltip="'Data type mismatch'" class="ti ti-alert-triangle" :class="$style.typeWarning"></i>
 				<div :class="$style.control">
 					<GsInput v-if="paramValue.type === 'expression'" type="text" :modelValue="paramValue.expression" @update:modelValue="updateParamAsExpression">
 						<template #caption>
@@ -52,6 +52,7 @@
 		<GsEffectNodeParam
 			v-for="(value, index) in arrayValues"
 			:key="index"
+			:nodeGraphId="nodeGraphId"
 			:node="node"
 			:paramPath="[...paramPath, index]"
 			:paramDef="paramDef.item"
@@ -67,6 +68,7 @@
 		<GsEffectNodeParam
 			v-for="[key, def] in visibleFields"
 			:key="key"
+			:nodeGraphId="nodeGraphId"
 			:node="node"
 			:paramPath="[...paramPath, key]"
 			:paramDef="def"
@@ -98,6 +100,7 @@ import { registerWireInput } from '@/utility/wire-drag.ts';
 import * as ui from '@/ui.ts';
 
 const props = defineProps<{
+	nodeGraphId: string;
 	node: GsEffectNode;
 	paramPath: ParamPath;
 	paramDef: NodeParamDef;
@@ -116,7 +119,8 @@ const visibleFields = computed(() => {
 });
 const canNode = computed(() => props.paramDef.type !== 'array' && props.paramDef.type !== 'struct' && props.paramDef.canNode);
 const inputDataType = computed(() => props.paramDef.type !== 'array' && props.paramDef.type !== 'struct' ? getNodeInputDataType(props.paramDef) : null);
-const nodeOutputItems = computed(() => getNodeOutputItems(appContext.state.nodes.value, props.node.id, inputDataType.value));
+const nodes = computed(() => appContext.state.nodeGraphs.value.find(graph => graph.id === props.nodeGraphId)?.nodes ?? []);
+const nodeOutputItems = computed(() => getNodeOutputItems(nodes.value, props.node.id, inputDataType.value));
 const nodeConnection = computed<NodeOutputReference | null>(() => props.paramValue.type === 'node' && props.paramValue.nodeId != null ? props.paramValue : null);
 const automationName = computed(() => {
 	const value = props.paramValue;
@@ -132,10 +136,10 @@ const arrayVersion = ref(0);
 watch(() => props.paramValue, () => {
 	if (props.paramDef.type === 'array') arrayVersion.value++;
 });
-watch(() => JSON.stringify([props.node.id, props.paramPath]), () => { commandMergeKey = null; });
+watch(() => JSON.stringify([props.nodeGraphId, props.node.id, props.paramPath]), () => { commandMergeKey = null; });
 
 function target() {
-	return { nodeId: props.node.id, paramPath: props.paramPath };
+	return { nodeGraphId: props.nodeGraphId, nodeId: props.node.id, paramPath: props.paramPath };
 }
 
 watchEffect(onCleanup => {
@@ -193,7 +197,7 @@ function getMenu() {
 	// コンテナ自体は静的な構造を維持し、値の種類を変更できるのは末端だけにする。
 	if (props.paramDef.type !== 'array' && props.paramDef.type !== 'struct') {
 		menuItems.push({ type: 'label', text: 'Type' });
-		const types: { text: string; type: EffectParamValue['type'] }[] = [
+		const types: { text: string; type: EffectParamValue['type']; icon: string }[] = [
 			{ text: 'Literal', type: 'literal', icon: 'ti ti-adjustments-horizontal' },
 			{ text: 'Automation', type: 'automation', icon: 'ti ti-timeline' },
 			{ text: 'Expression', type: 'expression', icon: 'ti ti-math-function' },
@@ -240,6 +244,8 @@ function updateParamAsExpression(value: string) {
 }
 
 function connectNode(value: NodeOutputReference | null) {
+	// 別のNodeGraphや、グラフ切り替え前の候補へ接続しない。
+	if (value != null && !nodeOutputItems.value.some(item => item.value === nodeOutputKey(value))) return;
 	if (mounted) appContext.commit('updateParamAsNode', { ...target(), value });
 }
 
