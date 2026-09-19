@@ -242,7 +242,7 @@ function getMenu() {
 			{ text: 'Automation', type: 'automation', icon: 'ti ti-timeline' },
 			{ text: 'Expression', type: 'expression', icon: 'ti ti-math-function' },
 		];
-		types.push({ text: 'Macro', type: 'macro', icon: 'ti ti-star' });
+		types.push({ text: 'Parameter', type: 'macro', icon: 'ti ti-arrow-right' });
 		if (canNode.value) types.push({ text: 'Node', type: 'node', icon: 'ti ti-plug' });
 		for (const { text, type, icon } of types) {
 			menuItems.push({
