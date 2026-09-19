@@ -3,17 +3,21 @@
 	<div v-if="nodeGraph != null" :key="nodeGraph.id" :class="$style.nodesContainer">
 		<div :class="$style.nodesContent">
 			<GsDraggable
-				:class="$style.nodes"
+
 				:modelValue="nodeGraph.nodes"
 				direction="vertical"
 				manualDragStart
 				withGaps
 				@update:modelValue="onSorted"
 			>
+				<template #header>
+					<XGlobalInNode v-if="globalInNode != null" :node="globalInNode" :class="$style.node"/>
+				</template>
 				<template #default="{ item: node, dragStart }">
-					<XEffectNode v-if="node.type === 'effect'" :nodeGraphId="nodeGraph.id" :node="node" @dragStart="dragStart"/>
-					<XGlobalInNode v-else-if="node.type === 'globalIn'" :node="node"/>
-					<XGlobalOutNode v-else-if="node.type === 'globalOut'" :nodeGraphId="nodeGraph.id" :node="node"/>
+					<XEffectNode v-if="node.type === 'effect'" :nodeGraphId="nodeGraph.id" :node="node" :class="$style.node" @dragStart="dragStart"/>
+				</template>
+				<template #footer>
+					<XGlobalOutNode v-if="globalOutNode != null" :node="globalOutNode" :nodeGraphId="nodeGraph.id" :class="$style.node"/>
 				</template>
 			</GsDraggable>
 
@@ -26,7 +30,7 @@
 </template>
 
 <script lang="ts" setup>
-import { ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import GsWires from './GsWires.vue';
 import GsButton from './common/GsButton.vue';
 import GsDraggable from './common/GsDraggable.vue';
@@ -41,6 +45,14 @@ const nodeGraph = ref<NodeGraph | null>();
 
 watch(appContext.state.nodeGraphs, () => {
 	if (appContext.state.nodeGraphs.value.length > 0) nodeGraph.value = appContext.state.nodeGraphs.value[0];
+});
+
+const globalInNode = computed(() => {
+	return nodeGraph.value?.nodes.find(node => node.type === 'globalIn') ?? null;
+});
+
+const globalOutNode = computed(() => {
+	return nodeGraph.value?.nodes.find(node => node.type === 'globalOut') ?? null;
 });
 
 function onSorted(nodes: GsNode[]) {
@@ -70,7 +82,8 @@ function onSorted(nodes: GsNode[]) {
 	box-sizing: border-box;
 }
 
-.nodes {
+.node {
+	width: 100%;
 }
 
 .addButton {
