@@ -247,7 +247,7 @@ export class MainRenderer {
 				this.assetTextures.set(asset.id, tex);
 			}
 		}
-		this.liveVisualModuleRenderer?.updateAssets(this.assets);
+		this.liveVisualModuleRenderer?.updateAssets();
 	}
 
 	// (非workerで)呼び出すときはnewAutomationsを独立した参照にすること！ パフォーマンス上の理由でこちら側ではdeepCloneしません
