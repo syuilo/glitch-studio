@@ -117,9 +117,9 @@ export class ParameterEvaluator {
 					if (param.inputSource === 'literal') return param.value;
 					if (param.inputSource === 'envVariable') return mixedScope[param.variable] ?? genEmptyValue(def);
 					if (param.inputSource === 'expression') return param.expression ? this.evaluateExpression(param.expression, mixedScope, def, readParam) : genEmptyValue(def);
-					if (param.inputSource === 'macro') {
-						if (!paramValues.has(param.macroId) || context.textureParamIds.has(param.macroId)) return genEmptyValue(def);
-						return paramValues.get(param.macroId);
+					if (param.inputSource === 'externalParameterInput') {
+						if (!paramValues.has(param.parameterId) || context.textureParamIds.has(param.parameterId)) return genEmptyValue(def);
+						return paramValues.get(param.parameterId);
 					}
 					if (param.inputSource === 'automation') {
 						const automation = context.automations.find(a => a.id === param.automationId);

@@ -139,7 +139,7 @@ function onPreviewParamEdit(event: ParamEdit) {
 		case 'expression': previewParamValues.value[id] = { inputSource: 'expression', expression: event.value }; break;
 		case 'automation': previewParamValues.value[id] = { inputSource: 'automation', automationId: event.value }; break;
 		case 'node':
-		case 'macro': return;
+		case 'externalParameterInput': return;
 		case 'reset': previewParamValues.value[id] = reset(); break;
 		case 'inputSource':
 			switch (event.inputSource) {
@@ -148,7 +148,7 @@ function onPreviewParamEdit(event: ParamEdit) {
 					inputSource: 'expression', expression: AiSON.stringify(current?.inputSource === 'literal' ? current.value : def.defaultValue),
 				}; break;
 				case 'automation': previewParamValues.value[id] = { inputSource: 'automation', automationId: null }; break;
-				case 'macro':
+				case 'externalParameterInput':
 				case 'node':
 					return;
 			}

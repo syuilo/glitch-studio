@@ -1,5 +1,5 @@
 import * as msgpack from '@msgpack/msgpack';
-import type { Asset, GsAutomation, Macro, VisualModule, Player, Timeline } from '@glitch/shared/types.js';
+import type { Asset, GsAutomation, VisualModule, Player, Timeline } from '@glitch/shared/types.js';
 
 export type Project = {
 	id: string;
@@ -7,7 +7,6 @@ export type Project = {
 	author: string;
 	name: string;
 	visualModules: VisualModule[];
-	macros: Macro[];
 	automations: GsAutomation[];
 	assets: Asset[];
 	players: Player[];

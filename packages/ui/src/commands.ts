@@ -4,7 +4,7 @@ import { deepClone } from '@glitch/shared/utility/deep-clone.ts';
 import { getNodeInputDataType, getNodeOutputs } from '@glitch/shared/utility/node-outputs.ts';
 import { genEmptyValue } from '@glitch/shared/utility/misc.ts';
 import type { AppState } from './types.ts';
-import type { Asset, EffectParamDataType, EffectParamDefs, EffectParamValue, GsEffectNode, GsNode, Player, NodeOutputReference, VisualModule } from '@glitch/shared/types.ts';
+import type { Asset, EffectParamDefs, EffectParamValue, GsEffectNode, GsNode, Player, NodeOutputReference, VisualModule } from '@glitch/shared/types.ts';
 import type { NodeParamTarget as EffectNodeParamTarget } from '@/utility/node-params.ts';
 import { canConnectNodeDataTypes } from '@/utility/node-outputs.ts';
 import { resolveNodeParam, walkNodeParams } from '@/utility/node-params.ts';
@@ -201,14 +201,12 @@ const removeAssetCommandDef = defineCommand<{ assetId: string }>({
 		let before: {
 			assets: Asset[];
 			visualModules: { id: string; nodes: GsNode[] }[];
-			macros: AppState['macros']['value'];
 		};
 		return {
 			execute(state) {
 				before = {
 					assets: deepClone(state.assets.value),
 					visualModules: state.visualModules.value.map(visualModule => ({ id: visualModule.id, nodes: deepClone(visualModule.nodes) })),
-					macros: deepClone(state.macros.value),
 				};
 				state.assets.value = state.assets.value.filter(asset => asset.id !== payload.assetId);
 				// Assetはプロジェクト共有なので、全VisualModuleの参照を解除する。
@@ -222,18 +220,12 @@ const removeAssetCommandDef = defineCommand<{ assetId: string }>({
 						}
 					}
 				}
-				for (const macro of state.macros.value) {
-					if (macro.type === 'image' && macro.value.inputSource === 'literal' && macro.value.value === payload.assetId) {
-						macro.value = { inputSource: 'literal', value: null };
-					}
-				}
 			},
 			undo(state) {
 				state.assets.value = deepClone(before.assets);
 				for (const visualModule of before.visualModules) {
 					stateUtility.getVisualModule(state, visualModule.id).nodes = deepClone(visualModule.nodes);
 				}
-				state.macros.value = deepClone(before.macros);
 			},
 		};
 	},
@@ -306,170 +298,6 @@ const updatePlayerTypeCommandDef = defineCommand<{ playerId: Player['id']; type:
 	},
 });
 
-const addMacroCommandDef = defineCommand<{ id: string; }>({
-	label: 'Add macro',
-	create: (payload) => {
-		return {
-			execute(state) {
-				state.macros.value.push({
-					id: payload.id,
-					type: 'number',
-					typeOptions: {},
-					label: 'Macro',
-					name: 'macro',
-					value: {
-						inputSource: 'literal',
-						value: 0,
-					},
-				});
-			},
-			undo(state) {
-				state.macros.value = state.macros.value.filter(macro => macro.id !== payload.id);
-			},
-		};
-	},
-});
-
-const removeMacroCommandDef = defineCommand<{ macroId: string }>({
-	label: 'Remove macro',
-	create: (payload) => {
-		return {
-			execute(state) {
-				state.macros.value = state.macros.value.filter(macro => macro.id !== payload.macroId);
-			},
-			undo(state) {
-				// TODO
-			},
-		};
-	},
-});
-
-const toggleMacroValueTypeCommandDef = defineCommand<{ macroId: string }>({
-	label: 'Toggle macro value type',
-	create: (payload) => {
-		return {
-			execute(state) {
-				const macro = state.macros.value.find(macro => macro.id === payload.macroId)!;
-				const isLiteral = macro.value.type === 'literal';
-				if (isLiteral) {
-					macro.value = {
-						inputSource: 'expression',
-						expression: '',
-					};
-				} else {
-					macro.value = {
-						inputSource: 'literal',
-						value: genEmptyValue(macro),
-					};
-				}
-			},
-			undo(state) {
-				// TODO
-			},
-		};
-	},
-});
-
-const updateMacroAsLiteralCommandDef = defineCommand<{ macroId: string; value: any }>({
-	label: 'Update macro as literal',
-	create: (payload) => {
-		return {
-			execute(state) {
-				const macro = state.macros.value.find(macro => macro.id === payload.macroId)!;
-				macro.value = {
-					inputSource: 'literal',
-					value: deepClone(payload.value),
-				};
-			},
-			undo(state) {
-				// TODO
-			},
-		};
-	},
-});
-
-const updateMacroAsExpressionCommandDef = defineCommand<{ macroId: string; value: any }>({
-	label: 'Update macro as expression',
-	create: (payload) => {
-		return {
-			execute(state) {
-				const macro = state.macros.value.find(macro => macro.id === payload.macroId)!;
-				macro.value = {
-					inputSource: 'expression',
-					expression: payload.value,
-				};
-			},
-			undo(state) {
-				// TODO
-			},
-		};
-	},
-});
-
-const updateMacroLabelCommandDef = defineCommand<{ macroId: string; value: string }>({
-	label: 'Update macro label',
-	create: (payload) => {
-		return {
-			execute(state) {
-				const macro = state.macros.value.find(macro => macro.id === payload.macroId)!;
-				macro.label = payload.value;
-			},
-			undo(state) {
-				// TODO
-			},
-		};
-	},
-});
-
-const updateMacroNameCommandDef = defineCommand<{ macroId: string; value: string }>({
-	label: 'Update macro name',
-	create: (payload) => {
-		return {
-			execute(state) {
-				const macro = state.macros.value.find(macro => macro.id === payload.macroId)!;
-				macro.name = payload.value;
-			},
-			undo(state) {
-				// TODO
-			},
-		};
-	},
-});
-
-const updateMacroTypeCommandDef = defineCommand<{ macroId: string; value: EffectParamDataType }>({
-	label: 'Update macro type',
-	create: (payload) => {
-		return {
-			execute(state) {
-				const macro = state.macros.value.find(macro => macro.id === payload.macroId)!;
-				macro.type = payload.value;
-				macro.value = {
-					inputSource: 'literal',
-					value: genEmptyValue(macro),
-				};
-			},
-			undo(state) {
-				// TODO
-			},
-		};
-	},
-});
-
-const updateMacroTypeOptionCommandDef = defineCommand<{ macroId: string; key: string; value: any }>({
-	label: 'Update macro type option',
-	create: (payload) => {
-		return {
-			execute(state) {
-				const macro = state.macros.value.find(macro => macro.id === payload.macroId)!;
-				macro.typeOptions[payload.key] = deepClone(payload.value);
-			},
-			undo(state) {
-				// TODO
-			},
-		};
-	},
-});
-
 // 対象は実行・Undoのたびに解決する。配列の置換やUndo後の古い参照を保持しない。
 function defineNodeParamCommand<Payload extends NodeParamTarget>(
 	label: string,
@@ -522,9 +350,9 @@ const changeParamValueInputSourceCommandDef = defineNodeParamCommand<NodeParamTa
 				expression: AiSON.stringify(currentValue.inputSource === 'literal' ? currentValue.value : defaultValue.inputSource === 'literal' ? defaultValue.value : emptyValue),
 			};
 			case 'envVariable': return { inputSource: 'envVariable', variable: '' };
-			case 'literal': return { inputSource: 'literal', value: defaultValue.type === 'literal' ? defaultValue.value : emptyValue };
+			case 'literal': return { inputSource: 'literal', value: defaultValue.inputSource === 'literal' ? defaultValue.value : emptyValue };
 			case 'automation': return { inputSource: 'automation', automationId: null };
-			case 'macro': return { inputSource: 'macro', macroId: '' };
+			case 'externalParameterInput': return { inputSource: 'externalParameterInput', parameterId: '' };
 			case 'node': {
 				if (!('canNode' in target.def) || !target.def.canNode) throw new Error('Parameter does not support node input');
 				return { inputSource: 'node', nodeId: null, outputPort: null };
@@ -565,11 +393,11 @@ const updateParamAsAutomationCommandDef = defineNodeParamCommand<NodeParamTarget
 	},
 );
 
-const updateParamAsMacroCommandDef = defineNodeParamCommand<NodeParamTarget & { value: string }>(
-	'Update param as macro',
+const updateParamAsExternalParameterInputCommandDef = defineNodeParamCommand<NodeParamTarget & { value: string }>(
+	'Update param as externalParameterInput',
 	(target, payload) => {
 		assertLeafParam(target);
-		return { inputSource: 'macro', macroId: payload.value };
+		return { inputSource: 'externalParameterInput', parameterId: payload.value };
 	},
 );
 
@@ -818,22 +646,13 @@ export const COMMAND_DEFS = {
 	replaceAsset: replaceAssetCommandDef,
 	addPlayer: addPlayerCommandDef,
 	updatePlayerType: updatePlayerTypeCommandDef,
-	addMacro: addMacroCommandDef,
-	removeMacro: removeMacroCommandDef,
-	toggleMacroValueType: toggleMacroValueTypeCommandDef,
-	updateMacroAsLiteral: updateMacroAsLiteralCommandDef,
-	updateMacroAsExpression: updateMacroAsExpressionCommandDef,
-	updateMacroLabel: updateMacroLabelCommandDef,
-	updateMacroName: updateMacroNameCommandDef,
-	updateMacroType: updateMacroTypeCommandDef,
-	updateMacroTypeOption: updateMacroTypeOptionCommandDef,
 	changeParamValueInputSource: changeParamValueInputSourceCommandDef,
 	updateParamAsLiteral: updateParamAsLiteralCommandDef,
 	updateParamAsEnvVariable: updateParamAsEnvVariableCommandDef,
 	updateParamAsExpression: updateParamAsExpressionCommandDef,
 	updateParamAsAutomation: updateParamAsAutomationCommandDef,
 	updateParamAsNode: updateParamAsNodeCommandDef,
-	updateParamAsMacro: updateParamAsMacroCommandDef,
+	updateParamAsExternalParameterInput: updateParamAsExternalParameterInputCommandDef,
 	changeNodeBypassState: changeNodeBypassStateCommandDef,
 	resetNodeParam: resetNodeParamCommandDef,
 	addArrayParamElement: addArrayParamElementCommandDef,

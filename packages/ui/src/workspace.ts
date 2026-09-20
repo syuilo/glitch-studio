@@ -13,7 +13,6 @@ import XAudioSpectrogram from '@/components/GsWorkspacePanel.AudioSpectrogram.vu
 import XAudioWaveform from '@/components/GsWorkspacePanel.AudioWaveform.vue';
 import XStats from '@/components/GsWorkspacePanel.Stats.vue';
 import XCommandLog from '@/components/GsWorkspacePanel.CommandLog.vue';
-import XMacros from '@/components/GsWorkspacePanel.Macros.vue';
 import XPlayers from '@/components/GsWorkspacePanel.Players.vue';
 import XTimeline from '@/components/GsWorkspacePanel.Timeline.vue';
 import XAssets from '@/components/GsWorkspacePanel.Assets.vue';
@@ -29,7 +28,6 @@ export const workspacePanelDefinitions = markRaw({
 	preview: { label: 'Preview', icon: 'ti ti-device-desktop', component: XPreview },
 	players: { label: 'Players', icon: 'ti ti-player-play', component: XPlayers },
 	visualModuleEditor: { label: 'Visual Module Editor', icon: 'ti ti-chart-dots-3', component: XVisualModuleEditor },
-	macros: { label: 'Macros', icon: 'ti ti-adjustments-horizontal', component: XMacros },
 	stats: { label: 'Stats', icon: 'ti ti-activity', component: XStats },
 	commandLog: { label: 'Command Log', icon: 'ti ti-logs', component: XCommandLog },
 	timeline: { label: 'Timeline', icon: 'ti ti-timeline', component: XTimeline },

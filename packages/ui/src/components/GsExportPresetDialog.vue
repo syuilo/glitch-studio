@@ -33,7 +33,6 @@ async function save() {
 		gsVersion: _VERSION_,
 		name: name.value,
 		nodes: store.nodes,
-		macros: store.macros,
 		assets: await api.encodeAssets(store.assets),
 	});
 	await api.saveFile({

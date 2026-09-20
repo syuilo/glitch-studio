@@ -126,9 +126,9 @@ test('evaluates nested values, expressions and node references without a GPU', (
 });
 
 // モジュールの既定値・式・マクロ・PARAMを同じ評価結果に解決する
-test('resolves module values before macros and PARAM expressions', () => {
+test('resolves module values before externalParameterInputs and PARAM expressions', () => {
 	const result = new ParameterEvaluator().evaluate(context({ a: number, b: number, c: number }, {
-		a: { inputSource: 'macro', macroId: 'gain' },
+		a: { inputSource: 'externalParameterInput', parameterId: 'gain' },
 		b: expression('PARAM("gain") + PARAM("offset")'),
 		c: expression('PARAM("literal")'),
 	}, {
@@ -142,12 +142,12 @@ test('resolves module values before macros and PARAM expressions', () => {
 // テクスチャのパラメータや不正な式は値として参照せずフォールバックする
 test('falls back for texture parameters, missing references and invalid expressions', () => {
 	const params = {
-		textureMacro: { inputSource: 'macro', macroId: 'texture' },
+		textureExternalParameterInput: { inputSource: 'externalParameterInput', parameterId: 'texture' },
 		textureExpression: expression('PARAM("texture")'),
 		missing: expression('PARAM("missing")'),
 		invalid: expression('1 +'),
 		empty: expression(''),
-		missingMacro: { inputSource: 'macro', macroId: 'missing' },
+		missingExternalParameterInput: { inputSource: 'externalParameterInput', parameterId: 'missing' },
 		missingAutomation: { inputSource: 'automation', automationId: 'missing' },
 	};
 	const result = new ParameterEvaluator().evaluate(context(Object.fromEntries(Object.keys(params).map(key => [key, number])), params, {
@@ -163,10 +163,10 @@ test('falls back for texture parameters, missing references and invalid expressi
 // automationを直接入力・式・モジュールパラメータから同じ時刻で評価する
 test('evaluates automation inputs and expression scope at the supplied time', () => {
 	const evaluator = new ParameterEvaluator();
-	const input = context({ direct: number, scoped: number, macro: number }, {
+	const input = context({ direct: number, scoped: number, externalParameterInput: number }, {
 		direct: { inputSource: 'automation', automationId: 'ramp' },
 		scoped: expression('RAMP'),
-		macro: { inputSource: 'macro', macroId: 'value' },
+		externalParameterInput: { inputSource: 'externalParameterInput', parameterId: 'value' },
 	}, {
 		paramDefs: [paramDef('value')],
 		paramValues: { value: { inputSource: 'automation', automationId: 'ramp' } },
@@ -175,8 +175,8 @@ test('evaluates automation inputs and expression scope at the supplied time', ()
 			{ timeMs: 1000, value: 10, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] },
 		] }],
 	});
-	assert.deepEqual(evaluator.evaluate(input).nodeParams.get('node'), { direct: 5, scoped: 5, macro: 5 });
-	assert.deepEqual(evaluator.evaluate({ ...input, time: 0 }).nodeParams.get('node'), { direct: 0, scoped: 0, macro: 0 });
+	assert.deepEqual(evaluator.evaluate(input).nodeParams.get('node'), { direct: 5, scoped: 5, externalParameterInput: 5 });
+	assert.deepEqual(evaluator.evaluate({ ...input, time: 0 }).nodeParams.get('node'), { direct: 0, scoped: 0, externalParameterInput: 0 });
 });
 
 // バイパス中は主入力以外の不正なコンテナも評価しない

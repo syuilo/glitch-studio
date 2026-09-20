@@ -118,13 +118,6 @@ export const PREF_DEF = definePreferences({
 										contentType: 'timeline',
 									},
 								}, {
-									name: 'Macros',
-									element: {
-										id: '7391e834d63948ebb6cf40f17a242b5e',
-										type: 'panel',
-										contentType: 'macros',
-									},
-								}, {
 									name: 'Assets',
 									element: {
 										id: '824a5486145c4ba4911518b2bfc74a7c',

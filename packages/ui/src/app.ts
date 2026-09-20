@@ -13,7 +13,7 @@ import GsEffectPicker from './components/GsEffectPicker.vue';
 import type { CommandDef } from './commands.ts';
 import type { AppState } from './types.ts';
 import type { EffectNodeOf } from '@glitch/shared/effect-definition.ts';
-import type { Asset, GsNode, Macro, GsAutomation, GsGroupNode, Player, VisualModule, Timeline } from '@glitch/shared/types.ts';
+import type { Asset, GsAutomation, Player, VisualModule, Timeline } from '@glitch/shared/types.ts';
 import type { Project } from './gsproj.ts';
 import * as ui from '@/ui.ts';
 import * as api from '@/api.ts';
@@ -43,7 +43,6 @@ class AppContext {
 			assets: ref<Asset[]>([]), // TODO: バイナリをリアクティブでwrapするのをやめる
 			players: ref<Player[]>([]),
 			visualModules: ref<VisualModule[]>([]),
-			macros: ref<Macro[]>([]),
 			automations: ref<GsAutomation[]>([]),
 			timeline: ref<Timeline>([]),
 		};
@@ -191,7 +190,6 @@ export async function appReady(project: Project) {
 	appContext.state.resolution.value = project.resolution;
 	appContext.state.assets.value = project.assets;
 	appContext.state.visualModules.value = project.visualModules;
-	appContext.state.macros.value = project.macros;
 	appContext.state.automations.value = project.automations;
 	appContext.state.players.value = project.players;
 	appContext.state.timeline.value = project.timeline;
@@ -211,10 +209,6 @@ export async function appReady(project: Project) {
 	watch(appContext.state.visualModules, () => {
 		engine.updateVisualModules(deepClone(appContext.state.visualModules.value));
 	}, { deep: true, immediate: true });
-
-	//watch(appContext.state.macros, () => {
-	//	engine.updateMacros(deepClone(appContext.state.macros.value));
-	//}, { deep: true, immediate: true });
 
 	watch(appContext.state.timeline, () => {
 		engine.updateTimeline(deepClone(appContext.state.timeline.value));
@@ -284,7 +278,6 @@ export async function newProject() {
 		author: 'TODO',
 		visualModules: [initialVisualModule],
 		assets: [],
-		macros: [],
 		automations: [],
 		players: [],
 		timeline: [{
@@ -407,7 +400,6 @@ export async function newProjectFromImageOrVideo(file?: File) {
 		visualModules: [initialVisualModule],
 		assets: [asset],
 		players: player ? [player] : [],
-		macros: [],
 		automations: [],
 		timeline: [{
 			id: genId(),

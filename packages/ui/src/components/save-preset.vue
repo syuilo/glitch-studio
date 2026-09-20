@@ -30,7 +30,6 @@ function save() {
 		name: name.value,
 		author: '',
 		nodes: store.nodes,
-		macros: store.macros,
 		assets: store.assets,
 	});
 	subStore.settingsStore.save();
