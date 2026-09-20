@@ -1,3 +1,5 @@
+import { effectDefinitions } from '@glitch/shared/effect-definitions.ts';
+import { effectImplementations } from '@glitch/shared/effect-implementations.js';
 import { MainRenderer } from './renderer.ts';
 
 let renderer: MainRenderer | null = null;
@@ -75,6 +77,8 @@ onmessage = async (event) => {
 				histogramGpuContext: histogramContext,
 				waveformHorizontalGpuContext: waveformHorizontalContext,
 				waveformVerticalGpuContext: waveformVerticalContext,
+				effectDefinitions: effectDefinitions,
+				effectImplementations: effectImplementations,
 			});
 
 			//renderer.on('ev', ({ type, ctx }) => {

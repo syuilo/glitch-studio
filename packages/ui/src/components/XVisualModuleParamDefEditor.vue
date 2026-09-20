@@ -7,11 +7,11 @@
 			:class="$style.field"
 			:modelValue="def.type"
 			:items="[
-				{ label: i18n.ts._Macro._Types.Number, value: 'number' },
-				{ label: i18n.ts._Macro._Types.Range, value: 'range' },
-				{ label: i18n.ts._Macro._Types.Flag, value: 'bool' },
-				{ label: i18n.ts._Macro._Types.Color, value: 'color' },
-				{ label: i18n.ts._Macro._Types.Image, value: 'image' },
+				{ label: i18n.ts._ExternalParameterInput._Types.Number, value: 'number' },
+				{ label: i18n.ts._ExternalParameterInput._Types.Range, value: 'range' },
+				{ label: i18n.ts._ExternalParameterInput._Types.Flag, value: 'bool' },
+				{ label: i18n.ts._ExternalParameterInput._Types.Color, value: 'color' },
+				{ label: i18n.ts._ExternalParameterInput._Types.Image, value: 'image' },
 			]"
 			@update:modelValue="updateType"
 		/>

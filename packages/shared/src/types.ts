@@ -7,11 +7,14 @@ export type EffectParamValue = {
 	inputSource: 'literal';
 	value: any; // TODO: literalにリネーム？
 } | {
+	inputSource: 'envVariable';
+	variable: string;
+} | {
 	inputSource: 'expression';
 	expression: string;
 } | {
-	inputSource: 'macro';
-	macroId: string;
+	inputSource: 'externalParameterInput';
+	parameterId: string;
 } | {
 	inputSource: 'automation';
 	automationId: string | null;
@@ -31,7 +34,7 @@ export type Asset = {
 export type Player = {
 	id: string;
 	name: string;
-	type: null | 'asset' | 'webcam' | 'microphone' | 'liveStream';
+	sourceType: null | 'asset' | 'webcam' | 'microphone' | 'liveStream';
 	assetId?: Asset['id'] | null;
 };
 
@@ -88,8 +91,6 @@ export type GsGlobalOutNode = {
 	pos?: { x: number; y: number };
 };
 
-export type GsGroupNode = any; // とりあえず
-
 export type GsNode = GsEffectNode | GsGlobalInNode | GsGlobalOutNode;
 
 export type VisualModule = {
@@ -116,7 +117,7 @@ export type VisualModule = {
 };
 
 // レイヤー・live modeからは、モジュール内部のノードやパラメータを参照しない。
-export type VisualModuleParamValues = Record<string, Exclude<EffectParamValue, { type: 'node' | 'macro' }>>;
+export type VisualModuleParamValues = Record<string, Exclude<EffectParamValue, { type: 'node' | 'externalParameterInput' }>>;
 
 export type VisualModuleLayer = {
 	type: 'visualModule';

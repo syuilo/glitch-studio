@@ -7,7 +7,7 @@ export default defineEffect({
 	displayName: 'Water',
 	tags: [],
 	paramDefs: {
-		input: { type: 'color', label: 'Input', canNode: true, primary: true, default: () => ({ type: 'node', nodeId: null, outputPort: null }) },
+		input: { type: 'color', label: 'Input', canNode: true, primary: true, default: () => ({ inputSource: 'node', nodeId: null, outputPort: null }) },
 		colorHighlight: { type: 'color', label: 'Highlight color', default: () => ({ inputSource: 'literal', value: [1, 1, 1, 1] }) },
 		colorHighlightAlpha: { type: 'range', label: 'Highlight alpha', min: 0, max: 1, step: 0.01, default: () => ({ inputSource: 'literal', value: 1 }) },
 		highlights: { type: 'range', label: 'Highlights', min: 0, max: 1, step: 0.01, default: () => ({ inputSource: 'literal', value: 0.07 }) },
@@ -16,7 +16,7 @@ export default defineEffect({
 		waves: { type: 'range', label: 'Waves', min: 0, max: 1, step: 0.01, default: () => ({ inputSource: 'literal', value: 0.3 }) },
 		caustic: { type: 'range', label: 'Caustic', min: 0, max: 1, step: 0.01, default: () => ({ inputSource: 'literal', value: 0.1 }) },
 		size: { type: 'range', label: 'Size', min: 0.01, max: 7, step: 0.01, default: () => ({ inputSource: 'literal', value: 1 }) },
-		time: { type: 'number', label: 'Time (s)', step: 0.01, default: () => ({ inputSource: 'expression', expression: 'TIME' }) },
+		time: { type: 'number', label: 'Time (s)', step: 0.01, default: () => ({ inputSource: 'envVariable', variable: 'TIME' }) },
 		speed: { type: 'number', label: 'Speed', step: 0.01, default: () => ({ inputSource: 'literal', value: 1 }) },
 		frame: { type: 'number', label: 'Frame offset (ms)', step: 1, default: () => ({ inputSource: 'literal', value: 0 }) },
 	},

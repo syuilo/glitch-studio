@@ -5,7 +5,7 @@ export default defineEffect({
 	displayName: 'Bloom',
 	tags: [],
 	paramDefs: {
-		input: { type: 'color', label: 'Input', canNode: true, primary: true, default: () => ({ type: 'node', nodeId: null, outputPort: null }) },
+		input: { type: 'color', label: 'Input', canNode: true, primary: true, default: () => ({ inputSource: 'node', nodeId: null, outputPort: null }) },
 		strength: { type: 'range', label: 'Strength', min: 0, max: 5, step: 0.01, default: () => ({ inputSource: 'literal', value: 1 }) },
 		threshold: { type: 'range', label: 'Threshold', min: 0, max: 1, step: 0.01, default: () => ({ inputSource: 'literal', value: 0.7 }) },
 		softKnee: { type: 'range', label: 'Soft knee', min: 0, max: 1, step: 0.01, default: () => ({ inputSource: 'literal', value: 0.5 }) },

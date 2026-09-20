@@ -6,10 +6,13 @@
 			<div :class="$style.paramLabel" @click="showMenu">
 				<GsCondensedLine>{{ label ?? paramDef.label }}</GsCondensedLine>
 			</div>
-			<i v-if="paramValue.inputSource === 'expression'" class="ti ti-math-function" :class="$style.typeIcon"></i>
-			<i v-if="paramValue.inputSource === 'macro'" class="ti ti-wifi" :class="$style.typeIcon"></i>
-			<i v-if="paramValue.inputSource === 'node'" class="ti ti-plug" :class="$style.typeIcon"></i>
-			<i v-if="paramValue.inputSource === 'automation'" class="ti ti-ease-in-out-control-points" :class="$style.typeIcon"></i>
+			<div style="height: 100%; place-content: center;">
+				<i v-if="paramValue.inputSource === 'envVariable'" v-tooltip="'Environment Variable'" class="ti ti-variable" :class="$style.typeIcon"></i>
+				<i v-else-if="paramValue.inputSource === 'expression'" v-tooltip="'Expression'" class="ti ti-math-function" :class="$style.typeIcon"></i>
+				<i v-else-if="paramValue.inputSource === 'externalParameterInput'" v-tooltip="'Parameter'" class="ti ti-wifi" :class="$style.typeIcon"></i>
+				<i v-else-if="paramValue.inputSource === 'node'" v-tooltip="'Node'" class="ti ti-plug" :class="$style.typeIcon"></i>
+				<i v-else-if="paramValue.inputSource === 'automation'" v-tooltip="'Automation'" class="ti ti-ease-in-out-control-points" :class="$style.typeIcon"></i>
+			</div>
 		</div>
 		<div :class="$style.paramBody">
 			<template v-if="paramDef.type === 'array'">
@@ -25,13 +28,20 @@
 							<div v-if="isExpressionSyntaxError" style="color: var(--THEME-error);"><i class="ti ti-alert-triangle"></i> Syntax error!</div>
 						</template>
 					</GsInput>
+					<GsSelect
+						v-else-if="paramValue.inputSource === 'envVariable'"
+						small
+						:modelValue="paramValue.variable"
+						:items="[{ label: i18n.ts.None, value: '' }, ...envVariableItems]"
+						@update:modelValue="value => emit('edit', { kind: 'envVariable', ...target(), value })"
+					/>
 					<GsButton v-else-if="paramValue.inputSource === 'automation'" small @click="selectAutomation">{{ automationName }}</GsButton>
 					<GsSelect
-						v-else-if="paramValue.inputSource === 'macro'"
+						v-else-if="paramValue.inputSource === 'externalParameterInput'"
 						small
-						:modelValue="paramValue.macroId"
-						:items="[{ label: i18n.ts.None, value: '' }, ...macroItems]"
-						@update:modelValue="value => emit('edit', { kind: 'macro', ...target(), value })"
+						:modelValue="paramValue.parameterId"
+						:items="[{ label: i18n.ts.None, value: '' }, ...externalParameterInputItems]"
+						@update:modelValue="value => emit('edit', { kind: 'externalParameterInput', ...target(), value })"
 					/>
 					<GsSelect
 						v-else-if="paramValue.inputSource === 'node'"
@@ -95,13 +105,15 @@
 import type { EffectParamValue, NodeOutputReference } from '@glitch/shared/types.ts';
 import type { ParamPath } from '@/utility/node-params.ts';
 import { deepClone } from '@glitch/shared/utility/deep-clone.js';
+import { globalEnvVarDefs } from '@glitch/shared/expression.js';
 
 export type ParamEdit = { paramPath: ParamPath; mergeKey?: string | null } & (
 	| { kind: 'literal'; value: any }
+	| { kind: 'envVariable'; value: string }
 	| { kind: 'expression'; value: string }
 	| { kind: 'automation'; value: string | null }
 	| { kind: 'node'; value: NodeOutputReference | null }
-	| { kind: 'macro'; value: string }
+	| { kind: 'externalParameterInput'; value: string }
 	| { kind: 'inputSource'; inputSource: EffectParamValue['inputSource'] }
 	| { kind: 'reset' | 'addElement' }
 	| { kind: 'removeElement'; index: number }
@@ -162,7 +174,8 @@ const canNode = computed(() => paramDef.value.type !== 'array' && paramDef.value
 const inputDataType = computed(() => paramDef.value.type !== 'array' && paramDef.value.type !== 'struct' ? getNodeInputDataType(paramDef.value) : null);
 const paramDefs = computed(() => appContext.state.visualModules.value.find(module => module.id === props.visualModuleId)?.paramDefs ?? []);
 const nodes = computed(() => appContext.state.visualModules.value.find(visualModule => visualModule.id === props.visualModuleId)?.nodes ?? []);
-const macroItems = computed(() => (props.node == null ? [] : appContext.state.visualModules.value.find(module => module.id === props.visualModuleId)?.paramDefs ?? [])
+const envVariableItems = computed(() => globalEnvVarDefs.map(variable => ({ label: `${i18n.t(`_EnvVariables.${variable}`)} (${variable})`, value: variable })));
+const externalParameterInputItems = computed(() => (props.node == null ? [] : appContext.state.visualModules.value.find(module => module.id === props.visualModuleId)?.paramDefs ?? [])
 	.map(def => ({ label: `${def.label} (${def.name})`, value: def.id })));
 const nodeOutputItems = computed(() => props.node == null ? [] : getNodeOutputItems(nodes.value, props.node.id, inputDataType.value, paramDefs.value));
 const nodeConnection = computed<NodeOutputReference | null>(() => props.paramValue.inputSource === 'node' && props.paramValue.nodeId != null ? props.paramValue : null);
@@ -244,9 +257,10 @@ function getMenu() {
 		const types: { text: string; inputSource: EffectParamValue['inputSource']; icon: string }[] = [
 			{ text: 'Literal', inputSource: 'literal', icon: 'ti ti-adjustments-horizontal' },
 			{ text: 'Automation', inputSource: 'automation', icon: 'ti ti-ease-in-out-control-points' },
+			{ text: 'Environment Variable', inputSource: 'envVariable', icon: 'ti ti-variable' },
 			{ text: 'Expression', inputSource: 'expression', icon: 'ti ti-math-function' },
 		];
-		if (props.node != null) types.push({ text: 'Parameter', inputSource: 'macro', icon: 'ti ti-wifi' });
+		if (props.node != null) types.push({ text: 'Parameter', inputSource: 'externalParameterInput', icon: 'ti ti-wifi' });
 		if (canNode.value) types.push({ text: 'Node', inputSource: 'node', icon: 'ti ti-plug' });
 		for (const { text, inputSource, icon } of types) {
 			menuItems.push({

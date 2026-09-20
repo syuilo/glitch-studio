@@ -49,12 +49,12 @@ function showMenu(ev: PointerEvent) {
 	ui.popupMenu([{
 		text: 'Webcam',
 		icon: 'ti ti-camera',
-		active: props.player.type === 'webcam',
+		active: props.player.sourceType === 'webcam',
 		action: () => {
-			if (props.player.type === 'webcam') return;
-			appContext.commit('updatePlayerType', {
+			if (props.player.sourceType === 'webcam') return;
+			appContext.commit('updatePlayerSourceType', {
 				playerId: props.player.id,
-				type: 'webcam',
+				sourceType: 'webcam',
 			});
 		},
 	}], ev.currentTarget ?? ev.target);

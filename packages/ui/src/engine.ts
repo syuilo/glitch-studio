@@ -6,7 +6,7 @@ import { projectAudioSourceId } from '@glitch/shared/audio.ts';
 import { isVideoFrameAvailable, playVideoAfterFirstFrameIsReady } from './utility/video.ts';
 import { AudioInputs } from './audio/audio-inputs.ts';
 import { setupWebcam } from './utility/webcam.ts';
-import type { Asset, GsAutomation, GsNode, Macro, VisualModule, VisualModuleParamValues, Player, Timeline } from '@glitch/shared/types.ts';
+import type { Asset, GsAutomation, VisualModule, VisualModuleParamValues, Player, Timeline } from '@glitch/shared/types.ts';
 import type { MainRenderer } from '@glitch/renderer/renderer.ts';
 import type { EffectStatus } from '@glitch/shared/effect-status.ts';
 import * as ui from '@/ui.ts';
@@ -37,7 +37,6 @@ export class Engine {
 	private visualModules: VisualModule[] = [];
 	private assets: Asset[] = [];
 	private players: Player[] = [];
-	private macros: Macro[] = [];
 	private automations: GsAutomation[] = [];
 	private timeline: Timeline = [];
 	private videoElements = shallowReactive(new Map<Player['id'], HTMLMediaElement>());
@@ -174,7 +173,6 @@ export class Engine {
 				highlightClipping: this.highlightClipping,
 				liveTimeFactor: this.liveTimeFactor,
 				assets: this.assets,
-				macros: this.macros,
 				automations: this.automations,
 				visualModules: this.visualModules,
 				timeline: this.timeline,
@@ -261,9 +259,9 @@ export class Engine {
 		for (const [id, video] of this.videoElements) {
 			const oldPlayer = oldPlayers.find(player => player.id === id);
 			const newPlayer = players.find(player => player.id === id);
-			const asset = newPlayer?.type === 'asset' ? this.assets.find(asset => asset.id === newPlayer.assetId) : null;
-			if (!newPlayer || oldPlayer?.type !== newPlayer.type || !deepEqual(oldPlayer?.assetId, newPlayer.assetId)
-				|| (newPlayer.type === 'asset' && this.playerAssetFiles.get(id) !== asset?.fileData)) {
+			const asset = newPlayer?.sourceType === 'asset' ? this.assets.find(asset => asset.id === newPlayer.assetId) : null;
+			if (!newPlayer || oldPlayer?.sourceType !== newPlayer.sourceType || !deepEqual(oldPlayer?.assetId, newPlayer.assetId)
+				|| (newPlayer.sourceType === 'asset' && this.playerAssetFiles.get(id) !== asset?.fileData)) {
 				this.audioInputs.removePlayer(id);
 				const callbackId = this.videoFrameCallbacks.get(id);
 				if (callbackId !== undefined && video instanceof HTMLVideoElement) video.cancelVideoFrameCallback(callbackId);
@@ -287,14 +285,14 @@ export class Engine {
 
 		for (const player of players) {
 			if (!this.videoElements.has(player.id)) {
-				const asset = player.type === 'asset' ? this.assets.find(asset => asset.id === player.assetId) : null;
-				if (player.type === 'asset' && !asset) continue;
+				const asset = player.sourceType === 'asset' ? this.assets.find(asset => asset.id === player.assetId) : null;
+				if (player.sourceType === 'asset' && !asset) continue;
 				const video = window.document.createElement(asset?.fileDataType.startsWith('audio/') ? 'audio' : 'video');
 				video.loop = true;
 				video.preload = 'auto';
 				video.volume = 1;
 				this.videoElements.set(player.id, video);
-				if (player.type === 'asset') this.audioInputs.registerPlayer(player.id, video);
+				if (player.sourceType === 'asset') this.audioInputs.registerPlayer(player.id, video);
 				this.videoLoads.set(player.id, new Promise<void>(resolve => {
 					const finish = () => {
 						video.removeEventListener('loadeddata', finish);
@@ -327,10 +325,10 @@ export class Engine {
 
 				if (video instanceof HTMLVideoElement) this.videoFrameCallbacks.set(player.id, video.requestVideoFrameCallback(onVideoFrame));
 
-				if (player.type === 'asset') {
+				if (player.sourceType === 'asset') {
 					this.playerAssetFiles.set(player.id, asset!.fileData);
 					video.src = URL.createObjectURL(asset!.fileData);
-				} else if (player.type === 'webcam' && video instanceof HTMLVideoElement) {
+				} else if (player.sourceType === 'webcam' && video instanceof HTMLVideoElement) {
 					this.videoLoads.set(player.id, setupWebcam().then(camera => {
 						video.srcObject = camera;
 						video.muted = true;
@@ -359,7 +357,7 @@ export class Engine {
 	}
 
 	public async playPlayer(playerId: Player['id']) {
-		if (this.players.find(player => player.id === playerId)?.type === 'asset') await this.audioInputs.play(playerId);
+		if (this.players.find(player => player.id === playerId)?.sourceType === 'asset') await this.audioInputs.play(playerId);
 		else await this.videoElements.get(playerId)?.play();
 	}
 
@@ -369,11 +367,6 @@ export class Engine {
 	public get audioOutputLevels() { return this.audioInputs.getLevels(projectAudioSourceId); }
 
 	public getPlayerLevels(playerId: Player['id']) { return this.audioInputs.getPlayerLevels(playerId); }
-
-	public updateMacros(newMacros: Macro[]) {
-		this.macros = deepClone(newMacros);
-		this.call('updateMacros', [this.macros]);
-	}
 
 	public updateAutomations(newAutomations: GsAutomation[]) {
 		this.automations = deepClone(newAutomations);

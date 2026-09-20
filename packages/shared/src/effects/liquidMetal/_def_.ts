@@ -7,7 +7,7 @@ export default defineEffect({
 	displayName: 'Liquid Metal',
 	tags: [],
 	paramDefs: {
-		input: { type: 'color', label: 'Input', canNode: true, primary: true, default: () => ({ type: 'node', nodeId: null, outputPort: null }) },
+		input: { type: 'color', label: 'Input', canNode: true, primary: true, default: () => ({ inputSource: 'node', nodeId: null, outputPort: null }) },
 		colorBack: { type: 'color', label: 'Background color', default: () => ({ inputSource: 'literal', value: [170 / 255, 170 / 255, 172 / 255, 0] }) },
 		colorTint: { type: 'color', label: 'Tint color', default: () => ({ inputSource: 'literal', value: [1, 1, 1, 1] }) },
 		repetition: { type: 'range', label: 'Repetition', min: 1, max: 10, step: 0.01, default: () => ({ inputSource: 'literal', value: 2 }) },
@@ -17,7 +17,7 @@ export default defineEffect({
 		distortion: { type: 'range', label: 'Distortion', min: 0, max: 1, step: 0.01, default: () => ({ inputSource: 'literal', value: 0.07 }) },
 		contour: { type: 'range', label: 'Contour', min: 0, max: 1, step: 0.01, default: () => ({ inputSource: 'literal', value: 1 }) },
 		angle: { type: 'angle', label: 'Angle', default: () => ({ inputSource: 'literal', value: 70 / 180 }) },
-		time: { type: 'number', label: 'Time (s)', step: 0.01, default: () => ({ inputSource: 'expression', expression: 'TIME' }) },
+		time: { type: 'number', label: 'Time (s)', step: 0.01, default: () => ({ inputSource: 'envVariable', variable: 'TIME' }) },
 		speed: { type: 'number', label: 'Speed', step: 0.01, default: () => ({ inputSource: 'literal', value: 1 }) },
 		frame: { type: 'number', label: 'Frame offset (ms)', step: 1, default: () => ({ inputSource: 'literal', value: 0 }) },
 	},

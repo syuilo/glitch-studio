@@ -51,10 +51,10 @@
 	"Project": "Project",
 	"NoPresets": "No presets",
 	"NoEffects": "No FX",
-	"NoMacros": "No macros",
+	"NoExternalParameterInputs": "No externalParameterInputs",
 	"NoAssets": "No assets",
 	"Fx": "FX",
-	"Macro": "Macro",
+	"ExternalParameterInput": "ExternalParameterInput",
 	"Asset": "Aseet",
 	"Stats": "Stats",
 	"Monitors": "Monitors",
@@ -63,7 +63,7 @@
 	"Now": "now",
 	"FrameRenderTimesLast30Seconds": "Frame render times for the last 30 seconds",
 	"AddEffect": "Add Effect",
-	"AddMacro": "Add Macro",
+	"AddExternalParameterInput": "Add ExternalParameterInput",
 	"AddAsset": "Add Asset",
 	"ClickToDisable": "Click to Disable",
 	"ClickToEnable": "Click to Enable",
@@ -103,7 +103,7 @@
 		"Add": "Add",
 		"Subtract": "Subtract"
 	},
-	"_Macro": {
+	"_ExternalParameterInput": {
 		"Name": "Name",
 		"Label": "Label",
 		"Type": "Type",
@@ -114,6 +114,13 @@
 			"Color": "Color",
 			"Image": "Image"
 		}
+	},
+	"_EnvVariables": {
+		"TIME": "Time (s)",
+		"TIME_MS": "Time (ms)",
+		"WIDTH": "Rendering Width",
+		"HEIGHT": "Rendering Height",
+		"PROGRESS": "Progress"
 	},
 	"GpuMemoryEstimate": "Estimated GPU resource memory\nTextures: {textures} MiB\nBuffers: {buffers} MiB",
 	"None": "None",

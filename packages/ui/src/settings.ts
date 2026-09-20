@@ -1,6 +1,6 @@
 import { encode, decode } from '@msgpack/msgpack';
 import { encodeAssets } from './api.ts';
-import type { GsNode, Macro, GsAutomation, Asset, VisualModule, Timeline, Player } from '@glitch/shared/types.ts';
+import type { GsNode, Asset } from '@glitch/shared/types.ts';
 
 //export const userDataPath = electron.remote.app.getPath('userData');
 //const filePath = path.join(userDataPath, 'settings');
@@ -12,7 +12,6 @@ export type RawPreset = {
 	author: string;
 	name: string;
 	nodes: GsNode[];
-	macros: Macro[];
 	assets: Omit<Asset, 'data'>[];
 };
 
@@ -22,7 +21,6 @@ export type Preset = {
 	author: string;
 	name: string;
 	nodes: GsNode[];
-	macros: Macro[];
 	assets: Asset[];
 };
 
@@ -53,7 +51,6 @@ export class SettingsStore {
 			author: preset.author,
 			name: preset.name,
 			nodes: preset.nodes,
-			macros: preset.macros,
 			assets: encodeAssets(preset.assets || []),
 		}));
 		fs.writeFileSync(filePath, encode(data));
