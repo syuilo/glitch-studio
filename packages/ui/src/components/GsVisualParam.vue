@@ -7,7 +7,7 @@
 				<GsCondensedLine>{{ label ?? paramDef.label }}</GsCondensedLine>
 			</div>
 			<i v-if="paramValue.type === 'expression'" class="ti ti-math-function" :class="$style.typeIcon"></i>
-			<i v-if="paramValue.type === 'macro'" class="ti ti-arrow-right" :class="$style.typeIcon"></i>
+			<i v-if="paramValue.type === 'macro'" class="ti ti-wifi" :class="$style.typeIcon"></i>
 			<i v-if="paramValue.type === 'node'" class="ti ti-plug" :class="$style.typeIcon"></i>
 			<i v-if="paramValue.type === 'automation'" class="ti ti-ease-in-out-control-points" :class="$style.typeIcon"></i>
 		</div>
@@ -246,7 +246,7 @@ function getMenu() {
 			{ text: 'Automation', type: 'automation', icon: 'ti ti-ease-in-out-control-points' },
 			{ text: 'Expression', type: 'expression', icon: 'ti ti-math-function' },
 		];
-		if (props.node != null) types.push({ text: 'Parameter', type: 'macro', icon: 'ti ti-arrow-right' });
+		if (props.node != null) types.push({ text: 'Parameter', type: 'macro', icon: 'ti ti-wifi' });
 		if (canNode.value) types.push({ text: 'Node', type: 'node', icon: 'ti ti-plug' });
 		for (const { text, type, icon } of types) {
 			menuItems.push({
