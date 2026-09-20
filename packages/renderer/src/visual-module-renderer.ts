@@ -247,13 +247,13 @@ export class VisualModuleRenderer {
 			key += JSON.stringify(params);
 			for (const { def, param, path } of walkNodeParams(paramDefs, node.params)) {
 				const v = getEvaluatedParam(params, path);
-				key += JSON.stringify([path, param.type]);
+				key += JSON.stringify([path, param.inputSource]);
 				if (def.type === 'player') {
 					key += JSON.stringify([path, 'videoFrameVersion', v == null ? 0 : this.videoFrameVersions.get(v) ?? 0]);
 					const audio = v == null ? undefined : this.audioSources.get(playerAudioSourceId(v));
 					key += JSON.stringify([path, 'audio', audio == null ? null : [audio.generation, audio.revision, audio.endFrame]]);
 				}
-				if (def.canNode && param.type === 'node' && param.nodeId != null) {
+				if (def.canNode && param.inputSource === 'node' && param.nodeId != null) {
 					const targetNode = this.allNodeIdMap.get(param.nodeId);
 					if (targetNode == null) throw new Error('Referenced node not found');
 					const targetNodeCacheKey = this.evalCacheKey(targetNode, [...visited, node.id]);
