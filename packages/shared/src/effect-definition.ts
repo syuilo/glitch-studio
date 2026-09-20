@@ -106,7 +106,6 @@ export type EffectOptionsSchema = Record<string,
 	BooleanOptionSchema |
 	ColorOptionSchema |
 	VectorOptionSchema |
-	SignalOptionSchema |
 	BlendModeOptionSchema |
 	FitModeOptionSchema |
 	WrapModeOptionSchema |
@@ -126,7 +125,6 @@ type EffectOptionScalarValue<T extends EffectOptionsSchema[string]> =
 	T extends BooleanOptionSchema ? boolean :
 	T extends ColorOptionSchema ? Readonly<[number, number, number, number]> :
 	T extends VectorOptionSchema ? Readonly<[number, number]> :
-	T extends SignalOptionSchema ? Readonly<[boolean, boolean, boolean]> :
 	T extends BlendModeOptionSchema ? string :
 	T extends FitModeOptionSchema ? 'stretch' | 'cover' | 'contain' :
 	T extends WrapModeOptionSchema ? WrapModeValue<T> :

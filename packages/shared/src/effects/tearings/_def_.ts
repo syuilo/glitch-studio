@@ -5,7 +5,7 @@ export default defineEffect({
 	displayName: 'Tearings',
 	tags: [],
 	paramDefs: {
-		input: { type: 'color', label: 'Input', canNode: true, primary: true, default: () => ({ type: 'node', nodeId: null, outputPort: null }) },
+		input: { type: 'color', label: 'Input', canNode: true, primary: true, default: () => ({ inputSource: 'node', nodeId: null, outputPort: null }) },
 		amount: { type: 'range', min: 0, max: 100, label: 'Amount', default: () => ({ inputSource: 'literal', value: 3 }) },
 		strength: { type: 'range', min: -1, max: 1, step: 0.01, label: 'Strength', default: () => ({ inputSource: 'literal', value: 0.02 }) },
 		size: { type: 'range', min: 0, max: 100, step: 0.01, label: 'Size', default: () => ({ inputSource: 'literal', value: 20 }) },

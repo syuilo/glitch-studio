@@ -5,7 +5,7 @@ export default defineEffect({
 	displayName: 'Quadtree filter',
 	tags: [],
 	paramDefs: {
-		input: { type: 'color', label: 'Input', canNode: true, primary: true, default: () => ({ type: 'node', nodeId: null, outputPort: null }) },
+		input: { type: 'color', label: 'Input', canNode: true, primary: true, default: () => ({ inputSource: 'node', nodeId: null, outputPort: null }) },
 		threshold: { type: 'range', min: 0, max: 0.15, step: 0.00001, label: 'Thresold', default: () => ({ inputSource: 'literal', value: 0.005 }) },
 		minDivisions: { type: 'range', min: 1, max: 64, step: 1, label: 'Min divisions', default: () => ({ inputSource: 'literal', value: 4 }) },
 		maxIterations: { type: 'range', min: 1, max: 16, step: 1, label: 'Max iterations', default: () => ({ inputSource: 'literal', value: 10 }) },

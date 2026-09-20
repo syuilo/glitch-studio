@@ -9,7 +9,7 @@ export default defineEffect({
 			type: 'struct',
 			label: 'Foo',
 			fields: {
-				node: { type: 'color', canNode: true, label: 'Node', default: () => ({ type: 'node', nodeId: null, outputPort: null }) },
+				node: { type: 'color', canNode: true, label: 'Node', default: () => ({ inputSource: 'node', nodeId: null, outputPort: null }) },
 			},
 			default: () => ({
 				inputSource: 'literal',

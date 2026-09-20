@@ -7,7 +7,7 @@ export default defineEffect({
 	displayName: 'Liquid Metal',
 	tags: [],
 	paramDefs: {
-		input: { type: 'color', label: 'Input', canNode: true, primary: true, default: () => ({ type: 'node', nodeId: null, outputPort: null }) },
+		input: { type: 'color', label: 'Input', canNode: true, primary: true, default: () => ({ inputSource: 'node', nodeId: null, outputPort: null }) },
 		colorBack: { type: 'color', label: 'Background color', default: () => ({ inputSource: 'literal', value: [170 / 255, 170 / 255, 172 / 255, 0] }) },
 		colorTint: { type: 'color', label: 'Tint color', default: () => ({ inputSource: 'literal', value: [1, 1, 1, 1] }) },
 		repetition: { type: 'range', label: 'Repetition', min: 1, max: 10, step: 0.01, default: () => ({ inputSource: 'literal', value: 2 }) },
