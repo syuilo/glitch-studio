@@ -35,7 +35,7 @@
 						:items="[{ label: i18n.ts.None, value: '' }, ...envVariableItems]"
 						@update:modelValue="value => emit('edit', { kind: 'envVariable', ...target(), value })"
 					/>
-					<GsButton v-else-if="paramValue.inputSource === 'automation'" small @click="selectAutomation">{{ automationName }}</GsButton>
+					<GsButton v-else-if="paramValue.inputSource === 'automation'" small @click="selectAutomation">{{ paramValue.automationId }}</GsButton>
 					<GsSelect
 						v-else-if="paramValue.inputSource === 'externalParameterInput'"
 						small
@@ -173,15 +173,12 @@ const canNode = computed(() => paramDef.value.canNode);
 const inputDataType = computed(() => getNodeInputDataType(paramDef.value));
 const paramDefs = computed(() => appContext.state.visualModules.value.find(module => module.id === props.visualModuleId)?.paramDefs ?? []);
 const nodes = computed(() => appContext.state.visualModules.value.find(visualModule => visualModule.id === props.visualModuleId)?.nodes ?? []);
+const automations = computed(() => appContext.state.visualModules.value.find(visualModule => visualModule.id === props.visualModuleId)?.automations ?? []);
 const envVariableItems = computed(() => globalEnvVarDefs.map(variable => ({ label: `${i18n.t(`_EnvVariables.${variable}`)} (${variable})`, value: variable })));
 const externalParameterInputItems = computed(() => (props.node == null ? [] : appContext.state.visualModules.value.find(module => module.id === props.visualModuleId)?.paramDefs ?? [])
 	.map(def => ({ label: `${def.label} (${def.name})`, value: def.id })));
 const nodeOutputItems = computed(() => props.node == null ? [] : getNodeOutputItems(nodes.value, props.node.id, inputDataType.value, paramDefs.value));
 const nodeConnection = computed<NodeOutputReference | null>(() => props.paramValue.inputSource === 'node' && props.paramValue.nodeId != null ? props.paramValue : null);
-const automationName = computed(() => {
-	const value = props.paramValue;
-	return value?.inputSource === 'automation' ? appContext.state.automations.value.find(a => a.id === value.automationId)?.name ?? '(none)' : '(none)';
-});
 const controlComponent = useTemplateRef('controlComponent');
 
 let commandMergeKey: string | null = null;
@@ -231,7 +228,7 @@ const isExpressionSyntaxError = computed(() => {
 function selectAutomation(ev: PointerEvent) {
 	ui.popupMenu([
 		{ text: '(none)', action: () => emit('edit', { kind: 'automation', ...target(), value: null }) },
-		...appContext.state.automations.value.map(a => ({
+		...automations.value.map(a => ({
 			text: a.name,
 			action: () => emit('edit', { kind: 'automation', ...target(), value: a.id }),
 		})),

@@ -4,9 +4,6 @@
 	</div>
 	<div :class="$style.body">
 		<div :class="$style.side">
-			<GsButton @click="addAutomation">Add automation</GsButton>
-
-			<GsButton v-for="automation of appContext.state.automations.value" :key="automation.id" :primary="selectedAutomation?.id === automation.id" @click="switchAutomation(automation)">{{ automation.name }}</GsButton>
 		</div>
 		<div ref="tlEl" :class="$style.tl" tabindex="-1" @wheel="onTlWheel" @mousemove="onTlMousemove" @mousedown="onTlMousedown" @keydown="onTlKeydown">
 			<div :class="$style.yTicks" @wheel="onYTicksWheel">
@@ -316,7 +313,6 @@ function addAutomation() {
 			bezierControlPointB: [0, 0],
 		}],
 	};
-	appContext.state.automations.value.push(automation);
 	selectedAutomation.value = automation;
 }
 

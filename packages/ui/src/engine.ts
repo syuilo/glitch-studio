@@ -6,7 +6,7 @@ import { projectAudioSourceId } from '@glitch/shared/audio.ts';
 import { isVideoFrameAvailable, playVideoAfterFirstFrameIsReady } from './utility/video.ts';
 import { AudioInputs } from './audio/audio-inputs.ts';
 import { setupWebcam } from './utility/webcam.ts';
-import type { Asset, GsAutomation, VisualModule, VisualModuleParamValues, Player, Timeline } from '@glitch/shared/types.ts';
+import type { Asset, VisualModule, VisualModuleParamValues, Player, Timeline } from '@glitch/shared/types.ts';
 import type { MainRenderer } from '@glitch/renderer/renderer.ts';
 import type { EffectStatus } from '@glitch/shared/effect-status.ts';
 import * as ui from '@/ui.ts';
@@ -37,7 +37,6 @@ export class Engine {
 	private visualModules: VisualModule[] = [];
 	private assets: Asset[] = [];
 	private players: Player[] = [];
-	private automations: GsAutomation[] = [];
 	private timeline: Timeline = [];
 	private videoElements = shallowReactive(new Map<Player['id'], HTMLMediaElement>());
 	private playerAssetFiles = new Map<Player['id'], Blob>();
@@ -173,7 +172,6 @@ export class Engine {
 				highlightClipping: this.highlightClipping,
 				liveTimeFactor: this.liveTimeFactor,
 				assets: this.assets,
-				automations: this.automations,
 				visualModules: this.visualModules,
 				timeline: this.timeline,
 			},
@@ -367,11 +365,6 @@ export class Engine {
 	public get audioOutputLevels() { return this.audioInputs.getLevels(projectAudioSourceId); }
 
 	public getPlayerLevels(playerId: Player['id']) { return this.audioInputs.getPlayerLevels(playerId); }
-
-	public updateAutomations(newAutomations: GsAutomation[]) {
-		this.automations = deepClone(newAutomations);
-		this.call('updateAutomations', [this.automations]);
-	}
 
 	public async updateAssets(newAssets: Asset[]) {
 		this.assets = deepClone(newAssets);

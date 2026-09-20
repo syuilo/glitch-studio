@@ -102,6 +102,7 @@ export type VisualModule = {
 		isPrimaryOutput: boolean;
 	}[];
 	paramDefs: VisualModuleParamDef[];
+	automations: GsAutomation[];
 };
 
 // レイヤー・live modeからは、モジュール内部のノードやパラメータを参照しない。

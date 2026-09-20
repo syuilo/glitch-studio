@@ -1,4 +1,4 @@
-import type { Asset, GsAutomation, Player, VisualModule, Timeline } from '@glitch/shared/types.ts';
+import type { Asset, Player, VisualModule, Timeline } from '@glitch/shared/types.ts';
 import type { Ref } from 'vue';
 
 export type AppState = {
@@ -6,6 +6,5 @@ export type AppState = {
 	assets: Ref<Asset[]>;
 	players: Ref<Player[]>;
 	visualModules: Ref<VisualModule[]>;
-	automations: Ref<GsAutomation[]>;
 	timeline: Ref<Timeline>;
 };

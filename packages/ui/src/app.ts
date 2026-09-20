@@ -13,7 +13,7 @@ import GsEffectPicker from './components/GsEffectPicker.vue';
 import type { CommandDef } from './commands.ts';
 import type { AppState } from './types.ts';
 import type { EffectNodeOf } from '@glitch/shared/effect-definition.ts';
-import type { Asset, GsAutomation, Player, VisualModule, Timeline } from '@glitch/shared/types.ts';
+import type { Asset, Player, VisualModule, Timeline } from '@glitch/shared/types.ts';
 import type { Project } from './gsproj.ts';
 import * as ui from '@/ui.ts';
 import * as api from '@/api.ts';
@@ -43,7 +43,6 @@ class AppContext {
 			assets: ref<Asset[]>([]), // TODO: バイナリをリアクティブでwrapするのをやめる
 			players: ref<Player[]>([]),
 			visualModules: ref<VisualModule[]>([]),
-			automations: ref<GsAutomation[]>([]),
 			timeline: ref<Timeline>([]),
 		};
 	}
@@ -190,13 +189,8 @@ export async function appReady(project: Project) {
 	appContext.state.resolution.value = project.resolution;
 	appContext.state.assets.value = project.assets;
 	appContext.state.visualModules.value = project.visualModules;
-	appContext.state.automations.value = project.automations;
 	appContext.state.players.value = project.players;
 	appContext.state.timeline.value = project.timeline;
-
-	watch(appContext.state.automations, () => {
-		engine.updateAutomations(deepClone(appContext.state.automations.value));
-	}, { deep: true, immediate: true });
 
 	watch(appContext.state.assets, () => {
 		engine.updateAssets(deepClone(appContext.state.assets.value));
@@ -240,6 +234,7 @@ export async function newProject() {
 	const initialVisualModule = {
 		id: genId(),
 		name: 'My Visual Module',
+		automations: [],
 		outputDefs: [{ id: initialOutputId, label: 'Output', name: 'output', dataType: 'color', isPrimaryOutput: true }],
 		paramDefs: [{
 			id: initialInputParamId,
@@ -278,7 +273,6 @@ export async function newProject() {
 		author: 'TODO',
 		visualModules: [initialVisualModule],
 		assets: [],
-		automations: [],
 		players: [],
 		timeline: [{
 			id: genId(),
@@ -328,6 +322,7 @@ export async function newProjectFromImageOrVideo(file?: File) {
 	const initialVisualModule = {
 		id: genId(),
 		name: 'My Visual Module',
+		automations: [],
 		outputDefs: [{ id: initialOutputId, label: 'Output', name: 'output', dataType: 'color', isPrimaryOutput: true }],
 		paramDefs: [{
 			id: initialInputParamId,
@@ -400,7 +395,6 @@ export async function newProjectFromImageOrVideo(file?: File) {
 		visualModules: [initialVisualModule],
 		assets: [asset],
 		players: player ? [player] : [],
-		automations: [],
 		timeline: [{
 			id: genId(),
 			layer: {

@@ -71,7 +71,6 @@ onmessage = async (event) => {
 				liveTimeFactor: event.data.options.liveTimeFactor,
 				fpsLimit: event.data.options.fpsLimit,
 				assets: event.data.options.assets,
-				automations: event.data.options.automations,
 				visualModules: event.data.options.visualModules,
 				timeline: event.data.options.timeline,
 				histogramGpuContext: histogramContext,

@@ -54,7 +54,7 @@ export class VisualModuleRenderer {
 	private usedOutputPorts = new Map<string, Set<string>>();
 	private effectStatuses = new Map<string, { sent?: EffectStatus }>();
 	private onEffectStatus?: (nodeId: string, status: EffectStatus | null) => void;
-	private automations: GsAutomation[];
+	private automations: GsAutomation[] = [];
 	private enable32bitDataTextures = false;
 	private readonly intermediateTextureFormat: IntermediateTextureFormat;
 	private videoFrames: Map<string, VideoFrame>;
@@ -84,7 +84,6 @@ export class VisualModuleRenderer {
 		videoFrameVersions: Map<string, number>;
 		fallbackScalarFieldTexture: GPUTexture;
 		assets: Asset[];
-		automations: GsAutomation[];
 		visualModule: VisualModule;
 		assetTextures: Map<string, GPUTexture>;
 		audioSources: Map<AudioSourceId, AudioHistory>;
@@ -104,7 +103,6 @@ export class VisualModuleRenderer {
 		this.videoFrames = options.videoFrames;
 		this.videoFrameVersions = options.videoFrameVersions;
 		this.fallbackScalarFieldTexture = options.fallbackScalarFieldTexture;
-		this.automations = options.automations;
 		this.assetTextures = options.assetTextures;
 		this.audioSources = options.audioSources;
 		this.timingHelper = options.timingHelper;
@@ -114,6 +112,7 @@ export class VisualModuleRenderer {
 	}
 
 	public updateVisualModule(visualModule: VisualModule) {
+		this.automations = visualModule.automations;
 		this.outputDefs = visualModule.outputDefs;
 		this.paramDefs = visualModule.paramDefs;
 		this.preparedContext = null;
@@ -157,11 +156,6 @@ export class VisualModuleRenderer {
 		const data = this.enable32bitDataTextures ? new Float32Array(components) : new Uint16Array(components.map(float32ToFloat16Bits));
 		this.gpuDevice.queue.writeTexture({ texture }, data, { bytesPerRow: data.byteLength }, [1, 1]);
 		return texture;
-	}
-
-	public updateAutomations(automations: GsAutomation[]) {
-		this.automations = automations;
-		this.preparedContext = null;
 	}
 
 	private evaluateParameters(context: VisualModuleRenderContext) {

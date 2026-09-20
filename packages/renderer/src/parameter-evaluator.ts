@@ -4,7 +4,7 @@ import { deepClone } from '@glitch/shared/utility/deep-clone.js';
 import { reservedWords, singleVariableExpression, type globalEnvVarDefs } from '@glitch/shared/expression.js';
 import { mapNodeParam } from './utility/node-params.ts';
 import type { EffectDefinition, EffectOptionSchema, VisualModuleParamDef } from '@glitch/shared/effect-definition.js';
-import type { EffectParamDef, GsAutomation, GsEffectNode, GsNode, VisualModule, VisualModuleParamValues } from '@glitch/shared/types.ts';
+import type { GsAutomation, GsEffectNode, GsNode, VisualModule, VisualModuleParamValues } from '@glitch/shared/types.ts';
 
 export type ParameterEvaluationContext = {
 	nodes: GsNode[];

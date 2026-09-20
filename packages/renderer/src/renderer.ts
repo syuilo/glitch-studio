@@ -16,7 +16,7 @@ import type { FrameScheduler, LiveFrameTiming } from './live-render-loop.ts';
 import type { TimelineLayerRenderer } from './timeline-renderer.ts';
 import type { EffectStatus } from '@glitch/shared/effect-status.ts';
 import type { AudioCaptureMessage, AudioSourceId } from '@glitch/shared/audio.ts';
-import type { Asset, GsAutomation, Player, Timeline, VisualModule, VisualModuleLayer, VisualModuleParamValues } from '@glitch/shared/types.ts';
+import type { Asset, Player, Timeline, VisualModule, VisualModuleLayer, VisualModuleParamValues } from '@glitch/shared/types.ts';
 import type { EffectImplementation, IntermediateTextureFormat } from '@glitch/shared/effect-implementation.js';
 import type { EffectDefinition } from '@glitch/shared/effect-definition.js';
 
@@ -38,7 +38,6 @@ export class MainRenderer {
 	private liveVisualModuleRenderer: VisualModuleRenderer | null = null;
 	private timeline: Timeline = [];
 	private assets: Asset[] = [];
-	private automations: GsAutomation[] = [];
 	private visualModules: VisualModule[] = [];
 	private assetTextures: Map<string, GPUTexture> = new Map();
 	private videoFrames: Map<Player['id'], VideoFrame> = new Map();
@@ -90,7 +89,6 @@ export class MainRenderer {
 		visualModules?: VisualModule[];
 		timeline?: Timeline;
 		assets: Asset[];
-		automations: GsAutomation[];
 		histogramGpuContext: GPUCanvasContext;
 		waveformHorizontalGpuContext: GPUCanvasContext;
 		waveformVerticalGpuContext: GPUCanvasContext;
@@ -224,8 +222,6 @@ export class MainRenderer {
 		});
 
 		this.updateAssets(options.assets);
-
-		this.updateAutomations(options.automations);
 	}
 
 	// (非workerで)呼び出すときはnewAssetsを独立した参照にすること！ パフォーマンス上の理由でこちら側ではdeepCloneしません
@@ -248,13 +244,6 @@ export class MainRenderer {
 			}
 		}
 		this.liveVisualModuleRenderer?.updateAssets();
-	}
-
-	// (非workerで)呼び出すときはnewAutomationsを独立した参照にすること！ パフォーマンス上の理由でこちら側ではdeepCloneしません
-	public updateAutomations(newAutomations: GsAutomation[]) {
-		this.clearTimelineRenderers();
-		this.automations = newAutomations;
-		this.liveVisualModuleRenderer?.updateAutomations(newAutomations);
 	}
 
 	public updateVisualModules(newVisualModules: VisualModule[]) {
@@ -412,7 +401,6 @@ export class MainRenderer {
 			videoFrames: this.videoFrames,
 			videoFrameVersions: this.videoFrameVersions,
 			assets: this.assets,
-			automations: this.automations,
 			visualModule,
 			assetTextures: this.assetTextures,
 			audioSources: this.audioSources,
@@ -466,7 +454,6 @@ export class MainRenderer {
 			videoFrames: this.videoFrames,
 			videoFrameVersions: this.videoFrameVersions,
 			assets: this.assets,
-			automations: this.automations,
 			visualModule,
 			assetTextures: this.assetTextures,
 			audioSources: this.audioSources,
