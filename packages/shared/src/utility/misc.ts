@@ -9,8 +9,6 @@ export function genEmptyValue(paramDef: Omit<EffectParamDef, 'default'>): any {
 		if (paramDef.hasOwnProperty('min')) v = Math.max((paramDef as any)['min'], v);
 		if (paramDef.hasOwnProperty('max')) v = Math.min((paramDef as any)['max'], v);
 		return v;
-	} else if (paramDef.type === 'range2') {
-		return [(paramDef as any)['min'], (paramDef as any)['max']];
 	} else if (paramDef.type === 'enum') {
 		return (paramDef as any)['options'][0].value;
 	} else if (paramDef.type === 'bool') {

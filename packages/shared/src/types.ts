@@ -1,4 +1,4 @@
-export type EffectParamDataType = 'number' | 'angle' | 'range' | 'range2' | 'enum' | 'bool' | 'blendMode' | 'fitMode' | 'wrapMode' | 'xy' | 'wh' | 'color' | 'vector' | 'seed' | 'image' | 'player';
+export type EffectParamDataType = 'number' | 'angle' | 'range' | 'enum' | 'bool' | 'blendMode' | 'fitMode' | 'wrapMode' | 'xy' | 'wh' | 'color' | 'vector' | 'seed' | 'image' | 'player';
 
 export type NodeOutputReference = { nodeId: string; outputPort: string; fitMode?: string; wrapMode?: string };
 export type NodeParamValue = { inputSource: 'node' } & (NodeOutputReference | { nodeId: null; outputPort: null });

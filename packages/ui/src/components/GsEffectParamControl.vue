@@ -30,9 +30,6 @@
 			@changeFinished="onFinishChanging"
 		/>
 	</div>
-	<div v-else-if="type === 'range2'">
-		<!--<XSlider2 :modelValue="value" :step="options.step ?? 1" :min="options.min" :max="options.max" :title="`${options.min} ~ ${options.max}`" @beginChanging="onBeginChanging" @update:modelValue="changeContinuous" @changeFinished="onFinishChanging"/>-->
-	</div>
 	<div v-else-if="type === 'number'">
 		<GsInput small type="number" :modelValue="value" :min="options.min" :max="options.max" @update:modelValue="changeValue(parseFloat($event, 10))"/>
 	</div>

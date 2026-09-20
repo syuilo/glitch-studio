@@ -34,7 +34,7 @@ export function getNodeOutputs(node: GsNode | undefined, paramDefs: VisualModule
 			switch (def.type) {
 				case 'number': case 'angle': case 'range': case 'seed': case 'bool':
 					dataType = 'scalar'; break;
-				case 'vector': case 'xy': case 'wh': case 'range2':
+				case 'vector': case 'xy': case 'wh':
 					dataType = 'vector'; break;
 				case 'color': case 'image':
 					dataType = 'color'; break;

@@ -137,7 +137,7 @@ export class VisualModuleRenderer {
 			const alpha = value?.[3] ?? 0;
 			// 定数色を画像として出力する境界だけでpremultiplyする。externalParameterInput/PARAMの値は変更しない。
 			components = [(value?.[0] ?? 0) * alpha, (value?.[1] ?? 0) * alpha, (value?.[2] ?? 0) * alpha, alpha];
-		} else if (['vector', 'xy', 'wh', 'range2'].includes(def.type)) {
+		} else if (['vector', 'xy', 'wh'].includes(def.type)) {
 			components = [value?.[0] ?? 0, value?.[1] ?? 0];
 		} else if (['number', 'angle', 'range', 'seed', 'bool'].includes(def.type)) {
 			components = [Number(value ?? 0)];
