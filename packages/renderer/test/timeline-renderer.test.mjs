@@ -72,6 +72,49 @@ test('uses half-open intervals and clears the display when no layers are active'
 	assert.deepEqual(f.presented, [{ output: 'first', gpuTime: 10 }, { output: 'second', gpuTime: 10 }, { output: 'transparent', gpuTime: 0 }]);
 });
 
+for (const outsideTime of [99, 200]) {
+	// 表示期間外へ移動するとVisual Module用アダプターが内部rendererを一度だけ破棄する
+	test(`destroys the wrapped visual module renderer when seeking outside its interval to ${outsideTime}ms`, async t => {
+		const instances = [];
+		const timeline = [{
+			...entry('effect', 100, 200),
+			layer: { type: 'visualModule', visualModuleId: 'module', paramValues: {} },
+		}];
+		const renderer = new TimelineRenderer({
+			fallbackOutput: 'transparent',
+			createLayer(entry) {
+				// GPUを使わず、VisualModuleRendererとの境界で破棄回数を記録する。
+				const instance = {
+					destroyCount: 0,
+					async prepare() {},
+					async render() { return { output: 'frame', gpuTime: 0 }; },
+					destroy() { this.destroyCount++; },
+				};
+				instances.push(instance);
+				return createVisualModuleTimelineLayer({ paramDefs: [] }, entry.layer, instance);
+			},
+			present() {},
+		});
+		t.after(() => renderer.clear());
+
+		await renderer.renderAt(100, timeline);
+		await renderer.renderAt(199, timeline);
+		assert.equal(instances.length, 1);
+		assert.equal(instances[0].destroyCount, 0);
+
+		await renderer.renderAt(outsideTime, timeline);
+		assert.equal(instances[0].destroyCount, 1);
+		await renderer.renderAt(outsideTime, timeline);
+		assert.equal(instances.length, 1);
+		assert.equal(instances[0].destroyCount, 1);
+
+		await renderer.renderAt(150, timeline);
+		assert.equal(instances.length, 2);
+		assert.equal(instances[0].destroyCount, 1);
+		assert.equal(instances[1].destroyCount, 0);
+	});
+}
+
 // 同じ種類でもレイヤーごとにインスタンスと履歴を保持する
 test('reuses instances by layer ID and recreates them after clearing', async () => {
 	const f = fixture();
