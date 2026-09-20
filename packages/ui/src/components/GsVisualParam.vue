@@ -6,11 +6,13 @@
 			<div :class="$style.paramLabel" @click="showMenu">
 				<GsCondensedLine>{{ label ?? paramDef.label }}</GsCondensedLine>
 			</div>
-			<i v-if="paramValue.inputSource === 'envVariable'" v-tooltip="'Environment Variable'" class="ti ti-variable" :class="$style.typeIcon"></i>
-			<i v-else-if="paramValue.inputSource === 'expression'" v-tooltip="'Expression'" class="ti ti-math-function" :class="$style.typeIcon"></i>
-			<i v-else-if="paramValue.inputSource === 'macro'" v-tooltip="'Parameter'" class="ti ti-wifi" :class="$style.typeIcon"></i>
-			<i v-else-if="paramValue.inputSource === 'node'" v-tooltip="'Node'" class="ti ti-plug" :class="$style.typeIcon"></i>
-			<i v-else-if="paramValue.inputSource === 'automation'" v-tooltip="'Automation'" class="ti ti-ease-in-out-control-points" :class="$style.typeIcon"></i>
+			<div style="height: 100%; place-content: center;">
+				<i v-if="paramValue.inputSource === 'envVariable'" v-tooltip="'Environment Variable'" class="ti ti-variable" :class="$style.typeIcon"></i>
+				<i v-else-if="paramValue.inputSource === 'expression'" v-tooltip="'Expression'" class="ti ti-math-function" :class="$style.typeIcon"></i>
+				<i v-else-if="paramValue.inputSource === 'macro'" v-tooltip="'Parameter'" class="ti ti-wifi" :class="$style.typeIcon"></i>
+				<i v-else-if="paramValue.inputSource === 'node'" v-tooltip="'Node'" class="ti ti-plug" :class="$style.typeIcon"></i>
+				<i v-else-if="paramValue.inputSource === 'automation'" v-tooltip="'Automation'" class="ti ti-ease-in-out-control-points" :class="$style.typeIcon"></i>
+			</div>
 		</div>
 		<div :class="$style.paramBody">
 			<template v-if="paramDef.type === 'array'">
