@@ -1,7 +1,7 @@
 {
 	"name": "glitch-studio-web",
 	"private": true,
-	"version": "0.0.0",
+	"version": "2.0.0-alpha",
 	"packageManager": "pnpm@12.3.4",
 	"workspaces": [
 		"packages/shared",
