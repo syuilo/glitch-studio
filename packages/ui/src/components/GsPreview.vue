@@ -22,7 +22,7 @@ import { watch, useTemplateRef, ref, onBeforeUnmount, onMounted } from 'vue';
 import { genId } from '@glitch/shared/utility/id.ts';
 import GsDetachableView from './GsDetachableView.vue';
 import * as api from '@/api.ts';
-import { appContext, engine, highlightClipping, rendererEnv, resolutionFactor, timeFactor } from '@/app.ts';
+import { appContext, engine, highlightClipping, rendererEnv, resolutionFactor, liveTimeFactor } from '@/app.ts';
 import { preferences } from '@/preferences.ts';
 import * as ui from '@/ui.ts';
 
@@ -37,7 +37,7 @@ let latestTime = 0;
 window.requestAnimationFrame(function update(t) {
 	const delta = t - latestTime;
 	latestTime = t;
-	time.value += delta * timeFactor.value;
+	time.value += delta * liveTimeFactor.value;
 	window.requestAnimationFrame(update);
 });
 

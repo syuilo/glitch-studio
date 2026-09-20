@@ -23,7 +23,7 @@
 			<button :class="$style.footerItem" class="_button" @click="openResolutionMenu">Proj: {{ appContext.state.resolution.value.width }} x {{ appContext.state.resolution.value.height }} px</button>
 			<button :class="$style.footerItem" class="_button" @click="openResolutionFactorMenu">Preview: {{ resolutionFactor }}x ({{ Math.round(appContext.state.resolution.value.width * resolutionFactor) }} x {{ Math.round(appContext.state.resolution.value.height * resolutionFactor) }} px)</button>
 			<button :class="$style.footerItem" class="_button" @click="openFpsMenu">{{ Math.round(engine.fpsDisplay.value) }}fps</button>
-			<button :class="$style.footerItem" class="_button" @click="openTimeFactorMenu">TIME: {{ timeFactor }}x</button>
+			<button :class="$style.footerItem" class="_button" @click="openTimeFactorMenu">TIME: {{ liveTimeFactor }}x</button>
 			<div :class="[$style.footerItem, $style.previewVolume]">
 				<i :class="previewVolume === 0 ? 'ti ti-volume-off' : 'ti ti-volume'"></i>
 				<GsRange v-model="previewVolume" :min="0" :max="1" :step="0.01" :continuousUpdate="true" style="width: 150px;"/>
@@ -47,7 +47,7 @@
 
 <script lang="ts" setup>
 import { computed, nextTick, onMounted, onBeforeUnmount, ref, shallowRef, useTemplateRef, watch } from 'vue';
-import { engine, resolutionFactor, fpsLimit, timeFactor, appContext } from './app';
+import { engine, resolutionFactor, fpsLimit, liveTimeFactor, appContext } from './app';
 import { preferences } from './preferences.ts';
 import GsRange from './components/common/GsRange.vue';
 import GsAboutDialog from '@/components/GsAboutDialog.vue';
@@ -145,28 +145,28 @@ function openTimeFactorMenu(ev: PointerEvent) {
 	ui.popupMenu([{
 		type: 'radioOption',
 		text: '-1x',
-		active: computed(() => timeFactor.value === -1),
-		action: () => timeFactor.value = -1,
+		active: computed(() => liveTimeFactor.value === -1),
+		action: () => liveTimeFactor.value = -1,
 	}, {
 		type: 'radioOption',
 		text: '0x',
-		active: computed(() => timeFactor.value === 0),
-		action: () => timeFactor.value = 0,
+		active: computed(() => liveTimeFactor.value === 0),
+		action: () => liveTimeFactor.value = 0,
 	}, {
 		type: 'radioOption',
 		text: '0.5x',
-		active: computed(() => timeFactor.value === 0.5),
-		action: () => timeFactor.value = 0.5,
+		active: computed(() => liveTimeFactor.value === 0.5),
+		action: () => liveTimeFactor.value = 0.5,
 	}, {
 		type: 'radioOption',
 		text: '1x',
-		active: computed(() => timeFactor.value === 1),
-		action: () => timeFactor.value = 1,
+		active: computed(() => liveTimeFactor.value === 1),
+		action: () => liveTimeFactor.value = 1,
 	}, {
 		type: 'radioOption',
 		text: '2x',
-		active: computed(() => timeFactor.value === 2),
-		action: () => timeFactor.value = 2,
+		active: computed(() => liveTimeFactor.value === 2),
+		action: () => liveTimeFactor.value = 2,
 	}], ev.currentTarget ?? ev.target);
 }
 

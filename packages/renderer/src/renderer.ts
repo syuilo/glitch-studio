@@ -26,13 +26,12 @@ export class MainRenderer {
 	private fallbackScalarFieldTexture: GPUTexture;
 	private enableStats = true;
 	private highlightClipping = false;
-	private timeFactor = 1;
+	private liveTimeFactor = 1;
 	private liveVisualModuleId: VisualModule['id'] | null = null;
 	private liveParamValues: VisualModuleParamValues = {};
 	private liveVisualModuleRenderer: VisualModuleRenderer | null = null;
 	private timeline: Timeline = [];
 	private assets: Asset[] = [];
-
 	private automations: GsAutomation[] = [];
 	private visualModules: VisualModule[] = [];
 	private assetTextures: Map<string, GPUTexture> = new Map();
@@ -50,7 +49,7 @@ export class MainRenderer {
 	private latestRenderedToCanasTexture: GPUTexture | null = null;
 	private enable32bitDataTextures = false;
 	private readonly intermediateTextureFormat: IntermediateTextureFormat;
-	private latestTimestamp: number = performance.now();
+	private latestLiveTimestamp: number = performance.now();
 	private pointerPosition: { x: number; y: number } = { x: -99999, y: -99999 };
 	private pointerPositionPrev: { x: number; y: number } = { x: -99999, y: -99999 };
 	private lastPointerUpdateTimestamp = 0;
@@ -59,15 +58,15 @@ export class MainRenderer {
 	private gpuHistogram: GpuHistogram;
 	private gpuWaveformHorizontal: GpuWaveform;
 	private gpuWaveformVertical: GpuWaveform;
-	private timeDelta = 0;
+	private liveTimeDelta = 0;
+	private liveTime = 0;
+	private liveModeFpsLimit: number | null;
+	private currentLiveModeRafId: number | null = null;
 	public gpuAverageFast = new NonNegativeRollingAverage(10);
 	public gpuAverageMedium = new NonNegativeRollingAverage(100);
 	public gpuAverageSlow = new NonNegativeRollingAverage(1000);
 	public fpsAverage = new NonNegativeRollingAverage(30);
 	public readonly gpuMemory: GpuMemoryTracker;
-	private time = 0;
-	private liveModeFpsLimit: number | null;
-	private currentLiveModeRafId: number | null = null;
 
 	constructor(options: {
 		onEffectStatus?: (nodeId: string, status: EffectStatus | null) => void;
@@ -83,7 +82,7 @@ export class MainRenderer {
 		enableStats: boolean;
 		/** 最終出力の黒つぶれを緑、白飛びをマゼンタで表示する。 */
 		highlightClipping?: boolean;
-		timeFactor?: number;
+		liveTimeFactor?: number;
 		fpsLimit: number | null;
 		visualModules?: VisualModule[];
 		timeline?: Timeline;
@@ -99,7 +98,7 @@ export class MainRenderer {
 		this.timeline = options.timeline ?? [];
 		this.enableStats = options.enableStats;
 		this.highlightClipping = options.highlightClipping ?? false;
-		this.timeFactor = options.timeFactor ?? 1;
+		this.liveTimeFactor = options.liveTimeFactor ?? 1;
 		this.enable32bitDataTextures = options.enable32bitDataTextures;
 		this.intermediateTextureFormat = options.intermediateTextureFormat;
 		this.liveModeFpsLimit = options.fpsLimit;
@@ -313,8 +312,8 @@ export class MainRenderer {
 		this.highlightClipping = enabled;
 	}
 
-	public setTimeFactor(value: number) {
-		this.timeFactor = value;
+	public setLiveTimeFactor(value: number) {
+		this.liveTimeFactor = value;
 	}
 
 	private renderToCanvas(tex: GPUTexture, commandEncoder: GPUCommandEncoder) {
@@ -489,12 +488,16 @@ export class MainRenderer {
 				then = timeStamp - (delta % interval);
 			}
 
+			const realTimeDelta = timeStamp - this.latestLiveTimestamp;
+			this.liveTimeDelta = realTimeDelta * this.liveTimeFactor;
+			this.liveTime += this.liveTimeDelta;
+
 			const commandEncoder = this.gpuDevice.createCommandEncoder();
 
 			const tex = this.liveVisualModuleRenderer.render({
 				paramValues: this.liveParamValues,
-				time: timeStamp,
-				timeDelta: delta,
+				time: this.liveTime,
+				timeDelta: this.liveTimeDelta,
 				pointerPosition: this.pointerPosition,
 				pointerPositionPrev: this.pointerPositionPrev,
 			}, commandEncoder);
@@ -503,9 +506,9 @@ export class MainRenderer {
 			this.renderToCanvas(tex, commandEncoder);
 
 			this.pointerPositionPrev = { ...this.pointerPosition };
-			this.latestTimestamp = timeStamp;
+			this.latestLiveTimestamp = this.liveTime;
 
-			this.fpsAverage.addSample(1000 / delta);
+			this.fpsAverage.addSample(1000 / realTimeDelta);
 
 			if (this.enableStats) {
 				this.timingHelper.getResult().then(gpuTime => {

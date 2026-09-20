@@ -66,7 +66,7 @@ onmessage = async (event) => {
 				intermediateTextureFormat: event.data.options.intermediateTextureFormat,
 				enableStats: event.data.options.enableStats,
 				highlightClipping: event.data.options.highlightClipping,
-				timeFactor: event.data.options.timeFactor,
+				liveTimeFactor: event.data.options.liveTimeFactor,
 				fpsLimit: event.data.options.fpsLimit,
 				assets: event.data.options.assets,
 				automations: event.data.options.automations,
