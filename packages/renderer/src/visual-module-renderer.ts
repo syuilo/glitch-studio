@@ -694,9 +694,12 @@ export class VisualModuleRenderer {
 	public async prepare(context: VisualModuleRenderContext, signal: AbortSignal): Promise<void> {
 		const node = this.renderNodeId == null ? undefined : this.allNodeIdMap.get(this.renderNodeId);
 		if (node == null) return;
+
 		this.evalNodeParams(this.nodes, context);
 		this.prepareOutputPorts(node, this.getRequestedOutputIds(context));
+
 		const prepared = new Set<string>();
+
 		const visit = (target: GsNode, visited: string[], port?: string) => {
 			if (visited.includes(target.id)) throw new Error('circular dependency detected');
 			if (prepared.has(target.id)) return;
@@ -714,7 +717,11 @@ export class VisualModuleRenderer {
 			this.initializeEffect(effectNode, params).prepare?.(params);
 			prepared.add(effectNode.id);
 		};
-		for (const id of this.getRequestedOutputIds(context)) visit(node, [], id);
+
+		for (const id of this.getRequestedOutputIds(context)) {
+			visit(node, [], id);
+		}
+
 		await new Promise<void>((resolve, reject) => {
 			const check = () => {
 				const states = [...prepared].map(id => this.effectStatuses.get(id)!);
@@ -729,6 +736,7 @@ export class VisualModuleRenderer {
 			signal.addEventListener('abort', check);
 			check();
 		});
+
 		if (!signal.aborted && !this.destroyed) this.preparedContext = context;
 	}
 
