@@ -9,6 +9,8 @@ import { GpuHistogram } from './utility/histogram/GpuHistogram.ts';
 import { GpuWaveform } from './utility/waveform/GpuWaveform.ts';
 import { GpuMemoryTracker } from './utility/GpuMemoryTracker.ts';
 import { VisualModuleRenderer, type VisualModuleRenderContext } from './visual-module-renderer.ts';
+import { LiveRenderLoop, browserFrameScheduler } from './live-render-loop.ts';
+import type { FrameScheduler, LiveFrameTiming } from './live-render-loop.ts';
 import type { EffectStatus } from '@glitch/shared/effect-status.ts';
 import type { AudioCaptureMessage, AudioSourceId } from '@glitch/shared/audio.ts';
 import type { Asset, GsAutomation, Player, Timeline, VisualModule, VisualModuleParamValues } from '@glitch/shared/types.ts';
@@ -27,7 +29,8 @@ export class MainRenderer {
 	private fallbackScalarFieldTexture: GPUTexture;
 	private enableStats = true;
 	private highlightClipping = false;
-	private liveTimeFactor = 1;
+	private frameScheduler: FrameScheduler;
+	private liveRenderLoop: LiveRenderLoop;
 	private liveVisualModuleId: VisualModule['id'] | null = null;
 	private liveParamValues: VisualModuleParamValues = {};
 	private liveVisualModuleRenderer: VisualModuleRenderer | null = null;
@@ -50,7 +53,6 @@ export class MainRenderer {
 	private latestRenderedToCanasTexture: GPUTexture | null = null;
 	private enable32bitDataTextures = false;
 	private readonly intermediateTextureFormat: IntermediateTextureFormat;
-	private latestLiveTimestamp: number = performance.now();
 	private pointerPosition: { x: number; y: number } = { x: -99999, y: -99999 };
 	private pointerPositionPrev: { x: number; y: number } = { x: -99999, y: -99999 };
 	private lastPointerUpdateTimestamp = 0;
@@ -59,10 +61,6 @@ export class MainRenderer {
 	private gpuHistogram: GpuHistogram;
 	private gpuWaveformHorizontal: GpuWaveform;
 	private gpuWaveformVertical: GpuWaveform;
-	private liveTimeDelta = 0;
-	private liveTime = 0;
-	private liveModeFpsLimit: number | null;
-	private currentLiveModeRafId: number | null = null;
 	private effectDefinitions: Record<string, EffectDefinition<any>>;
 	private effectImplementations: Record<string, EffectImplementation<any>>;
 	public gpuAverageFast = new NonNegativeRollingAverage(10);
@@ -87,6 +85,7 @@ export class MainRenderer {
 		highlightClipping?: boolean;
 		liveTimeFactor?: number;
 		fpsLimit: number | null;
+		frameScheduler?: FrameScheduler;
 		visualModules?: VisualModule[];
 		timeline?: Timeline;
 		assets: Asset[];
@@ -103,10 +102,15 @@ export class MainRenderer {
 		this.timeline = options.timeline ?? [];
 		this.enableStats = options.enableStats;
 		this.highlightClipping = options.highlightClipping ?? false;
-		this.liveTimeFactor = options.liveTimeFactor ?? 1;
+		this.frameScheduler = options.frameScheduler ?? browserFrameScheduler;
+		this.liveRenderLoop = new LiveRenderLoop({
+			scheduler: this.frameScheduler,
+			onFrame: timing => this.renderLiveFrame(timing),
+			fpsLimit: options.fpsLimit,
+			timeFactor: options.liveTimeFactor ?? 1,
+		});
 		this.enable32bitDataTextures = options.enable32bitDataTextures;
 		this.intermediateTextureFormat = options.intermediateTextureFormat;
-		this.liveModeFpsLimit = options.fpsLimit;
 		this.gpuDevice = options.gpuDevice;
 		this.gpuContext = options.gpuContext;
 		this.histogramGpuContext = options.histogramGpuContext;
@@ -310,11 +314,11 @@ export class MainRenderer {
 
 	public updatePointerPosition(newPointerPosition: { x: number; y: number }) {
 		this.pointerPosition = newPointerPosition;
-		this.lastPointerUpdateTimestamp = performance.now();
+		this.lastPointerUpdateTimestamp = this.frameScheduler.now();
 	}
 
 	public changeLiveModeFpsLimit(newFpsLimit: number | null) {
-		this.liveModeFpsLimit = newFpsLimit;
+		this.liveRenderLoop.fpsLimit = newFpsLimit;
 	}
 
 	public setHighlightClipping(enabled: boolean) {
@@ -322,7 +326,7 @@ export class MainRenderer {
 	}
 
 	public setLiveTimeFactor(value: number) {
-		this.liveTimeFactor = value;
+		this.liveRenderLoop.timeFactor = value;
 	}
 
 	private renderToCanvas(tex: GPUTexture, commandEncoder: GPUCommandEncoder) {
@@ -487,61 +491,39 @@ export class MainRenderer {
 			effectImplementations: this.effectImplementations,
 		});
 
-		this.latestLiveTimestamp = performance.now();
-		let then = 0;
+		this.liveRenderLoop.start();
+	}
 
-		const renderLoop = (timeStamp: number) => {
-			this.currentLiveModeRafId = requestAnimationFrame(renderLoop);
+	private renderLiveFrame(timing: LiveFrameTiming) {
+		if (this.liveVisualModuleRenderer == null) return;
+		const commandEncoder = this.gpuDevice.createCommandEncoder();
 
-			if (this.liveVisualModuleRenderer == null) return;
+		const tex = this.liveVisualModuleRenderer.render({
+			paramValues: this.liveParamValues,
+			time: timing.time,
+			timeDelta: timing.timeDelta,
+			pointerPosition: this.pointerPosition,
+			pointerPositionPrev: this.pointerPositionPrev,
+		}, commandEncoder);
+		if (tex == null) return;
 
-			const delta = timeStamp - then;
-			if (this.liveModeFpsLimit != null) {
-				const interval = 1000 / this.liveModeFpsLimit;
-				if (delta <= interval) return;
-				then = timeStamp - (delta % interval);
-			}
+		this.renderToCanvas(tex, commandEncoder);
 
-			const realTimeDelta = timeStamp - this.latestLiveTimestamp;
-			this.liveTimeDelta = realTimeDelta * this.liveTimeFactor;
-			this.liveTime += this.liveTimeDelta;
-			// 実時間と倍率適用後の時刻は混ぜず、出力がないフレームでも更新する。
-			this.latestLiveTimestamp = timeStamp;
+		this.pointerPositionPrev = { ...this.pointerPosition };
 
-			const commandEncoder = this.gpuDevice.createCommandEncoder();
+		this.fpsAverage.addSample(1000 / timing.realTimeDelta);
 
-			const tex = this.liveVisualModuleRenderer.render({
-				paramValues: this.liveParamValues,
-				time: this.liveTime,
-				timeDelta: this.liveTimeDelta,
-				pointerPosition: this.pointerPosition,
-				pointerPositionPrev: this.pointerPositionPrev,
-			}, commandEncoder);
-			if (tex == null) return;
-
-			this.renderToCanvas(tex, commandEncoder);
-
-			this.pointerPositionPrev = { ...this.pointerPosition };
-
-			this.fpsAverage.addSample(1000 / realTimeDelta);
-
-			if (this.enableStats) {
-				this.timingHelper.getResult().then(gpuTime => {
-					this.gpuAverageFast.addSample(gpuTime / 1000);
-					this.gpuAverageMedium.addSample(gpuTime / 1000);
-					this.gpuAverageSlow.addSample(gpuTime / 1000);
-				});
-			}
-		};
-
-		this.currentLiveModeRafId = requestAnimationFrame(renderLoop);
+		if (this.enableStats) {
+			this.timingHelper.getResult().then(gpuTime => {
+				this.gpuAverageFast.addSample(gpuTime / 1000);
+				this.gpuAverageMedium.addSample(gpuTime / 1000);
+				this.gpuAverageSlow.addSample(gpuTime / 1000);
+			});
+		}
 	}
 
 	public stopRenderLoop() {
-		if (this.currentLiveModeRafId != null) {
-			cancelAnimationFrame(this.currentLiveModeRafId);
-			this.currentLiveModeRafId = null;
-		}
+		this.liveRenderLoop.stop();
 		this.liveVisualModuleId = null;
 		this.liveVisualModuleRenderer?.destroy();
 		this.liveVisualModuleRenderer = null;
