@@ -13,35 +13,6 @@ import type { Asset, GsAutomation, GsEffectNode, GsGlobalInNode, GsNode, NodeOut
 import type { EffectImplementation, EffectInstance, IntermediateTextureFormat } from '@glitch/shared/effect-implementation.js';
 import type { EffectDefinition } from '@glitch/shared/effect-definition.js';
 
-const aisParser = new AiScript.Parser();
-const aiscript = new AiScript.Interpreter({});
-
-// パフォーマンス上の理由でインタプリタは使いまわすが、毎回スコープは上書きしてるので特に問題ないはず
-// (本来ならスコープ的にアクセスできない値にアクセスできる可能性が生まれるのは許容する)
-function evaluateExpression(expression: string, scope: Record<string, any>, paramDefForFallback: Omit<EffectParamDef, 'default'>, getParam?: (name: string) => any): any {
-	try {
-		const constants = Object.fromEntries(Object.entries(scope).map(([key, value]) => [key, AiScript.utils.jsToVal(value)]));
-		if (getParam != null) {
-			const readParam = (args: (AiScript.values.Value | undefined)[]) => {
-				if (args.length !== 1 || args[0]?.type !== 'str') throw new Error('PARAM requires a parameter name');
-				return AiScript.utils.jsToVal(getParam(args[0].value));
-			};
-			constants.PARAM = AiScript.values.FN_NATIVE(readParam, readParam);
-		}
-		for (const key in constants) {
-			if (aiscript.scope.exists(key)) {
-				aiscript.scope.assign(key, constants[key]);
-			} else {
-				aiscript.scope.add(key, { isMutable: true, value: constants[key] });
-			}
-		}
-		const aisVal = aiscript.execSync(aisParser.parse(expression));
-		return aisVal === undefined ? null : AiScript.utils.valToJs(aisVal);
-	} catch {
-		return genEmptyValue(paramDefForFallback);
-	}
-}
-
 export type VisualModuleRenderContext = {
 	// 省略時はタイムライン・プレビュー用の主出力だけを評価する。
 	outputIds?: readonly string[];
@@ -98,6 +69,8 @@ export class VisualModuleRenderer {
 	private renderNodeId: GsNode['id'] | null = null;
 	private effectDefinitions: Record<string, EffectDefinition<any>>;
 	private effectImplementations: Record<string, EffectImplementation<any>>;
+	private aisParser = new AiScript.Parser();
+	private aiscript = new AiScript.Interpreter({});
 
 	constructor(options: {
 		onEffectStatus?: (nodeId: string, status: EffectStatus | null) => void;
@@ -143,6 +116,32 @@ export class VisualModuleRenderer {
 		this.updateVisualModule(options.visualModule);
 	}
 
+	// パフォーマンス上の理由でインタプリタは使いまわすが、毎回スコープは上書きしてるので特に問題ないはず
+	// (本来ならスコープ的にアクセスできない値にアクセスできる可能性が生まれるのは許容する)
+	private evaluateExpression(expression: string, scope: Record<string, any>, paramDefForFallback: Omit<EffectParamDef, 'default'>, getParam?: (name: string) => any): any {
+		try {
+			const constants = Object.fromEntries(Object.entries(scope).map(([key, value]) => [key, AiScript.utils.jsToVal(value)]));
+			if (getParam != null) {
+				const readParam = (args: (AiScript.values.Value | undefined)[]) => {
+					if (args.length !== 1 || args[0]?.type !== 'str') throw new Error('PARAM requires a parameter name');
+					return AiScript.utils.jsToVal(getParam(args[0].value));
+				};
+				constants.PARAM = AiScript.values.FN_NATIVE(readParam, readParam);
+			}
+			for (const key in constants) {
+				if (this.aiscript.scope.exists(key)) {
+					this.aiscript.scope.assign(key, constants[key]);
+				} else {
+					this.aiscript.scope.add(key, { isMutable: true, value: constants[key] });
+				}
+			}
+			const aisVal = this.aiscript.execSync(this.aisParser.parse(expression));
+			return aisVal === undefined ? null : AiScript.utils.valToJs(aisVal);
+		} catch {
+			return genEmptyValue(paramDefForFallback);
+		}
+	}
+
 	public updateVisualModule(visualModule: VisualModule) {
 		this.outputDefs = visualModule.outputDefs;
 		this.paramDefs = visualModule.paramDefs;
@@ -165,7 +164,7 @@ export class VisualModuleRenderer {
 			const fallbackDef = { ...def.typeOptions, type: def.type, label: def.label };
 			let evaluated = deepClone(def.defaultValue); // 参照が共有されないように切る
 			if (value?.inputSource === 'literal') evaluated = value.value;
-			if (value?.inputSource === 'expression') evaluated = evaluateExpression(value.expression, scope, fallbackDef);
+			if (value?.inputSource === 'expression') evaluated = this.evaluateExpression(value.expression, scope, fallbackDef);
 			if (value?.inputSource === 'automation') {
 				const automation = this.automations.find(automation => automation.id === value.automationId);
 				evaluated = automation == null ? deepClone(def.defaultValue) : evalAutomationValue(automation, context.time);
@@ -252,7 +251,7 @@ export class VisualModuleRenderer {
 				if (node.isBypass && !def.primary) continue;
 				evaluatedParams[key] = mapNodeParam(def, node.params[key], [key], (def, param) => {
 					if (param.inputSource === 'literal') return param.value;
-					if (param.inputSource === 'expression') return param.expression ? evaluateExpression(param.expression, mixedScope, def, name => this.readParam(name)) : genEmptyValue(def);
+					if (param.inputSource === 'expression') return param.expression ? this.evaluateExpression(param.expression, mixedScope, def, name => this.readParam(name)) : genEmptyValue(def);
 					if (param.inputSource === 'macro') {
 						if (!this.paramValues.has(param.macroId) || this.paramTextures.has(param.macroId)) return genEmptyValue(def);
 						return this.paramValues.get(param.macroId);
