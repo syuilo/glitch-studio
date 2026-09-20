@@ -18,7 +18,8 @@
 		"lint": "pnpm --no-bail -r lint",
 		"dev:desktop": "pnpm --dir packages/desktop dev",
 		"build:desktop": "cross-env BUILD_TARGET=electron pnpm --dir packages/ui build",
-		"start:desktop": "pnpm --dir packages/desktop start"
+		"start:desktop": "pnpm --dir packages/desktop start",
+		"dist:desktop": "pnpm build:desktop && pnpm --dir packages/desktop dist"
 	},
 	"dependencies": {
 		"esbuild": "0.28.2",

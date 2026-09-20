@@ -3,9 +3,12 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { resolveAppPath } from './protocol-path.mjs';
 
-const developmentUrl = process.env.GLITCH_DESKTOP_DEV_URL;
+// 配布版は開発サーバー用の環境変数を参照しない。
+const developmentUrl = app.isPackaged ? undefined : process.env.GLITCH_DESKTOP_DEV_URL;
 const entryUrl = developmentUrl ?? 'app://glitch-studio/';
-const uiRoot = path.resolve(import.meta.dirname, '../ui/dist-electron');
+const uiRoot = app.isPackaged
+	? path.join(process.resourcesPath, 'ui')
+	: path.resolve(import.meta.dirname, '../ui/dist-electron');
 const iconPath = path.join(developmentUrl ? path.resolve(import.meta.dirname, '../ui/public') : uiRoot, 'icon-512.png');
 let mainWindow;
 
@@ -63,6 +66,7 @@ function createWindow() {
 
 app.whenReady().then(() => {
 	Menu.setApplicationMenu(null);
+	if (process.platform === 'win32') app.setAppUserModelId('io.github.syuilo.glitch-studio');
 	if (process.platform === 'darwin') app.dock.setIcon(iconPath);
 	protocol.handle('app', async request => {
 		try {

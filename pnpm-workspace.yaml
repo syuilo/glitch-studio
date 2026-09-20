@@ -22,6 +22,7 @@ engineStrict: true
 saveExact: true
 shellEmulator: true
 allowBuilds:
+  electron-winstaller: false # Squirrel向けのビルド処理はNSISでは不要
   electron: true
   '@parcel/watcher': false
   esbuild: false
