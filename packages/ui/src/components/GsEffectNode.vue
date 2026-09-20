@@ -70,7 +70,7 @@ function onParamEdit(event: ParamEdit) {
 		case 'automation': appContext.commit('updateParamAsAutomation', { ...target, value: event.value }); break;
 		case 'node': appContext.commit('updateParamAsNode', { ...target, value: event.value }); break;
 		case 'macro': appContext.commit('updateParamAsMacro', { ...target, value: event.value }); break;
-		case 'inputSource': appContext.commit('changeParamValueType', { ...target, inputSource: event.inputSource }); break;
+		case 'inputSource': appContext.commit('changeParamValueInputSource', { ...target, inputSource: event.inputSource }); break;
 		case 'reset': appContext.commit('resetNodeParam', target); break;
 		case 'addElement': appContext.commit('addArrayParamElement', target); break;
 		case 'removeElement': appContext.commit('removeArrayParamElement', { ...target, index: event.index }); break;

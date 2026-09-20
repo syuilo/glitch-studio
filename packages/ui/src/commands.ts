@@ -509,7 +509,7 @@ function assertLeafParam(target: ReturnType<typeof resolveNodeParam>) {
 }
 
 // TODO: 別のtypeの設定値を失わない(内部的には持ったまま)ようにする
-const changeParamValueTypeCommandDef = defineNodeParamCommand<NodeParamTarget & { inputSource: EffectParamValue['inputSource'] }>(
+const changeParamValueInputSourceCommandDef = defineNodeParamCommand<NodeParamTarget & { inputSource: EffectParamValue['inputSource'] }>(
 	'Change param value type',
 	(target, payload) => {
 		assertLeafParam(target);
@@ -818,7 +818,7 @@ export const COMMAND_DEFS = {
 	updateMacroName: updateMacroNameCommandDef,
 	updateMacroType: updateMacroTypeCommandDef,
 	updateMacroTypeOption: updateMacroTypeOptionCommandDef,
-	changeParamValueType: changeParamValueTypeCommandDef,
+	changeParamValueInputSource: changeParamValueInputSourceCommandDef,
 	updateParamAsLiteral: updateParamAsLiteralCommandDef,
 	updateParamAsExpression: updateParamAsExpressionCommandDef,
 	updateParamAsAutomation: updateParamAsAutomationCommandDef,
