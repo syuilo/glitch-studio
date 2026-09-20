@@ -29,15 +29,3 @@ Glitch Studioでは異なる型の出力と入力を繋げることも敢えて�
 
 - (※1) 一部例外(Pixel sortなど、個々のピクセルに着目して処理を行う一部のエフェクト)あり
 - (※2) 一部例外あり
-
-## Electronで起動する
-
-依存関係を `pnpm install` でインストールしてから実行します。
-
-- `pnpm dev:desktop`: ViteとElectronを起動します。UIの変更はHMRで反映されます。main/preloadの変更時は再起動してください。
-- `pnpm build:desktop`: Electron用UIを `packages/ui/dist-electron` にビルドします。
-- `pnpm start:desktop`: ビルド済みUIをElectronで起動します。
-
-Web版は従来どおり `pnpm dev` / `pnpm build` を使用します。インストーラーの生成・自動更新はまだ含みません。
-
-Electron用のコマンドでは `BUILD_TARGET=electron` により、UIのビルド時定数 `__ELECTRON__` がtrueになります（Web版ではfalse）。Aboutダイアログの「OSダイアログをテスト」ボタンはElectron版にだけ表示され、preload → IPC → main経由でOSのメッセージダイアログを開きます。

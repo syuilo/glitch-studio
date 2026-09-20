@@ -6,6 +6,7 @@ import { resolveAppPath } from './protocol-path.mjs';
 const developmentUrl = process.env.GLITCH_DESKTOP_DEV_URL;
 const entryUrl = developmentUrl ?? 'app://glitch-studio/';
 const uiRoot = path.resolve(import.meta.dirname, '../ui/dist-electron');
+const iconPath = path.join(developmentUrl ? path.resolve(import.meta.dirname, '../ui/public') : uiRoot, 'icon-512.png');
 let mainWindow;
 
 // WorkerやWebGPUを通常のWebページと同じオリジン・secure contextで動かす。
@@ -34,6 +35,7 @@ function createWindow() {
 		width: 1440,
 		height: 960,
 		title: 'Glitch Studio',
+		icon: iconPath,
 		webPreferences: {
 			preload: path.join(import.meta.dirname, 'preload.cjs'),
 			nodeIntegration: false,
@@ -61,6 +63,7 @@ function createWindow() {
 
 app.whenReady().then(() => {
 	Menu.setApplicationMenu(null);
+	if (process.platform === 'darwin') app.dock.setIcon(iconPath);
 	protocol.handle('app', async request => {
 		try {
 			const filePath = resolveAppPath(request.url, uiRoot);
