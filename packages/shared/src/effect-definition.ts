@@ -10,6 +10,7 @@ type EffectOptionSchemaBase<T extends DataType> = {
 
 // UIの範囲・刻みは入力操作用であり、式やノードから取得した値を制限しない。
 export type ScalarParamUi =
+	// あくまで「UI上ではこれくらいの範囲でスライダーを操作できると便利」を示すもので、必ずこの範囲内に値が設定されることを要求するものではない
 	| { control: 'number'; min?: number; max?: number; step?: number }
 	| { control: 'range'; min: number; max: number; step?: number }
 	// -1〜+1を-180〜+180度として表示する。保存値の規約はコントロールによらない。
