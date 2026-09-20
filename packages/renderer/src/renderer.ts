@@ -11,16 +11,17 @@ import { GpuMemoryTracker } from './utility/GpuMemoryTracker.ts';
 import { VisualModuleRenderer } from './visual-module-renderer.ts';
 import { LiveRenderLoop, browserFrameScheduler } from './live-render-loop.ts';
 import { TimelineRenderer } from './timeline-renderer.ts';
+import { createVisualModuleTimelineLayer } from './visual-module-timeline-layer.ts';
 import type { FrameScheduler, LiveFrameTiming } from './live-render-loop.ts';
 import type { TimelineLayerRenderer } from './timeline-renderer.ts';
 import type { EffectStatus } from '@glitch/shared/effect-status.ts';
 import type { AudioCaptureMessage, AudioSourceId } from '@glitch/shared/audio.ts';
-import type { Asset, GsAutomation, Player, Timeline, VisualModule, VisualModuleParamValues } from '@glitch/shared/types.ts';
+import type { Asset, GsAutomation, Player, Timeline, VisualModule, VisualModuleLayer, VisualModuleParamValues } from '@glitch/shared/types.ts';
 import type { EffectImplementation, IntermediateTextureFormat } from '@glitch/shared/effect-implementation.js';
 import type { EffectDefinition } from '@glitch/shared/effect-definition.js';
 
 export class MainRenderer {
-	private timelineRenderer: TimelineRenderer<GPUTexture>;
+	private timelineRenderer: TimelineRenderer<GPUTexture, Timeline[number]>;
 	private onEffectStatus?: (nodeId: string, status: EffectStatus | null) => void;
 	private gpuContext: GPUCanvasContext;
 	private gpuDevice: GPUDevice;
@@ -205,9 +206,9 @@ export class MainRenderer {
 			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
 		});
 
-		this.timelineRenderer = new TimelineRenderer({
+		this.timelineRenderer = new TimelineRenderer<GPUTexture, Timeline[number]>({
 			fallbackOutput: this.fallbackTexture,
-			createLayer: visualModule => this.createTimelineLayer(visualModule),
+			createLayer: entry => this.createTimelineLayer(entry),
 			present: (texture, gpuTime) => {
 				this.renderToCanvas(texture, this.gpuDevice.createCommandEncoder());
 				if (this.enableStats) {
@@ -380,10 +381,22 @@ export class MainRenderer {
 	public async renderTimelineAt(time: number): Promise<void> {
 		if (!Number.isFinite(time)) throw new Error('Timeline time must be finite');
 		this.stopRenderLoop();
-		await this.timelineRenderer.renderAt(time, this.timeline, this.visualModules);
+		await this.timelineRenderer.renderAt(time, this.timeline);
 	}
 
-	private createTimelineLayer(visualModule: VisualModule): TimelineLayerRenderer<GPUTexture> {
+	private createTimelineLayer(entry: Timeline[number]): TimelineLayerRenderer<GPUTexture> | undefined {
+		// レイヤーの種類の解釈とリソース解決は、タイムライン制御の外側で行う。
+		const layer = entry.layer;
+		switch (layer.type) {
+			case 'visualModule': {
+				const visualModule = this.visualModules.find(module => module.id === layer.visualModuleId);
+				if (visualModule == null) return;
+				return this.createVisualModuleLayer(visualModule, layer);
+			}
+		}
+	}
+
+	private createVisualModuleLayer(visualModule: VisualModule, layer: VisualModuleLayer): TimelineLayerRenderer<GPUTexture> {
 		const renderer = new VisualModuleRenderer({
 			gpuDevice: this.gpuDevice,
 			gpuContext: this.gpuContext,
@@ -406,7 +419,7 @@ export class MainRenderer {
 			effectDefinitions: this.effectDefinitions,
 			effectImplementations: this.effectImplementations,
 		});
-		return {
+		return createVisualModuleTimelineLayer(visualModule, layer, {
 			prepare: (context, signal) => renderer.prepare(context, signal),
 			render: async context => {
 				const commandEncoder = this.gpuDevice.createCommandEncoder();
@@ -422,7 +435,7 @@ export class MainRenderer {
 				return { output, gpuTime };
 			},
 			destroy: () => renderer.destroy(),
-		};
+		});
 	}
 
 	public updateLiveParamValues(paramValues: VisualModuleParamValues) {

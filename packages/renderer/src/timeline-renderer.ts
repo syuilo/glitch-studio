@@ -1,13 +1,15 @@
-import type { Timeline, VisualModule, VisualModuleParamValues } from '@glitch/shared/types.ts';
+// 制御に必要なのはIDと期間だけ。レイヤー固有のデータは生成関数にそのまま渡す。
+export type TimelineRenderEntry = {
+	id: string;
+	startTimeMs: number;
+	endTimeMs: number;
+};
 
 export type TimelineLayerContext<Output> = {
 	time: number;
 	timeDelta: number;
 	progress: number;
-	paramValues: VisualModuleParamValues;
-	paramTextures: ReadonlyMap<string, Output>;
-	pointerPosition: { x: number; y: number };
-	pointerPositionPrev: { x: number; y: number };
+	input: Output;
 };
 
 export type TimelineLayerRenderer<Output> = {
@@ -17,20 +19,21 @@ export type TimelineLayerRenderer<Output> = {
 	destroy: () => void;
 };
 
-type TimelineRendererOptions<Output> = {
+type TimelineRendererOptions<Output, Entry extends TimelineRenderEntry> = {
 	fallbackOutput: Output;
-	createLayer: (visualModule: VisualModule, entry: Timeline[number]) => TimelineLayerRenderer<Output>;
+	// 描画対象を解決できない場合はundefinedを返し、下の出力を通す。
+	createLayer: (entry: Entry) => TimelineLayerRenderer<Output> | undefined;
 	present: (output: Output, gpuTime: number) => void;
 	onClear?: () => void;
 };
 
 // レイヤーの順序と寿命、非同期シークを管理する。GPUやCanvasには依存しない。
-export class TimelineRenderer<Output> {
-	private options: TimelineRendererOptions<Output>;
+export class TimelineRenderer<Output, Entry extends TimelineRenderEntry = TimelineRenderEntry> {
+	private options: TimelineRendererOptions<Output, Entry>;
 	private layers = new Map<string, TimelineLayerRenderer<Output>>();
 	private controller: AbortController | null = null;
 
-	constructor(options: TimelineRendererOptions<Output>) {
+	constructor(options: TimelineRendererOptions<Output, Entry>) {
 		this.options = options;
 	}
 
@@ -43,7 +46,7 @@ export class TimelineRenderer<Output> {
 	}
 
 	/** timeはミリ秒。編集・リサイズ・破棄時はclearで準備中のシークも中断する。 */
-	public async renderAt(time: number, timeline: Timeline, visualModules: VisualModule[]): Promise<void> {
+	public async renderAt(time: number, timeline: readonly Entry[]): Promise<void> {
 		if (!Number.isFinite(time)) throw new Error('Timeline time must be finite');
 		this.controller?.abort();
 		const controller = new AbortController();
@@ -61,11 +64,10 @@ export class TimelineRenderer<Output> {
 			let output = this.options.fallbackOutput;
 			let gpuTime = 0;
 			for (const entry of activeEntries) {
-				const visualModule = visualModules.find(module => module.id === entry.layer.visualModuleId);
-				if (visualModule == null) continue;
 				let layer = this.layers.get(entry.id);
 				if (layer == null) {
-					layer = this.options.createLayer(visualModule, entry);
+					layer = this.options.createLayer(entry);
+					if (layer == null) continue;
 					this.layers.set(entry.id, layer);
 				}
 				const duration = entry.endTimeMs - entry.startTimeMs;
@@ -73,10 +75,7 @@ export class TimelineRenderer<Output> {
 					time: time - entry.startTimeMs,
 					timeDelta: 0, // 従来どおり、シーク時は履歴に経過時間を与えない。
 					progress: duration > 0 ? (time - entry.startTimeMs) / duration : 0,
-					paramValues: entry.layer.paramValues,
-					paramTextures: new Map(visualModule.paramDefs.filter(def => def.isPrimaryInput).map(def => [def.id, output])),
-					pointerPosition: { x: -99999, y: -99999 },
-					pointerPositionPrev: { x: -99999, y: -99999 },
+					input: output,
 				};
 				await layer.prepare(context, controller.signal);
 				if (isCancelled()) return;
