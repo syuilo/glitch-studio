@@ -508,8 +508,7 @@ export class VisualModuleRenderer {
 		this.renderNodeId = this.nodes.find(node => node.type === 'globalOut')?.id ?? null;
 	}
 
-	public updateAssets(assets: Asset[]) {
-		this.assets = assets;
+	public updateAssets() {
 		// 同じAsset IDでもテクスチャを作り直すため、ネスト内の画像参照も再解決する。
 		this.effectCacheKeys.clear();
 	}
