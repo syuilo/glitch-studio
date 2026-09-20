@@ -15,8 +15,10 @@ import type { Asset, GsAutomation, GsEffectNode, GsGlobalInNode, GsNode, NodeOut
 import type { EffectInstance, IntermediateTextureFormat } from '@glitch/shared/effect-implementation.js';
 
 const aisParser = new AiScript.Parser();
+const aiscript = new AiScript.Interpreter({});
 
-// 評価ごとにスコープを分離し、別モジュールや外側の式にPARAMが漏れないようにする。
+// パフォーマンス上の理由でインタプリタは使いまわすが、毎回スコープは上書きしてるので特に問題ないはず
+// (本来ならスコープ的にアクセスできない値にアクセスできる可能性が生まれるのは許容する)
 function evaluateExpression(expression: string, scope: Record<string, any>, paramDefForFallback: Omit<EffectParamDef, 'default'>, getParam?: (name: string) => any): any {
 	try {
 		const constants = Object.fromEntries(Object.entries(scope).map(([key, value]) => [key, AiScript.utils.jsToVal(value)]));
@@ -26,13 +28,16 @@ function evaluateExpression(expression: string, scope: Record<string, any>, para
 				return AiScript.utils.jsToVal(getParam(args[0].value));
 			};
 			constants.PARAM = AiScript.values.FN_NATIVE(readParam, readParam);
-		} else {
-			// 同名のAutomationがあっても外部パラメータの式にPARAMを公開しない。
-			delete constants.PARAM;
 		}
-		const interpreter = new AiScript.Interpreter(constants);
-		const value = interpreter.execSync(aisParser.parse(expression));
-		return value === undefined ? null : AiScript.utils.valToJs(value);
+		for (const key in constants) {
+			if (aiscript.scope.exists(key)) {
+				aiscript.scope.assign(key, scope[key]);
+			} else {
+				aiscript.scope.add(key, { isMutable: true, value: scope[key] });
+			}
+		}
+		const aisVal = aiscript.execSync(aisParser.parse(expression));
+		return aisVal === undefined ? null : AiScript.utils.valToJs(aisVal);
 	} catch {
 		return genEmptyValue(paramDefForFallback);
 	}
@@ -81,7 +86,6 @@ export class VisualModuleRenderer {
 	private usedOutputPorts = new Map<string, Set<string>>();
 	private effectStatuses = new Map<string, { sent?: EffectStatus }>();
 	private onEffectStatus?: (nodeId: string, status: EffectStatus | null) => void;
-	private assets: Asset[];
 	private automations: GsAutomation[];
 	private enable32bitDataTextures = false;
 	private readonly intermediateTextureFormat: IntermediateTextureFormat;
@@ -93,7 +97,6 @@ export class VisualModuleRenderer {
 	private timingHelper: TimingHelper;
 	private enableStats = true;
 	private renderNodeId: GsNode['id'] | null = null;
-	public lastRenderedLocalTime: number | null = null;
 
 	constructor(options: {
 		onEffectStatus?: (nodeId: string, status: EffectStatus | null) => void;
@@ -152,7 +155,7 @@ export class VisualModuleRenderer {
 	private evaluateParams(context: VisualModuleRenderContext, scope: Record<string, any>) {
 		this.paramValues.clear();
 		this.paramTextures = context.paramTextures ?? new Map();
-		
+
 		for (const def of this.paramDefs) {
 			const value = context.paramValues[def.id];
 			if (this.paramTextures.has(def.id)) continue;
@@ -767,7 +770,6 @@ export class VisualModuleRenderer {
 			const texture = this.getOutputTexture(node, id);
 			if (texture != null) outputs.set(id, texture);
 		}
-		this.lastRenderedLocalTime = context.localTime;
 		return outputs;
 	}
 
@@ -777,7 +779,6 @@ export class VisualModuleRenderer {
 		height: number;
 	}) {
 		this.resolution = resolution;
-		this.lastRenderedLocalTime = null;
 		this.preparedContext = null;
 
 		for (const id of this.effectStatuses.keys()) this.clearEffectStatus(id);

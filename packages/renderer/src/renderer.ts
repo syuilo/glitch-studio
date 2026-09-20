@@ -416,8 +416,7 @@ export class MainRenderer {
 				}
 				const context: VisualModuleRenderContext = {
 					localTime: time - entry.startTimeMs,
-					// 後方シークでも履歴は保持し、負の時間差だけを0に抑える。
-					localTimeDelta: renderer.lastRenderedLocalTime == null ? 0 : Math.max(0, time - entry.startTimeMs - renderer.lastRenderedLocalTime),
+					localTimeDelta: 0, // TODO
 					layerDurationMs: entry.endTimeMs - entry.startTimeMs,
 					paramValues: entry.layer.paramValues,
 					paramTextures: new Map(visualModule.paramDefs.filter(def => def.isPrimaryInput).map(def => [def.id, texture])),
