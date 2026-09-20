@@ -1,8 +1,6 @@
 import { createTextureFromSource, makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { AudioHistory } from '@glitch/shared/audio-history.ts';
 import { float32ToFloat16Bits } from '@glitch/shared/utility/float32ToFloat16Bits.ts';
-import { effectDefinitions } from '@glitch/shared/effect-definitions.ts';
-import { effectImplementations } from '@glitch/shared/effect-implementations.js';
 import defaultVertexShaderCode from './vertex.wgsl?raw';
 import TimingHelper from './utility/TimingHelper.ts';
 import finalRenderShaderCode from './render.wgsl?raw';
@@ -14,7 +12,8 @@ import { VisualModuleRenderer, type VisualModuleRenderContext } from './visual-m
 import type { EffectStatus } from '@glitch/shared/effect-status.ts';
 import type { AudioCaptureMessage, AudioSourceId } from '@glitch/shared/audio.ts';
 import type { Asset, GsAutomation, Player, Timeline, VisualModule, VisualModuleParamValues } from '@glitch/shared/types.ts';
-import type { IntermediateTextureFormat } from '@glitch/shared/effect-implementation.js';
+import type { EffectImplementation, IntermediateTextureFormat } from '@glitch/shared/effect-implementation.js';
+import type { EffectDefinition } from '@glitch/shared/effect-definition.js';
 
 export class MainRenderer {
 	private timelineRenderVersion = 0;
@@ -64,6 +63,8 @@ export class MainRenderer {
 	private liveTime = 0;
 	private liveModeFpsLimit: number | null;
 	private currentLiveModeRafId: number | null = null;
+	private effectDefinitions: Record<string, EffectDefinition<any>>;
+	private effectImplementations: Record<string, EffectImplementation<any>>;
 	public gpuAverageFast = new NonNegativeRollingAverage(10);
 	public gpuAverageMedium = new NonNegativeRollingAverage(100);
 	public gpuAverageSlow = new NonNegativeRollingAverage(1000);
@@ -93,6 +94,8 @@ export class MainRenderer {
 		histogramGpuContext: GPUCanvasContext;
 		waveformHorizontalGpuContext: GPUCanvasContext;
 		waveformVerticalGpuContext: GPUCanvasContext;
+		effectDefinitions: Record<string, EffectDefinition<any>>;
+		effectImplementations: Record<string, EffectImplementation<any>>;
 	}) {
 		this.resolution = options.resolution;
 		this.onEffectStatus = options.onEffectStatus;
@@ -105,9 +108,13 @@ export class MainRenderer {
 		this.intermediateTextureFormat = options.intermediateTextureFormat;
 		this.liveModeFpsLimit = options.fpsLimit;
 		this.gpuDevice = options.gpuDevice;
-		this.gpuMemory = new GpuMemoryTracker(this.gpuDevice);
 		this.gpuContext = options.gpuContext;
 		this.histogramGpuContext = options.histogramGpuContext;
+		this.effectDefinitions = options.effectDefinitions;
+		this.effectImplementations = options.effectImplementations;
+
+		this.gpuMemory = new GpuMemoryTracker(this.gpuDevice);
+
 		this.gpuHistogram = new GpuHistogram(
 			this.gpuDevice,
 			this.histogramGpuContext,
@@ -399,8 +406,8 @@ export class MainRenderer {
 						visualModule,
 						assetTextures: this.assetTextures,
 						audioSources: this.audioSources,
-						effectDefinitions: effectDefinitions,
-						effectImplementations: effectImplementations,
+						effectDefinitions: this.effectDefinitions,
+						effectImplementations: this.effectImplementations,
 					});
 					this.perLayerVisualModuleRenderers.set(entry.id, renderer);
 				}
@@ -476,8 +483,8 @@ export class MainRenderer {
 			visualModule,
 			assetTextures: this.assetTextures,
 			audioSources: this.audioSources,
-			effectDefinitions: effectDefinitions,
-			effectImplementations: effectImplementations,
+			effectDefinitions: this.effectDefinitions,
+			effectImplementations: this.effectImplementations,
 		});
 
 		this.latestLiveTimestamp = performance.now();
