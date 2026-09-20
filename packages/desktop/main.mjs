@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, net, protocol, shell } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, Menu, net, protocol, shell } from 'electron';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { resolveAppPath } from './protocol-path.mjs';
@@ -18,6 +18,15 @@ function isAppUrl(value) {
 	const url = new URL(value);
 	const entry = new URL(entryUrl);
 	return url.protocol === entry.protocol && url.host === entry.host;
+}
+
+function getTrustedMainWindow(event) {
+	// 子ウィンドウや外部ページからデスクトップAPIを要求させない。
+	if (!mainWindow || event.sender !== mainWindow.webContents ||
+		event.senderFrame !== mainWindow.webContents.mainFrame || !isAppUrl(event.senderFrame.url)) {
+		throw new Error('Untrusted desktop request');
+	}
+	return mainWindow;
 }
 
 function createWindow() {
@@ -51,6 +60,7 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+	Menu.setApplicationMenu(null);
 	protocol.handle('app', async request => {
 		try {
 			const filePath = resolveAppPath(request.url, uiRoot);
@@ -62,12 +72,8 @@ app.whenReady().then(() => {
 	});
 
 	ipcMain.handle('desktop:show-test-alert', async event => {
-		// 子ウィンドウや外部ページからOS操作を要求させない。
-		if (!mainWindow || event.sender !== mainWindow.webContents ||
-			event.senderFrame !== mainWindow.webContents.mainFrame || !isAppUrl(event.senderFrame.url)) {
-			throw new Error('Untrusted dialog request');
-		}
-		await dialog.showMessageBox(mainWindow, {
+		const parent = getTrustedMainWindow(event);
+		await dialog.showMessageBox(parent, {
 			type: 'info',
 			title: 'Glitch Studio',
 			message: 'OSのダイアログを表示できました。',
@@ -75,6 +81,10 @@ app.whenReady().then(() => {
 			buttons: ['OK'],
 			noLink: true,
 		});
+	});
+
+	ipcMain.handle('desktop:open-dev-tools', event => {
+		getTrustedMainWindow(event).webContents.openDevTools({ mode: 'detach' });
 	});
 
 	createWindow();

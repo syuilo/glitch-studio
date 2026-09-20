@@ -29,7 +29,9 @@ try {
 	const address = server.httpServer.address();
 	const env = { ...process.env, GLITCH_DESKTOP_DEV_URL: 'http://127.0.0.1:' + address.port + '/' };
 	delete env.ELECTRON_RUN_AS_NODE;
-	child = spawn(electron, [import.meta.dirname], { env, stdio: 'inherit', windowsHide: true });
+	// Electronはユーザーが操作するGUIなので、windowsHideで初期ウィンドウを隠さない。
+	console.log('Starting Electron at ' + env.GLITCH_DESKTOP_DEV_URL);
+	child = spawn(electron, [import.meta.dirname], { env, stdio: 'inherit' });
 	child.on('error', error => {
 		console.error(error);
 		void stop(1);

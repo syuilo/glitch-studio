@@ -19,6 +19,7 @@
 			</small>
 		</div>
 		<GsButton v-if="isElectron" inline :wait="showingTestAlert" @click="showTestAlert">OSダイアログをテスト</GsButton>
+		<GsButton v-if="isElectron" inline @click="openDevTools">開発者ツールを開く</GsButton>
 		<GsButton inline @click="ok">OK</GsButton>
 	</div>
 </GsModal>
@@ -44,6 +45,16 @@ async function showTestAlert() {
 		await ui.alert({ type: 'error', title: 'OSダイアログの表示に失敗しました', text: String(error) });
 	} finally {
 		showingTestAlert.value = false;
+	}
+}
+
+async function openDevTools() {
+	if (!__ELECTRON__) return;
+	try {
+		if (!window.desktop) throw new Error('Desktop API is unavailable');
+		await window.desktop.openDevTools();
+	} catch (error) {
+		await ui.alert({ type: 'error', title: '開発者ツールを開けませんでした', text: String(error) });
 	}
 }
 

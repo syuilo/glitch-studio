@@ -7,5 +7,6 @@ declare const __ELECTRON__: boolean;
 interface Window {
 	desktop?: {
 		showTestAlert(): Promise<void>;
+		openDevTools(): Promise<void>;
 	};
 }
