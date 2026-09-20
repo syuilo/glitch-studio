@@ -40,7 +40,7 @@
 import { computed, onMounted, onBeforeUnmount, ref, shallowReactive, shallowRef, useId, useTemplateRef, watch } from 'vue';
 import { getNodeInputDataType, getNodeOutputs } from '@glitch/shared/utility/node-outputs.ts';
 import type { ComponentPublicInstance } from 'vue';
-import type { NodeDataType } from '@glitch/shared/utility/node-outputs.ts';
+import type { TextureDataType } from '@glitch/shared/data-type.ts';
 import { appContext, wireMap } from '@/app.ts';
 import { wireDrag } from '@/utility/wire-drag.ts';
 import { getNodeDataTypeColor } from '@/utility/node-outputs.ts';
@@ -195,13 +195,13 @@ const wires = computed(() => {
 	if (source && from && dragPosition.value) {
 		result.push({
 			key: 'drag', from, to: dragPosition.value,
-			...getWireColors((source.dataset.type as NodeDataType) ?? 'any', 'any'),
+			...getWireColors((source.dataset.type as TextureDataType) ?? 'any', 'any'),
 		});
 	}
 	return result;
 });
 
-function getWireColors(outputType: NodeDataType, inputType: NodeDataType) {
+function getWireColors(outputType: TextureDataType, inputType: TextureDataType) {
 	// anyは相手側の型の色に揃え、両側がanyのときだけ中立色を使う。
 	return {
 		fromColor: getNodeDataTypeColor(outputType === 'any' ? inputType : outputType),

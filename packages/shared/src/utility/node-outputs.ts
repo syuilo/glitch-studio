@@ -1,14 +1,13 @@
+import type { DataType, TextureDataType } from '../data-type.ts';
 import { effectDefinitions } from '../effect-definitions.ts';
 import type { EffectOutputsSchema } from '../effect-definition.ts';
-import type { EffectParamDataType, GsNode, VisualModule } from '../types.ts';
+import type { GsNode, VisualModule } from '../types.ts';
 
-export type NodeDataType = EffectOutputsSchema[string]['dataType'];
-
-export function getNodeInputDataType(param: { dataType: EffectParamDataType; canNode?: boolean }): NodeDataType | null {
+export function getNodeInputDataType(param: { dataType: DataType; canNode?: boolean }): TextureDataType | null {
 	if (!param.canNode) return null;
 	// canNodeは元のパラメータ型に応じたデータテクスチャを受け取る。
 	switch (param.dataType) {
-		case 'number': return 'scalar';
+		case 'scalar': return 'scalar';
 		case 'any': return 'any';
 		case 'vector': return 'vector';
 		case 'color': return 'color';
@@ -16,7 +15,7 @@ export function getNodeInputDataType(param: { dataType: EffectParamDataType; can
 	}
 }
 
-export function areNodeDataTypesCompatible(output: NodeDataType | undefined, input: NodeDataType | null): boolean {
+export function areNodeDataTypesCompatible(output: TextureDataType | undefined, input: TextureDataType | null): boolean {
 	if (output == null || input == null) return false;
 	return output === input || output === 'any' || input === 'any';
 }
@@ -29,9 +28,9 @@ export function getNodeOutputs(node: GsNode | undefined, paramDefs: VisualModule
 		const outputs: EffectOutputsSchema = {};
 		for (const def of paramDefs) {
 			if (!def.canNode) continue;
-			let dataType: NodeDataType;
+			let dataType: TextureDataType;
 			switch (def.dataType) {
-				case 'number': case 'bool':
+				case 'scalar': case 'bool':
 					dataType = 'scalar'; break;
 				case 'vector':
 					dataType = 'vector'; break;

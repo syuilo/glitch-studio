@@ -27,7 +27,7 @@ function add() {
 			id: genId(),
 			label: 'My Parameter',
 			name,
-			dataType: 'number',
+			dataType: 'scalar',
 			ui: {
 				control: 'range',
 				min: 0,

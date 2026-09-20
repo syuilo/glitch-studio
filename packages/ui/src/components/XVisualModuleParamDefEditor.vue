@@ -7,25 +7,25 @@
 			:class="$style.field"
 			:modelValue="def.dataType"
 			:items="[
-				{ label: i18n.ts._ExternalParameterInput._Types.Number, value: 'number' },
+				{ label: i18n.ts._ExternalParameterInput._Types.Number, value: 'scalar' },
 				{ label: i18n.ts._ExternalParameterInput._Types.Flag, value: 'bool' },
 				{ label: i18n.ts._ExternalParameterInput._Types.Color, value: 'color' },
 				{ label: i18n.ts._ExternalParameterInput._Types.Image, value: 'assetReference' },
 			]"
 			@update:modelValue="updateType"
 		/>
-		<GsSelect v-if="def.dataType === 'number'" :class="$style.field" :modelValue="def.ui.control"
+		<GsSelect v-if="def.dataType === 'scalar'" :class="$style.field" :modelValue="def.ui.control"
 			:items="[{ label: 'Number', value: 'number' }, { label: 'Range', value: 'range' }, { label: 'Angle', value: 'angle' }, { label: 'Seed', value: 'seed' }]"
 			@update:modelValue="updateControl"/>
 	</div>
-	<div v-if="def.dataType === 'number' && (def.ui.control === 'number' || def.ui.control === 'range')" :class="$style.option">
+	<div v-if="def.dataType === 'scalar' && (def.ui.control === 'number' || def.ui.control === 'range')" :class="$style.option">
 		<label :class="$style.optionLabel">Min/Max</label>
 		<div :class="[$style.optionControl, { [$style.rangeBounds]: def.ui.control === 'range' }]">
 			<GsInput type="number" :modelValue="def.ui.min ?? null" @update:modelValue="updateUiOption('min', Number($event))"/>
 			<GsInput type="number" :modelValue="def.ui.max ?? null" @update:modelValue="updateUiOption('max', Number($event))"/>
 		</div>
 	</div>
-	<div v-if="def.dataType === 'number' && (def.ui.control === 'number' || def.ui.control === 'range')" :class="$style.option">
+	<div v-if="def.dataType === 'scalar' && (def.ui.control === 'number' || def.ui.control === 'range')" :class="$style.option">
 		<label :class="$style.optionLabel">Step</label>
 		<div :class="$style.optionControl">
 			<GsInput type="number" :modelValue="def.ui.step ?? null" @update:modelValue="updateUiOption('step', Number($event))"/>
@@ -71,9 +71,9 @@ function update(changes: Partial<Omit<ParamDef, 'id'>>) {
 
 function updateType(dataType: ParamDef['dataType']) {
 	if (dataType === props.def.dataType) return;
-	if (dataType !== 'number' && dataType !== 'bool' && dataType !== 'color' && dataType !== 'assetReference') return;
+	if (dataType !== 'scalar' && dataType !== 'bool' && dataType !== 'color' && dataType !== 'assetReference') return;
 	const schemas = {
-		number: { dataType: 'number', ui: { control: 'number' } },
+		scalar: { dataType: 'scalar', ui: { control: 'number' } },
 		bool: { dataType: 'bool', ui: { control: 'bool' } },
 		color: { dataType: 'color', ui: { control: 'color' } },
 		assetReference: { dataType: 'assetReference', ui: { control: 'image' } },
@@ -84,19 +84,19 @@ function updateType(dataType: ParamDef['dataType']) {
 }
 
 function updateControl(control: 'number' | 'range' | 'angle' | 'seed') {
-	if (props.def.dataType !== 'number' || props.def.ui.control === control) return;
+	if (props.def.dataType !== 'scalar' || props.def.ui.control === control) return;
 	// UIだけを変更するときは、保存値・式・ノード接続を維持する。
 	const previous = props.def.ui;
 	const ui = control === 'range'
 		? { control, min: 'min' in previous ? previous.min ?? 0 : 0, max: 'max' in previous ? previous.max ?? 1 : 1, step: 'step' in previous ? previous.step ?? 0.01 : 0.01 }
 		: { control };
-	update({ dataType: 'number', ui });
+	update({ dataType: 'scalar', ui });
 }
 
 function updateUiOption(key: 'min' | 'max' | 'step', value: number) {
 	const def = props.def;
-	if (def.dataType !== 'number' || (def.ui.control !== 'number' && def.ui.control !== 'range')) return;
-	update({ dataType: 'number', ui: { ...def.ui, [key]: value } });
+	if (def.dataType !== 'scalar' || (def.ui.control !== 'number' && def.ui.control !== 'range')) return;
+	update({ dataType: 'scalar', ui: { ...def.ui, [key]: value } });
 }
 
 function updateCanNode(canNode: boolean) {

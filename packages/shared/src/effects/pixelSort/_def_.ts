@@ -6,7 +6,7 @@ export default defineEffect({
 	tags: [],
 	paramDefs: {
 		input: { dataType: 'color', ui: { control: 'color' }, label: 'Input', canNode: true, primary: true, default: () => ({ inputSource: 'node', nodeId: null, outputPort: null }) },
-		threshold: { dataType: 'number', ui: { control: 'range', min: 0, max: 1, step: 0.001 }, label: 'Threshold', default: () => ({ inputSource: 'literal', value: 0.5 }) },
+		threshold: { dataType: 'scalar', ui: { control: 'range', min: 0, max: 1, step: 0.001 }, label: 'Threshold', default: () => ({ inputSource: 'literal', value: 0.5 }) },
 		shadow: { dataType: 'bool', ui: { control: 'bool' }, label: 'Shadow', default: () => ({ inputSource: 'literal', value: true }) },
 		direction: { dataType: 'enum', ui: { control: 'enum' }, label: 'Direction', options: [
 			{ label: 'Horizontal', value: 'horizontal' },

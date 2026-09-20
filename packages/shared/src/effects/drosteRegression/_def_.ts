@@ -6,8 +6,8 @@ export default defineEffect({
 	tags: [],
 	paramDefs: {
 		input: { dataType: 'color', ui: { control: 'color' }, label: 'Input', canNode: true, primary: true, default: () => ({ inputSource: 'node', nodeId: null, outputPort: null }) },
-		amount: { dataType: 'number', ui: { control: 'range', min: 0, max: 32, step: 0.01 }, label: 'Amount', default: () => ({ inputSource: 'literal', value: 0.5 }) },
-		twist: { dataType: 'number', ui: { control: 'range', min: 0.04, max: 8, step: 0.001 }, label: 'Twist', default: () => ({ inputSource: 'literal', value: 2 }) },
+		amount: { dataType: 'scalar', ui: { control: 'range', min: 0, max: 32, step: 0.01 }, label: 'Amount', default: () => ({ inputSource: 'literal', value: 0.5 }) },
+		twist: { dataType: 'scalar', ui: { control: 'range', min: 0.04, max: 8, step: 0.001 }, label: 'Twist', default: () => ({ inputSource: 'literal', value: 2 }) },
 		wrap: { dataType: 'wrapMode', ui: { control: 'wrapMode' }, label: 'Wrap', default: () => ({ inputSource: 'literal', value: 'repeatMirrored' }) },
 	},
 	outputs: {

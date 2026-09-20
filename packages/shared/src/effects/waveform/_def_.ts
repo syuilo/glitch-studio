@@ -21,7 +21,7 @@ export default defineEffect({
 			{ label: 'RGB', value: 'rgb' },
 			{ label: 'Luminance', value: 'luminance' },
 		], default: () => ({ inputSource: 'literal', value: 'rgb' }) },
-		intensity: { dataType: 'number', ui: { control: 'range', min: 0, max: 10, step: 0.01 }, label: 'Intensity', default: () => ({ inputSource: 'literal', value: 1 }) },
+		intensity: { dataType: 'scalar', ui: { control: 'range', min: 0, max: 10, step: 0.01 }, label: 'Intensity', default: () => ({ inputSource: 'literal', value: 1 }) },
 		showGrid: { dataType: 'bool', ui: { control: 'bool' }, label: 'Grid', default: () => ({ inputSource: 'literal', value: false }) },
 	},
 	outputs: {

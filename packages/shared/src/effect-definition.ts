@@ -1,51 +1,46 @@
+import type { DataType, TextureDataType } from './data-type.ts';
 import type { GsEffectNode, NodeParamValue } from './types.ts';
 
-type EffectOptionSchemaBase = {
+type EffectOptionSchemaBase<T extends DataType> = {
+	dataType: T;
 	label: string;
 	primary?: boolean;
 	visibility?: (state: Record<string, import('./types.ts').EffectParamValue>) => boolean;
 };
 
 // UIの範囲・刻みは入力操作用であり、式やノードから取得した値を制限しない。
-export type NumberParamUi =
+export type ScalarParamUi =
 	| { control: 'number'; min?: number; max?: number; step?: number }
 	| { control: 'range'; min: number; max: number; step?: number }
 	// -1〜+1を-180〜+180度として表示する。保存値の規約はコントロールによらない。
 	| { control: 'angle'; step?: number }
 	| { control: 'seed' };
 
-export type NumberOptionSchema = EffectOptionSchemaBase & {
-	dataType: 'number';
-	ui: NumberParamUi;
+export type ScalarOptionSchema = EffectOptionSchemaBase<'scalar'> & {
+	ui: ScalarParamUi;
 	canNode?: boolean;
 };
-export type BooleanOptionSchema = EffectOptionSchemaBase & {
-	dataType: 'bool';
+export type BooleanOptionSchema = EffectOptionSchemaBase<'bool'> & {
 	ui: { control: 'bool' };
 	canNode?: false;
 };
-export type ColorOptionSchema = EffectOptionSchemaBase & {
-	dataType: 'color';
+export type ColorOptionSchema = EffectOptionSchemaBase<'color'> & {
 	ui: { control: 'color'; asRgbSwitch?: boolean };
 	canNode?: boolean;
 };
-export type VectorOptionSchema = EffectOptionSchemaBase & {
-	dataType: 'vector';
+export type VectorOptionSchema = EffectOptionSchemaBase<'vector'> & {
 	ui: { control: 'vector' | 'xy' | 'wh'; min?: number; max?: number; step?: number };
 	canNode?: boolean;
 };
-export type BlendModeOptionSchema = EffectOptionSchemaBase & {
-	dataType: 'blendMode';
+export type BlendModeOptionSchema = EffectOptionSchemaBase<'blendMode'> & {
 	ui: { control: 'blendMode' };
 	canNode?: false;
 };
-export type FitModeOptionSchema = EffectOptionSchemaBase & {
-	dataType: 'fitMode';
+export type FitModeOptionSchema = EffectOptionSchemaBase<'fitMode'> & {
 	ui: { control: 'fitMode' };
 	canNode?: false;
 };
-export type WrapModeOptionSchema = EffectOptionSchemaBase & {
-	dataType: 'wrapMode';
+export type WrapModeOptionSchema = EffectOptionSchemaBase<'wrapMode'> & {
 	ui: { control: 'wrapMode' };
 	canTransparent?: boolean;
 	canNode?: false;
@@ -53,42 +48,36 @@ export type WrapModeOptionSchema = EffectOptionSchemaBase & {
 export type WrapModeValue<T extends WrapModeOptionSchema> = 'clampToEdge' | 'repeat' | 'repeatMirrored'
 	| ('canTransparent' extends keyof T ? true extends T['canTransparent'] ? 'transparent' : never : never);
 
-export type EnumOptionSchema = EffectOptionSchemaBase & {
-	dataType: 'enum';
+export type EnumOptionSchema = EffectOptionSchemaBase<'enum'> & {
 	ui: { control: 'enum' };
 	options: readonly { value: string | number | null; label: string }[];
 	canNode?: false;
 };
-export type AssetReferenceOptionSchema = EffectOptionSchemaBase & {
-	dataType: 'assetReference';
+export type AssetReferenceOptionSchema = EffectOptionSchemaBase<'assetReference'> & {
 	ui: { control: 'image' };
 	canNode?: false;
 };
-export type PlayerReferenceOptionSchema = EffectOptionSchemaBase & {
-	dataType: 'playerReference';
+export type PlayerReferenceOptionSchema = EffectOptionSchemaBase<'playerReference'> & {
 	ui: { control: 'player' };
 	canNode?: false;
 };
-export type StructOptionSchema = EffectOptionSchemaBase & {
-	dataType: 'struct';
+export type StructOptionSchema = EffectOptionSchemaBase<'struct'> & {
 	canNode?: false;
 	fields: EffectOptionsSchemaWithDefaults;
 };
-export type ArrayOptionSchema = EffectOptionSchemaBase & {
-	dataType: 'array';
+export type ArrayOptionSchema = EffectOptionSchemaBase<'array'> & {
 	canNode?: false;
 	item: EffectOptionsSchemaWithDefaults[string];
 };
 
 // 入力チャンネルをそのまま扱う汎用データ処理用。リテラルの編集UIは持たない。
-export type AnyOptionSchema = EffectOptionSchemaBase & {
-	dataType: 'any';
+export type AnyOptionSchema = EffectOptionSchemaBase<'any'> & {
 	ui: { control: 'none' };
 	canNode: true;
 };
 
 export type EffectOptionSchema =
-	| NumberOptionSchema | BooleanOptionSchema | ColorOptionSchema | VectorOptionSchema
+	| ScalarOptionSchema | BooleanOptionSchema | ColorOptionSchema | VectorOptionSchema
 	| BlendModeOptionSchema | FitModeOptionSchema | WrapModeOptionSchema | EnumOptionSchema
 	| AssetReferenceOptionSchema | PlayerReferenceOptionSchema | StructOptionSchema | ArrayOptionSchema | AnyOptionSchema;
 export type EffectOptionsSchema = Record<string, EffectOptionSchema>;
@@ -107,7 +96,7 @@ export type VisualModuleParamDef = ExternalParameterSchema & {
 // A type parameter distributes the conditional over unions of option schemas.
 type EffectOptionScalarValue<T extends EffectOptionsSchema[string]> =
 	T extends AnyOptionSchema ? null :
-	T extends NumberOptionSchema ? number :
+	T extends ScalarOptionSchema ? number :
 	T extends BooleanOptionSchema ? boolean :
 	T extends ColorOptionSchema ? Readonly<[number, number, number, number]> :
 	T extends VectorOptionSchema ? Readonly<[number, number]> :
@@ -158,7 +147,7 @@ type EffectOptionsSchemaDefaults<T extends EffectOptionsSchema> = {
 };
 
 export type EffectOutputsSchema = Record<string, {
-	dataType: 'color' | 'scalar' | 'vector' | 'any';
+	dataType: TextureDataType;
 	primary: boolean;
 	// trueの出力のみ、必要になるまで確保を遅らせ、未使用になったら解放する。
 	canLazyAllocation?: boolean;

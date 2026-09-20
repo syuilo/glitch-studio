@@ -9,8 +9,22 @@ test('checks parameter controls and infers values independently of controls', ()
 	const source = `
 import { defineEffect, type EffectOptionSchema, type GetEffectOptionsSchemaValues, type VisualModuleParamDef } from '../../shared/src/effect-definition.ts';
 import type { EffectParamDef } from '../../shared/src/types.ts';
+import type { VisualModule } from '../../shared/src/types.ts';
+import type { EffectOutputsSchema } from '../../shared/src/effect-definition.ts';
+import type { DataType, TextureDataType } from '../../shared/src/data-type.ts';
 
-const number = { dataType: 'number', ui: { control: 'range', min: 0, max: 1 }, label: 'Value', default: () => ({ inputSource: 'literal', value: 0.5 } as const) } as const;
+type AssertNever<T extends never> = T;
+type AllDataTypesHaveSchemas = AssertNever<Exclude<DataType, EffectOptionSchema['dataType']>>;
+type AllSchemasUseCommonDataTypes = AssertNever<Exclude<EffectOptionSchema['dataType'], DataType>>;
+const scalarOutput = { dataType: 'scalar', primary: true } as const satisfies EffectOutputsSchema[string];
+const moduleOutput: VisualModule['outputDefs'][number] = { ...scalarOutput, id: 'out', name: 'out', label: 'Out', isPrimaryOutput: true };
+const textureType: TextureDataType = scalarOutput.dataType;
+// @ts-expect-error 旧numberデータ型は使用しない
+const oldNumber: DataType = 'number';
+// @ts-expect-error 参照IDはテクスチャ出力のデータ型ではない
+const referenceOutput: EffectOutputsSchema[string] = { dataType: 'assetReference', primary: true };
+
+const number = { dataType: 'scalar', ui: { control: 'range', min: 0, max: 1 }, label: 'Value', default: () => ({ inputSource: 'literal', value: 0.5 } as const) } as const;
 const color = { dataType: 'color', ui: { control: 'color' }, label: 'Color' } as const satisfies EffectOptionSchema;
 // @ts-expect-error colorではrangeを使用できない
 const badColor: EffectOptionSchema = { ...color, ui: { control: 'range', min: 0, max: 1 } };

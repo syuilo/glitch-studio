@@ -39,8 +39,8 @@ export default defineEffect({
 				label: 'Buzz',
 				fields: {
 					image: { dataType: 'color', ui: { control: 'color' }, canNode: true, label: 'Image', default: () => ({ inputSource: 'literal', value: [0, 0, 1, 1] }) },
-					x: { dataType: 'number', ui: { control: 'range', min: -1, max: 1, step: 0.01 }, label: 'X', default: () => ({ inputSource: 'literal', value: 0 }) },
-					y: { dataType: 'number', ui: { control: 'range', min: -1, max: 1, step: 0.01 }, label: 'Y', default: () => ({ inputSource: 'literal', value: 0 }) },
+					x: { dataType: 'scalar', ui: { control: 'range', min: -1, max: 1, step: 0.01 }, label: 'X', default: () => ({ inputSource: 'literal', value: 0 }) },
+					y: { dataType: 'scalar', ui: { control: 'range', min: -1, max: 1, step: 0.01 }, label: 'Y', default: () => ({ inputSource: 'literal', value: 0 }) },
 				},
 				default: () => ({
 					inputSource: 'literal',

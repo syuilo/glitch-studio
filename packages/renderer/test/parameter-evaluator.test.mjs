@@ -21,9 +21,9 @@ const { ParameterEvaluator } = await loadSource('parameter-evaluator');
 
 const literal = value => ({ inputSource: 'literal', value });
 const expression = expression => ({ inputSource: 'expression', expression });
-const number = { dataType: 'number', ui: { control: 'number' } };
+const number = { dataType: 'scalar', ui: { control: 'number' } };
 const node = (params, isBypass = false) => ({ id: 'node', type: 'effect', effectId: 'test', isBypass, params });
-const paramDef = (id, defaultValue = 7, dataType = 'number') => ({ id, name: id, label: id, dataType, ui: { control: dataType }, defaultValue, canNode: true, isPrimaryInput: false });
+const paramDef = (id, defaultValue = 7, dataType = 'scalar') => ({ id, name: id, label: id, dataType, ui: { control: dataType === 'scalar' ? 'number' : dataType }, defaultValue, canNode: true, isPrimaryInput: false });
 const context = (defs, params, overrides = {}) => ({
 	nodes: [node(params)],
 	paramDefs: [],
@@ -216,6 +216,21 @@ test('evaluates numeric parameters independently of their UI controls', async ()
 		assert.deepEqual(result.nodeParams.get('node'), { amount: 100.5, external: -5.25, invalid: 0 });
 		assert.equal(getNodeInputDataType(def), 'scalar');
 	}
+});
+
+// 数値の型名を入出力で揃え、参照や真偽値からのテクスチャ変換も維持する。
+test('uses shared scalar types for node inputs and module outputs', async () => {
+	const { getNodeInputDataType, getNodeOutputs, areNodeDataTypesCompatible } = await loadSource('../../shared/src/utility/node-outputs');
+	const defs = [paramDef('amount'), paramDef('flag', true, 'bool'), paramDef('image', null, 'assetReference')];
+	const outputs = getNodeOutputs({ id: 'in', type: 'globalIn' }, defs);
+	assert.equal(outputs.amount.dataType, 'scalar');
+	assert.equal(outputs.flag.dataType, 'scalar');
+	assert.equal(outputs.image.dataType, 'color');
+	assert.equal(getNodeInputDataType({ ...number, canNode: false }), null);
+	assert.equal(getNodeInputDataType({ dataType: 'playerReference', canNode: true }), null);
+	assert.equal(areNodeDataTypesCompatible(outputs.amount.dataType, getNodeInputDataType({ ...number, canNode: true })), true);
+	assert.equal(areNodeDataTypesCompatible('scalar', 'vector'), false);
+	assert.equal(areNodeDataTypesCompatible('any', 'scalar'), true);
 });
 
 for (const enable32bitDataTextures of [false, true]) {

@@ -4,7 +4,7 @@ import type { EffectOptionSchema, VisualModuleParamDef } from '../effect-definit
 
 export function genEmptyValue(paramDef: EffectOptionSchema | VisualModuleParamDef): any {
 	switch (paramDef.dataType) {
-		case 'number': return 0;
+		case 'scalar': return 0;
 		case 'enum': return paramDef.options[0]?.value ?? null;
 		case 'bool': return false;
 		case 'blendMode': return 'normal';

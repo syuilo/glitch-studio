@@ -17,7 +17,7 @@ export default defineEffect({
 			{ label: 'RGB', value: 'rgb' },
 			{ label: 'Luminance', value: 'luminance' },
 		], default: () => ({ inputSource: 'literal', value: 'rgb' }) },
-		height: { dataType: 'number', ui: { control: 'range', min: 0, max: 10, step: 0.01 }, label: 'Height', default: () => ({ inputSource: 'literal', value: 1 }) },
+		height: { dataType: 'scalar', ui: { control: 'range', min: 0, max: 10, step: 0.01 }, label: 'Height', default: () => ({ inputSource: 'literal', value: 1 }) },
 	},
 	outputs: {
 		output: { primary: true, dataType: 'color' },

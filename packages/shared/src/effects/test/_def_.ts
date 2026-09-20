@@ -5,8 +5,8 @@ export default defineEffect({
 	displayName: 'test',
 	tags: [],
 	paramDefs: {
-		x: { dataType: 'number', ui: { control: 'range', min: -1, max: 1, step: 0.01 }, label: 'X', default: () => ({ inputSource: 'literal', value: 0 }) },
-		y: { dataType: 'number', ui: { control: 'range', min: -1, max: 1, step: 0.01 }, label: 'Y', default: () => ({ inputSource: 'literal', value: 0 }) },
+		x: { dataType: 'scalar', ui: { control: 'range', min: -1, max: 1, step: 0.01 }, label: 'X', default: () => ({ inputSource: 'literal', value: 0 }) },
+		y: { dataType: 'scalar', ui: { control: 'range', min: -1, max: 1, step: 0.01 }, label: 'Y', default: () => ({ inputSource: 'literal', value: 0 }) },
 	},
 	outputs: {
 		output: { primary: true, dataType: 'color' },

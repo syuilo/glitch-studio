@@ -139,7 +139,7 @@ export class VisualModuleRenderer {
 			components = [(value?.[0] ?? 0) * alpha, (value?.[1] ?? 0) * alpha, (value?.[2] ?? 0) * alpha, alpha];
 		} else if (def.dataType === 'vector') {
 			components = [value?.[0] ?? 0, value?.[1] ?? 0];
-		} else if (def.dataType === 'number' || def.dataType === 'bool') {
+		} else if (def.dataType === 'scalar' || def.dataType === 'bool') {
 			components = [Number(value ?? 0)];
 		} else {
 			throw new Error(`Parameter type cannot be converted to a texture: ${def.dataType}`);

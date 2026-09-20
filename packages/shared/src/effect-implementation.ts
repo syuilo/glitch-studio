@@ -1,4 +1,4 @@
-import type { ArrayOptionSchema, BlendModeOptionSchema, FitModeOptionSchema, BooleanOptionSchema, ColorOptionSchema, EffectDefinition, EffectOptionsSchema, EnumOptionSchema, AssetReferenceOptionSchema, NumberOptionSchema, StructOptionSchema, VectorOptionSchema, PlayerReferenceOptionSchema, EffectOutputsSchema } from '@glitch/shared/effect-definition.ts';
+import type { ArrayOptionSchema, BlendModeOptionSchema, FitModeOptionSchema, BooleanOptionSchema, ColorOptionSchema, EffectDefinition, EffectOptionsSchema, EnumOptionSchema, AssetReferenceOptionSchema, ScalarOptionSchema, StructOptionSchema, VectorOptionSchema, PlayerReferenceOptionSchema, EffectOutputsSchema } from '@glitch/shared/effect-definition.ts';
 import type { AudioHistory } from '@glitch/shared/audio-history.ts';
 import type { WrapModeOptionSchema, WrapModeValue } from '@glitch/shared/effect-definition.ts';
 import type { EffectStatus } from '@glitch/shared/effect-status.ts';
@@ -8,7 +8,7 @@ export type IntermediateTextureFormat = 'rgba8unorm' | 'bgra8unorm' | 'rgba16flo
 
 type RuntimeEffectOptionScalarValue<T extends EffectOptionsSchema[string]> =
 	T extends { canNode: true } ? GPUTexture :
-	T extends NumberOptionSchema ? number :
+	T extends ScalarOptionSchema ? number :
 	T extends BooleanOptionSchema ? boolean :
 	T extends ColorOptionSchema ? Readonly<[number, number, number, number]> :
 	T extends VectorOptionSchema ? Readonly<[number, number]> :

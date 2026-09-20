@@ -1,6 +1,5 @@
+import type { TextureDataType } from './data-type.ts';
 import type { EffectOptionSchema, VisualModuleParamDef } from './effect-definition.ts';
-
-export type EffectParamDataType = EffectOptionSchema['dataType'];
 
 export type NodeOutputReference = { nodeId: string; outputPort: string; fitMode?: string; wrapMode?: string };
 export type NodeParamValue = { inputSource: 'node' } & (NodeOutputReference | { nodeId: null; outputPort: null });
@@ -99,7 +98,7 @@ export type VisualModule = {
 		id: string;
 		label: string;
 		name: string;
-		dataType: 'color' | 'scalar' | 'vector' | 'any';
+		dataType: TextureDataType;
 		isPrimaryOutput: boolean;
 	}[];
 	paramDefs: VisualModuleParamDef[];

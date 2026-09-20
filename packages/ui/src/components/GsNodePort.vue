@@ -4,12 +4,12 @@
 
 <script lang="ts" setup>
 import { onMounted, onBeforeUnmount, useId, useTemplateRef } from 'vue';
-import type { NodeDataType } from '@glitch/shared/utility/node-outputs.ts';
+import type { TextureDataType } from '@glitch/shared/data-type.ts';
 import { getNodeDataTypeColor } from '@/utility/node-outputs.ts';
 
 defineProps<{
 	output?: boolean;
-	dataType: NodeDataType | null;
+	dataType: TextureDataType | null;
 }>();
 
 const emit = defineEmits<{
