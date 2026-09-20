@@ -1,6 +1,8 @@
 import { createTextureFromSource, makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { AudioHistory } from '@glitch/shared/audio-history.ts';
 import { float32ToFloat16Bits } from '@glitch/shared/utility/float32ToFloat16Bits.ts';
+import { effectDefinitions } from '@glitch/shared/effect-definitions.ts';
+import { effectImplementations } from '@glitch/shared/effect-implementations.js';
 import defaultVertexShaderCode from './vertex.wgsl?raw';
 import TimingHelper from './utility/TimingHelper.ts';
 import finalRenderShaderCode from './render.wgsl?raw';
@@ -397,6 +399,8 @@ export class MainRenderer {
 						visualModule,
 						assetTextures: this.assetTextures,
 						audioSources: this.audioSources,
+						effectDefinitions: effectDefinitions,
+						effectImplementations: effectImplementations,
 					});
 					this.perLayerVisualModuleRenderers.set(entry.id, renderer);
 				}
@@ -472,6 +476,8 @@ export class MainRenderer {
 			visualModule,
 			assetTextures: this.assetTextures,
 			audioSources: this.audioSources,
+			effectDefinitions: effectDefinitions,
+			effectImplementations: effectImplementations,
 		});
 
 		this.latestLiveTimestamp = performance.now();

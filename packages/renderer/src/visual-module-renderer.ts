@@ -1,18 +1,17 @@
 import { getNodeOutputs } from '@glitch/shared/utility/node-outputs.ts';
 import * as AiScript from '@syuilo/aiscript';
 import { evalAutomationValue, genEmptyValue } from '@glitch/shared/utility/misc.ts';
-import { effectDefinitions } from '@glitch/shared/effect-definitions.ts';
 import { playerAudioSourceId } from '@glitch/shared/audio.ts';
 import { AudioHistory } from '@glitch/shared/audio-history.ts';
 import { float32ToFloat16Bits } from '@glitch/shared/utility/float32ToFloat16Bits.ts';
-import { effectImplementations } from '@glitch/shared/effect-implementations.js';
 import { deepClone } from '@glitch/shared/utility/deep-clone.js';
 import TimingHelper from './utility/TimingHelper.ts';
 import { getEvaluatedParam, mapNodeParam, walkNodeParams } from './utility/node-params.ts';
 import type { EffectStatus } from '@glitch/shared/effect-status.ts';
 import type { AudioSourceId } from '@glitch/shared/audio.ts';
 import type { Asset, GsAutomation, GsEffectNode, GsGlobalInNode, GsNode, NodeOutputReference, EffectParamDef, VisualModule, VisualModuleParamValues } from '@glitch/shared/types.ts';
-import type { EffectInstance, IntermediateTextureFormat } from '@glitch/shared/effect-implementation.js';
+import type { EffectImplementation, EffectInstance, IntermediateTextureFormat } from '@glitch/shared/effect-implementation.js';
+import type { EffectDefinition } from '@glitch/shared/effect-definition.js';
 
 const aisParser = new AiScript.Parser();
 const aiscript = new AiScript.Interpreter({});
@@ -97,6 +96,8 @@ export class VisualModuleRenderer {
 	private timingHelper: TimingHelper;
 	private enableStats = true;
 	private renderNodeId: GsNode['id'] | null = null;
+	private effectDefinitions: Record<string, EffectDefinition<any>>;
+	private effectImplementations: Record<string, EffectImplementation<any>>;
 
 	constructor(options: {
 		onEffectStatus?: (nodeId: string, status: EffectStatus | null) => void;
@@ -117,6 +118,8 @@ export class VisualModuleRenderer {
 		visualModule: VisualModule;
 		assetTextures: Map<string, GPUTexture>;
 		audioSources: Map<AudioSourceId, AudioHistory>;
+		effectDefinitions: Record<string, EffectDefinition<any>>;
+		effectImplementations: Record<string, EffectImplementation<any>>;
 	}) {
 		this.gpuDevice = options.gpuDevice;
 		this.gpuContext = options.gpuContext;
@@ -135,6 +138,8 @@ export class VisualModuleRenderer {
 		this.assetTextures = options.assetTextures;
 		this.audioSources = options.audioSources;
 		this.timingHelper = options.timingHelper;
+		this.effectDefinitions = options.effectDefinitions;
+		this.effectImplementations = options.effectImplementations;
 		this.updateVisualModule(options.visualModule);
 	}
 
@@ -234,7 +239,7 @@ export class VisualModuleRenderer {
 		this.evaluateParams(context, { ...automationScope, ...scope });
 
 		for (const node of nodes.filter((n): n is GsEffectNode => n.type === 'effect')) {
-			const paramDefs = effectDefinitions[node.effectId].paramDefs;
+			const paramDefs = this.effectDefinitions[node.effectId].paramDefs;
 
 			const evaluatedParams = {} as Record<string, any>;
 
@@ -307,7 +312,7 @@ export class VisualModuleRenderer {
 			const outputKey = this.evalCacheKey(output.node, [...visited, node.id]);
 			return outputKey == null ? null : `${key}port=${output.outputPort};output=${outputKey};`;
 		} else {
-			if (effectImplementations[node.effectId].disableCache) { // TODO: 廃止(cacheVersionに一本化)
+			if (this.effectImplementations[node.effectId].disableCache) { // TODO: 廃止(cacheVersionに一本化)
 				return null;
 			}
 			// 非同期のリソース更新も後続ノードのキャッシュキーに伝播させる。
@@ -315,7 +320,7 @@ export class VisualModuleRenderer {
 			// 出力の利用開始・停止でも、依存先を含めキャッシュを更新する。
 			if (this.lazyOutputs.has(node.id)) key += `ports=${JSON.stringify([...(this.usedOutputPorts.get(node.id) ?? [])].sort())};`;
 
-			const paramDefs = effectDefinitions[node.effectId].paramDefs;
+			const paramDefs = this.effectDefinitions[node.effectId].paramDefs;
 
 			const params = this.evaledNodeParams.get(node.id)!;
 			// 空配列・空structや要素数の変化もキーに含める。
@@ -343,7 +348,7 @@ export class VisualModuleRenderer {
 
 	private resolveParams(node: GsEffectNode, params: Record<string, any>): Record<string, any> {
 		const resolvedParams: Record<string, any> = {};
-		for (const [key, def] of Object.entries(effectDefinitions[node.effectId].paramDefs)) {
+		for (const [key, def] of Object.entries(this.effectDefinitions[node.effectId].paramDefs)) {
 			resolvedParams[key] = mapNodeParam(def, node.params[key], [key], (def, param, path) => {
 				const v = getEvaluatedParam(params, path);
 				if (def.type === 'image') return this.assetTextures.get(v) ?? null;
@@ -376,7 +381,7 @@ export class VisualModuleRenderer {
 				return;
 			}
 			this.usedOutputPorts.set(output.node.id, new Set([output.outputPort]));
-			for (const { def, param } of walkNodeParams(effectDefinitions[output.node.effectId].paramDefs, output.node.params)) {
+			for (const { def, param } of walkNodeParams(this.effectDefinitions[output.node.effectId].paramDefs, output.node.params)) {
 				if (!def.canNode || param.inputSource !== 'node' || param.nodeId == null) continue;
 				const source = this.allNodeIdMap.get(param.nodeId);
 				if (source != null) visit(source, param.outputPort ?? undefined);
@@ -410,7 +415,7 @@ export class VisualModuleRenderer {
 		const removedNodes = oldEffectNodes.filter(node => !newNodeIds.has(node.id));
 
 		for (const node of addedNodes) {
-			const effect = effectImplementations[node.effectId];
+			const effect = this.effectImplementations[node.effectId];
 			const allocationArgs = {
 				wgpu: { device: this.gpuDevice, enable32bitDataTextures: this.enable32bitDataTextures, intermediateTextureFormat: this.intermediateTextureFormat },
 				resolution: { width: this.resolution.width, height: this.resolution.height },
@@ -433,7 +438,7 @@ export class VisualModuleRenderer {
 						previousFrameTextureView: previousTexture?.createView(),
 					};
 				};
-				if (effectDefinitions[node.effectId].outputs[k].canLazyAllocation === true) lazy[k] = allocate;
+				if (this.effectDefinitions[node.effectId].outputs[k].canLazyAllocation === true) lazy[k] = allocate;
 				else allocate();
 			}
 			if (Object.keys(lazy).length > 0) this.lazyOutputs.set(node.id, lazy);
@@ -444,7 +449,7 @@ export class VisualModuleRenderer {
 		for (const node of newEffectNodes) {
 			const textures = this.effectPerParamConstFieldTextures.get(node.id) ?? {};
 			const used = new Set<string>();
-			for (const { def, path } of walkNodeParams(effectDefinitions[node.effectId].paramDefs, node.params)) {
+			for (const { def, path } of walkNodeParams(this.effectDefinitions[node.effectId].paramDefs, node.params)) {
 				if (!def.canNode) continue;
 				const key = JSON.stringify(path);
 				used.add(key);
@@ -530,10 +535,10 @@ export class VisualModuleRenderer {
 			return source == null ? undefined : this.getOutputNode(source, input.outputPort ?? undefined, nextVisited);
 		}
 		if (!node.isBypass) {
-			const port = outputPort ?? Object.entries(effectDefinitions[node.effectId].outputs).find(([, def]) => def.primary)?.[0];
-			return port == null || effectDefinitions[node.effectId].outputs[port] == null ? undefined : { node, outputPort: port };
+			const port = outputPort ?? Object.entries(this.effectDefinitions[node.effectId].outputs).find(([, def]) => def.primary)?.[0];
+			return port == null || this.effectDefinitions[node.effectId].outputs[port] == null ? undefined : { node, outputPort: port };
 		}
-		const primary = Object.entries(effectDefinitions[node.effectId].paramDefs).find(([, def]) => def.primary);
+		const primary = Object.entries(this.effectDefinitions[node.effectId].paramDefs).find(([, def]) => def.primary);
 		const input: NodeOutputReference | null = primary ? this.evaledNodeParams.get(node.id)![primary[0]] : null;
 		// バイパスでは自身の出力名ではなく、主入力が選択した出力ポートを公開する。
 		const source = input == null ? undefined : this.allNodeIdMap.get(input.nodeId);
@@ -584,11 +589,11 @@ export class VisualModuleRenderer {
 			return;
 		}
 
-		const effect = effectImplementations[node.effectId];
+		const effect = this.effectImplementations[node.effectId];
 
 		const params = this.evaledNodeParams.get(node.id)!;
 
-		for (const { def, param } of walkNodeParams(effectDefinitions[node.effectId].paramDefs, node.params)) {
+		for (const { def, param } of walkNodeParams(this.effectDefinitions[node.effectId].paramDefs, node.params)) {
 			if (!def.canNode || param.inputSource !== 'node' || param.nodeId == null) continue;
 			const targetNode = this.allNodeIdMap.get(param.nodeId);
 			if (targetNode == null) throw new Error('Referenced node not found');
@@ -675,7 +680,7 @@ export class VisualModuleRenderer {
 		if (existing != null) return existing;
 		const state: { sent?: EffectStatus } = {};
 		this.effectStatuses.set(node.id, state);
-		const instance = effectImplementations[node.effectId].init({
+		const instance = this.effectImplementations[node.effectId].init({
 			reportStatus: status => {
 				// 破棄・再作成後の古い通知は無視する。
 				if (this.effectStatuses.get(node.id) === state) this.setEffectStatus(node.id, status);
@@ -707,7 +712,7 @@ export class VisualModuleRenderer {
 			if (output == null || output.node.type === 'globalIn') return;
 			const effectNode = output.node;
 			if (prepared.has(effectNode.id)) return;
-			for (const { def, param } of walkNodeParams(effectDefinitions[effectNode.effectId].paramDefs, effectNode.params)) {
+			for (const { def, param } of walkNodeParams(this.effectDefinitions[effectNode.effectId].paramDefs, effectNode.params)) {
 				if (!def.canNode || param.inputSource !== 'node' || param.nodeId == null) continue;
 				const source = this.allNodeIdMap.get(param.nodeId);
 				if (source == null) throw new Error('Referenced node not found');
