@@ -1,8 +1,6 @@
 {
-	"name": "glitch-studio",
-	"private": true,
-	"version": "2.0.0-alpha",
 	"type": "module",
+	"private": true,
 	"scripts": {
 		"dev": "vite",
 		"test": "node --test --test-concurrency=1 test/*.test.mjs",
