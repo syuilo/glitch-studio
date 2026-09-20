@@ -157,7 +157,7 @@ const paramDef = computed<EffectParamDef | (VisualModule['paramDefs'][number] & 
 		...def,
 		default: () => ({ inputSource: 'literal', value: deepClone(def.defaultValue) }),
 	};
-	return def as EffectParamDef;
+	return def;
 });
 
 const rowEl = useTemplateRef('rowEl');
@@ -169,8 +169,8 @@ const visibleFields = computed(() => {
 	const fields: Record<string, NodeParamDef> = paramDef.value.fields;
 	return Object.entries(fields).filter(([, def]) => !def.visibility || def.visibility(structValues.value ?? {}));
 });
-const canNode = computed(() => paramDef.value.dataType !== 'array' && paramDef.value.dataType !== 'struct' && paramDef.value.canNode);
-const inputDataType = computed(() => paramDef.value.dataType !== 'array' && paramDef.value.dataType !== 'struct' ? getNodeInputDataType(paramDef.value) : null);
+const canNode = computed(() => paramDef.value.canNode);
+const inputDataType = computed(() => getNodeInputDataType(paramDef.value));
 const paramDefs = computed(() => appContext.state.visualModules.value.find(module => module.id === props.visualModuleId)?.paramDefs ?? []);
 const nodes = computed(() => appContext.state.visualModules.value.find(visualModule => visualModule.id === props.visualModuleId)?.nodes ?? []);
 const envVariableItems = computed(() => globalEnvVarDefs.map(variable => ({ label: `${i18n.t(`_EnvVariables.${variable}`)} (${variable})`, value: variable })));

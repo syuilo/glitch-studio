@@ -87,11 +87,10 @@ export class ParameterEvaluator {
 		for (const def of context.paramDefs) {
 			const value = context.paramValues[def.id];
 			if (context.textureParamIds.has(def.id)) continue;
-			const fallbackDef = def;
 			let evaluated = deepClone(def.defaultValue); // 参照が共有されないように切る
 			if (value?.inputSource === 'literal') evaluated = value.value;
-			if (value?.inputSource === 'envVariable') evaluated = mixedScope[value.variable] ?? genEmptyValue(fallbackDef);
-			if (value?.inputSource === 'expression') evaluated = this.evaluateExpression(value.expression, mixedScope, fallbackDef);
+			if (value?.inputSource === 'envVariable') evaluated = mixedScope[value.variable] ?? genEmptyValue(def);
+			if (value?.inputSource === 'expression') evaluated = this.evaluateExpression(value.expression, mixedScope, def);
 			if (value?.inputSource === 'automation') {
 				const automation = context.automations.find(automation => automation.id === value.automationId);
 				evaluated = automation == null ? deepClone(def.defaultValue) : evalAutomationValue(automation, context.time);

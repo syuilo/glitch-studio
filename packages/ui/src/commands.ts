@@ -136,7 +136,7 @@ const removeNodeCommandDef = defineCommand<NodeTarget>({
 				if (removedNode == null) return;
 				if (removedNode.type !== 'effect') throw new Error('In/Out nodes cannot be removed');
 				const primary = removedNode.type === 'effect'
-					? [...walkNodeParams(removedNode)].find(({ def }) => def.dataType !== 'struct' && def.dataType !== 'array' && def.canNode && 'primary' in def && def.primary)
+					? [...walkNodeParams(removedNode)].find(({ def }) => def.canNode && def.primary)
 					: undefined;
 				const input = primary?.value;
 				const replacement: NodeOutputReference | null = input?.inputSource === 'node' && input.nodeId != null && input.nodeId !== payload.nodeId
@@ -156,7 +156,7 @@ const removeNodeCommandDef = defineCommand<NodeTarget>({
 					}
 					if (node.type !== 'effect') continue;
 					for (const { path, def, value } of walkNodeParams(node)) {
-						if (def.dataType === 'struct' || def.dataType === 'array' || !def.canNode || value.inputSource !== 'node' || value.nodeId !== payload.nodeId) continue;
+						if (!def.canNode || value.inputSource !== 'node' || value.nodeId !== payload.nodeId) continue;
 						const compatible = replacement != null && canConnectNodeDataTypes(replacementOutput?.dataType, getNodeInputDataType(def));
 						resolveNodeParam(node, path).setValue(compatible
 							? { inputSource: 'node', ...deepClone(replacement) }

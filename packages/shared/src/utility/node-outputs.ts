@@ -1,18 +1,11 @@
 import type { DataType, TextureDataType } from '../data-type.ts';
+import { isTextureDataType } from '../data-type.ts';
 import { effectDefinitions } from '../effect-definitions.ts';
 import type { EffectOutputsSchema } from '../effect-definition.ts';
 import type { GsNode, VisualModule } from '../types.ts';
 
 export function getNodeInputDataType(param: { dataType: DataType; canNode?: boolean }): TextureDataType | null {
-	if (!param.canNode) return null;
-	// canNodeは元のパラメータ型に応じたデータテクスチャを受け取る。
-	switch (param.dataType) {
-		case 'scalar': return 'scalar';
-		case 'any': return 'any';
-		case 'vector': return 'vector';
-		case 'color': return 'color';
-		default: return null;
-	}
+	return param.canNode && isTextureDataType(param.dataType) ? param.dataType : null;
 }
 
 export function areNodeDataTypesCompatible(output: TextureDataType | undefined, input: TextureDataType | null): boolean {
@@ -28,16 +21,9 @@ export function getNodeOutputs(node: GsNode | undefined, paramDefs: VisualModule
 		const outputs: EffectOutputsSchema = {};
 		for (const def of paramDefs) {
 			if (!def.canNode) continue;
-			let dataType: TextureDataType;
-			switch (def.dataType) {
-				case 'scalar': case 'bool':
-					dataType = 'scalar'; break;
-				case 'vector':
-					dataType = 'vector'; break;
-				case 'color': case 'assetReference':
-					dataType = 'color'; break;
-				default: continue;
-			}
+			// 真偽値は数値化し、Asset参照は画像として出力する。それ以外は元の型を使う。
+			const dataType = def.dataType === 'bool' ? 'scalar' : def.dataType === 'assetReference' ? 'color' : def.dataType;
+			if (!isTextureDataType(dataType)) continue;
 			outputs[def.id] = { dataType, primary: def.isPrimaryInput };
 		}
 		return outputs;

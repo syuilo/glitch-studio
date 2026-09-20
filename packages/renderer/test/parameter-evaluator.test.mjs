@@ -221,12 +221,22 @@ test('evaluates numeric parameters independently of their UI controls', async ()
 // 数値の型名を入出力で揃え、参照や真偽値からのテクスチャ変換も維持する。
 test('uses shared scalar types for node inputs and module outputs', async () => {
 	const { getNodeInputDataType, getNodeOutputs, areNodeDataTypesCompatible } = await loadSource('../../shared/src/utility/node-outputs');
-	const defs = [paramDef('amount'), paramDef('flag', true, 'bool'), paramDef('image', null, 'assetReference')];
+	const defs = [
+		paramDef('amount'), paramDef('flag', true, 'bool'), paramDef('image', null, 'assetReference'),
+		paramDef('vector', [0, 0], 'vector'), paramDef('color', [0, 0, 0, 1], 'color'),
+		paramDef('player', null, 'playerReference'), { ...paramDef('disabled'), canNode: false },
+	];
 	const outputs = getNodeOutputs({ id: 'in', type: 'globalIn' }, defs);
 	assert.equal(outputs.amount.dataType, 'scalar');
 	assert.equal(outputs.flag.dataType, 'scalar');
 	assert.equal(outputs.image.dataType, 'color');
+	assert.equal(outputs.vector.dataType, 'vector');
+	assert.equal(outputs.color.dataType, 'color');
+	assert.equal(outputs.player, undefined);
+	assert.equal(outputs.disabled, undefined);
 	assert.equal(getNodeInputDataType({ ...number, canNode: false }), null);
+	assert.equal(getNodeInputDataType({ dataType: 'struct' }), null);
+	assert.equal(getNodeInputDataType({ dataType: 'array' }), null);
 	assert.equal(getNodeInputDataType({ dataType: 'playerReference', canNode: true }), null);
 	assert.equal(areNodeDataTypesCompatible(outputs.amount.dataType, getNodeInputDataType({ ...number, canNode: true })), true);
 	assert.equal(areNodeDataTypesCompatible('scalar', 'vector'), false);
