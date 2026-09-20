@@ -5,10 +5,10 @@ export default defineEffect({
 	displayName: 'RGB To',
 	tags: [],
 	paramDefs: {
-		input: { type: 'color', label: 'Input', canNode: true, primary: true, default: () => ({ inputSource: 'node', nodeId: null, outputPort: null }) },
+		input: { dataType: 'color', ui: { control: 'color' }, label: 'Input', canNode: true, primary: true, default: () => ({ inputSource: 'node', nodeId: null, outputPort: null }) },
 		mode: {
 			label: 'Mode',
-			type: 'enum',
+			dataType: 'enum', ui: { control: 'enum' },
 			options: [{
 				label: 'Intensity',
 				value: 0,

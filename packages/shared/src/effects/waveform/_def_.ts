@@ -5,24 +5,24 @@ export default defineEffect({
 	displayName: 'Waveform',
 	tags: [],
 	paramDefs: {
-		input: { type: 'color', label: 'Input', canNode: true, primary: true, default: () => ({ inputSource: 'node', nodeId: null, outputPort: null }) },
-		resolution: { type: 'enum', label: 'Resolution', options: [
+		input: { dataType: 'color', ui: { control: 'color' }, label: 'Input', canNode: true, primary: true, default: () => ({ inputSource: 'node', nodeId: null, outputPort: null }) },
+		resolution: { dataType: 'enum', ui: { control: 'enum' }, label: 'Resolution', options: [
 			{ label: '1/1', value: 1 },
 			{ label: '1/2', value: 2 },
 			{ label: '1/4', value: 4 },
 			{ label: '1/8', value: 8 },
 			{ label: '1/16', value: 16 },
 		], default: () => ({ inputSource: 'literal', value: 1 }) },
-		direction: { type: 'enum', label: 'Direction', options: [
+		direction: { dataType: 'enum', ui: { control: 'enum' }, label: 'Direction', options: [
 			{ label: 'Horizontal', value: 'horizontal' },
 			{ label: 'Vertical', value: 'vertical' },
 		], default: () => ({ inputSource: 'literal', value: 'horizontal' }) },
-		mode: { type: 'enum', label: 'Mode', options: [
+		mode: { dataType: 'enum', ui: { control: 'enum' }, label: 'Mode', options: [
 			{ label: 'RGB', value: 'rgb' },
 			{ label: 'Luminance', value: 'luminance' },
 		], default: () => ({ inputSource: 'literal', value: 'rgb' }) },
-		intensity: { type: 'range', label: 'Intensity', min: 0, max: 10, step: 0.01, default: () => ({ inputSource: 'literal', value: 1 }) },
-		showGrid: { type: 'bool', label: 'Grid', default: () => ({ inputSource: 'literal', value: false }) },
+		intensity: { dataType: 'number', ui: { control: 'range', min: 0, max: 10, step: 0.01 }, label: 'Intensity', default: () => ({ inputSource: 'literal', value: 1 }) },
+		showGrid: { dataType: 'bool', ui: { control: 'bool' }, label: 'Grid', default: () => ({ inputSource: 'literal', value: false }) },
 	},
 	outputs: {
 		output: { primary: true, dataType: 'color' },

@@ -5,8 +5,8 @@ export default defineEffect({
 	displayName: 'multiply',
 	tags: [],
 	paramDefs: {
-		input: { type: 'node', label: 'Input', dataType: 'scalar', primary: true, default: () => ({ inputSource: 'literal', value: null }) },
-		v: { type: 'range', min: -10, max: 10, step: 0.01, label: 'Value', default: () => ({ inputSource: 'literal', value: 2 }) },
+		input: { dataType: 'number', ui: { control: 'number' }, canNode: true, label: 'Input', primary: true, default: () => ({ inputSource: 'node', nodeId: null, outputPort: null }) },
+		v: { dataType: 'number', ui: { control: 'range', min: -10, max: 10, step: 0.01 }, label: 'Value', default: () => ({ inputSource: 'literal', value: 2 }) },
 	},
 	outputs: {
 		output: { primary: true, dataType: 'scalar' },

@@ -5,41 +5,41 @@
 		<GsButton small iconOnly primary @click="finishDirectEdit"><i class="ti ti-check"></i></GsButton>
 		<GsButton small iconOnly @click="directEditMode = false"><i class="ti ti-x"></i></GsButton>
 	</div>
-	<div v-else-if="type === 'range'">
+	<div v-else-if="def.ui.control === 'range'">
 		<GsRange
-			v-if="value >= options.min && value <= options.max"
+			v-if="value >= def.ui.min && value <= def.ui.max"
 			:modelValue="value"
-			:step="options.step ?? 1"
-			:min="options.min"
-			:max="options.max"
-			:title="`${options.min} ~ ${options.max}`"
+			:step="def.ui.step ?? 1"
+			:min="def.ui.min"
+			:max="def.ui.max ?? 1"
+			:title="`${def.ui.min} ~ ${def.ui.max}`"
 			:continuousUpdate="true"
 			@beginChanging="onBeginChanging"
 			@update:modelValue="changeContinuous"
 			@changeFinished="onFinishChanging"
 			@thumbDoubleClicked="reset"
 		/>
-		<GsInput v-else small type="number" :modelValue="value" @update:modelValue="changeValue(parseFloat($event, 10))"/>
+		<GsInput v-else small type="number" :modelValue="value" @update:modelValue="changeValue(Number($event))"/>
 	</div>
-	<div v-else-if="type === 'angle'">
+	<div v-else-if="def.ui.control === 'angle'">
 		<GsAngle
 			:modelValue="value"
-			:step="0.125"
+			:step="def.ui.step ?? 0.125"
 			@beginChanging="onBeginChanging"
 			@update:modelValue="changeContinuous"
 			@changeFinished="onFinishChanging"
 		/>
 	</div>
-	<div v-else-if="type === 'number'">
-		<GsInput small type="number" :modelValue="value" :min="options.min" :max="options.max" @update:modelValue="changeValue(parseFloat($event, 10))"/>
+	<div v-else-if="def.ui.control === 'number'">
+		<GsInput small type="number" :modelValue="value" :min="def.ui.min" :max="def.ui.max" @update:modelValue="changeValue(Number($event))"/>
 	</div>
-	<div v-else-if="type === 'bool'">
+	<div v-else-if="def.ui.control === 'bool'">
 		<GsButton small :primary="value" @click="changeValue(!value)">{{ value ? 'On' : 'Off' }}</GsButton>
 	</div>
-	<div v-else-if="type === 'enum'">
-		<GsSelect small :modelValue="value" :items="options.options" @update:modelValue="v => changeValue(v)"/>
+	<div v-else-if="def.ui.control === 'enum'">
+		<GsSelect small :modelValue="value" :items="('options' in def ? [...def.options] : [])" @update:modelValue="v => changeValue(v)"/>
 	</div>
-	<div v-else-if="type === 'fitMode'">
+	<div v-else-if="def.ui.control === 'fitMode'">
 		<GsSelect
 			small
 			:modelValue="value"
@@ -51,12 +51,12 @@
 			@update:modelValue="v => changeValue(v)"
 		/>
 	</div>
-	<div v-else-if="type === 'wrapMode'">
+	<div v-else-if="def.ui.control === 'wrapMode'">
 		<GsSelect
 			small
 			:modelValue="value"
 			:items="[
-				...(options?.canTransparent === true ? [{ label: 'Transparent', value: 'transparent' }] : []),
+				...(('canTransparent' in def && def.canTransparent) === true ? [{ label: 'Transparent', value: 'transparent' }] : []),
 				{ label: 'Clamp to edge', value: 'clampToEdge' },
 				{ label: 'Repeat', value: 'repeat' },
 				{ label: 'Repeat (Mirrored)', value: 'repeatMirrored' },
@@ -64,7 +64,7 @@
 			@update:modelValue="v => changeValue(v)"
 		/>
 	</div>
-	<div v-else-if="type === 'blendMode'">
+	<div v-else-if="def.ui.control === 'blendMode'">
 		<GsSelect
 			small
 			:modelValue="value"
@@ -128,16 +128,16 @@
 			@update:modelValue="v => changeValue(v)"
 		/>
 	</div>
-	<div v-else-if="type === 'xy'">
-		<GsXy :modelValue="value" :step="options.step ?? 0.1" :min="options.min" :max="options.max" @beginChanging="onBeginChanging" @update:modelValue="v => changeContinuous(v)" @changeFinished="onFinishChanging"/>
+	<div v-else-if="def.ui.control === 'xy'">
+		<GsXy :modelValue="value" :step="def.ui.step ?? 0.1" :min="def.ui.min" :max="def.ui.max ?? 1" @beginChanging="onBeginChanging" @update:modelValue="v => changeContinuous(v)" @changeFinished="onFinishChanging"/>
 	</div>
-	<div v-else-if="type === 'wh'">
-		<XXySlider :modelValue="value" :step="options.step ?? 0.1" :min="options.min" :max="options.max" @update:modelValue="v => changeValue(v)"/>
+	<div v-else-if="def.ui.control === 'wh'">
+		<XXySlider :modelValue="value" :step="def.ui.step ?? 0.1" :min="def.ui.min" :max="def.ui.max ?? 1" @update:modelValue="v => changeValue(v)"/>
 	</div>
-	<div v-else-if="type === 'vector'" style="max-width: 150px;">
-		<GsXy :modelValue="value" :step="options.step ?? 0.1" :min="options.min" :max="options.max" @beginChanging="onBeginChanging" @update:modelValue="v => changeContinuous(v)" @changeFinished="onFinishChanging"/>
+	<div v-else-if="def.ui.control === 'vector'" style="max-width: 150px;">
+		<GsXy :modelValue="value" :step="def.ui.step ?? 0.1" :min="def.ui.min" :max="def.ui.max ?? 1" @beginChanging="onBeginChanging" @update:modelValue="v => changeContinuous(v)" @changeFinished="onFinishChanging"/>
 	</div>
-	<div v-else-if="type === 'color'">
+	<div v-else-if="def.ui.control === 'color'">
 		<GsColorInput
 			:modelValue="normalizeColor(value)"
 			:title="title"
@@ -146,11 +146,11 @@
 			@changeFinished="onFinishChanging"
 		/>
 	</div>
-	<div v-else-if="type === 'seed'" style="display: flex;">
-		<GsInput style="flex: 1;" type="number" :modelValue="value" @update:modelValue="changeValue(parseInt($event, 10))"/>
+	<div v-else-if="def.ui.control === 'seed'" style="display: flex;">
+		<GsInput style="flex: 1;" type="number" :modelValue="value" @update:modelValue="changeValue(parseInt(String($event), 10))"/>
 		<GsButton small iconOnly :title="i18n.ts.Random" @click="() => changeValue(Math.floor(Math.random() * 16384))"><i class="ti ti-dice-5"></i></GsButton>
 	</div>
-	<div v-else-if="type === 'image'">
+	<div v-else-if="def.ui.control === 'image'">
 		<GsSelect
 			small
 			:modelValue="value"
@@ -165,7 +165,7 @@
 			@update:modelValue="v => changeValue(v)"
 		/>
 	</div>
-	<div v-else-if="type === 'player'">
+	<div v-else-if="def.ui.control === 'player'">
 		<GsSelect
 			small
 			:modelValue="value"
@@ -194,15 +194,14 @@ import GsRange from './common/GsRange.vue';
 import GsAngle from './common/GsAngle.vue';
 import GsButton from './common/GsButton.vue';
 import GsSelect from './common/GsSelect.vue';
-import type { GsGroupNode, GsNode } from '@glitch/shared/types.ts';
+import type { EffectOptionSchema, VisualModuleParamDef } from '@glitch/shared/effect-definition.ts';
 import { i18n } from '@/i18n.ts';
 import { appContext, wireMap } from '@/app.ts';
 import { normalizeColor } from '@/utility/color-input.ts';
 
 const props = defineProps<{
-	type: string;
+	def: Exclude<EffectOptionSchema, { dataType: 'array' | 'struct' }> | VisualModuleParamDef;
 	value: any;
-	options?: any;
 	title?: string;
 }>();
 

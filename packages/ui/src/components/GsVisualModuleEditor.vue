@@ -105,7 +105,7 @@ const tab = ref('nodes');
 const visualModule = ref<VisualModule | null>();
 const previewParamValues = ref<VisualModuleParamValues>({});
 let previewModuleId: string | undefined;
-let previewParamTypes = new Map<string, VisualModule['paramDefs'][number]['type']>();
+let previewParamTypes = new Map<string, VisualModule['paramDefs'][number]['dataType']>();
 
 watch(appContext.state.visualModules, () => {
 	const module = appContext.state.visualModules.value.find(module => module.id === visualModule.value?.id) ?? appContext.state.visualModules.value[0];
@@ -116,13 +116,13 @@ watch(visualModule, module => {
 	const values: VisualModuleParamValues = {};
 	for (const def of module?.paramDefs ?? []) {
 		// ノードの編集などでプレビューの入力値を初期化しない。
-		values[def.id] = module?.id === previewModuleId && previewParamTypes.get(def.id) === def.type && previewParamValues.value[def.id] != null
+		values[def.id] = module?.id === previewModuleId && previewParamTypes.get(def.id) === def.dataType && previewParamValues.value[def.id] != null
 			? previewParamValues.value[def.id]
 			: { inputSource: 'literal', value: deepClone(def.defaultValue) };
 	}
 	previewParamValues.value = values;
 	previewModuleId = module?.id;
-	previewParamTypes = new Map((module?.paramDefs ?? []).map(def => [def.id, def.type]));
+	previewParamTypes = new Map((module?.paramDefs ?? []).map(def => [def.id, def.dataType]));
 }, { deep: true, immediate: true });
 
 function onPreviewParamEdit(event: ParamEdit) {

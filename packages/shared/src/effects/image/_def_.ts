@@ -7,12 +7,12 @@ export default defineEffect({
 	paramDefs: {
 		image: {
 			label: 'Image',
-			type: 'image',
+			dataType: 'assetReference', ui: { control: 'image' },
 			default: () => ({ inputSource: 'literal', value: null }),
 		},
 		sizeMode: {
 			label: 'Size mode',
-			type: 'enum',
+			dataType: 'enum', ui: { control: 'enum' },
 			options: [{
 				label: 'Stretch',
 				value: 0,

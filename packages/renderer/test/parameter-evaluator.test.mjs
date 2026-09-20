@@ -21,9 +21,9 @@ const { ParameterEvaluator } = await loadSource('parameter-evaluator');
 
 const literal = value => ({ inputSource: 'literal', value });
 const expression = expression => ({ inputSource: 'expression', expression });
-const number = { type: 'number' };
+const number = { dataType: 'number', ui: { control: 'number' } };
 const node = (params, isBypass = false) => ({ id: 'node', type: 'effect', effectId: 'test', isBypass, params });
-const paramDef = (id, defaultValue = 7, type = 'number') => ({ id, name: id, label: id, type, typeOptions: {}, defaultValue, canNode: true, isPrimaryInput: false });
+const paramDef = (id, defaultValue = 7, dataType = 'number') => ({ id, name: id, label: id, dataType, ui: { control: dataType }, defaultValue, canNode: true, isPrimaryInput: false });
 const context = (defs, params, overrides = {}) => ({
 	nodes: [node(params)],
 	paramDefs: [],
@@ -44,7 +44,7 @@ test('reads single scope variables without parsing or executing AiScript', t => 
 	// AiScriptのautobind getterを解決してから、実メソッドの呼び出しを記録する。
 	void evaluator.aiscript.execSync;
 	const exec = t.mock.method(evaluator.aiscript, 'execSync');
-	const input = context({ values: { type: 'array', item: number } }, {
+	const input = context({ values: { dataType: 'array', item: number } }, {
 		values: literal(['TIME', 'TIME_MS', 'WIDTH', 'HEIGHT', 'PROGRESS'].map(name => expression(` \t${name}\r\n`))),
 	}, { paramDefs: [paramDef('time')], paramValues: { time: expression('TIME') } });
 	const first = evaluator.evaluate(input);
@@ -84,7 +84,7 @@ test('uses AiScript for complex expressions and unknown variables', t => {
 	void evaluator.aiscript.execSync;
 	const exec = t.mock.method(evaluator.aiscript, 'execSync');
 	const expressions = ['TIME + 1', 'TIME // comment', 'PARAM("gain")', 'UNKNOWN', 'toString'];
-	const result = evaluator.evaluate(context({ values: { type: 'array', item: number } }, {
+	const result = evaluator.evaluate(context({ values: { dataType: 'array', item: number } }, {
 		values: literal(expressions.map(expression)),
 	}, { paramDefs: [paramDef('gain', 4)] }));
 	assert.deepEqual(result.nodeParams.get('node').values, [1.5, 0.5, 4, 0, 0]);
@@ -97,7 +97,7 @@ test('preserves literal and keyword semantics when automation names collide', t 
 	const evaluator = new ParameterEvaluator();
 	const parse = t.mock.method(evaluator.aisParser, 'parse');
 	const names = ['true', 'false', 'null', 'if'];
-	const result = evaluator.evaluate(context({ values: { type: 'array', item: number } }, {
+	const result = evaluator.evaluate(context({ values: { dataType: 'array', item: number } }, {
 		values: literal(names.map(expression)),
 	}, { automations: names.map(name => ({ id: name, name, keyframes: [
 		{ timeMs: 0, value: 99 }, { timeMs: 1000, value: 99 },
@@ -109,9 +109,9 @@ test('preserves literal and keyword semantics when automation names collide', t 
 // GPUなしでネストした値・式・接続参照を評価する
 test('evaluates nested values, expressions and node references without a GPU', () => {
 	const input = context({
-		items: { type: 'array', item: { type: 'struct', fields: { value: number } } },
+		items: { dataType: 'array', item: { dataType: 'struct', fields: { value: number } } },
 		link: { ...number, canNode: true },
-		empty: { type: 'array', item: number },
+		empty: { dataType: 'array', item: number },
 	}, {
 		items: literal([literal({ value: expression('WIDTH + HEIGHT + TIME + TIME_MS + PROGRESS') }), literal({ value: literal(9) })]),
 		link: { inputSource: 'node', nodeId: 'source', outputPort: 'value' },
@@ -182,7 +182,7 @@ test('evaluates automation inputs and expression scope at the supplied time', ()
 // バイパス中は主入力以外の不正なコンテナも評価しない
 test('evaluates only the primary parameter when bypassed', () => {
 	const params = { main: literal(4), unused: expression('invalid container') };
-	const input = context({ main: { ...number, primary: true }, unused: { type: 'array', item: number } }, params, { nodes: [node(params, true)] });
+	const input = context({ main: { ...number, primary: true }, unused: { dataType: 'array', item: number } }, params, { nodes: [node(params, true)] });
 	assert.deepEqual(new ParameterEvaluator().evaluate(input).nodeParams.get('node'), { main: 4 });
 });
 
@@ -199,6 +199,23 @@ test('keeps previous results and clones module defaults between evaluations', ()
 	assert.deepEqual(second.paramValues.get('color'), [1, 0.5, 0, 0.25]);
 	assert.deepEqual(def.defaultValue, [1, 0.5, 0, 0.25]);
 	assert.equal(evaluator.evaluate({ ...input, nodes: [] }).nodeParams.size, 0);
+});
+
+// UIの範囲やコントロールの種類は式・外部パラメータ・接続の数値型に影響しない。
+test('evaluates numeric parameters independently of their UI controls', async () => {
+	const { getNodeInputDataType } = await loadSource('../../shared/src/utility/node-outputs');
+	const evaluator = new ParameterEvaluator();
+	for (const ui of [{ control: 'number' }, { control: 'range', min: 10, max: 20, step: 1 }, { control: 'seed' }, { control: 'angle' }]) {
+		const def = { ...number, ui, canNode: true };
+		const external = { ...paramDef('amount'), ui };
+		const result = evaluator.evaluate(context({ amount: def, external: def, invalid: def }, {
+			amount: expression('TIME + 100'),
+			external: { inputSource: 'externalParameterInput', parameterId: 'amount' },
+			invalid: expression('missing'),
+		}, { paramDefs: [external], paramValues: { amount: literal(-5.25) } }));
+		assert.deepEqual(result.nodeParams.get('node'), { amount: 100.5, external: -5.25, invalid: 0 });
+		assert.equal(getNodeInputDataType(def), 'scalar');
+	}
 });
 
 for (const enable32bitDataTextures of [false, true]) {
@@ -226,10 +243,10 @@ for (const enable32bitDataTextures of [false, true]) {
 			} },
 		};
 		const definitions = { test: {
-			paramDefs: { group: { type: 'struct', fields: {
+			paramDefs: { group: { dataType: 'struct', fields: {
 				amount: { ...number, canNode: true },
-				vector: { type: 'vector', canNode: true },
-				color: { type: 'color', canNode: true },
+				vector: { dataType: 'vector', ui: { control: 'vector' }, canNode: true },
+				color: { dataType: 'color', ui: { control: 'color' }, canNode: true },
 			} } },
 			outputs: { image: { dataType: 'color', primary: true } },
 		} };

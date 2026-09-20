@@ -7,12 +7,12 @@ export default defineEffect({
 	paramDefs: {
 		player: {
 			label: 'Player',
-			type: 'player',
+			dataType: 'playerReference', ui: { control: 'player' },
 			default: () => ({ inputSource: 'literal', value: null }),
 		},
 		sizeMode: {
 			label: 'Size mode',
-			type: 'enum',
+			dataType: 'enum', ui: { control: 'enum' },
 			options: [{
 				label: 'Stretch',
 				value: 0,

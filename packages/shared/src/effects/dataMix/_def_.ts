@@ -5,12 +5,12 @@ export default defineEffect({
 	displayName: 'Mix (Data)',
 	tags: [],
 	paramDefs: {
-		inputA: { type: 'node', label: 'A', dataType: 'any', primary: true, default: () => ({ inputSource: 'literal', value: null }) },
-		inputB: { type: 'node', label: 'B', dataType: 'any', default: () => ({ inputSource: 'literal', value: null }) },
-		fitModeA: { type: 'fitMode', label: 'A fit mode', default: () => ({ inputSource: 'literal', value: 'cover' }) },
-		fitModeB: { type: 'fitMode', label: 'B fit mode', default: () => ({ inputSource: 'literal', value: 'cover' }) },
-		amount: { type: 'range', label: 'Amount', min: 0, max: 1, step: 0.01, canNode: true, default: () => ({ inputSource: 'literal', value: 0.5 }) },
-		fitModeAmount: { type: 'fitMode', label: 'Amount fit mode', default: () => ({ inputSource: 'literal', value: 'stretch' }) },
+		inputA: { dataType: 'any', ui: { control: 'none' }, canNode: true, label: 'A', primary: true, default: () => ({ inputSource: 'node', nodeId: null, outputPort: null }) },
+		inputB: { dataType: 'any', ui: { control: 'none' }, canNode: true, label: 'B', default: () => ({ inputSource: 'node', nodeId: null, outputPort: null }) },
+		fitModeA: { dataType: 'fitMode', ui: { control: 'fitMode' }, label: 'A fit mode', default: () => ({ inputSource: 'literal', value: 'cover' }) },
+		fitModeB: { dataType: 'fitMode', ui: { control: 'fitMode' }, label: 'B fit mode', default: () => ({ inputSource: 'literal', value: 'cover' }) },
+		amount: { dataType: 'number', ui: { control: 'range', min: 0, max: 1, step: 0.01 }, label: 'Amount', canNode: true, default: () => ({ inputSource: 'literal', value: 0.5 }) },
+		fitModeAmount: { dataType: 'fitMode', ui: { control: 'fitMode' }, label: 'Amount fit mode', default: () => ({ inputSource: 'literal', value: 'stretch' }) },
 	},
 	outputs: {
 		output: { primary: true, dataType: 'any' },

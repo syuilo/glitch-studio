@@ -1,4 +1,6 @@
-export type EffectParamDataType = 'number' | 'angle' | 'range' | 'enum' | 'bool' | 'blendMode' | 'fitMode' | 'wrapMode' | 'xy' | 'wh' | 'color' | 'vector' | 'seed' | 'image' | 'player';
+import type { EffectOptionSchema, VisualModuleParamDef } from './effect-definition.ts';
+
+export type EffectParamDataType = EffectOptionSchema['dataType'];
 
 export type NodeOutputReference = { nodeId: string; outputPort: string; fitMode?: string; wrapMode?: string };
 export type NodeParamValue = { inputSource: 'node' } & (NodeOutputReference | { nodeId: null; outputPort: null });
@@ -38,12 +40,8 @@ export type Player = {
 	assetId?: Asset['id'] | null;
 };
 
-export type EffectParamDef = Record<string, any> & {
-	type: EffectParamDataType | 'struct' | 'array';
-	label: string;
-	canNode?: boolean;
+export type EffectParamDef = EffectOptionSchema & {
 	default: () => EffectParamValue;
-	visibility?: (state: Record<string, EffectParamValue>) => boolean;
 };
 
 export type EffectParamDefs = Record<string, EffectParamDef>;
@@ -104,16 +102,7 @@ export type VisualModule = {
 		dataType: 'color' | 'scalar' | 'vector' | 'any';
 		isPrimaryOutput: boolean;
 	}[];
-	paramDefs: {
-		id: string;
-		label: string;
-		name: string;
-		type: EffectParamDataType;
-		typeOptions: Record<string, any>;
-		defaultValue: any;
-		canNode: boolean;
-		isPrimaryInput: boolean;
-	}[];
+	paramDefs: VisualModuleParamDef[];
 };
 
 // レイヤー・live modeからは、モジュール内部のノードやパラメータを参照しない。

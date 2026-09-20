@@ -27,8 +27,9 @@ function add() {
 			id: genId(),
 			label: 'My Parameter',
 			name,
-			type: 'range',
-			typeOptions: {
+			dataType: 'number',
+			ui: {
+				control: 'range',
 				min: 0,
 				max: 1,
 				step: 0.01,

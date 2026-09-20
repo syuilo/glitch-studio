@@ -5,9 +5,9 @@ export default defineEffect({
 	displayName: 'Scalar Gradient',
 	tags: [],
 	paramDefs: {
-		input: { type: 'number', label: 'Input', canNode: true, primary: true, default: () => ({ inputSource: 'literal', value: 0 }) },
-		strength: { type: 'number', label: 'Strength', step: 0.01, default: () => ({ inputSource: 'literal', value: 1 }) },
-		normalize: { type: 'bool', label: 'Normalize', default: () => ({ inputSource: 'literal', value: false }) },
+		input: { dataType: 'number', ui: { control: 'number' }, label: 'Input', canNode: true, primary: true, default: () => ({ inputSource: 'literal', value: 0 }) },
+		strength: { dataType: 'number', ui: { control: 'number', step: 0.01 }, label: 'Strength', default: () => ({ inputSource: 'literal', value: 1 }) },
+		normalize: { dataType: 'bool', ui: { control: 'bool' }, label: 'Normalize', default: () => ({ inputSource: 'literal', value: false }) },
 	},
 	outputs: {
 		output: { primary: true, dataType: 'vector' },

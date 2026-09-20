@@ -1,6 +1,6 @@
-import type { ArrayOptionSchema, BlendModeOptionSchema, FitModeOptionSchema, BooleanOptionSchema, ColorOptionSchema, EffectDefinition, EffectOptionsSchema, EnumOptionSchema, ImageOptionSchema, NumberOptionSchema, RangeOptionSchema, SeedOptionSchema, SignalOptionSchema, StructOptionSchema, VectorOptionSchema, PlayerOptionSchema, EffectOutputsSchema } from '@glitch/shared/effect-definition.ts';
+import type { ArrayOptionSchema, BlendModeOptionSchema, FitModeOptionSchema, BooleanOptionSchema, ColorOptionSchema, EffectDefinition, EffectOptionsSchema, EnumOptionSchema, AssetReferenceOptionSchema, NumberOptionSchema, StructOptionSchema, VectorOptionSchema, PlayerReferenceOptionSchema, EffectOutputsSchema } from '@glitch/shared/effect-definition.ts';
 import type { AudioHistory } from '@glitch/shared/audio-history.ts';
-import type { AngleOptionSchema, WrapModeOptionSchema, WrapModeValue } from '@glitch/shared/effect-definition.ts';
+import type { WrapModeOptionSchema, WrapModeValue } from '@glitch/shared/effect-definition.ts';
 import type { EffectStatus } from '@glitch/shared/effect-status.ts';
 
 // 画像の中間処理でフィルタリング・ブレンド可能なRGBA形式。
@@ -12,16 +12,12 @@ type RuntimeEffectOptionScalarValue<T extends EffectOptionsSchema[string]> =
 	T extends BooleanOptionSchema ? boolean :
 	T extends ColorOptionSchema ? Readonly<[number, number, number, number]> :
 	T extends VectorOptionSchema ? Readonly<[number, number]> :
-	T extends SignalOptionSchema ? Readonly<[boolean, boolean, boolean]> :
 	T extends BlendModeOptionSchema ? string :
 	T extends FitModeOptionSchema ? 'stretch' | 'cover' | 'contain' :
 	T extends WrapModeOptionSchema ? WrapModeValue<T> :
-	T extends SeedOptionSchema ? number :
 	T extends EnumOptionSchema ? T['options'][number]['value'] :
-	T extends RangeOptionSchema ? number :
-	T extends AngleOptionSchema ? number :
-	T extends ImageOptionSchema ? GPUTexture | null :
-	T extends PlayerOptionSchema ? { videoFrame: VideoFrame | null; audio: AudioHistory | null; } | null :
+	T extends AssetReferenceOptionSchema ? GPUTexture | null :
+	T extends PlayerReferenceOptionSchema ? { videoFrame: VideoFrame | null; audio: AudioHistory | null; } | null :
 	T extends StructOptionSchema ? {
 		[K in keyof T['fields']]: RuntimeEffectOptionValue<T['fields'][K]>;
 	} :

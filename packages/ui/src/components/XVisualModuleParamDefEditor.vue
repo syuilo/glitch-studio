@@ -5,34 +5,36 @@
 		<GsInput :class="$style.field" type="text" :modelValue="def.name" @update:modelValue="value => update({ name: value })"/>
 		<GsSelect
 			:class="$style.field"
-			:modelValue="def.type"
+			:modelValue="def.dataType"
 			:items="[
 				{ label: i18n.ts._ExternalParameterInput._Types.Number, value: 'number' },
-				{ label: i18n.ts._ExternalParameterInput._Types.Range, value: 'range' },
 				{ label: i18n.ts._ExternalParameterInput._Types.Flag, value: 'bool' },
 				{ label: i18n.ts._ExternalParameterInput._Types.Color, value: 'color' },
-				{ label: i18n.ts._ExternalParameterInput._Types.Image, value: 'image' },
+				{ label: i18n.ts._ExternalParameterInput._Types.Image, value: 'assetReference' },
 			]"
 			@update:modelValue="updateType"
 		/>
+		<GsSelect v-if="def.dataType === 'number'" :class="$style.field" :modelValue="def.ui.control"
+			:items="[{ label: 'Number', value: 'number' }, { label: 'Range', value: 'range' }, { label: 'Angle', value: 'angle' }, { label: 'Seed', value: 'seed' }]"
+			@update:modelValue="updateControl"/>
 	</div>
-	<div v-if="['number', 'range'].includes(def.type)" :class="$style.option">
+	<div v-if="def.dataType === 'number' && (def.ui.control === 'number' || def.ui.control === 'range')" :class="$style.option">
 		<label :class="$style.optionLabel">Min/Max</label>
-		<div :class="[$style.optionControl, { [$style.rangeBounds]: def.type === 'range' }]">
-			<GsInput type="number" :modelValue="def.typeOptions.min" @update:modelValue="updateTypeOption('min', Number($event))"/>
-			<GsInput type="number" :modelValue="def.typeOptions.max" @update:modelValue="updateTypeOption('max', Number($event))"/>
+		<div :class="[$style.optionControl, { [$style.rangeBounds]: def.ui.control === 'range' }]">
+			<GsInput type="number" :modelValue="def.ui.min ?? null" @update:modelValue="updateUiOption('min', Number($event))"/>
+			<GsInput type="number" :modelValue="def.ui.max ?? null" @update:modelValue="updateUiOption('max', Number($event))"/>
 		</div>
 	</div>
-	<div v-if="['number', 'range'].includes(def.type)" :class="$style.option">
+	<div v-if="def.dataType === 'number' && (def.ui.control === 'number' || def.ui.control === 'range')" :class="$style.option">
 		<label :class="$style.optionLabel">Step</label>
 		<div :class="$style.optionControl">
-			<GsInput type="number" :modelValue="def.typeOptions.step" @update:modelValue="updateTypeOption('step', Number($event))"/>
+			<GsInput type="number" :modelValue="def.ui.step ?? null" @update:modelValue="updateUiOption('step', Number($event))"/>
 		</div>
 	</div>
 	<div :class="$style.option">
 		<GsSwitch :modelValue="def.canNode" @update:modelValue="updateCanNode">Allow node input</GsSwitch>
 	</div>
-	<div v-if="def.canNode && def.type === 'color'" :class="$style.option">
+	<div v-if="def.canNode && def.dataType === 'color'" :class="$style.option">
 		<GsSwitch
 			:modelValue="def.isPrimaryInput"
 			:disabled="!def.isPrimaryInput && hasPrimaryInput"
@@ -50,7 +52,7 @@ import GsInput from './common/GsInput.vue';
 import GsButton from './common/GsButton.vue';
 import GsSwitch from './common/GsSwitch.vue';
 import { genEmptyValue } from '@glitch/shared/utility/misc.ts';
-import type { EffectParamDataType, VisualModule } from '@glitch/shared/types.ts';
+import type { VisualModule } from '@glitch/shared/types.ts';
 import { appContext } from '@/app.ts';
 import { i18n } from '@/i18n.ts';
 
@@ -67,15 +69,34 @@ function update(changes: Partial<Omit<ParamDef, 'id'>>) {
 	appContext.commit('updateVisualModuleParamDef', { visualModuleId: props.visualModuleId, defId: props.def.id, changes });
 }
 
-function updateType(type: EffectParamDataType) {
-	if (type === props.def.type) return;
-	const typeOptions = type === 'range' ? { min: 0, max: 1, step: 0.01 } : {};
-	update({ type, typeOptions, defaultValue: genEmptyValue({ type, label: props.def.label, ...typeOptions }),
-		isPrimaryInput: type === 'color' && props.def.canNode && props.def.isPrimaryInput });
+function updateType(dataType: ParamDef['dataType']) {
+	if (dataType === props.def.dataType) return;
+	if (dataType !== 'number' && dataType !== 'bool' && dataType !== 'color' && dataType !== 'assetReference') return;
+	const schemas = {
+		number: { dataType: 'number', ui: { control: 'number' } },
+		bool: { dataType: 'bool', ui: { control: 'bool' } },
+		color: { dataType: 'color', ui: { control: 'color' } },
+		assetReference: { dataType: 'assetReference', ui: { control: 'image' } },
+	} as const;
+	const schema = { ...schemas[dataType], label: props.def.label };
+	update({ ...schema, defaultValue: genEmptyValue(schema),
+		isPrimaryInput: dataType === 'color' && props.def.canNode && props.def.isPrimaryInput });
 }
 
-function updateTypeOption(key: string, value: number) {
-	update({ typeOptions: { ...props.def.typeOptions, [key]: value } });
+function updateControl(control: 'number' | 'range' | 'angle' | 'seed') {
+	if (props.def.dataType !== 'number' || props.def.ui.control === control) return;
+	// UIだけを変更するときは、保存値・式・ノード接続を維持する。
+	const previous = props.def.ui;
+	const ui = control === 'range'
+		? { control, min: 'min' in previous ? previous.min ?? 0 : 0, max: 'max' in previous ? previous.max ?? 1 : 1, step: 'step' in previous ? previous.step ?? 0.01 : 0.01 }
+		: { control };
+	update({ dataType: 'number', ui });
+}
+
+function updateUiOption(key: 'min' | 'max' | 'step', value: number) {
+	const def = props.def;
+	if (def.dataType !== 'number' || (def.ui.control !== 'number' && def.ui.control !== 'range')) return;
+	update({ dataType: 'number', ui: { ...def.ui, [key]: value } });
 }
 
 function updateCanNode(canNode: boolean) {

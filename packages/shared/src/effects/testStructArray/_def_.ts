@@ -6,10 +6,10 @@ export default defineEffect({
 	tags: [],
 	paramDefs: {
 		foo: {
-			type: 'struct',
+			dataType: 'struct',
 			label: 'Foo',
 			fields: {
-				node: { type: 'color', canNode: true, label: 'Node', default: () => ({ inputSource: 'node', nodeId: null, outputPort: null }) },
+				node: { dataType: 'color', ui: { control: 'color' }, canNode: true, label: 'Node', default: () => ({ inputSource: 'node', nodeId: null, outputPort: null }) },
 			},
 			default: () => ({
 				inputSource: 'literal',
@@ -19,10 +19,10 @@ export default defineEffect({
 			}),
 		},
 		bars: {
-			type: 'array',
+			dataType: 'array',
 			label: 'Bars',
 			item: {
-				type: 'color',
+				dataType: 'color', ui: { control: 'color' },
 				label: 'Bar',
 				default: () => ({ inputSource: 'literal', value: [0, 1, 0, 1] }),
 			},
@@ -32,15 +32,15 @@ export default defineEffect({
 			}),
 		},
 		buzzs: {
-			type: 'array',
+			dataType: 'array',
 			label: 'Buzzs',
 			item: {
-				type: 'struct',
+				dataType: 'struct',
 				label: 'Buzz',
 				fields: {
-					image: { type: 'color', canNode: true, label: 'Image', default: () => ({ inputSource: 'literal', value: [0, 0, 1, 1] }) },
-					x: { type: 'range', min: -1, max: 1, step: 0.01, label: 'X', default: () => ({ inputSource: 'literal', value: 0 }) },
-					y: { type: 'range', min: -1, max: 1, step: 0.01, label: 'Y', default: () => ({ inputSource: 'literal', value: 0 }) },
+					image: { dataType: 'color', ui: { control: 'color' }, canNode: true, label: 'Image', default: () => ({ inputSource: 'literal', value: [0, 0, 1, 1] }) },
+					x: { dataType: 'number', ui: { control: 'range', min: -1, max: 1, step: 0.01 }, label: 'X', default: () => ({ inputSource: 'literal', value: 0 }) },
+					y: { dataType: 'number', ui: { control: 'range', min: -1, max: 1, step: 0.01 }, label: 'Y', default: () => ({ inputSource: 'literal', value: 0 }) },
 				},
 				default: () => ({
 					inputSource: 'literal',

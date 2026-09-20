@@ -136,7 +136,7 @@ const removeNodeCommandDef = defineCommand<NodeTarget>({
 				if (removedNode == null) return;
 				if (removedNode.type !== 'effect') throw new Error('In/Out nodes cannot be removed');
 				const primary = removedNode.type === 'effect'
-					? [...walkNodeParams(removedNode)].find(({ def }) => def.type !== 'struct' && def.type !== 'array' && def.canNode && 'primary' in def && def.primary)
+					? [...walkNodeParams(removedNode)].find(({ def }) => def.dataType !== 'struct' && def.dataType !== 'array' && def.canNode && 'primary' in def && def.primary)
 					: undefined;
 				const input = primary?.value;
 				const replacement: NodeOutputReference | null = input?.inputSource === 'node' && input.nodeId != null && input.nodeId !== payload.nodeId
@@ -156,7 +156,7 @@ const removeNodeCommandDef = defineCommand<NodeTarget>({
 					}
 					if (node.type !== 'effect') continue;
 					for (const { path, def, value } of walkNodeParams(node)) {
-						if (def.type === 'struct' || def.type === 'array' || !def.canNode || value.inputSource !== 'node' || value.nodeId !== payload.nodeId) continue;
+						if (def.dataType === 'struct' || def.dataType === 'array' || !def.canNode || value.inputSource !== 'node' || value.nodeId !== payload.nodeId) continue;
 						const compatible = replacement != null && canConnectNodeDataTypes(replacementOutput?.dataType, getNodeInputDataType(def));
 						resolveNodeParam(node, path).setValue(compatible
 							? { inputSource: 'node', ...deepClone(replacement) }
@@ -214,7 +214,7 @@ const removeAssetCommandDef = defineCommand<{ assetId: string }>({
 					for (const node of visualModule.nodes) {
 						if (node.type !== 'effect') continue;
 						for (const { path, def, value } of walkNodeParams(node)) {
-							if (def.type === 'image' && value.inputSource === 'literal' && value.value === payload.assetId) {
+							if (def.dataType === 'assetReference' && value.inputSource === 'literal' && value.value === payload.assetId) {
 								resolveNodeParam(node, path).setValue({ inputSource: 'literal', value: null });
 							}
 						}
@@ -331,7 +331,7 @@ function defineNodeParamCommand<Payload extends NodeParamTarget>(
 }
 
 function assertLeafParam(target: ReturnType<typeof resolveNodeParam>) {
-	if (target.def.type === 'array' || target.def.type === 'struct') {
+	if (target.def.dataType === 'array' || target.def.dataType === 'struct') {
 		throw new Error('Struct and array containers cannot change value type');
 	}
 }
@@ -413,7 +413,7 @@ const updateParamAsNodeCommandDef = defineNodeParamCommand<NodeParamTarget & { v
 const addArrayParamElementCommandDef = defineNodeParamCommand<NodeParamTarget>(
 	'Add array parameter element',
 	({ def, value }) => {
-		if (def.type !== 'array' || value.inputSource !== 'literal' || !Array.isArray(value.value)) throw new Error('Expected array parameter');
+		if (def.dataType !== 'array' || value.inputSource !== 'literal' || !Array.isArray(value.value)) throw new Error('Expected array parameter');
 		const element = def.item.default();
 		return { inputSource: 'literal', value: [...value.value, element] };
 	},
@@ -422,7 +422,7 @@ const addArrayParamElementCommandDef = defineNodeParamCommand<NodeParamTarget>(
 const removeArrayParamElementCommandDef = defineNodeParamCommand<NodeParamTarget & { index: number }>(
 	'Remove array parameter element',
 	({ def, value }, { index }) => {
-		if (def.type !== 'array' || value.inputSource !== 'literal' || !Array.isArray(value.value)) throw new Error('Expected array parameter');
+		if (def.dataType !== 'array' || value.inputSource !== 'literal' || !Array.isArray(value.value)) throw new Error('Expected array parameter');
 		if (!Number.isInteger(index) || index < 0 || index >= value.value.length) throw new Error('Invalid array index');
 		return { inputSource: 'literal', value: value.value.filter((_, i) => i !== index) };
 	},
@@ -487,7 +487,7 @@ function validateVisualModuleParamDef(module: VisualModule, def: VisualModulePar
 	if (module.paramDefs.some(item => item.id !== previousId && (item.id === def.id || item.name === def.name))) {
 		throw new Error('Parameter ID and name must be unique');
 	}
-	if (def.isPrimaryInput && (!def.canNode || def.type !== 'color'
+	if (def.isPrimaryInput && (!def.canNode || def.dataType !== 'color'
 		|| module.paramDefs.some(item => item.id !== previousId && item.isPrimaryInput))) {
 		throw new Error('Only one node-capable color parameter can be the primary input');
 	}
@@ -540,7 +540,7 @@ const updateVisualModuleParamDefCommandDef = defineCommand<{
 				const module = stateUtility.getVisualModule(state, payload.visualModuleId);
 				const index = module.paramDefs.findIndex(def => def.id === payload.defId);
 				if (index < 0) throw new Error('Visual module parameter not found');
-				const next = { ...module.paramDefs[index], ...deepClone(payload.changes), id: payload.defId };
+				const next = { ...module.paramDefs[index], ...deepClone(payload.changes), id: payload.defId } as VisualModuleParamDef;
 				validateVisualModuleParamDef(module, next, payload.defId);
 				before = deepClone(module.paramDefs[index]);
 				module.paramDefs[index] = next;

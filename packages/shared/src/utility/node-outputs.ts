@@ -4,13 +4,12 @@ import type { EffectParamDataType, GsNode, VisualModule } from '../types.ts';
 
 export type NodeDataType = EffectOutputsSchema[string]['dataType'];
 
-export function getNodeInputDataType(param: { type: EffectParamDataType | 'struct' | 'array'; dataType?: NodeDataType; canNode?: boolean }): NodeDataType | null {
+export function getNodeInputDataType(param: { dataType: EffectParamDataType; canNode?: boolean }): NodeDataType | null {
 	if (!param.canNode) return null;
 	// canNodeは元のパラメータ型に応じたデータテクスチャを受け取る。
-	switch (param.type) {
-		case 'number':
-		case 'angle':
-		case 'range': return 'scalar';
+	switch (param.dataType) {
+		case 'number': return 'scalar';
+		case 'any': return 'any';
 		case 'vector': return 'vector';
 		case 'color': return 'color';
 		default: return null;
@@ -31,12 +30,12 @@ export function getNodeOutputs(node: GsNode | undefined, paramDefs: VisualModule
 		for (const def of paramDefs) {
 			if (!def.canNode) continue;
 			let dataType: NodeDataType;
-			switch (def.type) {
-				case 'number': case 'angle': case 'range': case 'seed': case 'bool':
+			switch (def.dataType) {
+				case 'number': case 'bool':
 					dataType = 'scalar'; break;
-				case 'vector': case 'xy': case 'wh':
+				case 'vector':
 					dataType = 'vector'; break;
-				case 'color': case 'image':
+				case 'color': case 'assetReference':
 					dataType = 'color'; break;
 				default: continue;
 			}

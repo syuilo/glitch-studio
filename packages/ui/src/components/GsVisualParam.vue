@@ -2,7 +2,7 @@
 <div :class="$style.root">
 	<div ref="rowEl" :class="$style.row" data-wire-input-row @contextmenu.prevent.stop="onRowContextmenu">
 		<div :class="[$style.paramHeader, { [$style.isDyamic]: paramValue.inputSource !== 'literal' }]">
-			<button v-if="paramDef.type === 'array' || paramDef.type === 'struct'" class="_button"><i class="ti ti-chevron-down" style="vertical-align: middle;"></i></button>
+			<button v-if="paramDef.dataType === 'array' || paramDef.dataType === 'struct'" class="_button"><i class="ti ti-chevron-down" style="vertical-align: middle;"></i></button>
 			<div :class="$style.paramLabel" @click="showMenu">
 				<GsCondensedLine>{{ label ?? paramDef.label }}</GsCondensedLine>
 			</div>
@@ -15,11 +15,11 @@
 			</div>
 		</div>
 		<div :class="$style.paramBody">
-			<template v-if="paramDef.type === 'array'">
+			<template v-if="paramDef.dataType === 'array'">
 				<span :class="$style.count">{{ arrayValues.length }}</span>
 				<GsButton small iconOnly title="Add element" @click="addElement"><i class="ti ti-plus"></i></GsButton>
 			</template>
-			<template v-else-if="paramDef.type !== 'struct'">
+			<template v-else-if="paramDef.dataType !== 'struct'">
 				<GsNodePort v-if="canNode" :dataType="inputDataType" @update:element="portEl = $event"/>
 				<i v-if="hasNodeInputTypeMismatch(nodes, nodeConnection, inputDataType, paramDefs)" v-tooltip="'Data type mismatch'" class="ti ti-alert-triangle" :class="$style.typeWarning"></i>
 				<div :class="$style.control">
@@ -53,9 +53,8 @@
 					<GsEffectParamControl
 						v-else-if="paramValue.inputSource === 'literal'"
 						ref="controlComponent"
-						:type="paramDef.type"
+						:def="paramDef"
 						:title="label ?? paramDef.label"
-						:options="paramDef"
 						:value="paramValue.value"
 						@input="updateParamAsLiteral"
 						@beginChanging="onBeginChanging"
@@ -69,7 +68,7 @@
 			<button class="_button" :class="$style.menuButton" @click="showMenu"><i class="ti ti-dots"></i></button>
 		</div>
 	</div>
-	<div v-if="paramDef.type === 'array'" :key="arrayVersion" :class="$style.children">
+	<div v-if="paramDef.dataType === 'array'" :key="arrayVersion" :class="$style.children">
 		<GsVisualParam
 			v-for="(value, index) in arrayValues"
 			:key="index"
@@ -86,7 +85,7 @@
 			</template>
 		</GsVisualParam>
 	</div>
-	<div v-else-if="paramDef.type === 'struct' && structValues" :class="$style.children">
+	<div v-else-if="paramDef.dataType === 'struct' && structValues" :class="$style.children">
 		<GsVisualParam
 			v-for="[key, def] in visibleFields"
 			:key="key"
@@ -151,11 +150,11 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{ edit: [event: ParamEdit] }>();
-// VisualModuleのtypeOptions/defaultValueを既存の入力コントロール用に正規化する。
-const paramDef = computed<EffectParamDef>(() => {
+// VisualModuleのdefaultValueを共通の入力コントロール用に正規化する。
+const paramDef = computed<EffectParamDef | (VisualModule['paramDefs'][number] & { default: () => EffectParamValue })>(() => {
 	const def = props.paramDef;
 	if ('defaultValue' in def) return {
-		...def.typeOptions, type: def.type, label: def.label, canNode: def.canNode,
+		...def,
 		default: () => ({ inputSource: 'literal', value: deepClone(def.defaultValue) }),
 	};
 	return def as EffectParamDef;
@@ -163,15 +162,15 @@ const paramDef = computed<EffectParamDef>(() => {
 
 const rowEl = useTemplateRef('rowEl');
 const portEl = shallowRef<HTMLElement | null>(null);
-const arrayValues = computed<EffectParamValue[]>(() => paramDef.value.type === 'array' && props.paramValue.inputSource === 'literal' ? props.paramValue.value : []);
-const structValues = computed<Record<string, EffectParamValue> | null>(() => paramDef.value.type === 'struct' && props.paramValue.inputSource === 'literal' ? props.paramValue.value : null);
+const arrayValues = computed<EffectParamValue[]>(() => paramDef.value.dataType === 'array' && props.paramValue.inputSource === 'literal' ? props.paramValue.value : []);
+const structValues = computed<Record<string, EffectParamValue> | null>(() => paramDef.value.dataType === 'struct' && props.paramValue.inputSource === 'literal' ? props.paramValue.value : null);
 const visibleFields = computed(() => {
-	if (paramDef.value.type !== 'struct') return [];
+	if (paramDef.value.dataType !== 'struct') return [];
 	const fields: Record<string, NodeParamDef> = paramDef.value.fields;
 	return Object.entries(fields).filter(([, def]) => !def.visibility || def.visibility(structValues.value ?? {}));
 });
-const canNode = computed(() => paramDef.value.type !== 'array' && paramDef.value.type !== 'struct' && paramDef.value.canNode);
-const inputDataType = computed(() => paramDef.value.type !== 'array' && paramDef.value.type !== 'struct' ? getNodeInputDataType(paramDef.value) : null);
+const canNode = computed(() => paramDef.value.dataType !== 'array' && paramDef.value.dataType !== 'struct' && paramDef.value.canNode);
+const inputDataType = computed(() => paramDef.value.dataType !== 'array' && paramDef.value.dataType !== 'struct' ? getNodeInputDataType(paramDef.value) : null);
 const paramDefs = computed(() => appContext.state.visualModules.value.find(module => module.id === props.visualModuleId)?.paramDefs ?? []);
 const nodes = computed(() => appContext.state.visualModules.value.find(visualModule => visualModule.id === props.visualModuleId)?.nodes ?? []);
 const envVariableItems = computed(() => globalEnvVarDefs.map(variable => ({ label: `${i18n.t(`_EnvVariables.${variable}`)} (${variable})`, value: variable })));
@@ -191,7 +190,7 @@ onBeforeUnmount(() => { mounted = false; });
 const arrayVersion = ref(0);
 // 構造変更時は子を作り直し、同じindexになった別要素へ編集中の状態を引き継がない。
 watch(() => props.paramValue, () => {
-	if (paramDef.value.type === 'array') arrayVersion.value++;
+	if (paramDef.value.dataType === 'array') arrayVersion.value++;
 });
 watch(() => JSON.stringify([props.visualModuleId, props.node?.id, props.paramPath]), () => { commandMergeKey = null; });
 
@@ -252,7 +251,7 @@ function getMenu() {
 	}];
 
 	// コンテナ自体は静的な構造を維持し、値の種類を変更できるのは末端だけにする。
-	if (paramDef.value.type !== 'array' && paramDef.value.type !== 'struct') {
+	if (paramDef.value.dataType !== 'array' && paramDef.value.dataType !== 'struct') {
 		menuItems.push({ type: 'label', text: 'Input source' });
 		const types: { text: string; inputSource: EffectParamValue['inputSource']; icon: string }[] = [
 			{ text: 'Literal', inputSource: 'literal', icon: 'ti ti-adjustments-horizontal' },

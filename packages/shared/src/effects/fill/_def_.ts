@@ -5,7 +5,7 @@ export default defineEffect({
 	displayName: 'Fill',
 	tags: [],
 	paramDefs: {
-		color: { type: 'color', label: 'Color', default: () => ({ inputSource: 'literal', value: [1, 1, 1, 1] }) },
+		color: { dataType: 'color', ui: { control: 'color' }, label: 'Color', default: () => ({ inputSource: 'literal', value: [1, 1, 1, 1] }) },
 	},
 	outputs: {
 		output: { primary: true, dataType: 'color' },

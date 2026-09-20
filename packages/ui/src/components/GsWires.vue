@@ -107,7 +107,7 @@ const connections = computed(() => {
 		}
 		if (node.type !== 'effect') continue;
 		for (const { path, def, value } of walkNodeParams(node)) {
-			if (value.inputSource !== 'node' || value.nodeId == null || def.type === 'struct' || def.type === 'array') continue;
+			if (value.inputSource !== 'node' || value.nodeId == null || def.dataType === 'struct' || def.dataType === 'array') continue;
 			if (!nodesById.value.has(value.nodeId)) continue;
 			const from = wireMap.out[value.nodeId]?.[value.outputPort];
 			if (!from) continue;

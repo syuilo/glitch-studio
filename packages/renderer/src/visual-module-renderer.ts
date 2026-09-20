@@ -131,18 +131,18 @@ export class VisualModuleRenderer {
 		const input = this.paramTextures.get(paramId);
 		if (input != null) return input; // 呼び出し元のテクスチャは所有・破棄しない。
 		const value = this.paramValues.get(paramId);
-		if (def.type === 'image') return this.assetTextures.get(value) ?? this.fallbackTexture;
+		if (def.dataType === 'assetReference') return this.assetTextures.get(value) ?? this.fallbackTexture;
 		let components: number[];
-		if (def.type === 'color') {
+		if (def.dataType === 'color') {
 			const alpha = value?.[3] ?? 0;
 			// 定数色を画像として出力する境界だけでpremultiplyする。externalParameterInput/PARAMの値は変更しない。
 			components = [(value?.[0] ?? 0) * alpha, (value?.[1] ?? 0) * alpha, (value?.[2] ?? 0) * alpha, alpha];
-		} else if (['vector', 'xy', 'wh'].includes(def.type)) {
+		} else if (def.dataType === 'vector') {
 			components = [value?.[0] ?? 0, value?.[1] ?? 0];
-		} else if (['number', 'angle', 'range', 'seed', 'bool'].includes(def.type)) {
+		} else if (def.dataType === 'number' || def.dataType === 'bool') {
 			components = [Number(value ?? 0)];
 		} else {
-			throw new Error(`Parameter type cannot be converted to a texture: ${def.type}`);
+			throw new Error(`Parameter type cannot be converted to a texture: ${def.dataType}`);
 		}
 		let texture = this.paramConstTextures.get(paramId);
 		if (texture == null) {
@@ -191,7 +191,7 @@ export class VisualModuleRenderer {
 				const v = getEvaluatedParam(evaluatedParams, path);
 				const tex = this.effectPerParamConstFieldTextures.get(node.id)![JSON.stringify(path)];
 				// TODO: 全てのtypeに対応 & 別関数にする
-				const components = def.type === 'color' ? [v?.[0] ?? 0, v?.[1] ?? 0, v?.[2] ?? 0, v?.[3] ?? 0] : def.type === 'vector' ? [v?.[0] ?? 0, v?.[1] ?? 0] : [v ?? 0];
+				const components = def.dataType === 'color' ? [v?.[0] ?? 0, v?.[1] ?? 0, v?.[2] ?? 0, v?.[3] ?? 0] : def.dataType === 'vector' ? [v?.[0] ?? 0, v?.[1] ?? 0] : [v ?? 0];
 				const pixelData = this.enable32bitDataTextures
 					? new Float32Array(components)
 					: new Uint16Array(components.map(component => float32ToFloat16Bits(component)));
@@ -248,7 +248,7 @@ export class VisualModuleRenderer {
 			for (const { def, param, path } of walkNodeParams(paramDefs, node.params)) {
 				const v = getEvaluatedParam(params, path);
 				key += JSON.stringify([path, param.inputSource]);
-				if (def.type === 'player') {
+				if (def.dataType === 'playerReference') {
 					key += JSON.stringify([path, 'videoFrameVersion', v == null ? 0 : this.videoFrameVersions.get(v) ?? 0]);
 					const audio = v == null ? undefined : this.audioSources.get(playerAudioSourceId(v));
 					key += JSON.stringify([path, 'audio', audio == null ? null : [audio.generation, audio.revision, audio.endFrame]]);
@@ -271,8 +271,8 @@ export class VisualModuleRenderer {
 		for (const [key, def] of Object.entries(this.effectDefinitions[node.effectId].paramDefs)) {
 			resolvedParams[key] = mapNodeParam(def, node.params[key], [key], (def, param, path) => {
 				const v = getEvaluatedParam(params, path);
-				if (def.type === 'image') return this.assetTextures.get(v) ?? null;
-				if (def.type === 'player') return v == null ? null : {
+				if (def.dataType === 'assetReference') return this.assetTextures.get(v) ?? null;
+				if (def.dataType === 'playerReference') return v == null ? null : {
 					videoFrame: this.videoFrames.get(v) ?? null,
 					audio: this.audioSources.get(playerAudioSourceId(v)) ?? null,
 				};
@@ -374,7 +374,7 @@ export class VisualModuleRenderer {
 				const key = JSON.stringify(path);
 				used.add(key);
 				// TODO: 全typeについて定義 & 別関数に切り出し
-				const channels = def.type === 'color' ? 'rgba' : def.type === 'vector' ? 'rg' : 'r';
+				const channels = def.dataType === 'color' ? 'rgba' : def.dataType === 'vector' ? 'rg' : 'r';
 				const format = (channels + (this.enable32bitDataTextures ? '32float' : '16float')) as GPUTextureFormat;
 				if (textures[key]?.format === format) continue;
 				textures[key]?.destroy();

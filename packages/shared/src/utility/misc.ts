@@ -1,38 +1,20 @@
 import { rawBezierEasing } from './bezier.ts';
-import type { EffectParamDef, GsAutomation } from '../types.ts';
+import type { GsAutomation } from '../types.ts';
+import type { EffectOptionSchema, VisualModuleParamDef } from '../effect-definition.ts';
 
-export function genEmptyValue(paramDef: Omit<EffectParamDef, 'default'>): any {
-	if (paramDef.type === 'number' || paramDef.type === 'angle') {
-		return 0;
-	} else if (paramDef.type === 'range') {
-		let v = 0;
-		if (paramDef.hasOwnProperty('min')) v = Math.max((paramDef as any)['min'], v);
-		if (paramDef.hasOwnProperty('max')) v = Math.min((paramDef as any)['max'], v);
-		return v;
-	} else if (paramDef.type === 'enum') {
-		return (paramDef as any)['options'][0].value;
-	} else if (paramDef.type === 'bool') {
-		return false;
-	} else if (paramDef.type === 'blendMode') {
-		return 'normal';
-	} else if (paramDef.type === 'fitMode') {
-		return 'stretch';
-	} else if (paramDef.type === 'wrapMode') {
-		return 'repeatMirrored';
-	} else if (paramDef.type === 'xy') {
-		return [0, 0];
-	} else if (paramDef.type === 'wh') {
-		return [1024, 1024];
-	} else if (paramDef.type === 'vector') {
-		return [0, 0];
-	} else if (paramDef.type === 'color') {
-		return [0, 0, 0, 1];
-	} else if (paramDef.type === 'seed') {
-		return 0;
-	} else if (paramDef.type === 'image') {
-		return null;
-	} else if (paramDef.type === 'video') {
-		return null;
+export function genEmptyValue(paramDef: EffectOptionSchema | VisualModuleParamDef): any {
+	switch (paramDef.dataType) {
+		case 'number': return 0;
+		case 'enum': return paramDef.options[0]?.value ?? null;
+		case 'bool': return false;
+		case 'blendMode': return 'normal';
+		case 'fitMode': return 'stretch';
+		case 'wrapMode': return 'repeatMirrored';
+		case 'vector': return [0, 0];
+		case 'color': return [0, 0, 0, 1];
+		case 'any': case 'assetReference': case 'playerReference': return null;
+		case 'array': return [];
+		case 'struct': return Object.fromEntries(Object.entries(paramDef.fields).map(([key, def]) => [key, def.default()]));
 	}
 }
 

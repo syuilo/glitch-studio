@@ -1,13 +1,14 @@
+import type { EffectOptionSchema } from '@glitch/shared/effect-definition.ts';
 import type { EffectParamDef, EffectParamDefs, EffectParamValue } from '@glitch/shared/types.ts';
 
 type ParamPath = (string | number)[];
 
 // コンテナ自身の式は評価しない。literalの子だけを定義に沿ってたどる。
-export function mapNodeParam(def: EffectParamDef, param: EffectParamValue, path: ParamPath,
-	mapLeaf: (def: EffectParamDef, param: EffectParamValue, path: ParamPath) => any): any {
-	if (def.type === 'array' || def.type === 'struct') {
+export function mapNodeParam(def: EffectOptionSchema, param: EffectParamValue, path: ParamPath,
+	mapLeaf: (def: EffectOptionSchema, param: EffectParamValue, path: ParamPath) => any): any {
+	if (def.dataType === 'array' || def.dataType === 'struct') {
 		if (param.inputSource !== 'literal') throw new Error(`Container parameter must be literal: ${JSON.stringify(path)}`);
-		if (def.type === 'array') {
+		if (def.dataType === 'array') {
 			if (!Array.isArray(param.value)) throw new Error(`Expected array parameter: ${JSON.stringify(path)}`);
 			return param.value.map((value: EffectParamValue, index: number) => mapNodeParam(def.item, value, [...path, index], mapLeaf));
 		}
@@ -21,9 +22,9 @@ export function* walkNodeParams(defs: EffectParamDefs, params: Record<string, Ef
 	def: EffectParamDef; param: EffectParamValue; path: ParamPath;
 }> {
 	function* walk(def: EffectParamDef, param: EffectParamValue, path: ParamPath): ReturnType<typeof walkNodeParams> {
-		if (def.type === 'array' || def.type === 'struct') {
+		if (def.dataType === 'array' || def.dataType === 'struct') {
 			if (param.inputSource !== 'literal') throw new Error(`Container parameter must be literal: ${JSON.stringify(path)}`);
-			if (def.type === 'array') {
+			if (def.dataType === 'array') {
 				if (!Array.isArray(param.value)) throw new Error(`Expected array parameter: ${JSON.stringify(path)}`);
 				for (const [index, value] of param.value.entries()) yield* walk(def.item, value, [...path, index]);
 			} else {

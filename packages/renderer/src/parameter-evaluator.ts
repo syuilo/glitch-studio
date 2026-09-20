@@ -3,7 +3,7 @@ import { evalAutomationValue, genEmptyValue } from '@glitch/shared/utility/misc.
 import { deepClone } from '@glitch/shared/utility/deep-clone.js';
 import { reservedWords, singleVariableExpression, type globalEnvVarDefs } from '@glitch/shared/expression.js';
 import { mapNodeParam } from './utility/node-params.ts';
-import type { EffectDefinition } from '@glitch/shared/effect-definition.js';
+import type { EffectDefinition, EffectOptionSchema, VisualModuleParamDef } from '@glitch/shared/effect-definition.js';
 import type { EffectParamDef, GsAutomation, GsEffectNode, GsNode, VisualModule, VisualModuleParamValues } from '@glitch/shared/types.ts';
 
 export type ParameterEvaluationContext = {
@@ -32,7 +32,7 @@ export class ParameterEvaluator {
 
 	// パフォーマンス上の理由でインタプリタは使いまわすが、毎回スコープは上書きしてるので特に問題ないはず
 	// (本来ならスコープ的にアクセスできない値にアクセスできる可能性が生まれるのは許容する)
-	private evaluateExpression(expression: string, scope: Record<string, any>, paramDefForFallback: Omit<EffectParamDef, 'default'>, getParam?: (name: string) => any): any {
+	private evaluateExpression(expression: string, scope: Record<string, any>, paramDefForFallback: EffectOptionSchema | VisualModuleParamDef, getParam?: (name: string) => any): any {
 		try {
 			const variableName = singleVariableExpression.exec(expression)?.[1];
 			// 現在のスコープにある値だけを直接取得する。0も有効で、prototype由来の名前は含めない。
@@ -87,7 +87,7 @@ export class ParameterEvaluator {
 		for (const def of context.paramDefs) {
 			const value = context.paramValues[def.id];
 			if (context.textureParamIds.has(def.id)) continue;
-			const fallbackDef = { ...def.typeOptions, type: def.type, label: def.label };
+			const fallbackDef = def;
 			let evaluated = deepClone(def.defaultValue); // 参照が共有されないように切る
 			if (value?.inputSource === 'literal') evaluated = value.value;
 			if (value?.inputSource === 'envVariable') evaluated = mixedScope[value.variable] ?? genEmptyValue(fallbackDef);

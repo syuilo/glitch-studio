@@ -5,9 +5,9 @@ export default defineEffect({
 	displayName: 'LCD',
 	tags: [],
 	paramDefs: {
-		input: { type: 'color', label: 'Input', canNode: true, primary: true, default: () => ({ inputSource: 'node', nodeId: null, outputPort: null }) },
-		size: { type: 'range', min: 1, max: 200, step: 0.01, label: 'Size', default: () => ({ inputSource: 'literal', value: 50 }) },
-		border: { type: 'range', min: 0, max: 1, step: 0.01, label: 'Border', default: () => ({ inputSource: 'literal', value: 0.1 }) },
+		input: { dataType: 'color', ui: { control: 'color' }, label: 'Input', canNode: true, primary: true, default: () => ({ inputSource: 'node', nodeId: null, outputPort: null }) },
+		size: { dataType: 'number', ui: { control: 'range', min: 1, max: 200, step: 0.01 }, label: 'Size', default: () => ({ inputSource: 'literal', value: 50 }) },
+		border: { dataType: 'number', ui: { control: 'range', min: 0, max: 1, step: 0.01 }, label: 'Border', default: () => ({ inputSource: 'literal', value: 0.1 }) },
 	},
 	outputs: {
 		output: { primary: true, dataType: 'color' },

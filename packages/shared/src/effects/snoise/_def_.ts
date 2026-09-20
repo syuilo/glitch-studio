@@ -5,14 +5,14 @@ export default defineEffect({
 	displayName: 'snoise',
 	tags: [],
 	paramDefs: {
-		scale: { type: 'vector', label: 'Scale', min: 0, max: 16, step: 0.01, canNode: true, default: () => ({ inputSource: 'literal', value: [1, 1] }) },
-		offset: { type: 'vector', label: 'Offset', min: 0, max: 16, step: 0.01, default: () => ({ inputSource: 'literal', value: [0, 0] }) },
-		outputMin: { type: 'number', label: 'Output Min', step: 0.01, canNode: true, default: () => ({ inputSource: 'literal', value: -1 }) },
-		outputMax: { type: 'number', label: 'Output Max', step: 0.01, canNode: true, default: () => ({ inputSource: 'literal', value: 1 }) },
+		scale: { dataType: 'vector', ui: { control: 'vector', min: 0, max: 16, step: 0.01 }, label: 'Scale', canNode: true, default: () => ({ inputSource: 'literal', value: [1, 1] }) },
+		offset: { dataType: 'vector', ui: { control: 'vector', min: 0, max: 16, step: 0.01 }, label: 'Offset', default: () => ({ inputSource: 'literal', value: [0, 0] }) },
+		outputMin: { dataType: 'number', ui: { control: 'number', step: 0.01 }, label: 'Output Min', canNode: true, default: () => ({ inputSource: 'literal', value: -1 }) },
+		outputMax: { dataType: 'number', ui: { control: 'number', step: 0.01 }, label: 'Output Max', canNode: true, default: () => ({ inputSource: 'literal', value: 1 }) },
 		// canNodeでは環境によってTimeが16bitテクスチャに丸められ、経過時間とともに
 		// 値の刻みが粗くなって動きがカクつくため、32bitのuniformで渡す。
-		time: { type: 'range', min: 0, max: 100, step: 0.01, label: 'Time', canNode: false, default: () => ({ inputSource: 'envVariable', variable: 'TIME' }) },
-		seed: { type: 'seed', label: 'Seed', canNode: false, default: () => ({ inputSource: 'literal', value: 0 }) },
+		time: { dataType: 'number', ui: { control: 'range', min: 0, max: 100, step: 0.01 }, label: 'Time', canNode: false, default: () => ({ inputSource: 'envVariable', variable: 'TIME' }) },
+		seed: { dataType: 'number', ui: { control: 'seed' }, label: 'Seed', canNode: false, default: () => ({ inputSource: 'literal', value: 0 }) },
 	},
 	outputs: {
 		output: { primary: true, dataType: 'scalar' },
