@@ -2,7 +2,7 @@
 <div :class="$style.root">
 	<div :class="$style.header">
 		<button class="_button" style="padding: 4px 6px;" @click="showSwitchMenu"><i class="ti ti-chevron-down"></i> Module: {{ visualModule?.name ?? '' }} [{{ visualModule?.id ?? '' }}]</button>
-		<GsButton :class="$style.liveButton" small primary><i class="ti ti-player-play"></i> LIVE</GsButton>
+		<GsButton :class="$style.liveButton" small primary @click="previewLive"><i class="ti ti-player-play"></i> LIVE</GsButton>
 
 		<div style="padding: 8px;">
 			<GsTabs
@@ -67,7 +67,7 @@
 					v-for="paramDef of visualModule.paramDefs"
 					:key="paramDef.id"
 					:paramPath="[paramDef.id]"
-					:paramDef="paramDef"
+					:paramDef="{ ...paramDef, canNode: false }"
 					:paramValue="previewParamValues[paramDef.id]"
 					@edit="onPreviewParamEdit"
 				/>
@@ -96,21 +96,24 @@ import XVisualModuleParamDefsEditor from './XVisualModuleParamDefsEditor.vue';
 import XVisualModuleOutputDefsEditor from './XVisualModuleOutputDefsEditor.vue';
 import GsTabs from './common/GsTabs.vue';
 import type { ParamEdit } from './GsVisualParam.vue';
-import type { EffectParamValue, GsGlobalInNode, GsGlobalOutNode, GsNode, VisualModule } from '@glitch/shared/types.js';
+import type { GsGlobalInNode, GsGlobalOutNode, GsNode, VisualModule, VisualModuleParamValues } from '@glitch/shared/types.js';
 import { showAddNodeMenu } from '@/app.ts';
-import { appContext } from '@/app.ts';
+import { appContext, engine } from '@/app.ts';
 import * as ui from '@/ui.ts';
 
 const tab = ref('nodes');
 const visualModule = ref<VisualModule | null>();
-const previewParamValues = ref<Record<string, EffectParamValue>>({});
+const previewParamValues = ref<VisualModuleParamValues>({});
 let previewModuleId: string | undefined;
 let previewParamTypes = new Map<string, VisualModule['paramDefs'][number]['type']>();
 
 watch(appContext.state.visualModules, () => {
-	const module = appContext.state.visualModules.value[0];
+	const module = appContext.state.visualModules.value.find(module => module.id === visualModule.value?.id) ?? appContext.state.visualModules.value[0];
 	visualModule.value = module ?? null;
-	const values: Record<string, EffectParamValue> = {};
+}, { deep: true, immediate: true });
+
+watch(visualModule, module => {
+	const values: VisualModuleParamValues = {};
 	for (const def of module?.paramDefs ?? []) {
 		// ノードの編集などでプレビューの入力値を初期化しない。
 		values[def.id] = module?.id === previewModuleId && previewParamTypes.get(def.id) === def.type && previewParamValues.value[def.id] != null
@@ -129,17 +132,13 @@ function onPreviewParamEdit(event: ParamEdit) {
 	const def = visualModule.value?.paramDefs.find(def => def.id === id);
 	if (def == null) return;
 	const current = previewParamValues.value[id];
-	const reset = (): EffectParamValue => ({ type: 'literal', value: deepClone(def.defaultValue) });
+	const reset = (): VisualModuleParamValues[string] => ({ type: 'literal', value: deepClone(def.defaultValue) });
 	switch (event.kind) {
 		case 'literal': previewParamValues.value[id] = { type: 'literal', value: deepClone(event.value) }; break;
 		case 'expression': previewParamValues.value[id] = { type: 'expression', expression: event.value }; break;
 		case 'automation': previewParamValues.value[id] = { type: 'automation', automationId: event.value }; break;
 		case 'node':
-			if (def.canNode) previewParamValues.value[id] = event.value == null
-				? { type: 'node', nodeId: null, outputPort: null }
-				: { type: 'node', ...deepClone(event.value) };
-			break;
-		case 'macro': previewParamValues.value[id] = { type: 'macro', macroId: event.value }; break;
+		case 'macro': return;
 		case 'reset': previewParamValues.value[id] = reset(); break;
 		case 'type':
 			switch (event.type) {
@@ -148,16 +147,21 @@ function onPreviewParamEdit(event: ParamEdit) {
 					type: 'expression', expression: AiSON.stringify(current?.type === 'literal' ? current.value : def.defaultValue),
 				}; break;
 				case 'automation': previewParamValues.value[id] = { type: 'automation', automationId: null }; break;
-				case 'macro': previewParamValues.value[id] = { type: 'macro', macroId: '' }; break;
+				case 'macro':
 				case 'node':
-					if (def.canNode) previewParamValues.value[id] = { type: 'node', nodeId: null, outputPort: null };
-					break;
+					return;
 			}
 			break;
 		case 'addElement':
 		case 'removeElement':
-			break;
+			return;
 	}
+	previewLive();
+}
+
+function previewLive() {
+	if (visualModule.value == null) return;
+	engine.updateLiveParamValues(visualModule.value.id, previewParamValues.value);
 }
 
 const globalInNode = computed(() => {

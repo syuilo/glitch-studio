@@ -126,7 +126,6 @@ function toggleMacroValueType(macro: Macro) {
 	cursor: pointer;
 
 	&.expression {
-		color: var(--THEME-expression);
 	}
 }
 

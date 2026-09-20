@@ -1,11 +1,15 @@
 <template>
 <div :class="$style.root">
 	<div ref="rowEl" :class="$style.row" data-wire-input-row @contextmenu.prevent.stop="onRowContextmenu">
-		<div :class="[$style.paramHeader, { [$style.expression]: paramValue.type === 'expression' }]">
+		<div :class="[$style.paramHeader, { [$style.isDyamic]: paramValue.type !== 'literal' }]">
 			<button v-if="paramDef.type === 'array' || paramDef.type === 'struct'" class="_button"><i class="ti ti-chevron-down" style="vertical-align: middle;"></i></button>
 			<div :class="$style.paramLabel" @click="showMenu">
 				<GsCondensedLine>{{ label ?? paramDef.label }}</GsCondensedLine>
 			</div>
+			<i v-if="paramValue.type === 'expression'" class="ti ti-math-function" :class="$style.typeIcon"></i>
+			<i v-if="paramValue.type === 'macro'" class="ti ti-arrow-right" :class="$style.typeIcon"></i>
+			<i v-if="paramValue.type === 'node'" class="ti ti-plug" :class="$style.typeIcon"></i>
+			<i v-if="paramValue.type === 'automation'" class="ti ti-ease-in-out-control-points" :class="$style.typeIcon"></i>
 		</div>
 		<div :class="$style.paramBody">
 			<template v-if="paramDef.type === 'array'">
@@ -16,7 +20,7 @@
 				<GsNodePort v-if="canNode" :dataType="inputDataType" @update:element="portEl = $event"/>
 				<i v-if="hasNodeInputTypeMismatch(nodes, nodeConnection, inputDataType, paramDefs)" v-tooltip="'Data type mismatch'" class="ti ti-alert-triangle" :class="$style.typeWarning"></i>
 				<div :class="$style.control">
-					<GsInput v-if="paramValue.type === 'expression'" type="text" :modelValue="paramValue.expression" @update:modelValue="updateParamAsExpression">
+					<GsInput v-if="paramValue.type === 'expression'" type="text" class="_monospace" :modelValue="paramValue.expression" @update:modelValue="updateParamAsExpression">
 						<template #caption>
 							<div v-if="isExpressionSyntaxError" style="color: var(--THEME-error);"><i class="ti ti-alert-triangle"></i> Syntax error!</div>
 						</template>
@@ -239,10 +243,10 @@ function getMenu() {
 		menuItems.push({ type: 'label', text: 'Type' });
 		const types: { text: string; type: EffectParamValue['type']; icon: string }[] = [
 			{ text: 'Literal', type: 'literal', icon: 'ti ti-adjustments-horizontal' },
-			{ text: 'Automation', type: 'automation', icon: 'ti ti-timeline' },
+			{ text: 'Automation', type: 'automation', icon: 'ti ti-ease-in-out-control-points' },
 			{ text: 'Expression', type: 'expression', icon: 'ti ti-math-function' },
 		];
-		types.push({ text: 'Parameter', type: 'macro', icon: 'ti ti-arrow-right' });
+		if (props.node != null) types.push({ text: 'Parameter', type: 'macro', icon: 'ti ti-arrow-right' });
 		if (canNode.value) types.push({ text: 'Node', type: 'node', icon: 'ti ti-plug' });
 		for (const { text, type, icon } of types) {
 			menuItems.push({
@@ -339,8 +343,7 @@ function onReset() {
 	flex-shrink: 0;
 	font-size: 95%;
 
-	&.expression {
-		color: var(--THEME-expression);
+	&.isDyamic {
 	}
 }
 
@@ -351,6 +354,9 @@ function onReset() {
 	text-overflow: ellipsis;
 	overflow: clip;
 	cursor: pointer;
+}
+
+.typeIcon {
 }
 
 .paramBody {

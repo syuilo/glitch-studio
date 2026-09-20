@@ -6,7 +6,7 @@ import { projectAudioSourceId } from '@glitch/shared/audio.ts';
 import { isVideoFrameAvailable, playVideoAfterFirstFrameIsReady } from './utility/video.ts';
 import { AudioInputs } from './audio/audio-inputs.ts';
 import { setupWebcam } from './utility/webcam.ts';
-import type { Asset, GsAutomation, GsNode, Macro, VisualModule, Player, Timeline } from '@glitch/shared/types.ts';
+import type { Asset, GsAutomation, GsNode, Macro, VisualModule, VisualModuleParamValues, Player, Timeline } from '@glitch/shared/types.ts';
 import type { MainRenderer } from '@glitch/renderer/renderer.ts';
 import type { EffectStatus } from '@glitch/shared/effect-status.ts';
 import * as ui from '@/ui.ts';
@@ -24,6 +24,7 @@ export class Engine {
 	private resolution = { width: 1, height: 1 };
 	private renderLoopRunning = false;
 	private liveVisualModuleId: VisualModule['id'] | null = null;
+	private liveParamValues: VisualModuleParamValues = {};
 	private reloadPromise: Promise<void> | null = null;
 	private rejectInitialization: ((reason: Error) => void) | null = null;
 	private pendingCalls: { message: unknown; options?: StructuredSerializeOptions }[] = [];
@@ -229,10 +230,21 @@ export class Engine {
 		await ready;
 	}
 
-	public startLiveRenderLoopFor(visualModuleId: VisualModule['id']) {
-		this.call('startLiveRenderLoopFor', [visualModuleId]);
+	public startLiveRenderLoopFor(visualModuleId: VisualModule['id'], paramValues: VisualModuleParamValues = {}) {
+		this.liveParamValues = deepClone(paramValues);
+		this.call('startLiveRenderLoopFor', [visualModuleId, this.liveParamValues]);
 		this.liveVisualModuleId = visualModuleId;
 		this.renderLoopRunning = true;
+	}
+
+	public updateLiveParamValues(visualModuleId: VisualModule['id'], paramValues: VisualModuleParamValues) {
+		if (!this.renderLoopRunning || this.liveVisualModuleId !== visualModuleId) {
+			this.startLiveRenderLoopFor(visualModuleId, paramValues);
+			return;
+		}
+		// 同じモジュールの操作ではインスタンスを維持し、履歴を初期化しない。
+		this.liveParamValues = deepClone(paramValues);
+		this.call('updateLiveParamValues', [this.liveParamValues]);
 	}
 
 	public stopRenderLoop() {
@@ -408,6 +420,8 @@ export class Engine {
 	public renderTimelineAt(time: number) {
 		if (this.isReady.value || (this.rendererWorker != null && this.rejectInitialization != null)) {
 			this.call('renderTimelineAt', [time]);
+			this.renderLoopRunning = false;
+			this.liveVisualModuleId = null;
 		}
 	}
 
@@ -495,6 +509,6 @@ export class Engine {
 			this.sendPendingVideoFrame(id);
 		}
 		this.call('updatePointerPosition', [this.pointerPosition]);
-		if (this.renderLoopRunning && this.liveVisualModuleId != null) this.startLiveRenderLoopFor(this.liveVisualModuleId);
+		if (this.renderLoopRunning && this.liveVisualModuleId != null) this.startLiveRenderLoopFor(this.liveVisualModuleId, this.liveParamValues);
 	}
 }
