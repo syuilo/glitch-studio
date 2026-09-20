@@ -32,7 +32,7 @@ async function addAsset() {
 		hash: result.hash, // TODO
 	});
 	if (result.type.startsWith('audio/') || result.type.startsWith('video/')) {
-		appContext.commit('addPlayer', { id: genId(), name: result.name, type: 'asset', assetId });
+		appContext.commit('addPlayer', { id: genId(), name: result.name, sourceType: 'asset', assetId });
 	}
 }
 

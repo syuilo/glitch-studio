@@ -34,7 +34,7 @@ export type Asset = {
 export type Player = {
 	id: string;
 	name: string;
-	type: null | 'asset' | 'webcam' | 'microphone' | 'liveStream';
+	sourceType: null | 'asset' | 'webcam' | 'microphone' | 'liveStream';
 	assetId?: Asset['id'] | null;
 };
 

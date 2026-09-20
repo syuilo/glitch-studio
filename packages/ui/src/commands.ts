@@ -280,19 +280,19 @@ const addPlayerCommandDef = defineCommand<Player>({
 	},
 });
 
-const updatePlayerTypeCommandDef = defineCommand<{ playerId: Player['id']; type: Player['type'] }>({
-	label: 'Update player type',
+const updatePlayerSourceTypeCommandDef = defineCommand<{ playerId: Player['id']; sourceType: Player['sourceType'] }>({
+	label: 'Update player sourceType',
 	create: (payload) => {
-		let previousType: Player['type'];
+		let previousType: Player['sourceType'];
 		return {
 			execute(state) {
 				const player = state.players.value.find(player => player.id === payload.playerId)!;
-				previousType = player.type;
-				player.type = payload.type;
+				previousType = player.sourceType;
+				player.sourceType = payload.sourceType;
 			},
 			undo(state) {
 				const player = state.players.value.find(player => player.id === payload.playerId)!;
-				player.type = previousType;
+				player.sourceType = previousType;
 			},
 		};
 	},
@@ -645,7 +645,7 @@ export const COMMAND_DEFS = {
 	renameAsset: renameAssetCommandDef,
 	replaceAsset: replaceAssetCommandDef,
 	addPlayer: addPlayerCommandDef,
-	updatePlayerType: updatePlayerTypeCommandDef,
+	updatePlayerSourceType: updatePlayerSourceTypeCommandDef,
 	changeParamValueInputSource: changeParamValueInputSourceCommandDef,
 	updateParamAsLiteral: updateParamAsLiteralCommandDef,
 	updateParamAsEnvVariable: updateParamAsEnvVariableCommandDef,

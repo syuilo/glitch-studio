@@ -100,7 +100,7 @@ async function addMedia(file?: File) {
 		appContext.commit('addPlayer', {
 			id: playerId,
 			name: result.name,
-			type: 'asset',
+			sourceType: 'asset',
 			assetId: assetId,
 		});
 

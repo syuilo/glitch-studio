@@ -318,7 +318,7 @@ export async function newProjectFromImageOrVideo(file?: File) {
 	const player = result.type.startsWith('video/') || result.type.startsWith('audio/') ? {
 		id: genId(),
 		name: result.name,
-		type: 'asset',
+		sourceType: 'asset',
 		assetId: asset.id,
 	} satisfies Player : null;
 
