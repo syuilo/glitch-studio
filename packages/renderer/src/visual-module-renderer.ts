@@ -1,15 +1,13 @@
 import { getNodeOutputs } from '@glitch/shared/utility/node-outputs.ts';
-import * as AiScript from '@syuilo/aiscript';
-import { evalAutomationValue, genEmptyValue } from '@glitch/shared/utility/misc.ts';
 import { playerAudioSourceId } from '@glitch/shared/audio.ts';
 import { AudioHistory } from '@glitch/shared/audio-history.ts';
 import { float32ToFloat16Bits } from '@glitch/shared/utility/float32ToFloat16Bits.ts';
-import { deepClone } from '@glitch/shared/utility/deep-clone.js';
 import TimingHelper from './utility/TimingHelper.ts';
+import { ParameterEvaluator } from './parameter-evaluator.ts';
 import { getEvaluatedParam, mapNodeParam, walkNodeParams } from './utility/node-params.ts';
 import type { EffectStatus } from '@glitch/shared/effect-status.ts';
 import type { AudioSourceId } from '@glitch/shared/audio.ts';
-import type { Asset, GsAutomation, GsEffectNode, GsGlobalInNode, GsNode, NodeOutputReference, EffectParamDef, VisualModule, VisualModuleParamValues } from '@glitch/shared/types.ts';
+import type { Asset, GsAutomation, GsEffectNode, GsGlobalInNode, GsNode, NodeOutputReference, VisualModule, VisualModuleParamValues } from '@glitch/shared/types.ts';
 import type { EffectImplementation, EffectInstance, IntermediateTextureFormat } from '@glitch/shared/effect-implementation.js';
 import type { EffectDefinition } from '@glitch/shared/effect-definition.js';
 
@@ -69,8 +67,7 @@ export class VisualModuleRenderer {
 	private renderNodeId: GsNode['id'] | null = null;
 	private effectDefinitions: Record<string, EffectDefinition<any>>;
 	private effectImplementations: Record<string, EffectImplementation<any>>;
-	private aisParser = new AiScript.Parser();
-	private aiscript = new AiScript.Interpreter({});
+	private parameterEvaluator = new ParameterEvaluator();
 
 	constructor(options: {
 		onEffectStatus?: (nodeId: string, status: EffectStatus | null) => void;
@@ -116,32 +113,6 @@ export class VisualModuleRenderer {
 		this.updateVisualModule(options.visualModule);
 	}
 
-	// パフォーマンス上の理由でインタプリタは使いまわすが、毎回スコープは上書きしてるので特に問題ないはず
-	// (本来ならスコープ的にアクセスできない値にアクセスできる可能性が生まれるのは許容する)
-	private evaluateExpression(expression: string, scope: Record<string, any>, paramDefForFallback: Omit<EffectParamDef, 'default'>, getParam?: (name: string) => any): any {
-		try {
-			const constants = Object.fromEntries(Object.entries(scope).map(([key, value]) => [key, AiScript.utils.jsToVal(value)]));
-			if (getParam != null) {
-				const readParam = (args: (AiScript.values.Value | undefined)[]) => {
-					if (args.length !== 1 || args[0]?.type !== 'str') throw new Error('PARAM requires a parameter name');
-					return AiScript.utils.jsToVal(getParam(args[0].value));
-				};
-				constants.PARAM = AiScript.values.FN_NATIVE(readParam, readParam);
-			}
-			for (const key in constants) {
-				if (this.aiscript.scope.exists(key)) {
-					this.aiscript.scope.assign(key, constants[key]);
-				} else {
-					this.aiscript.scope.add(key, { isMutable: true, value: constants[key] });
-				}
-			}
-			const aisVal = this.aiscript.execSync(this.aisParser.parse(expression));
-			return aisVal === undefined ? null : AiScript.utils.valToJs(aisVal);
-		} catch {
-			return genEmptyValue(paramDefForFallback);
-		}
-	}
-
 	public updateVisualModule(visualModule: VisualModule) {
 		this.outputDefs = visualModule.outputDefs;
 		this.paramDefs = visualModule.paramDefs;
@@ -152,32 +123,6 @@ export class VisualModuleRenderer {
 		this.paramConstTextures.clear();
 		this.effectCacheKeys.clear();
 		this.updateNodes(visualModule.nodes);
-	}
-
-	private evaluateParams(context: VisualModuleRenderContext, scope: Record<string, any>) {
-		this.paramValues.clear();
-		this.paramTextures = context.paramTextures ?? new Map();
-
-		for (const def of this.paramDefs) {
-			const value = context.paramValues[def.id];
-			if (this.paramTextures.has(def.id)) continue;
-			const fallbackDef = { ...def.typeOptions, type: def.type, label: def.label };
-			let evaluated = deepClone(def.defaultValue); // 参照が共有されないように切る
-			if (value?.inputSource === 'literal') evaluated = value.value;
-			if (value?.inputSource === 'expression') evaluated = this.evaluateExpression(value.expression, scope, fallbackDef);
-			if (value?.inputSource === 'automation') {
-				const automation = this.automations.find(automation => automation.id === value.automationId);
-				evaluated = automation == null ? deepClone(def.defaultValue) : evalAutomationValue(automation, context.time);
-			}
-			this.paramValues.set(def.id, evaluated);
-		}
-	}
-
-	private readParam(name: string): any {
-		const def = this.paramDefs.find(def => def.name === name);
-		if (def == null) throw new Error(`Unknown parameter: ${name}`);
-		if (this.paramTextures.has(def.id)) throw new Error(`Texture parameter cannot be read by PARAM: ${name}`);
-		return this.paramValues.get(def.id);
 	}
 
 	private getParamTexture(paramId: string): GPUTexture | undefined {
@@ -219,51 +164,27 @@ export class VisualModuleRenderer {
 		this.preparedContext = null;
 	}
 
-	private evalNodeParams(nodes: GsNode[], context: VisualModuleRenderContext) {
-		const scope = {
-			WIDTH: this.resolution.width,
-			HEIGHT: this.resolution.height,
-			TIME: context.time / 1000, // ms to seconds
-			TIME_MS: context.time,
-			PROGRESS: context.progress ?? 0,
-		};
+	private evaluateParameters(context: VisualModuleRenderContext) {
+		this.paramTextures = context.paramTextures ?? new Map();
+		const evaluated = this.parameterEvaluator.evaluate({
+			nodes: this.nodes,
+			paramDefs: this.paramDefs,
+			effectDefinitions: this.effectDefinitions,
+			automations: this.automations,
+			resolution: this.resolution,
+			time: context.time,
+			progress: context.progress,
+			paramValues: context.paramValues,
+			textureParamIds: new Set(this.paramTextures.keys()),
+		});
+		this.paramValues = evaluated.paramValues;
+		this.evaledNodeParams = evaluated.nodeParams;
+	}
 
-		// Mixin (global) automations
-		// TODO: 各automationをフレーム数を引数にとる関数として定義する
-		const automationScope = {} as Record<string, any>;
-		for (const automation of this.automations) {
-			automationScope[automation.name] = evalAutomationValue(automation, context.time);
-		}
-
-		this.evaluateParams(context, { ...automationScope, ...scope });
-
-		for (const node of nodes.filter((n): n is GsEffectNode => n.type === 'effect')) {
+	private uploadNodeParamTextures() {
+		for (const node of this.nodes.filter((n): n is GsEffectNode => n.type === 'effect')) {
 			const paramDefs = this.effectDefinitions[node.effectId].paramDefs;
-
-			const evaluatedParams = {} as Record<string, any>;
-
-			const mixedScope = {
-				...automationScope,
-				...scope,
-			};
-
-			for (const [key, def] of Object.entries(paramDefs)) {
-				if (node.isBypass && !def.primary) continue;
-				evaluatedParams[key] = mapNodeParam(def, node.params[key], [key], (def, param) => {
-					if (param.inputSource === 'literal') return param.value;
-					if (param.inputSource === 'expression') return param.expression ? this.evaluateExpression(param.expression, mixedScope, def, name => this.readParam(name)) : genEmptyValue(def);
-					if (param.inputSource === 'macro') {
-						if (!this.paramValues.has(param.macroId) || this.paramTextures.has(param.macroId)) return genEmptyValue(def);
-						return this.paramValues.get(param.macroId);
-					}
-					if (param.inputSource === 'automation') {
-						const automation = this.automations.find(a => a.id === param.automationId);
-						return automation ? evalAutomationValue(automation, context.time) : genEmptyValue(def);
-					}
-					return param.nodeId == null ? null : { nodeId: param.nodeId, outputPort: param.outputPort };
-				});
-			}
-			this.evaledNodeParams.set(node.id, evaluatedParams);
+			const evaluatedParams = this.evaledNodeParams.get(node.id)!;
 
 			for (const { def, param, path } of walkNodeParams(paramDefs, node.params, node.isBypass)) {
 				if (!def.canNode || param.inputSource === 'node') continue;
@@ -699,7 +620,8 @@ export class VisualModuleRenderer {
 		const node = this.renderNodeId == null ? undefined : this.allNodeIdMap.get(this.renderNodeId);
 		if (node == null) return;
 
-		this.evalNodeParams(this.nodes, context);
+		this.evaluateParameters(context);
+		this.uploadNodeParamTextures();
 		this.prepareOutputPorts(node, this.getRequestedOutputIds(context));
 
 		const prepared = new Set<string>();
@@ -755,7 +677,10 @@ export class VisualModuleRenderer {
 		if (node == null) return outputs;
 
 		// 準備時と同じ評価結果を使い、式の再評価によるリソースの再読み込みを防ぐ。
-		if (this.preparedContext !== context) this.evalNodeParams(this.nodes, context);
+		if (this.preparedContext !== context) {
+			this.evaluateParameters(context);
+			this.uploadNodeParamTextures();
+		}
 		this.preparedContext = null;
 
 		this.prepareOutputPorts(node, this.getRequestedOutputIds(context));
