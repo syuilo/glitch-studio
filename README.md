@@ -1,4 +1,4 @@
-# Glitch Studio for Web (⚠️Under Development!!!)
+# Glitch Studio (⚠️Under Development!!!)
 
 Glitch Studioは、ノードベースのエディタを通じてリアルタイムな画像・動画の加工・編集を行ったり、シェーダーのplaygroundとして使えるWebアプリケーションです。
 

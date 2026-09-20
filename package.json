@@ -1,5 +1,5 @@
 {
-	"name": "glitch-studio-web",
+	"name": "glitch-studio",
 	"private": true,
 	"version": "2.0.0-alpha",
 	"packageManager": "pnpm@12.3.4",

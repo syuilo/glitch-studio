@@ -3,13 +3,13 @@
 	<div :class="$style.root" class="_gaps_m">
 		<div style="font-size: 110%;">
 			<img src="/gs.svg" style="display: block; margin: 0 auto 8px auto; width: 64px; height: 64px;">
-			<div><b>Glitch Studio for Web</b></div>
+			<div><b>Glitch Studio</b></div>
 			<div>{{ version }}</div>
 		</div>
 		<div style="font-size: 110%;">
 			<small style="display: block;">
 				<div>Copyright (c) 2024-2026 syuilo</div>
-				<a class="_gs-link" href="https://github.com/syuilo/glitch-studio-web" target="_blank">https://github.com/syuilo/glitch-studio-web</a>
+				<a class="_gs-link" href="https://github.com/syuilo/glitch-studio" target="_blank">https://github.com/syuilo/glitch-studio</a>
 			</small>
 		</div>
 		<div style="font-size: 110%;">

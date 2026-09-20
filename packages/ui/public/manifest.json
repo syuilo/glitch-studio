@@ -1,25 +1,25 @@
 {
 	"short_name": "Glitch Studio",
 	"name": "Glitch Studio",
-	"start_url": "/glitch-studio-web",
+	"start_url": "/glitch-studio",
 	"display": "standalone",
 	"background_color": "#080808",
 	"theme_color": "#ff8400",
 	"icons": [
 		{
-			"src": "/glitch-studio-web/icon-192.png",
+			"src": "/glitch-studio/icon-192.png",
 			"sizes": "192x192",
 			"type": "image/png",
 			"purpose": "maskable"
 		},
 		{
-			"src": "/glitch-studio-web/icon-512.png",
+			"src": "/glitch-studio/icon-512.png",
 			"sizes": "512x512",
 			"type": "image/png",
 			"purpose": "maskable"
 		},
 		{
-			"src": "/glitch-studio-web/splash.png",
+			"src": "/glitch-studio/splash.png",
 			"sizes": "300x300",
 			"type": "image/png",
 			"purpose": "any"
