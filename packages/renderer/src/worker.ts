@@ -10,7 +10,7 @@ let waveformVerticalCanvas: OffscreenCanvas | null = null;
 
 setInterval(() => {
 	if (renderer == null) return;
-	self.postMessage({ type: 'stats', stats: {
+	self.postMessage({ type: 'telemetry', stats: {
 		fpsAverage: renderer.fpsAverage.get(),
 		gpuAverageFast: renderer.gpuAverageFast.get(),
 		gpuAverageMedium: renderer.gpuAverageMedium.get(),

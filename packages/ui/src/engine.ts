@@ -208,7 +208,7 @@ export class Engine {
 					else this.effectStatuses.delete(nodeId);
 					break;
 				}
-				case 'stats': {
+				case 'telemetry': {
 					const { stats } = event.data;
 					this.fpsDisplay.value = stats.fpsAverage;
 					if (this.enableStats) {
