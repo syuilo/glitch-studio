@@ -119,7 +119,8 @@
 		"TIME_MS": "時間 (ミリ秒)",
 		"WIDTH": "レンダリングの横幅",
 		"HEIGHT": "レンダリングの縦幅",
-		"PROGRESS": "進行率"
+		"PROGRESS": "進行率",
+		"IS_EXPORT": "エクスポート用レンダリングかどうか"
 	},
 	"GpuMemoryEstimate": "Estimated GPU resource memory\nTextures: {textures} MiB\nBuffers: {buffers} MiB",
 	"None": "なし",

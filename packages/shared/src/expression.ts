@@ -1,4 +1,4 @@
-export const globalEnvVarDefs = ['WIDTH', 'HEIGHT', 'TIME', 'TIME_MS', 'PROGRESS'];
+export const globalEnvVarDefs = ['WIDTH', 'HEIGHT', 'TIME', 'TIME_MS', 'PROGRESS', 'IS_EXPORT'];
 
 // AiScript 1.2の識別子・予約語に合わせる。コメントやエスケープを含む式は通常のパーサーに任せる。
 

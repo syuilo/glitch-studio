@@ -120,7 +120,8 @@
 		"TIME_MS": "Time (ms)",
 		"WIDTH": "Rendering Width",
 		"HEIGHT": "Rendering Height",
-		"PROGRESS": "Progress"
+		"PROGRESS": "Progress",
+		"IS_EXPORT": "Whether it is an export rendering"
 	},
 	"GpuMemoryEstimate": "Estimated GPU resource memory\nTextures: {textures} MiB\nBuffers: {buffers} MiB",
 	"None": "None",

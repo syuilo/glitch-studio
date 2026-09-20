@@ -73,6 +73,7 @@ export class ParameterEvaluator {
 			TIME: context.time / 1000, // ms to seconds
 			TIME_MS: context.time,
 			PROGRESS: context.progress ?? 0,
+			IS_EXPORT: false, // TODO
 		} satisfies Record<typeof globalEnvVarDefs[number], any>;
 
 		// Mixin (global) automations
