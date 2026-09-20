@@ -474,6 +474,7 @@ export class MainRenderer {
 			audioSources: this.audioSources,
 		});
 
+		this.latestLiveTimestamp = performance.now();
 		let then = 0;
 
 		const renderLoop = (timeStamp: number) => {
@@ -491,6 +492,8 @@ export class MainRenderer {
 			const realTimeDelta = timeStamp - this.latestLiveTimestamp;
 			this.liveTimeDelta = realTimeDelta * this.liveTimeFactor;
 			this.liveTime += this.liveTimeDelta;
+			// 実時間と倍率適用後の時刻は混ぜず、出力がないフレームでも更新する。
+			this.latestLiveTimestamp = timeStamp;
 
 			const commandEncoder = this.gpuDevice.createCommandEncoder();
 
@@ -506,7 +509,6 @@ export class MainRenderer {
 			this.renderToCanvas(tex, commandEncoder);
 
 			this.pointerPositionPrev = { ...this.pointerPosition };
-			this.latestLiveTimestamp = this.liveTime;
 
 			this.fpsAverage.addSample(1000 / realTimeDelta);
 

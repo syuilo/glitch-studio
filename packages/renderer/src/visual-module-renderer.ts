@@ -23,7 +23,7 @@ function evaluateExpression(expression: string, scope: Record<string, any>, para
 	try {
 		const constants = Object.fromEntries(Object.entries(scope).map(([key, value]) => [key, AiScript.utils.jsToVal(value)]));
 		if (getParam != null) {
-			const readParam = (args: AiScript.values.Value[]) => {
+			const readParam = (args: (AiScript.values.Value | undefined)[]) => {
 				if (args.length !== 1 || args[0]?.type !== 'str') throw new Error('PARAM requires a parameter name');
 				return AiScript.utils.jsToVal(getParam(args[0].value));
 			};
@@ -31,9 +31,9 @@ function evaluateExpression(expression: string, scope: Record<string, any>, para
 		}
 		for (const key in constants) {
 			if (aiscript.scope.exists(key)) {
-				aiscript.scope.assign(key, scope[key]);
+				aiscript.scope.assign(key, constants[key]);
 			} else {
-				aiscript.scope.add(key, { isMutable: true, value: scope[key] });
+				aiscript.scope.add(key, { isMutable: true, value: constants[key] });
 			}
 		}
 		const aisVal = aiscript.execSync(aisParser.parse(expression));
