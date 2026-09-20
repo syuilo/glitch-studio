@@ -6,7 +6,8 @@
 	"workspaces": [
 		"packages/shared",
 		"packages/renderer",
-		"packages/ui"
+		"packages/ui",
+		"packages/desktop"
 	],
 	"scripts": {
 		"test": "pnpm --no-bail -r test",
@@ -14,7 +15,10 @@
 		"build": "pnpm --dir packages/ui build",
 		"preview": "pnpm --dir packages/ui preview",
 		"typecheck": "pnpm --no-bail -r typecheck",
-		"lint": "pnpm --no-bail -r lint"
+		"lint": "pnpm --no-bail -r lint",
+		"dev:desktop": "pnpm --dir packages/desktop dev",
+		"build:desktop": "cross-env BUILD_TARGET=electron pnpm --dir packages/ui build",
+		"start:desktop": "pnpm --dir packages/desktop start"
 	},
 	"dependencies": {
 		"esbuild": "0.28.2",

@@ -2,6 +2,7 @@ packages:
   - packages/shared
   - packages/renderer
   - packages/ui
+  - packages/desktop
 minimumReleaseAge: 10080 # delay 7days to mitigate supply-chain attack
 minimumReleaseAgeExclude:
   - '@syuilo/aiscript'
@@ -21,6 +22,7 @@ engineStrict: true
 saveExact: true
 shellEmulator: true
 allowBuilds:
+  electron: true
   '@parcel/watcher': false
   esbuild: false
   pnpm: false

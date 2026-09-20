@@ -18,17 +18,34 @@
 				<a class="_gs-link" href="https://github.com/misskey-dev/misskey" target="_blank">https://github.com/misskey-dev/misskey</a>
 			</small>
 		</div>
+		<GsButton v-if="isElectron" inline :wait="showingTestAlert" @click="showTestAlert">OSダイアログをテスト</GsButton>
 		<GsButton inline @click="ok">OK</GsButton>
 	</div>
 </GsModal>
 </template>
 
 <script lang="ts" setup>
-import { useTemplateRef } from 'vue';
+import { ref, useTemplateRef } from 'vue';
 import GsModal from './common/GsModal.vue';
 import GsButton from './common/GsButton.vue';
+import * as ui from '@/ui.ts';
 
 const version = _VERSION_;
+const isElectron = __ELECTRON__;
+const showingTestAlert = ref(false);
+
+async function showTestAlert() {
+	if (!__ELECTRON__ || showingTestAlert.value) return;
+	showingTestAlert.value = true;
+	try {
+		if (!window.desktop) throw new Error('Desktop API is unavailable');
+		await window.desktop.showTestAlert();
+	} catch (error) {
+		await ui.alert({ type: 'error', title: 'OSダイアログの表示に失敗しました', text: String(error) });
+	} finally {
+		showingTestAlert.value = false;
+	}
+}
 
 const modal = useTemplateRef('modal');
 
