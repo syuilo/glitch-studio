@@ -38,7 +38,6 @@ export function getNodeOutputs(node: GsNode | undefined, paramDefs: VisualModule
 					dataType = 'vector'; break;
 				case 'color': case 'image':
 					dataType = 'color'; break;
-				case 'signal': dataType = 'any'; break;
 				default: continue;
 			}
 			outputs[def.id] = { dataType, primary: def.isPrimaryInput };

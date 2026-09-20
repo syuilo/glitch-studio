@@ -131,8 +131,6 @@ export class VisualModuleRenderer {
 		this.videoFrames = options.videoFrames;
 		this.videoFrameVersions = options.videoFrameVersions;
 		this.fallbackScalarFieldTexture = options.fallbackScalarFieldTexture;
-		this.assets = options.assets;
-
 		this.automations = options.automations;
 		this.assetTextures = options.assetTextures;
 		this.audioSources = options.audioSources;
@@ -192,8 +190,6 @@ export class VisualModuleRenderer {
 			components = [(value?.[0] ?? 0) * alpha, (value?.[1] ?? 0) * alpha, (value?.[2] ?? 0) * alpha, alpha];
 		} else if (['vector', 'xy', 'wh', 'range2'].includes(def.type)) {
 			components = [value?.[0] ?? 0, value?.[1] ?? 0];
-		} else if (def.type === 'signal') {
-			components = [Number(value?.[0] ?? 0), Number(value?.[1] ?? 0), Number(value?.[2] ?? 0), 0];
 		} else if (['number', 'angle', 'range', 'seed', 'time', 'bool'].includes(def.type)) {
 			components = [Number(value ?? 0)];
 		} else {

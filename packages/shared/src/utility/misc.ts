@@ -21,8 +21,6 @@ export function genEmptyValue(paramDef: Omit<EffectParamDef, 'default'>): any {
 		return 'stretch';
 	} else if (paramDef.type === 'wrapMode') {
 		return 'repeatMirrored';
-	} else if (paramDef.type === 'signal') {
-		return [false, false, false];
 	} else if (paramDef.type === 'xy') {
 		return [0, 0];
 	} else if (paramDef.type === 'wh') {

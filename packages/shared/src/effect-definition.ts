@@ -26,6 +26,7 @@ export type AngleOptionSchema = EffectOptionSchemaBase & {
 
 export type ColorOptionSchema = EffectOptionSchemaBase & {
 	type: 'color';
+	asRgbSwitch?: boolean;
 	canNode?: boolean;
 };
 
@@ -35,11 +36,6 @@ export type VectorOptionSchema = EffectOptionSchemaBase & {
 	max?: number;
 	step?: number;
 	canNode?: boolean;
-};
-
-export type SignalOptionSchema = EffectOptionSchemaBase & {
-	type: 'signal';
-	canNode?: false;
 };
 
 export type BlendModeOptionSchema = EffectOptionSchemaBase & {

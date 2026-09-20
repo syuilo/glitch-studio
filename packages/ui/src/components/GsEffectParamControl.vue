@@ -131,9 +131,6 @@
 			@update:modelValue="v => changeValue(v)"
 		/>
 	</div>
-	<div v-else-if="type === 'signal'">
-		<GsSignal :signal="value" @input="changeValue($event)"/>
-	</div>
 	<div v-else-if="type === 'xy'">
 		<GsXy :modelValue="value" :step="options.step ?? 0.1" :min="options.min" :max="options.max" @beginChanging="onBeginChanging" @update:modelValue="v => changeContinuous(v)" @changeFinished="onFinishChanging"/>
 	</div>
