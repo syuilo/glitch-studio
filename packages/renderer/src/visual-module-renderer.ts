@@ -139,7 +139,7 @@ export class VisualModuleRenderer {
 			components = [(value?.[0] ?? 0) * alpha, (value?.[1] ?? 0) * alpha, (value?.[2] ?? 0) * alpha, alpha];
 		} else if (['vector', 'xy', 'wh', 'range2'].includes(def.type)) {
 			components = [value?.[0] ?? 0, value?.[1] ?? 0];
-		} else if (['number', 'angle', 'range', 'seed', 'time', 'bool'].includes(def.type)) {
+		} else if (['number', 'angle', 'range', 'seed', 'bool'].includes(def.type)) {
 			components = [Number(value ?? 0)];
 		} else {
 			throw new Error(`Parameter type cannot be converted to a texture: ${def.type}`);

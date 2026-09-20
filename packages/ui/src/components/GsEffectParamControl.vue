@@ -153,10 +153,6 @@
 		<GsInput style="flex: 1;" type="number" :modelValue="value" @update:modelValue="changeValue(parseInt($event, 10))"/>
 		<GsButton small iconOnly :title="i18n.ts.Random" @click="() => changeValue(Math.floor(Math.random() * 16384))"><i class="ti ti-dice-5"></i></GsButton>
 	</div>
-	<div v-else-if="type === 'time'" class="time">
-		<GsInput type="number" :modelValue="value" @update:modelValue="changeValue(parseInt($event, 10))"/>
-		<GsButton small iconOnly :title="i18n.ts.Random" @click="() => changeValue(Math.floor(Math.random() * 16384))"><i class="ti ti-dice-5"></i></GsButton>
-	</div>
 	<div v-else-if="type === 'image'">
 		<GsSelect
 			small

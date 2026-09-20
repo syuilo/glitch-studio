@@ -32,7 +32,7 @@ export function getNodeOutputs(node: GsNode | undefined, paramDefs: VisualModule
 			if (!def.canNode) continue;
 			let dataType: NodeDataType;
 			switch (def.type) {
-				case 'number': case 'angle': case 'range': case 'seed': case 'time': case 'bool':
+				case 'number': case 'angle': case 'range': case 'seed': case 'bool':
 					dataType = 'scalar'; break;
 				case 'vector': case 'xy': case 'wh': case 'range2':
 					dataType = 'vector'; break;

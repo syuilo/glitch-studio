@@ -31,8 +31,6 @@ export function genEmptyValue(paramDef: Omit<EffectParamDef, 'default'>): any {
 		return [0, 0, 0, 1];
 	} else if (paramDef.type === 'seed') {
 		return 0;
-	} else if (paramDef.type === 'time') {
-		return 0;
 	} else if (paramDef.type === 'image') {
 		return null;
 	} else if (paramDef.type === 'video') {
