@@ -5,6 +5,17 @@ import { mapNodeParam } from './utility/node-params.ts';
 import type { EffectDefinition } from '@glitch/shared/effect-definition.js';
 import type { EffectParamDef, GsAutomation, GsEffectNode, GsNode, VisualModule, VisualModuleParamValues } from '@glitch/shared/types.ts';
 
+// AiScript 1.2の識別子・予約語に合わせる。コメントやエスケープを含む式は通常のパーサーに任せる。
+const singleVariableExpression = /^[ \t\r\n]*([A-Za-z_][A-Za-z0-9_]*(?::[A-Za-z_][A-Za-z0-9_]*)*)[ \t\r\n]*$/;
+const reservedWords = new Set([
+	'null', 'true', 'false', 'each', 'for', 'loop', 'do', 'while', 'break', 'continue',
+	'match', 'case', 'default', 'if', 'elif', 'else', 'return', 'eval', 'var', 'let', 'exists',
+	'as', 'async', 'attr', 'attribute', 'await', 'catch', 'class', 'component', 'constructor',
+	'dictionary', 'enum', 'export', 'finally', 'fn', 'hash', 'in', 'interface', 'out',
+	'private', 'public', 'ref', 'static', 'struct', 'table', 'this', 'throw', 'trait', 'try',
+	'undefined', 'use', 'using', 'when', 'yield', 'import', 'is', 'meta', 'module', 'namespace', 'new',
+]);
+
 export type ParameterEvaluationContext = {
 	nodes: GsNode[];
 	paramDefs: VisualModule['paramDefs'];
@@ -33,6 +44,14 @@ export class ParameterEvaluator {
 	// (本来ならスコープ的にアクセスできない値にアクセスできる可能性が生まれるのは許容する)
 	private evaluateExpression(expression: string, scope: Record<string, any>, paramDefForFallback: Omit<EffectParamDef, 'default'>, getParam?: (name: string) => any): any {
 		try {
+			const variableName = singleVariableExpression.exec(expression)?.[1];
+			// 現在のスコープにある値だけを直接取得する。0も有効で、prototype由来の名前は含めない。
+			// PARAMはノードの式では関数で上書きされるため、同名のautomationを直接返さない。
+			if (variableName != null && Object.hasOwn(scope, variableName)
+				&& !(variableName === 'PARAM' && getParam != null)
+				&& !variableName.split(':').some(name => reservedWords.has(name))) {
+				return scope[variableName];
+			}
 			const constants = Object.fromEntries(Object.entries(scope).map(([key, value]) => [key, AiScript.utils.jsToVal(value)]));
 			if (getParam != null) {
 				const readParam = (args: (AiScript.values.Value | undefined)[]) => {

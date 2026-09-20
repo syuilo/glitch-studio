@@ -37,6 +37,75 @@ const context = (defs, params, overrides = {}) => ({
 	...overrides,
 });
 
+// 単一の組み込み変数はモジュール・ネストしたノードのどちらでもパースも実行もしない
+test('reads single scope variables without parsing or executing AiScript', t => {
+	const evaluator = new ParameterEvaluator();
+	const parse = t.mock.method(evaluator.aisParser, 'parse');
+	// AiScriptのautobind getterを解決してから、実メソッドの呼び出しを記録する。
+	void evaluator.aiscript.execSync;
+	const exec = t.mock.method(evaluator.aiscript, 'execSync');
+	const input = context({ values: { type: 'array', item: number } }, {
+		values: literal(['TIME', 'TIME_MS', 'WIDTH', 'HEIGHT', 'PROGRESS'].map(name => expression(` \t${name}\r\n`))),
+	}, { paramDefs: [paramDef('time')], paramValues: { time: expression('TIME') } });
+	const first = evaluator.evaluate(input);
+	assert.equal(first.paramValues.get('time'), 0.5);
+	assert.deepEqual(first.nodeParams.get('node').values, [0.5, 500, 640, 360, 0.25]);
+	const second = evaluator.evaluate({ ...input, time: 0, progress: 0, resolution: { width: 1280, height: 720 } });
+	assert.equal(second.paramValues.get('time'), 0);
+	assert.deepEqual(second.nodeParams.get('node').values, [0, 0, 1280, 720, 0]);
+	assert.equal(parse.mock.callCount(), 0);
+	assert.equal(exec.mock.callCount(), 0);
+});
+
+// automationの変数も直接取得し、同名の組み込み変数は組み込み側を優先する
+test('reads automation variables directly while preserving built-in precedence', t => {
+	const evaluator = new ParameterEvaluator();
+	const parse = t.mock.method(evaluator.aisParser, 'parse');
+	// AiScriptのautobind getterを解決してから、実メソッドの呼び出しを記録する。
+	void evaluator.aiscript.execSync;
+	const exec = t.mock.method(evaluator.aiscript, 'execSync');
+	const automations = ['gain_1', 'channel:level', 'TIME'].map(name => ({ id: name, name, keyframes: [
+		{ timeMs: 0, value: 8, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] },
+		{ timeMs: 1000, value: 8, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] },
+	] }));
+	const result = evaluator.evaluate(context({ a: number, b: number, time: number }, {
+		a: expression('gain_1'), b: expression('channel:level'), time: expression('TIME'),
+	}, { automations }));
+	assert.deepEqual(result.nodeParams.get('node'), { a: 8, b: 8, time: 0.5 });
+	assert.equal(parse.mock.callCount(), 0);
+	assert.equal(exec.mock.callCount(), 0);
+});
+
+// 複合式・コメント・関数呼び出し・未定義変数は従来のAiScript評価に渡す
+test('uses AiScript for complex expressions and unknown variables', t => {
+	const evaluator = new ParameterEvaluator();
+	const parse = t.mock.method(evaluator.aisParser, 'parse');
+	// AiScriptのautobind getterを解決してから、実メソッドの呼び出しを記録する。
+	void evaluator.aiscript.execSync;
+	const exec = t.mock.method(evaluator.aiscript, 'execSync');
+	const expressions = ['TIME + 1', 'TIME // comment', 'PARAM("gain")', 'UNKNOWN', 'toString'];
+	const result = evaluator.evaluate(context({ values: { type: 'array', item: number } }, {
+		values: literal(expressions.map(expression)),
+	}, { paramDefs: [paramDef('gain', 4)] }));
+	assert.deepEqual(result.nodeParams.get('node').values, [1.5, 0.5, 4, 0, 0]);
+	assert.equal(parse.mock.callCount(), expressions.length);
+	assert.equal(exec.mock.callCount(), expressions.length);
+});
+
+// 同名のautomationがあってもtrue・false・nullを変数として扱わない
+test('preserves literal and keyword semantics when automation names collide', t => {
+	const evaluator = new ParameterEvaluator();
+	const parse = t.mock.method(evaluator.aisParser, 'parse');
+	const names = ['true', 'false', 'null', 'if'];
+	const result = evaluator.evaluate(context({ values: { type: 'array', item: number } }, {
+		values: literal(names.map(expression)),
+	}, { automations: names.map(name => ({ id: name, name, keyframes: [
+		{ timeMs: 0, value: 99 }, { timeMs: 1000, value: 99 },
+	] })), time: 0 }));
+	assert.deepEqual(result.nodeParams.get('node').values, [true, false, null, 0]);
+	assert.equal(parse.mock.callCount(), names.length);
+});
+
 // GPUなしでネストした値・式・接続参照を評価する
 test('evaluates nested values, expressions and node references without a GPU', () => {
 	const input = context({
