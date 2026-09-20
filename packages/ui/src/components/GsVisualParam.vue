@@ -240,7 +240,7 @@ function getMenu() {
 
 	// コンテナ自体は静的な構造を維持し、値の種類を変更できるのは末端だけにする。
 	if (paramDef.value.type !== 'array' && paramDef.value.type !== 'struct') {
-		menuItems.push({ type: 'label', text: 'Type' });
+		menuItems.push({ type: 'label', text: 'Input method' });
 		const types: { text: string; type: EffectParamValue['type']; icon: string }[] = [
 			{ text: 'Literal', type: 'literal', icon: 'ti ti-adjustments-horizontal' },
 			{ text: 'Automation', type: 'automation', icon: 'ti ti-ease-in-out-control-points' },
