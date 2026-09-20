@@ -298,10 +298,6 @@ function updateParamAsLiteral(value: any) {
 	if (mounted) emit('edit', { kind: 'literal', ...target(), value });
 }
 
-function updateParamAsEnvVariable(value: string) {
-	if (mounted) emit('edit', { kind: 'envVariable', ...target(), value });
-}
-
 function updateParamAsExpression(value: string) {
 	if (mounted) emit('edit', { kind: 'expression', ...target(), value });
 }

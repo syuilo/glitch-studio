@@ -406,7 +406,7 @@ const updateParamAsNodeCommandDef = defineNodeParamCommand<NodeParamTarget & { v
 	(target, payload) => {
 		assertLeafParam(target);
 		if (!('canNode' in target.def) || !target.def.canNode) throw new Error('Parameter does not support node input');
-		return payload.value == null ? { inputSource: 'node', nodeId: null, outputPort: null } : { type: 'node', ...payload.value };
+		return payload.value == null ? { inputSource: 'node', nodeId: null, outputPort: null } : { inputSource: 'node', ...payload.value };
 	},
 );
 
