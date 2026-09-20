@@ -736,14 +736,7 @@ export class VisualModuleRenderer {
 		return context.outputIds ?? this.outputDefs.filter(def => def.isPrimaryOutput).map(def => def.id);
 	}
 
-	public render(context: VisualModuleRenderContext, commandEncoder: GPUCommandEncoder): GPUTexture | undefined {
-		const outputs = this.renderOutputs(context, commandEncoder);
-		const primary = this.outputDefs.find(def => def.isPrimaryOutput);
-		return primary == null ? undefined : outputs.get(primary.id);
-	}
-
-	// 複数出力が同じエフェクトを共有しても、1フレームにつき一度だけ描画する。
-	public renderOutputs(context: VisualModuleRenderContext, commandEncoder: GPUCommandEncoder): Map<string, GPUTexture> {
+	private renderOutputs(context: VisualModuleRenderContext, commandEncoder: GPUCommandEncoder): Map<string, GPUTexture> {
 		const outputs = new Map<string, GPUTexture>();
 		if (this.renderNodeId == null) return outputs;
 		const node = this.allNodeIdMap.get(this.renderNodeId);
@@ -766,6 +759,12 @@ export class VisualModuleRenderer {
 			if (texture != null) outputs.set(id, texture);
 		}
 		return outputs;
+	}
+
+	public render(context: VisualModuleRenderContext, commandEncoder: GPUCommandEncoder): GPUTexture | undefined {
+		const outputs = this.renderOutputs(context, commandEncoder);
+		const primary = this.outputDefs.find(def => def.isPrimaryOutput);
+		return primary == null ? undefined : outputs.get(primary.id);
 	}
 
 	// TODO: もっとスマートなリソース更新方法を考える
