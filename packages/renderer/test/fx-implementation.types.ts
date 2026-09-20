@@ -32,7 +32,7 @@ defineEffect({
 	id: 'invalid', displayName: 'invalid', tags: [],
 	paramDefs: {
 		// @ts-expect-error Literal defaults must match their parameter schema.
-		x: { type: 'range', label: 'X', min: -1, max: 1, default: () => ({ type: 'literal', value: 'wrong' }) },
+		x: { type: 'range', label: 'X', min: -1, max: 1, default: () => ({ inputSource: 'literal', value: 'wrong' }) },
 	},
 	outputs: { output: { dataType: 'color', primary: true } },
 });
@@ -52,8 +52,8 @@ nested.buzzs[0].image.map(x => x);
 
 type Matrix = GetRuntimeEffectOptionsSchemaValues<{
 	matrix: { type: 'array'; label: 'Matrix'; item: {
-		type: 'array'; label: 'Row'; item: { type: 'number'; label: 'Cell'; default: () => { type: 'literal'; value: number } };
-		default: () => { type: 'literal'; value: [] };
+		type: 'array'; label: 'Row'; item: { type: 'number'; label: 'Cell'; default: () => { inputSource: 'literal'; value: number } };
+		default: () => { inputSource: 'literal'; value: [] };
 	} };
 }>;
 const matrix: Matrix = { matrix: [[1, 2], []] };

@@ -1,15 +1,15 @@
 <template>
 <div :class="$style.root">
 	<div ref="rowEl" :class="$style.row" data-wire-input-row @contextmenu.prevent.stop="onRowContextmenu">
-		<div :class="[$style.paramHeader, { [$style.isDyamic]: paramValue.type !== 'literal' }]">
+		<div :class="[$style.paramHeader, { [$style.isDyamic]: paramValue.inputSource !== 'literal' }]">
 			<button v-if="paramDef.type === 'array' || paramDef.type === 'struct'" class="_button"><i class="ti ti-chevron-down" style="vertical-align: middle;"></i></button>
 			<div :class="$style.paramLabel" @click="showMenu">
 				<GsCondensedLine>{{ label ?? paramDef.label }}</GsCondensedLine>
 			</div>
-			<i v-if="paramValue.type === 'expression'" class="ti ti-math-function" :class="$style.typeIcon"></i>
-			<i v-if="paramValue.type === 'macro'" class="ti ti-wifi" :class="$style.typeIcon"></i>
-			<i v-if="paramValue.type === 'node'" class="ti ti-plug" :class="$style.typeIcon"></i>
-			<i v-if="paramValue.type === 'automation'" class="ti ti-ease-in-out-control-points" :class="$style.typeIcon"></i>
+			<i v-if="paramValue.inputSource === 'expression'" class="ti ti-math-function" :class="$style.typeIcon"></i>
+			<i v-if="paramValue.inputSource === 'macro'" class="ti ti-wifi" :class="$style.typeIcon"></i>
+			<i v-if="paramValue.inputSource === 'node'" class="ti ti-plug" :class="$style.typeIcon"></i>
+			<i v-if="paramValue.inputSource === 'automation'" class="ti ti-ease-in-out-control-points" :class="$style.typeIcon"></i>
 		</div>
 		<div :class="$style.paramBody">
 			<template v-if="paramDef.type === 'array'">
@@ -20,28 +20,28 @@
 				<GsNodePort v-if="canNode" :dataType="inputDataType" @update:element="portEl = $event"/>
 				<i v-if="hasNodeInputTypeMismatch(nodes, nodeConnection, inputDataType, paramDefs)" v-tooltip="'Data type mismatch'" class="ti ti-alert-triangle" :class="$style.typeWarning"></i>
 				<div :class="$style.control">
-					<GsInput v-if="paramValue.type === 'expression'" type="text" class="_monospace" :modelValue="paramValue.expression" @update:modelValue="updateParamAsExpression">
+					<GsInput v-if="paramValue.inputSource === 'expression'" type="text" class="_monospace" :modelValue="paramValue.expression" @update:modelValue="updateParamAsExpression">
 						<template #caption>
 							<div v-if="isExpressionSyntaxError" style="color: var(--THEME-error);"><i class="ti ti-alert-triangle"></i> Syntax error!</div>
 						</template>
 					</GsInput>
-					<GsButton v-else-if="paramValue.type === 'automation'" small @click="selectAutomation">{{ automationName }}</GsButton>
+					<GsButton v-else-if="paramValue.inputSource === 'automation'" small @click="selectAutomation">{{ automationName }}</GsButton>
 					<GsSelect
-						v-else-if="paramValue.type === 'macro'"
+						v-else-if="paramValue.inputSource === 'macro'"
 						small
 						:modelValue="paramValue.macroId"
 						:items="[{ label: i18n.ts.None, value: '' }, ...macroItems]"
 						@update:modelValue="value => emit('edit', { kind: 'macro', ...target(), value })"
 					/>
 					<GsSelect
-						v-else-if="paramValue.type === 'node'"
+						v-else-if="paramValue.inputSource === 'node'"
 						small
 						:modelValue="nodeOutputKey(nodeConnection)"
 						:items="[{ label: i18n.ts.None, value: null }, ...nodeOutputItems]"
 						@update:modelValue="updateParamAsNode"
 					/>
 					<GsEffectParamControl
-						v-else-if="paramValue.type === 'literal'"
+						v-else-if="paramValue.inputSource === 'literal'"
 						ref="controlComponent"
 						:type="paramDef.type"
 						:title="label ?? paramDef.label"
@@ -102,7 +102,7 @@ export type ParamEdit = { paramPath: ParamPath; mergeKey?: string | null } & (
 	| { kind: 'automation'; value: string | null }
 	| { kind: 'node'; value: NodeOutputReference | null }
 	| { kind: 'macro'; value: string }
-	| { kind: 'type'; type: EffectParamValue['type'] }
+	| { kind: 'inputSource'; inputSource: EffectParamValue['inputSource'] }
 	| { kind: 'reset' | 'addElement' }
 	| { kind: 'removeElement'; index: number }
 );
@@ -144,15 +144,15 @@ const paramDef = computed<EffectParamDef>(() => {
 	const def = props.paramDef;
 	if ('defaultValue' in def) return {
 		...def.typeOptions, type: def.type, label: def.label, canNode: def.canNode,
-		default: () => ({ type: 'literal', value: deepClone(def.defaultValue) }),
+		default: () => ({ inputSource: 'literal', value: deepClone(def.defaultValue) }),
 	};
 	return def as EffectParamDef;
 });
 
 const rowEl = useTemplateRef('rowEl');
 const portEl = shallowRef<HTMLElement | null>(null);
-const arrayValues = computed<EffectParamValue[]>(() => paramDef.value.type === 'array' && props.paramValue.type === 'literal' ? props.paramValue.value : []);
-const structValues = computed<Record<string, EffectParamValue> | null>(() => paramDef.value.type === 'struct' && props.paramValue.type === 'literal' ? props.paramValue.value : null);
+const arrayValues = computed<EffectParamValue[]>(() => paramDef.value.type === 'array' && props.paramValue.inputSource === 'literal' ? props.paramValue.value : []);
+const structValues = computed<Record<string, EffectParamValue> | null>(() => paramDef.value.type === 'struct' && props.paramValue.inputSource === 'literal' ? props.paramValue.value : null);
 const visibleFields = computed(() => {
 	if (paramDef.value.type !== 'struct') return [];
 	const fields: Record<string, NodeParamDef> = paramDef.value.fields;
@@ -165,10 +165,10 @@ const nodes = computed(() => appContext.state.visualModules.value.find(visualMod
 const macroItems = computed(() => (props.node == null ? [] : appContext.state.visualModules.value.find(module => module.id === props.visualModuleId)?.paramDefs ?? [])
 	.map(def => ({ label: `${def.label} (${def.name})`, value: def.id })));
 const nodeOutputItems = computed(() => props.node == null ? [] : getNodeOutputItems(nodes.value, props.node.id, inputDataType.value, paramDefs.value));
-const nodeConnection = computed<NodeOutputReference | null>(() => props.paramValue.type === 'node' && props.paramValue.nodeId != null ? props.paramValue : null);
+const nodeConnection = computed<NodeOutputReference | null>(() => props.paramValue.inputSource === 'node' && props.paramValue.nodeId != null ? props.paramValue : null);
 const automationName = computed(() => {
 	const value = props.paramValue;
-	return value?.type === 'automation' ? appContext.state.automations.value.find(a => a.id === value.automationId)?.name ?? '(none)' : '(none)';
+	return value?.inputSource === 'automation' ? appContext.state.automations.value.find(a => a.id === value.automationId)?.name ?? '(none)' : '(none)';
 });
 const controlComponent = useTemplateRef('controlComponent');
 
@@ -207,7 +207,7 @@ watchEffect(onCleanup => {
 
 const aisParser = new AiScript.Parser();
 const isExpressionSyntaxError = computed(() => {
-	if (props.paramValue.type !== 'expression') return false;
+	if (props.paramValue.inputSource !== 'expression') return false;
 	try {
 		aisParser.parse(props.paramValue.expression);
 		return false;
@@ -240,20 +240,20 @@ function getMenu() {
 
 	// コンテナ自体は静的な構造を維持し、値の種類を変更できるのは末端だけにする。
 	if (paramDef.value.type !== 'array' && paramDef.value.type !== 'struct') {
-		menuItems.push({ type: 'label', text: 'Input method' });
-		const types: { text: string; type: EffectParamValue['type']; icon: string }[] = [
-			{ text: 'Literal', type: 'literal', icon: 'ti ti-adjustments-horizontal' },
-			{ text: 'Automation', type: 'automation', icon: 'ti ti-ease-in-out-control-points' },
-			{ text: 'Expression', type: 'expression', icon: 'ti ti-math-function' },
+		menuItems.push({ type: 'label', text: 'Input source' });
+		const types: { text: string; inputSource: EffectParamValue['inputSource']; icon: string }[] = [
+			{ text: 'Literal', inputSource: 'literal', icon: 'ti ti-adjustments-horizontal' },
+			{ text: 'Automation', inputSource: 'automation', icon: 'ti ti-ease-in-out-control-points' },
+			{ text: 'Expression', inputSource: 'expression', icon: 'ti ti-math-function' },
 		];
-		if (props.node != null) types.push({ text: 'Parameter', type: 'macro', icon: 'ti ti-wifi' });
-		if (canNode.value) types.push({ text: 'Node', type: 'node', icon: 'ti ti-plug' });
-		for (const { text, type, icon } of types) {
+		if (props.node != null) types.push({ text: 'Parameter', inputSource: 'macro', icon: 'ti ti-wifi' });
+		if (canNode.value) types.push({ text: 'Node', inputSource: 'node', icon: 'ti ti-plug' });
+		for (const { text, inputSource, icon } of types) {
 			menuItems.push({
 				text,
 				icon,
-				active: props.paramValue.type === type,
-				action: () => emit('edit', { kind: 'type', ...target(), type }),
+				active: props.paramValue.inputSource === inputSource,
+				action: () => emit('edit', { kind: 'inputSource', ...target(), inputSource }),
 			});
 		}
 	}

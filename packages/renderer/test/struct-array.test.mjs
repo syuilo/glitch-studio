@@ -5,7 +5,7 @@ import { createServer } from 'vite';
 import { createDevice } from './helpers/gpu-device.mjs';
 import { createLiveGraph } from './helpers/live-graph.mjs';
 
-const literal = value => ({ type: 'literal', value });
+const literal = value => ({ inputSource: 'literal', value });
 const number = { type: 'number', label: 'Number', default: () => literal(0) };
 const connection = (nodeId, outputPort = 'output') => ({ type: 'node', nodeId, outputPort });
 
@@ -62,7 +62,7 @@ test('struct and array renderer parameters', async t => {
 
 	await t.test('evaluates nested literals, expressions and automation without mutating serialized state', t => {
 		const fields = { x: number, animated: number, matrix: { type: 'array', item: { type: 'array', item: number } } };
-		const params = { rows: literal([literal({ x: { type: 'expression', expression: 'WIDTH / 2' }, animated: { type: 'automation', automationId: 'a' }, matrix: literal([literal([literal(3)])]) })]) };
+		const params = { rows: literal([literal({ x: { inputSource: 'expression', expression: 'WIDTH / 2' }, animated: { type: 'automation', automationId: 'a' }, matrix: literal([literal([literal(3)])]) })]) };
 		const nodes = [node('root', 'nested', params)];
 		const before = structuredClone(nodes);
 		const run = setup(t, { nested: { rows: { type: 'array', item: { type: 'struct', fields } } } }, nodes);
@@ -151,9 +151,9 @@ test('struct and array renderer parameters', async t => {
 
 	await t.test('containers reject expressions and nested invalid expressions use field fallback', t => {
 		const defs = { fallback: { values: { type: 'array', item: number } } };
-		const run = setup(t, defs, [node('root', 'fallback', { values: literal([{ type: 'expression', expression: '(' }]) })]);
+		const run = setup(t, defs, [node('root', 'fallback', { values: literal([{ inputSource: 'expression', expression: '(' }]) })]);
 		assert.deepEqual(run.frame()[0].params.values, [0]);
-		assert.throws(() => run.updateNodes([node('root', 'fallback', { values: { type: 'expression', expression: '[1]' } })]), /must be literal/);
+		assert.throws(() => run.updateNodes([node('root', 'fallback', { values: { inputSource: 'expression', expression: '[1]' } })]), /must be literal/);
 	});
 
 	await t.test('array reordering preserves values at each path and node removal frees nested textures', t => {

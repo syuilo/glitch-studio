@@ -2,8 +2,8 @@
 <div :class="$style.root">
 	<div :class="$style.macros">
 		<div v-for="macro in appContext.state.macros.value" :key="macro.id" :class="$style.macro" data-wire-input-row>
-			<label :class="[$style.macroLabel, { [$style.expression]: macro.value.type === 'expression' }]" @dblclick="toggleMacroValueType(macro)">{{ macro.label }}</label>
-			<div v-if="macro.value.type === 'expression'" :class="$style.macroControl">
+			<label :class="[$style.macroLabel, { [$style.expression]: macro.value.inputSource === 'expression' }]" @dblclick="toggleMacroValueType(macro)">{{ macro.label }}</label>
+			<div v-if="macro.value.inputSource === 'expression'" :class="$style.macroControl">
 				<input type="text" :class="$style.expression" :value="macro.value.value" @change="updateMacroAsExpression(macro, $event.target.value)"/>
 			</div>
 			<GsEffectParamControl

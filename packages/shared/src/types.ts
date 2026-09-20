@@ -1,19 +1,19 @@
 export type EffectParamDataType = 'number' | 'angle' | 'range' | 'range2' | 'enum' | 'bool' | 'blendMode' | 'fitMode' | 'wrapMode' | 'xy' | 'wh' | 'color' | 'vector' | 'seed' | 'time' | 'image' | 'player';
 
 export type NodeOutputReference = { nodeId: string; outputPort: string; fitMode?: string; wrapMode?: string };
-export type NodeParamValue = { type: 'node' } & (NodeOutputReference | { nodeId: null; outputPort: null });
+export type NodeParamValue = { inputSource: 'node' } & (NodeOutputReference | { nodeId: null; outputPort: null });
 
 export type EffectParamValue = {
-	type: 'literal';
-	value: any; // TODO: literalにリネーム
+	inputSource: 'literal';
+	value: any; // TODO: literalにリネーム？
 } | {
-	type: 'expression';
+	inputSource: 'expression';
 	expression: string;
 } | {
-	type: 'macro';
+	inputSource: 'macro';
 	macroId: string;
 } | {
-	type: 'automation';
+	inputSource: 'automation';
 	automationId: string | null;
 } | NodeParamValue;
 

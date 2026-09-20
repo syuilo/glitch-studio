@@ -16,7 +16,7 @@ export default defineEffect({
 				label: 'Luminance',
 				value: 1,
 			}],
-			default: () => ({ type: 'literal', value: 0 }),
+			default: () => ({ inputSource: 'literal', value: 0 }),
 		},
 	},
 	outputs: {

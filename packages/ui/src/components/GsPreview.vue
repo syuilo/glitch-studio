@@ -91,7 +91,7 @@ async function addMedia(file?: File) {
 			effectId: 'image',
 			id: genId(),
 			params: {
-				image: { type: 'literal', value: assetId },
+				image: { inputSource: 'literal', value: assetId },
 			},
 		});
 	} else if (result.type.startsWith('video/') || result.type.startsWith('audio/')) {
@@ -108,7 +108,7 @@ async function addMedia(file?: File) {
 			effectId: result.type.startsWith('audio/') ? 'audioWaveform' : 'video',
 			id: genId(),
 			params: {
-				player: { type: 'literal', value: playerId },
+				player: { inputSource: 'literal', value: playerId },
 			},
 		});
 	}

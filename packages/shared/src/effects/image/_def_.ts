@@ -8,7 +8,7 @@ export default defineEffect({
 		image: {
 			label: 'Image',
 			type: 'image',
-			default: () => ({ type: 'literal', value: null }),
+			default: () => ({ inputSource: 'literal', value: null }),
 		},
 		sizeMode: {
 			label: 'Size mode',
@@ -23,7 +23,7 @@ export default defineEffect({
 				label: 'Contain',
 				value: 2,
 			}],
-			default: () => ({ type: 'literal', value: 1 as const }),
+			default: () => ({ inputSource: 'literal', value: 1 as const }),
 		},
 	},
 	outputs: {

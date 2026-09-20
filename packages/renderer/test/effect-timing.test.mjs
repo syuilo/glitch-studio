@@ -146,7 +146,7 @@ test('effect GPU statistics include compute and render passes', async t => {
 							await new Promise(resolve => setImmediate(resolve));
 							assert.equal(renderer.gpuAverageFast.get(), expected / 2);
 							graph.updateNodes(makeNodes({
-								[fx === 'liquidMetal' ? 'speed' : 'threshold']: { type: 'literal', value: 0.25 },
+								[fx === 'liquidMetal' ? 'speed' : 'threshold']: { inputSource: 'literal', value: 0.25 },
 							}));
 							graph.frame('effect', 1000);
 							await new Promise(resolve => setImmediate(resolve));

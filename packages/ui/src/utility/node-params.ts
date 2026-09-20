@@ -31,7 +31,7 @@ export function resolveNodeParam(node: GsEffectNode, path: ParamPath) {
 
 	for (const segment of path.slice(1)) {
 		if (def.type === 'array') {
-			if (value.type !== 'literal' || !Array.isArray(value.value) || typeof segment !== 'number' || !Number.isInteger(segment) || segment < 0 || segment >= value.value.length) {
+			if (value.inputSource !== 'literal' || !Array.isArray(value.value) || typeof segment !== 'number' || !Number.isInteger(segment) || segment < 0 || segment >= value.value.length) {
 				throw new Error(`Invalid array parameter path: ${paramPathKey(path)}`);
 			}
 			const array = value.value as EffectParamValue[];
@@ -40,7 +40,7 @@ export function resolveNodeParam(node: GsEffectNode, path: ParamPath) {
 			setValue = next => {
 				array[segment] = next;
 			};
-		} else if (def.type === 'struct' && value.type === 'literal' && typeof segment === 'string') {
+		} else if (def.type === 'struct' && value.inputSource === 'literal' && typeof segment === 'string') {
 			const fields = value.value as Record<string, EffectParamValue>;
 			def = def.fields[segment];
 			value = fields[segment];
@@ -56,14 +56,15 @@ export function resolveNodeParam(node: GsEffectNode, path: ParamPath) {
 // ワイヤー表示と参照の更新でも、定義に沿って子をたどる（color等のliteral配列とは区別する）。
 export function* walkNodeParams(node: GsEffectNode): Generator<{ path: ParamPath; def: NodeParamDef; value: EffectParamValue }> {
 	function* walk(def: NodeParamDef, value: EffectParamValue, path: ParamPath): ReturnType<typeof walkNodeParams> {
-		if (def.type === 'array' && value.type === 'literal') {
+		if (def.type === 'array' && value.inputSource === 'literal') {
 			const elements = value.value as EffectParamValue[];
 			for (const [index, element] of elements.entries()) yield* walk(def.item, element, [...path, index]);
-		} else if (def.type === 'struct' && value.type === 'literal') {
+		} else if (def.type === 'struct' && value.inputSource === 'literal') {
 			for (const [key, field] of Object.entries(def.fields)) yield* walk(field, value.value[key], [...path, key]);
 		} else {
 			yield { path, def, value };
 		}
 	}
+
 	for (const [key, def] of Object.entries(getNodeParamDefs(node))) yield* walk(def, node.params[key], [key]);
 }

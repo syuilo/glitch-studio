@@ -61,7 +61,7 @@ const addEffectNodeCommandDef = defineCommand<{ visualModuleId: string; id: stri
 							// 元の接続が副出力でも、その出力ポートをそのまま引き継ぐ。
 							const output = getNodeOutputs(previous, visualModule.paramDefs)[previousInput.outputPort];
 							if (canConnectNodeDataTypes(output?.dataType, getNodeInputDataType(def))) {
-								params[key] = { type: 'node', ...deepClone(previousInput) };
+								params[key] = { inputSource: 'node', ...deepClone(previousInput) };
 							}
 						}
 					}
@@ -139,7 +139,7 @@ const removeNodeCommandDef = defineCommand<NodeTarget>({
 					? [...walkNodeParams(removedNode)].find(({ def }) => def.type !== 'struct' && def.type !== 'array' && def.canNode && 'primary' in def && def.primary)
 					: undefined;
 				const input = primary?.value;
-				const replacement: NodeOutputReference | null = input?.type === 'node' && input.nodeId != null && input.nodeId !== payload.nodeId
+				const replacement: NodeOutputReference | null = input?.inputSource === 'node' && input.nodeId != null && input.nodeId !== payload.nodeId
 					? { nodeId: input.nodeId, outputPort: input.outputPort } : null;
 				const replacementOutput = replacement == null ? undefined : getNodeOutputs(visualModule.nodes.find(node => node.id === replacement.nodeId), visualModule.paramDefs)[replacement.outputPort];
 				// 削除したノードの主入力へ接続し直す。globalOutの参照も同じ操作で復元可能にする。
@@ -156,11 +156,11 @@ const removeNodeCommandDef = defineCommand<NodeTarget>({
 					}
 					if (node.type !== 'effect') continue;
 					for (const { path, def, value } of walkNodeParams(node)) {
-						if (def.type === 'struct' || def.type === 'array' || !def.canNode || value.type !== 'node' || value.nodeId !== payload.nodeId) continue;
+						if (def.type === 'struct' || def.type === 'array' || !def.canNode || value.inputSource !== 'node' || value.nodeId !== payload.nodeId) continue;
 						const compatible = replacement != null && canConnectNodeDataTypes(replacementOutput?.dataType, getNodeInputDataType(def));
 						resolveNodeParam(node, path).setValue(compatible
-							? { type: 'node', ...deepClone(replacement) }
-							: { type: 'node', nodeId: null, outputPort: null });
+							? { inputSource: 'node', ...deepClone(replacement) }
+							: { inputSource: 'node', nodeId: null, outputPort: null });
 					}
 				}
 				visualModule.nodes = visualModule.nodes.filter(node => node.id !== payload.nodeId);
@@ -216,15 +216,15 @@ const removeAssetCommandDef = defineCommand<{ assetId: string }>({
 					for (const node of visualModule.nodes) {
 						if (node.type !== 'effect') continue;
 						for (const { path, def, value } of walkNodeParams(node)) {
-							if (def.type === 'image' && value.type === 'literal' && value.value === payload.assetId) {
-								resolveNodeParam(node, path).setValue({ type: 'literal', value: null });
+							if (def.type === 'image' && value.inputSource === 'literal' && value.value === payload.assetId) {
+								resolveNodeParam(node, path).setValue({ inputSource: 'literal', value: null });
 							}
 						}
 					}
 				}
 				for (const macro of state.macros.value) {
-					if (macro.type === 'image' && macro.value.type === 'literal' && macro.value.value === payload.assetId) {
-						macro.value = { type: 'literal', value: null };
+					if (macro.type === 'image' && macro.value.inputSource === 'literal' && macro.value.value === payload.assetId) {
+						macro.value = { inputSource: 'literal', value: null };
 					}
 				}
 			},
@@ -318,7 +318,7 @@ const addMacroCommandDef = defineCommand<{ id: string; }>({
 					label: 'Macro',
 					name: 'macro',
 					value: {
-						type: 'literal',
+						inputSource: 'literal',
 						value: 0,
 					},
 				});
@@ -353,12 +353,12 @@ const toggleMacroValueTypeCommandDef = defineCommand<{ macroId: string }>({
 				const isLiteral = macro.value.type === 'literal';
 				if (isLiteral) {
 					macro.value = {
-						type: 'expression',
+						inputSource: 'expression',
 						expression: '',
 					};
 				} else {
 					macro.value = {
-						type: 'literal',
+						inputSource: 'literal',
 						value: genEmptyValue(macro),
 					};
 				}
@@ -377,7 +377,7 @@ const updateMacroAsLiteralCommandDef = defineCommand<{ macroId: string; value: a
 			execute(state) {
 				const macro = state.macros.value.find(macro => macro.id === payload.macroId)!;
 				macro.value = {
-					type: 'literal',
+					inputSource: 'literal',
 					value: deepClone(payload.value),
 				};
 			},
@@ -395,7 +395,7 @@ const updateMacroAsExpressionCommandDef = defineCommand<{ macroId: string; value
 			execute(state) {
 				const macro = state.macros.value.find(macro => macro.id === payload.macroId)!;
 				macro.value = {
-					type: 'expression',
+					inputSource: 'expression',
 					expression: payload.value,
 				};
 			},
@@ -444,7 +444,7 @@ const updateMacroTypeCommandDef = defineCommand<{ macroId: string; value: Effect
 				const macro = state.macros.value.find(macro => macro.id === payload.macroId)!;
 				macro.type = payload.value;
 				macro.value = {
-					type: 'literal',
+					inputSource: 'literal',
 					value: genEmptyValue(macro),
 				};
 			},
@@ -509,24 +509,24 @@ function assertLeafParam(target: ReturnType<typeof resolveNodeParam>) {
 }
 
 // TODO: 別のtypeの設定値を失わない(内部的には持ったまま)ようにする
-const changeParamValueTypeCommandDef = defineNodeParamCommand<NodeParamTarget & { type: EffectParamValue['type'] }>(
+const changeParamValueTypeCommandDef = defineNodeParamCommand<NodeParamTarget & { inputSource: EffectParamValue['inputSource'] }>(
 	'Change param value type',
 	(target, payload) => {
 		assertLeafParam(target);
 		const currentValue = target.value;
 		const defaultValue = target.def.default();
 		const emptyValue = genEmptyValue(target.def);
-		switch (payload.type) {
+		switch (payload.inputSource) {
 			case 'expression': return {
-				type: 'expression',
-				expression: AiSON.stringify(currentValue.type === 'literal' ? currentValue.value : defaultValue.type === 'literal' ? defaultValue.value : emptyValue),
+				inputSource: 'expression',
+				expression: AiSON.stringify(currentValue.inputSource === 'literal' ? currentValue.value : defaultValue.inputSource === 'literal' ? defaultValue.value : emptyValue),
 			};
-			case 'literal': return { type: 'literal', value: defaultValue.type === 'literal' ? defaultValue.value : emptyValue };
-			case 'automation': return { type: 'automation', automationId: null };
-			case 'macro': return { type: 'macro', macroId: '' };
+			case 'literal': return { inputSource: 'literal', value: defaultValue.type === 'literal' ? defaultValue.value : emptyValue };
+			case 'automation': return { inputSource: 'automation', automationId: null };
+			case 'macro': return { inputSource: 'macro', macroId: '' };
 			case 'node': {
 				if (!('canNode' in target.def) || !target.def.canNode) throw new Error('Parameter does not support node input');
-				return { type: 'node', nodeId: null, outputPort: null };
+				return { inputSource: 'node', nodeId: null, outputPort: null };
 			}
 		}
 	},
@@ -536,7 +536,7 @@ const updateParamAsLiteralCommandDef = defineNodeParamCommand<NodeParamTarget & 
 	'Update param as literal',
 	(target, payload) => {
 		assertLeafParam(target);
-		return { type: 'literal', value: payload.value };
+		return { inputSource: 'literal', value: payload.value };
 	},
 );
 
@@ -544,7 +544,7 @@ const updateParamAsExpressionCommandDef = defineNodeParamCommand<NodeParamTarget
 	'Update param as expression',
 	(target, payload) => {
 		assertLeafParam(target);
-		return { type: 'expression', expression: payload.value };
+		return { inputSource: 'expression', expression: payload.value };
 	},
 );
 
@@ -552,7 +552,7 @@ const updateParamAsAutomationCommandDef = defineNodeParamCommand<NodeParamTarget
 	'Update param as automation',
 	(target, payload) => {
 		assertLeafParam(target);
-		return { type: 'automation', automationId: payload.value };
+		return { inputSource: 'automation', automationId: payload.value };
 	},
 );
 
@@ -560,7 +560,7 @@ const updateParamAsMacroCommandDef = defineNodeParamCommand<NodeParamTarget & { 
 	'Update param as macro',
 	(target, payload) => {
 		assertLeafParam(target);
-		return { type: 'macro', macroId: payload.value };
+		return { inputSource: 'macro', macroId: payload.value };
 	},
 );
 
@@ -569,25 +569,25 @@ const updateParamAsNodeCommandDef = defineNodeParamCommand<NodeParamTarget & { v
 	(target, payload) => {
 		assertLeafParam(target);
 		if (!('canNode' in target.def) || !target.def.canNode) throw new Error('Parameter does not support node input');
-		return payload.value == null ? { type: 'node', nodeId: null, outputPort: null } : { type: 'node', ...payload.value };
+		return payload.value == null ? { inputSource: 'node', nodeId: null, outputPort: null } : { type: 'node', ...payload.value };
 	},
 );
 
 const addArrayParamElementCommandDef = defineNodeParamCommand<NodeParamTarget>(
 	'Add array parameter element',
 	({ def, value }) => {
-		if (def.type !== 'array' || value.type !== 'literal' || !Array.isArray(value.value)) throw new Error('Expected array parameter');
+		if (def.type !== 'array' || value.inputSource !== 'literal' || !Array.isArray(value.value)) throw new Error('Expected array parameter');
 		const element = def.item.default();
-		return { type: 'literal', value: [...value.value, element] };
+		return { inputSource: 'literal', value: [...value.value, element] };
 	},
 );
 
 const removeArrayParamElementCommandDef = defineNodeParamCommand<NodeParamTarget & { index: number }>(
 	'Remove array parameter element',
 	({ def, value }, { index }) => {
-		if (def.type !== 'array' || value.type !== 'literal' || !Array.isArray(value.value)) throw new Error('Expected array parameter');
+		if (def.type !== 'array' || value.inputSource !== 'literal' || !Array.isArray(value.value)) throw new Error('Expected array parameter');
 		if (!Number.isInteger(index) || index < 0 || index >= value.value.length) throw new Error('Invalid array index');
-		return { type: 'literal', value: value.value.filter((_, i) => i !== index) };
+		return { inputSource: 'literal', value: value.value.filter((_, i) => i !== index) };
 	},
 );
 

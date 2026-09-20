@@ -150,14 +150,14 @@ export type GetEffectOptionsSchemaValues<T extends EffectOptionsSchema> = {
 };
 
 type EffectOptionSerializedValue<T extends EffectOptionsSchema[string]> =
-	{ type: 'literal'; value: EffectOptionScalarValue<T> } |
-	{ type: 'expression'; expression: string } |
-	{ type: 'automation'; automationId: string | null } |
+	{ inputSource: 'literal'; value: EffectOptionScalarValue<T> } |
+	{ inputSource: 'expression'; expression: string } |
+	{ inputSource: 'automation'; automationId: string | null } |
 	NodeParamValue;
 
 type EffectOptionDefaultValue<T extends EffectOptionsSchema[string]> = T extends unknown ?
-	T extends ArrayOptionSchema ? { type: 'literal'; value: EffectOptionDefaultValue<T['item']>[] } :
-	T extends StructOptionSchema ? { type: 'literal'; value: EffectOptionScalarValue<T> } :
+	T extends ArrayOptionSchema ? { inputSource: 'literal'; value: EffectOptionDefaultValue<T['item']>[] } :
+	T extends StructOptionSchema ? { inputSource: 'literal'; value: EffectOptionScalarValue<T> } :
 	EffectOptionSerializedValue<T> :
 	never;
 

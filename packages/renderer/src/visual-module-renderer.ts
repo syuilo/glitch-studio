@@ -159,9 +159,9 @@ export class VisualModuleRenderer {
 			if (this.paramTextures.has(def.id)) continue;
 			const fallbackDef = { ...def.typeOptions, type: def.type, label: def.label };
 			let evaluated = deepClone(def.defaultValue); // 参照が共有されないように切る
-			if (value?.type === 'literal') evaluated = value.value;
-			if (value?.type === 'expression') evaluated = evaluateExpression(value.expression, scope, fallbackDef);
-			if (value?.type === 'automation') {
+			if (value?.inputSource === 'literal') evaluated = value.value;
+			if (value?.inputSource === 'expression') evaluated = evaluateExpression(value.expression, scope, fallbackDef);
+			if (value?.inputSource === 'automation') {
 				const automation = this.automations.find(automation => automation.id === value.automationId);
 				evaluated = automation == null ? deepClone(def.defaultValue) : evalAutomationValue(automation, context.time);
 			}
@@ -246,13 +246,13 @@ export class VisualModuleRenderer {
 			for (const [key, def] of Object.entries(paramDefs)) {
 				if (node.isBypass && !def.primary) continue;
 				evaluatedParams[key] = mapNodeParam(def, node.params[key], [key], (def, param) => {
-					if (param.type === 'literal') return param.value;
-					if (param.type === 'expression') return param.expression ? evaluateExpression(param.expression, mixedScope, def, name => this.readParam(name)) : genEmptyValue(def);
-					if (param.type === 'macro') {
+					if (param.inputSource === 'literal') return param.value;
+					if (param.inputSource === 'expression') return param.expression ? evaluateExpression(param.expression, mixedScope, def, name => this.readParam(name)) : genEmptyValue(def);
+					if (param.inputSource === 'macro') {
 						if (!this.paramValues.has(param.macroId) || this.paramTextures.has(param.macroId)) return genEmptyValue(def);
 						return this.paramValues.get(param.macroId);
 					}
-					if (param.type === 'automation') {
+					if (param.inputSource === 'automation') {
 						const automation = this.automations.find(a => a.id === param.automationId);
 						return automation ? evalAutomationValue(automation, context.time) : genEmptyValue(def);
 					}
@@ -262,7 +262,7 @@ export class VisualModuleRenderer {
 			this.evaledNodeParams.set(node.id, evaluatedParams);
 
 			for (const { def, param, path } of walkNodeParams(paramDefs, node.params, node.isBypass)) {
-				if (!def.canNode || param.type === 'node') continue;
+				if (!def.canNode || param.inputSource === 'node') continue;
 				const v = getEvaluatedParam(evaluatedParams, path);
 				const tex = this.effectPerParamConstFieldTextures.get(node.id)![JSON.stringify(path)];
 				// TODO: 全てのtypeに対応 & 別関数にする
@@ -352,7 +352,7 @@ export class VisualModuleRenderer {
 					audio: this.audioSources.get(playerAudioSourceId(v)) ?? null,
 				};
 				if (def.canNode) {
-					if (param.type === 'node') {
+					if (param.inputSource === 'node') {
 						if (param.nodeId == null) return this.fallbackScalarFieldTexture;
 						return this.getOutputTexture(this.allNodeIdMap.get(param.nodeId)!, param.outputPort) ?? this.fallbackScalarFieldTexture;
 					}
@@ -377,7 +377,7 @@ export class VisualModuleRenderer {
 			}
 			this.usedOutputPorts.set(output.node.id, new Set([output.outputPort]));
 			for (const { def, param } of walkNodeParams(effectDefinitions[output.node.effectId].paramDefs, output.node.params)) {
-				if (!def.canNode || param.type !== 'node' || param.nodeId == null) continue;
+				if (!def.canNode || param.inputSource !== 'node' || param.nodeId == null) continue;
 				const source = this.allNodeIdMap.get(param.nodeId);
 				if (source != null) visit(source, param.outputPort ?? undefined);
 			}
@@ -589,7 +589,7 @@ export class VisualModuleRenderer {
 		const params = this.evaledNodeParams.get(node.id)!;
 
 		for (const { def, param } of walkNodeParams(effectDefinitions[node.effectId].paramDefs, node.params)) {
-			if (!def.canNode || param.type !== 'node' || param.nodeId == null) continue;
+			if (!def.canNode || param.inputSource !== 'node' || param.nodeId == null) continue;
 			const targetNode = this.allNodeIdMap.get(param.nodeId);
 			if (targetNode == null) throw new Error('Referenced node not found');
 			this.renderNode(targetNode, commandEncoder, {
@@ -708,7 +708,7 @@ export class VisualModuleRenderer {
 			const effectNode = output.node;
 			if (prepared.has(effectNode.id)) return;
 			for (const { def, param } of walkNodeParams(effectDefinitions[effectNode.effectId].paramDefs, effectNode.params)) {
-				if (!def.canNode || param.type !== 'node' || param.nodeId == null) continue;
+				if (!def.canNode || param.inputSource !== 'node' || param.nodeId == null) continue;
 				const source = this.allNodeIdMap.get(param.nodeId);
 				if (source == null) throw new Error('Referenced node not found');
 				visit(source, [...visited, target.id, effectNode.id], param.outputPort ?? undefined);

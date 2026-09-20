@@ -6,7 +6,7 @@ type ParamPath = (string | number)[];
 export function mapNodeParam(def: EffectParamDef, param: EffectParamValue, path: ParamPath,
 	mapLeaf: (def: EffectParamDef, param: EffectParamValue, path: ParamPath) => any): any {
 	if (def.type === 'array' || def.type === 'struct') {
-		if (param.type !== 'literal') throw new Error(`Container parameter must be literal: ${JSON.stringify(path)}`);
+		if (param.inputSource !== 'literal') throw new Error(`Container parameter must be literal: ${JSON.stringify(path)}`);
 		if (def.type === 'array') {
 			if (!Array.isArray(param.value)) throw new Error(`Expected array parameter: ${JSON.stringify(path)}`);
 			return param.value.map((value: EffectParamValue, index: number) => mapNodeParam(def.item, value, [...path, index], mapLeaf));
@@ -22,7 +22,7 @@ export function* walkNodeParams(defs: EffectParamDefs, params: Record<string, Ef
 }> {
 	function* walk(def: EffectParamDef, param: EffectParamValue, path: ParamPath): ReturnType<typeof walkNodeParams> {
 		if (def.type === 'array' || def.type === 'struct') {
-			if (param.type !== 'literal') throw new Error(`Container parameter must be literal: ${JSON.stringify(path)}`);
+			if (param.inputSource !== 'literal') throw new Error(`Container parameter must be literal: ${JSON.stringify(path)}`);
 			if (def.type === 'array') {
 				if (!Array.isArray(param.value)) throw new Error(`Expected array parameter: ${JSON.stringify(path)}`);
 				for (const [index, value] of param.value.entries()) yield* walk(def.item, value, [...path, index]);
@@ -33,6 +33,7 @@ export function* walkNodeParams(defs: EffectParamDefs, params: Record<string, Ef
 			yield { def, param, path };
 		}
 	}
+
 	for (const [key, def] of Object.entries(defs)) {
 		if (bypass && !def.primary) continue;
 		yield* walk(def, params[key], [key]);

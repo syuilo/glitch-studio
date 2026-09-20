@@ -6,8 +6,8 @@ export default defineEffect({
 	tags: [],
 	paramDefs: {
 		input: { type: 'color', label: 'Input', canNode: true, primary: true, default: () => ({ type: 'node', nodeId: null, outputPort: null }) },
-		size: { type: 'range', min: 1, max: 200, step: 0.01, label: 'Size', default: () => ({ type: 'literal', value: 50 }) },
-		border: { type: 'range', min: 0, max: 1, step: 0.01, label: 'Border', default: () => ({ type: 'literal', value: 0.1 }) },
+		size: { type: 'range', min: 1, max: 200, step: 0.01, label: 'Size', default: () => ({ inputSource: 'literal', value: 50 }) },
+		border: { type: 'range', min: 0, max: 1, step: 0.01, label: 'Border', default: () => ({ inputSource: 'literal', value: 0.1 }) },
 	},
 	outputs: {
 		output: { primary: true, dataType: 'color' },

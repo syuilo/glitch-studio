@@ -118,7 +118,7 @@ watch(visualModule, module => {
 		// ノードの編集などでプレビューの入力値を初期化しない。
 		values[def.id] = module?.id === previewModuleId && previewParamTypes.get(def.id) === def.type && previewParamValues.value[def.id] != null
 			? previewParamValues.value[def.id]
-			: { type: 'literal', value: deepClone(def.defaultValue) };
+			: { inputSource: 'literal', value: deepClone(def.defaultValue) };
 	}
 	previewParamValues.value = values;
 	previewModuleId = module?.id;
@@ -132,21 +132,21 @@ function onPreviewParamEdit(event: ParamEdit) {
 	const def = visualModule.value?.paramDefs.find(def => def.id === id);
 	if (def == null) return;
 	const current = previewParamValues.value[id];
-	const reset = (): VisualModuleParamValues[string] => ({ type: 'literal', value: deepClone(def.defaultValue) });
+	const reset = (): VisualModuleParamValues[string] => ({ inputSource: 'literal', value: deepClone(def.defaultValue) });
 	switch (event.kind) {
-		case 'literal': previewParamValues.value[id] = { type: 'literal', value: deepClone(event.value) }; break;
-		case 'expression': previewParamValues.value[id] = { type: 'expression', expression: event.value }; break;
-		case 'automation': previewParamValues.value[id] = { type: 'automation', automationId: event.value }; break;
+		case 'literal': previewParamValues.value[id] = { inputSource: 'literal', value: deepClone(event.value) }; break;
+		case 'expression': previewParamValues.value[id] = { inputSource: 'expression', expression: event.value }; break;
+		case 'automation': previewParamValues.value[id] = { inputSource: 'automation', automationId: event.value }; break;
 		case 'node':
 		case 'macro': return;
 		case 'reset': previewParamValues.value[id] = reset(); break;
 		case 'type':
-			switch (event.type) {
+			switch (event.inputSource) {
 				case 'literal': previewParamValues.value[id] = reset(); break;
 				case 'expression': previewParamValues.value[id] = {
-					type: 'expression', expression: AiSON.stringify(current?.type === 'literal' ? current.value : def.defaultValue),
+					inputSource: 'expression', expression: AiSON.stringify(current?.inputSource === 'literal' ? current.value : def.defaultValue),
 				}; break;
-				case 'automation': previewParamValues.value[id] = { type: 'automation', automationId: null }; break;
+				case 'automation': previewParamValues.value[id] = { inputSource: 'automation', automationId: null }; break;
 				case 'macro':
 				case 'node':
 					return;

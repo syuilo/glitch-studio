@@ -11,7 +11,7 @@ const source = readFileSync(new URL('../src/app.ts', import.meta.url), 'utf8');
 const server = await createTestServer({ after: fn => test.after(fn) });
 const { COMMAND_DEFS } = await server.ssrLoadModule('/src/commands.ts');
 const { effectDefinitions } = await server.ssrLoadModule('@glitch/shared/effect-definitions.ts');
-effectDefinitions.test = { paramDefs: { xy: { type: 'vector', default: () => ({ type: 'literal', value: [0, 0] }) } }, outputs: {} };
+effectDefinitions.test = { paramDefs: { xy: { type: 'vector', default: () => ({ inputSource: 'literal', value: [0, 0] }) } }, outputs: {} };
 const compiled = ts.transpileModule(source.slice(source.indexOf('class AppContext'), source.indexOf('export const appContext')), {
 	compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.None },
 }).outputText;
@@ -25,7 +25,7 @@ function setup() {
 
 test('node creation keeps supplied and default parameters separate from state', () => {
 	const app = setup();
-	app.commit('addEffectNode', { visualModuleId: 'module', id: 'n', effectId: 'test', params: { supplied: { type: 'literal', value: [1, 2] } } });
+	app.commit('addEffectNode', { visualModuleId: 'module', id: 'n', effectId: 'test', params: { supplied: { inputSource: 'literal', value: [1, 2] } } });
 	const nodes = () => app.state.visualModules.value[0].nodes;
 	nodes()[0].params.supplied.value[0] = 99;
 	nodes()[0].params.xy.value[0] = 99;

@@ -51,7 +51,7 @@ test('UI multi-output connections', async t => {
 		assert.deepEqual(nodes(s)[2].inputs.result, ref('a'));
 	});
 	await t.test('switching parameter modes clears both fields and can be undone', () => {
-		const original = { type: 'literal', value: 0.5 };
+		const original = { inputSource: 'literal', value: 0.5 };
 		const s = state([fx('b', 'blur', { amount: original })]);
 		const command = COMMAND_DEFS.changeParamValueType.create({ visualModuleId: 'module', nodeId: 'b', paramPath: ['amount'], type: 'node' });
 		command.execute(s);
@@ -59,7 +59,7 @@ test('UI multi-output connections', async t => {
 		command.undo(s);
 		assert.deepEqual(nodes(s)[0].params.amount, original);
 		command.execute(s);
-		COMMAND_DEFS.changeParamValueType.create({ visualModuleId: 'module', nodeId: 'b', paramPath: ['amount'], type: 'literal' }).execute(s);
+		COMMAND_DEFS.changeParamValueType.create({ visualModuleId: 'module', nodeId: 'b', paramPath: ['amount'], inputSource: 'literal' }).execute(s);
 		assert.equal(typeof nodes(s)[0].params.amount.value, 'number');
 	});
 	await t.test('clearing a connection and undoing restores the full port reference', () => {

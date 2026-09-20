@@ -133,7 +133,7 @@ function benchmark(count = 100) {
 			effectId: 'blockShuffle',
 			id: genId(),
 			params: {
-				seed: { type: 'literal', value: Math.random() * 1000 },
+				seed: { inputSource: 'literal', value: Math.random() * 1000 },
 			},
 		});
 	}
@@ -265,7 +265,7 @@ export async function newProject() {
 			type: 'effect',
 			effectId: 'fill',
 			params: {
-				color: { type: 'literal', value: [0, 1, 0, 1] },
+				color: { inputSource: 'literal', value: [0, 1, 0, 1] },
 			},
 			isBypass: false,
 		} satisfies EffectNodeOf<typeof fillEffectDef>, {
@@ -354,7 +354,7 @@ export async function newProjectFromImageOrVideo(file?: File) {
 			type: 'effect',
 			effectId: 'image',
 			params: {
-				image: { type: 'literal', value: asset.id },
+				image: { inputSource: 'literal', value: asset.id },
 				sizeMode: imageEffectDef.paramDefs.sizeMode.default(),
 			},
 			isBypass: false,
@@ -363,7 +363,7 @@ export async function newProjectFromImageOrVideo(file?: File) {
 			type: 'effect',
 			effectId: 'video',
 			params: {
-				player: { type: 'literal', value: player!.id },
+				player: { inputSource: 'literal', value: player!.id },
 				sizeMode: videoEffectDef.paramDefs.sizeMode.default(),
 			},
 			isBypass: false,
@@ -372,7 +372,7 @@ export async function newProjectFromImageOrVideo(file?: File) {
 			type: 'effect',
 			effectId: 'audioWaveform',
 			params: {
-				player: { type: 'literal', value: player!.id },
+				player: { inputSource: 'literal', value: player!.id },
 				channel: audioWaveformEffectDef.paramDefs.channel.default(),
 				duration: audioWaveformEffectDef.paramDefs.duration.default(),
 				amplitude: audioWaveformEffectDef.paramDefs.amplitude.default(),
@@ -386,7 +386,7 @@ export async function newProjectFromImageOrVideo(file?: File) {
 			type: 'effect',
 			effectId: 'fill',
 			params: {
-				color: { type: 'literal', value: [0, 1, 0, 1] },
+				color: { inputSource: 'literal', value: [0, 1, 0, 1] },
 			},
 			isBypass: false,
 		} satisfies EffectNodeOf<typeof fillEffectDef>, {

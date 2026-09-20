@@ -12,17 +12,17 @@ export default defineEffect({
 			{ label: '1/4', value: 4 },
 			{ label: '1/8', value: 8 },
 			{ label: '1/16', value: 16 },
-		], default: () => ({ type: 'literal', value: 1 }) },
+		], default: () => ({ inputSource: 'literal', value: 1 }) },
 		direction: { type: 'enum', label: 'Direction', options: [
 			{ label: 'Horizontal', value: 'horizontal' },
 			{ label: 'Vertical', value: 'vertical' },
-		], default: () => ({ type: 'literal', value: 'horizontal' }) },
+		], default: () => ({ inputSource: 'literal', value: 'horizontal' }) },
 		mode: { type: 'enum', label: 'Mode', options: [
 			{ label: 'RGB', value: 'rgb' },
 			{ label: 'Luminance', value: 'luminance' },
-		], default: () => ({ type: 'literal', value: 'rgb' }) },
-		intensity: { type: 'range', label: 'Intensity', min: 0, max: 10, step: 0.01, default: () => ({ type: 'literal', value: 1 }) },
-		showGrid: { type: 'bool', label: 'Grid', default: () => ({ type: 'literal', value: false }) },
+		], default: () => ({ inputSource: 'literal', value: 'rgb' }) },
+		intensity: { type: 'range', label: 'Intensity', min: 0, max: 10, step: 0.01, default: () => ({ inputSource: 'literal', value: 1 }) },
+		showGrid: { type: 'bool', label: 'Grid', default: () => ({ inputSource: 'literal', value: false }) },
 	},
 	outputs: {
 		output: { primary: true, dataType: 'color' },

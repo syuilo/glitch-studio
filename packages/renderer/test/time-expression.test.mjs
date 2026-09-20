@@ -33,7 +33,7 @@ test('expressions follow timeline seeks and live time', async t => {
 		enable32bitDataTextures: false, enableStats: false, fpsLimit: null, assets: [], automations: [] });
 	t.after(() => renderer.destroy());
 	const nodes = [{ id: 'probe', type: 'effect', effectId: 'timeProbe', isBypass: false,
-		params: { value: { type: 'expression', expression: 'TIME' } } }];
+		params: { value: { inputSource: 'expression', expression: 'TIME' } } }];
 	const module = visualModule(nodes, 'probe', definitions);
 	renderer.updateVisualModules([module]);
 	renderer.updateTimeline([{ id: 'layer', startTimeMs: 1000, endTimeMs: 6000,
@@ -46,7 +46,7 @@ test('expressions follow timeline seeks and live time', async t => {
 	renderer.updateVisualModules([module]);
 	renderer.updateTimeline([{ id: 'layer', startTimeMs: 1000, endTimeMs: 6000,
 		layer: { type: 'visualModule', visualModuleId: module.id,
-			paramValues: { amount: { type: 'expression', expression: 'TIME * 2' } } } }]);
+			paramValues: { amount: { inputSource: 'expression', expression: 'TIME * 2' } } } }]);
 	await renderer.renderTimelineAt(2000);
 	assert.equal(values.at(-1), 1002.2, 'module expressions and PARAM use AiScript values too');
 

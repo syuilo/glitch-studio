@@ -22,9 +22,9 @@ test('multiple output rendering', async t => {
 	const source = (id = 'source') => ({ id, type: 'effect', effectId: 'testSource', isBypass: false, params: {} });
 	const sink = (input, scalar = null) => ({
 		id: 'sink', type: 'effect', effectId: 'testSink', isBypass: false,
-		params: { input: { type: 'node', ...(input ?? { nodeId: null, outputPort: null }) }, amount: scalar == null ? { type: 'literal', value: 0 } : { type: 'node', ...scalar } },
+		params: { input: { type: 'node', ...(input ?? { nodeId: null, outputPort: null }) }, amount: scalar == null ? { inputSource: 'literal', value: 0 } : { type: 'node', ...scalar } },
 	});
-	
+
 	fxDefinitions.testSource = { paramDefs: {}, outputs: { color: { dataType: 'color', primary: true }, mask: { dataType: 'scalar', primary: false } } };
 	fxDefinitions.testSink = { paramDefs: { input: { type: 'color', canNode: true, primary: true }, amount: { type: 'range', canNode: true } }, outputs: { result: { dataType: 'color', primary: true } } };
 	function setup(t, nodes, history = false) {
