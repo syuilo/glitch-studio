@@ -43,13 +43,13 @@ function evaluateExpression(expression: string, scope: Record<string, any>, para
 	}
 }
 
-type VisualModuleRenderContext = {
+export type VisualModuleRenderContext = {
 	// 省略時はタイムライン・プレビュー用の主出力だけを評価する。
 	outputIds?: readonly string[];
 	//globalTime: number; // タイムラインの再生位置を示すが、使わなそう
-	localTime: number;
-	localTimeDelta: number;
-	layerDurationMs?: number;
+	time: number;
+	timeDelta: number;
+	progress?: number; // レイヤーなどとして入ってる時の再生進行度
 	paramTextures?: ReadonlyMap<string, GPUTexture>;
 	pointerPosition: { x: number; y: number };
 	pointerPositionPrev: { x: number; y: number };
@@ -163,7 +163,7 @@ export class VisualModuleRenderer {
 			if (value?.type === 'expression') evaluated = evaluateExpression(value.expression, scope, fallbackDef);
 			if (value?.type === 'automation') {
 				const automation = this.automations.find(automation => automation.id === value.automationId);
-				evaluated = automation == null ? deepClone(def.defaultValue) : evalAutomationValue(automation, context.localTime);
+				evaluated = automation == null ? deepClone(def.defaultValue) : evalAutomationValue(automation, context.time);
 			}
 			this.paramValues.set(def.id, evaluated);
 		}
@@ -219,16 +219,16 @@ export class VisualModuleRenderer {
 		const scope = {
 			WIDTH: this.resolution.width,
 			HEIGHT: this.resolution.height,
-			TIME: context.localTime / 1000, // ms to seconds
-			TIME_MS: context.localTime,
-			PROGRESS: context.layerDurationMs != null && context.layerDurationMs > 0 ? context.localTime / context.layerDurationMs : 0,
+			TIME: context.time / 1000, // ms to seconds
+			TIME_MS: context.time,
+			PROGRESS: context.progress ?? 0,
 		};
 
 		// Mixin (global) automations
 		// TODO: 各automationをフレーム数を引数にとる関数として定義する
 		const automationScope = {} as Record<string, any>;
 		for (const automation of this.automations) {
-			automationScope[automation.name] = evalAutomationValue(automation, context.localTime);
+			automationScope[automation.name] = evalAutomationValue(automation, context.time);
 		}
 
 		this.evaluateParams(context, { ...automationScope, ...scope });
@@ -254,7 +254,7 @@ export class VisualModuleRenderer {
 					}
 					if (param.type === 'automation') {
 						const automation = this.automations.find(a => a.id === param.automationId);
-						return automation ? evalAutomationValue(automation, context.localTime) : genEmptyValue(def);
+						return automation ? evalAutomationValue(automation, context.time) : genEmptyValue(def);
 					}
 					return param.nodeId == null ? null : { nodeId: param.nodeId, outputPort: param.outputPort };
 				});
@@ -624,8 +624,8 @@ export class VisualModuleRenderer {
 		}
 
 		effectInstance.render({
-			time: context.localTime / 1000,
-			timeDelta: context.localTimeDelta,
+			time: context.time / 1000,
+			timeDelta: context.timeDelta,
 			pointerPosition: context.pointerPosition,
 			pointerVector: {
 				x: context.pointerPositionPrev.x === -99999 ? 0 : context.pointerPosition.x - context.pointerPositionPrev.x,

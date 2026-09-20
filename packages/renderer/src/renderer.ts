@@ -8,24 +8,11 @@ import { NonNegativeRollingAverage } from './utility/NonNegativeRollingAverage.t
 import { GpuHistogram } from './utility/histogram/GpuHistogram.ts';
 import { GpuWaveform } from './utility/waveform/GpuWaveform.ts';
 import { GpuMemoryTracker } from './utility/GpuMemoryTracker.ts';
-import { VisualModuleRenderer } from './visual-module-renderer.ts';
+import { VisualModuleRenderer, type VisualModuleRenderContext } from './visual-module-renderer.ts';
 import type { EffectStatus } from '@glitch/shared/effect-status.ts';
 import type { AudioCaptureMessage, AudioSourceId } from '@glitch/shared/audio.ts';
 import type { Asset, GsAutomation, Player, Timeline, VisualModule, VisualModuleParamValues } from '@glitch/shared/types.ts';
 import type { IntermediateTextureFormat } from '@glitch/shared/effect-implementation.js';
-
-type VisualModuleRenderContext = {
-	// 省略時はタイムライン・プレビュー用の主出力だけを評価する。
-	outputIds?: readonly string[];
-	//globalTime: number; // タイムラインの再生位置を示すが、使わなそう
-	localTime: number;
-	localTimeDelta: number;
-	layerDurationMs?: number;
-	paramTextures?: ReadonlyMap<string, GPUTexture>;
-	pointerPosition: { x: number; y: number };
-	pointerPositionPrev: { x: number; y: number };
-	paramValues: VisualModuleParamValues;
-};
 
 export class MainRenderer {
 	private timelineRenderVersion = 0;
@@ -414,10 +401,11 @@ export class MainRenderer {
 					});
 					this.perLayerVisualModuleRenderers.set(entry.id, renderer);
 				}
+				const layerDurationMs = entry.endTimeMs - entry.startTimeMs;
 				const context: VisualModuleRenderContext = {
-					localTime: time - entry.startTimeMs,
-					localTimeDelta: 0, // TODO
-					layerDurationMs: entry.endTimeMs - entry.startTimeMs,
+					time: time - entry.startTimeMs,
+					timeDelta: 0, // TODO
+					progress: layerDurationMs > 0 ? (time - entry.startTimeMs) / layerDurationMs : 0,
 					paramValues: entry.layer.paramValues,
 					paramTextures: new Map(visualModule.paramDefs.filter(def => def.isPrimaryInput).map(def => [def.id, texture])),
 					pointerPosition: { x: -99999, y: -99999 },
@@ -505,8 +493,8 @@ export class MainRenderer {
 
 			const tex = this.liveVisualModuleRenderer.render({
 				paramValues: this.liveParamValues,
-				localTime: timeStamp,
-				localTimeDelta: delta,
+				time: timeStamp,
+				timeDelta: delta,
 				pointerPosition: this.pointerPosition,
 				pointerPositionPrev: this.pointerPositionPrev,
 			}, commandEncoder);
