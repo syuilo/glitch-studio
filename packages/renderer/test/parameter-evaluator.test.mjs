@@ -1,0 +1,204 @@
+import assert from 'node:assert/strict';
+import { test } from 'node:test';
+import { createRequire } from 'node:module';
+import { fileURLToPath } from 'node:url';
+import { build } from 'esbuild';
+
+// 既存のnode:testでTSソースを実行する。WGSLやブラウザーの実行環境は不要。
+async function loadSource(name) {
+	const bundled = await build({
+		entryPoints: [fileURLToPath(new URL(`../src/${name}.ts`, import.meta.url))],
+		bundle: true,
+		platform: 'node',
+		format: 'cjs',
+		write: false,
+	});
+	const module = { exports: {} };
+	new Function('require', 'module', 'exports', bundled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
+	return module.exports;
+}
+const { ParameterEvaluator } = await loadSource('parameter-evaluator');
+
+const literal = value => ({ inputSource: 'literal', value });
+const expression = expression => ({ inputSource: 'expression', expression });
+const number = { type: 'number' };
+const node = (params, isBypass = false) => ({ id: 'node', type: 'effect', effectId: 'test', isBypass, params });
+const paramDef = (id, defaultValue = 7, type = 'number') => ({ id, name: id, label: id, type, typeOptions: {}, defaultValue, canNode: true, isPrimaryInput: false });
+const context = (defs, params, overrides = {}) => ({
+	nodes: [node(params)],
+	paramDefs: [],
+	effectDefinitions: { test: { paramDefs: defs } },
+	automations: [],
+	resolution: { width: 640, height: 360 },
+	time: 500,
+	progress: 0.25,
+	paramValues: {},
+	textureParamIds: new Set(),
+	...overrides,
+});
+
+// GPUなしでネストした値・式・接続参照を評価する
+test('evaluates nested values, expressions and node references without a GPU', () => {
+	const input = context({
+		items: { type: 'array', item: { type: 'struct', fields: { value: number } } },
+		link: { ...number, canNode: true },
+		empty: { type: 'array', item: number },
+	}, {
+		items: literal([literal({ value: expression('WIDTH + HEIGHT + TIME + TIME_MS + PROGRESS') }), literal({ value: literal(9) })]),
+		link: { inputSource: 'node', nodeId: 'source', outputPort: 'value' },
+		empty: literal([]),
+	});
+	const result = new ParameterEvaluator().evaluate(input);
+	assert.deepEqual(result.nodeParams.get('node'), {
+		items: [{ value: 1500.75 }, { value: 9 }],
+		link: { nodeId: 'source', outputPort: 'value' },
+		empty: [],
+	});
+});
+
+// モジュールの既定値・式・マクロ・PARAMを同じ評価結果に解決する
+test('resolves module values before macros and PARAM expressions', () => {
+	const result = new ParameterEvaluator().evaluate(context({ a: number, b: number, c: number }, {
+		a: { inputSource: 'macro', macroId: 'gain' },
+		b: expression('PARAM("gain") + PARAM("offset")'),
+		c: expression('PARAM("literal")'),
+	}, {
+		paramDefs: [paramDef('gain'), paramDef('offset', 3), paramDef('literal')],
+		paramValues: { gain: expression('TIME * 4'), literal: literal(11) },
+	}));
+	assert.deepEqual(result.nodeParams.get('node'), { a: 2, b: 5, c: 11 });
+	assert.equal(result.paramValues.get('offset'), 3);
+});
+
+// テクスチャのパラメータや不正な式は値として参照せずフォールバックする
+test('falls back for texture parameters, missing references and invalid expressions', () => {
+	const params = {
+		textureMacro: { inputSource: 'macro', macroId: 'texture' },
+		textureExpression: expression('PARAM("texture")'),
+		missing: expression('PARAM("missing")'),
+		invalid: expression('1 +'),
+		empty: expression(''),
+		missingMacro: { inputSource: 'macro', macroId: 'missing' },
+		missingAutomation: { inputSource: 'automation', automationId: 'missing' },
+	};
+	const result = new ParameterEvaluator().evaluate(context(Object.fromEntries(Object.keys(params).map(key => [key, number])), params, {
+		paramDefs: [paramDef('texture', 99), paramDef('missingAutomation', 12)],
+		paramValues: { missingAutomation: { inputSource: 'automation', automationId: 'missing' } },
+		textureParamIds: new Set(['texture']),
+	}));
+	assert.deepEqual(result.nodeParams.get('node'), Object.fromEntries(Object.keys(params).map(key => [key, 0])));
+	assert.equal(result.paramValues.has('texture'), false);
+	assert.equal(result.paramValues.get('missingAutomation'), 12);
+});
+
+// automationを直接入力・式・モジュールパラメータから同じ時刻で評価する
+test('evaluates automation inputs and expression scope at the supplied time', () => {
+	const evaluator = new ParameterEvaluator();
+	const input = context({ direct: number, scoped: number, macro: number }, {
+		direct: { inputSource: 'automation', automationId: 'ramp' },
+		scoped: expression('RAMP'),
+		macro: { inputSource: 'macro', macroId: 'value' },
+	}, {
+		paramDefs: [paramDef('value')],
+		paramValues: { value: { inputSource: 'automation', automationId: 'ramp' } },
+		automations: [{ id: 'ramp', name: 'RAMP', keyframes: [
+			{ timeMs: 0, value: 0, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] },
+			{ timeMs: 1000, value: 10, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] },
+		] }],
+	});
+	assert.deepEqual(evaluator.evaluate(input).nodeParams.get('node'), { direct: 5, scoped: 5, macro: 5 });
+	assert.deepEqual(evaluator.evaluate({ ...input, time: 0 }).nodeParams.get('node'), { direct: 0, scoped: 0, macro: 0 });
+});
+
+// バイパス中は主入力以外の不正なコンテナも評価しない
+test('evaluates only the primary parameter when bypassed', () => {
+	const params = { main: literal(4), unused: expression('invalid container') };
+	const input = context({ main: { ...number, primary: true }, unused: { type: 'array', item: number } }, params, { nodes: [node(params, true)] });
+	assert.deepEqual(new ParameterEvaluator().evaluate(input).nodeParams.get('node'), { main: 4 });
+});
+
+// 次回評価で前回の結果を書き換えず、既定値の配列を共有しない
+test('keeps previous results and clones module defaults between evaluations', () => {
+	const evaluator = new ParameterEvaluator();
+	const def = paramDef('color', [1, 0.5, 0, 0.25], 'color');
+	const input = context({ value: number }, { value: expression('TIME') }, { paramDefs: [def] });
+	const first = evaluator.evaluate(input);
+	first.paramValues.get('color')[0] = 0;
+	const second = evaluator.evaluate({ ...input, time: 2000 });
+	assert.equal(first.nodeParams.get('node').value, 0.5);
+	assert.equal(second.nodeParams.get('node').value, 2);
+	assert.deepEqual(second.paramValues.get('color'), [1, 0.5, 0, 0.25]);
+	assert.deepEqual(def.defaultValue, [1, 0.5, 0, 0.25]);
+	assert.equal(evaluator.evaluate({ ...input, nodes: [] }).nodeParams.size, 0);
+});
+
+for (const enable32bitDataTextures of [false, true]) {
+	// 評価結果を指定精度で書き込み、prepare後は再評価せず、次フレームでは更新する
+	test(`uploads evaluated parameters and reuses preparation with ${enable32bitDataTextures ? 32 : 16}-bit textures`, async t => {
+		const originalUsage = Object.getOwnPropertyDescriptor(globalThis, 'GPUTextureUsage');
+		const originalQueue = Object.getOwnPropertyDescriptor(globalThis, 'GPUQueue');
+		globalThis.GPUTextureUsage = { TEXTURE_BINDING: 4, RENDER_ATTACHMENT: 16, COPY_DST: 2 };
+		globalThis.GPUQueue = class { submit() {} };
+		t.after(() => {
+			if (originalUsage) Object.defineProperty(globalThis, 'GPUTextureUsage', originalUsage);
+			else delete globalThis.GPUTextureUsage;
+			if (originalQueue) Object.defineProperty(globalThis, 'GPUQueue', originalQueue);
+			else delete globalThis.GPUQueue;
+		});
+		const { VisualModuleRenderer } = await loadSource('visual-module-renderer');
+		const writes = [];
+		const renderedValues = [];
+		const createTexture = (descriptor = {}) => ({ ...descriptor, createView: () => ({}), destroy() {} });
+		const device = {
+			createTexture,
+			queue: { writeTexture({ texture }, data, layout) {
+				texture.data = Array.from(data);
+				writes.push({ texture, data: data.slice(), layout });
+			} },
+		};
+		const definitions = { test: {
+			paramDefs: { group: { type: 'struct', fields: {
+				amount: { ...number, canNode: true },
+				vector: { type: 'vector', canNode: true },
+				color: { type: 'color', canNode: true },
+			} } },
+			outputs: { image: { dataType: 'color', primary: true } },
+		} };
+		const output = createTexture();
+		const renderer = new VisualModuleRenderer({
+			gpuDevice: device, gpuContext: {}, defaultVertexShaderModule: {}, timingHelper: {},
+			enableStats: false, enable32bitDataTextures, intermediateTextureFormat: 'rgba8unorm',
+			resolution: { width: 16, height: 16 }, fallbackTexture: createTexture(), fallbackScalarFieldTexture: createTexture(),
+			videoFrames: new Map(), videoFrameVersions: new Map(), assetTextures: new Map(), audioSources: new Map(), assets: [], automations: [],
+			effectDefinitions: definitions,
+			effectImplementations: { test: {
+				outputTextureFactories: { image: () => output },
+				init: () => ({ render: ({ params }) => renderedValues.push(params.group.amount.data[0]), dispose() {} }),
+			} },
+			visualModule: {
+				id: 'module', name: 'Test', paramDefs: [],
+				outputDefs: [{ id: 'out', isPrimaryOutput: true }],
+				nodes: [node({ group: literal({ amount: expression('TIME + 1'), vector: literal([0.5, -1]), color: literal([1, 0.5, 0, 0.25]) }) }),
+					{ id: 'out', type: 'globalOut', inputs: { out: { nodeId: 'node', outputPort: 'image' } } }],
+			},
+		});
+		t.after(() => renderer.destroy());
+		const frame = { time: 500, timeDelta: 0, paramValues: {}, pointerPosition: { x: 0, y: 0 }, pointerPositionPrev: { x: 0, y: 0 } };
+		await renderer.prepare(frame, new AbortController().signal);
+		assert.equal(writes.length, 3);
+		assert.deepEqual(renderedValues, []);
+		assert.deepEqual(writes.map(write => write.texture.format), enable32bitDataTextures
+			? ['r32float', 'rg32float', 'rgba32float'] : ['r16float', 'rg16float', 'rgba16float']);
+		assert.deepEqual(writes.map(write => Array.from(write.data)), enable32bitDataTextures
+			? [[1.5], [0.5, -1], [1, 0.5, 0, 0.25]] : [[0x3e00], [0x3800, 0xbc00], [0x3c00, 0x3800, 0, 0x3400]]);
+		assert.deepEqual(writes.map(write => write.layout.bytesPerRow), enable32bitDataTextures ? [4, 8, 16] : [2, 4, 8]);
+		assert.strictEqual(renderer.render(frame, {}), output);
+		assert.equal(writes.length, 3);
+		assert.deepEqual(renderedValues, [enable32bitDataTextures ? 1.5 : 0x3e00]);
+		renderer.render({ ...frame, time: 1500 }, {});
+		assert.equal(writes.length, 6);
+		assert.deepEqual(renderedValues, enable32bitDataTextures ? [1.5, 2.5] : [0x3e00, 0x4100]);
+		renderer.render({ ...frame, time: 1500 }, {});
+		assert.equal(renderedValues.length, 2);
+	});
+}

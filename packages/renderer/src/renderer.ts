@@ -8,9 +8,11 @@ import { NonNegativeRollingAverage } from './utility/NonNegativeRollingAverage.t
 import { GpuHistogram } from './utility/histogram/GpuHistogram.ts';
 import { GpuWaveform } from './utility/waveform/GpuWaveform.ts';
 import { GpuMemoryTracker } from './utility/GpuMemoryTracker.ts';
-import { VisualModuleRenderer, type VisualModuleRenderContext } from './visual-module-renderer.ts';
+import { VisualModuleRenderer } from './visual-module-renderer.ts';
 import { LiveRenderLoop, browserFrameScheduler } from './live-render-loop.ts';
+import { TimelineRenderer } from './timeline-renderer.ts';
 import type { FrameScheduler, LiveFrameTiming } from './live-render-loop.ts';
+import type { TimelineLayerRenderer } from './timeline-renderer.ts';
 import type { EffectStatus } from '@glitch/shared/effect-status.ts';
 import type { AudioCaptureMessage, AudioSourceId } from '@glitch/shared/audio.ts';
 import type { Asset, GsAutomation, Player, Timeline, VisualModule, VisualModuleParamValues } from '@glitch/shared/types.ts';
@@ -18,8 +20,7 @@ import type { EffectImplementation, IntermediateTextureFormat } from '@glitch/sh
 import type { EffectDefinition } from '@glitch/shared/effect-definition.js';
 
 export class MainRenderer {
-	private timelineRenderVersion = 0;
-	private timelineRenderAbort: AbortController | null = null;
+	private timelineRenderer: TimelineRenderer<GPUTexture>;
 	private onEffectStatus?: (nodeId: string, status: EffectStatus | null) => void;
 	private gpuContext: GPUCanvasContext;
 	private gpuDevice: GPUDevice;
@@ -43,7 +44,6 @@ export class MainRenderer {
 	private videoFrameVersions: Map<Player['id'], number> = new Map();
 	private audioSources = new Map<AudioSourceId, AudioHistory>();
 	private audioPorts = new Map<AudioSourceId, MessagePort>();
-	private perLayerVisualModuleRenderers: Map<Timeline[number]['id'], VisualModuleRenderer> = new Map();
 	private timingHelper: TimingHelper;
 	private finalRenderSampler: GPUSampler;
 	private finalRenderPipeline: GPURenderPipeline;
@@ -205,6 +205,23 @@ export class MainRenderer {
 			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
 		});
 
+		this.timelineRenderer = new TimelineRenderer({
+			fallbackOutput: this.fallbackTexture,
+			createLayer: visualModule => this.createTimelineLayer(visualModule),
+			present: (texture, gpuTime) => {
+				this.renderToCanvas(texture, this.gpuDevice.createCommandEncoder());
+				if (this.enableStats) {
+					this.gpuAverageFast.addSample(gpuTime / 1000);
+					this.gpuAverageMedium.addSample(gpuTime / 1000);
+					this.gpuAverageSlow.addSample(gpuTime / 1000);
+				}
+			},
+			onClear: () => {
+				this.finalRenderBindGroup = null;
+				this.latestRenderedToCanasTexture = null;
+			},
+		});
+
 		this.updateAssets(options.assets);
 
 		this.updateAutomations(options.automations);
@@ -228,9 +245,6 @@ export class MainRenderer {
 				});
 				this.assetTextures.set(asset.id, tex);
 			}
-		}
-		for (const visualModuleRenderer of this.perLayerVisualModuleRenderers.values()) {
-			visualModuleRenderer.updateAssets(this.assets);
 		}
 		this.liveVisualModuleRenderer?.updateAssets(this.assets);
 	}
@@ -258,12 +272,7 @@ export class MainRenderer {
 	}
 
 	private clearTimelineRenderers() {
-		this.timelineRenderAbort?.abort();
-		this.timelineRenderVersion++;
-		for (const renderer of this.perLayerVisualModuleRenderers.values()) renderer.destroy();
-		this.perLayerVisualModuleRenderers.clear();
-		this.finalRenderBindGroup = null;
-		this.latestRenderedToCanasTexture = null;
+		this.timelineRenderer.clear();
 	}
 
 	public attachAudioSource(id: AudioSourceId, port: MessagePort) {
@@ -371,88 +380,49 @@ export class MainRenderer {
 	public async renderTimelineAt(time: number): Promise<void> {
 		if (!Number.isFinite(time)) throw new Error('Timeline time must be finite');
 		this.stopRenderLoop();
-		this.timelineRenderAbort?.abort();
-		const controller = new AbortController();
-		this.timelineRenderAbort = controller;
-		const version = ++this.timelineRenderVersion;
-		const activeEntries = this.timeline.filter(entry => entry.startTimeMs <= time && time < entry.endTimeMs);
-		const activeIds = new Set(activeEntries.map(entry => entry.id));
-		for (const [id, renderer] of this.perLayerVisualModuleRenderers) {
-			if (activeIds.has(id)) continue;
-			renderer.destroy();
-			this.perLayerVisualModuleRenderers.delete(id);
-		}
-		let texture = this.fallbackTexture;
-		let gpuTime = 0;
-		try {
-			// 配列の先頭が最下層。終端は含めず、隣接する期間が境界で重ならないようにする。
-			for (const entry of activeEntries) {
-				const visualModule = this.visualModules.find(visualModule => visualModule.id === entry.layer.visualModuleId);
-				if (visualModule == null) continue;
-				let renderer = this.perLayerVisualModuleRenderers.get(entry.id);
-				if (renderer == null) {
-					renderer = new VisualModuleRenderer({
-						gpuDevice: this.gpuDevice,
-						gpuContext: this.gpuContext,
-						defaultVertexShaderModule: this.defaultVertexShaderModule,
-						fallbackTexture: this.fallbackTexture,
-						fallbackScalarFieldTexture: this.fallbackScalarFieldTexture,
-						resolution: this.resolution,
-						enable32bitDataTextures: this.enable32bitDataTextures,
-						intermediateTextureFormat: this.intermediateTextureFormat,
-						enableStats: this.enableStats,
-						timingHelper: this.timingHelper,
-						onEffectStatus: this.onEffectStatus,
-						videoFrames: this.videoFrames,
-						videoFrameVersions: this.videoFrameVersions,
-						assets: this.assets,
-						automations: this.automations,
-						visualModule,
-						assetTextures: this.assetTextures,
-						audioSources: this.audioSources,
-						effectDefinitions: this.effectDefinitions,
-						effectImplementations: this.effectImplementations,
-					});
-					this.perLayerVisualModuleRenderers.set(entry.id, renderer);
-				}
-				const layerDurationMs = entry.endTimeMs - entry.startTimeMs;
-				const context: VisualModuleRenderContext = {
-					time: time - entry.startTimeMs,
-					timeDelta: 0, // TODO
-					progress: layerDurationMs > 0 ? (time - entry.startTimeMs) / layerDurationMs : 0,
-					paramValues: entry.layer.paramValues,
-					paramTextures: new Map(visualModule.paramDefs.filter(def => def.isPrimaryInput).map(def => [def.id, texture])),
-					pointerPosition: { x: -99999, y: -99999 },
-					pointerPositionPrev: { x: -99999, y: -99999 },
-				};
-				await renderer.prepare(context, controller.signal);
-				// 待機中に別のシーク・編集・破棄が行われた場合、古い結果を表示しない。
-				if (version !== this.timelineRenderVersion) return;
+		await this.timelineRenderer.renderAt(time, this.timeline, this.visualModules);
+	}
+
+	private createTimelineLayer(visualModule: VisualModule): TimelineLayerRenderer<GPUTexture> {
+		const renderer = new VisualModuleRenderer({
+			gpuDevice: this.gpuDevice,
+			gpuContext: this.gpuContext,
+			defaultVertexShaderModule: this.defaultVertexShaderModule,
+			fallbackTexture: this.fallbackTexture,
+			fallbackScalarFieldTexture: this.fallbackScalarFieldTexture,
+			resolution: this.resolution,
+			enable32bitDataTextures: this.enable32bitDataTextures,
+			intermediateTextureFormat: this.intermediateTextureFormat,
+			enableStats: this.enableStats,
+			timingHelper: this.timingHelper,
+			onEffectStatus: this.onEffectStatus,
+			videoFrames: this.videoFrames,
+			videoFrameVersions: this.videoFrameVersions,
+			assets: this.assets,
+			automations: this.automations,
+			visualModule,
+			assetTextures: this.assetTextures,
+			audioSources: this.audioSources,
+			effectDefinitions: this.effectDefinitions,
+			effectImplementations: this.effectImplementations,
+		});
+		return {
+			prepare: (context, signal) => renderer.prepare(context, signal),
+			render: async context => {
 				const commandEncoder = this.gpuDevice.createCommandEncoder();
-				let result: GPUTexture | undefined;
+				let output: GPUTexture | undefined;
+				let gpuTime = 0;
 				try {
-					result = renderer.render(context, commandEncoder);
+					output = renderer.render(context, commandEncoder);
 				} finally {
-					// 描画途中の例外でもエンコーダーと計測を完了し、次のシークで再利用できるようにする。
+					// 描画途中の例外でもエンコーダーと計測を完了する。
 					this.gpuDevice.queue.submit([commandEncoder.finish()]);
-					if (this.enableStats) gpuTime += await this.timingHelper.getResult();
+					if (this.enableStats) gpuTime = await this.timingHelper.getResult();
 				}
-				if (version !== this.timelineRenderVersion) return;
-				// 各ノードが自身の出力を所有するため、レイヤー間のコピーや追加の合成は不要。
-				if (result != null) texture = result;
-			}
-			// 有効なレイヤーがなくても透明で描画し、直前の表示を残さない。
-			this.renderToCanvas(texture, this.gpuDevice.createCommandEncoder());
-			if (this.enableStats) {
-				this.gpuAverageFast.addSample(gpuTime / 1000);
-				this.gpuAverageMedium.addSample(gpuTime / 1000);
-				this.gpuAverageSlow.addSample(gpuTime / 1000);
-			}
-		} catch (error) {
-			if (version !== this.timelineRenderVersion) return;
-			this.clearTimelineRenderers();
-			throw error;
-		}
+				return { output, gpuTime };
+			},
+			destroy: () => renderer.destroy(),
+		};
 	}
 
 	public updateLiveParamValues(paramValues: VisualModuleParamValues) {
@@ -548,11 +518,6 @@ export class MainRenderer {
 		this.gpuHistogram.dispose();
 		this.gpuWaveformHorizontal.dispose();
 		this.gpuWaveformVertical.dispose();
-
-		for (const visualModuleRenderer of this.perLayerVisualModuleRenderers.values()) {
-			visualModuleRenderer?.destroy();
-		}
-		this.perLayerVisualModuleRenderers.clear();
 
 		this.gpuDevice?.destroy();
 	}
