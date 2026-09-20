@@ -135,12 +135,13 @@ function onPreviewParamEdit(event: ParamEdit) {
 	const reset = (): VisualModuleParamValues[string] => ({ inputSource: 'literal', value: deepClone(def.defaultValue) });
 	switch (event.kind) {
 		case 'literal': previewParamValues.value[id] = { inputSource: 'literal', value: deepClone(event.value) }; break;
+		case 'envVariable': previewParamValues.value[id] = { inputSource: 'envVariable', variable: event.value }; break;
 		case 'expression': previewParamValues.value[id] = { inputSource: 'expression', expression: event.value }; break;
 		case 'automation': previewParamValues.value[id] = { inputSource: 'automation', automationId: event.value }; break;
 		case 'node':
 		case 'macro': return;
 		case 'reset': previewParamValues.value[id] = reset(); break;
-		case 'type':
+		case 'inputSource':
 			switch (event.inputSource) {
 				case 'literal': previewParamValues.value[id] = reset(); break;
 				case 'expression': previewParamValues.value[id] = {

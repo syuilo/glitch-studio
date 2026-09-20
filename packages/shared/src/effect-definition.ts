@@ -151,6 +151,7 @@ export type GetEffectOptionsSchemaValues<T extends EffectOptionsSchema> = {
 
 type EffectOptionSerializedValue<T extends EffectOptionsSchema[string]> =
 	{ inputSource: 'literal'; value: EffectOptionScalarValue<T> } |
+	{ inputSource: 'envVariable'; variable: string } |
 	{ inputSource: 'expression'; expression: string } |
 	{ inputSource: 'automation'; automationId: string | null } |
 	NodeParamValue;

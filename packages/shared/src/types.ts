@@ -7,6 +7,9 @@ export type EffectParamValue = {
 	inputSource: 'literal';
 	value: any; // TODO: literalにリネーム？
 } | {
+	inputSource: 'envVariable';
+	variable: string;
+} | {
 	inputSource: 'expression';
 	expression: string;
 } | {

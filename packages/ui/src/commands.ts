@@ -521,6 +521,7 @@ const changeParamValueInputSourceCommandDef = defineNodeParamCommand<NodeParamTa
 				inputSource: 'expression',
 				expression: AiSON.stringify(currentValue.inputSource === 'literal' ? currentValue.value : defaultValue.inputSource === 'literal' ? defaultValue.value : emptyValue),
 			};
+			case 'envVariable': return { inputSource: 'envVariable', variable: '' };
 			case 'literal': return { inputSource: 'literal', value: defaultValue.type === 'literal' ? defaultValue.value : emptyValue };
 			case 'automation': return { inputSource: 'automation', automationId: null };
 			case 'macro': return { inputSource: 'macro', macroId: '' };
@@ -537,6 +538,14 @@ const updateParamAsLiteralCommandDef = defineNodeParamCommand<NodeParamTarget & 
 	(target, payload) => {
 		assertLeafParam(target);
 		return { inputSource: 'literal', value: payload.value };
+	},
+);
+
+const updateParamAsEnvVariableCommandDef = defineNodeParamCommand<NodeParamTarget & { value: string }>(
+	'Update param as environment variable',
+	(target, payload) => {
+		assertLeafParam(target);
+		return { inputSource: 'envVariable', variable: payload.value };
 	},
 );
 
@@ -820,6 +829,7 @@ export const COMMAND_DEFS = {
 	updateMacroTypeOption: updateMacroTypeOptionCommandDef,
 	changeParamValueInputSource: changeParamValueInputSourceCommandDef,
 	updateParamAsLiteral: updateParamAsLiteralCommandDef,
+	updateParamAsEnvVariable: updateParamAsEnvVariableCommandDef,
 	updateParamAsExpression: updateParamAsExpressionCommandDef,
 	updateParamAsAutomation: updateParamAsAutomationCommandDef,
 	updateParamAsNode: updateParamAsNodeCommandDef,

@@ -114,6 +114,13 @@
 			"Image": "画像"
 		}
 	},
+	"_EnvVariables": {
+		"TIME": "時間 (秒)",
+		"TIME_MS": "時間 (ミリ秒)",
+		"WIDTH": "レンダリングの横幅",
+		"HEIGHT": "レンダリングの縦幅",
+		"PROGRESS": "進行率"
+	},
 	"GpuMemoryEstimate": "Estimated GPU resource memory\nTextures: {textures} MiB\nBuffers: {buffers} MiB",
 	"None": "なし",
 	"Random": "ランダム",

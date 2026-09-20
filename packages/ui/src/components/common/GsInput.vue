@@ -269,7 +269,7 @@ defineExpose({
 	transition: border-color 0.1s ease-out;
 
 	&:hover {
-		border-color: var(--THEME-inputBorderHover) !important;
+		background: hsl(from var(--THEME-panel) h s calc(l + 5));
 	}
 }
 

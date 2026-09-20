@@ -11,7 +11,7 @@ export default defineEffect({
 		size: { type: 'range', min: 0, max: 100, step: 0.01, label: 'Size', default: () => ({ inputSource: 'literal', value: 20 }) },
 		angle: { type: 'angle', label: 'Angle', default: () => ({ inputSource: 'literal', value: 0 }) },
 		channelShift: { type: 'range', min: 0, max: 10, step: 0.01, label: 'Ch shift', default: () => ({ inputSource: 'literal', value: 0.5 }) },
-		seed: { type: 'seed', label: 'Seed', default: () => ({ inputSource: 'expression', expression: 'TIME' }) },
+		seed: { type: 'seed', label: 'Seed', default: () => ({ inputSource: 'envVariable', variable: 'TIME' }) },
 		wrap: { type: 'wrapMode', label: 'Wrap', default: () => ({ inputSource: 'literal', value: 'repeatMirrored' }) },
 	},
 	outputs: {

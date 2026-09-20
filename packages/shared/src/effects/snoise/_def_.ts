@@ -11,7 +11,7 @@ export default defineEffect({
 		outputMax: { type: 'number', label: 'Output Max', step: 0.01, canNode: true, default: () => ({ inputSource: 'literal', value: 1 }) },
 		// canNodeでは環境によってTimeが16bitテクスチャに丸められ、経過時間とともに
 		// 値の刻みが粗くなって動きがカクつくため、32bitのuniformで渡す。
-		time: { type: 'range', min: 0, max: 100, step: 0.01, label: 'Time', canNode: false, default: () => ({ inputSource: 'expression', expression: 'TIME' }) },
+		time: { type: 'range', min: 0, max: 100, step: 0.01, label: 'Time', canNode: false, default: () => ({ inputSource: 'envVariable', variable: 'TIME' }) },
 		seed: { type: 'seed', label: 'Seed', canNode: false, default: () => ({ inputSource: 'literal', value: 0 }) },
 	},
 	outputs: {

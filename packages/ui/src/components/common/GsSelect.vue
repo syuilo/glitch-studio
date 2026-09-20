@@ -270,7 +270,7 @@ function show() {
 
 	&:hover {
 		> .inputCore {
-			border-color: var(--THEME-inputBorderHover) !important;
+			background: hsl(from var(--THEME-panel) h s calc(l + 5));
 		}
 	}
 }

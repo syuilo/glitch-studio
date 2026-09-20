@@ -17,7 +17,7 @@ export default defineEffect({
 		distortion: { type: 'range', label: 'Distortion', min: 0, max: 1, step: 0.01, default: () => ({ inputSource: 'literal', value: 0.07 }) },
 		contour: { type: 'range', label: 'Contour', min: 0, max: 1, step: 0.01, default: () => ({ inputSource: 'literal', value: 1 }) },
 		angle: { type: 'angle', label: 'Angle', default: () => ({ inputSource: 'literal', value: 70 / 180 }) },
-		time: { type: 'number', label: 'Time (s)', step: 0.01, default: () => ({ inputSource: 'expression', expression: 'TIME' }) },
+		time: { type: 'number', label: 'Time (s)', step: 0.01, default: () => ({ inputSource: 'envVariable', variable: 'TIME' }) },
 		speed: { type: 'number', label: 'Speed', step: 0.01, default: () => ({ inputSource: 'literal', value: 1 }) },
 		frame: { type: 'number', label: 'Frame offset (ms)', step: 1, default: () => ({ inputSource: 'literal', value: 0 }) },
 	},

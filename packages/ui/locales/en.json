@@ -115,6 +115,13 @@
 			"Image": "Image"
 		}
 	},
+	"_EnvVariables": {
+		"TIME": "Time (s)",
+		"TIME_MS": "Time (ms)",
+		"WIDTH": "Rendering Width",
+		"HEIGHT": "Rendering Height",
+		"PROGRESS": "Progress"
+	},
 	"GpuMemoryEstimate": "Estimated GPU resource memory\nTextures: {textures} MiB\nBuffers: {buffers} MiB",
 	"None": "None",
 	"Random": "Random",

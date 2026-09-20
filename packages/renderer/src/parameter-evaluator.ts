@@ -1,20 +1,10 @@
 import * as AiScript from '@syuilo/aiscript';
 import { evalAutomationValue, genEmptyValue } from '@glitch/shared/utility/misc.ts';
 import { deepClone } from '@glitch/shared/utility/deep-clone.js';
+import { reservedWords, singleVariableExpression, type globalEnvVarDefs } from '@glitch/shared/expression.js';
 import { mapNodeParam } from './utility/node-params.ts';
 import type { EffectDefinition } from '@glitch/shared/effect-definition.js';
 import type { EffectParamDef, GsAutomation, GsEffectNode, GsNode, VisualModule, VisualModuleParamValues } from '@glitch/shared/types.ts';
-
-// AiScript 1.2の識別子・予約語に合わせる。コメントやエスケープを含む式は通常のパーサーに任せる。
-const singleVariableExpression = /^[ \t\r\n]*([A-Za-z_][A-Za-z0-9_]*(?::[A-Za-z_][A-Za-z0-9_]*)*)[ \t\r\n]*$/;
-const reservedWords = new Set([
-	'null', 'true', 'false', 'each', 'for', 'loop', 'do', 'while', 'break', 'continue',
-	'match', 'case', 'default', 'if', 'elif', 'else', 'return', 'eval', 'var', 'let', 'exists',
-	'as', 'async', 'attr', 'attribute', 'await', 'catch', 'class', 'component', 'constructor',
-	'dictionary', 'enum', 'export', 'finally', 'fn', 'hash', 'in', 'interface', 'out',
-	'private', 'public', 'ref', 'static', 'struct', 'table', 'this', 'throw', 'trait', 'try',
-	'undefined', 'use', 'using', 'when', 'yield', 'import', 'is', 'meta', 'module', 'namespace', 'new',
-]);
 
 export type ParameterEvaluationContext = {
 	nodes: GsNode[];
@@ -83,7 +73,7 @@ export class ParameterEvaluator {
 			TIME: context.time / 1000, // ms to seconds
 			TIME_MS: context.time,
 			PROGRESS: context.progress ?? 0,
-		};
+		} satisfies Record<typeof globalEnvVarDefs[number], any>;
 
 		// Mixin (global) automations
 		// TODO: 各automationをフレーム数を引数にとる関数として定義する
@@ -100,6 +90,7 @@ export class ParameterEvaluator {
 			const fallbackDef = { ...def.typeOptions, type: def.type, label: def.label };
 			let evaluated = deepClone(def.defaultValue); // 参照が共有されないように切る
 			if (value?.inputSource === 'literal') evaluated = value.value;
+			if (value?.inputSource === 'envVariable') evaluated = mixedScope[value.variable] ?? genEmptyValue(fallbackDef);
 			if (value?.inputSource === 'expression') evaluated = this.evaluateExpression(value.expression, mixedScope, fallbackDef);
 			if (value?.inputSource === 'automation') {
 				const automation = context.automations.find(automation => automation.id === value.automationId);
@@ -124,6 +115,7 @@ export class ParameterEvaluator {
 				if (node.isBypass && !def.primary) continue;
 				evaluatedParams[key] = mapNodeParam(def, node.params[key], [key], (def, param) => {
 					if (param.inputSource === 'literal') return param.value;
+					if (param.inputSource === 'envVariable') return mixedScope[param.variable] ?? genEmptyValue(def);
 					if (param.inputSource === 'expression') return param.expression ? this.evaluateExpression(param.expression, mixedScope, def, readParam) : genEmptyValue(def);
 					if (param.inputSource === 'macro') {
 						if (!paramValues.has(param.macroId) || context.textureParamIds.has(param.macroId)) return genEmptyValue(def);
