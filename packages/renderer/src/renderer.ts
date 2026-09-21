@@ -243,7 +243,7 @@ export class MainRenderer {
 				this.assetTextures.set(asset.id, tex);
 			}
 		}
-		this.liveVisualModuleRenderer?.updateAssets();
+		this.liveVisualModuleRenderer?.updateAssets(this.assets);
 	}
 
 	public updateVisualModules(newVisualModules: VisualModule[]) {

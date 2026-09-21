@@ -20,6 +20,7 @@
 	},
 	"dependencies": {
 		"bezier-easing": "3.0.1",
+		"mediabunny": "1.56.2",
 		"seedrandom": "3.0.5",
 		"webgpu-utils": "2.1.1"
 	}

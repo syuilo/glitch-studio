@@ -13,7 +13,7 @@ export function genEmptyValue(paramDef: EffectOptionSchema | VisualModuleParamDe
 		case 'wrapMode': return 'repeatMirrored';
 		case 'vector': return [0, 0];
 		case 'color': return [0, 0, 0, 1];
-		case 'any': case 'assetReference': case 'playerReference': return null;
+		case 'any': case 'assetReference': case 'videoAssetReference': case 'playerReference': return null;
 		case 'array': return [];
 		case 'struct': return Object.fromEntries(Object.entries(paramDef.fields).map(([key, def]) => [key, deepClone(def.defaultValue)]));
 	}

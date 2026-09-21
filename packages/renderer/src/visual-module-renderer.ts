@@ -61,6 +61,7 @@ export class VisualModuleRenderer {
 	private videoFrameVersions: Map<string, number>;
 	private fallbackScalarFieldTexture: GPUTexture;
 	private assetTextures: Map<string, GPUTexture>;
+	private assets: Asset[];
 	private audioSources = new Map<AudioSourceId, AudioHistory>();
 	private timingHelper: TimingHelper;
 	private enableStats = true;
@@ -104,6 +105,7 @@ export class VisualModuleRenderer {
 		this.videoFrameVersions = options.videoFrameVersions;
 		this.fallbackScalarFieldTexture = options.fallbackScalarFieldTexture;
 		this.assetTextures = options.assetTextures;
+		this.assets = options.assets;
 		this.audioSources = options.audioSources;
 		this.timingHelper = options.timingHelper;
 		this.effectDefinitions = options.effectDefinitions;
@@ -266,6 +268,7 @@ export class VisualModuleRenderer {
 			resolvedParams[key] = mapNodeParam(def, node.params[key], [key], (def, param, path) => {
 				const v = getEvaluatedParam(params, path);
 				if (def.dataType === 'assetReference') return this.assetTextures.get(v) ?? null;
+				if (def.dataType === 'videoAssetReference') return this.assets.find(asset => asset.id === v && asset.fileDataType.startsWith('video/')) ?? null;
 				if (def.dataType === 'playerReference') return v == null ? null : {
 					videoFrame: this.videoFrames.get(v) ?? null,
 					audio: this.audioSources.get(playerAudioSourceId(v)) ?? null,
@@ -427,7 +430,9 @@ export class VisualModuleRenderer {
 		this.renderNodeId = this.nodes.find(node => node.type === 'globalOut')?.id ?? null;
 	}
 
-	public updateAssets() {
+	public updateAssets(assets: Asset[]) {
+		this.assets = assets;
+		this.preparedContext = null;
 		// 同じAsset IDでもテクスチャを作り直すため、ネスト内の画像参照も再解決する。
 		this.effectCacheKeys.clear();
 	}

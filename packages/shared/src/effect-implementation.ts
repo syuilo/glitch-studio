@@ -2,6 +2,8 @@ import type { ArrayOptionSchema, BlendModeOptionSchema, FitModeOptionSchema, Boo
 import type { AudioHistory } from '@glitch/shared/audio-history.ts';
 import type { WrapModeOptionSchema, WrapModeValue } from '@glitch/shared/effect-definition.ts';
 import type { EffectStatus } from '@glitch/shared/effect-status.ts';
+import type { VideoAssetReferenceOptionSchema } from './effect-definition.ts';
+import type { Asset } from './types.ts';
 
 // 画像の中間処理でフィルタリング・ブレンド可能なRGBA形式。
 export type IntermediateTextureFormat = 'rgba8unorm' | 'bgra8unorm' | 'rgba16float';
@@ -17,6 +19,7 @@ type RuntimeEffectOptionScalarValue<T extends EffectOptionsSchema[string]> =
 	T extends WrapModeOptionSchema ? WrapModeValue<T> :
 	T extends EnumOptionSchema ? T['options'][number]['value'] :
 	T extends AssetReferenceOptionSchema ? GPUTexture | null :
+	T extends VideoAssetReferenceOptionSchema ? Pick<Asset, 'id' | 'fileData'> | null :
 	T extends PlayerReferenceOptionSchema ? { videoFrame: VideoFrame | null; audio: AudioHistory | null; } | null :
 	T extends StructOptionSchema ? {
 		[K in keyof T['fields']]: RuntimeEffectOptionValue<T['fields'][K]>;

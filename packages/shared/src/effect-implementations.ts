@@ -37,6 +37,7 @@ import tearings from './effects/tearings/_impl_.ts';
 import test from './effects/test/_impl_.ts';
 import transform from './effects/transform/_impl_.ts';
 import video from './effects/video/_impl_.ts';
+import videoFrame from './effects/videoFrame/_impl_.ts';
 import water from './effects/water/_impl_.ts';
 import waveform from './effects/waveform/_impl_.ts';
 import pointerTrail from './effects/pointerTrail/_impl_.ts';
@@ -83,6 +84,7 @@ const _effectImplementations = {
 	test,
 	transform,
 	video,
+	videoFrame,
 	water,
 	waveform,
 	pointerTrail,

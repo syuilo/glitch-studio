@@ -9,6 +9,7 @@ export type DataType =
 	| 'wrapMode'
 	| 'enum'
 	| 'assetReference'
+	| 'videoAssetReference'
 	| 'playerReference'
 	| 'struct'
 	| 'array'

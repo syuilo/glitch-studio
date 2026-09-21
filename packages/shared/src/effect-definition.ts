@@ -62,6 +62,10 @@ export type PlayerReferenceOptionSchema = EffectOptionSchemaBase<'playerReferenc
 	ui: { control: 'player' };
 	canNode?: false;
 };
+export type VideoAssetReferenceOptionSchema = EffectOptionSchemaBase<'videoAssetReference'> & {
+	ui: { control: 'videoAsset' };
+	canNode?: false;
+};
 export type StructOptionSchema = EffectOptionSchemaBase<'struct'> & {
 	canNode?: false;
 	fields: EffectOptionsSchemaWithDefaults;
@@ -80,7 +84,7 @@ export type AnyOptionSchema = EffectOptionSchemaBase<'any'> & {
 export type EffectOptionSchema =
 	| ScalarOptionSchema | BooleanOptionSchema | ColorOptionSchema | VectorOptionSchema
 	| BlendModeOptionSchema | FitModeOptionSchema | WrapModeOptionSchema | EnumOptionSchema
-	| AssetReferenceOptionSchema | PlayerReferenceOptionSchema | StructOptionSchema | ArrayOptionSchema | AnyOptionSchema;
+	| AssetReferenceOptionSchema | VideoAssetReferenceOptionSchema | PlayerReferenceOptionSchema | StructOptionSchema | ArrayOptionSchema | AnyOptionSchema;
 export type EffectOptionsSchema = Record<string, EffectOptionSchema>;
 
 // 外部パラメータも同じdataType/UIの組み合わせを使う。ノード入力の許可はモジュール側が指定する。
@@ -107,6 +111,7 @@ type EffectOptionScalarValue<T extends EffectOptionsSchema[string]> =
 	T extends WrapModeOptionSchema ? WrapModeValue<T> :
 	T extends EnumOptionSchema ? T['options'][number]['value'] :
 	T extends AssetReferenceOptionSchema ? string | null :
+	T extends VideoAssetReferenceOptionSchema ? string | null :
 	T extends PlayerReferenceOptionSchema ? string | null :
 	T extends StructOptionSchema ? {
 		[K in keyof T['fields']]: EffectOptionDefaultValue<T['fields'][K]>;

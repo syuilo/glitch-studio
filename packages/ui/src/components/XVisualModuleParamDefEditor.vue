@@ -11,6 +11,7 @@
 				{ label: i18n.ts._ExternalParameterInput._Types.Flag, value: 'bool' },
 				{ label: i18n.ts._ExternalParameterInput._Types.Color, value: 'color' },
 				{ label: i18n.ts._ExternalParameterInput._Types.Image, value: 'assetReference' },
+				{ label: 'Video asset', value: 'videoAssetReference' },
 			]"
 			@update:modelValue="updateType"
 		/>
@@ -33,7 +34,7 @@
 			<GsInput type="number" :modelValue="def.ui.step ?? null" @update:modelValue="updateUiOption('step', Number($event))"/>
 		</div>
 	</div>
-	<div :class="$style.option">
+	<div v-if="def.dataType !== 'videoAssetReference'" :class="$style.option">
 		<GsSwitch :modelValue="def.canNode" @update:modelValue="updateCanNode">Allow node input</GsSwitch>
 	</div>
 	<div v-if="def.canNode && def.dataType === 'color'" :class="$style.option">
@@ -75,19 +76,21 @@ function update(changes: Partial<Omit<ParamDef, 'id'>>) {
 
 function updateType(dataType: ParamDef['dataType']) {
 	if (dataType === props.def.dataType) return;
-	if (dataType !== 'scalar' && dataType !== 'bool' && dataType !== 'color' && dataType !== 'assetReference') return;
+	if (dataType !== 'scalar' && dataType !== 'bool' && dataType !== 'color' && dataType !== 'assetReference' && dataType !== 'videoAssetReference') return;
 
 	const schemas = {
 		scalar: { dataType: 'scalar', ui: { label: props.def.ui.label, control: 'number' } },
 		bool: { dataType: 'bool', ui: { label: props.def.ui.label, control: 'bool' } },
 		color: { dataType: 'color', ui: { label: props.def.ui.label, control: 'color' } },
 		assetReference: { dataType: 'assetReference', ui: { label: props.def.ui.label, control: 'image' } },
+		videoAssetReference: { dataType: 'videoAssetReference', ui: { label: props.def.ui.label, control: 'videoAsset' } },
 	} as const;
 
 	const schema = schemas[dataType];
 
 	update({
 		...schema,
+		canNode: dataType === 'videoAssetReference' ? false : props.def.canNode,
 		defaultValue: { inputSource: 'literal', value: genEmptyValue(schema) },
 		isPrimaryInput: dataType === 'color' && props.def.canNode && props.def.isPrimaryInput,
 	});
