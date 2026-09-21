@@ -19,6 +19,8 @@ export type EffectParamValue = {
 } | {
 	inputSource: 'automation';
 	automationId: string | null;
+	durationMs: number;
+	playMode: 'start' | 'end' | 'repeat' | 'repeatMirrored';
 } | NodeParamValue;
 
 export type Asset = {
