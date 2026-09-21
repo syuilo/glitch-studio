@@ -57,6 +57,7 @@ import { engine, resolutionFactor, fpsLimit, liveTimeFactor, appContext } from '
 import { preferences } from './preferences.ts';
 import GsRange from './components/common/GsRange.vue';
 import GsAboutDialog from '@/components/GsAboutDialog.vue';
+import GsTimelineExportDialog from '@/components/GsTimelineExportDialog.vue';
 import GsDashboardDialog from '@/components/GsDashboardDialog.vue';
 import GsWorkspaceElement from '@/components/GsWorkspaceElement.vue';
 import { i18n } from '@/i18n.ts';
@@ -245,12 +246,17 @@ function openHeaderFileMenu(ev: PointerEvent) {
 		action: () => {
 			exportToWebp();
 		},
+	}, {
+		text: 'Export Timeline As Video...',
+		action: () => {
+			ui.popup(GsTimelineExportDialog, {}, {});
+		},
 	}], ev.currentTarget ?? ev.target);
 }
 
 function openHeaderEditMenu(ev: PointerEvent) {
 	ui.popupMenu([{ text: 'Undo', action: () => appContext.undo() },
-		{ text: 'Redo', action: () => appContext.redo() }], ev.currentTarget ?? ev.target);
+															{ text: 'Redo', action: () => appContext.redo() }], ev.currentTarget ?? ev.target);
 }
 
 function openHeaderHelpMenu(ev: PointerEvent) {
