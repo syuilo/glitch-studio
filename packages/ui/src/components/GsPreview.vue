@@ -71,6 +71,8 @@ async function onDrop(event: DragEvent) {
 }
 
 async function addMedia(file?: File) {
+	const visualModuleId = engine.currentLiveVisualModuleId;
+	if (visualModuleId == null) return;
 	const result = await api.openMediaFile({ file });
 	if (result == null) return;
 
@@ -88,6 +90,7 @@ async function addMedia(file?: File) {
 
 	if (result.type.startsWith('image/')) {
 		appContext.commit('addEffectNode', {
+			visualModuleId,
 			effectId: 'image',
 			id: genId(),
 			params: {
@@ -105,6 +108,7 @@ async function addMedia(file?: File) {
 		});
 
 		appContext.commit('addEffectNode', {
+			visualModuleId,
 			effectId: result.type.startsWith('audio/') ? 'audioWaveform' : 'video',
 			id: genId(),
 			params: {

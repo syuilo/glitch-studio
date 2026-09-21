@@ -24,6 +24,7 @@ export class Engine {
 	private resolution = { width: 1, height: 1 };
 	private renderLoopRunning = false;
 	private liveVisualModuleId: VisualModule['id'] | null = null;
+	public get currentLiveVisualModuleId(): VisualModule['id'] | null { return this.liveVisualModuleId; }
 	private liveParamValues: VisualModuleParamValues = {};
 	private reloadPromise: Promise<void> | null = null;
 	private rejectInitialization: ((reason: Error) => void) | null = null;

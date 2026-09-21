@@ -300,7 +300,7 @@ export class PreferencesManager extends EventEmitter<PreferencesManagerEvents> {
 	public getPerPrefMenu<K extends keyof PREF>(key: K): MenuItem[] {
 		return [{
 			icon: 'ti ti-refresh',
-			text: i18n.ts.resetToDefaultValue,
+			text: 'Reset to default value',
 			danger: true,
 			action: () => {
 				this.commit(key, PREF_DEF[key].default());

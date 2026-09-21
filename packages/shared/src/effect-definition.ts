@@ -1,5 +1,5 @@
 import type { DataType, TextureDataType } from './data-type.ts';
-import type { GsEffectNode, NodeParamValue } from './types.ts';
+import type { EffectParamValue, GsEffectNode, NodeParamValue } from './types.ts';
 
 type EffectOptionSchemaBase<T extends DataType> = {
 	dataType: T;
@@ -125,7 +125,7 @@ type EffectOptionSerializedValue<T extends EffectOptionsSchema[string]> =
 	{ inputSource: 'literal'; value: EffectOptionScalarValue<T> } |
 	{ inputSource: 'envVariable'; variable: string } |
 	{ inputSource: 'expression'; expression: string } |
-	{ inputSource: 'automation'; automationId: string | null } |
+	Extract<EffectParamValue, { inputSource: 'automation' }> |
 	NodeParamValue;
 
 type EffectOptionDefaultValue<T extends EffectOptionsSchema[string]> = T extends unknown ?

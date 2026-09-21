@@ -7,7 +7,7 @@
 		</div>
 		<div ref="tlEl" :class="$style.tl" tabindex="-1" @wheel="onTlWheel" @mousemove="onTlMousemove" @mousedown="onTlMousedown" @keydown="onTlKeydown">
 			<div :class="$style.yTicks" @wheel="onYTicksWheel">
-				<div v-for="valueY of yTicks" class="_monospace" :class="[$style.yTick, { [$style.yTickActive]: snappingY != null && nearlyEqual(snappingY, v) }]" :style="{ top: valueYToDomY(valueY) + 'px' }">{{ valueY.toFixed(2) }}</div>
+				<div v-for="valueY of yTicks" class="_monospace" :class="[$style.yTick, { [$style.yTickActive]: snappingY != null && nearlyEqual(snappingY, valueY) }]" :style="{ top: valueYToDomY(valueY) + 'px' }">{{ valueY.toFixed(2) }}</div>
 			</div>
 			<div :class="$style.xTicks" @wheel="onXTicksWheel">
 				<div v-for="valueX of xTicks" :class="$style.xTick" class="_monospace" :style="{ left: valueXToDomX(valueX) + 'px' }">{{ formatValueXWithUnit(valueX) }}</div>
@@ -67,7 +67,7 @@
 				<div>V: {{ cursorValueY }}</div>
 			</div>
 
-			<div v-if="!nowSelecting && contextmenuKeyframe" :class="$style.keyframeContextmenu" :style="{ left: keyframeContextmenuDomPos[0] + 'px', top: keyframeContextmenuDomPos[1] + 'px' }">
+			<div v-if="!nowSelecting && contextmenuKeyframe && keyframeContextmenuDomPos" :class="$style.keyframeContextmenu" :style="{ left: keyframeContextmenuDomPos[0] + 'px', top: keyframeContextmenuDomPos[1] + 'px' }">
 				<div>
 					<div :class="$style.keyframeContextmenuHandle" style="cursor: ns-resize;" @mousedown="onKeyframeYHandleMousedown"><i class="ti ti-arrows-vertical"></i></div>
 					<div :class="$style.keyframeContextmenuInput">V: {{ contextmenuKeyframe.y.toFixed(2) }}</div>
@@ -163,7 +163,7 @@ const tlRangeElPosX = computed(() => {
 const tlRangeElWidth = computed(() => {
 	return (duration.value / tlRangeX.value) * tlElWidth.value;
 });
-const tooltipDomPos = ref<null | [0, 0]>(null);
+const tooltipDomPos = ref<null | [number, number]>(null);
 const keyframeContextmenuDomPos = computed(() => {
 	if (!contextmenuKeyframe.value) return null;
 	return [
@@ -295,7 +295,7 @@ function domYToValueY(y: number): number {
 	return domYToLogicalY(y) + tlPosY.value;
 }
 
-function addKeyframe(x: number, y: number): GsKeyframe {
+function addKeyframe(x: number, y: number): GsKeyframe | undefined {
 	const keyframes = [] as GsKeyframe[];
 	const keyframe: GsKeyframe = {
 		id: genId(),
@@ -318,7 +318,8 @@ function addKeyframe(x: number, y: number): GsKeyframe {
 	if (!pushed) {
 		keyframes.push(keyframe);
 	}
-	selectedAutomation.value.keyframes = keyframes; // TODO
+	// TODO
+	//props.automation.keyframes = keyframes;
 	return keyframe;
 }
 
@@ -331,7 +332,7 @@ function onTlMousemove(ev: MouseEvent) {
 	cursorBarPos.value = valueXToDomX(valueX);
 
 	const value = domYToValueY(mouseY);
-	cursorValueY.value = value.toFixed(2);
+	cursorValueY.value = Number(value.toFixed(2));
 	cursorValueX.value = valueX;
 	tooltipDomPos.value = [mouseX + 10, mouseY + 10];
 }
@@ -400,6 +401,7 @@ function onTlDblclick(ev: MouseEvent) {
 	}
 
 	const keyframe = addKeyframe(valueX, valueY);
+	if (keyframe == null) return;
 
 	selectedKeyframes.value = [keyframe];
 
@@ -480,6 +482,7 @@ function onTlMousedown(ev: MouseEvent) {
 const SNAP_THRESHOLD = 5;
 
 function onKeyframesXYHandleMousedown(ev: MouseEvent, keyframe: GsKeyframe, treatX: boolean, treatY: boolean) {
+	if (tlEl.value == null) return;
 	ev.stopPropagation();
 	const prevKeyframe = props.automation.keyframes[props.automation.keyframes.indexOf(selectedKeyframes.value[0]) - 1];
 	const nextKeyframe = props.automation.keyframes[props.automation.keyframes.indexOf(selectedKeyframes.value[selectedKeyframes.value.length - 1]) + 1];
@@ -529,11 +532,13 @@ function onKeyframesXYHandleMousedown(ev: MouseEvent, keyframe: GsKeyframe, trea
 }
 
 function onKeyframeXHandleMousedown(ev: MouseEvent) {
+	if (contextmenuKeyframe.value == null) return;
 	ev.stopPropagation();
 	onKeyframesXYHandleMousedown(ev, contextmenuKeyframe.value, true, false);
 }
 
 function onKeyframeYHandleMousedown(ev: MouseEvent) {
+	if (contextmenuKeyframe.value == null) return;
 	ev.stopPropagation();
 	onKeyframesXYHandleMousedown(ev, contextmenuKeyframe.value, false, true);
 }
@@ -569,9 +574,12 @@ const BEZIER_X_SNAP_STEPS = [0, 0.25, 0.5, 0.75, 1];
 const BEZIER_Y_SNAP_STEPS = [-2, -1.5, -1, -0.5, 0, 0.5, 1];
 
 function onBezierHandleAMousedown(ev: MouseEvent) {
+	const selected = selectedKeyframe.value;
+	if (selected == null || tlEl.value == null) return;
 	ev.stopPropagation();
-	const keyframe = props.automation.keyframes.find(kf => kf.id === selectedKeyframe.value.id)!;
-	const prevKeyframe = props.automation.keyframes[props.automation.keyframes.indexOf(selectedKeyframe.value) - 1];
+	const keyframe = selected;
+	if (!props.automation.keyframes.includes(keyframe)) return;
+	const prevKeyframe = props.automation.keyframes[props.automation.keyframes.indexOf(selected) - 1];
 	if (prevKeyframe == null) return;
 	const position = tlEl.value.getBoundingClientRect();
 	const moveBaseX = ev.clientX - position.left;
@@ -604,7 +612,7 @@ function onBezierHandleAMousedown(ev: MouseEvent) {
 		}
 
 		// snap
-		const domX = bezierHandleADomPos.value[0];
+		const domX = logicalXToDomX(keyframe.x + keyframe.bezierControlPointA[0]);
 		for (let i = 0; i < BEZIER_X_SNAP_STEPS.length; i++) {
 			const step = BEZIER_X_SNAP_STEPS[i];
 			const stepX = valueXToDomX(baseTime - ((baseTime - prevKeyframe.x) * step));
@@ -614,7 +622,7 @@ function onBezierHandleAMousedown(ev: MouseEvent) {
 				break;
 			}
 		}
-		const domY = bezierHandleADomPos.value[1];
+		const domY = logicalYToDomY(keyframe.y + keyframe.bezierControlPointA[1]);
 		for (let i = 0; i < BEZIER_Y_SNAP_STEPS.length; i++) {
 			const step = BEZIER_Y_SNAP_STEPS[i];
 			const stepY = valueYToDomY(baseValue - ((prevKeyframe.y - baseValue) * step));
@@ -638,10 +646,12 @@ function onBezierHandleAMousedown(ev: MouseEvent) {
 }
 
 function onBezierHandleBMousedown(ev: MouseEvent) {
-	if (tlEl.value === null) return;
+	const selected = selectedKeyframe.value;
+	if (selected == null || tlEl.value == null) return;
 	ev.stopPropagation();
-	const keyframe = props.automation.keyframes.find(kf => kf.id === selectedKeyframe.value.id)!;
-	const nextKeyframe = props.automation.keyframes[props.automation.keyframes.indexOf(selectedKeyframe.value) + 1];
+	const keyframe = selected;
+	if (!props.automation.keyframes.includes(keyframe)) return;
+	const nextKeyframe = props.automation.keyframes[props.automation.keyframes.indexOf(selected) + 1];
 	if (nextKeyframe == null) return;
 	const position = tlEl.value.getBoundingClientRect();
 	const moveBaseX = ev.clientX - position.left;
@@ -674,7 +684,7 @@ function onBezierHandleBMousedown(ev: MouseEvent) {
 		}
 
 		// snap
-		const domX = bezierHandleBDomPos.value[0];
+		const domX = logicalXToDomX(keyframe.x + keyframe.bezierControlPointB[0]);
 		for (let i = 0; i < BEZIER_X_SNAP_STEPS.length; i++) {
 			const step = BEZIER_X_SNAP_STEPS[i];
 			const stepX = valueXToDomX(baseTime - ((baseTime - nextKeyframe.x) * step));
@@ -684,7 +694,7 @@ function onBezierHandleBMousedown(ev: MouseEvent) {
 				break;
 			}
 		}
-		const domY = bezierHandleBDomPos.value[1];
+		const domY = logicalYToDomY(keyframe.y + keyframe.bezierControlPointB[1]);
 		for (let i = 0; i < BEZIER_Y_SNAP_STEPS.length; i++) {
 			const step = BEZIER_Y_SNAP_STEPS[i];
 			const stepY = valueYToDomY(baseValue - ((nextKeyframe.y - baseValue) * step));
@@ -708,6 +718,7 @@ function onBezierHandleBMousedown(ev: MouseEvent) {
 }
 
 function onSeekBarMousedown(ev: MouseEvent) {
+	if (tlEl.value == null) return;
 	ev.stopPropagation();
 	const position = tlEl.value.getBoundingClientRect();
 
@@ -723,10 +734,11 @@ function onSeekBarMousedown(ev: MouseEvent) {
 function deleteKeyframe(keyframe: GsKeyframe) {
 	const index = props.automation.keyframes.indexOf(keyframe);
 	if (index === -1) return;
-	automation.keyframes.splice(index, 1); // TODO
+	// TODO
+	//props.automation.keyframes.splice(index, 1);
 }
 
-let copyingKeyframes = null;
+let copyingKeyframes: GsKeyframe[] | null = null;
 
 function onTlKeydown(ev: KeyboardEvent) {
 	console.log(ev.key, ev.ctrlKey);
@@ -740,10 +752,10 @@ function onTlKeydown(ev: KeyboardEvent) {
 	} else if (ev.ctrlKey && ev.key === 'c') {
 		copyingKeyframes = JSON.parse(JSON.stringify(selectedKeyframes.value));
 	} else if (ev.ctrlKey && ev.key === 'v') {
-		if (copyingKeyframes == null) return;
+		if (copyingKeyframes == null || copyingKeyframes.length === 0) return;
 		const baseTime = copyingKeyframes[0].x;
 		for (const kf of copyingKeyframes) {
-			addKeyframe(cursorValueX.value + (kf.frame - baseTime), kf.value);
+			addKeyframe(cursorValueX.value + (kf.x - baseTime), kf.y);
 		}
 	}
 }

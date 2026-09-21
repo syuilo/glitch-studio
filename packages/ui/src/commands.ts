@@ -81,7 +81,8 @@ const addEffectNodeCommandDef = defineCommand<{ visualModuleId: string; id: stri
 				const outputIndex = visualModule.nodes.findIndex(node => node.type === 'globalOut');
 				visualModule.nodes.splice(outputIndex < 0 ? visualModule.nodes.length : outputIndex, 0, deepClone(addedNode));
 				if (outputConnection != null) {
-					const globalOut = visualModule.nodes.find(node => node.id === outputConnection.nodeId);
+					const connection = outputConnection;
+					const globalOut = visualModule.nodes.find(node => node.id === connection.nodeId);
 					if (globalOut?.type === 'globalOut') globalOut.inputs[outputConnection.outputId] = deepClone(outputConnection.after);
 				}
 			},
@@ -89,7 +90,8 @@ const addEffectNodeCommandDef = defineCommand<{ visualModuleId: string; id: stri
 				const visualModule = stateUtility.getVisualModule(state, payload.visualModuleId);
 				visualModule.nodes = visualModule.nodes.filter(node => node.id !== payload.id);
 				if (outputConnection != null) {
-					const globalOut = visualModule.nodes.find(node => node.id === outputConnection.nodeId);
+					const connection = outputConnection;
+					const globalOut = visualModule.nodes.find(node => node.id === connection.nodeId);
 					if (globalOut?.type === 'globalOut') {
 						if (outputConnection.before == null) delete globalOut.inputs[outputConnection.outputId];
 						else globalOut.inputs[outputConnection.outputId] = deepClone(outputConnection.before);
@@ -351,7 +353,7 @@ const changeParamValueInputSourceCommandDef = defineNodeParamCommand<NodeParamTa
 			};
 			case 'envVariable': return { inputSource: 'envVariable', variable: '' };
 			case 'literal': return { inputSource: 'literal', value: defaultValue.inputSource === 'literal' ? defaultValue.value : emptyValue };
-			case 'automation': return { inputSource: 'automation', automationId: null };
+			case 'automation': return { inputSource: 'automation', automationId: null, durationMs: 1000, playMode: 'repeat' };
 			case 'externalParameterInput': return { inputSource: 'externalParameterInput', parameterId: '' };
 			case 'node': {
 				if (!('canNode' in target.def) || !target.def.canNode) throw new Error('Parameter does not support node input');
@@ -389,7 +391,8 @@ const updateParamAsAutomationCommandDef = defineNodeParamCommand<NodeParamTarget
 	'Update param as automation',
 	(target, payload) => {
 		assertLeafParam(target);
-		return { inputSource: 'automation', automationId: payload.value };
+		return { inputSource: 'automation', durationMs: 1000, playMode: 'repeat',
+			...(target.value.inputSource === 'automation' ? target.value : {}), automationId: payload.value };
 	},
 );
 

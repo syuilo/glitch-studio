@@ -10,7 +10,7 @@ import GsButton from './common/GsButton.vue';
 import type { WorkspacePanel } from '@/workspace.ts';
 import { findWorkspaceElement } from '@/utility/workspace.ts';
 import { preferences } from '@/preferences.ts';
-import { workspacePanelDefinitions as choices } from '@/workspace.ts';
+import { workspacePanelChoices as choices } from '@/workspace.ts';
 
 const props = defineProps<{
 	panel: WorkspacePanel;

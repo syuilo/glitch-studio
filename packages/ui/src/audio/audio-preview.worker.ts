@@ -90,7 +90,7 @@ async function addPanel(id: number, panel: Panel) {
 		const created = await gpu();
 		if (panels.get(id) !== panel) return;
 		const context = panel.canvas.getContext('webgpu');
-		if (!context) throw new Error('Could not create an audio preview canvas context.');
+		if (!(context instanceof GPUCanvasContext)) throw new Error('Could not create an audio preview canvas context.');
 		panel.context = context;
 		context.configure({ device: created, format: navigator.gpu.getPreferredCanvasFormat(), alphaMode: 'premultiplied' });
 		configurePanel(panel);

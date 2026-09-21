@@ -17,7 +17,7 @@ import XPlayers from '@/components/GsWorkspacePanel.Players.vue';
 import XTimeline from '@/components/GsWorkspacePanel.Timeline.vue';
 import XAssets from '@/components/GsWorkspacePanel.Assets.vue';
 
-export const workspacePanelDefinitions = markRaw({
+const panelDefinitions = {
 	blank: { label: 'Blank', icon: '', component: XBlank },
 	audioSpectrum: { label: 'Audio Spectrum', icon: 'ti ti-chart-column', component: XAudioSpectrum },
 	audioSpectrogram: { label: 'Audio Spectrogram', icon: 'ti ti-chart-area', component: XAudioSpectrogram },
@@ -32,7 +32,12 @@ export const workspacePanelDefinitions = markRaw({
 	commandLog: { label: 'Command Log', icon: 'ti ti-logs', component: XCommandLog },
 	timeline: { label: 'Timeline', icon: 'ti ti-timeline', component: XTimeline },
 	assets: { label: 'Assets', icon: 'ti ti-folder-open', component: XAssets },
-} as const);
+} as const;
+
+export const workspacePanelDefinitions: typeof panelDefinitions = markRaw(panelDefinitions);
+export const workspacePanelChoices = Object.entries(workspacePanelDefinitions).map(([type, info]) => ({
+	type: type as keyof typeof panelDefinitions, ...info,
+}));
 
 export type WorkspacePanel = {
 	id: string;
@@ -69,7 +74,7 @@ export function getElementMenu(element: WorkspaceElement) {
 	menuItems.push({
 		type: 'parent',
 		text: 'Switch type to',
-		children: Object.entries(workspacePanelDefinitions).map(([type, info]) => ({
+		children: workspacePanelChoices.map(({ type, ...info }) => ({
 			text: info.label,
 			action: () => {
 				const workspace = replaceWorkspaceElement(preferences.s.workspaceDefinition, element.id, {
@@ -90,7 +95,7 @@ export function getElementMenu(element: WorkspaceElement) {
 				id: genId(),
 				type: 'tabs',
 				children: [{
-					name: target.type === 'panel' ? workspacePanelDefinitions.find(choice => choice.type === target.contentType)?.label ?? 'Tab 1' : 'Tab 1',
+					name: target.type === 'panel' ? workspacePanelDefinitions[target.contentType].label : 'Tab 1',
 					element: target,
 				}],
 			};

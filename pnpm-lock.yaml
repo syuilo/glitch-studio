@@ -306,6 +306,9 @@ importers:
       '@types/throttle-debounce':
         specifier: 5.0.2
         version: 5.0.2
+      '@types/web':
+        specifier: 0.0.352
+        version: 0.0.352
       '@typescript-eslint/eslint-plugin':
         specifier: 8.67.0
         version: 8.67.0(@typescript-eslint/parser@8.67.0(@typescript/typescript6@6.0.2)(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0))(@typescript/typescript6@6.0.2)(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)

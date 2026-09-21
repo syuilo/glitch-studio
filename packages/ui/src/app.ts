@@ -19,7 +19,7 @@ import * as ui from '@/ui.ts';
 import * as api from '@/api.ts';
 
 type CommandLog = {
-	type: string;
+	type: keyof typeof COMMAND_DEFS;
 	date: number;
 	execute: (state: AppState) => void;
 	undo: (state: AppState) => void;
@@ -125,9 +125,11 @@ export function showAddNodeMenu(visualModuleId: VisualModule['id'], ev: PointerE
 	});
 }
 
-function benchmark(count = 100) {
+function benchmark(count = 100, visualModuleId = appContext.state.visualModules.value[0]?.id) {
+	if (visualModuleId == null) return;
 	for (let i = 0; i < count; i++) {
 		appContext.commit('addEffectNode', {
+			visualModuleId,
 			effectId: 'blockShuffle',
 			id: genId(),
 			params: {
@@ -220,7 +222,9 @@ export function saveProject() {
 }
 
 export async function openProject() {
-	const { project, name } = await loadProjectFile();
+	const result = await loadProjectFile();
+	if (result == null) return;
+	const { project } = result;
 
 	console.log('project', project);
 
@@ -231,7 +235,7 @@ export async function newProject() {
 	const initialEffectNodeId = genId();
 	const initialInputParamId = genId();
 	const initialOutputId = genId();
-	const initialVisualModule = {
+	const initialVisualModule: VisualModule = {
 		id: genId(),
 		name: 'My Visual Module',
 		automations: [],
@@ -241,7 +245,7 @@ export async function newProject() {
 			name: 'myInput',
 			dataType: 'color',
 			ui: { label: 'My Input', control: 'color' },
-			defaultValue: [0, 0, 0, 0],
+			defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] },
 			canNode: true,
 			isPrimaryInput: true,
 		}],
@@ -318,7 +322,7 @@ export async function newProjectFromImageOrVideo(file?: File) {
 	const initialEffectNodeId = genId();
 	const initialInputParamId = genId();
 	const initialOutputId = genId();
-	const initialVisualModule = {
+	const initialVisualModule: VisualModule = {
 		id: genId(),
 		name: 'My Visual Module',
 		automations: [],
@@ -328,7 +332,7 @@ export async function newProjectFromImageOrVideo(file?: File) {
 			name: 'myInput',
 			dataType: 'color',
 			ui: { label: 'My Input', control: 'color' },
-			defaultValue: [0, 0, 0, 0],
+			defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] },
 			canNode: true,
 			isPrimaryInput: true,
 		}],

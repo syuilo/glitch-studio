@@ -18,8 +18,8 @@
 		"paths": {
 			"@/*": ["./src/*"]
 		},
-		"types": ["vite/client"],
-		"lib": ["esnext", "dom", "dom.iterable"],
+		"types": ["@types/web", "vite/client"],
+		"lib": ["esnext"],
 		"jsx": "preserve"
 	},
 	"include": [

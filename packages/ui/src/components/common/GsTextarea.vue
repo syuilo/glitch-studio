@@ -131,8 +131,8 @@ onMounted(() => {
 		}
 	});
 
-	if (props.mfmAutocomplete && inputEl.value) {
-		autocompleteWorker = new Autocomplete(inputEl.value, v, props.mfmAutocomplete === true ? undefined : props.mfmAutocomplete);
+	if (props.autocomplete && inputEl.value) {
+		autocompleteWorker = new Autocomplete(inputEl.value, v);
 	}
 });
 

@@ -130,6 +130,7 @@ async function importPreset() {
 function exportToWebp() {
 	// TODO: 元の解像度にリサイズしてからエクスポートする
 	engine.canvas.toBlob((blob) => {
+		if (blob == null) return;
 		const url = URL.createObjectURL(blob);
 
 		const link = window.document.createElement('a');
@@ -248,8 +249,8 @@ function openHeaderFileMenu(ev: PointerEvent) {
 }
 
 function openHeaderEditMenu(ev: PointerEvent) {
-	ui.popupMenu([{
-	}], ev.currentTarget ?? ev.target);
+	ui.popupMenu([{ text: 'Undo', action: () => appContext.undo() },
+		{ text: 'Redo', action: () => appContext.redo() }], ev.currentTarget ?? ev.target);
 }
 
 function openHeaderHelpMenu(ev: PointerEvent) {

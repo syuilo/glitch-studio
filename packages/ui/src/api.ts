@@ -1,4 +1,27 @@
 
+import { decodeProjectFile } from './gsproj.ts';
+import type { Project } from './gsproj.ts';
+
+export function loadProjectFile(): Promise<{ project: Project; name: string } | null> {
+	return new Promise((resolve, reject) => {
+		const input = window.document.createElement('input');
+		input.type = 'file';
+		input.accept = '.gsproj';
+		input.addEventListener('cancel', () => resolve(null), { once: true });
+		input.addEventListener('change', async () => {
+			const file = input.files?.[0];
+			if (file == null) { resolve(null); return; }
+			try {
+				const project = decodeProjectFile(new Uint8Array(await file.arrayBuffer()));
+				resolve({ project, name: file.name });
+			} catch (error) {
+				reject(error);
+			}
+		}, { once: true });
+		input.click();
+	});
+}
+
 export function openMediaFile(options: { multiple?: boolean; file?: File } = {}): Promise<{
 	width: number;
 	height: number;

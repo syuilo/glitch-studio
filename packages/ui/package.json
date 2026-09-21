@@ -41,6 +41,7 @@
 		"@types/semver": "7.5.8",
 		"@types/textarea-caret": "3.0.4",
 		"@types/throttle-debounce": "5.0.2",
+		"@types/web": "0.0.352",
 		"@vitejs/plugin-vue": "6.0.8",
 		"eslint-plugin-import": "2.32.0",
 		"eslint-plugin-vue": "10.10.0",

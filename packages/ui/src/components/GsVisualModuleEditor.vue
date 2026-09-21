@@ -121,7 +121,7 @@ watch(visualModule, module => {
 		// ノードの編集などでプレビューの入力値を初期化しない。
 		values[def.id] = module?.id === previewModuleId && previewParamTypes.get(def.id) === def.dataType && previewParamValues.value[def.id] != null
 			? previewParamValues.value[def.id]
-			: { inputSource: 'literal', value: deepClone(def.defaultValue) };
+			: deepClone(def.defaultValue);
 	}
 	previewParamValues.value = values;
 	previewModuleId = module?.id;
@@ -135,12 +135,12 @@ function onPreviewParamEdit(event: ParamEdit) {
 	const def = visualModule.value?.paramDefs.find(def => def.id === id);
 	if (def == null) return;
 	const current = previewParamValues.value[id];
-	const reset = (): VisualModuleParamValues[string] => ({ inputSource: 'literal', value: deepClone(def.defaultValue) });
+	const reset = (): VisualModuleParamValues[string] => deepClone(def.defaultValue);
 	switch (event.kind) {
 		case 'literal': previewParamValues.value[id] = { inputSource: 'literal', value: deepClone(event.value) }; break;
 		case 'envVariable': previewParamValues.value[id] = { inputSource: 'envVariable', variable: event.value }; break;
 		case 'expression': previewParamValues.value[id] = { inputSource: 'expression', expression: event.value }; break;
-		case 'automation': previewParamValues.value[id] = { inputSource: 'automation', automationId: event.value }; break;
+		case 'automation': previewParamValues.value[id] = { inputSource: 'automation', durationMs: 1000, playMode: 'repeat', ...(current?.inputSource === 'automation' ? current : {}), automationId: event.value }; break;
 		case 'node':
 		case 'externalParameterInput': return;
 		case 'reset': previewParamValues.value[id] = reset(); break;
@@ -148,9 +148,9 @@ function onPreviewParamEdit(event: ParamEdit) {
 			switch (event.inputSource) {
 				case 'literal': previewParamValues.value[id] = reset(); break;
 				case 'expression': previewParamValues.value[id] = {
-					inputSource: 'expression', expression: AiSON.stringify(current?.inputSource === 'literal' ? current.value : def.defaultValue),
+					inputSource: 'expression', expression: AiSON.stringify(current?.inputSource === 'literal' ? current.value : def.defaultValue.value),
 				}; break;
-				case 'automation': previewParamValues.value[id] = { inputSource: 'automation', automationId: null }; break;
+				case 'automation': previewParamValues.value[id] = { inputSource: 'automation', automationId: null, durationMs: 1000, playMode: 'repeat' }; break;
 				case 'externalParameterInput':
 				case 'node':
 					return;
@@ -177,10 +177,14 @@ const globalOutNode = computed(() => {
 });
 
 function onSorted(nodes: GsNode[]) {
-	// TODO
-	appContext.commit('moveNode', {
-		visualModuleId: visualModule.value.id,
-	});
+	const module = visualModule.value;
+	if (module == null) return;
+	// グローバル入出力の位置を維持し、並べ替えられたノードだけを移動する。
+	const indices = module.nodes.flatMap((node, index) => node.type === 'effect' ? [index] : []);
+	for (const [index, node] of nodes.entries()) {
+		if (module.nodes[indices[index]]?.id === node.id) continue;
+		appContext.commit('moveNode', { visualModuleId: module.id, nodeId: node.id, index: indices[index] });
+	}
 }
 
 function showSwitchMenu(ev: PointerEvent) {
@@ -226,7 +230,7 @@ async function addAutomation() {
 	const { dispose } = ui.popup(GsAutomationEditorWindow, {
 		automation: automation,
 	}, {
-		done: result => {
+		done: () => {
 		},
 		closed: () => dispose(),
 	});

@@ -46,7 +46,7 @@ const emit = defineEmits<{
 	(ev: 'click', payload: PointerEvent): void;
 }>();
 
-const el = useTemplateRef('el');
+const el = useTemplateRef<HTMLButtonElement | HTMLAnchorElement>('el');
 
 const component = computed(() => {
 	if (props.type === 'a') return 'a';
@@ -65,7 +65,7 @@ const cProps = computed(() => {
 onMounted(() => {
 	if (props.autofocus) {
 		nextTick(() => {
-			el.value!.focus();
+			el.value?.focus();
 		});
 	}
 });

@@ -92,7 +92,7 @@ const tlRangeElPosX = computed(() => {
 const tlRangeElWidth = computed(() => {
 	return (duration.value / tlRangeX.value) * tlElWidth.value;
 });
-const tooltipDomPos = ref<null | [0, 0]>(null);
+const tooltipDomPos = ref<null | [number, number]>(null);
 const cursorTime = ref(0);
 const cursorValue = ref(0);
 const nowSelecting = ref(false);
@@ -114,7 +114,7 @@ const selectedAreaElHeight = computed(() => {
 });
 
 const layerRects = computed(() => {
-	const obj = {};
+	const obj: Record<string, { left: number; width: number }> = {};
 	for (const layer of appContext.state.timeline.value) {
 		const left = timeToDomX(layer.startTimeMs);
 		const width = timeToDomX(layer.endTimeMs) - left;

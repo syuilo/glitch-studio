@@ -132,7 +132,7 @@
 		<GsXy :modelValue="value" :step="def.ui.step ?? 0.1" :min="def.ui.min" :max="def.ui.max ?? 1" @beginChanging="onBeginChanging" @update:modelValue="v => changeContinuous(v)" @changeFinished="onFinishChanging"/>
 	</div>
 	<div v-else-if="def.ui.control === 'wh'">
-		<XXySlider :modelValue="value" :step="def.ui.step ?? 0.1" :min="def.ui.min" :max="def.ui.max ?? 1" @update:modelValue="v => changeValue(v)"/>
+		<GsXy :modelValue="value" :step="def.ui.step ?? 0.1" :min="def.ui.min" :max="def.ui.max ?? 1" @beginChanging="onBeginChanging" @update:modelValue="v => changeContinuous(v)" @changeFinished="onFinishChanging"/>
 	</div>
 	<div v-else-if="def.ui.control === 'vector'" style="max-width: 150px;">
 		<GsXy :modelValue="value" :step="def.ui.step ?? 0.1" :min="def.ui.min" :max="def.ui.max ?? 1" @beginChanging="onBeginChanging" @update:modelValue="v => changeContinuous(v)" @changeFinished="onFinishChanging"/>
@@ -187,7 +187,6 @@
 import { computed, watchEffect, shallowRef, ref } from 'vue';
 import GsSignal from './common/GsSignal.vue';
 import GsXy from './common/GsXy.vue';
-import XXySlider from './common/xy-slider.vue';
 import GsColorInput from './common/GsColorInput.vue';
 import GsInput from './common/GsInput.vue';
 import GsRange from './common/GsRange.vue';

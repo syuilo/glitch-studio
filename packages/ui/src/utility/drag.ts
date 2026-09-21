@@ -1,13 +1,13 @@
 export function dragListen(move: (ev: MouseEvent) => void, end?: () => void) {
+	// 登録時と同じ関数を解除し、ドラッグ終了後にリスナーを残さない。
+	const clear = () => {
+		window.removeEventListener('mousemove', move);
+		window.removeEventListener('mouseleave', clear);
+		window.removeEventListener('mouseup', clear);
+		end?.();
+	};
 	window.addEventListener('mousemove', move);
-	window.addEventListener('mouseleave', dragClear.bind(null, move, end));
-	window.addEventListener('mouseup', dragClear.bind(null, move, end));
-}
-
-function dragClear(move, end?) {
-	if (end) end();
-	window.removeEventListener('mousemove', move);
-	window.removeEventListener('mouseleave', dragClear);
-	window.removeEventListener('mouseup', dragClear);
+	window.addEventListener('mouseleave', clear);
+	window.addEventListener('mouseup', clear);
 }
 
