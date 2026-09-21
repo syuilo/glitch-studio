@@ -54,7 +54,8 @@ onmessage = async (event) => {
 			const histogramContext = histogramCanvas.getContext('webgpu');
 			const waveformHorizontalContext = waveformHorizontalCanvas.getContext('webgpu');
 			const waveformVerticalContext = waveformVerticalCanvas.getContext('webgpu');
-			if (context == null || histogramContext == null || waveformHorizontalContext == null || waveformVerticalContext == null) {
+			if (!(context instanceof GPUCanvasContext) || !(histogramContext instanceof GPUCanvasContext)
+				|| !(waveformHorizontalContext instanceof GPUCanvasContext) || !(waveformVerticalContext instanceof GPUCanvasContext)) {
 				//window.alert('cannot get webgpu context');
 				throw new Error('cannot get webgpu context');
 			}
@@ -115,7 +116,10 @@ onmessage = async (event) => {
 				console.error('Failed to call: Renderer is not initialized yet!!!');
 				break;
 			}
-			const res = renderer[event.data.fn](...(event.data.args ?? []));
+			// Worker越しのメッセージは実行時に届くため、呼び出せるメソッドか確認する。
+			const method = Reflect.get(renderer, event.data.fn);
+			if (typeof method !== 'function') throw new Error(`Unknown renderer method: ${event.data.fn}`);
+			const res = Reflect.apply(method, renderer, event.data.args ?? []);
 			if (event.data.needReturnValue) {
 				if (res instanceof Promise) {
 					res.then((r) => {

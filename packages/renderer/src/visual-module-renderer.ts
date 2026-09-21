@@ -65,7 +65,7 @@ export class VisualModuleRenderer {
 	private timingHelper: TimingHelper;
 	private enableStats = true;
 	private renderNodeId: GsNode['id'] | null = null;
-	private effectDefinitions: Record<string, EffectDefinition<any>>;
+	private effectDefinitions: Record<string, EffectDefinition>;
 	private effectImplementations: Record<string, EffectImplementation<any>>;
 	private parameterEvaluator = new ParameterEvaluator();
 
@@ -87,7 +87,7 @@ export class VisualModuleRenderer {
 		visualModule: VisualModule;
 		assetTextures: Map<string, GPUTexture>;
 		audioSources: Map<AudioSourceId, AudioHistory>;
-		effectDefinitions: Record<string, EffectDefinition<any>>;
+		effectDefinitions: Record<string, EffectDefinition>;
 		effectImplementations: Record<string, EffectImplementation<any>>;
 	}) {
 		this.gpuDevice = options.gpuDevice;

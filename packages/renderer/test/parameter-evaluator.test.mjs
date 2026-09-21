@@ -23,7 +23,7 @@ const literal = value => ({ inputSource: 'literal', value });
 const expression = expression => ({ inputSource: 'expression', expression });
 const number = { dataType: 'scalar', ui: { control: 'number' } };
 const node = (params, isBypass = false) => ({ id: 'node', type: 'effect', effectId: 'test', isBypass, params });
-const paramDef = (id, defaultValue = 7, dataType = 'scalar') => ({ id, name: id, label: id, dataType, ui: { control: dataType === 'scalar' ? 'number' : dataType }, defaultValue, canNode: true, isPrimaryInput: false });
+const paramDef = (id, defaultValue = 7, dataType = 'scalar') => ({ id, name: id, label: id, dataType, ui: { control: dataType === 'scalar' ? 'number' : dataType }, defaultValue: literal(defaultValue), canNode: true, isPrimaryInput: false });
 const context = (defs, params, overrides = {}) => ({
 	nodes: [node(params)],
 	paramDefs: [],
@@ -65,8 +65,8 @@ test('reads automation variables directly while preserving built-in precedence',
 	void evaluator.aiscript.execSync;
 	const exec = t.mock.method(evaluator.aiscript, 'execSync');
 	const automations = ['gain_1', 'channel:level', 'TIME'].map(name => ({ id: name, name, keyframes: [
-		{ timeMs: 0, value: 8, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] },
-		{ timeMs: 1000, value: 8, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] },
+		{ x: 0, y: 8, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] },
+		{ x: 1000, y: 8, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] },
 	] }));
 	const result = evaluator.evaluate(context({ a: number, b: number, time: number }, {
 		a: expression('gain_1'), b: expression('channel:level'), time: expression('TIME'),
@@ -100,7 +100,7 @@ test('preserves literal and keyword semantics when automation names collide', t 
 	const result = evaluator.evaluate(context({ values: { dataType: 'array', item: number } }, {
 		values: literal(names.map(expression)),
 	}, { automations: names.map(name => ({ id: name, name, keyframes: [
-		{ timeMs: 0, value: 99 }, { timeMs: 1000, value: 99 },
+		{ x: 0, y: 99 }, { x: 1000, y: 99 },
 	] })), time: 0 }));
 	assert.deepEqual(result.nodeParams.get('node').values, [true, false, null, 0]);
 	assert.equal(parse.mock.callCount(), names.length);
@@ -171,8 +171,8 @@ test('evaluates automation inputs and expression scope at the supplied time', ()
 		paramDefs: [paramDef('value')],
 		paramValues: { value: { inputSource: 'automation', automationId: 'ramp' } },
 		automations: [{ id: 'ramp', name: 'RAMP', keyframes: [
-			{ timeMs: 0, value: 0, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] },
-			{ timeMs: 1000, value: 10, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] },
+			{ x: 0, y: 0, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] },
+			{ x: 1000, y: 10, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] },
 		] }],
 	});
 	assert.deepEqual(evaluator.evaluate(input).nodeParams.get('node'), { direct: 5, scoped: 5, externalParameterInput: 5 });
@@ -197,7 +197,7 @@ test('keeps previous results and clones module defaults between evaluations', ()
 	assert.equal(first.nodeParams.get('node').value, 0.5);
 	assert.equal(second.nodeParams.get('node').value, 2);
 	assert.deepEqual(second.paramValues.get('color'), [1, 0.5, 0, 0.25]);
-	assert.deepEqual(def.defaultValue, [1, 0.5, 0, 0.25]);
+	assert.deepEqual(def.defaultValue.value, [1, 0.5, 0, 0.25]);
 	assert.equal(evaluator.evaluate({ ...input, nodes: [] }).nodeParams.size, 0);
 });
 
@@ -280,14 +280,14 @@ for (const enable32bitDataTextures of [false, true]) {
 			gpuDevice: device, gpuContext: {}, defaultVertexShaderModule: {}, timingHelper: {},
 			enableStats: false, enable32bitDataTextures, intermediateTextureFormat: 'rgba8unorm',
 			resolution: { width: 16, height: 16 }, fallbackTexture: createTexture(), fallbackScalarFieldTexture: createTexture(),
-			videoFrames: new Map(), videoFrameVersions: new Map(), assetTextures: new Map(), audioSources: new Map(), assets: [], automations: [],
+			videoFrames: new Map(), videoFrameVersions: new Map(), assetTextures: new Map(), audioSources: new Map(), assets: [],
 			effectDefinitions: definitions,
 			effectImplementations: { test: {
 				outputTextureFactories: { image: () => output },
 				init: () => ({ render: ({ params }) => renderedValues.push(params.group.amount.data[0]), dispose() {} }),
 			} },
 			visualModule: {
-				id: 'module', name: 'Test', paramDefs: [],
+				id: 'module', name: 'Test', paramDefs: [], automations: [],
 				outputDefs: [{ id: 'out', isPrimaryOutput: true }],
 				nodes: [node({ group: literal({ amount: expression('TIME + 1'), vector: literal([0.5, -1]), color: literal([1, 0.5, 0, 0.25]) }) }),
 					{ id: 'out', type: 'globalOut', inputs: { out: { nodeId: 'node', outputPort: 'image' } } }],
