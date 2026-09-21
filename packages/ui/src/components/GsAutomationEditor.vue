@@ -22,7 +22,7 @@
 			<div :class="$style.valueBar" class="_monospace" :style="{ top: valueBarPos + 'px' }"><div :class="$style.valueBarValue">{{ currentValue.toFixed(2) }}</div></div>
 			<div :class="$style.crossPoint" :style="{ left: seekBarPos + 'px', top: valueBarPos + 'px' }"></div>
 			<div v-if="!bezierDragging" :class="$style.cursorBar" :style="{ left: cursorBarPos + 'px' }"></div>
-			<div v-if="selectedAutomation" :class="$style.automation">
+			<div :class="$style.automation">
 				<svg version="1.1" :viewBox="`0 0 ${tlElWidth} ${tlElHeight}`" :class="$style.lines">
 					<defs>
 						<linearGradient id="tlAutomationGradient" x1="0" x2="0" y1="0" y2="1">
@@ -54,7 +54,7 @@
 				</svg>
 
 				<div
-					v-for="keyframe of selectedAutomation.keyframes"
+					v-for="keyframe of props.automation.keyframes"
 					:class="[$style.keyframe, { [$style.selectedKeyframe]: selectedKeyframes.includes(keyframe) }]"
 					:style="{ left: valueXToDomX(keyframe.x) + 'px', top: valueYToDomY(keyframe.y) + 'px' }"
 					@mousedown="onKeyframeMousedown($event, keyframe)"
@@ -101,7 +101,6 @@
 				<div><b>Cursor</b><code>{{ cursorTime }}</code>, <code>{{ cursorValue }}</code></div>
 				<div><b>Current</b><code>{{ currentValueX }}</code>, <code>{{ currentValue.toFixed(2) }}</code></div>
 				<div><b>Min/Max</b><code>{{ minMaxValuesInTheAutomation.min.toFixed(2) }}</code>, <code>{{ minMaxValuesInTheAutomation.max.toFixed(2) }}</code></div>
-				<div><b>Automation ID</b><code>{{ selectedAutomation ? selectedAutomation.id.toUpperCase() : '-' }}</code></div>
 			</div>
 		</div>
 		<div v-if="selectedKeyframe" :class="$style.rightSidePanel">
@@ -128,11 +127,12 @@ const Y_TICKS_WIDTH = 60;
 
 const props = defineProps<{
 	isMsUnit: boolean;
+	automation: GsAutomation;
 }>();
 
 // 最も長いxをもつkeyframeのx
 const duration = computed(() => {
-	return selectedAutomation.value?.keyframes.reduce((max, kf) => Math.max(max, kf.x), 0) ?? 0;
+	return props.automation.keyframes.reduce((max, kf) => Math.max(max, kf.x), 0) ?? 0;
 });
 const currentValueX = ref(0);
 
@@ -144,7 +144,6 @@ const tlRangeY = ref(5);
 const tlPosX = ref(-3000);
 const tlPosY = ref(-2.5);
 const snappingY = ref<number | null>(null);
-const selectedAutomation = ref<GsAutomation | null>(null);
 const selectedKeyframes = ref<GsKeyframe[]>([]);
 const selectedKeyframe = computed(() => selectedKeyframes.value.length === 1 ? selectedKeyframes.value[0] : null);
 const contextmenuKeyframe = ref<GsKeyframe | null>(null);
@@ -152,7 +151,7 @@ const seekBarPos = computed(() => {
 	return valueXToDomX(currentValueX.value);
 });
 const currentValue = computed(() => {
-	return selectedAutomation.value ? evalAutomationValue(selectedAutomation.value, currentValueX.value) : 0;
+	return evalAutomationValue(props.automation, currentValueX.value);
 });
 const valueBarPos = computed(() => {
 	return valueYToDomY(currentValue.value);
@@ -228,11 +227,10 @@ const yTicksWithHalf = computed(() => insertIntermediateNumbers(yTicks.value));
 
 // TODO: もっと高速に計算する方法ないだろうか
 const minMaxValuesInTheAutomation = computed(() => {
-	if (!selectedAutomation.value) return { min: 0, max: 0 };
 	let min = 0;
 	let max = 0;
 	for (let i = 0; i < duration.value; i++) {
-		const fv = evalAutomationValue(selectedAutomation.value, i);
+		const fv = evalAutomationValue(props.automation, i);
 		if (fv < min) min = fv;
 		if (fv > max) max = fv;
 	}
@@ -243,8 +241,7 @@ const minMaxValuesInTheAutomation = computed(() => {
 });
 
 const automationSvgPath = computed(() => {
-	if (!selectedAutomation.value) return '';
-	const keyframes = selectedAutomation.value.keyframes;
+	const keyframes = props.automation.keyframes;
 	let d = `M ${valueXToDomX(0)}, ${valueYToDomY(0)} L ${valueXToDomX(keyframes[0].x)}, ${valueYToDomY(keyframes[0].y)}`;
 	for (let i = 0; i < keyframes.length - 1; i++) {
 		const keyframe = keyframes[i];
@@ -260,7 +257,6 @@ const automationSvgPath = computed(() => {
 	return d;
 });
 const automationPathGradientCenter = computed(() => {
-	if (!selectedAutomation.value) return 0;
 	const max = minMaxValuesInTheAutomation.value.max;
 	const min = Math.min(0, minMaxValuesInTheAutomation.value.min);
 	if (max === 0 && min === 0) return 0;
@@ -321,12 +317,7 @@ function addAutomation() {
 	selectedAutomation.value = automation;
 }
 
-function switchAutomation(automation: GsAutomation) {
-	selectedAutomation.value = automation;
-}
-
 function addKeyframe(x: number, y: number): GsKeyframe {
-	if (selectedAutomation.value == null) throw new Error('no selected automation');
 	const keyframes = [] as GsKeyframe[];
 	const keyframe: GsKeyframe = {
 		id: genId(),
@@ -336,8 +327,8 @@ function addKeyframe(x: number, y: number): GsKeyframe {
 		bezierControlPointB: [1000, 0],
 	};
 	let pushed = false;
-	if (selectedAutomation.value.keyframes.filter(kf => kf.x === x).length > 1) return;
-	for (const kf of selectedAutomation.value.keyframes) {
+	if (props.automation.keyframes.filter(kf => kf.x === x).length > 1) return;
+	for (const kf of props.automation.keyframes) {
 		if (!pushed && kf.x > x) {
 			keyframes.push(keyframe);
 			keyframes.push(kf);
@@ -349,7 +340,7 @@ function addKeyframe(x: number, y: number): GsKeyframe {
 	if (!pushed) {
 		keyframes.push(keyframe);
 	}
-	selectedAutomation.value.keyframes = keyframes;
+	selectedAutomation.value.keyframes = keyframes; // TODO
 	return keyframe;
 }
 
@@ -409,7 +400,6 @@ function onYTicksWheel(ev: WheelEvent) {
 
 function onTlDblclick(ev: MouseEvent) {
 	if (ev.button === 1) return;
-	if (selectedAutomation.value == null) return;
 
 	const rect = tlEl.value.getBoundingClientRect();
 	const clickX = ev.clientX - rect.left;
@@ -486,11 +476,9 @@ function onTlMousedown(ev: MouseEvent) {
 		selectedAreaWidth.value = targetFrame - originFrame;
 		selectedAreaHeight.value = targetValue - originValue;
 
-		if (selectedAutomation.value) {
-			selectedKeyframes.value = selectedAutomation.value.keyframes.filter(kf =>
-				kf.x >= originFrame && kf.x <= targetFrame && kf.y >= originValue && kf.y <= targetValue,
-			);
-		}
+		selectedKeyframes.value = props.automation.keyframes.filter(kf =>
+			kf.x >= originFrame && kf.x <= targetFrame && kf.y >= originValue && kf.y <= targetValue,
+		);
 	}
 
 	nowSelecting.value = true;
@@ -509,8 +497,8 @@ const SNAP_THRESHOLD = 5;
 
 function onKeyframesXYHandleMousedown(ev: MouseEvent, keyframe: GsKeyframe, treatX: boolean, treatY: boolean) {
 	ev.stopPropagation();
-	const prevKeyframe = selectedAutomation.value?.keyframes[selectedAutomation.value.keyframes.indexOf(selectedKeyframes.value[0]) - 1];
-	const nextKeyframe = selectedAutomation.value?.keyframes[selectedAutomation.value.keyframes.indexOf(selectedKeyframes.value[selectedKeyframes.value.length - 1]) + 1];
+	const prevKeyframe = props.automation.keyframes[props.automation.keyframes.indexOf(selectedKeyframes.value[0]) - 1];
+	const nextKeyframe = props.automation.keyframes[props.automation.keyframes.indexOf(selectedKeyframes.value[selectedKeyframes.value.length - 1]) + 1];
 	const position = tlEl.value.getBoundingClientRect();
 	const moveBaseX = ev.clientX - position.left;
 	const moveBaseY = ev.clientY - position.top;
@@ -598,8 +586,8 @@ const BEZIER_Y_SNAP_STEPS = [-2, -1.5, -1, -0.5, 0, 0.5, 1];
 
 function onBezierHandleAMousedown(ev: MouseEvent) {
 	ev.stopPropagation();
-	const keyframe = selectedAutomation.value.keyframes.find(kf => kf.id === selectedKeyframe.value.id)!;
-	const prevKeyframe = selectedAutomation.value?.keyframes[selectedAutomation.value.keyframes.indexOf(selectedKeyframe.value) - 1];
+	const keyframe = props.automation.keyframes.find(kf => kf.id === selectedKeyframe.value.id)!;
+	const prevKeyframe = props.automation.keyframes[props.automation.keyframes.indexOf(selectedKeyframe.value) - 1];
 	if (prevKeyframe == null) return;
 	const position = tlEl.value.getBoundingClientRect();
 	const moveBaseX = ev.clientX - position.left;
@@ -667,8 +655,8 @@ function onBezierHandleAMousedown(ev: MouseEvent) {
 
 function onBezierHandleBMousedown(ev: MouseEvent) {
 	ev.stopPropagation();
-	const keyframe = selectedAutomation.value.keyframes.find(kf => kf.id === selectedKeyframe.value.id)!;
-	const nextKeyframe = selectedAutomation.value?.keyframes[selectedAutomation.value.keyframes.indexOf(selectedKeyframe.value) + 1];
+	const keyframe = props.automation.keyframes.find(kf => kf.id === selectedKeyframe.value.id)!;
+	const nextKeyframe = props.automation.keyframes[props.automation.keyframes.indexOf(selectedKeyframe.value) + 1];
 	if (nextKeyframe == null) return;
 	const position = tlEl.value.getBoundingClientRect();
 	const moveBaseX = ev.clientX - position.left;
@@ -748,11 +736,9 @@ function onSeekBarMousedown(ev: MouseEvent) {
 }
 
 function deleteKeyframe(keyframe: GsKeyframe) {
-	const automation = selectedAutomation.value;
-	if (!automation) return;
-	const index = automation.keyframes.indexOf(keyframe);
+	const index = props.automation.keyframes.indexOf(keyframe);
 	if (index === -1) return;
-	automation.keyframes.splice(index, 1);
+	automation.keyframes.splice(index, 1); // TODO
 }
 
 let copyingKeyframes = null;
@@ -770,7 +756,6 @@ function onTlKeydown(ev: KeyboardEvent) {
 		copyingKeyframes = JSON.parse(JSON.stringify(selectedKeyframes.value));
 	} else if (ev.ctrlKey && ev.key === 'v') {
 		if (copyingKeyframes == null) return;
-		if (selectedAutomation.value == null) return;
 		const baseTime = copyingKeyframes[0].x;
 		for (const kf of copyingKeyframes) {
 			addKeyframe(cursorTime.value + (kf.frame - baseTime), kf.value);
