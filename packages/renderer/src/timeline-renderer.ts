@@ -46,8 +46,9 @@ export class TimelineRenderer<Output, Entry extends TimelineRenderEntry = Timeli
 	}
 
 	/** timeはミリ秒。編集・リサイズ・破棄時はclearで準備中のシークも中断する。 */
-	public async renderAt(time: number, timeline: readonly Entry[]): Promise<void> {
+	public async renderAt(time: number, timeline: readonly Entry[], timeDelta = 0): Promise<void> {
 		if (!Number.isFinite(time)) throw new Error('Timeline time must be finite');
+		if (!Number.isFinite(timeDelta) || timeDelta < 0) throw new Error('Timeline delta must be finite and non-negative');
 		this.controller?.abort();
 		const controller = new AbortController();
 		this.controller = controller;
@@ -65,6 +66,7 @@ export class TimelineRenderer<Output, Entry extends TimelineRenderEntry = Timeli
 			let gpuTime = 0;
 			for (const entry of activeEntries) {
 				let layer = this.layers.get(entry.id);
+				const isNewLayer = layer == null;
 				if (layer == null) {
 					layer = this.options.createLayer(entry);
 					if (layer == null) continue;
@@ -73,7 +75,8 @@ export class TimelineRenderer<Output, Entry extends TimelineRenderEntry = Timeli
 				const duration = entry.endTimeMs - entry.startTimeMs;
 				const context: TimelineLayerContext<Output> = {
 					time: time - entry.startTimeMs,
-					timeDelta: 0, // 従来どおり、シーク時は履歴に経過時間を与えない。
+					// 新規レイヤーには履歴がない。途中からの書き出しでも過去のフレームは再現しない。
+					timeDelta: isNewLayer ? 0 : timeDelta,
 					progress: duration > 0 ? (time - entry.startTimeMs) / duration : 0,
 					input: output,
 				};

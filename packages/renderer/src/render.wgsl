@@ -6,6 +6,7 @@ fn convertTexCoords(uv: vec2f) -> vec2f {
 
 struct Uniforms {
 	highlightClipping: u32,
+	opaqueOutput: u32,
 };
 
 @group(0) @binding(1) var<uniform> uniforms: Uniforms;
@@ -19,6 +20,10 @@ struct FragmentIn {
 @fragment
 fn fs(fragData: FragmentIn) -> @location(0) vec4f {
 	let color = textureSample(sourceTexture, sourceSampler, convertTexCoords(fragData.uv));
+	if (uniforms.opaqueOutput != 0u) {
+		// 黒背景への合成では乗算済みRGBをそのまま使う。再乗算すると半透明部分が暗くなる。
+		return vec4f(color.rgb, 1.0);
+	}
 	if (uniforms.highlightClipping != 0u && color.a > 0.0) {
 		// 乗算済みRGBでの白の境界はalpha。除算せずに未乗算色の0/1と比較する。
 		// 全成分が範囲外の黒・白だけを対象とし、元の透明度を保つ。

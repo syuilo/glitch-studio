@@ -249,7 +249,7 @@ function openHeaderFileMenu(ev: PointerEvent) {
 	}, {
 		text: 'Export Timeline As Video...',
 		action: () => {
-			ui.popup(GsTimelineExportDialog, {}, {});
+			const { dispose } = ui.popup(GsTimelineExportDialog, {}, { closed: () => dispose() });
 		},
 	}], ev.currentTarget ?? ev.target);
 }

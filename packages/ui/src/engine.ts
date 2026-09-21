@@ -9,6 +9,7 @@ import { setupWebcam } from './utility/webcam.ts';
 import type { Asset, VisualModule, VisualModuleParamValues, Player, Timeline } from '@glitch/shared/types.ts';
 import type { MainRenderer } from '@glitch/renderer/renderer.ts';
 import type { EffectStatus } from '@glitch/shared/effect-status.ts';
+import type { IntermediateTextureFormat } from '@glitch/shared/effect-implementation.js';
 import * as ui from '@/ui.ts';
 
 type RendererMethods = {
@@ -31,7 +32,7 @@ export class Engine {
 	private pendingCalls: { message: unknown; options?: StructuredSerializeOptions }[] = [];
 	private pointerPosition = { x: 0, y: 0 };
 	private enable32bitDataTextures = false;
-	private intermediateTextureFormat = navigator.gpu.getPreferredCanvasFormat(); // TODO: 設定でrgba16floatも指定できるようにする(レンダリングの精度は上がるがパフォーマンスは落ちる)
+	private intermediateTextureFormat = navigator.gpu.getPreferredCanvasFormat() as IntermediateTextureFormat; // TODO: 設定でrgba16floatも指定できるようにする(レンダリングの精度は上がるがパフォーマンスは落ちる)
 	private enableStats = true;
 	private highlightClipping = false;
 	private liveTimeFactor = 1;
@@ -58,6 +59,13 @@ export class Engine {
 	public gpuMemoryUsage = ref<ReturnType<MainRenderer['gpuMemory']['getUsage']> | null>(null);
 	public isReady = ref(false);
 	public effectStatuses = shallowReactive(new Map<string, EffectStatus>());
+
+	public getExportRendererSettings() {
+		return {
+			enable32bitDataTextures: this.enable32bitDataTextures,
+			intermediateTextureFormat: this.intermediateTextureFormat,
+		};
+	}
 
 	constructor(options: {
 		fpsLimit: number | null;

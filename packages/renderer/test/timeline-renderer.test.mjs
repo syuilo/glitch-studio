@@ -6,6 +6,23 @@ import { createVisualModuleTimelineLayer } from '../src/visual-module-timeline-l
 const entry = (id, startTimeMs = 0, endTimeMs = 1000, type = 'test') => ({
 	id, startTimeMs, endTimeMs, layer: { type },
 });
+
+// 途中開始時や新規レイヤーは履歴をリセットし、継続するレイヤーだけ時間を進める。
+test('advances existing layer histories while starting new layers without preroll', async () => {
+	const f = fixture();
+	const timeline = [entry('bottom', 0, 1000), entry('top', 550, 1000)];
+	await f.renderer.renderAt(500, timeline, 0);
+	await f.renderer.renderAt(600, timeline, 100);
+	await f.renderer.renderAt(700, timeline, 100);
+	assert.deepEqual(f.rendered.map(item => [item.id, item.context.timeDelta]), [
+		['bottom', 0], ['bottom', 100], ['top', 0], ['bottom', 100], ['top', 100],
+	]);
+	assert.deepEqual(f.created, ['bottom', 'top']);
+	f.renderer.clear();
+	await f.renderer.renderAt(800, timeline, 100);
+	assert.deepEqual(f.rendered.slice(-2).map(item => item.context.timeDelta), [0, 0]);
+	f.renderer.clear();
+});
 function deferred() {
 	let resolve;
 	let reject;

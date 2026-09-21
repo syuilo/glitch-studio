@@ -31,6 +31,7 @@ export class MainRenderer {
 	private fallbackScalarFieldTexture: GPUTexture;
 	private enableStats = true;
 	private highlightClipping = false;
+	private opaqueOutput = false;
 	private frameScheduler: FrameScheduler;
 	private liveRenderLoop: LiveRenderLoop;
 	private liveVisualModuleId: VisualModule['id'] | null = null;
@@ -56,11 +57,9 @@ export class MainRenderer {
 	private pointerPosition: { x: number; y: number } = { x: -99999, y: -99999 };
 	private pointerPositionPrev: { x: number; y: number } = { x: -99999, y: -99999 };
 	private lastPointerUpdateTimestamp = 0;
-	private histogramGpuContext: GPUCanvasContext;
-	private waveformHorizontalGpuContext: GPUCanvasContext;
-	private gpuHistogram: GpuHistogram;
-	private gpuWaveformHorizontal: GpuWaveform;
-	private gpuWaveformVertical: GpuWaveform;
+	private gpuHistogram?: GpuHistogram;
+	private gpuWaveformHorizontal?: GpuWaveform;
+	private gpuWaveformVertical?: GpuWaveform;
 	private effectDefinitions: Record<string, EffectDefinition<any>>;
 	private effectImplementations: Record<string, EffectImplementation<any>>;
 	public gpuAverageFast = new NonNegativeRollingAverage(10);
@@ -83,15 +82,17 @@ export class MainRenderer {
 		enableStats: boolean;
 		/** 最終出力の黒つぶれを緑、白飛びをマゼンタで表示する。 */
 		highlightClipping?: boolean;
+		/** 透過非対応の出力用に、乗算済みRGBを黒背景へ合成する。 */
+		opaqueOutput?: boolean;
 		liveTimeFactor?: number;
 		fpsLimit: number | null;
 		frameScheduler?: FrameScheduler;
 		visualModules?: VisualModule[];
 		timeline?: Timeline;
 		assets: Asset[];
-		histogramGpuContext: GPUCanvasContext;
-		waveformHorizontalGpuContext: GPUCanvasContext;
-		waveformVerticalGpuContext: GPUCanvasContext;
+		histogramGpuContext?: GPUCanvasContext;
+		waveformHorizontalGpuContext?: GPUCanvasContext;
+		waveformVerticalGpuContext?: GPUCanvasContext;
 		effectDefinitions: Record<string, EffectDefinition<any>>;
 		effectImplementations: Record<string, EffectImplementation<any>>;
 	}) {
@@ -101,6 +102,7 @@ export class MainRenderer {
 		this.timeline = options.timeline ?? [];
 		this.enableStats = options.enableStats;
 		this.highlightClipping = options.highlightClipping ?? false;
+		this.opaqueOutput = options.opaqueOutput ?? false;
 		this.frameScheduler = options.frameScheduler ?? browserFrameScheduler;
 		this.liveRenderLoop = new LiveRenderLoop({
 			scheduler: this.frameScheduler,
@@ -112,25 +114,23 @@ export class MainRenderer {
 		this.intermediateTextureFormat = options.intermediateTextureFormat;
 		this.gpuDevice = options.gpuDevice;
 		this.gpuContext = options.gpuContext;
-		this.histogramGpuContext = options.histogramGpuContext;
 		this.effectDefinitions = options.effectDefinitions;
 		this.effectImplementations = options.effectImplementations;
 
 		this.gpuMemory = new GpuMemoryTracker(this.gpuDevice);
 
-		this.gpuHistogram = new GpuHistogram(
+		if (options.histogramGpuContext) this.gpuHistogram = new GpuHistogram(
 			this.gpuDevice,
-			this.histogramGpuContext,
+			options.histogramGpuContext,
 			navigator.gpu.getPreferredCanvasFormat(),
 		);
-		this.waveformHorizontalGpuContext = options.waveformHorizontalGpuContext;
-		this.gpuWaveformHorizontal = new GpuWaveform(
+		if (options.waveformHorizontalGpuContext) this.gpuWaveformHorizontal = new GpuWaveform(
 			this.gpuDevice,
-			this.waveformHorizontalGpuContext,
+			options.waveformHorizontalGpuContext,
 			navigator.gpu.getPreferredCanvasFormat(),
 		);
 
-		this.gpuWaveformVertical = new GpuWaveform(
+		if (options.waveformVerticalGpuContext) this.gpuWaveformVertical = new GpuWaveform(
 			this.gpuDevice,
 			options.waveformVerticalGpuContext,
 			navigator.gpu.getPreferredCanvasFormat(),
@@ -343,6 +343,7 @@ export class MainRenderer {
 
 		this.finalRenderUniformValues.set({
 			highlightClipping: this.highlightClipping ? 1 : 0,
+			opaqueOutput: this.opaqueOutput ? 1 : 0,
 		});
 		this.gpuDevice.queue.writeBuffer(this.finalRenderUniformBuffer, 0, this.finalRenderUniformValues.arrayBuffer);
 
@@ -359,9 +360,9 @@ export class MainRenderer {
 		passEncoder.draw(6);
 		passEncoder.end();
 
-		this.gpuHistogram.render(commandEncoder, tex);
-		this.gpuWaveformHorizontal.render(commandEncoder, tex);
-		this.gpuWaveformVertical.render(commandEncoder, tex);
+		this.gpuHistogram?.render(commandEncoder, tex);
+		this.gpuWaveformHorizontal?.render(commandEncoder, tex);
+		this.gpuWaveformVertical?.render(commandEncoder, tex);
 
 		this.gpuDevice.queue.submit([commandEncoder.finish()]);
 	}
@@ -371,6 +372,11 @@ export class MainRenderer {
 		if (!Number.isFinite(time)) throw new Error('Timeline time must be finite');
 		this.stopRenderLoop();
 		await this.timelineRenderer.renderAt(time, this.timeline);
+	}
+
+	/** 専用インスタンスで順番に呼び、フレーム間の履歴と一定の経過時間を保持する。 */
+	public async renderTimelineFrame(time: number, timeDelta: number): Promise<void> {
+		await this.timelineRenderer.renderAt(time, this.timeline, timeDelta);
 	}
 
 	private createTimelineLayer(entry: Timeline[number]): TimelineLayerRenderer<GPUTexture> | undefined {
@@ -515,9 +521,9 @@ export class MainRenderer {
 		for (const frame of this.videoFrames.values()) frame.close();
 		this.videoFrames.clear();
 		this.videoFrameVersions.clear();
-		this.gpuHistogram.dispose();
-		this.gpuWaveformHorizontal.dispose();
-		this.gpuWaveformVertical.dispose();
+		this.gpuHistogram?.dispose();
+		this.gpuWaveformHorizontal?.dispose();
+		this.gpuWaveformVertical?.dispose();
 
 		this.gpuDevice?.destroy();
 	}
