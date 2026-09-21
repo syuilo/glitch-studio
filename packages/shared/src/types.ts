@@ -47,8 +47,8 @@ export type EffectParamDefs = Record<string, EffectParamDef>;
 
 export type GsKeyframe = {
 	id: string;
-	timeMs: number;
-	value: number;
+	x: number;
+	y: number;
 	bezierControlPointA: [number, number];
 	bezierControlPointB: [number, number];
 };
