@@ -54,6 +54,7 @@ function subdiv(x: number, a: number, b: number, cps_p0: number, cps_p1: number,
 	for (let i = 0; i < SUBDIV_ITER; i ++) {
 		t = a + (b - a) / 2.0;
 		candidateX = cubicBezier(t, cps_p0, cps_p1, cps_p2, cps_p3) - x;
+		// eslint-disable-next-line @typescript-eslint/no-unused-expressions
 		(0.0 < candidateX) ? (b = t) : (a = t);
 		if (SUBDIV_EPSILON < Math.abs(candidateX)) break;
 	}
@@ -75,7 +76,7 @@ function newton(x: number, t: number, cps_p0: number, cps_p1: number, cps_p2: nu
 export function rawBezierEasing(
 	cpsx_p0: number, cpsx_p1: number, cpsx_p2: number, cpsx_p3: number,
 	cpsy_p0: number, cpsy_p1: number, cpsy_p2: number, cpsy_p3: number,
-	x: number
+	x: number,
 ): number {
 	if (x <= cpsx_p0) { return cpsy_p0; } // clamped
 	if (cpsx_p3 <= x) { return cpsy_p3; } // clamped
