@@ -2,7 +2,8 @@
 <div :class="$style.root">
 	<div :class="$style.header">
 		<GsButton @click="addLayer">addLayer</GsButton>
-		<GsButton @click="play">Play</GsButton>
+		<GsButton v-if="timeline.isTimelinePlaying.value" primary @click="pause"><i class="ti ti-player-pause"></i></GsButton>
+		<GsButton v-else primary @click="play"><i class="ti ti-player-play"></i></GsButton>
 	</div>
 	<div :class="$style.body">
 		<div :class="$style.tlBgWrapper">
@@ -64,8 +65,9 @@ import { insertIntermediateNumbers, nearlyEqual, niceScale } from '@glitch/share
 import { genId } from '@glitch/shared/utility/id.js';
 import GsButton from './common/GsButton.vue';
 import type { Layer } from '@glitch/shared/types.js';
-import { appContext, currentTimelineTime, playTimeline } from '@/app.ts';
+import { appContext } from '@/app.ts';
 import { dragListen } from '@/utility/drag.ts';
+import * as timeline from '@/timeline.ts';
 
 const X_TICKS_HEIGHT = 20;
 const Y_TICKS_WIDTH = 60;
@@ -73,7 +75,7 @@ const Y_TICKS_WIDTH = 60;
 const duration = computed(() => {
 	return appContext.state.timeline.value.reduce((max, layer) => Math.max(max, layer.endTimeMs), 0) ?? 0;
 });
-const time = currentTimelineTime;
+const time = timeline.currentTimelineTime;
 
 const tlEl = useTemplateRef('tlEl');
 const tlElWidth = ref(0);
@@ -316,7 +318,11 @@ function addLayer() {
 }
 
 function play() {
-	playTimeline();
+	timeline.playTimeline();
+}
+
+function pause() {
+	timeline.stopTimeline();
 }
 
 onMounted(() => {
