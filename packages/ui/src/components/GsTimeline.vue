@@ -606,7 +606,7 @@ onMounted(() => {
 	display: inline-block;
 	background: #FF5500;
 	color: #fff;
-	min-width: 40px;
+	min-width: 5em;
 }
 
 .valueBar {
