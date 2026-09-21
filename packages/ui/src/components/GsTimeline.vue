@@ -2,6 +2,7 @@
 <div :class="$style.root">
 	<div :class="$style.header">
 		<GsButton @click="addLayer">addLayer</GsButton>
+		<GsButton @click="play">Play</GsButton>
 	</div>
 	<div :class="$style.body">
 		<div :class="$style.tlBgWrapper">
@@ -63,7 +64,7 @@ import { insertIntermediateNumbers, nearlyEqual, niceScale } from '@glitch/share
 import { genId } from '@glitch/shared/utility/id.js';
 import GsButton from './common/GsButton.vue';
 import type { Layer } from '@glitch/shared/types.js';
-import { appContext, currentTimelineTime } from '@/app.ts';
+import { appContext, currentTimelineTime, playTimeline } from '@/app.ts';
 import { dragListen } from '@/utility/drag.ts';
 
 const X_TICKS_HEIGHT = 20;
@@ -306,12 +307,16 @@ function formatMsToTimecode(ms: number) {
 	if (milliseconds === 0) {
 		return `${minutes}:${seconds.toString().padStart(2, '0')}`;
 	} else {
-		return `${minutes}:${seconds.toString().padStart(2, '0')}.${milliseconds.toString().replace(/0+$/, '')}`;
+		return `${minutes}:${seconds.toString().padStart(2, '0')}.${Math.floor(milliseconds).toString().replace(/0+$/, '')}`;
 	}
 }
 
 function addLayer() {
 	// TODO
+}
+
+function play() {
+	playTimeline();
 }
 
 onMounted(() => {

@@ -145,6 +145,29 @@ export const fpsLimit = ref<number | null>(60);
 export const liveTimeFactor = ref(1);
 export const resolutionFactor = ref(1);
 export const highlightClipping = ref(false);
+export const isTimelinePlaying = ref(false);
+let currentTimelinePlayingRafId: number | null = null;
+
+export function playTimeline() {
+	isTimelinePlaying.value = true;
+
+	let then = 0;
+
+	const renderLoop = (timeStamp: number) => {
+		currentTimelinePlayingRafId = requestAnimationFrame(renderLoop);
+
+		const delta = timeStamp - then;
+		if (fpsLimit.value != null) {
+			const interval = 1000 / fpsLimit.value;
+			if (delta <= interval) return;
+			then = timeStamp - (delta % interval);
+		}
+
+		currentTimelineTime.value = (currentTimelineTime.value + (delta * liveTimeFactor.value)) % 10000;
+	};
+
+	currentTimelinePlayingRafId = requestAnimationFrame(renderLoop);
+}
 
 export const rendererEnv = {
 	mouseX: 0,
