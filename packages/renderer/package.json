@@ -3,7 +3,7 @@
 	"name": "@glitch/renderer",
 	"private": true,
 	"scripts": {
-		"eslint": "eslint './**/*.{js,jsx,ts,tsx}'",
+		"eslint": "eslint --quiet './**/*.{js,jsx,ts,tsx}'",
 		"test": "node --test test/*.test.mjs",
 		"typecheck": "tsc6 --noEmit",
 		"lint": "pnpm typecheck && pnpm eslint"

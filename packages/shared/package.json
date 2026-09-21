@@ -3,7 +3,7 @@
 	"name": "@glitch/shared",
 	"private": true,
 	"scripts": {
-		"eslint": "eslint './**/*.{js,jsx,ts,tsx}'",
+		"eslint": "eslint --quiet './**/*.{js,jsx,ts,tsx}'",
 		"typecheck": "tsc6 --noEmit",
 		"lint": "pnpm typecheck && pnpm eslint"
 	},

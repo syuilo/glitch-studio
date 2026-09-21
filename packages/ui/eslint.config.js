@@ -3,7 +3,7 @@ import tsParser from '@typescript-eslint/parser';
 import parser from 'vue-eslint-parser';
 import pluginVue from 'eslint-plugin-vue';
 import pluginMisskey from '@misskey-dev/eslint-plugin';
-import sharedConfig from '../../eslint.config.js';
+import sharedConfig from '../../eslint.config.mjs';
 
 export default [
 	...sharedConfig,
