@@ -9,10 +9,15 @@
 
 <div :class="$style.root">
 	<div :class="$style.header">
-		<button class="_button" :class="$style.undoRedo" :disabled="!appContext.canUndo.value" @click="appContext.undo"><i class="ti ti-arrow-back-up"></i></button>
-		<button class="_button" :class="$style.undoRedo" :disabled="!appContext.canRedo.value" @click="appContext.redo"><i class="ti ti-arrow-forward-up"></i></button>
-		<button class="_button" @click="exportToWebp">export</button>
-		<button class="_button" @click="showAbout">about</button>
+		<div :class="$style.headerLeft">
+			<button class="_button" :class="$style.undoRedo" :disabled="!appContext.canUndo.value" @click="appContext.undo"><i class="ti ti-arrow-back-up"></i></button>
+			<button class="_button" :class="$style.undoRedo" :disabled="!appContext.canRedo.value" @click="appContext.redo"><i class="ti ti-arrow-forward-up"></i></button>
+			<button class="_button" :class="$style.headerMenuItem" @click="exportToWebp">export</button>
+			<button class="_button" :class="$style.headerMenuItem" @click="showAbout">about</button>
+		</div>
+		<div :class="$style.headerRight">
+			test
+		</div>
 	</div>
 	<div :class="$style.body">
 		<GsWorkspaceElement style="flex: 1" :element="preferences.r.workspaceDefinition.value"/>
@@ -250,14 +255,35 @@ onMounted(() => {
 	display: flex;
 	height: 32px;
 	line-height: 32px;
-	gap: 16px;
+	box-sizing: border-box;
+
+	padding-left: env(titlebar-area-x, 0);
+	width: env(titlebar-area-width, 100%);
+	app-region: drag;
+}
+
+.headerLeft {
+	display: flex;
+}
+
+.headerRight {
+	display: flex;
+	margin-left: auto;
 }
 
 .undoRedo {
+	padding: 0 8px;
+	app-region: no-drag;
+
 	&:disabled {
 		// opacityはブラウザにとって高コストなので
 		color: color-mix(in srgb, var(--THEME-fg), var(--THEME-bg) 50%);
 	}
+}
+
+.headerMenuItem {
+	padding: 0 8px;
+	app-region: no-drag;
 }
 
 .body {

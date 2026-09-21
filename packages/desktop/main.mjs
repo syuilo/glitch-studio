@@ -1,6 +1,6 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu, net, protocol, shell } from 'electron';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { app, BrowserWindow, dialog, ipcMain, Menu, net, protocol, shell } from 'electron';
 import { resolveAppPath } from './protocol-path.mjs';
 
 // 配布版は開発サーバー用の環境変数を参照しない。
@@ -38,6 +38,11 @@ function createWindow() {
 		width: 1440,
 		height: 960,
 		title: 'Glitch Studio',
+		titleBarStyle: 'hidden',
+		...(process.platform !== 'darwin' ? { titleBarOverlay: {
+			color: '#000',
+			symbolColor: '#fff',
+		} } : {}),
 		icon: iconPath,
 		webPreferences: {
 			preload: path.join(import.meta.dirname, 'preload.cjs'),
