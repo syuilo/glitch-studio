@@ -11,7 +11,8 @@
 		"noImplicitReturns": true,
 		"verbatimModuleSyntax": true,
 		"rootDir": "..",
-		"types": ["@webgpu/types", "vite/client"]
+		"lib": ["esnext"],
+		"types": ["@types/web", "vite/client"]
 	},
 	"include": [
 		"@types/**/*.ts",
