@@ -14,8 +14,13 @@ export class AudioPreview {
 			this.worker = new Worker(new URL('./audio-preview.worker.ts', import.meta.url), { type: 'module' });
 			this.worker.onmessage = ({ data }: MessageEvent<PreviewResponse>) => {
 				if (data.type === 'meters') {
-					try { for (const reading of data.readings) this.meters.get(reading.id)?.(reading); }
-					finally { this.send({ type: 'metersReceived' }); }
+					try {
+						for (const reading of data.readings) {
+							this.meters.get(reading.id)?.(reading);
+						}
+					} finally {
+						this.send({ type: 'metersReceived' });
+					}
 				} else if (data.type === 'sampleRate') this.sampleRate.value = data.sampleRate;
 				else if (data.id !== undefined) this.errors.get(data.id)?.(data.message);
 				else for (const error of [...this.errors.values()]) error(data.message);

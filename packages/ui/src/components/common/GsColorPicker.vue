@@ -194,7 +194,7 @@ let drag: { id: number; element: HTMLElement; kind: 'map' | 'hue' | 'alpha' } | 
 function startDrag(event: PointerEvent, kind: 'map' | 'hue' | 'alpha') {
 	if (event.button !== 0 || drag) return;
 	const element = event.currentTarget as HTMLElement;
-	(document.activeElement as HTMLElement | null)?.blur();
+	(window.document.activeElement as HTMLElement | null)?.blur();
 	event.preventDefault();
 	drag = { id: event.pointerId, element, kind };
 	element.setPointerCapture(event.pointerId);
@@ -255,7 +255,6 @@ async function pickFromScreen() {
 		const next = parseColorHex(result.sRGBHex, color.value[3]);
 		if (next) setColor(next);
 	} catch (err) {
-		throw err;
 	} finally {
 		picking.value = false;
 	}

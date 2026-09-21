@@ -14,6 +14,7 @@ export async function playVideoAfterFirstFrameIsReady(video: HTMLVideoElement): 
 
 export function waitForVideoFrame(video: HTMLVideoElement): Promise<void> {
 	return new Promise((resolve, reject) => {
+		// eslint-disable-next-line prefer-const
 		let videoFrameCallbackId: number | undefined;
 
 		const cleanup = () => {

@@ -160,6 +160,8 @@ onmessage = ({ data }: MessageEvent<PreviewRequest>) => {
 	}
 };
 
+// worker内なのでwindowは無い
+// eslint-disable-next-line no-restricted-globals
 setInterval(() => {
 	if (meterPending || readings.size === 0) return;
 	meterPending = true;
