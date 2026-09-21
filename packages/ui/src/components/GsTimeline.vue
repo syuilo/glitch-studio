@@ -855,7 +855,12 @@ onMounted(() => {
 .layerBlock {
 	position: absolute;
 	height: 30px;
-	background: #00f;
+	box-sizing: border-box;
+	padding: 0 8px 0 8px;
+	background: var(--THEME-accent);
+	color: var(--THEME-fgOnAccent);
 	cursor: pointer;
+	border-radius: 8px 0 0 0;
+	corner-shape: bevel;
 }
 </style>
