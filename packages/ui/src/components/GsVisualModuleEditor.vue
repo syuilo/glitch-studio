@@ -4,6 +4,8 @@
 		<button class="_button" style="padding: 4px 6px;" @click="showSwitchMenu"><i class="ti ti-chevron-down"></i> Module: {{ visualModule?.name ?? '' }} [{{ visualModule?.id ?? '' }}]</button>
 		<GsButton :class="$style.liveButton" small primary @click="previewLive"><i class="ti ti-player-play"></i> LIVE</GsButton>
 
+		<GsButton small primary @click="addAutomation">a</GsButton>
+
 		<div style="padding: 8px;">
 			<GsTabs
 				v-model="tab" :def="[{
@@ -85,6 +87,7 @@
 import { computed, ref, watch } from 'vue';
 import { AiSON } from '@syuilo/aiscript';
 import { deepClone } from '@glitch/shared/utility/deep-clone.js';
+import { genId } from '@glitch/shared/utility/id.js';
 import GsWires from './GsWires.vue';
 import GsButton from './common/GsButton.vue';
 import GsDraggable from './common/GsDraggable.vue';
@@ -96,7 +99,7 @@ import XVisualModuleParamDefsEditor from './XVisualModuleParamDefsEditor.vue';
 import XVisualModuleOutputDefsEditor from './XVisualModuleOutputDefsEditor.vue';
 import GsTabs from './common/GsTabs.vue';
 import type { ParamEdit } from './GsVisualParam.vue';
-import type { GsGlobalInNode, GsGlobalOutNode, GsNode, VisualModule, VisualModuleParamValues } from '@glitch/shared/types.js';
+import type { GsAutomation, GsGlobalInNode, GsGlobalOutNode, GsNode, VisualModule, VisualModuleParamValues } from '@glitch/shared/types.js';
 import { showAddNodeMenu } from '@/app.ts';
 import { appContext, engine } from '@/app.ts';
 import * as ui from '@/ui.ts';
@@ -196,6 +199,37 @@ function showSwitchMenu(ev: PointerEvent) {
 			visualModule.value = _visualModule;
 		},
 	}))], ev.currentTarget ?? ev.target);
+}
+
+import GsAutomationEditorWindow from './GsAutomationEditorWindow.vue';
+
+async function addAutomation() {
+	const id = genId();
+	const automation: GsAutomation = {
+		id: id,
+		name: 'kf_' + id,
+		keyframes: [{
+			id: genId(),
+			x: 0,
+			y: 0,
+			bezierControlPointA: [0, 0],
+			bezierControlPointB: [0.5, 0],
+		}, {
+			id: genId(),
+			x: 1,
+			y: 1,
+			bezierControlPointA: [-0.5, 0],
+			bezierControlPointB: [0, 0],
+		}],
+	};
+
+	const { dispose } = ui.popup(GsAutomationEditorWindow, {
+		automation: automation,
+	}, {
+		done: result => {
+		},
+		closed: () => dispose(),
+	});
 }
 </script>
 

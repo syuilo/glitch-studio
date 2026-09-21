@@ -295,28 +295,6 @@ function domYToValueY(y: number): number {
 	return domYToLogicalY(y) + tlPosY.value;
 }
 
-function addAutomation() {
-	const id = genId();
-	const automation: GsAutomation = {
-		id: id,
-		name: 'kf_' + id,
-		keyframes: [{
-			id: genId(),
-			x: 0,
-			y: 0,
-			bezierControlPointA: [0, 0],
-			bezierControlPointB: [1000, 0],
-		}, {
-			id: genId(),
-			x: 1000 * 10,
-			y: 1,
-			bezierControlPointA: [-1000, 0],
-			bezierControlPointB: [0, 0],
-		}],
-	};
-	selectedAutomation.value = automation;
-}
-
 function addKeyframe(x: number, y: number): GsKeyframe {
 	const keyframes = [] as GsKeyframe[];
 	const keyframe: GsKeyframe = {
@@ -838,10 +816,6 @@ onMounted(() => {
 }
 
 .side {
-	box-sizing: border-box;
-	width: 300px;
-	padding: 16px;
-	background: #181818;
 }
 
 .yTicks {
