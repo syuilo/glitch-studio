@@ -139,9 +139,9 @@ const currentValueX = ref(0);
 const tlEl = useTemplateRef('tlEl');
 const tlElWidth = ref(0);
 const tlElHeight = ref(0);
-const tlRangeX = ref(30000);
+const tlRangeX = ref(props.isMsUnit ? 30000 : 2);
 const tlRangeY = ref(5);
-const tlPosX = ref(-3000);
+const tlPosX = ref(props.isMsUnit ? -3000 : -0.5);
 const tlPosY = ref(-2.5);
 const snappingY = ref<number | null>(null);
 const selectedKeyframes = ref<GsKeyframe[]>([]);
@@ -218,7 +218,7 @@ const bezierSnapLinesX = ref<{ active?: boolean; x: number }[]>([]);
 const bezierSnapLinesY = ref<{ active?: boolean; x: number; y: number; width: number }[]>([]);
 
 // TODO: TLの表示DOMサイズに応じて変更
-const xTicksCount = ref(15);
+const xTicksCount = ref(10);
 const xTicks = computed(() => niceScale(tlPosX.value, tlPosX.value + tlRangeX.value, xTicksCount.value));
 const xTicksWithHalf = computed(() => insertIntermediateNumbers(xTicks.value));
 const yTicksCount = ref(6);
