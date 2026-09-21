@@ -56,7 +56,7 @@ const addEffectNodeCommandDef = defineCommand<{ visualModuleId: string; id: stri
 					const previous = previousInput?.nodeId == null ? undefined : visualModule.nodes.find(node => node.id === previousInput.nodeId);
 					const params: GsEffectNode['params'] = {};
 					for (const [key, def] of Object.entries(paramDefs)) {
-						params[key] = def.default();
+						params[key] = deepClone(def.defaultValue);
 						if (def.primary && previousInput?.nodeId != null) {
 							// 元の接続が副出力でも、その出力ポートをそのまま引き継ぐ。
 							const output = getNodeOutputs(previous, visualModule.paramDefs)[previousInput.outputPort];
@@ -342,7 +342,7 @@ const changeParamValueInputSourceCommandDef = defineNodeParamCommand<NodeParamTa
 	(target, payload) => {
 		assertLeafParam(target);
 		const currentValue = target.value;
-		const defaultValue = target.def.default();
+		const defaultValue = deepClone(target.def.defaultValue);
 		const emptyValue = genEmptyValue(target.def);
 		switch (payload.inputSource) {
 			case 'expression': return {
@@ -414,7 +414,7 @@ const addArrayParamElementCommandDef = defineNodeParamCommand<NodeParamTarget>(
 	'Add array parameter element',
 	({ def, value }) => {
 		if (def.dataType !== 'array' || value.inputSource !== 'literal' || !Array.isArray(value.value)) throw new Error('Expected array parameter');
-		const element = def.item.default();
+		const element = deepClone(def.item.defaultValue);
 		return { inputSource: 'literal', value: [...value.value, element] };
 	},
 );
@@ -450,7 +450,7 @@ const changeNodeBypassStateCommandDef = defineCommand<NodeTarget & { bypass: boo
 
 const resetNodeParamCommandDef = defineNodeParamCommand<NodeParamTarget>(
 	'Reset node param',
-	({ def }) => def.default(),
+	({ def }) => deepClone(def.defaultValue),
 );
 
 const updateGlobalOutInputCommandDef = defineCommand<NodeTarget & { outputId: string; value: NodeOutputReference | null }>({

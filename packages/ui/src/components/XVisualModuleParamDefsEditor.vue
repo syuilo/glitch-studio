@@ -25,10 +25,10 @@ function add() {
 		visualModuleId: props.visualModule.id,
 		def: {
 			id: genId(),
-			label: 'My Parameter',
 			name,
 			dataType: 'scalar',
 			ui: {
+				label: 'My Parameter',
 				control: 'range',
 				min: 0,
 				max: 1,

@@ -40,7 +40,7 @@ export type Player = {
 };
 
 export type EffectParamDef = EffectOptionSchema & {
-	default: () => EffectParamValue;
+	defaultValue: EffectParamValue;
 };
 
 export type EffectParamDefs = Record<string, EffectParamDef>;

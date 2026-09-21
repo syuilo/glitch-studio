@@ -1,4 +1,5 @@
 import { rawBezierEasing } from './bezier.ts';
+import { deepClone } from './deep-clone.ts';
 import type { GsAutomation } from '../types.ts';
 import type { EffectOptionSchema, VisualModuleParamDef } from '../effect-definition.ts';
 
@@ -14,7 +15,7 @@ export function genEmptyValue(paramDef: EffectOptionSchema | VisualModuleParamDe
 		case 'color': return [0, 0, 0, 1];
 		case 'any': case 'assetReference': case 'playerReference': return null;
 		case 'array': return [];
-		case 'struct': return Object.fromEntries(Object.entries(paramDef.fields).map(([key, def]) => [key, def.default()]));
+		case 'struct': return Object.fromEntries(Object.entries(paramDef.fields).map(([key, def]) => [key, deepClone(def.defaultValue)]));
 	}
 }
 

@@ -4,7 +4,7 @@
 		<div :class="[$style.paramHeader, { [$style.isDyamic]: paramValue.inputSource !== 'literal' }]">
 			<button v-if="paramDef.dataType === 'array' || paramDef.dataType === 'struct'" class="_button"><i class="ti ti-chevron-down" style="vertical-align: middle;"></i></button>
 			<div :class="$style.paramLabel" @click="showMenu">
-				<GsCondensedLine>{{ label ?? paramDef.label }}</GsCondensedLine>
+				<GsCondensedLine>{{ label ?? paramDef.ui.label }}</GsCondensedLine>
 			</div>
 			<div style="height: 100%; place-content: center;">
 				<i v-if="paramValue.inputSource === 'envVariable'" v-tooltip="'Environment Variable'" class="ti ti-variable" :class="$style.typeIcon"></i>
@@ -54,7 +54,7 @@
 						v-else-if="paramValue.inputSource === 'literal'"
 						ref="controlComponent"
 						:def="paramDef"
-						:title="label ?? paramDef.label"
+						:title="label ?? paramDef.ui.label"
 						:value="paramValue.value"
 						@input="updateParamAsLiteral"
 						@beginChanging="onBeginChanging"
@@ -130,7 +130,7 @@ import GsButton from './common/GsButton.vue';
 import GsInput from './common/GsInput.vue';
 import GsCondensedLine from './common/GsCondensedLine.vue';
 import GsSelect from './common/GsSelect.vue';
-import type { EffectParamDef, GsEffectNode, VisualModule } from '@glitch/shared/types.ts';
+import type { GsEffectNode, VisualModule } from '@glitch/shared/types.ts';
 import type { MenuItem } from '@/types/menu.ts';
 import type { NodeParamDef } from '@/utility/node-params.ts';
 import { i18n } from '@/i18n.ts';
@@ -150,33 +150,24 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{ edit: [event: ParamEdit] }>();
-// VisualModuleのdefaultValueを共通の入力コントロール用に正規化する。
-const paramDef = computed<EffectParamDef | (VisualModule['paramDefs'][number] & { default: () => EffectParamValue })>(() => {
-	const def = props.paramDef;
-	if ('defaultValue' in def) return {
-		...def,
-		default: () => ({ inputSource: 'literal', value: deepClone(def.defaultValue) }),
-	};
-	return def;
-});
 
 const rowEl = useTemplateRef('rowEl');
 const portEl = shallowRef<HTMLElement | null>(null);
-const arrayValues = computed<EffectParamValue[]>(() => paramDef.value.dataType === 'array' && props.paramValue.inputSource === 'literal' ? props.paramValue.value : []);
-const structValues = computed<Record<string, EffectParamValue> | null>(() => paramDef.value.dataType === 'struct' && props.paramValue.inputSource === 'literal' ? props.paramValue.value : null);
+const arrayValues = computed<EffectParamValue[]>(() => props.paramDef.dataType === 'array' && props.paramValue.inputSource === 'literal' ? props.paramValue.value : []);
+const structValues = computed<Record<string, EffectParamValue> | null>(() => props.paramDef.dataType === 'struct' && props.paramValue.inputSource === 'literal' ? props.paramValue.value : null);
 const visibleFields = computed(() => {
-	if (paramDef.value.dataType !== 'struct') return [];
-	const fields: Record<string, NodeParamDef> = paramDef.value.fields;
+	if (props.paramDef.dataType !== 'struct') return [];
+	const fields: Record<string, NodeParamDef> = props.paramDef.fields;
 	return Object.entries(fields).filter(([, def]) => !def.visibility || def.visibility(structValues.value ?? {}));
 });
-const canNode = computed(() => paramDef.value.canNode);
-const inputDataType = computed(() => getNodeInputDataType(paramDef.value));
+const canNode = computed(() => props.paramDef.canNode);
+const inputDataType = computed(() => getNodeInputDataType(props.paramDef));
 const paramDefs = computed(() => appContext.state.visualModules.value.find(module => module.id === props.visualModuleId)?.paramDefs ?? []);
 const nodes = computed(() => appContext.state.visualModules.value.find(visualModule => visualModule.id === props.visualModuleId)?.nodes ?? []);
 const automations = computed(() => appContext.state.visualModules.value.find(visualModule => visualModule.id === props.visualModuleId)?.automations ?? []);
 const envVariableItems = computed(() => globalEnvVarDefs.map(variable => ({ label: `${i18n.t(`_EnvVariables.${variable}`)} (${variable})`, value: variable })));
 const externalParameterInputItems = computed(() => (props.node == null ? [] : appContext.state.visualModules.value.find(module => module.id === props.visualModuleId)?.paramDefs ?? [])
-	.map(def => ({ label: `${def.label} (${def.name})`, value: def.id })));
+	.map(def => ({ label: `${def.ui.label} (${def.name})`, value: def.id })));
 const nodeOutputItems = computed(() => props.node == null ? [] : getNodeOutputItems(nodes.value, props.node.id, inputDataType.value, paramDefs.value));
 const nodeConnection = computed<NodeOutputReference | null>(() => props.paramValue.inputSource === 'node' && props.paramValue.nodeId != null ? props.paramValue : null);
 const controlComponent = useTemplateRef('controlComponent');
@@ -187,7 +178,7 @@ onBeforeUnmount(() => { mounted = false; });
 const arrayVersion = ref(0);
 // 構造変更時は子を作り直し、同じindexになった別要素へ編集中の状態を引き継がない。
 watch(() => props.paramValue, () => {
-	if (paramDef.value.dataType === 'array') arrayVersion.value++;
+	if (props.paramDef.dataType === 'array') arrayVersion.value++;
 });
 watch(() => JSON.stringify([props.visualModuleId, props.node?.id, props.paramPath]), () => { commandMergeKey = null; });
 
@@ -248,7 +239,7 @@ function getMenu() {
 	}];
 
 	// コンテナ自体は静的な構造を維持し、値の種類を変更できるのは末端だけにする。
-	if (paramDef.value.dataType !== 'array' && paramDef.value.dataType !== 'struct') {
+	if (props.paramDef.dataType !== 'array' && props.paramDef.dataType !== 'struct') {
 		menuItems.push({ type: 'label', text: 'Input source' });
 		const types: { text: string; inputSource: EffectParamValue['inputSource']; icon: string }[] = [
 			{ text: 'Literal', inputSource: 'literal', icon: 'ti ti-adjustments-horizontal' },

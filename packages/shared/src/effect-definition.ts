@@ -3,7 +3,7 @@ import type { GsEffectNode, NodeParamValue } from './types.ts';
 
 type EffectOptionSchemaBase<T extends DataType> = {
 	dataType: T;
-	label: string;
+	ui: { label: string };
 	primary?: boolean;
 	visibility?: (state: Record<string, import('./types.ts').EffectParamValue>) => boolean;
 };
@@ -86,10 +86,11 @@ export type EffectOptionsSchema = Record<string, EffectOptionSchema>;
 // 外部パラメータも同じdataType/UIの組み合わせを使う。ノード入力の許可はモジュール側が指定する。
 type ExternalParameterSchema<T = Exclude<EffectOptionSchema, StructOptionSchema | ArrayOptionSchema | AnyOptionSchema>> =
 	T extends unknown ? Omit<T, 'canNode' | 'primary' | 'visibility'> : never;
+
 export type VisualModuleParamDef = ExternalParameterSchema & {
 	id: string;
 	name: string;
-	defaultValue: any;
+	defaultValue: { inputSource: 'literal'; value: any };
 	canNode: boolean;
 	isPrimaryInput: boolean;
 };
@@ -136,15 +137,15 @@ type EffectOptionDefaultValue<T extends EffectOptionsSchema[string]> = T extends
 type EffectOptionsSchemaDefaultValue<T extends EffectOptionsSchema, K extends keyof T> =
 	EffectOptionDefaultValue<T[K]>;
 
-// コールバックの戻り値にも、パラメータの種類に応じた型を付ける。
+// デフォルト値にも、パラメータの種類に応じた型を付ける。
 type EffectOptionSchemaWithDefault<T extends EffectOptionsSchema[string]> = T extends unknown ? T & {
-	default: () => EffectOptionsSchemaDefaultValue<{ param: T }, 'param'>;
+	defaultValue: EffectOptionsSchemaDefaultValue<{ param: T }, 'param'>;
 } : never;
 
 type EffectOptionsSchemaWithDefaults = Record<string, EffectOptionSchemaWithDefault<EffectOptionsSchema[string]>>;
 
 type EffectOptionsSchemaDefaults<T extends EffectOptionsSchema> = {
-	[K in keyof T]: { default: () => EffectOptionsSchemaDefaultValue<NoInfer<T>, K> };
+	[K in keyof T]: { defaultValue: EffectOptionsSchemaDefaultValue<NoInfer<T>, K> };
 };
 
 export type EffectOutputsSchema = Record<string, {

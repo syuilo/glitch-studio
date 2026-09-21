@@ -5,13 +5,13 @@ export default defineEffect({
 	displayName: 'Frame difference',
 	tags: [],
 	paramDefs: {
-		input: { dataType: 'color', ui: { control: 'color' }, label: 'Input', canNode: true, primary: true, default: () => ({ inputSource: 'node', nodeId: null, outputPort: null }) },
-		mode: { dataType: 'enum', ui: { control: 'enum' }, label: 'Mode', options: [
+		input: { dataType: 'color', ui: { label: 'Input', control: 'color' }, canNode: true, primary: true, defaultValue: { inputSource: 'node', nodeId: null, outputPort: null } },
+		mode: { dataType: 'enum', ui: { label: 'Mode', control: 'enum' }, options: [
 			{ label: 'RGB', value: 'rgb' },
 			{ label: 'Luminance', value: 'luminance' },
-		], default: () => ({ inputSource: 'literal', value: 'rgb' }) },
-		gain: { dataType: 'scalar', ui: { control: 'range', min: 0, max: 10, step: 0.01 }, label: 'Gain', default: () => ({ inputSource: 'literal', value: 1 }) },
-		threshold: { dataType: 'scalar', ui: { control: 'range', min: 0, max: 1, step: 0.001 }, label: 'Threshold', default: () => ({ inputSource: 'literal', value: 0 }) },
+		], defaultValue: { inputSource: 'literal', value: 'rgb' } },
+		gain: { dataType: 'scalar', ui: { label: 'Gain', control: 'range', min: 0, max: 10, step: 0.01 }, defaultValue: { inputSource: 'literal', value: 1 } },
+		threshold: { dataType: 'scalar', ui: { label: 'Threshold', control: 'range', min: 0, max: 1, step: 0.001 }, defaultValue: { inputSource: 'literal', value: 0 } },
 	},
 	outputs: {
 		output: { primary: true, dataType: 'color' },

@@ -6,13 +6,11 @@ export default defineEffect({
 	tags: [],
 	paramDefs: {
 		player: {
-			label: 'Player',
-			dataType: 'playerReference', ui: { control: 'player' },
-			default: () => ({ inputSource: 'literal', value: null }),
+			dataType: 'playerReference', ui: { label: 'Player', control: 'player' },
+			defaultValue: { inputSource: 'literal', value: null },
 		},
 		sizeMode: {
-			label: 'Size mode',
-			dataType: 'enum', ui: { control: 'enum' },
+			dataType: 'enum', ui: { label: 'Size mode', control: 'enum' },
 			options: [{
 				label: 'Stretch',
 				value: 0,
@@ -23,7 +21,7 @@ export default defineEffect({
 				label: 'Contain',
 				value: 2,
 			}],
-			default: () => ({ inputSource: 'literal', value: 1 as const }),
+			defaultValue: { inputSource: 'literal', value: 1 as const },
 		},
 	},
 	outputs: {

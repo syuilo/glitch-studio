@@ -4,7 +4,7 @@ import type { EffectParamValue, GsEffectNode } from '@glitch/shared/types.ts';
 
 export type ParamPath = readonly [string, ...(string | number)[]];
 export type NodeParamDef = EffectOptionsSchema[string] & {
-	default: () => EffectParamValue;
+	defaultValue: EffectParamValue;
 	visibility?: (params: Record<string, EffectParamValue>) => boolean;
 };
 

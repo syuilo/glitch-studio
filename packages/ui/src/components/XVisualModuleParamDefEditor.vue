@@ -1,7 +1,7 @@
 <template>
 <div :class="$style.root">
 	<div :class="$style.fields">
-		<GsInput :class="$style.field" type="text" :modelValue="def.label" @update:modelValue="value => update({ label: value })"/>
+		<GsInput :class="$style.field" type="text" :modelValue="def.ui.label" @update:modelValue="value => update({ label: value })"/>
 		<GsInput :class="$style.field" type="text" :modelValue="def.name" @update:modelValue="value => update({ name: value })"/>
 		<GsSelect
 			:class="$style.field"
@@ -14,9 +14,11 @@
 			]"
 			@update:modelValue="updateType"
 		/>
-		<GsSelect v-if="def.dataType === 'scalar'" :class="$style.field" :modelValue="def.ui.control"
+		<GsSelect
+			v-if="def.dataType === 'scalar'" :class="$style.field" :modelValue="def.ui.control"
 			:items="[{ label: 'Number', value: 'number' }, { label: 'Range', value: 'range' }, { label: 'Angle', value: 'angle' }, { label: 'Seed', value: 'seed' }]"
-			@update:modelValue="updateControl"/>
+			@update:modelValue="updateControl"
+		/>
 	</div>
 	<div v-if="def.dataType === 'scalar' && (def.ui.control === 'number' || def.ui.control === 'range')" :class="$style.option">
 		<label :class="$style.optionLabel">Min/Max</label>
@@ -39,7 +41,9 @@
 			:modelValue="def.isPrimaryInput"
 			:disabled="!def.isPrimaryInput && hasPrimaryInput"
 			@update:modelValue="update({ isPrimaryInput: $event })"
-		>Primary input</GsSwitch>
+		>
+			Primary input
+		</GsSwitch>
 	</div>
 	<GsButton small danger @click="remove">Remove parameter</GsButton>
 </div>
@@ -47,11 +51,11 @@
 
 <script lang="ts" setup>
 import { computed } from 'vue';
+import { genEmptyValue } from '@glitch/shared/utility/misc.ts';
 import GsSelect from './common/GsSelect.vue';
 import GsInput from './common/GsInput.vue';
 import GsButton from './common/GsButton.vue';
 import GsSwitch from './common/GsSwitch.vue';
-import { genEmptyValue } from '@glitch/shared/utility/misc.ts';
 import type { VisualModule } from '@glitch/shared/types.ts';
 import { appContext } from '@/app.ts';
 import { i18n } from '@/i18n.ts';
@@ -72,15 +76,21 @@ function update(changes: Partial<Omit<ParamDef, 'id'>>) {
 function updateType(dataType: ParamDef['dataType']) {
 	if (dataType === props.def.dataType) return;
 	if (dataType !== 'scalar' && dataType !== 'bool' && dataType !== 'color' && dataType !== 'assetReference') return;
+
 	const schemas = {
-		scalar: { dataType: 'scalar', ui: { control: 'number' } },
-		bool: { dataType: 'bool', ui: { control: 'bool' } },
-		color: { dataType: 'color', ui: { control: 'color' } },
-		assetReference: { dataType: 'assetReference', ui: { control: 'image' } },
+		scalar: { dataType: 'scalar', ui: { label: props.def.ui.label, control: 'number' } },
+		bool: { dataType: 'bool', ui: { label: props.def.ui.label, control: 'bool' } },
+		color: { dataType: 'color', ui: { label: props.def.ui.label, control: 'color' } },
+		assetReference: { dataType: 'assetReference', ui: { label: props.def.ui.label, control: 'image' } },
 	} as const;
-	const schema = { ...schemas[dataType], label: props.def.label };
-	update({ ...schema, defaultValue: genEmptyValue(schema),
-		isPrimaryInput: dataType === 'color' && props.def.canNode && props.def.isPrimaryInput });
+
+	const schema = schemas[dataType];
+
+	update({
+		...schema,
+		defaultValue: { inputSource: 'literal', value: genEmptyValue(schema) },
+		isPrimaryInput: dataType === 'color' && props.def.canNode && props.def.isPrimaryInput,
+	});
 }
 
 function updateControl(control: 'number' | 'range' | 'angle' | 'seed') {
@@ -90,7 +100,7 @@ function updateControl(control: 'number' | 'range' | 'angle' | 'seed') {
 	const ui = control === 'range'
 		? { control, min: 'min' in previous ? previous.min ?? 0 : 0, max: 'max' in previous ? previous.max ?? 1 : 1, step: 'step' in previous ? previous.step ?? 0.01 : 0.01 }
 		: { control };
-	update({ dataType: 'scalar', ui });
+	update({ dataType: 'scalar', ui: { ...ui, label: props.def.ui.label } });
 }
 
 function updateUiOption(key: 'min' | 'max' | 'step', value: number) {

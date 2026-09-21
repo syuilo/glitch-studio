@@ -238,10 +238,9 @@ export async function newProject() {
 		outputDefs: [{ id: initialOutputId, label: 'Output', name: 'output', dataType: 'color', isPrimaryOutput: true }],
 		paramDefs: [{
 			id: initialInputParamId,
-			label: 'My Input',
 			name: 'myInput',
 			dataType: 'color',
-			ui: { control: 'color' },
+			ui: { label: 'My Input', control: 'color' },
 			defaultValue: [0, 0, 0, 0],
 			canNode: true,
 			isPrimaryInput: true,
@@ -326,10 +325,9 @@ export async function newProjectFromImageOrVideo(file?: File) {
 		outputDefs: [{ id: initialOutputId, label: 'Output', name: 'output', dataType: 'color', isPrimaryOutput: true }],
 		paramDefs: [{
 			id: initialInputParamId,
-			label: 'My Input',
 			name: 'myInput',
 			dataType: 'color',
-			ui: { control: 'color' },
+			ui: { label: 'My Input', control: 'color' },
 			defaultValue: [0, 0, 0, 0],
 			canNode: true,
 			isPrimaryInput: true,
@@ -343,7 +341,7 @@ export async function newProjectFromImageOrVideo(file?: File) {
 			effectId: 'image',
 			params: {
 				image: { inputSource: 'literal', value: asset.id },
-				sizeMode: imageEffectDef.paramDefs.sizeMode.default(),
+				sizeMode: deepClone(imageEffectDef.paramDefs.sizeMode.defaultValue),
 			},
 			isBypass: false,
 		} satisfies EffectNodeOf<typeof imageEffectDef> : result.type.startsWith('video/') ? {
@@ -352,7 +350,7 @@ export async function newProjectFromImageOrVideo(file?: File) {
 			effectId: 'video',
 			params: {
 				player: { inputSource: 'literal', value: player!.id },
-				sizeMode: videoEffectDef.paramDefs.sizeMode.default(),
+				sizeMode: deepClone(videoEffectDef.paramDefs.sizeMode.defaultValue),
 			},
 			isBypass: false,
 		} satisfies EffectNodeOf<typeof videoEffectDef> : result.type.startsWith('audio/') ? {
@@ -361,12 +359,12 @@ export async function newProjectFromImageOrVideo(file?: File) {
 			effectId: 'audioWaveform',
 			params: {
 				player: { inputSource: 'literal', value: player!.id },
-				channel: audioWaveformEffectDef.paramDefs.channel.default(),
-				duration: audioWaveformEffectDef.paramDefs.duration.default(),
-				amplitude: audioWaveformEffectDef.paramDefs.amplitude.default(),
-				lineWidth: audioWaveformEffectDef.paramDefs.lineWidth.default(),
-				colorL: audioWaveformEffectDef.paramDefs.colorL.default(),
-				colorR: audioWaveformEffectDef.paramDefs.colorR.default(),
+				channel: deepClone(audioWaveformEffectDef.paramDefs.channel.defaultValue),
+				duration: deepClone(audioWaveformEffectDef.paramDefs.duration.defaultValue),
+				amplitude: deepClone(audioWaveformEffectDef.paramDefs.amplitude.defaultValue),
+				lineWidth: deepClone(audioWaveformEffectDef.paramDefs.lineWidth.defaultValue),
+				colorL: deepClone(audioWaveformEffectDef.paramDefs.colorL.defaultValue),
+				colorR: deepClone(audioWaveformEffectDef.paramDefs.colorR.defaultValue),
 			},
 			isBypass: false,
 		} satisfies EffectNodeOf<typeof audioWaveformEffectDef> : {

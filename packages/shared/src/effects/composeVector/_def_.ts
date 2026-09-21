@@ -5,8 +5,8 @@ export default defineEffect({
 	displayName: 'Compose Vector',
 	tags: [],
 	paramDefs: {
-		x: { dataType: 'scalar', ui: { control: 'number', step: 0.01 }, label: 'X', canNode: true, default: () => ({ inputSource: 'literal', value: 0 }) },
-		y: { dataType: 'scalar', ui: { control: 'number', step: 0.01 }, label: 'Y', canNode: true, default: () => ({ inputSource: 'literal', value: 0 }) },
+		x: { dataType: 'scalar', ui: { label: 'X', control: 'number', step: 0.01 }, canNode: true, defaultValue: { inputSource: 'literal', value: 0 } },
+		y: { dataType: 'scalar', ui: { label: 'Y', control: 'number', step: 0.01 }, canNode: true, defaultValue: { inputSource: 'literal', value: 0 } },
 	},
 	outputs: {
 		output: { primary: true, dataType: 'vector' },

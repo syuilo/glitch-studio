@@ -5,11 +5,11 @@ export default defineEffect({
 	displayName: 'Remap',
 	tags: [],
 	paramDefs: {
-		input: { dataType: 'scalar', ui: { control: 'number' }, canNode: true, label: 'Input', primary: true, default: () => ({ inputSource: 'node', nodeId: null, outputPort: null }) },
-		inMin: { dataType: 'scalar', ui: { control: 'number', step: 0.01 }, label: 'In Min', canNode: true, default: () => ({ inputSource: 'literal', value: 0 }) },
-		inMax: { dataType: 'scalar', ui: { control: 'number', step: 0.01 }, label: 'In Max', canNode: true, default: () => ({ inputSource: 'literal', value: 1 }) },
-		outMin: { dataType: 'scalar', ui: { control: 'number', step: 0.01 }, label: 'Out Min', canNode: true, default: () => ({ inputSource: 'literal', value: 0 }) },
-		outMax: { dataType: 'scalar', ui: { control: 'number', step: 0.01 }, label: 'Out Max', canNode: true, default: () => ({ inputSource: 'literal', value: 1 }) },
+		input: { dataType: 'scalar', ui: { label: 'Input', control: 'number' }, canNode: true, primary: true, defaultValue: { inputSource: 'node', nodeId: null, outputPort: null } },
+		inMin: { dataType: 'scalar', ui: { label: 'In Min', control: 'number', step: 0.01 }, canNode: true, defaultValue: { inputSource: 'literal', value: 0 } },
+		inMax: { dataType: 'scalar', ui: { label: 'In Max', control: 'number', step: 0.01 }, canNode: true, defaultValue: { inputSource: 'literal', value: 1 } },
+		outMin: { dataType: 'scalar', ui: { label: 'Out Min', control: 'number', step: 0.01 }, canNode: true, defaultValue: { inputSource: 'literal', value: 0 } },
+		outMax: { dataType: 'scalar', ui: { label: 'Out Max', control: 'number', step: 0.01 }, canNode: true, defaultValue: { inputSource: 'literal', value: 1 } },
 	},
 	outputs: {
 		output: { primary: true, dataType: 'scalar' },

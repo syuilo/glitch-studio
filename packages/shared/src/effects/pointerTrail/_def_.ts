@@ -5,9 +5,9 @@ export default defineEffect({
 	displayName: 'pointerTrail',
 	tags: [],
 	paramDefs: {
-		strength: { dataType: 'scalar', ui: { control: 'range', min: 0, max: 2, step: 0.01 }, label: 'Strength', default: { inputSource: 'literal', value: 0.3 }, default: () => ({ inputSource: 'literal', value: 0.3 }) },
-		radius: { dataType: 'scalar', ui: { control: 'range', min: 0, max: 2, step: 0.01 }, label: 'Radius', default: { inputSource: 'literal', value: 0.3 }, default: () => ({ inputSource: 'literal', value: 0.3 }) },
-		halfLife: { dataType: 'scalar', ui: { control: 'range', min: 1, max: 5000, step: 1 }, label: 'Half-life (ms)', default: { inputSource: 'literal', value: 300 }, default: () => ({ inputSource: 'literal', value: 300 }) },
+		strength: { dataType: 'scalar', ui: { label: 'Strength', control: 'range', min: 0, max: 2, step: 0.01 }, defaultValue: { inputSource: 'literal', value: 0.3 } },
+		radius: { dataType: 'scalar', ui: { label: 'Radius', control: 'range', min: 0, max: 2, step: 0.01 }, defaultValue: { inputSource: 'literal', value: 0.3 } },
+		halfLife: { dataType: 'scalar', ui: { label: 'Half-life (ms)', control: 'range', min: 1, max: 5000, step: 1 }, defaultValue: { inputSource: 'literal', value: 300 } },
 	},
 	outputs: {
 		output: { primary: true, dataType: 'vector' },
