@@ -115,7 +115,7 @@ watch(() => props.video, (video, _, onCleanup) => {
 	sync();
 	if (!video) return;
 	if (video instanceof HTMLVideoElement) {
-		const updateFrame = (_now: number, metadata: VideoFrameCallbackMetadata) => {
+		const updateFrame: Parameters<HTMLVideoElement['requestVideoFrameCallback']>[0] = (_now, metadata) => {
 			frameTime.value = metadata.mediaTime;
 			videoFrameCallbackId = video.requestVideoFrameCallback(updateFrame);
 		};

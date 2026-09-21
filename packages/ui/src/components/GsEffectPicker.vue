@@ -30,9 +30,6 @@ import GsButton from './common/GsButton.vue';
 import GsInput from './common/GsInput.vue';
 import * as ui from '@/ui.ts';
 
-const props = defineProps<{
-}>();
-
 const emit = defineEmits<{
 	(ev: 'chosen', effect: typeof effectDefinitions[keyof typeof effectDefinitions]): void;
 	(ev: 'closed'): void;
