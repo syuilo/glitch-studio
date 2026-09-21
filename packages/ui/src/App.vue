@@ -12,8 +12,9 @@
 		<div :class="$style.headerLeft">
 			<button class="_button" :class="$style.undoRedo" :disabled="!appContext.canUndo.value" @click="appContext.undo"><i class="ti ti-arrow-back-up"></i></button>
 			<button class="_button" :class="$style.undoRedo" :disabled="!appContext.canRedo.value" @click="appContext.redo"><i class="ti ti-arrow-forward-up"></i></button>
-			<button class="_button" :class="$style.headerMenuItem" @click="exportToWebp">export</button>
-			<button class="_button" :class="$style.headerMenuItem" @click="showAbout">about</button>
+			<button class="_button" :class="$style.headerMenuItem" @click="openHeaderFileMenu">File</button>
+			<button class="_button" :class="$style.headerMenuItem" @click="openHeaderEditMenu">Edit</button>
+			<button class="_button" :class="$style.headerMenuItem" @click="openHeaderHelpMenu">Help</button>
 		</div>
 		<div :class="$style.headerRight">
 			test
@@ -230,6 +231,29 @@ function openFpsMenu(ev: PointerEvent) {
 		text: '15fps',
 		active: computed(() => fpsLimit.value === 15),
 		action: () => fpsLimit.value = 15,
+	}], ev.currentTarget ?? ev.target);
+}
+
+function openHeaderFileMenu(ev: PointerEvent) {
+	ui.popupMenu([{
+		text: 'Export',
+		action: () => {
+			exportToWebp();
+		},
+	}], ev.currentTarget ?? ev.target);
+}
+
+function openHeaderEditMenu(ev: PointerEvent) {
+	ui.popupMenu([{
+	}], ev.currentTarget ?? ev.target);
+}
+
+function openHeaderHelpMenu(ev: PointerEvent) {
+	ui.popupMenu([{
+		text: 'About',
+		action: () => {
+			showAbout();
+		},
 	}], ev.currentTarget ?? ev.target);
 }
 
