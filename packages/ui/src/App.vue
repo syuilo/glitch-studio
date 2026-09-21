@@ -255,8 +255,12 @@ function openHeaderFileMenu(ev: PointerEvent) {
 }
 
 function openHeaderEditMenu(ev: PointerEvent) {
-	ui.popupMenu([{ text: 'Undo', action: () => appContext.undo() },
-															{ text: 'Redo', action: () => appContext.redo() }], ev.currentTarget ?? ev.target);
+	ui.popupMenu([{
+		text: 'Change Project Resolution',
+		action: () => {
+			// TODO
+		},
+	}], ev.currentTarget ?? ev.target);
 }
 
 function openHeaderHelpMenu(ev: PointerEvent) {
