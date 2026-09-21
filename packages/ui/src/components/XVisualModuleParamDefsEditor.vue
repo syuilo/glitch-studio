@@ -34,7 +34,7 @@ function add() {
 				max: 1,
 				step: 0.01,
 			},
-			defaultValue: 0.5,
+			defaultValue: { inputSource: 'literal', value: 0.5 },
 			canNode: true,
 			isPrimaryInput: false,
 		},

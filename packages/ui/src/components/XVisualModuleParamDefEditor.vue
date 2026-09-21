@@ -1,7 +1,7 @@
 <template>
 <div :class="$style.root">
 	<div :class="$style.fields">
-		<GsInput :class="$style.field" type="text" :modelValue="def.ui.label" @update:modelValue="value => update({ label: value })"/>
+		<GsInput :class="$style.field" type="text" :modelValue="def.ui.label" @update:modelValue="value => update({ ui: { ...def.ui, label: value } })"/>
 		<GsInput :class="$style.field" type="text" :modelValue="def.name" @update:modelValue="value => update({ name: value })"/>
 		<GsSelect
 			:class="$style.field"

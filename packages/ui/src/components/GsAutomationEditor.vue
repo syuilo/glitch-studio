@@ -323,6 +323,7 @@ function addKeyframe(x: number, y: number): GsKeyframe {
 }
 
 function onTlMousemove(ev: MouseEvent) {
+	if (tlEl.value === null) return;
 	const rect = tlEl.value.getBoundingClientRect();
 	const mouseX = ev.clientX - rect.left;
 	const mouseY = ev.clientY - rect.top;
@@ -336,6 +337,7 @@ function onTlMousemove(ev: MouseEvent) {
 }
 
 function onTlWheel(ev: WheelEvent) {
+	if (tlEl.value === null) return;
 	ev.preventDefault();
 
 	const rect = tlEl.value.getBoundingClientRect();
@@ -353,6 +355,7 @@ function onTlWheel(ev: WheelEvent) {
 }
 
 function onXTicksWheel(ev: WheelEvent) {
+	if (tlEl.value === null) return;
 	ev.preventDefault();
 	ev.stopPropagation();
 
@@ -365,6 +368,7 @@ function onXTicksWheel(ev: WheelEvent) {
 }
 
 function onYTicksWheel(ev: WheelEvent) {
+	if (tlEl.value === null) return;
 	ev.preventDefault();
 	ev.stopPropagation();
 
@@ -377,6 +381,7 @@ function onYTicksWheel(ev: WheelEvent) {
 }
 
 function onTlDblclick(ev: MouseEvent) {
+	if (tlEl.value === null) return;
 	if (ev.button === 1) return;
 
 	const rect = tlEl.value.getBoundingClientRect();
@@ -404,6 +409,7 @@ function onTlDblclick(ev: MouseEvent) {
 let beforeClickedAt = 0;
 
 function onTlMousedown(ev: MouseEvent) {
+	if (tlEl.value === null) return;
 	ev.preventDefault();
 	tlEl.value.focus();
 
@@ -632,6 +638,7 @@ function onBezierHandleAMousedown(ev: MouseEvent) {
 }
 
 function onBezierHandleBMousedown(ev: MouseEvent) {
+	if (tlEl.value === null) return;
 	ev.stopPropagation();
 	const keyframe = props.automation.keyframes.find(kf => kf.id === selectedKeyframe.value.id)!;
 	const nextKeyframe = props.automation.keyframes[props.automation.keyframes.indexOf(selectedKeyframe.value) + 1];
@@ -776,10 +783,12 @@ function formatValueXWithUnit(x: number): string {
 }
 
 onMounted(() => {
+	if (tlEl.value === null) return;
 	tlElWidth.value = tlEl.value.offsetWidth;
 	tlElHeight.value = tlEl.value.offsetHeight;
 
 	const resizeObserver = new ResizeObserver(() => {
+		if (tlEl.value === null) return;
 		tlElWidth.value = tlEl.value.offsetWidth;
 		tlElHeight.value = tlEl.value.offsetHeight;
 	});

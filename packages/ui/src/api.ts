@@ -1,5 +1,5 @@
 import * as msgpack from '@msgpack/msgpack';
-import type { RawPreset, Project } from './settings';
+import type { RawPreset } from './settings';
 import type { Asset } from '@glitch/shared/types.ts';
 
 type DecodedImage = { width: number; height: number; data: Uint8Array };
