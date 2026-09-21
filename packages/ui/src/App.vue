@@ -176,6 +176,10 @@ function openTimeFactorMenu(ev: PointerEvent) {
 	}], ev.currentTarget ?? ev.target);
 }
 
+function openResolutionMenu(ev: PointerEvent) {
+	// TODO
+}
+
 function openResolutionFactorMenu(ev: PointerEvent) {
 	ui.popupMenu([{
 		type: 'radioOption',

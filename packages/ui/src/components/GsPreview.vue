@@ -59,9 +59,9 @@ onBeforeUnmount(() => {
 
 async function onViewClick(detached: boolean) {
 	if (detached) return;
-	if (appContext.state.nodes.value.length === 0) {
-		await addMedia();
-	}
+	//if (appContext.state.nodes.value.length === 0) {
+	//	await addMedia();
+	//}
 }
 
 async function onDrop(event: DragEvent) {

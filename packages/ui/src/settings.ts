@@ -1,5 +1,3 @@
-import { encode, decode } from '@msgpack/msgpack';
-import { encodeAssets } from './api.ts';
 import type { GsNode, Asset } from '@glitch/shared/types.ts';
 
 //export const userDataPath = electron.remote.app.getPath('userData');

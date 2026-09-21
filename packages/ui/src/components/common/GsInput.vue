@@ -33,7 +33,7 @@
 	</div>
 	<div :class="$style.caption"><slot name="caption"></slot></div>
 
-	<GsButton v-if="manualSave && changed" primary :class="$style.save" @click="updated"><i class="ti ti-check"></i> {{ i18n.ts.save }}</GsButton>
+	<GsButton v-if="manualSave && changed" primary :class="$style.save" @click="updated"><i class="ti ti-check"></i></GsButton>
 </div>
 </template>
 

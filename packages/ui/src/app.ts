@@ -5,7 +5,7 @@ import fillEffectDef from '@glitch/shared/effects/fill/_def_.ts';
 import imageEffectDef from '@glitch/shared/effects/image/_def_.ts';
 import videoEffectDef from '@glitch/shared/effects/video/_def_.ts';
 import audioWaveformEffectDef from '@glitch/shared/effects/audioWaveform/_def_.ts';
-import { loadProjectFile, saveProjectFile, decodeAssets } from './api.ts';
+import { loadProjectFile } from './api.ts';
 import { Engine } from './engine.ts';
 import { preferences } from './preferences.ts';
 import { COMMAND_DEFS } from './commands.ts';

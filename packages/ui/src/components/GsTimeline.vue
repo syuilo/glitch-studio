@@ -166,6 +166,7 @@ function domYToValue(y: number): number {
 }
 
 function onTlMousemove(ev: MouseEvent) {
+	if (tlEl.value == null) return;
 	const rect = tlEl.value.getBoundingClientRect();
 	const mouseX = ev.clientX - rect.left;
 	const mouseY = ev.clientY - rect.top;
@@ -177,6 +178,7 @@ function onTlMousemove(ev: MouseEvent) {
 }
 
 function onTlWheel(ev: WheelEvent) {
+	if (tlEl.value == null) return;
 	ev.preventDefault();
 
 	const rect = tlEl.value.getBoundingClientRect();
@@ -194,6 +196,7 @@ function onTlWheel(ev: WheelEvent) {
 }
 
 function onXTicksWheel(ev: WheelEvent) {
+	if (tlEl.value == null) return;
 	ev.preventDefault();
 	ev.stopPropagation();
 
@@ -205,21 +208,10 @@ function onXTicksWheel(ev: WheelEvent) {
 	tlPosX.value = anchorTime - domXToLogicalX(x);
 }
 
-function onYTicksWheel(ev: WheelEvent) {
-	ev.preventDefault();
-	ev.stopPropagation();
-
-	const rect = tlEl.value.getBoundingClientRect();
-	const y = ev.clientY - rect.top;
-	const anchorValue = domYToValue(y);
-
-	tlRangeY.value *= 1 + (ev.deltaY / 1000);
-	tlPosY.value = anchorValue - domYToLogicalY(y);
-}
-
 let beforeClickedAt = 0;
 
 function onTlMousedown(ev: MouseEvent) {
+	if (tlEl.value == null) return;
 	ev.preventDefault();
 	tlEl.value.focus();
 
@@ -247,14 +239,11 @@ function onTlMousedown(ev: MouseEvent) {
 	// ダブルクリック判定
 	if (Date.now() - beforeClickedAt < 300) {
 		beforeClickedAt = Date.now();
-		onTlDblclick(ev);
+		//onTlDblclick(ev);
 		return;
 	}
 
 	beforeClickedAt = Date.now();
-
-	selectedKeyframes.value = [];
-	contextmenuKeyframe.value = null;
 
 	const position = tlEl.value.getBoundingClientRect();
 	const moveBaseX = ev.clientX - position.left;
@@ -269,12 +258,6 @@ function onTlMousedown(ev: MouseEvent) {
 		selectedAreaPosY.value = originValue;
 		selectedAreaWidth.value = targetFrame - originFrame;
 		selectedAreaHeight.value = targetValue - originValue;
-
-		if (selectedAutomation.value) {
-			selectedKeyframes.value = selectedAutomation.value.keyframes.filter(kf =>
-				kf.timeMs >= originFrame && kf.timeMs <= targetFrame && kf.value >= originValue && kf.value <= targetValue,
-			);
-		}
 	}
 
 	nowSelecting.value = true;
@@ -292,6 +275,7 @@ function onTlMousedown(ev: MouseEvent) {
 const SNAP_THRESHOLD = 5;
 
 function onSeekBarMousedown(ev: MouseEvent) {
+	if (tlEl.value == null) return;
 	ev.stopPropagation();
 	const position = tlEl.value.getBoundingClientRect();
 
@@ -326,11 +310,17 @@ function formatMsToTimecode(ms: number) {
 	}
 }
 
+function addLayer() {
+	// TODO
+}
+
 onMounted(() => {
+	if (tlEl.value == null) return;
 	tlElWidth.value = tlEl.value.offsetWidth;
 	tlElHeight.value = tlEl.value.offsetHeight;
 
 	const resizeObserver = new ResizeObserver(() => {
+		if (tlEl.value == null) return;
 		tlElWidth.value = tlEl.value.offsetWidth;
 		tlElHeight.value = tlEl.value.offsetHeight;
 	});
