@@ -63,8 +63,8 @@
 			</div>
 
 			<div v-if="(nowSelecting || selectedKeyframes.length === 0) && tooltipDomPos" :class="$style.tooltip" class="_monospace" :style="{ left: tooltipDomPos[0] + 'px', top: tooltipDomPos[1] + 'px' }">
-				<div>T: {{ formatValueXWithUnit(cursorTime) }}</div>
-				<div>V: {{ cursorValue }}</div>
+				<div>T: {{ formatValueXWithUnit(cursorValueX) }}</div>
+				<div>V: {{ cursorValueY }}</div>
 			</div>
 
 			<div v-if="!nowSelecting && contextmenuKeyframe" :class="$style.keyframeContextmenu" :style="{ left: keyframeContextmenuDomPos[0] + 'px', top: keyframeContextmenuDomPos[1] + 'px' }">
@@ -96,11 +96,11 @@
 				></div>
 			</template>
 
-			<div :class="$style.infoBar">
-				<div><b>TL Offset</b><code>{{ tlPosX.toFixed(2) }}</code>, <code>{{ tlPosY.toFixed(2) }}</code></div>
-				<div><b>Cursor</b><code>{{ cursorTime }}</code>, <code>{{ cursorValue }}</code></div>
-				<div><b>Current</b><code>{{ currentValueX }}</code>, <code>{{ currentValue.toFixed(2) }}</code></div>
-				<div><b>Min/Max</b><code>{{ minMaxValuesInTheAutomation.min.toFixed(2) }}</code>, <code>{{ minMaxValuesInTheAutomation.max.toFixed(2) }}</code></div>
+			<div :class="$style.infoBar" class="_monospace">
+				<div><b>TL Offset</b>{{ tlPosX.toFixed(2) }}, {{ tlPosY.toFixed(2) }}</div>
+				<div><b>Cursor</b>{{ cursorValueX.toFixed(2) }}, {{ cursorValueY }}</div>
+				<div><b>Current</b>{{ currentValueX }}, {{ currentValue.toFixed(2) }}</div>
+				<div><b>Min/Max</b>{{ minMaxValuesInTheAutomation.min.toFixed(2) }}, {{ minMaxValuesInTheAutomation.max.toFixed(2) }}</div>
 			</div>
 		</div>
 		<div v-if="selectedKeyframe" :class="$style.rightSidePanel">
@@ -193,8 +193,8 @@ const isBezierBZero = computed(() => {
 	if (!selectedKeyframe.value) return false;
 	return selectedKeyframe.value.bezierControlPointB[0] === 0 && selectedKeyframe.value.bezierControlPointB[1] === 0;
 });
-const cursorTime = ref(0);
-const cursorValue = ref(0);
+const cursorValueX = ref(0);
+const cursorValueY = ref(0);
 const nowSelecting = ref(false);
 const selectedAreaPosX = ref(0);
 const selectedAreaPosY = ref(0);
@@ -284,7 +284,7 @@ function domXToLogicalX(x: number): number {
 }
 
 function domXToValueX(x: number): number {
-	return Math.round(domXToLogicalX(x) + tlPosX.value);
+	return domXToLogicalX(x) + tlPosX.value;
 }
 
 function domYToLogicalY(y: number): number {
@@ -330,8 +330,8 @@ function onTlMousemove(ev: MouseEvent) {
 	cursorBarPos.value = valueXToDomX(valueX);
 
 	const value = domYToValueY(mouseY);
-	cursorValue.value = value.toFixed(2);
-	cursorTime.value = valueX;
+	cursorValueY.value = value.toFixed(2);
+	cursorValueX.value = valueX;
 	tooltipDomPos.value = [mouseX + 10, mouseY + 10];
 }
 
@@ -736,7 +736,7 @@ function onTlKeydown(ev: KeyboardEvent) {
 		if (copyingKeyframes == null) return;
 		const baseTime = copyingKeyframes[0].x;
 		for (const kf of copyingKeyframes) {
-			addKeyframe(cursorTime.value + (kf.frame - baseTime), kf.value);
+			addKeyframe(cursorValueX.value + (kf.frame - baseTime), kf.value);
 		}
 	}
 }
@@ -759,19 +759,19 @@ function toggleBezierB() {
 	}
 }
 
-function formatValueXWithUnit(ms: number): string {
+function formatValueXWithUnit(x: number): string {
 	if (props.isMsUnit) {
-		const totalSeconds = Math.floor(ms / 1000);
+		const totalSeconds = Math.floor(x / 1000);
 		const minutes = Math.floor(totalSeconds / 60);
 		const seconds = totalSeconds % 60;
-		const milliseconds = ms % 1000;
+		const milliseconds = x % 1000;
 		if (milliseconds === 0) {
 			return `${minutes}:${seconds.toString().padStart(2, '0')}`;
 		} else {
 			return `${minutes}:${seconds.toString().padStart(2, '0')}.${milliseconds.toString().replace(/0+$/, '')}`;
 		}
 	} else {
-		return ms.toString();
+		return x.toFixed(2);
 	}
 }
 
@@ -790,6 +790,7 @@ onMounted(() => {
 
 <style module lang="scss">
 .root {
+	position: relative;
 	display: flex;
 	flex-direction: column;
 	height: 100%;
@@ -1194,11 +1195,6 @@ onMounted(() => {
 			&:after {
 				content: ':';
 			}
-		}
-
-		> code {
-			display: inline-block;
-			min-width: 4em;
 		}
 	}
 }
