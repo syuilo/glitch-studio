@@ -105,7 +105,7 @@
 			<div :class="$style.infoBar" class="_monospace">
 				<div><b>TL Offset</b>{{ tlPosX.toFixed(2) }}, {{ tlPosY.toFixed(2) }}</div>
 				<div><b>Cursor</b>{{ cursorValueX.toFixed(2) }}, {{ cursorValueY }}</div>
-				<div><b>Current</b>{{ currentValueX }}, {{ currentValue.toFixed(2) }}</div>
+				<div><b>Current</b>{{ currentValueX.toFixed(2) }}, {{ currentValue.toFixed(2) }}</div>
 				<div><b>Min/Max</b>{{ minMaxValuesInTheAutomation.min.toFixed(2) }}, {{ minMaxValuesInTheAutomation.max.toFixed(2) }}</div>
 			</div>
 		</div>
