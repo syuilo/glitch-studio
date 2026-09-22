@@ -27,3 +27,5 @@ allowBuilds:
   '@parcel/watcher': false
   esbuild: false
   pnpm: false
+patchedDependencies:
+  '@types/dom-webcodecs@0.1.13': patches/@types__dom-webcodecs@0.1.13.patch

@@ -109,6 +109,9 @@ overrides:
   '@aiscript-dev/aiscript-languageserver': '-'
   '@tabler/icons-webfont>sharp': '-'
 
+patchedDependencies:
+  '@types/dom-webcodecs@0.1.13': cdec88f7f43938acf09b8f462b920b70d7402a7c11eb4cf01717f720ce5a4cc1
+
 importers:
 
   .:
@@ -3819,9 +3822,9 @@ snapshots:
 
   '@types/dom-mediacapture-transform@0.1.12':
     dependencies:
-      '@types/dom-webcodecs': 0.1.13
+      '@types/dom-webcodecs': 0.1.13(patch_hash=cdec88f7f43938acf09b8f462b920b70d7402a7c11eb4cf01717f720ce5a4cc1)
 
-  '@types/dom-webcodecs@0.1.13': {}
+  '@types/dom-webcodecs@0.1.13(patch_hash=cdec88f7f43938acf09b8f462b920b70d7402a7c11eb4cf01717f720ce5a4cc1)': {}
 
   '@types/esrecurse@4.3.1': {}
 
@@ -5594,7 +5597,7 @@ snapshots:
   mediabunny@1.56.2:
     dependencies:
       '@types/dom-mediacapture-transform': 0.1.12
-      '@types/dom-webcodecs': 0.1.13
+      '@types/dom-webcodecs': 0.1.13(patch_hash=cdec88f7f43938acf09b8f462b920b70d7402a7c11eb4cf01717f720ce5a4cc1)
 
   mime-db@1.52.0: {}
 
