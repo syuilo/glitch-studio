@@ -3,12 +3,13 @@ import { createRendererWorker } from '@glitch/renderer/client.ts';
 import { deepEqual } from '@glitch/shared/utility/deep-equal.ts';
 import { deepClone } from '@glitch/shared/utility/deep-clone.ts';
 import { projectAudioSourceId } from '@glitch/shared/audio.ts';
+import { genId } from '@glitch/shared/utility/id.ts';
 import { isVideoFrameAvailable, playVideoAfterFirstFrameIsReady } from './utility/video.ts';
 import { AudioInputs } from './audio/audio-inputs.ts';
 import { setupWebcam } from './utility/webcam.ts';
 import type { Asset, VisualModule, VisualModuleParamValues, Player, Timeline } from '@glitch/shared/types.ts';
 import type { MainRenderer } from '@glitch/renderer/renderer.ts';
-import type { EffectStatus } from '@glitch/shared/effect-status.ts';
+import type { EffectStatus, EffectStatusSource } from '@glitch/shared/effect-status.ts';
 import type { IntermediateTextureFormat } from '@glitch/shared/effect-implementation.js';
 import * as ui from '@/ui.ts';
 
@@ -25,6 +26,7 @@ export class Engine {
 	private resolution = { width: 1, height: 1 };
 	private renderLoopRunning = false;
 	public liveVisualModuleId = ref<VisualModule['id'] | null>(null);
+	private liveEffectStatusInstanceId: string | null = null;
 	private liveParamValues: VisualModuleParamValues = {};
 	private reloadPromise: Promise<void> | null = null;
 	private rejectInitialization: ((reason: Error) => void) | null = null;
@@ -57,7 +59,12 @@ export class Engine {
 	public fpsDisplay = ref(0);
 	public gpuMemoryUsage = ref<ReturnType<MainRenderer['gpuMemory']['getUsage']> | null>(null);
 	public isReady = ref(false);
-	public effectStatuses = shallowReactive(new Map<string, EffectStatus>());
+	private liveEffectStatuses = shallowReactive(new Map<string, EffectStatus>());
+
+	public getLiveEffectStatus(visualModuleId: VisualModule['id'], nodeId: string): EffectStatus | undefined {
+		if (this.liveEffectStatusInstanceId == null || this.liveVisualModuleId.value !== visualModuleId) return;
+		return this.liveEffectStatuses.get(nodeId);
+	}
 
 	public getExportRendererSettings() {
 		return {
@@ -209,9 +216,12 @@ export class Engine {
 					break;
 				}
 				case 'effectStatus': {
-					const { nodeId, status } = event.data;
-					if (status) this.effectStatuses.set(nodeId, status);
-					else this.effectStatuses.delete(nodeId);
+					const { source, nodeId, status } = event.data as { source: EffectStatusSource; nodeId: string; status: EffectStatus | null };
+					// 別のレイヤーや、既に破棄したLIVEインスタンスの通知をEditorに表示しない。
+					if (source.type !== 'live' || source.instanceId !== this.liveEffectStatusInstanceId
+						|| source.visualModuleId !== this.liveVisualModuleId.value) break;
+					if (status) this.liveEffectStatuses.set(nodeId, status);
+					else this.liveEffectStatuses.delete(nodeId);
 					break;
 				}
 				case 'telemetry': {
@@ -236,7 +246,10 @@ export class Engine {
 
 	public startLiveRenderLoopFor(visualModuleId: VisualModule['id'], paramValues: VisualModuleParamValues = {}) {
 		this.liveParamValues = deepClone(paramValues);
-		this.call('startLiveRenderLoopFor', [visualModuleId, this.liveParamValues]);
+		const statusInstanceId = genId();
+		this.call('startLiveRenderLoopFor', [visualModuleId, this.liveParamValues, statusInstanceId]);
+		this.liveEffectStatusInstanceId = statusInstanceId;
+		this.liveEffectStatuses.clear();
 		this.liveVisualModuleId.value = visualModuleId;
 		this.renderLoopRunning = true;
 	}
@@ -254,6 +267,8 @@ export class Engine {
 	public stopRenderLoop() {
 		this.call('stopRenderLoop', []);
 		this.renderLoopRunning = false;
+		this.liveEffectStatusInstanceId = null;
+		this.liveEffectStatuses.clear();
 		this.liveVisualModuleId.value = null;
 	}
 
@@ -415,6 +430,8 @@ export class Engine {
 		if (this.isReady.value || (this.rendererWorker != null && this.rejectInitialization != null)) {
 			this.call('renderTimelineAt', [time]);
 			this.renderLoopRunning = false;
+			this.liveEffectStatusInstanceId = null;
+			this.liveEffectStatuses.clear();
 			this.liveVisualModuleId.value = null;
 		}
 	}
@@ -436,7 +453,9 @@ export class Engine {
 		this.rejectInitialization = null;
 		this.pendingCalls = [];
 		this.renderLoopRunning = false;
-		this.effectStatuses.clear();
+		this.liveEffectStatusInstanceId = null;
+		this.liveVisualModuleId.value = null;
+		this.liveEffectStatuses.clear();
 		this.audioInputs.dispose();
 		for (const [id, media] of this.videoElements) {
 			const callback = this.videoFrameCallbacks.get(id);
@@ -476,7 +495,8 @@ export class Engine {
 		this.inFlightVideoFrames.clear();
 		for (const frame of this.pendingVideoFrames.values()) frame.close();
 		this.pendingVideoFrames.clear();
-		this.effectStatuses.clear();
+		this.liveEffectStatusInstanceId = null;
+		this.liveEffectStatuses.clear();
 		this.gpuMemoryUsage.value = null;
 		this.fpsDisplay.value = 0;
 		this.gpuAverageDisplayFast.value = 0;

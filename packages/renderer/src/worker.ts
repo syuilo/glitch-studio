@@ -61,7 +61,7 @@ onmessage = async (event) => {
 			}
 
 			renderer = new MainRenderer({
-				onEffectStatus: (nodeId, status) => self.postMessage({ type: 'effectStatus', nodeId, status }),
+				onEffectStatus: (source, nodeId, status) => self.postMessage({ type: 'effectStatus', source, nodeId, status }),
 				gpuDevice: device,
 				gpuContext: context,
 				resolution: event.data.options.resolution,

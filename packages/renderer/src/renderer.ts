@@ -1,6 +1,7 @@
 import { createTextureFromSource, makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { AudioHistory } from '@glitch/shared/audio-history.ts';
 import { float32ToFloat16Bits } from '@glitch/shared/utility/float32ToFloat16Bits.ts';
+import { genId } from '@glitch/shared/utility/id.ts';
 import defaultVertexShaderCode from './vertex.wgsl?raw';
 import TimingHelper from './utility/TimingHelper.ts';
 import finalRenderShaderCode from './render.wgsl?raw';
@@ -14,7 +15,7 @@ import { TimelineRenderer } from './timeline-renderer.ts';
 import { createVisualModuleTimelineLayer } from './visual-module-timeline-layer.ts';
 import type { FrameScheduler, LiveFrameTiming } from './live-render-loop.ts';
 import type { TimelineLayerRenderer } from './timeline-renderer.ts';
-import type { EffectStatus } from '@glitch/shared/effect-status.ts';
+import type { EffectStatus, EffectStatusSource } from '@glitch/shared/effect-status.ts';
 import type { AudioCaptureMessage, AudioSourceId } from '@glitch/shared/audio.ts';
 import type { Asset, Player, Timeline, TimelineVisualModuleLayer, VisualModule, VisualModuleParamValues } from '@glitch/shared/types.ts';
 import type { EffectImplementation, IntermediateTextureFormat } from '@glitch/shared/effect-implementation.js';
@@ -22,7 +23,8 @@ import type { EffectDefinition } from '@glitch/shared/effect-definition.js';
 
 export class MainRenderer {
 	private timelineRenderer: TimelineRenderer<GPUTexture, Timeline[number]>;
-	private onEffectStatus?: (nodeId: string, status: EffectStatus | null) => void;
+	private onEffectStatus?: (source: EffectStatusSource, nodeId: string, status: EffectStatus | null) => void;
+	private nextTimelineLayerStatusId = 0;
 	private gpuContext: GPUCanvasContext;
 	private gpuDevice: GPUDevice;
 	private resolution: { width: number; height: number; };
@@ -69,7 +71,7 @@ export class MainRenderer {
 	public readonly gpuMemory: GpuMemoryTracker;
 
 	constructor(options: {
-		onEffectStatus?: (nodeId: string, status: EffectStatus | null) => void;
+		onEffectStatus?: (source: EffectStatusSource, nodeId: string, status: EffectStatus | null) => void;
 		gpuDevice: GPUDevice;
 		gpuContext: GPUCanvasContext;
 		resolution: {
@@ -391,6 +393,12 @@ export class MainRenderer {
 	}
 
 	private createVisualModuleLayer(visualModule: VisualModule, layer: TimelineVisualModuleLayer): TimelineLayerRenderer<GPUTexture> {
+		const statusSource: EffectStatusSource = {
+			type: 'timelineLayer',
+			instanceId: `timeline:${this.nextTimelineLayerStatusId++}`,
+			visualModuleId: visualModule.id,
+			layerId: layer.id,
+		};
 		const renderer = new VisualModuleRenderer({
 			gpuDevice: this.gpuDevice,
 			gpuContext: this.gpuContext,
@@ -402,7 +410,7 @@ export class MainRenderer {
 			intermediateTextureFormat: this.intermediateTextureFormat,
 			enableStats: this.enableStats,
 			timingHelper: this.timingHelper,
-			onEffectStatus: this.onEffectStatus,
+			onEffectStatus: (nodeId, status) => this.onEffectStatus?.(statusSource, nodeId, status),
 			videoFrames: this.videoFrames,
 			videoFrameVersions: this.videoFrameVersions,
 			assets: this.assets,
@@ -435,7 +443,7 @@ export class MainRenderer {
 		this.liveParamValues = paramValues;
 	}
 
-	public startLiveRenderLoopFor(visualModuleId: string, paramValues: VisualModuleParamValues = {}) {
+	public startLiveRenderLoopFor(visualModuleId: string, paramValues: VisualModuleParamValues = {}, statusInstanceId = genId()) {
 		this.clearTimelineRenderers();
 		this.stopRenderLoop();
 
@@ -444,6 +452,7 @@ export class MainRenderer {
 
 		this.liveVisualModuleId = visualModuleId;
 		this.liveParamValues = paramValues;
+		const statusSource: EffectStatusSource = { type: 'live', instanceId: statusInstanceId, visualModuleId };
 		this.liveVisualModuleRenderer = new VisualModuleRenderer({
 			gpuDevice: this.gpuDevice,
 			gpuContext: this.gpuContext,
@@ -455,7 +464,7 @@ export class MainRenderer {
 			intermediateTextureFormat: this.intermediateTextureFormat,
 			enableStats: this.enableStats,
 			timingHelper: this.timingHelper,
-			onEffectStatus: this.onEffectStatus,
+			onEffectStatus: (nodeId, status) => this.onEffectStatus?.(statusSource, nodeId, status),
 			videoFrames: this.videoFrames,
 			videoFrameVersions: this.videoFrameVersions,
 			assets: this.assets,
