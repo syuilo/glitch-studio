@@ -225,14 +225,38 @@ const yTicksCount = ref(6);
 const yTicks = computed(() => niceScale(tlPosY.value, tlPosY.value + tlRangeY.value, yTicksCount.value));
 const yTicksWithHalf = computed(() => insertIntermediateNumbers(yTicks.value));
 
-// TODO: もっと高速に計算する方法ないだろうか
 const minMaxValuesInTheAutomation = computed(() => {
+	// 塗りつぶしは値0まで閉じるため、範囲に0も含める。
+	// Xを整数刻みで評価すると0〜1のカーブを始点でしか評価できない。
+	// SVGと同じ三次ベジェの端点と極値を使い、Xの単位や長さに依存させない。
 	let min = 0;
 	let max = 0;
-	for (let i = 0; i < duration.value; i++) {
-		const fv = evalAutomationValue(props.automation, i);
-		if (fv < min) min = fv;
-		if (fv > max) max = fv;
+	const include = (value: number) => {
+		min = Math.min(min, value);
+		max = Math.max(max, value);
+	};
+	const keyframes = props.automation.keyframes;
+	for (const keyframe of keyframes) include(keyframe.y);
+	for (let i = 0; i < keyframes.length - 1; i++) {
+		const start = keyframes[i];
+		const end = keyframes[i + 1];
+		const y0 = start.y;
+		const y1 = start.y + start.bezierControlPointB[1];
+		const y2 = end.y + end.bezierControlPointA[1];
+		const y3 = end.y;
+		// y'(t) / 3 = a*t² + b*t + c。区間内の解だけが曲線の極値候補になる。
+		const a = -y0 + 3 * y1 - 3 * y2 + y3;
+		const b = 2 * (y0 - 2 * y1 + y2);
+		const c = y1 - y0;
+		const discriminant = b * b - 4 * a * c;
+		const roots = a === 0
+			? (b === 0 ? [] : [-c / b])
+			: discriminant < 0 ? [] : [(-b + Math.sqrt(discriminant)) / (2 * a), (-b - Math.sqrt(discriminant)) / (2 * a)];
+		for (const t of roots) {
+			if (t <= 0 || t >= 1) continue;
+			const u = 1 - t;
+			include(u ** 3 * y0 + 3 * u ** 2 * t * y1 + 3 * u * t ** 2 * y2 + t ** 3 * y3);
+		}
 	}
 	return {
 		min,
