@@ -102,13 +102,14 @@
 
 <script lang="ts">
 import type { EffectParamValue, NodeOutputReference } from '@glitch/shared/types.ts';
+import type { GlobalEnvVariable } from '@glitch/shared/expression.ts';
 import type { ParamPath } from '@/utility/node-params.ts';
 import { deepClone } from '@glitch/shared/utility/deep-clone.js';
 import { globalEnvVarDefs } from '@glitch/shared/expression.js';
 
 export type ParamEdit = { paramPath: ParamPath; mergeKey?: string | null } & (
 	| { kind: 'literal'; value: any }
-	| { kind: 'envVariable'; value: string }
+	| { kind: 'envVariable'; value: GlobalEnvVariable }
 	| { kind: 'expression'; value: string }
 	| { kind: 'automationGraphReference'; value: string | null }
 	| { kind: 'node'; value: NodeOutputReference | null }

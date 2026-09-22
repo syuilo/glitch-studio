@@ -1,5 +1,6 @@
 import type { DataType, TextureDataType } from './data-type.ts';
 import type { EffectParamValue, GsEffectNode, NodeParamValue } from './types.ts';
+import type { GlobalEnvVariable } from './expression.ts';
 
 type EffectOptionSchemaBase<T extends DataType> = {
 	dataType: T;
@@ -128,7 +129,7 @@ export type GetEffectOptionsSchemaValues<T extends EffectOptionsSchema> = {
 
 type EffectOptionSerializedValue<T extends EffectOptionsSchema[string]> =
 	{ inputSource: 'literal'; value: EffectOptionScalarValue<T> } |
-	{ inputSource: 'envVariable'; variable: string } |
+	{ inputSource: 'envVariable'; variable: GlobalEnvVariable } |
 	{ inputSource: 'expression'; expression: string } |
 	Extract<EffectParamValue, { inputSource: 'automationGraphReference' }> |
 	NodeParamValue;

@@ -1,4 +1,6 @@
 export const globalEnvVarDefs = ['WIDTH', 'HEIGHT', 'TIME', 'TIME_MS', 'END_TIME', 'END_TIME_MS', 'PROGRESS', 'IS_EXPORT'] as const;
+// 空文字列はUIの「None」を表す。評価時は定義にない変数として既定値へフォールバックする。
+export type GlobalEnvVariable = typeof globalEnvVarDefs[number] | '';
 
 // AiScript 1.2の識別子・予約語に合わせる。コメントやエスケープを含む式は通常のパーサーに任せる。
 
