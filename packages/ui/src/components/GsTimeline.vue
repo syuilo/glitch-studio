@@ -56,7 +56,7 @@
 		<div v-if="selectedLayer != null" :class="$style.rightSidePanel">
 			<div>{{ appContext.getVisualModuleById(selectedLayer?.visualModuleId)?.name }}</div>
 			<GsVisualParam
-				v-for="paramDef of appContext.getVisualModuleById(selectedLayer?.visualModuleId).paramDefs.filter(paramDef => !paramDef.isPrimaryInput)"
+				v-for="paramDef of appContext.getVisualModuleById(selectedLayer.visualModuleId)!.paramDefs.filter(paramDef => !paramDef.isPrimaryInput)"
 				:key="`${selectedLayer.id}:${paramDef.id}`"
 				:visualModuleId="selectedLayer.visualModuleId"
 				:paramPath="[paramDef.id]"
