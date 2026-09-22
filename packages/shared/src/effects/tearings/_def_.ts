@@ -12,7 +12,6 @@ export default defineEffect({
 		angle: { dataType: 'scalar', ui: { label: 'Angle', control: 'angle' }, defaultValue: { inputSource: 'literal', value: 0 } },
 		channelShift: { dataType: 'scalar', ui: { label: 'Ch shift', control: 'range', min: 0, max: 10, step: 0.01 }, defaultValue: { inputSource: 'literal', value: 0.5 } },
 		seed: { dataType: 'scalar', ui: { label: 'Seed', control: 'seed' }, defaultValue: { inputSource: 'envVariable', variable: 'TIME' } },
-		wrap: { dataType: 'wrapMode', ui: { label: 'Wrap', control: 'wrapMode' }, defaultValue: { inputSource: 'literal', value: 'repeatMirrored' } },
 	},
 	outputs: {
 		output: { primary: true, dataType: 'color' },

@@ -1,9 +1,10 @@
-fn premultiplyAlpha(color: vec4f) -> vec4f {
-	return vec4f(color.rgb * color.a, color.a);
-}
-
 fn convertTexCoords(uv: vec2f) -> vec2f {
 	return vec2f(uv.x, -uv.y) * 0.5 + vec2f(0.5);
+}
+
+// 帯の変位計算のUVを、入力参照APIの中央原点・+Yが上の座標へ戻す。
+fn inputPosition(uv: vec2f) -> vec2f {
+	return (uv * 2.0 - 1.0) * vec2f(1.0, -1.0);
 }
 
 struct Uniforms {
@@ -13,9 +14,7 @@ struct Uniforms {
 	shifts: array<vec4f, 128>,
 };
 
-@group(0) @binding(1) var<uniform> uniforms: Uniforms;
-@group(0) @binding(2) var sourceSampler: sampler;
-@group(0) @binding(3) var sourceTexture: texture_2d<f32>;
+@group(0) @binding(0) var<uniform> uniforms: Uniforms;
 
 struct FragmentIn {
 	@location(0) uv: vec2f,
@@ -38,8 +37,9 @@ fn fs(fragData: FragmentIn) -> @location(0) vec4f {
 	}
 
 	let offset = direction * shift;
-	let center = textureSample(sourceTexture, sourceSampler, uv + offset);
-	let red = textureSample(sourceTexture, sourceSampler, uv + offset * (1.0 + uniforms.channelShift)).r;
-	let blue = textureSample(sourceTexture, sourceSampler, uv + offset * (1.0 + uniforms.channelShift / 2.0)).b;
-	return premultiplyAlpha(vec4f(red, center.g, blue, center.a));
+	let center = read_input(inputPosition(uv + offset));
+	let red = read_input(inputPosition(uv + offset * (1.0 + uniforms.channelShift))).r;
+	let blue = read_input(inputPosition(uv + offset * (1.0 + uniforms.channelShift / 2.0))).b;
+	// 入力は既にpremultiplied alphaなので、alphaを再乗算しない。
+	return vec4f(red, center.g, blue, center.a);
 }

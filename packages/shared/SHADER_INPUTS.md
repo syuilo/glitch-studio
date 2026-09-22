@@ -5,8 +5,9 @@
 現在の導入先:
 
 - 合成: colorMix、colorBlend、dataMix、dataBlend
+- 履歴・蓄積: accumulate（外部入力のみ。履歴は同一画素をtextureLoadで読む）
 - データ生成・演算: composeVector、remap、multiply、rgbTo、snoise、gradient
-- 画像加工: symbols、channelShift、chromaticAberration、colorBlocks、lcd、rainDropsOnWindow1、rainDropsOnWindow2、vectorDisplacement、blockShuffle、blur
+- 画像加工: symbols、channelShift、chromaticAberration、colorBlocks、lcd、rainDropsOnWindow1、rainDropsOnWindow2、vectorDisplacement、blockShuffle、blur、quadtreeFilter、tearings
 
 移行済みのエフェクトでは、入力のfit/wrapは接続設定に統一する。従来の独立したfitModeA/B/Amountやwrapパラメータは削除している。未接続の定数は位置によらず同じ値を返す。
 
@@ -30,10 +31,9 @@ gradientでは `scalarGradients: true` と `sampling: 'level0'` を指定し、�
 
 今回の移行は単一出力のrender passを中心に行った。以下は個別の対応が必要なため従来方式を維持している。
 
-- accumulate、frameDifference、opticalFlow、pixelSort、histogramなど: 履歴・整数画素・computeのアクセスと、通常の入力サンプリングを分けて扱う。
+- frameDifference、opticalFlow、pixelSort、histogramなど: 履歴・整数画素・computeのアクセスと、通常の入力サンプリングを分けて扱う。
 - bloom、liquidMetalなど: 中間テクスチャを使う複数passへの適用範囲を整理する。
 - transform、scalarGradient: 幾何変換・微分に必要な入力サイズの参照と、fit変換の関係を整理する。
-- quadtreeFilter、tearings: 既存のnearestサンプリングを維持するか検討する。現行の生成APIはlinearサンプリング。
 - drosteRegression、testStructArrayなど: 個別の座標計算や構造化パラメータの扱いを含むため、別途移行する。
 
 ## 検証

@@ -2,6 +2,11 @@ fn convertTexCoords(uv: vec2f) -> vec2f {
 	return vec2f(uv.x, -uv.y) * 0.5 + vec2f(0.5);
 }
 
+// 分割計算のUVを、入力参照APIの中央原点・+Yが上の座標へ戻す。
+fn inputPosition(uv: vec2f) -> vec2f {
+	return (uv * 2.0 - 1.0) * vec2f(1.0, -1.0);
+}
+
 struct Uniforms {
 	minDivisions: f32,
 	maxIterations: u32,
@@ -10,9 +15,7 @@ struct Uniforms {
 	borderWidth: f32,
 };
 
-@group(0) @binding(1) var<uniform> uniforms: Uniforms;
-@group(0) @binding(2) var mySampler: sampler;
-@group(0) @binding(3) var sourceTexture: texture_2d<f32>;
+@group(0) @binding(0) var<uniform> uniforms: Uniforms;
 
 struct FragmentIn {
 	@location(0) uv: vec2f,
@@ -69,7 +72,7 @@ fn quadColorVariation(center: vec2f, size: f32) -> vec4f {
 		// pick a random 2d point using the center of the active quad as input
 		// this ensures that for every point belonging to the active quad, we pick the same samples
 		let r = hash22(center.xy + vec2f(fi, 0.0)) - 0.5;
-		let sp = textureSampleLevel(sourceTexture, mySampler, center + r * size, 0.0).rgb;
+		let sp = read_input(inputPosition(center + r * size)).rgb;
 		avg += sp;
 		samplesBuffer[i] = sp;
 	}
@@ -114,7 +117,7 @@ fn fs(fragData: FragmentIn) -> @location(0) vec4f {
 		quadSize /= 2.0;
 	}
 
-	var color = textureSampleLevel(sourceTexture, mySampler, uv, 0.0);
+	var color = read_input(fragData.uv);
 	
 	// the coordinates of the quad
 	let nUv = fract(uv * divs);
