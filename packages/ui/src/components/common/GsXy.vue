@@ -26,6 +26,7 @@
 		<div :class="$style.locks">
 			<GsButton small :primary="axisLock === 'x'" title="X axis" @click="toggleAxisLock('x')">X</GsButton>
 			<GsButton small :primary="axisLock === 'y'" title="Y axis" @click="toggleAxisLock('y')">Y</GsButton>
+			<GsButton small :primary="lockedRatio != null" :disabled="lockedRatio == null && value[0] === 0 && value[1] === 0" title="Lock X:Y ratio" @click="toggleRatioLock"><i class="ti ti-link"></i></GsButton>
 		</div>
 	</div>
 </div>
@@ -55,6 +56,7 @@ type AxisLock = 'x' | 'y' | null;
 const surface = useTemplateRef<HTMLElement>('surface');
 const value = ref<[number, number]>([...props.modelValue]);
 const axisLock = ref<AxisLock>(null);
+const lockedRatio = ref<[number, number] | null>(null);
 const activePointerId = ref<number | null>(null);
 
 const xPosition = computed(() => `${toRatio(value.value[0]) * 100}%`);
@@ -76,8 +78,37 @@ function snap(number: number): number {
 	return Number(Math.min(props.max, Math.max(props.min, snapped)).toFixed(10));
 }
 
-function setValue(x: number, y: number) {
-	value.value = [snap(x), snap(y)];
+function setValue(x: number, y: number, changedAxis?: 'x' | 'y') {
+	const ratio = lockedRatio.value;
+	if (ratio == null) {
+		value.value = [snap(x), snap(y)];
+	} else {
+		const [ratioX, ratioY] = ratio;
+		// ポインター位置を比率の直線に射影する。キー操作では指定された軸の値を優先する。
+		let scale: number;
+		if (changedAxis === 'x') {
+			if (ratioX === 0) return;
+			scale = snap(x) / ratioX;
+		} else if (changedAxis === 'y') {
+			if (ratioY === 0) return;
+			scale = snap(y) / ratioY;
+		} else {
+			scale = (x * ratioX + y * ratioY) / (ratioX * ratioX + ratioY * ratioY);
+			// 両軸を個別に丸めると比率が崩れるため、大きい成分だけをstepに合わせる。
+			const dominantComponent = Math.abs(ratioX) >= Math.abs(ratioY) ? ratioX : ratioY;
+			scale = snap(scale * dominantComponent) / dominantComponent;
+		}
+		// 値を個別にclampせず、両軸が範囲内に収まる共通の倍率を求める。
+		let minScale = -Infinity;
+		let maxScale = Infinity;
+		for (const component of ratio) {
+			if (component === 0) continue;
+			minScale = Math.max(minScale, Math.min(props.min / component, props.max / component));
+			maxScale = Math.min(maxScale, Math.max(props.min / component, props.max / component));
+		}
+		scale = Math.min(maxScale, Math.max(minScale, scale));
+		value.value = [ratioX * scale, ratioY * scale];
+	}
 	emit('update:modelValue', value.value);
 }
 
@@ -112,16 +143,29 @@ function onPointerUp(event: PointerEvent) {
 
 function onKeydown(event: KeyboardEvent) {
 	const amount = props.step ?? (props.max - props.min) / 100;
-	if (event.key === 'ArrowLeft' && axisLock.value !== 'y') setValue(value.value[0] - amount, value.value[1]);
-	else if (event.key === 'ArrowRight' && axisLock.value !== 'y') setValue(value.value[0] + amount, value.value[1]);
-	else if (event.key === 'ArrowDown' && axisLock.value !== 'x') setValue(value.value[0], value.value[1] - amount);
-	else if (event.key === 'ArrowUp' && axisLock.value !== 'x') setValue(value.value[0], value.value[1] + amount);
+	if (event.key === 'ArrowLeft' && axisLock.value !== 'y') setValue(value.value[0] - amount, value.value[1], 'x');
+	else if (event.key === 'ArrowRight' && axisLock.value !== 'y') setValue(value.value[0] + amount, value.value[1], 'x');
+	else if (event.key === 'ArrowDown' && axisLock.value !== 'x') setValue(value.value[0], value.value[1] - amount, 'y');
+	else if (event.key === 'ArrowUp' && axisLock.value !== 'x') setValue(value.value[0], value.value[1] + amount, 'y');
 	else return;
 	event.preventDefault();
 }
 
 function toggleAxisLock(axis: Exclude<AxisLock, null>) {
+	lockedRatio.value = null;
 	axisLock.value = axisLock.value === axis ? null : axis;
+}
+
+function toggleRatioLock() {
+	if (lockedRatio.value != null) {
+		lockedRatio.value = null;
+		return;
+	}
+	const magnitude = Math.max(Math.abs(value.value[0]), Math.abs(value.value[1]));
+	if (magnitude === 0) return;
+	// 原点を通っても固定時の比率を失わないよう、現在値とは別に保持する。
+	lockedRatio.value = [value.value[0] / magnitude, value.value[1] / magnitude];
+	axisLock.value = null;
 }
 
 function formatValue(number: number): string {
