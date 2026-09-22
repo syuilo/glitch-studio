@@ -1,5 +1,6 @@
 import type { TextureDataType } from './data-type.ts';
 import type { EffectOptionSchema, VisualModuleParamDef } from './effect-definition.ts';
+import type { globalEnvVarDefs } from './expression.ts';
 
 export type NodeOutputReference = { nodeId: string; outputPort: string; fitMode?: string; wrapMode?: string };
 export type NodeParamValue = { inputSource: 'node' } & (NodeOutputReference | { nodeId: null; outputPort: null });
@@ -9,7 +10,7 @@ export type EffectParamValue = {
 	value: any; // TODO: literalにリネーム？
 } | {
 	inputSource: 'envVariable';
-	variable: string;
+	variable: typeof globalEnvVarDefs[number];
 } | {
 	inputSource: 'expression';
 	expression: string;
