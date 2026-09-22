@@ -1,9 +1,13 @@
-import { ref } from 'vue';
-import { fpsLimit } from './app.ts';
+import { ref, watch } from 'vue';
+import { engine, fpsLimit } from './app.ts';
 
 export const currentTimelineTime = ref(0);
 export const isTimelinePlaying = ref(false);
 let currentTimelinePlayingRafId: number | null = null;
+
+watch(currentTimelineTime, () => {
+	engine.renderTimelineAt(currentTimelineTime.value);
+}, { deep: true, immediate: true });
 
 export function playTimeline() {
 	isTimelinePlaying.value = true;
@@ -32,4 +36,8 @@ export function stopTimeline() {
 		window.cancelAnimationFrame(currentTimelinePlayingRafId);
 		currentTimelinePlayingRafId = null;
 	}
+}
+
+export function renderTimelineAtCurrentTime() {
+	engine.renderTimelineAt(currentTimelineTime.value);
 }

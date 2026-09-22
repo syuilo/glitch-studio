@@ -21,6 +21,13 @@ export type EffectParamValue = {
 	automationId: string | null;
 	durationMs: number;
 	playMode: 'start' | 'end' | 'repeat' | 'repeatMirrored';
+} | {
+	inputSource: 'automationInline';
+	automation: {
+		keyframes: GsKeyframe[];
+	};
+	durationMs: number;
+	playMode: 'start' | 'end' | 'repeat' | 'repeatMirrored';
 } | NodeParamValue;
 
 export type Asset = {

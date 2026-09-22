@@ -35,6 +35,69 @@ const stateUtility = {
 	},
 };
 
+const editVisualModuleLayerParamCommandDef = defineCommand<{
+	layerId: string;
+	paramId: string;
+	edit:
+		| { kind: 'literal'; value: any }
+		| { kind: 'envVariable' | 'expression'; value: string }
+		| { kind: 'automationReference'; value: string | null }
+		| { kind: 'inputSource'; inputSource: EffectParamValue['inputSource'] }
+		| { kind: 'reset' };
+}>({
+	label: 'Edit visual module layer param',
+	create: payload => {
+		let before: EffectParamValue | undefined;
+		let after: EffectParamValue | undefined;
+		const getLayer = (state: AppState) => {
+			const layer = state.timeline.value.find(layer => layer.id === payload.layerId);
+			if (layer == null) throw new Error('Timeline layer not found');
+			return layer;
+		};
+		return {
+			execute(state) {
+				const layer = getLayer(state);
+				if (after === undefined) {
+					const def = stateUtility.getVisualModule(state, layer.visualModuleId).paramDefs.find(def => def.id === payload.paramId);
+					if (def == null || def.isPrimaryInput) throw new Error('Editable visual module parameter not found');
+					before = deepClone(layer.paramValues[payload.paramId]);
+					const current = before ?? def.defaultValue;
+					const edit = payload.edit;
+					switch (edit.kind) {
+						case 'literal': after = { inputSource: 'literal', value: deepClone(edit.value) }; break;
+						case 'envVariable': after = { inputSource: 'envVariable', variable: edit.value }; break;
+						case 'expression': after = { inputSource: 'expression', expression: edit.value }; break;
+						case 'automationReference': after = {
+							inputSource: 'automationReference', durationMs: 1000, playMode: 'repeat',
+							...(current.inputSource === 'automationReference' ? current : {}), automationId: edit.value,
+						}; break;
+						case 'reset': after = deepClone(def.defaultValue); break;
+						case 'inputSource':
+							switch (edit.inputSource) {
+								case 'literal': after = deepClone(def.defaultValue); break;
+								case 'envVariable': after = { inputSource: 'envVariable', variable: '' }; break;
+								case 'expression': after = {
+									inputSource: 'expression', expression: AiSON.stringify(current.inputSource === 'literal' ? current.value : def.defaultValue.value),
+								}; break;
+								case 'automationReference': after = { inputSource: 'automationReference', automationId: null, durationMs: 1000, playMode: 'repeat' }; break;
+								case 'node':
+								case 'externalParameterInput': throw new Error('Unsupported layer parameter input source');
+							}
+							break;
+					}
+				}
+				layer.paramValues[payload.paramId] = deepClone(after);
+			},
+			undo(state) {
+				const layer = getLayer(state);
+				// デフォルト値を参照していた状態も復元し、定義への不要な上書きを残さない。
+				if (before === undefined) delete layer.paramValues[payload.paramId];
+				else layer.paramValues[payload.paramId] = deepClone(before);
+			},
+		};
+	},
+});
+
 const addEffectNodeCommandDef = defineCommand<{ visualModuleId: string; id: string; effectId: string; params?: Record<string, EffectParamValue> }>({
 	label: 'Add fx node',
 	create: payload => {
@@ -637,6 +700,7 @@ const updateVisualModuleOutputDefCommandDef = defineCommand<{
 });
 
 export const COMMAND_DEFS = {
+	editVisualModuleLayerParam: editVisualModuleLayerParamCommandDef,
 	addVisualModuleOutputDef: addVisualModuleOutputDefCommandDef,
 	removeVisualModuleOutputDef: removeVisualModuleOutputDefCommandDef,
 	updateVisualModuleOutputDef: updateVisualModuleOutputDefCommandDef,

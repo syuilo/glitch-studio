@@ -10,7 +10,6 @@ import { Engine } from './engine.ts';
 import { preferences } from './preferences.ts';
 import { COMMAND_DEFS } from './commands.ts';
 import GsEffectPicker from './components/GsEffectPicker.vue';
-import { currentTimelineTime } from './timeline.ts';
 import type { CommandDef } from './commands.ts';
 import type { AppState } from './types.ts';
 import type { EffectNodeOf } from '@glitch/shared/effect-definition.ts';
@@ -211,10 +210,6 @@ export async function appReady(project: Project) {
 
 	watch(appContext.state.timeline, () => {
 		engine.updateTimeline(deepClone(appContext.state.timeline.value));
-	}, { deep: true, immediate: true });
-
-	watch(currentTimelineTime, () => {
-		engine.renderTimelineAt(currentTimelineTime.value);
 	}, { deep: true, immediate: true });
 
 	engine.startLiveRenderLoopFor(project.visualModules[0].id);

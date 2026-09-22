@@ -57,7 +57,8 @@
 			<div>{{ appContext.getVisualModuleById(selectedLayer?.visualModuleId)?.name }}</div>
 			<GsVisualParam
 				v-for="paramDef of appContext.getVisualModuleById(selectedLayer?.visualModuleId).paramDefs.filter(paramDef => !paramDef.isPrimaryInput)"
-				:key="paramDef.id"
+				:key="`${selectedLayer.id}:${paramDef.id}`"
+				:visualModuleId="selectedLayer.visualModuleId"
 				:paramPath="[paramDef.id]"
 				:paramDef="{ ...paramDef, canNode: false }"
 				:paramValue="selectedLayer.paramValues[paramDef.id] ?? paramDef.defaultValue"
@@ -329,7 +330,17 @@ function onLayerBlockClick(ev: PointerEvent, layer: Timeline[number]) {
 }
 
 function onVisualModuleLayerParamEdit(event: ParamEdit) {
-	// TODO
+	const layer = selectedLayer.value;
+	// VisualModuleのパラメータ定義はフラットで、ノード接続や内部パラメータ参照は扱わない。
+	if (layer == null || event.paramPath.length !== 1) return;
+	if (event.kind === 'node' || event.kind === 'externalParameterInput' || event.kind === 'addElement' || event.kind === 'removeElement') return;
+	if (event.kind === 'inputSource' && (event.inputSource === 'node' || event.inputSource === 'externalParameterInput')) return;
+	appContext.commit('editVisualModuleLayerParam', {
+		layerId: layer.id,
+		paramId: event.paramPath[0],
+		edit: event.kind === 'reset' ? { kind: 'reset' } : event,
+	}, event.kind === 'literal' && event.mergeKey != null ? `${layer.id}:${event.paramPath[0]}:${event.mergeKey}` : undefined);
+	timeline.renderTimelineAtCurrentTime();
 }
 
 function addLayer() {
