@@ -68,7 +68,7 @@ function onParamEdit(event: ParamEdit) {
 		case 'literal': appContext.commit('updateParamAsLiteral', { ...target, value: event.value }, event.mergeKey); break;
 		case 'automationGraphInline': appContext.commit('updateParamAsAutomationGraphInline', { ...target, value: event.value }, event.mergeKey); break;
 		case 'envVariable': appContext.commit('updateParamAsEnvVariable', { ...target, value: event.value }); break;
-		case 'expression': appContext.commit('updateParamAsExpression', { ...target, value: event.value }); break;
+		case 'expression': appContext.commit('updateParamAsExpression', { ...target, value: event.value }, event.mergeKey); break;
 		case 'automationGraphReference': appContext.commit('updateParamAsAutomationGraphReference', { ...target, value: event.value, options: event.options }); break;
 		case 'node': appContext.commit('updateParamAsNode', { ...target, value: event.value }); break;
 		case 'externalParameterInput': appContext.commit('updateParamAsExternalParameterInput', { ...target, value: event.value }); break;

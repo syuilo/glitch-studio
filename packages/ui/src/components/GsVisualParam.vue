@@ -23,7 +23,7 @@
 				<GsNodePort v-if="canNode" :dataType="inputDataType" @update:element="portEl = $event"/>
 				<i v-if="hasNodeInputTypeMismatch(nodes, nodeConnection, inputDataType, paramDefs)" v-tooltip="'Data type mismatch'" class="ti ti-alert-triangle" :class="$style.typeWarning"></i>
 				<div :class="$style.control">
-					<GsInput v-if="paramValue.inputSource === 'expression'" type="text" class="_monospace" :modelValue="paramValue.expression" @update:modelValue="updateParamAsExpression">
+					<GsInput v-if="paramValue.inputSource === 'expression'" type="text" class="_monospace" :modelValue="paramValue.expression" @focusin="onBeginChanging" @focusout="onFinishChanging" @update:modelValue="updateParamAsExpression">
 						<template #caption>
 							<div v-if="isExpressionSyntaxError" style="color: var(--THEME-error);"><i class="ti ti-alert-triangle"></i> Syntax error!</div>
 						</template>
@@ -363,7 +363,7 @@ function updateParamAsLiteral(value: any) {
 }
 
 function updateParamAsExpression(value: string) {
-	if (mounted) emit('edit', { kind: 'expression', ...target(), value });
+	if (mounted) emit('edit', { kind: 'expression', ...target(), value, mergeKey: commandMergeKey });
 }
 
 function connectNode(value: NodeOutputReference | null) {

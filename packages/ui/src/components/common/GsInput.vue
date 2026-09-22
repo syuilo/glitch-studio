@@ -121,6 +121,8 @@ const onKeydown = (ev: KeyboardEvent) => {
 
 const updated = () => {
 	changed.value = false;
+	// Undo/Redoなどで親から同期された値を編集として返すと、Redo履歴が消えてしまう。
+	if (Object.is(v.value, modelValue.value)) return;
 	if (props.type === 'number') {
 		emit('update:modelValue', typeof v.value === 'number' ? v.value as ModelValueType<T> : parseFloat(v.value ?? '0') as ModelValueType<T>);
 	} else {
@@ -132,11 +134,14 @@ const throttledUpdated = throttle(typeof props.throttle === 'number' ? props.thr
 const debouncedUpdated = debounce(typeof props.debounce === 'number' ? props.debounce : 1000, updated);
 
 watch(modelValue, newValue => {
+	// 外部から値が確定した後に、以前の入力の遅延通知を発行しない。
+	throttledUpdated.cancel({ upcomingOnly: true });
+	debouncedUpdated.cancel({ upcomingOnly: true });
 	v.value = newValue;
 });
 
 watch(v, () => {
-	if (!props.manualSave) {
+	if (!props.manualSave && !Object.is(v.value, modelValue.value)) {
 		if (props.throttle === true || typeof props.throttle === 'number') {
 			throttledUpdated();
 		} else if (props.debounce === true || typeof props.debounce === 'number') {
