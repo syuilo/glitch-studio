@@ -18,7 +18,6 @@ struct Pixel {
 };
 
 @group(0) @binding(0) var<uniform> uniforms: Uniforms;
-@group(0) @binding(1) var source: texture_2d<f32>;
 @group(0) @binding(2) var<storage, read> input: array<Pixel>;
 @group(0) @binding(3) var<storage, read_write> output: array<Pixel>;
 
@@ -27,10 +26,10 @@ fn coordinates(index: u32, line: u32) -> vec2u {
 }
 
 fn samplePixel(index: u32, line: u32) -> vec4f {
-	// ソート対象の画素値と閾値判定を変えないよう、補間せずに読む。
-	let size = textureDimensions(source);
+	// 出力画素の中心にfit/wrapを適用した画像をソートする。
+	// 閾値判定と並べ替え後の出力で同じ関数・同じ座標を使い、値の不一致を防ぐ。
 	let uv = (vec2f(coordinates(index, line)) + 0.5) / vec2f(f32(uniforms.width), f32(uniforms.height));
-	return textureLoad(source, vec2i(min(vec2u(uv * vec2f(size)), size - 1u)), 0);
+	return read_input((uv * 2.0 - 1.0) * vec2f(1.0, -1.0));
 }
 
 // One linear scan per line labels runs. Pixels outside the selected range get singleton
