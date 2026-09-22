@@ -29,6 +29,7 @@ export type EvaluatedParameters = {
 export class ParameterEvaluator {
 	private aisParser = new AiScript.Parser();
 	private aiscript = new AiScript.Interpreter({});
+	private astCache = new Map<string, AiScript.Ast.Node[]>();
 
 	// パフォーマンス上の理由でインタプリタは使いまわすが、毎回スコープは上書きしてるので特に問題ないはず
 	// (本来ならスコープ的にアクセスできない値にアクセスできる可能性が生まれるのは許容する)
@@ -57,7 +58,10 @@ export class ParameterEvaluator {
 					this.aiscript.scope.add(key, { isMutable: true, value: constants[key] });
 				}
 			}
-			const aisVal = this.aiscript.execSync(this.aisParser.parse(expression));
+			const cachedAst = this.astCache.get(expression);
+			const ast = cachedAst ?? this.aisParser.parse(expression);
+			if (cachedAst == null) this.astCache.set(expression, ast);
+			const aisVal = this.aiscript.execSync(ast);
 			return aisVal === undefined ? null : AiScript.utils.valToJs(aisVal);
 		} catch {
 			return genEmptyValue(paramDefForFallback);
