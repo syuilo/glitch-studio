@@ -82,7 +82,7 @@ export class ParameterEvaluator {
 		// TODO: 各automationをフレーム数を引数にとる関数として定義する
 		const automationScope = {} as Record<string, any>;
 		for (const automation of context.automations) {
-			automationScope[automation.name] = evalAutomationValue(automation, context.time);
+			automationScope[automation.name] = evalAutomationValue(automation, context.time, 'repeat');
 		}
 
 		const mixedScope: Record<string, any> = { ...automationScope, ...scope };
@@ -96,7 +96,7 @@ export class ParameterEvaluator {
 			if (value?.inputSource === 'expression') evaluated = this.evaluateExpression(value.expression, mixedScope, def);
 			if (value?.inputSource === 'automationReference') {
 				const automation = context.automations.find(automation => automation.id === value.automationId);
-				evaluated = automation == null ? deepClone(def.defaultValue.value) : evalAutomationValue(automation, context.time);
+				evaluated = automation == null ? deepClone(def.defaultValue.value) : evalAutomationValue(automation, context.time, 'repeat');
 			}
 			paramValues.set(def.id, evaluated);
 		}
@@ -125,7 +125,7 @@ export class ParameterEvaluator {
 					}
 					if (param.inputSource === 'automationReference') {
 						const automation = context.automations.find(a => a.id === param.automationId);
-						return automation ? evalAutomationValue(automation, context.time) : genEmptyValue(def);
+						return automation ? evalAutomationValue(automation, context.time, 'repeat') : genEmptyValue(def);
 					}
 					return param.nodeId == null ? null : { nodeId: param.nodeId, outputPort: param.outputPort };
 				});

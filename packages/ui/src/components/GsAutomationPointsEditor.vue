@@ -170,7 +170,7 @@ const seekBarPos = computed(() => {
 	return valueXToDomX(currentValueX.value);
 });
 const currentValue = computed(() => {
-	return evalAutomationValue({ points: ppints.value }, currentValueX.value);
+	return evalAutomationValue({ points: ppints.value }, currentValueX.value, 'clamp');
 });
 const valueBarPos = computed(() => {
 	return valueYToDomY(currentValue.value);
