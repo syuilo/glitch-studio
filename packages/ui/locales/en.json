@@ -118,9 +118,11 @@
 	"_EnvVariables": {
 		"TIME": "Time (s)",
 		"TIME_MS": "Time (ms)",
+		"END_TIME": "Time of End (s)",
+		"END_TIME_MS": "Time of End (ms)",
+		"PROGRESS": "Progress",
 		"WIDTH": "Rendering Width",
 		"HEIGHT": "Rendering Height",
-		"PROGRESS": "Progress",
 		"IS_EXPORT": "Whether it is an export rendering"
 	},
 	"GpuMemoryEstimate": "Estimated GPU resource memory\nTextures: {textures} MiB\nBuffers: {buffers} MiB",

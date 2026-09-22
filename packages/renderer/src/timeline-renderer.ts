@@ -8,7 +8,7 @@ export type TimelineRenderEntry = {
 export type TimelineLayerContext<Output> = {
 	time: number;
 	timeDelta: number;
-	progress: number;
+	endTime: number;
 	input: Output;
 };
 
@@ -72,12 +72,11 @@ export class TimelineRenderer<Output, Entry extends TimelineRenderEntry = Timeli
 					if (layer == null) continue;
 					this.layers.set(entry.id, layer);
 				}
-				const duration = entry.endTimeMs - entry.startTimeMs;
 				const context: TimelineLayerContext<Output> = {
 					time: time - entry.startTimeMs,
 					// 新規レイヤーには履歴がない。途中からの書き出しでも過去のフレームは再現しない。
 					timeDelta: isNewLayer ? 0 : timeDelta,
-					progress: duration > 0 ? (time - entry.startTimeMs) / duration : 0,
+					endTime: entry.endTimeMs,
 					input: output,
 				};
 				await layer.prepare(context, controller.signal);

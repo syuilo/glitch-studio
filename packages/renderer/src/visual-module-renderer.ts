@@ -17,7 +17,7 @@ export type VisualModuleRenderContext = {
 	//globalTime: number; // タイムラインの再生位置を示すが、使わなそう
 	time: number;
 	timeDelta: number;
-	progress?: number; // レイヤーなどとして入ってる時の再生進行度
+	endTime: number; // 終了時刻という概念がないコンテキスト(例: live mode)の場合はInfinityとすること。
 	paramTextures?: ReadonlyMap<string, GPUTexture>;
 	pointerPosition: { x: number; y: number };
 	pointerPositionPrev: { x: number; y: number };
@@ -169,7 +169,7 @@ export class VisualModuleRenderer {
 			automations: this.automations,
 			resolution: this.resolution,
 			time: context.time,
-			progress: context.progress,
+			endTime: context.endTime,
 			paramValues: context.paramValues,
 			textureParamIds: new Set(this.paramTextures.keys()),
 		});

@@ -1,11 +1,11 @@
-import type { VisualModule, VisualModuleLayer } from '@glitch/shared/types.ts';
+import type { TimelineVisualModuleLayer, VisualModule } from '@glitch/shared/types.ts';
 import type { VisualModuleRenderContext } from './visual-module-renderer.ts';
 import type { TimelineLayerContext, TimelineLayerRenderer } from './timeline-renderer.ts';
 
 // 主入力の割り当てやパラメータはVisual Moduleレイヤーだけの責務とする。
 export function createVisualModuleTimelineLayer(
 	visualModule: Pick<VisualModule, 'paramDefs'>,
-	layer: VisualModuleLayer,
+	layer: TimelineVisualModuleLayer,
 	renderer: {
 		prepare: (context: VisualModuleRenderContext, signal: AbortSignal) => Promise<void>;
 		render: (context: VisualModuleRenderContext) => ReturnType<TimelineLayerRenderer<GPUTexture>['render']>;
@@ -21,7 +21,7 @@ export function createVisualModuleTimelineLayer(
 			resolved = {
 				time: context.time,
 				timeDelta: context.timeDelta,
-				progress: context.progress,
+				endTime: context.endTime,
 				paramValues: layer.paramValues,
 				paramTextures: new Map(visualModule.paramDefs.filter(def => def.isPrimaryInput).map(def => [def.id, context.input])),
 				pointerPosition: { x: -99999, y: -99999 },

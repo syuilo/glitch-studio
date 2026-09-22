@@ -13,7 +13,7 @@ export type ParameterEvaluationContext = {
 	automations: GsAutomation[];
 	resolution: { width: number; height: number; };
 	time: number;
-	progress?: number;
+	endTime: number; // 終了時刻という概念がないコンテキスト(例: live mode)の場合はInfinityとすること。
 	paramValues: VisualModuleParamValues;
 	// テクスチャそのものは扱わず、値として参照できないパラメータのIDだけを受け取る。
 	textureParamIds: ReadonlySet<string>;
@@ -72,7 +72,9 @@ export class ParameterEvaluator {
 			HEIGHT: context.resolution.height,
 			TIME: context.time / 1000, // ms to seconds
 			TIME_MS: context.time,
-			PROGRESS: context.progress ?? 0,
+			END_TIME: (context.endTime ?? Infinity) / 1000, // ms to seconds
+			END_TIME_MS: (context.endTime ?? Infinity),
+			PROGRESS: context.time / (context.endTime ?? Infinity),
 			IS_EXPORT: false, // TODO
 		} satisfies Record<typeof globalEnvVarDefs[number], any>;
 
