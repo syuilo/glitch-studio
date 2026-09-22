@@ -92,6 +92,10 @@ class AppContext {
 		this.undoStack.value.push(command);
 		triggerRef(this.undoStack);
 	}
+
+	public getVisualModuleById(id: VisualModule['id']) {
+		return this.state.visualModules.value.find(vm => vm.id === id) ?? null;
+	}
 }
 
 export const appContext = new AppContext();
@@ -278,11 +282,9 @@ export async function newProject() {
 		players: [],
 		timeline: [{
 			id: genId(),
-			layer: {
-				type: 'visualModule',
-				visualModuleId: initialVisualModule.id,
-				paramValues: {},
-			},
+			layerType: 'visualModule',
+			visualModuleId: initialVisualModule.id,
+			paramValues: {},
 			startTimeMs: 0,
 			endTimeMs: 1000 * 10,
 		}],
@@ -398,11 +400,9 @@ export async function newProjectFromImageOrVideo(file?: File) {
 		players: player ? [player] : [],
 		timeline: [{
 			id: genId(),
-			layer: {
-				type: 'visualModule',
-				visualModuleId: initialVisualModule.id,
-				paramValues: {},
-			},
+			layerType: 'visualModule',
+			visualModuleId: initialVisualModule.id,
+			paramValues: {},
 			startTimeMs: 0,
 			endTimeMs: 1000 * 10,
 		}],

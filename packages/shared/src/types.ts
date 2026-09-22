@@ -110,17 +110,15 @@ export type VisualModule = {
 // レイヤー・live modeからは、モジュール内部のノードやパラメータを参照しない。
 export type VisualModuleParamValues = Record<string, Exclude<EffectParamValue, { type: 'node' | 'externalParameterInput' }>>;
 
-export type VisualModuleLayer = {
-	type: 'visualModule';
+export type TimelineVisualModuleLayer = {
+	id: string;
+	startTimeMs: number;
+	endTimeMs: number;
+	layerType: 'visualModule';
 	visualModuleId: string;
 	paramValues: VisualModuleParamValues;
 };
 
-export type Layer = VisualModuleLayer;
+export type TimelineLayer = TimelineVisualModuleLayer;
 
-export type Timeline = {
-	id: string;
-	layer: Layer;
-	startTimeMs: number;
-	endTimeMs: number;
-}[];
+export type Timeline = TimelineLayer[];

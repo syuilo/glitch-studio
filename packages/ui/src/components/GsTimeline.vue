@@ -23,7 +23,7 @@
 					<GsButton>{{ layer.id }}</GsButton>
 				</div>
 				<div :class="$style.layersTl">
-					<div :class="$style.layerBlock" :style="{ width: layerRects[layer.id].width + 'px', left: layerRects[layer.id].left + 'px' }">{{ layer.id }}</div>
+					<div :class="$style.layerBlock" :style="{ width: layerRects[layer.id].width + 'px', left: layerRects[layer.id].left + 'px' }" @click="onLayerBlockClick($event, layer.layer)">{{ layer.id }}</div>
 				</div>
 			</div>
 		</div>
@@ -54,6 +54,10 @@
 			</div>
 		</div>
 		<div v-if="selectedLayer != null" :class="$style.rightSidePanel">
+			<div>{{ appContext.getVisualModuleById(selectedLayer?.visualModuleId)?.name }}</div>
+			<div v-for="paramDef in appContext.getVisualModuleById(selectedLayer?.visualModuleId)?.paramDefs" :key="paramDef.id">
+				<div>{{ paramDef.ui.label }}</div>
+			</div>
 		</div>
 	</div>
 </div>
@@ -311,6 +315,10 @@ function formatMsToTimecode(ms: number) {
 	} else {
 		return `${minutes}:${seconds.toString().padStart(2, '0')}.${Math.floor(milliseconds).toString().replace(/0+$/, '')}`;
 	}
+}
+
+function onLayerBlockClick(ev: PointerEvent, layer: Layer) {
+	selectedLayer.value = layer;
 }
 
 function addLayer() {
