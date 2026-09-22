@@ -23,7 +23,7 @@
 					<GsButton>{{ layer.id }}</GsButton>
 				</div>
 				<div :class="$style.layersTl">
-					<div :class="$style.layerBlock" :style="{ width: layerRects[layer.id].width + 'px', left: layerRects[layer.id].left + 'px' }" @click="onLayerBlockClick($event, layer.layer)">{{ layer.id }}</div>
+					<div :class="$style.layerBlock" :style="{ width: layerRects[layer.id].width + 'px', left: layerRects[layer.id].left + 'px' }" @click="onLayerBlockClick($event, layer)">{{ layer.id }}</div>
 				</div>
 			</div>
 		</div>
@@ -47,17 +47,22 @@
 			</div>
 			-->
 
-				<div :class="$style.infoBar">
-					<div><b>TL Offset</b><code>{{ tlPosX.toFixed(2) }}</code>, <code>{{ tlPosY.toFixed(2) }}</code></div>
-					<div><b>Cursor</b><code>{{ cursorTime }}</code>, <code>{{ cursorValue }}</code></div>
+				<div :class="$style.infoBar" class="_monospace">
+					<div><b>TL Offset</b>{{ tlPosX.toFixed(2) }}, {{ tlPosY.toFixed(2) }}</div>
+					<div><b>Cursor</b>{{ cursorTime }}, {{ cursorValue }}</div>
 				</div>
 			</div>
 		</div>
 		<div v-if="selectedLayer != null" :class="$style.rightSidePanel">
 			<div>{{ appContext.getVisualModuleById(selectedLayer?.visualModuleId)?.name }}</div>
-			<div v-for="paramDef in appContext.getVisualModuleById(selectedLayer?.visualModuleId)?.paramDefs" :key="paramDef.id">
-				<div>{{ paramDef.ui.label }}</div>
-			</div>
+			<GsVisualParam
+				v-for="paramDef of appContext.getVisualModuleById(selectedLayer?.visualModuleId).paramDefs.filter(paramDef => !paramDef.isPrimaryInput)"
+				:key="paramDef.id"
+				:paramPath="[paramDef.id]"
+				:paramDef="{ ...paramDef, canNode: false }"
+				:paramValue="selectedLayer.paramValues[paramDef.id] ?? paramDef.defaultValue"
+				@edit="onVisualModuleLayerParamEdit"
+			/>
 		</div>
 	</div>
 </div>
@@ -68,7 +73,9 @@ import { computed, onMounted, ref, shallowRef, useTemplateRef, watch } from 'vue
 import { insertIntermediateNumbers, nearlyEqual, niceScale } from '@glitch/shared/utility/misc.js';
 import { genId } from '@glitch/shared/utility/id.js';
 import GsButton from './common/GsButton.vue';
-import type { Layer } from '@glitch/shared/types.js';
+import GsVisualParam from './GsVisualParam.vue';
+import type { Timeline } from '@glitch/shared/types.js';
+import type { ParamEdit } from './GsVisualParam.vue';
 import { appContext } from '@/app.ts';
 import { dragListen } from '@/utility/drag.ts';
 import * as timeline from '@/timeline.ts';
@@ -130,7 +137,7 @@ const layerRects = computed(() => {
 	return obj;
 });
 
-const selectedLayer = ref<Layer | null>(null);
+const selectedLayer = ref<Timeline[number] | null>(null);
 
 // TODO: TLの表示DOMサイズに応じて変更
 const xTicksCount = ref(15);
@@ -317,8 +324,12 @@ function formatMsToTimecode(ms: number) {
 	}
 }
 
-function onLayerBlockClick(ev: PointerEvent, layer: Layer) {
+function onLayerBlockClick(ev: PointerEvent, layer: Timeline[number]) {
 	selectedLayer.value = layer;
+}
+
+function onVisualModuleLayerParamEdit(event: ParamEdit) {
+	// TODO
 }
 
 function addLayer() {
@@ -833,7 +844,7 @@ onMounted(() => {
 	contain: strict;
 	pointer-events: none;
 
-	> div {
+	> div { // TODO: ちゃんとクラス指定する
 		flex: 1;
 
 		> b {
@@ -858,8 +869,7 @@ onMounted(() => {
 	top: 0;
 	right: 0;
 	box-sizing: border-box;
-	padding: 18px;
-	width: 300px;
+	width: 400px;
 	height: 100%;
 	background: #0008;
 	backdrop-filter: blur(4px);

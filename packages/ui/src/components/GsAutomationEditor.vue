@@ -1205,7 +1205,7 @@ onMounted(() => {
 	contain: strict;
 	pointer-events: none;
 
-	> div {
+	> div { // TODO: ちゃんとクラス指定する
 		flex: 1;
 
 		> b {

@@ -379,10 +379,9 @@ export class MainRenderer {
 		await this.timelineRenderer.renderAt(time, this.timeline, timeDelta);
 	}
 
-	private createTimelineLayer(entry: Timeline[number]): TimelineLayerRenderer<GPUTexture> | undefined {
+	private createTimelineLayer(layer: Timeline[number]): TimelineLayerRenderer<GPUTexture> | undefined {
 		// レイヤーの種類の解釈とリソース解決は、タイムライン制御の外側で行う。
-		const layer = entry.layer;
-		switch (layer.type) {
+		switch (layer.layerType) {
 			case 'visualModule': {
 				const visualModule = this.visualModules.find(module => module.id === layer.visualModuleId);
 				if (visualModule == null) return;
