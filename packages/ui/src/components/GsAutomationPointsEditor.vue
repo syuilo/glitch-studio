@@ -134,6 +134,10 @@ const props = defineProps<{
 
 const ppints = ref(deepClone(props.points));
 
+function isFixedEndpoint(point: GsBezierAnchorPoint): boolean {
+	return props.isNormalized && (point === ppints.value[0] || point === ppints.value[ppints.value.length - 1]);
+}
+
 // 最も長いxをもつpointのx
 const duration = computed(() => {
 	return ppints.value.reduce((max, kf) => Math.max(max, kf.x), 0) ?? 0;
@@ -329,6 +333,8 @@ function domYToValueY(y: number): number {
 }
 
 function addPoint(x: number, y: number): GsBezierAnchorPoint | undefined {
+	// 正規化された曲線の両端は既存のポイントで維持する。貼り付けも同じ制限に従う。
+	if (props.isNormalized && (x <= 0 || x >= 1)) return;
 	const _points = [] as GsBezierAnchorPoint[];
 	const point: GsBezierAnchorPoint = {
 		id: genId(),
@@ -551,7 +557,10 @@ function onPointsXYHandleMousedown(ev: MouseEvent, point: GsBezierAnchorPoint, t
 
 		for (let i = 0; i < selectedPoints.value.length; i++) {
 			const point = selectedPoints.value[i];
-			if (treatX) point.x = Math.max(0, baseNewTime + (baseFrames[i] - baseTime));
+			// 複数選択でも端点のXは動かさず、Yの変更は通常どおり適用する。
+			if (treatX && !isFixedEndpoint(point)) {
+				point.x = Math.max(0, Math.min(props.isNormalized ? 1 : Infinity, baseNewTime + (baseFrames[i] - baseTime)));
+			}
 			if (treatY) point.y = baseNewValue + (baseValues[i] - baseValue);
 		}
 	}
@@ -764,6 +773,7 @@ function onSeekBarMousedown(ev: MouseEvent) {
 }
 
 function deletePoint(point: GsBezierAnchorPoint) {
+	if (isFixedEndpoint(point)) return;
 	const index = ppints.value.indexOf(point);
 	if (index === -1) return;
 	ppints.value.splice(index, 1);
