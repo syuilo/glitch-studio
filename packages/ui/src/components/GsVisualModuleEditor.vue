@@ -138,6 +138,7 @@ function onPreviewParamEdit(event: ParamEdit) {
 	const reset = (): VisualModuleParamValues[string] => deepClone(def.defaultValue);
 	switch (event.kind) {
 		case 'literal': previewParamValues.value[id] = { inputSource: 'literal', value: deepClone(event.value) }; break;
+		case 'automationGraphInline': previewParamValues.value[id] = deepClone(event.value); break;
 		case 'envVariable': previewParamValues.value[id] = { inputSource: 'envVariable', variable: event.value }; break;
 		case 'expression': previewParamValues.value[id] = { inputSource: 'expression', expression: event.value }; break;
 		case 'automationGraphReference': previewParamValues.value[id] = { inputSource: 'automationGraphReference', durationMs: 1000, wrapMode: 'repeat', offsetMode: 'start', ...(current?.inputSource === 'automationGraphReference' ? current : {}), automationGraphId: event.value, ...event.options }; break;
@@ -151,6 +152,7 @@ function onPreviewParamEdit(event: ParamEdit) {
 					inputSource: 'expression', expression: AiSON.stringify(current?.inputSource === 'literal' ? current.value : def.defaultValue.value),
 				}; break;
 				case 'automationGraphReference': previewParamValues.value[id] = { inputSource: 'automationGraphReference', automationGraphId: null, durationMs: 1000, wrapMode: 'repeat', offsetMode: 'start' }; break;
+				case 'automationGraphInline': previewParamValues.value[id] = createInlineAutomationGraph(); break;
 				case 'externalParameterInput':
 				case 'node':
 					return;
@@ -206,6 +208,7 @@ function showSwitchMenu(ev: PointerEvent) {
 }
 
 import GsAutomationGraphPointsEditorWindow from './GsAutomationGraphPointsEditorWindow.vue';
+import { createInlineAutomationGraph } from '@/utility/automation-graph.ts';
 
 async function addAutomationGraph() {
 	const id = genId();

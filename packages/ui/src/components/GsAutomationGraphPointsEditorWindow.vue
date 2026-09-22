@@ -5,25 +5,27 @@
 	@close="windowEl?.close()"
 	@closed="emit('closed')"
 >
-	<template #header><i class="ti ti-ease-in-out-control-points"></i> Graph Editor: {{ props.automationGraph.name }}</template>
+	<template #header><i class="ti ti-ease-in-out-control-points"></i> Graph Editor: {{ title ?? props.automationGraph.name ?? 'Inline graph' }}</template>
 
 	<div style="height: 100%;">
-		<GsAutomationGraphPointsEditor :points="props.automationGraph.points" :isNormalized="props.automationGraph.isNormalized"/>
+		<GsAutomationGraphPointsEditor :key="String(props.automationGraph.isNormalized)" :points="props.automationGraph.points" :isNormalized="props.automationGraph.isNormalized" @change="(points, mergeKey) => emit('change', points, mergeKey)"/>
 	</div>
 </GsWindow>
 </template>
 
 <script lang="ts" setup>
-import { computed, watch, ref, useTemplateRef } from 'vue';
+import { useTemplateRef } from 'vue';
 import GsWindow from './common/GsWindow.vue';
 import GsAutomationGraphPointsEditor from './GsAutomationGraphPointsEditor.vue';
 import type { GsAutomationGraph } from '@glitch/shared/types.js';
 
 const props = defineProps<{
-	automationGraph: GsAutomationGraph;
+	automationGraph: Pick<GsAutomationGraph, 'points' | 'isNormalized'> & { name?: string };
+	title?: string;
 }>();
 
 const emit = defineEmits<{
+	(ev: 'change', points: GsAutomationGraph['points'], mergeKey: string | null): void,
 	(ev: 'done'): void,
 	(ev: 'closed'): void
 }>();

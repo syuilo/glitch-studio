@@ -66,6 +66,7 @@ function onParamEdit(event: ParamEdit) {
 	const target = { visualModuleId: props.visualModuleId, nodeId: props.node.id, paramPath: event.paramPath };
 	switch (event.kind) {
 		case 'literal': appContext.commit('updateParamAsLiteral', { ...target, value: event.value }, event.mergeKey); break;
+		case 'automationGraphInline': appContext.commit('updateParamAsAutomationGraphInline', { ...target, value: event.value }, event.mergeKey); break;
 		case 'envVariable': appContext.commit('updateParamAsEnvVariable', { ...target, value: event.value }); break;
 		case 'expression': appContext.commit('updateParamAsExpression', { ...target, value: event.value }); break;
 		case 'automationGraphReference': appContext.commit('updateParamAsAutomationGraphReference', { ...target, value: event.value, options: event.options }); break;

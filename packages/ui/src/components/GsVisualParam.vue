@@ -11,7 +11,7 @@
 				<i v-else-if="paramValue.inputSource === 'expression'" v-tooltip="'Expression'" class="ti ti-math-function" :class="$style.typeIcon"></i>
 				<i v-else-if="paramValue.inputSource === 'externalParameterInput'" v-tooltip="'Parameter'" class="ti ti-wifi" :class="$style.typeIcon"></i>
 				<i v-else-if="paramValue.inputSource === 'node'" v-tooltip="'Node'" class="ti ti-plug" :class="$style.typeIcon"></i>
-				<i v-else-if="paramValue.inputSource === 'automationGraphReference'" v-tooltip="'AutomationGraph'" class="ti ti-ease-in-out-control-points" :class="$style.typeIcon"></i>
+				<i v-else-if="paramValue.inputSource === 'automationGraphReference' || paramValue.inputSource === 'automationGraphInline'" v-tooltip="'AutomationGraph'" class="ti ti-ease-in-out-control-points" :class="$style.typeIcon"></i>
 			</div>
 		</div>
 		<div :class="$style.paramBody">
@@ -35,8 +35,12 @@
 						:items="[{ label: i18n.ts.None, value: '' }, ...envVariableItems]"
 						@update:modelValue="value => emit('edit', { kind: 'envVariable', ...target(), value })"
 					/>
-					<div v-else-if="paramValue.inputSource === 'automationGraphReference'" style="display: grid; gap: 6px;">
-						<GsButton small @click="selectAutomationGraph">{{ selectedAutomationGraph?.name ?? i18n.ts.None }}</GsButton>
+					<div v-else-if="paramValue.inputSource === 'automationGraphReference' || paramValue.inputSource === 'automationGraphInline'" style="display: grid; gap: 6px;">
+						<GsButton v-if="paramValue.inputSource === 'automationGraphReference'" small @click="selectAutomationGraph">{{ selectedAutomationGraph?.name ?? i18n.ts.None }}</GsButton>
+						<GsButton v-else small @click="inlineGraphEditorOpen = true">Edit graph</GsButton>
+						<GsSelect v-if="paramValue.inputSource === 'automationGraphInline'" small :modelValue="paramValue.automationGraph.isNormalized ? 'normalized' : 'milliseconds'" :items="graphTimeAxisItems" @update:modelValue="value => updateInlineGraphNormalized(value === 'normalized')">
+							<template #label>Time axis</template>
+						</GsSelect>
 						<GsInput v-if="selectedAutomationGraph?.isNormalized" type="number" small :min="1" :modelValue="paramValue.durationMs ?? 1000" @update:modelValue="updateAutomationGraphDuration">
 							<template #label>Duration (ms)</template>
 						</GsInput>
@@ -79,6 +83,15 @@
 			<button class="_button" :class="$style.menuButton" @click="showMenu"><i class="ti ti-dots"></i></button>
 		</div>
 	</div>
+	<Teleport to="body">
+		<GsAutomationGraphPointsEditorWindow
+			v-if="inlineGraphEditorOpen && paramValue.inputSource === 'automationGraphInline'"
+			:automationGraph="paramValue.automationGraph"
+			:title="label ?? paramDef.ui.label"
+			@change="updateInlineGraphPoints"
+			@closed="inlineGraphEditorOpen = false"
+		/>
+	</Teleport>
 	<div v-if="paramDef.dataType === 'array'" :key="arrayVersion" :class="$style.children">
 		<GsVisualParam
 			v-for="(value, index) in arrayValues"
@@ -119,6 +132,7 @@ import { globalEnvVarDefs } from '@glitch/shared/expression.js';
 
 export type ParamEdit = { paramPath: ParamPath; mergeKey?: string | null } & (
 	| { kind: 'literal'; value: any }
+	| { kind: 'automationGraphInline'; value: Extract<EffectParamValue, { inputSource: 'automationGraphInline' }> }
 	| { kind: 'envVariable'; value: GlobalEnvVariable }
 	| { kind: 'expression'; value: string }
 	| { kind: 'automationGraphReference'; value: string | null; options?: Partial<AutomationGraphPlaybackOptions> }
@@ -141,8 +155,9 @@ import GsButton from './common/GsButton.vue';
 import GsInput from './common/GsInput.vue';
 import GsCondensedLine from './common/GsCondensedLine.vue';
 import GsSelect from './common/GsSelect.vue';
+import GsAutomationGraphPointsEditorWindow from './GsAutomationGraphPointsEditorWindow.vue';
 import type { ParamPath } from '@/utility/node-params.ts';
-import type { GsEffectNode, VisualModule } from '@glitch/shared/types.ts';
+import type { GsBezierAnchorPoint, GsEffectNode, VisualModule } from '@glitch/shared/types.ts';
 import type { MenuItem } from '@/types/menu.ts';
 import type { NodeParamDef } from '@/utility/node-params.ts';
 import { i18n } from '@/i18n.ts';
@@ -151,6 +166,7 @@ import { paramPathKey } from '@/utility/node-params.ts';
 import { getNodeOutputItems, hasNodeInputTypeMismatch, nodeOutputKey } from '@/utility/node-outputs.ts';
 import { registerWireInput } from '@/utility/wire-drag.ts';
 import * as ui from '@/ui.ts';
+import { setInlineAutomationGraphNormalized } from '@/utility/automation-graph.ts';
 
 const props = defineProps<{
 	visualModuleId?: string;
@@ -179,8 +195,13 @@ const nodes = computed(() => appContext.state.visualModules.value.find(visualMod
 const automationGraphs = computed(() => appContext.state.visualModules.value.find(visualModule => visualModule.id === props.visualModuleId)?.automationGraphs ?? []);
 const selectedAutomationGraph = computed(() => {
 	const value = props.paramValue;
-	return value.inputSource === 'automationGraphReference' ? automationGraphs.value.find(graph => graph.id === value.automationGraphId) : undefined;
+	return value.inputSource === 'automationGraphInline' ? { ...value.automationGraph, name: 'Inline graph' }
+		: value.inputSource === 'automationGraphReference' ? automationGraphs.value.find(graph => graph.id === value.automationGraphId) : undefined;
 });
+const graphTimeAxisItems = [
+	{ label: 'Normalized (0–1)', value: 'normalized' },
+	{ label: 'Milliseconds', value: 'milliseconds' },
+];
 const graphWrapModeItems = [
 	{ label: 'Clamp', value: 'clamp' },
 	{ label: 'Repeat', value: 'repeat' },
@@ -196,16 +217,20 @@ const externalParameterInputItems = computed(() => (props.node == null ? [] : ap
 const nodeOutputItems = computed(() => props.node == null ? [] : getNodeOutputItems(nodes.value, props.node.id, inputDataType.value, paramDefs.value));
 const nodeConnection = computed<NodeOutputReference | null>(() => props.paramValue.inputSource === 'node' && props.paramValue.nodeId != null ? props.paramValue : null);
 const controlComponent = useTemplateRef('controlComponent');
+const inlineGraphEditorOpen = ref(false);
 
 let commandMergeKey: string | null = null;
 let mounted = true;
 onBeforeUnmount(() => { mounted = false; });
 const arrayVersion = ref(0);
-// 構造変更時は子を作り直し、同じindexになった別要素へ編集中の状態を引き継がない。
-watch(() => props.paramValue, () => {
-	if (props.paramDef.dataType === 'array') arrayVersion.value++;
+// 要素の増減時だけ子を作り直す。値の編集・Undoによる配列置換では開いたエディタを維持する。
+watch(() => arrayValues.value.length, () => {
+	arrayVersion.value++;
 });
-watch(() => JSON.stringify([props.visualModuleId, props.node?.id, props.paramPath]), () => { commandMergeKey = null; });
+watch(() => JSON.stringify([props.visualModuleId, props.node?.id, props.paramPath, props.paramValue.inputSource]), () => {
+	commandMergeKey = null;
+	inlineGraphEditorOpen.value = false;
+});
 
 function target() {
 	return { paramPath: props.paramPath };
@@ -241,9 +266,26 @@ const isExpressionSyntaxError = computed(() => {
 	}
 });
 
+function updateInlineGraphNormalized(isNormalized: boolean) {
+	if (props.paramValue.inputSource !== 'automationGraphInline' || props.paramValue.automationGraph.isNormalized === isNormalized) return;
+	emit('edit', { kind: 'automationGraphInline', ...target(), value: setInlineAutomationGraphNormalized(props.paramValue, isNormalized) });
+}
+
 function updateAutomationGraphOptions(options: Partial<AutomationGraphPlaybackOptions>) {
+	if (props.paramValue.inputSource === 'automationGraphInline') {
+		emit('edit', { kind: 'automationGraphInline', ...target(), value: { ...deepClone(props.paramValue), ...options } });
+		return;
+	}
 	if (props.paramValue.inputSource !== 'automationGraphReference') return;
 	emit('edit', { kind: 'automationGraphReference', ...target(), value: props.paramValue.automationGraphId, options });
+}
+
+function updateInlineGraphPoints(points: GsBezierAnchorPoint[], mergeKey: string | null) {
+	if (!mounted || props.paramValue.inputSource !== 'automationGraphInline') return;
+	emit('edit', {
+		kind: 'automationGraphInline', ...target(), mergeKey,
+		value: { ...deepClone(props.paramValue), automationGraph: { ...props.paramValue.automationGraph, points: deepClone(points) } },
+	});
 }
 
 function updateAutomationGraphDuration(durationMs: number) {
@@ -278,6 +320,7 @@ function getMenu() {
 		const types: { text: string; inputSource: EffectParamValue['inputSource']; icon: string }[] = [
 			{ text: 'Literal', inputSource: 'literal', icon: 'ti ti-adjustments-horizontal' },
 			{ text: 'AutomationGraph', inputSource: 'automationGraphReference', icon: 'ti ti-ease-in-out-control-points' },
+			{ text: 'AutomationGraph (inline)', inputSource: 'automationGraphInline', icon: 'ti ti-ease-in-out-control-points' },
 			{ text: 'Environment Variable', inputSource: 'envVariable', icon: 'ti ti-variable' },
 			{ text: 'Expression', inputSource: 'expression', icon: 'ti ti-math-function' },
 		];

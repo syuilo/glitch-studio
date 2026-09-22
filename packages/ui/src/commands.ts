@@ -8,6 +8,7 @@ import type { Asset, AutomationGraphPlaybackOptions, EffectParamDefs, EffectPara
 import type { NodeParamTarget as EffectNodeParamTarget } from '@/utility/node-params.ts';
 import { canConnectNodeDataTypes } from '@/utility/node-outputs.ts';
 import { resolveNodeParam, walkNodeParams } from '@/utility/node-params.ts';
+import { createInlineAutomationGraph } from '@/utility/automation-graph.ts';
 
 export type CommandDef<Payload> = {
 	label: string;
@@ -40,6 +41,7 @@ const editVisualModuleLayerParamCommandDef = defineCommand<{
 	paramId: string;
 	edit:
 		| { kind: 'literal'; value: any }
+		| { kind: 'automationGraphInline'; value: Extract<EffectParamValue, { inputSource: 'automationGraphInline' }> }
 		| { kind: 'envVariable' | 'expression'; value: string }
 		| { kind: 'automationGraphReference'; value: string | null; options?: Partial<AutomationGraphPlaybackOptions> }
 		| { kind: 'inputSource'; inputSource: EffectParamValue['inputSource'] }
@@ -65,6 +67,7 @@ const editVisualModuleLayerParamCommandDef = defineCommand<{
 					const edit = payload.edit;
 					switch (edit.kind) {
 						case 'literal': after = { inputSource: 'literal', value: deepClone(edit.value) }; break;
+						case 'automationGraphInline': after = deepClone(edit.value); break;
 						case 'envVariable': after = { inputSource: 'envVariable', variable: edit.value as GlobalEnvVariable }; break;
 						case 'expression': after = { inputSource: 'expression', expression: edit.value }; break;
 						case 'automationGraphReference': after = {
@@ -85,6 +88,7 @@ const editVisualModuleLayerParamCommandDef = defineCommand<{
 									inputSource: 'expression', expression: AiSON.stringify(current.inputSource === 'literal' ? current.value : def.defaultValue.value),
 								}; break;
 								case 'automationGraphReference': after = { inputSource: 'automationGraphReference', automationGraphId: null, durationMs: 1000, wrapMode: 'repeat', offsetMode: 'start' }; break;
+								case 'automationGraphInline': after = createInlineAutomationGraph(); break;
 								case 'node':
 								case 'externalParameterInput': throw new Error('Unsupported layer parameter input source');
 							}
@@ -422,6 +426,7 @@ const changeParamValueInputSourceCommandDef = defineNodeParamCommand<NodeParamTa
 			case 'envVariable': return { inputSource: 'envVariable', variable: '' };
 			case 'literal': return { inputSource: 'literal', value: defaultValue.inputSource === 'literal' ? defaultValue.value : emptyValue };
 			case 'automationGraphReference': return { inputSource: 'automationGraphReference', automationGraphId: null, durationMs: 1000, wrapMode: 'repeat', offsetMode: 'start' };
+			case 'automationGraphInline': return createInlineAutomationGraph();
 			case 'externalParameterInput': return { inputSource: 'externalParameterInput', parameterId: '' };
 			case 'node': {
 				if (!('canNode' in target.def) || !target.def.canNode) throw new Error('Parameter does not support node input');
@@ -467,6 +472,14 @@ const updateParamAsAutomationGraphReferenceCommandDef = defineNodeParamCommand<N
 			...(target.value.inputSource === 'automationGraphReference' ? target.value : {}), automationGraphId: payload.value,
 			...payload.options,
 		};
+	},
+);
+
+const updateParamAsAutomationGraphInlineCommandDef = defineNodeParamCommand<NodeParamTarget & { value: Extract<EffectParamValue, { inputSource: 'automationGraphInline' }> }>(
+	'Update inline automation graph',
+	(target, payload) => {
+		assertLeafParam(target);
+		return payload.value;
 	},
 );
 
@@ -729,6 +742,7 @@ export const COMMAND_DEFS = {
 	updateParamAsEnvVariable: updateParamAsEnvVariableCommandDef,
 	updateParamAsExpression: updateParamAsExpressionCommandDef,
 	updateParamAsAutomationGraphReference: updateParamAsAutomationGraphReferenceCommandDef,
+	updateParamAsAutomationGraphInline: updateParamAsAutomationGraphInlineCommandDef,
 	updateParamAsNode: updateParamAsNodeCommandDef,
 	updateParamAsExternalParameterInput: updateParamAsExternalParameterInputCommandDef,
 	changeNodeBypassState: changeNodeBypassStateCommandDef,

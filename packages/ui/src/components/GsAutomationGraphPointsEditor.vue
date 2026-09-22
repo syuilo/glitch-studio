@@ -119,7 +119,7 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, onMounted, ref, shallowRef, useTemplateRef, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, shallowRef, useTemplateRef, watch } from 'vue';
 import { evalAutomationGraphValue, insertIntermediateNumbers, nearlyEqual, niceScale, niceNormalizedScale } from '@glitch/shared/utility/misc.js';
 import { genId } from '@glitch/shared/utility/id.js';
 import { deepClone } from '@glitch/shared/utility/deep-clone.js';
@@ -137,7 +137,49 @@ const props = defineProps<{
 	isNormalized: boolean;
 }>();
 
+const emit = defineEmits<{
+	(ev: 'change', points: GsBezierAnchorPoint[], mergeKey: string | null): void;
+}>();
+
 const ppints = ref(deepClone(props.points));
+let publishedPoints = JSON.stringify(props.points);
+let dragMergeKey: string | null = null;
+let stopPointDrag: (() => void) | undefined;
+let mounted = true;
+let resizeObserver: ResizeObserver | undefined;
+
+function publishPoints() {
+	const snapshot = JSON.stringify(ppints.value);
+	if (!mounted || snapshot === publishedPoints) return;
+	publishedPoints = snapshot;
+	// ステートや履歴にエディタ内部の可変オブジェクトを共有しない。
+	emit('change', deepClone(ppints.value), dragMergeKey);
+}
+
+// 追加・削除・貼り付け・ベジェ切り替えは、一操作内の複数変更をまとめて通知する。
+watch(ppints, publishPoints, { deep: true });
+
+function listenPointDrag(move: (ev: MouseEvent) => void, end: () => void) {
+	stopPointDrag?.();
+	publishPoints();
+	dragMergeKey = genId();
+	stopPointDrag = dragListen(ev => {
+		move(ev);
+		publishPoints();
+	}, () => {
+		// watcherの実行前にmouseupしても、最後の変更を同じ履歴へ含める。
+		publishPoints();
+		dragMergeKey = null;
+		stopPointDrag = undefined;
+		end();
+	});
+}
+
+onBeforeUnmount(() => {
+	mounted = false;
+	stopPointDrag?.();
+	resizeObserver?.disconnect();
+});
 
 function isFixedEndpoint(point: GsBezierAnchorPoint): boolean {
 	return props.isNormalized && (point === ppints.value[0] || point === ppints.value[ppints.value.length - 1]);
@@ -166,6 +208,19 @@ const snappingY = ref<number | null>(null);
 const selectedPoints = ref<GsBezierAnchorPoint[]>([]);
 const selectedPoint = computed(() => selectedPoints.value.length === 1 ? selectedPoints.value[0] : null);
 const contextmenuPoint = ref<GsBezierAnchorPoint | null>(null);
+
+watch(() => props.points, points => {
+	const snapshot = JSON.stringify(points);
+	// 自身の通知が戻ってきただけなら参照を保ち、ドラッグ中のポイントを切り離さない。
+	if (snapshot === publishedPoints) return;
+	stopPointDrag?.();
+	const selectedIds = new Set(selectedPoints.value.map(point => point.id));
+	const contextmenuId = contextmenuPoint.value?.id;
+	publishedPoints = snapshot;
+	ppints.value = deepClone(points);
+	selectedPoints.value = ppints.value.filter(point => selectedIds.has(point.id));
+	contextmenuPoint.value = ppints.value.find(point => point.id === contextmenuId) ?? null;
+}, { deep: true });
 const seekBarPos = computed(() => {
 	return valueXToDomX(currentValueX.value);
 });
@@ -597,7 +652,7 @@ function onPointsXYHandleMousedown(ev: MouseEvent, point: GsBezierAnchorPoint, t
 		}
 	}
 
-	dragListen(me => {
+	listenPointDrag(me => {
 		move(me.clientX - position.left, me.clientY - position.top);
 	}, () => {
 		snappingX.value = null;
@@ -710,7 +765,7 @@ function onBezierHandleAMousedown(ev: MouseEvent) {
 
 	bezierDragging.value = true;
 
-	dragListen(me => {
+	listenPointDrag(me => {
 		move(me.clientX - position.left, me.clientY - position.top);
 	}, () => {
 		bezierDragging.value = false;
@@ -782,7 +837,7 @@ function onBezierHandleBMousedown(ev: MouseEvent) {
 
 	bezierDragging.value = true;
 
-	dragListen(me => {
+	listenPointDrag(me => {
 		move(me.clientX - position.left, me.clientY - position.top);
 	}, () => {
 		bezierDragging.value = false;
@@ -875,7 +930,7 @@ onMounted(() => {
 	tlElWidth.value = tlEl.value.offsetWidth;
 	tlElHeight.value = tlEl.value.offsetHeight;
 
-	const resizeObserver = new ResizeObserver(() => {
+	resizeObserver = new ResizeObserver(() => {
 		if (tlEl.value === null) return;
 		tlElWidth.value = tlEl.value.offsetWidth;
 		tlElHeight.value = tlEl.value.offsetHeight;
