@@ -68,8 +68,12 @@ const editVisualModuleLayerParamCommandDef = defineCommand<{
 						case 'envVariable': after = { inputSource: 'envVariable', variable: edit.value }; break;
 						case 'expression': after = { inputSource: 'expression', expression: edit.value }; break;
 						case 'automationReference': after = {
-							inputSource: 'automationReference', durationMs: 1000, playMode: 'repeat',
-							...(current.inputSource === 'automationReference' ? current : {}), automationId: edit.value,
+							inputSource: 'automationReference',
+							durationMs: 1000,
+							wrapMode: 'repeat',
+							offsetMode: 'start',
+							...(current.inputSource === 'automationReference' ? current : {}),
+							automationId: edit.value,
 						}; break;
 						case 'reset': after = deepClone(def.defaultValue); break;
 						case 'inputSource':
@@ -79,7 +83,7 @@ const editVisualModuleLayerParamCommandDef = defineCommand<{
 								case 'expression': after = {
 									inputSource: 'expression', expression: AiSON.stringify(current.inputSource === 'literal' ? current.value : def.defaultValue.value),
 								}; break;
-								case 'automationReference': after = { inputSource: 'automationReference', automationId: null, durationMs: 1000, playMode: 'repeat' }; break;
+								case 'automationReference': after = { inputSource: 'automationReference', automationId: null, durationMs: 1000, wrapMode: 'repeat', offsetMode: 'start' }; break;
 								case 'node':
 								case 'externalParameterInput': throw new Error('Unsupported layer parameter input source');
 							}
@@ -416,7 +420,7 @@ const changeParamValueInputSourceCommandDef = defineNodeParamCommand<NodeParamTa
 			};
 			case 'envVariable': return { inputSource: 'envVariable', variable: '' };
 			case 'literal': return { inputSource: 'literal', value: defaultValue.inputSource === 'literal' ? defaultValue.value : emptyValue };
-			case 'automationReference': return { inputSource: 'automationReference', automationId: null, durationMs: 1000, playMode: 'repeat' };
+			case 'automationReference': return { inputSource: 'automationReference', automationId: null, durationMs: 1000, wrapMode: 'repeat', offsetMode: 'start' };
 			case 'externalParameterInput': return { inputSource: 'externalParameterInput', parameterId: '' };
 			case 'node': {
 				if (!('canNode' in target.def) || !target.def.canNode) throw new Error('Parameter does not support node input');
@@ -457,7 +461,8 @@ const updateParamAsAutomationReferenceCommandDef = defineNodeParamCommand<NodePa
 		return {
 			inputSource: 'automationReference',
 			durationMs: 1000,
-			playMode: 'repeat',
+			wrapMode: 'repeat',
+			offsetMode: 'start',
 			...(target.value.inputSource === 'automationReference' ? target.value : {}), automationId: payload.value,
 		};
 	},

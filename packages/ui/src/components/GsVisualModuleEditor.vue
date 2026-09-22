@@ -140,7 +140,7 @@ function onPreviewParamEdit(event: ParamEdit) {
 		case 'literal': previewParamValues.value[id] = { inputSource: 'literal', value: deepClone(event.value) }; break;
 		case 'envVariable': previewParamValues.value[id] = { inputSource: 'envVariable', variable: event.value }; break;
 		case 'expression': previewParamValues.value[id] = { inputSource: 'expression', expression: event.value }; break;
-		case 'automationReference': previewParamValues.value[id] = { inputSource: 'automationReference', durationMs: 1000, playMode: 'repeat', ...(current?.inputSource === 'automationReference' ? current : {}), automationId: event.value }; break;
+		case 'automationReference': previewParamValues.value[id] = { inputSource: 'automationReference', durationMs: 1000, wrapMode: 'repeat', offsetMode: 'start', ...(current?.inputSource === 'automationReference' ? current : {}), automationId: event.value }; break;
 		case 'node':
 		case 'externalParameterInput': return;
 		case 'reset': previewParamValues.value[id] = reset(); break;
@@ -150,7 +150,7 @@ function onPreviewParamEdit(event: ParamEdit) {
 				case 'expression': previewParamValues.value[id] = {
 					inputSource: 'expression', expression: AiSON.stringify(current?.inputSource === 'literal' ? current.value : def.defaultValue.value),
 				}; break;
-				case 'automationReference': previewParamValues.value[id] = { inputSource: 'automationReference', automationId: null, durationMs: 1000, playMode: 'repeat' }; break;
+				case 'automationReference': previewParamValues.value[id] = { inputSource: 'automationReference', automationId: null, durationMs: 1000, wrapMode: 'repeat', offsetMode: 'start' }; break;
 				case 'externalParameterInput':
 				case 'node':
 					return;

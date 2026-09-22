@@ -20,12 +20,14 @@ export type EffectParamValue = {
 	inputSource: 'automationReference';
 	automationId: string | null;
 	durationMs: number | null; // automationが0~1に正規化されている場合に指定。nullの場合はautomation単位がmsであるとみなす
-	playMode: 'start' | 'end' | 'repeat' | 'repeatMirrored';
+	offsetMode: 'start' | 'end';
+	wrapMode: 'clamp' | 'repeat' | 'repeatMirrored'
 } | {
 	inputSource: 'automationInline';
 	automation: Omit<GsAutomation, 'id' | 'name'>;
 	durationMs: number | null; // automationが0~1に正規化されている場合に指定。nullの場合はautomation単位がmsであるとみなす
-	playMode: 'start' | 'end' | 'repeat' | 'repeatMirrored';
+	offsetMode: 'start' | 'end';
+	wrapMode: 'clamp' | 'repeat' | 'repeatMirrored'
 } | NodeParamValue;
 
 export type Asset = {
