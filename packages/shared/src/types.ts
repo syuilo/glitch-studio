@@ -23,9 +23,7 @@ export type EffectParamValue = {
 	playMode: 'start' | 'end' | 'repeat' | 'repeatMirrored';
 } | {
 	inputSource: 'automationInline';
-	automation: {
-		points: GsBezierAnchorPoint[];
-	};
+	automation: Omit<GsAutomation, 'id' | 'name'>;
 	durationMs: number | null; // automationが0~1に正規化されている場合に指定。nullの場合はautomation単位がmsであるとみなす
 	playMode: 'start' | 'end' | 'repeat' | 'repeatMirrored';
 } | NodeParamValue;
