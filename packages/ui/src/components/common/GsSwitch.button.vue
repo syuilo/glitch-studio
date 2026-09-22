@@ -36,7 +36,7 @@ const toggle = () => {
 
 <style lang="scss" module>
 .button {
-	--height: 21px;
+	--height: 19px;
 	--switchOffBg: #fff3;
 	--switchOnBg: var(--THEME-accent);
 	--switchOffFg: #fff;
