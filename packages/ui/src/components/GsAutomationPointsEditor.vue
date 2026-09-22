@@ -144,12 +144,17 @@ const duration = computed(() => {
 });
 const currentValueX = ref(0);
 
+function toMs(value: number): number {
+	// 便宜的に1=10秒として扱う
+	return value * 10000;
+}
+
 const tlEl = useTemplateRef('tlEl');
 const tlElWidth = ref(0);
 const tlElHeight = ref(0);
-const tlRangeX = ref(props.isNormalized ? 2 : 30000/*ms*/);
+const tlRangeX = ref(props.isNormalized ? 2 : toMs(2));
 const tlRangeY = ref(5);
-const tlPosX = ref(props.isNormalized ? -0.5 : -3000/*ms*/);
+const tlPosX = ref(props.isNormalized ? -0.5 : toMs(-0.5));
 const tlPosY = ref(-2.5);
 const snappingY = ref<number | null>(null);
 const selectedPoints = ref<GsBezierAnchorPoint[]>([]);
@@ -340,8 +345,8 @@ function addPoint(x: number, y: number): GsBezierAnchorPoint | undefined {
 		id: genId(),
 		x,
 		y,
-		bezierControlPointA: [-1000, 0],
-		bezierControlPointB: [1000, 0],
+		bezierControlPointA: [props.isNormalized ? -0.1 : toMs(-0.1), 0],
+		bezierControlPointB: [props.isNormalized ? 0.1 : toMs(0.1), 0],
 	};
 	let pushed = false;
 	if (ppints.value.filter(kf => kf.x === x).length > 1) return;
