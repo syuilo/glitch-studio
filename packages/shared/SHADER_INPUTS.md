@@ -5,7 +5,7 @@
 現在の導入先:
 
 - 合成: colorMix、colorBlend、dataMix、dataBlend
-- データ生成・演算: composeVector、remap、multiply、rgbTo、snoise
+- データ生成・演算: composeVector、remap、multiply、rgbTo、snoise、gradient
 - 画像加工: symbols、channelShift、chromaticAberration、colorBlocks、lcd、rainDropsOnWindow1、rainDropsOnWindow2、vectorDisplacement
 
 移行済みのエフェクトでは、入力のfit/wrapは接続設定に統一する。従来の独立したfitModeA/B/Amountやwrapパラメータは削除している。未接続の定数は位置によらず同じ値を返す。
@@ -24,13 +24,14 @@ fitは座標変換だけを行い、containの余白にもwrapを適用する。
 
 通常はimplicit samplingを使う。生成関数は分岐の外でtextureSampleを呼ぶが、呼び出し側にもfragmentのuniformな制御フローが必要。computeや画素ごとに異なる分岐から呼ぶ場合は生成時に `level0` を指定する。履歴の厳密な整数画素アクセスは、このAPIへ置き換えない。
 
+gradientでは `scalarGradients: true` と `sampling: 'level0'` を指定し、生成された `readGradient_<入力名>(position, calculate)` から値と画面座標X/Yに対する偏微分をvec3fとして取得する。テクスチャはfit/wrap適用後の双線形補間を解析的に微分し、uniformの偏微分は0とする。scalar出力だけを使う場合はoverrideでcalculateをfalseにし、微分用の追加サンプルを除去する。vector出力のpipelineとbufferも使用時に生成する。エフェクト本体のFit modeはグラデーション形状を決める設定なので残し、入力接続のfitとは独立に扱う。
+
 ## 残る移行対象
 
 今回の移行は単一出力のrender passを中心に行った。以下は個別の対応が必要なため従来方式を維持している。
 
 - accumulate、frameDifference、opticalFlow、pixelSort、histogramなど: 履歴・整数画素・computeのアクセスと、通常の入力サンプリングを分けて扱う。
 - blur、bloom、liquidMetalなど: 中間テクスチャを使う複数passへの適用範囲を整理する。
-- gradient: scalarのみ／scalarとvectorの複数出力pipelineの双方に対応する。
 - transform、scalarGradient: 幾何変換・微分に必要な入力サイズの参照と、fit変換の関係を整理する。
 - quadtreeFilter、tearings: 既存のnearestサンプリングを維持するか検討する。現行の生成APIはlinearサンプリング。
 - blockShuffle、drosteRegression、testStructArrayなど: 個別のfit計算や構造化パラメータの扱いを含むため、別途移行する。
@@ -47,3 +48,5 @@ node --test packages/renderer/test/shader-inputs*.test.mjs
 GPUテストはheadless Chromeで実際のcolorMixと生成関数を実行し、全入力構成、異なるアスペクト比、fit/wrap、乗算済みアルファ、16bitデータと対応GPU上での32bitデータを画素比較する。
 
 追加移行した15エフェクトも、uniformと同じ値のテクスチャを使って全入力構成の描画結果を比較する。16bitと対応GPUでの32bitの両方、キャッシュ退避後の再生成を含む。
+
+gradientは7入力の全128構成で単一／複数出力を比較する。符号付き浮動小数点の値と微分を直接読み戻し、linear/radial、入力のfit/wrap、transparentの1×1入力の境界を検証する。

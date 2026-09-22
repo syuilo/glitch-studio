@@ -10,6 +10,7 @@ export function createShaderInputPipeline(options: {
 	targets: GPUColorTargetState[];
 	internalLayouts?: GPUBindGroupLayout[];
 	sampling?: 'implicit' | 'level0';
+	scalarGradients?: boolean;
 	entryPoint?: string;
 	constants?: Record<string, number>;
 }) {
@@ -23,7 +24,7 @@ export function createShaderInputPipeline(options: {
 			const key = names.map(name => inputs[name].kind).join(',');
 			let variant = variants.get(key);
 			if (variant == null) {
-				const generated = generateShaderInputs(options.schema, inputs, internalLayouts.length, options.sampling);
+				const generated = generateShaderInputs(options.schema, inputs, internalLayouts.length, options.sampling, options.scalarGradients);
 				const bindings = createShaderInputBindings(device, generated);
 				try {
 					const pipeline = device.createRenderPipeline({

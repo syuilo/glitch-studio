@@ -1,9 +1,11 @@
 import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { implementEffect } from '../../effect-implementation.ts';
+import { createShaderInputPipeline } from '../../shader-input-pipeline.ts';
 import code from './shader.wgsl?raw';
 import type definition from './_def_.ts';
 
-export default implementEffect<typeof definition>({
+export default implementEffect<typeof definition, 'shaderInput'>({
+	inputMode: 'shaderInput',
 	outputTextureFactories: {
 		scalar: ({ wgpu, resolution }) => wgpu.device.createTexture({
 			size: resolution,
@@ -17,63 +19,24 @@ export default implementEffect<typeof definition>({
 		}),
 	},
 	init: ({ wgpu, resolution }) => {
-		const shaderModule = wgpu.device.createShaderModule({
-			code: code,
+		const device = wgpu.device;
+		const uniformValues = makeStructuredView(makeShaderDataDefinitions(code).uniforms.uniforms);
+		const uniformBuffer = device.createBuffer({ size: uniformValues.arrayBuffer.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+		const layout = device.createBindGroupLayout({ entries: [{ binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } }] });
+		const bindGroup = device.createBindGroup({ layout, entries: [{ binding: 0, resource: { buffer: uniformBuffer } }] });
+		const options = {
+			device, vertex: wgpu.defaultVertexShaderModule, code,
+			schema: { startPosition: 'scalar', endPosition: 'scalar', startValue: 'scalar', endValue: 'scalar', frequency: 'scalar', phase: 'scalar', skew: 'scalar' },
+			sampling: 'level0', scalarGradients: true,
+		} as const;
+		const scalarFormat = wgpu.enable32bitDataTextures ? 'r32float' : 'r16float';
+		const scalarPipelines = createShaderInputPipeline({ ...options, internalLayouts: [layout], entryPoint: 'fs', targets: [{ format: scalarFormat }] });
+		// vector未使用時は追加pipeline・入力bufferを生成せず、微分計算もoverrideで除去する。
+		let gradientPipelines: ReturnType<typeof createShaderInputPipeline> | undefined;
+		const getGradientPipelines = () => gradientPipelines ??= createShaderInputPipeline({
+			...options, internalLayouts: [layout], entryPoint: 'fsWithGradient', constants: { CALCULATE_GRADIENT: 1 },
+			targets: [{ format: scalarFormat }, { format: wgpu.enable32bitDataTextures ? 'rg32float' : 'rg16float' }],
 		});
-
-		const shaderDataDefinitions = makeShaderDataDefinitions(code);
-		const sampler = wgpu.device.createSampler({ minFilter: 'linear', magFilter: 'linear' });
-		const bindGroupLayout = wgpu.device.createBindGroupLayout({ entries: [
-			{ binding: 8, visibility: GPUShaderStage.FRAGMENT, sampler: { type: 'filtering' } },
-			{ binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },
-			...[1, 2, 3, 4, 5, 6, 7].map(binding => ({
-				binding, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float' as const },
-			})),
-		] });
-
-		const pipeline = wgpu.device.createRenderPipeline({
-			vertex: {
-				module: wgpu.defaultVertexShaderModule,
-			},
-			fragment: {
-				module: shaderModule,
-				entryPoint: 'fs',
-				targets: [{
-					format: wgpu.enable32bitDataTextures ? 'r32float' : 'r16float',
-				}],
-			},
-			primitive: {
-				topology: 'triangle-list',
-			},
-			layout: wgpu.device.createPipelineLayout({ bindGroupLayouts: [bindGroupLayout] }),
-		});
-
-		// 勾配を使うまで追加パイプラインも作成しない。
-		let gradientPipeline: GPURenderPipeline | undefined;
-		const getGradientPipeline = () => gradientPipeline ??= wgpu.device.createRenderPipeline({
-			vertex: { module: wgpu.defaultVertexShaderModule },
-			fragment: {
-				module: shaderModule,
-				entryPoint: 'fsWithGradient',
-				constants: { CALCULATE_GRADIENT: 1 },
-				targets: [
-					{ format: wgpu.enable32bitDataTextures ? 'r32float' : 'r16float' },
-					{ format: wgpu.enable32bitDataTextures ? 'rg32float' : 'rg16float' },
-				],
-			},
-			primitive: { topology: 'triangle-list' },
-			layout: wgpu.device.createPipelineLayout({ bindGroupLayouts: [bindGroupLayout] }),
-		});
-
-		const uniformValues = makeStructuredView(shaderDataDefinitions.uniforms.uniforms);
-
-		const uniformBuffer = wgpu.device.createBuffer({
-			size: uniformValues.arrayBuffer.byteLength,
-			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-		});
-
-		let textures: GPUTexture[] = [];
-		let bindGroup: GPUBindGroup;
 
 		return {
 			render: (ctx) => {
@@ -88,20 +51,15 @@ export default implementEffect<typeof definition>({
 					interpolation: { linear: 0, smoothstep: 1, smootherstep: 2, cosine: 3, circular: 4, back: 5, elastic: 6, expo: 7, 'expo-in': 8, 'expo-out': 9 }[ctx.params.interpolation],
 				});
 				wgpu.device.queue.writeBuffer(uniformBuffer, 0, uniformValues.arrayBuffer);
-				const inputs = [ctx.params.startPosition, ctx.params.endPosition, ctx.params.startValue, ctx.params.endValue, ctx.params.frequency, ctx.params.phase, ctx.params.skew];
-				if (inputs.some((texture, i) => texture !== textures[i])) {
-					textures = inputs;
-					bindGroup = wgpu.device.createBindGroup({
-						layout: bindGroupLayout,
-						entries: [
-							{ binding: 8, resource: sampler },
-							{ binding: 0, resource: { buffer: uniformBuffer } },
-							...textures.map((texture, i) => ({ binding: i + 1, resource: texture.createView() })),
-						],
-					});
-				}
-
+				const inputs = {
+					startPosition: ctx.params.startPosition, endPosition: ctx.params.endPosition,
+					startValue: ctx.params.startValue, endValue: ctx.params.endValue,
+					frequency: ctx.params.frequency, phase: ctx.params.phase, skew: ctx.params.skew,
+				};
 				const needsGradient = ctx.usedOutputPorts?.has('vector') ?? true;
+				const pipelines = needsGradient ? getGradientPipelines() : scalarPipelines;
+				const variant = pipelines.update(inputs, ctx.outputDataMap.scalar.texture);
+
 				const passEncoder = needsGradient
 					? ctx.createPassEncoder(ctx.commandEncoder, {
 						colorAttachments: [ctx.outputDataMap.scalar.textureView, ctx.outputDataMap.vector.textureView].map(view => ({
@@ -109,12 +67,15 @@ export default implementEffect<typeof definition>({
 						})),
 					})
 					: ctx.createPassEncoderFor(ctx.commandEncoder, ctx.outputDataMap.scalar.textureView);
-				passEncoder.setPipeline(needsGradient ? getGradientPipeline() : pipeline);
+				passEncoder.setPipeline(variant.pipeline);
+				passEncoder.setBindGroup(pipelines.inputGroup, variant.bindGroup);
 				passEncoder.setBindGroup(0, bindGroup);
 				passEncoder.draw(6);
 				passEncoder.end();
 			},
 			dispose: () => {
+				scalarPipelines.dispose();
+				gradientPipelines?.dispose();
 				uniformBuffer.destroy();
 			},
 		};

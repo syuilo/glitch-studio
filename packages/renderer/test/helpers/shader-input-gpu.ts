@@ -1,4 +1,5 @@
 import { checkMigratedEffects } from './migrated-shader-input-gpu.ts';
+import { checkGradientInputs } from './gradient-shader-input-gpu.ts';
 import effect from '../../../shared/src/effects/colorMix/_impl_.ts';
 import rawImage from '../../../shared/src/effects/rawImage/_impl_.ts';
 import { constantShaderInput, textureShaderInput, generateShaderInputs, createShaderInputBindings } from '../../../shared/src/shader-input.ts';
@@ -117,6 +118,7 @@ export async function run() {
 			bindings.dispose();
 		}
 		completed.push(...await checkMigratedEffects(device, vertex, async output => (await mix({ inputA: textureShaderInput(output), inputB: b, amount: zero }, output.width, output.height)).flat()));
+		completed.push(...await checkGradientInputs(device, vertex));
 		const error = await device.popErrorScope();
 		if (error) throw new Error(error.message);
 		return completed;

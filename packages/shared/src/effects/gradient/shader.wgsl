@@ -1,5 +1,3 @@
-@group(0) @binding(8) var inputSampler: sampler;
-
 // scalar専用パイプラインでは微分計算と追加サンプリングをコンパイル時に除去する。
 override CALCULATE_GRADIENT: bool = false;
 
@@ -15,32 +13,6 @@ struct Uniforms {
 };
 
 @group(0) @binding(0) var<uniform> uniforms: Uniforms;
-@group(0) @binding(1) var startPositionTexture: texture_2d<f32>;
-@group(0) @binding(2) var endPositionTexture: texture_2d<f32>;
-@group(0) @binding(3) var startValueTexture: texture_2d<f32>;
-@group(0) @binding(4) var endValueTexture: texture_2d<f32>;
-@group(0) @binding(5) var frequencyTexture: texture_2d<f32>;
-@group(0) @binding(6) var phaseTexture: texture_2d<f32>;
-@group(0) @binding(7) var skewTexture: texture_2d<f32>;
-
-fn sampleParameter(tex: texture_2d<f32>, uv: vec2f) -> vec3f {
-	// 各入力を出力全体にstretchし、定数の1x1や異なる解像度にも対応する。
-	let value = textureSampleLevel(tex, inputSampler, uv, 0.0).r;
-	let size = vec2f(textureDimensions(tex));
-	if (!CALCULATE_GRADIENT || all(size == vec2f(1.0))) { return vec3f(value, 0.0, 0.0); }
-	// 線形サンプラーが補間する4点を画素中心で読み、その双線形関数を微分する。
-	// 手動補間へのフォールバックではなく、接続パラメータの変化を連鎖律に含めるため。
-	// clamp-to-edge領域は隣接2点が同じ端画素を読むため微分が0になる。
-	let pixel = uv * size - 0.5;
-	let base = (floor(pixel) + 0.5) / size;
-	let weight = fract(pixel);
-	let a = textureSampleLevel(tex, inputSampler, base, 0.0).r;
-	let b = textureSampleLevel(tex, inputSampler, base + vec2f(1.0 / size.x, 0.0), 0.0).r;
-	let c = textureSampleLevel(tex, inputSampler, base + vec2f(0.0, 1.0 / size.y), 0.0).r;
-	let d = textureSampleLevel(tex, inputSampler, base + 1.0 / size, 0.0).r;
-	// 画面座標[-1,+1]に対する偏微分。テクスチャのY軸は下向きなので反転する。
-	return vec3f(value, mix(b - a, d - c, weight.y) * size.x * 0.5, -mix(c - a, d - b, weight.x) * size.y * 0.5);
-}
 
 struct FragmentIn {
 	@location(0) uv: vec2f,
@@ -48,14 +20,13 @@ struct FragmentIn {
 
 // 戻り値はスカラー値と、その画面座標X/Yに対する偏微分。
 fn evaluateGradient(fragData: FragmentIn) -> vec3f {
-	let uv = vec2f(fragData.uv.x, -fragData.uv.y) * 0.5 + 0.5;
-	let startPositionSample = sampleParameter(startPositionTexture, uv);
-	let endPositionSample = sampleParameter(endPositionTexture, uv);
-	let startValueSample = sampleParameter(startValueTexture, uv);
-	let endValueSample = sampleParameter(endValueTexture, uv);
-	let frequencySample = sampleParameter(frequencyTexture, uv);
-	let phaseSample = sampleParameter(phaseTexture, uv);
-	let skewSample = sampleParameter(skewTexture, uv);
+	let startPositionSample = readGradient_startPosition(fragData.uv, CALCULATE_GRADIENT);
+	let endPositionSample = readGradient_endPosition(fragData.uv, CALCULATE_GRADIENT);
+	let startValueSample = readGradient_startValue(fragData.uv, CALCULATE_GRADIENT);
+	let endValueSample = readGradient_endValue(fragData.uv, CALCULATE_GRADIENT);
+	let frequencySample = readGradient_frequency(fragData.uv, CALCULATE_GRADIENT);
+	let phaseSample = readGradient_phase(fragData.uv, CALCULATE_GRADIENT);
+	let skewSample = readGradient_skew(fragData.uv, CALCULATE_GRADIENT);
 	let startPosition = startPositionSample.x;
 	let endPosition = endPositionSample.x;
 	let startValue = startValueSample.x;

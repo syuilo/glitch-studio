@@ -33,7 +33,8 @@ export function inputUvScale(input: { width: number; height: number }, output: {
 export type ShaderInputSchema = Readonly<Record<string, 'scalar' | 'vector' | 'color' | 'any'>>;
 
 /** WGSLとbindingの対応を同時に決定し、エフェクト側の二重管理を避ける。 */
-export function generateShaderInputs(schema: ShaderInputSchema, inputs: Record<string, ShaderInput>, group = 0, sampling: 'implicit' | 'level0' = 'implicit') {
+export function generateShaderInputs(schema: ShaderInputSchema, inputs: Record<string, ShaderInput>, group = 0, sampling: 'implicit' | 'level0' = 'implicit', scalarGradients = false) {
+	if (scalarGradients && sampling !== 'level0') throw new Error('Scalar gradients require level0 sampling');
 	const slots = Object.entries(schema).map(([name, type], index) => {
 		if (!/^[a-zA-Z][a-zA-Z0-9_]*$/.test(name)) throw new Error(`Invalid shader input name: ${name}`);
 		return { name, type, index, kind: inputs[name].kind, textureBinding: index * 2 + 1, samplerBinding: index * 2 + 2 };
@@ -44,7 +45,8 @@ export function generateShaderInputs(schema: ShaderInputSchema, inputs: Record<s
 		const { name, type, kind, textureBinding, samplerBinding } = slot;
 		const returnType = type === 'scalar' ? 'f32' : type === 'vector' ? 'vec2f' : 'vec4f';
 		const swizzle = type === 'scalar' ? '.r' : type === 'vector' ? '.rg' : '';
-		if (kind === 'uniform') return `fn read_${name}(position: vec2f) -> ${returnType} { return gs_inputs.value_${name}${swizzle}; }`;
+		if (kind === 'uniform') return `fn read_${name}(position: vec2f) -> ${returnType} { return gs_inputs.value_${name}${swizzle}; }` + (scalarGradients && type === 'scalar'
+			? `\nfn readGradient_${name}(position: vec2f, calculate: bool) -> vec3f { return vec3f(read_${name}(position), 0.0, 0.0); }` : '');
 		entries.push(
 			{ binding: textureBinding, visibility: GPUShaderStage.FRAGMENT | GPUShaderStage.COMPUTE, texture: { sampleType: 'float' } },
 			{ binding: samplerBinding, visibility: GPUShaderStage.FRAGMENT | GPUShaderStage.COMPUTE, sampler: { type: 'filtering' } },
@@ -55,9 +57,8 @@ export function generateShaderInputs(schema: ShaderInputSchema, inputs: Record<s
 		return `
 @group(${group}) @binding(${textureBinding}) var gs_texture_${name}: texture_2d<f32>;
 @group(${group}) @binding(${samplerBinding}) var gs_sampler_${name}: sampler;
-fn read_${name}(position: vec2f) -> ${returnType} {
+fn gs_sample_${name}(uv: vec2f) -> ${returnType} {
 	let mapping = gs_inputs.mapping_${name};
-	let uv = position * vec2f(0.5, -0.5) * mapping.xy + 0.5;
 	// サンプルは分岐の外で行い、implicit derivativeのuniformityを維持する。
 	var value = ${sample};
 	// transparentでは透明な隣接画素との線形補間もRGBA全体へ適用する。
@@ -65,7 +66,31 @@ fn read_${name}(position: vec2f) -> ${returnType} {
 	value *= select(1.0, coverage.x * coverage.y, mapping.w != 0.0);
 	// fitは座標の対応付けだけを決める。containの余白も指定されたwrapで読む。
 	return value${swizzle};
-}`;
+}
+fn read_${name}(position: vec2f) -> ${returnType} {
+	return gs_sample_${name}(position * vec2f(0.5, -0.5) * gs_inputs.mapping_${name}.xy + 0.5);
+}` + (scalarGradients && type === 'scalar' ? `
+// 値と画面座標[-1,+1]に対する偏微分。定数uniformの微分は別の生成関数で0にする。
+fn readGradient_${name}(position: vec2f, calculate: bool) -> vec3f {
+	let scale = gs_inputs.mapping_${name}.xy * vec2f(0.5, -0.5);
+	let uv = position * scale + 0.5;
+	let value = gs_sample_${name}(uv);
+	if (!calculate) { return vec3f(value, 0.0, 0.0); }
+	let size = vec2f(textureDimensions(gs_texture_${name}));
+	let pixel = uv * size - 0.5;
+	let base = (floor(pixel) + 0.5) / size;
+	let weight = fract(pixel);
+	// 補間関数の4頂点を読み、双線形補間を解析的に微分する。
+	// 同じwrap/透明境界を通すため、repeatの継ぎ目や透明な余白も値と一致する。
+	// 1x1でもtransparentの境界では値が変化するので、サイズだけで微分を省略しない。
+	let a = gs_sample_${name}(base);
+	let b = gs_sample_${name}(base + vec2f(1.0 / size.x, 0.0));
+	let c = gs_sample_${name}(base + vec2f(0.0, 1.0 / size.y));
+	let d = gs_sample_${name}(base + 1.0 / size);
+	let derivative = vec2f(mix(b - a, d - c, weight.y), mix(c - a, d - b, weight.x));
+	// fitの倍率とY反転を連鎖律で含める。画素境界では右側の区間の微分を採用する。
+	return vec3f(value, derivative * size * scale);
+}` : '');
 	}).join('\n');
 	return {
 		code: `struct GsInputUniforms { ${declarations} };\n@group(${group}) @binding(0) var<uniform> gs_inputs: GsInputUniforms;\n${functions}`,

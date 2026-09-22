@@ -23,7 +23,8 @@ export default defineEffect({
 		frequency: { dataType: 'scalar', ui: { label: 'Frequency', control: 'number', step: 0.01 }, canNode: true, defaultValue: { inputSource: 'literal', value: 1 } },
 		mirrorRepeat: { dataType: 'bool', ui: { label: 'Mirror Repeat', control: 'bool' }, defaultValue: { inputSource: 'literal', value: false } },
 		skew: { dataType: 'scalar', ui: { label: 'Skew', control: 'range', min: -1, max: 1, step: 0.01 }, canNode: true, defaultValue: { inputSource: 'literal', value: 0 } },
-		phase: { dataType: 'scalar', ui: { label: 'Phase', control: 'range', min: -1, max: 1, step: 0.01 }, canNode: true, defaultValue: { inputSource: 'literal', value: 0 } }, // TIPS: expressionでこれにTIMEを渡したいときは `TIME % 1` と書くことを推奨。そうしないと16bitの精度の問題で刻みが粗くなる。0~1の位相なので1で折り返して問題ない
+		// TIPS: expressionでこれにTIMEを渡したいときは `TIME % 1` と書くことを推奨。そうしないと16bitの精度の問題で刻みが粗くなる。0~1の位相なので1で折り返して問題ない
+		phase: { dataType: 'scalar', ui: { label: 'Phase', control: 'range', min: -1, max: 1, step: 0.01 }, canNode: true, defaultValue: { inputSource: 'literal', value: 0 } },
 		angle: { dataType: 'scalar', ui: { label: 'Angle', control: 'angle' }, defaultValue: { inputSource: 'literal', value: 0 } },
 		interpolation: {
 			dataType: 'enum', ui: { label: 'Interpolation', control: 'enum' },
