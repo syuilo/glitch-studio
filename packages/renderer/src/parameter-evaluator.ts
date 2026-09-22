@@ -81,13 +81,19 @@ export class ParameterEvaluator {
 			PROGRESS: context.time / (context.endTime ?? Infinity),
 			IS_EXPORT: false, // TODO
 		} satisfies Record<typeof globalEnvVarDefs[number], any>;
+		const getEnvironmentVariableValue = (variable: string) => {
+			// 空の「None」や未知の保存済み値をprototype経由で読まず、既定値へフォールバックする。
+			return Object.hasOwn(variablesScope, variable)
+				? variablesScope[variable as keyof typeof variablesScope]
+				: undefined;
+		};
 
 		for (const def of context.paramDefs) {
 			const value = context.paramValues[def.id];
 			if (context.textureParamIds.has(def.id)) continue;
 			let evaluated = deepClone(def.defaultValue.value); // literalの中身を取り出し、参照が共有されないように切る
 			if (value?.inputSource === 'literal') evaluated = value.value;
-			if (value?.inputSource === 'envVariable') evaluated = variablesScope[value.variable] ?? genEmptyValue(def);
+			if (value?.inputSource === 'envVariable') evaluated = getEnvironmentVariableValue(value.variable) ?? genEmptyValue(def);
 			if (value?.inputSource === 'expression') evaluated = this.evaluateExpression(value.expression, variablesScope, def);
 			if (value?.inputSource === 'automationGraphReference') {
 				const automationGraph = context.automationGraphs.find(automationGraph => automationGraph.id === value.automationGraphId);
@@ -112,7 +118,7 @@ export class ParameterEvaluator {
 				if (node.isBypass && !def.primary) continue;
 				evaluatedParams[key] = mapNodeParam(def, node.params[key], [key], (def, param) => {
 					if (param.inputSource === 'literal') return param.value;
-					if (param.inputSource === 'envVariable') return variablesScope[param.variable] ?? genEmptyValue(def);
+					if (param.inputSource === 'envVariable') return getEnvironmentVariableValue(param.variable) ?? genEmptyValue(def);
 					if (param.inputSource === 'expression') return param.expression ? this.evaluateExpression(param.expression, variablesScope, def, readParam) : genEmptyValue(def);
 					if (param.inputSource === 'externalParameterInput') {
 						if (!paramValues.has(param.parameterId) || context.textureParamIds.has(param.parameterId)) return genEmptyValue(def);

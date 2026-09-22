@@ -65,7 +65,7 @@ const editVisualModuleLayerParamCommandDef = defineCommand<{
 					const edit = payload.edit;
 					switch (edit.kind) {
 						case 'literal': after = { inputSource: 'literal', value: deepClone(edit.value) }; break;
-						case 'envVariable': after = { inputSource: 'envVariable', variable: edit.value }; break;
+						case 'envVariable': after = { inputSource: 'envVariable', variable: edit.value as GlobalEnvVariable }; break;
 						case 'expression': after = { inputSource: 'expression', expression: edit.value }; break;
 						case 'automationGraphReference': after = {
 							inputSource: 'automationGraphReference',
@@ -438,7 +438,7 @@ const updateParamAsLiteralCommandDef = defineNodeParamCommand<NodeParamTarget & 
 	},
 );
 
-const updateParamAsEnvVariableCommandDef = defineNodeParamCommand<NodeParamTarget & { value: string }>(
+const updateParamAsEnvVariableCommandDef = defineNodeParamCommand<NodeParamTarget & { value: GlobalEnvVariable }>(
 	'Update param as environment variable',
 	(target, payload) => {
 		assertLeafParam(target);
