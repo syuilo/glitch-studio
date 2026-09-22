@@ -207,6 +207,11 @@ export async function appReady(project: Project) {
 
 	watch(appContext.state.visualModules, () => {
 		engine.updateVisualModules(deepClone(appContext.state.visualModules.value));
+		// 停止中は時刻が変化しないため、モジュールの編集・Undo/Redoでも現在位置を描き直す。
+		// 単体のLIVEプレビュー中は、その描画ループを維持する。
+		if (engine.liveVisualModuleId.value == null) {
+			engine.renderTimelineAt(currentTimelineTime.value);
+		}
 	}, { deep: true, immediate: true });
 
 	watch(currentTimelineTime, () => {
