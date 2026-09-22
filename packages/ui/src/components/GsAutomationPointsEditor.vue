@@ -60,12 +60,17 @@
 					:style="{ left: valueXToDomX(point.x) + 'px', top: valueYToDomY(point.y) + 'px' }"
 					@mousedown="onPointMousedown($event, point)"
 					@contextmenu="onPointContextmenu($event, point)"
-				></div>
+				>
+					<div :class="$style.pointTooltip" class="_monospace">
+						<div>X: {{ formatValueXWithUnit(point.x) }}</div>
+						<div>Y: {{ point.y.toFixed(2) }}</div>
+					</div>
+				</div>
 			</div>
 
 			<div v-if="(nowSelecting || selectedPoints.length === 0) && tooltipDomPos" :class="$style.tooltip" class="_monospace" :style="{ left: tooltipDomPos[0] + 'px', top: tooltipDomPos[1] + 'px' }">
-				<div>T: {{ formatValueXWithUnit(cursorValueX) }}</div>
-				<div>V: {{ cursorValueY }}</div>
+				<div>X: {{ formatValueXWithUnit(cursorValueX) }}</div>
+				<div>Y: {{ cursorValueY }}</div>
 			</div>
 
 			<div v-if="!nowSelecting && contextmenuPoint && pointContextmenuDomPos" :class="$style.pointContextmenu" :style="{ left: pointContextmenuDomPos[0] + 'px', top: pointContextmenuDomPos[1] + 'px' }">
@@ -1160,7 +1165,20 @@ onMounted(() => {
 	background: #0005;
 	color: #fff;
 	padding: 6px 10px;
-	font-size: 13px;
+	pointer-events: none;
+}
+
+.pointTooltip {
+	position: absolute;
+	left: 0;
+	bottom: 100%;
+	box-sizing: border-box;
+	width: max-content;
+	background: #0005;
+	color: #fff;
+	padding: 6px 10px;
+	font-size: 85%;
+	pointer-events: none;
 }
 
 .pointContextmenu {
