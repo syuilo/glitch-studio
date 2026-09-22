@@ -104,9 +104,13 @@ fn evaluateGradient(fragData: FragmentIn) -> vec3f {
 			t = (gradientPosition - startPosition) / span;
 		}
 	}
-	// 開始〜終了の幅を基準に、区間外にも周期を繰り返す。phaseは1ごとに同じ表示に戻る。
-	let cycle = t * frequency + fract(phase);
-	derivative = derivative * frequency + t * frequencySample.yz + phaseSample.yz;
+	// 開始〜終了の幅を基準に、区間外にも周期を繰り返す。
+	// ミラー時は往路と復路にそれぞれ通常反復と同じ幅を割り当て、勾配が2倍になるのを防ぐ。
+	// Phaseにも同じ係数を掛け、ミラーの有無によらず同じ位相変化で同じ距離を移動させる。
+	// ミラー時はPhase=2で一周するため、位相単体では折り返さずcycle全体をfractに渡す。
+	let frequencyScale = select(1.0, 0.5, uniforms.mirrorRepeat != 0u);
+	let cycle = (t * frequency + phase) * frequencyScale;
+	derivative = (derivative * frequency + t * frequencySample.yz + phaseSample.yz) * frequencyScale;
 	let repeatedPosition = fract(cycle);
 	// 周期境界のジャンプは微分できないため、インパルス状の変位は出力しない。
 	if (repeatedPosition == 0.0) { derivative = vec2f(0.0); }
