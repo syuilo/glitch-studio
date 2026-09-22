@@ -1,3 +1,8 @@
+// 既存のエフェクト計算のUVを、入力参照APIの中央原点・+Yが上の座標へ戻す。
+fn inputPosition(uv: vec2f) -> vec2f {
+	return (uv * 2.0 - 1.0) * vec2f(1.0, -1.0);
+}
+
 fn convertTexCoords(uv: vec2f) -> vec2f {
 	return vec2f(uv.x, -uv.y) * 0.5 + vec2f(0.5);
 }
@@ -7,9 +12,7 @@ struct Uniforms {
 	border: f32,
 };
 
-@group(0) @binding(1) var<uniform> uniforms: Uniforms;
-@group(0) @binding(2) var sourceSampler: sampler;
-@group(0) @binding(3) var sourceTexture: texture_2d<f32>;
+@group(0) @binding(0) var<uniform> uniforms: Uniforms;
 
 struct FragmentIn {
 	@location(0) uv: vec2f,
@@ -21,7 +24,7 @@ fn fs(fragData: FragmentIn) -> @location(0) vec4f {
 	let gridPosition = (uv - 0.5) / uniforms.cellSize;
 	let localPosition = fract(gridPosition);
 	let cellCenter = 0.5 + (floor(gridPosition) + 0.5) * uniforms.cellSize;
-	let sourceColor = textureSampleLevel(sourceTexture, sourceSampler, cellCenter, 0.0);
+	let sourceColor = read_input(inputPosition(cellCenter));
 
 	var rgb: vec3f;
 	if (localPosition.x < 1.0 / 3.0) {

@@ -1,3 +1,8 @@
+// 既存のエフェクト計算のUVを、入力参照APIの中央原点・+Yが上の座標へ戻す。
+fn inputPosition(uv: vec2f) -> vec2f {
+	return (uv * 2.0 - 1.0) * vec2f(1.0, -1.0);
+}
+
 fn convertTexCoords(uv: vec2f) -> vec2f {
 	return vec2f(uv.x, -uv.y) * 0.5 + vec2f(0.5);
 }
@@ -13,9 +18,7 @@ struct Uniforms {
 	vector: vec2f,
 };
 
-@group(0) @binding(1) var<uniform> uniforms: Uniforms;
-@group(0) @binding(2) var sourceSampler: sampler;
-@group(0) @binding(3) var sourceTexture: texture_2d<f32>;
+@group(0) @binding(0) var<uniform> uniforms: Uniforms;
 
 struct FragmentIn {
 	@location(0) uv: vec2f,
@@ -36,9 +39,9 @@ fn fs(fragData: FragmentIn) -> @location(0) vec4f {
 	var accumulator = vec3f(0.0);
 
 	for (var i = 0u; i < samples; i++) {
-		accumulator.r += textureSample(sourceTexture, sourceSampler, uv + rOffset).r;
-		accumulator.g += textureSample(sourceTexture, sourceSampler, uv + gOffset).g;
-		accumulator.b += textureSample(sourceTexture, sourceSampler, uv + bOffset).b;
+		accumulator.r += read_input(inputPosition(uv + rOffset)).r;
+		accumulator.g += read_input(inputPosition(uv + gOffset)).g;
+		accumulator.b += read_input(inputPosition(uv + bOffset)).b;
 		rOffset -= velocity / f32(samples);
 		gOffset -= velocity / f32(samples);
 		bOffset -= velocity / f32(samples);

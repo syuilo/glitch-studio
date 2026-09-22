@@ -1,3 +1,8 @@
+// 既存のエフェクト計算のUVを、入力参照APIの中央原点・+Yが上の座標へ戻す。
+fn inputPosition(uv: vec2f) -> vec2f {
+	return (uv * 2.0 - 1.0) * vec2f(1.0, -1.0);
+}
+
 fn hash32(value: u32) -> u32 {
 	var result = value;
 	result ^= result >> 16u;
@@ -24,9 +29,7 @@ struct Uniforms {
 	white: u32,
 };
 
-@group(0) @binding(0) var inputTexture: texture_2d<f32>;
-@group(0) @binding(1) var<uniform> uniforms: Uniforms;
-@group(0) @binding(2) var inputSampler: sampler;
+@group(0) @binding(0) var<uniform> uniforms: Uniforms;
 
 fn getColorsCount() -> u32 {
 	return uniforms.rgb * 3u + uniforms.cmy * 3u + uniforms.black + uniforms.white;
@@ -68,7 +71,7 @@ struct FragmentIn {
 fn fs(fragData: FragmentIn) -> @location(0) vec4f {
 	let uv = vec2f(fragData.uv.x, -fragData.uv.y) * 0.5 + vec2f(0.5);
 	// 入力は出力全体にstretchして対応付ける。1x1の定数色も同じUVで読み取る。
-	let inputColor = textureSample(inputTexture, inputSampler, uv);
+	let inputColor = read_input(inputPosition(uv));
 	let cell = vec2i(round((uv - 0.5) / uniforms.cellSize));
 	let colorsCount = getColorsCount();
 	if (colorsCount == 0u || random(cell, uniforms.seed, 0u) >= uniforms.amount) {

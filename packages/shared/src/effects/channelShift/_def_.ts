@@ -10,7 +10,6 @@ export default defineEffect({
 		leftSignal: { dataType: 'color', ui: { label: 'L signal', control: 'color', asRgbSwitch: true }, defaultValue: { inputSource: 'literal', value: [1, 0, 0, 1] } },
 		rightSignal: { dataType: 'color', ui: { label: 'R signal', control: 'color', asRgbSwitch: true }, defaultValue: { inputSource: 'literal', value: [0, 0, 1, 1] } },
 		blendMode: { dataType: 'blendMode', ui: { label: 'Blend mode', control: 'blendMode' }, defaultValue: { inputSource: 'literal', value: 'lighten' } },
-		wrap: { dataType: 'wrapMode', ui: { label: 'Wrap', control: 'wrapMode' }, defaultValue: { inputSource: 'literal', value: 'repeatMirrored' } },
 	},
 	outputs: {
 		output: { primary: true, dataType: 'color' },

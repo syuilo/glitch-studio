@@ -1,5 +1,3 @@
-@group(0) @binding(5) var inputSampler: sampler;
-
 fn mod289_3(x: vec3f) -> vec3f {
 	return x - floor(x * (1.0 / 289.0)) * 289.0;
 }
@@ -87,15 +85,7 @@ struct Uniforms {
 	offset: vec2f,
 };
 
-@group(0) @binding(1) var<uniform> uniforms: Uniforms;
-@group(0) @binding(2) var scaleTexture: texture_2d<f32>;
-@group(0) @binding(3) var outputMinTexture: texture_2d<f32>;
-@group(0) @binding(4) var outputMaxTexture: texture_2d<f32>;
-
-fn sampleParameter(tex: texture_2d<f32>, uv: vec2f) -> vec4f {
-	// 定数の1x1テクスチャを含め、各入力を出力全体に対応付ける。
-	return textureSample(tex, inputSampler, uv);
-}
+@group(0) @binding(0) var<uniform> uniforms: Uniforms;
 
 struct FragmentIn {
 	@location(0) uv: vec2f,
@@ -103,10 +93,9 @@ struct FragmentIn {
 
 @fragment
 fn fs(fragData: FragmentIn) -> @location(0) f32 {
-	let paramUv = vec2f(fragData.uv.x, -fragData.uv.y) * 0.5 + 0.5;
-	let scale = sampleParameter(scaleTexture, paramUv).rg;
-	let outputMin = sampleParameter(outputMinTexture, paramUv).r;
-	let outputMax = sampleParameter(outputMaxTexture, paramUv).r;
+	let scale = read_scale(fragData.uv);
+	let outputMin = read_outputMin(fragData.uv);
+	let outputMax = read_outputMax(fragData.uv);
 	let aspectUv = scaleUvToCoverGivenAspectRatio(fragData.uv, uniforms.aspectRatio);
 	let uv = aspectUv * scale + uniforms.offset + uniforms.seedOffset;
 	let noise = snoise(vec3f(uv.x, uv.y, uniforms.time));

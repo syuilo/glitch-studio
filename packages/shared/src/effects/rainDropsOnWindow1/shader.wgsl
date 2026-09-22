@@ -1,3 +1,8 @@
+// 既存のエフェクト計算のUVを、入力参照APIの中央原点・+Yが上の座標へ戻す。
+fn inputPosition(uv: vec2f) -> vec2f {
+	return (uv * 2.0 - 1.0) * vec2f(1.0, -1.0);
+}
+
 // Cell-based droplets, refraction and cleared fog trails inspired by:
 // https://koro-koro.com/three-js-shader-rain-through-the-window/
 // History-free: seeking time reproduces both droplets and their trails.
@@ -11,9 +16,7 @@ struct Uniforms {
 	seed: u32,
 };
 
-@group(0) @binding(1) var<uniform> uniforms: Uniforms;
-@group(0) @binding(2) var sourceSampler: sampler;
-@group(0) @binding(3) var sourceTexture: texture_2d<f32>;
+@group(0) @binding(0) var<uniform> uniforms: Uniforms;
 
 fn hash(cell: vec2i, salt: u32) -> f32 {
 	var h = (bitcast<u32>(cell.x) * 1597334677u) ^ (bitcast<u32>(cell.y) * 3812015801u) ^ uniforms.seed ^ salt;
@@ -74,7 +77,7 @@ fn fs(fragData: FragmentIn) -> @location(0) vec4f {
 	}
 	let sampleUv = uv + water.xy * uniforms.refraction * toUv;
 	let blurRadius = uniforms.fog * 0.018 * (1.0 - clamp(water.z, 0.0, 1.0));
-	let center = textureSampleLevel(sourceTexture, sourceSampler, sampleUv, 0.0);
+	let center = read_input(inputPosition(sampleUv));
 	if (blurRadius <= 0.0) {
 		return center;
 	}
@@ -86,7 +89,7 @@ fn fs(fragData: FragmentIn) -> @location(0) vec4f {
 		let r = sqrt((f32(i) + 0.5) / 12.0);
 		let angle = f32(i) * 2.39996323;
 		let offset = vec2f(cos(angle), sin(angle)) * r * blurRadius * toUv;
-		color += textureSampleLevel(sourceTexture, sourceSampler, sampleUv + offset, 0.0);
+		color += read_input(inputPosition(sampleUv + offset));
 	}
 	// Preserve the input's alpha convention, as with the existing blur effect.
 	return color / 14.0;

@@ -1,9 +1,11 @@
-fn premultiplyAlpha(color: vec4f) -> vec4f {
-	return vec4f(color.rgb * color.a, color.a);
+// 色のブレンドは未乗算で計算し、出力時に一度だけpremultiplyする。
+fn unpremultiply(color: vec4f) -> vec4f {
+	if (color.a <= 0.0) { return vec4f(0.0); }
+	return vec4f(color.rgb / color.a, color.a);
 }
 
-fn convertTexCoords(uv: vec2f) -> vec2f {
-	return vec2f(uv.x, -uv.y) * 0.5 + vec2f(0.5);
+fn premultiplyAlpha(color: vec4f) -> vec4f {
+	return vec4f(color.rgb * color.a, color.a);
 }
 
 fn blendOverlay(base: f32, blend: f32) -> f32 {
@@ -33,9 +35,7 @@ struct Uniforms {
 	rightSignal: vec3u,
 };
 
-@group(0) @binding(1) var<uniform> uniforms: Uniforms;
-@group(0) @binding(2) var sourceSampler: sampler;
-@group(0) @binding(3) var sourceTexture: texture_2d<f32>;
+@group(0) @binding(0) var<uniform> uniforms: Uniforms;
 
 struct FragmentIn {
 	@location(0) uv: vec2f,
@@ -44,9 +44,9 @@ struct FragmentIn {
 @fragment
 fn fs(fragData: FragmentIn) -> @location(0) vec4f {
 	let uv = fragData.uv;
-	let pixel = textureSample(sourceTexture, sourceSampler, convertTexCoords(uv));
-	let left = textureSample(sourceTexture, sourceSampler, convertTexCoords(uv + uniforms.amount));
-	let right = textureSample(sourceTexture, sourceSampler, convertTexCoords(uv - uniforms.amount));
+	let pixel = unpremultiply(read_input(uv));
+	let left = unpremultiply(read_input(uv + uniforms.amount));
+	let right = unpremultiply(read_input(uv - uniforms.amount));
 	var color = pixel.rgb;
 
 	if (uniforms.leftSignal.r != 0u) { color.r = doBlend(uniforms.blendMode, color.r, left.r); }

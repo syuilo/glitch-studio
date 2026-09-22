@@ -1,8 +1,10 @@
 import { implementEffect } from '../../effect-implementation.ts';
+import { createShaderInputPipeline } from '../../shader-input-pipeline.ts';
 import code from './shader.wgsl?raw';
 import type definition from './_def_.ts';
 
-export default implementEffect<typeof definition>({
+export default implementEffect<typeof definition, 'shaderInput'>({
+	inputMode: 'shaderInput',
 	outputTextureFactories: {
 		output: ({ wgpu, resolution }) => wgpu.device.createTexture({
 			size: resolution,
@@ -12,36 +14,24 @@ export default implementEffect<typeof definition>({
 	},
 	init: ({ wgpu }) => {
 		const device = wgpu.device;
-		const sampler = device.createSampler({ minFilter: 'linear', magFilter: 'linear' });
-		const layout = device.createBindGroupLayout({ entries: [
-			...[0, 1].map(binding => ({ binding, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float' as const } })),
-			{ binding: 2, visibility: GPUShaderStage.FRAGMENT, sampler: { type: 'filtering' } },
-		] });
-		const pipeline = device.createRenderPipeline({
-			layout: device.createPipelineLayout({ bindGroupLayouts: [layout] }),
-			vertex: { module: wgpu.defaultVertexShaderModule },
-			fragment: { module: device.createShaderModule({ code }), targets: [{ format: wgpu.enable32bitDataTextures ? 'rg32float' : 'rg16float' }] },
-			primitive: { topology: 'triangle-list' },
+		const pipelines = createShaderInputPipeline({
+			device, vertex: wgpu.defaultVertexShaderModule, code,
+			schema: { x: 'scalar', y: 'scalar' },
+			targets: [{ format: wgpu.enable32bitDataTextures ? 'rg32float' : 'rg16float' }],
+			sampling: 'level0',
 		});
-		let textures: GPUTexture[] = [];
-		let bindGroup: GPUBindGroup;
 		return {
 			render: ctx => {
-				const inputs = [ctx.params.x, ctx.params.y];
-				if (inputs.some((texture, i) => texture !== textures[i])) {
-					textures = inputs;
-					bindGroup = device.createBindGroup({ layout, entries: [
-						...textures.map((texture, binding) => ({ binding, resource: texture.createView() })),
-						{ binding: 2, resource: sampler },
-					] });
-				}
+				const variant = pipelines.update({ x: ctx.params.x, y: ctx.params.y }, ctx.outputDataMap.output.texture);
 				const pass = ctx.createPassEncoderFor(ctx.commandEncoder, ctx.outputDataMap.output.textureView);
-				pass.setPipeline(pipeline);
-				pass.setBindGroup(0, bindGroup);
+				pass.setPipeline(variant.pipeline);
+				pass.setBindGroup(pipelines.inputGroup, variant.bindGroup);
 				pass.draw(6);
 				pass.end();
 			},
-			dispose: () => {},
+			dispose: () => {
+				pipelines.dispose();
+			},
 		};
 	},
 });

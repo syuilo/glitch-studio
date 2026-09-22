@@ -1,3 +1,8 @@
+// 既存のエフェクト計算のUVを、入力参照APIの中央原点・+Yが上の座標へ戻す。
+fn inputPosition(uv: vec2f) -> vec2f {
+	return (uv * 2.0 - 1.0) * vec2f(1.0, -1.0);
+}
+
 struct Params {
 	amount: f32,
 	rotation: f32,
@@ -7,15 +12,11 @@ struct Params {
 };
 
 @group(0) @binding(0) var<uniform> params: Params;
-@group(0) @binding(1) var sourceSampler: sampler;
-@group(0) @binding(2) var source: texture_2d<f32>;
-@group(0) @binding(3) var vector: texture_2d<f32>;
-@group(0) @binding(4) var vectorSampler: sampler;
 
 @fragment
 fn fs(@location(0) uv: vec2f) -> @location(0) vec4f {
 	let coord = vec2f(uv.x, -uv.y) * 0.5 + 0.5;
-	let displacement = textureSampleLevel(vector, vectorSampler, coord, 0.0).rg;
+	let displacement = read_vector(inputPosition(coord));
 	// Vector data uses [-1, 1] coordinates: +X right, +Y up, two units across each axis.
 	// Flip first, then rotate in aspect-corrected space so screen angles and lengths are preserved.
 	let direction = displacement * vec2f(params.flipX * params.aspectRatio, params.flipY);
@@ -25,6 +26,6 @@ fn fs(@location(0) uv: vec2f) -> @location(0) vec4f {
 		/ vec2f(params.aspectRatio, 1.0);
 	// Convert the vector itself to texture coordinates before backward sampling.
 	let offset = rotated * vec2f(0.5, -0.5) * params.amount;
-	let color = textureSampleLevel(source, sourceSampler, coord - offset, 0.0);
-	return vec4f(color.rgb * color.a, color.a);
+	let color = read_input(inputPosition(coord - offset));
+	return color;
 }

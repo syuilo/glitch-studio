@@ -1,3 +1,8 @@
+// 既存のエフェクト計算のUVを、入力参照APIの中央原点・+Yが上の座標へ戻す。
+fn inputPosition(uv: vec2f) -> vec2f {
+	return (uv * 2.0 - 1.0) * vec2f(1.0, -1.0);
+}
+
 struct Uniforms {
 	aspect: vec2f,
 	seed: vec2f,
@@ -7,9 +12,7 @@ struct Uniforms {
 	refraction: f32,
 };
 
-@group(0) @binding(1) var<uniform> uniforms: Uniforms;
-@group(0) @binding(2) var sourceSampler: sampler;
-@group(0) @binding(3) var sourceTexture: texture_2d<f32>;
+@group(0) @binding(0) var<uniform> uniforms: Uniforms;
 
 fn hash(p: vec2f) -> vec3f {
 	var q = fract(vec3f(p.x, p.y, p.x) * vec3f(0.1031, 0.1030, 0.0973));
@@ -86,12 +89,12 @@ fn fs(input: FragmentIn) -> @location(0) vec4f {
 	// refraction all use short-side-normalized coordinates, never pixel units.
 	let footprint = max(fwidth(p.x), fwidth(p.y));
 	if (uniforms.density <= 0.0 || uniforms.refraction <= 0.0) {
-		return textureSampleLevel(sourceTexture, sourceSampler, uv, 0.0);
+		return read_input(inputPosition(uv));
 	}
 	var slope = flowingDrops(p, footprint, vec2f(0.0));
 	slope += flowingDrops(p * 1.6 + vec2f(7.3, 13.1), footprint * 1.6, vec2f(31.7, 9.2)) / 1.6;
 	slope += restingDrops(p * 2.7, footprint * 2.7) / 2.7;
 	let offset = slope * uniforms.refraction * 0.35 / (frequency * uniforms.aspect);
 	// Preserve the sampled RGBA, including the engine's existing alpha convention.
-	return textureSampleLevel(sourceTexture, sourceSampler, uv + offset, 0.0);
+	return read_input(inputPosition(uv + offset));
 }

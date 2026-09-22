@@ -14,7 +14,6 @@ export default defineEffect({
 		start: { dataType: 'scalar', ui: { label: 'Start', control: 'range', min: 0, max: 1, step: 0.01 }, defaultValue: { inputSource: 'literal', value: 0 } },
 		vector: { dataType: 'vector', ui: { label: 'Vector', control: 'vector', step: 0.01, min: -5, max: 5 }, defaultValue: { inputSource: 'literal', value: [0, 0] } },
 		normalize: { dataType: 'bool', ui: { label: 'Normalize', control: 'bool' }, defaultValue: { inputSource: 'literal', value: false } },
-		wrap: { dataType: 'wrapMode', ui: { label: 'Wrap', control: 'wrapMode' }, defaultValue: { inputSource: 'literal', value: 'repeatMirrored' } },
 	},
 	outputs: {
 		output: { primary: true, dataType: 'color' },
