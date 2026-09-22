@@ -205,14 +205,14 @@ function showSwitchMenu(ev: PointerEvent) {
 	}))], ev.currentTarget ?? ev.target);
 }
 
-import GsAutomationEditorWindow from './GsAutomationEditorWindow.vue';
+import GsAutomationPointsEditorWindow from './GsAutomationPointsEditorWindow.vue';
 
 async function addAutomation() {
 	const id = genId();
 	const automation: GsAutomation = {
 		id: id,
 		name: 'kf_' + id,
-		isNormalized: false,
+		isNormalized: true,
 		points: [{
 			id: genId(),
 			x: 0,
@@ -228,7 +228,7 @@ async function addAutomation() {
 		}],
 	};
 
-	const { dispose } = ui.popup(GsAutomationEditorWindow, {
+	const { dispose } = ui.popup(GsAutomationPointsEditorWindow, {
 		automation: automation,
 	}, {
 		done: () => {
