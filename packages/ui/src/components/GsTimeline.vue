@@ -338,7 +338,7 @@ function onVisualModuleLayerParamEdit(event: ParamEdit) {
 	appContext.commit('editVisualModuleLayerParam', {
 		layerId: layer.id,
 		paramId: event.paramPath[0],
-		edit: event.kind === 'reset' ? { kind: 'reset' } : event,
+		edit: event,
 	}, event.mergeKey != null ? `${layer.id}:${event.paramPath[0]}:${event.mergeKey}` : undefined);
 }
 

@@ -139,7 +139,8 @@ export type ParamEdit = { paramPath: ParamPath; mergeKey?: string | null } & (
 	| { kind: 'node'; value: NodeOutputReference | null }
 	| { kind: 'externalParameterInput'; value: string }
 	| { kind: 'inputSource'; inputSource: EffectParamValue['inputSource'] }
-	| { kind: 'reset' | 'addElement' }
+	| { kind: 'reset' }
+	| { kind: 'addElement' }
 	| { kind: 'removeElement'; index: number }
 );
 </script>
