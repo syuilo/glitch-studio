@@ -2,6 +2,7 @@ import { checkMigratedEffects } from './migrated-shader-input-gpu.ts';
 import { checkGradientInputs } from './gradient-shader-input-gpu.ts';
 import effect from '../../../shared/src/effects/colorMix/_impl_.ts';
 import rawImage from '../../../shared/src/effects/rawImage/_impl_.ts';
+import blockShuffle from '../../../shared/src/effects/blockShuffle/_impl_.ts';
 import { constantShaderInput, textureShaderInput, generateShaderInputs, createShaderInputBindings } from '../../../shared/src/shader-input.ts';
 import vertexCode from '../../src/vertex.wgsl?raw';
 
@@ -96,6 +97,29 @@ export async function run() {
 		// containの余白でもwrapを尊重する。上半分が赤、下半分が青の素材で
 		// clamp/mirrorとrepeatの参照先、およびtransparentの0を区別する。
 		const striped = texture(4, 2, Array.from({ length: 8 }, (_, i) => i < 4 ? [255, 0, 0, 255] : [0, 0, 255, 255]).flat());
+		// Block Shuffleの選択／非選択タイルのどちらでも、接続のfit/wrapを適用する。
+		// 変形を無効にしてColor Mixの入力参照と比較し、上下反転も検出する。
+		const blocks = blockShuffle.init({ wgpu: { device, defaultVertexShaderModule: vertex, intermediateTextureFormat: 'rgba8unorm' }, resolution: { width: 4, height: 4 } } as any);
+		try {
+			for (const fitMode of ['stretch', 'cover', 'contain'] as const) {
+				for (const wrapMode of ['clamp', 'repeat', 'repeatMirrored', 'transparent'] as const) {
+					const input = textureShaderInput(striped, { fitMode, wrapMode });
+					const expected = (await mix({ inputA: input, inputB: b, amount: zero }, 4, 4)).flat();
+					for (const selection of [0, 1]) {
+						const output = texture(4, 4);
+						const encoder = device.createCommandEncoder();
+						blocks.render({
+							params: { input, size: constantShaderInput('vector', [0.5, 0.75]), amount: selection, fitMode: 'contain', seed: 123, randomSwap: false, randomRotation: false, randomFlipX: false, randomFlipY: false },
+							commandEncoder: encoder, outputDataMap: { output: { texture: output, textureView: output.createView() } },
+							createPassEncoderFor: (_: GPUCommandEncoder, view: GPUTextureView) => encoder.beginRenderPass({ colorAttachments: [{ view, loadOp: 'clear', storeOp: 'store' }] }),
+						} as any);
+						check(`blockShuffle ${fitMode} ${wrapMode} selection ${selection}`, (await read(output, encoder)).flat(), expected);
+					}
+				}
+			}
+		} finally {
+			blocks.dispose();
+		}
 		for (const [wrapMode, expected] of [['clamp', [255, 0, 0, 255]], ['repeat', [0, 0, 255, 255]], ['repeatMirrored', [255, 0, 0, 255]], ['transparent', [0, 0, 0, 0]]] as const) {
 			const result = await mix({ inputA: textureShaderInput(striped, { fitMode: 'contain', wrapMode }), inputB: b, amount: zero }, 4, 4);
 			check('contain margin with ' + wrapMode, result[0].slice(0, 4), expected);

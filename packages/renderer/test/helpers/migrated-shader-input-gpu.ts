@@ -1,3 +1,5 @@
+import blockShuffle from '../../../shared/src/effects/blockShuffle/_impl_.ts';
+import blockShuffleDefinition from '../../../shared/src/effects/blockShuffle/_def_.ts';
 import dataMix from '../../../shared/src/effects/dataMix/_impl_.ts';
 import dataMixDefinition from '../../../shared/src/effects/dataMix/_def_.ts';
 import colorBlend from '../../../shared/src/effects/colorBlend/_impl_.ts';
@@ -34,7 +36,7 @@ import { float32ToFloat16Bits } from '../../../shared/src/utility/float32ToFloat
 // 同じ値のuniformとtextureを全組合せで切り替える。
 // WGSLの型だけでなく、binding位置・チャンネル・premultiplyの違いも検出する。
 export async function checkMigratedEffects(device: GPUDevice, vertex: GPUShaderModule, readOutput: (output: GPUTexture) => Promise<number[]>) {
-	const effects = [[dataMixDefinition, dataMix], [colorBlendDefinition, colorBlend], [dataBlendDefinition, dataBlend], [composeVectorDefinition, composeVector], [remapDefinition, remap], [multiplyDefinition, multiply], [rgbToDefinition, rgbTo], [snoiseDefinition, snoise], [channelShiftDefinition, channelShift], [chromaticAberrationDefinition, chromaticAberration], [colorBlocksDefinition, colorBlocks], [lcdDefinition, lcd], [rainDropsOnWindow1Definition, rainDropsOnWindow1], [rainDropsOnWindow2Definition, rainDropsOnWindow2], [vectorDisplacementDefinition, vectorDisplacement]] as const;
+	const effects = [[blockShuffleDefinition, blockShuffle], [dataMixDefinition, dataMix], [colorBlendDefinition, colorBlend], [dataBlendDefinition, dataBlend], [composeVectorDefinition, composeVector], [remapDefinition, remap], [multiplyDefinition, multiply], [rgbToDefinition, rgbTo], [snoiseDefinition, snoise], [channelShiftDefinition, channelShift], [chromaticAberrationDefinition, chromaticAberration], [colorBlocksDefinition, colorBlocks], [lcdDefinition, lcd], [rainDropsOnWindow1Definition, rainDropsOnWindow1], [rainDropsOnWindow2Definition, rainDropsOnWindow2], [vectorDisplacementDefinition, vectorDisplacement]] as const;
 	const completed: string[] = [];
 	for (const enable32bitDataTextures of [false, true]) {
 		if (enable32bitDataTextures && !device.features.has('float32-filterable')) continue;

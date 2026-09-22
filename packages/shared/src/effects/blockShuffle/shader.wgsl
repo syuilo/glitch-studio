@@ -1,5 +1,3 @@
-@group(0) @binding(5) var parameterSampler: sampler;
-
 fn convertTexCoords(uv: vec2f) -> vec2f {
 	return vec2f(uv.x, -uv.y) * 0.5 + vec2f(0.5);
 }
@@ -30,10 +28,7 @@ struct Uniforms {
 	randomFlipY: u32,
 };
 
-@group(0) @binding(1) var<uniform> uniforms: Uniforms;
-@group(0) @binding(2) var sourceSampler: sampler;
-@group(0) @binding(3) var sourceTexture: texture_2d<f32>;
-@group(0) @binding(4) var sizeTexture: texture_2d<f32>;
+@group(0) @binding(0) var<uniform> uniforms: Uniforms;
 
 struct FragmentIn {
 	@location(0) uv: vec2f,
@@ -42,10 +37,10 @@ struct FragmentIn {
 @fragment
 fn fs(fragData: FragmentIn) -> @location(0) vec4f {
 	let uv = convertTexCoords(fragData.uv);
-	// 定数の1x1テクスチャもノード入力も、出力全体に対応付ける。
-	let blockScale = 1.0 - clamp(textureSample(sizeTexture, parameterSampler, uv).rg, vec2f(0.0), vec2f(1.0));
+	// 入力参照関数が、定数または接続ごとのfit/wrapを適用した値を返す。
+	let blockScale = 1.0 - clamp(read_size(fragData.uv), vec2f(0.0), vec2f(1.0));
 	var extent = uniforms.resolution;
-	// 正方形の基準領域をcoverでは長辺、containでは短辺に合わせる。
+	// ブロック形状のfit。入力接続のfitとは独立に、基準領域を長辺／短辺へ合わせる。
 	if (uniforms.fitMode == 1u) {
 		extent = vec2f(max(uniforms.resolution.x, uniforms.resolution.y));
 	} else if (uniforms.fitMode == 2u) {
@@ -56,7 +51,7 @@ fn fs(fragData: FragmentIn) -> @location(0) vec4f {
 	// Amountで選ばれたタイルだけに、位置のシャッフル・回転・反転を適用する。
 	let selected = random(cell, uniforms.seed, 0u) < uniforms.amount;
 	if (!selected) {
-		return textureSampleLevel(sourceTexture, sourceSampler, uv, 0.0);
+		return read_input(fragData.uv);
 	}
 	let shift = vec2f(
 		random(cell, uniforms.seed, 1u) - 0.5,
@@ -82,5 +77,5 @@ fn fs(fragData: FragmentIn) -> @location(0) vec4f {
 	}
 	let sourceUv = cellCenter + localPosition / uniforms.resolution + select(vec2f(0.0), shift, uniforms.randomSwap != 0u);
 	// 入力は既にpremultiplied alphaなので、そのまま返す。
-	return textureSampleLevel(sourceTexture, sourceSampler, sourceUv, 0.0);
+	return read_input((sourceUv * 2.0 - 1.0) * vec2f(1.0, -1.0));
 }
