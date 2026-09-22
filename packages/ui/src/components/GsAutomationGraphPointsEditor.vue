@@ -836,7 +836,7 @@ function onTlKeydown(ev: KeyboardEvent) {
 function toggleBezierA() {
 	if (selectedPoint.value == null) return;
 	if (isBezierAZero.value) {
-		selectedPoint.value.bezierControlPointA = [-1000, 0];
+		selectedPoint.value.bezierControlPointA = [props.isNormalized ? -0.1 : toMs(-0.1), 0];
 	} else {
 		selectedPoint.value.bezierControlPointA = [0, 0];
 	}
@@ -845,7 +845,7 @@ function toggleBezierA() {
 function toggleBezierB() {
 	if (selectedPoint.value == null) return;
 	if (isBezierBZero.value) {
-		selectedPoint.value.bezierControlPointB = [1000, 0];
+		selectedPoint.value.bezierControlPointB = [props.isNormalized ? 0.1 : toMs(0.1), 0];
 	} else {
 		selectedPoint.value.bezierControlPointB = [0, 0];
 	}
