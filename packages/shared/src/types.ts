@@ -20,16 +20,18 @@ export type EffectParamValue = {
 } | {
 	inputSource: 'automationGraphReference';
 	automationGraphId: string | null;
-	durationMs: number | null; // automationGraphが0~1に正規化されている場合に指定。nullの場合はautomationGraph単位がmsであるとみなす
+	durationMs: number | null; // isNormalizedの場合のみ使用。nullの場合は1000ms。
 	offsetMode: 'start' | 'end';
 	wrapMode: 'clamp' | 'repeat' | 'repeatMirrored'
 } | {
 	inputSource: 'automationGraphInline';
 	automationGraph: Omit<GsAutomationGraph, 'id' | 'name'>;
-	durationMs: number | null; // automationGraphが0~1に正規化されている場合に指定。nullの場合はautomationGraph単位がmsであるとみなす
+	durationMs: number | null; // isNormalizedの場合のみ使用。nullの場合は1000ms。
 	offsetMode: 'start' | 'end';
 	wrapMode: 'clamp' | 'repeat' | 'repeatMirrored'
 } | NodeParamValue;
+
+export type AutomationGraphPlaybackOptions = Pick<Extract<EffectParamValue, { inputSource: 'automationGraphReference' }>, 'durationMs' | 'offsetMode' | 'wrapMode'>;
 
 export type Asset = {
 	id: string;

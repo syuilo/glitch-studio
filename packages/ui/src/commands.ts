@@ -4,7 +4,7 @@ import { deepClone } from '@glitch/shared/utility/deep-clone.ts';
 import { getNodeInputDataType, getNodeOutputs } from '@glitch/shared/utility/node-outputs.ts';
 import { genEmptyValue } from '@glitch/shared/utility/misc.ts';
 import type { AppState } from './types.ts';
-import type { Asset, EffectParamDefs, EffectParamValue, GsEffectNode, GsNode, Player, NodeOutputReference, VisualModule } from '@glitch/shared/types.ts';
+import type { Asset, AutomationGraphPlaybackOptions, EffectParamDefs, EffectParamValue, GsEffectNode, GsNode, Player, NodeOutputReference, VisualModule } from '@glitch/shared/types.ts';
 import type { NodeParamTarget as EffectNodeParamTarget } from '@/utility/node-params.ts';
 import { canConnectNodeDataTypes } from '@/utility/node-outputs.ts';
 import { resolveNodeParam, walkNodeParams } from '@/utility/node-params.ts';
@@ -41,7 +41,7 @@ const editVisualModuleLayerParamCommandDef = defineCommand<{
 	edit:
 		| { kind: 'literal'; value: any }
 		| { kind: 'envVariable' | 'expression'; value: string }
-		| { kind: 'automationGraphReference'; value: string | null }
+		| { kind: 'automationGraphReference'; value: string | null; options?: Partial<AutomationGraphPlaybackOptions> }
 		| { kind: 'inputSource'; inputSource: EffectParamValue['inputSource'] }
 		| { kind: 'reset' };
 }>({
@@ -74,6 +74,7 @@ const editVisualModuleLayerParamCommandDef = defineCommand<{
 							offsetMode: 'start',
 							...(current.inputSource === 'automationGraphReference' ? current : {}),
 							automationGraphId: edit.value,
+							...edit.options,
 						}; break;
 						case 'reset': after = deepClone(def.defaultValue); break;
 						case 'inputSource':
@@ -454,7 +455,7 @@ const updateParamAsExpressionCommandDef = defineNodeParamCommand<NodeParamTarget
 	},
 );
 
-const updateParamAsAutomationGraphReferenceCommandDef = defineNodeParamCommand<NodeParamTarget & { value: string | null }>(
+const updateParamAsAutomationGraphReferenceCommandDef = defineNodeParamCommand<NodeParamTarget & { value: string | null; options?: Partial<AutomationGraphPlaybackOptions> }>(
 	'Update param as automationGraphReference',
 	(target, payload) => {
 		assertLeafParam(target);
@@ -464,6 +465,7 @@ const updateParamAsAutomationGraphReferenceCommandDef = defineNodeParamCommand<N
 			wrapMode: 'repeat',
 			offsetMode: 'start',
 			...(target.value.inputSource === 'automationGraphReference' ? target.value : {}), automationGraphId: payload.value,
+			...payload.options,
 		};
 	},
 );

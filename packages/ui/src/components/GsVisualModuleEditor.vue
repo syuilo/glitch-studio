@@ -140,7 +140,7 @@ function onPreviewParamEdit(event: ParamEdit) {
 		case 'literal': previewParamValues.value[id] = { inputSource: 'literal', value: deepClone(event.value) }; break;
 		case 'envVariable': previewParamValues.value[id] = { inputSource: 'envVariable', variable: event.value }; break;
 		case 'expression': previewParamValues.value[id] = { inputSource: 'expression', expression: event.value }; break;
-		case 'automationGraphReference': previewParamValues.value[id] = { inputSource: 'automationGraphReference', durationMs: 1000, wrapMode: 'repeat', offsetMode: 'start', ...(current?.inputSource === 'automationGraphReference' ? current : {}), automationGraphId: event.value }; break;
+		case 'automationGraphReference': previewParamValues.value[id] = { inputSource: 'automationGraphReference', durationMs: 1000, wrapMode: 'repeat', offsetMode: 'start', ...(current?.inputSource === 'automationGraphReference' ? current : {}), automationGraphId: event.value, ...event.options }; break;
 		case 'node':
 		case 'externalParameterInput': return;
 		case 'reset': previewParamValues.value[id] = reset(); break;

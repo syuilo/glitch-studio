@@ -31,10 +31,145 @@ const context = (defs, params, overrides = {}) => ({
 	automationGraphs: [],
 	resolution: { width: 640, height: 360 },
 	time: 500,
-	progress: 0.25,
+	endTime: 2000,
 	paramValues: {},
 	textureParamIds: new Set(),
 	...overrides,
+});
+
+const graphPoint = (x, y) => ({ id: `${x}`, x, y, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] });
+const rampGraph = (isNormalized = true) => ({
+	id: 'ramp-id', name: 'Ramp', isNormalized,
+	// 配列順に依存せず終端を取得できることも確認する。
+	points: [graphPoint(isNormalized ? 1 : 2000, 10), graphPoint(0, 0)],
+});
+const graphInput = (inputSource, graph, options = {}) => ({
+	inputSource,
+	...(inputSource === 'automationGraphReference'
+		? { automationGraphId: graph.id }
+		: { automationGraph: { points: graph.points, isNormalized: graph.isNormalized } }),
+	durationMs: 2000, wrapMode: 'clamp', offsetMode: 'start', ...options,
+});
+
+// ノードのネストした入力とモジュール入力に同じ仕様を要求する。
+function evaluateGraphInput(inputSource, graph, { time = 500, endTime = 5000, ...options } = {}) {
+	const input = graphInput(inputSource, graph, options);
+	const result = new ParameterEvaluator().evaluate(context({ values: { dataType: 'array', item: number } }, {
+		values: literal([input]),
+	}, {
+		automationGraphs: inputSource === 'automationGraphReference' ? [graph] : [],
+		paramDefs: [paramDef('graph')], paramValues: { graph: input }, time, endTime,
+	}));
+	assert.equal(result.nodeParams.get('node').values[0], result.paramValues.get('graph'));
+	return result.paramValues.get('graph');
+}
+
+function assertClose(actual, expected) {
+	assert.ok(Math.abs(actual - expected) < 0.00001, `Expected ${actual} to be close to ${expected}`);
+}
+
+for (const source of ['automationGraphReference', 'automationGraphInline']) {
+	// 正規化グラフはdurationに引き延ばし、msグラフはdurationを無視する。
+	test(`evaluates normalized and millisecond coordinates for ${source}`, () => {
+		assertClose(evaluateGraphInput(source, rampGraph(), { durationMs: 4000, time: 1000 }), 2.5);
+		assertClose(evaluateGraphInput(source, rampGraph(false), { durationMs: 4000, time: 1000 }), 5);
+		assertClose(evaluateGraphInput(source, rampGraph(false), { durationMs: null, time: 500 }), 2.5);
+		assert.equal(evaluateGraphInput(source, rampGraph(), { time: 0 }), 0);
+		assert.equal(evaluateGraphInput(source, rampGraph(), { time: 2000 }), 10);
+	});
+
+	// 終端合わせは最大XをendTimeに置き、開始前の値にも指定されたwrapを適用する。
+	test(`aligns the graph end and preserves wrap semantics for ${source}`, () => {
+		for (const normalized of [true, false]) {
+			const graph = rampGraph(normalized);
+			assertClose(evaluateGraphInput(source, graph, { offsetMode: 'end', time: 3500 }), 2.5);
+			assert.equal(evaluateGraphInput(source, graph, { offsetMode: 'end', time: 5000 }), 10);
+			for (const [wrapMode, expected] of [['clamp', 0], ['repeat', 7.5], ['repeatMirrored', 2.5]]) {
+				assertClose(evaluateGraphInput(source, graph, { offsetMode: 'end', time: 2500, wrapMode }), expected);
+			}
+			// repeatの終端は既存の評価関数と同じく次周期の先頭になる。
+			assert.equal(evaluateGraphInput(source, graph, { offsetMode: 'end', time: 5000, wrapMode: 'repeat' }), 0);
+		}
+	});
+
+	// 正負の時刻、周期境界、往復再生の折り返しを確認する。
+	test(`applies all wrap modes for ${source}`, () => {
+		for (const normalized of [true, false]) {
+			const graph = rampGraph(normalized);
+			for (const [wrapMode, before, after, boundary] of [
+				['clamp', 0, 10, 10], ['repeat', 7.5, 2.5, 0], ['repeatMirrored', 2.5, 7.5, 10],
+			]) {
+				assertClose(evaluateGraphInput(source, graph, { time: -500, wrapMode }), before);
+				assertClose(evaluateGraphInput(source, graph, { time: 2500, wrapMode }), after);
+				assert.equal(evaluateGraphInput(source, graph, { time: 2000, wrapMode }), boundary);
+			}
+		}
+	});
+
+	// 終端はdurationそのものではなく実際の最終point。ms座標の開始位置も勝手に移動しない。
+	test(`uses actual point coordinates for ${source}`, () => {
+		const graph = { ...rampGraph(false), points: [graphPoint(3000, 10), graphPoint(1000, 0)] };
+		assertClose(evaluateGraphInput(source, graph, { time: 1500 }), 2.5);
+		assertClose(evaluateGraphInput(source, graph, { offsetMode: 'end', time: 4500 }), 7.5);
+	});
+
+	// liveは有限な終端を持たないためstart扱い。空・1点・無効なdurationでもNaNを返さない。
+	test(`handles live playback and degenerate graphs for ${source}`, () => {
+		assertClose(evaluateGraphInput(source, rampGraph(), { offsetMode: 'end', endTime: Infinity }), 2.5);
+		for (const durationMs of [null, 0, -1, Infinity, NaN]) {
+			assertClose(evaluateGraphInput(source, rampGraph(), { durationMs }), 5);
+		}
+		for (const wrapMode of ['clamp', 'repeat', 'repeatMirrored']) {
+			assert.equal(evaluateGraphInput(source, { ...rampGraph(), points: [] }, { wrapMode, offsetMode: 'end' }), 0);
+			assert.equal(evaluateGraphInput(source, { ...rampGraph(), points: [graphPoint(0.5, 3)] }, { wrapMode, offsetMode: 'end' }), 3);
+		}
+	});
+}
+
+// GRAPHは名前で検索し、グラフ固有の座標を使ってモジュール・ノードの両方で評価する。
+test('evaluates GRAPH by name in module and node expressions', () => {
+	const graph = rampGraph();
+	const msGraph = { ...rampGraph(false), id: 'ms-id', name: 'Milliseconds' };
+	const result = new ParameterEvaluator().evaluate(context({ values: { dataType: 'array', item: number } }, {
+		values: literal([
+			expression('GRAPH("Ramp", 0.25, "clamp")'),
+			expression('GRAPH("Ramp", 1.25, "repeat")'),
+			expression('GRAPH("Ramp", -0.25, "repeatMirrored")'),
+			expression('GRAPH("Milliseconds", TIME_MS, "clamp") + PARAM("gain")'),
+		]),
+	}, { automationGraphs: [graph, msGraph], paramDefs: [paramDef('gain')], paramValues: { gain: expression('GRAPH("Ramp", 0.5, "clamp")') } }));
+	assertClose(result.paramValues.get('gain'), 5);
+	result.nodeParams.get('node').values.forEach((value, index) => assertClose(value, [2.5, 2.5, 2.5, 7.5][index]));
+});
+
+// 不正な引数・未知の名前・IDによる検索・inlineグラフへの参照は式の既定値へ戻す。
+test('falls back for invalid GRAPH calls and does not expose inline graphs', () => {
+	const graph = rampGraph();
+	const invalid = [
+		'GRAPH("missing", 0.5, "clamp")', 'GRAPH("ramp-id", 0.5, "clamp")',
+		'GRAPH("Ramp", 0.5, "invalid")', 'GRAPH("Ramp", "0.5", "clamp")',
+		'GRAPH(1, 0.5, "clamp")', 'GRAPH("Ramp", 0.5)', 'GRAPH("Ramp", 0.5, "clamp", 1)',
+	];
+	const evaluator = new ParameterEvaluator();
+	const result = evaluator.evaluate(context({ values: { dataType: 'array', item: number } }, {
+		values: literal(invalid.map(expression)),
+	}, { automationGraphs: [graph], paramDefs: [paramDef('invalid')], paramValues: { invalid: expression(invalid[0]) } }));
+	assert.deepEqual(result.nodeParams.get('node').values, invalid.map(() => 0));
+	assert.equal(result.paramValues.get('invalid'), 0);
+	const inline = evaluator.evaluate(context({ inline: number, expression: number }, {
+		inline: graphInput('automationGraphInline', graph), expression: expression('GRAPH("Ramp", 0.5, "clamp")'),
+	}));
+	assertClose(inline.nodeParams.get('node').inline, 2.5);
+	assert.equal(inline.nodeParams.get('node').expression, 0);
+});
+
+// InterpreterとASTを再利用しても別モジュールや変更前のグラフを参照しない。
+test('refreshes GRAPH definitions between evaluations', () => {
+	const evaluator = new ParameterEvaluator();
+	const input = context({ value: number }, { value: expression('GRAPH("Ramp", 0.5, "clamp")') }, { automationGraphs: [rampGraph()] });
+	assertClose(evaluator.evaluate(input).nodeParams.get('node').value, 5);
+	assertClose(evaluator.evaluate({ ...input, automationGraphs: [{ ...rampGraph(), points: [graphPoint(0, 20)] }] }).nodeParams.get('node').value, 20);
+	assert.equal(evaluator.evaluate({ ...input, automationGraphs: [] }).nodeParams.get('node').value, 0);
 });
 
 // 単一の組み込み変数はモジュール・ネストしたノードのどちらでもパースも実行もしない

@@ -35,7 +35,18 @@
 						:items="[{ label: i18n.ts.None, value: '' }, ...envVariableItems]"
 						@update:modelValue="value => emit('edit', { kind: 'envVariable', ...target(), value })"
 					/>
-					<GsButton v-else-if="paramValue.inputSource === 'automationGraphReference'" small @click="selectAutomationGraph">{{ paramValue.automationGraphId }}</GsButton>
+					<div v-else-if="paramValue.inputSource === 'automationGraphReference'" style="display: grid; gap: 6px;">
+						<GsButton small @click="selectAutomationGraph">{{ selectedAutomationGraph?.name ?? i18n.ts.None }}</GsButton>
+						<GsInput v-if="selectedAutomationGraph?.isNormalized" type="number" small :min="1" :modelValue="paramValue.durationMs ?? 1000" @update:modelValue="updateAutomationGraphDuration">
+							<template #label>Duration (ms)</template>
+						</GsInput>
+						<GsSelect small :modelValue="paramValue.wrapMode" :items="graphWrapModeItems" @update:modelValue="wrapMode => updateAutomationGraphOptions({ wrapMode })">
+							<template #label>Wrap mode</template>
+						</GsSelect>
+						<GsSelect small :modelValue="paramValue.offsetMode" :items="graphOffsetModeItems" @update:modelValue="offsetMode => updateAutomationGraphOptions({ offsetMode })">
+							<template #label>Offset</template>
+						</GsSelect>
+					</div>
 					<GsSelect
 						v-else-if="paramValue.inputSource === 'externalParameterInput'"
 						small
@@ -101,9 +112,8 @@
 </template>
 
 <script lang="ts">
-import type { EffectParamValue, NodeOutputReference } from '@glitch/shared/types.ts';
+import type { AutomationGraphPlaybackOptions, EffectParamValue, NodeOutputReference } from '@glitch/shared/types.ts';
 import type { GlobalEnvVariable } from '@glitch/shared/expression.ts';
-import type { ParamPath } from '@/utility/node-params.ts';
 import { deepClone } from '@glitch/shared/utility/deep-clone.js';
 import { globalEnvVarDefs } from '@glitch/shared/expression.js';
 
@@ -111,7 +121,7 @@ export type ParamEdit = { paramPath: ParamPath; mergeKey?: string | null } & (
 	| { kind: 'literal'; value: any }
 	| { kind: 'envVariable'; value: GlobalEnvVariable }
 	| { kind: 'expression'; value: string }
-	| { kind: 'automationGraphReference'; value: string | null }
+	| { kind: 'automationGraphReference'; value: string | null; options?: Partial<AutomationGraphPlaybackOptions> }
 	| { kind: 'node'; value: NodeOutputReference | null }
 	| { kind: 'externalParameterInput'; value: string }
 	| { kind: 'inputSource'; inputSource: EffectParamValue['inputSource'] }
@@ -131,6 +141,7 @@ import GsButton from './common/GsButton.vue';
 import GsInput from './common/GsInput.vue';
 import GsCondensedLine from './common/GsCondensedLine.vue';
 import GsSelect from './common/GsSelect.vue';
+import type { ParamPath } from '@/utility/node-params.ts';
 import type { GsEffectNode, VisualModule } from '@glitch/shared/types.ts';
 import type { MenuItem } from '@/types/menu.ts';
 import type { NodeParamDef } from '@/utility/node-params.ts';
@@ -166,6 +177,19 @@ const inputDataType = computed(() => getNodeInputDataType(props.paramDef));
 const paramDefs = computed(() => appContext.state.visualModules.value.find(module => module.id === props.visualModuleId)?.paramDefs ?? []);
 const nodes = computed(() => appContext.state.visualModules.value.find(visualModule => visualModule.id === props.visualModuleId)?.nodes ?? []);
 const automationGraphs = computed(() => appContext.state.visualModules.value.find(visualModule => visualModule.id === props.visualModuleId)?.automationGraphs ?? []);
+const selectedAutomationGraph = computed(() => {
+	const value = props.paramValue;
+	return value.inputSource === 'automationGraphReference' ? automationGraphs.value.find(graph => graph.id === value.automationGraphId) : undefined;
+});
+const graphWrapModeItems = [
+	{ label: 'Clamp', value: 'clamp' },
+	{ label: 'Repeat', value: 'repeat' },
+	{ label: 'Repeat mirrored', value: 'repeatMirrored' },
+] satisfies { label: string; value: AutomationGraphPlaybackOptions['wrapMode'] }[];
+const graphOffsetModeItems = [
+	{ label: 'Start', value: 'start' },
+	{ label: 'End', value: 'end' },
+] satisfies { label: string; value: AutomationGraphPlaybackOptions['offsetMode'] }[];
 const envVariableItems = computed(() => globalEnvVarDefs.map(variable => ({ label: `${i18n.t(`_EnvVariables.${variable}`)} (${variable})`, value: variable })));
 const externalParameterInputItems = computed(() => (props.node == null ? [] : appContext.state.visualModules.value.find(module => module.id === props.visualModuleId)?.paramDefs ?? [])
 	.map(def => ({ label: `${def.ui.label} (${def.name})`, value: def.id })));
@@ -216,6 +240,15 @@ const isExpressionSyntaxError = computed(() => {
 		return true;
 	}
 });
+
+function updateAutomationGraphOptions(options: Partial<AutomationGraphPlaybackOptions>) {
+	if (props.paramValue.inputSource !== 'automationGraphReference') return;
+	emit('edit', { kind: 'automationGraphReference', ...target(), value: props.paramValue.automationGraphId, options });
+}
+
+function updateAutomationGraphDuration(durationMs: number) {
+	if (Number.isFinite(durationMs) && durationMs > 0) updateAutomationGraphOptions({ durationMs });
+}
 
 function selectAutomationGraph(ev: PointerEvent) {
 	ui.popupMenu([
