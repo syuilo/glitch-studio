@@ -57,25 +57,6 @@ test('reads single scope variables without parsing or executing AiScript', t => 
 	assert.equal(exec.mock.callCount(), 0);
 });
 
-// automationGraphの変数も直接取得し、同名の組み込み変数は組み込み側を優先する
-test('reads automationGraph variables directly while preserving built-in precedence', t => {
-	const evaluator = new ParameterEvaluator();
-	const parse = t.mock.method(evaluator.aisParser, 'parse');
-	// AiScriptのautobind getterを解決してから、実メソッドの呼び出しを記録する。
-	void evaluator.aiscript.execSync;
-	const exec = t.mock.method(evaluator.aiscript, 'execSync');
-	const automationGraphs = ['gain_1', 'channel:level', 'TIME'].map(name => ({ id: name, name, points: [
-		{ x: 0, y: 8, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] },
-		{ x: 1000, y: 8, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] },
-	] }));
-	const result = evaluator.evaluate(context({ a: number, b: number, time: number }, {
-		a: expression('gain_1'), b: expression('channel:level'), time: expression('TIME'),
-	}, { automationGraphs }));
-	assert.deepEqual(result.nodeParams.get('node'), { a: 8, b: 8, time: 0.5 });
-	assert.equal(parse.mock.callCount(), 0);
-	assert.equal(exec.mock.callCount(), 0);
-});
-
 // 複合式・コメント・関数呼び出し・未定義変数は従来のAiScript評価に渡す
 test('uses AiScript for complex expressions and unknown variables', t => {
 	const evaluator = new ParameterEvaluator();
@@ -90,20 +71,6 @@ test('uses AiScript for complex expressions and unknown variables', t => {
 	assert.deepEqual(result.nodeParams.get('node').values, [1.5, 0.5, 4, 0, 0]);
 	assert.equal(parse.mock.callCount(), expressions.length);
 	assert.equal(exec.mock.callCount(), expressions.length);
-});
-
-// 同名のautomationGraphがあってもtrue・false・nullを変数として扱わない
-test('preserves literal and keyword semantics when automationGraph names collide', t => {
-	const evaluator = new ParameterEvaluator();
-	const parse = t.mock.method(evaluator.aisParser, 'parse');
-	const names = ['true', 'false', 'null', 'if'];
-	const result = evaluator.evaluate(context({ values: { dataType: 'array', item: number } }, {
-		values: literal(names.map(expression)),
-	}, { automationGraphs: names.map(name => ({ id: name, name, points: [
-		{ x: 0, y: 99 }, { x: 1000, y: 99 },
-	] })), time: 0 }));
-	assert.deepEqual(result.nodeParams.get('node').values, [true, false, null, 0]);
-	assert.equal(parse.mock.callCount(), names.length);
 });
 
 // GPUなしでネストした値・式・接続参照を評価する
@@ -158,25 +125,6 @@ test('falls back for texture parameters, missing references and invalid expressi
 	assert.deepEqual(result.nodeParams.get('node'), Object.fromEntries(Object.keys(params).map(key => [key, 0])));
 	assert.equal(result.paramValues.has('texture'), false);
 	assert.equal(result.paramValues.get('missingAutomationGraph'), 12);
-});
-
-// automationGraphReferenceを直接入力・式・モジュールパラメータから同じ時刻で評価する
-test('evaluates automationGraphReference inputs and expression scope at the supplied time', () => {
-	const evaluator = new ParameterEvaluator();
-	const input = context({ direct: number, scoped: number, externalParameterInput: number }, {
-		direct: { inputSource: 'automationGraphReference', automationGraphId: 'ramp' },
-		scoped: expression('RAMP'),
-		externalParameterInput: { inputSource: 'externalParameterInput', parameterId: 'value' },
-	}, {
-		paramDefs: [paramDef('value')],
-		paramValues: { value: { inputSource: 'automationGraphReference', automationGraphId: 'ramp' } },
-		automationGraphs: [{ id: 'ramp', name: 'RAMP', points: [
-			{ x: 0, y: 0, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] },
-			{ x: 1000, y: 10, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] },
-		] }],
-	});
-	assert.deepEqual(evaluator.evaluate(input).nodeParams.get('node'), { direct: 5, scoped: 5, externalParameterInput: 5 });
-	assert.deepEqual(evaluator.evaluate({ ...input, time: 0 }).nodeParams.get('node'), { direct: 0, scoped: 0, externalParameterInput: 0 });
 });
 
 // バイパス中は主入力以外の不正なコンテナも評価しない

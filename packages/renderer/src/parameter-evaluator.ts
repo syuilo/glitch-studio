@@ -67,7 +67,7 @@ export class ParameterEvaluator {
 	public evaluate(context: ParameterEvaluationContext): EvaluatedParameters {
 		const paramValues = new Map<string, any>();
 		const nodeParams = new Map<GsNode['id'], Record<string, any>>();
-		const scope = {
+		const variablesScope = {
 			WIDTH: context.resolution.width,
 			HEIGHT: context.resolution.height,
 			TIME: context.time / 1000, // ms to seconds
@@ -78,22 +78,13 @@ export class ParameterEvaluator {
 			IS_EXPORT: false, // TODO
 		} satisfies Record<typeof globalEnvVarDefs[number], any>;
 
-		// Mixin (global) automationGraphs
-		// TODO: 各automationGraphをフレーム数を引数にとる関数として定義する
-		const automationGraphScope = {} as Record<string, any>;
-		for (const automationGraph of context.automationGraphs) {
-			automationGraphScope[automationGraph.name] = evalAutomationGraphValue(automationGraph, context.time, 'repeat');
-		}
-
-		const mixedScope: Record<string, any> = { ...automationGraphScope, ...scope };
-
 		for (const def of context.paramDefs) {
 			const value = context.paramValues[def.id];
 			if (context.textureParamIds.has(def.id)) continue;
 			let evaluated = deepClone(def.defaultValue.value); // literalの中身を取り出し、参照が共有されないように切る
 			if (value?.inputSource === 'literal') evaluated = value.value;
-			if (value?.inputSource === 'envVariable') evaluated = mixedScope[value.variable] ?? genEmptyValue(def);
-			if (value?.inputSource === 'expression') evaluated = this.evaluateExpression(value.expression, mixedScope, def);
+			if (value?.inputSource === 'envVariable') evaluated = variablesScope[value.variable] ?? genEmptyValue(def);
+			if (value?.inputSource === 'expression') evaluated = this.evaluateExpression(value.expression, variablesScope, def);
 			if (value?.inputSource === 'automationGraphReference') {
 				const automationGraph = context.automationGraphs.find(automationGraph => automationGraph.id === value.automationGraphId);
 				evaluated = automationGraph == null ? deepClone(def.defaultValue.value) : evalAutomationGraphValue(automationGraph, context.time, 'repeat');
@@ -117,8 +108,8 @@ export class ParameterEvaluator {
 				if (node.isBypass && !def.primary) continue;
 				evaluatedParams[key] = mapNodeParam(def, node.params[key], [key], (def, param) => {
 					if (param.inputSource === 'literal') return param.value;
-					if (param.inputSource === 'envVariable') return mixedScope[param.variable] ?? genEmptyValue(def);
-					if (param.inputSource === 'expression') return param.expression ? this.evaluateExpression(param.expression, mixedScope, def, readParam) : genEmptyValue(def);
+					if (param.inputSource === 'envVariable') return variablesScope[param.variable] ?? genEmptyValue(def);
+					if (param.inputSource === 'expression') return param.expression ? this.evaluateExpression(param.expression, variablesScope, def, readParam) : genEmptyValue(def);
 					if (param.inputSource === 'externalParameterInput') {
 						if (!paramValues.has(param.parameterId) || context.textureParamIds.has(param.parameterId)) return genEmptyValue(def);
 						return paramValues.get(param.parameterId);
