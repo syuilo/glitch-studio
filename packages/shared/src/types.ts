@@ -19,14 +19,14 @@ export type EffectParamValue = {
 } | {
 	inputSource: 'automationReference';
 	automationId: string | null;
-	durationMs: number;
+	durationMs: number | null; // automationが0~1に正規化されている場合に指定。nullの場合はautomation単位がmsであるとみなす
 	playMode: 'start' | 'end' | 'repeat' | 'repeatMirrored';
 } | {
 	inputSource: 'automationInline';
 	automation: {
 		keyframes: GsKeyframe[];
 	};
-	durationMs: number;
+	durationMs: number | null; // automationが0~1に正規化されている場合に指定。nullの場合はautomation単位がmsであるとみなす
 	playMode: 'start' | 'end' | 'repeat' | 'repeatMirrored';
 } | NodeParamValue;
 
@@ -56,8 +56,8 @@ export type EffectParamDefs = Record<string, EffectParamDef>;
 
 export type GsKeyframe = {
 	id: string;
-	x: number;
-	y: number;
+	x: number; // 時間(=Time)軸
+	y: number; // 値(=Value)軸
 	bezierControlPointA: [number, number];
 	bezierControlPointB: [number, number];
 };
@@ -66,6 +66,7 @@ export type GsAutomation = {
 	id: string;
 	name: string;
 	keyframes: GsKeyframe[];
+	isNormalized: boolean; // X軸が0~1に正規化されているかどうか。falseの場合はX軸単位がmsであるとみなす
 };
 
 export type GsEffectNode = {

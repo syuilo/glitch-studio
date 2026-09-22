@@ -212,6 +212,7 @@ async function addAutomation() {
 	const automation: GsAutomation = {
 		id: id,
 		name: 'kf_' + id,
+		isNormalized: false,
 		keyframes: [{
 			id: genId(),
 			x: 0,

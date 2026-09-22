@@ -126,8 +126,10 @@ const X_TICKS_HEIGHT = 20;
 const Y_TICKS_WIDTH = 60;
 
 const props = defineProps<{
-	isMsUnit: boolean;
-	automation: GsAutomation;
+	automation: {
+		keyframes: GsKeyframe[];
+		isNormalized: boolean;
+	};
 }>();
 
 // 最も長いxをもつkeyframeのx
@@ -139,9 +141,9 @@ const currentValueX = ref(0);
 const tlEl = useTemplateRef('tlEl');
 const tlElWidth = ref(0);
 const tlElHeight = ref(0);
-const tlRangeX = ref(props.isMsUnit ? 30000 : 2);
+const tlRangeX = ref(props.automation.isNormalized ? 2 : 30000/*ms*/);
 const tlRangeY = ref(5);
-const tlPosX = ref(props.isMsUnit ? -3000 : -0.5);
+const tlPosX = ref(props.automation.isNormalized ? -0.5 : -3000/*ms*/);
 const tlPosY = ref(-2.5);
 const snappingY = ref<number | null>(null);
 const selectedKeyframes = ref<GsKeyframe[]>([]);
@@ -803,7 +805,9 @@ function toggleBezierB() {
 }
 
 function formatValueXWithUnit(x: number): string {
-	if (props.isMsUnit) {
+	if (props.automation.isNormalized) {
+		return x.toFixed(2);
+	} else {
 		const totalSeconds = Math.floor(x / 1000);
 		const minutes = Math.floor(totalSeconds / 60);
 		const seconds = totalSeconds % 60;
@@ -813,8 +817,6 @@ function formatValueXWithUnit(x: number): string {
 		} else {
 			return `${minutes}:${seconds.toString().padStart(2, '0')}.${milliseconds.toString().replace(/0+$/, '')}`;
 		}
-	} else {
-		return x.toFixed(2);
 	}
 }
 

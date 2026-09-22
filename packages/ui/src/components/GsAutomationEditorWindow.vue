@@ -8,7 +8,7 @@
 	<template #header>aaa</template>
 
 	<div style="height: 100%;">
-		<GsAutomationEditor :isMsUnit="false" :automation="props.automation"/>
+		<GsAutomationEditor :automation="props.automation"/>
 	</div>
 </GsWindow>
 </template>
