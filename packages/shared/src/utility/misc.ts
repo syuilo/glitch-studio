@@ -73,27 +73,27 @@ export function niceScale(lowerBound: number, upperBound: number, ticks: number)
 }
 
 export function evalAutomationValue(automation: GsAutomation, x: number): number {
-	x = x % (automation.keyframes.reduce((max, kf) => Math.max(max, kf.x), 0) ?? 0);
-	const prevKeyframe = automation.keyframes.filter(k => k.x <= x)
+	x = x % (automation.points.reduce((max, kf) => Math.max(max, kf.x), 0) ?? 0);
+	const prevPoint = automation.points.filter(k => k.x <= x)
 		.sort((a, b) => b.x - a.x)
-		.sort((a, b) => automation.keyframes.indexOf(b) - automation.keyframes.indexOf(a))[0]; // 同一フレーム内に複数のキーフレームがある場合は、後のものを選択
-	const nextKeyframe = automation.keyframes.find(k => (k.x >= x));
-	if (prevKeyframe == null) {
+		.sort((a, b) => automation.points.indexOf(b) - automation.points.indexOf(a))[0]; // 同一フレーム内に複数のpointがある場合は、後のものを選択
+	const nextPoint = automation.points.find(k => (k.x >= x));
+	if (prevPoint == null) {
 		return 0;
-	} else if (nextKeyframe == null) {
-		return prevKeyframe.y;
-	} else if (prevKeyframe === nextKeyframe) {
-		return prevKeyframe.y;
+	} else if (nextPoint == null) {
+		return prevPoint.y;
+	} else if (prevPoint === nextPoint) {
+		return prevPoint.y;
 	}
 	return rawBezierEasing(
-		prevKeyframe.x,
-		prevKeyframe.x + prevKeyframe.bezierControlPointB[0],
-		nextKeyframe.x + nextKeyframe.bezierControlPointA[0],
-		nextKeyframe.x,
-		prevKeyframe.y,
-		prevKeyframe.y + prevKeyframe.bezierControlPointB[1],
-		nextKeyframe.y + nextKeyframe.bezierControlPointA[1],
-		nextKeyframe.y,
+		prevPoint.x,
+		prevPoint.x + prevPoint.bezierControlPointB[0],
+		nextPoint.x + nextPoint.bezierControlPointA[0],
+		nextPoint.x,
+		prevPoint.y,
+		prevPoint.y + prevPoint.bezierControlPointB[1],
+		nextPoint.y + nextPoint.bezierControlPointA[1],
+		nextPoint.y,
 		x,
 	);
 }

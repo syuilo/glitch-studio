@@ -213,7 +213,7 @@ async function addAutomation() {
 		id: id,
 		name: 'kf_' + id,
 		isNormalized: false,
-		keyframes: [{
+		points: [{
 			id: genId(),
 			x: 0,
 			y: 0,

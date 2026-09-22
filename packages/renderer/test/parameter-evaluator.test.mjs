@@ -64,7 +64,7 @@ test('reads automation variables directly while preserving built-in precedence',
 	// AiScriptのautobind getterを解決してから、実メソッドの呼び出しを記録する。
 	void evaluator.aiscript.execSync;
 	const exec = t.mock.method(evaluator.aiscript, 'execSync');
-	const automations = ['gain_1', 'channel:level', 'TIME'].map(name => ({ id: name, name, keyframes: [
+	const automations = ['gain_1', 'channel:level', 'TIME'].map(name => ({ id: name, name, points: [
 		{ x: 0, y: 8, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] },
 		{ x: 1000, y: 8, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] },
 	] }));
@@ -99,7 +99,7 @@ test('preserves literal and keyword semantics when automation names collide', t 
 	const names = ['true', 'false', 'null', 'if'];
 	const result = evaluator.evaluate(context({ values: { dataType: 'array', item: number } }, {
 		values: literal(names.map(expression)),
-	}, { automations: names.map(name => ({ id: name, name, keyframes: [
+	}, { automations: names.map(name => ({ id: name, name, points: [
 		{ x: 0, y: 99 }, { x: 1000, y: 99 },
 	] })), time: 0 }));
 	assert.deepEqual(result.nodeParams.get('node').values, [true, false, null, 0]);
@@ -170,7 +170,7 @@ test('evaluates automationReference inputs and expression scope at the supplied 
 	}, {
 		paramDefs: [paramDef('value')],
 		paramValues: { value: { inputSource: 'automationReference', automationId: 'ramp' } },
-		automations: [{ id: 'ramp', name: 'RAMP', keyframes: [
+		automations: [{ id: 'ramp', name: 'RAMP', points: [
 			{ x: 0, y: 0, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] },
 			{ x: 1000, y: 10, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] },
 		] }],

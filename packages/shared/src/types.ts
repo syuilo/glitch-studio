@@ -24,7 +24,7 @@ export type EffectParamValue = {
 } | {
 	inputSource: 'automationInline';
 	automation: {
-		keyframes: GsKeyframe[];
+		points: GsBezierAnchorPoint[];
 	};
 	durationMs: number | null; // automationが0~1に正規化されている場合に指定。nullの場合はautomation単位がmsであるとみなす
 	playMode: 'start' | 'end' | 'repeat' | 'repeatMirrored';
@@ -54,7 +54,7 @@ export type EffectParamDef = EffectOptionSchema & {
 
 export type EffectParamDefs = Record<string, EffectParamDef>;
 
-export type GsKeyframe = {
+export type GsBezierAnchorPoint = {
 	id: string;
 	x: number; // 時間(=Time)軸
 	y: number; // 値(=Value)軸
@@ -65,7 +65,7 @@ export type GsKeyframe = {
 export type GsAutomation = {
 	id: string;
 	name: string;
-	keyframes: GsKeyframe[];
+	points: GsBezierAnchorPoint[];
 	isNormalized: boolean; // X軸が0~1に正規化されているかどうか。falseの場合はX軸単位がmsであるとみなす
 };
 
