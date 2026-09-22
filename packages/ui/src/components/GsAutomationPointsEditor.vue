@@ -31,7 +31,8 @@
 							<stop offset="100%" stop-color="var(--accentAlphaMiddleLow)"/>
 						</linearGradient>
 					</defs>
-					<path :d="automationSvgPath" style="stroke: currentColor; fill: url(#tlAutomationGradient); stroke-width: 2;"/>
+					<path :d="automationSvgFillPath" style="fill: url(#tlAutomationGradient); stroke: none;"/>
+					<path :d="automationSvgPath" style="stroke: currentColor; fill: none; stroke-width: 2;"/>
 				</svg>
 
 				<svg v-if="!nowSelecting && selectedPoint" version="1.1" :viewBox="`0 0 ${tlElWidth} ${tlElHeight}`" :class="$style.lines">
@@ -268,7 +269,8 @@ const minMaxValuesInTheAutomation = computed(() => {
 
 const automationSvgPath = computed(() => {
 	const points = ppints.value;
-	let d = `M ${valueXToDomX(0)}, ${valueYToDomY(0)} L ${valueXToDomX(points[0].x)}, ${valueYToDomY(points[0].y)}`;
+	if (points.length === 0) return '';
+	let d = `M ${valueXToDomX(points[0].x)}, ${valueYToDomY(points[0].y)}`;
 	for (let i = 0; i < points.length - 1; i++) {
 		const point = points[i];
 		const dx1 = valueXToDomX(Math.min(points[i + 1].x, point.x + (point.bezierControlPointB[0])));
@@ -279,8 +281,13 @@ const automationSvgPath = computed(() => {
 		const dy = valueYToDomY(points[i + 1].y);
 		d += ` C ${dx1}, ${dy1} ${dx2}, ${dy2} ${dx}, ${dy}`;
 	}
-	d += ` L ${valueXToDomX(points[points.length - 1].x)}, ${valueYToDomY(0)}`;
 	return d;
+});
+const automationSvgFillPath = computed(() => {
+	const points = ppints.value;
+	if (points.length === 0) return '';
+	// 値0へ閉じる線は塗りつぶし専用にし、曲線のstrokeには含めない。
+	return `${automationSvgPath.value} L ${valueXToDomX(points[points.length - 1].x)}, ${valueYToDomY(0)} L ${valueXToDomX(0)}, ${valueYToDomY(0)} Z`;
 });
 const automationPathGradientCenter = computed(() => {
 	const max = minMaxValuesInTheAutomation.value.max;
