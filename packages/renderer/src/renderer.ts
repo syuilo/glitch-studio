@@ -16,7 +16,7 @@ import type { FrameScheduler, LiveFrameTiming } from './live-render-loop.ts';
 import type { TimelineLayerRenderer } from './timeline-renderer.ts';
 import type { EffectStatus } from '@glitch/shared/effect-status.ts';
 import type { AudioCaptureMessage, AudioSourceId } from '@glitch/shared/audio.ts';
-import type { Asset, Player, Timeline, VisualModule, VisualModuleLayer, VisualModuleParamValues } from '@glitch/shared/types.ts';
+import type { Asset, Player, Timeline, TimelineVisualModuleLayer, VisualModule, VisualModuleParamValues } from '@glitch/shared/types.ts';
 import type { EffectImplementation, IntermediateTextureFormat } from '@glitch/shared/effect-implementation.js';
 import type { EffectDefinition } from '@glitch/shared/effect-definition.js';
 
@@ -390,7 +390,7 @@ export class MainRenderer {
 		}
 	}
 
-	private createVisualModuleLayer(visualModule: VisualModule, layer: VisualModuleLayer): TimelineLayerRenderer<GPUTexture> {
+	private createVisualModuleLayer(visualModule: VisualModule, layer: TimelineVisualModuleLayer): TimelineLayerRenderer<GPUTexture> {
 		const renderer = new VisualModuleRenderer({
 			gpuDevice: this.gpuDevice,
 			gpuContext: this.gpuContext,
@@ -477,6 +477,7 @@ export class MainRenderer {
 			paramValues: this.liveParamValues,
 			time: timing.time,
 			timeDelta: timing.timeDelta,
+			endTime: Infinity,
 			pointerPosition: this.pointerPosition,
 			pointerPositionPrev: this.pointerPositionPrev,
 		}, commandEncoder);

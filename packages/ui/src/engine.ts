@@ -24,8 +24,7 @@ export class Engine {
 	private rendererWorker: Worker | null = null;
 	private resolution = { width: 1, height: 1 };
 	private renderLoopRunning = false;
-	private liveVisualModuleId: VisualModule['id'] | null = null;
-	public get currentLiveVisualModuleId(): VisualModule['id'] | null { return this.liveVisualModuleId; }
+	public liveVisualModuleId = ref<VisualModule['id'] | null>(null);
 	private liveParamValues: VisualModuleParamValues = {};
 	private reloadPromise: Promise<void> | null = null;
 	private rejectInitialization: ((reason: Error) => void) | null = null;
@@ -238,12 +237,12 @@ export class Engine {
 	public startLiveRenderLoopFor(visualModuleId: VisualModule['id'], paramValues: VisualModuleParamValues = {}) {
 		this.liveParamValues = deepClone(paramValues);
 		this.call('startLiveRenderLoopFor', [visualModuleId, this.liveParamValues]);
-		this.liveVisualModuleId = visualModuleId;
+		this.liveVisualModuleId.value = visualModuleId;
 		this.renderLoopRunning = true;
 	}
 
 	public updateLiveParamValues(visualModuleId: VisualModule['id'], paramValues: VisualModuleParamValues) {
-		if (!this.renderLoopRunning || this.liveVisualModuleId !== visualModuleId) {
+		if (!this.renderLoopRunning || this.liveVisualModuleId.value !== visualModuleId) {
 			this.startLiveRenderLoopFor(visualModuleId, paramValues);
 			return;
 		}
@@ -255,7 +254,7 @@ export class Engine {
 	public stopRenderLoop() {
 		this.call('stopRenderLoop', []);
 		this.renderLoopRunning = false;
-		this.liveVisualModuleId = null;
+		this.liveVisualModuleId.value = null;
 	}
 
 	public async updatePlayers(newPlayers: Player[]) {
@@ -416,7 +415,7 @@ export class Engine {
 		if (this.isReady.value || (this.rendererWorker != null && this.rejectInitialization != null)) {
 			this.call('renderTimelineAt', [time]);
 			this.renderLoopRunning = false;
-			this.liveVisualModuleId = null;
+			this.liveVisualModuleId.value = null;
 		}
 	}
 
@@ -504,6 +503,6 @@ export class Engine {
 			this.sendPendingVideoFrame(id);
 		}
 		this.call('updatePointerPosition', [this.pointerPosition]);
-		if (this.renderLoopRunning && this.liveVisualModuleId != null) this.startLiveRenderLoopFor(this.liveVisualModuleId, this.liveParamValues);
+		if (this.renderLoopRunning && this.liveVisualModuleId.value != null) this.startLiveRenderLoopFor(this.liveVisualModuleId.value, this.liveParamValues);
 	}
 }

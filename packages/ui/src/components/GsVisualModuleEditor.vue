@@ -2,7 +2,7 @@
 <div :class="$style.root">
 	<div :class="$style.header">
 		<button class="_button" style="padding: 4px 6px;" @click="showSwitchMenu"><i class="ti ti-chevron-down"></i> Module: {{ visualModule?.name ?? '' }} [{{ visualModule?.id ?? '' }}]</button>
-		<GsButton :class="$style.liveButton" small primary @click="previewLive"><i class="ti ti-player-play"></i> LIVE</GsButton>
+		<GsButton v-if="visualModule != null" :class="$style.liveButton" small :primary="engine.liveVisualModuleId.value === visualModule.id" @click="previewLive"><i class="ti ti-player-play"></i> LIVE</GsButton>
 
 		<GsButton small primary @click="addAutomationGraph">a</GsButton>
 
@@ -165,7 +165,7 @@ function onPreviewParamEdit(event: ParamEdit) {
 
 function previewLive() {
 	if (visualModule.value == null) return;
-	engine.updateLiveParamValues(visualModule.value.id, previewParamValues.value);
+	engine.startLiveRenderLoopFor(visualModule.value.id, previewParamValues.value);
 }
 
 const globalInNode = computed(() => {

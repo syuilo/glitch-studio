@@ -71,7 +71,7 @@ async function onDrop(event: DragEvent) {
 }
 
 async function addMedia(file?: File) {
-	const visualModuleId = engine.currentLiveVisualModuleId;
+	const visualModuleId = engine.liveVisualModuleId.value;
 	if (visualModuleId == null) return;
 	const result = await api.openMediaFile({ file });
 	if (result == null) return;
