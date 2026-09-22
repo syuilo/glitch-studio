@@ -72,7 +72,7 @@ export function niceScale(lowerBound: number, upperBound: number, ticks: number)
 	return steps;
 }
 
-export function evalAutomationValue(automation: GsAutomation, x: number): number {
+export function evalAutomationValue(automation: { points: GsAutomation['points'] }, x: number): number {
 	x = x % (automation.points.reduce((max, kf) => Math.max(max, kf.x), 0) ?? 0);
 	const prevPoint = automation.points.filter(k => k.x <= x)
 		.sort((a, b) => b.x - a.x)

@@ -54,7 +54,7 @@
 				</svg>
 
 				<div
-					v-for="point of props.automation.points"
+					v-for="point of ppints"
 					:class="[$style.point, { [$style.selectedPoint]: selectedPoints.includes(point) }]"
 					:style="{ left: valueXToDomX(point.x) + 'px', top: valueYToDomY(point.y) + 'px' }"
 					@mousedown="onPointMousedown($event, point)"
@@ -116,6 +116,7 @@
 import { computed, onMounted, ref, shallowRef, useTemplateRef, watch } from 'vue';
 import { evalAutomationValue, insertIntermediateNumbers, nearlyEqual, niceScale } from '@glitch/shared/utility/misc.js';
 import { genId } from '@glitch/shared/utility/id.js';
+import { deepClone } from '@glitch/shared/utility/deep-clone.js';
 import GsButton from './common/GsButton.vue';
 import type { GsAutomation, GsBezierAnchorPoint } from '@glitch/shared/types.js';
 import { dragListen } from '@/utility/drag.ts';
@@ -126,24 +127,24 @@ const X_TICKS_HEIGHT = 20;
 const Y_TICKS_WIDTH = 60;
 
 const props = defineProps<{
-	automation: {
-		points: GsBezierAnchorPoint[];
-		isNormalized: boolean;
-	};
+	points: GsBezierAnchorPoint[];
+	isNormalized: boolean;
 }>();
+
+const ppints = ref(deepClone(props.points));
 
 // 最も長いxをもつpointのx
 const duration = computed(() => {
-	return props.automation.points.reduce((max, kf) => Math.max(max, kf.x), 0) ?? 0;
+	return ppints.value.reduce((max, kf) => Math.max(max, kf.x), 0) ?? 0;
 });
 const currentValueX = ref(0);
 
 const tlEl = useTemplateRef('tlEl');
 const tlElWidth = ref(0);
 const tlElHeight = ref(0);
-const tlRangeX = ref(props.automation.isNormalized ? 2 : 30000/*ms*/);
+const tlRangeX = ref(props.isNormalized ? 2 : 30000/*ms*/);
 const tlRangeY = ref(5);
-const tlPosX = ref(props.automation.isNormalized ? -0.5 : -3000/*ms*/);
+const tlPosX = ref(props.isNormalized ? -0.5 : -3000/*ms*/);
 const tlPosY = ref(-2.5);
 const snappingY = ref<number | null>(null);
 const selectedPoints = ref<GsBezierAnchorPoint[]>([]);
@@ -153,7 +154,7 @@ const seekBarPos = computed(() => {
 	return valueXToDomX(currentValueX.value);
 });
 const currentValue = computed(() => {
-	return evalAutomationValue(props.automation, currentValueX.value);
+	return evalAutomationValue({ points: ppints.value }, currentValueX.value);
 });
 const valueBarPos = computed(() => {
 	return valueYToDomY(currentValue.value);
@@ -237,11 +238,10 @@ const minMaxValuesInTheAutomation = computed(() => {
 		min = Math.min(min, value);
 		max = Math.max(max, value);
 	};
-	const points = props.automation.points;
-	for (const point of points) include(point.y);
-	for (let i = 0; i < points.length - 1; i++) {
-		const start = points[i];
-		const end = points[i + 1];
+	for (const point of ppints.value) include(point.y);
+	for (let i = 0; i < ppints.value.length - 1; i++) {
+		const start = ppints.value[i];
+		const end = ppints.value[i + 1];
 		const y0 = start.y;
 		const y1 = start.y + start.bezierControlPointB[1];
 		const y2 = end.y + end.bezierControlPointA[1];
@@ -267,7 +267,7 @@ const minMaxValuesInTheAutomation = computed(() => {
 });
 
 const automationSvgPath = computed(() => {
-	const points = props.automation.points;
+	const points = ppints.value;
 	let d = `M ${valueXToDomX(0)}, ${valueYToDomY(0)} L ${valueXToDomX(points[0].x)}, ${valueYToDomY(points[0].y)}`;
 	for (let i = 0; i < points.length - 1; i++) {
 		const point = points[i];
@@ -322,7 +322,7 @@ function domYToValueY(y: number): number {
 }
 
 function addPoint(x: number, y: number): GsBezierAnchorPoint | undefined {
-	const points = [] as GsBezierAnchorPoint[];
+	const _points = [] as GsBezierAnchorPoint[];
 	const point: GsBezierAnchorPoint = {
 		id: genId(),
 		x,
@@ -331,21 +331,20 @@ function addPoint(x: number, y: number): GsBezierAnchorPoint | undefined {
 		bezierControlPointB: [1000, 0],
 	};
 	let pushed = false;
-	if (props.automation.points.filter(kf => kf.x === x).length > 1) return;
-	for (const kf of props.automation.points) {
+	if (ppints.value.filter(kf => kf.x === x).length > 1) return;
+	for (const kf of ppints.value) {
 		if (!pushed && kf.x > x) {
-			points.push(point);
-			points.push(kf);
+			_points.push(point);
+			_points.push(kf);
 			pushed = true;
 		} else {
-			points.push(kf);
+			_points.push(kf);
 		}
 	}
 	if (!pushed) {
-		points.push(point);
+		_points.push(point);
 	}
-	// TODO
-	//props.automation.points = points;
+	ppints.value = _points;
 	return point;
 }
 
@@ -488,7 +487,7 @@ function onTlMousedown(ev: MouseEvent) {
 		selectedAreaWidth.value = targetFrame - originFrame;
 		selectedAreaHeight.value = targetValue - originValue;
 
-		selectedPoints.value = props.automation.points.filter(kf =>
+		selectedPoints.value = ppints.value.filter(kf =>
 			kf.x >= originFrame && kf.x <= targetFrame && kf.y >= originValue && kf.y <= targetValue,
 		);
 	}
@@ -510,8 +509,8 @@ const SNAP_THRESHOLD = 5;
 function onPointsXYHandleMousedown(ev: MouseEvent, point: GsBezierAnchorPoint, treatX: boolean, treatY: boolean) {
 	if (tlEl.value == null) return;
 	ev.stopPropagation();
-	const prevPoint = props.automation.points[props.automation.points.indexOf(selectedPoints.value[0]) - 1];
-	const nextPoint = props.automation.points[props.automation.points.indexOf(selectedPoints.value[selectedPoints.value.length - 1]) + 1];
+	const prevPoint = ppints.value[ppints.value.indexOf(selectedPoints.value[0]) - 1];
+	const nextPoint = ppints.value[ppints.value.indexOf(selectedPoints.value[selectedPoints.value.length - 1]) + 1];
 	const position = tlEl.value.getBoundingClientRect();
 	const moveBaseX = ev.clientX - position.left;
 	const moveBaseY = ev.clientY - position.top;
@@ -604,8 +603,8 @@ function onBezierHandleAMousedown(ev: MouseEvent) {
 	if (selected == null || tlEl.value == null) return;
 	ev.stopPropagation();
 	const point = selected;
-	if (!props.automation.points.includes(point)) return;
-	const prevPoint = props.automation.points[props.automation.points.indexOf(selected) - 1];
+	if (!ppints.value.includes(point)) return;
+	const prevPoint = ppints.value[ppints.value.indexOf(selected) - 1];
 	if (prevPoint == null) return;
 	const position = tlEl.value.getBoundingClientRect();
 	const moveBaseX = ev.clientX - position.left;
@@ -676,8 +675,8 @@ function onBezierHandleBMousedown(ev: MouseEvent) {
 	if (selected == null || tlEl.value == null) return;
 	ev.stopPropagation();
 	const point = selected;
-	if (!props.automation.points.includes(point)) return;
-	const nextPoint = props.automation.points[props.automation.points.indexOf(selected) + 1];
+	if (!ppints.value.includes(point)) return;
+	const nextPoint = ppints.value[ppints.value.indexOf(selected) + 1];
 	if (nextPoint == null) return;
 	const position = tlEl.value.getBoundingClientRect();
 	const moveBaseX = ev.clientX - position.left;
@@ -758,10 +757,9 @@ function onSeekBarMousedown(ev: MouseEvent) {
 }
 
 function deletePoint(point: GsBezierAnchorPoint) {
-	const index = props.automation.points.indexOf(point);
+	const index = ppints.value.indexOf(point);
 	if (index === -1) return;
-	// TODO
-	//props.automation.points.splice(index, 1);
+	ppints.value.splice(index, 1);
 }
 
 let copyingPoints: GsBezierAnchorPoint[] | null = null;
@@ -805,7 +803,7 @@ function toggleBezierB() {
 }
 
 function formatValueXWithUnit(x: number): string {
-	if (props.automation.isNormalized) {
+	if (props.isNormalized) {
 		return x.toFixed(2);
 	} else {
 		const totalSeconds = Math.floor(x / 1000);
