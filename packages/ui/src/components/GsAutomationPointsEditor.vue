@@ -10,13 +10,13 @@
 				<div v-for="valueY of yTicks" class="_monospace" :class="[$style.yTick, { [$style.yTickActive]: snappingY != null && nearlyEqual(snappingY, valueY) }]" :style="{ top: valueYToDomY(valueY) + 'px' }">{{ valueY.toFixed(2) }}</div>
 			</div>
 			<div :class="$style.xTicks" @wheel="onXTicksWheel">
-				<div v-for="valueX of xTicks" :class="$style.xTick" class="_monospace" :style="{ left: valueXToDomX(valueX) + 'px' }">{{ formatValueXWithUnit(valueX) }}</div>
+				<div v-for="valueX of xTicks" :class="[$style.xTick, { [$style.xTickActive]: snappingX != null && nearlyEqual(snappingX, valueX) }]" class="_monospace" :style="{ left: valueXToDomX(valueX) + 'px' }">{{ formatValueXWithUnit(valueX) }}</div>
 				<div :class="$style.xTicksSeekBar" :style="{ left: (seekBarPos - 1) + 'px' }" @mousedown="onSeekBarMousedown"></div>
 			</div>
 			<div :class="$style.ticksCorner"></div>
 			<div :class="$style.tlRange" :style="{ width: tlRangeElWidth + 'px', left: tlRangeElPosX + 'px' }"></div>
 			<div :class="$style.selectedArea" :style="{ width: selectedAreaElWidth + 'px', height: selectedAreaElHeight + 'px', bottom: selectedAreaElPosY + 'px', left: selectedAreaElPosX + 'px' }"></div>
-			<div v-for="valueX of xTicks" :class="[$style.inTlXTick]" :style="{ left: valueXToDomX(valueX) + 'px' }"></div>
+			<div v-for="valueX of xTicks" :class="[$style.inTlXTick, { [$style.inTlXTickActive]: snappingX != null && nearlyEqual(snappingX, valueX) }]" :style="{ left: valueXToDomX(valueX) + 'px' }"></div>
 			<div v-for="valueY of yTicks" :class="[$style.inTlYTick, { [$style.inTlYTickZero]: valueY.toFixed(2).replace('-', '') === '0.00', [$style.inTlYTickActive]: snappingY != null && nearlyEqual(snappingY, valueY) }]" :style="{ top: valueYToDomY(valueY) + 'px' }"></div>
 			<div :class="$style.seekBar" class="_monospace" :style="{ left: seekBarPos + 'px' }"><div :class="$style.seekBarFrame">{{ formatValueXWithUnit(currentValueX) }}</div></div>
 			<div :class="$style.valueBar" class="_monospace" :style="{ top: valueBarPos + 'px' }"><div :class="$style.valueBarValue">{{ currentValue.toFixed(2) }}</div></div>
@@ -161,6 +161,7 @@ const tlRangeX = ref(props.isNormalized ? 2 : toMs(2));
 const tlRangeY = ref(5);
 const tlPosX = ref(props.isNormalized ? -0.5 : toMs(-0.5));
 const tlPosY = ref(-2.5);
+const snappingX = ref<number | null>(null);
 const snappingY = ref<number | null>(null);
 const selectedPoints = ref<GsBezierAnchorPoint[]>([]);
 const selectedPoint = computed(() => selectedPoints.value.length === 1 ? selectedPoints.value[0] : null);
@@ -545,8 +546,26 @@ function onPointsXYHandleMousedown(ev: MouseEvent, point: GsBezierAnchorPoint, t
 	const lastFrameOffset = baseTime - baseFrames[baseFrames.length - 1];
 
 	function move(x: number, y: number) {
-		const baseNewTime = treatX ? Math.max((prevPoint?.x ?? -Infinity) + firstFrameOffset, Math.min((nextPoint?.x ?? Infinity) + lastFrameOffset, baseTime + (domXToValueX(x) - domXToValueX(moveBaseX)))) : baseTime;
+		let baseNewTime = treatX ? Math.max((prevPoint?.x ?? -Infinity) + firstFrameOffset, Math.min((nextPoint?.x ?? Infinity) + lastFrameOffset, baseTime + (domXToValueX(x) - domXToValueX(moveBaseX)))) : baseTime;
 		let baseNewValue = treatY ? baseValue + (domYToValueY(y) - domYToValueY(moveBaseY)) : baseValue;
+
+		snappingX.value = null;
+		if (treatX && !isFixedEndpoint(point)) {
+			const draggedX = valueXToDomX(baseTime) + (x - moveBaseX);
+			const minX = Math.max(0, (prevPoint?.x ?? -Infinity) + firstFrameOffset);
+			const maxX = Math.min(props.isNormalized ? 1 : Infinity, (nextPoint?.x ?? Infinity) + lastFrameOffset);
+			const candidates = [...xTicksWithHalf.value, prevPoint?.x, nextPoint?.x, 0, ...(props.isNormalized ? [1] : [])];
+			let nearestDistance = SNAP_THRESHOLD;
+			for (const step of candidates) {
+				// スナップで隣のポイントを越えたり、固定範囲の外へ移動したりしない。
+				if (step == null || step < minX || step > maxX) continue;
+				const distance = Math.abs(draggedX - valueXToDomX(step));
+				if (distance >= nearestDistance) continue;
+				nearestDistance = distance;
+				baseNewTime = step;
+				snappingX.value = step;
+			}
+		}
 
 		if (treatY) {
 			snappingY.value = null;
@@ -578,6 +597,7 @@ function onPointsXYHandleMousedown(ev: MouseEvent, point: GsBezierAnchorPoint, t
 	dragListen(me => {
 		move(me.clientX - position.left, me.clientY - position.top);
 	}, () => {
+		snappingX.value = null;
 		snappingY.value = null;
 	});
 }
@@ -941,6 +961,10 @@ onMounted(() => {
 	border-left: solid 1px #fff3;
 }
 
+.xTickActive {
+	border-left: solid 1px var(--accentAlphaMiddle);
+}
+
 .ticksCorner {
 	position: absolute;
 	z-index: 1000;
@@ -984,6 +1008,9 @@ onMounted(() => {
 }
 .inTlXTickZero {
 	border-left: solid 1px #fff2;
+}
+.inTlXTickActive {
+	border-left: solid 1px var(--accentAlphaMiddle);
 }
 
 .inTlYTick {
