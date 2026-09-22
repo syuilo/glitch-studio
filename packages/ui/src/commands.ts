@@ -353,7 +353,7 @@ const changeParamValueInputSourceCommandDef = defineNodeParamCommand<NodeParamTa
 			};
 			case 'envVariable': return { inputSource: 'envVariable', variable: '' };
 			case 'literal': return { inputSource: 'literal', value: defaultValue.inputSource === 'literal' ? defaultValue.value : emptyValue };
-			case 'automation': return { inputSource: 'automation', automationId: null, durationMs: 1000, playMode: 'repeat' };
+			case 'automationReference': return { inputSource: 'automationReference', automationId: null, durationMs: 1000, playMode: 'repeat' };
 			case 'externalParameterInput': return { inputSource: 'externalParameterInput', parameterId: '' };
 			case 'node': {
 				if (!('canNode' in target.def) || !target.def.canNode) throw new Error('Parameter does not support node input');
@@ -387,12 +387,16 @@ const updateParamAsExpressionCommandDef = defineNodeParamCommand<NodeParamTarget
 	},
 );
 
-const updateParamAsAutomationCommandDef = defineNodeParamCommand<NodeParamTarget & { value: string | null }>(
-	'Update param as automation',
+const updateParamAsAutomationReferenceCommandDef = defineNodeParamCommand<NodeParamTarget & { value: string | null }>(
+	'Update param as automationReference',
 	(target, payload) => {
 		assertLeafParam(target);
-		return { inputSource: 'automation', durationMs: 1000, playMode: 'repeat',
-			...(target.value.inputSource === 'automation' ? target.value : {}), automationId: payload.value };
+		return {
+			inputSource: 'automationReference',
+			durationMs: 1000,
+			playMode: 'repeat',
+			...(target.value.inputSource === 'automationReference' ? target.value : {}), automationId: payload.value,
+		};
 	},
 );
 
@@ -653,7 +657,7 @@ export const COMMAND_DEFS = {
 	updateParamAsLiteral: updateParamAsLiteralCommandDef,
 	updateParamAsEnvVariable: updateParamAsEnvVariableCommandDef,
 	updateParamAsExpression: updateParamAsExpressionCommandDef,
-	updateParamAsAutomation: updateParamAsAutomationCommandDef,
+	updateParamAsAutomationReference: updateParamAsAutomationReferenceCommandDef,
 	updateParamAsNode: updateParamAsNodeCommandDef,
 	updateParamAsExternalParameterInput: updateParamAsExternalParameterInputCommandDef,
 	changeNodeBypassState: changeNodeBypassStateCommandDef,

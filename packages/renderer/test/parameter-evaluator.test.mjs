@@ -148,11 +148,11 @@ test('falls back for texture parameters, missing references and invalid expressi
 		invalid: expression('1 +'),
 		empty: expression(''),
 		missingExternalParameterInput: { inputSource: 'externalParameterInput', parameterId: 'missing' },
-		missingAutomation: { inputSource: 'automation', automationId: 'missing' },
+		missingAutomation: { inputSource: 'automationReference', automationId: 'missing' },
 	};
 	const result = new ParameterEvaluator().evaluate(context(Object.fromEntries(Object.keys(params).map(key => [key, number])), params, {
 		paramDefs: [paramDef('texture', 99), paramDef('missingAutomation', 12)],
-		paramValues: { missingAutomation: { inputSource: 'automation', automationId: 'missing' } },
+		paramValues: { missingAutomation: { inputSource: 'automationReference', automationId: 'missing' } },
 		textureParamIds: new Set(['texture']),
 	}));
 	assert.deepEqual(result.nodeParams.get('node'), Object.fromEntries(Object.keys(params).map(key => [key, 0])));
@@ -160,16 +160,16 @@ test('falls back for texture parameters, missing references and invalid expressi
 	assert.equal(result.paramValues.get('missingAutomation'), 12);
 });
 
-// automationを直接入力・式・モジュールパラメータから同じ時刻で評価する
-test('evaluates automation inputs and expression scope at the supplied time', () => {
+// automationReferenceを直接入力・式・モジュールパラメータから同じ時刻で評価する
+test('evaluates automationReference inputs and expression scope at the supplied time', () => {
 	const evaluator = new ParameterEvaluator();
 	const input = context({ direct: number, scoped: number, externalParameterInput: number }, {
-		direct: { inputSource: 'automation', automationId: 'ramp' },
+		direct: { inputSource: 'automationReference', automationId: 'ramp' },
 		scoped: expression('RAMP'),
 		externalParameterInput: { inputSource: 'externalParameterInput', parameterId: 'value' },
 	}, {
 		paramDefs: [paramDef('value')],
-		paramValues: { value: { inputSource: 'automation', automationId: 'ramp' } },
+		paramValues: { value: { inputSource: 'automationReference', automationId: 'ramp' } },
 		automations: [{ id: 'ramp', name: 'RAMP', keyframes: [
 			{ x: 0, y: 0, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] },
 			{ x: 1000, y: 10, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] },

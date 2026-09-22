@@ -92,7 +92,7 @@ export class ParameterEvaluator {
 			if (value?.inputSource === 'literal') evaluated = value.value;
 			if (value?.inputSource === 'envVariable') evaluated = mixedScope[value.variable] ?? genEmptyValue(def);
 			if (value?.inputSource === 'expression') evaluated = this.evaluateExpression(value.expression, mixedScope, def);
-			if (value?.inputSource === 'automation') {
+			if (value?.inputSource === 'automationReference') {
 				const automation = context.automations.find(automation => automation.id === value.automationId);
 				evaluated = automation == null ? deepClone(def.defaultValue.value) : evalAutomationValue(automation, context.time);
 			}
@@ -121,7 +121,7 @@ export class ParameterEvaluator {
 						if (!paramValues.has(param.parameterId) || context.textureParamIds.has(param.parameterId)) return genEmptyValue(def);
 						return paramValues.get(param.parameterId);
 					}
-					if (param.inputSource === 'automation') {
+					if (param.inputSource === 'automationReference') {
 						const automation = context.automations.find(a => a.id === param.automationId);
 						return automation ? evalAutomationValue(automation, context.time) : genEmptyValue(def);
 					}

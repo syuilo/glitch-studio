@@ -17,7 +17,7 @@ export type EffectParamValue = {
 	inputSource: 'externalParameterInput';
 	parameterId: string;
 } | {
-	inputSource: 'automation';
+	inputSource: 'automationReference';
 	automationId: string | null;
 	durationMs: number;
 	playMode: 'start' | 'end' | 'repeat' | 'repeatMirrored';
