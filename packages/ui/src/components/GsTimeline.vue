@@ -681,7 +681,7 @@ onMounted(() => {
 	background: #fff1;
 }
 
-.automation {
+.automationGraph {
 	position: absolute;
 	top: 0;
 	left: 0;

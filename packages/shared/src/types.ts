@@ -17,15 +17,15 @@ export type EffectParamValue = {
 	inputSource: 'externalParameterInput';
 	parameterId: string;
 } | {
-	inputSource: 'automationReference';
-	automationId: string | null;
-	durationMs: number | null; // automationが0~1に正規化されている場合に指定。nullの場合はautomation単位がmsであるとみなす
+	inputSource: 'automationGraphReference';
+	automationGraphId: string | null;
+	durationMs: number | null; // automationGraphが0~1に正規化されている場合に指定。nullの場合はautomationGraph単位がmsであるとみなす
 	offsetMode: 'start' | 'end';
 	wrapMode: 'clamp' | 'repeat' | 'repeatMirrored'
 } | {
-	inputSource: 'automationInline';
-	automation: Omit<GsAutomation, 'id' | 'name'>;
-	durationMs: number | null; // automationが0~1に正規化されている場合に指定。nullの場合はautomation単位がmsであるとみなす
+	inputSource: 'automationGraphInline';
+	automationGraph: Omit<GsAutomationGraph, 'id' | 'name'>;
+	durationMs: number | null; // automationGraphが0~1に正規化されている場合に指定。nullの場合はautomationGraph単位がmsであるとみなす
 	offsetMode: 'start' | 'end';
 	wrapMode: 'clamp' | 'repeat' | 'repeatMirrored'
 } | NodeParamValue;
@@ -62,7 +62,7 @@ export type GsBezierAnchorPoint = {
 	bezierControlPointB: [number, number];
 };
 
-export type GsAutomation = {
+export type GsAutomationGraph = {
 	id: string;
 	name: string;
 	points: GsBezierAnchorPoint[];
@@ -112,7 +112,7 @@ export type VisualModule = {
 		isPrimaryOutput: boolean;
 	}[];
 	paramDefs: VisualModuleParamDef[];
-	automations: GsAutomation[];
+	automationGraphs: GsAutomationGraph[];
 };
 
 // レイヤー・live modeからは、モジュール内部のノードやパラメータを参照しない。

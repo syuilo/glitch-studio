@@ -41,7 +41,7 @@ const editVisualModuleLayerParamCommandDef = defineCommand<{
 	edit:
 		| { kind: 'literal'; value: any }
 		| { kind: 'envVariable' | 'expression'; value: string }
-		| { kind: 'automationReference'; value: string | null }
+		| { kind: 'automationGraphReference'; value: string | null }
 		| { kind: 'inputSource'; inputSource: EffectParamValue['inputSource'] }
 		| { kind: 'reset' };
 }>({
@@ -67,13 +67,13 @@ const editVisualModuleLayerParamCommandDef = defineCommand<{
 						case 'literal': after = { inputSource: 'literal', value: deepClone(edit.value) }; break;
 						case 'envVariable': after = { inputSource: 'envVariable', variable: edit.value }; break;
 						case 'expression': after = { inputSource: 'expression', expression: edit.value }; break;
-						case 'automationReference': after = {
-							inputSource: 'automationReference',
+						case 'automationGraphReference': after = {
+							inputSource: 'automationGraphReference',
 							durationMs: 1000,
 							wrapMode: 'repeat',
 							offsetMode: 'start',
-							...(current.inputSource === 'automationReference' ? current : {}),
-							automationId: edit.value,
+							...(current.inputSource === 'automationGraphReference' ? current : {}),
+							automationGraphId: edit.value,
 						}; break;
 						case 'reset': after = deepClone(def.defaultValue); break;
 						case 'inputSource':
@@ -83,7 +83,7 @@ const editVisualModuleLayerParamCommandDef = defineCommand<{
 								case 'expression': after = {
 									inputSource: 'expression', expression: AiSON.stringify(current.inputSource === 'literal' ? current.value : def.defaultValue.value),
 								}; break;
-								case 'automationReference': after = { inputSource: 'automationReference', automationId: null, durationMs: 1000, wrapMode: 'repeat', offsetMode: 'start' }; break;
+								case 'automationGraphReference': after = { inputSource: 'automationGraphReference', automationGraphId: null, durationMs: 1000, wrapMode: 'repeat', offsetMode: 'start' }; break;
 								case 'node':
 								case 'externalParameterInput': throw new Error('Unsupported layer parameter input source');
 							}
@@ -420,7 +420,7 @@ const changeParamValueInputSourceCommandDef = defineNodeParamCommand<NodeParamTa
 			};
 			case 'envVariable': return { inputSource: 'envVariable', variable: '' };
 			case 'literal': return { inputSource: 'literal', value: defaultValue.inputSource === 'literal' ? defaultValue.value : emptyValue };
-			case 'automationReference': return { inputSource: 'automationReference', automationId: null, durationMs: 1000, wrapMode: 'repeat', offsetMode: 'start' };
+			case 'automationGraphReference': return { inputSource: 'automationGraphReference', automationGraphId: null, durationMs: 1000, wrapMode: 'repeat', offsetMode: 'start' };
 			case 'externalParameterInput': return { inputSource: 'externalParameterInput', parameterId: '' };
 			case 'node': {
 				if (!('canNode' in target.def) || !target.def.canNode) throw new Error('Parameter does not support node input');
@@ -454,16 +454,16 @@ const updateParamAsExpressionCommandDef = defineNodeParamCommand<NodeParamTarget
 	},
 );
 
-const updateParamAsAutomationReferenceCommandDef = defineNodeParamCommand<NodeParamTarget & { value: string | null }>(
-	'Update param as automationReference',
+const updateParamAsAutomationGraphReferenceCommandDef = defineNodeParamCommand<NodeParamTarget & { value: string | null }>(
+	'Update param as automationGraphReference',
 	(target, payload) => {
 		assertLeafParam(target);
 		return {
-			inputSource: 'automationReference',
+			inputSource: 'automationGraphReference',
 			durationMs: 1000,
 			wrapMode: 'repeat',
 			offsetMode: 'start',
-			...(target.value.inputSource === 'automationReference' ? target.value : {}), automationId: payload.value,
+			...(target.value.inputSource === 'automationGraphReference' ? target.value : {}), automationGraphId: payload.value,
 		};
 	},
 );
@@ -726,7 +726,7 @@ export const COMMAND_DEFS = {
 	updateParamAsLiteral: updateParamAsLiteralCommandDef,
 	updateParamAsEnvVariable: updateParamAsEnvVariableCommandDef,
 	updateParamAsExpression: updateParamAsExpressionCommandDef,
-	updateParamAsAutomationReference: updateParamAsAutomationReferenceCommandDef,
+	updateParamAsAutomationGraphReference: updateParamAsAutomationGraphReferenceCommandDef,
 	updateParamAsNode: updateParamAsNodeCommandDef,
 	updateParamAsExternalParameterInput: updateParamAsExternalParameterInputCommandDef,
 	changeNodeBypassState: changeNodeBypassStateCommandDef,

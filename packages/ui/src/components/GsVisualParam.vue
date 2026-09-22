@@ -11,7 +11,7 @@
 				<i v-else-if="paramValue.inputSource === 'expression'" v-tooltip="'Expression'" class="ti ti-math-function" :class="$style.typeIcon"></i>
 				<i v-else-if="paramValue.inputSource === 'externalParameterInput'" v-tooltip="'Parameter'" class="ti ti-wifi" :class="$style.typeIcon"></i>
 				<i v-else-if="paramValue.inputSource === 'node'" v-tooltip="'Node'" class="ti ti-plug" :class="$style.typeIcon"></i>
-				<i v-else-if="paramValue.inputSource === 'automationReference'" v-tooltip="'Automation'" class="ti ti-ease-in-out-control-points" :class="$style.typeIcon"></i>
+				<i v-else-if="paramValue.inputSource === 'automationGraphReference'" v-tooltip="'AutomationGraph'" class="ti ti-ease-in-out-control-points" :class="$style.typeIcon"></i>
 			</div>
 		</div>
 		<div :class="$style.paramBody">
@@ -35,7 +35,7 @@
 						:items="[{ label: i18n.ts.None, value: '' }, ...envVariableItems]"
 						@update:modelValue="value => emit('edit', { kind: 'envVariable', ...target(), value })"
 					/>
-					<GsButton v-else-if="paramValue.inputSource === 'automationReference'" small @click="selectAutomation">{{ paramValue.automationId }}</GsButton>
+					<GsButton v-else-if="paramValue.inputSource === 'automationGraphReference'" small @click="selectAutomationGraph">{{ paramValue.automationGraphId }}</GsButton>
 					<GsSelect
 						v-else-if="paramValue.inputSource === 'externalParameterInput'"
 						small
@@ -110,7 +110,7 @@ export type ParamEdit = { paramPath: ParamPath; mergeKey?: string | null } & (
 	| { kind: 'literal'; value: any }
 	| { kind: 'envVariable'; value: string }
 	| { kind: 'expression'; value: string }
-	| { kind: 'automationReference'; value: string | null }
+	| { kind: 'automationGraphReference'; value: string | null }
 	| { kind: 'node'; value: NodeOutputReference | null }
 	| { kind: 'externalParameterInput'; value: string }
 	| { kind: 'inputSource'; inputSource: EffectParamValue['inputSource'] }
@@ -164,7 +164,7 @@ const canNode = computed(() => props.paramDef.canNode);
 const inputDataType = computed(() => getNodeInputDataType(props.paramDef));
 const paramDefs = computed(() => appContext.state.visualModules.value.find(module => module.id === props.visualModuleId)?.paramDefs ?? []);
 const nodes = computed(() => appContext.state.visualModules.value.find(visualModule => visualModule.id === props.visualModuleId)?.nodes ?? []);
-const automations = computed(() => appContext.state.visualModules.value.find(visualModule => visualModule.id === props.visualModuleId)?.automations ?? []);
+const automationGraphs = computed(() => appContext.state.visualModules.value.find(visualModule => visualModule.id === props.visualModuleId)?.automationGraphs ?? []);
 const envVariableItems = computed(() => globalEnvVarDefs.map(variable => ({ label: `${i18n.t(`_EnvVariables.${variable}`)} (${variable})`, value: variable })));
 const externalParameterInputItems = computed(() => (props.node == null ? [] : appContext.state.visualModules.value.find(module => module.id === props.visualModuleId)?.paramDefs ?? [])
 	.map(def => ({ label: `${def.ui.label} (${def.name})`, value: def.id })));
@@ -216,12 +216,12 @@ const isExpressionSyntaxError = computed(() => {
 	}
 });
 
-function selectAutomation(ev: PointerEvent) {
+function selectAutomationGraph(ev: PointerEvent) {
 	ui.popupMenu([
-		{ text: '(none)', action: () => emit('edit', { kind: 'automationReference', ...target(), value: null }) },
-		...automations.value.map(a => ({
+		{ text: '(none)', action: () => emit('edit', { kind: 'automationGraphReference', ...target(), value: null }) },
+		...automationGraphs.value.map(a => ({
 			text: a.name,
-			action: () => emit('edit', { kind: 'automationReference', ...target(), value: a.id }),
+			action: () => emit('edit', { kind: 'automationGraphReference', ...target(), value: a.id }),
 		})),
 	], ev.currentTarget ?? ev.target);
 }
@@ -243,7 +243,7 @@ function getMenu() {
 		menuItems.push({ type: 'label', text: 'Input source' });
 		const types: { text: string; inputSource: EffectParamValue['inputSource']; icon: string }[] = [
 			{ text: 'Literal', inputSource: 'literal', icon: 'ti ti-adjustments-horizontal' },
-			{ text: 'Automation', inputSource: 'automationReference', icon: 'ti ti-ease-in-out-control-points' },
+			{ text: 'AutomationGraph', inputSource: 'automationGraphReference', icon: 'ti ti-ease-in-out-control-points' },
 			{ text: 'Environment Variable', inputSource: 'envVariable', icon: 'ti ti-variable' },
 			{ text: 'Expression', inputSource: 'expression', icon: 'ti ti-math-function' },
 		];

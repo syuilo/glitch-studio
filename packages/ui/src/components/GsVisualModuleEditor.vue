@@ -4,7 +4,7 @@
 		<button class="_button" style="padding: 4px 6px;" @click="showSwitchMenu"><i class="ti ti-chevron-down"></i> Module: {{ visualModule?.name ?? '' }} [{{ visualModule?.id ?? '' }}]</button>
 		<GsButton :class="$style.liveButton" small primary @click="previewLive"><i class="ti ti-player-play"></i> LIVE</GsButton>
 
-		<GsButton small primary @click="addAutomation">a</GsButton>
+		<GsButton small primary @click="addAutomationGraph">a</GsButton>
 
 		<div style="padding: 8px;">
 			<GsTabs
@@ -99,7 +99,7 @@ import XVisualModuleParamDefsEditor from './XVisualModuleParamDefsEditor.vue';
 import XVisualModuleOutputDefsEditor from './XVisualModuleOutputDefsEditor.vue';
 import GsTabs from './common/GsTabs.vue';
 import type { ParamEdit } from './GsVisualParam.vue';
-import type { GsAutomation, GsGlobalInNode, GsGlobalOutNode, GsNode, VisualModule, VisualModuleParamValues } from '@glitch/shared/types.js';
+import type { GsAutomationGraph, GsGlobalInNode, GsGlobalOutNode, GsNode, VisualModule, VisualModuleParamValues } from '@glitch/shared/types.js';
 import { showAddNodeMenu } from '@/app.ts';
 import { appContext, engine } from '@/app.ts';
 import * as ui from '@/ui.ts';
@@ -140,7 +140,7 @@ function onPreviewParamEdit(event: ParamEdit) {
 		case 'literal': previewParamValues.value[id] = { inputSource: 'literal', value: deepClone(event.value) }; break;
 		case 'envVariable': previewParamValues.value[id] = { inputSource: 'envVariable', variable: event.value }; break;
 		case 'expression': previewParamValues.value[id] = { inputSource: 'expression', expression: event.value }; break;
-		case 'automationReference': previewParamValues.value[id] = { inputSource: 'automationReference', durationMs: 1000, wrapMode: 'repeat', offsetMode: 'start', ...(current?.inputSource === 'automationReference' ? current : {}), automationId: event.value }; break;
+		case 'automationGraphReference': previewParamValues.value[id] = { inputSource: 'automationGraphReference', durationMs: 1000, wrapMode: 'repeat', offsetMode: 'start', ...(current?.inputSource === 'automationGraphReference' ? current : {}), automationGraphId: event.value }; break;
 		case 'node':
 		case 'externalParameterInput': return;
 		case 'reset': previewParamValues.value[id] = reset(); break;
@@ -150,7 +150,7 @@ function onPreviewParamEdit(event: ParamEdit) {
 				case 'expression': previewParamValues.value[id] = {
 					inputSource: 'expression', expression: AiSON.stringify(current?.inputSource === 'literal' ? current.value : def.defaultValue.value),
 				}; break;
-				case 'automationReference': previewParamValues.value[id] = { inputSource: 'automationReference', automationId: null, durationMs: 1000, wrapMode: 'repeat', offsetMode: 'start' }; break;
+				case 'automationGraphReference': previewParamValues.value[id] = { inputSource: 'automationGraphReference', automationGraphId: null, durationMs: 1000, wrapMode: 'repeat', offsetMode: 'start' }; break;
 				case 'externalParameterInput':
 				case 'node':
 					return;
@@ -205,11 +205,11 @@ function showSwitchMenu(ev: PointerEvent) {
 	}))], ev.currentTarget ?? ev.target);
 }
 
-import GsAutomationPointsEditorWindow from './GsAutomationPointsEditorWindow.vue';
+import GsAutomationGraphPointsEditorWindow from './GsAutomationGraphPointsEditorWindow.vue';
 
-async function addAutomation() {
+async function addAutomationGraph() {
 	const id = genId();
-	const automation: GsAutomation = {
+	const automationGraph: GsAutomationGraph = {
 		id: id,
 		name: 'kf_' + id,
 		isNormalized: true,
@@ -228,8 +228,8 @@ async function addAutomation() {
 		}],
 	};
 
-	const { dispose } = ui.popup(GsAutomationPointsEditorWindow, {
-		automation: automation,
+	const { dispose } = ui.popup(GsAutomationGraphPointsEditorWindow, {
+		automationGraph: automationGraph,
 	}, {
 		done: () => {
 		},

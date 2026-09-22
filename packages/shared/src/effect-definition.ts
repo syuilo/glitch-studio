@@ -130,7 +130,7 @@ type EffectOptionSerializedValue<T extends EffectOptionsSchema[string]> =
 	{ inputSource: 'literal'; value: EffectOptionScalarValue<T> } |
 	{ inputSource: 'envVariable'; variable: string } |
 	{ inputSource: 'expression'; expression: string } |
-	Extract<EffectParamValue, { inputSource: 'automationReference' }> |
+	Extract<EffectParamValue, { inputSource: 'automationGraphReference' }> |
 	NodeParamValue;
 
 type EffectOptionDefaultValue<T extends EffectOptionsSchema[string]> = T extends unknown ?

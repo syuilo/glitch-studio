@@ -8,7 +8,7 @@
 	<template #header>aaa</template>
 
 	<div style="height: 100%;">
-		<GsAutomationPointsEditor :points="props.automation.points" :isNormalized="props.automation.isNormalized"/>
+		<GsAutomationGraphPointsEditor :points="props.automationGraph.points" :isNormalized="props.automationGraph.isNormalized"/>
 	</div>
 </GsWindow>
 </template>
@@ -16,11 +16,11 @@
 <script lang="ts" setup>
 import { computed, watch, ref, useTemplateRef } from 'vue';
 import GsWindow from './common/GsWindow.vue';
-import GsAutomationPointsEditor from './GsAutomationPointsEditor.vue';
-import type { GsAutomation } from '@glitch/shared/types.js';
+import GsAutomationGraphPointsEditor from './GsAutomationGraphPointsEditor.vue';
+import type { GsAutomationGraph } from '@glitch/shared/types.js';
 
 const props = defineProps<{
-	automation: GsAutomation;
+	automationGraph: GsAutomationGraph;
 }>();
 
 const emit = defineEmits<{

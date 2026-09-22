@@ -7,7 +7,7 @@ import { ParameterEvaluator } from './parameter-evaluator.ts';
 import { getEvaluatedParam, mapNodeParam, walkNodeParams } from './utility/node-params.ts';
 import type { EffectStatus } from '@glitch/shared/effect-status.ts';
 import type { AudioSourceId } from '@glitch/shared/audio.ts';
-import type { Asset, GsAutomation, GsEffectNode, GsGlobalInNode, GsNode, NodeOutputReference, VisualModule, VisualModuleParamValues } from '@glitch/shared/types.ts';
+import type { Asset, GsAutomationGraph, GsEffectNode, GsGlobalInNode, GsNode, NodeOutputReference, VisualModule, VisualModuleParamValues } from '@glitch/shared/types.ts';
 import type { EffectImplementation, EffectInstance, IntermediateTextureFormat } from '@glitch/shared/effect-implementation.js';
 import type { EffectDefinition } from '@glitch/shared/effect-definition.js';
 
@@ -54,7 +54,7 @@ export class VisualModuleRenderer {
 	private usedOutputPorts = new Map<string, Set<string>>();
 	private effectStatuses = new Map<string, { sent?: EffectStatus }>();
 	private onEffectStatus?: (nodeId: string, status: EffectStatus | null) => void;
-	private automations: GsAutomation[] = [];
+	private automationGraphs: GsAutomationGraph[] = [];
 	private enable32bitDataTextures = false;
 	private readonly intermediateTextureFormat: IntermediateTextureFormat;
 	private videoFrames: Map<string, VideoFrame>;
@@ -114,7 +114,7 @@ export class VisualModuleRenderer {
 	}
 
 	public updateVisualModule(visualModule: VisualModule) {
-		this.automations = visualModule.automations;
+		this.automationGraphs = visualModule.automationGraphs;
 		this.outputDefs = visualModule.outputDefs;
 		this.paramDefs = visualModule.paramDefs;
 		this.preparedContext = null;
@@ -166,7 +166,7 @@ export class VisualModuleRenderer {
 			nodes: this.nodes,
 			paramDefs: this.paramDefs,
 			effectDefinitions: this.effectDefinitions,
-			automations: this.automations,
+			automationGraphs: this.automationGraphs,
 			resolution: this.resolution,
 			time: context.time,
 			endTime: context.endTime,

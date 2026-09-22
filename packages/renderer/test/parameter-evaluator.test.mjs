@@ -28,7 +28,7 @@ const context = (defs, params, overrides = {}) => ({
 	nodes: [node(params)],
 	paramDefs: [],
 	effectDefinitions: { test: { paramDefs: defs } },
-	automations: [],
+	automationGraphs: [],
 	resolution: { width: 640, height: 360 },
 	time: 500,
 	progress: 0.25,
@@ -57,20 +57,20 @@ test('reads single scope variables without parsing or executing AiScript', t => 
 	assert.equal(exec.mock.callCount(), 0);
 });
 
-// automationの変数も直接取得し、同名の組み込み変数は組み込み側を優先する
-test('reads automation variables directly while preserving built-in precedence', t => {
+// automationGraphの変数も直接取得し、同名の組み込み変数は組み込み側を優先する
+test('reads automationGraph variables directly while preserving built-in precedence', t => {
 	const evaluator = new ParameterEvaluator();
 	const parse = t.mock.method(evaluator.aisParser, 'parse');
 	// AiScriptのautobind getterを解決してから、実メソッドの呼び出しを記録する。
 	void evaluator.aiscript.execSync;
 	const exec = t.mock.method(evaluator.aiscript, 'execSync');
-	const automations = ['gain_1', 'channel:level', 'TIME'].map(name => ({ id: name, name, points: [
+	const automationGraphs = ['gain_1', 'channel:level', 'TIME'].map(name => ({ id: name, name, points: [
 		{ x: 0, y: 8, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] },
 		{ x: 1000, y: 8, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] },
 	] }));
 	const result = evaluator.evaluate(context({ a: number, b: number, time: number }, {
 		a: expression('gain_1'), b: expression('channel:level'), time: expression('TIME'),
-	}, { automations }));
+	}, { automationGraphs }));
 	assert.deepEqual(result.nodeParams.get('node'), { a: 8, b: 8, time: 0.5 });
 	assert.equal(parse.mock.callCount(), 0);
 	assert.equal(exec.mock.callCount(), 0);
@@ -92,14 +92,14 @@ test('uses AiScript for complex expressions and unknown variables', t => {
 	assert.equal(exec.mock.callCount(), expressions.length);
 });
 
-// 同名のautomationがあってもtrue・false・nullを変数として扱わない
-test('preserves literal and keyword semantics when automation names collide', t => {
+// 同名のautomationGraphがあってもtrue・false・nullを変数として扱わない
+test('preserves literal and keyword semantics when automationGraph names collide', t => {
 	const evaluator = new ParameterEvaluator();
 	const parse = t.mock.method(evaluator.aisParser, 'parse');
 	const names = ['true', 'false', 'null', 'if'];
 	const result = evaluator.evaluate(context({ values: { dataType: 'array', item: number } }, {
 		values: literal(names.map(expression)),
-	}, { automations: names.map(name => ({ id: name, name, points: [
+	}, { automationGraphs: names.map(name => ({ id: name, name, points: [
 		{ x: 0, y: 99 }, { x: 1000, y: 99 },
 	] })), time: 0 }));
 	assert.deepEqual(result.nodeParams.get('node').values, [true, false, null, 0]);
@@ -148,29 +148,29 @@ test('falls back for texture parameters, missing references and invalid expressi
 		invalid: expression('1 +'),
 		empty: expression(''),
 		missingExternalParameterInput: { inputSource: 'externalParameterInput', parameterId: 'missing' },
-		missingAutomation: { inputSource: 'automationReference', automationId: 'missing' },
+		missingAutomationGraph: { inputSource: 'automationGraphReference', automationGraphId: 'missing' },
 	};
 	const result = new ParameterEvaluator().evaluate(context(Object.fromEntries(Object.keys(params).map(key => [key, number])), params, {
-		paramDefs: [paramDef('texture', 99), paramDef('missingAutomation', 12)],
-		paramValues: { missingAutomation: { inputSource: 'automationReference', automationId: 'missing' } },
+		paramDefs: [paramDef('texture', 99), paramDef('missingAutomationGraph', 12)],
+		paramValues: { missingAutomationGraph: { inputSource: 'automationGraphReference', automationGraphId: 'missing' } },
 		textureParamIds: new Set(['texture']),
 	}));
 	assert.deepEqual(result.nodeParams.get('node'), Object.fromEntries(Object.keys(params).map(key => [key, 0])));
 	assert.equal(result.paramValues.has('texture'), false);
-	assert.equal(result.paramValues.get('missingAutomation'), 12);
+	assert.equal(result.paramValues.get('missingAutomationGraph'), 12);
 });
 
-// automationReferenceを直接入力・式・モジュールパラメータから同じ時刻で評価する
-test('evaluates automationReference inputs and expression scope at the supplied time', () => {
+// automationGraphReferenceを直接入力・式・モジュールパラメータから同じ時刻で評価する
+test('evaluates automationGraphReference inputs and expression scope at the supplied time', () => {
 	const evaluator = new ParameterEvaluator();
 	const input = context({ direct: number, scoped: number, externalParameterInput: number }, {
-		direct: { inputSource: 'automationReference', automationId: 'ramp' },
+		direct: { inputSource: 'automationGraphReference', automationGraphId: 'ramp' },
 		scoped: expression('RAMP'),
 		externalParameterInput: { inputSource: 'externalParameterInput', parameterId: 'value' },
 	}, {
 		paramDefs: [paramDef('value')],
-		paramValues: { value: { inputSource: 'automationReference', automationId: 'ramp' } },
-		automations: [{ id: 'ramp', name: 'RAMP', points: [
+		paramValues: { value: { inputSource: 'automationGraphReference', automationGraphId: 'ramp' } },
+		automationGraphs: [{ id: 'ramp', name: 'RAMP', points: [
 			{ x: 0, y: 0, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] },
 			{ x: 1000, y: 10, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] },
 		] }],
@@ -287,7 +287,7 @@ for (const enable32bitDataTextures of [false, true]) {
 				init: () => ({ render: ({ params }) => renderedValues.push(params.group.amount.data[0]), dispose() {} }),
 			} },
 			visualModule: {
-				id: 'module', name: 'Test', paramDefs: [], automations: [],
+				id: 'module', name: 'Test', paramDefs: [], automationGraphs: [],
 				outputDefs: [{ id: 'out', isPrimaryOutput: true }],
 				nodes: [node({ group: literal({ amount: expression('TIME + 1'), vector: literal([0.5, -1]), color: literal([1, 0.5, 0, 0.25]) }) }),
 					{ id: 'out', type: 'globalOut', inputs: { out: { nodeId: 'node', outputPort: 'image' } } }],

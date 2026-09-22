@@ -22,17 +22,17 @@
 			<div :class="$style.valueBar" class="_monospace" :style="{ top: valueBarPos + 'px' }"><div :class="$style.valueBarValue">{{ currentValue.toFixed(2) }}</div></div>
 			<div :class="$style.crossPoint" :style="{ left: seekBarPos + 'px', top: valueBarPos + 'px' }"></div>
 			<div v-if="!bezierDragging" :class="$style.cursorBar" :style="{ left: cursorBarPos + 'px' }"></div>
-			<div :class="$style.automation">
+			<div :class="$style.automationGraph">
 				<svg version="1.1" :viewBox="`0 0 ${tlElWidth} ${tlElHeight}`" :class="$style.lines">
 					<defs>
-						<linearGradient id="tlAutomationGradient" x1="0" x2="0" y1="0" y2="1">
+						<linearGradient id="tlAutomationGraphGradient" x1="0" x2="0" y1="0" y2="1">
 							<stop offset="0%" stop-color="var(--accentAlphaMiddleLow)"/>
-							<stop :offset="automationPathGradientCenter + '%'" stop-color="var(--accentAlphaVeryLow)"/>
+							<stop :offset="automationGraphPathGradientCenter + '%'" stop-color="var(--accentAlphaVeryLow)"/>
 							<stop offset="100%" stop-color="var(--accentAlphaMiddleLow)"/>
 						</linearGradient>
 					</defs>
-					<path :d="automationSvgFillPath" style="fill: url(#tlAutomationGradient); stroke: none;"/>
-					<path :d="automationSvgPath" style="stroke: currentColor; fill: none; stroke-width: 2;"/>
+					<path :d="automationGraphSvgFillPath" style="fill: url(#tlAutomationGraphGradient); stroke: none;"/>
+					<path :d="automationGraphSvgPath" style="stroke: currentColor; fill: none; stroke-width: 2;"/>
 				</svg>
 
 				<svg v-if="!nowSelecting && selectedPoint" version="1.1" :viewBox="`0 0 ${tlElWidth} ${tlElHeight}`" :class="$style.lines">
@@ -106,7 +106,7 @@
 				<div><b>TL Offset</b>{{ tlPosX.toFixed(2) }}, {{ tlPosY.toFixed(2) }}</div>
 				<div><b>Cursor</b>{{ cursorValueX.toFixed(2) }}, {{ cursorValueY }}</div>
 				<div><b>Current</b>{{ currentValueX.toFixed(2) }}, {{ currentValue.toFixed(2) }}</div>
-				<div><b>Min/Max</b>{{ minMaxValuesInTheAutomation.min.toFixed(2) }}, {{ minMaxValuesInTheAutomation.max.toFixed(2) }}</div>
+				<div><b>Min/Max</b>{{ minMaxValuesInTheAutomationGraph.min.toFixed(2) }}, {{ minMaxValuesInTheAutomationGraph.max.toFixed(2) }}</div>
 			</div>
 		</div>
 		<div v-if="selectedPoint" :class="$style.rightSidePanel">
@@ -120,11 +120,11 @@
 
 <script lang="ts" setup>
 import { computed, onMounted, ref, shallowRef, useTemplateRef, watch } from 'vue';
-import { evalAutomationValue, insertIntermediateNumbers, nearlyEqual, niceScale } from '@glitch/shared/utility/misc.js';
+import { evalAutomationGraphValue, insertIntermediateNumbers, nearlyEqual, niceScale } from '@glitch/shared/utility/misc.js';
 import { genId } from '@glitch/shared/utility/id.js';
 import { deepClone } from '@glitch/shared/utility/deep-clone.js';
 import GsButton from './common/GsButton.vue';
-import type { GsAutomation, GsBezierAnchorPoint } from '@glitch/shared/types.js';
+import type { GsAutomationGraph, GsBezierAnchorPoint } from '@glitch/shared/types.js';
 import { dragListen } from '@/utility/drag.ts';
 
 // TODO: dom座標としてのx/yとpointの値としてのx/yは同じ数値ではあるが意味が異なるので、Phantom Typeなどで区別する
@@ -170,7 +170,7 @@ const seekBarPos = computed(() => {
 	return valueXToDomX(currentValueX.value);
 });
 const currentValue = computed(() => {
-	return evalAutomationValue({ points: ppints.value }, currentValueX.value, 'clamp');
+	return evalAutomationGraphValue({ points: ppints.value }, currentValueX.value, 'clamp');
 });
 const valueBarPos = computed(() => {
 	return valueYToDomY(currentValue.value);
@@ -244,7 +244,7 @@ const yTicksCount = ref(6);
 const yTicks = computed(() => niceScale(tlPosY.value, tlPosY.value + tlRangeY.value, yTicksCount.value));
 const yTicksWithHalf = computed(() => insertIntermediateNumbers(yTicks.value));
 
-const minMaxValuesInTheAutomation = computed(() => {
+const minMaxValuesInTheAutomationGraph = computed(() => {
 	// 塗りつぶしは値0まで閉じるため、範囲に0も含める。
 	// Xを整数刻みで評価すると0〜1のカーブを始点でしか評価できない。
 	// SVGと同じ三次ベジェの端点と極値を使い、Xの単位や長さに依存させない。
@@ -282,7 +282,7 @@ const minMaxValuesInTheAutomation = computed(() => {
 	};
 });
 
-const automationSvgPath = computed(() => {
+const automationGraphSvgPath = computed(() => {
 	const points = ppints.value;
 	if (points.length === 0) return '';
 	let d = `M ${valueXToDomX(points[0].x)}, ${valueYToDomY(points[0].y)}`;
@@ -298,15 +298,15 @@ const automationSvgPath = computed(() => {
 	}
 	return d;
 });
-const automationSvgFillPath = computed(() => {
+const automationGraphSvgFillPath = computed(() => {
 	const points = ppints.value;
 	if (points.length === 0) return '';
 	// 値0へ閉じる線は塗りつぶし専用にし、曲線のstrokeには含めない。
-	return `${automationSvgPath.value} L ${valueXToDomX(points[points.length - 1].x)}, ${valueYToDomY(0)} L ${valueXToDomX(0)}, ${valueYToDomY(0)} Z`;
+	return `${automationGraphSvgPath.value} L ${valueXToDomX(points[points.length - 1].x)}, ${valueYToDomY(0)} L ${valueXToDomX(0)}, ${valueYToDomY(0)} Z`;
 });
-const automationPathGradientCenter = computed(() => {
-	const max = minMaxValuesInTheAutomation.value.max;
-	const min = Math.min(0, minMaxValuesInTheAutomation.value.min);
+const automationGraphPathGradientCenter = computed(() => {
+	const max = minMaxValuesInTheAutomationGraph.value.max;
+	const min = Math.min(0, minMaxValuesInTheAutomationGraph.value.min);
 	if (max === 0 && min === 0) return 0;
 	return ((max) / (max + Math.abs(min))) * 100;
 });
@@ -1112,7 +1112,7 @@ onMounted(() => {
 	background: #fff1;
 }
 
-.automation {
+.automationGraph {
 	position: absolute;
 	top: 0;
 	left: 0;

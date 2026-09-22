@@ -1,6 +1,6 @@
 import { rawBezierEasing } from './bezier.ts';
 import { deepClone } from './deep-clone.ts';
-import type { GsAutomation } from '../types.ts';
+import type { GsAutomationGraph } from '../types.ts';
 import type { EffectOptionSchema, VisualModuleParamDef } from '../effect-definition.ts';
 
 export function genEmptyValue(paramDef: EffectOptionSchema | VisualModuleParamDef): any {
@@ -72,9 +72,9 @@ export function niceScale(lowerBound: number, upperBound: number, ticks: number)
 	return steps;
 }
 
-export function evalAutomationValue(automation: { points: GsAutomation['points'] }, x: number, wrapMode: 'clamp' | 'repeat' | 'repeatMirrored'): number {
+export function evalAutomationGraphValue(automationGraph: { points: GsAutomationGraph['points'] }, x: number, wrapMode: 'clamp' | 'repeat' | 'repeatMirrored'): number {
 	// 元の配列を変更せずX順に並べる。同じXでは元の順序を保ち、後のポイントを優先する。
-	const points = automation.points.toSorted((a, b) => a.x - b.x);
+	const points = automationGraph.points.toSorted((a, b) => a.x - b.x);
 	if (points.length === 0) return 0;
 	const first = points[0];
 	const last = points[points.length - 1];

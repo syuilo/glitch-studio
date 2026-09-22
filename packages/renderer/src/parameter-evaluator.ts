@@ -1,16 +1,16 @@
 import * as AiScript from '@syuilo/aiscript';
-import { evalAutomationValue, genEmptyValue } from '@glitch/shared/utility/misc.ts';
+import { evalAutomationGraphValue, genEmptyValue } from '@glitch/shared/utility/misc.ts';
 import { deepClone } from '@glitch/shared/utility/deep-clone.js';
 import { reservedWords, singleVariableExpression, type globalEnvVarDefs } from '@glitch/shared/expression.js';
 import { mapNodeParam } from './utility/node-params.ts';
 import type { EffectDefinition, EffectOptionSchema, VisualModuleParamDef } from '@glitch/shared/effect-definition.js';
-import type { GsAutomation, GsEffectNode, GsNode, VisualModule, VisualModuleParamValues } from '@glitch/shared/types.ts';
+import type { GsAutomationGraph, GsEffectNode, GsNode, VisualModule, VisualModuleParamValues } from '@glitch/shared/types.ts';
 
 export type ParameterEvaluationContext = {
 	nodes: GsNode[];
 	paramDefs: VisualModule['paramDefs'];
 	effectDefinitions: Record<string, EffectDefinition>;
-	automations: GsAutomation[];
+	automationGraphs: GsAutomationGraph[];
 	resolution: { width: number; height: number; };
 	time: number;
 	endTime: number; // 終了時刻という概念がないコンテキスト(例: live mode)の場合はInfinityとすること。
@@ -36,7 +36,7 @@ export class ParameterEvaluator {
 		try {
 			const variableName = singleVariableExpression.exec(expression)?.[1];
 			// 現在のスコープにある値だけを直接取得する。0も有効で、prototype由来の名前は含めない。
-			// PARAMはノードの式では関数で上書きされるため、同名のautomationを直接返さない。
+			// PARAMはノードの式では関数で上書きされるため、同名のautomationGraphを直接返さない。
 			if (variableName != null && Object.hasOwn(scope, variableName)
 				&& !(variableName === 'PARAM' && getParam != null)
 				&& !variableName.split(':').some(name => reservedWords.has(name))) {
@@ -78,14 +78,14 @@ export class ParameterEvaluator {
 			IS_EXPORT: false, // TODO
 		} satisfies Record<typeof globalEnvVarDefs[number], any>;
 
-		// Mixin (global) automations
-		// TODO: 各automationをフレーム数を引数にとる関数として定義する
-		const automationScope = {} as Record<string, any>;
-		for (const automation of context.automations) {
-			automationScope[automation.name] = evalAutomationValue(automation, context.time, 'repeat');
+		// Mixin (global) automationGraphs
+		// TODO: 各automationGraphをフレーム数を引数にとる関数として定義する
+		const automationGraphScope = {} as Record<string, any>;
+		for (const automationGraph of context.automationGraphs) {
+			automationGraphScope[automationGraph.name] = evalAutomationGraphValue(automationGraph, context.time, 'repeat');
 		}
 
-		const mixedScope: Record<string, any> = { ...automationScope, ...scope };
+		const mixedScope: Record<string, any> = { ...automationGraphScope, ...scope };
 
 		for (const def of context.paramDefs) {
 			const value = context.paramValues[def.id];
@@ -94,9 +94,9 @@ export class ParameterEvaluator {
 			if (value?.inputSource === 'literal') evaluated = value.value;
 			if (value?.inputSource === 'envVariable') evaluated = mixedScope[value.variable] ?? genEmptyValue(def);
 			if (value?.inputSource === 'expression') evaluated = this.evaluateExpression(value.expression, mixedScope, def);
-			if (value?.inputSource === 'automationReference') {
-				const automation = context.automations.find(automation => automation.id === value.automationId);
-				evaluated = automation == null ? deepClone(def.defaultValue.value) : evalAutomationValue(automation, context.time, 'repeat');
+			if (value?.inputSource === 'automationGraphReference') {
+				const automationGraph = context.automationGraphs.find(automationGraph => automationGraph.id === value.automationGraphId);
+				evaluated = automationGraph == null ? deepClone(def.defaultValue.value) : evalAutomationGraphValue(automationGraph, context.time, 'repeat');
 			}
 			paramValues.set(def.id, evaluated);
 		}
@@ -123,9 +123,9 @@ export class ParameterEvaluator {
 						if (!paramValues.has(param.parameterId) || context.textureParamIds.has(param.parameterId)) return genEmptyValue(def);
 						return paramValues.get(param.parameterId);
 					}
-					if (param.inputSource === 'automationReference') {
-						const automation = context.automations.find(a => a.id === param.automationId);
-						return automation ? evalAutomationValue(automation, context.time, 'repeat') : genEmptyValue(def);
+					if (param.inputSource === 'automationGraphReference') {
+						const automationGraph = context.automationGraphs.find(a => a.id === param.automationGraphId);
+						return automationGraph ? evalAutomationGraphValue(automationGraph, context.time, 'repeat') : genEmptyValue(def);
 					}
 					return param.nodeId == null ? null : { nodeId: param.nodeId, outputPort: param.outputPort };
 				});
