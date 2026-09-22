@@ -19,6 +19,7 @@ export function createVisualModuleTimelineLayer(
 		let resolved = contexts.get(context);
 		if (resolved == null) {
 			resolved = {
+				isExport: context.isExport,
 				time: context.time,
 				timeDelta: context.timeDelta,
 				endTime: context.endTime,

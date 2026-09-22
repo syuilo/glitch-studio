@@ -1,12 +1,24 @@
-export type TimelineExportSettings = {
-	format: 'mp4';
-	quality: 'low' | 'medium' | 'high' | 'very-high';
+export type ExportQuality = 'low' | 'medium' | 'high' | 'very-high';
+
+type ExportImageSettings = {
 	width: number;
 	height: number;
-	fps: number;
 	startTimeMs: number;
+};
+
+export type VideoExportSettings = ExportImageSettings & {
+	format: 'mp4';
+	quality: ExportQuality;
+	fps: number;
 	endTimeMs: number;
 };
+
+export type StillExportSettings = ExportImageSettings & {
+	format: 'webp';
+	quality: ExportQuality | 'lossless';
+};
+
+export type TimelineExportSettings = VideoExportSettings | StillExportSettings;
 
 export type ExportProgress = {
 	phase: 'preparing' | 'rendering' | 'finalizing';
@@ -19,11 +31,14 @@ export function getTimelineEnd(timeline: readonly { endTimeMs: number }[]): numb
 }
 
 export function validateExportSettings(settings: TimelineExportSettings): string | null {
-	if (settings.format !== 'mp4') return 'Unsupported export format.';
-	if (!['low', 'medium', 'high', 'very-high'].includes(settings.quality)) return 'Invalid quality setting.';
-	if (![settings.width, settings.height].every(value => Number.isInteger(value) && value >= 2 && value <= 8192 && value % 2 === 0)) {
-		return 'MP4 width and height must be even integers between 2 and 8192.';
+	if (settings.format !== 'mp4' && settings.format !== 'webp') return 'Unsupported export format.';
+	if (!['low', 'medium', 'high', 'very-high', ...(settings.format === 'webp' ? ['lossless'] : [])].includes(settings.quality)) return 'Invalid quality setting.';
+	if (![settings.width, settings.height].every(value => Number.isInteger(value) && value >= 1 && value <= 8192)) {
+		return 'Output width and height must be integers between 1 and 8192.';
 	}
+	if (!Number.isSafeInteger(settings.startTimeMs) || settings.startTimeMs < 0) return 'Enter a valid start time (HH:MM:SS.mmm).';
+	if (settings.format === 'webp') return null;
+	if (settings.width % 2 !== 0 || settings.height % 2 !== 0) return 'MP4 requires even dimensions. Choose another resolution scale or change the project resolution.';
 	if (!Number.isFinite(settings.fps) || settings.fps < 1 || settings.fps > 120) return 'Frame rate must be between 1 and 120 fps.';
 	if (!Number.isFinite(settings.startTimeMs) || !Number.isFinite(settings.endTimeMs)
 		|| settings.startTimeMs < 0 || settings.endTimeMs <= settings.startTimeMs) {
@@ -43,7 +58,7 @@ export type ExportFrame = {
 
 // GPUやコンテナ形式から独立させ、時刻計算と非同期処理の順序をテストできるようにする。
 // 将来の音声トラックは形式別のwriterに追加でき、ここでは動画フレームの供給だけを担う。
-export async function renderExportFrames(settings: TimelineExportSettings, callbacks: {
+export async function renderExportFrames(settings: VideoExportSettings, callbacks: {
 	render: (frame: ExportFrame) => Promise<void>;
 	addFrame: (frame: ExportFrame) => Promise<void>;
 	finalize: () => Promise<void>;

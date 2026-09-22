@@ -2,6 +2,8 @@ import { MainRenderer } from '@glitch/renderer/renderer.ts';
 import { effectDefinitions } from '@glitch/shared/effect-definitions.ts';
 import { effectImplementations } from '@glitch/shared/effect-implementations.js';
 import { createMp4Writer } from './mp4-writer.ts';
+import { adjustExportResolution } from './export-settings.ts';
+import { encodeStillWebp } from './still-webp.ts';
 import { renderExportFrames, validateExportSettings } from './timeline-export.ts';
 import type { ExportRequest, ExportResponse } from './types.ts';
 
@@ -18,12 +20,14 @@ self.onmessage = async (event: MessageEvent<ExportRequest>) => {
 	const controller = new AbortController();
 	let finished = false;
 	try {
-		const { settings, project, renderer: rendererSettings } = event.data;
+		const { settings: requestedSettings, project, renderer: rendererSettings } = event.data;
+		// UI以外から呼ばれても、Canvasとエンコーダーに同じ調整済みサイズを使う。
+		const settings = { ...requestedSettings, ...adjustExportResolution(requestedSettings, requestedSettings.format) };
 		const validationError = validateExportSettings(settings);
 		if (validationError) throw new Error(validationError);
 		send({ type: 'progress', progress: { phase: 'preparing', completedFrames: 0, totalFrames: 0 } });
 		const canvas = new OffscreenCanvas(settings.width, settings.height);
-		writer = await createMp4Writer(canvas, settings);
+		if (settings.format === 'mp4') writer = await createMp4Writer(canvas, settings);
 		const adapter = await navigator.gpu?.requestAdapter({ powerPreference: 'high-performance' });
 		if (!adapter) throw new Error('WebGPU is unavailable.');
 		device = await adapter.requestDevice({
@@ -46,7 +50,7 @@ self.onmessage = async (event: MessageEvent<ExportRequest>) => {
 			...rendererSettings,
 			...project,
 			enableStats: false,
-			opaqueOutput: true,
+			opaqueOutput: settings.format === 'mp4',
 			fpsLimit: null,
 			effectDefinitions,
 			effectImplementations,
@@ -54,6 +58,18 @@ self.onmessage = async (event: MessageEvent<ExportRequest>) => {
 				if (status?.type === 'error') fail(`Node ${nodeId}: ${status.message}`);
 			},
 		});
+		if (settings.format === 'webp') {
+			await renderer.renderTimelineFrame(settings.startTimeMs, 0);
+			controller.signal.throwIfAborted();
+			// 呼び出し直後、最初のawaitより前にCanvasをコピーする。
+			const encoded = encodeStillWebp(canvas, settings);
+			send({ type: 'progress', progress: { phase: 'finalizing', completedFrames: 1, totalFrames: 1 } });
+			const buffer = await encoded;
+			controller.signal.throwIfAborted();
+			finished = true;
+			send({ type: 'complete', buffer }, [buffer]);
+			return;
+		}
 		let lastProgressTime = 0;
 		await renderExportFrames(settings, {
 			signal: controller.signal,
@@ -68,7 +84,7 @@ self.onmessage = async (event: MessageEvent<ExportRequest>) => {
 				}
 			},
 		});
-		const buffer = writer.getBuffer();
+		const buffer = writer!.getBuffer();
 		finished = true;
 		send({ type: 'complete', buffer }, [buffer]);
 	} catch (error) {

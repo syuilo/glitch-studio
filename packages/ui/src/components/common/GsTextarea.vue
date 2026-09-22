@@ -146,7 +146,7 @@ onUnmounted(() => {
 <style lang="scss" module>
 .label {
 	font-size: 0.85em;
-	padding: 0 0 8px 0;
+	padding: 0 0 4px 0;
 	user-select: none;
 
 	&:empty {
@@ -156,7 +156,7 @@ onUnmounted(() => {
 
 .caption {
 	font-size: 0.85em;
-	padding: 8px 0 0 0;
+	padding: 4px 0 0 0;
 	color: color(from var(--THEME-fg) srgb r g b / 0.75);
 
 	&:empty {

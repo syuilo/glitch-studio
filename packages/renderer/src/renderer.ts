@@ -376,7 +376,7 @@ export class MainRenderer {
 
 	/** 専用インスタンスで順番に呼び、フレーム間の履歴と一定の経過時間を保持する。 */
 	public async renderTimelineFrame(time: number, timeDelta: number): Promise<void> {
-		await this.timelineRenderer.renderAt(time, this.timeline, timeDelta);
+		await this.timelineRenderer.renderAt(time, this.timeline, timeDelta, true);
 	}
 
 	private createTimelineLayer(layer: Timeline[number]): TimelineLayerRenderer<GPUTexture> | undefined {

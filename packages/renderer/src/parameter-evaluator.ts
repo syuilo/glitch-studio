@@ -7,6 +7,7 @@ import type { EffectDefinition, EffectOptionSchema, VisualModuleParamDef } from 
 import type { GsAutomationGraph, GsEffectNode, GsNode, VisualModule, VisualModuleParamValues } from '@glitch/shared/types.ts';
 
 export type ParameterEvaluationContext = {
+	isExport?: boolean;
 	nodes: GsNode[];
 	paramDefs: VisualModule['paramDefs'];
 	effectDefinitions: Record<string, EffectDefinition>;
@@ -79,7 +80,7 @@ export class ParameterEvaluator {
 			END_TIME: (context.endTime ?? Infinity) / 1000, // ms to seconds
 			END_TIME_MS: (context.endTime ?? Infinity),
 			PROGRESS: context.time / (context.endTime ?? Infinity),
-			IS_EXPORT: false, // TODO
+			IS_EXPORT: context.isExport ?? false,
 		} satisfies Record<typeof globalEnvVarDefs[number], any>;
 		const getEnvironmentVariableValue = (variable: string) => {
 			// 空の「None」や未知の保存済み値をprototype経由で読まず、既定値へフォールバックする。

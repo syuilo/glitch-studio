@@ -96,7 +96,7 @@ test('rejects invalid dimensions, frame rates, ranges and encoding settings', ()
 		{ width: 1919 }, { height: 0 }, { width: 8194 }, { height: 2.5 },
 		{ fps: 0 }, { fps: NaN }, { fps: Infinity }, { fps: 121 },
 		{ startTimeMs: -1 }, { endTimeMs: 5000 }, { endTimeMs: Infinity },
-		{ quality: 'unknown' }, { format: 'webp' },
+		{ quality: 'unknown' }, { format: 'gif' }, { quality: 'lossless' },
 	]) assert.equal(typeof validateExportSettings({ ...settings, ...invalid }), 'string');
 });
 

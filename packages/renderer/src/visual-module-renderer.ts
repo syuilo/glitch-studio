@@ -12,6 +12,7 @@ import type { EffectImplementation, EffectInstance, IntermediateTextureFormat } 
 import type { EffectDefinition } from '@glitch/shared/effect-definition.js';
 
 export type VisualModuleRenderContext = {
+	isExport?: boolean;
 	// 省略時はタイムライン・プレビュー用の主出力だけを評価する。
 	outputIds?: readonly string[];
 	//globalTime: number; // タイムラインの再生位置を示すが、使わなそう
@@ -163,6 +164,7 @@ export class VisualModuleRenderer {
 	private evaluateParameters(context: VisualModuleRenderContext) {
 		this.paramTextures = context.paramTextures ?? new Map();
 		const evaluated = this.parameterEvaluator.evaluate({
+			isExport: context.isExport,
 			nodes: this.nodes,
 			paramDefs: this.paramDefs,
 			effectDefinitions: this.effectDefinitions,

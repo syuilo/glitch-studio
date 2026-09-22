@@ -1,7 +1,7 @@
 import { BufferTarget, CanvasSource, Output, Mp4OutputFormat, Quality, canEncodeVideo } from 'mediabunny';
-import type { TimelineExportSettings } from './timeline-export.ts';
+import type { VideoExportSettings } from './timeline-export.ts';
 
-export async function createMp4Writer(canvas: OffscreenCanvas, settings: TimelineExportSettings) {
+export async function createMp4Writer(canvas: OffscreenCanvas, settings: VideoExportSettings) {
 	const quality = new Quality(settings.quality);
 	if (!await canEncodeVideo('avc', { width: settings.width, height: settings.height, quality })) {
 		throw new Error('H.264 encoding is unavailable at this resolution. Try a smaller resolution.');
