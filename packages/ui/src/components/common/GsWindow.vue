@@ -528,9 +528,9 @@ defineExpose({
 	flex-shrink: 0;
 	user-select: none;
 	height: var(--height);
-	background: var(--THEME-windowHeader);
-	-webkit-backdrop-filter: var(--MI-blur, blur(15px));
-	backdrop-filter: var(--MI-blur, blur(15px));
+	background: #000c;
+	-webkit-backdrop-filter: blur(15px);
+	backdrop-filter: blur(15px);
 	//border-bottom: solid 1px var(--THEME-divider);
 	font-size: 90%;
 	font-weight: bold;
