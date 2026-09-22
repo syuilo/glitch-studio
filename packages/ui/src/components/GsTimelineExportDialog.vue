@@ -42,10 +42,10 @@ import GsModal from './common/GsModal.vue';
 import GsButton from './common/GsButton.vue';
 import GsInput from './common/GsInput.vue';
 import GsSelect from './common/GsSelect.vue';
+import type { ExportProgress, TimelineExportSettings } from '@/export/timeline-export.ts';
 import { appContext, engine } from '@/app.ts';
 import { exportTimeline } from '@/export/client.ts';
 import { getTimelineEnd, validateExportSettings } from '@/export/timeline-export.ts';
-import type { ExportProgress, TimelineExportSettings } from '@/export/timeline-export.ts';
 
 const modal = useTemplateRef('modal');
 const dialogContent = useTemplateRef('dialogContent');
@@ -64,7 +64,7 @@ const qualityOptions = [
 ];
 const width = ref(appContext.state.resolution.value.width);
 const height = ref(appContext.state.resolution.value.height);
-const fps = ref(30);
+const fps = ref(60);
 const startSeconds = ref(0);
 const endSeconds = ref(getTimelineEnd(appContext.state.timeline.value) / 1000);
 const exporting = ref(false);

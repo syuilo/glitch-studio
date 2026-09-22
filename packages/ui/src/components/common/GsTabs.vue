@@ -5,8 +5,6 @@
 			<i v-if="tab.icon" :class="tab.icon"></i> {{ tab.label }}
 		</div>
 	</div>
-
-	<slot :name="props.modelValue"></slot>
 </div>
 </template>
 
