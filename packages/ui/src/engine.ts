@@ -5,6 +5,7 @@ import { deepClone } from '@glitch/shared/utility/deep-clone.ts';
 import { projectAudioSourceId } from '@glitch/shared/audio.ts';
 import { genId } from '@glitch/shared/utility/id.ts';
 import { isVideoFrameAvailable, playVideoAfterFirstFrameIsReady } from './utility/video.ts';
+import { LiveEffectStatusStore } from './utility/live-effect-status.ts';
 import { AudioInputs } from './audio/audio-inputs.ts';
 import { setupWebcam } from './utility/webcam.ts';
 import type { Asset, VisualModule, VisualModuleParamValues, Player, Timeline } from '@glitch/shared/types.ts';
@@ -26,7 +27,6 @@ export class Engine {
 	private resolution = { width: 1, height: 1 };
 	private renderLoopRunning = false;
 	public liveVisualModuleId = ref<VisualModule['id'] | null>(null);
-	private liveEffectStatusInstanceId: string | null = null;
 	private liveParamValues: VisualModuleParamValues = {};
 	private reloadPromise: Promise<void> | null = null;
 	private rejectInitialization: ((reason: Error) => void) | null = null;
@@ -59,11 +59,11 @@ export class Engine {
 	public fpsDisplay = ref(0);
 	public gpuMemoryUsage = ref<ReturnType<MainRenderer['gpuMemory']['getUsage']> | null>(null);
 	public isReady = ref(false);
-	private liveEffectStatuses = shallowReactive(new Map<string, EffectStatus>());
+	private liveEffectStatusStore = new LiveEffectStatusStore(shallowReactive(new Map<string, EffectStatus>()));
 
 	public getLiveEffectStatus(visualModuleId: VisualModule['id'], nodeId: string): EffectStatus | undefined {
-		if (this.liveEffectStatusInstanceId == null || this.liveVisualModuleId.value !== visualModuleId) return;
-		return this.liveEffectStatuses.get(nodeId);
+		if (this.liveVisualModuleId.value !== visualModuleId) return;
+		return this.liveEffectStatusStore.get(visualModuleId, nodeId);
 	}
 
 	public getExportRendererSettings() {
@@ -217,11 +217,7 @@ export class Engine {
 				}
 				case 'effectStatus': {
 					const { source, nodeId, status } = event.data as { source: EffectStatusSource; nodeId: string; status: EffectStatus | null };
-					// 別のレイヤーや、既に破棄したLIVEインスタンスの通知をEditorに表示しない。
-					if (source.type !== 'live' || source.instanceId !== this.liveEffectStatusInstanceId
-						|| source.visualModuleId !== this.liveVisualModuleId.value) break;
-					if (status) this.liveEffectStatuses.set(nodeId, status);
-					else this.liveEffectStatuses.delete(nodeId);
+					this.liveEffectStatusStore.update(source, nodeId, status);
 					break;
 				}
 				case 'telemetry': {
@@ -248,8 +244,7 @@ export class Engine {
 		this.liveParamValues = deepClone(paramValues);
 		const statusInstanceId = genId();
 		this.call('startLiveRenderLoopFor', [visualModuleId, this.liveParamValues, statusInstanceId]);
-		this.liveEffectStatusInstanceId = statusInstanceId;
-		this.liveEffectStatuses.clear();
+		this.liveEffectStatusStore.start(visualModuleId, statusInstanceId);
 		this.liveVisualModuleId.value = visualModuleId;
 		this.renderLoopRunning = true;
 	}
@@ -267,8 +262,7 @@ export class Engine {
 	public stopRenderLoop() {
 		this.call('stopRenderLoop', []);
 		this.renderLoopRunning = false;
-		this.liveEffectStatusInstanceId = null;
-		this.liveEffectStatuses.clear();
+		this.liveEffectStatusStore.stop();
 		this.liveVisualModuleId.value = null;
 	}
 
@@ -430,8 +424,7 @@ export class Engine {
 		if (this.isReady.value || (this.rendererWorker != null && this.rejectInitialization != null)) {
 			this.call('renderTimelineAt', [time]);
 			this.renderLoopRunning = false;
-			this.liveEffectStatusInstanceId = null;
-			this.liveEffectStatuses.clear();
+			this.liveEffectStatusStore.stop();
 			this.liveVisualModuleId.value = null;
 		}
 	}
@@ -453,9 +446,8 @@ export class Engine {
 		this.rejectInitialization = null;
 		this.pendingCalls = [];
 		this.renderLoopRunning = false;
-		this.liveEffectStatusInstanceId = null;
 		this.liveVisualModuleId.value = null;
-		this.liveEffectStatuses.clear();
+		this.liveEffectStatusStore.stop();
 		this.audioInputs.dispose();
 		for (const [id, media] of this.videoElements) {
 			const callback = this.videoFrameCallbacks.get(id);
@@ -495,8 +487,7 @@ export class Engine {
 		this.inFlightVideoFrames.clear();
 		for (const frame of this.pendingVideoFrames.values()) frame.close();
 		this.pendingVideoFrames.clear();
-		this.liveEffectStatusInstanceId = null;
-		this.liveEffectStatuses.clear();
+		this.liveEffectStatusStore.stop();
 		this.gpuMemoryUsage.value = null;
 		this.fpsDisplay.value = 0;
 		this.gpuAverageDisplayFast.value = 0;
