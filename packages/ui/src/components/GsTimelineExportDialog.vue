@@ -182,9 +182,6 @@ onBeforeUnmount(() => {
 	position: relative;
 	padding: 32px;
 	width: 480px;
-	max-width: 90vw;
-	max-height: 90vh;
-	overflow-y: auto;
 	box-sizing: border-box;
 	background: var(--THEME-dialog);
 	border-radius: 10px;
