@@ -120,7 +120,7 @@
 
 <script lang="ts" setup>
 import { computed, onMounted, ref, shallowRef, useTemplateRef, watch } from 'vue';
-import { evalAutomationGraphValue, insertIntermediateNumbers, nearlyEqual, niceScale } from '@glitch/shared/utility/misc.js';
+import { evalAutomationGraphValue, insertIntermediateNumbers, nearlyEqual, niceScale, niceNormalizedScale } from '@glitch/shared/utility/misc.js';
 import { genId } from '@glitch/shared/utility/id.js';
 import { deepClone } from '@glitch/shared/utility/deep-clone.js';
 import GsButton from './common/GsButton.vue';
@@ -238,7 +238,10 @@ const bezierSnapLinesY = ref<{ active?: boolean; x: number; y: number; width: nu
 
 // TODO: TLの表示DOMサイズに応じて変更
 const xTicksCount = ref(10);
-const xTicks = computed(() => niceScale(tlPosX.value, tlPosX.value + tlRangeX.value, xTicksCount.value));
+const xTicks = computed(() => {
+	const scale = props.isNormalized ? niceNormalizedScale : niceScale;
+	return scale(tlPosX.value, tlPosX.value + tlRangeX.value, xTicksCount.value);
+});
 const xTicksWithHalf = computed(() => insertIntermediateNumbers(xTicks.value));
 const yTicksCount = ref(6);
 const yTicks = computed(() => niceScale(tlPosY.value, tlPosY.value + tlRangeY.value, yTicksCount.value));

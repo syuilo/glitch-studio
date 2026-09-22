@@ -72,6 +72,26 @@ export function niceScale(lowerBound: number, upperBound: number, ticks: number)
 	return steps;
 }
 
+// 正規化された軸では1を基準にし、表示範囲に1があれば必ず目盛りに含める。
+export function niceNormalizedScale(lowerBound: number, upperBound: number, ticks: number): number[] {
+	if (!Number.isFinite(lowerBound) || !Number.isFinite(upperBound) || !Number.isFinite(ticks) || upperBound < lowerBound) return [];
+	if (lowerBound === upperBound) return [lowerBound];
+	const targetStep = (upperBound - lowerBound) / Math.max(1, ticks);
+	// 1以下の刻みは1/nに限定する。例えば0.3に近い刻みは1/3になり、1を飛ばさない。
+	const divisions = Math.max(1, Math.round(1 / targetStep));
+	// 大きくズームアウトした場合も目盛りが増えすぎないよう、整数幅に切り替える。
+	const stride = Math.max(1, Math.ceil(targetStep));
+	const firstIndex = Math.floor((lowerBound - 1) * divisions / stride);
+	const lastIndex = Math.ceil((upperBound - 1) * divisions / stride);
+	if (!Number.isSafeInteger(firstIndex) || !Number.isSafeInteger(lastIndex)) return [];
+	const values: number[] = [];
+	// 浮動小数点の加算を繰り返さず、整数インデックスから求めて1を正確に生成する。
+	for (let index = firstIndex; index <= lastIndex; index++) {
+		values.push((divisions + index * stride) / divisions);
+	}
+	return values;
+}
+
 export function evalAutomationGraphValue(automationGraph: { points: GsAutomationGraph['points'] }, x: number, wrapMode: 'clamp' | 'repeat' | 'repeatMirrored'): number {
 	// 元の配列を変更せずX順に並べる。同じXでは元の順序を保ち、後のポイントを優先する。
 	const points = automationGraph.points.toSorted((a, b) => a.x - b.x);
