@@ -769,7 +769,9 @@ function onSeekBarMousedown(ev: MouseEvent) {
 	const position = tlEl.value.getBoundingClientRect();
 
 	function move(x: number, y: number) {
-		currentValueX.value = domXToValueX(x);
+		let valueX = domXToValueX(x);
+		valueX = Math.min(Math.max(0, valueX), duration.value);
+		currentValueX.value = valueX;
 	}
 
 	dragListen(me => {
