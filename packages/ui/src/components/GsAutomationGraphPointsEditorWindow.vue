@@ -5,7 +5,7 @@
 	@close="windowEl?.close()"
 	@closed="emit('closed')"
 >
-	<template #header>Graph Editor: {{ props.automationGraph.name }}</template>
+	<template #header><i class="ti ti-ease-in-out-control-points"></i> Graph Editor: {{ props.automationGraph.name }}</template>
 
 	<div style="height: 100%;">
 		<GsAutomationGraphPointsEditor :points="props.automationGraph.points" :isNormalized="props.automationGraph.isNormalized"/>
