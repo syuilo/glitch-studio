@@ -497,7 +497,10 @@ const updateParamAsNodeCommandDef = defineNodeParamCommand<NodeParamTarget & { v
 	(target, payload) => {
 		assertLeafParam(target);
 		if (!('canNode' in target.def) || !target.def.canNode) throw new Error('Parameter does not support node input');
-		return payload.value == null ? { inputSource: 'node', nodeId: null, outputPort: null } : { inputSource: 'node', ...payload.value };
+		if (payload.value == null) return { inputSource: 'node', nodeId: null, outputPort: null };
+		// 読み取り方法は接続先の入力に属する。配線元だけ変更しても設定を維持する。
+		const previous = target.value.inputSource === 'node' && target.value.nodeId != null ? target.value : undefined;
+		return { inputSource: 'node', fitMode: previous?.fitMode, wrapMode: previous?.wrapMode, ...payload.value };
 	},
 );
 

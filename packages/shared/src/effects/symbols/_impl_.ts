@@ -1,5 +1,6 @@
 import { createTextureFromImages, makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { implementEffect } from '../../effect-implementation.ts';
+import { createShaderInputBindings, generateShaderInputs } from '../../shader-input.ts';
 import code from './shader.wgsl?raw';
 import type definition from './_def_.ts';
 
@@ -84,7 +85,8 @@ function getSymbolTextureUrls(type: string) {
 	] : [];
 }
 
-export default implementEffect<typeof definition>({
+export default implementEffect<typeof definition, 'shaderInput'>({
+	inputMode: 'shaderInput',
 	outputTextureFactories: {
 		output: ({ wgpu, resolution }) => wgpu.device.createTexture({
 			size: resolution,
@@ -92,28 +94,17 @@ export default implementEffect<typeof definition>({
 			usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
 		}),
 	},
-	init: ({ wgpu, params, fallbackTexture, resolution, reportStatus }) => {
-		const shaderModule = wgpu.device.createShaderModule({
-			code: code,
-		});
-
+	init: ({ wgpu, params, fallbackTexture, reportStatus }) => {
+		const device = wgpu.device;
 		const shaderDataDefinitions = makeShaderDataDefinitions(code);
-
-		const pipeline = wgpu.device.createRenderPipeline({
-			vertex: {
-				module: wgpu.defaultVertexShaderModule,
-			},
-			fragment: {
-				module: shaderModule,
-				targets: [{
-					format: wgpu.intermediateTextureFormat,
-				}],
-			},
-			primitive: {
-				topology: 'triangle-list',
-			},
-			layout: 'auto',
-		});
+		// 内部のシンボル配列と、接続から生成する入力のbindingを分離する。
+		const symbolLayout = device.createBindGroupLayout({ entries: [
+			{ binding: 1, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },
+			{ binding: 2, visibility: GPUShaderStage.FRAGMENT, sampler: { type: 'filtering' } },
+			{ binding: 4, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float', viewDimension: '2d-array' } },
+		] });
+		// inputとforceFieldの種別だけで最大4構成。値やfit/wrapの変更では再コンパイルしない。
+		const variants = new Map<string, { pipeline: GPURenderPipeline; bindings: ReturnType<typeof createShaderInputBindings> }>();
 
 		const uniformValues = makeStructuredView(shaderDataDefinitions.uniforms.uniforms);
 
@@ -133,24 +124,18 @@ export default implementEffect<typeof definition>({
 
 		let symbolTexture: GPUTexture | null = null;
 
-		let inputTexture: GPUTexture | null = null;
-		let forceFieldTexture: GPUTexture | null = null;
 		let bindGroup: GPUBindGroup;
-		const updateBindGroup = (newInputTexture: GPUTexture | null, newForceFieldTexture: GPUTexture | null) => {
-			inputTexture = newInputTexture;
-			forceFieldTexture = newForceFieldTexture;
-			bindGroup = wgpu.device.createBindGroup({
-				layout: pipeline.getBindGroupLayout(0),
+		const updateBindGroup = () => {
+			bindGroup = device.createBindGroup({
+				layout: symbolLayout,
 				entries: [
 					{ binding: 1, resource: { buffer: uniformBuffer } },
 					{ binding: 2, resource: sampler },
-					{ binding: 3, resource: (inputTexture ?? fallbackTexture).createView() },
 					{ binding: 4, resource: (symbolTexture ?? fallbackTexture).createView({ dimension: '2d-array' }) },
-					{ binding: 5, resource: (forceFieldTexture ?? fallbackTexture).createView() },
 				],
 			});
 		};
-		updateBindGroup(params.input, params.forceField);
+		updateBindGroup();
 
 		let iconset = params.iconset;
 		let symbolTextureCount = 0;
@@ -170,7 +155,7 @@ export default implementEffect<typeof definition>({
 				symbolTexture?.destroy();
 				symbolTexture = texture;
 				symbolTextureCount = urls.length;
-				updateBindGroup(inputTexture, forceFieldTexture);
+				updateBindGroup();
 				cacheVersion++;
 				reportStatus({ type: 'ready' });
 			}).catch(error => {
@@ -192,16 +177,29 @@ export default implementEffect<typeof definition>({
 			get cacheVersion() { return cacheVersion; },
 			prepare,
 			render: (ctx) => {
-				if (ctx.params.input !== inputTexture || ctx.params.forceField !== forceFieldTexture) {
-					updateBindGroup(ctx.params.input, ctx.params.forceField);
-				}
 				prepare(ctx.params);
+				const inputs = { input: ctx.params.input, forceField: ctx.params.forceField };
+				const key = [inputs.input.kind, inputs.forceField.kind].join(',');
+				let variant = variants.get(key);
+				if (variant == null) {
+					// セルごとに異なる座標を読むため、入力はLOD 0でサンプルする。
+					// シンボル配列のミップ選択は、従来どおり内部samplerで行う。
+					const generated = generateShaderInputs({ input: 'color', forceField: 'vector' }, inputs, 1, 'level0');
+					const bindings = createShaderInputBindings(device, generated);
+					const pipeline = device.createRenderPipeline({
+						layout: device.createPipelineLayout({ bindGroupLayouts: [symbolLayout, bindings.layout] }),
+						vertex: { module: wgpu.defaultVertexShaderModule },
+						fragment: { module: device.createShaderModule({ code: generated.code + '\n' + code }), targets: [{ format: wgpu.intermediateTextureFormat }] },
+						primitive: { topology: 'triangle-list' },
+					});
+					variant = { pipeline, bindings };
+					variants.set(key, variant);
+				}
+				const output = ctx.outputDataMap.output.texture;
+				const inputGroup = variant.bindings.update(inputs, output);
 
 				uniformValues.set({
-					aspectRatio: resolution.width / resolution.height,
-					sourceAspectRatio: resolution.width / resolution.height,
-					coverSource: 1,
-					sourceContrast: 1,
+					aspectRatio: output.width / output.height,
 					highlightClipThreshold: ctx.params.highlightClipThreshold,
 					shadowClipThreshold: ctx.params.shadowClipThreshold,
 					divisions: ctx.params.divisions,
@@ -222,13 +220,16 @@ export default implementEffect<typeof definition>({
 				wgpu.device.queue.writeBuffer(uniformBuffer, 0, uniformValues.arrayBuffer);
 
 				const passEncoder = ctx.createPassEncoderFor(ctx.commandEncoder, ctx.outputDataMap.output.textureView);
-				passEncoder.setPipeline(pipeline);
+				passEncoder.setPipeline(variant.pipeline);
 				passEncoder.setBindGroup(0, bindGroup);
+				passEncoder.setBindGroup(1, inputGroup);
 				passEncoder.draw(6);
 				passEncoder.end();
 			},
 			dispose: () => {
 				disposed = true;
+				for (const variant of variants.values()) variant.bindings.dispose();
+				variants.clear();
 				uniformBuffer.destroy();
 				symbolTexture?.destroy();
 			},

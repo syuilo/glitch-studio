@@ -20,7 +20,7 @@
 				<GsButton small iconOnly title="Add element" @click="addElement"><i class="ti ti-plus"></i></GsButton>
 			</template>
 			<template v-else-if="paramDef.dataType !== 'struct'">
-				<GsNodePort v-if="canNode" :dataType="inputDataType" @update:element="portEl = $event"/>
+				<GsNodePort v-if="canNode" :dataType="inputDataType" title="Input sampling settings" style="cursor: pointer;" @pointerdown.stop @click.stop="showInputSamplingMenu" @update:element="portEl = $event"/>
 				<i v-if="hasNodeInputTypeMismatch(nodes, nodeConnection, inputDataType, paramDefs)" v-tooltip="'Data type mismatch'" class="ti ti-alert-triangle" :class="$style.typeWarning"></i>
 				<div :class="$style.control">
 					<GsInput v-if="paramValue.inputSource === 'expression'" type="text" class="_monospace" :modelValue="paramValue.expression" @focusin="onBeginChanging" @focusout="onFinishChanging" @update:modelValue="updateParamAsExpression">
@@ -166,6 +166,7 @@ import { appContext, wireMap } from '@/app.ts';
 import { paramPathKey } from '@/utility/node-params.ts';
 import { getNodeOutputItems, hasNodeInputTypeMismatch, nodeOutputKey } from '@/utility/node-outputs.ts';
 import { registerWireInput } from '@/utility/wire-drag.ts';
+import { inputSamplingMenu } from '@/utility/input-sampling-menu.ts';
 import * as ui from '@/ui.ts';
 import { setInlineAutomationGraphNormalized } from '@/utility/automation-graph.ts';
 
@@ -341,6 +342,10 @@ function getMenu() {
 
 function showMenu(ev: PointerEvent) {
 	ui.popupMenu(getMenu(), ev.currentTarget ?? ev.target);
+}
+
+function showInputSamplingMenu(ev: PointerEvent) {
+	ui.popupMenu(inputSamplingMenu(() => nodeConnection.value, connectNode), ev.currentTarget ?? ev.target);
 }
 
 function onRowContextmenu(ev: PointerEvent) {

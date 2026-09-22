@@ -1,58 +1,48 @@
-import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { implementEffect } from '../../effect-implementation.ts';
+import { createShaderInputBindings, generateShaderInputs } from '../../shader-input.ts';
 import code from './shader.wgsl?raw';
 import type definition from './_def_.ts';
 
-const fitModes = { stretch: 0, cover: 1, contain: 2 };
-
-export default implementEffect<typeof definition>({
+export default implementEffect<typeof definition, 'shaderInput'>({
+	inputMode: 'shaderInput',
 	outputTextureFactories: {
 		output: ({ wgpu, resolution }) => wgpu.device.createTexture({
 			size: resolution, format: wgpu.intermediateTextureFormat, usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
 		}),
 	},
-	init: ({ wgpu, resolution, fallbackTexture }) => {
+	init: ({ wgpu }) => {
 		const device = wgpu.device;
-		const values = makeStructuredView(makeShaderDataDefinitions(code).uniforms.uniforms);
-		const buffer = device.createBuffer({ size: values.arrayBuffer.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
-		const sampler = device.createSampler({ minFilter: 'linear', magFilter: 'linear' });
-		const layout = device.createBindGroupLayout({ entries: [
-			{ binding: 4, visibility: GPUShaderStage.FRAGMENT, sampler: { type: 'filtering' } },
-			{ binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },
-			...[1, 2, 3].map(binding => ({ binding, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float' as const } })),
-		] });
-		const pipeline = device.createRenderPipeline({
-			layout: device.createPipelineLayout({ bindGroupLayouts: [layout] }),
-			vertex: { module: wgpu.defaultVertexShaderModule },
-			fragment: { module: device.createShaderModule({ code }), targets: [{ format: wgpu.intermediateTextureFormat }] },
-			primitive: { topology: 'triangle-list' },
-		});
-		let textures: GPUTexture[] = [];
-		let bindGroup: GPUBindGroup;
+		const schema = { inputA: 'color', inputB: 'color', amount: 'scalar' } as const;
+		// 値やfit/wrapではコンパイルし直さず、実際に使用した入力種別の組合せだけ保持する。
+		// このエフェクトでは最大8種類。ノードごとのbufferはdisposeで全て破棄する。
+		const variants = new Map<string, { pipeline: GPURenderPipeline; bindings: ReturnType<typeof createShaderInputBindings> }>();
 		return {
 			render: ctx => {
-				const p = ctx.params;
-				const inputs = [p.inputA ?? fallbackTexture, p.inputB ?? fallbackTexture, p.amount];
-				if (inputs.some((texture, i) => texture !== textures[i])) {
-					textures = inputs;
-					bindGroup = device.createBindGroup({ layout, entries: [
-						{ binding: 4, resource: sampler },
-						{ binding: 0, resource: { buffer } },
-						...textures.map((texture, i) => ({ binding: i + 1, resource: texture.createView() })),
-					] });
+				const key = [ctx.params.inputA.kind, ctx.params.inputB.kind, ctx.params.amount.kind].join(',');
+				let variant = variants.get(key);
+				if (variant == null) {
+					const generated = generateShaderInputs(schema, ctx.params);
+					const bindings = createShaderInputBindings(device, generated);
+					const pipeline = device.createRenderPipeline({
+						layout: device.createPipelineLayout({ bindGroupLayouts: [bindings.layout] }),
+						vertex: { module: wgpu.defaultVertexShaderModule },
+						fragment: { module: device.createShaderModule({ code: generated.code + '\n' + code }), targets: [{ format: wgpu.intermediateTextureFormat }] },
+						primitive: { topology: 'triangle-list' },
+					});
+					variant = { pipeline, bindings };
+					variants.set(key, variant);
 				}
-				values.set({
-					aspectRatio: resolution.width / resolution.height,
-					fitA: fitModes[p.fitModeA], fitB: fitModes[p.fitModeB], fitAmount: fitModes[p.fitModeAmount],
-				});
-				device.queue.writeBuffer(buffer, 0, values.arrayBuffer);
+				const group = variant.bindings.update(ctx.params, ctx.outputDataMap.output.texture);
 				const pass = ctx.createPassEncoderFor(ctx.commandEncoder, ctx.outputDataMap.output.textureView);
-				pass.setPipeline(pipeline);
-				pass.setBindGroup(0, bindGroup);
+				pass.setPipeline(variant.pipeline);
+				pass.setBindGroup(0, group);
 				pass.draw(6);
 				pass.end();
 			},
-			dispose: () => buffer.destroy(),
+			dispose: () => {
+				for (const variant of variants.values()) variant.bindings.dispose();
+				variants.clear();
+			},
 		};
 	},
 });

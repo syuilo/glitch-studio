@@ -7,11 +7,6 @@ fn premultiplyAlpha(color: vec4f) -> vec4f {
 	return vec4f(color.rgb * color.a, color.a);
 }
 
-// テクスチャ座標(0~1、+Yが下)に変換
-fn convertTexCoords(uv: vec2f) -> vec2f {
-	return vec2f(uv.x, -uv.y) * 0.5 + vec2f(0.5);
-}
-
 struct Uniforms {
 	aspectRatio: f32,
 	divisions: f32,
@@ -20,12 +15,9 @@ struct Uniforms {
 	symbolTexturesRangeMin: f32,
 	symbolTexturesRangeMax: f32,
 	useOriginalColor: u32,
-	sourceAspectRatio: f32,
-	sourceContrast: f32,
 	highlightClipThreshold: f32,
 	shadowClipThreshold: f32,
 	enableClippedAreaFill: u32,
-	coverSource: u32,
 	bgColor: vec4f,
 	colorA: vec4f,
 	colorB: vec4f,
@@ -37,9 +29,7 @@ struct Uniforms {
 
 @group(0) @binding(1) var<uniform> uniforms: Uniforms;
 @group(0) @binding(2) var mySampler: sampler;
-@group(0) @binding(3) var sourceTexture: texture_2d<f32>;
 @group(0) @binding(4) var symbolTextures: texture_2d_array<f32>;
-@group(0) @binding(5) var forceFieldTexture: texture_2d<f32>;
 
 // https://docs.arduino.cc/language-reference/en/functions/math/map/
 fn remap(value: f32, inMin: f32, inMax: f32, outMin: f32, outMax: f32) -> f32 {
@@ -51,21 +41,19 @@ fn getPixelatedUv(uv: vec2f, cellSize: vec2f) -> vec2f {
 }
 
 fn getSourceColor(uv: vec2f) -> vec4f {
-	let sourceScale = select(
-		select(1.0, uniforms.sourceAspectRatio / uniforms.aspectRatio, uniforms.sourceAspectRatio < uniforms.aspectRatio),
-		select(1.0, uniforms.sourceAspectRatio / uniforms.aspectRatio, uniforms.sourceAspectRatio > uniforms.aspectRatio),
-		uniforms.coverSource == 1) * min(1.0, uniforms.aspectRatio);
-	let sourceUvScale = vec2f(1.0, uniforms.sourceAspectRatio) / sourceScale;
-	var sourceUv = uv * sourceUvScale;
+	// 正方形セル用の座標で変形してから、共通入力APIの[-1, 1]座標へ戻す。
+	// 入力自身の比率・fit・wrapは生成された参照関数が扱う。
+	var sourceUv = uv;
 	if (uniforms.forceFieldWarp == 1) {
-		sourceUv -= getForceFieldAspectVector(uv) * sourceUvScale;
+		sourceUv -= getForceFieldAspectVector(uv);
 	}
-	let color = textureSample(sourceTexture, mySampler, convertTexCoords(sourceUv));
-	return vec4f(pow(color.rgb, vec3f(uniforms.sourceContrast)), color.a);
+	return read_input(unscaleUvToCoverGivenAspectRatio(sourceUv, uniforms.aspectRatio));
 }
 
 fn getForceFieldAspectVector(aspectUv: vec2f) -> vec2f {
-	return scaleUvToCoverGivenAspectRatio(textureSample(forceFieldTexture, mySampler, convertTexCoords(unscaleUvToCoverGivenAspectRatio(aspectUv, uniforms.aspectRatio))).rg, uniforms.aspectRatio);
+	let position = unscaleUvToCoverGivenAspectRatio(aspectUv, uniforms.aspectRatio);
+	// 参照位置のfitとは別に、ベクトル値をセルの座標系へ変換する。
+	return scaleUvToCoverGivenAspectRatio(read_forceField(position), uniforms.aspectRatio);
 }
 
 fn isSimilar(a: vec4f, b: vec4f, c: vec4f, d: vec4f, threshold: f32) -> bool {

@@ -1,3 +1,4 @@
+import { constantShaderInput, textureShaderInput } from '@glitch/shared/shader-input.ts';
 import { getNodeOutputs } from '@glitch/shared/utility/node-outputs.ts';
 import { playerAudioSourceId } from '@glitch/shared/audio.ts';
 import { AudioHistory } from '@glitch/shared/audio-history.ts';
@@ -181,6 +182,7 @@ export class VisualModuleRenderer {
 
 	private uploadNodeParamTextures() {
 		for (const node of this.nodes.filter((n): n is GsEffectNode => n.type === 'effect')) {
+			if (this.effectImplementations[node.effectId].inputMode === 'shaderInput') continue;
 			const paramDefs = this.effectDefinitions[node.effectId].paramDefs;
 			const evaluatedParams = this.evaledNodeParams.get(node.id)!;
 
@@ -246,6 +248,12 @@ export class VisualModuleRenderer {
 			for (const { def, param, path } of walkNodeParams(paramDefs, node.params)) {
 				const v = getEvaluatedParam(params, path);
 				key += JSON.stringify([path, param.inputSource]);
+				if (param.inputSource === 'node' && param.nodeId != null) {
+					key += JSON.stringify([param.fitMode ?? 'cover', param.wrapMode ?? 'repeatMirrored']);
+				}
+				// 外部から渡されたテクスチャは同じオブジェクトの内容が毎フレーム変わり得る。
+				if (def.canNode && this.effectImplementations[node.effectId].inputMode === 'shaderInput'
+					&& param.inputSource === 'externalParameterInput' && this.paramTextures.has(param.parameterId)) return null;
 				if (def.dataType === 'playerReference') {
 					key += JSON.stringify([path, 'videoFrameVersion', v == null ? 0 : this.videoFrameVersions.get(v) ?? 0]);
 					const audio = v == null ? undefined : this.audioSources.get(playerAudioSourceId(v));
@@ -275,6 +283,17 @@ export class VisualModuleRenderer {
 					videoFrame: this.videoFrames.get(v) ?? null,
 					audio: this.audioSources.get(playerAudioSourceId(v)) ?? null,
 				};
+				if (def.canNode && this.effectImplementations[node.effectId].inputMode === 'shaderInput') {
+					if (param.inputSource === 'node' && param.nodeId != null) {
+						const texture = this.getOutputTexture(this.allNodeIdMap.get(param.nodeId)!, param.outputPort);
+						return texture == null ? constantShaderInput(def.dataType, null) : textureShaderInput(texture, param);
+					}
+					if (param.inputSource === 'externalParameterInput') {
+						const texture = this.paramTextures.get(param.parameterId);
+						if (texture != null) return textureShaderInput(texture);
+					}
+					return constantShaderInput(def.dataType, v);
+				}
 				if (def.canNode) {
 					if (param.inputSource === 'node') {
 						if (param.nodeId == null) return this.fallbackScalarFieldTexture;
@@ -337,7 +356,8 @@ export class VisualModuleRenderer {
 			const effect = this.effectImplementations[node.effectId];
 			const allocationArgs = {
 				wgpu: { device: this.gpuDevice, enable32bitDataTextures: this.enable32bitDataTextures, intermediateTextureFormat: this.intermediateTextureFormat },
-				resolution: { width: this.resolution.width, height: this.resolution.height },
+				// 入力依存のサイズはパラメータ評価後に確定する。仮の出力へ大きな領域を確保しない。
+				resolution: effect.getOutputResolution ? { width: 1, height: 1 } : { ...this.resolution },
 			};
 			const outDataMap = {} as Record<string, {
 				texture: GPUTexture;
@@ -369,7 +389,7 @@ export class VisualModuleRenderer {
 			const textures = this.effectPerParamConstFieldTextures.get(node.id) ?? {};
 			const used = new Set<string>();
 			for (const { def, path } of walkNodeParams(this.effectDefinitions[node.effectId].paramDefs, node.params)) {
-				if (!def.canNode) continue;
+				if (!def.canNode || this.effectImplementations[node.effectId].inputMode === 'shaderInput') continue;
 				const key = JSON.stringify(path);
 				used.add(key);
 				// TODO: 全typeについて定義 & 別関数に切り出し
@@ -526,6 +546,21 @@ export class VisualModuleRenderer {
 		}
 
 		const resolvedParams = this.resolveParams(node, params);
+		if (effect.getOutputResolution) {
+			for (const [port, data] of Object.entries(this.outDataMapPerNodes.get(node.id)!)) {
+				const resolution = effect.getOutputResolution(resolvedParams, port);
+				if (data.texture.width === resolution.width && data.texture.height === resolution.height) continue;
+				const args = { resolution, wgpu: { device: this.gpuDevice, enable32bitDataTextures: this.enable32bitDataTextures, intermediateTextureFormat: this.intermediateTextureFormat } };
+				const texture = effect.outputTextureFactories[port](args);
+				const previous = effect.needsPreviousFrame ? effect.outputTextureFactories[port](args) : undefined;
+				data.texture.destroy();
+				data.previousFrameTexture?.destroy();
+				data.texture = texture;
+				data.textureView = texture.createView();
+				data.previousFrameTexture = previous;
+				data.previousFrameTextureView = previous?.createView();
+			}
+		}
 
 		const effectInstance = this.initializeEffect(node, resolvedParams);
 
@@ -594,6 +629,7 @@ export class VisualModuleRenderer {
 
 		context.rendered.add(node.id);
 		if (key != null) this.effectCacheKeys.set(node.id, key);
+		else this.effectCacheKeys.delete(node.id);
 	}
 
 	private initializeEffect(node: GsEffectNode, params: Record<string, any>): EffectInstance {
