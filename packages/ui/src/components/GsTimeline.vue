@@ -340,7 +340,6 @@ function onVisualModuleLayerParamEdit(event: ParamEdit) {
 		paramId: event.paramPath[0],
 		edit: event.kind === 'reset' ? { kind: 'reset' } : event,
 	}, event.kind === 'literal' && event.mergeKey != null ? `${layer.id}:${event.paramPath[0]}:${event.mergeKey}` : undefined);
-	timeline.renderTimelineAtCurrentTime();
 }
 
 function addLayer() {
