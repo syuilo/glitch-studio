@@ -11,15 +11,14 @@ fn fs(@location(0) position: vec2f) -> @location(0) vec4f {
 	// パラメータ場は出力位置で読む。定数なら各ブロックは単色になり、
 	// 空間的に変化する場合は局所的に分割・平均化領域が変わる効果として扱う。
 	// 1未満の入力は最も粗い分割として扱い、0によるゼロ除算も防ぐ。
-	let scale = max(read_scale(position), vec2f(1.0));
-	let density = scale * scale;
+	let density = max(read_scale(position), vec2f(1.0));
 	var extent = uniforms.resolution;
 	if (uniforms.fitMode == 1u) {
 		extent = vec2f(max(uniforms.resolution.x, uniforms.resolution.y));
 	} else if (uniforms.fitMode == 2u) {
 		extent = vec2f(min(uniforms.resolution.x, uniforms.resolution.y));
 	}
-	// Scale=1で基準領域全体、Scale=3で各軸を9分割する密度になる。
+	// Scale=1で基準領域全体、Scale=3で各軸を3分割する密度になる。
 	// 1画素の下限を設けず、基準寸法との比率で解像度に依存しない分割にする。
 	let cellSize = 2.0 * (extent / uniforms.resolution) / density;
 

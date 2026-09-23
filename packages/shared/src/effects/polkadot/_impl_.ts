@@ -31,7 +31,7 @@ export default implementEffect<typeof definition>({
 				uniformValues.set({
 					aspect: [output.width / shortDimension, output.height / shortDimension],
 					angle: ctx.params.angle * Math.PI,
-					scale: Math.max(0, ctx.params.scale) ** 2,
+					scale: Math.max(0, ctx.params.scale),
 					majorRadius: Math.max(0, ctx.params.majorRadius),
 					majorColor: ctx.params.majorColor,
 					minorDivisions: Math.max(0, ctx.params.minorDivisions),

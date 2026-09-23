@@ -31,8 +31,8 @@ export default implementEffect<typeof definition>({
 		return {
 			render: ctx => {
 				// Scale=1で短辺全体を覆う。1未満も同じ分割にし、ゼロ除算を防ぐ。
-				const densityX = Math.max(1, ctx.params.scale[0]) ** 2;
-				const densityY = Math.max(1, ctx.params.scale[1]) ** 2;
+				const densityX = Math.max(1, ctx.params.scale[0]);
+				const densityY = Math.max(1, ctx.params.scale[1]);
 				seedValue[0] = ctx.params.seed;
 				uniformValues.set({
 					cellSize: [
