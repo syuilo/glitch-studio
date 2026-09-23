@@ -13,6 +13,7 @@ import fill from './effects/fill/_def_.ts';
 import frameDifference from './effects/frameDifference/_def_.ts';
 import gradient from './effects/gradient/_def_.ts';
 import grid from './effects/grid/_def_.ts';
+import zoomLines from './effects/zoomLines/_def_.ts';
 import scalarGradient from './effects/scalarGradient/_def_.ts';
 import composeVector from './effects/composeVector/_def_.ts';
 import histogram from './effects/histogram/_def_.ts';
@@ -65,6 +66,7 @@ const _effectDefinitions = {
 	frameDifference,
 	gradient,
 	grid,
+	zoomLines,
 	scalarGradient,
 	composeVector,
 	histogram,
