@@ -111,6 +111,41 @@ Glitch Studioのメディアの扱いにあたっては、以下の概念があ�
 - 乗算済みのRGBに再びアルファを掛けると、透明度が同じまま色だけが暗くなります。二重乗算を禁止することで、何も色を変えないノードを追加しただけで見た目が変わることを防ぎます。
 - データ用テクスチャのチャンネルは色や不透明度を表すとは限りません。そこにpremultiplyを適用すると、スカラー値やベクトルの大きさなど、後段が利用するデータ自体が変わってしまいます。
 
+### エフェクト入力の参照とVisual Moduleの出力
+
+全エフェクトの `canNode: true` パラメータは、構造体・配列内も含めて `ShaderInput` として受け取ります。通常の入力参照は、JS側で生成するWGSL関数 `read_<入力名>(position)` を使います。エフェクトのシェーダーは、定数かテクスチャかによる分岐や、入力ごとのアスペクト比補正を実装する必要がありません。
+
+#### シェーダー側の読み取り
+
+```wgsl
+let color = read_input(position);
+let amount = read_amount(position);
+```
+
+- 入力名と型はエフェクト側のschemaで指定します。`position` は `vec2f` で、中央が `[0, 0]`、左下が `[-1, -1]`、右上が `[1, 1]` の座標です。戻り値はscalarなら `f32`、vectorなら `vec2f`、color/anyなら `vec4f` です。
+- テクスチャ入力では、参照関数が入力自身と出力先のサイズに基づくfit補正と、接続のwrap/filterを適用します。`NodeOutputReference` の設定を使い、省略時は `cover` / `repeatMirrored` / `linear` です。containの余白もwrapに従い、自動で透明にはしません。定数入力は位置によらず同じ値を返し、fit/wrap/filterの影響を受けません。
+- 共通化するのは入力の参照座標とサンプリングです。エフェクト固有の変形や、ベクトル値の成分変換まで自動で行うものではありません。
+- 通常のfragmentではimplicit samplingを使います。computeや画素ごとに異なる分岐から参照する場合は、生成時に `sampling: 'level0'` を指定します。これはLODの指定であり、nearestの指定ではありません。
+- 配列schema（例: `{ images: { array: 'color' } }`）では `read_images(index, position)` と `count_images` を生成します。要素ごとに定数・テクスチャを混在でき、空配列・範囲外のindexは0を返します。配列要素の参照はLOD 0を使い、テクスチャ要素ごとに個別bindingを割り当てるため、GPUのテクスチャ・サンプラー数の上限を考慮してください。
+
+#### 内部表現と生成処理
+
+- `kind: 'uniform'` は空間的に一定の値です。リテラルに限らず、式やautomationの評価結果、接続されたモジュールの定数出力も含みます。生成関数はuniform bufferから読み、入力用の1x1テクスチャは作りません。値はf32で渡し、テクスチャ精度設定による16bitへの丸めは行いません。
+- `kind: 'texture'` は元の `GPUTexture` と、受け取り側のfit/wrap/filter設定です。接続時にテクスチャの保存形式を暗黙に変換しません。「接続されているなら必ずtexture」と仮定しないでください。
+- 色の定数は入力・出力値へ変換する境界で一度だけpremultiplyします。既に乗算済みの値や画像入力に再乗算してはいけません。データ用のスカラー・ベクトルには乗算しません。
+- `generateShaderInputs()` がWGSLの宣言・参照関数・binding配置を生成し、`createShaderInputBindings()` が値とGPUリソースを更新します。通常のrender pipelineでは、構成の生成・再利用をまとめた `createShaderInputPipeline()` を使用できます。bindingの更新には、fitの基準となる実際の出力サイズを渡してください。
+- 定数/テクスチャの種別、配列長や各要素の種別が変わるとpipelineの構成が変わります。値・接続先・fit/wrap/filterだけの変更ではpipelineを再生成せず、uniformやbindingを更新します。エフェクト破棄時はヘルパーの `dispose()` も呼びます。
+- 厳密な整数画素アクセスや履歴処理などでは、必要に応じて元のテクスチャを直接扱えます。その場合もuniform入力を扱い、生成関数を使わない理由を明確にしてください。画像素材・動画・音声など、`canNode` ではないパラメータはそれぞれの型で受け取ります。
+
+#### モジュール出力とテクスチャ化の境界
+
+Visual ModuleのIn/Out・バイパス・タイムラインのレイヤー間では、定数またはテクスチャを表す `NodeOutput` を受け渡します。モジュールの境界だけを理由に定数をテクスチャ化しません。エフェクトが描画した出力はtexture、Inから渡された定数はuniformのままです。
+
+- `NodeOutput` 自体はサンプリング設定を持ちません。エフェクト入力になるときに `outputShaderInput()` が受け取り側の接続設定を付け、`ShaderInput` にします。色の再乗算は行いません。scalar/vectorの不足成分はr/rgテクスチャと同じくRGBを0、alphaを1で補います。
+- モジュールの `paramValues` はCPUで評価する通常のパラメータ値、`paramInputs` は上流から渡された `NodeOutput` です。`paramInputs` はuniformでも `PARAM` 式からは参照せず、Inノードや `canNode` 入力から読みます。上流の出力種別によって式の可否を変えないためです。
+- 最終表示・集計など、`GPUTexture` が必要な境界では `OutputTextureResolver` が定数だけを1x1テクスチャへ変換します。成分数ごとに再利用し、同値の転送を省略します。保存精度は `enable32bitDataTextures` に従います。
+- 借用した出力テクスチャは変換・破棄しません。resolver自身の定数テクスチャは `dispose()` で破棄します。再利用するテクスチャを上書きするため、そのテクスチャを読むコマンドをsubmitしてから次の `resolve()` を呼んでください。
+
 ### 浮動小数点テクスチャの精度とサンプリング
 
 #### 画像形式・データ精度・GPU機能の役割
@@ -143,11 +178,10 @@ Glitch Studioのメディアの扱いにあたっては、以下の概念があ�
 
 - falseのときに32bit floatのノード出力を生成してはいけません。通常の画像出力は `wgpu.intermediateTextureFormat` に従います。
 - 出力だけでなく、内部の一時テクスチャ・履歴・compute shaderのstorage textureにも精度設定を適用します。テクスチャの生成形式、render pipelineのtarget、bind group layoutのstorage形式、WGSLのstorage texture宣言は必ず一致させます。出力チャンネル数も合わせてください。
-- `canNode: true` のパラメータは、全エフェクトで `ShaderInput` を受け取ります（構造体・配列内も同様）。定数は `kind: 'uniform'`、接続は元のGPUTextureとfit/wrap/filter設定を持つ `kind: 'texture'` です。定数のための1x1テクスチャは作らず、接続時にも暗黙の形式変換は行いません。参照は原則共通の生成関数を使い、整数画素アクセスなどが必要ならエフェクト側で元のテクスチャを扱えます。Visual ModuleのIn/Out・バイパス・レイヤー間も定数をNodeOutputとして保持し、最終表示・集計などGPUTextureが必要な境界でのみ1x1テクスチャへ変換します。fit/wrap/filterは出力値には含めず、受け取り側の接続設定を適用します。
 - CPUから16bit floatへアップロードするときは、数値をhalfのビット表現に変換します。`Float32Array` のバイト列をそのまま渡してはいけません。`bytesPerRow` も保存形式に合わせます。共通の変換処理は `packages/shared/src/utility/float32ToFloat16Bits.ts` にあります。
 - 16bit化では丸めと表現範囲の縮小が発生します。履歴との差分を計算する処理では、現在値と履歴値を同じ保存精度に揃えて、静止入力に丸め由来の差分が出ないようにします。蓄積では保存可能な範囲への制限などによりオーバーフローを防ぎます。
 
-**読み取りは原則サンプラーを使います。** 画像・連続したスカラー場・ベクトル場の拡大縮小や `canNode` パラメータの読み取りには、線形フィルタリングを設定したサンプラーと `textureSample` を使います。bind group layoutではテクスチャを `sampleType: 'float'`、サンプラーを `type: 'filtering'` とします。32bit float非対応を回避する目的の手動双線形補間は不要です。
+**テクスチャの読み取りは原則サンプラーを使います。** 画像・連続したスカラー場・ベクトル場の拡大縮小には、既定で線形フィルタリングを使い、接続でnearestを指定した場合はそれに従います。`canNode` 入力では上記の生成参照関数がこれを扱います。bind group layoutではテクスチャを `sampleType: 'float'`、サンプラーを `type: 'filtering'` とします。32bit float非対応を回避する目的の手動双線形補間は不要です。
 
 - `textureSample` は暗黙の微分を使うため、fragment shaderのuniformな制御フローで呼びます。画素ごとに異なる分岐や早期returnの後、compute shader、LODを固定する必要がある処理では `textureSampleLevel(..., 0.0)` を使います。これは同じサンプラーによる読み取りであり、最近傍読み取りを意味しません。
 - UVは各入力自身のサイズ・比率に基づいて計算し、指定されたfit方法を適用します。パラメータをstretchで対応付ける場合も、その方針を明確にしてください。1x1の定数入力や、出力と異なる解像度の入力も扱います。
