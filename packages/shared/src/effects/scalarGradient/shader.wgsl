@@ -5,32 +5,21 @@ struct Uniforms {
 };
 
 @group(0) @binding(0) var<uniform> uniforms: Uniforms;
-@group(0) @binding(1) var inputTexture: texture_2d<f32>;
-@group(0) @binding(2) var inputSampler: sampler;
 
 @fragment
 fn fs(@location(0) position: vec2f) -> @location(0) vec2f {
-	// 入力全体を出力全体にstretchする。差分の幅は入力自身の解像度から求める。
-	let size = vec2f(textureDimensions(inputTexture));
-	let texel = 1.0 / size;
-	let uv = vec2f(position.x, -position.y) * 0.5 + 0.5;
-	let lower = clamp(uv - texel, 0.5 * texel, 1.0 - 0.5 * texel);
-	let upper = clamp(uv + texel, 0.5 * texel, 1.0 - 0.5 * texel);
-	let left = textureSample(inputTexture, inputSampler, vec2f(lower.x, uv.y)).r;
-	let right = textureSample(inputTexture, inputSampler, vec2f(upper.x, uv.y)).r;
-	let top = textureSample(inputTexture, inputSampler, vec2f(uv.x, lower.y)).r;
-	let bottom = textureSample(inputTexture, inputSampler, vec2f(uv.x, upper.y)).r;
-	// 端では片側差分に相当する実際の距離で割り、勾配が半減するのを防ぐ。
-	// 高さ2・幅2*aspectRatioの等方的な座標で微分し、+Yを上向きにする。
-	let distance = (upper - lower) * vec2f(2.0 * uniforms.aspectRatio, 2.0);
-	var gradient = vec2f(0.0);
-	if (size.x > 1.0) { gradient.x = (right - left) / distance.x; }
-	if (size.y > 1.0) { gradient.y = (top - bottom) / distance.y; }
-	// 一定値の領域（1x1入力を含む）は正規化してもゼロのままにする。
+	// fit/wrap後の補間関数を解析的に微分する。共通関数でY反転も処理済み。
+	// uniformとnearestは勾配0。1x1テクスチャでもtransparentの境界には勾配がある。
+	let derivative = readGradient_input(position, true).yz;
+	// 各軸[-1,+1]の偏微分を、高さ2・幅2*aspectRatioの等方的な座標へ変換する。
+	// 正規化の前に距離の単位を揃え、長方形の出力でも方向が歪まないようにする。
+	var gradient = derivative / vec2f(uniforms.aspectRatio, 1.0);
+	// 一定値の領域は正規化してもゼロのままにする。
 	let magnitude = length(gradient);
 	if (uniforms.normalize != 0u && magnitude > 0.0) {
 		gradient /= magnitude;
 	}
 	// Vector Displacementの各軸[-1,+1]の変位座標に戻す。
+	// 上の補正は微分する距離、こちらは出力する変位の単位変換なので両方必要。
 	return gradient * uniforms.strength / vec2f(uniforms.aspectRatio, 1.0);
 }

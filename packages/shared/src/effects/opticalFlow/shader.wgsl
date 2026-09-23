@@ -8,27 +8,12 @@ struct Params {
 
 @group(0) @binding(0) var<uniform> params: Params;
 @group(0) @binding(1) var linearSampler: sampler;
-@group(0) @binding(2) var source: texture_2d<f32>;
 @group(0) @binding(3) var previous: texture_2d<f32>;
 @group(0) @binding(4) var current: texture_2d<f32>;
 @group(0) @binding(5) var flow: texture_2d<f32>;
 
 fn texCoords(uv: vec2f) -> vec2f {
 	return vec2f(uv.x, -uv.y) * 0.5 + 0.5;
-}
-
-@fragment
-fn capture(@location(0) uv: vec2f) -> @location(0) f32 {
-	let center = texCoords(uv);
-	var luminance = 0.0;
-	// Four taps prefilter the reduced image; history uses the identical conversion.
-	for (var y = -1; y <= 1; y += 2) {
-		for (var x = -1; x <= 1; x += 2) {
-			let color = textureSampleLevel(source, linearSampler, center + vec2f(f32(x), f32(y)) * params.texelSize * 0.25, 0.0);
-			luminance += clamp(dot(color.rgb, vec3f(0.2126, 0.7152, 0.0722)) * color.a, 0.0, 1.0);
-		}
-	}
-	return luminance * 0.25;
 }
 
 fn intensities(point: vec2i) -> vec2f {

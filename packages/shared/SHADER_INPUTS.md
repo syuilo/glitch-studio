@@ -6,8 +6,9 @@
 
 - 合成: colorMix、colorBlend、dataMix、dataBlend
 - 履歴・蓄積: accumulate、frameDifference（外部入力のみ。履歴は同一画素をtextureLoadで読む）
+- 動き推定: opticalFlow
 - 画像集計: histogram
-- データ生成・演算: composeVector、remap、multiply、rgbTo、snoise、gradient
+- データ生成・演算: composeVector、remap、multiply、rgbTo、snoise、gradient、scalarGradient
 - 画像加工: symbols、channelShift、chromaticAberration、colorBlocks、lcd、rainDropsOnWindow1、rainDropsOnWindow2、vectorDisplacement、blockShuffle、blur、quadtreeFilter、tearings、pixelSort、bloom、drosteRegression、water、liquidMetal、transform
 
 移行済みのエフェクトでは、入力のfit/wrapは接続設定に統一する。従来の独立したfitModeA/B/Amountやwrapパラメータは削除している。未接続の定数は位置によらず同じ値を返す。
@@ -40,12 +41,14 @@ liquidMetalはfit/wrap/filter適用後のアルファ形状を出力座標系で
 
 transformはInput・Translation・Scale・Rotationの4入力を生成関数で読む。変形パラメータは出力先の座標で評価し、画像だけ拡縮→回転→移動の逆変換後に読む。Translationの+1は画面幅/高さの半分の移動で、画像サイズ・拡縮・回転に依存しない。UIの操作範囲は±2とし、式やノード入力の値は制限しない。回転は出力アスペクト比で距離の単位を揃え、負のScaleは反転、いずれかの軸の絶対値が0.000001未満なら透明を返す。独立したWrapと固定contain配置は廃止し、接続のfit/wrap/filter（省略時cover/repeatMirrored/linear）を使う。uniformの色は通常の変形では一定値のままとなる。
 
+opticalFlowは履歴保存時に生成入力を読み、fit/wrap/filter適用後に表示される画像の動きを出力座標系の毎秒のベクトルとして推定する。fitの基準は最終出力サイズとし、最大辺256pxの履歴への縮小は4点平均を維持する。nearestでも各点を取得した後の平均は行う。輝度は乗算済みRGBから直接求め、alphaを二重に掛けない。履歴の差分は整数座標のtextureLoad、内部の移動量の平滑化・拡大はlinear/clampのままとする。入力種別またはfit/wrap/filterが変わった場合は履歴を取り直し、その回の出力は0にする。テクスチャのオブジェクト切替だけでは履歴をリセットしない。初回・無効な時間差・250ms超の間隔でのリセットも維持する。未接続を含むuniform入力は空間的に一定なため出力0となる。追加の中間テクスチャは作らず、履歴・移動量の16/32bit設定も維持する。
+
+scalarGradientは `readGradient_input(position, true)` を使い、fit/wrap適用後の双線形補間関数の局所的な勾配を返す。従来の約1画素幅の有限差分・端の片側差分は使わず、境界も接続のwrapに従う。uniformとnearestは境界を含め勾配0とし、1x1テクスチャでもtransparentなら境界の傾きを反映する。偏微分のX成分を出力アスペクト比で割って等方的な座標へ変換し、必要ならNormalizeを行い、Strengthを掛けて各軸[-1,+1]の変位座標へ戻す。この最後の変換でもX成分をアスペクト比で割る。出力は引き続き精度設定に応じたrg16float/rg32float。局所的な微分への変更により、細かな模様や画像端では従来より鋭く変化する場合がある。
+
 ## 残る移行対象
 
 今回の移行は単一出力のrender passを中心に行った。以下は個別の対応が必要なため従来方式を維持している。
 
-- opticalFlow: 低解像度の履歴フレームと移動量推定の座標系を維持しつつ、入力のfitを適用する必要がある。
-- scalarGradient: 微分に必要な入力サイズの参照と、fit変換の関係を整理する。
 - waveform: UIの解析表示でも使う共通ユーティリティがGPUTextureを受け取るため、共有APIの対応範囲を整理する。
 - testStructArray: 構造化パラメータの実験用エフェクト。描画処理自体が未実装なので、その設計と合わせて対応する。
 

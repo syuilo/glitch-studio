@@ -1,9 +1,11 @@
 import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { implementEffect } from '../../effect-implementation.ts';
+import { createShaderInputPipeline } from '../../shader-input-pipeline.ts';
 import code from './shader.wgsl?raw';
 import type definition from './_def_.ts';
 
-export default implementEffect<typeof definition>({
+export default implementEffect<typeof definition, 'shaderInput'>({
+	inputMode: 'shaderInput',
 	outputTextureFactories: {
 		output: ({ wgpu, resolution }) => wgpu.device.createTexture({
 			size: resolution,
@@ -11,44 +13,35 @@ export default implementEffect<typeof definition>({
 			usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
 		}),
 	},
-	init: ({ wgpu, resolution, fallbackTexture }) => {
+	init: ({ wgpu, resolution }) => {
 		const device = wgpu.device;
-		const sampler = device.createSampler({ minFilter: 'linear', magFilter: 'linear' });
 		const layout = device.createBindGroupLayout({ entries: [
 			{ binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },
-			{ binding: 1, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float' } },
-			{ binding: 2, visibility: GPUShaderStage.FRAGMENT, sampler: { type: 'filtering' } },
 		] });
-		const pipeline = device.createRenderPipeline({
-			layout: device.createPipelineLayout({ bindGroupLayouts: [layout] }),
-			vertex: { module: wgpu.defaultVertexShaderModule },
-			fragment: { module: device.createShaderModule({ code }), targets: [{ format: wgpu.enable32bitDataTextures ? 'rg32float' : 'rg16float' }] },
-			primitive: { topology: 'triangle-list' },
+		const pipelines = createShaderInputPipeline({
+			device, vertex: wgpu.defaultVertexShaderModule, code,
+			schema: { input: 'scalar' },
+			targets: [{ format: wgpu.enable32bitDataTextures ? 'rg32float' : 'rg16float' }],
+			internalLayouts: [layout], sampling: 'level0', scalarGradients: true,
 		});
 		const uniformValues = makeStructuredView(makeShaderDataDefinitions(code).uniforms.uniforms);
 		const uniformBuffer = device.createBuffer({ size: uniformValues.arrayBuffer.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
-		let texture: GPUTexture | undefined;
-		let bindGroup: GPUBindGroup;
+		const bindGroup = device.createBindGroup({ layout, entries: [
+			{ binding: 0, resource: { buffer: uniformBuffer } },
+		] });
 		return {
 			render: ctx => {
-				const input = ctx.params.input ?? fallbackTexture;
-				if (input !== texture) {
-					texture = input;
-					bindGroup = device.createBindGroup({ layout, entries: [
-						{ binding: 0, resource: { buffer: uniformBuffer } },
-						{ binding: 1, resource: input.createView() },
-						{ binding: 2, resource: sampler },
-					] });
-				}
+				const variant = pipelines.update({ input: ctx.params.input }, ctx.outputDataMap.output.texture);
 				uniformValues.set({ aspectRatio: resolution.width / resolution.height, strength: ctx.params.strength, normalize: ctx.params.normalize ? 1 : 0 });
 				device.queue.writeBuffer(uniformBuffer, 0, uniformValues.arrayBuffer);
 				const pass = ctx.createPassEncoderFor(ctx.commandEncoder, ctx.outputDataMap.output.textureView);
-				pass.setPipeline(pipeline);
+				pass.setPipeline(variant.pipeline);
 				pass.setBindGroup(0, bindGroup);
+				pass.setBindGroup(pipelines.inputGroup, variant.bindGroup);
 				pass.draw(6);
 				pass.end();
 			},
-			dispose: () => { uniformBuffer.destroy(); },
+			dispose: () => { pipelines.dispose(); uniformBuffer.destroy(); },
 		};
 	},
 });

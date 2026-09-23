@@ -1,8 +1,11 @@
 import { implementEffect } from '../../effect-implementation.ts';
+import { createShaderInputPipeline } from '../../shader-input-pipeline.ts';
 import code from './shader.wgsl?raw';
+import captureCode from './capture.wgsl?raw';
 import type definition from './_def_.ts';
 
-export default implementEffect<typeof definition>({
+export default implementEffect<typeof definition, 'shaderInput'>({
+	inputMode: 'shaderInput',
 	disableCache: true,
 	outputTextureFactories: {
 		output: ({ wgpu, resolution }) => wgpu.device.createTexture({
@@ -11,7 +14,7 @@ export default implementEffect<typeof definition>({
 			usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
 		}),
 	},
-	init: ({ wgpu: { device, defaultVertexShaderModule, enable32bitDataTextures }, resolution, params, fallbackTexture }) => {
+	init: ({ wgpu: { device, defaultVertexShaderModule, enable32bitDataTextures }, resolution }) => {
 		const scale = Math.min(1, 256 / Math.max(resolution.width, resolution.height));
 		const size = {
 			width: Math.max(1, Math.round(resolution.width * scale)),
@@ -26,7 +29,14 @@ export default implementEffect<typeof definition>({
 		});
 		const scalarFormat = enable32bitDataTextures ? 'r32float' : 'r16float';
 		const vectorFormat = enable32bitDataTextures ? 'rg32float' : 'rg16float';
-		const capture = createPipeline('capture', scalarFormat);
+		const captureLayout = device.createBindGroupLayout({ entries: [
+			{ binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },
+		] });
+		const capturePipelines = createShaderInputPipeline({
+			device, vertex: defaultVertexShaderModule, code: captureCode,
+			schema: { input: 'color' }, targets: [{ format: scalarFormat }],
+			internalLayouts: [captureLayout], sampling: 'level0', entryPoint: 'capture',
+		});
 		const estimate = createPipeline('estimate', vectorFormat);
 		const output = createPipeline('output', vectorFormat);
 		const createTexture = (format: GPUTextureFormat) => device.createTexture({
@@ -41,7 +51,8 @@ export default implementEffect<typeof definition>({
 		const uniforms = device.createBuffer({
 			size: values.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
 		});
-		const sampler = device.createSampler({ minFilter: 'linear', magFilter: 'linear' });
+		// 内部の移動量の平滑化・拡大には、入力接続のwrap/filterを適用しない。
+		const sampler = device.createSampler({ minFilter: 'linear', magFilter: 'linear', addressModeU: 'clamp-to-edge', addressModeV: 'clamp-to-edge' });
 		const uniformEntry = { binding: 0, resource: { buffer: uniforms } };
 		const samplerEntry = { binding: 1, resource: sampler };
 		const estimateGroups = frameViews.map((view, index) => device.createBindGroup({
@@ -52,12 +63,11 @@ export default implementEffect<typeof definition>({
 			layout: output.getBindGroupLayout(0),
 			entries: [uniformEntry, samplerEntry, { binding: 5, resource: flowView }],
 		});
-		let input = params.input;
-		const createInputGroup = () => device.createBindGroup({
-			layout: capture.getBindGroupLayout(0),
-			entries: [uniformEntry, samplerEntry, { binding: 2, resource: (input ?? fallbackTexture).createView() }],
+		const captureGroup = device.createBindGroup({
+			layout: captureLayout,
+			entries: [uniformEntry],
 		});
-		let inputGroup = createInputGroup();
+		let previousInputSettings: string | undefined;
 		let current = 0;
 		let hasPrevious = false;
 		const attachment = (view: GPUTextureView): GPURenderPassDescriptor => ({
@@ -65,23 +75,25 @@ export default implementEffect<typeof definition>({
 		});
 		return {
 			render: ctx => {
-				if (ctx.params.input == null) {
-					hasPrevious = false;
-					ctx.createPassEncoderFor(ctx.commandEncoder, ctx.outputDataMap.output.textureView).end();
-					return;
-				}
-				if (input !== ctx.params.input) {
-					input = ctx.params.input;
-					inputGroup = createInputGroup();
-				}
+				const input = ctx.params.input;
+				const inputSettings = input.kind === 'texture'
+					? `${input.kind}:${input.fitMode}:${input.wrapMode}:${input.filterMode}`
+					: input.kind;
+				// 設定変更による見え方の差を動きと誤認しないよう、履歴を取り直す。
+				// 上流がテクスチャを交互に出力しても追跡できるよう、オブジェクト同一性は比較しない。
+				if (inputSettings !== previousInputSettings) hasPrevious = false;
+				previousInputSettings = inputSettings;
 				// A pause or invalid interval starts a new history instead of emitting a jump.
 				if (!Number.isFinite(ctx.timeDelta) || ctx.timeDelta <= 0 || ctx.timeDelta > 250) hasPrevious = false;
 				values.set([Math.max(0.001, ctx.timeDelta / 1000), Math.max(0, ctx.params.strength),
 																Math.max(0.000001, ctx.params.confidence), Math.max(0, ctx.params.smoothing)], 2);
 				device.queue.writeBuffer(uniforms, 0, values);
+				// 履歴解像度の丸めに左右されず、最終出力に配置された画像の動きを測る。
+				const capture = capturePipelines.update({ input }, ctx.outputDataMap.output.texture);
 				const save = ctx.createPassEncoder(ctx.commandEncoder, attachment(frameViews[current]));
-				save.setPipeline(capture);
-				save.setBindGroup(0, inputGroup);
+				save.setPipeline(capture.pipeline);
+				save.setBindGroup(0, captureGroup);
+				save.setBindGroup(capturePipelines.inputGroup, capture.bindGroup);
 				save.draw(6);
 				save.end();
 				if (hasPrevious) {
@@ -102,6 +114,7 @@ export default implementEffect<typeof definition>({
 				hasPrevious = true;
 			},
 			dispose: () => {
+				capturePipelines.dispose();
 				uniforms.destroy();
 				for (const texture of frames) texture.destroy();
 				flow.destroy();
