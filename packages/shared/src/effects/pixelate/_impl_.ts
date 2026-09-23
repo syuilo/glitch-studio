@@ -22,7 +22,7 @@ export default implementEffect<typeof definition>({
 		const bindGroup = device.createBindGroup({ layout, entries: [{ binding: 0, resource: { buffer: uniformBuffer } }] });
 		const pipelines = createShaderInputPipeline({
 			device, vertex: wgpu.defaultVertexShaderModule, code,
-			schema: { input: 'color', size: 'vector', rotation: 'scalar' },
+			schema: { input: 'color', scale: 'vector', rotation: 'scalar' },
 			targets: [{ format: wgpu.intermediateTextureFormat }],
 			internalLayouts: [layout],
 			// ブロック境界や空間的に変化するパラメータで参照座標が不連続になるため、LODを固定する。
@@ -41,8 +41,8 @@ export default implementEffect<typeof definition>({
 				});
 				device.queue.writeBuffer(uniformBuffer, 0, uniformValues.arrayBuffer);
 
-				const { input, size, rotation } = ctx.params;
-				const variant = pipelines.update({ input, size, rotation }, output.texture);
+				const { input, scale, rotation } = ctx.params;
+				const variant = pipelines.update({ input, scale, rotation }, output.texture);
 				const pass = ctx.createPassEncoderFor(ctx.commandEncoder, output.textureView);
 				pass.setPipeline(variant.pipeline);
 				pass.setBindGroup(0, bindGroup);

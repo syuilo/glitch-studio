@@ -10,15 +10,18 @@ struct Uniforms {
 fn fs(@location(0) position: vec2f) -> @location(0) vec4f {
 	// パラメータ場は出力位置で読む。定数なら各ブロックは単色になり、
 	// 空間的に変化する場合は局所的に分割・平均化領域が変わる効果として扱う。
-	let blockScale = 1.0 - clamp(read_size(position), vec2f(0.0), vec2f(1.0));
+	// 1未満の入力は最も粗い分割として扱い、0によるゼロ除算も防ぐ。
+	let scale = max(read_scale(position), vec2f(1.0));
+	let density = scale * scale;
 	var extent = uniforms.resolution;
 	if (uniforms.fitMode == 1u) {
 		extent = vec2f(max(uniforms.resolution.x, uniforms.resolution.y));
 	} else if (uniforms.fitMode == 2u) {
 		extent = vec2f(min(uniforms.resolution.x, uniforms.resolution.y));
 	}
-	// blockShuffleと同じ分割。Size=0は基準領域全体、Size=1は1画素が最小寸法。
-	let cellSize = 2.0 * max(blockScale * extent, vec2f(1.0)) / uniforms.resolution;
+	// Scale=1で基準領域全体、Scale=3で各軸を9分割する密度になる。
+	// 1画素の下限を設けず、基準寸法との比率で解像度に依存しない分割にする。
+	let cellSize = 2.0 * (extent / uniforms.resolution) / density;
 
 	// 1 = 180度、正の角度は時計回り。物理的な縦横の単位を揃えてから
 	// 逆回転してセルを特定し、サンプル位置は順回転して元画像へ戻す。

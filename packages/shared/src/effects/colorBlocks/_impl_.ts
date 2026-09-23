@@ -30,13 +30,16 @@ export default implementEffect<typeof definition>({
 		const shortDimension = Math.min(resolution.width, resolution.height);
 		return {
 			render: ctx => {
-				const blockScaleX = 1 - Math.min(1, Math.max(0, ctx.params.size[0]));
-				const blockScaleY = 1 - Math.min(1, Math.max(0, ctx.params.size[1]));
+				// Scale=1で短辺全体を覆う。1未満も同じ分割にし、ゼロ除算を防ぐ。
+				const densityX = Math.max(1, ctx.params.scale[0]) ** 2;
+				const densityY = Math.max(1, ctx.params.scale[1]) ** 2;
 				seedValue[0] = ctx.params.seed;
 				uniformValues.set({
 					cellSize: [
-						Math.max(blockScaleX * shortDimension, 1) / resolution.width,
-						Math.max(blockScaleY * shortDimension, 1) / resolution.height,
+						// 座標の全幅は2。短辺基準の分割を他のブロック系のcontainと揃え、
+						// 1画素の下限による解像度依存を避ける。
+						2 * (shortDimension / resolution.width) / densityX,
+						2 * (shortDimension / resolution.height) / densityY,
 					],
 					amount: Math.min(1, Math.max(0, ctx.params.amount / 100)),
 					alphaRandomness: Math.min(1, Math.max(0, ctx.params.alphaRandomness)),
