@@ -168,6 +168,8 @@ function toggleRatioLock() {
 	axisLock.value = null;
 }
 
+toggleRatioLock();
+
 function formatValue(number: number): string {
 	return Number(number.toFixed(10)).toString();
 }
