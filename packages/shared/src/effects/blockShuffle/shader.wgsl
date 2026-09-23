@@ -41,7 +41,9 @@ fn fs(fragData: FragmentIn) -> @location(0) vec4f {
 	} else if (uniforms.fitMode == 2u) {
 		extent = vec2f(min(uniforms.resolution.x, uniforms.resolution.y));
 	}
-	let cellSize = max(blockScale * extent, vec2f(1.0)) / uniforms.resolution;
+	// 画面全体は各軸[-1, 1]の幅2なので、画素数の比率をこの単位へ変換する。
+	// Stretch・Size=0ではcellSizeが2になり、中央の1セルが画面全体を覆う。
+	let cellSize = 2.0 * max(blockScale * extent, vec2f(1.0)) / uniforms.resolution;
 	let cell = vec2i(round(fragData.uv / cellSize));
 	// Amountで選ばれたタイルだけに、位置のシャッフル・回転・反転を適用する。
 	let selected = random(cell, uniforms.seed, 0u) < uniforms.amount;
