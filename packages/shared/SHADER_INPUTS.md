@@ -8,7 +8,7 @@
 - 履歴・蓄積: accumulate、frameDifference（外部入力のみ。履歴は同一画素をtextureLoadで読む）
 - 画像集計: histogram
 - データ生成・演算: composeVector、remap、multiply、rgbTo、snoise、gradient
-- 画像加工: symbols、channelShift、chromaticAberration、colorBlocks、lcd、rainDropsOnWindow1、rainDropsOnWindow2、vectorDisplacement、blockShuffle、blur、quadtreeFilter、tearings、pixelSort、bloom、drosteRegression、water、liquidMetal
+- 画像加工: symbols、channelShift、chromaticAberration、colorBlocks、lcd、rainDropsOnWindow1、rainDropsOnWindow2、vectorDisplacement、blockShuffle、blur、quadtreeFilter、tearings、pixelSort、bloom、drosteRegression、water、liquidMetal、transform
 
 移行済みのエフェクトでは、入力のfit/wrapは接続設定に統一する。従来の独立したfitModeA/B/Amountやwrapパラメータは削除している。未接続の定数は位置によらず同じ値を返す。
 
@@ -38,12 +38,14 @@ frameDifferenceは比較・履歴保存で同じ入力参照と保存精度の�
 
 liquidMetalはfit/wrap/filter適用後のアルファ形状を出力座標系で判定し、原則短辺512px・出力と同じ比率の作業領域でPoisson前処理を行う。形状判定と最終描画は同じ生成入力bindingを共有し、fitは最終出力サイズを基準にする。uniform入力は一定アルファの全面形状として扱う。入力のwrapとは独立に計算領域の端は境界値0を維持し、40回のRed-Black SORも変更しない。内部の輪郭テクスチャはlinear/clampで読み、ぼかし幅は元画像ではなく内部解像度基準の6画素とするため、従来とは輪郭の柔らかさが変わり得る。入力RGBは使わず、生成した金属色を入力アルファでpremultiplyして背景に合成する。
 
+transformはInput・Translation・Scale・Rotationの4入力を生成関数で読む。変形パラメータは出力先の座標で評価し、画像だけ拡縮→回転→移動の逆変換後に読む。Translationの+1は画面幅/高さの半分の移動で、画像サイズ・拡縮・回転に依存しない。UIの操作範囲は±2とし、式やノード入力の値は制限しない。回転は出力アスペクト比で距離の単位を揃え、負のScaleは反転、いずれかの軸の絶対値が0.000001未満なら透明を返す。独立したWrapと固定contain配置は廃止し、接続のfit/wrap/filter（省略時cover/repeatMirrored/linear）を使う。uniformの色は通常の変形では一定値のままとなる。
+
 ## 残る移行対象
 
 今回の移行は単一出力のrender passを中心に行った。以下は個別の対応が必要なため従来方式を維持している。
 
 - opticalFlow: 低解像度の履歴フレームと移動量推定の座標系を維持しつつ、入力のfitを適用する必要がある。
-- transform、scalarGradient: 幾何変換・微分に必要な入力サイズの参照と、fit変換の関係を整理する。
+- scalarGradient: 微分に必要な入力サイズの参照と、fit変換の関係を整理する。
 - waveform: UIの解析表示でも使う共通ユーティリティがGPUTextureを受け取るため、共有APIの対応範囲を整理する。
 - testStructArray: 構造化パラメータの実験用エフェクト。描画処理自体が未実装なので、その設計と合わせて対応する。
 
