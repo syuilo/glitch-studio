@@ -466,7 +466,7 @@ export class VisualModuleRenderer {
 		const resolvedParams = this.resolveParams(node, params);
 		if (effect.getOutputResolution) {
 			for (const [port, data] of Object.entries(this.outDataMapPerNodes.get(node.id)!)) {
-				const resolution = effect.getOutputResolution(resolvedParams, port);
+				const resolution = effect.getOutputResolution(resolvedParams, port) ?? this.resolution;
 				if (data.texture.width === resolution.width && data.texture.height === resolution.height) continue;
 				const args = { resolution, wgpu: { device: this.gpuDevice, enable32bitDataTextures: this.enable32bitDataTextures, intermediateTextureFormat: this.intermediateTextureFormat } };
 				const texture = effect.outputTextureFactories[port](args);

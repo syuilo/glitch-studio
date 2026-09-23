@@ -1,7 +1,7 @@
 import { checkMigratedEffects } from './migrated-shader-input-gpu.ts';
 import { checkGradientInputs } from './gradient-shader-input-gpu.ts';
 import effect from '../../../shared/src/effects/colorMix/_impl_.ts';
-import rawImage from '../../../shared/src/effects/rawImage/_impl_.ts';
+import imageEffect from '../../../shared/src/effects/image/_impl_.ts';
 import blockShuffle from '../../../shared/src/effects/blockShuffle/_impl_.ts';
 import { constantShaderInput, textureShaderInput, generateShaderInputs, createShaderInputBindings } from '../../../shared/src/shader-input.ts';
 import vertexCode from '../../src/vertex.wgsl?raw';
@@ -101,18 +101,18 @@ export async function run() {
 			pass.end();
 			check('scalar array derivatives and empty typed selectors', (await read(arrayOutput, encoder))[0], [64, 0, 0, 255, 128, 255, 0, 255, 0, 0, 0, 255, 0, 0, 0, 255, 0, 0, 0, 255]);
 		} finally { gradientArrayPipelines.dispose(); }
-		// Raw Imageは素材の各画素を保持し、半透明色だけ一度premultiplyする。
+		// Image Originalは素材の各画素を保持し、半透明色だけ一度premultiplyする。
 		const rawSource = texture(2, 2, [255, 0, 0, 128, 0, 255, 0, 255, 0, 0, 255, 64, 255, 255, 255, 0]);
 		const rawOutput = texture(2, 2);
-		const raw = rawImage.init({ wgpu: { device, defaultVertexShaderModule: vertex, intermediateTextureFormat: 'rgba8unorm' } } as any);
+		const raw = imageEffect.init({ wgpu: { device, defaultVertexShaderModule: vertex, intermediateTextureFormat: 'rgba8unorm' } } as any);
 		const rawEncoder = device.createCommandEncoder();
-		raw.render({ params: { image: rawSource }, commandEncoder: rawEncoder, outputDataMap: { output: { texture: rawOutput, textureView: rawOutput.createView() } }, createPassEncoder: (encoder, descriptor) => encoder.beginRenderPass(descriptor) } as any);
+		raw.render({ params: { image: rawSource, sizeMode: 3 }, commandEncoder: rawEncoder, outputDataMap: { output: { texture: rawOutput, textureView: rawOutput.createView() } }, createPassEncoderFor: (encoder, view) => encoder.beginRenderPass({ colorAttachments: [{ view, loadOp: 'clear', storeOp: 'store' }] }), createPassEncoder: (encoder, descriptor) => encoder.beginRenderPass(descriptor) } as any);
 		const rawPixels = await read(rawOutput, rawEncoder);
-		check('raw image top row and half alpha', rawPixels[0], [128, 0, 0, 128, 0, 255, 0, 255]);
-		check('raw image bottom row and zero alpha', rawPixels[1], [0, 0, 64, 64, 0, 0, 0, 0]);
+		check('original image top row and half alpha', rawPixels[0], [128, 0, 0, 128, 0, 255, 0, 255]);
+		check('original image bottom row and zero alpha', rawPixels[1], [0, 0, 64, 64, 0, 0, 0, 0]);
 		const emptyEncoder = device.createCommandEncoder();
-		raw.render({ params: { image: null }, commandEncoder: emptyEncoder, outputDataMap: { output: { texture: rawOutput, textureView: rawOutput.createView() } }, createPassEncoder: (encoder, descriptor) => encoder.beginRenderPass(descriptor) } as any);
-		check('raw image without asset is transparent', (await read(rawOutput, emptyEncoder))[0], Array(8).fill(0));
+		raw.render({ params: { image: null, sizeMode: 3 }, commandEncoder: emptyEncoder, outputDataMap: { output: { texture: rawOutput, textureView: rawOutput.createView() } }, createPassEncoderFor: (encoder, view) => encoder.beginRenderPass({ colorAttachments: [{ view, loadOp: 'clear', storeOp: 'store' }] }), createPassEncoder: (encoder, descriptor) => encoder.beginRenderPass(descriptor) } as any);
+		check('original image without asset is transparent', (await read(rawOutput, emptyEncoder))[0], Array(8).fill(0));
 		raw.dispose();
 		const a = constantShaderInput('color', [1, 0, 0, 0.5]);
 		const b = constantShaderInput('color', [0, 0, 1, 1]);

@@ -1,4 +1,3 @@
-import rawImage from './effects/rawImage/_def_.ts';
 import accumulate from './effects/accumulate/_def_.ts';
 import audioWaveform from './effects/audioWaveform/_def_.ts';
 import audioSpectrum from './effects/audioSpectrum/_def_.ts';
@@ -64,7 +63,6 @@ const _effectDefinitions = {
 	composeVector,
 	histogram,
 	image,
-	rawImage,
 	lcd,
 	liquidMetal,
 	multiply,

@@ -1,4 +1,3 @@
-import rawImage from './effects/rawImage/_impl_.ts';
 import accumulate from './effects/accumulate/_impl_.ts';
 import colorBlend from './effects/colorBlend/_impl_.ts';
 import colorMix from './effects/colorMix/_impl_.ts';
@@ -68,7 +67,6 @@ const _effectImplementations = {
 	composeVector,
 	histogram,
 	image,
-	rawImage,
 	lcd,
 	liquidMetal,
 	multiply,

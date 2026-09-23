@@ -11,8 +11,8 @@ const load = path => loadShaderSource(fileURLToPath(new URL(path, import.meta.ur
 const { constantShaderInput, textureShaderInput, inputUvScale } = await load('../../shared/src/shader-input.ts');
 const { default: effect } = await load('../../shared/src/effects/colorMix/_impl_.ts');
 const { default: definition } = await load('../../shared/src/effects/colorMix/_def_.ts');
-const { default: rawImage } = await load('../../shared/src/effects/rawImage/_impl_.ts');
-const { default: rawImageDefinition } = await load('../../shared/src/effects/rawImage/_def_.ts');
+const { default: imageEffect } = await load('../../shared/src/effects/image/_impl_.ts');
+const { default: imageDefinition } = await load('../../shared/src/effects/image/_def_.ts');
 const { default: structArrayDefinition } = await load('../../shared/src/effects/testStructArray/_def_.ts');
 const { VisualModuleRenderer } = await load('../src/visual-module-renderer.ts');
 const { OutputTextureResolver, outputShaderInput } = await load('../src/node-output.ts');
@@ -226,7 +226,7 @@ test('resolves nested array inputs and invalidates sampling changes', () => {
 });
 
 function createRenderer(device, visualModule, overrides = {}) {
-	return new VisualModuleRenderer({ gpuDevice: device, gpuContext: {}, defaultVertexShaderModule: {}, resolution: { width: 32, height: 32 }, enableStats: false, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm', videoFrames: new Map(), videoFrameVersions: new Map(), assets: [], assetTextures: new Map(), audioSources: new Map(), effectDefinitions: { colorMix: definition, rawImage: rawImageDefinition }, effectImplementations: { colorMix: effect, rawImage }, visualModule, ...overrides });
+	return new VisualModuleRenderer({ gpuDevice: device, gpuContext: {}, defaultVertexShaderModule: {}, resolution: { width: 32, height: 32 }, enableStats: false, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm', videoFrames: new Map(), videoFrameVersions: new Map(), assets: [], assetTextures: new Map(), audioSources: new Map(), effectDefinitions: { colorMix: definition, image: imageDefinition }, effectImplementations: { colorMix: effect, image: imageEffect }, visualModule, ...overrides });
 }
 
 function renderContext(overrides = {}) {
@@ -374,11 +374,11 @@ test('refreshes external textures and restores constants after disconnecting the
 });
 
 // 素材の選択・差し替えに追従し、固定の描画解像度とは独立した出力を後段へ渡す。
-test('resizes Raw Image outputs to the selected asset and preserves borrowed textures', () => {
+test('resizes Image Original outputs to the selected asset and preserves borrowed textures', () => {
 	const { device, calls, encoder } = gpuFixture();
 	const asset = device.createTexture({ size: [7, 3], format: 'rgba8unorm' });
 	const assets = new Map([['asset', asset]]);
-	const raw = { id: 'raw', type: 'effect', effectId: 'rawImage', params: { image: literal('asset') } };
+	const raw = { id: 'raw', type: 'effect', effectId: 'image', params: { image: literal('asset'), sizeMode: literal(3) } };
 	const output = { id: 'out', type: 'globalOut', inputs: { out: { nodeId: 'raw', outputPort: 'output' } } };
 	const visualModule = { nodes: [raw, output], paramDefs: [], automationGraphs: [], outputDefs: [{ id: 'out', isPrimaryOutput: true }] };
 	const renderer = createRenderer(device, visualModule, { assetTextures: assets });
@@ -393,7 +393,16 @@ test('resizes Raw Image outputs to the selected asset and preserves borrowed tex
 	const resized = renderer.render(renderContext(), encoder).texture;
 	assert.deepEqual([resized.width, resized.height], [4, 9]);
 	assert.equal(initial.destroyed, true);
-	// Raw Image→colorMixで、素材側の比率がサンプリングのuniformへ届くことを確認する。
+	// 通常モードへ戻すとレンダリング解像度を使い、Originalに戻すと再び素材サイズになる。
+	for (const sizeMode of [0, 1, 2]) {
+		raw.params.sizeMode = literal(sizeMode);
+		const normal = renderer.render(renderContext(), encoder).texture;
+		assert.deepEqual([normal.width, normal.height], [32, 32]);
+	}
+	raw.params.sizeMode = literal(3);
+	const original = renderer.render(renderContext(), encoder).texture;
+	assert.deepEqual([original.width, original.height], [4, 9]);
+	// Image Original→colorMixで、素材側の比率がサンプリングのuniformへ届くことを確認する。
 	const mix = { id: 'mix', type: 'effect', effectId: 'colorMix', params: {
 		inputA: { inputSource: 'node', nodeId: 'raw', outputPort: 'output' }, inputB: literal([0, 0, 0, 0]), amount: literal(0),
 	} };

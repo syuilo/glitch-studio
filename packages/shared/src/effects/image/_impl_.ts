@@ -4,6 +4,8 @@ import { implementEffect } from '../../effect-implementation.ts';
 import code from './shader.wgsl?raw';
 
 export default implementEffect<typeof definition>({
+	// 通常モードはレンダラーの解像度に従い、Originalだけ素材の解像度を使う。
+	getOutputResolution: params => params.sizeMode === 3 ? { width: params.image?.width ?? 1, height: params.image?.height ?? 1 } : undefined,
 	outputTextureFactories: {
 		output: ({ wgpu, resolution }) => wgpu.device.createTexture({
 			size: resolution,
@@ -11,7 +13,7 @@ export default implementEffect<typeof definition>({
 			usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
 		}),
 	},
-	init: ({ wgpu, resolution, fallbackTexture }) => {
+	init: ({ wgpu }) => {
 		const shaderModule = wgpu.device.createShaderModule({
 			code: code,
 		});
@@ -52,8 +54,15 @@ export default implementEffect<typeof definition>({
 
 		return {
 			render: (ctx) => {
+				if (ctx.params.image == null) {
+					const pass = ctx.createPassEncoder(ctx.commandEncoder, { colorAttachments: [{
+						view: ctx.outputDataMap.output.textureView, clearValue: [0, 0, 0, 0], loadOp: 'clear', storeOp: 'store',
+					}] });
+					pass.end();
+					return;
+				}
 				// 初期化後のAsset選択・変更も描画に反映する。
-				const sourceTexture = ctx.params.image ?? fallbackTexture;
+				const sourceTexture = ctx.params.image;
 				const bindGroup = wgpu.device.createBindGroup({
 					layout: pipeline.getBindGroupLayout(0),
 					entries: [
@@ -63,7 +72,7 @@ export default implementEffect<typeof definition>({
 					],
 				});
 				uniformValues.set({
-					aspectRatio: resolution.width / resolution.height,
+					aspectRatio: ctx.outputDataMap.output.texture.width / ctx.outputDataMap.output.texture.height,
 					sourceAspectRatio: sourceTexture.width / sourceTexture.height,
 					mode: ctx.params.sizeMode,
 				});

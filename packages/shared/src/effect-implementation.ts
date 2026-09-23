@@ -67,8 +67,8 @@ export type EffectInstance<Options extends EffectOptionsSchema = any, Outputs ex
 export type EffectImplementation<Definition extends Pick<EffectDefinition, 'paramDefs' | 'outputs'> = EffectDefinition, Options extends EffectOptionsSchema = Definition['paramDefs']> = {
 	disableCache?: boolean;
 	needsPreviousFrame?: boolean;
-	/** 入力に合わせて出力サイズを決めるエフェクト用。未指定なら描画先の解像度を使う。 */
-	getOutputResolution?: (params: GetRuntimeEffectOptionsSchemaValues<Options>, outputPort: Extract<keyof Definition['outputs'], string>) => { width: number; height: number };
+	/** 入力に合わせて出力サイズを決めるエフェクト用。未指定またはundefinedを返す場合は描画先の解像度を使う。 */
+	getOutputResolution?: (params: GetRuntimeEffectOptionsSchemaValues<Options>, outputPort: Extract<keyof Definition['outputs'], string>) => { width: number; height: number } | undefined;
 	outputTextureFactories: {
 		// canLazyAllocation=trueのポートだけ遅延確保する。それ以外はノード追加時に確保する。
 		[K in keyof Definition['outputs']]: (args: {
