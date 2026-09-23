@@ -1,7 +1,7 @@
 struct Uniforms {
 	aspect: vec2f,
 	angle: f32,
-	scale: f32,
+	size: f32,
 	majorRadius: f32,
 	minorDivisions: f32,
 	minorRadius: f32,
@@ -33,16 +33,13 @@ fn fs(fragData: FragmentIn) -> @location(0) vec4f {
 		centeredUv.x * cosine - centeredUv.y * sine,
 		centeredUv.x * sine + centeredUv.y * cosine,
 	);
-	let gridPosition = rotatedUv * uniforms.scale;
+	let gridPosition = rotatedUv / uniforms.size;
 	var dotColor = vec4f(0.0);
-	// scaleや分割数が0なら対応するドットを無効にし、0除算を避ける。
-	if (uniforms.scale > 0.0) {
-		if (dotDistance(gridPosition) < uniforms.majorRadius * 0.5) {
-			dotColor = uniforms.majorColor;
-		} else if (uniforms.minorDivisions > 0.0 && dotDistance(gridPosition * uniforms.minorDivisions) < uniforms.minorRadius * 0.5) {
-			// 主ドット内では補助ドットを重ねない（主ドットの不透明度が0でも同様）。
-			dotColor = uniforms.minorColor;
-		}
+	if (dotDistance(gridPosition) < uniforms.majorRadius * 0.5) {
+		dotColor = uniforms.majorColor;
+	} else if (uniforms.minorDivisions > 0.0 && dotDistance(gridPosition * uniforms.minorDivisions) < uniforms.minorRadius * 0.5) {
+		// 主ドット内では補助ドットを重ねない（主ドットの不透明度が0でも同様）。
+		dotColor = uniforms.minorColor;
 	}
 
 	// 元の入力alphaを維持する。定数色だけを入力alphaに合わせて乗算し、

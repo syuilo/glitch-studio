@@ -1,7 +1,7 @@
 struct Uniforms {
 	aspect: vec2f,
 	angle: f32,
-	scale: f32,
+	size: f32,
 	majorWidth: f32,
 	minorDivisions: f32,
 	minorWidth: f32,
@@ -35,18 +35,16 @@ fn fs(fragData: FragmentIn) -> @location(0) vec4f {
 		centeredPosition.x * sine + centeredPosition.y * cosine,
 	);
 	var lineColor = vec4f(0.0);
-	if (uniforms.scale > 0.0) {
-		let gridPosition = rotatedPosition * uniforms.scale;
-		// 線幅はそれぞれの格子間隔に対する割合。格子座標のまま判定し、
-		// scaleを上げると間隔と線幅が一緒に縮むようにする。
-		if (gridDistance(gridPosition) < uniforms.majorWidth * 0.5) {
-			lineColor = uniforms.majorColor;
-		} else if (uniforms.minorDivisions > 0.0) {
-			// 補助線は補助格子の間隔が基準なので、分割数にも線幅が連動する。
-			if (gridDistance(gridPosition * uniforms.minorDivisions) < uniforms.minorWidth * 0.5) {
-				// 主線が透明でも、その領域に補助線は重ねない。
-				lineColor = uniforms.minorColor;
-			}
+	let gridPosition = rotatedPosition / uniforms.size;
+	// 線幅はそれぞれの格子間隔に対する割合。格子座標のまま判定し、
+	// sizeを下げると間隔と線幅が一緒に縮むようにする。
+	if (gridDistance(gridPosition) < uniforms.majorWidth * 0.5) {
+		lineColor = uniforms.majorColor;
+	} else if (uniforms.minorDivisions > 0.0) {
+		// 補助線は補助格子の間隔が基準なので、分割数にも線幅が連動する。
+		if (gridDistance(gridPosition * uniforms.minorDivisions) < uniforms.minorWidth * 0.5) {
+			// 主線が透明でも、その領域に補助線は重ねない。
+			lineColor = uniforms.minorColor;
 		}
 	}
 

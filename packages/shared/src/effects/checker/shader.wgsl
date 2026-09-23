@@ -6,7 +6,7 @@
 struct Uniforms {
 	aspect: vec2f,
 	angle: f32,
-	scale: f32,
+	size: f32,
 	color: vec4f,
 };
 
@@ -27,7 +27,7 @@ fn fs(fragData: FragmentIn) -> @location(0) vec4f {
 		centeredUv.x * cosine - centeredUv.y * sine,
 		centeredUv.x * sine + centeredUv.y * cosine,
 	);
-	let cellIndex = floor(uniforms.scale * rotatedUv);
+	let cellIndex = floor(rotatedUv / uniforms.size);
 	let indexSum = cellIndex.x + cellIndex.y;
 	// WGSLの剰余演算では負の値が残るため、GLSLのmod(x, 2)をfloorで再現する。
 	let checkerMask = indexSum - 2.0 * floor(indexSum * 0.5);

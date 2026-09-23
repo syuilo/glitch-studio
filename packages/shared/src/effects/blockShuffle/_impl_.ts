@@ -22,7 +22,7 @@ export default implementEffect<typeof definition>({
 		const bindGroup = device.createBindGroup({ layout, entries: [{ binding: 0, resource: { buffer: uniformBuffer } }] });
 		const pipelines = createShaderInputPipeline({
 			device, vertex: wgpu.defaultVertexShaderModule, code,
-			schema: { input: 'color', scale: 'vector' },
+			schema: { input: 'color', size: 'vector' },
 			targets: [{ format: wgpu.intermediateTextureFormat }],
 			internalLayouts: [layout],
 			// タイルごとの分岐・早期returnからも入力を読むためLODを明示する。
@@ -47,7 +47,7 @@ export default implementEffect<typeof definition>({
 				});
 				wgpu.device.queue.writeBuffer(uniformBuffer, 0, uniformValues.arrayBuffer);
 
-				const variant = pipelines.update({ input: ctx.params.input, scale: ctx.params.scale }, ctx.outputDataMap.output.texture);
+				const variant = pipelines.update({ input: ctx.params.input, size: ctx.params.size }, ctx.outputDataMap.output.texture);
 				const passEncoder = ctx.createPassEncoderFor(ctx.commandEncoder, ctx.outputDataMap.output.textureView);
 				passEncoder.setPipeline(variant.pipeline);
 				passEncoder.setBindGroup(pipelines.inputGroup, variant.bindGroup);

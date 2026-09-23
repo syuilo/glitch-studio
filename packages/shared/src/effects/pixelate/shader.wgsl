@@ -10,17 +10,17 @@ struct Uniforms {
 fn fs(@location(0) position: vec2f) -> @location(0) vec4f {
 	// パラメータ場は出力位置で読む。定数なら各ブロックは単色になり、
 	// 空間的に変化する場合は局所的に分割・平均化領域が変わる効果として扱う。
-	// 1未満の入力は最も粗い分割として扱い、0によるゼロ除算も防ぐ。
-	let density = max(read_scale(position), vec2f(1.0));
+	// 0でもゼロ除算しないよう、画素数ではなく基準寸法に対する割合で下限を設ける。
+	let size = clamp(read_size(position), vec2f(0.0001), vec2f(1.0));
 	var extent = uniforms.resolution;
 	if (uniforms.fitMode == 1u) {
 		extent = vec2f(max(uniforms.resolution.x, uniforms.resolution.y));
 	} else if (uniforms.fitMode == 2u) {
 		extent = vec2f(min(uniforms.resolution.x, uniforms.resolution.y));
 	}
-	// Scale=1で基準領域全体、Scale=3で各軸を3分割する密度になる。
+	// Size=1で基準領域全体、Size=0.1で各軸を10分割する密度になる。
 	// 1画素の下限を設けず、基準寸法との比率で解像度に依存しない分割にする。
-	let cellSize = 2.0 * (extent / uniforms.resolution) / density;
+	let cellSize = 2.0 * (extent / uniforms.resolution) * size;
 
 	// 1 = 180度、正の角度は時計回り。物理的な縦横の単位を揃えてから
 	// 逆回転してセルを特定し、サンプル位置は順回転して元画像へ戻す。
