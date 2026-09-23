@@ -12,7 +12,7 @@ export default implementEffect<typeof definition>({
 			usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
 		}),
 	},
-	init: ({ wgpu, resolution }) => {
+	init: ({ wgpu }) => {
 		const device = wgpu.device;
 		const uniformValues = makeStructuredView(makeShaderDataDefinitions(code).uniforms.uniforms);
 		const uniformBuffer = device.createBuffer({ size: uniformValues.arrayBuffer.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
@@ -27,19 +27,19 @@ export default implementEffect<typeof definition>({
 		});
 		const seedValue = new Float64Array(1);
 		const seedWords = new Uint32Array(seedValue.buffer);
-		const shortDimension = Math.min(resolution.width, resolution.height);
 		return {
 			render: ctx => {
-				// Sizeは短辺に対する割合。0でも解像度に依存しない下限でゼロ除算を防ぐ。
-				const sizeX = Math.min(1, Math.max(0.0001, ctx.params.size[0]));
-				const sizeY = Math.min(1, Math.max(0.0001, ctx.params.size[1]));
+				const output = ctx.outputDataMap.output.texture;
+				const shortDimension = Math.min(output.width, output.height);
+				// 軸ごとにSize=0（負値も0扱い）だけ1pxとする。正の値は短辺に対する割合。
+				const sizeX = ctx.params.size[0] <= 0 ? 1 / shortDimension : Math.min(1, ctx.params.size[0]);
+				const sizeY = ctx.params.size[1] <= 0 ? 1 / shortDimension : Math.min(1, ctx.params.size[1]);
 				seedValue[0] = ctx.params.seed;
 				uniformValues.set({
 					cellSize: [
-						// 座標の全幅は2。短辺基準の分割を他のブロック系のcontainと揃え、
-						// 1画素の下限による解像度依存を避ける。
-						2 * (shortDimension / resolution.width) * sizeX,
-						2 * (shortDimension / resolution.height) * sizeY,
+						// 座標の全幅は2。Size=0の軸は2 / 出力寸法となり、ちょうど1pxになる。
+						2 * (shortDimension / output.width) * sizeX,
+						2 * (shortDimension / output.height) * sizeY,
 					],
 					amount: Math.min(1, Math.max(0, ctx.params.amount / 100)),
 					alphaRandomness: Math.min(1, Math.max(0, ctx.params.alphaRandomness)),

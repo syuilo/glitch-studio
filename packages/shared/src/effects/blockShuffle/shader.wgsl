@@ -33,8 +33,7 @@ struct FragmentIn {
 @fragment
 fn fs(fragData: FragmentIn) -> @location(0) vec4f {
 	// 入力参照関数が、定数または接続ごとのfit/wrapを適用した値を返す。
-	// 0でもゼロ除算しないよう、画素数ではなく基準寸法に対する割合で下限を設ける。
-	let size = clamp(read_size(fragData.uv), vec2f(0.0001), vec2f(1.0));
+	let size = clamp(read_size(fragData.uv), vec2f(0.0), vec2f(1.0));
 	var extent = uniforms.resolution;
 	// ブロック形状のfit。入力接続のfitとは独立に、基準領域を長辺／短辺へ合わせる。
 	if (uniforms.fitMode == 1u) {
@@ -44,8 +43,8 @@ fn fs(fragData: FragmentIn) -> @location(0) vec4f {
 	}
 	// 画面全体は各軸[-1, 1]の幅2なので、画素数の比率をこの単位へ変換する。
 	// Stretch・Size=1ではcellSizeが2になり、中央の1セルが画面全体を覆う。
-	// Sizeは基準寸法に対する割合なので、解像度を変えても分割密度は変わらない。
-	let cellSize = 2.0 * (extent / uniforms.resolution) * size;
+	// 0の軸だけFit modeによらず出力の1pxにする。正の値には1pxの下限を設けない。
+	let cellSize = select(2.0 * (extent / uniforms.resolution) * size, 2.0 / uniforms.resolution, size == vec2f(0.0));
 	let cell = vec2i(round(fragData.uv / cellSize));
 	// Amountで選ばれたタイルだけに、位置のシャッフル・回転・反転を適用する。
 	let selected = random(cell, uniforms.seed, 0u) < uniforms.amount;

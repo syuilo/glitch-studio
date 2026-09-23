@@ -31,8 +31,9 @@ export default implementEffect<typeof definition>({
 				uniformValues.set({
 					aspect: [output.width / shortDimension, output.height / shortDimension],
 					angle: ctx.params.angle * Math.PI,
-					// Sizeは短辺に対する周期の割合。0でも解像度に依存しない下限でゼロ除算を防ぐ。
-					size: Math.min(1, Math.max(0.0001, ctx.params.size)),
+					// Size=0（負値も0扱い）のときだけ出力の1pxを周期にする。
+					// 正の値は短辺に対する割合のまま扱い、1px未満にもできる。
+					size: ctx.params.size <= 0 ? 1 / shortDimension : Math.min(1, ctx.params.size),
 					color: ctx.params.color,
 				});
 				device.queue.writeBuffer(uniformBuffer, 0, uniformValues.arrayBuffer);
