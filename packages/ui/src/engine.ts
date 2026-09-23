@@ -5,12 +5,12 @@ import { deepClone } from '@glitch/shared/utility/deep-clone.ts';
 import { projectAudioSourceId } from '@glitch/shared/audio.ts';
 import { genId } from '@glitch/shared/utility/id.ts';
 import { isVideoFrameAvailable, playVideoAfterFirstFrameIsReady } from './utility/video.ts';
-import { LiveEffectStatusStore } from './utility/live-effect-status.ts';
+import { LiveEffectStateStore } from './utility/live-effect-status.ts';
 import { AudioInputs } from './audio/audio-inputs.ts';
 import { setupWebcam } from './utility/webcam.ts';
 import type { Asset, VisualModule, VisualModuleParamValues, Player, Timeline } from '@glitch/shared/types.ts';
 import type { MainRenderer } from '@glitch/renderer/renderer.ts';
-import type { EffectStatus, EffectStatusSource } from '@glitch/shared/effect-status.ts';
+import type { EffectInstanceState, EffectStatusSource } from '@glitch/shared/effect-status.ts';
 import type { IntermediateTextureFormat } from '@glitch/shared/effect-implementation.js';
 import * as ui from '@/ui.ts';
 
@@ -59,11 +59,11 @@ export class Engine {
 	public fpsDisplay = ref(0);
 	public gpuMemoryUsage = ref<ReturnType<MainRenderer['gpuMemory']['getUsage']> | null>(null);
 	public isReady = ref(false);
-	private liveEffectStatusStore = new LiveEffectStatusStore(shallowReactive(new Map<string, EffectStatus>()));
+	private liveEffectStateStore = new LiveEffectStateStore(shallowReactive(new Map<string, EffectInstanceState>()));
 
-	public getLiveEffectStatus(visualModuleId: VisualModule['id'], nodeId: string): EffectStatus | undefined {
+	public getLiveEffectState(visualModuleId: VisualModule['id'], nodeId: string): EffectInstanceState | undefined {
 		if (this.liveVisualModuleId.value !== visualModuleId) return;
-		return this.liveEffectStatusStore.get(visualModuleId, nodeId);
+		return this.liveEffectStateStore.get(visualModuleId, nodeId);
 	}
 
 	public getExportRendererSettings() {
@@ -215,9 +215,9 @@ export class Engine {
 					this.gpuMemoryUsage.value = event.data.usage;
 					break;
 				}
-				case 'effectStatus': {
-					const { source, nodeId, status } = event.data as { source: EffectStatusSource; nodeId: string; status: EffectStatus | null };
-					this.liveEffectStatusStore.update(source, nodeId, status);
+				case 'effectState': {
+					const { source, nodeId, state } = event.data as { source: EffectStatusSource; nodeId: string; state: EffectInstanceState | null };
+					this.liveEffectStateStore.update(source, nodeId, state);
 					break;
 				}
 				case 'telemetry': {
@@ -244,7 +244,7 @@ export class Engine {
 		this.liveParamValues = deepClone(paramValues);
 		const statusInstanceId = genId();
 		this.call('startLiveRenderLoopFor', [visualModuleId, this.liveParamValues, statusInstanceId]);
-		this.liveEffectStatusStore.start(visualModuleId, statusInstanceId);
+		this.liveEffectStateStore.start(visualModuleId, statusInstanceId);
 		this.liveVisualModuleId.value = visualModuleId;
 		this.renderLoopRunning = true;
 	}
@@ -262,7 +262,7 @@ export class Engine {
 	public stopRenderLoop() {
 		this.call('stopRenderLoop', []);
 		this.renderLoopRunning = false;
-		this.liveEffectStatusStore.stop();
+		this.liveEffectStateStore.stop();
 		this.liveVisualModuleId.value = null;
 	}
 
@@ -424,7 +424,7 @@ export class Engine {
 		if (this.isReady.value || (this.rendererWorker != null && this.rejectInitialization != null)) {
 			this.call('renderTimelineAt', [time]);
 			this.renderLoopRunning = false;
-			this.liveEffectStatusStore.stop();
+			this.liveEffectStateStore.stop();
 			this.liveVisualModuleId.value = null;
 		}
 	}
@@ -447,7 +447,7 @@ export class Engine {
 		this.pendingCalls = [];
 		this.renderLoopRunning = false;
 		this.liveVisualModuleId.value = null;
-		this.liveEffectStatusStore.stop();
+		this.liveEffectStateStore.stop();
 		this.audioInputs.dispose();
 		for (const [id, media] of this.videoElements) {
 			const callback = this.videoFrameCallbacks.get(id);
@@ -487,7 +487,7 @@ export class Engine {
 		this.inFlightVideoFrames.clear();
 		for (const frame of this.pendingVideoFrames.values()) frame.close();
 		this.pendingVideoFrames.clear();
-		this.liveEffectStatusStore.stop();
+		this.liveEffectStateStore.stop();
 		this.gpuMemoryUsage.value = null;
 		this.fpsDisplay.value = 0;
 		this.gpuAverageDisplayFast.value = 0;

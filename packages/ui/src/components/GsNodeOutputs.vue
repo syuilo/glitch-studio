@@ -1,6 +1,7 @@
 <template>
 <div :class="$style.root">
 	<div v-for="(output, port) in ports" :key="port" :class="$style.output" @pointerdown="startDrag($event, port)">
+		<span v-if="outputResolutions" :class="$style.resolution">{{ outputResolutions[port] ? `${outputResolutions[port].width}px × ${outputResolutions[port].height}px` : '—' }}</span>
 		<span style="flex: 1; text-align: right;">{{ node.type === 'globalIn' ? paramDefs?.find(def => def.id === port)?.ui.label ?? port : port }}</span>
 		<span :class="$style.dataType" :style="{ color: getNodeDataTypeColor(output.dataType) }">{{ output.dataType }}</span>
 		<GsNodePort output :dataType="output.dataType" @update:element="el => setPort(port, el)"/>
@@ -13,11 +14,12 @@ import { computed, onUnmounted } from 'vue';
 import { getNodeOutputs } from '@glitch/shared/utility/node-outputs.ts';
 import GsNodePort from './GsNodePort.vue';
 import type { GsNode, VisualModule } from '@glitch/shared/types.ts';
+import type { EffectInstanceState } from '@glitch/shared/effect-status.ts';
 import { wireMap } from '@/app.ts';
 import { startWireDrag } from '@/utility/wire-drag.ts';
 import { getNodeDataTypeColor } from '@/utility/node-outputs.ts';
 
-const props = defineProps<{ node: GsNode; paramDefs?: VisualModule['paramDefs'] }>();
+const props = defineProps<{ node: GsNode; paramDefs?: VisualModule['paramDefs']; outputResolutions?: EffectInstanceState['outputs'] }>();
 const ports = computed(() => getNodeOutputs(props.node, props.paramDefs));
 const elements = new Map<string, HTMLElement>();
 let cancelDrag: (() => void) | undefined;
@@ -67,6 +69,12 @@ onUnmounted(() => {
 	margin-left: 6px;
 	font-size: 0.85em;
 	opacity: 0.6;
+}
+
+.resolution {
+	margin-left: 6px;
+	font-size: 0.85em;
+	opacity: 0.7;
 }
 
 .nodeId {

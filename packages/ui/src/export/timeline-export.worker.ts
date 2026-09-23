@@ -54,7 +54,8 @@ self.onmessage = async (event: MessageEvent<ExportRequest>) => {
 			fpsLimit: null,
 			effectDefinitions,
 			effectImplementations,
-			onEffectStatus: (_source, nodeId, status) => {
+			onEffectState: (_source, nodeId, state) => {
+				const status = state?.status;
 				if (status?.type === 'error') fail(`Node ${nodeId}: ${status.message}`);
 			},
 		});

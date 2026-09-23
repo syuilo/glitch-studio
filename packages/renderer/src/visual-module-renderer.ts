@@ -7,7 +7,7 @@ import type { NodeOutput } from './node-output.ts';
 import TimingHelper from './utility/TimingHelper.ts';
 import { ParameterEvaluator } from './parameter-evaluator.ts';
 import { getEvaluatedParam, mapNodeParam, walkNodeParams } from './utility/node-params.ts';
-import type { EffectStatus } from '@glitch/shared/effect-status.ts';
+import type { EffectStatus, EffectInstanceState } from '@glitch/shared/effect-status.ts';
 import type { AudioSourceId } from '@glitch/shared/audio.ts';
 import type { Asset, GsAutomationGraph, GsEffectNode, GsGlobalInNode, GsNode, NodeOutputReference, VisualModule, VisualModuleParamValues } from '@glitch/shared/types.ts';
 import type { EffectImplementation, EffectInstance, IntermediateTextureFormat } from '@glitch/shared/effect-implementation.js';
@@ -53,8 +53,8 @@ export class VisualModuleRenderer {
 	private effectCacheKeys: Map<GsEffectNode['id'], string> = new Map();
 	private lazyOutputs = new Map<string, Record<string, () => void>>();
 	private usedOutputPorts = new Map<string, Set<string>>();
-	private effectStatuses = new Map<string, { sent?: EffectStatus }>();
-	private onEffectStatus?: (nodeId: string, status: EffectStatus | null) => void;
+	private effectStatuses = new Map<string, { sent?: EffectStatus; outputs: EffectInstanceState['outputs']; published?: string }>();
+	private onEffectState?: (nodeId: string, state: EffectInstanceState | null) => void;
 	private automationGraphs: GsAutomationGraph[] = [];
 	private enable32bitDataTextures = false;
 	private readonly intermediateTextureFormat: IntermediateTextureFormat;
@@ -71,7 +71,7 @@ export class VisualModuleRenderer {
 	private parameterEvaluator = new ParameterEvaluator();
 
 	constructor(options: {
-		onEffectStatus?: (nodeId: string, status: EffectStatus | null) => void;
+		onEffectState?: (nodeId: string, state: EffectInstanceState | null) => void;
 		enableStats: boolean;
 		timingHelper: TimingHelper;
 		gpuDevice: GPUDevice;
@@ -95,7 +95,7 @@ export class VisualModuleRenderer {
 		this.defaultVertexShaderModule = options.defaultVertexShaderModule;
 		this.fallbackTexture = options.fallbackTexture;
 		this.paramDefs = options.visualModule.paramDefs;
-		this.onEffectStatus = options.onEffectStatus;
+		this.onEffectState = options.onEffectState;
 		this.enableStats = options.enableStats;
 		this.resolution = options.resolution;
 		this.enable32bitDataTextures = options.enable32bitDataTextures;
@@ -158,11 +158,33 @@ export class VisualModuleRenderer {
 		if (previous?.type === status.type && (status.type !== 'error' || (previous.type === 'error' && previous.message === status.message))) return;
 		state.sent = status;
 		for (const notify of this.statusWaiters) notify();
-		this.onEffectStatus?.(nodeId, status);
+		this.publishEffectState(nodeId);
+	}
+
+	private publishEffectState(nodeId: string) {
+		const state = this.effectStatuses.get(nodeId);
+		if (state?.sent == null) return;
+		const snapshot: EffectInstanceState = { status: state.sent, outputs: state.outputs };
+		const key = JSON.stringify(snapshot);
+		if (state.published === key) return;
+		state.published = key;
+		this.onEffectState?.(nodeId, snapshot);
+	}
+
+	private updateOutputState(node: GsEffectNode, rendered: boolean) {
+		const state = this.effectStatuses.get(node.id);
+		if (state == null) return;
+		// 描画完了後の出力だけ公開する。初期化用の1x1や前回の未使用出力を表示しない。
+		state.outputs = Object.fromEntries(Object.entries(this.effectDefinitions[node.effectId].outputs).map(([port, def]) => {
+			const texture = rendered && !node.isBypass && (!def.canLazyAllocation || this.usedOutputPorts.get(node.id)?.has(port))
+				? this.outDataMapPerNodes.get(node.id)?.[port]?.texture : undefined;
+			return [port, texture == null ? null : { width: texture.width, height: texture.height }];
+		}));
+		this.publishEffectState(node.id);
 	}
 
 	private clearEffectStatus(nodeId: string) {
-		if (this.effectStatuses.delete(nodeId)) this.onEffectStatus?.(nodeId, null);
+		if (this.effectStatuses.delete(nodeId)) this.onEffectState?.(nodeId, null);
 	}
 
 	private evalCacheKey(node: GsNode, visited: GsNode['id'][] = []): string | null {
@@ -356,6 +378,13 @@ export class VisualModuleRenderer {
 			}
 		}
 
+		for (const node of newEffectNodes) {
+			if (node.isBypass) {
+				this.updateOutputState(node, false);
+				// 再有効化時に出力情報も再確定する。
+				this.effectCacheKeys.delete(node.id);
+			}
+		}
 		this.nodes = newNodes;
 
 		this.allNodeIdMap.clear();
@@ -545,6 +574,7 @@ export class VisualModuleRenderer {
 			}
 		}
 
+		this.updateOutputState(node, true);
 		context.rendered.add(node.id);
 		if (key != null) this.effectCacheKeys.set(node.id, key);
 		else this.effectCacheKeys.delete(node.id);
@@ -553,7 +583,7 @@ export class VisualModuleRenderer {
 	private initializeEffect(node: GsEffectNode, params: Record<string, any>): EffectInstance {
 		const existing = this.effectInstances.get(node.id);
 		if (existing != null) return existing;
-		const state: { sent?: EffectStatus } = {};
+		const state: { sent?: EffectStatus; outputs: EffectInstanceState['outputs']; published?: string } = { outputs: Object.fromEntries(Object.keys(this.effectDefinitions[node.effectId].outputs).map(port => [port, null])) };
 		this.effectStatuses.set(node.id, state);
 		const instance = this.effectImplementations[node.effectId].init({
 			reportStatus: status => {

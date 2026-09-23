@@ -49,6 +49,70 @@ function gpuFixture() {
 }
 const literal = value => ({ inputSource: 'literal', value });
 
+// 仮確保サイズを隠し、描画・複数出力・サイズ変更・バイパス・破棄の状態を通知する。
+test('publishes output resolutions only after drawing and when state changes', async () => {
+	const { device, encoder } = gpuFixture();
+	const notifications = [];
+	const reports = [];
+	const node = { id: 'mix', type: 'effect', effectId: 'colorMix', params: { inputA: literal([1, 0, 0, 1]), inputB: literal([0, 0, 0, 0]), amount: literal(7) } };
+	const out = { id: 'out', type: 'globalOut', inputs: { out: { nodeId: node.id, outputPort: 'output' }, extra: { nodeId: node.id, outputPort: 'extra' } } };
+	const nodes = [node, out];
+	const probe = {
+		getOutputResolution: (params, port) => ({ width: params.amount.value[0], height: port === 'output' ? 3 : 5 }),
+		outputTextureFactories: Object.fromEntries(['output', 'extra'].map(port => [port, ({ resolution }) => device.createTexture({ size: resolution, format: 'rgba8unorm' })])),
+		init: ({ reportStatus }) => { reports.push(reportStatus); return { render() {}, dispose() {} }; },
+	};
+	const renderer = createRenderer(device, {
+		paramDefs: [], automationGraphs: [], outputDefs: [{ id: 'out', isPrimaryOutput: true }, { id: 'extra' }], nodes,
+	}, {
+		effectDefinitions: { colorMix: { ...definition, outputs: { output: { primary: true, dataType: 'color' }, extra: { dataType: 'color', canLazyAllocation: true } } } },
+		effectImplementations: { colorMix: probe }, onEffectState: (id, state) => notifications.push({ id, state }),
+	});
+	const latest = () => notifications.at(-1).state;
+	try {
+		const context = renderContext();
+		await renderer.prepare(context, new AbortController().signal);
+		assert.deepEqual(latest(), { status: { type: 'ready' }, outputs: { output: null, extra: null } });
+		renderer.render(context, encoder);
+		assert.deepEqual(latest().outputs, { output: { width: 7, height: 3 }, extra: null });
+		const count = notifications.length;
+		renderer.render(renderContext(), encoder);
+		reports[0]({ type: 'ready' });
+		assert.equal(notifications.length, count);
+		node.params.amount = literal(9);
+		renderer.render(renderContext({ outputIds: ['out', 'extra'] }), encoder);
+		assert.deepEqual(latest().outputs, { output: { width: 9, height: 3 }, extra: { width: 9, height: 5 } });
+		renderer.render(renderContext(), encoder);
+		assert.equal(latest().outputs.extra, null);
+		node.isBypass = true;
+		renderer.updateNodes(nodes);
+		assert.deepEqual(latest().outputs, { output: null, extra: null });
+		node.isBypass = false;
+		renderer.updateNodes(nodes);
+		renderer.render(renderContext(), encoder);
+		assert.deepEqual(latest().outputs.output, { width: 9, height: 3 });
+		reports[0]({ type: 'loading' });
+		assert.equal(latest().status.type, 'loading');
+		const controller = new AbortController();
+		let prepared = false;
+		const pending = renderer.prepare(renderContext(), controller.signal).then(() => { prepared = true; });
+		await Promise.resolve();
+		assert.equal(prepared, false, 'resolution must not make a loading effect ready');
+		reports[0]({ type: 'ready' });
+		await pending;
+		renderer.resize({ width: 50, height: 20 });
+		assert.equal(latest(), null);
+		const beforeStale = notifications.length;
+		reports[0]({ type: 'error', message: 'stale' });
+		assert.equal(notifications.length, beforeStale);
+		await renderer.prepare(renderContext(), new AbortController().signal);
+		assert.deepEqual(latest().outputs, { output: null, extra: null });
+		renderer.render(renderContext(), encoder);
+		renderer.updateNodes([out]);
+		assert.equal(latest(), null);
+	} finally { renderer.destroy(); }
+});
+
 // 複数のVisual Moduleをまたいでも定数のまま受け渡し、色を二重乗算しない。
 test('preserves constant outputs across timeline module layers', async () => {
 	const { device, calls, encoder } = gpuFixture();

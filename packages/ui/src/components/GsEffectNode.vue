@@ -30,7 +30,7 @@
 		/>
 	</div>
 
-	<GsNodeOutputs style="margin-top: 4px;" :node="node"/>
+	<GsNodeOutputs style="margin-top: 4px;" :node="node" :outputResolutions="node.isBypass ? undefined : effectState?.outputs"/>
 </div>
 </template>
 
@@ -60,7 +60,8 @@ const emit = defineEmits<{
 const name = ref<string>(effectDefinitions[props.node.effectId].displayName);
 const expanded = ref(true);
 const allInPortEl = shallowRef<HTMLElement | null>(null);
-const effectStatus = computed(() => engine.getLiveEffectStatus(props.visualModuleId, props.node.id));
+const effectState = computed(() => engine.getLiveEffectState(props.visualModuleId, props.node.id));
+const effectStatus = computed(() => effectState.value?.status);
 
 function onParamEdit(event: ParamEdit) {
 	const target = { visualModuleId: props.visualModuleId, nodeId: props.node.id, paramPath: event.paramPath };

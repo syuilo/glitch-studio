@@ -16,7 +16,7 @@ import { OutputTextureResolver } from './node-output.ts';
 import type { NodeOutput } from './node-output.ts';
 import type { FrameScheduler, LiveFrameTiming } from './live-render-loop.ts';
 import type { TimelineLayerRenderer } from './timeline-renderer.ts';
-import type { EffectStatus, EffectStatusSource } from '@glitch/shared/effect-status.ts';
+import type { EffectInstanceState, EffectStatusSource } from '@glitch/shared/effect-status.ts';
 import type { AudioCaptureMessage, AudioSourceId } from '@glitch/shared/audio.ts';
 import type { Asset, Player, Timeline, TimelineVisualModuleLayer, VisualModule, VisualModuleParamValues } from '@glitch/shared/types.ts';
 import type { EffectImplementation, IntermediateTextureFormat } from '@glitch/shared/effect-implementation.js';
@@ -24,7 +24,7 @@ import type { EffectDefinition } from '@glitch/shared/effect-definition.js';
 
 export class MainRenderer {
 	private timelineRenderer: TimelineRenderer<NodeOutput, Timeline[number]>;
-	private onEffectStatus?: (source: EffectStatusSource, nodeId: string, status: EffectStatus | null) => void;
+	private onEffectState?: (source: EffectStatusSource, nodeId: string, status: EffectInstanceState | null) => void;
 	private nextTimelineLayerStatusId = 0;
 	private gpuContext: GPUCanvasContext;
 	private gpuDevice: GPUDevice;
@@ -72,7 +72,7 @@ export class MainRenderer {
 	public readonly gpuMemory: GpuMemoryTracker;
 
 	constructor(options: {
-		onEffectStatus?: (source: EffectStatusSource, nodeId: string, status: EffectStatus | null) => void;
+		onEffectState?: (source: EffectStatusSource, nodeId: string, status: EffectInstanceState | null) => void;
 		gpuDevice: GPUDevice;
 		gpuContext: GPUCanvasContext;
 		resolution: {
@@ -100,7 +100,7 @@ export class MainRenderer {
 		effectImplementations: Record<string, EffectImplementation<any>>;
 	}) {
 		this.resolution = options.resolution;
-		this.onEffectStatus = options.onEffectStatus;
+		this.onEffectState = options.onEffectState;
 		this.visualModules = options.visualModules ?? [];
 		this.timeline = options.timeline ?? [];
 		this.enableStats = options.enableStats;
@@ -395,7 +395,7 @@ export class MainRenderer {
 			intermediateTextureFormat: this.intermediateTextureFormat,
 			enableStats: this.enableStats,
 			timingHelper: this.timingHelper,
-			onEffectStatus: (nodeId, status) => this.onEffectStatus?.(statusSource, nodeId, status),
+			onEffectState: (nodeId, status) => this.onEffectState?.(statusSource, nodeId, status),
 			videoFrames: this.videoFrames,
 			videoFrameVersions: this.videoFrameVersions,
 			assets: this.assets,
@@ -448,7 +448,7 @@ export class MainRenderer {
 			intermediateTextureFormat: this.intermediateTextureFormat,
 			enableStats: this.enableStats,
 			timingHelper: this.timingHelper,
-			onEffectStatus: (nodeId, status) => this.onEffectStatus?.(statusSource, nodeId, status),
+			onEffectState: (nodeId, status) => this.onEffectState?.(statusSource, nodeId, status),
 			videoFrames: this.videoFrames,
 			videoFrameVersions: this.videoFrameVersions,
 			assets: this.assets,
