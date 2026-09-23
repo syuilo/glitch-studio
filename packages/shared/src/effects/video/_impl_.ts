@@ -4,6 +4,12 @@ import code from './shader.wgsl?raw';
 import type definition from './_def_.ts';
 
 export default implementEffect<typeof definition>({
+	// Originalは符号化領域ではなく、表示するフレームの解像度を使う。
+	// フレーム未取得時はImageと同様に1x1とし、取得後や解像度変更時に追従する。
+	getOutputResolution: params => params.sizeMode === 3 ? {
+		width: params.player?.videoFrame?.displayWidth ?? 1,
+		height: params.player?.videoFrame?.displayHeight ?? 1,
+	} : undefined,
 	outputTextureFactories: {
 		output: ({ wgpu, resolution }) => wgpu.device.createTexture({
 			size: resolution,
@@ -11,7 +17,7 @@ export default implementEffect<typeof definition>({
 			usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
 		}),
 	},
-	init: ({ wgpu, resolution }) => {
+	init: ({ wgpu }) => {
 		const shaderModule = wgpu.device.createShaderModule({
 			code: code,
 		});
@@ -78,7 +84,7 @@ export default implementEffect<typeof definition>({
 				});
 
 				uniformValues.set({
-					aspectRatio: resolution.width / resolution.height,
+					aspectRatio: ctx.outputDataMap.output.texture.width / ctx.outputDataMap.output.texture.height,
 					mode: ctx.params.sizeMode,
 				});
 				wgpu.device.queue.writeBuffer(uniformBuffer, 0, uniformValues.arrayBuffer);

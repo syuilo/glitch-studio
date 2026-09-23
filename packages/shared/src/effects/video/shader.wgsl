@@ -10,7 +10,7 @@ fn convertTexCoords(uv: vec2f) -> vec2f {
 
 struct Uniforms {
 	aspectRatio: f32,
-	mode: u32, // 0: stretch, 1: cover, 2: contain
+	mode: u32, // 0: stretch, 1: cover, 2: contain, 3: original
 };
 
 @group(0) @binding(1) var<uniform> uniforms: Uniforms;
@@ -26,6 +26,7 @@ fn fs(fragData: FragmentIn) -> @location(0) vec4f {
 	let uv = fragData.uv;
 	let dim = vec2<f32>(textureDimensions(sourceTexture));
 	let aspectRatioScale = (dim.x / dim.y) / uniforms.aspectRatio;
+	// Originalでは出力自体がフレームの表示解像度なので、fit補正せず全体を参照する。
 	var sourceUv = uv;
 	if (uniforms.mode == 1) {
 		sourceUv *= select(vec2f(1.0, aspectRatioScale), vec2f(1.0 / aspectRatioScale, 1.0), aspectRatioScale > 1.0);

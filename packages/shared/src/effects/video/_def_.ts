@@ -20,6 +20,9 @@ export default defineEffect({
 			}, {
 				label: 'Contain',
 				value: 2,
+			}, {
+				label: 'Original',
+				value: 3,
 			}],
 			defaultValue: { inputSource: 'literal', value: 1 as const },
 		},
