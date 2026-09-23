@@ -28,6 +28,8 @@ export default implementEffect<typeof definition>({
 		return {
 			render: ctx => {
 				uniformValues.set({
+					aspectRatio: ctx.outputDataMap.output.texture.width / ctx.outputDataMap.output.texture.height,
+					fitMode: { stretch: 0, cover: 1, contain: 2 }[ctx.params.fitMode],
 					amount: ctx.params.amount,
 					rStrength: ctx.params.rStrength,
 					gStrength: ctx.params.gStrength,

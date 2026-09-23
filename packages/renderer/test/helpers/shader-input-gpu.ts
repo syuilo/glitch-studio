@@ -31,12 +31,13 @@ export async function run() {
 		return t;
 	}
 	async function read(output: GPUTexture, encoder: GPUCommandEncoder) {
-		const buffer = device.createBuffer({ size: output.height * 256, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
-		encoder.copyTextureToBuffer({ texture: output }, { buffer, bytesPerRow: 256 }, [output.width, output.height]);
+		const bytesPerRow = Math.ceil(output.width * 4 / 256) * 256;
+		const buffer = device.createBuffer({ size: output.height * bytesPerRow, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
+		encoder.copyTextureToBuffer({ texture: output }, { buffer, bytesPerRow }, [output.width, output.height]);
 		device.queue.submit([encoder.finish()]);
 		await buffer.mapAsync(GPUMapMode.READ);
 		const bytes = new Uint8Array(buffer.getMappedRange());
-		const pixels = Array.from({ length: output.height }, (_, y) => Array.from(bytes.slice(y * 256, y * 256 + output.width * 4)));
+		const pixels = Array.from({ length: output.height }, (_, y) => Array.from(bytes.slice(y * bytesPerRow, y * bytesPerRow + output.width * 4)));
 		buffer.unmap();
 		buffer.destroy();
 		return pixels;

@@ -91,5 +91,55 @@ export async function checkMigratedEffects(device: GPUDevice, vertex: GPUShaderM
 			}
 		}
 	}
+	completed.push(...await checkChromaticAspectRatio(device, vertex, readOutput));
+	return completed;
+}
+
+// 長方形の出力を、同じ物理スケールの正方形の中央領域と比較する。
+// 定数画像では検出できないStart・Normalize・Vectorの方向依存を実画素で検証する。
+async function checkChromaticAspectRatio(device: GPUDevice, vertex: GPUShaderModule, readOutput: (output: GPUTexture) => Promise<number[]>) {
+	const completed: string[] = [];
+	const instance = chromaticAberration.init({ wgpu: { device, defaultVertexShaderModule: vertex, intermediateTextureFormat: 'rgba8unorm' } } as any);
+	async function draw(width: number, height: number, scale: number, fitMode: string, normalize: boolean, start = 0.2) {
+		const source = device.createTexture({ size: [width, height], format: 'rgba8unorm', usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST });
+		const output = device.createTexture({ size: [width, height], format: 'rgba8unorm', usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT });
+		try {
+			// 出力サイズによらず、中心からの同じ距離が同じRGBになる入力を用意する。
+			const pixels = new Uint8Array(width * height * 4);
+			for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
+				const px = (x + 0.5 - width / 2) / scale;
+				const py = (y + 0.5 - height / 2) / scale;
+				pixels.set([128 + 80 * px, 128 + 80 * py, 128 + 40 * (px + py), 255], (y * width + x) * 4);
+			}
+			device.queue.writeTexture({ texture: source }, pixels, { bytesPerRow: width * 4 }, [width, height]);
+			const params = { input: textureShaderInput(source, { fitMode: 'stretch', wrapMode: 'clamp' }), fitMode, normalize, start,
+				amount: 0.12, rStrength: 1, gStrength: 1.5, bStrength: 2, samples: 4, vector: [0.2, -0.15] };
+			const encoder = device.createCommandEncoder();
+			instance.render({ params, commandEncoder: encoder, outputDataMap: { output: { texture: output, textureView: output.createView() } },
+				createPassEncoderFor: (_: GPUCommandEncoder, view: GPUTextureView) => encoder.beginRenderPass({ colorAttachments: [{ view, loadOp: 'clear', storeOp: 'store' }] }) } as any);
+			device.queue.submit([encoder.finish()]);
+			return await readOutput(output);
+		} finally { source.destroy(); output.destroy(); }
+	}
+	try {
+		for (const fitMode of ['cover', 'contain']) for (const normalize of [false, true]) {
+			const side = fitMode === 'cover' ? 129 : 65;
+			const square = await draw(side, side, side, fitMode, normalize);
+			for (const [width, height] of [[129, 65], [65, 129]]) {
+				const rectangle = await draw(width, height, side, fitMode, normalize);
+				// 入力の端のclampが比較に混ざらない中央領域を使う。
+				for (let y = -24; y <= 24; y++) for (let x = -24; x <= 24; x++) for (let c = 0; c < 4; c++) {
+					const a = square[((Math.floor(side / 2) + y) * side + Math.floor(side / 2) + x) * 4 + c];
+					const b = rectangle[((Math.floor(height / 2) + y) * width + Math.floor(width / 2) + x) * 4 + c];
+					if (Math.abs(a - b) > 2) throw new Error(`Chromatic aspect mismatch: ${fitMode}, normalize=${normalize}, ${width}x${height}, ${x},${y}`);
+				}
+			}
+			completed.push(`chromatic aspect ${fitMode} normalize=${normalize}`);
+		}
+		// 中心のNormalizeとStart=1がNaNを生成せず、元の中心色を保つ。
+		const center = await draw(65, 65, 65, 'stretch', true, 1);
+		if (center.slice((32 * 65 + 32) * 4, (32 * 65 + 32) * 4 + 4).some((v, i) => Math.abs(v - [128, 128, 128, 255][i]) > 1)) throw new Error('Chromatic center is not finite');
+		completed.push('chromatic normalized center');
+	} finally { instance.dispose(); }
 	return completed;
 }

@@ -8,6 +8,8 @@ fn convertTexCoords(uv: vec2f) -> vec2f {
 }
 
 struct Uniforms {
+	aspectRatio: f32,
+	fitMode: u32,
 	amount: f32,
 	rStrength: f32,
 	gStrength: f32,
@@ -27,9 +29,29 @@ struct FragmentIn {
 @fragment
 fn fs(fragData: FragmentIn) -> @location(0) vec4f {
 	let uv = convertTexCoords(fragData.uv);
-	let normalisedValue = length((uv - 0.5) * 2.0);
-	let strength = clamp((normalisedValue - uniforms.start) / (1.0 - uniforms.start), 0.0, 1.0);
-	let radialVector = select(uv - vec2f(0.5), normalize(uv - vec2f(0.5)), uniforms.normalize != 0u) + uniforms.vector;
+	// 正方形の基準領域をcoverでは長辺、containでは短辺に合わせる。
+	// 縦横の距離を揃えずUVのまま距離や方向を求めると、
+	// Startの等距離線が楕円になり、NormalizeやVectorの色ずれ量も方向で変わってしまう。
+	var extent = vec2f(1.0);
+	if (uniforms.fitMode == 1u) {
+		extent = vec2f(uniforms.aspectRatio, 1.0) / max(uniforms.aspectRatio, 1.0);
+	} else if (uniforms.fitMode == 2u) {
+		extent = vec2f(uniforms.aspectRatio, 1.0) / min(uniforms.aspectRatio, 1.0);
+	}
+	let centered = (uv - 0.5) * extent;
+	let radius = length(centered);
+	let normalisedValue = radius * 2.0;
+	var strength = step(1.0, normalisedValue);
+	if (uniforms.start < 1.0) {
+		strength = clamp((normalisedValue - uniforms.start) / (1.0 - uniforms.start), 0.0, 1.0);
+	}
+	var direction = centered;
+	// 中心では方向を0とし、normalize(vec2f(0))による未定義値を避ける。
+	if (uniforms.normalize != 0u && radius > 0.0) {
+		direction /= radius;
+	}
+	// サンプル座標に戻すときだけ補正を戻す。入力自身のfit/wrapはread_inputが適用する。
+	let radialVector = (direction + uniforms.vector) / extent;
 	let velocity = radialVector * strength * uniforms.amount;
 	let samples = clamp(uniforms.samples, 1u, 100u);
 
