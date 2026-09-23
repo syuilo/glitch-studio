@@ -31,7 +31,6 @@ export default implementEffect<typeof definition>({
 				uniformValues.set({
 					aspect: [output.width / shortDimension, output.height / shortDimension],
 					angle: ctx.params.angle * Math.PI,
-					// Checker / Polka dotと同じ密度で格子を配置する。
 					scale: Math.max(0, ctx.params.scale) ** 2,
 					majorWidth: Math.max(0, ctx.params.majorWidth),
 					majorColor: ctx.params.majorColor,
