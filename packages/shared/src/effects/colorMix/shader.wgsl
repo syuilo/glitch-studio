@@ -1,4 +1,3 @@
-// read_*は接続情報から生成する。positionは中央原点・+Yが上の[-1, 1]座標。
 @fragment
 fn fs(@location(0) position: vec2f) -> @location(0) vec4f {
 	let a = read_inputA(position);
