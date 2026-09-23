@@ -6,6 +6,7 @@ import bloom from './effects/bloom/_def_.ts';
 import blur from './effects/blur/_def_.ts';
 import blockShuffle from './effects/blockShuffle/_def_.ts';
 import channelShift from './effects/channelShift/_def_.ts';
+import checker from './effects/checker/_def_.ts';
 import chromaticAberration from './effects/chromaticAberration/_def_.ts';
 import colorBlocks from './effects/colorBlocks/_def_.ts';
 import fill from './effects/fill/_def_.ts';
@@ -56,6 +57,7 @@ const _effectDefinitions = {
 	blur,
 	blockShuffle,
 	channelShift,
+	checker,
 	chromaticAberration,
 	colorBlocks,
 	fill,

@@ -11,6 +11,7 @@ import bloom from './effects/bloom/_impl_.ts';
 import blur from './effects/blur/_impl_.ts';
 import blockShuffle from './effects/blockShuffle/_impl_.ts';
 import channelShift from './effects/channelShift/_impl_.ts';
+import checker from './effects/checker/_impl_.ts';
 import chromaticAberration from './effects/chromaticAberration/_impl_.ts';
 import colorBlocks from './effects/colorBlocks/_impl_.ts';
 import fill from './effects/fill/_impl_.ts';
@@ -60,6 +61,7 @@ const _effectImplementations = {
 	blur,
 	blockShuffle,
 	channelShift,
+	checker,
 	chromaticAberration,
 	colorBlocks,
 	fill,
