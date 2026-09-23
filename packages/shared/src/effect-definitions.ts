@@ -12,6 +12,7 @@ import colorBlocks from './effects/colorBlocks/_def_.ts';
 import fill from './effects/fill/_def_.ts';
 import frameDifference from './effects/frameDifference/_def_.ts';
 import gradient from './effects/gradient/_def_.ts';
+import grid from './effects/grid/_def_.ts';
 import scalarGradient from './effects/scalarGradient/_def_.ts';
 import composeVector from './effects/composeVector/_def_.ts';
 import histogram from './effects/histogram/_def_.ts';
@@ -63,6 +64,7 @@ const _effectDefinitions = {
 	fill,
 	frameDifference,
 	gradient,
+	grid,
 	scalarGradient,
 	composeVector,
 	histogram,
