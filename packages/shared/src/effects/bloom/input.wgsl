@@ -1,8 +1,8 @@
 @group(0) @binding(1) var bloomSampler: sampler;
 @group(0) @binding(2) var bloomTexture: texture_2d<f32>;
 
-fn highlight(uv: vec2f) -> vec4f {
-	let source = read_input((uv * 2.0 - 1.0) * vec2f(1.0, -1.0));
+fn highlight(position: vec2f) -> vec4f {
+	let source = read_input(position);
 	// Engine textures contain premultiplied RGB: don't multiply by alpha again.
 	let color = max(source.rgb, vec3f(0.0));
 	let brightness = max(max(color.r, color.g), color.b);
@@ -16,14 +16,13 @@ fn highlight(uv: vec2f) -> vec4f {
 
 @fragment
 fn prefilter(frag: FragmentIn) -> @location(0) vec4f {
-	let uv = texCoords(frag.uv);
 	// fit後の入力画素サイズを基にCPUで求めた間隔。定数入力や等倍では0。
 	let d = uniforms.prefilterOffset;
 	// Extract before averaging so small highlights aren't lost to the threshold.
-	return (highlight(uv + vec2f(-d.x, -d.y))
-		+ highlight(uv + vec2f(d.x, -d.y))
-		+ highlight(uv + vec2f(-d.x, d.y))
-		+ highlight(uv + vec2f(d.x, d.y))) * 0.25;
+	return (highlight(frag.uv + vec2f(-d.x, -d.y))
+		+ highlight(frag.uv + vec2f(d.x, -d.y))
+		+ highlight(frag.uv + vec2f(-d.x, d.y))
+		+ highlight(frag.uv + vec2f(d.x, d.y))) * 0.25;
 }
 
 @fragment

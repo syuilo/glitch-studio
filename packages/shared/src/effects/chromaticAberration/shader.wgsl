@@ -1,12 +1,3 @@
-// 既存のエフェクト計算のUVを、入力参照APIの中央原点・+Yが上の座標へ戻す。
-fn inputPosition(uv: vec2f) -> vec2f {
-	return (uv * 2.0 - 1.0) * vec2f(1.0, -1.0);
-}
-
-fn convertTexCoords(uv: vec2f) -> vec2f {
-	return vec2f(uv.x, -uv.y) * 0.5 + vec2f(0.5);
-}
-
 struct Uniforms {
 	aspectRatio: f32,
 	fitMode: u32,
@@ -28,7 +19,6 @@ struct FragmentIn {
 
 @fragment
 fn fs(fragData: FragmentIn) -> @location(0) vec4f {
-	let uv = convertTexCoords(fragData.uv);
 	// 正方形の基準領域をcoverでは長辺、containでは短辺に合わせる。
 	// 縦横の距離を揃えずUVのまま距離や方向を求めると、
 	// Startの等距離線が楕円になり、NormalizeやVectorの色ずれ量も方向で変わってしまう。
@@ -38,12 +28,11 @@ fn fs(fragData: FragmentIn) -> @location(0) vec4f {
 	} else if (uniforms.fitMode == 2u) {
 		extent = vec2f(uniforms.aspectRatio, 1.0) / min(uniforms.aspectRatio, 1.0);
 	}
-	let centered = (uv - 0.5) * extent;
+	let centered = fragData.uv * extent;
 	let radius = length(centered);
-	let normalisedValue = radius * 2.0;
-	var strength = step(1.0, normalisedValue);
+	var strength = step(1.0, radius);
 	if (uniforms.start < 1.0) {
-		strength = clamp((normalisedValue - uniforms.start) / (1.0 - uniforms.start), 0.0, 1.0);
+		strength = clamp((radius - uniforms.start) / (1.0 - uniforms.start), 0.0, 1.0);
 	}
 	var direction = centered;
 	// 中心では方向を0とし、normalize(vec2f(0))による未定義値を避ける。
@@ -55,18 +44,19 @@ fn fs(fragData: FragmentIn) -> @location(0) vec4f {
 	let velocity = radialVector * strength * uniforms.amount;
 	let samples = clamp(uniforms.samples, 1u, 100u);
 
-	var rOffset = -radialVector * strength * (uniforms.amount * uniforms.rStrength);
-	var gOffset = -radialVector * strength * (uniforms.amount * uniforms.gStrength);
-	var bOffset = -radialVector * strength * (uniforms.amount * uniforms.bStrength);
+	var rOffset = -velocity * uniforms.rStrength;
+	var gOffset = -velocity * uniforms.gStrength;
+	var bOffset = -velocity * uniforms.bStrength;
 	var accumulator = vec3f(0.0);
+	let stepVelocity = velocity / f32(samples);
 
 	for (var i = 0u; i < samples; i++) {
-		accumulator.r += read_input(inputPosition(uv + rOffset)).r;
-		accumulator.g += read_input(inputPosition(uv + gOffset)).g;
-		accumulator.b += read_input(inputPosition(uv + bOffset)).b;
-		rOffset -= velocity / f32(samples);
-		gOffset -= velocity / f32(samples);
-		bOffset -= velocity / f32(samples);
+		accumulator.r += read_input(fragData.uv + rOffset).r;
+		accumulator.g += read_input(fragData.uv + gOffset).g;
+		accumulator.b += read_input(fragData.uv + bOffset).b;
+		rOffset -= stepVelocity;
+		gOffset -= stepVelocity;
+		bOffset -= stepVelocity;
 	}
 
 	return vec4f(accumulator / f32(samples), 1.0);

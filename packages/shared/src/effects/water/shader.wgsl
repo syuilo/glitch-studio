@@ -68,8 +68,9 @@ fn snoise(v: vec2f) -> f32 {
 
 @fragment
 fn fs(frag: FragmentIn) -> @location(0) vec4f {
-	var imageUV = vec2f(frag.uv.x, -frag.uv.y) * 0.5 + vec2f(0.5);
-	var patternUV = (imageUV - vec2f(0.5)) * vec2f(uniforms.aspectRatio, 1.0);
+	// 端のマスクだけは[0, 1]を使い、変位と入力参照は中央原点で扱う。
+	let imageUV = vec2f(frag.uv.x, -frag.uv.y) * 0.5 + vec2f(0.5);
+	var patternUV = frag.uv * vec2f(uniforms.aspectRatio, -1.0);
 	patternUV /= 0.01 + 0.09 * uniforms.size;
 	let t = uniforms.time;
 	let wavesNoise = snoise((0.3 + 0.1 * sin(t)) * 0.1 * patternUV + vec2f(0.0, 0.4 * t));
@@ -81,20 +82,19 @@ fn fs(frag: FragmentIn) -> @location(0) vec4f {
 
 	var edgesDistortion = smoothstep(0.0, 0.1, imageUV.x);
 	edgesDistortion *= smoothstep(0.0, 0.1, imageUV.y);
-	edgesDistortion *= smoothstep(1.0, 1.1, imageUV.x) + (1.0 - smoothstep(0.8, 0.95, imageUV.x));
+	edgesDistortion *= 1.0 - smoothstep(0.8, 0.95, imageUV.x);
 	edgesDistortion *= 1.0 - smoothstep(0.9, 1.0, imageUV.y);
 	edgesDistortion = mix(edgesDistortion, 1.0, uniforms.edges);
 	let causticNoiseDistortion = 0.02 * causticNoise * edgesDistortion;
 	let wavesDistortion = 0.1 * uniforms.waves * wavesNoise;
-	imageUV += vec2f(wavesDistortion, -wavesDistortion);
-	imageUV += vec2f(uniforms.caustic * causticNoiseDistortion);
+	let offset = vec2f(wavesDistortion)
+		+ uniforms.caustic * causticNoiseDistortion * vec2f(1.0, -1.0);
 
 	// 変位後の座標に、入力接続のfit/wrap/filterを適用する。
-	let image = read_input((imageUV * 2.0 - 1.0) * vec2f(1.0, -1.0));
+	let image = read_input(frag.uv + offset);
 	// Engine textures already carry premultiplied RGB.
 	var color = image.rgb;
 	var opacity = image.a;
-	causticNoise = max(-0.2, causticNoise);
 	let highlight = 0.025 * uniforms.highlights * causticNoise * uniforms.colorHighlight.a;
 	color = mix(color, uniforms.colorHighlight.rgb, 0.05 * uniforms.highlights * causticNoise * uniforms.colorHighlight.a);
 	opacity += highlight;

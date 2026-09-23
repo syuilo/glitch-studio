@@ -11,7 +11,7 @@ export default implementEffect<typeof definition>({
 			usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
 		}),
 	},
-	init: ({ wgpu, resolution, params, fallbackTexture }) => {
+	init: ({ wgpu, resolution }) => {
 		const shaderModule = wgpu.device.createShaderModule({
 			code: code,
 		});
@@ -50,12 +50,10 @@ export default implementEffect<typeof definition>({
 			addressModeW: 'mirror-repeat',
 		});
 
-		let bindGroup: GPUBindGroup | null = null;
-
 		return {
 			render: (ctx) => {
-				if (!ctx.params.player?.videoFrame) {
-					bindGroup = null;
+				const frame = ctx.params.player?.videoFrame;
+				if (!frame) {
 					// フレーム削除後に以前の映像がキャッシュとして残らないよう透明にする。
 					ctx.createPassEncoder(ctx.commandEncoder, {
 						colorAttachments: [{
@@ -67,20 +65,17 @@ export default implementEffect<typeof definition>({
 					}).end();
 					return;
 				}
-				if (ctx.params.player.videoFrame) {
-					const freshTex = wgpu.device.importExternalTexture(
-						{ source: ctx.params.player.videoFrame },
-					);
-					bindGroup = wgpu.device.createBindGroup({
-						layout: pipeline.getBindGroupLayout(0),
-						entries: [
-							{ binding: 1, resource: { buffer: uniformBuffer } },
-							{ binding: 2, resource: sampler },
-							{ binding: 3, resource: freshTex },
-						],
-					});
-				}
-				if (bindGroup == null) return;
+				const freshTex = wgpu.device.importExternalTexture(
+					{ source: frame },
+				);
+				const bindGroup = wgpu.device.createBindGroup({
+					layout: pipeline.getBindGroupLayout(0),
+					entries: [
+						{ binding: 1, resource: { buffer: uniformBuffer } },
+						{ binding: 2, resource: sampler },
+						{ binding: 3, resource: freshTex },
+					],
+				});
 
 				uniformValues.set({
 					aspectRatio: resolution.width / resolution.height,

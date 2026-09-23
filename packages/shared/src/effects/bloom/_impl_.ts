@@ -132,13 +132,13 @@ export default implementEffect<typeof definition>({
 				const strength = input.kind === 'uniform' && input.value.every(value => value === 0) ? 0 : clamp(ctx.params.strength, 5, 1);
 				const outputSize = ctx.outputDataMap.output.texture;
 				// 作業解像度の丸めや非等方な縮小でfitが変わらないよう、最終出力を基準にする。
-				// 入力の1画素を出力UVへ逆変換し、抽出時のサンプル間隔にも同じfitを反映する。
+				// 入力の1画素を出力の[-1, 1]座標へ逆変換し、抽出時のサンプル間隔にも同じfitを反映する。
 				let prefilterOffset = [0, 0];
 				if (input.kind === 'texture') {
 					const scale = inputUvScale(input.texture, outputSize, input.fitMode);
 					prefilterOffset = [
-						Math.max(0, 1 / levels[0].texture.width - 1 / (input.texture.width * scale[0])) * 0.5,
-						Math.max(0, 1 / levels[0].texture.height - 1 / (input.texture.height * scale[1])) * 0.5,
+						Math.max(0, 1 / levels[0].texture.width - 1 / (input.texture.width * scale[0])),
+						Math.max(0, 1 / levels[0].texture.height - 1 / (input.texture.height * scale[1])),
 					];
 				}
 				uniformValues.set({

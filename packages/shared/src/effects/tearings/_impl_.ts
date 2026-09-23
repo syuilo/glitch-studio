@@ -38,7 +38,8 @@ export default implementEffect<typeof definition>({
 				const rnd = seedrandom(ctx.params.seed.toString());
 				for (let i = 0; i < amount; i++) {
 					const offset = i * 4;
-					shifts[offset] = rnd();
+					// 帯の中心もシェーダーと同じ[-1, 1]の座標で渡す。
+					shifts[offset] = rnd() * 2 - 1;
 					shifts[offset + 1] = (1 - rnd() * 2) * ctx.params.strength;
 					shifts[offset + 2] = rnd() * (ctx.params.size / 100);
 				}

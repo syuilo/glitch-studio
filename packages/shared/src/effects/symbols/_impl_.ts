@@ -1,6 +1,6 @@
 import { createTextureFromImages, makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { implementEffect } from '../../effect-implementation.ts';
-import { createShaderInputBindings, generateShaderInputs } from '../../shader-input.ts';
+import { createShaderInputPipeline } from '../../shader-input-pipeline.ts';
 import code from './shader.wgsl?raw';
 import type definition from './_def_.ts';
 
@@ -102,8 +102,14 @@ export default implementEffect<typeof definition>({
 			{ binding: 2, visibility: GPUShaderStage.FRAGMENT, sampler: { type: 'filtering' } },
 			{ binding: 4, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float', viewDimension: '2d-array' } },
 		] });
-		// inputとforceFieldの種別だけで最大4構成。値やfit/wrapの変更では再コンパイルしない。
-		const variants = new Map<string, { pipeline: GPURenderPipeline; bindings: ReturnType<typeof createShaderInputBindings> }>();
+		const pipelines = createShaderInputPipeline({
+			device, vertex: wgpu.defaultVertexShaderModule, code,
+			schema: { input: 'color', forceField: 'vector' },
+			targets: [{ format: wgpu.intermediateTextureFormat }],
+			internalLayouts: [symbolLayout],
+			// セルごとに異なる座標を読む。内部のシンボル配列は独自のsamplerでミップを選ぶ。
+			sampling: 'level0',
+		});
 
 		const uniformValues = makeStructuredView(shaderDataDefinitions.uniforms.uniforms);
 
@@ -178,24 +184,8 @@ export default implementEffect<typeof definition>({
 			render: (ctx) => {
 				prepare(ctx.params);
 				const inputs = { input: ctx.params.input, forceField: ctx.params.forceField };
-				const key = [inputs.input.kind, inputs.forceField.kind].join(',');
-				let variant = variants.get(key);
-				if (variant == null) {
-					// セルごとに異なる座標を読むため、入力はLOD 0でサンプルする。
-					// シンボル配列のミップ選択は、従来どおり内部samplerで行う。
-					const generated = generateShaderInputs({ input: 'color', forceField: 'vector' }, inputs, 1, 'level0');
-					const bindings = createShaderInputBindings(device, generated);
-					const pipeline = device.createRenderPipeline({
-						layout: device.createPipelineLayout({ bindGroupLayouts: [symbolLayout, bindings.layout] }),
-						vertex: { module: wgpu.defaultVertexShaderModule },
-						fragment: { module: device.createShaderModule({ code: generated.code + '\n' + code }), targets: [{ format: wgpu.intermediateTextureFormat }] },
-						primitive: { topology: 'triangle-list' },
-					});
-					variant = { pipeline, bindings };
-					variants.set(key, variant);
-				}
 				const output = ctx.outputDataMap.output.texture;
-				const inputGroup = variant.bindings.update(inputs, output);
+				const variant = pipelines.update(inputs, output);
 
 				uniformValues.set({
 					aspectRatio: output.width / output.height,
@@ -221,14 +211,13 @@ export default implementEffect<typeof definition>({
 				const passEncoder = ctx.createPassEncoderFor(ctx.commandEncoder, ctx.outputDataMap.output.textureView);
 				passEncoder.setPipeline(variant.pipeline);
 				passEncoder.setBindGroup(0, bindGroup);
-				passEncoder.setBindGroup(1, inputGroup);
+				passEncoder.setBindGroup(pipelines.inputGroup, variant.bindGroup);
 				passEncoder.draw(6);
 				passEncoder.end();
 			},
 			dispose: () => {
 				disposed = true;
-				for (const variant of variants.values()) variant.bindings.dispose();
-				variants.clear();
+				pipelines.dispose();
 				uniformBuffer.destroy();
 				symbolTexture?.destroy();
 			},

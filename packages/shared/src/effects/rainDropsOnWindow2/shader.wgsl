@@ -1,8 +1,3 @@
-// 既存のエフェクト計算のUVを、入力参照APIの中央原点・+Yが上の座標へ戻す。
-fn inputPosition(uv: vec2f) -> vec2f {
-	return (uv * 2.0 - 1.0) * vec2f(1.0, -1.0);
-}
-
 struct Uniforms {
 	aspect: vec2f,
 	seed: vec2f,
@@ -82,19 +77,19 @@ struct FragmentIn {
 
 @fragment
 fn fs(input: FragmentIn) -> @location(0) vec4f {
-	let uv = vec2f(input.uv.x, -input.uv.y) * 0.5 + 0.5;
 	let frequency = 12.0 / uniforms.scale;
-	let p = (uv - 0.5) * uniforms.aspect * frequency;
+	// 雨粒の移動・尾の計算は+Yが下の局所座標を使う。
+	let p = input.uv * vec2f(1.0, -1.0) * uniforms.aspect * frequency;
 	// Derivatives only antialias the shapes; placement, size, travel and
 	// refraction all use short-side-normalized coordinates, never pixel units.
 	let footprint = max(fwidth(p.x), fwidth(p.y));
 	if (uniforms.density <= 0.0 || uniforms.refraction <= 0.0) {
-		return read_input(inputPosition(uv));
+		return read_input(input.uv);
 	}
 	var slope = flowingDrops(p, footprint, vec2f(0.0));
 	slope += flowingDrops(p * 1.6 + vec2f(7.3, 13.1), footprint * 1.6, vec2f(31.7, 9.2)) / 1.6;
 	slope += restingDrops(p * 2.7, footprint * 2.7) / 2.7;
-	let offset = slope * uniforms.refraction * 0.35 / (frequency * uniforms.aspect);
+	let offset = slope * uniforms.refraction * 0.35 / (frequency * uniforms.aspect) * vec2f(1.0, -1.0);
 	// Preserve the sampled RGBA, including the engine's existing alpha convention.
-	return read_input(inputPosition(uv + offset));
+	return read_input(input.uv + offset);
 }

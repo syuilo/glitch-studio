@@ -2,10 +2,6 @@ const PI = 3.14159265359;
 const RATIO = 5.264;
 const EPSILON = 0.000001;
 
-fn convertTexCoords(uv: vec2f) -> vec2f {
-	return vec2f(uv.x, -uv.y) * 0.5 + vec2f(0.5);
-}
-
 fn complexInverse(value: vec2f) -> vec2f {
 	return vec2f(value.x, -value.y) / max(dot(value, value), EPSILON);
 }
@@ -44,13 +40,12 @@ struct FragmentIn {
 
 @fragment
 fn fs(fragData: FragmentIn) -> @location(0) vec4f {
-	let uv = convertTexCoords(fragData.uv);
 	if (uniforms.amount == 0.0) {
 		return read_input(fragData.uv);
 	}
 
 	let aspectScale = vec2f(uniforms.aspectRatio, 1.0);
-	var position = (uv * 2.0 - 1.0) * aspectScale;
+	var position = fragData.uv * aspectScale;
 	if (length(position) < EPSILON) {
 		return read_input(fragData.uv);
 	}
@@ -63,9 +58,9 @@ fn fs(fragData: FragmentIn) -> @location(0) vec4f {
 	let absolutePosition = abs(position);
 	position *= regressionScale(max(absolutePosition.x, absolutePosition.y) * 2.0);
 
-	// 複素平面でアスペクト比を補正してから、テクスチャ座標へ戻す。
-	let transformedUv = position / (RATIO * aspectScale) + 0.5;
-	let sourceUv = mix(uv, transformedUv, uniforms.amount);
+	// 複素平面のアスペクト比補正だけを戻し、中央原点のまま入力を参照する。
+	let transformedPosition = position / (RATIO * aspectScale);
+	let sourcePosition = mix(fragData.uv, transformedPosition, uniforms.amount);
 	// 入力は既にpremultiplied alphaなので、そのまま返す。
-	return read_input((sourceUv * 2.0 - 1.0) * vec2f(1.0, -1.0));
+	return read_input(sourcePosition);
 }

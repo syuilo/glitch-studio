@@ -13,14 +13,11 @@ struct Uniforms {
 
 struct FragmentIn {
 	@location(0) uv: vec2f,
+	@builtin(position) position: vec4f,
 };
 
 fn scaleUvToCoverGivenAspectRatio(uv: vec2f, aspectRatio: f32) -> vec2f {
 	return uv / vec2f(1.0, aspectRatio) * select(1.0, aspectRatio, 1.0 > aspectRatio);
-}
-
-fn unscaleUvToCoverGivenAspectRatio(uv: vec2f, aspectRatio: f32) -> vec2f {
-	return uv * vec2f(1.0, aspectRatio) / select(1.0, aspectRatio, 1.0 > aspectRatio);
 }
 
 fn getPointerForceVector(uv: vec2f) -> vec2f {
@@ -43,18 +40,9 @@ fn getPointerForceVector(uv: vec2f) -> vec2f {
 
 @fragment
 fn fs(fragData: FragmentIn) -> @location(0) vec2f {
-	let size = textureDimensions(sourceTexture, 0);
-	let maxCoord = vec2<i32>(size) - vec2<i32>(1);
-
-	let coord = clamp(
-		vec2<i32>((vec2f(fragData.uv.x, -fragData.uv.y) + vec2<f32>(1)) * vec2<f32>(size) / 2.0),
-		vec2<i32>(0),
-		maxCoord,
-	);
-
 	let uv = scaleUvToCoverGivenAspectRatio(fragData.uv, uniforms.aspectRatio);
 	// 履歴のベクトル場を補間で拡散させず、同じ画素に力を蓄積する。
-	var before = textureLoad(sourceTexture, coord, 0).rg;
+	var before = textureLoad(sourceTexture, vec2i(fragData.position.xy), 0).rg;
 	before *= exp2(-uniforms.timeDelta / uniforms.halfLife);
 	let v = getPointerForceVector(uv) * uniforms.strength;
 	return before + v;

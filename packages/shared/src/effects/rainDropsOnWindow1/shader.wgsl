@@ -1,8 +1,3 @@
-// 既存のエフェクト計算のUVを、入力参照APIの中央原点・+Yが上の座標へ戻す。
-fn inputPosition(uv: vec2f) -> vec2f {
-	return (uv * 2.0 - 1.0) * vec2f(1.0, -1.0);
-}
-
 // Cell-based droplets, refraction and cleared fog trails inspired by:
 // https://koro-koro.com/three-js-shader-rain-through-the-window/
 // History-free: seeking time reproduces both droplets and their trails.
@@ -65,19 +60,19 @@ struct FragmentIn {
 
 @fragment
 fn fs(fragData: FragmentIn) -> @location(0) vec4f {
-	let uv = vec2f(fragData.uv.x, -fragData.uv.y) * 0.5 + 0.5;
-	// Only the aspect ratio matters, never the pixel count or input dimensions.
-	let toUv = vec2f(1.0 / uniforms.aspectRatio, 1.0);
-	let point = (uv - 0.5) / toUv;
+	// 雨粒は+Yが下で縦横の単位が等しい局所座標で計算する。
+	// 入力参照にはアスペクト比とY方向だけを戻し、UVへの往復変換は行わない。
+	let toPosition = vec2f(1.0 / uniforms.aspectRatio, -1.0);
+	let point = fragData.uv / toPosition;
 	var water = vec3f(0.0);
 	if (uniforms.density > 0.0) {
 		water = layer(point, uniforms.scale, 0.23, 0u);
 		water += layer(point + vec2f(1.73, 4.21), uniforms.scale * 0.73, 0.19, 1337u);
 		water += layer(point + vec2f(-3.17, 1.19), uniforms.scale * 0.47, 0.14, 7919u);
 	}
-	let sampleUv = uv + water.xy * uniforms.refraction * toUv;
+	let samplePosition = fragData.uv + water.xy * uniforms.refraction * toPosition;
 	let blurRadius = uniforms.fog * 0.018 * (1.0 - clamp(water.z, 0.0, 1.0));
-	let center = read_input(inputPosition(sampleUv));
+	let center = read_input(samplePosition);
 	if (blurRadius <= 0.0) {
 		return center;
 	}
@@ -88,8 +83,8 @@ fn fs(fragData: FragmentIn) -> @location(0) vec4f {
 	for (var i = 0u; i < 12u; i++) {
 		let r = sqrt((f32(i) + 0.5) / 12.0);
 		let angle = f32(i) * 2.39996323;
-		let offset = vec2f(cos(angle), sin(angle)) * r * blurRadius * toUv;
-		color += read_input(inputPosition(sampleUv + offset));
+		let offset = vec2f(cos(angle), sin(angle)) * r * blurRadius * toPosition;
+		color += read_input(samplePosition + offset);
 	}
 	// Preserve the input's alpha convention, as with the existing blur effect.
 	return color / 14.0;

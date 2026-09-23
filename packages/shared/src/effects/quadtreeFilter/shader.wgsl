@@ -1,12 +1,3 @@
-fn convertTexCoords(uv: vec2f) -> vec2f {
-	return vec2f(uv.x, -uv.y) * 0.5 + vec2f(0.5);
-}
-
-// 分割計算のUVを、入力参照APIの中央原点・+Yが上の座標へ戻す。
-fn inputPosition(uv: vec2f) -> vec2f {
-	return (uv * 2.0 - 1.0) * vec2f(1.0, -1.0);
-}
-
 struct Uniforms {
 	minDivisions: f32,
 	maxIterations: u32,
@@ -42,10 +33,6 @@ struct FragmentIn {
 
 // the number of samples picked fter each quad division
 const SAMPLES_PER_ITERATION = 30;
-const F_SAMPLES_PER_ITERATION = 30.0;
-
-// useless, kept it for reference for a personal usage 
-const MAX_SAMPLES = 200;
 
 // taken from http://glslsandbox.com/e#41197.0
 fn hash22(p: vec2f) -> vec2f { 
@@ -60,46 +47,32 @@ fn hash22(p: vec2f) -> vec2f {
 // This is the way I thought for computing the color variation, there might be others,
 // and there must be better ones
 fn quadColorVariation(center: vec2f, size: f32) -> vec4f {
-	// this array will store the grayscale of the samples
-	var samplesBuffer: array<vec3f, SAMPLES_PER_ITERATION>;
-	
-	// the average of the color components
-	var avg = vec3f(0.0);
-	
-	// we sample the current space by picking pseudo random samples in it 
+	var sum = vec3f(0.0);
+	var sumSquares = vec3f(0.0);
+	// 同じセルの画素は同じ位置をサンプリングする。
+	// 分散はE[X²] - E[X]²で求められるので、サンプルの保存と再走査は不要。
 	for (var i = 0; i < SAMPLES_PER_ITERATION; i++) {
-		let fi = f32(i);
-		// pick a random 2d point using the center of the active quad as input
-		// this ensures that for every point belonging to the active quad, we pick the same samples
-		let r = hash22(center.xy + vec2f(fi, 0.0)) - 0.5;
-		let sp = read_input(inputPosition(center + r * size)).rgb;
-		avg += sp;
-		samplesBuffer[i] = sp;
+		let r = hash22(center + vec2f(f32(i), 0.0)) - 0.5;
+		let sample = read_input(center + r * size).rgb;
+		sum += sample;
+		sumSquares += sample * sample;
 	}
-	
-	avg /= F_SAMPLES_PER_ITERATION;
-	
-	// estimate the color variation on the active quad by computing the variance
-	var variance = vec3f(0.0);
-	for (var i = 0; i < SAMPLES_PER_ITERATION; i++) {
-		variance += pow(samplesBuffer[i], vec3f(2.0));
-	}
-	variance /= F_SAMPLES_PER_ITERATION;
-	variance -= pow(avg, vec3f(2.0));
-			
+	let avg = sum / f32(SAMPLES_PER_ITERATION);
+	let variance = sumSquares / f32(SAMPLES_PER_ITERATION) - avg * avg;
+
 	return vec4f(avg, (variance.x + variance.y + variance.z) / 3.0);
 }
 
 @fragment
 fn fs(fragData: FragmentIn) -> @location(0) vec4f {
-	// Normalized pixel coordinates (from 0 to 1)
-	let uv = convertTexCoords(fragData.uv);
+	// 格子と入力参照に同じ中央原点の座標を使う。
+	let position = fragData.uv;
 
 	// number of space divisions
 	var divs = uniforms.minDivisions;
 
 	// the center of the active quad - we initialze with 2 divisions
-	var quadCenter = (floor(uv * divs) + 0.5) / divs;
+	var quadCenter = (floor(position * divs) + 0.5) / divs;
 	var quadSize = 1.0 / divs; // the length of a side of the active quad
 	
 	// we store average and variance here
@@ -113,19 +86,19 @@ fn fs(fragData: FragmentIn) -> @location(0) vec4f {
 			
 		// otherwise, we divide the space again
 		divs *= 2.0;
-		quadCenter = (floor(uv * divs) + 0.5) / divs;
+		quadCenter = (floor(position * divs) + 0.5) / divs;
 		quadSize /= 2.0;
 	}
 
 	var color = read_input(fragData.uv);
 	
 	// the coordinates of the quad
-	let nUv = fract(uv * divs);
+	let nUv = fract(position * divs);
 	
 	// we create lines from the uv coordinates
-	let lWidth = select(vec2f(uniforms.borderWidth / divs / 2.0), vec2f(uniforms.borderWidth / 2.0), uniforms.borderAbsolute != 0u);
+	let lineWidth = uniforms.borderWidth * 0.5 * select(1.0, divs, uniforms.borderAbsolute != 0u);
 	let uvAbs = abs(nUv - 0.5);
-	let s = step(0.5 - uvAbs.x, lWidth.x * divs) + step(0.5 - uvAbs.y, lWidth.y * divs);
+	let s = step(0.5 - uvAbs.x, lineWidth) + step(0.5 - uvAbs.y, lineWidth);
 	
 	// we smooth the color between average and texture initial
 	color = vec4f(quadInfos.rgb, color.a);

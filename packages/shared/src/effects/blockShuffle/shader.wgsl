@@ -1,7 +1,3 @@
-fn convertTexCoords(uv: vec2f) -> vec2f {
-	return vec2f(uv.x, -uv.y) * 0.5 + vec2f(0.5);
-}
-
 fn hash32(value: u32) -> u32 {
 	var result = value;
 	result ^= result >> 16u;
@@ -36,7 +32,6 @@ struct FragmentIn {
 
 @fragment
 fn fs(fragData: FragmentIn) -> @location(0) vec4f {
-	let uv = convertTexCoords(fragData.uv);
 	// 入力参照関数が、定数または接続ごとのfit/wrapを適用した値を返す。
 	let blockScale = 1.0 - clamp(read_size(fragData.uv), vec2f(0.0), vec2f(1.0));
 	var extent = uniforms.resolution;
@@ -47,7 +42,7 @@ fn fs(fragData: FragmentIn) -> @location(0) vec4f {
 		extent = vec2f(min(uniforms.resolution.x, uniforms.resolution.y));
 	}
 	let cellSize = max(blockScale * extent, vec2f(1.0)) / uniforms.resolution;
-	let cell = vec2i(round((uv - 0.5) / cellSize));
+	let cell = vec2i(round(fragData.uv / cellSize));
 	// Amountで選ばれたタイルだけに、位置のシャッフル・回転・反転を適用する。
 	let selected = random(cell, uniforms.seed, 0u) < uniforms.amount;
 	if (!selected) {
@@ -57,9 +52,9 @@ fn fs(fragData: FragmentIn) -> @location(0) vec4f {
 		random(cell, uniforms.seed, 1u) - 0.5,
 		random(cell, uniforms.seed, 2u) - 0.5,
 	);
-	let cellCenter = 0.5 + vec2f(cell) * cellSize;
+	let cellCenter = vec2f(cell) * cellSize;
 	// 物理的な縦横の単位を揃え、長方形のタイルでも回転によって歪ませない。
-	var localPosition = (uv - cellCenter) * uniforms.resolution;
+	var localPosition = (fragData.uv - cellCenter) * uniforms.resolution;
 	if (uniforms.randomRotation != 0u) {
 		let quarterTurns = u32(random(cell, uniforms.seed, 3u) * 4.0);
 		switch quarterTurns {
@@ -75,7 +70,7 @@ fn fs(fragData: FragmentIn) -> @location(0) vec4f {
 	if (uniforms.randomFlipY != 0u && random(cell, uniforms.seed, 5u) < 0.5) {
 		localPosition.y = -localPosition.y;
 	}
-	let sourceUv = cellCenter + localPosition / uniforms.resolution + select(vec2f(0.0), shift, uniforms.randomSwap != 0u);
+	let sourcePosition = cellCenter + localPosition / uniforms.resolution + select(vec2f(0.0), shift, uniforms.randomSwap != 0u);
 	// 入力は既にpremultiplied alphaなので、そのまま返す。
-	return read_input((sourceUv * 2.0 - 1.0) * vec2f(1.0, -1.0));
+	return read_input(sourcePosition);
 }

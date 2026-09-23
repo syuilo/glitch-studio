@@ -68,11 +68,11 @@ fn evaluateGradient(fragData: FragmentIn) -> vec3f {
 		let rawPosition = (gradientPosition - startPosition) / span;
 		derivative = (positionDerivative - startPositionSample.yz - rawPosition * (endPositionSample.yz - startPositionSample.yz)) / span;
 		if (uniforms.clampEdge != 0u) {
-			t = clamp((gradientPosition - startPosition) / span, 0.0, 1.0);
+			t = clamp(rawPosition, 0.0, 1.0);
 			if (rawPosition <= 0.0 || rawPosition >= 1.0) { derivative = vec2f(0.0); }
 		} else {
 			// 周期化する前に制限すると、斜め方向のコーナーなど区間外で反復が止まる。
-			t = (gradientPosition - startPosition) / span;
+			t = rawPosition;
 		}
 	}
 	// 開始〜終了の幅を基準に、区間外にも周期を繰り返す。phaseは1ごとに同じ表示に戻る。
@@ -128,7 +128,7 @@ fn evaluateGradient(fragData: FragmentIn) -> vec3f {
 		let denominator = sqrt(max(0.0, 1.0 - x * x));
 		interpolationDerivative = 0.0;
 		if (denominator > 0.0) { interpolationDerivative = x / denominator; }
-		let y = 0.5 * (1.0 - sqrt(max(0.0, 1.0 - x * x)));
+		let y = 0.5 * (1.0 - denominator);
 		t = select(1.0 - y, y, t < 0.5);
 	} else if (uniforms.interpolation == 5u) {
 		// 対称なease-in-out back。固定係数で両端付近をオーバーシュートさせる。

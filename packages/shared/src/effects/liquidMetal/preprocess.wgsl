@@ -22,7 +22,8 @@ fn initialize(@builtin(global_invocation_id) id: vec3u) {
 	let size = textureDimensions(gradient);
 	if (any(id.xy >= size)) { return; }
 	let p = vec2i(id.xy);
-	var interior = isShape(p, size);
+	// 3x3の走査には中心も含まれるので、中心を別途サンプリングしない。
+	var interior = true;
 	// Check all 8 neighbors (including diagonals) for comprehensive boundary detection.
 	for (var y = -1; y <= 1; y++) {
 		for (var x = -1; x <= 1; x++) {
