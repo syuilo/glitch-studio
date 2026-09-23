@@ -17,8 +17,7 @@ struct Uniforms {
 	angle: f32, // Direction of pattern animation in half turns (-1 to +1)
 };
 @group(0) @binding(0) var<uniform> uniforms: Uniforms;
-@group(0) @binding(1) var sourceSampler: sampler;
-@group(0) @binding(2) var sourceTexture: texture_2d<f32>;
+@group(0) @binding(1) var edgeSampler: sampler;
 @group(0) @binding(3) var edgeTexture: texture_2d<f32>;
 
 struct FragmentIn {
@@ -89,7 +88,9 @@ fn getColorChanges(c1: f32, c2: f32, stripe_p: f32, w: vec3f, blur: f32, rawBump
 }
 
 fn blurEdge3x3(uv: vec2f, radius: f32, centerSample: f32) -> f32 {
-  var texel = 1.0 / vec2f(textureDimensions(sourceTexture));
+  // 元画像の解像度やuniform/textureの違いで輪郭の柔らかさが変わらないよう、
+  // 原則短辺512pxの内部データを基準にぼかす。
+  var texel = 1.0 / vec2f(textureDimensions(edgeTexture));
   var r = radius * texel;
 
   let w1 = 1.0;
@@ -98,15 +99,15 @@ fn blurEdge3x3(uv: vec2f, radius: f32, centerSample: f32) -> f32 {
   var norm = 16.0;
   var sum = w4 * centerSample;
 
-  sum += w2 * textureSampleLevel(edgeTexture, sourceSampler, uv + vec2f(0.0, -r.y), 0.0).r;
-  sum += w2 * textureSampleLevel(edgeTexture, sourceSampler, uv + vec2f(0.0, r.y), 0.0).r;
-  sum += w2 * textureSampleLevel(edgeTexture, sourceSampler, uv + vec2f(-r.x, 0.0), 0.0).r;
-  sum += w2 * textureSampleLevel(edgeTexture, sourceSampler, uv + vec2f(r.x, 0.0), 0.0).r;
+  sum += w2 * textureSampleLevel(edgeTexture, edgeSampler, uv + vec2f(0.0, -r.y), 0.0).r;
+  sum += w2 * textureSampleLevel(edgeTexture, edgeSampler, uv + vec2f(0.0, r.y), 0.0).r;
+  sum += w2 * textureSampleLevel(edgeTexture, edgeSampler, uv + vec2f(-r.x, 0.0), 0.0).r;
+  sum += w2 * textureSampleLevel(edgeTexture, edgeSampler, uv + vec2f(r.x, 0.0), 0.0).r;
 
-  sum += w1 * textureSampleLevel(edgeTexture, sourceSampler, uv + vec2f(-r.x, -r.y), 0.0).r;
-  sum += w1 * textureSampleLevel(edgeTexture, sourceSampler, uv + vec2f(r.x, -r.y), 0.0).r;
-  sum += w1 * textureSampleLevel(edgeTexture, sourceSampler, uv + vec2f(-r.x, r.y), 0.0).r;
-  sum += w1 * textureSampleLevel(edgeTexture, sourceSampler, uv + vec2f(r.x, r.y), 0.0).r;
+  sum += w1 * textureSampleLevel(edgeTexture, edgeSampler, uv + vec2f(-r.x, -r.y), 0.0).r;
+  sum += w1 * textureSampleLevel(edgeTexture, edgeSampler, uv + vec2f(r.x, -r.y), 0.0).r;
+  sum += w1 * textureSampleLevel(edgeTexture, edgeSampler, uv + vec2f(-r.x, r.y), 0.0).r;
+  sum += w1 * textureSampleLevel(edgeTexture, edgeSampler, uv + vec2f(r.x, r.y), 0.0).r;
 
   return sum / norm;
 }
@@ -133,13 +134,12 @@ fn fs(frag: FragmentIn) -> @location(0) vec4f {
   // uniforms.contour is applied in 2 separate ranges:
   // - 0 to 0.4 sets the edge hardness, saturated above 0.4
   // - 0.5 to 1 warps the stripes direction along the edges, inactive below 0.5 (see uniforms.contour range 2)
-  var edgeRaw = textureSampleLevel(edgeTexture, sourceSampler, uv, 0.0).r;
+  var edgeRaw = textureSampleLevel(edgeTexture, edgeSampler, uv, 0.0).r;
   edge = blurEdge3x3(uv, 6.0, edgeRaw);
   edge = pow(edge, 1.6);
   edge *= smoothstep(0.0, 0.4, uniforms.contour);
   // Re-apply edges from original resolution with anti-aliasing.
-  var opacity = textureSampleLevel(sourceTexture, sourceSampler, uv, 0.0).a;
-  opacity *= select(0.0, 1.0, all(uv >= vec2f(0.0)) && all(uv <= vec2f(1.0)));
+  var opacity = read_input(frag.uv).a;
 
   var diagBLtoTR = rotatedUV.x - rotatedUV.y;
   var diagTLtoBR = rotatedUV.x + rotatedUV.y;
@@ -226,6 +226,7 @@ fn fs(frag: FragmentIn) -> @location(0) vec4f {
   var b = getColorChanges(color1.b, color2.b, stripe_b, w, blur + fwidth(stripe_b), bump, uniforms.colorTint.b);
 
   color = vec3f(r, g, b);
+  // 入力RGBではなく生成した金属色なので、ここで初めてpremultiplyする。
   color *= opacity;
 
   var bgColor = uniforms.colorBack.rgb * uniforms.colorBack.a;

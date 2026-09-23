@@ -1,8 +1,6 @@
 // Port of Paper Design's liquid-metal.ts (Apache-2.0; see LICENSE).
 // Modified: GPU preprocessing of live node alpha, without CPU readback.
 struct Pixel { interior: u32, value: f32 };
-@group(0) @binding(0) var source: texture_2d<f32>;
-@group(0) @binding(1) var sourceSampler: sampler;
 @group(0) @binding(2) var<storage, read_write> pixels: array<Pixel>;
 @group(0) @binding(3) var<storage, read_write> maximum: atomic<u32>;
 @group(0) @binding(4) var gradient: texture_storage_2d<rgba16float, write>;
@@ -10,10 +8,13 @@ struct Pixel { interior: u32, value: f32 };
 override parity: u32 = 0u;
 
 fn isShape(p: vec2i, size: vec2u) -> bool {
+	// 入力のwrapとは独立に、計算領域の外は形状外とする。
+	// 端を境界値0に固定することで、solveの隣接画素アクセスも領域内に収まる。
 	if (any(p < vec2i(0)) || any(p >= vec2i(size))) { return false; }
 	let uv = (vec2f(p) + 0.5) / vec2f(size);
+	let position = vec2f(uv.x * 2.0 - 1.0, 1.0 - uv.y * 2.0);
 	// Use only alpha to determine background vs shape (as in the original).
-	return textureSampleLevel(source, sourceSampler, uv, 0.0).a >= 0.5 / 255.0;
+	return read_input(position).a >= 0.5 / 255.0;
 }
 
 @compute @workgroup_size(8, 8)
