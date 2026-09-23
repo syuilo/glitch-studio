@@ -7,7 +7,7 @@
 - 合成: colorMix、colorBlend、dataMix、dataBlend
 - 履歴・蓄積: accumulate（外部入力のみ。履歴は同一画素をtextureLoadで読む）
 - データ生成・演算: composeVector、remap、multiply、rgbTo、snoise、gradient
-- 画像加工: symbols、channelShift、chromaticAberration、colorBlocks、lcd、rainDropsOnWindow1、rainDropsOnWindow2、vectorDisplacement、blockShuffle、blur、quadtreeFilter、tearings、pixelSort
+- 画像加工: symbols、channelShift、chromaticAberration、colorBlocks、lcd、rainDropsOnWindow1、rainDropsOnWindow2、vectorDisplacement、blockShuffle、blur、quadtreeFilter、tearings、pixelSort、bloom
 
 移行済みのエフェクトでは、入力のfit/wrapは接続設定に統一する。従来の独立したfitModeA/B/Amountやwrapパラメータは削除している。未接続の定数は位置によらず同じ値を返す。
 
@@ -31,12 +31,14 @@ gradientでは `scalarGradients: true` と `sampling: 'level0'` を指定し、�
 
 pixelSortは出力画素の中心にfit/wrapと指定されたfilter（既定値linear）を適用した画像をソートする。computeの閾値・輝度判定とfragmentの出力で同じ生成関数・入力bindingを共有し、画素インデックスを並べ替えるmerge処理は維持する。uniform/textureの2構成を保持し、追加の中間テクスチャは作らない。拡大縮小やfitによって補間される場合、以前のnearest読み取りとは閾値判定やソート順が変わる。
 
+bloomは外部入力を読むprefilterとcompositeに生成関数を使う。両方の入力binding更新には最終出力サイズを渡し、作業解像度の丸めによるfitのずれを防ぐ。prefilterのサンプル間隔にもfit後の入力画素サイズを反映し、uniform入力では間隔を0にする。内部の縮小・拡大と光の合成用テクスチャはlinear/clampを維持し、接続のfilter/wrapは適用しない。中間テクスチャの追加はなく、既存のピラミッドを使う。
+
 ## 残る移行対象
 
 今回の移行は単一出力のrender passを中心に行った。以下は個別の対応が必要なため従来方式を維持している。
 
 - frameDifference、opticalFlow、histogramなど: 履歴・整数画素・computeのアクセスと、通常の入力サンプリングを分けて扱う。
-- bloom、liquidMetalなど: 中間テクスチャを使う複数passへの適用範囲を整理する。
+- liquidMetalなど: 中間テクスチャを使う複数passへの適用範囲を整理する。
 - transform、scalarGradient: 幾何変換・微分に必要な入力サイズの参照と、fit変換の関係を整理する。
 - drosteRegression、testStructArrayなど: 個別の座標計算や構造化パラメータの扱いを含むため、別途移行する。
 

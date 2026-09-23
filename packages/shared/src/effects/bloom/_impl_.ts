@@ -1,13 +1,18 @@
 import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { implementEffect } from '../../effect-implementation.ts';
-import code from './shader.wgsl?raw';
+import { createShaderInputPipeline } from '../../shader-input-pipeline.ts';
+import { inputUvScale } from '../../shader-input.ts';
+import commonCode from './common.wgsl?raw';
+import internalCode from './shader.wgsl?raw';
+import inputCode from './input.wgsl?raw';
 import type definition from './_def_.ts';
 
 // 光の広がりを決める段階は固定し、Qualityに応じて細部用の段階を手前に追加する。
 const haloSize = 512;
 const haloLevelCount = 6;
 
-export default implementEffect<typeof definition>({
+export default implementEffect<typeof definition, 'shaderInput'>({
+	inputMode: 'shaderInput',
 	outputTextureFactories: {
 		output: ({ wgpu, resolution }) => wgpu.device.createTexture({
 			size: resolution,
@@ -15,10 +20,10 @@ export default implementEffect<typeof definition>({
 			usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
 		}),
 	},
-	init: ({ wgpu, params, resolution, fallbackTexture }) => {
+	init: ({ wgpu, params, resolution }) => {
 		const { device } = wgpu;
-		const module = device.createShaderModule({ code });
-		const uniformValues = makeStructuredView(makeShaderDataDefinitions(code).uniforms.uniforms);
+		const module = device.createShaderModule({ code: commonCode + '\n' + internalCode });
+		const uniformValues = makeStructuredView(makeShaderDataDefinitions(commonCode).uniforms.uniforms);
 		const uniformBuffer = device.createBuffer({
 			size: uniformValues.arrayBuffer.byteLength,
 			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
@@ -29,7 +34,6 @@ export default implementEffect<typeof definition>({
 				{ binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },
 				{ binding: 1, visibility: GPUShaderStage.FRAGMENT, sampler: { type: 'filtering' } },
 				{ binding: 2, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float' } },
-				{ binding: 3, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float' } },
 			],
 		});
 		const layout = device.createPipelineLayout({ bindGroupLayouts: [bindGroupLayout] });
@@ -40,12 +44,22 @@ export default implementEffect<typeof definition>({
 			primitive: { topology: 'triangle-list' },
 		});
 		// 縮小・拡大の各段階もrendererで指定された画像形式に揃える。
-		const prefilterPipeline = makePipeline('prefilter', wgpu.intermediateTextureFormat);
 		const downsamplePipeline = makePipeline('downsample', wgpu.intermediateTextureFormat);
 		// Blend into the finer level in place; no second pyramid or detail sample.
 		const blend: GPUBlendComponent = { srcFactor: 'constant', dstFactor: 'one-minus-constant' };
 		const upsamplePipeline = makePipeline('upsample', wgpu.intermediateTextureFormat, { color: blend, alpha: blend });
-		const compositePipeline = makePipeline('composite', wgpu.intermediateTextureFormat);
+		const prefilterLayout = device.createBindGroupLayout({ entries: [
+			{ binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },
+		] });
+		const prefilterGroup = device.createBindGroup({ layout: prefilterLayout, entries: [
+			{ binding: 0, resource: { buffer: uniformBuffer } },
+		] });
+		const inputPipelineOptions = {
+			device, vertex: wgpu.defaultVertexShaderModule, code: commonCode + '\n' + inputCode,
+			schema: { input: 'color' }, sampling: 'level0',
+		} as const;
+		const prefilterPipelines = createShaderInputPipeline({ ...inputPipelineOptions, internalLayouts: [prefilterLayout], entryPoint: 'prefilter', targets: [{ format: wgpu.intermediateTextureFormat }] });
+		const compositePipelines = createShaderInputPipeline({ ...inputPipelineOptions, internalLayouts: [bindGroupLayout], entryPoint: 'composite', targets: [{ format: wgpu.intermediateTextureFormat }] });
 		const longestSide = Math.max(resolution.width, resolution.height);
 		const clamp = (value: number, max: number, fallback: number) => Number.isFinite(value) ? Math.min(max, Math.max(0, value)) : fallback;
 		const getRadiusSettings = (value: readonly number[]) => {
@@ -55,13 +69,12 @@ export default implementEffect<typeof definition>({
 			return { radius, scaleX: radius > 0 ? x / radius : 0, scaleY: radius > 0 ? y / radius : 0 };
 		};
 		const getWorkingSize = (quality: number) => Math.min(device.limits.maxTextureDimension2D, Math.max(haloSize, Math.round(longestSide * Math.max(0.1, clamp(quality, 1, 0.5)))));
-		const makeBindGroup = (source: GPUTextureView, detail = source) => device.createBindGroup({
+		const makeBindGroup = (source: GPUTextureView) => device.createBindGroup({
 			layout: bindGroupLayout,
 			entries: [
 				{ binding: 0, resource: { buffer: uniformBuffer } },
 				{ binding: 1, resource: sampler },
 				{ binding: 2, resource: source },
-				{ binding: 3, resource: detail },
 			],
 		});
 		const makePass = (view: GPUTextureView, loadOp: GPULoadOp = 'clear'): GPURenderPassDescriptor => ({
@@ -96,19 +109,11 @@ export default implementEffect<typeof definition>({
 		};
 		const initialRadius = getRadiusSettings(params.radius);
 		let pyramid = makePyramid(getWorkingSize(params.quality), initialRadius.scaleX, initialRadius.scaleY);
-		let inputTexture: GPUTexture | null | undefined;
-		let prefilterGroup: GPUBindGroup;
-		let compositeGroup: GPUBindGroup;
-		const updateInput = (input: GPUTexture | null) => {
-			inputTexture = input;
-			const view = (input ?? fallbackTexture).createView();
-			prefilterGroup = makeBindGroup(view);
-			compositeGroup = makeBindGroup(view, pyramid.levels[0].view);
-		};
-		updateInput(params.input);
-		const draw = (pass: GPURenderPassEncoder, pipeline: GPURenderPipeline, group: GPUBindGroup) => {
+		let compositeGroup = makeBindGroup(pyramid.levels[0].view);
+		const draw = (pass: GPURenderPassEncoder, pipeline: GPURenderPipeline, group: GPUBindGroup, inputGroup?: GPUBindGroup) => {
 			pass.setPipeline(pipeline);
 			pass.setBindGroup(0, group);
+			if (inputGroup) pass.setBindGroup(1, inputGroup);
 			pass.draw(6);
 			pass.end();
 		};
@@ -121,20 +126,33 @@ export default implementEffect<typeof definition>({
 				if (resized) {
 					for (const { texture } of pyramid.levels) texture.destroy();
 					pyramid = makePyramid(workingSize, scaleX, scaleY);
+					compositeGroup = makeBindGroup(pyramid.levels[0].view);
 				}
-				if (resized || ctx.params.input !== inputTexture) updateInput(ctx.params.input);
 				const { levels, downPasses, upPasses, downGroups, upGroups } = pyramid;
-				const strength = inputTexture == null ? 0 : clamp(ctx.params.strength, 5, 1);
+				const input = ctx.params.input;
+				const strength = input.kind === 'uniform' && input.value.every(value => value === 0) ? 0 : clamp(ctx.params.strength, 5, 1);
+				const outputSize = ctx.outputDataMap.output.texture;
+				// 作業解像度の丸めや非等方な縮小でfitが変わらないよう、最終出力を基準にする。
+				// 入力の1画素を出力UVへ逆変換し、抽出時のサンプル間隔にも同じfitを反映する。
+				let prefilterOffset = [0, 0];
+				if (input.kind === 'texture') {
+					const scale = inputUvScale(input.texture, outputSize, input.fitMode);
+					prefilterOffset = [
+						Math.max(0, 1 / levels[0].texture.width - 1 / (input.texture.width * scale[0])) * 0.5,
+						Math.max(0, 1 / levels[0].texture.height - 1 / (input.texture.height * scale[1])) * 0.5,
+					];
+				}
 				uniformValues.set({
 					strength,
 					radiusScale: [scaleX, scaleY],
 					threshold: clamp(ctx.params.threshold, 1, 0.7),
 					softKnee: clamp(ctx.params.softKnee, 1, 0.5),
-					prefilterTexel: [1 / levels[0].texture.width, 1 / levels[0].texture.height],
+					prefilterOffset,
 				});
 				device.queue.writeBuffer(uniformBuffer, 0, uniformValues.arrayBuffer);
 				if (strength > 0) {
-					draw(ctx.createPassEncoder(ctx.commandEncoder, downPasses[0]), prefilterPipeline, prefilterGroup);
+					const prefilter = prefilterPipelines.update({ input }, outputSize);
+					draw(ctx.createPassEncoder(ctx.commandEncoder, downPasses[0]), prefilter.pipeline, prefilterGroup, prefilter.bindGroup);
 					if (radius > 0) {
 						for (let i = 1; i < levels.length; i++) {
 							draw(ctx.createPassEncoder(ctx.commandEncoder, downPasses[i]), downsamplePipeline, downGroups[i - 1]);
@@ -149,9 +167,12 @@ export default implementEffect<typeof definition>({
 						}
 					}
 				}
-				draw(ctx.createPassEncoderFor(ctx.commandEncoder, ctx.outputDataMap.output.textureView), compositePipeline, compositeGroup);
+				const composite = compositePipelines.update({ input }, outputSize);
+				draw(ctx.createPassEncoderFor(ctx.commandEncoder, ctx.outputDataMap.output.textureView), composite.pipeline, compositeGroup, composite.bindGroup);
 			},
 			dispose: () => {
+				prefilterPipelines.dispose();
+				compositePipelines.dispose();
 				uniformBuffer.destroy();
 				for (const { texture } of pyramid.levels) texture.destroy();
 			},
