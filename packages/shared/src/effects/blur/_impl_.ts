@@ -20,10 +20,10 @@ export default implementEffect<typeof definition>({
 		const bindGroup = device.createBindGroup({ layout, entries: [{ binding: 0, resource: { buffer: uniformBuffer } }] });
 		const pipelines = createShaderInputPipeline({
 			device, vertex: wgpu.defaultVertexShaderModule, code,
-			schema: { input: 'color', amount: 'scalar' },
+			schema: { input: 'color', radius: 'vector', rotation: 'scalar' },
 			targets: [{ format: wgpu.intermediateTextureFormat }],
 			internalLayouts: [layout],
-			// Amountによる画素ごとの早期return後もサンプリングするためLODを明示する。
+			// 縦横の半径による画素ごとの早期return後もサンプリングするためLODを明示する。
 			sampling: 'level0',
 		});
 
@@ -35,7 +35,8 @@ export default implementEffect<typeof definition>({
 				});
 				device.queue.writeBuffer(uniformBuffer, 0, uniformValues.arrayBuffer);
 
-				const variant = pipelines.update({ input: ctx.params.input, amount: ctx.params.amount }, ctx.outputDataMap.output.texture);
+				const { input, radius, rotation } = ctx.params;
+				const variant = pipelines.update({ input, radius, rotation }, ctx.outputDataMap.output.texture);
 				const passEncoder = ctx.createPassEncoderFor(ctx.commandEncoder, ctx.outputDataMap.output.textureView);
 				passEncoder.setPipeline(variant.pipeline);
 				passEncoder.setBindGroup(0, bindGroup);
