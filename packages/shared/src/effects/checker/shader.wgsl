@@ -8,7 +8,6 @@ struct Uniforms {
 	angle: f32,
 	scale: f32,
 	color: vec4f,
-	opacity: f32,
 };
 
 @group(0) @binding(0) var<uniform> uniforms: Uniforms;
@@ -32,7 +31,7 @@ fn fs(fragData: FragmentIn) -> @location(0) vec4f {
 	let indexSum = cellIndex.x + cellIndex.y;
 	// WGSLの剰余演算では負の値が残るため、GLSLのmod(x, 2)をfloorで再現する。
 	let checkerMask = indexSum - 2.0 * floor(indexSum * 0.5);
-	let opacity = checkerMask * uniforms.opacity * clamp(uniforms.color.a, 0.0, 1.0);
+	let opacity = checkerMask * clamp(uniforms.color.a, 0.0, 1.0);
 
 	// 元の入力alphaを維持する。定数色だけを入力alphaに合わせて乗算し、
 	// 既にpremultipliedな入力RGBには再乗算しない。色自身のalphaは強度に反映する。

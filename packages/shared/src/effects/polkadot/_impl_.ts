@@ -34,11 +34,10 @@ export default implementEffect<typeof definition>({
 					// 元のUIと同じく、scaleの二乗を短辺あたりの格子数にする。
 					scale: Math.max(0, ctx.params.scale) ** 2,
 					majorRadius: Math.max(0, ctx.params.majorRadius),
-					majorOpacity: Math.min(1, Math.max(0, ctx.params.majorOpacity)),
+					majorColor: ctx.params.majorColor,
 					minorDivisions: Math.max(0, ctx.params.minorDivisions),
 					minorRadius: Math.max(0, ctx.params.minorRadius),
-					minorOpacity: Math.min(1, Math.max(0, ctx.params.minorOpacity)),
-					color: ctx.params.color,
+					minorColor: ctx.params.minorColor,
 				});
 				device.queue.writeBuffer(uniformBuffer, 0, uniformValues.arrayBuffer);
 				const variant = pipelines.update({ input: ctx.params.input }, output);

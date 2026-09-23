@@ -3,11 +3,10 @@ struct Uniforms {
 	angle: f32,
 	scale: f32,
 	majorRadius: f32,
-	majorOpacity: f32,
 	minorDivisions: f32,
 	minorRadius: f32,
-	minorOpacity: f32,
-	color: vec4f,
+	majorColor: vec4f,
+	minorColor: vec4f,
 };
 
 @group(0) @binding(0) var<uniform> uniforms: Uniforms;
@@ -35,18 +34,18 @@ fn fs(fragData: FragmentIn) -> @location(0) vec4f {
 		centeredUv.x * cosine + centeredUv.y * sine,
 	);
 	let gridPosition = rotatedUv * uniforms.scale;
-	var opacity = 0.0;
+	var dotColor = vec4f(0.0);
 	// scaleや分割数が0なら対応するドットを無効にし、0除算を避ける。
 	if (uniforms.scale > 0.0) {
 		if (dotDistance(gridPosition) < uniforms.majorRadius * 0.5) {
-			opacity = uniforms.majorOpacity;
+			dotColor = uniforms.majorColor;
 		} else if (uniforms.minorDivisions > 0.0 && dotDistance(gridPosition * uniforms.minorDivisions) < uniforms.minorRadius * 0.5) {
 			// 主ドット内では補助ドットを重ねない（主ドットの不透明度が0でも同様）。
-			opacity = uniforms.minorOpacity;
+			dotColor = uniforms.minorColor;
 		}
 	}
 
 	// 元の入力alphaを維持する。定数色だけを入力alphaに合わせて乗算し、
 	// 既にpremultipliedな入力RGBには再乗算しない。色自身のalphaは強度に反映する。
-	return vec4f(mix(inputColor.rgb, uniforms.color.rgb * inputColor.a, opacity * clamp(uniforms.color.a, 0.0, 1.0)), inputColor.a);
+	return vec4f(mix(inputColor.rgb, dotColor.rgb * inputColor.a, clamp(dotColor.a, 0.0, 1.0)), inputColor.a);
 }
