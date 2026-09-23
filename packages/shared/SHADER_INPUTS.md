@@ -7,7 +7,7 @@
 - 合成: colorMix、colorBlend、dataMix、dataBlend
 - 履歴・蓄積: accumulate、frameDifference（外部入力のみ。履歴は同一画素をtextureLoadで読む）
 - 動き推定: opticalFlow
-- 画像集計: histogram
+- 画像集計: histogram、waveform
 - データ生成・演算: composeVector、remap、multiply、rgbTo、snoise、gradient、scalarGradient
 - 画像加工: symbols、channelShift、chromaticAberration、colorBlocks、lcd、rainDropsOnWindow1、rainDropsOnWindow2、vectorDisplacement、blockShuffle、blur、quadtreeFilter、tearings、pixelSort、bloom、drosteRegression、water、liquidMetal、transform
 
@@ -45,11 +45,12 @@ opticalFlowは履歴保存時に生成入力を読み、fit/wrap/filter適用後
 
 scalarGradientは `readGradient_input(position, true)` を使い、fit/wrap適用後の双線形補間関数の局所的な勾配を返す。従来の約1画素幅の有限差分・端の片側差分は使わず、境界も接続のwrapに従う。uniformとnearestは境界を含め勾配0とし、1x1テクスチャでもtransparentなら境界の傾きを反映する。偏微分のX成分を出力アスペクト比で割って等方的な座標へ変換し、必要ならNormalizeを行い、Strengthを掛けて各軸[-1,+1]の変位座標へ戻す。この最後の変換でもX成分をアスペクト比で割る。出力は引き続き精度設定に応じたrg16float/rg32float。局所的な微分への変更により、細かな模様や画像端では従来より鋭く変化する場合がある。
 
+waveformの共通ユーティリティはShaderInputを受け取り、computeの集計で生成入力を読む。fitSize（画像を配置する領域）、sampleSize（サンプル数）、size（波形の位置・強度の分解能）を分離する。エフェクトではfitSizeに最終出力サイズを渡し、Resolutionの間引きやVerticalの軸交換でfitが変わらないようにする。UIの解析パネルは元画像全体を解析するため、textureShaderInputでstretch/clamp/linearを明示し、fitSizeに元画像サイズを渡す。入力RGBをunpremultiplyして強度を求め、alphaを集計の重みにする既存の処理は維持する。uniformの色は全位置で同じ強度となり、未接続の透明uniformは集計に寄与せず背景と有効ならグリッドだけを表示する。集計pipelineはuniform/textureの2構成を必要時に作り、集計後の描画pipelineは共有する。中間テクスチャは追加しない。
+
 ## 残る移行対象
 
 今回の移行は単一出力のrender passを中心に行った。以下は個別の対応が必要なため従来方式を維持している。
 
-- waveform: UIの解析表示でも使う共通ユーティリティがGPUTextureを受け取るため、共有APIの対応範囲を整理する。
 - testStructArray: 構造化パラメータの実験用エフェクト。描画処理自体が未実装なので、その設計と合わせて対応する。
 
 ## 検証

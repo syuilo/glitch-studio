@@ -8,10 +8,8 @@ struct Params {
 };
 
 @group(0) @binding(0) var<uniform> params: Params;
-@group(0) @binding(1) var source: texture_2d<f32>;
 @group(0) @binding(2) var<storage, read_write> counts: array<atomic<u32>>;
 @group(0) @binding(3) var<storage, read> waveform: array<u32>;
-@group(0) @binding(4) var sourceSampler: sampler;
 
 // バッファは常に「位置×強度」で扱い、縦位置モードでは幅と高さを交換する。
 fn waveformSize() -> vec2u {
@@ -45,14 +43,15 @@ fn accumulate(@builtin(global_invocation_id) id: vec3u) {
 		return;
 	}
 	let uv = (vec2f(id.xy) + 0.5) / vec2f(params.sampleSize);
-	let color = textureSampleLevel(source, sourceSampler, uv, 0.0);
+	let position = vec2f(uv.x * 2.0 - 1.0, 1.0 - uv.y * 2.0);
+	let color = read_input(position);
 	let weight = clamp(color.a, 0.0, 1.0) * 65535.0;
 	if (weight == 0.0) {
 		return;
 	}
 	// 入力はpremultiplied alpha。色の強度を復元し、透明度は集計の重みに使う。
 	let rgb = color.rgb / color.a;
-	// サンプル解像度と表示の位置分解能は独立。入力全体をstretchで対応付ける。
+	// サンプル解像度と表示の位置分解能は独立。fit後の画像領域の位置を集計する。
 	let samplePosition = select(id.x, id.y, params.verticalPosition == 1u);
 	let positionSamples = select(params.sampleSize.x, params.sampleSize.y, params.verticalPosition == 1u);
 	let column = min(samplePosition * waveformSize().x / positionSamples, waveformSize().x - 1u);

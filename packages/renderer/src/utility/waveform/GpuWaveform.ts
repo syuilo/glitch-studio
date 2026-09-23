@@ -1,4 +1,5 @@
 import { createWaveform } from '@glitch/shared/utility/waveform/waveform.ts';
+import { textureShaderInput } from '@glitch/shared/shader-input.ts';
 import vertexShaderCode from '../../vertex.wgsl?raw';
 
 const MAX_SAMPLE_EDGE = 1024;
@@ -27,7 +28,10 @@ export class GpuWaveform {
 
 	public render(commandEncoder: GPUCommandEncoder, sourceTexture: GPUTexture) {
 		const vertical = this.positionAxis === 'y';
-		if (this.waveform.prepare(sourceTexture, {
+		// パネルの縦横比で画像を切り取らず、常に元画像全体を解析する。
+		const input = textureShaderInput(sourceTexture, { fitMode: 'stretch', wrapMode: 'clamp', filterMode: 'linear' });
+		if (this.waveform.prepare(input, {
+			fitSize: sourceTexture,
 			mode: 'rgb',
 			direction: vertical ? 'vertical' : 'horizontal',
 			intensity: 0.22,

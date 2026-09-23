@@ -3,7 +3,8 @@ import { implementEffect } from '../../effect-implementation.ts';
 import definition from './_def_.ts';
 import code from './shader.wgsl?raw';
 
-export default implementEffect<typeof definition>({
+export default implementEffect<typeof definition, 'shaderInput'>({
+	inputMode: 'shaderInput',
 	outputTextureFactories: {
 		output: ({ wgpu, resolution }) => wgpu.device.createTexture({
 			size: resolution,
