@@ -3,9 +3,11 @@
 import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import type definition from './_def_.ts';
 import { implementEffect } from '../../effect-implementation.ts';
+import { createShaderInputPipeline } from '../../shader-input-pipeline.ts';
 import code from './shader.wgsl?raw';
 
-export default implementEffect<typeof definition>({
+export default implementEffect<typeof definition, 'shaderInput'>({
+	inputMode: 'shaderInput',
 	outputTextureFactories: {
 		output: ({ wgpu, resolution }) => wgpu.device.createTexture({
 			size: resolution,
@@ -13,49 +15,23 @@ export default implementEffect<typeof definition>({
 			usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
 		}),
 	},
-	init: ({ wgpu, resolution, params, fallbackTexture }) => {
-		const { device } = wgpu;
-		const module = device.createShaderModule({ code });
-		const pipeline = device.createRenderPipeline({
-			layout: 'auto',
-			vertex: { module: wgpu.defaultVertexShaderModule },
-			fragment: { module, targets: [{ format: wgpu.intermediateTextureFormat }] },
-			primitive: { topology: 'triangle-list' },
-		});
+	init: ({ wgpu, resolution }) => {
+		const device = wgpu.device;
 		const uniformValues = makeStructuredView(makeShaderDataDefinitions(code).uniforms.uniforms);
-		const uniformBuffer = device.createBuffer({
-			size: uniformValues.arrayBuffer.byteLength,
-			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+		const uniformBuffer = device.createBuffer({ size: uniformValues.arrayBuffer.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+		const layout = device.createBindGroupLayout({ entries: [{ binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } }] });
+		const bindGroup = device.createBindGroup({ layout, entries: [{ binding: 0, resource: { buffer: uniformBuffer } }] });
+		const pipelines = createShaderInputPipeline({
+			device, vertex: wgpu.defaultVertexShaderModule, code,
+			schema: { input: 'color' }, targets: [{ format: wgpu.intermediateTextureFormat }],
+			internalLayouts: [layout], sampling: 'level0',
 		});
-		const sampler = device.createSampler({
-			magFilter: 'linear',
-			minFilter: 'linear',
-			addressModeU: 'mirror-repeat',
-			addressModeV: 'mirror-repeat',
-		});
-		let inputTexture = params.input;
-		let bindGroup: GPUBindGroup;
-		const updateInput = () => {
-			bindGroup = device.createBindGroup({
-				layout: pipeline.getBindGroupLayout(0),
-				entries: [
-					{ binding: 0, resource: { buffer: uniformBuffer } },
-					{ binding: 1, resource: sampler },
-					{ binding: 2, resource: (inputTexture ?? fallbackTexture).createView() },
-				],
-			});
-		};
-		updateInput();
 		return {
 			render: (ctx) => {
-				if (ctx.params.input !== inputTexture) {
-					inputTexture = ctx.params.input;
-					updateInput();
-				}
 				const p = ctx.params;
 				uniformValues.set({
 					...p,
-					// The input fills the output; keep the pattern isotropic in that space.
+					// 入力のfitとは独立に、出力空間で水面模様の縦横の単位を揃える。
 					aspectRatio: resolution.width / resolution.height,
 					colorHighlight: [...p.colorHighlight, p.colorHighlightAlpha],
 					// Upstream frame is milliseconds; explicit time supports deterministic seeking.
@@ -63,13 +39,15 @@ export default implementEffect<typeof definition>({
 					size: Math.max(0.01, p.size),
 				});
 				device.queue.writeBuffer(uniformBuffer, 0, uniformValues.arrayBuffer);
+				const variant = pipelines.update({ input: ctx.params.input }, ctx.outputDataMap.output.texture);
 				const pass = ctx.createPassEncoderFor(ctx.commandEncoder, ctx.outputDataMap.output.textureView);
-				pass.setPipeline(pipeline);
+				pass.setPipeline(variant.pipeline);
+				pass.setBindGroup(pipelines.inputGroup, variant.bindGroup);
 				pass.setBindGroup(0, bindGroup);
 				pass.draw(6);
 				pass.end();
 			},
-			dispose: () => uniformBuffer.destroy(),
+			dispose: () => { pipelines.dispose(); uniformBuffer.destroy(); },
 		};
 	},
 });

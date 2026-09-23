@@ -6,16 +6,12 @@ struct Params {
 	threshold: f32,
 };
 
-@group(0) @binding(0) var source: texture_2d<f32>;
-@group(0) @binding(1) var inputSampler: sampler;
-@group(1) @binding(0) var previous: texture_2d<f32>;
-@group(1) @binding(1) var<uniform> params: Params;
+@group(0) @binding(0) var previous: texture_2d<f32>;
+@group(0) @binding(1) var<uniform> params: Params;
 
 fn readInput(uv: vec2f) -> vec3f {
-	let normalized = vec2f(uv.x, -uv.y) * 0.5 + 0.5;
-	let color = textureSample(source, inputSampler, normalized);
-	// Compare appearance over black: invisible RGB contributes nothing, alpha changes remain visible.
-	let value = color.rgb * clamp(color.a, 0.0, 1.0);
+	// 入力は乗算済みRGBなので、黒背景での見た目へalphaを再乗算しない。
+	let value = read_input(uv).rgb;
 	if (HALF_PRECISION) {
 		// 比較する現在値も履歴の保存形式に揃え、丸め誤差を動きと誤認しない。
 		let bounded = clamp(value, vec3f(-65504.0), vec3f(65504.0));

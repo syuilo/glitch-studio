@@ -5,9 +5,10 @@
 現在の導入先:
 
 - 合成: colorMix、colorBlend、dataMix、dataBlend
-- 履歴・蓄積: accumulate（外部入力のみ。履歴は同一画素をtextureLoadで読む）
+- 履歴・蓄積: accumulate、frameDifference（外部入力のみ。履歴は同一画素をtextureLoadで読む）
+- 画像集計: histogram
 - データ生成・演算: composeVector、remap、multiply、rgbTo、snoise、gradient
-- 画像加工: symbols、channelShift、chromaticAberration、colorBlocks、lcd、rainDropsOnWindow1、rainDropsOnWindow2、vectorDisplacement、blockShuffle、blur、quadtreeFilter、tearings、pixelSort、bloom
+- 画像加工: symbols、channelShift、chromaticAberration、colorBlocks、lcd、rainDropsOnWindow1、rainDropsOnWindow2、vectorDisplacement、blockShuffle、blur、quadtreeFilter、tearings、pixelSort、bloom、drosteRegression、water
 
 移行済みのエフェクトでは、入力のfit/wrapは接続設定に統一する。従来の独立したfitModeA/B/Amountやwrapパラメータは削除している。未接続の定数は位置によらず同じ値を返す。
 
@@ -33,14 +34,17 @@ pixelSortは出力画素の中心にfit/wrapと指定されたfilter（既定値
 
 bloomは外部入力を読むprefilterとcompositeに生成関数を使う。両方の入力binding更新には最終出力サイズを渡し、作業解像度の丸めによるfitのずれを防ぐ。prefilterのサンプル間隔にもfit後の入力画素サイズを反映し、uniform入力では間隔を0にする。内部の縮小・拡大と光の合成用テクスチャはlinear/clampを維持し、接続のfilter/wrapは適用しない。中間テクスチャの追加はなく、既存のピラミッドを使う。
 
+frameDifferenceは比較・履歴保存で同じ入力参照と保存精度の丸めを使う。黒背景の見た目は乗算済みRGBをそのまま比較し、alphaの二重乗算を避ける。histogramは入力集計のcomputeだけ生成関数へ移し、集計用の間引き解像度とは独立に最終出力の比率でfitを決める。両者とも未接続を表す全成分0のuniformでは従来の空入力処理を行う。drosteRegressionの独立したWrap設定は入力接続へ統一する。
+
 ## 残る移行対象
 
 今回の移行は単一出力のrender passを中心に行った。以下は個別の対応が必要なため従来方式を維持している。
 
-- frameDifference、opticalFlow、histogramなど: 履歴・整数画素・computeのアクセスと、通常の入力サンプリングを分けて扱う。
-- liquidMetalなど: 中間テクスチャを使う複数passへの適用範囲を整理する。
+- opticalFlow: 低解像度の履歴フレームと移動量推定の座標系を維持しつつ、入力のfitを適用する必要がある。
+- liquidMetal: 入力サイズを基準とするPoisson前処理と内部テクスチャの座標系への適用を整理する。
 - transform、scalarGradient: 幾何変換・微分に必要な入力サイズの参照と、fit変換の関係を整理する。
-- drosteRegression、testStructArrayなど: 個別の座標計算や構造化パラメータの扱いを含むため、別途移行する。
+- waveform: UIの解析表示でも使う共通ユーティリティがGPUTextureを受け取るため、共有APIの対応範囲を整理する。
+- testStructArray: 構造化パラメータの実験用エフェクト。描画処理自体が未実装なので、その設計と合わせて対応する。
 
 ## 検証
 

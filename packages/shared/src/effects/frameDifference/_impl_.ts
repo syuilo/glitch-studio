@@ -1,8 +1,10 @@
 import { implementEffect } from '../../effect-implementation.ts';
+import { createShaderInputPipeline } from '../../shader-input-pipeline.ts';
 import code from './shader.wgsl?raw';
 import type definition from './_def_.ts';
 
-export default implementEffect<typeof definition>({
+export default implementEffect<typeof definition, 'shaderInput'>({
+	inputMode: 'shaderInput',
 	// Even a cached, unchanged input must settle back to a zero difference on the next frame.
 	disableCache: true,
 	outputTextureFactories: {
@@ -12,34 +14,24 @@ export default implementEffect<typeof definition>({
 			usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
 		}),
 	},
-	init: ({ wgpu: { device, defaultVertexShaderModule, intermediateTextureFormat, enable32bitDataTextures }, resolution, params, fallbackTexture }) => {
+	init: ({ wgpu: { device, defaultVertexShaderModule, intermediateTextureFormat, enable32bitDataTextures }, resolution }) => {
 		const historyFormat = enable32bitDataTextures ? 'rgba32float' : 'rgba16float';
-		const sampler = device.createSampler({ minFilter: 'linear', magFilter: 'linear' });
-		const module = device.createShaderModule({ code });
-		const inputLayout = device.createBindGroupLayout({
-			entries: [
-				{ binding: 0, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float' } },
-				{ binding: 1, visibility: GPUShaderStage.FRAGMENT, sampler: { type: 'filtering' } },
-			],
-		});
 		const historyLayout = device.createBindGroupLayout({
 			entries: [
 				{ binding: 0, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'unfilterable-float' } },
 				{ binding: 1, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },
 			],
 		});
-		const difference = device.createRenderPipeline({
-			layout: device.createPipelineLayout({ bindGroupLayouts: [inputLayout, historyLayout] }),
-			vertex: { module: defaultVertexShaderModule },
-			fragment: { module, entryPoint: 'difference', constants: { HALF_PRECISION: Number(!enable32bitDataTextures) }, targets: [{ format: intermediateTextureFormat }] },
-			primitive: { topology: 'triangle-list' },
-		});
-		const capture = device.createRenderPipeline({
-			layout: device.createPipelineLayout({ bindGroupLayouts: [inputLayout] }),
-			vertex: { module: defaultVertexShaderModule },
-			fragment: { module, entryPoint: 'capture', constants: { HALF_PRECISION: Number(!enable32bitDataTextures) }, targets: [{ format: historyFormat }] },
-			primitive: { topology: 'triangle-list' },
-		});
+		const inputOptions = {
+			device, vertex: defaultVertexShaderModule, code,
+			schema: { input: 'color' }, sampling: 'level0',
+			constants: { HALF_PRECISION: Number(!enable32bitDataTextures) },
+		} as const;
+		const difference = createShaderInputPipeline({ ...inputOptions, internalLayouts: [historyLayout], entryPoint: 'difference', targets: [{ format: intermediateTextureFormat }] });
+		// captureでは書き込み先の履歴を読み取りbindingに含めない。
+		const emptyLayout = device.createBindGroupLayout({ entries: [] });
+		const emptyGroup = device.createBindGroup({ layout: emptyLayout, entries: [] });
+		const capture = createShaderInputPipeline({ ...inputOptions, internalLayouts: [emptyLayout], entryPoint: 'capture', targets: [{ format: historyFormat }] });
 		// シェーダー側でも同じ保存精度に丸め、静止画に量子化由来の差分が出ないようにする。
 		const history = device.createTexture({
 			size: resolution,
@@ -61,26 +53,14 @@ export default implementEffect<typeof definition>({
 				{ binding: 1, resource: { buffer: uniforms } },
 			],
 		});
-		let input = params.input;
-		const createInputGroup = () => device.createBindGroup({
-			layout: inputLayout,
-			entries: [
-				{ binding: 0, resource: (input ?? fallbackTexture).createView() },
-				{ binding: 1, resource: sampler },
-			],
-		});
-		let inputGroup = createInputGroup();
 		let hasPrevious = false;
 		return {
 			render: ctx => {
-				if (ctx.params.input == null) {
+				// 未接続を表す透明な定数では、従来どおり出力と履歴状態をリセットする。
+				if (ctx.params.input.kind === 'uniform' && ctx.params.input.value.every(value => value === 0)) {
 					hasPrevious = false;
 					ctx.createPassEncoderFor(ctx.commandEncoder, ctx.outputDataMap.output.textureView).end();
 					return;
-				}
-				if (input !== ctx.params.input) {
-					input = ctx.params.input;
-					inputGroup = createInputGroup();
 				}
 				integers[0] = ctx.params.mode === 'luminance' ? 1 : 0;
 				floats[1] = Math.max(0, ctx.params.gain);
@@ -88,9 +68,10 @@ export default implementEffect<typeof definition>({
 				device.queue.writeBuffer(uniforms, 0, values);
 				const render = ctx.createPassEncoderFor(ctx.commandEncoder, ctx.outputDataMap.output.textureView);
 				if (hasPrevious) {
-					render.setPipeline(difference);
-					render.setBindGroup(0, inputGroup);
-					render.setBindGroup(1, historyGroup);
+					const variant = difference.update({ input: ctx.params.input }, ctx.outputDataMap.output.texture);
+					render.setPipeline(variant.pipeline);
+					render.setBindGroup(0, historyGroup);
+					render.setBindGroup(difference.inputGroup, variant.bindGroup);
 					render.draw(6);
 				}
 				render.end();
@@ -102,13 +83,17 @@ export default implementEffect<typeof definition>({
 						loadOp: 'clear', storeOp: 'store',
 					}],
 				});
-				save.setPipeline(capture);
-				save.setBindGroup(0, inputGroup);
+				const variant = capture.update({ input: ctx.params.input }, ctx.outputDataMap.output.texture);
+				save.setPipeline(variant.pipeline);
+				save.setBindGroup(0, emptyGroup);
+				save.setBindGroup(capture.inputGroup, variant.bindGroup);
 				save.draw(6);
 				save.end();
 				hasPrevious = true;
 			},
 			dispose: () => {
+				difference.dispose();
+				capture.dispose();
 				uniforms.destroy();
 				history.destroy();
 			},

@@ -9,10 +9,8 @@ struct Params {
 };
 
 @group(0) @binding(0) var<uniform> params: Params;
-@group(0) @binding(1) var source: texture_2d<f32>;
 @group(0) @binding(2) var<storage, read_write> counts: array<atomic<u32>, 769>;
 @group(0) @binding(3) var<storage, read> histogram: array<u32, 769>;
-@group(0) @binding(4) var sourceSampler: sampler;
 
 var<workgroup> localCounts: array<atomic<u32>, 768>;
 
@@ -26,7 +24,7 @@ fn accumulate(@builtin(global_invocation_id) id: vec3u, @builtin(local_invocatio
 	// Keep out-of-bounds invocations participating in both barriers.
 	if (all(id.xy < params.sampleSize)) {
 		let uv = (vec2f(id.xy) + 0.5) / vec2f(params.sampleSize);
-		let color = textureSampleLevel(source, sourceSampler, uv, 0.0);
+		let color = read_input((uv * 2.0 - 1.0) * vec2f(1.0, -1.0));
 		let weight = u32(round(clamp(color.a, 0.0, 1.0) * 255.0));
 		if (weight > 0u) {
 			if (params.mode == 1u) {

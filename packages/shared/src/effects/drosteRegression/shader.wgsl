@@ -36,9 +36,7 @@ struct Uniforms {
 	twist: f32,
 };
 
-@group(0) @binding(1) var<uniform> uniforms: Uniforms;
-@group(0) @binding(2) var sourceSampler: sampler;
-@group(0) @binding(3) var sourceTexture: texture_2d<f32>;
+@group(0) @binding(0) var<uniform> uniforms: Uniforms;
 
 struct FragmentIn {
 	@location(0) uv: vec2f,
@@ -48,13 +46,13 @@ struct FragmentIn {
 fn fs(fragData: FragmentIn) -> @location(0) vec4f {
 	let uv = convertTexCoords(fragData.uv);
 	if (uniforms.amount == 0.0) {
-		return textureSampleLevel(sourceTexture, sourceSampler, uv, 0.0);
+		return read_input(fragData.uv);
 	}
 
 	let aspectScale = vec2f(uniforms.aspectRatio, 1.0);
 	var position = (uv * 2.0 - 1.0) * aspectScale;
 	if (length(position) < EPSILON) {
-		return textureSampleLevel(sourceTexture, sourceSampler, uv, 0.0);
+		return read_input(fragData.uv);
 	}
 
 	let angle = atan(log(RATIO) / (uniforms.twist * PI));
@@ -69,5 +67,5 @@ fn fs(fragData: FragmentIn) -> @location(0) vec4f {
 	let transformedUv = position / (RATIO * aspectScale) + 0.5;
 	let sourceUv = mix(uv, transformedUv, uniforms.amount);
 	// 入力は既にpremultiplied alphaなので、そのまま返す。
-	return textureSampleLevel(sourceTexture, sourceSampler, sourceUv, 0.0);
+	return read_input((sourceUv * 2.0 - 1.0) * vec2f(1.0, -1.0));
 }

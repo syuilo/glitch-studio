@@ -16,8 +16,6 @@ struct Uniforms {
 	size: f32, // Pattern scale relative to the image (0.01 to 7)
 };
 @group(0) @binding(0) var<uniform> uniforms: Uniforms;
-@group(0) @binding(1) var sourceSampler: sampler;
-@group(0) @binding(2) var sourceTexture: texture_2d<f32>;
 
 struct FragmentIn { @location(0) uv: vec2f };
 
@@ -91,8 +89,8 @@ fn fs(frag: FragmentIn) -> @location(0) vec4f {
 	imageUV += vec2f(wavesDistortion, -wavesDistortion);
 	imageUV += vec2f(uniforms.caustic * causticNoiseDistortion);
 
-	// Mirror-repeat sampling reflects displaced UVs at the image edges.
-	let image = textureSampleLevel(sourceTexture, sourceSampler, imageUV, 0.0);
+	// 変位後の座標に、入力接続のfit/wrap/filterを適用する。
+	let image = read_input((imageUV * 2.0 - 1.0) * vec2f(1.0, -1.0));
 	// Engine textures already carry premultiplied RGB.
 	var color = image.rgb;
 	var opacity = image.a;
