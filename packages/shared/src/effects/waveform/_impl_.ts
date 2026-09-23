@@ -2,8 +2,7 @@ import type definition from './_def_.ts';
 import { createWaveform } from '@glitch/shared/utility/waveform/waveform.ts';
 import { implementEffect } from '../../effect-implementation.ts';
 
-export default implementEffect<typeof definition, 'shaderInput'>({
-	inputMode: 'shaderInput',
+export default implementEffect<typeof definition>({
 	outputTextureFactories: {
 		output: ({ wgpu, resolution }) => wgpu.device.createTexture({
 			size: resolution,

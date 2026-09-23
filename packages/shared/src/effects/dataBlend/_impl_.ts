@@ -27,8 +27,7 @@ const blendModes: Record<string, number> = {
 	luminosity: 18,
 };
 
-export default implementEffect<typeof definition, 'shaderInput'>({
-	inputMode: 'shaderInput',
+export default implementEffect<typeof definition>({
 	outputTextureFactories: {
 		output: ({ wgpu, resolution }) => wgpu.device.createTexture({
 			size: resolution, format: wgpu.enable32bitDataTextures ? 'rgba32float' : 'rgba16float', usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,

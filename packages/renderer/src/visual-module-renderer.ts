@@ -44,7 +44,6 @@ export class VisualModuleRenderer {
 	private allNodeIdMap: Map<GsNode['id'], GsNode> = new Map(); // モジュール内のノードをIDで解決する。
 	private evaledNodeParams: Map<GsNode['id'], Record<string, any>> = new Map();
 	private effectInstances: Map<GsEffectNode['id'], EffectInstance | null> = new Map();
-	private effectPerParamConstFieldTextures: Map<GsEffectNode['id'], Record<string, GPUTexture>> = new Map();
 	private outDataMapPerNodes: Map<GsEffectNode['id'], Record<string, {
 		texture: GPUTexture;
 		textureView: GPUTextureView;
@@ -61,7 +60,6 @@ export class VisualModuleRenderer {
 	private readonly intermediateTextureFormat: IntermediateTextureFormat;
 	private videoFrames: Map<string, VideoFrame>;
 	private videoFrameVersions: Map<string, number>;
-	private fallbackScalarFieldTexture: GPUTexture;
 	private assetTextures: Map<string, GPUTexture>;
 	private assets: Asset[];
 	private audioSources = new Map<AudioSourceId, AudioHistory>();
@@ -85,7 +83,6 @@ export class VisualModuleRenderer {
 		intermediateTextureFormat: IntermediateTextureFormat;
 		videoFrames: Map<string, VideoFrame>;
 		videoFrameVersions: Map<string, number>;
-		fallbackScalarFieldTexture: GPUTexture;
 		assets: Asset[];
 		visualModule: VisualModule;
 		assetTextures: Map<string, GPUTexture>;
@@ -105,7 +102,6 @@ export class VisualModuleRenderer {
 		this.intermediateTextureFormat = options.intermediateTextureFormat;
 		this.videoFrames = options.videoFrames;
 		this.videoFrameVersions = options.videoFrameVersions;
-		this.fallbackScalarFieldTexture = options.fallbackScalarFieldTexture;
 		this.assetTextures = options.assetTextures;
 		this.assets = options.assets;
 		this.audioSources = options.audioSources;
@@ -180,27 +176,6 @@ export class VisualModuleRenderer {
 		this.evaledNodeParams = evaluated.nodeParams;
 	}
 
-	private uploadNodeParamTextures() {
-		for (const node of this.nodes.filter((n): n is GsEffectNode => n.type === 'effect')) {
-			if (this.effectImplementations[node.effectId].inputMode === 'shaderInput') continue;
-			const paramDefs = this.effectDefinitions[node.effectId].paramDefs;
-			const evaluatedParams = this.evaledNodeParams.get(node.id)!;
-
-			for (const { def, param, path } of walkNodeParams(paramDefs, node.params, node.isBypass)) {
-				if (!def.canNode || param.inputSource === 'node') continue;
-				const v = getEvaluatedParam(evaluatedParams, path);
-				const tex = this.effectPerParamConstFieldTextures.get(node.id)![JSON.stringify(path)];
-				// TODO: 全てのtypeに対応 & 別関数にする
-				const components = def.dataType === 'color' ? [v?.[0] ?? 0, v?.[1] ?? 0, v?.[2] ?? 0, v?.[3] ?? 0] : def.dataType === 'vector' ? [v?.[0] ?? 0, v?.[1] ?? 0] : [v ?? 0];
-				const pixelData = this.enable32bitDataTextures
-					? new Float32Array(components)
-					: new Uint16Array(components.map(component => float32ToFloat16Bits(component)));
-				this.gpuDevice.queue.writeTexture({ texture: tex }, pixelData,
-					{ bytesPerRow: pixelData.byteLength, rowsPerImage: 1 }, { width: 1, height: 1 });
-			}
-		}
-	}
-
 	private setEffectStatus(nodeId: string, status: EffectStatus) {
 		const state = this.effectStatuses.get(nodeId);
 		if (!state) return;
@@ -252,8 +227,7 @@ export class VisualModuleRenderer {
 					key += JSON.stringify([param.fitMode ?? 'cover', param.wrapMode ?? 'repeatMirrored', param.filterMode ?? 'linear']);
 				}
 				// 外部から渡されたテクスチャは同じオブジェクトの内容が毎フレーム変わり得る。
-				if (def.canNode && this.effectImplementations[node.effectId].inputMode === 'shaderInput'
-					&& param.inputSource === 'externalParameterInput' && this.paramTextures.has(param.parameterId)) return null;
+				if (def.canNode && param.inputSource === 'externalParameterInput' && this.paramTextures.has(param.parameterId)) return null;
 				if (def.dataType === 'playerReference') {
 					key += JSON.stringify([path, 'videoFrameVersion', v == null ? 0 : this.videoFrameVersions.get(v) ?? 0]);
 					const audio = v == null ? undefined : this.audioSources.get(playerAudioSourceId(v));
@@ -283,7 +257,7 @@ export class VisualModuleRenderer {
 					videoFrame: this.videoFrames.get(v) ?? null,
 					audio: this.audioSources.get(playerAudioSourceId(v)) ?? null,
 				};
-				if (def.canNode && this.effectImplementations[node.effectId].inputMode === 'shaderInput') {
+				if (def.canNode) {
 					if (param.inputSource === 'node' && param.nodeId != null) {
 						const texture = this.getOutputTexture(this.allNodeIdMap.get(param.nodeId)!, param.outputPort);
 						return texture == null ? constantShaderInput(def.dataType, null) : textureShaderInput(texture, param);
@@ -293,13 +267,6 @@ export class VisualModuleRenderer {
 						if (texture != null) return textureShaderInput(texture);
 					}
 					return constantShaderInput(def.dataType, v);
-				}
-				if (def.canNode) {
-					if (param.inputSource === 'node') {
-						if (param.nodeId == null) return this.fallbackScalarFieldTexture;
-						return this.getOutputTexture(this.allNodeIdMap.get(param.nodeId)!, param.outputPort) ?? this.fallbackScalarFieldTexture;
-					}
-					return this.effectPerParamConstFieldTextures.get(node.id)![JSON.stringify(path)];
 				}
 				return v;
 			});
@@ -384,33 +351,6 @@ export class VisualModuleRenderer {
 			this.outDataMapPerNodes.set(node.id, outDataMap);
 		}
 
-		// 配列の追加・削除でも末端の定数テクスチャを同期する。同じパスのリソースは再利用する。
-		for (const node of newEffectNodes) {
-			const textures = this.effectPerParamConstFieldTextures.get(node.id) ?? {};
-			const used = new Set<string>();
-			for (const { def, path } of walkNodeParams(this.effectDefinitions[node.effectId].paramDefs, node.params)) {
-				if (!def.canNode || this.effectImplementations[node.effectId].inputMode === 'shaderInput') continue;
-				const key = JSON.stringify(path);
-				used.add(key);
-				// TODO: 全typeについて定義 & 別関数に切り出し
-				const channels = def.dataType === 'color' ? 'rgba' : def.dataType === 'vector' ? 'rg' : 'r';
-				const format = (channels + (this.enable32bitDataTextures ? '32float' : '16float')) as GPUTextureFormat;
-				if (textures[key]?.format === format) continue;
-				textures[key]?.destroy();
-				textures[key] = this.gpuDevice.createTexture({
-					size: [1, 1],
-					format,
-					usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_DST,
-				});
-			}
-			for (const key of Object.keys(textures)) {
-				if (used.has(key)) continue;
-				textures[key].destroy();
-				delete textures[key];
-			}
-			this.effectPerParamConstFieldTextures.set(node.id, textures);
-		}
-
 		for (const node of removedNodes) {
 			this.lazyOutputs.delete(node.id);
 			this.usedOutputPorts.delete(node.id);
@@ -429,13 +369,6 @@ export class VisualModuleRenderer {
 			if (instance) {
 				instance.dispose();
 				this.effectInstances.delete(node.id);
-			}
-			const scalarFieldTextures = this.effectPerParamConstFieldTextures.get(node.id);
-			if (scalarFieldTextures) {
-				for (const k in scalarFieldTextures) {
-					scalarFieldTextures[k].destroy();
-				}
-				this.effectPerParamConstFieldTextures.delete(node.id);
 			}
 		}
 
@@ -658,7 +591,6 @@ export class VisualModuleRenderer {
 		if (node == null) return;
 
 		this.evaluateParameters(context);
-		this.uploadNodeParamTextures();
 		this.prepareOutputPorts(node, this.getRequestedOutputIds(context));
 
 		const prepared = new Set<string>();
@@ -716,7 +648,6 @@ export class VisualModuleRenderer {
 		// 準備時と同じ評価結果を使い、式の再評価によるリソースの再読み込みを防ぐ。
 		if (this.preparedContext !== context) {
 			this.evaluateParameters(context);
-			this.uploadNodeParamTextures();
 		}
 		this.preparedContext = null;
 
@@ -777,10 +708,6 @@ export class VisualModuleRenderer {
 		for (const texture of this.paramConstTextures.values()) texture.destroy();
 		this.paramConstTextures.clear();
 		for (const notify of this.statusWaiters) notify();
-		for (const textures of this.effectPerParamConstFieldTextures.values()) {
-			for (const texture of Object.values(textures)) texture.destroy();
-		}
-		this.effectPerParamConstFieldTextures.clear();
 		for (const id of this.effectStatuses.keys()) this.clearEffectStatus(id);
 		for (const instance of this.effectInstances.values()) {
 			instance?.dispose();

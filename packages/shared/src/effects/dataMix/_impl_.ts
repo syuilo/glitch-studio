@@ -3,8 +3,7 @@ import { createShaderInputPipeline } from '../../shader-input-pipeline.ts';
 import code from './shader.wgsl?raw';
 import type definition from './_def_.ts';
 
-export default implementEffect<typeof definition, 'shaderInput'>({
-	inputMode: 'shaderInput',
+export default implementEffect<typeof definition>({
 	outputTextureFactories: {
 		output: ({ wgpu, resolution }) => wgpu.device.createTexture({
 			size: resolution, format: wgpu.enable32bitDataTextures ? 'rgba32float' : 'rgba16float', usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,

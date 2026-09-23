@@ -1,8 +1,8 @@
 # 生成するシェーダー入力
 
-`implementEffect<typeof definition, 'shaderInput'>` と `inputMode: 'shaderInput'` を指定したエフェクトでは、`canNode` パラメータを `ShaderInput` として受け取る。未移行のエフェクトは従来どおりGPUTextureを受け取る。
+すべてのエフェクトは `implementEffect<typeof definition>` で定義し、`canNode` パラメータを `ShaderInput` として受け取る。入力方式を切り替える指定や旧方式の定数テクスチャ管理は存在しない。構造体・配列内のcanNodeにも同じ規約を適用する。
 
-現在の導入先:
+生成関数の主な利用先:
 
 - 合成: colorMix、colorBlend、dataMix、dataBlend
 - 履歴・蓄積: accumulate、frameDifference（外部入力のみ。履歴は同一画素をtextureLoadで読む）
@@ -11,7 +11,7 @@
 - データ生成・演算: composeVector、remap、multiply、rgbTo、snoise、gradient、scalarGradient
 - 画像加工: symbols、channelShift、chromaticAberration、colorBlocks、lcd、rainDropsOnWindow1、rainDropsOnWindow2、vectorDisplacement、blockShuffle、blur、quadtreeFilter、tearings、pixelSort、bloom、drosteRegression、water、liquidMetal、transform
 
-移行済みのエフェクトでは、入力のfit/wrapは接続設定に統一する。従来の独立したfitModeA/B/Amountやwrapパラメータは削除している。未接続の定数は位置によらず同じ値を返す。
+入力のfit/wrapは接続設定に統一する。従来の独立したfitModeA/B/Amountやwrapパラメータは削除している。未接続の定数は位置によらず同じ値を返す。
 
 - `uniform` は画面全体で同じ値。リテラルだけでなくexpressionやautomationの評価値も含む。f32のuniformへ書き込み、1×1テクスチャを作らない。`enable32bitDataTextures` は保存するテクスチャの精度設定なので、このuniformを16bitへ丸めない。
 - `texture` は接続元の出力と、その入力接続のfit/wrap/filter設定を持つ。省略時は `cover` / `repeatMirrored` / `linear`。入力テクスチャの保存形式は変更しない。
@@ -53,7 +53,7 @@ let color = read_images(index, position);
 
 fitは座標変換だけを行い、containの余白にもwrapを適用する。clampは端を伸ばし、repeatは繰り返し、repeatMirroredは鏡像で繰り返す。transparentはlinearの場合にclamp samplerへ透明な隣接画素との補間分を掛け、nearestの場合はUVの[0,1)外を0にする。定数入力にはfit/wrap/filterを適用しない。参照位置の変換だけを共通化し、ベクトルの成分変換やエフェクト固有の幾何計算は行わない。
 
-入力ポートのFilter modeメニューでlinear／nearestを選択する。変更はUndo/Redoに対応し、配線元の差し替えでも保持する。未接続入力では設定できない。新方式へ未移行のエフェクトにはこの設定は適用されない。wrap/filterの組合せごとにsamplerをキャッシュし、filterの変更ではpipelineを再生成しない。描画結果のキャッシュは無効化する。
+入力ポートのFilter modeメニューでlinear／nearestを選択する。変更はUndo/Redoに対応し、配線元の差し替えでも保持する。未接続入力では設定できない。wrap/filterの組合せごとにsamplerをキャッシュし、filterの変更ではpipelineを再生成しない。描画結果のキャッシュは無効化する。
 
 通常はimplicit samplingを使う。生成関数は分岐の外でtextureSampleを呼ぶが、呼び出し側にもfragmentのuniformな制御フローが必要。computeや画素ごとに異なる分岐から呼ぶ場合は生成時に `level0` を指定する。履歴の厳密な整数画素アクセスは、このAPIへ置き換えない。
 
@@ -75,11 +75,11 @@ scalarGradientは `readGradient_input(position, true)` を使い、fit/wrap適�
 
 waveformの共通ユーティリティはShaderInputを受け取り、computeの集計で生成入力を読む。fitSize（画像を配置する領域）、sampleSize（サンプル数）、size（波形の位置・強度の分解能）を分離する。エフェクトではfitSizeに最終出力サイズを渡し、Resolutionの間引きやVerticalの軸交換でfitが変わらないようにする。UIの解析パネルは元画像全体を解析するため、textureShaderInputでstretch/clamp/linearを明示し、fitSizeに元画像サイズを渡す。入力RGBをunpremultiplyして強度を求め、alphaを集計の重みにする既存の処理は維持する。uniformの色は全位置で同じ強度となり、未接続の透明uniformは集計に寄与せず背景と有効ならグリッドだけを表示する。集計pipelineはuniform/textureの2構成を必要時に作り、集計後の描画pipelineは共有する。中間テクスチャは追加しない。
 
-## 残る移行対象
+## 特殊な入力処理
 
-今回の移行は単一出力のrender passを中心に行った。以下は個別の対応が必要なため従来方式を維持している。
+ShaderInputは入力の受け渡し規約であり、すべての読み取りを生成関数へ強制するものではない。整数画素の厳密な参照や専用テクスチャへの変換が必要なら、texture入力のGPUTextureを直接扱い、uniformの場合もエフェクトの仕様に応じて処理する。画像素材・動画フレーム・音声などのcanNodeではないパラメータの受け渡しは、それぞれの型に従う。
 
-- testStructArray: 構造化パラメータの実験用エフェクト。描画処理自体が未実装なので、その設計と合わせて対応する。
+Visual Moduleの定数パラメータをノード出力として渡す境界では、出力がテクスチャなので1x1テクスチャを作る。これはエフェクトのcanNode定数入力とは別用途であり、画像未指定・読み込み前に使うfallbackTextureとともに維持する。testStructArrayもShaderInputを受け取るが、描画処理はまだ実装していない。
 
 ## 検証
 

@@ -327,8 +327,8 @@ test('uses shared scalar types for node inputs and module outputs', async () => 
 });
 
 for (const enable32bitDataTextures of [false, true]) {
-	// 評価結果を指定精度で書き込み、prepare後は再評価せず、次フレームでは更新する
-	test(`uploads evaluated parameters and reuses preparation with ${enable32bitDataTextures ? 32 : 16}-bit textures`, async t => {
+	// 全エフェクトが定数をShaderInputで受け取り、保存精度に依存せず、prepareの評価結果を再利用する。
+	test(`resolves uniform inputs and reuses preparation with ${enable32bitDataTextures ? 32 : 16}-bit storage`, async t => {
 		const originalUsage = Object.getOwnPropertyDescriptor(globalThis, 'GPUTextureUsage');
 		const originalQueue = Object.getOwnPropertyDescriptor(globalThis, 'GPUQueue');
 		globalThis.GPUTextureUsage = { TEXTURE_BINDING: 4, RENDER_ATTACHMENT: 16, COPY_DST: 2 };
@@ -342,7 +342,8 @@ for (const enable32bitDataTextures of [false, true]) {
 		const { VisualModuleRenderer } = await loadSource('visual-module-renderer');
 		const writes = [];
 		const renderedValues = [];
-		const createTexture = (descriptor = {}) => ({ ...descriptor, createView: () => ({}), destroy() {} });
+		const allocated = [];
+		const createTexture = (descriptor = {}) => { const texture = { ...descriptor, createView: () => ({}), destroy() {} }; allocated.push(texture); return texture; };
 		const device = {
 			createTexture,
 			queue: { writeTexture({ texture }, data, layout) {
@@ -362,36 +363,36 @@ for (const enable32bitDataTextures of [false, true]) {
 		const renderer = new VisualModuleRenderer({
 			gpuDevice: device, gpuContext: {}, defaultVertexShaderModule: {}, timingHelper: {},
 			enableStats: false, enable32bitDataTextures, intermediateTextureFormat: 'rgba8unorm',
-			resolution: { width: 16, height: 16 }, fallbackTexture: createTexture(), fallbackScalarFieldTexture: createTexture(),
+			resolution: { width: 16, height: 16 }, fallbackTexture: createTexture(),
 			videoFrames: new Map(), videoFrameVersions: new Map(), assetTextures: new Map(), audioSources: new Map(), assets: [],
 			effectDefinitions: definitions,
 			effectImplementations: { test: {
 				outputTextureFactories: { image: () => output },
-				init: () => ({ render: ({ params }) => renderedValues.push(params.group.amount.data[0]), dispose() {} }),
+				init: () => ({ render: ({ params }) => renderedValues.push(params.group), dispose() {} }),
 			} },
 			visualModule: {
 				id: 'module', name: 'Test', paramDefs: [], automationGraphs: [],
 				outputDefs: [{ id: 'out', isPrimaryOutput: true }],
-				nodes: [node({ group: literal({ amount: expression('TIME + 1'), vector: literal([0.5, -1]), color: literal([1, 0.5, 0, 0.25]) }) }),
+				nodes: [node({ group: literal({ amount: expression('TIME + 1'), vector: literal([0.123456789, -1]), color: literal([1, 0.5, 0, 0.25]) }) }),
 					{ id: 'out', type: 'globalOut', inputs: { out: { nodeId: 'node', outputPort: 'image' } } }],
 			},
 		});
 		t.after(() => renderer.destroy());
 		const frame = { time: 500, timeDelta: 0, paramValues: {}, pointerPosition: { x: 0, y: 0 }, pointerPositionPrev: { x: 0, y: 0 } };
 		await renderer.prepare(frame, new AbortController().signal);
-		assert.equal(writes.length, 3);
+		assert.equal(writes.length, 0);
+		assert.equal(allocated.length, 2, 'only the output and image fallback exist');
 		assert.deepEqual(renderedValues, []);
-		assert.deepEqual(writes.map(write => write.texture.format), enable32bitDataTextures
-			? ['r32float', 'rg32float', 'rgba32float'] : ['r16float', 'rg16float', 'rgba16float']);
-		assert.deepEqual(writes.map(write => Array.from(write.data)), enable32bitDataTextures
-			? [[1.5], [0.5, -1], [1, 0.5, 0, 0.25]] : [[0x3e00], [0x3800, 0xbc00], [0x3c00, 0x3800, 0, 0x3400]]);
-		assert.deepEqual(writes.map(write => write.layout.bytesPerRow), enable32bitDataTextures ? [4, 8, 16] : [2, 4, 8]);
 		assert.strictEqual(renderer.render(frame, {}), output);
-		assert.equal(writes.length, 3);
-		assert.deepEqual(renderedValues, [enable32bitDataTextures ? 1.5 : 0x3e00]);
+		assert.equal(writes.length, 0);
+		assert.deepEqual(renderedValues, [{
+			amount: { kind: 'uniform', value: [1.5] },
+			vector: { kind: 'uniform', value: [0.123456789, -1] },
+			color: { kind: 'uniform', value: [0.25, 0.125, 0, 0.25] },
+		}]);
 		renderer.render({ ...frame, time: 1500 }, {});
-		assert.equal(writes.length, 6);
-		assert.deepEqual(renderedValues, enable32bitDataTextures ? [1.5, 2.5] : [0x3e00, 0x4100]);
+		assert.equal(writes.length, 0);
+		assert.deepEqual(renderedValues.map(value => value.amount.value[0]), [1.5, 2.5]);
 		renderer.render({ ...frame, time: 1500 }, {});
 		assert.equal(renderedValues.length, 2);
 	});

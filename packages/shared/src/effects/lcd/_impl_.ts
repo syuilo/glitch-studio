@@ -4,8 +4,7 @@ import { implementEffect } from '../../effect-implementation.ts';
 import { createShaderInputPipeline } from '../../shader-input-pipeline.ts';
 import code from './shader.wgsl?raw';
 
-export default implementEffect<typeof definition, 'shaderInput'>({
-	inputMode: 'shaderInput',
+export default implementEffect<typeof definition>({
 	outputTextureFactories: {
 		output: ({ wgpu, resolution }) => wgpu.device.createTexture({
 			size: resolution,

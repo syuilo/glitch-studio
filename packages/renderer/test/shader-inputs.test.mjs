@@ -51,7 +51,6 @@ test('resolves nested array inputs and invalidates sampling changes', () => {
 	const { device, calls, encoder } = gpuFixture();
 	const captured = [];
 	const probe = {
-		inputMode: 'shaderInput',
 		outputTextureFactories: { output: ({ wgpu, resolution }) => wgpu.device.createTexture({ size: resolution, format: 'rgba8unorm' }) },
 		init: () => ({ render: ctx => captured.push(ctx.params), dispose() {} }),
 	};

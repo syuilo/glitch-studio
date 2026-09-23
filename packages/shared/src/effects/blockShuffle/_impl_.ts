@@ -6,8 +6,7 @@ import type definition from './_def_.ts';
 
 const fitModes = { stretch: 0, cover: 1, contain: 2 };
 
-export default implementEffect<typeof definition, 'shaderInput'>({
-	inputMode: 'shaderInput',
+export default implementEffect<typeof definition>({
 	outputTextureFactories: {
 		output: ({ wgpu, resolution }) => wgpu.device.createTexture({
 			size: resolution,

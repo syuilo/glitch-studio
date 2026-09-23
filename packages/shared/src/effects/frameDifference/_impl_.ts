@@ -3,8 +3,7 @@ import { createShaderInputPipeline } from '../../shader-input-pipeline.ts';
 import code from './shader.wgsl?raw';
 import type definition from './_def_.ts';
 
-export default implementEffect<typeof definition, 'shaderInput'>({
-	inputMode: 'shaderInput',
+export default implementEffect<typeof definition>({
 	// Even a cached, unchanged input must settle back to a zero difference on the next frame.
 	disableCache: true,
 	outputTextureFactories: {

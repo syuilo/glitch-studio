@@ -9,8 +9,9 @@ import type { Asset } from './types.ts';
 // 画像の中間処理でフィルタリング・ブレンド可能なRGBA形式。
 export type IntermediateTextureFormat = 'rgba8unorm' | 'bgra8unorm' | 'rgba16float';
 
-type RuntimeEffectOptionScalarValue<T extends EffectOptionsSchema[string], Mode extends InputMode> =
-	T extends { canNode: true } ? (Mode extends 'shaderInput' ? ShaderInput : GPUTexture) :
+type RuntimeEffectOptionScalarValue<T extends EffectOptionsSchema[string]> =
+	// canNodeは常に定数または接続情報を持つShaderInput。構造体・配列内でも同じ規約を使う。
+	T extends { canNode: true } ? ShaderInput :
 	T extends ScalarOptionSchema ? number :
 	T extends BooleanOptionSchema ? boolean :
 	T extends ColorOptionSchema ? Readonly<[number, number, number, number]> :
@@ -23,24 +24,22 @@ type RuntimeEffectOptionScalarValue<T extends EffectOptionsSchema[string], Mode 
 	T extends VideoAssetReferenceOptionSchema ? Pick<Asset, 'id' | 'fileData'> | null :
 	T extends PlayerReferenceOptionSchema ? { videoFrame: VideoFrame | null; audio: AudioHistory | null; } | null :
 	T extends StructOptionSchema ? {
-		[K in keyof T['fields']]: RuntimeEffectOptionValue<T['fields'][K], Mode>;
+		[K in keyof T['fields']]: RuntimeEffectOptionValue<T['fields'][K]>;
 	} :
 	never;
 
-type RuntimeEffectOptionValue<T extends EffectOptionsSchema[string], Mode extends InputMode> = T extends unknown ?
-	T extends ArrayOptionSchema ? RuntimeEffectOptionValue<T['item'], Mode>[] : RuntimeEffectOptionScalarValue<T, Mode> :
+type RuntimeEffectOptionValue<T extends EffectOptionsSchema[string]> = T extends unknown ?
+	T extends ArrayOptionSchema ? RuntimeEffectOptionValue<T['item']>[] : RuntimeEffectOptionScalarValue<T> :
 	never;
 
-export type InputMode = 'texture' | 'shaderInput';
-
-export type GetRuntimeEffectOptionsSchemaValues<T extends EffectOptionsSchema, Mode extends InputMode = 'texture'> = {
-	[K in keyof T]: RuntimeEffectOptionValue<T[K], Mode>;
+export type GetRuntimeEffectOptionsSchemaValues<T extends EffectOptionsSchema> = {
+	[K in keyof T]: RuntimeEffectOptionValue<T[K]>;
 };
 
-export type EffectInstance<Options extends EffectOptionsSchema = any, Outputs extends EffectOutputsSchema = any, Mode extends InputMode = InputMode> = {
+export type EffectInstance<Options extends EffectOptionsSchema = any, Outputs extends EffectOutputsSchema = any> = {
 	readonly cacheVersion?: number;
 	/** パラメータ変更による非同期の準備を開始する。完了はreportStatusで通知する。 */
-	prepare?: (params: GetRuntimeEffectOptionsSchemaValues<Options, Mode>) => void;
+	prepare?: (params: GetRuntimeEffectOptionsSchemaValues<Options>) => void;
 	render: (ctx: {
 		time: number;
 		timeDelta: number;
@@ -60,18 +59,16 @@ export type EffectInstance<Options extends EffectOptionsSchema = any, Outputs ex
 		createPassEncoderFor: (commandEncoder: GPUCommandEncoder, view: GPUTextureView) => GPURenderPassEncoder;
 		createPassEncoder: (commandEncoder: GPUCommandEncoder, descriptor: GPURenderPassDescriptor) => GPURenderPassEncoder;
 		createComputePassEncoder: (commandEncoder: GPUCommandEncoder, descriptor?: GPUComputePassDescriptor) => GPUComputePassEncoder;
-		params: GetRuntimeEffectOptionsSchemaValues<Options, Mode>;
+		params: GetRuntimeEffectOptionsSchemaValues<Options>;
 	}) => void;
 	dispose: () => void;
 };
 
-export type EffectImplementation<Definition extends Pick<EffectDefinition, 'paramDefs' | 'outputs'> = EffectDefinition, Options extends EffectOptionsSchema = Definition['paramDefs'], Mode extends InputMode = InputMode> = {
-	/** 移行済みのエフェクトだけ、定数値と接続情報を保持した入力を受け取る。 */
-	inputMode?: Mode;
+export type EffectImplementation<Definition extends Pick<EffectDefinition, 'paramDefs' | 'outputs'> = EffectDefinition, Options extends EffectOptionsSchema = Definition['paramDefs']> = {
 	disableCache?: boolean;
 	needsPreviousFrame?: boolean;
 	/** 入力に合わせて出力サイズを決めるエフェクト用。未指定なら描画先の解像度を使う。 */
-	getOutputResolution?: (params: GetRuntimeEffectOptionsSchemaValues<Options, Mode>, outputPort: Extract<keyof Definition['outputs'], string>) => { width: number; height: number };
+	getOutputResolution?: (params: GetRuntimeEffectOptionsSchemaValues<Options>, outputPort: Extract<keyof Definition['outputs'], string>) => { width: number; height: number };
 	outputTextureFactories: {
 		// canLazyAllocation=trueのポートだけ遅延確保する。それ以外はノード追加時に確保する。
 		[K in keyof Definition['outputs']]: (args: {
@@ -94,11 +91,11 @@ export type EffectImplementation<Definition extends Pick<EffectDefinition, 'para
 			enable32bitDataTextures: boolean;
 			intermediateTextureFormat: IntermediateTextureFormat;
 		};
-		params: GetRuntimeEffectOptionsSchemaValues<Options, Mode>;
+		params: GetRuntimeEffectOptionsSchemaValues<Options>;
 		fallbackTexture: GPUTexture;
-	}) => EffectInstance<Options, Definition['outputs'], Mode>;
+	}) => EffectInstance<Options, Definition['outputs']>;
 };
 
-export function implementEffect<Definition extends Pick<EffectDefinition, 'paramDefs' | 'outputs'>, Mode extends InputMode = 'texture'>(def: EffectImplementation<Definition, Definition['paramDefs'], Mode>): EffectImplementation<Definition, Definition['paramDefs'], Mode> {
+export function implementEffect<Definition extends Pick<EffectDefinition, 'paramDefs' | 'outputs'>>(def: EffectImplementation<Definition, Definition['paramDefs']>): EffectImplementation<Definition, Definition['paramDefs']> {
 	return def;
 }

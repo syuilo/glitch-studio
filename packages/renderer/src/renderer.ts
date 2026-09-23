@@ -1,6 +1,5 @@
 import { createTextureFromSource, makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { AudioHistory } from '@glitch/shared/audio-history.ts';
-import { float32ToFloat16Bits } from '@glitch/shared/utility/float32ToFloat16Bits.ts';
 import { genId } from '@glitch/shared/utility/id.ts';
 import defaultVertexShaderCode from './vertex.wgsl?raw';
 import TimingHelper from './utility/TimingHelper.ts';
@@ -30,7 +29,6 @@ export class MainRenderer {
 	private resolution: { width: number; height: number; };
 	private defaultVertexShaderModule: GPUShaderModule;
 	private fallbackTexture: GPUTexture;
-	private fallbackScalarFieldTexture: GPUTexture;
 	private enableStats = true;
 	private highlightClipping = false;
 	private opaqueOutput = false;
@@ -154,23 +152,6 @@ export class MainRenderer {
 			format: this.intermediateTextureFormat,
 			usage: GPUTextureUsage.TEXTURE_BINDING,
 		});
-
-		this.fallbackScalarFieldTexture = this.gpuDevice.createTexture({
-			size: [1, 1],
-			format: this.enable32bitDataTextures ? 'r32float' : 'r16float',
-			usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_DST,
-		});
-
-		const sclarPixelData = this.enable32bitDataTextures
-			? new Float32Array([0])
-			: new Uint16Array([float32ToFloat16Bits(0)]);
-
-		this.gpuDevice.queue.writeTexture(
-			{ texture: this.fallbackScalarFieldTexture },
-			sclarPixelData,
-			{ bytesPerRow: sclarPixelData.byteLength, rowsPerImage: 1 },
-			{ width: 1, height: 1 },
-		);
 
 		this.defaultVertexShaderModule = this.gpuDevice.createShaderModule({
 			code: defaultVertexShaderCode,
@@ -404,7 +385,6 @@ export class MainRenderer {
 			gpuContext: this.gpuContext,
 			defaultVertexShaderModule: this.defaultVertexShaderModule,
 			fallbackTexture: this.fallbackTexture,
-			fallbackScalarFieldTexture: this.fallbackScalarFieldTexture,
 			resolution: this.resolution,
 			enable32bitDataTextures: this.enable32bitDataTextures,
 			intermediateTextureFormat: this.intermediateTextureFormat,
@@ -458,7 +438,6 @@ export class MainRenderer {
 			gpuContext: this.gpuContext,
 			defaultVertexShaderModule: this.defaultVertexShaderModule,
 			fallbackTexture: this.fallbackTexture,
-			fallbackScalarFieldTexture: this.fallbackScalarFieldTexture,
 			resolution: this.resolution,
 			enable32bitDataTextures: this.enable32bitDataTextures,
 			intermediateTextureFormat: this.intermediateTextureFormat,
