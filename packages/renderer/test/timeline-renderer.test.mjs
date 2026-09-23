@@ -60,14 +60,14 @@ function fixture(overrides = {}) {
 	return { renderer, prepared, rendered, created, destroyed, presented, get clears() { return clears; } };
 }
 
-// 下から順に同じコンテキストで準備・描画し、出力を次の主入力へ渡す
-test('renders layers in order with local time, progress and chained outputs', async () => {
+// 下から順にレイヤー内の時刻・終端で準備・描画し、出力を次の主入力へ渡す
+test('renders layers in order with local time, end time and chained outputs', async () => {
 	const f = fixture();
 	const timeline = [entry('bottom', 100, 900), entry('top', 200, 600)];
 	await f.renderer.renderAt(400, timeline);
 	assert.deepEqual(f.rendered.map(item => item.id), ['bottom', 'top']);
 	assert.deepEqual(f.prepared.map(item => item.context.time), [300, 200]);
-	assert.deepEqual(f.prepared.map(item => item.context.progress), [0.375, 0.5]);
+	assert.deepEqual(f.prepared.map(item => item.context.endTime), [800, 400]);
 	assert.deepEqual(f.prepared.map(item => item.context.input), ['transparent', 'bottom']);
 	for (let i = 0; i < 2; i++) {
 		assert.strictEqual(f.prepared[i].context, f.rendered[i].context);
@@ -273,7 +273,7 @@ test('chains different layer types without requiring visual module fields', asyn
 						async prepare(context) { prepared.push(context); },
 						async render(context) {
 							assert.equal(context.time, 300);
-							assert.equal(context.progress, 0.375);
+							assert.equal(context.endTime, 800);
 							assert.strictEqual(context.input, fallback);
 							assert.equal('paramValues' in context, false);
 							assert.equal('paramInputs' in context, false);
@@ -300,7 +300,7 @@ test('chains different layer types without requiring visual module fields', asyn
 	assert.strictEqual(rendered[0].paramValues, params);
 	assert.deepEqual([...rendered[0].paramInputs], [['main', inputFrame], ['second', inputFrame]]);
 	assert.equal(rendered[0].time, 200);
-	assert.equal(rendered[0].progress, 0.5);
+	assert.equal(rendered[0].endTime, 400);
 	assert.deepEqual(rendered[0].pointerPosition, { x: -99999, y: -99999 });
 	assert.deepEqual(presented, [{ output: finalFrame, gpuTime: 3 }]);
 	renderer.clear();
@@ -322,8 +322,8 @@ test('keeps visual module contexts separate across overlapping preparation', asy
 		async render(context) { rendered.push(context); return { output: context.paramInputs.get('input'), gpuTime: 0 }; },
 		destroy() {},
 	});
-	const first = { time: 1, timeDelta: 0, progress: 0.1, input: 'first' };
-	const second = { time: 2, timeDelta: 0, progress: 0.2, input: 'second' };
+	const first = { time: 1, timeDelta: 0, endTime: 10, input: 'first' };
+	const second = { time: 2, timeDelta: 0, endTime: 20, input: 'second' };
 	const controller = new AbortController();
 	const oldPreparation = layer.prepare(first, controller.signal);
 	await layer.prepare(second, controller.signal);
@@ -334,5 +334,6 @@ test('keeps visual module contexts separate across overlapping preparation', asy
 	assert.strictEqual(rendered[0], prepared[1]);
 	assert.strictEqual(rendered[1], prepared[0]);
 	assert.deepEqual(rendered.map(context => context.paramInputs.get('input')), ['second', 'first']);
+	assert.deepEqual(rendered.map(context => context.endTime), [20, 10]);
 	assert.ok(signals.every(signal => signal === controller.signal));
 });

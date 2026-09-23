@@ -78,7 +78,8 @@ export class TimelineRenderer<Output, Entry extends TimelineRenderEntry = Timeli
 					time: time - entry.startTimeMs,
 					// 新規レイヤーには履歴がない。途中からの書き出しでも過去のフレームは再現しない。
 					timeDelta: isNewLayer ? 0 : timeDelta,
-					endTime: entry.endTimeMs,
+					// timeと同じレイヤー内の時刻に揃え、PROGRESSや終端合わせの基準が開始位置でずれないようにする。
+					endTime: entry.endTimeMs - entry.startTimeMs,
 					input: output,
 				};
 				await layer.prepare(context, controller.signal);

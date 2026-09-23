@@ -8,7 +8,7 @@ import { build } from 'esbuild';
 const bundled = await build({
 	absWorkingDir: fileURLToPath(new URL('../', import.meta.url)),
 	stdin: {
-		contents: "export { COMMAND_DEFS } from './src/commands.ts'; export { inputSamplingMenu } from './src/utility/input-sampling-menu.ts'; export { reactive } from 'vue';",
+		contents: "export { COMMAND_DEFS } from './src/commands.ts'; export { getNodeInputSamplingMenuItems } from './src/utility/input-sampling-menu.ts'; export { reactive } from 'vue';",
 		resolveDir: fileURLToPath(new URL('../', import.meta.url)), loader: 'ts',
 	},
 	bundle: true, platform: 'node', format: 'cjs', write: false,
@@ -23,7 +23,7 @@ const bundled = await build({
 });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', bundled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
-const { inputSamplingMenu, COMMAND_DEFS, reactive } = module.exports;
+const { getNodeInputSamplingMenuItems, COMMAND_DEFS, reactive } = module.exports;
 
 function fixture() {
 	const node = reactive({ id: 'node', type: 'effect', effectId: 'test', params: { inputs: { inputSource: 'literal', value: [{ inputSource: 'node', nodeId: 'source', outputPort: 'output' }] } } });
@@ -34,7 +34,7 @@ function fixture() {
 		const value = node.params.inputs.value[0];
 		return value.inputSource === 'node' && value.nodeId != null ? value : null;
 	};
-	const menu = inputSamplingMenu(read, value => {
+	const menu = getNodeInputSamplingMenuItems(read, value => {
 		const command = COMMAND_DEFS.updateParamAsNode.create({ ...target, value });
 		commands.push(command);
 		command.execute(state);
