@@ -30,9 +30,7 @@ export default implementEffect<typeof definition>({
 				const shortDimension = Math.min(output.width, output.height);
 				uniformValues.set({
 					aspect: [output.width / shortDimension, output.height / shortDimension],
-					// Glitch Studioの角度は1が180度。元のシェーダーと同じ向きに回転する。
-					angle: -ctx.params.angle * Math.PI,
-					// 元のUIと同じく、scaleの二乗を短辺あたりの格子数にする。
+					angle: ctx.params.angle * Math.PI,
 					scale: Math.max(0, ctx.params.scale) ** 2,
 					color: ctx.params.color,
 				});

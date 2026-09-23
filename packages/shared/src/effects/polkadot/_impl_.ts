@@ -30,8 +30,7 @@ export default implementEffect<typeof definition>({
 				const shortDimension = Math.min(output.width, output.height);
 				uniformValues.set({
 					aspect: [output.width / shortDimension, output.height / shortDimension],
-					angle: -ctx.params.angle * Math.PI,
-					// 元のUIと同じく、scaleの二乗を短辺あたりの格子数にする。
+					angle: ctx.params.angle * Math.PI,
 					scale: Math.max(0, ctx.params.scale) ** 2,
 					majorRadius: Math.max(0, ctx.params.majorRadius),
 					majorColor: ctx.params.majorColor,

@@ -30,8 +30,8 @@ fn fs(fragData: FragmentIn) -> @location(0) vec4f {
 	let cosine = cos(uniforms.angle);
 	let sine = sin(uniforms.angle);
 	let rotatedUv = vec2f(
-		centeredUv.x * sine - centeredUv.y * cosine,
-		centeredUv.x * cosine + centeredUv.y * sine,
+		centeredUv.x * cosine - centeredUv.y * sine,
+		centeredUv.x * sine + centeredUv.y * cosine,
 	);
 	let gridPosition = rotatedUv * uniforms.scale;
 	var dotColor = vec4f(0.0);
