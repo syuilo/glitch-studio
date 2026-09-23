@@ -1,12 +1,16 @@
 import { computed } from 'vue';
 import type { NodeOutputReference } from '@glitch/shared/types.ts';
 import type { MenuItem } from '@/types/menu.ts';
+import { i18n } from '@/i18n.ts';
 
 /** メニュー表示中のUndoや接続変更にも追従し、変更時には最新の接続情報を保持する。 */
-export function inputSamplingMenu(read: () => NodeOutputReference | null, update: (connection: NodeOutputReference) => void): MenuItem[] {
+export function getNodeInputSamplingMenuItems(read: () => NodeOutputReference | null, update: (connection: NodeOutputReference) => void): MenuItem[] {
 	const disabled = computed(() => read() == null);
 	return [{
-		type: 'radio', text: 'Fit mode', disabled,
+		type: 'radio',
+		text: 'Fit Mode',
+		disabled,
+		caption: computed(() => i18n.t(`_FitModes.${read()?.fitMode ?? 'cover'}`)),
 		ref: computed({
 			get: () => read()?.fitMode ?? 'cover',
 			set: (fitMode: NonNullable<NodeOutputReference['fitMode']>) => {
@@ -14,9 +18,12 @@ export function inputSamplingMenu(read: () => NodeOutputReference | null, update
 				if (connection) update({ ...connection, fitMode });
 			},
 		}),
-		options: [{ label: 'Stretch', value: 'stretch' }, { label: 'Cover', value: 'cover' }, { label: 'Contain', value: 'contain' }],
+		options: [{ label: i18n.t('_FitModes.stretch'), value: 'stretch' }, { label: i18n.t('_FitModes.cover'), value: 'cover' }, { label: i18n.t('_FitModes.contain'), value: 'contain' }],
 	}, {
-		type: 'radio', text: 'Wrap mode', disabled,
+		type: 'radio',
+		text: 'Wrap Mode',
+		disabled,
+		caption: computed(() => i18n.t(`_WrapModes.${read()?.wrapMode ?? 'repeatMirrored'}`)),
 		ref: computed({
 			get: () => read()?.wrapMode ?? 'repeatMirrored',
 			set: (wrapMode: NonNullable<NodeOutputReference['wrapMode']>) => {
@@ -24,9 +31,12 @@ export function inputSamplingMenu(read: () => NodeOutputReference | null, update
 				if (connection) update({ ...connection, wrapMode });
 			},
 		}),
-		options: [{ label: 'Clamp', value: 'clamp' }, { label: 'Repeat', value: 'repeat' }, { label: 'Repeat mirrored', value: 'repeatMirrored' }, { label: 'Transparent', value: 'transparent' }],
+		options: [{ label: i18n.t('_WrapModes.clamp'), value: 'clamp' }, { label: i18n.t('_WrapModes.repeat'), value: 'repeat' }, { label: i18n.t('_WrapModes.repeatMirrored'), value: 'repeatMirrored' }, { label: i18n.t('_WrapModes.transparent'), value: 'transparent' }],
 	}, {
-		type: 'radio', text: 'Filter mode', disabled,
+		type: 'radio',
+		text: 'Filter Mode',
+		disabled,
+		caption: computed(() => i18n.t(`_FilterModes.${read()?.filterMode ?? 'linear'}`)),
 		ref: computed({
 			get: () => read()?.filterMode ?? 'linear',
 			set: (filterMode: NonNullable<NodeOutputReference['filterMode']>) => {
@@ -34,6 +44,6 @@ export function inputSamplingMenu(read: () => NodeOutputReference | null, update
 				if (connection) update({ ...connection, filterMode });
 			},
 		}),
-		options: [{ label: 'Linear', value: 'linear' }, { label: 'Nearest', value: 'nearest' }],
+		options: [{ label: i18n.t('_FilterModes.linear'), value: 'linear' }, { label: i18n.t('_FilterModes.nearest'), value: 'nearest' }],
 	}];
 }

@@ -20,7 +20,7 @@
 				<GsButton small iconOnly title="Add element" @click="addElement"><i class="ti ti-plus"></i></GsButton>
 			</template>
 			<template v-else-if="paramDef.dataType !== 'struct'">
-				<GsNodePort v-if="canNode" :dataType="inputDataType" title="Input sampling settings" style="cursor: pointer;" @pointerdown.stop @click.stop="showInputSamplingMenu" @update:element="portEl = $event"/>
+				<GsNodePort v-if="canNode" :dataType="inputDataType" style="cursor: pointer;" @pointerdown.stop @click.stop="showNodeInputMenu" @update:element="portEl = $event"/>
 				<i v-if="hasNodeInputTypeMismatch(nodes, nodeConnection, inputDataType, paramDefs)" v-tooltip="'Data type mismatch'" class="ti ti-alert-triangle" :class="$style.typeWarning"></i>
 				<div :class="$style.control">
 					<GsInput v-if="paramValue.inputSource === 'expression'" type="text" class="_monospace" :modelValue="paramValue.expression" @focusin="onBeginChanging" @focusout="onFinishChanging" @update:modelValue="updateParamAsExpression">
@@ -58,13 +58,16 @@
 						:items="[{ label: i18n.ts.None, value: '' }, ...externalParameterInputItems]"
 						@update:modelValue="value => emit('edit', { kind: 'externalParameterInput', ...target(), value })"
 					/>
-					<GsSelect
-						v-else-if="paramValue.inputSource === 'node'"
-						small
-						:modelValue="nodeOutputKey(nodeConnection)"
-						:items="[{ label: i18n.ts.None, value: null }, ...nodeOutputItems]"
-						@update:modelValue="updateParamAsNode"
-					/>
+					<div v-else-if="paramValue.inputSource === 'node'" style="display: flex; gap: 4px;">
+						<GsSelect
+							style="flex: 1;"
+							small
+							:modelValue="nodeOutputKey(nodeConnection)"
+							:items="[{ label: i18n.ts.None, value: null }, ...nodeOutputItems]"
+							@update:modelValue="updateParamAsNode"
+						/>
+						<button class="_button" style="padding: 4px;" @click="showNodeInputMenu"><i class="ti ti-dots"></i></button>
+					</div>
 					<GsEffectParamControl
 						v-else-if="paramValue.inputSource === 'literal'"
 						ref="controlComponent"
@@ -80,7 +83,9 @@
 				</div>
 			</template>
 			<slot name="actions"></slot>
+			<!-- ラベルクリックで表示できるし要らなさそう
 			<button class="_button" :class="$style.menuButton" @click="showMenu"><i class="ti ti-dots"></i></button>
+			-->
 		</div>
 	</div>
 	<Teleport to="body">
@@ -166,7 +171,7 @@ import { appContext, wireMap } from '@/app.ts';
 import { paramPathKey } from '@/utility/node-params.ts';
 import { getNodeOutputItems, hasNodeInputTypeMismatch, nodeOutputKey } from '@/utility/node-outputs.ts';
 import { registerWireInput } from '@/utility/wire-drag.ts';
-import { inputSamplingMenu } from '@/utility/input-sampling-menu.ts';
+import { getNodeInputSamplingMenuItems } from '@/utility/input-sampling-menu.ts';
 import * as ui from '@/ui.ts';
 import { setInlineAutomationGraphNormalized } from '@/utility/automation-graph.ts';
 
@@ -344,8 +349,23 @@ function showMenu(ev: PointerEvent) {
 	ui.popupMenu(getMenu(), ev.currentTarget ?? ev.target);
 }
 
-function showInputSamplingMenu(ev: PointerEvent) {
-	ui.popupMenu(inputSamplingMenu(() => nodeConnection.value, connectNode), ev.currentTarget ?? ev.target);
+function showNodeInputMenu(ev: PointerEvent) {
+	const menuItems: MenuItem[] = [{
+		text: 'Disconnect',
+		danger: true,
+		action: () => connectNode(null),
+	}, {
+		type: 'divider',
+	}, {
+		type: 'label',
+		text: 'Sampling',
+	}];
+
+	const nodeInputSamplingMenuItems = getNodeInputSamplingMenuItems(() => nodeConnection.value, connectNode);
+
+	menuItems.push(...nodeInputSamplingMenuItems);
+
+	ui.popupMenu(menuItems, ev.currentTarget ?? ev.target);
 }
 
 function onRowContextmenu(ev: PointerEvent) {

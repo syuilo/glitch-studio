@@ -125,6 +125,21 @@
 		"HEIGHT": "Rendering Height",
 		"IS_EXPORT": "Whether it is an export rendering"
 	},
+	"_FitModes": {
+		"stretch": "Stretch",
+		"cover": "Cover",
+		"contain": "Contain"
+	},
+	"_WrapModes": {
+		"clamp": "Clamp",
+		"repeat": "Repeat",
+		"repeatMirrored": "Repeat (Mirrored)",
+		"transparent": "Transparent"
+	},
+	"_FilterModes": {
+		"linear": "Linear",
+		"nearest": "Nearest"
+	},
 	"GpuMemoryEstimate": "Estimated GPU resource memory\nTextures: {textures} MiB\nBuffers: {buffers} MiB",
 	"None": "None",
 	"Random": "Random",
