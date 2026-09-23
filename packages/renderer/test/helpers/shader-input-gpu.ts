@@ -1,5 +1,6 @@
 import { checkMigratedEffects } from './migrated-shader-input-gpu.ts';
 import { checkGradientInputs } from './gradient-shader-input-gpu.ts';
+import { checkTimelineCompositor } from './timeline-compositor-gpu.ts';
 import effect from '../../../shared/src/effects/colorMix/_impl_.ts';
 import imageEffect from '../../../shared/src/effects/image/_impl_.ts';
 import blockShuffle from '../../../shared/src/effects/blockShuffle/_impl_.ts';
@@ -223,6 +224,7 @@ export async function run() {
 		}
 		completed.push(...await checkMigratedEffects(device, vertex, async output => (await mix({ inputA: textureShaderInput(output), inputB: b, amount: zero }, output.width, output.height)).flat()));
 		completed.push(...await checkGradientInputs(device, vertex));
+		completed.push(...await checkTimelineCompositor(device, vertex, async output => (await mix({ inputA: textureShaderInput(output), inputB: b, amount: zero }, output.width, output.height)).flat()));
 		const error = await device.popErrorScope();
 		if (error) throw new Error(error.message);
 		return completed;

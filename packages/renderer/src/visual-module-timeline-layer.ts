@@ -9,7 +9,7 @@ export function createVisualModuleTimelineLayer(
 	layer: TimelineVisualModuleLayer,
 	renderer: {
 		prepare: (context: VisualModuleRenderContext, signal: AbortSignal) => Promise<void>;
-		render: (context: VisualModuleRenderContext) => ReturnType<TimelineLayerRenderer<NodeOutput>['render']>;
+		render: (context: VisualModuleRenderContext, layerContext: TimelineLayerContext<NodeOutput>) => ReturnType<TimelineLayerRenderer<NodeOutput>['render']>;
 		destroy: () => void;
 	},
 ): TimelineLayerRenderer<NodeOutput> {
@@ -35,7 +35,7 @@ export function createVisualModuleTimelineLayer(
 	};
 	return {
 		prepare: (context, signal) => renderer.prepare(resolveContext(context), signal),
-		render: context => renderer.render(resolveContext(context)),
+		render: context => renderer.render(resolveContext(context), context),
 		destroy: () => renderer.destroy(),
 	};
 }

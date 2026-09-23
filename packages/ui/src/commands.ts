@@ -10,6 +10,7 @@ import type { GlobalEnvVariable } from '@glitch/shared/expression.js';
 import { canConnectNodeDataTypes } from '@/utility/node-outputs.ts';
 import { resolveNodeParam, walkNodeParams } from '@/utility/node-params.ts';
 import { createInlineAutomationGraph } from '@/utility/automation-graph.ts';
+import { timelineCompositingParamDefs } from '@glitch/shared/timeline-compositing.ts';
 
 export type CommandDef<Payload> = {
 	label: string;
@@ -40,6 +41,7 @@ const stateUtility = {
 const editVisualModuleLayerParamCommandDef = defineCommand<{
 	layerId: string;
 	paramId: string;
+	target?: 'module' | 'compositing';
 	edit:
 		| { kind: 'literal'; value: any }
 		| { kind: 'automationGraphInline'; value: Extract<EffectParamValue, { inputSource: 'automationGraphInline' }> }
@@ -48,7 +50,7 @@ const editVisualModuleLayerParamCommandDef = defineCommand<{
 		| { kind: 'inputSource'; inputSource: EffectParamValue['inputSource'] }
 		| { kind: 'reset' };
 }>({
-	label: 'Edit visual module layer param',
+	label: 'Edit timeline layer param',
 	create: payload => {
 		let before: EffectParamValue | undefined;
 		let after: EffectParamValue | undefined;
@@ -60,10 +62,12 @@ const editVisualModuleLayerParamCommandDef = defineCommand<{
 		return {
 			execute(state) {
 				const layer = getLayer(state);
+				const values = payload.target === 'compositing' ? layer.compositing : layer.paramValues;
 				if (after === undefined) {
-					const def = stateUtility.getVisualModule(state, layer.visualModuleId).paramDefs.find(def => def.id === payload.paramId);
+					const defs = payload.target === 'compositing' ? timelineCompositingParamDefs : stateUtility.getVisualModule(state, layer.visualModuleId).paramDefs;
+					const def = defs.find(def => def.id === payload.paramId);
 					if (def == null || def.isPrimaryInput) throw new Error('Editable visual module parameter not found');
-					before = deepClone(layer.paramValues[payload.paramId]);
+					before = deepClone(values[payload.paramId]);
 					const current = before ?? def.defaultValue;
 					const edit = payload.edit;
 					switch (edit.kind) {
@@ -96,13 +100,14 @@ const editVisualModuleLayerParamCommandDef = defineCommand<{
 							break;
 					}
 				}
-				layer.paramValues[payload.paramId] = deepClone(after);
+				values[payload.paramId] = deepClone(after);
 			},
 			undo(state) {
 				const layer = getLayer(state);
+				const values = payload.target === 'compositing' ? layer.compositing : layer.paramValues;
 				// デフォルト値を参照していた状態も復元し、定義への不要な上書きを残さない。
-				if (before === undefined) delete layer.paramValues[payload.paramId];
-				else layer.paramValues[payload.paramId] = deepClone(before);
+				if (before === undefined) delete values[payload.paramId];
+				else values[payload.paramId] = deepClone(before);
 			},
 		};
 	},

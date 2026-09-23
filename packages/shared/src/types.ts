@@ -128,6 +128,8 @@ export type TimelineVisualModuleLayer = {
 	layerType: 'visualModule';
 	visualModuleId: string;
 	paramValues: VisualModuleParamValues;
+	// 未設定の項目はtimelineCompositingParamDefsの既定値を使用する。
+	compositing: VisualModuleParamValues;
 };
 
 export type TimelineLayer = TimelineVisualModuleLayer;

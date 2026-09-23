@@ -55,6 +55,18 @@
 		</div>
 		<div v-if="selectedLayer != null" :class="$style.rightSidePanel">
 			<div>{{ appContext.getVisualModuleById(selectedLayer?.visualModuleId)?.name }}</div>
+			<div>Compositing</div>
+			<GsVisualParam
+				v-for="paramDef of timelineCompositingParamDefs"
+				:key="`${selectedLayer.id}:compositing:${paramDef.id}`"
+				:visualModuleId="selectedLayer.visualModuleId"
+				:paramPath="[paramDef.id]"
+				:paramDef="paramDef"
+				:paramValue="selectedLayer.compositing[paramDef.id] ?? paramDef.defaultValue"
+				@edit="event => onVisualModuleLayerParamEdit(event, 'compositing')"
+			/>
+			<div :class="$style.compositingHint">Transform applies to the module output. Replace includes transparent areas. Position 1 = half the canvas.</div>
+			<div>Module parameters</div>
 			<GsVisualParam
 				v-for="paramDef of appContext.getVisualModuleById(selectedLayer.visualModuleId)!.paramDefs.filter(paramDef => !paramDef.isPrimaryInput)"
 				:key="`${selectedLayer.id}:${paramDef.id}`"
@@ -62,7 +74,7 @@
 				:paramPath="[paramDef.id]"
 				:paramDef="{ ...paramDef, canNode: false }"
 				:paramValue="selectedLayer.paramValues[paramDef.id] ?? paramDef.defaultValue"
-				@edit="onVisualModuleLayerParamEdit"
+				@edit="event => onVisualModuleLayerParamEdit(event, 'module')"
 			/>
 		</div>
 	</div>
@@ -80,6 +92,7 @@ import type { ParamEdit } from './GsVisualParam.vue';
 import { appContext } from '@/app.ts';
 import { dragListen } from '@/utility/drag.ts';
 import * as timeline from '@/timeline.ts';
+import { timelineCompositingParamDefs } from '@glitch/shared/timeline-compositing.ts';
 
 const X_TICKS_HEIGHT = 20;
 const Y_TICKS_WIDTH = 60;
@@ -329,7 +342,7 @@ function onLayerBlockClick(ev: PointerEvent, layer: Timeline[number]) {
 	selectedLayer.value = layer;
 }
 
-function onVisualModuleLayerParamEdit(event: ParamEdit) {
+function onVisualModuleLayerParamEdit(event: ParamEdit, target: 'module' | 'compositing') {
 	const layer = selectedLayer.value;
 	// VisualModuleのパラメータ定義はフラットで、ノード接続や内部パラメータ参照は扱わない。
 	if (layer == null || event.paramPath.length !== 1) return;
@@ -337,9 +350,10 @@ function onVisualModuleLayerParamEdit(event: ParamEdit) {
 	if (event.kind === 'inputSource' && (event.inputSource === 'node' || event.inputSource === 'externalParameterInput')) return;
 	appContext.commit('editVisualModuleLayerParam', {
 		layerId: layer.id,
+		target,
 		paramId: event.paramPath[0],
 		edit: event,
-	}, event.mergeKey != null ? `${layer.id}:${event.paramPath[0]}:${event.mergeKey}` : undefined);
+	}, event.mergeKey != null ? `${layer.id}:${target}:${event.paramPath[0]}:${event.mergeKey}` : undefined);
 }
 
 function addLayer() {
@@ -370,6 +384,12 @@ onMounted(() => {
 </script>
 
 <style module lang="scss">
+.compositingHint {
+	font-size: 11px;
+	opacity: 0.7;
+	padding: 8px;
+}
+
 .root {
 	display: flex;
 	flex-direction: column;
@@ -875,6 +895,7 @@ onMounted(() => {
 }
 
 .rightSidePanel {
+	overflow-y: auto;
 	position: absolute;
 	top: 0;
 	right: 0;

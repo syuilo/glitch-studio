@@ -2,30 +2,9 @@ import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { implementEffect } from '../../effect-implementation.ts';
 import { createShaderInputPipeline } from '../../shader-input-pipeline.ts';
 import code from './shader.wgsl?raw';
+import blendCode from '../../color-blend.wgsl?raw';
+import { colorBlendModes as blendModes } from '../../color-blend.ts';
 import type definition from './_def_.ts';
-
-// shader.wgslのモード番号と揃える。
-const blendModes: Record<string, number> = {
-	normal: 0,
-	add: 1,
-	subtract: 2,
-	multiply: 3,
-	darken: 4,
-	lighten: 5,
-	screen: 6,
-	overlay: 7,
-	difference: 8,
-	exclusion: 9,
-	none: 10,
-	colorBurn: 11,
-	colorDodge: 12,
-	softLight: 13,
-	hardLight: 14,
-	hue: 15,
-	saturation: 16,
-	color: 17,
-	luminosity: 18,
-};
 
 export default implementEffect<typeof definition>({
 	outputTextureFactories: {
@@ -40,7 +19,7 @@ export default implementEffect<typeof definition>({
 		const layout = device.createBindGroupLayout({ entries: [{ binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } }] });
 		const group = device.createBindGroup({ layout, entries: [{ binding: 0, resource: { buffer: uniformBuffer } }] });
 		const pipelines = createShaderInputPipeline({
-			device, vertex: wgpu.defaultVertexShaderModule, code,
+			device, vertex: wgpu.defaultVertexShaderModule, code: blendCode + code,
 			schema: { inputA: 'color', inputB: 'color', amount: 'scalar' },
 			targets: [{ format: wgpu.intermediateTextureFormat }],
 			internalLayouts: [layout],

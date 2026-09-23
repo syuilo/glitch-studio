@@ -8,7 +8,7 @@ import { build } from 'esbuild';
 const bundled = await build({
 	absWorkingDir: fileURLToPath(new URL('../', import.meta.url)),
 	stdin: {
-		contents: "export { COMMAND_DEFS } from './src/commands.ts'; export { createInlineAutomationGraph, setInlineAutomationGraphNormalized } from './src/utility/automation-graph.ts';",
+		contents: "export { COMMAND_DEFS } from './src/commands.ts'; export { createInlineAutomationGraph, setInlineAutomationGraphNormalized } from './src/utility/automation-graph.ts'; export { encodeProjectFile, decodeProjectFile } from './src/gsproj.ts';",
 		resolveDir: fileURLToPath(new URL('../', import.meta.url)),
 		loader: 'ts',
 	},
@@ -31,7 +31,52 @@ const bundled = await build({
 });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', bundled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
-const { COMMAND_DEFS, createInlineAutomationGraph, setInlineAutomationGraphNormalized } = module.exports;
+const { COMMAND_DEFS, createInlineAutomationGraph, setInlineAutomationGraphNormalized, encodeProjectFile, decodeProjectFile } = module.exports;
+
+// 合成設定の履歴はモジュールパラメータと独立し、未設定だった状態まで復元する。
+test('undoes and redoes compositing expressions without changing module parameters', () => {
+	const { state } = fixture();
+	const layer = state.timeline.value[0];
+	layer.paramValues.opacity = { inputSource: 'literal', value: 0.8 };
+	const command = COMMAND_DEFS.editVisualModuleLayerParam.create({
+		layerId: layer.id, target: 'compositing', paramId: 'opacity', edit: { kind: 'expression', value: 'PROGRESS' },
+	});
+	command.execute(state);
+	assert.deepEqual(layer.compositing.opacity, { inputSource: 'expression', expression: 'PROGRESS' });
+	command.undo(state);
+	assert.deepEqual(layer.compositing, {});
+	command.execute(state);
+	assert.equal(layer.compositing.opacity.expression, 'PROGRESS');
+	assert.equal(layer.paramValues.opacity.value, 0.8);
+});
+
+// inlineグラフの編集データをコピーし、保存・読み込み後にも参照グラフや合成方法を保持する。
+test('preserves compositing graphs and settings through edits and serialization', () => {
+	const { state } = fixture();
+	const layer = state.timeline.value[0];
+	const edit = (paramId, edit) => {
+		const command = COMMAND_DEFS.editVisualModuleLayerParam.create({ layerId: layer.id, target: 'compositing', paramId, edit });
+		command.execute(state);
+		return command;
+	};
+	const input = createInlineAutomationGraph();
+	input.automationGraph.points[0].y = 0.25;
+	const inline = edit('translationX', { kind: 'automationGraphInline', value: input });
+	input.automationGraph.points[0].y = 99;
+	assert.equal(layer.compositing.translationX.automationGraph.points[0].y, 0.25);
+	inline.undo(state);
+	assert.deepEqual(layer.compositing, {});
+	inline.execute(state);
+	edit('rotation', { kind: 'automationGraphReference', value: 'graph', options: { durationMs: 2500, offsetMode: 'end', wrapMode: 'clamp' } });
+	edit('blendMode', { kind: 'literal', value: 'replace' });
+	const restored = decodeProjectFile(encodeProjectFile({ timeline: [layer] })).timeline[0];
+	assert.deepEqual(restored.compositing, layer.compositing);
+	assert.equal(restored.compositing.rotation.durationMs, 2500);
+	const reset = edit('blendMode', { kind: 'reset' });
+	assert.equal(layer.compositing.blendMode.value, 'normal');
+	reset.undo(state);
+	assert.equal(layer.compositing.blendMode.value, 'replace');
+});
 
 // 単位切り替えはXと制御点のXだけを変換し、曲線の形・Y・元データを維持する。
 test('converts inline graph coordinates between normalized and millisecond units', () => {
@@ -67,7 +112,7 @@ function fixture() {
 	const node = { id: 'node', type: 'effect', effectId: 'test', params: { values: { inputSource: 'literal', value: [initial] } } };
 	const state = {
 		visualModules: { value: [{ id: 'module', nodes: [node], paramDefs: [{ id: 'gain', defaultValue: initial, isPrimaryInput: false }] }] },
-		timeline: { value: [{ id: 'layer', visualModuleId: 'module', paramValues: {} }] },
+		timeline: { value: [{ id: 'layer', visualModuleId: 'module', paramValues: {}, compositing: {} }] },
 	};
 	return { state, node, target: { visualModuleId: 'module', nodeId: 'node', paramPath: ['values', 0] } };
 }

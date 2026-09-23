@@ -311,6 +311,7 @@ test('chains different layer types without requiring visual module fields', asyn
 test('keeps visual module contexts separate across overlapping preparation', async () => {
 	const prepared = [];
 	const rendered = [];
+	const layerContexts = [];
 	const pending = deferred();
 	const signals = [];
 	const layer = createVisualModuleTimelineLayer({ paramDefs: [{ id: 'input', isPrimaryInput: true }] }, { paramValues: {} }, {
@@ -319,7 +320,7 @@ test('keeps visual module contexts separate across overlapping preparation', asy
 			signals.push(signal);
 			if (context.time === 1) await pending.promise;
 		},
-		async render(context) { rendered.push(context); return { output: context.paramInputs.get('input'), gpuTime: 0 }; },
+		async render(context, layerContext) { rendered.push(context); layerContexts.push(layerContext); return { output: context.paramInputs.get('input'), gpuTime: 0 }; },
 		destroy() {},
 	});
 	const first = { time: 1, timeDelta: 0, endTime: 10, input: 'first' };
@@ -335,5 +336,26 @@ test('keeps visual module contexts separate across overlapping preparation', asy
 	assert.strictEqual(rendered[1], prepared[0]);
 	assert.deepEqual(rendered.map(context => context.paramInputs.get('input')), ['second', 'first']);
 	assert.deepEqual(rendered.map(context => context.endTime), [20, 10]);
+	assert.strictEqual(layerContexts[0], second);
+	assert.strictEqual(layerContexts[1], first);
 	assert.ok(signals.every(signal => signal === controller.signal));
+});
+
+// 主入力を持たない素材モジュールでも、合成には元の背景を渡す。
+test('provides the background for compositing modules without a primary input', async () => {
+	const background = { kind: 'uniform', value: [0, 0, 1, 1] };
+	const context = { time: 500, timeDelta: 16, endTime: 2000, isExport: true, input: background };
+	const layer = createVisualModuleTimelineLayer({ paramDefs: [] }, { paramValues: {} }, {
+		async prepare() {},
+		async render(moduleContext, layerContext) {
+			assert.equal(moduleContext.paramInputs.size, 0);
+			assert.strictEqual(layerContext.input, background);
+			assert.equal(moduleContext.time, 500);
+			assert.equal(moduleContext.isExport, true);
+			return { output: background, gpuTime: 0 };
+		},
+		destroy() {},
+	});
+	await layer.prepare(context, new AbortController().signal);
+	await layer.render(context);
 });

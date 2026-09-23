@@ -18,6 +18,7 @@ const { VisualModuleRenderer } = await load('../src/visual-module-renderer.ts');
 const { OutputTextureResolver, outputShaderInput } = await load('../src/node-output.ts');
 const { TimelineRenderer } = await load('../src/timeline-renderer.ts');
 const { createVisualModuleTimelineLayer } = await load('../src/visual-module-timeline-layer.ts');
+const { createTimelineCompositor } = await load('../src/timeline-compositor.ts');
 
 function gpuFixture() {
 	const calls = { textures: [], buffers: [], shaders: [], groups: [], samplers: [], writes: [], draws: 0, uploads: 0 };
@@ -48,6 +49,49 @@ function gpuFixture() {
 	return { device, calls, encoder };
 }
 const literal = value => ({ inputSource: 'literal', value });
+
+// 不透明度0と無変形の置き換えは借用出力をそのまま返し、余分なテクスチャを作らない。
+test('passes through timeline outputs without taking ownership', () => {
+	const { device, calls, encoder } = gpuFixture();
+	const compositor = createTimelineCompositor({ device, vertex: {}, resolution: { width: 8, height: 4 }, format: 'rgba16float' });
+	const background = { kind: 'uniform', value: [0, 0, 0, 0] };
+	const source = { kind: 'texture', texture: device.createTexture({ size: [4, 2], format: 'rgba16float' }) };
+	const settings = { blendMode: 19, opacity: 1, translation: [0, 0], scale: [1, 1], rotation: 0 };
+	assert.equal(compositor.render(encoder, background, source, settings), source);
+	assert.equal(compositor.render(encoder, background, source, { ...settings, opacity: 0 }), background);
+	assert.equal(compositor.render(encoder, background, source, { ...settings, blendMode: 10 }), background);
+	assert.equal(calls.textures.length, 1);
+	assert.equal(calls.draws, 0);
+	compositor.dispose();
+	assert.equal(source.texture.destroyed, false);
+	assert.ok(calls.buffers.every(buffer => buffer.destroyed));
+});
+
+// 各レイヤーが別々の出力を所有し、値の変更時には再利用、破棄時には所有物だけを解放する。
+test('owns separate timeline targets and reuses pipelines across parameter changes', () => {
+	const { device, calls, encoder } = gpuFixture();
+	const options = { device, vertex: {}, resolution: { width: 8, height: 4 }, format: 'rgba16float' };
+	const first = createTimelineCompositor(options);
+	const second = createTimelineCompositor(options);
+	const background = { kind: 'uniform', value: [0, 0, 1, 1] };
+	const source = { kind: 'uniform', value: [0.5, 0, 0, 0.5] };
+	const settings = { blendMode: 0, opacity: 0.5, translation: [0, 0], scale: [1, 1], rotation: 0 };
+	const a = first.render(encoder, background, source, settings);
+	const shaderCount = calls.shaders.length;
+	const updated = first.render(encoder, background, source, { ...settings, rotation: 0.5, blendMode: 3 });
+	assert.equal(updated.texture, a.texture);
+	assert.equal(calls.shaders.length, shaderCount);
+	const b = second.render(encoder, a, source, settings);
+	assert.notEqual(a.texture, b.texture);
+	assert.equal(a.texture.format, 'rgba16float');
+	assert.equal(calls.textures.length, 2);
+	first.dispose();
+	assert.equal(a.texture.destroyed, true);
+	assert.equal(b.texture.destroyed, false);
+	second.dispose();
+	assert.ok(calls.textures.every(texture => texture.destroyed));
+	assert.ok(calls.buffers.every(buffer => buffer.destroyed));
+});
 
 // 仮確保サイズを隠し、描画・複数出力・サイズ変更・バイパス・破棄の状態を通知する。
 test('publishes output resolutions only after drawing and when state changes', async () => {

@@ -12,6 +12,8 @@ import { VisualModuleRenderer } from './visual-module-renderer.ts';
 import { LiveRenderLoop, browserFrameScheduler } from './live-render-loop.ts';
 import { TimelineRenderer } from './timeline-renderer.ts';
 import { createVisualModuleTimelineLayer } from './visual-module-timeline-layer.ts';
+import { createTimelineCompositor } from './timeline-compositor.ts';
+import { TimelineCompositingParameters } from './timeline-compositing-parameters.ts';
 import { OutputTextureResolver } from './node-output.ts';
 import type { NodeOutput } from './node-output.ts';
 import type { FrameScheduler, LiveFrameTiming } from './live-render-loop.ts';
@@ -405,14 +407,26 @@ export class MainRenderer {
 			effectDefinitions: this.effectDefinitions,
 			effectImplementations: this.effectImplementations,
 		});
+		const compositingParameters = new TimelineCompositingParameters();
+		const compositor = createTimelineCompositor({
+			device: this.gpuDevice, vertex: this.defaultVertexShaderModule,
+			resolution: this.resolution, format: this.intermediateTextureFormat,
+			beginPass: (encoder, descriptor) => this.enableStats
+				? this.timingHelper.beginRenderPass(encoder, descriptor)
+				: encoder.beginRenderPass(descriptor),
+		});
 		return createVisualModuleTimelineLayer(visualModule, layer, {
 			prepare: (context, signal) => renderer.prepare(context, signal),
-			render: async context => {
+			render: async (context, layerContext) => {
 				const commandEncoder = this.gpuDevice.createCommandEncoder();
 				let output: NodeOutput | undefined;
 				let gpuTime = 0;
 				try {
 					output = renderer.render(context, commandEncoder);
+					if (output != null) {
+						const settings = compositingParameters.evaluate(context, layer.compositing, visualModule.automationGraphs, this.resolution);
+						output = compositor.render(commandEncoder, layerContext.input, output, settings);
+					}
 				} finally {
 					// 描画途中の例外でもエンコーダーと計測を完了する。
 					this.gpuDevice.queue.submit([commandEncoder.finish()]);
@@ -420,7 +434,10 @@ export class MainRenderer {
 				}
 				return { output, gpuTime };
 			},
-			destroy: () => renderer.destroy(),
+			destroy: () => {
+				compositor.dispose();
+				renderer.destroy();
+			},
 		});
 	}
 
