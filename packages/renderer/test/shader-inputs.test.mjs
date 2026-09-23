@@ -59,7 +59,7 @@ test('normalizes constants and defaults connection sampling settings', () => {
 	assert.deepEqual(constantShaderInput('color', null).value, [0, 0, 0, 0]);
 	assert.deepEqual(constantShaderInput('vector', [-2, 3]).value, [-2, 3]);
 	assert.deepEqual(constantShaderInput('scalar', 0.123456789).value, [0.123456789]);
-	assert.deepEqual(textureShaderInput('texture'), { kind: 'texture', texture: 'texture', fitMode: 'cover', wrapMode: 'repeatMirrored' });
+	assert.deepEqual(textureShaderInput('texture'), { kind: 'texture', texture: 'texture', fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' });
 });
 
 // 横長・縦長と解像度だけの違いを含め、入力を出力へ収める逆写像を確認する。
@@ -96,6 +96,18 @@ test('reuses colorMix variants and releases all owned buffers', () => {
 	assert.equal(calls.shaders.length, 2);
 	assert.deepEqual([...calls.writes.at(-1).slice(4, 8)], [1, 2, 0, 0]);
 	assert.equal(calls.samplers.at(-1).addressModeU, 'repeat');
+	// filterだけ変えたときもpipelineを再利用し、戻したsamplerはキャッシュから取得する。
+	const samplerCount = calls.samplers.length;
+	params.inputA = textureShaderInput(input, { fitMode: 'contain', wrapMode: 'repeat', filterMode: 'nearest' });
+	render();
+	assert.equal(calls.shaders.length, 2);
+	assert.equal(calls.samplers.at(-1).minFilter, 'nearest');
+	assert.equal(calls.samplers.at(-1).magFilter, 'nearest');
+	assert.equal(calls.writes.at(-1)[6], 1);
+	params.inputA = textureShaderInput(input, { fitMode: 'contain', wrapMode: 'repeat', filterMode: 'linear' });
+	render();
+	assert.equal(calls.samplers.length, samplerCount + 1);
+	assert.equal(calls.writes.at(-1)[6], 0);
 	params.inputA = constantShaderInput('color', [1, 0, 0, 1]);
 	render();
 	assert.equal(calls.shaders.length, 2);
@@ -132,6 +144,13 @@ test('resolves colorMix inputs through the renderer without constant textures', 
 	assert.equal(calls.draws, before + 1);
 	assert.equal(calls.samplers.at(-1).addressModeU, 'clamp-to-edge');
 	assert.deepEqual([...calls.writes.at(-1).slice(4, 6)], [1, 1]);
+	// filterだけの変更でも描画キャッシュを無効化し、実際のsamplerへ渡す。
+	mix.params.inputA.filterMode = 'nearest';
+	renderer.render(context, encoder);
+	assert.equal(calls.draws, before + 2);
+	assert.equal(calls.samplers.at(-1).minFilter, 'nearest');
+	renderer.render(context, encoder);
+	assert.equal(calls.draws, before + 2);
 	renderer.destroy();
 	assert.ok(calls.buffers.every(buffer => buffer.destroyed));
 });

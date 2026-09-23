@@ -249,7 +249,7 @@ export class VisualModuleRenderer {
 				const v = getEvaluatedParam(params, path);
 				key += JSON.stringify([path, param.inputSource]);
 				if (param.inputSource === 'node' && param.nodeId != null) {
-					key += JSON.stringify([param.fitMode ?? 'cover', param.wrapMode ?? 'repeatMirrored']);
+					key += JSON.stringify([param.fitMode ?? 'cover', param.wrapMode ?? 'repeatMirrored', param.filterMode ?? 'linear']);
 				}
 				// 外部から渡されたテクスチャは同じオブジェクトの内容が毎フレーム変わり得る。
 				if (def.canNode && this.effectImplementations[node.effectId].inputMode === 'shaderInput'

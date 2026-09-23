@@ -2,7 +2,7 @@ import type { TextureDataType } from './data-type.ts';
 import type { EffectOptionSchema, VisualModuleParamDef } from './effect-definition.ts';
 import type { GlobalEnvVariable } from './expression.ts';
 
-export type NodeOutputReference = { nodeId: string; outputPort: string; fitMode?: 'stretch' | 'cover' | 'contain'; wrapMode?: 'clamp' | 'repeat' | 'repeatMirrored' | 'transparent' };
+export type NodeOutputReference = { nodeId: string; outputPort: string; fitMode?: 'stretch' | 'cover' | 'contain'; wrapMode?: 'clamp' | 'repeat' | 'repeatMirrored' | 'transparent'; filterMode?: 'linear' | 'nearest' };
 export type NodeParamValue = { inputSource: 'node' } & (NodeOutputReference | { nodeId: null; outputPort: null });
 
 export type EffectParamValue = {

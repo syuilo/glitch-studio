@@ -141,6 +141,32 @@ export async function run() {
 			check(`wrap ${wrapMode}`, (await read(output, encoder))[0], expected);
 			bindings.dispose();
 		}
+		// 同じpipelineのままfilterを変更し、画素間補間と透明境界の違いを確認する。
+		for (const [x, linear, nearest] of [
+			[-0.25, [191, 0, 64, 255], [255, 0, 0, 255]],
+			[-1, [128, 0, 0, 128], [255, 0, 0, 255]],
+			[1.1, [0, 0, 102, 102], [0, 0, 0, 0]],
+		] as const) {
+			const source = textureShaderInput(wide, { fitMode: 'stretch', wrapMode: 'transparent' });
+			const generated = generateShaderInputs({ source: 'color' }, { source });
+			const bindings = createShaderInputBindings(device, generated);
+			const output = texture(1, 1);
+			const pipeline = device.createRenderPipeline({ layout: device.createPipelineLayout({ bindGroupLayouts: [bindings.layout] }), vertex: { module: vertex }, fragment: { module: device.createShaderModule({ code: generated.code + `\n@fragment fn fs() -> @location(0) vec4f { return read_source(vec2f(${x}, 0.0)); }` }), targets: [{ format: 'rgba8unorm' }] } });
+			try {
+				for (const filterMode of ['linear', 'nearest', 'linear'] as const) {
+					const input = textureShaderInput(wide, { fitMode: 'stretch', wrapMode: 'transparent', filterMode });
+					const encoder = device.createCommandEncoder();
+					const pass = encoder.beginRenderPass({ colorAttachments: [{ view: output.createView(), loadOp: 'clear', storeOp: 'store' }] });
+					pass.setPipeline(pipeline);
+					pass.setBindGroup(0, bindings.update({ source: input }, output));
+					pass.draw(6);
+					pass.end();
+					check(`filter ${filterMode} at ${x}`, (await read(output, encoder))[0], filterMode === 'linear' ? linear : nearest);
+				}
+			} finally {
+				bindings.dispose();
+			}
+		}
 		completed.push(...await checkMigratedEffects(device, vertex, async output => (await mix({ inputA: textureShaderInput(output), inputB: b, amount: zero }, output.width, output.height)).flat()));
 		completed.push(...await checkGradientInputs(device, vertex));
 		const error = await device.popErrorScope();

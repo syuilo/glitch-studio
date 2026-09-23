@@ -25,5 +25,15 @@ export function inputSamplingMenu(read: () => NodeOutputReference | null, update
 			},
 		}),
 		options: [{ label: 'Clamp', value: 'clamp' }, { label: 'Repeat', value: 'repeat' }, { label: 'Repeat mirrored', value: 'repeatMirrored' }, { label: 'Transparent', value: 'transparent' }],
+	}, {
+		type: 'radio', text: 'Filter mode', disabled,
+		ref: computed({
+			get: () => read()?.filterMode ?? 'linear',
+			set: (filterMode: NonNullable<NodeOutputReference['filterMode']>) => {
+				const connection = read();
+				if (connection) update({ ...connection, filterMode });
+			},
+		}),
+		options: [{ label: 'Linear', value: 'linear' }, { label: 'Nearest', value: 'nearest' }],
 	}];
 }

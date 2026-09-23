@@ -500,7 +500,7 @@ const updateParamAsNodeCommandDef = defineNodeParamCommand<NodeParamTarget & { v
 		if (payload.value == null) return { inputSource: 'node', nodeId: null, outputPort: null };
 		// 読み取り方法は接続先の入力に属する。配線元だけ変更しても設定を維持する。
 		const previous = target.value.inputSource === 'node' && target.value.nodeId != null ? target.value : undefined;
-		return { inputSource: 'node', fitMode: previous?.fitMode, wrapMode: previous?.wrapMode, ...payload.value };
+		return { inputSource: 'node', fitMode: previous?.fitMode, wrapMode: previous?.wrapMode, ...(previous?.filterMode != null ? { filterMode: previous.filterMode } : {}), ...payload.value };
 	},
 );
 

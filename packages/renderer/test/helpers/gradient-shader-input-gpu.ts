@@ -114,6 +114,15 @@ export async function checkGradientInputs(device: GPUDevice, vertex: GPUShaderMo
 					}
 				}
 			}
+			// nearestの入力微分は画素内・境界とも0。linearへ戻したときには復元される。
+			const stepSource = texture(2, 2, 1, [0.125, 0.875, 0.125, 0.875]);
+			params.startValue = params.endValue = textureShaderInput(stepSource, { filterMode: 'nearest' });
+			const nearest = await render(params, true);
+			check('nearest gradient values', nearest.scalar, Array.from({ length: 4 }, () => [0.125, 0.125, 0.875, 0.875]).flat());
+			check('nearest input derivatives are zero', nearest.vector, Array(32).fill(0));
+			params.startValue = params.endValue = textureShaderInput(stepSource, { filterMode: 'linear' });
+			const linear = await render(params, true);
+			check('restores linear input derivative', linear.vector.slice(2, 4), [0.75, 0]);
 			const error = await device.popErrorScope();
 			if (error) throw new Error(error.message);
 			completed.push(`gradient inputs and derivatives ${enable32bitDataTextures ? 32 : 16}bit`);

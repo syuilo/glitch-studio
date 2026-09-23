@@ -42,6 +42,25 @@ function fixture() {
 	return { node, state, target, commands, menu, read };
 }
 
+// Filterの既定値・Undo/Redo・配線元変更時の保持と未接続時の無効化を確認する。
+test('edits and preserves the input filter through undoable commands', () => {
+	const { menu, commands, state, target, read } = fixture();
+	assert.equal(menu[2].ref.value, 'linear');
+	menu[2].ref.value = 'nearest';
+	assert.equal(read().filterMode, 'nearest');
+	commands[0].undo(state);
+	assert.equal(menu[2].ref.value, 'linear');
+	commands[0].execute(state);
+	assert.equal(menu[2].ref.value, 'nearest');
+	COMMAND_DEFS.updateParamAsNode.create({ ...target, value: { nodeId: 'another', outputPort: 'output' } }).execute(state);
+	assert.equal(read().filterMode, 'nearest');
+	COMMAND_DEFS.updateParamAsNode.create({ ...target, value: null }).execute(state);
+	assert.equal(menu[2].disabled.value, true);
+	menu[2].ref.value = 'linear';
+	assert.equal(commands.length, 1);
+	assert.equal(read(), null);
+});
+
 // 省略時の選択状態と、配列内のパラメータに対する変更・Undo/Redoを確認する。
 test('edits sampling settings through undoable commands with the expected defaults', () => {
 	const { menu, commands, state, read } = fixture();

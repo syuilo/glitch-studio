@@ -2,12 +2,13 @@ import type { NodeOutputReference } from './types.ts';
 
 export type InputFitMode = NonNullable<NodeOutputReference['fitMode']>;
 export type InputWrapMode = NonNullable<NodeOutputReference['wrapMode']>;
+export type InputFilterMode = NonNullable<NodeOutputReference['filterMode']>;
 export type ShaderInput =
 	| { kind: 'uniform'; value: readonly number[] }
-	| { kind: 'texture'; texture: GPUTexture; fitMode: InputFitMode; wrapMode: InputWrapMode };
+	| { kind: 'texture'; texture: GPUTexture; fitMode: InputFitMode; wrapMode: InputWrapMode; filterMode: InputFilterMode };
 
-export function textureShaderInput(texture: GPUTexture, reference: Pick<NodeOutputReference, 'fitMode' | 'wrapMode'> = {}): ShaderInput {
-	return { kind: 'texture', texture, fitMode: reference.fitMode ?? 'cover', wrapMode: reference.wrapMode ?? 'repeatMirrored' };
+export function textureShaderInput(texture: GPUTexture, reference: Pick<NodeOutputReference, 'fitMode' | 'wrapMode' | 'filterMode'> = {}): ShaderInput {
+	return { kind: 'texture', texture, fitMode: reference.fitMode ?? 'cover', wrapMode: reference.wrapMode ?? 'repeatMirrored', filterMode: reference.filterMode ?? 'linear' };
 }
 
 /** 色のリテラルは未乗算。画像入力と同じ意味になる境界で一度だけ乗算する。 */
@@ -61,9 +62,16 @@ fn gs_sample_${name}(uv: vec2f) -> ${returnType} {
 	let mapping = gs_inputs.mapping_${name};
 	// サンプルは分岐の外で行い、implicit derivativeのuniformityを維持する。
 	var value = ${sample};
-	// transparentでは透明な隣接画素との線形補間もRGBA全体へ適用する。
-	let coverage = clamp(min(uv, 1.0 - uv) * vec2f(textureDimensions(gs_texture_${name})) + 0.5, vec2f(0.0), vec2f(1.0));
-	value *= select(1.0, coverage.x * coverage.y, mapping.w != 0.0);
+	if (mapping.w != 0.0) {
+		if (mapping.z != 0.0) {
+			// nearestでは透明な隣接画素を補間せず、範囲外だけ0にする。
+			value *= select(0.0, 1.0, all(uv >= vec2f(0.0)) && all(uv < vec2f(1.0)));
+		} else {
+			// linearでは透明な隣接画素との補間分をRGBA全体へ適用する。
+			let coverage = clamp(min(uv, 1.0 - uv) * vec2f(textureDimensions(gs_texture_${name})) + 0.5, vec2f(0.0), vec2f(1.0));
+			value *= coverage.x * coverage.y;
+		}
+	}
 	// fitは座標の対応付けだけを決める。containの余白も指定されたwrapで読む。
 	return value${swizzle};
 }
@@ -75,7 +83,8 @@ fn readGradient_${name}(position: vec2f, calculate: bool) -> vec3f {
 	let scale = gs_inputs.mapping_${name}.xy * vec2f(0.5, -0.5);
 	let uv = position * scale + 0.5;
 	let value = gs_sample_${name}(uv);
-	if (!calculate) { return vec3f(value, 0.0, 0.0); }
+	// nearestは画素内で一定。微分不能な境界も0と定義し、追加サンプルを省略する。
+	if (!calculate || gs_inputs.mapping_${name}.z != 0.0) { return vec3f(value, 0.0, 0.0); }
 	let size = vec2f(textureDimensions(gs_texture_${name}));
 	let pixel = uv * size - 0.5;
 	let base = (floor(pixel) + 0.5) / size;
@@ -106,7 +115,7 @@ export function createShaderInputBindings(device: GPUDevice, generated: ReturnTy
 	const layout = device.createBindGroupLayout({ entries: generated.entries });
 	const buffer = device.createBuffer({ size: generated.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
 	const values = new Float32Array(generated.byteLength / 4);
-	const samplers = new Map<InputWrapMode, GPUSampler>();
+	const samplers = new Map<string, GPUSampler>();
 	const views = new WeakMap<GPUTexture, GPUTextureView>();
 	let previousResources: (GPUTexture | GPUSampler)[] = [];
 	let bindGroup: GPUBindGroup;
@@ -124,12 +133,13 @@ export function createShaderInputBindings(device: GPUDevice, generated: ReturnTy
 					continue;
 				}
 				const scale = inputUvScale(input.texture, output, input.fitMode);
-				values.set([...scale, 0, Number(input.wrapMode === 'transparent')], slot.index * 8 + 4);
-				let sampler = samplers.get(input.wrapMode);
+				values.set([...scale, Number(input.filterMode === 'nearest'), Number(input.wrapMode === 'transparent')], slot.index * 8 + 4);
+				const samplerKey = `${input.wrapMode}:${input.filterMode}`;
+				let sampler = samplers.get(samplerKey);
 				if (sampler == null) {
 					const addressMode = input.wrapMode === 'repeatMirrored' ? 'mirror-repeat' : input.wrapMode === 'repeat' ? 'repeat' : 'clamp-to-edge';
-					sampler = device.createSampler({ minFilter: 'linear', magFilter: 'linear', addressModeU: addressMode, addressModeV: addressMode });
-					samplers.set(input.wrapMode, sampler);
+					sampler = device.createSampler({ minFilter: input.filterMode, magFilter: input.filterMode, addressModeU: addressMode, addressModeV: addressMode });
+					samplers.set(samplerKey, sampler);
 				}
 				resources.push(input.texture, sampler);
 				let view = views.get(input.texture);
