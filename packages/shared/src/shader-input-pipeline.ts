@@ -1,5 +1,5 @@
-import { createShaderInputBindings, generateShaderInputs } from './shader-input.ts';
-import type { ShaderInput, ShaderInputSchema } from './shader-input.ts';
+import { createShaderInputBindings, generateShaderInputs, shaderInputVariantKey } from './shader-input.ts';
+import type { ShaderInputValues, ShaderInputSchema } from './shader-input.ts';
 
 /** 入力種別ごとのpipelineと入力bufferを所有する。内部リソースは先行するgroupへ置く。 */
 export function createShaderInputPipeline(options: {
@@ -16,12 +16,11 @@ export function createShaderInputPipeline(options: {
 }) {
 	const { device } = options;
 	const internalLayouts = options.internalLayouts ?? [];
-	const names = Object.keys(options.schema);
 	const variants = new Map<string, { pipeline: GPURenderPipeline; bindings: ReturnType<typeof createShaderInputBindings> }>();
 	return {
 		inputGroup: internalLayouts.length,
-		update(inputs: Record<string, ShaderInput>, output: { width: number; height: number }) {
-			const key = names.map(name => inputs[name].kind).join(',');
+		update(inputs: ShaderInputValues, output: { width: number; height: number }) {
+			const key = shaderInputVariantKey(options.schema, inputs);
 			let variant = variants.get(key);
 			if (variant == null) {
 				const generated = generateShaderInputs(options.schema, inputs, internalLayouts.length, options.sampling, options.scalarGradients);

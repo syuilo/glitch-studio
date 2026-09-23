@@ -13,6 +13,7 @@ const { default: effect } = await load('../../shared/src/effects/colorMix/_impl_
 const { default: definition } = await load('../../shared/src/effects/colorMix/_def_.ts');
 const { default: rawImage } = await load('../../shared/src/effects/rawImage/_impl_.ts');
 const { default: rawImageDefinition } = await load('../../shared/src/effects/rawImage/_def_.ts');
+const { default: structArrayDefinition } = await load('../../shared/src/effects/testStructArray/_def_.ts');
 const { VisualModuleRenderer } = await load('../src/visual-module-renderer.ts');
 
 function gpuFixture() {
@@ -44,6 +45,46 @@ function gpuFixture() {
 	return { device, calls, encoder };
 }
 const literal = value => ({ inputSource: 'literal', value });
+
+// 構造体配列内の接続・定数を解決し、要素の変更でレンダラーのキャッシュも更新する。
+test('resolves nested array inputs and invalidates sampling changes', () => {
+	const { device, calls, encoder } = gpuFixture();
+	const captured = [];
+	const probe = {
+		inputMode: 'shaderInput',
+		outputTextureFactories: { output: ({ wgpu, resolution }) => wgpu.device.createTexture({ size: resolution, format: 'rgba8unorm' }) },
+		init: () => ({ render: ctx => captured.push(ctx.params), dispose() {} }),
+	};
+	const connection = { inputSource: 'node', nodeId: 'source', outputPort: 'output', fitMode: 'contain', wrapMode: 'transparent', filterMode: 'nearest' };
+	const source = { id: 'source', type: 'effect', effectId: 'colorMix', params: { inputA: literal([1, 0, 0, 1]), inputB: literal([0, 0, 0, 0]), amount: literal(0) } };
+	const arrayNode = { id: 'array', type: 'effect', effectId: 'testStructArray', params: {
+		foo: literal({ node: literal([0, 1, 0, 0.5]) }), bars: literal([literal([0, 0, 1, 0.5])]),
+		buzzs: literal([literal({ image: connection, x: literal(0), y: literal(0) }), literal({ image: literal([1, 0, 0, 0.25]), x: literal(1), y: literal(0) })]),
+	} };
+	const renderer = createRenderer(device, {
+		paramDefs: [], automationGraphs: [], outputDefs: [{ id: 'out', isPrimaryOutput: true }],
+		nodes: [source, arrayNode, { id: 'out', type: 'globalOut', inputs: { out: { nodeId: 'array', outputPort: 'output' } } }],
+	}, { effectDefinitions: { colorMix: definition, testStructArray: structArrayDefinition }, effectImplementations: { colorMix: effect, testStructArray: probe } });
+	try {
+		renderer.render(renderContext(), encoder);
+		assert.deepEqual(captured[0].foo.node, { kind: 'uniform', value: [0, 0.5, 0, 0.5] });
+		assert.deepEqual(captured[0].bars, [[0, 0, 1, 0.5]]);
+		assert.equal(captured[0].buzzs[0].image.kind, 'texture');
+		assert.equal(captured[0].buzzs[0].image.fitMode, 'contain');
+		assert.deepEqual(captured[0].buzzs[1].image.value, [0.25, 0, 0, 0.25]);
+		assert.equal(calls.uploads, 0);
+		renderer.render(renderContext(), encoder);
+		assert.equal(captured.length, 1);
+		connection.filterMode = 'linear';
+		renderer.render(renderContext(), encoder);
+		assert.equal(captured.length, 2);
+		assert.equal(captured.at(-1).buzzs[0].image.filterMode, 'linear');
+		arrayNode.params.buzzs.value = [];
+		renderer.render(renderContext(), encoder);
+		assert.deepEqual(captured.at(-1).buzzs, []);
+		assert.equal(captured.length, 3);
+	} finally { renderer.destroy(); }
+});
 
 function createRenderer(device, visualModule, overrides = {}) {
 	return new VisualModuleRenderer({ gpuDevice: device, gpuContext: {}, defaultVertexShaderModule: {}, resolution: { width: 32, height: 32 }, enableStats: false, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm', videoFrames: new Map(), videoFrameVersions: new Map(), assets: [], assetTextures: new Map(), audioSources: new Map(), effectDefinitions: { colorMix: definition, rawImage: rawImageDefinition }, effectImplementations: { colorMix: effect, rawImage }, visualModule, ...overrides });

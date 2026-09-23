@@ -23,6 +23,34 @@
 
 `createShaderInputPipeline()` は通常のrender pipelineでこの構成管理を行うヘルパー。エフェクト固有のuniform等を `internalLayouts` のgroupに置き、その後ろに生成入力のgroupを追加する。`update()`で返すpipelineとbindGroupを描画時に設定し、`dispose()`で入力bufferを破棄する。入力種別の組合せは直近16構成まで保持し、入力の多いエフェクトでもbufferを無制限に残さない。各エフェクト固有のリソースはエフェクト側で破棄する。
 
+## 配列入力
+
+schemaに `{ images: { array: 'color' } }` と指定すると、`update()`へ `ShaderInput[]` を渡せる。scalar/vector/color/anyの配列と固定入力を混在できる。構造体配列はエフェクト側で必要なフィールドを取り出す（例: `ctx.params.buzzs.map(item => item.image)`）。レンダラーは構造体・配列内のcanNodeも再帰的にShaderInputへ解決する。
+
+```ts
+const pipelines = createShaderInputPipeline({
+	device, vertex, code,
+	schema: { images: { array: 'color' }, selector: 'scalar' },
+	targets: [{ format: wgpu.intermediateTextureFormat }],
+	sampling: 'level0',
+});
+const variant = pipelines.update({ images: ctx.params.images, selector: ctx.params.selector }, outputTexture);
+```
+
+```wgsl
+// indexの決め方はエフェクトの仕様。count_imagesは配列長を表すu32定数。
+let index = u32(max(0.0, floor(read_selector(position))));
+let color = read_images(index, position);
+```
+
+`read_<配列名>(index: u32, position: vec2f)` はswitchで該当要素だけを参照する。各要素は独立したuniformまたはtextureで、fit/wrap/filterも要素ごとに適用する。空配列・範囲外indexは型に応じた0（色なら透明）を返す。空配列だけでも有効なシェーダーとbindingを生成する。配列要素は画素ごとに異なる分岐で読めるよう、sampling指定によらずLOD 0を使う。固定入力のsampling指定は従来どおり。スカラー配列にはscalarGradientsを指定すると `readGradient_<配列名>(index, position, calculate)` も生成し、範囲外はvec3f(0)となる。
+
+配列長と各要素のuniform/textureの組合せをpipelineのキャッシュキーに含める。長さや種別が変われば対応する構成を生成・再利用し、値・接続先・fit/wrap/filterだけの変更では再生成しない。LRUの上限は固定入力と同じ16構成。低レベルのgenerateShaderInputs/createShaderInputBindingsでも配列を利用できるが、長さ・種別の変更時は再生成が必要で、古いbindingsへの更新はエラーにする。
+
+個別binding方式なので、texture要素ごとにテクスチャとサンプラーの枠を1つずつ使う。uniform要素はこれらの枠を使わない。入力groupだけでdeviceのtexture/sampler数・uniformサイズ・binding数の上限を超える場合は、リソース作成前にエラーとする。内部groupも含むpipeline全体の上限はGPU側でも検証されるため、エフェクトは内部で使う枠も考慮して候補数を決める。大量の候補を配列テクスチャへまとめる機能は含まない。
+
+## サンプリング
+
 fitは座標変換だけを行い、containの余白にもwrapを適用する。clampは端を伸ばし、repeatは繰り返し、repeatMirroredは鏡像で繰り返す。transparentはlinearの場合にclamp samplerへ透明な隣接画素との補間分を掛け、nearestの場合はUVの[0,1)外を0にする。定数入力にはfit/wrap/filterを適用しない。参照位置の変換だけを共通化し、ベクトルの成分変換やエフェクト固有の幾何計算は行わない。
 
 入力ポートのFilter modeメニューでlinear／nearestを選択する。変更はUndo/Redoに対応し、配線元の差し替えでも保持する。未接続入力では設定できない。新方式へ未移行のエフェクトにはこの設定は適用されない。wrap/filterの組合せごとにsamplerをキャッシュし、filterの変更ではpipelineを再生成しない。描画結果のキャッシュは無効化する。
@@ -71,3 +99,5 @@ blockShuffleは画像とSizeの両入力を新方式で読む。本体のFit mod
 gradientは7入力の全128構成で単一／複数出力を比較する。符号付き浮動小数点の値と微分を直接読み戻し、linear/radial、入力のfit/wrap、transparentの1×1入力の境界を検証する。
 
 Filter modeのテストでは、既定値・サンプラー再利用・描画キャッシュ無効化・メニューのUndo/Redoと設定保持を確認する。GPU上でもlinear/nearest切替、透明境界、gradientの入力微分を比較する。
+
+配列入力のCPUテストは `node --test packages/renderer/test/shader-input-arrays.test.mjs packages/renderer/test/shader-inputs.test.mjs`。混在入力のアップロード、配列長・種別の構成切替、キャッシュ再利用・解放、上限超過、構造体配列の接続解決とキャッシュ無効化を確認する。既存のGPUテストにも、画素ごとの要素選択、空配列・範囲外、配列長変更後の再利用、要素別fit/filter/透明境界、スカラー配列の微分とvector/anyの空配列を追加している。

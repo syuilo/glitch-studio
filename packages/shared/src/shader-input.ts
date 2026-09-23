@@ -31,17 +31,52 @@ export function inputUvScale(input: { width: number; height: number }, output: {
 	return [1, 1];
 }
 
-export type ShaderInputSchema = Readonly<Record<string, 'scalar' | 'vector' | 'color' | 'any'>>;
+export type ShaderInputType = 'scalar' | 'vector' | 'color' | 'any';
+export type ShaderInputSchema = Readonly<Record<string, ShaderInputType | { array: ShaderInputType }>>;
+export type ShaderInputValues = Readonly<Record<string, ShaderInput | readonly ShaderInput[]>>;
+
+// 配列長と各要素の種別も構成に含める。値・接続先・サンプリング設定は含めない。
+export function shaderInputVariantKey(schema: ShaderInputSchema, inputs: ShaderInputValues): string {
+	return JSON.stringify(Object.entries(schema).map(([name, type]) => {
+		const value = inputs[name];
+		if (value == null || (typeof type === 'object') !== Array.isArray(value)) throw new Error(`Shader input shape mismatch: ${name}`);
+		return 'kind' in value ? value.kind : value.map(input => input.kind);
+	}));
+}
 
 /** WGSLとbindingの対応を同時に決定し、エフェクト側の二重管理を避ける。 */
-export function generateShaderInputs(schema: ShaderInputSchema, inputs: Record<string, ShaderInput>, group = 0, sampling: 'implicit' | 'level0' = 'implicit', scalarGradients = false) {
+export function generateShaderInputs(schema: ShaderInputSchema, inputs: ShaderInputValues, group = 0, sampling: 'implicit' | 'level0' = 'implicit', scalarGradients = false) {
 	if (scalarGradients && sampling !== 'level0') throw new Error('Scalar gradients require level0 sampling');
-	const slots = Object.entries(schema).map(([name, type], index) => {
-		if (!/^[a-zA-Z][a-zA-Z0-9_]*$/.test(name)) throw new Error(`Invalid shader input name: ${name}`);
-		return { name, type, index, kind: inputs[name].kind, textureBinding: index * 2 + 1, samplerBinding: index * 2 + 2 };
-	});
+	const variantKey = shaderInputVariantKey(schema, inputs);
+	const names = new Set(Object.keys(schema));
+	for (const name of names) {
+		if (!/^[a-zA-Z][a-zA-Z0-9_]*$/.test(name) || name.includes('__')) throw new Error(`Invalid shader input name: ${name}`);
+	}
+	const slots: { name: string; sourceName: string; elementIndex?: number; type: ShaderInputType; index: number; kind: ShaderInput['kind']; textureBinding: number; samplerBinding: number }[] = [];
+	const arrays: { name: string; type: ShaderInputType; elements: string[] }[] = [];
+	for (const [sourceName, type] of Object.entries(schema)) {
+		const value = inputs[sourceName];
+		const elements = 'kind' in value ? [value] : value;
+		const elementNames: string[] = [];
+		for (const [elementIndex, input] of elements.entries()) {
+			let name = sourceName;
+			if (typeof type === 'object') {
+				// 利用側の入力名と衝突しない内部名を選び、配列の各要素に個別bindingを割り当てる。
+				name = `gs_element${slots.length}`;
+				while (names.has(name)) name += 'x';
+				names.add(name);
+			}
+			const index = slots.length;
+			slots.push({ name, sourceName, elementIndex: typeof type === 'object' ? elementIndex : undefined,
+				type: typeof type === 'object' ? type.array : type, index, kind: input.kind,
+				textureBinding: index * 2 + 1, samplerBinding: index * 2 + 2 });
+			elementNames.push(name);
+		}
+		if (typeof type === 'object') arrays.push({ name: sourceName, type: type.array, elements: elementNames });
+	}
 	const entries: GPUBindGroupLayoutEntry[] = [{ binding: 0, visibility: GPUShaderStage.FRAGMENT | GPUShaderStage.COMPUTE, buffer: { type: 'uniform' } }];
-	const declarations = slots.map(slot => `value_${slot.name}: vec4f, mapping_${slot.name}: vec4f,`).join('\n');
+	// 空配列だけでも有効なWGSLのstructと非ゼロサイズのuniformを作る。
+	const declarations = slots.map(slot => `value_${slot.name}: vec4f, mapping_${slot.name}: vec4f,`).join('\n') || 'padding: vec4f,';
 	const functions = slots.map(slot => {
 		const { name, type, kind, textureBinding, samplerBinding } = slot;
 		const returnType = type === 'scalar' ? 'f32' : type === 'vector' ? 'vec2f' : 'vec4f';
@@ -52,7 +87,8 @@ export function generateShaderInputs(schema: ShaderInputSchema, inputs: Record<s
 			{ binding: textureBinding, visibility: GPUShaderStage.FRAGMENT | GPUShaderStage.COMPUTE, texture: { sampleType: 'float' } },
 			{ binding: samplerBinding, visibility: GPUShaderStage.FRAGMENT | GPUShaderStage.COMPUTE, sampler: { type: 'filtering' } },
 		);
-		const sample = sampling === 'implicit'
+		// 配列の選択先は画素ごとに変わり得るため、配列要素は常に明示LODで読む。
+		const sample = sampling === 'implicit' && slot.elementIndex == null
 			? `textureSample(gs_texture_${name}, gs_sampler_${name}, uv)`
 			: `textureSampleLevel(gs_texture_${name}, gs_sampler_${name}, uv, 0.0)`;
 		return `
@@ -101,17 +137,37 @@ fn readGradient_${name}(position: vec2f, calculate: bool) -> vec3f {
 	return vec3f(value, derivative * size * scale);
 }` : '');
 	}).join('\n');
+	const selectors = arrays.map(({ name, type, elements }) => {
+		const returnType = type === 'scalar' ? 'f32' : type === 'vector' ? 'vec2f' : 'vec4f';
+		const selectFunction = (prefix: string, resultType: string, extra = '') => `
+fn ${prefix}_${name}(index: u32, position: vec2f${extra}) -> ${resultType} {
+	switch index {
+		${elements.map((element, index) => `case ${index}u: { return ${prefix}_${element}(position${extra ? ', calculate' : ''}); }`).join('\n')}
+		default: { return ${resultType}(0.0); }
+	}
+}`;
+		return `const count_${name}: u32 = ${elements.length}u;\n` + selectFunction('read', returnType)
+			+ (scalarGradients && type === 'scalar' ? selectFunction('readGradient', 'vec3f', ', calculate: bool') : '');
+	}).join('\n');
 	return {
-		code: `struct GsInputUniforms { ${declarations} };\n@group(${group}) @binding(0) var<uniform> gs_inputs: GsInputUniforms;\n${functions}`,
+		code: `struct GsInputUniforms { ${declarations} };\n@group(${group}) @binding(0) var<uniform> gs_inputs: GsInputUniforms;\n${functions}\n${selectors}`,
+		schema,
+		variantKey,
 		entries,
 		slots,
 		// 各入力はvec4を2つ使い、CPUとWGSLのalignmentを一致させる。
-		byteLength: slots.length * 32,
+		byteLength: Math.max(16, slots.length * 32),
 	};
 }
 
 /** 生成済みの構成に対応するuniformとbind group。入力テクスチャの所有権は持たない。 */
 export function createShaderInputBindings(device: GPUDevice, generated: ReturnType<typeof generateShaderInputs>) {
+	const textureCount = generated.slots.filter(slot => slot.kind === 'texture').length;
+	// 個別binding方式の上限。内部groupを含む合計の検証はpipeline作成時にもGPUが行う。
+	if (textureCount > device.limits?.maxSampledTexturesPerShaderStage || textureCount > device.limits?.maxSamplersPerShaderStage
+		|| generated.byteLength > device.limits?.maxUniformBufferBindingSize || generated.entries.length > device.limits?.maxBindingsPerBindGroup) {
+		throw new Error(`Shader inputs exceed device binding limits (${textureCount} textures/samplers, ${generated.byteLength} uniform bytes)`);
+	}
 	const layout = device.createBindGroupLayout({ entries: generated.entries });
 	const buffer = device.createBuffer({ size: generated.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
 	const values = new Float32Array(generated.byteLength / 4);
@@ -121,12 +177,14 @@ export function createShaderInputBindings(device: GPUDevice, generated: ReturnTy
 	let bindGroup: GPUBindGroup;
 	return {
 		layout,
-		update(inputs: Record<string, ShaderInput>, output: { width: number; height: number }) {
+		update(inputs: ShaderInputValues, output: { width: number; height: number }) {
+			if (shaderInputVariantKey(generated.schema, inputs) !== generated.variantKey) throw new Error('Shader input shape or kind changed');
 			const entries: GPUBindGroupEntry[] = [{ binding: 0, resource: { buffer } }];
 			const resources: (GPUTexture | GPUSampler)[] = [];
 			values.fill(0);
 			for (const slot of generated.slots) {
-				const input = inputs[slot.name];
+				const value = inputs[slot.sourceName];
+				const input = 'kind' in value ? value : value[slot.elementIndex!];
 				if (input.kind !== slot.kind) throw new Error(`Shader input kind changed: ${slot.name}`);
 				if (input.kind === 'uniform') {
 					values.set(input.value, slot.index * 8);

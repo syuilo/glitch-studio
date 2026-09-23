@@ -5,6 +5,7 @@ import rawImage from '../../../shared/src/effects/rawImage/_impl_.ts';
 import blockShuffle from '../../../shared/src/effects/blockShuffle/_impl_.ts';
 import { constantShaderInput, textureShaderInput, generateShaderInputs, createShaderInputBindings } from '../../../shared/src/shader-input.ts';
 import vertexCode from '../../src/vertex.wgsl?raw';
+import { createShaderInputPipeline } from '../../../shared/src/shader-input-pipeline.ts';
 
 // 実際のGPU出力を読む。モックでは検出できないWGSL・layout・補間の不整合を確認する。
 export async function run() {
@@ -47,6 +48,58 @@ export async function run() {
 		return read(output, encoder);
 	}
 	try {
+		// 画素ごとに異なる配列要素を選び、定数・補間・境界処理を実際のWGSLで確認する。
+		const arrayPipelines = createShaderInputPipeline({
+			device, vertex, schema: { images: { array: 'color' } }, targets: [{ format: 'rgba8unorm' }],
+			code: '@fragment fn fs(@builtin(position) pixel: vec4f) -> @location(0) vec4f { return read_images(u32(pixel.x), vec2f(0.0, 0.75)); }',
+		});
+		const arrayOutput = texture(5, 1);
+		const arraySource = texture(2, 1, [255, 0, 0, 255, 0, 0, 255, 255]);
+		const marginSource = texture(8, 2, Array(16).fill([255, 255, 255, 255]).flat());
+		const arrayInputs = [
+			constantShaderInput('color', [1, 0, 0, 0.5]),
+			textureShaderInput(arraySource, { fitMode: 'stretch', wrapMode: 'clamp' }),
+			textureShaderInput(arraySource, { fitMode: 'stretch', wrapMode: 'clamp', filterMode: 'nearest' }),
+			textureShaderInput(marginSource, { fitMode: 'contain', wrapMode: 'transparent' }),
+		];
+		const drawArray = async (images: typeof arrayInputs) => {
+			// fitの基準を正方形とし、横長の集計用出力とは独立にcontainを検証する。
+			const variant = arrayPipelines.update({ images }, { width: 8, height: 8 });
+			const encoder = device.createCommandEncoder();
+			const pass = encoder.beginRenderPass({ colorAttachments: [{ view: arrayOutput.createView(), loadOp: 'clear', storeOp: 'store' }] });
+			pass.setPipeline(variant.pipeline);
+			pass.setBindGroup(0, variant.bindGroup);
+			pass.draw(6);
+			pass.end();
+			return (await read(arrayOutput, encoder))[0];
+		};
+		try {
+			const expected = [128, 0, 0, 128, 128, 0, 128, 255, 0, 0, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0];
+			check('array selects mixed inputs per pixel and returns zero out of range', await drawArray(arrayInputs), expected);
+			// 空配列のstruct・selectorも有効なシェーダーになり、古いbindingを参照しない。
+			check('empty array returns transparent', await drawArray([]), Array(20).fill(0));
+			check('shorter array drops old entries', await drawArray([constantShaderInput('color', [0, 1, 0, 1])]), [0, 255, 0, 255, ...Array(16).fill(0)]);
+			check('array restores cached mixed variant', await drawArray(arrayInputs), expected);
+			arrayInputs[1] = textureShaderInput(arraySource, { fitMode: 'stretch', wrapMode: 'clamp', filterMode: 'nearest' });
+			check('array filter change updates cached variant', (await drawArray(arrayInputs)).slice(4, 8), [0, 0, 255, 255]);
+		} finally { arrayPipelines.dispose(); }
+		// スカラー配列の微分と、空のvector/any配列も型の一致した選択関数になる。
+		const gradientArrayPipelines = createShaderInputPipeline({
+			device, vertex, schema: { fields: { array: 'scalar' }, vectors: { array: 'vector' }, data: { array: 'any' } },
+			targets: [{ format: 'rgba8unorm' }], sampling: 'level0', scalarGradients: true,
+			code: '@fragment fn fs(@builtin(position) pixel: vec4f) -> @location(0) vec4f { return vec4f(readGradient_fields(u32(pixel.x), vec2f(0.0), true), 1.0) + vec4f(read_vectors(0u, vec2f(0.0)), 0.0, 0.0) + read_data(0u, vec2f(0.0)); }',
+		});
+		try {
+			const ramp = texture(2, 1, [0, 0, 0, 255, 255, 0, 0, 255]);
+			const variant = gradientArrayPipelines.update({ fields: [constantShaderInput('scalar', 0.25), textureShaderInput(ramp, { fitMode: 'stretch' })], vectors: [], data: [] }, arrayOutput);
+			const encoder = device.createCommandEncoder();
+			const pass = encoder.beginRenderPass({ colorAttachments: [{ view: arrayOutput.createView(), loadOp: 'clear', storeOp: 'store' }] });
+			pass.setPipeline(variant.pipeline);
+			pass.setBindGroup(0, variant.bindGroup);
+			pass.draw(6);
+			pass.end();
+			check('scalar array derivatives and empty typed selectors', (await read(arrayOutput, encoder))[0], [64, 0, 0, 255, 128, 255, 0, 255, 0, 0, 0, 255, 0, 0, 0, 255, 0, 0, 0, 255]);
+		} finally { gradientArrayPipelines.dispose(); }
 		// Raw Imageは素材の各画素を保持し、半透明色だけ一度premultiplyする。
 		const rawSource = texture(2, 2, [255, 0, 0, 128, 0, 255, 0, 255, 0, 0, 255, 64, 255, 255, 255, 0]);
 		const rawOutput = texture(2, 2);
