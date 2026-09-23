@@ -1,0 +1,21 @@
+import { defineEffect } from '../../effect-definition.ts';
+
+export default defineEffect({
+	id: 'polkadot',
+	displayName: 'Polka dot',
+	tags: [],
+	paramDefs: {
+		input: { dataType: 'color', ui: { label: 'Input', control: 'color' }, canNode: true, primary: true, defaultValue: { inputSource: 'node', nodeId: null, outputPort: null } },
+		angle: { dataType: 'scalar', ui: { label: 'Angle', control: 'angle' }, defaultValue: { inputSource: 'literal', value: 0 } },
+		scale: { dataType: 'scalar', ui: { label: 'Scale', control: 'range', min: 1, max: 10, step: 0.1 }, defaultValue: { inputSource: 'literal', value: 3 } },
+		majorRadius: { dataType: 'scalar', ui: { label: 'Major radius', control: 'range', min: 0, max: 1, step: 0.01 }, defaultValue: { inputSource: 'literal', value: 0.1 } },
+		majorOpacity: { dataType: 'scalar', ui: { label: 'Major opacity', control: 'range', min: 0, max: 1, step: 0.01 }, defaultValue: { inputSource: 'literal', value: 0.75 } },
+		minorDivisions: { dataType: 'scalar', ui: { label: 'Minor divisions', control: 'range', min: 0, max: 16, step: 1 }, defaultValue: { inputSource: 'literal', value: 4 } },
+		minorRadius: { dataType: 'scalar', ui: { label: 'Minor radius', control: 'range', min: 0, max: 1, step: 0.01 }, defaultValue: { inputSource: 'literal', value: 0.25 } },
+		minorOpacity: { dataType: 'scalar', ui: { label: 'Minor opacity', control: 'range', min: 0, max: 1, step: 0.01 }, defaultValue: { inputSource: 'literal', value: 0.5 } },
+		color: { dataType: 'color', ui: { label: 'Color', control: 'color' }, defaultValue: { inputSource: 'literal', value: [1, 1, 1, 1] } },
+	},
+	outputs: {
+		output: { primary: true, dataType: 'color' },
+	},
+});

@@ -22,6 +22,7 @@ import remap from './effects/remap/_def_.ts';
 import opticalFlow from './effects/opticalFlow/_def_.ts';
 import vectorDisplacement from './effects/vectorDisplacement/_def_.ts';
 import pixelSort from './effects/pixelSort/_def_.ts';
+import polkadot from './effects/polkadot/_def_.ts';
 import quadtreeFilter from './effects/quadtreeFilter/_def_.ts';
 import rainDropsOnWindow1 from './effects/rainDropsOnWindow1/_def_.ts';
 import rainDropsOnWindow2 from './effects/rainDropsOnWindow2/_def_.ts';
@@ -70,6 +71,7 @@ const _effectDefinitions = {
 	opticalFlow,
 	vectorDisplacement,
 	pixelSort,
+	polkadot,
 	quadtreeFilter,
 	rainDropsOnWindow1,
 	rainDropsOnWindow2,
