@@ -1,3 +1,4 @@
+import type { NodeOutput } from './node-output.ts';
 import type { TimelineVisualModuleLayer, VisualModule } from '@glitch/shared/types.ts';
 import type { VisualModuleRenderContext } from './visual-module-renderer.ts';
 import type { TimelineLayerContext, TimelineLayerRenderer } from './timeline-renderer.ts';
@@ -8,14 +9,14 @@ export function createVisualModuleTimelineLayer(
 	layer: TimelineVisualModuleLayer,
 	renderer: {
 		prepare: (context: VisualModuleRenderContext, signal: AbortSignal) => Promise<void>;
-		render: (context: VisualModuleRenderContext) => ReturnType<TimelineLayerRenderer<GPUTexture>['render']>;
+		render: (context: VisualModuleRenderContext) => ReturnType<TimelineLayerRenderer<NodeOutput>['render']>;
 		destroy: () => void;
 	},
-): TimelineLayerRenderer<GPUTexture> {
+): TimelineLayerRenderer<NodeOutput> {
 	// prepareとrenderは同じオブジェクトを渡し、評価結果を再利用する。
 	// 並行するシークのコンテキストを上書きしないよう、入力ごとに保持する。
-	const contexts = new WeakMap<TimelineLayerContext<GPUTexture>, VisualModuleRenderContext>();
-	const resolveContext = (context: TimelineLayerContext<GPUTexture>): VisualModuleRenderContext => {
+	const contexts = new WeakMap<TimelineLayerContext<NodeOutput>, VisualModuleRenderContext>();
+	const resolveContext = (context: TimelineLayerContext<NodeOutput>): VisualModuleRenderContext => {
 		let resolved = contexts.get(context);
 		if (resolved == null) {
 			resolved = {
@@ -24,7 +25,7 @@ export function createVisualModuleTimelineLayer(
 				timeDelta: context.timeDelta,
 				endTime: context.endTime,
 				paramValues: layer.paramValues,
-				paramTextures: new Map(visualModule.paramDefs.filter(def => def.isPrimaryInput).map(def => [def.id, context.input])),
+				paramInputs: new Map(visualModule.paramDefs.filter(def => def.isPrimaryInput).map(def => [def.id, context.input])),
 				pointerPosition: { x: -99999, y: -99999 },
 				pointerPositionPrev: { x: -99999, y: -99999 },
 			};

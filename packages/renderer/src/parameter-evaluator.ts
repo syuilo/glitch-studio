@@ -34,8 +34,9 @@ export type ParameterEvaluationContext = {
 	time: number;
 	endTime: number; // 終了時刻という概念がないコンテキスト(例: live mode)の場合はInfinityとすること。
 	paramValues: VisualModuleParamValues;
-	// テクスチャそのものは扱わず、値として参照できないパラメータのIDだけを受け取る。
-	textureParamIds: ReadonlySet<string>;
+	// ノード出力はCPU式の値とは分ける。上流が定数でもPARAMの可否を変えないため、
+	// uniform/textureの種別ではなく、入力として供給されたパラメータのIDを受け取る。
+	inputParamIds: ReadonlySet<string>;
 };
 
 export type EvaluatedParameters = {
@@ -124,7 +125,7 @@ export class ParameterEvaluator {
 
 		for (const def of context.paramDefs) {
 			const value = context.paramValues[def.id];
-			if (context.textureParamIds.has(def.id)) continue;
+			if (context.inputParamIds.has(def.id)) continue;
 			let evaluated = deepClone(def.defaultValue.value); // literalの中身を取り出し、参照が共有されないように切る
 			if (value?.inputSource === 'literal') evaluated = value.value;
 			if (value?.inputSource === 'envVariable') evaluated = getEnvironmentVariableValue(value.variable) ?? genEmptyValue(def);
@@ -140,7 +141,7 @@ export class ParameterEvaluator {
 		const readParam = (name: string): any => {
 			const def = context.paramDefs.find(def => def.name === name);
 			if (def == null) throw new Error(`Unknown parameter: ${name}`);
-			if (context.textureParamIds.has(def.id)) throw new Error(`Texture parameter cannot be read by PARAM: ${name}`);
+			if (context.inputParamIds.has(def.id)) throw new Error(`Node input cannot be read by PARAM: ${name}`);
 			return paramValues.get(def.id);
 		};
 
@@ -156,7 +157,7 @@ export class ParameterEvaluator {
 					if (param.inputSource === 'envVariable') return getEnvironmentVariableValue(param.variable) ?? genEmptyValue(def);
 					if (param.inputSource === 'expression') return param.expression ? this.evaluateExpression(param.expression, variablesScope, def, readGraph, readParam) : genEmptyValue(def);
 					if (param.inputSource === 'externalParameterInput') {
-						if (!paramValues.has(param.parameterId) || context.textureParamIds.has(param.parameterId)) return genEmptyValue(def);
+						if (!paramValues.has(param.parameterId) || context.inputParamIds.has(param.parameterId)) return genEmptyValue(def);
 						return paramValues.get(param.parameterId);
 					}
 					if (param.inputSource === 'automationGraphReference') {

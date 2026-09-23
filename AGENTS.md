@@ -143,7 +143,7 @@ Glitch Studioのメディアの扱いにあたっては、以下の概念があ�
 
 - falseのときに32bit floatのノード出力を生成してはいけません。通常の画像出力は `wgpu.intermediateTextureFormat` に従います。
 - 出力だけでなく、内部の一時テクスチャ・履歴・compute shaderのstorage textureにも精度設定を適用します。テクスチャの生成形式、render pipelineのtarget、bind group layoutのstorage形式、WGSLのstorage texture宣言は必ず一致させます。出力チャンネル数も合わせてください。
-- `canNode: true` のパラメータは、全エフェクトで `ShaderInput` を受け取ります（構造体・配列内も同様）。定数は `kind: 'uniform'`、接続は元のGPUTextureとfit/wrap/filter設定を持つ `kind: 'texture'` です。定数のための1x1テクスチャは作らず、接続時にも暗黙の形式変換は行いません。参照は原則共通の生成関数を使い、整数画素アクセスなどが必要ならエフェクト側で元のテクスチャを扱えます。Visual Moduleの定数パラメータをテクスチャ出力する処理は別用途なので、必要な境界で1x1テクスチャへ変換します。
+- `canNode: true` のパラメータは、全エフェクトで `ShaderInput` を受け取ります（構造体・配列内も同様）。定数は `kind: 'uniform'`、接続は元のGPUTextureとfit/wrap/filter設定を持つ `kind: 'texture'` です。定数のための1x1テクスチャは作らず、接続時にも暗黙の形式変換は行いません。参照は原則共通の生成関数を使い、整数画素アクセスなどが必要ならエフェクト側で元のテクスチャを扱えます。Visual ModuleのIn/Out・バイパス・レイヤー間も定数をNodeOutputとして保持し、最終表示・集計などGPUTextureが必要な境界でのみ1x1テクスチャへ変換します。fit/wrap/filterは出力値には含めず、受け取り側の接続設定を適用します。
 - CPUから16bit floatへアップロードするときは、数値をhalfのビット表現に変換します。`Float32Array` のバイト列をそのまま渡してはいけません。`bytesPerRow` も保存形式に合わせます。共通の変換処理は `packages/shared/src/utility/float32ToFloat16Bits.ts` にあります。
 - 16bit化では丸めと表現範囲の縮小が発生します。履歴との差分を計算する処理では、現在値と履歴値を同じ保存精度に揃えて、静止入力に丸め由来の差分が出ないようにします。蓄積では保存可能な範囲への制限などによりオーバーフローを防ぎます。
 

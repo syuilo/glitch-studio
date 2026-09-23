@@ -33,7 +33,7 @@ const context = (defs, params, overrides = {}) => ({
 	time: 500,
 	endTime: 2000,
 	paramValues: {},
-	textureParamIds: new Set(),
+	inputParamIds: new Set(),
 	...overrides,
 });
 
@@ -255,7 +255,7 @@ test('falls back for texture parameters, missing references and invalid expressi
 	const result = new ParameterEvaluator().evaluate(context(Object.fromEntries(Object.keys(params).map(key => [key, number])), params, {
 		paramDefs: [paramDef('texture', 99), paramDef('missingAutomationGraph', 12)],
 		paramValues: { missingAutomationGraph: { inputSource: 'automationGraphReference', automationGraphId: 'missing' } },
-		textureParamIds: new Set(['texture']),
+		inputParamIds: new Set(['texture']),
 	}));
 	assert.deepEqual(result.nodeParams.get('node'), Object.fromEntries(Object.keys(params).map(key => [key, 0])));
 	assert.equal(result.paramValues.has('texture'), false);
@@ -383,7 +383,7 @@ for (const enable32bitDataTextures of [false, true]) {
 		assert.equal(writes.length, 0);
 		assert.equal(allocated.length, 2, 'only the output and image fallback exist');
 		assert.deepEqual(renderedValues, []);
-		assert.strictEqual(renderer.render(frame, {}), output);
+		assert.strictEqual(renderer.render(frame, {}).texture, output);
 		assert.equal(writes.length, 0);
 		assert.deepEqual(renderedValues, [{
 			amount: { kind: 'uniform', value: [1.5] },

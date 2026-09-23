@@ -15,6 +15,9 @@ const { default: rawImage } = await load('../../shared/src/effects/rawImage/_imp
 const { default: rawImageDefinition } = await load('../../shared/src/effects/rawImage/_def_.ts');
 const { default: structArrayDefinition } = await load('../../shared/src/effects/testStructArray/_def_.ts');
 const { VisualModuleRenderer } = await load('../src/visual-module-renderer.ts');
+const { OutputTextureResolver, outputShaderInput } = await load('../src/node-output.ts');
+const { TimelineRenderer } = await load('../src/timeline-renderer.ts');
+const { createVisualModuleTimelineLayer } = await load('../src/visual-module-timeline-layer.ts');
 
 function gpuFixture() {
 	const calls = { textures: [], buffers: [], shaders: [], groups: [], samplers: [], writes: [], draws: 0, uploads: 0 };
@@ -45,6 +48,143 @@ function gpuFixture() {
 	return { device, calls, encoder };
 }
 const literal = value => ({ inputSource: 'literal', value });
+
+// 複数のVisual Moduleをまたいでも定数のまま受け渡し、色を二重乗算しない。
+test('preserves constant outputs across timeline module layers', async () => {
+	const { device, calls, encoder } = gpuFixture();
+	const presented = [];
+	const module = {
+		paramDefs: [{ id: 'input', name: 'Input', dataType: 'color', canNode: true, isPrimaryInput: true, defaultValue: literal([0, 0, 0, 0]) }],
+		automationGraphs: [], outputDefs: [{ id: 'out', isPrimaryOutput: true }],
+		nodes: [{ id: 'in', type: 'globalIn' }, { id: 'out', type: 'globalOut', inputs: { out: { nodeId: 'in', outputPort: 'input' } } }],
+	};
+	const constant = { kind: 'uniform', value: [0.25, 0.125, 0, 0.25] };
+	const timeline = new TimelineRenderer({
+		fallbackOutput: constant,
+		createLayer() {
+			const renderer = createRenderer(device, module);
+			return createVisualModuleTimelineLayer(module, { paramValues: {} }, {
+				prepare: (context, signal) => renderer.prepare(context, signal),
+				render: async context => ({ output: renderer.render(context, encoder), gpuTime: 0 }),
+				destroy: () => renderer.destroy(),
+			});
+		},
+		present: output => presented.push(output),
+	});
+	try {
+		await timeline.renderAt(10, [{ id: 'a', startTimeMs: 0, endTimeMs: 100 }, { id: 'b', startTimeMs: 0, endTimeMs: 100 }]);
+		assert.strictEqual(presented[0], constant);
+		assert.equal(calls.textures.length, 0);
+		assert.equal(calls.uploads, 0);
+	} finally { timeline.clear(); }
+});
+
+// In→バイパス→エフェクトでも定数の精度と乗算済み色を保ち、GPUへの転送を発生させない。
+test('passes module constants through bypasses without allocating input textures', async () => {
+	const { device, calls, encoder } = gpuFixture();
+	const captured = [];
+	const connection = (port, nodeId = 'in') => ({ inputSource: 'node', nodeId, outputPort: port });
+	const bypass = { id: 'bypass', type: 'effect', effectId: 'colorMix', isBypass: true, params: {
+		inputA: connection('color'), inputB: literal([0, 0, 0, 0]), amount: literal(0),
+	} };
+	const mix = { id: 'mix', type: 'effect', effectId: 'colorMix', params: {
+		inputA: connection('output', 'bypass'), inputB: connection('vector'), amount: connection('scalar'),
+	} };
+	const probe = { ...effect, init: () => ({ prepare: params => captured.push(['prepare', params]), render: ctx => captured.push(['render', ctx.params]), dispose() {} }) };
+	const renderer = createRenderer(device, {
+		paramDefs: [
+			{ id: 'color', name: 'Color', dataType: 'color', canNode: true, defaultValue: literal([1, 0.5, 0, 0.25]) },
+			{ id: 'vector', name: 'Vector', dataType: 'vector', canNode: true, defaultValue: literal([0.123456789, -2]) },
+			{ id: 'scalar', name: 'Scalar', dataType: 'scalar', canNode: true, defaultValue: literal(0.123456789) },
+		], automationGraphs: [], outputDefs: [{ id: 'out', isPrimaryOutput: true }],
+		nodes: [{ id: 'in', type: 'globalIn' }, bypass, mix, { id: 'out', type: 'globalOut', inputs: { out: { nodeId: 'mix', outputPort: 'output' } } }],
+	}, { effectImplementations: { colorMix: probe } });
+	try {
+		const context = renderContext();
+		const allocated = calls.textures.length;
+		await renderer.prepare(context, new AbortController().signal);
+		renderer.render(context, encoder);
+		assert.deepEqual(captured.map(([stage]) => stage), ['prepare', 'render']);
+		assert.deepEqual(captured[1][1], {
+			inputA: { kind: 'uniform', value: [0.25, 0.125, 0, 0.25] },
+			inputB: { kind: 'uniform', value: [0.123456789, -2, 0, 1] },
+			amount: { kind: 'uniform', value: [0.123456789, 0, 0, 1] },
+		});
+		renderer.render(context, encoder);
+		assert.equal(captured.length, 2, 'unchanged constants use the render cache');
+		renderer.render(renderContext({ paramValues: { scalar: literal(0.75) } }), encoder);
+		assert.equal(captured.at(-1)[1].amount.value[0], 0.75);
+		assert.equal(calls.textures.length, allocated);
+		assert.equal(calls.uploads, 0);
+	} finally { renderer.destroy(); }
+});
+
+// 同じInポートの定数/画像切替を検出し、各接続の設定を独立して適用する。
+test('switches module outputs between constants and borrowed textures', () => {
+	const { device, calls, encoder } = gpuFixture();
+	const captured = [];
+	const mix = { id: 'mix', type: 'effect', effectId: 'colorMix', params: {
+		inputA: { inputSource: 'node', nodeId: 'in', outputPort: 'color', fitMode: 'contain', wrapMode: 'clamp', filterMode: 'nearest' },
+		inputB: { inputSource: 'node', nodeId: 'in', outputPort: 'color' },
+		amount: { inputSource: 'externalParameterInput', parameterId: 'gain' },
+	} };
+	const out = { id: 'out', type: 'globalOut', inputs: { out: { nodeId: 'mix', outputPort: 'output' } } };
+	const renderer = createRenderer(device, {
+		paramDefs: [
+			{ id: 'color', name: 'Color', dataType: 'color', canNode: true, defaultValue: literal([1, 0, 0, 0.5]) },
+			{ id: 'gain', name: 'Gain', dataType: 'scalar', canNode: true, defaultValue: literal(0) },
+		], automationGraphs: [], outputDefs: [{ id: 'out', isPrimaryOutput: true }], nodes: [{ id: 'in', type: 'globalIn' }, mix, out],
+	}, { effectImplementations: { colorMix: { ...effect, init: () => ({ render: ctx => captured.push(ctx.params), dispose() {} }) } } });
+	const texture = device.createTexture({ size: [17, 9], format: 'rgba8unorm' });
+	try {
+		renderer.render(renderContext(), encoder);
+		const context = renderContext({ paramInputs: new Map([['color', { kind: 'texture', texture }], ['gain', { kind: 'uniform', value: [0.4] }]]) });
+		renderer.render(context, encoder);
+		renderer.render(context, encoder);
+		assert.equal(captured.length, 3, 'borrowed textures may change each frame');
+		assert.deepEqual(captured.at(-1).inputA, { kind: 'texture', texture, fitMode: 'contain', wrapMode: 'clamp', filterMode: 'nearest' });
+		assert.equal(captured.at(-1).inputB.wrapMode, 'repeatMirrored');
+		assert.equal(captured.at(-1).amount.value[0], 0.4);
+		renderer.render(renderContext(), encoder);
+		assert.deepEqual(captured.at(-1).inputA.value, [0.5, 0, 0, 0.5]);
+		// In→Out直結でも出力はuniformのまま。上流の乗算済み色は再乗算しない。
+		out.inputs.out = { nodeId: 'in', outputPort: 'color' };
+		const constant = { kind: 'uniform', value: [0.2, 0.1, 0, 0.25] };
+		assert.strictEqual(renderer.render(renderContext({ paramInputs: new Map([['color', constant]]) }), encoder), constant);
+		assert.equal(calls.uploads, 0);
+	} finally { renderer.destroy(); }
+	assert.equal(texture.destroyed, false);
+});
+
+for (const enable32bit of [false, true]) {
+	// 定数のテクスチャ化は表示境界だけで行い、同値の転送を省略し、所有リソースだけ破棄する。
+	test(`materializes constants only at the texture boundary with ${enable32bit ? 32 : 16}-bit storage`, () => {
+		const { device, calls } = gpuFixture();
+		const uploads = [];
+		device.queue.writeTexture = (target, data, layout) => uploads.push({ target, data: [...data], layout });
+		const resolver = new OutputTextureResolver(device, enable32bit);
+		const constant = { kind: 'uniform', value: [0.25, 0.125, 0, 0.25] };
+		const texture = resolver.resolve(constant);
+		assert.equal(texture.format, enable32bit ? 'rgba32float' : 'rgba16float');
+		assert.deepEqual(uploads[0].data, enable32bit ? constant.value : [0x3400, 0x3000, 0, 0x3400]);
+		assert.equal(uploads[0].layout.bytesPerRow, enable32bit ? 16 : 8);
+		assert.strictEqual(resolver.resolve({ ...constant, value: [...constant.value] }), texture);
+		assert.equal(uploads.length, 1);
+		assert.strictEqual(resolver.resolve({ kind: 'uniform', value: [0.5, 0, 0, 1] }), texture);
+		assert.equal(uploads.length, 2);
+		const scalar = resolver.resolve({ kind: 'uniform', value: [1] });
+		const vector = resolver.resolve({ kind: 'uniform', value: [1, 2] });
+		assert.equal(scalar.format, enable32bit ? 'r32float' : 'r16float');
+		assert.equal(vector.format, enable32bit ? 'rg32float' : 'rg16float');
+		assert.deepEqual(outputShaderInput({ kind: 'uniform', value: [1] }).value, [1, 0, 0, 1]);
+		const borrowed = device.createTexture({ size: [10, 20] });
+		assert.strictEqual(resolver.resolve({ kind: 'texture', texture: borrowed }), borrowed);
+		assert.equal(calls.textures.length, 4);
+		resolver.dispose();
+		assert.ok([texture, scalar, vector].every(texture => texture.destroyed));
+		assert.equal(borrowed.destroyed, false);
+	});
+}
 
 // 構造体配列内の接続・定数を解決し、要素の変更でレンダラーのキャッシュも更新する。
 test('resolves nested array inputs and invalidates sampling changes', () => {
@@ -210,7 +350,7 @@ test('refreshes external textures and restores constants after disconnecting the
 	renderer.render(context, encoder);
 	assert.deepEqual([...calls.writes.at(-1).slice(0, 4)], [0, 0, 0, 0]);
 	const input = device.createTexture({ size: [32, 32], format: 'r16float' });
-	const withTexture = renderContext({ paramTextures: new Map([['gain', input]]) });
+	const withTexture = renderContext({ paramInputs: new Map([['gain', { kind: 'texture', texture: input }]]) });
 	renderer.render(withTexture, encoder);
 	renderer.render(withTexture, encoder);
 	assert.equal(calls.draws, 3);
@@ -220,6 +360,16 @@ test('refreshes external textures and restores constants after disconnecting the
 	assert.equal(calls.shaders.length, 2);
 	renderer.render(context, encoder);
 	assert.equal(calls.draws, 4);
+	// 上流の定数も外部入力として渡せる。同値はキャッシュし、値の変更を検出する。
+	const uniform = { kind: 'uniform', value: [0.25] };
+	const withUniform = renderContext({ paramInputs: new Map([['gain', uniform]]) });
+	renderer.render(withUniform, encoder);
+	renderer.render(withUniform, encoder);
+	assert.equal(calls.draws, 5);
+	uniform.value = [0.75];
+	renderer.render(withUniform, encoder);
+	assert.equal(calls.draws, 6);
+	assert.equal(calls.writes.at(-1)[16], 0.75);
 	renderer.destroy();
 });
 
@@ -232,7 +382,7 @@ test('resizes Raw Image outputs to the selected asset and preserves borrowed tex
 	const output = { id: 'out', type: 'globalOut', inputs: { out: { nodeId: 'raw', outputPort: 'output' } } };
 	const visualModule = { nodes: [raw, output], paramDefs: [], automationGraphs: [], outputDefs: [{ id: 'out', isPrimaryOutput: true }] };
 	const renderer = createRenderer(device, visualModule, { assetTextures: assets });
-	const initial = renderer.render(renderContext(), encoder);
+	const initial = renderer.render(renderContext(), encoder).texture;
 	assert.deepEqual([initial.width, initial.height], [7, 3]);
 	const allocated = calls.textures.length;
 	renderer.render(renderContext(), encoder);
@@ -240,7 +390,7 @@ test('resizes Raw Image outputs to the selected asset and preserves borrowed tex
 	const replacement = device.createTexture({ size: [4, 9], format: 'rgba8unorm' });
 	assets.set('asset', replacement);
 	renderer.updateAssets([]);
-	const resized = renderer.render(renderContext(), encoder);
+	const resized = renderer.render(renderContext(), encoder).texture;
 	assert.deepEqual([resized.width, resized.height], [4, 9]);
 	assert.equal(initial.destroyed, true);
 	// Raw Image→colorMixで、素材側の比率がサンプリングのuniformへ届くことを確認する。
@@ -254,7 +404,7 @@ test('resizes Raw Image outputs to the selected asset and preserves borrowed tex
 	raw.params.image = literal(null);
 	output.inputs.out.nodeId = 'raw';
 	renderer.updateNodes([raw, mix, output]);
-	const empty = renderer.render(renderContext(), encoder);
+	const empty = renderer.render(renderContext(), encoder).texture;
 	assert.deepEqual([empty.width, empty.height], [1, 1]);
 	renderer.destroy();
 	assert.equal(asset.destroyed, false);

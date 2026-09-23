@@ -1,8 +1,9 @@
-import { constantShaderInput, textureShaderInput } from '@glitch/shared/shader-input.ts';
+import { constantShaderInput } from '@glitch/shared/shader-input.ts';
 import { getNodeOutputs } from '@glitch/shared/utility/node-outputs.ts';
 import { playerAudioSourceId } from '@glitch/shared/audio.ts';
 import { AudioHistory } from '@glitch/shared/audio-history.ts';
-import { float32ToFloat16Bits } from '@glitch/shared/utility/float32ToFloat16Bits.ts';
+import { outputShaderInput } from './node-output.ts';
+import type { NodeOutput } from './node-output.ts';
 import TimingHelper from './utility/TimingHelper.ts';
 import { ParameterEvaluator } from './parameter-evaluator.ts';
 import { getEvaluatedParam, mapNodeParam, walkNodeParams } from './utility/node-params.ts';
@@ -20,7 +21,7 @@ export type VisualModuleRenderContext = {
 	time: number;
 	timeDelta: number;
 	endTime: number; // 終了時刻という概念がないコンテキスト(例: live mode)の場合はInfinityとすること。
-	paramTextures?: ReadonlyMap<string, GPUTexture>;
+	paramInputs?: ReadonlyMap<string, NodeOutput>;
 	pointerPosition: { x: number; y: number };
 	pointerPositionPrev: { x: number; y: number };
 	paramValues: VisualModuleParamValues;
@@ -36,8 +37,7 @@ export class VisualModuleRenderer {
 	private paramDefs: VisualModule['paramDefs'];
 	private outputDefs: VisualModule['outputDefs'] = [];
 	private paramValues = new Map<string, any>();
-	private paramTextures: ReadonlyMap<string, GPUTexture> = new Map();
-	private paramConstTextures = new Map<string, GPUTexture>();
+	private paramInputs: ReadonlyMap<string, NodeOutput> = new Map();
 	private preparedContext: VisualModuleRenderContext | null = null;
 	private statusWaiters = new Set<() => void>();
 	private destroyed = false;
@@ -117,49 +117,24 @@ export class VisualModuleRenderer {
 		this.paramDefs = visualModule.paramDefs;
 		this.preparedContext = null;
 		this.paramValues.clear();
-		this.paramTextures = new Map();
-		for (const texture of this.paramConstTextures.values()) texture.destroy();
-		this.paramConstTextures.clear();
+		this.paramInputs = new Map();
 		this.effectCacheKeys.clear();
 		this.updateNodes(visualModule.nodes);
 	}
 
-	private getParamTexture(paramId: string): GPUTexture | undefined {
+	private getParamOutput(paramId: string): NodeOutput | undefined {
 		const def = this.paramDefs.find(def => def.id === paramId);
 		if (def == null || !def.canNode) return undefined;
-		const input = this.paramTextures.get(paramId);
-		if (input != null) return input; // 呼び出し元のテクスチャは所有・破棄しない。
+		const input = this.paramInputs.get(paramId);
+		if (input != null) return input;
 		const value = this.paramValues.get(paramId);
-		if (def.dataType === 'assetReference') return this.assetTextures.get(value) ?? this.fallbackTexture;
-		let components: number[];
-		if (def.dataType === 'color') {
-			const alpha = value?.[3] ?? 0;
-			// 定数色を画像として出力する境界だけでpremultiplyする。externalParameterInput/PARAMの値は変更しない。
-			components = [(value?.[0] ?? 0) * alpha, (value?.[1] ?? 0) * alpha, (value?.[2] ?? 0) * alpha, alpha];
-		} else if (def.dataType === 'vector') {
-			components = [value?.[0] ?? 0, value?.[1] ?? 0];
-		} else if (def.dataType === 'scalar' || def.dataType === 'bool') {
-			components = [Number(value ?? 0)];
-		} else {
-			throw new Error(`Parameter type cannot be converted to a texture: ${def.dataType}`);
-		}
-		let texture = this.paramConstTextures.get(paramId);
-		if (texture == null) {
-			const channels = components.length === 4 ? 'rgba' : components.length === 2 ? 'rg' : 'r';
-			texture = this.gpuDevice.createTexture({
-				size: [1, 1],
-				format: `${channels}${this.enable32bitDataTextures ? '32float' : '16float'}` as GPUTextureFormat,
-				usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
-			});
-			this.paramConstTextures.set(paramId, texture);
-		}
-		const data = this.enable32bitDataTextures ? new Float32Array(components) : new Uint16Array(components.map(float32ToFloat16Bits));
-		this.gpuDevice.queue.writeTexture({ texture }, data, { bytesPerRow: data.byteLength }, [1, 1]);
-		return texture;
+		if (def.dataType === 'assetReference') return { kind: 'texture', texture: this.assetTextures.get(value) ?? this.fallbackTexture };
+		if (def.dataType === 'bool') return constantShaderInput('scalar', Number(value ?? 0));
+		return constantShaderInput(def.dataType, value);
 	}
 
 	private evaluateParameters(context: VisualModuleRenderContext) {
-		this.paramTextures = context.paramTextures ?? new Map();
+		this.paramInputs = context.paramInputs ?? new Map();
 		const evaluated = this.parameterEvaluator.evaluate({
 			isExport: context.isExport,
 			nodes: this.nodes,
@@ -170,7 +145,7 @@ export class VisualModuleRenderer {
 			time: context.time,
 			endTime: context.endTime,
 			paramValues: context.paramValues,
-			textureParamIds: new Set(this.paramTextures.keys()),
+			inputParamIds: new Set(this.paramInputs.keys()),
 		});
 		this.paramValues = evaluated.paramValues;
 		this.evaledNodeParams = evaluated.nodeParams;
@@ -195,7 +170,12 @@ export class VisualModuleRenderer {
 			throw new Error('circular dependency detected');
 		}
 
-		if (node.type === 'globalIn' || node.type === 'globalOut') return null;
+		if (node.type === 'globalIn') {
+			// 定数は値でキャッシュできる。借用テクスチャは同一オブジェクトでも内容が変わり得る。
+			const outputs = Object.keys(getNodeOutputs(node, this.paramDefs)).map(id => this.getParamOutput(id));
+			return outputs.some(output => output?.kind === 'texture') ? null : JSON.stringify([node.id, outputs]);
+		}
+		if (node.type === 'globalOut') return null;
 
 		let key = `node=${node.id};isBypass=${node.isBypass};`;
 
@@ -227,7 +207,11 @@ export class VisualModuleRenderer {
 					key += JSON.stringify([param.fitMode ?? 'cover', param.wrapMode ?? 'repeatMirrored', param.filterMode ?? 'linear']);
 				}
 				// 外部から渡されたテクスチャは同じオブジェクトの内容が毎フレーム変わり得る。
-				if (def.canNode && param.inputSource === 'externalParameterInput' && this.paramTextures.has(param.parameterId)) return null;
+				if (def.canNode && param.inputSource === 'externalParameterInput') {
+					const input = this.paramInputs.get(param.parameterId);
+					if (input?.kind === 'texture') return null;
+					key += JSON.stringify(input);
+				}
 				if (def.dataType === 'playerReference') {
 					key += JSON.stringify([path, 'videoFrameVersion', v == null ? 0 : this.videoFrameVersions.get(v) ?? 0]);
 					const audio = v == null ? undefined : this.audioSources.get(playerAudioSourceId(v));
@@ -259,12 +243,12 @@ export class VisualModuleRenderer {
 				};
 				if (def.canNode) {
 					if (param.inputSource === 'node' && param.nodeId != null) {
-						const texture = this.getOutputTexture(this.allNodeIdMap.get(param.nodeId)!, param.outputPort);
-						return texture == null ? constantShaderInput(def.dataType, null) : textureShaderInput(texture, param);
+						const output = this.getOutputValue(this.allNodeIdMap.get(param.nodeId)!, param.outputPort);
+						return output == null ? constantShaderInput(def.dataType, null) : outputShaderInput(output, param);
 					}
 					if (param.inputSource === 'externalParameterInput') {
-						const texture = this.paramTextures.get(param.parameterId);
-						if (texture != null) return textureShaderInput(texture);
+						const input = this.paramInputs.get(param.parameterId);
+						if (input != null) return outputShaderInput(input);
 					}
 					return constantShaderInput(def.dataType, v);
 				}
@@ -419,11 +403,12 @@ export class VisualModuleRenderer {
 		return source == null ? undefined : this.getOutputNode(source, input!.outputPort, nextVisited);
 	}
 
-	private getOutputTexture(node: GsNode, outputPort: string): GPUTexture | undefined {
+	private getOutputValue(node: GsNode, outputPort: string): NodeOutput | undefined {
 		const output = this.getOutputNode(node, outputPort);
 		if (output == null) return undefined;
-		if (output.node.type === 'globalIn') return this.getParamTexture(output.outputPort);
-		return this.outDataMapPerNodes.get(output.node.id)?.[output.outputPort]?.texture;
+		if (output.node.type === 'globalIn') return this.getParamOutput(output.outputPort);
+		const texture = this.outDataMapPerNodes.get(output.node.id)?.[output.outputPort]?.texture;
+		return texture == null ? undefined : { kind: 'texture', texture };
 	}
 
 	private renderNode(node: GsNode, commandEncoder: GPUCommandEncoder, context: VisualModuleRenderContext & {
@@ -639,8 +624,8 @@ export class VisualModuleRenderer {
 		return context.outputIds ?? this.outputDefs.filter(def => def.isPrimaryOutput).map(def => def.id);
 	}
 
-	private renderOutputs(context: VisualModuleRenderContext, commandEncoder: GPUCommandEncoder): Map<string, GPUTexture> {
-		const outputs = new Map<string, GPUTexture>();
+	private renderOutputs(context: VisualModuleRenderContext, commandEncoder: GPUCommandEncoder): Map<string, NodeOutput> {
+		const outputs = new Map<string, NodeOutput>();
 		if (this.renderNodeId == null) return outputs;
 		const node = this.allNodeIdMap.get(this.renderNodeId);
 		if (node == null) return outputs;
@@ -660,13 +645,13 @@ export class VisualModuleRenderer {
 		});
 
 		for (const id of this.getRequestedOutputIds(context)) {
-			const texture = this.getOutputTexture(node, id);
-			if (texture != null) outputs.set(id, texture);
+			const value = this.getOutputValue(node, id);
+			if (value != null) outputs.set(id, value);
 		}
 		return outputs;
 	}
 
-	public render(context: VisualModuleRenderContext, commandEncoder: GPUCommandEncoder): GPUTexture | undefined {
+	public render(context: VisualModuleRenderContext, commandEncoder: GPUCommandEncoder): NodeOutput | undefined {
 		const outputs = this.renderOutputs(context, commandEncoder);
 		const primary = this.outputDefs.find(def => def.isPrimaryOutput);
 		return primary == null ? undefined : outputs.get(primary.id);
@@ -705,8 +690,6 @@ export class VisualModuleRenderer {
 
 	public destroy() {
 		this.destroyed = true;
-		for (const texture of this.paramConstTextures.values()) texture.destroy();
-		this.paramConstTextures.clear();
 		for (const notify of this.statusWaiters) notify();
 		for (const id of this.effectStatuses.keys()) this.clearEffectStatus(id);
 		for (const instance of this.effectInstances.values()) {

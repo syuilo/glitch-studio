@@ -46,7 +46,7 @@ test('evaluates IS_EXPORT in module and node expressions without leaking state',
 		paramDefs: [{ ...bool, id: 'export', name: 'export', defaultValue: { inputSource: 'literal', value: false } }],
 		paramValues: { export: { inputSource: 'expression', expression: 'IS_EXPORT' } },
 		effectDefinitions: { test: { paramDefs: { direct: bool, compound: bool } } },
-		automationGraphs: [], resolution: { width: 100, height: 100 }, time: 0, endTime: 1000, textureParamIds: new Set(),
+		automationGraphs: [], resolution: { width: 100, height: 100 }, time: 0, endTime: 1000, inputParamIds: new Set(),
 	};
 	for (const isExport of [undefined, true, false, true, undefined]) {
 		const result = evaluator.evaluate({ ...context, isExport });

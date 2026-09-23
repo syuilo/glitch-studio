@@ -12,6 +12,8 @@ import { VisualModuleRenderer } from './visual-module-renderer.ts';
 import { LiveRenderLoop, browserFrameScheduler } from './live-render-loop.ts';
 import { TimelineRenderer } from './timeline-renderer.ts';
 import { createVisualModuleTimelineLayer } from './visual-module-timeline-layer.ts';
+import { OutputTextureResolver } from './node-output.ts';
+import type { NodeOutput } from './node-output.ts';
 import type { FrameScheduler, LiveFrameTiming } from './live-render-loop.ts';
 import type { TimelineLayerRenderer } from './timeline-renderer.ts';
 import type { EffectStatus, EffectStatusSource } from '@glitch/shared/effect-status.ts';
@@ -21,7 +23,7 @@ import type { EffectImplementation, IntermediateTextureFormat } from '@glitch/sh
 import type { EffectDefinition } from '@glitch/shared/effect-definition.js';
 
 export class MainRenderer {
-	private timelineRenderer: TimelineRenderer<GPUTexture, Timeline[number]>;
+	private timelineRenderer: TimelineRenderer<NodeOutput, Timeline[number]>;
 	private onEffectStatus?: (source: EffectStatusSource, nodeId: string, status: EffectStatus | null) => void;
 	private nextTimelineLayerStatusId = 0;
 	private gpuContext: GPUCanvasContext;
@@ -29,6 +31,7 @@ export class MainRenderer {
 	private resolution: { width: number; height: number; };
 	private defaultVertexShaderModule: GPUShaderModule;
 	private fallbackTexture: GPUTexture;
+	private outputTextures: OutputTextureResolver;
 	private enableStats = true;
 	private highlightClipping = false;
 	private opaqueOutput = false;
@@ -113,6 +116,7 @@ export class MainRenderer {
 		this.enable32bitDataTextures = options.enable32bitDataTextures;
 		this.intermediateTextureFormat = options.intermediateTextureFormat;
 		this.gpuDevice = options.gpuDevice;
+		this.outputTextures = new OutputTextureResolver(this.gpuDevice, this.enable32bitDataTextures);
 		this.gpuContext = options.gpuContext;
 		this.effectDefinitions = options.effectDefinitions;
 		this.effectImplementations = options.effectImplementations;
@@ -187,11 +191,11 @@ export class MainRenderer {
 			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
 		});
 
-		this.timelineRenderer = new TimelineRenderer<GPUTexture, Timeline[number]>({
-			fallbackOutput: this.fallbackTexture,
+		this.timelineRenderer = new TimelineRenderer<NodeOutput, Timeline[number]>({
+			fallbackOutput: { kind: 'texture', texture: this.fallbackTexture },
 			createLayer: entry => this.createTimelineLayer(entry),
-			present: (texture, gpuTime) => {
-				this.renderToCanvas(texture, this.gpuDevice.createCommandEncoder());
+			present: (output, gpuTime) => {
+				this.renderToCanvas(output, this.gpuDevice.createCommandEncoder());
 				if (this.enableStats) {
 					this.gpuAverageFast.addSample(gpuTime / 1000);
 					this.gpuAverageMedium.addSample(gpuTime / 1000);
@@ -311,7 +315,8 @@ export class MainRenderer {
 		this.liveRenderLoop.timeFactor = value;
 	}
 
-	private renderToCanvas(tex: GPUTexture, commandEncoder: GPUCommandEncoder) {
+	private renderToCanvas(output: NodeOutput, commandEncoder: GPUCommandEncoder) {
+		const tex = this.outputTextures.resolve(output);
 		if (this.finalRenderBindGroup == null || this.latestRenderedToCanasTexture !== tex) {
 			this.latestRenderedToCanasTexture = tex;
 			this.finalRenderBindGroup = this.gpuDevice.createBindGroup({
@@ -362,7 +367,7 @@ export class MainRenderer {
 		await this.timelineRenderer.renderAt(time, this.timeline, timeDelta, true);
 	}
 
-	private createTimelineLayer(layer: Timeline[number]): TimelineLayerRenderer<GPUTexture> | undefined {
+	private createTimelineLayer(layer: Timeline[number]): TimelineLayerRenderer<NodeOutput> | undefined {
 		// レイヤーの種類の解釈とリソース解決は、タイムライン制御の外側で行う。
 		switch (layer.layerType) {
 			case 'visualModule': {
@@ -373,7 +378,7 @@ export class MainRenderer {
 		}
 	}
 
-	private createVisualModuleLayer(visualModule: VisualModule, layer: TimelineVisualModuleLayer): TimelineLayerRenderer<GPUTexture> {
+	private createVisualModuleLayer(visualModule: VisualModule, layer: TimelineVisualModuleLayer): TimelineLayerRenderer<NodeOutput> {
 		const statusSource: EffectStatusSource = {
 			type: 'timelineLayer',
 			instanceId: `timeline:${this.nextTimelineLayerStatusId++}`,
@@ -404,7 +409,7 @@ export class MainRenderer {
 			prepare: (context, signal) => renderer.prepare(context, signal),
 			render: async context => {
 				const commandEncoder = this.gpuDevice.createCommandEncoder();
-				let output: GPUTexture | undefined;
+				let output: NodeOutput | undefined;
 				let gpuTime = 0;
 				try {
 					output = renderer.render(context, commandEncoder);
@@ -505,6 +510,7 @@ export class MainRenderer {
 	public destroy() {
 		this.stopRenderLoop();
 		this.clearTimelineRenderers();
+		this.outputTextures.dispose();
 		for (const id of this.audioPorts.keys()) this.resetAudioSource(id, null);
 		for (const frame of this.videoFrames.values()) frame.close();
 		this.videoFrames.clear();

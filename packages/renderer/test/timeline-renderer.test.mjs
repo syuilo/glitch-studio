@@ -276,7 +276,7 @@ test('chains different layer types without requiring visual module fields', asyn
 							assert.equal(context.progress, 0.375);
 							assert.strictEqual(context.input, fallback);
 							assert.equal('paramValues' in context, false);
-							assert.equal('paramTextures' in context, false);
+							assert.equal('paramInputs' in context, false);
 							return { output: inputFrame, gpuTime: 1 };
 						},
 						destroy() { destroyed.push('video'); },
@@ -298,7 +298,7 @@ test('chains different layer types without requiring visual module fields', asyn
 	await renderer.renderAt(400, timeline);
 	assert.strictEqual(prepared[1], rendered[0]);
 	assert.strictEqual(rendered[0].paramValues, params);
-	assert.deepEqual([...rendered[0].paramTextures], [['main', inputFrame], ['second', inputFrame]]);
+	assert.deepEqual([...rendered[0].paramInputs], [['main', inputFrame], ['second', inputFrame]]);
 	assert.equal(rendered[0].time, 200);
 	assert.equal(rendered[0].progress, 0.5);
 	assert.deepEqual(rendered[0].pointerPosition, { x: -99999, y: -99999 });
@@ -319,7 +319,7 @@ test('keeps visual module contexts separate across overlapping preparation', asy
 			signals.push(signal);
 			if (context.time === 1) await pending.promise;
 		},
-		async render(context) { rendered.push(context); return { output: context.paramTextures.get('input'), gpuTime: 0 }; },
+		async render(context) { rendered.push(context); return { output: context.paramInputs.get('input'), gpuTime: 0 }; },
 		destroy() {},
 	});
 	const first = { time: 1, timeDelta: 0, progress: 0.1, input: 'first' };
@@ -333,6 +333,6 @@ test('keeps visual module contexts separate across overlapping preparation', asy
 	await layer.render(first);
 	assert.strictEqual(rendered[0], prepared[1]);
 	assert.strictEqual(rendered[1], prepared[0]);
-	assert.deepEqual(rendered.map(context => context.paramTextures.get('input')), ['second', 'first']);
+	assert.deepEqual(rendered.map(context => context.paramInputs.get('input')), ['second', 'first']);
 	assert.ok(signals.every(signal => signal === controller.signal));
 });
