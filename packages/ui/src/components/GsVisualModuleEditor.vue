@@ -1,10 +1,8 @@
 <template>
 <div :class="$style.root">
 	<div :class="$style.header">
-		<button class="_button" style="padding: 4px 6px;" @click="showSwitchMenu"><i class="ti ti-chevron-down"></i> Module: {{ visualModule?.name ?? '' }} [{{ visualModule?.id ?? '' }}]</button>
+		<button class="_button" style="padding: 4px 6px;" @click="showSwitchMenu"><i class="ti ti-chevron-down"></i> {{ visualModule?.name ?? '' }} [{{ visualModule?.id ?? '' }}]</button>
 		<GsButton v-if="visualModule != null" :class="$style.liveButton" small :primary="engine.liveVisualModuleId.value === visualModule.id" @click="previewLive"><i class="ti ti-player-play"></i> LIVE</GsButton>
-
-		<GsButton small primary @click="addAutomationGraph">a</GsButton>
 
 		<div style="padding: 8px;">
 			<GsTabs
@@ -103,6 +101,7 @@ import type { GsAutomationGraph, GsGlobalInNode, GsGlobalOutNode, GsNode, Visual
 import { showAddNodeMenu } from '@/app.ts';
 import { appContext, engine } from '@/app.ts';
 import * as ui from '@/ui.ts';
+import { createInlineAutomationGraph } from '@/utility/automation-graph.ts';
 
 const tab = ref('nodes');
 const visualModule = ref<VisualModule | null>();
@@ -207,38 +206,6 @@ function showSwitchMenu(ev: PointerEvent) {
 	}))], ev.currentTarget ?? ev.target);
 }
 
-import GsAutomationGraphPointsEditorWindow from './GsAutomationGraphPointsEditorWindow.vue';
-import { createInlineAutomationGraph } from '@/utility/automation-graph.ts';
-
-async function addAutomationGraph() {
-	const id = genId();
-	const automationGraph: GsAutomationGraph = {
-		id: id,
-		name: 'kf_' + id,
-		isNormalized: true,
-		points: [{
-			id: genId(),
-			x: 0,
-			y: 0,
-			bezierControlPointA: [0, 0],
-			bezierControlPointB: [0.5, 0],
-		}, {
-			id: genId(),
-			x: 1,
-			y: 1,
-			bezierControlPointA: [-0.5, 0],
-			bezierControlPointB: [0, 0],
-		}],
-	};
-
-	const { dispose } = ui.popup(GsAutomationGraphPointsEditorWindow, {
-		automationGraph: automationGraph,
-	}, {
-		done: () => {
-		},
-		closed: () => dispose(),
-	});
-}
 </script>
 
 <style module lang="scss">
