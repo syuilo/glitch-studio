@@ -136,7 +136,6 @@
 <script lang="ts">
 import type { VisualModuleCustomParameterId } from '@glitch/shared/types.ts';
 import type { AutomationGraphPlaybackOptions, ParameterBinding, NodeOutputReference } from '@glitch/shared/types.ts';
-import type { GlobalEnvVariable } from '@glitch/shared/expression.ts';
 import { deepClone } from '@glitch/shared/utility/deep-clone.js';
 
 export type ParamEdit = { paramPath: ParamPath; mergeKey?: string | null } & (
@@ -167,6 +166,7 @@ import GsInput from './common/GsInput.vue';
 import GsCondensedLine from './common/GsCondensedLine.vue';
 import GsSelect from './common/GsSelect.vue';
 import GsAutomationGraphPointsEditorWindow from './GsAutomationGraphPointsEditorWindow.vue';
+import type { GlobalEnvVariable } from '@glitch/shared/expression.ts';
 import type { ParamPath } from '@/utility/node-params.ts';
 import type { GsAutomationGraph, GsBezierAnchorPoint, GsEffectNode, VisualModule } from '@glitch/shared/types.ts';
 import type { MenuItem } from '@/types/menu.ts';
@@ -333,12 +333,12 @@ function getMenu() {
 		menuItems.push({ type: 'label', text: 'Input source' });
 		const types: { text: string; inputSource: ParameterBinding['inputSource']; icon: string }[] = [
 			{ text: 'Literal', inputSource: 'literal', icon: 'ti ti-adjustments-horizontal' },
-			{ text: 'AutomationGraph', inputSource: 'automationGraphReference', icon: 'ti ti-ease-in-out-control-points' },
-			{ text: 'AutomationGraph (inline)', inputSource: 'automationGraphInline', icon: 'ti ti-ease-in-out-control-points' },
+			{ text: 'Automation Graph (Reference)', inputSource: 'automationGraphReference', icon: 'ti ti-ease-in-out-control-points' },
+			{ text: 'Automation Graph (Inline)', inputSource: 'automationGraphInline', icon: 'ti ti-ease-in-out-control-points' },
 			{ text: 'Environment Variable', inputSource: 'envVariable', icon: 'ti ti-variable' },
 			{ text: 'Expression', inputSource: 'expression', icon: 'ti ti-math-function' },
 		];
-		if (props.node != null) types.push({ text: 'Parameter', inputSource: 'externalCustomParameterInput', icon: 'ti ti-wifi' });
+		if (props.node != null) types.push({ text: 'Custom Parameter', inputSource: 'externalCustomParameterInput', icon: 'ti ti-wifi' });
 		if (canNode.value) types.push({ text: 'Node', inputSource: 'node', icon: 'ti ti-plug' });
 		for (const { text, inputSource, icon } of types) {
 			menuItems.push({
