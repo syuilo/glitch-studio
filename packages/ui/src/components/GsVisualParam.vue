@@ -9,7 +9,7 @@
 			<div style="height: 100%; place-content: center;">
 				<i v-if="paramValue.inputSource === 'envVariable'" v-tooltip="'Environment Variable'" class="ti ti-variable" :class="$style.typeIcon"></i>
 				<i v-else-if="paramValue.inputSource === 'expression'" v-tooltip="'Expression'" class="ti ti-math-function" :class="$style.typeIcon"></i>
-				<i v-else-if="paramValue.inputSource === 'externalParameterInput'" v-tooltip="'Parameter'" class="ti ti-wifi" :class="$style.typeIcon"></i>
+				<i v-else-if="paramValue.inputSource === 'externalCustomParameterInput'" v-tooltip="'Parameter'" class="ti ti-wifi" :class="$style.typeIcon"></i>
 				<i v-else-if="paramValue.inputSource === 'node'" v-tooltip="'Node'" class="ti ti-plug" :class="$style.typeIcon"></i>
 				<i v-else-if="paramValue.inputSource === 'automationGraphReference' || paramValue.inputSource === 'automationGraphInline'" v-tooltip="'AutomationGraph'" class="ti ti-ease-in-out-control-points" :class="$style.typeIcon"></i>
 			</div>
@@ -52,11 +52,11 @@
 						</GsSelect>
 					</div>
 					<GsSelect
-						v-else-if="paramValue.inputSource === 'externalParameterInput'"
+						v-else-if="paramValue.inputSource === 'externalCustomParameterInput'"
 						small
 						:modelValue="paramValue.parameterId"
-						:items="[{ label: i18n.ts.None, value: visualModuleCustomParameterId('') }, ...externalParameterInputItems]"
-						@update:modelValue="value => emit('edit', { kind: 'externalParameterInput', ...target(), value })"
+						:items="[{ label: i18n.ts.None, value: visualModuleCustomParameterId('') }, ...externalCustomParameterInputItems]"
+						@update:modelValue="value => emit('edit', { kind: 'externalCustomParameterInput', ...target(), value })"
 					/>
 					<div v-else-if="paramValue.inputSource === 'node'" style="display: flex; gap: 4px;">
 						<GsSelect
@@ -146,7 +146,7 @@ export type ParamEdit = { paramPath: ParamPath; mergeKey?: string | null } & (
 	| { kind: 'expression'; value: string }
 	| { kind: 'automationGraphReference'; value: string | null; options?: Partial<AutomationGraphPlaybackOptions> }
 	| { kind: 'node'; value: NodeOutputReference | null }
-	| { kind: 'externalParameterInput'; value: VisualModuleCustomParameterId }
+	| { kind: 'externalCustomParameterInput'; value: VisualModuleCustomParameterId }
 	| { kind: 'inputSource'; inputSource: ParameterBinding['inputSource'] }
 	| { kind: 'reset' }
 	| { kind: 'addElement' }
@@ -226,7 +226,7 @@ const graphOffsetModeItems = [
 	{ label: 'End', value: 'end' },
 ] satisfies { label: string; value: AutomationGraphPlaybackOptions['offsetMode'] }[];
 const envVariableItems = computed(() => props.availableVariables.map(variable => ({ label: variable.startsWith('TEST_') ? variable : `${i18n.t(`_EnvVariables.${variable}`)} (${variable})`, value: variable })));
-const externalParameterInputItems = computed(() => (props.node == null ? [] : appContext.state.visualModules.value.find(module => module.id === props.visualModuleId)?.paramDefs ?? [])
+const externalCustomParameterInputItems = computed(() => (props.node == null ? [] : appContext.state.visualModules.value.find(module => module.id === props.visualModuleId)?.paramDefs ?? [])
 	.map(def => ({ label: `${def.ui.label} (${def.name})`, value: def.id })));
 const nodeOutputItems = computed(() => props.node == null ? [] : getNodeOutputItems(nodes.value, props.node.id, inputDataType.value, paramDefs.value));
 const nodeConnection = computed<NodeOutputReference | null>(() => props.paramValue.inputSource === 'node' && props.paramValue.nodeId != null ? props.paramValue : null);
@@ -338,7 +338,7 @@ function getMenu() {
 			{ text: 'Environment Variable', inputSource: 'envVariable', icon: 'ti ti-variable' },
 			{ text: 'Expression', inputSource: 'expression', icon: 'ti ti-math-function' },
 		];
-		if (props.node != null) types.push({ text: 'Parameter', inputSource: 'externalParameterInput', icon: 'ti ti-wifi' });
+		if (props.node != null) types.push({ text: 'Parameter', inputSource: 'externalCustomParameterInput', icon: 'ti ti-wifi' });
 		if (canNode.value) types.push({ text: 'Node', inputSource: 'node', icon: 'ti ti-plug' });
 		for (const { text, inputSource, icon } of types) {
 			menuItems.push({

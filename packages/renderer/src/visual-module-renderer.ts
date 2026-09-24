@@ -249,7 +249,7 @@ export class VisualModuleRenderer {
 					key += JSON.stringify([param.fitMode ?? 'cover', param.wrapMode ?? 'repeatMirrored', param.filterMode ?? 'linear']);
 				}
 				// 外部から渡されたテクスチャは同じオブジェクトの内容が毎フレーム変わり得る。
-				if (def.canNode && param.inputSource === 'externalParameterInput') {
+				if (def.canNode && param.inputSource === 'externalCustomParameterInput') {
 					const input = this.paramInputs.get(param.parameterId);
 					if (input?.kind === 'texture') return null;
 					key += JSON.stringify(input);
@@ -288,7 +288,7 @@ export class VisualModuleRenderer {
 						const output = this.getOutputValue(this.allNodeIdMap.get(param.nodeId)!, param.outputPort);
 						return output == null ? constantShaderInput(def.dataType, null) : outputShaderInput(output, param);
 					}
-					if (param.inputSource === 'externalParameterInput') {
+					if (param.inputSource === 'externalCustomParameterInput') {
 						const input = this.paramInputs.get(param.parameterId);
 						if (input != null) return outputShaderInput(input);
 					}

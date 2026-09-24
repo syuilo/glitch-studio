@@ -60,7 +60,7 @@ test('passes evaluated values across the boundary without reinterpreting them', 
 	const evaluator = new ParameterEvaluator();
 	const defs = [def('amount'), def('text')];
 	const values = externalValues(evaluator, defs, { amount: expression('TEST_SAME_NAME'), text: literal('TEST_SAME_NAME') }, layerScope);
-	assert.deepEqual(nodes(evaluator, { amount: expression('PARAM("amount")'), local: expression('TEST_SAME_NAME'), text: expression('PARAM("text")'), direct: { inputSource: 'externalParameterInput', parameterId: 'amount' } }, moduleScope, values, defs), { amount: 2, local: 1, text: 'TEST_SAME_NAME', direct: 2 });
+	assert.deepEqual(nodes(evaluator, { amount: expression('PARAM("amount")'), local: expression('TEST_SAME_NAME'), text: expression('PARAM("text")'), direct: { inputSource: 'externalCustomParameterInput', parameterId: 'amount' } }, moduleScope, values, defs), { amount: 2, local: 1, text: 'TEST_SAME_NAME', direct: 2 });
 });
 
 // PARAMや式内の変数が次の式へ残ると、自己参照や別スコープの値を読む経路になる。

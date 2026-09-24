@@ -51,7 +51,7 @@
 	"Project": "Project",
 	"NoPresets": "No presets",
 	"NoEffects": "No FX",
-	"NoExternalParameterInputs": "No externalParameterInputs",
+	"NoExternalParameterInputs": "No externalCustomParameterInputs",
 	"NoAssets": "No assets",
 	"Fx": "FX",
 	"ExternalParameterInput": "ExternalParameterInput",

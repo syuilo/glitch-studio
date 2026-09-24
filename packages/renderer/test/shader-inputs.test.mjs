@@ -235,7 +235,7 @@ test('switches module outputs between constants and borrowed textures', () => {
 	const mix = { id: 'mix', type: 'effect', effectId: 'colorMix', params: {
 		inputA: { inputSource: 'node', nodeId: 'in', outputPort: 'color', fitMode: 'contain', wrapMode: 'clamp', filterMode: 'nearest' },
 		inputB: { inputSource: 'node', nodeId: 'in', outputPort: 'color' },
-		amount: { inputSource: 'externalParameterInput', parameterId: 'gain' },
+		amount: { inputSource: 'externalCustomParameterInput', parameterId: 'gain' },
 	} };
 	const out = { id: 'out', type: 'globalOut', inputs: { out: { nodeId: 'mix', outputPort: 'output' } } };
 	const renderer = createRenderer(device, {
@@ -448,7 +448,7 @@ test('resolves colorMix inputs through the renderer without constant textures', 
 test('refreshes external textures and restores constants after disconnecting them', () => {
 	const { device, calls, encoder } = gpuFixture();
 	const mix = { id: 'mix', type: 'effect', effectId: 'colorMix', params: {
-		inputA: { inputSource: 'node', nodeId: null, outputPort: null }, inputB: literal([0, 0, 1, 1]), amount: { inputSource: 'externalParameterInput', parameterId: 'gain' },
+		inputA: { inputSource: 'node', nodeId: null, outputPort: null }, inputB: literal([0, 0, 1, 1]), amount: { inputSource: 'externalCustomParameterInput', parameterId: 'gain' },
 	} };
 	const renderer = createRenderer(device, {
 		paramDefs: [{ id: 'gain', name: 'Gain', dataType: 'scalar', canNode: true, defaultValue: literal(0) }],

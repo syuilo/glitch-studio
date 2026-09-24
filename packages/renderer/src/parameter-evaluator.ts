@@ -98,7 +98,7 @@ export class ParameterEvaluator {
 		if (targetNonEvaluatedValue.inputSource === 'literal') return targetNonEvaluatedValue.value;
 		if (targetNonEvaluatedValue.inputSource === 'envVariable') return getEnvironmentVariableValue(targetNonEvaluatedValue.variable) ?? fallback;
 		if (targetNonEvaluatedValue.inputSource === 'expression') return targetNonEvaluatedValue.expression ? this.evaluateExpression(targetNonEvaluatedValue.expression, context.variables, fallback, readGraph, context.evaluatedParamValues, context.paramIdsByName) : fallback;
-		if (targetNonEvaluatedValue.inputSource === 'externalParameterInput') {
+		if (targetNonEvaluatedValue.inputSource === 'externalCustomParameterInput') {
 			if (context.evaluatedParamValues == null || !context.evaluatedParamValues.has(targetNonEvaluatedValue.parameterId)) return fallback;
 			return deepClone(context.evaluatedParamValues.get(targetNonEvaluatedValue.parameterId));
 		}

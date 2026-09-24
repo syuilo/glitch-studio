@@ -97,7 +97,7 @@ const editVisualModuleLayerParamCommandDef = defineCommand<{
 								case 'automationGraphReference': after = { inputSource: 'automationGraphReference', automationGraphId: null, durationMs: 1000, wrapMode: 'repeat', offsetMode: 'start' }; break;
 								case 'automationGraphInline': after = createInlineAutomationGraph(); break;
 								case 'node':
-								case 'externalParameterInput': throw new Error('Unsupported layer parameter input source');
+								case 'externalCustomParameterInput': throw new Error('Unsupported layer parameter input source');
 							}
 							break;
 					}
@@ -435,7 +435,7 @@ const changeParamValueInputSourceCommandDef = defineNodeParamCommand<NodeParamTa
 			case 'literal': return { inputSource: 'literal', value: defaultValue.inputSource === 'literal' ? defaultValue.value : emptyValue };
 			case 'automationGraphReference': return { inputSource: 'automationGraphReference', automationGraphId: null, durationMs: 1000, wrapMode: 'repeat', offsetMode: 'start' };
 			case 'automationGraphInline': return createInlineAutomationGraph();
-			case 'externalParameterInput': return { inputSource: 'externalParameterInput', parameterId: visualModuleCustomParameterId('') };
+			case 'externalCustomParameterInput': return { inputSource: 'externalCustomParameterInput', parameterId: visualModuleCustomParameterId('') };
 			case 'node': {
 				if (!('canNode' in target.def) || !target.def.canNode) throw new Error('Parameter does not support node input');
 				return { inputSource: 'node', nodeId: null, outputPort: null };
@@ -491,11 +491,11 @@ const updateParamAsAutomationGraphInlineCommandDef = defineNodeParamCommand<Node
 	},
 );
 
-const updateParamAsExternalParameterInputCommandDef = defineNodeParamCommand<NodeParamTarget & { value: VisualModuleCustomParameterId }>(
-	'Update param as externalParameterInput',
+const updateParamAsExternalCustomParameterInputCommandDef = defineNodeParamCommand<NodeParamTarget & { value: VisualModuleCustomParameterId }>(
+	'Update param as externalCustomParameterInput',
 	(target, payload) => {
 		assertLeafParam(target);
-		return { inputSource: 'externalParameterInput', parameterId: payload.value };
+		return { inputSource: 'externalCustomParameterInput', parameterId: payload.value };
 	},
 );
 
@@ -755,7 +755,7 @@ export const COMMAND_DEFS = {
 	updateParamAsAutomationGraphReference: updateParamAsAutomationGraphReferenceCommandDef,
 	updateParamAsAutomationGraphInline: updateParamAsAutomationGraphInlineCommandDef,
 	updateParamAsNode: updateParamAsNodeCommandDef,
-	updateParamAsExternalParameterInput: updateParamAsExternalParameterInputCommandDef,
+	updateParamAsExternalCustomParameterInput: updateParamAsExternalCustomParameterInputCommandDef,
 	changeNodeBypassState: changeNodeBypassStateCommandDef,
 	resetNodeParam: resetNodeParamCommandDef,
 	addArrayParamElement: addArrayParamElementCommandDef,

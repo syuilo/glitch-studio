@@ -68,7 +68,7 @@ const graphPoint = (x, y) => ({ id: `${x}`, x, y, bezierControlPointA: [0, 0], b
 test('resolves PARAM names separately from external parameter IDs', () => {
 	const result = evaluate(new ParameterEvaluator(), context({ named: number, direct: number, invalid: number }, {
 		named: expression('PARAM("Gain")'),
-		direct: { inputSource: 'externalParameterInput', parameterId: 'gain-id' },
+		direct: { inputSource: 'externalCustomParameterInput', parameterId: 'gain-id' },
 		invalid: expression('PARAM("gain-id")'),
 	}, {
 		paramDefs: [{ ...paramDef('gain-id'), name: 'Gain' }],
@@ -284,9 +284,9 @@ test('evaluates nested values, expressions and node references without a GPU', (
 });
 
 // 呼び出し側で評価した既定値・式を、内部の外部入力参照・PARAMから読む
-test('reads caller evaluated values through externalParameterInputs and PARAM', () => {
+test('reads caller evaluated values through externalCustomParameterInputs and PARAM', () => {
 	const result = evaluate(new ParameterEvaluator(), context({ a: number, b: number, c: number }, {
-		a: { inputSource: 'externalParameterInput', parameterId: 'gain' },
+		a: { inputSource: 'externalCustomParameterInput', parameterId: 'gain' },
 		b: expression('PARAM("gain") + PARAM("offset")'),
 		c: expression('PARAM("literal")'),
 	}, {
@@ -300,12 +300,12 @@ test('reads caller evaluated values through externalParameterInputs and PARAM', 
 // テクスチャのパラメータや不正な式は値として参照せずフォールバックする
 test('falls back for texture parameters, missing references and invalid expressions', () => {
 	const params = {
-		textureExternalParameterInput: { inputSource: 'externalParameterInput', parameterId: 'texture' },
+		textureExternalParameterInput: { inputSource: 'externalCustomParameterInput', parameterId: 'texture' },
 		textureExpression: expression('PARAM("texture")'),
 		missing: expression('PARAM("missing")'),
 		invalid: expression('1 +'),
 		empty: expression(''),
-		missingExternalParameterInput: { inputSource: 'externalParameterInput', parameterId: 'missing' },
+		missingExternalParameterInput: { inputSource: 'externalCustomParameterInput', parameterId: 'missing' },
 		missingAutomationGraph: { inputSource: 'automationGraphReference', automationGraphId: 'missing' },
 	};
 	const result = evaluate(new ParameterEvaluator(), context(Object.fromEntries(Object.keys(params).map(key => [key, number])), params, {
@@ -349,7 +349,7 @@ test('evaluates numeric parameters independently of their UI controls', async ()
 		const external = { ...paramDef('amount'), ui };
 		const result = evaluate(evaluator, context({ amount: def, external: def, invalid: def }, {
 			amount: expression('TIME + 100'),
-			external: { inputSource: 'externalParameterInput', parameterId: 'amount' },
+			external: { inputSource: 'externalCustomParameterInput', parameterId: 'amount' },
 			invalid: expression('missing'),
 		}, { paramDefs: [external], paramValues: { amount: literal(-5.25) } }));
 		assert.deepEqual(result.nodeParams.get('node'), { amount: 100.5, external: -5.25, invalid: 0 });

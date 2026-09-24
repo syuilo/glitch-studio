@@ -146,7 +146,7 @@ function onPreviewParamEdit(event: ParamEdit) {
 		case 'expression': previewParamValues.value[id] = { inputSource: 'expression', expression: event.value }; break;
 		case 'automationGraphReference': previewParamValues.value[id] = { inputSource: 'automationGraphReference', durationMs: 1000, wrapMode: 'repeat', offsetMode: 'start', ...(current?.inputSource === 'automationGraphReference' ? current : {}), automationGraphId: event.value, ...event.options }; break;
 		case 'node':
-		case 'externalParameterInput': return;
+		case 'externalCustomParameterInput': return;
 		case 'reset': previewParamValues.value[id] = reset(); break;
 		case 'inputSource':
 			switch (event.inputSource) {
@@ -156,7 +156,7 @@ function onPreviewParamEdit(event: ParamEdit) {
 				}; break;
 				case 'automationGraphReference': previewParamValues.value[id] = { inputSource: 'automationGraphReference', automationGraphId: null, durationMs: 1000, wrapMode: 'repeat', offsetMode: 'start' }; break;
 				case 'automationGraphInline': previewParamValues.value[id] = createInlineAutomationGraph(); break;
-				case 'externalParameterInput':
+				case 'externalCustomParameterInput':
 				case 'node':
 					return;
 			}

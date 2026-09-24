@@ -15,7 +15,7 @@ export type ParameterBinding = {
 	inputSource: 'expression';
 	expression: string;
 } | {
-	inputSource: 'externalParameterInput';
+	inputSource: 'externalCustomParameterInput';
 	parameterId: VisualModuleCustomParameterId;
 } | {
 	inputSource: 'automationGraphReference';
@@ -145,7 +145,7 @@ export type VisualModule = {
 };
 
 // レイヤー・live modeからは、モジュール内部のノードやパラメータを参照しない。
-export type VisualModuleParameterBindings = Record<VisualModuleCustomParameterId, Exclude<ParameterBinding, { type: 'node' | 'externalParameterInput' }>>;
+export type VisualModuleParameterBindings = Record<VisualModuleCustomParameterId, Exclude<ParameterBinding, { type: 'node' | 'externalCustomParameterInput' }>>;
 
 export type TimelineVisualModuleLayer = {
 	id: string;

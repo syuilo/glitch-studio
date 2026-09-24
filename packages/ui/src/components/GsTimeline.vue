@@ -352,8 +352,8 @@ function onVisualModuleLayerParamEdit(event: ParamEdit, target: 'module' | 'comp
 	const layer = selectedLayer.value;
 	// VisualModuleのパラメータ定義はフラットで、ノード接続や内部パラメータ参照は扱わない。
 	if (layer == null || event.paramPath.length !== 1) return;
-	if (event.kind === 'node' || event.kind === 'externalParameterInput' || event.kind === 'addElement' || event.kind === 'removeElement') return;
-	if (event.kind === 'inputSource' && (event.inputSource === 'node' || event.inputSource === 'externalParameterInput')) return;
+	if (event.kind === 'node' || event.kind === 'externalCustomParameterInput' || event.kind === 'addElement' || event.kind === 'removeElement') return;
+	if (event.kind === 'inputSource' && (event.inputSource === 'node' || event.inputSource === 'externalCustomParameterInput')) return;
 	appContext.commit('editVisualModuleLayerParam', {
 		layerId: layer.id,
 		target,
