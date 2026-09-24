@@ -6,7 +6,7 @@ export type TimelineRenderEntry = {
 };
 
 export type TimelineLayerContext<Output> = {
-	isExport?: boolean;
+	isExport: boolean;
 	time: number;
 	timeDelta: number;
 	endTime: number;
