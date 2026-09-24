@@ -18,7 +18,7 @@ struct FragmentIn {
 
 @fragment
 fn fs(fragData: FragmentIn) -> @location(0) vec4f {
-	let inputColor = read_input(fragData.position);
+	let backgroundColor = read_background(fragData.position);
 	// [-1, 1]から元の中央原点UVの単位に戻し、短辺基準でマス目を正方形に保つ。
 	let centeredUv = fragData.position * 0.5 * uniforms.aspect;
 	let cosine = cos(uniforms.angle);
@@ -35,5 +35,5 @@ fn fs(fragData: FragmentIn) -> @location(0) vec4f {
 
 	// 元の入力alphaを維持する。定数色だけを入力alphaに合わせて乗算し、
 	// 既にpremultipliedな入力RGBには再乗算しない。色自身のalphaは強度に反映する。
-	return vec4f(mix(inputColor.rgb, uniforms.color.rgb * inputColor.a, opacity), inputColor.a);
+	return vec4f(mix(backgroundColor.rgb, uniforms.color.rgb * backgroundColor.a, opacity), backgroundColor.a);
 }

@@ -25,7 +25,7 @@ fn gridDistance(gridPosition: vec2f) -> f32 {
 
 @fragment
 fn fs(fragData: FragmentIn) -> @location(0) vec4f {
-	let inputColor = read_input(fragData.position);
+	let backgroundColor = read_background(fragData.position);
 	// 短辺全体が1となる中央原点の座標にし、縦横の線幅と間隔を揃える。
 	let centeredPosition = fragData.position * 0.5 * uniforms.aspect;
 	let cosine = cos(uniforms.angle);
@@ -50,5 +50,5 @@ fn fs(fragData: FragmentIn) -> @location(0) vec4f {
 
 	// 入力alphaを維持し、線のalphaを着色の強度として使う。
 	// 定数色だけを入力alphaに合わせ、premultipliedな入力RGBは再乗算しない。
-	return vec4f(mix(inputColor.rgb, lineColor.rgb * inputColor.a, clamp(lineColor.a, 0.0, 1.0)), inputColor.a);
+	return vec4f(mix(backgroundColor.rgb, lineColor.rgb * backgroundColor.a, clamp(lineColor.a, 0.0, 1.0)), backgroundColor.a);
 }
