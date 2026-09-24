@@ -1,6 +1,7 @@
-export const globalEnvVarDefs = ['WIDTH', 'HEIGHT', 'TIME', 'TIME_MS', 'END_TIME', 'END_TIME_MS', 'PROGRESS', 'IS_EXPORT'] as const;
+export const moduleEnvVarDefs = ['WIDTH', 'HEIGHT', 'TIME', 'TIME_MS', 'END_TIME', 'END_TIME_MS', 'PROGRESS', 'IS_EXPORT', 'TEST_ONLY_VM', 'TEST_SAME_NAME'] as const;
+export const layerEnvVarDefs = ['TEST_ONLY_LAYER', 'TEST_SAME_NAME', 'IS_EXPORT'] as const;
 // 空文字列はUIの「None」を表す。評価時は定義にない変数として既定値へフォールバックする。
-export type GlobalEnvVariable = typeof globalEnvVarDefs[number] | '';
+export type GlobalEnvVariable = typeof moduleEnvVarDefs[number] | typeof layerEnvVarDefs[number] | '';
 
 // AiScript 1.2の識別子・予約語に合わせる。コメントやエスケープを含む式は通常のパーサーに任せる。
 

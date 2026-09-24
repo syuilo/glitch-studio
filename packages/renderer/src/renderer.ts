@@ -1,6 +1,7 @@
 import { createTextureFromSource, makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { AudioHistory } from '@glitch/shared/audio-history.ts';
 import { genId } from '@glitch/shared/utility/id.ts';
+import { genEmptyValue } from '@glitch/shared/utility/misc.ts';
 import defaultVertexShaderCode from './vertex.wgsl?raw';
 import TimingHelper from './utility/TimingHelper.ts';
 import finalRenderShaderCode from './render.wgsl?raw';
@@ -14,6 +15,8 @@ import { TimelineRenderer } from './timeline-renderer.ts';
 import { createVisualModuleTimelineLayer } from './visual-module-timeline-layer.ts';
 import { createTimelineCompositor } from './timeline-compositor.ts';
 import { TimelineCompositingParameters } from './timeline-compositing-parameters.ts';
+import { ParameterEvaluator, type EvaluatedParamValues } from './parameter-evaluator.ts';
+import { layerVariables } from './expression-scope.ts';
 import { OutputTextureResolver } from './node-output.ts';
 import type { NodeOutput } from './node-output.ts';
 import type { FrameScheduler, LiveFrameTiming } from './live-render-loop.ts';
@@ -41,6 +44,7 @@ export class MainRenderer {
 	private liveRenderLoop: LiveRenderLoop;
 	private liveVisualModuleId: VisualModule['id'] | null = null;
 	private liveParamValues: VisualModuleParamValues = {};
+	private liveParamEvaluator = new ParameterEvaluator();
 	private liveVisualModuleRenderer: VisualModuleRenderer | null = null;
 	private timeline: Timeline = [];
 	private assets: Asset[] = [];
@@ -424,7 +428,13 @@ export class MainRenderer {
 				try {
 					output = renderer.render(context, commandEncoder);
 					if (output != null) {
-						const settings = compositingParameters.evaluate(context, layer.compositing, visualModule.automationGraphs, this.resolution);
+						const settings = compositingParameters.evaluate({
+							time: context.time,
+							endTime: context.endTime,
+							isExport: context.isExport,
+							paramValues: layer.compositing,
+							automationGraphs: layer.automationGraphs,
+						});
 						output = compositor.render(commandEncoder, layerContext.input, output, settings);
 					}
 				} finally {
@@ -481,15 +491,28 @@ export class MainRenderer {
 
 	private renderLiveFrame(timing: LiveFrameTiming) {
 		if (this.liveVisualModuleRenderer == null) return;
+		const visualModule = this.visualModules.find(module => module.id === this.liveVisualModuleId)!;
 		const commandEncoder = this.gpuDevice.createCommandEncoder();
 
+		const evaluatedParamValues = new Map<string, any>();
+		for (const def of visualModule.paramDefs) {
+			evaluatedParamValues.set(def.id, this.liveParamEvaluator.evaluate(this.liveParamValues[def.id], {
+				evaluatedParamValues: null,
+				variables: layerVariables({ isExport: false }),
+				automationGraphs: [],
+				time: timing.time,
+				endTime: Infinity,
+			}, genEmptyValue(def))); // TODO: genEmptyValueを遅延評価したい
+		}
+
 		const tex = this.liveVisualModuleRenderer.render({
-			paramValues: this.liveParamValues,
+			evaluatedParamValues: evaluatedParamValues,
 			time: timing.time,
 			timeDelta: timing.timeDelta,
 			endTime: Infinity,
 			pointerPosition: this.pointerPosition,
 			pointerPositionPrev: this.pointerPositionPrev,
+			isExport: false,
 		}, commandEncoder);
 		if (tex == null) return;
 

@@ -2,19 +2,22 @@ import { constantShaderInput } from '@glitch/shared/shader-input.ts';
 import { getNodeOutputs } from '@glitch/shared/utility/node-outputs.ts';
 import { playerAudioSourceId } from '@glitch/shared/audio.ts';
 import { AudioHistory } from '@glitch/shared/audio-history.ts';
+import { genEmptyValue } from '@glitch/shared/utility/misc.js';
 import { outputShaderInput } from './node-output.ts';
-import type { NodeOutput } from './node-output.ts';
 import TimingHelper from './utility/TimingHelper.ts';
 import { ParameterEvaluator } from './parameter-evaluator.ts';
+import { moduleVariables } from './expression-scope.ts';
 import { getEvaluatedParam, mapNodeParam, walkNodeParams } from './utility/node-params.ts';
+import type { EvaluatedParamValues, ParameterEvaluationContext } from './parameter-evaluator.ts';
+import type { NodeOutput } from './node-output.ts';
 import type { EffectStatus, EffectInstanceState } from '@glitch/shared/effect-status.ts';
 import type { AudioSourceId } from '@glitch/shared/audio.ts';
-import type { Asset, GsAutomationGraph, GsEffectNode, GsGlobalInNode, GsNode, NodeOutputReference, VisualModule, VisualModuleParamValues } from '@glitch/shared/types.ts';
+import type { Asset, GsAutomationGraph, GsEffectNode, GsGlobalInNode, GsNode, NodeOutputReference, VisualModule } from '@glitch/shared/types.ts';
 import type { EffectImplementation, EffectInstance, IntermediateTextureFormat } from '@glitch/shared/effect-implementation.js';
 import type { EffectDefinition } from '@glitch/shared/effect-definition.js';
 
 export type VisualModuleRenderContext = {
-	isExport?: boolean;
+	isExport: boolean;
 	// 省略時はタイムライン・プレビュー用の主出力だけを評価する。
 	outputIds?: readonly string[];
 	//globalTime: number; // タイムラインの再生位置を示すが、使わなそう
@@ -24,7 +27,7 @@ export type VisualModuleRenderContext = {
 	paramInputs?: ReadonlyMap<string, NodeOutput>;
 	pointerPosition: { x: number; y: number };
 	pointerPositionPrev: { x: number; y: number };
-	paramValues: VisualModuleParamValues;
+	evaluatedParamValues: EvaluatedParamValues;
 };
 
 export class VisualModuleRenderer {
@@ -36,7 +39,7 @@ export class VisualModuleRenderer {
 	private nodes: GsNode[] = [];
 	private paramDefs: VisualModule['paramDefs'];
 	private outputDefs: VisualModule['outputDefs'] = [];
-	private paramValues = new Map<string, any>();
+	private paramValues: EvaluatedParamValues = new Map();
 	private paramInputs: ReadonlyMap<string, NodeOutput> = new Map();
 	private preparedContext: VisualModuleRenderContext | null = null;
 	private statusWaiters = new Set<() => void>();
@@ -116,7 +119,7 @@ export class VisualModuleRenderer {
 		this.outputDefs = visualModule.outputDefs;
 		this.paramDefs = visualModule.paramDefs;
 		this.preparedContext = null;
-		this.paramValues.clear();
+		this.paramValues = new Map();
 		this.paramInputs = new Map();
 		this.effectCacheKeys.clear();
 		this.updateNodes(visualModule.nodes);
@@ -135,20 +138,35 @@ export class VisualModuleRenderer {
 
 	private evaluateParameters(context: VisualModuleRenderContext) {
 		this.paramInputs = context.paramInputs ?? new Map();
-		const evaluated = this.parameterEvaluator.evaluate({
-			isExport: context.isExport,
-			nodes: this.nodes,
-			paramDefs: this.paramDefs,
-			effectDefinitions: this.effectDefinitions,
+
+		const evalCtx = {
+			variables: moduleVariables({
+				time: context.time,
+				endTime: context.endTime,
+				isExport: context.isExport,
+				resolution: this.resolution,
+			}),
 			automationGraphs: this.automationGraphs,
-			resolution: this.resolution,
 			time: context.time,
 			endTime: context.endTime,
-			paramValues: context.paramValues,
-			inputParamIds: new Set(this.paramInputs.keys()),
-		});
-		this.paramValues = evaluated.paramValues;
-		this.evaledNodeParams = evaluated.nodeParams;
+			evaluatedParamValues: context.evaluatedParamValues,
+		} satisfies ParameterEvaluationContext;
+
+		const evaluated = new Map<GsNode['id'], Record<string, any>>();
+		for (const node of this.nodes.filter((n): n is GsEffectNode => n.type === 'effect')) {
+			const paramDefs = this.effectDefinitions[node.effectId].paramDefs;
+			const evaluatedParamsPerNode = {} as Record<string, any>;
+			for (const [key, def] of Object.entries(paramDefs)) {
+				if (node.isBypass && !def.primary) continue;
+				evaluatedParamsPerNode[key] = mapNodeParam(def, node.params[key], [key], (def, param) => {
+					return this.parameterEvaluator.evaluate(param, evalCtx, genEmptyValue(def)); // TODO: genEmptyValueを遅延評価したい
+				});
+			}
+			evaluated.set(node.id, evaluatedParamsPerNode);
+		}
+
+		this.paramValues = context.evaluatedParamValues;
+		this.evaledNodeParams = evaluated;
 	}
 
 	private setEffectStatus(nodeId: string, status: EffectStatus) {
