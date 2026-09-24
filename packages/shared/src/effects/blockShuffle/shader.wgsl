@@ -43,7 +43,7 @@ fn fs(fragData: FragmentIn) -> @location(0) vec4f {
 	}
 	// 画面全体は各軸[-1, 1]の幅2なので、画素数の比率をこの単位へ変換する。
 	// Stretch・Size=1ではcellSizeが2になり、中央の1セルが画面全体を覆う。
-	// 0の軸だけFit modeによらず出力の1pxにする。正の値には1pxの下限を設けない。
+	// 0の軸だけFit Modeによらず出力の1pxにする。正の値には1pxの下限を設けない。
 	let cellSize = select(2.0 * (extent / uniforms.resolution) * size, 2.0 / uniforms.resolution, size == vec2f(0.0));
 	let cell = vec2i(round(fragData.uv / cellSize));
 	// Amountで選ばれたタイルだけに、位置のシャッフル・回転・反転を適用する。

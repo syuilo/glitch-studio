@@ -65,7 +65,7 @@ GPUテストはheadless Chromeで実際のcolorMixと生成関数を実行し、
 
 追加移行した16エフェクトも、uniformと同じ値のテクスチャを使って全入力構成の描画結果を比較する。16bitと対応GPUでの32bitの両方、キャッシュ退避後の再生成を含む。
 
-blockShuffleは画像とSizeの両入力を新方式で読む。本体のFit modeはブロック形状の設定として残す。GPUテストでは全4入力構成に加え、選択／非選択タイルの両方で接続のfit/wrapを検証する。
+blockShuffleは画像とSizeの両入力を新方式で読む。本体のFit Modeはブロック形状の設定として残す。GPUテストでは全4入力構成に加え、選択／非選択タイルの両方で接続のfit/wrapを検証する。
 
 gradientは7入力の全128構成で単一／複数出力を比較する。符号付き浮動小数点の値と微分を直接読み戻し、linear/radial、入力のfit/wrap、transparentの1×1入力の境界を検証する。
 

@@ -18,7 +18,7 @@ fn fs(@location(0) position: vec2f) -> @location(0) vec4f {
 		extent = vec2f(min(uniforms.resolution.x, uniforms.resolution.y));
 	}
 	// Size=1で基準領域全体、Size=0.1で各軸を10分割する密度になる。
-	// 0の軸だけFit modeによらず出力の1pxにする。正の値には1pxの下限を設けない。
+	// 0の軸だけFit Modeによらず出力の1pxにする。正の値には1pxの下限を設けない。
 	let cellSize = select(2.0 * (extent / uniforms.resolution) * size, 2.0 / uniforms.resolution, size == vec2f(0.0));
 
 	// 1 = 180度、正の角度は時計回り。物理的な縦横の単位を揃えてから

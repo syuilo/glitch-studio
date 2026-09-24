@@ -13,7 +13,7 @@ export default defineEffect({
 			],
 			defaultValue: { inputSource: 'literal', value: 'linear' },
 		},
-		fitMode: { dataType: 'fitMode', ui: { label: 'Fit mode', control: 'fitMode' }, defaultValue: { inputSource: 'literal', value: 'cover' } },
+		fitMode: { dataType: 'fitMode', ui: { label: 'Fit Mode', control: 'fitMode' }, defaultValue: { inputSource: 'literal', value: 'cover' } },
 		center: { dataType: 'vector', ui: { label: 'Center', control: 'vector', min: -1, max: 1, step: 0.01 }, defaultValue: { inputSource: 'literal', value: [0, 0] } },
 		startPosition: { dataType: 'scalar', ui: { label: 'Start Position', control: 'range', min: 0, max: 1, step: 0.01 }, canNode: true, defaultValue: { inputSource: 'literal', value: 0 } },
 		endPosition: { dataType: 'scalar', ui: { label: 'End Position', control: 'range', min: 0, max: 1, step: 0.01 }, canNode: true, defaultValue: { inputSource: 'literal', value: 1 } },
