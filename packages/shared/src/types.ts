@@ -118,10 +118,10 @@ export function visualModuleCustomParameterName(value: UnbrandedString): VisualM
 	return value as unknown as VisualModuleCustomParameterName;
 }
 
-type ExternalCustomParameterSchema<T = Exclude<EffectOptionSchema, StructOptionSchema | ArrayOptionSchema | AnyOptionSchema>> =
+type CustomParameterSchema<T = Exclude<EffectOptionSchema, StructOptionSchema | ArrayOptionSchema | AnyOptionSchema>> =
 	T extends unknown ? Omit<T, 'canNode' | 'primary' | 'visibility'> : never;
 
-export type VisualModuleParamDef = ExternalCustomParameterSchema & {
+export type VisualModuleParamDef = CustomParameterSchema & {
 	id: VisualModuleCustomParameterId;
 	name: VisualModuleCustomParameterName; // expressionから参照するとき用
 	defaultValue: { inputSource: 'literal'; value: any };

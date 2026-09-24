@@ -51,10 +51,10 @@
 	"Project": "Project",
 	"NoPresets": "No presets",
 	"NoEffects": "No FX",
-	"NoExternalCustomParameterInputs": "No externalCustomParameterInputs",
+	"NoCustomParameterInputs": "No externalCustomParameterInputs",
 	"NoAssets": "No assets",
 	"Fx": "FX",
-	"ExternalCustomParameterInput": "ExternalCustomParameterInput",
+	"CustomParameterInput": "CustomParameterInput",
 	"Asset": "Aseet",
 	"Stats": "Stats",
 	"Monitors": "Monitors",
@@ -63,7 +63,7 @@
 	"Now": "now",
 	"FrameRenderTimesLast30Seconds": "Frame render times for the last 30 seconds",
 	"AddEffect": "Add Effect",
-	"AddExternalCustomParameterInput": "Add ExternalCustomParameterInput",
+	"AddCustomParameterInput": "Add CustomParameterInput",
 	"AddAsset": "Add Asset",
 	"ClickToDisable": "Click to Disable",
 	"ClickToEnable": "Click to Enable",
@@ -103,7 +103,7 @@
 		"Add": "Add",
 		"Subtract": "Subtract"
 	},
-	"_ExternalCustomParameterInput": {
+	"_CustomParameterInput": {
 		"Name": "Name",
 		"Label": "Label",
 		"Type": "Type",
