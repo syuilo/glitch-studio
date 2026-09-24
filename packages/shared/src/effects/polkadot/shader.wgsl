@@ -1,7 +1,7 @@
 struct Uniforms {
 	aspect: vec2f,
-	angle: f32,
-	size: f32,
+	sizeScale: vec2f,
+	pixelSize: f32,
 	majorRadius: f32,
 	minorDivisions: f32,
 	minorRadius: f32,
@@ -25,15 +25,20 @@ fn dotDistance(gridPosition: vec2f) -> f32 {
 @fragment
 fn fs(fragData: FragmentIn) -> @location(0) vec4f {
 	let backgroundColor = read_background(fragData.position);
-	// [-1, 1]から元の中央原点UVの単位に戻し、短辺基準で円の縦横比を保つ。
+	let angle = read_angle(fragData.position) * 3.141592653589793;
+	let inputSize = read_size(fragData.position);
+	// 正の値はfitModeで選んだ基準領域の割合を短辺基準の座標へ変換する。
+	// 各軸とも0以下のときだけfitModeによらず出力の1pxを周期にし、正の値は1px未満も許す。
+	let size = select(min(inputSize, vec2f(1.0)) * uniforms.sizeScale, vec2f(uniforms.pixelSize), inputSize <= vec2f(0.0));
+	// 短辺基準で縦横の単位を揃え、楕円のドットでも回転による歪みを防ぐ。
 	let centeredUv = fragData.position * 0.5 * uniforms.aspect;
-	let cosine = cos(uniforms.angle);
-	let sine = sin(uniforms.angle);
+	let cosine = cos(angle);
+	let sine = sin(angle);
 	let rotatedUv = vec2f(
 		centeredUv.x * cosine - centeredUv.y * sine,
 		centeredUv.x * sine + centeredUv.y * cosine,
 	);
-	let gridPosition = rotatedUv / uniforms.size;
+	let gridPosition = rotatedUv / size;
 	var dotColor = vec4f(0.0);
 	if (dotDistance(gridPosition) < uniforms.majorRadius * 0.5) {
 		dotColor = uniforms.majorColor;

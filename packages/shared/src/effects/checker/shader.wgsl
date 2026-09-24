@@ -5,8 +5,8 @@
 
 struct Uniforms {
 	aspect: vec2f,
-	angle: f32,
-	size: f32,
+	sizeScale: vec2f,
+	pixelSize: f32,
 	color: vec4f,
 };
 
@@ -19,15 +19,20 @@ struct FragmentIn {
 @fragment
 fn fs(fragData: FragmentIn) -> @location(0) vec4f {
 	let backgroundColor = read_background(fragData.position);
-	// [-1, 1]から元の中央原点UVの単位に戻し、短辺基準でマス目を正方形に保つ。
+	let angle = read_angle(fragData.position) * 3.141592653589793;
+	let inputSize = read_size(fragData.position);
+	// 正の値はfitModeで選んだ基準領域の割合を短辺基準の座標へ変換する。
+	// 各軸とも0以下のときだけfitModeによらず出力の1pxを周期にし、正の値は1px未満も許す。
+	let size = select(min(inputSize, vec2f(1.0)) * uniforms.sizeScale, vec2f(uniforms.pixelSize), inputSize <= vec2f(0.0));
+	// 短辺基準で縦横の単位を揃え、長方形のマス目でも回転による歪みを防ぐ。
 	let centeredUv = fragData.position * 0.5 * uniforms.aspect;
-	let cosine = cos(uniforms.angle);
-	let sine = sin(uniforms.angle);
+	let cosine = cos(angle);
+	let sine = sin(angle);
 	let rotatedUv = vec2f(
 		centeredUv.x * cosine - centeredUv.y * sine,
 		centeredUv.x * sine + centeredUv.y * cosine,
 	);
-	let cellIndex = floor(rotatedUv / uniforms.size);
+	let cellIndex = floor(rotatedUv / size);
 	let indexSum = cellIndex.x + cellIndex.y;
 	// WGSLの剰余演算では負の値が残るため、GLSLのmod(x, 2)をfloorで再現する。
 	let checkerMask = indexSum - 2.0 * floor(indexSum * 0.5);

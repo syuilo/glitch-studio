@@ -20,7 +20,7 @@ export default implementEffect<typeof definition>({
 		const group = device.createBindGroup({ layout, entries: [{ binding: 0, resource: { buffer: uniformBuffer } }] });
 		const pipelines = createShaderInputPipeline({
 			device, vertex: wgpu.defaultVertexShaderModule, code,
-			schema: { background: 'color' },
+			schema: { background: 'color', angle: 'scalar', size: 'vector' },
 			targets: [{ format: wgpu.intermediateTextureFormat }],
 			internalLayouts: [layout],
 		});
@@ -28,12 +28,14 @@ export default implementEffect<typeof definition>({
 			render: ctx => {
 				const output = ctx.outputDataMap.output.texture;
 				const shortDimension = Math.min(output.width, output.height);
+				// パターン形状の基準領域。入力接続のfitとは独立に、各軸／長辺／短辺へ合わせる。
+				const extent = ctx.params.fitMode === 'cover' ? Math.max(output.width, output.height) : shortDimension;
 				uniformValues.set({
 					aspect: [output.width / shortDimension, output.height / shortDimension],
-					angle: ctx.params.angle * Math.PI,
-					// Size=0（負値も0扱い）のときだけ出力の1pxを周期にする。
-					// 正の値は短辺に対する割合のまま扱い、1px未満にもできる。
-					size: ctx.params.size <= 0 ? 1 / shortDimension : Math.min(1, ctx.params.size),
+					sizeScale: ctx.params.fitMode === 'stretch'
+						? [output.width / shortDimension, output.height / shortDimension]
+						: [extent / shortDimension, extent / shortDimension],
+					pixelSize: 1 / shortDimension,
 					majorRadius: Math.max(0, ctx.params.majorRadius),
 					majorColor: ctx.params.majorColor,
 					minorDivisions: Math.max(0, ctx.params.minorDivisions),
@@ -41,7 +43,7 @@ export default implementEffect<typeof definition>({
 					minorColor: ctx.params.minorColor,
 				});
 				device.queue.writeBuffer(uniformBuffer, 0, uniformValues.arrayBuffer);
-				const variant = pipelines.update({ background: ctx.params.background }, output);
+				const variant = pipelines.update({ background: ctx.params.background, angle: ctx.params.angle, size: ctx.params.size }, output);
 				const pass = ctx.createPassEncoderFor(ctx.commandEncoder, ctx.outputDataMap.output.textureView);
 				pass.setPipeline(variant.pipeline);
 				pass.setBindGroup(0, group);
