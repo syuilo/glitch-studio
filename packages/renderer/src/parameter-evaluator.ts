@@ -1,12 +1,13 @@
+import { parameterName, type ParameterId, type ParameterName } from '@glitch/shared/parameter-identity.ts';
 import * as AiScript from '@syuilo/aiscript';
 import { evalAutomationGraphValue } from '@glitch/shared/utility/misc.ts';
-import { deepClone } from '@glitch/shared/utility/deep-clone.js';
+import { deepClone, type Cloneable } from '@glitch/shared/utility/deep-clone.js';
 import { reservedWords, singleVariableExpression } from '@glitch/shared/expression.js';
-import type { EffectParamValue, GsAutomationGraph } from '@glitch/shared/types.ts';
+import type { ParameterBinding, GsAutomationGraph } from '@glitch/shared/types.ts';
 
 // Evaluatorはstateless/deterministicである必要がある
 
-type AutomationGraphInput = Extract<EffectParamValue, { inputSource: 'automationGraphReference' | 'automationGraphInline' }>;
+type AutomationGraphInput = Extract<ParameterBinding, { inputSource: 'automationGraphReference' | 'automationGraphInline' }>;
 type ReadGraph = (name: string, t: number, wrapMode: AutomationGraphInput['wrapMode']) => number;
 
 function evaluateAutomationGraph(graph: Pick<GsAutomationGraph, 'points' | 'isNormalized'>, input: AutomationGraphInput, context: EvaluationScope): number {
@@ -26,16 +27,16 @@ function evaluateAutomationGraph(graph: Pick<GsAutomationGraph, 'points' | 'isNo
 
 // グラフの再生時刻と、式に公開する変数は独立。親の環境は継承しない。
 export type EvaluationScope = {
-	variables: Readonly<Record<string, unknown>>;
+	variables: Readonly<Record<string, Cloneable>>;
 	automationGraphs: GsAutomationGraph[];
 	time: number;
 	endTime: number;
 };
-export type EvaluatedParamValues = ReadonlyMap<string, any>;
+export type EvaluatedParameterValues = ReadonlyMap<ParameterId, any>;
 export type ParameterEvaluationContext = EvaluationScope & {
-	evaluatedParamValues: EvaluatedParamValues | null;
+	evaluatedParamValues: EvaluatedParameterValues | null;
 	// PARAMは名前、外部入力参照はIDで解決する。値そのものは再評価しない。
-	paramIdsByName?: ReadonlyMap<string, string>;
+	paramIdsByName?: ReadonlyMap<ParameterName, ParameterId>;
 };
 
 // 解析済みASTだけを再利用し、評価環境は式ごとに独立させる。
@@ -43,7 +44,7 @@ export class ParameterEvaluator {
 	private aisParser = new AiScript.Parser();
 	private astCache = new Map<string, AiScript.Ast.Node[]>();
 
-	private evaluateExpression(expression: string, scope: Readonly<Record<string, unknown>>, fallback: any, getGraph: ReadGraph, paramValues: EvaluatedParamValues | null, paramIdsByName?: ReadonlyMap<string, string>): any {
+	private evaluateExpression(expression: string, scope: Readonly<Record<string, Cloneable>>, fallback: any, getGraph: ReadGraph, paramValues: EvaluatedParameterValues | null, paramIdsByName?: ReadonlyMap<ParameterName, ParameterId>): any {
 		try {
 			const variableName = singleVariableExpression.exec(expression)?.[1];
 			// 現在のスコープにある値だけを直接取得する。0も有効で、prototype由来の名前は含めない。
@@ -65,7 +66,7 @@ export class ParameterEvaluator {
 			if (paramValues != null) {
 				const readParam = (args: (AiScript.values.Value | undefined)[]) => {
 					if (args.length !== 1 || args[0]?.type !== 'str') throw new Error('PARAM requires a parameter name');
-					const id = paramIdsByName?.get(args[0].value);
+					const id = paramIdsByName?.get(parameterName(args[0].value));
 					if (id == null || !paramValues.has(id)) throw new Error(`Unknown or unavailable parameter: ${args[0].value}`);
 					return AiScript.utils.jsToVal(deepClone(paramValues.get(id)));
 				};
@@ -90,7 +91,7 @@ export class ParameterEvaluator {
 		};
 	}
 
-	public evaluate(targetNonEvaluatedValue: EffectParamValue, context: ParameterEvaluationContext, fallback: any) {
+	public evaluate(targetNonEvaluatedValue: ParameterBinding, context: ParameterEvaluationContext, fallback: any) {
 		const readGraph = this.graphReader(context);
 		const getEnvironmentVariableValue = (variable: string) => Object.hasOwn(context.variables, variable) ? deepClone(context.variables[variable]) : undefined;
 

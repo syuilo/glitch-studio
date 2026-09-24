@@ -66,7 +66,9 @@
 				<GsVisualParam
 					v-for="paramDef of visualModule.paramDefs"
 					:key="paramDef.id"
+					:availableVariables="layerEnvVarDefs"
 					:paramPath="[paramDef.id]"
+					:automationGraphs="[]"
 					:paramDef="{ ...paramDef, canNode: false }"
 					:paramValue="previewParamValues[paramDef.id]"
 					@edit="onPreviewParamEdit"
@@ -82,6 +84,7 @@
 </template>
 
 <script lang="ts" setup>
+import { layerEnvVarDefs } from '@glitch/shared/expression.ts';
 import { computed, ref, watch } from 'vue';
 import { AiSON } from '@syuilo/aiscript';
 import { deepClone } from '@glitch/shared/utility/deep-clone.js';
@@ -96,8 +99,9 @@ import XGlobalOutNode from './GsGlobalOutNode.vue';
 import XVisualModuleParamDefsEditor from './XVisualModuleParamDefsEditor.vue';
 import XVisualModuleOutputDefsEditor from './XVisualModuleOutputDefsEditor.vue';
 import GsTabs from './common/GsTabs.vue';
+import type { ParameterId } from '@glitch/shared/parameter-identity.ts';
 import type { ParamEdit } from './GsVisualParam.vue';
-import type { GsAutomationGraph, GsGlobalInNode, GsGlobalOutNode, GsNode, VisualModule, VisualModuleParamValues } from '@glitch/shared/types.js';
+import type { GsAutomationGraph, GsGlobalInNode, GsGlobalOutNode, GsNode, VisualModule, VisualModuleParameterBindings } from '@glitch/shared/types.js';
 import { showAddNodeMenu } from '@/app.ts';
 import { appContext, engine } from '@/app.ts';
 import * as ui from '@/ui.ts';
@@ -105,7 +109,7 @@ import { createInlineAutomationGraph } from '@/utility/automation-graph.ts';
 
 const tab = ref('nodes');
 const visualModule = ref<VisualModule | null>();
-const previewParamValues = ref<VisualModuleParamValues>({});
+const previewParamValues = ref<VisualModuleParameterBindings>({});
 let previewModuleId: string | undefined;
 let previewParamTypes = new Map<string, VisualModule['paramDefs'][number]['dataType']>();
 
@@ -115,7 +119,7 @@ watch(appContext.state.visualModules, () => {
 }, { deep: true, immediate: true });
 
 watch(visualModule, module => {
-	const values: VisualModuleParamValues = {};
+	const values: VisualModuleParameterBindings = {};
 	for (const def of module?.paramDefs ?? []) {
 		// ノードの編集などでプレビューの入力値を初期化しない。
 		values[def.id] = module?.id === previewModuleId && previewParamTypes.get(def.id) === def.dataType && previewParamValues.value[def.id] != null
@@ -130,11 +134,11 @@ watch(visualModule, module => {
 function onPreviewParamEdit(event: ParamEdit) {
 	// VisualModuleのパラメータ定義は現在フラットで、array/structは持たない。
 	if (event.paramPath.length !== 1) return;
-	const id = event.paramPath[0];
-	const def = visualModule.value?.paramDefs.find(def => def.id === id);
+	const def = visualModule.value?.paramDefs.find(def => def.id === event.paramPath[0]);
 	if (def == null) return;
+	const id = def.id;
 	const current = previewParamValues.value[id];
-	const reset = (): VisualModuleParamValues[string] => deepClone(def.defaultValue);
+	const reset = (): VisualModuleParameterBindings[ParameterId] => deepClone(def.defaultValue);
 	switch (event.kind) {
 		case 'literal': previewParamValues.value[id] = { inputSource: 'literal', value: deepClone(event.value) }; break;
 		case 'automationGraphInline': previewParamValues.value[id] = deepClone(event.value); break;

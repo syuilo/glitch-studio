@@ -55,7 +55,7 @@
 						v-else-if="paramValue.inputSource === 'externalParameterInput'"
 						small
 						:modelValue="paramValue.parameterId"
-						:items="[{ label: i18n.ts.None, value: '' }, ...externalParameterInputItems]"
+						:items="[{ label: i18n.ts.None, value: parameterId('') }, ...externalParameterInputItems]"
 						@update:modelValue="value => emit('edit', { kind: 'externalParameterInput', ...target(), value })"
 					/>
 					<div v-else-if="paramValue.inputSource === 'node'" style="display: flex; gap: 4px;">
@@ -101,6 +101,8 @@
 		<GsVisualParam
 			v-for="(value, index) in arrayValues"
 			:key="index"
+			:automationGraphs="automationGraphs"
+			:availableVariables="availableVariables"
 			:visualModuleId="visualModuleId"
 			:node="node"
 			:paramPath="[...paramPath, index]"
@@ -118,6 +120,8 @@
 		<GsVisualParam
 			v-for="[key, def] in visibleFields"
 			:key="key"
+			:automationGraphs="automationGraphs"
+			:availableVariables="availableVariables"
 			:visualModuleId="visualModuleId"
 			:node="node"
 			:paramPath="[...paramPath, key]"
@@ -130,20 +134,20 @@
 </template>
 
 <script lang="ts">
-import type { AutomationGraphPlaybackOptions, EffectParamValue, NodeOutputReference } from '@glitch/shared/types.ts';
+import type { ParameterId } from '@glitch/shared/parameter-identity.ts';
+import type { AutomationGraphPlaybackOptions, ParameterBinding, NodeOutputReference } from '@glitch/shared/types.ts';
 import type { GlobalEnvVariable } from '@glitch/shared/expression.ts';
 import { deepClone } from '@glitch/shared/utility/deep-clone.js';
-import { globalEnvVarDefs } from '@glitch/shared/expression.js';
 
 export type ParamEdit = { paramPath: ParamPath; mergeKey?: string | null } & (
 	| { kind: 'literal'; value: any }
-	| { kind: 'automationGraphInline'; value: Extract<EffectParamValue, { inputSource: 'automationGraphInline' }> }
+	| { kind: 'automationGraphInline'; value: Extract<ParameterBinding, { inputSource: 'automationGraphInline' }> }
 	| { kind: 'envVariable'; value: GlobalEnvVariable }
 	| { kind: 'expression'; value: string }
 	| { kind: 'automationGraphReference'; value: string | null; options?: Partial<AutomationGraphPlaybackOptions> }
 	| { kind: 'node'; value: NodeOutputReference | null }
-	| { kind: 'externalParameterInput'; value: string }
-	| { kind: 'inputSource'; inputSource: EffectParamValue['inputSource'] }
+	| { kind: 'externalParameterInput'; value: ParameterId }
+	| { kind: 'inputSource'; inputSource: ParameterBinding['inputSource'] }
 	| { kind: 'reset' }
 	| { kind: 'addElement' }
 	| { kind: 'removeElement'; index: number }
@@ -151,6 +155,7 @@ export type ParamEdit = { paramPath: ParamPath; mergeKey?: string | null } & (
 </script>
 
 <script lang="ts" setup>
+import { parameterId } from '@glitch/shared/parameter-identity.ts';
 import { computed, onBeforeUnmount, ref, shallowRef, useTemplateRef, watch, watchEffect } from 'vue';
 import { genId } from '@glitch/shared/utility/id.ts';
 import { getNodeInputDataType } from '@glitch/shared/utility/node-outputs.ts';
@@ -163,7 +168,7 @@ import GsCondensedLine from './common/GsCondensedLine.vue';
 import GsSelect from './common/GsSelect.vue';
 import GsAutomationGraphPointsEditorWindow from './GsAutomationGraphPointsEditorWindow.vue';
 import type { ParamPath } from '@/utility/node-params.ts';
-import type { GsBezierAnchorPoint, GsEffectNode, VisualModule } from '@glitch/shared/types.ts';
+import type { GsAutomationGraph, GsBezierAnchorPoint, GsEffectNode, VisualModule } from '@glitch/shared/types.ts';
 import type { MenuItem } from '@/types/menu.ts';
 import type { NodeParamDef } from '@/utility/node-params.ts';
 import { i18n } from '@/i18n.ts';
@@ -176,11 +181,13 @@ import * as ui from '@/ui.ts';
 import { setInlineAutomationGraphNormalized } from '@/utility/automation-graph.ts';
 
 const props = defineProps<{
+	automationGraphs: readonly GsAutomationGraph[];
+	availableVariables: readonly Exclude<GlobalEnvVariable, ''>[];
 	visualModuleId?: string;
 	node?: GsEffectNode;
 	paramPath: ParamPath;
 	paramDef: NodeParamDef | VisualModule['paramDefs'][number];
-	paramValue: EffectParamValue;
+	paramValue: ParameterBinding;
 	label?: string;
 }>();
 
@@ -188,8 +195,8 @@ const emit = defineEmits<{ edit: [event: ParamEdit] }>();
 
 const rowEl = useTemplateRef('rowEl');
 const portEl = shallowRef<HTMLElement | null>(null);
-const arrayValues = computed<EffectParamValue[]>(() => props.paramDef.dataType === 'array' && props.paramValue.inputSource === 'literal' ? props.paramValue.value : []);
-const structValues = computed<Record<string, EffectParamValue> | null>(() => props.paramDef.dataType === 'struct' && props.paramValue.inputSource === 'literal' ? props.paramValue.value : null);
+const arrayValues = computed<ParameterBinding[]>(() => props.paramDef.dataType === 'array' && props.paramValue.inputSource === 'literal' ? props.paramValue.value : []);
+const structValues = computed<Record<string, ParameterBinding> | null>(() => props.paramDef.dataType === 'struct' && props.paramValue.inputSource === 'literal' ? props.paramValue.value : null);
 const visibleFields = computed(() => {
 	if (props.paramDef.dataType !== 'struct') return [];
 	const fields: Record<string, NodeParamDef> = props.paramDef.fields;
@@ -199,11 +206,11 @@ const canNode = computed(() => props.paramDef.canNode);
 const inputDataType = computed(() => getNodeInputDataType(props.paramDef));
 const paramDefs = computed(() => appContext.state.visualModules.value.find(module => module.id === props.visualModuleId)?.paramDefs ?? []);
 const nodes = computed(() => appContext.state.visualModules.value.find(visualModule => visualModule.id === props.visualModuleId)?.nodes ?? []);
-const automationGraphs = computed(() => appContext.state.visualModules.value.find(visualModule => visualModule.id === props.visualModuleId)?.automationGraphs ?? []);
+
 const selectedAutomationGraph = computed(() => {
 	const value = props.paramValue;
 	return value.inputSource === 'automationGraphInline' ? { ...value.automationGraph, name: 'Inline graph' }
-		: value.inputSource === 'automationGraphReference' ? automationGraphs.value.find(graph => graph.id === value.automationGraphId) : undefined;
+		: value.inputSource === 'automationGraphReference' ? props.automationGraphs.find(graph => graph.id === value.automationGraphId) : undefined;
 });
 const graphTimeAxisItems = [
 	{ label: 'Normalized (0–1)', value: 'normalized' },
@@ -218,7 +225,7 @@ const graphOffsetModeItems = [
 	{ label: 'Start', value: 'start' },
 	{ label: 'End', value: 'end' },
 ] satisfies { label: string; value: AutomationGraphPlaybackOptions['offsetMode'] }[];
-const envVariableItems = computed(() => globalEnvVarDefs.map(variable => ({ label: `${i18n.t(`_EnvVariables.${variable}`)} (${variable})`, value: variable })));
+const envVariableItems = computed(() => props.availableVariables.map(variable => ({ label: variable.startsWith('TEST_') ? variable : `${i18n.t(`_EnvVariables.${variable}`)} (${variable})`, value: variable })));
 const externalParameterInputItems = computed(() => (props.node == null ? [] : appContext.state.visualModules.value.find(module => module.id === props.visualModuleId)?.paramDefs ?? [])
 	.map(def => ({ label: `${def.ui.label} (${def.name})`, value: def.id })));
 const nodeOutputItems = computed(() => props.node == null ? [] : getNodeOutputItems(nodes.value, props.node.id, inputDataType.value, paramDefs.value));
@@ -302,7 +309,7 @@ function updateAutomationGraphDuration(durationMs: number) {
 function selectAutomationGraph(ev: PointerEvent) {
 	ui.popupMenu([
 		{ text: '(none)', action: () => emit('edit', { kind: 'automationGraphReference', ...target(), value: null }) },
-		...automationGraphs.value.map(a => ({
+		...props.automationGraphs.map(a => ({
 			text: a.name,
 			action: () => emit('edit', { kind: 'automationGraphReference', ...target(), value: a.id }),
 		})),
@@ -324,7 +331,7 @@ function getMenu() {
 	// コンテナ自体は静的な構造を維持し、値の種類を変更できるのは末端だけにする。
 	if (props.paramDef.dataType !== 'array' && props.paramDef.dataType !== 'struct') {
 		menuItems.push({ type: 'label', text: 'Input source' });
-		const types: { text: string; inputSource: EffectParamValue['inputSource']; icon: string }[] = [
+		const types: { text: string; inputSource: ParameterBinding['inputSource']; icon: string }[] = [
 			{ text: 'Literal', inputSource: 'literal', icon: 'ti ti-adjustments-horizontal' },
 			{ text: 'AutomationGraph', inputSource: 'automationGraphReference', icon: 'ti ti-ease-in-out-control-points' },
 			{ text: 'AutomationGraph (inline)', inputSource: 'automationGraphInline', icon: 'ti ti-ease-in-out-control-points' },

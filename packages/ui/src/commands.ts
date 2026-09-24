@@ -1,10 +1,11 @@
+import { parameterId, type ParameterId } from '@glitch/shared/parameter-identity.ts';
 import { effectDefinitions } from '@glitch/shared/effect-definitions.ts';
 import { AiSON } from '@syuilo/aiscript';
 import { deepClone } from '@glitch/shared/utility/deep-clone.ts';
 import { getNodeInputDataType, getNodeOutputs } from '@glitch/shared/utility/node-outputs.ts';
 import { genEmptyValue } from '@glitch/shared/utility/misc.ts';
 import type { AppState } from './types.ts';
-import type { Asset, AutomationGraphPlaybackOptions, EffectParamDefs, EffectParamValue, GsEffectNode, GsNode, Player, NodeOutputReference, VisualModule } from '@glitch/shared/types.ts';
+import type { Asset, AutomationGraphPlaybackOptions, EffectParamDefs, ParameterBinding, GsEffectNode, GsNode, Player, NodeOutputReference, VisualModule } from '@glitch/shared/types.ts';
 import type { NodeParamTarget as EffectNodeParamTarget } from '@/utility/node-params.ts';
 import type { GlobalEnvVariable } from '@glitch/shared/expression.js';
 import { canConnectNodeDataTypes } from '@/utility/node-outputs.ts';
@@ -40,20 +41,20 @@ const stateUtility = {
 
 const editVisualModuleLayerParamCommandDef = defineCommand<{
 	layerId: string;
-	paramId: string;
+	paramId: ParameterId;
 	target?: 'module' | 'compositing';
 	edit:
 		| { kind: 'literal'; value: any }
-		| { kind: 'automationGraphInline'; value: Extract<EffectParamValue, { inputSource: 'automationGraphInline' }> }
+		| { kind: 'automationGraphInline'; value: Extract<ParameterBinding, { inputSource: 'automationGraphInline' }> }
 		| { kind: 'envVariable' | 'expression'; value: string }
 		| { kind: 'automationGraphReference'; value: string | null; options?: Partial<AutomationGraphPlaybackOptions> }
-		| { kind: 'inputSource'; inputSource: EffectParamValue['inputSource'] }
+		| { kind: 'inputSource'; inputSource: ParameterBinding['inputSource'] }
 		| { kind: 'reset' };
 }>({
 	label: 'Edit timeline layer param',
 	create: payload => {
-		let before: EffectParamValue | undefined;
-		let after: EffectParamValue | undefined;
+		let before: ParameterBinding | undefined;
+		let after: ParameterBinding | undefined;
 		const getLayer = (state: AppState) => {
 			const layer = state.timeline.value.find(layer => layer.id === payload.layerId);
 			if (layer == null) throw new Error('Timeline layer not found');
@@ -113,7 +114,7 @@ const editVisualModuleLayerParamCommandDef = defineCommand<{
 	},
 });
 
-const addEffectNodeCommandDef = defineCommand<{ visualModuleId: string; id: string; effectId: string; params?: Record<string, EffectParamValue> }>({
+const addEffectNodeCommandDef = defineCommand<{ visualModuleId: string; id: string; effectId: string; params?: Record<string, ParameterBinding> }>({
 	label: 'Add fx node',
 	create: payload => {
 		let addedNode: GsEffectNode | undefined;
@@ -381,13 +382,13 @@ const updatePlayerSourceTypeCommandDef = defineCommand<{ playerId: Player['id'];
 // 対象は実行・Undoのたびに解決する。配列の置換やUndo後の古い参照を保持しない。
 function defineNodeParamCommand<Payload extends NodeParamTarget>(
 	label: string,
-	update: (target: ReturnType<typeof resolveNodeParam>, payload: Payload) => EffectParamValue,
+	update: (target: ReturnType<typeof resolveNodeParam>, payload: Payload) => ParameterBinding,
 ) {
 	return defineCommand<Payload>({
 		label,
 		create: payload => {
-			let before: EffectParamValue;
-			let after: EffectParamValue | undefined;
+			let before: ParameterBinding;
+			let after: ParameterBinding | undefined;
 			return {
 				execute(state) {
 					const node = stateUtility.findNode(state, payload);
@@ -417,7 +418,7 @@ function assertLeafParam(target: ReturnType<typeof resolveNodeParam>) {
 }
 
 // TODO: 別のtypeの設定値を失わない(内部的には持ったまま)ようにする
-const changeParamValueInputSourceCommandDef = defineNodeParamCommand<NodeParamTarget & { inputSource: EffectParamValue['inputSource'] }>(
+const changeParamValueInputSourceCommandDef = defineNodeParamCommand<NodeParamTarget & { inputSource: ParameterBinding['inputSource'] }>(
 	'Change param value type',
 	(target, payload) => {
 		assertLeafParam(target);
@@ -433,7 +434,7 @@ const changeParamValueInputSourceCommandDef = defineNodeParamCommand<NodeParamTa
 			case 'literal': return { inputSource: 'literal', value: defaultValue.inputSource === 'literal' ? defaultValue.value : emptyValue };
 			case 'automationGraphReference': return { inputSource: 'automationGraphReference', automationGraphId: null, durationMs: 1000, wrapMode: 'repeat', offsetMode: 'start' };
 			case 'automationGraphInline': return createInlineAutomationGraph();
-			case 'externalParameterInput': return { inputSource: 'externalParameterInput', parameterId: '' };
+			case 'externalParameterInput': return { inputSource: 'externalParameterInput', parameterId: parameterId('') };
 			case 'node': {
 				if (!('canNode' in target.def) || !target.def.canNode) throw new Error('Parameter does not support node input');
 				return { inputSource: 'node', nodeId: null, outputPort: null };
@@ -481,7 +482,7 @@ const updateParamAsAutomationGraphReferenceCommandDef = defineNodeParamCommand<N
 	},
 );
 
-const updateParamAsAutomationGraphInlineCommandDef = defineNodeParamCommand<NodeParamTarget & { value: Extract<EffectParamValue, { inputSource: 'automationGraphInline' }> }>(
+const updateParamAsAutomationGraphInlineCommandDef = defineNodeParamCommand<NodeParamTarget & { value: Extract<ParameterBinding, { inputSource: 'automationGraphInline' }> }>(
 	'Update inline automation graph',
 	(target, payload) => {
 		assertLeafParam(target);
@@ -489,7 +490,7 @@ const updateParamAsAutomationGraphInlineCommandDef = defineNodeParamCommand<Node
 	},
 );
 
-const updateParamAsExternalParameterInputCommandDef = defineNodeParamCommand<NodeParamTarget & { value: string }>(
+const updateParamAsExternalParameterInputCommandDef = defineNodeParamCommand<NodeParamTarget & { value: ParameterId }>(
 	'Update param as externalParameterInput',
 	(target, payload) => {
 		assertLeafParam(target);
@@ -582,7 +583,7 @@ const updateGlobalOutInputCommandDef = defineCommand<NodeTarget & { outputId: st
 
 type VisualModuleParamDef = VisualModule['paramDefs'][number];
 
-function validateVisualModuleParamDef(module: VisualModule, def: VisualModuleParamDef, previousId?: string) {
+function validateVisualModuleParamDef(module: VisualModule, def: VisualModuleParamDef, previousId?: ParameterId) {
 	if (module.paramDefs.some(item => item.id !== previousId && (item.id === def.id || item.name === def.name))) {
 		throw new Error('Parameter ID and name must be unique');
 	}
@@ -607,7 +608,7 @@ const addVisualModuleParamDefCommandDef = defineCommand<{ visualModuleId: string
 	}),
 });
 
-const removeVisualModuleParamDefCommandDef = defineCommand<{ visualModuleId: string; defId: string }>({
+const removeVisualModuleParamDefCommandDef = defineCommand<{ visualModuleId: string; defId: ParameterId }>({
 	label: 'Remove visual module parameter',
 	create: payload => {
 		let before: VisualModuleParamDef;
@@ -629,7 +630,7 @@ const removeVisualModuleParamDefCommandDef = defineCommand<{ visualModuleId: str
 });
 
 const updateVisualModuleParamDefCommandDef = defineCommand<{
-	visualModuleId: string; defId: string; changes: Partial<Omit<VisualModuleParamDef, 'id'>>;
+	visualModuleId: string; defId: ParameterId; changes: Partial<Omit<VisualModuleParamDef, 'id'>>;
 }>({
 	label: 'Update visual module parameter',
 	create: payload => {

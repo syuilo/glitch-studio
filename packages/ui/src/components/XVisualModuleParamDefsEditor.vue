@@ -8,6 +8,7 @@
 </template>
 
 <script lang="ts" setup>
+import { parameterId, parameterName } from '@glitch/shared/parameter-identity.ts';
 import { genId } from '@glitch/shared/utility/id.js';
 import GsButton from './common/GsButton.vue';
 import XVisualModuleParamDefEditor from './XVisualModuleParamDefEditor.vue';
@@ -24,8 +25,8 @@ function add() {
 	appContext.commit('addVisualModuleParamDef', {
 		visualModuleId: props.visualModule.id,
 		def: {
-			id: genId(),
-			name,
+			id: parameterId(genId()),
+			name: parameterName(name),
 			dataType: 'scalar',
 			ui: {
 				label: 'My Parameter',

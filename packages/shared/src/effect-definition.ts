@@ -1,12 +1,13 @@
+import type { ParameterId, ParameterName } from './parameter-identity.ts';
 import type { DataType, TextureDataType } from './data-type.ts';
-import type { EffectParamValue, GsEffectNode, NodeParamValue } from './types.ts';
+import type { ParameterBinding, GsEffectNode, NodeParamValue } from './types.ts';
 import type { GlobalEnvVariable } from './expression.ts';
 
 type EffectOptionSchemaBase<T extends DataType> = {
 	dataType: T;
 	ui: { label: string };
 	primary?: boolean;
-	visibility?: (state: Record<string, import('./types.ts').EffectParamValue>) => boolean;
+	visibility?: (state: Record<string, import('./types.ts').ParameterBinding>) => boolean;
 };
 
 // UIの範囲・刻みは入力操作用であり、式やノードから取得した値を制限しない。
@@ -93,8 +94,8 @@ type ExternalParameterSchema<T = Exclude<EffectOptionSchema, StructOptionSchema 
 	T extends unknown ? Omit<T, 'canNode' | 'primary' | 'visibility'> : never;
 
 export type VisualModuleParamDef = ExternalParameterSchema & {
-	id: string;
-	name: string;
+	id: ParameterId;
+	name: ParameterName;
 	defaultValue: { inputSource: 'literal'; value: any };
 	canNode: boolean;
 	isPrimaryInput: boolean;
@@ -131,7 +132,7 @@ type EffectOptionSerializedValue<T extends EffectOptionsSchema[string]> =
 	{ inputSource: 'literal'; value: EffectOptionScalarValue<T> } |
 	{ inputSource: 'envVariable'; variable: GlobalEnvVariable } |
 	{ inputSource: 'expression'; expression: string } |
-	Extract<EffectParamValue, { inputSource: 'automationGraphReference' | 'automationGraphInline' }> |
+	Extract<ParameterBinding, { inputSource: 'automationGraphReference' | 'automationGraphInline' }> |
 	NodeParamValue;
 
 type EffectOptionDefaultValue<T extends EffectOptionsSchema[string]> = T extends unknown ?

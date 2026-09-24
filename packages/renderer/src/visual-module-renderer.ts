@@ -1,3 +1,4 @@
+import { parameterId, type ParameterId } from '@glitch/shared/parameter-identity.ts';
 import { constantShaderInput } from '@glitch/shared/shader-input.ts';
 import { getNodeOutputs } from '@glitch/shared/utility/node-outputs.ts';
 import { playerAudioSourceId } from '@glitch/shared/audio.ts';
@@ -8,7 +9,7 @@ import TimingHelper from './utility/TimingHelper.ts';
 import { ParameterEvaluator } from './parameter-evaluator.ts';
 import { moduleVariables } from './expression-scope.ts';
 import { getEvaluatedParam, mapNodeParam, walkNodeParams } from './utility/node-params.ts';
-import type { EvaluatedParamValues, ParameterEvaluationContext } from './parameter-evaluator.ts';
+import type { EvaluatedParameterValues, ParameterEvaluationContext } from './parameter-evaluator.ts';
 import type { NodeOutput } from './node-output.ts';
 import type { EffectStatus, EffectInstanceState } from '@glitch/shared/effect-status.ts';
 import type { AudioSourceId } from '@glitch/shared/audio.ts';
@@ -24,10 +25,10 @@ export type VisualModuleRenderContext = {
 	time: number;
 	timeDelta: number;
 	endTime: number; // 終了時刻という概念がないコンテキスト(例: live mode)の場合はInfinityとすること。
-	paramInputs?: ReadonlyMap<string, NodeOutput>;
+	paramInputs?: ReadonlyMap<ParameterId, NodeOutput>;
 	pointerPosition: { x: number; y: number };
 	pointerPositionPrev: { x: number; y: number };
-	evaluatedParamValues: EvaluatedParamValues;
+	evaluatedParamValues: EvaluatedParameterValues;
 };
 
 export class VisualModuleRenderer {
@@ -39,8 +40,8 @@ export class VisualModuleRenderer {
 	private nodes: GsNode[] = [];
 	private paramDefs: VisualModule['paramDefs'];
 	private outputDefs: VisualModule['outputDefs'] = [];
-	private paramValues: EvaluatedParamValues = new Map();
-	private paramInputs: ReadonlyMap<string, NodeOutput> = new Map();
+	private paramValues: EvaluatedParameterValues = new Map();
+	private paramInputs: ReadonlyMap<ParameterId, NodeOutput> = new Map();
 	private preparedContext: VisualModuleRenderContext | null = null;
 	private statusWaiters = new Set<() => void>();
 	private destroyed = false;
@@ -125,7 +126,7 @@ export class VisualModuleRenderer {
 		this.updateNodes(visualModule.nodes);
 	}
 
-	private getParamOutput(paramId: string): NodeOutput | undefined {
+	private getParamOutput(paramId: ParameterId): NodeOutput | undefined {
 		const def = this.paramDefs.find(def => def.id === paramId);
 		if (def == null || !def.canNode) return undefined;
 		const input = this.paramInputs.get(paramId);
@@ -213,7 +214,7 @@ export class VisualModuleRenderer {
 
 		if (node.type === 'globalIn') {
 			// 定数は値でキャッシュできる。借用テクスチャは同一オブジェクトでも内容が変わり得る。
-			const outputs = Object.keys(getNodeOutputs(node, this.paramDefs)).map(id => this.getParamOutput(id));
+			const outputs = Object.keys(getNodeOutputs(node, this.paramDefs)).map(id => this.getParamOutput(parameterId(id)));
 			return outputs.some(output => output?.kind === 'texture') ? null : JSON.stringify([node.id, outputs]);
 		}
 		if (node.type === 'globalOut') return null;
@@ -454,7 +455,7 @@ export class VisualModuleRenderer {
 	private getOutputValue(node: GsNode, outputPort: string): NodeOutput | undefined {
 		const output = this.getOutputNode(node, outputPort);
 		if (output == null) return undefined;
-		if (output.node.type === 'globalIn') return this.getParamOutput(output.outputPort);
+		if (output.node.type === 'globalIn') return this.getParamOutput(parameterId(output.outputPort));
 		const texture = this.outDataMapPerNodes.get(output.node.id)?.[output.outputPort]?.texture;
 		return texture == null ? undefined : { kind: 'texture', texture };
 	}

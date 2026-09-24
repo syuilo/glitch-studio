@@ -1,8 +1,8 @@
 import { genId } from '@glitch/shared/utility/id.ts';
 import { deepClone } from '@glitch/shared/utility/deep-clone.ts';
-import type { EffectParamValue } from '@glitch/shared/types.ts';
+import type { ParameterBinding } from '@glitch/shared/types.ts';
 
-type InlineAutomationGraph = Extract<EffectParamValue, { inputSource: 'automationGraphInline' }>;
+type InlineAutomationGraph = Extract<ParameterBinding, { inputSource: 'automationGraphInline' }>;
 
 export function setInlineAutomationGraphNormalized(input: InlineAutomationGraph, isNormalized: boolean): InlineAutomationGraph {
 	const value = deepClone(input);
@@ -39,7 +39,7 @@ export function setInlineAutomationGraphNormalized(input: InlineAutomationGraph,
 	return value;
 }
 
-export function createInlineAutomationGraph(): Extract<EffectParamValue, { inputSource: 'automationGraphInline' }> {
+export function createInlineAutomationGraph(): Extract<ParameterBinding, { inputSource: 'automationGraphInline' }> {
 	return {
 		inputSource: 'automationGraphInline',
 		automationGraph: {

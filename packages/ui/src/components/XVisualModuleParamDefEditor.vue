@@ -2,7 +2,7 @@
 <div :class="$style.root">
 	<div :class="$style.fields">
 		<GsInput :class="$style.field" type="text" :modelValue="def.ui.label" @update:modelValue="value => update({ ui: { ...def.ui, label: value } })"/>
-		<GsInput :class="$style.field" type="text" :modelValue="def.name" @update:modelValue="value => update({ name: value })"/>
+		<GsInput :class="$style.field" type="text" :modelValue="def.name" @update:modelValue="value => update({ name: parameterName(value) })"/>
 		<GsSelect
 			:class="$style.field"
 			:modelValue="def.dataType"
@@ -51,6 +51,7 @@
 </template>
 
 <script lang="ts" setup>
+import { parameterName } from '@glitch/shared/parameter-identity.ts';
 import { computed } from 'vue';
 import { genEmptyValue } from '@glitch/shared/utility/misc.ts';
 import GsSelect from './common/GsSelect.vue';

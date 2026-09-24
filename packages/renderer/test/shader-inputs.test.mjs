@@ -171,7 +171,7 @@ test('preserves constant outputs across timeline module layers', async () => {
 		fallbackOutput: constant,
 		createLayer() {
 			const renderer = createRenderer(device, module);
-			return createVisualModuleTimelineLayer(module, { paramValues: {} }, {
+			return createVisualModuleTimelineLayer(module, { paramValues: {}, automationGraphs: [] }, {
 				prepare: (context, signal) => renderer.prepare(context, signal),
 				render: async context => ({ output: renderer.render(context, encoder), gpuTime: 0 }),
 				destroy: () => renderer.destroy(),
@@ -208,7 +208,8 @@ test('passes module constants through bypasses without allocating input textures
 		nodes: [{ id: 'in', type: 'globalIn' }, bypass, mix, { id: 'out', type: 'globalOut', inputs: { out: { nodeId: 'mix', outputPort: 'output' } } }],
 	}, { effectImplementations: { colorMix: probe } });
 	try {
-		const context = renderContext();
+		const values = new Map([['color', [1, 0.5, 0, 0.25]], ['vector', [0.123456789, -2]], ['scalar', 0.123456789]]);
+		const context = renderContext({ evaluatedParamValues: values });
 		const allocated = calls.textures.length;
 		await renderer.prepare(context, new AbortController().signal);
 		renderer.render(context, encoder);
@@ -220,7 +221,7 @@ test('passes module constants through bypasses without allocating input textures
 		});
 		renderer.render(context, encoder);
 		assert.equal(captured.length, 2, 'unchanged constants use the render cache');
-		renderer.render(renderContext({ paramValues: { scalar: literal(0.75) } }), encoder);
+		renderer.render(renderContext({ evaluatedParamValues: new Map([...values, ['scalar', 0.75]]) }), encoder);
 		assert.equal(captured.at(-1)[1].amount.value[0], 0.75);
 		assert.equal(calls.textures.length, allocated);
 		assert.equal(calls.uploads, 0);
@@ -245,7 +246,7 @@ test('switches module outputs between constants and borrowed textures', () => {
 	}, { effectImplementations: { colorMix: { ...effect, init: () => ({ render: ctx => captured.push(ctx.params), dispose() {} }) } } });
 	const texture = device.createTexture({ size: [17, 9], format: 'rgba8unorm' });
 	try {
-		renderer.render(renderContext(), encoder);
+		renderer.render(renderContext({ evaluatedParamValues: new Map([['color', [1, 0, 0, 0.5]], ['gain', 0]]) }), encoder);
 		const context = renderContext({ paramInputs: new Map([['color', { kind: 'texture', texture }], ['gain', { kind: 'uniform', value: [0.4] }]]) });
 		renderer.render(context, encoder);
 		renderer.render(context, encoder);
@@ -253,7 +254,7 @@ test('switches module outputs between constants and borrowed textures', () => {
 		assert.deepEqual(captured.at(-1).inputA, { kind: 'texture', texture, fitMode: 'contain', wrapMode: 'clamp', filterMode: 'nearest' });
 		assert.equal(captured.at(-1).inputB.wrapMode, 'repeatMirrored');
 		assert.equal(captured.at(-1).amount.value[0], 0.4);
-		renderer.render(renderContext(), encoder);
+		renderer.render(renderContext({ evaluatedParamValues: new Map([['color', [1, 0, 0, 0.5]], ['gain', 0]]) }), encoder);
 		assert.deepEqual(captured.at(-1).inputA.value, [0.5, 0, 0, 0.5]);
 		// In→Out直結でも出力はuniformのまま。上流の乗算済み色は再乗算しない。
 		out.inputs.out = { nodeId: 'in', outputPort: 'color' };
@@ -338,7 +339,7 @@ function createRenderer(device, visualModule, overrides = {}) {
 }
 
 function renderContext(overrides = {}) {
-	return { time: 0, timeDelta: 0, endTime: Infinity, pointerPosition: { x: 0, y: 0 }, pointerPositionPrev: { x: 0, y: 0 }, paramValues: {}, ...overrides };
+	return { time: 0, timeDelta: 0, endTime: Infinity, isExport: false, pointerPosition: { x: 0, y: 0 }, pointerPositionPrev: { x: 0, y: 0 }, evaluatedParamValues: new Map(), ...overrides };
 }
 
 // 定数色は一度だけ乗算し、スカラーやベクトルの値は変更しない。

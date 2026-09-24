@@ -15,15 +15,16 @@ import { TimelineRenderer } from './timeline-renderer.ts';
 import { createVisualModuleTimelineLayer } from './visual-module-timeline-layer.ts';
 import { createTimelineCompositor } from './timeline-compositor.ts';
 import { TimelineCompositingParameters } from './timeline-compositing-parameters.ts';
-import { ParameterEvaluator, type EvaluatedParamValues } from './parameter-evaluator.ts';
+import { ParameterEvaluator, type EvaluatedParameterValues } from './parameter-evaluator.ts';
 import { layerVariables } from './expression-scope.ts';
 import { OutputTextureResolver } from './node-output.ts';
+import type { ParameterId } from '@glitch/shared/parameter-identity.ts';
 import type { NodeOutput } from './node-output.ts';
 import type { FrameScheduler, LiveFrameTiming } from './live-render-loop.ts';
 import type { TimelineLayerRenderer } from './timeline-renderer.ts';
 import type { EffectInstanceState, EffectStatusSource } from '@glitch/shared/effect-status.ts';
 import type { AudioCaptureMessage, AudioSourceId } from '@glitch/shared/audio.ts';
-import type { Asset, Player, Timeline, TimelineVisualModuleLayer, VisualModule, VisualModuleParamValues } from '@glitch/shared/types.ts';
+import type { Asset, Player, Timeline, TimelineVisualModuleLayer, VisualModule, VisualModuleParameterBindings } from '@glitch/shared/types.ts';
 import type { EffectImplementation, IntermediateTextureFormat } from '@glitch/shared/effect-implementation.js';
 import type { EffectDefinition } from '@glitch/shared/effect-definition.js';
 
@@ -43,7 +44,7 @@ export class MainRenderer {
 	private frameScheduler: FrameScheduler;
 	private liveRenderLoop: LiveRenderLoop;
 	private liveVisualModuleId: VisualModule['id'] | null = null;
-	private liveParamValues: VisualModuleParamValues = {};
+	private liveParamValues: VisualModuleParameterBindings = {};
 	private liveParamEvaluator = new ParameterEvaluator();
 	private liveVisualModuleRenderer: VisualModuleRenderer | null = null;
 	private timeline: Timeline = [];
@@ -451,11 +452,11 @@ export class MainRenderer {
 		});
 	}
 
-	public updateLiveParamValues(paramValues: VisualModuleParamValues) {
+	public updateLiveParamValues(paramValues: VisualModuleParameterBindings) {
 		this.liveParamValues = paramValues;
 	}
 
-	public startLiveRenderLoopFor(visualModuleId: string, paramValues: VisualModuleParamValues = {}, statusInstanceId = genId()) {
+	public startLiveRenderLoopFor(visualModuleId: string, paramValues: VisualModuleParameterBindings = {}, statusInstanceId = genId()) {
 		this.clearTimelineRenderers();
 		this.stopRenderLoop();
 
@@ -494,7 +495,7 @@ export class MainRenderer {
 		const visualModule = this.visualModules.find(module => module.id === this.liveVisualModuleId)!;
 		const commandEncoder = this.gpuDevice.createCommandEncoder();
 
-		const evaluatedParamValues = new Map<string, any>();
+		const evaluatedParamValues = new Map<ParameterId, any>();
 		for (const def of visualModule.paramDefs) {
 			if (this.liveParamValues[def.id] == null) {
 				evaluatedParamValues.set(def.id, def.defaultValue.value);

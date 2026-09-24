@@ -1,3 +1,4 @@
+import type { ParameterId } from '@glitch/shared/parameter-identity.ts';
 import { ParameterEvaluator } from './parameter-evaluator.ts';
 import { layerVariables } from './expression-scope.ts';
 import { deepClone } from '@glitch/shared/utility/deep-clone.ts';
@@ -31,7 +32,7 @@ export function createVisualModuleTimelineLayer(
 				automationGraphs: layer.automationGraphs,
 				time: context.time, endTime: context.endTime,
 			};
-			const evaluatedParamValues = new Map<string, any>();
+			const evaluatedParamValues = new Map<ParameterId, any>();
 			for (const def of visualModule.paramDefs) {
 				// 主入力はuniformでもCPU式には公開せず、Inノードからのみ読む。
 				if (paramInputs.has(def.id)) continue;

@@ -61,6 +61,7 @@ test('preserves compositing graphs and settings through edits and serialization'
 	};
 	const input = createInlineAutomationGraph();
 	input.automationGraph.points[0].y = 0.25;
+	layer.automationGraphs.push({ id: 'graph', name: 'Layer graph', ...structuredClone(input.automationGraph) });
 	const inline = edit('translationX', { kind: 'automationGraphInline', value: input });
 	input.automationGraph.points[0].y = 99;
 	assert.equal(layer.compositing.translationX.automationGraph.points[0].y, 0.25);
@@ -71,6 +72,7 @@ test('preserves compositing graphs and settings through edits and serialization'
 	edit('blendMode', { kind: 'literal', value: 'replace' });
 	const restored = decodeProjectFile(encodeProjectFile({ timeline: [layer] })).timeline[0];
 	assert.deepEqual(restored.compositing, layer.compositing);
+	assert.deepEqual(restored.automationGraphs, layer.automationGraphs);
 	assert.equal(restored.compositing.rotation.durationMs, 2500);
 	const reset = edit('blendMode', { kind: 'reset' });
 	assert.equal(layer.compositing.blendMode.value, 'normal');
@@ -112,7 +114,7 @@ function fixture() {
 	const node = { id: 'node', type: 'effect', effectId: 'test', params: { values: { inputSource: 'literal', value: [initial] } } };
 	const state = {
 		visualModules: { value: [{ id: 'module', nodes: [node], paramDefs: [{ id: 'gain', defaultValue: initial, isPrimaryInput: false }] }] },
-		timeline: { value: [{ id: 'layer', visualModuleId: 'module', paramValues: {}, compositing: {} }] },
+		timeline: { value: [{ id: 'layer', visualModuleId: 'module', paramValues: {}, compositing: {}, automationGraphs: [] }] },
 	};
 	return { state, node, target: { visualModuleId: 'module', nodeId: 'node', paramPath: ['values', 0] } };
 }

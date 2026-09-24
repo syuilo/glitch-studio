@@ -1,3 +1,4 @@
+import type { ParameterId } from './parameter-identity.ts';
 import type { TextureDataType } from './data-type.ts';
 import type { EffectOptionSchema, VisualModuleParamDef } from './effect-definition.ts';
 import type { GlobalEnvVariable } from './expression.ts';
@@ -5,7 +6,7 @@ import type { GlobalEnvVariable } from './expression.ts';
 export type NodeOutputReference = { nodeId: string; outputPort: string; fitMode?: 'stretch' | 'cover' | 'contain'; wrapMode?: 'clamp' | 'repeat' | 'repeatMirrored' | 'transparent'; filterMode?: 'linear' | 'nearest' };
 export type NodeParamValue = { inputSource: 'node' } & (NodeOutputReference | { nodeId: null; outputPort: null });
 
-export type EffectParamValue = {
+export type ParameterBinding = {
 	inputSource: 'literal';
 	value: any; // TODO: literalにリネーム？
 } | {
@@ -16,7 +17,7 @@ export type EffectParamValue = {
 	expression: string;
 } | {
 	inputSource: 'externalParameterInput';
-	parameterId: string;
+	parameterId: ParameterId;
 } | {
 	inputSource: 'automationGraphReference';
 	automationGraphId: string | null;
@@ -31,7 +32,7 @@ export type EffectParamValue = {
 	wrapMode: 'clamp' | 'repeat' | 'repeatMirrored'
 } | NodeParamValue;
 
-export type AutomationGraphPlaybackOptions = Pick<Extract<EffectParamValue, { inputSource: 'automationGraphReference' }>, 'durationMs' | 'offsetMode' | 'wrapMode'>;
+export type AutomationGraphPlaybackOptions = Pick<Extract<ParameterBinding, { inputSource: 'automationGraphReference' }>, 'durationMs' | 'offsetMode' | 'wrapMode'>;
 
 export type Asset = {
 	id: string;
@@ -52,7 +53,7 @@ export type Player = {
 };
 
 export type EffectParamDef = EffectOptionSchema & {
-	defaultValue: EffectParamValue;
+	defaultValue: ParameterBinding;
 };
 
 export type EffectParamDefs = Record<string, EffectParamDef>;
@@ -77,7 +78,7 @@ export type GsEffectNode = {
 	type: 'effect';
 	effectId: string;
 	isBypass: boolean;
-	params: Record<string, EffectParamValue>;
+	params: Record<string, ParameterBinding>;
 
 	// 2D平面上でノードを配置できるようになった時のため
 	pos?: { x: number; y: number };
@@ -119,7 +120,7 @@ export type VisualModule = {
 };
 
 // レイヤー・live modeからは、モジュール内部のノードやパラメータを参照しない。
-export type VisualModuleParamValues = Record<string, Exclude<EffectParamValue, { type: 'node' | 'externalParameterInput' }>>;
+export type VisualModuleParameterBindings = Record<ParameterId, Exclude<ParameterBinding, { type: 'node' | 'externalParameterInput' }>>;
 
 export type TimelineVisualModuleLayer = {
 	id: string;
@@ -127,9 +128,9 @@ export type TimelineVisualModuleLayer = {
 	endTimeMs: number;
 	layerType: 'visualModule';
 	visualModuleId: string;
-	paramValues: VisualModuleParamValues;
+	paramValues: VisualModuleParameterBindings;
 	// 未設定の項目はtimelineCompositingParamDefsの既定値を使用する。
-	compositing: VisualModuleParamValues;
+	compositing: VisualModuleParameterBindings;
 	// モジュールへの外部パラメータとレイヤー合成設定だけが参照できるグラフ。
 	automationGraphs: GsAutomationGraph[];
 };

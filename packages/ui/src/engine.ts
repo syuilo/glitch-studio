@@ -8,7 +8,7 @@ import { isVideoFrameAvailable, playVideoAfterFirstFrameIsReady } from './utilit
 import { LiveEffectStateStore } from './utility/live-effect-status.ts';
 import { AudioInputs } from './audio/audio-inputs.ts';
 import { setupWebcam } from './utility/webcam.ts';
-import type { Asset, VisualModule, VisualModuleParamValues, Player, Timeline } from '@glitch/shared/types.ts';
+import type { Asset, VisualModule, VisualModuleParameterBindings, Player, Timeline } from '@glitch/shared/types.ts';
 import type { MainRenderer } from '@glitch/renderer/renderer.ts';
 import type { EffectInstanceState, EffectStatusSource } from '@glitch/shared/effect-status.ts';
 import type { IntermediateTextureFormat } from '@glitch/shared/effect-implementation.js';
@@ -27,7 +27,7 @@ export class Engine {
 	private resolution = { width: 1, height: 1 };
 	private renderLoopRunning = false;
 	public liveVisualModuleId = ref<VisualModule['id'] | null>(null);
-	private liveParamValues: VisualModuleParamValues = {};
+	private liveParamValues: VisualModuleParameterBindings = {};
 	private reloadPromise: Promise<void> | null = null;
 	private rejectInitialization: ((reason: Error) => void) | null = null;
 	private pendingCalls: { message: unknown; options?: StructuredSerializeOptions }[] = [];
@@ -240,7 +240,7 @@ export class Engine {
 		await ready;
 	}
 
-	public startLiveRenderLoopFor(visualModuleId: VisualModule['id'], paramValues: VisualModuleParamValues = {}) {
+	public startLiveRenderLoopFor(visualModuleId: VisualModule['id'], paramValues: VisualModuleParameterBindings = {}) {
 		this.liveParamValues = deepClone(paramValues);
 		const statusInstanceId = genId();
 		this.call('startLiveRenderLoopFor', [visualModuleId, this.liveParamValues, statusInstanceId]);
@@ -249,7 +249,7 @@ export class Engine {
 		this.renderLoopRunning = true;
 	}
 
-	public updateLiveParamValues(visualModuleId: VisualModule['id'], paramValues: VisualModuleParamValues) {
+	public updateLiveParamValues(visualModuleId: VisualModule['id'], paramValues: VisualModuleParameterBindings) {
 		if (!this.renderLoopRunning || this.liveVisualModuleId.value !== visualModuleId) {
 			this.startLiveRenderLoopFor(visualModuleId, paramValues);
 			return;

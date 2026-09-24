@@ -57,8 +57,10 @@
 			<div>{{ appContext.getVisualModuleById(selectedLayer?.visualModuleId)?.name }}</div>
 			<div>Compositing</div>
 			<GsVisualParam
+				:availableVariables="layerEnvVarDefs"
 				v-for="paramDef of timelineCompositingParamDefs"
 				:key="`${selectedLayer.id}:compositing:${paramDef.id}`"
+				:automationGraphs="selectedLayer.automationGraphs"
 				:visualModuleId="selectedLayer.visualModuleId"
 				:paramPath="[paramDef.id]"
 				:paramDef="paramDef"
@@ -68,8 +70,10 @@
 			<div :class="$style.compositingHint">Transform applies to the module output. Replace includes transparent areas. Position 1 = half the canvas.</div>
 			<div>Module parameters</div>
 			<GsVisualParam
+				:availableVariables="layerEnvVarDefs"
 				v-for="paramDef of appContext.getVisualModuleById(selectedLayer.visualModuleId)!.paramDefs.filter(paramDef => !paramDef.isPrimaryInput)"
 				:key="`${selectedLayer.id}:${paramDef.id}`"
+				:automationGraphs="selectedLayer.automationGraphs"
 				:visualModuleId="selectedLayer.visualModuleId"
 				:paramPath="[paramDef.id]"
 				:paramDef="{ ...paramDef, canNode: false }"
@@ -82,6 +86,8 @@
 </template>
 
 <script lang="ts" setup>
+import { parameterId } from '@glitch/shared/parameter-identity.ts';
+import { layerEnvVarDefs } from '@glitch/shared/expression.ts';
 import { computed, onMounted, ref, shallowRef, useTemplateRef, watch } from 'vue';
 import { insertIntermediateNumbers, nearlyEqual, niceScale } from '@glitch/shared/utility/misc.js';
 import { genId } from '@glitch/shared/utility/id.js';
@@ -351,7 +357,7 @@ function onVisualModuleLayerParamEdit(event: ParamEdit, target: 'module' | 'comp
 	appContext.commit('editVisualModuleLayerParam', {
 		layerId: layer.id,
 		target,
-		paramId: event.paramPath[0],
+		paramId: parameterId(String(event.paramPath[0])),
 		edit: event,
 	}, event.mergeKey != null ? `${layer.id}:${target}:${event.paramPath[0]}:${event.mergeKey}` : undefined);
 }

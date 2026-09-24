@@ -4,7 +4,8 @@ import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
 import { TimelineRenderer } from '../src/timeline-renderer.ts';
-import { createVisualModuleTimelineLayer } from '../src/visual-module-timeline-layer.ts';
+import { loadShaderSource } from './helpers/load-shader-source.mjs';
+const { createVisualModuleTimelineLayer } = await loadShaderSource(fileURLToPath(new URL('../src/visual-module-timeline-layer.ts', import.meta.url)));
 
 const bundled = await build({
 	entryPoints: [fileURLToPath(new URL('../src/parameter-evaluator.ts', import.meta.url))],
@@ -19,7 +20,7 @@ test('passes export context through timeline layers and resets it for preview', 
 	const contexts = [];
 	const renderer = new TimelineRenderer({
 		fallbackOutput: null,
-		createLayer: () => createVisualModuleTimelineLayer({ paramDefs: [] }, { paramValues: {} }, {
+		createLayer: () => createVisualModuleTimelineLayer({ paramDefs: [] }, { paramValues: {}, automationGraphs: [] }, {
 			async prepare() {},
 			async render(context) { contexts.push(context); return { gpuTime: 0 }; },
 			destroy() {},
@@ -34,23 +35,17 @@ test('passes export context through timeline layers and resets it for preview', 
 	renderer.clear();
 });
 
-// 単独参照と複合式の両方で真偽値を評価し、Interpreterの再利用でも値が残らない。
+// 単独参照と複合式の両方で真偽値を評価し、繰り返し評価しても値が残らない。
 test('evaluates IS_EXPORT in module and node expressions without leaking state', () => {
 	const evaluator = new ParameterEvaluator();
-	const bool = { dataType: 'bool', ui: { control: 'switch' } };
-	const context = {
-		nodes: [{ id: 'node', type: 'effect', effectId: 'test', params: {
-			direct: { inputSource: 'expression', expression: 'IS_EXPORT' },
-			compound: { inputSource: 'expression', expression: 'IS_EXPORT == true' },
-		} }],
-		paramDefs: [{ ...bool, id: 'export', name: 'export', defaultValue: { inputSource: 'literal', value: false } }],
-		paramValues: { export: { inputSource: 'expression', expression: 'IS_EXPORT' } },
-		effectDefinitions: { test: { paramDefs: { direct: bool, compound: bool } } },
-		automationGraphs: [], resolution: { width: 100, height: 100 }, time: 0, endTime: 1000, inputParamIds: new Set(),
-	};
-	for (const isExport of [undefined, true, false, true, undefined]) {
-		const result = evaluator.evaluate({ ...context, isExport });
-		assert.equal(result.paramValues.get('export'), isExport ?? false);
-		assert.deepEqual(result.nodeParams.get('node'), { direct: isExport ?? false, compound: isExport ?? false });
+	for (const isExport of [false, true, false, true, false]) {
+		const scope = { variables: { IS_EXPORT: isExport }, automationGraphs: [], time: 0, endTime: 1000 };
+		const value = evaluator.evaluate({ inputSource: 'expression', expression: 'IS_EXPORT' }, { ...scope, evaluatedParamValues: null }, false);
+		assert.equal(value, isExport);
+		for (const expression of ['IS_EXPORT', 'IS_EXPORT == true', 'PARAM("export")']) {
+			assert.equal(evaluator.evaluate({ inputSource: 'expression', expression }, {
+				...scope, evaluatedParamValues: new Map([['export-id', value]]), paramIdsByName: new Map([['export', 'export-id']]),
+			}, false), isExport);
+		}
 	}
 });
