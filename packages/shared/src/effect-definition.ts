@@ -95,7 +95,7 @@ type ExternalParameterSchema<T = Exclude<EffectOptionSchema, StructOptionSchema 
 
 export type VisualModuleParamDef = ExternalParameterSchema & {
 	id: ParameterId;
-	name: ParameterName;
+	name: ParameterName; // expressionから参照するとき用
 	defaultValue: { inputSource: 'literal'; value: any };
 	canNode: boolean;
 	isPrimaryInput: boolean;
