@@ -38,7 +38,6 @@ export default implementEffect<typeof definition>({
 					pixelSize: 1 / shortDimension,
 					lineWidth: Math.min(1, Math.max(0, ctx.params.lineWidth)),
 					lineColor: ctx.params.lineColor,
-					cellColor: ctx.params.cellColor,
 				});
 				device.queue.writeBuffer(uniformBuffer, 0, uniformValues.arrayBuffer);
 				const variant = pipelines.update({ background: ctx.params.background, angle: ctx.params.angle, size: ctx.params.size }, output);

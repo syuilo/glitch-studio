@@ -4,7 +4,6 @@ struct Uniforms {
 	pixelSize: f32,
 	lineWidth: f32,
 	lineColor: vec4f,
-	cellColor: vec4f,
 };
 
 @group(0) @binding(0) var<uniform> uniforms: Uniforms;
@@ -43,11 +42,11 @@ fn fs(fragData: FragmentIn) -> @location(0) vec4f {
 		centeredPosition.x * sine + centeredPosition.y * cosine,
 	);
 	// 線幅は六角セルの対辺間距離に対する割合で、Sizeと一緒に拡縮する。
-	// 線とセル内部は排他的に着色し、透明な線の下にセル色を重ねない。
 	let edgeDistance = hexEdgeDistance(rotatedPosition / size);
 	let isLine = uniforms.lineWidth > 0.0 && edgeDistance <= uniforms.lineWidth * 0.5;
-	let color = select(uniforms.cellColor, uniforms.lineColor, isLine);
+	// セル内部はBackgroundをそのまま表示し、線の部分だけを着色する。
+	let opacity = select(0.0, clamp(uniforms.lineColor.a, 0.0, 1.0), isLine);
 	// 他のパターンと同じく背景のalphaを保持し、色のalphaを着色強度に使う。
 	// 背景RGBは既にpremultipliedなので、定数色だけを背景alphaに合わせる。
-	return vec4f(mix(backgroundColor.rgb, color.rgb * backgroundColor.a, clamp(color.a, 0.0, 1.0)), backgroundColor.a);
+	return vec4f(mix(backgroundColor.rgb, uniforms.lineColor.rgb * backgroundColor.a, opacity), backgroundColor.a);
 }
