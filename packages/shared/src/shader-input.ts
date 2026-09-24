@@ -33,7 +33,10 @@ export function inputUvScale(input: { width: number; height: number }, output: {
 
 export type ShaderInputType = 'scalar' | 'vector' | 'color' | 'any';
 export type ShaderInputSchema = Readonly<Record<string, ShaderInputType | { array: ShaderInputType }>>;
-export type ShaderInputValues = Readonly<Record<string, ShaderInput | readonly ShaderInput[]>>;
+type ShaderInputValue<T extends ShaderInputSchema[string]> = T extends ShaderInputType ? ShaderInput : readonly ShaderInput[];
+export type ShaderInputValues<Schema extends ShaderInputSchema = ShaderInputSchema> = {
+	readonly [Key in keyof Schema]: ShaderInputValue<Schema[Key]>;
+};
 
 // 配列長と各要素の種別も構成に含める。値・接続先・サンプリング設定は含めない。
 export function shaderInputVariantKey(schema: ShaderInputSchema, inputs: ShaderInputValues): string {

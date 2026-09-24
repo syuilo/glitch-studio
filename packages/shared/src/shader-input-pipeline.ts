@@ -2,11 +2,11 @@ import { createShaderInputBindings, generateShaderInputs, shaderInputVariantKey 
 import type { ShaderInputValues, ShaderInputSchema } from './shader-input.ts';
 
 /** 入力種別ごとのpipelineと入力bufferを所有する。内部リソースは先行するgroupへ置く。 */
-export function createShaderInputPipeline(options: {
+export function createShaderInputPipeline<const Schema extends ShaderInputSchema>(options: {
 	device: GPUDevice;
 	vertex: GPUShaderModule;
 	code: string;
-	schema: ShaderInputSchema;
+	schema: Schema;
 	targets: GPUColorTargetState[];
 	internalLayouts?: GPUBindGroupLayout[];
 	sampling?: 'implicit' | 'level0';
@@ -19,7 +19,7 @@ export function createShaderInputPipeline(options: {
 	const variants = new Map<string, { pipeline: GPURenderPipeline; bindings: ReturnType<typeof createShaderInputBindings> }>();
 	return {
 		inputGroup: internalLayouts.length,
-		update(inputs: ShaderInputValues, output: { width: number; height: number }) {
+		update(inputs: ShaderInputValues<Schema>, output: { width: number; height: number }) {
 			const key = shaderInputVariantKey(options.schema, inputs);
 			let variant = variants.get(key);
 			if (variant == null) {
