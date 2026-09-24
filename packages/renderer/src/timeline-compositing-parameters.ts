@@ -1,7 +1,9 @@
 import { colorBlendModes } from '@glitch/shared/color-blend.ts';
 import { timelineCompositingParamDefs } from '@glitch/shared/timeline-compositing.ts';
-import type { GsAutomationGraph, VisualModuleParamValues } from '@glitch/shared/types.ts';
+import { genEmptyValue } from '@glitch/shared/utility/misc.ts';
 import { ParameterEvaluator } from './parameter-evaluator.ts';
+import { layerVariables } from './expression-scope.ts';
+import type { GsAutomationGraph, VisualModuleParamValues } from '@glitch/shared/types.ts';
 
 export type TimelineCompositingSettings = {
 	blendMode: number;
@@ -14,12 +16,21 @@ export type TimelineCompositingSettings = {
 export class TimelineCompositingParameters {
 	private evaluator = new ParameterEvaluator();
 
-	evaluate(context: { time: number; endTime: number; isExport?: boolean }, paramValues: VisualModuleParamValues,
-		automationGraphs: GsAutomationGraph[], resolution: { width: number; height: number }): TimelineCompositingSettings {
-		const values = this.evaluator.evaluate({
-			...context, paramValues, automationGraphs, resolution,
-			paramDefs: timelineCompositingParamDefs, nodes: [], effectDefinitions: {}, inputParamIds: new Set(),
-		}).paramValues;
+	evaluate(context: { time: number; endTime: number; isExport: boolean; paramValues: VisualModuleParamValues; automationGraphs: GsAutomationGraph[] }): TimelineCompositingSettings {
+		const evaluationContext = {
+			evaluatedParamValues: null,
+			variables: layerVariables({ isExport: context.isExport }),
+			automationGraphs: context.automationGraphs,
+			time: context.time,
+			endTime: context.endTime,
+		};
+		const values = new Map<string, any>();
+		for (const def of timelineCompositingParamDefs) {
+			const value = context.paramValues[def.id];
+			// 未指定・欠落グラフは設定の既定値、式の失敗は型の空値に戻す。
+			values.set(def.id, value == null ? def.defaultValue.value : this.evaluator.evaluate(value, evaluationContext,
+				value.inputSource === 'automationGraphReference' ? def.defaultValue.value : genEmptyValue(def)));
+		}
 		// 不正な式の型や非有限値をGPUへ流さない。範囲外の有限な位置・倍率は制限しない。
 		const number = (id: string, fallback: number) => {
 			const value = values.get(id);

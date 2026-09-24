@@ -497,10 +497,10 @@ export class MainRenderer {
 		const evaluatedParamValues = new Map<string, any>();
 		for (const def of visualModule.paramDefs) {
 			if (this.liveParamValues[def.id] == null) {
-				evaluatedParamValues.set(def.name, def.defaultValue.value);
+				evaluatedParamValues.set(def.id, def.defaultValue.value);
 				continue;
 			}
-			evaluatedParamValues.set(def.name, this.liveParamEvaluator.evaluate(this.liveParamValues[def.id], {
+			evaluatedParamValues.set(def.id, this.liveParamEvaluator.evaluate(this.liveParamValues[def.id], {
 				evaluatedParamValues: null,
 				variables: layerVariables({ isExport: false }),
 				automationGraphs: [],

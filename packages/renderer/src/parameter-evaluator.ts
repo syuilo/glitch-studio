@@ -34,6 +34,8 @@ export type EvaluationScope = {
 export type EvaluatedParamValues = ReadonlyMap<string, any>;
 export type ParameterEvaluationContext = EvaluationScope & {
 	evaluatedParamValues: EvaluatedParamValues | null;
+	// PARAMは名前、外部入力参照はIDで解決する。値そのものは再評価しない。
+	paramIdsByName?: ReadonlyMap<string, string>;
 };
 
 // 解析済みASTだけを再利用し、評価環境は式ごとに独立させる。
@@ -41,7 +43,7 @@ export class ParameterEvaluator {
 	private aisParser = new AiScript.Parser();
 	private astCache = new Map<string, AiScript.Ast.Node[]>();
 
-	private evaluateExpression(expression: string, scope: Readonly<Record<string, unknown>>, fallback: any, getGraph: ReadGraph, paramValues: EvaluatedParamValues | null): any {
+	private evaluateExpression(expression: string, scope: Readonly<Record<string, unknown>>, fallback: any, getGraph: ReadGraph, paramValues: EvaluatedParamValues | null, paramIdsByName?: ReadonlyMap<string, string>): any {
 		try {
 			const variableName = singleVariableExpression.exec(expression)?.[1];
 			// 現在のスコープにある値だけを直接取得する。0も有効で、prototype由来の名前は含めない。
@@ -63,7 +65,9 @@ export class ParameterEvaluator {
 			if (paramValues != null) {
 				const readParam = (args: (AiScript.values.Value | undefined)[]) => {
 					if (args.length !== 1 || args[0]?.type !== 'str') throw new Error('PARAM requires a parameter name');
-					return AiScript.utils.jsToVal(deepClone(paramValues.get(args[0].value)));
+					const id = paramIdsByName?.get(args[0].value);
+					if (id == null || !paramValues.has(id)) throw new Error(`Unknown or unavailable parameter: ${args[0].value}`);
+					return AiScript.utils.jsToVal(deepClone(paramValues.get(id)));
 				};
 				constants.PARAM = AiScript.values.FN_NATIVE(readParam, readParam);
 			}
@@ -92,7 +96,7 @@ export class ParameterEvaluator {
 
 		if (targetNonEvaluatedValue.inputSource === 'literal') return targetNonEvaluatedValue.value;
 		if (targetNonEvaluatedValue.inputSource === 'envVariable') return getEnvironmentVariableValue(targetNonEvaluatedValue.variable) ?? fallback;
-		if (targetNonEvaluatedValue.inputSource === 'expression') return targetNonEvaluatedValue.expression ? this.evaluateExpression(targetNonEvaluatedValue.expression, context.variables, fallback, readGraph, context.evaluatedParamValues) : fallback;
+		if (targetNonEvaluatedValue.inputSource === 'expression') return targetNonEvaluatedValue.expression ? this.evaluateExpression(targetNonEvaluatedValue.expression, context.variables, fallback, readGraph, context.evaluatedParamValues, context.paramIdsByName) : fallback;
 		if (targetNonEvaluatedValue.inputSource === 'externalParameterInput') {
 			if (context.evaluatedParamValues == null || !context.evaluatedParamValues.has(targetNonEvaluatedValue.parameterId)) return fallback;
 			return deepClone(context.evaluatedParamValues.get(targetNonEvaluatedValue.parameterId));
