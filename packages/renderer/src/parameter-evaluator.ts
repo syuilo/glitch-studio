@@ -91,22 +91,25 @@ export class ParameterEvaluator {
 		};
 	}
 
-	public evaluate(targetNonEvaluatedValue: ParameterBinding, context: ParameterEvaluationContext, fallback: any) {
+	/**
+	 * 渡されたparameterBindingを評価した結果を返す
+	 */
+	public evaluate(parameterBinding: ParameterBinding, context: ParameterEvaluationContext, fallback: any) {
 		const readGraph = this.graphReader(context);
 		const getEnvironmentVariableValue = (variable: string) => Object.hasOwn(context.variables, variable) ? deepClone(context.variables[variable]) : undefined;
 
-		if (targetNonEvaluatedValue.inputSource === 'literal') return targetNonEvaluatedValue.value;
-		if (targetNonEvaluatedValue.inputSource === 'envVariable') return getEnvironmentVariableValue(targetNonEvaluatedValue.variable) ?? fallback;
-		if (targetNonEvaluatedValue.inputSource === 'expression') return targetNonEvaluatedValue.expression ? this.evaluateExpression(targetNonEvaluatedValue.expression, context.variables, fallback, readGraph, context.evaluatedParamValues, context.paramIdsByName) : fallback;
-		if (targetNonEvaluatedValue.inputSource === 'externalCustomParameterInput') {
-			if (context.evaluatedParamValues == null || !context.evaluatedParamValues.has(targetNonEvaluatedValue.parameterId)) return fallback;
-			return deepClone(context.evaluatedParamValues.get(targetNonEvaluatedValue.parameterId));
+		if (parameterBinding.inputSource === 'literal') return parameterBinding.value;
+		if (parameterBinding.inputSource === 'envVariable') return getEnvironmentVariableValue(parameterBinding.variable) ?? fallback;
+		if (parameterBinding.inputSource === 'expression') return parameterBinding.expression ? this.evaluateExpression(parameterBinding.expression, context.variables, fallback, readGraph, context.evaluatedParamValues, context.paramIdsByName) : fallback;
+		if (parameterBinding.inputSource === 'externalCustomParameterInput') {
+			if (context.evaluatedParamValues == null || !context.evaluatedParamValues.has(parameterBinding.parameterId)) return fallback;
+			return deepClone(context.evaluatedParamValues.get(parameterBinding.parameterId));
 		}
-		if (targetNonEvaluatedValue.inputSource === 'automationGraphReference') {
-			const automationGraph = context.automationGraphs.find(a => a.id === targetNonEvaluatedValue.automationGraphId);
-			return automationGraph ? evaluateAutomationGraph(automationGraph, targetNonEvaluatedValue, context) : fallback;
+		if (parameterBinding.inputSource === 'automationGraphReference') {
+			const automationGraph = context.automationGraphs.find(a => a.id === parameterBinding.automationGraphId);
+			return automationGraph ? evaluateAutomationGraph(automationGraph, parameterBinding, context) : fallback;
 		}
-		if (targetNonEvaluatedValue.inputSource === 'automationGraphInline') return evaluateAutomationGraph(targetNonEvaluatedValue.automationGraph, targetNonEvaluatedValue, context);
-		return targetNonEvaluatedValue.nodeId == null ? null : { nodeId: targetNonEvaluatedValue.nodeId, outputPort: targetNonEvaluatedValue.outputPort };
+		if (parameterBinding.inputSource === 'automationGraphInline') return evaluateAutomationGraph(parameterBinding.automationGraph, parameterBinding, context);
+		return parameterBinding.nodeId == null ? null : { nodeId: parameterBinding.nodeId, outputPort: parameterBinding.outputPort };
 	}
 }
