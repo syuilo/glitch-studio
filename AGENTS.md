@@ -46,9 +46,9 @@ sharedは、tree-shakableであることが求められます。
 
 画像処理用の、ノードを組み合わせてまとめたものを「Visual Module」と呼びます。
 
-Visual Moduleは、In/Outノードを含むほか、外部に対するパラメータ定義も行えるので、タイムライン上でレイヤーとして使用可能です。
+Visual Moduleは、In/Outノードを含むほか、外部に対するパラメータ定義(Custom Parameter)も行えるので、タイムライン上でレイヤーとして使用可能です。
 
-定義したパラメータは、Visual Module内のノードのパラメータにアサインすることができるほか、expression上からもパラメータ値を取得する関数を通じて参照できます。
+Custom Parameterは、Visual Module内のノードのパラメータにアサインすることができるほか、expression上からもPARAM関数を通じて参照できます。
 
 レイヤーとして使う場合、下のレイヤーまでの合成結果がInノードの出力になります。Outノードの出力は、タイムライン側でレイヤーのtransform・opacity・合成方法を適用してから、上のレイヤーへの入力になります。
 
