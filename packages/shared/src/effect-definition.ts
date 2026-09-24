@@ -1,6 +1,6 @@
 import type { VisualModuleCustomParameterId, VisualModuleCustomParameterName } from './types.ts';
 import type { DataType, TextureDataType } from './data-type.ts';
-import type { ParameterBinding, GsEffectNode, NodeParamValue } from './types.ts';
+import type { ParameterBinding, GsEffectNode, ParameterBinding_Node } from './types.ts';
 import type { GlobalEnvVariable } from './expression.ts';
 
 type EffectOptionSchemaBase<T extends DataType> = {
@@ -121,7 +121,7 @@ type EffectOptionSerializedValue<T extends EffectOptionsSchema[string]> =
 	{ inputSource: 'envVariable'; variable: GlobalEnvVariable } |
 	{ inputSource: 'expression'; expression: string } |
 	Extract<ParameterBinding, { inputSource: 'automationGraphReference' | 'automationGraphInline' }> |
-	NodeParamValue;
+	ParameterBinding_Node;
 
 type EffectOptionDefaultValue<T extends EffectOptionsSchema[string]> = T extends unknown ?
 	T extends ArrayOptionSchema ? { inputSource: 'literal'; value: EffectOptionDefaultValue<T['item']>[] } :

@@ -3,7 +3,8 @@ import type { AnyOptionSchema, ArrayOptionSchema, EffectOptionSchema, StructOpti
 import type { GlobalEnvVariable } from './expression.ts';
 
 export type NodeOutputReference = { nodeId: string; outputPort: string; fitMode?: 'stretch' | 'cover' | 'contain'; wrapMode?: 'clamp' | 'repeat' | 'repeatMirrored' | 'transparent'; filterMode?: 'linear' | 'nearest' };
-export type NodeParamValue = { inputSource: 'node' } & (NodeOutputReference | { nodeId: null; outputPort: null });
+// eslint-disable-next-line @typescript-eslint/naming-convention
+export type ParameterBinding_Node = { inputSource: 'node' } & (NodeOutputReference | { nodeId: null; outputPort: null });
 
 export type ParameterBinding = {
 	inputSource: 'literal';
@@ -29,7 +30,7 @@ export type ParameterBinding = {
 	durationMs: number | null; // isNormalizedの場合のみ使用。nullの場合は1000ms。
 	offsetMode: 'start' | 'end';
 	wrapMode: 'clamp' | 'repeat' | 'repeatMirrored'
-} | NodeParamValue;
+} | ParameterBinding_Node;
 
 export type AutomationGraphPlaybackOptions = Pick<Extract<ParameterBinding, { inputSource: 'automationGraphReference' }>, 'durationMs' | 'offsetMode' | 'wrapMode'>;
 
