@@ -18,7 +18,7 @@ import { TimelineCompositingParameters } from './timeline-compositing-parameters
 import { ParameterEvaluator, type EvaluatedParameterValues } from './parameter-evaluator.ts';
 import { layerVariables } from './expression-scope.ts';
 import { OutputTextureResolver } from './node-output.ts';
-import type { ParameterId } from '@glitch/shared/parameter-identity.ts';
+import type { VisualModuleCustomParameterId } from '@glitch/shared/types.ts';
 import type { NodeOutput } from './node-output.ts';
 import type { FrameScheduler, LiveFrameTiming } from './live-render-loop.ts';
 import type { TimelineLayerRenderer } from './timeline-renderer.ts';
@@ -495,7 +495,7 @@ export class MainRenderer {
 		const visualModule = this.visualModules.find(module => module.id === this.liveVisualModuleId)!;
 		const commandEncoder = this.gpuDevice.createCommandEncoder();
 
-		const evaluatedParamValues = new Map<ParameterId, any>();
+		const evaluatedParamValues = new Map<VisualModuleCustomParameterId, any>();
 		for (const def of visualModule.paramDefs) {
 			if (this.liveParamValues[def.id] == null) {
 				evaluatedParamValues.set(def.id, def.defaultValue.value);

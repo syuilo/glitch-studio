@@ -1,6 +1,5 @@
-import type { ParameterId } from './parameter-identity.ts';
 import type { TextureDataType } from './data-type.ts';
-import type { EffectOptionSchema, VisualModuleParamDef } from './effect-definition.ts';
+import type { AnyOptionSchema, ArrayOptionSchema, EffectOptionSchema, StructOptionSchema } from './effect-definition.ts';
 import type { GlobalEnvVariable } from './expression.ts';
 
 export type NodeOutputReference = { nodeId: string; outputPort: string; fitMode?: 'stretch' | 'cover' | 'contain'; wrapMode?: 'clamp' | 'repeat' | 'repeatMirrored' | 'transparent'; filterMode?: 'linear' | 'nearest' };
@@ -17,7 +16,7 @@ export type ParameterBinding = {
 	expression: string;
 } | {
 	inputSource: 'externalParameterInput';
-	parameterId: ParameterId;
+	parameterId: VisualModuleCustomParameterId;
 } | {
 	inputSource: 'automationGraphReference';
 	automationGraphId: string | null;
@@ -104,6 +103,32 @@ export type GsGlobalOutNode = {
 
 export type GsNode = GsEffectNode | GsGlobalInNode | GsGlobalOutNode;
 
+declare const visualModuleCustomParameterIdentity: unique symbol;
+
+export type VisualModuleCustomParameterId = string & { readonly [visualModuleCustomParameterIdentity]: 'id' };
+export type VisualModuleCustomParameterName = string & { readonly [visualModuleCustomParameterIdentity]: 'name' };
+
+// 生成・入力・式との境界でのみ使う。既に分類済みのID/名前を相互変換させない。
+// 実在性やスコープ内での可用性を保証する型ではなく、保存形式は通常の文字列のまま。
+type UnbrandedString = string & { readonly [visualModuleCustomParameterIdentity]?: never };
+export function visualModuleCustomParameterId(value: UnbrandedString): VisualModuleCustomParameterId {
+	return value as unknown as VisualModuleCustomParameterId;
+}
+export function visualModuleCustomParameterName(value: UnbrandedString): VisualModuleCustomParameterName {
+	return value as unknown as VisualModuleCustomParameterName;
+}
+
+type ExternalParameterSchema<T = Exclude<EffectOptionSchema, StructOptionSchema | ArrayOptionSchema | AnyOptionSchema>> =
+	T extends unknown ? Omit<T, 'canNode' | 'primary' | 'visibility'> : never;
+
+export type VisualModuleParamDef = ExternalParameterSchema & {
+	id: VisualModuleCustomParameterId;
+	name: VisualModuleCustomParameterName; // expressionから参照するとき用
+	defaultValue: { inputSource: 'literal'; value: any };
+	canNode: boolean;
+	isPrimaryInput: boolean;
+};
+
 export type VisualModule = {
 	id: string;
 	name: string;
@@ -120,7 +145,7 @@ export type VisualModule = {
 };
 
 // レイヤー・live modeからは、モジュール内部のノードやパラメータを参照しない。
-export type VisualModuleParameterBindings = Record<ParameterId, Exclude<ParameterBinding, { type: 'node' | 'externalParameterInput' }>>;
+export type VisualModuleParameterBindings = Record<VisualModuleCustomParameterId, Exclude<ParameterBinding, { type: 'node' | 'externalParameterInput' }>>;
 
 export type TimelineVisualModuleLayer = {
 	id: string;

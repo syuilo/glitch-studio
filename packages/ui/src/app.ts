@@ -1,4 +1,4 @@
-import { parameterId, parameterName } from '@glitch/shared/parameter-identity.ts';
+import { visualModuleCustomParameterId, visualModuleCustomParameterName } from '@glitch/shared/types.ts';
 import { ref, markRaw, reactive, watch, shallowRef, triggerRef, computed } from 'vue';
 import { deepClone } from '@glitch/shared/utility/deep-clone.ts';
 import { genId } from '@glitch/shared/utility/id.ts';
@@ -244,7 +244,7 @@ export async function openProject() {
 
 export async function newProject() {
 	const initialEffectNodeId = genId();
-	const initialInputParamId = parameterId(genId());
+	const initialInputParamId = visualModuleCustomParameterId(genId());
 	const initialOutputId = genId();
 	const initialVisualModule: VisualModule = {
 		id: genId(),
@@ -253,7 +253,7 @@ export async function newProject() {
 		outputDefs: [{ id: initialOutputId, label: 'Output', name: 'output', dataType: 'color', isPrimaryOutput: true }],
 		paramDefs: [{
 			id: initialInputParamId,
-			name: parameterName('myInput'),
+			name: visualModuleCustomParameterName('myInput'),
 			dataType: 'color',
 			ui: { label: 'My Input', control: 'color' },
 			defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] },
@@ -331,7 +331,7 @@ export async function newProjectFromImageOrVideo(file?: File) {
 	} satisfies Player : null;
 
 	const initialEffectNodeId = genId();
-	const initialInputParamId = parameterId(genId());
+	const initialInputParamId = visualModuleCustomParameterId(genId());
 	const initialOutputId = genId();
 	const initialVisualModule: VisualModule = {
 		id: genId(),
@@ -340,7 +340,7 @@ export async function newProjectFromImageOrVideo(file?: File) {
 		outputDefs: [{ id: initialOutputId, label: 'Output', name: 'output', dataType: 'color', isPrimaryOutput: true }],
 		paramDefs: [{
 			id: initialInputParamId,
-			name: parameterName('myInput'),
+			name: visualModuleCustomParameterName('myInput'),
 			dataType: 'color',
 			ui: { label: 'My Input', control: 'color' },
 			defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] },

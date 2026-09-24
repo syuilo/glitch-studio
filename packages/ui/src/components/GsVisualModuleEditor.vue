@@ -99,7 +99,7 @@ import XGlobalOutNode from './GsGlobalOutNode.vue';
 import XVisualModuleParamDefsEditor from './XVisualModuleParamDefsEditor.vue';
 import XVisualModuleOutputDefsEditor from './XVisualModuleOutputDefsEditor.vue';
 import GsTabs from './common/GsTabs.vue';
-import type { ParameterId } from '@glitch/shared/parameter-identity.ts';
+import type { VisualModuleCustomParameterId } from '@glitch/shared/types.ts';
 import type { ParamEdit } from './GsVisualParam.vue';
 import type { GsAutomationGraph, GsGlobalInNode, GsGlobalOutNode, GsNode, VisualModule, VisualModuleParameterBindings } from '@glitch/shared/types.js';
 import { showAddNodeMenu } from '@/app.ts';
@@ -138,7 +138,7 @@ function onPreviewParamEdit(event: ParamEdit) {
 	if (def == null) return;
 	const id = def.id;
 	const current = previewParamValues.value[id];
-	const reset = (): VisualModuleParameterBindings[ParameterId] => deepClone(def.defaultValue);
+	const reset = (): VisualModuleParameterBindings[VisualModuleCustomParameterId] => deepClone(def.defaultValue);
 	switch (event.kind) {
 		case 'literal': previewParamValues.value[id] = { inputSource: 'literal', value: deepClone(event.value) }; break;
 		case 'automationGraphInline': previewParamValues.value[id] = deepClone(event.value); break;

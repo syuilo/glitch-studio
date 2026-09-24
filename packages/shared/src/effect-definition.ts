@@ -1,4 +1,4 @@
-import type { ParameterId, ParameterName } from './parameter-identity.ts';
+import type { VisualModuleCustomParameterId, VisualModuleCustomParameterName } from './types.ts';
 import type { DataType, TextureDataType } from './data-type.ts';
 import type { ParameterBinding, GsEffectNode, NodeParamValue } from './types.ts';
 import type { GlobalEnvVariable } from './expression.ts';
@@ -88,18 +88,6 @@ export type EffectOptionSchema =
 	| BlendModeOptionSchema | FitModeOptionSchema | WrapModeOptionSchema | EnumOptionSchema
 	| AssetReferenceOptionSchema | VideoAssetReferenceOptionSchema | PlayerReferenceOptionSchema | StructOptionSchema | ArrayOptionSchema | AnyOptionSchema;
 export type EffectOptionsSchema = Record<string, EffectOptionSchema>;
-
-// 外部パラメータも同じdataType/UIの組み合わせを使う。ノード入力の許可はモジュール側が指定する。
-type ExternalParameterSchema<T = Exclude<EffectOptionSchema, StructOptionSchema | ArrayOptionSchema | AnyOptionSchema>> =
-	T extends unknown ? Omit<T, 'canNode' | 'primary' | 'visibility'> : never;
-
-export type VisualModuleParamDef = ExternalParameterSchema & {
-	id: ParameterId;
-	name: ParameterName; // expressionから参照するとき用
-	defaultValue: { inputSource: 'literal'; value: any };
-	canNode: boolean;
-	isPrimaryInput: boolean;
-};
 
 // A type parameter distributes the conditional over unions of option schemas.
 type EffectOptionScalarValue<T extends EffectOptionsSchema[string]> =

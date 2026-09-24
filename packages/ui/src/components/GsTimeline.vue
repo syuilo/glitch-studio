@@ -57,9 +57,9 @@
 			<div>{{ appContext.getVisualModuleById(selectedLayer?.visualModuleId)?.name }}</div>
 			<div>Compositing</div>
 			<GsVisualParam
-				:availableVariables="layerEnvVarDefs"
 				v-for="paramDef of timelineCompositingParamDefs"
 				:key="`${selectedLayer.id}:compositing:${paramDef.id}`"
+				:availableVariables="layerEnvVarDefs"
 				:automationGraphs="selectedLayer.automationGraphs"
 				:visualModuleId="selectedLayer.visualModuleId"
 				:paramPath="[paramDef.id]"
@@ -70,9 +70,9 @@
 			<div :class="$style.compositingHint">Transform applies to the module output. Replace includes transparent areas. Position 1 = half the canvas.</div>
 			<div>Module parameters</div>
 			<GsVisualParam
-				:availableVariables="layerEnvVarDefs"
 				v-for="paramDef of appContext.getVisualModuleById(selectedLayer.visualModuleId)!.paramDefs.filter(paramDef => !paramDef.isPrimaryInput)"
 				:key="`${selectedLayer.id}:${paramDef.id}`"
+				:availableVariables="layerEnvVarDefs"
 				:automationGraphs="selectedLayer.automationGraphs"
 				:visualModuleId="selectedLayer.visualModuleId"
 				:paramPath="[paramDef.id]"
@@ -86,11 +86,12 @@
 </template>
 
 <script lang="ts" setup>
-import { parameterId } from '@glitch/shared/parameter-identity.ts';
+import { visualModuleCustomParameterId } from '@glitch/shared/types.ts';
 import { layerEnvVarDefs } from '@glitch/shared/expression.ts';
 import { computed, onMounted, ref, shallowRef, useTemplateRef, watch } from 'vue';
 import { insertIntermediateNumbers, nearlyEqual, niceScale } from '@glitch/shared/utility/misc.js';
 import { genId } from '@glitch/shared/utility/id.js';
+import { timelineCompositingParamDefs } from '@glitch/shared/timeline-compositing.ts';
 import GsButton from './common/GsButton.vue';
 import GsVisualParam from './GsVisualParam.vue';
 import type { Timeline } from '@glitch/shared/types.js';
@@ -98,7 +99,6 @@ import type { ParamEdit } from './GsVisualParam.vue';
 import { appContext } from '@/app.ts';
 import { dragListen } from '@/utility/drag.ts';
 import * as timeline from '@/timeline.ts';
-import { timelineCompositingParamDefs } from '@glitch/shared/timeline-compositing.ts';
 
 const X_TICKS_HEIGHT = 20;
 const Y_TICKS_WIDTH = 60;
@@ -357,7 +357,7 @@ function onVisualModuleLayerParamEdit(event: ParamEdit, target: 'module' | 'comp
 	appContext.commit('editVisualModuleLayerParam', {
 		layerId: layer.id,
 		target,
-		paramId: parameterId(String(event.paramPath[0])),
+		paramId: visualModuleCustomParameterId(String(event.paramPath[0])),
 		edit: event,
 	}, event.mergeKey != null ? `${layer.id}:${target}:${event.paramPath[0]}:${event.mergeKey}` : undefined);
 }

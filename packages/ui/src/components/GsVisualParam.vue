@@ -55,7 +55,7 @@
 						v-else-if="paramValue.inputSource === 'externalParameterInput'"
 						small
 						:modelValue="paramValue.parameterId"
-						:items="[{ label: i18n.ts.None, value: parameterId('') }, ...externalParameterInputItems]"
+						:items="[{ label: i18n.ts.None, value: visualModuleCustomParameterId('') }, ...externalParameterInputItems]"
 						@update:modelValue="value => emit('edit', { kind: 'externalParameterInput', ...target(), value })"
 					/>
 					<div v-else-if="paramValue.inputSource === 'node'" style="display: flex; gap: 4px;">
@@ -134,7 +134,7 @@
 </template>
 
 <script lang="ts">
-import type { ParameterId } from '@glitch/shared/parameter-identity.ts';
+import type { VisualModuleCustomParameterId } from '@glitch/shared/types.ts';
 import type { AutomationGraphPlaybackOptions, ParameterBinding, NodeOutputReference } from '@glitch/shared/types.ts';
 import type { GlobalEnvVariable } from '@glitch/shared/expression.ts';
 import { deepClone } from '@glitch/shared/utility/deep-clone.js';
@@ -146,7 +146,7 @@ export type ParamEdit = { paramPath: ParamPath; mergeKey?: string | null } & (
 	| { kind: 'expression'; value: string }
 	| { kind: 'automationGraphReference'; value: string | null; options?: Partial<AutomationGraphPlaybackOptions> }
 	| { kind: 'node'; value: NodeOutputReference | null }
-	| { kind: 'externalParameterInput'; value: ParameterId }
+	| { kind: 'externalParameterInput'; value: VisualModuleCustomParameterId }
 	| { kind: 'inputSource'; inputSource: ParameterBinding['inputSource'] }
 	| { kind: 'reset' }
 	| { kind: 'addElement' }
@@ -155,7 +155,7 @@ export type ParamEdit = { paramPath: ParamPath; mergeKey?: string | null } & (
 </script>
 
 <script lang="ts" setup>
-import { parameterId } from '@glitch/shared/parameter-identity.ts';
+import { visualModuleCustomParameterId } from '@glitch/shared/types.ts';
 import { computed, onBeforeUnmount, ref, shallowRef, useTemplateRef, watch, watchEffect } from 'vue';
 import { genId } from '@glitch/shared/utility/id.ts';
 import { getNodeInputDataType } from '@glitch/shared/utility/node-outputs.ts';

@@ -1,8 +1,8 @@
-import type { ParameterId } from '@glitch/shared/parameter-identity.ts';
-import { ParameterEvaluator } from './parameter-evaluator.ts';
-import { layerVariables } from './expression-scope.ts';
 import { deepClone } from '@glitch/shared/utility/deep-clone.ts';
 import { genEmptyValue } from '@glitch/shared/utility/misc.ts';
+import { ParameterEvaluator } from './parameter-evaluator.ts';
+import { layerVariables } from './expression-scope.ts';
+import type { VisualModuleCustomParameterId } from '@glitch/shared/types.ts';
 import type { NodeOutput } from './node-output.ts';
 import type { TimelineVisualModuleLayer, VisualModule } from '@glitch/shared/types.ts';
 import type { VisualModuleRenderContext } from './visual-module-renderer.ts';
@@ -32,7 +32,7 @@ export function createVisualModuleTimelineLayer(
 				automationGraphs: layer.automationGraphs,
 				time: context.time, endTime: context.endTime,
 			};
-			const evaluatedParamValues = new Map<ParameterId, any>();
+			const evaluatedParamValues = new Map<VisualModuleCustomParameterId, any>();
 			for (const def of visualModule.paramDefs) {
 				// 主入力はuniformでもCPU式には公開せず、Inノードからのみ読む。
 				if (paramInputs.has(def.id)) continue;

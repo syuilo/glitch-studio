@@ -1,15 +1,15 @@
-import { parameterId, parameterName } from './parameter-identity.ts';
-import type { ScalarParamUi, VisualModuleParamDef } from './effect-definition.ts';
+import { visualModuleCustomParameterId, visualModuleCustomParameterName, type VisualModuleParamDef } from './types.ts';
+import type { ScalarParamUi } from './effect-definition.ts';
 
 const scalar = (id: string, label: string, value: number, ui: ScalarParamUi): VisualModuleParamDef => ({
-	id: parameterId(id), name: parameterName(id), dataType: 'scalar', ui: { ...ui, label },
+	id: visualModuleCustomParameterId(id), name: visualModuleCustomParameterName(id), dataType: 'scalar', ui: { ...ui, label },
 	defaultValue: { inputSource: 'literal', value }, canNode: false, isPrimaryInput: false,
 });
 
 // 軸ごとにscalarとすることで、位置・拡縮にも既存のautomation graphを直接割り当てられる。
 export const timelineCompositingParamDefs: VisualModuleParamDef[] = [
 	{
-		id: parameterId('blendMode'), name: parameterName('blendMode'), dataType: 'enum', ui: { control: 'enum', label: 'Blend mode' },
+		id: visualModuleCustomParameterId('blendMode'), name: visualModuleCustomParameterName('blendMode'), dataType: 'enum', ui: { control: 'enum', label: 'Blend mode' },
 		options: [
 			{ value: 'normal', label: 'Normal' }, { value: 'replace', label: 'Replace (置き換え)' },
 			{ value: 'multiply', label: 'Multiply' }, { value: 'screen', label: 'Screen' },
