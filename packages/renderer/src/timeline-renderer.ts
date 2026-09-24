@@ -48,8 +48,6 @@ export class TimelineRenderer<Output, Entry extends TimelineRenderEntry = Timeli
 
 	/** timeはミリ秒。編集・リサイズ・破棄時はclearで準備中のシークも中断する。 */
 	public async renderAt(time: number, timeline: readonly Entry[], timeDelta = 0, isExport = false): Promise<void> {
-		if (!Number.isFinite(time)) throw new Error('Timeline time must be finite');
-		if (!Number.isFinite(timeDelta) || timeDelta < 0) throw new Error('Timeline delta must be finite and non-negative');
 		this.controller?.abort();
 		const controller = new AbortController();
 		this.controller = controller;
