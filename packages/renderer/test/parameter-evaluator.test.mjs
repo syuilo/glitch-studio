@@ -13,6 +13,14 @@ async function loadSource(name) {
 		platform: 'node',
 		format: 'cjs',
 		write: false,
+		// node-outputsのテストではモジュール入力だけを検証するため、組み込みエフェクト一覧は不要。
+		// Vite専用の一覧読み込みを実行せず、パラメータ評価のテストをエフェクトの追加・変更から独立させる。
+		plugins: [{ name: 'parameter-evaluator-test', setup(build) {
+			build.onResolve({ filter: /effect-definitions\.ts$/ }, () => ({ path: 'effects', namespace: 'parameter-evaluator-test' }));
+			build.onLoad({ filter: /.*/, namespace: 'parameter-evaluator-test' }, () => ({
+				contents: 'export const effectDefinitions = {};', loader: 'ts',
+			}));
+		} }],
 	});
 	const module = { exports: {} };
 	new Function('require', 'module', 'exports', bundled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
@@ -22,6 +30,8 @@ const { ParameterEvaluator } = await loadSource('parameter-evaluator');
 const { moduleVariables } = await loadSource('expression-scope');
 
 const { genEmptyValue } = await loadSource('../../shared/src/utility/misc');
+// TimingHelperは読み込み時にGPUQueue.prototypeを参照するため、レンダラーより先に用意する。
+globalThis.GPUQueue = class { submit() {} };
 const { VisualModuleRenderer } = await loadShaderSource(fileURLToPath(new URL('../src/visual-module-renderer.ts', import.meta.url)));
 
 // 外部値を単一値APIで用意し、内部ノードの列挙は実際のレンダラーで検証する。
