@@ -7,10 +7,10 @@
 			:class="$style.field"
 			:modelValue="def.dataType"
 			:items="[
-				{ label: i18n.ts._ExternalParameterInput._Types.Number, value: 'scalar' },
-				{ label: i18n.ts._ExternalParameterInput._Types.Flag, value: 'bool' },
-				{ label: i18n.ts._ExternalParameterInput._Types.Color, value: 'color' },
-				{ label: i18n.ts._ExternalParameterInput._Types.Image, value: 'assetReference' },
+				{ label: i18n.ts._ExternalCustomParameterInput._Types.Number, value: 'scalar' },
+				{ label: i18n.ts._ExternalCustomParameterInput._Types.Flag, value: 'bool' },
+				{ label: i18n.ts._ExternalCustomParameterInput._Types.Color, value: 'color' },
+				{ label: i18n.ts._ExternalCustomParameterInput._Types.Image, value: 'assetReference' },
 				{ label: 'Video asset', value: 'videoAssetReference' },
 			]"
 			@update:modelValue="updateType"

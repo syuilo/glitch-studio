@@ -300,12 +300,12 @@ test('reads caller evaluated values through externalCustomParameterInputs and PA
 // テクスチャのパラメータや不正な式は値として参照せずフォールバックする
 test('falls back for texture parameters, missing references and invalid expressions', () => {
 	const params = {
-		textureExternalParameterInput: { inputSource: 'externalCustomParameterInput', parameterId: 'texture' },
+		textureExternalCustomParameterInput: { inputSource: 'externalCustomParameterInput', parameterId: 'texture' },
 		textureExpression: expression('PARAM("texture")'),
 		missing: expression('PARAM("missing")'),
 		invalid: expression('1 +'),
 		empty: expression(''),
-		missingExternalParameterInput: { inputSource: 'externalCustomParameterInput', parameterId: 'missing' },
+		missingExternalCustomParameterInput: { inputSource: 'externalCustomParameterInput', parameterId: 'missing' },
 		missingAutomationGraph: { inputSource: 'automationGraphReference', automationGraphId: 'missing' },
 	};
 	const result = evaluate(new ParameterEvaluator(), context(Object.fromEntries(Object.keys(params).map(key => [key, number])), params, {

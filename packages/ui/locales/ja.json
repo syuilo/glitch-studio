@@ -51,10 +51,10 @@
 	"Project": "プロジェクト",
 	"NoPresets": "プリセットなし",
 	"NoEffects": "エフェクトなし",
-	"NoExternalParameterInputs": "マクロなし",
+	"NoExternalCustomParameterInputs": "マクロなし",
 	"NoAssets": "アセットなし",
 	"Fx": "FX",
-	"ExternalParameterInput": "マクロ",
+	"ExternalCustomParameterInput": "マクロ",
 	"Asset": "アセット",
 	"Stats": "統計",
 	"Monitors": "モニター",
@@ -63,7 +63,7 @@
 	"Now": "現在",
 	"FrameRenderTimesLast30Seconds": "直近30秒間のフレーム描画時間",
 	"AddEffect": "エフェクトを追加",
-	"AddExternalParameterInput": "マクロを追加",
+	"AddExternalCustomParameterInput": "マクロを追加",
 	"AddAsset": "アセットを追加",
 	"ClickToDisable": "クリックして無効化",
 	"ClickToEnable": "クリックして有効化",
@@ -102,7 +102,7 @@
 		"Add": "加算",
 		"Subtract": "減算"
 	},
-	"_ExternalParameterInput": {
+	"_ExternalCustomParameterInput": {
 		"Name": "名前",
 		"Label": "ラベル",
 		"Type": "種類",
