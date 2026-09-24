@@ -67,8 +67,7 @@ export class ParameterEvaluator {
 				};
 				constants.PARAM = AiScript.values.FN_NATIVE(readParam, readParam);
 			}
-			// 定義済み変数・関数・式中のローカル変数が次の式へ残らないようにする。
-			const interpreter = new AiScript.Interpreter(constants);
+			const interpreter = new AiScript.Interpreter(constants); // TODO: 式評価ごとにInterpreter生成は無駄感あるからどうにかする(AiScript側にInterpreterインスタンスはそのままでスコープだけリセット(書き換え)するようなAPIが必要かも？)
 			const cachedAst = this.astCache.get(expression);
 			const ast = cachedAst ?? this.aisParser.parse(expression);
 			if (cachedAst == null) this.astCache.set(expression, ast);
