@@ -1,4 +1,4 @@
- 
+
 import type { GlobalEnvVariable } from './expression.ts';
 import type { NodeOutputReference, VisualModuleCustomParameterId } from './visual-module/types.ts';
 
@@ -26,7 +26,7 @@ export type ParameterBinding = {
 	durationMs: number | null; // isNormalizedの場合のみ使用。nullの場合は1000ms。
 	offsetMode: 'start' | 'end';
 	wrapMode: 'clamp' | 'repeat' | 'repeatMirrored'
-} | ({ inputSource: 'node' } & (NodeOutputReference | { nodeId: null; outputPort: null }));
+} | ({ inputSource: 'node' } & (NodeOutputReference | { nodeId: null; outputPort: null })); // inputSource: 'node'はVisualModule内でしか使わない
 
 export type AutomationGraphPlaybackOptions = Pick<Extract<ParameterBinding, { inputSource: 'automationGraphReference' }>, 'durationMs' | 'offsetMode' | 'wrapMode'>;
 
