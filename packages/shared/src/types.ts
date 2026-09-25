@@ -2,6 +2,7 @@
 import type { GlobalEnvVariable } from './expression.ts';
 import type { NodeOutputReference, VisualModuleCustomParameterId } from './visual-module/types.ts';
 
+// NOTE: externalCustomParameterInputやnodeについては本来的にはこの汎用ParameterBinding型ではなく、VisualModuleドメイン側でこの型を拡張して定義するべきであるが、そこまで厳密に分けると実装が複雑化するため、便宜上ここに含めている
 export type ParameterBinding = {
 	inputSource: 'literal';
 	value: any; // TODO: literalにリネーム？
@@ -12,7 +13,7 @@ export type ParameterBinding = {
 	inputSource: 'expression';
 	expression: string;
 } | {
-	inputSource: 'externalCustomParameterInput';
+	inputSource: 'externalCustomParameterInput'; // inputSource: 'externalCustomParameterInput'はVisualModule内でしか使わない
 	parameterId: VisualModuleCustomParameterId;
 } | {
 	inputSource: 'automationGraphReference';
