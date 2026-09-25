@@ -61,14 +61,14 @@ export type EffectInstance<Options extends Record<string, ParameterDefinition> =
 	dispose: () => void;
 };
 
-export type EffectImplementation<Definition extends Pick<EffectDefinition, 'paramDefs' | 'outputs'> = EffectDefinition, Options extends Record<string, ParameterDefinition> = Definition['paramDefs']> = {
+export type EffectImplementation<Definition extends Pick<EffectDefinition, 'paramDefs' | 'outputDefs'> = EffectDefinition, Options extends Record<string, ParameterDefinition> = Definition['paramDefs']> = {
 	disableCache?: boolean;
 	needsPreviousFrame?: boolean;
 	/** 入力に合わせて出力サイズを決めるエフェクト用。未指定またはundefinedを返す場合は描画先の解像度を使う。 */
-	getOutputResolution?: (params: GetRuntimeEffectOptionsSchemaValues<Options>, outputPort: Extract<keyof Definition['outputs'], string>) => { width: number; height: number } | undefined;
+	getOutputResolution?: (params: GetRuntimeEffectOptionsSchemaValues<Options>, outputPort: Extract<keyof Definition['outputDefs'], string>) => { width: number; height: number } | undefined;
 	outputTextureFactories: {
 		// canLazyAllocation=trueのポートだけ遅延確保する。それ以外はノード追加時に確保する。
-		[K in keyof Definition['outputs']]: (args: {
+		[K in keyof Definition['outputDefs']]: (args: {
 			resolution: { width: number; height: number; };
 			wgpu: {
 				device: GPUDevice;
@@ -90,9 +90,9 @@ export type EffectImplementation<Definition extends Pick<EffectDefinition, 'para
 		};
 		params: GetRuntimeEffectOptionsSchemaValues<Options>;
 		fallbackTexture: GPUTexture;
-	}) => EffectInstance<Options, Definition['outputs']>;
+	}) => EffectInstance<Options, Definition['outputDefs']>;
 };
 
-export function implementEffect<Definition extends Pick<EffectDefinition, 'paramDefs' | 'outputs'>>(def: EffectImplementation<Definition, Definition['paramDefs']>): EffectImplementation<Definition, Definition['paramDefs']> {
+export function implementEffect<Definition extends Pick<EffectDefinition, 'paramDefs' | 'outputDefs'>>(def: EffectImplementation<Definition, Definition['paramDefs']>): EffectImplementation<Definition, Definition['paramDefs']> {
 	return def;
 }
