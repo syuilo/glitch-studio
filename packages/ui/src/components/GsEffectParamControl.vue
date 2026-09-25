@@ -193,13 +193,12 @@ import GsAngle from './common/GsAngle.vue';
 import GsButton from './common/GsButton.vue';
 import GsSelect from './common/GsSelect.vue';
 import type { ParameterDefinition } from '@glitch/shared/parameter.ts';
-import type { VisualModule } from '@glitch/shared/visual-module/types.ts';
 import { i18n } from '@/i18n.ts';
 import { appContext, wireMap } from '@/app.ts';
 import { normalizeColor } from '@/utility/color-input.ts';
 
 const props = defineProps<{
-	def: Exclude<ParameterDefinition, { dataType: 'array' | 'struct' }> | VisualModule['paramDefs'][number];
+	def: ParameterDefinition;
 	value: any;
 	title?: string;
 }>();
