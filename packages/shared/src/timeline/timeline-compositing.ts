@@ -1,6 +1,6 @@
 import type { ParameterDefinition } from '../parameter.ts';
 
-export const timelineCompositingParamDefs: Record<string, ParameterDefinition> = {
+export const timelineCompositingParamDefs = {
 	blendMode: {
 		dataType: 'enum', ui: { control: 'enum', label: 'Blend mode' },
 		options: [
@@ -41,4 +41,4 @@ export const timelineCompositingParamDefs: Record<string, ParameterDefinition> =
 		dataType: 'scalar', ui: { control: 'angle', label: 'Rotation' },
 		defaultValue: { inputSource: 'literal', value: 0 }, canNode: false,
 	},
-};
+} as const satisfies Record<string, ParameterDefinition>;
