@@ -4,17 +4,14 @@ import type { ParameterBinding } from '@glitch/shared/types.ts';
 import type { VisualModuleEffectNode } from '@glitch/shared/visual-module/types.ts';
 
 export type ParamPath = readonly [string, ...(string | number)[]];
-export type NodeParamDef = ParameterDefinition & {
-	defaultValue: ParameterBinding;
-};
 
 export type NodeParamTarget = {
 	nodeId: VisualModuleEffectNode['id'];
 	paramPath: ParamPath;
 };
 
-export function getNodeParamDefs(node: VisualModuleEffectNode): Record<string, NodeParamDef> {
-	return effectDefinitions[node.effectId].paramDefs as Record<string, NodeParamDef>;
+export function getNodeParamDefs(node: VisualModuleEffectNode): Record<string, ParameterDefinition> {
+	return effectDefinitions[node.effectId].paramDefs as Record<string, ParameterDefinition>;
 }
 
 export function paramPathKey(path: ParamPath): string {
@@ -54,8 +51,8 @@ export function resolveNodeParam(node: VisualModuleEffectNode, path: ParamPath) 
 }
 
 // ワイヤー表示と参照の更新でも、定義に沿って子をたどる（color等のliteral配列とは区別する）。
-export function* walkNodeParams(node: VisualModuleEffectNode): Generator<{ path: ParamPath; def: NodeParamDef; value: ParameterBinding }> {
-	function* walk(def: NodeParamDef, value: ParameterBinding, path: ParamPath): ReturnType<typeof walkNodeParams> {
+export function* walkNodeParams(node: VisualModuleEffectNode): Generator<{ path: ParamPath; def: ParameterDefinition; value: ParameterBinding }> {
+	function* walk(def: ParameterDefinition, value: ParameterBinding, path: ParamPath): ReturnType<typeof walkNodeParams> {
 		if (def.dataType === 'array' && value.inputSource === 'literal') {
 			const elements = value.value as ParameterBinding[];
 			for (const [index, element] of elements.entries()) yield* walk(def.item, element, [...path, index]);

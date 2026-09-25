@@ -135,6 +135,7 @@
 
 <script lang="ts">
 import { deepClone } from '@glitch/shared/utility/deep-clone.js';
+import type { ParameterDefinition } from '@glitch/shared/parameter.js';
 
 export type ParamEdit = { paramPath: ParamPath; mergeKey?: string | null } & (
 	| { kind: 'literal'; value: any }
@@ -167,7 +168,7 @@ import GsAutomationGraphPointsEditorWindow from './GsAutomationGraphPointsEditor
 import type { Ref } from 'vue';
 import type { NodeOutputReference, VisualModule, VisualModuleCustomParameterId, VisualModuleEffectNode } from '@glitch/shared/visual-module/types.ts';
 import type { GlobalEnvVariable } from '@glitch/shared/expression.ts';
-import type { ParamPath, NodeParamDef } from '@/utility/node-params.ts';
+import type { ParamPath } from '@/utility/node-params.ts';
 import type { AutomationGraphPlaybackOptions, GsAutomationGraph, GsBezierAnchorPoint, ParameterBinding } from '@glitch/shared/types.ts';
 import type { MenuItem } from '@/types/menu.ts';
 import { i18n } from '@/i18n.ts';
@@ -185,7 +186,7 @@ const props = defineProps<{
 	visualModuleId?: string;
 	node?: VisualModuleEffectNode;
 	paramPath: ParamPath;
-	paramDef: NodeParamDef | VisualModule['paramDefs'][number];
+	paramDef: ParameterDefinition;
 	paramValue: ParameterBinding;
 	label?: string;
 }>();
@@ -198,7 +199,7 @@ const arrayValues = computed<ParameterBinding[]>(() => props.paramDef.dataType =
 const structValues = computed<Record<string, ParameterBinding> | null>(() => props.paramDef.dataType === 'struct' && props.paramValue.inputSource === 'literal' ? props.paramValue.value : null);
 const visibleFields = computed(() => {
 	if (props.paramDef.dataType !== 'struct') return [];
-	const fields: Record<string, NodeParamDef> = props.paramDef.fields;
+	const fields: Record<string, ParameterDefinition> = props.paramDef.fields;
 	return Object.entries(fields);
 });
 const canNode = computed(() => props.paramDef.canNode);
