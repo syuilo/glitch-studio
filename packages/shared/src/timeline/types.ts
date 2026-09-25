@@ -1,4 +1,4 @@
-import type { GsAutomationGraph, VisualModuleParameterBindings } from '../types.ts';
+import type { GsAutomationGraph } from '../types.ts';
 
 export type TimelineVisualModuleLayer = {
 	id: string;
@@ -6,7 +6,7 @@ export type TimelineVisualModuleLayer = {
 	endTimeMs: number;
 	layerType: 'visualModule';
 	visualModuleId: string;
-	paramValues: VisualModuleParameterBindings;
+	paramValues: TODO;
 	compositing: TODO;
 	automationGraphs: GsAutomationGraph[];
 };

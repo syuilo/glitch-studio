@@ -1,10 +1,9 @@
-import { visualModuleCustomParameterId, type VisualModuleCustomParameterId } from '@glitch/shared/types.ts';
 import { colorBlendModes } from '@glitch/shared/color-blend.ts';
-import { timelineCompositingParamDefs } from '@glitch/shared/timeline-compositing.ts';
 import { genEmptyValue } from '@glitch/shared/utility/misc.ts';
+import { timelineCompositingParamDefs } from '@glitch/shared/timeline/timeline-compositing.js';
 import { ParameterEvaluator } from './parameter-evaluator.ts';
 import { layerVariables } from './expression-scope.ts';
-import type { GsAutomationGraph, VisualModuleParameterBindings } from '@glitch/shared/types.ts';
+import type { GsAutomationGraph, ParameterBinding } from '@glitch/shared/types.ts';
 
 export type TimelineCompositingSettings = {
 	blendMode: number;
@@ -17,7 +16,7 @@ export type TimelineCompositingSettings = {
 export class TimelineCompositingParameters {
 	private evaluator = new ParameterEvaluator();
 
-	evaluate(context: { time: number; endTime: number; isExport: boolean; paramValues: VisualModuleParameterBindings; automationGraphs: GsAutomationGraph[] }): TimelineCompositingSettings {
+	evaluate(context: { time: number; endTime: number; isExport: boolean; paramValues: Record<string, ParameterBinding>; automationGraphs: GsAutomationGraph[] }): TimelineCompositingSettings {
 		const evaluationContext = {
 			evaluatedParamValues: null,
 			variables: layerVariables({ isExport: context.isExport }),
@@ -25,19 +24,18 @@ export class TimelineCompositingParameters {
 			time: context.time,
 			endTime: context.endTime,
 		};
-		const values = new Map<VisualModuleCustomParameterId, any>();
-		for (const def of timelineCompositingParamDefs) {
-			const value = context.paramValues[def.id];
+		const values = new Map<string, any>();
+		for (const [key, def] of Object.entries(timelineCompositingParamDefs)) {
+			const value = context.paramValues[key];
 			// 未指定・欠落グラフは設定の既定値、式の失敗は型の空値に戻す。
-			values.set(def.id, value == null ? def.defaultValue.value : this.evaluator.evaluate(value, evaluationContext,
-				value.inputSource === 'automationGraphReference' ? def.defaultValue.value : genEmptyValue(def)));
+			values.set(key, value == null ? def.defaultValue.value : this.evaluator.evaluate(value, evaluationContext, value.inputSource === 'automationGraphReference' ? def.defaultValue.value : genEmptyValue(def)));
 		}
 		// 不正な式の型や非有限値をGPUへ流さない。範囲外の有限な位置・倍率は制限しない。
 		const number = (id: string, fallback: number) => {
-			const value = values.get(visualModuleCustomParameterId(id));
+			const value = values.get(id);
 			return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
 		};
-		const mode = values.get(visualModuleCustomParameterId('blendMode'));
+		const mode = values.get('blendMode');
 		return {
 			blendMode: mode === 'replace' ? 19 : typeof mode === 'string' && Object.hasOwn(colorBlendModes, mode) ? colorBlendModes[mode] : 0,
 			opacity: Math.min(1, Math.max(0, number('opacity', 1))),
