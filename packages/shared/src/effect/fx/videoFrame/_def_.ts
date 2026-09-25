@@ -13,7 +13,7 @@ export default defineEffect({
 		},
 		time: {
 			dataType: 'scalar',
-			ui: { label: 'Time', control: 'range', min: 0, max: 1, step: 0.001 },
+			ui: { label: 'Time', control: 'number', step: 0.01 },
 			defaultValue: { inputSource: 'literal', value: 0 },
 		},
 		fit: {

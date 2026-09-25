@@ -12,7 +12,7 @@ export default defineEffect({
 		outputMax: { dataType: 'scalar', ui: { label: 'Output Max', control: 'number', step: 0.01 }, canNode: true, defaultValue: { inputSource: 'literal', value: 1 } },
 		// canNodeでは環境によってTimeが16bitテクスチャに丸められ、経過時間とともに
 		// 値の刻みが粗くなって動きがカクつくため、32bitのuniformで渡す。
-		time: { dataType: 'scalar', ui: { label: 'Time', control: 'range', min: 0, max: 100, step: 0.01 }, canNode: false, defaultValue: { inputSource: 'literal', value: 0 } },
+		time: { dataType: 'scalar', ui: { label: 'Time', control: 'number', step: 0.01 }, canNode: false, defaultValue: { inputSource: 'literal', value: 0 } },
 		seed: { dataType: 'scalar', ui: { label: 'Seed', control: 'seed' }, canNode: false, defaultValue: { inputSource: 'literal', value: 0 } },
 	},
 	outputDefs: {

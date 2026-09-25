@@ -17,7 +17,7 @@ export default defineEffect({
 		waves: { dataType: 'scalar', ui: { label: 'Waves', control: 'range', min: 0, max: 1, step: 0.01 }, defaultValue: { inputSource: 'literal', value: 0.3 } },
 		caustic: { dataType: 'scalar', ui: { label: 'Caustic', control: 'range', min: 0, max: 1, step: 0.01 }, defaultValue: { inputSource: 'literal', value: 0.1 } },
 		size: { dataType: 'scalar', ui: { label: 'Size', control: 'range', min: 0.01, max: 7, step: 0.01 }, defaultValue: { inputSource: 'literal', value: 1 } },
-		time: { dataType: 'scalar', ui: { label: 'Time (s)', control: 'number', step: 0.01 }, defaultValue: { inputSource: 'literal', value: 0 } },
+		time: { dataType: 'scalar', ui: { label: 'Time', control: 'number', step: 0.01 }, defaultValue: { inputSource: 'literal', value: 0 } },
 		speed: { dataType: 'scalar', ui: { label: 'Speed', control: 'number', step: 0.01 }, defaultValue: { inputSource: 'literal', value: 1 } },
 		frame: { dataType: 'scalar', ui: { label: 'Frame offset (ms)', control: 'number', step: 1 }, defaultValue: { inputSource: 'literal', value: 0 } },
 	},

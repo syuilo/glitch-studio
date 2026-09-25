@@ -18,7 +18,7 @@ export default defineEffect({
 		distortion: { dataType: 'scalar', ui: { label: 'Distortion', control: 'range', min: 0, max: 1, step: 0.01 }, defaultValue: { inputSource: 'literal', value: 0.07 } },
 		contour: { dataType: 'scalar', ui: { label: 'Contour', control: 'range', min: 0, max: 1, step: 0.01 }, defaultValue: { inputSource: 'literal', value: 1 } },
 		angle: { dataType: 'scalar', ui: { label: 'Angle', control: 'angle' }, defaultValue: { inputSource: 'literal', value: 70 / 180 } },
-		time: { dataType: 'scalar', ui: { label: 'Time (s)', control: 'number', step: 0.01 }, defaultValue: { inputSource: 'literal', value: 0 } },
+		time: { dataType: 'scalar', ui: { label: 'Time', control: 'number', step: 0.01 }, defaultValue: { inputSource: 'literal', value: 0 } },
 		speed: { dataType: 'scalar', ui: { label: 'Speed', control: 'number', step: 0.01 }, defaultValue: { inputSource: 'literal', value: 1 } },
 		frame: { dataType: 'scalar', ui: { label: 'Frame offset (ms)', control: 'number', step: 1 }, defaultValue: { inputSource: 'literal', value: 0 } },
 	},
