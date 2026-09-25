@@ -48,7 +48,7 @@ sharedは、tree-shakableであることが求められます。
 
 Visual Moduleは、In/Outノードを含むほか、外部に対するパラメータ定義(Custom Parameter)も行えるので、タイムライン上でレイヤーとして使用可能です。
 
-Custom Parameterは、Visual Module内のノードのパラメータにアサインすることができるほか、expression上からもPARAM関数を通じて参照できます。
+Custom Parameterは、`canNode: true` ならInノード経由で配線し、`canNode: false` ならVisual Module内のノードのパラメータに直接アサインしたり、expression上からPARAM関数を通じて参照したりできます。
 
 Visual Module内で別のVisual Moduleを通常のエフェクトのように使用するなど、再帰的な使用も将来実装予定です。
 
@@ -131,7 +131,7 @@ let amount = read_amount(position);
 ```
 
 - 入力名と型はエフェクト側のschemaで指定します。`position` は `vec2f` で、中央が `[0, 0]`、左下が `[-1, -1]`、右上が `[1, 1]` の座標です。戻り値はscalarなら `f32`、vectorなら `vec2f`、color/anyなら `vec4f` です。
-- テクスチャ入力では、参照関数が入力自身と出力先のサイズに基づくfit補正と、接続のwrap/filterを適用します。`NodeOutputReference` の設定を使い、省略時は `cover` / `repeatMirrored` / `linear` です。containの余白もwrapに従い、自動で透明にはしません。定数入力は位置によらず同じ値を返し、fit/wrap/filterの影響を受けません。
+- テクスチャ入力では、参照関数が入力自身と出力先のサイズに基づくfit補正と、接続のwrap/filterを適用します。`NodeOutputReference` の必須設定を使い、通常の接続作成時の初期値は `cover` / `repeatMirrored` / `linear` です。containの余白もwrapに従い、自動で透明にはしません。定数入力は位置によらず同じ値を返し、fit/wrap/filterの影響を受けません。
 - 共通化するのは入力の参照座標とサンプリングです。エフェクト固有の変形や、ベクトル値の成分変換まで自動で行うものではありません。
 - 通常のfragmentではimplicit samplingを使います。computeや画素ごとに異なる分岐から参照する場合は、生成時に `sampling: 'level0'` を指定します。これはLODの指定であり、nearestの指定ではありません。
 - 配列schema（例: `{ images: { array: 'color' } }`）では `read_images(index, position)` と `count_images` を生成します。要素ごとに定数・テクスチャを混在でき、空配列・範囲外のindexは0を返します。配列要素の参照はLOD 0を使い、テクスチャ要素ごとに個別bindingを割り当てるため、GPUのテクスチャ・サンプラー数の上限を考慮してください。
