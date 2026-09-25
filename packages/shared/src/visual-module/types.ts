@@ -63,6 +63,7 @@ export type VisualModule = {
 	paramDefs: (ParameterDefinition & {
 		id: VisualModuleCustomParameterId;
 		nameForReference: VisualModuleCustomParameterName; // expressionから参照するとき用
+		// ParameterDefinitionでノード入力を許可する型だけ、Inノードの出力として公開できる。
 		canNode: boolean;
 		isPrimaryInput: boolean;
 	})[];

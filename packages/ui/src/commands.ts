@@ -4,6 +4,7 @@ import { AiSON } from '@syuilo/aiscript';
 import { deepClone } from '@glitch/shared/utility/deep-clone.ts';
 import { getNodeInputDataType, getNodeOutputs } from '@glitch/shared/utility/node-outputs.ts';
 import { genEmptyValue } from '@glitch/shared/utility/misc.ts';
+import { isTextureDataType } from '@glitch/shared/data-type.ts';
 import { timelineCompositingParamDefs } from '@glitch/shared/timeline/timeline-compositing.ts';
 import type { VisualModuleCustomParameterId, VisualModuleEffectNode, VisualModuleNode, NodeOutputReference, VisualModule } from '@glitch/shared/visual-module/types.ts';
 import type { ParameterDefinition } from '@glitch/shared/parameter.ts';
@@ -588,6 +589,10 @@ const updateGlobalOutInputCommandDef = defineCommand<NodeTarget & { outputId: st
 type VisualModuleParamDef = VisualModule['paramDefs'][number];
 
 function validateVisualModuleParamDef(module: VisualModule, def: VisualModuleParamDef, previousId?: VisualModuleCustomParameterId) {
+	// 部分更新ではdataTypeとcanNodeの組み合わせを型だけでは保証できない。
+	if (def.canNode && !isTextureDataType(def.dataType)) {
+		throw new Error('Only node-capable parameter types can be exposed as In node outputs');
+	}
 	if (module.paramDefs.some(item => item.id !== previousId && (item.id === def.id || item.nameForReference === def.nameForReference))) {
 		throw new Error('Parameter ID and name must be unique');
 	}

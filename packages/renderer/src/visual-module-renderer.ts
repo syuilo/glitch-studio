@@ -133,8 +133,6 @@ export class VisualModuleRenderer {
 		const input = this.paramInputs.get(paramId);
 		if (input != null) return input;
 		const value = this.paramValues.get(paramId);
-		if (def.dataType === 'assetReference') return { kind: 'texture', texture: this.assetTextures.get(value) ?? this.fallbackTexture };
-		if (def.dataType === 'bool') return constantShaderInput('scalar', Number(value ?? 0));
 		return constantShaderInput(def.dataType, value);
 	}
 

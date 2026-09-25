@@ -34,7 +34,7 @@
 			<GsInput type="number" :modelValue="def.ui.step ?? null" @update:modelValue="updateUiOption('step', Number($event))"/>
 		</div>
 	</div>
-	<div v-if="def.dataType !== 'videoAssetReference'" :class="$style.option">
+	<div v-if="isTextureDataType(def.dataType) && def.dataType !== 'any'" :class="$style.option">
 		<GsSwitch :modelValue="def.canNode" @update:modelValue="updateCanNode">Allow node input</GsSwitch>
 	</div>
 	<div v-if="def.canNode && def.dataType === 'color'" :class="$style.option">
@@ -54,6 +54,7 @@
 import { visualModuleCustomParameterName } from '@glitch/shared/visual-module/types.ts';
 import { computed } from 'vue';
 import { genEmptyValue } from '@glitch/shared/utility/misc.ts';
+import { isTextureDataType } from '@glitch/shared/data-type.ts';
 import GsSelect from './common/GsSelect.vue';
 import GsInput from './common/GsInput.vue';
 import GsButton from './common/GsButton.vue';
@@ -91,7 +92,8 @@ function updateType(dataType: ParamDef['dataType']) {
 
 	update({
 		...schema,
-		canNode: dataType === 'videoAssetReference' ? false : props.def.canNode,
+		// Inノードでは型変換せず公開するため、ノード入出力に対応しない型では解除する。
+		canNode: isTextureDataType(dataType) && props.def.canNode,
 		defaultValue: { inputSource: 'literal', value: genEmptyValue(schema) },
 		isPrimaryInput: dataType === 'color' && props.def.canNode && props.def.isPrimaryInput,
 	});
@@ -114,6 +116,7 @@ function updateUiOption(key: 'min' | 'max' | 'step', value: number) {
 }
 
 function updateCanNode(canNode: boolean) {
+	if (!isTextureDataType(props.def.dataType) || props.def.dataType === 'any') return;
 	update({ canNode, isPrimaryInput: canNode && props.def.isPrimaryInput });
 }
 

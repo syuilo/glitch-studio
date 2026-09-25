@@ -21,10 +21,7 @@ export function getNodeOutputs(node: VisualModuleNode | undefined, paramDefs: Vi
 		const outputs: EffectOutputDefinitions = {};
 		for (const def of paramDefs) {
 			if (!def.canNode) continue;
-			// 真偽値は数値化し、Asset参照は画像として出力する。それ以外は元の型を使う。
-			const dataType = def.dataType === 'bool' ? 'scalar' : def.dataType === 'assetReference' ? 'color' : def.dataType;
-			if (!isTextureDataType(dataType)) continue;
-			outputs[def.id] = { dataType, primary: def.isPrimaryInput };
+			outputs[def.id] = { dataType: def.dataType, primary: def.isPrimaryInput };
 		}
 		return outputs;
 	}
