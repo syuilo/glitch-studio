@@ -1,5 +1,5 @@
-import { effectDefinitions } from '@glitch/shared/effect-definitions.ts';
-import { effectImplementations } from '@glitch/shared/effect-implementations.js';
+import { effectDefinitions } from '@glitch/shared/effect/effect-definitions.ts';
+import { effectImplementations } from '@glitch/shared/effect/effect-implementations.js';
 import { MainRenderer } from './renderer.ts';
 
 let renderer: MainRenderer | null = null;

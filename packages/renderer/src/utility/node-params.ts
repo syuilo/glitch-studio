@@ -1,4 +1,4 @@
-import type { ParameterDefinition_Effect, EffectOptionsSchema } from '@glitch/shared/effect-definition.ts';
+import type { ParameterDefinition_Effect, EffectOptionsSchema } from '@glitch/shared/effect/effect-definition.ts';
 import type { ParameterBinding } from '@glitch/shared/types.ts';
 
 type ParamPath = (string | number)[];

@@ -22,11 +22,11 @@ import type { VisualModuleCustomParameterId } from '@glitch/shared/types.ts';
 import type { NodeOutput } from './node-output.ts';
 import type { FrameScheduler, LiveFrameTiming } from './live-render-loop.ts';
 import type { TimelineLayerRenderer } from './timeline-renderer.ts';
-import type { EffectInstanceState, EffectStatusSource } from '@glitch/shared/effect-status.ts';
+import type { EffectInstanceState, EffectStatusSource } from '@glitch/shared/effect/effect-status.ts';
 import type { AudioCaptureMessage, AudioSourceId } from '@glitch/shared/audio.ts';
 import type { Asset, Player, Timeline, TimelineVisualModuleLayer, VisualModule, VisualModuleParameterBindings } from '@glitch/shared/types.ts';
-import type { EffectImplementation, IntermediateTextureFormat } from '@glitch/shared/effect-implementation.js';
-import type { EffectDefinition } from '@glitch/shared/effect-definition.js';
+import type { EffectImplementation, IntermediateTextureFormat } from '@glitch/shared/effect/effect-implementation.js';
+import type { EffectDefinition } from '@glitch/shared/effect/effect-definition.js';
 
 export class MainRenderer {
 	private timelineRenderer: TimelineRenderer<NodeOutput, Timeline[number]>;

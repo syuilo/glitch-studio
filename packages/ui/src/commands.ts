@@ -1,10 +1,10 @@
 import { visualModuleCustomParameterId } from '@glitch/shared/types.ts';
-import { effectDefinitions } from '@glitch/shared/effect-definitions.ts';
+import { effectDefinitions } from '@glitch/shared/effect/effect-definitions.ts';
 import { AiSON } from '@syuilo/aiscript';
 import { deepClone } from '@glitch/shared/utility/deep-clone.ts';
 import { getNodeInputDataType, getNodeOutputs } from '@glitch/shared/utility/node-outputs.ts';
 import { genEmptyValue } from '@glitch/shared/utility/misc.ts';
-import { timelineCompositingParamDefs } from '@glitch/shared/timeline-compositing.ts';
+import { timelineCompositingParamDefs } from '@glitch/shared/timeline/timeline-compositing.ts';
 import type { VisualModuleCustomParameterId } from '@glitch/shared/types.ts';
 import type { AppState } from './types.ts';
 import type { Asset, AutomationGraphPlaybackOptions, EffectParamDefs, ParameterBinding, GsEffectNode, GsNode, Player, NodeOutputReference, VisualModule } from '@glitch/shared/types.ts';

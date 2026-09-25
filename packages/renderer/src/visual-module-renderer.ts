@@ -11,11 +11,11 @@ import { moduleVariables } from './expression-scope.ts';
 import { getEvaluatedParam, mapNodeParam, walkNodeParams } from './utility/node-params.ts';
 import type { EvaluatedParameterValues, ParameterEvaluationContext } from './parameter-evaluator.ts';
 import type { NodeOutput } from './node-output.ts';
-import type { EffectStatus, EffectInstanceState } from '@glitch/shared/effect-status.ts';
+import type { EffectStatus, EffectInstanceState } from '@glitch/shared/effect/effect-status.ts';
 import type { AudioSourceId } from '@glitch/shared/audio.ts';
 import type { Asset, GsAutomationGraph, GsEffectNode, GsGlobalInNode, GsNode, NodeOutputReference, VisualModule } from '@glitch/shared/types.ts';
-import type { EffectImplementation, EffectInstance, IntermediateTextureFormat } from '@glitch/shared/effect-implementation.js';
-import type { EffectDefinition } from '@glitch/shared/effect-definition.js';
+import type { EffectImplementation, EffectInstance, IntermediateTextureFormat } from '@glitch/shared/effect/effect-implementation.js';
+import type { EffectDefinition } from '@glitch/shared/effect/effect-definition.js';
 
 export type VisualModuleRenderContext = {
 	isExport: boolean;

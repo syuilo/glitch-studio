@@ -39,7 +39,7 @@
 <script lang="ts" setup>
 import { moduleEnvVarDefs } from '@glitch/shared/expression.ts';
 import { ref, computed, shallowRef, watchEffect } from 'vue';
-import { effectDefinitions } from '@glitch/shared/effect-definitions.ts';
+import { effectDefinitions } from '@glitch/shared/effect/effect-definitions.ts';
 import GsNodeOutputs from './GsNodeOutputs.vue';
 import GsNodePort from './GsNodePort.vue';
 import GsVisualParam from './GsVisualParam.vue';

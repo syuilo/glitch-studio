@@ -91,7 +91,7 @@ import { layerEnvVarDefs } from '@glitch/shared/expression.ts';
 import { computed, onMounted, ref, shallowRef, useTemplateRef, watch } from 'vue';
 import { insertIntermediateNumbers, nearlyEqual, niceScale } from '@glitch/shared/utility/misc.js';
 import { genId } from '@glitch/shared/utility/id.js';
-import { timelineCompositingParamDefs } from '@glitch/shared/timeline-compositing.ts';
+import { timelineCompositingParamDefs } from '@glitch/shared/timeline/timeline-compositing.ts';
 import GsButton from './common/GsButton.vue';
 import GsVisualParam from './GsVisualParam.vue';
 import type { Timeline } from '@glitch/shared/types.js';

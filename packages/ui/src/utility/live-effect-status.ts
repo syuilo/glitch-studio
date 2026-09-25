@@ -1,4 +1,4 @@
-import type { EffectInstanceState, EffectStatusSource } from '@glitch/shared/effect-status.ts';
+import type { EffectInstanceState, EffectStatusSource } from '@glitch/shared/effect/effect-status.ts';
 
 export class LiveEffectStateStore {
 	private current: { visualModuleId: string; instanceId: string } | null = null;

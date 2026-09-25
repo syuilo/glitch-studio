@@ -1,6 +1,6 @@
 import { MainRenderer } from '@glitch/renderer/renderer.ts';
-import { effectDefinitions } from '@glitch/shared/effect-definitions.ts';
-import { effectImplementations } from '@glitch/shared/effect-implementations.js';
+import { effectDefinitions } from '@glitch/shared/effect/effect-definitions.ts';
+import { effectImplementations } from '@glitch/shared/effect/effect-implementations.js';
 import { createMp4Writer } from './mp4-writer.ts';
 import { adjustExportResolution } from './export-settings.ts';
 import { encodeStillWebp } from './still-webp.ts';

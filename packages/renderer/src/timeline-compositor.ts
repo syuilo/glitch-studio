@@ -1,7 +1,7 @@
 import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { createShaderInputPipeline } from '@glitch/shared/shader-input-pipeline.ts';
 import blendCode from '@glitch/shared/color-blend.wgsl?raw';
-import type { IntermediateTextureFormat } from '@glitch/shared/effect-implementation.ts';
+import type { IntermediateTextureFormat } from '@glitch/shared/effect/effect-implementation.ts';
 import { outputShaderInput } from './node-output.ts';
 import type { NodeOutput } from './node-output.ts';
 import type { TimelineCompositingSettings } from './timeline-compositing-parameters.ts';

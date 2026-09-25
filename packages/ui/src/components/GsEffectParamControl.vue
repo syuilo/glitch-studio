@@ -192,7 +192,7 @@ import GsRange from './common/GsRange.vue';
 import GsAngle from './common/GsAngle.vue';
 import GsButton from './common/GsButton.vue';
 import GsSelect from './common/GsSelect.vue';
-import type { ParameterDefinition_Effect } from '@glitch/shared/effect-definition.ts';
+import type { ParameterDefinition_Effect } from '@glitch/shared/effect/effect-definition.ts';
 import type { VisualModule } from '@glitch/shared/types.js';
 import { i18n } from '@/i18n.ts';
 import { appContext, wireMap } from '@/app.ts';

@@ -24,7 +24,7 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, useTemplateRef, watch } from 'vue';
-import { effectDefinitions } from '@glitch/shared/effect-definitions.js';
+import { effectDefinitions } from '@glitch/shared/effect/effect-definitions.js';
 import GsModal from './common/GsModal.vue';
 import GsButton from './common/GsButton.vue';
 import GsInput from './common/GsInput.vue';

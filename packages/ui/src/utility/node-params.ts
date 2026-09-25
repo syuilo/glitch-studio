@@ -1,5 +1,5 @@
-import { effectDefinitions } from '@glitch/shared/effect-definitions.ts';
-import type { EffectOptionsSchema } from '@glitch/shared/effect-definition.ts';
+import { effectDefinitions } from '@glitch/shared/effect/effect-definitions.ts';
+import type { EffectOptionsSchema } from '@glitch/shared/effect/effect-definition.ts';
 import type { ParameterBinding, GsEffectNode } from '@glitch/shared/types.ts';
 
 export type ParamPath = readonly [string, ...(string | number)[]];

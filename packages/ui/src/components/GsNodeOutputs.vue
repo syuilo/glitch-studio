@@ -14,7 +14,7 @@ import { computed, onUnmounted } from 'vue';
 import { getNodeOutputs } from '@glitch/shared/utility/node-outputs.ts';
 import GsNodePort from './GsNodePort.vue';
 import type { GsNode, VisualModule } from '@glitch/shared/types.ts';
-import type { EffectInstanceState } from '@glitch/shared/effect-status.ts';
+import type { EffectInstanceState } from '@glitch/shared/effect/effect-status.ts';
 import { wireMap } from '@/app.ts';
 import { startWireDrag } from '@/utility/wire-drag.ts';
 import { getNodeDataTypeColor } from '@/utility/node-outputs.ts';
