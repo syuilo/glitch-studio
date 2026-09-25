@@ -164,6 +164,7 @@ import GsInput from './common/GsInput.vue';
 import GsCondensedLine from './common/GsCondensedLine.vue';
 import GsSelect from './common/GsSelect.vue';
 import GsAutomationGraphPointsEditorWindow from './GsAutomationGraphPointsEditorWindow.vue';
+import type { Ref } from 'vue';
 import type { NodeOutputReference, VisualModule, VisualModuleCustomParameterId, VisualModuleEffectNode } from '@glitch/shared/visual-module/types.ts';
 import type { GlobalEnvVariable } from '@glitch/shared/expression.ts';
 import type { ParamPath, NodeParamDef } from '@/utility/node-params.ts';
@@ -367,7 +368,7 @@ function showNodeInputMenu(ev: PointerEvent) {
 	}];
 
 	if (nodeConnection.value != null) {
-		const nodeInputSamplingMenuItems = getNodeInputSamplingMenuItems(nodeConnection, value => connectNode(value, false));
+		const nodeInputSamplingMenuItems = getNodeInputSamplingMenuItems(nodeConnection as Ref<NodeOutputReference>, value => connectNode(value, false));
 		menuItems.push(...nodeInputSamplingMenuItems);
 	}
 
