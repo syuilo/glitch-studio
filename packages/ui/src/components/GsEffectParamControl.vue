@@ -198,7 +198,8 @@ import { appContext, wireMap } from '@/app.ts';
 import { normalizeColor } from '@/utility/color-input.ts';
 
 const props = defineProps<{
-	def: ParameterDefinition;
+	// コンテナの子や配列操作は呼び出し元が扱い、このコントロールには末端の定義だけを渡す。
+	def: Exclude<ParameterDefinition, { dataType: 'array' | 'struct' }>;
 	value: any;
 	title?: string;
 }>();

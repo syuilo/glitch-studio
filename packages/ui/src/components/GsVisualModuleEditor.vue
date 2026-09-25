@@ -63,16 +63,22 @@
 
 		<div v-if="tab === 'paramPreview'" style="height: 100%; overflow: auto;">
 			<div :class="$style.previewParams">
-				<GsVisualParam
+				<!-- TODO: struct / array / anyのカスタムパラメータ編集UI。型定義の制約ではなく、現在のUIの対応範囲。 -->
+				<template
 					v-for="paramDef of visualModule.paramDefs"
 					:key="paramDef.id"
-					:availableVariables="layerEnvVarDefs"
-					:paramPath="[paramDef.id]"
-					:automationGraphs="[]"
-					:paramDef="{ ...paramDef, canNode: false }"
-					:paramValue="previewParamValues[paramDef.id]"
-					@edit="onPreviewParamEdit"
-				/>
+				>
+					<div v-if="paramDef.dataType === 'struct' || paramDef.dataType === 'array' || paramDef.dataType === 'any'">{{ paramDef.ui.label }}: Editing is not yet supported.</div>
+					<GsVisualParam
+						v-else
+						:availableVariables="layerEnvVarDefs"
+						:paramPath="[paramDef.id]"
+						:automationGraphs="[]"
+						:paramDef="{ ...paramDef, canNode: false }"
+						:paramValue="previewParamValues[paramDef.id]"
+						@edit="onPreviewParamEdit"
+					/>
+				</template>
 			</div>
 		</div>
 
@@ -131,7 +137,7 @@ watch(visualModule, module => {
 }, { deep: true, immediate: true });
 
 function onPreviewParamEdit(event: ParamEdit) {
-	// VisualModuleのパラメータ定義は現在フラットで、array/structは持たない。
+	// TODO: struct / arrayの子の編集・要素操作。型定義では許可しているが、現在の編集UIは未対応。
 	if (event.paramPath.length !== 1) return;
 	const def = visualModule.value?.paramDefs.find(def => def.id === event.paramPath[0]);
 	if (def == null) return;

@@ -69,17 +69,23 @@
 			/>
 			<div :class="$style.compositingHint">Transform applies to the module output. Replace includes transparent areas. Position 1 = half the canvas.</div>
 			<div>Module parameters</div>
-			<GsVisualParam
+			<!-- TODO: struct / array / anyのカスタムパラメータ編集UI。型定義では許可するが、子の編集や配列操作は未対応。 -->
+			<template
 				v-for="paramDef of appContext.getVisualModuleById(selectedLayer.visualModuleId)!.paramDefs.filter(paramDef => !paramDef.isPrimaryInput)"
 				:key="`${selectedLayer.id}:${paramDef.id}`"
-				:availableVariables="layerEnvVarDefs"
-				:automationGraphs="selectedLayer.automationGraphs"
-				:visualModuleId="selectedLayer.visualModuleId"
-				:paramPath="[paramDef.id]"
-				:paramDef="{ ...paramDef, canNode: false }"
-				:paramValue="selectedLayer.paramValues[paramDef.id] ?? paramDef.defaultValue"
-				@edit="event => onVisualModuleLayerParamEdit(event, 'module')"
-			/>
+			>
+				<div v-if="paramDef.dataType === 'struct' || paramDef.dataType === 'array' || paramDef.dataType === 'any'">{{ paramDef.ui.label }}: Editing is not yet supported.</div>
+				<GsVisualParam
+					v-else
+					:availableVariables="layerEnvVarDefs"
+					:automationGraphs="selectedLayer.automationGraphs"
+					:visualModuleId="selectedLayer.visualModuleId"
+					:paramPath="[paramDef.id]"
+					:paramDef="{ ...paramDef, canNode: false }"
+					:paramValue="selectedLayer.paramValues[paramDef.id] ?? paramDef.defaultValue"
+					@edit="event => onVisualModuleLayerParamEdit(event, 'module')"
+				/>
+			</template>
 		</div>
 	</div>
 </div>
@@ -350,7 +356,7 @@ function onLayerBlockClick(ev: PointerEvent, layer: Timeline[number]) {
 
 function onVisualModuleLayerParamEdit(event: ParamEdit, target: 'module' | 'compositing') {
 	const layer = selectedLayer.value;
-	// VisualModuleのパラメータ定義はフラットで、ノード接続や内部パラメータ参照は扱わない。
+	// TODO: struct / arrayの子の編集・要素操作。現在のカスタムパラメータ編集UIは末端の型だけを扱う。
 	if (layer == null || event.paramPath.length !== 1) return;
 	if (event.kind === 'node' || event.kind === 'externalCustomParameterInput' || event.kind === 'addElement' || event.kind === 'removeElement') return;
 	if (event.kind === 'inputSource' && (event.inputSource === 'node' || event.inputSource === 'externalCustomParameterInput')) return;

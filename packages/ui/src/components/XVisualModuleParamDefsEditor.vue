@@ -1,7 +1,9 @@
 <template>
 <div :class="$style.root">
 	<div v-for="def in visualModule.paramDefs" :key="def.id">
-		<XVisualModuleParamDefEditor :visualModuleId="visualModule.id" :def="def"/>
+		<!-- TODO: struct / array / anyのカスタムパラメータ定義編集UI。共通の型定義からは除外しない。 -->
+		<div v-if="def.dataType === 'struct' || def.dataType === 'array' || def.dataType === 'any'">{{ def.ui.label }}: Editing is not yet supported.</div>
+		<XVisualModuleParamDefEditor v-else :visualModuleId="visualModule.id" :def="def"/>
 	</div>
 	<GsButton @click="add">Add parameter</GsButton>
 </div>
