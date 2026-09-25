@@ -1,4 +1,5 @@
-import type { VisualModuleNode, Asset } from '@glitch/shared/types.ts';
+import type { VisualModuleNode } from '@glitch/shared/visual-module/types.ts';
+import type { Asset } from '@glitch/shared/types.ts';
 
 //export const userDataPath = electron.remote.app.getPath('userData');
 //const filePath = path.join(userDataPath, 'settings');

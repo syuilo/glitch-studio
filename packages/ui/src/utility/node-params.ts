@@ -1,9 +1,10 @@
 import { effectDefinitions } from '@glitch/shared/effect/effect-definitions.ts';
-import type { EffectOptionsSchema } from '@glitch/shared/effect/effect-definition.ts';
-import type { ParameterBinding, VisualModuleEffectNode } from '@glitch/shared/types.ts';
+import type { ParameterDefinition } from '@glitch/shared/parameter.ts';
+import type { ParameterBinding } from '@glitch/shared/types.ts';
+import type { VisualModuleEffectNode } from '@glitch/shared/visual-module/types.ts';
 
 export type ParamPath = readonly [string, ...(string | number)[]];
-export type NodeParamDef = EffectOptionsSchema[string] & {
+export type NodeParamDef = ParameterDefinition & {
 	defaultValue: ParameterBinding;
 };
 

@@ -1,5 +1,7 @@
 import * as msgpack from '@msgpack/msgpack';
-import type { Asset, VisualModule, Player, Timeline } from '@glitch/shared/types.js';
+import type { Asset, Player } from '@glitch/shared/types.js';
+import type { VisualModule } from '@glitch/shared/visual-module/types.ts';
+import type { Timeline } from '@glitch/shared/timeline/types.ts';
 
 export type Project = {
 	id: string;

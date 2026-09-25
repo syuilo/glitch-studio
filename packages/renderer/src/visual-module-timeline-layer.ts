@@ -2,9 +2,9 @@ import { deepClone } from '@glitch/shared/utility/deep-clone.ts';
 import { genEmptyValue } from '@glitch/shared/utility/misc.ts';
 import { ParameterEvaluator } from './parameter-evaluator.ts';
 import { layerVariables } from './expression-scope.ts';
-import type { VisualModuleCustomParameterId } from '@glitch/shared/types.ts';
+import type { VisualModuleCustomParameterId, VisualModule } from '@glitch/shared/visual-module/types.ts';
 import type { NodeOutput } from './node-output.ts';
-import type { TimelineVisualModuleLayer, VisualModule } from '@glitch/shared/types.ts';
+import type { TimelineVisualModuleLayer } from '@glitch/shared/timeline/types.ts';
 import type { VisualModuleRenderContext } from './visual-module-renderer.ts';
 import type { TimelineLayerContext, TimelineLayerRenderer } from './timeline-renderer.ts';
 

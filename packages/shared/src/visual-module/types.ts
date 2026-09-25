@@ -73,7 +73,7 @@ export type VisualModule = {
 };
 
 // レイヤー・live modeからは、モジュール内部のノードやパラメータを参照しない。
-export type VisualModuleParameterBindings = Record<VisualModuleCustomParameterId, Exclude<ParameterBinding, { type: 'node' | 'externalCustomParameterInput' }>>;
+export type VisualModuleParameterBindings = Record<VisualModuleCustomParameterId, Exclude<ParameterBinding, { inputSource: 'node' | 'externalCustomParameterInput' }>>;
 
 export type EffectNodeOf<DEF extends EffectDefinition> = Omit<VisualModuleEffectNode, 'effectId' | 'params'> & {
 	effectId: DEF['id'];

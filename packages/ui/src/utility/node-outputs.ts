@@ -1,7 +1,7 @@
 import { areNodeDataTypesCompatible, getNodeOutputs } from '@glitch/shared/utility/node-outputs.ts';
 import { effectDefinitions } from '@glitch/shared/effect/effect-definitions.js';
 import type { TextureDataType } from '@glitch/shared/data-type.ts';
-import type { VisualModuleNode, NodeOutputReference, VisualModule } from '@glitch/shared/visual-module/types.js';
+import type { VisualModuleNode, NodeOutputReference, VisualModule } from '@glitch/shared/visual-module/types.ts';
 import { preferences } from '@/preferences.ts';
 
 export function getNodeDataTypeColor(dataType: TextureDataType | null | undefined): string {
@@ -35,7 +35,7 @@ export function getNodeOutputItems(nodes: VisualModuleNode[], excludedNodeId?: s
 		if (node.id === excludedNodeId) return [];
 		const name = node.type === 'effect' ? effectDefinitions[node.effectId].displayName : node.type === 'globalIn' ? 'In' : 'Out';
 		const outputs = Object.entries(getNodeOutputs(node, paramDefs)).filter(([, output]) => inputDataType === undefined || canConnectNodeDataTypes(output.dataType, inputDataType)).map(([outputPort, output]) => {
-			const connection = { nodeId: node.id, outputPort, fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' };
+			const connection: NodeOutputReference = { nodeId: node.id, outputPort, fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' };
 			const typeCompatible = inputDataType === undefined || areNodeDataTypesCompatible(output.dataType, inputDataType);
 			return {
 				label: `${name} [${node.id}]: ${node.type === 'globalIn' ? paramDefs.find(def => def.id === outputPort)?.ui.label ?? outputPort : outputPort}`,

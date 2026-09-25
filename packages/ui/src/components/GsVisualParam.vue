@@ -166,10 +166,9 @@ import GsSelect from './common/GsSelect.vue';
 import GsAutomationGraphPointsEditorWindow from './GsAutomationGraphPointsEditorWindow.vue';
 import type { NodeOutputReference, VisualModule, VisualModuleCustomParameterId, VisualModuleEffectNode } from '@glitch/shared/visual-module/types.ts';
 import type { GlobalEnvVariable } from '@glitch/shared/expression.ts';
-import type { ParamPath } from '@/utility/node-params.ts';
+import type { ParamPath, NodeParamDef } from '@/utility/node-params.ts';
 import type { AutomationGraphPlaybackOptions, GsAutomationGraph, GsBezierAnchorPoint, ParameterBinding } from '@glitch/shared/types.ts';
 import type { MenuItem } from '@/types/menu.ts';
-import type { NodeParamDef } from '@/utility/node-params.ts';
 import { i18n } from '@/i18n.ts';
 import { appContext, wireMap } from '@/app.ts';
 import { paramPathKey } from '@/utility/node-params.ts';
@@ -226,7 +225,7 @@ const graphOffsetModeItems = [
 ] satisfies { label: string; value: AutomationGraphPlaybackOptions['offsetMode'] }[];
 const envVariableItems = computed(() => props.availableVariables.map(variable => ({ label: variable.startsWith('TEST_') ? variable : `${i18n.t(`_EnvVariables.${variable}`)} (${variable})`, value: variable })));
 const externalCustomParameterInputItems = computed(() => (props.node == null ? [] : appContext.state.visualModules.value.find(module => module.id === props.visualModuleId)?.paramDefs ?? [])
-	.map(def => ({ label: `${def.ui.label} (${def.name})`, value: def.id })));
+	.map(def => ({ label: `${def.ui.label} (${def.nameForReference})`, value: def.id })));
 const nodeOutputItems = computed(() => props.node == null ? [] : getNodeOutputItems(nodes.value, props.node.id, inputDataType.value, paramDefs.value));
 const nodeConnection = computed<NodeOutputReference | null>(() => props.paramValue.inputSource === 'node' && props.paramValue.nodeId != null ? props.paramValue : null);
 const controlComponent = useTemplateRef('controlComponent');

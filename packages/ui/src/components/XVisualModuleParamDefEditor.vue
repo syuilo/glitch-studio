@@ -2,7 +2,7 @@
 <div :class="$style.root">
 	<div :class="$style.fields">
 		<GsInput :class="$style.field" type="text" :modelValue="def.ui.label" @update:modelValue="value => update({ ui: { ...def.ui, label: value } })"/>
-		<GsInput :class="$style.field" type="text" :modelValue="def.name" @update:modelValue="value => update({ name: visualModuleCustomParameterName(value) })"/>
+		<GsInput :class="$style.field" type="text" :modelValue="def.nameForReference" @update:modelValue="value => update({ nameForReference: visualModuleCustomParameterName(value) })"/>
 		<GsSelect
 			:class="$style.field"
 			:modelValue="def.dataType"
@@ -58,7 +58,7 @@ import GsSelect from './common/GsSelect.vue';
 import GsInput from './common/GsInput.vue';
 import GsButton from './common/GsButton.vue';
 import GsSwitch from './common/GsSwitch.vue';
-import type { VisualModule } from '@glitch/shared/types.ts';
+import type { VisualModule } from '@glitch/shared/visual-module/types.ts';
 import { appContext } from '@/app.ts';
 import { i18n } from '@/i18n.ts';
 

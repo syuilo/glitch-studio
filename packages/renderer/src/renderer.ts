@@ -18,14 +18,15 @@ import { TimelineCompositingParameters } from './timeline-compositing-parameters
 import { ParameterEvaluator, type EvaluatedParameterValues } from './parameter-evaluator.ts';
 import { layerVariables } from './expression-scope.ts';
 import { OutputTextureResolver } from './node-output.ts';
-import type { VisualModuleCustomParameterId } from '@glitch/shared/types.ts';
+import type { VisualModuleCustomParameterId, VisualModule, VisualModuleParameterBindings } from '@glitch/shared/visual-module/types.ts';
 import type { NodeOutput } from './node-output.ts';
 import type { FrameScheduler, LiveFrameTiming } from './live-render-loop.ts';
 import type { TimelineLayerRenderer } from './timeline-renderer.ts';
 import type { EffectInstanceState, EffectStatusSource } from '@glitch/shared/effect/effect-status.ts';
 import type { AudioCaptureMessage, AudioSourceId } from '@glitch/shared/audio.ts';
-import type { Asset, Player, Timeline, TimelineVisualModuleLayer, VisualModule, VisualModuleParameterBindings } from '@glitch/shared/types.ts';
-import type { EffectImplementation, IntermediateTextureFormat } from '@glitch/shared/effect/effect-implementation.js';
+import type { Asset, Player, IntermediateTextureFormat } from '@glitch/shared/types.ts';
+import type { Timeline, TimelineVisualModuleLayer } from '@glitch/shared/timeline/types.ts';
+import type { EffectImplementation } from '@glitch/shared/effect/effect-implementation.js';
 import type { EffectDefinition } from '@glitch/shared/effect/effect-definition.js';
 
 export class MainRenderer {
@@ -433,7 +434,7 @@ export class MainRenderer {
 							time: context.time,
 							endTime: context.endTime,
 							isExport: context.isExport,
-							paramValues: layer.compositing,
+							paramValues: layer.compositingParamValues,
 							automationGraphs: layer.automationGraphs,
 						});
 						output = compositor.render(commandEncoder, layerContext.input, output, settings);

@@ -8,10 +8,11 @@ import { isVideoFrameAvailable, playVideoAfterFirstFrameIsReady } from './utilit
 import { LiveEffectStateStore } from './utility/live-effect-status.ts';
 import { AudioInputs } from './audio/audio-inputs.ts';
 import { setupWebcam } from './utility/webcam.ts';
-import type { Asset, VisualModule, VisualModuleParameterBindings, Player, Timeline } from '@glitch/shared/types.ts';
+import type { Asset, Player, IntermediateTextureFormat } from '@glitch/shared/types.ts';
+import type { VisualModule, VisualModuleParameterBindings } from '@glitch/shared/visual-module/types.ts';
+import type { Timeline } from '@glitch/shared/timeline/types.ts';
 import type { MainRenderer } from '@glitch/renderer/renderer.ts';
 import type { EffectInstanceState, EffectStatusSource } from '@glitch/shared/effect/effect-status.ts';
-import type { IntermediateTextureFormat } from '@glitch/shared/effect/effect-implementation.js';
 import * as ui from '@/ui.ts';
 
 type RendererMethods = {

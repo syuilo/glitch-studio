@@ -57,14 +57,14 @@
 			<div>{{ appContext.getVisualModuleById(selectedLayer?.visualModuleId)?.name }}</div>
 			<div>Compositing</div>
 			<GsVisualParam
-				v-for="paramDef of timelineCompositingParamDefs"
-				:key="`${selectedLayer.id}:compositing:${paramDef.id}`"
+				v-for="(paramDef, paramId) in timelineCompositingParamDefs"
+				:key="`${selectedLayer.id}:compositing:${paramId}`"
 				:availableVariables="layerEnvVarDefs"
 				:automationGraphs="selectedLayer.automationGraphs"
 				:visualModuleId="selectedLayer.visualModuleId"
-				:paramPath="[paramDef.id]"
+				:paramPath="[paramId]"
 				:paramDef="paramDef"
-				:paramValue="selectedLayer.compositing[paramDef.id] ?? paramDef.defaultValue"
+				:paramValue="selectedLayer.compositingParamValues[paramId]"
 				@edit="event => onVisualModuleLayerParamEdit(event, 'compositing')"
 			/>
 			<div :class="$style.compositingHint">Transform applies to the module output. Replace includes transparent areas. Position 1 = half the canvas.</div>
@@ -94,7 +94,7 @@ import { genId } from '@glitch/shared/utility/id.js';
 import { timelineCompositingParamDefs } from '@glitch/shared/timeline/timeline-compositing.ts';
 import GsButton from './common/GsButton.vue';
 import GsVisualParam from './GsVisualParam.vue';
-import type { Timeline } from '@glitch/shared/types.js';
+import type { Timeline } from '@glitch/shared/timeline/types.ts';
 import type { ParamEdit } from './GsVisualParam.vue';
 import { appContext } from '@/app.ts';
 import { dragListen } from '@/utility/drag.ts';

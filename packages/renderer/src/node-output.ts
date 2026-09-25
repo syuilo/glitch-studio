@@ -1,7 +1,7 @@
 import { textureShaderInput } from '@glitch/shared/shader-input.ts';
 import { float32ToFloat16Bits } from '@glitch/shared/utility/float32ToFloat16Bits.ts';
 import type { ShaderInput } from '@glitch/shared/shader-input.ts';
-import type { NodeOutputReference } from '@glitch/shared/types.ts';
+import type { NodeOutputReference } from '@glitch/shared/visual-module/types.ts';
 
 // 出力値は接続先のサンプリング設定を持たない。色は既にpremultiply済み。
 export type NodeOutput = Extract<ShaderInput, { kind: 'uniform' }> | { kind: 'texture'; texture: GPUTexture };

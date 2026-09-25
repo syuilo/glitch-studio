@@ -20,7 +20,7 @@
 
 <script lang="ts" setup>
 import { genId } from '@glitch/shared/utility/id.js';
-import type { VisualModule } from '@glitch/shared/types.ts';
+import type { VisualModule } from '@glitch/shared/visual-module/types.ts';
 import GsInput from './common/GsInput.vue';
 import GsSelect from './common/GsSelect.vue';
 import GsSwitch from './common/GsSwitch.vue';

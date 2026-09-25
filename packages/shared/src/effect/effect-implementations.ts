@@ -1,6 +1,6 @@
 import type { EffectImplementation } from '@glitch/shared/effect/effect-implementation.js';
 
-const modules = import.meta.glob<EffectImplementation<any>>('./effects/*/_impl_.ts', {
+const modules = import.meta.glob<EffectImplementation<any>>('./fx/*/_impl_.ts', {
 	eager: true,
 	import: 'default',
 });

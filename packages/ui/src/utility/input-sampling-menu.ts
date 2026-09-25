@@ -1,6 +1,6 @@
 import { computed } from 'vue';
 import type { Ref } from 'vue';
-import type { NodeOutputReference } from '@glitch/shared/types.ts';
+import type { NodeOutputReference } from '@glitch/shared/visual-module/types.ts';
 import type { MenuItem } from '@/types/menu.ts';
 import { i18n } from '@/i18n.ts';
 

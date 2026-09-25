@@ -1,5 +1,5 @@
 type InputFitMode = 'stretch' | 'cover' | 'contain';
-type InputWrapMode = 'repeat' | 'repeatMirrored' | 'clamp';
+type InputWrapMode = 'repeat' | 'repeatMirrored' | 'clamp' | 'transparent';
 type InputFilterMode = 'nearest' | 'linear';
 
 export type ShaderInput =

@@ -1,7 +1,7 @@
 import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { implementEffect } from '../../effect-implementation.ts';
 import { createShaderInputPipeline } from '../../../shader-input-pipeline.ts';
-import { inputUvScale } from '../../shader-input.ts';
+import { inputUvScale } from '../../../shader-input.ts';
 import commonCode from './common.wgsl?raw';
 import internalCode from './shader.wgsl?raw';
 import inputCode from './input.wgsl?raw';

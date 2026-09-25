@@ -2,8 +2,8 @@
 // Modified for WebGPU and live node inputs; no uploaded-image or shape selector.
 import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { implementEffect } from '../../effect-implementation.ts';
-import { createShaderInputBindings, generateShaderInputs } from '../../shader-input.ts';
-import type { ShaderInput } from '../../shader-input.ts';
+import { createShaderInputBindings, generateShaderInputs } from '../../../shader-input.ts';
+import type { ShaderInput } from '../../../shader-input.ts';
 import code from './shader.wgsl?raw';
 import preprocessCode from './preprocess.wgsl?raw';
 import type definition from './_def_.ts';

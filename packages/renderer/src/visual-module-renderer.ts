@@ -13,8 +13,9 @@ import type { EvaluatedParameterValues, ParameterEvaluationContext } from './par
 import type { NodeOutput } from './node-output.ts';
 import type { EffectStatus, EffectInstanceState } from '@glitch/shared/effect/effect-status.ts';
 import type { AudioSourceId } from '@glitch/shared/audio.ts';
-import type { Asset, GsAutomationGraph, VisualModuleEffectNode, VisualModuleGlobalInNode, VisualModuleNode, NodeOutputReference, VisualModule } from '@glitch/shared/types.ts';
-import type { EffectImplementation, EffectInstance, IntermediateTextureFormat } from '@glitch/shared/effect/effect-implementation.js';
+import type { Asset, GsAutomationGraph, IntermediateTextureFormat } from '@glitch/shared/types.ts';
+import type { VisualModuleEffectNode, VisualModuleGlobalInNode, VisualModuleNode, NodeOutputReference, VisualModule } from '@glitch/shared/visual-module/types.ts';
+import type { EffectImplementation, EffectInstance } from '@glitch/shared/effect/effect-implementation.js';
 import type { EffectDefinition } from '@glitch/shared/effect/effect-definition.js';
 
 export type VisualModuleRenderContext = {
@@ -195,7 +196,7 @@ export class VisualModuleRenderer {
 		const state = this.effectStatuses.get(node.id);
 		if (state == null) return;
 		// 描画完了後の出力だけ公開する。初期化用の1x1や前回の未使用出力を表示しない。
-		state.outputs = Object.fromEntries(Object.entries(this.effectDefinitions[node.effectId].outputs).map(([port, def]) => {
+		state.outputs = Object.fromEntries(Object.entries(this.effectDefinitions[node.effectId].outputDefs).map(([port, def]) => {
 			const texture = rendered && !node.isBypass && (!def.canLazyAllocation || this.usedOutputPorts.get(node.id)?.has(port))
 				? this.outDataMapPerNodes.get(node.id)?.[port]?.texture : undefined;
 			return [port, texture == null ? null : { width: texture.width, height: texture.height }];
@@ -370,7 +371,7 @@ export class VisualModuleRenderer {
 						previousFrameTextureView: previousTexture?.createView(),
 					};
 				};
-				if (this.effectDefinitions[node.effectId].outputs[k].canLazyAllocation === true) lazy[k] = allocate;
+				if (this.effectDefinitions[node.effectId].outputDefs[k].canLazyAllocation === true) lazy[k] = allocate;
 				else allocate();
 			}
 			if (Object.keys(lazy).length > 0) this.lazyOutputs.set(node.id, lazy);
@@ -442,8 +443,8 @@ export class VisualModuleRenderer {
 			return source == null ? undefined : this.getOutputNode(source, input.outputPort ?? undefined, nextVisited);
 		}
 		if (!node.isBypass) {
-			const port = outputPort ?? Object.entries(this.effectDefinitions[node.effectId].outputs).find(([, def]) => def.primary)?.[0];
-			return port == null || this.effectDefinitions[node.effectId].outputs[port] == null ? undefined : { node, outputPort: port };
+			const port = outputPort ?? Object.entries(this.effectDefinitions[node.effectId].outputDefs).find(([, def]) => def.primary)?.[0];
+			return port == null || this.effectDefinitions[node.effectId].outputDefs[port] == null ? undefined : { node, outputPort: port };
 		}
 		const primary = Object.entries(this.effectDefinitions[node.effectId].paramDefs).find(([, def]) => def.primary);
 		const input: NodeOutputReference | null = primary ? this.evaledNodeParams.get(node.id)![primary[0]] : null;
@@ -603,7 +604,7 @@ export class VisualModuleRenderer {
 	private initializeEffect(node: VisualModuleEffectNode, params: Record<string, any>): EffectInstance {
 		const existing = this.effectInstances.get(node.id);
 		if (existing != null) return existing;
-		const state: { sent?: EffectStatus; outputs: EffectInstanceState['outputs']; published?: string } = { outputs: Object.fromEntries(Object.keys(this.effectDefinitions[node.effectId].outputs).map(port => [port, null])) };
+		const state: { sent?: EffectStatus; outputs: EffectInstanceState['outputs']; published?: string } = { outputs: Object.fromEntries(Object.keys(this.effectDefinitions[node.effectId].outputDefs).map(port => [port, null])) };
 		this.effectStatuses.set(node.id, state);
 		const instance = this.effectImplementations[node.effectId].init({
 			reportStatus: status => {

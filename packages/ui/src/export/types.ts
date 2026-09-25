@@ -1,5 +1,6 @@
-import type { Asset, Timeline, VisualModule } from '@glitch/shared/types.ts';
-import type { IntermediateTextureFormat } from '@glitch/shared/effect/effect-implementation.js';
+import type { Asset, IntermediateTextureFormat } from '@glitch/shared/types.ts';
+import type { Timeline } from '@glitch/shared/timeline/types.ts';
+import type { VisualModule } from '@glitch/shared/visual-module/types.ts';
 import type { ExportProgress, TimelineExportSettings } from './timeline-export.ts';
 
 export type ExportRequest = {

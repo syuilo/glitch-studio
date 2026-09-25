@@ -8,7 +8,7 @@ type EffectParamDef = ParameterDefinition & {
 
 type Definition = Omit<EffectDefinition<any>, 'paramDefs'> & { paramDefs: Record<string, EffectParamDef> };
 
-const modules = import.meta.glob<Definition>('./effects/*/_def_.ts', {
+const modules = import.meta.glob<Definition>('./fx/*/_def_.ts', {
 	eager: true,
 	import: 'default',
 });

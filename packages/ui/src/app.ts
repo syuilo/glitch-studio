@@ -1,6 +1,7 @@
 import { visualModuleCustomParameterId, visualModuleCustomParameterName } from '@glitch/shared/visual-module/types.ts';
 import { ref, markRaw, reactive, watch, shallowRef, triggerRef, computed } from 'vue';
 import { deepClone } from '@glitch/shared/utility/deep-clone.ts';
+import { timelineCompositingParamDefs } from '@glitch/shared/timeline/timeline-compositing.ts';
 import { genId } from '@glitch/shared/utility/id.ts';
 import fillEffectDef from '@glitch/shared/effect/fx/fill/_def_.ts';
 import imageEffectDef from '@glitch/shared/effect/fx/image/_def_.ts';
@@ -14,8 +15,9 @@ import GsEffectPicker from './components/GsEffectPicker.vue';
 import { currentTimelineTime } from './timeline.ts';
 import type { CommandDef } from './commands.ts';
 import type { AppState } from './types.ts';
-import type { EffectNodeOf } from '@glitch/shared/effect/effect-definition.ts';
-import type { Asset, Player, VisualModule, Timeline } from '@glitch/shared/types.ts';
+import type { EffectNodeOf, VisualModule } from '@glitch/shared/visual-module/types.ts';
+import type { Asset, Player } from '@glitch/shared/types.ts';
+import type { Timeline } from '@glitch/shared/timeline/types.ts';
 import type { Project } from './gsproj.ts';
 import * as ui from '@/ui.ts';
 import * as api from '@/api.ts';
@@ -253,7 +255,7 @@ export async function newProject() {
 		outputDefs: [{ id: initialOutputId, label: 'Output', name: 'output', dataType: 'color', isPrimaryOutput: true }],
 		paramDefs: [{
 			id: initialInputParamId,
-			name: visualModuleCustomParameterName('myInput'),
+			nameForReference: visualModuleCustomParameterName('myInput'),
 			dataType: 'color',
 			ui: { label: 'My Input', control: 'color' },
 			defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] },
@@ -293,7 +295,15 @@ export async function newProject() {
 			layerType: 'visualModule',
 			visualModuleId: initialVisualModule.id,
 			paramValues: {},
-			compositing: {},
+			compositingParamValues: deepClone({
+				blendMode: timelineCompositingParamDefs.blendMode.defaultValue,
+				opacity: timelineCompositingParamDefs.opacity.defaultValue,
+				translationX: timelineCompositingParamDefs.translationX.defaultValue,
+				translationY: timelineCompositingParamDefs.translationY.defaultValue,
+				scaleX: timelineCompositingParamDefs.scaleX.defaultValue,
+				scaleY: timelineCompositingParamDefs.scaleY.defaultValue,
+				rotation: timelineCompositingParamDefs.rotation.defaultValue,
+			}),
 			automationGraphs: [],
 			startTimeMs: 0,
 			endTimeMs: 1000 * 10,
@@ -340,7 +350,7 @@ export async function newProjectFromImageOrVideo(file?: File) {
 		outputDefs: [{ id: initialOutputId, label: 'Output', name: 'output', dataType: 'color', isPrimaryOutput: true }],
 		paramDefs: [{
 			id: initialInputParamId,
-			name: visualModuleCustomParameterName('myInput'),
+			nameForReference: visualModuleCustomParameterName('myInput'),
 			dataType: 'color',
 			ui: { label: 'My Input', control: 'color' },
 			defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] },
@@ -413,7 +423,15 @@ export async function newProjectFromImageOrVideo(file?: File) {
 			layerType: 'visualModule',
 			visualModuleId: initialVisualModule.id,
 			paramValues: {},
-			compositing: {},
+			compositingParamValues: deepClone({
+				blendMode: timelineCompositingParamDefs.blendMode.defaultValue,
+				opacity: timelineCompositingParamDefs.opacity.defaultValue,
+				translationX: timelineCompositingParamDefs.translationX.defaultValue,
+				translationY: timelineCompositingParamDefs.translationY.defaultValue,
+				scaleX: timelineCompositingParamDefs.scaleX.defaultValue,
+				scaleY: timelineCompositingParamDefs.scaleY.defaultValue,
+				rotation: timelineCompositingParamDefs.rotation.defaultValue,
+			}),
 			automationGraphs: [],
 			startTimeMs: 0,
 			endTimeMs: 1000 * 10,

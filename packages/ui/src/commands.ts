@@ -5,9 +5,10 @@ import { deepClone } from '@glitch/shared/utility/deep-clone.ts';
 import { getNodeInputDataType, getNodeOutputs } from '@glitch/shared/utility/node-outputs.ts';
 import { genEmptyValue } from '@glitch/shared/utility/misc.ts';
 import { timelineCompositingParamDefs } from '@glitch/shared/timeline/timeline-compositing.ts';
-import type { VisualModuleCustomParameterId } from '@glitch/shared/types.ts';
+import type { VisualModuleCustomParameterId, VisualModuleEffectNode, VisualModuleNode, NodeOutputReference, VisualModule } from '@glitch/shared/visual-module/types.ts';
+import type { ParameterDefinition } from '@glitch/shared/parameter.ts';
 import type { AppState } from './types.ts';
-import type { Asset, AutomationGraphPlaybackOptions, EffectParamDefs, ParameterBinding, VisualModuleEffectNode, VisualModuleNode, Player, NodeOutputReference, VisualModule } from '@glitch/shared/types.ts';
+import type { Asset, AutomationGraphPlaybackOptions, ParameterBinding, Player } from '@glitch/shared/types.ts';
 import type { NodeParamTarget as EffectNodeParamTarget } from '@/utility/node-params.ts';
 import type { GlobalEnvVariable } from '@glitch/shared/expression.js';
 import { canConnectNodeDataTypes } from '@/utility/node-outputs.ts';
@@ -64,11 +65,12 @@ const editVisualModuleLayerParamCommandDef = defineCommand<{
 		return {
 			execute(state) {
 				const layer = getLayer(state);
-				const values = payload.target === 'compositing' ? layer.compositing : layer.paramValues;
+				const values: Record<string, ParameterBinding> = payload.target === 'compositing' ? layer.compositingParamValues : layer.paramValues;
 				if (after === undefined) {
-					const defs = payload.target === 'compositing' ? timelineCompositingParamDefs : stateUtility.getVisualModule(state, layer.visualModuleId).paramDefs;
-					const def = defs.find(def => def.id === payload.paramId);
-					if (def == null || def.isPrimaryInput) throw new Error('Editable visual module parameter not found');
+					const def = payload.target === 'compositing'
+						? Object.entries(timelineCompositingParamDefs).find(([id]) => id === payload.paramId)?.[1]
+						: stateUtility.getVisualModule(state, layer.visualModuleId).paramDefs.find(def => def.id === payload.paramId);
+					if (def == null || ('isPrimaryInput' in def && def.isPrimaryInput)) throw new Error('Editable visual module parameter not found');
 					before = deepClone(values[payload.paramId]);
 					const current = before ?? def.defaultValue;
 					const edit = payload.edit;
@@ -106,7 +108,7 @@ const editVisualModuleLayerParamCommandDef = defineCommand<{
 			},
 			undo(state) {
 				const layer = getLayer(state);
-				const values = payload.target === 'compositing' ? layer.compositing : layer.paramValues;
+				const values: Record<string, ParameterBinding> = payload.target === 'compositing' ? layer.compositingParamValues : layer.paramValues;
 				// デフォルト値を参照していた状態も復元し、定義への不要な上書きを残さない。
 				if (before === undefined) delete values[payload.paramId];
 				else values[payload.paramId] = deepClone(before);
@@ -129,7 +131,7 @@ const addEffectNodeCommandDef = defineCommand<{ visualModuleId: string; id: stri
 			execute(state) {
 				const visualModule = stateUtility.getVisualModule(state, payload.visualModuleId);
 				if (addedNode == null) {
-					const paramDefs = effectDefinitions[payload.effectId].paramDefs as EffectParamDefs;
+					const paramDefs = effectDefinitions[payload.effectId].paramDefs as Record<string, ParameterDefinition>;
 					const globalOut = visualModule.nodes.find(node => node.type === 'globalOut');
 					const primaryOutput = visualModule.outputDefs.find(def => def.isPrimaryOutput);
 					const previousInput = primaryOutput == null ? undefined : globalOut?.inputs[primaryOutput.id];
@@ -585,7 +587,7 @@ const updateGlobalOutInputCommandDef = defineCommand<NodeTarget & { outputId: st
 type VisualModuleParamDef = VisualModule['paramDefs'][number];
 
 function validateVisualModuleParamDef(module: VisualModule, def: VisualModuleParamDef, previousId?: VisualModuleCustomParameterId) {
-	if (module.paramDefs.some(item => item.id !== previousId && (item.id === def.id || item.name === def.name))) {
+	if (module.paramDefs.some(item => item.id !== previousId && (item.id === def.id || item.nameForReference === def.nameForReference))) {
 		throw new Error('Parameter ID and name must be unique');
 	}
 	if (def.isPrimaryInput && (!def.canNode || def.dataType !== 'color'
