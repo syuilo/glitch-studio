@@ -6,8 +6,8 @@ export default defineEffect({
 	tags: [],
 	primaryInputParameter: 'inputA',
 	paramDefs: {
-		inputA: { dataType: 'any', ui: { label: 'A', control: 'none' }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },
-		inputB: { dataType: 'any', ui: { label: 'B', control: 'none' }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },
+		inputA: { dataType: 'any', ui: { label: 'A', control: 'none' }, canNode: true, defaultValue: { inputSource: 'literal', value: null } },
+		inputB: { dataType: 'any', ui: { label: 'B', control: 'none' }, canNode: true, defaultValue: { inputSource: 'literal', value: null } },
 		amount: { dataType: 'scalar', ui: { label: 'Amount', control: 'range', min: 0, max: 1, step: 0.01 }, canNode: true, defaultValue: { inputSource: 'literal', value: 0.5 } },
 	},
 	outputDefs: {

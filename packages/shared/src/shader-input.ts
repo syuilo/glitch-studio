@@ -18,7 +18,9 @@ export function constantShaderInput(dataType: string, value: any): ShaderInput {
 	}
 	if (dataType === 'vector') return { kind: 'uniform', value: [value?.[0] ?? 0, value?.[1] ?? 0] };
 	if (dataType === 'scalar') return { kind: 'uniform', value: [value ?? 0] };
-	if (dataType === 'any' && value == null) return { kind: 'uniform', value: [0, 0, 0, 0] };
+	// anyの4成分はデータなので、第4成分によるpremultiplyを行わない。
+	// 未接続や評価失敗のnullも、他の入力型と同様にゼロ値へ変換する。
+	if (dataType === 'any') return { kind: 'uniform', value: [value?.[0] ?? 0, value?.[1] ?? 0, value?.[2] ?? 0, value?.[3] ?? 0] };
 	throw new Error(`Unsupported shader input constant: ${dataType}`);
 }
 

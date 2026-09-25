@@ -88,6 +88,8 @@ export type ParameterDefinition_Array = ParameterDefinitionBase<'array'> & {
 export type ParameterDefinition_Any = ParameterDefinitionBase<'any'> & {
 	ui: { control: 'none' };
 	canNode: true;
+	// 4成分は色ではなくデータとして扱う。nullは未接続と同じゼロ値を表す。
+	defaultValue: { inputSource: 'literal'; value: [number, number, number, number] | null };
 };
 
 export type ParameterDefinition =
