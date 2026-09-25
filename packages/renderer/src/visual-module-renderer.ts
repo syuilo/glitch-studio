@@ -151,7 +151,7 @@ export class VisualModuleRenderer {
 			time: context.time,
 			endTime: context.endTime,
 			evaluatedParamValues: context.evaluatedParamValues,
-			paramIdsByName: new Map(this.paramDefs.map(def => [def.name, def.id])),
+			paramIdsByName: new Map(this.paramDefs.map(def => [def.nameForReference, def.id])),
 		} satisfies ParameterEvaluationContext;
 
 		const evaluated = new Map<VisualModuleNode['id'], Record<string, any>>();
