@@ -1,12 +1,7 @@
 import type { ParameterDefinition } from '../parameter.ts';
-import type { ParameterBinding } from '../types.ts';
 import type { EffectDefinition } from './effect-definition.ts';
 
-type EffectParamDef = ParameterDefinition & {
-	defaultValue: ParameterBinding;
-};
-
-type Definition = Omit<EffectDefinition<any>, 'paramDefs'> & { paramDefs: Record<string, EffectParamDef> };
+type Definition = Omit<EffectDefinition<any>, 'paramDefs'> & { paramDefs: Record<string, ParameterDefinition> };
 
 const modules = import.meta.glob<Definition>('./fx/*/_def_.ts', {
 	eager: true,
