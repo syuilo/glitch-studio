@@ -10,10 +10,10 @@ export function getNodeInputSamplingMenuItems(read: () => NodeOutputReference | 
 		type: 'radio',
 		text: 'Fit Mode',
 		disabled,
-		caption: computed(() => i18n.t(`_FitModes.${read()?.fitMode ?? 'cover'}`)),
+		caption: computed(() => i18n.t(`_FitModes.${read()?.fitMode}`)),
 		ref: computed({
-			get: () => read()?.fitMode ?? 'cover',
-			set: (fitMode: NonNullable<NodeOutputReference['fitMode']>) => {
+			get: () => read()?.fitMode,
+			set: (fitMode: NodeOutputReference['fitMode']) => {
 				const connection = read();
 				if (connection) update({ ...connection, fitMode });
 			},
@@ -23,10 +23,10 @@ export function getNodeInputSamplingMenuItems(read: () => NodeOutputReference | 
 		type: 'radio',
 		text: 'Wrap Mode',
 		disabled,
-		caption: computed(() => i18n.t(`_WrapModes.${read()?.wrapMode ?? 'repeatMirrored'}`)),
+		caption: computed(() => i18n.t(`_WrapModes.${read()?.wrapMode}`)),
 		ref: computed({
-			get: () => read()?.wrapMode ?? 'repeatMirrored',
-			set: (wrapMode: NonNullable<NodeOutputReference['wrapMode']>) => {
+			get: () => read()?.wrapMode,
+			set: (wrapMode: NodeOutputReference['wrapMode']) => {
 				const connection = read();
 				if (connection) update({ ...connection, wrapMode });
 			},
@@ -36,10 +36,10 @@ export function getNodeInputSamplingMenuItems(read: () => NodeOutputReference | 
 		type: 'radio',
 		text: 'Filter Mode',
 		disabled,
-		caption: computed(() => i18n.t(`_FilterModes.${read()?.filterMode ?? 'linear'}`)),
+		caption: computed(() => i18n.t(`_FilterModes.${read()?.filterMode}`)),
 		ref: computed({
-			get: () => read()?.filterMode ?? 'linear',
-			set: (filterMode: NonNullable<NodeOutputReference['filterMode']>) => {
+			get: () => read()?.filterMode,
+			set: (filterMode: NodeOutputReference['filterMode']) => {
 				const connection = read();
 				if (connection) update({ ...connection, filterMode });
 			},

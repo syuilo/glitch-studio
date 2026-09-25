@@ -1,8 +1,9 @@
 import type { NodeOutputReference } from './types.ts';
 
-export type InputFitMode = NonNullable<NodeOutputReference['fitMode']>;
-export type InputWrapMode = NonNullable<NodeOutputReference['wrapMode']>;
-export type InputFilterMode = NonNullable<NodeOutputReference['filterMode']>;
+type InputFitMode = NodeOutputReference['fitMode'];
+type InputWrapMode = NodeOutputReference['wrapMode'];
+type InputFilterMode = NodeOutputReference['filterMode'];
+
 export type ShaderInput =
 	| { kind: 'uniform'; value: readonly number[] }
 	| { kind: 'texture'; texture: GPUTexture; fitMode: InputFitMode; wrapMode: InputWrapMode; filterMode: InputFilterMode };
@@ -71,8 +72,8 @@ export function generateShaderInputs(schema: ShaderInputSchema, inputs: ShaderIn
 			}
 			const index = slots.length;
 			slots.push({ name, sourceName, elementIndex: typeof type === 'object' ? elementIndex : undefined,
-				type: typeof type === 'object' ? type.array : type, index, kind: input.kind,
-				textureBinding: index * 2 + 1, samplerBinding: index * 2 + 2 });
+																type: typeof type === 'object' ? type.array : type, index, kind: input.kind,
+																textureBinding: index * 2 + 1, samplerBinding: index * 2 + 2 });
 			elementNames.push(name);
 		}
 		if (typeof type === 'object') arrays.push({ name: sourceName, type: type.array, elements: elementNames });
