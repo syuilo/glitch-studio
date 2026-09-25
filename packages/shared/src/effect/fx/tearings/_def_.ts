@@ -4,8 +4,9 @@ export default defineEffect({
 	id: 'tearings',
 	displayName: 'Tearings',
 	tags: [],
+	primaryInputParameter: 'input',
 	paramDefs: {
-		input: { dataType: 'color', ui: { label: 'Input', control: 'color' }, canNode: true, primary: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },
+		input: { dataType: 'color', ui: { label: 'Input', control: 'color' }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },
 		amount: { dataType: 'scalar', ui: { label: 'Amount', control: 'range', min: 0, max: 100 }, defaultValue: { inputSource: 'literal', value: 3 } },
 		strength: { dataType: 'scalar', ui: { label: 'Strength', control: 'range', min: -1, max: 1, step: 0.01 }, defaultValue: { inputSource: 'literal', value: 0.02 } },
 		size: { dataType: 'scalar', ui: { label: 'Size', control: 'range', min: 0, max: 100, step: 0.01 }, defaultValue: { inputSource: 'literal', value: 20 } },

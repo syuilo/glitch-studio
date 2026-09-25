@@ -6,8 +6,9 @@ export default defineEffect({
 	id: 'water',
 	displayName: 'Water',
 	tags: [],
+	primaryInputParameter: 'input',
 	paramDefs: {
-		input: { dataType: 'color', ui: { label: 'Input', control: 'color' }, canNode: true, primary: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },
+		input: { dataType: 'color', ui: { label: 'Input', control: 'color' }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },
 		colorHighlight: { dataType: 'color', ui: { label: 'Highlight color', control: 'color' }, defaultValue: { inputSource: 'literal', value: [1, 1, 1, 1] } },
 		colorHighlightAlpha: { dataType: 'scalar', ui: { label: 'Highlight alpha', control: 'range', min: 0, max: 1, step: 0.01 }, defaultValue: { inputSource: 'literal', value: 1 } },
 		highlights: { dataType: 'scalar', ui: { label: 'Highlights', control: 'range', min: 0, max: 1, step: 0.01 }, defaultValue: { inputSource: 'literal', value: 0.07 } },

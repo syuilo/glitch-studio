@@ -4,8 +4,9 @@ export default defineEffect({
 	id: 'rgbTo',
 	displayName: 'RGB To',
 	tags: [],
+	primaryInputParameter: 'input',
 	paramDefs: {
-		input: { dataType: 'color', ui: { label: 'Input', control: 'color' }, canNode: true, primary: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },
+		input: { dataType: 'color', ui: { label: 'Input', control: 'color' }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },
 		mode: {
 			dataType: 'enum', ui: { label: 'Mode', control: 'enum' },
 			options: [{

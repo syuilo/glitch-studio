@@ -4,6 +4,7 @@ export default defineEffect({
 	id: 'snoise',
 	displayName: 'snoise',
 	tags: [],
+	primaryInputParameter: null,
 	paramDefs: {
 		scale: { dataType: 'vector', ui: { label: 'Scale', control: 'vector', min: 0, max: 16, step: 0.01 }, canNode: true, defaultValue: { inputSource: 'literal', value: [1, 1] } },
 		offset: { dataType: 'vector', ui: { label: 'Offset', control: 'vector', min: 0, max: 16, step: 0.01 }, defaultValue: { inputSource: 'literal', value: [0, 0] } },

@@ -139,7 +139,7 @@ const addEffectNodeCommandDef = defineCommand<{ visualModuleId: string; id: stri
 					const params: VisualModuleEffectNode['params'] = {};
 					for (const [key, def] of Object.entries(paramDefs)) {
 						params[key] = deepClone(def.defaultValue);
-						if (def.primary && previousInput?.nodeId != null) {
+						if (key === effectDefinitions[payload.effectId].primaryInputParameter && previousInput?.nodeId != null) {
 							// 元の接続が副出力でも、その出力ポートをそのまま引き継ぐ。
 							const output = getNodeOutputs(previous, visualModule.paramDefs)[previousInput.outputPort];
 							if (canConnectNodeDataTypes(output?.dataType, getNodeInputDataType(def))) {
@@ -219,10 +219,8 @@ const removeNodeCommandDef = defineCommand<NodeTarget>({
 				const removedNode = stateUtility.findNode(state, payload);
 				if (removedNode == null) return;
 				if (removedNode.type !== 'effect') throw new Error('In/Out nodes cannot be removed');
-				const primary = removedNode.type === 'effect'
-					? [...walkNodeParams(removedNode)].find(({ def }) => def.canNode && def.primary)
-					: undefined;
-				const input = primary?.value;
+				const primary = effectDefinitions[removedNode.effectId].primaryInputParameter;
+				const input = primary === null ? undefined : removedNode.params[primary];
 				const replacement: NodeOutputReference | null = input?.inputSource === 'node' && input.nodeId != null && input.nodeId !== payload.nodeId
 					? { nodeId: input.nodeId, outputPort: input.outputPort } : null;
 				const replacementOutput = replacement == null ? undefined : getNodeOutputs(visualModule.nodes.find(node => node.id === replacement.nodeId), visualModule.paramDefs)[replacement.outputPort];

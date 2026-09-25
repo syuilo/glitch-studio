@@ -4,8 +4,9 @@ export default defineEffect({
 	id: 'remap',
 	displayName: 'Remap',
 	tags: [],
+	primaryInputParameter: 'input',
 	paramDefs: {
-		input: { dataType: 'scalar', ui: { label: 'Input', control: 'number' }, canNode: true, primary: true, defaultValue: { inputSource: 'literal', value: 0 } },
+		input: { dataType: 'scalar', ui: { label: 'Input', control: 'number' }, canNode: true, defaultValue: { inputSource: 'literal', value: 0 } },
 		inMin: { dataType: 'scalar', ui: { label: 'In Min', control: 'number', step: 0.01 }, canNode: true, defaultValue: { inputSource: 'literal', value: 0 } },
 		inMax: { dataType: 'scalar', ui: { label: 'In Max', control: 'number', step: 0.01 }, canNode: true, defaultValue: { inputSource: 'literal', value: 1 } },
 		outMin: { dataType: 'scalar', ui: { label: 'Out Min', control: 'number', step: 0.01 }, canNode: true, defaultValue: { inputSource: 'literal', value: 0 } },

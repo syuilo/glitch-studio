@@ -16,11 +16,17 @@ export type EffectDefinition<In extends Record<string, ParameterDefinition> = Re
 	displayName: string;
 	tags: EffectTags[];
 	paramDefs: In;
+	// バイパス・自動接続に使うトップレベルの入力。主入力がないエフェクトはnull。
+	primaryInputParameter: Extract<keyof In, string> | null;
 	outputDefs: Out;
 };
 
 export function defineEffect<const In extends Record<string, ParameterDefinition>, const Out extends EffectOutputDefinitions>(
 	def: EffectDefinition<In, Out>,
 ): EffectDefinition<In, Out> {
+	// 主入力は接続を受け取るため、通常の数値設定やコンテナは指定できない。
+	if (def.primaryInputParameter !== null && def.paramDefs[def.primaryInputParameter]?.canNode !== true) {
+		throw new Error(`Primary input must reference a node-capable parameter: ${def.id}.${def.primaryInputParameter}`);
+	}
 	return def;
 }

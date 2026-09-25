@@ -4,6 +4,7 @@ export default defineEffect({
 	id: 'image',
 	displayName: 'Image',
 	tags: [],
+	primaryInputParameter: null,
 	paramDefs: {
 		image: {
 			dataType: 'assetReference', ui: { label: 'Image', control: 'image' },

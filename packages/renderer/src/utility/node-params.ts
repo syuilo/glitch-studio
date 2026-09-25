@@ -18,7 +18,7 @@ export function mapNodeParam(def: ParameterDefinition, param: ParameterBinding, 
 	return mapLeaf(def, param, path);
 }
 
-export function* walkNodeParams(defs: Record<string, ParameterDefinition>, params: Record<string, ParameterBinding>, bypass = false): Generator<{
+export function* walkNodeParams(defs: Record<string, ParameterDefinition>, params: Record<string, ParameterBinding>): Generator<{
 	def: ParameterDefinition; param: ParameterBinding; path: ParamPath;
 }> {
 	function* walk(def: ParameterDefinition, param: ParameterBinding, path: ParamPath): ReturnType<typeof walkNodeParams> {
@@ -36,7 +36,6 @@ export function* walkNodeParams(defs: Record<string, ParameterDefinition>, param
 	}
 
 	for (const [key, def] of Object.entries(defs)) {
-		if (bypass && !def.primary) continue;
 		yield* walk(def, params[key], [key]);
 	}
 }

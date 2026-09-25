@@ -4,6 +4,7 @@ export default defineEffect({
 	id: 'gradient',
 	displayName: 'Gradient',
 	tags: [],
+	primaryInputParameter: null,
 	paramDefs: {
 		mode: {
 			dataType: 'enum', ui: { label: 'Type', control: 'enum' },

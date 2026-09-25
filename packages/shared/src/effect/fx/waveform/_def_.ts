@@ -4,8 +4,9 @@ export default defineEffect({
 	id: 'waveform',
 	displayName: 'Waveform',
 	tags: [],
+	primaryInputParameter: 'input',
 	paramDefs: {
-		input: { dataType: 'color', ui: { label: 'Input', control: 'color' }, canNode: true, primary: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },
+		input: { dataType: 'color', ui: { label: 'Input', control: 'color' }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },
 		resolution: { dataType: 'enum', ui: { label: 'Resolution', control: 'enum' }, options: [
 			{ label: '1/1', value: 1 },
 			{ label: '1/2', value: 2 },

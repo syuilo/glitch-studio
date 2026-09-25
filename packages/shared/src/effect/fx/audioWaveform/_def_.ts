@@ -4,6 +4,7 @@ export default defineEffect({
 	id: 'audioWaveform',
 	displayName: 'Audio Waveform',
 	tags: [],
+	primaryInputParameter: null,
 	paramDefs: {
 		player: { dataType: 'playerReference', ui: { label: 'Player', control: 'player' }, defaultValue: { inputSource: 'literal', value: null } },
 		channel: { dataType: 'enum', ui: { label: 'Channel', control: 'enum' }, options: [

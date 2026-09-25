@@ -4,6 +4,7 @@ export default defineEffect({
 	id: 'video',
 	displayName: 'Video',
 	tags: [],
+	primaryInputParameter: null,
 	paramDefs: {
 		player: {
 			dataType: 'playerReference', ui: { label: 'Player', control: 'player' },

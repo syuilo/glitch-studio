@@ -160,7 +160,7 @@ export class VisualModuleRenderer {
 			const paramDefs = this.effectDefinitions[node.effectId].paramDefs;
 			const evaluatedParamsPerNode = {} as Record<string, any>;
 			for (const [key, def] of Object.entries(paramDefs)) {
-				if (node.isBypass && !def.primary) continue;
+				if (node.isBypass && key !== this.effectDefinitions[node.effectId].primaryInputParameter) continue;
 				evaluatedParamsPerNode[key] = mapNodeParam(def, node.params[key], [key], (def, param) => {
 					return this.parameterEvaluator.evaluate(param, evalCtx, genEmptyValue(def)); // TODO: genEmptyValueを遅延評価したい
 				});
@@ -446,8 +446,8 @@ export class VisualModuleRenderer {
 			const port = outputPort ?? Object.entries(this.effectDefinitions[node.effectId].outputDefs).find(([, def]) => def.primary)?.[0];
 			return port == null || this.effectDefinitions[node.effectId].outputDefs[port] == null ? undefined : { node, outputPort: port };
 		}
-		const primary = Object.entries(this.effectDefinitions[node.effectId].paramDefs).find(([, def]) => def.primary);
-		const input: NodeOutputReference | null = primary ? this.evaledNodeParams.get(node.id)![primary[0]] : null;
+		const primary = this.effectDefinitions[node.effectId].primaryInputParameter;
+		const input: NodeOutputReference | null = primary !== null ? this.evaledNodeParams.get(node.id)![primary] : null;
 		// バイパスでは自身の出力名ではなく、主入力が選択した出力ポートを公開する。
 		const source = input == null ? undefined : this.allNodeIdMap.get(input.nodeId);
 		return source == null ? undefined : this.getOutputNode(source, input!.outputPort, nextVisited);

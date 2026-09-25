@@ -4,6 +4,7 @@ export default defineEffect({
 	id: 'testStructArray',
 	displayName: 'Test of Struct and Array',
 	tags: [],
+	primaryInputParameter: null,
 	paramDefs: {
 		foo: {
 			dataType: 'struct',

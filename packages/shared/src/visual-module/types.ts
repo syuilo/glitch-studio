@@ -50,7 +50,7 @@ export function visualModuleCustomParameterName(value: UnbrandedString): VisualM
 }
 
 type CustomParameterSchema<T = Exclude<ParameterDefinition, ParameterDefinition_Struct | ParameterDefinition_Array | ParameterDefinition_Any>> =
-	T extends unknown ? Omit<T, 'canNode' | 'primary'> : never;
+	T extends unknown ? Omit<T, 'canNode'> : never;
 
 export type VisualModule = {
 	id: string;
@@ -75,7 +75,7 @@ export type VisualModule = {
 // レイヤー・live modeからは、モジュール内部のノードやパラメータを参照しない。
 export type VisualModuleParameterBindings = Record<VisualModuleCustomParameterId, Exclude<ParameterBinding, { inputSource: 'node' | 'externalCustomParameterInput' }>>;
 
-export type EffectNodeOf<DEF extends EffectDefinition> =
+export type EffectNodeOf<DEF extends Pick<EffectDefinition, 'id' | 'paramDefs'>> =
 	Omit<VisualModuleEffectNode, 'effectId' | 'params'> & {
 		effectId: DEF['id'];
 		params: {

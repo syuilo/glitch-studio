@@ -4,6 +4,7 @@ export default defineEffect({
 	id: 'videoFrame',
 	displayName: 'Video Frame',
 	tags: ['video'],
+	primaryInputParameter: null,
 	paramDefs: {
 		asset: {
 			dataType: 'videoAssetReference',
