@@ -368,9 +368,10 @@ function showNodeInputMenu(ev: PointerEvent) {
 		text: 'Sampling',
 	}];
 
-	const nodeInputSamplingMenuItems = getNodeInputSamplingMenuItems(() => nodeConnection.value, connectNode);
-
-	menuItems.push(...nodeInputSamplingMenuItems);
+	if (nodeConnection.value != null) {
+		const nodeInputSamplingMenuItems = getNodeInputSamplingMenuItems(nodeConnection, connectNode);
+		menuItems.push(...nodeInputSamplingMenuItems);
+	}
 
 	ui.popupMenu(menuItems, ev.currentTarget ?? ev.target);
 }

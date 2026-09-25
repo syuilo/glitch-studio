@@ -1,47 +1,40 @@
 import { computed } from 'vue';
+import type { Ref } from 'vue';
 import type { NodeOutputReference } from '@glitch/shared/types.ts';
 import type { MenuItem } from '@/types/menu.ts';
 import { i18n } from '@/i18n.ts';
 
-/** メニュー表示中のUndoや接続変更にも追従し、変更時には最新の接続情報を保持する。 */
-export function getNodeInputSamplingMenuItems(read: () => NodeOutputReference | null, update: (connection: NodeOutputReference) => void): MenuItem[] {
-	const disabled = computed(() => read() == null);
+export function getNodeInputSamplingMenuItems(connectionRef: Ref<NodeOutputReference>, update: (connection: NodeOutputReference) => void): MenuItem[] {
 	return [{
 		type: 'radio',
 		text: 'Fit Mode',
-		disabled,
-		caption: computed(() => i18n.t(`_FitModes.${read()?.fitMode}`)),
+		caption: computed(() => i18n.t(`_FitModes.${connectionRef.value.fitMode}`)),
 		ref: computed({
-			get: () => read()?.fitMode,
+			get: () => connectionRef.value.fitMode,
 			set: (fitMode: NodeOutputReference['fitMode']) => {
-				const connection = read();
-				if (connection) update({ ...connection, fitMode });
+				update({ ...connectionRef.value, fitMode });
 			},
 		}),
 		options: [{ label: i18n.t('_FitModes.stretch'), value: 'stretch' }, { label: i18n.t('_FitModes.cover'), value: 'cover' }, { label: i18n.t('_FitModes.contain'), value: 'contain' }],
 	}, {
 		type: 'radio',
 		text: 'Wrap Mode',
-		disabled,
-		caption: computed(() => i18n.t(`_WrapModes.${read()?.wrapMode}`)),
+		caption: computed(() => i18n.t(`_WrapModes.${connectionRef.value.wrapMode}`)),
 		ref: computed({
-			get: () => read()?.wrapMode,
+			get: () => connectionRef.value.wrapMode,
 			set: (wrapMode: NodeOutputReference['wrapMode']) => {
-				const connection = read();
-				if (connection) update({ ...connection, wrapMode });
+				update({ ...connectionRef.value, wrapMode });
 			},
 		}),
 		options: [{ label: i18n.t('_WrapModes.clamp'), value: 'clamp' }, { label: i18n.t('_WrapModes.repeat'), value: 'repeat' }, { label: i18n.t('_WrapModes.repeatMirrored'), value: 'repeatMirrored' }, { label: i18n.t('_WrapModes.transparent'), value: 'transparent' }],
 	}, {
 		type: 'radio',
 		text: 'Filter Mode',
-		disabled,
-		caption: computed(() => i18n.t(`_FilterModes.${read()?.filterMode}`)),
+		caption: computed(() => i18n.t(`_FilterModes.${connectionRef.value.filterMode}`)),
 		ref: computed({
-			get: () => read()?.filterMode,
+			get: () => connectionRef.value.filterMode,
 			set: (filterMode: NodeOutputReference['filterMode']) => {
-				const connection = read();
-				if (connection) update({ ...connection, filterMode });
+				update({ ...connectionRef.value, filterMode });
 			},
 		}),
 		options: [{ label: i18n.t('_FilterModes.linear'), value: 'linear' }, { label: i18n.t('_FilterModes.nearest'), value: 'nearest' }],
