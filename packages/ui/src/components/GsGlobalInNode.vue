@@ -13,11 +13,11 @@
 <script lang="ts" setup>
 import { ref } from 'vue';
 import GsNodeOutputs from './GsNodeOutputs.vue';
-import type { GsGlobalInNode, VisualModule } from '@glitch/shared/types.ts';
+import type { VisualModule, VisualModuleGlobalInNode } from '@glitch/shared/visual-module/types.js';
 
 const props = defineProps<{
 	visualModule: VisualModule,
-	node: GsGlobalInNode,
+	node: VisualModuleGlobalInNode,
 }>();
 </script>
 

@@ -13,7 +13,7 @@ import type { EvaluatedParameterValues, ParameterEvaluationContext } from './par
 import type { NodeOutput } from './node-output.ts';
 import type { EffectStatus, EffectInstanceState } from '@glitch/shared/effect/effect-status.ts';
 import type { AudioSourceId } from '@glitch/shared/audio.ts';
-import type { Asset, GsAutomationGraph, GsEffectNode, GsGlobalInNode, GsNode, NodeOutputReference, VisualModule } from '@glitch/shared/types.ts';
+import type { Asset, GsAutomationGraph, VisualModuleEffectNode, VisualModuleGlobalInNode, VisualModuleNode, NodeOutputReference, VisualModule } from '@glitch/shared/types.ts';
 import type { EffectImplementation, EffectInstance, IntermediateTextureFormat } from '@glitch/shared/effect/effect-implementation.js';
 import type { EffectDefinition } from '@glitch/shared/effect/effect-definition.js';
 
@@ -37,7 +37,7 @@ export class VisualModuleRenderer {
 	private defaultVertexShaderModule: GPUShaderModule;
 	private fallbackTexture: GPUTexture;
 	private resolution: { width: number; height: number; };
-	private nodes: GsNode[] = [];
+	private nodes: VisualModuleNode[] = [];
 	private paramDefs: VisualModule['paramDefs'];
 	private outputDefs: VisualModule['outputDefs'] = [];
 	private paramValues: EvaluatedParameterValues = new Map();
@@ -45,16 +45,16 @@ export class VisualModuleRenderer {
 	private preparedContext: VisualModuleRenderContext | null = null;
 	private statusWaiters = new Set<() => void>();
 	private destroyed = false;
-	private allNodeIdMap: Map<GsNode['id'], GsNode> = new Map(); // モジュール内のノードをIDで解決する。
-	private evaledNodeParams: Map<GsNode['id'], Record<string, any>> = new Map();
-	private effectInstances: Map<GsEffectNode['id'], EffectInstance | null> = new Map();
-	private outDataMapPerNodes: Map<GsEffectNode['id'], Record<string, {
+	private allNodeIdMap: Map<VisualModuleNode['id'], VisualModuleNode> = new Map(); // モジュール内のノードをIDで解決する。
+	private evaledNodeParams: Map<VisualModuleNode['id'], Record<string, any>> = new Map();
+	private effectInstances: Map<VisualModuleEffectNode['id'], EffectInstance | null> = new Map();
+	private outDataMapPerNodes: Map<VisualModuleEffectNode['id'], Record<string, {
 		texture: GPUTexture;
 		textureView: GPUTextureView;
 		previousFrameTexture?: GPUTexture;
 		previousFrameTextureView?: GPUTextureView;
 	}>> = new Map();
-	private effectCacheKeys: Map<GsEffectNode['id'], string> = new Map();
+	private effectCacheKeys: Map<VisualModuleEffectNode['id'], string> = new Map();
 	private lazyOutputs = new Map<string, Record<string, () => void>>();
 	private usedOutputPorts = new Map<string, Set<string>>();
 	private effectStatuses = new Map<string, { sent?: EffectStatus; outputs: EffectInstanceState['outputs']; published?: string }>();
@@ -69,7 +69,7 @@ export class VisualModuleRenderer {
 	private audioSources = new Map<AudioSourceId, AudioHistory>();
 	private timingHelper: TimingHelper;
 	private enableStats = true;
-	private renderNodeId: GsNode['id'] | null = null;
+	private renderNodeId: VisualModuleNode['id'] | null = null;
 	private effectDefinitions: Record<string, EffectDefinition>;
 	private effectImplementations: Record<string, EffectImplementation<any>>;
 	private parameterEvaluator = new ParameterEvaluator();
@@ -154,8 +154,8 @@ export class VisualModuleRenderer {
 			paramIdsByName: new Map(this.paramDefs.map(def => [def.name, def.id])),
 		} satisfies ParameterEvaluationContext;
 
-		const evaluated = new Map<GsNode['id'], Record<string, any>>();
-		for (const node of this.nodes.filter((n): n is GsEffectNode => n.type === 'effect')) {
+		const evaluated = new Map<VisualModuleNode['id'], Record<string, any>>();
+		for (const node of this.nodes.filter((n): n is VisualModuleEffectNode => n.type === 'effect')) {
 			const paramDefs = this.effectDefinitions[node.effectId].paramDefs;
 			const evaluatedParamsPerNode = {} as Record<string, any>;
 			for (const [key, def] of Object.entries(paramDefs)) {
@@ -191,7 +191,7 @@ export class VisualModuleRenderer {
 		this.onEffectState?.(nodeId, snapshot);
 	}
 
-	private updateOutputState(node: GsEffectNode, rendered: boolean) {
+	private updateOutputState(node: VisualModuleEffectNode, rendered: boolean) {
 		const state = this.effectStatuses.get(node.id);
 		if (state == null) return;
 		// 描画完了後の出力だけ公開する。初期化用の1x1や前回の未使用出力を表示しない。
@@ -207,7 +207,7 @@ export class VisualModuleRenderer {
 		if (this.effectStatuses.delete(nodeId)) this.onEffectState?.(nodeId, null);
 	}
 
-	private evalCacheKey(node: GsNode, visited: GsNode['id'][] = []): string | null {
+	private evalCacheKey(node: VisualModuleNode, visited: VisualModuleNode['id'][] = []): string | null {
 		if (visited.includes(node.id)) {
 			throw new Error('circular dependency detected');
 		}
@@ -272,7 +272,7 @@ export class VisualModuleRenderer {
 		return key;
 	}
 
-	private resolveParams(node: GsEffectNode, params: Record<string, any>): Record<string, any> {
+	private resolveParams(node: VisualModuleEffectNode, params: Record<string, any>): Record<string, any> {
 		const resolvedParams: Record<string, any> = {};
 		for (const [key, def] of Object.entries(this.effectDefinitions[node.effectId].paramDefs)) {
 			resolvedParams[key] = mapNodeParam(def, node.params[key], [key], (def, param, path) => {
@@ -300,9 +300,9 @@ export class VisualModuleRenderer {
 		return resolvedParams;
 	}
 
-	private prepareOutputPorts(node: GsNode, outputIds: readonly string[]): void {
+	private prepareOutputPorts(node: VisualModuleNode, outputIds: readonly string[]): void {
 		this.usedOutputPorts.clear();
-		const visit = (target: GsNode, port?: string) => {
+		const visit = (target: VisualModuleNode, port?: string) => {
 			const output = this.getOutputNode(target, port);
 			if (output == null) return;
 			if (output.node.type === 'globalIn') return;
@@ -337,7 +337,7 @@ export class VisualModuleRenderer {
 	}
 
 	// (非workerで)呼び出すときはnewNodesを独立した参照にすること！ パフォーマンス上の理由でこちら側ではdeepCloneしません
-	public updateNodes(newNodes: GsNode[]) {
+	public updateNodes(newNodes: VisualModuleNode[]) {
 		const oldEffectNodes = this.nodes.filter(node => node.type === 'effect');
 		const newEffectNodes = newNodes.filter(node => node.type === 'effect');
 		const oldNodeIds = new Set(oldEffectNodes.map(node => node.id));
@@ -408,7 +408,7 @@ export class VisualModuleRenderer {
 		this.nodes = newNodes;
 
 		this.allNodeIdMap.clear();
-		const indexNodes = (nodes: GsNode[]) => {
+		const indexNodes = (nodes: VisualModuleNode[]) => {
 			for (const node of nodes) {
 				this.allNodeIdMap.set(node.id, node);
 			}
@@ -427,7 +427,7 @@ export class VisualModuleRenderer {
 
 	// 無効なエフェクトは主入力をそのまま公開する。テクスチャの所有権や履歴は元のノードに残す。
 	// 描画・入力参照・キャッシュが同じ接続関係を扱うよう、ここで共通して解決する。
-	private getOutputNode(node: GsNode, outputPort?: string, visited: GsNode['id'][] = []): { node: GsEffectNode | GsGlobalInNode; outputPort: string } | undefined {
+	private getOutputNode(node: VisualModuleNode, outputPort?: string, visited: VisualModuleNode['id'][] = []): { node: VisualModuleEffectNode | VisualModuleGlobalInNode; outputPort: string } | undefined {
 		if (visited.includes(node.id)) throw new Error('circular dependency detected');
 		const nextVisited = [...visited, node.id];
 		if (node.type === 'globalIn') {
@@ -452,7 +452,7 @@ export class VisualModuleRenderer {
 		return source == null ? undefined : this.getOutputNode(source, input!.outputPort, nextVisited);
 	}
 
-	private getOutputValue(node: GsNode, outputPort: string): NodeOutput | undefined {
+	private getOutputValue(node: VisualModuleNode, outputPort: string): NodeOutput | undefined {
 		const output = this.getOutputNode(node, outputPort);
 		if (output == null) return undefined;
 		if (output.node.type === 'globalIn') return this.getParamOutput(visualModuleCustomParameterId(output.outputPort));
@@ -460,9 +460,9 @@ export class VisualModuleRenderer {
 		return texture == null ? undefined : { kind: 'texture', texture };
 	}
 
-	private renderNode(node: GsNode, commandEncoder: GPUCommandEncoder, context: VisualModuleRenderContext & {
-		visited: Set<GsNode['id']>;
-		rendered: Set<GsNode['id']>;
+	private renderNode(node: VisualModuleNode, commandEncoder: GPUCommandEncoder, context: VisualModuleRenderContext & {
+		visited: Set<VisualModuleNode['id']>;
+		rendered: Set<VisualModuleNode['id']>;
 	}): void {
 		if (node.type === 'globalIn') return;
 		if (node.type === 'globalOut') {
@@ -600,7 +600,7 @@ export class VisualModuleRenderer {
 		else this.effectCacheKeys.delete(node.id);
 	}
 
-	private initializeEffect(node: GsEffectNode, params: Record<string, any>): EffectInstance {
+	private initializeEffect(node: VisualModuleEffectNode, params: Record<string, any>): EffectInstance {
 		const existing = this.effectInstances.get(node.id);
 		if (existing != null) return existing;
 		const state: { sent?: EffectStatus; outputs: EffectInstanceState['outputs']; published?: string } = { outputs: Object.fromEntries(Object.keys(this.effectDefinitions[node.effectId].outputs).map(port => [port, null])) };
@@ -630,7 +630,7 @@ export class VisualModuleRenderer {
 
 		const prepared = new Set<string>();
 
-		const visit = (target: GsNode, visited: string[], port?: string) => {
+		const visit = (target: VisualModuleNode, visited: string[], port?: string) => {
 			if (visited.includes(target.id)) throw new Error('circular dependency detected');
 			if (prepared.has(target.id)) return;
 			const output = this.getOutputNode(target, port);
@@ -690,8 +690,8 @@ export class VisualModuleRenderer {
 
 		this.renderNode(node, commandEncoder, {
 			...context,
-			visited: new Set<GsNode['id']>(),
-			rendered: new Set<GsNode['id']>(),
+			visited: new Set<VisualModuleNode['id']>(),
+			rendered: new Set<VisualModuleNode['id']>(),
 		});
 
 		for (const id of this.getRequestedOutputIds(context)) {

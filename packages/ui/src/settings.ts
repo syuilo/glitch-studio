@@ -1,4 +1,4 @@
-import type { GsNode, Asset } from '@glitch/shared/types.ts';
+import type { VisualModuleNode, Asset } from '@glitch/shared/types.ts';
 
 //export const userDataPath = electron.remote.app.getPath('userData');
 //const filePath = path.join(userDataPath, 'settings');
@@ -9,7 +9,7 @@ export type RawPreset = {
 	gsVersion: string;
 	author: string;
 	name: string;
-	nodes: GsNode[];
+	nodes: VisualModuleNode[];
 	assets: Omit<Asset, 'data'>[];
 };
 
@@ -18,7 +18,7 @@ export type Preset = {
 	gsVersion: string;
 	author: string;
 	name: string;
-	nodes: GsNode[];
+	nodes: VisualModuleNode[];
 	assets: Asset[];
 };
 

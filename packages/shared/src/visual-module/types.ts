@@ -3,7 +3,7 @@ import type { EffectDefinition } from '../effect/effect-definition.ts';
 import type { ParameterDefinition, ParameterDefinition_Any, ParameterDefinition_Array, ParameterDefinition_Struct } from '../parameter.ts';
 import type { FitMode, GsAutomationGraph, ParameterBinding, WrapMode } from '../types.ts';
 
-export type GsEffectNode = {
+export type VisualModuleEffectNode = {
 	id: string;
 	type: 'effect';
 	effectId: string;
@@ -14,7 +14,7 @@ export type GsEffectNode = {
 	pos?: { x: number; y: number };
 };
 
-export type GsGlobalInNode = {
+export type VisualModuleGlobalInNode = {
 	id: string;
 	type: 'globalIn';
 
@@ -22,7 +22,7 @@ export type GsGlobalInNode = {
 	pos?: { x: number; y: number };
 };
 
-export type GsGlobalOutNode = {
+export type VisualModuleGlobalOutNode = {
 	id: string;
 	type: 'globalOut';
 	// キーはVisualModule.outputDefsのID。未設定のポートは未接続として扱う。
@@ -32,7 +32,7 @@ export type GsGlobalOutNode = {
 	pos?: { x: number; y: number };
 };
 
-export type GsNode = GsEffectNode | GsGlobalInNode | GsGlobalOutNode;
+export type VisualModuleNode = VisualModuleEffectNode | VisualModuleGlobalInNode | VisualModuleGlobalOutNode;
 
 declare const visualModuleCustomParameterIdentity: unique symbol;
 
@@ -55,7 +55,7 @@ type CustomParameterSchema<T = Exclude<ParameterDefinition, ParameterDefinition_
 export type VisualModule = {
 	id: string;
 	name: string;
-	nodes: GsNode[];
+	nodes: VisualModuleNode[];
 	outputDefs: {
 		id: string;
 		label: string;
@@ -75,7 +75,7 @@ export type VisualModule = {
 // レイヤー・live modeからは、モジュール内部のノードやパラメータを参照しない。
 export type VisualModuleParameterBindings = Record<VisualModuleCustomParameterId, Exclude<ParameterBinding, { type: 'node' | 'externalCustomParameterInput' }>>;
 
-export type EffectNodeOf<DEF extends EffectDefinition> = Omit<GsEffectNode, 'effectId' | 'params'> & {
+export type EffectNodeOf<DEF extends EffectDefinition> = Omit<VisualModuleEffectNode, 'effectId' | 'params'> & {
 	effectId: DEF['id'];
 	params: DEF['paramDefs'];
 };

@@ -134,8 +134,6 @@
 </template>
 
 <script lang="ts">
-import type { VisualModuleCustomParameterId } from '@glitch/shared/types.ts';
-import type { AutomationGraphPlaybackOptions, ParameterBinding, NodeOutputReference } from '@glitch/shared/types.ts';
 import { deepClone } from '@glitch/shared/utility/deep-clone.js';
 
 export type ParamEdit = { paramPath: ParamPath; mergeKey?: string | null } & (
@@ -166,9 +164,10 @@ import GsInput from './common/GsInput.vue';
 import GsCondensedLine from './common/GsCondensedLine.vue';
 import GsSelect from './common/GsSelect.vue';
 import GsAutomationGraphPointsEditorWindow from './GsAutomationGraphPointsEditorWindow.vue';
+import type { NodeOutputReference, VisualModule, VisualModuleCustomParameterId, VisualModuleEffectNode } from '@glitch/shared/visual-module/types.ts';
 import type { GlobalEnvVariable } from '@glitch/shared/expression.ts';
 import type { ParamPath } from '@/utility/node-params.ts';
-import type { GsAutomationGraph, GsBezierAnchorPoint, GsEffectNode, VisualModule } from '@glitch/shared/types.ts';
+import type { AutomationGraphPlaybackOptions, GsAutomationGraph, GsBezierAnchorPoint, ParameterBinding } from '@glitch/shared/types.ts';
 import type { MenuItem } from '@/types/menu.ts';
 import type { NodeParamDef } from '@/utility/node-params.ts';
 import { i18n } from '@/i18n.ts';
@@ -184,7 +183,7 @@ const props = defineProps<{
 	automationGraphs: readonly GsAutomationGraph[];
 	availableVariables: readonly Exclude<GlobalEnvVariable, ''>[];
 	visualModuleId?: string;
-	node?: GsEffectNode;
+	node?: VisualModuleEffectNode;
 	paramPath: ParamPath;
 	paramDef: NodeParamDef | VisualModule['paramDefs'][number];
 	paramValue: ParameterBinding;

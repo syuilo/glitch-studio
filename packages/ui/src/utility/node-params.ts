@@ -1,6 +1,6 @@
 import { effectDefinitions } from '@glitch/shared/effect/effect-definitions.ts';
 import type { EffectOptionsSchema } from '@glitch/shared/effect/effect-definition.ts';
-import type { ParameterBinding, GsEffectNode } from '@glitch/shared/types.ts';
+import type { ParameterBinding, VisualModuleEffectNode } from '@glitch/shared/types.ts';
 
 export type ParamPath = readonly [string, ...(string | number)[]];
 export type NodeParamDef = EffectOptionsSchema[string] & {
@@ -8,11 +8,11 @@ export type NodeParamDef = EffectOptionsSchema[string] & {
 };
 
 export type NodeParamTarget = {
-	nodeId: GsEffectNode['id'];
+	nodeId: VisualModuleEffectNode['id'];
 	paramPath: ParamPath;
 };
 
-export function getNodeParamDefs(node: GsEffectNode): Record<string, NodeParamDef> {
+export function getNodeParamDefs(node: VisualModuleEffectNode): Record<string, NodeParamDef> {
 	return effectDefinitions[node.effectId].paramDefs as Record<string, NodeParamDef>;
 }
 
@@ -21,7 +21,7 @@ export function paramPathKey(path: ParamPath): string {
 	return JSON.stringify(path);
 }
 
-export function resolveNodeParam(node: GsEffectNode, path: ParamPath) {
+export function resolveNodeParam(node: VisualModuleEffectNode, path: ParamPath) {
 	let def = getNodeParamDefs(node)[path[0]];
 	const params = node.params;
 	let value = params[path[0]];
@@ -53,7 +53,7 @@ export function resolveNodeParam(node: GsEffectNode, path: ParamPath) {
 }
 
 // ワイヤー表示と参照の更新でも、定義に沿って子をたどる（color等のliteral配列とは区別する）。
-export function* walkNodeParams(node: GsEffectNode): Generator<{ path: ParamPath; def: NodeParamDef; value: ParameterBinding }> {
+export function* walkNodeParams(node: VisualModuleEffectNode): Generator<{ path: ParamPath; def: NodeParamDef; value: ParameterBinding }> {
 	function* walk(def: NodeParamDef, value: ParameterBinding, path: ParamPath): ReturnType<typeof walkNodeParams> {
 		if (def.dataType === 'array' && value.inputSource === 'literal') {
 			const elements = value.value as ParameterBinding[];

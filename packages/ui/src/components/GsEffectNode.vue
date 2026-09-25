@@ -19,9 +19,9 @@
 
 	<div v-show="expanded" :class="$style.params" :inert="node.isBypass">
 		<GsVisualParam
-			:availableVariables="moduleEnvVarDefs"
 			v-for="[param, def] in Object.entries(getNodeParamDefs(props.node))"
 			:key="param"
+			:availableVariables="moduleEnvVarDefs"
 			:visualModuleId="visualModuleId"
 			:automationGraphs="appContext.getVisualModuleById(visualModuleId)?.automationGraphs ?? []"
 			:node="node"
@@ -45,7 +45,7 @@ import GsNodePort from './GsNodePort.vue';
 import GsVisualParam from './GsVisualParam.vue';
 import GsButton from './common/GsButton.vue';
 import type { ParamEdit } from './GsVisualParam.vue';
-import type { GsEffectNode } from '@glitch/shared/types.ts';
+import type { VisualModuleEffectNode } from '@glitch/shared/visual-module/types.js';
 import { i18n } from '@/i18n.ts';
 import { appContext, engine, wireMap } from '@/app.ts';
 import { getNodeParamDefs } from '@/utility/node-params.ts';
@@ -53,7 +53,7 @@ import * as ui from '@/ui.ts';
 
 const props = defineProps<{
 	visualModuleId: string;
-	node: GsEffectNode,
+	node: VisualModuleEffectNode,
 }>();
 
 const emit = defineEmits<{

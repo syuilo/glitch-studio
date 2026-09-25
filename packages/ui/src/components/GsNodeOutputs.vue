@@ -13,13 +13,18 @@
 import { computed, onUnmounted } from 'vue';
 import { getNodeOutputs } from '@glitch/shared/utility/node-outputs.ts';
 import GsNodePort from './GsNodePort.vue';
-import type { GsNode, VisualModule } from '@glitch/shared/types.ts';
 import type { EffectInstanceState } from '@glitch/shared/effect/effect-status.ts';
+import type { VisualModuleNode, VisualModule } from '@glitch/shared/visual-module/types.js';
 import { wireMap } from '@/app.ts';
 import { startWireDrag } from '@/utility/wire-drag.ts';
 import { getNodeDataTypeColor } from '@/utility/node-outputs.ts';
 
-const props = defineProps<{ node: GsNode; paramDefs?: VisualModule['paramDefs']; outputResolutions?: EffectInstanceState['outputs'] }>();
+const props = defineProps<{
+	node: VisualModuleNode;
+	paramDefs?: VisualModule['paramDefs'];
+	outputResolutions?: EffectInstanceState['outputs']
+}>();
+
 const ports = computed(() => getNodeOutputs(props.node, props.paramDefs));
 const elements = new Map<string, HTMLElement>();
 let cancelDrag: (() => void) | undefined;

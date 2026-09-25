@@ -99,9 +99,8 @@ import XGlobalOutNode from './GsGlobalOutNode.vue';
 import XVisualModuleParamDefsEditor from './XVisualModuleParamDefsEditor.vue';
 import XVisualModuleOutputDefsEditor from './XVisualModuleOutputDefsEditor.vue';
 import GsTabs from './common/GsTabs.vue';
-import type { VisualModuleCustomParameterId } from '@glitch/shared/types.ts';
 import type { ParamEdit } from './GsVisualParam.vue';
-import type { GsAutomationGraph, GsGlobalInNode, GsGlobalOutNode, GsNode, VisualModule, VisualModuleParameterBindings } from '@glitch/shared/types.js';
+import type { VisualModule, VisualModuleParameterBindings, VisualModuleCustomParameterId, VisualModuleGlobalInNode, VisualModuleGlobalOutNode, VisualModuleNode } from '@glitch/shared/visual-module/types.js';
 import { showAddNodeMenu } from '@/app.ts';
 import { appContext, engine } from '@/app.ts';
 import * as ui from '@/ui.ts';
@@ -174,14 +173,14 @@ function previewLive() {
 }
 
 const globalInNode = computed(() => {
-	return visualModule.value?.nodes.find((node): node is GsGlobalInNode => node.type === 'globalIn');
+	return visualModule.value?.nodes.find((node): node is VisualModuleGlobalInNode => node.type === 'globalIn');
 });
 
 const globalOutNode = computed(() => {
-	return visualModule.value?.nodes.find((node): node is GsGlobalOutNode => node.type === 'globalOut');
+	return visualModule.value?.nodes.find((node): node is VisualModuleGlobalOutNode => node.type === 'globalOut');
 });
 
-function onSorted(nodes: GsNode[]) {
+function onSorted(nodes: VisualModuleNode[]) {
 	const module = visualModule.value;
 	if (module == null) return;
 	// グローバル入出力の位置を維持し、並べ替えられたノードだけを移動する。

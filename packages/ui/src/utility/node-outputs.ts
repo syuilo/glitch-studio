@@ -1,7 +1,7 @@
 import { areNodeDataTypesCompatible, getNodeOutputs } from '@glitch/shared/utility/node-outputs.ts';
 import { effectDefinitions } from '@glitch/shared/effect/effect-definitions.js';
 import type { TextureDataType } from '@glitch/shared/data-type.ts';
-import type { GsNode, NodeOutputReference, VisualModule } from '@glitch/shared/visual-module/types.js';
+import type { VisualModuleNode, NodeOutputReference, VisualModule } from '@glitch/shared/visual-module/types.js';
 import { preferences } from '@/preferences.ts';
 
 export function getNodeDataTypeColor(dataType: TextureDataType | null | undefined): string {
@@ -19,7 +19,7 @@ export function nodeOutputKey(connection: NodeOutputReference | null): string | 
 }
 
 // 接続済みの警告は、forceTypeSafetyによる候補の絞り込みとは独立して判定する。
-export function hasNodeInputTypeMismatch(nodes: GsNode[], connection: NodeOutputReference | null, inputDataType: TextureDataType | null, paramDefs: VisualModule['paramDefs'] = []): boolean {
+export function hasNodeInputTypeMismatch(nodes: VisualModuleNode[], connection: NodeOutputReference | null, inputDataType: TextureDataType | null, paramDefs: VisualModule['paramDefs'] = []): boolean {
 	if (connection == null || inputDataType == null) return false;
 	return nodes.some(node => {
 		if (node.id === connection.nodeId) {
@@ -30,7 +30,7 @@ export function hasNodeInputTypeMismatch(nodes: GsNode[], connection: NodeOutput
 	});
 }
 
-export function getNodeOutputItems(nodes: GsNode[], excludedNodeId?: string, inputDataType?: TextureDataType | null, paramDefs: VisualModule['paramDefs'] = []): { label: string; value: string; connection: NodeOutputReference; dataType: TextureDataType; typeCompatible: boolean; icon?: string }[] {
+export function getNodeOutputItems(nodes: VisualModuleNode[], excludedNodeId?: string, inputDataType?: TextureDataType | null, paramDefs: VisualModule['paramDefs'] = []): { label: string; value: string; connection: NodeOutputReference; dataType: TextureDataType; typeCompatible: boolean; icon?: string }[] {
 	return nodes.flatMap(node => {
 		if (node.id === excludedNodeId) return [];
 		const name = node.type === 'effect' ? effectDefinitions[node.effectId].displayName : node.type === 'globalIn' ? 'In' : 'Out';

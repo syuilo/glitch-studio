@@ -7,7 +7,7 @@ import { genEmptyValue } from '@glitch/shared/utility/misc.ts';
 import { timelineCompositingParamDefs } from '@glitch/shared/timeline/timeline-compositing.ts';
 import type { VisualModuleCustomParameterId } from '@glitch/shared/types.ts';
 import type { AppState } from './types.ts';
-import type { Asset, AutomationGraphPlaybackOptions, EffectParamDefs, ParameterBinding, GsEffectNode, GsNode, Player, NodeOutputReference, VisualModule } from '@glitch/shared/types.ts';
+import type { Asset, AutomationGraphPlaybackOptions, EffectParamDefs, ParameterBinding, VisualModuleEffectNode, VisualModuleNode, Player, NodeOutputReference, VisualModule } from '@glitch/shared/types.ts';
 import type { NodeParamTarget as EffectNodeParamTarget } from '@/utility/node-params.ts';
 import type { GlobalEnvVariable } from '@glitch/shared/expression.js';
 import { canConnectNodeDataTypes } from '@/utility/node-outputs.ts';
@@ -35,7 +35,7 @@ const stateUtility = {
 		if (visualModule == null) throw new Error('Node visualModule not found');
 		return visualModule;
 	},
-	findNode: (state: AppState, target: NodeTarget): GsNode | undefined => {
+	findNode: (state: AppState, target: NodeTarget): VisualModuleNode | undefined => {
 		return stateUtility.getVisualModule(state, target.visualModuleId).nodes.find(node => node.id === target.nodeId);
 	},
 };
@@ -118,7 +118,7 @@ const editVisualModuleLayerParamCommandDef = defineCommand<{
 const addEffectNodeCommandDef = defineCommand<{ visualModuleId: string; id: string; effectId: string; params?: Record<string, ParameterBinding> }>({
 	label: 'Add fx node',
 	create: payload => {
-		let addedNode: GsEffectNode | undefined;
+		let addedNode: VisualModuleEffectNode | undefined;
 		let outputConnection: {
 			nodeId: string;
 			outputId: string;
@@ -134,7 +134,7 @@ const addEffectNodeCommandDef = defineCommand<{ visualModuleId: string; id: stri
 					const primaryOutput = visualModule.outputDefs.find(def => def.isPrimaryOutput);
 					const previousInput = primaryOutput == null ? undefined : globalOut?.inputs[primaryOutput.id];
 					const previous = previousInput?.nodeId == null ? undefined : visualModule.nodes.find(node => node.id === previousInput.nodeId);
-					const params: GsEffectNode['params'] = {};
+					const params: VisualModuleEffectNode['params'] = {};
 					for (const [key, def] of Object.entries(paramDefs)) {
 						params[key] = deepClone(def.defaultValue);
 						if (def.primary && previousInput?.nodeId != null) {
@@ -209,7 +209,7 @@ const moveNodeCommandDef = defineCommand<NodeTarget & { index: number }>({
 const removeNodeCommandDef = defineCommand<NodeTarget>({
 	label: 'Remove node',
 	create: payload => {
-		let before: GsNode[];
+		let before: VisualModuleNode[];
 		return {
 			execute(state) {
 				const visualModule = stateUtility.getVisualModule(state, payload.visualModuleId);
@@ -282,7 +282,7 @@ const removeAssetCommandDef = defineCommand<{ assetId: string }>({
 	create: payload => {
 		let before: {
 			assets: Asset[];
-			visualModules: { id: string; nodes: GsNode[] }[];
+			visualModules: { id: string; nodes: VisualModuleNode[] }[];
 		};
 		return {
 			execute(state) {

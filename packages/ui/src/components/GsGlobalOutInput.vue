@@ -16,7 +16,7 @@
 import { computed, shallowRef, useTemplateRef, watchEffect } from 'vue';
 import GsNodePort from './GsNodePort.vue';
 import GsSelect from './common/GsSelect.vue';
-import type { GsGlobalOutNode, NodeOutputReference, VisualModule } from '@glitch/shared/types.ts';
+import type { VisualModuleGlobalOutNode, VisualModule, NodeOutputReference } from '@glitch/shared/visual-module/types.js';
 import { appContext, wireMap } from '@/app.ts';
 import { i18n } from '@/i18n.ts';
 import { getNodeOutputItems, hasNodeInputTypeMismatch, nodeOutputKey } from '@/utility/node-outputs.ts';
@@ -24,7 +24,7 @@ import { registerWireInput } from '@/utility/wire-drag.ts';
 
 const props = defineProps<{
 	visualModuleId: string;
-	node: GsGlobalOutNode;
+	node: VisualModuleGlobalOutNode;
 	def: VisualModule['outputDefs'][number];
 }>();
 
