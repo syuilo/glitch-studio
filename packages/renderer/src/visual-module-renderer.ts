@@ -289,10 +289,7 @@ export class VisualModuleRenderer {
 						const output = this.getOutputValue(this.allNodeIdMap.get(param.nodeId)!, param.outputPort);
 						return output == null ? constantShaderInput(def.dataType, null) : outputShaderInput(output, param);
 					}
-					if (param.inputSource === 'externalCustomParameterInput') {
-						const input = this.paramInputs.get(param.parameterId);
-						if (input != null) return outputShaderInput(input, param);
-					}
+					// NOTE: canNodeなcutom paramterは必ず配線(node)で参照し、externalCustomParameterInputとして直接参照することは仕様上禁止されるためここで対応する必要はない
 					return constantShaderInput(def.dataType, v);
 				}
 				return v;
