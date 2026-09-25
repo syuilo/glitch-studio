@@ -6,6 +6,7 @@ import { reservedWords, singleVariableExpression } from '@glitch/shared/expressi
 import type { ParameterBinding, GsAutomationGraph } from '@glitch/shared/types.ts';
 
 // Evaluatorはstateless/deterministicである必要がある
+// NOTE: PARAM関数はcanNode: falseなカスタムパラメータしか対応しない
 
 type AutomationGraphInput = Extract<ParameterBinding, { inputSource: 'automationGraphReference' | 'automationGraphInline' }>;
 type ReadGraph = (name: string, t: number, wrapMode: AutomationGraphInput['wrapMode']) => number;
