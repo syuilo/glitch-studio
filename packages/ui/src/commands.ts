@@ -143,7 +143,7 @@ const addEffectNodeCommandDef = defineCommand<{ visualModuleId: string; id: stri
 							// 元の接続が副出力でも、その出力ポートをそのまま引き継ぐ。
 							const output = getNodeOutputs(previous, visualModule.paramDefs)[previousInput.outputPort];
 							if (canConnectNodeDataTypes(output?.dataType, getNodeInputDataType(def))) {
-								params[key] = { inputSource: 'node', ...deepClone(previousInput) };
+								params[key] = { inputSource: 'node', ...deepClone(previousInput), fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' };
 							}
 						}
 					}
@@ -221,7 +221,7 @@ const removeNodeCommandDef = defineCommand<NodeTarget>({
 				if (removedNode.type !== 'effect') throw new Error('In/Out nodes cannot be removed');
 				const primary = effectDefinitions[removedNode.effectId].primaryInputParameter;
 				const input = primary === null ? undefined : removedNode.params[primary];
-				const replacement: NodeOutputReference | null = input?.inputSource === 'node' && input.nodeId != null && input.nodeId !== payload.nodeId
+				const replacement: Pick<NodeOutputReference, 'nodeId' | 'outputPort'> | null = input?.inputSource === 'node' && input.nodeId != null && input.nodeId !== payload.nodeId
 					? { nodeId: input.nodeId, outputPort: input.outputPort } : null;
 				const replacementOutput = replacement == null ? undefined : getNodeOutputs(visualModule.nodes.find(node => node.id === replacement.nodeId), visualModule.paramDefs)[replacement.outputPort];
 				// 削除したノードの主入力へ接続し直す。globalOutの参照も同じ操作で復元可能にする。
@@ -240,8 +240,9 @@ const removeNodeCommandDef = defineCommand<NodeTarget>({
 					for (const { path, def, value } of walkNodeParams(node)) {
 						if (!def.canNode || value.inputSource !== 'node' || value.nodeId !== payload.nodeId) continue;
 						const compatible = replacement != null && canConnectNodeDataTypes(replacementOutput?.dataType, getNodeInputDataType(def));
+						// サンプリング設定は受け取り側の入力に属するため、削除後も維持して配線元だけを置き換える。
 						resolveNodeParam(node, path).setValue(compatible
-							? { inputSource: 'node', ...deepClone(replacement) }
+							? { ...deepClone(value), ...deepClone(replacement) }
 							: { inputSource: 'node', nodeId: null, outputPort: null });
 					}
 				}

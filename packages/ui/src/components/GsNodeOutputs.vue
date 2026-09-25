@@ -32,7 +32,7 @@ let cancelDrag: (() => void) | undefined;
 function startDrag(event: PointerEvent, port: string) {
 	const source = elements.get(port);
 	if (!source) return;
-	const cancel = startWireDrag(event, { nodeId: props.node.id, outputPort: port }, { source });
+	const cancel = startWireDrag(event, { nodeId: props.node.id, outputPort: port, fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' }, { source });
 	if (cancel) cancelDrag = cancel;
 }
 

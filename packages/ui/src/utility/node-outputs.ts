@@ -14,7 +14,7 @@ export function canConnectNodeDataTypes(output: TextureDataType | undefined, inp
 }
 
 // GsSelectはプリミティブ値を比較するため、選択キーだけを文字列化する。保存する値は接続情報のまま。
-export function nodeOutputKey(connection: NodeOutputReference | null): string | null {
+export function nodeOutputKey(connection: { nodeId: string; outputPort: string } | null): string | null {
 	return connection == null ? null : JSON.stringify([connection.nodeId, connection.outputPort]);
 }
 
