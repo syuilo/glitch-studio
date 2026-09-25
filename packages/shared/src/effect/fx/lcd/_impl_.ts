@@ -12,7 +12,7 @@ export default implementEffect<typeof definition>({
 			usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
 		}),
 	},
-	init: ({ wgpu, resolution }) => {
+	init: ({ wgpu }) => {
 		const device = wgpu.device;
 		const uniformValues = makeStructuredView(makeShaderDataDefinitions(code).uniforms.uniforms);
 		const uniformBuffer = device.createBuffer({ size: uniformValues.arrayBuffer.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
@@ -25,20 +25,22 @@ export default implementEffect<typeof definition>({
 			internalLayouts: [layout],
 			sampling: 'level0',
 		});
-		const shortDimension = Math.min(resolution.width, resolution.height);
 		return {
 			render: ctx => {
-				// 0除算を避ける下限だけを設ける。UIのスライダー範囲を実際の値の上限にしない。
-				const divisions = Math.max(1, ctx.params.size);
+				const output = ctx.outputDataMap.output.texture;
+				const shortDimension = Math.min(output.width, output.height);
+				// SizeはRGBの3サブピクセルをまとめたセルの、短辺に対する割合。
+				// 0（負値も0扱い）のときだけセルを出力の1pxにし、正の値は1px未満も許す。
+				const size = ctx.params.size <= 0 ? 1 / shortDimension : Math.min(1, ctx.params.size);
 				uniformValues.set({
 					cellSize: [
-						shortDimension / resolution.width / divisions,
-						shortDimension / resolution.height / divisions,
+						(shortDimension / output.width) * size,
+						(shortDimension / output.height) * size,
 					],
 					border: Math.min(1, Math.max(0, ctx.params.border)),
 				});
 				device.queue.writeBuffer(uniformBuffer, 0, uniformValues.arrayBuffer);
-				const variant = pipelines.update({ input: ctx.params.input }, ctx.outputDataMap.output.texture);
+				const variant = pipelines.update({ input: ctx.params.input }, output);
 				const pass = ctx.createPassEncoderFor(ctx.commandEncoder, ctx.outputDataMap.output.textureView);
 				pass.setPipeline(variant.pipeline);
 				pass.setBindGroup(0, group);
