@@ -19,7 +19,7 @@ export function nodeOutputKey(connection: { nodeId: string; outputPort: string }
 }
 
 // 接続済みの警告は、forceTypeSafetyによる候補の絞り込みとは独立して判定する。
-export function hasNodeInputTypeMismatch(nodes: VisualModuleNode[], connection: NodeOutputReference | null, inputDataType: TextureDataType | null, paramDefs: VisualModule['paramDefs'] = []): boolean {
+export function hasNodeInputTypeMismatch(nodes: VisualModuleNode[], connection: { nodeId: string; outputPort: string } | null, inputDataType: TextureDataType | null, paramDefs: VisualModule['paramDefs'] = []): boolean {
 	if (connection == null || inputDataType == null) return false;
 	return nodes.some(node => {
 		if (node.id === connection.nodeId) {
