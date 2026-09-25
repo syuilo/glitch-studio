@@ -153,9 +153,7 @@ export type TimelineVisualModuleLayer = {
 	layerType: 'visualModule';
 	visualModuleId: string;
 	paramValues: VisualModuleParameterBindings;
-	// 未設定の項目はtimelineCompositingParamDefsの既定値を使用する。
-	compositing: VisualModuleParameterBindings;
-	// モジュールへの外部パラメータとレイヤー合成設定だけが参照できるグラフ。
+	compositing: TODO;
 	automationGraphs: GsAutomationGraph[];
 };
 
