@@ -122,14 +122,6 @@ export function visualModuleCustomParameterName(value: UnbrandedString): VisualM
 type CustomParameterSchema<T = Exclude<EffectOptionSchema, StructOptionSchema | ArrayOptionSchema | AnyOptionSchema>> =
 	T extends unknown ? Omit<T, 'canNode' | 'primary'> : never;
 
-export type VisualModuleCustomParameterDef = CustomParameterSchema & {
-	id: VisualModuleCustomParameterId;
-	name: VisualModuleCustomParameterName; // expressionから参照するとき用
-	defaultValue: { inputSource: 'literal'; value: any };
-	canNode: boolean;
-	isPrimaryInput: boolean;
-};
-
 export type VisualModule = {
 	id: string;
 	name: string;
@@ -141,7 +133,13 @@ export type VisualModule = {
 		dataType: TextureDataType;
 		isPrimaryOutput: boolean;
 	}[];
-	paramDefs: VisualModuleCustomParameterDef[];
+	paramDefs: (CustomParameterSchema & {
+		id: VisualModuleCustomParameterId;
+		name: VisualModuleCustomParameterName; // expressionから参照するとき用
+		defaultValue: { inputSource: 'literal'; value: any };
+		canNode: boolean;
+		isPrimaryInput: boolean;
+	})[];
 	automationGraphs: GsAutomationGraph[];
 };
 

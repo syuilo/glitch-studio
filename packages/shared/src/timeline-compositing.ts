@@ -1,4 +1,3 @@
-import { visualModuleCustomParameterId, visualModuleCustomParameterName, type VisualModuleCustomParameterDef } from './types.ts';
 import type { ScalarParamUi } from './effect-definition.ts';
 
 const scalar = (id: string, label: string, value: number, ui: ScalarParamUi): VisualModuleCustomParameterDef => ({

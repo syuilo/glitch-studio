@@ -185,7 +185,6 @@
 
 <script lang="ts" setup>
 import { computed, watchEffect, shallowRef, ref } from 'vue';
-import GsSignal from './common/GsSignal.vue';
 import GsXy from './common/GsXy.vue';
 import GsColorInput from './common/GsColorInput.vue';
 import GsInput from './common/GsInput.vue';
@@ -194,13 +193,13 @@ import GsAngle from './common/GsAngle.vue';
 import GsButton from './common/GsButton.vue';
 import GsSelect from './common/GsSelect.vue';
 import type { EffectOptionSchema } from '@glitch/shared/effect-definition.ts';
-import type { VisualModuleCustomParameterDef } from '@glitch/shared/types.js';
+import type { VisualModule } from '@glitch/shared/types.js';
 import { i18n } from '@/i18n.ts';
 import { appContext, wireMap } from '@/app.ts';
 import { normalizeColor } from '@/utility/color-input.ts';
 
 const props = defineProps<{
-	def: Exclude<EffectOptionSchema, { dataType: 'array' | 'struct' }> | VisualModuleCustomParameterDef;
+	def: Exclude<EffectOptionSchema, { dataType: 'array' | 'struct' }> | VisualModule['paramDefs'][number];
 	value: any;
 	title?: string;
 }>();

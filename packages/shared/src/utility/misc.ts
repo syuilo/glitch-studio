@@ -1,9 +1,9 @@
 import { rawBezierEasing } from './bezier.ts';
 import { deepClone } from './deep-clone.ts';
-import type { GsAutomationGraph, VisualModuleCustomParameterDef } from '../types.ts';
+import type { GsAutomationGraph, VisualModule } from '../types.ts';
 import type { EffectOptionSchema } from '../effect-definition.ts';
 
-export function genEmptyValue(paramDef: EffectOptionSchema | VisualModuleCustomParameterDef): any {
+export function genEmptyValue(paramDef: EffectOptionSchema | VisualModule['paramDefs'][number]): any {
 	switch (paramDef.dataType) {
 		case 'scalar': return 0;
 		case 'enum': return paramDef.options[0]?.value ?? null;
