@@ -11,7 +11,7 @@ const { createVisualModuleTimelineLayer } = await load('../src/visual-module-tim
 const { moduleEnvVarDefs, layerEnvVarDefs } = await load('../../shared/src/expression.ts');
 const literal = value => ({ inputSource: 'literal', value });
 const expression = expression => ({ inputSource: 'expression', expression });
-const def = (id, value = 7) => ({ id, name: id, dataType: 'scalar', ui: { label: id, control: 'number' }, defaultValue: literal(value), isPrimaryInput: false, canNode: false });
+const def = (id, value = 7) => ({ id, nameForReference: id, dataType: 'scalar', ui: { label: id, control: 'number' }, defaultValue: literal(value), isPrimaryInput: false, canNode: false });
 const frame = { time: 500, endTime: 2000, isExport: true };
 const layerScope = { ...frame, variables: layerVariables(frame), automationGraphs: [] };
 const moduleScope = { ...frame, variables: moduleVariables({ ...frame, resolution: { width: 800, height: 400 } }), automationGraphs: [] };
@@ -19,7 +19,7 @@ const moduleScope = { ...frame, variables: moduleVariables({ ...frame, resolutio
 function nodes(evaluator, params, scope = moduleScope, external = new Map(), defs = [], inputIds = new Set()) {
 	const context = { ...scope,
 		evaluatedParamValues: new Map([...external].filter(([id]) => !inputIds.has(id))),
-		paramIdsByName: new Map(defs.map(def => [def.name, def.id])),
+		paramIdsByName: new Map(defs.map(def => [def.nameForReference, def.id])),
 	};
 	return Object.fromEntries(Object.entries(params).map(([key, value]) => [key, evaluator.evaluate(value, context, 0)]));
 }
@@ -122,8 +122,8 @@ test('snapshots layer values once for prepare and render', async () => {
 // 呼び出し側の移行で既定値と主入力の扱いが失われないことを実際のレイヤー変換で確認する。
 test('keeps layer defaults and excludes primary inputs from evaluated values', async () => {
 	const definitions = [
-		{ ...def('input'), isPrimaryInput: true },
-		{ ...def('gain-id', 8), name: 'Gain' },
+		{ ...def('input', [0, 0, 0, 0]), dataType: 'color', ui: { label: 'Input', control: 'color' }, canNode: true, isPrimaryInput: true },
+		{ ...def('gain-id', 8), nameForReference: 'Gain' },
 		def('missing', 9), def('invalid', 10), def('export'),
 	];
 	let resolved;

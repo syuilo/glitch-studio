@@ -1,9 +1,9 @@
 import { checkMigratedEffects } from './migrated-shader-input-gpu.ts';
 import { checkGradientInputs } from './gradient-shader-input-gpu.ts';
 import { checkTimelineCompositor } from './timeline-compositor-gpu.ts';
-import effect from '../../../shared/src/effects/colorMix/_impl_.ts';
-import imageEffect from '../../../shared/src/effects/image/_impl_.ts';
-import blockShuffle from '../../../shared/src/effects/blockShuffle/_impl_.ts';
+import effect from '../../../shared/src/effect/fx/colorMix/_impl_.ts';
+import imageEffect from '../../../shared/src/effect/fx/image/_impl_.ts';
+import blockShuffle from '../../../shared/src/effect/fx/blockShuffle/_impl_.ts';
 import { constantShaderInput, textureShaderInput, generateShaderInputs, createShaderInputBindings } from '../../../shared/src/shader-input.ts';
 import vertexCode from '../../src/vertex.wgsl?raw';
 import { createShaderInputPipeline } from '../../../shared/src/shader-input-pipeline.ts';
@@ -60,9 +60,9 @@ export async function run() {
 		const marginSource = texture(8, 2, Array(16).fill([255, 255, 255, 255]).flat());
 		const arrayInputs = [
 			constantShaderInput('color', [1, 0, 0, 0.5]),
-			textureShaderInput(arraySource, { fitMode: 'stretch', wrapMode: 'clamp' }),
+			textureShaderInput(arraySource, { filterMode: 'linear', fitMode: 'stretch', wrapMode: 'clamp' }),
 			textureShaderInput(arraySource, { fitMode: 'stretch', wrapMode: 'clamp', filterMode: 'nearest' }),
-			textureShaderInput(marginSource, { fitMode: 'contain', wrapMode: 'transparent' }),
+			textureShaderInput(marginSource, { filterMode: 'linear', fitMode: 'contain', wrapMode: 'transparent' }),
 		];
 		const drawArray = async (images: typeof arrayInputs) => {
 			// fitの基準を正方形とし、横長の集計用出力とは独立にcontainを検証する。
@@ -93,7 +93,7 @@ export async function run() {
 		});
 		try {
 			const ramp = texture(2, 1, [0, 0, 0, 255, 255, 0, 0, 255]);
-			const variant = gradientArrayPipelines.update({ fields: [constantShaderInput('scalar', 0.25), textureShaderInput(ramp, { fitMode: 'stretch' })], vectors: [], data: [] }, arrayOutput);
+			const variant = gradientArrayPipelines.update({ fields: [constantShaderInput('scalar', 0.25), textureShaderInput(ramp, { wrapMode: 'repeatMirrored', filterMode: 'linear', fitMode: 'stretch' })], vectors: [], data: [] }, arrayOutput);
 			const encoder = device.createCommandEncoder();
 			const pass = encoder.beginRenderPass({ colorAttachments: [{ view: arrayOutput.createView(), loadOp: 'clear', storeOp: 'store' }] });
 			pass.setPipeline(variant.pipeline);
@@ -118,9 +118,9 @@ export async function run() {
 		const a = constantShaderInput('color', [1, 0, 0, 0.5]);
 		const b = constantShaderInput('color', [0, 0, 1, 1]);
 		const amount = constantShaderInput('scalar', 0.25);
-		const at = textureShaderInput(texture(1, 1, [128, 0, 0, 128]));
-		const bt = textureShaderInput(texture(1, 1, [0, 0, 255, 255]));
-		const mt = textureShaderInput(texture(1, 1, [64, 0, 0, 255]));
+		const at = textureShaderInput(texture(1, 1, [128, 0, 0, 128]), { fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' });
+		const bt = textureShaderInput(texture(1, 1, [0, 0, 255, 255]), { fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' });
+		const mt = textureShaderInput(texture(1, 1, [64, 0, 0, 255]), { fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' });
 		// 3入力の全8構成を同じinstanceで切り替え、uniformとtextureの意味を揃える。
 		for (let mask = 0; mask < 8; mask++) {
 			const pixels = await mix({ inputA: mask & 1 ? at : a, inputB: mask & 2 ? bt : b, amount: mask & 4 ? mt : amount });
@@ -129,23 +129,23 @@ export async function run() {
 		check('clamps amount below zero', (await mix({ inputA: a, inputB: b, amount: constantShaderInput('scalar', -1) }))[0], [128, 0, 0, 128]);
 		check('clamps amount above one', (await mix({ inputA: a, inputB: b, amount: constantShaderInput('scalar', 2) }))[0], [0, 0, 255, 255]);
 		// halfの0と1の中間を読むことで、16bit保存形式と線形フィルタリングを確認する。
-		check('filters r16float data', (await mix({ inputA: a, inputB: b, amount: textureShaderInput(texture(2, 1, [0, 0x3c00], 'r16float')) }))[0], [64, 0, 128, 191]);
+		check('filters r16float data', (await mix({ inputA: a, inputB: b, amount: textureShaderInput(texture(2, 1, [0, 0x3c00], 'r16float'), { fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' }) }))[0], [64, 0, 128, 191]);
 		if (device.features.has('float32-filterable')) {
-			check('reads r32float data', (await mix({ inputA: a, inputB: b, amount: textureShaderInput(texture(1, 1, [0.25], 'r32float')) }))[0], [96, 0, 64, 159]);
+			check('reads r32float data', (await mix({ inputA: a, inputB: b, amount: textureShaderInput(texture(1, 1, [0.25], 'r32float'), { fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' }) }))[0], [96, 0, 64, 159]);
 		}
 		const wide = texture(2, 1, [255, 0, 0, 255, 0, 0, 255, 255]);
 		const zero = constantShaderInput('scalar', 0);
-		let pixels = await mix({ inputA: textureShaderInput(wide, { fitMode: 'contain' }), inputB: b, amount: zero }, 4, 4);
+		let pixels = await mix({ inputA: textureShaderInput(wide, { wrapMode: 'repeatMirrored', filterMode: 'linear', fitMode: 'contain' }), inputB: b, amount: zero }, 4, 4);
 		check('contain margin uses mirrored repeat by default', pixels[0].slice(0, 4), [255, 0, 0, 255]);
 		check('contain preserves visible image', pixels[1].slice(0, 4), [255, 0, 0, 255]);
-		pixels = await mix({ inputA: textureShaderInput(wide), inputB: b, amount: zero }, 4, 4);
+		pixels = await mix({ inputA: textureShaderInput(wide, { fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' }), inputB: b, amount: zero }, 4, 4);
 		check('cover samples centered horizontal crop', pixels[0].slice(0, 4), [223, 0, 32, 255]);
-		pixels = await mix({ inputA: textureShaderInput(wide, { fitMode: 'stretch' }), inputB: b, amount: zero }, 4, 4);
+		pixels = await mix({ inputA: textureShaderInput(wide, { wrapMode: 'repeatMirrored', filterMode: 'linear', fitMode: 'stretch' }), inputB: b, amount: zero }, 4, 4);
 		check('stretch reaches input edge', pixels[0].slice(0, 4), [255, 0, 0, 255]);
 		// transparentの余白判定は、境界画素の補間領域より十分外側で確認する。
 		const wideForMargins = texture(8, 4, Array.from({ length: 32 }, (_, i) => i % 8 < 4 ? [255, 0, 0, 255] : [0, 0, 255, 255]).flat());
 		const tall = texture(4, 8, Array.from({ length: 32 }, (_, i) => i < 16 ? [0, 255, 0, 255] : [255, 255, 0, 255]).flat());
-		pixels = await mix({ inputA: textureShaderInput(wideForMargins, { fitMode: 'contain', wrapMode: 'transparent' }), inputB: textureShaderInput(tall, { fitMode: 'contain', wrapMode: 'transparent' }), amount }, 4, 4);
+		pixels = await mix({ inputA: textureShaderInput(wideForMargins, { filterMode: 'linear', fitMode: 'contain', wrapMode: 'transparent' }), inputB: textureShaderInput(tall, { filterMode: 'linear', fitMode: 'contain', wrapMode: 'transparent' }), amount }, 4, 4);
 		check('different input aspects leave independent margins', pixels[0].slice(0, 4), [0, 0, 0, 0]);
 		check('positive Y reads the top row', pixels[0].slice(4, 8), [0, 64, 0, 64]);
 
@@ -158,7 +158,7 @@ export async function run() {
 		try {
 			for (const fitMode of ['stretch', 'cover', 'contain'] as const) {
 				for (const wrapMode of ['clamp', 'repeat', 'repeatMirrored', 'transparent'] as const) {
-					const input = textureShaderInput(striped, { fitMode, wrapMode });
+					const input = textureShaderInput(striped, { filterMode: 'linear', fitMode, wrapMode });
 					const expected = (await mix({ inputA: input, inputB: b, amount: zero }, 4, 4)).flat();
 					for (const selection of [0, 1]) {
 						const output = texture(4, 4);
@@ -176,13 +176,13 @@ export async function run() {
 			blocks.dispose();
 		}
 		for (const [wrapMode, expected] of [['clamp', [255, 0, 0, 255]], ['repeat', [0, 0, 255, 255]], ['repeatMirrored', [255, 0, 0, 255]], ['transparent', [0, 0, 0, 0]]] as const) {
-			const result = await mix({ inputA: textureShaderInput(striped, { fitMode: 'contain', wrapMode }), inputB: b, amount: zero }, 4, 4);
+			const result = await mix({ inputA: textureShaderInput(striped, { filterMode: 'linear', fitMode: 'contain', wrapMode }), inputB: b, amount: zero }, 4, 4);
 			check('contain margin with ' + wrapMode, result[0].slice(0, 4), expected);
 		}
 
 		// fitとは独立に、共通入力APIへ範囲外座標を直接渡してwrapを確認する。
 		for (const [wrapMode, expected] of [['clamp', [0, 0, 255, 255]], ['repeat', [255, 0, 0, 255]], ['repeatMirrored', [0, 0, 255, 255]], ['transparent', [0, 0, 0, 0]]] as const) {
-			const inputs = { source: textureShaderInput(wide, { fitMode: 'stretch', wrapMode }) };
+			const inputs = { source: textureShaderInput(wide, { filterMode: 'linear', fitMode: 'stretch', wrapMode }) };
 			const generated = generateShaderInputs({ source: 'color' }, inputs);
 			const bindings = createShaderInputBindings(device, generated);
 			const output = texture(1, 1);
@@ -202,7 +202,7 @@ export async function run() {
 			[-1, [128, 0, 0, 128], [255, 0, 0, 255]],
 			[1.1, [0, 0, 102, 102], [0, 0, 0, 0]],
 		] as const) {
-			const source = textureShaderInput(wide, { fitMode: 'stretch', wrapMode: 'transparent' });
+			const source = textureShaderInput(wide, { filterMode: 'linear', fitMode: 'stretch', wrapMode: 'transparent' });
 			const generated = generateShaderInputs({ source: 'color' }, { source });
 			const bindings = createShaderInputBindings(device, generated);
 			const output = texture(1, 1);
@@ -222,9 +222,9 @@ export async function run() {
 				bindings.dispose();
 			}
 		}
-		completed.push(...await checkMigratedEffects(device, vertex, async output => (await mix({ inputA: textureShaderInput(output), inputB: b, amount: zero }, output.width, output.height)).flat()));
+		completed.push(...await checkMigratedEffects(device, vertex, async output => (await mix({ inputA: textureShaderInput(output, { fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' }), inputB: b, amount: zero }, output.width, output.height)).flat()));
 		completed.push(...await checkGradientInputs(device, vertex));
-		completed.push(...await checkTimelineCompositor(device, vertex, async output => (await mix({ inputA: textureShaderInput(output), inputB: b, amount: zero }, output.width, output.height)).flat()));
+		completed.push(...await checkTimelineCompositor(device, vertex, async output => (await mix({ inputA: textureShaderInput(output, { fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' }), inputB: b, amount: zero }, output.width, output.height)).flat()));
 		const error = await device.popErrorScope();
 		if (error) throw new Error(error.message);
 		return completed;

@@ -9,11 +9,11 @@ globalThis.GPUTextureUsage = { TEXTURE_BINDING: 4, COPY_DST: 2, RENDER_ATTACHMEN
 globalThis.GPUQueue = class { submit() {} };
 const load = path => loadShaderSource(fileURLToPath(new URL(path, import.meta.url)));
 const { constantShaderInput, textureShaderInput, inputUvScale } = await load('../../shared/src/shader-input.ts');
-const { default: effect } = await load('../../shared/src/effects/colorMix/_impl_.ts');
-const { default: definition } = await load('../../shared/src/effects/colorMix/_def_.ts');
-const { default: imageEffect } = await load('../../shared/src/effects/image/_impl_.ts');
-const { default: imageDefinition } = await load('../../shared/src/effects/image/_def_.ts');
-const { default: structArrayDefinition } = await load('../../shared/src/effects/testStructArray/_def_.ts');
+const { default: effect } = await load('../../shared/src/effect/fx/colorMix/_impl_.ts');
+const { default: definition } = await load('../../shared/src/effect/fx/colorMix/_def_.ts');
+const { default: imageEffect } = await load('../../shared/src/effect/fx/image/_impl_.ts');
+const { default: imageDefinition } = await load('../../shared/src/effect/fx/image/_def_.ts');
+const { default: structArrayDefinition } = await load('../../shared/src/effect/fx/testStructArray/_def_.ts');
 const { VisualModuleRenderer } = await load('../src/visual-module-renderer.ts');
 const { OutputTextureResolver, outputShaderInput } = await load('../src/node-output.ts');
 const { TimelineRenderer } = await load('../src/timeline-renderer.ts');
@@ -109,7 +109,7 @@ test('publishes output resolutions only after drawing and when state changes', a
 	const renderer = createRenderer(device, {
 		paramDefs: [], automationGraphs: [], outputDefs: [{ id: 'out', isPrimaryOutput: true }, { id: 'extra' }], nodes,
 	}, {
-		effectDefinitions: { colorMix: { ...definition, outputs: { output: { primary: true, dataType: 'color' }, extra: { dataType: 'color', canLazyAllocation: true } } } },
+		effectDefinitions: { colorMix: { ...definition, outputDefs: { output: { primary: true, dataType: 'color' }, extra: { dataType: 'color', primary: false, canLazyAllocation: true } } } },
 		effectImplementations: { colorMix: probe }, onEffectState: (id, state) => notifications.push({ id, state }),
 	});
 	const latest = () => notifications.at(-1).state;
@@ -162,7 +162,7 @@ test('preserves constant outputs across timeline module layers', async () => {
 	const { device, calls, encoder } = gpuFixture();
 	const presented = [];
 	const module = {
-		paramDefs: [{ id: 'input', name: 'Input', dataType: 'color', canNode: true, isPrimaryInput: true, defaultValue: literal([0, 0, 0, 0]) }],
+		paramDefs: [{ id: 'input', nameForReference: 'Input', dataType: 'color', canNode: true, isPrimaryInput: true, defaultValue: literal([0, 0, 0, 0]) }],
 		automationGraphs: [], outputDefs: [{ id: 'out', isPrimaryOutput: true }],
 		nodes: [{ id: 'in', type: 'globalIn' }, { id: 'out', type: 'globalOut', inputs: { out: { nodeId: 'in', outputPort: 'input' } } }],
 	};
@@ -191,7 +191,7 @@ test('preserves constant outputs across timeline module layers', async () => {
 test('passes module constants through bypasses without allocating input textures', async () => {
 	const { device, calls, encoder } = gpuFixture();
 	const captured = [];
-	const connection = (port, nodeId = 'in') => ({ inputSource: 'node', nodeId, outputPort: port });
+	const connection = (port, nodeId = 'in') => ({ fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear', inputSource: 'node', nodeId, outputPort: port });
 	const bypass = { id: 'bypass', type: 'effect', effectId: 'colorMix', isBypass: true, params: {
 		inputA: connection('color'), inputB: literal([0, 0, 0, 0]), amount: literal(0),
 	} };
@@ -201,9 +201,9 @@ test('passes module constants through bypasses without allocating input textures
 	const probe = { ...effect, init: () => ({ prepare: params => captured.push(['prepare', params]), render: ctx => captured.push(['render', ctx.params]), dispose() {} }) };
 	const renderer = createRenderer(device, {
 		paramDefs: [
-			{ id: 'color', name: 'Color', dataType: 'color', canNode: true, defaultValue: literal([1, 0.5, 0, 0.25]) },
-			{ id: 'vector', name: 'Vector', dataType: 'vector', canNode: true, defaultValue: literal([0.123456789, -2]) },
-			{ id: 'scalar', name: 'Scalar', dataType: 'scalar', canNode: true, defaultValue: literal(0.123456789) },
+			{ id: 'color', nameForReference: 'Color', dataType: 'color', canNode: true, defaultValue: literal([1, 0.5, 0, 0.25]) },
+			{ id: 'vector', nameForReference: 'Vector', dataType: 'vector', canNode: true, defaultValue: literal([0.123456789, -2]) },
+			{ id: 'scalar', nameForReference: 'Scalar', dataType: 'scalar', canNode: true, defaultValue: literal(0.123456789) },
 		], automationGraphs: [], outputDefs: [{ id: 'out', isPrimaryOutput: true }],
 		nodes: [{ id: 'in', type: 'globalIn' }, bypass, mix, { id: 'out', type: 'globalOut', inputs: { out: { nodeId: 'mix', outputPort: 'output' } } }],
 	}, { effectImplementations: { colorMix: probe } });
@@ -234,14 +234,14 @@ test('switches module outputs between constants and borrowed textures', () => {
 	const captured = [];
 	const mix = { id: 'mix', type: 'effect', effectId: 'colorMix', params: {
 		inputA: { inputSource: 'node', nodeId: 'in', outputPort: 'color', fitMode: 'contain', wrapMode: 'clamp', filterMode: 'nearest' },
-		inputB: { inputSource: 'node', nodeId: 'in', outputPort: 'color' },
-		amount: { inputSource: 'externalCustomParameterInput', parameterId: 'gain' },
+		inputB: { fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear', inputSource: 'node', nodeId: 'in', outputPort: 'color' },
+		amount: { inputSource: 'node', nodeId: 'in', outputPort: 'gain', fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' },
 	} };
 	const out = { id: 'out', type: 'globalOut', inputs: { out: { nodeId: 'mix', outputPort: 'output' } } };
 	const renderer = createRenderer(device, {
 		paramDefs: [
-			{ id: 'color', name: 'Color', dataType: 'color', canNode: true, defaultValue: literal([1, 0, 0, 0.5]) },
-			{ id: 'gain', name: 'Gain', dataType: 'scalar', canNode: true, defaultValue: literal(0) },
+			{ id: 'color', nameForReference: 'Color', dataType: 'color', canNode: true, defaultValue: literal([1, 0, 0, 0.5]) },
+			{ id: 'gain', nameForReference: 'Gain', dataType: 'scalar', canNode: true, defaultValue: literal(0) },
 		], automationGraphs: [], outputDefs: [{ id: 'out', isPrimaryOutput: true }], nodes: [{ id: 'in', type: 'globalIn' }, mix, out],
 	}, { effectImplementations: { colorMix: { ...effect, init: () => ({ render: ctx => captured.push(ctx.params), dispose() {} }) } } });
 	const texture = device.createTexture({ size: [17, 9], format: 'rgba8unorm' });
@@ -285,7 +285,7 @@ for (const enable32bit of [false, true]) {
 		const vector = resolver.resolve({ kind: 'uniform', value: [1, 2] });
 		assert.equal(scalar.format, enable32bit ? 'r32float' : 'r16float');
 		assert.equal(vector.format, enable32bit ? 'rg32float' : 'rg16float');
-		assert.deepEqual(outputShaderInput({ kind: 'uniform', value: [1] }).value, [1, 0, 0, 1]);
+		assert.deepEqual(outputShaderInput({ kind: 'uniform', value: [1] }, { fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' }).value, [1, 0, 0, 1]);
 		const borrowed = device.createTexture({ size: [10, 20] });
 		assert.strictEqual(resolver.resolve({ kind: 'texture', texture: borrowed }), borrowed);
 		assert.equal(calls.textures.length, 4);
@@ -343,12 +343,12 @@ function renderContext(overrides = {}) {
 }
 
 // 定数色は一度だけ乗算し、スカラーやベクトルの値は変更しない。
-test('normalizes constants and defaults connection sampling settings', () => {
+test('normalizes constants and preserves explicit connection sampling settings', () => {
 	assert.deepEqual(constantShaderInput('color', [1, 0.5, 0, 0.25]).value, [0.25, 0.125, 0, 0.25]);
 	assert.deepEqual(constantShaderInput('color', null).value, [0, 0, 0, 0]);
 	assert.deepEqual(constantShaderInput('vector', [-2, 3]).value, [-2, 3]);
 	assert.deepEqual(constantShaderInput('scalar', 0.123456789).value, [0.123456789]);
-	assert.deepEqual(textureShaderInput('texture'), { kind: 'texture', texture: 'texture', fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' });
+	assert.deepEqual(textureShaderInput('texture', { fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' }), { kind: 'texture', texture: 'texture', fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' });
 });
 
 // 横長・縦長と解像度だけの違いを含め、入力を出力へ収める逆写像を確認する。
@@ -377,10 +377,10 @@ test('reuses colorMix variants and releases all owned buffers', () => {
 	assert.equal(calls.groups[0].entries.length, 1);
 	assert.equal(calls.writes.at(-1)[16], 0.75);
 	const input = device.createTexture({ size: [200, 100] });
-	params.inputA = textureShaderInput(input);
+	params.inputA = textureShaderInput(input, { fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' });
 	render();
 	assert.equal(calls.samplers.at(-1).addressModeU, 'mirror-repeat');
-	params.inputA = textureShaderInput(input, { fitMode: 'contain', wrapMode: 'repeat' });
+	params.inputA = textureShaderInput(input, { filterMode: 'linear', fitMode: 'contain', wrapMode: 'repeat' });
 	render();
 	assert.equal(calls.shaders.length, 2);
 	assert.deepEqual([...calls.writes.at(-1).slice(4, 8)], [1, 2, 0, 0]);
@@ -423,7 +423,7 @@ test('resolves colorMix inputs through the renderer without constant textures', 
 	assert.equal(calls.draws, 1);
 	// 同じ出力を参照したまま接続側fit/wrapだけを変更しても再描画される。
 	const source = { ...mix, id: 'source', params: { ...mix.params } };
-	mix.params.inputA = { inputSource: 'node', nodeId: 'source', outputPort: 'output' };
+	mix.params.inputA = { fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear', inputSource: 'node', nodeId: 'source', outputPort: 'output' };
 	renderer.updateNodes([source, ...visualModule.nodes]);
 	renderer.render(context, encoder);
 	const before = calls.draws;
@@ -448,12 +448,12 @@ test('resolves colorMix inputs through the renderer without constant textures', 
 test('refreshes external textures and restores constants after disconnecting them', () => {
 	const { device, calls, encoder } = gpuFixture();
 	const mix = { id: 'mix', type: 'effect', effectId: 'colorMix', params: {
-		inputA: { inputSource: 'node', nodeId: null, outputPort: null }, inputB: literal([0, 0, 1, 1]), amount: { inputSource: 'externalCustomParameterInput', parameterId: 'gain' },
+		inputA: { inputSource: 'node', nodeId: null, outputPort: null }, inputB: literal([0, 0, 1, 1]), amount: { inputSource: 'node', nodeId: 'in', outputPort: 'gain', fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' },
 	} };
 	const renderer = createRenderer(device, {
-		paramDefs: [{ id: 'gain', name: 'Gain', dataType: 'scalar', canNode: true, defaultValue: literal(0) }],
+		paramDefs: [{ id: 'gain', nameForReference: 'Gain', dataType: 'scalar', canNode: true, defaultValue: literal(0) }],
 		automationGraphs: [], outputDefs: [{ id: 'out', isPrimaryOutput: true }],
-		nodes: [mix, { id: 'out', type: 'globalOut', inputs: { out: { nodeId: 'mix', outputPort: 'output' } } }],
+		nodes: [{ id: 'in', type: 'globalIn' }, mix, { id: 'out', type: 'globalOut', inputs: { out: { nodeId: 'mix', outputPort: 'output' } } }],
 	});
 	const context = renderContext();
 	renderer.render(context, encoder);
@@ -513,7 +513,7 @@ test('resizes Image Original outputs to the selected asset and preserves borrowe
 	assert.deepEqual([original.width, original.height], [4, 9]);
 	// Image Original→colorMixで、素材側の比率がサンプリングのuniformへ届くことを確認する。
 	const mix = { id: 'mix', type: 'effect', effectId: 'colorMix', params: {
-		inputA: { inputSource: 'node', nodeId: 'raw', outputPort: 'output' }, inputB: literal([0, 0, 0, 0]), amount: literal(0),
+		inputA: { fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear', inputSource: 'node', nodeId: 'raw', outputPort: 'output' }, inputB: literal([0, 0, 0, 0]), amount: literal(0),
 	} };
 	output.inputs.out.nodeId = 'mix';
 	renderer.updateNodes([raw, mix, output]);

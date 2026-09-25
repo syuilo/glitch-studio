@@ -1,5 +1,5 @@
-import gradient from '../../../shared/src/effects/gradient/_impl_.ts';
-import definition from '../../../shared/src/effects/gradient/_def_.ts';
+import gradient from '../../../shared/src/effect/fx/gradient/_impl_.ts';
+import definition from '../../../shared/src/effect/fx/gradient/_def_.ts';
 import { constantShaderInput, textureShaderInput } from '../../../shared/src/shader-input.ts';
 import { float32ToFloat16Bits } from '../../../shared/src/utility/float32ToFloat16Bits.ts';
 
@@ -58,7 +58,7 @@ export async function checkGradientInputs(device: GPUDevice, vertex: GPUShaderMo
 			for (const [name, param] of Object.entries(definition.paramDefs) as [string, any][]) {
 				const value = param.defaultValue.value;
 				params[name] = param.canNode ? constantShaderInput('scalar', value) : value;
-				if (param.canNode) inputs.push({ name, uniform: params[name], texture: textureShaderInput(texture(1, 1, 1, [value])) });
+				if (param.canNode) inputs.push({ name, uniform: params[name], texture: textureShaderInput(texture(1, 1, 1, [value]), { fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' }) });
 			}
 			// 全128入力構成でscalar単独と複数出力を比較する。最後は退避した構成へ戻す。
 			const baseline = await render(params, true);
@@ -88,7 +88,7 @@ export async function checkGradientInputs(device: GPUDevice, vertex: GPUShaderMo
 					const ratio = width / height;
 					const scale = fitMode === 'stretch' ? [1, 1] : fitMode === 'cover' ? [Math.min(1, 1 / ratio), Math.min(1, ratio)] : [Math.max(1, 1 / ratio), Math.max(1, ratio)];
 					for (const wrapMode of ['clamp', 'repeat', 'repeatMirrored', 'transparent'] as const) {
-						params.startValue = params.endValue = textureShaderInput(source, { fitMode, wrapMode });
+						params.startValue = params.endValue = textureShaderInput(source, { filterMode: 'linear', fitMode, wrapMode });
 						const result = await render(params, true);
 						function index(value: number, size: number) {
 							if (wrapMode === 'repeat') return ((value % size) + size) % size;
@@ -116,11 +116,11 @@ export async function checkGradientInputs(device: GPUDevice, vertex: GPUShaderMo
 			}
 			// nearestの入力微分は画素内・境界とも0。linearへ戻したときには復元される。
 			const stepSource = texture(2, 2, 1, [0.125, 0.875, 0.125, 0.875]);
-			params.startValue = params.endValue = textureShaderInput(stepSource, { filterMode: 'nearest' });
+			params.startValue = params.endValue = textureShaderInput(stepSource, { fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'nearest' });
 			const nearest = await render(params, true);
 			check('nearest gradient values', nearest.scalar, Array.from({ length: 4 }, () => [0.125, 0.125, 0.875, 0.875]).flat());
 			check('nearest input derivatives are zero', nearest.vector, Array(32).fill(0));
-			params.startValue = params.endValue = textureShaderInput(stepSource, { filterMode: 'linear' });
+			params.startValue = params.endValue = textureShaderInput(stepSource, { fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' });
 			const linear = await render(params, true);
 			check('restores linear input derivative', linear.vector.slice(2, 4), [0.75, 0]);
 			const error = await device.popErrorScope();

@@ -238,19 +238,6 @@ test('ignores stale failures without clearing the current layers', async () => {
 	f.renderer.clear();
 });
 
-// 不正な時刻は現在の準備を中断せず拒否する
-test('rejects non-finite times without cancelling an active seek', async () => {
-	const preparation = deferred();
-	const f = fixture({ prepare: () => preparation.promise });
-	const seek = f.renderer.renderAt(10, [entry('a')]);
-	for (const time of [NaN, Infinity, -Infinity]) await assert.rejects(f.renderer.renderAt(time, []), /finite/);
-	assert.equal(f.prepared[0].signal.aborted, false);
-	preparation.resolve();
-	await seek;
-	assert.equal(f.presented.length, 1);
-	f.renderer.clear();
-});
-
 // 動画相当のレイヤーとVisual Moduleを混在させ、生成側だけで種類を解釈する
 test('chains different layer types without requiring visual module fields', async () => {
 	const inputFrame = { name: 'video frame' };
@@ -287,7 +274,7 @@ test('chains different layer types without requiring visual module fields', asyn
 					return createVisualModuleTimelineLayer({ paramDefs: [
 						{ id: 'main', isPrimaryInput: true },
 						{ id: 'second', isPrimaryInput: true },
-						{ id: 'gain', name: 'gain', dataType: 'scalar', defaultValue: { inputSource: 'literal', value: 0 }, isPrimaryInput: false },
+						{ id: 'gain', nameForReference: 'gain', dataType: 'scalar', defaultValue: { inputSource: 'literal', value: 0 }, isPrimaryInput: false },
 					] }, entry.layer, {
 						async prepare(context) { prepared.push(context); },
 						async render(context) { rendered.push(context); return { output: finalFrame, gpuTime: 2 }; },

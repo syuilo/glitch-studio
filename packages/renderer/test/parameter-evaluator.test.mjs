@@ -16,7 +16,7 @@ async function loadSource(name) {
 		// node-outputsのテストではモジュール入力だけを検証するため、組み込みエフェクト一覧は不要。
 		// Vite専用の一覧読み込みを実行せず、パラメータ評価のテストをエフェクトの追加・変更から独立させる。
 		plugins: [{ name: 'parameter-evaluator-test', setup(build) {
-			build.onResolve({ filter: /effect-definitions\.ts$/ }, () => ({ path: 'effects', namespace: 'parameter-evaluator-test' }));
+			build.onResolve({ filter: /effect-definitions\.[jt]s$/ }, () => ({ path: 'effects', namespace: 'parameter-evaluator-test' }));
 			build.onLoad({ filter: /.*/, namespace: 'parameter-evaluator-test' }, () => ({
 				contents: 'export const effectDefinitions = {};', loader: 'ts',
 			}));
@@ -58,11 +58,11 @@ const literal = value => ({ inputSource: 'literal', value });
 const expression = expression => ({ inputSource: 'expression', expression });
 const number = { dataType: 'scalar', ui: { control: 'number' } };
 const node = (params, isBypass = false) => ({ id: 'node', type: 'effect', effectId: 'test', isBypass, params });
-const paramDef = (id, defaultValue = 7, dataType = 'scalar') => ({ id, name: id, label: id, dataType, ui: { control: dataType === 'scalar' ? 'number' : dataType }, defaultValue: literal(defaultValue), canNode: true, isPrimaryInput: false });
+const paramDef = (id, defaultValue = 7, dataType = 'scalar') => ({ id, nameForReference: id, dataType, ui: { control: dataType === 'scalar' ? 'number' : dataType }, defaultValue: literal(defaultValue), canNode: false, isPrimaryInput: false });
 const context = (defs, params, overrides = {}) => ({
 	nodes: [node(params)],
 	paramDefs: [],
-	effectDefinitions: { test: { paramDefs: defs } },
+	effectDefinitions: { test: { id: 'test', displayName: 'Test', tags: [], paramDefs: defs, primaryInputParameter: null, outputDefs: {} } },
 	automationGraphs: [],
 	resolution: { width: 640, height: 360 },
 	time: 500,
@@ -81,7 +81,7 @@ test('resolves PARAM names separately from external parameter IDs', () => {
 		direct: { inputSource: 'externalCustomParameterInput', parameterId: 'gain-id' },
 		invalid: expression('PARAM("gain-id")'),
 	}, {
-		paramDefs: [{ ...paramDef('gain-id'), name: 'Gain' }],
+		paramDefs: [{ ...paramDef('gain-id'), nameForReference: 'Gain' }],
 		paramValues: { 'gain-id': literal(23) },
 	}));
 	assert.deepEqual([...result.paramValues], [['gain-id', 23]]);
@@ -282,7 +282,7 @@ test('evaluates nested values, expressions and node references without a GPU', (
 		empty: { dataType: 'array', item: number },
 	}, {
 		items: literal([literal({ value: expression('WIDTH + HEIGHT + TIME + TIME_MS + PROGRESS') }), literal({ value: literal(9) })]),
-		link: { inputSource: 'node', nodeId: 'source', outputPort: 'value' },
+		link: { fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear', inputSource: 'node', nodeId: 'source', outputPort: 'value' },
 		empty: literal([]),
 	});
 	const result = evaluate(new ParameterEvaluator(), input);
@@ -331,7 +331,8 @@ test('falls back for texture parameters, missing references and invalid expressi
 // バイパス中は主入力以外の不正なコンテナも評価しない
 test('evaluates only the primary parameter when bypassed', () => {
 	const params = { main: literal(4), unused: expression('invalid container') };
-	const input = context({ main: { ...number, primary: true }, unused: { dataType: 'array', item: number } }, params, { nodes: [node(params, true)] });
+	const input = context({ main: { ...number, canNode: true }, unused: { dataType: 'array', item: number } }, params, { nodes: [node(params, true)] });
+	input.effectDefinitions.test.primaryInputParameter = 'main';
 	assert.deepEqual(evaluate(new ParameterEvaluator(), input).nodeParams.get('node'), { main: 4 });
 });
 
@@ -367,18 +368,18 @@ test('evaluates numeric parameters independently of their UI controls', async ()
 	}
 });
 
-// 数値の型名を入出力で揃え、参照や真偽値からのテクスチャ変換も維持する。
+// ノード対応型だけをInの出力として公開し、真偽値や素材参照は変換しない。
 test('uses shared scalar types for node inputs and module outputs', async () => {
 	const { getNodeInputDataType, getNodeOutputs, areNodeDataTypesCompatible } = await loadSource('../../shared/src/utility/node-outputs');
 	const defs = [
-		paramDef('amount'), paramDef('flag', true, 'bool'), paramDef('image', null, 'assetReference'),
-		paramDef('vector', [0, 0], 'vector'), paramDef('color', [0, 0, 0, 1], 'color'),
+		{ ...paramDef('amount'), canNode: true }, paramDef('flag', true, 'bool'), paramDef('image', null, 'assetReference'),
+		{ ...paramDef('vector', [0, 0], 'vector'), canNode: true }, { ...paramDef('color', [0, 0, 0, 1], 'color'), canNode: true },
 		paramDef('player', null, 'playerReference'), { ...paramDef('disabled'), canNode: false },
 	];
 	const outputs = getNodeOutputs({ id: 'in', type: 'globalIn' }, defs);
 	assert.equal(outputs.amount.dataType, 'scalar');
-	assert.equal(outputs.flag.dataType, 'scalar');
-	assert.equal(outputs.image.dataType, 'color');
+	assert.equal(outputs.flag, undefined);
+	assert.equal(outputs.image, undefined);
 	assert.equal(outputs.vector.dataType, 'vector');
 	assert.equal(outputs.color.dataType, 'color');
 	assert.equal(outputs.player, undefined);

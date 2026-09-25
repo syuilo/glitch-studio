@@ -4,12 +4,13 @@ import { fileURLToPath } from 'node:url';
 import { loadShaderSource } from './helpers/load-shader-source.mjs';
 
 const { TimelineCompositingParameters } = await loadShaderSource(fileURLToPath(new URL('../src/timeline-compositing-parameters.ts', import.meta.url)));
+const { timelineCompositingParamDefs } = await loadShaderSource(fileURLToPath(new URL('../../shared/src/timeline/timeline-compositing.ts', import.meta.url)));
 const literal = value => ({ inputSource: 'literal', value });
 const expression = expression => ({ inputSource: 'expression', expression });
 const context = { time: 500, endTime: 2000, isExport: false };
-const evaluate = (values, graphs = [], overrides = {}) => new TimelineCompositingParameters().evaluate({ ...context, ...overrides, paramValues: values, automationGraphs: graphs });
+const evaluate = (values, graphs = [], overrides = {}) => new TimelineCompositingParameters().evaluate({ ...context, ...overrides, paramValues: { ...Object.fromEntries(Object.entries(timelineCompositingParamDefs).map(([key, def]) => [key, structuredClone(def.defaultValue)])), ...values }, automationGraphs: graphs });
 
-// 初期状態は通常合成・不透明・無変形とし、既定値を保存データに複製しない。
+// 保存された初期値は通常合成・不透明・無変形として評価する。
 test('defaults to normal compositing with an identity transform', () => {
 	assert.deepEqual(evaluate({}), { blendMode: 0, opacity: 1, translation: [0, 0], scale: [1, 1], rotation: 0 });
 });

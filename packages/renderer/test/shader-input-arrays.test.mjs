@@ -57,7 +57,7 @@ test('caches array lengths and kinds including empty arrays', () => {
 	const first = pipeline.update({ images: [red] }, output);
 	assert.equal(pipeline.update({ images: [color([0, 1, 0, 1])] }, output).pipeline, first.pipeline);
 	pipeline.update({ images: [red, red] }, output);
-	pipeline.update({ images: [textureShaderInput(texture)] }, output);
+	pipeline.update({ images: [textureShaderInput(texture, { fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' })] }, output);
 	const empty = pipeline.update({ images: [] }, output);
 	assert.ok(calls.buffers.at(-1).size > 0);
 	assert.equal(empty.bindGroup.entries.length, 1);
@@ -87,7 +87,7 @@ test('generates typed selectors and rejects mismatched array shapes', () => {
 test('rejects texture and uniform binding limits before allocation', () => {
 	const { device, calls } = fixture();
 	const schema = { images: { array: 'color' } };
-	const generated = generateShaderInputs(schema, { images: Array(17).fill(textureShaderInput(texture)) });
+	const generated = generateShaderInputs(schema, { images: Array(17).fill(textureShaderInput(texture, { fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' })) });
 	assert.throws(() => createShaderInputBindings(device, generated), /binding limits/);
 	assert.equal(calls.buffers.length, 0);
 	device.limits.maxUniformBufferBindingSize = 32;

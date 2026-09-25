@@ -8,7 +8,7 @@ import { build } from 'esbuild';
 const bundled = await build({
 	absWorkingDir: fileURLToPath(new URL('../', import.meta.url)),
 	stdin: {
-		contents: "export { COMMAND_DEFS } from './src/commands.ts'; export { createInlineAutomationGraph, setInlineAutomationGraphNormalized } from './src/utility/automation-graph.ts'; export { encodeProjectFile, decodeProjectFile } from './src/gsproj.ts';",
+		contents: "export { timelineCompositingParamDefs } from '../shared/src/timeline/timeline-compositing.ts'; export { COMMAND_DEFS } from './src/commands.ts'; export { createInlineAutomationGraph, setInlineAutomationGraphNormalized } from './src/utility/automation-graph.ts'; export { encodeProjectFile, decodeProjectFile } from './src/gsproj.ts';",
 		resolveDir: fileURLToPath(new URL('../', import.meta.url)),
 		loader: 'ts',
 	},
@@ -16,7 +16,7 @@ const bundled = await build({
 	plugins: [{
 		name: 'inline-graph-test-dependencies',
 		setup(build) {
-			build.onResolve({ filter: /effect-definitions\.ts$/ }, () => ({ path: 'effects', namespace: 'inline-graph-test' }));
+			build.onResolve({ filter: /effect-definitions\.[jt]s$/ }, () => ({ path: 'effects', namespace: 'inline-graph-test' }));
 			build.onResolve({ filter: /preferences\.ts$/ }, () => ({ path: 'preferences', namespace: 'inline-graph-test' }));
 			build.onLoad({ filter: /.*/, namespace: 'inline-graph-test' }, ({ path }) => ({
 				contents: path === 'preferences'
@@ -31,9 +31,11 @@ const bundled = await build({
 });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', bundled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
-const { COMMAND_DEFS, createInlineAutomationGraph, setInlineAutomationGraphNormalized, encodeProjectFile, decodeProjectFile } = module.exports;
+const { timelineCompositingParamDefs, COMMAND_DEFS, createInlineAutomationGraph, setInlineAutomationGraphNormalized, encodeProjectFile, decodeProjectFile } = module.exports;
 
-// 合成設定の履歴はモジュールパラメータと独立し、未設定だった状態まで復元する。
+const defaultCompositing = () => Object.fromEntries(Object.entries(timelineCompositingParamDefs).map(([key, def]) => [key, structuredClone(def.defaultValue)]));
+
+// 合成設定の履歴はモジュールパラメータと独立し、保存された初期値まで復元する。
 test('undoes and redoes compositing expressions without changing module parameters', () => {
 	const { state } = fixture();
 	const layer = state.timeline.value[0];
@@ -42,11 +44,11 @@ test('undoes and redoes compositing expressions without changing module paramete
 		layerId: layer.id, target: 'compositing', paramId: 'opacity', edit: { kind: 'expression', value: 'PROGRESS' },
 	});
 	command.execute(state);
-	assert.deepEqual(layer.compositing.opacity, { inputSource: 'expression', expression: 'PROGRESS' });
+	assert.deepEqual(layer.compositingParamValues.opacity, { inputSource: 'expression', expression: 'PROGRESS' });
 	command.undo(state);
-	assert.deepEqual(layer.compositing, {});
+	assert.deepEqual(layer.compositingParamValues, defaultCompositing());
 	command.execute(state);
-	assert.equal(layer.compositing.opacity.expression, 'PROGRESS');
+	assert.equal(layer.compositingParamValues.opacity.expression, 'PROGRESS');
 	assert.equal(layer.paramValues.opacity.value, 0.8);
 });
 
@@ -64,20 +66,20 @@ test('preserves compositing graphs and settings through edits and serialization'
 	layer.automationGraphs.push({ id: 'graph', name: 'Layer graph', ...structuredClone(input.automationGraph) });
 	const inline = edit('translationX', { kind: 'automationGraphInline', value: input });
 	input.automationGraph.points[0].y = 99;
-	assert.equal(layer.compositing.translationX.automationGraph.points[0].y, 0.25);
+	assert.equal(layer.compositingParamValues.translationX.automationGraph.points[0].y, 0.25);
 	inline.undo(state);
-	assert.deepEqual(layer.compositing, {});
+	assert.deepEqual(layer.compositingParamValues, defaultCompositing());
 	inline.execute(state);
 	edit('rotation', { kind: 'automationGraphReference', value: 'graph', options: { durationMs: 2500, offsetMode: 'end', wrapMode: 'clamp' } });
 	edit('blendMode', { kind: 'literal', value: 'replace' });
 	const restored = decodeProjectFile(encodeProjectFile({ timeline: [layer] })).timeline[0];
-	assert.deepEqual(restored.compositing, layer.compositing);
+	assert.deepEqual(restored.compositingParamValues, layer.compositingParamValues);
 	assert.deepEqual(restored.automationGraphs, layer.automationGraphs);
-	assert.equal(restored.compositing.rotation.durationMs, 2500);
+	assert.equal(restored.compositingParamValues.rotation.durationMs, 2500);
 	const reset = edit('blendMode', { kind: 'reset' });
-	assert.equal(layer.compositing.blendMode.value, 'normal');
+	assert.equal(layer.compositingParamValues.blendMode.value, 'normal');
 	reset.undo(state);
-	assert.equal(layer.compositing.blendMode.value, 'replace');
+	assert.equal(layer.compositingParamValues.blendMode.value, 'replace');
 });
 
 // 単位切り替えはXと制御点のXだけを変換し、曲線の形・Y・元データを維持する。
@@ -114,7 +116,7 @@ function fixture() {
 	const node = { id: 'node', type: 'effect', effectId: 'test', params: { values: { inputSource: 'literal', value: [initial] } } };
 	const state = {
 		visualModules: { value: [{ id: 'module', nodes: [node], paramDefs: [{ id: 'gain', defaultValue: initial, isPrimaryInput: false }] }] },
-		timeline: { value: [{ id: 'layer', visualModuleId: 'module', paramValues: {}, compositing: {}, automationGraphs: [] }] },
+		timeline: { value: [{ id: 'layer', visualModuleId: 'module', paramValues: {}, compositingParamValues: defaultCompositing(), automationGraphs: [] }] },
 	};
 	return { state, node, target: { visualModuleId: 'module', nodeId: 'node', paramPath: ['values', 0] } };
 }
