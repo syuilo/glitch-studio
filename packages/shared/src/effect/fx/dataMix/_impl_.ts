@@ -1,5 +1,5 @@
 import { implementEffect } from '../../effect-implementation.ts';
-import { createShaderInputPipeline } from '../../shader-input-pipeline.ts';
+import { createShaderInputPipeline } from '../../../shader-input-pipeline.ts';
 import code from './shader.wgsl?raw';
 import type definition from './_def_.ts';
 

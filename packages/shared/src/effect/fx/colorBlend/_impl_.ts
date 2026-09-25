@@ -1,6 +1,6 @@
 import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { implementEffect } from '../../effect-implementation.ts';
-import { createShaderInputPipeline } from '../../shader-input-pipeline.ts';
+import { createShaderInputPipeline } from '../../../shader-input-pipeline.ts';
 import code from './shader.wgsl?raw';
 import blendCode from '../../color-blend.wgsl?raw';
 import { colorBlendModes as blendModes } from '../../color-blend.ts';

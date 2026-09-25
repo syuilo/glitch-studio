@@ -1,6 +1,6 @@
 import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { implementEffect } from '../../effect-implementation.ts';
-import { createShaderInputPipeline } from '../../shader-input-pipeline.ts';
+import { createShaderInputPipeline } from '../../../shader-input-pipeline.ts';
 import shader from './shader.wgsl?raw';
 import noise from './noise.wgsl?raw';
 import type definition from './_def_.ts';
