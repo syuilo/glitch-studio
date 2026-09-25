@@ -290,7 +290,7 @@ export class VisualModuleRenderer {
 					}
 					if (param.inputSource === 'externalCustomParameterInput') {
 						const input = this.paramInputs.get(param.parameterId);
-						if (input != null) return outputShaderInput(input);
+						if (input != null) return outputShaderInput(input, param);
 					}
 					return constantShaderInput(def.dataType, v);
 				}

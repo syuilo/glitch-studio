@@ -1,15 +1,13 @@
-import type { NodeOutputReference } from './types.ts';
-
-type InputFitMode = NodeOutputReference['fitMode'];
-type InputWrapMode = NodeOutputReference['wrapMode'];
-type InputFilterMode = NodeOutputReference['filterMode'];
+type InputFitMode = 'stretch' | 'cover' | 'contain';
+type InputWrapMode = 'repeat' | 'repeatMirrored' | 'clamp';
+type InputFilterMode = 'nearest' | 'linear';
 
 export type ShaderInput =
 	| { kind: 'uniform'; value: readonly number[] }
 	| { kind: 'texture'; texture: GPUTexture; fitMode: InputFitMode; wrapMode: InputWrapMode; filterMode: InputFilterMode };
 
-export function textureShaderInput(texture: GPUTexture, reference: Pick<NodeOutputReference, 'fitMode' | 'wrapMode' | 'filterMode'> = {}): ShaderInput {
-	return { kind: 'texture', texture, fitMode: reference.fitMode ?? 'cover', wrapMode: reference.wrapMode ?? 'repeatMirrored', filterMode: reference.filterMode ?? 'linear' };
+export function textureShaderInput(texture: GPUTexture, reference: { fitMode: InputFitMode; wrapMode: InputWrapMode; filterMode: InputFilterMode }): ShaderInput {
+	return { kind: 'texture', texture, fitMode: reference.fitMode, wrapMode: reference.wrapMode, filterMode: reference.filterMode };
 }
 
 /** 色のリテラルは未乗算。画像入力と同じ意味になる境界で一度だけ乗算する。 */

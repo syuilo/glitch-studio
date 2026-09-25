@@ -6,7 +6,7 @@ import type { NodeOutputReference } from '@glitch/shared/types.ts';
 // 出力値は接続先のサンプリング設定を持たない。色は既にpremultiply済み。
 export type NodeOutput = Extract<ShaderInput, { kind: 'uniform' }> | { kind: 'texture'; texture: GPUTexture };
 
-export function outputShaderInput(output: NodeOutput, reference: Pick<NodeOutputReference, 'fitMode' | 'wrapMode' | 'filterMode'> = {}): ShaderInput {
+export function outputShaderInput(output: NodeOutput, reference: Pick<NodeOutputReference, 'fitMode' | 'wrapMode' | 'filterMode'>): ShaderInput {
 	if (output.kind === 'texture') return textureShaderInput(output.texture, reference);
 	// r/rgテクスチャを別の型の入力へ接続した場合と同じ、欠けた成分=(0, 0, 1)。
 	// 受け取り側の型でpremultiplyし直すと色が二重乗算されるため、そのまま渡す。

@@ -1,7 +1,7 @@
 import type { TextureDataType } from '../data-type.ts';
 import type { EffectDefinition } from '../effect/effect-definition.ts';
 import type { ParameterDefinition, ParameterDefinition_Any, ParameterDefinition_Array, ParameterDefinition_Struct } from '../parameter.ts';
-import type { GsAutomationGraph, ParameterBinding } from '../types.ts';
+import type { FitMode, GsAutomationGraph, ParameterBinding, WrapMode } from '../types.ts';
 
 export type GsEffectNode = {
 	id: string;
@@ -79,3 +79,5 @@ export type EffectNodeOf<DEF extends EffectDefinition> = Omit<GsEffectNode, 'eff
 	effectId: DEF['id'];
 	params: DEF['paramDefs'];
 };
+
+export type NodeOutputReference = { nodeId: string; outputPort: string; fitMode: FitMode; wrapMode: WrapMode; filterMode: 'linear' | 'nearest' };

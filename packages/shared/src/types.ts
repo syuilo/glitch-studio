@@ -1,9 +1,6 @@
-/* eslint-disable @typescript-eslint/naming-convention */
+ 
 import type { GlobalEnvVariable } from './expression.ts';
-import type { VisualModuleCustomParameterId } from './visual-module/types.ts';
-
-export type NodeOutputReference = { nodeId: string; outputPort: string; fitMode: FitMode; wrapMode: WrapMode; filterMode: 'linear' | 'nearest' };
-export type ParameterBinding_Node = { inputSource: 'node' } & (NodeOutputReference | { nodeId: null; outputPort: null });
+import type { NodeOutputReference, VisualModuleCustomParameterId } from './visual-module/types.ts';
 
 export type ParameterBinding = {
 	inputSource: 'literal';
@@ -29,7 +26,7 @@ export type ParameterBinding = {
 	durationMs: number | null; // isNormalizedの場合のみ使用。nullの場合は1000ms。
 	offsetMode: 'start' | 'end';
 	wrapMode: 'clamp' | 'repeat' | 'repeatMirrored'
-} | ParameterBinding_Node;
+} | ({ inputSource: 'node' } & (NodeOutputReference | { nodeId: null; outputPort: null }));
 
 export type AutomationGraphPlaybackOptions = Pick<Extract<ParameterBinding, { inputSource: 'automationGraphReference' }>, 'durationMs' | 'offsetMode' | 'wrapMode'>;
 
