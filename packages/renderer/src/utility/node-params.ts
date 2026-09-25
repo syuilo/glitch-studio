@@ -1,11 +1,11 @@
-import type { EffectOptionSchema, EffectOptionsSchema } from '@glitch/shared/effect-definition.ts';
+import type { ParameterDefinition_Effect, EffectOptionsSchema } from '@glitch/shared/effect-definition.ts';
 import type { ParameterBinding } from '@glitch/shared/types.ts';
 
 type ParamPath = (string | number)[];
 
 // コンテナ自身の式は評価しない。literalの子だけを定義に沿ってたどる。
-export function mapNodeParam(def: EffectOptionSchema, param: ParameterBinding, path: ParamPath,
-	mapLeaf: (def: EffectOptionSchema, param: ParameterBinding, path: ParamPath) => any): any {
+export function mapNodeParam(def: ParameterDefinition_Effect, param: ParameterBinding, path: ParamPath,
+	mapLeaf: (def: ParameterDefinition_Effect, param: ParameterBinding, path: ParamPath) => any): any {
 	if (def.dataType === 'array' || def.dataType === 'struct') {
 		if (param.inputSource !== 'literal') throw new Error(`Container parameter must be literal: ${JSON.stringify(path)}`);
 		if (def.dataType === 'array') {
@@ -19,9 +19,9 @@ export function mapNodeParam(def: EffectOptionSchema, param: ParameterBinding, p
 }
 
 export function* walkNodeParams(defs: EffectOptionsSchema, params: Record<string, ParameterBinding>, bypass = false): Generator<{
-	def: EffectOptionSchema; param: ParameterBinding; path: ParamPath;
+	def: ParameterDefinition_Effect; param: ParameterBinding; path: ParamPath;
 }> {
-	function* walk(def: EffectOptionSchema, param: ParameterBinding, path: ParamPath): ReturnType<typeof walkNodeParams> {
+	function* walk(def: ParameterDefinition_Effect, param: ParameterBinding, path: ParamPath): ReturnType<typeof walkNodeParams> {
 		if (def.dataType === 'array' || def.dataType === 'struct') {
 			if (param.inputSource !== 'literal') throw new Error(`Container parameter must be literal: ${JSON.stringify(path)}`);
 			if (def.dataType === 'array') {

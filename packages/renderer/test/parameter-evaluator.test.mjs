@@ -423,7 +423,7 @@ for (const enable32bitDataTextures of [false, true]) {
 				vector: { dataType: 'vector', ui: { control: 'vector' }, canNode: true },
 				color: { dataType: 'color', ui: { control: 'color' }, canNode: true },
 			} } },
-			outputs: { image: { dataType: 'color', primary: true } },
+			outputDefs: { image: { dataType: 'color', primary: true } },
 		} };
 		const output = createTexture();
 		const renderer = new VisualModuleRenderer({

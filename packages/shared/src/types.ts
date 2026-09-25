@@ -1,9 +1,8 @@
-import type { TextureDataType } from './data-type.ts';
-import type { AnyOptionSchema, ArrayOptionSchema, EffectOptionSchema, StructOptionSchema } from './effect-definition.ts';
+/* eslint-disable @typescript-eslint/naming-convention */
 import type { GlobalEnvVariable } from './expression.ts';
+import type { VisualModuleCustomParameterId } from './visual-module/types.ts';
 
-export type NodeOutputReference = { nodeId: string; outputPort: string; fitMode?: 'stretch' | 'cover' | 'contain'; wrapMode?: 'clamp' | 'repeat' | 'repeatMirrored' | 'transparent'; filterMode?: 'linear' | 'nearest' };
-// eslint-disable-next-line @typescript-eslint/naming-convention
+export type NodeOutputReference = { nodeId: string; outputPort: string; fitMode: FitMode; wrapMode: WrapMode; filterMode: 'linear' | 'nearest' };
 export type ParameterBinding_Node = { inputSource: 'node' } & (NodeOutputReference | { nodeId: null; outputPort: null });
 
 export type ParameterBinding = {
@@ -52,12 +51,6 @@ export type Player = {
 	assetId?: Asset['id'] | null;
 };
 
-export type EffectParamDef = EffectOptionSchema & {
-	defaultValue: ParameterBinding;
-};
-
-export type EffectParamDefs = Record<string, EffectParamDef>;
-
 export type GsBezierAnchorPoint = {
 	id: string;
 	x: number; // 時間(=Time)軸
@@ -73,90 +66,9 @@ export type GsAutomationGraph = {
 	isNormalized: boolean; // X軸が0~1に正規化されているかどうか。falseの場合はX軸単位がmsであるとみなす
 };
 
-export type GsEffectNode = {
-	id: string;
-	type: 'effect';
-	effectId: string;
-	isBypass: boolean;
-	params: Record<string, ParameterBinding>;
+// 画像の中間処理でフィルタリング・ブレンド可能なRGBA形式。
+export type IntermediateTextureFormat = 'rgba8unorm' | 'bgra8unorm' | 'rgba16float';
 
-	// 2D平面上でノードを配置できるようになった時のため
-	pos?: { x: number; y: number };
-};
+export type WrapMode = 'clamp' | 'repeat' | 'repeatMirrored' | 'transparent';
 
-export type GsGlobalInNode = {
-	id: string;
-	type: 'globalIn';
-
-	// 2D平面上でノードを配置できるようになった時のため
-	pos?: { x: number; y: number };
-};
-
-export type GsGlobalOutNode = {
-	id: string;
-	type: 'globalOut';
-	// キーはVisualModule.outputDefsのID。未設定のポートは未接続として扱う。
-	inputs: Record<string, { nodeId: string; outputPort: string } | { nodeId: null; outputPort: null }>;
-
-	// 2D平面上でノードを配置できるようになった時のため
-	pos?: { x: number; y: number };
-};
-
-export type GsNode = GsEffectNode | GsGlobalInNode | GsGlobalOutNode;
-
-declare const visualModuleCustomParameterIdentity: unique symbol;
-
-export type VisualModuleCustomParameterId = string & { readonly [visualModuleCustomParameterIdentity]: 'id' };
-export type VisualModuleCustomParameterName = string & { readonly [visualModuleCustomParameterIdentity]: 'name' };
-
-// 生成・入力・式との境界でのみ使う。既に分類済みのID/名前を相互変換させない。
-// 実在性やスコープ内での可用性を保証する型ではなく、保存形式は通常の文字列のまま。
-type UnbrandedString = string & { readonly [visualModuleCustomParameterIdentity]?: never };
-export function visualModuleCustomParameterId(value: UnbrandedString): VisualModuleCustomParameterId {
-	return value as unknown as VisualModuleCustomParameterId;
-}
-export function visualModuleCustomParameterName(value: UnbrandedString): VisualModuleCustomParameterName {
-	return value as unknown as VisualModuleCustomParameterName;
-}
-
-type CustomParameterSchema<T = Exclude<EffectOptionSchema, StructOptionSchema | ArrayOptionSchema | AnyOptionSchema>> =
-	T extends unknown ? Omit<T, 'canNode' | 'primary'> : never;
-
-export type VisualModule = {
-	id: string;
-	name: string;
-	nodes: GsNode[];
-	outputDefs: {
-		id: string;
-		label: string;
-		name: string;
-		dataType: TextureDataType;
-		isPrimaryOutput: boolean;
-	}[];
-	paramDefs: (CustomParameterSchema & {
-		id: VisualModuleCustomParameterId;
-		name: VisualModuleCustomParameterName; // expressionから参照するとき用
-		defaultValue: { inputSource: 'literal'; value: any };
-		canNode: boolean;
-		isPrimaryInput: boolean;
-	})[];
-	automationGraphs: GsAutomationGraph[];
-};
-
-// レイヤー・live modeからは、モジュール内部のノードやパラメータを参照しない。
-export type VisualModuleParameterBindings = Record<VisualModuleCustomParameterId, Exclude<ParameterBinding, { type: 'node' | 'externalCustomParameterInput' }>>;
-
-export type TimelineVisualModuleLayer = {
-	id: string;
-	startTimeMs: number;
-	endTimeMs: number;
-	layerType: 'visualModule';
-	visualModuleId: string;
-	paramValues: VisualModuleParameterBindings;
-	compositing: TODO;
-	automationGraphs: GsAutomationGraph[];
-};
-
-export type TimelineLayer = TimelineVisualModuleLayer;
-
-export type Timeline = TimelineLayer[];
+export type FitMode = 'stretch' | 'cover' | 'contain';

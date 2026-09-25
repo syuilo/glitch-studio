@@ -56,8 +56,8 @@
 			small
 			:modelValue="value"
 			:items="[
-				...(('canTransparent' in def && def.canTransparent) === true ? [{ label: 'Transparent', value: 'transparent' }] : []),
-				{ label: 'Clamp to edge', value: 'clampToEdge' },
+				{ label: 'Transparent', value: 'transparent' },
+				{ label: 'Clamp', value: 'clamp' },
 				{ label: 'Repeat', value: 'repeat' },
 				{ label: 'Repeat (Mirrored)', value: 'repeatMirrored' },
 			]"
@@ -192,14 +192,14 @@ import GsRange from './common/GsRange.vue';
 import GsAngle from './common/GsAngle.vue';
 import GsButton from './common/GsButton.vue';
 import GsSelect from './common/GsSelect.vue';
-import type { EffectOptionSchema } from '@glitch/shared/effect-definition.ts';
+import type { ParameterDefinition_Effect } from '@glitch/shared/effect-definition.ts';
 import type { VisualModule } from '@glitch/shared/types.js';
 import { i18n } from '@/i18n.ts';
 import { appContext, wireMap } from '@/app.ts';
 import { normalizeColor } from '@/utility/color-input.ts';
 
 const props = defineProps<{
-	def: Exclude<EffectOptionSchema, { dataType: 'array' | 'struct' }> | VisualModule['paramDefs'][number];
+	def: Exclude<ParameterDefinition_Effect, { dataType: 'array' | 'struct' }> | VisualModule['paramDefs'][number];
 	value: any;
 	title?: string;
 }>();

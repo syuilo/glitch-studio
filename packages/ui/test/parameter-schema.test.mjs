@@ -7,15 +7,15 @@ import ts from 'typescript';
 test('checks parameter controls and infers values independently of controls', () => {
 	const fileName = fileURLToPath(new URL('./parameter-schema.fixture.ts', import.meta.url)).replaceAll('\\', '/');
 	const source = `
-import { defineEffect, type EffectOptionSchema, type GetEffectOptionsSchemaValues, type VisualModuleParamDef } from '../../shared/src/effect-definition.ts';
+import { defineEffect, type ParameterDefinition_Effect, type GetEffectOptionsSchemaValues, type VisualModuleParamDef } from '../../shared/src/effect-definition.ts';
 import type { EffectParamDef } from '../../shared/src/types.ts';
 import type { VisualModule } from '../../shared/src/types.ts';
 import type { EffectOutputsSchema } from '../../shared/src/effect-definition.ts';
 import type { DataType, TextureDataType } from '../../shared/src/data-type.ts';
 
 type AssertNever<T extends never> = T;
-type AllDataTypesHaveSchemas = AssertNever<Exclude<DataType, EffectOptionSchema['dataType']>>;
-type AllSchemasUseCommonDataTypes = AssertNever<Exclude<EffectOptionSchema['dataType'], DataType>>;
+type AllDataTypesHaveSchemas = AssertNever<Exclude<DataType, ParameterDefinition_Effect['dataType']>>;
+type AllSchemasUseCommonDataTypes = AssertNever<Exclude<ParameterDefinition_Effect['dataType'], DataType>>;
 const scalarOutput = { dataType: 'scalar', primary: true } as const satisfies EffectOutputsSchema[string];
 const moduleOutput: VisualModule['outputDefs'][number] = { ...scalarOutput, id: 'out', name: 'out', label: 'Out', isPrimaryOutput: true };
 const textureType: TextureDataType = scalarOutput.dataType;
@@ -25,13 +25,13 @@ const oldNumber: DataType = 'number';
 const referenceOutput: EffectOutputsSchema[string] = { dataType: 'assetReference', primary: true };
 
 const number = { dataType: 'scalar', ui: { control: 'range', min: 0, max: 1, label: 'Value' }, defaultValue: { inputSource: 'literal', value: 0.5 } } as const;
-const color = { dataType: 'color', ui: { control: 'color', label: 'Color' } } as const satisfies EffectOptionSchema;
+const color = { dataType: 'color', ui: { control: 'color', label: 'Color' } } as const satisfies ParameterDefinition_Effect;
 // @ts-expect-error colorではrangeを使用できない
-const badColor: EffectOptionSchema = { ...color, ui: { control: 'range', min: 0, max: 1, label: 'Invalid' } };
+const badColor: ParameterDefinition_Effect = { ...color, ui: { control: 'range', min: 0, max: 1, label: 'Invalid' } };
 // @ts-expect-error 実行時の共通定義でも制約を維持する
 const badParam: EffectParamDef = { ...color, ui: { control: 'seed', label: 'Seed' }, defaultValue: { inputSource: 'literal', value: 0 } };
 // @ts-expect-error rangeの範囲は必須
-const missingBounds: EffectOptionSchema = { ...number, ui: { control: 'range', label: 'Invalid' } };
+const missingBounds: ParameterDefinition_Effect = { ...number, ui: { control: 'range', label: 'Invalid' } };
 const external = { ...color, id: 'c', name: 'color', defaultValue: { inputSource: 'literal', value: [1, 0, 0, 1] }, canNode: true, isPrimaryInput: false } satisfies VisualModuleParamDef;
 // @ts-expect-error 外部パラメータでも同じ組み合わせ制約を適用する
 const badExternal: VisualModuleParamDef = { ...external, ui: { control: 'number', label: 'Invalid' } };
@@ -44,7 +44,7 @@ const schemas = {
  asset: { dataType: 'assetReference', ui: { control: 'image', label: 'Asset' } },
  player: { dataType: 'playerReference', ui: { control: 'player', label: 'Player' } },
  values: { dataType: 'array', ui: { label: 'Values' }, item: number },
-} as const satisfies Record<string, EffectOptionSchema>;
+} as const satisfies Record<string, ParameterDefinition_Effect>;
 type Values = GetEffectOptionsSchemaValues<typeof schemas>;
 const values: Values = { amount: 2, seed: 1.25, angle: -0.5, color: [1, 0, 0, 1], mode: 'a', asset: null, player: 'player-id', values: [1, 2] };
 // @ts-expect-error enumの候補のunionを維持する
