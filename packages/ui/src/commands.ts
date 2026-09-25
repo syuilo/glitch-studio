@@ -3,7 +3,6 @@ import { effectDefinitions } from '@glitch/shared/effect/effect-definitions.ts';
 import { AiSON } from '@syuilo/aiscript';
 import { deepClone } from '@glitch/shared/utility/deep-clone.ts';
 import { getNodeInputDataType, getNodeOutputs } from '@glitch/shared/utility/node-outputs.ts';
-import { genEmptyValue } from '@glitch/shared/utility/misc.ts';
 import { isTextureDataType } from '@glitch/shared/data-type.ts';
 import { timelineCompositingParamDefs } from '@glitch/shared/timeline/timeline-compositing.ts';
 import type { VisualModuleCustomParameterId, VisualModuleEffectNode, VisualModuleNode, NodeOutputReference, VisualModule } from '@glitch/shared/visual-module/types.ts';
@@ -427,14 +426,13 @@ const changeParamValueInputSourceCommandDef = defineNodeParamCommand<NodeParamTa
 		assertLeafParam(target);
 		const currentValue = target.value;
 		const defaultValue = deepClone(target.def.defaultValue);
-		const emptyValue = genEmptyValue(target.def);
 		switch (payload.inputSource) {
 			case 'expression': return {
 				inputSource: 'expression',
-				expression: AiSON.stringify(currentValue.inputSource === 'literal' ? currentValue.value : defaultValue.inputSource === 'literal' ? defaultValue.value : emptyValue),
+				expression: AiSON.stringify(currentValue.inputSource === 'literal' ? currentValue.value : defaultValue.value),
 			};
 			case 'envVariable': return { inputSource: 'envVariable', variable: '' };
-			case 'literal': return { inputSource: 'literal', value: defaultValue.inputSource === 'literal' ? defaultValue.value : emptyValue };
+			case 'literal': return { inputSource: 'literal', value: defaultValue.value };
 			case 'automationGraphReference': return { inputSource: 'automationGraphReference', automationGraphId: null, durationMs: 1000, wrapMode: 'repeat', offsetMode: 'start' };
 			case 'automationGraphInline': return createInlineAutomationGraph();
 			case 'externalCustomParameterInput': return { inputSource: 'externalCustomParameterInput', parameterId: visualModuleCustomParameterId('') };
