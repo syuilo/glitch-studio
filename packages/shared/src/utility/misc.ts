@@ -1,10 +1,17 @@
 import { rawBezierEasing } from './bezier.ts';
 import { deepClone } from './deep-clone.ts';
 import type { GsAutomationGraph } from '../types.ts';
-import type { VisualModule } from '../visual-module/types.ts';
-import type { ParameterDefinition } from '../parameter.ts';
+import type { DataType } from '../data-type.ts';
+import type { ParameterDefinition_Enum, ParameterDefinition_Struct } from '../parameter.ts';
 
-export function genEmptyValue(paramDef: ParameterDefinition | VisualModule['paramDefs'][number]): any {
+// 型変更時にはdefaultValue自体を生成するため、完成済みのパラメータ定義を要求しない。
+// enumの候補とstructの子フィールドは、空値の生成に必要なので保持する。
+type EmptyValueDefinition =
+	| { dataType: Exclude<DataType, 'enum' | 'struct'> }
+	| Pick<ParameterDefinition_Enum, 'dataType' | 'options'>
+	| Pick<ParameterDefinition_Struct, 'dataType' | 'fields'>;
+
+export function genEmptyValue(paramDef: EmptyValueDefinition): any {
 	switch (paramDef.dataType) {
 		case 'scalar': return 0;
 		case 'enum': return paramDef.options[0]?.value ?? null;
