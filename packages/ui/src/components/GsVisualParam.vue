@@ -142,7 +142,7 @@ export type ParamEdit = { paramPath: ParamPath; mergeKey?: string | null } & (
 	| { kind: 'envVariable'; value: GlobalEnvVariable }
 	| { kind: 'expression'; value: string }
 	| { kind: 'automationGraphReference'; value: string | null; options?: Partial<AutomationGraphPlaybackOptions> }
-	| { kind: 'node'; value: NodeOutputReference | null }
+	| { kind: 'node'; value: NodeOutputReference | null; preserveSampling: boolean }
 	| { kind: 'externalCustomParameterInput'; value: VisualModuleCustomParameterId }
 	| { kind: 'inputSource'; inputSource: ParameterBinding['inputSource'] }
 	| { kind: 'reset' }
@@ -367,7 +367,7 @@ function showNodeInputMenu(ev: PointerEvent) {
 	}];
 
 	if (nodeConnection.value != null) {
-		const nodeInputSamplingMenuItems = getNodeInputSamplingMenuItems(nodeConnection, connectNode);
+		const nodeInputSamplingMenuItems = getNodeInputSamplingMenuItems(nodeConnection, value => connectNode(value, false));
 		menuItems.push(...nodeInputSamplingMenuItems);
 	}
 
@@ -398,11 +398,11 @@ function updateParamAsExpression(value: string) {
 	if (mounted) emit('edit', { kind: 'expression', ...target(), value, mergeKey: commandMergeKey });
 }
 
-function connectNode(value: NodeOutputReference | null) {
+function connectNode(value: NodeOutputReference | null, preserveSampling = true) {
 	if (!canNode.value) return;
 	// 別のVisualModuleや、グラフ切り替え前の候補へ接続しない。
 	if (value != null && !nodeOutputItems.value.some(item => item.value === nodeOutputKey(value))) return;
-	if (mounted) emit('edit', { kind: 'node', ...target(), value });
+	if (mounted) emit('edit', { kind: 'node', ...target(), value, preserveSampling });
 }
 
 function updateParamAsNode(key: string | null) {

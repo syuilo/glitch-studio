@@ -500,15 +500,17 @@ const updateParamAsExternalCustomParameterInputCommandDef = defineNodeParamComma
 	},
 );
 
-const updateParamAsNodeCommandDef = defineNodeParamCommand<NodeParamTarget & { value: NodeOutputReference | null }>(
+const updateParamAsNodeCommandDef = defineNodeParamCommand<NodeParamTarget & { value: NodeOutputReference | null; preserveSampling: boolean }>(
 	'Update param as node',
 	(target, payload) => {
 		assertLeafParam(target);
 		if (!('canNode' in target.def) || !target.def.canNode) throw new Error('Parameter does not support node input');
 		if (payload.value == null) return { inputSource: 'node', nodeId: null, outputPort: null };
-		// 読み取り方法は接続先の入力に属する。配線元だけ変更しても設定を維持する。
+		// 配線操作の候補にも既定のサンプリング設定が入るため、設定変更とは明示的に区別する。
+		// 読み取り方法は接続先の入力に属するので、配線操作では同じ出力への再接続でも維持する。
 		const previous = target.value.inputSource === 'node' && target.value.nodeId != null ? target.value : undefined;
-		return { inputSource: 'node', fitMode: previous?.fitMode, wrapMode: previous?.wrapMode, ...(previous?.filterMode != null ? { filterMode: previous.filterMode } : {}), ...payload.value };
+		const sampling = payload.preserveSampling && previous != null ? previous : payload.value;
+		return { inputSource: 'node', ...payload.value, fitMode: sampling.fitMode, wrapMode: sampling.wrapMode, filterMode: sampling.filterMode };
 	},
 );
 
