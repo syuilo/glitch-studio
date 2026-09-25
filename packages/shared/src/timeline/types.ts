@@ -7,8 +7,8 @@ export type TimelineVisualModuleLayer = {
 	endTimeMs: number;
 	layerType: 'visualModule';
 	visualModuleId: string;
-	paramValues: Record<string, ParameterBinding>;
-	compositingParamValues: Record<keyof typeof timelineCompositingParamDefs, ParameterBinding>;
+	paramValues: Record<string, Exclude<ParameterBinding, { inputSource: 'node' | 'externalCustomParameterInput' }>>;
+	compositingParamValues: Record<keyof typeof timelineCompositingParamDefs, Exclude<ParameterBinding, { inputSource: 'node' | 'externalCustomParameterInput' }>>;
 	automationGraphs: GsAutomationGraph[];
 };
 
