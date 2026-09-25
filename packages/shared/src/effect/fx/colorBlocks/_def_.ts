@@ -5,7 +5,7 @@ export default defineEffect({
 	displayName: 'Color blocks',
 	tags: [],
 	paramDefs: {
-		input: { dataType: 'color', ui: { label: 'Input', control: 'color' }, canNode: true, primary: true, defaultValue: { inputSource: 'node', nodeId: null, outputPort: null } },
+		input: { dataType: 'color', ui: { label: 'Input', control: 'color' }, canNode: true, primary: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },
 		amount: { dataType: 'scalar', ui: { label: 'Amount', control: 'range', min: 0, max: 100, step: 1 }, defaultValue: { inputSource: 'literal', value: 50 } },
 		alphaRandomness: { dataType: 'scalar', ui: { label: 'Alpha randomness', control: 'range', min: 0, max: 1, step: 0.01 }, defaultValue: { inputSource: 'literal', value: 1 } },
 		size: { dataType: 'vector', ui: { label: 'Size', control: 'vector', min: 0, max: 1, step: 0.001 }, defaultValue: { inputSource: 'literal', value: [1 / 3, 1 / 3] } },

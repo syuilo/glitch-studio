@@ -5,7 +5,7 @@ export default defineEffect({
 	displayName: 'Pixel sort',
 	tags: [],
 	paramDefs: {
-		input: { dataType: 'color', ui: { label: 'Input', control: 'color' }, canNode: true, primary: true, defaultValue: { inputSource: 'node', nodeId: null, outputPort: null } },
+		input: { dataType: 'color', ui: { label: 'Input', control: 'color' }, canNode: true, primary: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },
 		threshold: { dataType: 'scalar', ui: { label: 'Threshold', control: 'range', min: 0, max: 1, step: 0.001 }, defaultValue: { inputSource: 'literal', value: 0.5 } },
 		shadow: { dataType: 'bool', ui: { label: 'Shadow', control: 'bool' }, defaultValue: { inputSource: 'literal', value: true } },
 		direction: { dataType: 'enum', ui: { label: 'Direction', control: 'enum' }, options: [

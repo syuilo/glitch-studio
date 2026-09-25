@@ -5,7 +5,7 @@ export default defineEffect({
 	displayName: 'Rain Drops On Window (Type 1)',
 	tags: [],
 	paramDefs: {
-		input: { dataType: 'color', ui: { label: 'Input', control: 'color' }, canNode: true, primary: true, defaultValue: { inputSource: 'node', nodeId: null, outputPort: null } },
+		input: { dataType: 'color', ui: { label: 'Input', control: 'color' }, canNode: true, primary: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },
 		density: { dataType: 'scalar', ui: { label: 'Density', control: 'range', min: 0, max: 1, step: 0.01 }, defaultValue: { inputSource: 'literal', value: 0.6 } },
 		refraction: { dataType: 'scalar', ui: { label: 'Refraction', control: 'range', min: 0, max: 2, step: 0.01 }, defaultValue: { inputSource: 'literal', value: 0.8 } },
 		fog: { dataType: 'scalar', ui: { label: 'Fog', control: 'range', min: 0, max: 1, step: 0.01 }, defaultValue: { inputSource: 'literal', value: 0.35 } },

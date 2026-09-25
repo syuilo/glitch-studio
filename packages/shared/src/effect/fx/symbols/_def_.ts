@@ -5,7 +5,7 @@ export default defineEffect({
 	displayName: 'Symbols',
 	tags: [],
 	paramDefs: {
-		input: { dataType: 'color', ui: { label: 'Input', control: 'color' }, canNode: true, primary: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 1] } },
+		input: { dataType: 'color', ui: { label: 'Input', control: 'color' }, canNode: true, primary: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },
 		iconset: { dataType: 'enum', ui: { label: 'Iconset', control: 'enum' }, options: [{
 			value: 'symbols_numbers', label: 'Symbols + Numbers',
 		}, {

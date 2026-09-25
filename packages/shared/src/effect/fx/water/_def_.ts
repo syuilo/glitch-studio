@@ -7,7 +7,7 @@ export default defineEffect({
 	displayName: 'Water',
 	tags: [],
 	paramDefs: {
-		input: { dataType: 'color', ui: { label: 'Input', control: 'color' }, canNode: true, primary: true, defaultValue: { inputSource: 'node', nodeId: null, outputPort: null } },
+		input: { dataType: 'color', ui: { label: 'Input', control: 'color' }, canNode: true, primary: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },
 		colorHighlight: { dataType: 'color', ui: { label: 'Highlight color', control: 'color' }, defaultValue: { inputSource: 'literal', value: [1, 1, 1, 1] } },
 		colorHighlightAlpha: { dataType: 'scalar', ui: { label: 'Highlight alpha', control: 'range', min: 0, max: 1, step: 0.01 }, defaultValue: { inputSource: 'literal', value: 1 } },
 		highlights: { dataType: 'scalar', ui: { label: 'Highlights', control: 'range', min: 0, max: 1, step: 0.01 }, defaultValue: { inputSource: 'literal', value: 0.07 } },
