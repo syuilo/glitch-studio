@@ -194,13 +194,13 @@ import GsAngle from './common/GsAngle.vue';
 import GsButton from './common/GsButton.vue';
 import GsSelect from './common/GsSelect.vue';
 import type { EffectOptionSchema } from '@glitch/shared/effect-definition.ts';
-import type { VisualModuleParamDef } from '@glitch/shared/types.js';
+import type { VisualModuleCustomParameterDef } from '@glitch/shared/types.js';
 import { i18n } from '@/i18n.ts';
 import { appContext, wireMap } from '@/app.ts';
 import { normalizeColor } from '@/utility/color-input.ts';
 
 const props = defineProps<{
-	def: Exclude<EffectOptionSchema, { dataType: 'array' | 'struct' }> | VisualModuleParamDef;
+	def: Exclude<EffectOptionSchema, { dataType: 'array' | 'struct' }> | VisualModuleCustomParameterDef;
 	value: any;
 	title?: string;
 }>();

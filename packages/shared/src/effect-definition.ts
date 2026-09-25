@@ -7,7 +7,6 @@ type EffectOptionSchemaBase<T extends DataType> = {
 	dataType: T;
 	ui: { label: string };
 	primary?: boolean;
-	visibility?: (state: Record<string, import('./types.ts').ParameterBinding>) => boolean;
 };
 
 // UIの範囲・刻みは入力操作用であり、式やノードから取得した値を制限しない。

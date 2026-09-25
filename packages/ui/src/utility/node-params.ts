@@ -5,7 +5,6 @@ import type { ParameterBinding, GsEffectNode } from '@glitch/shared/types.ts';
 export type ParamPath = readonly [string, ...(string | number)[]];
 export type NodeParamDef = EffectOptionsSchema[string] & {
 	defaultValue: ParameterBinding;
-	visibility?: (params: Record<string, ParameterBinding>) => boolean;
 };
 
 export type NodeParamTarget = {

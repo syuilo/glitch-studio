@@ -200,7 +200,7 @@ const structValues = computed<Record<string, ParameterBinding> | null>(() => pro
 const visibleFields = computed(() => {
 	if (props.paramDef.dataType !== 'struct') return [];
 	const fields: Record<string, NodeParamDef> = props.paramDef.fields;
-	return Object.entries(fields).filter(([, def]) => !def.visibility || def.visibility(structValues.value ?? {}));
+	return Object.entries(fields);
 });
 const canNode = computed(() => props.paramDef.canNode);
 const inputDataType = computed(() => getNodeInputDataType(props.paramDef));
