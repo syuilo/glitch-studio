@@ -75,9 +75,12 @@ export type VisualModule = {
 // レイヤー・live modeからは、モジュール内部のノードやパラメータを参照しない。
 export type VisualModuleParameterBindings = Record<VisualModuleCustomParameterId, Exclude<ParameterBinding, { inputSource: 'node' | 'externalCustomParameterInput' }>>;
 
-export type EffectNodeOf<DEF extends EffectDefinition> = Omit<VisualModuleEffectNode, 'effectId' | 'params'> & {
-	effectId: DEF['id'];
-	params: DEF['paramDefs'];
-};
+export type EffectNodeOf<DEF extends EffectDefinition> =
+	Omit<VisualModuleEffectNode, 'effectId' | 'params'> & {
+		effectId: DEF['id'];
+		params: {
+			[K in keyof DEF['paramDefs']]-?: ParameterBinding;
+		};
+	};
 
 export type NodeOutputReference = { nodeId: string; outputPort: string; fitMode: FitMode; wrapMode: WrapMode; filterMode: 'linear' | 'nearest' };
