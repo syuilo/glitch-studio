@@ -51,7 +51,7 @@
 </template>
 
 <script lang="ts" setup>
-import { visualModuleCustomParameterName } from '@glitch/shared/types.ts';
+import { visualModuleCustomParameterName } from '@glitch/shared/visual-module/types.ts';
 import { computed } from 'vue';
 import { genEmptyValue } from '@glitch/shared/utility/misc.ts';
 import GsSelect from './common/GsSelect.vue';

@@ -1,4 +1,4 @@
-import { visualModuleCustomParameterName, type VisualModuleCustomParameterId, type VisualModuleCustomParameterName } from '@glitch/shared/types.ts';
+import { visualModuleCustomParameterName, type VisualModuleCustomParameterId, type VisualModuleCustomParameterName } from '@glitch/shared/visual-module/types.ts';
 import * as AiScript from '@syuilo/aiscript';
 import { evalAutomationGraphValue } from '@glitch/shared/utility/misc.ts';
 import { deepClone, type Cloneable } from '@glitch/shared/utility/deep-clone.js';

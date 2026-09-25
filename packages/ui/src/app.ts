@@ -1,4 +1,4 @@
-import { visualModuleCustomParameterId, visualModuleCustomParameterName } from '@glitch/shared/types.ts';
+import { visualModuleCustomParameterId, visualModuleCustomParameterName } from '@glitch/shared/visual-module/types.ts';
 import { ref, markRaw, reactive, watch, shallowRef, triggerRef, computed } from 'vue';
 import { deepClone } from '@glitch/shared/utility/deep-clone.ts';
 import { genId } from '@glitch/shared/utility/id.ts';

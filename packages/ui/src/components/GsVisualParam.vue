@@ -154,7 +154,7 @@ export type ParamEdit = { paramPath: ParamPath; mergeKey?: string | null } & (
 </script>
 
 <script lang="ts" setup>
-import { visualModuleCustomParameterId } from '@glitch/shared/types.ts';
+import { visualModuleCustomParameterId } from '@glitch/shared/visual-module/types.ts';
 import { computed, onBeforeUnmount, ref, shallowRef, useTemplateRef, watch, watchEffect } from 'vue';
 import { genId } from '@glitch/shared/utility/id.ts';
 import { getNodeInputDataType } from '@glitch/shared/utility/node-outputs.ts';

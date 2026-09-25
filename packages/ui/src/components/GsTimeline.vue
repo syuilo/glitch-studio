@@ -86,7 +86,7 @@
 </template>
 
 <script lang="ts" setup>
-import { visualModuleCustomParameterId } from '@glitch/shared/types.ts';
+import { visualModuleCustomParameterId } from '@glitch/shared/visual-module/types.ts';
 import { layerEnvVarDefs } from '@glitch/shared/expression.ts';
 import { computed, onMounted, ref, shallowRef, useTemplateRef, watch } from 'vue';
 import { insertIntermediateNumbers, nearlyEqual, niceScale } from '@glitch/shared/utility/misc.js';

@@ -1,4 +1,4 @@
-import { visualModuleCustomParameterId, type VisualModuleCustomParameterId } from '@glitch/shared/types.ts';
+import { visualModuleCustomParameterId, type VisualModuleCustomParameterId } from '@glitch/shared/visual-module/types.ts';
 import { constantShaderInput } from '@glitch/shared/shader-input.ts';
 import { getNodeOutputs } from '@glitch/shared/utility/node-outputs.ts';
 import { playerAudioSourceId } from '@glitch/shared/audio.ts';

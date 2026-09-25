@@ -8,7 +8,7 @@
 </template>
 
 <script lang="ts" setup>
-import { visualModuleCustomParameterId, visualModuleCustomParameterName } from '@glitch/shared/types.ts';
+import { visualModuleCustomParameterId, visualModuleCustomParameterName } from '@glitch/shared/visual-module/types.ts';
 import { genId } from '@glitch/shared/utility/id.js';
 import GsButton from './common/GsButton.vue';
 import XVisualModuleParamDefEditor from './XVisualModuleParamDefEditor.vue';
