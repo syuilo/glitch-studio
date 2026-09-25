@@ -49,9 +49,6 @@ export function visualModuleCustomParameterName(value: UnbrandedString): VisualM
 	return value as unknown as VisualModuleCustomParameterName;
 }
 
-type CustomParameterSchema<T = Exclude<ParameterDefinition, ParameterDefinition_Struct | ParameterDefinition_Array | ParameterDefinition_Any>> =
-	T extends unknown ? Omit<T, 'canNode'> : never;
-
 export type VisualModule = {
 	id: string;
 	name: string;
@@ -63,7 +60,7 @@ export type VisualModule = {
 		dataType: TextureDataType;
 		isPrimaryOutput: boolean;
 	}[];
-	paramDefs: (CustomParameterSchema & {
+	paramDefs: (ParameterDefinition & {
 		id: VisualModuleCustomParameterId;
 		nameForReference: VisualModuleCustomParameterName; // expressionから参照するとき用
 		canNode: boolean;
