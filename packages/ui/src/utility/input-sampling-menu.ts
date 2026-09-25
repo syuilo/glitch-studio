@@ -4,6 +4,9 @@ import type { NodeOutputReference } from '@glitch/shared/visual-module/types.ts'
 import type { MenuItem } from '@/types/menu.ts';
 import { i18n } from '@/i18n.ts';
 
+// NOTE: 実装の簡略化のため、このメニューの表示中にconnectionRefの内容がUndoなどで変化した場合はエッジケースとして扱い対応はしません。
+// (メニューを開いている間にそのような操作をすることはあまり無いと考えられます。そもそもメニュー表示中は、メニュー項目の選択以外の操作が制限されます)
+
 export function getNodeInputSamplingMenuItems(connectionRef: Ref<NodeOutputReference>, update: (connection: NodeOutputReference) => void): MenuItem[] {
 	return [{
 		type: 'radio',
