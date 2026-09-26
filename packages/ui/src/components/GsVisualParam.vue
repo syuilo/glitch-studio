@@ -73,9 +73,10 @@
 						<button class="_button" style="padding: 4px;" @click="showNodeInputMenu"><i class="ti ti-dots"></i></button>
 					</div>
 					<GsLiteralParameterValueControl
-						v-else-if="paramValue.inputSource === 'literal'"
+						v-else-if="paramValue.inputSource === 'literal' && paramDef.dataType.kind !== 'array' && paramDef.dataType.kind !== 'struct'"
 						ref="controlComponent"
-						:def="paramDef"
+						:dataType="paramDef.dataType"
+						:control="paramDef.ui.control"
 						:title="label ?? paramDef.ui.label"
 						:value="paramValue.value"
 						@input="updateParamAsLiteral"

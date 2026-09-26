@@ -1,29 +1,16 @@
-//// アプリケーション共通のデータ型。UIの編集方法やGPU上の保存形式とは独立している。
-//export type DataType =
-//	| 'scalar'
-//	| 'bool'
-//	| 'color'
-//	| 'vector'
-//	| 'blendMode'
-//	| 'fitMode'
-//	| 'wrapMode'
-//	| 'enum'
-//	| 'assetReference'
-//	| 'videoAssetReference'
-//	| 'playerReference'
-//	| 'struct'
-//	| 'array'
-//	| 'any';
+/* eslint-disable @typescript-eslint/no-empty-object-type */
+/* eslint-disable @typescript-eslint/naming-convention */
 
+// アプリケーション共通のデータ型。UIの編集方法やGPU上の保存形式とは独立している。
 export type DataType =
-	{ kind: 'scalar' }
+	| { kind: 'scalar' }
 	| { kind: 'bool' }
 	| { kind: 'color' }
 	| { kind: 'vector' }
 	| { kind: 'blendMode' }
 	| { kind: 'fitMode' }
 	| { kind: 'wrapMode' }
-	| { kind: 'enum'; options: string[] }
+	| { kind: 'enum'; options: readonly string[] }
 	| { kind: 'assetReference' }
 	| { kind: 'videoAssetReference' }
 	| { kind: 'playerReference' }
@@ -31,22 +18,19 @@ export type DataType =
 	| { kind: 'array'; elementType: DataType }
 	| { kind: 'any' };
 
-export type LeafDataType = Exclude<
-	DataType,
-	{ kind: 'struct' | 'array' }
->;
+export type LeafDataType = Exclude<DataType, { kind: 'struct' | 'array' }>;
 
 // 現在のレンダラーがノード間のテクスチャとして直接受け渡せる部分集合。
 // 参照IDやコンテナは含めない。anyは接続するテクスチャのデータ型を限定しない指定。
-export type TextureDataType = Extract<DataType, 'scalar' | 'color' | 'vector' | 'any'>;
+export type TextureDataType = Extract<DataType, { kind: 'scalar' | 'color' | 'vector' | 'any' }>;
 
 export function isTextureDataType(dataType: DataType): dataType is TextureDataType {
-	return dataType === 'scalar' || dataType === 'color' || dataType === 'vector' || dataType === 'any';
+	return dataType.kind === 'scalar' || dataType.kind === 'color' || dataType.kind === 'vector' || dataType.kind === 'any';
 }
 
 // UIの範囲・刻みは入力操作用であり、式やノードから取得した値を制限しない。
 type DataTypeUiControlDefinition_Scalar =
-	// あくまで「UI上ではこれくらいの範囲でスライダーを操作できると便利」を示すもので、必ずこの範囲内に値が設定されることを要求するものではない
+	// あくまで操作に便利な範囲であり、設定値が必ずこの範囲内に収まることは要求しない。
 	| { controlType: 'number'; min?: number; max?: number; step?: number }
 	// logarithmicは0 < min < maxで使用する。UI座標だけを対数変換し、値側のstepは適用しない。
 	| { controlType: 'range'; min: number; max: number; step?: number; logarithmic?: boolean }
@@ -54,19 +38,33 @@ type DataTypeUiControlDefinition_Scalar =
 	| { controlType: 'angle'; step?: number }
 	| { controlType: 'seed' };
 
+// 末端のコントロールは、自身の表示ラベルやパラメータのBindingを知らない。
 export type DataTypeUiControlDefinitionMap = {
 	scalar: DataTypeUiControlDefinition_Scalar;
-	bool: { };
-	color: { };
+	bool: {};
+	color: {};
+	// logarithmicの範囲・stepの扱いはrangeと同じ。各軸の実際の値を保存する。
 	vector: { controlType: 'vector' | 'xy' | 'wh'; min?: number; max?: number; step?: number; logarithmic?: boolean };
-	blendMode: { };
-	fitMode: { };
-	wrapMode: { };
+	blendMode: {};
+	fitMode: {};
+	wrapMode: {};
 	enum: { labels: Record<string, string> };
-	assetReference: { };
-	videoAssetReference: { };
-	playerReference: { };
-	struct: { labels: Record<string, string>; fields: Record<string, DataTypeUiControlDefinitionMap[string]> };
-	array: { element: DataTypeUiControlDefinitionMap[string] };
-	any: { };
+	assetReference: {};
+	videoAssetReference: {};
+	playerReference: {};
+	any: {};
 };
+
+// コンテナの展開とフィールドラベルの表示は上位コンポーネントが担当する。
+// 末端の値編集にはDataTypeUiDefinition<LeafDataType>を渡すため、コンテナの情報は不要。
+// enumのlabelsは選択肢の表示名であり、コントロール自身のラベルではない。
+export type DataTypeUiDefinition<T extends DataType = DataType> =
+	T extends { kind: 'array'; elementType: infer E extends DataType }
+		? { element: DataTypeUiDefinition<E> }
+		: T extends { kind: 'struct'; fields: infer F extends Record<string, DataType> }
+			? { fields: { [K in keyof F]: { label: string; control: DataTypeUiDefinition<F[K]> } } }
+			: T extends { kind: 'enum'; options: readonly string[] }
+				? { labels: Record<T['options'][number], string> }
+				: T extends { kind: keyof DataTypeUiControlDefinitionMap }
+					? DataTypeUiControlDefinitionMap[T['kind']]
+					: never;

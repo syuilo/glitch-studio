@@ -5,15 +5,15 @@
 		<GsButton small iconOnly primary @click="finishDirectEdit"><i class="ti ti-check"></i></GsButton>
 		<GsButton small iconOnly @click="directEditMode = false"><i class="ti ti-x"></i></GsButton>
 	</div>
-	<div v-else-if="def.ui.control === 'range'">
+	<div v-else-if="scalarControl?.controlType === 'range'">
 		<GsRange
-			v-if="value >= def.ui.min && value <= def.ui.max"
+			v-if="value >= scalarControl.min && value <= scalarControl.max"
 			:modelValue="value"
-			:step="def.ui.step ?? 1"
-			:logarithmic="def.ui.logarithmic"
-			:min="def.ui.min"
-			:max="def.ui.max ?? 1"
-			:title="`${def.ui.min} ~ ${def.ui.max}`"
+			:step="scalarControl.step ?? 1"
+			:logarithmic="scalarControl.logarithmic"
+			:min="scalarControl.min"
+			:max="scalarControl.max ?? 1"
+			:title="`${scalarControl.min} ~ ${scalarControl.max}`"
 			:continuousUpdate="true"
 			@beginChanging="onBeginChanging"
 			@update:modelValue="changeContinuous"
@@ -22,25 +22,25 @@
 		/>
 		<GsInput v-else small type="number" :modelValue="value" @update:modelValue="changeValue(Number($event))"/>
 	</div>
-	<div v-else-if="def.ui.control === 'angle'">
+	<div v-else-if="scalarControl?.controlType === 'angle'">
 		<GsAngle
 			:modelValue="value"
-			:step="def.ui.step ?? 0.125"
+			:step="scalarControl.step ?? 0.125"
 			@beginChanging="onBeginChanging"
 			@update:modelValue="changeContinuous"
 			@changeFinished="onFinishChanging"
 		/>
 	</div>
-	<div v-else-if="def.ui.control === 'number'">
-		<GsInput small type="number" :modelValue="value" :min="def.ui.min" :max="def.ui.max" @update:modelValue="changeValue(Number($event))"/>
+	<div v-else-if="scalarControl?.controlType === 'number'">
+		<GsInput small type="number" :modelValue="value" :min="scalarControl.min" :max="scalarControl.max" @update:modelValue="changeValue(Number($event))"/>
 	</div>
-	<div v-else-if="def.ui.control === 'bool'">
+	<div v-else-if="dataType.kind === 'bool'">
 		<GsButton small :primary="value" @click="changeValue(!value)">{{ value ? 'On' : 'Off' }}</GsButton>
 	</div>
-	<div v-else-if="def.ui.control === 'enum'">
-		<GsSelect small :modelValue="value" :items="('options' in def ? [...def.options] : [])" @update:modelValue="v => changeValue(v)"/>
+	<div v-else-if="dataType.kind === 'enum'">
+		<GsSelect small :modelValue="value" :items="enumItems" @update:modelValue="v => changeValue(v)"/>
 	</div>
-	<div v-else-if="def.ui.control === 'fitMode'">
+	<div v-else-if="dataType.kind === 'fitMode'">
 		<GsSelect
 			small
 			:modelValue="value"
@@ -52,7 +52,7 @@
 			@update:modelValue="v => changeValue(v)"
 		/>
 	</div>
-	<div v-else-if="def.ui.control === 'wrapMode'">
+	<div v-else-if="dataType.kind === 'wrapMode'">
 		<GsSelect
 			small
 			:modelValue="value"
@@ -65,7 +65,7 @@
 			@update:modelValue="v => changeValue(v)"
 		/>
 	</div>
-	<div v-else-if="def.ui.control === 'blendMode'">
+	<div v-else-if="dataType.kind === 'blendMode'">
 		<GsSelect
 			small
 			:modelValue="value"
@@ -129,16 +129,16 @@
 			@update:modelValue="v => changeValue(v)"
 		/>
 	</div>
-	<div v-else-if="def.ui.control === 'xy'">
-		<GsXy :modelValue="value" :logarithmic="def.ui.logarithmic" :step="def.ui.step ?? 0.1" :min="def.ui.min" :max="def.ui.max ?? 1" @beginChanging="onBeginChanging" @update:modelValue="v => changeContinuous(v)" @changeFinished="onFinishChanging"/>
+	<div v-else-if="vectorControl?.controlType === 'xy'">
+		<GsXy :modelValue="value" :logarithmic="vectorControl.logarithmic" :step="vectorControl.step ?? 0.1" :min="vectorControl.min" :max="vectorControl.max ?? 1" @beginChanging="onBeginChanging" @update:modelValue="v => changeContinuous(v)" @changeFinished="onFinishChanging"/>
 	</div>
-	<div v-else-if="def.ui.control === 'wh'">
-		<GsXy :modelValue="value" :logarithmic="def.ui.logarithmic" :step="def.ui.step ?? 0.1" :min="def.ui.min" :max="def.ui.max ?? 1" @beginChanging="onBeginChanging" @update:modelValue="v => changeContinuous(v)" @changeFinished="onFinishChanging"/>
+	<div v-else-if="vectorControl?.controlType === 'wh'">
+		<GsXy :modelValue="value" :logarithmic="vectorControl.logarithmic" :step="vectorControl.step ?? 0.1" :min="vectorControl.min" :max="vectorControl.max ?? 1" @beginChanging="onBeginChanging" @update:modelValue="v => changeContinuous(v)" @changeFinished="onFinishChanging"/>
 	</div>
-	<div v-else-if="def.ui.control === 'vector'" style="max-width: 150px;">
-		<GsXy :modelValue="value" :logarithmic="def.ui.logarithmic" :step="def.ui.step ?? 0.1" :min="def.ui.min" :max="def.ui.max ?? 1" @beginChanging="onBeginChanging" @update:modelValue="v => changeContinuous(v)" @changeFinished="onFinishChanging"/>
+	<div v-else-if="vectorControl?.controlType === 'vector'" style="max-width: 150px;">
+		<GsXy :modelValue="value" :logarithmic="vectorControl.logarithmic" :step="vectorControl.step ?? 0.1" :min="vectorControl.min" :max="vectorControl.max ?? 1" @beginChanging="onBeginChanging" @update:modelValue="v => changeContinuous(v)" @changeFinished="onFinishChanging"/>
 	</div>
-	<div v-else-if="def.ui.control === 'color'">
+	<div v-else-if="dataType.kind === 'color'">
 		<GsColorInput
 			:modelValue="normalizeColor(value)"
 			:title="title"
@@ -147,11 +147,11 @@
 			@changeFinished="onFinishChanging"
 		/>
 	</div>
-	<div v-else-if="def.ui.control === 'seed'" style="display: flex;">
+	<div v-else-if="scalarControl?.controlType === 'seed'" style="display: flex;">
 		<GsInput style="flex: 1;" type="number" :modelValue="value" @update:modelValue="changeValue(parseInt(String($event), 10))"/>
 		<GsButton small iconOnly :title="i18n.ts.Random" @click="() => changeValue(Math.floor(Math.random() * 16384))"><i class="ti ti-dice-5"></i></GsButton>
 	</div>
-	<div v-else-if="def.ui.control === 'image' || def.ui.control === 'videoAsset'">
+	<div v-else-if="dataType.kind === 'assetReference' || dataType.kind === 'videoAssetReference'">
 		<GsSelect
 			small
 			:modelValue="value"
@@ -160,13 +160,13 @@
 				...(appContext.state.assets.value.length > 0 ? [{
 					type: 'group' as const,
 					label: 'Assets',
-					items: appContext.state.assets.value.filter(asset => asset.fileDataType.startsWith(def.ui.control === 'videoAsset' ? 'video/' : 'image/')).map(asset => ({ label: asset.name, value: asset.id })),
+					items: appContext.state.assets.value.filter(asset => asset.fileDataType.startsWith(dataType.kind === 'videoAssetReference' ? 'video/' : 'image/')).map(asset => ({ label: asset.name, value: asset.id })),
 				}] : []),
 			]"
 			@update:modelValue="v => changeValue(v)"
 		/>
 	</div>
-	<div v-else-if="def.ui.control === 'player'">
+	<div v-else-if="dataType.kind === 'playerReference'">
 		<GsSelect
 			small
 			:modelValue="value"
@@ -185,7 +185,7 @@
 </template>
 
 <script lang="ts" setup generic="T extends LeafDataType">
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import GsXy from './common/GsXy.vue';
 import GsColorInput from './common/GsColorInput.vue';
 import GsInput from './common/GsInput.vue';
@@ -193,7 +193,7 @@ import GsRange from './common/GsRange.vue';
 import GsAngle from './common/GsAngle.vue';
 import GsButton from './common/GsButton.vue';
 import GsSelect from './common/GsSelect.vue';
-import type { DataTypeUiControlDefinitionMap, LeafDataType } from '@glitch/shared/data-type.js';
+import type { DataTypeUiControlDefinitionMap, DataTypeUiDefinition, LeafDataType } from '@glitch/shared/data-type.ts';
 import { i18n } from '@/i18n.ts';
 import { appContext } from '@/app.ts';
 import { normalizeColor } from '@/utility/color-input.ts';
@@ -201,7 +201,8 @@ import { normalizeColor } from '@/utility/color-input.ts';
 const props = defineProps<{
 	// コンテナの子や配列操作は呼び出し元が扱い、このコントロールには末端の定義だけを渡す。
 	dataType: T;
-	control: DataTypeUiControlDefinitionMap<T>;
+	control: DataTypeUiDefinition<NoInfer<T>>;
+	value: any;
 	title?: string;
 }>();
 
@@ -212,6 +213,20 @@ const emit = defineEmits<{
 	(ev: 'changeContinuous', value: any): void;
 	(ev: 'reset'): void;
 }>();
+
+// ジェネリックなdataTypeの絞り込みは別propのcontrolへ伝播しないため、
+// 型とコントロールの対応が保証されたpropsを、種類の確認後に取り出す。
+const scalarControl = computed(() => props.dataType.kind === 'scalar'
+	? props.control as DataTypeUiControlDefinitionMap['scalar']
+	: null);
+const vectorControl = computed(() => props.dataType.kind === 'vector'
+	? props.control as DataTypeUiControlDefinitionMap['vector']
+	: null);
+const enumItems = computed(() => {
+	if (props.dataType.kind !== 'enum') return [];
+	const control = props.control as DataTypeUiControlDefinitionMap['enum'];
+	return props.dataType.options.map(value => ({ value, label: control.labels[value] ?? value }));
+});
 
 const directEditMode = ref(false);
 

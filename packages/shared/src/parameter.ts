@@ -1,89 +1,80 @@
- 
 /* eslint-disable @typescript-eslint/naming-convention */
-import type { DataType } from './data-type.ts';
-import type { FitMode, WrapMode } from './types.ts';
+import type { DataType, DataTypeUiDefinition, TextureDataType } from './data-type.ts';
+import type { FitMode, ParameterBinding, WrapMode } from './types.ts';
 
-type ParameterDefinitionBase<T extends DataType> = {
-	dataType: T;
-	defaultValue: { inputSource: 'literal'; value: any };
-};
-
-export type ParameterDefinition_Scalar = ParameterDefinitionBase<'scalar'> & {
-	canNode?: boolean;
-	defaultValue: { inputSource: 'literal'; value: number };
-	ui: { label: string; control: DataTypeUiControlDefinitionMap['scalar'] };
-};
-export type ParameterDefinition_Boolean = ParameterDefinitionBase<'bool'> & {
-	canNode?: false;
-	defaultValue: { inputSource: 'literal'; value: boolean };
-	ui: { label: string; control: DataTypeUiControlDefinitionMap['bool'] };
-};
-export type ParameterDefinition_Color = ParameterDefinitionBase<'color'> & {
-	canNode?: boolean;
-	defaultValue: { inputSource: 'literal'; value: [number, number, number, number] };
-	ui: { label: string; control: DataTypeUiControlDefinitionMap['color'] };
-};
-export type ParameterDefinition_Vector = ParameterDefinitionBase<'vector'> & {
-	canNode?: boolean;
-	defaultValue: { inputSource: 'literal'; value: [number, number] };
-	// logarithmicの範囲・stepの扱いはrangeと同じ。各軸の実際の値を保存する。
-	ui: { label: string; control: DataTypeUiControlDefinitionMap['vector'] };
-};
-export type ParameterDefinition_BlendMode = ParameterDefinitionBase<'blendMode'> & {
-	canNode?: false;
-	defaultValue: { inputSource: 'literal'; value: string }; // TODO
-	ui: { label: string; control: DataTypeUiControlDefinitionMap['blendMode'] };
-};
-export type ParameterDefinition_FitMode = ParameterDefinitionBase<'fitMode'> & {
-	canNode?: false;
-	defaultValue: { inputSource: 'literal'; value: FitMode };
-	ui: { label: string; control: DataTypeUiControlDefinitionMap['fitMode'] };
-};
-export type ParameterDefinition_WrapMode = ParameterDefinitionBase<'wrapMode'> & {
-	canNode?: false;
-	defaultValue: { inputSource: 'literal'; value: WrapMode };
-	ui: { label: string; control: DataTypeUiControlDefinitionMap['wrapMode'] };
-};
-export type ParameterDefinition_Enum<Options extends readonly string[] = any> = ParameterDefinitionBase<'enum'> & {
-	canNode?: false;
-	defaultValue: { inputSource: 'literal'; value: Options[number] };
-	ui: { label: string; labels: Record<Options[number], string>; control: DataTypeUiControlDefinitionMap['enum'] };
-};
-export type ParameterDefinition_AssetReference = ParameterDefinitionBase<'assetReference'> & {
-	canNode?: false;
-	defaultValue: { inputSource: 'literal'; value: null };
-	ui: { label: string; control: DataTypeUiControlDefinitionMap['assetReference'] };
-};
-export type ParameterDefinition_PlayerReference = ParameterDefinitionBase<'playerReference'> & {
-	canNode?: false;
-	defaultValue: { inputSource: 'literal'; value: null };
-	ui: { label: string; control: DataTypeUiControlDefinitionMap['playerReference'] };
-};
-export type ParameterDefinition_VideoAssetReference = ParameterDefinitionBase<'videoAssetReference'> & {
-	canNode?: false;
-	defaultValue: { inputSource: 'literal'; value: null };
-	ui: { label: string; control: DataTypeUiControlDefinitionMap['videoAssetReference'] };
-};
-export type ParameterDefinition_Struct<Fields extends Record<string, DataType> = any> = ParameterDefinitionBase<'struct'> & {
-	canNode?: false;
-	defaultValue: { inputSource: 'literal'; value: Record<string, any> }; // TODO
-	ui: { label: string; labels: Record<keyof Fields, string>; control: DataTypeUiControlDefinitionMap['struct'] };
-};
-export type ParameterDefinition_Array = ParameterDefinitionBase<'array'> & {
-	canNode?: false;
-	defaultValue: { inputSource: 'literal'; value: any[] }; // TODO
-	ui: { label: string; control: DataTypeUiControlDefinitionMap['array'] };
+// 初期値として保存する値。アセット・プレイヤーの初期参照は未選択とする。
+// anyの4成分は色ではなくデータであり、nullは未接続と同じゼロ値を表す。
+type ParameterDefaultValueMap = {
+	scalar: number;
+	bool: boolean;
+	color: [number, number, number, number];
+	vector: [number, number];
+	blendMode: string; // TODO: 合成方法の型に置き換える。
+	fitMode: FitMode;
+	wrapMode: WrapMode;
+	assetReference: null;
+	videoAssetReference: null;
+	playerReference: null;
+	any: [number, number, number, number] | null;
 };
 
+// コンテナ内部は素の値ではなく子ごとのBindingを保持する。
+// キーフレームのリテラル値や、レンダラーが評価済みの値とは別の構造。
+export type ParameterDefaultValue<T extends DataType> = {
+	inputSource: 'literal';
+	value: T extends { kind: 'array'; elementType: infer E extends DataType }
+		? ParameterDefaultBinding<E>[]
+		: T extends { kind: 'struct'; fields: infer F extends Record<string, DataType> }
+			? { [K in keyof F]: ParameterDefaultBinding<F[K]> }
+			: T extends { kind: 'enum'; options: readonly string[] }
+				? T['options'][number]
+				: T extends { kind: keyof ParameterDefaultValueMap }
+					? ParameterDefaultValueMap[T['kind']]
+					: never;
+};
+
+// コンテナ自体の式・接続は扱わず、末端でのみ非literalのBindingを許可する。
+type ParameterDefaultBinding<T extends DataType> = T extends { kind: 'array' | 'struct' }
+	? ParameterDefaultValue<T>
+	: ParameterDefaultValue<T> | Exclude<ParameterBinding, { inputSource: 'literal' }>;
+
+// 型とUIは別のツリーにあるため、ここでは子の接続可否・初期値だけを定義する。
+// element.defaultValueは要素追加時の初期値、外側のdefaultValueは配列全体の初期値。
+export type ParameterSettings<T extends DataType> = T extends DataType
+	? { defaultValue: ParameterDefaultValue<T> } & (
+		T extends { kind: 'array'; elementType: infer E extends DataType }
+			? { canNode?: false; element: ParameterSettings<E> }
+			: T extends { kind: 'struct'; fields: infer F extends Record<string, DataType> }
+				? { canNode?: false; fields: { [K in keyof F]: ParameterSettings<F[K]> } }
+				: T extends { kind: 'any' }
+					? { canNode: true }
+					: T extends TextureDataType
+						? { canNode?: boolean }
+						: { canNode?: false }
+	)
+	: never;
+
+// Tを分配して、dataType・UI・設定の対応を各種類ごとに保つ。
+// フィールド名やenumの選択肢まで検証する場合は具体的なTを指定する。
+export type ParameterDefinition<T extends DataType = DataType> = T extends DataType
+	? {
+		dataType: T;
+		ui: { label: string; control: DataTypeUiDefinition<T> };
+	} & ParameterSettings<T>
+	: never;
+
+export type ParameterDefinition_Scalar = ParameterDefinition<{ kind: 'scalar' }>;
+export type ParameterDefinition_Boolean = ParameterDefinition<{ kind: 'bool' }>;
+export type ParameterDefinition_Color = ParameterDefinition<{ kind: 'color' }>;
+export type ParameterDefinition_Vector = ParameterDefinition<{ kind: 'vector' }>;
+export type ParameterDefinition_BlendMode = ParameterDefinition<{ kind: 'blendMode' }>;
+export type ParameterDefinition_FitMode = ParameterDefinition<{ kind: 'fitMode' }>;
+export type ParameterDefinition_WrapMode = ParameterDefinition<{ kind: 'wrapMode' }>;
+export type ParameterDefinition_Enum<Options extends readonly string[] = readonly string[]> = ParameterDefinition<{ kind: 'enum'; options: Options }>;
+export type ParameterDefinition_AssetReference = ParameterDefinition<{ kind: 'assetReference' }>;
+export type ParameterDefinition_VideoAssetReference = ParameterDefinition<{ kind: 'videoAssetReference' }>;
+export type ParameterDefinition_PlayerReference = ParameterDefinition<{ kind: 'playerReference' }>;
+export type ParameterDefinition_Struct<Fields extends Record<string, DataType> = Record<string, DataType>> = ParameterDefinition<{ kind: 'struct'; fields: Fields }>;
+export type ParameterDefinition_Array<Element extends DataType = DataType> = ParameterDefinition<{ kind: 'array'; elementType: Element }>;
 // 入力チャンネルをそのまま扱う汎用データ処理用。リテラルの編集UIは持たない。
-export type ParameterDefinition_Any = ParameterDefinitionBase<'any'> & {
-	canNode: true;
-	// 4成分は色ではなくデータとして扱う。nullは未接続と同じゼロ値を表す。
-	defaultValue: { inputSource: 'literal'; value: [number, number, number, number] | null };
-	ui: { label: string; control: DataTypeUiControlDefinitionMap['any'] };
-};
-
-export type ParameterDefinition =
-	| ParameterDefinition_Scalar | ParameterDefinition_Boolean | ParameterDefinition_Color | ParameterDefinition_Vector
-	| ParameterDefinition_BlendMode | ParameterDefinition_FitMode | ParameterDefinition_WrapMode | ParameterDefinition_Enum
-	| ParameterDefinition_AssetReference | ParameterDefinition_VideoAssetReference | ParameterDefinition_PlayerReference | ParameterDefinition_Struct | ParameterDefinition_Array | ParameterDefinition_Any;
+export type ParameterDefinition_Any = ParameterDefinition<{ kind: 'any' }>;
