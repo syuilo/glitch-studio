@@ -2,12 +2,12 @@
 <div :class="$style.root">
 	<div :class="$style.side">
 		<div :class="$style.sideHeader">{{ layer.id }}</div>
-		<div v-for="param in keyframeParameters" :key="param.key" :class="$style.sideKeyframesRow">{{ param.key }}</div>
+		<div v-for="param in keyframeParameters" :key="param.key" :class="$style.sideKeyframesLane">{{ param.key }}</div>
 	</div>
 	<div :class="$style.tl">
 		<div v-if="snappingTime != null" :class="$style.snapLine" :style="{ left: timeToDomX(snappingTime) + 'px' }"></div>
 		<div :class="$style.tlBlock" :style="{ width: layerRect.width + 'px', left: layerRect.left + 'px' }" @click="onLayerBlockClick">{{ layer.id }}</div>
-		<XKeyframesRow
+		<XKeyframes
 			v-for="param in keyframeParameters"
 			:key="param.key"
 			:keyframes="param.binding.keyframesTimeline.keyframes"
@@ -38,8 +38,8 @@ export type TimelineKeyframeSelection = {
 import { computed, ref } from 'vue';
 import { deepClone } from '@glitch/shared/utility/deep-clone.ts';
 import { visualModuleCustomParameterId } from '@glitch/shared/visual-module/types.ts';
-import XKeyframesRow from './GsTimeline.KeyframesRow.vue';
-import type { KeyframeMove } from './GsTimeline.KeyframesRow.vue';
+import XKeyframes from './GsTimeline.Layer.Keyframes.vue';
+import type { KeyframeMove } from './GsTimeline.Layer.Keyframes.vue';
 import type { TimelineLayer } from '@glitch/shared/timeline/types.ts';
 import type { ParameterBinding } from '@glitch/shared/types.ts';
 import { appContext } from '@/app.ts';
@@ -128,8 +128,8 @@ function onLayerBlockClick() {
 
 <style module lang="scss">
 .root {
-	--mainRowHeight: 24px;
-	--keyframesRowHeight: 20px;
+	--mainLaneHeight: 24px;
+	--keyframesLaneHeight: 20px;
 
 	display: flex;
 	flex-direction: row;
@@ -147,15 +147,15 @@ function onLayerBlockClick() {
 }
 
 .sideHeader {
-	height: var(--mainRowHeight);
-	line-height: var(--mainRowHeight);
+	height: var(--mainLaneHeight);
+	line-height: var(--mainLaneHeight);
 	display: flex;
 	align-items: center;
 }
 
-.sideKeyframesRow {
-	height: var(--keyframesRowHeight);
-	line-height: var(--keyframesRowHeight);
+.sideKeyframesLane {
+	height: var(--keyframesLaneHeight);
+	line-height: var(--keyframesLaneHeight);
 }
 
 .tl {
@@ -166,7 +166,7 @@ function onLayerBlockClick() {
 
 .tlBlock {
 	position: relative;
-	height: var(--mainRowHeight);
+	height: var(--mainLaneHeight);
 	box-sizing: border-box;
 	padding: 0 8px 0 8px;
 	//background: linear-gradient(0deg, hsl(from var(--THEME-accent) h s calc(l - 10)), hsl(from var(--THEME-accent) h s calc(l + 10)));

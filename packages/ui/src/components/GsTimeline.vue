@@ -28,7 +28,7 @@
 				:snapTimes="xTicksWithHalf"
 				:currentTime="time"
 				:selectedKeyframe="selectedKeyframeSelection"
-				:class="$style.layersRow"
+				:class="$style.layersLane"
 				@selected="onLayerSelected(layer)"
 				@keyframeSelected="onKeyframeSelected"
 			/>
@@ -548,7 +548,7 @@ onMounted(() => {
 	height: 40px;
 }
 
-.layersRow {
+.layersLane {
 	direction: ltr;
 }
 

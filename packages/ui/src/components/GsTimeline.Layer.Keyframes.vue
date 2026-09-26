@@ -111,13 +111,13 @@ onBeforeUnmount(() => stopKeyframeDrag?.());
 	--knobSize: 13px; // 奇数にしないとX軸の中心がぴったりにならない
 
 	position: relative;
-	height: var(--keyframesRowHeight);
-	line-height: var(--keyframesRowHeight);
+	height: var(--keyframesLaneHeight);
+	line-height: var(--keyframesLaneHeight);
 }
 
 .keyframeBg {
 	position: absolute;
-	top: calc(var(--keyframesRowHeight) / 2 - var(--knobSize) / 2);
+	top: calc(var(--keyframesLaneHeight) / 2 - var(--knobSize) / 2);
 	height: var(--knobSize);
 	background: color(from var(--THEME-accent) srgb r g b / 0.25);
 }
@@ -126,7 +126,7 @@ onBeforeUnmount(() => stopKeyframeDrag?.());
 	cursor: ew-resize;
 	user-select: none;
 	position: absolute;
-	top: calc(var(--keyframesRowHeight) / 2 - var(--knobSize) / 2);
+	top: calc(var(--keyframesLaneHeight) / 2 - var(--knobSize) / 2);
 	width: var(--knobSize);
 	height: var(--knobSize);
 	margin-left: calc(var(--knobSize) / -2);
