@@ -137,7 +137,7 @@ onMounted(() => {
 
 .tlKeyframe {
 	position: absolute;
-	--knobSize: 16px;
+	--knobSize: 13px; // 奇数にしないとX軸の中心がぴったりにならない
 	top: calc(var(--keyframesRowHeight) / 2 - var(--knobSize) / 2);
 	width: var(--knobSize);
 	height: var(--knobSize);
