@@ -2,7 +2,7 @@
 <div :class="$style.root">
 	<div :class="$style.header">
 		<GsButton @click="addLayer">addLayer</GsButton>
-		<GsButton v-if="timeline.isTimelinePlaying.value" primary @click="pause"><i class="ti ti-player-pause"></i></GsButton>
+		<GsButton v-if="previewPlayback.isTimelinePlaying.value" primary @click="pause"><i class="ti ti-player-pause"></i></GsButton>
 		<GsButton v-else primary @click="play"><i class="ti ti-player-play"></i></GsButton>
 	</div>
 	<div :class="$style.body">
@@ -140,9 +140,8 @@ import type { Timeline } from '@glitch/shared/timeline/types.ts';
 import type { ParameterBinding, KeyframesTimelineKeyframe } from '@glitch/shared/types.ts';
 import type { TimelineKeyframeSelection } from './GsTimeline.Layer.vue';
 import type { ParamEdit } from './GsVisualParam.vue';
-import { appStateManager } from '@/app.ts';
+import { appStateManager, previewPlayback } from '@/app.ts';
 import { dragListen } from '@/utility/drag.ts';
-import * as timeline from '@/timeline.ts';
 
 const X_TICKS_HEIGHT = 20;
 const Y_TICKS_WIDTH = 0;
@@ -150,7 +149,7 @@ const Y_TICKS_WIDTH = 0;
 const duration = computed(() => {
 	return appStateManager.state.timeline.value.reduce((max, layer) => Math.max(max, layer.endTimeMs), 0) ?? 0;
 });
-const time = timeline.currentTimelineTime;
+const time = previewPlayback.currentTimelineTime;
 
 const tlEl = useTemplateRef('tlEl');
 const tlElWidth = ref(0);
@@ -425,7 +424,7 @@ function onSeekBarMousedown(ev: MouseEvent) {
 	const position = tlEl.value.getBoundingClientRect();
 
 	function move(x: number, y: number) {
-		time.value = Math.min(duration.value - 1, Math.max(0, domXToTime(x)));
+		previewPlayback.seekTimeline(Math.min(duration.value - 1, Math.max(0, domXToTime(x))));
 	}
 
 	dragListen(me => {
@@ -479,11 +478,11 @@ function addLayer() {
 }
 
 function play() {
-	timeline.playTimeline();
+	previewPlayback.playTimeline();
 }
 
 function pause() {
-	timeline.stopTimeline();
+	previewPlayback.pauseTimeline();
 }
 
 onMounted(() => {

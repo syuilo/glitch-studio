@@ -22,7 +22,7 @@ import { watch, useTemplateRef, ref, onBeforeUnmount, onMounted } from 'vue';
 import { genId } from '@glitch/shared/utility/id.ts';
 import GsDetachableView from './GsDetachableView.vue';
 import * as api from '@/api.ts';
-import { appStateManager, renderer, highlightClipping, rendererEnv, resolutionFactor, liveTimeFactor } from '@/app.ts';
+import { appStateManager, renderer, previewPlayback, highlightClipping, rendererEnv, resolutionFactor, liveTimeFactor } from '@/app.ts';
 import { preferences } from '@/preferences.ts';
 import * as ui from '@/ui.ts';
 
@@ -71,7 +71,7 @@ async function onDrop(event: DragEvent) {
 }
 
 async function addMedia(file?: File) {
-	const visualModuleId = renderer.liveVisualModuleId.value;
+	const visualModuleId = previewPlayback.liveVisualModuleId.value;
 	if (visualModuleId == null) return;
 	const result = await api.openMediaFile({ file });
 	if (result == null) return;

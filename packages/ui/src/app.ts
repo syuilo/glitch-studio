@@ -10,7 +10,7 @@ import audioWaveformEffectDef from '@glitch/shared/effect/fx/audioWaveform/_def_
 import { loadProjectFile } from './api.ts';
 import { RendererController } from './RendererController.ts';
 import GsEffectPicker from './components/GsEffectPicker.vue';
-import { currentTimelineTime } from './timeline.ts';
+import { PreviewPlaybackController } from './PreviewPlaybackController.ts';
 import { AppStateManager } from './AppStateManager.ts';
 import type { EffectNodeOf, VisualModule } from '@glitch/shared/visual-module/types.ts';
 import type { Asset, Player } from '@glitch/shared/types.ts';
@@ -78,6 +78,12 @@ export const renderer = markRaw(new RendererController({
 	liveTimeFactor: liveTimeFactor.value,
 	highlightClipping: highlightClipping.value,
 }));
+export const previewPlayback = markRaw(new PreviewPlaybackController(renderer, () => fpsLimit.value));
+
+// Worker再読み込み後も、停止中のタイムラインの現在位置を復元する。
+watch(renderer.isReady, ready => {
+	if (ready) previewPlayback.refresh();
+});
 
 watch(highlightClipping, value => {
 	renderer.setHighlightClipping(value);
@@ -126,22 +132,16 @@ export async function appReady(project: Project) {
 		renderer.updateVisualModules(deepClone(appStateManager.state.visualModules.value));
 		// 停止中は時刻が変化しないため、モジュールの編集・Undo/Redoでも現在位置を描き直す。
 		// 単体のLIVEプレビュー中は、その描画ループを維持する。
-		if (renderer.liveVisualModuleId.value == null) {
-			renderer.renderTimelineAt(currentTimelineTime.value);
-		}
-	}, { deep: true, immediate: true });
-
-	watch(currentTimelineTime, () => {
-		renderer.renderTimelineAt(currentTimelineTime.value);
+		previewPlayback.refresh();
 	}, { deep: true, immediate: true });
 
 	watch(appStateManager.state.timeline, () => {
 		renderer.updateTimeline(deepClone(appStateManager.state.timeline.value));
-		// 停止中は時刻のwatchが発火しないため、編集・Undo/Redo後も現在位置を描き直す
-		renderer.renderTimelineAt(currentTimelineTime.value);
+		// 編集・Undo/Redo後は現在位置を描き直す。LIVE中はその表示を維持する。
+		previewPlayback.refresh();
 	}, { deep: true, immediate: true });
 
-	renderer.startLiveRenderLoopFor(project.visualModules[0].id);
+	if (project.visualModules[0] != null) previewPlayback.startLive(project.visualModules[0].id);
 }
 
 export function saveProject() {

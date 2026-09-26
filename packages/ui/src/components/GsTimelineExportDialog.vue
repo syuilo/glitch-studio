@@ -51,11 +51,12 @@ import GsInput from './common/GsInput.vue';
 import GsSelect from './common/GsSelect.vue';
 import GsTabs from './common/GsTabs.vue';
 import type { ExportProgress, ExportQuality, TimelineExportSettings } from '@/export/timeline-export.ts';
-import { appStateManager, renderer } from '@/app.ts';
+import { appStateManager, renderer, previewPlayback } from '@/app.ts';
 import { exportTimeline } from '@/export/client.ts';
 import { getTimelineEnd, validateExportSettings } from '@/export/timeline-export.ts';
 import { estimateExportBytes, formatExportTime, parseExportTime, scaleExportResolution } from '@/export/export-settings.ts';
-import { currentTimelineTime } from '@/timeline.ts';
+
+const currentTimelineTime = previewPlayback.currentTimelineTime;
 
 const modal = useTemplateRef('modal');
 const dialogContent = useTemplateRef('dialogContent');

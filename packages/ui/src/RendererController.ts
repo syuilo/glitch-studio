@@ -27,7 +27,8 @@ export class RendererController {
 	private rendererWorker: Worker | null = null;
 	private resolution = { width: 1, height: 1 };
 	private renderLoopRunning = false;
-	public liveVisualModuleId = ref<VisualModule['id'] | null>(null);
+	// Worker再読み込みとエフェクト状態の参照に必要な内部情報。UIの再生状態はPreviewPlaybackControllerが所有する。
+	private liveVisualModuleId = ref<VisualModule['id'] | null>(null);
 	private liveParamValues: VisualModuleParameterBindings = {};
 	private reloadPromise: Promise<void> | null = null;
 	private rejectInitialization: ((reason: Error) => void) | null = null;
