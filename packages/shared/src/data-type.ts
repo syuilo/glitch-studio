@@ -1,19 +1,35 @@
-// アプリケーション共通のデータ型。UIの編集方法やGPU上の保存形式とは独立している。
+//// アプリケーション共通のデータ型。UIの編集方法やGPU上の保存形式とは独立している。
+//export type DataType =
+//	| 'scalar'
+//	| 'bool'
+//	| 'color'
+//	| 'vector'
+//	| 'blendMode'
+//	| 'fitMode'
+//	| 'wrapMode'
+//	| 'enum'
+//	| 'assetReference'
+//	| 'videoAssetReference'
+//	| 'playerReference'
+//	| 'struct'
+//	| 'array'
+//	| 'any';
+
 export type DataType =
-	| 'scalar'
-	| 'bool'
-	| 'color'
-	| 'vector'
-	| 'blendMode'
-	| 'fitMode'
-	| 'wrapMode'
-	| 'enum'
-	| 'assetReference'
-	| 'videoAssetReference'
-	| 'playerReference'
-	| 'struct'
-	| 'array'
-	| 'any';
+	{ kind: 'scalar' }
+	| { kind: 'bool' }
+	| { kind: 'color' }
+	| { kind: 'vector' }
+	| { kind: 'blendMode' }
+	| { kind: 'fitMode' }
+	| { kind: 'wrapMode' }
+	| { kind: 'enum'; options: string[] }
+	| { kind: 'assetReference' }
+	| { kind: 'videoAssetReference' }
+	| { kind: 'playerReference' }
+	| { kind: 'struct'; fields: Record<string, DataType> }
+	| { kind: 'array'; elementType: DataType }
+	| { kind: 'any' };
 
 // 現在のレンダラーがノード間のテクスチャとして直接受け渡せる部分集合。
 // 参照IDやコンテナは含めない。anyは接続するテクスチャのデータ型を限定しない指定。
