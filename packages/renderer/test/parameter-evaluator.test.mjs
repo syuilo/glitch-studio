@@ -74,6 +74,88 @@ const context = (defs, params, overrides = {}) => ({
 
 const graphPoint = (x, y) => ({ id: `${x}`, x, y, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] });
 
+const keyframe = (x, value, type = 'linear') => ({ id: `${x}`, x, value, interpolation: { type } });
+const keyframesInput = (keyframes, dataType = 'scalar', options = {}) => ({
+	inputSource: 'keyframesTimelineInline',
+	keyframesTimeline: { dataType, isNormalized: true, keyframes },
+	durationMs: 1000, wrapMode: 'clamp', offsetMode: 'start', ...options,
+});
+function evaluateKeyframes(input, time, endTime = 5000, fallback = -1) {
+	return new ParameterEvaluator().evaluate(input, {
+		variables: {}, automationGraphs: [], evaluatedParamValues: null, time, endTime,
+	}, fallback);
+}
+
+test('keyframes use outgoing hold/linear interpolation and switch exactly at keys', () => {
+	const input = keyframesInput([keyframe(0, [2], 'hold'), keyframe(0.5, [10]), keyframe(1, [20], 'hold')]);
+	for (const [time, expected] of [[0, 2], [499, 2], [500, 10], [750, 15], [1000, 20]]) {
+		assert.equal(evaluateKeyframes(input, time), expected);
+	}
+});
+
+test('keyframes interpolate vector and straight color components without mutating stored values', () => {
+	for (const [type, start, end, expected] of [
+		['vector', [0, -2], [4, 6], [1, 0]],
+		['color', [1, 0, 0, 0], [0, 1, 0.5, 1], [0.75, 0.25, 0.125, 0.25]],
+	]) {
+		const input = keyframesInput([keyframe(1, end), keyframe(0, start)], type);
+		const before = structuredClone(input);
+		assert.deepEqual(evaluateKeyframes(input, 250), expected);
+		for (const time of [0, 250, 1000]) evaluateKeyframes(input, time)[0] = 99;
+		assert.deepEqual(input, before);
+	}
+});
+
+test('keyframes respect normalized duration, millisecond coordinates, end alignment and live time', () => {
+	for (const isNormalized of [true, false]) {
+		const input = keyframesInput([keyframe(isNormalized ? 1.5 : 3000, [10]), keyframe(isNormalized ? 0.5 : 1000, [0])]);
+		input.keyframesTimeline.isNormalized = isNormalized;
+		input.durationMs = 2000;
+		assert.equal(evaluateKeyframes(input, 1500), 2.5);
+		input.offsetMode = 'end';
+		assert.equal(evaluateKeyframes(input, 4500), 7.5);
+		assert.equal(evaluateKeyframes(input, 5000), 10);
+		assert.equal(evaluateKeyframes(input, 1500, Infinity), 2.5);
+	}
+	for (const durationMs of [null, 0, -1, NaN, Infinity]) {
+		assert.equal(evaluateKeyframes(keyframesInput([keyframe(0, [0]), keyframe(1, [10])], 'scalar', { durationMs }), 250), 2.5);
+	}
+});
+
+test('keyframes wrap negative time, endpoints and mirrored cycles consistently', () => {
+	for (const [wrapMode, values] of [
+		['clamp', [0, 0, 10, 10, 10]],
+		['repeat', [7.5, 0, 0, 2.5, 0]],
+		['repeatMirrored', [2.5, 0, 10, 7.5, 0]],
+	]) {
+		const input = keyframesInput([keyframe(0, [0]), keyframe(1, [10])], 'scalar', { wrapMode });
+		assert.deepEqual([-250, 0, 1000, 1250, 2000].map(time => evaluateKeyframes(input, time)), values);
+	}
+});
+
+test('empty, single and duplicate keyframes have deterministic results', () => {
+	assert.equal(evaluateKeyframes(keyframesInput([]), 500, 5000, 42), 42);
+	for (const wrapMode of ['clamp', 'repeat', 'repeatMirrored']) {
+		for (const time of [-1000, 0, 1000]) {
+			assert.equal(evaluateKeyframes(keyframesInput([keyframe(0, [3])], 'scalar', { wrapMode }), time), 3);
+			assert.equal(evaluateKeyframes(keyframesInput([keyframe(0, [3]), keyframe(0, [7])], 'scalar', { wrapMode }), time), 7);
+		}
+	}
+	const input = keyframesInput([keyframe(1, [20]), keyframe(0.5, [5]), keyframe(0, [0]), keyframe(0.5, [10])]);
+	assert.equal(evaluateKeyframes(input, 250), 2.5);
+	assert.equal(evaluateKeyframes(input, 500), 10);
+	assert.equal(evaluateKeyframes(input, 750), 15);
+});
+
+test('keyframes evaluate in nested node parameters and module arguments', () => {
+	const input = keyframesInput([keyframe(0, [0]), keyframe(1, [8])]);
+	const result = evaluate(new ParameterEvaluator(), context({ values: { dataType: 'array', item: number } }, {
+		values: literal([input]),
+	}, { paramDefs: [paramDef('animated')], paramValues: { animated: input }, time: 250 }));
+	assert.equal(result.paramValues.get('animated'), 2);
+	assert.deepEqual(result.nodeParams.get('node').values, [2]);
+});
+
 // IDと表示名が異なっても、PARAMは名前、外部入力参照はIDで同じ評価済み値を読む。
 test('resolves PARAM names separately from external parameter IDs', () => {
 	const result = evaluate(new ParameterEvaluator(), context({ named: number, direct: number, invalid: number }, {

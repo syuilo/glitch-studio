@@ -45,14 +45,14 @@ export function createInlineKeyframesTimeline(): Extract<ParameterBinding, { inp
 	return {
 		inputSource: 'keyframesTimelineInline',
 		keyframesTimeline: {
-			isNormalized: true,
+			isNormalized: false,
 			dataType: 'vector',
 			keyframes: [
-				{ id: genId(), x: 0, value: [0, 0, 0, 0] },
-				{ id: genId(), x: 1, value: [0, 0, 0, 0] },
+				{ id: genId(), x: 0, value: [0, 0], interpolation: { type: 'linear' } },
+				{ id: genId(), x: 1000, value: [0, 0], interpolation: { type: 'linear' } },
 			],
 		},
-		durationMs: 1000,
+		durationMs: null,
 		wrapMode: 'repeat',
 		offsetMode: 'start',
 	};

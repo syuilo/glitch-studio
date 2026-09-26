@@ -3,6 +3,7 @@ import * as AiScript from '@syuilo/aiscript';
 import { evalAutomationGraphValue } from '@glitch/shared/utility/misc.ts';
 import { deepClone, type Cloneable } from '@glitch/shared/utility/deep-clone.js';
 import { reservedWords, singleVariableExpression } from '@glitch/shared/expression.js';
+import { evaluateKeyframesTimeline } from './keyframes-timeline.ts';
 import type { ParameterBinding, AutomationGraph } from '@glitch/shared/types.ts';
 
 // Evaluatorはstateless/deterministicである必要がある
@@ -111,6 +112,7 @@ export class ParameterEvaluator {
 			return automationGraph ? evaluateAutomationGraph(automationGraph, parameterBinding, context) : fallback;
 		}
 		if (parameterBinding.inputSource === 'automationGraphInline') return evaluateAutomationGraph(parameterBinding.automationGraph, parameterBinding, context);
+		if (parameterBinding.inputSource === 'keyframesTimelineInline') return evaluateKeyframesTimeline(parameterBinding, context.time, context.endTime, fallback);
 		return parameterBinding.nodeId == null ? null : { nodeId: parameterBinding.nodeId, outputPort: parameterBinding.outputPort };
 	}
 }

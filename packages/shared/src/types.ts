@@ -70,10 +70,13 @@ export type AutomationGraph = {
 	isNormalized: boolean; // X軸が0~1に正規化されているかどうか。falseの場合はX軸単位がmsであるとみなす
 };
 
+export type KeyframeInterpolation = { type: 'hold' } | { type: 'linear' };
+
 export type KeyframesTimelineKeyframe = {
 	id: string;
 	x: number;
 	value: number[]; // ベクトル、色など複数成分の値も扱うため配列
+	interpolation: KeyframeInterpolation; // 次のキーフレームまでの補間。最後のキーフレームでは使用しない。
 };
 
 export type KeyframesTimeline = {
