@@ -138,6 +138,13 @@ export const PREF_DEF = definePreferences({
 										type: 'panel',
 										contentType: 'commandLog',
 									},
+								}, {
+									name: 'Project Info',
+									element: {
+										id: '1a329690fb7b4987a4be5868d0a043ce',
+										type: 'panel',
+										contentType: 'projectInfo',
+									},
 								}],
 							},
 						}],

@@ -16,8 +16,8 @@
 			<button class="_button" :class="$style.headerMenuItem" @click="openHeaderEditMenu">Edit</button>
 			<button class="_button" :class="$style.headerMenuItem" @click="openHeaderHelpMenu">Help</button>
 		</div>
-		<div :class="$style.headerRight">
-			test
+		<div :class="$style.headerRight" :title="appStateManager.projectInfo.value.name">
+			{{ appStateManager.projectInfo.value.name }}
 		</div>
 	</div>
 	<div :class="$style.body">
@@ -314,11 +314,16 @@ onMounted(() => {
 
 .headerLeft {
 	display: flex;
+	flex-shrink: 0;
 }
 
 .headerRight {
-	display: flex;
 	margin-left: auto;
+	min-width: 0;
+	padding: 0 12px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 .undoRedo {

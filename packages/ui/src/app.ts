@@ -11,6 +11,7 @@ import { RendererController } from './RendererController.ts';
 import GsEffectPicker from './components/GsEffectPicker.vue';
 import { PreviewPlaybackController } from './PreviewPlaybackController.ts';
 import { AppStateManager } from './AppStateManager.ts';
+import { DEFAULT_PROJECT_NAME, loadProjectFile, saveProjectFile } from './gsproj.ts';
 import type { EffectNodeOf, VisualModule } from '@glitch/shared/visual-module/types.ts';
 import type { Asset, Player } from '@glitch/shared/types.ts';
 import type { Project } from './gsproj.ts';
@@ -19,6 +20,10 @@ import * as ui from '@/ui.ts';
 import * as api from '@/api.ts';
 
 export const appStateManager = new AppStateManager();
+
+watch(() => appStateManager.projectInfo.value.name, name => {
+	window.document.title = name ? `Glitch Studio (${name})` : 'Glitch Studio';
+}, { immediate: true });
 
 (window as any).appStateManager = appStateManager; // debug
 
@@ -108,7 +113,7 @@ watch([appStateManager.state.resolution, resolutionFactor], () => {
 
 let rendererInitialization: Promise<void> | null = null;
 let projectWatchers: WatchStopHandle[] = [];
-let projectMetadata: Pick<Project, 'id' | 'name' | 'author'> | null = null;
+let projectMetadata: Pick<Project, 'id'> | null = null;
 let projectFileName = 'untitled.gsproj';
 let projectFileHandle: FileSystemFileHandle | null = null;
 let savingProject = false;
@@ -143,10 +148,10 @@ export async function appReady(project: Project, fileName = 'untitled.gsproj', f
 	await renderer.updatePlayers(deepClone(project.players));
 	renderer.updateVisualModules(deepClone(project.visualModules));
 	renderer.updateTimeline(deepClone(project.timeline));
-	projectMetadata = { id: project.id, name: project.name, author: project.author };
+	projectMetadata = { id: project.id };
+	appStateManager.projectInfo.value = { name: project.name, description: project.description, author: project.author };
 	projectFileName = fileName;
 	projectFileHandle = fileHandle;
-	window.document.title = `Glitch Studio (${project.name || fileName})`;
 
 	projectWatchers.push(watch(appStateManager.state.assets, async () => {
 		try {
@@ -187,6 +192,7 @@ export async function saveProject(saveAs = false) {
 		// 素材の読み出し中に編集されても、保存開始時点の状態を一貫して書き出す。
 		const project = deepClone({
 			...projectMetadata,
+			...appStateManager.projectInfo.value,
 			gsVersion: _VERSION_,
 			visualModules: appStateManager.state.visualModules.value,
 			assets: appStateManager.state.assets.value,
@@ -194,12 +200,11 @@ export async function saveProject(saveAs = false) {
 			timeline: appStateManager.state.timeline.value,
 			resolution: appStateManager.state.resolution.value,
 		} satisfies Project);
-		const handle = await api.saveProjectFile(project, projectFileName, saveAs ? null : projectFileHandle);
+		const handle = await saveProjectFile(project, projectFileName, saveAs ? null : projectFileHandle);
 		// 保存中に別プロジェクトを開いた場合、そのプロジェクトの保存先は変更しない。
 		if (handle != null && projectMetadata === metadata) {
 			projectFileHandle = handle;
 			projectFileName = handle.name;
-			window.document.title = `Glitch Studio (${metadata.name || handle.name})`;
 		}
 	} catch (error) {
 		await ui.alert({ type: 'error', text: error instanceof Error ? error.message : String(error) });
@@ -210,7 +215,7 @@ export async function saveProject(saveAs = false) {
 
 export async function openProject(file?: File, fileHandle?: FileSystemFileHandle): Promise<boolean> {
 	try {
-		const result = await api.loadProjectFile(file, fileHandle);
+		const result = await loadProjectFile(file, fileHandle);
 		if (result == null) return false;
 		await appReady(result.project, result.name, result.handle);
 		return true;
@@ -261,7 +266,8 @@ export async function newProject() {
 	await appReady({
 		id: genId(),
 		gsVersion: _VERSION_,
-		name: '',
+		name: DEFAULT_PROJECT_NAME,
+		description: '',
 		author: '',
 		visualModules: [initialVisualModule],
 		assets: [],
@@ -386,7 +392,8 @@ export async function newProjectFromImageOrVideo(file?: File) {
 	await appReady({
 		id: genId(),
 		gsVersion: _VERSION_,
-		name: '',
+		name: DEFAULT_PROJECT_NAME,
+		description: '',
 		author: '',
 		visualModules: [initialVisualModule],
 		assets: [asset],

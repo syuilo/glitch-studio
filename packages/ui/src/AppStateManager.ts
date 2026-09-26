@@ -3,6 +3,8 @@ import { computed, ref } from 'vue';
 import { deepClone } from '@glitch/shared/utility/deep-clone.js';
 import { triggerRef } from 'vue';
 import { COMMAND_DEFS } from './commands.ts';
+import { DEFAULT_PROJECT_NAME } from './gsproj.ts';
+import type { ProjectInfo } from './gsproj.ts';
 import type { Timeline } from '@glitch/shared/timeline/types.js';
 import type { Asset, Player } from '@glitch/shared/types.js';
 import type { VisualModule } from '@glitch/shared/visual-module/types.js';
@@ -19,6 +21,8 @@ type CommandLog = {
 
 export class AppStateManager {
 	public state: AppState;
+	// プロジェクト情報は編集コマンドの対象外とし、Undo/Redo履歴を変更せずに編集する。
+	public readonly projectInfo = ref<ProjectInfo>({ name: DEFAULT_PROJECT_NAME, description: '', author: '' });
 	public undoStack = shallowRef([] as CommandLog[]);
 	public redoStack = shallowRef([] as CommandLog[]);
 	public canUndo = computed(() => this.undoStack.value.length > 0);

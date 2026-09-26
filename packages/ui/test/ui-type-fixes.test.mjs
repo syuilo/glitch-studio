@@ -16,8 +16,8 @@ async function loadSource(path) {
 }
 
 const { dragListen } = await loadSource('../src/utility/drag.ts');
-const { loadProjectFile, openMediaFile } = await loadSource('../src/api.ts');
-const { encodeProjectFile, decodeProjectFile } = await loadSource('../src/gsproj.ts');
+const { openMediaFile } = await loadSource('../src/api.ts');
+const { loadProjectFile, encodeProjectFile, decodeProjectFile } = await loadSource('../src/gsproj.ts');
 
 // 取り込み時は寸法だけを取得し、デコード結果は閉じて元ファイルだけを保持する。
 // 画素列をAssetへ残すと、状態の複製や保存のたびに原本とは別の大きなRGBA配列を持つことになる。

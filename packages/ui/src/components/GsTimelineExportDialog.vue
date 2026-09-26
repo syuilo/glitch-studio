@@ -155,7 +155,7 @@ async function doExport() {
 			renderer: renderer.getExportRendererSettings(),
 		}, signal, value => { progress.value = value; });
 		signal.throwIfAborted();
-		downloadName.value = `${appStateManager.projectName || 'timeline'}.${exportSettings.format}`;
+		downloadName.value = `${appStateManager.projectInfo.value.name || 'timeline'}.${exportSettings.format}`;
 		downloadUrl.value = URL.createObjectURL(new Blob([buffer], { type: exportSettings.format === 'mp4' ? 'video/mp4' : 'image/webp' }));
 		const link = window.document.createElement('a');
 		link.href = downloadUrl.value;
