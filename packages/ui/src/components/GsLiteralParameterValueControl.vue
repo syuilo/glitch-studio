@@ -10,6 +10,7 @@
 			v-if="value >= def.ui.min && value <= def.ui.max"
 			:modelValue="value"
 			:step="def.ui.step ?? 1"
+			:logarithmic="def.ui.logarithmic"
 			:min="def.ui.min"
 			:max="def.ui.max ?? 1"
 			:title="`${def.ui.min} ~ ${def.ui.max}`"
@@ -129,13 +130,13 @@
 		/>
 	</div>
 	<div v-else-if="def.ui.control === 'xy'">
-		<GsXy :modelValue="value" :step="def.ui.step ?? 0.1" :min="def.ui.min" :max="def.ui.max ?? 1" @beginChanging="onBeginChanging" @update:modelValue="v => changeContinuous(v)" @changeFinished="onFinishChanging"/>
+		<GsXy :modelValue="value" :logarithmic="def.ui.logarithmic" :step="def.ui.step ?? 0.1" :min="def.ui.min" :max="def.ui.max ?? 1" @beginChanging="onBeginChanging" @update:modelValue="v => changeContinuous(v)" @changeFinished="onFinishChanging"/>
 	</div>
 	<div v-else-if="def.ui.control === 'wh'">
-		<GsXy :modelValue="value" :step="def.ui.step ?? 0.1" :min="def.ui.min" :max="def.ui.max ?? 1" @beginChanging="onBeginChanging" @update:modelValue="v => changeContinuous(v)" @changeFinished="onFinishChanging"/>
+		<GsXy :modelValue="value" :logarithmic="def.ui.logarithmic" :step="def.ui.step ?? 0.1" :min="def.ui.min" :max="def.ui.max ?? 1" @beginChanging="onBeginChanging" @update:modelValue="v => changeContinuous(v)" @changeFinished="onFinishChanging"/>
 	</div>
 	<div v-else-if="def.ui.control === 'vector'" style="max-width: 150px;">
-		<GsXy :modelValue="value" :step="def.ui.step ?? 0.1" :min="def.ui.min" :max="def.ui.max ?? 1" @beginChanging="onBeginChanging" @update:modelValue="v => changeContinuous(v)" @changeFinished="onFinishChanging"/>
+		<GsXy :modelValue="value" :logarithmic="def.ui.logarithmic" :step="def.ui.step ?? 0.1" :min="def.ui.min" :max="def.ui.max ?? 1" @beginChanging="onBeginChanging" @update:modelValue="v => changeContinuous(v)" @changeFinished="onFinishChanging"/>
 	</div>
 	<div v-else-if="def.ui.control === 'color'">
 		<GsColorInput

@@ -8,7 +8,7 @@ export default defineEffect({
 	paramDefs: {
 		input: { dataType: 'color', ui: { label: 'Input', control: 'color' }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },
 		amount: { dataType: 'scalar', ui: { label: 'Amount', control: 'range', min: 0, max: 1, step: 0.01 }, defaultValue: { inputSource: 'literal', value: 0.5 } },
-		size: { dataType: 'vector', ui: { label: 'Size', control: 'vector', min: 0, max: 1, step: 0.001 }, canNode: true, defaultValue: { inputSource: 'literal', value: [1 / 3, 1 / 3] } },
+		size: { dataType: 'vector', ui: { label: 'Size', control: 'vector', min: 0.001, max: 1, logarithmic: true }, canNode: true, defaultValue: { inputSource: 'literal', value: [1 / 3, 1 / 3] } },
 		fitMode: { dataType: 'fitMode', ui: { label: 'Fit Mode', control: 'fitMode' }, defaultValue: { inputSource: 'literal', value: 'contain' } },
 		randomSwap: { dataType: 'bool', ui: { label: 'Random swap', control: 'bool' }, defaultValue: { inputSource: 'literal', value: true } },
 		randomRotation: { dataType: 'bool', ui: { label: 'Random rotation', control: 'bool' }, defaultValue: { inputSource: 'literal', value: false } },

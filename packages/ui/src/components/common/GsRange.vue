@@ -47,13 +47,13 @@ const props = withDefaults(defineProps<{
 	min: number;
 	max: number;
 	step?: number;
+	logarithmic?: boolean;
 	textConverter?: (value: number) => string,
 	showTicks?: boolean;
 	easing?: boolean;
 	continuousUpdate?: boolean;
 }>(), {
 	step: 1,
-	textConverter: (v: number) => (Math.round(v * 1000) / 1000).toString(),
 	easing: false,
 });
 
@@ -67,6 +67,13 @@ const emit = defineEmits<{
 
 const containerEl = useTemplateRef('containerEl');
 const thumbEl = useTemplateRef('thumbEl');
+
+const useLogarithmic = computed(() => props.logarithmic && props.min > 0 && props.max > props.min);
+function formatValue(value: number): string {
+	if (props.textConverter) return props.textConverter(value);
+	// 小さなSizeが0と表示されないよう、対数操作では有効桁数で表示する。
+	return useLogarithmic.value ? Number(value.toPrecision(5)).toString() : (Math.round(value * 1000) / 1000).toString();
+}
 
 const maxRatio = computed(() => Math.abs(props.max) / (props.max + Math.abs(Math.min(0, props.min))));
 const minRatio = computed(() => Math.abs(Math.min(0, props.min)) / (props.max + Math.abs(Math.min(0, props.min))));
@@ -85,11 +92,17 @@ const leftTrackPosition = computed(() => {
 });
 
 const calcRawValue = (value: number) => {
+	if (useLogarithmic.value) {
+		const clamped = Math.min(props.max, Math.max(props.min, value));
+		return Math.log(clamped / props.min) / Math.log(props.max / props.min);
+	}
 	return (value - props.min) / (props.max - props.min);
 };
 
 const rawValue = ref(calcRawValue(props.modelValue));
 const steppedRawValue = computed(() => {
+	// 固定の値刻みで丸めると小さい値を調整できなくなるため、対数操作は連続値を使う。
+	if (useLogarithmic.value) return rawValue.value;
 	if (props.step) {
 		const step = props.step / (props.max - props.min);
 		return (step * Math.round(rawValue.value / step));
@@ -98,6 +111,7 @@ const steppedRawValue = computed(() => {
 	}
 });
 const finalValue = computed(() => {
+	if (useLogarithmic.value) return props.min * (props.max / props.min) ** steppedRawValue.value;
 	if (Number.isInteger(props.step)) {
 		return Math.round((steppedRawValue.value * (props.max - props.min)) + props.min);
 	} else {
@@ -118,7 +132,7 @@ const calcThumbPosition = () => {
 	}
 };
 watch([steppedRawValue, containerEl], calcThumbPosition);
-watch(() => props.modelValue, (newVal) => {
+watch(() => [props.modelValue, props.min, props.max, props.logarithmic] as const, ([newVal]) => {
 	const newRawValue = calcRawValue(newVal);
 	if (rawValue.value === newRawValue) return;
 	rawValue.value = newRawValue;
@@ -138,6 +152,7 @@ onUnmounted(() => {
 });
 
 const steps = computed(() => {
+	if (useLogarithmic.value) return 0;
 	if (props.step) {
 		return (props.max - props.min) / props.step;
 	} else {
@@ -164,7 +179,7 @@ function onMouseenter() {
 	const { dispose } = ui.popup(defineAsyncComponent(() => import('@/components/common/GsTooltip.vue')), {
 		showing: computed(() => tooltipForHoverShowing.value && !tooltipForDragShowing.value),
 		text: computed(() => {
-			return props.textConverter(finalValue.value);
+			return formatValue(finalValue.value);
 		}),
 		anchorElement: thumbEl.value ?? undefined,
 	}, {
@@ -190,7 +205,7 @@ function onMousedown(ev: MouseEvent | TouchEvent) {
 	const { dispose } = ui.popup(defineAsyncComponent(() => import('@/components/common/GsTooltip.vue')), {
 		showing: tooltipForDragShowing,
 		text: computed(() => {
-			return props.textConverter(finalValue.value);
+			return formatValue(finalValue.value);
 		}),
 		anchorElement: thumbEl.value ?? undefined,
 	}, {

@@ -7,7 +7,7 @@ export default defineEffect({
 	primaryInputParameter: 'background',
 	paramDefs: {
 		background: { dataType: 'color', ui: { label: 'Background', control: 'color' }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },
-		size: { dataType: 'vector', ui: { label: 'Size', control: 'vector', min: 0, max: 1, step: 0.001 }, canNode: true, defaultValue: { inputSource: 'literal', value: [1 / 3, 1 / 3] } },
+		size: { dataType: 'vector', ui: { label: 'Size', control: 'vector', min: 0.001, max: 1, logarithmic: true }, canNode: true, defaultValue: { inputSource: 'literal', value: [1 / 3, 1 / 3] } },
 		angle: { dataType: 'scalar', ui: { label: 'Angle', control: 'angle' }, canNode: true, defaultValue: { inputSource: 'literal', value: 0 } },
 		majorRadius: { dataType: 'scalar', ui: { label: 'Major radius', control: 'range', min: 0, max: 1, step: 0.01 }, defaultValue: { inputSource: 'literal', value: 0.1 } },
 		majorColor: { dataType: 'color', ui: { label: 'Major color', control: 'color' }, defaultValue: { inputSource: 'literal', value: [1, 1, 1, 0.75] } },

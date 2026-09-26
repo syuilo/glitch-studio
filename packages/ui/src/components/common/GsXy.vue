@@ -39,6 +39,7 @@ import GsButton from './GsButton.vue';
 const props = withDefaults(defineProps<{
 	modelValue: [number, number];
 	step?: number;
+	logarithmic?: boolean;
 	min?: number;
 	max: number;
 }>(), {
@@ -59,6 +60,8 @@ const axisLock = ref<AxisLock>(null);
 const lockedRatio = ref<[number, number] | null>(null);
 const activePointerId = ref<number | null>(null);
 
+const useLogarithmic = computed(() => props.logarithmic && props.min > 0 && props.max > props.min);
+
 const xPosition = computed(() => `${toRatio(value.value[0]) * 100}%`);
 const yPosition = computed(() => `${(1 - toRatio(value.value[1])) * 100}%`);
 
@@ -68,11 +71,21 @@ watch(() => props.modelValue, (newValue) => {
 
 function toRatio(number: number): number {
 	if (props.max === props.min) return 0;
+	if (useLogarithmic.value) {
+		const clamped = Math.min(props.max, Math.max(props.min, number));
+		return Math.log(clamped / props.min) / Math.log(props.max / props.min);
+	}
 	return Math.min(1, Math.max(0, (number - props.min) / (props.max - props.min)));
+}
+
+function fromRatio(ratio: number): number {
+	const clamped = Math.min(1, Math.max(0, ratio));
+	return useLogarithmic.value ? props.min * (props.max / props.min) ** clamped : props.min + clamped * (props.max - props.min);
 }
 
 function snap(number: number): number {
 	const clamped = Math.min(props.max, Math.max(props.min, number));
+	if (useLogarithmic.value) return clamped;
 	if (props.step == null || props.step <= 0) return clamped;
 	const snapped = props.min + Math.round((clamped - props.min) / props.step) * props.step;
 	return Number(Math.min(props.max, Math.max(props.min, snapped)).toFixed(10));
@@ -92,6 +105,10 @@ function setValue(x: number, y: number, changedAxis?: 'x' | 'y') {
 		} else if (changedAxis === 'y') {
 			if (ratioY === 0) return;
 			scale = snap(y) / ratioY;
+		} else if (useLogarithmic.value) {
+			// 比率固定は対数座標では傾き1の直線になる。画面上で射影するため、
+			// 両軸が要求する倍率の幾何平均を使い、小さい側の操作も等しく反映する。
+			scale = Math.sqrt((snap(x) / ratioX) * (snap(y) / ratioY));
 		} else {
 			scale = (x * ratioX + y * ratioY) / (ratioX * ratioX + ratioY * ratioY);
 			// 両軸を個別に丸めると比率が崩れるため、大きい成分だけをstepに合わせる。
@@ -115,8 +132,8 @@ function setValue(x: number, y: number, changedAxis?: 'x' | 'y') {
 function updateFromPointer(event: PointerEvent) {
 	if (surface.value == null) return;
 	const bounds = surface.value.getBoundingClientRect();
-	const x = props.min + Math.min(1, Math.max(0, (event.clientX - bounds.left) / bounds.width)) * (props.max - props.min);
-	const y = props.min + (1 - Math.min(1, Math.max(0, (event.clientY - bounds.top) / bounds.height))) * (props.max - props.min);
+	const x = fromRatio((event.clientX - bounds.left) / bounds.width);
+	const y = fromRatio(1 - (event.clientY - bounds.top) / bounds.height);
 	setValue(axisLock.value === 'y' ? value.value[0] : x, axisLock.value === 'x' ? value.value[1] : y);
 }
 
@@ -143,10 +160,12 @@ function onPointerUp(event: PointerEvent) {
 
 function onKeydown(event: KeyboardEvent) {
 	const amount = props.step ?? (props.max - props.min) / 100;
-	if (event.key === 'ArrowLeft' && axisLock.value !== 'y') setValue(value.value[0] - amount, value.value[1], 'x');
-	else if (event.key === 'ArrowRight' && axisLock.value !== 'y') setValue(value.value[0] + amount, value.value[1], 'x');
-	else if (event.key === 'ArrowDown' && axisLock.value !== 'x') setValue(value.value[0], value.value[1] - amount, 'y');
-	else if (event.key === 'ArrowUp' && axisLock.value !== 'x') setValue(value.value[0], value.value[1] + amount, 'y');
+	// 対数操作ではキー1回で操作面の1%分を移動し、ドラッグと同じ倍率の感覚にする。
+	const move = (value: number, direction: number) => useLogarithmic.value ? fromRatio(toRatio(value) + direction / 100) : value + direction * amount;
+	if (event.key === 'ArrowLeft' && axisLock.value !== 'y') setValue(move(value.value[0], -1), value.value[1], 'x');
+	else if (event.key === 'ArrowRight' && axisLock.value !== 'y') setValue(move(value.value[0], 1), value.value[1], 'x');
+	else if (event.key === 'ArrowDown' && axisLock.value !== 'x') setValue(value.value[0], move(value.value[1], -1), 'y');
+	else if (event.key === 'ArrowUp' && axisLock.value !== 'x') setValue(value.value[0], move(value.value[1], 1), 'y');
 	else return;
 	event.preventDefault();
 }
@@ -162,6 +181,8 @@ function toggleRatioLock() {
 		return;
 	}
 	const magnitude = Math.max(Math.abs(value.value[0]), Math.abs(value.value[1]));
+	// 直接入力などで非正値になっている場合、対数空間で比率を固定できない。
+	if (useLogarithmic.value && value.value.some(component => component <= 0)) return;
 	if (magnitude === 0) return;
 	// 原点を通っても固定時の比率を失わないよう、現在値とは別に保持する。
 	lockedRatio.value = [value.value[0] / magnitude, value.value[1] / magnitude];
@@ -171,6 +192,7 @@ function toggleRatioLock() {
 toggleRatioLock();
 
 function formatValue(number: number): string {
+	if (useLogarithmic.value) return Number(number.toPrecision(5)).toString();
 	return Number(number.toFixed(10)).toString();
 }
 </script>

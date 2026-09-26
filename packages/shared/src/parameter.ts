@@ -12,7 +12,8 @@ type ParameterDefinitionBase<T extends DataType> = {
 export type ScalarParamUi =
 	// あくまで「UI上ではこれくらいの範囲でスライダーを操作できると便利」を示すもので、必ずこの範囲内に値が設定されることを要求するものではない
 	| { control: 'number'; min?: number; max?: number; step?: number }
-	| { control: 'range'; min: number; max: number; step?: number }
+	// logarithmicは0 < min < maxで使用する。UI座標だけを対数変換し、値側のstepは適用しない。
+	| { control: 'range'; min: number; max: number; step?: number; logarithmic?: boolean }
 	// -1〜+1を-180〜+180度として表示する。保存値の規約はコントロールによらない。
 	| { control: 'angle'; step?: number }
 	| { control: 'seed' };
@@ -33,7 +34,8 @@ export type ParameterDefinition_Color = ParameterDefinitionBase<'color'> & {
 	defaultValue: { inputSource: 'literal'; value: [number, number, number, number] };
 };
 export type ParameterDefinition_Vector = ParameterDefinitionBase<'vector'> & {
-	ui: { control: 'vector' | 'xy' | 'wh'; min?: number; max?: number; step?: number };
+	// logarithmicの範囲・stepの扱いはrangeと同じ。各軸の実際の値を保存する。
+	ui: { control: 'vector' | 'xy' | 'wh'; min?: number; max?: number; step?: number; logarithmic?: boolean };
 	canNode?: boolean;
 	defaultValue: { inputSource: 'literal'; value: [number, number] };
 };

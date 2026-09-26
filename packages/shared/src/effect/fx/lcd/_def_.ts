@@ -7,7 +7,7 @@ export default defineEffect({
 	primaryInputParameter: 'input',
 	paramDefs: {
 		input: { dataType: 'color', ui: { label: 'Input', control: 'color' }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },
-		size: { dataType: 'scalar', ui: { label: 'Size', control: 'range', min: 0, max: 1, step: 0.001 }, defaultValue: { inputSource: 'literal', value: 0.01 } },
+		size: { dataType: 'scalar', ui: { label: 'Size', control: 'range', min: 0.001, max: 1, logarithmic: true }, defaultValue: { inputSource: 'literal', value: 0.01 } },
 		border: { dataType: 'scalar', ui: { label: 'Border', control: 'range', min: 0, max: 1, step: 0.01 }, defaultValue: { inputSource: 'literal', value: 0.1 } },
 	},
 	outputDefs: {
