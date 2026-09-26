@@ -27,6 +27,12 @@ export type ParameterBinding = {
 	durationMs: number | null; // isNormalizedの場合のみ使用。nullの場合は1000ms。
 	offsetMode: 'start' | 'end';
 	wrapMode: 'clamp' | 'repeat' | 'repeatMirrored'
+} | {
+	inputSource: 'keyframesTimelineInline';
+	keyframesTimeline: Omit<GsKeyframesTimeline, 'id' | 'name'>;
+	durationMs: number | null; // isNormalizedの場合のみ使用。nullの場合は1000ms。
+	offsetMode: 'start' | 'end';
+	wrapMode: 'clamp' | 'repeat' | 'repeatMirrored'
 } | ({ inputSource: 'node' } & (NodeOutputReference | { nodeId: null; outputPort: null })); // inputSource: 'node'はVisualModule内でしか使わない
 
 export type AutomationGraphPlaybackOptions = Pick<Extract<ParameterBinding, { inputSource: 'automationGraphReference' }>, 'durationMs' | 'offsetMode' | 'wrapMode'>;
@@ -61,6 +67,20 @@ export type GsAutomationGraph = {
 	id: string;
 	name: string;
 	points: GsBezierAnchorPoint[];
+	isNormalized: boolean; // X軸が0~1に正規化されているかどうか。falseの場合はX軸単位がmsであるとみなす
+};
+
+export type GsKeyframesTimelineKeyframe = {
+	id: string;
+	x: number;
+	value: number[]; // ベクトル、色など複数成分の値も扱うため配列
+};
+
+export type GsKeyframesTimeline = {
+	id: string;
+	name: string;
+	dataType: 'vector' | 'color';
+	keyframes: GsKeyframesTimelineKeyframe[];
 	isNormalized: boolean; // X軸が0~1に正規化されているかどうか。falseの場合はX軸単位がmsであるとみなす
 };
 
