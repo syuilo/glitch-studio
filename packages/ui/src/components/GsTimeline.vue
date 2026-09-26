@@ -25,6 +25,8 @@
 				:tlElWidth="tlElWidth"
 				:tlPosX="tlPosX"
 				:tlRangeX="tlRangeX"
+				:snapTimes="xTicksWithHalf"
+				:currentTime="time"
 				:class="$style.layersRow"
 				@selected="onLayerSelected(layer)"
 			/>

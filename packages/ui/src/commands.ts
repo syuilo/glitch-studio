@@ -49,6 +49,7 @@ const editVisualModuleLayerParamCommandDef = defineCommand<{
 	edit:
 		| { kind: 'literal'; value: any }
 		| { kind: 'automationGraphInline'; value: Extract<ParameterBinding, { inputSource: 'automationGraphInline' }> }
+		| { kind: 'keyframesTimelineInline'; value: Extract<ParameterBinding, { inputSource: 'keyframesTimelineInline' }> }
 		| { kind: 'envVariable' | 'expression'; value: string }
 		| { kind: 'automationGraphReference'; value: string | null; options?: Partial<AutomationGraphPlaybackOptions> }
 		| { kind: 'inputSource'; inputSource: ParameterBinding['inputSource'] }
@@ -78,6 +79,7 @@ const editVisualModuleLayerParamCommandDef = defineCommand<{
 					switch (edit.kind) {
 						case 'literal': after = { inputSource: 'literal', value: deepClone(edit.value) }; break;
 						case 'automationGraphInline': after = deepClone(edit.value); break;
+						case 'keyframesTimelineInline': after = deepClone(edit.value); break;
 						case 'envVariable': after = { inputSource: 'envVariable', variable: edit.value as GlobalEnvVariable }; break;
 						case 'expression': after = { inputSource: 'expression', expression: edit.value }; break;
 						case 'automationGraphReference': after = {
