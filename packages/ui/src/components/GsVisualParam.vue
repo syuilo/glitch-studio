@@ -333,10 +333,11 @@ function getMenu() {
 		menuItems.push({ type: 'label', text: 'Input source' });
 		const types: { text: string; inputSource: ParameterBinding['inputSource']; icon: string }[] = [
 			{ text: 'Literal', inputSource: 'literal', icon: 'ti ti-adjustments-horizontal' },
-			{ text: 'Automation Graph (Reference)', inputSource: 'automationGraphReference', icon: 'ti ti-ease-in-out-control-points' },
-			{ text: 'Automation Graph (Inline)', inputSource: 'automationGraphInline', icon: 'ti ti-ease-in-out-control-points' },
 			{ text: 'Environment Variable', inputSource: 'envVariable', icon: 'ti ti-variable' },
 			{ text: 'Expression', inputSource: 'expression', icon: 'ti ti-math-function' },
+			{ text: 'Keyframes', inputSource: 'keyframesTimelineInline', icon: 'ti ti-timeline' },
+			{ text: 'Automation Graph (Reference)', inputSource: 'automationGraphReference', icon: 'ti ti-ease-in-out-control-points' },
+			{ text: 'Automation Graph (Inline)', inputSource: 'automationGraphInline', icon: 'ti ti-ease-in-out-control-points' },
 		];
 		if (props.node != null) types.push({ text: 'Custom Parameter', inputSource: 'externalCustomParameterInput', icon: 'ti ti-wifi' });
 		if (canNode.value) types.push({ text: 'Node', inputSource: 'node', icon: 'ti ti-plug' });
