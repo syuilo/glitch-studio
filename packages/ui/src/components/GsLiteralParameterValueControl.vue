@@ -185,7 +185,7 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, watchEffect, shallowRef, ref } from 'vue';
+import { ref } from 'vue';
 import GsXy from './common/GsXy.vue';
 import GsColorInput from './common/GsColorInput.vue';
 import GsInput from './common/GsInput.vue';
@@ -195,7 +195,7 @@ import GsButton from './common/GsButton.vue';
 import GsSelect from './common/GsSelect.vue';
 import type { ParameterDefinition } from '@glitch/shared/parameter.ts';
 import { i18n } from '@/i18n.ts';
-import { appContext, wireMap } from '@/app.ts';
+import { appContext } from '@/app.ts';
 import { normalizeColor } from '@/utility/color-input.ts';
 
 const props = defineProps<{
