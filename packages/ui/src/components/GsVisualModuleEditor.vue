@@ -147,6 +147,7 @@ function onPreviewParamEdit(event: ParamEdit) {
 	switch (event.kind) {
 		case 'literal': previewParamValues.value[id] = { inputSource: 'literal', value: deepClone(event.value) }; break;
 		case 'automationGraphInline': previewParamValues.value[id] = deepClone(event.value); break;
+		case 'keyframesTimelineInline': previewParamValues.value[id] = deepClone(event.value); break;
 		case 'envVariable': previewParamValues.value[id] = { inputSource: 'envVariable', variable: event.value }; break;
 		case 'expression': previewParamValues.value[id] = { inputSource: 'expression', expression: event.value }; break;
 		case 'automationGraphReference': previewParamValues.value[id] = { inputSource: 'automationGraphReference', durationMs: 1000, wrapMode: 'repeat', offsetMode: 'start', ...(current?.inputSource === 'automationGraphReference' ? current : {}), automationGraphId: event.value, ...event.options }; break;
@@ -161,6 +162,7 @@ function onPreviewParamEdit(event: ParamEdit) {
 				}; break;
 				case 'automationGraphReference': previewParamValues.value[id] = { inputSource: 'automationGraphReference', automationGraphId: null, durationMs: 1000, wrapMode: 'repeat', offsetMode: 'start' }; break;
 				case 'automationGraphInline': previewParamValues.value[id] = createInlineAutomationGraph(); break;
+				case 'keyframesTimelineInline': previewParamValues.value[id] = createInlineKeyframesTimeline(); break;
 				case 'externalCustomParameterInput':
 				case 'node':
 					return;

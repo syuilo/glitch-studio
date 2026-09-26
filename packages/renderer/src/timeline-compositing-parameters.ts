@@ -39,8 +39,8 @@ export class TimelineCompositingParameters {
 		return {
 			blendMode: mode === 'replace' ? 19 : typeof mode === 'string' && Object.hasOwn(colorBlendModes, mode) ? colorBlendModes[mode] : 0,
 			opacity: Math.min(1, Math.max(0, number('opacity', 1))),
-			translation: [number('translationX', 0), number('translationY', 0)],
-			scale: [number('scaleX', 1), number('scaleY', 1)],
+			translation: values.get('translation'),
+			scale: values.get('scale'),
 			rotation: number('rotation', 0),
 		};
 	}
