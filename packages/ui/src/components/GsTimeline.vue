@@ -21,7 +21,7 @@
 			<div v-for="layer of appContext.state.timeline.value" :key="layer.id" :class="$style.layersRow">
 				<div :class="$style.layersSide">
 					<GsButton>{{ layer.id }}</GsButton>
-					<div v-for="[k, v] in Object.entries(layer.paramValues).filter(([k, v]) => v.inputSource === 'keyframesTimelineInline')">{{ k }}</div>
+					<div v-for="[k, v] in Object.entries(layer.compositingParamValues).filter(([k, v]) => v.inputSource === 'keyframesTimelineInline')">{{ k }}</div>
 				</div>
 				<div :class="$style.layersTl">
 					<div :class="$style.layerBlock" :style="{ width: layerRects[layer.id].width + 'px', left: layerRects[layer.id].left + 'px' }" @click="onLayerBlockClick($event, layer)">{{ layer.id }}</div>

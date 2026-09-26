@@ -14,6 +14,7 @@ import type { GlobalEnvVariable } from '@glitch/shared/expression.js';
 import { canConnectNodeDataTypes } from '@/utility/node-outputs.ts';
 import { resolveNodeParam, walkNodeParams } from '@/utility/node-params.ts';
 import { createInlineAutomationGraph } from '@/utility/automation-graph.ts';
+import { createInlineKeyframesTimeline } from '@/utility/keyframes-timeline.ts';
 
 export type CommandDef<Payload> = {
 	label: string;
@@ -98,6 +99,7 @@ const editVisualModuleLayerParamCommandDef = defineCommand<{
 								}; break;
 								case 'automationGraphReference': after = { inputSource: 'automationGraphReference', automationGraphId: null, durationMs: 1000, wrapMode: 'repeat', offsetMode: 'start' }; break;
 								case 'automationGraphInline': after = createInlineAutomationGraph(); break;
+								case 'keyframesTimelineInline': after = createInlineKeyframesTimeline(); break;
 								case 'node':
 								case 'externalCustomParameterInput': throw new Error('Unsupported layer parameter input source');
 							}
@@ -435,6 +437,7 @@ const changeParamValueInputSourceCommandDef = defineNodeParamCommand<NodeParamTa
 			case 'literal': return { inputSource: 'literal', value: defaultValue.value };
 			case 'automationGraphReference': return { inputSource: 'automationGraphReference', automationGraphId: null, durationMs: 1000, wrapMode: 'repeat', offsetMode: 'start' };
 			case 'automationGraphInline': return createInlineAutomationGraph();
+			case 'keyframesTimelineInline': return createInlineKeyframesTimeline();
 			case 'externalCustomParameterInput': return { inputSource: 'externalCustomParameterInput', parameterId: visualModuleCustomParameterId('') };
 			case 'node': {
 				if (!('canNode' in target.def) || !target.def.canNode) throw new Error('Parameter does not support node input');
