@@ -159,7 +159,7 @@
 		<GsInput style="flex: 1;" type="number" :modelValue="value" @update:modelValue="changeValue(parseInt(String($event), 10))"/>
 		<GsButton small iconOnly :title="i18n.ts.Random" @click="() => changeValue(Math.floor(Math.random() * 16384))"><i class="ti ti-dice-5"></i></GsButton>
 	</div>
-	<div v-else-if="dataType.kind === 'assetReference' || dataType.kind === 'videoAssetReference'">
+	<div v-else-if="dataType.kind === 'assetReference' || dataType.kind === 'videoAssetReference' || dataType.kind === 'fontAssetReference'">
 		<GsSelect
 			small
 			:modelValue="value"
@@ -168,7 +168,7 @@
 				...(appContext.state.assets.value.length > 0 ? [{
 					type: 'group' as const,
 					label: 'Assets',
-					items: appContext.state.assets.value.filter(asset => asset.fileDataType.startsWith(dataType.kind === 'videoAssetReference' ? 'video/' : 'image/')).map(asset => ({ label: asset.name, value: asset.id })),
+					items: appContext.state.assets.value.filter(asset => asset.fileDataType.startsWith(dataType.kind === 'fontAssetReference' ? 'font/' : dataType.kind === 'videoAssetReference' ? 'video/' : 'image/')).map(asset => ({ label: asset.name, value: asset.id })),
 				}] : []),
 			]"
 			@update:modelValue="v => changeValue(v)"

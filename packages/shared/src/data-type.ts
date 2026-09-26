@@ -14,6 +14,7 @@ export type DataType =
 	| { kind: 'enum'; options: readonly string[] }
 	| { kind: 'assetReference' }
 	| { kind: 'videoAssetReference' }
+	| { kind: 'fontAssetReference' }
 	| { kind: 'playerReference' }
 	| { kind: 'struct'; fields: Record<string, DataType> }
 	| { kind: 'array'; elementType: DataType }
@@ -53,6 +54,7 @@ export type DataTypeUiControlDefinitionMap = {
 	enum: { labels: Record<string, string> };
 	assetReference: {};
 	videoAssetReference: {};
+	fontAssetReference: {};
 	playerReference: {};
 	any: {};
 };

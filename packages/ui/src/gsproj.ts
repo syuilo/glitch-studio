@@ -15,10 +15,26 @@ export type Project = {
 	resolution: { width: number; height: number; };
 };
 
-export function encodeProjectFile(project: any): Uint8Array {
-	return msgpack.encode(project);
+// BlobはMessagePackで直接保存できないため、フォントを含む素材の原本をバイト列にする。
+type StoredProject = Omit<Project, 'assets'> & {
+	assets: (Omit<Asset, 'fileData'> & { fileData: Uint8Array })[];
+};
+
+export async function encodeProjectFile(project: Project): Promise<Uint8Array> {
+	const assets = await Promise.all(project.assets.map(async asset => ({
+		...asset,
+		fileData: new Uint8Array(await asset.fileData.arrayBuffer()),
+	})));
+	return msgpack.encode({ ...project, assets } satisfies StoredProject);
 }
 
 export function decodeProjectFile(bin: Uint8Array): Project {
-	return msgpack.decode(bin) as Project;
+	const project = msgpack.decode(bin) as StoredProject;
+	return {
+		...project,
+		assets: project.assets.map(asset => ({
+			...asset,
+			fileData: new Blob([new Uint8Array(asset.fileData)], { type: asset.fileDataType }),
+		})),
+	};
 }

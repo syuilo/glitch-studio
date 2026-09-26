@@ -278,6 +278,7 @@ export class VisualModuleRenderer {
 				const v = getEvaluatedParam(params, path);
 				if (def.dataType.kind === 'assetReference') return this.assetTextures.get(v) ?? null;
 				if (def.dataType.kind === 'videoAssetReference') return this.assets.find(asset => asset.id === v && asset.fileDataType.startsWith('video/')) ?? null;
+				if (def.dataType.kind === 'fontAssetReference') return this.assets.find(asset => asset.id === v && asset.fileDataType.startsWith('font/')) ?? null;
 				if (def.dataType.kind === 'playerReference') return v == null ? null : {
 					videoFrame: this.videoFrames.get(v) ?? null,
 					audio: this.audioSources.get(playerAudioSourceId(v)) ?? null,

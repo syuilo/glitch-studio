@@ -8,7 +8,7 @@
 	</div>
 	<div :class="$style.body">
 		<canvas v-if="asset.data" ref="canvas" :class="$style.canvas" :width="asset.width" :height="asset.height"></canvas>
-		<div v-else :class="$style.mediaLabel"><i :class="asset.fileDataType.startsWith('audio/') ? 'ti ti-music' : 'ti ti-movie'"></i> {{ asset.fileDataType }}</div>
+		<div v-else :class="$style.mediaLabel"><i :class="asset.fileDataType.startsWith('font/') ? 'ti ti-typography' : asset.fileDataType.startsWith('audio/') ? 'ti ti-music' : 'ti ti-movie'"></i> {{ asset.fileDataType }}</div>
 	</div>
 </div>
 </template>
@@ -47,7 +47,7 @@ async function rename() {
 }
 
 async function replace() {
-	const result = await api.openMediaFile({});
+	const result = await api.openMediaFile({ includeFonts: true });
 	if (!result) return;
 	appContext.commit('replaceAsset', {
 		id: props.asset.id,

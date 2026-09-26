@@ -15,6 +15,7 @@ type ParameterDefaultValueMap = {
 	wrapMode: WrapMode;
 	assetReference: null;
 	videoAssetReference: null;
+	fontAssetReference: null;
 	playerReference: null;
 	any: [number, number, number, number] | null;
 };
@@ -94,6 +95,7 @@ export type ParameterDefinition_WrapMode = ParameterDefinition<{ kind: 'wrapMode
 export type ParameterDefinition_Enum<Options extends readonly string[] = readonly string[]> = ParameterDefinition<{ kind: 'enum'; options: Options }>;
 export type ParameterDefinition_AssetReference = ParameterDefinition<{ kind: 'assetReference' }>;
 export type ParameterDefinition_VideoAssetReference = ParameterDefinition<{ kind: 'videoAssetReference' }>;
+export type ParameterDefinition_FontAssetReference = ParameterDefinition<{ kind: 'fontAssetReference' }>;
 export type ParameterDefinition_PlayerReference = ParameterDefinition<{ kind: 'playerReference' }>;
 export type ParameterDefinition_Struct<Fields extends Record<string, DataType> = Record<string, DataType>> = ParameterDefinition<{ kind: 'struct'; fields: Fields }>;
 export type ParameterDefinition_Array<Element extends DataType = DataType> = ParameterDefinition<{ kind: 'array'; elementType: Element }>;
