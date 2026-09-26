@@ -184,7 +184,7 @@
 </div>
 </template>
 
-<script lang="ts" setup>
+<script lang="ts" setup generic="T extends LeafDataType">
 import { ref } from 'vue';
 import GsXy from './common/GsXy.vue';
 import GsColorInput from './common/GsColorInput.vue';
@@ -193,15 +193,15 @@ import GsRange from './common/GsRange.vue';
 import GsAngle from './common/GsAngle.vue';
 import GsButton from './common/GsButton.vue';
 import GsSelect from './common/GsSelect.vue';
-import type { ParameterDefinition } from '@glitch/shared/parameter.ts';
+import type { DataTypeUiControlDefinitionMap, LeafDataType } from '@glitch/shared/data-type.js';
 import { i18n } from '@/i18n.ts';
 import { appContext } from '@/app.ts';
 import { normalizeColor } from '@/utility/color-input.ts';
 
 const props = defineProps<{
 	// コンテナの子や配列操作は呼び出し元が扱い、このコントロールには末端の定義だけを渡す。
-	def: Exclude<ParameterDefinition, { dataType: 'array' | 'struct' }>;
-	value: any;
+	dataType: T;
+	control: DataTypeUiControlDefinitionMap<T>;
 	title?: string;
 }>();
 

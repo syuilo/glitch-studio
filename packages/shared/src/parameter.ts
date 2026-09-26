@@ -1,34 +1,7 @@
-/* eslint-disable @typescript-eslint/no-empty-object-type */
+ 
 /* eslint-disable @typescript-eslint/naming-convention */
 import type { DataType } from './data-type.ts';
 import type { FitMode, WrapMode } from './types.ts';
-
-// UIの範囲・刻みは入力操作用であり、式やノードから取得した値を制限しない。
-type DataTypeUiControlDefinition_Scalar =
-	// あくまで「UI上ではこれくらいの範囲でスライダーを操作できると便利」を示すもので、必ずこの範囲内に値が設定されることを要求するものではない
-	| { controlType: 'number'; min?: number; max?: number; step?: number }
-	// logarithmicは0 < min < maxで使用する。UI座標だけを対数変換し、値側のstepは適用しない。
-	| { controlType: 'range'; min: number; max: number; step?: number; logarithmic?: boolean }
-	// -1〜+1を-180〜+180度として表示する。保存値の規約はコントロールによらない。
-	| { controlType: 'angle'; step?: number }
-	| { controlType: 'seed' };
-
-type DataTypeUiControlDefinitionMap = {
-	scalar: DataTypeUiControlDefinition_Scalar;
-	bool: { };
-	color: { };
-	vector: { controlType: 'vector' | 'xy' | 'wh'; min?: number; max?: number; step?: number; logarithmic?: boolean };
-	blendMode: { };
-	fitMode: { };
-	wrapMode: { };
-	enum: { labels: Record<string, string> };
-	assetReference: { };
-	videoAssetReference: { };
-	playerReference: { };
-	struct: { labels: Record<string, string>; fields: Record<string, DataTypeUiControlDefinitionMap[string]> };
-	array: { element: DataTypeUiControlDefinitionMap[string] };
-	any: { };
-};
 
 type ParameterDefinitionBase<T extends DataType> = {
 	dataType: T;
