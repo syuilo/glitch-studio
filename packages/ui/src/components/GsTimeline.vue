@@ -18,7 +18,16 @@
 			<div :class="$style.layersHeader">
 				header
 			</div>
-			<XLayer v-for="layer of appContext.state.timeline.value" :key="layer.id" :layer="layer" :tlElWidth="tlElWidth" :tlPosX="tlPosX" :tlRangeX="tlRangeX" :class="$style.layersRow"/>
+			<XLayer
+				v-for="layer of appContext.state.timeline.value"
+				:key="layer.id"
+				:layer="layer"
+				:tlElWidth="tlElWidth"
+				:tlPosX="tlPosX"
+				:tlRangeX="tlRangeX"
+				:class="$style.layersRow"
+				@selected="onLayerSelected(layer)"
+			/>
 		</div>
 		<div :class="$style.tlOverlayWrapper">
 			<div :class="$style.tlOverlaySideSpacer"></div>
@@ -344,7 +353,7 @@ function formatMsToTimecode(ms: number) {
 	}
 }
 
-function onLayerBlockClick(ev: PointerEvent, layer: Timeline[number]) {
+function onLayerSelected(layer: Timeline[number]) {
 	selectedLayer.value = layer;
 }
 
@@ -652,6 +661,8 @@ onMounted(() => {
 	background: #FF5500;
 	color: #fff;
 	min-width: 5em;
+	corner-shape: bevel;
+	border-radius: 0 0 6px 0;
 }
 
 .valueBar {

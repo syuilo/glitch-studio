@@ -23,6 +23,10 @@ const props = defineProps<{
 	tlPosX: number;
 }>();
 
+const emit = defineEmits<{
+	(ev: 'selected'): void;
+}>();
+
 const layerRect = computed(() => {
 	const left = timeToDomX(props.layer.startTimeMs);
 	const width = timeToDomX(props.layer.endTimeMs) - left;
@@ -34,7 +38,7 @@ function timeToDomX(time: number): number {
 }
 
 function onLayerBlockClick(ev: PointerEvent) {
-
+	emit('selected');
 }
 
 onMounted(() => {
