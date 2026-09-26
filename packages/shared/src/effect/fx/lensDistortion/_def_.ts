@@ -1,5 +1,5 @@
 // Adapted from Paper Design's Lens Distortion (Apache-2.0; see LICENSE and NOTICE).
-// Modified: node input, vector offsets and Glitch Studio angle units.
+// Modified: node input and Glitch Studio angle units; noise and image transforms removed.
 import { defineEffect } from '../../effect-definition.ts';
 
 export default defineEffect({
@@ -19,18 +19,11 @@ export default defineEffect({
 		focusCenter: { dataType: 'scalar', ui: { label: 'Focus Center', control: 'range', min: 0, max: 1, step: 0.01 }, defaultValue: { inputSource: 'literal', value: 0.8 } },
 		focusEdges: { dataType: 'scalar', ui: { label: 'Focus Edges', control: 'range', min: 0, max: 1, step: 0.01 }, defaultValue: { inputSource: 'literal', value: 1 } },
 		swirl: { dataType: 'scalar', ui: { label: 'Swirl', control: 'range', min: -1, max: 1, step: 0.01 }, defaultValue: { inputSource: 'literal', value: 0.35 } },
-		noise: { dataType: 'scalar', ui: { label: 'Noise', control: 'range', min: 0, max: 1, step: 0.01 }, defaultValue: { inputSource: 'literal', value: 0 } },
-		noiseFrequency: { dataType: 'scalar', ui: { label: 'Noise Frequency', control: 'range', min: 0, max: 1, step: 0.01 }, defaultValue: { inputSource: 'literal', value: 0.25 } },
-		noiseOffset: { dataType: 'scalar', ui: { label: 'Noise Offset', control: 'range', min: 0, max: 1, step: 0.01 }, defaultValue: { inputSource: 'literal', value: 0 } },
 		lensBulge: { dataType: 'scalar', ui: { label: 'Lens Bulge', control: 'range', min: -1, max: 1, step: 0.01 }, defaultValue: { inputSource: 'literal', value: 0 } },
 		lensCircle: { dataType: 'scalar', ui: { label: 'Lens Circle', control: 'range', min: 0, max: 1, step: 0.01 }, defaultValue: { inputSource: 'literal', value: 0 } },
 		grainMixer: { dataType: 'scalar', ui: { label: 'Grain Mixer', control: 'range', min: 0, max: 1, step: 0.01 }, defaultValue: { inputSource: 'literal', value: 0 } },
 		grainOverlay: { dataType: 'scalar', ui: { label: 'Grain Overlay', control: 'range', min: 0, max: 1, step: 0.01 }, defaultValue: { inputSource: 'literal', value: 0 } },
-		scale: { dataType: 'scalar', ui: { label: 'Scale', control: 'range', min: 0.1, max: 4, step: 0.01 }, defaultValue: { inputSource: 'literal', value: 1 } },
 		angle: { dataType: 'scalar', ui: { label: 'Spread Angle', control: 'angle' }, defaultValue: { inputSource: 'literal', value: 0 } },
-		rotation: { dataType: 'scalar', ui: { label: 'Rotation', control: 'angle' }, defaultValue: { inputSource: 'literal', value: 0 } },
-		offset: { dataType: 'vector', ui: { label: 'Offset', control: 'vector', min: -1, max: 1, step: 0.01 }, defaultValue: { inputSource: 'literal', value: [0, 0] } },
-		imageOffset: { dataType: 'vector', ui: { label: 'Image Offset', control: 'vector', min: -1, max: 1, step: 0.01 }, defaultValue: { inputSource: 'literal', value: [0, 0] } },
 	},
 	outputDefs: {
 		output: { primary: true, dataType: 'color' },

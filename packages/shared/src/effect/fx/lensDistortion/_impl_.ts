@@ -31,10 +31,7 @@ export default implementEffect<typeof definition>({
 				uniformValues.set({
 					// レンズは出力領域を基準にする。入力自身の比率とfitはread_inputへ任せる。
 					aspectRatio: output.width / output.height,
-					offset: ctx.params.offset,
-					imageOffset: ctx.params.imageOffset,
 					angle: ctx.params.angle * Math.PI,
-					rotation: ctx.params.rotation * Math.PI,
 					spread: Math.max(0, Math.min(1, ctx.params.spread)),
 					bias: Math.max(-1, Math.min(1, ctx.params.bias)),
 					perspective: Math.max(0, Math.min(1, ctx.params.perspective)),
@@ -45,14 +42,10 @@ export default implementEffect<typeof definition>({
 					focusCenter: Math.max(0, Math.min(1, ctx.params.focusCenter)),
 					focusEdges: Math.max(0, Math.min(1, ctx.params.focusEdges)),
 					swirl: Math.max(-1, Math.min(1, ctx.params.swirl)),
-					noise: Math.max(0, Math.min(1, ctx.params.noise)),
-					noiseFrequency: Math.max(0, Math.min(1, ctx.params.noiseFrequency)),
-					noiseOffset: Math.max(0, Math.min(1, ctx.params.noiseOffset)),
 					lensBulge: Math.max(-1, Math.min(1, ctx.params.lensBulge)),
 					lensCircle: Math.max(0, Math.min(1, ctx.params.lensCircle)),
 					grainMixer: Math.max(0, Math.min(1, ctx.params.grainMixer)),
 					grainOverlay: Math.max(0, Math.min(1, ctx.params.grainOverlay)),
-					scale: Math.max(0.1, Math.min(4, ctx.params.scale)),
 				});
 				device.queue.writeBuffer(uniformBuffer, 0, uniformValues.arrayBuffer);
 				const variant = pipelines.update({ input: ctx.params.input }, output);

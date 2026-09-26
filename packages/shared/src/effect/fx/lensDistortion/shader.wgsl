@@ -1,14 +1,12 @@
 // Lens Distortion by Paper Design, Apache-2.0 (see LICENSE and NOTICE).
 // https://github.com/paper-design/shaders/blob/main/packages/shaders/src/shaders/lens-distortion.ts
 // Modified: GLSL -> WGSL, premultiplied ShaderInput, connection-controlled sampling,
-// output-based lens geometry, vector offsets, clockwise half-turn angles, resolution-independent grain.
+// output-based lens geometry, clockwise half-turn angles, resolution-independent grain.
+// Noise-driven spread and image transforms removed.
 
 struct Uniforms {
-	offset: vec2f,
-	imageOffset: vec2f,
 	aspectRatio: f32,
 	angle: f32,
-	rotation: f32,
 	spread: f32,
 	bias: f32,
 	perspective: f32,
@@ -19,14 +17,10 @@ struct Uniforms {
 	focusCenter: f32,
 	focusEdges: f32,
 	swirl: f32,
-	noise: f32,
-	noiseFrequency: f32,
-	noiseOffset: f32,
 	lensBulge: f32,
 	lensCircle: f32,
 	grainMixer: f32,
 	grainOverlay: f32,
-	scale: f32,
 };
 @group(0) @binding(0) var<uniform> uniforms: Uniforms;
 const PI = 3.141592653589793;
@@ -131,10 +125,6 @@ fn getSpread(position: vec2f, radius: f32, warpedUV: vec2f, edgeAA: f32, inradiu
 	let margin = max(reach * length(spreadDirection) * (1.0 - uniforms.lensCircle), edgeAA);
 	strength *= 1.0 - smoothstep(0.0, margin, length(outside));
 	var axis = spreadDirection * (reach * strength);
-	if (uniforms.noise > 0.0) {
-		let turn = (valueNoise(position * uniforms.noiseFrequency * 18.0 + vec2f(uniforms.noiseOffset * 30.0)) - 0.5) * 2.0 * uniforms.noise;
-		axis = rotate(axis, turn);
-	}
 	axis.x /= uniforms.aspectRatio;
 	return SpreadResult(axis, strength);
 }
@@ -143,8 +133,7 @@ fn getSpread(position: vec2f, radius: f32, warpedUV: vec2f, edgeAA: f32, inradiu
 fn fs(@location(0) position: vec2f) -> @location(0) vec4f {
 	let aspect = vec2f(uniforms.aspectRatio, 1.0);
 	// レンズ計算の距離を縦横で揃え、参照座標へ戻すときだけアスペクト補正を外す。
-	// 回転は模様を時計回りに回す逆変換、offsetは画面の半幅・半高さを1とする。
-	let fromCenter = rotate((position - uniforms.offset) * 0.5 * aspect, uniforms.rotation) / uniforms.scale;
+	let fromCenter = position * 0.5 * aspect;
 	let radius = length(fromCenter);
 	let inradius = 0.5 * min(uniforms.aspectRatio, 1.0);
 	let outradius = 0.5 * length(aspect);
@@ -189,7 +178,7 @@ fn fs(@location(0) position: vec2f) -> @location(0) vec4f {
 		if (uniforms.swirl != 0.0) {
 			tapUV = rotate(tapUV * aspect, swirlAngle * fanPosition) / aspect;
 		}
-		let tap = sampleOverWhite(tapUV + vec2f(0.5) - uniforms.imageOffset * 0.5);
+		let tap = sampleOverWhite(tapUV + vec2f(0.5));
 		let weight = vec3f(1.0) - dispersionPower * hueColor(hue);
 		colorSum += tap.rgb * weight;
 		weightSum += weight;
