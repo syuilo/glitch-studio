@@ -1,7 +1,7 @@
 <template>
-<div :class="$style.root">
+<div :class="$style.root" @dblclick.stop.prevent="onBackgroundDoubleClick">
 	<div
-		v-for="[keyframe, prevKeyframe] of keyframes.map(kf => [kf, getPrevKeyframe(kf)]).filter(([kf, prev]) => prev !== null)"
+		v-for="{ keyframe, prevKeyframe } of keyframeSegments"
 		:key="keyframe.id"
 		:class="[$style.keyframeBg]"
 		:style="{ left: Math.round(timeToDomX(keyframeTime(prevKeyframe.x))) + 'px', width: Math.round(timeToDomX(keyframeTime(keyframe.x))) - Math.round(timeToDomX(keyframeTime(prevKeyframe.x))) + 'px' }"
@@ -12,6 +12,7 @@
 		:class="[$style.keyframe, { [$style.selected]: selectedKeyframeId === keyframe.id }]"
 		:style="{ left: Math.round(timeToDomX(keyframeTime(keyframe.x))) + 'px' }"
 		@mousedown.stop.prevent="onKeyframeMousedown($event, keyframe.id)"
+		@dblclick.stop.prevent
 	></div>
 </div>
 </template>
@@ -21,7 +22,7 @@ export type KeyframeMove = { keyframeId: string; x: number; mergeKey: string };
 </script>
 
 <script lang="ts" setup>
-import { onBeforeUnmount } from 'vue';
+import { computed, onBeforeUnmount } from 'vue';
 import { genId } from '@glitch/shared/utility/id.ts';
 import type { KeyframesTimelineKeyframe } from '@glitch/shared/types.ts';
 import { dragListen } from '@/utility/drag.ts';
@@ -39,6 +40,7 @@ const props = defineProps<{
 const emit = defineEmits<{
 	(ev: 'select', keyframeId: string): void;
 	(ev: 'move', move: KeyframeMove): void;
+	(ev: 'insert', x: number): void;
 	(ev: 'snap', time: number | null): void;
 }>();
 
@@ -50,12 +52,18 @@ function timeToDomX(time: number): number {
 	return ((time - props.tlPosX) / props.tlRangeX) * props.tlElWidth;
 }
 
-function getPrevKeyframe(keyframe: KeyframesTimelineKeyframe): KeyframesTimelineKeyframe | null {
-	const keyframes = props.keyframes.toSorted((a, b) => a.x - b.x);
-	const index = keyframes.findIndex(kf => kf.id === keyframe.id);
-	if (index <= 0) return null;
-	return keyframes[index - 1];
+function onBackgroundDoubleClick(ev: MouseEvent) {
+	if (ev.button !== 0 || props.tlElWidth <= 0 || props.tlRangeX <= 0) return;
+	stopKeyframeDrag?.();
+	const rect = (ev.currentTarget as HTMLElement).getBoundingClientRect();
+	const time = props.tlPosX + (ev.clientX - rect.left) / props.tlElWidth * props.tlRangeX;
+	emit('insert', Math.max(0, time - props.startTime));
 }
+
+const keyframeSegments = computed(() => {
+	const keyframes = props.keyframes.toSorted((a, b) => a.x - b.x);
+	return keyframes.slice(1).map((keyframe, index) => ({ keyframe, prevKeyframe: keyframes[index] }));
+});
 
 let stopKeyframeDrag: (() => void) | undefined;
 const SNAP_THRESHOLD = 5;

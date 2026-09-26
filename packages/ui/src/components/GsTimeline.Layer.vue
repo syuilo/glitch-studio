@@ -19,6 +19,7 @@
 			:selectedKeyframeId="selectedKeyframe?.layerId === layer.id && selectedKeyframe.target === param.target && selectedKeyframe.paramId === param.paramId ? selectedKeyframe.keyframeId : null"
 			@select="keyframeId => emit('keyframeSelected', { layerId: layer.id, target: param.target, paramId: param.paramId, keyframeId })"
 			@move="onKeyframeMove(param, $event)"
+			@insert="onKeyframeInsert(param, $event)"
 			@snap="snappingTime = $event"
 		/>
 	</div>
@@ -37,6 +38,7 @@ export type TimelineKeyframeSelection = {
 <script lang="ts" setup>
 import { computed, ref } from 'vue';
 import { deepClone } from '@glitch/shared/utility/deep-clone.ts';
+import { genId } from '@glitch/shared/utility/id.ts';
 import { visualModuleCustomParameterId } from '@glitch/shared/visual-module/types.ts';
 import XKeyframes from './GsTimeline.Layer.Keyframes.vue';
 import type { KeyframeMove } from './GsTimeline.Layer.Keyframes.vue';
@@ -114,6 +116,39 @@ function onKeyframeMove(param: KeyframeParameter, move: KeyframeMove) {
 		layerId: layer.id, target: param.target, paramId: visualModuleCustomParameterId(param.paramId),
 		edit: { kind: 'keyframesTimelineInline', value },
 	}, move.mergeKey);
+}
+
+function onKeyframeInsert(param: KeyframeParameter, x: number) {
+	const layer = appContext.state.timeline.value.find(entry => entry.id === props.layer.id);
+	if (layer == null) return;
+	const values: Partial<Record<string, ParameterBinding>> = param.target === 'compositing' ? layer.compositingParamValues : layer.paramValues;
+	const current = values[param.paramId];
+	if (current?.inputSource !== 'keyframesTimelineInline') return;
+	const keyframes = current.keyframesTimeline.keyframes.toSorted((a, b) => a.x - b.x);
+	const previous = keyframes.findLast(point => point.x <= x);
+	const next = keyframes.find(point => point.x > x);
+	if (previous?.x === x) {
+		emit('keyframeSelected', { layerId: layer.id, target: param.target, paramId: param.paramId, keyframeId: previous.id });
+		return;
+	}
+	const kind = current.keyframesTimeline.dataType.kind;
+	let components = previous?.value ?? next?.value ?? Array<number>(kind === 'scalar' ? 1 : kind === 'vector' ? 2 : 4).fill(0);
+	if (previous != null && next != null && previous.interpolation.type === 'linear') {
+		const progress = (x - previous.x) / (next.x - previous.x);
+		components = previous.value.map((component, i) => component + (next.value[i] - component) * progress);
+	}
+	const keyframeId = genId();
+	const value = deepClone(current);
+	value.keyframesTimeline.keyframes.push({
+		id: keyframeId, x, value: [...components],
+		interpolation: deepClone(previous?.interpolation ?? { type: 'linear' }),
+	});
+	value.keyframesTimeline.keyframes.sort((a, b) => a.x - b.x);
+	appContext.commit('editVisualModuleLayerParam', {
+		layerId: layer.id, target: param.target, paramId: visualModuleCustomParameterId(param.paramId),
+		edit: { kind: 'keyframesTimelineInline', value },
+	});
+	emit('keyframeSelected', { layerId: layer.id, target: param.target, paramId: param.paramId, keyframeId });
 }
 
 function timeToDomX(time: number): number {
