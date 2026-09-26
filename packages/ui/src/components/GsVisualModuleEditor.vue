@@ -2,7 +2,7 @@
 <div :class="$style.root">
 	<div :class="$style.header">
 		<button class="_button" style="padding: 4px 6px;" @click="showSwitchMenu"><i class="ti ti-chevron-down"></i> {{ visualModule?.name ?? '' }} [{{ visualModule?.id ?? '' }}]</button>
-		<GsButton v-if="visualModule != null" :class="$style.liveButton" small :primary="engine.liveVisualModuleId.value === visualModule.id" @click="previewLive"><i class="ti ti-player-play"></i> LIVE</GsButton>
+		<GsButton v-if="visualModule != null" :class="$style.liveButton" small :primary="renderer.liveVisualModuleId.value === visualModule.id" @click="previewLive"><i class="ti ti-player-play"></i> LIVE</GsButton>
 
 		<div style="padding: 8px;">
 			<GsTabs
@@ -110,7 +110,7 @@ import GsTabs from './common/GsTabs.vue';
 import type { ParamEdit } from './GsVisualParam.vue';
 import type { VisualModule, VisualModuleParameterBindings, VisualModuleCustomParameterId, VisualModuleGlobalInNode, VisualModuleGlobalOutNode, VisualModuleNode } from '@glitch/shared/visual-module/types.js';
 import { showAddNodeMenu } from '@/app.ts';
-import { appContext, engine } from '@/app.ts';
+import { appContext, renderer } from '@/app.ts';
 import * as ui from '@/ui.ts';
 import { createInlineAutomationGraph } from '@/utility/automation-graph.ts';
 import { createInlineKeyframesTimeline } from '@/utility/keyframes-timeline.ts';
@@ -183,7 +183,7 @@ function onPreviewParamEdit(event: ParamEdit) {
 
 function previewLive() {
 	if (visualModule.value == null) return;
-	engine.startLiveRenderLoopFor(visualModule.value.id, previewParamValues.value);
+	renderer.startLiveRenderLoopFor(visualModule.value.id, previewParamValues.value);
 }
 
 const globalInNode = computed(() => {

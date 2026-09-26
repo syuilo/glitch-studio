@@ -22,7 +22,7 @@ import { watch, useTemplateRef, ref, onBeforeUnmount, onMounted } from 'vue';
 import { genId } from '@glitch/shared/utility/id.ts';
 import GsDetachableView from './GsDetachableView.vue';
 import * as api from '@/api.ts';
-import { appContext, engine, highlightClipping, rendererEnv, resolutionFactor, liveTimeFactor } from '@/app.ts';
+import { appContext, renderer, highlightClipping, rendererEnv, resolutionFactor, liveTimeFactor } from '@/app.ts';
 import { preferences } from '@/preferences.ts';
 import * as ui from '@/ui.ts';
 
@@ -47,13 +47,13 @@ watch(resolutionFactor, (newFactor, oldFactor) => {
 
 onMounted(() => {
 	if (canvasContainer.value != null) {
-		canvasContainer.value.appendChild(engine.canvas);
+		canvasContainer.value.appendChild(renderer.canvas);
 	}
 });
 
 onBeforeUnmount(() => {
-	if (canvasContainer.value != null && engine.canvas.parentNode === canvasContainer.value) {
-		canvasContainer.value.removeChild(engine.canvas);
+	if (canvasContainer.value != null && renderer.canvas.parentNode === canvasContainer.value) {
+		canvasContainer.value.removeChild(renderer.canvas);
 	}
 });
 
@@ -71,7 +71,7 @@ async function onDrop(event: DragEvent) {
 }
 
 async function addMedia(file?: File) {
-	const visualModuleId = engine.liveVisualModuleId.value;
+	const visualModuleId = renderer.liveVisualModuleId.value;
 	if (visualModuleId == null) return;
 	const result = await api.openMediaFile({ file });
 	if (result == null) return;
@@ -121,7 +121,7 @@ async function addMedia(file?: File) {
 function onPointermove(ev: PointerEvent) {
 	if (canvasContainer.value == null) return;
 	const rect = canvasContainer.value.getBoundingClientRect();
-	engine.updatePointerPosition({
+	renderer.updatePointerPosition({
 		x: (((ev.clientX - rect.left) / rect.width) - 0.5) * 2,
 		y: -(((ev.clientY - rect.top) / rect.height) - 0.5) * 2,
 	});

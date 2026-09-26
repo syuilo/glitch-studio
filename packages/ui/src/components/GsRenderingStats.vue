@@ -36,7 +36,7 @@
 
 <script lang="ts" setup>
 import { computed, onBeforeUnmount, onMounted, ref, useTemplateRef } from 'vue';
-import { engine } from '@/app.ts';
+import { renderer } from '@/app.ts';
 import { i18n } from '@/i18n.ts';
 
 type SeriesKey = 'fast' | 'medium' | 'slow';
@@ -82,9 +82,9 @@ let resizeObserver: ResizeObserver | undefined;
 function recordSample() {
 	const timestamp = performance.now();
 	current.value = {
-		fast: toMs(engine.gpuAverageDisplayFast.value),
-		medium: toMs(engine.gpuAverageDisplayMedium.value),
-		slow: toMs(engine.gpuAverageDisplaySlow.value),
+		fast: toMs(renderer.gpuAverageDisplayFast.value),
+		medium: toMs(renderer.gpuAverageDisplayMedium.value),
+		slow: toMs(renderer.gpuAverageDisplaySlow.value),
 	};
 	samples.value.push({ ...current.value, timestamp });
 	while (samples.value[0]?.timestamp < timestamp - historyDuration || samples.value.length > sampleLimit) samples.value.shift();

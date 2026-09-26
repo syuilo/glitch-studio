@@ -8,7 +8,7 @@ import imageEffectDef from '@glitch/shared/effect/fx/image/_def_.ts';
 import videoEffectDef from '@glitch/shared/effect/fx/video/_def_.ts';
 import audioWaveformEffectDef from '@glitch/shared/effect/fx/audioWaveform/_def_.ts';
 import { loadProjectFile } from './api.ts';
-import { Engine } from './engine.ts';
+import { RendererController } from './RendererController.ts';
 import { preferences } from './preferences.ts';
 import { COMMAND_DEFS } from './commands.ts';
 import GsEffectPicker from './components/GsEffectPicker.vue';
@@ -156,28 +156,28 @@ export const rendererEnv = {
 	mouseX: 0,
 	mouseY: 0,
 };
-export const engine = markRaw(new Engine({
+export const renderer = markRaw(new RendererController({
 	fpsLimit: fpsLimit.value,
 	liveTimeFactor: liveTimeFactor.value,
 	highlightClipping: highlightClipping.value,
 }));
 
 watch(highlightClipping, value => {
-	engine.setHighlightClipping(value);
+	renderer.setHighlightClipping(value);
 });
 
-(window as any).engine = engine; // debug
+(window as any).engine = renderer; // debug
 
 watch(fpsLimit, () => {
-	engine.changeLiveModeFpsLimit(fpsLimit.value);
+	renderer.changeLiveModeFpsLimit(fpsLimit.value);
 });
 
 watch(liveTimeFactor, value => {
-	engine.setLiveTimeFactor(value);
+	renderer.setLiveTimeFactor(value);
 });
 
 watch([appContext.state.resolution, resolutionFactor], () => {
-	engine.resize({
+	renderer.resize({
 		width: Math.round(appContext.state.resolution.value.width * resolutionFactor.value), // 解像度が少数になるとバグるので丸める
 		height: Math.round(appContext.state.resolution.value.height * resolutionFactor.value), // 解像度が少数になるとバグるので丸める
 	});
@@ -186,7 +186,7 @@ watch([appContext.state.resolution, resolutionFactor], () => {
 export async function appReady(project: Project) {
 	window.document.title = `Glitch Studio (${project.name})`;
 
-	await engine.init({
+	await renderer.init({
 		width: Math.round(appContext.state.resolution.value.width * resolutionFactor.value), // 解像度が少数になるとバグるので丸める
 		height: Math.round(appContext.state.resolution.value.height * resolutionFactor.value), // 解像度が少数になるとバグるので丸める
 	});
@@ -201,33 +201,33 @@ export async function appReady(project: Project) {
 	appContext.state.timeline.value = project.timeline;
 
 	watch(appContext.state.assets, () => {
-		engine.updateAssets(deepClone(appContext.state.assets.value));
+		renderer.updateAssets(deepClone(appContext.state.assets.value));
 	}, { deep: true, immediate: true });
 
 	watch(appContext.state.players, () => {
-		engine.updatePlayers(deepClone(appContext.state.players.value));
+		renderer.updatePlayers(deepClone(appContext.state.players.value));
 	}, { deep: true, immediate: true });
 
 	watch(appContext.state.visualModules, () => {
-		engine.updateVisualModules(deepClone(appContext.state.visualModules.value));
+		renderer.updateVisualModules(deepClone(appContext.state.visualModules.value));
 		// 停止中は時刻が変化しないため、モジュールの編集・Undo/Redoでも現在位置を描き直す。
 		// 単体のLIVEプレビュー中は、その描画ループを維持する。
-		if (engine.liveVisualModuleId.value == null) {
-			engine.renderTimelineAt(currentTimelineTime.value);
+		if (renderer.liveVisualModuleId.value == null) {
+			renderer.renderTimelineAt(currentTimelineTime.value);
 		}
 	}, { deep: true, immediate: true });
 
 	watch(currentTimelineTime, () => {
-		engine.renderTimelineAt(currentTimelineTime.value);
+		renderer.renderTimelineAt(currentTimelineTime.value);
 	}, { deep: true, immediate: true });
 
 	watch(appContext.state.timeline, () => {
-		engine.updateTimeline(deepClone(appContext.state.timeline.value));
+		renderer.updateTimeline(deepClone(appContext.state.timeline.value));
 		// 停止中は時刻のwatchが発火しないため、編集・Undo/Redo後も現在位置を描き直す
-		engine.renderTimelineAt(currentTimelineTime.value);
+		renderer.renderTimelineAt(currentTimelineTime.value);
 	}, { deep: true, immediate: true });
 
-	engine.startLiveRenderLoopFor(project.visualModules[0].id);
+	renderer.startLiveRenderLoopFor(project.visualModules[0].id);
 }
 
 export function saveProject() {

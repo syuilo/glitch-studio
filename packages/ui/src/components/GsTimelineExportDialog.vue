@@ -51,7 +51,7 @@ import GsInput from './common/GsInput.vue';
 import GsSelect from './common/GsSelect.vue';
 import GsTabs from './common/GsTabs.vue';
 import type { ExportProgress, ExportQuality, TimelineExportSettings } from '@/export/timeline-export.ts';
-import { appContext, engine } from '@/app.ts';
+import { appContext, renderer } from '@/app.ts';
 import { exportTimeline } from '@/export/client.ts';
 import { getTimelineEnd, validateExportSettings } from '@/export/timeline-export.ts';
 import { estimateExportBytes, formatExportTime, parseExportTime, scaleExportResolution } from '@/export/export-settings.ts';
@@ -151,7 +151,7 @@ async function doExport() {
 				visualModules: appContext.state.visualModules.value,
 				timeline: appContext.state.timeline.value,
 			}),
-			renderer: engine.getExportRendererSettings(),
+			renderer: renderer.getExportRendererSettings(),
 		}, signal, value => { progress.value = value; });
 		signal.throwIfAborted();
 		downloadName.value = `${appContext.projectName || 'timeline'}.${exportSettings.format}`;

@@ -47,7 +47,7 @@ import GsButton from './common/GsButton.vue';
 import type { ParamEdit } from './GsVisualParam.vue';
 import type { VisualModuleEffectNode } from '@glitch/shared/visual-module/types.js';
 import { i18n } from '@/i18n.ts';
-import { appContext, engine, wireMap } from '@/app.ts';
+import { appContext, renderer, wireMap } from '@/app.ts';
 import { getNodeParamDefs } from '@/utility/node-params.ts';
 import * as ui from '@/ui.ts';
 
@@ -63,7 +63,7 @@ const emit = defineEmits<{
 const name = ref<string>(effectDefinitions[props.node.effectId].displayName);
 const expanded = ref(true);
 const allInPortEl = shallowRef<HTMLElement | null>(null);
-const effectState = computed(() => engine.getLiveEffectState(props.visualModuleId, props.node.id));
+const effectState = computed(() => renderer.getLiveEffectState(props.visualModuleId, props.node.id));
 const effectStatus = computed(() => effectState.value?.status);
 
 function onParamEdit(event: ParamEdit) {
