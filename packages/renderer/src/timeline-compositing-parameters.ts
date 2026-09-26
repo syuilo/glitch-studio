@@ -1,4 +1,4 @@
-import { colorBlendModes } from '@glitch/shared/color-blend.ts';
+import { colorBlendModes, isBlendMode } from '@glitch/shared/color-blend.ts';
 import { genEmptyValue } from '@glitch/shared/utility/misc.ts';
 import { timelineCompositingParamDefs } from '@glitch/shared/timeline/timeline-compositing.js';
 import { ParameterEvaluator } from './parameter-evaluator.ts';
@@ -41,7 +41,7 @@ export class TimelineCompositingParameters {
 		};
 		const mode = values.get('blendMode');
 		return {
-			blendMode: mode === 'replace' ? 19 : typeof mode === 'string' && Object.hasOwn(colorBlendModes, mode) ? colorBlendModes[mode] : 0,
+			blendMode: mode === 'replace' ? 19 : isBlendMode(mode) ? colorBlendModes[mode] : 0,
 			opacity: Math.min(1, Math.max(0, number('opacity', 1))),
 			translation: vector('translation', [0, 0]),
 			scale: vector('scale', [1, 1]),

@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/naming-convention */
 import type { DataType, DataTypeUiDefinition, TextureDataType } from './data-type.ts';
+import type { BlendMode } from './color-blend.ts';
 import type { FitMode, ParameterBinding, WrapMode } from './types.ts';
 
 // 初期値として保存する値。アセット・プレイヤーの初期参照は未選択とする。
@@ -10,7 +11,7 @@ type ParameterDefaultValueMap = {
 	string: string;
 	color: [number, number, number, number];
 	vector: [number, number];
-	blendMode: string; // TODO: 合成方法の型に置き換える。
+	blendMode: BlendMode;
 	fitMode: FitMode;
 	wrapMode: WrapMode;
 	assetReference: null;

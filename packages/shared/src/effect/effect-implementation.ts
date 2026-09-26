@@ -1,4 +1,5 @@
 import type { AudioHistory } from '../audio-history.ts';
+import type { BlendMode } from '../color-blend.ts';
 import type { ParameterDefinition } from '../parameter.ts';
 import type { DataType } from '../data-type.ts';
 import type { ShaderInput } from '../shader-input.ts';
@@ -15,7 +16,7 @@ type RuntimeEffectOptionValue<D extends DataType, S> =
 	D extends { kind: 'string' } ? string :
 	D extends { kind: 'color' } ? Readonly<[number, number, number, number]> :
 	D extends { kind: 'vector' } ? Readonly<[number, number]> :
-	D extends { kind: 'blendMode' } ? string :
+	D extends { kind: 'blendMode' } ? BlendMode :
 	D extends { kind: 'fitMode' } ? FitMode :
 	D extends { kind: 'wrapMode' } ? WrapMode :
 	D extends { kind: 'enum'; options: readonly string[] } ? D['options'][number] :

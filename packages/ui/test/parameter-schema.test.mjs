@@ -4,11 +4,13 @@ import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
 
 // データ型とUIの組み合わせ・デフォルト値・ネストした値の型推論を検証する。
+// 定義時と実行時で制約を揃え、不正な値がエフェクトまで渡るのを防ぐ。
 test('checks parameter controls and infers values independently of controls', () => {
 	const fileName = fileURLToPath(new URL('./parameter-schema.fixture.ts', import.meta.url)).replaceAll('\\', '/');
 	const source = `
 import { defineEffect, type EffectOutputDefinitions } from '../../shared/src/effect/effect-definition.ts';
-import type { ParameterDefinition } from '../../shared/src/parameter.ts';
+import type { ParameterDefinition, ParameterDefaultValue } from '../../shared/src/parameter.ts';
+import { colorBlendModes, type BlendMode } from '../../shared/src/color-blend.ts';
 import type { EffectInstance } from '../../shared/src/effect/effect-implementation.ts';
 import { visualModuleCustomParameterId, visualModuleCustomParameterName, type VisualModule, type VisualModuleParameterBindings } from '../../shared/src/visual-module/types.ts';
 import type { NodeOutputReference } from '../../shared/src/visual-module/types.ts';
@@ -28,6 +30,23 @@ const referenceOutput: EffectOutputDefinitions[string] = { dataType: { kind: 'as
 
 const number = { dataType: { kind: 'scalar' }, ui: { control: { controlType: 'range', min: 0, max: 1 }, label: 'Value' }, defaultValue: { inputSource: 'literal', value: 0.5 } } as const;
 const color = { dataType: { kind: 'color' }, ui: { control: {}, label: 'Color' }, defaultValue: { inputSource: 'literal', value: [1, 0, 0, 1] } } as const satisfies ParameterDefinition;
+const blend = { dataType: { kind: 'blendMode' }, ui: { control: {}, label: 'Blend' }, defaultValue: { inputSource: 'literal', value: 'normal' } } as const satisfies ParameterDefinition;
+const blendValue: BlendMode = 'multiply';
+const blendNumber: number = colorBlendModes[blendValue];
+// @ts-expect-error 存在しないモードを初期値に指定できない
+const badBlend: ParameterDefinition = { ...blend, defaultValue: { inputSource: 'literal', value: 'invalid' } };
+// @ts-expect-error replaceはタイムライン専用でありblendModeには含めない
+const replaceBlend: BlendMode = 'replace';
+// @ts-expect-error エフェクト定義経由でも不正な初期値を拒否する
+defineEffect({ id: 'bad-blend', displayName: 'Bad blend', tags: [], paramDefs: { blend: { ...blend, defaultValue: { inputSource: 'literal', value: 'invalid' } } }, primaryInputParameter: null, outputDefs: {} });
+type NestedBlendDefault = ParameterDefaultValue<{ kind: 'array'; elementType: { kind: 'struct'; fields: { mode: { kind: 'blendMode' } } } }>;
+const nestedBlend: NestedBlendDefault = { inputSource: 'literal', value: [{ inputSource: 'literal', value: { mode: { inputSource: 'literal', value: 'screen' } } }] };
+// @ts-expect-error 配列・構造体内部の初期値にもモードの制約を適用する
+const badNestedBlend: NestedBlendDefault = { inputSource: 'literal', value: [{ inputSource: 'literal', value: { mode: { inputSource: 'literal', value: 'invalid' } } }] };
+type BlendValues = Parameters<EffectInstance<{ blend: typeof blend }>['render']>[0]['params'];
+const runtimeBlend: BlendValues['blend'] = 'screen';
+// @ts-expect-error 実行時の型も初期値だけに絞らず、全モードのunionにする
+const badRuntimeBlend: BlendValues['blend'] = 'invalid';
 // @ts-expect-error colorではrangeを使用できない
 defineEffect({ id: 'invalid-color', displayName: 'Invalid', tags: [], paramDefs: { color: { ...color, ui: { control: { controlType: 'range', min: 0, max: 1 }, label: 'Invalid' } } }, primaryInputParameter: null, outputDefs: {} });
 // @ts-expect-error rangeの範囲は必須
