@@ -97,3 +97,29 @@ export type ParameterDefinition_Struct<Fields extends Record<string, DataType> =
 export type ParameterDefinition_Array<Element extends DataType = DataType> = ParameterDefinition<{ kind: 'array'; elementType: Element }>;
 // 入力チャンネルをそのまま扱う汎用データ処理用。リテラルの編集UIは持たない。
 export type ParameterDefinition_Any = ParameterDefinition<{ kind: 'any' }>;
+
+// ネストした識別子の判定だけではTypeScriptが親のunionを絞り込めないため、
+// 設定やUIも含む定義全体を対応する種類に絞り込む。
+export function isParameterType<P extends ParameterDefinition, K extends DataType['kind']>(definition: P, kind: K): definition is P & ParameterDefinition<Extract<DataType, { kind: K }>> {
+	return definition.dataType.kind === kind;
+}
+
+// 保存形式は型・UI・設定を分離し、子を処理する場面でのみ定義として組み合わせる。
+// 配列要素の行ラベル（インデックス等）は呼び出し側が付ける。
+export function getArrayElementDefinition(definition: ParameterDefinition): ParameterDefinition {
+	if (!isParameterType(definition, 'array')) throw new Error('Expected array parameter definition');
+	return {
+		...definition.element,
+		dataType: definition.dataType.elementType,
+		ui: { label: definition.ui.label, control: definition.ui.control.element },
+	} as ParameterDefinition;
+}
+
+export function getStructFieldDefinitions(definition: ParameterDefinition): Record<string, ParameterDefinition> {
+	if (!isParameterType(definition, 'struct')) throw new Error('Expected struct parameter definition');
+	return Object.fromEntries(Object.entries(definition.dataType.fields).map(([key, dataType]) => [key, {
+		...definition.fields[key],
+		dataType,
+		ui: definition.ui.control.fields[key],
+	} as ParameterDefinition]));
+}

@@ -35,12 +35,16 @@ export class TimelineCompositingParameters {
 			const value = values.get(id);
 			return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
 		};
+		const vector = (id: string, fallback: [number, number]): [number, number] => {
+			const value = values.get(id);
+			return fallback.map((component, index) => Array.isArray(value) && typeof value[index] === 'number' && Number.isFinite(value[index]) ? value[index] : component) as [number, number];
+		};
 		const mode = values.get('blendMode');
 		return {
 			blendMode: mode === 'replace' ? 19 : typeof mode === 'string' && Object.hasOwn(colorBlendModes, mode) ? colorBlendModes[mode] : 0,
 			opacity: Math.min(1, Math.max(0, number('opacity', 1))),
-			translation: values.get('translation'),
-			scale: values.get('scale'),
+			translation: vector('translation', [0, 0]),
+			scale: vector('scale', [1, 1]),
 			rotation: number('rotation', 0),
 		};
 	}

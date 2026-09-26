@@ -47,5 +47,5 @@ export function evaluateKeyframesTimeline<T>(input: InlineKeyframesTimeline, tim
 		}
 	}
 	// scalarは通常の数値として返す。色は未乗算のままShaderInputへの変換境界へ渡す。
-	return timeline.dataType === 'scalar' ? value[0] : [...value];
+	return timeline.dataType.kind === 'scalar' ? value[0] : [...value];
 }

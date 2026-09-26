@@ -2,7 +2,7 @@
 <div :class="[$style.root, { [$style.isBypass]: node.isBypass }]">
 	<div :class="[$style.header, { [$style.hasStatus]: effectStatus?.type === 'loading' || effectStatus?.type === 'error' }]" :draggable="true" @dragstart.stop="emit('dragStart', $event)">
 		<div :class="$style.headerLeft">
-			<GsNodePort :class="$style.allInPort" dataType="any" @update:element="allInPortEl = $event"/>
+			<GsNodePort :class="$style.allInPort" :dataType="{ kind: 'any' }" @update:element="allInPortEl = $event"/>
 			<div :class="$style.effectName">{{ name }}</div>
 			<div v-if="effectStatus?.type === 'loading'" :class="$style.headerButton" inline small iconOnly title="Loading…"><i class="ti ti-loader-2" :class="$style.loading"></i></div>
 			<div v-else-if="effectStatus?.type === 'error'" :class="[$style.headerButton, $style.error]" inline small iconOnly :title="effectStatus.message" @click.stop="showEffectError"><i class="ti ti-alert-triangle"></i></div>

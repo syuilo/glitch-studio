@@ -2,35 +2,38 @@ import type { ParameterDefinition } from '../parameter.ts';
 
 export const timelineCompositingParamDefs = {
 	blendMode: {
-		dataType: 'enum', ui: { control: 'enum', label: 'Blend mode' },
-		options: [
-			{ value: 'normal', label: 'Normal' }, { value: 'replace', label: 'Replace (置き換え)' },
-			{ value: 'multiply', label: 'Multiply' }, { value: 'screen', label: 'Screen' },
-			{ value: 'overlay', label: 'Overlay' }, { value: 'darken', label: 'Darken' },
-			{ value: 'lighten', label: 'Lighten' }, { value: 'colorBurn', label: 'Color burn' },
-			{ value: 'colorDodge', label: 'Color dodge' }, { value: 'softLight', label: 'Soft light' },
-			{ value: 'hardLight', label: 'Hard light' }, { value: 'add', label: 'Add' },
-			{ value: 'subtract', label: 'Subtract' }, { value: 'difference', label: 'Difference' },
-			{ value: 'exclusion', label: 'Exclusion' }, { value: 'hue', label: 'Hue' },
-			{ value: 'saturation', label: 'Saturation' }, { value: 'color', label: 'Color' },
-			{ value: 'luminosity', label: 'Luminosity' }, { value: 'none', label: 'None' },
-		],
+		dataType: {
+			kind: 'enum',
+			options: ['normal', 'replace', 'multiply', 'screen', 'overlay', 'darken', 'lighten', 'colorBurn', 'colorDodge', 'softLight', 'hardLight', 'add', 'subtract', 'difference', 'exclusion', 'hue', 'saturation', 'color', 'luminosity', 'none'],
+		},
+		ui: {
+			label: 'Blend mode',
+			control: {
+				labels: {
+					normal: 'Normal', replace: 'Replace (置き換え)', multiply: 'Multiply', screen: 'Screen',
+					overlay: 'Overlay', darken: 'Darken', lighten: 'Lighten', colorBurn: 'Color burn',
+					colorDodge: 'Color dodge', softLight: 'Soft light', hardLight: 'Hard light', add: 'Add',
+					subtract: 'Subtract', difference: 'Difference', exclusion: 'Exclusion', hue: 'Hue',
+					saturation: 'Saturation', color: 'Color', luminosity: 'Luminosity', none: 'None',
+				},
+			},
+		},
 		defaultValue: { inputSource: 'literal', value: 'normal' }, canNode: false,
 	},
 	opacity: {
-		dataType: 'scalar', ui: { control: 'range', label: 'Opacity', min: 0, max: 1, step: 0.01 },
+		dataType: { kind: 'scalar' }, ui: { label: 'Opacity', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } },
 		defaultValue: { inputSource: 'literal', value: 1 }, canNode: false,
 	},
 	translation: {
-		dataType: 'vector', ui: { control: 'xy', label: 'Position', step: 0.01 },
+		dataType: { kind: 'vector' }, ui: { label: 'Position', control: { controlType: 'xy', step: 0.01 } },
 		defaultValue: { inputSource: 'literal', value: [0, 0] }, canNode: false,
 	},
 	scale: {
-		dataType: 'vector', ui: { control: 'xy', label: 'Scale', step: 0.01 },
+		dataType: { kind: 'vector' }, ui: { label: 'Scale', control: { controlType: 'xy', step: 0.01 } },
 		defaultValue: { inputSource: 'literal', value: [1, 1] }, canNode: false,
 	},
 	rotation: {
-		dataType: 'scalar', ui: { control: 'angle', label: 'Rotation' },
+		dataType: { kind: 'scalar' }, ui: { label: 'Rotation', control: { controlType: 'angle' } },
 		defaultValue: { inputSource: 'literal', value: 0 }, canNode: false,
 	},
 } as const satisfies Record<string, ParameterDefinition>;

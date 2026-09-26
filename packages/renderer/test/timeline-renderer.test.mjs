@@ -274,7 +274,7 @@ test('chains different layer types without requiring visual module fields', asyn
 					return createVisualModuleTimelineLayer({ paramDefs: [
 						{ id: 'main', isPrimaryInput: true },
 						{ id: 'second', isPrimaryInput: true },
-						{ id: 'gain', nameForReference: 'gain', dataType: 'scalar', defaultValue: { inputSource: 'literal', value: 0 }, isPrimaryInput: false },
+						{ id: 'gain', nameForReference: 'gain', dataType: { kind: 'scalar' }, defaultValue: { inputSource: 'literal', value: 0 }, isPrimaryInput: false },
 					] }, entry.layer, {
 						async prepare(context) { prepared.push(context); },
 						async render(context) { rendered.push(context); return { output: finalFrame, gpuTime: 2 }; },

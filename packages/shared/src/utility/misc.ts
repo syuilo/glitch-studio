@@ -2,19 +2,18 @@ import { rawBezierEasing } from './bezier.ts';
 import { deepClone } from './deep-clone.ts';
 import type { AutomationGraph } from '../types.ts';
 import type { DataType } from '../data-type.ts';
-import type { ParameterDefinition_Enum, ParameterDefinition_Struct } from '../parameter.ts';
+import type { ParameterSettings } from '../parameter.ts';
 
-// 型変更時にはdefaultValue自体を生成するため、完成済みのパラメータ定義を要求しない。
-// enumの候補とstructの子フィールドは、空値の生成に必要なので保持する。
+// 型変更時にも利用するため、完成済みのUIや最上位の初期値は要求しない。
+// structの空値には各フィールドのBindingの初期値を使う。
 type EmptyValueDefinition =
-	| { dataType: Exclude<DataType, 'enum' | 'struct'> }
-	| Pick<ParameterDefinition_Enum, 'dataType' | 'options'>
-	| Pick<ParameterDefinition_Struct, 'dataType' | 'fields'>;
+	| { dataType: Exclude<DataType, { kind: 'struct' }> }
+	| { dataType: Extract<DataType, { kind: 'struct' }>; fields: Record<string, ParameterSettings<DataType>> };
 
 export function genEmptyValue(paramDef: EmptyValueDefinition): any {
-	switch (paramDef.dataType) {
+	switch (paramDef.dataType.kind) {
 		case 'scalar': return 0;
-		case 'enum': return paramDef.options[0]?.value ?? null;
+		case 'enum': return paramDef.dataType.options[0] ?? '';
 		case 'bool': return false;
 		case 'blendMode': return 'normal';
 		case 'fitMode': return 'stretch';
@@ -23,7 +22,10 @@ export function genEmptyValue(paramDef: EmptyValueDefinition): any {
 		case 'color': return [0, 0, 0, 1];
 		case 'any': case 'assetReference': case 'videoAssetReference': case 'playerReference': return null;
 		case 'array': return [];
-		case 'struct': return Object.fromEntries(Object.entries(paramDef.fields).map(([key, def]) => [key, deepClone(def.defaultValue)]));
+		case 'struct': {
+			if (!('fields' in paramDef)) throw new Error('Struct parameter settings are required');
+			return Object.fromEntries(Object.keys(paramDef.dataType.fields).map(key => [key, deepClone(paramDef.fields[key].defaultValue)]));
+		}
 	}
 }
 

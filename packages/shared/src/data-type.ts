@@ -68,3 +68,18 @@ export type DataTypeUiDefinition<T extends DataType = DataType> =
 				: T extends { kind: keyof DataTypeUiControlDefinitionMap }
 					? DataTypeUiControlDefinitionMap[T['kind']]
 					: never;
+
+// オブジェクトの参照同一性ではなく値の型を比較する。フィールド・選択肢の並び順は型に影響しない。
+export function areDataTypesEqual(a: DataType, b: DataType): boolean {
+	if (a.kind !== b.kind) return false;
+	if (a.kind === 'array' && b.kind === 'array') return areDataTypesEqual(a.elementType, b.elementType);
+	if (a.kind === 'struct' && b.kind === 'struct') {
+		return Object.keys(a.fields).length === Object.keys(b.fields).length
+			&& Object.entries(a.fields).every(([key, type]) => Object.hasOwn(b.fields, key) && areDataTypesEqual(type, b.fields[key]));
+	}
+	if (a.kind === 'enum' && b.kind === 'enum') {
+		const options = new Set(a.options);
+		return options.size === new Set(b.options).size && b.options.every(option => options.has(option));
+	}
+	return true;
+}

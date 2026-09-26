@@ -100,14 +100,14 @@ const connections = computed(() => {
 					from,
 					input: wireMap.in[node.id]?.[def.id],
 					allIn: undefined,
-					...getWireColors(getNodeOutputs(nodesById.value.get(nodeId), paramDefs.value)[outputPort]?.dataType ?? 'any', def.dataType),
+					...getWireColors(getNodeOutputs(nodesById.value.get(nodeId), paramDefs.value)[outputPort]?.dataType ?? { kind: 'any' }, def.dataType),
 				});
 			}
 			continue;
 		}
 		if (node.type !== 'effect') continue;
 		for (const { path, def, value } of walkNodeParams(node)) {
-			if (value.inputSource !== 'node' || value.nodeId == null || def.dataType === 'struct' || def.dataType === 'array') continue;
+			if (value.inputSource !== 'node' || value.nodeId == null || def.dataType.kind === 'struct' || def.dataType.kind === 'array') continue;
 			if (!nodesById.value.has(value.nodeId)) continue;
 			const from = wireMap.out[value.nodeId]?.[value.outputPort];
 			if (!from) continue;
@@ -116,7 +116,7 @@ const connections = computed(() => {
 				from,
 				input: wireMap.in[node.id]?.[paramPathKey(path)],
 				allIn: wireMap.allIn[node.id],
-				...getWireColors(getNodeOutputs(nodesById.value.get(value.nodeId), paramDefs.value)[value.outputPort]?.dataType ?? 'any', getNodeInputDataType(def) ?? 'any'),
+				...getWireColors(getNodeOutputs(nodesById.value.get(value.nodeId), paramDefs.value)[value.outputPort]?.dataType ?? { kind: 'any' }, getNodeInputDataType(def) ?? { kind: 'any' }),
 			});
 		}
 	}
@@ -195,7 +195,7 @@ const wires = computed(() => {
 	if (source && from && dragPosition.value) {
 		result.push({
 			key: 'drag', from, to: dragPosition.value,
-			...getWireColors((source.dataset.type as TextureDataType) ?? 'any', 'any'),
+			...getWireColors({ kind: (source.dataset.type as TextureDataType['kind']) ?? 'any' }, { kind: 'any' }),
 		});
 	}
 	return result;
@@ -204,8 +204,8 @@ const wires = computed(() => {
 function getWireColors(outputType: TextureDataType, inputType: TextureDataType) {
 	// anyは相手側の型の色に揃え、両側がanyのときだけ中立色を使う。
 	return {
-		fromColor: getNodeDataTypeColor(outputType === 'any' ? inputType : outputType),
-		toColor: getNodeDataTypeColor(inputType === 'any' ? outputType : inputType),
+		fromColor: getNodeDataTypeColor(outputType.kind === 'any' ? inputType : outputType),
+		toColor: getNodeDataTypeColor(inputType.kind === 'any' ? outputType : inputType),
 	};
 }
 

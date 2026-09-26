@@ -54,10 +54,10 @@ export async function checkMigratedEffects(device: GPUDevice, vertex: GPUShaderM
 						params[name] = param.defaultValue.inputSource === 'literal' ? param.defaultValue.value : 0;
 						continue;
 					}
-					const value = param.dataType === 'color' ? [0.5, 0.25, 0.125, 0.5] : param.dataType === 'vector' ? [0.5, 0.25] : param.dataType === 'any' ? null : name.endsWith('Min') ? 0 : name.endsWith('Max') ? 1 : 0.25;
-					const uniform = constantShaderInput(param.dataType, value);
+					const value = param.dataType.kind === 'color' ? [0.5, 0.25, 0.125, 0.5] : param.dataType.kind === 'vector' ? [0.5, 0.25] : param.dataType.kind === 'any' ? null : name.endsWith('Min') ? 0 : name.endsWith('Max') ? 1 : 0.25;
+					const uniform = constantShaderInput(param.dataType.kind, value);
 					// 汎用データ入力は未接続の0だけでなく複数チャンネルを検証する。
-					if (param.dataType === 'any' && uniform.kind === 'uniform') uniform.value = [0.25, 0.5, 0.125, 1];
+					if (param.dataType.kind === 'any' && uniform.kind === 'uniform') uniform.value = [0.25, 0.5, 0.125, 1];
 					if (uniform.kind !== 'uniform') throw new Error('Expected uniform');
 					const texture = device.createTexture({ size: [1, 1], format: enable32bitDataTextures ? 'rgba32float' : 'rgba16float', usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST });
 					textures.push(texture);

@@ -10,7 +10,7 @@ export function getNodeInputDataType(param: { dataType: DataType; canNode?: bool
 
 export function areNodeDataTypesCompatible(output: TextureDataType | undefined, input: TextureDataType | null): boolean {
 	if (output == null || input == null) return false;
-	return output === input || output === 'any' || input === 'any';
+	return output.kind === input.kind || output.kind === 'any' || input.kind === 'any';
 }
 
 // 無効化してもポートの定義は変えない。globalOutは入力だけを持つ。
@@ -20,7 +20,7 @@ export function getNodeOutputs(node: VisualModuleNode | undefined, paramDefs: Vi
 		// 表示名や配列順を変更しても配線を維持するため、パラメータIDをポートIDにする。
 		const outputs: EffectOutputDefinitions = {};
 		for (const def of paramDefs) {
-			if (!def.canNode) continue;
+			if (!def.canNode || !isTextureDataType(def.dataType)) continue;
 			outputs[def.id] = { dataType: def.dataType, primary: def.isPrimaryInput };
 		}
 		return outputs;

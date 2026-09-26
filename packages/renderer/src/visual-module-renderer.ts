@@ -133,7 +133,7 @@ export class VisualModuleRenderer {
 		const input = this.paramInputs.get(paramId);
 		if (input != null) return input;
 		const value = this.paramValues.get(paramId);
-		return constantShaderInput(def.dataType, value);
+		return constantShaderInput(def.dataType.kind, value);
 	}
 
 	private evaluateParameters(context: VisualModuleRenderContext) {
@@ -253,7 +253,7 @@ export class VisualModuleRenderer {
 					if (input?.kind === 'texture') return null;
 					key += JSON.stringify(input);
 				}
-				if (def.dataType === 'playerReference') {
+				if (def.dataType.kind === 'playerReference') {
 					key += JSON.stringify([path, 'videoFrameVersion', v == null ? 0 : this.videoFrameVersions.get(v) ?? 0]);
 					const audio = v == null ? undefined : this.audioSources.get(playerAudioSourceId(v));
 					key += JSON.stringify([path, 'audio', audio == null ? null : [audio.generation, audio.revision, audio.endFrame]]);
@@ -276,19 +276,19 @@ export class VisualModuleRenderer {
 		for (const [key, def] of Object.entries(this.effectDefinitions[node.effectId].paramDefs)) {
 			resolvedParams[key] = mapNodeParam(def, node.params[key], [key], (def, param, path) => {
 				const v = getEvaluatedParam(params, path);
-				if (def.dataType === 'assetReference') return this.assetTextures.get(v) ?? null;
-				if (def.dataType === 'videoAssetReference') return this.assets.find(asset => asset.id === v && asset.fileDataType.startsWith('video/')) ?? null;
-				if (def.dataType === 'playerReference') return v == null ? null : {
+				if (def.dataType.kind === 'assetReference') return this.assetTextures.get(v) ?? null;
+				if (def.dataType.kind === 'videoAssetReference') return this.assets.find(asset => asset.id === v && asset.fileDataType.startsWith('video/')) ?? null;
+				if (def.dataType.kind === 'playerReference') return v == null ? null : {
 					videoFrame: this.videoFrames.get(v) ?? null,
 					audio: this.audioSources.get(playerAudioSourceId(v)) ?? null,
 				};
 				if (def.canNode) {
 					if (param.inputSource === 'node' && param.nodeId != null) {
 						const output = this.getOutputValue(this.allNodeIdMap.get(param.nodeId)!, param.outputPort);
-						return output == null ? constantShaderInput(def.dataType, null) : outputShaderInput(output, param);
+						return output == null ? constantShaderInput(def.dataType.kind, null) : outputShaderInput(output, param);
 					}
 					// NOTE: canNodeなcutom paramterは必ず配線(node)で参照し、externalCustomParameterInputとして直接参照することは仕様上禁止されるためここで対応する必要はない
-					return constantShaderInput(def.dataType, v);
+					return constantShaderInput(def.dataType.kind, v);
 				}
 				return v;
 			});
