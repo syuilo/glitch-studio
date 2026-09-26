@@ -11,8 +11,8 @@
 			<div
 				v-for="keyframe of param.binding.keyframesTimeline.keyframes"
 				:key="keyframe.id"
-				:class="$style.tlKeyframe"
-				:style="{ left: timeToDomX(keyframeTime(param.binding, keyframe.x)) + 'px' }"
+				:class="[$style.tlKeyframe, { [$style.tlKeyframeSelected]: selectedKeyframe?.layerId === layer.id && selectedKeyframe.target === param.target && selectedKeyframe.paramId === param.paramId && selectedKeyframe.keyframeId === keyframe.id }]"
+				:style="{ left: Math.round(timeToDomX(keyframeTime(param.binding, keyframe.x))) + 'px' }"
 				@mousedown.stop.prevent="onKeyframeMousedown($event, param, keyframe.id)"
 			>
 			</div>
@@ -20,6 +20,15 @@
 	</div>
 </div>
 </template>
+
+<script lang="ts">
+export type TimelineKeyframeSelection = {
+	layerId: string;
+	target: 'compositing' | 'module';
+	paramId: string;
+	keyframeId: string;
+};
+</script>
 
 <script lang="ts" setup>
 import { computed, onBeforeUnmount, ref } from 'vue';
@@ -38,10 +47,12 @@ const props = defineProps<{
 	tlPosX: number;
 	snapTimes: number[];
 	currentTime: number;
+	selectedKeyframe: TimelineKeyframeSelection | null;
 }>();
 
 const emit = defineEmits<{
 	(ev: 'selected'): void;
+	(ev: 'keyframeSelected', selection: TimelineKeyframeSelection): void;
 }>();
 
 const layerRect = computed(() => {
@@ -91,7 +102,7 @@ const SNAP_THRESHOLD = 5;
 function onKeyframeMousedown(ev: MouseEvent, param: KeyframeParameter, keyframeId: string) {
 	if (ev.button !== 0 || props.tlElWidth <= 0 || props.tlRangeX <= 0) return;
 	stopKeyframeDrag?.();
-	emit('selected');
+	emit('keyframeSelected', { layerId: props.layer.id, target: param.target, paramId: param.paramId, keyframeId });
 	const binding = param.binding;
 	const keyframes = binding.keyframesTimeline.keyframes.toSorted((a, b) => a.x - b.x);
 	const index = keyframes.findIndex(keyframe => keyframe.id === keyframeId);
@@ -241,5 +252,10 @@ onBeforeUnmount(() => stopKeyframeDrag?.());
 	z-index: 1;
 	border-left: 1px solid var(--THEME-accent);
 	pointer-events: none;
+}
+
+.tlKeyframeSelected {
+	background: var(--THEME-fg);
+	box-shadow: 0 0 0 2px var(--THEME-accent);
 }
 </style>

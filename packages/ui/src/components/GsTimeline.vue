@@ -27,8 +27,10 @@
 				:tlRangeX="tlRangeX"
 				:snapTimes="xTicksWithHalf"
 				:currentTime="time"
+				:selectedKeyframe="selectedKeyframeSelection"
 				:class="$style.layersRow"
 				@selected="onLayerSelected(layer)"
+				@keyframeSelected="onKeyframeSelected"
 			/>
 		</div>
 		<div :class="$style.tlOverlayWrapper">
@@ -57,7 +59,32 @@
 				</div>
 			</div>
 		</div>
-		<div v-if="selectedLayer != null" :class="$style.rightSidePanel">
+
+		<div v-if="selectedKeyframe != null" :class="$style.rightSidePanel">
+			<div :key="keyframeEditorKey" :class="$style.keyframeEditor">
+				<GsButton small @click="selectedKeyframeSelection = null">Back to layer</GsButton>
+				<div>{{ selectedKeyframe.def.ui.label }} · Keyframe</div>
+				<GsInput small type="number" :min="selectedKeyframe.minX" :max="selectedKeyframe.maxX" :modelValue="selectedKeyframe.keyframe.x" @update:modelValue="updateKeyframeTime">
+					<template #label>{{ selectedKeyframe.binding.keyframesTimeline.isNormalized ? 'Time (normalized)' : 'Time (ms)' }}</template>
+				</GsInput>
+				<div>Value</div>
+				<GsLiteralLeafValueControl
+					:dataType="selectedKeyframe.binding.keyframesTimeline.dataType"
+					:control="selectedKeyframe.def.ui.control"
+					:value="selectedKeyframe.binding.keyframesTimeline.dataType.kind === 'scalar' ? selectedKeyframe.keyframe.value[0] : selectedKeyframe.keyframe.value.slice(0, selectedKeyframe.binding.keyframesTimeline.dataType.kind === 'vector' ? 2 : 4)"
+					:title="selectedKeyframe.def.ui.label"
+					@input="value => updateKeyframeValue(value)"
+					@beginChanging="keyframeValueMergeKey = genId()"
+					@changeContinuous="value => updateKeyframeValue(value, keyframeValueMergeKey)"
+					@changeFinished="keyframeValueMergeKey = null"
+					@reset="updateKeyframeValue(selectedKeyframe.def.defaultValue.value)"
+				/>
+				<GsSelect small :modelValue="selectedKeyframe.keyframe.interpolation.type" :items="[{ label: 'Hold', value: 'hold' }, { label: 'Linear', value: 'linear' }]" @update:modelValue="type => updateSelectedKeyframe({ interpolation: { type } })">
+					<template #label>Interpolation to next keyframe</template>
+				</GsSelect>
+			</div>
+		</div>
+		<div v-else-if="selectedLayer != null" :class="$style.rightSidePanel">
 			<div>{{ appContext.getVisualModuleById(selectedLayer?.visualModuleId)?.name }}</div>
 			<div>Compositing</div>
 			<GsVisualParam
@@ -102,10 +129,16 @@ import { computed, onMounted, ref, shallowRef, useTemplateRef, watch } from 'vue
 import { insertIntermediateNumbers, nearlyEqual, niceScale } from '@glitch/shared/utility/misc.js';
 import { genId } from '@glitch/shared/utility/id.js';
 import { timelineCompositingParamDefs } from '@glitch/shared/timeline/timeline-compositing.ts';
+import { deepClone } from '@glitch/shared/utility/deep-clone.ts';
 import XLayer from './GsTimeline.Layer.vue';
+import GsLiteralLeafValueControl from './GsLiteralLeafValueControl.vue';
+import GsInput from './common/GsInput.vue';
+import GsSelect from './common/GsSelect.vue';
 import GsButton from './common/GsButton.vue';
 import GsVisualParam from './GsVisualParam.vue';
 import type { Timeline } from '@glitch/shared/timeline/types.ts';
+import type { ParameterBinding, KeyframesTimelineKeyframe } from '@glitch/shared/types.ts';
+import type { TimelineKeyframeSelection } from './GsTimeline.Layer.vue';
 import type { ParamEdit } from './GsVisualParam.vue';
 import { appContext } from '@/app.ts';
 import { dragListen } from '@/utility/drag.ts';
@@ -168,7 +201,74 @@ const layerRects = computed(() => {
 	return obj;
 });
 
-const selectedLayer = ref<Timeline[number] | null>(null);
+const selectedLayerId = ref<string | null>(null);
+const selectedLayer = computed(() => appContext.state.timeline.value.find(layer => layer.id === selectedLayerId.value) ?? null);
+const selectedKeyframeSelection = ref<TimelineKeyframeSelection | null>(null);
+const keyframeValueMergeKey = ref<string | null>(null);
+const keyframeEditorKey = computed(() => JSON.stringify(selectedKeyframeSelection.value));
+const selectedKeyframe = computed(() => {
+	const selection = selectedKeyframeSelection.value;
+	if (selection == null) return null;
+	const layer = appContext.state.timeline.value.find(entry => entry.id === selection.layerId);
+	if (layer == null) return null;
+	const values: Partial<Record<string, ParameterBinding>> = selection.target === 'compositing' ? layer.compositingParamValues : layer.paramValues;
+	const binding = values[selection.paramId];
+	if (binding?.inputSource !== 'keyframesTimelineInline') return null;
+	const def = selection.target === 'compositing'
+		? Object.entries(timelineCompositingParamDefs).find(([id]) => id === selection.paramId)?.[1]
+		: appContext.getVisualModuleById(layer.visualModuleId)?.paramDefs.find(entry => entry.id === selection.paramId);
+	if (def == null || !(isParameterType(def, 'scalar') || isParameterType(def, 'vector') || isParameterType(def, 'color')) || def.dataType.kind !== binding.keyframesTimeline.dataType.kind) return null;
+	const keyframes = binding.keyframesTimeline.keyframes.toSorted((a, b) => a.x - b.x);
+	const index = keyframes.findIndex(entry => entry.id === selection.keyframeId);
+	if (index < 0) return null;
+	return {
+		selection, binding, def, keyframe: keyframes[index],
+		minX: Math.max(0, keyframes[index - 1]?.x ?? -Infinity),
+		maxX: Math.min(binding.keyframesTimeline.isNormalized ? 1 : Infinity, keyframes[index + 1]?.x ?? Infinity),
+	};
+});
+
+watch(selectedKeyframeSelection, () => { keyframeValueMergeKey.value = null; });
+watch(selectedKeyframe, value => {
+	if (value == null) selectedKeyframeSelection.value = null;
+});
+
+function onKeyframeSelected(selection: TimelineKeyframeSelection) {
+	selectedLayerId.value = selection.layerId;
+	selectedKeyframeSelection.value = selection;
+}
+
+function updateSelectedKeyframe(patch: Partial<Pick<KeyframesTimelineKeyframe, 'x' | 'value' | 'interpolation'>>, mergeKey?: string | null) {
+	const selected = selectedKeyframe.value;
+	if (selected == null) return;
+	if (Object.entries(patch).every(([key, value]) => JSON.stringify(selected.keyframe[key as keyof KeyframesTimelineKeyframe]) === JSON.stringify(value))) return;
+	const value = deepClone(selected.binding);
+	const keyframe = value.keyframesTimeline.keyframes.find(entry => entry.id === selected.selection.keyframeId);
+	if (keyframe == null) return;
+	Object.assign(keyframe, deepClone(patch));
+	appContext.commit('editVisualModuleLayerParam', {
+		layerId: selected.selection.layerId, target: selected.selection.target,
+		paramId: visualModuleCustomParameterId(selected.selection.paramId),
+		edit: { kind: 'keyframesTimelineInline', value },
+	}, mergeKey);
+}
+
+function updateKeyframeValue(value: unknown, mergeKey?: string | null) {
+	const selected = selectedKeyframe.value;
+	if (selected == null) return;
+	const kind = selected.binding.keyframesTimeline.dataType.kind;
+	if (typeof value !== 'number' && !Array.isArray(value)) return;
+	const components = typeof value === 'number' ? [value] : [...value];
+	if (components.length !== (kind === 'scalar' ? 1 : kind === 'vector' ? 2 : 4) || !components.every(Number.isFinite)) return;
+	updateSelectedKeyframe({ value: components }, mergeKey);
+}
+
+function updateKeyframeTime(value: string | number) {
+	const selected = selectedKeyframe.value;
+	const x = Number(value);
+	if (selected == null || !Number.isFinite(x)) return;
+	updateSelectedKeyframe({ x: Math.max(selected.minX, Math.min(selected.maxX, x)) });
+}
 
 // TODO: TLの表示DOMサイズに応じて変更
 const xTicksCount = ref(15);
@@ -356,7 +456,8 @@ function formatMsToTimecode(ms: number) {
 }
 
 function onLayerSelected(layer: Timeline[number]) {
-	selectedLayer.value = layer;
+	selectedLayerId.value = layer.id;
+	selectedKeyframeSelection.value = null;
 }
 
 function onVisualModuleLayerParamEdit(event: ParamEdit, target: 'module' | 'compositing') {
@@ -780,6 +881,12 @@ onMounted(() => {
 	background: #0008;
 	backdrop-filter: blur(4px);
 	color: #fff;
+}
+
+.keyframeEditor {
+	display: grid;
+	gap: 12px;
+	padding: 16px;
 }
 
 </style>
