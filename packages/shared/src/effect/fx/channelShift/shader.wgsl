@@ -29,7 +29,6 @@ fn doBlend(mode: u32, base: f32, blend: f32) -> f32 {
 }
 
 struct Uniforms {
-	amount: vec2f,
 	blendMode: u32,
 	leftSignal: vec3u,
 	rightSignal: vec3u,
@@ -44,9 +43,10 @@ struct FragmentIn {
 @fragment
 fn fs(fragData: FragmentIn) -> @location(0) vec4f {
 	let uv = fragData.uv;
+	let amount = read_amount(uv);
 	let pixel = unpremultiply(read_input(uv));
-	let left = unpremultiply(read_input(uv + uniforms.amount));
-	let right = unpremultiply(read_input(uv - uniforms.amount));
+	let left = unpremultiply(read_input(uv + amount));
+	let right = unpremultiply(read_input(uv - amount));
 	var color = pixel.rgb;
 
 	if (uniforms.leftSignal.r != 0u) { color.r = doBlend(uniforms.blendMode, color.r, left.r); }

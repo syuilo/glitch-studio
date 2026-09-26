@@ -31,7 +31,7 @@ export default implementEffect<typeof definition>({
 		const group = device.createBindGroup({ layout, entries: [{ binding: 0, resource: { buffer: uniformBuffer } }] });
 		const pipelines = createShaderInputPipeline({
 			device, vertex: wgpu.defaultVertexShaderModule, code,
-			schema: { input: 'color' },
+			schema: { input: 'color', amount: 'vector' },
 			targets: [{ format: wgpu.intermediateTextureFormat }],
 			internalLayouts: [layout],
 			sampling: 'level0',
@@ -39,13 +39,12 @@ export default implementEffect<typeof definition>({
 		return {
 			render: ctx => {
 				uniformValues.set({
-					amount: ctx.params.amount,
 					blendMode: blendModes[ctx.params.blendMode] ?? 0,
 					leftSignal: ctx.params.leftSignal.slice(0, 3).map(Number),
 					rightSignal: ctx.params.rightSignal.slice(0, 3).map(Number),
 				});
 				device.queue.writeBuffer(uniformBuffer, 0, uniformValues.arrayBuffer);
-				const variant = pipelines.update({ input: ctx.params.input }, ctx.outputDataMap.output.texture);
+				const variant = pipelines.update({ input: ctx.params.input, amount: ctx.params.amount }, ctx.outputDataMap.output.texture);
 				const pass = ctx.createPassEncoderFor(ctx.commandEncoder, ctx.outputDataMap.output.textureView);
 				pass.setPipeline(variant.pipeline);
 				pass.setBindGroup(0, group);
