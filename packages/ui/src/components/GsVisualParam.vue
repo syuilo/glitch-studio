@@ -72,7 +72,7 @@
 						/>
 						<button class="_button" style="padding: 4px;" @click="showNodeInputMenu"><i class="ti ti-dots"></i></button>
 					</div>
-					<GsLiteralParameterValueControl
+					<GsLiteralLeafValueControl
 						v-else-if="paramValue.inputSource === 'literal'"
 						ref="controlComponent"
 						:dataType="paramDef.dataType"
@@ -166,7 +166,7 @@ import { genId } from '@glitch/shared/utility/id.ts';
 import { getNodeInputDataType } from '@glitch/shared/utility/node-outputs.ts';
 import * as AiScript from '@syuilo/aiscript';
 import GsNodePort from './GsNodePort.vue';
-import GsLiteralParameterValueControl from './GsLiteralParameterValueControl.vue';
+import GsLiteralLeafValueControl from './GsLiteralLeafValueControl.vue';
 import GsButton from './common/GsButton.vue';
 import GsInput from './common/GsInput.vue';
 import GsCondensedLine from './common/GsCondensedLine.vue';
