@@ -1,6 +1,12 @@
 <template>
 <div :class="$style.root">
 	<div
+		v-for="[keyframe, prevKeyframe] of keyframes.map(kf => [kf, getPrevKeyframe(kf)]).filter(([kf, prev]) => prev !== null)"
+		:key="keyframe.id"
+		:class="[$style.keyframeBg]"
+		:style="{ left: Math.round(timeToDomX(keyframeTime(prevKeyframe.x))) + 'px', width: Math.round(timeToDomX(keyframeTime(keyframe.x))) - Math.round(timeToDomX(keyframeTime(prevKeyframe.x))) + 'px' }"
+	></div>
+	<div
 		v-for="keyframe of keyframes"
 		:key="keyframe.id"
 		:class="[$style.keyframe, { [$style.selected]: selectedKeyframeId === keyframe.id }]"
@@ -42,6 +48,13 @@ function keyframeTime(x: number): number {
 
 function timeToDomX(time: number): number {
 	return ((time - props.tlPosX) / props.tlRangeX) * props.tlElWidth;
+}
+
+function getPrevKeyframe(keyframe: KeyframesTimelineKeyframe): KeyframesTimelineKeyframe | null {
+	const keyframes = props.keyframes.toSorted((a, b) => a.x - b.x);
+	const index = keyframes.findIndex(kf => kf.id === keyframe.id);
+	if (index <= 0) return null;
+	return keyframes[index - 1];
 }
 
 let stopKeyframeDrag: (() => void) | undefined;
@@ -95,16 +108,24 @@ onBeforeUnmount(() => stopKeyframeDrag?.());
 
 <style module lang="scss">
 .root {
+	--knobSize: 13px; // 奇数にしないとX軸の中心がぴったりにならない
+
 	position: relative;
 	height: var(--keyframesRowHeight);
 	line-height: var(--keyframesRowHeight);
+}
+
+.keyframeBg {
+	position: absolute;
+	top: calc(var(--keyframesRowHeight) / 2 - var(--knobSize) / 2);
+	height: var(--knobSize);
+	background: color(from var(--THEME-accent) srgb r g b / 0.25);
 }
 
 .keyframe {
 	cursor: ew-resize;
 	user-select: none;
 	position: absolute;
-	--knobSize: 13px; // 奇数にしないとX軸の中心がぴったりにならない
 	top: calc(var(--keyframesRowHeight) / 2 - var(--knobSize) / 2);
 	width: var(--knobSize);
 	height: var(--knobSize);
