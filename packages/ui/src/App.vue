@@ -16,8 +16,8 @@
 			<button class="_button" :class="$style.headerMenuItem" @click="openHeaderEditMenu">Edit</button>
 			<button class="_button" :class="$style.headerMenuItem" @click="openHeaderHelpMenu">Help</button>
 		</div>
-		<div :class="$style.headerRight" :title="appStateManager.projectInfo.value.name">
-			{{ appStateManager.projectInfo.value.name }}
+		<div :class="$style.headerRight" :title="projectInfo.name">
+			{{ projectInfo.name }}
 		</div>
 	</div>
 	<div :class="$style.body">
@@ -53,7 +53,7 @@
 
 <script lang="ts" setup>
 import { computed, nextTick, onMounted, onBeforeUnmount, ref, shallowRef, useTemplateRef, watch } from 'vue';
-import { renderer, resolutionFactor, fpsLimit, liveTimeFactor, appStateManager, openProject, saveProject } from './app';
+import { renderer, resolutionFactor, fpsLimit, liveTimeFactor, appStateManager, projectInfo, openProject, saveProject } from './app';
 import { preferences } from './preferences.ts';
 import GsRange from './components/common/GsRange.vue';
 import GsAboutDialog from '@/components/GsAboutDialog.vue';

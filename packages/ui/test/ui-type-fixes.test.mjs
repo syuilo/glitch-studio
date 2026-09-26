@@ -9,6 +9,7 @@ async function loadSource(path) {
 	const bundled = await build({
 		entryPoints: [fileURLToPath(new URL(path, import.meta.url))],
 		bundle: true, platform: 'node', format: 'cjs', write: false,
+		define: { _VERSION_: '"2.0.0-alpha.2"' },
 	});
 	const module = { exports: {} };
 	new Function('require', 'module', 'exports', bundled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
@@ -89,7 +90,7 @@ test('loads a MessagePack project and handles cancellation and invalid data', as
 	const cancelled = loadProjectFile();
 	input.dispatchEvent(new Event('cancel'));
 	assert.equal(await cancelled, null);
-	const project = { id: 'project', name: 'Test', visualModules: [], assets: [], players: [], timeline: [] };
+	const project = { id: 'project', gsVersion: '2.0.0-alpha.2', name: 'Test', visualModules: [], assets: [], players: [], timeline: [] };
 	const loaded = loadProjectFile();
 	input.files = [new File([encode(project)], 'test.gsproj')];
 	input.dispatchEvent(new Event('change'));

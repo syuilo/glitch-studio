@@ -14,14 +14,16 @@ import { AppStateManager } from './AppStateManager.ts';
 import { DEFAULT_PROJECT_NAME, loadProjectFile, saveProjectFile } from './gsproj.ts';
 import type { EffectNodeOf, VisualModule } from '@glitch/shared/visual-module/types.ts';
 import type { Asset, Player } from '@glitch/shared/types.ts';
-import type { Project } from './gsproj.ts';
+import type { Project, ProjectInfo } from './gsproj.ts';
 import type { WatchStopHandle } from 'vue';
 import * as ui from '@/ui.ts';
 import * as api from '@/api.ts';
 
 export const appStateManager = new AppStateManager();
+// プロジェクト情報はUndo/Redoの管理対象に含めない。
+export const projectInfo = ref<ProjectInfo>({ name: DEFAULT_PROJECT_NAME, description: '', author: '' });
 
-watch(() => appStateManager.projectInfo.value.name, name => {
+watch(() => projectInfo.value.name, name => {
 	window.document.title = name ? `Glitch Studio (${name})` : 'Glitch Studio';
 }, { immediate: true });
 
@@ -149,7 +151,7 @@ export async function appReady(project: Project, fileName = 'untitled.gsproj', f
 	renderer.updateVisualModules(deepClone(project.visualModules));
 	renderer.updateTimeline(deepClone(project.timeline));
 	projectMetadata = { id: project.id };
-	appStateManager.projectInfo.value = { name: project.name, description: project.description, author: project.author };
+	projectInfo.value = { name: project.name, description: project.description, author: project.author };
 	projectFileName = fileName;
 	projectFileHandle = fileHandle;
 
@@ -192,7 +194,7 @@ export async function saveProject(saveAs = false) {
 		// 素材の読み出し中に編集されても、保存開始時点の状態を一貫して書き出す。
 		const project = deepClone({
 			...projectMetadata,
-			...appStateManager.projectInfo.value,
+			...projectInfo.value,
 			gsVersion: _VERSION_,
 			visualModules: appStateManager.state.visualModules.value,
 			assets: appStateManager.state.assets.value,

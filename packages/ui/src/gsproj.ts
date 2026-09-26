@@ -1,4 +1,5 @@
 import * as msgpack from '@msgpack/msgpack';
+import semverGt from 'semver/functions/gt.js';
 import type { Asset, Player } from '@glitch/shared/types.js';
 import type { VisualModule } from '@glitch/shared/visual-module/types.ts';
 import type { Timeline } from '@glitch/shared/timeline/types.ts';
@@ -34,8 +35,12 @@ export async function encodeProjectFile(project: Project): Promise<Uint8Array> {
 	return msgpack.encode({ ...project, assets } satisfies StoredProject);
 }
 
-export function decodeProjectFile(bin: Uint8Array): Project {
+export function decodeProjectFile(bin: Uint8Array, currentVersion?: string): Project {
 	const project = msgpack.decode(bin) as StoredProject;
+	// 未来の形式は素材の構造も変わり得るため、復元処理に入る前にバージョンを確認する。
+	if (currentVersion != null && semverGt(project.gsVersion, currentVersion)) {
+		throw new Error(`未来のバージョンのプロジェクトファイルの読み込みはサポートしていません。（ファイル: ${project.gsVersion} / 現在: ${currentVersion}）`);
+	}
 	return {
 		...project,
 		assets: project.assets.map(asset => ({
@@ -82,7 +87,7 @@ export async function saveProjectFile(project: Project, name: string, handle: Fi
 
 export async function loadProjectFile(file?: File, handle?: FileSystemFileHandle): Promise<{ project: Project; name: string; handle?: FileSystemFileHandle } | null> {
 	if (file != null) {
-		return { project: decodeProjectFile(new Uint8Array(await file.arrayBuffer())), name: file.name, handle };
+		return { project: decodeProjectFile(new Uint8Array(await file.arrayBuffer()), _VERSION_), name: file.name, handle };
 	}
 	if (typeof window.showOpenFilePicker === 'function') {
 		let selectedHandle: FileSystemFileHandle | undefined;
@@ -104,7 +109,7 @@ export async function loadProjectFile(file?: File, handle?: FileSystemFileHandle
 			const file = input.files?.[0];
 			if (file == null) { resolve(null); return; }
 			try {
-				const project = decodeProjectFile(new Uint8Array(await file.arrayBuffer()));
+				const project = decodeProjectFile(new Uint8Array(await file.arrayBuffer()), _VERSION_);
 				resolve({ project, name: file.name });
 			} catch (error) {
 				reject(error);

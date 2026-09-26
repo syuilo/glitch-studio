@@ -15,6 +15,7 @@ function evaluate(bundle) {
 const buildOptions = {
 	absWorkingDir: fileURLToPath(new URL('../', import.meta.url)),
 	bundle: true, platform: 'node', format: 'cjs', write: false, external: ['vue'],
+	define: { _VERSION_: '"2.0.0-alpha.2"' },
 };
 const { encodeProjectFile, decodeProjectFile, loadProjectFile, saveProjectFile } = evaluate(await build({
 	...buildOptions, entryPoints: ['./src/gsproj.ts'],
@@ -22,7 +23,7 @@ const { encodeProjectFile, decodeProjectFile, loadProjectFile, saveProjectFile }
 
 // 実際のapp・状態管理・保存処理を組み合わせ、GPUとダイアログだけ置き換える。
 const appBundle = await build({
-	...buildOptions, entryPoints: ['./src/app.ts'], define: { _VERSION_: '"test-version"' },
+	...buildOptions, entryPoints: ['./src/app.ts'],
 	plugins: [{
 		name: 'project-test-platform',
 		setup(build) {
@@ -52,7 +53,7 @@ const appBundle = await build({
 
 function project(overrides = {}) {
 	return {
-		id: 'project-id', gsVersion: 'test-version', name: 'Example', description: 'First line\n日本語の説明', author: 'Author',
+		id: 'project-id', gsVersion: '2.0.0-alpha.2', name: 'Example', description: 'First line\n日本語の説明', author: 'Author',
 		assets: [], players: [], visualModules: [], timeline: [], resolution: { width: 640, height: 480 },
 		...overrides,
 	};
@@ -181,18 +182,18 @@ test('saves editable project information, updates the title and preserves undo h
 	const app = evaluate(appBundle);
 	await app.newProject();
 	const manager = app.appStateManager;
-	assert.deepEqual(manager.projectInfo.value, { name: 'Untitled Project', description: '', author: '' });
+	assert.deepEqual(app.projectInfo.value, { name: 'Untitled Project', description: '', author: '' });
 	manager.commit('addEffectNode', { visualModuleId: manager.state.visualModules.value[0].id, effectId: 'fill', id: 'added-node' });
 	manager.undo();
 	const undoCount = manager.undoStack.value.length;
 	const redoCount = manager.redoStack.value.length;
-	Object.assign(manager.projectInfo.value, { name: 'Edited Project', description: 'Description\n説明', author: 'Alice' });
+	Object.assign(app.projectInfo.value, { name: 'Edited Project', description: 'Description\n説明', author: 'Alice' });
 	await nextTick();
 	assert.equal(window.document.title, 'Glitch Studio (Edited Project)');
 	assert.equal(manager.undoStack.value.length, undoCount);
 	assert.equal(manager.redoStack.value.length, redoCount);
 	manager.redo();
-	assert.equal(manager.projectInfo.value.name, 'Edited Project');
+	assert.equal(app.projectInfo.value.name, 'Edited Project');
 	const handle = fileHandle('saved.gsproj');
 	window.showSaveFilePicker = async () => handle;
 	await app.saveProject();
@@ -201,10 +202,10 @@ test('saves editable project information, updates the title and preserves undo h
 	assert.equal(saved.description, 'Description\n説明');
 	assert.equal(saved.author, 'Alice');
 	await app.newProject();
-	assert.equal(manager.projectInfo.value.name, 'Untitled Project');
+	assert.equal(app.projectInfo.value.name, 'Untitled Project');
 	window.showOpenFilePicker = async () => [handle];
 	assert.equal(await app.openProject(), true);
-	assert.deepEqual(manager.projectInfo.value, { name: saved.name, description: saved.description, author: saved.author });
+	assert.deepEqual(app.projectInfo.value, { name: saved.name, description: saved.description, author: saved.author });
 	assert.deepEqual(globalThis.projectAlerts, []);
 });
 
@@ -220,20 +221,20 @@ test('changes the Save target only after a successful Save as', async t => {
 	await app.saveProject();
 	window.showSaveFilePicker = async () => { throw new DOMException('Cancelled', 'AbortError'); };
 	await app.saveProject(true);
-	app.appStateManager.projectInfo.value.name = 'After cancellation';
+	app.projectInfo.value.name = 'After cancellation';
 	await app.saveProject();
 	assert.equal(decodeProjectFile(original.bytes).name, 'After cancellation');
 	const failed = fileHandle('failed.gsproj', { fail: 'write' });
 	window.showSaveFilePicker = async () => failed;
 	await app.saveProject(true);
-	app.appStateManager.projectInfo.value.name = 'After failure';
+	app.projectInfo.value.name = 'After failure';
 	await app.saveProject();
 	assert.equal(decodeProjectFile(original.bytes).name, 'After failure');
 	assert.deepEqual(globalThis.projectAlerts, ['write failed']);
 	window.showSaveFilePicker = async () => copy;
 	await app.saveProject(true);
 	window.showSaveFilePicker = () => assert.fail('Save should reuse the new target');
-	app.appStateManager.projectInfo.value.name = 'After Save as';
+	app.projectInfo.value.name = 'After Save as';
 	await app.saveProject();
 	assert.equal(decodeProjectFile(copy.bytes).name, 'After Save as');
 	assert.equal(decodeProjectFile(original.bytes).name, 'After failure');
@@ -257,4 +258,49 @@ test('asks for a fresh Save target after creating another project', async t => {
 	assert.equal(pickerCalls, 1);
 	assert.equal(first.bytes, savedBytes);
 	assert.notEqual(decodeProjectFile(first.bytes).id, decodeProjectFile(second.bytes).id);
+});
+
+// 同じバージョンと過去のバージョンは読み込み、プレリリースもsemverの順序で比較する。
+// 文字列比較やメジャー番号だけの比較では、alpha.10や正式版との前後関係を誤って判定する。
+test('accepts same and older versions and rejects newer semantic versions', async t => {
+	setup(t);
+	for (const gsVersion of ['1.99.0', '2.0.0-alpha.1', '2.0.0-alpha.2', '2.0.0-alpha.2+build.10']) {
+		const file = new File([await encodeProjectFile(project({ gsVersion }))], 'supported.gsproj');
+		assert.equal((await loadProjectFile(file)).project.gsVersion, gsVersion);
+	}
+	for (const gsVersion of ['2.0.0-alpha.10', '2.0.0', '2.0.1', '2.1.0', '10.0.0']) {
+		const file = new File([await encodeProjectFile(project({ gsVersion }))], 'future.gsproj');
+		await assert.rejects(loadProjectFile(file), /未来のバージョンのプロジェクトファイルの読み込みはサポートしていません/);
+	}
+});
+
+// 未来のファイルを開こうとしても、現在の情報・編集履歴・保存先を維持する。
+// 読み込みを途中まで反映すると編集中の作品が消えたり、次のSaveで別ファイルを上書きしたりする。
+test('shows a future-version error without changing the current project or Save target', async t => {
+	const window = setup(t);
+	const app = evaluate(appBundle);
+	await app.newProject();
+	app.projectInfo.value.name = 'Current project';
+	const currentHandle = fileHandle('current.gsproj');
+	window.showSaveFilePicker = async () => currentHandle;
+	await app.saveProject();
+	const manager = app.appStateManager;
+	manager.commit('addEffectNode', { visualModuleId: manager.state.visualModules.value[0].id, effectId: 'fill', id: 'keep-node' });
+	const modules = manager.state.visualModules.value;
+	const undoCount = manager.undoStack.value.length;
+	const future = project({ gsVersion: '2.0.0', name: 'Future project' });
+	const futureHandle = fileHandle('future.gsproj', { bytes: await encodeProjectFile(future) });
+	window.showOpenFilePicker = async () => [futureHandle];
+	assert.equal(await app.openProject(), false);
+	assert.equal(app.projectInfo.value.name, 'Current project');
+	assert.equal(manager.state.visualModules.value, modules);
+	assert.equal(manager.undoStack.value.length, undoCount);
+	assert.equal(window.document.title, 'Glitch Studio (Current project)');
+	assert.equal(globalThis.projectAlerts.length, 1);
+	assert.match(globalThis.projectAlerts[0], /未来のバージョンのプロジェクトファイルの読み込みはサポートしていません/);
+	assert.match(globalThis.projectAlerts[0], /ファイル: 2\.0\.0 \/ 現在: 2\.0\.0-alpha\.2/);
+	window.showSaveFilePicker = () => assert.fail('The existing Save target must be retained');
+	await app.saveProject();
+	assert.equal(decodeProjectFile(currentHandle.bytes).name, 'Current project');
+	assert.equal(decodeProjectFile(futureHandle.bytes).name, 'Future project');
 });

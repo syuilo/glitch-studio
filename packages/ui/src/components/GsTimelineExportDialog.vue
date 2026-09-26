@@ -51,7 +51,7 @@ import GsInput from './common/GsInput.vue';
 import GsSelect from './common/GsSelect.vue';
 import GsTabs from './common/GsTabs.vue';
 import type { ExportProgress, ExportQuality, TimelineExportSettings } from '@/export/timeline-export.ts';
-import { appStateManager, renderer, previewPlayback } from '@/app.ts';
+import { appStateManager, projectInfo, renderer, previewPlayback } from '@/app.ts';
 import { exportTimeline } from '@/export/client.ts';
 import { getTimelineEnd, validateExportSettings } from '@/export/timeline-export.ts';
 import { estimateExportBytes, formatExportTime, parseExportTime, scaleExportResolution } from '@/export/export-settings.ts';
@@ -155,7 +155,7 @@ async function doExport() {
 			renderer: renderer.getExportRendererSettings(),
 		}, signal, value => { progress.value = value; });
 		signal.throwIfAborted();
-		downloadName.value = `${appStateManager.projectInfo.value.name || 'timeline'}.${exportSettings.format}`;
+		downloadName.value = `${projectInfo.value.name || 'timeline'}.${exportSettings.format}`;
 		downloadUrl.value = URL.createObjectURL(new Blob([buffer], { type: exportSettings.format === 'mp4' ? 'video/mp4' : 'image/webp' }));
 		const link = window.document.createElement('a');
 		link.href = downloadUrl.value;

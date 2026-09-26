@@ -16,11 +16,10 @@
 import GsInput from './common/GsInput.vue';
 import GsTextarea from './common/GsTextarea.vue';
 import type { WorkspacePanel } from '@/workspace.ts';
-import { appStateManager } from '@/app.ts';
+import { projectInfo } from '@/app.ts';
 
 defineProps<{ panel: WorkspacePanel }>();
 
-const projectInfo = appStateManager.projectInfo;
 </script>
 
 <style module lang="scss">
