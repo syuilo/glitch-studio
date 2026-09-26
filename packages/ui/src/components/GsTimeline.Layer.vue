@@ -1,11 +1,20 @@
 <template>
 <div :class="$style.root">
-	<div :class="$style.layersSide">
-		<div :class="$style.layersSideHeader">{{ layer.id }}</div>
-		<div v-for="[k, v] in Object.entries(layer.compositingParamValues).filter(([k, v]) => v.inputSource === 'keyframesTimelineInline')">{{ k }}</div>
+	<div :class="$style.side">
+		<div :class="$style.sideHeader">{{ layer.id }}</div>
+		<div v-for="param in keyframeParameters" :key="param.key" :class="$style.sideKeyframesRow">{{ param.key }}</div>
 	</div>
-	<div :class="$style.layersTl">
-		<div :class="$style.layerBlock" :style="{ width: layerRect.width + 'px', left: layerRect.left + 'px' }" @click="onLayerBlockClick">{{ layer.id }}</div>
+	<div :class="$style.tl">
+		<div :class="$style.tlBlock" :style="{ width: layerRect.width + 'px', left: layerRect.left + 'px' }" @click="onLayerBlockClick">{{ layer.id }}</div>
+		<div v-for="param in keyframeParameters" :key="param.key" :class="$style.tlKeyframesRow">
+			<div
+				v-for="keyframe of param.keyframes"
+				:key="keyframe.id"
+				:class="$style.tlKeyframe"
+				:style="{ left: timeToDomX(keyframe.x) + 'px' }"
+			>
+			</div>
+		</div>
 	</div>
 </div>
 </template>
@@ -14,6 +23,7 @@
 import { computed, onMounted, ref, shallowRef, useTemplateRef, watch } from 'vue';
 import GsButton from './common/GsButton.vue';
 import type { Timeline, TimelineLayer } from '@glitch/shared/timeline/types.ts';
+import type { KeyframesTimeline } from '@glitch/shared/types.js';
 import { appContext } from '@/app.ts';
 
 const props = defineProps<{
@@ -33,6 +43,29 @@ const layerRect = computed(() => {
 	return { left, width };
 });
 
+const keyframeParameters = computed(() => {
+	const res = [] as {
+		key: string;
+		isCompositing: boolean;
+		keyframes: KeyframesTimeline['keyframes'];
+	}[];
+	for (const [k, v] of Object.entries(props.layer.compositingParamValues).filter(([k, v]) => v.inputSource === 'keyframesTimelineInline')) {
+		res.push({
+			key: `compositing:${k}`,
+			isCompositing: true,
+			keyframes: v.keyframesTimeline.keyframes,
+		});
+	}
+	for (const [k, v] of Object.entries(props.layer.paramValues).filter(([k, v]) => v.inputSource === 'keyframesTimelineInline')) {
+		res.push({
+			key: `module:${k}`,
+			isCompositing: false,
+			keyframes: v.keyframesTimeline.keyframes,
+		});
+	}
+	return res;
+});
+
 function timeToDomX(time: number): number {
 	return ((time - props.tlPosX) / props.tlRangeX) * props.tlElWidth;
 }
@@ -49,6 +82,7 @@ onMounted(() => {
 <style module lang="scss">
 .root {
 	--mainRowHeight: 24px;
+	--keyframesRowHeight: 20px;
 
 	display: flex;
 	flex-direction: row;
@@ -56,7 +90,7 @@ onMounted(() => {
 	overflow: clip;
 }
 
-.layersSide {
+.side {
 	position: relative;
 	z-index: 1;
 	box-sizing: border-box;
@@ -65,21 +99,26 @@ onMounted(() => {
 	direction: ltr;
 }
 
-.layersSideHeader {
+.sideHeader {
 	height: var(--mainRowHeight);
 	line-height: var(--mainRowHeight);
 	display: flex;
 	align-items: center;
 }
 
-.layersTl {
+.sideKeyframesRow {
+	height: var(--keyframesRowHeight);
+	line-height: var(--keyframesRowHeight);
+}
+
+.tl {
 	position: relative;
 	flex: 1;
 	direction: ltr;
 }
 
-.layerBlock {
-	position: absolute;
+.tlBlock {
+	position: relative;
 	height: var(--mainRowHeight);
 	box-sizing: border-box;
 	padding: 0 8px 0 8px;
@@ -88,5 +127,23 @@ onMounted(() => {
 	cursor: pointer;
 	border-radius: 8px 0 0 0;
 	corner-shape: bevel;
+}
+
+.tlKeyframesRow {
+	position: relative;
+	height: var(--keyframesRowHeight);
+	line-height: var(--keyframesRowHeight);
+}
+
+.tlKeyframe {
+	position: absolute;
+	--knobSize: 16px;
+	top: calc(var(--keyframesRowHeight) / 2 - var(--knobSize) / 2);
+	width: var(--knobSize);
+	height: var(--knobSize);
+	margin-left: calc(var(--knobSize) / -2);
+	background: var(--THEME-accent);
+	corner-shape: bevel;
+	border-radius: 100%;
 }
 </style>
