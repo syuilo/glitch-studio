@@ -17,15 +17,15 @@
 import { useTemplateRef } from 'vue';
 import GsWindow from './common/GsWindow.vue';
 import GsAutomationGraphPointsEditor from './GsAutomationGraphPointsEditor.vue';
-import type { GsAutomationGraph } from '@glitch/shared/types.js';
+import type { AutomationGraph } from '@glitch/shared/types.js';
 
 const props = defineProps<{
-	automationGraph: Pick<GsAutomationGraph, 'points' | 'isNormalized'> & { name?: string };
+	automationGraph: Pick<AutomationGraph, 'points' | 'isNormalized'> & { name?: string };
 	title?: string;
 }>();
 
 const emit = defineEmits<{
-	(ev: 'change', points: GsAutomationGraph['points'], mergeKey: string | null): void,
+	(ev: 'change', points: AutomationGraph['points'], mergeKey: string | null): void,
 	(ev: 'done'): void,
 	(ev: 'closed'): void
 }>();

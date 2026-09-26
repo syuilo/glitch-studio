@@ -1,4 +1,4 @@
-import type { GsAutomationGraph, ParameterBinding } from '../types.ts';
+import type { AutomationGraph, ParameterBinding } from '../types.ts';
 import type { timelineCompositingParamDefs } from './timeline-compositing.ts';
 
 export type TimelineVisualModuleLayer = {
@@ -9,7 +9,7 @@ export type TimelineVisualModuleLayer = {
 	visualModuleId: string;
 	paramValues: Record<string, Exclude<ParameterBinding, { inputSource: 'node' | 'externalCustomParameterInput' }>>;
 	compositingParamValues: Record<keyof typeof timelineCompositingParamDefs, Exclude<ParameterBinding, { inputSource: 'node' | 'externalCustomParameterInput' }>>;
-	automationGraphs: GsAutomationGraph[];
+	automationGraphs: AutomationGraph[];
 };
 
 export type TimelineLayer = TimelineVisualModuleLayer;

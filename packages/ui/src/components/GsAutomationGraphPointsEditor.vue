@@ -124,7 +124,7 @@ import { evalAutomationGraphValue, insertIntermediateNumbers, nearlyEqual, niceS
 import { genId } from '@glitch/shared/utility/id.js';
 import { deepClone } from '@glitch/shared/utility/deep-clone.js';
 import GsButton from './common/GsButton.vue';
-import type { GsAutomationGraph, GsBezierAnchorPoint } from '@glitch/shared/types.js';
+import type { AutomationGraph, BezierAnchorPoint } from '@glitch/shared/types.js';
 import { dragListen } from '@/utility/drag.ts';
 
 // TODO: dom座標としてのx/yとpointの値としてのx/yは同じ数値ではあるが意味が異なるので、Phantom Typeなどで区別する
@@ -133,12 +133,12 @@ const X_TICKS_HEIGHT = 20;
 const Y_TICKS_WIDTH = 60;
 
 const props = defineProps<{
-	points: GsBezierAnchorPoint[];
+	points: BezierAnchorPoint[];
 	isNormalized: boolean;
 }>();
 
 const emit = defineEmits<{
-	(ev: 'change', points: GsBezierAnchorPoint[], mergeKey: string | null): void;
+	(ev: 'change', points: BezierAnchorPoint[], mergeKey: string | null): void;
 }>();
 
 const ppints = ref(deepClone(props.points));
@@ -181,7 +181,7 @@ onBeforeUnmount(() => {
 	resizeObserver?.disconnect();
 });
 
-function isFixedEndpoint(point: GsBezierAnchorPoint): boolean {
+function isFixedEndpoint(point: BezierAnchorPoint): boolean {
 	return props.isNormalized && (point === ppints.value[0] || point === ppints.value[ppints.value.length - 1]);
 }
 
@@ -205,9 +205,9 @@ const tlPosX = ref(props.isNormalized ? -0.5 : toMs(-0.5));
 const tlPosY = ref(-2.5);
 const snappingX = ref<number | null>(null);
 const snappingY = ref<number | null>(null);
-const selectedPoints = ref<GsBezierAnchorPoint[]>([]);
+const selectedPoints = ref<BezierAnchorPoint[]>([]);
 const selectedPoint = computed(() => selectedPoints.value.length === 1 ? selectedPoints.value[0] : null);
-const contextmenuPoint = ref<GsBezierAnchorPoint | null>(null);
+const contextmenuPoint = ref<BezierAnchorPoint | null>(null);
 
 watch(() => props.points, points => {
 	const snapshot = JSON.stringify(points);
@@ -401,11 +401,11 @@ function domYToValueY(y: number): number {
 	return domYToLogicalY(y) + tlPosY.value;
 }
 
-function addPoint(x: number, y: number): GsBezierAnchorPoint | undefined {
+function addPoint(x: number, y: number): BezierAnchorPoint | undefined {
 	// 正規化された曲線の両端は既存のポイントで維持する。貼り付けも同じ制限に従う。
 	if (props.isNormalized && (x <= 0 || x >= 1)) return;
-	const _points = [] as GsBezierAnchorPoint[];
-	const point: GsBezierAnchorPoint = {
+	const _points = [] as BezierAnchorPoint[];
+	const point: BezierAnchorPoint = {
 		id: genId(),
 		x,
 		y,
@@ -588,7 +588,7 @@ function onTlMousedown(ev: MouseEvent) {
 
 const SNAP_THRESHOLD = 5;
 
-function onPointsXYHandleMousedown(ev: MouseEvent, point: GsBezierAnchorPoint, treatX: boolean, treatY: boolean) {
+function onPointsXYHandleMousedown(ev: MouseEvent, point: BezierAnchorPoint, treatX: boolean, treatY: boolean) {
 	if (tlEl.value == null) return;
 	ev.stopPropagation();
 	const prevPoint = ppints.value[ppints.value.indexOf(selectedPoints.value[0]) - 1];
@@ -672,7 +672,7 @@ function onPointYHandleMousedown(ev: MouseEvent) {
 	onPointsXYHandleMousedown(ev, contextmenuPoint.value, false, true);
 }
 
-function onPointMousedown(ev: MouseEvent, point: GsBezierAnchorPoint) {
+function onPointMousedown(ev: MouseEvent, point: BezierAnchorPoint) {
 	ev.stopPropagation();
 	if (ev.button !== 0) return;
 
@@ -685,7 +685,7 @@ function onPointMousedown(ev: MouseEvent, point: GsBezierAnchorPoint) {
 	onPointsXYHandleMousedown(ev, point, true, true);
 }
 
-function onPointContextmenu(ev: MouseEvent, point: GsBezierAnchorPoint) {
+function onPointContextmenu(ev: MouseEvent, point: BezierAnchorPoint) {
 	ev.preventDefault();
 	ev.stopPropagation();
 
@@ -862,14 +862,14 @@ function onSeekBarMousedown(ev: MouseEvent) {
 	});
 }
 
-function deletePoint(point: GsBezierAnchorPoint) {
+function deletePoint(point: BezierAnchorPoint) {
 	if (isFixedEndpoint(point)) return;
 	const index = ppints.value.indexOf(point);
 	if (index === -1) return;
 	ppints.value.splice(index, 1);
 }
 
-let copyingPoints: GsBezierAnchorPoint[] | null = null;
+let copyingPoints: BezierAnchorPoint[] | null = null;
 
 function onTlKeydown(ev: KeyboardEvent) {
 	console.log(ev.key, ev.ctrlKey);

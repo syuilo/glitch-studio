@@ -169,7 +169,7 @@ import type { Ref } from 'vue';
 import type { NodeOutputReference, VisualModule, VisualModuleCustomParameterId, VisualModuleEffectNode } from '@glitch/shared/visual-module/types.ts';
 import type { GlobalEnvVariable } from '@glitch/shared/expression.ts';
 import type { ParamPath } from '@/utility/node-params.ts';
-import type { AutomationGraphPlaybackOptions, GsAutomationGraph, GsBezierAnchorPoint, ParameterBinding } from '@glitch/shared/types.ts';
+import type { AutomationGraphPlaybackOptions, AutomationGraph, BezierAnchorPoint, ParameterBinding } from '@glitch/shared/types.ts';
 import type { MenuItem } from '@/types/menu.ts';
 import { i18n } from '@/i18n.ts';
 import { appContext, wireMap } from '@/app.ts';
@@ -181,7 +181,7 @@ import * as ui from '@/ui.ts';
 import { setInlineAutomationGraphNormalized } from '@/utility/automation-graph.ts';
 
 const props = defineProps<{
-	automationGraphs: readonly GsAutomationGraph[];
+	automationGraphs: readonly AutomationGraph[];
 	availableVariables: readonly Exclude<GlobalEnvVariable, ''>[];
 	visualModuleId?: string;
 	node?: VisualModuleEffectNode;
@@ -294,7 +294,7 @@ function updateAutomationGraphOptions(options: Partial<AutomationGraphPlaybackOp
 	emit('edit', { kind: 'automationGraphReference', ...target(), value: props.paramValue.automationGraphId, options });
 }
 
-function updateInlineGraphPoints(points: GsBezierAnchorPoint[], mergeKey: string | null) {
+function updateInlineGraphPoints(points: BezierAnchorPoint[], mergeKey: string | null) {
 	if (!mounted || props.paramValue.inputSource !== 'automationGraphInline') return;
 	emit('edit', {
 		kind: 'automationGraphInline', ...target(), mergeKey,

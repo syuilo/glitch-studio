@@ -23,13 +23,13 @@ export type ParameterBinding = {
 	wrapMode: 'clamp' | 'repeat' | 'repeatMirrored'
 } | {
 	inputSource: 'automationGraphInline';
-	automationGraph: Omit<GsAutomationGraph, 'id' | 'name'>;
+	automationGraph: Omit<AutomationGraph, 'id' | 'name'>;
 	durationMs: number | null; // isNormalizedの場合のみ使用。nullの場合は1000ms。
 	offsetMode: 'start' | 'end';
 	wrapMode: 'clamp' | 'repeat' | 'repeatMirrored'
 } | {
 	inputSource: 'keyframesTimelineInline';
-	keyframesTimeline: Omit<GsKeyframesTimeline, 'id' | 'name'>;
+	keyframesTimeline: Omit<KeyframesTimeline, 'id' | 'name'>;
 	durationMs: number | null; // isNormalizedの場合のみ使用。nullの場合は1000ms。
 	offsetMode: 'start' | 'end';
 	wrapMode: 'clamp' | 'repeat' | 'repeatMirrored'
@@ -55,7 +55,7 @@ export type Player = {
 	assetId?: Asset['id'] | null;
 };
 
-export type GsBezierAnchorPoint = {
+export type BezierAnchorPoint = {
 	id: string;
 	x: number; // 時間(=Time)軸
 	y: number; // 値(=Value)軸
@@ -63,24 +63,24 @@ export type GsBezierAnchorPoint = {
 	bezierControlPointB: [number, number];
 };
 
-export type GsAutomationGraph = {
+export type AutomationGraph = {
 	id: string;
 	name: string;
-	points: GsBezierAnchorPoint[];
+	points: BezierAnchorPoint[];
 	isNormalized: boolean; // X軸が0~1に正規化されているかどうか。falseの場合はX軸単位がmsであるとみなす
 };
 
-export type GsKeyframesTimelineKeyframe = {
+export type KeyframesTimelineKeyframe = {
 	id: string;
 	x: number;
 	value: number[]; // ベクトル、色など複数成分の値も扱うため配列
 };
 
-export type GsKeyframesTimeline = {
+export type KeyframesTimeline = {
 	id: string;
 	name: string;
 	dataType: 'vector' | 'color';
-	keyframes: GsKeyframesTimelineKeyframe[];
+	keyframes: KeyframesTimelineKeyframe[];
 	isNormalized: boolean; // X軸が0~1に正規化されているかどうか。falseの場合はX軸単位がmsであるとみなす
 };
 

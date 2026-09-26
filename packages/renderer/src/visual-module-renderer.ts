@@ -13,7 +13,7 @@ import type { EvaluatedParameterValues, ParameterEvaluationContext } from './par
 import type { NodeOutput } from './node-output.ts';
 import type { EffectStatus, EffectInstanceState } from '@glitch/shared/effect/effect-status.ts';
 import type { AudioSourceId } from '@glitch/shared/audio.ts';
-import type { Asset, GsAutomationGraph, IntermediateTextureFormat } from '@glitch/shared/types.ts';
+import type { Asset, AutomationGraph, IntermediateTextureFormat } from '@glitch/shared/types.ts';
 import type { VisualModuleEffectNode, VisualModuleGlobalInNode, VisualModuleNode, NodeOutputReference, VisualModule } from '@glitch/shared/visual-module/types.ts';
 import type { EffectImplementation, EffectInstance } from '@glitch/shared/effect/effect-implementation.js';
 import type { EffectDefinition } from '@glitch/shared/effect/effect-definition.js';
@@ -60,7 +60,7 @@ export class VisualModuleRenderer {
 	private usedOutputPorts = new Map<string, Set<string>>();
 	private effectStatuses = new Map<string, { sent?: EffectStatus; outputs: EffectInstanceState['outputs']; published?: string }>();
 	private onEffectState?: (nodeId: string, state: EffectInstanceState | null) => void;
-	private automationGraphs: GsAutomationGraph[] = [];
+	private automationGraphs: AutomationGraph[] = [];
 	private enable32bitDataTextures = false;
 	private readonly intermediateTextureFormat: IntermediateTextureFormat;
 	private videoFrames: Map<string, VideoFrame>;

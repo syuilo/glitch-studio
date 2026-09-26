@@ -3,7 +3,7 @@ import * as AiScript from '@syuilo/aiscript';
 import { evalAutomationGraphValue } from '@glitch/shared/utility/misc.ts';
 import { deepClone, type Cloneable } from '@glitch/shared/utility/deep-clone.js';
 import { reservedWords, singleVariableExpression } from '@glitch/shared/expression.js';
-import type { ParameterBinding, GsAutomationGraph } from '@glitch/shared/types.ts';
+import type { ParameterBinding, AutomationGraph } from '@glitch/shared/types.ts';
 
 // Evaluatorはstateless/deterministicである必要がある
 // NOTE: PARAM関数はcanNode: falseなカスタムパラメータしか対応しない
@@ -11,7 +11,7 @@ import type { ParameterBinding, GsAutomationGraph } from '@glitch/shared/types.t
 type AutomationGraphInput = Extract<ParameterBinding, { inputSource: 'automationGraphReference' | 'automationGraphInline' }>;
 type ReadGraph = (name: string, t: number, wrapMode: AutomationGraphInput['wrapMode']) => number;
 
-function evaluateAutomationGraph(graph: Pick<GsAutomationGraph, 'points' | 'isNormalized'>, input: AutomationGraphInput, context: EvaluationScope): number {
+function evaluateAutomationGraph(graph: Pick<AutomationGraph, 'points' | 'isNormalized'>, input: AutomationGraphInput, context: EvaluationScope): number {
 	// 正規化グラフの1をdurationMsに対応付ける。未指定・無効なdurationはUIの初期値と同じ1秒にする。
 	const scale = graph.isNormalized
 		? (input.durationMs != null && Number.isFinite(input.durationMs) && input.durationMs > 0 ? input.durationMs : 1000)
@@ -29,7 +29,7 @@ function evaluateAutomationGraph(graph: Pick<GsAutomationGraph, 'points' | 'isNo
 // グラフの再生時刻と、式に公開する変数は独立。親の環境は継承しない。
 export type EvaluationScope = {
 	variables: Readonly<Record<string, Cloneable>>;
-	automationGraphs: GsAutomationGraph[];
+	automationGraphs: AutomationGraph[];
 	time: number;
 	endTime: number;
 };
