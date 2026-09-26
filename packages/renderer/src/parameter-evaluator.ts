@@ -3,7 +3,7 @@ import * as AiScript from '@syuilo/aiscript';
 import { evalAutomationGraphValue } from '@glitch/shared/utility/misc.ts';
 import { deepClone, type Cloneable } from '@glitch/shared/utility/deep-clone.js';
 import { reservedWords, singleVariableExpression } from '@glitch/shared/expression.js';
-import { evaluateKeyframesTimeline } from './keyframes-timeline.ts';
+import { evaluateKeyframesTimeline } from '@glitch/shared/utility/keyframes-timeline.ts';
 import type { ParameterBinding, AutomationGraph } from '@glitch/shared/types.ts';
 
 // Evaluatorはstateless/deterministicである必要がある

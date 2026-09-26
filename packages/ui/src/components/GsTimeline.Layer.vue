@@ -39,6 +39,7 @@ export type TimelineKeyframeSelection = {
 import { computed, ref } from 'vue';
 import { deepClone } from '@glitch/shared/utility/deep-clone.ts';
 import { genId } from '@glitch/shared/utility/id.ts';
+import { evaluateKeyframesTimeline } from '@glitch/shared/utility/keyframes-timeline.ts';
 import { visualModuleCustomParameterId } from '@glitch/shared/visual-module/types.ts';
 import XKeyframes from './GsTimeline.Layer.Keyframes.vue';
 import type { KeyframeMove } from './GsTimeline.Layer.Keyframes.vue';
@@ -126,17 +127,15 @@ function onKeyframeInsert(param: KeyframeParameter, x: number) {
 	if (current?.inputSource !== 'keyframesTimelineInline') return;
 	const keyframes = current.keyframesTimeline.keyframes.toSorted((a, b) => a.x - b.x);
 	const previous = keyframes.findLast(point => point.x <= x);
-	const next = keyframes.find(point => point.x > x);
 	if (previous?.x === x) {
 		emit('keyframeSelected', { layerId: layer.id, target: param.target, paramId: param.paramId, keyframeId: previous.id });
 		return;
 	}
 	const kind = current.keyframesTimeline.dataType.kind;
-	let components = previous?.value ?? next?.value ?? Array<number>(kind === 'scalar' ? 1 : kind === 'vector' ? 2 : 4).fill(0);
-	if (previous != null && next != null && previous.interpolation.type === 'linear') {
-		const progress = (x - previous.x) / (next.x - previous.x);
-		components = previous.value.map((component, i) => component + (next.value[i] - component) * progress);
-	}
+	const fallback = Array<number>(kind === 'scalar' ? 1 : kind === 'vector' ? 2 : 4).fill(0);
+	// 挿入は元の区間を分割する操作。区間外では再生時の繰り返しを適用せず端の値を使う。
+	const evaluated = evaluateKeyframesTimeline({ ...current, wrapMode: 'clamp' }, x, layer.endTimeMs - layer.startTimeMs, fallback);
+	const components = typeof evaluated === 'number' ? [evaluated] : evaluated;
 	const keyframeId = genId();
 	const value = deepClone(current);
 	value.keyframesTimeline.keyframes.push({

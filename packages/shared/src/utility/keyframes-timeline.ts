@@ -1,4 +1,4 @@
-import type { ParameterBinding } from '@glitch/shared/types.ts';
+import type { ParameterBinding } from '../types.ts';
 
 type InlineKeyframesTimeline = Extract<ParameterBinding, { inputSource: 'keyframesTimelineInline' }>;
 
