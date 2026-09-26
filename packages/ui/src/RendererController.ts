@@ -122,28 +122,37 @@ export class RendererController {
 		}
 	}
 
-	private returnHooks = new Map<number, (value: any) => void>();
+	private returnHooks = new Map<number, { resolve: (value: unknown) => void; reject: (reason: Error) => void }>();
 	private callCounter = 0;
 
-	private callAndWaitReturn<FN extends keyof RendererMethods>(fn: FN, args: Parameters<RendererMethods[FN]>): ReturnType<RendererMethods[FN]> extends Promise<any> ? ReturnType<RendererMethods[FN]> : Promise<ReturnType<RendererMethods[FN]>> {
+	// 初期化チェックなどの同期的なthrowもPromiseのrejectに統一し、呼び出し側で.catch()でも受け取れるようasyncにする。
+	private async callAndWaitReturn<FN extends keyof RendererMethods>(fn: FN, args: Parameters<RendererMethods[FN]>): Promise<Awaited<ReturnType<RendererMethods[FN]>>> {
 		if (!this.isReady.value) {
 			throw new Error('Renderer is not initialized');
 		}
 		if (this.rendererWorker != null) {
-			return new Promise((resolve) => {
+			return new Promise<Awaited<ReturnType<RendererMethods[FN]>>>((resolve, reject) => {
 				const id = this.callCounter++;
-				this.returnHooks.set(id, (value) => {
-					resolve(value);
+				this.returnHooks.set(id, {
+					resolve: value => resolve(value as Awaited<ReturnType<RendererMethods[FN]>>),
+					reject,
 				});
-				this.rendererWorker!.postMessage({ type: 'call', fn, args, needReturnValue: true, id });
+				try {
+					this.rendererWorker!.postMessage({ type: 'call', fn, args, needReturnValue: true, id });
+				} catch (error) {
+					this.returnHooks.delete(id);
+					reject(error);
+				}
 			});
-		//} else if (this.renderer != null) {
-		//	return new Promise((resolve) => {
-		//		resolve(this.renderer![fn](...args));
-		//	});
 		} else {
 			throw new Error('Renderer is not initialized');
 		}
+	}
+
+	private rejectPendingReturns(error: Error) {
+		// 終了したWorkerからは応答が来ないため、呼び出し側の待機も必ず解除する。
+		for (const hook of this.returnHooks.values()) hook.reject(error);
+		this.returnHooks.clear();
 	}
 
 	private sendPendingVideoFrame(playerId: string) {
@@ -195,7 +204,9 @@ export class RendererController {
 		worker.onerror = (event) => {
 			if (this.rendererWorker !== worker) return;
 			this.isReady.value = false;
-			this.rejectInitialization?.(new Error(event.message || 'Renderer worker initialization failed'));
+			const error = new Error(event.message || 'Renderer worker failed');
+			this.rejectPendingReturns(error);
+			this.rejectInitialization?.(error);
 			this.rejectInitialization = null;
 		};
 		this.rendererWorker.postMessage({
@@ -231,11 +242,18 @@ export class RendererController {
 					break;
 				}
 				case 'return': {
-					const { id, value } = event.data;
+					const { id, value, error, success } = event.data;
 					const hook = this.returnHooks.get(id);
 					if (hook != null) {
-						hook(value);
 						this.returnHooks.delete(id);
+						if (success) {
+							hook.resolve(value);
+						} else {
+							const reason = new Error(error.message);
+							reason.name = error.name;
+							reason.stack = error.stack;
+							hook.reject(reason);
+						}
 					}
 					break;
 				}
@@ -477,6 +495,7 @@ export class RendererController {
 	}
 
 	public destroy() {
+		this.rejectPendingReturns(new Error('Engine destroyed during renderer call'));
 		this.rejectInitialization?.(new Error('Engine destroyed during initialization'));
 		this.rejectInitialization = null;
 		this.pendingCalls = [];
@@ -516,6 +535,7 @@ export class RendererController {
 	}
 
 	private async reloadRenderer() {
+		this.rejectPendingReturns(new Error('Engine reloaded during renderer call'));
 		this.isReady.value = false;
 		this.rendererWorker?.terminate();
 		this.rendererWorker = null;

@@ -112,22 +112,22 @@ onmessage = async (event) => {
 			break;
 		}
 		case 'call': {
-			if (renderer == null) {
-				console.error('Failed to call: Renderer is not initialized yet!!!');
-				break;
-			}
-			// Worker越しのメッセージは実行時に届くため、呼び出せるメソッドか確認する。
-			const method = Reflect.get(renderer, event.data.fn);
-			if (typeof method !== 'function') throw new Error(`Unknown renderer method: ${event.data.fn}`);
-			const res = Reflect.apply(method, renderer, event.data.args ?? []);
-			if (event.data.needReturnValue) {
-				if (res instanceof Promise) {
-					res.then((r) => {
-						self.postMessage({ type: 'return', id: event.data.id, value: r });
-					});
-				} else {
-					self.postMessage({ type: 'return', id: event.data.id, value: res });
+			try {
+				if (renderer == null) throw new Error('Renderer is not initialized');
+				// Worker越しのメッセージは実行時に届くため、呼び出せるメソッドか確認する。
+				const method = Reflect.get(renderer, event.data.fn);
+				if (typeof method !== 'function') throw new Error(`Unknown renderer method: ${event.data.fn}`);
+				const res = Reflect.apply(method, renderer, event.data.args ?? []);
+				if (event.data.needReturnValue) {
+					self.postMessage({ type: 'return', id: event.data.id, success: true, value: await res });
 				}
+			} catch (error) {
+				if (!event.data.needReturnValue) throw error;
+				// 任意のthrow値には複製できないオブジェクトも含まれるため、エラー情報だけを返す。
+				const reason = error instanceof Error ? error : new Error(String(error));
+				self.postMessage({ type: 'return', id: event.data.id, success: false, error: {
+					name: reason.name, message: reason.message, stack: reason.stack,
+				} });
 			}
 			break;
 		}
