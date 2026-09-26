@@ -65,7 +65,7 @@
 				<GsButton small @click="selectedKeyframeSelection = null">Back to layer</GsButton>
 				<div>{{ selectedKeyframe.def.ui.label }} · Keyframe</div>
 				<GsInput small type="number" :min="selectedKeyframe.minX" :max="selectedKeyframe.maxX" :modelValue="selectedKeyframe.keyframe.x" @update:modelValue="updateKeyframeTime">
-					<template #label>{{ selectedKeyframe.binding.keyframesTimeline.isNormalized ? 'Time (normalized)' : 'Time (ms)' }}</template>
+					<template #label>Time (ms)</template>
 				</GsInput>
 				<div>Value</div>
 				<GsLiteralLeafValueControl
@@ -224,7 +224,7 @@ const selectedKeyframe = computed(() => {
 	return {
 		selection, binding, def, keyframe: keyframes[index],
 		minX: Math.max(0, keyframes[index - 1]?.x ?? -Infinity),
-		maxX: Math.min(binding.keyframesTimeline.isNormalized ? 1 : Infinity, keyframes[index + 1]?.x ?? Infinity),
+		maxX: keyframes[index + 1]?.x ?? Infinity,
 	};
 });
 

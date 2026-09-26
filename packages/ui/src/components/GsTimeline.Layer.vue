@@ -7,16 +7,20 @@
 	<div :class="$style.tl">
 		<div v-if="snappingTime != null" :class="$style.snapLine" :style="{ left: timeToDomX(snappingTime) + 'px' }"></div>
 		<div :class="$style.tlBlock" :style="{ width: layerRect.width + 'px', left: layerRect.left + 'px' }" @click="onLayerBlockClick">{{ layer.id }}</div>
-		<div v-for="param in keyframeParameters" :key="param.key" :class="$style.tlKeyframesRow">
-			<div
-				v-for="keyframe of param.binding.keyframesTimeline.keyframes"
-				:key="keyframe.id"
-				:class="[$style.tlKeyframe, { [$style.tlKeyframeSelected]: selectedKeyframe?.layerId === layer.id && selectedKeyframe.target === param.target && selectedKeyframe.paramId === param.paramId && selectedKeyframe.keyframeId === keyframe.id }]"
-				:style="{ left: Math.round(timeToDomX(keyframeTime(param.binding, keyframe.x))) + 'px' }"
-				@mousedown.stop.prevent="onKeyframeMousedown($event, param, keyframe.id)"
-			>
-			</div>
-		</div>
+		<XKeyframesRow
+			v-for="param in keyframeParameters"
+			:key="param.key"
+			:keyframes="param.binding.keyframesTimeline.keyframes"
+			:startTime="layer.startTimeMs"
+			:tlElWidth="tlElWidth"
+			:tlRangeX="tlRangeX"
+			:tlPosX="tlPosX"
+			:snapTimes="getSnapTimes(param)"
+			:selectedKeyframeId="selectedKeyframe?.layerId === layer.id && selectedKeyframe.target === param.target && selectedKeyframe.paramId === param.paramId ? selectedKeyframe.keyframeId : null"
+			@select="keyframeId => emit('keyframeSelected', { layerId: layer.id, target: param.target, paramId: param.paramId, keyframeId })"
+			@move="onKeyframeMove(param, $event)"
+			@snap="snappingTime = $event"
+		/>
 	</div>
 </div>
 </template>
@@ -31,14 +35,14 @@ export type TimelineKeyframeSelection = {
 </script>
 
 <script lang="ts" setup>
-import { computed, onBeforeUnmount, ref } from 'vue';
+import { computed, ref } from 'vue';
 import { deepClone } from '@glitch/shared/utility/deep-clone.ts';
-import { genId } from '@glitch/shared/utility/id.ts';
 import { visualModuleCustomParameterId } from '@glitch/shared/visual-module/types.ts';
+import XKeyframesRow from './GsTimeline.KeyframesRow.vue';
+import type { KeyframeMove } from './GsTimeline.KeyframesRow.vue';
 import type { TimelineLayer } from '@glitch/shared/timeline/types.ts';
 import type { ParameterBinding } from '@glitch/shared/types.ts';
 import { appContext } from '@/app.ts';
-import { dragListen } from '@/utility/drag.ts';
 
 const props = defineProps<{
 	layer: TimelineLayer;
@@ -81,86 +85,35 @@ const keyframeParameters = computed(() => {
 	return res;
 });
 
-function timeScale(binding: InlineKeyframesTimeline): number {
-	if (!binding.keyframesTimeline.isNormalized) return 1;
-	return binding.durationMs != null && Number.isFinite(binding.durationMs) && binding.durationMs > 0 ? binding.durationMs : 1000;
-}
-
-function keyframeTime(binding: InlineKeyframesTimeline, x: number): number {
-	const scale = timeScale(binding);
-	if (binding.offsetMode === 'end') {
-		const lastX = Math.max(...binding.keyframesTimeline.keyframes.map(keyframe => keyframe.x));
-		return props.layer.endTimeMs + (x - lastX) * scale;
-	}
-	return props.layer.startTimeMs + x * scale;
-}
-
 const snappingTime = ref<number | null>(null);
-let stopKeyframeDrag: (() => void) | undefined;
-const SNAP_THRESHOLD = 5;
 
-function onKeyframeMousedown(ev: MouseEvent, param: KeyframeParameter, keyframeId: string) {
-	if (ev.button !== 0 || props.tlElWidth <= 0 || props.tlRangeX <= 0) return;
-	stopKeyframeDrag?.();
-	emit('keyframeSelected', { layerId: props.layer.id, target: param.target, paramId: param.paramId, keyframeId });
-	const binding = param.binding;
-	const keyframes = binding.keyframesTimeline.keyframes.toSorted((a, b) => a.x - b.x);
-	const index = keyframes.findIndex(keyframe => keyframe.id === keyframeId);
-	if (index < 0) return;
-	const keyframe = keyframes[index];
-	// 終端合わせでは最後の時刻がレイヤー終端に固定される。
-	if (binding.offsetMode === 'end' && keyframe.x === keyframes[keyframes.length - 1].x) return;
-	const minX = Math.max(0, keyframes[index - 1]?.x ?? -Infinity);
-	const maxX = Math.min(binding.keyframesTimeline.isNormalized ? 1 : Infinity, keyframes[index + 1]?.x ?? Infinity);
-	const scale = timeScale(binding);
-	const baseTime = keyframeTime(binding, keyframe.x);
-	const originTime = baseTime - keyframe.x * scale;
-	const baseClientX = ev.clientX;
-	const msPerPixel = props.tlRangeX / props.tlElWidth;
-	const mergeKey = genId();
-	const layerId = props.layer.id;
-	stopKeyframeDrag = dragListen(event => {
-		const draggedTime = baseTime + (event.clientX - baseClientX) * msPerPixel;
-		let x = Math.max(minX, Math.min(maxX, (draggedTime - originTime) / scale));
-		snappingTime.value = null;
-		const candidates = [...props.snapTimes, props.layer.startTimeMs, props.layer.endTimeMs, props.currentTime];
-		for (const other of keyframeParameters.value) {
-			for (const point of other.binding.keyframesTimeline.keyframes) {
-				if (other.key === param.key && point.id === keyframeId) continue;
-				candidates.push(keyframeTime(other.binding, point.x));
-			}
-		}
-		let nearestDistance = SNAP_THRESHOLD;
-		for (const time of candidates) {
-			const candidateX = (time - originTime) / scale;
-			if (candidateX < minX || candidateX > maxX) continue;
-			const distance = Math.abs(time - draggedTime) / msPerPixel;
-			if (distance >= nearestDistance) continue;
-			nearestDistance = distance;
-			x = candidateX;
-			snappingTime.value = time;
-		}
-		// コマンドによる置換後のBindingを毎回取得し、古い参照やpropsを直接変更しない。
-		const layer = appContext.state.timeline.value.find(entry => entry.id === layerId);
-		if (layer == null) { stopKeyframeDrag?.(); return; }
-		const values: Partial<Record<string, ParameterBinding>> = param.target === 'compositing' ? layer.compositingParamValues : layer.paramValues;
-		const current = values[param.paramId];
-		if (current?.inputSource !== 'keyframesTimelineInline') { stopKeyframeDrag?.(); return; }
-		const point = current.keyframesTimeline.keyframes.find(entry => entry.id === keyframeId);
-		if (point == null) { stopKeyframeDrag?.(); return; }
-		if (point.x === x) return;
-		const value = deepClone(current);
-		for (const entry of value.keyframesTimeline.keyframes) {
-			if (entry.id === keyframeId) entry.x = x;
-		}
-		appContext.commit('editVisualModuleLayerParam', {
-			layerId, target: param.target, paramId: visualModuleCustomParameterId(param.paramId),
-			edit: { kind: 'keyframesTimelineInline', value },
-		}, mergeKey);
-	}, () => {
-		stopKeyframeDrag = undefined;
-		snappingTime.value = null;
-	});
+const keyframeSnapTimes = computed(() => keyframeParameters.value.flatMap(param => {
+	return param.binding.keyframesTimeline.keyframes.map(point => ({ parameterKey: param.key, time: props.layer.startTimeMs + point.x }));
+}));
+
+function getSnapTimes(param: KeyframeParameter): number[] {
+	// 同じ行のキーは子が移動中のキーを除外して候補に加える。
+	return [
+		...props.snapTimes, props.layer.startTimeMs, props.layer.endTimeMs, props.currentTime,
+		...keyframeSnapTimes.value.filter(point => point.parameterKey !== param.key).map(point => point.time),
+	];
+}
+
+function onKeyframeMove(param: KeyframeParameter, move: KeyframeMove) {
+	// コマンドによる置換後のBindingを取得し、子から受け取った移動だけを反映する。
+	const layer = appContext.state.timeline.value.find(entry => entry.id === props.layer.id);
+	if (layer == null) return;
+	const values: Partial<Record<string, ParameterBinding>> = param.target === 'compositing' ? layer.compositingParamValues : layer.paramValues;
+	const current = values[param.paramId];
+	if (current?.inputSource !== 'keyframesTimelineInline') return;
+	const value = deepClone(current);
+	const point = value.keyframesTimeline.keyframes.find(entry => entry.id === move.keyframeId);
+	if (point == null || point.x === move.x) return;
+	point.x = move.x;
+	appContext.commit('editVisualModuleLayerParam', {
+		layerId: layer.id, target: param.target, paramId: visualModuleCustomParameterId(param.paramId),
+		edit: { kind: 'keyframesTimelineInline', value },
+	}, move.mergeKey);
 }
 
 function timeToDomX(time: number): number {
@@ -171,7 +124,6 @@ function onLayerBlockClick() {
 	emit('selected');
 }
 
-onBeforeUnmount(() => stopKeyframeDrag?.());
 </script>
 
 <style module lang="scss">
@@ -225,26 +177,6 @@ onBeforeUnmount(() => stopKeyframeDrag?.());
 	corner-shape: bevel;
 }
 
-.tlKeyframesRow {
-	position: relative;
-	height: var(--keyframesRowHeight);
-	line-height: var(--keyframesRowHeight);
-}
-
-.tlKeyframe {
-	cursor: ew-resize;
-	user-select: none;
-	position: absolute;
-	--knobSize: 13px; // 奇数にしないとX軸の中心がぴったりにならない
-	top: calc(var(--keyframesRowHeight) / 2 - var(--knobSize) / 2);
-	width: var(--knobSize);
-	height: var(--knobSize);
-	margin-left: calc(var(--knobSize) / -2);
-	background: var(--THEME-accent);
-	corner-shape: bevel;
-	border-radius: 100%;
-}
-
 .snapLine {
 	position: absolute;
 	top: 0;
@@ -254,8 +186,4 @@ onBeforeUnmount(() => stopKeyframeDrag?.());
 	pointer-events: none;
 }
 
-.tlKeyframeSelected {
-	background: var(--THEME-fg);
-	box-shadow: 0 0 0 2px var(--THEME-accent);
-}
 </style>
