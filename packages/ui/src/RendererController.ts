@@ -231,6 +231,13 @@ export class RendererController {
 		this.rendererWorker.onmessage = (event) => {
 			if (this.rendererWorker !== worker) return;
 			switch (event.data?.type) {
+				case 'initError': {
+					this.isReady.value = false;
+					this.rejectInitialization?.(new Error(event.data.message));
+					this.rejectInitialization = null;
+					this.pendingCalls = [];
+					break;
+				}
 				case 'inited': {
 					this.isReady.value = true;
 					this.rejectInitialization = null;
@@ -438,7 +445,9 @@ export class RendererController {
 
 	public async updateAssets(newAssets: Asset[]) {
 		this.assets = deepClone(newAssets);
-		await this.call('updateAssets', [this.assets]);
+		const assets = this.assets;
+		const committed = await this.callAndWaitReturn('updateAssets', [assets]);
+		if (!committed || this.assets !== assets) return;
 		await this.updatePlayers(this.players);
 		await this.updateVisualModules(this.visualModules);
 	}

@@ -273,7 +273,6 @@ const addAssetCommandDef = defineCommand<Asset>({
 					name: payload.name,
 					width: payload.width,
 					height: payload.height,
-					data: deepClone(payload.data),
 					fileDataType: payload.fileDataType,
 					fileData: payload.fileData, // blobはimmutableなので多分deepCloneの必要なし
 					hash: payload.hash,
@@ -345,7 +344,6 @@ const replaceAssetCommandDef = defineCommand<Asset & { assetId: string }>({
 				const asset = state.assets.value.find(asset => asset.id === payload.assetId)!;
 				asset.width = payload.width;
 				asset.height = payload.height;
-				asset.data = deepClone(payload.data);
 				asset.fileDataType = payload.fileDataType;
 				asset.fileData = payload.fileData; // blobはimmutableなので多分deepCloneの必要なし
 				asset.hash = payload.hash;

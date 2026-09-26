@@ -1,8 +1,4 @@
 
-fn premultiplyAlpha(color: vec4f) -> vec4f {
-	return vec4f(color.rgb * color.a, color.a);
-}
-
 // テクスチャ座標(0~1、+Yが下)に変換
 fn convertTexCoords(uv: vec2f) -> vec2f {
 	return vec2f(uv.x, -uv.y) * 0.5 + vec2f(0.5);
@@ -27,8 +23,8 @@ struct FragmentIn {
 fn fs(fragData: FragmentIn) -> @location(0) vec4f {
 	if (uniforms.mode == 3u) {
 		// 元画像と同じ解像度なので、補間せず同一画素を厳密に読む。
-		// Assetの未乗算色をノード間の乗算済みRGBAへ一度だけ変換する。
-		return premultiplyAlpha(textureLoad(sourceTexture, vec2i(fragData.position.xy), 0));
+		// AssetはGPUへのアップロード時点で乗算済みなので、再乗算しない。
+		return textureLoad(sourceTexture, vec2i(fragData.position.xy), 0);
 	}
 	let uv = fragData.uv;
 	let aspectRatioScale = uniforms.sourceAspectRatio / uniforms.aspectRatio;
@@ -40,5 +36,5 @@ fn fs(fragData: FragmentIn) -> @location(0) vec4f {
 	}
 	let isOutside = uniforms.mode == 2 && any(abs(sourceUv) > vec2f(1.0));
 	let color = textureSample(sourceTexture, mySampler, convertTexCoords(sourceUv));
-	return select(premultiplyAlpha(color), vec4f(0.0), isOutside);
+	return select(color, vec4f(0.0), isOutside);
 }

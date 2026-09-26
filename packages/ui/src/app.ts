@@ -119,10 +119,17 @@ export async function appReady(project: Project) {
 	appStateManager.state.visualModules.value = project.visualModules;
 	appStateManager.state.players.value = project.players;
 	appStateManager.state.timeline.value = project.timeline;
+	await renderer.updateAssets(deepClone(project.assets));
 
-	watch(appStateManager.state.assets, () => {
-		renderer.updateAssets(deepClone(appStateManager.state.assets.value));
-	}, { deep: true, immediate: true });
+	watch(appStateManager.state.assets, async () => {
+		try {
+			await renderer.updateAssets(deepClone(appStateManager.state.assets.value));
+			// 非同期の画像準備後にも、停止中のタイムラインを描き直す。
+			previewPlayback.refresh();
+		} catch (error) {
+			void ui.alert({ type: 'error', text: error instanceof Error ? error.message : String(error) });
+		}
+	}, { deep: true });
 
 	watch(appStateManager.state.players, () => {
 		renderer.updatePlayers(deepClone(appStateManager.state.players.value));
@@ -239,7 +246,6 @@ export async function newProjectFromImageOrVideo(file?: File) {
 		name: result.name,
 		width: result.width,
 		height: result.height,
-		data: result.data,
 		fileDataType: result.type,
 		fileData: result.fileData,
 		hash: result.hash,

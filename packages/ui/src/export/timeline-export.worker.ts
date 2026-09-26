@@ -59,6 +59,8 @@ self.onmessage = async (event: MessageEvent<ExportRequest>) => {
 				if (status?.type === 'error') fail(`Node ${nodeId}: ${status.message}`);
 			},
 		});
+		await renderer.updateAssets(project.assets);
+		controller.signal.throwIfAborted();
 		if (settings.format === 'webp') {
 			await renderer.renderTimelineFrame(settings.startTimeMs, 0);
 			controller.signal.throwIfAborted();

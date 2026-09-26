@@ -7,14 +7,14 @@
 		<GsButton :class="$style.button" :vTooltip="i18n.ts.RemoveAsset" @click="remove()"><i class="ti ti-trash"></i></GsButton>
 	</div>
 	<div :class="$style.body">
-		<canvas v-if="asset.data" ref="canvas" :class="$style.canvas" :width="asset.width" :height="asset.height"></canvas>
+		<img v-if="imageUrl" :src="imageUrl" :class="$style.image">
 		<div v-else :class="$style.mediaLabel"><i :class="asset.fileDataType.startsWith('font/') ? 'ti ti-typography' : asset.fileDataType.startsWith('audio/') ? 'ti ti-music' : 'ti ti-movie'"></i> {{ asset.fileDataType }}</div>
 	</div>
 </div>
 </template>
 
 <script lang="ts" setup>
-import { shallowRef, watch, nextTick } from 'vue';
+import { shallowRef, watch } from 'vue';
 import GsButton from './common/GsButton.vue';
 import { i18n } from '@/i18n.ts';
 import type { Asset } from '@glitch/shared/types.ts';
@@ -27,7 +27,7 @@ const props = defineProps<{
 	asset: Asset;
 }>();
 
-const canvas = shallowRef<HTMLCanvasElement>();
+const imageUrl = shallowRef<string>();
 
 function remove() {
 	appStateManager.commit('removeAsset', {
@@ -55,20 +55,20 @@ async function replace() {
 		assetId: props.asset.id,
 		width: result.width,
 		height: result.height,
-		data: result.data,
 		fileDataType: result.type,
 		fileData: result.fileData,
 		hash: result.hash, // TODO
 	});
 }
 
-watch(() => props.asset, async () => {
-	await nextTick();
-	const ctx = canvas.value?.getContext('2d');
-	if (ctx && props.asset.data) {
-		ctx.putImageData(new ImageData(new Uint8ClampedArray(props.asset.data), props.asset.width, props.asset.height), 0, 0);
-	}
-}, { immediate: true, deep: true });
+watch(() => [props.asset.fileData, props.asset.fileDataType] as const, ([file, type], _previous, onCleanup) => {
+	imageUrl.value = undefined;
+	if (!type.startsWith('image/')) return;
+	const url = URL.createObjectURL(file);
+	imageUrl.value = url;
+	// 差し替え・削除時にBlobへの参照を残さない。
+	onCleanup(() => URL.revokeObjectURL(url));
+}, { immediate: true });
 
 </script>
 
@@ -120,7 +120,7 @@ watch(() => props.asset, async () => {
 	padding: 8px;
 }
 
-.canvas {
+.image {
 	display: block;
 	width: 100%;
 	height: 100%;

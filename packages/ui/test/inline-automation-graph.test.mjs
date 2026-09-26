@@ -53,7 +53,9 @@ test('undoes and redoes compositing expressions without changing module paramete
 });
 
 // inlineグラフの編集データをコピーし、保存・読み込み後にも参照グラフや合成方法を保持する。
-test('preserves compositing graphs and settings through edits and serialization', () => {
+// プロジェクト保存はAssetのBlobをバイト列へ変換する非同期処理なので、素材がなくても完了を待つ。
+// 保存前のオブジェクト比較だけでは、再読み込み時にグラフや合成設定が欠落する不具合を検出できない。
+test('preserves compositing graphs and settings through edits and serialization', async () => {
 	const { state } = fixture();
 	const layer = state.timeline.value[0];
 	const edit = (paramId, edit) => {
@@ -72,7 +74,7 @@ test('preserves compositing graphs and settings through edits and serialization'
 	inline.execute(state);
 	edit('rotation', { kind: 'automationGraphReference', value: 'graph', options: { durationMs: 2500, offsetMode: 'end', wrapMode: 'clamp' } });
 	edit('blendMode', { kind: 'literal', value: 'replace' });
-	const restored = decodeProjectFile(encodeProjectFile({ timeline: [layer] })).timeline[0];
+	const restored = decodeProjectFile(await encodeProjectFile({ timeline: [layer], assets: [] })).timeline[0];
 	assert.deepEqual(restored.compositingParamValues, layer.compositingParamValues);
 	assert.deepEqual(restored.automationGraphs, layer.automationGraphs);
 	assert.equal(restored.compositingParamValues.rotation.durationMs, 2500);

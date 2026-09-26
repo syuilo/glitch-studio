@@ -71,7 +71,6 @@ onmessage = async (event) => {
 				highlightClipping: event.data.options.highlightClipping,
 				liveTimeFactor: event.data.options.liveTimeFactor,
 				fpsLimit: event.data.options.fpsLimit,
-				assets: event.data.options.assets,
 				visualModules: event.data.options.visualModules,
 				timeline: event.data.options.timeline,
 				histogramGpuContext: histogramContext,
@@ -85,7 +84,14 @@ onmessage = async (event) => {
 			//	self.postMessage({ type: 'ev', ev: { type, ctx } });
 			//});
 
-			//await renderer.init();
+			try {
+				await renderer.updateAssets(event.data.options.assets);
+			} catch (error) {
+				renderer.destroy();
+				renderer = null;
+				self.postMessage({ type: 'initError', message: error instanceof Error ? error.message : String(error) });
+				break;
+			}
 
 			self.postMessage({ type: 'inited' });
 			reportGpuMemory();

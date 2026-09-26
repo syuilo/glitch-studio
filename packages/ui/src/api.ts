@@ -49,7 +49,6 @@ function getFontFileType(file: File): string | null {
 export function openMediaFile(options: { multiple?: boolean; file?: File; includeFonts?: boolean } = {}): Promise<{
 	width: number;
 	height: number;
-	data: Uint8Array | null;
 	name: string;
 	type: string;
 	fileData: Blob;
@@ -69,7 +68,6 @@ export function openMediaFile(options: { multiple?: boolean; file?: File; includ
 				resolve({
 					width: 0,
 					height: 0,
-					data: null,
 					name: file.name,
 					type: fontType,
 					fileData: file.slice(0, file.size, fontType),
@@ -91,7 +89,6 @@ export function openMediaFile(options: { multiple?: boolean; file?: File; includ
 					resolve({
 						width: media instanceof HTMLVideoElement ? media.videoWidth : 0,
 						height: media instanceof HTMLVideoElement ? media.videoHeight : 0,
-						data: null,
 						name: file.name,
 						type: file.type,
 						fileData: file,
@@ -103,37 +100,15 @@ export function openMediaFile(options: { multiple?: boolean; file?: File; includ
 				return;
 			}
 			if (!file.type.startsWith('image/')) { reject(new Error('Unsupported media type')); return; }
-			const reader = new FileReader();
-			reader.onerror = () => reject(reader.error ?? new Error('Could not read file'));
-			reader.onload = () => {
-				if (file.type.startsWith('image/')) {
-					const img = new Image();
-					img.onerror = () => reject(new Error('Could not decode image'));
-					img.onload = async () => {
-						const canvas = window.document.createElement('canvas');
-						canvas.width = img.width;
-						canvas.height = img.height;
-						const ctx = canvas.getContext('2d');
-						if (!ctx) {
-							reject(new Error('Could not create a 2D canvas context'));
-							return;
-						}
-						ctx.drawImage(img, 0, 0);
-						const data = ctx.getImageData(0, 0, img.width, img.height).data;
-						console.log(file.type + ' ' + file.name);
-						resolve({
-							width: img.width,
-							height: img.height,
-							data: new Uint8Array(data),
-							name: file.name,
-							type: file.type,
-							fileData: file,
-						});
-					};
-					img.src = reader.result as string;
+			// デコード可能かと寸法だけを確認し、画素データは保持しない。
+			// レンダラーと同じデコード経路を使い、取り込めても描画できない画像を避ける。
+			void createImageBitmap(file).then(bitmap => {
+				try {
+					resolve({ width: bitmap.width, height: bitmap.height, name: file.name, type: file.type, fileData: file });
+				} finally {
+					bitmap.close();
 				}
-			};
-			reader.readAsDataURL(file);
+			}, reject);
 		};
 		if (options.file != null) {
 			loadFile(options.file);

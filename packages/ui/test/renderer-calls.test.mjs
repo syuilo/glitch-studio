@@ -37,7 +37,7 @@ async function bundle(path) {
 const controllerCode = await bundle('../src/RendererController.ts');
 const workerCode = await bundle('../../renderer/src/worker.ts');
 
-async function fixture(t) {
+async function fixture(t, options = {}) {
 	class GPUCanvasContext {}
 	const canvas = () => ({
 		style: {}, transferControlToOffscreen: () => ({ getContext: () => new GPUCanvasContext() }),
@@ -46,6 +46,8 @@ async function fixture(t) {
 	const pending = [];
 	class MainRenderer {
 		gpuMemory = { getUsage: () => ({}) };
+		async updateAssets(assets) { return options.updateAssets?.(assets) ?? true; }
+		destroy() { options.onDestroy?.(); }
 		echo(value) { return value; }
 		deferred() { return new Promise(resolve => pending.push(resolve)); }
 		failSync() { throw new TypeError('sync failure'); }
@@ -90,9 +92,69 @@ async function fixture(t) {
 	runInNewContext(controllerCode, context);
 	const controller = new context.module.exports.RendererController({ fpsLimit: null });
 	t.after(() => controller.destroy());
-	await controller.init({ width: 1, height: 1 });
+	if (options.initialize !== false) await controller.init({ width: 1, height: 1 });
 	return { controller, workers, pending };
 }
+
+// 画像のデコード完了前にはreadyにせず、初期化失敗も待機元へ返す。
+// Blobからの画像準備は非同期なので、Worker生成だけでreadyにすると最初の描画で画像が欠落する。
+// また、初期化中の例外を応答しないとinit()の呼び出し元が永久に待機するため、失敗経路も確認する。
+for (const failure of [false, true]) {
+	test(`waits for initial assets and ${failure ? 'rejects failures' : 'becomes ready'}`, { timeout: 2000 }, async t => {
+		const gate = Promise.withResolvers();
+		const requested = Promise.withResolvers();
+		let destroyed = false;
+		const { controller } = await fixture(t, {
+			initialize: false,
+			updateAssets: () => { requested.resolve(); return gate.promise; },
+			onDestroy: () => { destroyed = true; },
+		});
+		const initializing = controller.init({ width: 1, height: 1 });
+		const rejected = failure ? assert.rejects(initializing, /image decode failed/) : null;
+		await requested.promise;
+		assert.equal(controller.isReady.value, false);
+		if (failure) {
+			gate.reject(new Error('image decode failed'));
+			await rejected;
+			assert.equal(controller.isReady.value, false);
+			assert.equal(destroyed, true);
+		} else {
+			gate.resolve(true);
+			await initializing;
+			assert.equal(controller.isReady.value, true);
+		}
+	});
+}
+
+// ControllerのAsset更新はWorkerの完了を待ち、成功時だけPlayerとモジュールを更新する。
+// postMessageの送信完了と画像の準備完了は異なる。送信だけをawaitしても同期にはならない。
+// 新しいcallAndWaitReturnを経由し、成功・失敗が呼び出し元のPromiseに伝わることを保証する。
+test('waits for asset updates and propagates image decoding errors', { timeout: 2000 }, async t => {
+	const gates = [];
+	const { controller } = await fixture(t, {
+		updateAssets: assets => {
+			if (assets.length === 0) return true;
+			const gate = Promise.withResolvers();
+			gates.push(gate);
+			return gate.promise;
+		},
+	});
+	const updated = [];
+	controller.updatePlayers = async () => { updated.push('players'); };
+	controller.updateVisualModules = async () => { updated.push('modules'); };
+	const first = controller.updateAssets([{ id: 'first' }]);
+	await Promise.resolve();
+	assert.deepEqual(updated, []);
+	gates[0].resolve(true);
+	await first;
+	assert.deepEqual(updated, ['players', 'modules']);
+	updated.length = 0;
+	const rejected = assert.rejects(controller.updateAssets([{ id: 'broken' }]), /decode failed/);
+	await Promise.resolve();
+	gates[1].reject(new Error('decode failed'));
+	await rejected;
+	assert.deepEqual(updated, []);
+});
 
 // 同期の結果を受け取り、並行した非同期呼び出しも応答IDで正しく対応付ける。
 test('returns values and matches out-of-order asynchronous responses', { timeout: 2000 }, async t => {

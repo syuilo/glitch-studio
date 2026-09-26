@@ -55,7 +55,6 @@ async function addAsset() {
 		name: result.name,
 		width: result.width,
 		height: result.height,
-		data: result.data,
 		fileDataType: result.type,
 		fileData: result.fileData,
 		hash: result.hash, // TODO

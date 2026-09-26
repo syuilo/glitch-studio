@@ -1,4 +1,5 @@
-import { createTextureFromSource, makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
+import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
+import { AssetTextures } from './asset-textures.ts';
 import { AudioHistory } from '@glitch/shared/audio-history.ts';
 import { genId } from '@glitch/shared/utility/id.ts';
 import { genEmptyValue } from '@glitch/shared/utility/misc.ts';
@@ -51,7 +52,7 @@ export class MainRenderer {
 	private timeline: Timeline = [];
 	private assets: Asset[] = [];
 	private visualModules: VisualModule[] = [];
-	private assetTextures: Map<string, GPUTexture> = new Map();
+	private assetTextures: AssetTextures;
 	private videoFrames: Map<Player['id'], VideoFrame> = new Map();
 	private videoFrameVersions: Map<Player['id'], number> = new Map();
 	private audioSources = new Map<AudioSourceId, AudioHistory>();
@@ -100,7 +101,6 @@ export class MainRenderer {
 		frameScheduler?: FrameScheduler;
 		visualModules?: VisualModule[];
 		timeline?: Timeline;
-		assets: Asset[];
 		histogramGpuContext?: GPUCanvasContext;
 		waveformHorizontalGpuContext?: GPUCanvasContext;
 		waveformVerticalGpuContext?: GPUCanvasContext;
@@ -124,6 +124,7 @@ export class MainRenderer {
 		this.enable32bitDataTextures = options.enable32bitDataTextures;
 		this.intermediateTextureFormat = options.intermediateTextureFormat;
 		this.gpuDevice = options.gpuDevice;
+		this.assetTextures = new AssetTextures(this.gpuDevice);
 		this.outputTextures = new OutputTextureResolver(this.gpuDevice, this.enable32bitDataTextures);
 		this.gpuContext = options.gpuContext;
 		this.effectDefinitions = options.effectDefinitions;
@@ -215,30 +216,15 @@ export class MainRenderer {
 				this.latestRenderedToCanasTexture = null;
 			},
 		});
-
-		this.updateAssets(options.assets);
 	}
 
 	// (非workerで)呼び出すときはnewAssetsを独立した参照にすること！ パフォーマンス上の理由でこちら側ではdeepCloneしません
-	public updateAssets(newAssets: Asset[]) {
-		this.clearTimelineRenderers();
-		this.assets = newAssets;
-		for (const [k, v] of this.assetTextures.entries()) {
-			v.destroy();
-			this.assetTextures.delete(k);
-		}
-
-		for (const asset of this.assets) {
-			if (asset.fileDataType.startsWith('image/') && asset.data != null) {
-				const tex = createTextureFromSource(this.gpuDevice, {
-					data: asset.data,
-					width: asset.width,
-					height: asset.height,
-				});
-				this.assetTextures.set(asset.id, tex);
-			}
-		}
-		this.liveVisualModuleRenderer?.updateAssets(this.assets);
+	public async updateAssets(newAssets: Asset[]): Promise<boolean> {
+		return this.assetTextures.update(newAssets, () => {
+			this.clearTimelineRenderers();
+			this.assets = newAssets;
+			this.liveVisualModuleRenderer?.updateAssets(this.assets);
+		});
 	}
 
 	public updateVisualModules(newVisualModules: VisualModule[]) {
@@ -408,7 +394,7 @@ export class MainRenderer {
 			videoFrameVersions: this.videoFrameVersions,
 			assets: this.assets,
 			visualModule,
-			assetTextures: this.assetTextures,
+			assetTextures: this.assetTextures.textures,
 			audioSources: this.audioSources,
 			effectDefinitions: this.effectDefinitions,
 			effectImplementations: this.effectImplementations,
@@ -482,7 +468,7 @@ export class MainRenderer {
 			videoFrameVersions: this.videoFrameVersions,
 			assets: this.assets,
 			visualModule,
-			assetTextures: this.assetTextures,
+			assetTextures: this.assetTextures.textures,
 			audioSources: this.audioSources,
 			effectDefinitions: this.effectDefinitions,
 			effectImplementations: this.effectImplementations,
@@ -557,6 +543,7 @@ export class MainRenderer {
 		this.stopRenderLoop();
 		this.clearTimelineRenderers();
 		this.outputTextures.dispose();
+		this.assetTextures.dispose();
 		for (const id of this.audioPorts.keys()) this.resetAudioSource(id, null);
 		for (const frame of this.videoFrames.values()) frame.close();
 		this.videoFrames.clear();
