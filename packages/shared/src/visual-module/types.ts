@@ -1,6 +1,6 @@
 import type { TextureDataType } from '../data-type.ts';
 import type { EffectDefinition } from '../effect/effect-definition.ts';
-import type { ParameterDefinition, ParameterDefinition_Any, ParameterDefinition_Array, ParameterDefinition_Struct } from '../parameter.ts';
+import type { ParameterDefinition } from '../parameter.ts';
 import type { FitMode, AutomationGraph, ParameterBinding, WrapMode } from '../types.ts';
 
 export type VisualModuleEffectNode = {
