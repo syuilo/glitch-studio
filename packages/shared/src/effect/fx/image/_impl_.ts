@@ -1,11 +1,11 @@
 import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
-import type definition from './_def_.ts';
 import { implementEffect } from '../../effect-implementation.ts';
 import code from './shader.wgsl?raw';
+import type definition from './_def_.ts';
 
 export default implementEffect<typeof definition>({
 	// 通常モードはレンダラーの解像度に従い、Originalだけ素材の解像度を使う。
-	getOutputResolution: params => params.sizeMode === 3 ? { width: params.image?.width ?? 1, height: params.image?.height ?? 1 } : undefined,
+	getOutputResolution: params => params.sizeMode === 'original' ? { width: params.image?.width ?? 1, height: params.image?.height ?? 1 } : undefined,
 	outputTextureFactories: {
 		output: ({ wgpu, resolution }) => wgpu.device.createTexture({
 			size: resolution,
@@ -74,7 +74,8 @@ export default implementEffect<typeof definition>({
 				uniformValues.set({
 					aspectRatio: ctx.outputDataMap.output.texture.width / ctx.outputDataMap.output.texture.height,
 					sourceAspectRatio: sourceTexture.width / sourceTexture.height,
-					mode: ctx.params.sizeMode,
+					// 保存する選択肢名をシェーダーのモード番号へ変換する。
+					mode: { stretch: 0, cover: 1, contain: 2, original: 3 }[ctx.params.sizeMode],
 				});
 				wgpu.device.queue.writeBuffer(uniformBuffer, 0, uniformValues.arrayBuffer);
 

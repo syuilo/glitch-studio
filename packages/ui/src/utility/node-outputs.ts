@@ -5,7 +5,7 @@ import type { VisualModuleNode, NodeOutputReference, VisualModule } from '@glitc
 import { preferences } from '@/preferences.ts';
 
 export function getNodeDataTypeColor(dataType: TextureDataType | null | undefined): string {
-	return `var(--THEME-dataType-${dataType ?? 'any'})`;
+	return `var(--THEME-dataType-${dataType?.kind ?? 'any'})`;
 }
 
 export function canConnectNodeDataTypes(output: TextureDataType | undefined, input: TextureDataType | null): boolean {

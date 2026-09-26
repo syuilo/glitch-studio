@@ -56,9 +56,22 @@ function evaluate(evaluator, input) {
 
 const literal = value => ({ inputSource: 'literal', value });
 const expression = expression => ({ inputSource: 'expression', expression });
-const number = { dataType: 'scalar', ui: { control: 'number' } };
+// テスト用のコンテナも実際の保存形式と同様、型・UI・子設定を分離する。
+function arrayParameter({ dataType, ui, ...settings }) {
+	return { dataType: { kind: 'array', elementType: dataType }, ui: { label: 'Values', control: { element: ui.control } }, element: settings, defaultValue: literal([]) };
+}
+function structParameter(fields) {
+	return {
+		dataType: { kind: 'struct', fields: Object.fromEntries(Object.entries(fields).map(([key, field]) => [key, field.dataType])) },
+		ui: { label: 'Group', control: { fields: Object.fromEntries(Object.entries(fields).map(([key, field]) => [key, field.ui])) } },
+		fields: Object.fromEntries(Object.entries(fields).map(([key, { dataType, ui, ...settings }]) => [key, settings])),
+		defaultValue: literal(Object.fromEntries(Object.entries(fields).map(([key, field]) => [key, field.defaultValue]))),
+	};
+}
+
+const number = { dataType: { kind: 'scalar' }, ui: { label: 'Value', control: { controlType: 'number' } }, defaultValue: literal(0) };
 const node = (params, isBypass = false) => ({ id: 'node', type: 'effect', effectId: 'test', isBypass, params });
-const paramDef = (id, defaultValue = 7, dataType = 'scalar') => ({ id, nameForReference: id, dataType, ui: { control: dataType === 'scalar' ? 'number' : dataType }, defaultValue: literal(defaultValue), canNode: false, isPrimaryInput: false });
+const paramDef = (id, defaultValue = 7, dataType = 'scalar') => ({ id, nameForReference: id, dataType: { kind: dataType }, ui: { label: id, control: dataType === 'scalar' ? { controlType: 'number' } : {} }, defaultValue: literal(defaultValue), canNode: false, isPrimaryInput: false });
 const context = (defs, params, overrides = {}) => ({
 	nodes: [node(params)],
 	paramDefs: [],
@@ -77,7 +90,7 @@ const graphPoint = (x, y) => ({ id: `${x}`, x, y, bezierControlPointA: [0, 0], b
 const keyframe = (x, value, type = 'linear') => ({ id: `${x}`, x, value, interpolation: { type } });
 const keyframesInput = (keyframes, dataType = 'scalar', options = {}) => ({
 	inputSource: 'keyframesTimelineInline',
-	keyframesTimeline: { dataType, isNormalized: true, keyframes },
+	keyframesTimeline: { dataType: { kind: dataType }, isNormalized: true, keyframes },
 	durationMs: 1000, wrapMode: 'clamp', offsetMode: 'start', ...options,
 });
 function evaluateKeyframes(input, time, endTime = 5000, fallback = -1) {
@@ -149,7 +162,7 @@ test('empty, single and duplicate keyframes have deterministic results', () => {
 
 test('keyframes evaluate in nested node parameters and module arguments', () => {
 	const input = keyframesInput([keyframe(0, [0]), keyframe(1, [8])]);
-	const result = evaluate(new ParameterEvaluator(), context({ values: { dataType: 'array', item: number } }, {
+	const result = evaluate(new ParameterEvaluator(), context({ values: arrayParameter(number) }, {
 		values: literal([input]),
 	}, { paramDefs: [paramDef('animated')], paramValues: { animated: input }, time: 250 }));
 	assert.equal(result.paramValues.get('animated'), 2);
@@ -209,7 +222,7 @@ const graphInput = (inputSource, graph, options = {}) => ({
 // ノードのネストした入力とモジュール入力に同じ仕様を要求する。
 function evaluateGraphInput(inputSource, graph, { time = 500, endTime = 5000, ...options } = {}) {
 	const input = graphInput(inputSource, graph, options);
-	const result = evaluate(new ParameterEvaluator(), context({ values: { dataType: 'array', item: number } }, {
+	const result = evaluate(new ParameterEvaluator(), context({ values: arrayParameter(number) }, {
 		values: literal([input]),
 	}, {
 		automationGraphs: inputSource === 'automationGraphReference' ? [graph] : [],
@@ -286,7 +299,7 @@ for (const source of ['automationGraphReference', 'automationGraphInline']) {
 test('evaluates GRAPH by name in module and node expressions', () => {
 	const graph = rampGraph();
 	const msGraph = { ...rampGraph(false), id: 'ms-id', name: 'Milliseconds' };
-	const result = evaluate(new ParameterEvaluator(), context({ values: { dataType: 'array', item: number } }, {
+	const result = evaluate(new ParameterEvaluator(), context({ values: arrayParameter(number) }, {
 		values: literal([
 			expression('GRAPH("Ramp", 0.25, "clamp")'),
 			expression('GRAPH("Ramp", 1.25, "repeat")'),
@@ -307,7 +320,7 @@ test('falls back for invalid GRAPH calls and does not expose inline graphs', () 
 		'GRAPH(1, 0.5, "clamp")', 'GRAPH("Ramp", 0.5)', 'GRAPH("Ramp", 0.5, "clamp", 1)',
 	];
 	const evaluator = new ParameterEvaluator();
-	const result = evaluate(evaluator, context({ values: { dataType: 'array', item: number } }, {
+	const result = evaluate(evaluator, context({ values: arrayParameter(number) }, {
 		values: literal(invalid.map(expression)),
 	}, { automationGraphs: [graph], paramDefs: [paramDef('invalid')], paramValues: { invalid: expression(invalid[0]) } }));
 	assert.deepEqual(result.nodeParams.get('node').values, invalid.map(() => 0));
@@ -332,7 +345,7 @@ test('refreshes GRAPH definitions between evaluations', () => {
 test('reads single scope variables without parsing or executing AiScript', t => {
 	const evaluator = new ParameterEvaluator();
 	const parse = t.mock.method(evaluator.aisParser, 'parse');
-	const input = context({ values: { dataType: 'array', item: number } }, {
+	const input = context({ values: arrayParameter(number) }, {
 		values: literal(['TIME', 'TIME_MS', 'WIDTH', 'HEIGHT', 'PROGRESS'].map(name => expression(` \t${name}\r\n`))),
 	}, { paramDefs: [paramDef('time')], paramValues: { time: expression('TIME') } });
 	const first = evaluate(evaluator, input);
@@ -349,7 +362,7 @@ test('uses AiScript for complex expressions and unknown variables', t => {
 	const evaluator = new ParameterEvaluator();
 	const parse = t.mock.method(evaluator.aisParser, 'parse');
 	const expressions = ['TIME + 1', 'TIME // comment', 'PARAM("gain")', 'UNKNOWN', 'toString'];
-	const result = evaluate(evaluator, context({ values: { dataType: 'array', item: number } }, {
+	const result = evaluate(evaluator, context({ values: arrayParameter(number) }, {
 		values: literal(expressions.map(expression)),
 	}, { paramDefs: [paramDef('gain', 4)] }));
 	assert.deepEqual(result.nodeParams.get('node').values, [1.5, 0.5, 4, 0, 0]);
@@ -359,9 +372,9 @@ test('uses AiScript for complex expressions and unknown variables', t => {
 // GPUなしでネストした値・式・接続参照を評価する
 test('evaluates nested values, expressions and node references without a GPU', () => {
 	const input = context({
-		items: { dataType: 'array', item: { dataType: 'struct', fields: { value: number } } },
+		items: arrayParameter(structParameter({ value: number })),
 		link: { ...number, canNode: true },
-		empty: { dataType: 'array', item: number },
+		empty: arrayParameter(number),
 	}, {
 		items: literal([literal({ value: expression('WIDTH + HEIGHT + TIME + TIME_MS + PROGRESS') }), literal({ value: literal(9) })]),
 		link: { fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear', inputSource: 'node', nodeId: 'source', outputPort: 'value' },
@@ -413,7 +426,7 @@ test('falls back for texture parameters, missing references and invalid expressi
 // バイパス中は主入力以外の不正なコンテナも評価しない
 test('evaluates only the primary parameter when bypassed', () => {
 	const params = { main: literal(4), unused: expression('invalid container') };
-	const input = context({ main: { ...number, canNode: true }, unused: { dataType: 'array', item: number } }, params, { nodes: [node(params, true)] });
+	const input = context({ main: { ...number, canNode: true }, unused: arrayParameter(number) }, params, { nodes: [node(params, true)] });
 	input.effectDefinitions.test.primaryInputParameter = 'main';
 	assert.deepEqual(evaluate(new ParameterEvaluator(), input).nodeParams.get('node'), { main: 4 });
 });
@@ -437,7 +450,8 @@ test('keeps previous results and clones module defaults between evaluations', ()
 test('evaluates numeric parameters independently of their UI controls', async () => {
 	const { getNodeInputDataType } = await loadSource('../../shared/src/utility/node-outputs');
 	const evaluator = new ParameterEvaluator();
-	for (const ui of [{ control: 'number' }, { control: 'range', min: 10, max: 20, step: 1 }, { control: 'seed' }, { control: 'angle' }]) {
+	for (const control of [{ controlType: 'number' }, { controlType: 'range', min: 10, max: 20, step: 1 }, { controlType: 'seed' }, { controlType: 'angle' }]) {
+		const ui = { label: 'Value', control };
 		const def = { ...number, ui, canNode: true };
 		const external = { ...paramDef('amount'), ui };
 		const result = evaluate(evaluator, context({ amount: def, external: def, invalid: def }, {
@@ -446,7 +460,7 @@ test('evaluates numeric parameters independently of their UI controls', async ()
 			invalid: expression('missing'),
 		}, { paramDefs: [external], paramValues: { amount: literal(-5.25) } }));
 		assert.deepEqual(result.nodeParams.get('node'), { amount: 100.5, external: -5.25, invalid: 0 });
-		assert.equal(getNodeInputDataType(def), 'scalar');
+		assert.deepEqual(getNodeInputDataType(def), { kind: 'scalar' });
 	}
 });
 
@@ -459,20 +473,20 @@ test('uses shared scalar types for node inputs and module outputs', async () => 
 		paramDef('player', null, 'playerReference'), { ...paramDef('disabled'), canNode: false },
 	];
 	const outputs = getNodeOutputs({ id: 'in', type: 'globalIn' }, defs);
-	assert.equal(outputs.amount.dataType, 'scalar');
+	assert.equal(outputs.amount.dataType.kind, 'scalar');
 	assert.equal(outputs.flag, undefined);
 	assert.equal(outputs.image, undefined);
-	assert.equal(outputs.vector.dataType, 'vector');
-	assert.equal(outputs.color.dataType, 'color');
+	assert.equal(outputs.vector.dataType.kind, 'vector');
+	assert.equal(outputs.color.dataType.kind, 'color');
 	assert.equal(outputs.player, undefined);
 	assert.equal(outputs.disabled, undefined);
 	assert.equal(getNodeInputDataType({ ...number, canNode: false }), null);
-	assert.equal(getNodeInputDataType({ dataType: 'struct' }), null);
-	assert.equal(getNodeInputDataType({ dataType: 'array' }), null);
-	assert.equal(getNodeInputDataType({ dataType: 'playerReference', canNode: true }), null);
+	assert.equal(getNodeInputDataType({ dataType: { kind: 'struct', fields: {} } }), null);
+	assert.equal(getNodeInputDataType({ dataType: { kind: 'array', elementType: { kind: 'scalar' } } }), null);
+	assert.equal(getNodeInputDataType({ dataType: { kind: 'playerReference' }, canNode: true }), null);
 	assert.equal(areNodeDataTypesCompatible(outputs.amount.dataType, getNodeInputDataType({ ...number, canNode: true })), true);
-	assert.equal(areNodeDataTypesCompatible('scalar', 'vector'), false);
-	assert.equal(areNodeDataTypesCompatible('any', 'scalar'), true);
+	assert.equal(areNodeDataTypesCompatible({ kind: 'scalar' }, { kind: 'vector' }), false);
+	assert.equal(areNodeDataTypesCompatible({ kind: 'any' }, { kind: 'scalar' }), true);
 });
 
 for (const enable32bitDataTextures of [false, true]) {
@@ -501,12 +515,12 @@ for (const enable32bitDataTextures of [false, true]) {
 			} },
 		};
 		const definitions = { test: {
-			paramDefs: { group: { dataType: 'struct', fields: {
+			paramDefs: { group: structParameter({
 				amount: { ...number, canNode: true },
-				vector: { dataType: 'vector', ui: { control: 'vector' }, canNode: true },
-				color: { dataType: 'color', ui: { control: 'color' }, canNode: true },
-			} } },
-			outputDefs: { image: { dataType: 'color', primary: true } },
+				vector: { dataType: { kind: 'vector' }, ui: { label: 'Vector', control: { controlType: 'vector' } }, canNode: true, defaultValue: literal([0, 0]) },
+				color: { dataType: { kind: 'color' }, ui: { label: 'Color', control: {} }, canNode: true, defaultValue: literal([0, 0, 0, 0]) },
+			}) },
+			outputDefs: { image: { dataType: { kind: 'color' }, primary: true } },
 		} };
 		const output = createTexture();
 		const renderer = new VisualModuleRenderer({

@@ -37,7 +37,7 @@ export default implementEffect<typeof definition>({
 		return {
 			render(ctx) {
 				const { params } = ctx;
-				const size = 2 ** Math.round(Math.log2(finiteNumber(params.fftSize, 2048, 256, 32768)));
+				const size = 2 ** Math.round(Math.log2(finiteNumber(Number(params.fftSize), 2048, 256, 32768)));
 				if (!spectrum || spectrum.size !== size || spectrum.windowName !== params.window) spectrum = new AudioSpectrum(size, params.window);
 				const history = params.player?.audio ?? null;
 				const channel = audioChannel(params.channel);

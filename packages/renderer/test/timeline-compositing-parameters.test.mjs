@@ -18,12 +18,14 @@ test('defaults to normal compositing with an identity transform', () => {
 // 合成設定にはレイヤーの変数だけを公開し、時刻や解像度は暗黙に継承しない。
 test('evaluates expressions and environment variables in layer context', () => {
 	const result = evaluate({
-		translationX: expression('TEST_SAME_NAME'), translationY: expression('HEIGHT / WIDTH'),
-		scaleX: expression('if TEST_ONLY_LAYER { 2 } else { 0 }'), scaleY: { inputSource: 'envVariable', variable: 'PROGRESS' },
+		translation: expression('[TEST_SAME_NAME, 0]'),
+		scale: expression('[if TEST_ONLY_LAYER { 2 } else { 0 }, 0]'),
 		rotation: expression('if IS_EXPORT { 0.5 } else { 0 }'),
 		opacity: expression('TEST_SAME_NAME / 4'), blendMode: expression('"replace"'),
 	}, [], { isExport: true });
 	assert.deepEqual(result, { blendMode: 19, opacity: 0.5, translation: [2, 0], scale: [2, 0], rotation: 0.5 });
+	assert.deepEqual(evaluate({ translation: expression('[HEIGHT / WIDTH, 0]') }).translation, [0, 0]);
+	assert.deepEqual(evaluate({ translation: { inputSource: 'envVariable', variable: 'PROGRESS' } }).translation, [0, 0]);
 });
 
 const point = (x, y) => ({ id: `${x}`, x, y, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] });
@@ -35,20 +37,20 @@ for (const inputSource of ['automationGraphInline', 'automationGraphReference'])
 			inputSource, automationGraph: graph, automationGraphId: graph.id,
 			durationMs: 1000, offsetMode: 'end', wrapMode: 'repeatMirrored',
 		};
-		const result = evaluate({ opacity: input, translationX: input, scaleY: input, rotation: input }, [graph]);
-		for (const value of [result.opacity, result.translation[0], result.scale[1], result.rotation]) assert.ok(Math.abs(value - 0.5) < 0.00001);
+		const result = evaluate({ opacity: input, rotation: input }, [graph]);
+		for (const value of [result.opacity, result.rotation]) assert.ok(Math.abs(value - 0.5) < 0.00001);
 	});
 }
 
 // GRAPH参照は呼び出し側が渡したレイヤーのグラフを使い、欠落参照はパラメータ既定値へ戻す。
 test('reads named graphs and falls back for missing graph references', () => {
-	assert.ok(Math.abs(evaluate({ translationX: expression('GRAPH("Ramp", 0.25, "clamp")') }, [graph]).translation[0] - 0.25) < 0.00001);
-	assert.equal(evaluate({ scaleX: { inputSource: 'automationGraphReference', automationGraphId: 'missing' } }).scale[0], 1);
+	assert.ok(Math.abs(evaluate({ translation: expression('[GRAPH("Ramp", 0.25, "clamp"), 0]') }, [graph]).translation[0] - 0.25) < 0.00001);
+	assert.equal(evaluate({ scale: { inputSource: 'automationGraphReference', automationGraphId: 'missing' } }).scale[0], 1);
 });
 
 // 不正な型・非有限値をGPUへ流さず、負の倍率は反転、0は透明化のために保持する。
 test('sanitizes invalid values while preserving flips and zero scales', () => {
-	const result = evaluate({ opacity: literal(2), translationX: literal(Infinity), translationY: literal('bad'), scaleX: literal(-2), scaleY: literal(0), rotation: literal(NaN), blendMode: literal('constructor') });
+	const result = evaluate({ opacity: literal(2), translation: literal([Infinity, 'bad']), scale: literal([-2, 0]), rotation: literal(NaN), blendMode: literal('constructor') });
 	assert.deepEqual(result, { blendMode: 0, opacity: 1, translation: [0, 0], scale: [-2, 0], rotation: 0 });
 	assert.equal(evaluate({ opacity: literal(-1) }).opacity, 0);
 });

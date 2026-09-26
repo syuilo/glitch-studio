@@ -1,8 +1,8 @@
 import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
-import type definition from './_def_.ts';
 import { implementEffect } from '../../effect-implementation.ts';
 import { createShaderInputPipeline } from '../../../shader-input-pipeline.ts';
 import code from './shader.wgsl?raw';
+import type definition from './_def_.ts';
 
 export default implementEffect<typeof definition>({
 	outputTextureFactories: {
@@ -28,7 +28,7 @@ export default implementEffect<typeof definition>({
 		return {
 			render: ctx => {
 				uniformValues.set({
-					mode: ctx.params.mode,
+					mode: ctx.params.mode === 'luminance' ? 1 : 0,
 				});
 				device.queue.writeBuffer(uniformBuffer, 0, uniformValues.arrayBuffer);
 				const variant = pipelines.update({ input: ctx.params.input }, ctx.outputDataMap.output.texture);

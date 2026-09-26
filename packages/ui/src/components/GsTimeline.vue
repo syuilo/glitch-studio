@@ -77,7 +77,7 @@
 				v-for="paramDef of appContext.getVisualModuleById(selectedLayer.visualModuleId)!.paramDefs.filter(paramDef => !paramDef.isPrimaryInput)"
 				:key="`${selectedLayer.id}:${paramDef.id}`"
 			>
-				<div v-if="paramDef.dataType === 'struct' || paramDef.dataType === 'array' || paramDef.dataType === 'any'">{{ paramDef.ui.label }}: Editing is not yet supported.</div>
+				<div v-if="paramDef.dataType.kind === 'struct' || paramDef.dataType.kind === 'array' || isParameterType(paramDef, 'any')">{{ paramDef.ui.label }}: Editing is not yet supported.</div>
 				<GsVisualParam
 					v-else
 					:availableVariables="layerEnvVarDefs"
@@ -95,6 +95,7 @@
 </template>
 
 <script lang="ts" setup>
+import { isParameterType } from '@glitch/shared/parameter.ts';
 import { visualModuleCustomParameterId } from '@glitch/shared/visual-module/types.ts';
 import { layerEnvVarDefs } from '@glitch/shared/expression.ts';
 import { computed, onMounted, ref, shallowRef, useTemplateRef, watch } from 'vue';

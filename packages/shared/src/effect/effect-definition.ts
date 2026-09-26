@@ -1,5 +1,5 @@
 import type { TextureDataType } from '../data-type.ts';
-import type { ParameterDefinition } from '../parameter.ts';
+import type { CheckedParameterDefinition, ParameterDefinition } from '../parameter.ts';
 
 export type EffectOutputDefinitions = Record<string, {
 	dataType: TextureDataType;
@@ -22,7 +22,9 @@ export type EffectDefinition<In extends Record<string, ParameterDefinition> = Re
 };
 
 export function defineEffect<const In extends Record<string, ParameterDefinition>, const Out extends EffectOutputDefinitions>(
-	def: EffectDefinition<In, Out>,
+	def: EffectDefinition<In, Out> & {
+		paramDefs: { [K in keyof In]: CheckedParameterDefinition<NoInfer<In[K]>> };
+	},
 ): EffectDefinition<In, Out> {
 	// 主入力は接続を受け取るため、通常の数値設定やコンテナは指定できない。
 	if (def.primaryInputParameter !== null && def.paramDefs[def.primaryInputParameter]?.canNode !== true) {

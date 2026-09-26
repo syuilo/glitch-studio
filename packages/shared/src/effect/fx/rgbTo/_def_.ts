@@ -6,20 +6,14 @@ export default defineEffect({
 	tags: [],
 	primaryInputParameter: 'input',
 	paramDefs: {
-		input: { dataType: 'color', ui: { label: 'Input', control: 'color' }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },
+		input: { dataType: { kind: 'color' }, ui: { label: 'Input', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },
 		mode: {
-			dataType: 'enum', ui: { label: 'Mode', control: 'enum' },
-			options: [{
-				label: 'Intensity',
-				value: 0,
-			}, {
-				label: 'Luminance',
-				value: 1,
-			}],
-			defaultValue: { inputSource: 'literal', value: 0 },
+			dataType: { kind: 'enum', options: ['intensity', 'luminance'] },
+			ui: { label: 'Mode', control: { labels: { 'intensity': 'Intensity', 'luminance': 'Luminance' } } },
+			defaultValue: { inputSource: 'literal', value: 'intensity' },
 		},
 	},
 	outputDefs: {
-		output: { primary: true, dataType: 'scalar' },
+		output: { primary: true, dataType: { kind: 'scalar' } },
 	},
 });

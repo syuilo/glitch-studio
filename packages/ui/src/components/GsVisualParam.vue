@@ -2,7 +2,7 @@
 <div :class="$style.root">
 	<div ref="rowEl" :class="$style.row" data-wire-input-row @contextmenu.prevent.stop="onRowContextmenu">
 		<div :class="[$style.paramHeader, { [$style.isDyamic]: paramValue.inputSource !== 'literal' }]">
-			<button v-if="paramDef.dataType === 'array' || paramDef.dataType === 'struct'" class="_button"><i class="ti ti-chevron-down" style="vertical-align: middle;"></i></button>
+			<button v-if="paramDef.dataType.kind === 'array' || paramDef.dataType.kind === 'struct'" class="_button"><i class="ti ti-chevron-down" style="vertical-align: middle;"></i></button>
 			<div :class="$style.paramLabel" @click="showMenu">
 				<GsCondensedLine>{{ label ?? paramDef.ui.label }}</GsCondensedLine>
 			</div>
@@ -16,11 +16,11 @@
 			</div>
 		</div>
 		<div :class="$style.paramBody">
-			<template v-if="paramDef.dataType === 'array'">
+			<template v-if="paramDef.dataType.kind === 'array'">
 				<span :class="$style.count">{{ arrayValues.length }}</span>
 				<GsButton small iconOnly title="Add element" @click="addElement"><i class="ti ti-plus"></i></GsButton>
 			</template>
-			<template v-else-if="paramDef.dataType !== 'struct'">
+			<template v-else-if="paramDef.dataType.kind !== 'struct'">
 				<GsNodePort v-if="canNode" :dataType="inputDataType" style="cursor: pointer;" @pointerdown.stop @click.stop="showNodeInputMenu" @update:element="portEl = $event"/>
 				<i v-if="hasNodeInputTypeMismatch(nodes, nodeConnection, inputDataType, paramDefs)" v-tooltip="'Data type mismatch'" class="ti ti-alert-triangle" :class="$style.typeWarning"></i>
 				<div :class="$style.control">
@@ -75,7 +75,8 @@
 					<GsLiteralParameterValueControl
 						v-else-if="paramValue.inputSource === 'literal'"
 						ref="controlComponent"
-						:def="paramDef"
+						:dataType="paramDef.dataType"
+						:control="paramDef.ui.control"
 						:title="label ?? paramDef.ui.label"
 						:value="paramValue.value"
 						@input="updateParamAsLiteral"
@@ -101,7 +102,7 @@
 			@closed="inlineGraphEditorOpen = false"
 		/>
 	</Teleport>
-	<div v-if="paramDef.dataType === 'array'" :key="arrayVersion" :class="$style.children">
+	<div v-if="paramDef.dataType.kind === 'array'" :key="arrayVersion" :class="$style.children">
 		<GsVisualParam
 			v-for="(value, index) in arrayValues"
 			:key="index"
@@ -110,7 +111,7 @@
 			:visualModuleId="visualModuleId"
 			:node="node"
 			:paramPath="[...paramPath, index]"
-			:paramDef="paramDef.item"
+			:paramDef="getArrayElementDefinition(paramDef)"
 			:paramValue="value"
 			:label="'[' + index + ']'"
 			@edit="emit('edit', $event)"
@@ -120,7 +121,7 @@
 			</template>
 		</GsVisualParam>
 	</div>
-	<div v-else-if="paramDef.dataType === 'struct' && structValues" :class="$style.children">
+	<div v-else-if="paramDef.dataType.kind === 'struct' && structValues" :class="$style.children">
 		<GsVisualParam
 			v-for="[key, def] in visibleFields"
 			:key="key"
@@ -158,6 +159,7 @@ export type ParamEdit = { paramPath: ParamPath; mergeKey?: string | null } & (
 </script>
 
 <script lang="ts" setup>
+import { getArrayElementDefinition, getStructFieldDefinitions } from '@glitch/shared/parameter.ts';
 import { visualModuleCustomParameterId } from '@glitch/shared/visual-module/types.ts';
 import { computed, onBeforeUnmount, ref, shallowRef, useTemplateRef, watch, watchEffect } from 'vue';
 import { genId } from '@glitch/shared/utility/id.ts';
@@ -200,11 +202,11 @@ const emit = defineEmits<{ edit: [event: ParamEdit] }>();
 
 const rowEl = useTemplateRef('rowEl');
 const portEl = shallowRef<HTMLElement | null>(null);
-const arrayValues = computed<ParameterBinding[]>(() => props.paramDef.dataType === 'array' && props.paramValue.inputSource === 'literal' ? props.paramValue.value : []);
-const structValues = computed<Record<string, ParameterBinding> | null>(() => props.paramDef.dataType === 'struct' && props.paramValue.inputSource === 'literal' ? props.paramValue.value : null);
+const arrayValues = computed<ParameterBinding[]>(() => props.paramDef.dataType.kind === 'array' && props.paramValue.inputSource === 'literal' ? props.paramValue.value : []);
+const structValues = computed<Record<string, ParameterBinding> | null>(() => props.paramDef.dataType.kind === 'struct' && props.paramValue.inputSource === 'literal' ? props.paramValue.value : null);
 const visibleFields = computed(() => {
-	if (props.paramDef.dataType !== 'struct') return [];
-	const fields: Record<string, ParameterDefinition> = props.paramDef.fields;
+	if (props.paramDef.dataType.kind !== 'struct') return [];
+	const fields: Record<string, ParameterDefinition> = getStructFieldDefinitions(props.paramDef);
 	return Object.entries(fields);
 });
 const canNode = computed(() => props.paramDef.canNode);
@@ -334,7 +336,7 @@ function getMenu() {
 	}];
 
 	// コンテナ自体は静的な構造を維持し、値の種類を変更できるのは末端だけにする。
-	if (props.paramDef.dataType !== 'array' && props.paramDef.dataType !== 'struct') {
+	if (props.paramDef.dataType.kind !== 'array' && props.paramDef.dataType.kind !== 'struct') {
 		menuItems.push({ type: 'label', text: 'Input source' });
 		const types: { text: string; inputSource: ParameterBinding['inputSource']; icon: string }[] = [
 			{ text: 'Literal', inputSource: 'literal', icon: 'ti ti-adjustments-horizontal' },
@@ -347,7 +349,7 @@ function getMenu() {
 		if (props.node != null) types.push({ text: 'Custom Parameter', inputSource: 'externalCustomParameterInput', icon: 'ti ti-wifi' });
 		if (canNode.value) types.push({ text: 'Node', inputSource: 'node', icon: 'ti ti-plug' });
 		for (const { text, inputSource, icon } of types) {
-			if (inputSource === 'keyframesTimelineInline' && props.paramDef.dataType !== 'scalar' && props.paramDef.dataType !== 'vector' && props.paramDef.dataType !== 'color') continue;
+			if (inputSource === 'keyframesTimelineInline' && props.paramDef.dataType.kind !== 'scalar' && props.paramDef.dataType.kind !== 'vector' && props.paramDef.dataType.kind !== 'color') continue;
 			menuItems.push({
 				text,
 				icon,

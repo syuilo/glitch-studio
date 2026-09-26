@@ -22,7 +22,7 @@ const bundled = await build({
 				contents: path === 'preferences'
 					? 'export const preferences = { s: { forceTypeSafety: false } };'
 					: `export const effectDefinitions = { test: { paramDefs: {
-						values: { dataType: 'array', item: { dataType: 'scalar', ui: { control: 'number' }, defaultValue: { inputSource: 'literal', value: 0 } } }
+						values: { dataType: { kind: 'array', elementType: { kind: 'scalar' } }, ui: { label: 'Values', control: { element: { controlType: 'number' } } }, element: { defaultValue: { inputSource: 'literal', value: 0 } }, defaultValue: { inputSource: 'literal', value: [] } }
 					} } };`,
 				loader: 'ts',
 			}));
@@ -64,9 +64,9 @@ test('preserves compositing graphs and settings through edits and serialization'
 	const input = createInlineAutomationGraph();
 	input.automationGraph.points[0].y = 0.25;
 	layer.automationGraphs.push({ id: 'graph', name: 'Layer graph', ...structuredClone(input.automationGraph) });
-	const inline = edit('translationX', { kind: 'automationGraphInline', value: input });
+	const inline = edit('opacity', { kind: 'automationGraphInline', value: input });
 	input.automationGraph.points[0].y = 99;
-	assert.equal(layer.compositingParamValues.translationX.automationGraph.points[0].y, 0.25);
+	assert.equal(layer.compositingParamValues.opacity.automationGraph.points[0].y, 0.25);
 	inline.undo(state);
 	assert.deepEqual(layer.compositingParamValues, defaultCompositing());
 	inline.execute(state);

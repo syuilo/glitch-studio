@@ -1,36 +1,37 @@
 import type { AudioHistory } from '../audio-history.ts';
-import type { ParameterDefinition_Scalar, ParameterDefinition_Boolean, ParameterDefinition_Color, ParameterDefinition_Vector, ParameterDefinition_BlendMode, ParameterDefinition_FitMode, ParameterDefinition_WrapMode, ParameterDefinition_Enum, ParameterDefinition_AssetReference, ParameterDefinition_VideoAssetReference, ParameterDefinition_PlayerReference, ParameterDefinition_Struct, ParameterDefinition_Array, ParameterDefinition } from '../parameter.ts';
+import type { ParameterDefinition } from '../parameter.ts';
+import type { DataType } from '../data-type.ts';
 import type { ShaderInput } from '../shader-input.ts';
 import type { Asset, FitMode, IntermediateTextureFormat, WrapMode } from '../types.ts';
 import type { EffectOutputDefinitions, EffectDefinition } from './effect-definition.ts';
 import type { EffectStatus } from './effect-status.ts';
 
-type RuntimeEffectOptionScalarValue<T extends ParameterDefinition> =
-	// canNodeは常に定数または接続情報を持つShaderInput。構造体・配列内でも同じ規約を使う。
-	T extends { canNode: true } ? ShaderInput :
-	T extends ParameterDefinition_Scalar ? number :
-	T extends ParameterDefinition_Boolean ? boolean :
-	T extends ParameterDefinition_Color ? Readonly<[number, number, number, number]> :
-	T extends ParameterDefinition_Vector ? Readonly<[number, number]> :
-	T extends ParameterDefinition_BlendMode ? string :
-	T extends ParameterDefinition_FitMode ? FitMode :
-	T extends ParameterDefinition_WrapMode ? WrapMode :
-	T extends ParameterDefinition_Enum ? T['options'][number]['value'] :
-	T extends ParameterDefinition_AssetReference ? GPUTexture | null :
-	T extends ParameterDefinition_VideoAssetReference ? Pick<Asset, 'id' | 'fileData'> | null :
-	T extends ParameterDefinition_PlayerReference ? { videoFrame: VideoFrame | null; audio: AudioHistory | null; } | null :
-	T extends ParameterDefinition_Struct ? {
-		[K in keyof T['fields']]: RuntimeEffectOptionValue<T['fields'][K]>;
-	} :
-	never;
-
-type RuntimeEffectOptionValue<T extends ParameterDefinition> = T extends unknown ?
-	T extends ParameterDefinition_Array ? RuntimeEffectOptionValue<T['item']>[] : RuntimeEffectOptionScalarValue<T> :
-	never;
+// データの構造とパラメータ固有の設定を並行してたどる。
+// 子の設定はdataTypeやUIを持たないが、canNodeの規約は最上位と同じ。
+type RuntimeEffectOptionValue<D extends DataType, S> =
+	S extends { canNode: true } ? ShaderInput :
+	D extends { kind: 'scalar' } ? number :
+	D extends { kind: 'bool' } ? boolean :
+	D extends { kind: 'color' } ? Readonly<[number, number, number, number]> :
+	D extends { kind: 'vector' } ? Readonly<[number, number]> :
+	D extends { kind: 'blendMode' } ? string :
+	D extends { kind: 'fitMode' } ? FitMode :
+	D extends { kind: 'wrapMode' } ? WrapMode :
+	D extends { kind: 'enum'; options: readonly string[] } ? D['options'][number] :
+	D extends { kind: 'assetReference' } ? GPUTexture | null :
+	D extends { kind: 'videoAssetReference' } ? Pick<Asset, 'id' | 'fileData'> | null :
+	D extends { kind: 'playerReference' } ? { videoFrame: VideoFrame | null; audio: AudioHistory | null; } | null :
+	D extends { kind: 'struct'; fields: infer F extends Record<string, DataType> }
+		? S extends { fields: infer Settings }
+			? { [K in keyof F]: RuntimeEffectOptionValue<F[K], K extends keyof Settings ? Settings[K] : never> }
+			: never :
+		D extends { kind: 'array'; elementType: infer E extends DataType }
+			? S extends { element: infer Settings } ? RuntimeEffectOptionValue<E, Settings>[] : never :
+			never;
 
 // パラメータ定義を元にresolveされた実行時に実際に渡される値
 type GetRuntimeEffectOptionsSchemaValues<T extends Record<string, ParameterDefinition>> = {
-	[K in keyof T]: RuntimeEffectOptionValue<T[K]>;
+	[K in keyof T]: RuntimeEffectOptionValue<T[K]['dataType'], T[K]>;
 };
 
 export type EffectInstance<Options extends Record<string, ParameterDefinition> = any, Outputs extends EffectOutputDefinitions = any> = {

@@ -6,9 +6,9 @@ export default defineEffect({
 	tags: [],
 	primaryInputParameter: null,
 	paramDefs: {
-		color: { dataType: 'color', ui: { label: 'Color', control: 'color' }, defaultValue: { inputSource: 'literal', value: [1, 1, 1, 1] } },
+		color: { dataType: { kind: 'color' }, ui: { label: 'Color', control: {} }, defaultValue: { inputSource: 'literal', value: [1, 1, 1, 1] } },
 	},
 	outputDefs: {
-		output: { primary: true, dataType: 'color' },
+		output: { primary: true, dataType: { kind: 'color' } },
 	},
 });

@@ -7,12 +7,8 @@ export default defineEffect({
 	primaryInputParameter: null,
 	paramDefs: {
 		colors: {
-			dataType: 'array',
-			ui: { label: 'Colors' },
-			item: {
-				dataType: 'color', ui: { label: 'Color', control: 'color' }, canNode: true,
-				defaultValue: { inputSource: 'literal', value: [1, 1, 1, 1] },
-			},
+			dataType: { kind: 'array', elementType: { kind: 'color' } },
+			ui: { label: 'Colors', control: { element: {} } },
 			defaultValue: {
 				inputSource: 'literal',
 				value: [
@@ -22,18 +18,19 @@ export default defineEffect({
 					{ inputSource: 'literal', value: [159 / 255, 80 / 255, 211 / 255, 1] },
 				],
 			},
+			element: { canNode: true, defaultValue: { inputSource: 'literal', value: [1, 1, 1, 1] } },
 		},
-		time: { dataType: 'scalar', ui: { label: 'Time', control: 'number', step: 0.01 }, defaultValue: { inputSource: 'literal', value: 0 } },
-		distortion: { dataType: 'scalar', ui: { label: 'Distortion', control: 'range', min: 0, max: 1, step: 0.01 }, defaultValue: { inputSource: 'literal', value: 0.8 } },
-		swirl: { dataType: 'scalar', ui: { label: 'Swirl', control: 'range', min: 0, max: 1, step: 0.01 }, defaultValue: { inputSource: 'literal', value: 0.1 } },
-		grainMixer: { dataType: 'scalar', ui: { label: 'Grain Mixer', control: 'range', min: 0, max: 1, step: 0.01 }, defaultValue: { inputSource: 'literal', value: 0 } },
-		grainOverlay: { dataType: 'scalar', ui: { label: 'Grain Overlay', control: 'range', min: 0, max: 1, step: 0.01 }, defaultValue: { inputSource: 'literal', value: 0 } },
-		fitMode: { dataType: 'fitMode', ui: { label: 'Fit Mode', control: 'fitMode' }, defaultValue: { inputSource: 'literal', value: 'contain' } },
-		scale: { dataType: 'scalar', ui: { label: 'Scale', control: 'range', min: 0.01, max: 4, step: 0.01 }, defaultValue: { inputSource: 'literal', value: 1 } },
-		angle: { dataType: 'scalar', ui: { label: 'Angle', control: 'angle' }, defaultValue: { inputSource: 'literal', value: 0 } },
-		offset: { dataType: 'vector', ui: { label: 'Offset', control: 'vector', min: -1, max: 1, step: 0.01 }, defaultValue: { inputSource: 'literal', value: [0, 0] } },
+		time: { dataType: { kind: 'scalar' }, ui: { label: 'Time', control: { controlType: 'number', step: 0.01 } }, defaultValue: { inputSource: 'literal', value: 0 } },
+		distortion: { dataType: { kind: 'scalar' }, ui: { label: 'Distortion', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } }, defaultValue: { inputSource: 'literal', value: 0.8 } },
+		swirl: { dataType: { kind: 'scalar' }, ui: { label: 'Swirl', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } }, defaultValue: { inputSource: 'literal', value: 0.1 } },
+		grainMixer: { dataType: { kind: 'scalar' }, ui: { label: 'Grain Mixer', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } }, defaultValue: { inputSource: 'literal', value: 0 } },
+		grainOverlay: { dataType: { kind: 'scalar' }, ui: { label: 'Grain Overlay', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } }, defaultValue: { inputSource: 'literal', value: 0 } },
+		fitMode: { dataType: { kind: 'fitMode' }, ui: { label: 'Fit Mode', control: {} }, defaultValue: { inputSource: 'literal', value: 'contain' } },
+		scale: { dataType: { kind: 'scalar' }, ui: { label: 'Scale', control: { controlType: 'range', min: 0.01, max: 4, step: 0.01 } }, defaultValue: { inputSource: 'literal', value: 1 } },
+		angle: { dataType: { kind: 'scalar' }, ui: { label: 'Angle', control: { controlType: 'angle' } }, defaultValue: { inputSource: 'literal', value: 0 } },
+		offset: { dataType: { kind: 'vector' }, ui: { label: 'Offset', control: { controlType: 'vector', min: -1, max: 1, step: 0.01 } }, defaultValue: { inputSource: 'literal', value: [0, 0] } },
 	},
 	outputDefs: {
-		output: { primary: true, dataType: 'color' },
+		output: { primary: true, dataType: { kind: 'color' } },
 	},
 });

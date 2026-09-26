@@ -1,3 +1,4 @@
+import { getArrayElementDefinition, getStructFieldDefinitions } from '@glitch/shared/parameter.ts';
 import { effectDefinitions } from '@glitch/shared/effect/effect-definitions.ts';
 import type { ParameterDefinition } from '@glitch/shared/parameter.ts';
 import type { ParameterBinding } from '@glitch/shared/types.ts';
@@ -27,19 +28,19 @@ export function resolveNodeParam(node: VisualModuleEffectNode, path: ParamPath) 
 	if (def == null || value == null) throw new Error(`Unknown parameter: ${paramPathKey(path)}`);
 
 	for (const segment of path.slice(1)) {
-		if (def.dataType === 'array') {
+		if (def.dataType.kind === 'array') {
 			if (value.inputSource !== 'literal' || !Array.isArray(value.value) || typeof segment !== 'number' || !Number.isInteger(segment) || segment < 0 || segment >= value.value.length) {
 				throw new Error(`Invalid array parameter path: ${paramPathKey(path)}`);
 			}
 			const array = value.value as ParameterBinding[];
-			def = def.item;
+			def = getArrayElementDefinition(def);
 			value = array[segment];
 			setValue = next => {
 				array[segment] = next;
 			};
-		} else if (def.dataType === 'struct' && value.inputSource === 'literal' && typeof segment === 'string') {
+		} else if (def.dataType.kind === 'struct' && value.inputSource === 'literal' && typeof segment === 'string') {
 			const fields = value.value as Record<string, ParameterBinding>;
-			def = def.fields[segment];
+			def = getStructFieldDefinitions(def)[segment];
 			value = fields[segment];
 			setValue = next => { fields[segment] = next; };
 			if (def == null || value == null) throw new Error(`Unknown struct field: ${paramPathKey(path)}`);
@@ -53,11 +54,11 @@ export function resolveNodeParam(node: VisualModuleEffectNode, path: ParamPath) 
 // ワイヤー表示と参照の更新でも、定義に沿って子をたどる（color等のliteral配列とは区別する）。
 export function* walkNodeParams(node: VisualModuleEffectNode): Generator<{ path: ParamPath; def: ParameterDefinition; value: ParameterBinding }> {
 	function* walk(def: ParameterDefinition, value: ParameterBinding, path: ParamPath): ReturnType<typeof walkNodeParams> {
-		if (def.dataType === 'array' && value.inputSource === 'literal') {
+		if (def.dataType.kind === 'array' && value.inputSource === 'literal') {
 			const elements = value.value as ParameterBinding[];
-			for (const [index, element] of elements.entries()) yield* walk(def.item, element, [...path, index]);
-		} else if (def.dataType === 'struct' && value.inputSource === 'literal') {
-			for (const [key, field] of Object.entries(def.fields)) yield* walk(field, value.value[key], [...path, key]);
+			for (const [index, element] of elements.entries()) yield* walk(getArrayElementDefinition(def), element, [...path, index]);
+		} else if (def.dataType.kind === 'struct' && value.inputSource === 'literal') {
+			for (const [key, field] of Object.entries(getStructFieldDefinitions(def))) yield* walk(field, value.value[key], [...path, key]);
 		} else {
 			yield { path, def, value };
 		}

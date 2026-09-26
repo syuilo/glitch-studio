@@ -6,7 +6,7 @@ import type definition from './_def_.ts';
 export default implementEffect<typeof definition>({
 	// Originalは符号化領域ではなく、表示するフレームの解像度を使う。
 	// フレーム未取得時はImageと同様に1x1とし、取得後や解像度変更時に追従する。
-	getOutputResolution: params => params.sizeMode === 3 ? {
+	getOutputResolution: params => params.sizeMode === 'original' ? {
 		width: params.player?.videoFrame?.displayWidth ?? 1,
 		height: params.player?.videoFrame?.displayHeight ?? 1,
 	} : undefined,
@@ -85,7 +85,8 @@ export default implementEffect<typeof definition>({
 
 				uniformValues.set({
 					aspectRatio: ctx.outputDataMap.output.texture.width / ctx.outputDataMap.output.texture.height,
-					mode: ctx.params.sizeMode,
+					// 保存する選択肢名をシェーダーのモード番号へ変換する。
+					mode: { stretch: 0, cover: 1, contain: 2, original: 3 }[ctx.params.sizeMode],
 				});
 				wgpu.device.queue.writeBuffer(uniformBuffer, 0, uniformValues.arrayBuffer);
 

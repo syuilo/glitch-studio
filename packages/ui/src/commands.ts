@@ -1,3 +1,4 @@
+import { getArrayElementDefinition } from '@glitch/shared/parameter.ts';
 import { visualModuleCustomParameterId } from '@glitch/shared/visual-module/types.ts';
 import { effectDefinitions } from '@glitch/shared/effect/effect-definitions.ts';
 import { AiSON } from '@syuilo/aiscript';
@@ -102,7 +103,7 @@ const editVisualModuleLayerParamCommandDef = defineCommand<{
 								case 'automationGraphReference': after = { inputSource: 'automationGraphReference', automationGraphId: null, durationMs: 1000, wrapMode: 'repeat', offsetMode: 'start' }; break;
 								case 'automationGraphInline': after = createInlineAutomationGraph(); break;
 								case 'keyframesTimelineInline':
-									if (def.dataType !== 'scalar' && def.dataType !== 'vector' && def.dataType !== 'color') throw new Error('Parameter does not support keyframes');
+									if (def.dataType.kind !== 'scalar' && def.dataType.kind !== 'vector' && def.dataType.kind !== 'color') throw new Error('Parameter does not support keyframes');
 									after = createInlineKeyframesTimeline(def.dataType);
 									break;
 								case 'node':
@@ -157,7 +158,7 @@ const addEffectNodeCommandDef = defineCommand<{ visualModuleId: string; id: stri
 					// ランダムな初期値や自動接続もRedo時に変えない。
 					addedNode = { id: payload.id, type: 'effect', effectId: payload.effectId, isBypass: false,
 																			params: { ...params, ...deepClone(payload.params ?? {}) }, pos: { x: 0, y: 0 } };
-					const outputPort = Object.entries(getNodeOutputs(addedNode, visualModule.paramDefs)).find(([, output]) => output.primary && canConnectNodeDataTypes(output.dataType, 'color'))?.[0];
+					const outputPort = Object.entries(getNodeOutputs(addedNode, visualModule.paramDefs)).find(([, output]) => output.primary && canConnectNodeDataTypes(output.dataType, { kind: 'color' }))?.[0];
 					if (globalOut != null && primaryOutput != null && outputPort != null) {
 						outputConnection = {
 							nodeId: globalOut.id,
@@ -304,7 +305,7 @@ const removeAssetCommandDef = defineCommand<{ assetId: string }>({
 					for (const node of visualModule.nodes) {
 						if (node.type !== 'effect') continue;
 						for (const { path, def, value } of walkNodeParams(node)) {
-							if ((def.dataType === 'assetReference' || def.dataType === 'videoAssetReference') && value.inputSource === 'literal' && value.value === payload.assetId) {
+							if ((def.dataType.kind === 'assetReference' || def.dataType.kind === 'videoAssetReference') && value.inputSource === 'literal' && value.value === payload.assetId) {
 								resolveNodeParam(node, path).setValue({ inputSource: 'literal', value: null });
 							}
 						}
@@ -421,7 +422,7 @@ function defineNodeParamCommand<Payload extends NodeParamTarget>(
 }
 
 function assertLeafParam(target: ReturnType<typeof resolveNodeParam>) {
-	if (target.def.dataType === 'array' || target.def.dataType === 'struct') {
+	if (target.def.dataType.kind === 'array' || target.def.dataType.kind === 'struct') {
 		throw new Error('Struct and array containers cannot change value type');
 	}
 }
@@ -443,7 +444,7 @@ const changeParamValueInputSourceCommandDef = defineNodeParamCommand<NodeParamTa
 			case 'automationGraphReference': return { inputSource: 'automationGraphReference', automationGraphId: null, durationMs: 1000, wrapMode: 'repeat', offsetMode: 'start' };
 			case 'automationGraphInline': return createInlineAutomationGraph();
 			case 'keyframesTimelineInline':
-				if (target.def.dataType !== 'scalar' && target.def.dataType !== 'vector' && target.def.dataType !== 'color') throw new Error('Parameter does not support keyframes');
+				if (target.def.dataType.kind !== 'scalar' && target.def.dataType.kind !== 'vector' && target.def.dataType.kind !== 'color') throw new Error('Parameter does not support keyframes');
 				return createInlineKeyframesTimeline(target.def.dataType);
 			case 'externalCustomParameterInput': return { inputSource: 'externalCustomParameterInput', parameterId: visualModuleCustomParameterId('') };
 			case 'node': {
@@ -534,8 +535,8 @@ const updateParamAsNodeCommandDef = defineNodeParamCommand<NodeParamTarget & { v
 const addArrayParamElementCommandDef = defineNodeParamCommand<NodeParamTarget>(
 	'Add array parameter element',
 	({ def, value }) => {
-		if (def.dataType !== 'array' || value.inputSource !== 'literal' || !Array.isArray(value.value)) throw new Error('Expected array parameter');
-		const element = deepClone(def.item.defaultValue);
+		if (def.dataType.kind !== 'array' || value.inputSource !== 'literal' || !Array.isArray(value.value)) throw new Error('Expected array parameter');
+		const element = deepClone(getArrayElementDefinition(def).defaultValue);
 		return { inputSource: 'literal', value: [...value.value, element] };
 	},
 );
@@ -543,7 +544,7 @@ const addArrayParamElementCommandDef = defineNodeParamCommand<NodeParamTarget>(
 const removeArrayParamElementCommandDef = defineNodeParamCommand<NodeParamTarget & { index: number }>(
 	'Remove array parameter element',
 	({ def, value }, { index }) => {
-		if (def.dataType !== 'array' || value.inputSource !== 'literal' || !Array.isArray(value.value)) throw new Error('Expected array parameter');
+		if (def.dataType.kind !== 'array' || value.inputSource !== 'literal' || !Array.isArray(value.value)) throw new Error('Expected array parameter');
 		if (!Number.isInteger(index) || index < 0 || index >= value.value.length) throw new Error('Invalid array index');
 		return { inputSource: 'literal', value: value.value.filter((_, i) => i !== index) };
 	},
@@ -612,7 +613,7 @@ function validateVisualModuleParamDef(module: VisualModule, def: VisualModulePar
 	if (module.paramDefs.some(item => item.id !== previousId && (item.id === def.id || item.nameForReference === def.nameForReference))) {
 		throw new Error('Parameter ID and name must be unique');
 	}
-	if (def.isPrimaryInput && (!def.canNode || def.dataType !== 'color'
+	if (def.isPrimaryInput && (!def.canNode || def.dataType.kind !== 'color'
 		|| module.paramDefs.some(item => item.id !== previousId && item.isPrimaryInput))) {
 		throw new Error('Only one node-capable color parameter can be the primary input');
 	}
@@ -686,7 +687,7 @@ function validateVisualModuleOutputDef(module: VisualModule, def: VisualModuleOu
 	if (module.outputDefs.some(item => item.id !== previousId && (item.id === def.id || item.name === def.name))) {
 		throw new Error('Output ID and name must be unique');
 	}
-	if (def.isPrimaryOutput && (def.dataType !== 'color'
+	if (def.isPrimaryOutput && (def.dataType.kind !== 'color'
 		|| module.outputDefs.some(item => item.id !== previousId && item.isPrimaryOutput))) {
 		throw new Error('Only one color output can be the primary output');
 	}

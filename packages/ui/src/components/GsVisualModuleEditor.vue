@@ -68,7 +68,7 @@
 					v-for="paramDef of visualModule.paramDefs"
 					:key="paramDef.id"
 				>
-					<div v-if="paramDef.dataType === 'struct' || paramDef.dataType === 'array' || paramDef.dataType === 'any'">{{ paramDef.ui.label }}: Editing is not yet supported.</div>
+					<div v-if="paramDef.dataType.kind === 'struct' || paramDef.dataType.kind === 'array' || isParameterType(paramDef, 'any')">{{ paramDef.ui.label }}: Editing is not yet supported.</div>
 					<GsVisualParam
 						v-else
 						:availableVariables="layerEnvVarDefs"
@@ -90,6 +90,8 @@
 </template>
 
 <script lang="ts" setup>
+import { areDataTypesEqual } from '@glitch/shared/data-type.ts';
+import { isParameterType } from '@glitch/shared/parameter.ts';
 import { layerEnvVarDefs } from '@glitch/shared/expression.ts';
 import { computed, ref, watch } from 'vue';
 import { AiSON } from '@syuilo/aiscript';
@@ -128,7 +130,7 @@ watch(visualModule, module => {
 	const values: VisualModuleParameterBindings = {};
 	for (const def of module?.paramDefs ?? []) {
 		// ノードの編集などでプレビューの入力値を初期化しない。
-		values[def.id] = module?.id === previewModuleId && previewParamTypes.get(def.id) === def.dataType && previewParamValues.value[def.id] != null
+		values[def.id] = module?.id === previewModuleId && (previewParamTypes.has(def.id) && areDataTypesEqual(previewParamTypes.get(def.id)!, def.dataType)) && previewParamValues.value[def.id] != null
 			? previewParamValues.value[def.id]
 			: deepClone(def.defaultValue);
 	}
@@ -164,7 +166,7 @@ function onPreviewParamEdit(event: ParamEdit) {
 				case 'automationGraphReference': previewParamValues.value[id] = { inputSource: 'automationGraphReference', automationGraphId: null, durationMs: 1000, wrapMode: 'repeat', offsetMode: 'start' }; break;
 				case 'automationGraphInline': previewParamValues.value[id] = createInlineAutomationGraph(); break;
 				case 'keyframesTimelineInline':
-					if (def.dataType !== 'scalar' && def.dataType !== 'vector' && def.dataType !== 'color') return;
+					if (def.dataType.kind !== 'scalar' && def.dataType.kind !== 'vector' && def.dataType.kind !== 'color') return;
 					previewParamValues.value[id] = createInlineKeyframesTimeline(def.dataType);
 					break;
 				case 'externalCustomParameterInput':

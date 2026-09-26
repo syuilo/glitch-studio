@@ -1,3 +1,4 @@
+import type { DataType } from './data-type.ts';
 
 import type { GlobalEnvVariable } from './expression.ts';
 import type { NodeOutputReference, VisualModuleCustomParameterId } from './visual-module/types.ts';
@@ -82,7 +83,7 @@ export type KeyframesTimelineKeyframe = {
 export type KeyframesTimeline = {
 	id: string;
 	name: string;
-	dataType: 'scalar' | 'vector' | 'color';
+	dataType: Extract<DataType, { kind: 'scalar' | 'vector' | 'color' }>;
 	keyframes: KeyframesTimelineKeyframe[];
 	isNormalized: boolean; // X軸が0~1に正規化されているかどうか。falseの場合はX軸単位がmsであるとみなす
 };

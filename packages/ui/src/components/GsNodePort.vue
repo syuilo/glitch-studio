@@ -1,5 +1,5 @@
 <template>
-<div ref="rootEl" :class="[$style.root, { [$style.output]: output }]" :data-type="dataType ?? 'any'" :data-wire-anchor="anchorName" :style="{ color: getNodeDataTypeColor(dataType), anchorName }"><i class="ti ti-circle-dot"></i></div>
+<div ref="rootEl" :class="[$style.root, { [$style.output]: output }]" :data-type="dataType?.kind ?? 'any'" :data-wire-anchor="anchorName" :style="{ color: getNodeDataTypeColor(dataType), anchorName }"><i class="ti ti-circle-dot"></i></div>
 </template>
 
 <script lang="ts" setup>
