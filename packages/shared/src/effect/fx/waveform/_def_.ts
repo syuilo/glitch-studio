@@ -6,26 +6,22 @@ export default defineEffect({
 	tags: [],
 	primaryInputParameter: 'input',
 	paramDefs: {
-		input: { dataType: 'color', ui: { label: 'Input', control: 'color' }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },
-		resolution: { dataType: 'enum', ui: { label: 'Resolution', control: 'enum' }, options: [
-			{ label: '1/1', value: 1 },
-			{ label: '1/2', value: 2 },
-			{ label: '1/4', value: 4 },
-			{ label: '1/8', value: 8 },
-			{ label: '1/16', value: 16 },
-		], defaultValue: { inputSource: 'literal', value: 1 } },
-		direction: { dataType: 'enum', ui: { label: 'Direction', control: 'enum' }, options: [
-			{ label: 'Horizontal', value: 'horizontal' },
-			{ label: 'Vertical', value: 'vertical' },
-		], defaultValue: { inputSource: 'literal', value: 'horizontal' } },
-		mode: { dataType: 'enum', ui: { label: 'Mode', control: 'enum' }, options: [
-			{ label: 'RGB', value: 'rgb' },
-			{ label: 'Luminance', value: 'luminance' },
-		], defaultValue: { inputSource: 'literal', value: 'rgb' } },
-		intensity: { dataType: 'scalar', ui: { label: 'Intensity', control: 'range', min: 0, max: 10, step: 0.01 }, defaultValue: { inputSource: 'literal', value: 1 } },
-		showGrid: { dataType: 'bool', ui: { label: 'Grid', control: 'bool' }, defaultValue: { inputSource: 'literal', value: false } },
+		input: { dataType: { kind: 'color' }, ui: { label: 'Input', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },
+		resolution: {
+			dataType: { kind: 'enum', options: ['1', '2', '4', '8', '16'] },
+			ui: { label: 'Resolution', control: { labels: { '1': '1/1', '2': '1/2', '4': '1/4', '8': '1/8', '16': '1/16' } } },
+			defaultValue: { inputSource: 'literal', value: '1' },
+		},
+		direction: {
+			dataType: { kind: 'enum', options: ['horizontal', 'vertical'] },
+			ui: { label: 'Direction', control: { labels: { 'horizontal': 'Horizontal', 'vertical': 'Vertical' } } },
+			defaultValue: { inputSource: 'literal', value: 'horizontal' },
+		},
+		mode: { dataType: { kind: 'enum', options: ['rgb', 'luminance'] }, ui: { label: 'Mode', control: { labels: { 'rgb': 'RGB', 'luminance': 'Luminance' } } }, defaultValue: { inputSource: 'literal', value: 'rgb' } },
+		intensity: { dataType: { kind: 'scalar' }, ui: { label: 'Intensity', control: { controlType: 'range', min: 0, max: 10, step: 0.01 } }, defaultValue: { inputSource: 'literal', value: 1 } },
+		showGrid: { dataType: { kind: 'bool' }, ui: { label: 'Grid', control: {} }, defaultValue: { inputSource: 'literal', value: false } },
 	},
 	outputDefs: {
-		output: { primary: true, dataType: 'color' },
+		output: { primary: true, dataType: { kind: 'color' } },
 	},
 });

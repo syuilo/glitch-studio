@@ -1,6 +1,6 @@
-import type definition from './_def_.ts';
 import { createWaveform } from '@glitch/shared/utility/waveform/waveform.ts';
 import { implementEffect } from '../../effect-implementation.ts';
+import type definition from './_def_.ts';
 
 export default implementEffect<typeof definition>({
 	outputTextureFactories: {
@@ -14,7 +14,7 @@ export default implementEffect<typeof definition>({
 		const waveform = createWaveform({ device, vertexShaderModule: defaultVertexShaderModule, format: intermediateTextureFormat });
 		return {
 			render: ctx => {
-				const divisor = ctx.params.resolution;
+				const divisor = Number(ctx.params.resolution);
 				if (waveform.prepare(ctx.params.input, {
 					// 間引き解像度やグラフの方向ではなく、最終出力の比率でfitする。
 					fitSize: ctx.outputDataMap.output.texture,

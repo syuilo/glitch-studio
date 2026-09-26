@@ -6,29 +6,14 @@ export default defineEffect({
 	tags: [],
 	primaryInputParameter: null,
 	paramDefs: {
-		player: {
-			dataType: 'playerReference', ui: { label: 'Player', control: 'player' },
-			defaultValue: { inputSource: 'literal', value: null },
-		},
+		player: { dataType: { kind: 'playerReference' }, ui: { label: 'Player', control: {} }, defaultValue: { inputSource: 'literal', value: null } },
 		sizeMode: {
-			dataType: 'enum', ui: { label: 'Size mode', control: 'enum' },
-			options: [{
-				label: 'Stretch',
-				value: 0,
-			}, {
-				label: 'Cover',
-				value: 1,
-			}, {
-				label: 'Contain',
-				value: 2,
-			}, {
-				label: 'Original',
-				value: 3,
-			}],
-			defaultValue: { inputSource: 'literal', value: 1 as const },
+			dataType: { kind: 'enum', options: ['stretch', 'cover', 'contain', 'original'] },
+			ui: { label: 'Size mode', control: { labels: { 'stretch': 'Stretch', 'cover': 'Cover', 'contain': 'Contain', 'original': 'Original' } } },
+			defaultValue: { inputSource: 'literal', value: 'cover' },
 		},
 	},
 	outputDefs: {
-		output: { primary: true, dataType: 'color' },
+		output: { primary: true, dataType: { kind: 'color' } },
 	},
 });

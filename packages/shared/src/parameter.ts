@@ -63,6 +63,25 @@ export type ParameterDefinition<T extends DataType = DataType> = T extends DataT
 	} & ParameterSettings<T>
 	: never;
 
+// ジェネリックな定義関数では余剰プロパティ検査が働かないため、
+// 実際に推論したキーを具体的なスキーマと照合する。配列・unionも再帰的に扱う。
+// Expected側を分配し、Bindingの各inputSourceやscalarの各controlTypeを混ぜない。
+type ExactParameterShape<Actual, Expected> = Expected extends unknown
+	? Actual extends Expected
+		? Actual extends readonly unknown[]
+			? Expected extends readonly (infer E)[]
+				? { [K in keyof Actual]: ExactParameterShape<Actual[K], E> }
+				: never
+			: Actual extends object
+				? { [K in keyof Actual]: K extends keyof Expected ? ExactParameterShape<Actual[K], Expected[K]> : never }
+				: Actual
+		: never
+	: never;
+
+// dataTypeからフィールド名を確定し、UIや初期値から型が広がるのを防ぐ。
+export type CheckedParameterDefinition<P extends ParameterDefinition> =
+	ExactParameterShape<P, ParameterDefinition<P['dataType']>>;
+
 export type ParameterDefinition_Scalar = ParameterDefinition<{ kind: 'scalar' }>;
 export type ParameterDefinition_Boolean = ParameterDefinition<{ kind: 'bool' }>;
 export type ParameterDefinition_Color = ParameterDefinition<{ kind: 'color' }>;

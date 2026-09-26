@@ -6,31 +6,14 @@ export default defineEffect({
 	tags: ['video'],
 	primaryInputParameter: null,
 	paramDefs: {
-		asset: {
-			dataType: 'videoAssetReference',
-			ui: { label: 'Asset', control: 'videoAsset' },
-			defaultValue: { inputSource: 'literal', value: null },
-		},
-		time: {
-			dataType: 'scalar',
-			ui: { label: 'Time', control: 'number', step: 0.01 },
-			defaultValue: { inputSource: 'literal', value: 0 },
-		},
-		fit: {
-			dataType: 'fitMode',
-			ui: { label: 'Fit', control: 'fitMode' },
-			defaultValue: { inputSource: 'literal', value: 'contain' },
-		},
+		asset: { dataType: { kind: 'videoAssetReference' }, ui: { label: 'Asset', control: {} }, defaultValue: { inputSource: 'literal', value: null } },
+		time: { dataType: { kind: 'scalar' }, ui: { label: 'Time', control: { controlType: 'number', step: 0.01 } }, defaultValue: { inputSource: 'literal', value: 0 } },
+		fit: { dataType: { kind: 'fitMode' }, ui: { label: 'Fit', control: {} }, defaultValue: { inputSource: 'literal', value: 'contain' } },
 		outOfRange: {
-			dataType: 'enum',
-			ui: { label: 'Out of range', control: 'enum' },
-			options: [
-				{ label: 'Clamp', value: 'clamp' },
-				{ label: 'Loop', value: 'loop' },
-				{ label: 'Transparent', value: 'transparent' },
-			],
+			dataType: { kind: 'enum', options: ['clamp', 'loop', 'transparent'] },
+			ui: { label: 'Out of range', control: { labels: { 'clamp': 'Clamp', 'loop': 'Loop', 'transparent': 'Transparent' } } },
 			defaultValue: { inputSource: 'literal', value: 'clamp' },
 		},
 	},
-	outputDefs: { output: { primary: true, dataType: 'color' } },
+	outputDefs: { output: { primary: true, dataType: { kind: 'color' } } },
 });

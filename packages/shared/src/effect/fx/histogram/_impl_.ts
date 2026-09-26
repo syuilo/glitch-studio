@@ -1,7 +1,7 @@
 import { implementEffect } from '../../effect-implementation.ts';
 import { createShaderInputBindings, generateShaderInputs } from '../../../shader-input.ts';
-import type { ShaderInput } from '../../../shader-input.ts';
 import code from './shader.wgsl?raw';
+import type { ShaderInput } from '../../../shader-input.ts';
 import type definition from './_def_.ts';
 
 export default implementEffect<typeof definition>({
@@ -77,7 +77,7 @@ export default implementEffect<typeof definition>({
 		const accumulateGroup = device.createBindGroup({ layout: accumulateLayout, entries: [uniformEntry, histogramEntry] });
 		return {
 			render: ctx => {
-				const divisor = ctx.params.resolution ?? 1;
+				const divisor = Number(ctx.params.resolution);
 				const width = Math.max(1, Math.ceil(resolution.width / divisor));
 				const height = Math.max(1, Math.ceil(resolution.height / divisor));
 				const sampleCount = width * height;
