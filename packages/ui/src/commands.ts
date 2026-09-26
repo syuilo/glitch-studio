@@ -491,6 +491,14 @@ const updateParamAsAutomationGraphInlineCommandDef = defineNodeParamCommand<Node
 	},
 );
 
+const updateParamAsKeyframesTimelineInlineCommandDef = defineNodeParamCommand<NodeParamTarget & { value: Extract<ParameterBinding, { inputSource: 'keyframesTimelineInline' }> }>(
+	'Update inline keyframes timeline',
+	(target, payload) => {
+		assertLeafParam(target);
+		return payload.value;
+	},
+);
+
 const updateParamAsExternalCustomParameterInputCommandDef = defineNodeParamCommand<NodeParamTarget & { value: VisualModuleCustomParameterId }>(
 	'Update param as externalCustomParameterInput',
 	(target, payload) => {
@@ -760,6 +768,7 @@ export const COMMAND_DEFS = {
 	updateParamAsExpression: updateParamAsExpressionCommandDef,
 	updateParamAsAutomationGraphReference: updateParamAsAutomationGraphReferenceCommandDef,
 	updateParamAsAutomationGraphInline: updateParamAsAutomationGraphInlineCommandDef,
+	updateParamAsKeyframesTimelineInline: updateParamAsKeyframesTimelineInlineCommandDef,
 	updateParamAsNode: updateParamAsNodeCommandDef,
 	updateParamAsExternalCustomParameterInput: updateParamAsExternalCustomParameterInputCommandDef,
 	changeNodeBypassState: changeNodeBypassStateCommandDef,
