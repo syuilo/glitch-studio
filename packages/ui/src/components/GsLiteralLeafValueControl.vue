@@ -146,7 +146,12 @@
 	<div v-else-if="vectorControl?.controlType === 'vector'" style="max-width: 150px;">
 		<GsXy :modelValue="value" :logarithmic="vectorControl.logarithmic" :step="vectorControl.step ?? 0.1" :min="vectorControl.min" :max="vectorControl.max ?? 1" @beginChanging="onBeginChanging" @update:modelValue="v => changeContinuous(v)" @changeFinished="onFinishChanging"/>
 	</div>
-	<div v-else-if="dataType.kind === 'color'">
+	<div v-else-if="dataType.kind === 'color'" :class="$style.colorControl">
+		<GsSignal
+			v-if="colorControl?.controlType === 'signal'"
+			:signal="[value[0] > 0, value[1] > 0, value[2] > 0]"
+			@input="changeSignal"
+		/>
 		<GsColorInput
 			:modelValue="normalizeColor(value)"
 			:title="title"
@@ -196,6 +201,7 @@
 import { computed, ref } from 'vue';
 import GsXy from './common/GsXy.vue';
 import GsColorInput from './common/GsColorInput.vue';
+import GsSignal from './common/GsSignal.vue';
 import GsInput from './common/GsInput.vue';
 import GsTextarea from './common/GsTextarea.vue';
 import GsRange from './common/GsRange.vue';
@@ -231,6 +237,9 @@ const scalarControl = computed(() => props.dataType.kind === 'scalar'
 const vectorControl = computed(() => props.dataType.kind === 'vector'
 	? props.control as DataTypeUiControlDefinitionMap['vector']
 	: null);
+const colorControl = computed(() => props.dataType.kind === 'color'
+	? props.control as DataTypeUiControlDefinitionMap['color']
+	: null);
 const enumItems = computed(() => {
 	if (props.dataType.kind !== 'enum') return [];
 	const control = props.control as DataTypeUiControlDefinitionMap['enum'];
@@ -241,6 +250,14 @@ const directEditMode = ref(false);
 
 function changeValue(value: any) {
 	emit('input', value);
+}
+
+function changeSignal(signal: [boolean, boolean, boolean]) {
+	// カラーピッカーで調整した他のチャンネルとアルファは保持する。
+	const channels = signal.map((enabled, index) => enabled === (props.value[index] > 0)
+		? props.value[index]
+		: Number(enabled));
+	changeValue([...channels, props.value[3] ?? 1]);
 }
 
 function onBeginChanging() {
@@ -280,6 +297,11 @@ defineExpose({
 
 <style module lang="scss">
 .root {
+}
+
+.colorControl {
+	display: flex;
+	gap: 16px;
 }
 
 .seed {

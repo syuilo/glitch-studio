@@ -1,8 +1,8 @@
 <template>
 <div :class="$style.root">
-	<GsButton inline small :primary="r" @click="change('r')"><span style="background-image: linear-gradient(90deg, #f00, #f00, #f00); background-repeat: no-repeat; background-position: 0 100%; background-size: 100% 2px;">R</span></GsButton>
-	<GsButton inline small :primary="g" @click="change('g')"><span style="background-image: linear-gradient(90deg, #0f0, #0f0, #0f0); background-repeat: no-repeat; background-position: 0 100%; background-size: 100% 2px;">G</span></GsButton>
-	<GsButton inline small :primary="b" @click="change('b')"><span style="background-image: linear-gradient(90deg, #00f, #00f, #00f); background-repeat: no-repeat; background-position: 0 100%; background-size: 100% 2px;">B</span></GsButton>
+	<GsButton style="min-width: 50px;" inline small :primary="r" @click="change('r')"><span style="background-image: linear-gradient(90deg, #f00, #f00, #f00); background-repeat: no-repeat; background-position: 0 100%; background-size: 100% 2px;">R</span></GsButton>
+	<GsButton style="min-width: 50px;" inline small :primary="g" @click="change('g')"><span style="background-image: linear-gradient(90deg, #0f0, #0f0, #0f0); background-repeat: no-repeat; background-position: 0 100%; background-size: 100% 2px;">G</span></GsButton>
+	<GsButton style="min-width: 50px;" inline small :primary="b" @click="change('b')"><span style="background-image: linear-gradient(90deg, #00f, #00f, #00f); background-repeat: no-repeat; background-position: 0 100%; background-size: 100% 2px;">B</span></GsButton>
 </div>
 </template>
 
