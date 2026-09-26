@@ -363,10 +363,15 @@ function showMenu(ev: PointerEvent) {
 }
 
 function showNodeInputMenu(ev: PointerEvent) {
+	const abortController = new AbortController();
+
 	const menuItems: MenuItem[] = [{
 		text: 'Disconnect',
 		danger: true,
-		action: () => connectNode(null),
+		action: () => {
+			abortController.abort();
+			connectNode(null);
+		},
 	}, {
 		type: 'divider',
 	}, {
@@ -379,7 +384,9 @@ function showNodeInputMenu(ev: PointerEvent) {
 		menuItems.push(...nodeInputSamplingMenuItems);
 	}
 
-	ui.popupMenu(menuItems, ev.currentTarget ?? ev.target);
+	ui.popupMenu(menuItems, ev.currentTarget ?? ev.target, {
+		abortSignal: abortController.signal,
+	});
 }
 
 function onRowContextmenu(ev: PointerEvent) {

@@ -126,6 +126,7 @@ export function popupMenu(items: (MenuItem | null)[], anchorElement?: HTMLElemen
 	onClosed?: () => void;
 	debugDisablePredictionCone?: boolean;
 	debugShowPredictionCone?: boolean;
+	abortSignal?: AbortSignal;
 }): Promise<void> {
 	if (!(anchorElement instanceof HTMLElement)) {
 		anchorElement = null;
@@ -133,6 +134,10 @@ export function popupMenu(items: (MenuItem | null)[], anchorElement?: HTMLElemen
 
 	let returnFocusTo = getHTMLElementOrNull(anchorElement) ?? getHTMLElementOrNull(window.document.activeElement);
 	return new Promise(resolve => nextTick(() => {
+		if (options?.abortSignal?.aborted) {
+			resolve();
+			return;
+		}
 		const { dispose } = popup(GsPopupMenu, {
 			items: items.filter(x => x != null),
 			anchorElement,
@@ -152,6 +157,11 @@ export function popupMenu(items: (MenuItem | null)[], anchorElement?: HTMLElemen
 				options?.onClosing?.();
 			},
 		});
+		if (options?.abortSignal) {
+			options.abortSignal.addEventListener('abort', () => {
+				// TODO
+			}, { once: true });
+		}
 	}));
 }
 
