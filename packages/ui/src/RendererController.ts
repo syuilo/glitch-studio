@@ -230,6 +230,15 @@ export class RendererController {
 					resolveReady();
 					break;
 				}
+				case 'return': {
+					const { id, value } = event.data;
+					const hook = this.returnHooks.get(id);
+					if (hook != null) {
+						hook(value);
+						this.returnHooks.delete(id);
+					}
+					break;
+				}
 				case 'videoFrameReceived': {
 					const { playerId, id } = event.data;
 					if (this.inFlightVideoFrames.get(playerId) !== id) break;
