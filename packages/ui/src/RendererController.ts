@@ -122,6 +122,30 @@ export class RendererController {
 		}
 	}
 
+	private returnHooks = new Map<number, (value: any) => void>();
+	private callCounter = 0;
+
+	private callAndWaitReturn<FN extends keyof RendererMethods>(fn: FN, args: Parameters<RendererMethods[FN]>): ReturnType<RendererMethods[FN]> extends Promise<any> ? ReturnType<RendererMethods[FN]> : Promise<ReturnType<RendererMethods[FN]>> {
+		if (!this.isReady.value) {
+			throw new Error('Renderer is not initialized');
+		}
+		if (this.rendererWorker != null) {
+			return new Promise((resolve) => {
+				const id = this.callCounter++;
+				this.returnHooks.set(id, (value) => {
+					resolve(value);
+				});
+				this.rendererWorker!.postMessage({ type: 'call', fn, args, needReturnValue: true, id });
+			});
+		//} else if (this.renderer != null) {
+		//	return new Promise((resolve) => {
+		//		resolve(this.renderer![fn](...args));
+		//	});
+		} else {
+			throw new Error('Renderer is not initialized');
+		}
+	}
+
 	private sendPendingVideoFrame(playerId: string) {
 		if (!this.isReady.value || !this.rendererWorker || this.inFlightVideoFrames.has(playerId)) return;
 		const frame = this.pendingVideoFrames.get(playerId);
