@@ -79,7 +79,7 @@ export type KeyframesTimelineKeyframe = {
 export type KeyframesTimeline = {
 	id: string;
 	name: string;
-	dataType: 'vector' | 'color';
+	dataType: 'scalar' | 'vector' | 'color';
 	keyframes: KeyframesTimelineKeyframe[];
 	isNormalized: boolean; // X軸が0~1に正規化されているかどうか。falseの場合はX軸単位がmsであるとみなす
 };

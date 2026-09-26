@@ -111,6 +111,7 @@ import { showAddNodeMenu } from '@/app.ts';
 import { appContext, engine } from '@/app.ts';
 import * as ui from '@/ui.ts';
 import { createInlineAutomationGraph } from '@/utility/automation-graph.ts';
+import { createInlineKeyframesTimeline } from '@/utility/keyframes-timeline.ts';
 
 const tab = ref('nodes');
 const visualModule = ref<VisualModule | null>();
