@@ -1,6 +1,6 @@
 import { genId } from '@glitch/shared/utility/id.ts';
 import { deepClone } from '@glitch/shared/utility/deep-clone.ts';
-import type { ParameterBinding } from '@glitch/shared/types.ts';
+import type { KeyframesTimeline, ParameterBinding } from '@glitch/shared/types.ts';
 
 type InlineKeyframesTimeline = Extract<ParameterBinding, { inputSource: 'keyframesTimelineInline' }>;
 
@@ -41,19 +41,19 @@ export function setInlineKeyframesTimelineNormalized(input: InlineKeyframesTimel
 }
 	*/
 
-export function createInlineKeyframesTimeline(): Extract<ParameterBinding, { inputSource: 'keyframesTimelineInline' }> {
+export function createInlineKeyframesTimeline(dataType: KeyframesTimeline['dataType']): Extract<ParameterBinding, { inputSource: 'keyframesTimelineInline' }> {
 	return {
 		inputSource: 'keyframesTimelineInline',
 		keyframesTimeline: {
 			isNormalized: false,
-			dataType: 'vector',
+			dataType,
 			keyframes: [
-				{ id: genId(), x: 0, value: [0, 0], interpolation: { type: 'linear' } },
-				{ id: genId(), x: 1000, value: [0, 0], interpolation: { type: 'linear' } },
+				{ id: genId(), x: 0, value: [0, 0, 0, 0], interpolation: { type: 'linear' } },
+				{ id: genId(), x: 1000, value: [0, 0, 0, 0], interpolation: { type: 'linear' } },
 			],
 		},
 		durationMs: null,
-		wrapMode: 'repeat',
+		wrapMode: 'clamp',
 		offsetMode: 'start',
 	};
 }
