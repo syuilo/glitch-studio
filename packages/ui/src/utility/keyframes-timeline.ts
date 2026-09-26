@@ -49,7 +49,7 @@ export function createInlineKeyframesTimeline(dataType: KeyframesTimeline['dataT
 			dataType,
 			keyframes: [
 				{ id: genId(), x: 0, value: [0, 0, 0, 0], interpolation: { type: 'linear' } },
-				{ id: genId(), x: 1000, value: [0, 0, 0, 0], interpolation: { type: 'linear' } },
+				{ id: genId(), x: 1000, value: [1, 1, 1, 1], interpolation: { type: 'linear' } },
 			],
 		},
 		durationMs: null,

@@ -347,6 +347,7 @@ function getMenu() {
 		if (props.node != null) types.push({ text: 'Custom Parameter', inputSource: 'externalCustomParameterInput', icon: 'ti ti-wifi' });
 		if (canNode.value) types.push({ text: 'Node', inputSource: 'node', icon: 'ti ti-plug' });
 		for (const { text, inputSource, icon } of types) {
+			if (inputSource === 'keyframesTimelineInline' && props.paramDef.dataType !== 'scalar' && props.paramDef.dataType !== 'vector' && props.paramDef.dataType !== 'color') continue;
 			menuItems.push({
 				text,
 				icon,

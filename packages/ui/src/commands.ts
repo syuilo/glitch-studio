@@ -99,7 +99,10 @@ const editVisualModuleLayerParamCommandDef = defineCommand<{
 								}; break;
 								case 'automationGraphReference': after = { inputSource: 'automationGraphReference', automationGraphId: null, durationMs: 1000, wrapMode: 'repeat', offsetMode: 'start' }; break;
 								case 'automationGraphInline': after = createInlineAutomationGraph(); break;
-								case 'keyframesTimelineInline': after = createInlineKeyframesTimeline(); break;
+								case 'keyframesTimelineInline':
+									if (def.dataType !== 'scalar' && def.dataType !== 'vector' && def.dataType !== 'color') throw new Error('Parameter does not support keyframes');
+									after = createInlineKeyframesTimeline(def.dataType);
+									break;
 								case 'node':
 								case 'externalCustomParameterInput': throw new Error('Unsupported layer parameter input source');
 							}
@@ -437,7 +440,9 @@ const changeParamValueInputSourceCommandDef = defineNodeParamCommand<NodeParamTa
 			case 'literal': return { inputSource: 'literal', value: defaultValue.value };
 			case 'automationGraphReference': return { inputSource: 'automationGraphReference', automationGraphId: null, durationMs: 1000, wrapMode: 'repeat', offsetMode: 'start' };
 			case 'automationGraphInline': return createInlineAutomationGraph();
-			case 'keyframesTimelineInline': return createInlineKeyframesTimeline();
+			case 'keyframesTimelineInline':
+				if (target.def.dataType !== 'scalar' && target.def.dataType !== 'vector' && target.def.dataType !== 'color') throw new Error('Parameter does not support keyframes');
+				return createInlineKeyframesTimeline(target.def.dataType);
 			case 'externalCustomParameterInput': return { inputSource: 'externalCustomParameterInput', parameterId: visualModuleCustomParameterId('') };
 			case 'node': {
 				if (!('canNode' in target.def) || !target.def.canNode) throw new Error('Parameter does not support node input');
