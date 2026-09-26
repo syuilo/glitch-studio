@@ -44,7 +44,12 @@ async function fixture(t, options = {}) {
 		cloneNode: canvas, replaceWith() {},
 	});
 	const pending = [];
+	const instances = [];
+	const notifications = [];
 	class MainRenderer {
+		constructor(settings) { this.settings = settings; instances.push(this); }
+		updateVisualModules(modules) { this.modules = modules; }
+		reportPreviewError(message) { this.settings.onPreviewError(message); }
 		gpuMemory = { getUsage: () => ({}) };
 		async updateAssets(assets) { return options.updateAssets?.(assets) ?? true; }
 		destroy() { options.onDestroy?.(); }
@@ -73,9 +78,13 @@ async function fixture(t, options = {}) {
 			const context = {
 				dependencies, structuredClone, Error, TypeError, GPUCanvasContext, console,
 				module: { exports: {} }, onmessage: null, setInterval() {},
-				navigator: { gpu: { requestAdapter: async () => ({ requestDevice: async () => ({}) }) } },
+				navigator: { gpu: { requestAdapter: async () => {
+					if (options.adapterError) throw options.adapterError;
+					return { requestDevice: async () => ({}) };
+				} } },
 				self: { postMessage(message) {
 					const data = structuredClone(message);
+					notifications.push(data);
 					queueMicrotask(() => { if (!terminated) worker.onmessage?.({ data }); });
 				} },
 			};
@@ -93,8 +102,70 @@ async function fixture(t, options = {}) {
 	const controller = new context.module.exports.RendererController({ fpsLimit: null });
 	t.after(() => controller.destroy());
 	if (options.initialize !== false) await controller.init({ width: 1, height: 1 });
-	return { controller, workers, pending };
+	return { controller, workers, pending, instances, notifications };
 }
+
+// 描画エラー後もノード編集を送信でき、描画復旧時だけエラー表示を解除する。
+// 従来は描画例外でisReadyがfalseになり、原因ノードを削除する更新まで拒否されていた。
+// WorkerとControllerの実際の通信を通し、修正の受信・通知の重複抑制・復旧をまとめて保証する。
+test('keeps edits available after preview errors and clears the message on recovery', async t => {
+	const { controller, instances, notifications } = await fixture(t);
+	instances[0].reportPreviewError('circular dependency detected');
+	instances[0].reportPreviewError('circular dependency detected');
+	await Promise.resolve();
+	assert.equal(controller.errorMessage.value, 'circular dependency detected');
+	assert.equal(controller.isReady.value, true);
+	controller.updateVisualModules([{ id: 'repaired', nodes: [] }]);
+	await controller.callAndWaitReturn('echo', []);
+	assert.equal(instances[0].modules[0].id, 'repaired');
+	assert.equal(controller.errorMessage.value, 'circular dependency detected');
+	instances[0].reportPreviewError(null);
+	await Promise.resolve();
+	assert.equal(controller.errorMessage.value, null);
+	assert.deepEqual(notifications.filter(message => message.type === 'previewError').map(message => message.message), ['circular dependency detected', null]);
+});
+
+// 応答を待たない操作の同期・非同期失敗も未処理例外にせず通知する。
+// タイムライン描画などは戻り値を要求しないため、RPCの戻り値経路だけのcatchでは保護できない。
+// 操作失敗後もWorkerへアクセスでき、次の正常な描画でfooterのエラーを解除できる必要がある。
+test('reports fire-and-forget failures without disabling the worker', async t => {
+	const { controller, instances } = await fixture(t);
+	for (const [method, message] of [['failSync', 'sync failure'], ['failAsync', 'async failure']]) {
+		controller.call(method, []);
+		await controller.callAndWaitReturn('echo', []);
+		assert.equal(controller.isReady.value, true);
+		assert.equal(controller.errorMessage.value, message);
+		instances[0].reportPreviewError(null);
+		await Promise.resolve();
+		assert.equal(controller.errorMessage.value, null);
+	}
+});
+
+// GPU初期化に失敗した場合は、描画エラーと区別して初期化をrejectする。
+// 初期化全体がasyncなので、画像準備だけをcatchするとアダプター取得失敗で待機が終わらない。
+// 初期化できていないWorkerに編集を送ることも防ぎ、失敗理由をfooter用の状態へ残す。
+test('rejects initialization failures before assets are prepared', async t => {
+	const { controller } = await fixture(t, { initialize: false, adapterError: new Error('GPU unavailable') });
+	await assert.rejects(controller.init({ width: 1, height: 1 }), /GPU unavailable/);
+	assert.equal(controller.isReady.value, false);
+	assert.equal(controller.errorMessage.value, 'GPU unavailable');
+});
+
+// 致命的なWorkerエラーの表示を、遅れて届いた描画成功で消さない。
+// 描画失敗なら編集を続けられるが、Worker自体の障害は再初期化が必要。
+// この違いを失うと、利用不能なのにfooterからエラーだけ消えてしまう。
+test('retains fatal errors until the worker is reinitialized', async t => {
+	const { controller, workers, instances } = await fixture(t);
+	workers[0].onerror({ message: 'worker crashed' });
+	instances[0].reportPreviewError('old frame failure');
+	instances[0].reportPreviewError(null);
+	await Promise.resolve();
+	assert.equal(controller.isReady.value, false);
+	assert.equal(controller.errorMessage.value, 'worker crashed');
+	await controller.reload();
+	assert.equal(controller.isReady.value, true);
+	assert.equal(controller.errorMessage.value, null);
+});
 
 // 画像のデコード完了前にはreadyにせず、初期化失敗も待機元へ返す。
 // Blobからの画像準備は非同期なので、Worker生成だけでreadyにすると最初の描画で画像が欠落する。

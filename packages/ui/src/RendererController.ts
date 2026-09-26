@@ -61,6 +61,7 @@ export class RendererController {
 	public fpsDisplay = ref(0);
 	public gpuMemoryUsage = ref<ReturnType<MainRenderer['gpuMemory']['getUsage']> | null>(null);
 	public isReady = ref(false);
+	public errorMessage = ref<string | null>(null);
 	private liveEffectStateStore = new LiveEffectStateStore(shallowReactive(new Map<string, EffectInstanceState>()));
 
 	public getLiveEffectState(visualModuleId: VisualModule['id'], nodeId: string): EffectInstanceState | undefined {
@@ -205,6 +206,7 @@ export class RendererController {
 			if (this.rendererWorker !== worker) return;
 			this.isReady.value = false;
 			const error = new Error(event.message || 'Renderer worker failed');
+			this.errorMessage.value = error.message;
 			this.rejectPendingReturns(error);
 			this.rejectInitialization?.(error);
 			this.rejectInitialization = null;
@@ -233,6 +235,7 @@ export class RendererController {
 			switch (event.data?.type) {
 				case 'initError': {
 					this.isReady.value = false;
+					this.errorMessage.value = event.data.message;
 					this.rejectInitialization?.(new Error(event.data.message));
 					this.rejectInitialization = null;
 					this.pendingCalls = [];
@@ -240,12 +243,19 @@ export class RendererController {
 				}
 				case 'inited': {
 					this.isReady.value = true;
+					this.errorMessage.value = null;
 					this.rejectInitialization = null;
 					for (const { message, options } of this.pendingCalls) worker.postMessage(message, options);
 					this.pendingCalls = [];
 					for (const playerId of this.pendingVideoFrames.keys()) this.sendPendingVideoFrame(playerId);
 					console.log('Renderer worker initialized!');
 					resolveReady();
+					break;
+				}
+				case 'previewError': {
+					// 描画できないグラフでも、修正するための更新は送り続ける。
+					// 致命的なWorkerエラー後の遅延通知では、そのエラー表示を上書きしない。
+					if (this.isReady.value) this.errorMessage.value = event.data.message;
 					break;
 				}
 				case 'return': {

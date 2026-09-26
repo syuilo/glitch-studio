@@ -37,10 +37,8 @@
 			</div>
 		</div>
 		<div :class="$style.footerRight">
+			<div v-if="renderer.errorMessage.value != null" v-tooltip="renderer.errorMessage.value" :class="$style.footerError"><i class="ti ti-alert-triangle"></i> {{ renderer.errorMessage.value }}</div>
 			<div :class="$style.footerStats">
-				<div :class="$style.footerStatsItem">{{ (renderer.gpuAverageDisplayFast.value / 1000).toFixed(1) }}ms</div>
-				<div :class="$style.footerStatsItem">{{ (renderer.gpuAverageDisplayMedium.value / 1000).toFixed(1) }}ms</div>
-				<div :class="$style.footerStatsItem">{{ (renderer.gpuAverageDisplaySlow.value / 1000).toFixed(1) }}ms</div>
 				<div v-if="renderer.gpuMemoryUsage.value" v-tooltip="gpuMemoryTooltip" :class="$style.footerMemory">{{ (renderer.gpuMemoryUsage.value.total / 1000 ** 2).toFixed(1) }} MB</div>
 			</div>
 			<div :class="$style.outputLevelMeter">
@@ -374,6 +372,10 @@ onMounted(() => {
 	&:hover {
 		background: #fff1;
 	}
+}
+
+.footerError {
+	color: var(--THEME-error);
 }
 
 .footerStats {

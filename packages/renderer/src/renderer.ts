@@ -33,6 +33,8 @@ import type { EffectDefinition } from '@glitch/shared/effect/effect-definition.j
 export class MainRenderer {
 	private timelineRenderer: TimelineRenderer<NodeOutput, Timeline[number]>;
 	private onEffectState?: (source: EffectStatusSource, nodeId: string, status: EffectInstanceState | null) => void;
+	private onPreviewError?: (message: string | null) => void;
+	private previewRenderGeneration = 0;
 	private nextTimelineLayerStatusId = 0;
 	private gpuContext: GPUCanvasContext;
 	private gpuDevice: GPUDevice;
@@ -82,6 +84,7 @@ export class MainRenderer {
 
 	constructor(options: {
 		onEffectState?: (source: EffectStatusSource, nodeId: string, status: EffectInstanceState | null) => void;
+		onPreviewError?: (message: string | null) => void;
 		gpuDevice: GPUDevice;
 		gpuContext: GPUCanvasContext;
 		resolution: {
@@ -109,6 +112,7 @@ export class MainRenderer {
 	}) {
 		this.resolution = options.resolution;
 		this.onEffectState = options.onEffectState;
+		this.onPreviewError = options.onPreviewError;
 		this.visualModules = options.visualModules ?? [];
 		this.timeline = options.timeline ?? [];
 		this.enableStats = options.enableStats;
@@ -117,7 +121,15 @@ export class MainRenderer {
 		this.frameScheduler = options.frameScheduler ?? browserFrameScheduler;
 		this.liveRenderLoop = new LiveRenderLoop({
 			scheduler: this.frameScheduler,
-			onFrame: timing => this.renderLiveFrame(timing),
+			onFrame: timing => {
+				// グラフのエラーでWorkerを利用不能にしない。次のフレームで修正後の状態を再試行する。
+				try {
+					this.renderLiveFrame(timing);
+					this.setPreviewError(null);
+				} catch (error) {
+					this.setPreviewError(error instanceof Error ? error.message : String(error));
+				}
+			},
 			fpsLimit: options.fpsLimit,
 			timeFactor: options.liveTimeFactor ?? 1,
 		});
@@ -204,7 +216,9 @@ export class MainRenderer {
 			fallbackOutput: { kind: 'texture', texture: this.fallbackTexture },
 			createLayer: entry => this.createTimelineLayer(entry),
 			present: (output, gpuTime) => {
-				this.renderToCanvas(output, this.gpuDevice.createCommandEncoder());
+				const commandEncoder = this.gpuDevice.createCommandEncoder();
+				this.renderToCanvas(output, commandEncoder);
+				this.gpuDevice.queue.submit([commandEncoder.finish()]);
 				if (this.enableStats) {
 					this.gpuAverageFast.addSample(gpuTime / 1000);
 					this.gpuAverageMedium.addSample(gpuTime / 1000);
@@ -243,6 +257,7 @@ export class MainRenderer {
 	}
 
 	private clearTimelineRenderers() {
+		this.previewRenderGeneration++;
 		this.timelineRenderer.clear();
 	}
 
@@ -346,14 +361,24 @@ export class MainRenderer {
 		this.gpuWaveformHorizontal?.render(commandEncoder, tex);
 		this.gpuWaveformVertical?.render(commandEncoder, tex);
 
-		this.gpuDevice.queue.submit([commandEncoder.finish()]);
 	}
 
 	/** timeはミリ秒。表示期間中はレイヤーごとのインスタンスと履歴を保持する。 */
 	public async renderTimelineAt(time: number): Promise<void> {
-		if (!Number.isFinite(time)) throw new Error('Timeline time must be finite');
 		this.stopRenderLoop();
-		await this.timelineRenderer.renderAt(time, this.timeline);
+		const generation = this.previewRenderGeneration;
+		try {
+			if (!Number.isFinite(time)) throw new Error('Timeline time must be finite');
+			await this.timelineRenderer.renderAt(time, this.timeline);
+			// 中断されたシークの完了で、新しい描画のエラーを消さない。
+			if (generation === this.previewRenderGeneration) this.setPreviewError(null);
+		} catch (error) {
+			if (generation === this.previewRenderGeneration) this.setPreviewError(error instanceof Error ? error.message : String(error));
+		}
+	}
+
+	private setPreviewError(message: string | null) {
+		this.onPreviewError?.(message);
 	}
 
 	/** 専用インスタンスで順番に呼び、フレーム間の履歴と一定の経過時間を保持する。 */
@@ -479,51 +504,60 @@ export class MainRenderer {
 
 	private renderLiveFrame(timing: LiveFrameTiming) {
 		if (this.liveVisualModuleRenderer == null) return;
+		const generation = ++this.previewRenderGeneration;
 		const visualModule = this.visualModules.find(module => module.id === this.liveVisualModuleId)!;
 		const commandEncoder = this.gpuDevice.createCommandEncoder();
 
-		const evaluatedParamValues = new Map<VisualModuleCustomParameterId, any>();
-		for (const def of visualModule.paramDefs) {
-			if (this.liveParamValues[def.id] == null) {
-				evaluatedParamValues.set(def.id, def.defaultValue.value);
-				continue;
+		try {
+			const evaluatedParamValues = new Map<VisualModuleCustomParameterId, any>();
+			for (const def of visualModule.paramDefs) {
+				if (this.liveParamValues[def.id] == null) {
+					evaluatedParamValues.set(def.id, def.defaultValue.value);
+					continue;
+				}
+				evaluatedParamValues.set(def.id, this.liveParamEvaluator.evaluate(this.liveParamValues[def.id], {
+					evaluatedParamValues: null,
+					variables: layerVariables({ isExport: false }),
+					automationGraphs: [],
+					time: timing.time,
+					endTime: Infinity,
+				}, genEmptyValue(def))); // TODO: genEmptyValueを遅延評価したい
 			}
-			evaluatedParamValues.set(def.id, this.liveParamEvaluator.evaluate(this.liveParamValues[def.id], {
-				evaluatedParamValues: null,
-				variables: layerVariables({ isExport: false }),
-				automationGraphs: [],
+
+			const tex = this.liveVisualModuleRenderer.render({
+				evaluatedParamValues: evaluatedParamValues,
 				time: timing.time,
+				timeDelta: timing.timeDelta,
 				endTime: Infinity,
-			}, genEmptyValue(def))); // TODO: genEmptyValueを遅延評価したい
-		}
+				pointerPosition: this.pointerPosition,
+				pointerPositionPrev: this.pointerPositionPrev,
+				isExport: false,
+			}, commandEncoder);
+			if (tex == null) return;
 
-		const tex = this.liveVisualModuleRenderer.render({
-			evaluatedParamValues: evaluatedParamValues,
-			time: timing.time,
-			timeDelta: timing.timeDelta,
-			endTime: Infinity,
-			pointerPosition: this.pointerPosition,
-			pointerPositionPrev: this.pointerPositionPrev,
-			isExport: false,
-		}, commandEncoder);
-		if (tex == null) return;
+			this.renderToCanvas(tex, commandEncoder);
 
-		this.renderToCanvas(tex, commandEncoder);
+			this.pointerPositionPrev = { ...this.pointerPosition };
 
-		this.pointerPositionPrev = { ...this.pointerPosition };
-
-		this.fpsAverage.addSample(1000 / timing.realTimeDelta);
-
-		if (this.enableStats) {
-			this.timingHelper.getResult().then(gpuTime => {
-				this.gpuAverageFast.addSample(gpuTime / 1000);
-				this.gpuAverageMedium.addSample(gpuTime / 1000);
-				this.gpuAverageSlow.addSample(gpuTime / 1000);
-			});
+			this.fpsAverage.addSample(1000 / timing.realTimeDelta);
+		} finally {
+			// 部分的に描画して失敗しても計測を完了する。未完了のencoderを残すと、
+			// 次のフレームでTimingHelperが別のencoderを受け付けず、修正後も復旧できない。
+			this.gpuDevice.queue.submit([commandEncoder.finish()]);
+			if (this.enableStats) {
+				this.timingHelper.getResult().then(gpuTime => {
+					this.gpuAverageFast.addSample(gpuTime / 1000);
+					this.gpuAverageMedium.addSample(gpuTime / 1000);
+					this.gpuAverageSlow.addSample(gpuTime / 1000);
+				}).catch(error => {
+					if (generation === this.previewRenderGeneration) this.setPreviewError(error instanceof Error ? error.message : String(error));
+				});
+			}
 		}
 	}
 
 	public stopRenderLoop() {
+		this.previewRenderGeneration++;
 		this.liveRenderLoop.stop();
 		this.liveVisualModuleId = null;
 		this.liveVisualModuleRenderer?.destroy();
