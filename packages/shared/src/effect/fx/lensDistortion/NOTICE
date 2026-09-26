@@ -1,0 +1,7 @@
+Powered by Paper Shaders:
+https://shaders.paper.design
+
+Lens Distortion adapted from Paper Design's shaders.
+https://github.com/paper-design/shaders
+Modified for Glitch Studio: WGSL, premultiplied node input, connection-controlled sampling,
+output-based lens geometry, vector offsets, clockwise half-turn angles and resolution-independent grain.
