@@ -18,15 +18,7 @@
 			<div :class="$style.layersHeader">
 				header
 			</div>
-			<div v-for="layer of appContext.state.timeline.value" :key="layer.id" :class="$style.layersRow">
-				<div :class="$style.layersSide">
-					<GsButton>{{ layer.id }}</GsButton>
-					<div v-for="[k, v] in Object.entries(layer.compositingParamValues).filter(([k, v]) => v.inputSource === 'keyframesTimelineInline')">{{ k }}</div>
-				</div>
-				<div :class="$style.layersTl">
-					<div :class="$style.layerBlock" :style="{ width: layerRects[layer.id].width + 'px', left: layerRects[layer.id].left + 'px' }" @click="onLayerBlockClick($event, layer)">{{ layer.id }}</div>
-				</div>
-			</div>
+			<XLayer v-for="layer of appContext.state.timeline.value" :key="layer.id" :layer="layer" :tlElWidth="tlElWidth" :tlPosX="tlPosX" :tlRangeX="tlRangeX" :class="$style.layersRow"/>
 		</div>
 		<div :class="$style.tlOverlayWrapper">
 			<div :class="$style.tlOverlaySideSpacer"></div>
@@ -99,6 +91,7 @@ import { computed, onMounted, ref, shallowRef, useTemplateRef, watch } from 'vue
 import { insertIntermediateNumbers, nearlyEqual, niceScale } from '@glitch/shared/utility/misc.js';
 import { genId } from '@glitch/shared/utility/id.js';
 import { timelineCompositingParamDefs } from '@glitch/shared/timeline/timeline-compositing.ts';
+import XLayer from './GsTimeline.Layer.vue';
 import GsButton from './common/GsButton.vue';
 import GsVisualParam from './GsVisualParam.vue';
 import type { Timeline } from '@glitch/shared/timeline/types.ts';
@@ -108,7 +101,7 @@ import { dragListen } from '@/utility/drag.ts';
 import * as timeline from '@/timeline.ts';
 
 const X_TICKS_HEIGHT = 20;
-const Y_TICKS_WIDTH = 60;
+const Y_TICKS_WIDTH = 0;
 
 const duration = computed(() => {
 	return appContext.state.timeline.value.reduce((max, layer) => Math.max(max, layer.endTimeMs), 0) ?? 0;
@@ -450,22 +443,6 @@ onMounted(() => {
 }
 
 .layersRow {
-	display: flex;
-	flex-direction: row;
-	width: 100%;
-	direction: ltr;
-}
-
-.layersSide {
-	box-sizing: border-box;
-	width: var(--sideWidth);
-	background: #181818;
-	direction: ltr;
-}
-
-.layersTl {
-	position: relative;
-	flex: 1;
 	direction: ltr;
 }
 
@@ -728,55 +705,6 @@ onMounted(() => {
 	90% { opacity: 0; transform: scale(0.5); }
 }
 
-.keyframe {
-	position: absolute;
-	z-index: 1;
-	cursor: pointer;
-	display: block;
-	position: absolute;
-	margin-top: -7px;
-	margin-left: -7px;
-	width: 14px;
-	height: 14px;
-	background: transparent;
-	border-radius: 100%;
-
-	&::before {
-		content: "";
-		display: block;
-		position: absolute;
-		top: 2px;
-		left: 2px;
-		width: 11px;
-		height: 11px;
-		background: var(--THEME-accent);
-		border-radius: 100%;
-		pointer-events: none;
-	}
-
-	&.selectedKeyframe {
-		&::before {
-			background: #fff;
-		}
-
-		&::after {
-			content: "";
-			display: block;
-			position: absolute;
-			top: 2px;
-			left: 2px;
-			width: 10px;
-			height: 10px;
-			background: transparent;
-			border-radius: 100%;
-			outline: solid 1px var(--accentAlphaMiddle);
-			outline-offset: 4px;
-			animation: blink 1s infinite;
-			pointer-events: none;
-		}
-	}
-}
-
 .tlRange {
 	position: absolute;
 	top: 0;
@@ -795,79 +723,6 @@ onMounted(() => {
 	color: #fff;
 	padding: 6px 10px;
 	font-size: 13px;
-}
-
-.keyframeContextmenu {
-	position: absolute;
-	background: #0005;
-	color: #fff;
-	font-size: 13px;
-
-	> div {
-		display: flex;
-		line-height: 24px;
-
-		&:not(:first-child) {
-			border-top: solid 1px #fff2;
-		}
-	}
-}
-
-.keyframeContextmenuHandle {
-	width: 24px;
-	height: 24px;
-	text-align: center;
-}
-
-.keyframeContextmenuInput {
-	padding: 0 4px;
-}
-
-.bezierHandle {
-	position: absolute;
-	cursor: move;
-	margin-top: -10px;
-	margin-left: -10px;
-	width: 20px;
-	height: 20px;
-	border-radius: 100%;
-
-	&::before {
-		content: "";
-		display: block;
-		position: absolute;
-		top: 5px;
-		left: 5px;
-		width: 10px;
-		height: 10px;
-		background: var(--THEME-accentSecondary);
-		border-radius: 100%;
-		pointer-events: none;
-	}
-}
-
-.bezierSnapLineX {
-	position: absolute;
-	top: 0;
-	width: 1px;
-	height: 100%;
-	background: var(--accentAlphaLow);
-	pointer-events: none;
-
-	&.bezierSnapLineXActive {
-		background: var(--accentAlphaMiddle);
-	}
-}
-
-.bezierSnapLineY {
-	position: absolute;
-	height: 1px;
-	background: var(--accentAlphaLow);
-	pointer-events: none;
-
-	&.bezierSnapLineYActive {
-		background: var(--accentAlphaMiddle);
-	}
 }
 
 .infoBar {
@@ -920,15 +775,4 @@ onMounted(() => {
 	color: #fff;
 }
 
-.layerBlock {
-	position: absolute;
-	height: 30px;
-	box-sizing: border-box;
-	padding: 0 8px 0 8px;
-	background: var(--THEME-accent);
-	color: var(--THEME-fgOnAccent);
-	cursor: pointer;
-	border-radius: 8px 0 0 0;
-	corner-shape: bevel;
-}
 </style>
