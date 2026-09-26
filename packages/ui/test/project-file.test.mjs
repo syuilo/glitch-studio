@@ -37,8 +37,9 @@ const appBundle = await build({
 					import { ref } from 'vue';
 					export class RendererController {
 						isReady = ref(false);
-						async init() { this.isReady.value = true; }
-						resize() {} updateAssets() {} updatePlayers() {} updateVisualModules() {} updateTimeline() {}
+						async init(resolution) { this.initialResolution = resolution; this.isReady.value = true; }
+						resize(resolution) { this.previewResolution = resolution; }
+						updateAssets() {} updatePlayers() {} updateVisualModules() {} updateTimeline() {}
 						startLiveRenderLoopFor() {} stopRenderLoop() {} renderTimelineAt() {}
 						setHighlightClipping() {} changeLiveModeFpsLimit() {} setLiveTimeFactor() {}
 					}
@@ -303,4 +304,28 @@ test('shows a future-version error without changing the current project or Save 
 	await app.saveProject();
 	assert.equal(decodeProjectFile(currentHandle.bytes).name, 'Current project');
 	assert.equal(decodeProjectFile(futureHandle.bytes).name, 'Future project');
+});
+
+// プロジェクト読込でも画像読込と同じ倍率を使い、元の解像度は維持する。
+// 初回初期化から縮小しないと大型プロジェクトがGPUの上限に達し、小型へ切り替えたときに
+// 倍率を戻さないと前のプロジェクトの低解像度プレビューを引き継いでしまう。
+test('scales project previews before initialization and resets the scale for smaller projects', async t => {
+	setup(t);
+	const app = evaluate(appBundle);
+	for (const [width, height, factor] of [
+		[12000, 8000, 0.25],
+		[1500, 3001, 0.25],
+		[3000, 1500, 0.5],
+		[1000, 1501, 0.5],
+		[1500, 1500, 1],
+	]) {
+		const resolution = { width, height };
+		const file = new File([await encodeProjectFile(project({ resolution }))], 'resolution.gsproj');
+		assert.equal(await app.openProject(file), true);
+		assert.equal(app.resolutionFactor.value, factor);
+		assert.deepEqual(app.renderer.previewResolution, { width: Math.round(width * factor), height: Math.round(height * factor) });
+		assert.deepEqual(app.appStateManager.state.resolution.value, resolution);
+	}
+	assert.deepEqual(app.renderer.initialResolution, { width: 3000, height: 2000 });
+	assert.deepEqual(globalThis.projectAlerts, []);
 });

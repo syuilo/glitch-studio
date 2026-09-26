@@ -121,10 +121,13 @@ let projectFileHandle: FileSystemFileHandle | null = null;
 let savingProject = false;
 
 export async function appReady(project: Project, fileName = 'untitled.gsproj', fileHandle: FileSystemFileHandle | null = null) {
+	// 画像からの新規作成とプロジェクト読込で同じ基準を使い、初回のGPU初期化にも反映する。
+	const maxDimension = Math.max(project.resolution.width, project.resolution.height);
+	const initialResolutionFactor = maxDimension > 3000 ? 0.25 : maxDimension > 1500 ? 0.5 : 1;
 	// CanvasのOffscreen転送は一度だけ行い、別のプロジェクトを開くときもWorkerを再利用する。
 	rendererInitialization ??= renderer.init({
-		width: Math.round(project.resolution.width * resolutionFactor.value), // 解像度が少数になるとバグるので丸める
-		height: Math.round(project.resolution.height * resolutionFactor.value), // 解像度が少数になるとバグるので丸める
+		width: Math.round(project.resolution.width * initialResolutionFactor), // 解像度が少数になるとバグるので丸める
+		height: Math.round(project.resolution.height * initialResolutionFactor), // 解像度が少数になるとバグるので丸める
 	});
 	await rendererInitialization;
 
@@ -140,6 +143,7 @@ export async function appReady(project: Project, fileName = 'untitled.gsproj', f
 	renderer.updateTimeline([]);
 
 	appStateManager.state.resolution.value = project.resolution;
+	resolutionFactor.value = initialResolutionFactor;
 	appStateManager.state.assets.value = project.assets;
 	appStateManager.state.visualModules.value = project.visualModules;
 	appStateManager.state.players.value = project.players;
@@ -297,12 +301,6 @@ export async function newProject() {
 export async function newProjectFromImageOrVideo(file?: File) {
 	const result = await api.openMediaFile({ file });
 	if (result == null) return false;
-	if (result.width > 1500 || result.height > 1500) {
-		resolutionFactor.value = 0.5;
-	}
-	if (result.width > 3000 || result.height > 3000) {
-		resolutionFactor.value = 0.25;
-	}
 
 	const asset = {
 		id: genId(),
