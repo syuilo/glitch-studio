@@ -30,6 +30,7 @@ type CommandLog = {
 	mergeKey?: string | null;
 };
 
+// stateの管理を行う
 class AppContext {
 	public projectId: string | null = null;
 	public projectName: string | null = null;
