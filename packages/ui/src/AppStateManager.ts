@@ -1,9 +1,12 @@
+import { shallowRef } from 'vue';
+import { computed, ref } from 'vue';
+import { deepClone } from '@glitch/shared/utility/deep-clone.js';
+import { triggerRef } from 'vue';
+import { COMMAND_DEFS } from './commands.ts';
 import type { Timeline } from '@glitch/shared/timeline/types.js';
 import type { Asset, Player } from '@glitch/shared/types.js';
-import type { deepClone } from '@glitch/shared/utility/deep-clone.js';
 import type { VisualModule } from '@glitch/shared/visual-module/types.js';
-import type { shallowRef, computed, ref, triggerRef } from 'vue';
-import type { COMMAND_DEFS, CommandDef } from './commands.ts';
+import type { CommandDef } from './commands.ts';
 import type { AppState } from './types.ts';
 
 type CommandLog = {
