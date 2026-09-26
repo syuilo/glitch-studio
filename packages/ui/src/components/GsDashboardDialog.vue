@@ -47,13 +47,17 @@ async function _newProjectFromImageOrVideo() {
 async function onDrop(event: DragEvent) {
 	const file = event.dataTransfer?.files[0];
 	if (file == null) return;
-	await newProjectFromImageOrVideo(file);
-	modal.value!.close();
+	// DataTransferItemはdropイベント中に取得し、非同期読み込み後にも保存先を保持する。
+	const item = Array.from(event.dataTransfer!.items).find(item => item.kind === 'file');
+	const handle = file.name.toLowerCase().endsWith('.gsproj') ? await item?.getAsFileSystemHandle?.().catch(() => null) : null;
+	const opened = file.name.toLowerCase().endsWith('.gsproj')
+		? await openProject(file, handle?.kind === 'file' ? handle as FileSystemFileHandle : undefined)
+		: await newProjectFromImageOrVideo(file);
+	if (opened) modal.value!.close();
 }
 
 async function _openProject() {
-	await openProject();
-	modal.value!.close();
+	if (await openProject()) modal.value!.close();
 }
 </script>
 

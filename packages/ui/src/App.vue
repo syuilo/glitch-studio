@@ -53,7 +53,7 @@
 
 <script lang="ts" setup>
 import { computed, nextTick, onMounted, onBeforeUnmount, ref, shallowRef, useTemplateRef, watch } from 'vue';
-import { renderer, resolutionFactor, fpsLimit, liveTimeFactor, appStateManager } from './app';
+import { renderer, resolutionFactor, fpsLimit, liveTimeFactor, appStateManager, openProject, saveProject } from './app';
 import { preferences } from './preferences.ts';
 import GsRange from './components/common/GsRange.vue';
 import GsAboutDialog from '@/components/GsAboutDialog.vue';
@@ -242,6 +242,17 @@ function openFpsMenu(ev: PointerEvent) {
 
 function openHeaderFileMenu(ev: PointerEvent) {
 	ui.popupMenu([{
+		text: 'Open...',
+		action: () => { void openProject(); },
+	}, {
+		text: 'Save',
+		action: () => { void saveProject(); },
+	}, {
+		text: 'Save as...',
+		action: () => { void saveProject(true); },
+	}, {
+		type: 'divider',
+	}, {
 		text: 'Export',
 		action: () => {
 			exportToWebp();

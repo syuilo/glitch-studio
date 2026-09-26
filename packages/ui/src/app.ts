@@ -7,7 +7,6 @@ import fillEffectDef from '@glitch/shared/effect/fx/fill/_def_.ts';
 import imageEffectDef from '@glitch/shared/effect/fx/image/_def_.ts';
 import videoEffectDef from '@glitch/shared/effect/fx/video/_def_.ts';
 import audioWaveformEffectDef from '@glitch/shared/effect/fx/audioWaveform/_def_.ts';
-import { loadProjectFile } from './api.ts';
 import { RendererController } from './RendererController.ts';
 import GsEffectPicker from './components/GsEffectPicker.vue';
 import { PreviewPlaybackController } from './PreviewPlaybackController.ts';
@@ -15,6 +14,7 @@ import { AppStateManager } from './AppStateManager.ts';
 import type { EffectNodeOf, VisualModule } from '@glitch/shared/visual-module/types.ts';
 import type { Asset, Player } from '@glitch/shared/types.ts';
 import type { Project } from './gsproj.ts';
+import type { WatchStopHandle } from 'vue';
 import * as ui from '@/ui.ts';
 import * as api from '@/api.ts';
 
@@ -106,22 +106,49 @@ watch([appStateManager.state.resolution, resolutionFactor], () => {
 	});
 });
 
-export async function appReady(project: Project) {
-	window.document.title = `Glitch Studio (${project.name})`;
+let rendererInitialization: Promise<void> | null = null;
+let projectWatchers: WatchStopHandle[] = [];
+let projectMetadata: Pick<Project, 'id' | 'name' | 'author'> | null = null;
+let projectFileName = 'untitled.gsproj';
+let projectFileHandle: FileSystemFileHandle | null = null;
+let savingProject = false;
 
-	await renderer.init({
-		width: Math.round(appStateManager.state.resolution.value.width * resolutionFactor.value), // 解像度が少数になるとバグるので丸める
-		height: Math.round(appStateManager.state.resolution.value.height * resolutionFactor.value), // 解像度が少数になるとバグるので丸める
+export async function appReady(project: Project, fileName = 'untitled.gsproj', fileHandle: FileSystemFileHandle | null = null) {
+	// CanvasのOffscreen転送は一度だけ行い、別のプロジェクトを開くときもWorkerを再利用する。
+	rendererInitialization ??= renderer.init({
+		width: Math.round(project.resolution.width * resolutionFactor.value), // 解像度が少数になるとバグるので丸める
+		height: Math.round(project.resolution.height * resolutionFactor.value), // 解像度が少数になるとバグるので丸める
 	});
+	await rendererInitialization;
+
+	// 読み込み途中の状態を、直前のプロジェクトのファイルへ保存させない。
+	projectMetadata = null;
+	projectFileHandle = null;
+	for (const stop of projectWatchers) stop();
+	projectWatchers = [];
+	previewPlayback.dispose();
+	// 同じIDのプロジェクトを再読込した場合も、以前の再生・ノード履歴を引き継がない。
+	await renderer.updatePlayers([]);
+	renderer.updateVisualModules([]);
+	renderer.updateTimeline([]);
 
 	appStateManager.state.resolution.value = project.resolution;
 	appStateManager.state.assets.value = project.assets;
 	appStateManager.state.visualModules.value = project.visualModules;
 	appStateManager.state.players.value = project.players;
 	appStateManager.state.timeline.value = project.timeline;
+	appStateManager.undoStack.value = [];
+	appStateManager.redoStack.value = [];
 	await renderer.updateAssets(deepClone(project.assets));
+	await renderer.updatePlayers(deepClone(project.players));
+	renderer.updateVisualModules(deepClone(project.visualModules));
+	renderer.updateTimeline(deepClone(project.timeline));
+	projectMetadata = { id: project.id, name: project.name, author: project.author };
+	projectFileName = fileName;
+	projectFileHandle = fileHandle;
+	window.document.title = `Glitch Studio (${project.name || fileName})`;
 
-	watch(appStateManager.state.assets, async () => {
+	projectWatchers.push(watch(appStateManager.state.assets, async () => {
 		try {
 			await renderer.updateAssets(deepClone(appStateManager.state.assets.value));
 			// 非同期の画像準備後にも、停止中のタイムラインを描き直す。
@@ -129,40 +156,68 @@ export async function appReady(project: Project) {
 		} catch (error) {
 			void ui.alert({ type: 'error', text: error instanceof Error ? error.message : String(error) });
 		}
-	}, { deep: true });
+	}, { deep: true }));
 
-	watch(appStateManager.state.players, () => {
+	projectWatchers.push(watch(appStateManager.state.players, () => {
 		renderer.updatePlayers(deepClone(appStateManager.state.players.value));
-	}, { deep: true, immediate: true });
+	}, { deep: true }));
 
-	watch(appStateManager.state.visualModules, () => {
+	projectWatchers.push(watch(appStateManager.state.visualModules, () => {
 		renderer.updateVisualModules(deepClone(appStateManager.state.visualModules.value));
 		// 停止中は時刻が変化しないため、モジュールの編集・Undo/Redoでも現在位置を描き直す。
 		// 単体のLIVEプレビュー中は、その描画ループを維持する。
 		previewPlayback.refresh();
-	}, { deep: true, immediate: true });
+	}, { deep: true }));
 
-	watch(appStateManager.state.timeline, () => {
+	projectWatchers.push(watch(appStateManager.state.timeline, () => {
 		renderer.updateTimeline(deepClone(appStateManager.state.timeline.value));
 		// 編集・Undo/Redo後は現在位置を描き直す。LIVE中はその表示を維持する。
 		previewPlayback.refresh();
-	}, { deep: true, immediate: true });
+	}, { deep: true }));
 
+	previewPlayback.seekTimeline(0);
 	if (project.visualModules[0] != null) previewPlayback.startLive(project.visualModules[0].id);
 }
 
-export function saveProject() {
-	// TODO
+export async function saveProject(saveAs = false) {
+	if (projectMetadata == null || savingProject) return;
+	savingProject = true;
+	const metadata = projectMetadata;
+	try {
+		// 素材の読み出し中に編集されても、保存開始時点の状態を一貫して書き出す。
+		const project = deepClone({
+			...projectMetadata,
+			gsVersion: _VERSION_,
+			visualModules: appStateManager.state.visualModules.value,
+			assets: appStateManager.state.assets.value,
+			players: appStateManager.state.players.value,
+			timeline: appStateManager.state.timeline.value,
+			resolution: appStateManager.state.resolution.value,
+		} satisfies Project);
+		const handle = await api.saveProjectFile(project, projectFileName, saveAs ? null : projectFileHandle);
+		// 保存中に別プロジェクトを開いた場合、そのプロジェクトの保存先は変更しない。
+		if (handle != null && projectMetadata === metadata) {
+			projectFileHandle = handle;
+			projectFileName = handle.name;
+			window.document.title = `Glitch Studio (${metadata.name || handle.name})`;
+		}
+	} catch (error) {
+		await ui.alert({ type: 'error', text: error instanceof Error ? error.message : String(error) });
+	} finally {
+		savingProject = false;
+	}
 }
 
-export async function openProject() {
-	const result = await loadProjectFile();
-	if (result == null) return;
-	const { project } = result;
-
-	console.log('project', project);
-
-	await appReady(project);
+export async function openProject(file?: File, fileHandle?: FileSystemFileHandle): Promise<boolean> {
+	try {
+		const result = await api.loadProjectFile(file, fileHandle);
+		if (result == null) return false;
+		await appReady(result.project, result.name, result.handle);
+		return true;
+	} catch (error) {
+		await ui.alert({ type: 'error', text: error instanceof Error ? error.message : String(error) });
+		return false;
+	}
 }
 
 export async function newProject() {
@@ -206,8 +261,8 @@ export async function newProject() {
 	await appReady({
 		id: genId(),
 		gsVersion: _VERSION_,
-		name: 'untitled',
-		author: 'TODO',
+		name: '',
+		author: '',
 		visualModules: [initialVisualModule],
 		assets: [],
 		players: [],
@@ -331,8 +386,8 @@ export async function newProjectFromImageOrVideo(file?: File) {
 	await appReady({
 		id: genId(),
 		gsVersion: _VERSION_,
-		name: result.name,
-		author: 'TODO',
+		name: '',
+		author: '',
 		visualModules: [initialVisualModule],
 		assets: [asset],
 		players: player ? [player] : [],
