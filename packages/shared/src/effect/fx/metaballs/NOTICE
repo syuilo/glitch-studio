@@ -1,0 +1,7 @@
+Powered by Paper Shaders:
+https://shaders.paper.design
+
+Metaballs adapted from Paper Design's shaders.
+https://github.com/paper-design/shaders
+Modified for Glitch Studio: WGSL, procedural noise instead of the noise image, array color inputs,
+node background, explicit time and sizing parameters, alpha-safe foreground dithering.
