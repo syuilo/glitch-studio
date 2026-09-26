@@ -4,7 +4,6 @@ export default defineEffect({
 	id: 'video',
 	displayName: 'Video',
 	tags: [],
-	primaryInputParameter: null,
 	paramDefs: {
 		player: { dataType: { kind: 'playerReference' }, ui: { label: 'Player', control: {} }, defaultValue: { inputSource: 'literal', value: null } },
 		sizeMode: {
@@ -13,7 +12,9 @@ export default defineEffect({
 			defaultValue: { inputSource: 'literal', value: 'cover' },
 		},
 	},
+	primaryInputParameter: null,
 	outputDefs: {
-		output: { primary: true, dataType: { kind: 'color' } },
+		output: { dataType: { kind: 'color' } },
 	},
+	primaryOutput: 'output',
 });

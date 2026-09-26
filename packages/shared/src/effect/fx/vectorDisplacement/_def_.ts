@@ -4,7 +4,6 @@ export default defineEffect({
 	id: 'vectorDisplacement',
 	displayName: 'Vector displacement',
 	tags: [],
-	primaryInputParameter: 'input',
 	paramDefs: {
 		input: { dataType: { kind: 'color' }, ui: { label: 'Input', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },
 		vector: { dataType: { kind: 'vector' }, ui: { label: 'Vector', control: { controlType: 'vector', min: -1, max: 1 } }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0] } },
@@ -13,7 +12,9 @@ export default defineEffect({
 		flipY: { dataType: { kind: 'bool' }, ui: { label: 'Flip Y', control: {} }, defaultValue: { inputSource: 'literal', value: false } },
 		rotation: { dataType: { kind: 'scalar' }, ui: { label: 'Rotation', control: { controlType: 'angle' } }, defaultValue: { inputSource: 'literal', value: 0 } },
 	},
+	primaryInputParameter: 'input',
 	outputDefs: {
-		output: { primary: true, dataType: { kind: 'color' } },
+		output: { dataType: { kind: 'color' } },
 	},
+	primaryOutput: 'output',
 });

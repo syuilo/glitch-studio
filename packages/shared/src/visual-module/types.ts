@@ -58,8 +58,8 @@ export type VisualModule = {
 		label: string;
 		name: string;
 		dataType: TextureDataType;
-		isPrimaryOutput: boolean;
 	}[];
+	primaryOutputId: string | null;
 	paramDefs: (ParameterDefinition & {
 		id: VisualModuleCustomParameterId;
 		nameForReference: VisualModuleCustomParameterName; // expressionから参照するとき用

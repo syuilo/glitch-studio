@@ -5,12 +5,12 @@
 		<GsInput :modelValue="def.label" @update:modelValue="update(def.id, { label: $event })"/>
 		<span>Name</span>
 		<GsInput :modelValue="def.name" @update:modelValue="update(def.id, { name: $event })"/>
-		<GsSelect :modelValue="def.dataType.kind" :items="dataTypes" @update:modelValue="update(def.id, { dataType: { kind: $event }, isPrimaryOutput: $event === 'color' && def.isPrimaryOutput })"/>
+		<GsSelect :modelValue="def.dataType.kind" :items="dataTypes" @update:modelValue="update(def.id, { dataType: { kind: $event } })"/>
 		<GsSwitch
 			v-if="def.dataType.kind === 'color'"
-			:modelValue="def.isPrimaryOutput"
-			:disabled="!def.isPrimaryOutput && visualModule.outputDefs.some(item => item.isPrimaryOutput)"
-			@update:modelValue="update(def.id, { isPrimaryOutput: $event })"
+			:modelValue="visualModule.primaryOutputId === def.id"
+			:disabled="visualModule.primaryOutputId !== null && visualModule.primaryOutputId !== def.id"
+			@update:modelValue="appStateManager.commit('setVisualModulePrimaryOutput', { visualModuleId: visualModule.id, primaryOutputId: $event ? def.id : null })"
 		>Primary output</GsSwitch>
 		<GsButton small danger @click="appStateManager.commit('removeVisualModuleOutputDef', { visualModuleId: visualModule.id, defId: def.id })">Remove output</GsButton>
 	</div>
@@ -45,7 +45,7 @@ function add() {
 	for (let suffix = 2; props.visualModule.outputDefs.some(def => def.name === name); suffix++) name = `output${suffix}`;
 	appStateManager.commit('addVisualModuleOutputDef', {
 		visualModuleId: props.visualModule.id,
-		def: { id: genId(), label: 'Output', name, dataType: { kind: 'color' }, isPrimaryOutput: !props.visualModule.outputDefs.some(def => def.isPrimaryOutput) },
+		def: { id: genId(), label: 'Output', name, dataType: { kind: 'color' } },
 	});
 }
 </script>

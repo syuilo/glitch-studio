@@ -6,7 +6,6 @@ export default defineEffect({
 	id: 'water',
 	displayName: 'Water',
 	tags: [],
-	primaryInputParameter: 'input',
 	paramDefs: {
 		input: { dataType: { kind: 'color' }, ui: { label: 'Input', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },
 		colorHighlight: { dataType: { kind: 'color' }, ui: { label: 'Highlight color', control: {} }, defaultValue: { inputSource: 'literal', value: [1, 1, 1, 1] } },
@@ -21,7 +20,9 @@ export default defineEffect({
 		speed: { dataType: { kind: 'scalar' }, ui: { label: 'Speed', control: { controlType: 'number', step: 0.01 } }, defaultValue: { inputSource: 'literal', value: 1 } },
 		frame: { dataType: { kind: 'scalar' }, ui: { label: 'Frame offset (ms)', control: { controlType: 'number', step: 1 } }, defaultValue: { inputSource: 'literal', value: 0 } },
 	},
+	primaryInputParameter: 'input',
 	outputDefs: {
-		output: { primary: true, dataType: { kind: 'color' } },
+		output: { dataType: { kind: 'color' } },
 	},
+	primaryOutput: 'output',
 });

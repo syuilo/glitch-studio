@@ -25,7 +25,7 @@ function visualModule(circular) {
 	return {
 		id: 'module', name: 'Test', automationGraphs: [],
 		paramDefs: [],
-		outputDefs: [{ id: 'output', isPrimaryOutput: true, dataType: { kind: 'color' } }],
+		outputDefs: [{ id: 'output', dataType: { kind: 'color' } }], primaryOutputId: 'output',
 		nodes: [
 			{ id: 'a', type: 'effect', effectId: 'pass', isBypass: true, params: { input: { inputSource: 'node', nodeId: circular ? 'b' : null, outputPort: 'output' } } },
 			{ id: 'b', type: 'effect', effectId: 'pass', isBypass: true, params: { input: { inputSource: 'node', nodeId: 'a', outputPort: 'output' } } },
@@ -59,9 +59,9 @@ function fixture(t) {
 		onPreviewError: message => errors.push(message),
 		visualModules: [visualModule(true)],
 		timeline: [{ id: 'layer', layerType: 'visualModule', visualModuleId: 'module', startTimeMs: 0, endTimeMs: 1000, paramValues: {}, automationGraphs: [] }],
-		effectDefinitions: { pass: { primaryInputParameter: 'input', outputDefs: { output: { dataType: { kind: 'color' } } }, paramDefs: {
+		effectDefinitions: { pass: { paramDefs: {
 			input: { dataType: { kind: 'color' }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },
-		} } },
+		}, primaryInputParameter: 'input', outputDefs: { output: { dataType: { kind: 'color' } } }, primaryOutput: 'output' } },
 		effectImplementations: { pass: { outputTextureFactories: {} } },
 	});
 	t.after(() => renderer.destroy());

@@ -4,7 +4,6 @@ export default defineEffect({
 	id: 'snoise',
 	displayName: 'snoise',
 	tags: [],
-	primaryInputParameter: null,
 	paramDefs: {
 		scale: { dataType: { kind: 'vector' }, ui: { label: 'Scale', control: { controlType: 'vector', min: 0, max: 16, step: 0.01 } }, canNode: true, defaultValue: { inputSource: 'literal', value: [1, 1] } },
 		offset: { dataType: { kind: 'vector' }, ui: { label: 'Offset', control: { controlType: 'vector', min: 0, max: 16, step: 0.01 } }, defaultValue: { inputSource: 'literal', value: [0, 0] } },
@@ -15,7 +14,9 @@ export default defineEffect({
 		time: { dataType: { kind: 'scalar' }, ui: { label: 'Time', control: { controlType: 'number', step: 0.01 } }, canNode: false, defaultValue: { inputSource: 'literal', value: 0 } },
 		seed: { dataType: { kind: 'scalar' }, ui: { label: 'Seed', control: { controlType: 'seed' } }, canNode: false, defaultValue: { inputSource: 'literal', value: 0 } },
 	},
+	primaryInputParameter: null,
 	outputDefs: {
-		output: { primary: true, dataType: { kind: 'scalar' } },
+		output: { dataType: { kind: 'scalar' } },
 	},
+	primaryOutput: 'output',
 });

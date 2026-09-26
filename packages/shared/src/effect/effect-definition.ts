@@ -3,7 +3,6 @@ import type { CheckedParameterDefinition, ParameterDefinition } from '../paramet
 
 export type EffectOutputDefinitions = Record<string, {
 	dataType: TextureDataType;
-	primary: boolean;
 
 	// trueの出力のみ、必要になるまで確保を遅らせ、未使用になったら解放する。
 	canLazyAllocation?: boolean;
@@ -19,6 +18,7 @@ export type EffectDefinition<In extends Record<string, ParameterDefinition> = Re
 	// バイパス・自動接続に使うトップレベルの入力。主入力がないエフェクトはnull。
 	primaryInputParameter: Extract<keyof In, string> | null;
 	outputDefs: Out;
+	primaryOutput: Extract<keyof NoInfer<Out>, string> | null;
 };
 
 export function defineEffect<const In extends Record<string, ParameterDefinition>, const Out extends EffectOutputDefinitions>(
@@ -29,6 +29,9 @@ export function defineEffect<const In extends Record<string, ParameterDefinition
 	// 主入力は接続を受け取るため、通常の数値設定やコンテナは指定できない。
 	if (def.primaryInputParameter !== null && def.paramDefs[def.primaryInputParameter]?.canNode !== true) {
 		throw new Error(`Primary input must reference a node-capable parameter: ${def.id}.${def.primaryInputParameter}`);
+	}
+	if (def.primaryOutput !== null && !Object.hasOwn(def.outputDefs, def.primaryOutput)) {
+		throw new Error(`Primary output must reference an existing output: ${def.id}.${def.primaryOutput}`);
 	}
 	return def;
 }

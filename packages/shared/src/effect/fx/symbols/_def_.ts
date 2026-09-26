@@ -4,7 +4,6 @@ export default defineEffect({
 	id: 'symbols',
 	displayName: 'Symbols',
 	tags: [],
-	primaryInputParameter: 'input',
 	paramDefs: {
 		input: { dataType: { kind: 'color' }, ui: { label: 'Input', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },
 		iconset: {
@@ -27,7 +26,9 @@ export default defineEffect({
 		forceFieldShift: { dataType: { kind: 'bool' }, ui: { label: 'Force Field Shift', control: {} }, defaultValue: { inputSource: 'literal', value: true } },
 		forceFieldWarp: { dataType: { kind: 'bool' }, ui: { label: 'Force Field Warp', control: {} }, defaultValue: { inputSource: 'literal', value: true } },
 	},
+	primaryInputParameter: 'input',
 	outputDefs: {
-		output: { primary: true, dataType: { kind: 'color' } },
+		output: { dataType: { kind: 'color' } },
 	},
+	primaryOutput: 'output',
 });

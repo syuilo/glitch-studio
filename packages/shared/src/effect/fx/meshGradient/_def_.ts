@@ -4,7 +4,6 @@ export default defineEffect({
 	id: 'meshGradient',
 	displayName: 'Mesh Gradient',
 	tags: [],
-	primaryInputParameter: null,
 	paramDefs: {
 		colors: {
 			dataType: { kind: 'array', elementType: { kind: 'color' } },
@@ -30,7 +29,9 @@ export default defineEffect({
 		angle: { dataType: { kind: 'scalar' }, ui: { label: 'Angle', control: { controlType: 'angle' } }, defaultValue: { inputSource: 'literal', value: 0 } },
 		offset: { dataType: { kind: 'vector' }, ui: { label: 'Offset', control: { controlType: 'vector', min: -1, max: 1, step: 0.01 } }, defaultValue: { inputSource: 'literal', value: [0, 0] } },
 	},
+	primaryInputParameter: null,
 	outputDefs: {
-		output: { primary: true, dataType: { kind: 'color' } },
+		output: { dataType: { kind: 'color' } },
 	},
+	primaryOutput: 'output',
 });

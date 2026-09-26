@@ -75,7 +75,7 @@ const paramDef = (id, defaultValue = 7, dataType = 'scalar') => ({ id, nameForRe
 const context = (defs, params, overrides = {}) => ({
 	nodes: [node(params)],
 	paramDefs: [],
-	effectDefinitions: { test: { id: 'test', displayName: 'Test', tags: [], paramDefs: defs, primaryInputParameter: null, outputDefs: {} } },
+	effectDefinitions: { test: { id: 'test', displayName: 'Test', tags: [], paramDefs: defs, primaryInputParameter: null, outputDefs: {}, primaryOutput: null } },
 	automationGraphs: [],
 	resolution: { width: 640, height: 360 },
 	time: 500,
@@ -520,7 +520,8 @@ for (const enable32bitDataTextures of [false, true]) {
 				vector: { dataType: { kind: 'vector' }, ui: { label: 'Vector', control: { controlType: 'vector' } }, canNode: true, defaultValue: literal([0, 0]) },
 				color: { dataType: { kind: 'color' }, ui: { label: 'Color', control: {} }, canNode: true, defaultValue: literal([0, 0, 0, 0]) },
 			}) },
-			outputDefs: { image: { dataType: { kind: 'color' }, primary: true } },
+			outputDefs: { image: { dataType: { kind: 'color' } } },
+			primaryOutput: 'image',
 		} };
 		const output = createTexture();
 		const renderer = new VisualModuleRenderer({
@@ -535,7 +536,7 @@ for (const enable32bitDataTextures of [false, true]) {
 			} },
 			visualModule: {
 				id: 'module', name: 'Test', paramDefs: [], automationGraphs: [],
-				outputDefs: [{ id: 'out', isPrimaryOutput: true }],
+				outputDefs: [{ id: 'out' }], primaryOutputId: 'out',
 				nodes: [node({ group: literal({ amount: expression('TIME + 1'), vector: literal([0.123456789, -1]), color: literal([1, 0.5, 0, 0.25]) }) }),
 					{ id: 'out', type: 'globalOut', inputs: { out: { nodeId: 'node', outputPort: 'image' } } }],
 			},

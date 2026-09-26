@@ -4,7 +4,6 @@ export default defineEffect({
 	id: 'transform',
 	displayName: 'Transform',
 	tags: [],
-	primaryInputParameter: 'input',
 	paramDefs: {
 		input: { dataType: { kind: 'color' }, ui: { label: 'Input', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },
 		// ±2で画面幅/高さ1つ分の移動。これはUIの操作範囲であり、入力値自体は制限しない。
@@ -12,7 +11,9 @@ export default defineEffect({
 		scale: { dataType: { kind: 'vector' }, ui: { label: 'Scale', control: { controlType: 'vector', min: -1, max: 4, step: 0.01 } }, canNode: true, defaultValue: { inputSource: 'literal', value: [1, 1] } },
 		rotation: { dataType: { kind: 'scalar' }, ui: { label: 'Rotation', control: { controlType: 'angle' } }, canNode: true, defaultValue: { inputSource: 'literal', value: 0 } },
 	},
+	primaryInputParameter: 'input',
 	outputDefs: {
-		output: { primary: true, dataType: { kind: 'color' } },
+		output: { dataType: { kind: 'color' } },
 	},
+	primaryOutput: 'output',
 });

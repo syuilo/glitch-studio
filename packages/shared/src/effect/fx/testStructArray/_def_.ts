@@ -4,7 +4,6 @@ export default defineEffect({
 	id: 'testStructArray',
 	displayName: 'Test of Struct and Array',
 	tags: [],
-	primaryInputParameter: null,
 	paramDefs: {
 		foo: {
 			dataType: { kind: 'struct', fields: { node: { kind: 'color' } } },
@@ -40,9 +39,11 @@ export default defineEffect({
 			},
 		},
 	},
+	primaryInputParameter: null,
 	outputDefs: {
-		output: { primary: true, dataType: { kind: 'color' } },
-		output2: { primary: false, dataType: { kind: 'scalar' } },
-		output3: { primary: false, dataType: { kind: 'vector' } },
+		output: { dataType: { kind: 'color' } },
+		output2: { dataType: { kind: 'scalar' } },
+		output3: { dataType: { kind: 'vector' } },
 	},
+	primaryOutput: 'output',
 });

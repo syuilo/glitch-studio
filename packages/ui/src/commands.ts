@@ -141,7 +141,7 @@ const addEffectNodeCommandDef = defineCommand<{ visualModuleId: string; id: stri
 				if (addedNode == null) {
 					const paramDefs = effectDefinitions[payload.effectId].paramDefs as Record<string, ParameterDefinition>;
 					const globalOut = visualModule.nodes.find(node => node.type === 'globalOut');
-					const primaryOutput = visualModule.outputDefs.find(def => def.isPrimaryOutput);
+					const primaryOutput = visualModule.outputDefs.find(def => def.id === visualModule.primaryOutputId);
 					const previousInput = primaryOutput == null ? undefined : globalOut?.inputs[primaryOutput.id];
 					const previous = previousInput?.nodeId == null ? undefined : visualModule.nodes.find(node => node.id === previousInput.nodeId);
 					const params: VisualModuleEffectNode['params'] = {};
@@ -158,7 +158,8 @@ const addEffectNodeCommandDef = defineCommand<{ visualModuleId: string; id: stri
 					// ランダムな初期値や自動接続もRedo時に変えない。
 					addedNode = { id: payload.id, type: 'effect', effectId: payload.effectId, isBypass: false,
 																			params: { ...params, ...deepClone(payload.params ?? {}) }, pos: { x: 0, y: 0 } };
-					const outputPort = Object.entries(getNodeOutputs(addedNode, visualModule.paramDefs)).find(([, output]) => output.primary && canConnectNodeDataTypes(output.dataType, { kind: 'color' }))?.[0];
+					const primaryPort = effectDefinitions[payload.effectId].primaryOutput;
+					const outputPort = primaryPort != null && canConnectNodeDataTypes(effectDefinitions[payload.effectId].outputDefs[primaryPort].dataType, { kind: 'color' }) ? primaryPort : null;
 					if (globalOut != null && primaryOutput != null && outputPort != null) {
 						outputConnection = {
 							nodeId: globalOut.id,
@@ -685,31 +686,54 @@ function validateVisualModuleOutputDef(module: VisualModule, def: VisualModuleOu
 	if (module.outputDefs.some(item => item.id !== previousId && (item.id === def.id || item.name === def.name))) {
 		throw new Error('Output ID and name must be unique');
 	}
-	if (def.isPrimaryOutput && (def.dataType.kind !== 'color'
-		|| module.outputDefs.some(item => item.id !== previousId && item.isPrimaryOutput))) {
-		throw new Error('Only one color output can be the primary output');
-	}
 }
 
 const addVisualModuleOutputDefCommandDef = defineCommand<{ visualModuleId: string; def: VisualModuleOutputDef }>({
 	label: 'Add visual module output',
-	create: payload => ({
-		execute(state) {
-			const module = stateUtility.getVisualModule(state, payload.visualModuleId);
-			validateVisualModuleOutputDef(module, payload.def);
-			module.outputDefs.push(deepClone(payload.def));
-		},
-		undo(state) {
-			const module = stateUtility.getVisualModule(state, payload.visualModuleId);
-			module.outputDefs = module.outputDefs.filter(def => def.id !== payload.def.id);
-		},
-	}),
+	create: payload => {
+		let primaryOutputId: string | null;
+		return {
+			execute(state) {
+				const module = stateUtility.getVisualModule(state, payload.visualModuleId);
+				validateVisualModuleOutputDef(module, payload.def);
+				primaryOutputId = module.primaryOutputId;
+				module.outputDefs.push(deepClone(payload.def));
+				if (module.primaryOutputId === null && payload.def.dataType.kind === 'color') module.primaryOutputId = payload.def.id;
+			},
+			undo(state) {
+				const module = stateUtility.getVisualModule(state, payload.visualModuleId);
+				module.outputDefs = module.outputDefs.filter(def => def.id !== payload.def.id);
+				module.primaryOutputId = primaryOutputId;
+			},
+		};
+	},
+});
+
+const setVisualModulePrimaryOutputCommandDef = defineCommand<{ visualModuleId: string; primaryOutputId: string | null }>({
+	label: 'Set visual module primary output',
+	create: payload => {
+		let before: string | null;
+		return {
+			execute(state) {
+				const module = stateUtility.getVisualModule(state, payload.visualModuleId);
+				if (payload.primaryOutputId !== null && !module.outputDefs.some(def => def.id === payload.primaryOutputId && def.dataType.kind === 'color')) {
+					throw new Error('Primary output must reference a color output');
+				}
+				before = module.primaryOutputId;
+				module.primaryOutputId = payload.primaryOutputId;
+			},
+			undo(state) {
+				stateUtility.getVisualModule(state, payload.visualModuleId).primaryOutputId = before;
+			},
+		};
+	},
 });
 
 const removeVisualModuleOutputDefCommandDef = defineCommand<{ visualModuleId: string; defId: string }>({
 	label: 'Remove visual module output',
 	create: payload => {
 		let before: VisualModuleOutputDef;
+		let primaryOutputId: string | null;
 		let index: number;
 		return {
 			execute(state) {
@@ -717,11 +741,15 @@ const removeVisualModuleOutputDefCommandDef = defineCommand<{ visualModuleId: st
 				index = module.outputDefs.findIndex(def => def.id === payload.defId);
 				if (index < 0) throw new Error('Visual module output not found');
 				before = deepClone(module.outputDefs[index]);
+				primaryOutputId = module.primaryOutputId;
 				// Outの接続はIDとともに保持し、Undoで定義を戻したときに再び有効にする。
 				module.outputDefs.splice(index, 1);
+				if (module.primaryOutputId === payload.defId) module.primaryOutputId = null;
 			},
 			undo(state) {
-				stateUtility.getVisualModule(state, payload.visualModuleId).outputDefs.splice(index, 0, deepClone(before));
+				const module = stateUtility.getVisualModule(state, payload.visualModuleId);
+				module.outputDefs.splice(index, 0, deepClone(before));
+				module.primaryOutputId = primaryOutputId;
 			},
 		};
 	},
@@ -733,6 +761,7 @@ const updateVisualModuleOutputDefCommandDef = defineCommand<{
 	label: 'Update visual module output',
 	create: payload => {
 		let before: VisualModuleOutputDef;
+		let primaryOutputId: string | null;
 		return {
 			execute(state) {
 				const module = stateUtility.getVisualModule(state, payload.visualModuleId);
@@ -741,19 +770,23 @@ const updateVisualModuleOutputDefCommandDef = defineCommand<{
 				const next = { ...module.outputDefs[index], ...deepClone(payload.changes), id: payload.defId };
 				validateVisualModuleOutputDef(module, next, payload.defId);
 				before = deepClone(module.outputDefs[index]);
+				primaryOutputId = module.primaryOutputId;
 				module.outputDefs[index] = next;
+				if (module.primaryOutputId === payload.defId && next.dataType.kind !== 'color') module.primaryOutputId = null;
 			},
 			undo(state) {
 				const module = stateUtility.getVisualModule(state, payload.visualModuleId);
 				const index = module.outputDefs.findIndex(def => def.id === payload.defId);
 				if (index < 0) throw new Error('Visual module output not found');
 				module.outputDefs[index] = deepClone(before);
+				module.primaryOutputId = primaryOutputId;
 			},
 		};
 	},
 });
 
 export const COMMAND_DEFS = {
+	setVisualModulePrimaryOutput: setVisualModulePrimaryOutputCommandDef,
 	editVisualModuleLayerParam: editVisualModuleLayerParamCommandDef,
 	addVisualModuleOutputDef: addVisualModuleOutputDefCommandDef,
 	removeVisualModuleOutputDef: removeVisualModuleOutputDefCommandDef,

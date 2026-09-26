@@ -4,7 +4,6 @@ export default defineEffect({
 	id: 'image',
 	displayName: 'Image',
 	tags: [],
-	primaryInputParameter: null,
 	paramDefs: {
 		image: { dataType: { kind: 'assetReference' }, ui: { label: 'Image', control: {} }, defaultValue: { inputSource: 'literal', value: null } },
 		sizeMode: {
@@ -13,7 +12,9 @@ export default defineEffect({
 			defaultValue: { inputSource: 'literal', value: 'cover' },
 		},
 	},
+	primaryInputParameter: null,
 	outputDefs: {
-		output: { primary: true, dataType: { kind: 'color' } },
+		output: { dataType: { kind: 'color' } },
 	},
+	primaryOutput: 'output',
 });

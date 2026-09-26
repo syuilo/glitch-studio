@@ -6,7 +6,6 @@ export default defineEffect({
 	id: 'neuroNoise',
 	displayName: 'Neuro Noise',
 	tags: [],
-	primaryInputParameter: 'background',
 	paramDefs: {
 		background: { dataType: { kind: 'color' }, ui: { label: 'Background', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 1] } },
 		colorFront: { dataType: { kind: 'color' }, ui: { label: 'Highlight Color', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [1, 1, 1, 1] } },
@@ -19,7 +18,9 @@ export default defineEffect({
 		angle: { dataType: { kind: 'scalar' }, ui: { label: 'Angle', control: { controlType: 'angle' } }, defaultValue: { inputSource: 'literal', value: 0 } },
 		offset: { dataType: { kind: 'vector' }, ui: { label: 'Offset', control: { controlType: 'vector', min: -1, max: 1, step: 0.01 } }, defaultValue: { inputSource: 'literal', value: [0, 0] } },
 	},
+	primaryInputParameter: 'background',
 	outputDefs: {
-		output: { primary: true, dataType: { kind: 'color' } },
+		output: { dataType: { kind: 'color' } },
 	},
+	primaryOutput: 'output',
 });

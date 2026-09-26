@@ -50,6 +50,29 @@ function gpuFixture() {
 }
 const literal = value => ({ inputSource: 'literal', value });
 
+// モジュールの主出力IDを変更すると描画対象が切り替わり、nullなら主出力を返さない。
+// 出力配列の先頭や以前の主出力を暗黙に使い続ける不具合を防ぐ。
+test('renders the selected module primary output after updates', () => {
+	const { device, encoder } = gpuFixture();
+	const module = {
+		paramDefs: ['a', 'b'].map(id => ({ id, dataType: { kind: 'color' }, canNode: true, defaultValue: literal(id === 'a' ? [1, 0, 0, 1] : [0, 1, 0, 1]) })),
+		automationGraphs: [], outputDefs: [{ id: 'a' }, { id: 'b' }], primaryOutputId: 'b',
+		nodes: [{ id: 'in', type: 'globalIn' }, { id: 'out', type: 'globalOut', inputs: {
+			a: { nodeId: 'in', outputPort: 'a' }, b: { nodeId: 'in', outputPort: 'b' },
+		} }],
+	};
+	const renderer = createRenderer(device, module);
+	const context = () => renderContext({ paramInputs: new Map(module.paramDefs.map(def => [def.id, { kind: 'uniform', value: def.defaultValue.value }])) });
+	try {
+		assert.deepEqual(renderer.render(context(), encoder).value, [0, 1, 0, 1]);
+		renderer.updateVisualModule({ ...module, primaryOutputId: 'a' });
+		assert.deepEqual(renderer.render(context(), encoder).value, [1, 0, 0, 1]);
+		renderer.updateVisualModule({ ...module, primaryOutputId: null });
+		assert.equal(renderer.render(context(), encoder), undefined);
+		assert.deepEqual([...renderer.renderOutputs({ ...context(), outputIds: ['b'] }, encoder).keys()], ['b']);
+	} finally { renderer.destroy(); }
+});
+
 // 不透明度0と無変形の置き換えは借用出力をそのまま返し、余分なテクスチャを作らない。
 test('passes through timeline outputs without taking ownership', () => {
 	const { device, calls, encoder } = gpuFixture();
@@ -107,9 +130,9 @@ test('publishes output resolutions only after drawing and when state changes', a
 		init: ({ reportStatus }) => { reports.push(reportStatus); return { render() {}, dispose() {} }; },
 	};
 	const renderer = createRenderer(device, {
-		paramDefs: [], automationGraphs: [], outputDefs: [{ id: 'out', isPrimaryOutput: true }, { id: 'extra' }], nodes,
+		paramDefs: [], automationGraphs: [], outputDefs: [{ id: 'out' }, { id: 'extra' }], primaryOutputId: 'out', nodes,
 	}, {
-		effectDefinitions: { colorMix: { ...definition, outputDefs: { output: { primary: true, dataType: { kind: 'color' } }, extra: { dataType: { kind: 'color' }, primary: false, canLazyAllocation: true } } } },
+		effectDefinitions: { colorMix: { ...definition, outputDefs: { output: { dataType: { kind: 'color' } }, extra: { dataType: { kind: 'color' }, canLazyAllocation: true } } } },
 		effectImplementations: { colorMix: probe }, onEffectState: (id, state) => notifications.push({ id, state }),
 	});
 	const latest = () => notifications.at(-1).state;
@@ -163,7 +186,7 @@ test('preserves constant outputs across timeline module layers', async () => {
 	const presented = [];
 	const module = {
 		paramDefs: [{ id: 'input', nameForReference: 'Input', dataType: { kind: 'color' }, canNode: true, isPrimaryInput: true, defaultValue: literal([0, 0, 0, 0]) }],
-		automationGraphs: [], outputDefs: [{ id: 'out', isPrimaryOutput: true }],
+		automationGraphs: [], outputDefs: [{ id: 'out' }], primaryOutputId: 'out',
 		nodes: [{ id: 'in', type: 'globalIn' }, { id: 'out', type: 'globalOut', inputs: { out: { nodeId: 'in', outputPort: 'input' } } }],
 	};
 	const constant = { kind: 'uniform', value: [0.25, 0.125, 0, 0.25] };
@@ -204,7 +227,7 @@ test('passes module constants through bypasses without allocating input textures
 			{ id: 'color', nameForReference: 'Color', dataType: { kind: 'color' }, canNode: true, defaultValue: literal([1, 0.5, 0, 0.25]) },
 			{ id: 'vector', nameForReference: 'Vector', dataType: { kind: 'vector' }, canNode: true, defaultValue: literal([0.123456789, -2]) },
 			{ id: 'scalar', nameForReference: 'Scalar', dataType: { kind: 'scalar' }, canNode: true, defaultValue: literal(0.123456789) },
-		], automationGraphs: [], outputDefs: [{ id: 'out', isPrimaryOutput: true }],
+		], automationGraphs: [], outputDefs: [{ id: 'out' }], primaryOutputId: 'out',
 		nodes: [{ id: 'in', type: 'globalIn' }, bypass, mix, { id: 'out', type: 'globalOut', inputs: { out: { nodeId: 'mix', outputPort: 'output' } } }],
 	}, { effectImplementations: { colorMix: probe } });
 	try {
@@ -242,7 +265,7 @@ test('switches module outputs between constants and borrowed textures', () => {
 		paramDefs: [
 			{ id: 'color', nameForReference: 'Color', dataType: { kind: 'color' }, canNode: true, defaultValue: literal([1, 0, 0, 0.5]) },
 			{ id: 'gain', nameForReference: 'Gain', dataType: { kind: 'scalar' }, canNode: true, defaultValue: literal(0) },
-		], automationGraphs: [], outputDefs: [{ id: 'out', isPrimaryOutput: true }], nodes: [{ id: 'in', type: 'globalIn' }, mix, out],
+		], automationGraphs: [], outputDefs: [{ id: 'out' }], primaryOutputId: 'out', nodes: [{ id: 'in', type: 'globalIn' }, mix, out],
 	}, { effectImplementations: { colorMix: { ...effect, init: () => ({ render: ctx => captured.push(ctx.params), dispose() {} }) } } });
 	const texture = device.createTexture({ size: [17, 9], format: 'rgba8unorm' });
 	try {
@@ -310,7 +333,7 @@ test('resolves nested array inputs and invalidates sampling changes', () => {
 		buzzs: literal([literal({ image: connection, x: literal(0), y: literal(0) }), literal({ image: literal([1, 0, 0, 0.25]), x: literal(1), y: literal(0) })]),
 	} };
 	const renderer = createRenderer(device, {
-		paramDefs: [], automationGraphs: [], outputDefs: [{ id: 'out', isPrimaryOutput: true }],
+		paramDefs: [], automationGraphs: [], outputDefs: [{ id: 'out' }], primaryOutputId: 'out',
 		nodes: [source, arrayNode, { id: 'out', type: 'globalOut', inputs: { out: { nodeId: 'array', outputPort: 'output' } } }],
 	}, { effectDefinitions: { colorMix: definition, testStructArray: structArrayDefinition }, effectImplementations: { colorMix: effect, testStructArray: probe } });
 	try {
@@ -410,7 +433,7 @@ test('resolves colorMix inputs through the renderer without constant textures', 
 	const mix = { id: 'mix', type: 'effect', effectId: 'colorMix', isBypass: false, params: {
 		inputA: literal([1, 0, 0, 0.5]), inputB: literal([0, 0, 1, 1]), amount: { inputSource: 'expression', expression: '0.25' },
 	} };
-	const visualModule = { paramDefs: [], automationGraphs: [], outputDefs: [{ id: 'out', isPrimaryOutput: true }], nodes: [mix, { id: 'out', type: 'globalOut', inputs: { out: { nodeId: 'mix', outputPort: 'output' } } }] };
+	const visualModule = { paramDefs: [], automationGraphs: [], outputDefs: [{ id: 'out' }], primaryOutputId: 'out', nodes: [mix, { id: 'out', type: 'globalOut', inputs: { out: { nodeId: 'mix', outputPort: 'output' } } }] };
 	const renderer = createRenderer(device, visualModule);
 	const context = renderContext();
 	renderer.render(context, encoder);
@@ -452,7 +475,7 @@ test('refreshes external textures and restores constants after disconnecting the
 	} };
 	const renderer = createRenderer(device, {
 		paramDefs: [{ id: 'gain', nameForReference: 'Gain', dataType: { kind: 'scalar' }, canNode: true, defaultValue: literal(0) }],
-		automationGraphs: [], outputDefs: [{ id: 'out', isPrimaryOutput: true }],
+		automationGraphs: [], outputDefs: [{ id: 'out' }], primaryOutputId: 'out',
 		nodes: [{ id: 'in', type: 'globalIn' }, mix, { id: 'out', type: 'globalOut', inputs: { out: { nodeId: 'mix', outputPort: 'output' } } }],
 	});
 	const context = renderContext();
@@ -489,7 +512,7 @@ test('resizes Image Original outputs to the selected asset and preserves borrowe
 	const assets = new Map([['asset', asset]]);
 	const raw = { id: 'raw', type: 'effect', effectId: 'image', params: { image: literal('asset'), sizeMode: literal('original') } };
 	const output = { id: 'out', type: 'globalOut', inputs: { out: { nodeId: 'raw', outputPort: 'output' } } };
-	const visualModule = { nodes: [raw, output], paramDefs: [], automationGraphs: [], outputDefs: [{ id: 'out', isPrimaryOutput: true }] };
+	const visualModule = { nodes: [raw, output], paramDefs: [], automationGraphs: [], outputDefs: [{ id: 'out' }], primaryOutputId: 'out' };
 	const renderer = createRenderer(device, visualModule, { assetTextures: assets });
 	const initial = renderer.render(renderContext(), encoder).texture;
 	assert.deepEqual([initial.width, initial.height], [7, 3]);

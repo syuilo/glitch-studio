@@ -4,7 +4,6 @@ export default defineEffect({
 	id: 'polkadot',
 	displayName: 'Polka dot',
 	tags: ['pattern'],
-	primaryInputParameter: 'background',
 	paramDefs: {
 		background: { dataType: { kind: 'color' }, ui: { label: 'Background', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },
 		size: {
@@ -21,7 +20,9 @@ export default defineEffect({
 		minorColor: { dataType: { kind: 'color' }, ui: { label: 'Minor color', control: {} }, defaultValue: { inputSource: 'literal', value: [1, 1, 1, 0.5] } },
 		fitMode: { dataType: { kind: 'fitMode' }, ui: { label: 'Fit Mode', control: {} }, defaultValue: { inputSource: 'literal', value: 'cover' } },
 	},
+	primaryInputParameter: 'background',
 	outputDefs: {
-		output: { primary: true, dataType: { kind: 'color' } },
+		output: { dataType: { kind: 'color' } },
 	},
+	primaryOutput: 'output',
 });

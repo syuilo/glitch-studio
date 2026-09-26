@@ -4,7 +4,6 @@ export default defineEffect({
 	id: 'gradient',
 	displayName: 'Gradient',
 	tags: [],
-	primaryInputParameter: null,
 	paramDefs: {
 		mode: { dataType: { kind: 'enum', options: ['linear', 'radial'] }, ui: { label: 'Type', control: { labels: { 'linear': 'Linear', 'radial': 'Radial' } } }, defaultValue: { inputSource: 'literal', value: 'linear' } },
 		fitMode: { dataType: { kind: 'fitMode' }, ui: { label: 'Fit Mode', control: {} }, defaultValue: { inputSource: 'literal', value: 'cover' } },
@@ -42,8 +41,10 @@ export default defineEffect({
 			defaultValue: { inputSource: 'literal', value: 'linear' },
 		},
 	},
+	primaryInputParameter: null,
 	outputDefs: {
-		scalar: { primary: true, dataType: { kind: 'scalar' } },
-		vector: { primary: false, dataType: { kind: 'vector' }, canLazyAllocation: true },
+		scalar: { dataType: { kind: 'scalar' } },
+		vector: { dataType: { kind: 'vector' }, canLazyAllocation: true },
 	},
+	primaryOutput: 'scalar',
 });

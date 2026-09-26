@@ -21,7 +21,7 @@ export function getNodeOutputs(node: VisualModuleNode | undefined, paramDefs: Vi
 		const outputs: EffectOutputDefinitions = {};
 		for (const def of paramDefs) {
 			if (!def.canNode || !isTextureDataType(def.dataType)) continue;
-			outputs[def.id] = { dataType: def.dataType, primary: def.isPrimaryInput };
+			outputs[def.id] = { dataType: def.dataType };
 		}
 		return outputs;
 	}

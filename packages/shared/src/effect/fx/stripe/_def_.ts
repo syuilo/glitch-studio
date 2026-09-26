@@ -4,7 +4,6 @@ export default defineEffect({
 	id: 'stripe',
 	displayName: 'Stripe',
 	tags: ['pattern'],
-	primaryInputParameter: 'background',
 	paramDefs: {
 		background: { dataType: { kind: 'color' }, ui: { label: 'Background', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },
 		// 元のfrequency=10は角周波数100なので、1周期は2π/100。
@@ -19,7 +18,9 @@ export default defineEffect({
 		color: { dataType: { kind: 'color' }, ui: { label: 'Color', control: {} }, defaultValue: { inputSource: 'literal', value: [1, 1, 1, 0.5] } },
 		fitMode: { dataType: { kind: 'fitMode' }, ui: { label: 'Fit Mode', control: {} }, defaultValue: { inputSource: 'literal', value: 'cover' } },
 	},
+	primaryInputParameter: 'background',
 	outputDefs: {
-		output: { primary: true, dataType: { kind: 'color' } },
+		output: { dataType: { kind: 'color' } },
 	},
+	primaryOutput: 'output',
 });

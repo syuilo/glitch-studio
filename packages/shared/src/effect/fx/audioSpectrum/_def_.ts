@@ -4,7 +4,6 @@ export default defineEffect({
 	id: 'audioSpectrum',
 	displayName: 'Audio Spectrum',
 	tags: [],
-	primaryInputParameter: null,
 	paramDefs: {
 		player: { dataType: { kind: 'playerReference' }, ui: { label: 'Player', control: {} }, defaultValue: { inputSource: 'literal', value: null } },
 		channel: {
@@ -31,7 +30,9 @@ export default defineEffect({
 		color: { dataType: { kind: 'color' }, ui: { label: 'Color (L)', control: {} }, defaultValue: { inputSource: 'literal', value: [0.2, 0.9, 1, 1] } },
 		rightColor: { dataType: { kind: 'color' }, ui: { label: 'Color (R)', control: {} }, defaultValue: { inputSource: 'literal', value: [1, 0.3, 0.6, 1] } },
 	},
+	primaryInputParameter: null,
 	outputDefs: {
-		output: { primary: true, dataType: { kind: 'color' } },
+		output: { dataType: { kind: 'color' } },
 	},
+	primaryOutput: 'output',
 });

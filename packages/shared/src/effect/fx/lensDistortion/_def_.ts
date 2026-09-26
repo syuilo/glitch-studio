@@ -6,7 +6,6 @@ export default defineEffect({
 	id: 'lensDistortion',
 	displayName: 'Lens Distortion',
 	tags: [],
-	primaryInputParameter: 'input',
 	paramDefs: {
 		input: { dataType: { kind: 'color' }, ui: { label: 'Input', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },
 		spread: { dataType: { kind: 'scalar' }, ui: { label: 'Spread', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } }, defaultValue: { inputSource: 'literal', value: 0.6 } },
@@ -25,7 +24,9 @@ export default defineEffect({
 		grainOverlay: { dataType: { kind: 'scalar' }, ui: { label: 'Grain Overlay', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } }, defaultValue: { inputSource: 'literal', value: 0 } },
 		angle: { dataType: { kind: 'scalar' }, ui: { label: 'Spread Angle', control: { controlType: 'angle' } }, defaultValue: { inputSource: 'literal', value: 0 } },
 	},
+	primaryInputParameter: 'input',
 	outputDefs: {
-		output: { primary: true, dataType: { kind: 'color' } },
+		output: { dataType: { kind: 'color' } },
 	},
+	primaryOutput: 'output',
 });

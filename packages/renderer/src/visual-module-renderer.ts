@@ -41,6 +41,7 @@ export class VisualModuleRenderer {
 	private nodes: VisualModuleNode[] = [];
 	private paramDefs: VisualModule['paramDefs'];
 	private outputDefs: VisualModule['outputDefs'] = [];
+	private primaryOutputId: string | null = null;
 	private paramValues: EvaluatedParameterValues = new Map();
 	private paramInputs: ReadonlyMap<VisualModuleCustomParameterId, NodeOutput> = new Map();
 	private preparedContext: VisualModuleRenderContext | null = null;
@@ -119,6 +120,7 @@ export class VisualModuleRenderer {
 	public updateVisualModule(visualModule: VisualModule) {
 		this.automationGraphs = visualModule.automationGraphs;
 		this.outputDefs = visualModule.outputDefs;
+		this.primaryOutputId = visualModule.primaryOutputId;
 		this.paramDefs = visualModule.paramDefs;
 		this.preparedContext = null;
 		this.paramValues = new Map();
@@ -432,14 +434,14 @@ export class VisualModuleRenderer {
 			return port != null && getNodeOutputs(node, this.paramDefs)[port] != null ? { node, outputPort: port } : undefined;
 		}
 		if (node.type === 'globalOut') {
-			const port = outputPort ?? this.outputDefs.find(def => def.isPrimaryOutput)?.id;
+			const port = outputPort ?? this.primaryOutputId;
 			if (port == null || !this.outputDefs.some(def => def.id === port)) return;
 			const input = node.inputs[port];
 			const source = input?.nodeId == null ? undefined : this.allNodeIdMap.get(input.nodeId);
 			return source == null ? undefined : this.getOutputNode(source, input.outputPort ?? undefined, nextVisited);
 		}
 		if (!node.isBypass) {
-			const port = outputPort ?? Object.entries(this.effectDefinitions[node.effectId].outputDefs).find(([, def]) => def.primary)?.[0];
+			const port = outputPort ?? this.effectDefinitions[node.effectId].primaryOutput;
 			return port == null || this.effectDefinitions[node.effectId].outputDefs[port] == null ? undefined : { node, outputPort: port };
 		}
 		const primary = this.effectDefinitions[node.effectId].primaryInputParameter;
@@ -668,7 +670,7 @@ export class VisualModuleRenderer {
 	}
 
 	private getRequestedOutputIds(context: VisualModuleRenderContext): readonly string[] {
-		return context.outputIds ?? this.outputDefs.filter(def => def.isPrimaryOutput).map(def => def.id);
+		return context.outputIds ?? (this.primaryOutputId == null ? [] : [this.primaryOutputId]);
 	}
 
 	private renderOutputs(context: VisualModuleRenderContext, commandEncoder: GPUCommandEncoder): Map<string, NodeOutput> {
@@ -700,8 +702,7 @@ export class VisualModuleRenderer {
 
 	public render(context: VisualModuleRenderContext, commandEncoder: GPUCommandEncoder): NodeOutput | undefined {
 		const outputs = this.renderOutputs(context, commandEncoder);
-		const primary = this.outputDefs.find(def => def.isPrimaryOutput);
-		return primary == null ? undefined : outputs.get(primary.id);
+		return this.primaryOutputId == null ? undefined : outputs.get(this.primaryOutputId);
 	}
 
 	// TODO: もっとスマートなリソース更新方法を考える

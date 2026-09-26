@@ -4,7 +4,6 @@ export default defineEffect({
 	id: 'audioSpectrogram',
 	displayName: 'Audio Spectrogram',
 	tags: [],
-	primaryInputParameter: null,
 	paramDefs: {
 		player: { dataType: { kind: 'playerReference' }, ui: { label: 'Player', control: {} }, defaultValue: { inputSource: 'literal', value: null } },
 		channel: {
@@ -41,7 +40,9 @@ export default defineEffect({
 		},
 		flipFrequency: { dataType: { kind: 'bool' }, ui: { label: 'Reverse frequency axis', control: {} }, defaultValue: { inputSource: 'literal', value: false } },
 	},
+	primaryInputParameter: null,
 	outputDefs: {
-		output: { primary: true, dataType: { kind: 'color' } },
+		output: { dataType: { kind: 'color' } },
 	},
+	primaryOutput: 'output',
 });

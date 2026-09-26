@@ -4,7 +4,6 @@ export default defineEffect({
 	id: 'waveform',
 	displayName: 'Waveform',
 	tags: [],
-	primaryInputParameter: 'input',
 	paramDefs: {
 		input: { dataType: { kind: 'color' }, ui: { label: 'Input', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },
 		resolution: {
@@ -21,7 +20,9 @@ export default defineEffect({
 		intensity: { dataType: { kind: 'scalar' }, ui: { label: 'Intensity', control: { controlType: 'range', min: 0, max: 10, step: 0.01 } }, defaultValue: { inputSource: 'literal', value: 1 } },
 		showGrid: { dataType: { kind: 'bool' }, ui: { label: 'Grid', control: {} }, defaultValue: { inputSource: 'literal', value: false } },
 	},
+	primaryInputParameter: 'input',
 	outputDefs: {
-		output: { primary: true, dataType: { kind: 'color' } },
+		output: { dataType: { kind: 'color' } },
 	},
+	primaryOutput: 'output',
 });

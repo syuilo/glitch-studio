@@ -4,7 +4,6 @@ export default defineEffect({
 	id: 'rgbTo',
 	displayName: 'RGB To',
 	tags: [],
-	primaryInputParameter: 'input',
 	paramDefs: {
 		input: { dataType: { kind: 'color' }, ui: { label: 'Input', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },
 		mode: {
@@ -13,7 +12,9 @@ export default defineEffect({
 			defaultValue: { inputSource: 'literal', value: 'intensity' },
 		},
 	},
+	primaryInputParameter: 'input',
 	outputDefs: {
-		output: { primary: true, dataType: { kind: 'scalar' } },
+		output: { dataType: { kind: 'scalar' } },
 	},
+	primaryOutput: 'output',
 });

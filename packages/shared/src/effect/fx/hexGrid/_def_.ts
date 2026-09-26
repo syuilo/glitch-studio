@@ -4,7 +4,6 @@ export default defineEffect({
 	id: 'hexGrid',
 	displayName: 'Hex grid',
 	tags: ['pattern'],
-	primaryInputParameter: 'background',
 	paramDefs: {
 		background: { dataType: { kind: 'color' }, ui: { label: 'Background', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },
 		size: {
@@ -18,7 +17,9 @@ export default defineEffect({
 		lineColor: { dataType: { kind: 'color' }, ui: { label: 'Line color', control: {} }, defaultValue: { inputSource: 'literal', value: [1, 1, 1, 0.75] } },
 		fitMode: { dataType: { kind: 'fitMode' }, ui: { label: 'Fit Mode', control: {} }, defaultValue: { inputSource: 'literal', value: 'cover' } },
 	},
+	primaryInputParameter: 'background',
 	outputDefs: {
-		output: { primary: true, dataType: { kind: 'color' } },
+		output: { dataType: { kind: 'color' } },
 	},
+	primaryOutput: 'output',
 });

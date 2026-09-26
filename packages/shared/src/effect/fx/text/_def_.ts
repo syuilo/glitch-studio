@@ -4,7 +4,6 @@ export default defineEffect({
 	id: 'text',
 	displayName: 'Text',
 	tags: ['typography'],
-	primaryInputParameter: null,
 	paramDefs: {
 		text: { dataType: { kind: 'string' }, ui: { label: 'Text', control: {} }, defaultValue: { inputSource: 'literal', value: 'Hello, world!' } },
 		font: { dataType: { kind: 'fontAssetReference' }, ui: { label: 'Font', control: {} }, defaultValue: { inputSource: 'literal', value: null } },
@@ -26,7 +25,9 @@ export default defineEffect({
 			defaultValue: { inputSource: 'literal', value: 1.2 },
 		},
 	},
+	primaryInputParameter: null,
 	outputDefs: {
-		output: { primary: true, dataType: { kind: 'color' } },
+		output: { dataType: { kind: 'color' } },
 	},
+	primaryOutput: 'output',
 });

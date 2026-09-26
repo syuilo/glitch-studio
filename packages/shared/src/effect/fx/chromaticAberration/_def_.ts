@@ -4,7 +4,6 @@ export default defineEffect({
 	id: 'chromaticAberration',
 	displayName: 'Chromatic Aberration',
 	tags: [],
-	primaryInputParameter: 'input',
 	paramDefs: {
 		input: { dataType: { kind: 'color' }, ui: { label: 'Input', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },
 		amount: { dataType: { kind: 'scalar' }, ui: { label: 'Amount', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } }, defaultValue: { inputSource: 'literal', value: 0.1 } },
@@ -17,7 +16,9 @@ export default defineEffect({
 		vector: { dataType: { kind: 'vector' }, ui: { label: 'Vector', control: { controlType: 'vector', step: 0.01, min: -5, max: 5 } }, defaultValue: { inputSource: 'literal', value: [0, 0] } },
 		normalize: { dataType: { kind: 'bool' }, ui: { label: 'Normalize', control: {} }, defaultValue: { inputSource: 'literal', value: false } },
 	},
+	primaryInputParameter: 'input',
 	outputDefs: {
-		output: { primary: true, dataType: { kind: 'color' } },
+		output: { dataType: { kind: 'color' } },
 	},
+	primaryOutput: 'output',
 });

@@ -4,7 +4,6 @@ export default defineEffect({
 	id: 'pixelate',
 	displayName: 'Pixelate',
 	tags: [],
-	primaryInputParameter: 'input',
 	paramDefs: {
 		input: { dataType: { kind: 'color' }, ui: { label: 'Input', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },
 		size: {
@@ -17,7 +16,9 @@ export default defineEffect({
 		rotation: { dataType: { kind: 'scalar' }, ui: { label: 'Rotation', control: { controlType: 'angle' } }, canNode: true, defaultValue: { inputSource: 'literal', value: 0 } },
 		samples: { dataType: { kind: 'scalar' }, ui: { label: 'Samples', control: { controlType: 'range', min: 1, max: 256, step: 1 } }, defaultValue: { inputSource: 'literal', value: 16 } },
 	},
+	primaryInputParameter: 'input',
 	outputDefs: {
-		output: { primary: true, dataType: { kind: 'color' } },
+		output: { dataType: { kind: 'color' } },
 	},
+	primaryOutput: 'output',
 });

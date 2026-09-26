@@ -4,7 +4,6 @@ export default defineEffect({
 	id: 'colorBlocks',
 	displayName: 'Color blocks',
 	tags: [],
-	primaryInputParameter: 'input',
 	paramDefs: {
 		input: { dataType: { kind: 'color' }, ui: { label: 'Input', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },
 		amount: { dataType: { kind: 'scalar' }, ui: { label: 'Amount', control: { controlType: 'range', min: 0, max: 100, step: 1 } }, defaultValue: { inputSource: 'literal', value: 50 } },
@@ -16,7 +15,9 @@ export default defineEffect({
 		black: { dataType: { kind: 'bool' }, ui: { label: 'Black', control: {} }, defaultValue: { inputSource: 'literal', value: true } },
 		white: { dataType: { kind: 'bool' }, ui: { label: 'White', control: {} }, defaultValue: { inputSource: 'literal', value: true } },
 	},
+	primaryInputParameter: 'input',
 	outputDefs: {
-		output: { primary: true, dataType: { kind: 'color' } },
+		output: { dataType: { kind: 'color' } },
 	},
+	primaryOutput: 'output',
 });

@@ -239,7 +239,8 @@ export async function newProject() {
 		id: genId(),
 		name: 'My Visual Module',
 		automationGraphs: [],
-		outputDefs: [{ id: initialOutputId, label: 'Output', name: 'output', dataType: { kind: 'color' }, isPrimaryOutput: true }],
+		outputDefs: [{ id: initialOutputId, label: 'Output', name: 'output', dataType: { kind: 'color' } }],
+		primaryOutputId: initialOutputId,
 		paramDefs: [{
 			id: initialInputParamId,
 			nameForReference: visualModuleCustomParameterName('myInput'),
@@ -326,7 +327,8 @@ export async function newProjectFromImageOrVideo(file?: File) {
 		id: genId(),
 		name: 'My Visual Module',
 		automationGraphs: [],
-		outputDefs: [{ id: initialOutputId, label: 'Output', name: 'output', dataType: { kind: 'color' }, isPrimaryOutput: true }],
+		outputDefs: [{ id: initialOutputId, label: 'Output', name: 'output', dataType: { kind: 'color' } }],
+		primaryOutputId: initialOutputId,
 		paramDefs: [{
 			id: initialInputParamId,
 			nameForReference: visualModuleCustomParameterName('myInput'),
