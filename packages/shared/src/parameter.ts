@@ -7,6 +7,7 @@ import type { FitMode, ParameterBinding, WrapMode } from './types.ts';
 type ParameterDefaultValueMap = {
 	scalar: number;
 	bool: boolean;
+	string: string;
 	color: [number, number, number, number];
 	vector: [number, number];
 	blendMode: string; // TODO: 合成方法の型に置き換える。
@@ -84,6 +85,7 @@ export type CheckedParameterDefinition<P extends ParameterDefinition> =
 
 export type ParameterDefinition_Scalar = ParameterDefinition<{ kind: 'scalar' }>;
 export type ParameterDefinition_Boolean = ParameterDefinition<{ kind: 'bool' }>;
+export type ParameterDefinition_String = ParameterDefinition<{ kind: 'string' }>;
 export type ParameterDefinition_Color = ParameterDefinition<{ kind: 'color' }>;
 export type ParameterDefinition_Vector = ParameterDefinition<{ kind: 'vector' }>;
 export type ParameterDefinition_BlendMode = ParameterDefinition<{ kind: 'blendMode' }>;

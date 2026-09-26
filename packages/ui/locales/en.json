@@ -111,6 +111,7 @@
 			"Number": "Number",
 			"Range": "Range",
 			"Flag": "Flag",
+			"String": "String",
 			"Color": "Color",
 			"Image": "Image"
 		}

@@ -9,6 +9,7 @@
 			:items="[
 				{ label: i18n.ts._CustomParameterInput._Types.Number, value: 'scalar' },
 				{ label: i18n.ts._CustomParameterInput._Types.Flag, value: 'bool' },
+				{ label: i18n.ts._CustomParameterInput._Types.String, value: 'string' },
 				{ label: i18n.ts._CustomParameterInput._Types.Color, value: 'color' },
 				{ label: i18n.ts._CustomParameterInput._Types.Image, value: 'assetReference' },
 				{ label: 'Video asset', value: 'videoAssetReference' },
@@ -79,11 +80,12 @@ function update(changes: Partial<Omit<ParamDef, 'id'>>) {
 
 function updateType(dataType: ParamDef['dataType']['kind']) {
 	if (dataType === props.def.dataType.kind) return;
-	if (dataType !== 'scalar' && dataType !== 'bool' && dataType !== 'color' && dataType !== 'assetReference' && dataType !== 'videoAssetReference') return;
+	if (dataType !== 'scalar' && dataType !== 'bool' && dataType !== 'string' && dataType !== 'color' && dataType !== 'assetReference' && dataType !== 'videoAssetReference') return;
 
 	const schemas = {
 		scalar: { dataType: { kind: 'scalar' }, ui: { label: props.def.ui.label, control: { controlType: 'number' } } },
 		bool: { dataType: { kind: 'bool' }, ui: { label: props.def.ui.label, control: {} } },
+		string: { dataType: { kind: 'string' }, ui: { label: props.def.ui.label, control: {} } },
 		color: { dataType: { kind: 'color' }, ui: { label: props.def.ui.label, control: {} } },
 		assetReference: { dataType: { kind: 'assetReference' }, ui: { label: props.def.ui.label, control: {} } },
 		videoAssetReference: { dataType: { kind: 'videoAssetReference' }, ui: { label: props.def.ui.label, control: {} } },

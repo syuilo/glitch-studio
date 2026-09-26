@@ -37,6 +37,14 @@
 	<div v-else-if="dataType.kind === 'bool'">
 		<GsButton small :primary="value" @click="changeValue(!value)">{{ value ? 'On' : 'Off' }}</GsButton>
 	</div>
+	<div v-else-if="dataType.kind === 'string'">
+		<GsTextarea
+			:modelValue="value"
+			@focusin="onBeginChanging"
+			@update:modelValue="changeContinuous"
+			@focusout="onFinishChanging"
+		/>
+	</div>
 	<div v-else-if="dataType.kind === 'enum'">
 		<GsSelect small :modelValue="value" :items="enumItems" @update:modelValue="v => changeValue(v)"/>
 	</div>
@@ -189,6 +197,7 @@ import { computed, ref } from 'vue';
 import GsXy from './common/GsXy.vue';
 import GsColorInput from './common/GsColorInput.vue';
 import GsInput from './common/GsInput.vue';
+import GsTextarea from './common/GsTextarea.vue';
 import GsRange from './common/GsRange.vue';
 import GsAngle from './common/GsAngle.vue';
 import GsButton from './common/GsButton.vue';

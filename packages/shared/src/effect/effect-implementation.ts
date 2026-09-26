@@ -12,6 +12,7 @@ type RuntimeEffectOptionValue<D extends DataType, S> =
 	S extends { canNode: true } ? ShaderInput :
 	D extends { kind: 'scalar' } ? number :
 	D extends { kind: 'bool' } ? boolean :
+	D extends { kind: 'string' } ? string :
 	D extends { kind: 'color' } ? Readonly<[number, number, number, number]> :
 	D extends { kind: 'vector' } ? Readonly<[number, number]> :
 	D extends { kind: 'blendMode' } ? string :

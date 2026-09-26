@@ -110,6 +110,7 @@
 			"Number": "数値",
 			"Range": "範囲",
 			"Flag": "フラグ",
+			"String": "文字列",
 			"Color": "色",
 			"Image": "画像"
 		}

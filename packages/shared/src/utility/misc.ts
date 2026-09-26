@@ -15,6 +15,7 @@ export function genEmptyValue(paramDef: EmptyValueDefinition): any {
 		case 'scalar': return 0;
 		case 'enum': return paramDef.dataType.options[0] ?? '';
 		case 'bool': return false;
+		case 'string': return '';
 		case 'blendMode': return 'normal';
 		case 'fitMode': return 'stretch';
 		case 'wrapMode': return 'repeatMirrored';
