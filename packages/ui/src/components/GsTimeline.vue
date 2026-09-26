@@ -69,7 +69,6 @@
 				:paramValue="selectedLayer.compositingParamValues[paramId]"
 				@edit="event => onVisualModuleLayerParamEdit(event, 'compositing')"
 			/>
-			<div :class="$style.compositingHint">Transform applies to the module output. Replace includes transparent areas. Position 1 = half the canvas.</div>
 			<div>Module parameters</div>
 			<!-- TODO: struct / array / anyのカスタムパラメータ編集UI。型定義では許可するが、子の編集や配列操作は未対応。 -->
 			<template
@@ -399,12 +398,6 @@ onMounted(() => {
 </script>
 
 <style module lang="scss">
-.compositingHint {
-	font-size: 11px;
-	opacity: 0.7;
-	padding: 8px;
-}
-
 .root {
 	display: flex;
 	flex-direction: column;
