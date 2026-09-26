@@ -19,7 +19,7 @@ import GsButton from './common/GsButton.vue';
 import { i18n } from '@/i18n.ts';
 import type { Asset } from '@glitch/shared/types.ts';
 import * as api from '@/api.ts';
-import { appContext } from '@/app.ts';
+import { appStateManager } from '@/app.ts';
 import { popup } from '@/ui.ts';
 import GsDialog from './common/GsDialog.vue';
 
@@ -30,7 +30,7 @@ const props = defineProps<{
 const canvas = shallowRef<HTMLCanvasElement>();
 
 function remove() {
-	appContext.commit('removeAsset', {
+	appStateManager.commit('removeAsset', {
 		assetId: props.asset.id,
 	});
 }
@@ -39,7 +39,7 @@ async function rename() {
 	const { dispose } = popup(GsDialog, { input: { default: props.asset.name } }, {
 		done: result => {
 			if (!result.canceled && typeof result.result === 'string') {
-				appContext.commit('renameAsset', { assetId: props.asset.id, name: result.result });
+				appStateManager.commit('renameAsset', { assetId: props.asset.id, name: result.result });
 			}
 		},
 		closed: () => dispose(),
@@ -49,7 +49,7 @@ async function rename() {
 async function replace() {
 	const result = await api.openMediaFile({ includeFonts: true });
 	if (!result) return;
-	appContext.commit('replaceAsset', {
+	appStateManager.commit('replaceAsset', {
 		id: props.asset.id,
 		name: props.asset.name,
 		assetId: props.asset.id,

@@ -16,14 +16,14 @@
 import { computed, ref } from 'vue';
 import GsGlobalOutInput from './GsGlobalOutInput.vue';
 import type { VisualModuleGlobalOutNode } from '@glitch/shared/visual-module/types.js';
-import { appContext } from '@/app.ts';
+import { appStateManager } from '@/app.ts';
 
 const props = defineProps<{
 	visualModuleId: string;
 	node: VisualModuleGlobalOutNode
 }>();
 
-const visualModule = computed(() => appContext.state.visualModules.value.find(module => module.id === props.visualModuleId));
+const visualModule = computed(() => appStateManager.state.visualModules.value.find(module => module.id === props.visualModuleId));
 </script>
 
 <style module lang="scss">

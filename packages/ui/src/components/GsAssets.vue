@@ -7,7 +7,7 @@
 	<div v-if="!localFontsSupported">Local fonts are unavailable. Use Add asset to import a font file.</div>
 	<div v-if="localFontError">{{ localFontError }}</div>
 	<div :class="$style.assets">
-		<div v-for="asset in appContext.state.assets.value" :key="asset.id" :class="$style.asset">
+		<div v-for="asset in appStateManager.state.assets.value" :key="asset.id" :class="$style.asset">
 			<XAsset :asset="asset"/>
 		</div>
 	</div>
@@ -20,7 +20,7 @@ import { genId } from '@glitch/shared/utility/id.ts';
 import GsButton from './common/GsButton.vue';
 import XAsset from './GsAssets.asset.vue';
 import GsLocalFontDialog from './GsLocalFontDialog.vue';
-import { appContext } from '@/app.ts';
+import { appStateManager } from '@/app.ts';
 import * as api from '@/api.ts';
 import { popup } from '@/ui.ts';
 import { localFontErrorMessage, queryLocalFonts, supportsLocalFonts } from '@/utility/local-fonts.ts';
@@ -50,7 +50,7 @@ async function addAsset() {
 	const result = await api.openMediaFile({ includeFonts: true });
 	if (!result) return;
 	const assetId = genId();
-	appContext.commit('addAsset', {
+	appStateManager.commit('addAsset', {
 		id: assetId,
 		name: result.name,
 		width: result.width,
@@ -61,7 +61,7 @@ async function addAsset() {
 		hash: result.hash, // TODO
 	});
 	if (result.type.startsWith('audio/') || result.type.startsWith('video/')) {
-		appContext.commit('addPlayer', { id: genId(), name: result.name, sourceType: 'asset', assetId });
+		appStateManager.commit('addPlayer', { id: genId(), name: result.name, sourceType: 'asset', assetId });
 	}
 }
 

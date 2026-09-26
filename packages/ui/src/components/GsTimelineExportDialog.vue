@@ -51,7 +51,7 @@ import GsInput from './common/GsInput.vue';
 import GsSelect from './common/GsSelect.vue';
 import GsTabs from './common/GsTabs.vue';
 import type { ExportProgress, ExportQuality, TimelineExportSettings } from '@/export/timeline-export.ts';
-import { appContext, renderer } from '@/app.ts';
+import { appStateManager, renderer } from '@/app.ts';
 import { exportTimeline } from '@/export/client.ts';
 import { getTimelineEnd, validateExportSettings } from '@/export/timeline-export.ts';
 import { estimateExportBytes, formatExportTime, parseExportTime, scaleExportResolution } from '@/export/export-settings.ts';
@@ -85,10 +85,10 @@ const qualityOptions = computed(() => [
 ]);
 const resolutionScale = ref(1);
 const resolutionOptions = [0.25, 0.5, 1, 2, 4].map(value => ({ value, label: `${value}x` }));
-const resolution = computed(() => scaleExportResolution(appContext.state.resolution.value, resolutionScale.value, mode.value === 'video' ? 'mp4' : 'webp'));
+const resolution = computed(() => scaleExportResolution(appStateManager.state.resolution.value, resolutionScale.value, mode.value === 'video' ? 'mp4' : 'webp'));
 const fps = ref(60);
 const startTime = ref('00:00:00.000');
-const endTime = ref(formatExportTime(getTimelineEnd(appContext.state.timeline.value)));
+const endTime = ref(formatExportTime(getTimelineEnd(appStateManager.state.timeline.value)));
 const exporting = ref(false);
 const error = ref('');
 const status = ref('');
@@ -147,14 +147,14 @@ async function doExport() {
 		const buffer = await exportTimeline({
 			settings: exportSettings,
 			project: deepClone({
-				assets: appContext.state.assets.value,
-				visualModules: appContext.state.visualModules.value,
-				timeline: appContext.state.timeline.value,
+				assets: appStateManager.state.assets.value,
+				visualModules: appStateManager.state.visualModules.value,
+				timeline: appStateManager.state.timeline.value,
 			}),
 			renderer: renderer.getExportRendererSettings(),
 		}, signal, value => { progress.value = value; });
 		signal.throwIfAborted();
-		downloadName.value = `${appContext.projectName || 'timeline'}.${exportSettings.format}`;
+		downloadName.value = `${appStateManager.projectName || 'timeline'}.${exportSettings.format}`;
 		downloadUrl.value = URL.createObjectURL(new Blob([buffer], { type: exportSettings.format === 'mp4' ? 'video/mp4' : 'image/webp' }));
 		const link = window.document.createElement('a');
 		link.href = downloadUrl.value;

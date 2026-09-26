@@ -41,7 +41,7 @@ import { computed, onMounted, onBeforeUnmount, ref, shallowReactive, shallowRef,
 import { getNodeInputDataType, getNodeOutputs } from '@glitch/shared/utility/node-outputs.ts';
 import type { ComponentPublicInstance } from 'vue';
 import type { TextureDataType } from '@glitch/shared/data-type.ts';
-import { appContext, wireMap } from '@/app.ts';
+import { appStateManager, wireMap } from '@/app.ts';
 import { wireDrag } from '@/utility/wire-drag.ts';
 import { getNodeDataTypeColor } from '@/utility/node-outputs.ts';
 import { paramPathKey, walkNodeParams } from '@/utility/node-params.ts';
@@ -72,10 +72,10 @@ type Wire = {
 };
 
 // 接続先の列挙はレイアウトから独立させ、座標変更では再走査しない。
-const paramDefs = computed(() => appContext.state.visualModules.value.find(module => module.id === props.visualModuleId)?.paramDefs ?? []);
-const outputDefs = computed(() => appContext.state.visualModules.value.find(module => module.id === props.visualModuleId)?.outputDefs ?? []);
+const paramDefs = computed(() => appStateManager.state.visualModules.value.find(module => module.id === props.visualModuleId)?.paramDefs ?? []);
+const outputDefs = computed(() => appStateManager.state.visualModules.value.find(module => module.id === props.visualModuleId)?.outputDefs ?? []);
 const nodesById = computed(() => {
-	const nodes = appContext.state.visualModules.value.find(visualModule => visualModule.id === props.visualModuleId)?.nodes ?? [];
+	const nodes = appStateManager.state.visualModules.value.find(visualModule => visualModule.id === props.visualModuleId)?.nodes ?? [];
 	return new Map(nodes.map(node => [node.id, node]));
 });
 

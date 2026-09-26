@@ -23,7 +23,7 @@
 			:key="param"
 			:availableVariables="moduleEnvVarDefs"
 			:visualModuleId="visualModuleId"
-			:automationGraphs="appContext.getVisualModuleById(visualModuleId)?.automationGraphs ?? []"
+			:automationGraphs="appStateManager.getVisualModuleById(visualModuleId)?.automationGraphs ?? []"
 			:node="node"
 			:paramPath="[param]"
 			:paramDef="def"
@@ -47,7 +47,7 @@ import GsButton from './common/GsButton.vue';
 import type { ParamEdit } from './GsVisualParam.vue';
 import type { VisualModuleEffectNode } from '@glitch/shared/visual-module/types.js';
 import { i18n } from '@/i18n.ts';
-import { appContext, renderer, wireMap } from '@/app.ts';
+import { appStateManager, renderer, wireMap } from '@/app.ts';
 import { getNodeParamDefs } from '@/utility/node-params.ts';
 import * as ui from '@/ui.ts';
 
@@ -69,18 +69,18 @@ const effectStatus = computed(() => effectState.value?.status);
 function onParamEdit(event: ParamEdit) {
 	const target = { visualModuleId: props.visualModuleId, nodeId: props.node.id, paramPath: event.paramPath };
 	switch (event.kind) {
-		case 'literal': appContext.commit('updateParamAsLiteral', { ...target, value: event.value }, event.mergeKey); break;
-		case 'automationGraphInline': appContext.commit('updateParamAsAutomationGraphInline', { ...target, value: event.value }, event.mergeKey); break;
-		case 'envVariable': appContext.commit('updateParamAsEnvVariable', { ...target, value: event.value }); break;
-		case 'expression': appContext.commit('updateParamAsExpression', { ...target, value: event.value }, event.mergeKey); break;
-		case 'automationGraphReference': appContext.commit('updateParamAsAutomationGraphReference', { ...target, value: event.value, options: event.options }); break;
-		case 'keyframesTimelineInline': appContext.commit('updateParamAsKeyframesTimelineInline', { ...target, value: event.value }, event.mergeKey); break;
-		case 'node': appContext.commit('updateParamAsNode', { ...target, value: event.value, preserveSampling: event.preserveSampling }); break;
-		case 'externalCustomParameterInput': appContext.commit('updateParamAsExternalCustomParameterInput', { ...target, value: event.value }); break;
-		case 'inputSource': appContext.commit('changeParamValueInputSource', { ...target, inputSource: event.inputSource }); break;
-		case 'reset': appContext.commit('resetNodeParam', target); break;
-		case 'addElement': appContext.commit('addArrayParamElement', target); break;
-		case 'removeElement': appContext.commit('removeArrayParamElement', { ...target, index: event.index }); break;
+		case 'literal': appStateManager.commit('updateParamAsLiteral', { ...target, value: event.value }, event.mergeKey); break;
+		case 'automationGraphInline': appStateManager.commit('updateParamAsAutomationGraphInline', { ...target, value: event.value }, event.mergeKey); break;
+		case 'envVariable': appStateManager.commit('updateParamAsEnvVariable', { ...target, value: event.value }); break;
+		case 'expression': appStateManager.commit('updateParamAsExpression', { ...target, value: event.value }, event.mergeKey); break;
+		case 'automationGraphReference': appStateManager.commit('updateParamAsAutomationGraphReference', { ...target, value: event.value, options: event.options }); break;
+		case 'keyframesTimelineInline': appStateManager.commit('updateParamAsKeyframesTimelineInline', { ...target, value: event.value }, event.mergeKey); break;
+		case 'node': appStateManager.commit('updateParamAsNode', { ...target, value: event.value, preserveSampling: event.preserveSampling }); break;
+		case 'externalCustomParameterInput': appStateManager.commit('updateParamAsExternalCustomParameterInput', { ...target, value: event.value }); break;
+		case 'inputSource': appStateManager.commit('changeParamValueInputSource', { ...target, inputSource: event.inputSource }); break;
+		case 'reset': appStateManager.commit('resetNodeParam', target); break;
+		case 'addElement': appStateManager.commit('addArrayParamElement', target); break;
+		case 'removeElement': appStateManager.commit('removeArrayParamElement', { ...target, index: event.index }); break;
 	}
 }
 
@@ -90,14 +90,14 @@ function showEffectError() {
 }
 
 function remove() {
-	appContext.commit('removeNode', {
+	appStateManager.commit('removeNode', {
 		visualModuleId: props.visualModuleId,
 		nodeId: props.node.id,
 	});
 }
 
 function toggleBypass() {
-	appContext.commit('changeNodeBypassState', {
+	appStateManager.commit('changeNodeBypassState', {
 		visualModuleId: props.visualModuleId,
 		nodeId: props.node.id,
 		bypass: !props.node.isBypass,

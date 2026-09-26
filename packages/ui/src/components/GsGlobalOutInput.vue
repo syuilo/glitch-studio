@@ -17,7 +17,7 @@ import { computed, shallowRef, useTemplateRef, watchEffect } from 'vue';
 import GsNodePort from './GsNodePort.vue';
 import GsSelect from './common/GsSelect.vue';
 import type { VisualModuleGlobalOutNode, VisualModule, NodeOutputReference } from '@glitch/shared/visual-module/types.js';
-import { appContext, wireMap } from '@/app.ts';
+import { appStateManager, wireMap } from '@/app.ts';
 import { i18n } from '@/i18n.ts';
 import { getNodeOutputItems, hasNodeInputTypeMismatch, nodeOutputKey } from '@/utility/node-outputs.ts';
 import { registerWireInput } from '@/utility/wire-drag.ts';
@@ -30,8 +30,8 @@ const props = defineProps<{
 
 const inputPortEl = shallowRef<HTMLElement | null>(null);
 const inputRow = useTemplateRef('inputRow');
-const paramDefs = computed(() => appContext.state.visualModules.value.find(module => module.id === props.visualModuleId)?.paramDefs ?? []);
-const nodes = computed(() => appContext.state.visualModules.value.find(visualModule => visualModule.id === props.visualModuleId)?.nodes ?? []);
+const paramDefs = computed(() => appStateManager.state.visualModules.value.find(module => module.id === props.visualModuleId)?.paramDefs ?? []);
+const nodes = computed(() => appStateManager.state.visualModules.value.find(visualModule => visualModule.id === props.visualModuleId)?.nodes ?? []);
 const connection = computed(() => {
 	const input = props.node.inputs[props.def.id];
 	return input?.nodeId == null ? null : input;
@@ -40,7 +40,7 @@ const outputItems = computed(() => getNodeOutputItems(nodes.value, props.node.id
 
 function connect(value: NodeOutputReference | null) {
 	if (value != null && !outputItems.value.some(item => item.value === nodeOutputKey(value))) return;
-	appContext.commit('updateGlobalOutInput', { visualModuleId: props.visualModuleId, nodeId: props.node.id, outputId: props.def.id, value });
+	appStateManager.commit('updateGlobalOutInput', { visualModuleId: props.visualModuleId, nodeId: props.node.id, outputId: props.def.id, value });
 }
 
 function selectInput(key: string | null) {

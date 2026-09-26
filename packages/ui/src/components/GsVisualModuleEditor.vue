@@ -110,7 +110,7 @@ import GsTabs from './common/GsTabs.vue';
 import type { ParamEdit } from './GsVisualParam.vue';
 import type { VisualModule, VisualModuleParameterBindings, VisualModuleCustomParameterId, VisualModuleGlobalInNode, VisualModuleGlobalOutNode, VisualModuleNode } from '@glitch/shared/visual-module/types.js';
 import { showAddNodeMenu } from '@/app.ts';
-import { appContext, renderer } from '@/app.ts';
+import { appStateManager, renderer } from '@/app.ts';
 import * as ui from '@/ui.ts';
 import { createInlineAutomationGraph } from '@/utility/automation-graph.ts';
 import { createInlineKeyframesTimeline } from '@/utility/keyframes-timeline.ts';
@@ -121,8 +121,8 @@ const previewParamValues = ref<VisualModuleParameterBindings>({});
 let previewModuleId: string | undefined;
 let previewParamTypes = new Map<string, VisualModule['paramDefs'][number]['dataType']>();
 
-watch(appContext.state.visualModules, () => {
-	const module = appContext.state.visualModules.value.find(module => module.id === visualModule.value?.id) ?? appContext.state.visualModules.value[0];
+watch(appStateManager.state.visualModules, () => {
+	const module = appStateManager.state.visualModules.value.find(module => module.id === visualModule.value?.id) ?? appStateManager.state.visualModules.value[0];
 	visualModule.value = module ?? null;
 }, { deep: true, immediate: true });
 
@@ -201,7 +201,7 @@ function onSorted(nodes: VisualModuleNode[]) {
 	const indices = module.nodes.flatMap((node, index) => node.type === 'effect' ? [index] : []);
 	for (const [index, node] of nodes.entries()) {
 		if (module.nodes[indices[index]]?.id === node.id) continue;
-		appContext.commit('moveNode', { visualModuleId: module.id, nodeId: node.id, index: indices[index] });
+		appStateManager.commit('moveNode', { visualModuleId: module.id, nodeId: node.id, index: indices[index] });
 	}
 }
 
@@ -214,7 +214,7 @@ function showSwitchMenu(ev: PointerEvent) {
 		},
 	}, {
 		type: 'divider',
-	}, ...appContext.state.visualModules.value.map(_visualModule => ({
+	}, ...appStateManager.state.visualModules.value.map(_visualModule => ({
 		text: _visualModule.name,
 		active: _visualModule.id === visualModule.value?.id,
 		action: () => {

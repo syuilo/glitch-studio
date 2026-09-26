@@ -22,7 +22,7 @@ import { watch, useTemplateRef, ref, onBeforeUnmount, onMounted } from 'vue';
 import { genId } from '@glitch/shared/utility/id.ts';
 import GsDetachableView from './GsDetachableView.vue';
 import * as api from '@/api.ts';
-import { appContext, renderer, highlightClipping, rendererEnv, resolutionFactor, liveTimeFactor } from '@/app.ts';
+import { appStateManager, renderer, highlightClipping, rendererEnv, resolutionFactor, liveTimeFactor } from '@/app.ts';
 import { preferences } from '@/preferences.ts';
 import * as ui from '@/ui.ts';
 
@@ -77,7 +77,7 @@ async function addMedia(file?: File) {
 	if (result == null) return;
 
 	const assetId = genId();
-	appContext.commit('addAsset', {
+	appStateManager.commit('addAsset', {
 		id: assetId,
 		name: result.name,
 		width: result.width,
@@ -89,7 +89,7 @@ async function addMedia(file?: File) {
 	});
 
 	if (result.type.startsWith('image/')) {
-		appContext.commit('addEffectNode', {
+		appStateManager.commit('addEffectNode', {
 			visualModuleId,
 			effectId: 'image',
 			id: genId(),
@@ -100,14 +100,14 @@ async function addMedia(file?: File) {
 	} else if (result.type.startsWith('video/') || result.type.startsWith('audio/')) {
 		const playerId = genId();
 
-		appContext.commit('addPlayer', {
+		appStateManager.commit('addPlayer', {
 			id: playerId,
 			name: result.name,
 			sourceType: 'asset',
 			assetId: assetId,
 		});
 
-		appContext.commit('addEffectNode', {
+		appStateManager.commit('addEffectNode', {
 			visualModuleId,
 			effectId: result.type.startsWith('audio/') ? 'audioWaveform' : 'video',
 			id: genId(),

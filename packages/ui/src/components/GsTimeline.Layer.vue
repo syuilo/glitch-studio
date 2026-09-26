@@ -45,7 +45,7 @@ import XKeyframes from './GsTimeline.Layer.Keyframes.vue';
 import type { KeyframeMove } from './GsTimeline.Layer.Keyframes.vue';
 import type { TimelineLayer } from '@glitch/shared/timeline/types.ts';
 import type { ParameterBinding } from '@glitch/shared/types.ts';
-import { appContext } from '@/app.ts';
+import { appStateManager } from '@/app.ts';
 
 const props = defineProps<{
 	layer: TimelineLayer;
@@ -104,7 +104,7 @@ function getSnapTimes(param: KeyframeParameter): number[] {
 
 function onKeyframeMove(param: KeyframeParameter, move: KeyframeMove) {
 	// コマンドによる置換後のBindingを取得し、子から受け取った移動だけを反映する。
-	const layer = appContext.state.timeline.value.find(entry => entry.id === props.layer.id);
+	const layer = appStateManager.state.timeline.value.find(entry => entry.id === props.layer.id);
 	if (layer == null) return;
 	const values: Partial<Record<string, ParameterBinding>> = param.target === 'compositing' ? layer.compositingParamValues : layer.paramValues;
 	const current = values[param.paramId];
@@ -113,14 +113,14 @@ function onKeyframeMove(param: KeyframeParameter, move: KeyframeMove) {
 	const point = value.keyframesTimeline.keyframes.find(entry => entry.id === move.keyframeId);
 	if (point == null || point.x === move.x) return;
 	point.x = move.x;
-	appContext.commit('editVisualModuleLayerParam', {
+	appStateManager.commit('editVisualModuleLayerParam', {
 		layerId: layer.id, target: param.target, paramId: visualModuleCustomParameterId(param.paramId),
 		edit: { kind: 'keyframesTimelineInline', value },
 	}, move.mergeKey);
 }
 
 function onKeyframeInsert(param: KeyframeParameter, x: number) {
-	const layer = appContext.state.timeline.value.find(entry => entry.id === props.layer.id);
+	const layer = appStateManager.state.timeline.value.find(entry => entry.id === props.layer.id);
 	if (layer == null) return;
 	const values: Partial<Record<string, ParameterBinding>> = param.target === 'compositing' ? layer.compositingParamValues : layer.paramValues;
 	const current = values[param.paramId];
@@ -143,7 +143,7 @@ function onKeyframeInsert(param: KeyframeParameter, x: number) {
 		interpolation: deepClone(previous?.interpolation ?? { type: 'linear' }),
 	});
 	value.keyframesTimeline.keyframes.sort((a, b) => a.x - b.x);
-	appContext.commit('editVisualModuleLayerParam', {
+	appStateManager.commit('editVisualModuleLayerParam', {
 		layerId: layer.id, target: param.target, paramId: visualModuleCustomParameterId(param.paramId),
 		edit: { kind: 'keyframesTimelineInline', value },
 	});

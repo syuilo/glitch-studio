@@ -19,7 +19,7 @@
 				header
 			</div>
 			<XLayer
-				v-for="layer of appContext.state.timeline.value"
+				v-for="layer of appStateManager.state.timeline.value"
 				:key="layer.id"
 				:layer="layer"
 				:tlElWidth="tlElWidth"
@@ -85,7 +85,7 @@
 			</div>
 		</div>
 		<div v-else-if="selectedLayer != null" :class="$style.rightSidePanel">
-			<div>{{ appContext.getVisualModuleById(selectedLayer?.visualModuleId)?.name }}</div>
+			<div>{{ appStateManager.getVisualModuleById(selectedLayer?.visualModuleId)?.name }}</div>
 			<div>Compositing</div>
 			<GsVisualParam
 				v-for="(paramDef, paramId) in timelineCompositingParamDefs"
@@ -101,7 +101,7 @@
 			<div>Module parameters</div>
 			<!-- TODO: struct / array / anyのカスタムパラメータ編集UI。型定義では許可するが、子の編集や配列操作は未対応。 -->
 			<template
-				v-for="paramDef of appContext.getVisualModuleById(selectedLayer.visualModuleId)!.paramDefs.filter(paramDef => !paramDef.isPrimaryInput)"
+				v-for="paramDef of appStateManager.getVisualModuleById(selectedLayer.visualModuleId)!.paramDefs.filter(paramDef => !paramDef.isPrimaryInput)"
 				:key="`${selectedLayer.id}:${paramDef.id}`"
 			>
 				<div v-if="paramDef.dataType.kind === 'struct' || paramDef.dataType.kind === 'array' || isParameterType(paramDef, 'any')">{{ paramDef.ui.label }}: Editing is not yet supported.</div>
@@ -140,7 +140,7 @@ import type { Timeline } from '@glitch/shared/timeline/types.ts';
 import type { ParameterBinding, KeyframesTimelineKeyframe } from '@glitch/shared/types.ts';
 import type { TimelineKeyframeSelection } from './GsTimeline.Layer.vue';
 import type { ParamEdit } from './GsVisualParam.vue';
-import { appContext } from '@/app.ts';
+import { appStateManager } from '@/app.ts';
 import { dragListen } from '@/utility/drag.ts';
 import * as timeline from '@/timeline.ts';
 
@@ -148,7 +148,7 @@ const X_TICKS_HEIGHT = 20;
 const Y_TICKS_WIDTH = 0;
 
 const duration = computed(() => {
-	return appContext.state.timeline.value.reduce((max, layer) => Math.max(max, layer.endTimeMs), 0) ?? 0;
+	return appStateManager.state.timeline.value.reduce((max, layer) => Math.max(max, layer.endTimeMs), 0) ?? 0;
 });
 const time = timeline.currentTimelineTime;
 
@@ -193,7 +193,7 @@ const selectedAreaElHeight = computed(() => {
 
 const layerRects = computed(() => {
 	const obj: Record<string, { left: number; width: number }> = {};
-	for (const layer of appContext.state.timeline.value) {
+	for (const layer of appStateManager.state.timeline.value) {
 		const left = timeToDomX(layer.startTimeMs);
 		const width = timeToDomX(layer.endTimeMs) - left;
 		obj[layer.id] = { left, width };
@@ -202,21 +202,21 @@ const layerRects = computed(() => {
 });
 
 const selectedLayerId = ref<string | null>(null);
-const selectedLayer = computed(() => appContext.state.timeline.value.find(layer => layer.id === selectedLayerId.value) ?? null);
+const selectedLayer = computed(() => appStateManager.state.timeline.value.find(layer => layer.id === selectedLayerId.value) ?? null);
 const selectedKeyframeSelection = ref<TimelineKeyframeSelection | null>(null);
 const keyframeValueMergeKey = ref<string | null>(null);
 const keyframeEditorKey = computed(() => JSON.stringify(selectedKeyframeSelection.value));
 const selectedKeyframe = computed(() => {
 	const selection = selectedKeyframeSelection.value;
 	if (selection == null) return null;
-	const layer = appContext.state.timeline.value.find(entry => entry.id === selection.layerId);
+	const layer = appStateManager.state.timeline.value.find(entry => entry.id === selection.layerId);
 	if (layer == null) return null;
 	const values: Partial<Record<string, ParameterBinding>> = selection.target === 'compositing' ? layer.compositingParamValues : layer.paramValues;
 	const binding = values[selection.paramId];
 	if (binding?.inputSource !== 'keyframesTimelineInline') return null;
 	const def = selection.target === 'compositing'
 		? Object.entries(timelineCompositingParamDefs).find(([id]) => id === selection.paramId)?.[1]
-		: appContext.getVisualModuleById(layer.visualModuleId)?.paramDefs.find(entry => entry.id === selection.paramId);
+		: appStateManager.getVisualModuleById(layer.visualModuleId)?.paramDefs.find(entry => entry.id === selection.paramId);
 	if (def == null || !(isParameterType(def, 'scalar') || isParameterType(def, 'vector') || isParameterType(def, 'color')) || def.dataType.kind !== binding.keyframesTimeline.dataType.kind) return null;
 	const keyframes = binding.keyframesTimeline.keyframes.toSorted((a, b) => a.x - b.x);
 	const index = keyframes.findIndex(entry => entry.id === selection.keyframeId);
@@ -246,7 +246,7 @@ function updateSelectedKeyframe(patch: Partial<Pick<KeyframesTimelineKeyframe, '
 	const keyframe = value.keyframesTimeline.keyframes.find(entry => entry.id === selected.selection.keyframeId);
 	if (keyframe == null) return;
 	Object.assign(keyframe, deepClone(patch));
-	appContext.commit('editVisualModuleLayerParam', {
+	appStateManager.commit('editVisualModuleLayerParam', {
 		layerId: selected.selection.layerId, target: selected.selection.target,
 		paramId: visualModuleCustomParameterId(selected.selection.paramId),
 		edit: { kind: 'keyframesTimelineInline', value },
@@ -466,7 +466,7 @@ function onVisualModuleLayerParamEdit(event: ParamEdit, target: 'module' | 'comp
 	if (layer == null || event.paramPath.length !== 1) return;
 	if (event.kind === 'node' || event.kind === 'externalCustomParameterInput' || event.kind === 'addElement' || event.kind === 'removeElement') return;
 	if (event.kind === 'inputSource' && (event.inputSource === 'node' || event.inputSource === 'externalCustomParameterInput')) return;
-	appContext.commit('editVisualModuleLayerParam', {
+	appStateManager.commit('editVisualModuleLayerParam', {
 		layerId: layer.id,
 		target,
 		paramId: visualModuleCustomParameterId(String(event.paramPath[0])),

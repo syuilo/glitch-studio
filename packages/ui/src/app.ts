@@ -1,5 +1,5 @@
 import { visualModuleCustomParameterId, visualModuleCustomParameterName } from '@glitch/shared/visual-module/types.ts';
-import { ref, markRaw, reactive, watch, shallowRef, triggerRef, computed } from 'vue';
+import { ref, markRaw, reactive, watch } from 'vue';
 import { deepClone } from '@glitch/shared/utility/deep-clone.ts';
 import { timelineCompositingParamDefs } from '@glitch/shared/timeline/timeline-compositing.ts';
 import { genId } from '@glitch/shared/utility/id.ts';
@@ -9,102 +9,18 @@ import videoEffectDef from '@glitch/shared/effect/fx/video/_def_.ts';
 import audioWaveformEffectDef from '@glitch/shared/effect/fx/audioWaveform/_def_.ts';
 import { loadProjectFile } from './api.ts';
 import { RendererController } from './RendererController.ts';
-import { preferences } from './preferences.ts';
-import { COMMAND_DEFS } from './commands.ts';
 import GsEffectPicker from './components/GsEffectPicker.vue';
 import { currentTimelineTime } from './timeline.ts';
-import type { CommandDef } from './commands.ts';
-import type { AppState } from './types.ts';
+import { AppStateManager } from './AppStateManager.ts';
 import type { EffectNodeOf, VisualModule } from '@glitch/shared/visual-module/types.ts';
 import type { Asset, Player } from '@glitch/shared/types.ts';
-import type { Timeline } from '@glitch/shared/timeline/types.ts';
 import type { Project } from './gsproj.ts';
 import * as ui from '@/ui.ts';
 import * as api from '@/api.ts';
 
-type CommandLog = {
-	type: keyof typeof COMMAND_DEFS;
-	date: number;
-	execute: (state: AppState) => void;
-	undo: (state: AppState) => void;
-	mergeKey?: string | null;
-};
+export const appStateManager = new AppStateManager();
 
-// stateの管理を行う
-class AppContext {
-	public projectId: string | null = null;
-	public projectName: string | null = null;
-	public projectAuthor: string | null = null;
-	public state: AppState;
-	public undoStack = shallowRef([] as CommandLog[]);
-	public redoStack = shallowRef([] as CommandLog[]);
-	public canUndo = computed(() => this.undoStack.value.length > 0);
-	public canRedo = computed(() => this.redoStack.value.length > 0);
-	private maxUndoStackSize = 100;
-
-	constructor() {
-		this.state = {
-			resolution: ref<{ width: number; height: number }>({ width: 1024, height: 1024 }),
-			assets: ref<Asset[]>([]), // TODO: バイナリをリアクティブでwrapするのをやめる
-			players: ref<Player[]>([]),
-			visualModules: ref<VisualModule[]>([]),
-			timeline: ref<Timeline>([]),
-		};
-	}
-
-	public commit<T extends keyof typeof COMMAND_DEFS>(type: T, payload: Parameters<typeof COMMAND_DEFS[T]['create']>[0], mergeKey?: string | null) {
-		const commandDef = COMMAND_DEFS[type] as CommandDef<any>;
-		const command = commandDef.create(deepClone(payload));
-		command.execute(this.state);
-
-		const latest = this.undoStack.value.at(-1);
-		if (latest != null && mergeKey != null && latest.mergeKey === mergeKey) {
-			latest.execute = command.execute;
-		} else {
-			this.undoStack.value.push({
-				type,
-				date: Date.now(),
-				execute: command.execute,
-				undo: command.undo,
-				mergeKey,
-			});
-			if (this.undoStack.value.length > this.maxUndoStackSize) {
-				this.undoStack.value.shift();
-			}
-			triggerRef(this.undoStack);
-			console.log('Committed command:', type, deepClone(payload));
-		}
-
-		this.redoStack.value = [];
-		triggerRef(this.redoStack);
-	}
-
-	public undo() {
-		const command = this.undoStack.value.pop();
-		triggerRef(this.undoStack);
-		if (command == null) return;
-		command.undo(this.state);
-		this.redoStack.value.push(command);
-		triggerRef(this.redoStack);
-	}
-
-	public redo() {
-		const command = this.redoStack.value.pop();
-		triggerRef(this.redoStack);
-		if (command == null) return;
-		command.execute(this.state);
-		this.undoStack.value.push(command);
-		triggerRef(this.undoStack);
-	}
-
-	public getVisualModuleById(id: VisualModule['id']) {
-		return this.state.visualModules.value.find(vm => vm.id === id) ?? null;
-	}
-}
-
-export const appContext = new AppContext();
-
-(window as any).appContext = appContext; // debug
+(window as any).appStateManager = appStateManager; // debug
 
 export const wireMap = reactive<{
 	in: Record<string, any>;
@@ -120,7 +36,7 @@ export function showAddNodeMenu(visualModuleId: VisualModule['id'], ev: PointerE
 	const { dispose } = ui.popup(GsEffectPicker, {
 	}, {
 		'chosen': effect => {
-			appContext.commit('addEffectNode', {
+			appStateManager.commit('addEffectNode', {
 				visualModuleId: visualModuleId,
 				effectId: effect.id,
 				id: genId(),
@@ -132,10 +48,10 @@ export function showAddNodeMenu(visualModuleId: VisualModule['id'], ev: PointerE
 	});
 }
 
-function benchmark(count = 100, visualModuleId = appContext.state.visualModules.value[0]?.id) {
+function benchmark(count = 100, visualModuleId = appStateManager.state.visualModules.value[0]?.id) {
 	if (visualModuleId == null) return;
 	for (let i = 0; i < count; i++) {
-		appContext.commit('addEffectNode', {
+		appStateManager.commit('addEffectNode', {
 			visualModuleId,
 			effectId: 'blockShuffle',
 			id: genId(),
@@ -177,10 +93,10 @@ watch(liveTimeFactor, value => {
 	renderer.setLiveTimeFactor(value);
 });
 
-watch([appContext.state.resolution, resolutionFactor], () => {
+watch([appStateManager.state.resolution, resolutionFactor], () => {
 	renderer.resize({
-		width: Math.round(appContext.state.resolution.value.width * resolutionFactor.value), // 解像度が少数になるとバグるので丸める
-		height: Math.round(appContext.state.resolution.value.height * resolutionFactor.value), // 解像度が少数になるとバグるので丸める
+		width: Math.round(appStateManager.state.resolution.value.width * resolutionFactor.value), // 解像度が少数になるとバグるので丸める
+		height: Math.round(appStateManager.state.resolution.value.height * resolutionFactor.value), // 解像度が少数になるとバグるので丸める
 	});
 });
 
@@ -188,29 +104,26 @@ export async function appReady(project: Project) {
 	window.document.title = `Glitch Studio (${project.name})`;
 
 	await renderer.init({
-		width: Math.round(appContext.state.resolution.value.width * resolutionFactor.value), // 解像度が少数になるとバグるので丸める
-		height: Math.round(appContext.state.resolution.value.height * resolutionFactor.value), // 解像度が少数になるとバグるので丸める
+		width: Math.round(appStateManager.state.resolution.value.width * resolutionFactor.value), // 解像度が少数になるとバグるので丸める
+		height: Math.round(appStateManager.state.resolution.value.height * resolutionFactor.value), // 解像度が少数になるとバグるので丸める
 	});
 
-	appContext.projectId = project.id;
-	appContext.projectName = project.name;
-	appContext.projectAuthor = project.author;
-	appContext.state.resolution.value = project.resolution;
-	appContext.state.assets.value = project.assets;
-	appContext.state.visualModules.value = project.visualModules;
-	appContext.state.players.value = project.players;
-	appContext.state.timeline.value = project.timeline;
+	appStateManager.state.resolution.value = project.resolution;
+	appStateManager.state.assets.value = project.assets;
+	appStateManager.state.visualModules.value = project.visualModules;
+	appStateManager.state.players.value = project.players;
+	appStateManager.state.timeline.value = project.timeline;
 
-	watch(appContext.state.assets, () => {
-		renderer.updateAssets(deepClone(appContext.state.assets.value));
+	watch(appStateManager.state.assets, () => {
+		renderer.updateAssets(deepClone(appStateManager.state.assets.value));
 	}, { deep: true, immediate: true });
 
-	watch(appContext.state.players, () => {
-		renderer.updatePlayers(deepClone(appContext.state.players.value));
+	watch(appStateManager.state.players, () => {
+		renderer.updatePlayers(deepClone(appStateManager.state.players.value));
 	}, { deep: true, immediate: true });
 
-	watch(appContext.state.visualModules, () => {
-		renderer.updateVisualModules(deepClone(appContext.state.visualModules.value));
+	watch(appStateManager.state.visualModules, () => {
+		renderer.updateVisualModules(deepClone(appStateManager.state.visualModules.value));
 		// 停止中は時刻が変化しないため、モジュールの編集・Undo/Redoでも現在位置を描き直す。
 		// 単体のLIVEプレビュー中は、その描画ループを維持する。
 		if (renderer.liveVisualModuleId.value == null) {
@@ -222,8 +135,8 @@ export async function appReady(project: Project) {
 		renderer.renderTimelineAt(currentTimelineTime.value);
 	}, { deep: true, immediate: true });
 
-	watch(appContext.state.timeline, () => {
-		renderer.updateTimeline(deepClone(appContext.state.timeline.value));
+	watch(appStateManager.state.timeline, () => {
+		renderer.updateTimeline(deepClone(appStateManager.state.timeline.value));
 		// 停止中は時刻のwatchが発火しないため、編集・Undo/Redo後も現在位置を描き直す
 		renderer.renderTimelineAt(currentTimelineTime.value);
 	}, { deep: true, immediate: true });

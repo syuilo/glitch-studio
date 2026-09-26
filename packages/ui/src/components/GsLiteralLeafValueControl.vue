@@ -165,10 +165,10 @@
 			:modelValue="value"
 			:items="[
 				{ label: i18n.ts.None, value: null },
-				...(appContext.state.assets.value.length > 0 ? [{
+				...(appStateManager.state.assets.value.length > 0 ? [{
 					type: 'group' as const,
 					label: 'Assets',
-					items: appContext.state.assets.value.filter(asset => asset.fileDataType.startsWith(dataType.kind === 'fontAssetReference' ? 'font/' : dataType.kind === 'videoAssetReference' ? 'video/' : 'image/')).map(asset => ({ label: asset.name, value: asset.id })),
+					items: appStateManager.state.assets.value.filter(asset => asset.fileDataType.startsWith(dataType.kind === 'fontAssetReference' ? 'font/' : dataType.kind === 'videoAssetReference' ? 'video/' : 'image/')).map(asset => ({ label: asset.name, value: asset.id })),
 				}] : []),
 			]"
 			@update:modelValue="v => changeValue(v)"
@@ -180,10 +180,10 @@
 			:modelValue="value"
 			:items="[
 				{ label: i18n.ts.None, value: null },
-				...(appContext.state.players.value.length > 0 ? [{
+				...(appStateManager.state.players.value.length > 0 ? [{
 					type: 'group' as const,
 					label: 'Players',
-					items: appContext.state.players.value.map(player => ({ label: player.name, value: player.id })),
+					items: appStateManager.state.players.value.map(player => ({ label: player.name, value: player.id })),
 				}] : []),
 			]"
 			@update:modelValue="v => changeValue(v)"
@@ -204,7 +204,7 @@ import GsButton from './common/GsButton.vue';
 import GsSelect from './common/GsSelect.vue';
 import type { DataTypeUiControlDefinitionMap, DataTypeUiDefinition, LeafDataType } from '@glitch/shared/data-type.ts';
 import { i18n } from '@/i18n.ts';
-import { appContext } from '@/app.ts';
+import { appStateManager } from '@/app.ts';
 import { normalizeColor } from '@/utility/color-input.ts';
 
 const props = defineProps<{

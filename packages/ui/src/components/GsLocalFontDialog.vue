@@ -31,7 +31,7 @@ import GsInput from './common/GsInput.vue';
 import GsButton from './common/GsButton.vue';
 import type { LocalFont } from '@/utility/local-fonts.ts';
 import { localFontErrorMessage } from '@/utility/local-fonts.ts';
-import { appContext } from '@/app.ts';
+import { appStateManager } from '@/app.ts';
 
 const props = defineProps<{ fonts: LocalFont[] }>();
 const emit = defineEmits<{ (ev: 'closed'): void }>();
@@ -65,7 +65,7 @@ async function importFont() {
 		const blob = await font.blob();
 		if (disposed) return;
 		if (blob.size === 0) throw new Error('The selected font contains no data.');
-		appContext.commit('addAsset', {
+		appStateManager.commit('addAsset', {
 			id: genId(),
 			name: font.fullName,
 			width: 0,

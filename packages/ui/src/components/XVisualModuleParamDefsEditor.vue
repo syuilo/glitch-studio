@@ -15,7 +15,7 @@ import { genId } from '@glitch/shared/utility/id.js';
 import GsButton from './common/GsButton.vue';
 import XVisualModuleParamDefEditor from './XVisualModuleParamDefEditor.vue';
 import type { VisualModule } from '@glitch/shared/visual-module/types.ts';
-import { appContext } from '@/app.ts';
+import { appStateManager } from '@/app.ts';
 
 const props = defineProps<{
 	visualModule: VisualModule;
@@ -24,7 +24,7 @@ const props = defineProps<{
 function add() {
 	let name = 'myParam';
 	for (let suffix = 2; props.visualModule.paramDefs.some(def => def.nameForReference === name); suffix++) name = `myParam${suffix}`;
-	appContext.commit('addVisualModuleParamDef', {
+	appStateManager.commit('addVisualModuleParamDef', {
 		visualModuleId: props.visualModule.id,
 		def: {
 			id: visualModuleCustomParameterId(genId()),

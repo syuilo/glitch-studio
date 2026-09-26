@@ -10,8 +10,8 @@
 <div :class="$style.root">
 	<div :class="$style.header">
 		<div :class="$style.headerLeft">
-			<button class="_button" :class="$style.undoRedo" :disabled="!appContext.canUndo.value" @click="appContext.undo"><i class="ti ti-arrow-back-up"></i></button>
-			<button class="_button" :class="$style.undoRedo" :disabled="!appContext.canRedo.value" @click="appContext.redo"><i class="ti ti-arrow-forward-up"></i></button>
+			<button class="_button" :class="$style.undoRedo" :disabled="!appStateManager.canUndo.value" @click="appStateManager.undo"><i class="ti ti-arrow-back-up"></i></button>
+			<button class="_button" :class="$style.undoRedo" :disabled="!appStateManager.canRedo.value" @click="appStateManager.redo"><i class="ti ti-arrow-forward-up"></i></button>
 			<button class="_button" :class="$style.headerMenuItem" @click="openHeaderFileMenu">File</button>
 			<button class="_button" :class="$style.headerMenuItem" @click="openHeaderEditMenu">Edit</button>
 			<button class="_button" :class="$style.headerMenuItem" @click="openHeaderHelpMenu">Help</button>
@@ -26,8 +26,8 @@
 	<div :class="$style.footer" class="_monospace">
 		<div :class="$style.footerLeft">
 			<div :class="$style.footerItem">sRGB</div>
-			<button :class="$style.footerItem" class="_button" @click="openResolutionMenu">Proj: {{ appContext.state.resolution.value.width }} x {{ appContext.state.resolution.value.height }} px</button>
-			<button :class="$style.footerItem" class="_button" @click="openResolutionFactorMenu">Preview: {{ resolutionFactor }}x ({{ Math.round(appContext.state.resolution.value.width * resolutionFactor) }} x {{ Math.round(appContext.state.resolution.value.height * resolutionFactor) }} px)</button>
+			<button :class="$style.footerItem" class="_button" @click="openResolutionMenu">Proj: {{ appStateManager.state.resolution.value.width }} x {{ appStateManager.state.resolution.value.height }} px</button>
+			<button :class="$style.footerItem" class="_button" @click="openResolutionFactorMenu">Preview: {{ resolutionFactor }}x ({{ Math.round(appStateManager.state.resolution.value.width * resolutionFactor) }} x {{ Math.round(appStateManager.state.resolution.value.height * resolutionFactor) }} px)</button>
 			<button :class="$style.footerItem" class="_button" @click="openFpsMenu">{{ Math.round(renderer.fpsDisplay.value) }}fps</button>
 			<button :class="$style.footerItem" class="_button" @click="openTimeFactorMenu">TIME: {{ liveTimeFactor }}x</button>
 			<div :class="[$style.footerItem, $style.previewVolume]">
@@ -53,7 +53,7 @@
 
 <script lang="ts" setup>
 import { computed, nextTick, onMounted, onBeforeUnmount, ref, shallowRef, useTemplateRef, watch } from 'vue';
-import { renderer, resolutionFactor, fpsLimit, liveTimeFactor, appContext } from './app';
+import { renderer, resolutionFactor, fpsLimit, liveTimeFactor, appStateManager } from './app';
 import { preferences } from './preferences.ts';
 import GsRange from './components/common/GsRange.vue';
 import GsAboutDialog from '@/components/GsAboutDialog.vue';

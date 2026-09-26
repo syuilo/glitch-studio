@@ -179,7 +179,7 @@ import type { ParamPath } from '@/utility/node-params.ts';
 import type { AutomationGraphPlaybackOptions, AutomationGraph, BezierAnchorPoint, ParameterBinding } from '@glitch/shared/types.ts';
 import type { MenuItem } from '@/types/menu.ts';
 import { i18n } from '@/i18n.ts';
-import { appContext, wireMap } from '@/app.ts';
+import { appStateManager, wireMap } from '@/app.ts';
 import { paramPathKey } from '@/utility/node-params.ts';
 import { getNodeOutputItems, hasNodeInputTypeMismatch, nodeOutputKey } from '@/utility/node-outputs.ts';
 import { registerWireInput } from '@/utility/wire-drag.ts';
@@ -211,8 +211,8 @@ const visibleFields = computed(() => {
 });
 const canNode = computed(() => props.paramDef.canNode);
 const inputDataType = computed(() => getNodeInputDataType(props.paramDef));
-const paramDefs = computed(() => appContext.state.visualModules.value.find(module => module.id === props.visualModuleId)?.paramDefs ?? []);
-const nodes = computed(() => appContext.state.visualModules.value.find(visualModule => visualModule.id === props.visualModuleId)?.nodes ?? []);
+const paramDefs = computed(() => appStateManager.state.visualModules.value.find(module => module.id === props.visualModuleId)?.paramDefs ?? []);
+const nodes = computed(() => appStateManager.state.visualModules.value.find(visualModule => visualModule.id === props.visualModuleId)?.nodes ?? []);
 
 const selectedAutomationGraph = computed(() => {
 	const value = props.paramValue;
@@ -233,7 +233,7 @@ const graphOffsetModeItems = [
 	{ label: 'End', value: 'end' },
 ] satisfies { label: string; value: AutomationGraphPlaybackOptions['offsetMode'] }[];
 const envVariableItems = computed(() => props.availableVariables.map(variable => ({ label: variable.startsWith('TEST_') ? variable : `${i18n.t(`_EnvVariables.${variable}`)} (${variable})`, value: variable })));
-const externalCustomParameterInputItems = computed(() => (props.node == null ? [] : appContext.state.visualModules.value.find(module => module.id === props.visualModuleId)?.paramDefs ?? [])
+const externalCustomParameterInputItems = computed(() => (props.node == null ? [] : appStateManager.state.visualModules.value.find(module => module.id === props.visualModuleId)?.paramDefs ?? [])
 	.map(def => ({ label: `${def.ui.label} (${def.nameForReference})`, value: def.id })));
 const nodeOutputItems = computed(() => props.node == null ? [] : getNodeOutputItems(nodes.value, props.node.id, inputDataType.value, paramDefs.value));
 const nodeConnection = computed<NodeOutputReference | null>(() => props.paramValue.inputSource === 'node' && props.paramValue.nodeId != null ? props.paramValue : null);

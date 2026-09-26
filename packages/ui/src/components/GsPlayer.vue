@@ -22,7 +22,7 @@ import type { Player } from '@glitch/shared/types.ts';
 import { i18n } from '@/i18n.ts';
 import * as api from '@/api.ts';
 import * as ui from '@/ui.ts';
-import { appContext, renderer } from '@/app.ts';
+import { appStateManager, renderer } from '@/app.ts';
 
 const props = defineProps<{
 	player: Player;
@@ -52,7 +52,7 @@ function showMenu(ev: PointerEvent) {
 		active: props.player.sourceType === 'webcam',
 		action: () => {
 			if (props.player.sourceType === 'webcam') return;
-			appContext.commit('updatePlayerSourceType', {
+			appStateManager.commit('updatePlayerSourceType', {
 				playerId: props.player.id,
 				sourceType: 'webcam',
 			});
