@@ -166,7 +166,7 @@ watch(highlightClipping, value => {
 	renderer.setHighlightClipping(value);
 });
 
-(window as any).engine = renderer; // debug
+(window as any).renderer = renderer; // debug
 
 watch(fpsLimit, () => {
 	renderer.changeLiveModeFpsLimit(fpsLimit.value);
