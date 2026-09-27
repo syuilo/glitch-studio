@@ -11,7 +11,7 @@ import { setupWebcam } from './utility/webcam.ts';
 import type { Asset, Player } from '@glitch/shared/types.ts';
 import type { VisualModule, VisualModuleParameterBindings } from '@glitch/shared/visual-module/types.ts';
 import type { Timeline } from '@glitch/shared/timeline/types.ts';
-import type { MainRenderer, RendererOptions } from '@glitch/renderer/renderer.ts';
+import type { MainRenderer, RendererDynamicOptions, RendererStaticOptions } from '@glitch/renderer/renderer.ts';
 import type { EffectInstanceState, EffectStatusSource } from '@glitch/shared/effect/effect-status.ts';
 import * as ui from '@/ui.ts';
 
@@ -34,9 +34,10 @@ export class RendererController {
 	private rejectInitialization: ((reason: Error) => void) | null = null;
 	private pendingCalls: { message: unknown; options?: StructuredSerializeOptions }[] = [];
 	private pointerPosition = { x: 0, y: 0 };
-	private rendererOptions: RendererOptions;
-	private enableStats = true;
-	private assets: Asset[] = [];
+	private rendererStaticOptions: RendererStaticOptions;
+	private rendererDynamicOptions: Partial<RendererDynamicOptions> & Pick<RendererDynamicOptions, 'assets'> = {
+		assets: [],
+	};
 	private players: Player[] = [];
 	private videoElements = shallowReactive(new Map<Player['id'], HTMLMediaElement>());
 	private playerAssetFiles = new Map<Player['id'], Blob>();
@@ -63,9 +64,7 @@ export class RendererController {
 		return this.liveEffectStateStore.get(visualModuleId, nodeId);
 	}
 
-	constructor(options: {
-		rendererOptions: RendererOptions;
-	}) {
+	constructor(rendererStaticOptions: RendererStaticOptions, rendererDynamicOptions: Partial<RendererDynamicOptions>) {
 		this.canvas = window.document.createElement('canvas');
 		this.canvas.style.imageRendering = 'pixelated';
 		this.histogramCanvas = window.document.createElement('canvas');
@@ -83,7 +82,8 @@ export class RendererController {
 		this.waveformVerticalCanvas.height = 512;
 		this.waveformVerticalCanvas.style.width = '100%';
 		this.waveformVerticalCanvas.style.height = '100%';
-		this.rendererOptions = options.rendererOptions;
+		this.rendererStaticOptions = rendererStaticOptions;
+		this.rendererDynamicOptions = { ...this.rendererDynamicOptions, ...rendererDynamicOptions };
 	}
 
 	private call<FN extends keyof RendererMethods>(fn: FN, args: Parameters<RendererMethods[FN]>, options?: StructuredSerializeOptions | Transferable[]): void {
@@ -200,8 +200,8 @@ export class RendererController {
 			histogramCanvas: histogramOffscreen,
 			waveformHorizontalCanvas: waveformHorizontalOffscreen,
 			waveformVerticalCanvas: waveformVerticalOffscreen,
-			assets: this.assets,
-			rendererOptions: this.rendererOptions,
+			rendererStaticOptions: this.rendererStaticOptions,
+			rendererDynamicOptions: this.rendererDynamicOptions,
 		}, [offscreen, histogramOffscreen, waveformHorizontalOffscreen, waveformVerticalOffscreen]);
 		this.rendererWorker.onmessage = (event) => {
 			if (this.rendererWorker !== worker) return;
@@ -266,12 +266,10 @@ export class RendererController {
 				case 'telemetry': {
 					const { stats } = event.data;
 					this.fpsDisplay.value = stats.fpsAverage;
-					if (this.enableStats) {
-						// テクスチャのコピーとか全ての処理が計測できているわけではなく、実際よりも少し小さい値になっていると思われるので、少し盛っておく
-						this.gpuAverageDisplayFast.value = stats.gpuAverageFast * 1.2;
-						this.gpuAverageDisplayMedium.value = stats.gpuAverageMedium * 1.2;
-						this.gpuAverageDisplaySlow.value = stats.gpuAverageSlow * 1.2;
-					}
+					// テクスチャのコピーとか全ての処理が計測できているわけではなく、実際よりも少し小さい値になっていると思われるので、少し盛っておく
+					this.gpuAverageDisplayFast.value = stats.gpuAverageFast * 1.2;
+					this.gpuAverageDisplayMedium.value = stats.gpuAverageMedium * 1.2;
+					this.gpuAverageDisplaySlow.value = stats.gpuAverageSlow * 1.2;
 					break;
 				}
 				default: {
@@ -317,7 +315,7 @@ export class RendererController {
 		for (const [id, video] of this.videoElements) {
 			const oldPlayer = oldPlayers.find(player => player.id === id);
 			const newPlayer = players.find(player => player.id === id);
-			const asset = newPlayer?.sourceType === 'asset' ? this.assets.find(asset => asset.id === newPlayer.assetId) : null;
+			const asset = newPlayer?.sourceType === 'asset' ? this.rendererDynamicOptions.assets.find(asset => asset.id === newPlayer.assetId) : null;
 			if (!newPlayer || oldPlayer?.sourceType !== newPlayer.sourceType || !deepEqual(oldPlayer?.assetId, newPlayer.assetId)
 				|| (newPlayer.sourceType === 'asset' && this.playerAssetFiles.get(id) !== asset?.fileData)) {
 				this.audioInputs.removePlayer(id);
@@ -343,7 +341,7 @@ export class RendererController {
 
 		for (const player of players) {
 			if (!this.videoElements.has(player.id)) {
-				const asset = player.sourceType === 'asset' ? this.assets.find(asset => asset.id === player.assetId) : null;
+				const asset = player.sourceType === 'asset' ? this.rendererDynamicOptions.assets.find(asset => asset.id === player.assetId) : null;
 				if (player.sourceType === 'asset' && !asset) continue;
 				const video = window.document.createElement(asset?.fileDataType.startsWith('audio/') ? 'audio' : 'video');
 				video.loop = true;
@@ -401,7 +399,7 @@ export class RendererController {
 	}
 
 	public updateVisualModules(newVisualModules: VisualModule[]) {
-		this.call('updateOptions', [{ visualModules: newVisualModules }]);
+		this.call('updateDynamicOptions', [{ visualModules: newVisualModules }]);
 	}
 
 	public getVideoElement(playerId: Player['id']): HTMLVideoElement | null {
@@ -426,16 +424,12 @@ export class RendererController {
 	public getPlayerLevels(playerId: Player['id']) { return this.audioInputs.getPlayerLevels(playerId); }
 
 	public async updateAssets(newAssets: Asset[]) {
-		this.assets = deepClone(newAssets);
-		const assets = this.assets;
-		const committed = await this.callAndWaitReturn('updateAssets', [assets]);
-		if (!committed || this.assets !== assets) return;
-		await this.updatePlayers(this.players);
-		await this.updateVisualModules(this.visualModules);
+		this.rendererDynamicOptions.assets = deepClone(newAssets);
+		await this.callAndWaitReturn('updateDynamicOptions', [{ assets: this.rendererDynamicOptions.assets }]);
 	}
 
 	public updateTimeline(newTimeline: Timeline) {
-		this.call('updateOptions', [{ timeline: newTimeline }]);
+		this.call('updateDynamicOptions', [{ timeline: newTimeline }]);
 	}
 
 	public async updatePointerPosition(newPointerPosition: { x: number; y: number }) {
@@ -444,15 +438,15 @@ export class RendererController {
 	}
 
 	public changeLiveModeFpsLimit(newFpsLimit: number | null) {
-		this.call('updateOptions', [{ fpsLimit: newFpsLimit }]);
+		this.call('updateDynamicOptions', [{ fpsLimit: newFpsLimit }]);
 	}
 
 	public setHighlightClipping(enabled: boolean) {
-		this.call('updateOptions', [{ highlightClipping: enabled }]);
+		this.call('updateDynamicOptions', [{ highlightClipping: enabled }]);
 	}
 
 	public setLiveTimeFactor(value: number) {
-		this.call('updateOptions', [{ liveTimeFactor: value }]);
+		this.call('updateDynamicOptions', [{ liveTimeFactor: value }]);
 	}
 
 	public renderTimelineAt(time: number) {
@@ -509,8 +503,8 @@ export class RendererController {
 		this.isReady.value = false;
 	}
 
-	public reload(newOptions: Partial<RendererOptions> = {}): Promise<void> {
-		this.rendererOptions = { ...this.rendererOptions, ...newOptions };
+	public reload(newStaticOptions: Partial<RendererStaticOptions> = {}): Promise<void> {
+		this.rendererStaticOptions = { ...this.rendererStaticOptions, ...newStaticOptions };
 
 		if (this.reloadPromise) return this.reloadPromise;
 		if (!this.rendererWorker || this.rejectInitialization != null) return Promise.reject(new Error('Renderer is not initialized'));

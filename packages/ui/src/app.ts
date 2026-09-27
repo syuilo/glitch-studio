@@ -81,20 +81,17 @@ export const rendererEnv = {
 	mouseX: 0,
 	mouseY: 0,
 };
+
 export const renderer = markRaw(new RendererController({
-	rendererOptions: {
-		fpsLimit: fpsLimit.value,
-		liveTimeFactor: liveTimeFactor.value,
-		highlightClipping: highlightClipping.value,
-		enable32bitDataTextures: preferences.s.enable32bitDataTextures,
-		intermediateTextureFormat: preferences.s.intermediateTextureFormat ?? navigator.gpu.getPreferredCanvasFormat(),
-		enableStats: true,
-		opaqueOutput: false,
-		visualModules: [],
-		timeline: [],
-		resolution: { width: 1, height: 1 },
-	},
+	enable32bitDataTextures: preferences.s.enable32bitDataTextures,
+	intermediateTextureFormat: preferences.s.intermediateTextureFormat ?? navigator.gpu.getPreferredCanvasFormat(),
+	enableStats: true,
+}, {
+	fpsLimit: fpsLimit.value,
+	liveTimeFactor: liveTimeFactor.value,
+	highlightClipping: highlightClipping.value,
 }));
+
 export const previewPlayback = markRaw(new PreviewPlaybackController(renderer, () => fpsLimit.value));
 
 // Worker再読み込み後も、停止中のタイムラインの現在位置を復元する。

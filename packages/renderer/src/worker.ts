@@ -1,6 +1,6 @@
 import { effectDefinitions } from '@glitch/shared/effect/effect-definitions.ts';
 import { effectImplementations } from '@glitch/shared/effect/effect-implementations.js';
-import { MainRenderer, type RendererOptions } from './renderer.ts';
+import { MainRenderer, type RendererDynamicOptions, type RendererStaticOptions } from './renderer.ts';
 
 let renderer: MainRenderer | null = null;
 let canvas: OffscreenCanvas | null = null;
@@ -45,7 +45,8 @@ onmessage = async (event) => {
 				waveformHorizontalCanvas = event.data.waveformHorizontalCanvas as OffscreenCanvas;
 				waveformVerticalCanvas = event.data.waveformVerticalCanvas as OffscreenCanvas;
 
-				const rendererOptions: RendererOptions = event.data.rendererOptions;
+				const rendererStaticOptions: RendererStaticOptions = event.data.rendererStaticOptions;
+				const rendererDynamicOptions: RendererDynamicOptions = event.data.rendererDynamicOptions;
 
 				const adapter = await navigator.gpu?.requestAdapter({
 					powerPreference: 'high-performance',
@@ -53,8 +54,8 @@ onmessage = async (event) => {
 
 				const device = await adapter?.requestDevice({
 					requiredFeatures: [
-						...(rendererOptions.enable32bitDataTextures ? ['float32-filterable'] as const : []),
-						...(rendererOptions.enableStats ? ['timestamp-query'] as const : []),
+						...(rendererStaticOptions.enable32bitDataTextures ? ['float32-filterable'] as const : []),
+						...(rendererStaticOptions.enableStats ? ['timestamp-query'] as const : []),
 					],
 				});
 				if (device == null) {
@@ -82,13 +83,14 @@ onmessage = async (event) => {
 					waveformVerticalGpuContext: waveformVerticalContext,
 					effectDefinitions: effectDefinitions,
 					effectImplementations: effectImplementations,
-				}, rendererOptions);
+				}, rendererStaticOptions);
 
 				//renderer.on('ev', ({ type, ctx }) => {
 				//	self.postMessage({ type: 'ev', ev: { type, ctx } });
 				//});
 
-				await renderer.updateAssets(event.data.assets);
+				await renderer.updateDynamicOptions(rendererDynamicOptions);
+
 				self.postMessage({ type: 'inited' });
 				reportGpuMemory();
 			} catch (error) {
@@ -102,7 +104,7 @@ onmessage = async (event) => {
 			if (canvas == null) return;
 			canvas.width = event.data.resolution.width;
 			canvas.height = event.data.resolution.height;
-			if (renderer != null) renderer.resize(event.data.resolution);
+			if (renderer != null) renderer.updateDynamicOptions({ resolution: event.data.resolution });
 			break;
 		}
 		case 'videoFrame': {
