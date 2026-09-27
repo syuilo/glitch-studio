@@ -24,7 +24,6 @@ export class RendererController {
 	public waveformHorizontalCanvas: HTMLCanvasElement;
 	public waveformVerticalCanvas: HTMLCanvasElement;
 	private rendererWorker: Worker | null = null;
-	private resolution = { width: 1, height: 1 };
 	private renderLoopRunning = false;
 	// Worker再読み込みとエフェクト状態の参照に必要な内部情報。UIの再生状態はPreviewPlaybackControllerが所有する。
 	private liveVisualModuleId = ref<VisualModule['id'] | null>(null);
@@ -155,13 +154,6 @@ export class RendererController {
 	}
 
 	public async init(resolution: { width: number; height: number }) {
-		// Scaled preview dimensions can be fractional. Use the same integer pixel
-		// dimensions for the canvas, textures, shader uniforms, and storage buffers.
-		resolution = {
-			width: Math.max(1, Math.floor(resolution.width)),
-			height: Math.max(1, Math.floor(resolution.height)),
-		};
-
 		if (resolution.width > 8192 || resolution.height > 8192) {
 			ui.alert({
 				type: 'error',
@@ -170,9 +162,15 @@ export class RendererController {
 			throw new Error('maximum supported resolution is 8192x8192');
 		}
 
-		this.canvas.width = resolution.width;
-		this.canvas.height = resolution.height;
-		this.resolution = resolution;
+		// Scaled preview dimensions can be fractional. Use the same integer pixel
+		// dimensions for the canvas, textures, shader uniforms, and storage buffers.
+		this.rendererDynamicOptions.resolution = {
+			width: Math.max(1, Math.floor(resolution.width)),
+			height: Math.max(1, Math.floor(resolution.height)),
+		};
+
+		this.canvas.width = this.rendererDynamicOptions.resolution.width;
+		this.canvas.height = this.rendererDynamicOptions.resolution.height;
 
 		const offscreen = this.canvas.transferControlToOffscreen();
 		const histogramOffscreen = this.histogramCanvas.transferControlToOffscreen();
@@ -436,7 +434,7 @@ export class RendererController {
 		width: number;
 		height: number;
 	}) {
-		this.resolution = { ...resolution };
+		this.rendererDynamicOptions.resolution = { ...resolution };
 		if (this.rendererWorker != null) {
 			const message = { type: 'resize', resolution };
 			if (this.rejectInitialization != null) this.pendingCalls.push({ message });
@@ -483,7 +481,7 @@ export class RendererController {
 			previous.replaceWith(this[key]);
 		}
 
-		const ready = this.init(this.resolution);
+		const ready = this.init(this.rendererDynamicOptions.resolution!);
 		const worker = this.rendererWorker;
 		await ready;
 		if (this.rendererWorker !== worker) throw new Error('Engine destroyed during reload');

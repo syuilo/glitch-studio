@@ -303,19 +303,21 @@ export class MainRenderer {
 
 	// (非workerで)呼び出すときは値を独立した参照にすること！ パフォーマンス上の理由でこちら側ではdeepCloneしません
 	public async updateDynamicOptions(newOptions: Partial<RendererDynamicOptions>) {
-		this.dynamicOptions = { ...this.dynamicOptions, ...newOptions };
-
 		let assetsCommited = null as boolean | null;
+
+		if (newOptions.assets !== undefined) {
+			assetsCommited = await this.assetTextures.update(this.dynamicOptions.assets, () => {
+				this.clearTimelineRenderers();
+				this.dynamicOptions.assets = newOptions.assets!;
+				this.liveVisualModuleRenderer?.updateAssets(this.dynamicOptions.assets);
+			});
+		}
+
+		this.dynamicOptions = { ...this.dynamicOptions, ...newOptions };
 
 		if (newOptions.resolution !== undefined) {
 			this.clearTimelineRenderers();
 			this.liveVisualModuleRenderer?.resize(this.dynamicOptions.resolution);
-		}
-		if (newOptions.assets !== undefined) {
-			assetsCommited = await this.assetTextures.update(this.dynamicOptions.assets, () => {
-				this.clearTimelineRenderers();
-				this.liveVisualModuleRenderer?.updateAssets(this.dynamicOptions.assets);
-			});
 		}
 		if (newOptions.fpsLimit !== undefined) {
 			this.liveRenderLoop.fpsLimit = newOptions.fpsLimit;
