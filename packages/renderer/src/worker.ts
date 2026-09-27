@@ -1,6 +1,6 @@
 import { effectDefinitions } from '@glitch/shared/effect/effect-definitions.ts';
 import { effectImplementations } from '@glitch/shared/effect/effect-implementations.js';
-import { MainRenderer } from './renderer.ts';
+import { MainRenderer, type RendererOptions } from './renderer.ts';
 
 let renderer: MainRenderer | null = null;
 let canvas: OffscreenCanvas | null = null;
@@ -45,14 +45,16 @@ onmessage = async (event) => {
 				waveformHorizontalCanvas = event.data.waveformHorizontalCanvas as OffscreenCanvas;
 				waveformVerticalCanvas = event.data.waveformVerticalCanvas as OffscreenCanvas;
 
+				const rendererOptions: RendererOptions = event.data.rendererOptions;
+
 				const adapter = await navigator.gpu?.requestAdapter({
 					powerPreference: 'high-performance',
 				});
 
 				const device = await adapter?.requestDevice({
 					requiredFeatures: [
-						...(event.data.options.enable32bitDataTextures ? ['float32-filterable'] as const : []),
-						...(event.data.options.enableStats ? ['timestamp-query'] as const : []),
+						...(rendererOptions.enable32bitDataTextures ? ['float32-filterable'] as const : []),
+						...(rendererOptions.enableStats ? ['timestamp-query'] as const : []),
 					],
 				});
 				if (device == null) {
@@ -75,21 +77,12 @@ onmessage = async (event) => {
 					onPreviewError: reportPreviewError,
 					gpuDevice: device,
 					gpuContext: context,
-					resolution: event.data.options.resolution,
-					enable32bitDataTextures: event.data.options.enable32bitDataTextures,
-					intermediateTextureFormat: event.data.options.intermediateTextureFormat,
-					enableStats: event.data.options.enableStats,
-					highlightClipping: event.data.options.highlightClipping,
-					liveTimeFactor: event.data.options.liveTimeFactor,
-					fpsLimit: event.data.options.fpsLimit,
-					visualModules: event.data.options.visualModules,
-					timeline: event.data.options.timeline,
 					histogramGpuContext: histogramContext,
 					waveformHorizontalGpuContext: waveformHorizontalContext,
 					waveformVerticalGpuContext: waveformVerticalContext,
 					effectDefinitions: effectDefinitions,
 					effectImplementations: effectImplementations,
-				});
+				}, rendererOptions);
 
 				//renderer.on('ev', ({ type, ctx }) => {
 				//	self.postMessage({ type: 'ev', ev: { type, ctx } });

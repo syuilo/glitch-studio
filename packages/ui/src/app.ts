@@ -82,11 +82,13 @@ export const rendererEnv = {
 	mouseY: 0,
 };
 export const renderer = markRaw(new RendererController({
-	fpsLimit: fpsLimit.value,
-	liveTimeFactor: liveTimeFactor.value,
-	highlightClipping: highlightClipping.value,
-	enable32bitDataTextures: preferences.s.enable32bitDataTextures,
-	intermediateTextureFormat: preferences.s.intermediateTextureFormat,
+	rendererOptions: {
+		fpsLimit: fpsLimit.value,
+		liveTimeFactor: liveTimeFactor.value,
+		highlightClipping: highlightClipping.value,
+		enable32bitDataTextures: preferences.s.enable32bitDataTextures,
+		intermediateTextureFormat: preferences.s.intermediateTextureFormat ?? navigator.gpu.getPreferredCanvasFormat(),
+	},
 }));
 export const previewPlayback = markRaw(new PreviewPlaybackController(renderer, () => fpsLimit.value));
 
@@ -119,7 +121,7 @@ watch([appStateManager.state.resolution, resolutionFactor], () => {
 watch([preferences.r.enable32bitDataTextures, preferences.r.intermediateTextureFormat], () => {
 	renderer.reload({
 		enable32bitDataTextures: preferences.s.enable32bitDataTextures,
-		intermediateTextureFormat: preferences.s.intermediateTextureFormat,
+		intermediateTextureFormat: preferences.s.intermediateTextureFormat ?? navigator.gpu.getPreferredCanvasFormat(),
 	});
 });
 

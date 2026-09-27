@@ -8,10 +8,10 @@ import { isVideoFrameAvailable, playVideoAfterFirstFrameIsReady } from './utilit
 import { LiveEffectStateStore } from './utility/live-effect-status.ts';
 import { AudioInputs } from './audio/audio-inputs.ts';
 import { setupWebcam } from './utility/webcam.ts';
-import type { Asset, Player, IntermediateTextureFormat } from '@glitch/shared/types.ts';
+import type { Asset, Player } from '@glitch/shared/types.ts';
 import type { VisualModule, VisualModuleParameterBindings } from '@glitch/shared/visual-module/types.ts';
 import type { Timeline } from '@glitch/shared/timeline/types.ts';
-import type { MainRenderer } from '@glitch/renderer/renderer.ts';
+import type { MainRenderer, RendererOptions } from '@glitch/renderer/renderer.ts';
 import type { EffectInstanceState, EffectStatusSource } from '@glitch/shared/effect/effect-status.ts';
 import * as ui from '@/ui.ts';
 
@@ -34,15 +34,10 @@ export class RendererController {
 	private rejectInitialization: ((reason: Error) => void) | null = null;
 	private pendingCalls: { message: unknown; options?: StructuredSerializeOptions }[] = [];
 	private pointerPosition = { x: 0, y: 0 };
-	private enable32bitDataTextures: boolean;
-	private intermediateTextureFormat: IntermediateTextureFormat | null; // TODO: 設定でrgba16floatも指定できるようにする(レンダリングの精度は上がるがパフォーマンスは落ちる)
+	private rendererOptions: RendererOptions;
 	private enableStats = true;
-	private highlightClipping: boolean;
-	private liveTimeFactor = 1;
-	private visualModules: VisualModule[] = [];
 	private assets: Asset[] = [];
 	private players: Player[] = [];
-	private timeline: Timeline = [];
 	private videoElements = shallowReactive(new Map<Player['id'], HTMLMediaElement>());
 	private playerAssetFiles = new Map<Player['id'], Blob>();
 	private audioInputs = new AudioInputs(
@@ -54,7 +49,6 @@ export class RendererController {
 	private pendingVideoFrames = new Map<Player['id'], VideoFrame>();
 	private inFlightVideoFrames = new Map<Player['id'], number>();
 	private nextVideoFrameId = 0;
-	private fpsLimit: number | null;
 	public gpuAverageDisplayFast = ref(0);
 	public gpuAverageDisplayMedium = ref(0);
 	public gpuAverageDisplaySlow = ref(0);
@@ -69,19 +63,8 @@ export class RendererController {
 		return this.liveEffectStateStore.get(visualModuleId, nodeId);
 	}
 
-	public getExportRendererSettings() {
-		return {
-			enable32bitDataTextures: this.enable32bitDataTextures,
-			intermediateTextureFormat: this.intermediateTextureFormat,
-		};
-	}
-
 	constructor(options: {
-		fpsLimit: number | null;
-		highlightClipping: boolean;
-		liveTimeFactor: number;
-		enable32bitDataTextures: boolean;
-		intermediateTextureFormat: IntermediateTextureFormat | null;
+		rendererOptions: RendererOptions;
 	}) {
 		this.canvas = window.document.createElement('canvas');
 		this.canvas.style.imageRendering = 'pixelated';
@@ -100,11 +83,7 @@ export class RendererController {
 		this.waveformVerticalCanvas.height = 512;
 		this.waveformVerticalCanvas.style.width = '100%';
 		this.waveformVerticalCanvas.style.height = '100%';
-		this.fpsLimit = options.fpsLimit;
-		this.highlightClipping = options.highlightClipping;
-		this.liveTimeFactor = options.liveTimeFactor;
-		this.enable32bitDataTextures = options.enable32bitDataTextures;
-		this.intermediateTextureFormat = options.intermediateTextureFormat;
+		this.rendererOptions = options.rendererOptions;
 	}
 
 	private call<FN extends keyof RendererMethods>(fn: FN, args: Parameters<RendererMethods[FN]>, options?: StructuredSerializeOptions | Transferable[]): void {
@@ -221,18 +200,7 @@ export class RendererController {
 			histogramCanvas: histogramOffscreen,
 			waveformHorizontalCanvas: waveformHorizontalOffscreen,
 			waveformVerticalCanvas: waveformVerticalOffscreen,
-			options: {
-				resolution,
-				enable32bitDataTextures: this.enable32bitDataTextures,
-				intermediateTextureFormat: this.intermediateTextureFormat ?? navigator.gpu.getPreferredCanvasFormat(),
-				fpsLimit: this.fpsLimit,
-				enableStats: this.enableStats,
-				highlightClipping: this.highlightClipping,
-				liveTimeFactor: this.liveTimeFactor,
-				assets: this.assets,
-				visualModules: this.visualModules,
-				timeline: this.timeline,
-			},
+			rendererOptions: this.rendererOptions,
 		}, [offscreen, histogramOffscreen, waveformHorizontalOffscreen, waveformVerticalOffscreen]);
 		this.rendererWorker.onmessage = (event) => {
 			if (this.rendererWorker !== worker) return;
@@ -432,8 +400,7 @@ export class RendererController {
 	}
 
 	public updateVisualModules(newVisualModules: VisualModule[]) {
-		this.visualModules = deepClone(newVisualModules);
-		this.call('updateVisualModules', [this.visualModules]);
+		this.call('updateOptions', [{ visualModules: newVisualModules }]);
 	}
 
 	public getVideoElement(playerId: Player['id']): HTMLVideoElement | null {
@@ -467,8 +434,7 @@ export class RendererController {
 	}
 
 	public updateTimeline(newTimeline: Timeline) {
-		this.timeline = deepClone(newTimeline);
-		this.call('updateTimeline', [this.timeline]);
+		this.call('updateOptions', [{ timeline: newTimeline }]);
 	}
 
 	public async updatePointerPosition(newPointerPosition: { x: number; y: number }) {
@@ -477,23 +443,15 @@ export class RendererController {
 	}
 
 	public changeLiveModeFpsLimit(newFpsLimit: number | null) {
-		this.fpsLimit = newFpsLimit;
-		this.call('changeLiveModeFpsLimit', [this.fpsLimit]);
+		this.call('updateOptions', [{ fpsLimit: newFpsLimit }]);
 	}
 
 	public setHighlightClipping(enabled: boolean) {
-		this.highlightClipping = enabled;
-		// 初期化前は保持だけ行い、初期化中の変更は既存のキューで送る。
-		if (this.isReady.value || (this.rendererWorker != null && this.rejectInitialization != null)) {
-			this.call('setHighlightClipping', [enabled]);
-		}
+		this.call('updateOptions', [{ highlightClipping: enabled }]);
 	}
 
 	public setLiveTimeFactor(value: number) {
-		this.liveTimeFactor = value;
-		if (this.isReady.value || (this.rendererWorker != null && this.rejectInitialization != null)) {
-			this.call('setLiveTimeFactor', [value]);
-		}
+		this.call('updateOptions', [{ liveTimeFactor: value }]);
 	}
 
 	public renderTimelineAt(time: number) {
@@ -550,9 +508,8 @@ export class RendererController {
 		this.isReady.value = false;
 	}
 
-	public reload(newOptions: { intermediateTextureFormat?: IntermediateTextureFormat | null; enable32bitDataTextures?: boolean; } = {}): Promise<void> {
-		if (newOptions.intermediateTextureFormat !== undefined) this.intermediateTextureFormat = newOptions.intermediateTextureFormat;
-		if (newOptions.enable32bitDataTextures !== undefined) this.enable32bitDataTextures = newOptions.enable32bitDataTextures;
+	public reload(newOptions: Partial<RendererOptions> = {}): Promise<void> {
+		this.rendererOptions = { ...this.rendererOptions, ...newOptions };
 
 		if (this.reloadPromise) return this.reloadPromise;
 		if (!this.rendererWorker || this.rejectInitialization != null) return Promise.reject(new Error('Renderer is not initialized'));

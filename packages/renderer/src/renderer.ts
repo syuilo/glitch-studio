@@ -1,8 +1,8 @@
 import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
-import { AssetTextures } from './asset-textures.ts';
 import { AudioHistory } from '@glitch/shared/audio-history.ts';
 import { genId } from '@glitch/shared/utility/id.ts';
 import { genEmptyValue } from '@glitch/shared/utility/misc.ts';
+import { AssetTextures } from './asset-textures.ts';
 import defaultVertexShaderCode from './vertex.wgsl?raw';
 import TimingHelper from './utility/TimingHelper.ts';
 import finalRenderShaderCode from './render.wgsl?raw';
@@ -16,7 +16,7 @@ import { TimelineRenderer } from './timeline-renderer.ts';
 import { createVisualModuleTimelineLayer } from './visual-module-timeline-layer.ts';
 import { createTimelineCompositor } from './timeline-compositor.ts';
 import { TimelineCompositingParameters } from './timeline-compositing-parameters.ts';
-import { ParameterEvaluator, type EvaluatedParameterValues } from './parameter-evaluator.ts';
+import { ParameterEvaluator } from './parameter-evaluator.ts';
 import { layerVariables } from './expression-scope.ts';
 import { OutputTextureResolver } from './node-output.ts';
 import type { VisualModuleCustomParameterId, VisualModule, VisualModuleParameterBindings } from '@glitch/shared/visual-module/types.ts';
@@ -29,6 +29,25 @@ import type { Asset, Player, IntermediateTextureFormat } from '@glitch/shared/ty
 import type { Timeline, TimelineVisualModuleLayer } from '@glitch/shared/timeline/types.ts';
 import type { EffectImplementation } from '@glitch/shared/effect/effect-implementation.js';
 import type { EffectDefinition } from '@glitch/shared/effect/effect-definition.js';
+
+export type RendererOptions = {
+	resolution: {
+		width: number;
+		height: number;
+	};
+	enable32bitDataTextures: boolean;
+	/** 画像の中間テクスチャ形式。省略時はrgba16float。Canvas・データ用テクスチャには適用しない。 */
+	intermediateTextureFormat: IntermediateTextureFormat;
+	enableStats: boolean;
+	/** 最終出力の黒つぶれを緑、白飛びをマゼンタで表示する。 */
+	highlightClipping: boolean;
+	/** 透過非対応の出力用に、乗算済みRGBを黒背景へ合成する。 */
+	opaqueOutput: boolean;
+	liveTimeFactor: number;
+	fpsLimit: number | null;
+	visualModules: VisualModule[];
+	timeline: Timeline;
+};
 
 export class MainRenderer {
 	private timelineRenderer: TimelineRenderer<NodeOutput, Timeline[number]>;
@@ -82,43 +101,27 @@ export class MainRenderer {
 	public fpsAverage = new NonNegativeRollingAverage(30);
 	public readonly gpuMemory: GpuMemoryTracker;
 
-	constructor(options: {
+	constructor(mainOptions: {
 		onEffectState?: (source: EffectStatusSource, nodeId: string, status: EffectInstanceState | null) => void;
 		onPreviewError?: (message: string | null) => void;
 		gpuDevice: GPUDevice;
 		gpuContext: GPUCanvasContext;
-		resolution: {
-			width: number;
-			height: number;
-		};
-		enable32bitDataTextures: boolean;
-		/** 画像の中間テクスチャ形式。省略時はrgba16float。Canvas・データ用テクスチャには適用しない。 */
-		intermediateTextureFormat: IntermediateTextureFormat;
-		enableStats: boolean;
-		/** 最終出力の黒つぶれを緑、白飛びをマゼンタで表示する。 */
-		highlightClipping?: boolean;
-		/** 透過非対応の出力用に、乗算済みRGBを黒背景へ合成する。 */
-		opaqueOutput?: boolean;
-		liveTimeFactor?: number;
-		fpsLimit: number | null;
 		frameScheduler?: FrameScheduler;
-		visualModules?: VisualModule[];
-		timeline?: Timeline;
 		histogramGpuContext?: GPUCanvasContext;
 		waveformHorizontalGpuContext?: GPUCanvasContext;
 		waveformVerticalGpuContext?: GPUCanvasContext;
 		effectDefinitions: Record<string, EffectDefinition<any>>;
 		effectImplementations: Record<string, EffectImplementation<any>>;
-	}) {
-		this.resolution = options.resolution;
-		this.onEffectState = options.onEffectState;
-		this.onPreviewError = options.onPreviewError;
-		this.visualModules = options.visualModules ?? [];
-		this.timeline = options.timeline ?? [];
-		this.enableStats = options.enableStats;
-		this.highlightClipping = options.highlightClipping ?? false;
-		this.opaqueOutput = options.opaqueOutput ?? false;
-		this.frameScheduler = options.frameScheduler ?? browserFrameScheduler;
+	}, subOptions: RendererOptions) {
+		this.resolution = subOptions.resolution;
+		this.onEffectState = mainOptions.onEffectState;
+		this.onPreviewError = mainOptions.onPreviewError;
+		this.visualModules = subOptions.visualModules;
+		this.timeline = subOptions.timeline;
+		this.enableStats = subOptions.enableStats;
+		this.highlightClipping = subOptions.highlightClipping;
+		this.opaqueOutput = subOptions.opaqueOutput;
+		this.frameScheduler = mainOptions.frameScheduler ?? browserFrameScheduler;
 		this.liveRenderLoop = new LiveRenderLoop({
 			scheduler: this.frameScheduler,
 			onFrame: timing => {
@@ -130,34 +133,34 @@ export class MainRenderer {
 					this.setPreviewError(error instanceof Error ? error.message : String(error));
 				}
 			},
-			fpsLimit: options.fpsLimit,
-			timeFactor: options.liveTimeFactor ?? 1,
+			fpsLimit: subOptions.fpsLimit,
+			timeFactor: subOptions.liveTimeFactor,
 		});
-		this.enable32bitDataTextures = options.enable32bitDataTextures;
-		this.intermediateTextureFormat = options.intermediateTextureFormat;
-		this.gpuDevice = options.gpuDevice;
+		this.enable32bitDataTextures = subOptions.enable32bitDataTextures;
+		this.intermediateTextureFormat = subOptions.intermediateTextureFormat;
+		this.gpuDevice = mainOptions.gpuDevice;
 		this.assetTextures = new AssetTextures(this.gpuDevice);
 		this.outputTextures = new OutputTextureResolver(this.gpuDevice, this.enable32bitDataTextures);
-		this.gpuContext = options.gpuContext;
-		this.effectDefinitions = options.effectDefinitions;
-		this.effectImplementations = options.effectImplementations;
+		this.gpuContext = mainOptions.gpuContext;
+		this.effectDefinitions = mainOptions.effectDefinitions;
+		this.effectImplementations = mainOptions.effectImplementations;
 
 		this.gpuMemory = new GpuMemoryTracker(this.gpuDevice);
 
-		if (options.histogramGpuContext) this.gpuHistogram = new GpuHistogram(
+		if (mainOptions.histogramGpuContext) this.gpuHistogram = new GpuHistogram(
 			this.gpuDevice,
-			options.histogramGpuContext,
+			mainOptions.histogramGpuContext,
 			navigator.gpu.getPreferredCanvasFormat(),
 		);
-		if (options.waveformHorizontalGpuContext) this.gpuWaveformHorizontal = new GpuWaveform(
+		if (mainOptions.waveformHorizontalGpuContext) this.gpuWaveformHorizontal = new GpuWaveform(
 			this.gpuDevice,
-			options.waveformHorizontalGpuContext,
+			mainOptions.waveformHorizontalGpuContext,
 			navigator.gpu.getPreferredCanvasFormat(),
 		);
 
-		if (options.waveformVerticalGpuContext) this.gpuWaveformVertical = new GpuWaveform(
+		if (mainOptions.waveformVerticalGpuContext) this.gpuWaveformVertical = new GpuWaveform(
 			this.gpuDevice,
-			options.waveformVerticalGpuContext,
+			mainOptions.waveformVerticalGpuContext,
 			navigator.gpu.getPreferredCanvasFormat(),
 			'y',
 		);
@@ -232,30 +235,6 @@ export class MainRenderer {
 		});
 	}
 
-	// (非workerで)呼び出すときはnewAssetsを独立した参照にすること！ パフォーマンス上の理由でこちら側ではdeepCloneしません
-	public async updateAssets(newAssets: Asset[]): Promise<boolean> {
-		return this.assetTextures.update(newAssets, () => {
-			this.clearTimelineRenderers();
-			this.assets = newAssets;
-			this.liveVisualModuleRenderer?.updateAssets(this.assets);
-		});
-	}
-
-	public updateVisualModules(newVisualModules: VisualModule[]) {
-		this.clearTimelineRenderers();
-		this.visualModules = newVisualModules;
-		if (this.liveVisualModuleRenderer != null) {
-			const visualModule = this.visualModules.find(visualModule => visualModule.id === this.liveVisualModuleId);
-			if (visualModule == null) this.stopRenderLoop();
-			else this.liveVisualModuleRenderer.updateVisualModule(visualModule);
-		}
-	}
-
-	public updateTimeline(newTimeline: Timeline) {
-		this.clearTimelineRenderers();
-		this.timeline = newTimeline;
-	}
-
 	private clearTimelineRenderers() {
 		this.previewRenderGeneration++;
 		this.timelineRenderer.clear();
@@ -312,16 +291,46 @@ export class MainRenderer {
 		this.lastPointerUpdateTimestamp = this.frameScheduler.now();
 	}
 
-	public changeLiveModeFpsLimit(newFpsLimit: number | null) {
-		this.liveRenderLoop.fpsLimit = newFpsLimit;
+	// (非workerで)呼び出すときはnewAssetsを独立した参照にすること！ パフォーマンス上の理由でこちら側ではdeepCloneしません
+	public async updateAssets(newAssets: Asset[]): Promise<boolean> {
+		return this.assetTextures.update(newAssets, () => {
+			this.clearTimelineRenderers();
+			this.assets = newAssets;
+			this.liveVisualModuleRenderer?.updateAssets(this.assets);
+		});
 	}
 
-	public setHighlightClipping(enabled: boolean) {
-		this.highlightClipping = enabled;
+	private updateVisualModules(newVisualModules: VisualModule[]) {
+		this.clearTimelineRenderers();
+		this.visualModules = newVisualModules;
+		if (this.liveVisualModuleRenderer != null) {
+			const visualModule = this.visualModules.find(visualModule => visualModule.id === this.liveVisualModuleId);
+			if (visualModule == null) this.stopRenderLoop();
+			else this.liveVisualModuleRenderer.updateVisualModule(visualModule);
+		}
 	}
 
-	public setLiveTimeFactor(value: number) {
-		this.liveRenderLoop.timeFactor = value;
+	private updateTimeline(newTimeline: Timeline) {
+		this.clearTimelineRenderers();
+		this.timeline = newTimeline;
+	}
+
+	public updateOptions(newOptions: Partial<RendererOptions>) {
+		if (newOptions.fpsLimit !== undefined && newOptions.fpsLimit !== this.liveRenderLoop.fpsLimit) {
+			this.liveRenderLoop.fpsLimit = newOptions.fpsLimit;
+		}
+		if (newOptions.liveTimeFactor !== undefined && newOptions.liveTimeFactor !== this.liveRenderLoop.timeFactor) {
+			this.liveRenderLoop.timeFactor = newOptions.liveTimeFactor;
+		}
+		if (newOptions.highlightClipping !== undefined && newOptions.highlightClipping !== this.highlightClipping) {
+			this.highlightClipping = newOptions.highlightClipping;
+		}
+		if (newOptions.visualModules !== undefined) {
+			this.updateVisualModules(newOptions.visualModules);
+		}
+		if (newOptions.timeline !== undefined) {
+			this.updateTimeline(newOptions.timeline);
+		}
 	}
 
 	private renderToCanvas(output: NodeOutput, commandEncoder: GPUCommandEncoder) {
@@ -360,7 +369,6 @@ export class MainRenderer {
 		this.gpuHistogram?.render(commandEncoder, tex);
 		this.gpuWaveformHorizontal?.render(commandEncoder, tex);
 		this.gpuWaveformVertical?.render(commandEncoder, tex);
-
 	}
 
 	/** timeはミリ秒。表示期間中はレイヤーごとのインスタンスと履歴を保持する。 */

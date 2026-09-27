@@ -152,7 +152,7 @@ async function doExport() {
 				visualModules: appStateManager.state.visualModules.value,
 				timeline: appStateManager.state.timeline.value,
 			}),
-			renderer: renderer.getExportRendererSettings(),
+			renderer: {}, // TODO
 		}, signal, value => { progress.value = value; });
 		signal.throwIfAborted();
 		downloadName.value = `${projectInfo.value.name || 'timeline'}.${exportSettings.format}`;
