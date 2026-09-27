@@ -97,7 +97,7 @@ const status = ref('');
 const progress = ref<ExportProgress>({ phase: 'preparing', completedFrames: 0, totalFrames: 0 });
 const downloadUrl = ref('');
 const downloadName = ref('');
-let controller: AbortController | undefined;
+let abortController: AbortController | undefined;
 const settings = computed<TimelineExportSettings>(() => {
 	const common = { ...resolution.value, startTimeMs: parseExportTime(startTime.value) };
 	return mode.value === 'still'
@@ -127,7 +127,7 @@ function closeDialog() {
 }
 
 function cancel() {
-	if (exporting.value) controller?.abort();
+	if (exporting.value) abortController?.abort();
 	else closeDialog();
 }
 
@@ -139,8 +139,8 @@ async function doExport() {
 	error.value = '';
 	status.value = '';
 	progress.value = { phase: 'preparing', completedFrames: 0, totalFrames: 0 };
-	controller = new AbortController();
-	const signal = controller.signal;
+	abortController = new AbortController();
+	const signal = abortController.signal;
 	if (downloadUrl.value) URL.revokeObjectURL(downloadUrl.value);
 	downloadUrl.value = '';
 	try {
@@ -176,12 +176,12 @@ async function doExport() {
 		else error.value = cause instanceof Error ? cause.message : String(cause);
 	} finally {
 		exporting.value = false;
-		controller = undefined;
+		abortController = undefined;
 	}
 }
 
 onBeforeUnmount(() => {
-	controller?.abort();
+	abortController?.abort();
 	if (downloadUrl.value) URL.revokeObjectURL(downloadUrl.value);
 });
 </script>
