@@ -42,8 +42,9 @@ const blendValue: BlendMode = 'multiply';
 const blendNumber: number = colorBlendModes[blendValue];
 // @ts-expect-error 存在しないモードを初期値に指定できない
 const badBlend: ParameterDefinition = { ...blend, defaultValue: { inputSource: 'literal', value: 'invalid' } };
-// @ts-expect-error replaceはタイムライン専用でありblendModeには含めない
+// replaceも共通の合成モードとしてパラメータに指定できる。
 const replaceBlend: BlendMode = 'replace';
+const replaceDefault: ParameterDefinition = { ...blend, defaultValue: { inputSource: 'literal', value: replaceBlend } };
 // @ts-expect-error エフェクト定義経由でも不正な初期値を拒否する
 defineEffect({ id: 'bad-blend', displayName: 'Bad blend', tags: [], paramDefs: { blend: { ...blend, defaultValue: { inputSource: 'literal', value: 'invalid' } } }, primaryInputParameter: null, outputDefs: {}, primaryOutput: null });
 type NestedBlendDefault = ParameterDefaultValue<{ kind: 'array'; elementType: { kind: 'struct'; fields: { mode: { kind: 'blendMode' } } } }>;

@@ -480,6 +480,11 @@ export class PreviewRendererController {
 
 	public disposeRenderer() {
 		this.rejectPendingReturns(new Error('Engine reloaded during renderer call'));
+		// エクスポート開始時は初期化途中でも破棄する。待機を残すとreloadPromiseが
+		// 解決されず、復帰後の設定変更でもWorkerを再読み込みできなくなる。
+		this.rejectInitialization?.(new Error('Engine disposed during initialization'));
+		this.rejectInitialization = null;
+		this.pendingCalls = [];
 		this.isReady.value = false;
 		this.rendererWorker?.terminate();
 		this.rendererWorker = null;

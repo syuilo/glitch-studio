@@ -34,7 +34,7 @@ async function bundle(path) {
 	return result.outputFiles[0].text;
 }
 
-const controllerCode = await bundle('../src/RendererController.ts');
+const controllerCode = await bundle('../src/PreviewRendererController.ts');
 const workerCode = await bundle('../../renderer/src/worker.ts');
 
 async function fixture(t, options = {}) {
@@ -63,7 +63,8 @@ async function fixture(t, options = {}) {
 		async failAsync() { throw new Error('async failure'); }
 		failNonError() { throw { toString: () => 'non-error failure' }; }
 		uncloneable() { return () => {}; }
-		updatePointerPosition() {}
+		pointerPositions = [];
+		updatePointerPosition(position) { this.pointerPositions.push(position); }
 	}
 	const workers = [];
 	const dependencies = {
@@ -107,7 +108,7 @@ async function fixture(t, options = {}) {
 		window: { document: { createElement: canvas } },
 	};
 	runInNewContext(controllerCode, context);
-	const controller = new context.module.exports.RendererController({
+	const controller = new context.module.exports.PreviewRendererController({
 		enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm', enableStats: false,
 	}, { fpsLimit: null });
 	t.after(() => controller.destroy());
@@ -282,6 +283,47 @@ test('reloads the preview worker with updated static settings', async t => {
 	assert.equal(instances[1].staticOptions.intermediateTextureFormat, 'rgba16float');
 	assert.equal(instances[1].staticOptions.enable32bitDataTextures, true);
 });
+
+// 初期化・再読み込み中に破棄しても待機を解除し、復帰後に再び設定変更できる。
+// エクスポート開始で画像準備中のWorkerが終了しても、旧initやreloadを未完了にせず、
+// キューに残った操作を新Workerへ再送しない。設定変更まで確認しreloadPromiseの残留を検出する。
+for (const phase of ['initialization', 'reload']) {
+	test(`disposes during ${phase} and allows subsequent static settings updates`, { timeout: 2000 }, async t => {
+		const requested = Promise.withResolvers();
+		const gate = Promise.withResolvers();
+		let hold = false;
+		const { controller, instances } = await fixture(t, {
+			initialize: false,
+			updateAssets: () => {
+				if (!hold) return true;
+				requested.resolve();
+				return gate.promise;
+			},
+		});
+		if (phase === 'reload') await controller.init({ width: 1, height: 1 });
+		hold = true;
+		const starting = phase === 'reload' ? controller.reload() : controller.init({ width: 1, height: 1 });
+		const stopped = assert.rejects(starting, /disposed during initialization/);
+		await requested.promise;
+		const updateStopped = assert.rejects(controller.updateDynamicOptions({ highlightClipping: true }), /Engine reloaded/);
+		controller.call('updatePointerPosition', [{ x: 999, y: 999 }]);
+		controller.disposeRenderer();
+		await Promise.all([stopped, updateStopped]);
+		assert.equal(controller.isReady.value, false);
+		await assert.rejects(controller.callAndWaitReturn('echo', [42]), /not initialized/);
+		hold = false;
+		gate.resolve(true);
+		await controller.relaunchRenderer();
+		assert.equal(controller.isReady.value, true);
+		assert.equal(instances.at(-1).dynamicOptions.highlightClipping, true);
+		assert.deepEqual(instances.at(-1).pointerPositions, [{ x: 0, y: 0 }]);
+		const previousCount = instances.length;
+		await controller.updateStaticOptions({ intermediateTextureFormat: 'rgba16float' });
+		assert.equal(instances.length, previousCount + 1);
+		assert.equal(instances.at(-1).staticOptions.intermediateTextureFormat, 'rgba16float');
+		assert.equal(await controller.callAndWaitReturn('echo', [42]), 42);
+	});
+}
 
 // 同期の結果を受け取り、並行した非同期呼び出しも応答IDで正しく対応付ける。
 test('returns values and matches out-of-order asynchronous responses', { timeout: 2000 }, async t => {

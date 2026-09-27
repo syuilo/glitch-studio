@@ -39,11 +39,13 @@ const appBundle = await build({
 					`
 					: args.path.endsWith('RendererController.ts') ? `
 					import { ref } from 'vue';
-					export class RendererController {
+					export class PreviewRendererController {
 						isReady = ref(false);
 						async init(resolution) { this.initialResolution = resolution; this.isReady.value = true; }
-						resize(resolution) { this.previewResolution = resolution; }
-						async updateDynamicOptions() { return { assetsCommitted: true }; }
+						async updateDynamicOptions(options) {
+							if (options.resolution) this.previewResolution = options.resolution;
+							return { assetsCommitted: true };
+						}
 						async updateStaticOptions() {} async updatePlayers() {}
 						startLiveRenderLoopFor() {} stopRenderLoop() {} renderTimelineAt() {}
 					}
@@ -327,9 +329,9 @@ test('scales project previews before initialization and resets the scale for sma
 		const file = new File([await encodeProjectFile(project({ resolution }))], 'resolution.gsproj');
 		assert.equal(await app.openProject(file), true);
 		assert.equal(app.resolutionFactor.value, factor);
-		assert.deepEqual(app.renderer.previewResolution, { width: Math.round(width * factor), height: Math.round(height * factor) });
+		assert.deepEqual(app.previewRendererController.previewResolution, { width: Math.round(width * factor), height: Math.round(height * factor) });
 		assert.deepEqual(app.appStateManager.state.resolution.value, resolution);
 	}
-	assert.deepEqual(app.renderer.initialResolution, { width: 3000, height: 2000 });
+	assert.deepEqual(app.previewRendererController.initialResolution, { width: 3000, height: 2000 });
 	assert.deepEqual(globalThis.projectAlerts, []);
 });

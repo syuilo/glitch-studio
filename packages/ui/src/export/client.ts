@@ -1,11 +1,7 @@
 import type { ExportRequest, ExportResponse } from './types.ts';
 import type { ExportProgress } from './timeline-export.ts';
-import { previewRendererController } from '@/app.ts';
 
 export function exportTimeline(request: ExportRequest, signal: AbortSignal, onProgress: (progress: ExportProgress) => void): Promise<ArrayBuffer> {
-	// エクスポート中はリソース節約のためプレビュー用レンダラーは破棄
-	previewRendererController.disposeRenderer();
-
 	return new Promise<ArrayBuffer>((resolve, reject) => {
 		signal.throwIfAborted();
 		const worker = new Worker(new URL('./timeline-export.worker.ts', import.meta.url), { type: 'module' });
@@ -28,8 +24,5 @@ export function exportTimeline(request: ExportRequest, signal: AbortSignal, onPr
 			}
 		};
 		try { worker.postMessage(request); } catch (error) { fail(error); }
-	}).finally(() => {
-		// 終わったらプレビュー用レンダラーを再構築
-		previewRendererController.relaunchRenderer();
 	});
 }
