@@ -60,6 +60,7 @@
 				</template>
 			</button>
 			<span :class="$style.title"><i :class="workspacePanelDefinitions[panel.contentType].icon" style="margin-right: 0.5em;"></i>{{ workspacePanelDefinitions[panel.contentType].label }}</span>
+			<button :class="$style.popoutButton" class="_button" @click="popout"><i class="ti ti-external-link"></i></button>
 			<div :class="$style.grabber" draggable="true" @dragstart.stop="onDragstart">
 				<svg viewBox="0 0 16 16" version="1.1" :class="$style.grabberSvg">
 					<path fill="currentColor" d="M10 13a1 1 0 1 1 0-2 1 1 0 0 1 0 2Zm0-4a1 1 0 1 1 0-2 1 1 0 0 1 0 2Zm-4 4a1 1 0 1 1 0-2 1 1 0 0 1 0 2Zm5-9a1 1 0 1 1-2 0 1 1 0 0 1 2 0ZM7 8a1 1 0 1 1-2 0 1 1 0 0 1 2 0ZM6 5a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z"></path>
@@ -68,10 +69,12 @@
 			<button :class="$style.menu" class="_button" @click.stop="showSettingsMenu"><i class="ti ti-dots"></i></button>
 		</header>
 		<div v-if="!collapsed" ref="body" :class="$style.body">
-			<component
-				:is="workspacePanelDefinitions[panel.contentType].component"
-				:panel="panel"
-			/>
+			<GsDetachableView ref="detachableView" :title="workspacePanelDefinitions[panel.contentType].label">
+				<component
+					:is="workspacePanelDefinitions[panel.contentType].component"
+					:panel="panel"
+				/>
+			</GsDetachableView>
 		</div>
 	</div>
 </div>
@@ -80,6 +83,7 @@
 <script lang="ts" setup>
 import { deepClone } from '@glitch/shared/utility/deep-clone.js';
 import { useTemplateRef, ref, computed, nextTick } from 'vue';
+import GsDetachableView from './GsDetachableView.vue';
 import type { MenuItem } from '@/types/menu.ts';
 import type { WorkspacePanel } from '@/workspace.ts';
 import { getElementMenu, workspacePanelDefinitions } from '@/workspace.ts';
@@ -99,6 +103,7 @@ const emit = defineEmits<{
 }>();
 
 const body = useTemplateRef('body');
+const detachableView = useTemplateRef('detachableView');
 
 const parent = computed(() => findWorkspaceParent(preferences.r.workspaceDefinition.value, props.panel.id));
 const canCollapse = computed(() => parent.value?.type === 'divider');
@@ -187,6 +192,10 @@ function onDrop(ev: DragEvent, area: 'top' | 'bottom' | 'left' | 'right' | 'cent
 		workspace = splitWorkspaceElement(workspace, target.element, panel.element, direction, area === 'top' || area === 'left');
 	}
 	preferences.commit('workspaceDefinition', cleanupWorkspaceDefinition(workspace));
+}
+
+function popout() {
+	detachableView.value?.popout();
 }
 </script>
 
@@ -302,7 +311,8 @@ function onDrop(ev: DragEvent, area: 'top' | 'bottom' | 'left' | 'right' | 'cent
 }
 
 .toggleCollapse,
-.menu {
+.menu,
+.popoutButton {
 	z-index: 1;
 	width: var(--headerHeight);
 	line-height: var(--headerHeight);
@@ -311,6 +321,11 @@ function onDrop(ev: DragEvent, area: 'top' | 'bottom' | 'left' | 'right' | 'cent
 
 .toggleCollapse {
 	margin-left: -16px;
+}
+
+.popoutButton {
+	opacity: 0.5; // TODO: opacityを使わずに表現する
+	margin-left: auto;
 }
 
 .grabber {
@@ -322,7 +337,7 @@ function onDrop(ev: DragEvent, area: 'top' | 'bottom' | 'left' | 'right' | 'cent
 	height: var(--headerHeight);
 	cursor: move;
 	user-select: none;
-	opacity: 0.5;
+	opacity: 0.5; // TODO: opacityを使わずに表現する
 }
 
 .grabberSvg {

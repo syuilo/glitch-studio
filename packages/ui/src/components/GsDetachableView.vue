@@ -129,6 +129,9 @@ function onContextmenu(ev: PointerEvent) {
 	ui.contextMenu(menuItems, ev);
 }
 
+defineExpose({
+	popout: () => openView('window'),
+});
 </script>
 
 <style module lang="scss">
