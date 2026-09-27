@@ -7,6 +7,7 @@ struct Uniforms {
 	bStrength: f32,
 	samples: u32,
 	normalize: u32,
+	inputBlendMode: u32,
 };
 
 @group(0) @binding(0) var<uniform> uniforms: Uniforms;
@@ -53,5 +54,6 @@ fn fs(@location(0) position: vec2f) -> @location(0) vec4f {
 	// 最大のアルファを採用して各色の輪郭を残し、RGBへの二重乗算は行わない。
 	let color = colorAccumulator / f32(samples);
 	let alpha = alphaAccumulator / f32(samples);
-	return vec4f(color, max(alpha.r, max(alpha.g, alpha.b)));
+	let effect = vec4f(color, max(alpha.r, max(alpha.g, alpha.b)));
+	return blendColor(uniforms.inputBlendMode, read_input(position), effect);
 }

@@ -14,6 +14,7 @@ export default defineEffect({
 		samples: { dataType: { kind: 'scalar' }, ui: { label: 'Samples', control: { controlType: 'number', min: 1, max: 100 } }, defaultValue: { inputSource: 'literal', value: 32 } },
 		vector: { dataType: { kind: 'vector' }, ui: { label: 'Vector', control: { controlType: 'vector', step: 0.01, min: -5, max: 5 } }, canNode: true, defaultValue: { inputSource: 'literal', value: [1, 0] } },
 		normalize: { dataType: { kind: 'bool' }, ui: { label: 'Normalize', control: {} }, defaultValue: { inputSource: 'literal', value: false } },
+		inputBlendMode: { dataType: { kind: 'blendMode' }, ui: { label: 'Input Blend', control: {} }, defaultValue: { inputSource: 'literal', value: 'replace' } },
 	},
 	primaryInputParameter: 'input',
 	outputDefs: {
