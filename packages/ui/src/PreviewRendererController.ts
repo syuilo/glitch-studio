@@ -473,11 +473,12 @@ export class PreviewRendererController {
 	public reload(): Promise<void> {
 		if (this.reloadPromise) return this.reloadPromise;
 		if (!this.rendererWorker || this.rejectInitialization != null) return Promise.reject(new Error('Renderer is not initialized'));
-		this.reloadPromise = this.reloadRenderer().finally(() => { this.reloadPromise = null; });
+		this.disposeRenderer();
+		this.reloadPromise = this.relaunchRenderer().finally(() => { this.reloadPromise = null; });
 		return this.reloadPromise;
 	}
 
-	private async reloadRenderer() {
+	public disposeRenderer() {
 		this.rejectPendingReturns(new Error('Engine reloaded during renderer call'));
 		this.isReady.value = false;
 		this.rendererWorker?.terminate();
@@ -491,7 +492,9 @@ export class PreviewRendererController {
 		this.gpuAverageDisplayFast.value = 0;
 		this.gpuAverageDisplayMedium.value = 0;
 		this.gpuAverageDisplaySlow.value = 0;
+	}
 
+	public async relaunchRenderer() {
 		// 転送済みcanvasは再転送できない。属性と表示先を保った新しい要素に置き換える。
 		for (const key of ['canvas', 'histogramCanvas', 'waveformHorizontalCanvas', 'waveformVerticalCanvas'] as const) {
 			const previous = this[key];
