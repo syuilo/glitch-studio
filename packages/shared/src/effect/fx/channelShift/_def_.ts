@@ -10,7 +10,7 @@ export default defineEffect({
 		leftSignal: { dataType: { kind: 'color' }, ui: { label: 'L signal', control: { controlType: 'signal' } }, defaultValue: { inputSource: 'literal', value: [1, 0, 0, 1] } },
 		rightSignal: { dataType: { kind: 'color' }, ui: { label: 'R signal', control: { controlType: 'signal' } }, defaultValue: { inputSource: 'literal', value: [0, 0, 1, 1] } },
 		channelBlendMode: { dataType: { kind: 'blendMode' }, ui: { label: 'Channel Blend', control: {} }, defaultValue: { inputSource: 'literal', value: 'lighten' } },
-		inputBlendMode: { dataType: { kind: 'blendMode' }, ui: { label: 'Input Blend', control: {} }, defaultValue: { inputSource: 'literal', value: 'replace' } },
+		inputBlendMode: { dataType: { kind: 'blendMode' }, ui: { label: 'Input Blend', control: {} }, defaultValue: { inputSource: 'literal', value: 'lighten' } },
 	},
 	primaryInputParameter: 'input',
 	outputDefs: {

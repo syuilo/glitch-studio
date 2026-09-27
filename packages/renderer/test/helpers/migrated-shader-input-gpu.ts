@@ -116,6 +116,45 @@ export async function checkMigratedEffects(device: GPUDevice, vertex: GPUShaderM
 		}
 		completed.push('lcd cell orientation and RGB order');
 	} finally { lcdInstance.dispose(); lcdSource.destroy(); lcdOutput.destroy(); }
+	completed.push(...await checkChannelBlends(device, vertex, readOutput));
+	return completed;
+}
+
+async function checkChannelBlends(device: GPUDevice, vertex: GPUShaderModule, readOutput: (output: GPUTexture) => Promise<number[]>) {
+	const completed: string[] = [];
+	const context = { wgpu: { device, defaultVertexShaderModule: vertex, intermediateTextureFormat: 'rgba8unorm', enable32bitDataTextures: false } } as any;
+	const shift = channelShift.init(context);
+	const blend = colorBlend.init(context);
+	const output = device.createTexture({ size: [1, 1], format: 'rgba8unorm', usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING });
+	const input = constantShaderInput('color', [1, 0.5, 0.25, 0.5]);
+	const params = { input, amount: constantShaderInput('vector', [0, 0]), leftSignal: [1, 0, 0, 1], rightSignal: [0, 0, 1, 1], channelBlendMode: 'lighten', inputBlendMode: 'replace' };
+	async function check(name: string, instance: typeof shift | typeof blend, values: object, expected: number[]) {
+		const encoder = device.createCommandEncoder();
+		instance.render({ params: values, commandEncoder: encoder, outputDataMap: { output: { texture: output, textureView: output.createView() } },
+			createPassEncoderFor: (_: GPUCommandEncoder, view: GPUTextureView) => encoder.beginRenderPass({ colorAttachments: [{ view, loadOp: 'clear', storeOp: 'store' }] }) } as any);
+		device.queue.submit([encoder.finish()]);
+		const actual = await readOutput(output);
+		if (actual.length !== expected.length || actual.some((value, i) => Math.abs(value - expected[i]) > 2)) throw new Error(`${name}: ${actual} != ${expected}`);
+		completed.push(name);
+	}
+	try {
+		// 効果のみの出力は未選択チャンネルを含めない
+		// 元画像が混ざることと、アルファの二重乗算を検出する。
+		await check('channel shift replace outputs selected channels only', shift, params, [128, 0, 32, 128]);
+		// Input Blendの通常合成と無効化
+		// 同じ効果に対して合成方法だけを切り替え、独立したパラメータであることを確認する。
+		await check('channel shift normal composites onto input', shift, { ...params, inputBlendMode: 'normal' }, [191, 32, 48, 191]);
+		await check('channel shift none preserves input', shift, { ...params, inputBlendMode: 'none' }, [128, 64, 32, 128]);
+		// 左右の重複チャンネルは共通の乗算モードで合成する
+		// モード番号の取り違えと、黒を初期値として乗算してしまう退行を検出する。
+		await check('channel shift multiply blends overlapping channels', shift, { ...params, rightSignal: [1, 0, 0, 1], channelBlendMode: 'multiply' }, [191, 0, 0, 191]);
+		// 共通Replaceは透明なBでも背景を残さない
+		// 通常合成と置き換えはRGBだけでは区別できず、透明度込みの検証が必要。
+		await check('color blend replace clears with transparent source', blend, { inputA: input, inputB: constantShaderInput('color', [0, 0, 0, 0]), amount: constantShaderInput('scalar', 1), blendMode: 'replace' }, [0, 0, 0, 0]);
+		// Replaceの適用量はアルファも含めて補間する
+		// 適用量をBの不透明度として扱うと、透明なBへ置き換えられなくなる。
+		await check('color blend replace amount interpolates RGBA', blend, { inputA: input, inputB: constantShaderInput('color', [0, 0, 0, 0]), amount: constantShaderInput('scalar', 0.5), blendMode: 'replace' }, [64, 32, 16, 64]);
+	} finally { shift.dispose(); blend.dispose(); output.destroy(); }
 	return completed;
 }
 
