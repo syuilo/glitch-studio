@@ -1,13 +1,3 @@
-// 色のブレンドは未乗算で計算し、出力時に一度だけpremultiplyする。
-fn unpremultiply(color: vec4f) -> vec4f {
-	if (color.a <= 0.0) { return vec4f(0.0); }
-	return vec4f(color.rgb / color.a, color.a);
-}
-
-fn premultiplyAlpha(color: vec4f) -> vec4f {
-	return vec4f(color.rgb * color.a, color.a);
-}
-
 fn blendOverlay(base: f32, blend: f32) -> f32 {
 	if (base < 0.5) {
 		return 2.0 * base * blend;
@@ -36,6 +26,22 @@ struct Uniforms {
 
 @group(0) @binding(0) var<uniform> uniforms: Uniforms;
 
+// チャンネルごとに乗算済みの色とアルファを返す。未選択のチャンネルに元画像を残さない。
+fn shiftChannel(left: vec2f, right: vec2f, useLeft: bool, useRight: bool) -> vec2f {
+	if (!useLeft && !useRight) { return vec2f(0.0); }
+	if (!useLeft) { return right; }
+	if (!useRight) { return left; }
+	if (left.y <= 0.0) { return right; }
+	if (right.y <= 0.0) { return left; }
+
+	// ブレンドは未乗算の色で計算し、重なり以外の部分も残す。
+	// 透明なシフト先を黒としてmultiplyなどに混ぜると、もう一方の像が消えてしまう。
+	let blended = doBlend(uniforms.blendMode, left.x / left.y, right.x / right.y);
+	let color = left.x * (1.0 - right.y) + right.x * (1.0 - left.y) + blended * left.y * right.y;
+	let alpha = left.y + right.y * (1.0 - left.y);
+	return vec2f(color, alpha);
+}
+
 struct FragmentIn {
 	@location(0) uv: vec2f,
 };
@@ -44,17 +50,12 @@ struct FragmentIn {
 fn fs(fragData: FragmentIn) -> @location(0) vec4f {
 	let uv = fragData.uv;
 	let amount = read_amount(uv);
-	let pixel = unpremultiply(read_input(uv));
-	let left = unpremultiply(read_input(uv + amount));
-	let right = unpremultiply(read_input(uv - amount));
-	var color = pixel.rgb;
+	let left = read_input(uv + amount);
+	let right = read_input(uv - amount);
+	let red = shiftChannel(left.ra, right.ra, uniforms.leftSignal.r != 0u, uniforms.rightSignal.r != 0u);
+	let green = shiftChannel(left.ga, right.ga, uniforms.leftSignal.g != 0u, uniforms.rightSignal.g != 0u);
+	let blue = shiftChannel(left.ba, right.ba, uniforms.leftSignal.b != 0u, uniforms.rightSignal.b != 0u);
 
-	if (uniforms.leftSignal.r != 0u) { color.r = doBlend(uniforms.blendMode, color.r, left.r); }
-	if (uniforms.rightSignal.r != 0u) { color.r = doBlend(uniforms.blendMode, color.r, right.r); }
-	if (uniforms.leftSignal.g != 0u) { color.g = doBlend(uniforms.blendMode, color.g, left.g); }
-	if (uniforms.rightSignal.g != 0u) { color.g = doBlend(uniforms.blendMode, color.g, right.g); }
-	if (uniforms.leftSignal.b != 0u) { color.b = doBlend(uniforms.blendMode, color.b, left.b); }
-	if (uniforms.rightSignal.b != 0u) { color.b = doBlend(uniforms.blendMode, color.b, right.b); }
-
-	return premultiplyAlpha(vec4f(color, pixel.a));
+	// RGBは既に乗算済み。別チャンネルのアルファによる再乗算を避ける。
+	return vec4f(red.x, green.x, blue.x, max(red.y, max(green.y, blue.y)));
 }
