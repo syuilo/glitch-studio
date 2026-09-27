@@ -108,7 +108,8 @@ export class RendererController {
 	private callCounter = 0;
 
 	// 初期化チェックなどの同期的なthrowもPromiseのrejectに統一し、呼び出し側で.catch()でも受け取れるようasyncにする。
-	private async callAndWaitReturn<FN extends keyof RendererMethods>(fn: FN, args: Parameters<RendererMethods[FN]>): Promise<Awaited<ReturnType<RendererMethods[FN]>>> {
+	private async callAndWaitReturn<FN extends keyof RendererMethods>(fn: FN, args: Parameters<RendererMethods[FN]>, options?: StructuredSerializeOptions | Transferable[]): Promise<Awaited<ReturnType<RendererMethods[FN]>>> {
+		const serializeOptions = Array.isArray(options) ? { transfer: options } : options;
 		if (!this.isReady.value && this.rejectInitialization == null) {
 			throw new Error('Renderer is not initialized');
 		}
@@ -126,8 +127,8 @@ export class RendererController {
 				try {
 					const message = { type: 'call', fn, args, needReturnValue: true, id };
 					// initメッセージ送信後の編集も、初期化完了時に送って応答まで待つ。
-					if (!this.isReady.value) this.pendingCalls.push({ message, onError });
-					else this.rendererWorker!.postMessage(message);
+					if (!this.isReady.value) this.pendingCalls.push({ message, onError, options: serializeOptions });
+					else this.rendererWorker!.postMessage(message, serializeOptions);
 				} catch (error) {
 					onError(error);
 				}
@@ -143,7 +144,7 @@ export class RendererController {
 		this.returnHooks.clear();
 	}
 
-	private sendPendingVideoFrame(playerId: string) {
+	private async sendPendingVideoFrame(playerId: string) {
 		if (!this.isReady.value || !this.rendererWorker || this.inFlightVideoFrames.has(playerId)) return;
 		const frame = this.pendingVideoFrames.get(playerId);
 		if (!frame) return;
@@ -151,7 +152,7 @@ export class RendererController {
 		const id = this.nextVideoFrameId++;
 		this.inFlightVideoFrames.set(playerId, id);
 		try {
-			this.rendererWorker.postMessage({ type: 'videoFrame', playerId, id, frame }, [frame]);
+			await this.callAndWaitReturn('updateVideoFrame', [playerId, frame], [frame]);
 		} catch (error) {
 			this.inFlightVideoFrames.delete(playerId);
 			frame.close();

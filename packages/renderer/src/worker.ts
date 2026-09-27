@@ -100,19 +100,6 @@ onmessage = async (event) => {
 			}
 			break;
 		}
-		case 'videoFrame': {
-			const { playerId, id, frame } = event.data;
-			try {
-				if (renderer) {
-					renderer.updateVideoFrame(playerId, frame);
-				} else {
-					frame.close();
-				}
-			} finally {
-				self.postMessage({ type: 'videoFrameReceived', playerId, id });
-			}
-			break;
-		}
 		case 'call': {
 			try {
 				if (renderer == null) throw new Error('Renderer is not initialized');
