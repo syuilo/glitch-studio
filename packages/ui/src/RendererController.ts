@@ -154,10 +154,14 @@ export class RendererController {
 		try {
 			await this.callAndWaitReturn('updateVideoFrame', [playerId, frame], [frame]);
 		} catch (error) {
-			this.inFlightVideoFrames.delete(playerId);
+			if (this.inFlightVideoFrames.get(playerId) === id) this.inFlightVideoFrames.delete(playerId);
 			frame.close();
 			throw error;
 		}
+		// Worker再読み込み前の応答で、新しい送信の状態を解除しない。
+		if (this.inFlightVideoFrames.get(playerId) !== id) return;
+		this.inFlightVideoFrames.delete(playerId);
+		this.sendPendingVideoFrame(playerId);
 	}
 
 	public async init(resolution: { width: number; height: number }) {
@@ -260,13 +264,6 @@ export class RendererController {
 							hook.reject(reason);
 						}
 					}
-					break;
-				}
-				case 'videoFrameReceived': {
-					const { playerId, id } = event.data;
-					if (this.inFlightVideoFrames.get(playerId) !== id) break;
-					this.inFlightVideoFrames.delete(playerId);
-					this.sendPendingVideoFrame(playerId);
 					break;
 				}
 				case 'gpuMemory': {
