@@ -1,19 +1,17 @@
 <template>
 <GsDetachableView title="Preview">
-	<template #default="{ detached }">
-		<div :class="$style.root" @dragover.prevent.stop @drop.prevent.stop="onDrop">
-			<div :class="$style.topLeft">
-				<div v-if="showTimecodeInPreview" :class="$style.time" class="_monospace">{{ formatTime(time) }}</div>
-			</div>
-			<div :class="$style.topRight">
-				<div :class="$style.zoom">ZOOM: {{ Math.round(zoom * 100) }}%</div>
-				<button :class="$style.menuButton" class="_button" @click="showMenu"><i class="ti ti-dots"></i></button>
-			</div>
-			<div ref="containerContainer" :class="[$style.containerContainer, { [$style.animatedBg]: preferences.r.animatedBgInPreview.value }]" @wheel="onViewWheel" @click="onViewClick(detached)" @pointermove="onPointermove">
-				<div ref="canvasContainer" :class="$style.canvasContainer" :style="{ scale: zoom }"></div>
-			</div>
+	<div :class="$style.root" @dragover.prevent.stop @drop.prevent.stop="onDrop">
+		<div :class="$style.topLeft">
+			<div v-if="showTimecodeInPreview" :class="$style.time" class="_monospace">{{ formatTime(time) }}</div>
 		</div>
-	</template>
+		<div :class="$style.topRight">
+			<div :class="$style.zoom">ZOOM: {{ Math.round(zoom * 100) }}%</div>
+			<button :class="$style.menuButton" class="_button" @click="showMenu"><i class="ti ti-dots"></i></button>
+		</div>
+		<div ref="containerContainer" :class="[$style.containerContainer, { [$style.animatedBg]: preferences.r.animatedBgInPreview.value }]" @wheel="onViewWheel" @click="onViewClick" @pointermove="onPointermove">
+			<div ref="canvasContainer" :class="$style.canvasContainer" :style="{ scale: zoom }"></div>
+		</div>
+	</div>
 </GsDetachableView>
 </template>
 
@@ -57,11 +55,8 @@ onBeforeUnmount(() => {
 	}
 });
 
-async function onViewClick(detached: boolean) {
-	if (detached) return;
-	//if (appContext.state.nodes.value.length === 0) {
-	//	await addMedia();
-	//}
+async function onViewClick() {
+
 }
 
 async function onDrop(event: DragEvent) {
