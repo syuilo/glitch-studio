@@ -120,9 +120,11 @@ watch(liveTimeFactor, value => {
 });
 
 watch([appStateManager.state.resolution, resolutionFactor], () => {
-	renderer.resize({
-		width: Math.round(appStateManager.state.resolution.value.width * resolutionFactor.value), // 解像度が少数になるとバグるので丸める
-		height: Math.round(appStateManager.state.resolution.value.height * resolutionFactor.value), // 解像度が少数になるとバグるので丸める
+	renderer.updateDynamicOptions({
+		resolution: {
+			width: Math.round(appStateManager.state.resolution.value.width * resolutionFactor.value), // 解像度が少数になるとバグるので丸める
+			height: Math.round(appStateManager.state.resolution.value.height * resolutionFactor.value), // 解像度が少数になるとバグるので丸める
+		},
 	});
 });
 

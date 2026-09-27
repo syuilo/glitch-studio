@@ -447,13 +447,6 @@ export class RendererController {
 		}
 	}
 
-	public resize(resolution: {
-		width: number;
-		height: number;
-	}) {
-		return this.updateDynamicOptions({ resolution });
-	}
-
 	public async updateDynamicOptions(newDynamicOptions: Partial<RendererDynamicOptions>) {
 		const options = deepClone(newDynamicOptions);
 		if (options.resolution !== undefined) {
