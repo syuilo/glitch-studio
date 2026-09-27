@@ -101,6 +101,7 @@
 		"Color": "カラー",
 		"Luminosity": "輝度",
 		"Add": "加算",
+		"Emission": "発光加算",
 		"Subtract": "減算"
 	},
 	"_CustomParameterInput": {

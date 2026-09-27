@@ -87,6 +87,9 @@ fn blendRgb(mode: u32, a: vec3f, b: vec3f) -> vec3f {
 }
 
 fn blendData(mode: u32, a: vec4f, b: vec4f) -> vec4f {
+	// データには光や被覆率の区別がないため、Emissionも全成分の単純加算とする。
+	// 第4成分にアルファ合成を適用したり、値域を0〜1に制限したりしない。
+	if (mode == 20u) { return a + b; }
 	// 第4成分も独立したデータ。HSL系ではRGBのみ加工し、第4成分はnormal同様にBを使う。
 	return vec4f(blendRgb(mode, a.rgb, b.rgb), blendComponent(mode, a.a, b.a));
 }

@@ -2,7 +2,7 @@ import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { implementEffect } from '../../effect-implementation.ts';
 import { createShaderInputPipeline } from '../../../shader-input-pipeline.ts';
 import { inputUvScale } from '../../../shader-input.ts';
-import { colorBlendModes, isBlendMode } from '../../../color-blend.ts';
+import { colorBlendModes } from '../../../color-blend.ts';
 import blendCode from '../../../color-blend.wgsl?raw';
 import commonCode from './common.wgsl?raw';
 import internalCode from './shader.wgsl?raw';
@@ -145,8 +145,7 @@ export default implementEffect<typeof definition>({
 				}
 				uniformValues.set({
 					strength,
-					// 20はinput.wgslのBloom専用Emissionモード。
-					inputBlendMode: isBlendMode(ctx.params.inputBlendMode) ? colorBlendModes[ctx.params.inputBlendMode] : 20,
+					inputBlendMode: colorBlendModes[ctx.params.inputBlendMode] ?? colorBlendModes.emission,
 					radiusScale: [scaleX, scaleY],
 					threshold: clamp(ctx.params.threshold, 1, 0.7),
 					softKnee: clamp(ctx.params.softKnee, 1, 0.5),

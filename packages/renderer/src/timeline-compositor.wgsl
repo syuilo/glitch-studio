@@ -35,12 +35,5 @@ fn fs(@location(0) position: vec2f) -> @location(0) vec4f {
 
 	// 既にpremultiply済み。opacityはRGBとalphaの両方に一度だけ掛ける。
 	let foreground = source * uniforms.opacity;
-	var a = vec3f(0.0);
-	var b = vec3f(0.0);
-	if (background.a > 0.0) { a = background.rgb / background.a; }
-	if (foreground.a > 0.0) { b = foreground.rgb / foreground.a; }
-	let blended = clamp(blendRgb(uniforms.blendMode, a, b), vec3f(0.0), vec3f(1.0));
-	let rgb = (1.0 - foreground.a) * background.rgb + (1.0 - background.a) * foreground.rgb
-		+ background.a * foreground.a * blended;
-	return vec4f(rgb, foreground.a + background.a * (1.0 - foreground.a));
+	return blendColor(uniforms.blendMode, background, foreground);
 }

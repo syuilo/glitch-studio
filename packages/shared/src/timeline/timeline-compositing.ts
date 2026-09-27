@@ -4,7 +4,7 @@ export const timelineCompositingParamDefs = {
 	blendMode: {
 		dataType: {
 			kind: 'enum',
-			options: ['normal', 'replace', 'multiply', 'screen', 'overlay', 'darken', 'lighten', 'colorBurn', 'colorDodge', 'softLight', 'hardLight', 'add', 'subtract', 'difference', 'exclusion', 'hue', 'saturation', 'color', 'luminosity', 'none'],
+			options: ['normal', 'replace', 'multiply', 'screen', 'overlay', 'darken', 'lighten', 'colorBurn', 'colorDodge', 'softLight', 'hardLight', 'add', 'emission', 'subtract', 'difference', 'exclusion', 'hue', 'saturation', 'color', 'luminosity', 'none'],
 		},
 		ui: {
 			label: 'Blend mode',
@@ -12,7 +12,7 @@ export const timelineCompositingParamDefs = {
 				labels: {
 					normal: 'Normal', replace: 'Replace (置き換え)', multiply: 'Multiply', screen: 'Screen',
 					overlay: 'Overlay', darken: 'Darken', lighten: 'Lighten', colorBurn: 'Color burn',
-					colorDodge: 'Color dodge', softLight: 'Soft light', hardLight: 'Hard light', add: 'Add',
+					colorDodge: 'Color dodge', softLight: 'Soft light', hardLight: 'Hard light', add: 'Add', emission: 'Emission',
 					subtract: 'Subtract', difference: 'Difference', exclusion: 'Exclusion', hue: 'Hue',
 					saturation: 'Saturation', color: 'Color', luminosity: 'Luminosity', none: 'None',
 				},

@@ -104,6 +104,7 @@
 						{ label: i18n.ts._BlendModes.Screen, value: 'screen' },
 						{ label: i18n.ts._BlendModes.ColorDodge, value: 'colorDodge' },
 						{ label: i18n.ts._BlendModes.Add, value: 'add' },
+						{ label: i18n.ts._BlendModes.Emission, value: 'emission' },
 					],
 				},
 				{

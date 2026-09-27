@@ -26,6 +26,7 @@ const blendModes: Record<string, number> = {
 	color: 17,
 	luminosity: 18,
 	replace: 19,
+	emission: 20,
 };
 
 export default implementEffect<typeof definition>({

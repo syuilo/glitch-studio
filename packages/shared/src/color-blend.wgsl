@@ -87,6 +87,12 @@ fn blendRgb(mode: u32, a: vec3f, b: vec3f) -> vec3f {
 fn blendColor(mode: u32, a: vec4f, b: vec4f) -> vec4f {
 	if (mode == 10u) { return a; }
 	if (mode == 19u) { return b; }
+	if (mode == 20u) {
+		// Emissionは乗算済みRGBを光の量として直接加える。未乗算RGBのAddとは区別する。
+		// alphaは光の強さではなく被覆率なので、単純加算せず重なりを考慮する。
+		let rgb = clamp(a.rgb + b.rgb, vec3f(0.0), vec3f(1.0));
+		return vec4f(rgb, b.a + a.a * (1.0 - b.a));
+	}
 	var straightA = vec3f(0.0);
 	var straightB = vec3f(0.0);
 	if (a.a > 0.0) { straightA = a.rgb / a.a; }

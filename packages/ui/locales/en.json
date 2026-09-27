@@ -102,6 +102,7 @@
 		"Color": "Color",
 		"Luminosity": "Luminosity",
 		"Add": "Add",
+		"Emission": "Emission",
 		"Subtract": "Subtract"
 	},
 	"_CustomParameterInput": {
