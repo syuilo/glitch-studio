@@ -28,7 +28,7 @@
 			<div :class="$style.footerItem">sRGB</div>
 			<button :class="$style.footerItem" class="_button" @click="openResolutionMenu">Proj: {{ appStateManager.state.resolution.value.width }} x {{ appStateManager.state.resolution.value.height }} px</button>
 			<button :class="$style.footerItem" class="_button" @click="openResolutionFactorMenu">Preview: {{ resolutionFactor }}x ({{ Math.round(appStateManager.state.resolution.value.width * resolutionFactor) }} x {{ Math.round(appStateManager.state.resolution.value.height * resolutionFactor) }} px)</button>
-			<button :class="$style.footerItem" class="_button" @click="openFpsMenu">{{ Math.round(renderer.fpsDisplay.value) }}fps</button>
+			<button :class="$style.footerItem" class="_button" @click="openFpsMenu">{{ Math.round(previewRendererController.fpsDisplay.value) }}fps</button>
 			<button :class="$style.footerItem" class="_button" @click="openTimeFactorMenu">TIME: {{ liveTimeFactor }}x</button>
 			<div :class="[$style.footerItem, $style.previewVolume]">
 				<i :class="previewVolume === 0 ? 'ti ti-volume-off' : 'ti ti-volume'"></i>
@@ -37,12 +37,12 @@
 			</div>
 		</div>
 		<div :class="$style.footerRight">
-			<div v-if="renderer.errorMessage.value != null" v-tooltip="renderer.errorMessage.value" :class="$style.footerError"><i class="ti ti-alert-triangle"></i> {{ renderer.errorMessage.value }}</div>
+			<div v-if="previewRendererController.errorMessage.value != null" v-tooltip="previewRendererController.errorMessage.value" :class="$style.footerError"><i class="ti ti-alert-triangle"></i> {{ previewRendererController.errorMessage.value }}</div>
 			<div :class="$style.footerStats">
-				<div v-if="renderer.gpuMemoryUsage.value" v-tooltip="gpuMemoryTooltip" :class="$style.footerMemory">{{ (renderer.gpuMemoryUsage.value.total / 1000 ** 2).toFixed(1) }} MB</div>
+				<div v-if="previewRendererController.gpuMemoryUsage.value" v-tooltip="gpuMemoryTooltip" :class="$style.footerMemory">{{ (previewRendererController.gpuMemoryUsage.value.total / 1000 ** 2).toFixed(1) }} MB</div>
 			</div>
 			<div :class="$style.outputLevelMeter">
-				<GsAudioLevelMeter :levels="renderer.audioOutputLevels"/>
+				<GsAudioLevelMeter :levels="previewRendererController.audioOutputLevels"/>
 			</div>
 		</div>
 	</div>
@@ -51,7 +51,7 @@
 
 <script lang="ts" setup>
 import { computed, nextTick, onMounted, onBeforeUnmount, ref, shallowRef, useTemplateRef, watch } from 'vue';
-import { renderer, resolutionFactor, fpsLimit, liveTimeFactor, appStateManager, projectInfo, openProject, saveProject } from './app';
+import { previewRendererController, resolutionFactor, fpsLimit, liveTimeFactor, appStateManager, projectInfo, openProject, saveProject } from './app';
 import { preferences } from './preferences.ts';
 import GsRange from './components/common/GsRange.vue';
 import GsAboutDialog from '@/components/GsAboutDialog.vue';
@@ -63,16 +63,16 @@ import GsButton from '@/components/common/GsButton.vue';
 import GsAudioLevelMeter from '@/components/common/GsAudioLevelMeter.vue';
 import * as ui from '@/ui.ts';
 
-const releaseOutputCapture = renderer.retainAudioOutputCapture();
+const releaseOutputCapture = previewRendererController.retainAudioOutputCapture();
 onBeforeUnmount(releaseOutputCapture);
 
 const previewVolume = preferences.model('previewVolume');
 watch(previewVolume, (newValue) => {
-	renderer.setPreviewVolume(newValue);
+	previewRendererController.setPreviewVolume(newValue);
 }, { immediate: true });
 
 const gpuMemoryTooltip = computed(() => {
-	const usage = renderer.gpuMemoryUsage.value;
+	const usage = previewRendererController.gpuMemoryUsage.value;
 	if (!usage) return '';
 	return i18n.t('GpuMemoryEstimate', {
 		textures: (usage.textures / 1024 ** 2).toFixed(1),
@@ -128,7 +128,7 @@ async function importPreset() {
 
 function exportToWebp() {
 	// TODO: 元の解像度にリサイズしてからエクスポートする
-	renderer.canvas.toBlob((blob) => {
+	previewRendererController.canvas.toBlob((blob) => {
 		if (blob == null) return;
 		const url = URL.createObjectURL(blob);
 

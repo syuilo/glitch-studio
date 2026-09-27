@@ -11,14 +11,14 @@
 <script lang="ts" setup>
 import { onBeforeUnmount, onMounted, useTemplateRef } from 'vue';
 import GsDetachableView from './GsDetachableView.vue';
-import { renderer } from '@/app.ts';
+import { previewRendererController } from '@/app.ts';
 
 const props = defineProps<{
 	direction: 'horizontal' | 'vertical';
 }>();
 
 // エンジンの再読み込みでCanvasが交換されるため、利用時に現在の要素を取得する。
-const getCanvas = () => props.direction === 'horizontal' ? renderer.waveformHorizontalCanvas : renderer.waveformVerticalCanvas;
+const getCanvas = () => props.direction === 'horizontal' ? previewRendererController.waveformHorizontalCanvas : previewRendererController.waveformVerticalCanvas;
 
 const canvasContainer = useTemplateRef('canvasContainer');
 

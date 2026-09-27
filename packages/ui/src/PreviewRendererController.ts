@@ -18,7 +18,7 @@ type RendererMethods = {
 	[K in keyof MainRenderer as MainRenderer[K] extends (...args: never[]) => unknown ? K : never]: MainRenderer[K];
 };
 
-export class RendererController {
+export class PreviewRendererController {
 	public canvas: HTMLCanvasElement;
 	public histogramCanvas: HTMLCanvasElement;
 	public waveformHorizontalCanvas: HTMLCanvasElement;

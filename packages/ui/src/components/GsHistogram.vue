@@ -9,19 +9,19 @@
 <script lang="ts" setup>
 import { onBeforeUnmount, onMounted, useTemplateRef } from 'vue';
 import GsDetachableView from './GsDetachableView.vue';
-import { renderer } from '@/app.ts';
+import { previewRendererController } from '@/app.ts';
 
 const canvasContainer = useTemplateRef('canvasContainer');
 
 onMounted(() => {
 	if (canvasContainer.value != null) {
-		canvasContainer.value.appendChild(renderer.histogramCanvas);
+		canvasContainer.value.appendChild(previewRendererController.histogramCanvas);
 	}
 });
 
 onBeforeUnmount(() => {
 	if (canvasContainer.value != null) {
-		canvasContainer.value.removeChild(renderer.histogramCanvas);
+		canvasContainer.value.removeChild(previewRendererController.histogramCanvas);
 	}
 });
 </script>

@@ -22,7 +22,7 @@ import { watch, useTemplateRef, ref, onBeforeUnmount, onMounted } from 'vue';
 import { genId } from '@glitch/shared/utility/id.ts';
 import GsDetachableView from './GsDetachableView.vue';
 import * as api from '@/api.ts';
-import { appStateManager, renderer, previewPlayback, highlightClipping, rendererEnv, resolutionFactor, liveTimeFactor } from '@/app.ts';
+import { appStateManager, previewRendererController, previewPlayback, highlightClipping, rendererEnv, resolutionFactor, liveTimeFactor } from '@/app.ts';
 import { preferences } from '@/preferences.ts';
 import * as ui from '@/ui.ts';
 
@@ -47,13 +47,13 @@ watch(resolutionFactor, (newFactor, oldFactor) => {
 
 onMounted(() => {
 	if (canvasContainer.value != null) {
-		canvasContainer.value.appendChild(renderer.canvas);
+		canvasContainer.value.appendChild(previewRendererController.canvas);
 	}
 });
 
 onBeforeUnmount(() => {
-	if (canvasContainer.value != null && renderer.canvas.parentNode === canvasContainer.value) {
-		canvasContainer.value.removeChild(renderer.canvas);
+	if (canvasContainer.value != null && previewRendererController.canvas.parentNode === canvasContainer.value) {
+		canvasContainer.value.removeChild(previewRendererController.canvas);
 	}
 });
 
@@ -120,7 +120,7 @@ async function addMedia(file?: File) {
 function onPointermove(ev: PointerEvent) {
 	if (canvasContainer.value == null) return;
 	const rect = canvasContainer.value.getBoundingClientRect();
-	renderer.updatePointerPosition({
+	previewRendererController.updatePointerPosition({
 		x: (((ev.clientX - rect.left) / rect.width) - 0.5) * 2,
 		y: -(((ev.clientY - rect.top) / rect.height) - 0.5) * 2,
 	});

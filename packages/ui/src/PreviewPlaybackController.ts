@@ -1,12 +1,12 @@
 import { computed, readonly, ref, shallowRef } from 'vue';
 import type { VisualModule, VisualModuleParameterBindings } from '@glitch/shared/visual-module/types.ts';
-import type { RendererController } from './RendererController.ts';
+import type { PreviewRendererController } from './PreviewRendererController.ts';
 
 export type PreviewPlaybackState =
 	| { mode: 'live'; visualModuleId: VisualModule['id'] }
 	| { mode: 'timeline'; playing: boolean };
 
-type PreviewRenderer = Pick<RendererController, 'startLiveRenderLoopFor' | 'updateLiveParamValues' | 'stopRenderLoop' | 'renderTimelineAt'>;
+type PreviewRenderer = Pick<PreviewRendererController, 'startLiveRenderLoopFor' | 'updateLiveParamValues' | 'stopRenderLoop' | 'renderTimelineAt'>;
 
 /** プレビューの切り替えと時刻更新を所有し、LIVEとタイムラインの同時再生を防ぐ。 */
 export class PreviewPlaybackController {

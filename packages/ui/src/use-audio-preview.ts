@@ -1,11 +1,11 @@
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import type { Ref } from 'vue';
 import type { PreviewOptions } from './audio/audio-preview-types.ts';
-import { renderer } from './app.ts';
+import { previewRendererController } from './app.ts';
 
 export function useAudioPreview(canvas: Readonly<Ref<HTMLCanvasElement | null>>, options: Readonly<Ref<PreviewOptions>>) {
 	const error = ref('');
-	let panel: ReturnType<typeof renderer.audioPreview.add> | undefined;
+	let panel: ReturnType<typeof previewRendererController.audioPreview.add> | undefined;
 	let releaseCapture: (() => void) | undefined;
 	let observer: ResizeObserver | undefined;
 	let intersection: IntersectionObserver | undefined;
@@ -59,8 +59,8 @@ export function useAudioPreview(canvas: Readonly<Ref<HTMLCanvasElement | null>>,
 
 	onMounted(() => {
 		try {
-			panel = renderer.audioPreview.add(canvas.value!, options.value, message => { error.value = message; stop(); });
-			releaseCapture = renderer.retainAudioOutputCapture();
+			panel = previewRendererController.audioPreview.add(canvas.value!, options.value, message => { error.value = message; stop(); });
+			releaseCapture = previewRendererController.retainAudioOutputCapture();
 			observer = new ResizeObserver(resize);
 			observer.observe(canvas.value!);
 			changeWindow();
@@ -68,5 +68,5 @@ export function useAudioPreview(canvas: Readonly<Ref<HTMLCanvasElement | null>>,
 	});
 	watch(options, value => panel?.configure(value), { deep: true });
 	onBeforeUnmount(stop);
-	return { changeWindow, error, sampleRate: renderer.audioPreview.sampleRate };
+	return { changeWindow, error, sampleRate: previewRendererController.audioPreview.sampleRate };
 }
