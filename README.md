@@ -1,5 +1,7 @@
 # Glitch Studio (⚠️Under Development!!!)
 
+![](./ss.webp)
+
 Glitch Studioは、ノードベースのエディタを通じてリアルタイムな画像・動画の加工・編集・作成を行ったり、シェーダーのplaygroundとして使えるWebアプリケーションです。
 
 - 全ての画像処理がGPU上で行われ、高効率です
