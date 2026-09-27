@@ -34,10 +34,10 @@ export class RendererController {
 	private rejectInitialization: ((reason: Error) => void) | null = null;
 	private pendingCalls: { message: unknown; options?: StructuredSerializeOptions }[] = [];
 	private pointerPosition = { x: 0, y: 0 };
-	private enable32bitDataTextures = false;
-	private intermediateTextureFormat = navigator.gpu.getPreferredCanvasFormat() as IntermediateTextureFormat; // TODO: 設定でrgba16floatも指定できるようにする(レンダリングの精度は上がるがパフォーマンスは落ちる)
+	private enable32bitDataTextures: boolean;
+	private intermediateTextureFormat: IntermediateTextureFormat | null; // TODO: 設定でrgba16floatも指定できるようにする(レンダリングの精度は上がるがパフォーマンスは落ちる)
 	private enableStats = true;
-	private highlightClipping = false;
+	private highlightClipping: boolean;
 	private liveTimeFactor = 1;
 	private visualModules: VisualModule[] = [];
 	private assets: Asset[] = [];
@@ -78,8 +78,10 @@ export class RendererController {
 
 	constructor(options: {
 		fpsLimit: number | null;
-		highlightClipping?: boolean;
-		liveTimeFactor?: number;
+		highlightClipping: boolean;
+		liveTimeFactor: number;
+		enable32bitDataTextures: boolean;
+		intermediateTextureFormat: IntermediateTextureFormat | null;
 	}) {
 		this.canvas = window.document.createElement('canvas');
 		this.canvas.style.imageRendering = 'pixelated';
@@ -99,8 +101,10 @@ export class RendererController {
 		this.waveformVerticalCanvas.style.width = '100%';
 		this.waveformVerticalCanvas.style.height = '100%';
 		this.fpsLimit = options.fpsLimit;
-		this.highlightClipping = options.highlightClipping ?? false;
-		this.liveTimeFactor = options.liveTimeFactor ?? 1;
+		this.highlightClipping = options.highlightClipping;
+		this.liveTimeFactor = options.liveTimeFactor;
+		this.enable32bitDataTextures = options.enable32bitDataTextures;
+		this.intermediateTextureFormat = options.intermediateTextureFormat;
 	}
 
 	private call<FN extends keyof RendererMethods>(fn: FN, args: Parameters<RendererMethods[FN]>, options?: StructuredSerializeOptions | Transferable[]): void {
@@ -220,7 +224,7 @@ export class RendererController {
 			options: {
 				resolution,
 				enable32bitDataTextures: this.enable32bitDataTextures,
-				intermediateTextureFormat: this.intermediateTextureFormat,
+				intermediateTextureFormat: this.intermediateTextureFormat ?? navigator.gpu.getPreferredCanvasFormat(),
 				fpsLimit: this.fpsLimit,
 				enableStats: this.enableStats,
 				highlightClipping: this.highlightClipping,
@@ -546,7 +550,10 @@ export class RendererController {
 		this.isReady.value = false;
 	}
 
-	public reload(): Promise<void> {
+	public reload(newOptions: { intermediateTextureFormat?: IntermediateTextureFormat | null; enable32bitDataTextures?: boolean; } = {}): Promise<void> {
+		if (newOptions.intermediateTextureFormat !== undefined) this.intermediateTextureFormat = newOptions.intermediateTextureFormat;
+		if (newOptions.enable32bitDataTextures !== undefined) this.enable32bitDataTextures = newOptions.enable32bitDataTextures;
+
 		if (this.reloadPromise) return this.reloadPromise;
 		if (!this.rendererWorker || this.rejectInitialization != null) return Promise.reject(new Error('Renderer is not initialized'));
 		this.reloadPromise = this.reloadRenderer().finally(() => { this.reloadPromise = null; });

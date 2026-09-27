@@ -4,6 +4,7 @@ import { deepEqual } from '@glitch/shared/utility/deep-equal.js';
 import type { Ref } from 'vue';
 import type { WorkspaceElement } from './workspace.ts';
 import type { MenuItem } from './types/menu.ts';
+import type { IntermediateTextureFormat } from '@glitch/shared/types.js';
 
 export const PREF_DEF = definePreferences({
 	animation: { default: () => true },
@@ -13,6 +14,8 @@ export const PREF_DEF = definePreferences({
 	previewVolume: { default: () => 0.5 },
 	forceTypeSafety: { default: () => false },
 	showTimecodeInPreview: { default: () => true },
+	enable32bitDataTextures: { default: () => false },
+	intermediateTextureFormat: { default: () => null as IntermediateTextureFormat | null },
 	workspaceDefinition: {
 		default: (): WorkspaceElement => {
 			return {
