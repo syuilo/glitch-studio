@@ -34,7 +34,7 @@ function visualModule(circular) {
 	};
 }
 
-function fixture(t) {
+async function fixture(t, staticOptions = {}) {
 	const errors = [];
 	const frames = new Map();
 	let frameId = 0;
@@ -49,22 +49,23 @@ function fixture(t) {
 		createBindGroupLayout: () => ({}), createPipelineLayout: () => ({}),
 		createRenderPipeline: () => ({ getBindGroupLayout: () => ({}) }),
 		createCommandEncoder: () => ({ finish: () => ({}), beginRenderPass: () => ({ setPipeline() {}, setBindGroup() {}, draw() {}, end() {} }) }),
-		queue: { submit() {}, writeBuffer() {}, writeTexture() {} },
+		queue: { submit() {}, writeBuffer() {}, writeTexture() {}, copyExternalImageToTexture() {} },
 	};
 	const renderer = new MainRenderer({
-		gpuDevice: device, gpuContext: { configure() {}, getCurrentTexture: texture },
-		resolution: { width: 1, height: 1 }, enableStats: false, enable32bitDataTextures: false,
-		intermediateTextureFormat: 'rgba8unorm', fpsLimit: null,
+		gpuDevice: device, gpuContext: { canvas: { width: 1, height: 1 }, configure() {}, getCurrentTexture: texture },
 		frameScheduler: { now: () => 0, requestFrame: callback => { frames.set(++frameId, callback); return frameId; }, cancelFrame: id => frames.delete(id) },
 		onPreviewError: message => errors.push(message),
-		visualModules: [visualModule(true)],
-		timeline: [{ id: 'layer', layerType: 'visualModule', visualModuleId: 'module', startTimeMs: 0, endTimeMs: 1000, paramValues: {}, automationGraphs: [] }],
 		effectDefinitions: { pass: { paramDefs: {
 			input: { dataType: { kind: 'color' }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },
 		}, primaryInputParameter: 'input', outputDefs: { output: { dataType: { kind: 'color' } } }, primaryOutput: 'output' } },
 		effectImplementations: { pass: { outputTextureFactories: {} } },
-	});
+	}, { enableStats: false, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm', ...staticOptions });
 	t.after(() => renderer.destroy());
+	await renderer.updateDynamicOptions({
+		resolution: { width: 1, height: 1 },
+		visualModules: [visualModule(true)],
+		timeline: [{ id: 'layer', layerType: 'visualModule', visualModuleId: 'module', startTimeMs: 0, endTimeMs: 1000, paramValues: {}, automationGraphs: [] }],
+	});
 	return { renderer, errors, frames, frame(timestamp) {
 		const [id, callback] = frames.entries().next().value;
 		frames.delete(id);
@@ -75,13 +76,13 @@ function fixture(t) {
 // LIVEの循環参照を修正すると、再初期化せず次のフレームで復旧する。
 // エラー文字列をthrowするだけのスタブでは、実際のノード評価が修正後のグラフを読む保証にならない。
 // 循環した二つのノードの配線を外し、例外がRAFから漏れずループも失われないことを確認する。
-test('recovers live rendering after repairing a circular graph', t => {
-	const { renderer, errors, frames, frame } = fixture(t);
+test('recovers live rendering after repairing a circular graph', async t => {
+	const { renderer, errors, frames, frame } = await fixture(t);
 	renderer.startLiveRenderLoopFor('module');
 	assert.doesNotThrow(() => frame(16));
 	assert.equal(errors.at(-1), 'circular dependency detected');
 	assert.equal(frames.size, 1);
-	renderer.updateVisualModules([visualModule(false)]);
+	await renderer.updateDynamicOptions({ visualModules: [visualModule(false)] });
 	assert.doesNotThrow(() => frame(32));
 	assert.equal(errors.at(-1), null);
 	assert.equal(frames.size, 1);
@@ -91,10 +92,10 @@ test('recovers live rendering after repairing a circular graph', t => {
 // LIVEのRAFだけを保護しても、非同期のprepareで失敗するタイムラインのシークは救えない。
 // 同じ位置で再描画でき、前回のエラーが成功後に解除されることを保証する。
 test('recovers timeline preview after repairing a circular graph', async t => {
-	const { renderer, errors } = fixture(t);
+	const { renderer, errors } = await fixture(t);
 	await renderer.renderTimelineAt(0);
 	assert.equal(errors.at(-1), 'circular dependency detected');
-	renderer.updateVisualModules([visualModule(false)]);
+	await renderer.updateDynamicOptions({ visualModules: [visualModule(false)] });
 	await renderer.renderTimelineAt(0);
 	assert.equal(errors.at(-1), null);
 });
@@ -103,7 +104,7 @@ test('recovers timeline preview after repairing a circular graph', async t => {
 // 動画出力で失敗を成功扱いすると欠落したフレームを含むファイルを生成してしまうため、
 // 今回の復旧用catchをエクスポート経路に広げないことを保証する。
 test('still rejects export frames for invalid graphs', async t => {
-	const { renderer, errors } = fixture(t);
+	const { renderer, errors } = await fixture(t);
 	await assert.rejects(renderer.renderTimelineFrame(0, 0), /circular dependency detected/);
 	assert.deepEqual(errors, []);
 });
@@ -112,7 +113,7 @@ test('still rejects export frames for invalid graphs', async t => {
 // prepareの待機中にモードや再生位置を切り替えると、古いPromiseが後から完了する。
 // 完了順だけでfooterを更新すると、現在の描画は失敗しているのにエラーが見えなくなる。
 test('ignores obsolete timeline completions after seeking or switching to live', async t => {
-	const { renderer, errors, frame } = fixture(t);
+	const { renderer, errors, frame } = await fixture(t);
 	const pending = [];
 	renderer.timelineRenderer.renderAt = () => new Promise(resolve => pending.push(resolve));
 	const first = renderer.renderTimelineAt(0);
@@ -129,7 +130,7 @@ test('ignores obsolete timeline completions after seeking or switching to live',
 // 正常終了の順序だけでなく失敗の順序も逆転し得るため、両方を確認する。
 // 新しい位置のエラーを消すことも、修正後に古いエラーを再表示することも防ぐ。
 test('keeps the latest seek result when older requests settle later', async t => {
-	const { renderer, errors } = fixture(t);
+	const { renderer, errors } = await fixture(t);
 	const pending = [];
 	renderer.timelineRenderer.renderAt = () => {
 		const gate = Promise.withResolvers();
@@ -156,11 +157,10 @@ test('keeps the latest seek result when older requests settle later', async t =>
 // 循環参照のような描画前の失敗だけを確認すると、計測中の失敗でTimingHelperが
 // 前のencoderを保持し続け、原因を直しても描画できなくなる不具合を見逃す。
 test('finishes partial live frames before retrying', async t => {
-	const { renderer, errors, frame } = fixture(t);
+	const { renderer, errors, frame } = await fixture(t, { enableStats: true });
 	let submitted = 0;
 	let collected = 0;
 	renderer.gpuDevice.queue.submit = () => { submitted++; };
-	renderer.enableStats = true;
 	renderer.timingHelper.getResult = async () => {
 		assert.equal(submitted, collected + 1);
 		collected++;
@@ -180,4 +180,56 @@ test('finishes partial live frames before retrying', async t => {
 	assert.equal(errors.at(-1), null);
 	assert.equal(collected, 2);
 	await Promise.resolve();
+});
+
+// 新しいAssetをデコードし、後から完了した古い更新で素材や通常設定を巻き戻さない。
+// AssetTextures単体の世代管理が正しくても、MainRendererが更新前の一覧を渡したり、
+// await後に古いオプションをマージするとGPUリソースと設定の世代がずれる。
+test('commits only the latest assets and applies other options in call order', async t => {
+	const { renderer } = await fixture(t);
+	const requests = [];
+	const previous = Object.getOwnPropertyDescriptor(globalThis, 'createImageBitmap');
+	globalThis.createImageBitmap = blob => {
+		const gate = Promise.withResolvers();
+		requests.push({ blob, ...gate });
+		return gate.promise;
+	};
+	t.after(() => {
+		if (previous) Object.defineProperty(globalThis, 'createImageBitmap', previous);
+		else delete globalThis.createImageBitmap;
+	});
+	const asset = id => ({ id, name: id, width: 4, height: 2, fileDataType: 'image/png', fileData: new Blob([id]) });
+	const bitmap = () => ({ width: 4, height: 2, close() {} });
+	const firstAssets = [asset('first')];
+	const first = renderer.updateDynamicOptions({ assets: firstAssets });
+	assert.equal(requests.length, 1);
+	assert.equal(requests[0].blob, firstAssets[0].fileData);
+	requests[0].resolve(bitmap());
+	assert.equal((await first).assetsCommitted, true);
+	assert.deepEqual([...renderer.assetTextures.textures.keys()], ['first']);
+
+	const earlier = renderer.updateDynamicOptions({ assets: [asset('earlier')], highlightClipping: true });
+	const laterAssets = [asset('later')];
+	const later = renderer.updateDynamicOptions({ assets: laterAssets, highlightClipping: false });
+	requests[2].resolve(bitmap());
+	assert.equal((await later).assetsCommitted, true);
+	requests[1].resolve(bitmap());
+	assert.equal((await earlier).assetsCommitted, false);
+	assert.equal(renderer.dynamicOptions.assets, laterAssets);
+	assert.deepEqual([...renderer.assetTextures.textures.keys()], ['later']);
+	assert.equal(renderer.dynamicOptions.highlightClipping, false);
+});
+
+// 解像度を汎用の更新APIで変えても、Canvasと描画先の解像度を一致させる。
+// 専用のresizeメッセージだけにCanvas更新を残すと、呼び出し経路で出力サイズが変わる。
+test('resizes the canvas and live renderer through dynamic options', async t => {
+	const { renderer } = await fixture(t);
+	renderer.startLiveRenderLoopFor('module');
+	const resolutions = [];
+	const resize = renderer.liveVisualModuleRenderer.resize.bind(renderer.liveVisualModuleRenderer);
+	renderer.liveVisualModuleRenderer.resize = resolution => { resolutions.push(resolution); resize(resolution); };
+	await renderer.updateDynamicOptions({ resolution: { width: 320, height: 180 } });
+	assert.equal(renderer.gpuContext.canvas.width, 320);
+	assert.equal(renderer.gpuContext.canvas.height, 180);
+	assert.deepEqual(resolutions, [{ width: 320, height: 180 }]);
 });

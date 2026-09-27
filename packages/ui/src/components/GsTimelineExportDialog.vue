@@ -51,7 +51,8 @@ import GsInput from './common/GsInput.vue';
 import GsSelect from './common/GsSelect.vue';
 import GsTabs from './common/GsTabs.vue';
 import type { ExportProgress, ExportQuality, TimelineExportSettings } from '@/export/timeline-export.ts';
-import { appStateManager, projectInfo, renderer, previewPlayback } from '@/app.ts';
+import { appStateManager, projectInfo, previewPlayback } from '@/app.ts';
+import { preferences } from '@/preferences.ts';
 import { exportTimeline } from '@/export/client.ts';
 import { getTimelineEnd, validateExportSettings } from '@/export/timeline-export.ts';
 import { estimateExportBytes, formatExportTime, parseExportTime, scaleExportResolution } from '@/export/export-settings.ts';
@@ -144,6 +145,7 @@ async function doExport() {
 	downloadUrl.value = '';
 	try {
 		const exportSettings = { ...settings.value };
+		const preferredFormat = navigator.gpu.getPreferredCanvasFormat();
 		// VueのProxyを外し、編集中の状態とWorkerの状態を独立させる。
 		const buffer = await exportTimeline({
 			settings: exportSettings,
@@ -152,7 +154,14 @@ async function doExport() {
 				visualModules: appStateManager.state.visualModules.value,
 				timeline: appStateManager.state.timeline.value,
 			}),
-			renderer: {}, // TODO
+			// 書き出し開始時の環境設定から独立した設定を作る。
+			// プレビュー用Controllerの初期化・再読み込み状態には依存しない。
+			renderer: {
+				enable32bitDataTextures: preferences.s.enable32bitDataTextures,
+				intermediateTextureFormat: preferences.s.intermediateTextureFormat
+					?? (preferredFormat === 'bgra8unorm' ? 'bgra8unorm' : 'rgba8unorm'),
+				enableStats: false,
+			},
 		}, signal, value => { progress.value = value; });
 		signal.throwIfAborted();
 		downloadName.value = `${projectInfo.value.name || 'timeline'}.${exportSettings.format}`;

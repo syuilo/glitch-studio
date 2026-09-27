@@ -32,16 +32,20 @@ const appBundle = await build({
 				loader: 'ts', resolveDir: import.meta.dirname,
 				contents: /effect-definitions\.[jt]s$/.test(args.path)
 					? "import fill from '@glitch/shared/effect/fx/fill/_def_.ts'; export const effectDefinitions = { fill };"
-					: args.path.endsWith('preferences.ts') ? 'export const preferences = { s: { forceTypeSafety: false } };'
+					: args.path.endsWith('preferences.ts') ? `
+						import { reactive, toRefs } from 'vue';
+						const settings = reactive({ forceTypeSafety: false, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm' });
+						export const preferences = { s: settings, r: toRefs(settings) };
+					`
 					: args.path.endsWith('RendererController.ts') ? `
 					import { ref } from 'vue';
 					export class RendererController {
 						isReady = ref(false);
 						async init(resolution) { this.initialResolution = resolution; this.isReady.value = true; }
 						resize(resolution) { this.previewResolution = resolution; }
-						updateAssets() {} updatePlayers() {} updateVisualModules() {} updateTimeline() {}
+						async updateDynamicOptions() { return { assetsCommitted: true }; }
+						async updateStaticOptions() {} async updatePlayers() {}
 						startLiveRenderLoopFor() {} stopRenderLoop() {} renderTimelineAt() {}
-						setHighlightClipping() {} changeLiveModeFpsLimit() {} setLiveTimeFactor() {}
 					}
 				` : args.path.endsWith('.vue') ? 'export default {};' : `
 					export async function alert(options) { globalThis.projectAlerts.push(options.text); }

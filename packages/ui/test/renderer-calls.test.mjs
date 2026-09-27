@@ -47,11 +47,15 @@ async function fixture(t, options = {}) {
 	const instances = [];
 	const notifications = [];
 	class MainRenderer {
-		constructor(settings) { this.settings = settings; instances.push(this); }
-		updateVisualModules(modules) { this.modules = modules; }
+		constructor(settings, staticOptions) { this.settings = settings; this.staticOptions = staticOptions; instances.push(this); }
+		dynamicOptions = {};
+		async updateDynamicOptions(update) {
+			Object.assign(this.dynamicOptions, update);
+			const assetsCommitted = update.assets === undefined ? null : await (options.updateAssets?.(update.assets) ?? true);
+			return { assetsCommitted };
+		}
 		reportPreviewError(message) { this.settings.onPreviewError(message); }
 		gpuMemory = { getUsage: () => ({}) };
-		async updateAssets(assets) { return options.updateAssets?.(assets) ?? true; }
 		destroy() { options.onDestroy?.(); }
 		echo(value) { return value; }
 		deferred() { return new Promise(resolve => pending.push(resolve)); }
@@ -69,8 +73,12 @@ async function fixture(t, options = {}) {
 			const worker = {
 				postMessage(message) {
 					if (worker.sendError) throw worker.sendError;
+					// initのCanvasスタブだけは複製不能。設定と通常のRPCは実際の送信同様に複製する。
+					const data = message.type === 'init'
+						? { ...message, rendererStaticOptions: structuredClone(message.rendererStaticOptions), rendererDynamicOptions: structuredClone(message.rendererDynamicOptions) }
+						: structuredClone(message);
 					queueMicrotask(() => {
-						if (!terminated) void context.onmessage({ data: message });
+						if (!terminated) void context.onmessage({ data });
 					});
 				},
 				terminate() { terminated = true; },
@@ -99,7 +107,9 @@ async function fixture(t, options = {}) {
 		window: { document: { createElement: canvas } },
 	};
 	runInNewContext(controllerCode, context);
-	const controller = new context.module.exports.RendererController({ fpsLimit: null });
+	const controller = new context.module.exports.RendererController({
+		enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm', enableStats: false,
+	}, { fpsLimit: null });
 	t.after(() => controller.destroy());
 	if (options.initialize !== false) await controller.init({ width: 1, height: 1 });
 	return { controller, workers, pending, instances, notifications };
@@ -115,9 +125,8 @@ test('keeps edits available after preview errors and clears the message on recov
 	await Promise.resolve();
 	assert.equal(controller.errorMessage.value, 'circular dependency detected');
 	assert.equal(controller.isReady.value, true);
-	controller.updateVisualModules([{ id: 'repaired', nodes: [] }]);
-	await controller.callAndWaitReturn('echo', []);
-	assert.equal(instances[0].modules[0].id, 'repaired');
+	await controller.updateDynamicOptions({ visualModules: [{ id: 'repaired', nodes: [] }] });
+	assert.equal(instances[0].dynamicOptions.visualModules[0].id, 'repaired');
 	assert.equal(controller.errorMessage.value, 'circular dependency detected');
 	instances[0].reportPreviewError(null);
 	await Promise.resolve();
@@ -167,15 +176,15 @@ test('retains fatal errors until the worker is reinitialized', async t => {
 	assert.equal(controller.errorMessage.value, null);
 });
 
-// 画像のデコード完了前にはreadyにせず、初期化失敗も待機元へ返す。
+// 画像のデコード完了前にはreadyにせず、初期化中の変更と失敗を待機元へ返す。
 // Blobからの画像準備は非同期なので、Worker生成だけでreadyにすると最初の描画で画像が欠落する。
 // また、初期化中の例外を応答しないとinit()の呼び出し元が永久に待機するため、失敗経路も確認する。
 for (const failure of [false, true]) {
-	test(`waits for initial assets and ${failure ? 'rejects failures' : 'becomes ready'}`, { timeout: 2000 }, async t => {
+	test(`queues updates during initialization and ${failure ? 'rejects failures' : 'applies them when ready'}`, { timeout: 2000 }, async t => {
 		const gate = Promise.withResolvers();
 		const requested = Promise.withResolvers();
 		let destroyed = false;
-		const { controller } = await fixture(t, {
+		const { controller, instances } = await fixture(t, {
 			initialize: false,
 			updateAssets: () => { requested.resolve(); return gate.promise; },
 			onDestroy: () => { destroyed = true; },
@@ -184,20 +193,28 @@ for (const failure of [false, true]) {
 		const rejected = failure ? assert.rejects(initializing, /image decode failed/) : null;
 		await requested.promise;
 		assert.equal(controller.isReady.value, false);
+		const update = controller.updateDynamicOptions({ highlightClipping: true, fpsLimit: 24 });
+		const updateRejected = failure ? assert.rejects(update, /image decode failed/) : null;
+		assert.equal(instances[0].dynamicOptions.highlightClipping, undefined);
 		if (failure) {
 			gate.reject(new Error('image decode failed'));
 			await rejected;
+			await updateRejected;
+			assert.equal(controller.returnHooks.size, 0);
 			assert.equal(controller.isReady.value, false);
 			assert.equal(destroyed, true);
 		} else {
 			gate.resolve(true);
 			await initializing;
+			await update;
 			assert.equal(controller.isReady.value, true);
+			assert.equal(instances[0].dynamicOptions.highlightClipping, true);
+			assert.equal(instances[0].dynamicOptions.fpsLimit, 24);
 		}
 	});
 }
 
-// ControllerのAsset更新はWorkerの完了を待ち、成功時だけPlayerとモジュールを更新する。
+// ControllerのAsset更新はWorkerの完了を待ち、成功時だけPlayerを更新する。
 // postMessageの送信完了と画像の準備完了は異なる。送信だけをawaitしても同期にはならない。
 // 新しいcallAndWaitReturnを経由し、成功・失敗が呼び出し元のPromiseに伝わることを保証する。
 test('waits for asset updates and propagates image decoding errors', { timeout: 2000 }, async t => {
@@ -212,19 +229,58 @@ test('waits for asset updates and propagates image decoding errors', { timeout: 
 	});
 	const updated = [];
 	controller.updatePlayers = async () => { updated.push('players'); };
-	controller.updateVisualModules = async () => { updated.push('modules'); };
-	const first = controller.updateAssets([{ id: 'first' }]);
+	const first = controller.updateDynamicOptions({ assets: [{ id: 'first' }] });
 	await Promise.resolve();
 	assert.deepEqual(updated, []);
 	gates[0].resolve(true);
 	await first;
-	assert.deepEqual(updated, ['players', 'modules']);
+	assert.deepEqual(updated, ['players']);
 	updated.length = 0;
-	const rejected = assert.rejects(controller.updateAssets([{ id: 'broken' }]), /decode failed/);
+	const rejected = assert.rejects(controller.updateDynamicOptions({ assets: [{ id: 'broken' }] }), /decode failed/);
 	await Promise.resolve();
 	gates[1].reject(new Error('decode failed'));
 	await rejected;
 	assert.deepEqual(updated, []);
+});
+
+// 古いAsset更新の応答ではPlayerを同期しない。
+// Workerの世代判定だけでなく、成功応答が届くまでにUI側で次の更新が始まる場合もある。
+// 古い応答で未準備の素材へPlayerを切り替えないことを保証する。
+for (const earlierCommitted of [false, true]) {
+	test(`ignores obsolete asset responses with committed=${earlierCommitted}`, { timeout: 2000 }, async t => {
+		const gates = [];
+		const { controller } = await fixture(t, {
+			updateAssets: assets => {
+				if (assets.length === 0) return true;
+				const gate = Promise.withResolvers();
+				gates.push(gate);
+				return gate.promise;
+			},
+		});
+		let playerUpdates = 0;
+		controller.updatePlayers = async () => { playerUpdates++; };
+		const earlier = controller.updateDynamicOptions({ assets: [{ id: 'earlier' }] });
+		const later = controller.updateDynamicOptions({ assets: [{ id: 'later' }] });
+		await Promise.resolve();
+		gates[0].resolve(earlierCommitted);
+		await earlier;
+		assert.equal(playerUpdates, 0);
+		gates[1].resolve(true);
+		await later;
+		assert.equal(playerUpdates, 1);
+	});
+}
+
+// プレビューの静的設定を変更すると、新しい設定でWorkerを再生成する。
+// 既存GPUリソースの形式は途中で変えられないため、設定の保持だけで更新を終えてはいけない。
+test('reloads the preview worker with updated static settings', async t => {
+	const { controller, instances } = await fixture(t);
+	await controller.updateStaticOptions({ intermediateTextureFormat: 'rgba16float', enable32bitDataTextures: true });
+	assert.equal(instances.length, 2);
+	assert.equal(instances[0].staticOptions.intermediateTextureFormat, 'rgba8unorm');
+	assert.equal(instances[0].staticOptions.enable32bitDataTextures, false);
+	assert.equal(instances[1].staticOptions.intermediateTextureFormat, 'rgba16float');
+	assert.equal(instances[1].staticOptions.enable32bitDataTextures, true);
 });
 
 // 同期の結果を受け取り、並行した非同期呼び出しも応答IDで正しく対応付ける。

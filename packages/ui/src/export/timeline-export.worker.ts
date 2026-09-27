@@ -46,20 +46,20 @@ self.onmessage = async (event: MessageEvent<ExportRequest>) => {
 		renderer = new MainRenderer({
 			gpuDevice: device,
 			gpuContext: context,
-			resolution: { width: settings.width, height: settings.height },
-			...rendererSettings,
-			...project,
-			enableStats: false,
-			opaqueOutput: settings.format === 'mp4',
-			fpsLimit: null,
 			effectDefinitions,
 			effectImplementations,
 			onEffectState: (_source, nodeId, state) => {
 				const status = state?.status;
 				if (status?.type === 'error') fail(`Node ${nodeId}: ${status.message}`);
 			},
+		}, { ...rendererSettings, enableStats: false });
+		// プレビューの解像度・クリッピング表示・LIVE設定は持ち込まず、
+		// 書き出し専用の状態を設定して素材の準備が終わってから描画する。
+		await renderer.updateDynamicOptions({
+			...project,
+			resolution: { width: settings.width, height: settings.height },
+			opaqueOutput: settings.format === 'mp4',
 		});
-		await renderer.updateAssets(project.assets);
 		controller.signal.throwIfAborted();
 		if (settings.format === 'webp') {
 			await renderer.renderTimelineFrame(settings.startTimeMs, 0);
