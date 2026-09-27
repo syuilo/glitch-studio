@@ -46,7 +46,7 @@ onmessage = async (event) => {
 				waveformVerticalCanvas = event.data.waveformVerticalCanvas as OffscreenCanvas;
 
 				const rendererStaticOptions: RendererStaticOptions = event.data.rendererStaticOptions;
-				const rendererDynamicOptions: RendererDynamicOptions = event.data.rendererDynamicOptions;
+				const rendererDynamicOptions: Partial<RendererDynamicOptions> = event.data.rendererDynamicOptions;
 
 				const adapter = await navigator.gpu?.requestAdapter({
 					powerPreference: 'high-performance',
@@ -98,13 +98,6 @@ onmessage = async (event) => {
 				renderer = null;
 				self.postMessage({ type: 'initError', message: error instanceof Error ? error.message : String(error) });
 			}
-			break;
-		}
-		case 'resize': {
-			if (canvas == null) return;
-			canvas.width = event.data.resolution.width;
-			canvas.height = event.data.resolution.height;
-			if (renderer != null) renderer.updateDynamicOptions({ resolution: event.data.resolution });
 			break;
 		}
 		case 'videoFrame': {

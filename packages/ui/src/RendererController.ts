@@ -30,7 +30,7 @@ export class RendererController {
 	private liveParamValues: VisualModuleParameterBindings = {};
 	private reloadPromise: Promise<void> | null = null;
 	private rejectInitialization: ((reason: Error) => void) | null = null;
-	private pendingCalls: { message: unknown; options?: StructuredSerializeOptions }[] = [];
+	private pendingCalls: { message: unknown; options?: StructuredSerializeOptions; onError?: (error: unknown) => void }[] = [];
 	private pointerPosition = { x: 0, y: 0 };
 	private rendererStaticOptions: RendererStaticOptions;
 	private rendererDynamicOptions: Partial<RendererDynamicOptions> & Pick<RendererDynamicOptions, 'assets'> = {
@@ -109,7 +109,7 @@ export class RendererController {
 
 	// 初期化チェックなどの同期的なthrowもPromiseのrejectに統一し、呼び出し側で.catch()でも受け取れるようasyncにする。
 	private async callAndWaitReturn<FN extends keyof RendererMethods>(fn: FN, args: Parameters<RendererMethods[FN]>): Promise<Awaited<ReturnType<RendererMethods[FN]>>> {
-		if (!this.isReady.value) {
+		if (!this.isReady.value && this.rejectInitialization == null) {
 			throw new Error('Renderer is not initialized');
 		}
 		if (this.rendererWorker != null) {
@@ -119,11 +119,17 @@ export class RendererController {
 					resolve: value => resolve(value as Awaited<ReturnType<RendererMethods[FN]>>),
 					reject,
 				});
-				try {
-					this.rendererWorker!.postMessage({ type: 'call', fn, args, needReturnValue: true, id });
-				} catch (error) {
+				const onError = (error: unknown) => {
 					this.returnHooks.delete(id);
 					reject(error);
+				};
+				try {
+					const message = { type: 'call', fn, args, needReturnValue: true, id };
+					// initメッセージ送信後の編集も、初期化完了時に送って応答まで待つ。
+					if (!this.isReady.value) this.pendingCalls.push({ message, onError });
+					else this.rendererWorker!.postMessage(message);
+				} catch (error) {
+					onError(error);
 				}
 			});
 		} else {
@@ -190,6 +196,7 @@ export class RendererController {
 			this.rejectPendingReturns(error);
 			this.rejectInitialization?.(error);
 			this.rejectInitialization = null;
+			this.pendingCalls = [];
 		};
 		this.rendererWorker.postMessage({
 			type: 'init',
@@ -206,7 +213,9 @@ export class RendererController {
 				case 'initError': {
 					this.isReady.value = false;
 					this.errorMessage.value = event.data.message;
-					this.rejectInitialization?.(new Error(event.data.message));
+					const error = new Error(event.data.message);
+					this.rejectPendingReturns(error);
+					this.rejectInitialization?.(error);
 					this.rejectInitialization = null;
 					this.pendingCalls = [];
 					break;
@@ -215,7 +224,15 @@ export class RendererController {
 					this.isReady.value = true;
 					this.errorMessage.value = null;
 					this.rejectInitialization = null;
-					for (const { message, options } of this.pendingCalls) worker.postMessage(message, options);
+					for (const { message, options, onError } of this.pendingCalls) {
+						try {
+							worker.postMessage(message, options);
+						} catch (error) {
+							// 遅延送信の失敗でも待機中のRPCを完了させ、残りの更新は送信する。
+							if (onError) onError(error);
+							else this.errorMessage.value = error instanceof Error ? error.message : String(error);
+						}
+					}
 					this.pendingCalls = [];
 					for (const playerId of this.pendingVideoFrames.keys()) this.sendPendingVideoFrame(playerId);
 					console.log('Renderer worker initialized!');
@@ -434,17 +451,27 @@ export class RendererController {
 		width: number;
 		height: number;
 	}) {
-		this.rendererDynamicOptions.resolution = { ...resolution };
-		if (this.rendererWorker != null) {
-			const message = { type: 'resize', resolution };
-			if (this.rejectInitialization != null) this.pendingCalls.push({ message });
-			else this.rendererWorker.postMessage(message);
-		}
+		return this.updateDynamicOptions({ resolution });
 	}
 
-	public updateDynamicOptions(newDynamicOptions: Partial<RendererDynamicOptions>) {
-		this.rendererDynamicOptions = { ...this.rendererDynamicOptions, ...newDynamicOptions };
-		return this.callAndWaitReturn('updateDynamicOptions', [newDynamicOptions]);
+	public async updateDynamicOptions(newDynamicOptions: Partial<RendererDynamicOptions>) {
+		const options = deepClone(newDynamicOptions);
+		if (options.resolution !== undefined) {
+			options.resolution = {
+				width: Math.max(1, Math.floor(options.resolution.width)),
+				height: Math.max(1, Math.floor(options.resolution.height)),
+			};
+		}
+		this.rendererDynamicOptions = { ...this.rendererDynamicOptions, ...options };
+		// 初回init前の設定は初期化メッセージに含める。初期化中はRPCのキューに積む。
+		if (this.rendererWorker == null) return { assetsCommitted: null };
+		const result = await this.callAndWaitReturn('updateDynamicOptions', [options]);
+		if (result.assetsCommitted && options.assets === this.rendererDynamicOptions.assets) {
+			// 素材の差し替え・削除ではPlayer定義は変わらないため、ここで参照先を同期する。
+			// 後続のAsset更新がある場合は、その完了側に同期を任せる。
+			await this.updatePlayers(this.players);
+		}
+		return result;
 	}
 
 	public updateStaticOptions(newStaticOptions: Partial<RendererStaticOptions>): Promise<void> {

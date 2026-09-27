@@ -14,7 +14,7 @@ import { AppStateManager } from './AppStateManager.ts';
 import { DEFAULT_PROJECT_NAME, loadProjectFile, saveProjectFile } from './gsproj.ts';
 import { preferences } from './preferences.ts';
 import type { EffectNodeOf, VisualModule } from '@glitch/shared/visual-module/types.ts';
-import type { Asset, Player } from '@glitch/shared/types.ts';
+import type { Asset, IntermediateTextureFormat, Player } from '@glitch/shared/types.ts';
 import type { Project, ProjectInfo } from './gsproj.ts';
 import type { WatchStopHandle } from 'vue';
 import * as ui from '@/ui.ts';
@@ -82,9 +82,15 @@ export const rendererEnv = {
 	mouseY: 0,
 };
 
+function getRendererIntermediateTextureFormat(): IntermediateTextureFormat {
+	if (preferences.s.intermediateTextureFormat != null) return preferences.s.intermediateTextureFormat;
+	const preferred = navigator.gpu.getPreferredCanvasFormat();
+	return preferred === 'bgra8unorm' ? 'bgra8unorm' : 'rgba8unorm';
+}
+
 export const renderer = markRaw(new RendererController({
 	enable32bitDataTextures: preferences.s.enable32bitDataTextures,
-	intermediateTextureFormat: preferences.s.intermediateTextureFormat ?? navigator.gpu.getPreferredCanvasFormat(),
+	intermediateTextureFormat: getRendererIntermediateTextureFormat(),
 	enableStats: true,
 }, {
 	fpsLimit: fpsLimit.value,
@@ -123,7 +129,7 @@ watch([appStateManager.state.resolution, resolutionFactor], () => {
 watch([preferences.r.enable32bitDataTextures, preferences.r.intermediateTextureFormat], () => {
 	renderer.updateStaticOptions({
 		enable32bitDataTextures: preferences.s.enable32bitDataTextures,
-		intermediateTextureFormat: preferences.s.intermediateTextureFormat ?? navigator.gpu.getPreferredCanvasFormat(),
+		intermediateTextureFormat: getRendererIntermediateTextureFormat(),
 	});
 });
 

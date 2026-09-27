@@ -36,7 +36,7 @@ import type { EffectDefinition } from '@glitch/shared/effect/effect-definition.j
 export type RendererStaticOptions = {
 	enable32bitDataTextures: boolean;
 	/** 画像の中間テクスチャ形式。Canvas・データ用テクスチャには適用しない。 */
-	intermediateTextureFormat: GPUTextureFormat;
+	intermediateTextureFormat: IntermediateTextureFormat;
 	enableStats: boolean;
 };
 
@@ -102,7 +102,7 @@ export class MainRenderer {
 	public fpsAverage = new NonNegativeRollingAverage(30);
 	public readonly gpuMemory: GpuMemoryTracker;
 
-	private staticOptions: RendererStaticOptions & { intermediateTextureFormat: IntermediateTextureFormat };
+	private readonly staticOptions: RendererStaticOptions;
 	private dynamicOptions: RendererDynamicOptions = {
 		resolution: { width: 1, height: 1 },
 		highlightClipping: false,
@@ -126,10 +126,7 @@ export class MainRenderer {
 		effectDefinitions: Record<string, EffectDefinition<any>>;
 		effectImplementations: Record<string, EffectImplementation<any>>;
 	}, staticOptions: RendererStaticOptions) {
-		if (!['rgba8unorm', 'bgra8unorm', 'rgba16float'].includes(staticOptions.intermediateTextureFormat)) {
-			throw new Error(`Unsupported intermediate texture format: ${staticOptions.intermediateTextureFormat}`);
-		}
-		this.staticOptions = staticOptions as RendererStaticOptions & { intermediateTextureFormat: IntermediateTextureFormat };
+		this.staticOptions = { ...staticOptions };
 
 		this.onEffectState = coreConfig.onEffectState;
 		this.onPreviewError = coreConfig.onPreviewError;
@@ -303,20 +300,19 @@ export class MainRenderer {
 
 	// (非workerで)呼び出すときは値を独立した参照にすること！ パフォーマンス上の理由でこちら側ではdeepCloneしません
 	public async updateDynamicOptions(newOptions: Partial<RendererDynamicOptions>) {
-		let assetsCommited = null as boolean | null;
+		const { assets, ...synchronousOptions } = newOptions;
+		// 通常の設定は呼び出し順に反映する。画像のデコード完了を待ってから反映すると、
+		// 後から届いたモジュール編集やFPS変更を古い更新で巻き戻してしまう。
+		// Asset一覧だけはテクスチャと同時に切り替えるため、ここではマージしない。
+		this.dynamicOptions = { ...this.dynamicOptions, ...synchronousOptions };
 
-		if (newOptions.assets !== undefined) {
-			assetsCommited = await this.assetTextures.update(this.dynamicOptions.assets, () => {
-				this.clearTimelineRenderers();
-				this.dynamicOptions.assets = newOptions.assets!;
-				this.liveVisualModuleRenderer?.updateAssets(this.dynamicOptions.assets);
-			});
-		}
-
-		this.dynamicOptions = { ...this.dynamicOptions, ...newOptions };
-
-		if (newOptions.resolution !== undefined) {
+		if (newOptions.resolution !== undefined || newOptions.visualModules !== undefined || newOptions.timeline !== undefined) {
 			this.clearTimelineRenderers();
+		}
+		if (newOptions.resolution !== undefined) {
+			const canvas = this.gpuContext.canvas;
+			if (canvas.width !== this.dynamicOptions.resolution.width) canvas.width = this.dynamicOptions.resolution.width;
+			if (canvas.height !== this.dynamicOptions.resolution.height) canvas.height = this.dynamicOptions.resolution.height;
 			this.liveVisualModuleRenderer?.resize(this.dynamicOptions.resolution);
 		}
 		if (newOptions.fpsLimit !== undefined) {
@@ -325,22 +321,26 @@ export class MainRenderer {
 		if (newOptions.liveTimeFactor !== undefined) {
 			this.liveRenderLoop.timeFactor = newOptions.liveTimeFactor;
 		}
-		if (newOptions.highlightClipping !== undefined) {
-			this.dynamicOptions.highlightClipping = newOptions.highlightClipping;
-		}
 		if (newOptions.visualModules !== undefined) {
-			this.clearTimelineRenderers();
 			if (this.liveVisualModuleRenderer != null) {
 				const visualModule = this.dynamicOptions.visualModules.find(visualModule => visualModule.id === this.liveVisualModuleId);
 				if (visualModule == null) this.stopRenderLoop();
 				else this.liveVisualModuleRenderer.updateVisualModule(visualModule);
 			}
 		}
-		if (newOptions.timeline !== undefined) {
-			this.clearTimelineRenderers();
-		}
 
-		return { assetsCommited };
+		const assetsCommitted = assets === undefined ? null : await this.updateAssets(assets);
+		return { assetsCommitted };
+	}
+
+	private updateAssets(assets: Asset[]): Promise<boolean> {
+		return this.assetTextures.update(assets, () => {
+			// 世代管理で採用された更新だけが一覧とキャッシュを切り替える。
+			// 中断されたデコードの完了後に、Asset一覧だけを上書きしてはいけない。
+			this.clearTimelineRenderers();
+			this.dynamicOptions.assets = assets;
+			this.liveVisualModuleRenderer?.updateAssets(assets);
+		});
 	}
 
 	private renderToCanvas(output: NodeOutput, commandEncoder: GPUCommandEncoder) {
