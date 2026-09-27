@@ -220,9 +220,9 @@ export class VisualModuleRenderer {
 		}
 		if (node.type === 'globalOut') return null;
 
-		let key = `node=${node.id};isBypass=${node.isBypass};`;
+		let key = node.type === 'relay' ? `node=${node.id};type=relay;` : `node=${node.id};isBypass=${node.isBypass};`;
 
-		if (node.isBypass) {
+		if (node.type === 'relay' || node.isBypass) {
 			// 出力に寄与しない入力やdisableCacheには依存しない。
 			// 出力元のIDもキーに含め、同じパラメータの別ノードへの切り替えを検出する。
 			const output = this.getOutputNode(node);
@@ -424,11 +424,22 @@ export class VisualModuleRenderer {
 		this.effectCacheKeys.clear();
 	}
 
-	// 無効なエフェクトは主入力をそのまま公開する。テクスチャの所有権や履歴は元のノードに残す。
+	// relayと無効なエフェクトは入力をそのまま公開する。テクスチャの所有権や履歴は元のノードに残す。
 	// 描画・入力参照・キャッシュが同じ接続関係を扱うよう、ここで共通して解決する。
 	private getOutputNode(node: VisualModuleNode, outputPort?: string, visited: VisualModuleNode['id'][] = []): { node: VisualModuleEffectNode | VisualModuleGlobalInNode; outputPort: string } | undefined {
 		if (visited.includes(node.id)) throw new Error('circular dependency detected');
 		const nextVisited = [...visited, node.id];
+		if (node.type === 'relay') {
+			if (outputPort != null && outputPort !== 'output') return;
+			const input = node.input;
+			const source = input.nodeId == null ? undefined : this.allNodeIdMap.get(input.nodeId);
+			if (source == null || input.outputPort == null) return;
+			// 出力ポートの存在だけ確認する。異なる型の接続も許容するため、
+			// relayの宣言型で入力を拒否・変換せず、元の出力をそのまま渡す。
+			const outputs = source.type === 'effect' ? this.effectDefinitions[source.effectId].outputDefs : getNodeOutputs(source, this.paramDefs);
+			if (outputs[input.outputPort] == null) return;
+			return this.getOutputNode(source, input.outputPort, nextVisited);
+		}
 		if (node.type === 'globalIn') {
 			const port = outputPort ?? this.paramDefs.find(def => def.isPrimaryInput)?.id;
 			return port != null && getNodeOutputs(node, this.paramDefs)[port] != null ? { node, outputPort: port } : undefined;
@@ -478,8 +489,9 @@ export class VisualModuleRenderer {
 			return;
 		}
 
-		if (node.isBypass) {
-			// 無効中は自身を描画せず、主入力だけを更新する。履歴は保持して再有効化時に再開する。
+		if (node.type === 'relay' || node.isBypass) {
+			// relayとバイパスは自身を描画せず、解決した入力だけを更新する。
+			// バイパスしたエフェクトの履歴は保持して再有効化時に再開する。
 			const output = this.getOutputNode(node);
 			if (output == null) return;
 			return this.renderNode(output.node, commandEncoder, {

@@ -26,5 +26,6 @@ export function getNodeOutputs(node: VisualModuleNode | undefined, paramDefs: Vi
 		return outputs;
 	}
 	if (node.type === 'globalOut') return {};
+	if (node.type === 'relay') return { output: { dataType: node.dataType } };
 	return effectDefinitions[node.effectId].outputDefs;
 }
