@@ -36,8 +36,8 @@ export type RendererOptions = {
 		height: number;
 	};
 	enable32bitDataTextures: boolean;
-	/** 画像の中間テクスチャ形式。省略時はrgba16float。Canvas・データ用テクスチャには適用しない。 */
-	intermediateTextureFormat: IntermediateTextureFormat;
+	/** 画像の中間テクスチャ形式。Canvas・データ用テクスチャには適用しない。 */
+	intermediateTextureFormat: GPUTextureFormat;
 	enableStats: boolean;
 	/** 最終出力の黒つぶれを緑、白飛びをマゼンタで表示する。 */
 	highlightClipping: boolean;
@@ -113,6 +113,11 @@ export class MainRenderer {
 		effectDefinitions: Record<string, EffectDefinition<any>>;
 		effectImplementations: Record<string, EffectImplementation<any>>;
 	}, subOptions: RendererOptions) {
+		if (!['rgba8unorm', 'bgra8unorm', 'rgba16float'].includes(subOptions.intermediateTextureFormat)) {
+			throw new Error(`Unsupported intermediate texture format: ${subOptions.intermediateTextureFormat}`);
+		}
+		this.intermediateTextureFormat = subOptions.intermediateTextureFormat as IntermediateTextureFormat;
+
 		this.resolution = subOptions.resolution;
 		this.onEffectState = mainOptions.onEffectState;
 		this.onPreviewError = mainOptions.onPreviewError;
@@ -137,7 +142,6 @@ export class MainRenderer {
 			timeFactor: subOptions.liveTimeFactor,
 		});
 		this.enable32bitDataTextures = subOptions.enable32bitDataTextures;
-		this.intermediateTextureFormat = subOptions.intermediateTextureFormat;
 		this.gpuDevice = mainOptions.gpuDevice;
 		this.assetTextures = new AssetTextures(this.gpuDevice);
 		this.outputTextures = new OutputTextureResolver(this.gpuDevice, this.enable32bitDataTextures);

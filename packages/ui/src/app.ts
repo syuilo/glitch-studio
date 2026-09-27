@@ -88,6 +88,11 @@ export const renderer = markRaw(new RendererController({
 		highlightClipping: highlightClipping.value,
 		enable32bitDataTextures: preferences.s.enable32bitDataTextures,
 		intermediateTextureFormat: preferences.s.intermediateTextureFormat ?? navigator.gpu.getPreferredCanvasFormat(),
+		enableStats: true,
+		opaqueOutput: false,
+		visualModules: [],
+		timeline: [],
+		resolution: { width: 1, height: 1 },
 	},
 }));
 export const previewPlayback = markRaw(new PreviewPlaybackController(renderer, () => fpsLimit.value));

@@ -200,6 +200,7 @@ export class RendererController {
 			histogramCanvas: histogramOffscreen,
 			waveformHorizontalCanvas: waveformHorizontalOffscreen,
 			waveformVerticalCanvas: waveformVerticalOffscreen,
+			assets: this.assets,
 			rendererOptions: this.rendererOptions,
 		}, [offscreen, histogramOffscreen, waveformHorizontalOffscreen, waveformVerticalOffscreen]);
 		this.rendererWorker.onmessage = (event) => {

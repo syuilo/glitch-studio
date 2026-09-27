@@ -88,7 +88,7 @@ onmessage = async (event) => {
 				//	self.postMessage({ type: 'ev', ev: { type, ctx } });
 				//});
 
-				await renderer.updateAssets(event.data.options.assets);
+				await renderer.updateAssets(event.data.assets);
 				self.postMessage({ type: 'inited' });
 				reportGpuMemory();
 			} catch (error) {
