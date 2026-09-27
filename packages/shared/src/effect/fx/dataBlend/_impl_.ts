@@ -25,6 +25,7 @@ const blendModes: Record<string, number> = {
 	saturation: 16,
 	color: 17,
 	luminosity: 18,
+	replace: 19,
 };
 
 export default implementEffect<typeof definition>({

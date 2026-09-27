@@ -97,6 +97,7 @@ fn fs(@location(0) position: vec2f) -> @location(0) vec4f {
 	let b = read_inputB(position);
 	let amount = clamp(read_amount(position), 0.0, 1.0);
 	if (amount == 0.0 || uniforms.blendMode == 10u) { return a; }
+	if (uniforms.blendMode == 19u) { return mix(a, b, amount); }
 	// 合成結果のクランプやアルファ合成はしない。HSL系のRGBだけは色として扱う。
 	return mix(a, blendData(uniforms.blendMode, a, b), amount);
 }

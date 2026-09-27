@@ -64,7 +64,8 @@ export async function checkTimelineCompositor(device: GPUDevice, vertex: GPUShad
 		}
 		// 全モードの分岐が実行可能であり、不透明な入力から透明度が失われないことを確認する。
 		for (const [name, blendMode] of Object.entries(colorBlendModes)) {
-			if (name === 'none') continue;
+			// Replaceは上の専用ケースで検証する。無変形ではuniformのまま返る。
+			if (name === 'none' || name === 'replace') continue;
 			const encoder = device.createCommandEncoder();
 			const output = compositor.render(encoder, blue, red, { ...defaults, blendMode });
 			device.queue.submit([encoder.finish()]);

@@ -41,7 +41,7 @@ export class TimelineCompositingParameters {
 		};
 		const mode = values.get('blendMode');
 		return {
-			blendMode: mode === 'replace' ? 19 : isBlendMode(mode) ? colorBlendModes[mode] : 0,
+			blendMode: isBlendMode(mode) ? colorBlendModes[mode] : 0,
 			opacity: Math.min(1, Math.max(0, number('opacity', 1))),
 			translation: vector('translation', [0, 0]),
 			scale: vector('scale', [1, 1]),

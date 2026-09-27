@@ -84,6 +84,7 @@
 					label: i18n.ts._BlendModes._Categories.Basic,
 					items: [
 						{ label: i18n.ts._BlendModes.Normal, value: 'normal' },
+						{ label: i18n.ts._BlendModes.Replace, value: 'replace' },
 					],
 				},
 				{

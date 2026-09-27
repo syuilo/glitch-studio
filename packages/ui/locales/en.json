@@ -85,6 +85,7 @@
 		},
 		"None": "None",
 		"Normal": "Normal",
+		"Replace": "Replace (B only)",
 		"Darken": "Darken",
 		"Multiply": "Multiply",
 		"ColorBurn": "Color Burn",

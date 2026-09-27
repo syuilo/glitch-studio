@@ -1,4 +1,4 @@
-// モード番号はcolor-blend.tsと揃える。合成やpremultiplyは呼び出し側で行う。
+// モード番号はcolor-blend.tsと揃える。blendRgbは未乗算RGB、blendColorは乗算済みRGBAを扱う。
 // https://www.w3.org/TR/compositing-1/#blending
 fn blendComponent(mode: u32, a: f32, b: f32) -> f32 {
 	switch mode {
@@ -12,6 +12,7 @@ fn blendComponent(mode: u32, a: f32, b: f32) -> f32 {
 		case 8u: { return abs(a - b); }
 		case 9u: { return a + b - 2.0 * a * b; }
 		case 10u: { return a; }
+		case 19u: { return b; }
 		case 11u: {
 			if (a >= 1.0) { return 1.0; }
 			if (b <= 0.0) { return 0.0; }
@@ -81,3 +82,16 @@ fn blendRgb(mode: u32, a: vec3f, b: vec3f) -> vec3f {
 	return vec3f(blendComponent(mode, a.r, b.r), blendComponent(mode, a.g, b.g), blendComponent(mode, a.b, b.b));
 }
 
+// Bを前景、Aを背景とするsource-over。ブレンド関数だけを未乗算RGBで計算する。
+// NoneとReplaceは透明部分も含めて片側のRGBAをそのまま返す。
+fn blendColor(mode: u32, a: vec4f, b: vec4f) -> vec4f {
+	if (mode == 10u) { return a; }
+	if (mode == 19u) { return b; }
+	var straightA = vec3f(0.0);
+	var straightB = vec3f(0.0);
+	if (a.a > 0.0) { straightA = a.rgb / a.a; }
+	if (b.a > 0.0) { straightB = b.rgb / b.a; }
+	let blended = clamp(blendRgb(mode, straightA, straightB), vec3f(0.0), vec3f(1.0));
+	let rgb = (1.0 - b.a) * a.rgb + (1.0 - a.a) * b.rgb + a.a * b.a * blended;
+	return vec4f(rgb, b.a + a.a * (1.0 - b.a));
+}

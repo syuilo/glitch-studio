@@ -2,18 +2,9 @@ import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { implementEffect } from '../../effect-implementation.ts';
 import { createShaderInputPipeline } from '../../../shader-input-pipeline.ts';
 import code from './shader.wgsl?raw';
+import blendCode from '../../../color-blend.wgsl?raw';
+import { colorBlendModes as blendModes } from '../../../color-blend.ts';
 import type definition from './_def_.ts';
-
-const blendModes: Record<string, number> = {
-	normal: 0,
-	add: 1,
-	subtract: 2,
-	multiply: 3,
-	darken: 6,
-	lighten: 7,
-	screen: 8,
-	overlay: 9,
-};
 
 export default implementEffect<typeof definition>({
 	outputTextureFactories: {
@@ -30,7 +21,7 @@ export default implementEffect<typeof definition>({
 		const layout = device.createBindGroupLayout({ entries: [{ binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } }] });
 		const group = device.createBindGroup({ layout, entries: [{ binding: 0, resource: { buffer: uniformBuffer } }] });
 		const pipelines = createShaderInputPipeline({
-			device, vertex: wgpu.defaultVertexShaderModule, code,
+			device, vertex: wgpu.defaultVertexShaderModule, code: blendCode + code,
 			schema: { input: 'color', amount: 'vector' },
 			targets: [{ format: wgpu.intermediateTextureFormat }],
 			internalLayouts: [layout],
@@ -39,7 +30,8 @@ export default implementEffect<typeof definition>({
 		return {
 			render: ctx => {
 				uniformValues.set({
-					blendMode: blendModes[ctx.params.blendMode] ?? 0,
+					channelBlendMode: blendModes[ctx.params.channelBlendMode] ?? 0,
+					inputBlendMode: blendModes[ctx.params.inputBlendMode] ?? blendModes.replace,
 					leftSignal: ctx.params.leftSignal.slice(0, 3).map(Number),
 					rightSignal: ctx.params.rightSignal.slice(0, 3).map(Number),
 				});

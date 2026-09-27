@@ -84,6 +84,7 @@
 		},
 		"None": "なし",
 		"Normal": "通常",
+		"Replace": "置き換え (Bのみ)",
 		"Darken": "比較(暗)",
 		"Multiply": "乗算",
 		"ColorBurn": "焼き込みカラー",
