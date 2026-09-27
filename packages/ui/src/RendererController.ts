@@ -503,9 +503,12 @@ export class RendererController {
 		this.isReady.value = false;
 	}
 
-	public reload(newStaticOptions: Partial<RendererStaticOptions> = {}): Promise<void> {
+	public updateStaticOptions(newStaticOptions: Partial<RendererStaticOptions>): Promise<void> {
 		this.rendererStaticOptions = { ...this.rendererStaticOptions, ...newStaticOptions };
+		return this.reload();
+	}
 
+	public reload(): Promise<void> {
 		if (this.reloadPromise) return this.reloadPromise;
 		if (!this.rendererWorker || this.rejectInitialization != null) return Promise.reject(new Error('Renderer is not initialized'));
 		this.reloadPromise = this.reloadRenderer().finally(() => { this.reloadPromise = null; });

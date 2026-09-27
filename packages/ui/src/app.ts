@@ -121,7 +121,7 @@ watch([appStateManager.state.resolution, resolutionFactor], () => {
 });
 
 watch([preferences.r.enable32bitDataTextures, preferences.r.intermediateTextureFormat], () => {
-	renderer.reload({
+	renderer.updateStaticOptions({
 		enable32bitDataTextures: preferences.s.enable32bitDataTextures,
 		intermediateTextureFormat: preferences.s.intermediateTextureFormat ?? navigator.gpu.getPreferredCanvasFormat(),
 	});
