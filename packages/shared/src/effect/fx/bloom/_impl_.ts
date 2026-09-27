@@ -2,6 +2,8 @@ import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { implementEffect } from '../../effect-implementation.ts';
 import { createShaderInputPipeline } from '../../../shader-input-pipeline.ts';
 import { inputUvScale } from '../../../shader-input.ts';
+import { colorBlendModes, isBlendMode } from '../../../color-blend.ts';
+import blendCode from '../../../color-blend.wgsl?raw';
 import commonCode from './common.wgsl?raw';
 import internalCode from './shader.wgsl?raw';
 import inputCode from './input.wgsl?raw';
@@ -54,7 +56,7 @@ export default implementEffect<typeof definition>({
 			{ binding: 0, resource: { buffer: uniformBuffer } },
 		] });
 		const inputPipelineOptions = {
-			device, vertex: wgpu.defaultVertexShaderModule, code: commonCode + '\n' + inputCode,
+			device, vertex: wgpu.defaultVertexShaderModule, code: blendCode + '\n' + commonCode + '\n' + inputCode,
 			schema: { input: 'color' }, sampling: 'level0',
 		} as const;
 		const prefilterPipelines = createShaderInputPipeline({ ...inputPipelineOptions, internalLayouts: [prefilterLayout], entryPoint: 'prefilter', targets: [{ format: wgpu.intermediateTextureFormat }] });
@@ -143,6 +145,8 @@ export default implementEffect<typeof definition>({
 				}
 				uniformValues.set({
 					strength,
+					// 20はinput.wgslのBloom専用Emissionモード。
+					inputBlendMode: isBlendMode(ctx.params.inputBlendMode) ? colorBlendModes[ctx.params.inputBlendMode] : 20,
 					radiusScale: [scaleX, scaleY],
 					threshold: clamp(ctx.params.threshold, 1, 0.7),
 					softKnee: clamp(ctx.params.softKnee, 1, 0.5),

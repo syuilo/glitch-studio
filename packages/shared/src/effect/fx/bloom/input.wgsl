@@ -29,9 +29,18 @@ fn prefilter(frag: FragmentIn) -> @location(0) vec4f {
 fn composite(frag: FragmentIn) -> @location(0) vec4f {
 	let uv = texCoords(frag.uv);
 	let source = read_input(frag.uv);
-	if (uniforms.strength <= 0.0) {
-		return source;
+	// Strength=0では前フレームの作業テクスチャを読まない。
+	// Replaceなら透明を返せるよう、効果を0にしてから選択したモードで合成する。
+	var bloom = vec4f(0.0);
+	if (uniforms.strength > 0.0) {
+		bloom = clamp(textureSampleLevel(bloomTexture, bloomSampler, uv, 0.0) * uniforms.strength, vec4f(0.0), vec4f(1.0));
 	}
-	let bloom = textureSampleLevel(bloomTexture, bloomSampler, uv, 0.0);
-	return clamp(source + bloom * uniforms.strength, vec4f(0.0), vec4f(1.0));
+	if (uniforms.inputBlendMode == 20u) {
+		// Emissionは乗算済みRGBを光の量として直接加える。共通Addの色ブレンドとは区別する。
+		// alphaは光の強さの単純加算ではなく、元画像と光の広がりの被覆率を合成する。
+		let rgb = clamp(source.rgb + bloom.rgb, vec3f(0.0), vec3f(1.0));
+		let alpha = bloom.a + source.a * (1.0 - bloom.a);
+		return vec4f(rgb, alpha);
+	}
+	return blendColor(uniforms.inputBlendMode, source, bloom);
 }

@@ -2,6 +2,7 @@ struct Uniforms {
 	strength: f32,
 	threshold: f32,
 	softKnee: f32,
+	inputBlendMode: u32,
 	prefilterOffset: vec2f,
 	radiusScale: vec2f,
 };
@@ -15,4 +16,3 @@ struct FragmentIn {
 fn texCoords(uv: vec2f) -> vec2f {
 	return vec2f(uv.x, -uv.y) * 0.5 + 0.5;
 }
-
