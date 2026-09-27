@@ -20,10 +20,10 @@
 			<div
 				ref="thumbEl"
 				class="thumb"
+				:class="{ dragging: tooltipForDragShowing }"
 				:style="{ left: thumbPosition + 'px' }"
 				@mouseenter.passive="onMouseenter"
-				@mousedown="onMousedown"
-				@touchstart="onMousedown"
+				@pointerdown="onPointerdown"
 			>
 				<div class="thumbInner"></div>
 			</div>
@@ -193,11 +193,17 @@ function onMouseenter() {
 
 let lastClickTime: number | null = null;
 
-function onMousedown(ev: MouseEvent | TouchEvent) {
+function onPointerdown(ev: PointerEvent) {
 	if (props.disabled) return; // Prevent interaction if disabled
-	if (finishDrag != null) return;
+	if (finishDrag != null || ev.button !== 0 || !ev.isPrimary) return;
+	const thumb = thumbEl.value;
+	if (!thumb) return;
+	const pointerId = ev.pointerId;
+	const ownerWindow = thumb.ownerDocument.defaultView;
 
 	ev.preventDefault();
+	// DOMを別ウィンドウへ移しても、つまみ自身でドラッグを追跡できるようにする。
+	thumb.setPointerCapture(pointerId);
 	emit('beginChanging');
 
 	tooltipForDragShowing.value = true;
@@ -212,18 +218,14 @@ function onMousedown(ev: MouseEvent | TouchEvent) {
 		closed: () => dispose(),
 	});
 
-	const style = window.document.createElement('style');
-	style.appendChild(window.document.createTextNode('* { cursor: grabbing !important; } body * { pointer-events: none !important; }'));
-	window.document.head.appendChild(style);
-
 	const thumbWidth = getThumbWidth();
 
-	const onDrag = (ev: MouseEvent | TouchEvent) => {
+	const onDrag = (ev: PointerEvent) => {
+		if (ev.pointerId !== pointerId) return;
 		ev.preventDefault();
 		let beforeValue = finalValue.value;
 		const containerRect = containerEl.value!.getBoundingClientRect();
-		const pointerX = 'touches' in ev && ev.touches.length > 0 ? ev.touches[0].clientX : 'clientX' in ev ? ev.clientX : 0;
-		const pointerPositionOnContainer = pointerX - (containerRect.left + (thumbWidth / 2));
+		const pointerPositionOnContainer = ev.clientX - (containerRect.left + (thumbWidth / 2));
 		rawValue.value = Math.min(1, Math.max(0, pointerPositionOnContainer / (containerEl.value!.offsetWidth - thumbWidth)));
 
 		if (props.continuousUpdate && beforeValue !== finalValue.value) {
@@ -233,17 +235,21 @@ function onMousedown(ev: MouseEvent | TouchEvent) {
 
 	let beforeValue = finalValue.value;
 
-	const onMouseup = () => {
+	const onPointerEnd = (ev: PointerEvent) => {
+		if (ev.pointerId !== pointerId) return;
+		endDrag();
+	};
+
+	const endDrag = () => {
 		if (finishDrag == null) return;
 		finishDrag = null;
-		window.document.head.removeChild(style);
 		tooltipForDragShowing.value = false;
-		window.removeEventListener('mousemove', onDrag);
-		window.removeEventListener('touchmove', onDrag);
-		window.removeEventListener('mouseup', onMouseup);
-		window.removeEventListener('touchend', onMouseup);
-		window.removeEventListener('touchcancel', onMouseup);
-		window.removeEventListener('blur', onMouseup);
+		thumb.removeEventListener('pointermove', onDrag);
+		thumb.removeEventListener('pointerup', onPointerEnd);
+		thumb.removeEventListener('pointercancel', onPointerEnd);
+		thumb.removeEventListener('lostpointercapture', onPointerEnd);
+		ownerWindow?.removeEventListener('blur', endDrag);
+		if (thumb.hasPointerCapture(pointerId)) thumb.releasePointerCapture(pointerId);
 
 		// 値が変わってたら通知
 		if (beforeValue !== finalValue.value) {
@@ -253,13 +259,12 @@ function onMousedown(ev: MouseEvent | TouchEvent) {
 		emit('changeFinished');
 	};
 
-	finishDrag = onMouseup;
-	window.addEventListener('mousemove', onDrag);
-	window.addEventListener('touchmove', onDrag);
-	window.addEventListener('mouseup', onMouseup, { once: true });
-	window.addEventListener('touchend', onMouseup, { once: true });
-	window.addEventListener('touchcancel', onMouseup, { once: true });
-	window.addEventListener('blur', onMouseup, { once: true });
+	finishDrag = endDrag;
+	thumb.addEventListener('pointermove', onDrag);
+	thumb.addEventListener('pointerup', onPointerEnd);
+	thumb.addEventListener('pointercancel', onPointerEnd);
+	thumb.addEventListener('lostpointercapture', onPointerEnd);
+	ownerWindow?.addEventListener('blur', endDrag, { once: true });
 
 	if (lastClickTime == null) {
 		lastClickTime = Date.now();
@@ -397,6 +402,12 @@ function onMousedown(ev: MouseEvent | TouchEvent) {
 				width: $thumbWidth;
 				height: $thumbHeight;
 				cursor: grab;
+				touch-action: none;
+				user-select: none;
+
+				&.dragging {
+					cursor: grabbing;
+				}
 
 				&:hover {
 					> .thumbInner {
