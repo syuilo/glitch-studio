@@ -8,9 +8,8 @@ import { isVideoFrameAvailable, playVideoAfterFirstFrameIsReady } from './utilit
 import { LiveEffectStateStore } from './utility/live-effect-status.ts';
 import { AudioInputs } from './audio/audio-inputs.ts';
 import { setupWebcam } from './utility/webcam.ts';
-import type { Asset, Player } from '@glitch/shared/types.ts';
+import type { Player } from '@glitch/shared/types.ts';
 import type { VisualModule, VisualModuleParameterBindings } from '@glitch/shared/visual-module/types.ts';
-import type { Timeline } from '@glitch/shared/timeline/types.ts';
 import type { MainRenderer, RendererDynamicOptions, RendererStaticOptions } from '@glitch/renderer/renderer.ts';
 import type { EffectInstanceState, EffectStatusSource } from '@glitch/shared/effect/effect-status.ts';
 import * as ui from '@/ui.ts';
@@ -398,10 +397,6 @@ export class RendererController {
 		await Promise.all(this.videoLoads.values());
 	}
 
-	public updateVisualModules(newVisualModules: VisualModule[]) {
-		this.call('updateDynamicOptions', [{ visualModules: newVisualModules }]);
-	}
-
 	public getVideoElement(playerId: Player['id']): HTMLVideoElement | null {
 		const media = this.videoElements.get(playerId);
 		return media instanceof HTMLVideoElement ? media : null;
@@ -423,30 +418,9 @@ export class RendererController {
 
 	public getPlayerLevels(playerId: Player['id']) { return this.audioInputs.getPlayerLevels(playerId); }
 
-	public async updateAssets(newAssets: Asset[]) {
-		this.rendererDynamicOptions.assets = deepClone(newAssets);
-		await this.callAndWaitReturn('updateDynamicOptions', [{ assets: this.rendererDynamicOptions.assets }]);
-	}
-
-	public updateTimeline(newTimeline: Timeline) {
-		this.call('updateDynamicOptions', [{ timeline: newTimeline }]);
-	}
-
 	public async updatePointerPosition(newPointerPosition: { x: number; y: number }) {
 		this.pointerPosition = { ...newPointerPosition };
 		this.call('updatePointerPosition', [newPointerPosition]);
-	}
-
-	public changeLiveModeFpsLimit(newFpsLimit: number | null) {
-		this.call('updateDynamicOptions', [{ fpsLimit: newFpsLimit }]);
-	}
-
-	public setHighlightClipping(enabled: boolean) {
-		this.call('updateDynamicOptions', [{ highlightClipping: enabled }]);
-	}
-
-	public setLiveTimeFactor(value: number) {
-		this.call('updateDynamicOptions', [{ liveTimeFactor: value }]);
 	}
 
 	public renderTimelineAt(time: number) {
@@ -470,37 +444,9 @@ export class RendererController {
 		}
 	}
 
-	public destroy() {
-		this.rejectPendingReturns(new Error('Engine destroyed during renderer call'));
-		this.rejectInitialization?.(new Error('Engine destroyed during initialization'));
-		this.rejectInitialization = null;
-		this.pendingCalls = [];
-		this.renderLoopRunning = false;
-		this.liveVisualModuleId.value = null;
-		this.liveEffectStateStore.stop();
-		this.audioInputs.dispose();
-		for (const [id, media] of this.videoElements) {
-			const callback = this.videoFrameCallbacks.get(id);
-			if (callback !== undefined && media instanceof HTMLVideoElement) media.cancelVideoFrameCallback(callback);
-			media.pause();
-			if (media.srcObject instanceof MediaStream) {
-				for (const track of media.srcObject.getTracks()) track.stop();
-			}
-			media.srcObject = null;
-			URL.revokeObjectURL(media.src);
-			media.removeAttribute('src');
-			media.load();
-		}
-		for (const frame of this.pendingVideoFrames.values()) frame.close();
-		this.videoElements.clear();
-		this.playerAssetFiles.clear();
-		this.videoFrameCallbacks.clear();
-		this.videoLoads.clear();
-		this.pendingVideoFrames.clear();
-		this.inFlightVideoFrames.clear();
-		this.rendererWorker?.terminate();
-		this.rendererWorker = null;
-		this.isReady.value = false;
+	public updateDynamicOptions(newDynamicOptions: Partial<RendererDynamicOptions>) {
+		this.rendererDynamicOptions = { ...this.rendererDynamicOptions, ...newDynamicOptions };
+		return this.callAndWaitReturn('updateDynamicOptions', [newDynamicOptions]);
 	}
 
 	public updateStaticOptions(newStaticOptions: Partial<RendererStaticOptions>): Promise<void> {
@@ -551,5 +497,38 @@ export class RendererController {
 		}
 		this.call('updatePointerPosition', [this.pointerPosition]);
 		if (this.renderLoopRunning && this.liveVisualModuleId.value != null) this.startLiveRenderLoopFor(this.liveVisualModuleId.value, this.liveParamValues);
+	}
+
+	public destroy() {
+		this.rejectPendingReturns(new Error('Engine destroyed during renderer call'));
+		this.rejectInitialization?.(new Error('Engine destroyed during initialization'));
+		this.rejectInitialization = null;
+		this.pendingCalls = [];
+		this.renderLoopRunning = false;
+		this.liveVisualModuleId.value = null;
+		this.liveEffectStateStore.stop();
+		this.audioInputs.dispose();
+		for (const [id, media] of this.videoElements) {
+			const callback = this.videoFrameCallbacks.get(id);
+			if (callback !== undefined && media instanceof HTMLVideoElement) media.cancelVideoFrameCallback(callback);
+			media.pause();
+			if (media.srcObject instanceof MediaStream) {
+				for (const track of media.srcObject.getTracks()) track.stop();
+			}
+			media.srcObject = null;
+			URL.revokeObjectURL(media.src);
+			media.removeAttribute('src');
+			media.load();
+		}
+		for (const frame of this.pendingVideoFrames.values()) frame.close();
+		this.videoElements.clear();
+		this.playerAssetFiles.clear();
+		this.videoFrameCallbacks.clear();
+		this.videoLoads.clear();
+		this.pendingVideoFrames.clear();
+		this.inFlightVideoFrames.clear();
+		this.rendererWorker?.terminate();
+		this.rendererWorker = null;
+		this.isReady.value = false;
 	}
 }

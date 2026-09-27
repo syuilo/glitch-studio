@@ -100,17 +100,17 @@ watch(renderer.isReady, ready => {
 });
 
 watch(highlightClipping, value => {
-	renderer.setHighlightClipping(value);
+	renderer.updateDynamicOptions({ highlightClipping: value });
 });
 
 (window as any).renderer = renderer; // debug
 
 watch(fpsLimit, () => {
-	renderer.changeLiveModeFpsLimit(fpsLimit.value);
+	renderer.updateDynamicOptions({ fpsLimit: fpsLimit.value });
 });
 
 watch(liveTimeFactor, value => {
-	renderer.setLiveTimeFactor(value);
+	renderer.updateDynamicOptions({ liveTimeFactor: value });
 });
 
 watch([appStateManager.state.resolution, resolutionFactor], () => {
@@ -152,9 +152,12 @@ export async function appReady(project: Project, fileName = 'untitled.gsproj', f
 	projectWatchers = [];
 	previewPlayback.dispose();
 	// 同じIDのプロジェクトを再読込した場合も、以前の再生・ノード履歴を引き継がない。
+	await renderer.updateDynamicOptions({
+		assets: [],
+		visualModules: [],
+		timeline: [],
+	});
 	await renderer.updatePlayers([]);
-	renderer.updateVisualModules([]);
-	renderer.updateTimeline([]);
 
 	appStateManager.state.resolution.value = project.resolution;
 	resolutionFactor.value = initialResolutionFactor;
@@ -164,10 +167,12 @@ export async function appReady(project: Project, fileName = 'untitled.gsproj', f
 	appStateManager.state.timeline.value = project.timeline;
 	appStateManager.undoStack.value = [];
 	appStateManager.redoStack.value = [];
-	await renderer.updateAssets(deepClone(project.assets));
+	await renderer.updateDynamicOptions({
+		assets: deepClone(project.assets),
+		visualModules: deepClone(project.visualModules),
+		timeline: deepClone(project.timeline),
+	});
 	await renderer.updatePlayers(deepClone(project.players));
-	renderer.updateVisualModules(deepClone(project.visualModules));
-	renderer.updateTimeline(deepClone(project.timeline));
 	projectMetadata = { id: project.id };
 	projectInfo.value = { name: project.name, description: project.description, author: project.author };
 	projectFileName = fileName;
@@ -175,7 +180,7 @@ export async function appReady(project: Project, fileName = 'untitled.gsproj', f
 
 	projectWatchers.push(watch(appStateManager.state.assets, async () => {
 		try {
-			await renderer.updateAssets(deepClone(appStateManager.state.assets.value));
+			await renderer.updateDynamicOptions({ assets: deepClone(appStateManager.state.assets.value) });
 			// 非同期の画像準備後にも、停止中のタイムラインを描き直す。
 			previewPlayback.refresh();
 		} catch (error) {
@@ -188,14 +193,14 @@ export async function appReady(project: Project, fileName = 'untitled.gsproj', f
 	}, { deep: true }));
 
 	projectWatchers.push(watch(appStateManager.state.visualModules, () => {
-		renderer.updateVisualModules(deepClone(appStateManager.state.visualModules.value));
+		renderer.updateDynamicOptions({ visualModules: deepClone(appStateManager.state.visualModules.value) });
 		// 停止中は時刻が変化しないため、モジュールの編集・Undo/Redoでも現在位置を描き直す。
 		// 単体のLIVEプレビュー中は、その描画ループを維持する。
 		previewPlayback.refresh();
 	}, { deep: true }));
 
 	projectWatchers.push(watch(appStateManager.state.timeline, () => {
-		renderer.updateTimeline(deepClone(appStateManager.state.timeline.value));
+		renderer.updateDynamicOptions({ timeline: deepClone(appStateManager.state.timeline.value) });
 		// 編集・Undo/Redo後は現在位置を描き直す。LIVE中はその表示を維持する。
 		previewPlayback.refresh();
 	}, { deep: true }));
