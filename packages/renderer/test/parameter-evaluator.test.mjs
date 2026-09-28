@@ -502,13 +502,14 @@ for (const enable32bitDataTextures of [false, true]) {
 			if (originalQueue) Object.defineProperty(globalThis, 'GPUQueue', originalQueue);
 			else delete globalThis.GPUQueue;
 		});
-		const { VisualModuleRenderer } = await loadSource('visual-module-renderer');
+		const { VisualModuleRenderer } = await loadShaderSource(fileURLToPath(new URL('../src/visual-module-renderer.ts', import.meta.url)));
 		const writes = [];
 		const renderedValues = [];
 		const allocated = [];
 		const createTexture = (descriptor = {}) => { const texture = { ...descriptor, createView: () => ({}), destroy() {} }; allocated.push(texture); return texture; };
 		const device = {
 			createTexture,
+			createShaderModule: () => ({}),
 			queue: { writeTexture({ texture }, data, layout) {
 				texture.data = Array.from(data);
 				writes.push({ texture, data: data.slice(), layout });
@@ -525,7 +526,7 @@ for (const enable32bitDataTextures of [false, true]) {
 		} };
 		const output = createTexture();
 		const renderer = new VisualModuleRenderer({
-			gpuDevice: device, gpuContext: {}, defaultVertexShaderModule: {}, timingHelper: {},
+			gpuDevice: device, gpuContext: {}, timingHelper: null,
 			enableStats: false, enable32bitDataTextures, intermediateTextureFormat: 'rgba8unorm',
 			resolution: { width: 16, height: 16 }, fallbackTexture: createTexture(),
 			videoFrames: new Map(), videoFrameVersions: new Map(), assetTextures: new Map(), audioSources: new Map(), assets: [],

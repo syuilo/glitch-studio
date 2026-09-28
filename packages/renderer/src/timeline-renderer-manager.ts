@@ -50,7 +50,7 @@ export type TimelineRendererManagerEvents = {
 };
 
 export class TimelineRendererManager extends EventEmitter<{
-	'ev': (ctx: { type: keyof TimelineRendererManagerEvents; ctx: Parameters<TimelineRendererManagerEvents[keyof TimelineRendererManagerEvents]>[0] }) => void;
+	'ev': (ctx: { [K in keyof TimelineRendererManagerEvents]: { type: K; ctx: Parameters<TimelineRendererManagerEvents[K]>[0] } }[keyof TimelineRendererManagerEvents]) => void;
 }> {
 	private timelineRenderer: TimelineRenderer<NodeOutput, Timeline[number]>;
 	private previewRenderGeneration = 0;
@@ -157,6 +157,8 @@ export class TimelineRendererManager extends EventEmitter<{
 		// 後から届いたモジュール編集やFPS変更を古い更新で巻き戻してしまう。
 		// Asset一覧だけはテクスチャと同時に切り替えるため、ここではマージしない。
 		this.dynamicOptions = { ...this.dynamicOptions, ...synchronousOptions };
+		this.canvasRenderer.highlightClipping = this.dynamicOptions.highlightClipping;
+		this.canvasRenderer.opaqueOutput = this.dynamicOptions.opaqueOutput;
 
 		if (newOptions.resolution !== undefined || newOptions.visualModules !== undefined || newOptions.timeline !== undefined) {
 			this.clearTimelineRenderers();
@@ -182,7 +184,7 @@ export class TimelineRendererManager extends EventEmitter<{
 
 	/** timeはミリ秒。表示期間中はレイヤーごとのインスタンスと履歴を保持する。 */
 	public async renderTimelineAt(time: number): Promise<void> {
-		const generation = this.previewRenderGeneration;
+		const generation = ++this.previewRenderGeneration;
 		try {
 			if (!Number.isFinite(time)) throw new Error('Timeline time must be finite');
 			await this.timelineRenderer.renderAt(time, this.dynamicOptions.timeline);
@@ -305,25 +307,33 @@ export async function createManager(options: {
 		throw new Error('need a browser that supports WebGPU');
 	}
 
-	const context = options.canvas.getContext('webgpu');
-	const histogramContext = options.histogramCanvas.getContext('webgpu');
-	const waveformHorizontalContext = options.waveformHorizontalCanvas.getContext('webgpu');
-	const waveformVerticalContext = options.waveformVerticalCanvas.getContext('webgpu');
-	if (!(context instanceof GPUCanvasContext) || !(histogramContext instanceof GPUCanvasContext) || !(waveformHorizontalContext instanceof GPUCanvasContext) || !(waveformVerticalContext instanceof GPUCanvasContext)) {
-		throw new Error('cannot get webgpu context');
+	let manager: TimelineRendererManager | undefined;
+	try {
+		const context = options.canvas.getContext('webgpu');
+		const histogramContext = options.histogramCanvas.getContext('webgpu');
+		const waveformHorizontalContext = options.waveformHorizontalCanvas.getContext('webgpu');
+		const waveformVerticalContext = options.waveformVerticalCanvas.getContext('webgpu');
+		if (!(context instanceof GPUCanvasContext) || !(histogramContext instanceof GPUCanvasContext) || !(waveformHorizontalContext instanceof GPUCanvasContext) || !(waveformVerticalContext instanceof GPUCanvasContext)) {
+			throw new Error('cannot get webgpu context');
+		}
+
+		manager = new TimelineRendererManager({
+			gpuDevice: device,
+			gpuContext: context,
+			histogramGpuContext: histogramContext,
+			waveformHorizontalGpuContext: waveformHorizontalContext,
+			waveformVerticalGpuContext: waveformVerticalContext,
+			effectDefinitions: options.effectDefinitions,
+			effectImplementations: options.effectImplementations,
+		}, options.staticOptions);
+
+		await manager.updateDynamicOptions(options.dynamicOptions);
+
+		return manager;
+	} catch (error) {
+		// 呼び出し元にはまだmanagerを返していないため、ここでリソースを回収する。
+		if (manager != null) manager.destroy();
+		else device.destroy();
+		throw error;
 	}
-
-	const manager = new TimelineRendererManager({
-		gpuDevice: device,
-		gpuContext: context,
-		histogramGpuContext: histogramContext,
-		waveformHorizontalGpuContext: waveformHorizontalContext,
-		waveformVerticalGpuContext: waveformVerticalContext,
-		effectDefinitions: options.effectDefinitions,
-		effectImplementations: options.effectImplementations,
-	}, options.staticOptions);
-
-	await manager.updateDynamicOptions(options.dynamicOptions);
-
-	return manager;
 }

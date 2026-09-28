@@ -3,7 +3,6 @@ import { genId } from '@glitch/shared/utility/id.ts';
 import { genEmptyValue } from '@glitch/shared/utility/misc.ts';
 import EventEmitter from 'eventemitter3';
 import { AssetTextures } from './asset-textures.ts';
-import defaultVertexShaderCode from './vertex.wgsl?raw';
 import TimingHelper from './utility/TimingHelper.ts';
 import { NonNegativeRollingAverage } from './utility/NonNegativeRollingAverage.ts';
 import { GpuMemoryTracker } from './utility/GpuMemoryTracker.ts';
@@ -57,7 +56,7 @@ export type VisualModuleRendererManagerEvents = {
 };
 
 export class VisualModuleRendererManager extends EventEmitter<{
-	'ev': (ctx: { type: keyof VisualModuleRendererManagerEvents; ctx: Parameters<VisualModuleRendererManagerEvents[keyof VisualModuleRendererManagerEvents]>[0] }) => void;
+	'ev': (ctx: { [K in keyof VisualModuleRendererManagerEvents]: { type: K; ctx: Parameters<VisualModuleRendererManagerEvents[K]>[0] } }[keyof VisualModuleRendererManagerEvents]) => void;
 }> {
 	private previewRenderGeneration = 0;
 	private gpuContext: GPUCanvasContext;
@@ -240,6 +239,8 @@ export class VisualModuleRendererManager extends EventEmitter<{
 		// 後から届いたモジュール編集やFPS変更を古い更新で巻き戻してしまう。
 		// Asset一覧だけはテクスチャと同時に切り替えるため、ここではマージしない。
 		this.dynamicOptions = { ...this.dynamicOptions, ...synchronousOptions };
+		this.canvasRenderer.highlightClipping = this.dynamicOptions.highlightClipping;
+		this.canvasRenderer.opaqueOutput = this.dynamicOptions.opaqueOutput;
 
 		if (newOptions.resolution !== undefined) {
 			const canvas = this.gpuContext.canvas;
@@ -412,25 +413,33 @@ export async function createManager(options: {
 		throw new Error('need a browser that supports WebGPU');
 	}
 
-	const context = options.canvas.getContext('webgpu');
-	const histogramContext = options.histogramCanvas.getContext('webgpu');
-	const waveformHorizontalContext = options.waveformHorizontalCanvas.getContext('webgpu');
-	const waveformVerticalContext = options.waveformVerticalCanvas.getContext('webgpu');
-	if (!(context instanceof GPUCanvasContext) || !(histogramContext instanceof GPUCanvasContext) || !(waveformHorizontalContext instanceof GPUCanvasContext) || !(waveformVerticalContext instanceof GPUCanvasContext)) {
-		throw new Error('cannot get webgpu context');
+	let manager: VisualModuleRendererManager | undefined;
+	try {
+		const context = options.canvas.getContext('webgpu');
+		const histogramContext = options.histogramCanvas.getContext('webgpu');
+		const waveformHorizontalContext = options.waveformHorizontalCanvas.getContext('webgpu');
+		const waveformVerticalContext = options.waveformVerticalCanvas.getContext('webgpu');
+		if (!(context instanceof GPUCanvasContext) || !(histogramContext instanceof GPUCanvasContext) || !(waveformHorizontalContext instanceof GPUCanvasContext) || !(waveformVerticalContext instanceof GPUCanvasContext)) {
+			throw new Error('cannot get webgpu context');
+		}
+
+		manager = new VisualModuleRendererManager({
+			gpuDevice: device,
+			gpuContext: context,
+			histogramGpuContext: histogramContext,
+			waveformHorizontalGpuContext: waveformHorizontalContext,
+			waveformVerticalGpuContext: waveformVerticalContext,
+			effectDefinitions: options.effectDefinitions,
+			effectImplementations: options.effectImplementations,
+		}, options.staticOptions);
+
+		await manager.updateDynamicOptions(options.dynamicOptions);
+
+		return manager;
+	} catch (error) {
+		// 呼び出し元にはまだmanagerを返していないため、ここでリソースを回収する。
+		if (manager != null) manager.destroy();
+		else device.destroy();
+		throw error;
 	}
-
-	const manager = new VisualModuleRendererManager({
-		gpuDevice: device,
-		gpuContext: context,
-		histogramGpuContext: histogramContext,
-		waveformHorizontalGpuContext: waveformHorizontalContext,
-		waveformVerticalGpuContext: waveformVerticalContext,
-		effectDefinitions: options.effectDefinitions,
-		effectImplementations: options.effectImplementations,
-	}, options.staticOptions);
-
-	await manager.updateDynamicOptions(options.dynamicOptions);
-
-	return manager;
 }
