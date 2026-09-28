@@ -9,6 +9,7 @@ import TimingHelper from './utility/TimingHelper.ts';
 import { ParameterEvaluator } from './parameter-evaluator.ts';
 import { moduleVariables } from './expression-scope.ts';
 import { getEvaluatedParam, mapNodeParam, walkNodeParams } from './utility/node-params.ts';
+import defaultVertexShaderCode from './vertex.wgsl?raw';
 import type { EvaluatedParameterValues, ParameterEvaluationContext } from './parameter-evaluator.ts';
 import type { NodeOutput } from './node-output.ts';
 import type { EffectStatus, EffectInstanceState } from '@glitch/shared/effect/effect-status.ts';
@@ -82,7 +83,6 @@ export class VisualModuleRenderer {
 		timingHelper: TimingHelper;
 		gpuDevice: GPUDevice;
 		gpuContext: GPUCanvasContext;
-		defaultVertexShaderModule: GPUShaderModule;
 		fallbackTexture: GPUTexture;
 		resolution: { width: number; height: number; };
 		enable32bitDataTextures: boolean;
@@ -98,7 +98,6 @@ export class VisualModuleRenderer {
 	}) {
 		this.gpuDevice = options.gpuDevice;
 		this.gpuContext = options.gpuContext;
-		this.defaultVertexShaderModule = options.defaultVertexShaderModule;
 		this.fallbackTexture = options.fallbackTexture;
 		this.paramDefs = options.visualModule.paramDefs;
 		this.onEffectState = options.onEffectState;
@@ -115,6 +114,10 @@ export class VisualModuleRenderer {
 		this.effectDefinitions = options.effectDefinitions;
 		this.effectImplementations = options.effectImplementations;
 		this.updateVisualModule(options.visualModule);
+
+		this.defaultVertexShaderModule = this.gpuDevice.createShaderModule({
+			code: defaultVertexShaderCode,
+		});
 	}
 
 	public updateVisualModule(visualModule: VisualModule) {

@@ -1,8 +1,8 @@
 import { effectDefinitions } from '@glitch/shared/effect/effect-definitions.ts';
 import { effectImplementations } from '@glitch/shared/effect/effect-implementations.js';
-import { MainRenderer, type RendererDynamicOptions, type RendererStaticOptions } from './renderer.ts';
+import { createManager, VisualModuleRendererManager } from './visual-module-renderer-manager.ts';
 
-let renderer: MainRenderer | null = null;
+let manager: VisualModuleRendererManager | null = null;
 let canvas: OffscreenCanvas | null = null;
 let histogramCanvas: OffscreenCanvas | null = null;
 let waveformHorizontalCanvas: OffscreenCanvas | null = null;
@@ -18,18 +18,18 @@ function reportPreviewError(message: string | null) {
 }
 
 setInterval(() => {
-	if (renderer == null) return;
+	if (manager == null) return;
 	self.postMessage({ type: 'telemetry', stats: {
-		fpsAverage: renderer.fpsAverage.get(),
-		gpuAverageFast: renderer.gpuAverageFast.get(),
-		gpuAverageMedium: renderer.gpuAverageMedium.get(),
-		gpuAverageSlow: renderer.gpuAverageSlow.get(),
+		fpsAverage: manager.fpsAverage.get(),
+		gpuAverageFast: manager.gpuAverageFast.get(),
+		gpuAverageMedium: manager.gpuAverageMedium.get(),
+		gpuAverageSlow: manager.gpuAverageSlow.get(),
 	} });
 }, 100);
 
 function reportGpuMemory() {
-	if (renderer == null) return;
-	self.postMessage({ type: 'gpuMemory', usage: renderer.gpuMemory.getUsage() });
+	if (manager == null) return;
+	self.postMessage({ type: 'gpuMemory', usage: manager.gpuMemory.getUsage() });
 }
 
 setInterval(reportGpuMemory, 1000);
@@ -45,69 +45,36 @@ onmessage = async (event) => {
 				waveformHorizontalCanvas = event.data.waveformHorizontalCanvas as OffscreenCanvas;
 				waveformVerticalCanvas = event.data.waveformVerticalCanvas as OffscreenCanvas;
 
-				const rendererStaticOptions: RendererStaticOptions = event.data.rendererStaticOptions;
-				const rendererDynamicOptions: Partial<RendererDynamicOptions> = event.data.rendererDynamicOptions;
-
-				const adapter = await navigator.gpu?.requestAdapter({
-					powerPreference: 'high-performance',
-				});
-
-				const device = await adapter?.requestDevice({
-					requiredFeatures: [
-						...(rendererStaticOptions.enable32bitDataTextures ? ['float32-filterable'] as const : []),
-						...(rendererStaticOptions.enableStats ? ['timestamp-query'] as const : []),
-					],
-				});
-				if (device == null) {
-					//window.alert('need a browser that supports WebGPU');
-					throw new Error('need a browser that supports WebGPU');
-				}
-
-				const context = canvas.getContext('webgpu');
-				const histogramContext = histogramCanvas.getContext('webgpu');
-				const waveformHorizontalContext = waveformHorizontalCanvas.getContext('webgpu');
-				const waveformVerticalContext = waveformVerticalCanvas.getContext('webgpu');
-				if (!(context instanceof GPUCanvasContext) || !(histogramContext instanceof GPUCanvasContext)
-					|| !(waveformHorizontalContext instanceof GPUCanvasContext) || !(waveformVerticalContext instanceof GPUCanvasContext)) {
-					//window.alert('cannot get webgpu context');
-					throw new Error('cannot get webgpu context');
-				}
-
-				renderer = new MainRenderer({
+				manager = await createManager({
+					canvas,
+					histogramCanvas,
+					waveformHorizontalCanvas,
+					waveformVerticalCanvas,
+					staticOptions: event.data.staticOptions,
+					dynamicOptions: event.data.dynamicOptions,
+					effectDefinitions,
+					effectImplementations,
 					onEffectState: (source, nodeId, state) => self.postMessage({ type: 'effectState', source, nodeId, state }),
 					onPreviewError: reportPreviewError,
-					gpuDevice: device,
-					gpuContext: context,
-					histogramGpuContext: histogramContext,
-					waveformHorizontalGpuContext: waveformHorizontalContext,
-					waveformVerticalGpuContext: waveformVerticalContext,
-					effectDefinitions: effectDefinitions,
-					effectImplementations: effectImplementations,
-				}, rendererStaticOptions);
-
-				//renderer.on('ev', ({ type, ctx }) => {
-				//	self.postMessage({ type: 'ev', ev: { type, ctx } });
-				//});
-
-				await renderer.updateDynamicOptions(rendererDynamicOptions);
+				});
 
 				self.postMessage({ type: 'inited' });
 				reportGpuMemory();
 			} catch (error) {
-				renderer?.destroy();
-				renderer = null;
+				manager?.destroy();
+				manager = null;
 				self.postMessage({ type: 'initError', message: error instanceof Error ? error.message : String(error) });
 			}
 			break;
 		}
 		case 'call': {
 			try {
-				if (renderer == null) throw new Error('Renderer is not initialized');
+				if (manager == null) throw new Error('Renderer is not initialized');
 				// Worker越しのメッセージは実行時に届くため、呼び出せるメソッドか確認する。
-				const method = Reflect.get(renderer, event.data.fn);
-				if (typeof method !== 'function') throw new Error(`Unknown renderer method: ${event.data.fn}`);
+				const method = Reflect.get(manager, event.data.fn);
+				if (typeof method !== 'function') throw new Error(`Unknown manager method: ${event.data.fn}`);
 				// 戻り値不要の呼び出しもawaitし、非同期の失敗を未処理のrejectにしない。
-				const res = await Reflect.apply(method, renderer, event.data.args ?? []);
+				const res = await Reflect.apply(method, manager, event.data.args ?? []);
 				if (event.data.needReturnValue) {
 					self.postMessage({ type: 'return', id: event.data.id, success: true, value: res });
 				}

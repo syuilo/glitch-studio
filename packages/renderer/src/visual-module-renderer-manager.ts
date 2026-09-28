@@ -1,39 +1,31 @@
-import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { AudioHistory } from '@glitch/shared/audio-history.ts';
 import { genId } from '@glitch/shared/utility/id.ts';
 import { genEmptyValue } from '@glitch/shared/utility/misc.ts';
 import { AssetTextures } from './asset-textures.ts';
 import defaultVertexShaderCode from './vertex.wgsl?raw';
 import TimingHelper from './utility/TimingHelper.ts';
-import finalRenderShaderCode from './render.wgsl?raw';
 import { NonNegativeRollingAverage } from './utility/NonNegativeRollingAverage.ts';
 import { GpuHistogram } from './utility/histogram/GpuHistogram.ts';
 import { GpuWaveform } from './utility/waveform/GpuWaveform.ts';
 import { GpuMemoryTracker } from './utility/GpuMemoryTracker.ts';
 import { VisualModuleRenderer } from './visual-module-renderer.ts';
 import { LiveRenderLoop, browserFrameScheduler } from './live-render-loop.ts';
-import { TimelineRenderer } from './timeline-renderer.ts';
-import { createVisualModuleTimelineLayer } from './visual-module-timeline-layer.ts';
-import { createTimelineCompositor } from './timeline-compositor.ts';
-import { TimelineCompositingParameters } from './timeline-compositing-parameters.ts';
 import { ParameterEvaluator } from './parameter-evaluator.ts';
 import { layerVariables } from './expression-scope.ts';
 import { OutputTextureResolver } from './node-output.ts';
+import { CanvasRenderer } from './canvas-renderer.ts';
 import type { VisualModuleCustomParameterId, VisualModule, VisualModuleParameterBindings } from '@glitch/shared/visual-module/types.ts';
-import type { NodeOutput } from './node-output.ts';
 import type { FrameScheduler, LiveFrameTiming } from './live-render-loop.ts';
-import type { TimelineLayerRenderer } from './timeline-renderer.ts';
 import type { EffectInstanceState, EffectStatusSource } from '@glitch/shared/effect/effect-status.ts';
 import type { AudioCaptureMessage, AudioSourceId } from '@glitch/shared/audio.ts';
 import type { Asset, IntermediateTextureFormat, Player } from '@glitch/shared/types.ts';
-import type { Timeline, TimelineVisualModuleLayer } from '@glitch/shared/timeline/types.ts';
 import type { EffectImplementation } from '@glitch/shared/effect/effect-implementation.js';
 import type { EffectDefinition } from '@glitch/shared/effect/effect-definition.js';
 
 /**
- * Renderer初期化時に決まっている必要がある設定情報
+ * 初期化時に決まっている必要がある設定情報
  */
-export type RendererStaticOptions = {
+export type VisualModuleRendererManagerStaticOptions = {
 	enable32bitDataTextures: boolean;
 	/** 画像の中間テクスチャ形式。Canvas・データ用テクスチャには適用しない。 */
 	intermediateTextureFormat: IntermediateTextureFormat;
@@ -41,9 +33,9 @@ export type RendererStaticOptions = {
 };
 
 /**
- * Renderer初期化後に変更可能な設定情報
+ * 初期化後に変更可能な設定情報
  */
-export type RendererDynamicOptions = {
+export type VisualModuleRendererManagerDynamicOptions = {
 	resolution: {
 		width: number;
 		height: number;
@@ -56,18 +48,15 @@ export type RendererDynamicOptions = {
 	fpsLimit: number | null;
 	assets: Asset[];
 	visualModules: VisualModule[];
-	timeline: Timeline;
 };
 
-export class MainRenderer {
-	private timelineRenderer: TimelineRenderer<NodeOutput, Timeline[number]>;
+export class VisualModuleRendererManager {
 	private onEffectState?: (source: EffectStatusSource, nodeId: string, status: EffectInstanceState | null) => void;
 	private onPreviewError?: (message: string | null) => void;
 	private previewRenderGeneration = 0;
-	private nextTimelineLayerStatusId = 0;
 	private gpuContext: GPUCanvasContext;
 	private gpuDevice: GPUDevice;
-	private defaultVertexShaderModule: GPUShaderModule;
+	private canvasRenderer: CanvasRenderer;
 	private fallbackTexture: GPUTexture;
 	private outputTextures: OutputTextureResolver;
 	private frameScheduler: FrameScheduler;
@@ -82,18 +71,8 @@ export class MainRenderer {
 	private audioSources = new Map<AudioSourceId, AudioHistory>();
 	private audioPorts = new Map<AudioSourceId, MessagePort>();
 	private timingHelper: TimingHelper;
-	private finalRenderSampler: GPUSampler;
-	private finalRenderPipeline: GPURenderPipeline;
-	private finalRenderUniformValues: ReturnType<typeof makeStructuredView>;
-	private finalRenderUniformBuffer: GPUBuffer;
-	private finalRenderBindGroup: GPUBindGroup | null = null;
-	private latestRenderedToCanasTexture: GPUTexture | null = null;
 	private pointerPosition: { x: number; y: number } = { x: -99999, y: -99999 };
 	private pointerPositionPrev: { x: number; y: number } = { x: -99999, y: -99999 };
-	private lastPointerUpdateTimestamp = 0;
-	private gpuHistogram?: GpuHistogram;
-	private gpuWaveformHorizontal?: GpuWaveform;
-	private gpuWaveformVertical?: GpuWaveform;
 	private effectDefinitions: Record<string, EffectDefinition<any>>;
 	private effectImplementations: Record<string, EffectImplementation<any>>;
 	public gpuAverageFast = new NonNegativeRollingAverage(10);
@@ -102,8 +81,8 @@ export class MainRenderer {
 	public fpsAverage = new NonNegativeRollingAverage(30);
 	public readonly gpuMemory: GpuMemoryTracker;
 
-	private readonly staticOptions: RendererStaticOptions;
-	private dynamicOptions: RendererDynamicOptions = {
+	private readonly staticOptions: VisualModuleRendererManagerStaticOptions;
+	private dynamicOptions: VisualModuleRendererManagerDynamicOptions = {
 		resolution: { width: 1, height: 1 },
 		highlightClipping: false,
 		liveTimeFactor: 1.0,
@@ -111,7 +90,6 @@ export class MainRenderer {
 		opaqueOutput: false,
 		assets: [],
 		visualModules: [],
-		timeline: [],
 	};
 
 	constructor(coreConfig: {
@@ -125,7 +103,7 @@ export class MainRenderer {
 		waveformVerticalGpuContext?: GPUCanvasContext;
 		effectDefinitions: Record<string, EffectDefinition<any>>;
 		effectImplementations: Record<string, EffectImplementation<any>>;
-	}, staticOptions: RendererStaticOptions) {
+	}, staticOptions: VisualModuleRendererManagerStaticOptions) {
 		this.staticOptions = { ...staticOptions };
 
 		this.onEffectState = coreConfig.onEffectState;
@@ -153,25 +131,6 @@ export class MainRenderer {
 		this.effectImplementations = coreConfig.effectImplementations;
 
 		this.gpuMemory = new GpuMemoryTracker(this.gpuDevice);
-
-		if (coreConfig.histogramGpuContext) this.gpuHistogram = new GpuHistogram(
-			this.gpuDevice,
-			coreConfig.histogramGpuContext,
-			navigator.gpu.getPreferredCanvasFormat(),
-		);
-		if (coreConfig.waveformHorizontalGpuContext) this.gpuWaveformHorizontal = new GpuWaveform(
-			this.gpuDevice,
-			coreConfig.waveformHorizontalGpuContext,
-			navigator.gpu.getPreferredCanvasFormat(),
-		);
-
-		if (coreConfig.waveformVerticalGpuContext) this.gpuWaveformVertical = new GpuWaveform(
-			this.gpuDevice,
-			coreConfig.waveformVerticalGpuContext,
-			navigator.gpu.getPreferredCanvasFormat(),
-			'y',
-		);
-
 		this.timingHelper = new TimingHelper(this.gpuDevice);
 
 		this.gpuContext.configure({
@@ -192,59 +151,13 @@ export class MainRenderer {
 			code: defaultVertexShaderCode,
 		});
 
-		const finalRenderShaderModule = this.gpuDevice.createShaderModule({
-			code: finalRenderShaderCode,
+		this.canvasRenderer = new CanvasRenderer({
+			gpuDevice: this.gpuDevice,
+			gpuContext: this.gpuContext,
+			histogramGpuContext: coreConfig.histogramGpuContext,
+			waveformHorizontalGpuContext: coreConfig.waveformHorizontalGpuContext,
+			waveformVerticalGpuContext: coreConfig.waveformVerticalGpuContext,
 		});
-
-		const finalRenderShaderDataDefinitions = makeShaderDataDefinitions(finalRenderShaderCode);
-
-		this.finalRenderSampler = this.gpuDevice.createSampler({ minFilter: 'linear', magFilter: 'linear' });
-		this.finalRenderPipeline = this.gpuDevice.createRenderPipeline({
-			vertex: {
-				module: this.defaultVertexShaderModule,
-			},
-			fragment: {
-				module: finalRenderShaderModule,
-				targets: [{
-					format: navigator.gpu.getPreferredCanvasFormat(),
-				}],
-			},
-			primitive: {
-				topology: 'triangle-list',
-			},
-			layout: 'auto',
-		});
-
-		this.finalRenderUniformValues = makeStructuredView(finalRenderShaderDataDefinitions.uniforms.uniforms);
-
-		this.finalRenderUniformBuffer = this.gpuDevice.createBuffer({
-			size: this.finalRenderUniformValues.arrayBuffer.byteLength,
-			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-		});
-
-		this.timelineRenderer = new TimelineRenderer<NodeOutput, Timeline[number]>({
-			fallbackOutput: { kind: 'texture', texture: this.fallbackTexture },
-			createLayer: entry => this.createTimelineLayer(entry),
-			present: (output, gpuTime) => {
-				const commandEncoder = this.gpuDevice.createCommandEncoder();
-				this.renderToCanvas(output, commandEncoder);
-				this.gpuDevice.queue.submit([commandEncoder.finish()]);
-				if (this.staticOptions.enableStats) {
-					this.gpuAverageFast.addSample(gpuTime / 1000);
-					this.gpuAverageMedium.addSample(gpuTime / 1000);
-					this.gpuAverageSlow.addSample(gpuTime / 1000);
-				}
-			},
-			onClear: () => {
-				this.finalRenderBindGroup = null;
-				this.latestRenderedToCanasTexture = null;
-			},
-		});
-	}
-
-	private clearTimelineRenderers() {
-		this.previewRenderGeneration++;
-		this.timelineRenderer.clear();
 	}
 
 	public attachAudioSource(id: AudioSourceId, port: MessagePort) {
@@ -295,20 +208,16 @@ export class MainRenderer {
 
 	public updatePointerPosition(newPointerPosition: { x: number; y: number }) {
 		this.pointerPosition = newPointerPosition;
-		this.lastPointerUpdateTimestamp = this.frameScheduler.now();
 	}
 
 	// (非workerで)呼び出すときは値を独立した参照にすること！ パフォーマンス上の理由でこちら側ではdeepCloneしません
-	public async updateDynamicOptions(newOptions: Partial<RendererDynamicOptions>) {
+	public async updateDynamicOptions(newOptions: Partial<VisualModuleRendererManagerDynamicOptions>) {
 		const { assets, ...synchronousOptions } = newOptions;
 		// 通常の設定は呼び出し順に反映する。画像のデコード完了を待ってから反映すると、
 		// 後から届いたモジュール編集やFPS変更を古い更新で巻き戻してしまう。
 		// Asset一覧だけはテクスチャと同時に切り替えるため、ここではマージしない。
 		this.dynamicOptions = { ...this.dynamicOptions, ...synchronousOptions };
 
-		if (newOptions.resolution !== undefined || newOptions.visualModules !== undefined || newOptions.timeline !== undefined) {
-			this.clearTimelineRenderers();
-		}
 		if (newOptions.resolution !== undefined) {
 			const canvas = this.gpuContext.canvas;
 			if (canvas.width !== this.dynamicOptions.resolution.width) canvas.width = this.dynamicOptions.resolution.width;
@@ -337,149 +246,13 @@ export class MainRenderer {
 		return this.assetTextures.update(assets, () => {
 			// 世代管理で採用された更新だけが一覧とキャッシュを切り替える。
 			// 中断されたデコードの完了後に、Asset一覧だけを上書きしてはいけない。
-			this.clearTimelineRenderers();
 			this.dynamicOptions.assets = assets;
 			this.liveVisualModuleRenderer?.updateAssets(assets);
 		});
 	}
 
-	private renderToCanvas(output: NodeOutput, commandEncoder: GPUCommandEncoder) {
-		const tex = this.outputTextures.resolve(output);
-		if (this.finalRenderBindGroup == null || this.latestRenderedToCanasTexture !== tex) {
-			this.latestRenderedToCanasTexture = tex;
-			this.finalRenderBindGroup = this.gpuDevice.createBindGroup({
-				layout: this.finalRenderPipeline.getBindGroupLayout(0),
-				entries: [
-					{ binding: 1, resource: { buffer: this.finalRenderUniformBuffer } },
-					{ binding: 3, resource: this.finalRenderSampler },
-					{ binding: 2, resource: tex.createView() }, // TODO: cache view
-				],
-			});
-		}
-
-		this.finalRenderUniformValues.set({
-			highlightClipping: this.dynamicOptions.highlightClipping ? 1 : 0,
-			opaqueOutput: this.dynamicOptions.opaqueOutput ? 1 : 0,
-		});
-		this.gpuDevice.queue.writeBuffer(this.finalRenderUniformBuffer, 0, this.finalRenderUniformValues.arrayBuffer);
-
-		const passEncoder = commandEncoder.beginRenderPass({
-			colorAttachments: [{
-				view: this.gpuContext.getCurrentTexture().createView(),
-				clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
-				loadOp: 'clear',
-				storeOp: 'store',
-			}],
-		});
-		passEncoder.setPipeline(this.finalRenderPipeline);
-		passEncoder.setBindGroup(0, this.finalRenderBindGroup);
-		passEncoder.draw(6);
-		passEncoder.end();
-
-		this.gpuHistogram?.render(commandEncoder, tex);
-		this.gpuWaveformHorizontal?.render(commandEncoder, tex);
-		this.gpuWaveformVertical?.render(commandEncoder, tex);
-	}
-
-	/** timeはミリ秒。表示期間中はレイヤーごとのインスタンスと履歴を保持する。 */
-	public async renderTimelineAt(time: number): Promise<void> {
-		this.stopRenderLoop();
-		const generation = this.previewRenderGeneration;
-		try {
-			if (!Number.isFinite(time)) throw new Error('Timeline time must be finite');
-			await this.timelineRenderer.renderAt(time, this.dynamicOptions.timeline);
-			// 中断されたシークの完了で、新しい描画のエラーを消さない。
-			if (generation === this.previewRenderGeneration) this.setPreviewError(null);
-		} catch (error) {
-			if (generation === this.previewRenderGeneration) this.setPreviewError(error instanceof Error ? error.message : String(error));
-		}
-	}
-
 	private setPreviewError(message: string | null) {
 		this.onPreviewError?.(message);
-	}
-
-	/** 専用インスタンスで順番に呼び、フレーム間の履歴と一定の経過時間を保持する。 */
-	public async renderTimelineFrame(time: number, timeDelta: number): Promise<void> {
-		await this.timelineRenderer.renderAt(time, this.dynamicOptions.timeline, timeDelta, true);
-	}
-
-	private createTimelineLayer(layer: Timeline[number]): TimelineLayerRenderer<NodeOutput> | undefined {
-		// レイヤーの種類の解釈とリソース解決は、タイムライン制御の外側で行う。
-		switch (layer.layerType) {
-			case 'visualModule': {
-				const visualModule = this.dynamicOptions.visualModules.find(module => module.id === layer.visualModuleId);
-				if (visualModule == null) return;
-				return this.createVisualModuleLayer(visualModule, layer);
-			}
-		}
-	}
-
-	private createVisualModuleLayer(visualModule: VisualModule, layer: TimelineVisualModuleLayer): TimelineLayerRenderer<NodeOutput> {
-		const statusSource: EffectStatusSource = {
-			type: 'timelineLayer',
-			instanceId: `timeline:${this.nextTimelineLayerStatusId++}`,
-			visualModuleId: visualModule.id,
-			layerId: layer.id,
-		};
-		const renderer = new VisualModuleRenderer({
-			gpuDevice: this.gpuDevice,
-			gpuContext: this.gpuContext,
-			defaultVertexShaderModule: this.defaultVertexShaderModule,
-			fallbackTexture: this.fallbackTexture,
-			resolution: this.dynamicOptions.resolution,
-			enable32bitDataTextures: this.staticOptions.enable32bitDataTextures,
-			intermediateTextureFormat: this.staticOptions.intermediateTextureFormat,
-			enableStats: this.staticOptions.enableStats,
-			timingHelper: this.timingHelper,
-			onEffectState: (nodeId, status) => this.onEffectState?.(statusSource, nodeId, status),
-			videoFrames: this.videoFrames,
-			videoFrameVersions: this.videoFrameVersions,
-			assets: this.dynamicOptions.assets,
-			visualModule,
-			assetTextures: this.assetTextures.textures,
-			audioSources: this.audioSources,
-			effectDefinitions: this.effectDefinitions,
-			effectImplementations: this.effectImplementations,
-		});
-		const compositingParameters = new TimelineCompositingParameters();
-		const compositor = createTimelineCompositor({
-			device: this.gpuDevice, vertex: this.defaultVertexShaderModule,
-			resolution: this.dynamicOptions.resolution, format: this.staticOptions.intermediateTextureFormat,
-			beginPass: (encoder, descriptor) => this.staticOptions.enableStats
-				? this.timingHelper.beginRenderPass(encoder, descriptor)
-				: encoder.beginRenderPass(descriptor),
-		});
-		return createVisualModuleTimelineLayer(visualModule, layer, {
-			prepare: (context, signal) => renderer.prepare(context, signal),
-			render: async (context, layerContext) => {
-				const commandEncoder = this.gpuDevice.createCommandEncoder();
-				let output: NodeOutput | undefined;
-				let gpuTime = 0;
-				try {
-					output = renderer.render(context, commandEncoder);
-					if (output != null) {
-						const settings = compositingParameters.evaluate({
-							time: context.time,
-							endTime: context.endTime,
-							isExport: context.isExport,
-							paramValues: layer.compositingParamValues,
-							automationGraphs: layer.automationGraphs,
-						});
-						output = compositor.render(commandEncoder, layerContext.input, output, settings);
-					}
-				} finally {
-					// 描画途中の例外でもエンコーダーと計測を完了する。
-					this.gpuDevice.queue.submit([commandEncoder.finish()]);
-					if (this.staticOptions.enableStats) gpuTime = await this.timingHelper.getResult();
-				}
-				return { output, gpuTime };
-			},
-			destroy: () => {
-				compositor.dispose();
-				renderer.destroy();
-			},
-		});
 	}
 
 	public updateLiveParamValues(paramValues: VisualModuleParameterBindings) {
@@ -487,7 +260,6 @@ export class MainRenderer {
 	}
 
 	public startLiveRenderLoopFor(visualModuleId: string, paramValues: VisualModuleParameterBindings = {}, statusInstanceId = genId()) {
-		this.clearTimelineRenderers();
 		this.stopRenderLoop();
 
 		const visualModule = this.dynamicOptions.visualModules.find(g => g.id === visualModuleId);
@@ -499,7 +271,6 @@ export class MainRenderer {
 		this.liveVisualModuleRenderer = new VisualModuleRenderer({
 			gpuDevice: this.gpuDevice,
 			gpuContext: this.gpuContext,
-			defaultVertexShaderModule: this.defaultVertexShaderModule,
 			fallbackTexture: this.fallbackTexture,
 			resolution: this.dynamicOptions.resolution,
 			enable32bitDataTextures: this.staticOptions.enable32bitDataTextures,
@@ -542,7 +313,7 @@ export class MainRenderer {
 				}, genEmptyValue(def))); // TODO: genEmptyValueを遅延評価したい
 			}
 
-			const tex = this.liveVisualModuleRenderer.render({
+			const nodeOutput = this.liveVisualModuleRenderer.render({
 				evaluatedParamValues: evaluatedParamValues,
 				time: timing.time,
 				timeDelta: timing.timeDelta,
@@ -551,9 +322,10 @@ export class MainRenderer {
 				pointerPositionPrev: this.pointerPositionPrev,
 				isExport: false,
 			}, commandEncoder);
-			if (tex == null) return;
+			if (nodeOutput == null) return;
 
-			this.renderToCanvas(tex, commandEncoder);
+			const tex = this.outputTextures.resolve(nodeOutput);
+			this.canvasRenderer.renderToCanvas(tex, commandEncoder);
 
 			this.pointerPositionPrev = { ...this.pointerPosition };
 
@@ -584,17 +356,64 @@ export class MainRenderer {
 
 	public destroy() {
 		this.stopRenderLoop();
-		this.clearTimelineRenderers();
 		this.outputTextures.dispose();
 		this.assetTextures.dispose();
 		for (const id of this.audioPorts.keys()) this.resetAudioSource(id, null);
 		for (const frame of this.videoFrames.values()) frame.close();
 		this.videoFrames.clear();
 		this.videoFrameVersions.clear();
-		this.gpuHistogram?.dispose();
-		this.gpuWaveformHorizontal?.dispose();
-		this.gpuWaveformVertical?.dispose();
-
+		this.canvasRenderer.destroy();
 		this.gpuDevice?.destroy();
 	}
+}
+
+export async function createManager(options: {
+	canvas: OffscreenCanvas;
+	histogramCanvas: OffscreenCanvas;
+	waveformHorizontalCanvas: OffscreenCanvas;
+	waveformVerticalCanvas: OffscreenCanvas;
+	staticOptions: VisualModuleRendererManagerStaticOptions;
+	dynamicOptions: Partial<VisualModuleRendererManagerDynamicOptions>;
+	effectDefinitions: Record<string, EffectDefinition>;
+	effectImplementations: Record<string, EffectImplementation>;
+	reportPreviewError: (message: string | null) => void;
+	onEffectState: (source: EffectStatusSource, nodeId: string, status: EffectInstanceState | null) => void;
+}) {
+	const adapter = await navigator.gpu?.requestAdapter({
+		powerPreference: 'high-performance',
+	});
+
+	const device = await adapter?.requestDevice({
+		requiredFeatures: [
+			...(options.staticOptions.enable32bitDataTextures ? ['float32-filterable'] as const : []),
+			...(options.staticOptions.enableStats ? ['timestamp-query'] as const : []),
+		],
+	});
+	if (device == null) {
+		throw new Error('need a browser that supports WebGPU');
+	}
+
+	const context = options.canvas.getContext('webgpu');
+	const histogramContext = options.histogramCanvas.getContext('webgpu');
+	const waveformHorizontalContext = options.waveformHorizontalCanvas.getContext('webgpu');
+	const waveformVerticalContext = options.waveformVerticalCanvas.getContext('webgpu');
+	if (!(context instanceof GPUCanvasContext) || !(histogramContext instanceof GPUCanvasContext) || !(waveformHorizontalContext instanceof GPUCanvasContext) || !(waveformVerticalContext instanceof GPUCanvasContext)) {
+		throw new Error('cannot get webgpu context');
+	}
+
+	const manager = new VisualModuleRendererManager({
+		onEffectState: options.onEffectState,
+		onPreviewError: options.reportPreviewError,
+		gpuDevice: device,
+		gpuContext: context,
+		histogramGpuContext: histogramContext,
+		waveformHorizontalGpuContext: waveformHorizontalContext,
+		waveformVerticalGpuContext: waveformVerticalContext,
+		effectDefinitions: options.effectDefinitions,
+		effectImplementations: options.effectImplementations,
+	}, options.staticOptions);
+
+	await manager.updateDynamicOptions(options.dynamicOptions);
+
+	return manager;
 }
