@@ -1,6 +1,6 @@
 <template>
 <div ref="rootEl" :class="$style.root">
-	<GsButton :class="$style.open" iconOnly small @click="openGridPad"><i class="ti ti-arrows-move"></i></GsButton>
+	<GsButton :class="$style.open" :primary="gridPadOpened" iconOnly small @click="openGridPad"><i class="ti ti-arrows-move"></i></GsButton>
 
 	<GsInput :class="$style.input" small type="number" :modelValue="value[0]" :min="min" :max="max" :step="step" @update:modelValue="setValue(Number($event), value[1], 'x')">
 		<template #prefix>X:</template>
