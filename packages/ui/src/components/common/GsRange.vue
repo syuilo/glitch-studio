@@ -69,6 +69,7 @@ const containerEl = useTemplateRef('containerEl');
 const thumbEl = useTemplateRef('thumbEl');
 
 const useLogarithmic = computed(() => props.logarithmic && props.min > 0 && props.max > props.min);
+
 function formatValue(value: number): string {
 	if (props.textConverter) return props.textConverter(value);
 	// 小さなSizeが0と表示されないよう、対数操作では有効桁数で表示する。

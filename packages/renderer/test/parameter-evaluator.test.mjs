@@ -27,7 +27,6 @@ async function loadSource(name) {
 	return module.exports;
 }
 const { ParameterEvaluator } = await loadSource('parameter-evaluator');
-const { moduleVariables } = await loadSource('expression-scope');
 
 const { genEmptyValue } = await loadSource('../../shared/src/utility/misc');
 // TimingHelperは読み込み時にGPUQueue.prototypeを参照するため、レンダラーより先に用意する。
@@ -36,7 +35,14 @@ const { VisualModuleRenderer } = await loadShaderSource(fileURLToPath(new URL('.
 
 // 外部値を単一値APIで用意し、内部ノードの列挙は実際のレンダラーで検証する。
 function evaluate(evaluator, input) {
-	const variables = moduleVariables({ ...input, isExport: input.isExport ?? false });
+	// 呼び出し側の評価スコープは明示する。モジュール内部の変数は実際のレンダラーが構築する。
+	const variables = {
+		WIDTH: input.resolution.width, HEIGHT: input.resolution.height,
+		TIME: input.time / 1000, TIME_MS: input.time,
+		END_TIME: input.endTime / 1000, END_TIME_MS: input.endTime,
+		PROGRESS: input.time / input.endTime, IS_EXPORT: input.isExport ?? false,
+		TEST_ONLY_VM: true, TEST_SAME_NAME: 1,
+	};
 	const paramValues = new Map();
 	for (const def of input.paramDefs) {
 		if (input.inputParamIds.has(def.id)) continue;

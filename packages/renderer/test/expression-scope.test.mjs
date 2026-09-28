@@ -6,15 +6,21 @@ import { loadShaderSource } from './helpers/load-shader-source.mjs';
 const load = path => loadShaderSource(fileURLToPath(new URL(path, import.meta.url)));
 const { genEmptyValue } = await load('../../shared/src/utility/misc.ts');
 const { ParameterEvaluator } = await load('../src/parameter-evaluator.ts');
-const { layerVariables, moduleVariables } = await load('../src/expression-scope.ts');
 const { createVisualModuleTimelineLayer } = await load('../src/visual-module-timeline-layer.ts');
-const { moduleEnvVarDefs, layerEnvVarDefs } = await load('../../shared/src/expression.ts');
+const { IN_VISUAL_MODULE_VAR_DEFS, LAYER_VAR_DEFS } = await load('../../shared/src/expression.ts');
+// GPUを初期化せず、レンダラーが実際に構築する式のスコープを検証する。
+globalThis.GPUQueue = class { submit() {} };
+const { VisualModuleRenderer } = await load('../src/visual-module-renderer.ts');
 const literal = value => ({ inputSource: 'literal', value });
 const expression = expression => ({ inputSource: 'expression', expression });
 const def = (id, value = 7) => ({ id, nameForReference: id, dataType: { kind: 'scalar' }, ui: { label: id, control: { controlType: 'number' } }, defaultValue: literal(value), isPrimaryInput: false, canNode: false });
 const frame = { time: 500, endTime: 2000, isExport: true };
-const layerScope = { ...frame, variables: layerVariables(frame), automationGraphs: [] };
-const moduleScope = { ...frame, variables: moduleVariables({ ...frame, resolution: { width: 800, height: 400 } }), automationGraphs: [] };
+const layerScope = { ...frame, variables: { TEST_ONLY_LAYER: true, TEST_SAME_NAME: 2, IS_EXPORT: true }, automationGraphs: [] };
+const moduleScope = { ...frame, variables: {
+	WIDTH: 800, HEIGHT: 400, TIME: 0.5, TIME_MS: 500,
+	END_TIME: 2, END_TIME_MS: 2000, PROGRESS: 0.25, IS_EXPORT: true,
+	TEST_ONLY_VM: true, TEST_SAME_NAME: 1,
+}, automationGraphs: [] };
 // 評価器には単一の値と、その式で参照可能な評価済み値だけを渡す。
 function nodes(evaluator, params, scope = moduleScope, external = new Map(), defs = [], inputIds = new Set()) {
 	const context = { ...scope,
@@ -32,11 +38,30 @@ function externalValues(evaluator, defs, params, scope) {
 	}));
 }
 
-// UIの候補と実際の環境を一致させ、レイヤーには指定された3変数だけを公開する。
-test('exposes exactly the declared variables for each scope', () => {
-	assert.deepEqual(Object.keys(layerScope.variables).sort(), [...layerEnvVarDefs].sort());
-	assert.deepEqual(Object.keys(moduleScope.variables).sort(), [...moduleEnvVarDefs].sort());
-	assert.deepEqual(layerScope.variables, { TEST_ONLY_LAYER: true, TEST_SAME_NAME: 2, IS_EXPORT: true });
+// 【各スコープが宣言した変数だけを公開する】
+// テスト用の値だけでなく実際の呼び出し元を通し、UIの候補と評価環境のずれを検出する。
+test('exposes exactly the declared variables for each scope', async () => {
+	let moduleVariables;
+	const renderer = Object.assign(Object.create(VisualModuleRenderer.prototype), {
+		resolution: { width: 800, height: 400 }, paramDefs: [], automationGraphs: [],
+		nodes: [{ id: 'probe', type: 'effect', effectId: 'probe', params: { value: literal(0) } }],
+		effectDefinitions: { probe: { paramDefs: { value: def('value') } } },
+		parameterEvaluator: { evaluate(binding, context) { moduleVariables = context.variables; return 0; } },
+	});
+	renderer.evaluateParameters({ ...frame, evaluatedParamValues: new Map() });
+	assert.deepEqual(Object.keys(moduleVariables).sort(), [...IN_VISUAL_MODULE_VAR_DEFS].sort());
+	assert.deepEqual(moduleVariables, moduleScope.variables);
+	assert.deepEqual(Object.keys(layerScope.variables).sort(), [...LAYER_VAR_DEFS].sort());
+	// モジュール専用変数も照会し、レイヤーへ漏れていないことを確認する。
+	const names = [...new Set([...IN_VISUAL_MODULE_VAR_DEFS, ...LAYER_VAR_DEFS])];
+	let layerValues;
+	const adapter = createVisualModuleTimelineLayer({ paramDefs: names.map(name => def(name)) }, {
+		automationGraphs: [], paramValues: Object.fromEntries(names.map(name => [name, expression(name)])),
+	}, {
+		async prepare(context) { layerValues = context.evaluatedParamValues; }, render() {}, destroy() {},
+	});
+	await adapter.prepare({ ...frame, timeDelta: 0 }, new AbortController().signal);
+	assert.deepEqual(Object.fromEntries(layerValues), Object.fromEntries(names.map(name => [name, layerScope.variables[name] ?? 0])));
 });
 
 // 単独変数の高速経路・通常の式・環境変数指定すべてで、双方向のスコープ混入を防ぐ。

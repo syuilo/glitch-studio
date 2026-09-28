@@ -118,7 +118,7 @@ function fixture() {
 	const node = { id: 'node', type: 'effect', effectId: 'test', params: { values: { inputSource: 'literal', value: [initial] } } };
 	const state = {
 		visualModules: { value: [{ id: 'module', nodes: [node], paramDefs: [{ id: 'gain', defaultValue: initial, isPrimaryInput: false }] }] },
-		timeline: { value: [{ id: 'layer', visualModuleId: 'module', paramValues: {}, compositingParamValues: defaultCompositing(), automationGraphs: [] }] },
+		timeline: { value: [{ id: 'layer', layerType: 'visualModule', visualModuleId: 'module', startTimeMs: 0, endTimeMs: 1000, paramValues: {}, compositingParamValues: defaultCompositing(), automationGraphs: [] }] },
 	};
 	return { state, node, target: { visualModuleId: 'module', nodeId: 'node', paramPath: ['values', 0] } };
 }
