@@ -16,7 +16,7 @@
 		<XGrid
 			v-if="gridPadOpened"
 			:modelValue="value"
-			:anchorElement="rootEl"
+			:anchorElement="rootEl!"
 			:lockedRatio="lockedRatio"
 			:min="min"
 			:max="max"
