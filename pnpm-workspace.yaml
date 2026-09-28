@@ -1,3 +1,4 @@
+packageImportMethod: copy # Codexのサンドボックス内で場合によっては特定パッケージのアクセス権が不足する現象を回避するため
 packages:
   - packages/shared
   - packages/renderer
