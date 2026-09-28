@@ -177,6 +177,9 @@ importers:
       '@syuilo/aiscript':
         specifier: 1.2.1
         version: 1.2.1
+      eventemitter3:
+        specifier: 5.0.4
+        version: 5.0.4
       webgpu-utils:
         specifier: 2.1.1
         version: 2.1.1

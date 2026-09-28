@@ -23,6 +23,7 @@
 	"dependencies": {
 		"@glitch/shared": "workspace:*",
 		"@syuilo/aiscript": "1.2.1",
+		"eventemitter3": "5.0.4",
 		"webgpu-utils": "2.1.1"
 	}
 }

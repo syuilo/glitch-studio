@@ -1,3 +1,5 @@
+// Managerクラスのメソッドの呼び出しやイベント通知を行うだけ。独自の処理を追加しないこと！ そうしないとWorkerでの利用と非Workerでの利用で機能に差が生まれることになる
+
 import { effectDefinitions } from '@glitch/shared/effect/effect-definitions.ts';
 import { effectImplementations } from '@glitch/shared/effect/effect-implementations.js';
 import { createManager, TimelineRendererManager } from './timeline-renderer-manager.ts';
@@ -9,12 +11,12 @@ let waveformHorizontalCanvas: OffscreenCanvas | null = null;
 let waveformVerticalCanvas: OffscreenCanvas | null = null;
 let previewError: string | null = null;
 
-function reportPreviewError(message: string | null) {
+function reportError(message: string | null) {
 	// 描画・操作の両方のエラーを扱い、成功した描画で解除する。
 	// 同じグラフの失敗が続いても、毎フレームUIへ通知しない。
 	if (previewError === message) return;
 	previewError = message;
-	self.postMessage({ type: 'previewError', message });
+	self.postMessage({ type: 'error', message });
 }
 
 onmessage = async (event) => {
@@ -38,7 +40,11 @@ onmessage = async (event) => {
 					effectDefinitions,
 					effectImplementations,
 					onEffectState: (source, nodeId, state) => self.postMessage({ type: 'effectState', source, nodeId, state }),
-					onPreviewError: reportPreviewError,
+					onPreviewError: reportError,
+				});
+
+				manager.on('ev', ({ type, ctx }) => {
+					self.postMessage({ type: 'ev', ev: { type, ctx } });
 				});
 
 				self.postMessage({ type: 'inited' });
@@ -62,7 +68,7 @@ onmessage = async (event) => {
 				}
 			} catch (error) {
 				if (!event.data.needReturnValue) {
-					reportPreviewError(error instanceof Error ? error.message : String(error));
+					reportError(error instanceof Error ? error.message : String(error));
 					break;
 				}
 				// 任意のthrow値には複製できないオブジェクトも含まれるため、エラー情報だけを返す。

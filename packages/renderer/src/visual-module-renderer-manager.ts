@@ -1,12 +1,11 @@
 import { AudioHistory } from '@glitch/shared/audio-history.ts';
 import { genId } from '@glitch/shared/utility/id.ts';
 import { genEmptyValue } from '@glitch/shared/utility/misc.ts';
+import EventEmitter from 'eventemitter3';
 import { AssetTextures } from './asset-textures.ts';
 import defaultVertexShaderCode from './vertex.wgsl?raw';
 import TimingHelper from './utility/TimingHelper.ts';
 import { NonNegativeRollingAverage } from './utility/NonNegativeRollingAverage.ts';
-import { GpuHistogram } from './utility/histogram/GpuHistogram.ts';
-import { GpuWaveform } from './utility/waveform/GpuWaveform.ts';
 import { GpuMemoryTracker } from './utility/GpuMemoryTracker.ts';
 import { VisualModuleRenderer } from './visual-module-renderer.ts';
 import { LiveRenderLoop, browserFrameScheduler } from './live-render-loop.ts';
@@ -50,7 +49,9 @@ export type VisualModuleRendererManagerDynamicOptions = {
 	visualModules: VisualModule[];
 };
 
-export class VisualModuleRendererManager {
+export class VisualModuleRendererManager extends EventEmitter<{
+	'ev': (ctx: { type: keyof EVs; ctx: Parameters<EVs[keyof EVs]>[0] }) => void;
+}> {
 	private onEffectState?: (source: EffectStatusSource, nodeId: string, status: EffectInstanceState | null) => void;
 	private onPreviewError?: (message: string | null) => void;
 	private previewRenderGeneration = 0;
@@ -104,6 +105,8 @@ export class VisualModuleRendererManager {
 		effectDefinitions: Record<string, EffectDefinition<any>>;
 		effectImplementations: Record<string, EffectImplementation<any>>;
 	}, staticOptions: VisualModuleRendererManagerStaticOptions) {
+		super();
+
 		this.staticOptions = { ...staticOptions };
 
 		this.onEffectState = coreConfig.onEffectState;

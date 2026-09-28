@@ -1,3 +1,4 @@
+import EventEmitter from 'eventemitter3';
 import { AssetTextures } from './asset-textures.ts';
 import defaultVertexShaderCode from './vertex.wgsl?raw';
 import { VisualModuleRenderer } from './visual-module-renderer.ts';
@@ -43,7 +44,9 @@ export type TimelineRendererManagerDynamicOptions = {
 	timeline: Timeline;
 };
 
-export class TimelineRendererManager {
+export class TimelineRendererManager extends EventEmitter<{
+	'ev': (ctx: { type: keyof EVs; ctx: Parameters<EVs[keyof EVs]>[0] }) => void;
+}> {
 	private timelineRenderer: TimelineRenderer<NodeOutput, Timeline[number]>;
 	private onEffectState?: (source: EffectStatusSource, nodeId: string, status: EffectInstanceState | null) => void;
 	private onPreviewError?: (message: string | null) => void;
@@ -81,6 +84,8 @@ export class TimelineRendererManager {
 		effectDefinitions: Record<string, EffectDefinition<any>>;
 		effectImplementations: Record<string, EffectImplementation<any>>;
 	}, staticOptions: TimelineRendererManagerStaticOptions) {
+		super();
+
 		this.staticOptions = { ...staticOptions };
 
 		this.onEffectState = coreConfig.onEffectState;
