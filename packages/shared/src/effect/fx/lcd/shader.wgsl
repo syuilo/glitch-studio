@@ -12,10 +12,11 @@ struct FragmentIn {
 @fragment
 fn fs(fragData: FragmentIn) -> @location(0) vec4f {
 	// セルの寸法も入力参照と同じ[-1, 1]単位。中央原点のまま格子を求める。
-	let gridPosition = fragData.position / uniforms.cellSize;
+	// 中央に1セルを配置し、Density=1の正方形出力でセル全体が画面に収まるようにする。
+	let gridPosition = fragData.position / uniforms.cellSize + vec2f(0.5);
 	let cellIndex = floor(gridPosition);
 	let localPosition = gridPosition - cellIndex;
-	let cellCenter = (cellIndex + 0.5) * uniforms.cellSize;
+	let cellCenter = cellIndex * uniforms.cellSize;
 	let sourceColor = read_input(cellCenter);
 
 	var rgb: vec3f;

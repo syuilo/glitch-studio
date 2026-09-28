@@ -1,7 +1,6 @@
 struct Uniforms {
 	aspect: vec2f,
-	sizeScale: vec2f,
-	pixelSize: f32,
+	referenceExtent: vec2f,
 	majorWidth: f32,
 	minorDivisions: f32,
 	minorWidth: f32,
@@ -27,11 +26,10 @@ fn gridDistance(gridPosition: vec2f) -> f32 {
 fn fs(fragData: FragmentIn) -> @location(0) vec4f {
 	let backgroundColor = read_background(fragData.position);
 	let angle = read_angle(fragData.position) * 3.141592653589793;
-	let inputSize = read_size(fragData.position);
-	// 正の値はfitModeで選んだ基準領域の割合を短辺基準の座標へ変換する。
-	// 各軸とも0以下のときだけfitModeによらず出力の1pxを周期にし、正の値は1px未満も許す。
-	let size = select(min(inputSize, vec2f(1.0)) * uniforms.sizeScale, vec2f(uniforms.pixelSize), inputSize <= vec2f(0.0));
-	// 短辺全体が1となる中央原点の座標にし、sizeのX/Yで縦横の間隔を指定する。
+	// Densityは基準領域あたりの周期数。1未満を1にし、画素数による下限や密度の上限は設けない。
+	let density = max(read_density(fragData.position), vec2f(1.0));
+	let size = uniforms.referenceExtent / density;
+	// 短辺全体が1となる中央原点の座標にし、セル寸法のX/Yで縦横の間隔を指定する。
 	let centeredPosition = fragData.position * 0.5 * uniforms.aspect;
 	let cosine = cos(angle);
 	let sine = sin(angle);
@@ -42,7 +40,7 @@ fn fs(fragData: FragmentIn) -> @location(0) vec4f {
 	var lineColor = vec4f(0.0);
 	let gridPosition = rotatedPosition / size;
 	// 線幅はそれぞれの格子間隔に対する割合。格子座標のまま判定し、
-	// sizeを下げると間隔と線幅が一緒に縮むようにする。
+	// Densityを上げると間隔と線幅が一緒に縮むようにする。
 	if (gridDistance(gridPosition) < uniforms.majorWidth * 0.5) {
 		lineColor = uniforms.majorColor;
 	} else if (uniforms.minorDivisions > 0.0) {

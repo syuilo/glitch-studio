@@ -20,7 +20,7 @@ export default implementEffect<typeof definition>({
 		const group = device.createBindGroup({ layout, entries: [{ binding: 0, resource: { buffer: uniformBuffer } }] });
 		const pipelines = createShaderInputPipeline({
 			device, vertex: wgpu.defaultVertexShaderModule, code,
-			schema: { background: 'color', angle: 'scalar', size: 'vector' },
+			schema: { background: 'color', angle: 'scalar', density: 'vector' },
 			targets: [{ format: wgpu.intermediateTextureFormat }],
 			internalLayouts: [layout],
 		});
@@ -32,10 +32,9 @@ export default implementEffect<typeof definition>({
 				const extent = ctx.params.fitMode === 'cover' ? Math.max(output.width, output.height) : shortDimension;
 				uniformValues.set({
 					aspect: [output.width / shortDimension, output.height / shortDimension],
-					sizeScale: ctx.params.fitMode === 'stretch'
+					referenceExtent: ctx.params.fitMode === 'stretch'
 						? [output.width / shortDimension, output.height / shortDimension]
 						: [extent / shortDimension, extent / shortDimension],
-					pixelSize: 1 / shortDimension,
 					majorWidth: Math.max(0, ctx.params.majorWidth),
 					majorColor: ctx.params.majorColor,
 					minorDivisions: Math.max(0, Math.floor(ctx.params.minorDivisions)),
@@ -43,7 +42,7 @@ export default implementEffect<typeof definition>({
 					minorColor: ctx.params.minorColor,
 				});
 				device.queue.writeBuffer(uniformBuffer, 0, uniformValues.arrayBuffer);
-				const variant = pipelines.update({ background: ctx.params.background, angle: ctx.params.angle, size: ctx.params.size }, output);
+				const variant = pipelines.update({ background: ctx.params.background, angle: ctx.params.angle, density: ctx.params.density }, output);
 				const pass = ctx.createPassEncoderFor(ctx.commandEncoder, ctx.outputDataMap.output.textureView);
 				pass.setPipeline(variant.pipeline);
 				pass.setBindGroup(0, group);

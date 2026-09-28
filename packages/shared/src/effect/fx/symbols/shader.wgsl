@@ -5,7 +5,7 @@ fn modVec2f(a: vec2f, b: vec2f) -> vec2f {
 
 struct Uniforms {
 	aspectRatio: f32,
-	divisions: f32,
+	density: f32,
 	margin: f32,
 	symbolTexturesCount: u32,
 	symbolTexturesRangeMin: f32,
@@ -74,7 +74,8 @@ struct FragmentIn {
 @fragment
 fn fs(fragData: FragmentIn) -> @location(0) vec4f {
 	let uv = scaleUvToCoverGivenAspectRatio(fragData.uv, uniforms.aspectRatio);
-	var cellSize = vec2f(2.0 / uniforms.divisions);
+	// 長辺基準の基本セル密度。類似色による2×2・4×4の結合前の寸法を指定する。
+	var cellSize = vec2f(2.0 / uniforms.density);
 	var border = uniforms.margin;
 	var modUv = modVec2f(uv, cellSize);
 

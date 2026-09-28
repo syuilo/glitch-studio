@@ -5,8 +5,7 @@
 
 struct Uniforms {
 	aspect: vec2f,
-	sizeScale: vec2f,
-	pixelSize: f32,
+	referenceExtent: vec2f,
 	color: vec4f,
 };
 
@@ -20,12 +19,10 @@ struct FragmentIn {
 fn fs(fragData: FragmentIn) -> @location(0) vec4f {
 	let backgroundColor = read_background(fragData.position);
 	let angle = read_angle(fragData.position) * 3.141592653589793;
-	let inputSize = read_size(fragData.position);
-	// 正の値はfitModeで選んだ基準領域の割合を短辺基準の座標へ変換する。
-	// チェック模様は各軸2マスで一巡するため、sizeは1周期の大きさとし、1マスはその半分にする。
-	// Stretch・Size=[1, 1]・Angle=0では、2×2マスの1周期が画面全体を覆う。
-	// 各軸とも0以下のときだけfitModeによらず1マスを出力の1pxにし、正の値は1px未満も許す。
-	let cellSize = select(min(inputSize, vec2f(1.0)) * uniforms.sizeScale * 0.5, vec2f(uniforms.pixelSize), inputSize <= vec2f(0.0));
+	// Densityは基準領域あたりの周期数。1未満を1にし、画素数による下限や密度の上限は設けない。
+	let density = max(read_density(fragData.position), vec2f(1.0));
+	// 各軸2マスで1周期。Stretch・Density=[1, 1]・Angle=0なら1周期が画面全体を覆う。
+	let cellSize = uniforms.referenceExtent / density * 0.5;
 	// 短辺基準で縦横の単位を揃え、長方形のマス目でも回転による歪みを防ぐ。
 	let centeredUv = fragData.position * 0.5 * uniforms.aspect;
 	let cosine = cos(angle);

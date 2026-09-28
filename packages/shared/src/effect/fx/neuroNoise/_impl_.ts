@@ -64,7 +64,7 @@ export default implementEffect<typeof definition>({
 				uniformValues.set({
 					coordinateScale: ctx.params.fitMode === 'stretch' ? [1, 1] : [output.width / extent, output.height / extent],
 					offset: ctx.params.offset,
-					scale: Math.max(0.01, ctx.params.scale),
+					density: Math.max(1, ctx.params.density),
 					angle: ctx.params.angle * Math.PI,
 					brightness: Math.max(0, Math.min(1, ctx.params.brightness)),
 					contrast: Math.max(0, Math.min(1, ctx.params.contrast)),

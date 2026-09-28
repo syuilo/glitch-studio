@@ -1,7 +1,6 @@
 struct Uniforms {
 	aspect: vec2f,
-	sizeScale: f32,
-	pixelSize: f32,
+	referenceExtent: f32,
 	threshold: f32,
 	color: vec4f,
 };
@@ -16,10 +15,9 @@ struct FragmentIn {
 fn fs(fragData: FragmentIn) -> @location(0) vec4f {
 	let backgroundColor = read_background(fragData.position);
 	let angle = read_angle(fragData.position) * 3.141592653589793;
-	let inputSize = read_size(fragData.position);
-	// Sizeは選択した基準領域に対する1周期の割合。
-	// 0以下のときだけ出力の1pxを周期とし、正の値は1px未満も許す。
-	let size = select(min(inputSize, 1.0) * uniforms.sizeScale, uniforms.pixelSize, inputSize <= 0.0);
+	// Densityは基準領域あたりの周期数。1未満を1にし、画素数による下限や密度の上限は設けない。
+	let density = max(read_density(fragData.position), 1.0);
+	let size = uniforms.referenceExtent / density;
 	let centeredUv = fragData.position * 0.5 * uniforms.aspect;
 	// Checkerと同じ角度の向き・回転順序で、縞のローカルX座標を求める。
 	let rotatedX = centeredUv.x * cos(angle) - centeredUv.y * sin(angle);

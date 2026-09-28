@@ -35,7 +35,7 @@ export default implementEffect<typeof definition>({
 					colorHighlight: [...p.colorHighlight, p.colorHighlightAlpha],
 					// Upstream frame is milliseconds; explicit time supports deterministic seeking.
 					time: p.time * p.speed + p.frame / 1000,
-					size: Math.max(0.01, p.size),
+					density: Math.max(1, p.density),
 				});
 				device.queue.writeBuffer(uniformBuffer, 0, uniformValues.arrayBuffer);
 				const variant = pipelines.update({ input: ctx.params.input }, ctx.outputDataMap.output.texture);

@@ -1,7 +1,6 @@
 struct Uniforms {
 	aspect: vec2f,
-	sizeScale: vec2f,
-	pixelSize: f32,
+	referenceExtent: vec2f,
 	lineWidth: f32,
 	lineColor: vec4f,
 };
@@ -30,10 +29,10 @@ fn hexEdgeDistance(position: vec2f) -> f32 {
 fn fs(fragData: FragmentIn) -> @location(0) vec4f {
 	let backgroundColor = read_background(fragData.position);
 	let angle = read_angle(fragData.position) * 3.141592653589793;
-	let inputSize = read_size(fragData.position);
-	// Sizeが等しく、fitがcover/containなら正六角形になる。
-	// Sizeは対辺間距離の基準倍率。0以下の軸だけ出力の1pxに置き換える。
-	let size = select(min(inputSize, vec2f(1.0)) * uniforms.sizeScale, vec2f(uniforms.pixelSize), inputSize <= vec2f(0.0));
+	// Densityは基準領域あたりの周期数。1未満を1にし、画素数による下限や密度の上限は設けない。
+	let density = max(read_density(fragData.position), vec2f(1.0));
+	// 六角セルでは対辺間距離を基準寸法 / Densityとする。
+	let size = uniforms.referenceExtent / density;
 	let centeredPosition = fragData.position * 0.5 * uniforms.aspect;
 	let cosine = cos(angle);
 	let sine = sin(angle);
@@ -41,7 +40,7 @@ fn fs(fragData: FragmentIn) -> @location(0) vec4f {
 		centeredPosition.x * cosine - centeredPosition.y * sine,
 		centeredPosition.x * sine + centeredPosition.y * cosine,
 	);
-	// 線幅は六角セルの対辺間距離に対する割合で、Sizeと一緒に拡縮する。
+	// 線幅は六角セルの対辺間距離に対する割合で、セル寸法と一緒に拡縮する。
 	let edgeDistance = hexEdgeDistance(rotatedPosition / size);
 	let isLine = uniforms.lineWidth > 0.0 && edgeDistance <= uniforms.lineWidth * 0.5;
 	// セル内部はBackgroundをそのまま表示し、線の部分だけを着色する。

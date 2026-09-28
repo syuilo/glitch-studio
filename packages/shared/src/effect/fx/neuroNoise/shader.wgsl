@@ -7,7 +7,7 @@
 struct Uniforms {
 	coordinateScale: vec2f,
 	offset: vec2f,
-	scale: f32,
+	density: f32,
 	angle: f32,
 	brightness: f32,
 	contrast: f32,
@@ -41,10 +41,11 @@ fn fs(@location(0) position: vec2f) -> @location(0) vec4f {
 	let background = read_background(position);
 	let frontColor = read_colorFront(position);
 	let midColor = read_colorMid(position);
-	// 元のピクセル依存の密度を、基準領域1000px相当の一定密度に置き換える。
-	// 1000 * 0.01（元の頂点シェーダー）* 0.13（元のfragment）= 1.3。
+	// Fit Modeの基準領域全体を1単位とし、Densityを直接掛ける。
+	// 非周期の多層ノイズなので、周期数ではなく基準座標の密度を表す。
+	// 旧Scale=1の座標倍率1.3はDensityの初期値へ移し、見た目を保つ。
 	// offsetは半幅・半高さが1、Angleは1で時計回り180度というアプリの単位。
-	let shapeUV = rotate((position - uniforms.offset) * uniforms.coordinateScale * 0.5, uniforms.angle) / uniforms.scale * 1.3;
+	let shapeUV = rotate((position - uniforms.offset) * uniforms.coordinateScale * 0.5, uniforms.angle) * uniforms.density;
 	var intensity = neuroShape(shapeUV);
 	intensity = (1.0 + uniforms.brightness) * intensity * intensity;
 	intensity = min(1.4, pow(intensity, 0.7 + 6.0 * uniforms.contrast));

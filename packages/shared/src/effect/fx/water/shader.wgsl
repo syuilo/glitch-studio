@@ -13,7 +13,7 @@ struct Uniforms {
 	edges: f32, // Caustic distortion power on the image edges (0 to 1)
 	waves: f32, // Additional simplex noise distortion, independent from caustic (0 to 1)
 	caustic: f32, // Power of caustic distortion, needs image (0 to 1)
-	size: f32, // Pattern scale relative to the image (0.01 to 7)
+	density: f32,
 };
 @group(0) @binding(0) var<uniform> uniforms: Uniforms;
 
@@ -70,8 +70,10 @@ fn snoise(v: vec2f) -> f32 {
 fn fs(frag: FragmentIn) -> @location(0) vec4f {
 	// 端のマスクだけは[0, 1]を使い、変位と入力参照は中央原点で扱う。
 	let imageUV = vec2f(frag.uv.x, -frag.uv.y) * 0.5 + vec2f(0.5);
-	var patternUV = frag.uv * vec2f(uniforms.aspectRatio, -1.0);
-	patternUV /= 0.01 + 0.09 * uniforms.size;
+	// 出力の高さ全体を基準の1単位とし、Densityを模様の座標に直接掛ける。
+	// 複数の波・ノイズを重ねるため周期数ではなく基準座標の密度。画素数には依存しない。
+	// 旧Size=1では座標が10倍だったため、半幅座標から換算した初期Densityは20。
+	let patternUV = frag.uv * vec2f(uniforms.aspectRatio, -1.0) * 0.5 * uniforms.density;
 	let t = uniforms.time;
 	let wavesNoise = snoise((0.3 + 0.1 * sin(t)) * 0.1 * patternUV + vec2f(0.0, 0.4 * t));
 	var causticNoise = getCausticNoise(patternUV + uniforms.waves * vec2f(1.0, -1.0) * wavesNoise, 2.0 * t, 1.5);

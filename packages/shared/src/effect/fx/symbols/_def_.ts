@@ -13,7 +13,7 @@ export default defineEffect({
 		},
 		highlightClipThreshold: { dataType: { kind: 'scalar' }, ui: { label: 'Highlight Clip Threshold', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } }, defaultValue: { inputSource: 'literal', value: 0.8 } },
 		shadowClipThreshold: { dataType: { kind: 'scalar' }, ui: { label: 'Shadow Clip Threshold', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } }, defaultValue: { inputSource: 'literal', value: 0.2 } },
-		divisions: { dataType: { kind: 'scalar' }, ui: { label: 'Cell Divisions', control: { controlType: 'range', min: 8, max: 512, step: 1 } }, defaultValue: { inputSource: 'literal', value: 64 } },
+		density: { dataType: { kind: 'scalar' }, ui: { label: 'Density', control: { controlType: 'range', min: 1, max: 1000, logarithmic: true } }, defaultValue: { inputSource: 'literal', value: 64 } },
 		margin: { dataType: { kind: 'scalar' }, ui: { label: 'Cell Margin', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } }, defaultValue: { inputSource: 'literal', value: 0.25 } },
 		symbolTexturesRangeMin: { dataType: { kind: 'scalar' }, ui: { label: 'Symbol Textures Range Min', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } }, defaultValue: { inputSource: 'literal', value: 0 } },
 		symbolTexturesRangeMax: { dataType: { kind: 'scalar' }, ui: { label: 'Symbol Textures Range Max', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } }, defaultValue: { inputSource: 'literal', value: 1 } },

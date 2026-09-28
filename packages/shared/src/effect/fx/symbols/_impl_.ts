@@ -191,7 +191,7 @@ export default implementEffect<typeof definition>({
 					aspectRatio: output.width / output.height,
 					highlightClipThreshold: ctx.params.highlightClipThreshold,
 					shadowClipThreshold: ctx.params.shadowClipThreshold,
-					divisions: ctx.params.divisions,
+					density: Math.max(1, ctx.params.density),
 					margin: ctx.params.margin,
 					symbolTexturesCount: symbolTextureCount,
 					symbolTexturesRangeMin: ctx.params.symbolTexturesRangeMin,

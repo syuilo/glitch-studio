@@ -93,11 +93,13 @@ struct FragmentIn {
 
 @fragment
 fn fs(fragData: FragmentIn) -> @location(0) f32 {
-	let scale = read_scale(fragData.uv);
+	let density = max(read_density(fragData.uv), vec2f(1.0));
 	let outputMin = read_outputMin(fragData.uv);
 	let outputMax = read_outputMax(fragData.uv);
 	let aspectUv = scaleUvToCoverGivenAspectRatio(fragData.uv, uniforms.aspectRatio);
-	let uv = aspectUv * scale + uniforms.offset + uniforms.seedOffset;
+	// 長辺全体をノイズ座標の1単位に揃え、その範囲にDensity単位を配置する。
+	// 非周期ノイズなので「1」は厳密な繰り返し数ではなく基準座標の密度を表す。
+	let uv = aspectUv * 0.5 * density + uniforms.offset + uniforms.seedOffset;
 	let noise = snoise(vec3f(uv.x, uv.y, uniforms.time));
 	// -1〜+1を指定範囲へ写像する。丸め誤差による範囲外の値も抑える。
 	let normalizedNoise = clamp(noise * 0.5 + 0.5, 0.0, 1.0);

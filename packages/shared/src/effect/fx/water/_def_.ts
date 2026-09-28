@@ -15,7 +15,7 @@ export default defineEffect({
 		edges: { dataType: { kind: 'scalar' }, ui: { label: 'Edges', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } }, defaultValue: { inputSource: 'literal', value: 0.8 } },
 		waves: { dataType: { kind: 'scalar' }, ui: { label: 'Waves', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } }, defaultValue: { inputSource: 'literal', value: 0.3 } },
 		caustic: { dataType: { kind: 'scalar' }, ui: { label: 'Caustic', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } }, defaultValue: { inputSource: 'literal', value: 0.1 } },
-		size: { dataType: { kind: 'scalar' }, ui: { label: 'Size', control: { controlType: 'range', min: 0.01, max: 7, step: 0.01 } }, defaultValue: { inputSource: 'literal', value: 1 } },
+		density: { dataType: { kind: 'scalar' }, ui: { label: 'Density', control: { controlType: 'range', min: 1, max: 1000, logarithmic: true } }, defaultValue: { inputSource: 'literal', value: 20 } },
 		time: { dataType: { kind: 'scalar' }, ui: { label: 'Time', control: { controlType: 'number', step: 0.01 } }, defaultValue: { inputSource: 'literal', value: 0 } },
 		speed: { dataType: { kind: 'scalar' }, ui: { label: 'Speed', control: { controlType: 'number', step: 0.01 } }, defaultValue: { inputSource: 'literal', value: 1 } },
 		frame: { dataType: { kind: 'scalar' }, ui: { label: 'Frame offset (ms)', control: { controlType: 'number', step: 1 } }, defaultValue: { inputSource: 'literal', value: 0 } },

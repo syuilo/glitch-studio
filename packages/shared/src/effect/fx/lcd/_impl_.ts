@@ -29,13 +29,14 @@ export default implementEffect<typeof definition>({
 			render: ctx => {
 				const output = ctx.outputDataMap.output.texture;
 				const shortDimension = Math.min(output.width, output.height);
-				// SizeはRGBの3サブピクセルをまとめたセルの、短辺に対する割合。
-				// 0（負値も0扱い）のときだけセルを出力の1pxにし、正の値は1px未満も許す。
-				const size = ctx.params.size <= 0 ? 1 / shortDimension : Math.min(1, ctx.params.size);
+				// DensityはRGBの3サブピクセルをまとめたセルの短辺あたりの数。
+				// 1未満は1にし、密度の上限や1pxの下限は設けない。
+				const density = Math.max(1, ctx.params.density);
 				uniformValues.set({
 					cellSize: [
-						(shortDimension / output.width) * size,
-						(shortDimension / output.height) * size,
+						// [-1, 1]の全幅2へ換算し、Density=1で短辺全体を覆う。
+						2 * (shortDimension / output.width) / density,
+						2 * (shortDimension / output.height) / density,
 					],
 					border: Math.min(1, Math.max(0, ctx.params.border)),
 				});

@@ -6,12 +6,12 @@ export default defineEffect({
 	tags: ['pattern'],
 	paramDefs: {
 		background: { dataType: { kind: 'color' }, ui: { label: 'Background', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },
-		// 元のfrequency=10は角周波数100なので、1周期は2π/100。
-		size: {
+		// 元のfrequency=10は角周波数100なので、周期数は100/(2π)。
+		density: {
 			dataType: { kind: 'scalar' },
-			ui: { label: 'Size', control: { controlType: 'range', min: 0.001, max: 1, logarithmic: true } },
+			ui: { label: 'Density', control: { controlType: 'range', min: 1, max: 1000, logarithmic: true } },
 			canNode: true,
-			defaultValue: { inputSource: 'literal', value: 2 * Math.PI / 100 },
+			defaultValue: { inputSource: 'literal', value: 100 / (2 * Math.PI) },
 		},
 		angle: { dataType: { kind: 'scalar' }, ui: { label: 'Angle', control: { controlType: 'angle' } }, canNode: true, defaultValue: { inputSource: 'literal', value: 0.25 } },
 		threshold: { dataType: { kind: 'scalar' }, ui: { label: 'Width', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } }, defaultValue: { inputSource: 'literal', value: 0.1 } },

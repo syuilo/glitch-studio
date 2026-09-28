@@ -1,7 +1,6 @@
 struct Uniforms {
 	aspect: vec2f,
-	sizeScale: vec2f,
-	pixelSize: f32,
+	referenceExtent: vec2f,
 	majorRadius: f32,
 	minorDivisions: f32,
 	minorRadius: f32,
@@ -26,10 +25,9 @@ fn dotDistance(gridPosition: vec2f) -> f32 {
 fn fs(fragData: FragmentIn) -> @location(0) vec4f {
 	let backgroundColor = read_background(fragData.position);
 	let angle = read_angle(fragData.position) * 3.141592653589793;
-	let inputSize = read_size(fragData.position);
-	// 正の値はfitModeで選んだ基準領域の割合を短辺基準の座標へ変換する。
-	// 各軸とも0以下のときだけfitModeによらず出力の1pxを周期にし、正の値は1px未満も許す。
-	let size = select(min(inputSize, vec2f(1.0)) * uniforms.sizeScale, vec2f(uniforms.pixelSize), inputSize <= vec2f(0.0));
+	// Densityは基準領域あたりの周期数。1未満を1にし、画素数による下限や密度の上限は設けない。
+	let density = max(read_density(fragData.position), vec2f(1.0));
+	let size = uniforms.referenceExtent / density;
 	// 短辺基準で縦横の単位を揃え、楕円のドットでも回転による歪みを防ぐ。
 	let centeredUv = fragData.position * 0.5 * uniforms.aspect;
 	let cosine = cos(angle);

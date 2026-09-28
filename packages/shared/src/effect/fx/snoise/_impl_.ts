@@ -20,7 +20,7 @@ export default implementEffect<typeof definition>({
 		const group = device.createBindGroup({ layout, entries: [{ binding: 0, resource: { buffer: uniformBuffer } }] });
 		const pipelines = createShaderInputPipeline({
 			device, vertex: wgpu.defaultVertexShaderModule, code,
-			schema: { scale: 'vector', outputMin: 'scalar', outputMax: 'scalar' },
+			schema: { density: 'vector', outputMin: 'scalar', outputMax: 'scalar' },
 			targets: [{ format: wgpu.enable32bitDataTextures ? 'r32float' : 'r16float' }],
 			internalLayouts: [layout],
 			sampling: 'level0',
@@ -34,7 +34,7 @@ export default implementEffect<typeof definition>({
 					offset: ctx.params.offset,
 				});
 				device.queue.writeBuffer(uniformBuffer, 0, uniformValues.arrayBuffer);
-				const variant = pipelines.update({ scale: ctx.params.scale, outputMin: ctx.params.outputMin, outputMax: ctx.params.outputMax }, ctx.outputDataMap.output.texture);
+				const variant = pipelines.update({ density: ctx.params.density, outputMin: ctx.params.outputMin, outputMax: ctx.params.outputMax }, ctx.outputDataMap.output.texture);
 				const pass = ctx.createPassEncoderFor(ctx.commandEncoder, ctx.outputDataMap.output.textureView);
 				pass.setPipeline(variant.pipeline);
 				pass.setBindGroup(0, group);

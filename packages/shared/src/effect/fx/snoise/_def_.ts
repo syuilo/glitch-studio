@@ -5,7 +5,7 @@ export default defineEffect({
 	displayName: 'snoise',
 	tags: [],
 	paramDefs: {
-		scale: { dataType: { kind: 'vector' }, ui: { label: 'Scale', control: { controlType: 'vector', min: 0, max: 16, step: 0.01 } }, canNode: true, defaultValue: { inputSource: 'literal', value: [1, 1] } },
+		density: { dataType: { kind: 'vector' }, ui: { label: 'Density', control: { controlType: 'vector', min: 1, max: 1000, logarithmic: true } }, canNode: true, defaultValue: { inputSource: 'literal', value: [2, 2] } },
 		offset: { dataType: { kind: 'vector' }, ui: { label: 'Offset', control: { controlType: 'vector', min: 0, max: 16, step: 0.01 } }, defaultValue: { inputSource: 'literal', value: [0, 0] } },
 		outputMin: { dataType: { kind: 'scalar' }, ui: { label: 'Output Min', control: { controlType: 'number', step: 0.01 } }, canNode: true, defaultValue: { inputSource: 'literal', value: -1 } },
 		outputMax: { dataType: { kind: 'scalar' }, ui: { label: 'Output Max', control: { controlType: 'number', step: 0.01 } }, canNode: true, defaultValue: { inputSource: 'literal', value: 1 } },

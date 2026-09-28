@@ -31,15 +31,15 @@ export default implementEffect<typeof definition>({
 			render: ctx => {
 				const output = ctx.outputDataMap.output.texture;
 				const shortDimension = Math.min(output.width, output.height);
-				// 軸ごとにSize=0（負値も0扱い）だけ1pxとする。正の値は短辺に対する割合。
-				const sizeX = ctx.params.size[0] <= 0 ? 1 / shortDimension : Math.min(1, ctx.params.size[0]);
-				const sizeY = ctx.params.size[1] <= 0 ? 1 / shortDimension : Math.min(1, ctx.params.size[1]);
+				// 短辺あたりのセル数。1未満は1にし、密度の上限や1pxの下限は設けない。
+				const densityX = Math.max(1, ctx.params.density[0]);
+				const densityY = Math.max(1, ctx.params.density[1]);
 				seedValue[0] = ctx.params.seed;
 				uniformValues.set({
 					cellSize: [
-						// 座標の全幅は2。Size=0の軸は2 / 出力寸法となり、ちょうど1pxになる。
-						2 * (shortDimension / output.width) * sizeX,
-						2 * (shortDimension / output.height) * sizeY,
+						// 座標の全幅は2。Density=1なら短辺全体を覆うセルになる。
+						2 * (shortDimension / output.width) / densityX,
+						2 * (shortDimension / output.height) / densityY,
 					],
 					amount: Math.min(1, Math.max(0, ctx.params.amount / 100)),
 					alphaRandomness: Math.min(1, Math.max(0, ctx.params.alphaRandomness)),
