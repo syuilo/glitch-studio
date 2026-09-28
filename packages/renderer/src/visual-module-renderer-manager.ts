@@ -9,7 +9,6 @@ import { GpuMemoryTracker } from './utility/GpuMemoryTracker.ts';
 import { VisualModuleRenderer } from './visual-module-renderer.ts';
 import { LiveRenderLoop, browserFrameScheduler } from './live-render-loop.ts';
 import { ParameterEvaluator } from './parameter-evaluator.ts';
-import { layerVariables } from './expression-scope.ts';
 import { OutputTextureResolver } from './node-output.ts';
 import { CanvasRenderer } from './canvas-renderer.ts';
 import type { VisualModuleCustomParameterId, VisualModule, VisualModuleParameterBindings } from '@glitch/shared/visual-module/types.ts';
@@ -326,7 +325,10 @@ export class VisualModuleRendererManager extends EventEmitter<{
 				}
 				evaluatedParamValues.set(def.id, this.liveParamEvaluator.evaluate(this.liveParamValues[def.id], {
 					evaluatedParamValues: null,
-					variables: layerVariables({ isExport: false }),
+					variables: {
+						TIME: timing.time / 1000,
+						TIME_MS: timing.time,
+					},
 					automationGraphs: [],
 					time: timing.time,
 					endTime: Infinity,
