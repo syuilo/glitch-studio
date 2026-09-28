@@ -11,7 +11,7 @@ export default defineEffect({
 			dataType: { kind: 'vector' },
 			ui: { label: 'Size', control: { controlType: 'vector', min: 0.001, max: 1, logarithmic: true } },
 			canNode: true,
-			defaultValue: { inputSource: 'literal', value: [1 / 3, 1 / 3] },
+			defaultValue: { inputSource: 'literal', value: [0.1, 0.1] },
 		},
 		fitMode: { dataType: { kind: 'fitMode' }, ui: { label: 'Fit Mode', control: {} }, defaultValue: { inputSource: 'literal', value: 'contain' } },
 		randomSwap: { dataType: { kind: 'bool' }, ui: { label: 'Random swap', control: {} }, defaultValue: { inputSource: 'literal', value: true } },

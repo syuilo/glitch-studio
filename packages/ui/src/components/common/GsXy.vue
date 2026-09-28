@@ -20,6 +20,7 @@
 			:lockedRatio="lockedRatio"
 			:min="min"
 			:max="max"
+			:logarithmic="logarithmic"
 			@update:modelValue="setValue($event[0], $event[1])"
 			@closed="closeGridPad"
 			@enableRatioLock="enableRatioLock"
@@ -68,7 +69,7 @@ watch(() => props.modelValue, (newValue) => {
 function setValue(x: number, y: number, changedAxis?: 'x' | 'y') {
 	const ratio = lockedRatio.value;
 	if (ratio == null) {
-		value.value = [Math.round(x * 100) / 100, Math.round(y * 100) / 100];
+		value.value = [Math.round(x * 1000) / 1000, Math.round(y * 1000) / 1000];
 	} else {
 		const [ratioX, ratioY] = ratio;
 		// ポインター位置を比率の直線に射影する。キー操作では指定された軸の値を優先する。
@@ -99,7 +100,7 @@ function setValue(x: number, y: number, changedAxis?: 'x' | 'y') {
 		}
 		scale = Math.min(maxScale, Math.max(minScale, scale));
 		value.value = [ratioX * scale, ratioY * scale];
-		value.value = [Math.round(value.value[0] * 100) / 100, Math.round(value.value[1] * 100) / 100];
+		value.value = [Math.round(value.value[0] * 1000) / 1000, Math.round(value.value[1] * 1000) / 1000];
 	}
 	emit('update:modelValue', value.value);
 }
