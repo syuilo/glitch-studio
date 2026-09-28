@@ -20,7 +20,6 @@ export abstract class RendererManagerControllerBase<T extends VisualModuleRender
 	private onDisposed: (() => void);
 
 	public readonly isReady = ref(false);
-	public errorMessage = ref<string | null>(null);
 
 	constructor(options: {
 		getInitialOptions: RendererManagerControllerBase<T>['getInitialOptions'];
@@ -106,7 +105,6 @@ export abstract class RendererManagerControllerBase<T extends VisualModuleRender
 			if (this.worker !== worker) return;
 			this.isReady.value = false;
 			const error = new Error(event.message || 'Renderer worker failed');
-			this.errorMessage.value = error.message;
 			this.rejectPendingReturns(error);
 			this.rejectInitialization?.(error);
 			this.rejectInitialization = null;
@@ -122,7 +120,6 @@ export abstract class RendererManagerControllerBase<T extends VisualModuleRender
 			switch (event.data?.type) {
 				case 'initError': {
 					this.isReady.value = false;
-					this.errorMessage.value = event.data.message;
 					const error = new Error(event.data.message);
 					this.rejectPendingReturns(error);
 					this.rejectInitialization?.(error);
@@ -132,15 +129,13 @@ export abstract class RendererManagerControllerBase<T extends VisualModuleRender
 				}
 				case 'inited': {
 					this.isReady.value = true;
-					this.errorMessage.value = null;
 					this.rejectInitialization = null;
 					for (const { message, options, onError } of this.pendingCalls) {
 						try {
 							worker.postMessage(message, options);
 						} catch (error) {
-						// 遅延送信の失敗でも待機中のRPCを完了させ、残りの更新は送信する。
+							// 遅延送信の失敗でも待機中のRPCを完了させ、残りの更新は送信する。
 							if (onError) onError(error);
-							else this.errorMessage.value = error instanceof Error ? error.message : String(error);
 						}
 					}
 					this.pendingCalls = [];
@@ -166,12 +161,6 @@ export abstract class RendererManagerControllerBase<T extends VisualModuleRender
 				case 'ev': {
 					const { type, ctx } = event.data.ev;
 					this.managerEventHandlers[type](ctx);
-					break;
-				}
-				case 'previewError': {
-					// 描画できないグラフでも、修正するための更新は送り続ける。
-					// 致命的なWorkerエラー後の遅延通知では、そのエラー表示を上書きしない。
-					if (this.isReady.value) this.errorMessage.value = event.data.message;
 					break;
 				}
 			}

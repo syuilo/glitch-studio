@@ -11,7 +11,7 @@ import { setupWebcam } from './utility/webcam.ts';
 import { RendererManagerControllerBase } from './RendererManagerControllerBase.ts';
 import type { Player } from '@glitch/shared/types.ts';
 import type { VisualModule, VisualModuleParameterBindings } from '@glitch/shared/visual-module/types.ts';
-import type { EffectInstanceState, EffectStatusSource } from '@glitch/shared/effect/effect-status.ts';
+import type { EffectInstanceState } from '@glitch/shared/effect/effect-status.ts';
 import type { VisualModuleRendererManager, VisualModuleRendererManagerStaticOptions, VisualModuleRendererManagerDynamicOptions } from '@glitch/renderer/visual-module-renderer-manager.ts';
 import * as ui from '@/ui.ts';
 
@@ -24,10 +24,9 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 	// Worker再読み込みとエフェクト状態の参照に必要な内部情報。UIの再生状態はPreviewPlaybackControllerが所有する。
 	private liveVisualModuleId = ref<VisualModule['id'] | null>(null);
 	private liveParamValues: VisualModuleParameterBindings = {};
-	private reloadPromise: Promise<void> | null = null;
 	private pointerPosition = { x: 0, y: 0 };
-	private rendererStaticOptions: RendererStaticOptions;
-	private rendererDynamicOptions: Partial<RendererDynamicOptions> & Pick<RendererDynamicOptions, 'assets'> = {
+	private staticOptions: VisualModuleRendererManagerStaticOptions;
+	private dynamicOptions: Partial<VisualModuleRendererManagerDynamicOptions> & Pick<VisualModuleRendererManagerDynamicOptions, 'assets'> = {
 		assets: [],
 	};
 	private players: Player[] = [];
@@ -56,7 +55,7 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 		return this.liveEffectStateStore.get(visualModuleId, nodeId);
 	}
 
-	constructor(rendererStaticOptions: RendererStaticOptions, rendererDynamicOptions: Partial<RendererDynamicOptions>) {
+	constructor(staticOptions: VisualModuleRendererManagerStaticOptions, dynamicOptions: Partial<VisualModuleRendererManagerDynamicOptions>) {
 		super({
 			getInitialOptions: async (isReload) => {
 				if (isReload) {
@@ -79,8 +78,8 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 						histogramCanvas: histogramOffscreen,
 						waveformHorizontalCanvas: waveformHorizontalOffscreen,
 						waveformVerticalCanvas: waveformVerticalOffscreen,
-						rendererStaticOptions: this.rendererStaticOptions,
-						rendererDynamicOptions: this.rendererDynamicOptions,
+						staticOptions: this.staticOptions,
+						dynamicOptions: this.dynamicOptions,
 					},
 					transfer: [
 						offscreen,
@@ -98,16 +97,20 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 					this.gpuMemoryUsage.value = ctx.usage;
 				},
 				effectState: (ctx) => {
-					const { source, nodeId, state } = ctx as { source: EffectStatusSource; nodeId: string; state: EffectInstanceState | null };
-					this.liveEffectStateStore.update(source, nodeId, state);
+					const { source, nodeId, status } = ctx;
+					this.liveEffectStateStore.update(source, nodeId, status);
 				},
 				telemetry: (ctx) => {
-					const { stats } = ctx;
-					this.fpsDisplay.value = stats.fpsAverage;
+					this.fpsDisplay.value = ctx.fpsAverage;
 					// テクスチャのコピーとか全ての処理が計測できているわけではなく、実際よりも少し小さい値になっていると思われるので、少し盛っておく
-					this.gpuAverageDisplayFast.value = stats.gpuAverageFast * 1.2;
-					this.gpuAverageDisplayMedium.value = stats.gpuAverageMedium * 1.2;
-					this.gpuAverageDisplaySlow.value = stats.gpuAverageSlow * 1.2;
+					this.gpuAverageDisplayFast.value = ctx.gpuAverageFast * 1.2;
+					this.gpuAverageDisplayMedium.value = ctx.gpuAverageMedium * 1.2;
+					this.gpuAverageDisplaySlow.value = ctx.gpuAverageSlow * 1.2;
+				},
+				renderError: (ctx) => {
+					// 描画できないグラフでも、修正するための更新は送り続ける。
+					// 致命的なWorkerエラー後の遅延通知では、そのエラー表示を上書きしない。
+					if (this.isReady.value) this.errorMessage.value = ctx.message;
 				},
 			},
 			onCreated: () => {
@@ -152,8 +155,8 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 		this.waveformVerticalCanvas.height = 512;
 		this.waveformVerticalCanvas.style.width = '100%';
 		this.waveformVerticalCanvas.style.height = '100%';
-		this.rendererStaticOptions = rendererStaticOptions;
-		this.rendererDynamicOptions = { ...this.rendererDynamicOptions, ...rendererDynamicOptions };
+		this.staticOptions = staticOptions;
+		this.dynamicOptions = { ...this.dynamicOptions, ...dynamicOptions };
 	}
 
 	private async sendPendingVideoFrame(playerId: string) {
@@ -187,13 +190,13 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 
 		// Scaled preview dimensions can be fractional. Use the same integer pixel
 		// dimensions for the canvas, textures, shader uniforms, and storage buffers.
-		this.rendererDynamicOptions.resolution = {
+		this.dynamicOptions.resolution = {
 			width: Math.max(1, Math.floor(resolution.width)),
 			height: Math.max(1, Math.floor(resolution.height)),
 		};
 
-		this.canvas.width = this.rendererDynamicOptions.resolution.width;
-		this.canvas.height = this.rendererDynamicOptions.resolution.height;
+		this.canvas.width = this.dynamicOptions.resolution.width;
+		this.canvas.height = this.dynamicOptions.resolution.height;
 
 		await this.launchManager(false);
 	}
@@ -232,7 +235,7 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 		for (const [id, video] of this.videoElements) {
 			const oldPlayer = oldPlayers.find(player => player.id === id);
 			const newPlayer = players.find(player => player.id === id);
-			const asset = newPlayer?.sourceType === 'asset' ? this.rendererDynamicOptions.assets.find(asset => asset.id === newPlayer.assetId) : null;
+			const asset = newPlayer?.sourceType === 'asset' ? this.dynamicOptions.assets.find(asset => asset.id === newPlayer.assetId) : null;
 			if (!newPlayer || oldPlayer?.sourceType !== newPlayer.sourceType || !deepEqual(oldPlayer?.assetId, newPlayer.assetId)
 				|| (newPlayer.sourceType === 'asset' && this.playerAssetFiles.get(id) !== asset?.fileData)) {
 				this.audioInputs.removePlayer(id);
@@ -258,7 +261,7 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 
 		for (const player of players) {
 			if (!this.videoElements.has(player.id)) {
-				const asset = player.sourceType === 'asset' ? this.rendererDynamicOptions.assets.find(asset => asset.id === player.assetId) : null;
+				const asset = player.sourceType === 'asset' ? this.dynamicOptions.assets.find(asset => asset.id === player.assetId) : null;
 				if (player.sourceType === 'asset' && !asset) continue;
 				const video = window.document.createElement(asset?.fileDataType.startsWith('audio/') ? 'audio' : 'video');
 				video.loop = true;
@@ -349,11 +352,11 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 				height: Math.max(1, Math.floor(options.resolution.height)),
 			};
 		}
-		this.rendererDynamicOptions = { ...this.rendererDynamicOptions, ...options };
+		this.dynamicOptions = { ...this.dynamicOptions, ...options };
 		// 初回init前の設定は初期化メッセージに含める。初期化中はRPCのキューに積む。
-		if (this.rendererWorker == null) return { assetsCommitted: null };
+		if (!this.isReady.value) return { assetsCommitted: null };
 		const result = await this.callAndWaitReturn('updateDynamicOptions', [options]);
-		if (result.assetsCommitted && options.assets === this.rendererDynamicOptions.assets) {
+		if (result.assetsCommitted && options.assets === this.dynamicOptions.assets) {
 			// 素材の差し替え・削除ではPlayer定義は変わらないため、ここで参照先を同期する。
 			// 後続のAsset更新がある場合は、その完了側に同期を任せる。
 			await this.updatePlayers(this.players);
@@ -362,7 +365,7 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 	}
 
 	public updateStaticOptions(newStaticOptions: Partial<VisualModuleRendererManagerStaticOptions>): Promise<void> {
-		this.rendererStaticOptions = { ...this.rendererStaticOptions, ...newStaticOptions };
+		this.staticOptions = { ...this.staticOptions, ...newStaticOptions };
 		return this.reload();
 	}
 
