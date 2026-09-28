@@ -45,7 +45,7 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 	public gpuAverageDisplayMedium = ref(0);
 	public gpuAverageDisplaySlow = ref(0);
 	public fpsDisplay = ref(0);
-	public gpuMemoryUsage = ref<ReturnType<MainRenderer['gpuMemory']['getUsage']> | null>(null);
+	public gpuMemoryUsage = ref<ReturnType<VisualModuleRendererManager['gpuMemory']['getUsage']> | null>(null);
 	public errorMessage = ref<string | null>(null);
 	private liveEffectStateStore = new LiveEffectStateStore(shallowReactive(new Map<string, EffectInstanceState>()));
 
