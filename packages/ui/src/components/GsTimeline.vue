@@ -85,7 +85,7 @@
 				</GsSelect>
 			</div>
 		</div>
-		<div v-else-if="selectedLayer != null" :class="$style.rightSidePanel">
+		<div v-else-if="selectedLayer?.layerType === 'visualModule'" :class="$style.rightSidePanel">
 			<div>{{ appStateManager.getVisualModuleById(selectedLayer?.visualModuleId)?.name }}</div>
 			<div>Compositing</div>
 			<GsVisualParam
@@ -210,7 +210,7 @@ const selectedKeyframe = computed(() => {
 	const selection = selectedKeyframeSelection.value;
 	if (selection == null) return null;
 	const layer = appStateManager.state.timeline.value.find(entry => entry.id === selection.layerId);
-	if (layer == null) return null;
+	if (layer?.layerType !== 'visualModule') return null;
 	const values: Partial<Record<string, ParameterBinding>> = selection.target === 'compositing' ? layer.compositingParamValues : layer.paramValues;
 	const binding = values[selection.paramId];
 	if (binding?.inputSource !== 'keyframesTimelineInline') return null;

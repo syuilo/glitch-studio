@@ -63,6 +63,7 @@ const editVisualModuleLayerParamCommandDef = defineCommand<{
 		const getLayer = (state: AppState) => {
 			const layer = state.timeline.value.find(layer => layer.id === payload.layerId);
 			if (layer == null) throw new Error('Timeline layer not found');
+			if (layer.layerType !== 'visualModule') throw new Error('Timeline layer is not a visual module');
 			return layer;
 		};
 		return {
