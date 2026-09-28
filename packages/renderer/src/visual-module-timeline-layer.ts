@@ -6,7 +6,7 @@ import type { NodeOutput } from './node-output.ts';
 import type { TimelineVisualModuleLayer } from '@glitch/shared/timeline/types.ts';
 import type { VisualModuleRenderContext } from './visual-module-renderer.ts';
 import type { TimelineLayerContext, TimelineLayerRenderer } from './timeline-renderer.ts';
-import type { layerEnvVarDefs } from '@glitch/shared/expression.js';
+import type { LAYER_VAR_DEFS } from '@glitch/shared/expression.js';
 
 // 主入力の割り当てやパラメータはVisual Moduleレイヤーだけの責務とする。
 export function createVisualModuleTimelineLayer(
@@ -32,7 +32,7 @@ export function createVisualModuleTimelineLayer(
 					TEST_ONLY_LAYER: true,
 					TEST_SAME_NAME: 2,
 					IS_EXPORT: context.isExport,
-				} satisfies Record<typeof layerEnvVarDefs[number], unknown>,
+				} satisfies Record<typeof LAYER_VAR_DEFS[number], unknown>,
 				automationGraphs: layer.automationGraphs,
 				time: context.time, endTime: context.endTime,
 			};

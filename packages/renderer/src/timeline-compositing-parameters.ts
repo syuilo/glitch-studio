@@ -3,7 +3,7 @@ import { genEmptyValue } from '@glitch/shared/utility/misc.ts';
 import { timelineCompositingParamDefs } from '@glitch/shared/timeline/timeline-compositing.js';
 import { ParameterEvaluator } from './parameter-evaluator.ts';
 import type { AutomationGraph, ParameterBinding } from '@glitch/shared/types.ts';
-import type { layerEnvVarDefs } from '@glitch/shared/expression.js';
+import type { LAYER_VAR_DEFS } from '@glitch/shared/expression.js';
 
 export type TimelineCompositingSettings = {
 	blendMode: number;
@@ -23,7 +23,7 @@ export class TimelineCompositingParameters {
 				TEST_ONLY_LAYER: true,
 				TEST_SAME_NAME: 2,
 				IS_EXPORT: context.isExport,
-			} satisfies Record<typeof layerEnvVarDefs[number], unknown>,
+			} satisfies Record<typeof LAYER_VAR_DEFS[number], unknown>,
 			automationGraphs: context.automationGraphs,
 			time: context.time,
 			endTime: context.endTime,

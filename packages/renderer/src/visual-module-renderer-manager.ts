@@ -18,7 +18,7 @@ import type { AudioCaptureMessage, AudioSourceId } from '@glitch/shared/audio.ts
 import type { Asset, IntermediateTextureFormat, Player } from '@glitch/shared/types.ts';
 import type { EffectImplementation } from '@glitch/shared/effect/effect-implementation.js';
 import type { EffectDefinition } from '@glitch/shared/effect/effect-definition.js';
-import type { liveEnvVarDefs } from '@glitch/shared/expression.js';
+import type { LIVE_VAR_DEFS } from '@glitch/shared/expression.js';
 
 /**
  * 初期化時に決まっている必要がある設定情報
@@ -329,7 +329,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 					variables: {
 						TIME: timing.time / 1000,
 						TIME_MS: timing.time,
-					} satisfies Record<typeof liveEnvVarDefs[number], unknown>,
+					} satisfies Record<typeof LIVE_VAR_DEFS[number], unknown>,
 					automationGraphs: [],
 					time: timing.time,
 					endTime: Infinity,

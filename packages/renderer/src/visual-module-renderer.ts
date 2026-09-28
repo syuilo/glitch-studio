@@ -17,7 +17,7 @@ import type { Asset, AutomationGraph, IntermediateTextureFormat } from '@glitch/
 import type { VisualModuleEffectNode, VisualModuleGlobalInNode, VisualModuleNode, NodeOutputReference, VisualModule } from '@glitch/shared/visual-module/types.ts';
 import type { EffectImplementation, EffectInstance } from '@glitch/shared/effect/effect-implementation.js';
 import type { EffectDefinition } from '@glitch/shared/effect/effect-definition.js';
-import type { moduleEnvVarDefs } from '@glitch/shared/expression.js';
+import type { IN_VISUAL_MODULE_VAR_DEFS } from '@glitch/shared/expression.js';
 
 export type VisualModuleRenderContext = {
 	isExport: boolean;
@@ -156,7 +156,7 @@ export class VisualModuleRenderer {
 				IS_EXPORT: context.isExport,
 				TEST_ONLY_VM: true,
 				TEST_SAME_NAME: 1,
-			} satisfies Record<typeof moduleEnvVarDefs[number], unknown>,
+			} satisfies Record<typeof IN_VISUAL_MODULE_VAR_DEFS[number], unknown>,
 			automationGraphs: this.automationGraphs,
 			time: context.time,
 			endTime: context.endTime,

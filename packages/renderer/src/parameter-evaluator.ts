@@ -2,7 +2,7 @@ import { visualModuleCustomParameterName, type VisualModuleCustomParameterId, ty
 import * as AiScript from '@syuilo/aiscript';
 import { evalAutomationGraphValue } from '@glitch/shared/utility/misc.ts';
 import { deepClone, type Cloneable } from '@glitch/shared/utility/deep-clone.js';
-import { reservedWords, singleVariableExpression } from '@glitch/shared/expression.js';
+import { RESERVED_EXPRESSION_WORDS, singleVariableExpression } from '@glitch/shared/expression.js';
 import { evaluateKeyframesTimeline } from '@glitch/shared/utility/keyframes-timeline.ts';
 import type { ParameterBinding, AutomationGraph } from '@glitch/shared/types.ts';
 
@@ -53,7 +53,7 @@ export class ParameterEvaluator {
 			// 評価器が提供する関数名を、単独変数の高速経路で上書きしない。
 			if (variableName != null && Object.hasOwn(scope, variableName)
 				&& variableName !== 'GRAPH' && variableName !== 'PARAM'
-				&& !variableName.split(':').some(name => reservedWords.has(name))) {
+				&& !variableName.split(':').some(name => RESERVED_EXPRESSION_WORDS.has(name))) {
 				return deepClone(scope[variableName]);
 			}
 			const constants = Object.fromEntries(Object.entries(scope).map(([key, value]) => [key, AiScript.utils.jsToVal(value)]));
