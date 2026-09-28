@@ -10,7 +10,8 @@ import { build } from 'esbuild';
 const result = await build({
 	stdin: {
 		contents: `export { RendererManagerControllerBase } from './RendererManagerControllerBase.ts';
-			export { VisualModuleRendererManagerController } from './VisualModuleRendererManagerController.ts';`,
+			export { VisualModuleRendererManagerController } from './VisualModuleRendererManagerController.ts';
+			export { TimelineRendererManagerController } from './TimelineRendererManagerController.ts';`,
 		resolveDir: fileURLToPath(new URL('../src', import.meta.url)), loader: 'ts',
 	},
 	bundle: true, platform: 'node', format: 'cjs', write: false, external: ['vue'],
@@ -20,6 +21,7 @@ const result = await build({
 			build.onResolve({ filter: /^(?:@glitch\/renderer\/client\.ts|\.\/audio\/audio-inputs\.ts|\.\/utility\/(?:video|webcam)\.ts|@\/ui\.ts)$/ }, args => ({ path: args.path, namespace: 'browser-stub' }));
 			build.onLoad({ filter: /.*/, namespace: 'browser-stub' }, () => ({ contents: `
 				export const createVisualModuleRendererManagerWorker = () => dependencies.createWorker();
+				export const createTimelineRendererManagerWorker = () => dependencies.createWorker();
 				export class AudioInputs { reconnectRenderer() {} dispose() {} }
 				export const isVideoFrameAvailable = () => false;
 				export const playVideoAfterFirstFrameIsReady = () => {}, setupWebcam = () => {}, alert = () => {};
@@ -46,7 +48,7 @@ class FakeWorker {
 	calls(fn) { return this.messages.filter(message => message.type === 'call' && message.fn === fn); }
 }
 
-function fixture(t) {
+function fixture(t, kind = 'VisualModule') {
 	const workers = [];
 	const canvas = () => ({
 		style: {}, transferControlToOffscreen: () => ({}), cloneNode: canvas, replaceWith() {},
@@ -57,7 +59,7 @@ function fixture(t) {
 		window: { document: { createElement: canvas } },
 		dependencies: { createWorker() { const worker = new FakeWorker(); workers.push(worker); return worker; } },
 	});
-	const controller = new module.exports.VisualModuleRendererManagerController({
+	const controller = new module.exports[kind + 'RendererManagerController']({
 		enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm', enableStats: false,
 	}, { assets: [], fpsLimit: null });
 	t.after(() => controller.destroy());
@@ -264,4 +266,58 @@ test('settles queued calls when initial option preparation fails', async t => {
 	await Promise.all([assert.rejects(ready, /Cannot transfer canvas/), assert.rejects(request, /Cannot transfer canvas/)]);
 	assert.deepEqual(state.errors, ['Cannot transfer canvas']);
 	assert.equal(state.created, 0);
+});
+
+// 【解放中の設定変更を保持し、新しいCanvasで両Managerを復帰させる】
+// エクスポート中にはWorkerを起動せず、復帰後に最新の解像度・精度で描画する必要がある。
+for (const kind of ['VisualModule', 'Timeline']) {
+	test(`relaunches ${kind} with fresh canvases and settings changed while disposed`, async t => {
+		const { controller, workers } = fixture(t, kind);
+		const worker = await initialize(controller, workers);
+		const previous = controller.canvas;
+		controller.disposeManager();
+		await controller.updateStaticOptions({ enable32bitDataTextures: true });
+		await controller.updateDynamicOptions({ resolution: { width: 100, height: 80 } });
+		assert.equal(workers.length, 1);
+		assert.equal(worker.terminated, true);
+		const ready = controller.relaunchManager();
+		await Promise.resolve();
+		const replacement = workers[1];
+		const initial = await replacement.initialization.promise;
+		assert.equal(initial.staticOptions.enable32bitDataTextures, true);
+		assert.deepEqual(initial.dynamicOptions.resolution, { width: 100, height: 80 });
+		assert.notEqual(controller.canvas, previous);
+		assert.equal(controller.canvasRevision.value, 1);
+		replacement.reply({ type: 'inited' });
+		await ready;
+		assert.equal(controller.isReady.value, true);
+	});
+
+	// 【致命的なWorker障害の後も設定変更で復旧する】
+	// 意図的な解放中と障害によるnot-readyを区別しないと、設定を変えてもWorkerが再生成されない。
+	test(`recovers ${kind} from a worker failure when static settings change`, async t => {
+		const { controller, workers } = fixture(t, kind);
+		const worker = await initialize(controller, workers);
+		worker.onerror({ message: 'Device lost' });
+		const ready = controller.updateStaticOptions({ enable32bitDataTextures: true });
+		await workers[1].initialization.promise;
+		workers[1].reply({ type: 'inited' });
+		await ready;
+		assert.equal(controller.isReady.value, true);
+		assert.equal(controller.errorMessage.value, null);
+	});
+}
+
+// 【再読み込み中にLIVEから離れた場合は復帰後も停止を維持する】
+// Worker不在中の停止を例外にしたり古い再生状態を復元すると、タイムラインと同時にLIVEが動く。
+test('does not restart live after switching away during reload', async t => {
+	const { controller, workers } = fixture(t);
+	await initialize(controller, workers);
+	controller.startLiveRenderLoopFor('module');
+	const ready = controller.reload();
+	controller.stopRenderLoop();
+	await workers[1].initialization.promise;
+	workers[1].reply({ type: 'inited' });
+	await ready;
+	assert.deepEqual(workers[1].calls('startLiveRenderLoopFor'), []);
 });

@@ -6,6 +6,7 @@ import type { TimelineRendererManager, TimelineRendererManagerStaticOptions, Tim
 import * as ui from '@/ui.ts';
 
 export class TimelineRendererManagerController extends RendererManagerControllerBase<TimelineRendererManager> {
+	public readonly canvasRevision = ref(0);
 	public canvas: HTMLCanvasElement;
 	public histogramCanvas: HTMLCanvasElement;
 	public waveformHorizontalCanvas: HTMLCanvasElement;
@@ -20,12 +21,12 @@ export class TimelineRendererManagerController extends RendererManagerController
 		super({
 			getInitialOptions: async (isReload) => {
 				if (isReload) {
-					// 転送済みcanvasは再転送できない。属性と表示先を保った新しい要素に置き換える。
+					// 転送済みcanvasは再転送できない。属性を引き継ぎ、表示先への付け替えはUIに通知する。
 					for (const key of ['canvas', 'histogramCanvas', 'waveformHorizontalCanvas', 'waveformVerticalCanvas'] as const) {
 						const previous = this[key];
 						this[key] = previous.cloneNode(false) as HTMLCanvasElement;
-						previous.replaceWith(this[key]);
 					}
+					this.canvasRevision.value++;
 				}
 
 				const offscreen = this.canvas.transferControlToOffscreen();
@@ -131,6 +132,8 @@ export class TimelineRendererManagerController extends RendererManagerController
 
 	public updateStaticOptions(newStaticOptions: Partial<TimelineRendererManagerStaticOptions>): Promise<void> {
 		this.staticOptions = { ...this.staticOptions, ...newStaticOptions };
+		// 解放中は設定のみ保持する。Worker障害時は再生成して復旧できるようにする。
+		if (!this.hasManager && !this.isInitializing) return Promise.resolve();
 		return this.reload();
 	}
 

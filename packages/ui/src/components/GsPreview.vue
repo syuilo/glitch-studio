@@ -16,11 +16,12 @@
 </template>
 
 <script lang="ts" setup>
-import { watch, useTemplateRef, ref, onBeforeUnmount, onMounted } from 'vue';
+import { watch, useTemplateRef, ref, computed, onBeforeUnmount } from 'vue';
 import { genId } from '@glitch/shared/utility/id.ts';
+import { useRendererCanvas } from '@/use-renderer-canvas.ts';
 import GsDetachableView from './GsDetachableView.vue';
 import * as api from '@/api.ts';
-import { appStateManager, previewRendererController, previewPlayback, highlightClipping, rendererEnv, resolutionFactor, liveTimeFactor } from '@/app.ts';
+import { appStateManager, activePreviewRenderer, visualModuleRendererManagerController, previewPlayback, highlightClipping, resolutionFactor, liveTimeFactor } from '@/app.ts';
 import { preferences } from '@/preferences.ts';
 import * as ui from '@/ui.ts';
 
@@ -28,32 +29,24 @@ const canvasContainer = useTemplateRef('canvasContainer');
 const containerContainer = useTemplateRef('containerContainer');
 const ZOOM_STEP = 1.25;
 const zoom = ref(1 / ZOOM_STEP / ZOOM_STEP / ZOOM_STEP);
-const time = ref(0);
+const liveTime = ref(0);
+const time = computed(() => previewPlayback.state.value.mode === 'timeline' ? previewPlayback.currentTimelineTime.value : liveTime.value);
 
-let latestTime = 0;
+let latestTime: number | null = null;
 
-window.requestAnimationFrame(function update(t) {
-	const delta = t - latestTime;
+let timecodeRaf = window.requestAnimationFrame(function update(t) {
+	const delta = latestTime == null ? 0 : t - latestTime;
 	latestTime = t;
-	time.value += delta * liveTimeFactor.value;
-	window.requestAnimationFrame(update);
+	if (previewPlayback.state.value.mode === 'live') liveTime.value += delta * liveTimeFactor.value;
+	timecodeRaf = window.requestAnimationFrame(update);
 });
 
 watch(resolutionFactor, (newFactor, oldFactor) => {
 	zoom.value *= (oldFactor ?? 1) / newFactor;
 }, { immediate: true });
 
-onMounted(() => {
-	if (canvasContainer.value != null) {
-		canvasContainer.value.appendChild(previewRendererController.canvas);
-	}
-});
-
-onBeforeUnmount(() => {
-	if (canvasContainer.value != null && previewRendererController.canvas.parentNode === canvasContainer.value) {
-		canvasContainer.value.removeChild(previewRendererController.canvas);
-	}
-});
+useRendererCanvas(canvasContainer, activePreviewRenderer, () => 'canvas');
+onBeforeUnmount(() => window.cancelAnimationFrame(timecodeRaf));
 
 async function onViewClick() {
 
@@ -113,9 +106,9 @@ async function addMedia(file?: File) {
 }
 
 function onPointermove(ev: PointerEvent) {
-	if (canvasContainer.value == null) return;
+	if (canvasContainer.value == null || previewPlayback.state.value.mode !== 'live') return;
 	const rect = canvasContainer.value.getBoundingClientRect();
-	previewRendererController.updatePointerPosition({
+	visualModuleRendererManagerController.updatePointerPosition({
 		x: (((ev.clientX - rect.left) / rect.width) - 0.5) * 2,
 		y: -(((ev.clientY - rect.top) / rect.height) - 0.5) * 2,
 	});

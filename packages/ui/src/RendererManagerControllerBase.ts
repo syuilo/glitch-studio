@@ -33,6 +33,10 @@ export abstract class RendererManagerControllerBase<T extends RendererManager> {
 		return this.rejectInitialization != null;
 	}
 
+	protected get hasManager(): boolean {
+		return this.worker != null;
+	}
+
 	constructor(options: {
 		getInitialOptions: RendererManagerControllerBase<T>['getInitialOptions'];
 		createWorker: RendererManagerControllerBase<T>['createWorker'];
@@ -225,6 +229,13 @@ export abstract class RendererManagerControllerBase<T extends RendererManager> {
 		this.worker?.terminate();
 		this.worker = null;
 		this.onDisposed();
+	}
+
+	/** エクスポート等で解放したManagerを、保持中の設定と新しいCanvasで再生成する。 */
+	public async relaunchManager(): Promise<void> {
+		// 破棄によってrejectされたreloadの後処理を先に終わらせる。
+		await this.reloadPromise?.catch(() => {});
+		await this.launchManager(true);
 	}
 
 	public destroy() {

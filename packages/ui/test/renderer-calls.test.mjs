@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { fileURLToPath } from 'node:url';
 import { readFile } from 'node:fs/promises';
 import { runInNewContext } from 'node:vm';
 import { test } from 'node:test';
@@ -7,18 +8,19 @@ import { build } from 'esbuild';
 // ControllerとWorkerの実コードを接続し、DOM・GPU・音声など通信以外の依存だけ置き換える。
 async function bundle(path) {
 	const result = await build({
-		stdin: { contents: await readFile(new URL(path, import.meta.url), 'utf8'), loader: 'ts' },
+		stdin: { contents: await readFile(new URL(path, import.meta.url), 'utf8'), loader: 'ts', resolveDir: fileURLToPath(new URL(path.replace(/[^/]+$/, ''), import.meta.url)) },
 		tsconfigRaw: {},
 		bundle: true, platform: 'node', format: 'cjs', write: false,
 		plugins: [{
 			name: 'renderer-call-dependencies',
 			setup(build) {
-				build.onResolve({ filter: /.*/ }, args => args.kind === 'entry-point' ? undefined : { path: args.path, namespace: 'stub' });
+				build.onResolve({ filter: /.*/ }, args => args.kind === 'entry-point' || args.path === './RendererManagerControllerBase.ts' ? undefined : { path: args.path, namespace: 'stub' });
 				build.onLoad({ filter: /.*/, namespace: 'stub' }, () => ({ contents: `
 					export const ref = value => ({ value });
 					export const shallowReactive = value => value;
-					export const createRendererWorker = () => dependencies.createWorker();
-					export const MainRenderer = dependencies.MainRenderer;
+					export const createVisualModuleRendererManagerWorker = () => dependencies.createWorker();
+					export const VisualModuleRendererManager = dependencies.VisualModuleRendererManager;
+					export const createManager = options => dependencies.createManager(options);
 					export const effectDefinitions = {}, effectImplementations = {};
 					export const deepClone = structuredClone, deepEqual = () => false;
 					export const projectAudioSourceId = 'project', genId = () => 'id';
@@ -34,8 +36,8 @@ async function bundle(path) {
 	return result.outputFiles[0].text;
 }
 
-const controllerCode = await bundle('../src/PreviewRendererController.ts');
-const workerCode = await bundle('../../renderer/src/worker.ts');
+const controllerCode = await bundle('../src/VisualModuleRendererManagerController.ts');
+const workerCode = await bundle('../../renderer/src/visual-module-renderer-manager-worker.ts');
 
 async function fixture(t, options = {}) {
 	class GPUCanvasContext {}
@@ -46,7 +48,7 @@ async function fixture(t, options = {}) {
 	const pending = [];
 	const instances = [];
 	const notifications = [];
-	class MainRenderer {
+	class VisualModuleRendererManager {
 		constructor(settings, staticOptions) { this.settings = settings; this.staticOptions = staticOptions; instances.push(this); }
 		dynamicOptions = {};
 		async updateDynamicOptions(update) {
@@ -54,7 +56,8 @@ async function fixture(t, options = {}) {
 			const assetsCommitted = update.assets === undefined ? null : await (options.updateAssets?.(update.assets) ?? true);
 			return { assetsCommitted };
 		}
-		reportPreviewError(message) { this.settings.onPreviewError(message); }
+		on(name, handler) { this.handler = handler; }
+		reportPreviewError(message) { this.handler({ type: 'renderError', ctx: { message } }); }
 		gpuMemory = { getUsage: () => ({}) };
 		destroy() { options.onDestroy?.(); }
 		echo(value) { return value; }
@@ -68,7 +71,14 @@ async function fixture(t, options = {}) {
 	}
 	const workers = [];
 	const dependencies = {
-		MainRenderer,
+		VisualModuleRendererManager,
+		async createManager(settings) {
+			if (options.adapterError) throw options.adapterError;
+			const manager = new VisualModuleRendererManager({}, settings.staticOptions);
+			try { await manager.updateDynamicOptions(settings.dynamicOptions); }
+			catch (error) { manager.destroy(); throw error; }
+			return manager;
+		},
 		createWorker() {
 			let terminated = false;
 			const worker = {
@@ -76,7 +86,7 @@ async function fixture(t, options = {}) {
 					if (worker.sendError) throw worker.sendError;
 					// initのCanvasスタブだけは複製不能。設定と通常のRPCは実際の送信同様に複製する。
 					const data = message.type === 'init'
-						? { ...message, rendererStaticOptions: structuredClone(message.rendererStaticOptions), rendererDynamicOptions: structuredClone(message.rendererDynamicOptions) }
+						? { ...message, staticOptions: structuredClone(message.staticOptions), dynamicOptions: structuredClone(message.dynamicOptions) }
 						: structuredClone(message);
 					queueMicrotask(() => {
 						if (!terminated) void context.onmessage({ data });
@@ -108,7 +118,7 @@ async function fixture(t, options = {}) {
 		window: { document: { createElement: canvas } },
 	};
 	runInNewContext(controllerCode, context);
-	const controller = new context.module.exports.PreviewRendererController({
+	const controller = new context.module.exports.VisualModuleRendererManagerController({
 		enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm', enableStats: false,
 	}, { fpsLimit: null });
 	t.after(() => controller.destroy());
@@ -118,7 +128,7 @@ async function fixture(t, options = {}) {
 
 // 描画エラー後もノード編集を送信でき、描画復旧時だけエラー表示を解除する。
 // 従来は描画例外でisReadyがfalseになり、原因ノードを削除する更新まで拒否されていた。
-// WorkerとControllerの実際の通信を通し、修正の受信・通知の重複抑制・復旧をまとめて保証する。
+// WorkerとControllerの実際の通信を通し、修正の受信・イベント転送・復旧をまとめて保証する。
 test('keeps edits available after preview errors and clears the message on recovery', async t => {
 	const { controller, instances, notifications } = await fixture(t);
 	instances[0].reportPreviewError('circular dependency detected');
@@ -132,7 +142,7 @@ test('keeps edits available after preview errors and clears the message on recov
 	instances[0].reportPreviewError(null);
 	await Promise.resolve();
 	assert.equal(controller.errorMessage.value, null);
-	assert.deepEqual(notifications.filter(message => message.type === 'previewError').map(message => message.message), ['circular dependency detected', null]);
+	assert.deepEqual(notifications.filter(message => message.type === 'ev' && message.ev.type === 'renderError').map(message => message.ev.ctx.message), ['circular dependency detected', 'circular dependency detected', null]);
 });
 
 // 応答を待たない操作の同期・非同期失敗も未処理例外にせず通知する。
@@ -307,13 +317,13 @@ for (const phase of ['initialization', 'reload']) {
 		await requested.promise;
 		const updateStopped = assert.rejects(controller.updateDynamicOptions({ highlightClipping: true }), /Engine reloaded/);
 		controller.call('updatePointerPosition', [{ x: 999, y: 999 }]);
-		controller.disposeRenderer();
+		controller.disposeManager();
 		await Promise.all([stopped, updateStopped]);
 		assert.equal(controller.isReady.value, false);
 		await assert.rejects(controller.callAndWaitReturn('echo', [42]), /not initialized/);
 		hold = false;
 		gate.resolve(true);
-		await controller.relaunchRenderer();
+		await controller.relaunchManager();
 		assert.equal(controller.isReady.value, true);
 		assert.equal(instances.at(-1).dynamicOptions.highlightClipping, true);
 		assert.deepEqual(instances.at(-1).pointerPositions, [{ x: 0, y: 0 }]);

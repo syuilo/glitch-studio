@@ -7,23 +7,14 @@
 </template>
 
 <script lang="ts" setup>
-import { onBeforeUnmount, onMounted, useTemplateRef } from 'vue';
+import { useTemplateRef } from 'vue';
+import { useRendererCanvas } from '@/use-renderer-canvas.ts';
 import GsDetachableView from './GsDetachableView.vue';
-import { previewRendererController } from '@/app.ts';
+import { activePreviewRenderer } from '@/app.ts';
 
 const canvasContainer = useTemplateRef('canvasContainer');
 
-onMounted(() => {
-	if (canvasContainer.value != null) {
-		canvasContainer.value.appendChild(previewRendererController.histogramCanvas);
-	}
-});
-
-onBeforeUnmount(() => {
-	if (canvasContainer.value != null) {
-		canvasContainer.value.removeChild(previewRendererController.histogramCanvas);
-	}
-});
+useRendererCanvas(canvasContainer, activePreviewRenderer, () => 'histogramCanvas');
 </script>
 
 <style lang="scss" module>

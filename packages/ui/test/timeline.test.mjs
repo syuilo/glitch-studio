@@ -28,15 +28,16 @@ function setup(t, fpsLimit = null) {
 		},
 		cancelAnimationFrame(id) { callbacks.delete(id); },
 	};
-	const renderer = Object.fromEntries(['startLiveRenderLoopFor', 'updateLiveParamValues', 'stopRenderLoop', 'renderTimelineAt']
+	const liveRenderer = Object.fromEntries(['startLiveRenderLoopFor', 'updateLiveParamValues', 'stopRenderLoop']
 		.map(name => [name, (...args) => calls.push([name, ...args])]));
-	const playback = new PreviewPlaybackController(renderer, () => fpsLimit);
+	const timelineRenderer = { isReady: { value: true }, renderTimelineAt: time => calls.push(['renderTimelineAt', time]) };
+	const playback = new PreviewPlaybackController(liveRenderer, timelineRenderer, () => fpsLimit);
 	t.after(() => {
 		playback.dispose();
 		delete globalThis.window;
 	});
 	return {
-		playback, callbacks, calls,
+		playback, callbacks, calls, timelineRenderer,
 		frame(timestamp) {
 			const [id, callback] = callbacks.entries().next().value;
 			callbacks.delete(id);
@@ -44,6 +45,86 @@ function setup(t, fpsLimit = null) {
 		},
 	};
 }
+
+// 【タイムラインの表示だけを切り替えても時刻や再生状態を変更しない】
+// LIVEから停止中のプレビューへ戻る際に、再生開始や先頭へのシークを強制しない。
+test('shows the paused timeline at its retained position', t => {
+	const { playback, calls, callbacks } = setup(t);
+	playback.seekTimeline(1234);
+	playback.startLive('module');
+	calls.length = 0;
+	playback.showTimeline();
+	assert.deepEqual(calls, [['stopRenderLoop'], ['renderTimelineAt', 1234]]);
+	assert.equal(callbacks.size, 0);
+	assert.equal(playback.isTimelinePlaying.value, false);
+});
+
+// 【エクスポート待ちの時間を再生時刻へ加算しない】
+// Workerが存在しない間の描画を止め、復帰後は同じ位置から一つのループだけで再生する。
+test('suspends timeline rendering and resumes without advancing export time', t => {
+	const { playback, calls, callbacks, frame, timelineRenderer } = setup(t);
+	playback.playTimeline();
+	frame(0);
+	frame(100);
+	playback.suspend();
+	playback.suspend();
+	timelineRenderer.isReady.value = false;
+	calls.length = 0;
+	playback.refresh();
+	assert.equal(callbacks.size, 0);
+	assert.deepEqual(calls, []);
+	assert.deepEqual(playback.state.value, { mode: 'timeline', playing: true });
+	timelineRenderer.isReady.value = true;
+	playback.refresh();
+	assert.deepEqual(calls, []);
+	playback.resume();
+	playback.resume();
+	assert.equal(callbacks.size, 1);
+	assert.deepEqual(calls, [['renderTimelineAt', 100]]);
+	frame(10000);
+	frame(10017);
+	assert.equal(playback.currentTimelineTime.value, 117);
+});
+
+// 【LIVEの復帰では最後に設定した引数を復元する】
+// 呼び出し元のオブジェクトが変更されても、エクスポート後に別の設定で再開してはいけない。
+test('restores live mode with a snapshot of the latest parameters', t => {
+	const { playback, calls } = setup(t);
+	playback.startLive('module');
+	const params = { amount: { inputSource: 'literal', value: 3 } };
+	playback.updateLiveParamValues('module', params);
+	params.amount.value = 99;
+	playback.suspend();
+	calls.length = 0;
+	playback.refresh();
+	assert.equal(playback.state.value.mode, 'live');
+	playback.resume();
+	assert.deepEqual(calls, [['startLiveRenderLoopFor', 'module', { amount: { inputSource: 'literal', value: 3 } }]]);
+});
+
+// 【未準備のタイムラインへの描画を防ぎ、復帰時に最新のシーク位置を描く】
+// 設定変更による再読み込み中にもUI上のシークは可能なため、描画要求はready後へ持ち越す。
+test('retains seeks while the timeline renderer is unavailable', t => {
+	const { playback, calls, timelineRenderer } = setup(t);
+	timelineRenderer.isReady.value = false;
+	playback.seekTimeline(321);
+	assert.deepEqual(calls, []);
+	timelineRenderer.isReady.value = true;
+	playback.refresh();
+	assert.deepEqual(calls, [['renderTimelineAt', 321]]);
+});
+
+// 【停止中のエクスポートから復帰しても再生を開始しない】
+// エクスポート前に止めていた画面は、キャンセル後も同じ位置で静止している必要がある。
+test('restores a paused preview without starting playback', t => {
+	const { playback, calls, callbacks } = setup(t);
+	playback.seekTimeline(42);
+	playback.suspend();
+	calls.length = 0;
+	playback.resume();
+	assert.deepEqual(calls, [['renderTimelineAt', 42]]);
+	assert.equal(callbacks.size, 0);
+});
 
 // 再開時は停止中の実時間を加算せず、保持した位置から進める。
 test('resumes timeline playback from the stopped position', t => {

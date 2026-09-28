@@ -28,8 +28,8 @@
 			<div :class="$style.footerItem">sRGB</div>
 			<button :class="$style.footerItem" class="_button" @click="openResolutionMenu">Proj: {{ appStateManager.state.resolution.value.width }} x {{ appStateManager.state.resolution.value.height }} px</button>
 			<button :class="$style.footerItem" class="_button" @click="openResolutionFactorMenu">Preview: {{ resolutionFactor }}x ({{ Math.round(appStateManager.state.resolution.value.width * resolutionFactor) }} x {{ Math.round(appStateManager.state.resolution.value.height * resolutionFactor) }} px)</button>
-			<button :class="$style.footerItem" class="_button" @click="openFpsMenu">{{ Math.round(previewRendererController.fpsDisplay.value) }}fps</button>
-			<button :class="$style.footerItem" class="_button" @click="openTimeFactorMenu">TIME: {{ liveTimeFactor }}x</button>
+			<button :class="$style.footerItem" class="_button" @click="openFpsMenu">{{ previewPlayback.state.value.mode === 'live' ? `${Math.round(visualModuleRendererManagerController.fpsDisplay.value)}fps` : `FPS limit: ${fpsLimit ?? 'Unlimited'}` }}</button>
+			<button v-if="previewPlayback.state.value.mode === 'live'" :class="$style.footerItem" class="_button" @click="openTimeFactorMenu">TIME: {{ liveTimeFactor }}x</button>
 			<div :class="[$style.footerItem, $style.previewVolume]">
 				<i :class="previewVolume === 0 ? 'ti ti-volume-off' : 'ti ti-volume'"></i>
 				<GsRange v-model="previewVolume" :min="0" :max="1" :step="0.01" :continuousUpdate="true" style="width: 150px;"/>
@@ -37,12 +37,12 @@
 			</div>
 		</div>
 		<div :class="$style.footerRight">
-			<div v-if="previewRendererController.errorMessage.value != null" v-tooltip="previewRendererController.errorMessage.value" :class="$style.footerError"><i class="ti ti-alert-triangle"></i> {{ previewRendererController.errorMessage.value }}</div>
+			<div v-if="activePreviewRenderer.errorMessage.value != null" v-tooltip="activePreviewRenderer.errorMessage.value" :class="$style.footerError"><i class="ti ti-alert-triangle"></i> {{ activePreviewRenderer.errorMessage.value }}</div>
 			<div :class="$style.footerStats">
-				<div v-if="previewRendererController.gpuMemoryUsage.value" v-tooltip="gpuMemoryTooltip" :class="$style.footerMemory">{{ (previewRendererController.gpuMemoryUsage.value.total / 1000 ** 2).toFixed(1) }} MB</div>
+				<div v-if="previewPlayback.state.value.mode === 'live' && visualModuleRendererManagerController.gpuMemoryUsage.value" v-tooltip="gpuMemoryTooltip" :class="$style.footerMemory">{{ (visualModuleRendererManagerController.gpuMemoryUsage.value.total / 1000 ** 2).toFixed(1) }} MB</div>
 			</div>
 			<div :class="$style.outputLevelMeter">
-				<GsAudioLevelMeter :levels="previewRendererController.audioOutputLevels"/>
+				<GsAudioLevelMeter :levels="visualModuleRendererManagerController.audioOutputLevels"/>
 			</div>
 		</div>
 	</div>
@@ -51,7 +51,7 @@
 
 <script lang="ts" setup>
 import { computed, nextTick, onMounted, onBeforeUnmount, ref, shallowRef, useTemplateRef, watch } from 'vue';
-import { previewRendererController, resolutionFactor, fpsLimit, liveTimeFactor, appStateManager, projectInfo, openProject, saveProject } from './app';
+import { activePreviewRenderer, previewPlayback, visualModuleRendererManagerController, resolutionFactor, fpsLimit, liveTimeFactor, appStateManager, projectInfo, openProject, saveProject } from './app';
 import { preferences } from './preferences.ts';
 import GsRange from './components/common/GsRange.vue';
 import GsAboutDialog from '@/components/GsAboutDialog.vue';
@@ -63,16 +63,16 @@ import GsButton from '@/components/common/GsButton.vue';
 import GsAudioLevelMeter from '@/components/common/GsAudioLevelMeter.vue';
 import * as ui from '@/ui.ts';
 
-const releaseOutputCapture = previewRendererController.retainAudioOutputCapture();
+const releaseOutputCapture = visualModuleRendererManagerController.retainAudioOutputCapture();
 onBeforeUnmount(releaseOutputCapture);
 
 const previewVolume = preferences.model('previewVolume');
 watch(previewVolume, (newValue) => {
-	previewRendererController.setPreviewVolume(newValue);
+	visualModuleRendererManagerController.setPreviewVolume(newValue);
 }, { immediate: true });
 
 const gpuMemoryTooltip = computed(() => {
-	const usage = previewRendererController.gpuMemoryUsage.value;
+	const usage = visualModuleRendererManagerController.gpuMemoryUsage.value;
 	if (!usage) return '';
 	return i18n.t('GpuMemoryEstimate', {
 		textures: (usage.textures / 1024 ** 2).toFixed(1),
@@ -126,17 +126,15 @@ async function importPreset() {
 		*/
 }
 
-function exportToWebp() {
-	// TODO: 元の解像度にリサイズしてからエクスポートする
-	previewRendererController.canvas.toBlob((blob) => {
+// 現在表示中の画像を保存する機能。元解像度での書き出しは独立したExport経路で行う。
+function savePreviewSnapshot() {
+	activePreviewRenderer.value.canvas.toBlob(blob => {
 		if (blob == null) return;
 		const url = URL.createObjectURL(blob);
-
 		const link = window.document.createElement('a');
 		link.href = url;
-		link.download = `${Date.now()}.webp`;
+		link.download = 'preview-' + Date.now() + '.webp';
 		link.click();
-
 		URL.revokeObjectURL(url);
 	}, 'image/webp', 1);
 }
@@ -251,9 +249,9 @@ function openHeaderFileMenu(ev: PointerEvent) {
 	}, {
 		type: 'divider',
 	}, {
-		text: 'Export',
+		text: 'Save Preview Snapshot...',
 		action: () => {
-			exportToWebp();
+			savePreviewSnapshot();
 		},
 	}, {
 		text: 'Export Timeline As Video...',

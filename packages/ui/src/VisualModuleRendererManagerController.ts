@@ -16,6 +16,7 @@ import type { VisualModuleRendererManager, VisualModuleRendererManagerStaticOpti
 import * as ui from '@/ui.ts';
 
 export class VisualModuleRendererManagerController extends RendererManagerControllerBase<VisualModuleRendererManager> {
+	public readonly canvasRevision = ref(0);
 	public canvas: HTMLCanvasElement;
 	public histogramCanvas: HTMLCanvasElement;
 	public waveformHorizontalCanvas: HTMLCanvasElement;
@@ -58,12 +59,12 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 		super({
 			getInitialOptions: async (isReload) => {
 				if (isReload) {
-					// 転送済みcanvasは再転送できない。属性と表示先を保った新しい要素に置き換える。
+					// 転送済みcanvasは再転送できない。属性を引き継ぎ、表示先への付け替えはUIに通知する。
 					for (const key of ['canvas', 'histogramCanvas', 'waveformHorizontalCanvas', 'waveformVerticalCanvas'] as const) {
 						const previous = this[key];
 						this[key] = previous.cloneNode(false) as HTMLCanvasElement;
-						previous.replaceWith(this[key]);
 					}
+					this.canvasRevision.value++;
 				}
 
 				const offscreen = this.canvas.transferControlToOffscreen();
@@ -206,7 +207,8 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 	public startLiveRenderLoopFor(visualModuleId: VisualModule['id'], paramValues: VisualModuleParameterBindings = {}) {
 		this.liveParamValues = deepClone(paramValues);
 		const statusInstanceId = genId();
-		this.call('startLiveRenderLoopFor', [visualModuleId, this.liveParamValues, statusInstanceId]);
+		// 再初期化中のモード変更はonCreatedで最新状態だけを復元し、古い開始要求をキューに残さない。
+		if (this.isReady.value) this.call('startLiveRenderLoopFor', [visualModuleId, this.liveParamValues, statusInstanceId]);
 		this.liveEffectStateStore.start(visualModuleId, statusInstanceId);
 		this.liveVisualModuleId.value = visualModuleId;
 		this.renderLoopRunning = true;
@@ -219,11 +221,11 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 		}
 		// 同じモジュールの操作ではインスタンスを維持し、履歴を初期化しない。
 		this.liveParamValues = deepClone(paramValues);
-		this.call('updateLiveParamValues', [this.liveParamValues]);
+		if (this.isReady.value) this.call('updateLiveParamValues', [this.liveParamValues]);
 	}
 
 	public stopRenderLoop() {
-		this.call('stopRenderLoop', []);
+		if (this.isReady.value) this.call('stopRenderLoop', []);
 		this.renderLoopRunning = false;
 		this.liveEffectStateStore.stop();
 		this.liveVisualModuleId.value = null;
@@ -343,7 +345,7 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 
 	public async updatePointerPosition(newPointerPosition: { x: number; y: number }) {
 		this.pointerPosition = { ...newPointerPosition };
-		this.call('updatePointerPosition', [newPointerPosition]);
+		if (this.isReady.value) this.call('updatePointerPosition', [newPointerPosition]);
 	}
 
 	public async updateDynamicOptions(newDynamicOptions: Partial<VisualModuleRendererManagerDynamicOptions>) {
@@ -368,6 +370,8 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 
 	public updateStaticOptions(newStaticOptions: Partial<VisualModuleRendererManagerStaticOptions>): Promise<void> {
 		this.staticOptions = { ...this.staticOptions, ...newStaticOptions };
+		// 解放中は設定のみ保持する。Worker障害時は再生成して復旧できるようにする。
+		if (!this.hasManager && !this.isInitializing) return Promise.resolve();
 		return this.reload();
 	}
 

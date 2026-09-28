@@ -11,7 +11,7 @@ const bundled = await build({
 	plugins: [{ name: 'export-worker-platform', setup(build) {
 		build.onResolve({ filter: /^@glitch\/|\/mp4-writer\.ts$|\/still-webp\.ts$/ }, args => ({ path: args.path, namespace: 'platform' }));
 		build.onLoad({ filter: /.*/, namespace: 'platform' }, () => ({ contents: `
-			export const MainRenderer = dependencies.MainRenderer;
+			export const TimelineRendererManager = dependencies.TimelineRendererManager;
 			export const effectDefinitions = {}, effectImplementations = {};
 			export const createMp4Writer = dependencies.createMp4Writer;
 			export const encodeStillWebp = dependencies.encodeStillWebp;
@@ -33,12 +33,13 @@ function fixture() {
 		constructor(canvas) { this.canvas = canvas; }
 	}
 	const dependencies = {
-		MainRenderer: class {
+		TimelineRendererManager: class {
 			constructor(core, staticOptions) {
 				this.core = core;
 				this.staticOptions = staticOptions;
 				instance = this;
 			}
+			on(name, handler) { this.handler = handler; }
 			async updateDynamicOptions(options) {
 				this.dynamicOptions = options;
 				preparing.resolve();
@@ -85,15 +86,14 @@ for (const format of ['mp4', 'webp']) {
 		const request = {
 			settings: { format, quality: 'high', width: 3, height: 5, startTimeMs: 1000,
 				...(format === 'mp4' ? { fps: 30, endTimeMs: 1010 } : {}) },
-			renderer: { enable32bitDataTextures: true, intermediateTextureFormat: 'rgba16float', enableStats: true },
+			renderer: { enable32bitDataTextures: true, intermediateTextureFormat: 'rgba16float' },
 			project: { assets: [{ id: 'image' }], visualModules: [{ id: 'module' }], timeline: [{ id: 'layer' }] },
 		};
 		const job = f.run(request);
 		await f.preparing.promise;
 		assert.deepEqual(f.frames, []);
 		assert.deepEqual(structuredClone(f.deviceSettings.requiredFeatures), ['float32-filterable']);
-		assert.deepEqual(structuredClone(f.instance.staticOptions), { ...request.renderer, enableStats: false });
-		assert.equal(request.renderer.enableStats, true);
+		assert.deepEqual(structuredClone(f.instance.staticOptions), { ...request.renderer });
 		const resolution = format === 'mp4' ? { width: 4, height: 6 } : { width: 3, height: 5 };
 		assert.deepEqual(structuredClone(f.instance.dynamicOptions), {
 			...request.project, resolution, opaqueOutput: format === 'mp4',
@@ -115,7 +115,7 @@ test('reports asset preparation failures without rendering export frames', { tim
 	const f = fixture();
 	const job = f.run({
 		settings: { format: 'webp', quality: 'lossless', width: 2, height: 2, startTimeMs: 0 },
-		renderer: { enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm', enableStats: false },
+		renderer: { enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm' },
 		project: { assets: [], visualModules: [], timeline: [] },
 	});
 	await f.preparing.promise;
@@ -128,4 +128,22 @@ test('reports asset preparation failures without rendering export frames', { tim
 	assert.equal(f.messages.at(-1).message, 'image decode failed');
 	assert.equal(f.messages.some(message => message.type === 'complete'), false);
 	assert.equal(f.destroyed, true);
+});
+
+// 【TimelineManagerからのノードエラーをエクスポート失敗として返す】
+// 新しいイベント形式への移行で通知を失うと、壊れたノードの出力を正常な動画として保存してしまう。
+test('aborts export when the timeline manager reports a node error', async () => {
+	const f = fixture();
+	const job = f.run({
+		settings: { format: 'webp', quality: 'lossless', width: 2, height: 2, startTimeMs: 0 },
+		renderer: { enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm' },
+		project: { assets: [], visualModules: [], timeline: [] },
+	});
+	await f.preparing.promise;
+	f.instance.handler({ type: 'effectState', ctx: { nodeId: 'broken', status: { status: { type: 'error', message: 'Invalid expression' } } } });
+	f.prepared.resolve();
+	await job;
+	assert.deepEqual(f.frames, []);
+	assert.equal(f.messages.at(-1).message, 'Node broken: Invalid expression');
+	assert.equal(f.messages.some(message => message.type === 'complete'), false);
 });

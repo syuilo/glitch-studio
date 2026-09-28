@@ -5,9 +5,9 @@
 	<div :class="$style.body">
 		<GsVideoControls
 			v-if="videoEl != null" :video="videoEl" :class="$style.videoControl"
-			:play="() => previewRendererController.playPlayer(player.id)"
+			:play="() => visualModuleRendererManagerController.playPlayer(player.id)"
 		/>
-		<div :class="$style.levelMeter"><GsAudioLevelMeter :orientation="'vertical'" :levels="previewRendererController.getPlayerLevels(player.id)"/></div>
+		<div :class="$style.levelMeter"><GsAudioLevelMeter :orientation="'vertical'" :levels="visualModuleRendererManagerController.getPlayerLevels(player.id)"/></div>
 	</div>
 </div>
 </template>
@@ -22,13 +22,13 @@ import type { Player } from '@glitch/shared/types.ts';
 import { i18n } from '@/i18n.ts';
 import * as api from '@/api.ts';
 import * as ui from '@/ui.ts';
-import { appStateManager, previewRendererController } from '@/app.ts';
+import { appStateManager, visualModuleRendererManagerController } from '@/app.ts';
 
 const props = defineProps<{
 	player: Player;
 }>();
 
-const videoEl = computed(() => previewRendererController.getMediaElement(props.player.id));
+const videoEl = computed(() => visualModuleRendererManagerController.getMediaElement(props.player.id));
 
 function remove() {
 	//appContext.commit('removePlayer', {

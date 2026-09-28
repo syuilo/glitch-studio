@@ -2,6 +2,7 @@
 <div :class="$style.root">
 	<div :class="$style.header">
 		<GsButton @click="addLayer">addLayer</GsButton>
+		<GsButton :primary="previewPlayback.state.value.mode === 'timeline'" @click="previewPlayback.showTimeline()">Preview</GsButton>
 		<GsButton v-if="previewPlayback.isTimelinePlaying.value" primary @click="pause"><i class="ti ti-player-pause"></i></GsButton>
 		<GsButton v-else primary @click="play"><i class="ti ti-player-play"></i></GsButton>
 	</div>
