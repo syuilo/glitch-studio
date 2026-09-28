@@ -20,7 +20,7 @@
 			@changeFinished="onFinishChanging"
 			@thumbDoubleClicked="reset"
 		/>
-		<GsInput v-else small type="number" :modelValue="value" @update:modelValue="changeValue(Number($event))"/>
+		<GsInput v-else small type="number" :modelValue="value" @focusin="onBeginChanging" @update:modelValue="changeContinuous(Number($event))" @focusout="onFinishChanging"/>
 	</div>
 	<div v-else-if="scalarControl?.controlType === 'angle'">
 		<GsAngle
@@ -32,7 +32,7 @@
 		/>
 	</div>
 	<div v-else-if="scalarControl?.controlType === 'number'">
-		<GsInput small type="number" :modelValue="value" :min="scalarControl.min" :max="scalarControl.max" @update:modelValue="changeValue(Number($event))"/>
+		<GsInput small type="number" :modelValue="value" :min="scalarControl.min" :max="scalarControl.max" @focusin="onBeginChanging" @update:modelValue="changeContinuous(Number($event))" @focusout="onFinishChanging"/>
 	</div>
 	<div v-else-if="dataType.kind === 'bool'">
 		<GsButton small :primary="value" @click="changeValue(!value)">{{ value ? 'On' : 'Off' }}</GsButton>
@@ -163,7 +163,7 @@
 		/>
 	</div>
 	<div v-else-if="scalarControl?.controlType === 'seed'" style="display: flex;">
-		<GsInput style="flex: 1;" type="number" :modelValue="value" @update:modelValue="changeValue(parseInt(String($event), 10))"/>
+		<GsInput style="flex: 1;" type="number" :modelValue="value" @focusin="onBeginChanging" @update:modelValue="changeContinuous(parseInt(String($event), 10))" @focusout="onFinishChanging"/>
 		<GsButton small iconOnly :title="i18n.ts.Random" @click="() => changeValue(Math.floor(Math.random() * 16384))"><i class="ti ti-dice-5"></i></GsButton>
 	</div>
 	<div v-else-if="dataType.kind === 'assetReference' || dataType.kind === 'videoAssetReference' || dataType.kind === 'fontAssetReference'">
