@@ -7,7 +7,6 @@ import { genEmptyValue } from '@glitch/shared/utility/misc.js';
 import { outputShaderInput } from './node-output.ts';
 import TimingHelper from './utility/TimingHelper.ts';
 import { ParameterEvaluator } from './parameter-evaluator.ts';
-import { moduleVariables } from './expression-scope.ts';
 import { getEvaluatedParam, mapNodeParam, walkNodeParams } from './utility/node-params.ts';
 import defaultVertexShaderCode from './vertex.wgsl?raw';
 import type { EvaluatedParameterValues, ParameterEvaluationContext } from './parameter-evaluator.ts';
@@ -18,6 +17,7 @@ import type { Asset, AutomationGraph, IntermediateTextureFormat } from '@glitch/
 import type { VisualModuleEffectNode, VisualModuleGlobalInNode, VisualModuleNode, NodeOutputReference, VisualModule } from '@glitch/shared/visual-module/types.ts';
 import type { EffectImplementation, EffectInstance } from '@glitch/shared/effect/effect-implementation.js';
 import type { EffectDefinition } from '@glitch/shared/effect/effect-definition.js';
+import type { moduleEnvVarDefs } from '@glitch/shared/expression.js';
 
 export type VisualModuleRenderContext = {
 	isExport: boolean;
@@ -145,12 +145,18 @@ export class VisualModuleRenderer {
 		this.paramInputs = context.paramInputs ?? new Map();
 
 		const evalCtx = {
-			variables: moduleVariables({
-				time: context.time,
-				endTime: context.endTime,
-				isExport: context.isExport,
-				resolution: this.resolution,
-			}),
+			variables: {
+				WIDTH: this.resolution.width,
+				HEIGHT: this.resolution.height,
+				TIME: context.time / 1000,
+				TIME_MS: context.time,
+				END_TIME: context.endTime / 1000,
+				END_TIME_MS: context.endTime,
+				PROGRESS: context.time / context.endTime,
+				IS_EXPORT: context.isExport,
+				TEST_ONLY_VM: true,
+				TEST_SAME_NAME: 1,
+			} satisfies Record<typeof moduleEnvVarDefs[number], unknown>,
 			automationGraphs: this.automationGraphs,
 			time: context.time,
 			endTime: context.endTime,
