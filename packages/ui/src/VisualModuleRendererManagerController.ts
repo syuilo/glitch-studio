@@ -46,7 +46,6 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 	public gpuAverageDisplaySlow = ref(0);
 	public fpsDisplay = ref(0);
 	public gpuMemoryUsage = ref<ReturnType<MainRenderer['gpuMemory']['getUsage']> | null>(null);
-	public isReady = ref(false);
 	public errorMessage = ref<string | null>(null);
 	private liveEffectStateStore = new LiveEffectStateStore(shallowReactive(new Map<string, EffectInstanceState>()));
 
@@ -91,6 +90,9 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 			},
 			createWorker: () => {
 				return createVisualModuleRendererManagerWorker();
+			},
+			onError: error => {
+				this.errorMessage.value = error?.message ?? null;
 			},
 			eventHandlers: {
 				gpuMemory: (ctx) => {
@@ -354,7 +356,7 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 		}
 		this.dynamicOptions = { ...this.dynamicOptions, ...options };
 		// 初回init前の設定は初期化メッセージに含める。初期化中はRPCのキューに積む。
-		if (!this.isReady.value) return { assetsCommitted: null };
+		if (!this.isReady.value && !this.isInitializing) return { assetsCommitted: null };
 		const result = await this.callAndWaitReturn('updateDynamicOptions', [options]);
 		if (result.assetsCommitted && options.assets === this.dynamicOptions.assets) {
 			// 素材の差し替え・削除ではPlayer定義は変わらないため、ここで参照先を同期する。
