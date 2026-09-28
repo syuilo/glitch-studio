@@ -1,11 +1,13 @@
 import { ref, shallowReactive } from 'vue';
+import type { VisualModuleRendererManager } from '@glitch/renderer/visual-module-renderer-manager.ts';
+import type { TimelineRendererManager } from '@glitch/renderer/timeline-renderer-manager.ts';
 
 type ManagerMethods<T> = {
 	[K in keyof T as T[K] extends (...args: never[]) => unknown ? K : never]: T[K];
 };
 
 // 対象のRendererManagerがWorker越しに動いているのか直接動いているのか隠蔽するクラス(現在はworkerのみ)
-export abstract class RendererManagerControllerBase<T> {
+export abstract class RendererManagerControllerBase<T extends VisualModuleRendererManager | TimelineRendererManager> {
 	private worker: Worker | null = null;
 	private reloadPromise: Promise<void> | null = null;
 	private rejectInitialization: ((reason: Error) => void) | null = null;
