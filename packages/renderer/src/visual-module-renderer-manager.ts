@@ -374,6 +374,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 	}
 
 	public destroy() {
+		clearInterval(this.telemetryReportIntervalId);
 		clearInterval(this.gpuMemoryReportIntervalId);
 		this.stopRenderLoop();
 		this.outputTextures.dispose();
