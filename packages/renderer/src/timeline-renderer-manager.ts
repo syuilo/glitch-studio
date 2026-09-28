@@ -198,15 +198,16 @@ export class TimelineRendererManager extends EventEmitter<{
 		await this.timelineRenderer.renderAt(time, this.dynamicOptions.timeline, timeDelta, true);
 	}
 
-	private createTimelineLayer(layer: Timeline[number]): TimelineLayerRenderer<NodeOutput> | undefined {
+	private createTimelineLayer(layer: Timeline[number]): TimelineLayerRenderer<NodeOutput> {
 		// レイヤーの種類の解釈とリソース解決は、タイムライン制御の外側で行う。
 		switch (layer.layerType) {
 			case 'visualModule': {
 				const visualModule = this.dynamicOptions.visualModules.find(module => module.id === layer.visualModuleId);
-				if (visualModule == null) return;
+				if (visualModule == null) throw new Error(`Visual module not found: ${layer.visualModuleId}`);
 				return this.createVisualModuleLayer(visualModule, layer);
 			}
 		}
+		throw new Error(`Unrecognized layer type: ${layer.layerType}`);
 	}
 
 	private createVisualModuleLayer(visualModule: VisualModule, layer: TimelineVisualModuleLayer): TimelineLayerRenderer<NodeOutput> {
