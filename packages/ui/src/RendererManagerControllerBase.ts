@@ -3,11 +3,17 @@ import type { VisualModuleRendererManager } from '@glitch/renderer/visual-module
 import type { TimelineRendererManager } from '@glitch/renderer/timeline-renderer-manager.ts';
 
 type ManagerMethods<T> = {
-	[K in keyof T as T[K] extends (...args: never[]) => unknown ? K : never]: T[K];
+	[K in keyof T as T[K] extends (...args: never[]) => unknown ? K : never]: Extract<T[K], (...args: never[]) => unknown>;
+};
+
+type RendererManager = VisualModuleRendererManager | TimelineRendererManager;
+type ManagerEvent<T extends RendererManager> = Parameters<T['emit']>[1];
+type ManagerEventHandlers<T extends RendererManager> = {
+	[E in ManagerEvent<T> as E['type']]: (ctx: E['ctx']) => void;
 };
 
 // 対象のRendererManagerがWorker越しに動いているのか直接動いているのか隠蔽するクラス(現在はworkerのみ)
-export abstract class RendererManagerControllerBase<T extends VisualModuleRendererManager | TimelineRendererManager> {
+export abstract class RendererManagerControllerBase<T extends RendererManager> {
 	private worker: Worker | null = null;
 	private reloadPromise: Promise<void> | null = null;
 	private rejectInitialization: ((reason: Error) => void) | null = null;
@@ -16,7 +22,7 @@ export abstract class RendererManagerControllerBase<T extends VisualModuleRender
 
 	private getInitialOptions: ((isReload: boolean) => Promise<{ options: Record<string, unknown>; transfer: Transferable[] }>);
 	private createWorker: () => Worker | Promise<Worker>;
-	private managerEventHandlers: Record<string, (ctx: unknown) => void>;
+	private managerEventHandlers: ManagerEventHandlers<T>;
 	private onCreated: (() => void);
 	private onDisposed: (() => void);
 	private onError: (error: Error | null) => void;
@@ -174,8 +180,11 @@ export abstract class RendererManagerControllerBase<T extends VisualModuleRender
 						break;
 					}
 					case 'ev': {
-						const { type, ctx } = event.data.ev;
-						this.managerEventHandlers[type](ctx);
+						const { type, ctx } = event.data.ev as ManagerEvent<T>;
+						// Workerは同じManagerのイベントを転送する。動的なキー選択では失われる
+						// typeとctxの対応だけを通信境界で補い、登録側ではイベントごとの型を保つ。
+						const handler = this.managerEventHandlers[type as keyof ManagerEventHandlers<T>] as (ctx: ManagerEvent<T>['ctx']) => void;
+						handler(ctx);
 						break;
 					}
 					case 'callError': {

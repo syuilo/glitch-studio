@@ -12,7 +12,7 @@ import { RendererManagerControllerBase } from './RendererManagerControllerBase.t
 import type { Player } from '@glitch/shared/types.ts';
 import type { VisualModule, VisualModuleParameterBindings } from '@glitch/shared/visual-module/types.ts';
 import type { EffectInstanceState } from '@glitch/shared/effect/effect-status.ts';
-import type { VisualModuleRendererManager, VisualModuleRendererManagerStaticOptions, VisualModuleRendererManagerDynamicOptions } from '@glitch/renderer/visual-module-renderer-manager.ts';
+import type { VisualModuleRendererManager, VisualModuleRendererManagerStaticOptions, VisualModuleRendererManagerDynamicOptions, VisualModuleRendererManagerEvents } from '@glitch/renderer/visual-module-renderer-manager.ts';
 import * as ui from '@/ui.ts';
 
 export class VisualModuleRendererManagerController extends RendererManagerControllerBase<VisualModuleRendererManager> {
@@ -45,7 +45,7 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 	public gpuAverageDisplayMedium = ref(0);
 	public gpuAverageDisplaySlow = ref(0);
 	public fpsDisplay = ref(0);
-	public gpuMemoryUsage = ref<ReturnType<VisualModuleRendererManager['gpuMemory']['getUsage']> | null>(null);
+	public gpuMemoryUsage = ref<Parameters<VisualModuleRendererManagerEvents['gpuMemory']>[0]['usage'] | null>(null);
 	public errorMessage = ref<string | null>(null);
 	private liveEffectStateStore = new LiveEffectStateStore(shallowReactive(new Map<string, EffectInstanceState>()));
 
