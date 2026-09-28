@@ -66,42 +66,29 @@ watch(() => props.modelValue, (newValue) => {
 	value.value = [...newValue];
 }, { deep: true });
 
-function fromRatio(ratio: number): number {
-	const clamped = Math.min(1, Math.max(0, ratio));
-	return useLogarithmic.value ? props.min * (props.max / props.min) ** clamped : props.min + clamped * (props.max - props.min);
-}
-
-function snap(number: number): number {
-	const clamped = Math.min(props.max, Math.max(props.min, number));
-	if (useLogarithmic.value) return clamped;
-	if (props.step == null || props.step <= 0) return clamped;
-	const snapped = props.min + Math.round((clamped - props.min) / props.step) * props.step;
-	return Number(Math.min(props.max, Math.max(props.min, snapped)).toFixed(10));
-}
-
 function setValue(x: number, y: number, changedAxis?: 'x' | 'y') {
 	const ratio = lockedRatio.value;
 	if (ratio == null) {
-		value.value = [snap(x), snap(y)];
+		value.value = [Math.round(x * 100) / 100, Math.round(y * 100) / 100];
 	} else {
 		const [ratioX, ratioY] = ratio;
 		// ポインター位置を比率の直線に射影する。キー操作では指定された軸の値を優先する。
 		let scale: number;
 		if (changedAxis === 'x') {
 			if (ratioX === 0) return;
-			scale = snap(x) / ratioX;
+			scale = x / ratioX;
 		} else if (changedAxis === 'y') {
 			if (ratioY === 0) return;
-			scale = snap(y) / ratioY;
+			scale = y / ratioY;
 		} else if (useLogarithmic.value) {
 			// 比率固定は対数座標では傾き1の直線になる。画面上で射影するため、
 			// 両軸が要求する倍率の幾何平均を使い、小さい側の操作も等しく反映する。
-			scale = Math.sqrt((snap(x) / ratioX) * (snap(y) / ratioY));
+			scale = Math.sqrt((x / ratioX) * (y / ratioY));
 		} else {
 			scale = (x * ratioX + y * ratioY) / (ratioX * ratioX + ratioY * ratioY);
 			// 両軸を個別に丸めると比率が崩れるため、大きい成分だけをstepに合わせる。
 			const dominantComponent = Math.abs(ratioX) >= Math.abs(ratioY) ? ratioX : ratioY;
-			scale = snap(scale * dominantComponent) / dominantComponent;
+			scale = (scale * dominantComponent) / dominantComponent;
 		}
 		// 値を個別にclampせず、両軸が範囲内に収まる共通の倍率を求める。
 		let minScale = -Infinity;
@@ -113,6 +100,7 @@ function setValue(x: number, y: number, changedAxis?: 'x' | 'y') {
 		}
 		scale = Math.min(maxScale, Math.max(minScale, scale));
 		value.value = [ratioX * scale, ratioY * scale];
+		value.value = [Math.round(value.value[0] * 100) / 100, Math.round(value.value[1] * 100) / 100];
 	}
 	emit('update:modelValue', value.value);
 }

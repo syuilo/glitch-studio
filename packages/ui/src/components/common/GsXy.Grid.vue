@@ -4,6 +4,8 @@
 	:zPriority="'high'"
 	:anchorElement="anchorElement"
 	:transparentBg="true"
+	@click="modal?.close()"
+	@closed="emit('closed')"
 >
 	<div :class="$style.root" class="_shadow _popup" tabindex="-1" @keydown.stop="onKeydown">
 		<div
@@ -55,6 +57,7 @@ const emit = defineEmits<{
 	(ev: 'changeFinished', value: [number, number]): void;
 	(ev: 'enableRatioLock'): void;
 	(ev: 'disableRatioLock'): void;
+	(ev: 'closed'): void;
 }>();
 
 const modal = useTemplateRef('modal');
@@ -74,6 +77,12 @@ const yPosition = computed(() => `${(1 - toRatio(value.value[1])) * 100}%`);
 watch(() => props.modelValue, (newValue) => {
 	value.value = [...newValue];
 }, { deep: true });
+
+watch(() => props.lockedRatio, (newRatio) => {
+	if (newRatio != null) {
+		axisLock.value = null;
+	}
+});
 
 function toRatio(number: number): number {
 	if (props.max === props.min) return 0;
@@ -98,40 +107,7 @@ function snap(number: number): number {
 }
 
 function setValue(x: number, y: number, changedAxis?: 'x' | 'y') {
-	const ratio = props.lockedRatio;
-	if (ratio == null) {
-		value.value = [snap(x), snap(y)];
-	} else {
-		const [ratioX, ratioY] = ratio;
-		// ポインター位置を比率の直線に射影する。キー操作では指定された軸の値を優先する。
-		let scale: number;
-		if (changedAxis === 'x') {
-			if (ratioX === 0) return;
-			scale = snap(x) / ratioX;
-		} else if (changedAxis === 'y') {
-			if (ratioY === 0) return;
-			scale = snap(y) / ratioY;
-		} else if (useLogarithmic.value) {
-			// 比率固定は対数座標では傾き1の直線になる。画面上で射影するため、
-			// 両軸が要求する倍率の幾何平均を使い、小さい側の操作も等しく反映する。
-			scale = Math.sqrt((snap(x) / ratioX) * (snap(y) / ratioY));
-		} else {
-			scale = (x * ratioX + y * ratioY) / (ratioX * ratioX + ratioY * ratioY);
-			// 両軸を個別に丸めると比率が崩れるため、大きい成分だけをstepに合わせる。
-			const dominantComponent = Math.abs(ratioX) >= Math.abs(ratioY) ? ratioX : ratioY;
-			scale = snap(scale * dominantComponent) / dominantComponent;
-		}
-		// 値を個別にclampせず、両軸が範囲内に収まる共通の倍率を求める。
-		let minScale = -Infinity;
-		let maxScale = Infinity;
-		for (const component of ratio) {
-			if (component === 0) continue;
-			minScale = Math.max(minScale, Math.min(props.min / component, props.max / component));
-			maxScale = Math.min(maxScale, Math.max(props.min / component, props.max / component));
-		}
-		scale = Math.min(maxScale, Math.max(minScale, scale));
-		value.value = [ratioX * scale, ratioY * scale];
-	}
+	value.value = [snap(x), snap(y)];
 	emit('update:modelValue', value.value);
 }
 
