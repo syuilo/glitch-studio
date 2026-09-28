@@ -22,8 +22,7 @@ export type TimelineLayerRenderer<Output> = {
 
 type TimelineRendererOptions<Output, Entry extends TimelineRenderEntry> = {
 	fallbackOutput: Output;
-	// 描画対象を解決できない場合はundefinedを返し、下の出力を通す。
-	createLayer: (entry: Entry) => TimelineLayerRenderer<Output> | undefined;
+	createLayer: (entry: Entry) => TimelineLayerRenderer<Output>;
 	present: (output: Output, gpuTime: number) => void;
 	onClear?: () => void;
 };
@@ -68,7 +67,6 @@ export class TimelineRenderer<Output, Entry extends TimelineRenderEntry = Timeli
 				const isNewLayer = layer == null;
 				if (layer == null) {
 					layer = this.options.createLayer(entry);
-					if (layer == null) continue;
 					this.layers.set(entry.id, layer);
 				}
 				const context: TimelineLayerContext<Output> = {

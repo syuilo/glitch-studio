@@ -44,12 +44,15 @@ export type TimelineRendererManagerDynamicOptions = {
 	timeline: Timeline;
 };
 
+export type TimelineRendererManagerEvents = {
+	'effectState': (ctx: { source: EffectStatusSource; nodeId: string; status: EffectInstanceState | null }) => void;
+	'renderError': (ctx: { message: string | null }) => void;
+};
+
 export class TimelineRendererManager extends EventEmitter<{
-	'ev': (ctx: { type: keyof EVs; ctx: Parameters<EVs[keyof EVs]>[0] }) => void;
+	'ev': (ctx: { [K in keyof TimelineRendererManagerEvents]: { type: K; ctx: Parameters<TimelineRendererManagerEvents[K]>[0] } }[keyof TimelineRendererManagerEvents]) => void;
 }> {
 	private timelineRenderer: TimelineRenderer<NodeOutput, Timeline[number]>;
-	private onEffectState?: (source: EffectStatusSource, nodeId: string, status: EffectInstanceState | null) => void;
-	private onPreviewError?: (message: string | null) => void;
 	private previewRenderGeneration = 0;
 	private nextTimelineLayerStatusId = 0;
 	private gpuContext: GPUCanvasContext;
@@ -61,6 +64,7 @@ export class TimelineRendererManager extends EventEmitter<{
 	private assetTextures: AssetTextures;
 	private effectDefinitions: Record<string, EffectDefinition<any>>;
 	private effectImplementations: Record<string, EffectImplementation<any>>;
+	private currentRenderError: string | null = null;
 
 	private readonly staticOptions: TimelineRendererManagerStaticOptions;
 	private dynamicOptions: TimelineRendererManagerDynamicOptions = {
@@ -73,8 +77,6 @@ export class TimelineRendererManager extends EventEmitter<{
 	};
 
 	constructor(coreConfig: {
-		onEffectState?: (source: EffectStatusSource, nodeId: string, status: EffectInstanceState | null) => void;
-		onPreviewError?: (message: string | null) => void;
 		gpuDevice: GPUDevice;
 		gpuContext: GPUCanvasContext;
 		frameScheduler?: FrameScheduler;
@@ -88,8 +90,6 @@ export class TimelineRendererManager extends EventEmitter<{
 
 		this.staticOptions = { ...staticOptions };
 
-		this.onEffectState = coreConfig.onEffectState;
-		this.onPreviewError = coreConfig.onPreviewError;
 		this.gpuDevice = coreConfig.gpuDevice;
 		this.assetTextures = new AssetTextures(this.gpuDevice);
 		this.outputTextures = new OutputTextureResolver(this.gpuDevice, this.staticOptions.enable32bitDataTextures);
@@ -138,6 +138,13 @@ export class TimelineRendererManager extends EventEmitter<{
 		});
 	}
 
+	// 毎フレーム通知を発生させないように前回から変わっている場合のみ通知
+	private setRenderError(message: string | null) {
+		if (this.currentRenderError === message) return;
+		this.currentRenderError = message;
+		this.emit('ev', { type: 'renderError', ctx: { message } });
+	}
+
 	private clearTimelineRenderers() {
 		this.previewRenderGeneration++;
 		this.timelineRenderer.clear();
@@ -150,6 +157,8 @@ export class TimelineRendererManager extends EventEmitter<{
 		// 後から届いたモジュール編集やFPS変更を古い更新で巻き戻してしまう。
 		// Asset一覧だけはテクスチャと同時に切り替えるため、ここではマージしない。
 		this.dynamicOptions = { ...this.dynamicOptions, ...synchronousOptions };
+		this.canvasRenderer.highlightClipping = this.dynamicOptions.highlightClipping;
+		this.canvasRenderer.opaqueOutput = this.dynamicOptions.opaqueOutput;
 
 		if (newOptions.resolution !== undefined || newOptions.visualModules !== undefined || newOptions.timeline !== undefined) {
 			this.clearTimelineRenderers();
@@ -175,19 +184,15 @@ export class TimelineRendererManager extends EventEmitter<{
 
 	/** timeはミリ秒。表示期間中はレイヤーごとのインスタンスと履歴を保持する。 */
 	public async renderTimelineAt(time: number): Promise<void> {
-		const generation = this.previewRenderGeneration;
+		const generation = ++this.previewRenderGeneration;
 		try {
 			if (!Number.isFinite(time)) throw new Error('Timeline time must be finite');
 			await this.timelineRenderer.renderAt(time, this.dynamicOptions.timeline);
 			// 中断されたシークの完了で、新しい描画のエラーを消さない。
-			if (generation === this.previewRenderGeneration) this.setPreviewError(null);
+			if (generation === this.previewRenderGeneration) this.setRenderError(null);
 		} catch (error) {
-			if (generation === this.previewRenderGeneration) this.setPreviewError(error instanceof Error ? error.message : String(error));
+			if (generation === this.previewRenderGeneration) this.setRenderError(error instanceof Error ? error.message : String(error));
 		}
-	}
-
-	private setPreviewError(message: string | null) {
-		this.onPreviewError?.(message);
 	}
 
 	/** 専用インスタンスで順番に呼び、フレーム間の履歴と一定の経過時間を保持する。 */
@@ -195,15 +200,16 @@ export class TimelineRendererManager extends EventEmitter<{
 		await this.timelineRenderer.renderAt(time, this.dynamicOptions.timeline, timeDelta, true);
 	}
 
-	private createTimelineLayer(layer: Timeline[number]): TimelineLayerRenderer<NodeOutput> | undefined {
+	private createTimelineLayer(layer: Timeline[number]): TimelineLayerRenderer<NodeOutput> {
 		// レイヤーの種類の解釈とリソース解決は、タイムライン制御の外側で行う。
 		switch (layer.layerType) {
 			case 'visualModule': {
 				const visualModule = this.dynamicOptions.visualModules.find(module => module.id === layer.visualModuleId);
-				if (visualModule == null) return;
+				if (visualModule == null) throw new Error(`Visual module not found: ${layer.visualModuleId}`);
 				return this.createVisualModuleLayer(visualModule, layer);
 			}
 		}
+		throw new Error(`Unrecognized layer type: ${layer.layerType}`);
 	}
 
 	private createVisualModuleLayer(visualModule: VisualModule, layer: TimelineVisualModuleLayer): TimelineLayerRenderer<NodeOutput> {
@@ -222,7 +228,7 @@ export class TimelineRendererManager extends EventEmitter<{
 			intermediateTextureFormat: this.staticOptions.intermediateTextureFormat,
 			enableStats: false,
 			timingHelper: null,
-			onEffectState: (nodeId, status) => this.onEffectState?.(statusSource, nodeId, status),
+			onEffectState: (nodeId, status) => this.emit('ev', { type: 'effectState', ctx: { source: statusSource, nodeId, status } }),
 			videoFrames: new Map(),
 			videoFrameVersions: new Map(),
 			assets: this.dynamicOptions.assets,
@@ -287,8 +293,6 @@ export async function createManager(options: {
 	dynamicOptions: Partial<TimelineRendererManagerDynamicOptions>;
 	effectDefinitions: Record<string, EffectDefinition>;
 	effectImplementations: Record<string, EffectImplementation>;
-	reportPreviewError: (message: string | null) => void;
-	onEffectState: (source: EffectStatusSource, nodeId: string, status: EffectInstanceState | null) => void;
 }) {
 	const adapter = await navigator.gpu?.requestAdapter({
 		powerPreference: 'high-performance',
@@ -303,27 +307,33 @@ export async function createManager(options: {
 		throw new Error('need a browser that supports WebGPU');
 	}
 
-	const context = options.canvas.getContext('webgpu');
-	const histogramContext = options.histogramCanvas.getContext('webgpu');
-	const waveformHorizontalContext = options.waveformHorizontalCanvas.getContext('webgpu');
-	const waveformVerticalContext = options.waveformVerticalCanvas.getContext('webgpu');
-	if (!(context instanceof GPUCanvasContext) || !(histogramContext instanceof GPUCanvasContext) || !(waveformHorizontalContext instanceof GPUCanvasContext) || !(waveformVerticalContext instanceof GPUCanvasContext)) {
-		throw new Error('cannot get webgpu context');
+	let manager: TimelineRendererManager | undefined;
+	try {
+		const context = options.canvas.getContext('webgpu');
+		const histogramContext = options.histogramCanvas.getContext('webgpu');
+		const waveformHorizontalContext = options.waveformHorizontalCanvas.getContext('webgpu');
+		const waveformVerticalContext = options.waveformVerticalCanvas.getContext('webgpu');
+		if (!(context instanceof GPUCanvasContext) || !(histogramContext instanceof GPUCanvasContext) || !(waveformHorizontalContext instanceof GPUCanvasContext) || !(waveformVerticalContext instanceof GPUCanvasContext)) {
+			throw new Error('cannot get webgpu context');
+		}
+
+		manager = new TimelineRendererManager({
+			gpuDevice: device,
+			gpuContext: context,
+			histogramGpuContext: histogramContext,
+			waveformHorizontalGpuContext: waveformHorizontalContext,
+			waveformVerticalGpuContext: waveformVerticalContext,
+			effectDefinitions: options.effectDefinitions,
+			effectImplementations: options.effectImplementations,
+		}, options.staticOptions);
+
+		await manager.updateDynamicOptions(options.dynamicOptions);
+
+		return manager;
+	} catch (error) {
+		// 呼び出し元にはまだmanagerを返していないため、ここでリソースを回収する。
+		if (manager != null) manager.destroy();
+		else device.destroy();
+		throw error;
 	}
-
-	const manager = new TimelineRendererManager({
-		onEffectState: options.onEffectState,
-		onPreviewError: options.reportPreviewError,
-		gpuDevice: device,
-		gpuContext: context,
-		histogramGpuContext: histogramContext,
-		waveformHorizontalGpuContext: waveformHorizontalContext,
-		waveformVerticalGpuContext: waveformVerticalContext,
-		effectDefinitions: options.effectDefinitions,
-		effectImplementations: options.effectImplementations,
-	}, options.staticOptions);
-
-	await manager.updateDynamicOptions(options.dynamicOptions);
-
-	return manager;
 }

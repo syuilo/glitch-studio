@@ -9,15 +9,6 @@ let canvas: OffscreenCanvas | null = null;
 let histogramCanvas: OffscreenCanvas | null = null;
 let waveformHorizontalCanvas: OffscreenCanvas | null = null;
 let waveformVerticalCanvas: OffscreenCanvas | null = null;
-let previewError: string | null = null;
-
-function reportError(message: string | null) {
-	// 描画・操作の両方のエラーを扱い、成功した描画で解除する。
-	// 同じグラフの失敗が続いても、毎フレームUIへ通知しない。
-	if (previewError === message) return;
-	previewError = message;
-	self.postMessage({ type: 'error', message });
-}
 
 onmessage = async (event) => {
 	//console.log('Worker received message:', event.data);
@@ -39,8 +30,6 @@ onmessage = async (event) => {
 					dynamicOptions: event.data.dynamicOptions,
 					effectDefinitions,
 					effectImplementations,
-					onEffectState: (source, nodeId, state) => self.postMessage({ type: 'effectState', source, nodeId, state }),
-					onPreviewError: reportError,
 				});
 
 				manager.on('ev', ({ type, ctx }) => {
@@ -68,7 +57,7 @@ onmessage = async (event) => {
 				}
 			} catch (error) {
 				if (!event.data.needReturnValue) {
-					reportError(error instanceof Error ? error.message : String(error));
+					self.postMessage({ type: 'callError', message: error instanceof Error ? error.message : String(error) });
 					break;
 				}
 				// 任意のthrow値には複製できないオブジェクトも含まれるため、エラー情報だけを返す。

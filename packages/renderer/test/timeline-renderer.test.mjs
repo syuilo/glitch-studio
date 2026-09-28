@@ -41,7 +41,7 @@ function fixture(overrides = {}) {
 	const renderer = new TimelineRenderer({
 		fallbackOutput: 'transparent',
 		createLayer(layerEntry) {
-			if (layerEntry.layer.type === 'missing') return undefined;
+			if (layerEntry.layer.type === 'missing') throw new Error('Layer not found');
 			const id = layerEntry.id;
 			created.push(id);
 			return {
@@ -149,13 +149,23 @@ test('reuses instances by layer ID and recreates them after clearing', async () 
 	f.renderer.clear();
 });
 
-// 生成できないレイヤーと出力のないレイヤーは下の出力をそのまま通す
-test('passes through unavailable layers and layers without output', async () => {
+// 【出力のないレイヤーは下の出力を通す】
+// 有効なレイヤーが出力を返さない場合も背景を維持する。
+test('passes through layers without output', async () => {
 	const f = fixture({ render: async () => ({ output: undefined, gpuTime: 3 }) });
-	await f.renderer.renderAt(10, [entry('missing', 0, 1000, 'missing'), entry('empty')]);
+	await f.renderer.renderAt(10, [entry('empty')]);
 	assert.deepEqual(f.created, ['empty']);
 	assert.deepEqual(f.presented, [{ output: 'transparent', gpuTime: 3 }]);
 	f.renderer.clear();
+});
+
+// 【レイヤー生成に失敗したフレームは表示せず破棄する】
+// 不足するレイヤーを黙って省略した映像を書き出さず、生成済みの下層も回収する。
+test('rejects unavailable layers and destroys previously created layers', async () => {
+	const f = fixture();
+	await assert.rejects(f.renderer.renderAt(10, [entry('bottom'), entry('missing', 0, 1000, 'missing')]), /Layer not found/);
+	assert.deepEqual(f.presented, []);
+	assert.deepEqual(f.destroyed, ['bottom']);
 });
 
 // 古いシークの準備が後から完了しても描画・表示を行わない

@@ -489,7 +489,7 @@ test('refreshes external textures and restores constants after disconnecting the
 	renderer.render(context, encoder);
 	assert.equal(calls.draws, 4);
 	assert.equal(calls.writes.at(-1)[16], 0);
-	assert.equal(calls.shaders.length, 2);
+	assert.equal(calls.shaders.length, 3); // モジュール共通の頂点シェーダーと、定数・テクスチャ入力の2構成。
 	renderer.render(context, encoder);
 	assert.equal(calls.draws, 4);
 	// 上流の定数も外部入力として渡せる。同値はキャッシュし、値の変更を検出する。

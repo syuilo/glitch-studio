@@ -3,7 +3,7 @@ import { after, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { loadShaderSource } from './helpers/load-shader-source.mjs';
 
-// GPUの実行だけを置き換え、MainRenderer・ノード評価・描画ループは実コードを使う。
+// GPUの実行だけを置き換え、各manager・ノード評価・描画ループは実コードを使う。
 const globals = ['GPUQueue', 'GPUTextureUsage', 'GPUBufferUsage', 'GPUShaderStage'].map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]);
 const gpu = Object.getOwnPropertyDescriptor(navigator, 'gpu');
 globalThis.GPUQueue = class { submit() {} };
@@ -19,7 +19,8 @@ after(() => {
 	if (gpu) Object.defineProperty(navigator, 'gpu', gpu);
 	else delete navigator.gpu;
 });
-const { MainRenderer } = await loadShaderSource(fileURLToPath(new URL('../src/renderer.ts', import.meta.url)));
+const { VisualModuleRendererManager, createManager: createLiveManager } = await loadShaderSource(fileURLToPath(new URL('../src/visual-module-renderer-manager.ts', import.meta.url)));
+const { TimelineRendererManager, createManager: createTimelineManager } = await loadShaderSource(fileURLToPath(new URL('../src/timeline-renderer-manager.ts', import.meta.url)));
 
 function visualModule(circular) {
 	return {
@@ -34,10 +35,7 @@ function visualModule(circular) {
 	};
 }
 
-async function fixture(t, staticOptions = {}) {
-	const errors = [];
-	const frames = new Map();
-	let frameId = 0;
+function gpuFixture() {
 	const texture = ({ size = [1, 1], format = 'rgba8unorm' } = {}) => ({
 		width: size[0], height: size[1], depthOrArrayLayers: 1, mipLevelCount: 1, sampleCount: 1,
 		format, dimension: '2d', createView: () => ({}), destroy() {},
@@ -48,23 +46,34 @@ async function fixture(t, staticOptions = {}) {
 		createShaderModule: () => ({}), createSampler: () => ({}), createBindGroup: () => ({}),
 		createBindGroupLayout: () => ({}), createPipelineLayout: () => ({}),
 		createRenderPipeline: () => ({ getBindGroupLayout: () => ({}) }),
+		createComputePipeline: () => ({}),
 		createCommandEncoder: () => ({ finish: () => ({}), beginRenderPass: () => ({ setPipeline() {}, setBindGroup() {}, draw() {}, end() {} }) }),
 		queue: { submit() {}, writeBuffer() {}, writeTexture() {}, copyExternalImageToTexture() {} },
 	};
-	const renderer = new MainRenderer({
+	return { device, texture };
+}
+
+async function fixture(t, staticOptions = {}, Manager = VisualModuleRendererManager) {
+	const errors = [];
+	const frames = new Map();
+	let frameId = 0;
+	const { device, texture } = gpuFixture();
+	const renderer = new Manager({
 		gpuDevice: device, gpuContext: { canvas: { width: 1, height: 1 }, configure() {}, getCurrentTexture: texture },
 		frameScheduler: { now: () => 0, requestFrame: callback => { frames.set(++frameId, callback); return frameId; }, cancelFrame: id => frames.delete(id) },
-		onPreviewError: message => errors.push(message),
 		effectDefinitions: { pass: { paramDefs: {
 			input: { dataType: { kind: 'color' }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },
 		}, primaryInputParameter: 'input', outputDefs: { output: { dataType: { kind: 'color' } } }, primaryOutput: 'output' } },
 		effectImplementations: { pass: { outputTextureFactories: {} } },
 	}, { enableStats: false, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm', ...staticOptions });
+	renderer.on('ev', event => {
+		if (event.type === 'renderError') errors.push(event.ctx.message);
+	});
 	t.after(() => renderer.destroy());
 	await renderer.updateDynamicOptions({
 		resolution: { width: 1, height: 1 },
 		visualModules: [visualModule(true)],
-		timeline: [{ id: 'layer', layerType: 'visualModule', visualModuleId: 'module', startTimeMs: 0, endTimeMs: 1000, paramValues: {}, automationGraphs: [] }],
+		...(Manager === TimelineRendererManager ? { timeline: [{ id: 'layer', layerType: 'visualModule', visualModuleId: 'module', startTimeMs: 0, endTimeMs: 1000, paramValues: {}, compositingParamValues: {}, automationGraphs: [] }] } : {}),
 	});
 	return { renderer, errors, frames, frame(timestamp) {
 		const [id, callback] = frames.entries().next().value;
@@ -92,7 +101,7 @@ test('recovers live rendering after repairing a circular graph', async t => {
 // LIVEのRAFだけを保護しても、非同期のprepareで失敗するタイムラインのシークは救えない。
 // 同じ位置で再描画でき、前回のエラーが成功後に解除されることを保証する。
 test('recovers timeline preview after repairing a circular graph', async t => {
-	const { renderer, errors } = await fixture(t);
+	const { renderer, errors } = await fixture(t, {}, TimelineRendererManager);
 	await renderer.renderTimelineAt(0);
 	assert.equal(errors.at(-1), 'circular dependency detected');
 	await renderer.updateDynamicOptions({ visualModules: [visualModule(false)] });
@@ -104,33 +113,31 @@ test('recovers timeline preview after repairing a circular graph', async t => {
 // 動画出力で失敗を成功扱いすると欠落したフレームを含むファイルを生成してしまうため、
 // 今回の復旧用catchをエクスポート経路に広げないことを保証する。
 test('still rejects export frames for invalid graphs', async t => {
-	const { renderer, errors } = await fixture(t);
+	const { renderer, errors } = await fixture(t, {}, TimelineRendererManager);
 	await assert.rejects(renderer.renderTimelineFrame(0, 0), /circular dependency detected/);
 	assert.deepEqual(errors, []);
 });
 
-// 中断済みシークの完了が、新しいシークやLIVEのエラーを消さない。
-// prepareの待機中にモードや再生位置を切り替えると、古いPromiseが後から完了する。
-// 完了順だけでfooterを更新すると、現在の描画は失敗しているのにエラーが見えなくなる。
-test('ignores obsolete timeline completions after seeking or switching to live', async t => {
-	const { renderer, errors, frame } = await fixture(t);
+// 【破棄後に完了したシークは通知しない】
+// モード切り替え時はmanager自体が独立している。旧managerの完了通知を防ぐ。
+test('ignores obsolete timeline completions after destruction', async t => {
+	const { renderer, errors } = await fixture(t, {}, TimelineRendererManager);
 	const pending = [];
 	renderer.timelineRenderer.renderAt = () => new Promise(resolve => pending.push(resolve));
 	const first = renderer.renderTimelineAt(0);
 	const second = renderer.renderTimelineAt(10);
-	renderer.startLiveRenderLoopFor('module');
-	frame(16);
+	renderer.destroy();
 	pending[1]();
 	pending[0]();
 	await Promise.all([first, second]);
-	assert.deepEqual(errors, ['circular dependency detected']);
+	assert.deepEqual(errors, []);
 });
 
-// 古いシークの成功・失敗のどちらも、新しいシークの結果を上書きしない。
+// 【古いシークの成功・失敗は新しいシークの結果を上書きしない】
 // 正常終了の順序だけでなく失敗の順序も逆転し得るため、両方を確認する。
 // 新しい位置のエラーを消すことも、修正後に古いエラーを再表示することも防ぐ。
 test('keeps the latest seek result when older requests settle later', async t => {
-	const { renderer, errors } = await fixture(t);
+	const { renderer, errors } = await fixture(t, {}, TimelineRendererManager);
 	const pending = [];
 	renderer.timelineRenderer.renderAt = () => {
 		const gate = Promise.withResolvers();
@@ -183,7 +190,7 @@ test('finishes partial live frames before retrying', async t => {
 });
 
 // 新しいAssetをデコードし、後から完了した古い更新で素材や通常設定を巻き戻さない。
-// AssetTextures単体の世代管理が正しくても、MainRendererが更新前の一覧を渡したり、
+// AssetTextures単体の世代管理が正しくても、managerが更新前の一覧を渡したり、
 // await後に古いオプションをマージするとGPUリソースと設定の世代がずれる。
 test('commits only the latest assets and applies other options in call order', async t => {
 	const { renderer } = await fixture(t);
@@ -233,3 +240,76 @@ test('resizes the canvas and live renderer through dynamic options', async t => 
 	assert.equal(renderer.gpuContext.canvas.height, 180);
 	assert.deepEqual(resolutions, [{ width: 320, height: 180 }]);
 });
+
+for (const Manager of [VisualModuleRendererManager, TimelineRendererManager]) {
+	// 【最終表示の設定をGPUへ反映する】
+	// 設定の保存だけでは描画に届かないため、最終パスのuniform転送まで確認する。
+	test(`${Manager.name} applies and resets canvas output settings`, async t => {
+		const { renderer, frame } = await fixture(t, {}, Manager);
+		await renderer.updateDynamicOptions({ visualModules: [{
+			id: 'module', automationGraphs: [],
+			paramDefs: [{ id: 'color', dataType: { kind: 'color' }, canNode: true, defaultValue: { inputSource: 'literal', value: [1, 0, 0, 0.5] } }],
+			outputDefs: [{ id: 'output', dataType: { kind: 'color' } }], primaryOutputId: 'output',
+			nodes: [{ id: 'in', type: 'globalIn' }, { id: 'out', type: 'globalOut', inputs: { output: { nodeId: 'in', outputPort: 'color' } } }],
+		}] });
+		const writes = [];
+		renderer.gpuDevice.queue.writeBuffer = (buffer, offset, data) => writes.push(Array.from(new Uint32Array(data.slice(0))));
+		if (Manager === VisualModuleRendererManager) renderer.startLiveRenderLoopFor('module');
+		let timestamp = 0;
+		const render = () => Manager === VisualModuleRendererManager ? frame(timestamp += 16) : renderer.renderTimelineAt(0);
+		await renderer.updateDynamicOptions({ highlightClipping: true, opaqueOutput: true });
+		await render();
+		assert.deepEqual(writes.at(-1), [1, 1]);
+		await renderer.updateDynamicOptions({ highlightClipping: false });
+		await render();
+		assert.deepEqual(writes.at(-1), [0, 1]);
+		await renderer.updateDynamicOptions({ opaqueOutput: false });
+		await render();
+		assert.deepEqual(writes.at(-1), [0, 0]);
+	});
+}
+
+for (const [name, createManager] of [['live', createLiveManager], ['timeline', createTimelineManager]]) {
+	for (const failure of ['context', 'constructor', 'assets']) {
+		// 【初期化失敗時にデバイスと定期通知を回収する】
+		// factoryがrejectすると呼び出し元はmanagerを受け取れず、後始末を委ねられない。
+		test(`${name} factory releases resources after ${failure} failure`, async t => {
+			const { device } = gpuFixture();
+			const destroyed = t.mock.method(device, 'destroy');
+			const timers = new Set();
+			t.mock.method(globalThis, 'setInterval', () => { const id = {}; timers.add(id); return id; });
+			t.mock.method(globalThis, 'clearInterval', id => timers.delete(id));
+			class Context {
+				canvas = { width: 1, height: 1 };
+				configure() {}
+				unconfigure() {}
+			}
+			const previousContext = Object.getOwnPropertyDescriptor(globalThis, 'GPUCanvasContext');
+			const previousBitmap = Object.getOwnPropertyDescriptor(globalThis, 'createImageBitmap');
+			const previousGpu = Object.getOwnPropertyDescriptor(navigator, 'gpu');
+			globalThis.GPUCanvasContext = Context;
+			globalThis.createImageBitmap = async () => { throw new Error('asset decode failed'); };
+			Object.defineProperty(navigator, 'gpu', { configurable: true, value: {
+				getPreferredCanvasFormat: () => 'rgba8unorm',
+				requestAdapter: async () => ({ requestDevice: async () => device }),
+			} });
+			t.after(() => {
+				for (const [key, descriptor] of [['GPUCanvasContext', previousContext], ['createImageBitmap', previousBitmap]]) {
+					if (descriptor) Object.defineProperty(globalThis, key, descriptor);
+					else delete globalThis[key];
+				}
+				Object.defineProperty(navigator, 'gpu', previousGpu);
+			});
+			if (failure === 'constructor') t.mock.method(device, 'createRenderPipeline', () => { throw new Error('pipeline failed'); });
+			const canvas = { getContext: () => failure === 'context' ? null : new Context() };
+			await assert.rejects(createManager({
+				canvas, histogramCanvas: canvas, waveformHorizontalCanvas: canvas, waveformVerticalCanvas: canvas,
+				staticOptions: { enableStats: false, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm' },
+				dynamicOptions: { assets: [{ id: 'broken', fileDataType: 'image/png', fileData: new Blob() }] },
+				effectDefinitions: {}, effectImplementations: {},
+			}), failure === 'context' ? /cannot get webgpu context/ : failure === 'constructor' ? /pipeline failed/ : /asset decode failed/);
+			assert.equal(destroyed.mock.callCount(), 1);
+			assert.equal(timers.size, 0);
+		});
+	}
+}

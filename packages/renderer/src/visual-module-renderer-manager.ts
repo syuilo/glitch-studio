@@ -3,7 +3,6 @@ import { genId } from '@glitch/shared/utility/id.ts';
 import { genEmptyValue } from '@glitch/shared/utility/misc.ts';
 import EventEmitter from 'eventemitter3';
 import { AssetTextures } from './asset-textures.ts';
-import defaultVertexShaderCode from './vertex.wgsl?raw';
 import TimingHelper from './utility/TimingHelper.ts';
 import { NonNegativeRollingAverage } from './utility/NonNegativeRollingAverage.ts';
 import { GpuMemoryTracker } from './utility/GpuMemoryTracker.ts';
@@ -49,11 +48,16 @@ export type VisualModuleRendererManagerDynamicOptions = {
 	visualModules: VisualModule[];
 };
 
+export type VisualModuleRendererManagerEvents = {
+	'effectState': (ctx: { source: EffectStatusSource; nodeId: string; status: EffectInstanceState | null }) => void;
+	'renderError': (ctx: { message: string | null }) => void;
+	'telemetry': (ctx: { fpsAverage: number; gpuAverageFast: number; gpuAverageMedium: number; gpuAverageSlow: number; }) => void;
+	'gpuMemory': (ctx: { usage: { total: number; textures: number; buffers: number; } }) => void;
+};
+
 export class VisualModuleRendererManager extends EventEmitter<{
-	'ev': (ctx: { type: keyof EVs; ctx: Parameters<EVs[keyof EVs]>[0] }) => void;
+	'ev': (ctx: { [K in keyof VisualModuleRendererManagerEvents]: { type: K; ctx: Parameters<VisualModuleRendererManagerEvents[K]>[0] } }[keyof VisualModuleRendererManagerEvents]) => void;
 }> {
-	private onEffectState?: (source: EffectStatusSource, nodeId: string, status: EffectInstanceState | null) => void;
-	private onPreviewError?: (message: string | null) => void;
 	private previewRenderGeneration = 0;
 	private gpuContext: GPUCanvasContext;
 	private gpuDevice: GPUDevice;
@@ -76,11 +80,14 @@ export class VisualModuleRendererManager extends EventEmitter<{
 	private pointerPositionPrev: { x: number; y: number } = { x: -99999, y: -99999 };
 	private effectDefinitions: Record<string, EffectDefinition<any>>;
 	private effectImplementations: Record<string, EffectImplementation<any>>;
-	public gpuAverageFast = new NonNegativeRollingAverage(10);
-	public gpuAverageMedium = new NonNegativeRollingAverage(100);
-	public gpuAverageSlow = new NonNegativeRollingAverage(1000);
-	public fpsAverage = new NonNegativeRollingAverage(30);
-	public readonly gpuMemory: GpuMemoryTracker;
+	private gpuAverageFast = new NonNegativeRollingAverage(10);
+	private gpuAverageMedium = new NonNegativeRollingAverage(100);
+	private gpuAverageSlow = new NonNegativeRollingAverage(1000);
+	private fpsAverage = new NonNegativeRollingAverage(30);
+	private telemetryReportIntervalId: number;
+	private gpuMemory: GpuMemoryTracker;
+	private gpuMemoryReportIntervalId: number;
+	private currentRenderError: string | null = null;
 
 	private readonly staticOptions: VisualModuleRendererManagerStaticOptions;
 	private dynamicOptions: VisualModuleRendererManagerDynamicOptions = {
@@ -94,8 +101,6 @@ export class VisualModuleRendererManager extends EventEmitter<{
 	};
 
 	constructor(coreConfig: {
-		onEffectState?: (source: EffectStatusSource, nodeId: string, status: EffectInstanceState | null) => void;
-		onPreviewError?: (message: string | null) => void;
 		gpuDevice: GPUDevice;
 		gpuContext: GPUCanvasContext;
 		frameScheduler?: FrameScheduler;
@@ -109,8 +114,6 @@ export class VisualModuleRendererManager extends EventEmitter<{
 
 		this.staticOptions = { ...staticOptions };
 
-		this.onEffectState = coreConfig.onEffectState;
-		this.onPreviewError = coreConfig.onPreviewError;
 		this.frameScheduler = coreConfig.frameScheduler ?? browserFrameScheduler;
 		this.liveRenderLoop = new LiveRenderLoop({
 			scheduler: this.frameScheduler,
@@ -118,9 +121,9 @@ export class VisualModuleRendererManager extends EventEmitter<{
 				// グラフのエラーでWorkerを利用不能にしない。次のフレームで修正後の状態を再試行する。
 				try {
 					this.renderLiveFrame(timing);
-					this.setPreviewError(null);
+					this.setRenderError(null);
 				} catch (error) {
-					this.setPreviewError(error instanceof Error ? error.message : String(error));
+					this.setRenderError(error instanceof Error ? error.message : String(error));
 				}
 			},
 			fpsLimit: this.dynamicOptions.fpsLimit,
@@ -150,10 +153,6 @@ export class VisualModuleRendererManager extends EventEmitter<{
 			usage: GPUTextureUsage.TEXTURE_BINDING,
 		});
 
-		this.defaultVertexShaderModule = this.gpuDevice.createShaderModule({
-			code: defaultVertexShaderCode,
-		});
-
 		this.canvasRenderer = new CanvasRenderer({
 			gpuDevice: this.gpuDevice,
 			gpuContext: this.gpuContext,
@@ -161,6 +160,26 @@ export class VisualModuleRendererManager extends EventEmitter<{
 			waveformHorizontalGpuContext: coreConfig.waveformHorizontalGpuContext,
 			waveformVerticalGpuContext: coreConfig.waveformVerticalGpuContext,
 		});
+
+		this.telemetryReportIntervalId = setInterval(() => {
+			this.emit('ev', { type: 'telemetry', ctx: {
+				fpsAverage: this.fpsAverage.get(),
+				gpuAverageFast: this.gpuAverageFast.get(),
+				gpuAverageMedium: this.gpuAverageMedium.get(),
+				gpuAverageSlow: this.gpuAverageSlow.get(),
+			} });
+		}, 100);
+
+		this.gpuMemoryReportIntervalId = setInterval(() => {
+			this.emit('ev', { type: 'gpuMemory', ctx: { usage: this.gpuMemory.getUsage() } });
+		}, 1000);
+	}
+
+	// 毎フレーム通知を発生させないように前回から変わっている場合のみ通知
+	private setRenderError(message: string | null) {
+		if (this.currentRenderError === message) return;
+		this.currentRenderError = message;
+		this.emit('ev', { type: 'renderError', ctx: { message } });
 	}
 
 	public attachAudioSource(id: AudioSourceId, port: MessagePort) {
@@ -220,6 +239,8 @@ export class VisualModuleRendererManager extends EventEmitter<{
 		// 後から届いたモジュール編集やFPS変更を古い更新で巻き戻してしまう。
 		// Asset一覧だけはテクスチャと同時に切り替えるため、ここではマージしない。
 		this.dynamicOptions = { ...this.dynamicOptions, ...synchronousOptions };
+		this.canvasRenderer.highlightClipping = this.dynamicOptions.highlightClipping;
+		this.canvasRenderer.opaqueOutput = this.dynamicOptions.opaqueOutput;
 
 		if (newOptions.resolution !== undefined) {
 			const canvas = this.gpuContext.canvas;
@@ -254,10 +275,6 @@ export class VisualModuleRendererManager extends EventEmitter<{
 		});
 	}
 
-	private setPreviewError(message: string | null) {
-		this.onPreviewError?.(message);
-	}
-
 	public updateLiveParamValues(paramValues: VisualModuleParameterBindings) {
 		this.liveParamValues = paramValues;
 	}
@@ -280,7 +297,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 			intermediateTextureFormat: this.staticOptions.intermediateTextureFormat,
 			enableStats: this.staticOptions.enableStats,
 			timingHelper: this.timingHelper,
-			onEffectState: (nodeId, status) => this.onEffectState?.(statusSource, nodeId, status),
+			onEffectState: (nodeId, status) => this.emit('ev', { type: 'effectState', ctx: { source: statusSource, nodeId, status } }),
 			videoFrames: this.videoFrames,
 			videoFrameVersions: this.videoFrameVersions,
 			assets: this.dynamicOptions.assets,
@@ -343,7 +360,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 					this.gpuAverageMedium.addSample(gpuTime / 1000);
 					this.gpuAverageSlow.addSample(gpuTime / 1000);
 				}).catch(error => {
-					if (generation === this.previewRenderGeneration) this.setPreviewError(error instanceof Error ? error.message : String(error));
+					if (generation === this.previewRenderGeneration) this.setRenderError(error instanceof Error ? error.message : String(error));
 				});
 			}
 		}
@@ -358,6 +375,8 @@ export class VisualModuleRendererManager extends EventEmitter<{
 	}
 
 	public destroy() {
+		clearInterval(this.telemetryReportIntervalId);
+		clearInterval(this.gpuMemoryReportIntervalId);
 		this.stopRenderLoop();
 		this.outputTextures.dispose();
 		this.assetTextures.dispose();
@@ -379,8 +398,6 @@ export async function createManager(options: {
 	dynamicOptions: Partial<VisualModuleRendererManagerDynamicOptions>;
 	effectDefinitions: Record<string, EffectDefinition>;
 	effectImplementations: Record<string, EffectImplementation>;
-	reportPreviewError: (message: string | null) => void;
-	onEffectState: (source: EffectStatusSource, nodeId: string, status: EffectInstanceState | null) => void;
 }) {
 	const adapter = await navigator.gpu?.requestAdapter({
 		powerPreference: 'high-performance',
@@ -396,27 +413,33 @@ export async function createManager(options: {
 		throw new Error('need a browser that supports WebGPU');
 	}
 
-	const context = options.canvas.getContext('webgpu');
-	const histogramContext = options.histogramCanvas.getContext('webgpu');
-	const waveformHorizontalContext = options.waveformHorizontalCanvas.getContext('webgpu');
-	const waveformVerticalContext = options.waveformVerticalCanvas.getContext('webgpu');
-	if (!(context instanceof GPUCanvasContext) || !(histogramContext instanceof GPUCanvasContext) || !(waveformHorizontalContext instanceof GPUCanvasContext) || !(waveformVerticalContext instanceof GPUCanvasContext)) {
-		throw new Error('cannot get webgpu context');
+	let manager: VisualModuleRendererManager | undefined;
+	try {
+		const context = options.canvas.getContext('webgpu');
+		const histogramContext = options.histogramCanvas.getContext('webgpu');
+		const waveformHorizontalContext = options.waveformHorizontalCanvas.getContext('webgpu');
+		const waveformVerticalContext = options.waveformVerticalCanvas.getContext('webgpu');
+		if (!(context instanceof GPUCanvasContext) || !(histogramContext instanceof GPUCanvasContext) || !(waveformHorizontalContext instanceof GPUCanvasContext) || !(waveformVerticalContext instanceof GPUCanvasContext)) {
+			throw new Error('cannot get webgpu context');
+		}
+
+		manager = new VisualModuleRendererManager({
+			gpuDevice: device,
+			gpuContext: context,
+			histogramGpuContext: histogramContext,
+			waveformHorizontalGpuContext: waveformHorizontalContext,
+			waveformVerticalGpuContext: waveformVerticalContext,
+			effectDefinitions: options.effectDefinitions,
+			effectImplementations: options.effectImplementations,
+		}, options.staticOptions);
+
+		await manager.updateDynamicOptions(options.dynamicOptions);
+
+		return manager;
+	} catch (error) {
+		// 呼び出し元にはまだmanagerを返していないため、ここでリソースを回収する。
+		if (manager != null) manager.destroy();
+		else device.destroy();
+		throw error;
 	}
-
-	const manager = new VisualModuleRendererManager({
-		onEffectState: options.onEffectState,
-		onPreviewError: options.reportPreviewError,
-		gpuDevice: device,
-		gpuContext: context,
-		histogramGpuContext: histogramContext,
-		waveformHorizontalGpuContext: waveformHorizontalContext,
-		waveformVerticalGpuContext: waveformVerticalContext,
-		effectDefinitions: options.effectDefinitions,
-		effectImplementations: options.effectImplementations,
-	}, options.staticOptions);
-
-	await manager.updateDynamicOptions(options.dynamicOptions);
-
-	return manager;
 }
