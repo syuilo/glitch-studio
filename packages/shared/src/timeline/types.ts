@@ -12,6 +12,17 @@ export type TimelineVisualModuleLayer = {
 	automationGraphs: AutomationGraph[];
 };
 
-export type TimelineLayer = TimelineVisualModuleLayer;
+export type TimelineEffectLayer = {
+	id: string;
+	startTimeMs: number;
+	endTimeMs: number;
+	layerType: 'effect';
+	effectId: string;
+	paramValues: Record<string, Exclude<ParameterBinding, { inputSource: 'node' | 'externalCustomParameterInput' }>>;
+	compositingParamValues: Record<keyof typeof timelineCompositingParamDefs, Exclude<ParameterBinding, { inputSource: 'node' | 'externalCustomParameterInput' }>>;
+	automationGraphs: AutomationGraph[];
+};
+
+export type TimelineLayer = TimelineVisualModuleLayer | TimelineEffectLayer;
 
 export type Timeline = TimelineLayer[];
