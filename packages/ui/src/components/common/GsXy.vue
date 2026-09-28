@@ -20,6 +20,7 @@
 			:lockedRatio="lockedRatio"
 			:min="min"
 			:max="max"
+			:step="step"
 			:logarithmic="logarithmic"
 			@update:modelValue="setValue($event[0], $event[1])"
 			@closed="closeGridPad"

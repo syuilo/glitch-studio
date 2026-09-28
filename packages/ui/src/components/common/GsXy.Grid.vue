@@ -44,6 +44,7 @@ const props = withDefaults(defineProps<{
 	logarithmic?: boolean;
 	min?: number;
 	max: number;
+	step?: number;
 	anchorElement: HTMLElement;
 	lockedRatio: [number, number] | null;
 }>(), {

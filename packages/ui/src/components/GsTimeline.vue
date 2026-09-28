@@ -91,7 +91,7 @@
 			<GsVisualParam
 				v-for="(paramDef, paramId) in timelineCompositingParamDefs"
 				:key="`${selectedLayer.id}:compositing:${paramId}`"
-				:availableVariables="layerEnvVarDefs"
+				:availableVariables="LAYER_VAR_DEFS"
 				:automationGraphs="selectedLayer.automationGraphs"
 				:visualModuleId="selectedLayer.visualModuleId"
 				:paramPath="[paramId]"
@@ -108,7 +108,7 @@
 				<div v-if="paramDef.dataType.kind === 'struct' || paramDef.dataType.kind === 'array' || isParameterType(paramDef, 'any')">{{ paramDef.ui.label }}: Editing is not yet supported.</div>
 				<GsVisualParam
 					v-else
-					:availableVariables="layerEnvVarDefs"
+					:availableVariables="LAYER_VAR_DEFS"
 					:automationGraphs="selectedLayer.automationGraphs"
 					:visualModuleId="selectedLayer.visualModuleId"
 					:paramPath="[paramDef.id]"
@@ -125,7 +125,7 @@
 <script lang="ts" setup>
 import { isParameterType } from '@glitch/shared/parameter.ts';
 import { visualModuleCustomParameterId } from '@glitch/shared/visual-module/types.ts';
-import { layerEnvVarDefs } from '@glitch/shared/expression.ts';
+import { LAYER_VAR_DEFS } from '@glitch/shared/expression.ts';
 import { computed, onMounted, ref, shallowRef, useTemplateRef, watch } from 'vue';
 import { insertIntermediateNumbers, nearlyEqual, niceScale } from '@glitch/shared/utility/misc.js';
 import { genId } from '@glitch/shared/utility/id.js';

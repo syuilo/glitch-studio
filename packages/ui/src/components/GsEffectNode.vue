@@ -21,7 +21,7 @@
 		<GsVisualParam
 			v-for="[param, def] in Object.entries(getNodeParamDefs(props.node))"
 			:key="param"
-			:availableVariables="moduleEnvVarDefs"
+			:availableVariables="IN_VISUAL_MODULE_VAR_DEFS"
 			:visualModuleId="visualModuleId"
 			:automationGraphs="appStateManager.getVisualModuleById(visualModuleId)?.automationGraphs ?? []"
 			:node="node"
@@ -37,7 +37,7 @@
 </template>
 
 <script lang="ts" setup>
-import { moduleEnvVarDefs } from '@glitch/shared/expression.ts';
+import { IN_VISUAL_MODULE_VAR_DEFS } from '@glitch/shared/expression.ts';
 import { ref, computed, shallowRef, watchEffect } from 'vue';
 import { effectDefinitions } from '@glitch/shared/effect/effect-definitions.ts';
 import GsNodeOutputs from './GsNodeOutputs.vue';

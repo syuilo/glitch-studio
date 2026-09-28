@@ -71,7 +71,7 @@
 					<div v-if="paramDef.dataType.kind === 'struct' || paramDef.dataType.kind === 'array' || isParameterType(paramDef, 'any')">{{ paramDef.ui.label }}: Editing is not yet supported.</div>
 					<GsVisualParam
 						v-else
-						:availableVariables="layerEnvVarDefs"
+						:availableVariables="LIVE_VAR_DEFS"
 						:paramPath="[paramDef.id]"
 						:automationGraphs="[]"
 						:paramDef="{ ...paramDef, canNode: false }"
@@ -92,7 +92,7 @@
 <script lang="ts" setup>
 import { areDataTypesEqual } from '@glitch/shared/data-type.ts';
 import { isParameterType } from '@glitch/shared/parameter.ts';
-import { layerEnvVarDefs } from '@glitch/shared/expression.ts';
+import { LIVE_VAR_DEFS } from '@glitch/shared/expression.ts';
 import { computed, ref, watch } from 'vue';
 import { AiSON } from '@syuilo/aiscript';
 import { deepClone } from '@glitch/shared/utility/deep-clone.js';
