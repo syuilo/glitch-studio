@@ -18,11 +18,10 @@
 			:modelValue="value"
 			:anchorElement="rootEl"
 			:lockedRatio="lockedRatio"
-			:step="step"
 			:min="min"
 			:max="max"
 			@update:modelValue="setValue($event[0], $event[1])"
-			@closed="gridPadOpened = false"
+			@closed="closeGridPad"
 			@enableRatioLock="enableRatioLock"
 			@disableRatioLock="disableRatioLock"
 		/>
@@ -31,7 +30,7 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, ref, useTemplateRef, watch } from 'vue';
+import { computed, onBeforeUnmount, ref, useTemplateRef, watch } from 'vue';
 import GsButton from './GsButton.vue';
 import GsInput from './GsInput.vue';
 import XGrid from './GsXy.Grid.vue';
@@ -129,8 +128,19 @@ function disableRatioLock() {
 enableRatioLock();
 
 function openGridPad() {
+	if (gridPadOpened.value) return;
 	gridPadOpened.value = true;
+	// 複数回のドラッグやキー操作も、Gridを閉じるまでひとつの履歴にまとめる。
+	emit('beginChanging');
 }
+
+function closeGridPad() {
+	if (!gridPadOpened.value) return;
+	gridPadOpened.value = false;
+	emit('changeFinished', value.value);
+}
+
+onBeforeUnmount(closeGridPad);
 
 function formatValue(number: number): string {
 	if (useLogarithmic.value) return Number(number.toPrecision(5)).toString();

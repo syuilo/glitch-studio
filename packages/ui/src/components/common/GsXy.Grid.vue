@@ -41,7 +41,6 @@ import GsModal from './GsModal.vue';
 
 const props = withDefaults(defineProps<{
 	modelValue: [number, number];
-	step?: number;
 	logarithmic?: boolean;
 	min?: number;
 	max: number;
