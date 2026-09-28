@@ -1,5 +1,5 @@
 import { visualModuleCustomParameterId, visualModuleCustomParameterName } from '@glitch/shared/visual-module/types.ts';
-import { ref, markRaw, reactive, watch } from 'vue';
+import { computed, ref, markRaw, reactive, watch } from 'vue';
 import { deepClone } from '@glitch/shared/utility/deep-clone.ts';
 import { timelineCompositingParamDefs } from '@glitch/shared/timeline/timeline-compositing.ts';
 import { genId } from '@glitch/shared/utility/id.ts';
@@ -7,7 +7,9 @@ import fillEffectDef from '@glitch/shared/effect/fx/fill/_def_.ts';
 import imageEffectDef from '@glitch/shared/effect/fx/image/_def_.ts';
 import videoEffectDef from '@glitch/shared/effect/fx/video/_def_.ts';
 import audioWaveformEffectDef from '@glitch/shared/effect/fx/audioWaveform/_def_.ts';
-import { PreviewRendererController } from './PreviewRendererController.ts';
+import { VisualModuleRendererManagerController } from './VisualModuleRendererManagerController.ts';
+import { TimelineRendererManagerController } from './TimelineRendererManagerController.ts';
+import type { TimelineRendererManagerDynamicOptions } from '@glitch/renderer/timeline-renderer-manager.ts';
 import GsEffectPicker from './components/GsEffectPicker.vue';
 import { PreviewPlaybackController } from './PreviewPlaybackController.ts';
 import { AppStateManager } from './AppStateManager.ts';
@@ -88,7 +90,7 @@ function getRendererIntermediateTextureFormat(): IntermediateTextureFormat {
 	return preferred === 'bgra8unorm' ? 'bgra8unorm' : 'rgba8unorm';
 }
 
-export const previewRendererController = markRaw(new PreviewRendererController({
+export const visualModuleRendererManagerController = markRaw(new VisualModuleRendererManagerController({
 	enable32bitDataTextures: preferences.s.enable32bitDataTextures,
 	intermediateTextureFormat: getRendererIntermediateTextureFormat(),
 	enableStats: true,
@@ -98,41 +100,79 @@ export const previewRendererController = markRaw(new PreviewRendererController({
 	highlightClipping: highlightClipping.value,
 }));
 
-export const previewPlayback = markRaw(new PreviewPlaybackController(previewRendererController, () => fpsLimit.value));
+export const timelineRendererManagerController = markRaw(new TimelineRendererManagerController({
+	enable32bitDataTextures: preferences.s.enable32bitDataTextures,
+	intermediateTextureFormat: getRendererIntermediateTextureFormat(),
+}, { highlightClipping: highlightClipping.value }));
+
+export const previewPlayback = markRaw(new PreviewPlaybackController(visualModuleRendererManagerController, timelineRendererManagerController, () => fpsLimit.value));
+export const activePreviewRenderer = computed(() => previewPlayback.state.value.mode === 'live'
+	? visualModuleRendererManagerController : timelineRendererManagerController);
+
+async function updatePreviewOptions(options: Partial<Pick<TimelineRendererManagerDynamicOptions, 'assets' | 'visualModules' | 'resolution' | 'highlightClipping'>>) {
+	await Promise.all([
+		visualModuleRendererManagerController.updateDynamicOptions(options),
+		timelineRendererManagerController.updateDynamicOptions(options),
+	]);
+}
+
+/** 再生要求を止めてからGPUリソースを解放し、復帰完了後にだけ再生を戻す。 */
+export function suspendPreview() {
+	previewPlayback.suspend();
+	visualModuleRendererManagerController.disposeManager();
+	timelineRendererManagerController.disposeManager();
+}
+
+export async function resumePreview() {
+	// 一方が失敗しても他方の初期化が終わるまで待ち、次の操作との競合を防ぐ。
+	const results = await Promise.allSettled([
+		visualModuleRendererManagerController.relaunchManager(),
+		timelineRendererManagerController.relaunchManager(),
+	]);
+	const failure = results.find(result => result.status === 'rejected');
+	if (failure?.status === 'rejected') throw failure.reason;
+	previewPlayback.resume();
+}
 
 // Worker再読み込み後も、停止中のタイムラインの現在位置を復元する。
-watch(previewRendererController.isReady, ready => {
+watch(timelineRendererManagerController.isReady, ready => {
 	if (ready) previewPlayback.refresh();
 });
 
-watch(highlightClipping, value => {
-	previewRendererController.updateDynamicOptions({ highlightClipping: value });
+watch(highlightClipping, async value => {
+	await updatePreviewOptions({ highlightClipping: value });
+	previewPlayback.refresh();
 });
 
-(window as any).renderer = previewRendererController; // debug
+(window as any).renderer = visualModuleRendererManagerController; // debug
 
 watch(fpsLimit, () => {
-	previewRendererController.updateDynamicOptions({ fpsLimit: fpsLimit.value });
+	visualModuleRendererManagerController.updateDynamicOptions({ fpsLimit: fpsLimit.value });
 });
 
 watch(liveTimeFactor, value => {
-	previewRendererController.updateDynamicOptions({ liveTimeFactor: value });
+	visualModuleRendererManagerController.updateDynamicOptions({ liveTimeFactor: value });
 });
 
-watch([appStateManager.state.resolution, resolutionFactor], () => {
-	previewRendererController.updateDynamicOptions({
+watch([appStateManager.state.resolution, resolutionFactor], async () => {
+	await updatePreviewOptions({
 		resolution: {
 			width: Math.round(appStateManager.state.resolution.value.width * resolutionFactor.value), // 解像度が少数になるとバグるので丸める
 			height: Math.round(appStateManager.state.resolution.value.height * resolutionFactor.value), // 解像度が少数になるとバグるので丸める
 		},
 	});
+	previewPlayback.refresh();
 });
 
-watch([preferences.r.enable32bitDataTextures, preferences.r.intermediateTextureFormat], () => {
-	previewRendererController.updateStaticOptions({
+watch([preferences.r.enable32bitDataTextures, preferences.r.intermediateTextureFormat], async () => {
+	const options = {
 		enable32bitDataTextures: preferences.s.enable32bitDataTextures,
 		intermediateTextureFormat: getRendererIntermediateTextureFormat(),
-	});
+	};
+	await Promise.all([
+		visualModuleRendererManagerController.updateStaticOptions(options),
+		timelineRendererManagerController.updateStaticOptions(options),
+	]);
 });
 
 let rendererInitialization: Promise<void> | null = null;
@@ -147,10 +187,10 @@ export async function appReady(project: Project, fileName = 'untitled.gsproj', f
 	const maxDimension = Math.max(project.resolution.width, project.resolution.height);
 	const initialResolutionFactor = maxDimension > 3000 ? 0.25 : maxDimension > 1500 ? 0.5 : 1;
 	// CanvasのOffscreen転送は一度だけ行い、別のプロジェクトを開くときもWorkerを再利用する。
-	rendererInitialization ??= previewRendererController.init({
+	rendererInitialization ??= Promise.all([visualModuleRendererManagerController, timelineRendererManagerController].map(controller => controller.init({
 		width: Math.round(project.resolution.width * initialResolutionFactor), // 解像度が少数になるとバグるので丸める
 		height: Math.round(project.resolution.height * initialResolutionFactor), // 解像度が少数になるとバグるので丸める
-	});
+	}))).then(() => {});
 	await rendererInitialization;
 
 	// 読み込み途中の状態を、直前のプロジェクトのファイルへ保存させない。
@@ -160,12 +200,9 @@ export async function appReady(project: Project, fileName = 'untitled.gsproj', f
 	projectWatchers = [];
 	previewPlayback.dispose();
 	// 同じIDのプロジェクトを再読込した場合も、以前の再生・ノード履歴を引き継がない。
-	await previewRendererController.updateDynamicOptions({
-		assets: [],
-		visualModules: [],
-		timeline: [],
-	});
-	await previewRendererController.updatePlayers([]);
+	await updatePreviewOptions({ assets: [], visualModules: [] });
+	await timelineRendererManagerController.updateDynamicOptions({ timeline: [] });
+	await visualModuleRendererManagerController.updatePlayers([]);
 
 	appStateManager.state.resolution.value = project.resolution;
 	resolutionFactor.value = initialResolutionFactor;
@@ -175,12 +212,12 @@ export async function appReady(project: Project, fileName = 'untitled.gsproj', f
 	appStateManager.state.timeline.value = project.timeline;
 	appStateManager.undoStack.value = [];
 	appStateManager.redoStack.value = [];
-	await previewRendererController.updateDynamicOptions({
+	await updatePreviewOptions({
 		assets: deepClone(project.assets),
 		visualModules: deepClone(project.visualModules),
-		timeline: deepClone(project.timeline),
 	});
-	await previewRendererController.updatePlayers(deepClone(project.players));
+	await timelineRendererManagerController.updateDynamicOptions({ timeline: deepClone(project.timeline) });
+	await visualModuleRendererManagerController.updatePlayers(deepClone(project.players));
 	projectMetadata = { id: project.id };
 	projectInfo.value = { name: project.name, description: project.description, author: project.author };
 	projectFileName = fileName;
@@ -188,7 +225,7 @@ export async function appReady(project: Project, fileName = 'untitled.gsproj', f
 
 	projectWatchers.push(watch(appStateManager.state.assets, async () => {
 		try {
-			await previewRendererController.updateDynamicOptions({ assets: deepClone(appStateManager.state.assets.value) });
+			await updatePreviewOptions({ assets: deepClone(appStateManager.state.assets.value) });
 			// 非同期の画像準備後にも、停止中のタイムラインを描き直す。
 			previewPlayback.refresh();
 		} catch (error) {
@@ -197,18 +234,18 @@ export async function appReady(project: Project, fileName = 'untitled.gsproj', f
 	}, { deep: true }));
 
 	projectWatchers.push(watch(appStateManager.state.players, () => {
-		previewRendererController.updatePlayers(deepClone(appStateManager.state.players.value));
+		visualModuleRendererManagerController.updatePlayers(deepClone(appStateManager.state.players.value));
 	}, { deep: true }));
 
-	projectWatchers.push(watch(appStateManager.state.visualModules, () => {
-		previewRendererController.updateDynamicOptions({ visualModules: deepClone(appStateManager.state.visualModules.value) });
+	projectWatchers.push(watch(appStateManager.state.visualModules, async () => {
+		await updatePreviewOptions({ visualModules: deepClone(appStateManager.state.visualModules.value) });
 		// 停止中は時刻が変化しないため、モジュールの編集・Undo/Redoでも現在位置を描き直す。
 		// 単体のLIVEプレビュー中は、その描画ループを維持する。
 		previewPlayback.refresh();
 	}, { deep: true }));
 
-	projectWatchers.push(watch(appStateManager.state.timeline, () => {
-		previewRendererController.updateDynamicOptions({ timeline: deepClone(appStateManager.state.timeline.value) });
+	projectWatchers.push(watch(appStateManager.state.timeline, async () => {
+		await timelineRendererManagerController.updateDynamicOptions({ timeline: deepClone(appStateManager.state.timeline.value) });
 		// 編集・Undo/Redo後は現在位置を描き直す。LIVE中はその表示を維持する。
 		previewPlayback.refresh();
 	}, { deep: true }));

@@ -1,29 +1,35 @@
 import { computed, readonly, ref, shallowRef } from 'vue';
 import type { VisualModule, VisualModuleParameterBindings } from '@glitch/shared/visual-module/types.ts';
-import type { PreviewRendererController } from './PreviewRendererController.ts';
+import { deepClone } from '@glitch/shared/utility/deep-clone.ts';
+import type { VisualModuleRendererManagerController } from './VisualModuleRendererManagerController.ts';
+import type { TimelineRendererManagerController } from './TimelineRendererManagerController.ts';
 
 export type PreviewPlaybackState =
 	| { mode: 'live'; visualModuleId: VisualModule['id'] }
 	| { mode: 'timeline'; playing: boolean };
 
-type PreviewRenderer = Pick<PreviewRendererController, 'startLiveRenderLoopFor' | 'updateLiveParamValues' | 'stopRenderLoop' | 'renderTimelineAt'>;
+type LiveRenderer = Pick<VisualModuleRendererManagerController, 'startLiveRenderLoopFor' | 'updateLiveParamValues' | 'stopRenderLoop'>;
+type TimelineRenderer = Pick<TimelineRendererManagerController, 'renderTimelineAt' | 'isReady'>;
 
 /** プレビューの切り替えと時刻更新を所有し、LIVEとタイムラインの同時再生を防ぐ。 */
 export class PreviewPlaybackController {
 	private readonly playbackState = shallowRef<PreviewPlaybackState>({ mode: 'timeline', playing: false });
 	private readonly timelineTime = ref(0);
 	private timelineRafId: number | null = null;
+	private readonly suspended = ref(false);
+	private liveParams: VisualModuleParameterBindings = {};
 
 	public readonly state = readonly(this.playbackState);
 	public readonly currentTimelineTime = readonly(this.timelineTime);
-	public readonly isTimelinePlaying = computed(() => this.playbackState.value.mode === 'timeline' && this.playbackState.value.playing);
+	public readonly isTimelinePlaying = computed(() => !this.suspended.value && this.playbackState.value.mode === 'timeline' && this.playbackState.value.playing);
 	public readonly liveVisualModuleId = computed(() => this.playbackState.value.mode === 'live' ? this.playbackState.value.visualModuleId : null);
 
-	constructor(private readonly renderer: PreviewRenderer, private readonly getFpsLimit: () => number | null) {}
+	constructor(private readonly liveRenderer: LiveRenderer, private readonly timelineRenderer: TimelineRenderer, private readonly getFpsLimit: () => number | null) {}
 
 	public startLive(visualModuleId: VisualModule['id'], params: VisualModuleParameterBindings = {}) {
 		this.pauseTimeline();
-		this.renderer.startLiveRenderLoopFor(visualModuleId, params);
+		this.liveParams = deepClone(params);
+		if (!this.suspended.value) this.liveRenderer.startLiveRenderLoopFor(visualModuleId, params);
 		this.playbackState.value = { mode: 'live', visualModuleId };
 	}
 
@@ -32,13 +38,15 @@ export class PreviewPlaybackController {
 			this.startLive(visualModuleId, params);
 			return;
 		}
-		this.renderer.updateLiveParamValues(visualModuleId, params);
+		this.liveParams = deepClone(params);
+		if (!this.suspended.value) this.liveRenderer.updateLiveParamValues(visualModuleId, params);
 	}
 
 	public playTimeline() {
 		if (this.isTimelinePlaying.value) return;
 		this.leaveLive();
 		this.playbackState.value = { mode: 'timeline', playing: true };
+		if (this.suspended.value) return;
 		this.refresh();
 
 		let previousFrameTime: number | null = null;
@@ -73,7 +81,12 @@ export class PreviewPlaybackController {
 			window.cancelAnimationFrame(this.timelineRafId);
 			this.timelineRafId = null;
 		}
-		if (this.isTimelinePlaying.value) this.playbackState.value = { mode: 'timeline', playing: false };
+		if (this.playbackState.value.mode === 'timeline') this.playbackState.value = { mode: 'timeline', playing: false };
+	}
+
+	public showTimeline() {
+		this.leaveLive();
+		this.refresh();
 	}
 
 	public seekTimeline(time: number) {
@@ -84,17 +97,43 @@ export class PreviewPlaybackController {
 
 	/** 編集による再描画では表示モードを切り替えない。LIVEはWorkerのループが描画する。 */
 	public refresh() {
-		if (this.playbackState.value.mode === 'timeline') this.renderer.renderTimelineAt(this.timelineTime.value);
+		if (!this.suspended.value && this.playbackState.value.mode === 'timeline' && this.timelineRenderer.isReady.value) {
+			this.timelineRenderer.renderTimelineAt(this.timelineTime.value);
+		}
+	}
+
+	/** Workerを解放する間も、表示モードと再開位置を保持する。 */
+	public suspend() {
+		if (this.suspended.value) return;
+		if (this.timelineRafId != null) window.cancelAnimationFrame(this.timelineRafId);
+		this.timelineRafId = null;
+		if (this.playbackState.value.mode === 'live') this.liveRenderer.stopRenderLoop();
+		this.suspended.value = true;
+	}
+
+	public resume() {
+		if (!this.suspended.value) return;
+		this.suspended.value = false;
+		const state = this.playbackState.value;
+		if (state.mode === 'live') {
+			this.liveRenderer.startLiveRenderLoopFor(state.visualModuleId, this.liveParams);
+		} else if (state.playing) {
+			this.pauseTimeline();
+			this.playTimeline();
+		} else {
+			this.refresh();
+		}
 	}
 
 	public dispose() {
 		this.pauseTimeline();
 		this.leaveLive();
+		this.suspended.value = false;
 	}
 
 	private leaveLive() {
 		if (this.playbackState.value.mode !== 'live') return;
-		this.renderer.stopRenderLoop();
+		if (!this.suspended.value) this.liveRenderer.stopRenderLoop();
 		this.playbackState.value = { mode: 'timeline', playing: false };
 	}
 }

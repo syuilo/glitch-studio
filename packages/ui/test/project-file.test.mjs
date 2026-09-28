@@ -3,6 +3,7 @@ import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import { build } from 'esbuild';
+import { setImmediate } from 'node:timers/promises';
 import { nextTick } from 'vue';
 
 const require = createRequire(import.meta.url);
@@ -27,7 +28,7 @@ const appBundle = await build({
 	plugins: [{
 		name: 'project-test-platform',
 		setup(build) {
-			build.onResolve({ filter: /RendererController\.ts$|\.vue$|^@\/ui\.ts$|effect-definitions\.[jt]s$|preferences\.ts$/ }, args => ({ path: args.path, namespace: 'platform' }));
+			build.onResolve({ filter: /RendererManagerController\.ts$|\.vue$|^@\/ui\.ts$|effect-definitions\.[jt]s$|preferences\.ts$/ }, args => ({ path: args.path, namespace: 'platform' }));
 			build.onLoad({ filter: /.*/, namespace: 'platform' }, args => ({
 				loader: 'ts', resolveDir: import.meta.dirname,
 				contents: /effect-definitions\.[jt]s$/.test(args.path)
@@ -37,18 +38,27 @@ const appBundle = await build({
 						const settings = reactive({ forceTypeSafety: false, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm' });
 						export const preferences = { s: settings, r: toRefs(settings) };
 					`
-					: args.path.endsWith('RendererController.ts') ? `
+					: args.path.endsWith('RendererManagerController.ts') ? `
 					import { ref } from 'vue';
-					export class PreviewRendererController {
+					export class VisualModuleRendererManagerController {
 						isReady = ref(false);
+						updates = []; renders = []; lifecycle = [];
+						options = {};
 						async init(resolution) { this.initialResolution = resolution; this.isReady.value = true; }
 						async updateDynamicOptions(options) {
+							this.updates.push(options);
+							Object.assign(this.options, options);
 							if (options.resolution) this.previewResolution = options.resolution;
 							return { assetsCommitted: true };
 						}
 						async updateStaticOptions() {} async updatePlayers() {}
-						startLiveRenderLoopFor() {} stopRenderLoop() {} renderTimelineAt() {}
+						startLiveRenderLoopFor() { this.lifecycle.push('start'); }
+						stopRenderLoop() { this.lifecycle.push('stop'); }
+						renderTimelineAt(time) { this.renders.push(time); }
+						disposeManager() { this.lifecycle.push('dispose'); this.isReady.value = false; }
+						async relaunchManager() { this.lifecycle.push('relaunch'); this.isReady.value = true; }
 					}
+					export class TimelineRendererManagerController extends VisualModuleRendererManagerController {}
 				` : args.path.endsWith('.vue') ? 'export default {};' : `
 					export async function alert(options) { globalThis.projectAlerts.push(options.text); }
 					export function popup() { return { dispose() {} }; }
@@ -329,9 +339,94 @@ test('scales project previews before initialization and resets the scale for sma
 		const file = new File([await encodeProjectFile(project({ resolution }))], 'resolution.gsproj');
 		assert.equal(await app.openProject(file), true);
 		assert.equal(app.resolutionFactor.value, factor);
-		assert.deepEqual(app.previewRendererController.previewResolution, { width: Math.round(width * factor), height: Math.round(height * factor) });
+		for (const controller of [app.visualModuleRendererManagerController, app.timelineRendererManagerController]) {
+			assert.deepEqual(controller.previewResolution, { width: Math.round(width * factor), height: Math.round(height * factor) });
+		}
 		assert.deepEqual(app.appStateManager.state.resolution.value, resolution);
 	}
-	assert.deepEqual(app.previewRendererController.initialResolution, { width: 3000, height: 2000 });
+	assert.deepEqual(app.visualModuleRendererManagerController.initialResolution, { width: 3000, height: 2000 });
 	assert.deepEqual(globalThis.projectAlerts, []);
+});
+
+// 【両プレビューへ共通データを送り、タイムラインだけにレイヤーを渡す】
+// 一方だけ更新すると、Canvasを切り替えた際に古いプロジェクトや編集前の状態が表示される。
+test('synchronizes both previews and routes timeline-only edits', async t => {
+	setup(t);
+	const app = evaluate(appBundle);
+	const first = project({ visualModules: [{ id: 'first', nodes: [], paramDefs: [] }] });
+	await app.appReady(first);
+	const live = app.visualModuleRendererManagerController;
+	const timeline = app.timelineRendererManagerController;
+	assert.equal(app.activePreviewRenderer.value, live);
+	assert.deepEqual(live.options.visualModules, first.visualModules);
+	assert.deepEqual(timeline.options.visualModules, first.visualModules);
+	assert.equal('timeline' in live.options, false);
+	app.previewPlayback.seekTimeline(500);
+	assert.equal(app.activePreviewRenderer.value, timeline);
+	timeline.renders.length = 0;
+	app.appStateManager.state.timeline.value = [{ id: 'layer', type: 'visualModule', visualModuleId: 'first' }];
+	await nextTick();
+	await setImmediate();
+	assert.equal('timeline' in live.options, false);
+	assert.equal(timeline.options.timeline[0].id, 'layer');
+	assert.deepEqual(timeline.renders, [500]);
+	app.highlightClipping.value = true;
+	await nextTick();
+	await setImmediate();
+	assert.equal(live.options.highlightClipping, true);
+	assert.equal(timeline.options.highlightClipping, true);
+	assert.equal(timeline.renders.at(-1), 500);
+	await app.appReady(project());
+	assert.deepEqual(live.options.visualModules, []);
+	assert.deepEqual(timeline.options.visualModules, []);
+	assert.deepEqual(timeline.options.timeline, []);
+});
+
+// 【両Workerの復帰完了後にだけプレビューを再開する】
+// timeline側だけ先にreadyになっても、再描画や次のエクスポート開始を許可してはいけない。
+test('waits for both preview workers before restoring the paused timeline', async t => {
+	setup(t);
+	const app = evaluate(appBundle);
+	await app.appReady(project());
+	app.previewPlayback.seekTimeline(123);
+	const live = app.visualModuleRendererManagerController;
+	const timeline = app.timelineRendererManagerController;
+	app.suspendPreview();
+	assert.equal(live.isReady.value, false);
+	assert.equal(timeline.isReady.value, false);
+	timeline.renders.length = 0;
+	const gate = Promise.withResolvers();
+	live.relaunchManager = async () => { await gate.promise; live.isReady.value = true; };
+	const restarting = app.resumePreview();
+	await nextTick();
+	assert.equal(timeline.isReady.value, true);
+	assert.deepEqual(timeline.renders, []);
+	gate.resolve();
+	await restarting;
+	assert.deepEqual(timeline.renders, [123]);
+	assert.equal(app.previewPlayback.isTimelinePlaying.value, false);
+});
+
+// 【復帰に失敗してももう一方の初期化を待ち、描画は再開しない】
+// 一方の失敗だけでダイアログを操作可能にすると、次の書き出しで残りの初期化を中断してしまう。
+test('keeps playback suspended and waits for the other worker after a restart failure', async t => {
+	setup(t);
+	const app = evaluate(appBundle);
+	await app.appReady(project());
+	app.suspendPreview();
+	const timeline = app.timelineRendererManagerController;
+	timeline.renders.length = 0;
+	app.visualModuleRendererManagerController.relaunchManager = async () => { throw new Error('GPU unavailable'); };
+	const gate = Promise.withResolvers();
+	timeline.relaunchManager = async () => { await gate.promise; timeline.isReady.value = true; };
+	let settled = false;
+	const restarting = app.resumePreview();
+	const rejected = assert.rejects(restarting, /GPU unavailable/).then(() => { settled = true; });
+	await setImmediate();
+	assert.equal(settled, false);
+	gate.resolve();
+	await rejected;
+	await nextTick();
+	app.previewPlayback.refresh();
+	assert.deepEqual(timeline.renders, []);
 });

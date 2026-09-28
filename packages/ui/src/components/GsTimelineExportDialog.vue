@@ -51,7 +51,7 @@ import GsInput from './common/GsInput.vue';
 import GsSelect from './common/GsSelect.vue';
 import GsTabs from './common/GsTabs.vue';
 import type { ExportProgress, ExportQuality, TimelineExportSettings } from '@/export/timeline-export.ts';
-import { appStateManager, projectInfo, previewPlayback, previewRendererController } from '@/app.ts';
+import { appStateManager, projectInfo, previewPlayback, suspendPreview, resumePreview } from '@/app.ts';
 import { preferences } from '@/preferences.ts';
 import { exportTimeline } from '@/export/client.ts';
 import { getTimelineEnd, validateExportSettings } from '@/export/timeline-export.ts';
@@ -148,7 +148,7 @@ async function doExport() {
 		const exportSettings = { ...settings.value };
 		const preferredFormat = navigator.gpu.getPreferredCanvasFormat();
 		// エクスポート中はリソース節約のためプレビュー用レンダラーは破棄
-		previewRendererController.disposeRenderer();
+		suspendPreview();
 		previewDisposed = true;
 		// VueのProxyを外し、編集中の状態とWorkerの状態を独立させる。
 		const buffer = await exportTimeline({
@@ -164,7 +164,6 @@ async function doExport() {
 				enable32bitDataTextures: preferences.s.enable32bitDataTextures,
 				intermediateTextureFormat: preferences.s.intermediateTextureFormat
 					?? (preferredFormat === 'bgra8unorm' ? 'bgra8unorm' : 'rgba8unorm'),
-				enableStats: false,
 			},
 		}, signal, value => { progress.value = value; });
 		signal.throwIfAborted();
@@ -181,7 +180,7 @@ async function doExport() {
 	} finally {
 		// 再初期化が終わるまで操作を戻さず、次の書き出しによる初期化の中断を防ぐ。
 		try {
-			if (previewDisposed) await previewRendererController.relaunchRenderer();
+			if (previewDisposed) await resumePreview();
 		} catch (cause) {
 			const message = cause instanceof Error ? cause.message : String(cause);
 			error.value = [error.value, `Preview restart failed: ${message}`].filter(Boolean).join('\n');

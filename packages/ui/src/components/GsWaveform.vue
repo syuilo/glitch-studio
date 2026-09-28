@@ -9,30 +9,18 @@
 </template>
 
 <script lang="ts" setup>
-import { onBeforeUnmount, onMounted, useTemplateRef } from 'vue';
+import { useTemplateRef } from 'vue';
+import { useRendererCanvas } from '@/use-renderer-canvas.ts';
 import GsDetachableView from './GsDetachableView.vue';
-import { previewRendererController } from '@/app.ts';
+import { activePreviewRenderer } from '@/app.ts';
 
 const props = defineProps<{
 	direction: 'horizontal' | 'vertical';
 }>();
 
-// エンジンの再読み込みでCanvasが交換されるため、利用時に現在の要素を取得する。
-const getCanvas = () => props.direction === 'horizontal' ? previewRendererController.waveformHorizontalCanvas : previewRendererController.waveformVerticalCanvas;
-
 const canvasContainer = useTemplateRef('canvasContainer');
 
-onMounted(() => {
-	if (canvasContainer.value != null) {
-		canvasContainer.value.appendChild(getCanvas());
-	}
-});
-
-onBeforeUnmount(() => {
-	if (canvasContainer.value != null) {
-		canvasContainer.value.removeChild(getCanvas());
-	}
-});
+useRendererCanvas(canvasContainer, activePreviewRenderer, () => props.direction === 'horizontal' ? 'waveformHorizontalCanvas' : 'waveformVerticalCanvas');
 </script>
 
 <style module lang="scss">

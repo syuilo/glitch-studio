@@ -1,13 +1,14 @@
 <template>
 <div :class="$style.root">
-	<div :class="$style.legend">
+	<div v-if="previewPlayback.state.value.mode !== 'live'">Rendering statistics are available in LIVE mode.</div>
+	<div v-show="previewPlayback.state.value.mode === 'live'" :class="$style.legend">
 		<div v-for="item in series" :key="item.key" :class="$style.legendItem">
 			<span style="width: 8px; height: 2px;" :style="{ backgroundColor: item.color }"></span>
 			<span style="opacity: 0.7;">{{ item.label }}</span>
 			<span>{{ formatMs(current[item.key]) }}</span>
 		</div>
 	</div>
-	<div ref="chartEl" :class="$style.chart">
+	<div v-show="previewPlayback.state.value.mode === 'live'" ref="chartEl" :class="$style.chart">
 		<svg :viewBox="`0 0 ${chartWidth} ${chartHeight}`" :class="$style.svg">
 			<g :class="$style.grid">
 				<template v-for="tick in yTicks" :key="tick.value">
@@ -36,7 +37,7 @@
 
 <script lang="ts" setup>
 import { computed, onBeforeUnmount, onMounted, ref, useTemplateRef } from 'vue';
-import { previewRendererController } from '@/app.ts';
+import { visualModuleRendererManagerController, previewPlayback } from '@/app.ts';
 import { i18n } from '@/i18n.ts';
 
 type SeriesKey = 'fast' | 'medium' | 'slow';
@@ -80,11 +81,15 @@ let timer: number | undefined;
 let resizeObserver: ResizeObserver | undefined;
 
 function recordSample() {
+	if (previewPlayback.state.value.mode !== 'live') {
+		samples.value = [];
+		return;
+	}
 	const timestamp = performance.now();
 	current.value = {
-		fast: toMs(previewRendererController.gpuAverageDisplayFast.value),
-		medium: toMs(previewRendererController.gpuAverageDisplayMedium.value),
-		slow: toMs(previewRendererController.gpuAverageDisplaySlow.value),
+		fast: toMs(visualModuleRendererManagerController.gpuAverageDisplayFast.value),
+		medium: toMs(visualModuleRendererManagerController.gpuAverageDisplayMedium.value),
+		slow: toMs(visualModuleRendererManagerController.gpuAverageDisplaySlow.value),
 	};
 	samples.value.push({ ...current.value, timestamp });
 	while (samples.value[0]?.timestamp < timestamp - historyDuration || samples.value.length > sampleLimit) samples.value.shift();

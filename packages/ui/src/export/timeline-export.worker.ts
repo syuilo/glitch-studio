@@ -1,4 +1,4 @@
-import { MainRenderer } from '@glitch/renderer/renderer.ts';
+import { TimelineRendererManager } from '@glitch/renderer/timeline-renderer-manager.ts';
 import { effectDefinitions } from '@glitch/shared/effect/effect-definitions.ts';
 import { effectImplementations } from '@glitch/shared/effect/effect-implementations.js';
 import { createMp4Writer } from './mp4-writer.ts';
@@ -14,7 +14,7 @@ function send(message: ExportResponse, transfer: Transferable[] = []) {
 // 1ジョブにつき1Worker。Playerのライブ入力は接続せず、専用のGPUDeviceと履歴を持つ。
 // キャンセル時は呼び出し元がWorkerを終了し、準備待ち・エンコード待ちも即座に中断する。
 self.onmessage = async (event: MessageEvent<ExportRequest>) => {
-	let renderer: MainRenderer | undefined;
+	let renderer: TimelineRendererManager | undefined;
 	let device: GPUDevice | undefined;
 	let writer: Awaited<ReturnType<typeof createMp4Writer>> | undefined;
 	const controller = new AbortController();
@@ -43,16 +43,17 @@ self.onmessage = async (event: MessageEvent<ExportRequest>) => {
 		void device.lost.then(info => fail(info.message || 'Export GPU device was lost.'));
 		const context = canvas.getContext('webgpu');
 		if (!(context instanceof GPUCanvasContext)) throw new Error('Could not create the export canvas.');
-		renderer = new MainRenderer({
+		renderer = new TimelineRendererManager({
 			gpuDevice: device,
 			gpuContext: context,
 			effectDefinitions,
 			effectImplementations,
-			onEffectState: (_source, nodeId, state) => {
-				const status = state?.status;
-				if (status?.type === 'error') fail(`Node ${nodeId}: ${status.message}`);
-			},
-		}, { ...rendererSettings, enableStats: false });
+		}, rendererSettings);
+		renderer.on('ev', event => {
+			if (event.type !== 'effectState') return;
+			const status = event.ctx.status?.status;
+			if (status?.type === 'error') fail(`Node ${event.ctx.nodeId}: ${status.message}`);
+		});
 		// プレビューの解像度・クリッピング表示・LIVE設定は持ち込まず、
 		// 書き出し専用の状態を設定して素材の準備が終わってから描画する。
 		await renderer.updateDynamicOptions({
