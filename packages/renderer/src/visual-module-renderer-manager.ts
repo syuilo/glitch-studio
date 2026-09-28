@@ -85,8 +85,10 @@ export class VisualModuleRendererManager extends EventEmitter<{
 	private gpuAverageMedium = new NonNegativeRollingAverage(100);
 	private gpuAverageSlow = new NonNegativeRollingAverage(1000);
 	private fpsAverage = new NonNegativeRollingAverage(30);
+	private telemetryReportIntervalId: number;
 	private gpuMemory: GpuMemoryTracker;
 	private gpuMemoryReportIntervalId: number;
+	private currentRenderError: string | null = null;
 
 	private readonly staticOptions: VisualModuleRendererManagerStaticOptions;
 	private dynamicOptions: VisualModuleRendererManagerDynamicOptions = {
@@ -160,9 +162,25 @@ export class VisualModuleRendererManager extends EventEmitter<{
 			waveformVerticalGpuContext: coreConfig.waveformVerticalGpuContext,
 		});
 
+		this.telemetryReportIntervalId = setInterval(() => {
+			this.emit('ev', { type: 'telemetry', ctx: {
+				fpsAverage: this.fpsAverage.get(),
+				gpuAverageFast: this.gpuAverageFast.get(),
+				gpuAverageMedium: this.gpuAverageMedium.get(),
+				gpuAverageSlow: this.gpuAverageSlow.get(),
+			} });
+		}, 100);
+
 		this.gpuMemoryReportIntervalId = setInterval(() => {
 			this.emit('ev', { type: 'gpuMemory', ctx: { usage: this.gpuMemory.getUsage() } });
-		});
+		}, 1000);
+	}
+
+	// 毎フレーム通知を発生させないように前回から変わっている場合のみ通知
+	private setRenderError(message: string | null) {
+		if (this.currentRenderError === message) return;
+		this.currentRenderError = message;
+		this.emit('ev', { type: 'renderError', ctx: { message } });
 	}
 
 	public attachAudioSource(id: AudioSourceId, port: MessagePort) {
@@ -341,7 +359,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 					this.gpuAverageMedium.addSample(gpuTime / 1000);
 					this.gpuAverageSlow.addSample(gpuTime / 1000);
 				}).catch(error => {
-					if (generation === this.previewRenderGeneration) this.emit('ev', { type: 'renderError', ctx: { message: error instanceof Error ? error.message : String(error) } });
+					if (generation === this.previewRenderGeneration) this.setRenderError(error instanceof Error ? error.message : String(error));
 				});
 			}
 		}

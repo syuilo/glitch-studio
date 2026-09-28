@@ -64,6 +64,7 @@ export class TimelineRendererManager extends EventEmitter<{
 	private assetTextures: AssetTextures;
 	private effectDefinitions: Record<string, EffectDefinition<any>>;
 	private effectImplementations: Record<string, EffectImplementation<any>>;
+	private currentRenderError: string | null = null;
 
 	private readonly staticOptions: TimelineRendererManagerStaticOptions;
 	private dynamicOptions: TimelineRendererManagerDynamicOptions = {
@@ -137,6 +138,13 @@ export class TimelineRendererManager extends EventEmitter<{
 		});
 	}
 
+	// 毎フレーム通知を発生させないように前回から変わっている場合のみ通知
+	private setRenderError(message: string | null) {
+		if (this.currentRenderError === message) return;
+		this.currentRenderError = message;
+		this.emit('ev', { type: 'renderError', ctx: { message } });
+	}
+
 	private clearTimelineRenderers() {
 		this.previewRenderGeneration++;
 		this.timelineRenderer.clear();
@@ -179,9 +187,9 @@ export class TimelineRendererManager extends EventEmitter<{
 			if (!Number.isFinite(time)) throw new Error('Timeline time must be finite');
 			await this.timelineRenderer.renderAt(time, this.dynamicOptions.timeline);
 			// 中断されたシークの完了で、新しい描画のエラーを消さない。
-			if (generation === this.previewRenderGeneration) this.emit('ev', { type: 'renderError', ctx: { message: null } });
+			if (generation === this.previewRenderGeneration) this.setRenderError(null);
 		} catch (error) {
-			if (generation === this.previewRenderGeneration) this.emit('ev', { type: 'renderError', ctx: { message: error instanceof Error ? error.message : String(error) } });
+			if (generation === this.previewRenderGeneration) this.setRenderError(error instanceof Error ? error.message : String(error));
 		}
 	}
 
