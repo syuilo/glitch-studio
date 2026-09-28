@@ -449,7 +449,7 @@ function onReset() {
 
 .row {
 	display: flex;
-	padding: 3px 16px;
+	padding: 3px 10px;
 	box-sizing: border-box;
 	min-height: 30px;
 
