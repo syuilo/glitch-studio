@@ -10,7 +10,8 @@
 	},
 	"exports": {
 		"./client.ts": "./src/client.ts",
-		"./renderer.ts": "./src/renderer.ts"
+		"./visual-module-renderer-manager.ts": "./src/visual-module-renderer-manager.ts",
+		"./timeline-renderer-manager.ts": "./src/timeline-renderer-manager.ts"
 	},
 	"devDependencies": {
 		"@types/web": "0.0.352",
