@@ -50,6 +50,8 @@ export type VisualModuleRendererManagerDynamicOptions = {
 };
 
 export type VisualModuleRendererManagerEvents = {
+	'effectState': (ctx: { source: EffectStatusSource; nodeId: string; status: EffectInstanceState | null }) => void;
+	'renderError': (ctx: { message: string | null }) => void;
 	'telemetry': (ctx: { fpsAverage: number; gpuAverageFast: number; gpuAverageMedium: number; gpuAverageSlow: number; }) => void;
 	'gpuMemory': (ctx: { usage: { total: number; textures: number; buffers: number; } }) => void;
 };
@@ -57,8 +59,6 @@ export type VisualModuleRendererManagerEvents = {
 export class VisualModuleRendererManager extends EventEmitter<{
 	'ev': (ctx: { type: keyof VisualModuleRendererManagerEvents; ctx: Parameters<VisualModuleRendererManagerEvents[keyof VisualModuleRendererManagerEvents]>[0] }) => void;
 }> {
-	private onEffectState?: (source: EffectStatusSource, nodeId: string, status: EffectInstanceState | null) => void;
-	private onPreviewError?: (message: string | null) => void;
 	private previewRenderGeneration = 0;
 	private gpuContext: GPUCanvasContext;
 	private gpuDevice: GPUDevice;
@@ -100,8 +100,6 @@ export class VisualModuleRendererManager extends EventEmitter<{
 	};
 
 	constructor(coreConfig: {
-		onEffectState?: (source: EffectStatusSource, nodeId: string, status: EffectInstanceState | null) => void;
-		onPreviewError?: (message: string | null) => void;
 		gpuDevice: GPUDevice;
 		gpuContext: GPUCanvasContext;
 		frameScheduler?: FrameScheduler;
@@ -115,8 +113,6 @@ export class VisualModuleRendererManager extends EventEmitter<{
 
 		this.staticOptions = { ...staticOptions };
 
-		this.onEffectState = coreConfig.onEffectState;
-		this.onPreviewError = coreConfig.onPreviewError;
 		this.frameScheduler = coreConfig.frameScheduler ?? browserFrameScheduler;
 		this.liveRenderLoop = new LiveRenderLoop({
 			scheduler: this.frameScheduler,
@@ -124,9 +120,9 @@ export class VisualModuleRendererManager extends EventEmitter<{
 				// グラフのエラーでWorkerを利用不能にしない。次のフレームで修正後の状態を再試行する。
 				try {
 					this.renderLiveFrame(timing);
-					this.setPreviewError(null);
+					this.setRenderError(null);
 				} catch (error) {
-					this.setPreviewError(error instanceof Error ? error.message : String(error));
+					this.setRenderError(error instanceof Error ? error.message : String(error));
 				}
 			},
 			fpsLimit: this.dynamicOptions.fpsLimit,
@@ -260,10 +256,6 @@ export class VisualModuleRendererManager extends EventEmitter<{
 		});
 	}
 
-	private setPreviewError(message: string | null) {
-		this.onPreviewError?.(message);
-	}
-
 	public updateLiveParamValues(paramValues: VisualModuleParameterBindings) {
 		this.liveParamValues = paramValues;
 	}
@@ -286,7 +278,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 			intermediateTextureFormat: this.staticOptions.intermediateTextureFormat,
 			enableStats: this.staticOptions.enableStats,
 			timingHelper: this.timingHelper,
-			onEffectState: (nodeId, status) => this.onEffectState?.(statusSource, nodeId, status),
+			onEffectState: (nodeId, status) => this.emit('ev', { type: 'effectState', ctx: { source: statusSource, nodeId, status } }),
 			videoFrames: this.videoFrames,
 			videoFrameVersions: this.videoFrameVersions,
 			assets: this.dynamicOptions.assets,
@@ -349,7 +341,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 					this.gpuAverageMedium.addSample(gpuTime / 1000);
 					this.gpuAverageSlow.addSample(gpuTime / 1000);
 				}).catch(error => {
-					if (generation === this.previewRenderGeneration) this.setPreviewError(error instanceof Error ? error.message : String(error));
+					if (generation === this.previewRenderGeneration) this.emit('ev', { type: 'renderError', ctx: { message: error instanceof Error ? error.message : String(error) } });
 				});
 			}
 		}
@@ -386,8 +378,6 @@ export async function createManager(options: {
 	dynamicOptions: Partial<VisualModuleRendererManagerDynamicOptions>;
 	effectDefinitions: Record<string, EffectDefinition>;
 	effectImplementations: Record<string, EffectImplementation>;
-	reportPreviewError: (message: string | null) => void;
-	onEffectState: (source: EffectStatusSource, nodeId: string, status: EffectInstanceState | null) => void;
 }) {
 	const adapter = await navigator.gpu?.requestAdapter({
 		powerPreference: 'high-performance',
@@ -412,8 +402,6 @@ export async function createManager(options: {
 	}
 
 	const manager = new VisualModuleRendererManager({
-		onEffectState: options.onEffectState,
-		onPreviewError: options.reportPreviewError,
 		gpuDevice: device,
 		gpuContext: context,
 		histogramGpuContext: histogramContext,
