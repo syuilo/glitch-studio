@@ -44,8 +44,12 @@ export type TimelineRendererManagerDynamicOptions = {
 	timeline: Timeline;
 };
 
+export type TimelineRendererManagerEvents = {
+	'dummy': (ctx: null) => void;
+};
+
 export class TimelineRendererManager extends EventEmitter<{
-	'ev': (ctx: { type: keyof EVs; ctx: Parameters<EVs[keyof EVs]>[0] }) => void;
+	'ev': (ctx: { type: keyof TimelineRendererManagerEvents; ctx: Parameters<TimelineRendererManagerEvents[keyof TimelineRendererManagerEvents]>[0] }) => void;
 }> {
 	private timelineRenderer: TimelineRenderer<NodeOutput, Timeline[number]>;
 	private onEffectState?: (source: EffectStatusSource, nodeId: string, status: EffectInstanceState | null) => void;

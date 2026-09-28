@@ -49,8 +49,13 @@ export type VisualModuleRendererManagerDynamicOptions = {
 	visualModules: VisualModule[];
 };
 
+export type VisualModuleRendererManagerEvents = {
+	'telemetry': (ctx: { fpsAverage: number; gpuAverageFast: number; gpuAverageMedium: number; gpuAverageSlow: number; }) => void;
+	'gpuMemory': (ctx: { usage: { total: number; textures: number; buffers: number; } }) => void;
+};
+
 export class VisualModuleRendererManager extends EventEmitter<{
-	'ev': (ctx: { type: keyof EVs; ctx: Parameters<EVs[keyof EVs]>[0] }) => void;
+	'ev': (ctx: { type: keyof VisualModuleRendererManagerEvents; ctx: Parameters<VisualModuleRendererManagerEvents[keyof VisualModuleRendererManagerEvents]>[0] }) => void;
 }> {
 	private onEffectState?: (source: EffectStatusSource, nodeId: string, status: EffectInstanceState | null) => void;
 	private onPreviewError?: (message: string | null) => void;
@@ -76,11 +81,12 @@ export class VisualModuleRendererManager extends EventEmitter<{
 	private pointerPositionPrev: { x: number; y: number } = { x: -99999, y: -99999 };
 	private effectDefinitions: Record<string, EffectDefinition<any>>;
 	private effectImplementations: Record<string, EffectImplementation<any>>;
-	public gpuAverageFast = new NonNegativeRollingAverage(10);
-	public gpuAverageMedium = new NonNegativeRollingAverage(100);
-	public gpuAverageSlow = new NonNegativeRollingAverage(1000);
-	public fpsAverage = new NonNegativeRollingAverage(30);
-	public readonly gpuMemory: GpuMemoryTracker;
+	private gpuAverageFast = new NonNegativeRollingAverage(10);
+	private gpuAverageMedium = new NonNegativeRollingAverage(100);
+	private gpuAverageSlow = new NonNegativeRollingAverage(1000);
+	private fpsAverage = new NonNegativeRollingAverage(30);
+	private gpuMemory: GpuMemoryTracker;
+	private gpuMemoryReportIntervalId: number;
 
 	private readonly staticOptions: VisualModuleRendererManagerStaticOptions;
 	private dynamicOptions: VisualModuleRendererManagerDynamicOptions = {
@@ -150,16 +156,16 @@ export class VisualModuleRendererManager extends EventEmitter<{
 			usage: GPUTextureUsage.TEXTURE_BINDING,
 		});
 
-		this.defaultVertexShaderModule = this.gpuDevice.createShaderModule({
-			code: defaultVertexShaderCode,
-		});
-
 		this.canvasRenderer = new CanvasRenderer({
 			gpuDevice: this.gpuDevice,
 			gpuContext: this.gpuContext,
 			histogramGpuContext: coreConfig.histogramGpuContext,
 			waveformHorizontalGpuContext: coreConfig.waveformHorizontalGpuContext,
 			waveformVerticalGpuContext: coreConfig.waveformVerticalGpuContext,
+		});
+
+		this.gpuMemoryReportIntervalId = setInterval(() => {
+			this.emit('ev', { type: 'gpuMemory', ctx: { usage: this.gpuMemory.getUsage() } });
 		});
 	}
 
@@ -358,6 +364,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 	}
 
 	public destroy() {
+		clearInterval(this.gpuMemoryReportIntervalId);
 		this.stopRenderLoop();
 		this.outputTextures.dispose();
 		this.assetTextures.dispose();

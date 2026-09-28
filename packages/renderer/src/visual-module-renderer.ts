@@ -70,7 +70,7 @@ export class VisualModuleRenderer {
 	private assetTextures: Map<string, GPUTexture>;
 	private assets: Asset[];
 	private audioSources = new Map<AudioSourceId, AudioHistory>();
-	private timingHelper: TimingHelper;
+	private timingHelper: TimingHelper | null;
 	private enableStats = true;
 	private renderNodeId: VisualModuleNode['id'] | null = null;
 	private effectDefinitions: Record<string, EffectDefinition>;
@@ -80,7 +80,7 @@ export class VisualModuleRenderer {
 	constructor(options: {
 		onEffectState?: (nodeId: string, state: EffectInstanceState | null) => void;
 		enableStats: boolean;
-		timingHelper: TimingHelper;
+		timingHelper: TimingHelper | null;
 		gpuDevice: GPUDevice;
 		gpuContext: GPUCanvasContext;
 		fallbackTexture: GPUTexture;
@@ -586,13 +586,13 @@ export class VisualModuleRenderer {
 						storeOp: 'store',
 					}],
 				} satisfies GPURenderPassDescriptor;
-				return this.enableStats ? this.timingHelper.beginRenderPass(commandEncoder, descriptor) : commandEncoder.beginRenderPass(descriptor);
+				return this.enableStats && this.timingHelper != null ? this.timingHelper.beginRenderPass(commandEncoder, descriptor) : commandEncoder.beginRenderPass(descriptor);
 			},
 			createPassEncoder: (commandEncoder, descriptor) => {
-				return this.enableStats ? this.timingHelper.beginRenderPass(commandEncoder, descriptor) : commandEncoder.beginRenderPass(descriptor);
+				return this.enableStats && this.timingHelper != null ? this.timingHelper.beginRenderPass(commandEncoder, descriptor) : commandEncoder.beginRenderPass(descriptor);
 			},
 			createComputePassEncoder: (commandEncoder, descriptor) => {
-				return this.enableStats ? this.timingHelper.beginComputePass(commandEncoder, descriptor) : commandEncoder.beginComputePass(descriptor);
+				return this.enableStats && this.timingHelper != null ? this.timingHelper.beginComputePass(commandEncoder, descriptor) : commandEncoder.beginComputePass(descriptor);
 			},
 		});
 
