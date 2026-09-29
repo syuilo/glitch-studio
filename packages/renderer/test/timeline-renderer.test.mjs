@@ -12,7 +12,7 @@ const entry = (id, startTimeMs = 0, endTimeMs = 1000, type = 'test') => ({
 // 途中開始時や新規レイヤーは履歴をリセットし、継続するレイヤーだけ時間を進める。
 test('advances existing layer histories while starting new layers without preroll', async () => {
 	const f = fixture();
-	const timeline = [entry('bottom', 0, 1000), entry('top', 550, 1000)];
+	const timeline = [entry('top', 550, 1000), entry('bottom', 0, 1000)];
 	await f.renderer.renderAt(500, timeline, 0);
 	await f.renderer.renderAt(600, timeline, 100);
 	await f.renderer.renderAt(700, timeline, 100);
@@ -62,10 +62,11 @@ function fixture(overrides = {}) {
 	return { renderer, prepared, rendered, created, destroyed, presented, get clears() { return clears; } };
 }
 
-// 下から順にレイヤー内の時刻・終端で準備・描画し、出力を次の主入力へ渡す
+// 【表示順と逆順に合成し、下層の出力を上層の主入力へ渡す】
+// UIで上にあるレイヤーが最後に合成され、保存された表示順は変化しないことを保証する。
 test('renders layers in order with local time, end time and chained outputs', async () => {
 	const f = fixture();
-	const timeline = [entry('bottom', 100, 900), entry('top', 200, 600)];
+	const timeline = [entry('top', 200, 600), entry('bottom', 100, 900)];
 	await f.renderer.renderAt(400, timeline);
 	assert.deepEqual(f.rendered.map(item => item.id), ['bottom', 'top']);
 	assert.deepEqual(f.prepared.map(item => item.context.time), [300, 200]);
@@ -76,6 +77,13 @@ test('renders layers in order with local time, end time and chained outputs', as
 		assert.equal(f.prepared[i].context.timeDelta, 0);
 	}
 	assert.deepEqual(f.presented, [{ output: 'top', gpuTime: 20 }]);
+	assert.deepEqual(timeline.map(item => item.id), ['top', 'bottom']);
+
+	// 並べ替え後も新しい表示順に従い、背景の受け渡しと最終出力を切り替える。
+	await f.renderer.renderAt(400, timeline.toReversed());
+	assert.deepEqual(f.rendered.slice(-2).map(item => item.id), ['top', 'bottom']);
+	assert.deepEqual(f.prepared.slice(-2).map(item => item.context.input), ['transparent', 'top']);
+	assert.deepEqual(f.presented.at(-1), { output: 'bottom', gpuTime: 20 });
 	f.renderer.clear();
 });
 
@@ -137,7 +145,7 @@ for (const outsideTime of [99, 200]) {
 // 同じ種類でもレイヤーごとにインスタンスと履歴を保持する
 test('reuses instances by layer ID and recreates them after clearing', async () => {
 	const f = fixture();
-	const timeline = [entry('a'), entry('b')];
+	const timeline = [entry('b'), entry('a')];
 	await f.renderer.renderAt(10, timeline);
 	await f.renderer.renderAt(20, timeline);
 	assert.deepEqual(f.created, ['a', 'b']);
@@ -163,7 +171,7 @@ test('passes through layers without output', async () => {
 // 不足するレイヤーを黙って省略した映像を書き出さず、生成済みの下層も回収する。
 test('rejects unavailable layers and destroys previously created layers', async () => {
 	const f = fixture();
-	await assert.rejects(f.renderer.renderAt(10, [entry('bottom'), entry('missing', 0, 1000, 'missing')]), /Layer not found/);
+	await assert.rejects(f.renderer.renderAt(10, [entry('missing', 0, 1000, 'missing'), entry('bottom')]), /Layer not found/);
 	assert.deepEqual(f.presented, []);
 	assert.deepEqual(f.destroyed, ['bottom']);
 });
@@ -191,7 +199,7 @@ test('ignores stale render completion and does not render subsequent layers', as
 		if (context.time === 10) { started.resolve(); return oldRender.promise; }
 		return { output: id, gpuTime: 2 };
 	} });
-	const timeline = [entry('a'), entry('b')];
+	const timeline = [entry('b'), entry('a')];
 	const oldSeek = f.renderer.renderAt(10, timeline);
 	await started.promise;
 	await f.renderer.renderAt(20, timeline);
@@ -259,8 +267,8 @@ test('chains different layer types without requiring visual module fields', asyn
 	const destroyed = [];
 	const params = { gain: { inputSource: 'literal', value: 2 } };
 	const timeline = [
-		{ ...entry('video', 100, 900), layer: { type: 'video', assetId: 'asset' } },
 		{ ...entry('effect', 200, 600), layer: { type: 'visualModule', visualModuleId: 'module', paramValues: params, automationGraphs: [] } },
+		{ ...entry('video', 100, 900), layer: { type: 'video', assetId: 'asset' } },
 	];
 	const renderer = new TimelineRenderer({
 		fallbackOutput: fallback,

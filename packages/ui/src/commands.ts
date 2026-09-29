@@ -817,7 +817,7 @@ const updateVisualModuleOutputDefCommandDef = defineCommand<VisualModuleTarget &
 const addInlineVisualModuleLayerCommandDef = defineCommand<TimelineInlineVisualModuleLayer>({
 	label: 'Add inline visual module layer',
 	create: payload => ({
-		execute(state) { state.timeline.value.push(deepClone(payload)); },
+		execute(state) { state.timeline.value.unshift(deepClone(payload)); },
 		undo(state) { state.timeline.value = state.timeline.value.filter(layer => layer.id !== payload.id); },
 	}),
 });
@@ -847,7 +847,7 @@ const editVisualModuleLayerTimingCommandDef = defineCommand<{ layerId: string; s
 const addAudioLayerCommandDef = defineCommand<TimelineAudioLayer>({
 	label: 'Add audio layer',
 	create: payload => ({
-		execute(state) { state.timeline.value.push(deepClone(payload)); },
+		execute(state) { state.timeline.value.unshift(deepClone(payload)); },
 		undo(state) { state.timeline.value = state.timeline.value.filter(layer => layer.id !== payload.id); },
 	}),
 });

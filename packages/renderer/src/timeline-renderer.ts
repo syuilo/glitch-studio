@@ -52,8 +52,9 @@ export class TimelineRenderer<Output, Entry extends TimelineRenderEntry = Timeli
 		this.controller = controller;
 		const isCancelled = () => controller.signal.aborted;
 		try {
-			// 配列の先頭が最下層。終端を含めず、隣接するレイヤーを境界で重ねない。
-			const activeEntries = timeline.filter(entry => entry.startTimeMs <= time && time < entry.endTimeMs);
+			// 配列は先頭が最上層の表示順。下層の合成結果を上層へ渡すため、描画は逆順に行う。
+			// 終端を含めず、隣接するレイヤーを境界で重ねない。
+			const activeEntries = timeline.filter(entry => entry.startTimeMs <= time && time < entry.endTimeMs).reverse();
 			const activeIds = new Set(activeEntries.map(entry => entry.id));
 			for (const [id, layer] of this.layers) {
 				if (activeIds.has(id)) continue;

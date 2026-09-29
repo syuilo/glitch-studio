@@ -50,4 +50,5 @@ export type TimelineAudioLayer = {
 
 export type TimelineLayer = TimelineVisualModuleLayer | TimelineInlineVisualModuleLayer | TimelineEffectLayer | TimelineAudioLayer;
 
+/** UIの上から下への表示順。先頭が最上層で、描画・合成は末尾から先頭へ行う。 */
 export type Timeline = TimelineLayer[];
