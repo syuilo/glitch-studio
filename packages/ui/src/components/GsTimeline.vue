@@ -24,20 +24,29 @@
 			<div :class="$style.layersHeader">
 				header
 			</div>
-			<XLayer
-				v-for="layer of appStateManager.state.timeline.value"
-				:key="layer.id"
-				:layer="layer"
-				:tlElWidth="tlElWidth"
-				:tlPosX="tlPosX"
-				:tlRangeX="tlRangeX"
-				:snapTimes="xTicksWithHalf"
-				:currentTime="time"
-				:selectedKeyframe="selectedKeyframeSelection"
-				:class="$style.layersLane"
-				@selected="onLayerSelected(layer)"
-				@keyframeSelected="onKeyframeSelected"
-			/>
+			<GsDraggable
+				:class="$style.layerList"
+				:modelValue="appStateManager.state.timeline.value"
+				direction="vertical"
+				manualDragStart
+				@update:modelValue="onLayersSorted"
+			>
+				<template #default="{ item: layer, dragStart }">
+					<XLayer
+						:layer="layer"
+						:tlElWidth="tlElWidth"
+						:tlPosX="tlPosX"
+						:tlRangeX="tlRangeX"
+						:snapTimes="xTicksWithHalf"
+						:currentTime="time"
+						:selectedKeyframe="selectedKeyframeSelection"
+						:class="$style.layersLane"
+						@dragStart="dragStart"
+						@selected="onLayerSelected(layer)"
+						@keyframeSelected="onKeyframeSelected"
+					/>
+				</template>
+			</GsDraggable>
 		</div>
 		<div :class="$style.tlOverlayWrapper">
 			<div :class="$style.tlOverlaySideSpacer"></div>
@@ -164,9 +173,6 @@ import { computed, onBeforeUnmount, onMounted, ref, shallowRef, useTemplateRef, 
 import { insertIntermediateNumbers, nearlyEqual, niceScale } from '@glitch/shared/utility/misc.js';
 import { genId } from '@glitch/shared/utility/id.js';
 import { timelineAudioParamDefs, AUDIO_LAYER_VAR_DEFS } from '@glitch/shared/timeline/timeline-audio.ts';
-import { openAssetAudio } from '@/audio/asset-audio-reader.ts';
-import * as api from '@/api.ts';
-import type { Asset } from '@glitch/shared/types.ts';
 import { timelineCompositingParamDefs } from '@glitch/shared/timeline/timeline-compositing.ts';
 import { deepClone } from '@glitch/shared/utility/deep-clone.ts';
 import XLayer from './GsTimeline.Layer.vue';
@@ -174,23 +180,33 @@ import GsLiteralLeafValueControl from './GsLiteralLeafValueControl.vue';
 import GsInput from './common/GsInput.vue';
 import GsSelect from './common/GsSelect.vue';
 import GsButton from './common/GsButton.vue';
+import GsDraggable from './common/GsDraggable.vue';
 import GsVisualParam from './GsVisualParam.vue';
 import GsVisualModuleEditor from './GsVisualModuleEditor.vue';
 import GsEffectPicker from './GsEffectPicker.vue';
 import GsTabs from './common/GsTabs.vue';
+import type { Asset } from '@glitch/shared/types.ts';
 import type { VisualModuleEdit } from '@/types/visual-module-editor.ts';
-import { commitVisualModuleEdit } from '@/utility/visual-module-edit.ts';
-import { createInlineVisualModuleLayer } from '@/utility/inline-visual-module-layer.ts';
-import * as ui from '@/ui.ts';
 import type { Timeline } from '@glitch/shared/timeline/types.ts';
 import type { ParameterBinding, KeyframesTimelineKeyframe } from '@glitch/shared/types.ts';
 import type { TimelineKeyframeSelection } from './GsTimeline.Layer.vue';
 import type { ParamEdit } from './GsVisualParam.vue';
+import * as ui from '@/ui.ts';
+import { createInlineVisualModuleLayer } from '@/utility/inline-visual-module-layer.ts';
+import { commitVisualModuleEdit } from '@/utility/visual-module-edit.ts';
+import * as api from '@/api.ts';
+import { openAssetAudio } from '@/audio/asset-audio-reader.ts';
 import { appStateManager, previewPlayback, timelineAudioPreview, timelineRendererManagerController } from '@/app.ts';
 import { dragListen } from '@/utility/drag.ts';
 
 const X_TICKS_HEIGHT = 20;
 const Y_TICKS_WIDTH = 0;
+
+function onLayersSorted(layers: Timeline) {
+	const layerIds = layers.map(layer => layer.id);
+	if (layerIds.length === appStateManager.state.timeline.value.length && layerIds.every((id, index) => id === appStateManager.state.timeline.value[index]?.id)) return;
+	appStateManager.commit('reorderTimelineLayers', { layerIds });
+}
 
 const duration = computed(() => {
 	return appStateManager.state.timeline.value.reduce((max, layer) => Math.max(max, layer.endTimeMs), 0) ?? 0;
@@ -704,8 +720,14 @@ onMounted(() => {
 }
 
 .layersHeader {
+	flex-shrink: 0;
 	direction: ltr;
 	height: 40px;
+}
+
+.layerList {
+	flex-shrink: 0;
+	flex-wrap: nowrap;
 }
 
 .layersLane {

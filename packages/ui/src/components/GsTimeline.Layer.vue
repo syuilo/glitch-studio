@@ -1,7 +1,10 @@
 <template>
 <div :class="$style.root">
 	<div :class="$style.side">
-		<div :class="$style.sideHeader">{{ layerLabel }}</div>
+		<div :class="$style.sideHeader" draggable="true" @dragstart.stop="emit('dragStart', $event)">
+			<i class="ti ti-grip-vertical"></i>
+			{{ layerLabel }}
+		</div>
 		<div v-for="param in keyframeParameters" :key="param.key" :class="$style.sideKeyframesLane">{{ param.key }}</div>
 	</div>
 	<div :class="$style.tl">
@@ -57,6 +60,7 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
+	(ev: 'dragStart', event: DragEvent): void;
 	(ev: 'selected'): void;
 	(ev: 'keyframeSelected', selection: TimelineKeyframeSelection): void;
 }>();
@@ -183,6 +187,9 @@ function onLayerBlockClick() {
 }
 
 .sideHeader {
+	cursor: grab;
+	user-select: none;
+	gap: 4px;
 	height: var(--mainLaneHeight);
 	line-height: var(--mainLaneHeight);
 	display: flex;

@@ -874,6 +874,28 @@ const editAudioLayerTimingCommandDef = defineCommand<{ layerId: string; startTim
 	},
 });
 
+const reorderTimelineLayersCommandDef = defineCommand<{ layerIds: string[] }>({
+	label: 'Reorder timeline layers',
+	create: payload => {
+		let before: string[];
+		const reorder = (state: AppState, layerIds: string[]) => {
+			const layers = new Map(state.timeline.value.map(layer => [layer.id, layer]));
+			if (layerIds.length !== layers.size || new Set(layerIds).size !== layers.size || layerIds.some(id => !layers.has(id))) {
+				throw new Error('Invalid timeline layer order');
+			}
+			// D&Dで渡されるレイヤーのコピーではなく、現在のレイヤーをIDで並べ替える。
+			state.timeline.value = layerIds.map(id => layers.get(id)!);
+		};
+		return {
+			execute(state) {
+				before = state.timeline.value.map(layer => layer.id);
+				reorder(state, payload.layerIds);
+			},
+			undo(state) { reorder(state, before); },
+		};
+	},
+});
+
 const removeTimelineLayerCommandDef = defineCommand<{ layerId: string }>({
 	label: 'Remove timeline layer',
 	create: payload => {
@@ -892,6 +914,7 @@ const removeTimelineLayerCommandDef = defineCommand<{ layerId: string }>({
 });
 
 export const COMMAND_DEFS = {
+	reorderTimelineLayers: reorderTimelineLayersCommandDef,
 	addInlineVisualModuleLayer: addInlineVisualModuleLayerCommandDef,
 	editVisualModuleLayerTiming: editVisualModuleLayerTimingCommandDef,
 	addAudioLayer: addAudioLayerCommandDef,
