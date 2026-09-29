@@ -1,10 +1,14 @@
 <template>
 <div :class="$style.root">
 	<div :class="$style.header">
-		<GsButton @click="addLayer">addLayer</GsButton>
+		<GsSelect v-model="audioAssetId" small :class="$style.audioAssetSelect" :items="audioAssetItems"/>
+		<GsButton :disabled="!audioAssetId || addingAudio" @click="addAudioAssetLayer">Add audio layer</GsButton>
+		<GsButton :disabled="addingAudio" @click="importAudioLayer">Import audio</GsButton>
 		<GsButton :primary="previewPlayback.state.value.mode === 'timeline'" @click="previewPlayback.showTimeline()">Preview</GsButton>
 		<GsButton v-if="previewPlayback.isTimelinePlaying.value" primary @click="pause"><i class="ti ti-player-pause"></i></GsButton>
 		<GsButton v-else primary @click="play"><i class="ti ti-player-play"></i></GsButton>
+		<span v-if="timelineAudioPreview.buffering.value">Buffering audio…</span>
+		<span v-if="audioError || timelineAudioPreview.error.value">{{ audioError || timelineAudioPreview.error.value }}</span>
 	</div>
 	<div :class="$style.body">
 		<div :class="$style.tlBgWrapper">
@@ -85,6 +89,23 @@
 				</GsSelect>
 			</div>
 		</div>
+		<div v-else-if="selectedLayer?.layerType === 'audio'" :class="$style.rightSidePanel">
+			<div>{{ appStateManager.state.assets.value.find(asset => asset.id === (selectedLayer?.layerType === 'audio' ? selectedLayer.assetId : ''))?.name ?? 'Missing audio' }}</div>
+			<GsInput small type="number" :min="0" :modelValue="selectedLayer.startTimeMs" @update:modelValue="value => editAudioTiming('move', value)"><template #label>Position (ms)</template></GsInput>
+			<GsInput small type="number" :min="Math.max(0, selectedLayer.startTimeMs - selectedLayer.sourceOffsetMs)" :max="selectedLayer.endTimeMs - 1" :modelValue="selectedLayer.startTimeMs" @update:modelValue="value => editAudioTiming('trimStart', value)"><template #label>Trim start (ms)</template></GsInput>
+			<GsInput small type="number" :min="selectedLayer.startTimeMs + 1" :modelValue="selectedLayer.endTimeMs" @update:modelValue="value => editAudioTiming('trimEnd', value)"><template #label>Trim end (ms)</template></GsInput>
+			<GsInput small type="number" :min="0" :modelValue="selectedLayer.sourceOffsetMs" @update:modelValue="value => editAudioTiming('offset', value)"><template #label>Source offset (ms)</template></GsInput>
+			<GsVisualParam
+				:key="selectedLayer.id"
+				:availableVariables="AUDIO_LAYER_VAR_DEFS"
+				:automationGraphs="selectedLayer.automationGraphs"
+				:paramPath="['volume']"
+				:paramDef="timelineAudioParamDefs.volume"
+				:paramValue="selectedLayer.paramValues.volume"
+				@edit="event => onVisualModuleLayerParamEdit(event, 'audio')"
+			/>
+			<GsButton @click="appStateManager.commit('removeTimelineLayer', { layerId: selectedLayer.id })">Remove layer</GsButton>
+		</div>
 		<div v-else-if="selectedLayer?.layerType === 'visualModule'" :class="$style.rightSidePanel">
 			<div>{{ appStateManager.getVisualModuleById(selectedLayer?.visualModuleId)?.name }}</div>
 			<div>Compositing</div>
@@ -124,11 +145,14 @@
 
 <script lang="ts" setup>
 import { isParameterType } from '@glitch/shared/parameter.ts';
-import { visualModuleCustomParameterId } from '@glitch/shared/visual-module/types.ts';
 import { LAYER_VAR_DEFS } from '@glitch/shared/expression.ts';
 import { computed, onMounted, ref, shallowRef, useTemplateRef, watch } from 'vue';
 import { insertIntermediateNumbers, nearlyEqual, niceScale } from '@glitch/shared/utility/misc.js';
 import { genId } from '@glitch/shared/utility/id.js';
+import { timelineAudioParamDefs, AUDIO_LAYER_VAR_DEFS } from '@glitch/shared/timeline/timeline-audio.ts';
+import { openAssetAudio } from '@/audio/asset-audio-reader.ts';
+import * as api from '@/api.ts';
+import type { Asset } from '@glitch/shared/types.ts';
 import { timelineCompositingParamDefs } from '@glitch/shared/timeline/timeline-compositing.ts';
 import { deepClone } from '@glitch/shared/utility/deep-clone.ts';
 import XLayer from './GsTimeline.Layer.vue';
@@ -141,7 +165,7 @@ import type { Timeline } from '@glitch/shared/timeline/types.ts';
 import type { ParameterBinding, KeyframesTimelineKeyframe } from '@glitch/shared/types.ts';
 import type { TimelineKeyframeSelection } from './GsTimeline.Layer.vue';
 import type { ParamEdit } from './GsVisualParam.vue';
-import { appStateManager, previewPlayback } from '@/app.ts';
+import { appStateManager, previewPlayback, timelineAudioPreview } from '@/app.ts';
 import { dragListen } from '@/utility/drag.ts';
 
 const X_TICKS_HEIGHT = 20;
@@ -210,11 +234,11 @@ const selectedKeyframe = computed(() => {
 	const selection = selectedKeyframeSelection.value;
 	if (selection == null) return null;
 	const layer = appStateManager.state.timeline.value.find(entry => entry.id === selection.layerId);
-	if (layer?.layerType !== 'visualModule') return null;
-	const values: Partial<Record<string, ParameterBinding>> = selection.target === 'compositing' ? layer.compositingParamValues : layer.paramValues;
+	if (layer == null || layer.layerType === 'effect') return null;
+	const values: Partial<Record<string, ParameterBinding>> = selection.target === 'compositing' && layer.layerType === 'visualModule' ? layer.compositingParamValues : layer.paramValues;
 	const binding = values[selection.paramId];
 	if (binding?.inputSource !== 'keyframesTimelineInline') return null;
-	const def = selection.target === 'compositing'
+	const def = layer.layerType === 'audio' ? timelineAudioParamDefs.volume : selection.target === 'compositing'
 		? Object.entries(timelineCompositingParamDefs).find(([id]) => id === selection.paramId)?.[1]
 		: appStateManager.getVisualModuleById(layer.visualModuleId)?.paramDefs.find(entry => entry.id === selection.paramId);
 	if (def == null || !(isParameterType(def, 'scalar') || isParameterType(def, 'vector') || isParameterType(def, 'color')) || def.dataType.kind !== binding.keyframesTimeline.dataType.kind) return null;
@@ -246,9 +270,9 @@ function updateSelectedKeyframe(patch: Partial<Pick<KeyframesTimelineKeyframe, '
 	const keyframe = value.keyframesTimeline.keyframes.find(entry => entry.id === selected.selection.keyframeId);
 	if (keyframe == null) return;
 	Object.assign(keyframe, deepClone(patch));
-	appStateManager.commit('editVisualModuleLayerParam', {
+	appStateManager.commit('editTimelineLayerParam', {
 		layerId: selected.selection.layerId, target: selected.selection.target,
-		paramId: visualModuleCustomParameterId(selected.selection.paramId),
+		paramId: selected.selection.paramId,
 		edit: { kind: 'keyframesTimelineInline', value },
 	}, mergeKey);
 }
@@ -460,22 +484,78 @@ function onLayerSelected(layer: Timeline[number]) {
 	selectedKeyframeSelection.value = null;
 }
 
-function onVisualModuleLayerParamEdit(event: ParamEdit, target: 'module' | 'compositing') {
+function onVisualModuleLayerParamEdit(event: ParamEdit, target: 'module' | 'compositing' | 'audio') {
 	const layer = selectedLayer.value;
 	// TODO: struct / arrayの子の編集・要素操作。現在のカスタムパラメータ編集UIは末端の型だけを扱う。
 	if (layer == null || event.paramPath.length !== 1) return;
 	if (event.kind === 'node' || event.kind === 'externalCustomParameterInput' || event.kind === 'addElement' || event.kind === 'removeElement') return;
 	if (event.kind === 'inputSource' && (event.inputSource === 'node' || event.inputSource === 'externalCustomParameterInput')) return;
-	appStateManager.commit('editVisualModuleLayerParam', {
+	appStateManager.commit('editTimelineLayerParam', {
 		layerId: layer.id,
 		target,
-		paramId: visualModuleCustomParameterId(String(event.paramPath[0])),
+		paramId: String(event.paramPath[0]),
 		edit: event,
 	}, event.mergeKey != null ? `${layer.id}:${target}:${event.paramPath[0]}:${event.mergeKey}` : undefined);
 }
 
-function addLayer() {
-	// TODO
+const audioAssetId = ref('');
+const addingAudio = ref(false);
+const audioError = ref<string | null>(null);
+const audioAssetItems = computed(() => [
+	{ label: 'Choose audio asset', value: '' },
+	...appStateManager.state.assets.value.filter(asset => /^(audio|video)\//.test(asset.fileDataType)).map(asset => ({ label: asset.name, value: asset.id })),
+]);
+
+async function addAudioAssetLayer() {
+	const asset = appStateManager.state.assets.value.find(asset => asset.id === audioAssetId.value);
+	if (asset) await addAudioLayer(asset, false);
+}
+
+async function importAudioLayer() {
+	audioError.value = null;
+	const projectAssets = appStateManager.state.assets.value;
+	try {
+		const result = await api.openMediaFile();
+		if (!result || appStateManager.state.assets.value !== projectAssets) return;
+		await addAudioLayer({ id: genId(), name: result.name, width: result.width, height: result.height, fileDataType: result.type, fileData: result.fileData }, true);
+	} catch (error) { audioError.value = error instanceof Error ? error.message : String(error); }
+}
+
+async function addAudioLayer(asset: Asset, addAsset: boolean) {
+	if (addingAudio.value) return;
+	addingAudio.value = true;
+	audioError.value = null;
+	const timeline = appStateManager.state.timeline.value;
+	try {
+		const audio = await openAssetAudio(asset);
+		const durationMs = audio.duration * 1000;
+		audio.input.dispose();
+		if (!Number.isFinite(durationMs) || durationMs <= 0) throw new Error('Audio has no finite duration.');
+		if (appStateManager.state.timeline.value !== timeline) return;
+		if (!addAsset && !appStateManager.state.assets.value.some(entry => entry.id === asset.id)) return;
+		if (addAsset) appStateManager.commit('addAsset', asset);
+		const id = genId();
+		const startTimeMs = Math.round(time.value);
+		appStateManager.commit('addAudioLayer', {
+			id, layerType: 'audio', assetId: asset.id, startTimeMs, endTimeMs: startTimeMs + durationMs, sourceOffsetMs: 0,
+			paramValues: { volume: { inputSource: 'literal', value: 1 } }, automationGraphs: [],
+		});
+		selectedLayerId.value = id;
+		selectedKeyframeSelection.value = null;
+	} catch (error) { audioError.value = error instanceof Error ? error.message : String(error); } finally { addingAudio.value = false; }
+}
+
+function editAudioTiming(kind: 'move' | 'trimStart' | 'trimEnd' | 'offset', value: string | number) {
+	const layer = selectedLayer.value;
+	const next = Number(value);
+	if (layer?.layerType !== 'audio' || !Number.isFinite(next)) return;
+	let { startTimeMs, endTimeMs, sourceOffsetMs } = layer;
+	if (kind === 'move') { endTimeMs += next - startTimeMs; startTimeMs = next; }
+	if (kind === 'trimStart') { sourceOffsetMs += next - startTimeMs; startTimeMs = next; }
+	if (kind === 'trimEnd') endTimeMs = next;
+	if (kind === 'offset') sourceOffsetMs = next;
+	if (startTimeMs < 0 || endTimeMs <= startTimeMs || sourceOffsetMs < 0) return;
+	appStateManager.commit('editAudioLayerTiming', { layerId: layer.id, startTimeMs, endTimeMs, sourceOffsetMs });
 }
 
 function play() {
@@ -520,8 +600,13 @@ onMounted(() => {
 
 .header {
 	display: flex;
-	//height: 32px;
-	//line-height: 32px;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 4px;
+}
+
+.audioAssetSelect {
+	width: 180px;
 }
 
 .body {

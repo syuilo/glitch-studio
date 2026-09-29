@@ -157,6 +157,28 @@ importers:
         specifier: npm:@typescript/typescript6@6.0.2
         version: '@typescript/typescript6@6.0.2'
 
+  packages/audio-renderer:
+    dependencies:
+      '@glitch/shared':
+        specifier: workspace:*
+        version: link:../shared
+    devDependencies:
+      '@types/web':
+        specifier: 0.0.352
+        version: 0.0.352
+      '@typescript-eslint/eslint-plugin':
+        specifier: 8.59.2
+        version: 8.59.2(@typescript-eslint/parser@8.59.2(@typescript/typescript6@6.0.2)(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0))(@typescript/typescript6@6.0.2)(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)
+      '@typescript-eslint/parser':
+        specifier: 8.59.2
+        version: 8.59.2(@typescript/typescript6@6.0.2)(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)
+      vite:
+        specifier: 8.2.2
+        version: 8.2.2(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.83.4)
+      vitest:
+        specifier: 4.1.10
+        version: 4.1.10(@types/node@26.2.0)(vite@8.2.2(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.83.4))
+
   packages/desktop:
     devDependencies:
       electron:
@@ -174,9 +196,6 @@ importers:
       '@glitch/shared':
         specifier: workspace:*
         version: link:../shared
-      '@syuilo/aiscript':
-        specifier: 1.2.1
-        version: 1.2.1
       eventemitter3:
         specifier: 5.0.4
         version: 5.0.4
@@ -205,6 +224,9 @@ importers:
 
   packages/shared:
     dependencies:
+      '@syuilo/aiscript':
+        specifier: 1.2.1
+        version: 1.2.1
       bezier-easing:
         specifier: 3.0.1
         version: 3.0.1
@@ -239,6 +261,9 @@ importers:
 
   packages/ui:
     dependencies:
+      '@glitch/audio-renderer':
+        specifier: workspace:*
+        version: link:../audio-renderer
       '@glitch/renderer':
         specifier: workspace:*
         version: link:../renderer
@@ -3933,8 +3958,8 @@ snapshots:
 
   '@typescript-eslint/project-service@8.59.2(@typescript/typescript6@6.0.2)(supports-color@7.2.0)':
     dependencies:
-      '@typescript-eslint/tsconfig-utils': 8.59.2(@typescript/typescript6@6.0.2)
-      '@typescript-eslint/types': 8.59.2
+      '@typescript-eslint/tsconfig-utils': 8.67.0(@typescript/typescript6@6.0.2)
+      '@typescript-eslint/types': 8.69.0
       debug: 4.4.3(supports-color@7.2.0)
       typescript: '@typescript/typescript6@6.0.2'
     transitivePeerDependencies:

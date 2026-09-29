@@ -1,12 +1,12 @@
 <template>
 <div :class="$style.root">
 	<div :class="$style.side">
-		<div :class="$style.sideHeader">{{ layer.id }}</div>
+		<div :class="$style.sideHeader">{{ layerLabel }}</div>
 		<div v-for="param in keyframeParameters" :key="param.key" :class="$style.sideKeyframesLane">{{ param.key }}</div>
 	</div>
 	<div :class="$style.tl">
 		<div v-if="snappingTime != null" :class="$style.snapLine" :style="{ left: timeToDomX(snappingTime) + 'px' }"></div>
-		<div :class="$style.tlBlock" :style="{ width: layerRect.width + 'px', left: layerRect.left + 'px' }" @click="onLayerBlockClick">{{ layer.id }}</div>
+		<div :class="$style.tlBlock" :style="{ width: layerRect.width + 'px', left: layerRect.left + 'px' }" @click="onLayerBlockClick">{{ layerLabel }}</div>
 		<XKeyframes
 			v-for="param in keyframeParameters"
 			:key="param.key"
@@ -29,7 +29,7 @@
 <script lang="ts">
 export type TimelineKeyframeSelection = {
 	layerId: string;
-	target: 'compositing' | 'module';
+	target: 'compositing' | 'module' | 'audio';
 	paramId: string;
 	keyframeId: string;
 };
@@ -40,7 +40,6 @@ import { computed, ref } from 'vue';
 import { deepClone } from '@glitch/shared/utility/deep-clone.ts';
 import { genId } from '@glitch/shared/utility/id.ts';
 import { evaluateKeyframesTimeline } from '@glitch/shared/utility/keyframes-timeline.ts';
-import { visualModuleCustomParameterId } from '@glitch/shared/visual-module/types.ts';
 import XKeyframes from './GsTimeline.Layer.Keyframes.vue';
 import type { KeyframeMove } from './GsTimeline.Layer.Keyframes.vue';
 import type { TimelineLayer } from '@glitch/shared/timeline/types.ts';
@@ -62,6 +61,9 @@ const emit = defineEmits<{
 	(ev: 'keyframeSelected', selection: TimelineKeyframeSelection): void;
 }>();
 
+const layerLabel = computed(() => props.layer.layerType === 'audio'
+	? `♫ ${appStateManager.state.assets.value.find(asset => asset.id === (props.layer.layerType === 'audio' ? props.layer.assetId : ''))?.name ?? 'Missing audio'}` : props.layer.id);
+
 const layerRect = computed(() => {
 	const left = timeToDomX(props.layer.startTimeMs);
 	const width = timeToDomX(props.layer.endTimeMs) - left;
@@ -72,14 +74,14 @@ type InlineKeyframesTimeline = Extract<ParameterBinding, { inputSource: 'keyfram
 type KeyframeParameter = {
 	key: string;
 	paramId: string;
-	target: 'compositing' | 'module';
+	target: 'compositing' | 'module' | 'audio';
 	binding: InlineKeyframesTimeline;
 };
 
 const keyframeParameters = computed(() => {
 	const res: KeyframeParameter[] = [];
-	for (const target of ['compositing', 'module'] as const) {
-		const values = target === 'compositing' ? props.layer.compositingParamValues : props.layer.paramValues;
+	for (const target of (props.layer.layerType === 'audio' ? ['audio'] as const : ['compositing', 'module'] as const)) {
+		const values = target === 'compositing' && props.layer.layerType !== 'audio' ? props.layer.compositingParamValues : props.layer.paramValues;
 		for (const [paramId, binding] of Object.entries(values)) {
 			if (binding.inputSource !== 'keyframesTimelineInline') continue;
 			res.push({ key: `${target}:${paramId}`, paramId, target, binding });
@@ -106,15 +108,15 @@ function onKeyframeMove(param: KeyframeParameter, move: KeyframeMove) {
 	// コマンドによる置換後のBindingを取得し、子から受け取った移動だけを反映する。
 	const layer = appStateManager.state.timeline.value.find(entry => entry.id === props.layer.id);
 	if (layer == null) return;
-	const values: Partial<Record<string, ParameterBinding>> = param.target === 'compositing' ? layer.compositingParamValues : layer.paramValues;
+	const values: Partial<Record<string, ParameterBinding>> = param.target === 'compositing' && layer.layerType !== 'audio' ? layer.compositingParamValues : layer.paramValues;
 	const current = values[param.paramId];
 	if (current?.inputSource !== 'keyframesTimelineInline') return;
 	const value = deepClone(current);
 	const point = value.keyframesTimeline.keyframes.find(entry => entry.id === move.keyframeId);
 	if (point == null || point.x === move.x) return;
 	point.x = move.x;
-	appStateManager.commit('editVisualModuleLayerParam', {
-		layerId: layer.id, target: param.target, paramId: visualModuleCustomParameterId(param.paramId),
+	appStateManager.commit('editTimelineLayerParam', {
+		layerId: layer.id, target: param.target, paramId: param.paramId,
 		edit: { kind: 'keyframesTimelineInline', value },
 	}, move.mergeKey);
 }
@@ -122,7 +124,7 @@ function onKeyframeMove(param: KeyframeParameter, move: KeyframeMove) {
 function onKeyframeInsert(param: KeyframeParameter, x: number) {
 	const layer = appStateManager.state.timeline.value.find(entry => entry.id === props.layer.id);
 	if (layer == null) return;
-	const values: Partial<Record<string, ParameterBinding>> = param.target === 'compositing' ? layer.compositingParamValues : layer.paramValues;
+	const values: Partial<Record<string, ParameterBinding>> = param.target === 'compositing' && layer.layerType !== 'audio' ? layer.compositingParamValues : layer.paramValues;
 	const current = values[param.paramId];
 	if (current?.inputSource !== 'keyframesTimelineInline') return;
 	const keyframes = current.keyframesTimeline.keyframes.toSorted((a, b) => a.x - b.x);
@@ -143,8 +145,8 @@ function onKeyframeInsert(param: KeyframeParameter, x: number) {
 		interpolation: deepClone(previous?.interpolation ?? { type: 'linear' }),
 	});
 	value.keyframesTimeline.keyframes.sort((a, b) => a.x - b.x);
-	appStateManager.commit('editVisualModuleLayerParam', {
-		layerId: layer.id, target: param.target, paramId: visualModuleCustomParameterId(param.paramId),
+	appStateManager.commit('editTimelineLayerParam', {
+		layerId: layer.id, target: param.target, paramId: param.paramId,
 		edit: { kind: 'keyframesTimelineInline', value },
 	});
 	emit('keyframeSelected', { layerId: layer.id, target: param.target, paramId: param.paramId, keyframeId });

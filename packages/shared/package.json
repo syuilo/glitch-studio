@@ -3,6 +3,7 @@
 	"name": "@glitch/shared",
 	"private": true,
 	"scripts": {
+		"test": "node --test test/*.test.mjs",
 		"eslint": "eslint --quiet './**/*.{js,jsx,ts,tsx}'",
 		"typecheck": "tsc6 --noEmit",
 		"lint": "pnpm typecheck && pnpm eslint"
@@ -19,6 +20,7 @@
 		"vite": "8.2.2"
 	},
 	"dependencies": {
+		"@syuilo/aiscript": "1.2.1",
 		"bezier-easing": "3.0.1",
 		"mediabunny": "1.56.2",
 		"seedrandom": "3.0.5",

@@ -187,7 +187,7 @@ export class TimelineRendererManager extends EventEmitter<{
 		const generation = ++this.previewRenderGeneration;
 		try {
 			if (!Number.isFinite(time)) throw new Error('Timeline time must be finite');
-			await this.timelineRenderer.renderAt(time, this.dynamicOptions.timeline);
+			await this.timelineRenderer.renderAt(time, this.dynamicOptions.timeline.filter(layer => layer.layerType !== 'audio'));
 			// 中断されたシークの完了で、新しい描画のエラーを消さない。
 			if (generation === this.previewRenderGeneration) this.setRenderError(null);
 		} catch (error) {
@@ -197,7 +197,7 @@ export class TimelineRendererManager extends EventEmitter<{
 
 	/** 専用インスタンスで順番に呼び、フレーム間の履歴と一定の経過時間を保持する。 */
 	public async renderTimelineFrame(time: number, timeDelta: number): Promise<void> {
-		await this.timelineRenderer.renderAt(time, this.dynamicOptions.timeline, timeDelta, true);
+		await this.timelineRenderer.renderAt(time, this.dynamicOptions.timeline.filter(layer => layer.layerType !== 'audio'), timeDelta, true);
 	}
 
 	private createTimelineLayer(layer: Timeline[number]): TimelineLayerRenderer<NodeOutput> {

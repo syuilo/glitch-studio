@@ -1,32 +1,10 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
-import { build } from 'esbuild';
 import { loadShaderSource } from './helpers/load-shader-source.mjs';
 
-// 既存のnode:testでTSソースを実行する。WGSLやブラウザーの実行環境は不要。
-async function loadSource(name) {
-	const bundled = await build({
-		entryPoints: [fileURLToPath(new URL(`../src/${name}.ts`, import.meta.url))],
-		bundle: true,
-		platform: 'node',
-		format: 'cjs',
-		write: false,
-		// node-outputsのテストではモジュール入力だけを検証するため、組み込みエフェクト一覧は不要。
-		// Vite専用の一覧読み込みを実行せず、パラメータ評価のテストをエフェクトの追加・変更から独立させる。
-		plugins: [{ name: 'parameter-evaluator-test', setup(build) {
-			build.onResolve({ filter: /effect-definitions\.[jt]s$/ }, () => ({ path: 'effects', namespace: 'parameter-evaluator-test' }));
-			build.onLoad({ filter: /.*/, namespace: 'parameter-evaluator-test' }, () => ({
-				contents: 'export const effectDefinitions = {};', loader: 'ts',
-			}));
-		} }],
-	});
-	const module = { exports: {} };
-	new Function('require', 'module', 'exports', bundled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
-	return module.exports;
-}
-const { ParameterEvaluator } = await loadSource('parameter-evaluator');
+const loadSource = name => loadShaderSource(fileURLToPath(new URL(`../src/${name}.ts`, import.meta.url)));
+const { ParameterEvaluator } = await loadSource('../../shared/src/parameter-evaluator');
 
 const { genEmptyValue } = await loadSource('../../shared/src/utility/misc');
 // TimingHelperは読み込み時にGPUQueue.prototypeを参照するため、レンダラーより先に用意する。
@@ -99,73 +77,8 @@ const keyframesInput = (keyframes, dataType = 'scalar', options = {}) => ({
 	keyframesTimeline: { dataType: { kind: dataType }, isNormalized: true, keyframes },
 	durationMs: 1000, wrapMode: 'clamp', offsetMode: 'start', ...options,
 });
-function evaluateKeyframes(input, time, endTime = 5000, fallback = -1) {
-	return new ParameterEvaluator().evaluate(input, {
-		variables: {}, automationGraphs: [], evaluatedParamValues: null, time, endTime,
-	}, fallback);
-}
-
-test('keyframes use outgoing hold/linear interpolation and switch exactly at keys', () => {
-	const input = keyframesInput([keyframe(0, [2], 'hold'), keyframe(0.5, [10]), keyframe(1, [20], 'hold')]);
-	for (const [time, expected] of [[0, 2], [499, 2], [500, 10], [750, 15], [1000, 20]]) {
-		assert.equal(evaluateKeyframes(input, time), expected);
-	}
-});
-
-test('keyframes interpolate vector and straight color components without mutating stored values', () => {
-	for (const [type, start, end, expected] of [
-		['vector', [0, -2], [4, 6], [1, 0]],
-		['color', [1, 0, 0, 0], [0, 1, 0.5, 1], [0.75, 0.25, 0.125, 0.25]],
-	]) {
-		const input = keyframesInput([keyframe(1, end), keyframe(0, start)], type);
-		const before = structuredClone(input);
-		assert.deepEqual(evaluateKeyframes(input, 250), expected);
-		for (const time of [0, 250, 1000]) evaluateKeyframes(input, time)[0] = 99;
-		assert.deepEqual(input, before);
-	}
-});
-
-test('keyframes respect normalized duration, millisecond coordinates, end alignment and live time', () => {
-	for (const isNormalized of [true, false]) {
-		const input = keyframesInput([keyframe(isNormalized ? 1.5 : 3000, [10]), keyframe(isNormalized ? 0.5 : 1000, [0])]);
-		input.keyframesTimeline.isNormalized = isNormalized;
-		input.durationMs = 2000;
-		assert.equal(evaluateKeyframes(input, 1500), 2.5);
-		input.offsetMode = 'end';
-		assert.equal(evaluateKeyframes(input, 4500), 7.5);
-		assert.equal(evaluateKeyframes(input, 5000), 10);
-		assert.equal(evaluateKeyframes(input, 1500, Infinity), 2.5);
-	}
-	for (const durationMs of [null, 0, -1, NaN, Infinity]) {
-		assert.equal(evaluateKeyframes(keyframesInput([keyframe(0, [0]), keyframe(1, [10])], 'scalar', { durationMs }), 250), 2.5);
-	}
-});
-
-test('keyframes wrap negative time, endpoints and mirrored cycles consistently', () => {
-	for (const [wrapMode, values] of [
-		['clamp', [0, 0, 10, 10, 10]],
-		['repeat', [7.5, 0, 0, 2.5, 0]],
-		['repeatMirrored', [2.5, 0, 10, 7.5, 0]],
-	]) {
-		const input = keyframesInput([keyframe(0, [0]), keyframe(1, [10])], 'scalar', { wrapMode });
-		assert.deepEqual([-250, 0, 1000, 1250, 2000].map(time => evaluateKeyframes(input, time)), values);
-	}
-});
-
-test('empty, single and duplicate keyframes have deterministic results', () => {
-	assert.equal(evaluateKeyframes(keyframesInput([]), 500, 5000, 42), 42);
-	for (const wrapMode of ['clamp', 'repeat', 'repeatMirrored']) {
-		for (const time of [-1000, 0, 1000]) {
-			assert.equal(evaluateKeyframes(keyframesInput([keyframe(0, [3])], 'scalar', { wrapMode }), time), 3);
-			assert.equal(evaluateKeyframes(keyframesInput([keyframe(0, [3]), keyframe(0, [7])], 'scalar', { wrapMode }), time), 7);
-		}
-	}
-	const input = keyframesInput([keyframe(1, [20]), keyframe(0.5, [5]), keyframe(0, [0]), keyframe(0.5, [10])]);
-	assert.equal(evaluateKeyframes(input, 250), 2.5);
-	assert.equal(evaluateKeyframes(input, 500), 10);
-	assert.equal(evaluateKeyframes(input, 750), 15);
-});
-
+// 【ネストした値とモジュール引数のキーフレーム評価】
+// コンテナの走査はレンダラーの責務なので、ここで単体評価器との連携を確認する。
 test('keyframes evaluate in nested node parameters and module arguments', () => {
 	const input = keyframesInput([keyframe(0, [0]), keyframe(1, [8])]);
 	const result = evaluate(new ParameterEvaluator(), context({ values: arrayParameter(number) }, {
@@ -225,80 +138,8 @@ const graphInput = (inputSource, graph, options = {}) => ({
 	durationMs: 2000, wrapMode: 'clamp', offsetMode: 'start', ...options,
 });
 
-// ノードのネストした入力とモジュール入力に同じ仕様を要求する。
-function evaluateGraphInput(inputSource, graph, { time = 500, endTime = 5000, ...options } = {}) {
-	const input = graphInput(inputSource, graph, options);
-	const result = evaluate(new ParameterEvaluator(), context({ values: arrayParameter(number) }, {
-		values: literal([input]),
-	}, {
-		automationGraphs: inputSource === 'automationGraphReference' ? [graph] : [],
-		callerGraphs: inputSource === 'automationGraphReference' ? [graph] : [],
-		paramDefs: [paramDef('graph')], paramValues: { graph: input }, time, endTime,
-	}));
-	assert.equal(result.nodeParams.get('node').values[0], result.paramValues.get('graph'));
-	return result.paramValues.get('graph');
-}
-
 function assertClose(actual, expected) {
 	assert.ok(Math.abs(actual - expected) < 0.00001, `Expected ${actual} to be close to ${expected}`);
-}
-
-for (const source of ['automationGraphReference', 'automationGraphInline']) {
-	// 正規化グラフはdurationに引き延ばし、msグラフはdurationを無視する。
-	test(`evaluates normalized and millisecond coordinates for ${source}`, () => {
-		assertClose(evaluateGraphInput(source, rampGraph(), { durationMs: 4000, time: 1000 }), 2.5);
-		assertClose(evaluateGraphInput(source, rampGraph(false), { durationMs: 4000, time: 1000 }), 5);
-		assertClose(evaluateGraphInput(source, rampGraph(false), { durationMs: null, time: 500 }), 2.5);
-		assert.equal(evaluateGraphInput(source, rampGraph(), { time: 0 }), 0);
-		assert.equal(evaluateGraphInput(source, rampGraph(), { time: 2000 }), 10);
-	});
-
-	// 終端合わせは最大XをendTimeに置き、開始前の値にも指定されたwrapを適用する。
-	test(`aligns the graph end and preserves wrap semantics for ${source}`, () => {
-		for (const normalized of [true, false]) {
-			const graph = rampGraph(normalized);
-			assertClose(evaluateGraphInput(source, graph, { offsetMode: 'end', time: 3500 }), 2.5);
-			assert.equal(evaluateGraphInput(source, graph, { offsetMode: 'end', time: 5000 }), 10);
-			for (const [wrapMode, expected] of [['clamp', 0], ['repeat', 7.5], ['repeatMirrored', 2.5]]) {
-				assertClose(evaluateGraphInput(source, graph, { offsetMode: 'end', time: 2500, wrapMode }), expected);
-			}
-			// repeatの終端は既存の評価関数と同じく次周期の先頭になる。
-			assert.equal(evaluateGraphInput(source, graph, { offsetMode: 'end', time: 5000, wrapMode: 'repeat' }), 0);
-		}
-	});
-
-	// 正負の時刻、周期境界、往復再生の折り返しを確認する。
-	test(`applies all wrap modes for ${source}`, () => {
-		for (const normalized of [true, false]) {
-			const graph = rampGraph(normalized);
-			for (const [wrapMode, before, after, boundary] of [
-				['clamp', 0, 10, 10], ['repeat', 7.5, 2.5, 0], ['repeatMirrored', 2.5, 7.5, 10],
-			]) {
-				assertClose(evaluateGraphInput(source, graph, { time: -500, wrapMode }), before);
-				assertClose(evaluateGraphInput(source, graph, { time: 2500, wrapMode }), after);
-				assert.equal(evaluateGraphInput(source, graph, { time: 2000, wrapMode }), boundary);
-			}
-		}
-	});
-
-	// 終端はdurationそのものではなく実際の最終point。ms座標の開始位置も勝手に移動しない。
-	test(`uses actual point coordinates for ${source}`, () => {
-		const graph = { ...rampGraph(false), points: [graphPoint(3000, 10), graphPoint(1000, 0)] };
-		assertClose(evaluateGraphInput(source, graph, { time: 1500 }), 2.5);
-		assertClose(evaluateGraphInput(source, graph, { offsetMode: 'end', time: 4500 }), 7.5);
-	});
-
-	// liveは有限な終端を持たないためstart扱い。空・1点・無効なdurationでもNaNを返さない。
-	test(`handles live playback and degenerate graphs for ${source}`, () => {
-		assertClose(evaluateGraphInput(source, rampGraph(), { offsetMode: 'end', endTime: Infinity }), 2.5);
-		for (const durationMs of [null, 0, -1, Infinity, NaN]) {
-			assertClose(evaluateGraphInput(source, rampGraph(), { durationMs }), 5);
-		}
-		for (const wrapMode of ['clamp', 'repeat', 'repeatMirrored']) {
-			assert.equal(evaluateGraphInput(source, { ...rampGraph(), points: [] }, { wrapMode, offsetMode: 'end' }), 0);
-			assert.equal(evaluateGraphInput(source, { ...rampGraph(), points: [graphPoint(0.5, 3)] }, { wrapMode, offsetMode: 'end' }), 3);
-		}
-	});
 }
 
 // GRAPHは名前で検索し、グラフ固有の座標を使ってモジュール・ノードの両方で評価する。

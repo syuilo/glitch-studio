@@ -29,7 +29,7 @@ export function scaleExportResolution(resolution: { width: number; height: numbe
 }
 
 /** 平均的な複雑さの画像を想定する目安。実測や上限ではなく、ノイズ・動き・透過で大きく変わる。 */
-export function estimateExportBytes(settings: TimelineExportSettings): number {
+export function estimateExportBytes(settings: TimelineExportSettings, audioBitrate = 0): number {
 	const pixels = settings.width * settings.height;
 	if (settings.format === 'webp') {
 		// 圧縮後の1画素あたりのバイト数。losslessは写真程度の細かさを想定する。
@@ -39,5 +39,5 @@ export function estimateExportBytes(settings: TimelineExportSettings): number {
 	// H.264の1画素・1フレームあたりの概算ビット数。コンテナの余裕を2%含める。
 	const bitsPerPixel = { low: 0.04, medium: 0.08, high: 0.15, 'very-high': 0.3 }[settings.quality];
 	const durationSeconds = (settings.endTimeMs - settings.startTimeMs) / 1000;
-	return Math.round(4096 + pixels * settings.fps * durationSeconds * bitsPerPixel / 8 * 1.02);
+	return Math.round(4096 + (pixels * settings.fps * bitsPerPixel + audioBitrate) * durationSeconds / 8 * 1.02);
 }

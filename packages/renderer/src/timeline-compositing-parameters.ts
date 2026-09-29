@@ -1,7 +1,7 @@
 import { colorBlendModes, isBlendMode } from '@glitch/shared/color-blend.ts';
 import { genEmptyValue } from '@glitch/shared/utility/misc.ts';
 import { timelineCompositingParamDefs } from '@glitch/shared/timeline/timeline-compositing.js';
-import { ParameterEvaluator } from './parameter-evaluator.ts';
+import { ParameterEvaluator } from '@glitch/shared/parameter-evaluator.js';
 import type { AutomationGraph, ParameterBinding } from '@glitch/shared/types.ts';
 import type { LAYER_VAR_DEFS } from '@glitch/shared/expression.js';
 

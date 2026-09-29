@@ -5,6 +5,8 @@ import { createMp4Writer } from './mp4-writer.ts';
 import { adjustExportResolution } from './export-settings.ts';
 import { encodeStillWebp } from './still-webp.ts';
 import { renderExportFrames, validateExportSettings } from './timeline-export.ts';
+import { getExportAudioLayers } from './audio-export-settings.ts';
+import { TimelineAudioExport } from './timeline-audio-export.ts';
 import type { ExportRequest, ExportResponse } from './types.ts';
 
 function send(message: ExportResponse, transfer: Transferable[] = []) {
@@ -17,6 +19,7 @@ self.onmessage = async (event: MessageEvent<ExportRequest>) => {
 	let renderer: TimelineRendererManager | undefined;
 	let device: GPUDevice | undefined;
 	let writer: Awaited<ReturnType<typeof createMp4Writer>> | undefined;
+	let audio: TimelineAudioExport | undefined;
 	const controller = new AbortController();
 	let finished = false;
 	try {
@@ -27,7 +30,11 @@ self.onmessage = async (event: MessageEvent<ExportRequest>) => {
 		if (validationError) throw new Error(validationError);
 		send({ type: 'progress', progress: { phase: 'preparing', completedFrames: 0, totalFrames: 0 } });
 		const canvas = new OffscreenCanvas(settings.width, settings.height);
-		if (settings.format === 'mp4') writer = await createMp4Writer(canvas, settings);
+		if (settings.format === 'mp4') {
+			const audioLayers = getExportAudioLayers(project.timeline, settings);
+			writer = await createMp4Writer(canvas, settings, audioLayers.length > 0);
+			if (audioLayers.length > 0) audio = new TimelineAudioExport(project.assets, audioLayers, settings);
+		}
 		const adapter = await navigator.gpu?.requestAdapter({ powerPreference: 'high-performance' });
 		if (!adapter) throw new Error('WebGPU is unavailable.');
 		device = await adapter.requestDevice({
@@ -79,6 +86,7 @@ self.onmessage = async (event: MessageEvent<ExportRequest>) => {
 			signal: controller.signal,
 			render: frame => renderer!.renderTimelineFrame(frame.timeMs, frame.timeDeltaMs),
 			addFrame: frame => writer!.addFrame(frame.timestamp, frame.duration),
+			addAudioUntil: audio ? time => audio!.renderUntil(time, (pcm, timestamp) => writer!.addAudio(pcm, timestamp), controller.signal) : undefined,
 			finalize: () => writer!.finalize(),
 			onProgress: progress => {
 				const now = performance.now();
@@ -97,6 +105,7 @@ self.onmessage = async (event: MessageEvent<ExportRequest>) => {
 		send({ type: 'error', message: error instanceof Error ? error.message : String(error) });
 	} finally {
 		finished = true;
+		audio?.dispose();
 		renderer?.destroy();
 		device?.destroy();
 	}

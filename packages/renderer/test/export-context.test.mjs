@@ -8,7 +8,7 @@ import { loadShaderSource } from './helpers/load-shader-source.mjs';
 const { createVisualModuleTimelineLayer } = await loadShaderSource(fileURLToPath(new URL('../src/visual-module-timeline-layer.ts', import.meta.url)));
 
 const bundled = await build({
-	entryPoints: [fileURLToPath(new URL('../src/parameter-evaluator.ts', import.meta.url))],
+	entryPoints: [fileURLToPath(new URL('../../shared/src/parameter-evaluator.ts', import.meta.url))],
 	bundle: true, platform: 'node', format: 'cjs', write: false,
 });
 const module = { exports: {} };

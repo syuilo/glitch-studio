@@ -35,12 +35,40 @@ const { timelineCompositingParamDefs, COMMAND_DEFS, createInlineAutomationGraph,
 
 const defaultCompositing = () => Object.fromEntries(Object.entries(timelineCompositingParamDefs).map(([key, def]) => [key, structuredClone(def.defaultValue)]));
 
+// 【音声レイヤーの編集と保存を既存の履歴へ統合する】
+// 音量Bindingと素材位置を別々にUndoでき、保存後もPlayerへの依存を持ち込まない。
+test('round-trips audio layers and undoes timing, volume and removal', async () => {
+	const { state } = fixture();
+	const layer = { id: 'audio', layerType: 'audio', assetId: 'sound', startTimeMs: 100, endTimeMs: 1100, sourceOffsetMs: 50,
+		paramValues: { volume: { inputSource: 'literal', value: 1 } }, automationGraphs: [] };
+	const add = COMMAND_DEFS.addAudioLayer.create(layer);
+	add.execute(state);
+	const volume = COMMAND_DEFS.editTimelineLayerParam.create({ layerId: 'audio', target: 'audio', paramId: 'volume', edit: { kind: 'expression', value: 'PROGRESS' } });
+	volume.execute(state);
+	const timing = COMMAND_DEFS.editAudioLayerTiming.create({ layerId: 'audio', startTimeMs: 200, endTimeMs: 1200, sourceOffsetMs: 50 });
+	timing.execute(state);
+	const before = structuredClone(state.timeline.value);
+	const remove = COMMAND_DEFS.removeTimelineLayer.create({ layerId: 'audio' });
+	remove.execute(state);
+	remove.undo(state);
+	assert.deepEqual(state.timeline.value, before);
+	const encoded = await encodeProjectFile({ gsVersion: '2.0.0', assets: [], timeline: state.timeline.value });
+	assert.deepEqual(decodeProjectFile(encoded).timeline, before);
+	timing.undo(state);
+	volume.undo(state);
+	assert.deepEqual(state.timeline.value.at(-1), layer);
+	add.undo(state);
+	assert.equal(state.timeline.value.some(entry => entry.id === 'audio'), false);
+	add.execute(state);
+	assert.deepEqual(state.timeline.value.at(-1), layer);
+});
+
 // 合成設定の履歴はモジュールパラメータと独立し、保存された初期値まで復元する。
 test('undoes and redoes compositing expressions without changing module parameters', () => {
 	const { state } = fixture();
 	const layer = state.timeline.value[0];
 	layer.paramValues.opacity = { inputSource: 'literal', value: 0.8 };
-	const command = COMMAND_DEFS.editVisualModuleLayerParam.create({
+	const command = COMMAND_DEFS.editTimelineLayerParam.create({
 		layerId: layer.id, target: 'compositing', paramId: 'opacity', edit: { kind: 'expression', value: 'PROGRESS' },
 	});
 	command.execute(state);
@@ -59,7 +87,7 @@ test('preserves compositing graphs and settings through edits and serialization'
 	const { state } = fixture();
 	const layer = state.timeline.value[0];
 	const edit = (paramId, edit) => {
-		const command = COMMAND_DEFS.editVisualModuleLayerParam.create({ layerId: layer.id, target: 'compositing', paramId, edit });
+		const command = COMMAND_DEFS.editTimelineLayerParam.create({ layerId: layer.id, target: 'compositing', paramId, edit });
 		command.execute(state);
 		return command;
 	};
@@ -166,7 +194,7 @@ test('undoes inline graph edits and creation on timeline layers', () => {
 	const { state } = fixture();
 	const target = { layerId: 'layer', paramId: 'gain' };
 	const layer = state.timeline.value[0];
-	const create = COMMAND_DEFS.editVisualModuleLayerParam.create({ ...target, edit: { kind: 'inputSource', inputSource: 'automationGraphInline' } });
+	const create = COMMAND_DEFS.editTimelineLayerParam.create({ ...target, edit: { kind: 'inputSource', inputSource: 'automationGraphInline' } });
 	create.execute(state);
 	const before = structuredClone(layer.paramValues.gain);
 	const after = structuredClone(before);
@@ -175,7 +203,7 @@ test('undoes inline graph edits and creation on timeline layers', () => {
 	after.wrapMode = 'repeatMirrored';
 	after.offsetMode = 'end';
 	after.automationGraph.points[0].y = -2;
-	const edit = COMMAND_DEFS.editVisualModuleLayerParam.create({ ...target, edit: { kind: 'automationGraphInline', value: after } });
+	const edit = COMMAND_DEFS.editTimelineLayerParam.create({ ...target, edit: { kind: 'automationGraphInline', value: after } });
 	edit.execute(state);
 	assert.deepEqual(layer.paramValues.gain, after);
 	edit.undo(state);

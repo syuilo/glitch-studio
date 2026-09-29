@@ -1,6 +1,6 @@
 import { deepClone } from '@glitch/shared/utility/deep-clone.ts';
 import { genEmptyValue } from '@glitch/shared/utility/misc.ts';
-import { ParameterEvaluator } from './parameter-evaluator.ts';
+import { ParameterEvaluator } from '@glitch/shared/parameter-evaluator.js';
 import type { VisualModuleCustomParameterId, VisualModule } from '@glitch/shared/visual-module/types.ts';
 import type { NodeOutput } from './node-output.ts';
 import type { TimelineVisualModuleLayer } from '@glitch/shared/timeline/types.ts';

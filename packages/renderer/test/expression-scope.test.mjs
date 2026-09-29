@@ -5,7 +5,7 @@ import { loadShaderSource } from './helpers/load-shader-source.mjs';
 
 const load = path => loadShaderSource(fileURLToPath(new URL(path, import.meta.url)));
 const { genEmptyValue } = await load('../../shared/src/utility/misc.ts');
-const { ParameterEvaluator } = await load('../src/parameter-evaluator.ts');
+const { ParameterEvaluator } = await load('../../shared/src/parameter-evaluator.ts');
 const { createVisualModuleTimelineLayer } = await load('../src/visual-module-timeline-layer.ts');
 const { IN_VISUAL_MODULE_VAR_DEFS, LAYER_VAR_DEFS } = await load('../../shared/src/expression.ts');
 // GPUを初期化せず、レンダラーが実際に構築する式のスコープを検証する。

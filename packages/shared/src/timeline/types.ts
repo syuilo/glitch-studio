@@ -23,6 +23,19 @@ export type TimelineEffectLayer = {
 	automationGraphs: AutomationGraph[];
 };
 
-export type TimelineLayer = TimelineVisualModuleLayer | TimelineEffectLayer;
+export type TimelineParameterBinding = Exclude<ParameterBinding, { inputSource: 'node' | 'externalCustomParameterInput' }>;
+
+export type TimelineAudioLayer = {
+	id: string;
+	layerType: 'audio';
+	startTimeMs: number;
+	endTimeMs: number;
+	assetId: string;
+	sourceOffsetMs: number;
+	paramValues: { volume: TimelineParameterBinding };
+	automationGraphs: AutomationGraph[];
+};
+
+export type TimelineLayer = TimelineVisualModuleLayer | TimelineEffectLayer | TimelineAudioLayer;
 
 export type Timeline = TimelineLayer[];

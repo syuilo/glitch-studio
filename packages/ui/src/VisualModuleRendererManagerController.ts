@@ -336,6 +336,8 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 		else await this.videoElements.get(playerId)?.play();
 	}
 
+	public getAudioOutput() { return this.audioInputs.getOutput(); }
+
 	public setPreviewVolume(volume: number) { this.audioInputs.setPreviewVolume(volume); }
 	public get audioPreview() { return this.audioInputs.preview; }
 	public retainAudioOutputCapture() { return this.audioInputs.retainOutputCapture(); }

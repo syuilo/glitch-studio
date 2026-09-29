@@ -198,6 +198,16 @@ export class AudioInputs {
 		entry.gain ??= context.createGain();
 		entry.gain.gain.value = entry.volume;
 		entry.source.connect(entry.gain);
+		this.ensureOutput(context);
+		entry.gain.connect(this.output!);
+		this.ensureOutputCapture();
+		entry.media.volume = 1;
+		entry.media.muted = false;
+		entry.capture = this.captureSource(playerAudioSourceId(id), entry.source);
+		entry.capture.setState(!entry.media.paused && !entry.media.seeking, entry.generation);
+	}
+
+	private ensureOutput(context: AudioContext) {
 		if (!this.output) {
 			// 各Playerの音量調整後を加算するプロジェクト出力。モノラルは左右へ複製する。
 			this.output = new GainNode(context, { channelCount: 2, channelCountMode: 'explicit', channelInterpretation: 'speakers' });
@@ -206,12 +216,17 @@ export class AudioInputs {
 			this.output.connect(this.previewGain);
 			this.previewGain.connect(context.destination);
 		}
-		entry.gain.connect(this.output);
+		return this.output!;
+	}
+
+	public async getOutput(): Promise<GainNode> {
+		this.context ??= new AudioContext();
+		const context = this.context;
+		await Promise.all([context.resume(), this.prepare(context)]);
+		if (this.context !== context) throw new Error('Audio output was disposed.');
+		const output = this.ensureOutput(context);
 		this.ensureOutputCapture();
-		entry.media.volume = 1;
-		entry.media.muted = false;
-		entry.capture = this.captureSource(playerAudioSourceId(id), entry.source);
-		entry.capture.setState(!entry.media.paused && !entry.media.seeking, entry.generation);
+		return output;
 	}
 
 	public reconnectRenderer() {

@@ -9,6 +9,12 @@ export type PreviewPlaybackState =
 	| { mode: 'timeline'; playing: boolean };
 
 type LiveRenderer = Pick<VisualModuleRendererManagerController, 'startLiveRenderLoopFor' | 'updateLiveParamValues' | 'stopRenderLoop'>;
+type TimelineAudio = {
+	start(time: number, duration: number): void;
+	stop(): void;
+	currentTime(): number;
+	error: { value: string | null };
+};
 type TimelineRenderer = Pick<TimelineRendererManagerController, 'renderTimelineAt' | 'isReady'>;
 
 /** プレビューの切り替えと時刻更新を所有し、LIVEとタイムラインの同時再生を防ぐ。 */
@@ -24,7 +30,13 @@ export class PreviewPlaybackController {
 	public readonly isTimelinePlaying = computed(() => !this.suspended.value && this.playbackState.value.mode === 'timeline' && this.playbackState.value.playing);
 	public readonly liveVisualModuleId = computed(() => this.playbackState.value.mode === 'live' ? this.playbackState.value.visualModuleId : null);
 
-	constructor(private readonly liveRenderer: LiveRenderer, private readonly timelineRenderer: TimelineRenderer, private readonly getFpsLimit: () => number | null) {}
+	constructor(
+		private readonly liveRenderer: LiveRenderer,
+		private readonly timelineRenderer: TimelineRenderer,
+		private readonly getFpsLimit: () => number | null,
+		private readonly getDuration: () => number = () => Infinity,
+		private readonly audio?: TimelineAudio,
+	) {}
 
 	public startLive(visualModuleId: VisualModule['id'], params: VisualModuleParameterBindings = {}) {
 		this.pauseTimeline();
@@ -45,8 +57,12 @@ export class PreviewPlaybackController {
 	public playTimeline() {
 		if (this.isTimelinePlaying.value) return;
 		this.leaveLive();
+		const duration = this.getDuration();
+		if (duration <= 0) return;
+		if (this.timelineTime.value >= duration) this.timelineTime.value = 0;
 		this.playbackState.value = { mode: 'timeline', playing: true };
 		if (this.suspended.value) return;
+		this.audio?.start(this.timelineTime.value, duration);
 		this.refresh();
 
 		let previousFrameTime: number | null = null;
@@ -59,6 +75,7 @@ export class PreviewPlaybackController {
 				previousFrameTime = previousAdvanceTime = timestamp;
 				return;
 			}
+			if (this.audio?.error.value) { this.pauseTimeline(); return; }
 			const delta = timestamp - previousFrameTime;
 			const fpsLimit = this.getFpsLimit();
 			if (fpsLimit != null && fpsLimit > 0) {
@@ -69,7 +86,7 @@ export class PreviewPlaybackController {
 				previousFrameTime = timestamp;
 			}
 			// FPS制限の余りは描画タイミングだけに使い、経過時間を二重加算しない。
-			this.timelineTime.value = (this.timelineTime.value + timestamp - previousAdvanceTime) % 10000;
+			this.timelineTime.value = this.audio ? this.audio.currentTime() : (this.timelineTime.value + timestamp - previousAdvanceTime) % this.getDuration();
 			previousAdvanceTime = timestamp;
 			this.refresh();
 		};
@@ -77,6 +94,8 @@ export class PreviewPlaybackController {
 	}
 
 	public pauseTimeline() {
+		if (this.isTimelinePlaying.value && this.audio) this.timelineTime.value = this.audio.currentTime();
+		this.audio?.stop();
 		if (this.timelineRafId != null) {
 			window.cancelAnimationFrame(this.timelineRafId);
 			this.timelineRafId = null;
@@ -91,8 +110,17 @@ export class PreviewPlaybackController {
 
 	public seekTimeline(time: number) {
 		this.leaveLive();
-		this.timelineTime.value = time;
+		this.timelineTime.value = Math.max(0, time);
+		if (this.isTimelinePlaying.value) this.audio?.start(this.timelineTime.value, this.getDuration());
 		this.refresh();
+	}
+
+	/** 編集・Undo/Redoでは旧PCMを破棄し、実際に聞こえていた位置から生成し直す。 */
+	public refreshAudio() {
+		if (!this.isTimelinePlaying.value) return;
+		if (this.getDuration() <= 0) { this.pauseTimeline(); return; }
+		if (this.audio) this.timelineTime.value = this.audio.currentTime() % this.getDuration();
+		this.audio?.start(this.timelineTime.value, this.getDuration());
 	}
 
 	/** 編集による再描画では表示モードを切り替えない。LIVEはWorkerのループが描画する。 */
@@ -105,6 +133,8 @@ export class PreviewPlaybackController {
 	/** Workerを解放する間も、表示モードと再開位置を保持する。 */
 	public suspend() {
 		if (this.suspended.value) return;
+		if (this.isTimelinePlaying.value && this.audio) this.timelineTime.value = this.audio.currentTime();
+		this.audio?.stop();
 		if (this.timelineRafId != null) window.cancelAnimationFrame(this.timelineRafId);
 		this.timelineRafId = null;
 		if (this.playbackState.value.mode === 'live') this.liveRenderer.stopRenderLoop();
@@ -118,7 +148,7 @@ export class PreviewPlaybackController {
 		if (state.mode === 'live') {
 			this.liveRenderer.startLiveRenderLoopFor(state.visualModuleId, this.liveParams);
 		} else if (state.playing) {
-			this.pauseTimeline();
+			this.playbackState.value = { mode: 'timeline', playing: false };
 			this.playTimeline();
 		} else {
 			this.refresh();

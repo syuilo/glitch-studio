@@ -16,7 +16,61 @@ const module = { exports: {} };
 new Function('require', 'module', 'exports', bundled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
 const { PreviewPlaybackController } = module.exports;
 
-function setup(t, fpsLimit = null) {
+// 【映像時刻は音声時計に追従し、バッファリング中は進まない】
+// RAFの遅延やFPS制限によって音声と映像が別々の位置へ進むことを防ぐ。
+test('follows audio time across buffering, seeking, edits and suspension', t => {
+	let position = 0;
+	const starts = [];
+	let stops = 0;
+	const audio = { error: { value: null }, currentTime: () => position,
+		start(time, duration) { position = time; starts.push([time, duration]); },
+		stop() { stops++; },
+	};
+	const { playback, frame } = setup(t, null, audio, 30000);
+	playback.playTimeline();
+	assert.deepEqual(starts, [[0, 30000]]);
+	frame(0);
+	frame(1000);
+	assert.equal(playback.currentTimelineTime.value, 0);
+	position = 12000;
+	frame(1017);
+	assert.equal(playback.currentTimelineTime.value, 12000);
+	playback.seekTimeline(5000);
+	assert.deepEqual(starts.at(-1), [5000, 30000]);
+	position = 5100;
+	playback.refreshAudio();
+	assert.deepEqual(starts.at(-1), [5100, 30000]);
+	position = 5150;
+	playback.suspend();
+	assert.equal(playback.currentTimelineTime.value, 5150);
+	assert.ok(stops > 0);
+	playback.resume();
+	assert.deepEqual(starts.at(-1), [5150, 30000]);
+	position = 5200;
+	audio.error.value = 'Decode failed';
+	frame(2000);
+	frame(2017);
+	assert.equal(playback.isTimelinePlaying.value, false);
+});
+
+// 【ループ長はプロジェクトの期間を使う】
+// 音声追加後も固定10秒で戻ったり、空のタイムラインで0除算しないようにする。
+test('uses timeline duration and does not play an empty timeline', t => {
+	const { playback, frame } = setup(t, null, undefined, 25000);
+	playback.playTimeline();
+	frame(0);
+	frame(12000);
+	assert.equal(playback.currentTimelineTime.value, 12000);
+	frame(26000);
+	assert.equal(playback.currentTimelineTime.value, 1000);
+	playback.dispose();
+	const empty = setup(t, null, undefined, 0);
+	empty.playback.playTimeline();
+	assert.equal(empty.callbacks.size, 0);
+	assert.equal(empty.playback.isTimelinePlaying.value, false);
+});
+
+function setup(t, fpsLimit = null, audio, duration = Infinity) {
 	const callbacks = new Map();
 	const calls = [];
 	let nextId = 1;
@@ -31,7 +85,7 @@ function setup(t, fpsLimit = null) {
 	const liveRenderer = Object.fromEntries(['startLiveRenderLoopFor', 'updateLiveParamValues', 'stopRenderLoop']
 		.map(name => [name, (...args) => calls.push([name, ...args])]));
 	const timelineRenderer = { isReady: { value: true }, renderTimelineAt: time => calls.push(['renderTimelineAt', time]) };
-	const playback = new PreviewPlaybackController(liveRenderer, timelineRenderer, () => fpsLimit);
+	const playback = new PreviewPlaybackController(liveRenderer, timelineRenderer, () => fpsLimit, () => duration, audio);
 	t.after(() => {
 		playback.dispose();
 		delete globalThis.window;

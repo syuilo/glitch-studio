@@ -11,6 +11,7 @@ import { VisualModuleRendererManagerController } from './VisualModuleRendererMan
 import { TimelineRendererManagerController } from './TimelineRendererManagerController.ts';
 import type { TimelineRendererManagerDynamicOptions } from '@glitch/renderer/timeline-renderer-manager.ts';
 import GsEffectPicker from './components/GsEffectPicker.vue';
+import { TimelineAudioPreview } from './audio/timeline-audio-preview.ts';
 import { PreviewPlaybackController } from './PreviewPlaybackController.ts';
 import { AppStateManager } from './AppStateManager.ts';
 import { DEFAULT_PROJECT_NAME, loadProjectFile, saveProjectFile } from './gsproj.ts';
@@ -105,7 +106,14 @@ export const timelineRendererManagerController = markRaw(new TimelineRendererMan
 	intermediateTextureFormat: getRendererIntermediateTextureFormat(),
 }, { highlightClipping: highlightClipping.value }));
 
-export const previewPlayback = markRaw(new PreviewPlaybackController(visualModuleRendererManagerController, timelineRendererManagerController, () => fpsLimit.value));
+export const timelineAudioPreview = markRaw(new TimelineAudioPreview(
+	() => visualModuleRendererManagerController.getAudioOutput(),
+	() => ({ assets: deepClone(appStateManager.state.assets.value), timeline: deepClone(appStateManager.state.timeline.value) }),
+));
+export const previewPlayback = markRaw(new PreviewPlaybackController(
+	visualModuleRendererManagerController, timelineRendererManagerController, () => fpsLimit.value,
+	() => appStateManager.state.timeline.value.reduce((end, layer) => Math.max(end, layer.endTimeMs), 0), timelineAudioPreview,
+));
 export const activePreviewRenderer = computed(() => previewPlayback.state.value.mode === 'live'
 	? visualModuleRendererManagerController : timelineRendererManagerController);
 
@@ -224,6 +232,7 @@ export async function appReady(project: Project, fileName = 'untitled.gsproj', f
 	projectFileHandle = fileHandle;
 
 	projectWatchers.push(watch(appStateManager.state.assets, async () => {
+		previewPlayback.refreshAudio();
 		try {
 			await updatePreviewOptions({ assets: deepClone(appStateManager.state.assets.value) });
 			// 非同期の画像準備後にも、停止中のタイムラインを描き直す。
@@ -245,6 +254,7 @@ export async function appReady(project: Project, fileName = 'untitled.gsproj', f
 	}, { deep: true }));
 
 	projectWatchers.push(watch(appStateManager.state.timeline, async () => {
+		previewPlayback.refreshAudio();
 		await timelineRendererManagerController.updateDynamicOptions({ timeline: deepClone(appStateManager.state.timeline.value) });
 		// 編集・Undo/Redo後は現在位置を描き直す。LIVE中はその表示を維持する。
 		previewPlayback.refresh();

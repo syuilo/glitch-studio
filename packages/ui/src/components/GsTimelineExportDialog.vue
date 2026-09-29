@@ -25,7 +25,8 @@
 		</div>
 		<GsButton inline :disabled="exporting" @click="startTime = formatExportTime(currentTimelineTime)">Use current playhead</GsButton>
 		<div>Estimated size: {{ estimatedSize }}</div>
-		<div :class="$style.note">{{ mode === 'video' ? 'No audio or Player inputs. Transparent areas use a black background.' : 'No Player inputs. Transparency is preserved.' }}</div>
+		<div v-if="mode === 'video'" :class="$style.note">{{ includesAudio ? 'Audio layers included: AAC, 48 kHz, stereo, 192 kbps.' : 'No audio layers in the selected range.' }}</div>
+		<div :class="$style.note">{{ mode === 'video' ? 'No Player inputs. Transparent areas use a black background.' : 'No Player inputs. Transparency is preserved.' }}</div>
 		<div v-if="validationError" :class="$style.error">{{ validationError }}</div>
 		<div v-if="exporting" class="_gaps_s">
 			<div :class="$style.progress"><div :class="$style.progressFill" :style="{ width: `${progressPercent}%` }"></div></div>
@@ -56,6 +57,7 @@ import { preferences } from '@/preferences.ts';
 import { exportTimeline } from '@/export/client.ts';
 import { getTimelineEnd, validateExportSettings } from '@/export/timeline-export.ts';
 import { estimateExportBytes, formatExportTime, parseExportTime, scaleExportResolution } from '@/export/export-settings.ts';
+import { getExportAudioLayers, MP4_AUDIO_BITRATE } from '@/export/audio-export-settings.ts';
 
 const currentTimelineTime = previewPlayback.currentTimelineTime;
 
@@ -108,9 +110,10 @@ const validationError = computed(() => {
 	if (mode.value === 'video' && !Number.isFinite(parseExportTime(endTime.value))) return 'Enter a valid end time (HH:MM:SS.mmm).';
 	return validateExportSettings(settings.value);
 });
+const includesAudio = computed(() => getExportAudioLayers(appStateManager.state.timeline.value, settings.value).length > 0);
 const estimatedSize = computed(() => {
 	if (validationError.value) return '—';
-	const bytes = estimateExportBytes(settings.value);
+	const bytes = estimateExportBytes(settings.value, includesAudio.value ? MP4_AUDIO_BITRATE : 0);
 	if (bytes < 1024 * 1024) return `≈ ${(bytes / 1024).toFixed(1)} KiB`;
 	if (bytes < 1024 ** 3) return `≈ ${(bytes / 1024 ** 2).toFixed(1)} MiB`;
 	return `≈ ${(bytes / 1024 ** 3).toFixed(2)} GiB`;

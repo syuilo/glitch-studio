@@ -5,6 +5,8 @@ import { AiSON } from '@syuilo/aiscript';
 import { deepClone } from '@glitch/shared/utility/deep-clone.ts';
 import { getNodeInputDataType, getNodeOutputs } from '@glitch/shared/utility/node-outputs.ts';
 import { isTextureDataType } from '@glitch/shared/data-type.ts';
+import { timelineAudioParamDefs } from '@glitch/shared/timeline/timeline-audio.ts';
+import type { TimelineAudioLayer, TimelineLayer } from '@glitch/shared/timeline/types.ts';
 import { timelineCompositingParamDefs } from '@glitch/shared/timeline/timeline-compositing.ts';
 import type { VisualModuleCustomParameterId, VisualModuleEffectNode, VisualModuleNode, NodeOutputReference, VisualModule } from '@glitch/shared/visual-module/types.ts';
 import type { ParameterDefinition } from '@glitch/shared/parameter.ts';
@@ -43,10 +45,10 @@ const stateUtility = {
 	},
 };
 
-const editVisualModuleLayerParamCommandDef = defineCommand<{
+const editTimelineLayerParamCommandDef = defineCommand<{
 	layerId: string;
-	paramId: VisualModuleCustomParameterId;
-	target?: 'module' | 'compositing';
+	paramId: string;
+	target?: 'module' | 'compositing' | 'audio';
 	edit:
 		| { kind: 'literal'; value: any }
 		| { kind: 'automationGraphInline'; value: Extract<ParameterBinding, { inputSource: 'automationGraphInline' }> }
@@ -63,15 +65,18 @@ const editVisualModuleLayerParamCommandDef = defineCommand<{
 		const getLayer = (state: AppState) => {
 			const layer = state.timeline.value.find(layer => layer.id === payload.layerId);
 			if (layer == null) throw new Error('Timeline layer not found');
-			if (layer.layerType !== 'visualModule') throw new Error('Timeline layer is not a visual module');
+			if (layer.layerType !== 'visualModule' && layer.layerType !== 'audio') throw new Error('Unsupported timeline layer');
+			if ((layer.layerType === 'audio') !== (payload.target === 'audio')) throw new Error('Invalid layer parameter target');
 			return layer;
 		};
 		return {
 			execute(state) {
 				const layer = getLayer(state);
-				const values: Record<string, ParameterBinding> = payload.target === 'compositing' ? layer.compositingParamValues : layer.paramValues;
+				const values: Record<string, ParameterBinding> = payload.target === 'compositing' && layer.layerType === 'visualModule' ? layer.compositingParamValues : layer.paramValues;
 				if (after === undefined) {
-					const def = payload.target === 'compositing'
+					const def = layer.layerType === 'audio'
+						? Object.entries(timelineAudioParamDefs).find(([id]) => id === payload.paramId)?.[1]
+						: payload.target === 'compositing'
 						? Object.entries(timelineCompositingParamDefs).find(([id]) => id === payload.paramId)?.[1]
 						: stateUtility.getVisualModule(state, layer.visualModuleId).paramDefs.find(def => def.id === payload.paramId);
 					if (def == null || ('isPrimaryInput' in def && def.isPrimaryInput)) throw new Error('Editable visual module parameter not found');
@@ -117,7 +122,7 @@ const editVisualModuleLayerParamCommandDef = defineCommand<{
 			},
 			undo(state) {
 				const layer = getLayer(state);
-				const values: Record<string, ParameterBinding> = payload.target === 'compositing' ? layer.compositingParamValues : layer.paramValues;
+				const values: Record<string, ParameterBinding> = payload.target === 'compositing' && layer.layerType === 'visualModule' ? layer.compositingParamValues : layer.paramValues;
 				// デフォルト値を参照していた状態も復元し、定義への不要な上書きを残さない。
 				if (before === undefined) delete values[payload.paramId];
 				else values[payload.paramId] = deepClone(before);
@@ -786,9 +791,59 @@ const updateVisualModuleOutputDefCommandDef = defineCommand<{
 	},
 });
 
+const addAudioLayerCommandDef = defineCommand<TimelineAudioLayer>({
+	label: 'Add audio layer',
+	create: payload => ({
+		execute(state) { state.timeline.value.push(deepClone(payload)); },
+		undo(state) { state.timeline.value = state.timeline.value.filter(layer => layer.id !== payload.id); },
+	}),
+});
+
+const editAudioLayerTimingCommandDef = defineCommand<{ layerId: string; startTimeMs: number; endTimeMs: number; sourceOffsetMs: number }>({
+	label: 'Edit audio layer timing',
+	create: payload => {
+		let before: Pick<TimelineAudioLayer, 'startTimeMs' | 'endTimeMs' | 'sourceOffsetMs'>;
+		const getLayer = (state: AppState) => {
+			const layer = state.timeline.value.find(layer => layer.id === payload.layerId);
+			if (layer?.layerType !== 'audio') throw new Error('Audio layer not found');
+			return layer;
+		};
+		return {
+			execute(state) {
+				const { startTimeMs, endTimeMs, sourceOffsetMs } = payload;
+				if (![startTimeMs, endTimeMs, sourceOffsetMs].every(Number.isFinite) || startTimeMs < 0 || endTimeMs <= startTimeMs || sourceOffsetMs < 0) throw new Error('Invalid audio layer timing');
+				const layer = getLayer(state);
+				before = { startTimeMs: layer.startTimeMs, endTimeMs: layer.endTimeMs, sourceOffsetMs: layer.sourceOffsetMs };
+				Object.assign(layer, { startTimeMs, endTimeMs, sourceOffsetMs });
+			},
+			undo(state) { Object.assign(getLayer(state), before); },
+		};
+	},
+});
+
+const removeTimelineLayerCommandDef = defineCommand<{ layerId: string }>({
+	label: 'Remove timeline layer',
+	create: payload => {
+		let before: TimelineLayer;
+		let index: number;
+		return {
+			execute(state) {
+				index = state.timeline.value.findIndex(layer => layer.id === payload.layerId);
+				if (index < 0) throw new Error('Timeline layer not found');
+				before = deepClone(state.timeline.value[index]);
+				state.timeline.value.splice(index, 1);
+			},
+			undo(state) { state.timeline.value.splice(index, 0, deepClone(before)); },
+		};
+	},
+});
+
 export const COMMAND_DEFS = {
+	addAudioLayer: addAudioLayerCommandDef,
+	editAudioLayerTiming: editAudioLayerTimingCommandDef,
+	removeTimelineLayer: removeTimelineLayerCommandDef,
+	editTimelineLayerParam: editTimelineLayerParamCommandDef,
 	setVisualModulePrimaryOutput: setVisualModulePrimaryOutputCommandDef,
-	editVisualModuleLayerParam: editVisualModuleLayerParamCommandDef,
 	addVisualModuleOutputDef: addVisualModuleOutputDefCommandDef,
 	removeVisualModuleOutputDef: removeVisualModuleOutputDefCommandDef,
 	updateVisualModuleOutputDef: updateVisualModuleOutputDefCommandDef,

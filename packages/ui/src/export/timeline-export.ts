@@ -57,10 +57,11 @@ export type ExportFrame = {
 };
 
 // GPUやコンテナ形式から独立させ、時刻計算と非同期処理の順序をテストできるようにする。
-// 将来の音声トラックは形式別のwriterに追加でき、ここでは動画フレームの供給だけを担う。
+// Canvasの取り込みを終えてから同じ時刻まで音声を供給し、両トラックを揃えて確定する。
 export async function renderExportFrames(settings: VideoExportSettings, callbacks: {
 	render: (frame: ExportFrame) => Promise<void>;
 	addFrame: (frame: ExportFrame) => Promise<void>;
+	addAudioUntil?: (timeSeconds: number) => Promise<void>;
 	finalize: () => Promise<void>;
 	onProgress: (progress: ExportProgress) => void;
 	signal: AbortSignal;
@@ -84,6 +85,9 @@ export async function renderExportFrames(settings: VideoExportSettings, callback
 		// addFrameがCanvasを取り込むまで、タイマー等で別タスクへ制御を渡さない。
 		// WebGPUのCanvasはタスク境界で表示・破棄される可能性がある。
 		await callbacks.addFrame(frame);
+		callbacks.signal.throwIfAborted();
+		// 片方だけを先に全編生成するとmuxerの待機データが増えるため、時間順に供給する。
+		await callbacks.addAudioUntil?.(Math.min((index + 1) / settings.fps, duration));
 		callbacks.signal.throwIfAborted();
 		callbacks.onProgress({ phase: 'rendering', completedFrames: index + 1, totalFrames });
 	}

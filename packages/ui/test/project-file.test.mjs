@@ -28,6 +28,14 @@ const appBundle = await build({
 	plugins: [{
 		name: 'project-test-platform',
 		setup(build) {
+			// 音声Worker/WorkletもGPUと同じブラウザ境界。保存テストでは再生機器を起動しない。
+			build.onResolve({ filter: /timeline-audio-preview\.ts$/ }, () => ({ path: 'audio', namespace: 'audio-platform' }));
+			build.onLoad({ filter: /.*/, namespace: 'audio-platform' }, () => ({ contents: `
+				export class TimelineAudioPreview {
+					error = { value: null }; buffering = { value: false }; time = 0;
+					start(time) { this.time = time; } stop() {} currentTime() { return this.time; }
+				}
+			`, loader: 'ts' }));
 			build.onResolve({ filter: /RendererManagerController\.ts$|\.vue$|^@\/ui\.ts$|effect-definitions\.[jt]s$|preferences\.ts$/ }, args => ({ path: args.path, namespace: 'platform' }));
 			build.onLoad({ filter: /.*/, namespace: 'platform' }, args => ({
 				loader: 'ts', resolveDir: import.meta.dirname,
