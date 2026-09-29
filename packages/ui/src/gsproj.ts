@@ -25,6 +25,7 @@ export type Project = ProjectInfo & {
 // BlobはMessagePackで直接保存できないため、フォントを含む素材の原本をバイト列にする。
 type StoredProject = Omit<Project, 'assets'> & {
 	assets: (Omit<Asset, 'fileData'> & { fileData: Uint8Array })[];
+	audioLayerTimingVersion?: 1;
 };
 
 type LegacyTimelineLayer<T = TimelineLayer> = T extends TimelineLayer
@@ -36,7 +37,7 @@ export async function encodeProjectFile(project: Project): Promise<Uint8Array> {
 		...asset,
 		fileData: new Uint8Array(await asset.fileData.arrayBuffer()),
 	})));
-	return msgpack.encode({ ...project, assets } satisfies StoredProject);
+	return msgpack.encode({ ...project, assets, audioLayerTimingVersion: 1 } satisfies StoredProject);
 }
 
 export function decodeProjectFile(bin: Uint8Array, currentVersion?: string): Project {
@@ -47,16 +48,24 @@ export function decodeProjectFile(bin: Uint8Array, currentVersion?: string): Pro
 	if (currentVersion != null && semverGt(project.gsVersion, currentVersion)) {
 		throw new Error(`未来のバージョンのプロジェクトファイルの読み込みはサポートしていません。（ファイル: ${project.gsVersion} / 現在: ${currentVersion}）`);
 	}
+	const { audioLayerTimingVersion, ...projectData } = project;
 	return {
-		...project,
+		...projectData,
 		// 開発中は同じバージョンでも保存形式が異なり得るため、プロパティで旧形式を判別する。
 		// 終了地点は残さず、再保存時に開始地点と長さだけを保存する。
 		timeline: project.timeline.map((layer): TimelineLayer => {
+			let result: TimelineLayer;
 			if ('endTimeMs' in layer) {
 				const { endTimeMs, ...rest } = layer;
-				return { ...rest, durationMs: layer.durationMs ?? endTimeMs - layer.startTimeMs };
+				result = { ...rest, durationMs: layer.durationMs ?? endTimeMs - layer.startTimeMs };
+			} else {
+				result = layer;
 			}
-			return layer;
+			// 旧形式のstartTimeMsは再生開始を指す。素材基準へ戻し、保存済みの再生区間を維持する。
+			if (result.layerType === 'audio' && audioLayerTimingVersion == null) {
+				result = { ...result, startTimeMs: result.startTimeMs - result.sourceOffsetMs };
+			}
+			return result;
 		}),
 		assets: project.assets.map(asset => ({
 			...asset,

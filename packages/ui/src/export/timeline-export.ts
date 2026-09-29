@@ -1,3 +1,5 @@
+import { getTimelineLayerEnd } from '@glitch/shared/timeline/timing.ts';
+import type { TimelineLayer } from '@glitch/shared/timeline/types.ts';
 export type ExportQuality = 'low' | 'medium' | 'high' | 'very-high';
 
 type ExportImageSettings = {
@@ -26,8 +28,8 @@ export type ExportProgress = {
 	totalFrames: number;
 };
 
-export function getTimelineEnd(timeline: readonly { startTimeMs: number; durationMs: number }[]): number {
-	return timeline.reduce((end, entry) => Math.max(end, entry.startTimeMs + entry.durationMs), 0);
+export function getTimelineEnd(timeline: readonly TimelineLayer[]): number {
+	return timeline.reduce((end, entry) => Math.max(end, getTimelineLayerEnd(entry)), 0);
 }
 
 export function validateExportSettings(settings: TimelineExportSettings): string | null {

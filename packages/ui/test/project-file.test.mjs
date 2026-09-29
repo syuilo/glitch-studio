@@ -86,6 +86,24 @@ function project(overrides = {}) {
 	};
 }
 
+// 【旧音声レイヤーの再生区間を保持し、素材基準への移行を一度だけ行う】
+// startTimeMsの意味の変更で保存済み音声がずれたり、再保存するたびに前へ移動したりするのを防ぐ。
+test('migrates audio source origins once for both legacy timing formats', async () => {
+	const { encode } = require('@msgpack/msgpack');
+	for (const timing of [{ endTimeMs: 250 }, { durationMs: 200 }]) {
+		const legacy = project({ timeline: [{
+			id: 'audio', layerType: 'audio', assetId: 'sound', startTimeMs: 50, sourceOffsetMs: 100,
+			...timing, paramValues: { volume: { inputSource: 'literal', value: 1 } }, automationGraphs: [],
+		}] });
+		const migrated = decodeProjectFile(encode(legacy));
+		assert.equal(migrated.timeline[0].startTimeMs, -50);
+		assert.equal(migrated.timeline[0].durationMs, 200);
+		assert.equal(migrated.timeline[0].sourceOffsetMs, 100);
+		assert.equal('endTimeMs' in migrated.timeline[0], false);
+		assert.deepEqual(decodeProjectFile(await encodeProjectFile(migrated)), migrated);
+	}
+});
+
 function fileHandle(name, options = {}) {
 	let bytes = options.bytes ?? new Uint8Array([42]);
 	const calls = [];

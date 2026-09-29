@@ -8,6 +8,7 @@
 		<div v-for="param in keyframeParameters" :key="param.key" :class="$style.sideKeyframesLane">{{ param.key }}</div>
 	</div>
 	<div :class="$style.tl">
+		<div v-if="sourceRect" :class="$style.tlSourceGhost" :style="{ left: sourceRect.left + 'px', width: sourceRect.width + 'px' }"></div>
 		<div
 			:class="[$style.tlClip, { [$style.moving]: timingDragMode === 'move' }]"
 			:style="{ width: layerRect.width + 'px', left: layerRect.left + 'px' }"
@@ -28,7 +29,7 @@
 			v-for="param in keyframeParameters"
 			:key="param.key"
 			:keyframes="param.binding.keyframesTimeline.keyframes"
-			:startTime="layer.startTimeMs"
+			:startTime="getTimelineLayerStart(layer)"
 			:tlElWidth="tlElWidth"
 			:tlRangeX="tlRangeX"
 			:tlPosX="tlPosX"
@@ -53,7 +54,7 @@ export type TimelineKeyframeSelection = {
 </script>
 
 <script lang="ts" setup>
-import { computed, onBeforeUnmount, ref } from 'vue';
+import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { deepClone } from '@glitch/shared/utility/deep-clone.ts';
 import { genId } from '@glitch/shared/utility/id.ts';
 import { evaluateKeyframesTimeline } from '@glitch/shared/utility/keyframes-timeline.ts';
@@ -62,7 +63,9 @@ import XKeyframes from './GsTimeline.Layer.Keyframes.vue';
 import type { KeyframeMove } from './GsTimeline.Layer.Keyframes.vue';
 import type { TimelineLayer } from '@glitch/shared/timeline/types.ts';
 import type { ParameterBinding } from '@glitch/shared/types.ts';
+import { getTimelineLayerStart, getTimelineLayerEnd } from '@glitch/shared/timeline/timing.ts';
 import { appStateManager } from '@/app.ts';
+import { openAssetAudio } from '@/audio/asset-audio-reader.ts';
 
 const props = defineProps<{
 	layer: TimelineLayer;
@@ -85,10 +88,39 @@ const emit = defineEmits<{
 const layerLabel = computed(() => props.layer.layerType === 'audio'
 	? `♫ ${appStateManager.state.assets.value.find(asset => asset.id === (props.layer.layerType === 'audio' ? props.layer.assetId : ''))?.name ?? 'Missing audio'}` : props.layer.layerType === 'inlineVisualModule' ? 'Inline Visual Module' : props.layer.id);
 
+const audioAsset = computed(() => {
+	const layer = props.layer;
+	return layer.layerType === 'audio' ? appStateManager.state.assets.value.find(asset => asset.id === layer.assetId) : undefined;
+});
+const sourceDurationMs = ref<number | null>(null);
+watch(() => audioAsset.value?.fileData, async (_, __, onCleanup) => {
+	const asset = audioAsset.value;
+	sourceDurationMs.value = null;
+	let cancelled = false;
+	onCleanup(() => { cancelled = true; });
+	if (asset == null) return;
+	try {
+		const audio = await openAssetAudio(asset);
+		try {
+			const durationMs = audio.duration * 1000;
+			if (!cancelled && Number.isFinite(durationMs) && durationMs > 0) sourceDurationMs.value = durationMs;
+		} finally {
+			audio.input.dispose();
+		}
+	} catch {
+		// 素材を読めない場合は長さを推測せず、ゴーストだけを非表示にする。
+	}
+}, { immediate: true });
+
 const layerRect = computed(() => {
-	const left = timeToDomX(props.layer.startTimeMs);
-	const width = timeToDomX(props.layer.startTimeMs + props.layer.durationMs) - left;
+	const left = timeToDomX(getTimelineLayerStart(props.layer));
+	const width = timeToDomX(getTimelineLayerEnd(props.layer)) - left;
 	return { left, width };
+});
+
+const sourceRect = computed(() => {
+	if (props.layer.layerType !== 'audio' || sourceDurationMs.value == null) return null;
+	return { left: timeToDomX(props.layer.startTimeMs), width: sourceDurationMs.value / props.tlRangeX * props.tlElWidth };
 });
 
 type InlineKeyframesTimeline = Extract<ParameterBinding, { inputSource: 'keyframesTimelineInline' }>;
@@ -154,18 +186,21 @@ function onTimingPointerMove(event: PointerEvent) {
 	const layer = appStateManager.state.timeline.value.find(entry => entry.id === drag.layerId);
 	if (layer == null) { finishTimingDrag(); return; }
 	const rawDelta = (event.clientX - drag.clientX) * drag.msPerPixel;
+	const playbackStartMs = drag.startTimeMs + (layer.layerType === 'audio' ? drag.sourceOffsetMs : 0);
 	// 左端トリムでは音声の読み出し位置も動かすため、素材の先頭より前には伸ばさない。
 	const minDelta = drag.mode === 'trimEnd' ? 1 - drag.durationMs
-		: drag.mode === 'trimStart' && layer.layerType === 'audio' ? Math.max(-drag.startTimeMs, -drag.sourceOffsetMs)
-		: -drag.startTimeMs;
-	const maxDelta = drag.mode === 'trimStart' ? drag.durationMs - 1 : Infinity;
+		: drag.mode === 'trimStart' && layer.layerType === 'audio' ? Math.max(-playbackStartMs, -drag.sourceOffsetMs)
+		: -playbackStartMs;
+	const maxDelta = drag.mode === 'trimStart' ? drag.durationMs - 1
+		: drag.mode === 'trimEnd' && layer.layerType === 'audio' && sourceDurationMs.value != null
+			? Math.max(0, sourceDurationMs.value - drag.sourceOffsetMs - drag.durationMs) : Infinity;
 	let delta = Math.max(minDelta, Math.min(maxDelta, rawDelta));
 	const candidates = [0, ...props.timelineTicks, ...appStateManager.state.timeline.value
 		.filter(entry => entry.id !== drag.layerId)
-		.flatMap(entry => [entry.startTimeMs, entry.startTimeMs + entry.durationMs])];
+		.flatMap(entry => [getTimelineLayerStart(entry), getTimelineLayerEnd(entry)])];
 	// 移動時は両端のうち最も近い候補に合わせ、長さを変えずに全体を移動する。
-	const edges = drag.mode === 'move' ? [drag.startTimeMs, drag.startTimeMs + drag.durationMs]
-		: [drag.mode === 'trimStart' ? drag.startTimeMs : drag.startTimeMs + drag.durationMs];
+	const edges = drag.mode === 'move' ? [playbackStartMs, playbackStartMs + drag.durationMs]
+		: [drag.mode === 'trimStart' ? playbackStartMs : playbackStartMs + drag.durationMs];
 	let nearestDistance = 5;
 	let snappingTime: number | null = null;
 	for (const edge of edges) {
@@ -180,7 +215,9 @@ function onTimingPointerMove(event: PointerEvent) {
 		}
 	}
 	emit('snap', snappingTime);
-	const startTimeMs = drag.startTimeMs + (drag.mode === 'trimEnd' ? 0 : delta);
+	// 音声のstartTimeMsは素材の配置基準。左端のトリムでは基準を動かさず、
+	// sourceOffsetMsとdurationMsを逆方向へ変更して右端を保つ。
+	const startTimeMs = drag.startTimeMs + (drag.mode === 'move' || (drag.mode === 'trimStart' && layer.layerType !== 'audio') ? delta : 0);
 	const durationMs = drag.durationMs + (drag.mode === 'move' ? 0 : drag.mode === 'trimStart' ? -delta : delta);
 	if (layer.startTimeMs === startTimeMs && layer.durationMs === durationMs) return;
 	if (layer.layerType === 'audio') {
@@ -215,13 +252,13 @@ function finishTimingDrag() {
 onBeforeUnmount(finishTimingDrag);
 
 const keyframeSnapTimes = computed(() => keyframeParameters.value.flatMap(param => {
-	return param.binding.keyframesTimeline.keyframes.map(point => ({ parameterKey: param.key, time: props.layer.startTimeMs + point.x }));
+	return param.binding.keyframesTimeline.keyframes.map(point => ({ parameterKey: param.key, time: getTimelineLayerStart(props.layer) + point.x }));
 }));
 
 function getSnapTimes(param: KeyframeParameter): number[] {
 	// 同じ行のキーは子が移動中のキーを除外して候補に加える。
 	return [
-		...props.snapTimes, props.layer.startTimeMs, props.layer.startTimeMs + props.layer.durationMs, props.currentTime,
+		...props.snapTimes, getTimelineLayerStart(props.layer), getTimelineLayerEnd(props.layer), props.currentTime,
 		...keyframeSnapTimes.value.filter(point => point.parameterKey !== param.key).map(point => point.time),
 	];
 }
@@ -324,6 +361,16 @@ function onLayerClipClick() {
 	position: relative;
 	flex: 1;
 	direction: ltr;
+}
+
+.tlSourceGhost {
+	position: absolute;
+	top: 1px;
+	height: calc(var(--mainLaneHeight) - 2px);
+	box-sizing: border-box;
+	background: color-mix(in srgb, var(--THEME-accent) 15%, transparent);
+	border: 1px dashed color-mix(in srgb, var(--THEME-accent) 45%, transparent);
+	pointer-events: none;
 }
 
 .tlClip {

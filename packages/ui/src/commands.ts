@@ -864,7 +864,7 @@ const editAudioLayerTimingCommandDef = defineCommand<{ layerId: string; startTim
 		return {
 			execute(state) {
 				const { startTimeMs, durationMs, sourceOffsetMs } = payload;
-				if (![startTimeMs, durationMs, sourceOffsetMs].every(Number.isFinite) || startTimeMs < 0 || durationMs <= 0 || sourceOffsetMs < 0) throw new Error('Invalid audio layer timing');
+				if (![startTimeMs, durationMs, sourceOffsetMs].every(Number.isFinite) || startTimeMs + sourceOffsetMs < 0 || durationMs <= 0 || sourceOffsetMs < 0) throw new Error('Invalid audio layer timing');
 				const layer = getLayer(state);
 				before = { startTimeMs: layer.startTimeMs, durationMs: layer.durationMs, sourceOffsetMs: layer.sourceOffsetMs };
 				Object.assign(layer, { startTimeMs, durationMs, sourceOffsetMs });

@@ -4,8 +4,20 @@ import { fileURLToPath } from 'node:url';
 import { loadShaderSource } from '../../renderer/test/helpers/load-shader-source.mjs';
 
 const { TimelineAudioRenderer } = await loadShaderSource(fileURLToPath(new URL('../src/timeline-audio-renderer.ts', import.meta.url)));
-const layer = (changes = {}) => ({ id: 'audio', layerType: 'audio', assetId: 'asset', startTimeMs: 100, durationMs: 100, sourceOffsetMs: 20, paramValues: { volume: { inputSource: 'literal', value: 1 } }, automationGraphs: [], ...changes });
+const layer = (changes = {}) => ({ id: 'audio', layerType: 'audio', assetId: 'asset', startTimeMs: 80, durationMs: 100, sourceOffsetMs: 20, paramValues: { volume: { inputSource: 'literal', value: 1 } }, automationGraphs: [], ...changes });
 const constant = async (_id, _time, frames) => [new Float32Array(frames).fill(1), new Float32Array(frames).fill(0.5)];
+
+// 【素材の配置基準を固定した左トリムは、再生開始と読み出し位置を同じ量だけ進める】
+// startTimeMsを動かさずにオフセットを増やしても、トリム前の区間を再生せず右端を維持する。
+test('trims audio relative to a fixed source origin', async () => {
+	const calls = [];
+	const renderer = new TimelineAudioRenderer(async (...args) => { calls.push(args); return constant(...args); });
+	const output = await renderer.render([layer({ startTimeMs: 100, sourceOffsetMs: 40, durationMs: 60 })], 100, 110, 1000);
+	assert.deepEqual(calls, [['asset', 0.04, 60, 1000]]);
+	assert.deepEqual([...output[0].slice(0, 40)], Array(40).fill(0));
+	assert.deepEqual([...output[0].slice(40, 100)], Array(60).fill(1));
+	assert.deepEqual([...output[0].slice(100)], Array(10).fill(0));
+});
 
 // 【レイヤーの期間と素材オフセットを独立して扱う】
 // 途中シークやトリミングで素材の先頭を再生せず、半開区間の外は無音にする。

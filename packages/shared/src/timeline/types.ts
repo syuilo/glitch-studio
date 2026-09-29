@@ -40,9 +40,12 @@ export type TimelineEffectLayer = { // TODO
 export type TimelineAudioLayer = {
 	id: string;
 	layerType: 'audio';
+	/** 素材の先頭を置く時刻。トリムで再生範囲が0以降なら負の値も許可する。 */
 	startTimeMs: number;
+	/** トリム後の再生区間の長さ。 */
 	durationMs: number;
 	assetId: string;
+	/** 素材先頭からのトリム量。実際の再生開始はstartTimeMs + sourceOffsetMs。 */
 	sourceOffsetMs: number;
 	paramValues: { volume: TimelineParameterBinding };
 	automationGraphs: AutomationGraph[];

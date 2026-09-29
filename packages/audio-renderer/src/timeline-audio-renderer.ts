@@ -13,10 +13,11 @@ export class TimelineAudioRenderer {
 	async render(layers: readonly TimelineAudioLayer[], startFrame: number, frames: number, sampleRate: number, isExport = false): Promise<StereoPcm> {
 		const output: StereoPcm = [new Float32Array(frames), new Float32Array(frames)];
 		for (const layer of layers) {
-			const first = Math.max(startFrame, Math.ceil(layer.startTimeMs * sampleRate / 1000));
-			const end = Math.min(startFrame + frames, Math.ceil((layer.startTimeMs + layer.durationMs) * sampleRate / 1000));
+			const playbackStartMs = layer.startTimeMs + layer.sourceOffsetMs;
+			const first = Math.max(startFrame, Math.ceil(playbackStartMs * sampleRate / 1000));
+			const end = Math.min(startFrame + frames, Math.ceil((playbackStartMs + layer.durationMs) * sampleRate / 1000));
 			if (end <= first) continue;
-			const pcm = await this.read(layer.assetId, (first / sampleRate * 1000 - layer.startTimeMs + layer.sourceOffsetMs) / 1000, end - first, sampleRate);
+			const pcm = await this.read(layer.assetId, (first / sampleRate * 1000 - layer.startTimeMs) / 1000, end - first, sampleRate);
 			const duration = layer.durationMs;
 			const binding = layer.paramValues.volume;
 			const cache = new Map<number, number>();
@@ -32,7 +33,7 @@ export class TimelineAudioRenderer {
 				return cache.get(index)!;
 			};
 			for (let frame = first; frame < end; frame++) {
-				const localTime = frame / sampleRate * 1000 - layer.startTimeMs;
+				const localTime = frame / sampleRate * 1000 - playbackStartMs;
 				// 式は200Hzの固定グリッドで評価する。チャンク境界・FPS・先読み量に依存しない。
 				// キーフレームはhold境界をぼかさないよう、サンプル時刻で直接評価する。
 				const index = Math.floor(localTime / 5);
