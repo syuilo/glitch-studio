@@ -26,8 +26,8 @@ export type ExportProgress = {
 	totalFrames: number;
 };
 
-export function getTimelineEnd(timeline: readonly { endTimeMs: number }[]): number {
-	return timeline.reduce((end, entry) => Math.max(end, entry.endTimeMs), 0);
+export function getTimelineEnd(timeline: readonly { startTimeMs: number; durationMs: number }[]): number {
+	return timeline.reduce((end, entry) => Math.max(end, entry.startTimeMs + entry.durationMs), 0);
 }
 
 export function validateExportSettings(settings: TimelineExportSettings): string | null {

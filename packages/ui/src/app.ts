@@ -90,7 +90,7 @@ export const timelineAudioPreview = markRaw(new TimelineAudioPreview(
 ));
 export const previewPlayback = markRaw(new PreviewPlaybackController(
 	visualModuleRendererManagerController, timelineRendererManagerController, () => fpsLimit.value,
-	() => appStateManager.state.timeline.value.reduce((end, layer) => Math.max(end, layer.endTimeMs), 0), timelineAudioPreview,
+	() => appStateManager.state.timeline.value.reduce((end, layer) => Math.max(end, layer.startTimeMs + layer.durationMs), 0), timelineAudioPreview,
 ));
 export const activePreviewRenderer = computed(() => previewPlayback.state.value.mode === 'live'
 	? visualModuleRendererManagerController : timelineRendererManagerController);
@@ -217,7 +217,7 @@ export async function appReady(project: Project, fileName = 'untitled.gsproj', f
 		const assetIds = new Set(layers.map(layer => layer.assetId));
 		return {
 			layers: deepClone(layers),
-			duration: timeline.reduce((end, layer) => Math.max(end, layer.endTimeMs), 0),
+			duration: timeline.reduce((end, layer) => Math.max(end, layer.startTimeMs + layer.durationMs), 0),
 			files: new Map(appStateManager.state.assets.value.filter(asset => assetIds.has(asset.id)).map(asset => [asset.id, asset.fileData])),
 		};
 	}, (next, previous) => {
@@ -361,7 +361,7 @@ export async function newProject() {
 			}),
 			automationGraphs: [],
 			startTimeMs: 0,
-			endTimeMs: 1000 * 10,
+			durationMs: 1000 * 10,
 		}],
 		resolution: { width: 1024, height: 1024 },
 	});
@@ -482,7 +482,7 @@ export async function newProjectFromImageOrVideo(file?: File) {
 			}),
 			automationGraphs: [],
 			startTimeMs: 0,
-			endTimeMs: 1000 * 10,
+			durationMs: 1000 * 10,
 		}],
 		resolution: { width: result.width || 1024, height: result.height || 1024 },
 	});

@@ -403,8 +403,8 @@ test('refreshes audio only for audio content, source files or loop duration chan
 	await app.appReady(project({
 		assets: [{ id: 'audio', name: 'sound.wav', fileData: new Blob(['audio']) }, { id: 'image', fileData: new Blob(['image']) }],
 		timeline: [
-			{ id: 'visual', layerType: 'visualModule', visualModuleId: 'module', startTimeMs: 0, endTimeMs: 10000, paramValues: {}, compositingParamValues: { opacity: { inputSource: 'literal', value: 1 } }, automationGraphs: [] },
-			{ id: 'audio', layerType: 'audio', assetId: 'audio', startTimeMs: 0, endTimeMs: 5000, sourceOffsetMs: 0, paramValues: { volume: { inputSource: 'literal', value: 1 } }, automationGraphs: [] },
+			{ id: 'visual', layerType: 'visualModule', visualModuleId: 'module', startTimeMs: 0, durationMs: 10000, paramValues: {}, compositingParamValues: { opacity: { inputSource: 'literal', value: 1 } }, automationGraphs: [] },
+			{ id: 'audio', layerType: 'audio', assetId: 'audio', startTimeMs: 0, durationMs: 5000, sourceOffsetMs: 0, paramValues: { volume: { inputSource: 'literal', value: 1 } }, automationGraphs: [] },
 		],
 	}));
 	const manager = app.appStateManager;
@@ -435,7 +435,7 @@ test('refreshes audio only for audio content, source files or loop duration chan
 		manager.state.assets.value[0].fileData = new Blob(['new audio']);
 		await nextTick();
 		assert.equal(starts.length, 5);
-		manager.state.timeline.value[0].endTimeMs = 20000;
+		manager.state.timeline.value[0].durationMs = 20000;
 		await nextTick();
 		assert.equal(starts.length, 6);
 		manager.commit('removeTimelineLayer', { layerId: 'audio' });

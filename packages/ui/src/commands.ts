@@ -822,10 +822,10 @@ const addInlineVisualModuleLayerCommandDef = defineCommand<TimelineInlineVisualM
 	}),
 });
 
-const editVisualModuleLayerTimingCommandDef = defineCommand<{ layerId: string; startTimeMs: number; endTimeMs: number }>({
+const editVisualModuleLayerTimingCommandDef = defineCommand<{ layerId: string; startTimeMs: number; durationMs: number }>({
 	label: 'Edit visual module layer timing',
 	create: payload => {
-		let before: { startTimeMs: number; endTimeMs: number };
+		let before: { startTimeMs: number; durationMs: number };
 		const getLayer = (state: AppState) => {
 			const layer = state.timeline.value.find(layer => layer.id === payload.layerId);
 			if (layer?.layerType !== 'visualModule' && layer?.layerType !== 'inlineVisualModule') throw new Error('Visual module layer not found');
@@ -833,11 +833,11 @@ const editVisualModuleLayerTimingCommandDef = defineCommand<{ layerId: string; s
 		};
 		return {
 			execute(state) {
-				if (!Number.isFinite(payload.startTimeMs) || !Number.isFinite(payload.endTimeMs) || payload.startTimeMs < 0 || payload.endTimeMs <= payload.startTimeMs) throw new Error('Invalid layer timing');
+				if (!Number.isFinite(payload.startTimeMs) || !Number.isFinite(payload.durationMs) || payload.startTimeMs < 0 || payload.durationMs <= 0) throw new Error('Invalid layer timing');
 				const layer = getLayer(state);
-				before = { startTimeMs: layer.startTimeMs, endTimeMs: layer.endTimeMs };
+				before = { startTimeMs: layer.startTimeMs, durationMs: layer.durationMs };
 				layer.startTimeMs = payload.startTimeMs;
-				layer.endTimeMs = payload.endTimeMs;
+				layer.durationMs = payload.durationMs;
 			},
 			undo(state) { Object.assign(getLayer(state), before); },
 		};
@@ -852,10 +852,10 @@ const addAudioLayerCommandDef = defineCommand<TimelineAudioLayer>({
 	}),
 });
 
-const editAudioLayerTimingCommandDef = defineCommand<{ layerId: string; startTimeMs: number; endTimeMs: number; sourceOffsetMs: number }>({
+const editAudioLayerTimingCommandDef = defineCommand<{ layerId: string; startTimeMs: number; durationMs: number; sourceOffsetMs: number }>({
 	label: 'Edit audio layer timing',
 	create: payload => {
-		let before: Pick<TimelineAudioLayer, 'startTimeMs' | 'endTimeMs' | 'sourceOffsetMs'>;
+		let before: Pick<TimelineAudioLayer, 'startTimeMs' | 'durationMs' | 'sourceOffsetMs'>;
 		const getLayer = (state: AppState) => {
 			const layer = state.timeline.value.find(layer => layer.id === payload.layerId);
 			if (layer?.layerType !== 'audio') throw new Error('Audio layer not found');
@@ -863,11 +863,11 @@ const editAudioLayerTimingCommandDef = defineCommand<{ layerId: string; startTim
 		};
 		return {
 			execute(state) {
-				const { startTimeMs, endTimeMs, sourceOffsetMs } = payload;
-				if (![startTimeMs, endTimeMs, sourceOffsetMs].every(Number.isFinite) || startTimeMs < 0 || endTimeMs <= startTimeMs || sourceOffsetMs < 0) throw new Error('Invalid audio layer timing');
+				const { startTimeMs, durationMs, sourceOffsetMs } = payload;
+				if (![startTimeMs, durationMs, sourceOffsetMs].every(Number.isFinite) || startTimeMs < 0 || durationMs <= 0 || sourceOffsetMs < 0) throw new Error('Invalid audio layer timing');
 				const layer = getLayer(state);
-				before = { startTimeMs: layer.startTimeMs, endTimeMs: layer.endTimeMs, sourceOffsetMs: layer.sourceOffsetMs };
-				Object.assign(layer, { startTimeMs, endTimeMs, sourceOffsetMs });
+				before = { startTimeMs: layer.startTimeMs, durationMs: layer.durationMs, sourceOffsetMs: layer.sourceOffsetMs };
+				Object.assign(layer, { startTimeMs, durationMs, sourceOffsetMs });
 			},
 			undo(state) { Object.assign(getLayer(state), before); },
 		};

@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { loadShaderSource } from '../../renderer/test/helpers/load-shader-source.mjs';
 
 const { TimelineAudioRenderer } = await loadShaderSource(fileURLToPath(new URL('../src/timeline-audio-renderer.ts', import.meta.url)));
-const layer = (changes = {}) => ({ id: 'audio', layerType: 'audio', assetId: 'asset', startTimeMs: 100, endTimeMs: 200, sourceOffsetMs: 20, paramValues: { volume: { inputSource: 'literal', value: 1 } }, automationGraphs: [], ...changes });
+const layer = (changes = {}) => ({ id: 'audio', layerType: 'audio', assetId: 'asset', startTimeMs: 100, durationMs: 100, sourceOffsetMs: 20, paramValues: { volume: { inputSource: 'literal', value: 1 } }, automationGraphs: [], ...changes });
 const constant = async (_id, _time, frames) => [new Float32Array(frames).fill(1), new Float32Array(frames).fill(0.5)];
 
 // 【レイヤーの期間と素材オフセットを独立して扱う】

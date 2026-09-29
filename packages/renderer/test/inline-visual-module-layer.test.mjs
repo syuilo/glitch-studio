@@ -51,7 +51,7 @@ function visualModule({ primaryInput = false, params } = {}) {
 
 function layer(id, module, overrides = {}) {
 	return {
-		id, layerType: 'inlineVisualModule', visualModule: module, startTimeMs: 100, endTimeMs: 1100,
+		id, layerType: 'inlineVisualModule', visualModule: module, startTimeMs: 100, durationMs: 1000,
 		paramValues: {}, automationGraphs: [],
 		compositingParamValues: {
 			...Object.fromEntries(Object.entries(timelineCompositingParamDefs).map(([key, def]) => [key, structuredClone(def.defaultValue)])),
@@ -173,7 +173,7 @@ test('isolates inline module scopes and passes local time and export context', a
 // 複製した定義のインスタンスを共有すると、一方の描画や削除が他方の履歴を進めたり破棄したりする。
 test('retains independent instances and disposes inactive or edited inline layers', async t => {
 	const { manager, calls } = fixture(t);
-	const first = layer('first', visualModule({ params: { amount: literal(1) } }), { endTimeMs: 500 });
+	const first = layer('first', visualModule({ params: { amount: literal(1) } }), { durationMs: 400 });
 	const second = layer('second', visualModule({ params: { amount: literal(2) } }));
 	await manager.updateDynamicOptions({ timeline: [first, second] });
 	await manager.renderTimelineFrame(100, 50);

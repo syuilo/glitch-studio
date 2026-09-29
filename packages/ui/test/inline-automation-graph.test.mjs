@@ -39,13 +39,13 @@ const defaultCompositing = () => Object.fromEntries(Object.entries(timelineCompo
 // 音量Bindingと素材位置を別々にUndoでき、保存後もPlayerへの依存を持ち込まない。
 test('round-trips audio layers and undoes timing, volume and removal', async () => {
 	const { state } = fixture();
-	const layer = { id: 'audio', layerType: 'audio', assetId: 'sound', startTimeMs: 100, endTimeMs: 1100, sourceOffsetMs: 50,
+	const layer = { id: 'audio', layerType: 'audio', assetId: 'sound', startTimeMs: 100, durationMs: 1000, sourceOffsetMs: 50,
 		paramValues: { volume: { inputSource: 'literal', value: 1 } }, automationGraphs: [] };
 	const add = COMMAND_DEFS.addAudioLayer.create(layer);
 	add.execute(state);
 	const volume = COMMAND_DEFS.editTimelineLayerParam.create({ layerId: 'audio', target: 'audio', paramId: 'volume', edit: { kind: 'expression', value: 'PROGRESS' } });
 	volume.execute(state);
-	const timing = COMMAND_DEFS.editAudioLayerTiming.create({ layerId: 'audio', startTimeMs: 200, endTimeMs: 1200, sourceOffsetMs: 50 });
+	const timing = COMMAND_DEFS.editAudioLayerTiming.create({ layerId: 'audio', startTimeMs: 200, durationMs: 1000, sourceOffsetMs: 50 });
 	timing.execute(state);
 	const before = structuredClone(state.timeline.value);
 	const remove = COMMAND_DEFS.removeTimelineLayer.create({ layerId: 'audio' });
@@ -146,7 +146,7 @@ function fixture() {
 	const node = { id: 'node', type: 'effect', effectId: 'test', params: { values: { inputSource: 'literal', value: [initial] } } };
 	const state = {
 		visualModules: { value: [{ id: 'module', nodes: [node], primaryInputId: null, paramDefs: [{ id: 'gain', defaultValue: initial }] }] },
-		timeline: { value: [{ id: 'layer', layerType: 'visualModule', visualModuleId: 'module', startTimeMs: 0, endTimeMs: 1000, paramValues: {}, compositingParamValues: defaultCompositing(), automationGraphs: [] }] },
+		timeline: { value: [{ id: 'layer', layerType: 'visualModule', visualModuleId: 'module', startTimeMs: 0, durationMs: 1000, paramValues: {}, compositingParamValues: defaultCompositing(), automationGraphs: [] }] },
 	};
 	return { state, node, target: { visualModuleId: 'module', nodeId: 'node', paramPath: ['values', 0] } };
 }

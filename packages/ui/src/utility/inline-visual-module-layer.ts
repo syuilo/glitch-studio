@@ -8,7 +8,7 @@ export function createInlineVisualModuleLayer(startTimeMs: number): TimelineInli
 	const inputId = visualModuleCustomParameterId(genId());
 	const outputId = genId();
 	return {
-		id: genId(), layerType: 'inlineVisualModule', startTimeMs, endTimeMs: startTimeMs + 5000,
+		id: genId(), layerType: 'inlineVisualModule', startTimeMs, durationMs: 5000,
 		paramValues: {}, automationGraphs: [],
 		compositingParamValues: deepClone({
 			blendMode: timelineCompositingParamDefs.blendMode.defaultValue,

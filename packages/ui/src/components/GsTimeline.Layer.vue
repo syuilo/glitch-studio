@@ -87,7 +87,7 @@ const layerLabel = computed(() => props.layer.layerType === 'audio'
 
 const layerRect = computed(() => {
 	const left = timeToDomX(props.layer.startTimeMs);
-	const width = timeToDomX(props.layer.endTimeMs) - left;
+	const width = timeToDomX(props.layer.startTimeMs + props.layer.durationMs) - left;
 	return { left, width };
 });
 
@@ -121,7 +121,7 @@ let timingDrag: {
 	clientX: number;
 	moved: boolean;
 	startTimeMs: number;
-	endTimeMs: number;
+	durationMs: number;
 	sourceOffsetMs: number;
 	msPerPixel: number;
 	mergeKey: string;
@@ -136,7 +136,7 @@ function onTimingPointerDown(event: PointerEvent, mode: TimingDragMode) {
 	const element = event.currentTarget as HTMLElement;
 	timingDrag = {
 		pointerId: event.pointerId, element, layerId: layer.id, mode, clientX: event.clientX, moved: false,
-		startTimeMs: layer.startTimeMs, endTimeMs: layer.endTimeMs,
+		startTimeMs: layer.startTimeMs, durationMs: layer.durationMs,
 		sourceOffsetMs: layer.layerType === 'audio' ? layer.sourceOffsetMs : 0,
 		msPerPixel: props.tlRangeX / props.tlElWidth, mergeKey: genId(),
 	};
@@ -155,17 +155,17 @@ function onTimingPointerMove(event: PointerEvent) {
 	if (layer == null) { finishTimingDrag(); return; }
 	const rawDelta = (event.clientX - drag.clientX) * drag.msPerPixel;
 	// 左端トリムでは音声の読み出し位置も動かすため、素材の先頭より前には伸ばさない。
-	const minDelta = drag.mode === 'trimEnd' ? drag.startTimeMs + 1 - drag.endTimeMs
+	const minDelta = drag.mode === 'trimEnd' ? 1 - drag.durationMs
 		: drag.mode === 'trimStart' && layer.layerType === 'audio' ? Math.max(-drag.startTimeMs, -drag.sourceOffsetMs)
 		: -drag.startTimeMs;
-	const maxDelta = drag.mode === 'trimStart' ? drag.endTimeMs - drag.startTimeMs - 1 : Infinity;
+	const maxDelta = drag.mode === 'trimStart' ? drag.durationMs - 1 : Infinity;
 	let delta = Math.max(minDelta, Math.min(maxDelta, rawDelta));
 	const candidates = [0, ...props.timelineTicks, ...appStateManager.state.timeline.value
 		.filter(entry => entry.id !== drag.layerId)
-		.flatMap(entry => [entry.startTimeMs, entry.endTimeMs])];
+		.flatMap(entry => [entry.startTimeMs, entry.startTimeMs + entry.durationMs])];
 	// 移動時は両端のうち最も近い候補に合わせ、長さを変えずに全体を移動する。
-	const edges = drag.mode === 'move' ? [drag.startTimeMs, drag.endTimeMs]
-		: [drag.mode === 'trimStart' ? drag.startTimeMs : drag.endTimeMs];
+	const edges = drag.mode === 'move' ? [drag.startTimeMs, drag.startTimeMs + drag.durationMs]
+		: [drag.mode === 'trimStart' ? drag.startTimeMs : drag.startTimeMs + drag.durationMs];
 	let nearestDistance = 5;
 	let snappingTime: number | null = null;
 	for (const edge of edges) {
@@ -181,13 +181,13 @@ function onTimingPointerMove(event: PointerEvent) {
 	}
 	emit('snap', snappingTime);
 	const startTimeMs = drag.startTimeMs + (drag.mode === 'trimEnd' ? 0 : delta);
-	const endTimeMs = drag.endTimeMs + (drag.mode === 'trimStart' ? 0 : delta);
-	if (layer.startTimeMs === startTimeMs && layer.endTimeMs === endTimeMs) return;
+	const durationMs = drag.durationMs + (drag.mode === 'move' ? 0 : drag.mode === 'trimStart' ? -delta : delta);
+	if (layer.startTimeMs === startTimeMs && layer.durationMs === durationMs) return;
 	if (layer.layerType === 'audio') {
 		const sourceOffsetMs = drag.sourceOffsetMs + (drag.mode === 'trimStart' ? delta : 0);
-		appStateManager.commit('editAudioLayerTiming', { layerId: layer.id, startTimeMs, endTimeMs, sourceOffsetMs }, drag.mergeKey);
+		appStateManager.commit('editAudioLayerTiming', { layerId: layer.id, startTimeMs, durationMs, sourceOffsetMs }, drag.mergeKey);
 	} else if (layer.layerType === 'visualModule' || layer.layerType === 'inlineVisualModule') {
-		appStateManager.commit('editVisualModuleLayerTiming', { layerId: layer.id, startTimeMs, endTimeMs }, drag.mergeKey);
+		appStateManager.commit('editVisualModuleLayerTiming', { layerId: layer.id, startTimeMs, durationMs }, drag.mergeKey);
 	}
 }
 
@@ -221,7 +221,7 @@ const keyframeSnapTimes = computed(() => keyframeParameters.value.flatMap(param 
 function getSnapTimes(param: KeyframeParameter): number[] {
 	// 同じ行のキーは子が移動中のキーを除外して候補に加える。
 	return [
-		...props.snapTimes, props.layer.startTimeMs, props.layer.endTimeMs, props.currentTime,
+		...props.snapTimes, props.layer.startTimeMs, props.layer.startTimeMs + props.layer.durationMs, props.currentTime,
 		...keyframeSnapTimes.value.filter(point => point.parameterKey !== param.key).map(point => point.time),
 	];
 }
@@ -258,7 +258,7 @@ function onKeyframeInsert(param: KeyframeParameter, x: number) {
 	const kind = current.keyframesTimeline.dataType.kind;
 	const fallback = Array<number>(kind === 'scalar' ? 1 : kind === 'vector' ? 2 : 4).fill(0);
 	// 挿入は元の区間を分割する操作。区間外では再生時の繰り返しを適用せず端の値を使う。
-	const evaluated = evaluateKeyframesTimeline({ ...current, wrapMode: 'clamp' }, x, layer.endTimeMs - layer.startTimeMs, fallback);
+	const evaluated = evaluateKeyframesTimeline({ ...current, wrapMode: 'clamp' }, x, layer.durationMs, fallback);
 	const components = typeof evaluated === 'number' ? [evaluated] : evaluated;
 	const keyframeId = genId();
 	const value = deepClone(current);

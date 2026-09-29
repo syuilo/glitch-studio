@@ -7,7 +7,7 @@ export type TimelineParameterBinding = Exclude<ParameterBinding, { inputSource: 
 export type TimelineVisualModuleLayer = {
 	id: string;
 	startTimeMs: number;
-	endTimeMs: number;
+	durationMs: number;
 	layerType: 'visualModule';
 	visualModuleId: string;
 	paramValues: Record<string, TimelineParameterBinding>;
@@ -18,7 +18,7 @@ export type TimelineVisualModuleLayer = {
 export type TimelineInlineVisualModuleLayer = {
 	id: string;
 	startTimeMs: number;
-	endTimeMs: number;
+	durationMs: number;
 	layerType: 'inlineVisualModule';
 	visualModule: VisualModule;
 	paramValues: Record<string, TimelineParameterBinding>;
@@ -29,7 +29,7 @@ export type TimelineInlineVisualModuleLayer = {
 export type TimelineEffectLayer = { // TODO
 	id: string;
 	startTimeMs: number;
-	endTimeMs: number;
+	durationMs: number;
 	layerType: 'effect';
 	effectId: string;
 	paramValues: Record<string, TimelineParameterBinding>;
@@ -41,7 +41,7 @@ export type TimelineAudioLayer = {
 	id: string;
 	layerType: 'audio';
 	startTimeMs: number;
-	endTimeMs: number;
+	durationMs: number;
 	assetId: string;
 	sourceOffsetMs: number;
 	paramValues: { volume: TimelineParameterBinding };

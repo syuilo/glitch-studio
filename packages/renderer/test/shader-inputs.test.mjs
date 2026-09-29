@@ -203,7 +203,7 @@ test('preserves constant outputs across timeline module layers', async () => {
 		present: output => presented.push(output),
 	});
 	try {
-		await timeline.renderAt(10, [{ id: 'a', startTimeMs: 0, endTimeMs: 100 }, { id: 'b', startTimeMs: 0, endTimeMs: 100 }]);
+		await timeline.renderAt(10, [{ id: 'a', startTimeMs: 0, durationMs: 100 }, { id: 'b', startTimeMs: 0, durationMs: 100 }]);
 		assert.strictEqual(presented[0], constant);
 		assert.equal(calls.textures.length, 0);
 		assert.equal(calls.uploads, 0);

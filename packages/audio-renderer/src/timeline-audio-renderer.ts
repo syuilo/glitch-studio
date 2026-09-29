@@ -14,10 +14,10 @@ export class TimelineAudioRenderer {
 		const output: StereoPcm = [new Float32Array(frames), new Float32Array(frames)];
 		for (const layer of layers) {
 			const first = Math.max(startFrame, Math.ceil(layer.startTimeMs * sampleRate / 1000));
-			const end = Math.min(startFrame + frames, Math.ceil(layer.endTimeMs * sampleRate / 1000));
+			const end = Math.min(startFrame + frames, Math.ceil((layer.startTimeMs + layer.durationMs) * sampleRate / 1000));
 			if (end <= first) continue;
 			const pcm = await this.read(layer.assetId, (first / sampleRate * 1000 - layer.startTimeMs + layer.sourceOffsetMs) / 1000, end - first, sampleRate);
-			const duration = layer.endTimeMs - layer.startTimeMs;
+			const duration = layer.durationMs;
 			const binding = layer.paramValues.volume;
 			const cache = new Map<number, number>();
 			const evaluate = (time: number) => {

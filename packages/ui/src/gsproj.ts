@@ -2,7 +2,7 @@ import * as msgpack from '@msgpack/msgpack';
 import semverGt from 'semver/functions/gt.js';
 import type { Asset, Player } from '@glitch/shared/types.js';
 import type { ProjectVisualModule } from '@glitch/shared/project/types.ts';
-import type { Timeline } from '@glitch/shared/timeline/types.ts';
+import type { Timeline, TimelineLayer } from '@glitch/shared/timeline/types.ts';
 
 export const DEFAULT_PROJECT_NAME = 'Untitled Project';
 
@@ -27,6 +27,10 @@ type StoredProject = Omit<Project, 'assets'> & {
 	assets: (Omit<Asset, 'fileData'> & { fileData: Uint8Array })[];
 };
 
+type LegacyTimelineLayer<T = TimelineLayer> = T extends TimelineLayer
+	? Omit<T, 'durationMs'> & { endTimeMs: number; durationMs?: number }
+	: never;
+
 export async function encodeProjectFile(project: Project): Promise<Uint8Array> {
 	const assets = await Promise.all(project.assets.map(async asset => ({
 		...asset,
@@ -36,13 +40,24 @@ export async function encodeProjectFile(project: Project): Promise<Uint8Array> {
 }
 
 export function decodeProjectFile(bin: Uint8Array, currentVersion?: string): Project {
-	const project = msgpack.decode(bin) as StoredProject;
+	const project = msgpack.decode(bin) as Omit<StoredProject, 'timeline'> & {
+		timeline: (TimelineLayer | LegacyTimelineLayer)[];
+	};
 	// 未来の形式は素材の構造も変わり得るため、復元処理に入る前にバージョンを確認する。
 	if (currentVersion != null && semverGt(project.gsVersion, currentVersion)) {
 		throw new Error(`未来のバージョンのプロジェクトファイルの読み込みはサポートしていません。（ファイル: ${project.gsVersion} / 現在: ${currentVersion}）`);
 	}
 	return {
 		...project,
+		// 開発中は同じバージョンでも保存形式が異なり得るため、プロパティで旧形式を判別する。
+		// 終了地点は残さず、再保存時に開始地点と長さだけを保存する。
+		timeline: project.timeline.map((layer): TimelineLayer => {
+			if ('endTimeMs' in layer) {
+				const { endTimeMs, ...rest } = layer;
+				return { ...rest, durationMs: layer.durationMs ?? endTimeMs - layer.startTimeMs };
+			}
+			return layer;
+		}),
 		assets: project.assets.map(asset => ({
 			...asset,
 			fileData: new Blob([new Uint8Array(asset.fileData)], { type: asset.fileDataType }),
