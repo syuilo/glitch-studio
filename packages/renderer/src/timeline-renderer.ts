@@ -1,13 +1,14 @@
+import { getTimelineLayerContentTime, getTimelineLayerVisibleTime, isTimelineLayerVisible } from '@glitch/shared/timeline/timing.ts';
+import type { TimelineLayerTiming } from '@glitch/shared/timeline/timing.ts';
+
 // 制御に必要なのはIDと期間だけ。レイヤー固有のデータは生成関数にそのまま渡す。
-export type TimelineRenderEntry = {
-	id: string;
-	positionMs: number;
-	trimmedDurationMs: number;
-};
+export type TimelineRenderEntry = TimelineLayerTiming & { id: string };
 
 export type TimelineLayerContext<Output> = {
 	isExport: boolean;
+	/** 内容のローカル時刻。トリム後の表示開始からの経過時間ではない。 */
 	time: number;
+	visibleTimeMs: number;
 	timeDelta: number;
 	endTime: number;
 	input: Output;
@@ -54,45 +55,60 @@ export class TimelineRenderer<Output, Entry extends TimelineRenderEntry = Timeli
 		try {
 			// 配列は先頭が最上層の表示順。下層の合成結果を上層へ渡すため、描画は逆順に行う。
 			// 終端を含めず、隣接するレイヤーを境界で重ねない。
-			const activeEntries = timeline.filter(entry => entry.positionMs <= time && time < entry.positionMs + entry.trimmedDurationMs).reverse();
-			const activeIds = new Set(activeEntries.map(entry => entry.id));
-			for (const [id, layer] of this.layers) {
-				if (activeIds.has(id)) continue;
-				layer.destroy();
-				this.layers.delete(id);
-			}
-			let output = this.options.fallbackOutput;
-			let gpuTime = 0;
-			for (const entry of activeEntries) {
-				let layer = this.layers.get(entry.id);
-				const isNewLayer = layer == null;
-				if (layer == null) {
-					layer = this.options.createLayer(entry);
-					this.layers.set(entry.id, layer);
-				}
-				const context: TimelineLayerContext<Output> = {
-					isExport,
-					time: time - entry.positionMs,
-					// 新規レイヤーには履歴がない。途中からの書き出しでも過去のフレームは再現しない。
-					timeDelta: isNewLayer ? 0 : timeDelta,
-					// timeと同じレイヤー内の時刻に揃え、PROGRESSや終端合わせの基準が開始位置でずれないようにする。
-					endTime: entry.trimmedDurationMs,
-					input: output,
-				};
-				await layer.prepare(context, controller.signal);
-				if (isCancelled()) return;
-				const result = await layer.render(context);
-				// 準備・描画・計測の待機中に別のシークが開始された場合は表示しない。
-				if (isCancelled()) return;
-				gpuTime += result.gpuTime;
-				if (result.output != null) output = result.output;
-			}
+			const visibleEntries = timeline.filter(entry => isTimelineLayerVisible(entry, time)).reverse();
+			// 現時点では表示するレイヤーだけを評価する。事前評価を追加するときは、
+			// 必要な下層も含む評価対象をここで決め、表示判定とは独立して寿命を管理する。
+			const evaluationEntries = visibleEntries;
+			this.releaseUnusedLayers(new Set(evaluationEntries.map(entry => entry.id)));
+			const result = await this.evaluateLayers(time, evaluationEntries, timeDelta, isExport, controller.signal);
+			if (result == null || isCancelled()) return;
 			// レイヤーがない場合も透明な出力を表示し、前回の表示を残さない。
-			this.options.present(output, gpuTime);
+			this.options.present(result.output, result.gpuTime);
 		} catch (error) {
 			if (isCancelled()) return;
 			this.clear();
 			throw error;
 		}
+	}
+
+	private releaseUnusedLayers(retainedIds: ReadonlySet<string>) {
+		for (const [id, layer] of this.layers) {
+			if (retainedIds.has(id)) continue;
+			layer.destroy();
+			this.layers.delete(id);
+		}
+	}
+
+	/** 表示範囲の判定やpresentは行わず、指定された対象を内容時刻で評価・合成する。 */
+	private async evaluateLayers(time: number, entries: readonly Entry[], timeDelta: number, isExport: boolean, signal: AbortSignal) {
+		let output = this.options.fallbackOutput;
+		let gpuTime = 0;
+		for (const entry of entries) {
+			let layer = this.layers.get(entry.id);
+			const isNewLayer = layer == null;
+			if (layer == null) {
+				layer = this.options.createLayer(entry);
+				this.layers.set(entry.id, layer);
+			}
+			const context: TimelineLayerContext<Output> = {
+				isExport,
+				time: getTimelineLayerContentTime(entry, time),
+				visibleTimeMs: getTimelineLayerVisibleTime(entry, time),
+				// 新規レイヤーには履歴がない。途中からの書き出しでも過去のフレームは再現しない。
+				timeDelta: isNewLayer ? 0 : timeDelta,
+				// Visual Moduleの右端は内容の終了位置。左トリムで両値が逆方向へ動いても
+				// END_TIMEは不変で、右端を伸縮したときだけ評価基準の長さが変わる。
+				endTime: entry.trimStartMs + entry.trimmedDurationMs,
+				input: output,
+			};
+			await layer.prepare(context, signal);
+			if (signal.aborted) return;
+			const result = await layer.render(context);
+			// 準備・描画・計測の待機中に別のシークが開始された場合は表示しない。
+			if (signal.aborted) return;
+			gpuTime += result.gpuTime;
+			if (result.output != null) output = result.output;
+		}
+		return { output, gpuTime };
 	}
 }

@@ -72,7 +72,7 @@ export class AssetAudioReader {
 		return blocks;
 	}
 
-	async read(assetId: string, time: number, frames: number, rate: number): Promise<StereoPcm> {
+	private async getEntry(assetId: string): Promise<AssetAudio> {
 		let entry = this.entries.get(assetId);
 		if (!entry) {
 			const asset = this.assets.find(asset => asset.id === assetId);
@@ -80,6 +80,15 @@ export class AssetAudioReader {
 			entry = await this.open(asset);
 			this.entries.set(assetId, entry);
 		}
+		return entry;
+	}
+
+	async getDurationMs(assetId: string): Promise<number> {
+		return (await this.getEntry(assetId)).duration * 1000;
+	}
+
+	async read(assetId: string, time: number, frames: number, rate: number): Promise<StereoPcm> {
+		const entry = await this.getEntry(assetId);
 		const output: StereoPcm = [new Float32Array(frames), new Float32Array(frames)];
 		for (let frame = 0; frame < frames;) {
 			const position = time + frame / rate;

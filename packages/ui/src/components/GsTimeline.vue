@@ -530,7 +530,7 @@ function onTlKeydown(ev: KeyboardEvent) {
 		if (ev.repeat) return;
 		const layer = deepClone(copiedLayer);
 		layer.id = genId();
-		layer.positionMs = Math.max(0, time.value) - (layer.layerType === 'audio' ? layer.trimStartMs : 0);
+		layer.positionMs = Math.max(0, time.value) - layer.trimStartMs;
 		appStateManager.commit('pasteTimelineLayer', { layer, sourceLayerId: copiedLayer.id });
 		onLayerSelected(layer);
 	}

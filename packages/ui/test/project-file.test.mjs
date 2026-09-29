@@ -421,7 +421,7 @@ test('refreshes audio only for audio content, source files or loop duration chan
 	await app.appReady(project({
 		assets: [{ id: 'audio', name: 'sound.wav', fileData: new Blob(['audio']) }, { id: 'image', fileData: new Blob(['image']) }],
 		timeline: [
-			{ id: 'visual', layerType: 'visualModule', visualModuleId: 'module', positionMs: 0, trimmedDurationMs: 10000, paramValues: {}, compositingParamValues: { opacity: { inputSource: 'literal', value: 1 } }, automationGraphs: [] },
+			{ id: 'visual', layerType: 'visualModule', visualModuleId: 'module', positionMs: 0, trimStartMs: 0, trimmedDurationMs: 10000, paramValues: {}, compositingParamValues: { opacity: { inputSource: 'literal', value: 1 } }, automationGraphs: [] },
 			{ id: 'audio', layerType: 'audio', assetId: 'audio', positionMs: 0, trimmedDurationMs: 5000, trimStartMs: 0, paramValues: { volume: { inputSource: 'literal', value: 1 } }, automationGraphs: [] },
 		],
 	}));

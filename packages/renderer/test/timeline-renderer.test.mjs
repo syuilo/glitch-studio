@@ -6,7 +6,39 @@ import { loadShaderSource } from './helpers/load-shader-source.mjs';
 const { createVisualModuleTimelineLayer } = await loadShaderSource(fileURLToPath(new URL('../src/visual-module-timeline-layer.ts', import.meta.url)));
 
 const entry = (id, positionMs = 0, endTimeMs = 1000, type = 'test') => ({
-	id, positionMs, trimmedDurationMs: endTimeMs - positionMs, layer: { type },
+	id, positionMs, trimStartMs: 0, trimmedDurationMs: endTimeMs - positionMs, layer: { type },
+});
+
+// 【内容時刻と表示区間内の時刻を分け、トリムした先頭を表示しない】
+// 事前評価はまだ行わなくても、表示開始で内容時刻を0へ戻さない契約を保つ。
+test('separates content time from visible time without preroll', async () => {
+	const f = fixture();
+	const timeline = [{ ...entry('trimmed', 100, 400), trimStartMs: 200, trimmedDurationMs: 100 }];
+	await f.renderer.renderAt(299, timeline);
+	assert.equal(f.created.length, 0);
+	await f.renderer.renderAt(300, timeline);
+	assert.equal(f.prepared[0].context.time, 200);
+	assert.equal(f.prepared[0].context.visibleTimeMs, 0);
+	assert.equal(f.prepared[0].context.endTime, 300);
+	assert.equal(f.prepared[0].context.timeDelta, 0);
+	await f.renderer.renderAt(399, timeline, 99);
+	assert.equal(f.prepared[1].context.time, 299);
+	assert.equal(f.prepared[1].context.visibleTimeMs, 99);
+	await f.renderer.renderAt(400, timeline);
+	assert.equal(f.prepared.length, 2);
+	assert.deepEqual(f.destroyed, ['trimmed']);
+});
+
+// 【Visual Moduleの左トリムでは終了基準を保ち、右端の伸縮でだけ変更する】
+// 内容時刻とEND_TIMEを同じ座標系に置き、トリムでPROGRESSの分母が縮まらないようにする。
+test('changes the visual module end time only when its right edge changes', async () => {
+	const f = fixture();
+	const original = entry('module', 100, 1100);
+	await f.renderer.renderAt(500, [original]);
+	await f.renderer.renderAt(500, [{ ...original, trimStartMs: 200, trimmedDurationMs: 800 }]);
+	await f.renderer.renderAt(500, [{ ...original, trimStartMs: 200, trimmedDurationMs: 1000 }]);
+	assert.deepEqual(f.prepared.map(({ context }) => [context.time, context.endTime]), [[400, 1000], [400, 1000], [400, 1200]]);
+	f.renderer.clear();
 });
 
 // 途中開始時や新規レイヤーは履歴をリセットし、継続するレイヤーだけ時間を進める。

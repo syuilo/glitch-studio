@@ -15,7 +15,7 @@ self.onmessage = ({ data }: MessageEvent<Start | { type: 'pull' }>) => {
 	if (data.type === 'start') {
 		settings = data;
 		reader = new AssetAudioReader(data.assets);
-		renderer = new TimelineAudioRenderer((...args) => reader.read(...args));
+		renderer = new TimelineAudioRenderer((...args) => reader.read(...args), assetId => reader.getDurationMs(assetId));
 		frame = data.startFrame;
 		return;
 	}

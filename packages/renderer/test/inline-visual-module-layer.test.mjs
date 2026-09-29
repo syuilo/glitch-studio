@@ -51,7 +51,7 @@ function visualModule({ primaryInput = false, params } = {}) {
 
 function layer(id, module, overrides = {}) {
 	return {
-		id, layerType: 'inlineVisualModule', visualModule: module, positionMs: 100, trimmedDurationMs: 1000,
+		id, layerType: 'inlineVisualModule', visualModule: module, positionMs: 100, trimStartMs: 0, trimmedDurationMs: 1000,
 		paramValues: {}, automationGraphs: [],
 		compositingParamValues: {
 			...Object.fromEntries(Object.entries(timelineCompositingParamDefs).map(([key, def]) => [key, structuredClone(def.defaultValue)])),

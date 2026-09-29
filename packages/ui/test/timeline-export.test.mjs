@@ -86,7 +86,7 @@ test('propagates encoding errors without finalizing incomplete output', async ()
 // 順序が異なるレイヤーや空タイムラインからも、正しい既定の終了時刻を求める。
 test('finds the final layer end regardless of timeline order', () => {
 	assert.equal(getTimelineEnd([]), 0);
-	assert.equal(getTimelineEnd([{ positionMs: 100, trimmedDurationMs: 400 }, { positionMs: 1000, trimmedDurationMs: 2000 }, { positionMs: 0, trimmedDurationMs: 1000 }]), 3000);
+	assert.equal(getTimelineEnd([{ positionMs: 100, trimStartMs: 0, trimmedDurationMs: 400 }, { positionMs: 1000, trimStartMs: 0, trimmedDurationMs: 2000 }, { positionMs: 0, trimStartMs: 0, trimmedDurationMs: 1000 }]), 3000);
 });
 
 // Workerでも設定を検証し、無限ループや不正なGPU・エンコーダー設定を防ぐ。

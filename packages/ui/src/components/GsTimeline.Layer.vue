@@ -29,7 +29,7 @@
 			v-for="param in keyframeParameters"
 			:key="param.key"
 			:keyframes="param.binding.keyframesTimeline.keyframes"
-			:startTime="getTimelineLayerStart(layer)"
+			:startTime="layer.positionMs"
 			:tlElWidth="tlElWidth"
 			:tlRangeX="tlRangeX"
 			:tlPosX="tlPosX"
@@ -102,8 +102,8 @@ watch(() => audioAsset.value?.fileData, async (_, __, onCleanup) => {
 	try {
 		const audio = await openAssetAudio(asset);
 		try {
-			const trimmedDurationMs = audio.duration * 1000;
-			if (!cancelled && Number.isFinite(trimmedDurationMs) && trimmedDurationMs > 0) contentDurationMs.value = trimmedDurationMs;
+			const durationMs = audio.duration * 1000;
+			if (!cancelled && Number.isFinite(durationMs) && durationMs > 0) contentDurationMs.value = durationMs;
 		} finally {
 			audio.input.dispose();
 		}
@@ -169,7 +169,7 @@ function onTimingPointerDown(event: PointerEvent, mode: TimingDragMode) {
 	timingDrag = {
 		pointerId: event.pointerId, element, layerId: layer.id, mode, clientX: event.clientX, moved: false,
 		positionMs: layer.positionMs, trimmedDurationMs: layer.trimmedDurationMs,
-		trimStartMs: layer.layerType === 'audio' ? layer.trimStartMs : 0,
+		trimStartMs: layer.trimStartMs,
 		msPerPixel: props.tlRangeX / props.tlElWidth, mergeKey: genId(),
 	};
 	timingDragMode.value = mode;
@@ -186,7 +186,7 @@ function onTimingPointerMove(event: PointerEvent) {
 	const layer = appStateManager.state.timeline.value.find(entry => entry.id === drag.layerId);
 	if (layer == null) { finishTimingDrag(); return; }
 	const rawDelta = (event.clientX - drag.clientX) * drag.msPerPixel;
-	const playbackStartMs = drag.positionMs + (layer.layerType === 'audio' ? drag.trimStartMs : 0);
+	const playbackStartMs = drag.positionMs + drag.trimStartMs;
 	// 左端トリムでは音声の読み出し位置も動かすため、素材の先頭より前には伸ばさない。
 	const minDelta = drag.mode === 'trimEnd' ? 1 - drag.trimmedDurationMs
 		: drag.mode === 'trimStart' && layer.layerType === 'audio' ? Math.max(-playbackStartMs, -drag.trimStartMs)
@@ -252,7 +252,7 @@ function finishTimingDrag() {
 onBeforeUnmount(finishTimingDrag);
 
 const keyframeSnapTimes = computed(() => keyframeParameters.value.flatMap(param => {
-	return param.binding.keyframesTimeline.keyframes.map(point => ({ parameterKey: param.key, time: getTimelineLayerStart(props.layer) + point.x }));
+	return param.binding.keyframesTimeline.keyframes.map(point => ({ parameterKey: param.key, time: props.layer.positionMs + point.x }));
 }));
 
 function getSnapTimes(param: KeyframeParameter): number[] {
@@ -295,7 +295,10 @@ function onKeyframeInsert(param: KeyframeParameter, x: number) {
 	const kind = current.keyframesTimeline.dataType.kind;
 	const fallback = Array<number>(kind === 'scalar' ? 1 : kind === 'vector' ? 2 : 4).fill(0);
 	// 挿入は元の区間を分割する操作。区間外では再生時の繰り返しを適用せず端の値を使う。
-	const evaluated = evaluateKeyframesTimeline({ ...current, wrapMode: 'clamp' }, x, layer.trimmedDurationMs, fallback);
+	// 終端合わせのキーも再生時と同じ基準で評価する。素材の長さが未取得なら挿入を待つ。
+	const endTimeMs = layer.layerType === 'audio' ? contentDurationMs.value : layer.trimStartMs + layer.trimmedDurationMs;
+	if (endTimeMs == null) return;
+	const evaluated = evaluateKeyframesTimeline({ ...current, wrapMode: 'clamp' }, x, endTimeMs, fallback);
 	const components = typeof evaluated === 'number' ? [evaluated] : evaluated;
 	const keyframeId = genId();
 	const value = deepClone(current);

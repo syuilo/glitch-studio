@@ -68,6 +68,21 @@ function decodedSource() {
 	} };
 }
 
+// 【素材の長さとPCM読み出しで同じデコーダーを共有する】
+// トリム前の長さを評価のたびに取得しても素材を開き直さず、単位をmsへ揃える。
+test('shares source metadata with PCM reads', async () => {
+	const source = decodedSource();
+	let opens = 0;
+	const reader = new AssetAudioReader([{ id: 'audio' }], { open: async () => { opens++; return source.open(); } });
+	try {
+		assert.equal(await reader.getDurationMs('audio'), 20000);
+		await reader.read('audio', 0, 10, 1000);
+		assert.equal(await reader.getDurationMs('audio'), 20000);
+		assert.equal(opens, 1);
+	} finally { reader.dispose(); }
+	assert.equal(source.disposed, 1);
+});
+
 // 【同じ素材の離れた再生位置でデコード窓を奪い合わない】
 // 重なったレイヤーを交互に読んでも、保持済みの窓を毎フレームデコードし直さない。
 test('reuses windows for overlapping layers at different source offsets', async () => {

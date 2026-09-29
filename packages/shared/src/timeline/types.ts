@@ -1,4 +1,5 @@
 import type { AutomationGraph, ParameterBinding } from '../types.ts';
+import type { TimelineLayerTiming } from './timing.ts';
 import type { VisualModule } from '../visual-module/types.ts';
 import type { timelineCompositingParamDefs } from './timeline-compositing.ts';
 
@@ -9,10 +10,8 @@ import type { timelineCompositingParamDefs } from './timeline-compositing.ts';
 
 export type TimelineParameterBinding = Exclude<ParameterBinding, { inputSource: 'node' | 'externalCustomParameterInput' }>;
 
-export type TimelineVisualModuleLayer = {
+export type TimelineVisualModuleLayer = TimelineLayerTiming & {
 	id: string;
-	positionMs: number;
-	trimmedDurationMs: number;
 	layerType: 'visualModule';
 	visualModuleId: string;
 	paramValues: Record<string, TimelineParameterBinding>;
@@ -20,10 +19,8 @@ export type TimelineVisualModuleLayer = {
 	automationGraphs: AutomationGraph[];
 };
 
-export type TimelineInlineVisualModuleLayer = {
+export type TimelineInlineVisualModuleLayer = TimelineLayerTiming & {
 	id: string;
-	positionMs: number;
-	trimmedDurationMs: number;
 	layerType: 'inlineVisualModule';
 	visualModule: VisualModule;
 	paramValues: Record<string, TimelineParameterBinding>;
@@ -31,10 +28,8 @@ export type TimelineInlineVisualModuleLayer = {
 	automationGraphs: AutomationGraph[];
 };
 
-export type TimelineEffectLayer = { // TODO
+export type TimelineEffectLayer = TimelineLayerTiming & { // TODO
 	id: string;
-	positionMs: number;
-	trimmedDurationMs: number;
 	layerType: 'effect';
 	effectId: string;
 	paramValues: Record<string, TimelineParameterBinding>;
@@ -42,16 +37,10 @@ export type TimelineEffectLayer = { // TODO
 	automationGraphs: AutomationGraph[];
 };
 
-export type TimelineAudioLayer = {
+export type TimelineAudioLayer = TimelineLayerTiming & {
 	id: string;
 	layerType: 'audio';
-	/** 素材の先頭を置く時刻。トリムで再生範囲が0以降なら負の値も許可する。 */
-	positionMs: number;
-	/** トリム後の再生区間の長さ。 */
-	trimmedDurationMs: number;
 	assetId: string;
-	/** 素材先頭からのトリム量。実際の再生開始はpositionMs + trimStartMs。 */
-	trimStartMs: number;
 	paramValues: { volume: TimelineParameterBinding };
 	automationGraphs: AutomationGraph[];
 };

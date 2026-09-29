@@ -28,8 +28,11 @@ type StoredProject = Omit<Project, 'assets'> & {
 	audioLayerTimingVersion?: 1;
 };
 
-type LegacyTimelineLayer<T = TimelineLayer> = T extends TimelineLayer
-	? Omit<T, 'trimmedDurationMs'> & { endTimeMs: number; trimmedDurationMs?: number }
+type StoredTimelineLayer<T = TimelineLayer> = T extends TimelineLayer
+	? Omit<T, 'positionMs' | 'trimmedDurationMs' | 'trimStartMs'> & {
+		positionMs?: number; trimmedDurationMs?: number; trimStartMs?: number;
+		startTimeMs?: number; durationMs?: number; sourceOffsetMs?: number; endTimeMs?: number;
+	}
 	: never;
 
 export async function encodeProjectFile(project: Project): Promise<Uint8Array> {
@@ -42,7 +45,7 @@ export async function encodeProjectFile(project: Project): Promise<Uint8Array> {
 
 export function decodeProjectFile(bin: Uint8Array, currentVersion?: string): Project {
 	const project = msgpack.decode(bin) as Omit<StoredProject, 'timeline'> & {
-		timeline: (TimelineLayer | LegacyTimelineLayer)[];
+		timeline: StoredTimelineLayer[];
 	};
 	// 未来の形式は素材の構造も変わり得るため、復元処理に入る前にバージョンを確認する。
 	if (currentVersion != null && semverGt(project.gsVersion, currentVersion)) {
@@ -52,15 +55,15 @@ export function decodeProjectFile(bin: Uint8Array, currentVersion?: string): Pro
 	return {
 		...projectData,
 		// 開発中は同じバージョンでも保存形式が異なり得るため、プロパティで旧形式を判別する。
-		// 終了地点は残さず、再保存時に開始地点と長さだけを保存する。
+		// 旧プロパティは残さず、配置・トリム量・表示区間の長さへ揃えて再保存する。
 		timeline: project.timeline.map((layer): TimelineLayer => {
-			let result: TimelineLayer;
-			if ('endTimeMs' in layer) {
-				const { endTimeMs, ...rest } = layer;
-				result = { ...rest, trimmedDurationMs: layer.trimmedDurationMs ?? endTimeMs - layer.positionMs };
-			} else {
-				result = layer;
-			}
+			const { startTimeMs, durationMs, sourceOffsetMs, endTimeMs, ...rest } = layer;
+			const positionMs = layer.positionMs ?? startTimeMs;
+			if (positionMs == null) throw new Error('Layer position is missing.');
+			const trimmedDurationMs = layer.trimmedDurationMs ?? durationMs ?? (endTimeMs != null ? endTimeMs - positionMs : undefined);
+			if (trimmedDurationMs == null) throw new Error('Layer duration is missing.');
+			const trimStartMs = layer.trimStartMs ?? sourceOffsetMs ?? 0;
+			let result: TimelineLayer = { ...rest, positionMs, trimmedDurationMs, trimStartMs };
 			// 旧形式のpositionMsは再生開始を指す。素材基準へ戻し、保存済みの再生区間を維持する。
 			if (result.layerType === 'audio' && audioLayerTimingVersion == null) {
 				result = { ...result, positionMs: result.positionMs - result.trimStartMs };

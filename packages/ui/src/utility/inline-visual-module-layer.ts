@@ -1,3 +1,4 @@
+import { createUntrimmedTimelineLayerTiming } from '@glitch/shared/timeline/timing.ts';
 import { genId } from '@glitch/shared/utility/id.ts';
 import { deepClone } from '@glitch/shared/utility/deep-clone.ts';
 import { visualModuleCustomParameterId, visualModuleCustomParameterName } from '@glitch/shared/visual-module/types.ts';
@@ -8,7 +9,7 @@ export function createInlineVisualModuleLayer(positionMs: number): TimelineInlin
 	const inputId = visualModuleCustomParameterId(genId());
 	const outputId = genId();
 	return {
-		id: genId(), layerType: 'inlineVisualModule', positionMs, trimmedDurationMs: 5000,
+		id: genId(), layerType: 'inlineVisualModule', ...createUntrimmedTimelineLayerTiming(positionMs, 5000),
 		paramValues: {}, automationGraphs: [],
 		compositingParamValues: deepClone({
 			blendMode: timelineCompositingParamDefs.blendMode.defaultValue,

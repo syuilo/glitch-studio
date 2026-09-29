@@ -1,3 +1,5 @@
+import { createUntrimmedTimelineLayerTiming, isTimelineLayerTimingValid } from '@glitch/shared/timeline/timing.ts';
+import type { TimelineLayerTiming } from '@glitch/shared/timeline/timing.ts';
 import { getArrayElementDefinition } from '@glitch/shared/parameter.ts';
 import { visualModuleCustomParameterId } from '@glitch/shared/visual-module/types.ts';
 import { effectDefinitions } from '@glitch/shared/effect/effect-definitions.ts';
@@ -825,7 +827,7 @@ const addInlineVisualModuleLayerCommandDef = defineCommand<TimelineInlineVisualM
 const editVisualModuleLayerTimingCommandDef = defineCommand<{ layerId: string; positionMs: number; trimmedDurationMs: number }>({
 	label: 'Edit visual module layer timing',
 	create: payload => {
-		let before: { positionMs: number; trimmedDurationMs: number };
+		let before: TimelineLayerTiming;
 		const getLayer = (state: AppState) => {
 			const layer = state.timeline.value.find(layer => layer.id === payload.layerId);
 			if (layer?.layerType !== 'visualModule' && layer?.layerType !== 'inlineVisualModule') throw new Error('Visual module layer not found');
@@ -833,11 +835,12 @@ const editVisualModuleLayerTimingCommandDef = defineCommand<{ layerId: string; p
 		};
 		return {
 			execute(state) {
-				if (!Number.isFinite(payload.positionMs) || !Number.isFinite(payload.trimmedDurationMs) || payload.positionMs < 0 || payload.trimmedDurationMs <= 0) throw new Error('Invalid layer timing');
+				// Visual Moduleの端編集は当面、配置・表示区間の変更として扱い、トリムを作らない。
+				const timing = createUntrimmedTimelineLayerTiming(payload.positionMs, payload.trimmedDurationMs);
+				if (!isTimelineLayerTimingValid(timing)) throw new Error('Invalid layer timing');
 				const layer = getLayer(state);
-				before = { positionMs: layer.positionMs, trimmedDurationMs: layer.trimmedDurationMs };
-				layer.positionMs = payload.positionMs;
-				layer.trimmedDurationMs = payload.trimmedDurationMs;
+				before = { positionMs: layer.positionMs, trimmedDurationMs: layer.trimmedDurationMs, trimStartMs: layer.trimStartMs };
+				Object.assign(layer, timing);
 			},
 			undo(state) { Object.assign(getLayer(state), before); },
 		};
@@ -852,10 +855,10 @@ const addAudioLayerCommandDef = defineCommand<TimelineAudioLayer>({
 	}),
 });
 
-const editAudioLayerTimingCommandDef = defineCommand<{ layerId: string; positionMs: number; trimmedDurationMs: number; trimStartMs: number }>({
+const editAudioLayerTimingCommandDef = defineCommand<{ layerId: string } & TimelineLayerTiming>({
 	label: 'Edit audio layer timing',
 	create: payload => {
-		let before: Pick<TimelineAudioLayer, 'positionMs' | 'trimmedDurationMs' | 'trimStartMs'>;
+		let before: TimelineLayerTiming;
 		const getLayer = (state: AppState) => {
 			const layer = state.timeline.value.find(layer => layer.id === payload.layerId);
 			if (layer?.layerType !== 'audio') throw new Error('Audio layer not found');
@@ -864,8 +867,8 @@ const editAudioLayerTimingCommandDef = defineCommand<{ layerId: string; position
 		return {
 			execute(state) {
 				const { positionMs, trimmedDurationMs, trimStartMs } = payload;
-				if (![positionMs, trimmedDurationMs, trimStartMs].every(Number.isFinite) || positionMs + trimStartMs < 0 || trimmedDurationMs <= 0 || trimStartMs < 0) throw new Error('Invalid audio layer timing');
 				const layer = getLayer(state);
+				if (!isTimelineLayerTimingValid({ positionMs, trimmedDurationMs, trimStartMs })) throw new Error('Invalid audio layer timing');
 				before = { positionMs: layer.positionMs, trimmedDurationMs: layer.trimmedDurationMs, trimStartMs: layer.trimStartMs };
 				Object.assign(layer, { positionMs, trimmedDurationMs, trimStartMs });
 			},
