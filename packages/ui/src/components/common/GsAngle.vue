@@ -1,32 +1,63 @@
 <template>
-<div :class="$style.root">
-	<div
-		ref="surface"
-		:class="[$style.direction, { [$style.dragging]: activePointerId != null }]"
-		:title="formatAngle(value)"
-		@pointerdown="onPointerDown"
-		@pointermove="onPointerMove"
-		@pointerup="onPointerUp"
-		@pointercancel="onPointerCancel"
-		@lostpointercapture="onPointerCancel"
-	>
-		<div :class="$style.needle" :style="{ transform: `rotate(${value * 180}deg)` }">
-			<div :class="$style.knob"></div>
-		</div>
-		<div :class="$style.center"></div>
-	</div>
-	<div :class="$style.control">
-		<div :class="$style.value">{{ formatAngle(value) }}</div>
-		<GsButton small :primary="snapEnabled" title="Snap to step (hold Shift to disable)" @click="snapEnabled = !snapEnabled">
-			Snap {{ snapEnabled ? 'On' : 'Off' }}
-		</GsButton>
-	</div>
+<div ref="rootEl" :class="$style.root">
+	<GsButton :class="$style.open" :primary="anglePadOpened" iconOnly small @click="openAnglePad"><i class="ti ti-angle"></i></GsButton>
+	<GsRange
+		:class="$style.slider"
+		:modelValue="value"
+		:min="-1"
+		:max="1"
+		:step="step"
+		:textConverter="formatAngle"
+		:continuousUpdate="true"
+		@update:modelValue="setValue"
+		@beginChanging="emit('beginChanging')"
+		@changeFinished="emit('changeFinished')"
+	/>
+	<Teleport to="body">
+		<GsModal
+			v-if="anglePadOpened"
+			ref="modal"
+			zPriority="high"
+			:anchorElement="rootEl"
+			:transparentBg="true"
+			@click="modal?.close()"
+			@esc="modal?.close()"
+			@close="finishDrag"
+			@closed="closeAnglePad"
+		>
+			<div :class="$style.popup" class="_shadow _popup" tabindex="-1">
+				<div
+					ref="surface"
+					:class="[$style.direction, { [$style.dragging]: activePointerId != null }]"
+					:title="formatAngle(value)"
+					@pointerdown="onPointerDown"
+					@pointermove="onPointerMove"
+					@pointerup="onPointerUp"
+					@pointercancel="onPointerCancel"
+					@lostpointercapture="onPointerCancel"
+				>
+					<div :class="$style.needle" :style="{ transform: `rotate(${value * 180}deg)` }">
+						<div :class="$style.knob"></div>
+					</div>
+					<div :class="$style.center"></div>
+				</div>
+				<div :class="$style.control">
+					<div :class="$style.value">{{ formatAngle(value) }}</div>
+					<GsButton small :primary="snapEnabled" title="Snap to step (hold Shift to disable)" @click="snapEnabled = !snapEnabled">
+						Snap {{ snapEnabled ? 'On' : 'Off' }}
+					</GsButton>
+				</div>
+			</div>
+		</GsModal>
+	</Teleport>
 </div>
 </template>
 
 <script lang="ts" setup>
 import { onBeforeUnmount, ref, useTemplateRef, watch } from 'vue';
 import GsButton from './GsButton.vue';
+import GsModal from './GsModal.vue';
+import GsRange from './GsRange.vue';
 
 const props = withDefaults(defineProps<{
 	modelValue: number;
@@ -39,7 +70,10 @@ const emit = defineEmits<{
 	(ev: 'changeFinished'): void;
 }>();
 
+const rootEl = useTemplateRef('rootEl');
+const modal = useTemplateRef('modal');
 const surface = useTemplateRef<HTMLElement>('surface');
+const anglePadOpened = ref(false);
 const value = ref(props.modelValue);
 const snapEnabled = ref(true);
 const activePointerId = ref<number | null>(null);
@@ -47,6 +81,25 @@ const activePointerId = ref<number | null>(null);
 watch(() => props.modelValue, (newValue) => {
 	value.value = newValue;
 });
+
+function setValue(newValue: number) {
+	value.value = newValue;
+	emit('update:modelValue', newValue);
+}
+
+function openAnglePad() {
+	if (anglePadOpened.value) return;
+	anglePadOpened.value = true;
+	// 複数回のドラッグも、ポップアップを閉じるまでひとつの履歴にまとめる。
+	emit('beginChanging');
+}
+
+function closeAnglePad() {
+	if (!anglePadOpened.value) return;
+	finishDrag();
+	anglePadOpened.value = false;
+	emit('changeFinished');
+}
 
 function updateFromPointer(event: PointerEvent) {
 	if (surface.value == null) return;
@@ -63,8 +116,7 @@ function updateFromPointer(event: PointerEvent) {
 	}
 	angle = Math.min(1, Math.max(-1, angle));
 	if (value.value === angle) return;
-	value.value = angle;
-	emit('update:modelValue', angle);
+	setValue(angle);
 }
 
 function onPointerDown(event: PointerEvent) {
@@ -73,7 +125,6 @@ function onPointerDown(event: PointerEvent) {
 	activePointerId.value = event.pointerId;
 	surface.value?.setPointerCapture(event.pointerId);
 	window.addEventListener('blur', finishDrag);
-	emit('beginChanging');
 	updateFromPointer(event);
 }
 
@@ -99,10 +150,9 @@ function finishDrag() {
 	activePointerId.value = null;
 	window.removeEventListener('blur', finishDrag);
 	if (surface.value?.hasPointerCapture(pointerId)) surface.value.releasePointerCapture(pointerId);
-	emit('changeFinished');
 }
 
-onBeforeUnmount(finishDrag);
+onBeforeUnmount(closeAnglePad);
 
 function formatAngle(value: number): string {
 	return `${Math.round(value * 1000) / 1000} (${Math.round(value * 1800) / 10}°)`;
@@ -112,8 +162,24 @@ function formatAngle(value: number): string {
 <style module>
 .root {
 	display: flex;
+	gap: 8px;
+	width: 100%;
+}
+
+.open {
+	align-self: center;
+}
+
+.slider {
+	flex: 1;
+	min-width: 0;
+}
+
+.popup {
+	display: flex;
 	align-items: center;
 	gap: 10px;
+	padding: 20px;
 }
 
 .direction {
