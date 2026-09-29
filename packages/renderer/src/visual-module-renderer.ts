@@ -143,8 +143,9 @@ export class VisualModuleRenderer {
 
 	private evaluateParameters(context: VisualModuleRenderContext) {
 		this.paramInputs = context.paramInputs ?? new Map();
-		// canNode入力の定数もIn経由で参照する。CPUに値があることを理由に
-		// PARAMやexternalCustomParameterInputへ公開すると、入力の種別でスコープが変わってしまう。
+		// モジュール内部の式から直接参照できるのはcanNode: falseのパラメータだけ。
+		// canNode: trueは定数でもInノード経由で読み、定数／テクスチャで参照方法を変えない。
+		// Inノード用の評価済み値は保持し、式へ渡す値と参照名だけを絞り込む。
 		const expressionParamDefs = this.paramDefs.filter(def => !def.canNode);
 
 		const evalCtx = {
