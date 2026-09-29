@@ -42,7 +42,7 @@
 				<div v-if="previewPlayback.state.value.mode === 'live' && visualModuleRendererManagerController.gpuMemoryUsage.value" v-tooltip="gpuMemoryTooltip" :class="$style.footerMemory">{{ (visualModuleRendererManagerController.gpuMemoryUsage.value.total / 1000 ** 2).toFixed(1) }} MB</div>
 			</div>
 			<div :class="$style.outputLevelMeter">
-				<GsAudioLevelMeter :levels="visualModuleRendererManagerController.audioOutputLevels"/>
+				<GsAudioLevelMeter :levels="audioOutput.outputLevels"/>
 			</div>
 		</div>
 	</div>
@@ -51,7 +51,7 @@
 
 <script lang="ts" setup>
 import { computed, nextTick, onMounted, onBeforeUnmount, ref, shallowRef, useTemplateRef, watch } from 'vue';
-import { activePreviewRenderer, previewPlayback, visualModuleRendererManagerController, resolutionFactor, fpsLimit, liveTimeFactor, appStateManager, projectInfo, openProject, saveProject } from './app';
+import { audioOutput, activePreviewRenderer, previewPlayback, visualModuleRendererManagerController, resolutionFactor, fpsLimit, liveTimeFactor, appStateManager, projectInfo, openProject, saveProject } from './app';
 import { preferences } from './preferences.ts';
 import GsRange from './components/common/GsRange.vue';
 import GsAboutDialog from '@/components/GsAboutDialog.vue';
@@ -63,12 +63,12 @@ import GsButton from '@/components/common/GsButton.vue';
 import GsAudioLevelMeter from '@/components/common/GsAudioLevelMeter.vue';
 import * as ui from '@/ui.ts';
 
-const releaseOutputCapture = visualModuleRendererManagerController.retainAudioOutputCapture();
+const releaseOutputCapture = audioOutput.retainOutputCapture();
 onBeforeUnmount(releaseOutputCapture);
 
 const previewVolume = preferences.model('previewVolume');
 watch(previewVolume, (newValue) => {
-	visualModuleRendererManagerController.setPreviewVolume(newValue);
+	audioOutput.setPreviewVolume(newValue);
 }, { immediate: true });
 
 const gpuMemoryTooltip = computed(() => {

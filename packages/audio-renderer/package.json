@@ -9,6 +9,8 @@
 		"lint": "pnpm typecheck && pnpm eslint"
 	},
 	"exports": {
+		"./pcm.ts": "./src/pcm.ts",
+		"./pcm-resampler.ts": "./src/pcm-resampler.ts",
 		"./timeline-audio-renderer.ts": "./src/timeline-audio-renderer.ts"
 	},
 	"devDependencies": {

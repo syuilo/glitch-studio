@@ -1,12 +1,12 @@
 import { ref, shallowReactive } from 'vue';
 import { deepEqual } from '@glitch/shared/utility/deep-equal.ts';
 import { deepClone } from '@glitch/shared/utility/deep-clone.ts';
-import { projectAudioSourceId } from '@glitch/shared/audio.ts';
 import { genId } from '@glitch/shared/utility/id.ts';
 import { createVisualModuleRendererManagerWorker } from '@glitch/renderer/client.ts';
 import { isVideoFrameAvailable, playVideoAfterFirstFrameIsReady } from './utility/video.ts';
 import { LiveEffectStateStore } from './utility/live-effect-status.ts';
 import { AudioInputs } from './audio/audio-inputs.ts';
+import type { AudioOutput } from './audio/audio-output.ts';
 import { setupWebcam } from './utility/webcam.ts';
 import { RendererManagerControllerBase } from './RendererManagerControllerBase.ts';
 import type { Player } from '@glitch/shared/types.ts';
@@ -33,10 +33,7 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 	private players: Player[] = [];
 	private videoElements = shallowReactive(new Map<Player['id'], HTMLMediaElement>());
 	private playerAssetFiles = new Map<Player['id'], Blob>();
-	private audioInputs = new AudioInputs(
-		(id, port) => this.call('attachAudioSource', [id, port], [port]),
-		(id, generation) => { if (this.isReady.value) this.call('resetAudioSource', [id, generation]); },
-	);
+	private audioInputs: AudioInputs;
 	private videoLoads = new Map<Player['id'], Promise<void>>();
 	private videoFrameCallbacks = new Map<Player['id'], number>();
 	private pendingVideoFrames = new Map<Player['id'], VideoFrame>();
@@ -55,7 +52,7 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 		return this.liveEffectStateStore.get(visualModuleId, nodeId);
 	}
 
-	constructor(staticOptions: VisualModuleRendererManagerStaticOptions, dynamicOptions: Partial<VisualModuleRendererManagerDynamicOptions>) {
+	constructor(staticOptions: VisualModuleRendererManagerStaticOptions, dynamicOptions: Partial<VisualModuleRendererManagerDynamicOptions>, audioOutput: AudioOutput) {
 		super({
 			getInitialOptions: async (isReload) => {
 				if (isReload) {
@@ -140,6 +137,11 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 				this.gpuAverageDisplaySlow.value = 0;
 			},
 		});
+
+		this.audioInputs = new AudioInputs(audioOutput,
+			(id, port) => this.call('attachAudioSource', [id, port], [port]),
+			(id, generation) => { if (this.isReady.value) this.call('resetAudioSource', [id, generation]); },
+		);
 
 		this.canvas = window.document.createElement('canvas');
 		this.canvas.style.imageRendering = 'pixelated';
@@ -335,13 +337,6 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 		if (this.players.find(player => player.id === playerId)?.sourceType === 'asset') await this.audioInputs.play(playerId);
 		else await this.videoElements.get(playerId)?.play();
 	}
-
-	public getAudioOutput() { return this.audioInputs.getOutput(); }
-
-	public setPreviewVolume(volume: number) { this.audioInputs.setPreviewVolume(volume); }
-	public get audioPreview() { return this.audioInputs.preview; }
-	public retainAudioOutputCapture() { return this.audioInputs.retainOutputCapture(); }
-	public get audioOutputLevels() { return this.audioInputs.getLevels(projectAudioSourceId); }
 
 	public getPlayerLevels(playerId: Player['id']) { return this.audioInputs.getPlayerLevels(playerId); }
 

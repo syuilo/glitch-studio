@@ -29,12 +29,14 @@ const appBundle = await build({
 		name: 'project-test-platform',
 		setup(build) {
 			// 音声Worker/WorkletもGPUと同じブラウザ境界。保存テストでは再生機器を起動しない。
-			build.onResolve({ filter: /timeline-audio-preview\.ts$/ }, () => ({ path: 'audio', namespace: 'audio-platform' }));
+			build.onResolve({ filter: /(?:timeline-audio-preview|audio-output)\.ts$/ }, () => ({ path: 'audio', namespace: 'audio-platform' }));
 			build.onLoad({ filter: /.*/, namespace: 'audio-platform' }, () => ({ contents: `
 				export class TimelineAudioPreview {
 					error = { value: null }; buffering = { value: false }; time = 0;
-					start(time) { this.time = time; } stop() {} currentTime() { return this.time; }
+					starts = [];
+					start(time) { this.time = time; this.starts.push(time); } stop() {} currentTime() { return this.time; }
 				}
+				export class AudioOutput {}
 			`, loader: 'ts' }));
 			build.onResolve({ filter: /RendererManagerController\.ts$|\.vue$|^@\/ui\.ts$|effect-definitions\.[jt]s$|preferences\.ts$/ }, args => ({ path: args.path, namespace: 'platform' }));
 			build.onLoad({ filter: /.*/, namespace: 'platform' }, args => ({
@@ -388,6 +390,61 @@ test('synchronizes both previews and routes timeline-only edits', async t => {
 	assert.deepEqual(live.options.visualModules, []);
 	assert.deepEqual(timeline.options.visualModules, []);
 	assert.deepEqual(timeline.options.timeline, []);
+});
+
+// 【音声に影響しない編集とUndo/Redoでは再生を中断しない】
+// 映像のスライダー操作や素材名の変更で先読みPCMを破棄せず、音量・参照素材・
+// ループ長が変わったときだけ音声を再生成する。実際のappの監視とコマンドを組み合わせる。
+test('refreshes audio only for audio content, source files or loop duration changes', async t => {
+	const window = setup(t);
+	window.requestAnimationFrame = () => 1;
+	window.cancelAnimationFrame = () => {};
+	const app = evaluate(appBundle);
+	await app.appReady(project({
+		assets: [{ id: 'audio', name: 'sound.wav', fileData: new Blob(['audio']) }, { id: 'image', fileData: new Blob(['image']) }],
+		timeline: [
+			{ id: 'visual', layerType: 'visualModule', visualModuleId: 'module', startTimeMs: 0, endTimeMs: 10000, paramValues: {}, compositingParamValues: { opacity: { inputSource: 'literal', value: 1 } }, automationGraphs: [] },
+			{ id: 'audio', layerType: 'audio', assetId: 'audio', startTimeMs: 0, endTimeMs: 5000, sourceOffsetMs: 0, paramValues: { volume: { inputSource: 'literal', value: 1 } }, automationGraphs: [] },
+		],
+	}));
+	const manager = app.appStateManager;
+	const starts = app.timelineAudioPreview.starts;
+	app.previewPlayback.playTimeline();
+	try {
+		assert.equal(starts.length, 1);
+		manager.commit('editTimelineLayerParam', { layerId: 'visual', target: 'compositing', paramId: 'opacity', edit: { kind: 'literal', value: 0.5 } });
+		await nextTick();
+		manager.undo();
+		await nextTick();
+		manager.redo();
+		await nextTick();
+		manager.state.assets.value[0].name = 'Renamed.wav';
+		manager.state.assets.value[1].fileData = new Blob(['new image']);
+		manager.state.assets.value.push({ id: 'unused', fileData: new Blob(['unused']) });
+		await nextTick();
+		assert.equal(starts.length, 1);
+		manager.commit('editTimelineLayerParam', { layerId: 'audio', target: 'audio', paramId: 'volume', edit: { kind: 'literal', value: 0.3 } });
+		await nextTick();
+		assert.equal(starts.length, 2);
+		manager.undo();
+		await nextTick();
+		assert.equal(starts.length, 3);
+		manager.redo();
+		await nextTick();
+		assert.equal(starts.length, 4);
+		manager.state.assets.value[0].fileData = new Blob(['new audio']);
+		await nextTick();
+		assert.equal(starts.length, 5);
+		manager.state.timeline.value[0].endTimeMs = 20000;
+		await nextTick();
+		assert.equal(starts.length, 6);
+		manager.commit('removeTimelineLayer', { layerId: 'audio' });
+		await nextTick();
+		assert.equal(starts.length, 7);
+		manager.undo();
+		await nextTick();
+		assert.equal(starts.length, 8);
+	} finally { app.previewPlayback.dispose(); }
 });
 
 // 【両Workerの復帰完了後にだけプレビューを再開する】

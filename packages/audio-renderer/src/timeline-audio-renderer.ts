@@ -1,7 +1,7 @@
 import { ParameterEvaluator } from '@glitch/shared/parameter-evaluator.js';
 import type { TimelineAudioLayer } from '@glitch/shared/timeline/types.ts';
+import type { StereoPcm } from './pcm.ts';
 
-export type StereoPcm = [Float32Array, Float32Array];
 export type AudioPcmReader = (assetId: string, timeSeconds: number, frames: number, sampleRate: number) => Promise<StereoPcm>;
 
 /** DOM・GPU・再生状態を持たない。書き出しも独立インスタンスで同じPCMを生成できる。 */

@@ -1,6 +1,7 @@
 import { visualModuleCustomParameterId, visualModuleCustomParameterName } from '@glitch/shared/visual-module/types.ts';
 import { computed, ref, markRaw, reactive, watch } from 'vue';
 import { deepClone } from '@glitch/shared/utility/deep-clone.ts';
+import { deepEqual } from '@glitch/shared/utility/deep-equal.ts';
 import { timelineCompositingParamDefs } from '@glitch/shared/timeline/timeline-compositing.ts';
 import { genId } from '@glitch/shared/utility/id.ts';
 import fillEffectDef from '@glitch/shared/effect/fx/fill/_def_.ts';
@@ -12,6 +13,7 @@ import { TimelineRendererManagerController } from './TimelineRendererManagerCont
 import type { TimelineRendererManagerDynamicOptions } from '@glitch/renderer/timeline-renderer-manager.ts';
 import GsEffectPicker from './components/GsEffectPicker.vue';
 import { TimelineAudioPreview } from './audio/timeline-audio-preview.ts';
+import { AudioOutput } from './audio/audio-output.ts';
 import { PreviewPlaybackController } from './PreviewPlaybackController.ts';
 import { AppStateManager } from './AppStateManager.ts';
 import { DEFAULT_PROJECT_NAME, loadProjectFile, saveProjectFile } from './gsproj.ts';
@@ -91,6 +93,8 @@ function getRendererIntermediateTextureFormat(): IntermediateTextureFormat {
 	return preferred === 'bgra8unorm' ? 'bgra8unorm' : 'rgba8unorm';
 }
 
+export const audioOutput = markRaw(new AudioOutput());
+
 export const visualModuleRendererManagerController = markRaw(new VisualModuleRendererManagerController({
 	enable32bitDataTextures: preferences.s.enable32bitDataTextures,
 	intermediateTextureFormat: getRendererIntermediateTextureFormat(),
@@ -99,7 +103,7 @@ export const visualModuleRendererManagerController = markRaw(new VisualModuleRen
 	fpsLimit: fpsLimit.value,
 	liveTimeFactor: liveTimeFactor.value,
 	highlightClipping: highlightClipping.value,
-}));
+}, audioOutput));
 
 export const timelineRendererManagerController = markRaw(new TimelineRendererManagerController({
 	enable32bitDataTextures: preferences.s.enable32bitDataTextures,
@@ -107,7 +111,7 @@ export const timelineRendererManagerController = markRaw(new TimelineRendererMan
 }, { highlightClipping: highlightClipping.value }));
 
 export const timelineAudioPreview = markRaw(new TimelineAudioPreview(
-	() => visualModuleRendererManagerController.getAudioOutput(),
+	() => audioOutput.getOutput(),
 	() => ({ assets: deepClone(appStateManager.state.assets.value), timeline: deepClone(appStateManager.state.timeline.value) }),
 ));
 export const previewPlayback = markRaw(new PreviewPlaybackController(
@@ -231,8 +235,25 @@ export async function appReady(project: Project, fileName = 'untitled.gsproj', f
 	projectFileName = fileName;
 	projectFileHandle = fileHandle;
 
+	// 音声の内容・参照素材・ループ長だけを比較する。Blobは不変なので同一性で判定し、
+	// 素材名や映像パラメータの編集では再生中のWorkerと先読みPCMを維持する。
+	projectWatchers.push(watch(() => {
+		const timeline = appStateManager.state.timeline.value;
+		const layers = timeline.filter(layer => layer.layerType === 'audio');
+		const assetIds = new Set(layers.map(layer => layer.assetId));
+		return {
+			layers: deepClone(layers),
+			duration: timeline.reduce((end, layer) => Math.max(end, layer.endTimeMs), 0),
+			files: new Map(appStateManager.state.assets.value.filter(asset => assetIds.has(asset.id)).map(asset => [asset.id, asset.fileData])),
+		};
+	}, (next, previous) => {
+		if (next.duration !== previous.duration || !deepEqual(next.layers, previous.layers)
+			|| next.files.size !== previous.files.size || [...next.files].some(([id, file]) => previous.files.get(id) !== file)) {
+			previewPlayback.refreshAudio();
+		}
+	}));
+
 	projectWatchers.push(watch(appStateManager.state.assets, async () => {
-		previewPlayback.refreshAudio();
 		try {
 			await updatePreviewOptions({ assets: deepClone(appStateManager.state.assets.value) });
 			// 非同期の画像準備後にも、停止中のタイムラインを描き直す。
@@ -254,7 +275,6 @@ export async function appReady(project: Project, fileName = 'untitled.gsproj', f
 	}, { deep: true }));
 
 	projectWatchers.push(watch(appStateManager.state.timeline, async () => {
-		previewPlayback.refreshAudio();
 		await timelineRendererManagerController.updateDynamicOptions({ timeline: deepClone(appStateManager.state.timeline.value) });
 		// 編集・Undo/Redo後は現在位置を描き直す。LIVE中はその表示を維持する。
 		previewPlayback.refresh();
