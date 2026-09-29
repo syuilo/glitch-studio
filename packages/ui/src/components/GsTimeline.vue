@@ -114,7 +114,6 @@
 				:key="`${selectedLayer.id}:compositing:${paramId}`"
 				:availableVariables="LAYER_VAR_DEFS"
 				:automationGraphs="selectedLayer.automationGraphs"
-				:visualModuleId="selectedLayer.visualModuleId"
 				:paramPath="[paramId]"
 				:paramDef="paramDef"
 				:paramValue="selectedLayer.compositingParamValues[paramId]"
@@ -131,7 +130,6 @@
 					v-else
 					:availableVariables="LAYER_VAR_DEFS"
 					:automationGraphs="selectedLayer.automationGraphs"
-					:visualModuleId="selectedLayer.visualModuleId"
 					:paramPath="[paramDef.id]"
 					:paramDef="{ ...paramDef, canNode: false }"
 					:paramValue="selectedLayer.paramValues[paramDef.id] ?? paramDef.defaultValue"

@@ -62,21 +62,24 @@ import GsSelect from './common/GsSelect.vue';
 import GsInput from './common/GsInput.vue';
 import GsButton from './common/GsButton.vue';
 import GsSwitch from './common/GsSwitch.vue';
-import type { VisualModule } from '@glitch/shared/visual-module/types.ts';
-import { appStateManager } from '@/app.ts';
+import type { VisualModuleParamDef } from '@glitch/shared/visual-module/types.ts';
 import { i18n } from '@/i18n.ts';
 
-type ParamDef = VisualModule['paramDefs'][number];
+type ParamDef = VisualModuleParamDef;
 const props = defineProps<{
-	visualModuleId: string;
+	paramDefs: readonly VisualModuleParamDef[];
 	def: ParamDef;
 }>();
 
-const hasPrimaryInput = computed(() => appStateManager.state.visualModules.value
-	.find(module => module.id === props.visualModuleId)?.paramDefs.some(def => def.isPrimaryInput) ?? false);
+const emit = defineEmits<{
+	update: [changes: Partial<Omit<ParamDef, 'id'>>];
+	remove: [];
+}>();
+
+const hasPrimaryInput = computed(() => props.paramDefs.some(def => def.isPrimaryInput));
 
 function update(changes: Partial<Omit<ParamDef, 'id'>>) {
-	appStateManager.commit('updateVisualModuleParamDef', { visualModuleId: props.visualModuleId, defId: props.def.id, changes });
+	emit('update', changes);
 }
 
 function updateType(dataType: ParamDef['dataType']['kind']) {
@@ -127,7 +130,7 @@ function updateCanNode(canNode: boolean) {
 }
 
 function remove() {
-	appStateManager.commit('removeVisualModuleParamDef', { visualModuleId: props.visualModuleId, defId: props.def.id });
+	emit('remove');
 }
 </script>
 

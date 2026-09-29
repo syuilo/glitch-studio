@@ -1,30 +1,12 @@
 <template>
 <div :class="$style.root">
 	<div :class="$style.header">
-		<button class="_button" style="padding: 4px 6px;" @click="showSwitchMenu"><i class="ti ti-chevron-down"></i> {{ visualModule?.name ?? '' }} [{{ visualModule?.id ?? '' }}]</button>
-		<GsButton v-if="visualModule != null" :class="$style.liveButton" small :primary="previewPlayback.liveVisualModuleId.value === visualModule.id" @click="previewLive"><i class="ti ti-player-play"></i> LIVE</GsButton>
-
 		<div style="padding: 8px;">
-			<GsTabs
-				v-model="tab" :def="[{
-					id: 'nodes',
-					label: 'Nodes',
-				},{
-					id: 'io',
-					label: 'I/O Definitions',
-				},{
-					id: 'preview',
-					label: 'Preview',
-				},{
-					id: 'other',
-					label: 'Other',
-				}]"
-			>
-			</GsTabs>
+			<GsTabs v-model="tab" :def="tabs"/>
 		</div>
 	</div>
 
-	<div v-if="visualModule != null" :key="visualModule.id" style="flex: 1; min-height: 0;">
+	<div style="flex: 1; min-height: 0;">
 		<div v-if="tab === 'nodes'" style="height: 100%; overflow: auto; background: var(--THEME-bg);">
 			<div :class="$style.nodesContent" class="_gaps_s">
 				<XGlobalInNode v-if="globalInNode" :visualModule="visualModule" :node="globalInNode" :class="$style.node"/>
@@ -39,184 +21,96 @@
 					@update:modelValue="onSorted"
 				>
 					<template #default="{ item: node, dragStart }">
-						<XEffectNode v-if="node.type === 'effect'" :visualModuleId="visualModule.id" :node="node" :class="$style.node" @dragStart="dragStart"/>
+						<XEffectNode
+							v-if="node.type === 'effect'"
+							:visualModule="visualModule"
+							:node="node"
+							:effectState="effectStates?.get(node.id)"
+							:class="$style.node"
+							@dragStart="dragStart"
+							@editParam="edit => emit('edit', { kind: 'editNodeParam', nodeId: node.id, edit })"
+							@remove="emit('edit', { kind: 'removeNode', nodeId: node.id })"
+							@setBypass="bypass => emit('edit', { kind: 'setNodeBypass', nodeId: node.id, bypass })"
+						/>
 					</template>
 					<template #footer>
-						<GsButton :class="$style.addButton" full style="margin-top: 8px;" @click="showAddNodeMenu(visualModule.id, $event)"><i class="ti ti-plus"></i> Add node...</GsButton>
+						<GsButton :class="$style.addButton" full style="margin-top: 8px;" @click="emit('requestAddNode')"><i class="ti ti-plus"></i> Add node...</GsButton>
 					</template>
 				</GsDraggable>
 
 				<hr>
 
-				<XGlobalOutNode v-if="globalOutNode" :node="globalOutNode" :visualModuleId="visualModule.id" :class="$style.node"/>
+				<XGlobalOutNode
+					v-if="globalOutNode" :node="globalOutNode" :visualModule="visualModule" :class="$style.node"
+					@changeInput="onOutputInputChange"
+				/>
 
-				<GsWires :visualModuleId="visualModule.id"/>
+				<GsWires :visualModule="visualModule"/>
 			</div>
 		</div>
 
 		<div v-if="tab === 'io'" style="height: 100%; overflow: auto;">
-			<XVisualModuleParamDefsEditor :visualModule="visualModule"/>
-			<XVisualModuleOutputDefsEditor :visualModule="visualModule"/>
-		</div>
-
-		<div v-if="tab === 'preview'" style="height: 100%; overflow: auto;">
-			<div :class="$style.previewParams">
-				<!-- TODO: struct / array / anyのカスタムパラメータ編集UI。型定義の制約ではなく、現在のUIの対応範囲。 -->
-				<template
-					v-for="paramDef of visualModule.paramDefs"
-					:key="paramDef.id"
-				>
-					<div v-if="paramDef.dataType.kind === 'struct' || paramDef.dataType.kind === 'array' || isParameterType(paramDef, 'any')">{{ paramDef.ui.label }}: Editing is not yet supported.</div>
-					<GsVisualParam
-						v-else
-						:availableVariables="LIVE_VAR_DEFS"
-						:paramPath="[paramDef.id]"
-						:automationGraphs="[]"
-						:paramDef="{ ...paramDef, canNode: false }"
-						:paramValue="previewParamValues[paramDef.id]"
-						@edit="onPreviewParamEdit"
-					/>
-				</template>
-			</div>
+			<XVisualModuleParamDefsEditor
+				:visualModule="visualModule"
+				@add="def => emit('edit', { kind: 'addParamDef', def })"
+				@update="(defId, changes) => emit('edit', { kind: 'updateParamDef', defId, changes })"
+				@remove="defId => emit('edit', { kind: 'removeParamDef', defId })"
+			/>
+			<XVisualModuleOutputDefsEditor
+				:visualModule="visualModule"
+				@add="def => emit('edit', { kind: 'addOutputDef', def })"
+				@update="(defId, changes) => emit('edit', { kind: 'updateOutputDef', defId, changes })"
+				@remove="defId => emit('edit', { kind: 'removeOutputDef', defId })"
+				@setPrimaryOutput="outputId => emit('edit', { kind: 'setPrimaryOutput', outputId })"
+			/>
 		</div>
 	</div>
 </div>
 </template>
 
 <script lang="ts" setup>
-import { areDataTypesEqual } from '@glitch/shared/data-type.ts';
-import { isParameterType } from '@glitch/shared/parameter.ts';
-import { LIVE_VAR_DEFS } from '@glitch/shared/expression.ts';
-import { computed, ref, watch } from 'vue';
-import { AiSON } from '@syuilo/aiscript';
-import { deepClone } from '@glitch/shared/utility/deep-clone.js';
-import { genId } from '@glitch/shared/utility/id.js';
+import { computed, ref } from 'vue';
 import GsWires from './GsWires.vue';
 import GsButton from './common/GsButton.vue';
 import GsDraggable from './common/GsDraggable.vue';
-import GsVisualParam from './GsVisualParam.vue';
 import XEffectNode from './GsEffectNode.vue';
 import XGlobalInNode from './GsGlobalInNode.vue';
 import XGlobalOutNode from './GsGlobalOutNode.vue';
 import XVisualModuleParamDefsEditor from './XVisualModuleParamDefsEditor.vue';
 import XVisualModuleOutputDefsEditor from './XVisualModuleOutputDefsEditor.vue';
 import GsTabs from './common/GsTabs.vue';
-import type { ParamEdit } from './GsVisualParam.vue';
-import type { VisualModule, VisualModuleParameterBindings, VisualModuleCustomParameterId, VisualModuleGlobalInNode, VisualModuleGlobalOutNode, VisualModuleNode } from '@glitch/shared/visual-module/types.js';
-import { showAddNodeMenu } from '@/app.ts';
-import { appStateManager, previewPlayback } from '@/app.ts';
-import * as ui from '@/ui.ts';
-import { createInlineAutomationGraph } from '@/utility/automation-graph.ts';
-import { createInlineKeyframesTimeline } from '@/utility/keyframes-timeline.ts';
+import type { VisualModule, VisualModuleGlobalInNode, VisualModuleGlobalOutNode, VisualModuleNode, NodeOutputReference } from '@glitch/shared/visual-module/types.ts';
+import type { EffectInstanceState } from '@glitch/shared/effect/effect-status.ts';
+import type { VisualModuleEdit } from '@/types/visual-module-editor.ts';
+
+const props = defineProps<{
+	visualModule: VisualModule;
+	effectStates?: ReadonlyMap<string, EffectInstanceState>;
+}>();
+
+const emit = defineEmits<{
+	edit: [event: VisualModuleEdit];
+	requestAddNode: [];
+}>();
 
 const tab = ref('nodes');
-const visualModule = ref<VisualModule | null>();
-const previewParamValues = ref<VisualModuleParameterBindings>({});
-let previewModuleId: string | undefined;
-let previewParamTypes = new Map<string, VisualModule['paramDefs'][number]['dataType']>();
+const tabs = [
+	{ id: 'nodes', label: 'Nodes' },
+	{ id: 'io', label: 'I/O Definitions' },
+	{ id: 'other', label: 'Other' },
+];
 
-watch(appStateManager.state.visualModules, () => {
-	const module = appStateManager.state.visualModules.value.find(module => module.id === visualModule.value?.id) ?? appStateManager.state.visualModules.value[0];
-	visualModule.value = module ?? null;
-}, { deep: true, immediate: true });
-
-watch(visualModule, module => {
-	const values: VisualModuleParameterBindings = {};
-	for (const def of module?.paramDefs ?? []) {
-		// ノードの編集などでプレビューの入力値を初期化しない。
-		values[def.id] = module?.id === previewModuleId && (previewParamTypes.has(def.id) && areDataTypesEqual(previewParamTypes.get(def.id)!, def.dataType)) && previewParamValues.value[def.id] != null
-			? previewParamValues.value[def.id]
-			: deepClone(def.defaultValue);
-	}
-	previewParamValues.value = values;
-	previewModuleId = module?.id;
-	previewParamTypes = new Map((module?.paramDefs ?? []).map(def => [def.id, def.dataType]));
-}, { deep: true, immediate: true });
-
-function onPreviewParamEdit(event: ParamEdit) {
-	// TODO: struct / arrayの子の編集・要素操作。型定義では許可しているが、現在の編集UIは未対応。
-	if (event.paramPath.length !== 1) return;
-	const def = visualModule.value?.paramDefs.find(def => def.id === event.paramPath[0]);
-	if (def == null) return;
-	const id = def.id;
-	const current = previewParamValues.value[id];
-	const reset = (): VisualModuleParameterBindings[VisualModuleCustomParameterId] => deepClone(def.defaultValue);
-	switch (event.kind) {
-		case 'literal': previewParamValues.value[id] = { inputSource: 'literal', value: deepClone(event.value) }; break;
-		case 'automationGraphInline': previewParamValues.value[id] = deepClone(event.value); break;
-		case 'keyframesTimelineInline': previewParamValues.value[id] = deepClone(event.value); break;
-		case 'envVariable': previewParamValues.value[id] = { inputSource: 'envVariable', variable: event.value }; break;
-		case 'expression': previewParamValues.value[id] = { inputSource: 'expression', expression: event.value }; break;
-		case 'automationGraphReference': previewParamValues.value[id] = { inputSource: 'automationGraphReference', durationMs: 1000, wrapMode: 'repeat', offsetMode: 'start', ...(current?.inputSource === 'automationGraphReference' ? current : {}), automationGraphId: event.value, ...event.options }; break;
-		case 'node':
-		case 'externalCustomParameterInput': return;
-		case 'reset': previewParamValues.value[id] = reset(); break;
-		case 'inputSource':
-			switch (event.inputSource) {
-				case 'literal': previewParamValues.value[id] = reset(); break;
-				case 'expression': previewParamValues.value[id] = {
-					inputSource: 'expression', expression: AiSON.stringify(current?.inputSource === 'literal' ? current.value : def.defaultValue.value),
-				}; break;
-				case 'automationGraphReference': previewParamValues.value[id] = { inputSource: 'automationGraphReference', automationGraphId: null, durationMs: 1000, wrapMode: 'repeat', offsetMode: 'start' }; break;
-				case 'automationGraphInline': previewParamValues.value[id] = createInlineAutomationGraph(); break;
-				case 'keyframesTimelineInline':
-					if (def.dataType.kind !== 'scalar' && def.dataType.kind !== 'vector' && def.dataType.kind !== 'color') return;
-					previewParamValues.value[id] = createInlineKeyframesTimeline(def.dataType);
-					break;
-				case 'externalCustomParameterInput':
-				case 'node':
-					return;
-			}
-			break;
-		case 'addElement':
-		case 'removeElement':
-			return;
-	}
-	previewLive();
-}
-
-function previewLive() {
-	if (visualModule.value == null) return;
-	previewPlayback.startLive(visualModule.value.id, previewParamValues.value);
-}
-
-const globalInNode = computed(() => {
-	return visualModule.value?.nodes.find((node): node is VisualModuleGlobalInNode => node.type === 'globalIn');
-});
-
-const globalOutNode = computed(() => {
-	return visualModule.value?.nodes.find((node): node is VisualModuleGlobalOutNode => node.type === 'globalOut');
-});
+const globalInNode = computed(() => props.visualModule.nodes.find((node): node is VisualModuleGlobalInNode => node.type === 'globalIn'));
+const globalOutNode = computed(() => props.visualModule.nodes.find((node): node is VisualModuleGlobalOutNode => node.type === 'globalOut'));
 
 function onSorted(nodes: VisualModuleNode[]) {
-	const module = visualModule.value;
-	if (module == null) return;
-	// グローバル入出力の位置を維持し、並べ替えられたノードだけを移動する。
-	const indices = module.nodes.flatMap((node, index) => node.type === 'effect' ? [index] : []);
-	for (const [index, node] of nodes.entries()) {
-		if (module.nodes[indices[index]]?.id === node.id) continue;
-		appStateManager.commit('moveNode', { visualModuleId: module.id, nodeId: node.id, index: indices[index] });
-	}
+	emit('edit', { kind: 'reorderNodes', nodeIds: nodes.map(node => node.id) });
 }
 
-function showSwitchMenu(ev: PointerEvent) {
-	ui.popupMenu([{
-		text: 'New',
-		icon: 'ti ti-plus',
-		action: () => {
-
-		},
-	}, {
-		type: 'divider',
-	}, ...appStateManager.state.visualModules.value.map(_visualModule => ({
-		text: _visualModule.name,
-		active: _visualModule.id === visualModule.value?.id,
-		action: () => {
-			visualModule.value = _visualModule;
-		},
-	}))], ev.currentTarget ?? ev.target);
+function onOutputInputChange(outputId: string, value: NodeOutputReference | null) {
+	if (globalOutNode.value == null) return;
+	emit('edit', { kind: 'setOutputConnection', nodeId: globalOutNode.value.id, outputId, value });
 }
-
 </script>
 
 <style module lang="scss">
@@ -228,12 +122,6 @@ function showSwitchMenu(ev: PointerEvent) {
 
 .header {
 	position: relative;
-}
-
-.liveButton {
-	position: absolute;
-	top: 8px;
-	right: 8px;
 }
 
 .nodesContent {

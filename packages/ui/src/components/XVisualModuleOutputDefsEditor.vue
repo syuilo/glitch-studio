@@ -10,9 +10,9 @@
 			v-if="def.dataType.kind === 'color'"
 			:modelValue="visualModule.primaryOutputId === def.id"
 			:disabled="visualModule.primaryOutputId !== null && visualModule.primaryOutputId !== def.id"
-			@update:modelValue="appStateManager.commit('setVisualModulePrimaryOutput', { visualModuleId: visualModule.id, primaryOutputId: $event ? def.id : null })"
+			@update:modelValue="emit('setPrimaryOutput', $event ? def.id : null)"
 		>Primary output</GsSwitch>
-		<GsButton small danger @click="appStateManager.commit('removeVisualModuleOutputDef', { visualModuleId: visualModule.id, defId: def.id })">Remove output</GsButton>
+		<GsButton small danger @click="emit('remove', def.id)">Remove output</GsButton>
 	</div>
 	<GsButton small @click="add">Add output</GsButton>
 </div>
@@ -20,15 +20,20 @@
 
 <script lang="ts" setup>
 import { genId } from '@glitch/shared/utility/id.js';
-import type { VisualModule } from '@glitch/shared/visual-module/types.ts';
+import type { VisualModule, VisualModuleOutputDef } from '@glitch/shared/visual-module/types.ts';
 import GsInput from './common/GsInput.vue';
 import GsSelect from './common/GsSelect.vue';
 import GsSwitch from './common/GsSwitch.vue';
 import GsButton from './common/GsButton.vue';
-import { appStateManager } from '@/app.ts';
 
-type OutputDef = VisualModule['outputDefs'][number];
+type OutputDef = VisualModuleOutputDef;
 const props = defineProps<{ visualModule: VisualModule }>();
+const emit = defineEmits<{
+	add: [def: OutputDef];
+	update: [defId: string, changes: Partial<Omit<OutputDef, 'id'>>];
+	remove: [defId: string];
+	setPrimaryOutput: [outputId: string | null];
+}>();
 const dataTypes: { label: string; value: OutputDef['dataType']['kind'] }[] = [
 	{ label: 'Color', value: 'color' },
 	{ label: 'Scalar', value: 'scalar' },
@@ -37,16 +42,13 @@ const dataTypes: { label: string; value: OutputDef['dataType']['kind'] }[] = [
 ];
 
 function update(defId: string, changes: Partial<Omit<OutputDef, 'id'>>) {
-	appStateManager.commit('updateVisualModuleOutputDef', { visualModuleId: props.visualModule.id, defId, changes });
+	emit('update', defId, changes);
 }
 
 function add() {
 	let name = 'output';
 	for (let suffix = 2; props.visualModule.outputDefs.some(def => def.name === name); suffix++) name = `output${suffix}`;
-	appStateManager.commit('addVisualModuleOutputDef', {
-		visualModuleId: props.visualModule.id,
-		def: { id: genId(), label: 'Output', name, dataType: { kind: 'color' } },
-	});
+	emit('add', { id: genId(), label: 'Output', name, dataType: { kind: 'color' } });
 }
 </script>
 

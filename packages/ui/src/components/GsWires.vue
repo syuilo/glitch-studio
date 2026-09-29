@@ -41,12 +41,13 @@ import { computed, onMounted, onBeforeUnmount, ref, shallowReactive, shallowRef,
 import { getNodeInputDataType, getNodeOutputs } from '@glitch/shared/utility/node-outputs.ts';
 import type { ComponentPublicInstance } from 'vue';
 import type { TextureDataType } from '@glitch/shared/data-type.ts';
-import { appStateManager, wireMap } from '@/app.ts';
+import type { VisualModule } from '@glitch/shared/visual-module/types.ts';
+import { wireMap } from '@/app.ts';
 import { wireDrag } from '@/utility/wire-drag.ts';
 import { getNodeDataTypeColor } from '@/utility/node-outputs.ts';
 import { paramPathKey, walkNodeParams } from '@/utility/node-params.ts';
 
-const props = defineProps<{ visualModuleId: string }>();
+const props = defineProps<{ visualModule: VisualModule }>();
 
 // 配線全長に含まれる模様の周期数（正の数）。
 const gradientRepeatCount = 4;
@@ -72,10 +73,10 @@ type Wire = {
 };
 
 // 接続先の列挙はレイアウトから独立させ、座標変更では再走査しない。
-const paramDefs = computed(() => appStateManager.state.visualModules.value.find(module => module.id === props.visualModuleId)?.paramDefs ?? []);
-const outputDefs = computed(() => appStateManager.state.visualModules.value.find(module => module.id === props.visualModuleId)?.outputDefs ?? []);
+const paramDefs = computed(() => props.visualModule.paramDefs);
+const outputDefs = computed(() => props.visualModule.outputDefs);
 const nodesById = computed(() => {
-	const nodes = appStateManager.state.visualModules.value.find(visualModule => visualModule.id === props.visualModuleId)?.nodes ?? [];
+	const nodes = props.visualModule.nodes;
 	return new Map(nodes.map(node => [node.id, node]));
 });
 
@@ -96,7 +97,7 @@ const connections = computed(() => {
 				const { nodeId, outputPort } = connection;
 				const from = wireMap.out[nodeId]?.[outputPort];
 				if (from) result.push({
-					key: JSON.stringify([props.visualModuleId, node.id, def.id, nodeId, outputPort]),
+					key: JSON.stringify([node.id, def.id, nodeId, outputPort]),
 					from,
 					input: wireMap.in[node.id]?.[def.id],
 					allIn: undefined,
@@ -112,7 +113,7 @@ const connections = computed(() => {
 			const from = wireMap.out[value.nodeId]?.[value.outputPort];
 			if (!from) continue;
 			result.push({
-				key: JSON.stringify([props.visualModuleId, node.id, path, value.nodeId, value.outputPort]),
+				key: JSON.stringify([node.id, path, value.nodeId, value.outputPort]),
 				from,
 				input: wireMap.in[node.id]?.[paramPathKey(path)],
 				allIn: wireMap.allIn[node.id],

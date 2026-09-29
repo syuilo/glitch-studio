@@ -8,7 +8,7 @@ import { isTextureDataType } from '@glitch/shared/data-type.ts';
 import { timelineAudioParamDefs } from '@glitch/shared/timeline/timeline-audio.ts';
 import type { TimelineAudioLayer, TimelineLayer } from '@glitch/shared/timeline/types.ts';
 import { timelineCompositingParamDefs } from '@glitch/shared/timeline/timeline-compositing.ts';
-import type { VisualModuleCustomParameterId, VisualModuleEffectNode, VisualModuleNode, NodeOutputReference, VisualModule } from '@glitch/shared/visual-module/types.ts';
+import type { VisualModuleCustomParameterId, VisualModuleEffectNode, VisualModuleNode, NodeOutputReference, VisualModule, VisualModuleParamDef, VisualModuleOutputDef } from '@glitch/shared/visual-module/types.ts';
 import type { ParameterDefinition } from '@glitch/shared/parameter.ts';
 import type { AppState } from './types.ts';
 import type { Asset, AutomationGraphPlaybackOptions, ParameterBinding, Player } from '@glitch/shared/types.ts';
@@ -608,8 +608,6 @@ const updateGlobalOutInputCommandDef = defineCommand<NodeTarget & { outputId: st
 	},
 });
 
-type VisualModuleParamDef = VisualModule['paramDefs'][number];
-
 function validateVisualModuleParamDef(module: VisualModule, def: VisualModuleParamDef, previousId?: VisualModuleCustomParameterId) {
 	// 部分更新ではdataTypeとcanNodeの組み合わせを型だけでは保証できない。
 	if (def.canNode && !isTextureDataType(def.dataType)) {
@@ -685,8 +683,6 @@ const updateVisualModuleParamDefCommandDef = defineCommand<{
 		};
 	},
 });
-
-type VisualModuleOutputDef = VisualModule['outputDefs'][number];
 
 function validateVisualModuleOutputDef(module: VisualModule, def: VisualModuleOutputDef, previousId?: string) {
 	if (module.outputDefs.some(item => item.id !== previousId && (item.id === def.id || item.name === def.name))) {

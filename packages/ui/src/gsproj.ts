@@ -1,7 +1,7 @@
 import * as msgpack from '@msgpack/msgpack';
 import semverGt from 'semver/functions/gt.js';
 import type { Asset, Player } from '@glitch/shared/types.js';
-import type { VisualModule } from '@glitch/shared/visual-module/types.ts';
+import type { ProjectVisualModule } from '@glitch/shared/project/types.ts';
 import type { Timeline } from '@glitch/shared/timeline/types.ts';
 
 export const DEFAULT_PROJECT_NAME = 'Untitled Project';
@@ -15,7 +15,7 @@ export type ProjectInfo = {
 export type Project = ProjectInfo & {
 	id: string;
 	gsVersion: string;
-	visualModules: VisualModule[];
+	visualModules: ProjectVisualModule[];
 	assets: Asset[];
 	players: Player[];
 	timeline: Timeline;

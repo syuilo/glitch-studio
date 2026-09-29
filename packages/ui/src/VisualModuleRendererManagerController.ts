@@ -1,3 +1,4 @@
+import type { ProjectVisualModule } from '@glitch/shared/project/types.ts';
 import { ref, shallowReactive } from 'vue';
 import { deepEqual } from '@glitch/shared/utility/deep-equal.ts';
 import { deepClone } from '@glitch/shared/utility/deep-clone.ts';
@@ -10,7 +11,7 @@ import type { AudioOutput } from './audio/audio-output.ts';
 import { setupWebcam } from './utility/webcam.ts';
 import { RendererManagerControllerBase } from './RendererManagerControllerBase.ts';
 import type { Player } from '@glitch/shared/types.ts';
-import type { VisualModule, VisualModuleParameterBindings } from '@glitch/shared/visual-module/types.ts';
+import type { VisualModuleParameterBindings } from '@glitch/shared/visual-module/types.ts';
 import type { EffectInstanceState } from '@glitch/shared/effect/effect-status.ts';
 import type { VisualModuleRendererManager, VisualModuleRendererManagerStaticOptions, VisualModuleRendererManagerDynamicOptions, VisualModuleRendererManagerEvents } from '@glitch/renderer/visual-module-renderer-manager.ts';
 import * as ui from '@/ui.ts';
@@ -23,7 +24,7 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 	public waveformVerticalCanvas: HTMLCanvasElement;
 	private renderLoopRunning = false;
 	// Worker再読み込みとエフェクト状態の参照に必要な内部情報。UIの再生状態はPreviewPlaybackControllerが所有する。
-	private liveVisualModuleId = ref<VisualModule['id'] | null>(null);
+	private liveVisualModuleId = ref<ProjectVisualModule['id'] | null>(null);
 	private liveParamValues: VisualModuleParameterBindings = {};
 	private pointerPosition = { x: 0, y: 0 };
 	private staticOptions: VisualModuleRendererManagerStaticOptions;
@@ -47,7 +48,7 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 	public errorMessage = ref<string | null>(null);
 	private liveEffectStateStore = new LiveEffectStateStore(shallowReactive(new Map<string, EffectInstanceState>()));
 
-	public getLiveEffectState(visualModuleId: VisualModule['id'], nodeId: string): EffectInstanceState | undefined {
+	public getLiveEffectState(visualModuleId: ProjectVisualModule['id'], nodeId: string): EffectInstanceState | undefined {
 		if (this.liveVisualModuleId.value !== visualModuleId) return;
 		return this.liveEffectStateStore.get(visualModuleId, nodeId);
 	}
@@ -206,7 +207,7 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 		await this.launchManager(false);
 	}
 
-	public startLiveRenderLoopFor(visualModuleId: VisualModule['id'], paramValues: VisualModuleParameterBindings = {}) {
+	public startLiveRenderLoopFor(visualModuleId: ProjectVisualModule['id'], paramValues: VisualModuleParameterBindings = {}) {
 		this.liveParamValues = deepClone(paramValues);
 		const statusInstanceId = genId();
 		// 再初期化中のモード変更はonCreatedで最新状態だけを復元し、古い開始要求をキューに残さない。
@@ -216,7 +217,7 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 		this.renderLoopRunning = true;
 	}
 
-	public updateLiveParamValues(visualModuleId: VisualModule['id'], paramValues: VisualModuleParameterBindings) {
+	public updateLiveParamValues(visualModuleId: ProjectVisualModule['id'], paramValues: VisualModuleParameterBindings) {
 		if (!this.renderLoopRunning || this.liveVisualModuleId.value !== visualModuleId) {
 			this.startLiveRenderLoopFor(visualModuleId, paramValues);
 			return;

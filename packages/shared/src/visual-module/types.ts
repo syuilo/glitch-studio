@@ -59,24 +59,26 @@ export function visualModuleCustomParameterName(value: UnbrandedString): VisualM
 	return value as unknown as VisualModuleCustomParameterName;
 }
 
-export type VisualModule = {
+export type VisualModuleOutputDef = {
 	id: string;
+	label: string;
 	name: string;
+	dataType: TextureDataType;
+};
+
+export type VisualModuleParamDef = ParameterDefinition & {
+	id: VisualModuleCustomParameterId;
+	nameForReference: VisualModuleCustomParameterName; // expressionから参照するとき用
+	// ParameterDefinitionでノード入力を許可する型だけ、Inノードの出力として公開できる。
+	canNode: boolean;
+	isPrimaryInput: boolean;
+};
+
+export type VisualModule = {
 	nodes: VisualModuleNode[];
-	outputDefs: {
-		id: string;
-		label: string;
-		name: string;
-		dataType: TextureDataType;
-	}[];
+	outputDefs: VisualModuleOutputDef[];
 	primaryOutputId: string | null;
-	paramDefs: (ParameterDefinition & {
-		id: VisualModuleCustomParameterId;
-		nameForReference: VisualModuleCustomParameterName; // expressionから参照するとき用
-		// ParameterDefinitionでノード入力を許可する型だけ、Inノードの出力として公開できる。
-		canNode: boolean;
-		isPrimaryInput: boolean;
-	})[];
+	paramDefs: VisualModuleParamDef[];
 	automationGraphs: AutomationGraph[];
 };
 

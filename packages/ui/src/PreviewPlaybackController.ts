@@ -1,11 +1,12 @@
+import type { ProjectVisualModule } from '@glitch/shared/project/types.ts';
 import { computed, readonly, ref, shallowRef } from 'vue';
-import type { VisualModule, VisualModuleParameterBindings } from '@glitch/shared/visual-module/types.ts';
+import type { VisualModuleParameterBindings } from '@glitch/shared/visual-module/types.ts';
 import { deepClone } from '@glitch/shared/utility/deep-clone.ts';
 import type { VisualModuleRendererManagerController } from './VisualModuleRendererManagerController.ts';
 import type { TimelineRendererManagerController } from './TimelineRendererManagerController.ts';
 
 export type PreviewPlaybackState =
-	| { mode: 'live'; visualModuleId: VisualModule['id'] }
+	| { mode: 'live'; visualModuleId: ProjectVisualModule['id'] }
 	| { mode: 'timeline'; playing: boolean };
 
 type LiveRenderer = Pick<VisualModuleRendererManagerController, 'startLiveRenderLoopFor' | 'updateLiveParamValues' | 'stopRenderLoop'>;
@@ -38,14 +39,14 @@ export class PreviewPlaybackController {
 		private readonly audio?: TimelineAudio,
 	) {}
 
-	public startLive(visualModuleId: VisualModule['id'], params: VisualModuleParameterBindings = {}) {
+	public startLive(visualModuleId: ProjectVisualModule['id'], params: VisualModuleParameterBindings = {}) {
 		this.pauseTimeline();
 		this.liveParams = deepClone(params);
 		if (!this.suspended.value) this.liveRenderer.startLiveRenderLoopFor(visualModuleId, params);
 		this.playbackState.value = { mode: 'live', visualModuleId };
 	}
 
-	public updateLiveParamValues(visualModuleId: VisualModule['id'], params: VisualModuleParameterBindings) {
+	public updateLiveParamValues(visualModuleId: ProjectVisualModule['id'], params: VisualModuleParameterBindings) {
 		if (this.liveVisualModuleId.value !== visualModuleId) {
 			this.startLive(visualModuleId, params);
 			return;

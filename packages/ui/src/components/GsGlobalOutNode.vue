@@ -7,23 +7,21 @@
 	</div>
 
 	<div style="padding: 4px 0;">
-		<GsGlobalOutInput v-for="def in visualModule?.outputDefs ?? []" :key="def.id" :visualModuleId="visualModuleId" :node="node" :def="def"/>
+		<GsGlobalOutInput v-for="def in visualModule.outputDefs" :key="def.id" :visualModule="visualModule" :node="node" :def="def" @change="value => emit('changeInput', def.id, value)"/>
 	</div>
 </div>
 </template>
 
 <script lang="ts" setup>
-import { computed, ref } from 'vue';
 import GsGlobalOutInput from './GsGlobalOutInput.vue';
-import type { VisualModuleGlobalOutNode } from '@glitch/shared/visual-module/types.js';
-import { appStateManager } from '@/app.ts';
+import type { NodeOutputReference, VisualModule, VisualModuleGlobalOutNode } from '@glitch/shared/visual-module/types.js';
 
-const props = defineProps<{
-	visualModuleId: string;
+defineProps<{
+	visualModule: VisualModule;
 	node: VisualModuleGlobalOutNode
 }>();
 
-const visualModule = computed(() => appStateManager.state.visualModules.value.find(module => module.id === props.visualModuleId));
+const emit = defineEmits<{ changeInput: [outputId: string, value: NodeOutputReference | null] }>();
 </script>
 
 <style module lang="scss">

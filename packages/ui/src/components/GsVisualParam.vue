@@ -110,7 +110,7 @@
 			:key="index"
 			:automationGraphs="automationGraphs"
 			:availableVariables="availableVariables"
-			:visualModuleId="visualModuleId"
+			:visualModule="visualModule"
 			:node="node"
 			:paramPath="[...paramPath, index]"
 			:paramDef="getArrayElementDefinition(paramDef)"
@@ -129,7 +129,7 @@
 			:key="key"
 			:automationGraphs="automationGraphs"
 			:availableVariables="availableVariables"
-			:visualModuleId="visualModuleId"
+			:visualModule="visualModule"
 			:node="node"
 			:paramPath="[...paramPath, key]"
 			:paramDef="def"
@@ -175,13 +175,13 @@ import GsCondensedLine from './common/GsCondensedLine.vue';
 import GsSelect from './common/GsSelect.vue';
 import GsAutomationGraphPointsEditorWindow from './GsAutomationGraphPointsEditorWindow.vue';
 import type { Ref } from 'vue';
-import type { NodeOutputReference, VisualModuleCustomParameterId, VisualModuleEffectNode } from '@glitch/shared/visual-module/types.ts';
+import type { NodeOutputReference, VisualModule, VisualModuleCustomParameterId, VisualModuleEffectNode } from '@glitch/shared/visual-module/types.ts';
 import type { GlobalEnvVariable } from '@glitch/shared/expression.ts';
 import type { ParamPath } from '@/utility/node-params.ts';
 import type { AutomationGraphPlaybackOptions, AutomationGraph, BezierAnchorPoint, ParameterBinding } from '@glitch/shared/types.ts';
 import type { MenuItem } from '@/types/menu.ts';
 import { i18n } from '@/i18n.ts';
-import { appStateManager, wireMap } from '@/app.ts';
+import { wireMap } from '@/app.ts';
 import { paramPathKey } from '@/utility/node-params.ts';
 import { getNodeOutputItems, hasNodeInputTypeMismatch, nodeOutputKey } from '@/utility/node-outputs.ts';
 import { registerWireInput } from '@/utility/wire-drag.ts';
@@ -192,7 +192,7 @@ import { setInlineAutomationGraphNormalized } from '@/utility/automation-graph.t
 const props = defineProps<{
 	automationGraphs: readonly AutomationGraph[];
 	availableVariables: readonly Exclude<GlobalEnvVariable, ''>[];
-	visualModuleId?: string;
+	visualModule?: VisualModule;
 	node?: VisualModuleEffectNode;
 	paramPath: ParamPath;
 	paramDef: ParameterDefinition;
@@ -213,8 +213,8 @@ const visibleFields = computed(() => {
 });
 const canNode = computed(() => props.paramDef.canNode);
 const inputDataType = computed(() => getNodeInputDataType(props.paramDef));
-const paramDefs = computed(() => appStateManager.state.visualModules.value.find(module => module.id === props.visualModuleId)?.paramDefs ?? []);
-const nodes = computed(() => appStateManager.state.visualModules.value.find(visualModule => visualModule.id === props.visualModuleId)?.nodes ?? []);
+const paramDefs = computed(() => props.visualModule?.paramDefs ?? []);
+const nodes = computed(() => props.visualModule?.nodes ?? []);
 
 const selectedAutomationGraph = computed(() => {
 	const value = props.paramValue;
@@ -235,7 +235,7 @@ const graphOffsetModeItems = [
 	{ label: 'End', value: 'end' },
 ] satisfies { label: string; value: AutomationGraphPlaybackOptions['offsetMode'] }[];
 const envVariableItems = computed(() => props.availableVariables.map(variable => ({ label: variable.startsWith('TEST_') ? variable : `${i18n.t(`_EnvVariables.${variable}`)} (${variable})`, value: variable })));
-const externalCustomParameterInputItems = computed(() => (props.node == null ? [] : appStateManager.state.visualModules.value.find(module => module.id === props.visualModuleId)?.paramDefs ?? [])
+const externalCustomParameterInputItems = computed(() => (props.node == null ? [] : paramDefs.value)
 	.map(def => ({ label: `${def.ui.label} (${def.nameForReference})`, value: def.id })));
 const nodeOutputItems = computed(() => props.node == null ? [] : getNodeOutputItems(nodes.value, props.node.id, inputDataType.value, paramDefs.value));
 const nodeConnection = computed<NodeOutputReference | null>(() => props.paramValue.inputSource === 'node' && props.paramValue.nodeId != null ? props.paramValue : null);
@@ -250,7 +250,7 @@ const arrayVersion = ref(0);
 watch(() => arrayValues.value.length, () => {
 	arrayVersion.value++;
 });
-watch(() => JSON.stringify([props.visualModuleId, props.node?.id, props.paramPath, props.paramValue.inputSource]), () => {
+watch([() => props.visualModule, () => JSON.stringify([props.node?.id, props.paramPath, props.paramValue.inputSource])], () => {
 	commandMergeKey = null;
 	inlineGraphEditorOpen.value = false;
 });

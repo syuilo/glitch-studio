@@ -22,13 +22,13 @@
 			v-for="[param, def] in Object.entries(getNodeParamDefs(props.node))"
 			:key="param"
 			:availableVariables="IN_VISUAL_MODULE_VAR_DEFS"
-			:visualModuleId="visualModuleId"
-			:automationGraphs="appStateManager.getVisualModuleById(visualModuleId)?.automationGraphs ?? []"
+			:visualModule="visualModule"
+			:automationGraphs="visualModule.automationGraphs"
 			:node="node"
 			:paramPath="[param]"
 			:paramDef="def"
 			:paramValue="node.params[param]"
-			@edit="onParamEdit"
+			@edit="emit('editParam', $event)"
 		/>
 	</div>
 
@@ -45,44 +45,30 @@ import GsNodePort from './GsNodePort.vue';
 import GsVisualParam from './GsVisualParam.vue';
 import GsButton from './common/GsButton.vue';
 import type { ParamEdit } from './GsVisualParam.vue';
-import type { VisualModuleEffectNode } from '@glitch/shared/visual-module/types.js';
+import type { VisualModule, VisualModuleEffectNode } from '@glitch/shared/visual-module/types.js';
+import type { EffectInstanceState } from '@glitch/shared/effect/effect-status.ts';
 import { i18n } from '@/i18n.ts';
-import { appStateManager, visualModuleRendererManagerController, wireMap } from '@/app.ts';
+import { wireMap } from '@/app.ts';
 import { getNodeParamDefs } from '@/utility/node-params.ts';
 import * as ui from '@/ui.ts';
 
 const props = defineProps<{
-	visualModuleId: string;
-	node: VisualModuleEffectNode,
+	visualModule: VisualModule;
+	node: VisualModuleEffectNode;
+	effectState?: EffectInstanceState;
 }>();
 
 const emit = defineEmits<{
 	(ev: 'dragStart', event: DragEvent): void;
+	(ev: 'editParam', event: ParamEdit): void;
+	(ev: 'remove'): void;
+	(ev: 'setBypass', bypass: boolean): void;
 }>();
 
-const name = ref<string>(effectDefinitions[props.node.effectId].displayName);
+const name = computed(() => effectDefinitions[props.node.effectId].displayName);
 const expanded = ref(true);
 const allInPortEl = shallowRef<HTMLElement | null>(null);
-const effectState = computed(() => visualModuleRendererManagerController.getLiveEffectState(props.visualModuleId, props.node.id));
-const effectStatus = computed(() => effectState.value?.status);
-
-function onParamEdit(event: ParamEdit) {
-	const target = { visualModuleId: props.visualModuleId, nodeId: props.node.id, paramPath: event.paramPath };
-	switch (event.kind) {
-		case 'literal': appStateManager.commit('updateParamAsLiteral', { ...target, value: event.value }, event.mergeKey); break;
-		case 'automationGraphInline': appStateManager.commit('updateParamAsAutomationGraphInline', { ...target, value: event.value }, event.mergeKey); break;
-		case 'envVariable': appStateManager.commit('updateParamAsEnvVariable', { ...target, value: event.value }); break;
-		case 'expression': appStateManager.commit('updateParamAsExpression', { ...target, value: event.value }, event.mergeKey); break;
-		case 'automationGraphReference': appStateManager.commit('updateParamAsAutomationGraphReference', { ...target, value: event.value, options: event.options }); break;
-		case 'keyframesTimelineInline': appStateManager.commit('updateParamAsKeyframesTimelineInline', { ...target, value: event.value }, event.mergeKey); break;
-		case 'node': appStateManager.commit('updateParamAsNode', { ...target, value: event.value, preserveSampling: event.preserveSampling }); break;
-		case 'externalCustomParameterInput': appStateManager.commit('updateParamAsExternalCustomParameterInput', { ...target, value: event.value }); break;
-		case 'inputSource': appStateManager.commit('changeParamValueInputSource', { ...target, inputSource: event.inputSource }); break;
-		case 'reset': appStateManager.commit('resetNodeParam', target); break;
-		case 'addElement': appStateManager.commit('addArrayParamElement', target); break;
-		case 'removeElement': appStateManager.commit('removeArrayParamElement', { ...target, index: event.index }); break;
-	}
-}
+const effectStatus = computed(() => props.effectState?.status);
 
 function showEffectError() {
 	if (effectStatus.value?.type !== 'error') return;
@@ -90,18 +76,11 @@ function showEffectError() {
 }
 
 function remove() {
-	appStateManager.commit('removeNode', {
-		visualModuleId: props.visualModuleId,
-		nodeId: props.node.id,
-	});
+	emit('remove');
 }
 
 function toggleBypass() {
-	appStateManager.commit('changeNodeBypassState', {
-		visualModuleId: props.visualModuleId,
-		nodeId: props.node.id,
-		bypass: !props.node.isBypass,
-	});
+	emit('setBypass', !props.node.isBypass);
 }
 
 watchEffect(onCleanup => {

@@ -11,14 +11,14 @@ import audioWaveformEffectDef from '@glitch/shared/effect/fx/audioWaveform/_def_
 import { VisualModuleRendererManagerController } from './VisualModuleRendererManagerController.ts';
 import { TimelineRendererManagerController } from './TimelineRendererManagerController.ts';
 import type { TimelineRendererManagerDynamicOptions } from '@glitch/renderer/timeline-renderer-manager.ts';
-import GsEffectPicker from './components/GsEffectPicker.vue';
+import type { ProjectVisualModule } from '@glitch/shared/project/types.ts';
 import { TimelineAudioPreview } from './audio/timeline-audio-preview.ts';
 import { AudioOutput } from './audio/audio-output.ts';
 import { PreviewPlaybackController } from './PreviewPlaybackController.ts';
 import { AppStateManager } from './AppStateManager.ts';
 import { DEFAULT_PROJECT_NAME, loadProjectFile, saveProjectFile } from './gsproj.ts';
 import { preferences } from './preferences.ts';
-import type { EffectNodeOf, VisualModule } from '@glitch/shared/visual-module/types.ts';
+import type { EffectNodeOf } from '@glitch/shared/visual-module/types.ts';
 import type { Asset, IntermediateTextureFormat, Player } from '@glitch/shared/types.ts';
 import type { Project, ProjectInfo } from './gsproj.ts';
 import type { WatchStopHandle } from 'vue';
@@ -44,22 +44,6 @@ export const wireMap = reactive<{
 	out: {},
 	allIn: {},
 });
-
-export function showAddNodeMenu(visualModuleId: VisualModule['id'], ev: PointerEvent) {
-	const { dispose } = ui.popup(GsEffectPicker, {
-	}, {
-		'chosen': effect => {
-			appStateManager.commit('addEffectNode', {
-				visualModuleId: visualModuleId,
-				effectId: effect.id,
-				id: genId(),
-			});
-		},
-		closed: () => {
-			dispose();
-		},
-	});
-}
 
 function benchmark(count = 100, visualModuleId = appStateManager.state.visualModules.value[0]?.id) {
 	if (visualModuleId == null) return;
@@ -329,7 +313,7 @@ export async function newProject() {
 	const initialEffectNodeId = genId();
 	const initialInputParamId = visualModuleCustomParameterId(genId());
 	const initialOutputId = genId();
-	const initialVisualModule: VisualModule = {
+	const initialVisualModule: ProjectVisualModule = {
 		id: genId(),
 		name: 'My Visual Module',
 		automationGraphs: [],
@@ -363,7 +347,7 @@ export async function newProject() {
 				outputPort: 'output',
 			} },
 		}],
-	} satisfies VisualModule;
+	} satisfies ProjectVisualModule;
 	await appReady({
 		id: genId(),
 		gsVersion: _VERSION_,
@@ -417,7 +401,7 @@ export async function newProjectFromImageOrVideo(file?: File) {
 	const initialEffectNodeId = genId();
 	const initialInputParamId = visualModuleCustomParameterId(genId());
 	const initialOutputId = genId();
-	const initialVisualModule: VisualModule = {
+	const initialVisualModule: ProjectVisualModule = {
 		id: genId(),
 		name: 'My Visual Module',
 		automationGraphs: [],
@@ -483,7 +467,7 @@ export async function newProjectFromImageOrVideo(file?: File) {
 				outputPort: 'output',
 			} },
 		}],
-	} satisfies VisualModule;
+	} satisfies ProjectVisualModule;
 
 	await appReady({
 		id: genId(),

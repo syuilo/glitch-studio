@@ -1,3 +1,4 @@
+import type { ProjectVisualModule } from '@glitch/shared/project/types.ts';
 import { AudioHistory } from '@glitch/shared/audio-history.ts';
 import { genId } from '@glitch/shared/utility/id.ts';
 import { genEmptyValue } from '@glitch/shared/utility/misc.ts';
@@ -11,7 +12,7 @@ import { VisualModuleRenderer } from './visual-module-renderer.ts';
 import { LiveRenderLoop, browserFrameScheduler } from './live-render-loop.ts';
 import { OutputTextureResolver } from './node-output.ts';
 import { CanvasRenderer } from './canvas-renderer.ts';
-import type { VisualModuleCustomParameterId, VisualModule, VisualModuleParameterBindings } from '@glitch/shared/visual-module/types.ts';
+import type { VisualModuleCustomParameterId, VisualModuleParameterBindings } from '@glitch/shared/visual-module/types.ts';
 import type { FrameScheduler, LiveFrameTiming } from './live-render-loop.ts';
 import type { EffectInstanceState, EffectStatusSource } from '@glitch/shared/effect/effect-status.ts';
 import type { AudioCaptureMessage, AudioSourceId } from '@glitch/shared/audio.ts';
@@ -45,7 +46,7 @@ export type VisualModuleRendererManagerDynamicOptions = {
 	liveTimeFactor: number;
 	fpsLimit: number | null;
 	assets: Asset[];
-	visualModules: VisualModule[];
+	visualModules: ProjectVisualModule[];
 };
 
 export type VisualModuleRendererManagerEvents = {
@@ -66,7 +67,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 	private outputTextures: OutputTextureResolver;
 	private frameScheduler: FrameScheduler;
 	private liveRenderLoop: LiveRenderLoop;
-	private liveVisualModuleId: VisualModule['id'] | null = null;
+	private liveVisualModuleId: ProjectVisualModule['id'] | null = null;
 	private liveParamValues: VisualModuleParameterBindings = {};
 	private liveParamEvaluator = new ParameterEvaluator();
 	private liveVisualModuleRenderer: VisualModuleRenderer | null = null;

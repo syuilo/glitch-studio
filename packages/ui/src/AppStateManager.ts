@@ -5,7 +5,7 @@ import { triggerRef } from 'vue';
 import { COMMAND_DEFS } from './commands.ts';
 import type { Timeline } from '@glitch/shared/timeline/types.js';
 import type { Asset, Player } from '@glitch/shared/types.js';
-import type { VisualModule } from '@glitch/shared/visual-module/types.js';
+import type { ProjectVisualModule } from '@glitch/shared/project/types.ts';
 import type { CommandDef } from './commands.ts';
 import type { AppState } from './types.ts';
 
@@ -30,7 +30,7 @@ export class AppStateManager {
 			resolution: ref<{ width: number; height: number }>({ width: 1024, height: 1024 }),
 			assets: ref<Asset[]>([]), // TODO: バイナリをリアクティブでwrapするのをやめる
 			players: ref<Player[]>([]),
-			visualModules: ref<VisualModule[]>([]),
+			visualModules: ref<ProjectVisualModule[]>([]),
 			timeline: ref<Timeline>([]),
 		};
 	}
@@ -80,7 +80,7 @@ export class AppStateManager {
 		triggerRef(this.undoStack);
 	}
 
-	public getVisualModuleById(id: VisualModule['id']) {
+	public getVisualModuleById(id: ProjectVisualModule['id']) {
 		return this.state.visualModules.value.find(vm => vm.id === id) ?? null;
 	}
 }

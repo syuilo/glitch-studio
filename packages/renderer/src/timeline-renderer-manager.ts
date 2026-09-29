@@ -8,7 +8,7 @@ import { createTimelineCompositor } from './timeline-compositor.ts';
 import { TimelineCompositingParameters } from './timeline-compositing-parameters.ts';
 import { OutputTextureResolver } from './node-output.ts';
 import { CanvasRenderer } from './canvas-renderer.ts';
-import type { VisualModule } from '@glitch/shared/visual-module/types.ts';
+import type { ProjectVisualModule } from '@glitch/shared/project/types.ts';
 import type { NodeOutput } from './node-output.ts';
 import type { FrameScheduler } from './live-render-loop.ts';
 import type { TimelineLayerRenderer } from './timeline-renderer.ts';
@@ -40,7 +40,7 @@ export type TimelineRendererManagerDynamicOptions = {
 	/** 透過非対応の出力用に、乗算済みRGBを黒背景へ合成する。 */
 	opaqueOutput: boolean;
 	assets: Asset[];
-	visualModules: VisualModule[];
+	visualModules: ProjectVisualModule[];
 	timeline: Timeline;
 };
 
@@ -212,7 +212,7 @@ export class TimelineRendererManager extends EventEmitter<{
 		throw new Error(`Unrecognized layer type: ${layer.layerType}`);
 	}
 
-	private createVisualModuleLayer(visualModule: VisualModule, layer: TimelineVisualModuleLayer): TimelineLayerRenderer<NodeOutput> {
+	private createVisualModuleLayer(visualModule: ProjectVisualModule, layer: TimelineVisualModuleLayer): TimelineLayerRenderer<NodeOutput> {
 		const statusSource: EffectStatusSource = {
 			type: 'timelineLayer',
 			instanceId: `timeline:${this.nextTimelineLayerStatusId++}`,
