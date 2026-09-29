@@ -72,12 +72,15 @@ const editTimelineLayerParamCommandDef = defineCommand<{
 				const layer = getLayer(state);
 				const values: Record<string, ParameterBinding> = payload.target === 'compositing' && layer.layerType !== 'audio' ? layer.compositingParamValues : layer.paramValues;
 				if (after === undefined) {
+					const module = layer.layerType !== 'audio' && payload.target !== 'compositing'
+						? (layer.layerType === 'inlineVisualModule' ? layer.visualModule : stateUtility.getVisualModule(state, layer))
+						: null;
 					const def = layer.layerType === 'audio'
 						? Object.entries(timelineAudioParamDefs).find(([id]) => id === payload.paramId)?.[1]
 						: payload.target === 'compositing'
 						? Object.entries(timelineCompositingParamDefs).find(([id]) => id === payload.paramId)?.[1]
-						: (layer.layerType === 'inlineVisualModule' ? layer.visualModule : stateUtility.getVisualModule(state, layer)).paramDefs.find(def => def.id === payload.paramId);
-					if (def == null || ('isPrimaryInput' in def && def.isPrimaryInput)) throw new Error('Editable visual module parameter not found');
+						: module?.paramDefs.find(def => def.id === payload.paramId);
+					if (def == null || module?.primaryInputId === payload.paramId) throw new Error('Editable visual module parameter not found');
 					before = deepClone(values[payload.paramId]);
 					const current = before ?? def.defaultValue;
 					const edit = payload.edit;
@@ -614,11 +617,27 @@ function validateVisualModuleParamDef(module: VisualModule, def: VisualModulePar
 	if (module.paramDefs.some(item => item.id !== previousId && (item.id === def.id || item.nameForReference === def.nameForReference))) {
 		throw new Error('Parameter ID and name must be unique');
 	}
-	if (def.isPrimaryInput && (!def.canNode || def.dataType.kind !== 'color'
-		|| module.paramDefs.some(item => item.id !== previousId && item.isPrimaryInput))) {
-		throw new Error('Only one node-capable color parameter can be the primary input');
-	}
 }
+
+const setVisualModulePrimaryInputCommandDef = defineCommand<VisualModuleTarget & { primaryInputId: VisualModuleCustomParameterId | null }>({
+	label: 'Set visual module primary input',
+	create: payload => {
+		let before: VisualModuleCustomParameterId | null;
+		return {
+			execute(state) {
+				const module = stateUtility.getVisualModule(state, payload);
+				if (payload.primaryInputId !== null && !module.paramDefs.some(def => def.id === payload.primaryInputId && def.canNode && def.dataType.kind === 'color')) {
+					throw new Error('Primary input must reference a node-capable color parameter');
+				}
+				before = module.primaryInputId;
+				module.primaryInputId = payload.primaryInputId;
+			},
+			undo(state) {
+				stateUtility.getVisualModule(state, payload).primaryInputId = before;
+			},
+		};
+	},
+});
 
 const addVisualModuleParamDefCommandDef = defineCommand<VisualModuleTarget & { def: VisualModuleParamDef }>({
 	label: 'Add visual module parameter',
@@ -640,17 +659,22 @@ const removeVisualModuleParamDefCommandDef = defineCommand<VisualModuleTarget & 
 	create: payload => {
 		let before: VisualModuleParamDef;
 		let index: number;
+		let primaryInputId: VisualModuleCustomParameterId | null;
 		return {
 			execute(state) {
 				const module = stateUtility.getVisualModule(state, payload);
 				index = module.paramDefs.findIndex(def => def.id === payload.defId);
 				if (index < 0) throw new Error('Visual module parameter not found');
 				before = deepClone(module.paramDefs[index]);
-				// 参照IDやレイヤーの値は保持する。未解決になった参照はUndoで再び有効になる。
+				primaryInputId = module.primaryInputId;
+				if (module.primaryInputId === payload.defId) module.primaryInputId = null;
+				// ノードからの参照IDやレイヤーの値は保持する。未解決になった参照はUndoで再び有効になる。
 				module.paramDefs.splice(index, 1);
 			},
 			undo(state) {
-				stateUtility.getVisualModule(state, payload).paramDefs.splice(index, 0, deepClone(before));
+				const module = stateUtility.getVisualModule(state, payload);
+				module.paramDefs.splice(index, 0, deepClone(before));
+				module.primaryInputId = primaryInputId;
 			},
 		};
 	},
@@ -662,6 +686,7 @@ const updateVisualModuleParamDefCommandDef = defineCommand<VisualModuleTarget & 
 	label: 'Update visual module parameter',
 	create: payload => {
 		let before: VisualModuleParamDef;
+		let primaryInputId: VisualModuleCustomParameterId | null;
 		return {
 			execute(state) {
 				const module = stateUtility.getVisualModule(state, payload);
@@ -670,6 +695,9 @@ const updateVisualModuleParamDefCommandDef = defineCommand<VisualModuleTarget & 
 				const next = { ...module.paramDefs[index], ...deepClone(payload.changes), id: payload.defId } as VisualModuleParamDef;
 				validateVisualModuleParamDef(module, next, payload.defId);
 				before = deepClone(module.paramDefs[index]);
+				primaryInputId = module.primaryInputId;
+				// 主入力の条件を失う変更と指定の解除を、同じUndo単位で扱う。
+				if (module.primaryInputId === payload.defId && (!next.canNode || next.dataType.kind !== 'color')) module.primaryInputId = null;
 				module.paramDefs[index] = next;
 			},
 			undo(state) {
@@ -677,6 +705,7 @@ const updateVisualModuleParamDefCommandDef = defineCommand<VisualModuleTarget & 
 				const index = module.paramDefs.findIndex(def => def.id === payload.defId);
 				if (index < 0) throw new Error('Visual module parameter not found');
 				module.paramDefs[index] = deepClone(before);
+				module.primaryInputId = primaryInputId;
 			},
 		};
 	},
@@ -870,6 +899,7 @@ export const COMMAND_DEFS = {
 	removeTimelineLayer: removeTimelineLayerCommandDef,
 	editTimelineLayerParam: editTimelineLayerParamCommandDef,
 	setVisualModulePrimaryOutput: setVisualModulePrimaryOutputCommandDef,
+	setVisualModulePrimaryInput: setVisualModulePrimaryInputCommandDef,
 	addVisualModuleOutputDef: addVisualModuleOutputDefCommandDef,
 	removeVisualModuleOutputDef: removeVisualModuleOutputDefCommandDef,
 	updateVisualModuleOutputDef: updateVisualModuleOutputDefCommandDef,

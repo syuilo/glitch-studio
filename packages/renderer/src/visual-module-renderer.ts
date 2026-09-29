@@ -43,6 +43,7 @@ export class VisualModuleRenderer {
 	private paramDefs: VisualModule['paramDefs'];
 	private outputDefs: VisualModule['outputDefs'] = [];
 	private primaryOutputId: string | null = null;
+	private primaryInputId: VisualModuleCustomParameterId | null = null;
 	private paramValues: EvaluatedParameterValues = new Map();
 	private paramInputs: ReadonlyMap<VisualModuleCustomParameterId, NodeOutput> = new Map();
 	private preparedContext: VisualModuleRenderContext | null = null;
@@ -124,6 +125,7 @@ export class VisualModuleRenderer {
 		this.automationGraphs = visualModule.automationGraphs;
 		this.outputDefs = visualModule.outputDefs;
 		this.primaryOutputId = visualModule.primaryOutputId;
+		this.primaryInputId = visualModule.primaryInputId;
 		this.paramDefs = visualModule.paramDefs;
 		this.preparedContext = null;
 		this.paramValues = new Map();
@@ -455,7 +457,7 @@ export class VisualModuleRenderer {
 			return this.getOutputNode(source, input.outputPort, nextVisited);
 		}
 		if (node.type === 'globalIn') {
-			const port = outputPort ?? this.paramDefs.find(def => def.isPrimaryInput)?.id;
+			const port = outputPort ?? this.primaryInputId;
 			return port != null && getNodeOutputs(node, this.paramDefs)[port] != null ? { node, outputPort: port } : undefined;
 		}
 		if (node.type === 'globalOut') {

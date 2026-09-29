@@ -20,7 +20,7 @@ test('passes export context through timeline layers and resets it for preview', 
 	const contexts = [];
 	const renderer = new TimelineRenderer({
 		fallbackOutput: null,
-		createLayer: () => createVisualModuleTimelineLayer({ paramDefs: [] }, { paramValues: {}, automationGraphs: [] }, {
+		createLayer: () => createVisualModuleTimelineLayer({ paramDefs: [], primaryInputId: null }, { paramValues: {}, automationGraphs: [] }, {
 			async prepare() {},
 			async render(context) { contexts.push(context); return { gpuTime: 0 }; },
 			destroy() {},

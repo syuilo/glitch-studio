@@ -34,7 +34,8 @@ const graph = value => ({ id: 'graph', name: 'Graph', isNormalized: true, points
 function visualModule({ primaryInput = false, params } = {}) {
 	return {
 		automationGraphs: [],
-		paramDefs: [{ ...color, id: 'input', nameForReference: 'Input', isPrimaryInput: primaryInput }],
+		paramDefs: [{ ...color, id: 'input', nameForReference: 'Input' }],
+		primaryInputId: primaryInput ? 'input' : null,
 		outputDefs: [{ id: 'output', label: 'Output', name: 'output', dataType: { kind: 'color' } }],
 		primaryOutputId: 'output',
 		nodes: [
@@ -155,7 +156,7 @@ test('isolates inline module scopes and passes local time and export context', a
 		exported: expression('if IS_EXPORT { 1 } else { 0 }'), forbidden: expression('PARAM("Input")'),
 		directForbidden: { inputSource: 'externalCustomParameterInput', parameterId: 'input' },
 	} });
-	module.paramDefs.push({ ...scalar, id: 'amount', nameForReference: 'Amount', isPrimaryInput: false });
+	module.paramDefs.push({ ...scalar, id: 'amount', nameForReference: 'Amount' });
 	module.automationGraphs = [graph(7)];
 	const entry = layer('inline', module, { automationGraphs: [graph(4)], paramValues: { amount: expression('GRAPH("Graph", 0, "clamp") + TEST_SAME_NAME') } });
 	await manager.updateDynamicOptions({ timeline: [entry] });

@@ -45,7 +45,7 @@ sharedは、tree-shakableであることが求められます。
 
 型は、その概念を所有するドメインに置きます。構造的に親となる型が子の型を組み合わせ、子は親の存在や利用場所を知らずに定義できることを原則とします。`import type` であっても設計上の依存であることに変わりはありません。
 
-例えば、パラメータ定義に「所属エフェクトの主入力か」を持たせず、`EffectDefinition.primaryInputParameter` で主入力のキーを指定します。同様に、モジュールの `isPrimaryInput` は公開カスタムパラメータの役割であり、汎用の `ParameterDefinition` には含めません。Visual Moduleは、レイヤーとして使われるかliveで使われるかにかかわらず、同じ入出力契約で動作します。
+例えば、パラメータ定義に「所属エフェクトの主入力か」を持たせず、`EffectDefinition.primaryInputParameter` で主入力のキーを指定します。同様に、Visual Moduleの主入力は `VisualModule.primaryInputId` で公開カスタムパラメータのIDを指定し、主入力の役割をパラメータ定義には含めません。主入力は0個または1個で、指定先は `canNode: true` のcolorパラメータに限ります。Visual Moduleは、レイヤーとして使われるかliveで使われるかにかかわらず、同じ入出力契約で動作します。
 
 型を追加・変更するときは、次の方針を守ってください。
 

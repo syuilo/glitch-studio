@@ -309,6 +309,7 @@ export async function newProject() {
 		automationGraphs: [],
 		outputDefs: [{ id: initialOutputId, label: 'Output', name: 'output', dataType: { kind: 'color' } }],
 		primaryOutputId: initialOutputId,
+		primaryInputId: initialInputParamId,
 		paramDefs: [{
 			id: initialInputParamId,
 			nameForReference: visualModuleCustomParameterName('myInput'),
@@ -316,7 +317,6 @@ export async function newProject() {
 			ui: { label: 'My Input', control: {} },
 			defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] },
 			canNode: true,
-			isPrimaryInput: true,
 		}],
 		nodes: [{
 			id: genId(),
@@ -397,6 +397,7 @@ export async function newProjectFromImageOrVideo(file?: File) {
 		automationGraphs: [],
 		outputDefs: [{ id: initialOutputId, label: 'Output', name: 'output', dataType: { kind: 'color' } }],
 		primaryOutputId: initialOutputId,
+		primaryInputId: initialInputParamId,
 		paramDefs: [{
 			id: initialInputParamId,
 			nameForReference: visualModuleCustomParameterName('myInput'),
@@ -404,7 +405,6 @@ export async function newProjectFromImageOrVideo(file?: File) {
 			ui: { label: 'My Input', control: {} },
 			defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] },
 			canNode: true,
-			isPrimaryInput: true,
 		}],
 		nodes: [{
 			id: genId(),

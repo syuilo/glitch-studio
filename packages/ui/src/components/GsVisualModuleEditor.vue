@@ -55,6 +55,7 @@
 				@add="def => emit('edit', { kind: 'addParamDef', def })"
 				@update="(defId, changes) => emit('edit', { kind: 'updateParamDef', defId, changes })"
 				@remove="defId => emit('edit', { kind: 'removeParamDef', defId })"
+				@setPrimaryInput="inputId => emit('edit', { kind: 'setPrimaryInput', inputId })"
 			/>
 			<XVisualModuleOutputDefsEditor
 				:visualModule="visualModule"

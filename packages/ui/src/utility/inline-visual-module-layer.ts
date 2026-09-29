@@ -22,10 +22,11 @@ export function createInlineVisualModuleLayer(startTimeMs: number): TimelineInli
 				id: inputId, nameForReference: visualModuleCustomParameterName('input'),
 				dataType: { kind: 'color' }, ui: { label: 'Input', control: {} },
 				defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] },
-				canNode: true, isPrimaryInput: true,
+				canNode: true,
 			}],
 			outputDefs: [{ id: outputId, label: 'Output', name: 'output', dataType: { kind: 'color' } }],
 			primaryOutputId: outputId,
+			primaryInputId: inputId,
 			automationGraphs: [],
 			// 通常合成で背景を二重に重ねないよう、新規レイヤーは未接続から始める。
 			// エフェクト追加時の既存コマンドが、その主出力をOutへ接続する。

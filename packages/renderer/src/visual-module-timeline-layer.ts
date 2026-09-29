@@ -10,7 +10,7 @@ import type { LAYER_VAR_DEFS } from '@glitch/shared/expression.js';
 
 // 主入力の割り当てやパラメータはVisual Moduleレイヤーだけの責務とする。
 export function createVisualModuleTimelineLayer(
-	visualModule: Pick<VisualModule, 'paramDefs'>,
+	visualModule: Pick<VisualModule, 'paramDefs' | 'primaryInputId'>,
 	layer: TimelineVisualModuleLayer | TimelineInlineVisualModuleLayer,
 	renderer: {
 		prepare: (context: VisualModuleRenderContext, signal: AbortSignal) => Promise<void>;
@@ -25,7 +25,8 @@ export function createVisualModuleTimelineLayer(
 	const resolveContext = (context: TimelineLayerContext<NodeOutput>): VisualModuleRenderContext => {
 		let resolved = contexts.get(context);
 		if (resolved == null) {
-			const paramInputs = new Map(visualModule.paramDefs.filter(def => def.isPrimaryInput).map(def => [def.id, context.input]));
+			const paramInputs = new Map<VisualModuleCustomParameterId, NodeOutput>();
+			if (visualModule.primaryInputId !== null) paramInputs.set(visualModule.primaryInputId, context.input);
 			const evaluationContext = {
 				evaluatedParamValues: null,
 				variables: {

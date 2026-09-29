@@ -26,7 +26,7 @@ function visualModule(circular) {
 	return {
 		id: 'module', name: 'Test', automationGraphs: [],
 		paramDefs: [],
-		outputDefs: [{ id: 'output', dataType: { kind: 'color' } }], primaryOutputId: 'output',
+		outputDefs: [{ id: 'output', dataType: { kind: 'color' } }], primaryInputId: null, primaryOutputId: 'output',
 		nodes: [
 			{ id: 'a', type: 'effect', effectId: 'pass', isBypass: true, params: { input: { inputSource: 'node', nodeId: circular ? 'b' : null, outputPort: 'output' } } },
 			{ id: 'b', type: 'effect', effectId: 'pass', isBypass: true, params: { input: { inputSource: 'node', nodeId: 'a', outputPort: 'output' } } },
@@ -249,7 +249,7 @@ for (const Manager of [VisualModuleRendererManager, TimelineRendererManager]) {
 		await renderer.updateDynamicOptions({ visualModules: [{
 			id: 'module', automationGraphs: [],
 			paramDefs: [{ id: 'color', dataType: { kind: 'color' }, canNode: true, defaultValue: { inputSource: 'literal', value: [1, 0, 0, 0.5] } }],
-			outputDefs: [{ id: 'output', dataType: { kind: 'color' } }], primaryOutputId: 'output',
+			outputDefs: [{ id: 'output', dataType: { kind: 'color' } }], primaryInputId: null, primaryOutputId: 'output',
 			nodes: [{ id: 'in', type: 'globalIn' }, { id: 'out', type: 'globalOut', inputs: { output: { nodeId: 'in', outputPort: 'color' } } }],
 		}] });
 		const writes = [];

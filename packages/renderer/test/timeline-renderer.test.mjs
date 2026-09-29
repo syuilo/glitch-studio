@@ -110,7 +110,7 @@ for (const outsideTime of [99, 200]) {
 					destroy() { this.destroyCount++; },
 				};
 				instances.push(instance);
-				return createVisualModuleTimelineLayer({ paramDefs: [] }, entry.layer, instance);
+				return createVisualModuleTimelineLayer({ paramDefs: [], primaryInputId: null }, entry.layer, instance);
 			},
 			present() {},
 		});
@@ -281,10 +281,9 @@ test('chains different layer types without requiring visual module fields', asyn
 						destroy() { destroyed.push('video'); },
 					};
 				case 'visualModule':
-					return createVisualModuleTimelineLayer({ paramDefs: [
-						{ id: 'main', isPrimaryInput: true },
-						{ id: 'second', isPrimaryInput: true },
-						{ id: 'gain', nameForReference: 'gain', dataType: { kind: 'scalar' }, defaultValue: { inputSource: 'literal', value: 0 }, isPrimaryInput: false },
+					return createVisualModuleTimelineLayer({ primaryInputId: 'main', paramDefs: [
+						{ id: 'main' },
+						{ id: 'gain', nameForReference: 'gain', dataType: { kind: 'scalar' }, defaultValue: { inputSource: 'literal', value: 0 } },
 					] }, entry.layer, {
 						async prepare(context) { prepared.push(context); },
 						async render(context) { rendered.push(context); return { output: finalFrame, gpuTime: 2 }; },
@@ -297,7 +296,7 @@ test('chains different layer types without requiring visual module fields', asyn
 	await renderer.renderAt(400, timeline);
 	assert.strictEqual(prepared[1], rendered[0]);
 	assert.deepEqual([...rendered[0].evaluatedParamValues], [['gain', 2]]);
-	assert.deepEqual([...rendered[0].paramInputs], [['main', inputFrame], ['second', inputFrame]]);
+	assert.deepEqual([...rendered[0].paramInputs], [['main', inputFrame]]);
 	assert.equal(rendered[0].time, 200);
 	assert.equal(rendered[0].endTime, 400);
 	assert.deepEqual(rendered[0].pointerPosition, { x: -99999, y: -99999 });
@@ -313,7 +312,7 @@ test('keeps visual module contexts separate across overlapping preparation', asy
 	const layerContexts = [];
 	const pending = deferred();
 	const signals = [];
-	const layer = createVisualModuleTimelineLayer({ paramDefs: [{ id: 'input', isPrimaryInput: true }] }, { paramValues: {}, automationGraphs: [] }, {
+	const layer = createVisualModuleTimelineLayer({ paramDefs: [{ id: 'input' }], primaryInputId: 'input' }, { paramValues: {}, automationGraphs: [] }, {
 		async prepare(context, signal) {
 			prepared.push(context);
 			signals.push(signal);
@@ -345,7 +344,7 @@ test('provides the background for compositing modules without a primary input', 
 	const background = { kind: 'uniform', value: [0, 0, 1, 1] };
 	const context = { time: 500, timeDelta: 16, endTime: 2000, isExport: true, input: background };
 	const graphs = [{ id: 'layer-graph', name: 'Layer', isNormalized: true, points: [] }];
-	const layer = createVisualModuleTimelineLayer({ paramDefs: [] }, { paramValues: {}, automationGraphs: graphs }, {
+	const layer = createVisualModuleTimelineLayer({ paramDefs: [], primaryInputId: null }, { paramValues: {}, automationGraphs: graphs }, {
 		async prepare() {},
 		async render(moduleContext, layerContext) {
 			assert.deepEqual([...moduleContext.evaluatedParamValues], []);

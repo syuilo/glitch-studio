@@ -14,4 +14,5 @@ export type VisualModuleEdit =
 	| { kind: 'addOutputDef'; def: VisualModuleOutputDef }
 	| { kind: 'updateOutputDef'; defId: string; changes: Partial<Omit<VisualModuleOutputDef, 'id'>> }
 	| { kind: 'removeOutputDef'; defId: string }
-	| { kind: 'setPrimaryOutput'; outputId: string | null };
+	| { kind: 'setPrimaryOutput'; outputId: string | null }
+	| { kind: 'setPrimaryInput'; inputId: VisualModuleCustomParameterId | null };

@@ -41,9 +41,8 @@
 	</div>
 	<div v-if="def.canNode && def.dataType.kind === 'color'" :class="$style.option">
 		<GsSwitch
-			:modelValue="def.isPrimaryInput"
-			:disabled="!def.isPrimaryInput && hasPrimaryInput"
-			@update:modelValue="update({ isPrimaryInput: $event })"
+			:modelValue="primaryInputId === def.id"
+			@update:modelValue="emit('setPrimaryInput', $event ? def.id : null)"
 		>
 			Primary input
 		</GsSwitch>
@@ -54,7 +53,6 @@
 
 <script lang="ts" setup>
 import { visualModuleCustomParameterName } from '@glitch/shared/visual-module/types.ts';
-import { computed } from 'vue';
 import { genEmptyValue } from '@glitch/shared/utility/misc.ts';
 import { isParameterType } from '@glitch/shared/parameter.ts';
 import { isTextureDataType } from '@glitch/shared/data-type.ts';
@@ -62,21 +60,20 @@ import GsSelect from './common/GsSelect.vue';
 import GsInput from './common/GsInput.vue';
 import GsButton from './common/GsButton.vue';
 import GsSwitch from './common/GsSwitch.vue';
-import type { VisualModuleParamDef } from '@glitch/shared/visual-module/types.ts';
+import type { VisualModuleCustomParameterId, VisualModuleParamDef } from '@glitch/shared/visual-module/types.ts';
 import { i18n } from '@/i18n.ts';
 
 type ParamDef = VisualModuleParamDef;
 const props = defineProps<{
-	paramDefs: readonly VisualModuleParamDef[];
+	primaryInputId: VisualModuleCustomParameterId | null;
 	def: ParamDef;
 }>();
 
 const emit = defineEmits<{
 	update: [changes: Partial<Omit<ParamDef, 'id'>>];
 	remove: [];
+	setPrimaryInput: [inputId: VisualModuleCustomParameterId | null];
 }>();
-
-const hasPrimaryInput = computed(() => props.paramDefs.some(def => def.isPrimaryInput));
 
 function update(changes: Partial<Omit<ParamDef, 'id'>>) {
 	emit('update', changes);
@@ -103,7 +100,6 @@ function updateType(dataType: ParamDef['dataType']['kind']) {
 		// Inノードでは型変換せず公開するため、ノード入出力に対応しない型では解除する。
 		canNode: isTextureDataType(schema.dataType) && props.def.canNode,
 		defaultValue: { inputSource: 'literal', value: genEmptyValue(schema) },
-		isPrimaryInput: dataType === 'color' && props.def.canNode && props.def.isPrimaryInput,
 	});
 }
 
@@ -126,7 +122,7 @@ function updateUiOption(key: 'min' | 'max' | 'step', value: number) {
 
 function updateCanNode(canNode: boolean) {
 	if (!isTextureDataType(props.def.dataType) || props.def.dataType.kind === 'any') return;
-	update({ canNode, isPrimaryInput: canNode && props.def.isPrimaryInput });
+	update({ canNode });
 }
 
 function remove() {

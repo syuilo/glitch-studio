@@ -50,6 +50,9 @@ export function commitVisualModuleEdit(manager: AppStateManager, target: VisualM
 		case 'setPrimaryOutput':
 			manager.commit('setVisualModulePrimaryOutput', { ...target, primaryOutputId: event.outputId });
 			break;
+		case 'setPrimaryInput':
+			manager.commit('setVisualModulePrimaryInput', { ...target, primaryInputId: event.inputId });
+			break;
 	}
 }
 

@@ -13,7 +13,7 @@ globalThis.GPUQueue = class { submit() {} };
 const { VisualModuleRenderer } = await load('../src/visual-module-renderer.ts');
 const literal = value => ({ inputSource: 'literal', value });
 const expression = expression => ({ inputSource: 'expression', expression });
-const def = (id, value = 7) => ({ id, nameForReference: id, dataType: { kind: 'scalar' }, ui: { label: id, control: { controlType: 'number' } }, defaultValue: literal(value), isPrimaryInput: false, canNode: false });
+const def = (id, value = 7) => ({ id, nameForReference: id, dataType: { kind: 'scalar' }, ui: { label: id, control: { controlType: 'number' } }, defaultValue: literal(value), canNode: false });
 const frame = { time: 500, endTime: 2000, isExport: true };
 const layerScope = { ...frame, variables: { TEST_ONLY_LAYER: true, TEST_SAME_NAME: 2, IS_EXPORT: true }, automationGraphs: [] };
 const moduleScope = { ...frame, variables: {
@@ -55,7 +55,7 @@ test('exposes exactly the declared variables for each scope', async () => {
 	// モジュール専用変数も照会し、レイヤーへ漏れていないことを確認する。
 	const names = [...new Set([...IN_VISUAL_MODULE_VAR_DEFS, ...LAYER_VAR_DEFS])];
 	let layerValues;
-	const adapter = createVisualModuleTimelineLayer({ paramDefs: names.map(name => def(name)) }, {
+	const adapter = createVisualModuleTimelineLayer({ paramDefs: names.map(name => def(name)), primaryInputId: null }, {
 		automationGraphs: [], paramValues: Object.fromEntries(names.map(name => [name, expression(name)])),
 	}, {
 		async prepare(context) { layerValues = context.evaluatedParamValues; }, render() {}, destroy() {},
@@ -126,7 +126,7 @@ test('rejects input parameters and does not mutate external arrays', () => {
 test('snapshots layer values once for prepare and render', async () => {
 	const layer = { paramValues: { amount: expression('TEST_SAME_NAME'), array: literal([1, 2]) }, automationGraphs: [] };
 	let prepared;
-	const adapter = createVisualModuleTimelineLayer({ paramDefs: [def('amount'), def('array')] }, layer, {
+	const adapter = createVisualModuleTimelineLayer({ paramDefs: [def('amount'), def('array')], primaryInputId: null }, layer, {
 		async prepare(context) { prepared = context; },
 		async render(context) {
 			assert.strictEqual(context, prepared);
@@ -147,12 +147,12 @@ test('snapshots layer values once for prepare and render', async () => {
 // 呼び出し側の移行で既定値と主入力の扱いが失われないことを実際のレイヤー変換で確認する。
 test('keeps layer defaults and excludes primary inputs from evaluated values', async () => {
 	const definitions = [
-		{ ...def('input', [0, 0, 0, 0]), dataType: { kind: 'color' }, ui: { label: 'Input', control: {} }, canNode: true, isPrimaryInput: true },
+		{ ...def('input', [0, 0, 0, 0]), dataType: { kind: 'color' }, ui: { label: 'Input', control: {} }, canNode: true },
 		{ ...def('gain-id', 8), nameForReference: 'Gain' },
 		def('missing', 9), def('invalid', 10), def('export'),
 	];
 	let resolved;
-	const adapter = createVisualModuleTimelineLayer({ paramDefs: definitions }, {
+	const adapter = createVisualModuleTimelineLayer({ paramDefs: definitions, primaryInputId: 'input' }, {
 		automationGraphs: [], paramValues: {
 			input: expression('invalid expression'),
 			missing: { inputSource: 'automationGraphReference', automationGraphId: 'absent' },

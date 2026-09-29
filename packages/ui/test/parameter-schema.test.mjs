@@ -59,7 +59,7 @@ const badRuntimeBlend: BlendValues['blend'] = 'invalid';
 defineEffect({ id: 'invalid-color', displayName: 'Invalid', tags: [], paramDefs: { color: { ...color, ui: { control: { controlType: 'range', min: 0, max: 1 }, label: 'Invalid' } } }, primaryInputParameter: null, outputDefs: {}, primaryOutput: null });
 // @ts-expect-error rangeの範囲は必須
 const missingBounds: ParameterDefinition = { ...number, ui: { control: { controlType: 'range' }, label: 'Invalid' } };
-const external = { ...color, id: visualModuleCustomParameterId('c'), nameForReference: visualModuleCustomParameterName('color'), defaultValue: { inputSource: 'literal', value: [1, 0, 0, 1] }, canNode: true, isPrimaryInput: false } satisfies VisualModuleParamDef;
+const external = { ...color, id: visualModuleCustomParameterId('c'), nameForReference: visualModuleCustomParameterName('color'), defaultValue: { inputSource: 'literal', value: [1, 0, 0, 1] }, canNode: true } satisfies VisualModuleParamDef;
 // @ts-expect-error 外部パラメータでも同じ組み合わせ制約を適用する
 const badExternal: VisualModuleParamDef = { ...external, dataType: { kind: 'scalar' }, ui: { control: { controlType: 'range' }, label: 'Invalid' } };
 const schemas = {

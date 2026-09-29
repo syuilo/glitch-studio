@@ -136,7 +136,7 @@
 				<div>Module parameters</div>
 				<!-- TODO: struct / array / anyのカスタムパラメータ編集UI。型定義では許可するが、子の編集や配列操作は未対応。 -->
 				<template
-					v-for="paramDef of selectedLayerModule?.paramDefs.filter(paramDef => !paramDef.isPrimaryInput) ?? []"
+					v-for="paramDef of selectedLayerModule?.paramDefs.filter(paramDef => paramDef.id !== selectedLayerModule?.primaryInputId) ?? []"
 					:key="`${selectedLayer.id}:${paramDef.id}`"
 				>
 					<div v-if="paramDef.dataType.kind === 'struct' || paramDef.dataType.kind === 'array' || isParameterType(paramDef, 'any')">{{ paramDef.ui.label }}: Editing is not yet supported.</div>

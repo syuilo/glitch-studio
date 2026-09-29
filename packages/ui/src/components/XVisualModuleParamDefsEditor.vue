@@ -4,9 +4,10 @@
 		<!-- TODO: struct / array / anyのカスタムパラメータ定義編集UI。共通の型定義からは除外しない。 -->
 		<div v-if="def.dataType.kind === 'struct' || def.dataType.kind === 'array' || def.dataType.kind === 'any'">{{ def.ui.label }}: Editing is not yet supported.</div>
 		<XVisualModuleParamDefEditor
-			v-else :paramDefs="visualModule.paramDefs" :def="def"
+			v-else :primaryInputId="visualModule.primaryInputId" :def="def"
 			@update="changes => emit('update', def.id, changes)"
 			@remove="emit('remove', def.id)"
+			@setPrimaryInput="emit('setPrimaryInput', $event)"
 		/>
 	</div>
 	<GsButton @click="add">Add parameter</GsButton>
@@ -28,6 +29,7 @@ const emit = defineEmits<{
 	add: [def: VisualModuleParamDef];
 	update: [defId: VisualModuleCustomParameterId, changes: Partial<Omit<VisualModuleParamDef, 'id'>>];
 	remove: [defId: VisualModuleCustomParameterId];
+	setPrimaryInput: [inputId: VisualModuleCustomParameterId | null];
 }>();
 
 function add() {
@@ -40,7 +42,6 @@ function add() {
 		ui: { label: 'My Parameter', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } },
 		defaultValue: { inputSource: 'literal', value: 0.5 },
 		canNode: false,
-		isPrimaryInput: false,
 	});
 }
 
