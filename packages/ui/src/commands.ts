@@ -874,6 +874,20 @@ const editAudioLayerTimingCommandDef = defineCommand<{ layerId: string; startTim
 	},
 });
 
+const pasteTimelineLayerCommandDef = defineCommand<{ layer: TimelineLayer; sourceLayerId: string }>({
+	label: 'Paste timeline layer',
+	create: payload => ({
+		execute(state) {
+			const sourceIndex = state.timeline.value.findIndex(layer => layer.id === payload.sourceLayerId);
+			// 表示順は先頭が最上層。コピー元が削除済みなら最上層へ挿入する。
+			state.timeline.value.splice(Math.max(0, sourceIndex), 0, deepClone(payload.layer));
+		},
+		undo(state) {
+			state.timeline.value = state.timeline.value.filter(layer => layer.id !== payload.layer.id);
+		},
+	}),
+});
+
 const reorderTimelineLayersCommandDef = defineCommand<{ layerIds: string[] }>({
 	label: 'Reorder timeline layers',
 	create: payload => {
@@ -914,6 +928,7 @@ const removeTimelineLayerCommandDef = defineCommand<{ layerId: string }>({
 });
 
 export const COMMAND_DEFS = {
+	pasteTimelineLayer: pasteTimelineLayerCommandDef,
 	reorderTimelineLayers: reorderTimelineLayersCommandDef,
 	addInlineVisualModuleLayer: addInlineVisualModuleLayerCommandDef,
 	editVisualModuleLayerTiming: editVisualModuleLayerTimingCommandDef,

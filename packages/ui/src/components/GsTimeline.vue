@@ -1,5 +1,5 @@
 <template>
-<div :class="$style.root">
+<div :class="$style.root" @keydown="onTlKeydown">
 	<div :class="$style.header">
 		<GsButton @click="addInlineVisualModuleLayer">Add inline visual module layer</GsButton>
 		<GsSelect v-model="audioAssetId" small :class="$style.audioAssetSelect" :items="audioAssetItems"/>
@@ -14,7 +14,7 @@
 	<div :class="$style.body">
 		<div :class="$style.tlBgWrapper">
 			<div :class="$style.tlBgSideSpacer"></div>
-			<div ref="tlEl" :class="$style.tlBg" tabindex="-1" @wheel="onTlWheel" @mousemove="onTlMousemove" @mousedown="onTlMousedown" @keydown="onTlKeydown">
+			<div ref="tlEl" :class="$style.tlBg" tabindex="-1" @wheel="onTlWheel" @mousemove="onTlMousemove" @mousedown="onTlMousedown">
 				<div :class="$style.ticksCorner"></div>
 				<div :class="$style.tlRange" :style="{ width: tlRangeElWidth + 'px', left: tlRangeElPosX + 'px' }"></div>
 				<div v-for="time of xTicks" :class="[$style.inTlXTick]" :style="{ left: timeToDomX(time) + 'px' }"></div>
@@ -507,13 +507,31 @@ function onSeekBarMousedown(ev: MouseEvent) {
 	});
 }
 
-let copyingKeyframes = null;
+let copiedLayer: Timeline[number] | null = null;
 
 function onTlKeydown(ev: KeyboardEvent) {
-	console.log(ev.key, ev.ctrlKey);
-	if (ev.key === 'Backspace') {
-	} else if (ev.ctrlKey && ev.key === 'c') {
-	} else if (ev.ctrlKey && ev.key === 'v') {
+	if (ev.defaultPrevented || !(ev.ctrlKey || ev.metaKey) || ev.altKey || ev.shiftKey) return;
+	const target = ev.target;
+	if (target instanceof HTMLElement && (target.closest('input, textarea, select') || target.isContentEditable)) return;
+	const key = ev.key.toLowerCase();
+	if (key === 'c') {
+		if (selectedLayer.value == null || selectedKeyframeSelection.value != null) return;
+		ev.preventDefault();
+		ev.stopPropagation();
+		if (ev.repeat) return;
+		// コピー後の編集がクリップボードの内容に影響しないよう、ここでスナップショットを作る。
+		copiedLayer = deepClone(selectedLayer.value);
+	} else if (key === 'v') {
+		if (copiedLayer == null) return;
+		ev.preventDefault();
+		ev.stopPropagation();
+		if (ev.repeat) return;
+		const layer = deepClone(copiedLayer);
+		layer.id = genId();
+		layer.startTimeMs = Math.max(0, time.value);
+		layer.endTimeMs = layer.startTimeMs + copiedLayer.endTimeMs - copiedLayer.startTimeMs;
+		appStateManager.commit('pasteTimelineLayer', { layer, sourceLayerId: copiedLayer.id });
+		onLayerSelected(layer);
 	}
 }
 
@@ -532,6 +550,7 @@ function formatMsToTimecode(ms: number) {
 function onLayerSelected(layer: Timeline[number]) {
 	selectedLayerId.value = layer.id;
 	selectedKeyframeSelection.value = null;
+	tlEl.value?.focus({ preventScroll: true });
 }
 
 function addInlineVisualModuleLayer() {
