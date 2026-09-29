@@ -10,14 +10,11 @@
 					id: 'nodes',
 					label: 'Nodes',
 				},{
-					id: 'paramDefs',
-					label: 'Param Defs',
+					id: 'io',
+					label: 'I/O Definitions',
 				},{
-					id: 'paramPreview',
-					label: 'Param Preview',
-				},{
-					id: 'outputDefs',
-					label: 'Output Defs',
+					id: 'preview',
+					label: 'Preview',
 				},{
 					id: 'other',
 					label: 'Other',
@@ -57,11 +54,12 @@
 			</div>
 		</div>
 
-		<div v-if="tab === 'paramDefs'" style="height: 100%; overflow: auto;">
+		<div v-if="tab === 'io'" style="height: 100%; overflow: auto;">
 			<XVisualModuleParamDefsEditor :visualModule="visualModule"/>
+			<XVisualModuleOutputDefsEditor :visualModule="visualModule"/>
 		</div>
 
-		<div v-if="tab === 'paramPreview'" style="height: 100%; overflow: auto;">
+		<div v-if="tab === 'preview'" style="height: 100%; overflow: auto;">
 			<div :class="$style.previewParams">
 				<!-- TODO: struct / array / anyのカスタムパラメータ編集UI。型定義の制約ではなく、現在のUIの対応範囲。 -->
 				<template
@@ -80,10 +78,6 @@
 					/>
 				</template>
 			</div>
-		</div>
-
-		<div v-if="tab === 'outputDefs'" style="height: 100%; overflow: auto;">
-			<XVisualModuleOutputDefsEditor :visualModule="visualModule"/>
 		</div>
 	</div>
 </div>
