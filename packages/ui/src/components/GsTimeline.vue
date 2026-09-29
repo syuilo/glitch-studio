@@ -38,6 +38,7 @@
 						:tlPosX="tlPosX"
 						:tlRangeX="tlRangeX"
 						:snapTimes="xTicksWithHalf"
+						:timelineTicks="xTicks"
 						:currentTime="time"
 						:selectedKeyframe="selectedKeyframeSelection"
 						:class="$style.layersLane"

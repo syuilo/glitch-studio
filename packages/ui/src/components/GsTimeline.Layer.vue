@@ -9,7 +9,22 @@
 	</div>
 	<div :class="$style.tl">
 		<div v-if="snappingTime != null" :class="$style.snapLine" :style="{ left: timeToDomX(snappingTime) + 'px' }"></div>
-		<div :class="$style.tlBlock" :style="{ width: layerRect.width + 'px', left: layerRect.left + 'px' }" @click="onLayerBlockClick">{{ layerLabel }}</div>
+		<div
+			:class="[$style.tlClip, { [$style.moving]: timingDragMode === 'move' }]"
+			:style="{ width: layerRect.width + 'px', left: layerRect.left + 'px' }"
+			@pointerdown.stop="onTimingPointerDown($event, 'move')"
+			@pointermove="onTimingPointerMove"
+			@pointerup="onTimingPointerUp"
+			@pointercancel="onTimingPointerCancel"
+			@lostpointercapture="onTimingPointerCancel"
+			@click.stop="onLayerClipClick"
+		>
+			<div :class="$style.tlClipInner">
+				{{ layerLabel }}
+				<div :class="[$style.trimHandle, $style.trimStart]" @pointerdown.stop="onTimingPointerDown($event, 'trimStart')"></div>
+				<div :class="[$style.trimHandle, $style.trimEnd]" @pointerdown.stop="onTimingPointerDown($event, 'trimEnd')"></div>
+			</div>
+		</div>
 		<XKeyframes
 			v-for="param in keyframeParameters"
 			:key="param.key"
@@ -39,7 +54,7 @@ export type TimelineKeyframeSelection = {
 </script>
 
 <script lang="ts" setup>
-import { computed, ref } from 'vue';
+import { computed, onBeforeUnmount, ref } from 'vue';
 import { deepClone } from '@glitch/shared/utility/deep-clone.ts';
 import { genId } from '@glitch/shared/utility/id.ts';
 import { evaluateKeyframesTimeline } from '@glitch/shared/utility/keyframes-timeline.ts';
@@ -55,6 +70,7 @@ const props = defineProps<{
 	tlRangeX: number;
 	tlPosX: number;
 	snapTimes: number[];
+	timelineTicks: number[];
 	currentTime: number;
 	selectedKeyframe: TimelineKeyframeSelection | null;
 }>();
@@ -95,6 +111,108 @@ const keyframeParameters = computed(() => {
 });
 
 const snappingTime = ref<number | null>(null);
+
+type TimingDragMode = 'move' | 'trimStart' | 'trimEnd';
+const timingDragMode = ref<TimingDragMode | null>(null);
+let timingDrag: {
+	pointerId: number;
+	element: HTMLElement;
+	layerId: string;
+	mode: TimingDragMode;
+	clientX: number;
+	moved: boolean;
+	startTimeMs: number;
+	endTimeMs: number;
+	sourceOffsetMs: number;
+	msPerPixel: number;
+	mergeKey: string;
+} | null = null;
+
+function onTimingPointerDown(event: PointerEvent, mode: TimingDragMode) {
+	if (event.button !== 0 || timingDrag != null || props.tlElWidth <= 0 || props.tlRangeX <= 0) return;
+	const layer = props.layer;
+	if (layer.layerType === 'effect') return; // effectレイヤーは未実装。
+	event.preventDefault();
+	emit('selected');
+	const element = event.currentTarget as HTMLElement;
+	timingDrag = {
+		pointerId: event.pointerId, element, layerId: layer.id, mode, clientX: event.clientX, moved: false,
+		startTimeMs: layer.startTimeMs, endTimeMs: layer.endTimeMs,
+		sourceOffsetMs: layer.layerType === 'audio' ? layer.sourceOffsetMs : 0,
+		msPerPixel: props.tlRangeX / props.tlElWidth, mergeKey: genId(),
+	};
+	timingDragMode.value = mode;
+	element.setPointerCapture(event.pointerId);
+	window.addEventListener('blur', finishTimingDrag);
+}
+
+function onTimingPointerMove(event: PointerEvent) {
+	const drag = timingDrag;
+	if (drag == null || event.pointerId !== drag.pointerId) return;
+	// 選択のクリックだけで付近の目盛へ吸着して時刻が変わらないようにする。
+	if (!drag.moved && Math.abs(event.clientX - drag.clientX) < 3) return;
+	drag.moved = true;
+	const layer = appStateManager.state.timeline.value.find(entry => entry.id === drag.layerId);
+	if (layer == null) { finishTimingDrag(); return; }
+	const rawDelta = (event.clientX - drag.clientX) * drag.msPerPixel;
+	// 左端トリムでは音声の読み出し位置も動かすため、素材の先頭より前には伸ばさない。
+	const minDelta = drag.mode === 'trimEnd' ? drag.startTimeMs + 1 - drag.endTimeMs
+		: drag.mode === 'trimStart' && layer.layerType === 'audio' ? Math.max(-drag.startTimeMs, -drag.sourceOffsetMs)
+		: -drag.startTimeMs;
+	const maxDelta = drag.mode === 'trimStart' ? drag.endTimeMs - drag.startTimeMs - 1 : Infinity;
+	let delta = Math.max(minDelta, Math.min(maxDelta, rawDelta));
+	const candidates = [0, ...props.timelineTicks, ...appStateManager.state.timeline.value
+		.filter(entry => entry.id !== drag.layerId)
+		.flatMap(entry => [entry.startTimeMs, entry.endTimeMs])];
+	// 移動時は両端のうち最も近い候補に合わせ、長さを変えずに全体を移動する。
+	const edges = drag.mode === 'move' ? [drag.startTimeMs, drag.endTimeMs]
+		: [drag.mode === 'trimStart' ? drag.startTimeMs : drag.endTimeMs];
+	let nearestDistance = 5;
+	snappingTime.value = null;
+	for (const edge of edges) {
+		for (const time of candidates) {
+			const candidateDelta = time - edge;
+			if (candidateDelta < minDelta || candidateDelta > maxDelta) continue;
+			const distance = Math.abs(candidateDelta - rawDelta) / drag.msPerPixel;
+			if (distance >= nearestDistance) continue;
+			nearestDistance = distance;
+			delta = candidateDelta;
+			snappingTime.value = time;
+		}
+	}
+	const startTimeMs = drag.startTimeMs + (drag.mode === 'trimEnd' ? 0 : delta);
+	const endTimeMs = drag.endTimeMs + (drag.mode === 'trimStart' ? 0 : delta);
+	if (layer.startTimeMs === startTimeMs && layer.endTimeMs === endTimeMs) return;
+	if (layer.layerType === 'audio') {
+		const sourceOffsetMs = drag.sourceOffsetMs + (drag.mode === 'trimStart' ? delta : 0);
+		appStateManager.commit('editAudioLayerTiming', { layerId: layer.id, startTimeMs, endTimeMs, sourceOffsetMs }, drag.mergeKey);
+	} else if (layer.layerType === 'visualModule' || layer.layerType === 'inlineVisualModule') {
+		appStateManager.commit('editVisualModuleLayerTiming', { layerId: layer.id, startTimeMs, endTimeMs }, drag.mergeKey);
+	}
+}
+
+function onTimingPointerUp(event: PointerEvent) {
+	if (timingDrag?.pointerId !== event.pointerId) return;
+	onTimingPointerMove(event);
+	finishTimingDrag();
+}
+
+function onTimingPointerCancel(event: PointerEvent) {
+	if (timingDrag?.pointerId !== event.pointerId) return;
+	finishTimingDrag();
+}
+
+function finishTimingDrag() {
+	const drag = timingDrag;
+	if (drag == null) return;
+	timingDrag = null;
+	timingDragMode.value = null;
+	snappingTime.value = null;
+	window.removeEventListener('blur', finishTimingDrag);
+	if (drag.element.hasPointerCapture(drag.pointerId)) drag.element.releasePointerCapture(drag.pointerId);
+}
+
+onBeforeUnmount(finishTimingDrag);
 
 const keyframeSnapTimes = computed(() => keyframeParameters.value.flatMap(param => {
 	return param.binding.keyframesTimeline.keyframes.map(point => ({ parameterKey: param.key, time: props.layer.startTimeMs + point.x }));
@@ -160,7 +278,7 @@ function timeToDomX(time: number): number {
 	return ((time - props.tlPosX) / props.tlRangeX) * props.tlElWidth;
 }
 
-function onLayerBlockClick() {
+function onLayerClipClick() {
 	emit('selected');
 }
 
@@ -207,17 +325,54 @@ function onLayerBlockClick() {
 	direction: ltr;
 }
 
-.tlBlock {
+.tlClip {
 	position: relative;
 	height: var(--mainLaneHeight);
 	box-sizing: border-box;
+	cursor: grab;
+	touch-action: none;
+	user-select: none;
+}
+
+.tlClipInner {
+	position: absolute;
+	margin: auto 0;
+	top: 0;
+	bottom: 0;
+	height: calc(100% - 2px);
 	padding: 0 8px 0 8px;
-	//background: linear-gradient(0deg, hsl(from var(--THEME-accent) h s calc(l - 10)), hsl(from var(--THEME-accent) h s calc(l + 10)));
+	box-sizing: border-box;
+	//background: linear-gradient(0deg, hsl(from var(--THEME-accent) h calc(s + 20) calc(l - 10)), hsl(from var(--THEME-accent) h s calc(l + 10)));
 	background: var(--THEME-accent);
 	color: var(--THEME-fgOnAccent);
-	cursor: pointer;
 	border-radius: 8px 0 0 0;
 	corner-shape: bevel;
+}
+
+.moving {
+	cursor: grabbing;
+}
+
+.trimHandle {
+	position: absolute;
+	top: 0;
+	bottom: 0;
+	width: min(8px, 25%);
+	cursor: ew-resize;
+	touch-action: none;
+	//background: color-mix(in srgb, var(--THEME-fgOnAccent) 20%, transparent);
+
+	&:hover {
+		background: #fff8;
+	}
+}
+
+.trimStart {
+	left: 0;
+}
+
+.trimEnd {
+	right: 0;
 }
 
 .snapLine {
