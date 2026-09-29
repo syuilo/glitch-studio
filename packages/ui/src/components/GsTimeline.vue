@@ -11,8 +11,8 @@
 		<span v-if="timelineAudioPreview.buffering.value">Buffering audio…</span>
 		<span v-if="audioError || timelineAudioPreview.error.value">{{ audioError || timelineAudioPreview.error.value }}</span>
 	</div>
-	<div :class="$style.body">
-		<div :class="$style.tlBgWrapper">
+	<div :class="[$style.body, { [$style.panning]: panning }]" @mousedown.capture="onPanMousedown" @auxclick.capture="onPanAuxclick">
+		<div :class="$style.tlBgWrapper" data-timeline-surface>
 			<div :class="$style.tlBgSideSpacer"></div>
 			<div ref="tlEl" :class="$style.tlBg" tabindex="-1" @wheel="onTlWheel" @mousemove="onTlMousemove" @mousedown="onTlMousedown">
 				<div :class="$style.ticksCorner"></div>
@@ -20,7 +20,7 @@
 				<div v-for="time of xTicks" :class="[$style.inTlXTick]" :style="{ left: timeToDomX(time) + 'px' }"></div>
 			</div>
 		</div>
-		<div :class="$style.layers">
+		<div ref="layersEl" :class="$style.layers" data-timeline-surface>
 			<div :class="$style.layersHeader">
 				header
 			</div>
@@ -50,7 +50,7 @@
 				</template>
 			</GsDraggable>
 		</div>
-		<div :class="$style.tlOverlayWrapper">
+		<div :class="$style.tlOverlayWrapper" data-timeline-surface>
 			<div :class="$style.tlOverlaySideSpacer"></div>
 			<div :class="$style.tlOverlay">
 				<div :class="$style.xTicks" @wheel="onXTicksWheel">
@@ -219,6 +219,8 @@ const duration = computed(() => {
 const time = previewPlayback.currentTimelineTime;
 
 const tlEl = useTemplateRef('tlEl');
+const layersEl = useTemplateRef('layersEl');
+const panning = ref(false);
 const tlElWidth = ref(0);
 const tlElHeight = ref(0);
 const tlRangeX = ref(30000);
@@ -431,31 +433,54 @@ function onXTicksWheel(ev: WheelEvent) {
 
 let beforeClickedAt = 0;
 
+let stopPan: (() => void) | undefined;
+
+function onPanAuxclick(ev: MouseEvent) {
+	if (ev.button !== 1 || !(ev.target instanceof Element) || !ev.target.closest('[data-timeline-surface]')) return;
+	ev.preventDefault();
+	ev.stopPropagation();
+}
+
+function onPanMousedown(ev: MouseEvent) {
+	if (ev.button !== 1 || !(ev.target instanceof Element) || !ev.target.closest('[data-timeline-surface]')) return;
+	if (layersEl.value == null || tlElWidth.value <= 0) return;
+	// 子のレイヤー・キー・シーク操作より先に受け取り、ブラウザーの自動スクロールも抑止する。
+	ev.preventDefault();
+	ev.stopPropagation();
+	stopPan?.();
+	tlEl.value?.focus({ preventScroll: true });
+	const layers = layersEl.value;
+	const baseX = ev.clientX;
+	const baseY = ev.clientY;
+	const baseTime = tlPosX.value;
+	const baseScrollTop = layers.scrollTop;
+	const msPerPixel = tlRangeX.value / tlElWidth.value;
+	panning.value = true;
+	stopPan = dragListen(event => {
+		if ((event.buttons & 4) === 0) { stopPan?.(); return; }
+		tlPosX.value = baseTime - (event.clientX - baseX) * msPerPixel;
+		// 縦方向は値の座標系ではなく、レイヤー一覧の実際のスクロール位置を動かす。
+		layers.scrollTop = baseScrollTop - (event.clientY - baseY);
+	}, () => {
+		panning.value = false;
+		stopPan = undefined;
+		window.removeEventListener('blur', finishPan);
+	});
+	window.addEventListener('blur', finishPan);
+}
+
+function finishPan() {
+	stopPan?.();
+}
+
+onBeforeUnmount(finishPan);
+
 function onTlMousedown(ev: MouseEvent) {
 	if (tlEl.value == null) return;
 	ev.preventDefault();
 	tlEl.value.focus();
 
-	if (ev.button === 1) {
-		ev.preventDefault();
-		const position = tlEl.value.getBoundingClientRect();
-		const moveBaseX = ev.clientX - position.left;
-		const moveBaseY = ev.clientY - position.top;
-		const baseTlPosX = tlPosX.value;
-		const baseTlPosY = tlPosY.value;
-
-		function move(x: number, y: number) {
-			tlPosX.value = baseTlPosX + (domXToLogicalX(moveBaseX) - domXToLogicalX(x));
-			tlPosY.value = baseTlPosY + (domYToLogicalY(moveBaseY) - domYToLogicalY(y));
-		}
-
-		dragListen(me => {
-			move(me.clientX - position.left, me.clientY - position.top);
-		});
-		return;
-	}
-
-	if (ev.button === 2) return;
+	if (ev.button !== 0) return;
 
 	// ダブルクリック判定
 	if (Date.now() - beforeClickedAt < 300) {
@@ -729,6 +754,12 @@ onMounted(() => {
 	flex: 1;
 	display: flex;
 }
+
+//.panning,
+//.panning * {
+//	cursor: grabbing !important;
+//	user-select: none;
+//}
 
 .layers {
 	display: flex;
