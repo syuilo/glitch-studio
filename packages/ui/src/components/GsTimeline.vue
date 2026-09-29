@@ -45,6 +45,7 @@
 						@dragStart="dragStart"
 						@selected="onLayerSelected(layer)"
 						@keyframeSelected="onKeyframeSelected"
+						@snap="snappingTime = $event"
 					/>
 				</template>
 			</GsDraggable>
@@ -61,6 +62,7 @@
 				<div v-for="time of xTicks" :class="[$style.inTlXTick]" :style="{ left: timeToDomX(time) + 'px' }"></div>
 				<div :class="$style.seekBar" class="_monospace" :style="{ left: seekBarPos + 'px' }"><div :class="$style.seekBarFrame">{{ formatMsToTimecode(time) }}</div></div>
 				<div :class="$style.cursorBar" :style="{ left: cursorBarPos + 'px' }"></div>
+				<div v-if="snappingTime != null" :class="$style.snapLine" :style="{ left: timeToDomX(snappingTime) + 'px' }"></div>
 
 				<!--
 			<div v-if="(nowSelecting || selectedKeyframes.length === 0) && tooltipDomPos" :class="$style.tooltip" class="_monospace" :style="{ left: tooltipDomPos[0] + 'px', top: tooltipDomPos[1] + 'px' }">
@@ -226,6 +228,7 @@ const seekBarPos = computed(() => {
 	return timeToDomX(time.value);
 });
 const cursorBarPos = ref(0);
+const snappingTime = ref<number | null>(null);
 const tlRangeElPosX = computed(() => {
 	return -((tlPosX.value / tlRangeX.value) * tlElWidth.value);
 });
@@ -972,6 +975,15 @@ onMounted(() => {
 	background: #FF5500;
 	pointer-events: none;
 	will-change: top, left;
+}
+
+.snapLine {
+	position: absolute;
+	top: var(--xTicksHeight);
+	bottom: 0;
+	z-index: 1;
+	border-left: 1px solid var(--THEME-accent);
+	pointer-events: none;
 }
 
 .cursorBar {

@@ -8,7 +8,6 @@
 		<div v-for="param in keyframeParameters" :key="param.key" :class="$style.sideKeyframesLane">{{ param.key }}</div>
 	</div>
 	<div :class="$style.tl">
-		<div v-if="snappingTime != null" :class="$style.snapLine" :style="{ left: timeToDomX(snappingTime) + 'px' }"></div>
 		<div
 			:class="[$style.tlClip, { [$style.moving]: timingDragMode === 'move' }]"
 			:style="{ width: layerRect.width + 'px', left: layerRect.left + 'px' }"
@@ -20,7 +19,7 @@
 			@click.stop="onLayerClipClick"
 		>
 			<div :class="$style.tlClipInner">
-				{{ layerLabel }}
+				<GsCondensedLine>{{ layerLabel }}</GsCondensedLine>
 				<div :class="[$style.trimHandle, $style.trimStart]" @pointerdown.stop="onTimingPointerDown($event, 'trimStart')"></div>
 				<div :class="[$style.trimHandle, $style.trimEnd]" @pointerdown.stop="onTimingPointerDown($event, 'trimEnd')"></div>
 			</div>
@@ -38,7 +37,7 @@
 			@select="keyframeId => emit('keyframeSelected', { layerId: layer.id, target: param.target, paramId: param.paramId, keyframeId })"
 			@move="onKeyframeMove(param, $event)"
 			@insert="onKeyframeInsert(param, $event)"
-			@snap="snappingTime = $event"
+			@snap="emit('snap', $event)"
 		/>
 	</div>
 </div>
@@ -58,6 +57,7 @@ import { computed, onBeforeUnmount, ref } from 'vue';
 import { deepClone } from '@glitch/shared/utility/deep-clone.ts';
 import { genId } from '@glitch/shared/utility/id.ts';
 import { evaluateKeyframesTimeline } from '@glitch/shared/utility/keyframes-timeline.ts';
+import GsCondensedLine from './common/GsCondensedLine.vue';
 import XKeyframes from './GsTimeline.Layer.Keyframes.vue';
 import type { KeyframeMove } from './GsTimeline.Layer.Keyframes.vue';
 import type { TimelineLayer } from '@glitch/shared/timeline/types.ts';
@@ -79,6 +79,7 @@ const emit = defineEmits<{
 	(ev: 'dragStart', event: DragEvent): void;
 	(ev: 'selected'): void;
 	(ev: 'keyframeSelected', selection: TimelineKeyframeSelection): void;
+	(ev: 'snap', time: number | null): void;
 }>();
 
 const layerLabel = computed(() => props.layer.layerType === 'audio'
@@ -109,8 +110,6 @@ const keyframeParameters = computed(() => {
 	}
 	return res;
 });
-
-const snappingTime = ref<number | null>(null);
 
 type TimingDragMode = 'move' | 'trimStart' | 'trimEnd';
 const timingDragMode = ref<TimingDragMode | null>(null);
@@ -168,7 +167,7 @@ function onTimingPointerMove(event: PointerEvent) {
 	const edges = drag.mode === 'move' ? [drag.startTimeMs, drag.endTimeMs]
 		: [drag.mode === 'trimStart' ? drag.startTimeMs : drag.endTimeMs];
 	let nearestDistance = 5;
-	snappingTime.value = null;
+	let snappingTime: number | null = null;
 	for (const edge of edges) {
 		for (const time of candidates) {
 			const candidateDelta = time - edge;
@@ -177,9 +176,10 @@ function onTimingPointerMove(event: PointerEvent) {
 			if (distance >= nearestDistance) continue;
 			nearestDistance = distance;
 			delta = candidateDelta;
-			snappingTime.value = time;
+			snappingTime = time;
 		}
 	}
+	emit('snap', snappingTime);
 	const startTimeMs = drag.startTimeMs + (drag.mode === 'trimEnd' ? 0 : delta);
 	const endTimeMs = drag.endTimeMs + (drag.mode === 'trimStart' ? 0 : delta);
 	if (layer.startTimeMs === startTimeMs && layer.endTimeMs === endTimeMs) return;
@@ -207,7 +207,7 @@ function finishTimingDrag() {
 	if (drag == null) return;
 	timingDrag = null;
 	timingDragMode.value = null;
-	snappingTime.value = null;
+	emit('snap', null);
 	window.removeEventListener('blur', finishTimingDrag);
 	if (drag.element.hasPointerCapture(drag.pointerId)) drag.element.releasePointerCapture(drag.pointerId);
 }
@@ -300,6 +300,7 @@ function onLayerClipClick() {
 	z-index: 1;
 	box-sizing: border-box;
 	width: var(--sideWidth);
+	flex-shrink: 0;
 	background: #181818;
 	direction: ltr;
 }
@@ -329,6 +330,7 @@ function onLayerClipClick() {
 	position: relative;
 	height: var(--mainLaneHeight);
 	box-sizing: border-box;
+	overflow: clip;
 	cursor: grab;
 	touch-action: none;
 	user-select: none;
@@ -340,6 +342,7 @@ function onLayerClipClick() {
 	top: 0;
 	bottom: 0;
 	height: calc(100% - 2px);
+	width: 100%;
 	padding: 0 8px 0 8px;
 	box-sizing: border-box;
 	//background: linear-gradient(0deg, hsl(from var(--THEME-accent) h calc(s + 20) calc(l - 10)), hsl(from var(--THEME-accent) h s calc(l + 10)));
@@ -373,15 +376,6 @@ function onLayerClipClick() {
 
 .trimEnd {
 	right: 0;
-}
-
-.snapLine {
-	position: absolute;
-	top: 0;
-	bottom: 0;
-	z-index: 1;
-	border-left: 1px solid var(--THEME-accent);
-	pointer-events: none;
 }
 
 </style>
