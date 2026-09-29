@@ -1,4 +1,5 @@
 import type { AutomationGraph, ParameterBinding } from '../types.ts';
+import type { VisualModule } from '../visual-module/types.ts';
 import type { timelineCompositingParamDefs } from './timeline-compositing.ts';
 
 export type TimelineParameterBinding = Exclude<ParameterBinding, { inputSource: 'node' | 'externalCustomParameterInput' }>;
@@ -14,7 +15,18 @@ export type TimelineVisualModuleLayer = {
 	automationGraphs: AutomationGraph[];
 };
 
-export type TimelineEffectLayer = {
+export type TimelineInlineVisualModuleLayer = {
+	id: string;
+	startTimeMs: number;
+	endTimeMs: number;
+	layerType: 'inlineVisualModule';
+	visualModule: VisualModule;
+	paramValues: Record<string, TimelineParameterBinding>;
+	compositingParamValues: Record<keyof typeof timelineCompositingParamDefs, TimelineParameterBinding>;
+	automationGraphs: AutomationGraph[];
+};
+
+export type TimelineEffectLayer = { // TODO
 	id: string;
 	startTimeMs: number;
 	endTimeMs: number;
