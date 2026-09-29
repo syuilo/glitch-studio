@@ -4,11 +4,11 @@ import { visualModuleCustomParameterId, visualModuleCustomParameterName } from '
 import { timelineCompositingParamDefs } from '@glitch/shared/timeline/timeline-compositing.ts';
 import type { TimelineInlineVisualModuleLayer } from '@glitch/shared/timeline/types.ts';
 
-export function createInlineVisualModuleLayer(startTimeMs: number): TimelineInlineVisualModuleLayer {
+export function createInlineVisualModuleLayer(positionMs: number): TimelineInlineVisualModuleLayer {
 	const inputId = visualModuleCustomParameterId(genId());
 	const outputId = genId();
 	return {
-		id: genId(), layerType: 'inlineVisualModule', startTimeMs, durationMs: 5000,
+		id: genId(), layerType: 'inlineVisualModule', positionMs, trimmedDurationMs: 5000,
 		paramValues: {}, automationGraphs: [],
 		compositingParamValues: deepClone({
 			blendMode: timelineCompositingParamDefs.blendMode.defaultValue,

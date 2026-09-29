@@ -5,7 +5,7 @@ export type ExportQuality = 'low' | 'medium' | 'high' | 'very-high';
 type ExportImageSettings = {
 	width: number;
 	height: number;
-	startTimeMs: number;
+	positionMs: number;
 };
 
 export type VideoExportSettings = ExportImageSettings & {
@@ -38,15 +38,15 @@ export function validateExportSettings(settings: TimelineExportSettings): string
 	if (![settings.width, settings.height].every(value => Number.isInteger(value) && value >= 1 && value <= 8192)) {
 		return 'Output width and height must be integers between 1 and 8192.';
 	}
-	if (!Number.isSafeInteger(settings.startTimeMs) || settings.startTimeMs < 0) return 'Enter a valid start time (HH:MM:SS.mmm).';
+	if (!Number.isSafeInteger(settings.positionMs) || settings.positionMs < 0) return 'Enter a valid start time (HH:MM:SS.mmm).';
 	if (settings.format === 'webp') return null;
 	if (settings.width % 2 !== 0 || settings.height % 2 !== 0) return 'MP4 requires even dimensions. Choose another resolution scale or change the project resolution.';
 	if (!Number.isFinite(settings.fps) || settings.fps < 1 || settings.fps > 120) return 'Frame rate must be between 1 and 120 fps.';
-	if (!Number.isFinite(settings.startTimeMs) || !Number.isFinite(settings.endTimeMs)
-		|| settings.startTimeMs < 0 || settings.endTimeMs <= settings.startTimeMs) {
+	if (!Number.isFinite(settings.positionMs) || !Number.isFinite(settings.endTimeMs)
+		|| settings.positionMs < 0 || settings.endTimeMs <= settings.positionMs) {
 		return 'End time must be greater than start time, and start time must be non-negative.';
 	}
-	if (!Number.isSafeInteger(Math.ceil((settings.endTimeMs - settings.startTimeMs) * settings.fps / 1000))) return 'Export range is too long.';
+	if (!Number.isSafeInteger(Math.ceil((settings.endTimeMs - settings.positionMs) * settings.fps / 1000))) return 'Export range is too long.';
 	return null;
 }
 
@@ -70,14 +70,14 @@ export async function renderExportFrames(settings: VideoExportSettings, callback
 }): Promise<void> {
 	const error = validateExportSettings(settings);
 	if (error) throw new Error(error);
-	const duration = (settings.endTimeMs - settings.startTimeMs) / 1000;
+	const duration = (settings.endTimeMs - settings.positionMs) / 1000;
 	const totalFrames = Math.ceil(duration * settings.fps);
 	for (let index = 0; index < totalFrames; index++) {
 		callbacks.signal.throwIfAborted();
 		// 加算を繰り返さず、フレーム番号から毎回計算して時刻の誤差蓄積を避ける。
 		const timestamp = index / settings.fps;
 		const frame: ExportFrame = {
-			timeMs: settings.startTimeMs + timestamp * 1000,
+			timeMs: settings.positionMs + timestamp * 1000,
 			timeDeltaMs: index === 0 ? 0 : 1000 / settings.fps,
 			timestamp,
 			duration: Math.min((index + 1) / settings.fps, duration) - timestamp,

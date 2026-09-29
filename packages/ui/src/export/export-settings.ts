@@ -38,6 +38,6 @@ export function estimateExportBytes(settings: TimelineExportSettings, audioBitra
 	}
 	// H.264の1画素・1フレームあたりの概算ビット数。コンテナの余裕を2%含める。
 	const bitsPerPixel = { low: 0.04, medium: 0.08, high: 0.15, 'very-high': 0.3 }[settings.quality];
-	const durationSeconds = (settings.endTimeMs - settings.startTimeMs) / 1000;
+	const durationSeconds = (settings.endTimeMs - settings.positionMs) / 1000;
 	return Math.round(4096 + (pixels * settings.fps * bitsPerPixel + audioBitrate) * durationSeconds / 8 * 1.02);
 }

@@ -58,12 +58,12 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { deepClone } from '@glitch/shared/utility/deep-clone.ts';
 import { genId } from '@glitch/shared/utility/id.ts';
 import { evaluateKeyframesTimeline } from '@glitch/shared/utility/keyframes-timeline.ts';
+import { getTimelineLayerStart, getTimelineLayerEnd } from '@glitch/shared/timeline/timing.ts';
 import GsCondensedLine from './common/GsCondensedLine.vue';
 import XKeyframes from './GsTimeline.Layer.Keyframes.vue';
 import type { KeyframeMove } from './GsTimeline.Layer.Keyframes.vue';
 import type { TimelineLayer } from '@glitch/shared/timeline/types.ts';
 import type { ParameterBinding } from '@glitch/shared/types.ts';
-import { getTimelineLayerStart, getTimelineLayerEnd } from '@glitch/shared/timeline/timing.ts';
 import { appStateManager } from '@/app.ts';
 import { openAssetAudio } from '@/audio/asset-audio-reader.ts';
 
@@ -92,18 +92,18 @@ const audioAsset = computed(() => {
 	const layer = props.layer;
 	return layer.layerType === 'audio' ? appStateManager.state.assets.value.find(asset => asset.id === layer.assetId) : undefined;
 });
-const sourceDurationMs = ref<number | null>(null);
+const contentDurationMs = ref<number | null>(null);
 watch(() => audioAsset.value?.fileData, async (_, __, onCleanup) => {
 	const asset = audioAsset.value;
-	sourceDurationMs.value = null;
+	contentDurationMs.value = null;
 	let cancelled = false;
 	onCleanup(() => { cancelled = true; });
 	if (asset == null) return;
 	try {
 		const audio = await openAssetAudio(asset);
 		try {
-			const durationMs = audio.duration * 1000;
-			if (!cancelled && Number.isFinite(durationMs) && durationMs > 0) sourceDurationMs.value = durationMs;
+			const trimmedDurationMs = audio.duration * 1000;
+			if (!cancelled && Number.isFinite(trimmedDurationMs) && trimmedDurationMs > 0) contentDurationMs.value = trimmedDurationMs;
 		} finally {
 			audio.input.dispose();
 		}
@@ -119,8 +119,8 @@ const layerRect = computed(() => {
 });
 
 const sourceRect = computed(() => {
-	if (props.layer.layerType !== 'audio' || sourceDurationMs.value == null) return null;
-	return { left: timeToDomX(props.layer.startTimeMs), width: sourceDurationMs.value / props.tlRangeX * props.tlElWidth };
+	if (props.layer.layerType !== 'audio' || contentDurationMs.value == null) return null;
+	return { left: timeToDomX(props.layer.positionMs), width: contentDurationMs.value / props.tlRangeX * props.tlElWidth };
 });
 
 type InlineKeyframesTimeline = Extract<ParameterBinding, { inputSource: 'keyframesTimelineInline' }>;
@@ -152,9 +152,9 @@ let timingDrag: {
 	mode: TimingDragMode;
 	clientX: number;
 	moved: boolean;
-	startTimeMs: number;
-	durationMs: number;
-	sourceOffsetMs: number;
+	positionMs: number;
+	trimmedDurationMs: number;
+	trimStartMs: number;
 	msPerPixel: number;
 	mergeKey: string;
 } | null = null;
@@ -168,8 +168,8 @@ function onTimingPointerDown(event: PointerEvent, mode: TimingDragMode) {
 	const element = event.currentTarget as HTMLElement;
 	timingDrag = {
 		pointerId: event.pointerId, element, layerId: layer.id, mode, clientX: event.clientX, moved: false,
-		startTimeMs: layer.startTimeMs, durationMs: layer.durationMs,
-		sourceOffsetMs: layer.layerType === 'audio' ? layer.sourceOffsetMs : 0,
+		positionMs: layer.positionMs, trimmedDurationMs: layer.trimmedDurationMs,
+		trimStartMs: layer.layerType === 'audio' ? layer.trimStartMs : 0,
 		msPerPixel: props.tlRangeX / props.tlElWidth, mergeKey: genId(),
 	};
 	timingDragMode.value = mode;
@@ -186,21 +186,21 @@ function onTimingPointerMove(event: PointerEvent) {
 	const layer = appStateManager.state.timeline.value.find(entry => entry.id === drag.layerId);
 	if (layer == null) { finishTimingDrag(); return; }
 	const rawDelta = (event.clientX - drag.clientX) * drag.msPerPixel;
-	const playbackStartMs = drag.startTimeMs + (layer.layerType === 'audio' ? drag.sourceOffsetMs : 0);
+	const playbackStartMs = drag.positionMs + (layer.layerType === 'audio' ? drag.trimStartMs : 0);
 	// 左端トリムでは音声の読み出し位置も動かすため、素材の先頭より前には伸ばさない。
-	const minDelta = drag.mode === 'trimEnd' ? 1 - drag.durationMs
-		: drag.mode === 'trimStart' && layer.layerType === 'audio' ? Math.max(-playbackStartMs, -drag.sourceOffsetMs)
+	const minDelta = drag.mode === 'trimEnd' ? 1 - drag.trimmedDurationMs
+		: drag.mode === 'trimStart' && layer.layerType === 'audio' ? Math.max(-playbackStartMs, -drag.trimStartMs)
 		: -playbackStartMs;
-	const maxDelta = drag.mode === 'trimStart' ? drag.durationMs - 1
-		: drag.mode === 'trimEnd' && layer.layerType === 'audio' && sourceDurationMs.value != null
-			? Math.max(0, sourceDurationMs.value - drag.sourceOffsetMs - drag.durationMs) : Infinity;
+	const maxDelta = drag.mode === 'trimStart' ? drag.trimmedDurationMs - 1
+		: drag.mode === 'trimEnd' && layer.layerType === 'audio' && contentDurationMs.value != null
+			? Math.max(0, contentDurationMs.value - drag.trimStartMs - drag.trimmedDurationMs) : Infinity;
 	let delta = Math.max(minDelta, Math.min(maxDelta, rawDelta));
 	const candidates = [0, ...props.timelineTicks, ...appStateManager.state.timeline.value
 		.filter(entry => entry.id !== drag.layerId)
 		.flatMap(entry => [getTimelineLayerStart(entry), getTimelineLayerEnd(entry)])];
 	// 移動時は両端のうち最も近い候補に合わせ、長さを変えずに全体を移動する。
-	const edges = drag.mode === 'move' ? [playbackStartMs, playbackStartMs + drag.durationMs]
-		: [drag.mode === 'trimStart' ? playbackStartMs : playbackStartMs + drag.durationMs];
+	const edges = drag.mode === 'move' ? [playbackStartMs, playbackStartMs + drag.trimmedDurationMs]
+		: [drag.mode === 'trimStart' ? playbackStartMs : playbackStartMs + drag.trimmedDurationMs];
 	let nearestDistance = 5;
 	let snappingTime: number | null = null;
 	for (const edge of edges) {
@@ -215,16 +215,16 @@ function onTimingPointerMove(event: PointerEvent) {
 		}
 	}
 	emit('snap', snappingTime);
-	// 音声のstartTimeMsは素材の配置基準。左端のトリムでは基準を動かさず、
-	// sourceOffsetMsとdurationMsを逆方向へ変更して右端を保つ。
-	const startTimeMs = drag.startTimeMs + (drag.mode === 'move' || (drag.mode === 'trimStart' && layer.layerType !== 'audio') ? delta : 0);
-	const durationMs = drag.durationMs + (drag.mode === 'move' ? 0 : drag.mode === 'trimStart' ? -delta : delta);
-	if (layer.startTimeMs === startTimeMs && layer.durationMs === durationMs) return;
+	// 音声のpositionMsは素材の配置基準。左端のトリムでは基準を動かさず、
+	// trimStartMsとtrimmedDurationMsを逆方向へ変更して右端を保つ。
+	const positionMs = drag.positionMs + (drag.mode === 'move' || (drag.mode === 'trimStart' && layer.layerType !== 'audio') ? delta : 0);
+	const trimmedDurationMs = drag.trimmedDurationMs + (drag.mode === 'move' ? 0 : drag.mode === 'trimStart' ? -delta : delta);
+	if (layer.positionMs === positionMs && layer.trimmedDurationMs === trimmedDurationMs) return;
 	if (layer.layerType === 'audio') {
-		const sourceOffsetMs = drag.sourceOffsetMs + (drag.mode === 'trimStart' ? delta : 0);
-		appStateManager.commit('editAudioLayerTiming', { layerId: layer.id, startTimeMs, durationMs, sourceOffsetMs }, drag.mergeKey);
+		const trimStartMs = drag.trimStartMs + (drag.mode === 'trimStart' ? delta : 0);
+		appStateManager.commit('editAudioLayerTiming', { layerId: layer.id, positionMs, trimmedDurationMs, trimStartMs }, drag.mergeKey);
 	} else if (layer.layerType === 'visualModule' || layer.layerType === 'inlineVisualModule') {
-		appStateManager.commit('editVisualModuleLayerTiming', { layerId: layer.id, startTimeMs, durationMs }, drag.mergeKey);
+		appStateManager.commit('editVisualModuleLayerTiming', { layerId: layer.id, positionMs, trimmedDurationMs }, drag.mergeKey);
 	}
 }
 
@@ -295,7 +295,7 @@ function onKeyframeInsert(param: KeyframeParameter, x: number) {
 	const kind = current.keyframesTimeline.dataType.kind;
 	const fallback = Array<number>(kind === 'scalar' ? 1 : kind === 'vector' ? 2 : 4).fill(0);
 	// 挿入は元の区間を分割する操作。区間外では再生時の繰り返しを適用せず端の値を使う。
-	const evaluated = evaluateKeyframesTimeline({ ...current, wrapMode: 'clamp' }, x, layer.durationMs, fallback);
+	const evaluated = evaluateKeyframesTimeline({ ...current, wrapMode: 'clamp' }, x, layer.trimmedDurationMs, fallback);
 	const components = typeof evaluated === 'number' ? [evaluated] : evaluated;
 	const keyframeId = genId();
 	const value = deepClone(current);

@@ -87,18 +87,18 @@ function project(overrides = {}) {
 }
 
 // 【旧音声レイヤーの再生区間を保持し、素材基準への移行を一度だけ行う】
-// startTimeMsの意味の変更で保存済み音声がずれたり、再保存するたびに前へ移動したりするのを防ぐ。
+// positionMsの意味の変更で保存済み音声がずれたり、再保存するたびに前へ移動したりするのを防ぐ。
 test('migrates audio source origins once for both legacy timing formats', async () => {
 	const { encode } = require('@msgpack/msgpack');
-	for (const timing of [{ endTimeMs: 250 }, { durationMs: 200 }]) {
+	for (const timing of [{ endTimeMs: 250 }, { trimmedDurationMs: 200 }]) {
 		const legacy = project({ timeline: [{
-			id: 'audio', layerType: 'audio', assetId: 'sound', startTimeMs: 50, sourceOffsetMs: 100,
+			id: 'audio', layerType: 'audio', assetId: 'sound', positionMs: 50, trimStartMs: 100,
 			...timing, paramValues: { volume: { inputSource: 'literal', value: 1 } }, automationGraphs: [],
 		}] });
 		const migrated = decodeProjectFile(encode(legacy));
-		assert.equal(migrated.timeline[0].startTimeMs, -50);
-		assert.equal(migrated.timeline[0].durationMs, 200);
-		assert.equal(migrated.timeline[0].sourceOffsetMs, 100);
+		assert.equal(migrated.timeline[0].positionMs, -50);
+		assert.equal(migrated.timeline[0].trimmedDurationMs, 200);
+		assert.equal(migrated.timeline[0].trimStartMs, 100);
 		assert.equal('endTimeMs' in migrated.timeline[0], false);
 		assert.deepEqual(decodeProjectFile(await encodeProjectFile(migrated)), migrated);
 	}
@@ -421,8 +421,8 @@ test('refreshes audio only for audio content, source files or loop duration chan
 	await app.appReady(project({
 		assets: [{ id: 'audio', name: 'sound.wav', fileData: new Blob(['audio']) }, { id: 'image', fileData: new Blob(['image']) }],
 		timeline: [
-			{ id: 'visual', layerType: 'visualModule', visualModuleId: 'module', startTimeMs: 0, durationMs: 10000, paramValues: {}, compositingParamValues: { opacity: { inputSource: 'literal', value: 1 } }, automationGraphs: [] },
-			{ id: 'audio', layerType: 'audio', assetId: 'audio', startTimeMs: 0, durationMs: 5000, sourceOffsetMs: 0, paramValues: { volume: { inputSource: 'literal', value: 1 } }, automationGraphs: [] },
+			{ id: 'visual', layerType: 'visualModule', visualModuleId: 'module', positionMs: 0, trimmedDurationMs: 10000, paramValues: {}, compositingParamValues: { opacity: { inputSource: 'literal', value: 1 } }, automationGraphs: [] },
+			{ id: 'audio', layerType: 'audio', assetId: 'audio', positionMs: 0, trimmedDurationMs: 5000, trimStartMs: 0, paramValues: { volume: { inputSource: 'literal', value: 1 } }, automationGraphs: [] },
 		],
 	}));
 	const manager = app.appStateManager;
@@ -453,7 +453,7 @@ test('refreshes audio only for audio content, source files or loop duration chan
 		manager.state.assets.value[0].fileData = new Blob(['new audio']);
 		await nextTick();
 		assert.equal(starts.length, 5);
-		manager.state.timeline.value[0].durationMs = 20000;
+		manager.state.timeline.value[0].trimmedDurationMs = 20000;
 		await nextTick();
 		assert.equal(starts.length, 6);
 		manager.commit('removeTimelineLayer', { layerId: 'audio' });

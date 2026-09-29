@@ -5,8 +5,8 @@ import { fileURLToPath } from 'node:url';
 import { loadShaderSource } from './helpers/load-shader-source.mjs';
 const { createVisualModuleTimelineLayer } = await loadShaderSource(fileURLToPath(new URL('../src/visual-module-timeline-layer.ts', import.meta.url)));
 
-const entry = (id, startTimeMs = 0, endTimeMs = 1000, type = 'test') => ({
-	id, startTimeMs, durationMs: endTimeMs - startTimeMs, layer: { type },
+const entry = (id, positionMs = 0, endTimeMs = 1000, type = 'test') => ({
+	id, positionMs, trimmedDurationMs: endTimeMs - positionMs, layer: { type },
 });
 
 // 途中開始時や新規レイヤーは履歴をリセットし、継続するレイヤーだけ時間を進める。

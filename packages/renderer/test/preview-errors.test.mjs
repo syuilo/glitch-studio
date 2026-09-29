@@ -73,7 +73,7 @@ async function fixture(t, staticOptions = {}, Manager = VisualModuleRendererMana
 	await renderer.updateDynamicOptions({
 		resolution: { width: 1, height: 1 },
 		visualModules: [visualModule(true)],
-		...(Manager === TimelineRendererManager ? { timeline: [{ id: 'layer', layerType: 'visualModule', visualModuleId: 'module', startTimeMs: 0, durationMs: 1000, paramValues: {}, compositingParamValues: {}, automationGraphs: [] }] } : {}),
+		...(Manager === TimelineRendererManager ? { timeline: [{ id: 'layer', layerType: 'visualModule', visualModuleId: 'module', positionMs: 0, trimmedDurationMs: 1000, paramValues: {}, compositingParamValues: {}, automationGraphs: [] }] } : {}),
 	});
 	return { renderer, errors, frames, frame(timestamp) {
 		const [id, callback] = frames.entries().next().value;

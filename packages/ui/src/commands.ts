@@ -92,7 +92,7 @@ const editTimelineLayerParamCommandDef = defineCommand<{
 						case 'expression': after = { inputSource: 'expression', expression: edit.value }; break;
 						case 'automationGraphReference': after = {
 							inputSource: 'automationGraphReference',
-							durationMs: 1000,
+							trimmedDurationMs: 1000,
 							wrapMode: 'repeat',
 							offsetMode: 'start',
 							...(current.inputSource === 'automationGraphReference' ? current : {}),
@@ -107,7 +107,7 @@ const editTimelineLayerParamCommandDef = defineCommand<{
 								case 'expression': after = {
 									inputSource: 'expression', expression: AiSON.stringify(current.inputSource === 'literal' ? current.value : def.defaultValue.value),
 								}; break;
-								case 'automationGraphReference': after = { inputSource: 'automationGraphReference', automationGraphId: null, durationMs: 1000, wrapMode: 'repeat', offsetMode: 'start' }; break;
+								case 'automationGraphReference': after = { inputSource: 'automationGraphReference', automationGraphId: null, trimmedDurationMs: 1000, wrapMode: 'repeat', offsetMode: 'start' }; break;
 								case 'automationGraphInline': after = createInlineAutomationGraph(); break;
 								case 'keyframesTimelineInline':
 									if (def.dataType.kind !== 'scalar' && def.dataType.kind !== 'vector' && def.dataType.kind !== 'color') throw new Error('Parameter does not support keyframes');
@@ -447,7 +447,7 @@ const changeParamValueInputSourceCommandDef = defineNodeParamCommand<NodeParamTa
 			};
 			case 'envVariable': return { inputSource: 'envVariable', variable: '' };
 			case 'literal': return { inputSource: 'literal', value: defaultValue.value };
-			case 'automationGraphReference': return { inputSource: 'automationGraphReference', automationGraphId: null, durationMs: 1000, wrapMode: 'repeat', offsetMode: 'start' };
+			case 'automationGraphReference': return { inputSource: 'automationGraphReference', automationGraphId: null, trimmedDurationMs: 1000, wrapMode: 'repeat', offsetMode: 'start' };
 			case 'automationGraphInline': return createInlineAutomationGraph();
 			case 'keyframesTimelineInline':
 				if (target.def.dataType.kind !== 'scalar' && target.def.dataType.kind !== 'vector' && target.def.dataType.kind !== 'color') throw new Error('Parameter does not support keyframes');
@@ -491,7 +491,7 @@ const updateParamAsAutomationGraphReferenceCommandDef = defineNodeParamCommand<N
 		assertLeafParam(target);
 		return {
 			inputSource: 'automationGraphReference',
-			durationMs: 1000,
+			trimmedDurationMs: 1000,
 			wrapMode: 'repeat',
 			offsetMode: 'start',
 			...(target.value.inputSource === 'automationGraphReference' ? target.value : {}), automationGraphId: payload.value,
@@ -822,10 +822,10 @@ const addInlineVisualModuleLayerCommandDef = defineCommand<TimelineInlineVisualM
 	}),
 });
 
-const editVisualModuleLayerTimingCommandDef = defineCommand<{ layerId: string; startTimeMs: number; durationMs: number }>({
+const editVisualModuleLayerTimingCommandDef = defineCommand<{ layerId: string; positionMs: number; trimmedDurationMs: number }>({
 	label: 'Edit visual module layer timing',
 	create: payload => {
-		let before: { startTimeMs: number; durationMs: number };
+		let before: { positionMs: number; trimmedDurationMs: number };
 		const getLayer = (state: AppState) => {
 			const layer = state.timeline.value.find(layer => layer.id === payload.layerId);
 			if (layer?.layerType !== 'visualModule' && layer?.layerType !== 'inlineVisualModule') throw new Error('Visual module layer not found');
@@ -833,11 +833,11 @@ const editVisualModuleLayerTimingCommandDef = defineCommand<{ layerId: string; s
 		};
 		return {
 			execute(state) {
-				if (!Number.isFinite(payload.startTimeMs) || !Number.isFinite(payload.durationMs) || payload.startTimeMs < 0 || payload.durationMs <= 0) throw new Error('Invalid layer timing');
+				if (!Number.isFinite(payload.positionMs) || !Number.isFinite(payload.trimmedDurationMs) || payload.positionMs < 0 || payload.trimmedDurationMs <= 0) throw new Error('Invalid layer timing');
 				const layer = getLayer(state);
-				before = { startTimeMs: layer.startTimeMs, durationMs: layer.durationMs };
-				layer.startTimeMs = payload.startTimeMs;
-				layer.durationMs = payload.durationMs;
+				before = { positionMs: layer.positionMs, trimmedDurationMs: layer.trimmedDurationMs };
+				layer.positionMs = payload.positionMs;
+				layer.trimmedDurationMs = payload.trimmedDurationMs;
 			},
 			undo(state) { Object.assign(getLayer(state), before); },
 		};
@@ -852,10 +852,10 @@ const addAudioLayerCommandDef = defineCommand<TimelineAudioLayer>({
 	}),
 });
 
-const editAudioLayerTimingCommandDef = defineCommand<{ layerId: string; startTimeMs: number; durationMs: number; sourceOffsetMs: number }>({
+const editAudioLayerTimingCommandDef = defineCommand<{ layerId: string; positionMs: number; trimmedDurationMs: number; trimStartMs: number }>({
 	label: 'Edit audio layer timing',
 	create: payload => {
-		let before: Pick<TimelineAudioLayer, 'startTimeMs' | 'durationMs' | 'sourceOffsetMs'>;
+		let before: Pick<TimelineAudioLayer, 'positionMs' | 'trimmedDurationMs' | 'trimStartMs'>;
 		const getLayer = (state: AppState) => {
 			const layer = state.timeline.value.find(layer => layer.id === payload.layerId);
 			if (layer?.layerType !== 'audio') throw new Error('Audio layer not found');
@@ -863,11 +863,11 @@ const editAudioLayerTimingCommandDef = defineCommand<{ layerId: string; startTim
 		};
 		return {
 			execute(state) {
-				const { startTimeMs, durationMs, sourceOffsetMs } = payload;
-				if (![startTimeMs, durationMs, sourceOffsetMs].every(Number.isFinite) || startTimeMs + sourceOffsetMs < 0 || durationMs <= 0 || sourceOffsetMs < 0) throw new Error('Invalid audio layer timing');
+				const { positionMs, trimmedDurationMs, trimStartMs } = payload;
+				if (![positionMs, trimmedDurationMs, trimStartMs].every(Number.isFinite) || positionMs + trimStartMs < 0 || trimmedDurationMs <= 0 || trimStartMs < 0) throw new Error('Invalid audio layer timing');
 				const layer = getLayer(state);
-				before = { startTimeMs: layer.startTimeMs, durationMs: layer.durationMs, sourceOffsetMs: layer.sourceOffsetMs };
-				Object.assign(layer, { startTimeMs, durationMs, sourceOffsetMs });
+				before = { positionMs: layer.positionMs, trimmedDurationMs: layer.trimmedDurationMs, trimStartMs: layer.trimStartMs };
+				Object.assign(layer, { positionMs, trimmedDurationMs, trimStartMs });
 			},
 			undo(state) { Object.assign(getLayer(state), before); },
 		};

@@ -13,9 +13,9 @@ type AutomationGraphInput = Extract<ParameterBinding, { inputSource: 'automation
 type ReadGraph = (name: string, t: number, wrapMode: AutomationGraphInput['wrapMode']) => number;
 
 function evaluateAutomationGraph(graph: Pick<AutomationGraph, 'points' | 'isNormalized'>, input: AutomationGraphInput, context: EvaluationScope): number {
-	// 正規化グラフの1をdurationMsに対応付ける。未指定・無効なdurationはUIの初期値と同じ1秒にする。
+	// 正規化グラフの1をtrimmedDurationMsに対応付ける。未指定・無効なdurationはUIの初期値と同じ1秒にする。
 	const scale = graph.isNormalized
-		? (input.durationMs != null && Number.isFinite(input.durationMs) && input.durationMs > 0 ? input.durationMs : 1000)
+		? (input.trimmedDurationMs != null && Number.isFinite(input.trimmedDurationMs) && input.trimmedDurationMs > 0 ? input.trimmedDurationMs : 1000)
 		: 1;
 	let x = context.time / scale;
 	// 終了時刻を持たないliveではstartと同じ扱いにし、InfinityによるNaNを避ける。

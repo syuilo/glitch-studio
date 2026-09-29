@@ -70,7 +70,7 @@ self.onmessage = async (event: MessageEvent<ExportRequest>) => {
 		});
 		controller.signal.throwIfAborted();
 		if (settings.format === 'webp') {
-			await renderer.renderTimelineFrame(settings.startTimeMs, 0);
+			await renderer.renderTimelineFrame(settings.positionMs, 0);
 			controller.signal.throwIfAborted();
 			// 呼び出し直後、最初のawaitより前にCanvasをコピーする。
 			const encoded = encodeStillWebp(canvas, settings);

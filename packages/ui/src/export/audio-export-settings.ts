@@ -7,5 +7,5 @@ export const MP4_AUDIO_BITRATE = 192000;
 
 export function getExportAudioLayers(timeline: Timeline, settings: TimelineExportSettings) {
 	return timeline.filter(layer => layer.layerType === 'audio')
-		.filter(layer => settings.format === 'mp4' && getTimelineLayerStart(layer) < settings.endTimeMs && getTimelineLayerEnd(layer) > settings.startTimeMs);
+		.filter(layer => settings.format === 'mp4' && getTimelineLayerStart(layer) < settings.endTimeMs && getTimelineLayerEnd(layer) > settings.positionMs);
 }

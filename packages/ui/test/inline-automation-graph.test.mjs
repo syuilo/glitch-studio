@@ -39,13 +39,13 @@ const defaultCompositing = () => Object.fromEntries(Object.entries(timelineCompo
 // 音量Bindingと素材位置を別々にUndoでき、保存後もPlayerへの依存を持ち込まない。
 test('round-trips audio layers and undoes timing, volume and removal', async () => {
 	const { state } = fixture();
-	const layer = { id: 'audio', layerType: 'audio', assetId: 'sound', startTimeMs: 100, durationMs: 1000, sourceOffsetMs: 50,
+	const layer = { id: 'audio', layerType: 'audio', assetId: 'sound', positionMs: 100, trimmedDurationMs: 1000, trimStartMs: 50,
 		paramValues: { volume: { inputSource: 'literal', value: 1 } }, automationGraphs: [] };
 	const add = COMMAND_DEFS.addAudioLayer.create(layer);
 	add.execute(state);
 	const volume = COMMAND_DEFS.editTimelineLayerParam.create({ layerId: 'audio', target: 'audio', paramId: 'volume', edit: { kind: 'expression', value: 'PROGRESS' } });
 	volume.execute(state);
-	const timing = COMMAND_DEFS.editAudioLayerTiming.create({ layerId: 'audio', startTimeMs: 200, durationMs: 1000, sourceOffsetMs: 50 });
+	const timing = COMMAND_DEFS.editAudioLayerTiming.create({ layerId: 'audio', positionMs: 200, trimmedDurationMs: 1000, trimStartMs: 50 });
 	timing.execute(state);
 	const before = structuredClone(state.timeline.value);
 	const remove = COMMAND_DEFS.removeTimelineLayer.create({ layerId: 'audio' });
@@ -100,12 +100,12 @@ test('preserves compositing graphs and settings through edits and serialization'
 	inline.undo(state);
 	assert.deepEqual(layer.compositingParamValues, defaultCompositing());
 	inline.execute(state);
-	edit('rotation', { kind: 'automationGraphReference', value: 'graph', options: { durationMs: 2500, offsetMode: 'end', wrapMode: 'clamp' } });
+	edit('rotation', { kind: 'automationGraphReference', value: 'graph', options: { trimmedDurationMs: 2500, offsetMode: 'end', wrapMode: 'clamp' } });
 	edit('blendMode', { kind: 'literal', value: 'replace' });
 	const restored = decodeProjectFile(await encodeProjectFile({ timeline: [layer], assets: [] })).timeline[0];
 	assert.deepEqual(restored.compositingParamValues, layer.compositingParamValues);
 	assert.deepEqual(restored.automationGraphs, layer.automationGraphs);
-	assert.equal(restored.compositingParamValues.rotation.durationMs, 2500);
+	assert.equal(restored.compositingParamValues.rotation.trimmedDurationMs, 2500);
 	const reset = edit('blendMode', { kind: 'reset' });
 	assert.equal(layer.compositingParamValues.blendMode.value, 'normal');
 	reset.undo(state);
@@ -115,7 +115,7 @@ test('preserves compositing graphs and settings through edits and serialization'
 // 単位切り替えはXと制御点のXだけを変換し、曲線の形・Y・元データを維持する。
 test('converts inline graph coordinates between normalized and millisecond units', () => {
 	const original = createInlineAutomationGraph();
-	original.durationMs = 2500;
+	original.trimmedDurationMs = 2500;
 	const ms = setInlineAutomationGraphNormalized(original, false);
 	assert.equal(ms.automationGraph.isNormalized, false);
 	assert.deepEqual(ms.automationGraph.points.map(point => point.x), [0, 2500]);
@@ -126,7 +126,7 @@ test('converts inline graph coordinates between normalized and millisecond units
 	// msグラフの開始時刻が0以外でも、実際の区間を正規化する。
 	for (const point of ms.automationGraph.points) point.x += 500;
 	const normalized = setInlineAutomationGraphNormalized(ms, true);
-	assert.equal(normalized.durationMs, 2500);
+	assert.equal(normalized.trimmedDurationMs, 2500);
 	assert.deepEqual(normalized.automationGraph.points.map(point => point.x), [0, 1]);
 });
 
@@ -146,7 +146,7 @@ function fixture() {
 	const node = { id: 'node', type: 'effect', effectId: 'test', params: { values: { inputSource: 'literal', value: [initial] } } };
 	const state = {
 		visualModules: { value: [{ id: 'module', nodes: [node], primaryInputId: null, paramDefs: [{ id: 'gain', defaultValue: initial }] }] },
-		timeline: { value: [{ id: 'layer', layerType: 'visualModule', visualModuleId: 'module', startTimeMs: 0, durationMs: 1000, paramValues: {}, compositingParamValues: defaultCompositing(), automationGraphs: [] }] },
+		timeline: { value: [{ id: 'layer', layerType: 'visualModule', visualModuleId: 'module', positionMs: 0, trimmedDurationMs: 1000, paramValues: {}, compositingParamValues: defaultCompositing(), automationGraphs: [] }] },
 	};
 	return { state, node, target: { visualModuleId: 'module', nodeId: 'node', paramPath: ['values', 0] } };
 }
@@ -199,7 +199,7 @@ test('undoes inline graph edits and creation on timeline layers', () => {
 	const before = structuredClone(layer.paramValues.gain);
 	const after = structuredClone(before);
 	after.automationGraph.isNormalized = false;
-	after.durationMs = 2500;
+	after.trimmedDurationMs = 2500;
 	after.wrapMode = 'repeatMirrored';
 	after.offsetMode = 'end';
 	after.automationGraph.points[0].y = -2;

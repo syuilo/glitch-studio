@@ -75,7 +75,7 @@ const keyframe = (x, value, type = 'linear') => ({ id: `${x}`, x, value, interpo
 const keyframesInput = (keyframes, dataType = 'scalar', options = {}) => ({
 	inputSource: 'keyframesTimelineInline',
 	keyframesTimeline: { dataType: { kind: dataType }, isNormalized: true, keyframes },
-	durationMs: 1000, wrapMode: 'clamp', offsetMode: 'start', ...options,
+	trimmedDurationMs: 1000, wrapMode: 'clamp', offsetMode: 'start', ...options,
 });
 // 【ネストした値とモジュール引数のキーフレーム評価】
 // コンテナの走査はレンダラーの責務なので、ここで単体評価器との連携を確認する。
@@ -111,7 +111,7 @@ const rampGraph = (isNormalized = true) => ({
 test('isolates caller and module graphs for references and GRAPH expressions', () => {
 	const internal = { ...rampGraph(), points: [graphPoint(0, 9)] };
 	const external = { ...internal, points: [graphPoint(0, 3)] };
-	const reference = { inputSource: 'automationGraphReference', automationGraphId: internal.id, durationMs: 1000, offsetMode: 'start', wrapMode: 'clamp' };
+	const reference = { inputSource: 'automationGraphReference', automationGraphId: internal.id, trimmedDurationMs: 1000, offsetMode: 'start', wrapMode: 'clamp' };
 	const named = expression('GRAPH("Ramp", 0, "clamp")');
 	const input = context({ reference: number, named: number }, { reference, named }, {
 		automationGraphs: [internal], callerGraphs: [external],
@@ -135,7 +135,7 @@ const graphInput = (inputSource, graph, options = {}) => ({
 	...(inputSource === 'automationGraphReference'
 		? { automationGraphId: graph.id }
 		: { automationGraph: { points: graph.points, isNormalized: graph.isNormalized } }),
-	durationMs: 2000, wrapMode: 'clamp', offsetMode: 'start', ...options,
+	trimmedDurationMs: 2000, wrapMode: 'clamp', offsetMode: 'start', ...options,
 });
 
 function assertClose(actual, expected) {

@@ -4,15 +4,15 @@ import { fileURLToPath } from 'node:url';
 import { loadShaderSource } from '../../renderer/test/helpers/load-shader-source.mjs';
 
 const { TimelineAudioRenderer } = await loadShaderSource(fileURLToPath(new URL('../src/timeline-audio-renderer.ts', import.meta.url)));
-const layer = (changes = {}) => ({ id: 'audio', layerType: 'audio', assetId: 'asset', startTimeMs: 80, durationMs: 100, sourceOffsetMs: 20, paramValues: { volume: { inputSource: 'literal', value: 1 } }, automationGraphs: [], ...changes });
+const layer = (changes = {}) => ({ id: 'audio', layerType: 'audio', assetId: 'asset', positionMs: 80, trimmedDurationMs: 100, trimStartMs: 20, paramValues: { volume: { inputSource: 'literal', value: 1 } }, automationGraphs: [], ...changes });
 const constant = async (_id, _time, frames) => [new Float32Array(frames).fill(1), new Float32Array(frames).fill(0.5)];
 
 // 【素材の配置基準を固定した左トリムは、再生開始と読み出し位置を同じ量だけ進める】
-// startTimeMsを動かさずにオフセットを増やしても、トリム前の区間を再生せず右端を維持する。
+// positionMsを動かさずにオフセットを増やしても、トリム前の区間を再生せず右端を維持する。
 test('trims audio relative to a fixed source origin', async () => {
 	const calls = [];
 	const renderer = new TimelineAudioRenderer(async (...args) => { calls.push(args); return constant(...args); });
-	const output = await renderer.render([layer({ startTimeMs: 100, sourceOffsetMs: 40, durationMs: 60 })], 100, 110, 1000);
+	const output = await renderer.render([layer({ positionMs: 100, trimStartMs: 40, trimmedDurationMs: 60 })], 100, 110, 1000);
 	assert.deepEqual(calls, [['asset', 0.04, 60, 1000]]);
 	assert.deepEqual([...output[0].slice(0, 40)], Array(40).fill(0));
 	assert.deepEqual([...output[0].slice(40, 100)], Array(60).fill(1));
@@ -50,7 +50,7 @@ test('evaluates local-time expressions consistently across chunk boundaries', as
 // キーフレームを5ms制御周期に丸めると、フェードやミュートの指定位置が変わってしまう。
 test('preserves sub-control-period hold boundaries and linear keyframes', async () => {
 	const renderer = new TimelineAudioRenderer(constant);
-	const binding = { inputSource: 'keyframesTimelineInline', offsetMode: 'start', wrapMode: 'clamp', durationMs: null,
+	const binding = { inputSource: 'keyframesTimelineInline', offsetMode: 'start', wrapMode: 'clamp', trimmedDurationMs: null,
 		keyframesTimeline: { dataType: { kind: 'scalar' }, isNormalized: false, keyframes: [
 			{ id: 'a', x: 0, value: [0], interpolation: { type: 'hold' } },
 			{ id: 'b', x: 2, value: [1], interpolation: { type: 'linear' } },

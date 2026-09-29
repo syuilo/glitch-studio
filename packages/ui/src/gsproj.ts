@@ -29,7 +29,7 @@ type StoredProject = Omit<Project, 'assets'> & {
 };
 
 type LegacyTimelineLayer<T = TimelineLayer> = T extends TimelineLayer
-	? Omit<T, 'durationMs'> & { endTimeMs: number; durationMs?: number }
+	? Omit<T, 'trimmedDurationMs'> & { endTimeMs: number; trimmedDurationMs?: number }
 	: never;
 
 export async function encodeProjectFile(project: Project): Promise<Uint8Array> {
@@ -57,13 +57,13 @@ export function decodeProjectFile(bin: Uint8Array, currentVersion?: string): Pro
 			let result: TimelineLayer;
 			if ('endTimeMs' in layer) {
 				const { endTimeMs, ...rest } = layer;
-				result = { ...rest, durationMs: layer.durationMs ?? endTimeMs - layer.startTimeMs };
+				result = { ...rest, trimmedDurationMs: layer.trimmedDurationMs ?? endTimeMs - layer.positionMs };
 			} else {
 				result = layer;
 			}
-			// 旧形式のstartTimeMsは再生開始を指す。素材基準へ戻し、保存済みの再生区間を維持する。
+			// 旧形式のpositionMsは再生開始を指す。素材基準へ戻し、保存済みの再生区間を維持する。
 			if (result.layerType === 'audio' && audioLayerTimingVersion == null) {
-				result = { ...result, startTimeMs: result.startTimeMs - result.sourceOffsetMs };
+				result = { ...result, positionMs: result.positionMs - result.trimStartMs };
 			}
 			return result;
 		}),

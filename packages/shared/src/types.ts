@@ -19,24 +19,24 @@ export type ParameterBinding = {
 } | {
 	inputSource: 'automationGraphReference';
 	automationGraphId: string | null;
-	durationMs: number | null; // isNormalizedの場合のみ使用。nullの場合は1000ms。
+	trimmedDurationMs: number | null; // isNormalizedの場合のみ使用。nullの場合は1000ms。
 	offsetMode: 'start' | 'end';
 	wrapMode: 'clamp' | 'repeat' | 'repeatMirrored'
 } | {
 	inputSource: 'automationGraphInline';
 	automationGraph: Omit<AutomationGraph, 'id' | 'name'>;
-	durationMs: number | null; // isNormalizedの場合のみ使用。nullの場合は1000ms。
+	trimmedDurationMs: number | null; // isNormalizedの場合のみ使用。nullの場合は1000ms。
 	offsetMode: 'start' | 'end';
 	wrapMode: 'clamp' | 'repeat' | 'repeatMirrored'
 } | {
 	inputSource: 'keyframesTimelineInline';
 	keyframesTimeline: Omit<KeyframesTimeline, 'id' | 'name'>;
-	durationMs: number | null; // isNormalizedの場合のみ使用。nullの場合は1000ms。
+	trimmedDurationMs: number | null; // isNormalizedの場合のみ使用。nullの場合は1000ms。
 	offsetMode: 'start' | 'end';
 	wrapMode: 'clamp' | 'repeat' | 'repeatMirrored'
 } | ({ inputSource: 'node' } & (NodeOutputReference | { nodeId: null; outputPort: null })); // inputSource: 'node'はVisualModule内でしか使わない
 
-export type AutomationGraphPlaybackOptions = Pick<Extract<ParameterBinding, { inputSource: 'automationGraphReference' }>, 'durationMs' | 'offsetMode' | 'wrapMode'>;
+export type AutomationGraphPlaybackOptions = Pick<Extract<ParameterBinding, { inputSource: 'automationGraphReference' }>, 'trimmedDurationMs' | 'offsetMode' | 'wrapMode'>;
 
 export type Asset = {
 	id: string;

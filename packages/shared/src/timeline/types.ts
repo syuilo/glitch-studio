@@ -2,12 +2,17 @@ import type { AutomationGraph, ParameterBinding } from '../types.ts';
 import type { VisualModule } from '../visual-module/types.ts';
 import type { timelineCompositingParamDefs } from './timeline-compositing.ts';
 
+// NOTE: 各値の計算式は以下となる
+// const visibleStartMs = layer.positionMs + layer.trimStartMs;
+// const visibleEndMs = visibleStartMs + layer.trimmedDurationMs;
+// const contentTimeMs = timelineTimeMs - layer.positionMs;
+
 export type TimelineParameterBinding = Exclude<ParameterBinding, { inputSource: 'node' | 'externalCustomParameterInput' }>;
 
 export type TimelineVisualModuleLayer = {
 	id: string;
-	startTimeMs: number;
-	durationMs: number;
+	positionMs: number;
+	trimmedDurationMs: number;
 	layerType: 'visualModule';
 	visualModuleId: string;
 	paramValues: Record<string, TimelineParameterBinding>;
@@ -17,8 +22,8 @@ export type TimelineVisualModuleLayer = {
 
 export type TimelineInlineVisualModuleLayer = {
 	id: string;
-	startTimeMs: number;
-	durationMs: number;
+	positionMs: number;
+	trimmedDurationMs: number;
 	layerType: 'inlineVisualModule';
 	visualModule: VisualModule;
 	paramValues: Record<string, TimelineParameterBinding>;
@@ -28,8 +33,8 @@ export type TimelineInlineVisualModuleLayer = {
 
 export type TimelineEffectLayer = { // TODO
 	id: string;
-	startTimeMs: number;
-	durationMs: number;
+	positionMs: number;
+	trimmedDurationMs: number;
 	layerType: 'effect';
 	effectId: string;
 	paramValues: Record<string, TimelineParameterBinding>;
@@ -41,12 +46,12 @@ export type TimelineAudioLayer = {
 	id: string;
 	layerType: 'audio';
 	/** 素材の先頭を置く時刻。トリムで再生範囲が0以降なら負の値も許可する。 */
-	startTimeMs: number;
+	positionMs: number;
 	/** トリム後の再生区間の長さ。 */
-	durationMs: number;
+	trimmedDurationMs: number;
 	assetId: string;
-	/** 素材先頭からのトリム量。実際の再生開始はstartTimeMs + sourceOffsetMs。 */
-	sourceOffsetMs: number;
+	/** 素材先頭からのトリム量。実際の再生開始はpositionMs + trimStartMs。 */
+	trimStartMs: number;
 	paramValues: { volume: TimelineParameterBinding };
 	automationGraphs: AutomationGraph[];
 };

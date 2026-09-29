@@ -101,7 +101,7 @@ const downloadUrl = ref('');
 const downloadName = ref('');
 let abortController: AbortController | undefined;
 const settings = computed<TimelineExportSettings>(() => {
-	const common = { ...resolution.value, startTimeMs: parseExportTime(startTime.value) };
+	const common = { ...resolution.value, positionMs: parseExportTime(startTime.value) };
 	return mode.value === 'still'
 		? { ...common, format: 'webp', quality: stillQuality.value }
 		: { ...common, format: 'mp4', quality: videoQuality.value, fps: fps.value, endTimeMs: parseExportTime(endTime.value) };

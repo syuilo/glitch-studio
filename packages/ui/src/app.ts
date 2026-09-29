@@ -361,8 +361,8 @@ export async function newProject() {
 				rotation: timelineCompositingParamDefs.rotation.defaultValue,
 			}),
 			automationGraphs: [],
-			startTimeMs: 0,
-			durationMs: 1000 * 10,
+			positionMs: 0,
+			trimmedDurationMs: 1000 * 10,
 		}],
 		resolution: { width: 1024, height: 1024 },
 	});
@@ -482,8 +482,8 @@ export async function newProjectFromImageOrVideo(file?: File) {
 				rotation: timelineCompositingParamDefs.rotation.defaultValue,
 			}),
 			automationGraphs: [],
-			startTimeMs: 0,
-			durationMs: 1000 * 10,
+			positionMs: 0,
+			trimmedDurationMs: 1000 * 10,
 		}],
 		resolution: { width: result.width || 1024, height: result.height || 1024 },
 	});

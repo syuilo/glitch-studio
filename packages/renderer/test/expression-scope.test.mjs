@@ -102,7 +102,7 @@ test('does not retain PARAM functions or local declarations between expressions'
 test('isolates graph references and GRAPH functions without inheriting graphs', () => {
 	const evaluator = new ParameterEvaluator();
 	const graph = value => ({ id: 'graph', name: 'Graph', isNormalized: true, points: [{ id: 'point', x: 0, y: value, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] }] });
-	const params = { ref: { inputSource: 'automationGraphReference', automationGraphId: 'graph', durationMs: 1000, offsetMode: 'start', wrapMode: 'clamp' }, named: expression('GRAPH("Graph", 0, "clamp")') };
+	const params = { ref: { inputSource: 'automationGraphReference', automationGraphId: 'graph', trimmedDurationMs: 1000, offsetMode: 'start', wrapMode: 'clamp' }, named: expression('GRAPH("Graph", 0, "clamp")') };
 	const defs = [def('ref'), def('named')];
 	const external = externalValues(evaluator, defs, params, { ...layerScope, automationGraphs: [graph(2)] });
 	assert.deepEqual([...external.values()], [2, 2]);

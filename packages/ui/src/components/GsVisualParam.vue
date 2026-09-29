@@ -44,7 +44,7 @@
 						<GsSelect v-if="paramValue.inputSource === 'automationGraphInline'" small :modelValue="paramValue.automationGraph.isNormalized ? 'normalized' : 'milliseconds'" :items="graphTimeAxisItems" @update:modelValue="value => updateInlineGraphNormalized(value === 'normalized')">
 							<template #label>Time axis</template>
 						</GsSelect>
-						<GsInput v-if="selectedAutomationGraph?.isNormalized" type="number" small :min="1" :modelValue="paramValue.durationMs ?? 1000" @update:modelValue="updateAutomationGraphDuration">
+						<GsInput v-if="selectedAutomationGraph?.isNormalized" type="number" small :min="1" :modelValue="paramValue.trimmedDurationMs ?? 1000" @update:modelValue="updateAutomationGraphDuration">
 							<template #label>Duration (ms)</template>
 						</GsInput>
 						<GsSelect small :modelValue="paramValue.wrapMode" :items="graphWrapModeItems" @update:modelValue="wrapMode => updateAutomationGraphOptions({ wrapMode })">
@@ -313,8 +313,8 @@ function updateInlineGraphPoints(points: BezierAnchorPoint[], mergeKey: string |
 	});
 }
 
-function updateAutomationGraphDuration(durationMs: number) {
-	if (Number.isFinite(durationMs) && durationMs > 0) updateAutomationGraphOptions({ durationMs });
+function updateAutomationGraphDuration(trimmedDurationMs: number) {
+	if (Number.isFinite(trimmedDurationMs) && trimmedDurationMs > 0) updateAutomationGraphOptions({ trimmedDurationMs });
 }
 
 function selectAutomationGraph(ev: PointerEvent) {

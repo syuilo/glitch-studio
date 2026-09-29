@@ -10,7 +10,7 @@ export function evaluateKeyframesTimeline<T>(input: InlineKeyframesTimeline, tim
 	const first = keyframes[0];
 	const last = keyframes[keyframes.length - 1];
 	const scale = timeline.isNormalized
-		? (input.durationMs != null && Number.isFinite(input.durationMs) && input.durationMs > 0 ? input.durationMs : 1000)
+		? (input.trimmedDurationMs != null && Number.isFinite(input.trimmedDurationMs) && input.trimmedDurationMs > 0 ? input.trimmedDurationMs : 1000)
 		: 1;
 	let x = input.offsetMode === 'end' && Number.isFinite(endTime)
 		? (time - endTime) / scale + last.x

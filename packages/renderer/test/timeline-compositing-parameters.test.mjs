@@ -35,7 +35,7 @@ for (const inputSource of ['automationGraphInline', 'automationGraphReference'])
 	test(`evaluates timing and wrapping for ${inputSource}`, () => {
 		const input = {
 			inputSource, automationGraph: graph, automationGraphId: graph.id,
-			durationMs: 1000, offsetMode: 'end', wrapMode: 'repeatMirrored',
+			trimmedDurationMs: 1000, offsetMode: 'end', wrapMode: 'repeatMirrored',
 		};
 		const result = evaluate({ opacity: input, rotation: input }, [graph]);
 		for (const value of [result.opacity, result.rotation]) assert.ok(Math.abs(value - 0.5) < 0.00001);

@@ -18,8 +18,8 @@ export class TimelineAudioExport {
 		this.reader = new AssetAudioReader(assets);
 		this.renderer = new TimelineAudioRenderer((...args) => this.reader.read(...args));
 		// 開始時刻は整数msなので48kHzのサンプル境界と一致する。
-		this.startFrame = settings.startTimeMs * (MP4_AUDIO_SAMPLE_RATE / 1000);
-		this.totalFrames = Math.ceil((settings.endTimeMs - settings.startTimeMs) / 1000 * MP4_AUDIO_SAMPLE_RATE);
+		this.startFrame = settings.positionMs * (MP4_AUDIO_SAMPLE_RATE / 1000);
+		this.totalFrames = Math.ceil((settings.endTimeMs - settings.positionMs) / 1000 * MP4_AUDIO_SAMPLE_RATE);
 		if (!Number.isSafeInteger(this.startFrame + this.totalFrames)) throw new Error('Audio export range is too long.');
 	}
 

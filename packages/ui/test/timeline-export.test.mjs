@@ -5,7 +5,7 @@ import { exportTimeline } from '../src/export/client.ts';
 
 const settings = {
 	format: 'mp4', quality: 'high', width: 1920, height: 1080,
-	fps: 30, startTimeMs: 5000, endTimeMs: 5100,
+	fps: 30, positionMs: 5000, endTimeMs: 5100,
 };
 
 function fixture(overrides = {}) {
@@ -38,12 +38,12 @@ test('starts at the requested time with fresh history and zero output timestamp'
 
 // 最終フレームを端数の長さにし、終了時刻のフレームを余計に追加しない。
 test('trims the final frame to the range end including subframe ranges', async () => {
-	for (const durationMs of [1, 85, 100, 1001]) {
+	for (const trimmedDurationMs of [1, 85, 100, 1001]) {
 		const f = fixture();
-		await renderExportFrames({ ...settings, endTimeMs: settings.startTimeMs + durationMs }, f.callbacks);
+		await renderExportFrames({ ...settings, endTimeMs: settings.positionMs + trimmedDurationMs }, f.callbacks);
 		const last = f.frames.at(-1);
-		assert.equal(last.timestamp + last.duration, durationMs / 1000);
-		assert.ok(f.frames.every(frame => frame.duration > 0 && frame.timeMs < settings.startTimeMs + durationMs));
+		assert.equal(last.timestamp + last.duration, trimmedDurationMs / 1000);
+		assert.ok(f.frames.every(frame => frame.duration > 0 && frame.timeMs < settings.positionMs + trimmedDurationMs));
 	}
 });
 
@@ -86,7 +86,7 @@ test('propagates encoding errors without finalizing incomplete output', async ()
 // 順序が異なるレイヤーや空タイムラインからも、正しい既定の終了時刻を求める。
 test('finds the final layer end regardless of timeline order', () => {
 	assert.equal(getTimelineEnd([]), 0);
-	assert.equal(getTimelineEnd([{ startTimeMs: 100, durationMs: 400 }, { startTimeMs: 1000, durationMs: 2000 }, { startTimeMs: 0, durationMs: 1000 }]), 3000);
+	assert.equal(getTimelineEnd([{ positionMs: 100, trimmedDurationMs: 400 }, { positionMs: 1000, trimmedDurationMs: 2000 }, { positionMs: 0, trimmedDurationMs: 1000 }]), 3000);
 });
 
 // Workerでも設定を検証し、無限ループや不正なGPU・エンコーダー設定を防ぐ。
@@ -95,7 +95,7 @@ test('rejects invalid dimensions, frame rates, ranges and encoding settings', ()
 	for (const invalid of [
 		{ width: 1919 }, { height: 0 }, { width: 8194 }, { height: 2.5 },
 		{ fps: 0 }, { fps: NaN }, { fps: Infinity }, { fps: 121 },
-		{ startTimeMs: -1 }, { endTimeMs: 5000 }, { endTimeMs: Infinity },
+		{ positionMs: -1 }, { endTimeMs: 5000 }, { endTimeMs: Infinity },
 		{ quality: 'unknown' }, { format: 'gif' }, { quality: 'lossless' },
 	]) assert.equal(typeof validateExportSettings({ ...settings, ...invalid }), 'string');
 });

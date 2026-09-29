@@ -9,11 +9,11 @@ export function setInlineKeyframesTimelineNormalized(input: InlineKeyframesTimel
 	const value = deepClone(input);
 	const graph = value.keyframesTimeline;
 	if (graph.isNormalized === isNormalized) return value;
-	const durationMs = value.durationMs != null && Number.isFinite(value.durationMs) && value.durationMs > 0 ? value.durationMs : 1000;
+	const trimmedDurationMs = value.trimmedDurationMs != null && Number.isFinite(value.trimmedDurationMs) && value.trimmedDurationMs > 0 ? value.trimmedDurationMs : 1000;
 	graph.points.sort((a, b) => a.x - b.x);
 	const firstX = graph.points[0]?.x ?? 0;
 	const span = (graph.points.at(-1)?.x ?? firstX) - firstX;
-	const scale = isNormalized ? 1 / (span > 0 ? span : durationMs) : durationMs;
+	const scale = isNormalized ? 1 / (span > 0 ? span : trimmedDurationMs) : trimmedDurationMs;
 	// 制御点はアンカーからの相対座標なので、平行移動せず倍率だけを適用する。
 	for (const point of graph.points) {
 		point.x = (point.x - (isNormalized ? firstX : 0)) * scale;
@@ -21,7 +21,7 @@ export function setInlineKeyframesTimelineNormalized(input: InlineKeyframesTimel
 		point.bezierControlPointB[0] *= scale;
 	}
 	if (isNormalized) {
-		value.durationMs = span > 0 ? span : durationMs;
+		value.trimmedDurationMs = span > 0 ? span : trimmedDurationMs;
 		// 正規化エディタが固定する0と1の端点を、空・1点のグラフにも用意する。
 		if (graph.points.length === 0) {
 			graph.points.push({ id: genId(), x: 0, y: 0, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] });
@@ -52,7 +52,7 @@ export function createInlineKeyframesTimeline(dataType: KeyframesTimeline['dataT
 				{ id: genId(), x: 1000, value: [1, 1, 1, 1], interpolation: { type: 'linear' } },
 			],
 		},
-		durationMs: null,
+		trimmedDurationMs: null,
 		wrapMode: 'clamp',
 		offsetMode: 'start',
 	};

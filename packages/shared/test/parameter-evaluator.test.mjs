@@ -30,7 +30,7 @@ const keyframe = (x, value, type = 'linear') => ({ id: `${x}`, x, value, interpo
 const keyframesInput = (keyframes, dataType = 'scalar', options = {}) => ({
 	inputSource: 'keyframesTimelineInline',
 	keyframesTimeline: { dataType: { kind: dataType }, isNormalized: true, keyframes },
-	durationMs: 1000, wrapMode: 'clamp', offsetMode: 'start', ...options,
+	trimmedDurationMs: 1000, wrapMode: 'clamp', offsetMode: 'start', ...options,
 });
 function evaluateKeyframes(input, time, endTime = 5000, fallback = -1) {
 	return new ParameterEvaluator().evaluate(input, {
@@ -68,15 +68,15 @@ test('keyframes respect normalized duration, millisecond coordinates, end alignm
 	for (const isNormalized of [true, false]) {
 		const input = keyframesInput([keyframe(isNormalized ? 1.5 : 3000, [10]), keyframe(isNormalized ? 0.5 : 1000, [0])]);
 		input.keyframesTimeline.isNormalized = isNormalized;
-		input.durationMs = 2000;
+		input.trimmedDurationMs = 2000;
 		assert.equal(evaluateKeyframes(input, 1500), 2.5);
 		input.offsetMode = 'end';
 		assert.equal(evaluateKeyframes(input, 4500), 7.5);
 		assert.equal(evaluateKeyframes(input, 5000), 10);
 		assert.equal(evaluateKeyframes(input, 1500, Infinity), 2.5);
 	}
-	for (const durationMs of [null, 0, -1, NaN, Infinity]) {
-		assert.equal(evaluateKeyframes(keyframesInput([keyframe(0, [0]), keyframe(1, [10])], 'scalar', { durationMs }), 250), 2.5);
+	for (const trimmedDurationMs of [null, 0, -1, NaN, Infinity]) {
+		assert.equal(evaluateKeyframes(keyframesInput([keyframe(0, [0]), keyframe(1, [10])], 'scalar', { trimmedDurationMs }), 250), 2.5);
 	}
 });
 
@@ -121,7 +121,7 @@ const graphInput = (inputSource, graph, options = {}) => ({
 	...(inputSource === 'automationGraphReference'
 		? { automationGraphId: graph.id }
 		: { automationGraph: { points: graph.points, isNormalized: graph.isNormalized } }),
-	durationMs: 2000, wrapMode: 'clamp', offsetMode: 'start', ...options,
+	trimmedDurationMs: 2000, wrapMode: 'clamp', offsetMode: 'start', ...options,
 });
 
 function evaluateGraphInput(inputSource, graph, { time = 500, endTime = 5000, ...options } = {}) {
@@ -137,9 +137,9 @@ function assertClose(actual, expected) {
 for (const source of ['automationGraphReference', 'automationGraphInline']) {
 	// 正規化グラフはdurationに引き延ばし、msグラフはdurationを無視する。
 	test(`evaluates normalized and millisecond coordinates for ${source}`, () => {
-		assertClose(evaluateGraphInput(source, rampGraph(), { durationMs: 4000, time: 1000 }), 2.5);
-		assertClose(evaluateGraphInput(source, rampGraph(false), { durationMs: 4000, time: 1000 }), 5);
-		assertClose(evaluateGraphInput(source, rampGraph(false), { durationMs: null, time: 500 }), 2.5);
+		assertClose(evaluateGraphInput(source, rampGraph(), { trimmedDurationMs: 4000, time: 1000 }), 2.5);
+		assertClose(evaluateGraphInput(source, rampGraph(false), { trimmedDurationMs: 4000, time: 1000 }), 5);
+		assertClose(evaluateGraphInput(source, rampGraph(false), { trimmedDurationMs: null, time: 500 }), 2.5);
 		assert.equal(evaluateGraphInput(source, rampGraph(), { time: 0 }), 0);
 		assert.equal(evaluateGraphInput(source, rampGraph(), { time: 2000 }), 10);
 	});
@@ -182,8 +182,8 @@ for (const source of ['automationGraphReference', 'automationGraphInline']) {
 	// liveは有限な終端を持たないためstart扱い。空・1点・無効なdurationでもNaNを返さない。
 	test(`handles live playback and degenerate graphs for ${source}`, () => {
 		assertClose(evaluateGraphInput(source, rampGraph(), { offsetMode: 'end', endTime: Infinity }), 2.5);
-		for (const durationMs of [null, 0, -1, Infinity, NaN]) {
-			assertClose(evaluateGraphInput(source, rampGraph(), { durationMs }), 5);
+		for (const trimmedDurationMs of [null, 0, -1, Infinity, NaN]) {
+			assertClose(evaluateGraphInput(source, rampGraph(), { trimmedDurationMs }), 5);
 		}
 		for (const wrapMode of ['clamp', 'repeat', 'repeatMirrored']) {
 			assert.equal(evaluateGraphInput(source, { ...rampGraph(), points: [] }, { wrapMode, offsetMode: 'end' }), 0);

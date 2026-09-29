@@ -104,10 +104,10 @@
 		</div>
 		<div v-else-if="selectedLayer?.layerType === 'audio'" :class="$style.rightSidePanel">
 			<div>{{ appStateManager.state.assets.value.find(asset => asset.id === (selectedLayer?.layerType === 'audio' ? selectedLayer.assetId : ''))?.name ?? 'Missing audio' }}</div>
-			<GsInput small type="number" :min="-selectedLayer.sourceOffsetMs" :modelValue="selectedLayer.startTimeMs" @update:modelValue="value => editAudioTiming('move', value)"><template #label>Position (ms)</template></GsInput>
-			<GsInput small type="number" :min="Math.max(0, selectedLayer.startTimeMs)" :max="getTimelineLayerEnd(selectedLayer) - 1" :modelValue="getTimelineLayerStart(selectedLayer)" @update:modelValue="value => editAudioTiming('trimStart', value)"><template #label>Trim start (ms)</template></GsInput>
+			<GsInput small type="number" :min="-selectedLayer.trimStartMs" :modelValue="selectedLayer.positionMs" @update:modelValue="value => editAudioTiming('move', value)"><template #label>Position (ms)</template></GsInput>
+			<GsInput small type="number" :min="Math.max(0, selectedLayer.positionMs)" :max="getTimelineLayerEnd(selectedLayer) - 1" :modelValue="getTimelineLayerStart(selectedLayer)" @update:modelValue="value => editAudioTiming('trimStart', value)"><template #label>Trim start (ms)</template></GsInput>
 			<GsInput small type="number" :min="getTimelineLayerStart(selectedLayer) + 1" :modelValue="getTimelineLayerEnd(selectedLayer)" @update:modelValue="value => editAudioTiming('trimEnd', value)"><template #label>Trim end (ms)</template></GsInput>
-			<GsInput small type="number" :min="0" :modelValue="selectedLayer.sourceOffsetMs" @update:modelValue="value => editAudioTiming('offset', value)"><template #label>Source offset (ms)</template></GsInput>
+			<GsInput small type="number" :min="0" :modelValue="selectedLayer.trimStartMs" @update:modelValue="value => editAudioTiming('offset', value)"><template #label>Source offset (ms)</template></GsInput>
 			<GsVisualParam
 				:key="selectedLayer.id"
 				:availableVariables="AUDIO_LAYER_VAR_DEFS"
@@ -132,8 +132,8 @@
 			/>
 			<div v-else :class="$style.layerSettings">
 				<div>{{ selectedLayer.layerType === 'visualModule' ? appStateManager.getVisualModuleById(selectedLayer.visualModuleId)?.name : 'Inline Visual Module' }}</div>
-				<GsInput small type="number" :min="0" :modelValue="selectedLayer.startTimeMs" @update:modelValue="value => editVisualModuleTiming('position', value)"><template #label>Position (ms)</template></GsInput>
-				<GsInput small type="number" :min="1" :modelValue="selectedLayer.durationMs" @update:modelValue="value => editVisualModuleTiming('duration', value)"><template #label>Duration (ms)</template></GsInput>
+				<GsInput small type="number" :min="0" :modelValue="selectedLayer.positionMs" @update:modelValue="value => editVisualModuleTiming('position', value)"><template #label>Position (ms)</template></GsInput>
+				<GsInput small type="number" :min="1" :modelValue="selectedLayer.trimmedDurationMs" @update:modelValue="value => editVisualModuleTiming('duration', value)"><template #label>Duration (ms)</template></GsInput>
 				<div>Compositing</div>
 				<GsVisualParam
 					v-for="(paramDef, paramId) in timelineCompositingParamDefs"
@@ -530,7 +530,7 @@ function onTlKeydown(ev: KeyboardEvent) {
 		if (ev.repeat) return;
 		const layer = deepClone(copiedLayer);
 		layer.id = genId();
-		layer.startTimeMs = Math.max(0, time.value) - (layer.layerType === 'audio' ? layer.sourceOffsetMs : 0);
+		layer.positionMs = Math.max(0, time.value) - (layer.layerType === 'audio' ? layer.trimStartMs : 0);
 		appStateManager.commit('pasteTimelineLayer', { layer, sourceLayerId: copiedLayer.id });
 		onLayerSelected(layer);
 	}
@@ -566,9 +566,9 @@ function editVisualModuleTiming(target: 'position' | 'duration', value: string |
 	const layer = selectedLayer.value;
 	const amount = Number(value);
 	if (layer == null || !Number.isFinite(amount)) return;
-	const startTimeMs = target === 'position' ? Math.max(0, amount) : layer.startTimeMs;
-	const durationMs = target === 'duration' ? Math.max(1, amount) : layer.durationMs;
-	appStateManager.commit('editVisualModuleLayerTiming', { layerId: layer.id, startTimeMs, durationMs });
+	const positionMs = target === 'position' ? Math.max(0, amount) : layer.positionMs;
+	const trimmedDurationMs = target === 'duration' ? Math.max(1, amount) : layer.trimmedDurationMs;
+	appStateManager.commit('editVisualModuleLayerTiming', { layerId: layer.id, positionMs, trimmedDurationMs });
 }
 
 function onInlineVisualModuleEdit(event: VisualModuleEdit) {
@@ -643,16 +643,16 @@ async function addAudioLayer(asset: Asset, addAsset: boolean) {
 	const timeline = appStateManager.state.timeline.value;
 	try {
 		const audio = await openAssetAudio(asset);
-		const durationMs = audio.duration * 1000;
+		const trimmedDurationMs = audio.duration * 1000;
 		audio.input.dispose();
-		if (!Number.isFinite(durationMs) || durationMs <= 0) throw new Error('Audio has no finite duration.');
+		if (!Number.isFinite(trimmedDurationMs) || trimmedDurationMs <= 0) throw new Error('Audio has no finite duration.');
 		if (appStateManager.state.timeline.value !== timeline) return;
 		if (!addAsset && !appStateManager.state.assets.value.some(entry => entry.id === asset.id)) return;
 		if (addAsset) appStateManager.commit('addAsset', asset);
 		const id = genId();
-		const startTimeMs = Math.round(time.value);
+		const positionMs = Math.round(time.value);
 		appStateManager.commit('addAudioLayer', {
-			id, layerType: 'audio', assetId: asset.id, startTimeMs, durationMs, sourceOffsetMs: 0,
+			id, layerType: 'audio', assetId: asset.id, positionMs, trimmedDurationMs, trimStartMs: 0,
 			paramValues: { volume: { inputSource: 'literal', value: 1 } }, automationGraphs: [],
 		});
 		selectedLayerId.value = id;
@@ -664,13 +664,13 @@ function editAudioTiming(kind: 'move' | 'trimStart' | 'trimEnd' | 'offset', valu
 	const layer = selectedLayer.value;
 	const next = Number(value);
 	if (layer?.layerType !== 'audio' || !Number.isFinite(next)) return;
-	let { startTimeMs, durationMs, sourceOffsetMs } = layer;
-	if (kind === 'move') startTimeMs = next;
-	if (kind === 'trimStart') { durationMs -= next - getTimelineLayerStart(layer); sourceOffsetMs = next - startTimeMs; }
-	if (kind === 'trimEnd') durationMs = next - getTimelineLayerStart(layer);
-	if (kind === 'offset') sourceOffsetMs = next;
-	if (startTimeMs + sourceOffsetMs < 0 || durationMs <= 0 || sourceOffsetMs < 0) return;
-	appStateManager.commit('editAudioLayerTiming', { layerId: layer.id, startTimeMs, durationMs, sourceOffsetMs });
+	let { positionMs, trimmedDurationMs, trimStartMs } = layer;
+	if (kind === 'move') positionMs = next;
+	if (kind === 'trimStart') { trimmedDurationMs -= next - getTimelineLayerStart(layer); trimStartMs = next - positionMs; }
+	if (kind === 'trimEnd') trimmedDurationMs = next - getTimelineLayerStart(layer);
+	if (kind === 'offset') trimStartMs = next;
+	if (positionMs + trimStartMs < 0 || trimmedDurationMs <= 0 || trimStartMs < 0) return;
+	appStateManager.commit('editAudioLayerTiming', { layerId: layer.id, positionMs, trimmedDurationMs, trimStartMs });
 }
 
 function play() {

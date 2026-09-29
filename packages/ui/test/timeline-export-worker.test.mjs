@@ -85,7 +85,7 @@ for (const format of ['mp4', 'webp']) {
 	test(`initializes ${format} export with shared settings and waits for assets`, { timeout: 2000 }, async () => {
 		const f = fixture();
 		const request = {
-			settings: { format, quality: 'high', width: 3, height: 5, startTimeMs: 1000,
+			settings: { format, quality: 'high', width: 3, height: 5, positionMs: 1000,
 				...(format === 'mp4' ? { fps: 30, endTimeMs: 1010 } : {}) },
 			renderer: { enable32bitDataTextures: true, intermediateTextureFormat: 'rgba16float' },
 			project: { assets: [{ id: 'image' }], visualModules: [{ id: 'module' }], timeline: [{ id: 'layer' }] },
@@ -115,7 +115,7 @@ for (const format of ['mp4', 'webp']) {
 test('reports asset preparation failures without rendering export frames', { timeout: 2000 }, async () => {
 	const f = fixture();
 	const job = f.run({
-		settings: { format: 'webp', quality: 'lossless', width: 2, height: 2, startTimeMs: 0 },
+		settings: { format: 'webp', quality: 'lossless', width: 2, height: 2, positionMs: 0 },
 		renderer: { enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm' },
 		project: { assets: [], visualModules: [], timeline: [] },
 	});
@@ -136,7 +136,7 @@ test('reports asset preparation failures without rendering export frames', { tim
 test('aborts export when the timeline manager reports a node error', async () => {
 	const f = fixture();
 	const job = f.run({
-		settings: { format: 'webp', quality: 'lossless', width: 2, height: 2, startTimeMs: 0 },
+		settings: { format: 'webp', quality: 'lossless', width: 2, height: 2, positionMs: 0 },
 		renderer: { enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm' },
 		project: { assets: [], visualModules: [], timeline: [] },
 	});

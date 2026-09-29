@@ -1,8 +1,8 @@
 // 制御に必要なのはIDと期間だけ。レイヤー固有のデータは生成関数にそのまま渡す。
 export type TimelineRenderEntry = {
 	id: string;
-	startTimeMs: number;
-	durationMs: number;
+	positionMs: number;
+	trimmedDurationMs: number;
 };
 
 export type TimelineLayerContext<Output> = {
@@ -54,7 +54,7 @@ export class TimelineRenderer<Output, Entry extends TimelineRenderEntry = Timeli
 		try {
 			// 配列は先頭が最上層の表示順。下層の合成結果を上層へ渡すため、描画は逆順に行う。
 			// 終端を含めず、隣接するレイヤーを境界で重ねない。
-			const activeEntries = timeline.filter(entry => entry.startTimeMs <= time && time < entry.startTimeMs + entry.durationMs).reverse();
+			const activeEntries = timeline.filter(entry => entry.positionMs <= time && time < entry.positionMs + entry.trimmedDurationMs).reverse();
 			const activeIds = new Set(activeEntries.map(entry => entry.id));
 			for (const [id, layer] of this.layers) {
 				if (activeIds.has(id)) continue;
@@ -72,11 +72,11 @@ export class TimelineRenderer<Output, Entry extends TimelineRenderEntry = Timeli
 				}
 				const context: TimelineLayerContext<Output> = {
 					isExport,
-					time: time - entry.startTimeMs,
+					time: time - entry.positionMs,
 					// 新規レイヤーには履歴がない。途中からの書き出しでも過去のフレームは再現しない。
 					timeDelta: isNewLayer ? 0 : timeDelta,
 					// timeと同じレイヤー内の時刻に揃え、PROGRESSや終端合わせの基準が開始位置でずれないようにする。
-					endTime: entry.durationMs,
+					endTime: entry.trimmedDurationMs,
 					input: output,
 				};
 				await layer.prepare(context, controller.signal);
