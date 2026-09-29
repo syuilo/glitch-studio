@@ -56,6 +56,8 @@ export function startWireDrag(event: PointerEvent, connection: NodeOutputReferen
 			if (target.closest('[inert]')) return null;
 			const input = target instanceof HTMLElement ? inputPorts.get(target) : undefined;
 			if (input) {
+				// 配線は同じエディタ内だけで行う。別レイヤーに同じノードIDがあっても接続しない。
+				if (source.closest('[data-visual-module-editor]') !== target.closest('[data-visual-module-editor]')) return null;
 				const typeCompatible = input.getTypeCompatibility(connection);
 				if (typeCompatible == null || (!typeCompatible && preferences.s.forceTypeSafety)) return null;
 				return { el: target as HTMLElement, input, typeCompatible };

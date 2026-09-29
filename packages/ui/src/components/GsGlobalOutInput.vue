@@ -17,10 +17,12 @@ import { computed, shallowRef, useTemplateRef, watchEffect } from 'vue';
 import GsNodePort from './GsNodePort.vue';
 import GsSelect from './common/GsSelect.vue';
 import type { VisualModuleGlobalOutNode, VisualModule, VisualModuleOutputDef, NodeOutputReference } from '@glitch/shared/visual-module/types.js';
-import { wireMap } from '@/app.ts';
+import { useVisualModuleWires } from '@/utility/visual-module-wires.ts';
 import { i18n } from '@/i18n.ts';
 import { getNodeOutputItems, hasNodeInputTypeMismatch, nodeOutputKey } from '@/utility/node-outputs.ts';
 import { registerWireInput } from '@/utility/wire-drag.ts';
+
+const wireMap = useVisualModuleWires();
 
 const props = defineProps<{
 	visualModule: VisualModule;

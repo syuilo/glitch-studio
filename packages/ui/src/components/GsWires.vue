@@ -42,10 +42,12 @@ import { getNodeInputDataType, getNodeOutputs } from '@glitch/shared/utility/nod
 import type { ComponentPublicInstance } from 'vue';
 import type { TextureDataType } from '@glitch/shared/data-type.ts';
 import type { VisualModule } from '@glitch/shared/visual-module/types.ts';
-import { wireMap } from '@/app.ts';
+import { useVisualModuleWires } from '@/utility/visual-module-wires.ts';
 import { wireDrag } from '@/utility/wire-drag.ts';
 import { getNodeDataTypeColor } from '@/utility/node-outputs.ts';
 import { paramPathKey, walkNodeParams } from '@/utility/node-params.ts';
+
+const wireMap = useVisualModuleWires();
 
 const props = defineProps<{ visualModule: VisualModule }>();
 

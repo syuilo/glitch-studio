@@ -1,5 +1,5 @@
 import { visualModuleCustomParameterId, visualModuleCustomParameterName } from '@glitch/shared/visual-module/types.ts';
-import { computed, ref, markRaw, reactive, watch } from 'vue';
+import { computed, ref, markRaw, watch } from 'vue';
 import { deepClone } from '@glitch/shared/utility/deep-clone.ts';
 import { deepEqual } from '@glitch/shared/utility/deep-equal.ts';
 import { timelineCompositingParamDefs } from '@glitch/shared/timeline/timeline-compositing.ts';
@@ -34,16 +34,6 @@ watch(() => projectInfo.value.name, name => {
 }, { immediate: true });
 
 (window as any).appStateManager = appStateManager; // debug
-
-export const wireMap = reactive<{
-	in: Record<string, any>;
-	out: Record<string, Record<string, HTMLElement>>;
-	allIn: Record<string, HTMLElement>;
-}>({
-	in: {},
-	out: {},
-	allIn: {},
-});
 
 function benchmark(count = 100, visualModuleId = appStateManager.state.visualModules.value[0]?.id) {
 	if (visualModuleId == null) return;

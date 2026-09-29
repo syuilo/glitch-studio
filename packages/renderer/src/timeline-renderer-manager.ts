@@ -14,7 +14,8 @@ import type { FrameScheduler } from './live-render-loop.ts';
 import type { TimelineLayerRenderer } from './timeline-renderer.ts';
 import type { EffectInstanceState, EffectStatusSource } from '@glitch/shared/effect/effect-status.ts';
 import type { Asset, IntermediateTextureFormat } from '@glitch/shared/types.ts';
-import type { Timeline, TimelineVisualModuleLayer } from '@glitch/shared/timeline/types.ts';
+import type { Timeline, TimelineVisualModuleLayer, TimelineInlineVisualModuleLayer } from '@glitch/shared/timeline/types.ts';
+import type { VisualModule } from '@glitch/shared/visual-module/types.ts';
 import type { EffectImplementation } from '@glitch/shared/effect/effect-implementation.js';
 import type { EffectDefinition } from '@glitch/shared/effect/effect-definition.js';
 
@@ -208,15 +209,16 @@ export class TimelineRendererManager extends EventEmitter<{
 				if (visualModule == null) throw new Error(`Visual module not found: ${layer.visualModuleId}`);
 				return this.createVisualModuleLayer(visualModule, layer);
 			}
+			case 'inlineVisualModule':
+				return this.createVisualModuleLayer(layer.visualModule, layer);
 		}
 		throw new Error(`Unrecognized layer type: ${layer.layerType}`);
 	}
 
-	private createVisualModuleLayer(visualModule: ProjectVisualModule, layer: TimelineVisualModuleLayer): TimelineLayerRenderer<NodeOutput> {
+	private createVisualModuleLayer(visualModule: VisualModule, layer: TimelineVisualModuleLayer | TimelineInlineVisualModuleLayer): TimelineLayerRenderer<NodeOutput> {
 		const statusSource: EffectStatusSource = {
 			type: 'timelineLayer',
 			instanceId: `timeline:${this.nextTimelineLayerStatusId++}`,
-			visualModuleId: visualModule.id,
 			layerId: layer.id,
 		};
 		const renderer = new VisualModuleRenderer({

@@ -1,5 +1,5 @@
 <template>
-<div :class="$style.root">
+<div :class="$style.root" data-visual-module-editor>
 	<div :class="$style.header">
 		<div style="padding: 8px;">
 			<GsTabs v-model="tab" :def="tabs"/>
@@ -70,6 +70,7 @@
 
 <script lang="ts" setup>
 import { computed, ref } from 'vue';
+import { provideVisualModuleWires } from '@/utility/visual-module-wires.ts';
 import GsWires from './GsWires.vue';
 import GsButton from './common/GsButton.vue';
 import GsDraggable from './common/GsDraggable.vue';
@@ -82,6 +83,8 @@ import GsTabs from './common/GsTabs.vue';
 import type { VisualModule, VisualModuleGlobalInNode, VisualModuleGlobalOutNode, VisualModuleNode, NodeOutputReference } from '@glitch/shared/visual-module/types.ts';
 import type { EffectInstanceState } from '@glitch/shared/effect/effect-status.ts';
 import type { VisualModuleEdit } from '@/types/visual-module-editor.ts';
+
+provideVisualModuleWires();
 
 const props = defineProps<{
 	visualModule: VisualModule;

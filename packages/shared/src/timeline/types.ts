@@ -48,6 +48,6 @@ export type TimelineAudioLayer = {
 	automationGraphs: AutomationGraph[];
 };
 
-export type TimelineLayer = TimelineVisualModuleLayer | TimelineEffectLayer | TimelineAudioLayer;
+export type TimelineLayer = TimelineVisualModuleLayer | TimelineInlineVisualModuleLayer | TimelineEffectLayer | TimelineAudioLayer;
 
 export type Timeline = TimelineLayer[];

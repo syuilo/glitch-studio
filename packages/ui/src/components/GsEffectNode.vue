@@ -48,9 +48,11 @@ import type { ParamEdit } from './GsVisualParam.vue';
 import type { VisualModule, VisualModuleEffectNode } from '@glitch/shared/visual-module/types.js';
 import type { EffectInstanceState } from '@glitch/shared/effect/effect-status.ts';
 import { i18n } from '@/i18n.ts';
-import { wireMap } from '@/app.ts';
+import { useVisualModuleWires } from '@/utility/visual-module-wires.ts';
 import { getNodeParamDefs } from '@/utility/node-params.ts';
 import * as ui from '@/ui.ts';
+
+const wireMap = useVisualModuleWires();
 
 const props = defineProps<{
 	visualModule: VisualModule;

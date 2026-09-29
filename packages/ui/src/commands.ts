@@ -6,7 +6,7 @@ import { deepClone } from '@glitch/shared/utility/deep-clone.ts';
 import { getNodeInputDataType, getNodeOutputs } from '@glitch/shared/utility/node-outputs.ts';
 import { isTextureDataType } from '@glitch/shared/data-type.ts';
 import { timelineAudioParamDefs } from '@glitch/shared/timeline/timeline-audio.ts';
-import type { TimelineAudioLayer, TimelineLayer } from '@glitch/shared/timeline/types.ts';
+import type { TimelineAudioLayer, TimelineLayer, TimelineInlineVisualModuleLayer } from '@glitch/shared/timeline/types.ts';
 import { timelineCompositingParamDefs } from '@glitch/shared/timeline/timeline-compositing.ts';
 import type { VisualModuleCustomParameterId, VisualModuleEffectNode, VisualModuleNode, NodeOutputReference, VisualModule, VisualModuleParamDef, VisualModuleOutputDef } from '@glitch/shared/visual-module/types.ts';
 import type { ParameterDefinition } from '@glitch/shared/parameter.ts';
@@ -18,6 +18,8 @@ import { canConnectNodeDataTypes } from '@/utility/node-outputs.ts';
 import { resolveNodeParam, walkNodeParams } from '@/utility/node-params.ts';
 import { createInlineAutomationGraph } from '@/utility/automation-graph.ts';
 import { createInlineKeyframesTimeline } from '@/utility/keyframes-timeline.ts';
+import { getVisualModule, listVisualModules } from '@/utility/visual-module-target.ts';
+import type { VisualModuleTarget } from '@/utility/visual-module-target.ts';
 
 export type CommandDef<Payload> = {
 	label: string;
@@ -31,17 +33,13 @@ function defineCommand<Payload>(def: CommandDef<Payload>) {
 	return def;
 }
 
-type NodeTarget = { visualModuleId: string; nodeId: string };
-type NodeParamTarget = EffectNodeParamTarget & { visualModuleId: string };
+type NodeTarget = VisualModuleTarget & { nodeId: string };
+type NodeParamTarget = EffectNodeParamTarget & VisualModuleTarget;
 
 const stateUtility = {
-	getVisualModule: (state: AppState, visualModuleId: string) => {
-		const visualModule = state.visualModules.value.find(visualModule => visualModule.id === visualModuleId);
-		if (visualModule == null) throw new Error('Node visualModule not found');
-		return visualModule;
-	},
+	getVisualModule,
 	findNode: (state: AppState, target: NodeTarget): VisualModuleNode | undefined => {
-		return stateUtility.getVisualModule(state, target.visualModuleId).nodes.find(node => node.id === target.nodeId);
+		return getVisualModule(state, target).nodes.find(node => node.id === target.nodeId);
 	},
 };
 
@@ -65,20 +63,20 @@ const editTimelineLayerParamCommandDef = defineCommand<{
 		const getLayer = (state: AppState) => {
 			const layer = state.timeline.value.find(layer => layer.id === payload.layerId);
 			if (layer == null) throw new Error('Timeline layer not found');
-			if (layer.layerType !== 'visualModule' && layer.layerType !== 'audio') throw new Error('Unsupported timeline layer');
+			if (layer.layerType !== 'visualModule' && layer.layerType !== 'inlineVisualModule' && layer.layerType !== 'audio') throw new Error('Unsupported timeline layer');
 			if ((layer.layerType === 'audio') !== (payload.target === 'audio')) throw new Error('Invalid layer parameter target');
 			return layer;
 		};
 		return {
 			execute(state) {
 				const layer = getLayer(state);
-				const values: Record<string, ParameterBinding> = payload.target === 'compositing' && layer.layerType === 'visualModule' ? layer.compositingParamValues : layer.paramValues;
+				const values: Record<string, ParameterBinding> = payload.target === 'compositing' && layer.layerType !== 'audio' ? layer.compositingParamValues : layer.paramValues;
 				if (after === undefined) {
 					const def = layer.layerType === 'audio'
 						? Object.entries(timelineAudioParamDefs).find(([id]) => id === payload.paramId)?.[1]
 						: payload.target === 'compositing'
 						? Object.entries(timelineCompositingParamDefs).find(([id]) => id === payload.paramId)?.[1]
-						: stateUtility.getVisualModule(state, layer.visualModuleId).paramDefs.find(def => def.id === payload.paramId);
+						: (layer.layerType === 'inlineVisualModule' ? layer.visualModule : stateUtility.getVisualModule(state, layer)).paramDefs.find(def => def.id === payload.paramId);
 					if (def == null || ('isPrimaryInput' in def && def.isPrimaryInput)) throw new Error('Editable visual module parameter not found');
 					before = deepClone(values[payload.paramId]);
 					const current = before ?? def.defaultValue;
@@ -122,7 +120,7 @@ const editTimelineLayerParamCommandDef = defineCommand<{
 			},
 			undo(state) {
 				const layer = getLayer(state);
-				const values: Record<string, ParameterBinding> = payload.target === 'compositing' && layer.layerType === 'visualModule' ? layer.compositingParamValues : layer.paramValues;
+				const values: Record<string, ParameterBinding> = payload.target === 'compositing' && layer.layerType !== 'audio' ? layer.compositingParamValues : layer.paramValues;
 				// デフォルト値を参照していた状態も復元し、定義への不要な上書きを残さない。
 				if (before === undefined) delete values[payload.paramId];
 				else values[payload.paramId] = deepClone(before);
@@ -131,7 +129,7 @@ const editTimelineLayerParamCommandDef = defineCommand<{
 	},
 });
 
-const addEffectNodeCommandDef = defineCommand<{ visualModuleId: string; id: string; effectId: string; params?: Record<string, ParameterBinding> }>({
+const addEffectNodeCommandDef = defineCommand<VisualModuleTarget & { id: string; effectId: string; params?: Record<string, ParameterBinding> }>({
 	label: 'Add fx node',
 	create: payload => {
 		let addedNode: VisualModuleEffectNode | undefined;
@@ -143,7 +141,7 @@ const addEffectNodeCommandDef = defineCommand<{ visualModuleId: string; id: stri
 		} | undefined;
 		return {
 			execute(state) {
-				const visualModule = stateUtility.getVisualModule(state, payload.visualModuleId);
+				const visualModule = stateUtility.getVisualModule(state, payload);
 				if (addedNode == null) {
 					const paramDefs = effectDefinitions[payload.effectId].paramDefs as Record<string, ParameterDefinition>;
 					const globalOut = visualModule.nodes.find(node => node.type === 'globalOut');
@@ -184,7 +182,7 @@ const addEffectNodeCommandDef = defineCommand<{ visualModuleId: string; id: stri
 				}
 			},
 			undo(state) {
-				const visualModule = stateUtility.getVisualModule(state, payload.visualModuleId);
+				const visualModule = stateUtility.getVisualModule(state, payload);
 				visualModule.nodes = visualModule.nodes.filter(node => node.id !== payload.id);
 				if (outputConnection != null) {
 					const connection = outputConnection;
@@ -204,7 +202,7 @@ const moveNodeCommandDef = defineCommand<NodeTarget & { index: number }>({
 	create: payload => {
 		let before: number;
 		const move = (state: AppState, index: number) => {
-			const nodes = stateUtility.getVisualModule(state, payload.visualModuleId).nodes;
+			const nodes = stateUtility.getVisualModule(state, payload).nodes;
 			const source = nodes.findIndex(node => node.id === payload.nodeId);
 			if (source < 0) throw new Error('Node not found');
 			if (!Number.isInteger(index) || index < 0 || index >= nodes.length) throw new Error('Invalid node index');
@@ -229,7 +227,7 @@ const removeNodeCommandDef = defineCommand<NodeTarget>({
 		let before: VisualModuleNode[];
 		return {
 			execute(state) {
-				const visualModule = stateUtility.getVisualModule(state, payload.visualModuleId);
+				const visualModule = stateUtility.getVisualModule(state, payload);
 				before = deepClone(visualModule.nodes);
 				const removedNode = stateUtility.findNode(state, payload);
 				if (removedNode == null) return;
@@ -264,7 +262,7 @@ const removeNodeCommandDef = defineCommand<NodeTarget>({
 				visualModule.nodes = visualModule.nodes.filter(node => node.id !== payload.nodeId);
 			},
 			undo(state) {
-				stateUtility.getVisualModule(state, payload.visualModuleId).nodes = deepClone(before);
+				stateUtility.getVisualModule(state, payload).nodes = deepClone(before);
 			},
 		};
 	},
@@ -297,17 +295,17 @@ const removeAssetCommandDef = defineCommand<{ assetId: string }>({
 	create: payload => {
 		let before: {
 			assets: Asset[];
-			visualModules: { id: string; nodes: VisualModuleNode[] }[];
+			visualModules: { target: VisualModuleTarget; nodes: VisualModuleNode[] }[];
 		};
 		return {
 			execute(state) {
 				before = {
 					assets: deepClone(state.assets.value),
-					visualModules: state.visualModules.value.map(visualModule => ({ id: visualModule.id, nodes: deepClone(visualModule.nodes) })),
+					visualModules: listVisualModules(state).map(({ target, visualModule }) => ({ target, nodes: deepClone(visualModule.nodes) })),
 				};
 				state.assets.value = state.assets.value.filter(asset => asset.id !== payload.assetId);
 				// Assetはプロジェクト共有なので、全VisualModuleの参照を解除する。
-				for (const visualModule of state.visualModules.value) {
+				for (const { visualModule } of listVisualModules(state)) {
 					for (const node of visualModule.nodes) {
 						if (node.type !== 'effect') continue;
 						for (const { path, def, value } of walkNodeParams(node)) {
@@ -321,7 +319,7 @@ const removeAssetCommandDef = defineCommand<{ assetId: string }>({
 			undo(state) {
 				state.assets.value = deepClone(before.assets);
 				for (const visualModule of before.visualModules) {
-					stateUtility.getVisualModule(state, visualModule.id).nodes = deepClone(visualModule.nodes);
+					stateUtility.getVisualModule(state, visualModule.target).nodes = deepClone(visualModule.nodes);
 				}
 			},
 		};
@@ -588,11 +586,11 @@ const updateGlobalOutInputCommandDef = defineCommand<NodeTarget & { outputId: st
 			execute(state) {
 				const node = stateUtility.findNode(state, payload);
 				if (node?.type !== 'globalOut') throw new Error('Global output node not found');
-				const module = stateUtility.getVisualModule(state, payload.visualModuleId);
+				const module = stateUtility.getVisualModule(state, payload);
 				if (!module.outputDefs.some(def => def.id === payload.outputId)) throw new Error('Module output not found');
 				if (payload.value != null) {
-					const source = stateUtility.findNode(state, { visualModuleId: payload.visualModuleId, nodeId: payload.value.nodeId });
-					if (getNodeOutputs(source, stateUtility.getVisualModule(state, payload.visualModuleId).paramDefs)[payload.value.outputPort] == null) throw new Error('Node output not found in this visualModule');
+					const source = stateUtility.findNode(state, { ...payload, nodeId: payload.value.nodeId });
+					if (getNodeOutputs(source, stateUtility.getVisualModule(state, payload).paramDefs)[payload.value.outputPort] == null) throw new Error('Node output not found in this visualModule');
 				}
 				before = deepClone(node.inputs[payload.outputId]);
 				node.inputs[payload.outputId] = payload.value == null ? { nodeId: null, outputPort: null }
@@ -622,29 +620,29 @@ function validateVisualModuleParamDef(module: VisualModule, def: VisualModulePar
 	}
 }
 
-const addVisualModuleParamDefCommandDef = defineCommand<{ visualModuleId: string; def: VisualModuleParamDef }>({
+const addVisualModuleParamDefCommandDef = defineCommand<VisualModuleTarget & { def: VisualModuleParamDef }>({
 	label: 'Add visual module parameter',
 	create: payload => ({
 		execute(state) {
-			const module = stateUtility.getVisualModule(state, payload.visualModuleId);
+			const module = stateUtility.getVisualModule(state, payload);
 			validateVisualModuleParamDef(module, payload.def);
 			module.paramDefs.push(deepClone(payload.def));
 		},
 		undo(state) {
-			const module = stateUtility.getVisualModule(state, payload.visualModuleId);
+			const module = stateUtility.getVisualModule(state, payload);
 			module.paramDefs = module.paramDefs.filter(def => def.id !== payload.def.id);
 		},
 	}),
 });
 
-const removeVisualModuleParamDefCommandDef = defineCommand<{ visualModuleId: string; defId: VisualModuleCustomParameterId }>({
+const removeVisualModuleParamDefCommandDef = defineCommand<VisualModuleTarget & { defId: VisualModuleCustomParameterId }>({
 	label: 'Remove visual module parameter',
 	create: payload => {
 		let before: VisualModuleParamDef;
 		let index: number;
 		return {
 			execute(state) {
-				const module = stateUtility.getVisualModule(state, payload.visualModuleId);
+				const module = stateUtility.getVisualModule(state, payload);
 				index = module.paramDefs.findIndex(def => def.id === payload.defId);
 				if (index < 0) throw new Error('Visual module parameter not found');
 				before = deepClone(module.paramDefs[index]);
@@ -652,21 +650,21 @@ const removeVisualModuleParamDefCommandDef = defineCommand<{ visualModuleId: str
 				module.paramDefs.splice(index, 1);
 			},
 			undo(state) {
-				stateUtility.getVisualModule(state, payload.visualModuleId).paramDefs.splice(index, 0, deepClone(before));
+				stateUtility.getVisualModule(state, payload).paramDefs.splice(index, 0, deepClone(before));
 			},
 		};
 	},
 });
 
-const updateVisualModuleParamDefCommandDef = defineCommand<{
-	visualModuleId: string; defId: VisualModuleCustomParameterId; changes: Partial<Omit<VisualModuleParamDef, 'id'>>;
+const updateVisualModuleParamDefCommandDef = defineCommand<VisualModuleTarget & {
+	defId: VisualModuleCustomParameterId; changes: Partial<Omit<VisualModuleParamDef, 'id'>>;
 }>({
 	label: 'Update visual module parameter',
 	create: payload => {
 		let before: VisualModuleParamDef;
 		return {
 			execute(state) {
-				const module = stateUtility.getVisualModule(state, payload.visualModuleId);
+				const module = stateUtility.getVisualModule(state, payload);
 				const index = module.paramDefs.findIndex(def => def.id === payload.defId);
 				if (index < 0) throw new Error('Visual module parameter not found');
 				const next = { ...module.paramDefs[index], ...deepClone(payload.changes), id: payload.defId } as VisualModuleParamDef;
@@ -675,7 +673,7 @@ const updateVisualModuleParamDefCommandDef = defineCommand<{
 				module.paramDefs[index] = next;
 			},
 			undo(state) {
-				const module = stateUtility.getVisualModule(state, payload.visualModuleId);
+				const module = stateUtility.getVisualModule(state, payload);
 				const index = module.paramDefs.findIndex(def => def.id === payload.defId);
 				if (index < 0) throw new Error('Visual module parameter not found');
 				module.paramDefs[index] = deepClone(before);
@@ -690,20 +688,20 @@ function validateVisualModuleOutputDef(module: VisualModule, def: VisualModuleOu
 	}
 }
 
-const addVisualModuleOutputDefCommandDef = defineCommand<{ visualModuleId: string; def: VisualModuleOutputDef }>({
+const addVisualModuleOutputDefCommandDef = defineCommand<VisualModuleTarget & { def: VisualModuleOutputDef }>({
 	label: 'Add visual module output',
 	create: payload => {
 		let primaryOutputId: string | null;
 		return {
 			execute(state) {
-				const module = stateUtility.getVisualModule(state, payload.visualModuleId);
+				const module = stateUtility.getVisualModule(state, payload);
 				validateVisualModuleOutputDef(module, payload.def);
 				primaryOutputId = module.primaryOutputId;
 				module.outputDefs.push(deepClone(payload.def));
 				if (module.primaryOutputId === null && payload.def.dataType.kind === 'color') module.primaryOutputId = payload.def.id;
 			},
 			undo(state) {
-				const module = stateUtility.getVisualModule(state, payload.visualModuleId);
+				const module = stateUtility.getVisualModule(state, payload);
 				module.outputDefs = module.outputDefs.filter(def => def.id !== payload.def.id);
 				module.primaryOutputId = primaryOutputId;
 			},
@@ -711,13 +709,13 @@ const addVisualModuleOutputDefCommandDef = defineCommand<{ visualModuleId: strin
 	},
 });
 
-const setVisualModulePrimaryOutputCommandDef = defineCommand<{ visualModuleId: string; primaryOutputId: string | null }>({
+const setVisualModulePrimaryOutputCommandDef = defineCommand<VisualModuleTarget & { primaryOutputId: string | null }>({
 	label: 'Set visual module primary output',
 	create: payload => {
 		let before: string | null;
 		return {
 			execute(state) {
-				const module = stateUtility.getVisualModule(state, payload.visualModuleId);
+				const module = stateUtility.getVisualModule(state, payload);
 				if (payload.primaryOutputId !== null && !module.outputDefs.some(def => def.id === payload.primaryOutputId && def.dataType.kind === 'color')) {
 					throw new Error('Primary output must reference a color output');
 				}
@@ -725,13 +723,13 @@ const setVisualModulePrimaryOutputCommandDef = defineCommand<{ visualModuleId: s
 				module.primaryOutputId = payload.primaryOutputId;
 			},
 			undo(state) {
-				stateUtility.getVisualModule(state, payload.visualModuleId).primaryOutputId = before;
+				stateUtility.getVisualModule(state, payload).primaryOutputId = before;
 			},
 		};
 	},
 });
 
-const removeVisualModuleOutputDefCommandDef = defineCommand<{ visualModuleId: string; defId: string }>({
+const removeVisualModuleOutputDefCommandDef = defineCommand<VisualModuleTarget & { defId: string }>({
 	label: 'Remove visual module output',
 	create: payload => {
 		let before: VisualModuleOutputDef;
@@ -739,7 +737,7 @@ const removeVisualModuleOutputDefCommandDef = defineCommand<{ visualModuleId: st
 		let index: number;
 		return {
 			execute(state) {
-				const module = stateUtility.getVisualModule(state, payload.visualModuleId);
+				const module = stateUtility.getVisualModule(state, payload);
 				index = module.outputDefs.findIndex(def => def.id === payload.defId);
 				if (index < 0) throw new Error('Visual module output not found');
 				before = deepClone(module.outputDefs[index]);
@@ -749,7 +747,7 @@ const removeVisualModuleOutputDefCommandDef = defineCommand<{ visualModuleId: st
 				if (module.primaryOutputId === payload.defId) module.primaryOutputId = null;
 			},
 			undo(state) {
-				const module = stateUtility.getVisualModule(state, payload.visualModuleId);
+				const module = stateUtility.getVisualModule(state, payload);
 				module.outputDefs.splice(index, 0, deepClone(before));
 				module.primaryOutputId = primaryOutputId;
 			},
@@ -757,8 +755,8 @@ const removeVisualModuleOutputDefCommandDef = defineCommand<{ visualModuleId: st
 	},
 });
 
-const updateVisualModuleOutputDefCommandDef = defineCommand<{
-	visualModuleId: string; defId: string; changes: Partial<Omit<VisualModuleOutputDef, 'id'>>;
+const updateVisualModuleOutputDefCommandDef = defineCommand<VisualModuleTarget & {
+	defId: string; changes: Partial<Omit<VisualModuleOutputDef, 'id'>>;
 }>({
 	label: 'Update visual module output',
 	create: payload => {
@@ -766,7 +764,7 @@ const updateVisualModuleOutputDefCommandDef = defineCommand<{
 		let primaryOutputId: string | null;
 		return {
 			execute(state) {
-				const module = stateUtility.getVisualModule(state, payload.visualModuleId);
+				const module = stateUtility.getVisualModule(state, payload);
 				const index = module.outputDefs.findIndex(def => def.id === payload.defId);
 				if (index < 0) throw new Error('Visual module output not found');
 				const next = { ...module.outputDefs[index], ...deepClone(payload.changes), id: payload.defId };
@@ -777,12 +775,42 @@ const updateVisualModuleOutputDefCommandDef = defineCommand<{
 				if (module.primaryOutputId === payload.defId && next.dataType.kind !== 'color') module.primaryOutputId = null;
 			},
 			undo(state) {
-				const module = stateUtility.getVisualModule(state, payload.visualModuleId);
+				const module = stateUtility.getVisualModule(state, payload);
 				const index = module.outputDefs.findIndex(def => def.id === payload.defId);
 				if (index < 0) throw new Error('Visual module output not found');
 				module.outputDefs[index] = deepClone(before);
 				module.primaryOutputId = primaryOutputId;
 			},
+		};
+	},
+});
+
+const addInlineVisualModuleLayerCommandDef = defineCommand<TimelineInlineVisualModuleLayer>({
+	label: 'Add inline visual module layer',
+	create: payload => ({
+		execute(state) { state.timeline.value.push(deepClone(payload)); },
+		undo(state) { state.timeline.value = state.timeline.value.filter(layer => layer.id !== payload.id); },
+	}),
+});
+
+const editVisualModuleLayerTimingCommandDef = defineCommand<{ layerId: string; startTimeMs: number; endTimeMs: number }>({
+	label: 'Edit visual module layer timing',
+	create: payload => {
+		let before: { startTimeMs: number; endTimeMs: number };
+		const getLayer = (state: AppState) => {
+			const layer = state.timeline.value.find(layer => layer.id === payload.layerId);
+			if (layer?.layerType !== 'visualModule' && layer?.layerType !== 'inlineVisualModule') throw new Error('Visual module layer not found');
+			return layer;
+		};
+		return {
+			execute(state) {
+				if (!Number.isFinite(payload.startTimeMs) || !Number.isFinite(payload.endTimeMs) || payload.startTimeMs < 0 || payload.endTimeMs <= payload.startTimeMs) throw new Error('Invalid layer timing');
+				const layer = getLayer(state);
+				before = { startTimeMs: layer.startTimeMs, endTimeMs: layer.endTimeMs };
+				layer.startTimeMs = payload.startTimeMs;
+				layer.endTimeMs = payload.endTimeMs;
+			},
+			undo(state) { Object.assign(getLayer(state), before); },
 		};
 	},
 });
@@ -835,6 +863,8 @@ const removeTimelineLayerCommandDef = defineCommand<{ layerId: string }>({
 });
 
 export const COMMAND_DEFS = {
+	addInlineVisualModuleLayer: addInlineVisualModuleLayerCommandDef,
+	editVisualModuleLayerTiming: editVisualModuleLayerTimingCommandDef,
 	addAudioLayer: addAudioLayerCommandDef,
 	editAudioLayerTiming: editAudioLayerTimingCommandDef,
 	removeTimelineLayer: removeTimelineLayerCommandDef,

@@ -181,13 +181,15 @@ import type { ParamPath } from '@/utility/node-params.ts';
 import type { AutomationGraphPlaybackOptions, AutomationGraph, BezierAnchorPoint, ParameterBinding } from '@glitch/shared/types.ts';
 import type { MenuItem } from '@/types/menu.ts';
 import { i18n } from '@/i18n.ts';
-import { wireMap } from '@/app.ts';
+import { useVisualModuleWires } from '@/utility/visual-module-wires.ts';
 import { paramPathKey } from '@/utility/node-params.ts';
 import { getNodeOutputItems, hasNodeInputTypeMismatch, nodeOutputKey } from '@/utility/node-outputs.ts';
 import { registerWireInput } from '@/utility/wire-drag.ts';
 import { getNodeInputSamplingMenuItems } from '@/utility/input-sampling-menu.ts';
 import * as ui from '@/ui.ts';
 import { setInlineAutomationGraphNormalized } from '@/utility/automation-graph.ts';
+
+const wireMap = useVisualModuleWires();
 
 const props = defineProps<{
 	automationGraphs: readonly AutomationGraph[];

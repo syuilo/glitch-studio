@@ -1,6 +1,7 @@
 <template>
 <div :class="$style.root">
 	<div :class="$style.header">
+		<GsButton @click="addInlineVisualModuleLayer">Add inline visual module layer</GsButton>
 		<GsSelect v-model="audioAssetId" small :class="$style.audioAssetSelect" :items="audioAssetItems"/>
 		<GsButton :disabled="!audioAssetId || addingAudio" @click="addAudioAssetLayer">Add audio layer</GsButton>
 		<GsButton :disabled="addingAudio" @click="importAudioLayer">Import audio</GsButton>
@@ -106,36 +107,51 @@
 			/>
 			<GsButton @click="appStateManager.commit('removeTimelineLayer', { layerId: selectedLayer.id })">Remove layer</GsButton>
 		</div>
-		<div v-else-if="selectedLayer?.layerType === 'visualModule'" :class="$style.rightSidePanel">
-			<div>{{ appStateManager.getVisualModuleById(selectedLayer?.visualModuleId)?.name }}</div>
-			<div>Compositing</div>
-			<GsVisualParam
-				v-for="(paramDef, paramId) in timelineCompositingParamDefs"
-				:key="`${selectedLayer.id}:compositing:${paramId}`"
-				:availableVariables="LAYER_VAR_DEFS"
-				:automationGraphs="selectedLayer.automationGraphs"
-				:paramPath="[paramId]"
-				:paramDef="paramDef"
-				:paramValue="selectedLayer.compositingParamValues[paramId]"
-				@edit="event => onVisualModuleLayerParamEdit(event, 'compositing')"
+		<div v-else-if="selectedLayer?.layerType === 'visualModule' || selectedLayer?.layerType === 'inlineVisualModule'" :class="[$style.rightSidePanel, $style.visualModuleSidePanel]">
+			<GsTabs v-if="selectedLayer.layerType === 'inlineVisualModule'" v-model="visualModuleLayerTab" :def="[{ id: 'settings', label: 'Layer settings' }, { id: 'module', label: 'Visual Module' }]"/>
+			<GsVisualModuleEditor
+				v-if="selectedLayer.layerType === 'inlineVisualModule' && visualModuleLayerTab === 'module'"
+				:key="selectedLayer.id"
+				:class="$style.inlineModuleEditor"
+				:visualModule="selectedLayer.visualModule"
+				:effectStates="inlineEffectStates"
+				@edit="onInlineVisualModuleEdit"
+				@requestAddNode="showAddInlineNodeMenu"
 			/>
-			<div>Module parameters</div>
-			<!-- TODO: struct / array / anyのカスタムパラメータ編集UI。型定義では許可するが、子の編集や配列操作は未対応。 -->
-			<template
-				v-for="paramDef of appStateManager.getVisualModuleById(selectedLayer.visualModuleId)!.paramDefs.filter(paramDef => !paramDef.isPrimaryInput)"
-				:key="`${selectedLayer.id}:${paramDef.id}`"
-			>
-				<div v-if="paramDef.dataType.kind === 'struct' || paramDef.dataType.kind === 'array' || isParameterType(paramDef, 'any')">{{ paramDef.ui.label }}: Editing is not yet supported.</div>
+			<div v-else :class="$style.layerSettings">
+				<div>{{ selectedLayer.layerType === 'visualModule' ? appStateManager.getVisualModuleById(selectedLayer.visualModuleId)?.name : 'Inline Visual Module' }}</div>
+				<GsInput small type="number" :min="0" :modelValue="selectedLayer.startTimeMs" @update:modelValue="value => editVisualModuleTiming('position', value)"><template #label>Position (ms)</template></GsInput>
+				<GsInput small type="number" :min="1" :modelValue="selectedLayer.endTimeMs - selectedLayer.startTimeMs" @update:modelValue="value => editVisualModuleTiming('duration', value)"><template #label>Duration (ms)</template></GsInput>
+				<div>Compositing</div>
 				<GsVisualParam
-					v-else
+					v-for="(paramDef, paramId) in timelineCompositingParamDefs"
+					:key="`${selectedLayer.id}:compositing:${paramId}`"
 					:availableVariables="LAYER_VAR_DEFS"
 					:automationGraphs="selectedLayer.automationGraphs"
-					:paramPath="[paramDef.id]"
-					:paramDef="{ ...paramDef, canNode: false }"
-					:paramValue="selectedLayer.paramValues[paramDef.id] ?? paramDef.defaultValue"
-					@edit="event => onVisualModuleLayerParamEdit(event, 'module')"
+					:paramPath="[paramId]"
+					:paramDef="paramDef"
+					:paramValue="selectedLayer.compositingParamValues[paramId]"
+					@edit="event => onVisualModuleLayerParamEdit(event, 'compositing')"
 				/>
-			</template>
+				<div>Module parameters</div>
+				<!-- TODO: struct / array / anyのカスタムパラメータ編集UI。型定義では許可するが、子の編集や配列操作は未対応。 -->
+				<template
+					v-for="paramDef of selectedLayerModule?.paramDefs.filter(paramDef => !paramDef.isPrimaryInput) ?? []"
+					:key="`${selectedLayer.id}:${paramDef.id}`"
+				>
+					<div v-if="paramDef.dataType.kind === 'struct' || paramDef.dataType.kind === 'array' || isParameterType(paramDef, 'any')">{{ paramDef.ui.label }}: Editing is not yet supported.</div>
+					<GsVisualParam
+						v-else
+						:availableVariables="LAYER_VAR_DEFS"
+						:automationGraphs="selectedLayer.automationGraphs"
+						:paramPath="[paramDef.id]"
+						:paramDef="{ ...paramDef, canNode: false }"
+						:paramValue="selectedLayer.paramValues[paramDef.id] ?? paramDef.defaultValue"
+						@edit="event => onVisualModuleLayerParamEdit(event, 'module')"
+					/>
+				</template>
+				<GsButton @click="appStateManager.commit('removeTimelineLayer', { layerId: selectedLayer.id })">Remove layer</GsButton>
+			</div>
 		</div>
 	</div>
 </div>
@@ -144,7 +160,7 @@
 <script lang="ts" setup>
 import { isParameterType } from '@glitch/shared/parameter.ts';
 import { LAYER_VAR_DEFS } from '@glitch/shared/expression.ts';
-import { computed, onMounted, ref, shallowRef, useTemplateRef, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, shallowRef, useTemplateRef, watch } from 'vue';
 import { insertIntermediateNumbers, nearlyEqual, niceScale } from '@glitch/shared/utility/misc.js';
 import { genId } from '@glitch/shared/utility/id.js';
 import { timelineAudioParamDefs, AUDIO_LAYER_VAR_DEFS } from '@glitch/shared/timeline/timeline-audio.ts';
@@ -159,11 +175,18 @@ import GsInput from './common/GsInput.vue';
 import GsSelect from './common/GsSelect.vue';
 import GsButton from './common/GsButton.vue';
 import GsVisualParam from './GsVisualParam.vue';
+import GsVisualModuleEditor from './GsVisualModuleEditor.vue';
+import GsEffectPicker from './GsEffectPicker.vue';
+import GsTabs from './common/GsTabs.vue';
+import type { VisualModuleEdit } from '@/types/visual-module-editor.ts';
+import { commitVisualModuleEdit } from '@/utility/visual-module-edit.ts';
+import { createInlineVisualModuleLayer } from '@/utility/inline-visual-module-layer.ts';
+import * as ui from '@/ui.ts';
 import type { Timeline } from '@glitch/shared/timeline/types.ts';
 import type { ParameterBinding, KeyframesTimelineKeyframe } from '@glitch/shared/types.ts';
 import type { TimelineKeyframeSelection } from './GsTimeline.Layer.vue';
 import type { ParamEdit } from './GsVisualParam.vue';
-import { appStateManager, previewPlayback, timelineAudioPreview } from '@/app.ts';
+import { appStateManager, previewPlayback, timelineAudioPreview, timelineRendererManagerController } from '@/app.ts';
 import { dragListen } from '@/utility/drag.ts';
 
 const X_TICKS_HEIGHT = 20;
@@ -225,6 +248,15 @@ const layerRects = computed(() => {
 
 const selectedLayerId = ref<string | null>(null);
 const selectedLayer = computed(() => appStateManager.state.timeline.value.find(layer => layer.id === selectedLayerId.value) ?? null);
+const visualModuleLayerTab = ref('settings');
+const selectedLayerModule = computed(() => {
+	const layer = selectedLayer.value;
+	return layer?.layerType === 'inlineVisualModule' ? layer.visualModule
+		: layer?.layerType === 'visualModule' ? appStateManager.getVisualModuleById(layer.visualModuleId) : null;
+});
+const inlineEffectStates = computed(() => previewPlayback.state.value.mode === 'timeline' && selectedLayer.value != null
+	? timelineRendererManagerController.getLayerEffectStates(selectedLayer.value.id) : undefined);
+
 const selectedKeyframeSelection = ref<TimelineKeyframeSelection | null>(null);
 const keyframeValueMergeKey = ref<string | null>(null);
 const keyframeEditorKey = computed(() => JSON.stringify(selectedKeyframeSelection.value));
@@ -233,12 +265,12 @@ const selectedKeyframe = computed(() => {
 	if (selection == null) return null;
 	const layer = appStateManager.state.timeline.value.find(entry => entry.id === selection.layerId);
 	if (layer == null || layer.layerType === 'effect') return null;
-	const values: Partial<Record<string, ParameterBinding>> = selection.target === 'compositing' && layer.layerType === 'visualModule' ? layer.compositingParamValues : layer.paramValues;
+	const values: Partial<Record<string, ParameterBinding>> = selection.target === 'compositing' && layer.layerType !== 'audio' ? layer.compositingParamValues : layer.paramValues;
 	const binding = values[selection.paramId];
 	if (binding?.inputSource !== 'keyframesTimelineInline') return null;
 	const def = layer.layerType === 'audio' ? timelineAudioParamDefs.volume : selection.target === 'compositing'
 		? Object.entries(timelineCompositingParamDefs).find(([id]) => id === selection.paramId)?.[1]
-		: appStateManager.getVisualModuleById(layer.visualModuleId)?.paramDefs.find(entry => entry.id === selection.paramId);
+		: (layer.layerType === 'inlineVisualModule' ? layer.visualModule : appStateManager.getVisualModuleById(layer.visualModuleId))?.paramDefs.find(entry => entry.id === selection.paramId);
 	if (def == null || !(isParameterType(def, 'scalar') || isParameterType(def, 'vector') || isParameterType(def, 'color')) || def.dataType.kind !== binding.keyframesTimeline.dataType.kind) return null;
 	const keyframes = binding.keyframesTimeline.keyframes.toSorted((a, b) => a.x - b.x);
 	const index = keyframes.findIndex(entry => entry.id === selection.keyframeId);
@@ -480,6 +512,51 @@ function formatMsToTimecode(ms: number) {
 function onLayerSelected(layer: Timeline[number]) {
 	selectedLayerId.value = layer.id;
 	selectedKeyframeSelection.value = null;
+}
+
+function addInlineVisualModuleLayer() {
+	const layer = createInlineVisualModuleLayer(Math.max(0, time.value));
+	appStateManager.commit('addInlineVisualModuleLayer', layer);
+	onLayerSelected(layer);
+	visualModuleLayerTab.value = 'module';
+	previewPlayback.seekTimeline(layer.startTimeMs);
+}
+
+function editVisualModuleTiming(target: 'position' | 'duration', value: string | number) {
+	const layer = selectedLayer.value;
+	const amount = Number(value);
+	if (layer == null || !Number.isFinite(amount)) return;
+	const startTimeMs = target === 'position' ? Math.max(0, amount) : layer.startTimeMs;
+	const durationMs = target === 'duration' ? Math.max(1, amount) : layer.endTimeMs - layer.startTimeMs;
+	appStateManager.commit('editVisualModuleLayerTiming', { layerId: layer.id, startTimeMs, endTimeMs: startTimeMs + durationMs });
+}
+
+function onInlineVisualModuleEdit(event: VisualModuleEdit) {
+	const layer = selectedLayer.value;
+	if (layer?.layerType !== 'inlineVisualModule') return;
+	commitVisualModuleEdit(appStateManager, { inlineVisualModuleLayerId: layer.id }, event);
+}
+
+let disposeEffectPicker: (() => void) | undefined;
+onBeforeUnmount(() => disposeEffectPicker?.());
+
+function showAddInlineNodeMenu() {
+	const layer = selectedLayer.value;
+	if (layer?.layerType !== 'inlineVisualModule') return;
+	const layerId = layer.id;
+	disposeEffectPicker?.();
+	const { dispose } = ui.popup(GsEffectPicker, {}, {
+		chosen: effect => {
+			// 選択変更やレイヤー削除を挟んでも、ピッカーを開いた対象にだけ追加する。
+			if (!appStateManager.state.timeline.value.some(layer => layer.id === layerId && layer.layerType === 'inlineVisualModule')) return;
+			appStateManager.commit('addEffectNode', { inlineVisualModuleLayerId: layerId, effectId: effect.id, id: genId() });
+		},
+		closed: () => {
+			dispose();
+			if (disposeEffectPicker === dispose) disposeEffectPicker = undefined;
+		},
+	});
+	disposeEffectPicker = dispose;
 }
 
 function onVisualModuleLayerParamEdit(event: ParamEdit, target: 'module' | 'compositing' | 'audio') {
@@ -964,6 +1041,22 @@ onMounted(() => {
 	background: #0008;
 	backdrop-filter: blur(4px);
 	color: #fff;
+}
+
+.visualModuleSidePanel {
+	display: flex;
+	flex-direction: column;
+	overflow: hidden;
+}
+
+.inlineModuleEditor {
+	flex: 1;
+	min-height: 0;
+}
+
+.layerSettings {
+	min-height: 0;
+	overflow-y: auto;
 }
 
 .keyframeEditor {

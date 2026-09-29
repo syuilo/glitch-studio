@@ -143,6 +143,9 @@ export class VisualModuleRenderer {
 
 	private evaluateParameters(context: VisualModuleRenderContext) {
 		this.paramInputs = context.paramInputs ?? new Map();
+		// canNode入力の定数もIn経由で参照する。CPUに値があることを理由に
+		// PARAMやexternalCustomParameterInputへ公開すると、入力の種別でスコープが変わってしまう。
+		const expressionParamDefs = this.paramDefs.filter(def => !def.canNode);
 
 		const evalCtx = {
 			variables: {
@@ -160,8 +163,9 @@ export class VisualModuleRenderer {
 			automationGraphs: this.automationGraphs,
 			time: context.time,
 			endTime: context.endTime,
-			evaluatedParamValues: context.evaluatedParamValues,
-			paramIdsByName: new Map(this.paramDefs.map(def => [def.nameForReference, def.id])),
+			evaluatedParamValues: new Map(expressionParamDefs.filter(def => context.evaluatedParamValues.has(def.id))
+				.map(def => [def.id, context.evaluatedParamValues.get(def.id)])),
+			paramIdsByName: new Map(expressionParamDefs.map(def => [def.nameForReference, def.id])),
 		} satisfies ParameterEvaluationContext;
 
 		const evaluated = new Map<VisualModuleNode['id'], Record<string, any>>();

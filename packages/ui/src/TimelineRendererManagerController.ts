@@ -3,6 +3,7 @@ import { deepClone } from '@glitch/shared/utility/deep-clone.ts';
 import { createTimelineRendererManagerWorker } from '@glitch/renderer/client.ts';
 import { RendererManagerControllerBase } from './RendererManagerControllerBase.ts';
 import type { TimelineRendererManager, TimelineRendererManagerStaticOptions, TimelineRendererManagerDynamicOptions } from '@glitch/renderer/timeline-renderer-manager.ts';
+import type { EffectInstanceState } from '@glitch/shared/effect/effect-status.ts';
 import * as ui from '@/ui.ts';
 
 export class TimelineRendererManagerController extends RendererManagerControllerBase<TimelineRendererManager> {
@@ -16,6 +17,11 @@ export class TimelineRendererManagerController extends RendererManagerController
 		assets: [],
 	};
 	public errorMessage = ref<string | null>(null);
+	private layerEffectStates = shallowReactive(new Map<string, { instanceId: string; states: Map<string, EffectInstanceState> }>());
+
+	public getLayerEffectStates(layerId: string): ReadonlyMap<string, EffectInstanceState> | undefined {
+		return this.layerEffectStates.get(layerId)?.states;
+	}
 
 	constructor(staticOptions: TimelineRendererManagerStaticOptions, dynamicOptions: Partial<TimelineRendererManagerDynamicOptions>) {
 		super({
@@ -59,6 +65,22 @@ export class TimelineRendererManagerController extends RendererManagerController
 			},
 			eventHandlers: {
 				effectState: (ctx) => {
+					if (!this.isReady.value || ctx.source.type !== 'timelineLayer') return;
+					const { layerId, instanceId } = ctx.source;
+					let entry = this.layerEffectStates.get(layerId);
+					if (ctx.status == null) {
+						// 旧インスタンスの破棄通知で、新しい描画の状態を消さない。
+						if (entry?.instanceId === instanceId) {
+							entry.states.delete(ctx.nodeId);
+							if (entry.states.size === 0) this.layerEffectStates.delete(layerId);
+						}
+						return;
+					}
+					if (entry?.instanceId !== instanceId) {
+						entry = { instanceId, states: shallowReactive(new Map()) };
+						this.layerEffectStates.set(layerId, entry);
+					}
+					entry.states.set(ctx.nodeId, ctx.status);
 				},
 				renderError: (ctx) => {
 					// 描画できないグラフでも、修正するための更新は送り続ける。
@@ -69,6 +91,7 @@ export class TimelineRendererManagerController extends RendererManagerController
 			onCreated: () => {
 			},
 			onDisposed: () => {
+				this.layerEffectStates.clear();
 			},
 		});
 

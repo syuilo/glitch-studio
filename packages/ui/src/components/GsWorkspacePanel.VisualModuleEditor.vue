@@ -55,6 +55,7 @@ import type { VisualModuleEdit } from '@/types/visual-module-editor.ts';
 import type { WorkspacePanel } from '@/workspace.ts';
 import { appStateManager, previewPlayback, visualModuleRendererManagerController } from '@/app.ts';
 import * as ui from '@/ui.ts';
+import { commitVisualModuleEdit } from '@/utility/visual-module-edit.ts';
 import { createInlineAutomationGraph } from '@/utility/automation-graph.ts';
 import { createInlineKeyframesTimeline } from '@/utility/keyframes-timeline.ts';
 
@@ -189,69 +190,7 @@ function showAddNodeMenu() {
 function onEdit(event: VisualModuleEdit) {
 	const module = visualModule.value;
 	if (module == null) return;
-	const visualModuleId = module.id;
-	switch (event.kind) {
-		case 'removeNode':
-			appStateManager.commit('removeNode', { visualModuleId, nodeId: event.nodeId });
-			break;
-		case 'setNodeBypass':
-			appStateManager.commit('changeNodeBypassState', { visualModuleId, nodeId: event.nodeId, bypass: event.bypass });
-			break;
-		case 'editNodeParam':
-			onNodeParamEdit(visualModuleId, event.nodeId, event.edit);
-			break;
-		case 'reorderNodes': {
-			// In/Outの位置を維持し、エディタに表示したノードだけを並べ替える。
-			const indices = module.nodes.flatMap((node, index) => node.type !== 'globalIn' && node.type !== 'globalOut' ? [index] : []);
-			for (const [index, nodeId] of event.nodeIds.entries()) {
-				if (module.nodes[indices[index]]?.id === nodeId) continue;
-				appStateManager.commit('moveNode', { visualModuleId, nodeId, index: indices[index] });
-			}
-			break;
-		}
-		case 'setOutputConnection':
-			appStateManager.commit('updateGlobalOutInput', { visualModuleId, nodeId: event.nodeId, outputId: event.outputId, value: event.value });
-			break;
-		case 'addParamDef':
-			appStateManager.commit('addVisualModuleParamDef', { visualModuleId, def: event.def });
-			break;
-		case 'updateParamDef':
-			appStateManager.commit('updateVisualModuleParamDef', { visualModuleId, defId: event.defId, changes: event.changes });
-			break;
-		case 'removeParamDef':
-			appStateManager.commit('removeVisualModuleParamDef', { visualModuleId, defId: event.defId });
-			break;
-		case 'addOutputDef':
-			appStateManager.commit('addVisualModuleOutputDef', { visualModuleId, def: event.def });
-			break;
-		case 'updateOutputDef':
-			appStateManager.commit('updateVisualModuleOutputDef', { visualModuleId, defId: event.defId, changes: event.changes });
-			break;
-		case 'removeOutputDef':
-			appStateManager.commit('removeVisualModuleOutputDef', { visualModuleId, defId: event.defId });
-			break;
-		case 'setPrimaryOutput':
-			appStateManager.commit('setVisualModulePrimaryOutput', { visualModuleId, primaryOutputId: event.outputId });
-			break;
-	}
-}
-
-function onNodeParamEdit(visualModuleId: string, nodeId: string, event: ParamEdit) {
-	const target = { visualModuleId, nodeId, paramPath: event.paramPath };
-	switch (event.kind) {
-		case 'literal': appStateManager.commit('updateParamAsLiteral', { ...target, value: event.value }, event.mergeKey); break;
-		case 'automationGraphInline': appStateManager.commit('updateParamAsAutomationGraphInline', { ...target, value: event.value }, event.mergeKey); break;
-		case 'envVariable': appStateManager.commit('updateParamAsEnvVariable', { ...target, value: event.value }); break;
-		case 'expression': appStateManager.commit('updateParamAsExpression', { ...target, value: event.value }, event.mergeKey); break;
-		case 'automationGraphReference': appStateManager.commit('updateParamAsAutomationGraphReference', { ...target, value: event.value, options: event.options }); break;
-		case 'keyframesTimelineInline': appStateManager.commit('updateParamAsKeyframesTimelineInline', { ...target, value: event.value }, event.mergeKey); break;
-		case 'node': appStateManager.commit('updateParamAsNode', { ...target, value: event.value, preserveSampling: event.preserveSampling }); break;
-		case 'externalCustomParameterInput': appStateManager.commit('updateParamAsExternalCustomParameterInput', { ...target, value: event.value }); break;
-		case 'inputSource': appStateManager.commit('changeParamValueInputSource', { ...target, inputSource: event.inputSource }); break;
-		case 'reset': appStateManager.commit('resetNodeParam', target); break;
-		case 'addElement': appStateManager.commit('addArrayParamElement', target); break;
-		case 'removeElement': appStateManager.commit('removeArrayParamElement', { ...target, index: event.index }); break;
-	}
+	commitVisualModuleEdit(appStateManager, { visualModuleId: module.id }, event);
 }
 </script>
 

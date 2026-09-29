@@ -3,7 +3,7 @@ import { genEmptyValue } from '@glitch/shared/utility/misc.ts';
 import { ParameterEvaluator } from '@glitch/shared/parameter-evaluator.js';
 import type { VisualModuleCustomParameterId, VisualModule } from '@glitch/shared/visual-module/types.ts';
 import type { NodeOutput } from './node-output.ts';
-import type { TimelineVisualModuleLayer } from '@glitch/shared/timeline/types.ts';
+import type { TimelineVisualModuleLayer, TimelineInlineVisualModuleLayer } from '@glitch/shared/timeline/types.ts';
 import type { VisualModuleRenderContext } from './visual-module-renderer.ts';
 import type { TimelineLayerContext, TimelineLayerRenderer } from './timeline-renderer.ts';
 import type { LAYER_VAR_DEFS } from '@glitch/shared/expression.js';
@@ -11,7 +11,7 @@ import type { LAYER_VAR_DEFS } from '@glitch/shared/expression.js';
 // 主入力の割り当てやパラメータはVisual Moduleレイヤーだけの責務とする。
 export function createVisualModuleTimelineLayer(
 	visualModule: Pick<VisualModule, 'paramDefs'>,
-	layer: TimelineVisualModuleLayer,
+	layer: TimelineVisualModuleLayer | TimelineInlineVisualModuleLayer,
 	renderer: {
 		prepare: (context: VisualModuleRenderContext, signal: AbortSignal) => Promise<void>;
 		render: (context: VisualModuleRenderContext, layerContext: TimelineLayerContext<NodeOutput>) => ReturnType<TimelineLayerRenderer<NodeOutput>['render']>;

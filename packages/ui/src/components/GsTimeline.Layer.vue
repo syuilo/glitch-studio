@@ -62,7 +62,7 @@ const emit = defineEmits<{
 }>();
 
 const layerLabel = computed(() => props.layer.layerType === 'audio'
-	? `♫ ${appStateManager.state.assets.value.find(asset => asset.id === (props.layer.layerType === 'audio' ? props.layer.assetId : ''))?.name ?? 'Missing audio'}` : props.layer.id);
+	? `♫ ${appStateManager.state.assets.value.find(asset => asset.id === (props.layer.layerType === 'audio' ? props.layer.assetId : ''))?.name ?? 'Missing audio'}` : props.layer.layerType === 'inlineVisualModule' ? 'Inline Visual Module' : props.layer.id);
 
 const layerRect = computed(() => {
 	const left = timeToDomX(props.layer.startTimeMs);
