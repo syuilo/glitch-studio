@@ -11,14 +11,14 @@ import videoEffectDef from '@glitch/shared/effect/fx/video/_def_.ts';
 import audioWaveformEffectDef from '@glitch/shared/effect/fx/audioWaveform/_def_.ts';
 import { VisualModuleRendererManagerController } from './VisualModuleRendererManagerController.ts';
 import { TimelineRendererManagerController } from './TimelineRendererManagerController.ts';
-import type { TimelineRendererManagerDynamicOptions } from '@glitch/renderer/timeline-renderer-manager.ts';
-import type { ProjectVisualModule } from '@glitch/shared/project/types.ts';
 import { TimelineAudioPreview } from './audio/timeline-audio-preview.ts';
 import { AudioOutput } from './audio/audio-output.ts';
 import { PreviewPlaybackController } from './PreviewPlaybackController.ts';
 import { AppStateManager } from './AppStateManager.ts';
 import { DEFAULT_PROJECT_NAME, loadProjectFile, saveProjectFile } from './gsproj.ts';
 import { preferences } from './preferences.ts';
+import type { ProjectVisualModule } from '@glitch/shared/project/types.ts';
+import type { TimelineRendererManagerDynamicOptions } from '@glitch/renderer/timeline-renderer-manager.ts';
 import type { EffectNodeOf } from '@glitch/shared/visual-module/types.ts';
 import type { Asset, IntermediateTextureFormat, Player } from '@glitch/shared/types.ts';
 import type { Project, ProjectInfo } from './gsproj.ts';
@@ -492,3 +492,5 @@ export async function newProjectFromImageOrVideo(file?: File) {
 export const workspacePanelDraggingContext = {
 	draggingId: ref<string | null>(null),
 };
+
+export const timelineSubPanelTeleportTargetAvailable = ref(false);

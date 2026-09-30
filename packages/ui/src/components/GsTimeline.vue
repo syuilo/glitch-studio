@@ -85,8 +85,8 @@
 			</div>
 		</div>
 
-		<Teleport defer to="#timelineSubPanelTeleportTarget">
-			<div v-if="selectedKeyframe != null" :class="$style.rightSidePanel">
+		<Teleport v-if="timelineSubPanelTeleportTargetAvailable" defer to="#timelineSubPanelTeleportTarget">
+			<div v-if="selectedKeyframe != null">
 				<div :key="keyframeEditorKey" :class="$style.keyframeEditor">
 					<GsButton small @click="selectedKeyframeSelection = null">Back to layer</GsButton>
 					<div>{{ selectedKeyframe.def.ui.label }} · Keyframe</div>
@@ -110,7 +110,7 @@
 					</GsSelect>
 				</div>
 			</div>
-			<div v-else-if="selectedLayer?.layerType === 'audio'" :class="$style.rightSidePanel">
+			<div v-else-if="selectedLayer?.layerType === 'audio'">
 				<div>{{ appStateManager.state.assets.value.find(asset => asset.id === (selectedLayer?.layerType === 'audio' ? selectedLayer.assetId : ''))?.name ?? 'Missing audio' }}</div>
 				<GsInput small type="number" :min="-selectedLayer.trimStartMs" :modelValue="selectedLayer.positionMs" @update:modelValue="value => editAudioTiming('move', value)"><template #label>Position (ms)</template></GsInput>
 				<GsInput small type="number" :min="Math.max(0, selectedLayer.positionMs)" :max="getTimelineLayerEnd(selectedLayer) - 1" :modelValue="getTimelineLayerStart(selectedLayer)" @update:modelValue="value => editAudioTiming('trimStart', value)"><template #label>Trim start (ms)</template></GsInput>
@@ -127,7 +127,7 @@
 				/>
 				<GsButton @click="appStateManager.commit('removeTimelineLayer', { layerId: selectedLayer.id })">Remove layer</GsButton>
 			</div>
-			<div v-else-if="selectedLayer?.layerType === 'visualModule' || selectedLayer?.layerType === 'inlineVisualModule'" :class="[$style.rightSidePanel, $style.visualModuleSidePanel]">
+			<div v-else-if="selectedLayer?.layerType === 'visualModule' || selectedLayer?.layerType === 'inlineVisualModule'">
 				<GsTabs v-if="selectedLayer.layerType === 'inlineVisualModule'" v-model="visualModuleLayerTab" :def="[{ id: 'settings', label: 'Layer settings' }, { id: 'module', label: 'Visual Module' }]"/>
 				<GsVisualModuleEditor
 					v-if="selectedLayer.layerType === 'inlineVisualModule' && visualModuleLayerTab === 'module'"
@@ -174,6 +174,9 @@
 				</div>
 			</div>
 		</Teleport>
+		<div v-else :class="$style.rightSidePanel">
+			<!-- TODO -->
+		</div>
 	</div>
 </div>
 </template>
@@ -210,7 +213,7 @@ import { createInlineVisualModuleLayer } from '@/utility/inline-visual-module-la
 import { commitVisualModuleEdit } from '@/utility/visual-module-edit.ts';
 import * as api from '@/api.ts';
 import { openAssetAudio } from '@/audio/asset-audio-reader.ts';
-import { appStateManager, previewPlayback, timelineAudioPreview, timelineRendererManagerController } from '@/app.ts';
+import { appStateManager, previewPlayback, timelineAudioPreview, timelineRendererManagerController, timelineSubPanelTeleportTargetAvailable } from '@/app.ts';
 import { dragListen } from '@/utility/drag.ts';
 
 const X_TICKS_HEIGHT = 20;
@@ -1136,12 +1139,6 @@ onMounted(() => {
 	background: #0008;
 	backdrop-filter: blur(4px);
 	color: #fff;
-}
-
-.visualModuleSidePanel {
-	display: flex;
-	flex-direction: column;
-	overflow: hidden;
 }
 
 .inlineModuleEditor {
