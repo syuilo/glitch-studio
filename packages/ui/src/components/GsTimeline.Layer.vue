@@ -20,8 +20,8 @@
 		</div>
 		<div :class="$style.tl">
 			<div v-if="sourceRect" :class="$style.tlSourceGhost" :style="{ left: sourceRect.left + 'px', width: sourceRect.width + 'px' }"></div>
-			<div v-show="layerRect.left > tlElWidth" :class="$style.stickyArrow" :style="{ right: 0 }"><i class="ti ti-arrow-right"></i></div>
-			<div v-show="layerRect.left + layerRect.width < 0" :class="$style.stickyArrow" :style="{ left: 0 }"><i class="ti ti-arrow-left"></i></div>
+			<button v-show="layerRect.left > tlElWidth" class="_button" :class="$style.stickyArrow" :style="{ right: 0 }" @click="look"><i class="ti ti-arrow-right"></i></button>
+			<button v-show="layerRect.left + layerRect.width < 0" class="_button" :class="$style.stickyArrow" :style="{ left: 0 }" @click="look"><i class="ti ti-arrow-left"></i></button>
 			<div
 				:class="[$style.tlClip, { [$style.moving]: timingDragMode === 'move' }]"
 				:style="{ width: layerRect.width + 'px', left: layerRect.left + 'px' }"
@@ -319,9 +319,10 @@ function onKeyframeMove(param: KeyframeParameter, move: KeyframeMove) {
 	const point = value.keyframesTimeline.keyframes.find(entry => entry.id === move.keyframeId);
 	if (point == null || point.x === move.x) return;
 	point.x = move.x;
-	appStateManager.commit('editTimelineLayerParam', { sceneId: props.sceneId,
-																																																				layerId: layer.id, target: param.target, paramId: param.paramId,
-																																																				edit: { kind: 'keyframesTimelineInline', value },
+	appStateManager.commit('editTimelineLayerParam', {
+		sceneId: props.sceneId,
+		layerId: layer.id, target: param.target, paramId: param.paramId,
+		edit: { kind: 'keyframesTimelineInline', value },
 	}, move.mergeKey);
 }
 
@@ -352,9 +353,10 @@ function onKeyframeInsert(param: KeyframeParameter, x: number) {
 		interpolation: deepClone(previous?.interpolation ?? { type: 'linear' }),
 	});
 	value.keyframesTimeline.keyframes.sort((a, b) => a.x - b.x);
-	appStateManager.commit('editTimelineLayerParam', { sceneId: props.sceneId,
-																																																				layerId: layer.id, target: param.target, paramId: param.paramId,
-																																																				edit: { kind: 'keyframesTimelineInline', value },
+	appStateManager.commit('editTimelineLayerParam', {
+		sceneId: props.sceneId,
+		layerId: layer.id, target: param.target, paramId: param.paramId,
+		edit: { kind: 'keyframesTimelineInline', value },
 	});
 	emit('keyframeSelected', { layerId: layer.id, target: param.target, paramId: param.paramId, keyframeId });
 }
@@ -365,6 +367,10 @@ function timeToDomX(time: number): number {
 
 function onLayerClipClick() {
 	emit('selected');
+}
+
+function look() {
+
 }
 
 </script>
