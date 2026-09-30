@@ -84,93 +84,95 @@
 			</div>
 		</div>
 
-		<div v-if="selectedKeyframe != null" :class="$style.rightSidePanel">
-			<div :key="keyframeEditorKey" :class="$style.keyframeEditor">
-				<GsButton small @click="selectedKeyframeSelection = null">Back to layer</GsButton>
-				<div>{{ selectedKeyframe.def.ui.label }} · Keyframe</div>
-				<GsInput small type="number" :min="selectedKeyframe.minX" :max="selectedKeyframe.maxX" :modelValue="selectedKeyframe.keyframe.x" @update:modelValue="updateKeyframeTime">
-					<template #label>Time (ms)</template>
-				</GsInput>
-				<div>Value</div>
-				<GsLiteralLeafValueControl
-					:dataType="selectedKeyframe.binding.keyframesTimeline.dataType"
-					:control="selectedKeyframe.def.ui.control"
-					:value="selectedKeyframe.binding.keyframesTimeline.dataType.kind === 'scalar' ? selectedKeyframe.keyframe.value[0] : selectedKeyframe.keyframe.value.slice(0, selectedKeyframe.binding.keyframesTimeline.dataType.kind === 'vector' ? 2 : 4)"
-					:title="selectedKeyframe.def.ui.label"
-					@input="value => updateKeyframeValue(value)"
-					@beginChanging="keyframeValueMergeKey = genId()"
-					@changeContinuous="value => updateKeyframeValue(value, keyframeValueMergeKey)"
-					@changeFinished="keyframeValueMergeKey = null"
-					@reset="updateKeyframeValue(selectedKeyframe.def.defaultValue.value)"
-				/>
-				<GsSelect small :modelValue="selectedKeyframe.keyframe.interpolation.type" :items="[{ label: 'Hold', value: 'hold' }, { label: 'Linear', value: 'linear' }]" @update:modelValue="type => updateSelectedKeyframe({ interpolation: { type } })">
-					<template #label>Interpolation to next keyframe</template>
-				</GsSelect>
-			</div>
-		</div>
-		<div v-else-if="selectedLayer?.layerType === 'audio'" :class="$style.rightSidePanel">
-			<div>{{ appStateManager.state.assets.value.find(asset => asset.id === (selectedLayer?.layerType === 'audio' ? selectedLayer.assetId : ''))?.name ?? 'Missing audio' }}</div>
-			<GsInput small type="number" :min="-selectedLayer.trimStartMs" :modelValue="selectedLayer.positionMs" @update:modelValue="value => editAudioTiming('move', value)"><template #label>Position (ms)</template></GsInput>
-			<GsInput small type="number" :min="Math.max(0, selectedLayer.positionMs)" :max="getTimelineLayerEnd(selectedLayer) - 1" :modelValue="getTimelineLayerStart(selectedLayer)" @update:modelValue="value => editAudioTiming('trimStart', value)"><template #label>Trim start (ms)</template></GsInput>
-			<GsInput small type="number" :min="getTimelineLayerStart(selectedLayer) + 1" :modelValue="getTimelineLayerEnd(selectedLayer)" @update:modelValue="value => editAudioTiming('trimEnd', value)"><template #label>Trim end (ms)</template></GsInput>
-			<GsInput small type="number" :min="0" :modelValue="selectedLayer.trimStartMs" @update:modelValue="value => editAudioTiming('offset', value)"><template #label>Source offset (ms)</template></GsInput>
-			<GsVisualParam
-				:key="selectedLayer.id"
-				:availableVariables="AUDIO_LAYER_VAR_DEFS"
-				:automationGraphs="selectedLayer.automationGraphs"
-				:paramPath="['volume']"
-				:paramDef="timelineAudioParamDefs.volume"
-				:paramValue="selectedLayer.paramValues.volume"
-				@edit="event => onVisualModuleLayerParamEdit(event, 'audio')"
-			/>
-			<GsButton @click="appStateManager.commit('removeTimelineLayer', { layerId: selectedLayer.id })">Remove layer</GsButton>
-		</div>
-		<div v-else-if="selectedLayer?.layerType === 'visualModule' || selectedLayer?.layerType === 'inlineVisualModule'" :class="[$style.rightSidePanel, $style.visualModuleSidePanel]">
-			<GsTabs v-if="selectedLayer.layerType === 'inlineVisualModule'" v-model="visualModuleLayerTab" :def="[{ id: 'settings', label: 'Layer settings' }, { id: 'module', label: 'Visual Module' }]"/>
-			<GsVisualModuleEditor
-				v-if="selectedLayer.layerType === 'inlineVisualModule' && visualModuleLayerTab === 'module'"
-				:key="selectedLayer.id"
-				:class="$style.inlineModuleEditor"
-				:visualModule="selectedLayer.visualModule"
-				:effectStates="inlineEffectStates"
-				@edit="onInlineVisualModuleEdit"
-				@requestAddNode="showAddInlineNodeMenu"
-			/>
-			<div v-else :class="$style.layerSettings">
-				<div>{{ selectedLayer.layerType === 'visualModule' ? appStateManager.getVisualModuleById(selectedLayer.visualModuleId)?.name : 'Inline Visual Module' }}</div>
-				<GsInput small type="number" :min="0" :modelValue="selectedLayer.positionMs" @update:modelValue="value => editVisualModuleTiming('position', value)"><template #label>Position (ms)</template></GsInput>
-				<GsInput small type="number" :min="1" :modelValue="selectedLayer.trimmedDurationMs" @update:modelValue="value => editVisualModuleTiming('duration', value)"><template #label>Duration (ms)</template></GsInput>
-				<div>Compositing</div>
-				<GsVisualParam
-					v-for="(paramDef, paramId) in timelineCompositingParamDefs"
-					:key="`${selectedLayer.id}:compositing:${paramId}`"
-					:availableVariables="LAYER_VAR_DEFS"
-					:automationGraphs="selectedLayer.automationGraphs"
-					:paramPath="[paramId]"
-					:paramDef="paramDef"
-					:paramValue="selectedLayer.compositingParamValues[paramId]"
-					@edit="event => onVisualModuleLayerParamEdit(event, 'compositing')"
-				/>
-				<div>Module parameters</div>
-				<!-- TODO: struct / array / anyのカスタムパラメータ編集UI。型定義では許可するが、子の編集や配列操作は未対応。 -->
-				<template
-					v-for="paramDef of selectedLayerModule?.paramDefs.filter(paramDef => paramDef.id !== selectedLayerModule?.primaryInputId) ?? []"
-					:key="`${selectedLayer.id}:${paramDef.id}`"
-				>
-					<div v-if="paramDef.dataType.kind === 'struct' || paramDef.dataType.kind === 'array' || isParameterType(paramDef, 'any')">{{ paramDef.ui.label }}: Editing is not yet supported.</div>
-					<GsVisualParam
-						v-else
-						:availableVariables="LAYER_VAR_DEFS"
-						:automationGraphs="selectedLayer.automationGraphs"
-						:paramPath="[paramDef.id]"
-						:paramDef="{ ...paramDef, canNode: false }"
-						:paramValue="selectedLayer.paramValues[paramDef.id] ?? paramDef.defaultValue"
-						@edit="event => onVisualModuleLayerParamEdit(event, 'module')"
+		<Teleport defer to="#timelineSubPanelTeleportTarget">
+			<div v-if="selectedKeyframe != null" :class="$style.rightSidePanel">
+				<div :key="keyframeEditorKey" :class="$style.keyframeEditor">
+					<GsButton small @click="selectedKeyframeSelection = null">Back to layer</GsButton>
+					<div>{{ selectedKeyframe.def.ui.label }} · Keyframe</div>
+					<GsInput small type="number" :min="selectedKeyframe.minX" :max="selectedKeyframe.maxX" :modelValue="selectedKeyframe.keyframe.x" @update:modelValue="updateKeyframeTime">
+						<template #label>Time (ms)</template>
+					</GsInput>
+					<div>Value</div>
+					<GsLiteralLeafValueControl
+						:dataType="selectedKeyframe.binding.keyframesTimeline.dataType"
+						:control="selectedKeyframe.def.ui.control"
+						:value="selectedKeyframe.binding.keyframesTimeline.dataType.kind === 'scalar' ? selectedKeyframe.keyframe.value[0] : selectedKeyframe.keyframe.value.slice(0, selectedKeyframe.binding.keyframesTimeline.dataType.kind === 'vector' ? 2 : 4)"
+						:title="selectedKeyframe.def.ui.label"
+						@input="value => updateKeyframeValue(value)"
+						@beginChanging="keyframeValueMergeKey = genId()"
+						@changeContinuous="value => updateKeyframeValue(value, keyframeValueMergeKey)"
+						@changeFinished="keyframeValueMergeKey = null"
+						@reset="updateKeyframeValue(selectedKeyframe.def.defaultValue.value)"
 					/>
-				</template>
+					<GsSelect small :modelValue="selectedKeyframe.keyframe.interpolation.type" :items="[{ label: 'Hold', value: 'hold' }, { label: 'Linear', value: 'linear' }]" @update:modelValue="type => updateSelectedKeyframe({ interpolation: { type } })">
+						<template #label>Interpolation to next keyframe</template>
+					</GsSelect>
+				</div>
+			</div>
+			<div v-else-if="selectedLayer?.layerType === 'audio'" :class="$style.rightSidePanel">
+				<div>{{ appStateManager.state.assets.value.find(asset => asset.id === (selectedLayer?.layerType === 'audio' ? selectedLayer.assetId : ''))?.name ?? 'Missing audio' }}</div>
+				<GsInput small type="number" :min="-selectedLayer.trimStartMs" :modelValue="selectedLayer.positionMs" @update:modelValue="value => editAudioTiming('move', value)"><template #label>Position (ms)</template></GsInput>
+				<GsInput small type="number" :min="Math.max(0, selectedLayer.positionMs)" :max="getTimelineLayerEnd(selectedLayer) - 1" :modelValue="getTimelineLayerStart(selectedLayer)" @update:modelValue="value => editAudioTiming('trimStart', value)"><template #label>Trim start (ms)</template></GsInput>
+				<GsInput small type="number" :min="getTimelineLayerStart(selectedLayer) + 1" :modelValue="getTimelineLayerEnd(selectedLayer)" @update:modelValue="value => editAudioTiming('trimEnd', value)"><template #label>Trim end (ms)</template></GsInput>
+				<GsInput small type="number" :min="0" :modelValue="selectedLayer.trimStartMs" @update:modelValue="value => editAudioTiming('offset', value)"><template #label>Source offset (ms)</template></GsInput>
+				<GsVisualParam
+					:key="selectedLayer.id"
+					:availableVariables="AUDIO_LAYER_VAR_DEFS"
+					:automationGraphs="selectedLayer.automationGraphs"
+					:paramPath="['volume']"
+					:paramDef="timelineAudioParamDefs.volume"
+					:paramValue="selectedLayer.paramValues.volume"
+					@edit="event => onVisualModuleLayerParamEdit(event, 'audio')"
+				/>
 				<GsButton @click="appStateManager.commit('removeTimelineLayer', { layerId: selectedLayer.id })">Remove layer</GsButton>
 			</div>
-		</div>
+			<div v-else-if="selectedLayer?.layerType === 'visualModule' || selectedLayer?.layerType === 'inlineVisualModule'" :class="[$style.rightSidePanel, $style.visualModuleSidePanel]">
+				<GsTabs v-if="selectedLayer.layerType === 'inlineVisualModule'" v-model="visualModuleLayerTab" :def="[{ id: 'settings', label: 'Layer settings' }, { id: 'module', label: 'Visual Module' }]"/>
+				<GsVisualModuleEditor
+					v-if="selectedLayer.layerType === 'inlineVisualModule' && visualModuleLayerTab === 'module'"
+					:key="selectedLayer.id"
+					:class="$style.inlineModuleEditor"
+					:visualModule="selectedLayer.visualModule"
+					:effectStates="inlineEffectStates"
+					@edit="onInlineVisualModuleEdit"
+					@requestAddNode="showAddInlineNodeMenu"
+				/>
+				<div v-else :class="$style.layerSettings">
+					<div>{{ selectedLayer.layerType === 'visualModule' ? appStateManager.getVisualModuleById(selectedLayer.visualModuleId)?.name : 'Inline Visual Module' }}</div>
+					<GsInput small type="number" :min="0" :modelValue="selectedLayer.positionMs" @update:modelValue="value => editVisualModuleTiming('position', value)"><template #label>Position (ms)</template></GsInput>
+					<GsInput small type="number" :min="1" :modelValue="selectedLayer.trimmedDurationMs" @update:modelValue="value => editVisualModuleTiming('duration', value)"><template #label>Duration (ms)</template></GsInput>
+					<div>Compositing</div>
+					<GsVisualParam
+						v-for="(paramDef, paramId) in timelineCompositingParamDefs"
+						:key="`${selectedLayer.id}:compositing:${paramId}`"
+						:availableVariables="LAYER_VAR_DEFS"
+						:automationGraphs="selectedLayer.automationGraphs"
+						:paramPath="[paramId]"
+						:paramDef="paramDef"
+						:paramValue="selectedLayer.compositingParamValues[paramId]"
+						@edit="event => onVisualModuleLayerParamEdit(event, 'compositing')"
+					/>
+					<div>Module parameters</div>
+					<!-- TODO: struct / array / anyのカスタムパラメータ編集UI。型定義では許可するが、子の編集や配列操作は未対応。 -->
+					<template
+						v-for="paramDef of selectedLayerModule?.paramDefs.filter(paramDef => paramDef.id !== selectedLayerModule?.primaryInputId) ?? []"
+						:key="`${selectedLayer.id}:${paramDef.id}`"
+					>
+						<div v-if="paramDef.dataType.kind === 'struct' || paramDef.dataType.kind === 'array' || isParameterType(paramDef, 'any')">{{ paramDef.ui.label }}: Editing is not yet supported.</div>
+						<GsVisualParam
+							v-else
+							:availableVariables="LAYER_VAR_DEFS"
+							:automationGraphs="selectedLayer.automationGraphs"
+							:paramPath="[paramDef.id]"
+							:paramDef="{ ...paramDef, canNode: false }"
+							:paramValue="selectedLayer.paramValues[paramDef.id] ?? paramDef.defaultValue"
+							@edit="event => onVisualModuleLayerParamEdit(event, 'module')"
+						/>
+					</template>
+					<GsButton @click="appStateManager.commit('removeTimelineLayer', { layerId: selectedLayer.id })">Remove layer</GsButton>
+				</div>
+			</div>
+		</Teleport>
 	</div>
 </div>
 </template>

@@ -19,146 +19,236 @@ export const PREF_DEF = definePreferences({
 	workspaceDefinition: {
 		default: (): WorkspaceElement => {
 			return {
-				id: 'root',
-				type: 'divider',
-				direction: 'horizontal',
+				id: 'a520c59981e84ae2a04c78a967cbf6f4',
+				type: 'tabs',
+				direction: 'vertical',
 				children: [{
-					ratio: 0.7,
+					name: 'Live',
 					element: {
-						id: '00bf4e2352824f8193a7b897c1ec028c',
+						id: '7e07309a8e0743ebaf4ddc9da4c4085f',
 						type: 'divider',
-						direction: 'vertical',
+						direction: 'horizontal',
 						children: [{
 							ratio: 0.7,
 							element: {
-								id: '37aa17431ad448de8ef0164f4cc451aa',
+								id: '00bf4e2352824f8193a7b897c1ec028c',
 								type: 'divider',
-								direction: 'horizontal',
+								direction: 'vertical',
 								children: [{
-									ratio: 0.3,
+									ratio: 0.7,
 									element: {
-										id: 'b728279ffbb949c8814f5228f1e98636',
+										id: '37aa17431ad448de8ef0164f4cc451aa',
 										type: 'divider',
-										direction: 'vertical',
+										direction: 'horizontal',
 										children: [{
-											ratio: 0.33,
+											ratio: 0.3,
 											element: {
-												id: 'adcc26307eda4e7da1d74f34f729eb22',
-												type: 'panel',
-												contentType: 'histogram',
+												id: 'b728279ffbb949c8814f5228f1e98636',
+												type: 'divider',
+												direction: 'vertical',
+												children: [{
+													ratio: 0.33,
+													element: {
+														id: 'adcc26307eda4e7da1d74f34f729eb22',
+														type: 'panel',
+														contentType: 'histogram',
+													},
+												}, {
+													ratio: 0.33,
+													element: {
+														id: 'f39599fc1ada4c328688818c01c84ae0',
+														type: 'panel',
+														contentType: 'waveformHorizontal',
+													},
+												}, {
+													ratio: 0.33,
+													element: {
+														id: '6f4f6e2dc72d493cb92ebdfab475545c',
+														type: 'panel',
+														contentType: 'waveformVertical',
+													},
+												}],
 											},
 										}, {
-											ratio: 0.33,
+											ratio: 0.7,
 											element: {
-												id: 'f39599fc1ada4c328688818c01c84ae0',
+												id: '00750e466cda4f1bb501f4a2c42dc0eb',
 												type: 'panel',
-												contentType: 'waveformHorizontal',
-											},
-										}, {
-											ratio: 0.33,
-											element: {
-												id: '6f4f6e2dc72d493cb92ebdfab475545c',
-												type: 'panel',
-												contentType: 'waveformVertical',
+												contentType: 'preview',
 											},
 										}],
 									},
 								}, {
-									ratio: 0.7,
+									ratio: 0.3,
 									element: {
-										id: '00750e466cda4f1bb501f4a2c42dc0eb',
-										type: 'panel',
-										contentType: 'preview',
+										id: 'dac041d318254045b0f55e90f4fb84a0',
+										type: 'tabs',
+										direction: 'horizontal',
+										children: [{
+											name: 'Main',
+											element: {
+												id: '6c618b181173442ab88ec696b51cf936',
+												type: 'divider',
+												direction: 'horizontal',
+												children: [{
+													ratio: 0.25,
+													element: {
+														id: '77688f4068ee4f929f78eb6423c5da24',
+														type: 'panel',
+														contentType: 'audioSpectrogram',
+													},
+												}, {
+													ratio: 0.25,
+													element: {
+														id: 'b933bae5a21e43c88b7ca481c71c40c2',
+														type: 'panel',
+														contentType: 'audioWaveform',
+													},
+												}, {
+													ratio: 0.25,
+													element: {
+														id: 'e0b66dac15844bc5a27801d4c729dbdf',
+														type: 'panel',
+														contentType: 'players',
+													},
+												}, {
+													ratio: 0.25,
+													element: {
+														id: 'b1274afa651a405988e29c508c0c02d5',
+														type: 'panel',
+														contentType: 'stats',
+													},
+												}],
+											},
+										}, {
+											name: 'Assets',
+											element: {
+												id: '824a5486145c4ba4911518b2bfc74a7c',
+												type: 'panel',
+												contentType: 'assets',
+											},
+										}, {
+											name: 'Console',
+											element: {
+												id: '8d5628e4e3ca4404b4f3cbb905dc35d7',
+												type: 'panel',
+												contentType: 'blank',
+											},
+										}, {
+											name: 'Logs',
+											element: {
+												id: 'da1be20a82c84a2f964760fab25c75a3',
+												type: 'panel',
+												contentType: 'commandLog',
+											},
+										}, {
+											name: 'Project Info',
+											element: {
+												id: '1a329690fb7b4987a4be5868d0a043ce',
+												type: 'panel',
+												contentType: 'projectInfo',
+											},
+										}],
 									},
 								}],
 							},
 						}, {
 							ratio: 0.3,
 							element: {
-								id: 'dac041d318254045b0f55e90f4fb84a0',
-								type: 'tabs',
-								direction: 'horizontal',
-								children: [{
-									name: 'Main',
-									element: {
-										id: '6c618b181173442ab88ec696b51cf936',
-										type: 'divider',
-										direction: 'horizontal',
-										children: [{
-											ratio: 0.25,
-											element: {
-												id: '77688f4068ee4f929f78eb6423c5da24',
-												type: 'panel',
-												contentType: 'audioSpectrogram',
-											},
-										}, {
-											ratio: 0.25,
-											element: {
-												id: 'b933bae5a21e43c88b7ca481c71c40c2',
-												type: 'panel',
-												contentType: 'audioWaveform',
-											},
-										}, {
-											ratio: 0.25,
-											element: {
-												id: 'e0b66dac15844bc5a27801d4c729dbdf',
-												type: 'panel',
-												contentType: 'players',
-											},
-										}, {
-											ratio: 0.25,
-											element: {
-												id: 'b1274afa651a405988e29c508c0c02d5',
-												type: 'panel',
-												contentType: 'stats',
-											},
-										}],
-									},
-								}, {
-									name: 'Timeline',
-									element: {
-										id: 'fa26d3ac8c29473aab3514f916c5b67d',
-										type: 'panel',
-										contentType: 'timeline',
-									},
-								}, {
-									name: 'Assets',
-									element: {
-										id: '824a5486145c4ba4911518b2bfc74a7c',
-										type: 'panel',
-										contentType: 'assets',
-									},
-								}, {
-									name: 'Console',
-									element: {
-										id: '8d5628e4e3ca4404b4f3cbb905dc35d7',
-										type: 'panel',
-										contentType: 'blank',
-									},
-								}, {
-									name: 'Logs',
-									element: {
-										id: 'da1be20a82c84a2f964760fab25c75a3',
-										type: 'panel',
-										contentType: 'commandLog',
-									},
-								}, {
-									name: 'Project Info',
-									element: {
-										id: '1a329690fb7b4987a4be5868d0a043ce',
-										type: 'panel',
-										contentType: 'projectInfo',
-									},
-								}],
+								id: '9547a31d6fcb4d9698ceb5136cc7621c',
+								type: 'panel',
+								contentType: 'visualModuleEditor',
 							},
 						}],
 					},
 				}, {
-					ratio: 0.3,
+					name: 'Video Editing',
 					element: {
-						id: '9547a31d6fcb4d9698ceb5136cc7621c',
-						type: 'panel',
-						contentType: 'visualModuleEditor',
+						id: 'dded327e2c4f4eb29d5ca29f5acfdc25',
+						type: 'divider',
+						direction: 'horizontal',
+						children: [{
+							ratio: 0.7,
+							element: {
+								id: '9e78d74eef3b4a5f956030d76096d595',
+								type: 'divider',
+								direction: 'vertical',
+								children: [{
+									ratio: 0.7,
+									element: {
+										id: '03cbfd2fe87943dab2dd716d2505c630',
+										type: 'divider',
+										direction: 'horizontal',
+										children: [{
+											ratio: 0.3,
+											element: {
+												id: '8252d957c19647069064078c9bc9d367',
+												type: 'divider',
+												direction: 'vertical',
+												children: [{
+													ratio: 0.33,
+													element: {
+														id: '5845486291544b84877198a20cbecb61',
+														type: 'panel',
+														contentType: 'histogram',
+													},
+												}, {
+													ratio: 0.33,
+													element: {
+														id: 'db466a3f5f064366abb30d21b52e4682',
+														type: 'panel',
+														contentType: 'waveformHorizontal',
+													},
+												}, {
+													ratio: 0.33,
+													element: {
+														id: 'b14cc29ebe304b3f8b7754e20b0fdc17',
+														type: 'panel',
+														contentType: 'waveformVertical',
+													},
+												}],
+											},
+										}, {
+											ratio: 0.7,
+											element: {
+												id: '60841182dc254e2683eaf0718df5a65f',
+												type: 'panel',
+												contentType: 'preview',
+											},
+										}],
+									},
+								}, {
+									ratio: 0.3,
+									element: {
+										id: 'f5a1c961595149e4a84f61ccf8908977',
+										type: 'panel',
+										contentType: 'timeline',
+									},
+								}],
+							},
+						}, {
+							ratio: 0.3,
+							element: {
+								id: 'f4901ad62b6a49a5b95fc57ed851190e',
+								type: 'tabs',
+								direction: 'horizontal',
+								children: [{
+									name: 'Side',
+									element: {
+										id: 'f515e9b3507442c6bb0849cbcedf62b9',
+										type: 'panel',
+										contentType: 'timelineSubPanel',
+									},
+								}, {
+									name: 'Assets',
+									element: {
+										id: 'f45eb89c7aee4b3794b30771e365cf44',
+										type: 'panel',
+										contentType: 'assets',
+									},
+								}],
+							},
+						}],
 					},
 				}],
 			} satisfies WorkspaceElement;
