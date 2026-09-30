@@ -41,6 +41,13 @@
 			</div>
 		</div>
 	</div>
+	<div v-if="keyframeParameters.length > 0" :class="$style.localTicksLane">
+		<div :class="[$style.side, $style.localTicksLabel]">Local time</div>
+		<div :class="[$style.tl, $style.localTicks]">
+			<div v-for="time of localTicks" :key="time" :class="$style.localTick" class="_monospace" :style="{ left: timeToDomX(layer.positionMs + time) + 'px' }">{{ formatTimelineTimecode(time) }}</div>
+			<div v-for="time of localHalfTicks" :key="time" :class="$style.localHalfTick" :style="{ left: timeToDomX(layer.positionMs + time) + 'px' }"></div>
+		</div>
+	</div>
 	<div v-for="param in keyframeParameters" :key="param.key" :class="$style.keyframesLane" :data-parameter-target="param.target" :data-param-id="param.paramId">
 		<div :class="$style.side">
 			<div style="padding: 0 10px 0 0;">
@@ -73,10 +80,14 @@ import { evaluateKeyframesTimeline } from '@glitch/shared/utility/keyframes-time
 import { getTimelineLayerStart, getTimelineLayerEnd } from '@glitch/shared/timeline/timing.ts';
 import { getSceneDuration } from '@glitch/shared/timeline/scenes.ts';
 import { readMediaMetadata } from '@glitch/shared/media/media-metadata.ts';
+import { insertIntermediateNumbers } from '@glitch/shared/utility/misc.ts';
 import GsCondensedLine from './common/GsCondensedLine.vue';
 import XKeyframes from './GsTimeline.Layer.Keyframes.vue';
 import type { TimelineKeyframeSelection } from '@/utility/timeline-selection.ts';
 import { constrainTimelineMove } from '@/utility/timeline-selection.ts';
+import { formatTimelineTimecode } from '@/utility/timeline-ticks.ts';
+import { getTimelineSnapCandidates } from '@/utility/timeline-snapping.ts';
+import type { TimelineSnapSettings } from '@/utility/timeline-snapping.ts';
 import type { TimelineLayer } from '@glitch/shared/timeline/types.ts';
 import type { ParameterBinding } from '@glitch/shared/types.ts';
 import { getLayerParameterValues } from '@/utility/timeline-scene.ts';
@@ -90,12 +101,15 @@ const props = defineProps<{
 	tlRangeX: number;
 	tlPosX: number;
 	timelineTicks: number[];
+	localTicks: number[];
+	snapSettings: TimelineSnapSettings;
 	selectedKeyframes: TimelineKeyframeSelection[];
 	selected: boolean;
 	moving: boolean;
 }>();
 
 const sceneLayers = computed(() => appStateManager.state.timelineScenes.value.find(scene => scene.id === props.sceneId)?.layers ?? []);
+const localHalfTicks = computed(() => props.localTicks.length === 0 ? [] : insertIntermediateNumbers(props.localTicks).filter((_, index) => index % 2 === 1));
 
 const emit = defineEmits<{
 	(ev: 'update:tlPosX', value: number): void;
@@ -223,9 +237,9 @@ function onTimingPointerMove(event: PointerEvent) {
 	const maxDelta = drag.mode === 'trimStart' ? drag.trimmedDurationMs - 1
 		: drag.mode === 'trimEnd' && (layer.layerType === 'audio' || layer.layerType === 'video') && contentDurationMs.value != null
 			? Math.max(0, contentDurationMs.value - drag.trimStartMs - drag.trimmedDurationMs) : Infinity;
-	const candidates = [0, ...props.timelineTicks, ...sceneLayers.value
+	const candidates = getTimelineSnapCandidates(props.snapSettings, [0, ...sceneLayers.value
 		.filter(entry => entry.id !== drag.layerId)
-		.flatMap(entry => [getTimelineLayerStart(entry), getTimelineLayerEnd(entry)])];
+		.flatMap(entry => [getTimelineLayerStart(entry), getTimelineLayerEnd(entry)])], props.timelineTicks);
 	const edge = drag.mode === 'trimStart' ? playbackStartMs : playbackStartMs + drag.trimmedDurationMs;
 	const { delta, snappingTime } = constrainTimelineMove(rawDelta, [{ time: edge, minDelta, maxDelta }], candidates, drag.msPerPixel);
 	emit('snap', snappingTime);
@@ -348,6 +362,43 @@ function look() {
 	display: flex;
 	flex-direction: row;
 	width: 100%;
+}
+
+.localTicksLane {
+	display: flex;
+	height: var(--xTicksHeight);
+	line-height: var(--xTicksHeight);
+	font-size: 12px;
+}
+
+.localTicksLabel {
+	padding-right: 10px;
+	text-align: right;
+	color: color-mix(in srgb, var(--THEME-fg) 60%, transparent);
+}
+
+.localTicks {
+	overflow: clip;
+	background: #181818aa;
+	user-select: none;
+}
+
+.localTick {
+	position: absolute;
+	top: 0;
+	height: 100%;
+	padding-left: 8px;
+	border-left: solid 1px #fff3;
+	white-space: nowrap;
+	pointer-events: none;
+}
+
+.localHalfTick {
+	position: absolute;
+	bottom: 0;
+	height: 4px;
+	border-left: solid 1px #fff3;
+	pointer-events: none;
 }
 
 .keyframesLane {

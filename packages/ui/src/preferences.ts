@@ -14,6 +14,9 @@ export const PREF_DEF = definePreferences({
 	previewVolume: { default: () => 0.5 },
 	forceTypeSafety: { default: () => false },
 	showTimecodeInPreview: { default: () => true },
+	timelineSnapEnabled: { default: () => true },
+	timelineSnapGlobalTicks: { default: () => true },
+	timelineSnapLocalTicks: { default: () => false },
 	enable32bitDataTextures: { default: () => false },
 	intermediateTextureFormat: { default: () => null as IntermediateTextureFormat | null },
 	workspaceDefinition: {

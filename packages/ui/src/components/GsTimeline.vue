@@ -19,7 +19,7 @@
 			<GsButton small iconOnly><i class="ti ti-select-all"></i></GsButton>
 			<GsButton small iconOnly><i class="ti ti-cut"></i></GsButton>
 			<span>|</span>
-			<GsButton small iconOnly><i class="ti ti-magnet"></i></GsButton>
+			<GsButton v-tooltip="'Snap settings'" small iconOnly :primary="snapEnabled" @click="showSnapMenu"><i class="ti ti-magnet"></i></GsButton>
 		</div>
 	</div>
 	<div :class="[$style.body, { [$style.panning]: panning }]" @pointerdown.capture="onBackgroundPointerDown" @click.capture="onTimelineClick" @mousedown.capture="onPanMousedown" @auxclick.capture="onPanAuxclick">
@@ -52,6 +52,8 @@
 						:tlElWidth="tlElWidth"
 						:tlRangeX="tlRangeX"
 						:timelineTicks="xTicks"
+						:localTicks="layerLocalTicks.get(layer.id) ?? []"
+						:snapSettings="snapSettings"
 						:selectedKeyframes="selection.kind === 'keyframes' ? selection.keyframes : []"
 						:class="$style.layersLane"
 						:selected="selection.kind === 'layers' && selection.ids.includes(layer.id)"
@@ -260,7 +262,7 @@ import { getTimelineLayerStart, getTimelineLayerEnd } from '@glitch/shared/timel
 import { isParameterType } from '@glitch/shared/parameter.ts';
 import { LAYER_VAR_DEFS } from '@glitch/shared/expression.ts';
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef, useTemplateRef, watch } from 'vue';
-import { insertIntermediateNumbers, nearlyEqual, niceScale } from '@glitch/shared/utility/misc.js';
+import { insertIntermediateNumbers, niceScale } from '@glitch/shared/utility/misc.js';
 import { genId } from '@glitch/shared/utility/id.js';
 import { timelineAudioParamDefs, AUDIO_LAYER_VAR_DEFS } from '@glitch/shared/timeline/timeline-audio.ts';
 import { timelineCompositingParamDefs } from '@glitch/shared/timeline/timeline-compositing.ts';
@@ -283,7 +285,10 @@ import type { VisualModuleEdit } from '@/types/visual-module-editor.ts';
 import type { TimelineLayer, TimelineVideoLayer } from '@glitch/shared/timeline/types.ts';
 import type { ParameterBinding, KeyframesTimelineKeyframe } from '@glitch/shared/types.ts';
 import type { TimelineKeyframeSelection, TimelineSelection, TimelineSelectionGeometry, SelectionRect, TimelineMovePoint } from '@/utility/timeline-selection.ts';
-import { timelineMarqueeRect, selectTimelineRange, keyframeSelectionKey, constrainTimelineMove, keyframeMoveBounds } from '@/utility/timeline-selection.ts';
+import { timelineMarqueeRect, selectTimelineRange, keyframeSelectionKey, constrainTimelineMove, keyframeMoveBounds, getTimelineSnappingTimes } from '@/utility/timeline-selection.ts';
+import { getTimelineLocalTicks, formatTimelineTimecode as formatMsToTimecode } from '@/utility/timeline-ticks.ts';
+import { getTimelineSnapCandidates } from '@/utility/timeline-snapping.ts';
+import { preferences } from '@/preferences.ts';
 import { listenPointerDrag } from '@/utility/pointer-drag.ts';
 import type { ParamEdit } from './GsVisualParam.vue';
 import { getLayerParameterValues } from '@/utility/timeline-scene.ts';
@@ -298,6 +303,21 @@ import { appStateManager, activeSceneId, previewPlayback, timelineAudioPreview, 
 import { dragListen } from '@/utility/drag.ts';
 
 const props = defineProps<{ sceneId: string }>();
+const snapEnabled = preferences.model('timelineSnapEnabled');
+const snapGlobalTicks = preferences.model('timelineSnapGlobalTicks');
+const snapLocalTicks = preferences.model('timelineSnapLocalTicks');
+const snapSettings = computed(() => ({ enabled: snapEnabled.value, globalTicks: snapGlobalTicks.value, localTicks: snapLocalTicks.value }));
+
+function showSnapMenu(event: PointerEvent) {
+	ui.popupMenu([{
+		text: 'Enable snapping', type: 'switch', ref: snapEnabled,
+	}, {
+		text: 'Global ticks', type: 'switch', ref: snapGlobalTicks,
+	}, {
+		text: 'Local ticks', type: 'switch', ref: snapLocalTicks,
+	}], event.currentTarget ?? event.target);
+}
+
 const editedScene = appStateManager.state.timelineScenes.value.find(scene => scene.id === props.sceneId)!;
 const editorState = sceneEditorStates.get(editedScene);
 let disposed = false;
@@ -433,6 +453,9 @@ function updateKeyframeTime(value: string | number) {
 const xTicksCount = ref(15);
 const xTicks = computed(() => niceScale(tlPosX.value, tlPosX.value + tlRangeX.value, xTicksCount.value));
 const xTicksWithHalf = computed(() => insertIntermediateNumbers(xTicks.value));
+const layerLocalTicks = computed(() => new Map(sceneLayers.value.map(layer => [layer.id,
+	getTimelineLocalTicks(layer.positionMs, tlPosX.value, tlRangeX.value, xTicksCount.value),
+])));
 const yTicksCount = ref(6);
 const yTicks = computed(() => niceScale(tlPosY.value, tlPosY.value + tlRangeY.value, yTicksCount.value));
 const yTicksWithHalf = computed(() => insertIntermediateNumbers(yTicks.value));
@@ -669,9 +692,7 @@ function startSelectionMove(event: PointerEvent, points: TimelineMovePoint[], sn
 		movingSelection.value = true;
 		suppressTimelineClick = true;
 		const result = constrainTimelineMove((current.clientX - event.clientX) * msPerPixel, points, snapTimes, msPerPixel);
-		// 移動量を決めた候補だけでなく、移動後に一致する両端・全選択キーの候補を表示する。
-		// 吸着距離の5pxではなく浮動小数点の誤差だけを許容し、まだ近いだけの候補には線を出さない。
-		snappingTimes.value = [...new Set(snapTimes.filter(time => points.some(point => nearlyEqual(point.time + result.delta, time))))];
+		snappingTimes.value = getTimelineSnappingTimes(points, snapTimes, result.delta);
 		if (result.delta === previousDelta) return;
 		if (!apply(result.delta, mergeKey)) { stopSelectionDrag?.(); return; }
 		previousDelta = result.delta;
@@ -692,8 +713,8 @@ function onLayerMoveStart(event: PointerEvent, layer: TimelineLayer) {
 	const positions = layers.map(entry => ({ layerId: entry.id, positionMs: entry.positionMs }));
 	const points = layers.flatMap(entry => [getTimelineLayerStart(entry), getTimelineLayerEnd(entry)]
 		.map(time => ({ time, minDelta: -getTimelineLayerStart(entry), maxDelta: Infinity })));
-	const snapTimes = [0, ...xTicks.value, ...sceneLayers.value.filter(entry => !current.ids.includes(entry.id))
-		.flatMap(entry => [getTimelineLayerStart(entry), getTimelineLayerEnd(entry)])];
+	const snapTimes = getTimelineSnapCandidates(snapSettings.value, [0, ...sceneLayers.value.filter(entry => !current.ids.includes(entry.id))
+		.flatMap(entry => [getTimelineLayerStart(entry), getTimelineLayerEnd(entry)])], xTicks.value);
 	startSelectionMove(event, points, snapTimes, (delta, mergeKey) => {
 		if (positions.some(position => !sceneLayers.value.some(entry => entry.id === position.layerId))) return false;
 		appStateManager.commit('moveTimelineLayers', { sceneId: props.sceneId, positions: positions.map(position => ({ ...position, positionMs: position.positionMs + delta })) }, mergeKey);
@@ -709,14 +730,19 @@ function onKeyframeMoveStart(event: PointerEvent, point: TimelineKeyframeSelecti
 	if (current.kind !== 'keyframes') return;
 	const selected = new Set(current.keyframes.map(keyframeSelectionKey));
 	const entries = keyframeEntries.value.filter(entry => selected.has(keyframeSelectionKey(entry.selection)));
+	const otherTimes = [0, time.value, ...sceneLayers.value.flatMap(entry => [getTimelineLayerStart(entry), getTimelineLayerEnd(entry)]),
+		...keyframeEntries.value.filter(entry => !selected.has(keyframeSelectionKey(entry.selection))).map(entry => entry.time)];
+	const candidatesByLayer = new Map(sceneLayers.value.map(layer => {
+		const ticks = layerLocalTicks.value.get(layer.id) ?? [];
+		const localTimes = ticks.length === 0 ? [] : insertIntermediateNumbers(ticks).map(time => layer.positionMs + time);
+		return [layer.id, getTimelineSnapCandidates(snapSettings.value, otherTimes, xTicksWithHalf.value, localTimes)];
+	}));
 	const points = entries.map(entry => {
 		const ids = new Set(current.keyframes.filter(point => point.layerId === entry.selection.layerId && point.target === entry.selection.target && point.paramId === entry.selection.paramId).map(point => point.keyframeId));
-		return { time: entry.time, ...keyframeMoveBounds(entry.keyframes, ids, entry.selection.keyframeId) };
+		return { time: entry.time, ...keyframeMoveBounds(entry.keyframes, ids, entry.selection.keyframeId), snapTimes: candidatesByLayer.get(entry.selection.layerId) ?? [] };
 	});
 	const positions = entries.map(entry => ({ ...entry.selection, x: entry.x }));
-	const snapTimes = [0, time.value, ...xTicksWithHalf.value, ...sceneLayers.value.flatMap(entry => [getTimelineLayerStart(entry), getTimelineLayerEnd(entry)]),
-		...keyframeEntries.value.filter(entry => !selected.has(keyframeSelectionKey(entry.selection))).map(entry => entry.time)];
-	startSelectionMove(event, points, snapTimes, (delta, mergeKey) => {
+	startSelectionMove(event, points, [], (delta, mergeKey) => {
 		const available = new Set(keyframeEntries.value.map(entry => keyframeSelectionKey(entry.selection)));
 		if (positions.some(position => !available.has(keyframeSelectionKey(position)))) return false;
 		appStateManager.commit('moveTimelineKeyframes', { sceneId: props.sceneId, positions: positions.map(position => ({ ...position, x: position.x + delta })) }, mergeKey);
@@ -769,18 +795,6 @@ function onTlKeydown(ev: KeyboardEvent) {
 			return;
 		}
 		selectLayer(layer);
-	}
-}
-
-function formatMsToTimecode(ms: number) {
-	const totalSeconds = Math.floor(ms / 1000);
-	const minutes = Math.floor(totalSeconds / 60);
-	const seconds = totalSeconds % 60;
-	const milliseconds = ms % 1000;
-	if (milliseconds === 0) {
-		return `${minutes}:${seconds.toString().padStart(2, '0')}`;
-	} else {
-		return `${minutes}:${seconds.toString().padStart(2, '0')}.${Math.floor(milliseconds).toString().replace(/0+$/, '')}`;
 	}
 }
 

@@ -1,3 +1,5 @@
+import { nearlyEqual } from '@glitch/shared/utility/misc.ts';
+
 export type TimelineKeyframeSelection = {
 	layerId: string;
 	target: 'compositing' | 'module' | 'audio';
@@ -44,7 +46,13 @@ export function selectTimelineRange(rect: SelectionRect, geometry: TimelineSelec
 		.map(point => [keyframeSelectionKey(point), point])).values()] };
 }
 
-export type TimelineMovePoint = { time: number; minDelta: number; maxDelta: number };
+export type TimelineMovePoint = {
+	time: number;
+	minDelta: number;
+	maxDelta: number;
+	/** 指定時は共通候補を置き換える。別レイヤーのローカル目盛りへ吸着させないため。 */
+	snapTimes?: number[];
+};
 
 export function constrainTimelineMove(rawDelta: number, points: TimelineMovePoint[], snapTimes: number[], msPerPixel: number): { delta: number; snappingTime: number | null } {
 	const minDelta = Math.max(...points.map(point => point.minDelta));
@@ -54,7 +62,7 @@ export function constrainTimelineMove(rawDelta: number, points: TimelineMovePoin
 	let nearestDistance = 5;
 	// 各要素を個別にクランプせず、共通の移動量を制限して相対位置を守る。
 	for (const point of points) {
-		for (const time of snapTimes) {
+		for (const time of point.snapTimes ?? snapTimes) {
 			const candidateDelta = time - point.time;
 			if (candidateDelta < minDelta || candidateDelta > maxDelta) continue;
 			const distance = Math.abs(candidateDelta - rawDelta) / msPerPixel;
@@ -65,6 +73,12 @@ export function constrainTimelineMove(rawDelta: number, points: TimelineMovePoin
 		}
 	}
 	return { delta, snappingTime };
+}
+
+export function getTimelineSnappingTimes(points: TimelineMovePoint[], snapTimes: number[], delta: number): number[] {
+	// 表示する線にも各点の候補を使う。別レイヤーの目盛りとの偶然の一致は表示しない。
+	// 吸着距離の5pxではなく浮動小数点の誤差だけを許容する。
+	return [...new Set(points.flatMap(point => (point.snapTimes ?? snapTimes).filter(time => nearlyEqual(point.time + delta, time))))];
 }
 
 export function keyframeMoveBounds(keyframes: { id: string; x: number }[], selectedIds: ReadonlySet<string>, keyframeId: string): { minDelta: number; maxDelta: number } {

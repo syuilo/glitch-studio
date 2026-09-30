@@ -7,7 +7,7 @@ import { build } from 'esbuild';
 const bundled = await build({
 	absWorkingDir: fileURLToPath(new URL('../', import.meta.url)),
 	stdin: {
-		contents: "export * from './src/utility/timeline-selection.ts'; export { AppStateManager } from './src/AppStateManager.ts'; export { listenPointerDrag } from './src/utility/pointer-drag.ts';",
+		contents: "export * from './src/utility/timeline-selection.ts'; export * from './src/utility/timeline-snapping.ts'; export * from './src/utility/timeline-ticks.ts'; export { AppStateManager } from './src/AppStateManager.ts'; export { listenPointerDrag } from './src/utility/pointer-drag.ts';",
 		resolveDir: fileURLToPath(new URL('../', import.meta.url)), loader: 'ts',
 	},
 	bundle: true, platform: 'node', format: 'cjs', write: false,
@@ -26,6 +26,7 @@ const bundled = await build({
 const module = { exports: {} };
 new Function('require', 'module', 'exports', bundled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
 const { selectTimelineRange, selectionRect, timelineMarqueeRect, keyframeSelectionKey, constrainTimelineMove, keyframeMoveBounds, AppStateManager, listenPointerDrag } = module.exports;
+const { getTimelineSnapCandidates, getTimelineSnappingTimes, getTimelineLocalTicks, formatTimelineTimecode } = module.exports;
 
 const key = (layerId, keyframeId, target = 'audio', paramId = 'volume') => ({ layerId, target, paramId, keyframeId });
 const empty = { kind: 'layers', ids: [] };
@@ -126,6 +127,92 @@ test('constrains keyframes against unselected neighbors and local time zero', ()
 	assert.deepEqual(keyframeMoveBounds(points, new Set(['0', '200']), '0'), { minDelta: 0, maxDelta: 100 });
 	assert.deepEqual(keyframeMoveBounds(points, new Set(['0', '200']), '200'), { minDelta: -100, maxDelta: 100 });
 	assert.deepEqual(keyframeMoveBounds(points, new Set(points.map(point => point.id)), '100'), { minDelta: -100, maxDelta: Infinity });
+});
+
+// 【ローカル目盛りは表示範囲とレイヤーの配置時刻から生成する】
+// グローバル目盛りのラベルだけを引き算するとローカル0が目盛りにならないため、ローカル時間軸で刻む。
+// パン・レイヤー移動・ズーム後も基準を保ち、トリム量を時間原点として使わないことを確認する。
+test('generates local ticks around the layer origin across panning and zooming', () => {
+	assert.deepEqual(getTimelineLocalTicks(1234, 0, 4000, 5), [-2000, -1000, 0, 1000, 2000, 3000]);
+	assert.deepEqual(getTimelineLocalTicks(2334, 1100, 4000, 5), [-2000, -1000, 0, 1000, 2000, 3000]);
+	assert.deepEqual(getTimelineLocalTicks(1234, 1234, 2000, 5), [0, 500, 1000, 1500, 2000]);
+	const trimmedLayer = { positionMs: -200, trimStartMs: 700 };
+	const ticks = getTimelineLocalTicks(trimmedLayer.positionMs, 0, 1000, 6);
+	assert.deepEqual(ticks, [200, 400, 600, 800, 1000, 1200]);
+	assert.equal(formatTimelineTimecode(trimmedLayer.trimStartMs), '0:00.7');
+	assert.deepEqual(getTimelineLocalTicks(0, 0, 0, 15), []);
+});
+
+// 【レイヤーの前方にある負の時刻と短いミリ秒値も正しく表示する】
+// 0より前を表示しても秒・分にそれぞれ負号を付けず、50msを500msと誤認させない。
+test('formats signed local ruler labels and fractional seconds', () => {
+	assert.equal(formatTimelineTimecode(-61500), '-1:01.5');
+	assert.equal(formatTimelineTimecode(-50), '-0:00.05');
+	assert.equal(formatTimelineTimecode(5), '0:00.005');
+	assert.equal(formatTimelineTimecode(1000), '0:01');
+	assert.equal(formatTimelineTimecode(0), '0:00');
+});
+
+// 【全体・グローバル・ローカルのスイッチを独立して組み合わせる】
+// 全体OFFはクリップ端・再生位置等も無効化するが、個別スイッチは目盛りだけに作用する。
+// 設定値を変更せず候補を組み立てるため、全体を再度ONにしても以前の組み合わせが残る。
+test('applies all snap settings combinations without changing their values', () => {
+	for (const enabled of [false, true]) {
+		for (const globalTicks of [false, true]) {
+			for (const localTicks of [false, true]) {
+				const settings = { enabled, globalTicks, localTicks };
+				const before = { ...settings };
+				const expected = enabled ? [120, ...(globalTicks ? [500] : []), ...(localTicks ? [650] : [])] : [];
+				assert.deepEqual(getTimelineSnapCandidates(settings, [120, 120], [500], [650]), expected);
+				assert.deepEqual(settings, before);
+				const clipCandidates = getTimelineSnapCandidates(settings, [120], [500]);
+				assert.deepEqual(clipCandidates, enabled ? [120, ...(globalTicks ? [500] : [])] : []);
+			}
+		}
+	}
+});
+
+// 【両方の目盛りが有効なら最も近い候補へ吸着する】
+// ローカル目盛りを有効化してもグローバル候補を排除せず、同じ候補は重複させない。
+test('chooses the nearest tick when global and local snapping are both enabled', () => {
+	const settings = { enabled: true, globalTicks: true, localTicks: true };
+	const candidates = getTimelineSnapCandidates(settings, [], [500], [500, 503]);
+	assert.deepEqual(candidates, [500, 503]);
+	const points = [{ time: 497, minDelta: -497, maxDelta: Infinity, snapTimes: candidates }];
+	assert.deepEqual(constrainTimelineMove(5, points, [], 1), { delta: 6, snappingTime: 503 });
+	assert.deepEqual(getTimelineSnappingTimes(points, [], 6), [503]);
+});
+
+// 【複数レイヤーのキーは自分のレイヤーのローカル目盛りだけを参照する】
+// 全レイヤーのローカル候補をひとつにまとめると、別レイヤーの位相に誤って吸着する。
+// 一括移動量は共通のまま、吸着・ガイド線の両方で候補の所属を守る。
+test('keeps local snap candidates scoped to each moving keyframe', () => {
+	const points = [
+		{ time: 643, minDelta: -100, maxDelta: 100, snapTimes: [500] },
+		{ time: 590, minDelta: -100, maxDelta: 100, snapTimes: [650] },
+	];
+	assert.deepEqual(constrainTimelineMove(6, points, [650], 1), { delta: 6, snappingTime: null });
+	assert.deepEqual(getTimelineSnappingTimes(points, [650], 7), []);
+	points[0].time = 493;
+	assert.deepEqual(constrainTimelineMove(6, points, [], 1), { delta: 7, snappingTime: 500 });
+	assert.deepEqual(getTimelineSnappingTimes(points, [], 7), [500]);
+});
+
+// 【ローカルスナップでもグループ全体の移動制限と全一致位置の表示を保つ】
+// 別のキーの移動限界を越える候補には吸着せず、同じ移動量で一致した目盛りは全て表示する。
+test('respects group bounds and displays every matching scoped snap position', () => {
+	const points = [
+		{ time: 497, minDelta: -100, maxDelta: 100, snapTimes: [500, 500] },
+		{ time: 647, minDelta: -100, maxDelta: 2, snapTimes: [650] },
+	];
+	assert.deepEqual(constrainTimelineMove(3, points, [], 1), { delta: 2, snappingTime: null });
+	assert.deepEqual(getTimelineSnappingTimes(points, [], 2), []);
+	points[1].maxDelta = 100;
+	assert.deepEqual(constrainTimelineMove(3, points, [], 1), { delta: 3, snappingTime: 500 });
+	assert.deepEqual(getTimelineSnappingTimes(points, [], 3), [500, 650]);
+	for (const point of points) point.snapTimes = getTimelineSnapCandidates({ enabled: false, globalTicks: true, localTicks: true }, [0], [500], [650]);
+	assert.deepEqual(constrainTimelineMove(3, points, [], 1), { delta: 3, snappingTime: null });
+	assert.deepEqual(getTimelineSnappingTimes(points, [], 3), []);
 });
 
 function fixture() {
