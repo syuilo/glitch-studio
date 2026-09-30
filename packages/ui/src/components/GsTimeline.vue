@@ -22,7 +22,7 @@
 			<GsButton v-tooltip="'Snap settings'" small iconOnly :primary="snapEnabled" @click="showSnapMenu"><i class="ti ti-magnet"></i></GsButton>
 		</div>
 	</div>
-	<div :class="[$style.body, { [$style.panning]: panning }]" @pointerdown.capture="onBackgroundPointerDown" @click.capture="onTimelineClick" @mousedown.capture="onPanMousedown" @auxclick.capture="onPanAuxclick">
+	<div :class="[$style.body, { [$style.panning]: panning }]" @pointerdown.capture="onBackgroundPointerDown" @click.capture="onTimelineClick" @mousedown.capture="onPanMousedown" @auxclick.capture="onPanAuxclick" @wheel.capture="onTimelineWheel">
 		<div :class="$style.tlBgWrapper" data-timeline-surface>
 			<div :class="$style.tlBgSideSpacer"></div>
 			<div ref="tlEl" :class="$style.tlBg" tabindex="-1" @wheel="onTlWheel" @mousemove="onTlMousemove">
@@ -287,6 +287,8 @@ import type { ParameterBinding, KeyframesTimelineKeyframe } from '@glitch/shared
 import type { TimelineKeyframeSelection, TimelineSelection, TimelineSelectionGeometry, SelectionRect, TimelineMovePoint } from '@/utility/timeline-selection.ts';
 import type { ParamEdit } from './GsVisualParam.vue';
 import { timelineMarqueeRect, selectTimelineRange, keyframeSelectionKey, constrainTimelineMove, keyframeMoveBounds, getTimelineSnappingTimes } from '@/utility/timeline-selection.ts';
+import { createKeyframeStretch, stretchKeyframeX } from '@/utility/timeline-keyframe-stretch.ts';
+import { zoomTimelineX } from '@/utility/timeline-zoom.ts';
 import { getTimelineLayerTicks, formatTimelineTimecode as formatMsToTimecode } from '@/utility/timeline-ticks.ts';
 import { getTimelineSnapCandidates, getTimelineSeekPosition } from '@/utility/timeline-snapping.ts';
 import { preferences } from '@/preferences.ts';
@@ -509,6 +511,12 @@ function onTlMousemove(ev: MouseEvent) {
 	tooltipDomPos.value = [mouseX + 10, mouseY + 10];
 }
 
+function onTimelineWheel(ev: WheelEvent) {
+	if (!ev.shiftKey || !(ev.target instanceof Element) || !ev.target.closest('[data-timeline-surface]')) return;
+	// レイヤーやキーの上でも同じ操作にし、通常のスクロール・背景の二軸ズームとの二重処理を防ぐ。
+	onXTicksWheel(ev);
+}
+
 function onTlWheel(ev: WheelEvent) {
 	if (tlEl.value == null) return;
 	ev.preventDefault();
@@ -528,16 +536,18 @@ function onTlWheel(ev: WheelEvent) {
 }
 
 function onXTicksWheel(ev: WheelEvent) {
-	if (tlEl.value == null) return;
+	if (tlEl.value == null || tlElWidth.value <= 0) return;
 	ev.preventDefault();
 	ev.stopPropagation();
 
 	const rect = tlEl.value.getBoundingClientRect();
 	const x = ev.clientX - rect.left;
-	const anchorTime = domXToLogicalX(x) + tlPosX.value;
-
-	tlRangeX.value *= 1 + (ev.deltaY / 1000);
-	tlPosX.value = anchorTime - domXToLogicalX(x);
+	// ShiftでdeltaXへ変換される環境と、行・ページ単位で届くホイールにも対応する。
+	const unit = ev.deltaMode === 1 ? 16 : ev.deltaMode === 2 ? tlElWidth.value : 1;
+	const delta = (ev.deltaY || ev.deltaX) * unit;
+	const viewport = zoomTimelineX(tlPosX.value, tlRangeX.value, Math.max(0, Math.min(1, x / tlElWidth.value)), delta);
+	tlRangeX.value = viewport.range;
+	tlPosX.value = viewport.start;
 }
 
 let stopPan: (() => void) | undefined;
@@ -683,11 +693,13 @@ function onBackgroundPointerDown(event: PointerEvent) {
 	}, target as HTMLElement);
 }
 
-function startSelectionMove(event: PointerEvent, points: TimelineMovePoint[], snapTimes: number[], apply: (delta: number, mergeKey: string) => boolean) {
-	if (points.length === 0) return;
+function startSelectionMove(event: PointerEvent, points: TimelineMovePoint[], snapTimes: number[], apply: (delta: number, mergeKey: string) => boolean,
+	getSnapLines = (delta: number) => getTimelineSnappingTimes(points, snapTimes, delta)) {
+	const timeline = tlEl.value;
+	if (points.length === 0 || timeline == null) return;
 	event.preventDefault();
-	tlEl.value?.focus({ preventScroll: true });
-	const msPerPixel = tlRangeX.value / tlElWidth.value;
+	timeline.focus({ preventScroll: true });
+	const originTime = tlPosX.value + (event.clientX - timeline.getBoundingClientRect().left) * tlRangeX.value / tlElWidth.value;
 	const mergeKey = genId();
 	let moved = false;
 	let previousDelta = 0;
@@ -696,8 +708,11 @@ function startSelectionMove(event: PointerEvent, points: TimelineMovePoint[], sn
 		moved = true;
 		movingSelection.value = true;
 		suppressTimelineClick = true;
-		const result = constrainTimelineMove((current.clientX - event.clientX) * msPerPixel, points, snapTimes, msPerPixel);
-		snappingTimes.value = getTimelineSnappingTimes(points, snapTimes, result.delta);
+		// ドラッグ中にズームしても、開始時の画素倍率ではなく現在の時刻座標で追従する。
+		const msPerPixel = tlRangeX.value / tlElWidth.value;
+		const pointerTime = tlPosX.value + (current.clientX - timeline.getBoundingClientRect().left) * msPerPixel;
+		const result = constrainTimelineMove(pointerTime - originTime, points, snapTimes, msPerPixel);
+		snappingTimes.value = getSnapLines(result.delta);
 		if (result.delta === previousDelta) return;
 		if (!apply(result.delta, mergeKey)) { stopSelectionDrag?.(); return; }
 		previousDelta = result.delta;
@@ -730,7 +745,12 @@ function onLayerMoveStart(event: PointerEvent, layer: TimelineLayer) {
 function onKeyframeMoveStart(event: PointerEvent, point: TimelineKeyframeSelection) {
 	if (event.button !== 0 || !event.isPrimary || stopSelectionDrag || tlElWidth.value <= 0 || tlRangeX.value <= 0) return;
 	const key = keyframeSelectionKey(point);
-	if (selection.value.kind !== 'keyframes' || !selection.value.keyframes.some(entry => keyframeSelectionKey(entry) === key)) onKeyframeSelected(point);
+	const laneEntries = keyframeEntries.value.filter(entry => entry.selection.layerId === point.layerId && entry.selection.target === point.target && entry.selection.paramId === point.paramId);
+	const stretch = event.shiftKey ? createKeyframeStretch(laneEntries.map(entry => ({ id: entry.selection.keyframeId, x: entry.x })), point.keyframeId) : null;
+	if (stretch != null) {
+		// ストレッチは選択範囲にかかわらず、このパラメータ行の全キーを対象にする。
+		selection.value = { kind: 'keyframes', keyframes: laneEntries.map(entry => entry.selection) };
+	} else if (selection.value.kind !== 'keyframes' || !selection.value.keyframes.some(entry => keyframeSelectionKey(entry) === key)) onKeyframeSelected(point);
 	const current = selection.value;
 	if (current.kind !== 'keyframes') return;
 	const selected = new Set(current.keyframes.map(keyframeSelectionKey));
@@ -742,17 +762,22 @@ function onKeyframeMoveStart(event: PointerEvent, point: TimelineKeyframeSelecti
 		const localTimes = ticks == null ? [] : [...ticks.major, ...ticks.minor].toSorted((a, b) => a - b).map(time => layer.positionMs + time);
 		return [layer.id, getTimelineSnapCandidates(snapSettings.value, otherTimes, xTicksWithHalf.value, localTimes)];
 	}));
-	const points = entries.map(entry => {
+	const points = entries.filter(entry => stretch == null || entry.selection.keyframeId === point.keyframeId).map(entry => {
 		const ids = new Set(current.keyframes.filter(point => point.layerId === entry.selection.layerId && point.target === entry.selection.target && point.paramId === entry.selection.paramId).map(point => point.keyframeId));
-		return { time: entry.time, ...keyframeMoveBounds(entry.keyframes, ids, entry.selection.keyframeId), snapTimes: candidatesByLayer.get(entry.selection.layerId) ?? [] };
+		const bounds = stretch ?? keyframeMoveBounds(entry.keyframes, ids, entry.selection.keyframeId);
+		return { time: entry.time, minDelta: bounds.minDelta, maxDelta: bounds.maxDelta, snapTimes: candidatesByLayer.get(entry.selection.layerId) ?? [] };
 	});
 	const positions = entries.map(entry => ({ ...entry.selection, x: entry.x }));
+	const movedX = (x: number, delta: number) => stretch == null ? x + delta : stretchKeyframeX(x, stretch, delta);
 	startSelectionMove(event, points, [], (delta, mergeKey) => {
 		const available = new Set(keyframeEntries.value.map(entry => keyframeSelectionKey(entry.selection)));
 		if (positions.some(position => !available.has(keyframeSelectionKey(position)))) return false;
-		appStateManager.commit('moveTimelineKeyframes', { sceneId: props.sceneId, positions: positions.map(position => ({ ...position, x: position.x + delta })) }, mergeKey);
+		appStateManager.commit('moveTimelineKeyframes', { sceneId: props.sceneId, positions: positions.map(position => ({ ...position, x: movedX(position.x, delta) })) }, mergeKey);
 		return true;
-	});
+	}, delta => getTimelineSnappingTimes(entries.map(entry => ({
+		time: entry.time + movedX(entry.x, delta) - entry.x,
+		minDelta: 0, maxDelta: 0, snapTimes: candidatesByLayer.get(entry.selection.layerId) ?? [],
+	})), [], 0));
 }
 
 onBeforeUnmount(() => stopSelectionDrag?.());

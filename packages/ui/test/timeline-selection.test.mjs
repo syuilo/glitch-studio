@@ -7,7 +7,7 @@ import { build } from 'esbuild';
 const bundled = await build({
 	absWorkingDir: fileURLToPath(new URL('../', import.meta.url)),
 	stdin: {
-		contents: "export * from './src/utility/timeline-selection.ts'; export * from './src/utility/timeline-snapping.ts'; export * from './src/utility/timeline-ticks.ts'; export { AppStateManager } from './src/AppStateManager.ts'; export { listenPointerDrag } from './src/utility/pointer-drag.ts';",
+		contents: "export * from './src/utility/timeline-selection.ts'; export * from './src/utility/timeline-snapping.ts'; export * from './src/utility/timeline-ticks.ts'; export * from './src/utility/timeline-keyframe-stretch.ts'; export * from './src/utility/timeline-zoom.ts'; export { AppStateManager } from './src/AppStateManager.ts'; export { listenPointerDrag } from './src/utility/pointer-drag.ts';",
 		resolveDir: fileURLToPath(new URL('../', import.meta.url)), loader: 'ts',
 	},
 	bundle: true, platform: 'node', format: 'cjs', write: false,
@@ -27,6 +27,74 @@ const module = { exports: {} };
 new Function('require', 'module', 'exports', bundled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
 const { selectTimelineRange, selectionRect, timelineMarqueeRect, keyframeSelectionKey, constrainTimelineMove, keyframeMoveBounds, AppStateManager, listenPointerDrag } = module.exports;
 const { getTimelineSnapCandidates, getTimelineSnappingTimes, getTimelineSeekPosition, getTimelineLocalTicks, getTimelineLayerTicks, formatTimelineTimecode } = module.exports;
+const { createKeyframeStretch, stretchKeyframeX, zoomTimelineX } = module.exports;
+
+// 【拡大縮小してもカーソル直下の時刻を維持する】
+// 横スクロール済みの状態や左右端でも、ズーム操作によって注目している時刻を見失わないようにする。
+// 大きなホイール量で時間軸が反転・消失しないことも確認する。
+test('zooms around the pointer time and keeps a positive finite range', () => {
+	for (const ratio of [0, 0.3, 1]) {
+		for (const delta of [-120, 120]) {
+			const zoomed = zoomTimelineX(-3000, 30000, ratio, delta);
+			assert.equal(zoomed.start + zoomed.range * ratio, -3000 + 30000 * ratio);
+			assert.equal(zoomed.range > 30000, delta > 0);
+			const restored = zoomTimelineX(zoomed.start, zoomed.range, ratio, -delta);
+			assert.ok(Math.abs(restored.range - 30000) < 1e-8);
+			assert.ok(Math.abs(restored.start + 3000) < 1e-8);
+		}
+	}
+	for (const delta of [-1e6, 1e6]) {
+		const zoomed = zoomTimelineX(0, 30000, 0.5, delta);
+		assert.ok(zoomed.range > 0 && Number.isFinite(zoomed.range) && Number.isFinite(zoomed.start));
+	}
+});
+
+// 【先頭・末尾から反対端を固定して全キーの間隔の比率を維持する】
+// 保存順序に依存せず、拡大・縮小・元の位置への復帰を開始時のスナップショットから計算する。
+// 値や補間方法を変更せずにタイミングだけ調整するための仕様。
+test('stretches either endpoint proportionally without mutating the original keys', () => {
+	const keyframes = [{ id: 'last', x: 500 }, { id: 'first', x: 100 }, { id: 'middle', x: 200 }];
+	const before = structuredClone(keyframes);
+	const first = createKeyframeStretch(keyframes, 'first');
+	const last = createKeyframeStretch(keyframes, 'last');
+	assert.deepEqual(keyframes.map(point => stretchKeyframeX(point.x, first, 200)), [500, 300, 350]);
+	assert.deepEqual(keyframes.map(point => stretchKeyframeX(point.x, first, -100)), [500, 0, 125]);
+	assert.deepEqual(keyframes.map(point => stretchKeyframeX(point.x, last, 400)), [900, 100, 300]);
+	assert.deepEqual(keyframes.map(point => stretchKeyframeX(point.x, last, -200)), [300, 100, 150]);
+	for (const stretch of [first, last]) assert.deepEqual(keyframes.map(point => stretchKeyframeX(point.x, stretch, 0)), [500, 100, 200]);
+	assert.deepEqual(keyframes, before);
+});
+
+// 【ストレッチで0未満・端点の追い越し・全キーの重なりを防ぐ】
+// 中間キー・単一キー・幅がないキー群では通常移動に戻せるようストレッチを開始しない。
+// 端点の追い越しを制限して、再度ストレッチできる幅とキーの順序を残す。
+test('bounds stretching and rejects interior or degenerate endpoints', () => {
+	const keyframes = [{ id: 'a', x: 100 }, { id: 'b', x: 200 }, { id: 'c', x: 500 }];
+	const first = createKeyframeStretch(keyframes, 'a');
+	const last = createKeyframeStretch(keyframes, 'c');
+	assert.equal(stretchKeyframeX(100, first, -1000), 0);
+	assert.equal(stretchKeyframeX(100, first, 1000), 499);
+	assert.equal(stretchKeyframeX(500, last, -1000), 101);
+	assert.equal(createKeyframeStretch(keyframes, 'b'), null);
+	assert.equal(createKeyframeStretch(keyframes, 'missing'), null);
+	assert.equal(createKeyframeStretch([], 'a'), null);
+	assert.equal(createKeyframeStretch(keyframes.slice(0, 1), 'a'), null);
+	assert.equal(createKeyframeStretch([{ id: 'a', x: 10 }, { id: 'b', x: 10 }], 'a'), null);
+	const small = createKeyframeStretch([{ id: 'a', x: 0 }, { id: 'b', x: 0.5 }], 'b');
+	assert.equal(stretchKeyframeX(0.5, small, -1), 0.5);
+});
+
+// 【ストレッチ端点をスナップさせ、中間キーも同じ比率で更新する】
+// ローカル時刻とグローバル時刻の差を考慮し、固定端を越えるスナップ候補を無視する。
+test('snaps the stretched endpoint within its bounds and scales intermediate keys', () => {
+	const keyframes = [{ id: 'first', x: 100 }, { id: 'middle', x: 200 }, { id: 'last', x: 500 }];
+	const stretch = createKeyframeStretch(keyframes, 'last');
+	const points = [{ time: 1500, ...stretch }];
+	const result = constrainTimelineMove(198, points, [1100, 1700], 1);
+	assert.equal(result.delta, 200);
+	assert.deepEqual(keyframes.map(point => stretchKeyframeX(point.x, stretch, result.delta)), [100, 250, 700]);
+	assert.deepEqual(constrainTimelineMove(-399, points, [1100], 1), { delta: -399, snappingTime: null });
+});
 
 const key = (layerId, keyframeId, target = 'audio', paramId = 'volume') => ({ layerId, target, paramId, keyframeId });
 const empty = { kind: 'layers', ids: [] };
@@ -278,6 +346,29 @@ function fixture() {
 }
 const layers = manager => manager.state.timelineScenes.value[0].layers;
 const snapshot = manager => JSON.parse(JSON.stringify(layers(manager)));
+
+// 【連続ストレッチを1回のUndoで復元し、他のパラメータを変更しない】
+// ドラッグ中の更新を同じ履歴にまとめ、端点・中間キーの時刻だけを変更する。
+// 往復操作でも累積変形せず、値・補間・別レイヤーがそのまま復元できることを確認する。
+test('undoes and redoes a stretch as one command while preserving other parameters', () => {
+	for (const endpoint of ['0', '2']) {
+		const manager = fixture();
+		const before = snapshot(manager);
+		const keyframes = before[0].paramValues.volume.keyframesTimeline.keyframes;
+		const stretch = createKeyframeStretch(keyframes, endpoint);
+		for (const delta of [50, 80, 20, 70]) {
+			manager.commit('moveTimelineKeyframes', { sceneId: 'scene', positions: keyframes.map(point => ({ ...key('audio', point.id), x: stretchKeyframeX(point.x, stretch, delta) })) }, 'stretch');
+		}
+		const expected = structuredClone(before);
+		expected[0].paramValues.volume.keyframesTimeline.keyframes = keyframes.map(point => ({ ...point, x: stretchKeyframeX(point.x, stretch, 70) }));
+		assert.deepEqual(snapshot(manager), expected);
+		assert.equal(manager.undoStack.value.length, 1);
+		manager.undo();
+		assert.deepEqual(snapshot(manager), before);
+		manager.redo();
+		assert.deepEqual(snapshot(manager), expected);
+	}
+});
 
 // 【一括レイヤー移動を1回のUndoで戻し、同じ結果へRedoする】
 // ドラッグの更新回数にかかわらず履歴を1件にまとめ、素材のトリムやパラメータ値を変更しない。
