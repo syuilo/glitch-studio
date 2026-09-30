@@ -12,6 +12,7 @@
 		:class="[$style.keyframe, { [$style.selected]: selectedKeyframeId === keyframe.id }]"
 		:style="{ left: Math.round(timeToDomX(keyframeTime(keyframe.x))) + 'px' }"
 		@mousedown.stop.prevent="onKeyframeMousedown($event, keyframe.id)"
+		@click.stop.prevent
 		@dblclick.stop.prevent
 	></div>
 </div>
