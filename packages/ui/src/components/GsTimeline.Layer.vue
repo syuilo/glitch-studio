@@ -10,6 +10,7 @@
 					<i v-if="layer.layerType === 'visualModule'" class="ti ti-chart-dots-3"></i>
 					<i v-else-if="layer.layerType === 'inlineVisualModule'" class="ti ti-chart-dots-3"></i>
 					<i v-else-if="layer.layerType === 'scene'" class="ti ti-timeline"></i>
+					<i v-else-if="layer.layerType === 'video'" class="ti ti-video"></i>
 					<i v-else-if="layer.layerType === 'audio'" class="ti ti-music"></i>
 				</span>
 				<span>{{ layerLabel }}</span>
@@ -85,6 +86,7 @@ import { getLayerParameterValues } from '@/utility/timeline-scene.ts';
 import type { TimelineLayer } from '@glitch/shared/timeline/types.ts';
 import type { ParameterBinding } from '@glitch/shared/types.ts';
 import { appStateManager } from '@/app.ts';
+import { readVideoMetadata } from '@glitch/shared/media/video-metadata.ts';
 import { openAssetAudio } from '@/audio/asset-audio-reader.ts';
 
 const props = defineProps<{
@@ -109,21 +111,26 @@ const emit = defineEmits<{
 	(ev: 'snap', time: number | null): void;
 }>();
 
-const layerLabel = computed(() => props.layer.layerType === 'scene' ? appStateManager.state.timelineScenes.value.find(scene => scene.id === (props.layer.layerType === 'scene' ? props.layer.sceneId : ''))?.name ?? 'Missing scene' : props.layer.layerType === 'audio'
-	? `${appStateManager.state.assets.value.find(asset => asset.id === (props.layer.layerType === 'audio' ? props.layer.assetId : ''))?.name ?? 'Missing audio'}` : props.layer.layerType === 'inlineVisualModule' ? 'Inline Visual Module' : props.layer.id);
+const layerLabel = computed(() => props.layer.layerType === 'scene' ? appStateManager.state.timelineScenes.value.find(scene => scene.id === (props.layer.layerType === 'scene' ? props.layer.sceneId : ''))?.name ?? 'Missing scene' : (props.layer.layerType === 'audio' || props.layer.layerType === 'video')
+	? `${appStateManager.state.assets.value.find(asset => asset.id === ((props.layer.layerType === 'audio' || props.layer.layerType === 'video') ? props.layer.assetId : ''))?.name ?? 'Missing media'}` : props.layer.layerType === 'inlineVisualModule' ? 'Inline Visual Module' : props.layer.id);
 
-const audioAsset = computed(() => {
+const mediaAsset = computed(() => {
 	const layer = props.layer;
-	return layer.layerType === 'audio' ? appStateManager.state.assets.value.find(asset => asset.id === layer.assetId) : undefined;
+	return (layer.layerType === 'audio' || layer.layerType === 'video') ? appStateManager.state.assets.value.find(asset => asset.id === layer.assetId) : undefined;
 });
 const contentDurationMs = ref<number | null>(null);
-watch(() => audioAsset.value?.fileData, async (_, __, onCleanup) => {
-	const asset = audioAsset.value;
+watch(() => mediaAsset.value?.fileData, async (_, __, onCleanup) => {
+	const asset = mediaAsset.value;
 	contentDurationMs.value = null;
 	let cancelled = false;
 	onCleanup(() => { cancelled = true; });
 	if (asset == null) return;
 	try {
+		if (props.layer.layerType === 'video') {
+			const metadata = await readVideoMetadata(asset.fileData);
+			if (!cancelled) contentDurationMs.value = metadata.durationMs;
+			return;
+		}
 		const audio = await openAssetAudio(asset);
 		try {
 			const durationMs = audio.duration * 1000;
@@ -147,7 +154,7 @@ const sourceRect = computed(() => {
 		const scene = appStateManager.state.timelineScenes.value.find(scene => scene.id === (props.layer.layerType === 'scene' ? props.layer.sceneId : ''));
 		return scene == null ? null : { left: timeToDomX(props.layer.positionMs), width: getSceneDuration(scene) / props.tlRangeX * props.tlElWidth };
 	}
-	if (props.layer.layerType !== 'audio' || contentDurationMs.value == null) return null;
+	if ((props.layer.layerType !== 'audio' && props.layer.layerType !== 'video') || contentDurationMs.value == null) return null;
 	return { left: timeToDomX(props.layer.positionMs), width: contentDurationMs.value / props.tlRangeX * props.tlElWidth };
 });
 
@@ -161,7 +168,7 @@ type KeyframeParameter = {
 
 const keyframeParameters = computed(() => {
 	const res: KeyframeParameter[] = [];
-	for (const target of (props.layer.layerType === 'audio' ? ['audio'] as const : props.layer.layerType === 'scene' ? ['compositing', 'audio'] as const : ['compositing', 'module'] as const)) {
+	for (const target of (props.layer.layerType === 'audio' ? ['audio'] as const : (props.layer.layerType === 'scene' || props.layer.layerType === 'video') ? ['compositing', 'audio'] as const : ['compositing', 'module'] as const)) {
 		const values = getLayerParameterValues(props.layer, target);
 		for (const [paramId, binding] of Object.entries(values)) {
 			if (binding.inputSource !== 'keyframesTimelineInline') continue;
@@ -190,7 +197,7 @@ let timingDrag: {
 function onTimingPointerDown(event: PointerEvent, mode: TimingDragMode) {
 	if (event.button !== 0 || timingDrag != null || props.tlElWidth <= 0 || props.tlRangeX <= 0) return;
 	const layer = props.layer;
-	if (layer.layerType === 'effect') return; // effectレイヤーは未実装。
+	if (layer.layerType === 'effect' || (layer.layerType === 'video' && contentDurationMs.value == null)) return; // effectレイヤーは未実装。
 	event.preventDefault();
 	emit('selected');
 	const element = event.currentTarget as HTMLElement;
@@ -217,10 +224,10 @@ function onTimingPointerMove(event: PointerEvent) {
 	const playbackStartMs = drag.positionMs + drag.trimStartMs;
 	// 左端トリムでは音声の読み出し位置も動かすため、素材の先頭より前には伸ばさない。
 	const minDelta = drag.mode === 'trimEnd' ? 1 - drag.trimmedDurationMs
-		: drag.mode === 'trimStart' && (layer.layerType === 'audio' || layer.layerType === 'scene') ? Math.max(-playbackStartMs, -drag.trimStartMs)
+		: drag.mode === 'trimStart' && (layer.layerType === 'audio' || layer.layerType === 'scene' || layer.layerType === 'video') ? Math.max(-playbackStartMs, -drag.trimStartMs)
 		: -playbackStartMs;
 	const maxDelta = drag.mode === 'trimStart' ? drag.trimmedDurationMs - 1
-		: drag.mode === 'trimEnd' && layer.layerType === 'audio' && contentDurationMs.value != null
+		: drag.mode === 'trimEnd' && (layer.layerType === 'audio' || layer.layerType === 'video') && contentDurationMs.value != null
 			? Math.max(0, contentDurationMs.value - drag.trimStartMs - drag.trimmedDurationMs) : Infinity;
 	let delta = Math.max(minDelta, Math.min(maxDelta, rawDelta));
 	const candidates = [0, ...props.timelineTicks, ...sceneLayers.value
@@ -245,12 +252,18 @@ function onTimingPointerMove(event: PointerEvent) {
 	emit('snap', snappingTime);
 	// 音声のpositionMsは素材の配置基準。左端のトリムでは基準を動かさず、
 	// trimStartMsとtrimmedDurationMsを逆方向へ変更して右端を保つ。
-	const positionMs = drag.positionMs + (drag.mode === 'move' || (drag.mode === 'trimStart' && layer.layerType !== 'audio' && layer.layerType !== 'scene') ? delta : 0);
+	const positionMs = drag.positionMs + (drag.mode === 'move' || (drag.mode === 'trimStart' && layer.layerType !== 'audio' && layer.layerType !== 'scene' && layer.layerType !== 'video') ? delta : 0);
 	const trimmedDurationMs = drag.trimmedDurationMs + (drag.mode === 'move' ? 0 : drag.mode === 'trimStart' ? -delta : delta);
 	if (layer.positionMs === positionMs && layer.trimmedDurationMs === trimmedDurationMs) return;
-	if (layer.layerType === 'audio' || layer.layerType === 'scene') {
+	if (layer.layerType === 'audio' || layer.layerType === 'scene' || layer.layerType === 'video') {
 		const trimStartMs = drag.trimStartMs + (drag.mode === 'trimStart' ? delta : 0);
-		appStateManager.commit(layer.layerType === 'scene' ? 'editSceneLayerTiming' : 'editAudioLayerTiming', { sceneId: props.sceneId, layerId: layer.id, positionMs, trimmedDurationMs, trimStartMs }, drag.mergeKey);
+		if (layer.layerType === 'video') {
+			const sourceDurationMs = contentDurationMs.value;
+			if (sourceDurationMs == null || trimStartMs + trimmedDurationMs > sourceDurationMs) return;
+			appStateManager.commit('editVideoLayerTiming', { sceneId: props.sceneId, layerId: layer.id, positionMs, trimmedDurationMs, trimStartMs, sourceDurationMs }, drag.mergeKey);
+		} else {
+			appStateManager.commit(layer.layerType === 'scene' ? 'editSceneLayerTiming' : 'editAudioLayerTiming', { sceneId: props.sceneId, layerId: layer.id, positionMs, trimmedDurationMs, trimStartMs }, drag.mergeKey);
+		}
 	} else if (layer.layerType === 'visualModule' || layer.layerType === 'inlineVisualModule') {
 		appStateManager.commit('editVisualModuleLayerTiming', { sceneId: props.sceneId, layerId: layer.id, positionMs, trimmedDurationMs }, drag.mergeKey);
 	}
@@ -324,7 +337,7 @@ function onKeyframeInsert(param: KeyframeParameter, x: number) {
 	const fallback = Array<number>(kind === 'scalar' ? 1 : kind === 'vector' ? 2 : 4).fill(0);
 	// 挿入は元の区間を分割する操作。区間外では再生時の繰り返しを適用せず端の値を使う。
 	// 終端合わせのキーも再生時と同じ基準で評価する。素材の長さが未取得なら挿入を待つ。
-	const endTimeMs = layer.layerType === 'audio' ? contentDurationMs.value : layer.trimStartMs + layer.trimmedDurationMs;
+	const endTimeMs = (layer.layerType === 'audio' || (layer.layerType === 'video' && param.target === 'audio')) ? contentDurationMs.value : layer.trimStartMs + layer.trimmedDurationMs;
 	if (endTimeMs == null) return;
 	const evaluated = evaluateKeyframesTimeline({ ...current, wrapMode: 'clamp' }, x, endTimeMs, fallback);
 	const components = typeof evaluated === 'number' ? [evaluated] : evaluated;

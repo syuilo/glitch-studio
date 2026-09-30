@@ -3,9 +3,11 @@ import EventEmitter from 'eventemitter3';
 import { AssetTextures } from './asset-textures.ts';
 import defaultVertexShaderCode from './vertex.wgsl?raw';
 import { VisualModuleRenderer } from './visual-module-renderer.ts';
+import { TimelinePreviewScheduler } from './timeline-preview-scheduler.ts';
 import { TimelineRenderer } from './timeline-renderer.ts';
 import { createVisualModuleTimelineLayer } from './visual-module-timeline-layer.ts';
 import { createSceneTimelineLayer } from './scene-timeline-layer.ts';
+import { createVideoTimelineLayer } from './video-timeline-layer.ts';
 import { createTimelineCompositor } from './timeline-compositor.ts';
 import { TimelineCompositingParameters } from './timeline-compositing-parameters.ts';
 import { OutputTextureResolver } from './node-output.ts';
@@ -59,6 +61,7 @@ export class TimelineRendererManager extends EventEmitter<{
 	private timelineRenderer: TimelineRenderer<NodeOutput, TimelineLayer>;
 	private previewRenderGeneration = 0;
 	private nextTimelineLayerStatusId = 0;
+	private previewScheduler = new TimelinePreviewScheduler(time => this.renderPreviewFrame(time));
 	private gpuContext: GPUCanvasContext;
 	private gpuDevice: GPUDevice;
 	private canvasRenderer: CanvasRenderer;
@@ -151,6 +154,7 @@ export class TimelineRendererManager extends EventEmitter<{
 	}
 
 	private clearTimelineRenderers() {
+		this.previewScheduler.clear();
 		this.previewRenderGeneration++;
 		this.timelineRenderer.clear();
 	}
@@ -189,15 +193,21 @@ export class TimelineRendererManager extends EventEmitter<{
 	}
 
 	/** timeはミリ秒。表示期間中はレイヤーごとのインスタンスと履歴を保持する。 */
-	public async renderTimelineAt(time: number): Promise<void> {
+	public renderTimelineAt(time: number, playback = false): Promise<void> {
+		return this.previewScheduler.render(time, playback);
+	}
+
+	private async renderPreviewFrame(time: number): Promise<boolean> {
 		const generation = ++this.previewRenderGeneration;
 		try {
 			if (!Number.isFinite(time)) throw new Error('Timeline time must be finite');
 			await this.timelineRenderer.renderAt(time, this.getSceneLayers());
 			// 中断されたシークの完了で、新しい描画のエラーを消さない。
 			if (generation === this.previewRenderGeneration) this.setRenderError(null);
+			return true;
 		} catch (error) {
 			if (generation === this.previewRenderGeneration) this.setRenderError(error instanceof Error ? error.message : String(error));
+			return false;
 		}
 	}
 
@@ -213,6 +223,14 @@ export class TimelineRendererManager extends EventEmitter<{
 	private createTimelineLayer(layer: TimelineLayer, layerPath: string[]): TimelineLayerRenderer<NodeOutput> {
 		// レイヤーの種類の解釈とリソース解決は、タイムライン制御の外側で行う。
 		switch (layer.layerType) {
+			case 'video': {
+				const asset = this.dynamicOptions.assets.find(asset => asset.id === layer.assetId);
+				if (!asset) throw new Error(`Video asset not found: ${layer.assetId}`);
+				return createVideoTimelineLayer(layer, asset.fileData, {
+					device: this.gpuDevice, vertex: this.defaultVertexShaderModule,
+					resolution: this.dynamicOptions.resolution, format: this.staticOptions.intermediateTextureFormat,
+				});
+			}
 			case 'scene': return createSceneTimelineLayer(getTimelineScene(this.dynamicOptions.timelineScenes, layer.sceneId), layer, {
 				device: this.gpuDevice,
 				vertex: this.defaultVertexShaderModule,

@@ -35,6 +35,31 @@ const { timelineCompositingParamDefs, COMMAND_DEFS, createInlineAutomationGraph,
 
 const defaultCompositing = () => Object.fromEntries(Object.entries(timelineCompositingParamDefs).map(([key, def]) => [key, structuredClone(def.defaultValue)]));
 
+// 【動画レイヤーのトリム・映像・音声を保存と履歴で独立して復元する】
+// 音声無効化が配置長や音量キーを変更しないこと、範囲外トリムが状態を壊さないことも確認する。
+test('round-trips video settings and undoes trimmed timing and independent audio controls', async () => {
+	const { state } = fixture();
+	const layer = { id: 'video', layerType: 'video', assetId: 'movie', positionMs: 8000, trimStartMs: 2000, trimmedDurationMs: 5000,
+		fitMode: 'contain', audioEnabled: true, compositingParamValues: defaultCompositing(), audioParamValues: { volume: { inputSource: 'literal', value: 1 } }, automationGraphs: [] };
+	const target = { sceneId: 'scene', layerId: 'video' };
+	const add = COMMAND_DEFS.addVideoLayer.create({ sceneId: 'scene', layer, sourceDurationMs: 10000 });
+	add.execute(state);
+	const settings = COMMAND_DEFS.editVideoLayerSettings.create({ ...target, fitMode: 'cover', audioEnabled: false });
+	const volume = COMMAND_DEFS.editTimelineLayerParam.create({ ...target, target: 'audio', paramId: 'volume', edit: { kind: 'expression', value: 'PROGRESS' } });
+	const timing = COMMAND_DEFS.editVideoLayerTiming.create({ ...target, positionMs: -1000, trimStartMs: 2000, trimmedDurationMs: 6000, sourceDurationMs: 10000 });
+	for (const command of [settings, volume, timing]) command.execute(state);
+	const before = structuredClone(state.timelineScenes.value[0].layers);
+	const encoded = await encodeProjectFile({ gsVersion: '2.0.0', assets: [], timelineScenes: state.timelineScenes.value });
+	assert.deepEqual(decodeProjectFile(encoded).timelineScenes[0].layers, before);
+	assert.throws(() => COMMAND_DEFS.editVideoLayerTiming.create({ ...target, positionMs: 0, trimStartMs: 9000, trimmedDurationMs: 2000, sourceDurationMs: 10000 }).execute(state), /Invalid video layer timing/);
+	assert.deepEqual(state.timelineScenes.value[0].layers, before);
+	for (const command of [timing, volume, settings]) command.undo(state);
+	assert.deepEqual(state.timelineScenes.value[0].layers.find(entry => entry.id === 'video'), layer);
+	add.undo(state);
+	add.execute(state);
+	assert.deepEqual(state.timelineScenes.value[0].layers.find(entry => entry.id === 'video'), layer);
+});
+
 // 【音声レイヤーの編集と保存を既存の履歴へ統合する】
 // 音量Bindingと素材位置を別々にUndoでき、保存後もPlayerへの依存を持ち込まない。
 test('round-trips audio layers and undoes timing, volume and removal', async () => {

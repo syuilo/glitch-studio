@@ -106,6 +106,9 @@ export const previewPlayback = markRaw(new PreviewPlaybackController(
 	visualModuleRendererManagerController, timelineRendererManagerController, () => fpsLimit.value,
 	() => activeScene.value == null ? 0 : getSceneDuration(activeScene.value), timelineAudioPreview,
 ));
+watch(timelineRendererManagerController.errorMessage, message => {
+	if (message && previewPlayback.isTimelinePlaying.value) previewPlayback.pauseTimeline();
+});
 watch(activeSceneId, (sceneId, previousId) => {
 	// 音声更新のwatchより前に旧Sceneの時計を止め、切替先の長さで位置を丸めない。
 	previewPlayback.pauseTimeline();
@@ -239,7 +242,7 @@ export async function appReady(project: Project, fileName = 'untitled.gsproj', f
 	// 素材名や映像パラメータの編集では再生中のWorkerと先読みPCMを維持する。
 	projectWatchers.push(watch(() => {
 		const layers = activeSceneId.value == null ? [] : getSceneAudioClips(appStateManager.state.timelineScenes.value, activeSceneId.value);
-		const assetIds = new Set(layers.map(clip => clip.layer.assetId));
+		const assetIds = new Set(layers.map(clip => clip.assetId));
 		return {
 			layers: deepClone(layers),
 			duration: activeScene.value == null ? 0 : getSceneDuration(activeScene.value),

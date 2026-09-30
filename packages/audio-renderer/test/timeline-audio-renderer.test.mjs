@@ -5,6 +5,23 @@ import { loadShaderSource } from '../../renderer/test/helpers/load-shader-source
 
 const { TimelineAudioRenderer } = await loadShaderSource(fileURLToPath(new URL('../src/timeline-audio-renderer.ts', import.meta.url)));
 const layer = (changes = {}) => ({ id: 'audio', layerType: 'audio', assetId: 'asset', positionMs: 80, trimmedDurationMs: 100, trimStartMs: 20, paramValues: { volume: { inputSource: 'literal', value: 1 } }, automationGraphs: [], ...changes });
+
+// 【動画の音量はトリム前の共通素材長を基準に評価する】
+// 映像の方が長い素材で音声トラックの長さを使うと、PROGRESSや終端合わせの音量が変わる。
+// PCMは同じ素材時刻で読み、音声だけを先頭へ詰め直さない。
+test('uses media duration for video volume without shifting audio timestamps', async () => {
+	const calls = [];
+	const renderer = new TimelineAudioRenderer(async (...args) => { calls.push(args); return constant(...args); }, async (assetId, basis) => {
+		assert.equal(assetId, 'movie');
+		assert.equal(basis, 'media');
+		return 4000;
+	});
+	const clip = { assetId: 'movie', positionMs: 8000, startMs: 10000, endMs: 11000, durationBasis: 'media',
+		volume: { inputSource: 'expression', expression: 'PROGRESS' }, automationGraphs: [], gains: [] };
+	const result = await renderer.renderClips([clip], 10000, 1, 1000);
+	assert.deepEqual(calls, [['movie', 2, 1, 1000]]);
+	assert.equal(result[0][0], 0.5);
+});
 const constant = async (_id, _time, frames) => [new Float32Array(frames).fill(1), new Float32Array(frames).fill(0.5)];
 
 // 【素材の配置基準を固定した左トリムは、再生開始と読み出し位置を同じ量だけ進める】
@@ -104,7 +121,7 @@ test('mixes scene gains using local clocks independently of chunk boundaries', a
 	const calls = [];
 	const renderer = new TimelineAudioRenderer(async (...args) => { calls.push(args); return constant(...args); }, async () => 1000);
 	const clip = {
-		layer: layer({ paramValues: { volume: { inputSource: 'expression', expression: 'TIME_MS / 100' } } }),
+		assetId: 'asset', volume: { inputSource: 'expression', expression: 'TIME_MS / 100' }, automationGraphs: [], durationBasis: 'audio',
 		positionMs: 1150, startMs: 1180, endMs: 1280,
 		gains: [
 			{ positionMs: 1000, endTimeMs: 280, volume: { inputSource: 'literal', value: 2 }, automationGraphs: [] },
@@ -130,7 +147,7 @@ test('isolates scene gain variables and graphs from the audio layer scope', asyn
 		points: [{ id: 'point', x: 0, y: value, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] }] });
 	const renderer = new TimelineAudioRenderer(constant, async () => 1000);
 	const clip = {
-		layer: layer({ paramValues: { volume: expression('if IS_EXPORT { PROGRESS + GRAPH("Shared", 0, "clamp") } else { 0 }') }, automationGraphs: [graph(0.25)] }),
+		assetId: 'asset', volume: expression('if IS_EXPORT { PROGRESS + GRAPH("Shared", 0, "clamp") } else { 0 }'), automationGraphs: [graph(0.25)], durationBasis: 'audio',
 		positionMs: 1000, startMs: 1400, endMs: 1600,
 		gains: [{ positionMs: 900, endTimeMs: 700,
 			volume: expression('if IS_EXPORT { TEST_SAME_NAME + GRAPH("Shared", 0, "clamp") } else { 0 }'), automationGraphs: [graph(0.5)] }],

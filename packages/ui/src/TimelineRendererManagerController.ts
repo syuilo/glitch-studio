@@ -161,8 +161,8 @@ export class TimelineRendererManagerController extends RendererManagerController
 		return this.reload();
 	}
 
-	public renderTimelineAt(time: number) {
-		this.call('renderTimelineAt', [time]);
+	public renderTimelineAt(time: number, playback = false) {
+		this.call('renderTimelineAt', [time, playback]);
 	}
 
 	public destroy() {

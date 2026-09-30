@@ -89,7 +89,7 @@ export class PreviewPlaybackController {
 			// FPS制限の余りは描画タイミングだけに使い、経過時間を二重加算しない。
 			this.timelineTime.value = this.audio ? this.audio.currentTime() : (this.timelineTime.value + timestamp - previousAdvanceTime) % this.getDuration();
 			previousAdvanceTime = timestamp;
-			this.refresh();
+			this.refresh(true);
 		};
 		this.timelineRafId = window.requestAnimationFrame(renderLoop);
 	}
@@ -101,7 +101,10 @@ export class PreviewPlaybackController {
 			window.cancelAnimationFrame(this.timelineRafId);
 			this.timelineRafId = null;
 		}
-		if (this.playbackState.value.mode === 'timeline') this.playbackState.value = { mode: 'timeline', playing: false };
+		if (this.playbackState.value.mode === 'timeline') {
+			this.playbackState.value = { mode: 'timeline', playing: false };
+			this.refresh();
+		}
 	}
 
 	public showTimeline() {
@@ -125,9 +128,9 @@ export class PreviewPlaybackController {
 	}
 
 	/** 編集による再描画では表示モードを切り替えない。LIVEはWorkerのループが描画する。 */
-	public refresh() {
+	public refresh(playbackFrame = false) {
 		if (!this.suspended.value && this.playbackState.value.mode === 'timeline' && this.timelineRenderer.isReady.value) {
-			this.timelineRenderer.renderTimelineAt(this.timelineTime.value);
+			this.timelineRenderer.renderTimelineAt(this.timelineTime.value, playbackFrame);
 		}
 	}
 

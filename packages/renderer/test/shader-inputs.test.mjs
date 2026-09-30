@@ -50,6 +50,28 @@ function gpuFixture() {
 }
 const literal = value => ({ inputSource: 'literal', value });
 
+// 【異なる解像度の素材は元テクスチャを直接読み、replaceでもfitを省略しない】
+// 先に出力解像度へ縮小すると拡大時に細部を失い、借用出力を返すだけではcontainが消える。
+// GPUは使わず、実際のbindingと描画先のサイズから転送・合成の契約を確認する。
+test('composites native-resolution sources with the selected fit before replacing the output', () => {
+	const { device, calls, encoder } = gpuFixture();
+	const texture = device.createTexture({ size: [3840, 2160], format: 'rgba16float' });
+	const source = { kind: 'texture', texture };
+	const compositor = createTimelineCompositor({ device, vertex: {}, resolution: { width: 100, height: 100 }, format: 'rgba16float' });
+	const settings = { blendMode: 19, opacity: 1, translation: [0, 0], scale: [1, 1], rotation: 0 };
+	const background = { kind: 'uniform', value: [0, 0, 0, 0] };
+	const contained = compositor.render(encoder, background, source, settings, 'contain');
+	assert.notEqual(contained, source);
+	assert.deepEqual([contained.texture.width, contained.texture.height], [100, 100]);
+	assert.deepEqual([...calls.writes.at(-1).slice(12, 14)], [1, Math.fround(3840 / 2160)]);
+	compositor.render(encoder, background, source, { ...settings, scale: [0.5, 0.5] }, 'cover');
+	assert.deepEqual([...calls.writes.at(-1).slice(12, 14)], [2160 / 3840, 1]);
+	assert.ok(calls.groups.some(group => group.entries.some(entry => entry.resource.texture === texture)));
+	assert.deepEqual(calls.textures.map(texture => [texture.width, texture.height]), [[3840, 2160], [100, 100]]);
+	compositor.dispose();
+	assert.equal(texture.destroyed, false);
+});
+
 // モジュールの主出力IDを変更すると描画対象が切り替わり、nullなら主出力を返さない。
 // 出力配列の先頭や以前の主出力を暗黙に使い続ける不具合を防ぐ。
 test('renders the selected module primary output after updates', () => {

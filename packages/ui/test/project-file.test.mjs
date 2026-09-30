@@ -51,7 +51,7 @@ const appBundle = await build({
 					: args.path.endsWith('RendererManagerController.ts') ? `
 					import { ref } from 'vue';
 					export class VisualModuleRendererManagerController {
-						isReady = ref(false);
+						isReady = ref(false); errorMessage = ref(null);
 						updates = []; renders = []; lifecycle = [];
 						options = {};
 						async init(resolution) { this.initialResolution = resolution; this.isReady.value = true; }
@@ -129,7 +129,8 @@ function fileHandle(name, options = {}) {
 function setup(t) {
 	const previousWindow = globalThis.window;
 	const previousAlerts = globalThis.projectAlerts;
-	globalThis.window = { document: { title: '' } };
+	// appのキーボード登録だけ受け取り、実際のDOMやイベントループは使わない。
+	globalThis.window = { document: { title: '', addEventListener() {} } };
 	globalThis.projectAlerts = [];
 	t.after(() => { globalThis.window = previousWindow; globalThis.projectAlerts = previousAlerts; });
 	return globalThis.window;

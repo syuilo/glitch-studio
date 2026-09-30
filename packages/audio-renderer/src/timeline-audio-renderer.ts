@@ -8,7 +8,7 @@ import type { TimelineAudioLayer } from '@glitch/shared/timeline/types.ts';
 import type { StereoPcm } from './pcm.ts';
 
 export type AudioPcmReader = (assetId: string, timeSeconds: number, frames: number, sampleRate: number) => Promise<StereoPcm>;
-export type AudioDurationReader = (assetId: string) => Promise<number>;
+export type AudioDurationReader = (assetId: string, basis?: 'audio' | 'media') => Promise<number>;
 
 /** DOM・GPU・再生状態を持たない。書き出しも独立インスタンスで同じPCMを生成できる。 */
 export class TimelineAudioRenderer {
@@ -17,23 +17,22 @@ export class TimelineAudioRenderer {
 	constructor(private read: AudioPcmReader, private getDurationMs: AudioDurationReader) {}
 
 	async render(layers: readonly TimelineAudioLayer[], startFrame: number, frames: number, sampleRate: number, isExport = false): Promise<StereoPcm> {
-		return this.renderClips(layers.map(layer => ({ layer, positionMs: layer.positionMs,
+		return this.renderClips(layers.map(layer => ({ assetId: layer.assetId, volume: layer.paramValues.volume, automationGraphs: layer.automationGraphs, durationBasis: 'audio', positionMs: layer.positionMs,
 			startMs: getTimelineLayerStart(layer), endMs: getTimelineLayerEnd(layer), gains: [] })), startFrame, frames, sampleRate, isExport);
 	}
 
 	async renderClips(clips: readonly SceneAudioClip[], startFrame: number, frames: number, sampleRate: number, isExport = false): Promise<StereoPcm> {
 		const output: StereoPcm = [new Float32Array(frames), new Float32Array(frames)];
 		for (const clip of clips) {
-			const { layer } = clip;
 			const first = Math.max(startFrame, Math.ceil(clip.startMs * sampleRate / 1000));
 			const end = Math.min(startFrame + frames, Math.ceil(clip.endMs * sampleRate / 1000));
 			if (end <= first) continue;
-			const duration = await this.getDurationMs(layer.assetId);
+			const duration = await this.getDurationMs(clip.assetId, clip.durationBasis);
 			if (!Number.isFinite(duration) || duration <= 0) throw new Error('Audio has no finite duration.');
-			const pcm = await this.read(layer.assetId, (first / sampleRate * 1000 - clip.positionMs) / 1000, end - first, sampleRate);
+			const pcm = await this.read(clip.assetId, (first / sampleRate * 1000 - clip.positionMs) / 1000, end - first, sampleRate);
 			const gains = [
-				{ positionMs: clip.positionMs, evaluate: this.createGain(layer.paramValues.volume, time => createAudioLayerEvaluationScope({
-					time, endTime: duration, automationGraphs: layer.automationGraphs, isExport,
+				{ positionMs: clip.positionMs, evaluate: this.createGain(clip.volume, time => createAudioLayerEvaluationScope({
+					time, endTime: duration, automationGraphs: clip.automationGraphs, isExport,
 				})) },
 				// Scene配置の音量は映像の合成設定と同じスコープを使う。
 				...clip.gains.map(gain => ({ positionMs: gain.positionMs,

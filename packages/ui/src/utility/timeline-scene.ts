@@ -8,7 +8,7 @@ export function getScene(state: AppState, sceneId: string) {
 
 export function getLayerParameterValues(layer: TimelineLayer, target: 'module' | 'compositing' | 'audio'): Record<string, TimelineParameterBinding> {
 	if (target === 'compositing' && layer.layerType !== 'audio') return layer.compositingParamValues;
-	if (target === 'audio' && layer.layerType === 'scene') return layer.audioParamValues;
+	if (target === 'audio' && (layer.layerType === 'scene' || layer.layerType === 'video')) return layer.audioParamValues;
 	if (target === 'audio' && layer.layerType === 'audio') return layer.paramValues;
 	if (target === 'module' && (layer.layerType === 'visualModule' || layer.layerType === 'inlineVisualModule' || layer.layerType === 'effect')) return layer.paramValues;
 	throw new Error('Invalid layer parameter target');

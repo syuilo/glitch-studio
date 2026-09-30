@@ -10,12 +10,12 @@ import { deepClone } from '@glitch/shared/utility/deep-clone.ts';
 import { getNodeInputDataType, getNodeOutputs } from '@glitch/shared/utility/node-outputs.ts';
 import { isTextureDataType } from '@glitch/shared/data-type.ts';
 import { timelineAudioParamDefs } from '@glitch/shared/timeline/timeline-audio.ts';
-import type { TimelineScene, TimelineSceneLayer, TimelineAudioLayer, TimelineLayer, TimelineInlineVisualModuleLayer } from '@glitch/shared/timeline/types.ts';
+import type { TimelineScene, TimelineSceneLayer, TimelineAudioLayer, TimelineVideoLayer, TimelineLayer, TimelineInlineVisualModuleLayer } from '@glitch/shared/timeline/types.ts';
 import { timelineCompositingParamDefs } from '@glitch/shared/timeline/timeline-compositing.ts';
 import type { VisualModuleCustomParameterId, VisualModuleEffectNode, VisualModuleNode, NodeOutputReference, VisualModule, VisualModuleParamDef, VisualModuleOutputDef } from '@glitch/shared/visual-module/types.ts';
 import type { ParameterDefinition } from '@glitch/shared/parameter.ts';
 import type { AppState } from './types.ts';
-import type { Asset, AutomationGraphPlaybackOptions, ParameterBinding, Player } from '@glitch/shared/types.ts';
+import type { Asset, AutomationGraphPlaybackOptions, FitMode, ParameterBinding, Player } from '@glitch/shared/types.ts';
 import type { NodeParamTarget as EffectNodeParamTarget } from '@/utility/node-params.ts';
 import type { GlobalEnvVariable } from '@glitch/shared/expression.js';
 import { canConnectNodeDataTypes } from '@/utility/node-outputs.ts';
@@ -68,7 +68,7 @@ const editTimelineLayerParamCommandDef = defineCommand<{
 		const getLayer = (state: AppState) => {
 			const layer = getScene(state, payload.sceneId).layers.find(layer => layer.id === payload.layerId);
 			if (layer == null) throw new Error('Timeline layer not found');
-			if (layer.layerType !== 'visualModule' && layer.layerType !== 'inlineVisualModule' && layer.layerType !== 'audio' && layer.layerType !== 'scene') throw new Error('Unsupported timeline layer');
+			if (layer.layerType !== 'visualModule' && layer.layerType !== 'inlineVisualModule' && layer.layerType !== 'audio' && layer.layerType !== 'scene' && layer.layerType !== 'video') throw new Error('Unsupported timeline layer');
 			getLayerParameterValues(layer, payload.target ?? 'module');
 			return layer;
 		};
@@ -850,6 +850,64 @@ const editVisualModuleLayerTimingCommandDef = defineCommand<{ sceneId: string; l
 	},
 });
 
+function validateVideoTiming(timing: TimelineLayerTiming, sourceDurationMs: number) {
+	if (!isTimelineLayerTimingValid(timing) || !Number.isFinite(sourceDurationMs) || sourceDurationMs <= 0
+		|| timing.trimStartMs + timing.trimmedDurationMs > sourceDurationMs) throw new Error('Invalid video layer timing');
+}
+
+const addVideoLayerCommandDef = defineCommand<{ sceneId: string; layer: TimelineVideoLayer; sourceDurationMs: number }>({
+	label: 'Add video layer',
+	create: payload => ({
+		execute(state) {
+			validateVideoTiming(payload.layer, payload.sourceDurationMs);
+			getScene(state, payload.sceneId).layers.unshift(deepClone(payload.layer));
+		},
+		undo(state) { getScene(state, payload.sceneId).layers = getScene(state, payload.sceneId).layers.filter(layer => layer.id !== payload.layer.id); },
+	}),
+});
+
+const editVideoLayerTimingCommandDef = defineCommand<{ sceneId: string; layerId: string; sourceDurationMs: number } & TimelineLayerTiming>({
+	label: 'Edit video layer timing',
+	create: payload => {
+		let before: TimelineLayerTiming;
+		const getLayer = (state: AppState) => {
+			const layer = getScene(state, payload.sceneId).layers.find(layer => layer.id === payload.layerId);
+			if (layer?.layerType !== 'video') throw new Error('Video layer not found');
+			return layer;
+		};
+		return {
+			execute(state) {
+				validateVideoTiming(payload, payload.sourceDurationMs);
+				const layer = getLayer(state);
+				before = { positionMs: layer.positionMs, trimStartMs: layer.trimStartMs, trimmedDurationMs: layer.trimmedDurationMs };
+				Object.assign(layer, { positionMs: payload.positionMs, trimStartMs: payload.trimStartMs, trimmedDurationMs: payload.trimmedDurationMs });
+			},
+			undo(state) { Object.assign(getLayer(state), before); },
+		};
+	},
+});
+
+const editVideoLayerSettingsCommandDef = defineCommand<{ sceneId: string; layerId: string; fitMode?: FitMode; audioEnabled?: boolean }>({
+	label: 'Edit video layer settings',
+	create: payload => {
+		let before: { fitMode: FitMode; audioEnabled: boolean };
+		const getLayer = (state: AppState) => {
+			const layer = getScene(state, payload.sceneId).layers.find(layer => layer.id === payload.layerId);
+			if (layer?.layerType !== 'video') throw new Error('Video layer not found');
+			return layer;
+		};
+		return {
+			execute(state) {
+				const layer = getLayer(state);
+				before = { fitMode: layer.fitMode, audioEnabled: layer.audioEnabled };
+				if (payload.fitMode != null) layer.fitMode = payload.fitMode;
+				if (payload.audioEnabled != null) layer.audioEnabled = payload.audioEnabled;
+			},
+			undo(state) { Object.assign(getLayer(state), before); },
+		};
+	},
+});
+
 const addAudioLayerCommandDef = defineCommand<{ sceneId: string; layer: TimelineAudioLayer }>({
 	label: 'Add audio layer',
 	create: payload => ({
@@ -1026,6 +1084,9 @@ export const COMMAND_DEFS = {
 	addInlineVisualModuleLayer: addInlineVisualModuleLayerCommandDef,
 	editVisualModuleLayerTiming: editVisualModuleLayerTimingCommandDef,
 	addAudioLayer: addAudioLayerCommandDef,
+	addVideoLayer: addVideoLayerCommandDef,
+	editVideoLayerTiming: editVideoLayerTimingCommandDef,
+	editVideoLayerSettings: editVideoLayerSettingsCommandDef,
 	editAudioLayerTiming: editAudioLayerTimingCommandDef,
 	removeTimelineLayer: removeTimelineLayerCommandDef,
 	editTimelineLayerParam: editTimelineLayerParamCommandDef,

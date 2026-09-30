@@ -16,7 +16,7 @@ export class TimelineAudioExport {
 
 	constructor(assets: Asset[], private clips: SceneAudioClip[], settings: VideoExportSettings) {
 		this.reader = new AssetAudioReader(assets);
-		this.renderer = new TimelineAudioRenderer((...args) => this.reader.read(...args), assetId => this.reader.getDurationMs(assetId));
+		this.renderer = new TimelineAudioRenderer((...args) => this.reader.read(...args), (assetId, basis) => this.reader.getDurationMs(assetId, basis));
 		// 開始時刻は整数msなので48kHzのサンプル境界と一致する。
 		this.startFrame = settings.positionMs * (MP4_AUDIO_SAMPLE_RATE / 1000);
 		this.totalFrames = Math.ceil((settings.endTimeMs - settings.positionMs) / 1000 * MP4_AUDIO_SAMPLE_RATE);

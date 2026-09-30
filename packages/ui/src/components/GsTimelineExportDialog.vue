@@ -26,7 +26,7 @@
 		</div>
 		<GsButton inline :disabled="exporting || sceneId !== activeSceneId" @click="startTime = formatExportTime(currentTimelineTime)">Use current playhead</GsButton>
 		<div>Estimated size: {{ estimatedSize }}</div>
-		<div v-if="mode === 'video'" :class="$style.note">{{ includesAudio ? 'Audio layers included: AAC, 48 kHz, stereo, 192 kbps.' : 'No audio layers in the selected range.' }}</div>
+		<div v-if="mode === 'video'" :class="$style.note">{{ includesAudio ? 'Timeline audio included: AAC, 48 kHz, stereo, 192 kbps.' : 'No timeline audio in the selected range.' }}</div>
 		<div :class="$style.note">{{ mode === 'video' ? 'No Player inputs. Transparent areas use a black background.' : 'No Player inputs. Transparency is preserved.' }}</div>
 		<div v-if="validationError" :class="$style.error">{{ validationError }}</div>
 		<div v-if="exporting" class="_gaps_s">

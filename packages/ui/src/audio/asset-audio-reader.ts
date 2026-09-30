@@ -1,4 +1,5 @@
 import { ALL_FORMATS, AudioSampleSink, BlobSource, Input } from 'mediabunny';
+import { readVideoMetadata } from '@glitch/shared/media/video-metadata.ts';
 import { PcmResampler, resamplingPaddingSeconds } from '@glitch/audio-renderer/pcm-resampler.ts';
 import type { Asset } from '@glitch/shared/types.ts';
 import type { DecodedPcmBlock, StereoPcm } from '@glitch/audio-renderer/pcm.ts';
@@ -83,7 +84,12 @@ export class AssetAudioReader {
 		return entry;
 	}
 
-	async getDurationMs(assetId: string): Promise<number> {
+	async getDurationMs(assetId: string, basis: 'audio' | 'media' = 'audio'): Promise<number> {
+		if (basis === 'media') {
+			const asset = this.assets.find(asset => asset.id === assetId);
+			if (!asset) throw new Error('Video asset not found: ' + assetId);
+			return (await readVideoMetadata(asset.fileData)).durationMs;
+		}
 		return (await this.getEntry(assetId)).duration * 1000;
 	}
 

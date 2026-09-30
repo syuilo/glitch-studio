@@ -5,13 +5,16 @@
 		<GsButton v-if="previewPlayback.isTimelinePlaying.value" primary @click="pause"><i class="ti ti-player-pause"></i></GsButton>
 		<GsButton v-else primary @click="play"><i class="ti ti-player-play"></i></GsButton>
 		<span v-if="timelineAudioPreview.buffering.value">Buffering audio…</span>
-		<span v-if="audioError || timelineAudioPreview.error.value">{{ audioError || timelineAudioPreview.error.value }}</span>
+		<span v-if="audioError || timelineAudioPreview.error.value || timelineRendererManagerController.errorMessage.value">{{ audioError || timelineAudioPreview.error.value || timelineRendererManagerController.errorMessage.value }}</span>
 		<span class="_monospace">{{ formatMsToTimecode(time) }}</span>
 		<GsSelect v-model="sceneToAdd" small :items="sceneLayerItems"/>
 		<GsButton small :disabled="!availableScenes.some(scene => scene.id === sceneToAdd)" @click="addSceneLayer">Add scene layer</GsButton>
 		<GsSelect v-model="audioAssetId" small :items="audioAssetItems"/>
 		<GsButton small :disabled="addingAudio || !audioAssetId" @click="addSelectedAudio">Add audio</GsButton>
 		<GsButton small :disabled="addingAudio" @click="importAudioLayer">Import audio</GsButton>
+		<GsSelect v-model="videoAssetId" small :items="videoAssetItems"/>
+		<GsButton small :disabled="addingVideo || !videoAssetId" @click="addSelectedVideo">Add video</GsButton>
+		<GsButton small :disabled="addingVideo" @click="importVideoLayer">Import video</GsButton>
 	</div>
 	<div :class="[$style.body, { [$style.panning]: panning }]" @mousedown.capture="onPanMousedown" @auxclick.capture="onPanAuxclick">
 		<div :class="$style.tlBgWrapper" data-timeline-surface>
@@ -117,10 +120,10 @@
 			</div>
 			<div v-else-if="selectedLayer?.layerType === 'audio'">
 				<div>{{ appStateManager.state.assets.value.find(asset => asset.id === (selectedLayer?.layerType === 'audio' ? selectedLayer.assetId : ''))?.name ?? 'Missing audio' }}</div>
-				<GsInput small type="number" :min="-selectedLayer.trimStartMs" :modelValue="selectedLayer.positionMs" @update:modelValue="value => editAudioTiming('move', value)"><template #label>Position (ms)</template></GsInput>
-				<GsInput small type="number" :min="Math.max(0, selectedLayer.positionMs)" :max="getTimelineLayerEnd(selectedLayer) - 1" :modelValue="getTimelineLayerStart(selectedLayer)" @update:modelValue="value => editAudioTiming('trimStart', value)"><template #label>Trim start (ms)</template></GsInput>
-				<GsInput small type="number" :min="getTimelineLayerStart(selectedLayer) + 1" :modelValue="getTimelineLayerEnd(selectedLayer)" @update:modelValue="value => editAudioTiming('trimEnd', value)"><template #label>Trim end (ms)</template></GsInput>
-				<GsInput small type="number" :min="0" :modelValue="selectedLayer.trimStartMs" @update:modelValue="value => editAudioTiming('offset', value)"><template #label>Source offset (ms)</template></GsInput>
+				<GsInput small type="number" :min="-selectedLayer.trimStartMs" :modelValue="selectedLayer.positionMs" @update:modelValue="value => editTrimmedLayerTiming('move', value)"><template #label>Position (ms)</template></GsInput>
+				<GsInput small type="number" :min="Math.max(0, selectedLayer.positionMs)" :max="getTimelineLayerEnd(selectedLayer) - 1" :modelValue="getTimelineLayerStart(selectedLayer)" @update:modelValue="value => editTrimmedLayerTiming('trimStart', value)"><template #label>Trim start (ms)</template></GsInput>
+				<GsInput small type="number" :min="getTimelineLayerStart(selectedLayer) + 1" :modelValue="getTimelineLayerEnd(selectedLayer)" @update:modelValue="value => editTrimmedLayerTiming('trimEnd', value)"><template #label>Trim end (ms)</template></GsInput>
+				<GsInput small type="number" :min="0" :modelValue="selectedLayer.trimStartMs" @update:modelValue="value => editTrimmedLayerTiming('offset', value)"><template #label>Source offset (ms)</template></GsInput>
 				<GsVisualParam
 					:key="selectedLayer.id"
 					:availableVariables="AUDIO_LAYER_VAR_DEFS"
@@ -132,13 +135,41 @@
 				/>
 				<GsButton danger @click="appStateManager.commit('removeTimelineLayer', { sceneId: props.sceneId, layerId: selectedLayer.id })">Remove Layer</GsButton>
 			</div>
+			<div v-else-if="selectedLayer?.layerType === 'video'">
+				<div>{{ appStateManager.state.assets.value.find(asset => asset.id === (selectedLayer?.layerType === 'video' ? selectedLayer.assetId : ''))?.name ?? 'Missing video' }}</div>
+				<GsInput small type="number" :min="-selectedLayer.trimStartMs" :modelValue="selectedLayer.positionMs" @update:modelValue="value => editTrimmedLayerTiming('move', value)"><template #label>Position (ms)</template></GsInput>
+				<GsInput small type="number" :min="Math.max(0, selectedLayer.positionMs)" :max="getTimelineLayerEnd(selectedLayer) - 1" :modelValue="getTimelineLayerStart(selectedLayer)" @update:modelValue="value => editTrimmedLayerTiming('trimStart', value)"><template #label>Trim start (ms)</template></GsInput>
+				<GsInput small type="number" :min="getTimelineLayerStart(selectedLayer) + 1" :max="selectedVideoMetadata ? selectedLayer.positionMs + selectedVideoMetadata.durationMs : undefined" :modelValue="getTimelineLayerEnd(selectedLayer)" @update:modelValue="value => editTrimmedLayerTiming('trimEnd', value)"><template #label>Trim end (ms)</template></GsInput>
+				<GsInput small type="number" :min="0" :max="selectedVideoMetadata ? selectedVideoMetadata.durationMs - selectedLayer.trimmedDurationMs : undefined" :modelValue="selectedLayer.trimStartMs" @update:modelValue="value => editTrimmedLayerTiming('offset', value)"><template #label>Source offset (ms)</template></GsInput>
+				<div v-if="selectedVideoMetadata">Source duration: {{ formatMsToTimecode(selectedVideoMetadata.durationMs) }}</div>
+				<GsSelect small :modelValue="selectedLayer.fitMode" :items="[{ label: 'Contain', value: 'contain' }, { label: 'Cover', value: 'cover' }, { label: 'Stretch', value: 'stretch' }]"
+					@update:modelValue="fitMode => appStateManager.commit('editVideoLayerSettings', { sceneId: props.sceneId, layerId: selectedLayer!.id, fitMode })"><template #label>Fit</template></GsSelect>
+				<div>Compositing</div>
+				<GsVisualParam v-for="(paramDef, paramId) in timelineCompositingParamDefs" :key="selectedLayer.id + ':' + paramId"
+					:availableVariables="LAYER_VAR_DEFS" :automationGraphs="selectedLayer.automationGraphs" :paramPath="[paramId]" :paramDef="paramDef"
+					:paramValue="selectedLayer.compositingParamValues[paramId]" @edit="event => onVisualModuleLayerParamEdit(event, 'compositing')"/>
+				<GsSwitch :modelValue="selectedLayer.audioEnabled" :disabled="!selectedLayer.audioEnabled && (!selectedVideoMetadata?.hasAudio || !!selectedVideoMetadata.audioError)"
+					@update:modelValue="audioEnabled => appStateManager.commit('editVideoLayerSettings', { sceneId: props.sceneId, layerId: selectedLayer!.id, audioEnabled })">Audio enabled</GsSwitch>
+				<div v-if="selectedVideoMetadata?.audioError">{{ selectedVideoMetadata.audioError }}</div>
+				<div v-else-if="selectedVideoMetadata && !selectedVideoMetadata.hasAudio">No audio track</div>
+				<GsVisualParam
+					:key="selectedLayer.id"
+					:availableVariables="AUDIO_LAYER_VAR_DEFS"
+					:automationGraphs="selectedLayer.automationGraphs"
+					:paramPath="['volume']"
+					:paramDef="timelineAudioParamDefs.volume"
+					:paramValue="selectedLayer.audioParamValues.volume"
+					@edit="event => onVisualModuleLayerParamEdit(event, 'audio')"
+				/>
+				<GsButton danger @click="appStateManager.commit('removeTimelineLayer', { sceneId: props.sceneId, layerId: selectedLayer.id })">Remove Layer</GsButton>
+			</div>
 			<div v-else-if="selectedLayer?.layerType === 'scene'" :class="$style.layerSettings">
 				<div>{{ appStateManager.state.timelineScenes.value.find(scene => scene.id === (selectedLayer?.layerType === 'scene' ? selectedLayer.sceneId : ''))?.name }}</div>
 				<GsButton small @click="activeSceneId = selectedLayer.sceneId">Open scene</GsButton>
-				<GsInput small type="number" :min="-selectedLayer.trimStartMs" :modelValue="selectedLayer.positionMs" @update:modelValue="value => editAudioTiming('move', value)"><template #label>Position (ms)</template></GsInput>
-				<GsInput small type="number" :min="Math.max(0, selectedLayer.positionMs)" :max="getTimelineLayerEnd(selectedLayer) - 1" :modelValue="getTimelineLayerStart(selectedLayer)" @update:modelValue="value => editAudioTiming('trimStart', value)"><template #label>Trim start (ms)</template></GsInput>
-				<GsInput small type="number" :min="getTimelineLayerStart(selectedLayer) + 1" :modelValue="getTimelineLayerEnd(selectedLayer)" @update:modelValue="value => editAudioTiming('trimEnd', value)"><template #label>Trim end (ms)</template></GsInput>
-				<GsInput small type="number" :min="0" :modelValue="selectedLayer.trimStartMs" @update:modelValue="value => editAudioTiming('offset', value)"><template #label>Source offset (ms)</template></GsInput>
+				<GsInput small type="number" :min="-selectedLayer.trimStartMs" :modelValue="selectedLayer.positionMs" @update:modelValue="value => editTrimmedLayerTiming('move', value)"><template #label>Position (ms)</template></GsInput>
+				<GsInput small type="number" :min="Math.max(0, selectedLayer.positionMs)" :max="getTimelineLayerEnd(selectedLayer) - 1" :modelValue="getTimelineLayerStart(selectedLayer)" @update:modelValue="value => editTrimmedLayerTiming('trimStart', value)"><template #label>Trim start (ms)</template></GsInput>
+				<GsInput small type="number" :min="getTimelineLayerStart(selectedLayer) + 1" :modelValue="getTimelineLayerEnd(selectedLayer)" @update:modelValue="value => editTrimmedLayerTiming('trimEnd', value)"><template #label>Trim end (ms)</template></GsInput>
+				<GsInput small type="number" :min="0" :modelValue="selectedLayer.trimStartMs" @update:modelValue="value => editTrimmedLayerTiming('offset', value)"><template #label>Source offset (ms)</template></GsInput>
 				<div>Compositing</div>
 				<GsVisualParam v-for="(paramDef, paramId) in timelineCompositingParamDefs" :key="selectedLayer.id + ':' + paramId"
 					:availableVariables="LAYER_VAR_DEFS" :automationGraphs="selectedLayer.automationGraphs" :paramPath="[paramId]" :paramDef="paramDef"
@@ -217,6 +248,9 @@ import XLayer from './GsTimeline.Layer.vue';
 import GsLiteralLeafValueControl from './GsLiteralLeafValueControl.vue';
 import GsInput from './common/GsInput.vue';
 import GsSelect from './common/GsSelect.vue';
+import GsSwitch from './common/GsSwitch.vue';
+import { readVideoMetadata } from '@glitch/shared/media/video-metadata.ts';
+import type { VideoMetadata } from '@glitch/shared/media/video-metadata.ts';
 import GsButton from './common/GsButton.vue';
 import GsDraggable from './common/GsDraggable.vue';
 import GsVisualParam from './GsVisualParam.vue';
@@ -228,7 +262,7 @@ import type { VisualModuleEdit } from '@/types/visual-module-editor.ts';
 import { getSceneDuration, canReferenceScene } from '@glitch/shared/timeline/scenes.ts';
 import { sceneEditorStates, timelineLayerClipboard } from '@/utility/timeline-editor-state.ts';
 import { getLayerParameterValues } from '@/utility/timeline-scene.ts';
-import type { TimelineLayer } from '@glitch/shared/timeline/types.ts';
+import type { TimelineLayer, TimelineVideoLayer } from '@glitch/shared/timeline/types.ts';
 import type { ParameterBinding, KeyframesTimelineKeyframe } from '@glitch/shared/types.ts';
 import type { TimelineKeyframeSelection } from './GsTimeline.Layer.vue';
 import type { ParamEdit } from './GsVisualParam.vue';
@@ -682,6 +716,74 @@ function onVisualModuleLayerParamEdit(event: ParamEdit, target: 'module' | 'comp
 	}, event.mergeKey != null ? `${layer.id}:${target}:${event.paramPath[0]}:${event.mergeKey}` : undefined);
 }
 
+const videoAssetId = ref('');
+const addingVideo = ref(false);
+const selectedVideoMetadata = shallowRef<VideoMetadata | null>(null);
+const selectedVideoAsset = computed(() => {
+	const layer = selectedLayer.value;
+	return layer?.layerType === 'video' ? appStateManager.state.assets.value.find(asset => asset.id === layer.assetId) : undefined;
+});
+watch(() => selectedVideoAsset.value?.fileData, async (blob, _, onCleanup) => {
+	selectedVideoMetadata.value = null;
+	let cancelled = false;
+	onCleanup(() => { cancelled = true; });
+	if (!blob) return;
+	try {
+		const metadata = await readVideoMetadata(blob);
+		if (!cancelled) selectedVideoMetadata.value = metadata;
+	} catch (error) {
+		if (!cancelled) audioError.value = error instanceof Error ? error.message : String(error);
+	}
+}, { immediate: true });
+const videoAssetItems = computed(() => [
+	{ label: 'Choose video asset', value: '' },
+	...appStateManager.state.assets.value.filter(asset => asset.fileDataType.startsWith('video/')).map(asset => ({ label: asset.name, value: asset.id })),
+]);
+
+async function importVideoLayer() {
+	audioError.value = null;
+	const projectAssets = appStateManager.state.assets.value;
+	try {
+		const result = await api.openMediaFile();
+		if (disposed || !result || appStateManager.state.assets.value !== projectAssets) return;
+		await addVideoLayer({ id: genId(), name: result.name, width: result.width, height: result.height, fileDataType: result.type, fileData: result.fileData }, true);
+	} catch (error) { audioError.value = error instanceof Error ? error.message : String(error); }
+}
+
+async function addVideoLayer(asset: Asset, addAsset: boolean) {
+	if (addingVideo.value) return;
+	addingVideo.value = true;
+	audioError.value = null;
+	const timeline = sceneLayers.value;
+	const projectAssets = appStateManager.state.assets.value;
+	try {
+		const metadata = await readVideoMetadata(asset.fileData);
+		let audioEnabled = metadata.hasAudio;
+		if (metadata.audioError) {
+			const result = await ui.confirm({ type: 'warning', title: asset.name, text: metadata.audioError, okText: 'Add without audio' });
+			if (result.canceled) return;
+			audioEnabled = false;
+		}
+		// 読み取りやダイアログ中にプロジェクト・Sceneが変わった場合は追加先を取り違えない。
+		if (disposed || sceneLayers.value !== timeline || appStateManager.state.assets.value !== projectAssets) return;
+		if (!addAsset && !projectAssets.some(entry => entry.id === asset.id)) return;
+		if (addAsset) appStateManager.commit('addAsset', asset);
+		const layer: TimelineVideoLayer = {
+			id: genId(), layerType: 'video', assetId: asset.id, fitMode: 'contain', audioEnabled,
+			positionMs: Math.max(0, time.value), trimStartMs: 0, trimmedDurationMs: metadata.durationMs,
+			compositingParamValues: deepClone(Object.fromEntries(Object.entries(timelineCompositingParamDefs).map(([key, def]) => [key, def.defaultValue]))) as TimelineVideoLayer['compositingParamValues'],
+			audioParamValues: { volume: deepClone(timelineAudioParamDefs.volume.defaultValue) }, automationGraphs: [],
+		};
+		appStateManager.commit('addVideoLayer', { sceneId: props.sceneId, layer, sourceDurationMs: metadata.durationMs });
+		selectLayer(layer);
+	} catch (error) { audioError.value = error instanceof Error ? error.message : String(error); } finally { addingVideo.value = false; }
+}
+
+function addSelectedVideo() {
+	const asset = appStateManager.state.assets.value.find(asset => asset.id === videoAssetId.value);
+	if (asset) void addVideoLayer(asset, false);
+}
+
 const audioAssetId = ref('');
 const addingAudio = ref(false);
 const audioError = ref<string | null>(null);
@@ -724,17 +826,23 @@ async function addAudioLayer(asset: Asset, addAsset: boolean) {
 	} catch (error) { audioError.value = error instanceof Error ? error.message : String(error); } finally { addingAudio.value = false; }
 }
 
-function editAudioTiming(kind: 'move' | 'trimStart' | 'trimEnd' | 'offset', value: string | number) {
+function editTrimmedLayerTiming(kind: 'move' | 'trimStart' | 'trimEnd' | 'offset', value: string | number) {
 	const layer = selectedLayer.value;
 	const next = Number(value);
-	if ((layer?.layerType !== 'audio' && layer?.layerType !== 'scene') || !Number.isFinite(next)) return;
+	if ((layer?.layerType !== 'audio' && layer?.layerType !== 'scene' && layer?.layerType !== 'video') || !Number.isFinite(next)) return;
 	let { positionMs, trimmedDurationMs, trimStartMs } = layer;
 	if (kind === 'move') positionMs = next;
 	if (kind === 'trimStart') { trimmedDurationMs -= next - getTimelineLayerStart(layer); trimStartMs = next - positionMs; }
 	if (kind === 'trimEnd') trimmedDurationMs = next - getTimelineLayerStart(layer);
 	if (kind === 'offset') trimStartMs = next;
 	if (positionMs + trimStartMs < 0 || trimmedDurationMs <= 0 || trimStartMs < 0) return;
-	appStateManager.commit(layer.layerType === 'scene' ? 'editSceneLayerTiming' : 'editAudioLayerTiming', { sceneId: props.sceneId, layerId: layer.id, positionMs, trimmedDurationMs, trimStartMs });
+	if (layer.layerType === 'video') {
+		const sourceDurationMs = selectedVideoMetadata.value?.durationMs;
+		if (sourceDurationMs == null || trimStartMs + trimmedDurationMs > sourceDurationMs) return;
+		appStateManager.commit('editVideoLayerTiming', { sceneId: props.sceneId, layerId: layer.id, positionMs, trimmedDurationMs, trimStartMs, sourceDurationMs });
+	} else {
+		appStateManager.commit(layer.layerType === 'scene' ? 'editSceneLayerTiming' : 'editAudioLayerTiming', { sceneId: props.sceneId, layerId: layer.id, positionMs, trimmedDurationMs, trimStartMs });
+	}
 }
 
 function addSelectedAudio() {
@@ -780,6 +888,10 @@ function showAddLayerMenu(ev: PointerEvent) {
 		action: () => {
 			// TODO
 		},
+	}, {
+		text: 'Import video',
+		icon: 'ti ti-video',
+		action: importVideoLayer,
 	}, {
 		text: 'Import audio',
 		icon: 'ti ti-music',

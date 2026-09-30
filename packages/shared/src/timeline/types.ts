@@ -1,4 +1,4 @@
-import type { AutomationGraph, ParameterBinding } from '../types.ts';
+import type { AutomationGraph, FitMode, ParameterBinding } from '../types.ts';
 import type { TimelineLayerTiming } from './timing.ts';
 import type { VisualModule } from '../visual-module/types.ts';
 import type { timelineCompositingParamDefs } from './timeline-compositing.ts';
@@ -45,6 +45,18 @@ export type TimelineAudioLayer = TimelineLayerTiming & {
 	automationGraphs: AutomationGraph[];
 };
 
+/** 映像と音声は同じ素材時刻・トリムを共有する。Playerの再生状態には依存しない。 */
+export type TimelineVideoLayer = TimelineLayerTiming & {
+	id: string;
+	layerType: 'video';
+	assetId: string;
+	fitMode: FitMode;
+	audioEnabled: boolean;
+	compositingParamValues: Record<keyof typeof timelineCompositingParamDefs, TimelineParameterBinding>;
+	audioParamValues: { volume: TimelineParameterBinding };
+	automationGraphs: AutomationGraph[];
+};
+
 /** 参照先は透明背景から描画する。配置期間は参照先の長さが変わっても自動伸縮しない。 */
 export type TimelineSceneLayer = TimelineLayerTiming & {
 	id: string;
@@ -56,7 +68,7 @@ export type TimelineSceneLayer = TimelineLayerTiming & {
 	automationGraphs: AutomationGraph[];
 };
 
-export type TimelineLayer = TimelineVisualModuleLayer | TimelineInlineVisualModuleLayer | TimelineEffectLayer | TimelineAudioLayer | TimelineSceneLayer;
+export type TimelineLayer = TimelineVisualModuleLayer | TimelineInlineVisualModuleLayer | TimelineEffectLayer | TimelineAudioLayer | TimelineVideoLayer | TimelineSceneLayer;
 
 /** 長さは直下のレイヤーの終了時刻の最大値から求め、空の場合は0とする。 */
 export type TimelineScene = {

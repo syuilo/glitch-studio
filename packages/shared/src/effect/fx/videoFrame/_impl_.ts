@@ -1,6 +1,7 @@
 import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { implementEffect } from '../../effect-implementation.ts';
 import { createVideoFrameLoader } from './frame-loader.ts';
+import { createVideoTexture } from '../../../media/video-texture.ts';
 import { openVideoFrameSource } from './video-source.ts';
 import type definition from './_def_.ts';
 import code from './shader.wgsl?raw';
@@ -30,37 +31,16 @@ export default implementEffect<typeof definition>({
 		let sourceTexture: GPUTexture | null = null;
 		let bindGroup: GPUBindGroup | null = null;
 		let cacheVersion = 0;
-		// DOMに依存せず、回転・ピクセル比の補正をMediabunnyのdrawに任せる。
-		let canvas: OffscreenCanvas | null = null;
+		const videoTexture = createVideoTexture(wgpu.device, wgpu.intermediateTextureFormat);
 		const loader = createVideoFrameLoader({
 			open: openVideoFrameSource,
 			reportStatus,
 			publish: sample => {
-				sourceTexture?.destroy();
 				sourceTexture = null;
 				bindGroup = null;
 				++cacheVersion;
 				if (sample == null) return;
-				const width = Math.max(1, Math.round(sample.displayWidth));
-				const height = Math.max(1, Math.round(sample.displayHeight));
-				canvas ??= new OffscreenCanvas(width, height);
-				if (canvas.width !== width) canvas.width = width;
-				if (canvas.height !== height) canvas.height = height;
-				const context = canvas.getContext('2d');
-				if (context == null) throw new Error('Could not create a video frame canvas.');
-				context.clearRect(0, 0, width, height);
-				sample.draw(context, 0, 0, width, height);
-				sourceTexture = wgpu.device.createTexture({
-					size: { width, height },
-					format: wgpu.intermediateTextureFormat,
-					usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT,
-				});
-				// Canvasから乗算済みRGBAとしてコピーする。シェーダーで再乗算せず、そのまま補間する。
-				wgpu.device.queue.copyExternalImageToTexture(
-					{ source: canvas },
-					{ texture: sourceTexture, premultipliedAlpha: true },
-					{ width, height },
-				);
+				sourceTexture = videoTexture.upload(sample);
 				bindGroup = wgpu.device.createBindGroup({
 					layout: pipeline.getBindGroupLayout(0),
 					entries: [
@@ -100,10 +80,8 @@ export default implementEffect<typeof definition>({
 			},
 			dispose: () => {
 				loader.dispose();
-				sourceTexture?.destroy();
+				videoTexture.dispose();
 				uniformBuffer.destroy();
-				if (canvas != null) { canvas.width = 1; canvas.height = 1; }
-				canvas = null;
 			},
 		};
 	},

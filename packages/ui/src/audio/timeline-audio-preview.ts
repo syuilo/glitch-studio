@@ -78,7 +78,7 @@ export class TimelineAudioPreview {
 		};
 		const project = this.getProject();
 		const clips = project.sceneId == null ? [] : getSceneAudioClips(project.timelineScenes, project.sceneId);
-		const assetIds = new Set(clips.map(clip => clip.layer.assetId));
+		const assetIds = new Set(clips.map(clip => clip.assetId));
 		worker.postMessage({
 			type: 'start', assets: project.assets.filter(asset => assetIds.has(asset.id)), clips,
 			sampleRate: this.rate, startFrame: this.startFrame, endFrame: this.endFrame,

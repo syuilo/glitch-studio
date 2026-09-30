@@ -5,6 +5,7 @@ struct Uniforms {
 	opacity: f32,
 	aspectRatio: f32,
 	blendMode: u32,
+	sourceIsUniform: u32,
 };
 @group(0) @binding(0) var<uniform> uniforms: Uniforms;
 
@@ -19,9 +20,9 @@ fn readTransformedSource(position: vec2f) -> vec4f {
 	let s = sin(angle);
 	let rotated = vec2f(c * translated.x + s * translated.y, -s * translated.x + c * translated.y);
 	let sourcePosition = rotated / (uniforms.scale * extent);
-	// uniform出力もモジュールの画面範囲を持つ素材として変形する。
-	// texture入力の端の補間はtransparent wrapが担当する。
-	if (any(abs(sourcePosition) > vec2f(1.0))) { return vec4f(0.0); }
+	// 定数には元画像の境界がないので出力枠を与える。テクスチャはfit後の元画像の境界で
+	// transparent wrapを適用する。ここで出力枠に切るとcoverの画面外部分を移動して見せられない。
+	if (uniforms.sourceIsUniform != 0u && any(abs(sourcePosition) > vec2f(1.0))) { return vec4f(0.0); }
 	return read_source(sourcePosition);
 }
 
