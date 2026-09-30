@@ -1,13 +1,24 @@
 <template>
 <div :class="$style.root" @keydown="onTlKeydown">
 	<div :class="$style.header">
-		<slot></slot>
-		<GsButton small :primary="previewPlayback.state.value.mode === 'timeline'" @click="previewPlayback.showTimeline()">Preview</GsButton>
-		<GsButton v-if="previewPlayback.isTimelinePlaying.value" small primary @click="pause"><i class="ti ti-player-pause"></i></GsButton>
-		<GsButton v-else small @click="play"><i class="ti ti-player-play"></i></GsButton>
-		<span v-if="timelineAudioPreview.buffering.value">Buffering audio…</span>
-		<span v-if="audioError || timelineAudioPreview.error.value || timelineRendererManagerController.errorMessage.value">{{ audioError || timelineAudioPreview.error.value || timelineRendererManagerController.errorMessage.value }}</span>
-		<span class="_monospace">{{ formatMsToTimecode(time) }}</span>
+		<div :class="$style.headerLeft">
+			<slot></slot>
+		</div>
+		<div :class="$style.headerCenter">
+			<GsButton small :primary="previewPlayback.state.value.mode === 'timeline'" @click="previewPlayback.showTimeline()">Preview</GsButton>
+			<GsButton v-if="previewPlayback.isTimelinePlaying.value" small primary @click="pause"><i class="ti ti-player-pause"></i></GsButton>
+			<GsButton v-else small @click="play"><i class="ti ti-player-play"></i></GsButton>
+			<span v-if="timelineAudioPreview.buffering.value">Buffering audio…</span>
+			<span v-if="audioError || timelineAudioPreview.error.value || timelineRendererManagerController.errorMessage.value">{{ audioError || timelineAudioPreview.error.value || timelineRendererManagerController.errorMessage.value }}</span>
+		</div>
+		<div :class="$style.headerCenter">
+			<span class="_monospace">{{ formatMsToTimecode(time) }}</span>
+		</div>
+		<div :class="$style.headerRight">
+			<GsButton small iconOnly><i class="ti ti-pointer"></i></GsButton>
+			<GsButton small iconOnly><i class="ti ti-select-all"></i></GsButton>
+			<GsButton small iconOnly><i class="ti ti-cut"></i></GsButton>
+		</div>
 	</div>
 	<div :class="[$style.body, { [$style.panning]: panning }]" @mousedown.capture="onPanMousedown" @auxclick.capture="onPanAuxclick">
 		<div :class="$style.tlBgWrapper" data-timeline-surface>
@@ -912,11 +923,28 @@ onMounted(() => {
 }
 
 .header {
-	display: flex;
-	flex-wrap: wrap;
-	align-items: center;
+	display: grid;
+	grid-template-columns: 1fr 1fr 1fr 1fr;
 	gap: 4px;
 	padding: 4px;
+}
+.headerLeft {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	justify-content: flex-start;
+}
+.headerCenter {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	justify-content: center;
+}
+.headerRight {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	justify-content: flex-end;
 }
 
 .audioAssetSelect {
