@@ -18,6 +18,8 @@
 			<GsButton small iconOnly><i class="ti ti-pointer"></i></GsButton>
 			<GsButton small iconOnly><i class="ti ti-select-all"></i></GsButton>
 			<GsButton small iconOnly><i class="ti ti-cut"></i></GsButton>
+			<span>|</span>
+			<GsButton small iconOnly><i class="ti ti-magnet"></i></GsButton>
 		</div>
 	</div>
 	<div :class="[$style.body, { [$style.panning]: panning }]" @mousedown.capture="onPanMousedown" @auxclick.capture="onPanAuxclick">
