@@ -229,7 +229,7 @@ export const PREF_DEF = definePreferences({
 											element: {
 												id: '60841182dc254e2683eaf0718df5a65f',
 												type: 'panel',
-												direction: 'horizontal',
+												direction: 'vertical',
 												contentType: 'preview',
 											},
 										}],
@@ -239,7 +239,7 @@ export const PREF_DEF = definePreferences({
 									element: {
 										id: 'f5a1c961595149e4a84f61ccf8908977',
 										type: 'panel',
-										direction: 'horizontal',
+										direction: 'vertical',
 										contentType: 'timeline',
 									},
 								}],
