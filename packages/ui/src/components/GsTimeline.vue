@@ -1,10 +1,6 @@
 <template>
 <div :class="$style.root" @keydown="onTlKeydown">
 	<div :class="$style.header">
-		<GsButton @click="addInlineVisualModuleLayer">Add inline visual module layer</GsButton>
-		<GsSelect v-model="audioAssetId" small :class="$style.audioAssetSelect" :items="audioAssetItems"/>
-		<GsButton :disabled="!audioAssetId || addingAudio" @click="addAudioAssetLayer">Add audio layer</GsButton>
-		<GsButton :disabled="addingAudio" @click="importAudioLayer">Import audio</GsButton>
 		<GsButton :primary="previewPlayback.state.value.mode === 'timeline'" @click="previewPlayback.showTimeline()">Preview</GsButton>
 		<GsButton v-if="previewPlayback.isTimelinePlaying.value" primary @click="pause"><i class="ti ti-player-pause"></i></GsButton>
 		<GsButton v-else primary @click="play"><i class="ti ti-player-play"></i></GsButton>
@@ -22,7 +18,7 @@
 		</div>
 		<div ref="layersEl" :class="$style.layers" data-timeline-surface>
 			<div :class="$style.layersHeader">
-				header
+				<GsButton v-tooltip="'Add Layer'" small iconOnly @click="showAddLayerMenu"><i class="ti ti-plus"></i></GsButton>
 			</div>
 			<GsDraggable
 				:class="$style.layerList"
@@ -593,14 +589,6 @@ function selectLayer(layer: Timeline[number]) {
 	tlEl.value?.focus({ preventScroll: true });
 }
 
-function addInlineVisualModuleLayer() {
-	const layer = createInlineVisualModuleLayer(Math.max(0, time.value));
-	appStateManager.commit('addInlineVisualModuleLayer', layer);
-	selectLayer(layer);
-	visualModuleLayerTab.value = 'module';
-	previewPlayback.seekTimeline(getTimelineLayerStart(layer));
-}
-
 function editVisualModuleTiming(target: 'position' | 'duration', value: string | number) {
 	const layer = selectedLayer.value;
 	const amount = Number(value);
@@ -660,11 +648,6 @@ const audioAssetItems = computed(() => [
 	...appStateManager.state.assets.value.filter(asset => /^(audio|video)\//.test(asset.fileDataType)).map(asset => ({ label: asset.name, value: asset.id })),
 ]);
 
-async function addAudioAssetLayer() {
-	const asset = appStateManager.state.assets.value.find(asset => asset.id === audioAssetId.value);
-	if (asset) await addAudioLayer(asset, false);
-}
-
 async function importAudioLayer() {
 	audioError.value = null;
 	const projectAssets = appStateManager.state.assets.value;
@@ -718,6 +701,32 @@ function play() {
 
 function pause() {
 	previewPlayback.pauseTimeline();
+}
+
+function showAddLayerMenu(ev: PointerEvent) {
+	ui.popupMenu([{
+		text: 'Visual Module (Inline)',
+		icon: 'ti ti-chart-dots-3',
+		action: () => {
+			const layer = createInlineVisualModuleLayer(Math.max(0, time.value));
+			appStateManager.commit('addInlineVisualModuleLayer', layer);
+			selectLayer(layer);
+			visualModuleLayerTab.value = 'module';
+			previewPlayback.seekTimeline(getTimelineLayerStart(layer));
+		},
+	}, {
+		text: 'Visual Module (Reference)',
+		icon: 'ti ti-chart-dots-3',
+		action: () => {
+			// TODO
+		},
+	}, {
+		text: 'Audio',
+		icon: 'ti ti-music',
+		action: async () => {
+
+		},
+	}], ev.currentTarget ?? ev.target);
 }
 
 onMounted(() => {
