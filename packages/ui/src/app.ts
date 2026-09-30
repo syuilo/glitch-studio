@@ -1,4 +1,3 @@
-import { timelineLayerClipboard } from './utility/timeline-editor-state.ts';
 import { getSceneDuration, validateTimelineScenes } from '@glitch/shared/timeline/scenes.ts';
 import { getSceneAudioClips } from '@glitch/shared/timeline/scene-audio.ts';
 import { createUntrimmedTimelineLayerTiming } from '@glitch/shared/timeline/timing.ts';
@@ -12,6 +11,7 @@ import fillEffectDef from '@glitch/shared/effect/fx/fill/_def_.ts';
 import imageEffectDef from '@glitch/shared/effect/fx/image/_def_.ts';
 import videoEffectDef from '@glitch/shared/effect/fx/video/_def_.ts';
 import audioWaveformEffectDef from '@glitch/shared/effect/fx/audioWaveform/_def_.ts';
+import { timelineLayerClipboard } from './utility/timeline-editor-state.ts';
 import { VisualModuleRendererManagerController } from './VisualModuleRendererManagerController.ts';
 import { TimelineRendererManagerController } from './TimelineRendererManagerController.ts';
 import { TimelineAudioPreview } from './audio/timeline-audio-preview.ts';
@@ -380,7 +380,7 @@ export async function newProject() {
 		visualModules: [initialVisualModule],
 		assets: [],
 		players: [],
-		timelineScenes: [{ id: genId(), name: 'Scene 1', layers: [{
+		timelineScenes: [{ id: genId(), name: 'Main Scene', layers: [{
 			id: genId(),
 			layerType: 'visualModule',
 			visualModuleId: initialVisualModule.id,
@@ -500,7 +500,7 @@ export async function newProjectFromImageOrVideo(file?: File) {
 		visualModules: [initialVisualModule],
 		assets: [asset],
 		players: player ? [player] : [],
-		timelineScenes: [{ id: genId(), name: 'Scene 1', layers: [{
+		timelineScenes: [{ id: genId(), name: 'Main Scene', layers: [{
 			id: genId(),
 			layerType: 'visualModule',
 			visualModuleId: initialVisualModule.id,
