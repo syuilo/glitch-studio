@@ -106,9 +106,6 @@ export const previewPlayback = markRaw(new PreviewPlaybackController(
 	visualModuleRendererManagerController, timelineRendererManagerController, () => fpsLimit.value,
 	() => activeScene.value == null ? 0 : getSceneDuration(activeScene.value), timelineAudioPreview,
 ));
-watch(timelineRendererManagerController.errorMessage, message => {
-	if (message && previewPlayback.isTimelinePlaying.value) previewPlayback.pauseTimeline();
-});
 watch(activeSceneId, (sceneId, previousId) => {
 	// 音声更新のwatchより前に旧Sceneの時計を止め、切替先の長さで位置を丸めない。
 	previewPlayback.pauseTimeline();

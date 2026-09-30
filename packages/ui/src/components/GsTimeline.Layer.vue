@@ -86,7 +86,7 @@ import { getLayerParameterValues } from '@/utility/timeline-scene.ts';
 import type { TimelineLayer } from '@glitch/shared/timeline/types.ts';
 import type { ParameterBinding } from '@glitch/shared/types.ts';
 import { appStateManager } from '@/app.ts';
-import { readVideoMetadata } from '@glitch/shared/media/video-metadata.ts';
+import { readMediaMetadata } from '@glitch/shared/media/media-metadata.ts';
 import { openAssetAudio } from '@/audio/asset-audio-reader.ts';
 
 const props = defineProps<{
@@ -127,7 +127,7 @@ watch(() => mediaAsset.value?.fileData, async (_, __, onCleanup) => {
 	if (asset == null) return;
 	try {
 		if (props.layer.layerType === 'video') {
-			const metadata = await readVideoMetadata(asset.fileData);
+			const metadata = await readMediaMetadata(asset.fileData);
 			if (!cancelled) contentDurationMs.value = metadata.durationMs;
 			return;
 		}

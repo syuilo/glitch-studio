@@ -1,5 +1,6 @@
 import { ALL_FORMATS, AudioSampleSink, BlobSource, Input } from 'mediabunny';
-import { readVideoMetadata } from '@glitch/shared/media/video-metadata.ts';
+import { readMediaMetadata } from '@glitch/shared/media/media-metadata.ts';
+import { getAudioTrackError } from './audio-track-support.ts';
 import { PcmResampler, resamplingPaddingSeconds } from '@glitch/audio-renderer/pcm-resampler.ts';
 import type { Asset } from '@glitch/shared/types.ts';
 import type { DecodedPcmBlock, StereoPcm } from '@glitch/audio-renderer/pcm.ts';
@@ -12,8 +13,8 @@ export async function openAssetAudio(asset: Asset) {
 	try {
 		const track = await input.getPrimaryAudioTrack();
 		if (!track) throw new Error(`${asset.name}: No audio track.`);
-		if (!await track.canDecode()) throw new Error(`${asset.name}: Audio decoding is unavailable.`);
-		if (track.numberOfChannels > 2) throw new Error(`${asset.name}: Only mono and stereo audio are supported.`);
+		const error = await getAudioTrackError(track);
+		if (error) throw new Error(`${asset.name}: ${error}`);
 		return { input, sink: new AudioSampleSink(track), duration: await track.computeDuration(), sampleRate: await track.getSampleRate() };
 	} catch (error) {
 		input.dispose();
@@ -87,8 +88,8 @@ export class AssetAudioReader {
 	async getDurationMs(assetId: string, basis: 'audio' | 'media' = 'audio'): Promise<number> {
 		if (basis === 'media') {
 			const asset = this.assets.find(asset => asset.id === assetId);
-			if (!asset) throw new Error('Video asset not found: ' + assetId);
-			return (await readVideoMetadata(asset.fileData)).durationMs;
+			if (!asset) throw new Error('Media asset not found: ' + assetId);
+			return (await readMediaMetadata(asset.fileData)).durationMs;
 		}
 		return (await this.getEntry(assetId)).duration * 1000;
 	}

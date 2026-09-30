@@ -148,10 +148,10 @@
 				<GsVisualParam v-for="(paramDef, paramId) in timelineCompositingParamDefs" :key="selectedLayer.id + ':' + paramId"
 					:availableVariables="LAYER_VAR_DEFS" :automationGraphs="selectedLayer.automationGraphs" :paramPath="[paramId]" :paramDef="paramDef"
 					:paramValue="selectedLayer.compositingParamValues[paramId]" @edit="event => onVisualModuleLayerParamEdit(event, 'compositing')"/>
-				<GsSwitch :modelValue="selectedLayer.audioEnabled" :disabled="!selectedLayer.audioEnabled && (!selectedVideoMetadata?.hasAudio || !!selectedVideoMetadata.audioError)"
+				<GsSwitch :modelValue="selectedLayer.audioEnabled" :disabled="!selectedLayer.audioEnabled && (!selectedVideoMetadata?.audio || !!selectedVideoAudioError)"
 					@update:modelValue="audioEnabled => appStateManager.commit('editVideoLayerSettings', { sceneId: props.sceneId, layerId: selectedLayer!.id, audioEnabled })">Audio enabled</GsSwitch>
-				<div v-if="selectedVideoMetadata?.audioError">{{ selectedVideoMetadata.audioError }}</div>
-				<div v-else-if="selectedVideoMetadata && !selectedVideoMetadata.hasAudio">No audio track</div>
+				<div v-if="selectedVideoAudioError">{{ selectedVideoAudioError }}</div>
+				<div v-else-if="selectedVideoMetadata && !selectedVideoMetadata.audio">No audio track</div>
 				<GsVisualParam
 					:key="selectedLayer.id"
 					:availableVariables="AUDIO_LAYER_VAR_DEFS"
@@ -249,8 +249,8 @@ import GsLiteralLeafValueControl from './GsLiteralLeafValueControl.vue';
 import GsInput from './common/GsInput.vue';
 import GsSelect from './common/GsSelect.vue';
 import GsSwitch from './common/GsSwitch.vue';
-import { readVideoMetadata } from '@glitch/shared/media/video-metadata.ts';
-import type { VideoMetadata } from '@glitch/shared/media/video-metadata.ts';
+import type { MediaMetadata } from '@glitch/shared/media/media-metadata.ts';
+import { inspectVideoLayerAsset } from '@/utility/video-layer-asset.ts';
 import GsButton from './common/GsButton.vue';
 import GsDraggable from './common/GsDraggable.vue';
 import GsVisualParam from './GsVisualParam.vue';
@@ -718,19 +718,24 @@ function onVisualModuleLayerParamEdit(event: ParamEdit, target: 'module' | 'comp
 
 const videoAssetId = ref('');
 const addingVideo = ref(false);
-const selectedVideoMetadata = shallowRef<VideoMetadata | null>(null);
+const selectedVideoMetadata = shallowRef<MediaMetadata | null>(null);
+const selectedVideoAudioError = ref<string | null>(null);
 const selectedVideoAsset = computed(() => {
 	const layer = selectedLayer.value;
 	return layer?.layerType === 'video' ? appStateManager.state.assets.value.find(asset => asset.id === layer.assetId) : undefined;
 });
 watch(() => selectedVideoAsset.value?.fileData, async (blob, _, onCleanup) => {
 	selectedVideoMetadata.value = null;
+	selectedVideoAudioError.value = null;
 	let cancelled = false;
 	onCleanup(() => { cancelled = true; });
 	if (!blob) return;
 	try {
-		const metadata = await readVideoMetadata(blob);
-		if (!cancelled) selectedVideoMetadata.value = metadata;
+		const result = await inspectVideoLayerAsset(blob);
+		if (!cancelled) {
+			selectedVideoMetadata.value = result.metadata;
+			selectedVideoAudioError.value = result.audioError;
+		}
 	} catch (error) {
 		if (!cancelled) audioError.value = error instanceof Error ? error.message : String(error);
 	}
@@ -757,10 +762,10 @@ async function addVideoLayer(asset: Asset, addAsset: boolean) {
 	const timeline = sceneLayers.value;
 	const projectAssets = appStateManager.state.assets.value;
 	try {
-		const metadata = await readVideoMetadata(asset.fileData);
-		let audioEnabled = metadata.hasAudio;
-		if (metadata.audioError) {
-			const result = await ui.confirm({ type: 'warning', title: asset.name, text: metadata.audioError, okText: 'Add without audio' });
+		const { metadata, audioError: unsupportedAudio } = await inspectVideoLayerAsset(asset.fileData);
+		let audioEnabled = metadata.audio != null;
+		if (unsupportedAudio) {
+			const result = await ui.confirm({ type: 'warning', title: asset.name, text: unsupportedAudio, okText: 'Add without audio' });
 			if (result.canceled) return;
 			audioEnabled = false;
 		}

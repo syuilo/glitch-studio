@@ -16,6 +16,54 @@ const module = { exports: {} };
 new Function('require', 'module', 'exports', bundled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
 const { PreviewPlaybackController } = module.exports;
 
+// 【停止中の映像エラーと同一エラーの再発でも、音声だけを再生し続けない】
+// エラー文字列の変更通知は一度しか来ないため、再生開始時に現在の状態を確認する。
+// 再試行の描画は許可し、修正後に成功してエラーが解除されれば通常再生へ復帰できる。
+test('keeps playback stopped for an existing render error and permits recovery', t => {
+	let starts = 0;
+	const audio = { error: { value: null }, currentTime: () => 0, start() { starts++; }, stop() {} };
+	const { playback, timelineRenderer, calls, callbacks, frame } = setup(t, null, audio, 30000);
+	playback.seekTimeline(1234);
+	timelineRenderer.errorMessage.value = 'Video decode failed';
+	calls.length = 0;
+	for (let i = 0; i < 2; i++) {
+		playback.playTimeline();
+		assert.equal(playback.isTimelinePlaying.value, false);
+		assert.equal(callbacks.size, 0);
+		assert.equal(starts, 0);
+	}
+	assert.deepEqual(calls, [['renderTimelineAt', 1234], ['renderTimelineAt', 1234]]);
+	// 再描画が成功したときにManagerから届く解除を模擬する。
+	timelineRenderer.errorMessage.value = null;
+	playback.playTimeline();
+	assert.equal(starts, 1);
+	assert.equal(playback.isTimelinePlaying.value, true);
+	timelineRenderer.errorMessage.value = 'Video decode failed';
+	frame(0);
+	assert.equal(playback.isTimelinePlaying.value, false);
+	playback.playTimeline();
+	assert.equal(starts, 1);
+	assert.equal(playback.isTimelinePlaying.value, false);
+});
+
+// 【再生中の映像エラーはFPS制限の待機中でも停止する】
+// 低いFPS設定で次の描画まで音声が流れ続けないよう、フレーム間隔の判定より先にエラーを扱う。
+test('stops on rendering failure before the next FPS-limited frame', t => {
+	let stopped = 0;
+	let position = 0;
+	const audio = { error: { value: null }, currentTime: () => position, start() {}, stop() { stopped++; } };
+	const { playback, timelineRenderer, callbacks, frame } = setup(t, 1, audio, 30000);
+	playback.playTimeline();
+	frame(0);
+	position = 17;
+	timelineRenderer.errorMessage.value = 'Video decode failed';
+	frame(17);
+	assert.equal(playback.isTimelinePlaying.value, false);
+	assert.equal(playback.currentTimelineTime.value, 17);
+	assert.equal(callbacks.size, 0);
+	assert.equal(stopped, 1);
+});
+
 // 【映像時刻は音声時計に追従し、バッファリング中は進まない】
 // RAFの遅延やFPS制限によって音声と映像が別々の位置へ進むことを防ぐ。
 test('follows audio time across buffering, seeking, edits and suspension', t => {
@@ -49,7 +97,6 @@ test('follows audio time across buffering, seeking, edits and suspension', t => 
 	position = 5200;
 	audio.error.value = 'Decode failed';
 	frame(2000);
-	frame(2017);
 	assert.equal(playback.isTimelinePlaying.value, false);
 });
 
@@ -84,7 +131,7 @@ function setup(t, fpsLimit = null, audio, duration = Infinity) {
 	};
 	const liveRenderer = Object.fromEntries(['startLiveRenderLoopFor', 'updateLiveParamValues', 'stopRenderLoop']
 		.map(name => [name, (...args) => calls.push([name, ...args])]));
-	const timelineRenderer = { isReady: { value: true }, renderTimelineAt: time => calls.push(['renderTimelineAt', time]) };
+	const timelineRenderer = { isReady: { value: true }, errorMessage: { value: null }, renderTimelineAt: time => calls.push(['renderTimelineAt', time]) };
 	const playback = new PreviewPlaybackController(liveRenderer, timelineRenderer, () => fpsLimit, () => duration, audio);
 	t.after(() => {
 		playback.dispose();

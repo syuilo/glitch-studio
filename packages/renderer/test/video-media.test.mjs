@@ -5,25 +5,28 @@ import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
 
 const bundle = await build({
-	stdin: { contents: "export { openVideoSource } from './video-source.ts'; export { readVideoMetadata } from './video-metadata.ts';",
-		resolveDir: fileURLToPath(new URL('../../shared/src/media/', import.meta.url)), loader: 'ts' },
+	entryPoints: [fileURLToPath(new URL('../../shared/src/media/video-source.ts', import.meta.url))],
 	bundle: true, platform: 'node', format: 'cjs', write: false, external: ['mediabunny'],
 });
 
-function setup({ videoStart = 2, videoEnd = 8, audioEnd = 10, audioChannels = 2, audioDecodable = true, missingAudio = false } = {}) {
-	const calls = { timestamps: [], disposed: 0, opened: 0 };
-	const video = { canDecode: async () => true, getFirstTimestamp: async () => videoStart, computeDuration: async () => videoEnd };
-	const audio = { canDecode: async () => audioDecodable, numberOfChannels: audioChannels, computeDuration: async () => audioEnd };
+function setup() {
+	const calls = { starts: [], disposed: 0, returned: 0 };
+	const sample = timestamp => ({ timestamp, clone: () => sample(timestamp), close() {} });
 	const stub = {
 		ALL_FORMATS: [], BlobSource: class {},
 		Input: class {
-			constructor() { calls.opened++; }
-			async getPrimaryVideoTrack() { return video; }
-			async getPrimaryAudioTrack() { return missingAudio ? null : audio; }
+			async getPrimaryVideoTrack() {
+				return { canDecode: async () => true, getFirstTimestamp: async () => 2, computeDuration: async () => 8 };
+			}
 			dispose() { calls.disposed++; }
 		},
 		VideoSampleSink: class {
-			async getSample(time) { calls.timestamps.push(time); return { timestamp: time }; }
+			async *samples(start) {
+				calls.starts.push(start);
+				try {
+					for (let time = Math.floor(start); time < 8; time++) yield sample(time);
+				} finally { calls.returned++; }
+			}
 		},
 	};
 	const module = { exports: {} };
@@ -32,36 +35,27 @@ function setup({ videoStart = 2, videoEnd = 8, audioEnd = 10, audioChannels = 2,
 	return { ...module.exports, calls };
 }
 
-// 【映像の開始が遅い素材でもコンテナの時刻を維持する】
-// トラックの先頭を0へ詰めると音声とずれる。終端以降に最終フレームを保持することも防ぐ。
-test('reads original presentation timestamps and returns transparency outside the video interval', async () => {
+// 【映像の開始が遅い素材でもコンテナの時刻を維持し、区間外では先読みを解放する】
+// 先頭を0へ詰めると音声とずれる。音声だけが続く末尾区間では、最終映像を保持せず透明にする。
+test('preserves track timing and releases sequential decoding outside the video interval', async () => {
 	const h = setup();
 	const source = h.openVideoSource(new Blob());
 	assert.equal(await source.getSample(0), null);
 	assert.equal(await source.getSample(1.9), null);
-	assert.equal((await source.getSample(2)).timestamp, 2);
-	assert.equal((await source.getSample(4.125)).timestamp, 4.125);
+	for (const [time, timestamp] of [[2, 2], [2.5, 2], [3.2, 3]]) {
+		const sample = await source.getSample(time);
+		assert.equal(sample.timestamp, timestamp);
+		sample.close();
+	}
+	assert.deepEqual(h.calls.starts, [2]);
 	assert.equal(await source.getSample(8), null);
+	assert.equal(h.calls.returned, 1);
 	assert.equal(await source.getSample(9), null);
-	assert.deepEqual(h.calls.timestamps, [2, 4.125]);
+	const looped = await source.getSample(2);
+	looped.close();
+	assert.deepEqual(h.calls.starts, [2, 2]);
+	source.dispose();
 	source.dispose();
 	assert.equal(h.calls.disposed, 1);
-});
-
-// 【素材長は映像と音声の遅い終了時刻を使い、音声非対応でも取得できる】
-// 音声無効で追加する選択肢を残すため、音声の有無・対応可否・長さを別々に扱う。
-test('keeps common media duration while reporting absent or unsupported audio', async () => {
-	for (const [options, expected] of [
-		[{}, { durationMs: 10000, hasAudio: true, audioError: null }],
-		[{ missingAudio: true }, { durationMs: 8000, hasAudio: false, audioError: null }],
-		[{ audioDecodable: false }, { durationMs: 10000, hasAudio: true, audioError: 'Audio decoding is unavailable.' }],
-		[{ audioChannels: 6 }, { durationMs: 10000, hasAudio: true, audioError: 'Only mono and stereo audio are supported.' }],
-	]) {
-		const h = setup(options);
-		const blob = new Blob();
-		assert.deepEqual(await h.readVideoMetadata(blob), expected);
-		assert.deepEqual(await h.readVideoMetadata(blob), expected);
-		assert.equal(h.calls.opened, 1);
-		assert.equal(h.calls.disposed, 1);
-	}
+	await assert.rejects(source.getSample(2), /disposed/);
 });

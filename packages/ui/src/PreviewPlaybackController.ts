@@ -16,7 +16,7 @@ type TimelineAudio = {
 	currentTime(): number;
 	error: { value: string | null };
 };
-type TimelineRenderer = Pick<TimelineRendererManagerController, 'renderTimelineAt' | 'isReady'>;
+type TimelineRenderer = Pick<TimelineRendererManagerController, 'renderTimelineAt' | 'isReady' | 'errorMessage'>;
 
 /** プレビューの切り替えと時刻更新を所有し、LIVEとタイムラインの同時再生を防ぐ。 */
 export class PreviewPlaybackController {
@@ -58,6 +58,9 @@ export class PreviewPlaybackController {
 	public playTimeline() {
 		if (this.isTimelinePlaying.value) return;
 		this.leaveLive();
+		// 同じエラー文は再通知されない。既に失敗している場合は描画の再試行だけを行い、
+		// 成功でエラーが解除されるまで音声時計を開始しない。
+		if (this.timelineRenderer.errorMessage.value) { this.refresh(); return; }
 		const duration = this.getDuration();
 		if (duration <= 0) return;
 		if (this.timelineTime.value >= duration) this.timelineTime.value = 0;
@@ -70,13 +73,14 @@ export class PreviewPlaybackController {
 		let previousAdvanceTime: number | null = null;
 		const renderLoop = (timestamp: number) => {
 			if (!this.isTimelinePlaying.value) return;
+			// エラー文の変化ではなく現在の状態を見る。FPS制限中・初回RAFでも停止する。
+			if (this.audio?.error.value || this.timelineRenderer.errorMessage.value) { this.pauseTimeline(); return; }
 			this.timelineRafId = window.requestAnimationFrame(renderLoop);
 			if (previousFrameTime == null || previousAdvanceTime == null) {
 				// 停止中の実時間を再生時刻へ加算しない。
 				previousFrameTime = previousAdvanceTime = timestamp;
 				return;
 			}
-			if (this.audio?.error.value) { this.pauseTimeline(); return; }
 			const delta = timestamp - previousFrameTime;
 			const fpsLimit = this.getFpsLimit();
 			if (fpsLimit != null && fpsLimit > 0) {
