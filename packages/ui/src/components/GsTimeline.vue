@@ -61,7 +61,7 @@
 						@moveStart="event => onLayerMoveStart(event, layer)"
 						@keyframeDragStart="onKeyframeMoveStart"
 						@keyframeSelected="onKeyframeSelected"
-						@snap="snappingTime = $event"
+						@snap="snappingTimes = $event == null ? [] : [$event]"
 					/>
 				</template>
 			</GsDraggable>
@@ -81,7 +81,7 @@
 				<div v-for="time of xTicks" :class="[$style.inTlXTick]" :style="{ left: timeToDomX(time) + 'px' }"></div>
 				<div :class="$style.seekBar" class="_monospace" :style="{ left: seekBarPos + 'px' }"><div :class="$style.seekBarFrame">{{ formatMsToTimecode(time) }}</div></div>
 				<div :class="$style.cursorBar" :style="{ left: cursorBarPos + 'px' }"></div>
-				<div v-if="snappingTime != null" :class="$style.snapLine" :style="{ left: timeToDomX(snappingTime) + 'px' }"></div>
+				<div v-for="snappingTime in snappingTimes" :key="snappingTime" :class="$style.snapLine" :style="{ left: timeToDomX(snappingTime) + 'px' }"></div>
 
 				<!--
 			<div v-if="(nowSelecting || selectedKeyframes.length === 0) && tooltipDomPos" :class="$style.tooltip" class="_monospace" :style="{ left: tooltipDomPos[0] + 'px', top: tooltipDomPos[1] + 'px' }">
@@ -334,7 +334,7 @@ const seekBarPos = computed(() => {
 	return timeToDomX(time.value);
 });
 const cursorBarPos = ref(0);
-const snappingTime = ref<number | null>(null);
+const snappingTimes = ref<number[]>([]);
 const tlRangeElPosX = computed(() => {
 	return -((tlPosX.value / tlRangeX.value) * tlElWidth.value);
 });
@@ -669,12 +669,14 @@ function startSelectionMove(event: PointerEvent, points: TimelineMovePoint[], sn
 		movingSelection.value = true;
 		suppressTimelineClick = true;
 		const result = constrainTimelineMove((current.clientX - event.clientX) * msPerPixel, points, snapTimes, msPerPixel);
-		snappingTime.value = result.snappingTime;
+		// 移動量を決めた候補だけでなく、移動後に一致する両端・全選択キーの候補を表示する。
+		// 吸着距離の5pxではなく浮動小数点の誤差だけを許容し、まだ近いだけの候補には線を出さない。
+		snappingTimes.value = [...new Set(snapTimes.filter(time => points.some(point => nearlyEqual(point.time + result.delta, time))))];
 		if (result.delta === previousDelta) return;
 		if (!apply(result.delta, mergeKey)) { stopSelectionDrag?.(); return; }
 		previousDelta = result.delta;
 	}, () => {
-		snappingTime.value = null;
+		snappingTimes.value = [];
 		movingSelection.value = false;
 		stopSelectionDrag = undefined;
 	});
