@@ -6,6 +6,7 @@
 		<GsButton v-else primary @click="play"><i class="ti ti-player-play"></i></GsButton>
 		<span v-if="timelineAudioPreview.buffering.value">Buffering audio…</span>
 		<span v-if="audioError || timelineAudioPreview.error.value">{{ audioError || timelineAudioPreview.error.value }}</span>
+		<span class="_monospace">{{ formatMsToTimecode(time) }}</span>
 	</div>
 	<div :class="[$style.body, { [$style.panning]: panning }]" @mousedown.capture="onPanMousedown" @auxclick.capture="onPanAuxclick">
 		<div :class="$style.tlBgWrapper" data-timeline-surface>
