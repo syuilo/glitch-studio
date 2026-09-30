@@ -3,8 +3,15 @@
 	<div :class="$style.mainLane">
 		<div :class="$style.side">
 			<div :class="$style.layerHeader" draggable="true" @dragstart.stop="emit('dragStart', $event)">
-				<i class="ti ti-grip-vertical"></i>
-				{{ layerLabel }}
+				<span style="font-size: 85%; color: color-mix(in srgb, var(--THEME-fg), var(--sideColor) 50%);">
+					<i class="ti ti-grip-vertical"></i>
+				</span>
+				<span style="font-size: 90%;">
+					<i v-if="layer.layerType === 'visualModule'" class="ti ti-chart-dots-3"></i>
+					<i v-else-if="layer.layerType === 'inlineVisualModule'" class="ti ti-chart-dots-3"></i>
+					<i v-else-if="layer.layerType === 'audio'" class="ti ti-music"></i>
+				</span>
+				<span>{{ layerLabel }}</span>
 			</div>
 		</div>
 		<div :class="$style.tl">
@@ -29,7 +36,9 @@
 	</div>
 	<div v-for="param in keyframeParameters" :key="param.key" :class="$style.keyframesLane">
 		<div :class="$style.side">
-			{{ param.key }}
+			<div style="padding: 0 10px 0 0;">
+				{{ param.key }}
+			</div>
 		</div>
 		<div :class="$style.tl">
 			<div style="position: relative;">
@@ -96,7 +105,7 @@ const emit = defineEmits<{
 }>();
 
 const layerLabel = computed(() => props.layer.layerType === 'audio'
-	? `♫ ${appStateManager.state.assets.value.find(asset => asset.id === (props.layer.layerType === 'audio' ? props.layer.assetId : ''))?.name ?? 'Missing audio'}` : props.layer.layerType === 'inlineVisualModule' ? 'Inline Visual Module' : props.layer.id);
+	? `${appStateManager.state.assets.value.find(asset => asset.id === (props.layer.layerType === 'audio' ? props.layer.assetId : ''))?.name ?? 'Missing audio'}` : props.layer.layerType === 'inlineVisualModule' ? 'Inline Visual Module' : props.layer.id);
 
 const audioAsset = computed(() => {
 	const layer = props.layer;
