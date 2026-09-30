@@ -125,7 +125,7 @@
 					:paramValue="selectedLayer.paramValues.volume"
 					@edit="event => onVisualModuleLayerParamEdit(event, 'audio')"
 				/>
-				<GsButton @click="appStateManager.commit('removeTimelineLayer', { layerId: selectedLayer.id })">Remove layer</GsButton>
+				<GsButton danger @click="appStateManager.commit('removeTimelineLayer', { layerId: selectedLayer.id })">Remove Layer</GsButton>
 			</div>
 			<div v-else-if="selectedLayer?.layerType === 'visualModule' || selectedLayer?.layerType === 'inlineVisualModule'">
 				<GsTabs v-if="selectedLayer.layerType === 'inlineVisualModule'" v-model="visualModuleLayerTab" :def="[{ id: 'settings', label: 'Layer settings' }, { id: 'module', label: 'Visual Module' }]"/>
@@ -170,7 +170,7 @@
 							@edit="event => onVisualModuleLayerParamEdit(event, 'module')"
 						/>
 					</template>
-					<GsButton @click="appStateManager.commit('removeTimelineLayer', { layerId: selectedLayer.id })">Remove layer</GsButton>
+					<GsButton danger @click="appStateManager.commit('removeTimelineLayer', { layerId: selectedLayer.id })">Remove Layer</GsButton>
 				</div>
 			</div>
 		</Teleport>
