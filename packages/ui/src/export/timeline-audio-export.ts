@@ -2,7 +2,7 @@ import { TimelineAudioRenderer } from '@glitch/audio-renderer/timeline-audio-ren
 import { AssetAudioReader } from '../audio/asset-audio-reader.ts';
 import { MP4_AUDIO_SAMPLE_RATE } from './audio-export-settings.ts';
 import type { StereoPcm } from '@glitch/audio-renderer/pcm.ts';
-import type { TimelineAudioLayer } from '@glitch/shared/timeline/types.ts';
+import type { SceneAudioClip } from '@glitch/shared/timeline/scene-audio.ts';
 import type { Asset } from '@glitch/shared/types.ts';
 import type { VideoExportSettings } from './timeline-export.ts';
 
@@ -14,7 +14,7 @@ export class TimelineAudioExport {
 	private startFrame: number;
 	private totalFrames: number;
 
-	constructor(assets: Asset[], private layers: TimelineAudioLayer[], settings: VideoExportSettings) {
+	constructor(assets: Asset[], private clips: SceneAudioClip[], settings: VideoExportSettings) {
 		this.reader = new AssetAudioReader(assets);
 		this.renderer = new TimelineAudioRenderer((...args) => this.reader.read(...args), assetId => this.reader.getDurationMs(assetId));
 		// 開始時刻は整数msなので48kHzのサンプル境界と一致する。
@@ -28,7 +28,7 @@ export class TimelineAudioExport {
 		while (this.nextFrame < end) {
 			signal.throwIfAborted();
 			const count = Math.min(4096, end - this.nextFrame);
-			const pcm = await this.renderer.render(this.layers, this.startFrame + this.nextFrame, count, MP4_AUDIO_SAMPLE_RATE, true);
+			const pcm = await this.renderer.renderClips(this.clips, this.startFrame + this.nextFrame, count, MP4_AUDIO_SAMPLE_RATE, true);
 			signal.throwIfAborted();
 			// 評価はプロジェクト時刻、ファイルのtimestampは出力範囲の先頭を0とする。
 			await addAudio(pcm, this.nextFrame / MP4_AUDIO_SAMPLE_RATE);

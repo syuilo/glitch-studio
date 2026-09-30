@@ -1,3 +1,5 @@
+import { getScene, getLayerParameterValues } from './utility/timeline-scene.ts';
+import { canReferenceScene, getSceneDuration, validateTimelineScenes } from '@glitch/shared/timeline/scenes.ts';
 import { createUntrimmedTimelineLayerTiming, isTimelineLayerTimingValid } from '@glitch/shared/timeline/timing.ts';
 import type { TimelineLayerTiming } from '@glitch/shared/timeline/timing.ts';
 import { getArrayElementDefinition } from '@glitch/shared/parameter.ts';
@@ -8,7 +10,7 @@ import { deepClone } from '@glitch/shared/utility/deep-clone.ts';
 import { getNodeInputDataType, getNodeOutputs } from '@glitch/shared/utility/node-outputs.ts';
 import { isTextureDataType } from '@glitch/shared/data-type.ts';
 import { timelineAudioParamDefs } from '@glitch/shared/timeline/timeline-audio.ts';
-import type { TimelineAudioLayer, TimelineLayer, TimelineInlineVisualModuleLayer } from '@glitch/shared/timeline/types.ts';
+import type { TimelineScene, TimelineSceneLayer, TimelineAudioLayer, TimelineLayer, TimelineInlineVisualModuleLayer } from '@glitch/shared/timeline/types.ts';
 import { timelineCompositingParamDefs } from '@glitch/shared/timeline/timeline-compositing.ts';
 import type { VisualModuleCustomParameterId, VisualModuleEffectNode, VisualModuleNode, NodeOutputReference, VisualModule, VisualModuleParamDef, VisualModuleOutputDef } from '@glitch/shared/visual-module/types.ts';
 import type { ParameterDefinition } from '@glitch/shared/parameter.ts';
@@ -46,6 +48,7 @@ const stateUtility = {
 };
 
 const editTimelineLayerParamCommandDef = defineCommand<{
+	sceneId: string;
 	layerId: string;
 	paramId: string;
 	target?: 'module' | 'compositing' | 'audio';
@@ -63,21 +66,21 @@ const editTimelineLayerParamCommandDef = defineCommand<{
 		let before: ParameterBinding | undefined;
 		let after: ParameterBinding | undefined;
 		const getLayer = (state: AppState) => {
-			const layer = state.timeline.value.find(layer => layer.id === payload.layerId);
+			const layer = getScene(state, payload.sceneId).layers.find(layer => layer.id === payload.layerId);
 			if (layer == null) throw new Error('Timeline layer not found');
-			if (layer.layerType !== 'visualModule' && layer.layerType !== 'inlineVisualModule' && layer.layerType !== 'audio') throw new Error('Unsupported timeline layer');
-			if ((layer.layerType === 'audio') !== (payload.target === 'audio')) throw new Error('Invalid layer parameter target');
+			if (layer.layerType !== 'visualModule' && layer.layerType !== 'inlineVisualModule' && layer.layerType !== 'audio' && layer.layerType !== 'scene') throw new Error('Unsupported timeline layer');
+			getLayerParameterValues(layer, payload.target ?? 'module');
 			return layer;
 		};
 		return {
 			execute(state) {
 				const layer = getLayer(state);
-				const values: Record<string, ParameterBinding> = payload.target === 'compositing' && layer.layerType !== 'audio' ? layer.compositingParamValues : layer.paramValues;
+				const values: Record<string, ParameterBinding> = getLayerParameterValues(layer, payload.target ?? 'module');
 				if (after === undefined) {
-					const module = layer.layerType !== 'audio' && payload.target !== 'compositing'
+					const module = (layer.layerType === 'visualModule' || layer.layerType === 'inlineVisualModule') && payload.target !== 'compositing'
 						? (layer.layerType === 'inlineVisualModule' ? layer.visualModule : stateUtility.getVisualModule(state, layer))
 						: null;
-					const def = layer.layerType === 'audio'
+					const def = payload.target === 'audio'
 						? Object.entries(timelineAudioParamDefs).find(([id]) => id === payload.paramId)?.[1]
 						: payload.target === 'compositing'
 						? Object.entries(timelineCompositingParamDefs).find(([id]) => id === payload.paramId)?.[1]
@@ -125,7 +128,7 @@ const editTimelineLayerParamCommandDef = defineCommand<{
 			},
 			undo(state) {
 				const layer = getLayer(state);
-				const values: Record<string, ParameterBinding> = payload.target === 'compositing' && layer.layerType !== 'audio' ? layer.compositingParamValues : layer.paramValues;
+				const values: Record<string, ParameterBinding> = getLayerParameterValues(layer, payload.target ?? 'module');
 				// デフォルト値を参照していた状態も復元し、定義への不要な上書きを残さない。
 				if (before === undefined) delete values[payload.paramId];
 				else values[payload.paramId] = deepClone(before);
@@ -816,20 +819,20 @@ const updateVisualModuleOutputDefCommandDef = defineCommand<VisualModuleTarget &
 	},
 });
 
-const addInlineVisualModuleLayerCommandDef = defineCommand<TimelineInlineVisualModuleLayer>({
+const addInlineVisualModuleLayerCommandDef = defineCommand<{ sceneId: string; layer: TimelineInlineVisualModuleLayer }>({
 	label: 'Add inline visual module layer',
 	create: payload => ({
-		execute(state) { state.timeline.value.unshift(deepClone(payload)); },
-		undo(state) { state.timeline.value = state.timeline.value.filter(layer => layer.id !== payload.id); },
+		execute(state) { getScene(state, payload.sceneId).layers.unshift(deepClone(payload.layer)); },
+		undo(state) { getScene(state, payload.sceneId).layers = getScene(state, payload.sceneId).layers.filter(layer => layer.id !== payload.layer.id); },
 	}),
 });
 
-const editVisualModuleLayerTimingCommandDef = defineCommand<{ layerId: string; positionMs: number; trimmedDurationMs: number }>({
+const editVisualModuleLayerTimingCommandDef = defineCommand<{ sceneId: string; layerId: string; positionMs: number; trimmedDurationMs: number }>({
 	label: 'Edit visual module layer timing',
 	create: payload => {
 		let before: TimelineLayerTiming;
 		const getLayer = (state: AppState) => {
-			const layer = state.timeline.value.find(layer => layer.id === payload.layerId);
+			const layer = getScene(state, payload.sceneId).layers.find(layer => layer.id === payload.layerId);
 			if (layer?.layerType !== 'visualModule' && layer?.layerType !== 'inlineVisualModule') throw new Error('Visual module layer not found');
 			return layer;
 		};
@@ -847,20 +850,20 @@ const editVisualModuleLayerTimingCommandDef = defineCommand<{ layerId: string; p
 	},
 });
 
-const addAudioLayerCommandDef = defineCommand<TimelineAudioLayer>({
+const addAudioLayerCommandDef = defineCommand<{ sceneId: string; layer: TimelineAudioLayer }>({
 	label: 'Add audio layer',
 	create: payload => ({
-		execute(state) { state.timeline.value.unshift(deepClone(payload)); },
-		undo(state) { state.timeline.value = state.timeline.value.filter(layer => layer.id !== payload.id); },
+		execute(state) { getScene(state, payload.sceneId).layers.unshift(deepClone(payload.layer)); },
+		undo(state) { getScene(state, payload.sceneId).layers = getScene(state, payload.sceneId).layers.filter(layer => layer.id !== payload.layer.id); },
 	}),
 });
 
-const editAudioLayerTimingCommandDef = defineCommand<{ layerId: string } & TimelineLayerTiming>({
+const editAudioLayerTimingCommandDef = defineCommand<{ sceneId: string; layerId: string } & TimelineLayerTiming>({
 	label: 'Edit audio layer timing',
 	create: payload => {
 		let before: TimelineLayerTiming;
 		const getLayer = (state: AppState) => {
-			const layer = state.timeline.value.find(layer => layer.id === payload.layerId);
+			const layer = getScene(state, payload.sceneId).layers.find(layer => layer.id === payload.layerId);
 			if (layer?.layerType !== 'audio') throw new Error('Audio layer not found');
 			return layer;
 		};
@@ -877,35 +880,36 @@ const editAudioLayerTimingCommandDef = defineCommand<{ layerId: string } & Timel
 	},
 });
 
-const pasteTimelineLayerCommandDef = defineCommand<{ layer: TimelineLayer; sourceLayerId: string }>({
+const pasteTimelineLayerCommandDef = defineCommand<{ sceneId: string; layer: TimelineLayer; sourceLayerId: string }>({
 	label: 'Paste timeline layer',
 	create: payload => ({
 		execute(state) {
-			const sourceIndex = state.timeline.value.findIndex(layer => layer.id === payload.sourceLayerId);
+			validateSceneLayerPlacement(state, payload.sceneId, payload.layer);
+			const sourceIndex = getScene(state, payload.sceneId).layers.findIndex(layer => layer.id === payload.sourceLayerId);
 			// 表示順は先頭が最上層。コピー元が削除済みなら最上層へ挿入する。
-			state.timeline.value.splice(Math.max(0, sourceIndex), 0, deepClone(payload.layer));
+			getScene(state, payload.sceneId).layers.splice(Math.max(0, sourceIndex), 0, deepClone(payload.layer));
 		},
 		undo(state) {
-			state.timeline.value = state.timeline.value.filter(layer => layer.id !== payload.layer.id);
+			getScene(state, payload.sceneId).layers = getScene(state, payload.sceneId).layers.filter(layer => layer.id !== payload.layer.id);
 		},
 	}),
 });
 
-const reorderTimelineLayersCommandDef = defineCommand<{ layerIds: string[] }>({
+const reorderTimelineLayersCommandDef = defineCommand<{ sceneId: string; layerIds: string[] }>({
 	label: 'Reorder timeline layers',
 	create: payload => {
 		let before: string[];
 		const reorder = (state: AppState, layerIds: string[]) => {
-			const layers = new Map(state.timeline.value.map(layer => [layer.id, layer]));
+			const layers = new Map(getScene(state, payload.sceneId).layers.map(layer => [layer.id, layer]));
 			if (layerIds.length !== layers.size || new Set(layerIds).size !== layers.size || layerIds.some(id => !layers.has(id))) {
 				throw new Error('Invalid timeline layer order');
 			}
 			// D&Dで渡されるレイヤーのコピーではなく、現在のレイヤーをIDで並べ替える。
-			state.timeline.value = layerIds.map(id => layers.get(id)!);
+			getScene(state, payload.sceneId).layers = layerIds.map(id => layers.get(id)!);
 		};
 		return {
 			execute(state) {
-				before = state.timeline.value.map(layer => layer.id);
+				before = getScene(state, payload.sceneId).layers.map(layer => layer.id);
 				reorder(state, payload.layerIds);
 			},
 			undo(state) { reorder(state, before); },
@@ -913,24 +917,110 @@ const reorderTimelineLayersCommandDef = defineCommand<{ layerIds: string[] }>({
 	},
 });
 
-const removeTimelineLayerCommandDef = defineCommand<{ layerId: string }>({
+const removeTimelineLayerCommandDef = defineCommand<{ sceneId: string; layerId: string }>({
 	label: 'Remove timeline layer',
 	create: payload => {
 		let before: TimelineLayer;
 		let index: number;
 		return {
 			execute(state) {
-				index = state.timeline.value.findIndex(layer => layer.id === payload.layerId);
+				index = getScene(state, payload.sceneId).layers.findIndex(layer => layer.id === payload.layerId);
 				if (index < 0) throw new Error('Timeline layer not found');
-				before = deepClone(state.timeline.value[index]);
-				state.timeline.value.splice(index, 1);
+				before = deepClone(getScene(state, payload.sceneId).layers[index]);
+				getScene(state, payload.sceneId).layers.splice(index, 1);
 			},
-			undo(state) { state.timeline.value.splice(index, 0, deepClone(before)); },
+			undo(state) { getScene(state, payload.sceneId).layers.splice(index, 0, deepClone(before)); },
+		};
+	},
+});
+
+// 配置先はCommandに保存する。Undo/Redo時のUIの選択Sceneには依存させない。
+function validateSceneLayerPlacement(state: AppState, sceneId: string, layer: TimelineLayer) {
+	if (!isTimelineLayerTimingValid(layer)) throw new Error('Invalid layer timing');
+	if (layer.layerType !== 'scene') return;
+	if (!canReferenceScene(state.timelineScenes.value, sceneId, layer.sceneId)) throw new Error('Circular scene reference');
+	if (getSceneDuration(getScene(state, layer.sceneId)) <= 0) throw new Error('Cannot place an empty scene');
+}
+
+const addSceneCommandDef = defineCommand<TimelineScene>({
+	label: 'Add scene',
+	create: payload => ({
+		execute(state) {
+			validateTimelineScenes([...state.timelineScenes.value, payload]);
+			state.timelineScenes.value.push(deepClone(payload));
+		},
+		undo(state) { state.timelineScenes.value = state.timelineScenes.value.filter(scene => scene.id !== payload.id); },
+	}),
+});
+
+const renameSceneCommandDef = defineCommand<{ sceneId: string; name: string }>({
+	label: 'Rename scene',
+	create: payload => {
+		let before: string;
+		return {
+			execute(state) { const scene = getScene(state, payload.sceneId); before = scene.name; scene.name = payload.name; },
+			undo(state) { getScene(state, payload.sceneId).name = before; },
+		};
+	},
+});
+
+const removeSceneCommandDef = defineCommand<{ sceneId: string }>({
+	label: 'Remove scene',
+	create: payload => {
+		let before: TimelineScene;
+		let index: number;
+		return {
+			execute(state) {
+				const references = state.timelineScenes.value.filter(scene => scene.layers.some(layer => layer.layerType === 'scene' && layer.sceneId === payload.sceneId));
+				if (references.length > 0) throw new Error('Scene is used by: ' + references.map(scene => scene.name).join(', '));
+				before = deepClone(getScene(state, payload.sceneId));
+				index = state.timelineScenes.value.findIndex(scene => scene.id === payload.sceneId);
+				state.timelineScenes.value.splice(index, 1);
+			},
+			undo(state) { state.timelineScenes.value.splice(index, 0, deepClone(before)); },
+		};
+	},
+});
+
+const addSceneLayerCommandDef = defineCommand<{ sceneId: string; layer: TimelineSceneLayer }>({
+	label: 'Add scene layer',
+	create: payload => ({
+		execute(state) {
+			validateSceneLayerPlacement(state, payload.sceneId, payload.layer);
+			getScene(state, payload.sceneId).layers.unshift(deepClone(payload.layer));
+		},
+		undo(state) { const scene = getScene(state, payload.sceneId); scene.layers = scene.layers.filter(layer => layer.id !== payload.layer.id); },
+	}),
+});
+
+const editSceneLayerTimingCommandDef = defineCommand<{ sceneId: string; layerId: string } & TimelineLayerTiming>({
+	label: 'Edit scene layer timing',
+	create: payload => {
+		let before: TimelineLayerTiming;
+		const getLayer = (state: AppState) => {
+			const layer = getScene(state, payload.sceneId).layers.find(layer => layer.id === payload.layerId);
+			if (layer?.layerType !== 'scene') throw new Error('Scene layer not found');
+			return layer;
+		};
+		return {
+			execute(state) {
+				const { positionMs, trimStartMs, trimmedDurationMs } = payload;
+				if (!isTimelineLayerTimingValid(payload)) throw new Error('Invalid layer timing');
+				const layer = getLayer(state);
+				before = { positionMs: layer.positionMs, trimStartMs: layer.trimStartMs, trimmedDurationMs: layer.trimmedDurationMs };
+				Object.assign(layer, { positionMs, trimStartMs, trimmedDurationMs });
+			},
+			undo(state) { Object.assign(getLayer(state), before); },
 		};
 	},
 });
 
 export const COMMAND_DEFS = {
+	addScene: addSceneCommandDef,
+	renameScene: renameSceneCommandDef,
+	removeScene: removeSceneCommandDef,
+	addSceneLayer: addSceneLayerCommandDef,
+	editSceneLayerTiming: editSceneLayerTimingCommandDef,
 	pasteTimelineLayer: pasteTimelineLayerCommandDef,
 	reorderTimelineLayers: reorderTimelineLayersCommandDef,
 	addInlineVisualModuleLayer: addInlineVisualModuleLayerCommandDef,

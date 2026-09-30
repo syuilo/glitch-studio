@@ -1,7 +1,8 @@
 import { ref } from 'vue';
 import workletUrl from './timeline-audio.worklet.js?url';
 import type { Asset } from '@glitch/shared/types.ts';
-import type { Timeline } from '@glitch/shared/timeline/types.ts';
+import { getSceneAudioClips } from '@glitch/shared/timeline/scene-audio.ts';
+import type { TimelineScene } from '@glitch/shared/timeline/types.ts';
 
 type Clock = { contextFrame: number; playedFrames: number; running: boolean };
 
@@ -20,7 +21,7 @@ export class TimelineAudioPreview {
 	private requestedTime = 0;
 	private rate = 48000;
 
-	constructor(private getOutput: () => Promise<GainNode>, private getProject: () => { assets: Asset[]; timeline: Timeline }) {}
+	constructor(private getOutput: () => Promise<GainNode>, private getProject: () => { assets: Asset[]; timelineScenes: TimelineScene[]; sceneId: string | null }) {}
 
 	start(time: number, duration: number) {
 		this.stop();
@@ -76,10 +77,10 @@ export class TimelineAudioPreview {
 			}
 		};
 		const project = this.getProject();
-		const layers = project.timeline.filter(layer => layer.layerType === 'audio');
-		const assetIds = new Set(layers.map(layer => layer.assetId));
+		const clips = project.sceneId == null ? [] : getSceneAudioClips(project.timelineScenes, project.sceneId);
+		const assetIds = new Set(clips.map(clip => clip.layer.assetId));
 		worker.postMessage({
-			type: 'start', assets: project.assets.filter(asset => assetIds.has(asset.id)), layers,
+			type: 'start', assets: project.assets.filter(asset => assetIds.has(asset.id)), clips,
 			sampleRate: this.rate, startFrame: this.startFrame, endFrame: this.endFrame,
 		});
 		// 最大1秒を先読みする。消費したチャンク分だけ補充し、長さに比例してメモリを使わない。

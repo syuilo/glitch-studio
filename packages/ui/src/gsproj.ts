@@ -1,8 +1,9 @@
+import { validateTimelineScenes } from '@glitch/shared/timeline/scenes.ts';
 import * as msgpack from '@msgpack/msgpack';
 import semverGt from 'semver/functions/gt.js';
 import type { Asset, Player } from '@glitch/shared/types.js';
 import type { ProjectVisualModule } from '@glitch/shared/project/types.ts';
-import type { Timeline } from '@glitch/shared/timeline/types.ts';
+import type { TimelineScene } from '@glitch/shared/timeline/types.ts';
 
 export const DEFAULT_PROJECT_NAME = 'Untitled Project';
 
@@ -18,7 +19,7 @@ export type Project = ProjectInfo & {
 	visualModules: ProjectVisualModule[];
 	assets: Asset[];
 	players: Player[];
-	timeline: Timeline;
+	timelineScenes: TimelineScene[];
 	resolution: { width: number; height: number; };
 };
 
@@ -41,6 +42,7 @@ export function decodeProjectFile(bin: Uint8Array, currentVersion?: string): Pro
 	if (currentVersion != null && semverGt(project.gsVersion, currentVersion)) {
 		throw new Error(`未来のバージョンのプロジェクトファイルの読み込みはサポートしていません。（ファイル: ${project.gsVersion} / 現在: ${currentVersion}）`);
 	}
+	validateTimelineScenes(project.timelineScenes);
 	return {
 		...project,
 		assets: project.assets.map(asset => ({

@@ -1,4 +1,7 @@
-import { createUntrimmedTimelineLayerTiming, getTimelineLayerEnd } from '@glitch/shared/timeline/timing.ts';
+import { timelineLayerClipboard } from './utility/timeline-editor-state.ts';
+import { getSceneDuration, validateTimelineScenes } from '@glitch/shared/timeline/scenes.ts';
+import { getSceneAudioClips } from '@glitch/shared/timeline/scene-audio.ts';
+import { createUntrimmedTimelineLayerTiming } from '@glitch/shared/timeline/timing.ts';
 import { visualModuleCustomParameterId, visualModuleCustomParameterName } from '@glitch/shared/visual-module/types.ts';
 import { computed, ref, markRaw, watch } from 'vue';
 import { deepClone } from '@glitch/shared/utility/deep-clone.ts';
@@ -29,6 +32,14 @@ import * as ui from '@/ui.ts';
 import * as api from '@/api.ts';
 
 export const appStateManager = new AppStateManager();
+export const activeSceneId = ref<string | null>(null);
+export const activeScene = computed(() => appStateManager.state.timelineScenes.value.find(scene => scene.id === activeSceneId.value) ?? null);
+const scenePlaybackTimes = new Map<string, number>();
+let pendingSceneSeek: number | null = null;
+// Sceneを削除・Undoした場合にも、UIが存在しないSceneを編集し続けないようにする。
+watch(() => appStateManager.state.timelineScenes.value.map(scene => scene.id), ids => {
+	if (activeSceneId.value == null || !ids.includes(activeSceneId.value)) activeSceneId.value = ids[0] ?? null;
+}, { flush: 'sync' });
 // プロジェクト情報はUndo/Redoの管理対象に含めない。
 export const projectInfo = ref<ProjectInfo>({ name: DEFAULT_PROJECT_NAME, description: '', author: '' });
 
@@ -89,12 +100,18 @@ export const timelineRendererManagerController = markRaw(new TimelineRendererMan
 
 export const timelineAudioPreview = markRaw(new TimelineAudioPreview(
 	() => audioOutput.getOutput(),
-	() => ({ assets: deepClone(appStateManager.state.assets.value), timeline: deepClone(appStateManager.state.timeline.value) }),
+	() => ({ assets: deepClone(appStateManager.state.assets.value), timelineScenes: deepClone(appStateManager.state.timelineScenes.value), sceneId: activeSceneId.value }),
 ));
 export const previewPlayback = markRaw(new PreviewPlaybackController(
 	visualModuleRendererManagerController, timelineRendererManagerController, () => fpsLimit.value,
-	() => appStateManager.state.timeline.value.reduce((end, layer) => Math.max(end, getTimelineLayerEnd(layer)), 0), timelineAudioPreview,
+	() => activeScene.value == null ? 0 : getSceneDuration(activeScene.value), timelineAudioPreview,
 ));
+watch(activeSceneId, (sceneId, previousId) => {
+	// 音声更新のwatchより前に旧Sceneの時計を止め、切替先の長さで位置を丸めない。
+	previewPlayback.pauseTimeline();
+	if (previousId != null) scenePlaybackTimes.set(previousId, previewPlayback.currentTimelineTime.value);
+	pendingSceneSeek = sceneId == null ? 0 : scenePlaybackTimes.get(sceneId) ?? 0;
+}, { flush: 'sync' });
 export const activePreviewRenderer = computed(() => previewPlayback.state.value.mode === 'live'
 	? visualModuleRendererManagerController : timelineRendererManagerController);
 
@@ -172,6 +189,9 @@ let projectFileHandle: FileSystemFileHandle | null = null;
 let savingProject = false;
 
 export async function appReady(project: Project, fileName = 'untitled.gsproj', fileHandle: FileSystemFileHandle | null = null) {
+	validateTimelineScenes(project.timelineScenes);
+	timelineLayerClipboard.layer = null;
+	scenePlaybackTimes.clear();
 	// 画像からの新規作成とプロジェクト読込で同じ基準を使い、初回のGPU初期化にも反映する。
 	const maxDimension = Math.max(project.resolution.width, project.resolution.height);
 	const initialResolutionFactor = maxDimension > 3000 ? 0.25 : maxDimension > 1500 ? 0.5 : 1;
@@ -190,7 +210,7 @@ export async function appReady(project: Project, fileName = 'untitled.gsproj', f
 	previewPlayback.dispose();
 	// 同じIDのプロジェクトを再読込した場合も、以前の再生・ノード履歴を引き継がない。
 	await updatePreviewOptions({ assets: [], visualModules: [] });
-	await timelineRendererManagerController.updateDynamicOptions({ timeline: [] });
+	await timelineRendererManagerController.updateDynamicOptions({ timelineScenes: [], sceneId: null });
 	await visualModuleRendererManagerController.updatePlayers([]);
 
 	appStateManager.state.resolution.value = project.resolution;
@@ -198,14 +218,17 @@ export async function appReady(project: Project, fileName = 'untitled.gsproj', f
 	appStateManager.state.assets.value = project.assets;
 	appStateManager.state.visualModules.value = project.visualModules;
 	appStateManager.state.players.value = project.players;
-	appStateManager.state.timeline.value = project.timeline;
+	appStateManager.state.timelineScenes.value = project.timelineScenes;
+	activeSceneId.value = project.timelineScenes[0]?.id ?? null;
+	scenePlaybackTimes.clear();
+	pendingSceneSeek = null;
 	appStateManager.undoStack.value = [];
 	appStateManager.redoStack.value = [];
 	await updatePreviewOptions({
 		assets: deepClone(project.assets),
 		visualModules: deepClone(project.visualModules),
 	});
-	await timelineRendererManagerController.updateDynamicOptions({ timeline: deepClone(project.timeline) });
+	await timelineRendererManagerController.updateDynamicOptions({ timelineScenes: deepClone(project.timelineScenes), sceneId: activeSceneId.value });
 	await visualModuleRendererManagerController.updatePlayers(deepClone(project.players));
 	projectMetadata = { id: project.id };
 	projectInfo.value = { name: project.name, description: project.description, author: project.author };
@@ -215,12 +238,11 @@ export async function appReady(project: Project, fileName = 'untitled.gsproj', f
 	// 音声の内容・参照素材・ループ長だけを比較する。Blobは不変なので同一性で判定し、
 	// 素材名や映像パラメータの編集では再生中のWorkerと先読みPCMを維持する。
 	projectWatchers.push(watch(() => {
-		const timeline = appStateManager.state.timeline.value;
-		const layers = timeline.filter(layer => layer.layerType === 'audio');
-		const assetIds = new Set(layers.map(layer => layer.assetId));
+		const layers = activeSceneId.value == null ? [] : getSceneAudioClips(appStateManager.state.timelineScenes.value, activeSceneId.value);
+		const assetIds = new Set(layers.map(clip => clip.layer.assetId));
 		return {
 			layers: deepClone(layers),
-			duration: timeline.reduce((end, layer) => Math.max(end, getTimelineLayerEnd(layer)), 0),
+			duration: activeScene.value == null ? 0 : getSceneDuration(activeScene.value),
 			files: new Map(appStateManager.state.assets.value.filter(asset => assetIds.has(asset.id)).map(asset => [asset.id, asset.fileData])),
 		};
 	}, (next, previous) => {
@@ -251,10 +273,18 @@ export async function appReady(project: Project, fileName = 'untitled.gsproj', f
 		previewPlayback.refresh();
 	}, { deep: true }));
 
-	projectWatchers.push(watch(appStateManager.state.timeline, async () => {
-		await timelineRendererManagerController.updateDynamicOptions({ timeline: deepClone(appStateManager.state.timeline.value) });
-		// 編集・Undo/Redo後は現在位置を描き直す。LIVE中はその表示を維持する。
-		previewPlayback.refresh();
+	let sceneUpdateGeneration = 0;
+	projectWatchers.push(watch([appStateManager.state.timelineScenes, activeSceneId], async ([, sceneId], _previous, onCleanup) => {
+		const generation = ++sceneUpdateGeneration;
+		let cancelled = false;
+		onCleanup(() => { cancelled = true; });
+		await timelineRendererManagerController.updateDynamicOptions({ timelineScenes: deepClone(appStateManager.state.timelineScenes.value), sceneId });
+		if (cancelled || generation !== sceneUpdateGeneration) return;
+		if (pendingSceneSeek != null) {
+			const time = pendingSceneSeek;
+			pendingSceneSeek = null;
+			previewPlayback.seekTimeline(time);
+		} else previewPlayback.refresh();
 	}, { deep: true }));
 
 	previewPlayback.seekTimeline(0);
@@ -274,7 +304,7 @@ export async function saveProject(saveAs = false) {
 			visualModules: appStateManager.state.visualModules.value,
 			assets: appStateManager.state.assets.value,
 			players: appStateManager.state.players.value,
-			timeline: appStateManager.state.timeline.value,
+			timelineScenes: appStateManager.state.timelineScenes.value,
 			resolution: appStateManager.state.resolution.value,
 		} satisfies Project);
 		const handle = await saveProjectFile(project, projectFileName, saveAs ? null : projectFileHandle);
@@ -350,7 +380,7 @@ export async function newProject() {
 		visualModules: [initialVisualModule],
 		assets: [],
 		players: [],
-		timeline: [{
+		timelineScenes: [{ id: genId(), name: 'Scene 1', layers: [{
 			id: genId(),
 			layerType: 'visualModule',
 			visualModuleId: initialVisualModule.id,
@@ -364,7 +394,7 @@ export async function newProject() {
 			}),
 			automationGraphs: [],
 			...createUntrimmedTimelineLayerTiming(0, 1000 * 10),
-		}],
+		}] }],
 		resolution: { width: 1024, height: 1024 },
 	});
 }
@@ -470,7 +500,7 @@ export async function newProjectFromImageOrVideo(file?: File) {
 		visualModules: [initialVisualModule],
 		assets: [asset],
 		players: player ? [player] : [],
-		timeline: [{
+		timelineScenes: [{ id: genId(), name: 'Scene 1', layers: [{
 			id: genId(),
 			layerType: 'visualModule',
 			visualModuleId: initialVisualModule.id,
@@ -484,7 +514,7 @@ export async function newProjectFromImageOrVideo(file?: File) {
 			}),
 			automationGraphs: [],
 			...createUntrimmedTimelineLayerTiming(0, 1000 * 10),
-		}],
+		}] }],
 		resolution: { width: result.width || 1024, height: result.height || 1024 },
 	});
 

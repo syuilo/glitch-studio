@@ -90,7 +90,7 @@ test('loads a MessagePack project and handles cancellation and invalid data', as
 	const cancelled = loadProjectFile();
 	input.dispatchEvent(new Event('cancel'));
 	assert.equal(await cancelled, null);
-	const project = { id: 'project', gsVersion: '2.0.0-alpha.2', name: 'Test', visualModules: [], assets: [], players: [], timeline: [] };
+	const project = { id: 'project', gsVersion: '2.0.0-alpha.2', name: 'Test', visualModules: [], assets: [], players: [], timelineScenes: [] };
 	const loaded = loadProjectFile();
 	input.files = [new File([encode(project)], 'test.gsproj')];
 	input.dispatchEvent(new Event('change'));

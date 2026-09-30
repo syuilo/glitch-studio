@@ -117,12 +117,12 @@ test('renders inline definitions without a registry and matches referenced modul
 	const { manager, calls } = fixture(t);
 	const module = visualModule();
 	const inline = layer('inline', module);
-	await manager.updateDynamicOptions({ timeline: [inline], visualModules: [] });
+	await manager.updateDynamicOptions({ timelineScenes: [{ id: 'scene', name: 'Scene', layers: [inline] }], sceneId: 'scene', visualModules: [] });
 	await manager.renderTimelineAt(350);
 	assert.deepEqual(calls.outputs.at(-1), { kind: 'uniform', value: [0.5, 0, 0, 0.5] });
 	assert.deepEqual(calls.errors, []);
 	const { visualModule: _, ...reference } = inline;
-	await manager.updateDynamicOptions({ timeline: [{ ...reference, layerType: 'visualModule', visualModuleId: 'registered' }], visualModules: [{ ...module, id: 'registered', name: 'Registered' }] });
+	await manager.updateDynamicOptions({ timelineScenes: [{ id: 'scene', name: 'Scene', layers: [{ ...reference, layerType: 'visualModule', visualModuleId: 'registered' }] }], sceneId: 'scene', visualModules: [{ ...module, id: 'registered', name: 'Registered' }] });
 	await manager.renderTimelineFrame(350, 0);
 	assert.deepEqual(calls.outputs[0], calls.outputs[1]);
 });
@@ -136,14 +136,14 @@ test('passes the referenced layer output through an inline primary input', async
 	const top = layer('top', visualModule({ primaryInput: true }));
 	await manager.updateDynamicOptions({
 		visualModules: [{ ...source, id: 'registered', name: 'Source' }],
-		timeline: [{ ...bottom, layerType: 'visualModule', visualModuleId: 'registered' }, top],
+		timelineScenes: [{ id: 'scene', name: 'Scene', layers: [{ ...bottom, layerType: 'visualModule', visualModuleId: 'registered' }, top] }], sceneId: 'scene',
 	});
 	await manager.renderTimelineFrame(350, 0);
 	const texture = calls.renders[0].outputDataMap.output.texture;
 	assert.equal(calls.outputs.at(-1).texture, texture);
 	assert.equal(texture.destroyed, false);
 	assert.equal(calls.passes.length, 0);
-	assert.deepEqual(calls.statuses[0].source, { type: 'timelineLayer', layerId: 'bottom', instanceId: calls.statuses[0].source.instanceId });
+	assert.deepEqual(calls.statuses[0].source, { type: 'timelineLayer', rootSceneId: 'scene', layerPath: ['bottom'], layerId: 'bottom', instanceId: calls.statuses[0].source.instanceId });
 });
 
 // 【モジュール内部とレイヤー引数の評価スコープを分離する】
@@ -159,7 +159,7 @@ test('isolates inline module scopes and passes local time and export context', a
 	module.paramDefs.push({ ...scalar, id: 'amount', nameForReference: 'Amount' });
 	module.automationGraphs = [graph(7)];
 	const entry = layer('inline', module, { automationGraphs: [graph(4)], paramValues: { amount: expression('GRAPH("Graph", 0, "clamp") + TEST_SAME_NAME') } });
-	await manager.updateDynamicOptions({ timeline: [entry] });
+	await manager.updateDynamicOptions({ timelineScenes: [{ id: 'scene', name: 'Scene', layers: [entry] }], sceneId: 'scene' });
 	await manager.renderTimelineFrame(350, 50);
 	const { input, ...values } = calls.renders.at(-1).params;
 	assert.deepEqual(values, { amount: 6, local: 7, caller: 1, localTime: 250, duration: 1000, exported: 1, forbidden: 0, directForbidden: 0 });
@@ -175,7 +175,7 @@ test('retains independent instances and disposes inactive or edited inline layer
 	const { manager, calls } = fixture(t);
 	const first = layer('first', visualModule({ params: { amount: literal(1) } }), { trimmedDurationMs: 400 });
 	const second = layer('second', visualModule({ params: { amount: literal(2) } }));
-	await manager.updateDynamicOptions({ timeline: [first, second] });
+	await manager.updateDynamicOptions({ timelineScenes: [{ id: 'scene', name: 'Scene', layers: [first, second] }], sceneId: 'scene' });
 	await manager.renderTimelineFrame(100, 50);
 	await manager.renderTimelineFrame(150, 50);
 	assert.equal(calls.instances.length, 2);
@@ -189,7 +189,7 @@ test('retains independent instances and disposes inactive or edited inline layer
 	assert.equal(calls.statuses.some(event => event.source.layerId === 'first' && event.status === null), true);
 	const edited = structuredClone(second);
 	edited.visualModule.nodes.find(node => node.type === 'effect').params.amount = literal(9);
-	await manager.updateDynamicOptions({ timeline: [edited] });
+	await manager.updateDynamicOptions({ timelineScenes: [{ id: 'scene', name: 'Scene', layers: [edited] }], sceneId: 'scene' });
 	assert.equal(calls.instances[1].disposed, true);
 	const statusCount = calls.statuses.length;
 	calls.instances[1].reportStatus({ type: 'error', message: 'obsolete' });
@@ -207,19 +207,19 @@ test('applies opacity and the same transform uniforms to inline and referenced l
 	const top = layer('top', visualModule());
 	top.compositingParamValues.opacity = literal(0);
 	top.paramValues.input = literal([0, 1, 0, 1]);
-	await manager.updateDynamicOptions({ timeline: [bottom, top] });
+	await manager.updateDynamicOptions({ timelineScenes: [{ id: 'scene', name: 'Scene', layers: [bottom, top] }], sceneId: 'scene' });
 	await manager.renderTimelineFrame(100, 0);
 	assert.deepEqual(calls.outputs.at(-1), { kind: 'uniform', value: [0.5, 0, 0, 0.5] });
 	top.compositingParamValues.opacity = literal(0.5);
 	top.compositingParamValues.translation = literal([0.2, -0.3]);
 	top.compositingParamValues.rotation = literal(0.25);
-	await manager.updateDynamicOptions({ timeline: [top] });
+	await manager.updateDynamicOptions({ timelineScenes: [{ id: 'scene', name: 'Scene', layers: [top] }], sceneId: 'scene' });
 	await manager.renderTimelineFrame(100, 0);
 	assert.equal(calls.passes.length, 1);
 	assert.equal(calls.outputs.at(-1).kind, 'texture');
 	const inlineWrites = calls.writes.splice(0);
 	const { visualModule: module, ...reference } = top;
-	await manager.updateDynamicOptions({ timeline: [{ ...reference, layerType: 'visualModule', visualModuleId: 'registered' }], visualModules: [{ ...module, id: 'registered', name: 'Registered' }] });
+	await manager.updateDynamicOptions({ timelineScenes: [{ id: 'scene', name: 'Scene', layers: [{ ...reference, layerType: 'visualModule', visualModuleId: 'registered' }] }], sceneId: 'scene', visualModules: [{ ...module, id: 'registered', name: 'Registered' }] });
 	await manager.renderTimelineFrame(100, 0);
 	assert.equal(calls.passes.length, 2);
 	assert.deepEqual(calls.writes, inlineWrites);
@@ -231,14 +231,52 @@ test('reports invalid inline graphs, rejects exports and recovers after editing'
 	const { manager, calls } = fixture(t);
 	const module = visualModule({ params: { input: connection('node') } });
 	const entry = layer('inline', module);
-	await manager.updateDynamicOptions({ timeline: [entry] });
+	await manager.updateDynamicOptions({ timelineScenes: [{ id: 'scene', name: 'Scene', layers: [entry] }], sceneId: 'scene' });
 	await manager.renderTimelineAt(100);
 	assert.equal(calls.errors.at(-1), 'circular dependency detected');
 	await assert.rejects(manager.renderTimelineFrame(100, 0), /circular dependency detected/);
 	const repaired = structuredClone(entry);
 	repaired.visualModule.nodes.find(node => node.type === 'effect').params.input = connection('in', 'input');
-	await manager.updateDynamicOptions({ timeline: [repaired] });
+	await manager.updateDynamicOptions({ timelineScenes: [{ id: 'scene', name: 'Scene', layers: [repaired] }], sceneId: 'scene' });
 	await manager.renderTimelineAt(100);
 	assert.equal(calls.errors.at(-1), null);
 	assert.equal(calls.outputs.length, 1);
+});
+
+const sceneLayer = (id, sceneId, positionMs = 0) => ({
+	id, layerType: 'scene', sceneId, positionMs, trimStartMs: 0, trimmedDurationMs: 1000,
+	compositingParamValues: { ...layer('template', visualModule()).compositingParamValues },
+	audioParamValues: { volume: literal(1) }, automationGraphs: [],
+});
+
+// 【同じSceneの複数配置は内容時刻・履歴・通知の参照経路を分離する】
+// Scene定義を共有してもGPUの出力先や履歴を共有してはいけない。二回目の描画でも配置ごとに状態を維持する。
+test('isolates repeated scene instances and reports their placement paths', async t => {
+	const { manager, calls } = fixture(t);
+	const child = layer('inner', visualModule({ params: { localTime: expression('TIME_MS') } }), { positionMs: 0 });
+	await manager.updateDynamicOptions({ sceneId: 'root', timelineScenes: [
+		{ id: 'root', name: 'Root', layers: [sceneLayer('first', 'child'), sceneLayer('second', 'child', 50)] },
+		{ id: 'child', name: 'Child', layers: [child] },
+	] });
+	await manager.renderTimelineFrame(100, 0);
+	assert.deepEqual(calls.renders.map(call => call.params.localTime), [50, 100]);
+	assert.equal(calls.instances.length, 2);
+	assert.notEqual(calls.renders[0].outputDataMap.output.texture, calls.renders[1].outputDataMap.output.texture);
+	assert.deepEqual(new Set(calls.statuses.map(event => JSON.stringify(event.source.layerPath))), new Set(['["second","inner"]', '["first","inner"]']));
+	await manager.renderTimelineFrame(150, 50);
+	assert.deepEqual(calls.instances.map(instance => instance.renders), [2, 2]);
+	assert.deepEqual(calls.renders.slice(-2).map(call => call.timeDelta), [50, 50]);
+});
+
+// 【子Sceneは透明背景から合成し、親背景を暗黙のInへ流さない】
+// 親背景を取り込むと通常合成で背景が二重になり、Scene単独プレビューとも結果が変わる。
+test('starts nested scenes on transparent backgrounds and passes uniform outputs through', async t => {
+	const { manager, calls } = fixture(t);
+	await manager.updateDynamicOptions({ sceneId: 'root', timelineScenes: [
+		{ id: 'root', name: 'Root', layers: [sceneLayer('nested', 'child'), layer('background', visualModule(), { positionMs: 0 })] },
+		{ id: 'child', name: 'Child', layers: [layer('input', visualModule({ primaryInput: true }), { positionMs: 0 })] },
+	] });
+	await manager.renderTimelineFrame(100, 0);
+	assert.deepEqual(calls.outputs.at(-1), { kind: 'uniform', value: [0, 0, 0, 0] });
+	assert.equal(calls.passes.length, 0);
 });

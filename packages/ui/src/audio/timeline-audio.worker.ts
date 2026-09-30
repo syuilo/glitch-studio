@@ -1,9 +1,9 @@
 import { TimelineAudioRenderer } from '@glitch/audio-renderer/timeline-audio-renderer.ts';
 import { AssetAudioReader } from './asset-audio-reader.ts';
 import type { Asset } from '@glitch/shared/types.ts';
-import type { TimelineAudioLayer } from '@glitch/shared/timeline/types.ts';
+import type { SceneAudioClip } from '@glitch/shared/timeline/scene-audio.ts';
 
-type Start = { type: 'start'; assets: Asset[]; layers: TimelineAudioLayer[]; sampleRate: number; startFrame: number; endFrame: number };
+type Start = { type: 'start'; assets: Asset[]; clips: SceneAudioClip[]; sampleRate: number; startFrame: number; endFrame: number };
 let reader: AssetAudioReader;
 let renderer: TimelineAudioRenderer;
 let settings: Start;
@@ -25,7 +25,7 @@ self.onmessage = ({ data }: MessageEvent<Start | { type: 'pull' }>) => {
 		const channels = [new Float32Array(size), new Float32Array(size)];
 		for (let offset = 0; offset < size;) {
 			const count = Math.min(size - offset, settings.endFrame - frame);
-			const part = await renderer.render(settings.layers, frame, count, settings.sampleRate);
+			const part = await renderer.renderClips(settings.clips, frame, count, settings.sampleRate);
 			channels.forEach((channel, index) => channel.set(part[index], offset));
 			frame = (frame + count) % settings.endFrame;
 			offset += count;

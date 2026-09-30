@@ -254,7 +254,7 @@ function openHeaderFileMenu(ev: PointerEvent) {
 			savePreviewSnapshot();
 		},
 	}, {
-		text: 'Export Timeline As Video...',
+		text: 'Export Scene...',
 		action: () => {
 			const { dispose } = ui.popup(GsTimelineExportDialog, {}, { closed: () => dispose() });
 		},

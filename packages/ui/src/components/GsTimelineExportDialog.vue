@@ -1,7 +1,8 @@
 <template>
 <GsModal ref="modal" preferType="dialog" @opened="dialogContent?.focus()" @closed="emit('closed')" @esc="closeDialog" @click="closeDialog" @dragover.prevent.stop @drop.prevent.stop>
 	<div ref="dialogContent" :class="$style.root" class="_gaps_s" tabindex="-1" @keydown.stop @keydown.esc.prevent="closeDialog">
-		<div :class="$style.title">Export timeline</div>
+		<div :class="$style.title">Export scene</div>
+		<GsSelect v-model="sceneId" :items="sceneItems" :disabled="exporting"><template #label>Scene</template></GsSelect>
 		<div :inert="exporting">
 			<GsTabs v-model="mode" :def="[{ id: 'video', label: 'Video' }, { id: 'still', label: 'Still image' }]"/>
 		</div>
@@ -23,7 +24,7 @@
 			<GsInput v-model="startTime" placeholder="00:00:00.000" :disabled="exporting"><template #label>{{ mode === 'video' ? 'Start' : 'Time' }} (HH:MM:SS.mmm)</template></GsInput>
 			<GsInput v-if="mode === 'video'" v-model="endTime" placeholder="00:00:00.000" :disabled="exporting"><template #label>End (HH:MM:SS.mmm)</template></GsInput>
 		</div>
-		<GsButton inline :disabled="exporting" @click="startTime = formatExportTime(currentTimelineTime)">Use current playhead</GsButton>
+		<GsButton inline :disabled="exporting || sceneId !== activeSceneId" @click="startTime = formatExportTime(currentTimelineTime)">Use current playhead</GsButton>
 		<div>Estimated size: {{ estimatedSize }}</div>
 		<div v-if="mode === 'video'" :class="$style.note">{{ includesAudio ? 'Audio layers included: AAC, 48 kHz, stereo, 192 kbps.' : 'No audio layers in the selected range.' }}</div>
 		<div :class="$style.note">{{ mode === 'video' ? 'No Player inputs. Transparent areas use a black background.' : 'No Player inputs. Transparency is preserved.' }}</div>
@@ -44,7 +45,8 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, onBeforeUnmount, ref, useTemplateRef } from 'vue';
+import { computed, onBeforeUnmount, ref, watch, useTemplateRef } from 'vue';
+import { getSceneDuration } from '@glitch/shared/timeline/scenes.ts';
 import { deepClone } from '@glitch/shared/utility/deep-clone.ts';
 import GsModal from './common/GsModal.vue';
 import GsButton from './common/GsButton.vue';
@@ -52,12 +54,12 @@ import GsInput from './common/GsInput.vue';
 import GsSelect from './common/GsSelect.vue';
 import GsTabs from './common/GsTabs.vue';
 import type { ExportProgress, ExportQuality, TimelineExportSettings } from '@/export/timeline-export.ts';
-import { appStateManager, projectInfo, previewPlayback, suspendPreview, resumePreview } from '@/app.ts';
+import { appStateManager, activeSceneId, projectInfo, previewPlayback, suspendPreview, resumePreview } from '@/app.ts';
 import { preferences } from '@/preferences.ts';
 import { exportTimeline } from '@/export/client.ts';
-import { getTimelineEnd, validateExportSettings } from '@/export/timeline-export.ts';
+import { validateExportSettings } from '@/export/timeline-export.ts';
 import { estimateExportBytes, formatExportTime, parseExportTime, scaleExportResolution } from '@/export/export-settings.ts';
-import { getExportAudioLayers, MP4_AUDIO_BITRATE } from '@/export/audio-export-settings.ts';
+import { getExportAudioClips, MP4_AUDIO_BITRATE } from '@/export/audio-export-settings.ts';
 
 const currentTimelineTime = previewPlayback.currentTimelineTime;
 
@@ -68,6 +70,9 @@ const emit = defineEmits<{
 	(ev: 'closed'): void;
 }>();
 
+const sceneId = ref('');
+const sceneItems = computed(() => [{ label: 'Choose scene', value: '' }, ...appStateManager.state.timelineScenes.value.map(scene => ({ label: scene.name, value: scene.id }))]);
+const scene = computed(() => appStateManager.state.timelineScenes.value.find(scene => scene.id === sceneId.value));
 const mode = ref('video');
 const videoFormat = ref<'mp4'>('mp4');
 const stillFormat = ref<'webp'>('webp');
@@ -92,7 +97,8 @@ const resolutionOptions = [0.25, 0.5, 1, 2, 4].map(value => ({ value, label: `${
 const resolution = computed(() => scaleExportResolution(appStateManager.state.resolution.value, resolutionScale.value, mode.value === 'video' ? 'mp4' : 'webp'));
 const fps = ref(60);
 const startTime = ref('00:00:00.000');
-const endTime = ref(formatExportTime(getTimelineEnd(appStateManager.state.timeline.value)));
+const endTime = ref(formatExportTime(0));
+watch(sceneId, () => { startTime.value = formatExportTime(0); endTime.value = formatExportTime(scene.value == null ? 0 : getSceneDuration(scene.value)); });
 const exporting = ref(false);
 const error = ref('');
 const status = ref('');
@@ -107,10 +113,12 @@ const settings = computed<TimelineExportSettings>(() => {
 		: { ...common, format: 'mp4', quality: videoQuality.value, fps: fps.value, endTimeMs: parseExportTime(endTime.value) };
 });
 const validationError = computed(() => {
+	if (scene.value == null) return 'Choose a scene to export.';
+	if (getSceneDuration(scene.value) <= 0) return 'Cannot export an empty scene.';
 	if (mode.value === 'video' && !Number.isFinite(parseExportTime(endTime.value))) return 'Enter a valid end time (HH:MM:SS.mmm).';
 	return validateExportSettings(settings.value);
 });
-const includesAudio = computed(() => getExportAudioLayers(appStateManager.state.timeline.value, settings.value).length > 0);
+const includesAudio = computed(() => scene.value != null && getExportAudioClips(appStateManager.state.timelineScenes.value, sceneId.value, settings.value).length > 0);
 const estimatedSize = computed(() => {
 	if (validationError.value) return '—';
 	const bytes = estimateExportBytes(settings.value, includesAudio.value ? MP4_AUDIO_BITRATE : 0);
@@ -159,7 +167,8 @@ async function doExport() {
 			project: deepClone({
 				assets: appStateManager.state.assets.value,
 				visualModules: appStateManager.state.visualModules.value,
-				timeline: appStateManager.state.timeline.value,
+				timelineScenes: appStateManager.state.timelineScenes.value,
+				sceneId: sceneId.value,
 			}),
 			// 書き出し開始時の環境設定から独立した設定を作る。
 			// プレビュー用Controllerの初期化・再読み込み状態には依存しない。
@@ -170,7 +179,7 @@ async function doExport() {
 			},
 		}, signal, value => { progress.value = value; });
 		signal.throwIfAborted();
-		downloadName.value = `${projectInfo.value.name || 'timeline'}.${exportSettings.format}`;
+		downloadName.value = `${projectInfo.value.name || 'project'}-${scene.value?.name || 'scene'}.${exportSettings.format}`;
 		downloadUrl.value = URL.createObjectURL(new Blob([buffer], { type: exportSettings.format === 'mp4' ? 'video/mp4' : 'image/webp' }));
 		const link = window.document.createElement('a');
 		link.href = downloadUrl.value;

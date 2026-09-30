@@ -399,3 +399,21 @@ test('provides the background for compositing modules without a primary input', 
 	await layer.prepare(context, new AbortController().signal);
 	await layer.render(context);
 });
+
+// 【子Sceneの評価は最終表示せず、親の中断を非同期準備へ伝える】
+// Canvasへ子の中間結果を表示したり、古いシークの完了が新しいフレームを上書きしたりしない。
+test('evaluates offscreen results and propagates parent cancellation', async () => {
+	const waiting = deferred();
+	const f = fixture({ prepare: () => waiting.promise });
+	const controller = new AbortController();
+	const pending = f.renderer.evaluateAt(100, [entry('child')], 0, false, controller.signal);
+	controller.abort();
+	assert.equal(f.prepared[0].signal.aborted, true);
+	waiting.resolve();
+	assert.equal(await pending, undefined);
+	assert.deepEqual(f.presented, []);
+	const result = await f.renderer.evaluateAt(200, [], 0, false);
+	assert.deepEqual(result, { output: 'transparent', gpuTime: 0 });
+	assert.deepEqual(f.presented, []);
+	f.renderer.clear();
+});

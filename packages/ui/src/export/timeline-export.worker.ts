@@ -1,3 +1,4 @@
+import { getTimelineScene, getSceneDuration, validateTimelineScenes } from '@glitch/shared/timeline/scenes.ts';
 import { TimelineRendererManager } from '@glitch/renderer/timeline-renderer-manager.ts';
 import { effectDefinitions } from '@glitch/shared/effect/effect-definitions.ts';
 import { effectImplementations } from '@glitch/shared/effect/effect-implementations.js';
@@ -5,7 +6,7 @@ import { createMp4Writer } from './mp4-writer.ts';
 import { adjustExportResolution } from './export-settings.ts';
 import { encodeStillWebp } from './still-webp.ts';
 import { renderExportFrames, validateExportSettings } from './timeline-export.ts';
-import { getExportAudioLayers } from './audio-export-settings.ts';
+import { getExportAudioClips } from './audio-export-settings.ts';
 import { TimelineAudioExport } from './timeline-audio-export.ts';
 import type { ExportRequest, ExportResponse } from './types.ts';
 
@@ -26,14 +27,16 @@ self.onmessage = async (event: MessageEvent<ExportRequest>) => {
 		const { settings: requestedSettings, project, renderer: rendererSettings } = event.data;
 		// UI以外から呼ばれても、Canvasとエンコーダーに同じ調整済みサイズを使う。
 		const settings = { ...requestedSettings, ...adjustExportResolution(requestedSettings, requestedSettings.format) };
+		validateTimelineScenes(project.timelineScenes);
+		if (getSceneDuration(getTimelineScene(project.timelineScenes, project.sceneId)) <= 0) throw new Error('Cannot export an empty scene.');
 		const validationError = validateExportSettings(settings);
 		if (validationError) throw new Error(validationError);
 		send({ type: 'progress', progress: { phase: 'preparing', completedFrames: 0, totalFrames: 0 } });
 		const canvas = new OffscreenCanvas(settings.width, settings.height);
 		if (settings.format === 'mp4') {
-			const audioLayers = getExportAudioLayers(project.timeline, settings);
-			writer = await createMp4Writer(canvas, settings, audioLayers.length > 0);
-			if (audioLayers.length > 0) audio = new TimelineAudioExport(project.assets, audioLayers, settings);
+			const audioClips = getExportAudioClips(project.timelineScenes, project.sceneId, settings);
+			writer = await createMp4Writer(canvas, settings, audioClips.length > 0);
+			if (audioClips.length > 0) audio = new TimelineAudioExport(project.assets, audioClips, settings);
 		}
 		const adapter = await navigator.gpu?.requestAdapter({ powerPreference: 'high-performance' });
 		if (!adapter) throw new Error('WebGPU is unavailable.');

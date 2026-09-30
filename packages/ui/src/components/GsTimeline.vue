@@ -7,6 +7,11 @@
 		<span v-if="timelineAudioPreview.buffering.value">Buffering audio…</span>
 		<span v-if="audioError || timelineAudioPreview.error.value">{{ audioError || timelineAudioPreview.error.value }}</span>
 		<span class="_monospace">{{ formatMsToTimecode(time) }}</span>
+		<GsSelect v-model="sceneToAdd" small :items="sceneLayerItems"/>
+		<GsButton small :disabled="!availableScenes.some(scene => scene.id === sceneToAdd)" @click="addSceneLayer">Add scene layer</GsButton>
+		<GsSelect v-model="audioAssetId" small :items="audioAssetItems"/>
+		<GsButton small :disabled="addingAudio || !audioAssetId" @click="addSelectedAudio">Add audio</GsButton>
+		<GsButton small :disabled="addingAudio" @click="importAudioLayer">Import audio</GsButton>
 	</div>
 	<div :class="[$style.body, { [$style.panning]: panning }]" @mousedown.capture="onPanMousedown" @auxclick.capture="onPanAuxclick">
 		<div :class="$style.tlBgWrapper" data-timeline-surface>
@@ -23,7 +28,7 @@
 			</div>
 			<GsDraggable
 				:class="$style.layerList"
-				:modelValue="appStateManager.state.timeline.value"
+				:modelValue="sceneLayers"
 				direction="vertical"
 				manualDragStart
 				style="--DRAGGABLE_MARGIN: 4px;"
@@ -33,6 +38,7 @@
 				<template #default="{ item: layer, dragStart }">
 					<XLayer
 						:layer="layer"
+						:sceneId="sceneId"
 						:tlElWidth="tlElWidth"
 						:tlPosX="tlPosX"
 						:tlRangeX="tlRangeX"
@@ -124,7 +130,23 @@
 					:paramValue="selectedLayer.paramValues.volume"
 					@edit="event => onVisualModuleLayerParamEdit(event, 'audio')"
 				/>
-				<GsButton danger @click="appStateManager.commit('removeTimelineLayer', { layerId: selectedLayer.id })">Remove Layer</GsButton>
+				<GsButton danger @click="appStateManager.commit('removeTimelineLayer', { sceneId: props.sceneId, layerId: selectedLayer.id })">Remove Layer</GsButton>
+			</div>
+			<div v-else-if="selectedLayer?.layerType === 'scene'" :class="$style.layerSettings">
+				<div>{{ appStateManager.state.timelineScenes.value.find(scene => scene.id === (selectedLayer?.layerType === 'scene' ? selectedLayer.sceneId : ''))?.name }}</div>
+				<GsButton small @click="activeSceneId = selectedLayer.sceneId">Open scene</GsButton>
+				<GsInput small type="number" :min="-selectedLayer.trimStartMs" :modelValue="selectedLayer.positionMs" @update:modelValue="value => editAudioTiming('move', value)"><template #label>Position (ms)</template></GsInput>
+				<GsInput small type="number" :min="Math.max(0, selectedLayer.positionMs)" :max="getTimelineLayerEnd(selectedLayer) - 1" :modelValue="getTimelineLayerStart(selectedLayer)" @update:modelValue="value => editAudioTiming('trimStart', value)"><template #label>Trim start (ms)</template></GsInput>
+				<GsInput small type="number" :min="getTimelineLayerStart(selectedLayer) + 1" :modelValue="getTimelineLayerEnd(selectedLayer)" @update:modelValue="value => editAudioTiming('trimEnd', value)"><template #label>Trim end (ms)</template></GsInput>
+				<GsInput small type="number" :min="0" :modelValue="selectedLayer.trimStartMs" @update:modelValue="value => editAudioTiming('offset', value)"><template #label>Source offset (ms)</template></GsInput>
+				<div>Compositing</div>
+				<GsVisualParam v-for="(paramDef, paramId) in timelineCompositingParamDefs" :key="selectedLayer.id + ':' + paramId"
+					:availableVariables="LAYER_VAR_DEFS" :automationGraphs="selectedLayer.automationGraphs" :paramPath="[paramId]" :paramDef="paramDef"
+					:paramValue="selectedLayer.compositingParamValues[paramId]" @edit="event => onVisualModuleLayerParamEdit(event, 'compositing')"/>
+				<div>Audio</div>
+				<GsVisualParam :key="selectedLayer.id + ':volume'" :availableVariables="LAYER_VAR_DEFS" :automationGraphs="selectedLayer.automationGraphs"
+					:paramPath="['volume']" :paramDef="timelineAudioParamDefs.volume" :paramValue="selectedLayer.audioParamValues.volume" @edit="event => onVisualModuleLayerParamEdit(event, 'audio')"/>
+				<GsButton danger @click="appStateManager.commit('removeTimelineLayer', { sceneId: props.sceneId, layerId: selectedLayer.id })">Remove Layer</GsButton>
 			</div>
 			<div v-else-if="selectedLayer?.layerType === 'visualModule' || selectedLayer?.layerType === 'inlineVisualModule'">
 				<GsTabs v-if="selectedLayer.layerType === 'inlineVisualModule'" v-model="visualModuleLayerTab" :def="[{ id: 'settings', label: 'Layer settings' }, { id: 'module', label: 'Visual Module' }]"/>
@@ -169,7 +191,7 @@
 							@edit="event => onVisualModuleLayerParamEdit(event, 'module')"
 						/>
 					</template>
-					<GsButton danger @click="appStateManager.commit('removeTimelineLayer', { layerId: selectedLayer.id })">Remove Layer</GsButton>
+					<GsButton danger @click="appStateManager.commit('removeTimelineLayer', { sceneId: props.sceneId, layerId: selectedLayer.id })">Remove Layer</GsButton>
 				</div>
 			</div>
 		</Teleport>
@@ -203,7 +225,10 @@ import GsEffectPicker from './GsEffectPicker.vue';
 import GsTabs from './common/GsTabs.vue';
 import type { Asset } from '@glitch/shared/types.ts';
 import type { VisualModuleEdit } from '@/types/visual-module-editor.ts';
-import type { Timeline } from '@glitch/shared/timeline/types.ts';
+import { getSceneDuration, canReferenceScene } from '@glitch/shared/timeline/scenes.ts';
+import { sceneEditorStates, timelineLayerClipboard } from '@/utility/timeline-editor-state.ts';
+import { getLayerParameterValues } from '@/utility/timeline-scene.ts';
+import type { TimelineLayer } from '@glitch/shared/timeline/types.ts';
 import type { ParameterBinding, KeyframesTimelineKeyframe } from '@glitch/shared/types.ts';
 import type { TimelineKeyframeSelection } from './GsTimeline.Layer.vue';
 import type { ParamEdit } from './GsVisualParam.vue';
@@ -212,20 +237,29 @@ import { createInlineVisualModuleLayer } from '@/utility/inline-visual-module-la
 import { commitVisualModuleEdit } from '@/utility/visual-module-edit.ts';
 import * as api from '@/api.ts';
 import { openAssetAudio } from '@/audio/asset-audio-reader.ts';
-import { appStateManager, previewPlayback, timelineAudioPreview, timelineRendererManagerController, timelineSubPanelTeleportTargetAvailable } from '@/app.ts';
+import { appStateManager, activeSceneId, previewPlayback, timelineAudioPreview, timelineRendererManagerController, timelineSubPanelTeleportTargetAvailable } from '@/app.ts';
 import { dragListen } from '@/utility/drag.ts';
+
+const props = defineProps<{ sceneId: string }>();
+const editedScene = appStateManager.state.timelineScenes.value.find(scene => scene.id === props.sceneId)!;
+const editorState = sceneEditorStates.get(editedScene);
+let disposed = false;
+const sceneLayers = computed(() => appStateManager.state.timelineScenes.value.find(scene => scene.id === props.sceneId)?.layers ?? []);
+const availableScenes = computed(() => appStateManager.state.timelineScenes.value.filter(scene => getSceneDuration(scene) > 0 && canReferenceScene(appStateManager.state.timelineScenes.value, props.sceneId, scene.id)));
+const sceneToAdd = ref('');
+const sceneLayerItems = computed(() => [{ label: 'Choose scene to add', value: '' }, ...availableScenes.value.map(scene => ({ label: scene.name, value: scene.id }))]);
 
 const X_TICKS_HEIGHT = 20;
 const Y_TICKS_WIDTH = 0;
 
-function onLayersSorted(layers: Timeline) {
+function onLayersSorted(layers: TimelineLayer[]) {
 	const layerIds = layers.map(layer => layer.id);
-	if (layerIds.length === appStateManager.state.timeline.value.length && layerIds.every((id, index) => id === appStateManager.state.timeline.value[index]?.id)) return;
-	appStateManager.commit('reorderTimelineLayers', { layerIds });
+	if (layerIds.length === sceneLayers.value.length && layerIds.every((id, index) => id === sceneLayers.value[index]?.id)) return;
+	appStateManager.commit('reorderTimelineLayers', { sceneId: props.sceneId, layerIds });
 }
 
 const duration = computed(() => {
-	return appStateManager.state.timeline.value.reduce((max, layer) => Math.max(max, getTimelineLayerEnd(layer)), 0) ?? 0;
+	return sceneLayers.value.reduce((max, layer) => Math.max(max, getTimelineLayerEnd(layer)), 0) ?? 0;
 });
 const time = previewPlayback.currentTimelineTime;
 
@@ -234,9 +268,9 @@ const layersEl = useTemplateRef('layersEl');
 const panning = ref(false);
 const tlElWidth = ref(0);
 const tlElHeight = ref(0);
-const tlRangeX = ref(30000);
+const tlRangeX = ref(editorState?.rangeX ?? 30000);
 const tlRangeY = ref(5);
-const tlPosX = ref(-3000);
+const tlPosX = ref(editorState?.positionX ?? -3000);
 const tlPosY = ref(-2.5);
 const snappingY = ref<number | null>(null);
 const seekBarPos = computed(() => {
@@ -273,7 +307,7 @@ const selectedAreaElHeight = computed(() => {
 
 const layerRects = computed(() => {
 	const obj: Record<string, { left: number; width: number }> = {};
-	for (const layer of appStateManager.state.timeline.value) {
+	for (const layer of sceneLayers.value) {
 		const left = timeToDomX(getTimelineLayerStart(layer));
 		const width = timeToDomX(getTimelineLayerEnd(layer)) - left;
 		obj[layer.id] = { left, width };
@@ -281,8 +315,8 @@ const layerRects = computed(() => {
 	return obj;
 });
 
-const selectedLayerId = ref<string | null>(null);
-const selectedLayer = computed(() => appStateManager.state.timeline.value.find(layer => layer.id === selectedLayerId.value) ?? null);
+const selectedLayerId = ref<string | null>(editorState?.selectedLayerId ?? null);
+const selectedLayer = computed(() => sceneLayers.value.find(layer => layer.id === selectedLayerId.value) ?? null);
 const visualModuleLayerTab = ref('settings');
 const selectedLayerModule = computed(() => {
 	const layer = selectedLayer.value;
@@ -290,7 +324,7 @@ const selectedLayerModule = computed(() => {
 		: layer?.layerType === 'visualModule' ? appStateManager.getVisualModuleById(layer.visualModuleId) : null;
 });
 const inlineEffectStates = computed(() => previewPlayback.state.value.mode === 'timeline' && selectedLayer.value != null
-	? timelineRendererManagerController.getLayerEffectStates(selectedLayer.value.id) : undefined);
+	? timelineRendererManagerController.getLayerEffectStates(props.sceneId, selectedLayer.value.id) : undefined);
 
 const selectedKeyframeSelection = ref<TimelineKeyframeSelection | null>(null);
 const keyframeValueMergeKey = ref<string | null>(null);
@@ -298,14 +332,14 @@ const keyframeEditorKey = computed(() => JSON.stringify(selectedKeyframeSelectio
 const selectedKeyframe = computed(() => {
 	const selection = selectedKeyframeSelection.value;
 	if (selection == null) return null;
-	const layer = appStateManager.state.timeline.value.find(entry => entry.id === selection.layerId);
+	const layer = sceneLayers.value.find(entry => entry.id === selection.layerId);
 	if (layer == null || layer.layerType === 'effect') return null;
-	const values: Partial<Record<string, ParameterBinding>> = selection.target === 'compositing' && layer.layerType !== 'audio' ? layer.compositingParamValues : layer.paramValues;
+	const values: Partial<Record<string, ParameterBinding>> = getLayerParameterValues(layer, selection.target);
 	const binding = values[selection.paramId];
 	if (binding?.inputSource !== 'keyframesTimelineInline') return null;
-	const def = layer.layerType === 'audio' ? timelineAudioParamDefs.volume : selection.target === 'compositing'
+	const def = selection.target === 'audio' ? timelineAudioParamDefs.volume : selection.target === 'compositing'
 		? Object.entries(timelineCompositingParamDefs).find(([id]) => id === selection.paramId)?.[1]
-		: (layer.layerType === 'inlineVisualModule' ? layer.visualModule : appStateManager.getVisualModuleById(layer.visualModuleId))?.paramDefs.find(entry => entry.id === selection.paramId);
+		: (layer.layerType === 'inlineVisualModule' ? layer.visualModule : layer.layerType === 'visualModule' ? appStateManager.getVisualModuleById(layer.visualModuleId) : null)?.paramDefs.find(entry => entry.id === selection.paramId);
 	if (def == null || !(isParameterType(def, 'scalar') || isParameterType(def, 'vector') || isParameterType(def, 'color')) || def.dataType.kind !== binding.keyframesTimeline.dataType.kind) return null;
 	const keyframes = binding.keyframesTimeline.keyframes.toSorted((a, b) => a.x - b.x);
 	const index = keyframes.findIndex(entry => entry.id === selection.keyframeId);
@@ -335,7 +369,7 @@ function updateSelectedKeyframe(patch: Partial<Pick<KeyframesTimelineKeyframe, '
 	const keyframe = value.keyframesTimeline.keyframes.find(entry => entry.id === selected.selection.keyframeId);
 	if (keyframe == null) return;
 	Object.assign(keyframe, deepClone(patch));
-	appStateManager.commit('editTimelineLayerParam', {
+	appStateManager.commit('editTimelineLayerParam', { sceneId: props.sceneId,
 		layerId: selected.selection.layerId, target: selected.selection.target,
 		paramId: selected.selection.paramId,
 		edit: { kind: 'keyframesTimelineInline', value },
@@ -545,8 +579,6 @@ function onSeekBarMousedown(ev: MouseEvent) {
 	});
 }
 
-let copiedLayer: Timeline[number] | null = null;
-
 function onTlKeydown(ev: KeyboardEvent) {
 	if (ev.defaultPrevented || !(ev.ctrlKey || ev.metaKey) || ev.altKey || ev.shiftKey) return;
 	const target = ev.target;
@@ -558,16 +590,21 @@ function onTlKeydown(ev: KeyboardEvent) {
 		ev.stopPropagation();
 		if (ev.repeat) return;
 		// コピー後の編集がクリップボードの内容に影響しないよう、ここでスナップショットを作る。
-		copiedLayer = deepClone(selectedLayer.value);
+		timelineLayerClipboard.layer = deepClone(selectedLayer.value);
 	} else if (key === 'v') {
-		if (copiedLayer == null) return;
+		if (timelineLayerClipboard.layer == null) return;
 		ev.preventDefault();
 		ev.stopPropagation();
 		if (ev.repeat) return;
-		const layer = deepClone(copiedLayer);
+		const layer = deepClone(timelineLayerClipboard.layer);
 		layer.id = genId();
 		layer.positionMs = Math.max(0, time.value) - layer.trimStartMs;
-		appStateManager.commit('pasteTimelineLayer', { layer, sourceLayerId: copiedLayer.id });
+		try {
+			appStateManager.commit('pasteTimelineLayer', { sceneId: props.sceneId, layer, sourceLayerId: timelineLayerClipboard.layer.id });
+		} catch (error) {
+			void ui.alert({ type: 'error', text: error instanceof Error ? error.message : String(error) });
+			return;
+		}
 		selectLayer(layer);
 	}
 }
@@ -584,7 +621,7 @@ function formatMsToTimecode(ms: number) {
 	}
 }
 
-function selectLayer(layer: Timeline[number]) {
+function selectLayer(layer: TimelineLayer) {
 	selectedLayerId.value = layer.id;
 	selectedKeyframeSelection.value = null;
 	tlEl.value?.focus({ preventScroll: true });
@@ -596,17 +633,21 @@ function editVisualModuleTiming(target: 'position' | 'duration', value: string |
 	if (layer == null || !Number.isFinite(amount)) return;
 	const positionMs = target === 'position' ? Math.max(0, amount) : layer.positionMs;
 	const trimmedDurationMs = target === 'duration' ? Math.max(1, amount) : layer.trimmedDurationMs;
-	appStateManager.commit('editVisualModuleLayerTiming', { layerId: layer.id, positionMs, trimmedDurationMs });
+	appStateManager.commit('editVisualModuleLayerTiming', { sceneId: props.sceneId, layerId: layer.id, positionMs, trimmedDurationMs });
 }
 
 function onInlineVisualModuleEdit(event: VisualModuleEdit) {
 	const layer = selectedLayer.value;
 	if (layer?.layerType !== 'inlineVisualModule') return;
-	commitVisualModuleEdit(appStateManager, { inlineVisualModuleLayerId: layer.id }, event);
+	commitVisualModuleEdit(appStateManager, { sceneId: props.sceneId, inlineVisualModuleLayerId: layer.id }, event);
 }
 
 let disposeEffectPicker: (() => void) | undefined;
-onBeforeUnmount(() => disposeEffectPicker?.());
+onBeforeUnmount(() => {
+	disposed = true;
+	disposeEffectPicker?.();
+	sceneEditorStates.set(editedScene, { selectedLayerId: selectedLayerId.value, rangeX: tlRangeX.value, positionX: tlPosX.value });
+});
 
 function showAddInlineNodeMenu() {
 	const layer = selectedLayer.value;
@@ -616,8 +657,8 @@ function showAddInlineNodeMenu() {
 	const { dispose } = ui.popup(GsEffectPicker, {}, {
 		chosen: effect => {
 			// 選択変更やレイヤー削除を挟んでも、ピッカーを開いた対象にだけ追加する。
-			if (!appStateManager.state.timeline.value.some(layer => layer.id === layerId && layer.layerType === 'inlineVisualModule')) return;
-			appStateManager.commit('addEffectNode', { inlineVisualModuleLayerId: layerId, effectId: effect.id, id: genId() });
+			if (!sceneLayers.value.some(layer => layer.id === layerId && layer.layerType === 'inlineVisualModule')) return;
+			appStateManager.commit('addEffectNode', { sceneId: props.sceneId, inlineVisualModuleLayerId: layerId, effectId: effect.id, id: genId() });
 		},
 		closed: () => {
 			dispose();
@@ -633,7 +674,7 @@ function onVisualModuleLayerParamEdit(event: ParamEdit, target: 'module' | 'comp
 	if (layer == null || event.paramPath.length !== 1) return;
 	if (event.kind === 'node' || event.kind === 'externalCustomParameterInput' || event.kind === 'addElement' || event.kind === 'removeElement') return;
 	if (event.kind === 'inputSource' && (event.inputSource === 'node' || event.inputSource === 'externalCustomParameterInput')) return;
-	appStateManager.commit('editTimelineLayerParam', {
+	appStateManager.commit('editTimelineLayerParam', { sceneId: props.sceneId,
 		layerId: layer.id,
 		target,
 		paramId: String(event.paramPath[0]),
@@ -654,7 +695,7 @@ async function importAudioLayer() {
 	const projectAssets = appStateManager.state.assets.value;
 	try {
 		const result = await api.openMediaFile();
-		if (!result || appStateManager.state.assets.value !== projectAssets) return;
+		if (disposed || !result || appStateManager.state.assets.value !== projectAssets) return;
 		await addAudioLayer({ id: genId(), name: result.name, width: result.width, height: result.height, fileDataType: result.type, fileData: result.fileData }, true);
 	} catch (error) { audioError.value = error instanceof Error ? error.message : String(error); }
 }
@@ -663,21 +704,21 @@ async function addAudioLayer(asset: Asset, addAsset: boolean) {
 	if (addingAudio.value) return;
 	addingAudio.value = true;
 	audioError.value = null;
-	const timeline = appStateManager.state.timeline.value;
+	const timeline = sceneLayers.value;
 	try {
 		const audio = await openAssetAudio(asset);
 		const trimmedDurationMs = audio.duration * 1000;
 		audio.input.dispose();
 		if (!Number.isFinite(trimmedDurationMs) || trimmedDurationMs <= 0) throw new Error('Audio has no finite duration.');
-		if (appStateManager.state.timeline.value !== timeline) return;
+		if (disposed || sceneLayers.value !== timeline) return;
 		if (!addAsset && !appStateManager.state.assets.value.some(entry => entry.id === asset.id)) return;
 		if (addAsset) appStateManager.commit('addAsset', asset);
 		const id = genId();
 		const positionMs = Math.round(time.value);
-		appStateManager.commit('addAudioLayer', {
+		appStateManager.commit('addAudioLayer', { sceneId: props.sceneId, layer: {
 			id, layerType: 'audio', assetId: asset.id, positionMs, trimmedDurationMs, trimStartMs: 0,
 			paramValues: { volume: { inputSource: 'literal', value: 1 } }, automationGraphs: [],
-		});
+		} });
 		selectedLayerId.value = id;
 		selectedKeyframeSelection.value = null;
 	} catch (error) { audioError.value = error instanceof Error ? error.message : String(error); } finally { addingAudio.value = false; }
@@ -686,14 +727,32 @@ async function addAudioLayer(asset: Asset, addAsset: boolean) {
 function editAudioTiming(kind: 'move' | 'trimStart' | 'trimEnd' | 'offset', value: string | number) {
 	const layer = selectedLayer.value;
 	const next = Number(value);
-	if (layer?.layerType !== 'audio' || !Number.isFinite(next)) return;
+	if ((layer?.layerType !== 'audio' && layer?.layerType !== 'scene') || !Number.isFinite(next)) return;
 	let { positionMs, trimmedDurationMs, trimStartMs } = layer;
 	if (kind === 'move') positionMs = next;
 	if (kind === 'trimStart') { trimmedDurationMs -= next - getTimelineLayerStart(layer); trimStartMs = next - positionMs; }
 	if (kind === 'trimEnd') trimmedDurationMs = next - getTimelineLayerStart(layer);
 	if (kind === 'offset') trimStartMs = next;
 	if (positionMs + trimStartMs < 0 || trimmedDurationMs <= 0 || trimStartMs < 0) return;
-	appStateManager.commit('editAudioLayerTiming', { layerId: layer.id, positionMs, trimmedDurationMs, trimStartMs });
+	appStateManager.commit(layer.layerType === 'scene' ? 'editSceneLayerTiming' : 'editAudioLayerTiming', { sceneId: props.sceneId, layerId: layer.id, positionMs, trimmedDurationMs, trimStartMs });
+}
+
+function addSelectedAudio() {
+	const asset = appStateManager.state.assets.value.find(asset => asset.id === audioAssetId.value);
+	if (asset != null) void addAudioLayer(asset, false);
+}
+
+function addSceneLayer() {
+	const scene = availableScenes.value.find(scene => scene.id === sceneToAdd.value);
+	if (scene == null) return;
+	const layer = {
+		id: genId(), layerType: 'scene' as const, sceneId: scene.id,
+		positionMs: Math.max(0, time.value), trimStartMs: 0, trimmedDurationMs: getSceneDuration(scene),
+		compositingParamValues: deepClone(Object.fromEntries(Object.entries(timelineCompositingParamDefs).map(([key, def]) => [key, def.defaultValue]))) as import('@glitch/shared/timeline/types.ts').TimelineSceneLayer['compositingParamValues'],
+		audioParamValues: { volume: deepClone(timelineAudioParamDefs.volume.defaultValue) }, automationGraphs: [],
+	};
+	appStateManager.commit('addSceneLayer', { sceneId: props.sceneId, layer });
+	selectLayer(layer);
 }
 
 function play() {
@@ -710,7 +769,7 @@ function showAddLayerMenu(ev: PointerEvent) {
 		icon: 'ti ti-chart-dots-3',
 		action: () => {
 			const layer = createInlineVisualModuleLayer(Math.max(0, time.value));
-			appStateManager.commit('addInlineVisualModuleLayer', layer);
+			appStateManager.commit('addInlineVisualModuleLayer', { sceneId: props.sceneId, layer });
 			selectLayer(layer);
 			visualModuleLayerTab.value = 'module';
 			previewPlayback.seekTimeline(getTimelineLayerStart(layer));
@@ -722,20 +781,20 @@ function showAddLayerMenu(ev: PointerEvent) {
 			// TODO
 		},
 	}, {
-		text: 'Audio',
+		text: 'Import audio',
 		icon: 'ti ti-music',
-		action: async () => {
-
-		},
+		action: importAudioLayer,
 	}], ev.currentTarget ?? ev.target);
 }
 
+let resizeObserver: ResizeObserver | undefined;
+onBeforeUnmount(() => resizeObserver?.disconnect());
 onMounted(() => {
 	if (tlEl.value == null) return;
 	tlElWidth.value = tlEl.value.offsetWidth;
 	tlElHeight.value = tlEl.value.offsetHeight;
 
-	const resizeObserver = new ResizeObserver(() => {
+	resizeObserver = new ResizeObserver(() => {
 		if (tlEl.value == null) return;
 		tlElWidth.value = tlEl.value.offsetWidth;
 		tlElHeight.value = tlEl.value.offsetHeight;

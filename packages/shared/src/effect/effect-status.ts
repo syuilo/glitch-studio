@@ -11,4 +11,4 @@ export type EffectInstanceState = {
 
 export type EffectStatusSource =
 	| { type: 'live'; instanceId: string; visualModuleId: string }
-	| { type: 'timelineLayer'; instanceId: string; layerId: string };
+	| { type: 'timelineLayer'; instanceId: string; layerId: string; rootSceneId: string; layerPath: string[] };

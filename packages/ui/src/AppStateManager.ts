@@ -3,7 +3,7 @@ import { computed, ref } from 'vue';
 import { deepClone } from '@glitch/shared/utility/deep-clone.js';
 import { triggerRef } from 'vue';
 import { COMMAND_DEFS } from './commands.ts';
-import type { Timeline } from '@glitch/shared/timeline/types.js';
+import type { TimelineScene } from '@glitch/shared/timeline/types.js';
 import type { Asset, Player } from '@glitch/shared/types.js';
 import type { ProjectVisualModule } from '@glitch/shared/project/types.ts';
 import type { CommandDef } from './commands.ts';
@@ -31,7 +31,7 @@ export class AppStateManager {
 			assets: ref<Asset[]>([]), // TODO: バイナリをリアクティブでwrapするのをやめる
 			players: ref<Player[]>([]),
 			visualModules: ref<ProjectVisualModule[]>([]),
-			timeline: ref<Timeline>([]),
+			timelineScenes: ref<TimelineScene[]>([]),
 		};
 	}
 

@@ -9,7 +9,7 @@ const bundled = await build({
 	entryPoints: [fileURLToPath(new URL('../src/export/timeline-export.worker.ts', import.meta.url))],
 	bundle: true, platform: 'node', format: 'cjs', write: false,
 	plugins: [{ name: 'export-worker-platform', setup(build) {
-		build.onResolve({ filter: /^@glitch\/|\/mp4-writer\.ts$|\/still-webp\.ts$|\/timeline-audio-export\.ts$/ }, args => ({ path: args.path, namespace: 'platform' }));
+		build.onResolve({ filter: /^@glitch\/|\/mp4-writer\.ts$|\/still-webp\.ts$|\/timeline-audio-export\.ts$/ }, args => args.path.startsWith('@glitch/shared/timeline/') ? undefined : ({ path: args.path, namespace: 'platform' }));
 		build.onLoad({ filter: /.*/, namespace: 'platform' }, () => ({ contents: `
 			export const TimelineRendererManager = dependencies.TimelineRendererManager;
 			export const TimelineAudioExport = dependencies.TimelineAudioExport;
@@ -88,7 +88,7 @@ for (const format of ['mp4', 'webp']) {
 			settings: { format, quality: 'high', width: 3, height: 5, positionMs: 1000,
 				...(format === 'mp4' ? { fps: 30, endTimeMs: 1010 } : {}) },
 			renderer: { enable32bitDataTextures: true, intermediateTextureFormat: 'rgba16float' },
-			project: { assets: [{ id: 'image' }], visualModules: [{ id: 'module' }], timeline: [{ id: 'layer' }] },
+			project: { assets: [{ id: 'image' }], visualModules: [{ id: 'module' }], timelineScenes: [{ id: 'scene', name: 'Scene', layers: [{ id: 'layer', layerType: 'effect', effectId: 'test', positionMs: 0, trimStartMs: 0, trimmedDurationMs: 2000 }] }], sceneId: 'scene' },
 		};
 		const job = f.run(request);
 		await f.preparing.promise;
@@ -117,7 +117,7 @@ test('reports asset preparation failures without rendering export frames', { tim
 	const job = f.run({
 		settings: { format: 'webp', quality: 'lossless', width: 2, height: 2, positionMs: 0 },
 		renderer: { enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm' },
-		project: { assets: [], visualModules: [], timeline: [] },
+		project: { assets: [], visualModules: [], timelineScenes: [{ id: 'scene', name: 'Scene', layers: [{ id: 'layer', layerType: 'effect', effectId: 'test', positionMs: 0, trimStartMs: 0, trimmedDurationMs: 2000 }] }], sceneId: 'scene' },
 	});
 	await f.preparing.promise;
 	assert.deepEqual(structuredClone(f.deviceSettings.requiredFeatures), []);
@@ -138,7 +138,7 @@ test('aborts export when the timeline manager reports a node error', async () =>
 	const job = f.run({
 		settings: { format: 'webp', quality: 'lossless', width: 2, height: 2, positionMs: 0 },
 		renderer: { enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm' },
-		project: { assets: [], visualModules: [], timeline: [] },
+		project: { assets: [], visualModules: [], timelineScenes: [{ id: 'scene', name: 'Scene', layers: [{ id: 'layer', layerType: 'effect', effectId: 'test', positionMs: 0, trimStartMs: 0, trimmedDurationMs: 2000 }] }], sceneId: 'scene' },
 	});
 	await f.preparing.promise;
 	f.instance.handler({ type: 'effectState', ctx: { nodeId: 'broken', status: { status: { type: 'error', message: 'Invalid expression' } } } });

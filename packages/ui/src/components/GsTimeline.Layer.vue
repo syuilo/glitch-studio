@@ -9,6 +9,7 @@
 				<span style="font-size: 90%;">
 					<i v-if="layer.layerType === 'visualModule'" class="ti ti-chart-dots-3"></i>
 					<i v-else-if="layer.layerType === 'inlineVisualModule'" class="ti ti-chart-dots-3"></i>
+					<i v-else-if="layer.layerType === 'scene'" class="ti ti-timeline"></i>
 					<i v-else-if="layer.layerType === 'audio'" class="ti ti-music"></i>
 				</span>
 				<span>{{ layerLabel }}</span>
@@ -79,12 +80,15 @@ import { getTimelineLayerStart, getTimelineLayerEnd } from '@glitch/shared/timel
 import GsCondensedLine from './common/GsCondensedLine.vue';
 import XKeyframes from './GsTimeline.Layer.Keyframes.vue';
 import type { KeyframeMove } from './GsTimeline.Layer.Keyframes.vue';
+import { getSceneDuration } from '@glitch/shared/timeline/scenes.ts';
+import { getLayerParameterValues } from '@/utility/timeline-scene.ts';
 import type { TimelineLayer } from '@glitch/shared/timeline/types.ts';
 import type { ParameterBinding } from '@glitch/shared/types.ts';
 import { appStateManager } from '@/app.ts';
 import { openAssetAudio } from '@/audio/asset-audio-reader.ts';
 
 const props = defineProps<{
+	sceneId: string;
 	layer: TimelineLayer;
 	tlElWidth: number;
 	tlRangeX: number;
@@ -96,6 +100,8 @@ const props = defineProps<{
 	selected: boolean;
 }>();
 
+const sceneLayers = computed(() => appStateManager.state.timelineScenes.value.find(scene => scene.id === props.sceneId)?.layers ?? []);
+
 const emit = defineEmits<{
 	(ev: 'dragStart', event: DragEvent): void;
 	(ev: 'selected'): void;
@@ -103,7 +109,7 @@ const emit = defineEmits<{
 	(ev: 'snap', time: number | null): void;
 }>();
 
-const layerLabel = computed(() => props.layer.layerType === 'audio'
+const layerLabel = computed(() => props.layer.layerType === 'scene' ? appStateManager.state.timelineScenes.value.find(scene => scene.id === (props.layer.layerType === 'scene' ? props.layer.sceneId : ''))?.name ?? 'Missing scene' : props.layer.layerType === 'audio'
 	? `${appStateManager.state.assets.value.find(asset => asset.id === (props.layer.layerType === 'audio' ? props.layer.assetId : ''))?.name ?? 'Missing audio'}` : props.layer.layerType === 'inlineVisualModule' ? 'Inline Visual Module' : props.layer.id);
 
 const audioAsset = computed(() => {
@@ -137,6 +143,10 @@ const layerRect = computed(() => {
 });
 
 const sourceRect = computed(() => {
+	if (props.layer.layerType === 'scene') {
+		const scene = appStateManager.state.timelineScenes.value.find(scene => scene.id === (props.layer.layerType === 'scene' ? props.layer.sceneId : ''));
+		return scene == null ? null : { left: timeToDomX(props.layer.positionMs), width: getSceneDuration(scene) / props.tlRangeX * props.tlElWidth };
+	}
 	if (props.layer.layerType !== 'audio' || contentDurationMs.value == null) return null;
 	return { left: timeToDomX(props.layer.positionMs), width: contentDurationMs.value / props.tlRangeX * props.tlElWidth };
 });
@@ -151,8 +161,8 @@ type KeyframeParameter = {
 
 const keyframeParameters = computed(() => {
 	const res: KeyframeParameter[] = [];
-	for (const target of (props.layer.layerType === 'audio' ? ['audio'] as const : ['compositing', 'module'] as const)) {
-		const values = target === 'compositing' && props.layer.layerType !== 'audio' ? props.layer.compositingParamValues : props.layer.paramValues;
+	for (const target of (props.layer.layerType === 'audio' ? ['audio'] as const : props.layer.layerType === 'scene' ? ['compositing', 'audio'] as const : ['compositing', 'module'] as const)) {
+		const values = getLayerParameterValues(props.layer, target);
 		for (const [paramId, binding] of Object.entries(values)) {
 			if (binding.inputSource !== 'keyframesTimelineInline') continue;
 			res.push({ key: `${target}:${paramId}`, paramId, target, binding });
@@ -201,19 +211,19 @@ function onTimingPointerMove(event: PointerEvent) {
 	// 選択のクリックだけで付近の目盛へ吸着して時刻が変わらないようにする。
 	if (!drag.moved && Math.abs(event.clientX - drag.clientX) < 3) return;
 	drag.moved = true;
-	const layer = appStateManager.state.timeline.value.find(entry => entry.id === drag.layerId);
+	const layer = sceneLayers.value.find(entry => entry.id === drag.layerId);
 	if (layer == null) { finishTimingDrag(); return; }
 	const rawDelta = (event.clientX - drag.clientX) * drag.msPerPixel;
 	const playbackStartMs = drag.positionMs + drag.trimStartMs;
 	// 左端トリムでは音声の読み出し位置も動かすため、素材の先頭より前には伸ばさない。
 	const minDelta = drag.mode === 'trimEnd' ? 1 - drag.trimmedDurationMs
-		: drag.mode === 'trimStart' && layer.layerType === 'audio' ? Math.max(-playbackStartMs, -drag.trimStartMs)
+		: drag.mode === 'trimStart' && (layer.layerType === 'audio' || layer.layerType === 'scene') ? Math.max(-playbackStartMs, -drag.trimStartMs)
 		: -playbackStartMs;
 	const maxDelta = drag.mode === 'trimStart' ? drag.trimmedDurationMs - 1
 		: drag.mode === 'trimEnd' && layer.layerType === 'audio' && contentDurationMs.value != null
 			? Math.max(0, contentDurationMs.value - drag.trimStartMs - drag.trimmedDurationMs) : Infinity;
 	let delta = Math.max(minDelta, Math.min(maxDelta, rawDelta));
-	const candidates = [0, ...props.timelineTicks, ...appStateManager.state.timeline.value
+	const candidates = [0, ...props.timelineTicks, ...sceneLayers.value
 		.filter(entry => entry.id !== drag.layerId)
 		.flatMap(entry => [getTimelineLayerStart(entry), getTimelineLayerEnd(entry)])];
 	// 移動時は両端のうち最も近い候補に合わせ、長さを変えずに全体を移動する。
@@ -235,14 +245,14 @@ function onTimingPointerMove(event: PointerEvent) {
 	emit('snap', snappingTime);
 	// 音声のpositionMsは素材の配置基準。左端のトリムでは基準を動かさず、
 	// trimStartMsとtrimmedDurationMsを逆方向へ変更して右端を保つ。
-	const positionMs = drag.positionMs + (drag.mode === 'move' || (drag.mode === 'trimStart' && layer.layerType !== 'audio') ? delta : 0);
+	const positionMs = drag.positionMs + (drag.mode === 'move' || (drag.mode === 'trimStart' && layer.layerType !== 'audio' && layer.layerType !== 'scene') ? delta : 0);
 	const trimmedDurationMs = drag.trimmedDurationMs + (drag.mode === 'move' ? 0 : drag.mode === 'trimStart' ? -delta : delta);
 	if (layer.positionMs === positionMs && layer.trimmedDurationMs === trimmedDurationMs) return;
-	if (layer.layerType === 'audio') {
+	if (layer.layerType === 'audio' || layer.layerType === 'scene') {
 		const trimStartMs = drag.trimStartMs + (drag.mode === 'trimStart' ? delta : 0);
-		appStateManager.commit('editAudioLayerTiming', { layerId: layer.id, positionMs, trimmedDurationMs, trimStartMs }, drag.mergeKey);
+		appStateManager.commit(layer.layerType === 'scene' ? 'editSceneLayerTiming' : 'editAudioLayerTiming', { sceneId: props.sceneId, layerId: layer.id, positionMs, trimmedDurationMs, trimStartMs }, drag.mergeKey);
 	} else if (layer.layerType === 'visualModule' || layer.layerType === 'inlineVisualModule') {
-		appStateManager.commit('editVisualModuleLayerTiming', { layerId: layer.id, positionMs, trimmedDurationMs }, drag.mergeKey);
+		appStateManager.commit('editVisualModuleLayerTiming', { sceneId: props.sceneId, layerId: layer.id, positionMs, trimmedDurationMs }, drag.mergeKey);
 	}
 }
 
@@ -283,25 +293,25 @@ function getSnapTimes(param: KeyframeParameter): number[] {
 
 function onKeyframeMove(param: KeyframeParameter, move: KeyframeMove) {
 	// コマンドによる置換後のBindingを取得し、子から受け取った移動だけを反映する。
-	const layer = appStateManager.state.timeline.value.find(entry => entry.id === props.layer.id);
+	const layer = sceneLayers.value.find(entry => entry.id === props.layer.id);
 	if (layer == null) return;
-	const values: Partial<Record<string, ParameterBinding>> = param.target === 'compositing' && layer.layerType !== 'audio' ? layer.compositingParamValues : layer.paramValues;
+	const values: Partial<Record<string, ParameterBinding>> = getLayerParameterValues(layer, param.target);
 	const current = values[param.paramId];
 	if (current?.inputSource !== 'keyframesTimelineInline') return;
 	const value = deepClone(current);
 	const point = value.keyframesTimeline.keyframes.find(entry => entry.id === move.keyframeId);
 	if (point == null || point.x === move.x) return;
 	point.x = move.x;
-	appStateManager.commit('editTimelineLayerParam', {
+	appStateManager.commit('editTimelineLayerParam', { sceneId: props.sceneId,
 		layerId: layer.id, target: param.target, paramId: param.paramId,
 		edit: { kind: 'keyframesTimelineInline', value },
 	}, move.mergeKey);
 }
 
 function onKeyframeInsert(param: KeyframeParameter, x: number) {
-	const layer = appStateManager.state.timeline.value.find(entry => entry.id === props.layer.id);
+	const layer = sceneLayers.value.find(entry => entry.id === props.layer.id);
 	if (layer == null) return;
-	const values: Partial<Record<string, ParameterBinding>> = param.target === 'compositing' && layer.layerType !== 'audio' ? layer.compositingParamValues : layer.paramValues;
+	const values: Partial<Record<string, ParameterBinding>> = getLayerParameterValues(layer, param.target);
 	const current = values[param.paramId];
 	if (current?.inputSource !== 'keyframesTimelineInline') return;
 	const keyframes = current.keyframesTimeline.keyframes.toSorted((a, b) => a.x - b.x);
@@ -325,7 +335,7 @@ function onKeyframeInsert(param: KeyframeParameter, x: number) {
 		interpolation: deepClone(previous?.interpolation ?? { type: 'linear' }),
 	});
 	value.keyframesTimeline.keyframes.sort((a, b) => a.x - b.x);
-	appStateManager.commit('editTimelineLayerParam', {
+	appStateManager.commit('editTimelineLayerParam', { sceneId: props.sceneId,
 		layerId: layer.id, target: param.target, paramId: param.paramId,
 		edit: { kind: 'keyframesTimelineInline', value },
 	});

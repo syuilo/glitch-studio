@@ -81,27 +81,21 @@ const appBundle = await build({
 function project(overrides = {}) {
 	return {
 		id: 'project-id', gsVersion: '2.0.0-alpha.2', name: 'Example', description: 'First line\n日本語の説明', author: 'Author',
-		assets: [], players: [], visualModules: [], timeline: [], resolution: { width: 640, height: 480 },
+		assets: [], players: [], visualModules: [], timelineScenes: [{ id: 'scene', name: 'Scene', layers: [] }], resolution: { width: 640, height: 480 },
 		...overrides,
 	};
 }
 
-// 【旧音声レイヤーの再生区間を保持し、素材基準への移行を一度だけ行う】
-// positionMsの意味の変更で保存済み音声がずれたり、再保存するたびに前へ移動したりするのを防ぐ。
-test('migrates audio source origins once for both legacy timing formats', async () => {
-	const { encode } = require('@msgpack/msgpack');
-	for (const timing of [{ endTimeMs: 250 }, { trimmedDurationMs: 200 }]) {
-		const legacy = project({ timeline: [{
-			id: 'audio', layerType: 'audio', assetId: 'sound', positionMs: 50, trimStartMs: 100,
-			...timing, paramValues: { volume: { inputSource: 'literal', value: 1 } }, automationGraphs: [],
-		}] });
-		const migrated = decodeProjectFile(encode(legacy));
-		assert.equal(migrated.timeline[0].positionMs, -50);
-		assert.equal(migrated.timeline[0].trimmedDurationMs, 200);
-		assert.equal(migrated.timeline[0].trimStartMs, 100);
-		assert.equal('endTimeMs' in migrated.timeline[0], false);
-		assert.deepEqual(decodeProjectFile(await encodeProjectFile(migrated)), migrated);
-	}
+// 【Scene参照と内容時刻を保存後も維持する】
+// 保存・読込で配置のトリムを再計算すると、同じSceneを使った複数の演出がずれてしまう。
+test('round-trips scene references without changing their source origins', async () => {
+	const original = project({ timelineScenes: [
+		{ id: 'root', name: 'Root', layers: [{ id: 'nested', layerType: 'scene', sceneId: 'child',
+			positionMs: -50, trimStartMs: 100, trimmedDurationMs: 200,
+			compositingParamValues: {}, audioParamValues: { volume: { inputSource: 'literal', value: 0.5 } }, automationGraphs: [] }] },
+		{ id: 'child', name: 'Child', layers: [] },
+	] });
+	assert.deepEqual(decodeProjectFile(await encodeProjectFile(original)), original);
 });
 
 function fileHandle(name, options = {}) {
@@ -388,15 +382,15 @@ test('synchronizes both previews and routes timeline-only edits', async t => {
 	assert.equal(app.activePreviewRenderer.value, live);
 	assert.deepEqual(live.options.visualModules, first.visualModules);
 	assert.deepEqual(timeline.options.visualModules, first.visualModules);
-	assert.equal('timeline' in live.options, false);
+	assert.equal('timelineScenes' in live.options, false);
 	app.previewPlayback.seekTimeline(500);
 	assert.equal(app.activePreviewRenderer.value, timeline);
 	timeline.renders.length = 0;
-	app.appStateManager.state.timeline.value = [{ id: 'layer', type: 'visualModule', visualModuleId: 'first' }];
+	app.appStateManager.state.timelineScenes.value[0].layers = [{ id: 'layer', layerType: 'visualModule', visualModuleId: 'first', positionMs: 0, trimStartMs: 0, trimmedDurationMs: 1000, paramValues: {}, compositingParamValues: {}, automationGraphs: [] }];
 	await nextTick();
 	await setImmediate();
-	assert.equal('timeline' in live.options, false);
-	assert.equal(timeline.options.timeline[0].id, 'layer');
+	assert.equal('timelineScenes' in live.options, false);
+	assert.equal(timeline.options.timelineScenes[0].layers[0].id, 'layer');
 	assert.deepEqual(timeline.renders, [500]);
 	app.highlightClipping.value = true;
 	await nextTick();
@@ -407,7 +401,7 @@ test('synchronizes both previews and routes timeline-only edits', async t => {
 	await app.appReady(project());
 	assert.deepEqual(live.options.visualModules, []);
 	assert.deepEqual(timeline.options.visualModules, []);
-	assert.deepEqual(timeline.options.timeline, []);
+	assert.deepEqual(timeline.options.timelineScenes[0].layers, []);
 });
 
 // 【音声に影響しない編集とUndo/Redoでは再生を中断しない】
@@ -420,17 +414,17 @@ test('refreshes audio only for audio content, source files or loop duration chan
 	const app = evaluate(appBundle);
 	await app.appReady(project({
 		assets: [{ id: 'audio', name: 'sound.wav', fileData: new Blob(['audio']) }, { id: 'image', fileData: new Blob(['image']) }],
-		timeline: [
+		timelineScenes: [{ id: 'scene', name: 'Scene', layers: [
 			{ id: 'visual', layerType: 'visualModule', visualModuleId: 'module', positionMs: 0, trimStartMs: 0, trimmedDurationMs: 10000, paramValues: {}, compositingParamValues: { opacity: { inputSource: 'literal', value: 1 } }, automationGraphs: [] },
 			{ id: 'audio', layerType: 'audio', assetId: 'audio', positionMs: 0, trimmedDurationMs: 5000, trimStartMs: 0, paramValues: { volume: { inputSource: 'literal', value: 1 } }, automationGraphs: [] },
-		],
+		] }],
 	}));
 	const manager = app.appStateManager;
 	const starts = app.timelineAudioPreview.starts;
 	app.previewPlayback.playTimeline();
 	try {
 		assert.equal(starts.length, 1);
-		manager.commit('editTimelineLayerParam', { layerId: 'visual', target: 'compositing', paramId: 'opacity', edit: { kind: 'literal', value: 0.5 } });
+		manager.commit('editTimelineLayerParam', { sceneId: 'scene', layerId: 'visual', target: 'compositing', paramId: 'opacity', edit: { kind: 'literal', value: 0.5 } });
 		await nextTick();
 		manager.undo();
 		await nextTick();
@@ -441,7 +435,7 @@ test('refreshes audio only for audio content, source files or loop duration chan
 		manager.state.assets.value.push({ id: 'unused', fileData: new Blob(['unused']) });
 		await nextTick();
 		assert.equal(starts.length, 1);
-		manager.commit('editTimelineLayerParam', { layerId: 'audio', target: 'audio', paramId: 'volume', edit: { kind: 'literal', value: 0.3 } });
+		manager.commit('editTimelineLayerParam', { sceneId: 'scene', layerId: 'audio', target: 'audio', paramId: 'volume', edit: { kind: 'literal', value: 0.3 } });
 		await nextTick();
 		assert.equal(starts.length, 2);
 		manager.undo();
@@ -453,10 +447,10 @@ test('refreshes audio only for audio content, source files or loop duration chan
 		manager.state.assets.value[0].fileData = new Blob(['new audio']);
 		await nextTick();
 		assert.equal(starts.length, 5);
-		manager.state.timeline.value[0].trimmedDurationMs = 20000;
+		manager.state.timelineScenes.value[0].layers[0].trimmedDurationMs = 20000;
 		await nextTick();
 		assert.equal(starts.length, 6);
-		manager.commit('removeTimelineLayer', { layerId: 'audio' });
+		manager.commit('removeTimelineLayer', { sceneId: 'scene', layerId: 'audio' });
 		await nextTick();
 		assert.equal(starts.length, 7);
 		manager.undo();

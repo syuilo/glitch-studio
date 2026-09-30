@@ -19,8 +19,8 @@ export class TimelineRendererManagerController extends RendererManagerController
 	public errorMessage = ref<string | null>(null);
 	private layerEffectStates = shallowReactive(new Map<string, { instanceId: string; states: Map<string, EffectInstanceState> }>());
 
-	public getLayerEffectStates(layerId: string): ReadonlyMap<string, EffectInstanceState> | undefined {
-		return this.layerEffectStates.get(layerId)?.states;
+	public getLayerEffectStates(sceneId: string, layerId: string): ReadonlyMap<string, EffectInstanceState> | undefined {
+		return this.layerEffectStates.get(JSON.stringify([sceneId, layerId]))?.states;
 	}
 
 	constructor(staticOptions: TimelineRendererManagerStaticOptions, dynamicOptions: Partial<TimelineRendererManagerDynamicOptions>) {
@@ -66,7 +66,8 @@ export class TimelineRendererManagerController extends RendererManagerController
 			eventHandlers: {
 				effectState: (ctx) => {
 					if (!this.isReady.value || ctx.source.type !== 'timelineLayer') return;
-					const { layerId, instanceId } = ctx.source;
+					const { rootSceneId, layerPath, instanceId } = ctx.source;
+					const layerId = JSON.stringify([rootSceneId, ...layerPath]);
 					let entry = this.layerEffectStates.get(layerId);
 					if (ctx.status == null) {
 						// 旧インスタンスの破棄通知で、新しい描画の状態を消さない。

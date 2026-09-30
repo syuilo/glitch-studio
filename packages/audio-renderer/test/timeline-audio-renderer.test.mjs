@@ -96,3 +96,27 @@ test('sanitizes invalid gains and permits amplification', async () => {
 	}
 	assert.equal((await renderer.render([layer({ paramValues: { volume: { inputSource: 'literal', value: 3 } } })], 100, 1, 1000))[0][0], 3);
 });
+
+// 【Sceneの各階層の音量と子の素材時刻を同時に適用する】
+// 展開した配置の開始を素材の先頭と誤認したり、親の音量を加算したりしない。
+// チャンク分割を変えても同じサンプル列を生成し、末端のTIME変数は元の素材時刻を指す。
+test('mixes scene gains using local clocks independently of chunk boundaries', async () => {
+	const calls = [];
+	const renderer = new TimelineAudioRenderer(async (...args) => { calls.push(args); return constant(...args); }, async () => 1000);
+	const clip = {
+		layer: layer({ paramValues: { volume: { inputSource: 'expression', expression: 'TIME_MS / 100' } } }),
+		positionMs: 1150, startMs: 1180, endMs: 1280,
+		gains: [
+			{ positionMs: 1000, endTimeMs: 280, volume: { inputSource: 'literal', value: 2 }, automationGraphs: [] },
+			{ positionMs: 1050, endTimeMs: 250, volume: { inputSource: 'literal', value: 0.25 }, automationGraphs: [] },
+		],
+	};
+	const whole = await renderer.renderClips([clip], 1170, 120, 1000);
+	const first = await renderer.renderClips([clip], 1170, 47, 1000);
+	const second = await renderer.renderClips([clip], 1217, 73, 1000);
+	assert.deepEqual(calls[0], ['asset', 0.03, 100, 1000]);
+	assert.deepEqual([...whole[0]], [...first[0], ...second[0]]);
+	assert.deepEqual([...whole[0].slice(0, 10)], Array(10).fill(0));
+	assert.equal(whole[0][10], Math.fround(0.15));
+	assert.deepEqual([...whole[0].slice(110)], Array(10).fill(0));
+});

@@ -24,7 +24,7 @@ export type TimelineLayerRenderer<Output> = {
 type TimelineRendererOptions<Output, Entry extends TimelineRenderEntry> = {
 	fallbackOutput: Output;
 	createLayer: (entry: Entry) => TimelineLayerRenderer<Output>;
-	present: (output: Output, gpuTime: number) => void;
+	present?: (output: Output, gpuTime: number) => void;
 	onClear?: () => void;
 };
 
@@ -48,11 +48,30 @@ export class TimelineRenderer<Output, Entry extends TimelineRenderEntry = Timeli
 
 	/** timeはミリ秒。編集・リサイズ・破棄時はclearで準備中のシークも中断する。 */
 	public async renderAt(time: number, timeline: readonly Entry[], timeDelta = 0, isExport = false): Promise<void> {
+		const pending = this.evaluateAt(time, timeline, timeDelta, isExport);
+		const controller = this.controller;
+		const result = await pending;
+		// 評価結果のPromiseを受け取るまでの間に始まったシークでも、古い表示を採用しない。
+		if (result == null || controller?.signal.aborted) return;
+		try {
+			this.options.present?.(result.output, result.gpuTime);
+		} catch (error) {
+			this.clear();
+			throw error;
+		}
+	}
+
+	/** 子Sceneも同じ評価を使い、Canvasへの表示は最上位だけで行う。 */
+	public async evaluateAt(time: number, timeline: readonly Entry[], timeDelta = 0, isExport = false, parentSignal?: AbortSignal): Promise<{ output: Output; gpuTime: number } | undefined> {
 		this.controller?.abort();
 		const controller = new AbortController();
 		this.controller = controller;
+		const abort = () => controller.abort();
+		parentSignal?.addEventListener('abort', abort, { once: true });
+		if (parentSignal?.aborted) abort();
 		const isCancelled = () => controller.signal.aborted;
 		try {
+			if (isCancelled()) return;
 			// 配列は先頭が最上層の表示順。下層の合成結果を上層へ渡すため、描画は逆順に行う。
 			// 終端を含めず、隣接するレイヤーを境界で重ねない。
 			const visibleEntries = timeline.filter(entry => isTimelineLayerVisible(entry, time)).reverse();
@@ -63,11 +82,13 @@ export class TimelineRenderer<Output, Entry extends TimelineRenderEntry = Timeli
 			const result = await this.evaluateLayers(time, evaluationEntries, timeDelta, isExport, controller.signal);
 			if (result == null || isCancelled()) return;
 			// レイヤーがない場合も透明な出力を表示し、前回の表示を残さない。
-			this.options.present(result.output, result.gpuTime);
+			return result;
 		} catch (error) {
 			if (isCancelled()) return;
 			this.clear();
 			throw error;
+		} finally {
+			parentSignal?.removeEventListener('abort', abort);
 		}
 	}
 

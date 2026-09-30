@@ -41,34 +41,34 @@ test('round-trips audio layers and undoes timing, volume and removal', async () 
 	const { state } = fixture();
 	const layer = { id: 'audio', layerType: 'audio', assetId: 'sound', positionMs: 100, trimmedDurationMs: 1000, trimStartMs: 50,
 		paramValues: { volume: { inputSource: 'literal', value: 1 } }, automationGraphs: [] };
-	const add = COMMAND_DEFS.addAudioLayer.create(layer);
+	const add = COMMAND_DEFS.addAudioLayer.create({ sceneId: 'scene', layer });
 	add.execute(state);
-	const volume = COMMAND_DEFS.editTimelineLayerParam.create({ layerId: 'audio', target: 'audio', paramId: 'volume', edit: { kind: 'expression', value: 'PROGRESS' } });
+	const volume = COMMAND_DEFS.editTimelineLayerParam.create({ sceneId: 'scene', layerId: 'audio', target: 'audio', paramId: 'volume', edit: { kind: 'expression', value: 'PROGRESS' } });
 	volume.execute(state);
-	const timing = COMMAND_DEFS.editAudioLayerTiming.create({ layerId: 'audio', positionMs: 200, trimmedDurationMs: 1000, trimStartMs: 50 });
+	const timing = COMMAND_DEFS.editAudioLayerTiming.create({ sceneId: 'scene', layerId: 'audio', positionMs: 200, trimmedDurationMs: 1000, trimStartMs: 50 });
 	timing.execute(state);
-	const before = structuredClone(state.timeline.value);
-	const remove = COMMAND_DEFS.removeTimelineLayer.create({ layerId: 'audio' });
+	const before = structuredClone(state.timelineScenes.value[0].layers);
+	const remove = COMMAND_DEFS.removeTimelineLayer.create({ sceneId: 'scene', layerId: 'audio' });
 	remove.execute(state);
 	remove.undo(state);
-	assert.deepEqual(state.timeline.value, before);
-	const encoded = await encodeProjectFile({ gsVersion: '2.0.0', assets: [], timeline: state.timeline.value });
-	assert.deepEqual(decodeProjectFile(encoded).timeline, before);
+	assert.deepEqual(state.timelineScenes.value[0].layers, before);
+	const encoded = await encodeProjectFile({ gsVersion: '2.0.0', assets: [], timelineScenes: [{ id: 'scene', name: 'Scene', layers: state.timelineScenes.value[0].layers }] });
+	assert.deepEqual(decodeProjectFile(encoded).timelineScenes[0].layers, before);
 	timing.undo(state);
 	volume.undo(state);
-	assert.deepEqual(state.timeline.value.at(-1), layer);
+	assert.deepEqual(state.timelineScenes.value[0].layers.find(entry => entry.id === 'audio'), layer);
 	add.undo(state);
-	assert.equal(state.timeline.value.some(entry => entry.id === 'audio'), false);
+	assert.equal(state.timelineScenes.value[0].layers.some(entry => entry.id === 'audio'), false);
 	add.execute(state);
-	assert.deepEqual(state.timeline.value.at(-1), layer);
+	assert.deepEqual(state.timelineScenes.value[0].layers.find(entry => entry.id === 'audio'), layer);
 });
 
 // 合成設定の履歴はモジュールパラメータと独立し、保存された初期値まで復元する。
 test('undoes and redoes compositing expressions without changing module parameters', () => {
 	const { state } = fixture();
-	const layer = state.timeline.value[0];
+	const layer = state.timelineScenes.value[0].layers[0];
 	layer.paramValues.opacity = { inputSource: 'literal', value: 0.8 };
-	const command = COMMAND_DEFS.editTimelineLayerParam.create({
+	const command = COMMAND_DEFS.editTimelineLayerParam.create({ sceneId: 'scene',
 		layerId: layer.id, target: 'compositing', paramId: 'opacity', edit: { kind: 'expression', value: 'PROGRESS' },
 	});
 	command.execute(state);
@@ -85,9 +85,9 @@ test('undoes and redoes compositing expressions without changing module paramete
 // 保存前のオブジェクト比較だけでは、再読み込み時にグラフや合成設定が欠落する不具合を検出できない。
 test('preserves compositing graphs and settings through edits and serialization', async () => {
 	const { state } = fixture();
-	const layer = state.timeline.value[0];
+	const layer = state.timelineScenes.value[0].layers[0];
 	const edit = (paramId, edit) => {
-		const command = COMMAND_DEFS.editTimelineLayerParam.create({ layerId: layer.id, target: 'compositing', paramId, edit });
+		const command = COMMAND_DEFS.editTimelineLayerParam.create({ sceneId: 'scene', layerId: layer.id, target: 'compositing', paramId, edit });
 		command.execute(state);
 		return command;
 	};
@@ -102,7 +102,7 @@ test('preserves compositing graphs and settings through edits and serialization'
 	inline.execute(state);
 	edit('rotation', { kind: 'automationGraphReference', value: 'graph', options: { trimmedDurationMs: 2500, offsetMode: 'end', wrapMode: 'clamp' } });
 	edit('blendMode', { kind: 'literal', value: 'replace' });
-	const restored = decodeProjectFile(await encodeProjectFile({ timeline: [layer], assets: [] })).timeline[0];
+	const restored = decodeProjectFile(await encodeProjectFile({ timelineScenes: [{ id: 'scene', name: 'Scene', layers: [layer] }], assets: [] })).timelineScenes[0].layers[0];
 	assert.deepEqual(restored.compositingParamValues, layer.compositingParamValues);
 	assert.deepEqual(restored.automationGraphs, layer.automationGraphs);
 	assert.equal(restored.compositingParamValues.rotation.trimmedDurationMs, 2500);
@@ -146,7 +146,7 @@ function fixture() {
 	const node = { id: 'node', type: 'effect', effectId: 'test', params: { values: { inputSource: 'literal', value: [initial] } } };
 	const state = {
 		visualModules: { value: [{ id: 'module', nodes: [node], primaryInputId: null, paramDefs: [{ id: 'gain', defaultValue: initial }] }] },
-		timeline: { value: [{ id: 'layer', layerType: 'visualModule', visualModuleId: 'module', positionMs: 0, trimStartMs: 0, trimmedDurationMs: 1000, paramValues: {}, compositingParamValues: defaultCompositing(), automationGraphs: [] }] },
+		timelineScenes: { value: [{ id: 'scene', name: 'Scene', layers: [{ id: 'layer', layerType: 'visualModule', visualModuleId: 'module', positionMs: 0, trimStartMs: 0, trimmedDurationMs: 1000, paramValues: {}, compositingParamValues: defaultCompositing(), automationGraphs: [] }] }] },
 	};
 	return { state, node, target: { visualModuleId: 'module', nodeId: 'node', paramPath: ['values', 0] } };
 }
@@ -193,8 +193,8 @@ test('restores the first and final snapshots of a merged graph drag', () => {
 test('undoes inline graph edits and creation on timeline layers', () => {
 	const { state } = fixture();
 	const target = { layerId: 'layer', paramId: 'gain' };
-	const layer = state.timeline.value[0];
-	const create = COMMAND_DEFS.editTimelineLayerParam.create({ ...target, edit: { kind: 'inputSource', inputSource: 'automationGraphInline' } });
+	const layer = state.timelineScenes.value[0].layers[0];
+	const create = COMMAND_DEFS.editTimelineLayerParam.create({ sceneId: 'scene', ...target, edit: { kind: 'inputSource', inputSource: 'automationGraphInline' } });
 	create.execute(state);
 	const before = structuredClone(layer.paramValues.gain);
 	const after = structuredClone(before);
@@ -203,7 +203,7 @@ test('undoes inline graph edits and creation on timeline layers', () => {
 	after.wrapMode = 'repeatMirrored';
 	after.offsetMode = 'end';
 	after.automationGraph.points[0].y = -2;
-	const edit = COMMAND_DEFS.editTimelineLayerParam.create({ ...target, edit: { kind: 'automationGraphInline', value: after } });
+	const edit = COMMAND_DEFS.editTimelineLayerParam.create({ sceneId: 'scene', ...target, edit: { kind: 'automationGraphInline', value: after } });
 	edit.execute(state);
 	assert.deepEqual(layer.paramValues.gain, after);
 	edit.undo(state);
@@ -213,4 +213,39 @@ test('undoes inline graph edits and creation on timeline layers', () => {
 	create.execute(state);
 	edit.execute(state);
 	assert.deepEqual(layer.paramValues.gain, after);
+});
+
+// 【Sceneを切り替えてもレイヤー編集のUndoは元の定義へ戻る】
+// 同じレイヤーIDが別Sceneに存在しても、編集対象をsceneIdと組み合わせて一意に指定する。
+test('targets scene definitions explicitly across layer parameter undo and redo', () => {
+	const { state } = fixture();
+	const original = state.timelineScenes.value[0];
+	const other = structuredClone(original);
+	other.id = 'other';
+	state.timelineScenes.value.push(other);
+	const edit = COMMAND_DEFS.editTimelineLayerParam.create({ sceneId: 'scene', layerId: 'layer', target: 'compositing', paramId: 'opacity', edit: { kind: 'literal', value: 0.25 } });
+	edit.execute(state);
+	assert.equal(original.layers[0].compositingParamValues.opacity.value, 0.25);
+	assert.equal(other.layers[0].compositingParamValues.opacity.value, 1);
+	edit.undo(state);
+	assert.equal(original.layers[0].compositingParamValues.opacity.value, 1);
+	edit.execute(state);
+	assert.equal(other.layers[0].compositingParamValues.opacity.value, 1);
+});
+
+// 【参照中Sceneの削除と循環する配置を状態変更前に拒否する】
+// 失敗したCommandが部分的な変更を残すと、Undo履歴へ積まれない壊れた参照が保存されてしまう。
+test('rejects referenced deletion and cyclic placement without mutating scenes', () => {
+	const { state } = fixture();
+	const nested = { id: 'nested', layerType: 'scene', sceneId: 'scene', positionMs: 0, trimStartMs: 0, trimmedDurationMs: 1000,
+		compositingParamValues: defaultCompositing(), audioParamValues: { volume: { inputSource: 'literal', value: 1 } }, automationGraphs: [] };
+	COMMAND_DEFS.addScene.create({ id: 'parent', name: 'Parent', layers: [nested] }).execute(state);
+	const before = structuredClone(state.timelineScenes.value);
+	assert.throws(() => COMMAND_DEFS.removeScene.create({ sceneId: 'scene' }).execute(state), /Scene is used by/);
+	assert.throws(() => COMMAND_DEFS.addSceneLayer.create({ sceneId: 'scene', layer: { ...nested, sceneId: 'parent' } }).execute(state), /Circular scene reference/);
+	assert.deepEqual(state.timelineScenes.value, before);
+	const remove = COMMAND_DEFS.removeScene.create({ sceneId: 'parent' });
+	remove.execute(state);
+	remove.undo(state);
+	assert.deepEqual(state.timelineScenes.value, before);
 });
