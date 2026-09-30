@@ -285,12 +285,12 @@ import type { VisualModuleEdit } from '@/types/visual-module-editor.ts';
 import type { TimelineLayer, TimelineVideoLayer } from '@glitch/shared/timeline/types.ts';
 import type { ParameterBinding, KeyframesTimelineKeyframe } from '@glitch/shared/types.ts';
 import type { TimelineKeyframeSelection, TimelineSelection, TimelineSelectionGeometry, SelectionRect, TimelineMovePoint } from '@/utility/timeline-selection.ts';
+import type { ParamEdit } from './GsVisualParam.vue';
 import { timelineMarqueeRect, selectTimelineRange, keyframeSelectionKey, constrainTimelineMove, keyframeMoveBounds, getTimelineSnappingTimes } from '@/utility/timeline-selection.ts';
 import { getTimelineLayerTicks, formatTimelineTimecode as formatMsToTimecode } from '@/utility/timeline-ticks.ts';
 import { getTimelineSnapCandidates, getTimelineSeekPosition } from '@/utility/timeline-snapping.ts';
 import { preferences } from '@/preferences.ts';
 import { listenPointerDrag } from '@/utility/pointer-drag.ts';
-import type { ParamEdit } from './GsVisualParam.vue';
 import { getLayerParameterValues } from '@/utility/timeline-scene.ts';
 import { inspectVideoLayerAsset } from '@/utility/video-layer-asset.ts';
 import { sceneEditorStates, timelineLayerClipboard } from '@/utility/timeline-editor-state.ts';
@@ -313,11 +313,13 @@ function showSnapMenu(event: PointerEvent) {
 	ui.popupMenu([{
 		text: 'Enable snapping', type: 'switch', ref: snapEnabled,
 	}, {
-		text: 'Global ticks', type: 'switch', ref: snapGlobalTicks,
+		type: 'divider',
 	}, {
-		text: 'Local ticks', type: 'switch', ref: snapLocalTicks,
+		text: 'Global ticks', type: 'switch', ref: snapGlobalTicks, disabled: computed(() => !snapEnabled.value),
 	}, {
-		text: 'Snap seek bar to global ticks', type: 'switch', ref: snapSeekBar,
+		text: 'Local ticks', type: 'switch', ref: snapLocalTicks, disabled: computed(() => !snapEnabled.value),
+	}, {
+		text: 'Snap seek bar to global ticks', type: 'switch', ref: snapSeekBar, disabled: computed(() => !snapEnabled.value),
 	}], event.currentTarget ?? event.target);
 }
 
@@ -457,7 +459,7 @@ const xTicksCount = ref(15);
 const xTicks = computed(() => niceScale(tlPosX.value, tlPosX.value + tlRangeX.value, xTicksCount.value));
 const xTicksWithHalf = computed(() => insertIntermediateNumbers(xTicks.value));
 const layerLocalTicks = computed(() => new Map(sceneLayers.value.map(layer => [layer.id,
-	getTimelineLayerTicks(layer, tlPosX.value, tlRangeX.value, xTicksCount.value),
+																																																																															getTimelineLayerTicks(layer, tlPosX.value, tlRangeX.value, xTicksCount.value),
 ])));
 const yTicksCount = ref(6);
 const yTicks = computed(() => niceScale(tlPosY.value, tlPosY.value + tlRangeY.value, yTicksCount.value));
@@ -734,7 +736,7 @@ function onKeyframeMoveStart(event: PointerEvent, point: TimelineKeyframeSelecti
 	const selected = new Set(current.keyframes.map(keyframeSelectionKey));
 	const entries = keyframeEntries.value.filter(entry => selected.has(keyframeSelectionKey(entry.selection)));
 	const otherTimes = [0, time.value, ...sceneLayers.value.flatMap(entry => [getTimelineLayerStart(entry), getTimelineLayerEnd(entry)]),
-		...keyframeEntries.value.filter(entry => !selected.has(keyframeSelectionKey(entry.selection))).map(entry => entry.time)];
+																					...keyframeEntries.value.filter(entry => !selected.has(keyframeSelectionKey(entry.selection))).map(entry => entry.time)];
 	const candidatesByLayer = new Map(sceneLayers.value.map(layer => {
 		const ticks = layerLocalTicks.value.get(layer.id);
 		const localTimes = ticks == null ? [] : [...ticks.major, ...ticks.minor].toSorted((a, b) => a - b).map(time => layer.positionMs + time);

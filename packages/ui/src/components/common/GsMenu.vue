@@ -664,6 +664,7 @@ function guardMouseMove(ev: MouseEvent) {
 
 	&:disabled {
 		cursor: not-allowed;
+		opacity: 0.5;
 	}
 
 	&.danger {
