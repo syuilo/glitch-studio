@@ -85,13 +85,13 @@ import { readMediaMetadata } from '@glitch/shared/media/media-metadata.ts';
 import GsCondensedLine from './common/GsCondensedLine.vue';
 import XKeyframes from './GsTimeline.Layer.Keyframes.vue';
 import type { TimelineKeyframeSelection } from '@/utility/timeline-selection.ts';
-import { constrainTimelineMove } from '@/utility/timeline-selection.ts';
-import { formatTimelineTimecode } from '@/utility/timeline-ticks.ts';
 import type { TimelineLocalTicks } from '@/utility/timeline-ticks.ts';
-import { getTimelineSnapCandidates } from '@/utility/timeline-snapping.ts';
 import type { TimelineSnapSettings } from '@/utility/timeline-snapping.ts';
 import type { TimelineLayer } from '@glitch/shared/timeline/types.ts';
 import type { ParameterBinding } from '@glitch/shared/types.ts';
+import { getTimelineSnapCandidates } from '@/utility/timeline-snapping.ts';
+import { formatTimelineTimecode } from '@/utility/timeline-ticks.ts';
+import { constrainTimelineMove } from '@/utility/timeline-selection.ts';
 import { getLayerParameterValues } from '@/utility/timeline-scene.ts';
 import { appStateManager } from '@/app.ts';
 import { openAssetAudio } from '@/audio/asset-audio-reader.ts';
@@ -387,7 +387,6 @@ function look() {
 	position: absolute;
 	height: 100%;
 	overflow: clip;
-	background: #181818aa;
 }
 
 .localTick {
