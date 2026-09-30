@@ -42,8 +42,9 @@
 						:currentTime="time"
 						:selectedKeyframe="selectedKeyframeSelection"
 						:class="$style.layersLane"
+						:selected="selectedLayer?.id === layer.id"
 						@dragStart="dragStart"
-						@selected="onLayerSelected(layer)"
+						@selected="selectLayer(layer)"
 						@keyframeSelected="onKeyframeSelected"
 						@snap="snappingTime = $event"
 					/>
@@ -565,7 +566,7 @@ function onTlKeydown(ev: KeyboardEvent) {
 		layer.id = genId();
 		layer.positionMs = Math.max(0, time.value) - layer.trimStartMs;
 		appStateManager.commit('pasteTimelineLayer', { layer, sourceLayerId: copiedLayer.id });
-		onLayerSelected(layer);
+		selectLayer(layer);
 	}
 }
 
@@ -581,7 +582,7 @@ function formatMsToTimecode(ms: number) {
 	}
 }
 
-function onLayerSelected(layer: Timeline[number]) {
+function selectLayer(layer: Timeline[number]) {
 	selectedLayerId.value = layer.id;
 	selectedKeyframeSelection.value = null;
 	tlEl.value?.focus({ preventScroll: true });
@@ -590,7 +591,7 @@ function onLayerSelected(layer: Timeline[number]) {
 function addInlineVisualModuleLayer() {
 	const layer = createInlineVisualModuleLayer(Math.max(0, time.value));
 	appStateManager.commit('addInlineVisualModuleLayer', layer);
-	onLayerSelected(layer);
+	selectLayer(layer);
 	visualModuleLayerTab.value = 'module';
 	previewPlayback.seekTimeline(getTimelineLayerStart(layer));
 }

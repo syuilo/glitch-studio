@@ -1,5 +1,5 @@
 <template>
-<div :class="$style.root">
+<div :class="[$style.root, { [$style.selected]: selected }]" @click="emit('selected')">
 	<div :class="$style.mainLane">
 		<div :class="$style.side">
 			<div :class="$style.layerHeader" draggable="true" @dragstart.stop="emit('dragStart', $event)">
@@ -85,6 +85,7 @@ const props = defineProps<{
 	timelineTicks: number[];
 	currentTime: number;
 	selectedKeyframe: TimelineKeyframeSelection | null;
+	selected: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -346,6 +347,12 @@ function onLayerClipClick() {
 
 		.side {
 			background: hsl(from var(--sideColor) h s calc(l + 2));
+		}
+	}
+
+	&.selected {
+		.layerHeader {
+			color: var(--THEME-accent);
 		}
 	}
 }
