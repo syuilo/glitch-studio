@@ -46,6 +46,7 @@ export const workspacePanelChoices = Object.entries(workspacePanelDefinitions).m
 export type WorkspacePanel = {
 	id: string;
 	type: 'panel';
+	direction: 'horizontal' | 'vertical';
 	contentType: keyof typeof workspacePanelDefinitions;
 	collapsed?: boolean;
 };
@@ -85,6 +86,7 @@ export function getElementMenu(element: WorkspaceElement) {
 				const workspace = replaceWorkspaceElement(preferences.s.workspaceDefinition, element.id, {
 					id: element.id,
 					type: 'panel',
+					direction: element.type === 'panel' ? element.direction : 'horizontal',
 					contentType: type,
 				});
 				preferences.commit('workspaceDefinition', workspace);
@@ -125,17 +127,17 @@ export function getElementMenu(element: WorkspaceElement) {
 		action: () => preferences.commit('workspaceDefinition', splitAndAddWorkspacePanel(preferences.s.workspaceDefinition, element, 'right')),
 	});
 
-	if (element.type === 'tabs') {
+	if (element.type === 'tabs' || element.type === 'panel') {
 		menuItems.push({
 			type: 'parent',
-			text: 'Tab direction',
+			text: element.type === 'tabs' ? 'Tab direction' : 'Header direction',
 			children: (['horizontal', 'vertical'] as const).map(direction => ({
 				type: 'radioOption',
 				text: direction === 'horizontal' ? 'Horizontal' : 'Vertical',
 				active: element.direction === direction,
 				action: () => {
 					const target = findWorkspaceElement(preferences.s.workspaceDefinition, element.id);
-					if (target?.type !== 'tabs') return;
+					if (target?.type !== 'tabs' && target?.type !== 'panel') return;
 					preferences.commit('workspaceDefinition', replaceWorkspaceElement(preferences.s.workspaceDefinition, element.id, { ...target, direction }));
 				},
 			})),

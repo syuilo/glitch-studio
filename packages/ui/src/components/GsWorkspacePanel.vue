@@ -1,6 +1,6 @@
 <template>
 <div
-	:class="[$style.root, { [$style.collapsed]: collapsed, [$style.horizontal]: stackingDirection === 'horizontal' }]"
+	:class="[$style.root, { [$style.collapsed]: collapsed, [$style.horizontal]: stackingDirection === 'horizontal', [$style.verticalHeader]: verticalHeader }]"
 >
 	<div
 		v-if="workspacePanelDraggingContext.draggingId.value != null && workspacePanelDraggingContext.draggingId.value !== panel.id"
@@ -59,7 +59,7 @@
 					<template v-else><i class="ti ti-chevron-left"></i></template>
 				</template>
 			</button>
-			<span :class="$style.title"><i :class="workspacePanelDefinitions[panel.contentType].icon" style="margin-right: 0.5em;"></i>{{ workspacePanelDefinitions[panel.contentType].label }}</span>
+			<span :class="$style.title"><i :class="workspacePanelDefinitions[panel.contentType].icon" style="margin-inline-end: 0.5em;"></i>{{ workspacePanelDefinitions[panel.contentType].label }}</span>
 			<button :class="$style.popoutButton" class="_button" @click="popout"><i class="ti ti-external-link"></i></button>
 			<div :class="$style.grabber" draggable="true" @dragstart.stop="onDragstart">
 				<svg viewBox="0 0 16 16" version="1.1" :class="$style.grabberSvg">
@@ -109,6 +109,8 @@ const parent = computed(() => findWorkspaceParent(preferences.r.workspaceDefinit
 const canCollapse = computed(() => parent.value?.type === 'divider');
 const stackingDirection = computed(() => parent.value?.type === 'divider' ? parent.value.direction : 'vertical');
 const collapsed = computed(() => canCollapse.value && props.panel.collapsed === true);
+// 折りたたみ中は親の分割方向に合わせ、細くなった領域にもヘッダーを収める。
+const verticalHeader = computed(() => collapsed.value ? stackingDirection.value === 'horizontal' : props.panel.direction === 'vertical');
 
 function toggleCollapse() {
 	const workspace = deepClone(preferences.s.workspaceDefinition);
@@ -216,43 +218,6 @@ function popout() {
 
 		&.horizontal {
 			min-width: var(--headerHeight);
-
-			> .main > .header {
-				flex-direction: column;
-				align-items: center;
-				box-sizing: border-box;
-				width: var(--headerHeight);
-				height: 100%;
-				padding: 14px 0 0;
-				background: linear-gradient(-90deg, var(--THEME-workspacePanelHeader), hsl(from var(--THEME-workspacePanelHeader) h s calc(l + 5)));
-
-				> .tabShape {
-					display: none;
-				}
-
-				> .color {
-					width: calc(100% - 24px);
-					height: 3px;
-				}
-
-				> .title {
-					writing-mode: sideways-lr;
-					text-align: end;
-					flex: 1;
-					min-height: 0;
-				}
-
-				> .toggleCollapse,
-				> .menu,
-				> .grabber {
-					flex-shrink: 0;
-					margin: 0;
-				}
-
-				> .grabber {
-					margin-top: 10px;
-				}
-			}
 		}
 
 		&:not(.horizontal) {
@@ -260,6 +225,57 @@ function popout() {
 				border-bottom-right-radius: 0;
 			}
 		}
+	}
+}
+
+.verticalHeader {
+	> .main {
+		display: flex;
+	}
+
+	> .main > .header {
+		flex-direction: column;
+		flex-shrink: 0;
+		align-items: center;
+		box-sizing: border-box;
+		width: var(--headerHeight);
+		height: 100%;
+		padding: 14px 0 0;
+		background: linear-gradient(-90deg, var(--THEME-workspacePanelHeader), hsl(from var(--THEME-workspacePanelHeader) h s calc(l + 5)));
+
+		> .tabShape {
+			display: none;
+		}
+
+		> .color {
+			width: calc(100% - 24px);
+			height: 3px;
+		}
+
+		> .title {
+			writing-mode: sideways-lr;
+			text-align: end;
+			flex: 1;
+			min-height: 0;
+		}
+
+		> .toggleCollapse,
+		> .menu,
+		> .popoutButton,
+		> .grabber {
+			flex-shrink: 0;
+			margin: 0;
+		}
+
+		> .grabber {
+			margin-top: 10px;
+		}
+	}
+
+	> .main > .body {
+		flex: 1;
+		min-width: 0;
+		height: 100%;
 	}
 }
 

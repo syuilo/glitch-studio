@@ -51,6 +51,7 @@ export const PREF_DEF = definePreferences({
 													element: {
 														id: 'adcc26307eda4e7da1d74f34f729eb22',
 														type: 'panel',
+														direction: 'horizontal',
 														contentType: 'histogram',
 													},
 												}, {
@@ -58,6 +59,7 @@ export const PREF_DEF = definePreferences({
 													element: {
 														id: 'f39599fc1ada4c328688818c01c84ae0',
 														type: 'panel',
+														direction: 'horizontal',
 														contentType: 'waveformHorizontal',
 													},
 												}, {
@@ -65,6 +67,7 @@ export const PREF_DEF = definePreferences({
 													element: {
 														id: '6f4f6e2dc72d493cb92ebdfab475545c',
 														type: 'panel',
+														direction: 'horizontal',
 														contentType: 'waveformVertical',
 													},
 												}],
@@ -74,6 +77,7 @@ export const PREF_DEF = definePreferences({
 											element: {
 												id: '00750e466cda4f1bb501f4a2c42dc0eb',
 												type: 'panel',
+												direction: 'horizontal',
 												contentType: 'preview',
 											},
 										}],
@@ -95,6 +99,7 @@ export const PREF_DEF = definePreferences({
 													element: {
 														id: '77688f4068ee4f929f78eb6423c5da24',
 														type: 'panel',
+														direction: 'horizontal',
 														contentType: 'audioSpectrogram',
 													},
 												}, {
@@ -102,6 +107,7 @@ export const PREF_DEF = definePreferences({
 													element: {
 														id: 'b933bae5a21e43c88b7ca481c71c40c2',
 														type: 'panel',
+														direction: 'horizontal',
 														contentType: 'audioWaveform',
 													},
 												}, {
@@ -109,6 +115,7 @@ export const PREF_DEF = definePreferences({
 													element: {
 														id: 'e0b66dac15844bc5a27801d4c729dbdf',
 														type: 'panel',
+														direction: 'horizontal',
 														contentType: 'players',
 													},
 												}, {
@@ -116,6 +123,7 @@ export const PREF_DEF = definePreferences({
 													element: {
 														id: 'b1274afa651a405988e29c508c0c02d5',
 														type: 'panel',
+														direction: 'horizontal',
 														contentType: 'stats',
 													},
 												}],
@@ -125,6 +133,7 @@ export const PREF_DEF = definePreferences({
 											element: {
 												id: '824a5486145c4ba4911518b2bfc74a7c',
 												type: 'panel',
+												direction: 'horizontal',
 												contentType: 'assets',
 											},
 										}, {
@@ -132,6 +141,7 @@ export const PREF_DEF = definePreferences({
 											element: {
 												id: '8d5628e4e3ca4404b4f3cbb905dc35d7',
 												type: 'panel',
+												direction: 'horizontal',
 												contentType: 'blank',
 											},
 										}, {
@@ -139,6 +149,7 @@ export const PREF_DEF = definePreferences({
 											element: {
 												id: 'da1be20a82c84a2f964760fab25c75a3',
 												type: 'panel',
+												direction: 'horizontal',
 												contentType: 'commandLog',
 											},
 										}, {
@@ -146,6 +157,7 @@ export const PREF_DEF = definePreferences({
 											element: {
 												id: '1a329690fb7b4987a4be5868d0a043ce',
 												type: 'panel',
+												direction: 'horizontal',
 												contentType: 'projectInfo',
 											},
 										}],
@@ -157,6 +169,7 @@ export const PREF_DEF = definePreferences({
 							element: {
 								id: '9547a31d6fcb4d9698ceb5136cc7621c',
 								type: 'panel',
+								direction: 'horizontal',
 								contentType: 'visualModuleEditor',
 							},
 						}],
@@ -190,6 +203,7 @@ export const PREF_DEF = definePreferences({
 													element: {
 														id: '5845486291544b84877198a20cbecb61',
 														type: 'panel',
+														direction: 'horizontal',
 														contentType: 'histogram',
 													},
 												}, {
@@ -197,6 +211,7 @@ export const PREF_DEF = definePreferences({
 													element: {
 														id: 'db466a3f5f064366abb30d21b52e4682',
 														type: 'panel',
+														direction: 'horizontal',
 														contentType: 'waveformHorizontal',
 													},
 												}, {
@@ -204,6 +219,7 @@ export const PREF_DEF = definePreferences({
 													element: {
 														id: 'b14cc29ebe304b3f8b7754e20b0fdc17',
 														type: 'panel',
+														direction: 'horizontal',
 														contentType: 'waveformVertical',
 													},
 												}],
@@ -213,6 +229,7 @@ export const PREF_DEF = definePreferences({
 											element: {
 												id: '60841182dc254e2683eaf0718df5a65f',
 												type: 'panel',
+												direction: 'horizontal',
 												contentType: 'preview',
 											},
 										}],
@@ -222,6 +239,7 @@ export const PREF_DEF = definePreferences({
 									element: {
 										id: 'f5a1c961595149e4a84f61ccf8908977',
 										type: 'panel',
+										direction: 'horizontal',
 										contentType: 'timeline',
 									},
 								}],
@@ -237,6 +255,7 @@ export const PREF_DEF = definePreferences({
 									element: {
 										id: 'f515e9b3507442c6bb0849cbcedf62b9',
 										type: 'panel',
+										direction: 'horizontal',
 										contentType: 'timelineSubPanel',
 									},
 								}, {
@@ -244,6 +263,7 @@ export const PREF_DEF = definePreferences({
 									element: {
 										id: 'f45eb89c7aee4b3794b30771e365cf44',
 										type: 'panel',
+										direction: 'horizontal',
 										contentType: 'assets',
 									},
 								}],
