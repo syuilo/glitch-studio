@@ -25,7 +25,7 @@ const bundled = await build({
 });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', bundled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
-const { selectTimelineRange, selectionRect, keyframeSelectionKey, constrainTimelineMove, keyframeMoveBounds, AppStateManager, listenPointerDrag } = module.exports;
+const { selectTimelineRange, selectionRect, timelineMarqueeRect, keyframeSelectionKey, constrainTimelineMove, keyframeMoveBounds, AppStateManager, listenPointerDrag } = module.exports;
 
 const key = (layerId, keyframeId, target = 'audio', paramId = 'volume') => ({ layerId, target, paramId, keyframeId });
 const empty = { kind: 'layers', ids: [] };
@@ -67,6 +67,41 @@ test('shrinks the marquee against its initial selection', () => {
 	assert.deepEqual(selectTimelineRange(selectionRect(0, 0, 100, 100), geometry, previous, true).ids, ['old', 'long', 'short']);
 	assert.deepEqual(selectTimelineRange(selectionRect(0, 0, 20, 10), geometry, previous, true).ids, ['old', 'long']);
 	assert.deepEqual(previous.ids, ['old']);
+});
+
+// 【ポインターが静止していてもスクロールで選択範囲を更新する】
+// 開始時点ですでにスクロールしている場合も、開始点をコンテンツ上に固定する。
+// 表示領域の外へ出た開始点を残すことで、上下どちらへのスクロールでも範囲が正しく伸縮する。
+test('anchors the marquee to content while scrolling with a stationary pointer', () => {
+	const viewport = { left: 100, top: 50, right: 400, bottom: 250 };
+	const origin = { x: 20, y: 100 };
+	const pointer = { x: 180, y: 180 };
+	assert.deepEqual(timelineMarqueeRect(origin, pointer, viewport, 40), { left: 120, top: 110, right: 180, bottom: 180 });
+	assert.deepEqual(timelineMarqueeRect(origin, pointer, viewport, 180), { left: 120, top: -30, right: 180, bottom: 180 });
+	assert.deepEqual(timelineMarqueeRect(origin, pointer, viewport, 40), { left: 120, top: 110, right: 180, bottom: 180 });
+	assert.deepEqual(timelineMarqueeRect({ x: 20, y: 300 }, { x: 180, y: 100 }, viewport, 0), { left: 120, top: 100, right: 180, bottom: 350 });
+	assert.deepEqual(timelineMarqueeRect(origin, { x: 500, y: 500 }, viewport, 180), { left: 120, top: -30, right: 400, bottom: 250 });
+});
+
+// 【スクロールで画面外へ出たレイヤー・キーも範囲内なら選択を維持する】
+// 表示中の対象だけを判定すると、スクロールのたびに先に囲んだ対象が選択から抜けてしまう。
+// 戻すと範囲から外れた対象は解除し、Shiftで引き継いだ選択だけは残す。
+test('retains offscreen selections and removes them when scrolling shrinks the range', () => {
+	const viewport = { left: 100, top: 50, right: 400, bottom: 250 };
+	const origin = { x: 20, y: 100 };
+	const pointer = { x: 180, y: 180 };
+	const content = [{ id: 'first', y: 115 }, { id: 'second', y: 250 }, { id: 'outside', y: 350 }];
+	for (const scrollTop of [40, 180, 40]) {
+		const rect = timelineMarqueeRect(origin, pointer, viewport, scrollTop);
+		const expectedIds = scrollTop === 180 ? ['first', 'second'] : ['first'];
+		const clips = content.map(({ id, y }) => ({ id, rect: { left: 130, right: 150, top: viewport.top + y - scrollTop - 10, bottom: viewport.top + y - scrollTop + 10 } }));
+		const keyframes = content.map(({ id, y }) => ({ selection: key(id, 'point'), x: 140, y: viewport.top + y - scrollTop }));
+		assert.deepEqual(selectTimelineRange(rect, { clips, keyframes }, empty, false), { kind: 'layers', ids: expectedIds });
+		assert.deepEqual(selectTimelineRange(rect, { clips: [], keyframes }, empty, false), { kind: 'keyframes', keyframes: expectedIds.map(id => key(id, 'point')) });
+		assert.deepEqual(selectTimelineRange(rect, { clips, keyframes }, { kind: 'keyframes', keyframes: [key('old', 'point')] }, true), {
+			kind: 'keyframes', keyframes: [key('old', 'point'), ...expectedIds.map(id => key(id, 'point'))],
+		});
+	}
 });
 
 // 【レイヤー全体で移動量を制限し、吸着も同じ量だけ適用する】

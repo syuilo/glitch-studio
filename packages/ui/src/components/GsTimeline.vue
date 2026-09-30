@@ -283,7 +283,7 @@ import type { VisualModuleEdit } from '@/types/visual-module-editor.ts';
 import type { TimelineLayer, TimelineVideoLayer } from '@glitch/shared/timeline/types.ts';
 import type { ParameterBinding, KeyframesTimelineKeyframe } from '@glitch/shared/types.ts';
 import type { TimelineKeyframeSelection, TimelineSelection, TimelineSelectionGeometry, SelectionRect, TimelineMovePoint } from '@/utility/timeline-selection.ts';
-import { selectionRect, selectTimelineRange, keyframeSelectionKey, constrainTimelineMove, keyframeMoveBounds } from '@/utility/timeline-selection.ts';
+import { timelineMarqueeRect, selectTimelineRange, keyframeSelectionKey, constrainTimelineMove, keyframeMoveBounds } from '@/utility/timeline-selection.ts';
 import { listenPointerDrag } from '@/utility/pointer-drag.ts';
 import type { ParamEdit } from './GsVisualParam.vue';
 import { getLayerParameterValues } from '@/utility/timeline-scene.ts';
@@ -596,7 +596,8 @@ function readSelectionGeometry(viewport: SelectionRect): TimelineSelectionGeomet
 	for (const element of layersEl.value.querySelectorAll<HTMLElement>('[data-timeline-clip]')) {
 		const id = element.closest<HTMLElement>('[data-timeline-layer-id]')?.dataset.timelineLayerId;
 		const rect = element.getBoundingClientRect();
-		const visible = { left: Math.max(rect.left, viewport.left), right: Math.min(rect.right, viewport.right), top: Math.max(rect.top, viewport.top), bottom: Math.min(rect.bottom, viewport.bottom) };
+		// 横方向のサイドバーに隠れる部分だけ除く。縦方向は、スクロールで画面外へ出た行も判定する。
+		const visible = { left: Math.max(rect.left, viewport.left), right: Math.min(rect.right, viewport.right), top: rect.top, bottom: rect.bottom };
 		if (id && visible.left <= visible.right && visible.top < visible.bottom) geometry.clips.push({ id, rect: visible });
 	}
 	for (const element of layersEl.value.querySelectorAll<HTMLElement>('[data-timeline-keyframe-id]')) {
@@ -609,7 +610,7 @@ function readSelectionGeometry(viewport: SelectionRect): TimelineSelectionGeomet
 		const rect = element.getBoundingClientRect();
 		const x = (rect.left + rect.right) / 2;
 		const y = (rect.top + rect.bottom) / 2;
-		if (x < viewport.left || x > viewport.right || y < viewport.top || y > viewport.bottom) continue;
+		if (x < viewport.left || x > viewport.right) continue;
 		geometry.keyframes.push({ selection: { layerId, target, paramId, keyframeId }, x, y });
 	}
 	return geometry;
@@ -617,7 +618,9 @@ function readSelectionGeometry(viewport: SelectionRect): TimelineSelectionGeomet
 
 function onBackgroundPointerDown(event: PointerEvent) {
 	suppressTimelineClick = false;
-	if (event.button !== 0 || !event.isPrimary || stopSelectionDrag || panning.value || tlEl.value == null || !(event.target instanceof Element)) return;
+	if (event.button !== 0 || !event.isPrimary || stopSelectionDrag || panning.value || tlEl.value == null || layersEl.value == null || !(event.target instanceof Element)) return;
+	const timeline = tlEl.value;
+	const layers = layersEl.value;
 	const target = event.target;
 	if (!layersEl.value?.contains(target) && !tlEl.value.contains(target)) return;
 	if (target.closest('[data-timeline-clip], [data-timeline-keyframe-id], button, input, select, textarea, [draggable="true"]')) return;
@@ -628,15 +631,25 @@ function onBackgroundPointerDown(event: PointerEvent) {
 	event.stopPropagation();
 	tlEl.value.focus({ preventScroll: true });
 	const previous = deepClone(selection.value);
-	stopSelectionDrag = listenPointerDrag(event, current => {
-		if (!selectionArea.value && Math.hypot(current.clientX - event.clientX, current.clientY - event.clientY) < 3) return;
+	const origin = { x: event.clientX - viewport.left, y: event.clientY - viewport.top + layers.scrollTop };
+	let pointer = { x: event.clientX, y: event.clientY };
+	const updateSelection = () => {
+		const bounds = timeline.getBoundingClientRect();
+		const viewport = { left: bounds.left, right: bounds.right, top: bounds.top + X_TICKS_HEIGHT, bottom: bounds.bottom };
+		const rect = timelineMarqueeRect(origin, pointer, viewport, layers.scrollTop);
+		if (!selectionArea.value && Math.hypot(rect.right - rect.left, rect.bottom - rect.top) < 3) return;
 		suppressTimelineClick = true;
-		const rect = selectionRect(event.clientX, event.clientY,
-			Math.max(viewport.left, Math.min(viewport.right, current.clientX)), Math.max(viewport.top, Math.min(viewport.bottom, current.clientY)));
 		selectionArea.value = { left: rect.left - bounds.left, right: rect.right - bounds.left, top: rect.top - bounds.top, bottom: rect.bottom - bounds.top };
 		// 毎回開始時の選択に対して計算する。範囲を縮めたとき、途中で囲んだ要素を残さない。
 		selection.value = selectTimelineRange(rect, readSelectionGeometry(viewport), previous, event.shiftKey);
+	};
+	// ホイールだけではpointermoveが発生しないため、静止中のポインター位置でも再計算する。
+	layers.addEventListener('scroll', updateSelection);
+	stopSelectionDrag = listenPointerDrag(event, current => {
+		pointer = { x: current.clientX, y: current.clientY };
+		updateSelection();
 	}, () => {
+		layers.removeEventListener('scroll', updateSelection);
 		selectionArea.value = null;
 		stopSelectionDrag = undefined;
 	}, target as HTMLElement);

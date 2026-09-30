@@ -23,6 +23,13 @@ export function selectionRect(x1: number, y1: number, x2: number, y2: number): S
 	return { left: Math.min(x1, x2), top: Math.min(y1, y2), right: Math.max(x1, x2), bottom: Math.max(y1, y2) };
 }
 
+export function timelineMarqueeRect(origin: { x: number; y: number }, pointer: { x: number; y: number }, viewport: SelectionRect, scrollTop: number): SelectionRect {
+	// 開始点はスクロール領域内に固定し、終点は現在のポインター位置に置く。
+	// 開始点まで表示領域にクランプすると、スクロールで画面外へ出た対象が選択から抜けてしまう。
+	return selectionRect(viewport.left + origin.x, viewport.top + origin.y - scrollTop,
+		Math.max(viewport.left, Math.min(viewport.right, pointer.x)), Math.max(viewport.top, Math.min(viewport.bottom, pointer.y)));
+}
+
 export function selectTimelineRange(rect: SelectionRect, geometry: TimelineSelectionGeometry, previous: TimelineSelection, additive: boolean): TimelineSelection {
 	const ids = geometry.clips.filter(clip => clip.rect.left <= rect.right && clip.rect.right >= rect.left
 		&& clip.rect.top <= rect.bottom && clip.rect.bottom >= rect.top).map(clip => clip.id);
