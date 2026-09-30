@@ -3,7 +3,7 @@
 	<div :class="$style.header">
 		<button class="_button" style="padding: 4px 6px;" @click="showSwitchMenu"><i class="ti ti-chevron-down"></i> {{ visualModule?.name ?? '' }} [{{ visualModule?.id ?? '' }}]</button>
 		<GsButton v-if="visualModule != null" style="margin-left: auto;" small :primary="previewParamsShowing" @click="previewParamsShowing = !previewParamsShowing"><i class="ti ti-adjustments-horizontal"></i> Preview Params</GsButton>
-		<GsButton v-if="visualModule != null" style="margin-left: 0;" small :primary="previewPlayback.liveVisualModuleId.value === visualModule.id" @click="previewLive"><i v-if="previewPlayback.liveVisualModuleId.value === visualModule.id" class="ti ti-player-pause"></i><i v-else class="ti ti-adjustments-horizontal"></i> LIVE</GsButton>
+		<GsButton v-if="visualModule != null" style="margin-left: 0;" small :primary="previewPlayback.liveVisualModuleId.value === visualModule.id" @click="previewLive"><i v-if="previewPlayback.liveVisualModuleId.value === visualModule.id" class="ti ti-player-pause"></i><i v-else class="ti ti-player-play"></i> LIVE</GsButton>
 	</div>
 
 	<div v-if="visualModule && previewParamsShowing" :key="visualModule.id" :class="$style.previewParams">
