@@ -1,46 +1,55 @@
 <template>
 <div :class="$style.root">
-	<div :class="$style.side">
-		<div :class="$style.sideHeader" draggable="true" @dragstart.stop="emit('dragStart', $event)">
-			<i class="ti ti-grip-vertical"></i>
-			{{ layerLabel }}
-		</div>
-		<div v-for="param in keyframeParameters" :key="param.key" :class="$style.sideKeyframesLane">{{ param.key }}</div>
-	</div>
-	<div :class="$style.tl">
-		<div v-if="sourceRect" :class="$style.tlSourceGhost" :style="{ left: sourceRect.left + 'px', width: sourceRect.width + 'px' }"></div>
-		<div
-			:class="[$style.tlClip, { [$style.moving]: timingDragMode === 'move' }]"
-			:style="{ width: layerRect.width + 'px', left: layerRect.left + 'px' }"
-			@pointerdown.stop="onTimingPointerDown($event, 'move')"
-			@pointermove="onTimingPointerMove"
-			@pointerup="onTimingPointerUp"
-			@pointercancel="onTimingPointerCancel"
-			@lostpointercapture="onTimingPointerCancel"
-			@click.stop="onLayerClipClick"
-		>
-			<div :class="$style.tlClipInner">
-				<GsCondensedLine>{{ layerLabel }}</GsCondensedLine>
-				<div :class="[$style.trimHandle, $style.trimStart]" @pointerdown.stop="onTimingPointerDown($event, 'trimStart')"></div>
-				<div :class="[$style.trimHandle, $style.trimEnd]" @pointerdown.stop="onTimingPointerDown($event, 'trimEnd')"></div>
+	<div :class="$style.mainLane">
+		<div :class="$style.side">
+			<div :class="$style.layerHeader" draggable="true" @dragstart.stop="emit('dragStart', $event)">
+				<i class="ti ti-grip-vertical"></i>
+				{{ layerLabel }}
 			</div>
 		</div>
-		<XKeyframes
-			v-for="param in keyframeParameters"
-			:key="param.key"
-			:keyframes="param.binding.keyframesTimeline.keyframes"
-			:startTime="layer.positionMs"
-			:tlElWidth="tlElWidth"
-			:tlRangeX="tlRangeX"
-			:tlPosX="tlPosX"
-			:snapTimes="getSnapTimes(param)"
-			:selectedKeyframeId="selectedKeyframe?.layerId === layer.id && selectedKeyframe.target === param.target && selectedKeyframe.paramId === param.paramId ? selectedKeyframe.keyframeId : null"
-			@select="keyframeId => emit('keyframeSelected', { layerId: layer.id, target: param.target, paramId: param.paramId, keyframeId })"
-			@move="onKeyframeMove(param, $event)"
-			@insert="onKeyframeInsert(param, $event)"
-			@snap="emit('snap', $event)"
-		/>
+		<div :class="$style.tl">
+			<div v-if="sourceRect" :class="$style.tlSourceGhost" :style="{ left: sourceRect.left + 'px', width: sourceRect.width + 'px' }"></div>
+			<div
+				:class="[$style.tlClip, { [$style.moving]: timingDragMode === 'move' }]"
+				:style="{ width: layerRect.width + 'px', left: layerRect.left + 'px' }"
+				@pointerdown.stop="onTimingPointerDown($event, 'move')"
+				@pointermove="onTimingPointerMove"
+				@pointerup="onTimingPointerUp"
+				@pointercancel="onTimingPointerCancel"
+				@lostpointercapture="onTimingPointerCancel"
+				@click.stop="onLayerClipClick"
+			>
+				<div :class="$style.tlClipInner">
+					<GsCondensedLine>{{ layerLabel }}</GsCondensedLine>
+					<div :class="[$style.trimHandle, $style.trimStart]" @pointerdown.stop="onTimingPointerDown($event, 'trimStart')"></div>
+					<div :class="[$style.trimHandle, $style.trimEnd]" @pointerdown.stop="onTimingPointerDown($event, 'trimEnd')"></div>
+				</div>
+			</div>
+		</div>
 	</div>
+	<div v-for="param in keyframeParameters" :key="param.key" :class="$style.keyframesLane">
+		<div :class="$style.side">
+			{{ param.key }}
+		</div>
+		<div :class="$style.tl">
+			<div :style="{ width: layerRect.width + 'px', left: layerRect.left + 'px' }">
+				<XKeyframes
+					:keyframes="param.binding.keyframesTimeline.keyframes"
+					:startTime="layer.positionMs"
+					:tlElWidth="tlElWidth"
+					:tlRangeX="tlRangeX"
+					:tlPosX="tlPosX"
+					:snapTimes="getSnapTimes(param)"
+					:selectedKeyframeId="selectedKeyframe?.layerId === layer.id && selectedKeyframe.target === param.target && selectedKeyframe.paramId === param.paramId ? selectedKeyframe.keyframeId : null"
+					@select="keyframeId => emit('keyframeSelected', { layerId: layer.id, target: param.target, paramId: param.paramId, keyframeId })"
+					@move="onKeyframeMove(param, $event)"
+					@insert="onKeyframeInsert(param, $event)"
+					@snap="emit('snap', $event)"
+				/>
+			</div>
+		</div>
+	</div>
+	<div :class="$style.divider"></div>
 </div>
 </template>
 
@@ -330,16 +339,36 @@ function onLayerClipClick() {
 	--keyframesLaneHeight: 20px;
 	--sideColor: #181818;
 
-	display: flex;
-	flex-direction: row;
-	width: 100%;
 	overflow: clip;
 
 	&:hover {
 		background: #ffffff06;
 
-		> .side {
-			background: hsl(from var(--sideColor) h s calc(l + 5));
+		.side {
+			background: hsl(from var(--sideColor) h s calc(l + 2));
+		}
+	}
+}
+
+.mainLane {
+	display: flex;
+	flex-direction: row;
+	width: 100%;
+}
+
+.keyframesLane {
+	display: flex;
+	flex-direction: row;
+	width: 100%;
+	height: var(--keyframesLaneHeight);
+	line-height: var(--keyframesLaneHeight);
+	text-align: right;
+
+	&:hover {
+		background: #ffffff06;
+
+		.side {
+			background: hsl(from var(--sideColor) h s calc(l + 8));
 		}
 	}
 }
@@ -351,24 +380,17 @@ function onLayerClipClick() {
 	width: var(--sideWidth);
 	flex-shrink: 0;
 	background: var(--sideColor);
-	border-bottom: solid 1px #fff2;
 	direction: ltr;
 }
 
-.sideHeader {
-	cursor: grab;
-	user-select: none;
-	gap: 4px;
-	height: var(--mainLaneHeight);
-	line-height: var(--mainLaneHeight);
-	display: flex;
-	align-items: center;
-}
-
-.sideKeyframesLane {
-	height: var(--keyframesLaneHeight);
-	line-height: var(--keyframesLaneHeight);
-	text-align: right;
+.divider {
+	position: relative;
+	z-index: 1;
+	box-sizing: border-box;
+	width: var(--sideWidth);
+	flex-shrink: 0;
+	background: var(--sideColor);
+	border-bottom: solid 1px #fff2;
 }
 
 .tl {
@@ -438,6 +460,16 @@ function onLayerClipClick() {
 
 .trimEnd {
 	right: 0;
+}
+
+.layerHeader {
+	cursor: grab;
+	user-select: none;
+	gap: 4px;
+	height: var(--mainLaneHeight);
+	line-height: var(--mainLaneHeight);
+	display: flex;
+	align-items: center;
 }
 
 </style>
