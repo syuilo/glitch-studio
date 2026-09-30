@@ -12,7 +12,7 @@
 			<span v-if="audioError || timelineAudioPreview.error.value || timelineRendererManagerController.errorMessage.value">{{ audioError || timelineAudioPreview.error.value || timelineRendererManagerController.errorMessage.value }}</span>
 		</div>
 		<div :class="$style.headerCenter">
-			<span class="_monospace">{{ formatMsToTimecode(time) }}</span>
+			<span class="_monospace">{{ formatFullTimecode(time) }}</span>
 		</div>
 		<div :class="$style.headerRight">
 			<GsButton small iconOnly><i class="ti ti-pointer"></i></GsButton>
@@ -888,6 +888,15 @@ function showAddLayerMenu(ev: PointerEvent) {
 			addAudioLayer(appStateManager.state.assets.value.find(asset => asset.id === assetId)!);
 		},
 	}], ev.currentTarget ?? ev.target);
+}
+
+function formatFullTimecode(timeMs: number): string {
+	const ms = Math.floor(timeMs);
+	const hours = String(Math.floor(ms / 3600000)).padStart(2, '0');
+	const minutes = String(Math.floor(ms / 60000) % 60).padStart(2, '0');
+	const seconds = String(Math.floor(ms / 1000) % 60).padStart(2, '0');
+	const milliseconds = String(ms % 1000).padStart(3, '0');
+	return `${hours}:${minutes}:${seconds}.${milliseconds}`;
 }
 
 let resizeObserver: ResizeObserver | undefined;
