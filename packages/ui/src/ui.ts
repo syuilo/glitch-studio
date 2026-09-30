@@ -247,3 +247,66 @@ export function select<C extends OptionValue, D extends C | null = null>(props: 
 		});
 	});
 }
+
+// default が指定されていたら result は null になり得ないことを保証する overload function
+export function inputText(props: {
+	type?: 'text' | 'email' | 'password' | 'url';
+	title?: string;
+	text?: string;
+	placeholder?: string | null;
+	autocomplete?: string;
+	default: string;
+	minLength?: number;
+	maxLength?: number;
+}): Promise<GsDialogReturnType<string>>;
+// min lengthが指定されてたら result は null になり得ないことを保証する overload function
+export function inputText(props: {
+	type?: 'text' | 'email' | 'password' | 'url';
+	title?: string;
+	text?: string;
+	placeholder?: string | null;
+	autocomplete?: string;
+	default?: string;
+	minLength: number;
+	maxLength?: number;
+}): Promise<GsDialogReturnType<string>>;
+export function inputText(props: {
+	type?: 'text' | 'email' | 'password' | 'url';
+	title?: string;
+	text?: string;
+	placeholder?: string | null;
+	autocomplete?: string;
+	default?: string | null;
+	minLength?: number;
+	maxLength?: number;
+}): Promise<GsDialogReturnType<string | null>>;
+export function inputText(props: {
+	type?: 'text' | 'email' | 'password' | 'url';
+	title?: string;
+	text?: string;
+	placeholder?: string | null;
+	autocomplete?: string;
+	default?: string | null;
+	minLength?: number;
+	maxLength?: number;
+}): Promise<GsDialogReturnType<string | null>> {
+	return new Promise(resolve => {
+		const { dispose } = popup(GsDialog, {
+			title: props.title,
+			text: props.text,
+			input: {
+				type: props.type,
+				placeholder: props.placeholder,
+				autocomplete: props.autocomplete,
+				default: props.default ?? null,
+				minLength: props.minLength,
+				maxLength: props.maxLength,
+			},
+		}, {
+			done: result => {
+				resolve(result as GsDialogReturnType<string | null>);
+			},
+			closed: () => dispose(),
+		});
+	});
+}

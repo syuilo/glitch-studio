@@ -1,7 +1,8 @@
 <template>
 <div :class="$style.root">
 	<GsTimeline v-if="activeScene" :key="activeScene.id" :sceneId="activeScene.id">
-		<GsButton small @click="showSceneMenu">Scene: {{ activeScene.name }} <i class="ti ti-chevron-down"></i></GsButton>
+		<GsButton small @click="showSceneSelectMenu">Scene: {{ activeScene.name }} <i class="ti ti-chevron-down"></i></GsButton>
+		<GsButton small iconOnly @click="showSceneMenu"><i class="ti ti-dots"></i></GsButton>
 	</GsTimeline>
 	<div v-else>Create a scene to start editing.</div>
 </div>
@@ -22,8 +23,6 @@ defineProps<{
 	panel: WorkspacePanel;
 }>();
 
-const name = ref('');
-watch(() => activeScene.value?.name, value => { name.value = value ?? ''; }, { immediate: true });
 const references = computed(() => appStateManager.state.timelineScenes.value.filter(scene => scene.layers.some(layer => layer.layerType === 'scene' && layer.sceneId === activeSceneId.value)));
 
 function createScene() {
@@ -43,15 +42,22 @@ function duplicateScene() {
 	activeSceneId.value = scene.id;
 }
 
-function renameScene() {
-	if (activeSceneId.value != null && name.value.trim()) appStateManager.commit('renameScene', { sceneId: activeSceneId.value, name: name.value.trim() });
+async function renameScene() {
+	const { canceled, result: name } = await ui.inputText({
+		title: 'Rename Scene',
+		placeholder: activeScene.value.name,
+		default: activeScene.value.name,
+	});
+	if (canceled || name == null) return;
+
+	appStateManager.commit('renameScene', { sceneId: activeScene.value.id, name });
 }
 
 function removeScene() {
 	if (activeSceneId.value != null && references.value.length === 0) appStateManager.commit('removeScene', { sceneId: activeSceneId.value });
 }
 
-function showSceneMenu(ev: PointerEvent) {
+function showSceneSelectMenu(ev: PointerEvent) {
 	const menuItems = appStateManager.state.timelineScenes.value.map(scene => ({
 		text: scene.name,
 		icon: 'ti ti-layout-dashboard',
@@ -65,6 +71,25 @@ function showSceneMenu(ev: PointerEvent) {
 		icon: 'ti ti-plus',
 		action: createScene,
 	}], ev.currentTarget ?? ev.target);
+}
+
+function showSceneMenu(ev: PointerEvent) {
+	const menuItems: MenuItem[] = [{
+		text: 'Rename Scene',
+		icon: 'ti ti-edit',
+		action: renameScene,
+	}, {
+		text: 'Duplicate Scene',
+		icon: 'ti ti-copy',
+		action: duplicateScene,
+	}, {
+		text: 'Remove Scene',
+		icon: 'ti ti-trash',
+		disabled: references.value.length > 0,
+		danger: true,
+		action: removeScene,
+	}];
+	ui.popupMenu(menuItems, ev.currentTarget ?? ev.target);
 }
 </script>
 

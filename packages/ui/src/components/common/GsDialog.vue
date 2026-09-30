@@ -39,13 +39,13 @@ export type GsDialogReturnType<T = Result> = { canceled: true, result: undefined
 
 <script lang="ts" setup>
 import { ref, useTemplateRef, computed } from 'vue';
+import type { GsSelectItem } from '@/components/common/GsSelect.vue';
+import type { OptionValue } from '@/types/option-value.ts';
 import GsModal from '@/components/common/GsModal.vue';
 import GsButton from '@/components/common/GsButton.vue';
 import GsSystemIcon from '@/components/common/GsSystemIcon.vue';
 import GsInput from '@/components/common/GsInput.vue';
 import GsSelect from '@/components/common/GsSelect.vue';
-import type { GsSelectItem } from '@/components/common/GsSelect.vue';
-import type { OptionValue } from '@/types/option-value.ts';
 import { useGsSelect } from '@/composables/useGsSelect.ts';
 import { i18n } from '@/i18n.ts';
 
@@ -152,7 +152,7 @@ function onInputKeydown(evt: KeyboardEvent) {
 	box-sizing: border-box;
 	text-align: center;
 	background: var(--THEME-panel);
-	border-radius: 16px;
+	border-radius: 12px;
 }
 
 .icon {
