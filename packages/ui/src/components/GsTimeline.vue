@@ -49,7 +49,7 @@
 						:layer="layer"
 						:sceneId="sceneId"
 						:tlElWidth="tlElWidth"
-						:tlPosX="tlPosX"
+						v-model:tlPosX="tlPosX"
 						:tlRangeX="tlRangeX"
 						:snapTimes="xTicksWithHalf"
 						:timelineTicks="xTicks"

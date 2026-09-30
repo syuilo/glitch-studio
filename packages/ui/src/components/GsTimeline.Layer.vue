@@ -109,6 +109,7 @@ const props = defineProps<{
 const sceneLayers = computed(() => appStateManager.state.timelineScenes.value.find(scene => scene.id === props.sceneId)?.layers ?? []);
 
 const emit = defineEmits<{
+	(ev: 'update:tlPosX', value: number): void;
 	(ev: 'dragStart', event: DragEvent): void;
 	(ev: 'selected'): void;
 	(ev: 'keyframeSelected', selection: TimelineKeyframeSelection): void;
@@ -370,7 +371,9 @@ function onLayerClipClick() {
 }
 
 function look() {
-
+	const start = getTimelineLayerStart(props.layer);
+	const end = getTimelineLayerEnd(props.layer);
+	emit('update:tlPosX', (start + end) / 2 - props.tlRangeX / 2);
 }
 
 </script>
