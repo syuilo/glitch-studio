@@ -1,20 +1,13 @@
 <template>
 <div :class="$style.root" @keydown="onTlKeydown">
 	<div :class="$style.header">
-		<GsButton :primary="previewPlayback.state.value.mode === 'timeline'" @click="previewPlayback.showTimeline()">Preview</GsButton>
-		<GsButton v-if="previewPlayback.isTimelinePlaying.value" primary @click="pause"><i class="ti ti-player-pause"></i></GsButton>
-		<GsButton v-else primary @click="play"><i class="ti ti-player-play"></i></GsButton>
+		<slot></slot>
+		<GsButton small :primary="previewPlayback.state.value.mode === 'timeline'" @click="previewPlayback.showTimeline()">Preview</GsButton>
+		<GsButton v-if="previewPlayback.isTimelinePlaying.value" small primary @click="pause"><i class="ti ti-player-pause"></i></GsButton>
+		<GsButton v-else small @click="play"><i class="ti ti-player-play"></i></GsButton>
 		<span v-if="timelineAudioPreview.buffering.value">Buffering audio…</span>
 		<span v-if="audioError || timelineAudioPreview.error.value || timelineRendererManagerController.errorMessage.value">{{ audioError || timelineAudioPreview.error.value || timelineRendererManagerController.errorMessage.value }}</span>
 		<span class="_monospace">{{ formatMsToTimecode(time) }}</span>
-		<GsSelect v-model="sceneToAdd" small :items="sceneLayerItems"/>
-		<GsButton small :disabled="!availableScenes.some(scene => scene.id === sceneToAdd)" @click="addSceneLayer">Add scene layer</GsButton>
-		<GsSelect v-model="audioAssetId" small :items="audioAssetItems"/>
-		<GsButton small :disabled="addingAudio || !audioAssetId" @click="addSelectedAudio">Add audio</GsButton>
-		<GsButton small :disabled="addingAudio" @click="importAudioLayer">Import audio</GsButton>
-		<GsSelect v-model="videoAssetId" small :items="videoAssetItems"/>
-		<GsButton small :disabled="addingVideo || !videoAssetId" @click="addSelectedVideo">Add video</GsButton>
-		<GsButton small :disabled="addingVideo" @click="importVideoLayer">Import video</GsButton>
 	</div>
 	<div :class="[$style.body, { [$style.panning]: panning }]" @mousedown.capture="onPanMousedown" @auxclick.capture="onPanAuxclick">
 		<div :class="$style.tlBgWrapper" data-timeline-surface>
@@ -142,14 +135,24 @@
 				<GsInput small type="number" :min="getTimelineLayerStart(selectedLayer) + 1" :max="selectedVideoMetadata ? selectedLayer.positionMs + selectedVideoMetadata.durationMs : undefined" :modelValue="getTimelineLayerEnd(selectedLayer)" @update:modelValue="value => editTrimmedLayerTiming('trimEnd', value)"><template #label>Trim end (ms)</template></GsInput>
 				<GsInput small type="number" :min="0" :max="selectedVideoMetadata ? selectedVideoMetadata.durationMs - selectedLayer.trimmedDurationMs : undefined" :modelValue="selectedLayer.trimStartMs" @update:modelValue="value => editTrimmedLayerTiming('offset', value)"><template #label>Source offset (ms)</template></GsInput>
 				<div v-if="selectedVideoMetadata">Source duration: {{ formatMsToTimecode(selectedVideoMetadata.durationMs) }}</div>
-				<GsSelect small :modelValue="selectedLayer.fitMode" :items="[{ label: 'Contain', value: 'contain' }, { label: 'Cover', value: 'cover' }, { label: 'Stretch', value: 'stretch' }]"
-					@update:modelValue="fitMode => appStateManager.commit('editVideoLayerSettings', { sceneId: props.sceneId, layerId: selectedLayer!.id, fitMode })"><template #label>Fit</template></GsSelect>
+				<GsSelect
+					small :modelValue="selectedLayer.fitMode" :items="[{ label: 'Contain', value: 'contain' }, { label: 'Cover', value: 'cover' }, { label: 'Stretch', value: 'stretch' }]"
+					@update:modelValue="fitMode => appStateManager.commit('editVideoLayerSettings', { sceneId: props.sceneId, layerId: selectedLayer!.id, fitMode })"
+				>
+					<template #label>Fit</template>
+				</GsSelect>
 				<div>Compositing</div>
-				<GsVisualParam v-for="(paramDef, paramId) in timelineCompositingParamDefs" :key="selectedLayer.id + ':' + paramId"
+				<GsVisualParam
+					v-for="(paramDef, paramId) in timelineCompositingParamDefs" :key="selectedLayer.id + ':' + paramId"
 					:availableVariables="LAYER_VAR_DEFS" :automationGraphs="selectedLayer.automationGraphs" :paramPath="[paramId]" :paramDef="paramDef"
-					:paramValue="selectedLayer.compositingParamValues[paramId]" @edit="event => onVisualModuleLayerParamEdit(event, 'compositing')"/>
-				<GsSwitch :modelValue="selectedLayer.audioEnabled" :disabled="!selectedLayer.audioEnabled && (!selectedVideoMetadata?.audio || !!selectedVideoAudioError)"
-					@update:modelValue="audioEnabled => appStateManager.commit('editVideoLayerSettings', { sceneId: props.sceneId, layerId: selectedLayer!.id, audioEnabled })">Audio enabled</GsSwitch>
+					:paramValue="selectedLayer.compositingParamValues[paramId]" @edit="event => onVisualModuleLayerParamEdit(event, 'compositing')"
+				/>
+				<GsSwitch
+					:modelValue="selectedLayer.audioEnabled" :disabled="!selectedLayer.audioEnabled && (!selectedVideoMetadata?.audio || !!selectedVideoAudioError)"
+					@update:modelValue="audioEnabled => appStateManager.commit('editVideoLayerSettings', { sceneId: props.sceneId, layerId: selectedLayer!.id, audioEnabled })"
+				>
+					Audio enabled
+				</GsSwitch>
 				<div v-if="selectedVideoAudioError">{{ selectedVideoAudioError }}</div>
 				<div v-else-if="selectedVideoMetadata && !selectedVideoMetadata.audio">No audio track</div>
 				<GsVisualParam
@@ -171,12 +174,16 @@
 				<GsInput small type="number" :min="getTimelineLayerStart(selectedLayer) + 1" :modelValue="getTimelineLayerEnd(selectedLayer)" @update:modelValue="value => editTrimmedLayerTiming('trimEnd', value)"><template #label>Trim end (ms)</template></GsInput>
 				<GsInput small type="number" :min="0" :modelValue="selectedLayer.trimStartMs" @update:modelValue="value => editTrimmedLayerTiming('offset', value)"><template #label>Source offset (ms)</template></GsInput>
 				<div>Compositing</div>
-				<GsVisualParam v-for="(paramDef, paramId) in timelineCompositingParamDefs" :key="selectedLayer.id + ':' + paramId"
+				<GsVisualParam
+					v-for="(paramDef, paramId) in timelineCompositingParamDefs" :key="selectedLayer.id + ':' + paramId"
 					:availableVariables="LAYER_VAR_DEFS" :automationGraphs="selectedLayer.automationGraphs" :paramPath="[paramId]" :paramDef="paramDef"
-					:paramValue="selectedLayer.compositingParamValues[paramId]" @edit="event => onVisualModuleLayerParamEdit(event, 'compositing')"/>
+					:paramValue="selectedLayer.compositingParamValues[paramId]" @edit="event => onVisualModuleLayerParamEdit(event, 'compositing')"
+				/>
 				<div>Audio</div>
-				<GsVisualParam :key="selectedLayer.id + ':volume'" :availableVariables="LAYER_VAR_DEFS" :automationGraphs="selectedLayer.automationGraphs"
-					:paramPath="['volume']" :paramDef="timelineAudioParamDefs.volume" :paramValue="selectedLayer.audioParamValues.volume" @edit="event => onVisualModuleLayerParamEdit(event, 'audio')"/>
+				<GsVisualParam
+					:key="selectedLayer.id + ':volume'" :availableVariables="LAYER_VAR_DEFS" :automationGraphs="selectedLayer.automationGraphs"
+					:paramPath="['volume']" :paramDef="timelineAudioParamDefs.volume" :paramValue="selectedLayer.audioParamValues.volume" @edit="event => onVisualModuleLayerParamEdit(event, 'audio')"
+				/>
 				<GsButton danger @click="appStateManager.commit('removeTimelineLayer', { sceneId: props.sceneId, layerId: selectedLayer.id })">Remove Layer</GsButton>
 			</div>
 			<div v-else-if="selectedLayer?.layerType === 'visualModule' || selectedLayer?.layerType === 'inlineVisualModule'">
@@ -235,7 +242,6 @@
 
 <script lang="ts" setup>
 import { getTimelineLayerStart, getTimelineLayerEnd } from '@glitch/shared/timeline/timing.ts';
-
 import { isParameterType } from '@glitch/shared/parameter.ts';
 import { LAYER_VAR_DEFS } from '@glitch/shared/expression.ts';
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef, useTemplateRef, watch } from 'vue';
@@ -244,28 +250,28 @@ import { genId } from '@glitch/shared/utility/id.js';
 import { timelineAudioParamDefs, AUDIO_LAYER_VAR_DEFS } from '@glitch/shared/timeline/timeline-audio.ts';
 import { timelineCompositingParamDefs } from '@glitch/shared/timeline/timeline-compositing.ts';
 import { deepClone } from '@glitch/shared/utility/deep-clone.ts';
+import { getSceneDuration, canReferenceScene } from '@glitch/shared/timeline/scenes.ts';
 import XLayer from './GsTimeline.Layer.vue';
 import GsLiteralLeafValueControl from './GsLiteralLeafValueControl.vue';
 import GsInput from './common/GsInput.vue';
 import GsSelect from './common/GsSelect.vue';
 import GsSwitch from './common/GsSwitch.vue';
-import type { MediaMetadata } from '@glitch/shared/media/media-metadata.ts';
-import { inspectVideoLayerAsset } from '@/utility/video-layer-asset.ts';
 import GsButton from './common/GsButton.vue';
 import GsDraggable from './common/GsDraggable.vue';
 import GsVisualParam from './GsVisualParam.vue';
 import GsVisualModuleEditor from './GsVisualModuleEditor.vue';
 import GsEffectPicker from './GsEffectPicker.vue';
 import GsTabs from './common/GsTabs.vue';
+import type { MediaMetadata } from '@glitch/shared/media/media-metadata.ts';
 import type { Asset } from '@glitch/shared/types.ts';
 import type { VisualModuleEdit } from '@/types/visual-module-editor.ts';
-import { getSceneDuration, canReferenceScene } from '@glitch/shared/timeline/scenes.ts';
-import { sceneEditorStates, timelineLayerClipboard } from '@/utility/timeline-editor-state.ts';
-import { getLayerParameterValues } from '@/utility/timeline-scene.ts';
 import type { TimelineLayer, TimelineVideoLayer } from '@glitch/shared/timeline/types.ts';
 import type { ParameterBinding, KeyframesTimelineKeyframe } from '@glitch/shared/types.ts';
 import type { TimelineKeyframeSelection } from './GsTimeline.Layer.vue';
 import type { ParamEdit } from './GsVisualParam.vue';
+import { getLayerParameterValues } from '@/utility/timeline-scene.ts';
+import { inspectVideoLayerAsset } from '@/utility/video-layer-asset.ts';
+import { sceneEditorStates, timelineLayerClipboard } from '@/utility/timeline-editor-state.ts';
 import * as ui from '@/ui.ts';
 import { createInlineVisualModuleLayer } from '@/utility/inline-visual-module-layer.ts';
 import { commitVisualModuleEdit } from '@/utility/visual-module-edit.ts';
@@ -404,9 +410,9 @@ function updateSelectedKeyframe(patch: Partial<Pick<KeyframesTimelineKeyframe, '
 	if (keyframe == null) return;
 	Object.assign(keyframe, deepClone(patch));
 	appStateManager.commit('editTimelineLayerParam', { sceneId: props.sceneId,
-		layerId: selected.selection.layerId, target: selected.selection.target,
-		paramId: selected.selection.paramId,
-		edit: { kind: 'keyframesTimelineInline', value },
+																																																				layerId: selected.selection.layerId, target: selected.selection.target,
+																																																				paramId: selected.selection.paramId,
+																																																				edit: { kind: 'keyframesTimelineInline', value },
 	}, mergeKey);
 }
 
@@ -709,10 +715,10 @@ function onVisualModuleLayerParamEdit(event: ParamEdit, target: 'module' | 'comp
 	if (event.kind === 'node' || event.kind === 'externalCustomParameterInput' || event.kind === 'addElement' || event.kind === 'removeElement') return;
 	if (event.kind === 'inputSource' && (event.inputSource === 'node' || event.inputSource === 'externalCustomParameterInput')) return;
 	appStateManager.commit('editTimelineLayerParam', { sceneId: props.sceneId,
-		layerId: layer.id,
-		target,
-		paramId: String(event.paramPath[0]),
-		edit: event,
+																																																				layerId: layer.id,
+																																																				target,
+																																																				paramId: String(event.paramPath[0]),
+																																																				edit: event,
 	}, event.mergeKey != null ? `${layer.id}:${target}:${event.paramPath[0]}:${event.mergeKey}` : undefined);
 }
 
@@ -943,6 +949,7 @@ onMounted(() => {
 	flex-wrap: wrap;
 	align-items: center;
 	gap: 4px;
+	padding: 4px;
 }
 
 .audioAssetSelect {

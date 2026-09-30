@@ -1,15 +1,8 @@
 <template>
 <div :class="$style.root">
-	<div :class="$style.toolbar">
-		<GsSelect v-model="selectedSceneId" :items="sceneItems" small><template #label>Scene</template></GsSelect>
-		<GsButton small @click="createScene">New scene</GsButton>
-		<GsButton small :disabled="activeScene == null" @click="duplicateScene">Duplicate scene</GsButton>
-		<GsInput v-if="activeScene" v-model="name" small><template #label>Name</template></GsInput>
-		<GsButton small :disabled="activeScene == null || !name.trim() || name === activeScene.name" @click="renameScene">Rename</GsButton>
-		<GsButton small danger :disabled="activeScene == null || references.length > 0" @click="removeScene">Delete scene</GsButton>
-		<span v-if="references.length">Used by: {{ references.map(scene => scene.name).join(', ') }}</span>
-	</div>
-	<GsTimeline v-if="activeScene" :key="activeScene.id" :sceneId="activeScene.id" :class="$style.timeline"/>
+	<GsTimeline v-if="activeScene" :key="activeScene.id" :sceneId="activeScene.id">
+		<GsButton small @click="showSceneMenu">Scene: {{ activeScene.name }} <i class="ti ti-chevron-down"></i></GsButton>
+	</GsTimeline>
 	<div v-else>Create a scene to start editing.</div>
 </div>
 </template>
@@ -18,19 +11,17 @@
 import { computed, ref, watch } from 'vue';
 import { genId } from '@glitch/shared/utility/id.ts';
 import { deepClone } from '@glitch/shared/utility/deep-clone.ts';
-import type { WorkspacePanel } from '@/workspace.ts';
-import { appStateManager, activeSceneId, activeScene } from '@/app.ts';
-import GsSelect from './common/GsSelect.vue';
-import GsInput from './common/GsInput.vue';
 import GsButton from './common/GsButton.vue';
+import type { WorkspacePanel } from '@/workspace.ts';
+import type { MenuItem } from '@/types/menu.ts';
 import GsTimeline from '@/components/GsTimeline.vue';
+import { appStateManager, activeSceneId, activeScene } from '@/app.ts';
+import * as ui from '@/ui.ts';
 
 defineProps<{
 	panel: WorkspacePanel;
 }>();
 
-const selectedSceneId = computed({ get: () => activeSceneId.value ?? '', set: value => { activeSceneId.value = value || null; } });
-const sceneItems = computed(() => appStateManager.state.timelineScenes.value.map(scene => ({ value: scene.id, label: scene.name })));
 const name = ref('');
 watch(() => activeScene.value?.name, value => { name.value = value ?? ''; }, { immediate: true });
 const references = computed(() => appStateManager.state.timelineScenes.value.filter(scene => scene.layers.some(layer => layer.layerType === 'scene' && layer.sceneId === activeSceneId.value)));
@@ -59,14 +50,26 @@ function renameScene() {
 function removeScene() {
 	if (activeSceneId.value != null && references.value.length === 0) appStateManager.commit('removeScene', { sceneId: activeSceneId.value });
 }
+
+function showSceneMenu(ev: PointerEvent) {
+	const menuItems = appStateManager.state.timelineScenes.value.map(scene => ({
+		text: scene.name,
+		icon: 'ti ti-layout-dashboard',
+		active: activeSceneId.value === scene.id,
+		action: () => { activeSceneId.value = scene.id; },
+	})) satisfies MenuItem[];
+	ui.popupMenu([...menuItems, {
+		type: 'divider',
+	}, {
+		text: 'New Scene',
+		icon: 'ti ti-plus',
+		action: createScene,
+	}], ev.currentTarget ?? ev.target);
+}
 </script>
 
 <style module lang="scss">
 .root {
 	height: 100%;
-	display: flex;
-	flex-direction: column;
 }
-.toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px; }
-.timeline { flex: 1; min-height: 0; }
 </style>
