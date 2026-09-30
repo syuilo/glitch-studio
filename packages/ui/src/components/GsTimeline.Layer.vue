@@ -58,7 +58,6 @@
 			</div>
 		</div>
 	</div>
-	<div :class="$style.divider"></div>
 </div>
 </template>
 
@@ -397,16 +396,6 @@ function onLayerClipClick() {
 	flex-shrink: 0;
 	background: var(--sideColor);
 	direction: ltr;
-}
-
-.divider {
-	position: relative;
-	z-index: 1;
-	box-sizing: border-box;
-	width: var(--sideWidth);
-	flex-shrink: 0;
-	background: var(--sideColor);
-	border-bottom: solid 1px #fff2;
 }
 
 .tl {

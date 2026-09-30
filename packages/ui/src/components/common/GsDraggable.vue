@@ -162,7 +162,7 @@ function onEmptyDrop(ev: DragEvent) {
 }
 
 .items {
-	--margin: 8px;
+	--margin: var(--DRAGGABLE_MARGIN, 8px);
 
 	display: flex;
 	align-items: center;

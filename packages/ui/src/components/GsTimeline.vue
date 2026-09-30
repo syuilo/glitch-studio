@@ -29,6 +29,8 @@
 				:modelValue="appStateManager.state.timeline.value"
 				direction="vertical"
 				manualDragStart
+				style="--DRAGGABLE_MARGIN: 4px;"
+				withGaps
 				@update:modelValue="onLayersSorted"
 			>
 				<template #default="{ item: layer, dragStart }">
