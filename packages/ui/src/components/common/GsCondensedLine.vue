@@ -35,7 +35,7 @@ const observer = new ResizeObserver((entries) => {
 import { onBeforeUnmount, useTemplateRef, watch } from 'vue';
 
 const props = withDefaults(defineProps<Props>(), {
-	minScale: 0,
+	minScale: 0.7,
 });
 
 const content = useTemplateRef('content');
