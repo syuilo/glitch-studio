@@ -297,13 +297,26 @@ function openHeaderViewMenu(ev: PointerEvent) {
 	}] : [], ev.currentTarget ?? ev.target);
 }
 
+async function toggleDevTools() {
+	if (!__ELECTRON__) return;
+	try {
+		if (!window.desktop) throw new Error('Desktop API is unavailable');
+		await window.desktop.toggleDevTools();
+	} catch (error) {
+		await ui.alert({ type: 'error', title: '開発者ツールの表示を切り替えられませんでした', text: String(error) });
+	}
+}
+
 function openHeaderHelpMenu(ev: PointerEvent) {
 	ui.popupMenu([{
 		text: 'About',
 		action: () => {
 			showAbout();
 		},
-	}], ev.currentTarget ?? ev.target);
+	}, ...(__ELECTRON__ ? [{
+		text: 'Toggle Developer Tools',
+		action: () => { void toggleDevTools(); },
+	}] : [])], ev.currentTarget ?? ev.target);
 }
 
 onMounted(() => {

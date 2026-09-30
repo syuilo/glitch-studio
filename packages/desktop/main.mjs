@@ -99,6 +99,15 @@ app.whenReady().then(() => {
 		getTrustedMainWindow(event).webContents.openDevTools({ mode: 'detach' });
 	});
 
+	ipcMain.handle('desktop:toggle-dev-tools', event => {
+		const contents = getTrustedMainWindow(event).webContents;
+		if (contents.isDevToolsOpened()) {
+			contents.closeDevTools();
+		} else {
+			contents.openDevTools({ mode: 'detach' });
+		}
+	});
+
 	ipcMain.handle('desktop:zoom-in', event => {
 		const contents = getTrustedMainWindow(event).webContents;
 		contents.setZoomFactor(Math.min(3, contents.getZoomFactor() * 1.2));

@@ -18,45 +18,17 @@
 				<a class="_gs-link" href="https://github.com/misskey-dev/misskey" target="_blank">https://github.com/misskey-dev/misskey</a>
 			</small>
 		</div>
-		<GsButton v-if="isElectron" inline :wait="showingTestAlert" @click="showTestAlert">OSダイアログをテスト</GsButton>
-		<GsButton v-if="isElectron" inline @click="openDevTools">開発者ツールを開く</GsButton>
 		<GsButton inline @click="ok">OK</GsButton>
 	</div>
 </GsModal>
 </template>
 
 <script lang="ts" setup>
-import { ref, useTemplateRef } from 'vue';
+import { useTemplateRef } from 'vue';
 import GsModal from './common/GsModal.vue';
 import GsButton from './common/GsButton.vue';
-import * as ui from '@/ui.ts';
 
 const version = _VERSION_;
-const isElectron = __ELECTRON__;
-const showingTestAlert = ref(false);
-
-async function showTestAlert() {
-	if (!__ELECTRON__ || showingTestAlert.value) return;
-	showingTestAlert.value = true;
-	try {
-		if (!window.desktop) throw new Error('Desktop API is unavailable');
-		await window.desktop.showTestAlert();
-	} catch (error) {
-		await ui.alert({ type: 'error', title: 'OSダイアログの表示に失敗しました', text: String(error) });
-	} finally {
-		showingTestAlert.value = false;
-	}
-}
-
-async function openDevTools() {
-	if (!__ELECTRON__) return;
-	try {
-		if (!window.desktop) throw new Error('Desktop API is unavailable');
-		await window.desktop.openDevTools();
-	} catch (error) {
-		await ui.alert({ type: 'error', title: '開発者ツールを開けませんでした', text: String(error) });
-	}
-}
 
 const modal = useTemplateRef('modal');
 

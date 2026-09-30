@@ -4,6 +4,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('desktop', {
 	showTestAlert: () => ipcRenderer.invoke('desktop:show-test-alert'),
 	openDevTools: () => ipcRenderer.invoke('desktop:open-dev-tools'),
+	toggleDevTools: () => ipcRenderer.invoke('desktop:toggle-dev-tools'),
 	zoomIn: () => ipcRenderer.invoke('desktop:zoom-in'),
 	zoomOut: () => ipcRenderer.invoke('desktop:zoom-out'),
 });
