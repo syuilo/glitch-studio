@@ -2,7 +2,7 @@ import * as msgpack from '@msgpack/msgpack';
 import semverGt from 'semver/functions/gt.js';
 import type { Asset, Player } from '@glitch/shared/types.js';
 import type { ProjectVisualModule } from '@glitch/shared/project/types.ts';
-import type { Timeline, TimelineLayer } from '@glitch/shared/timeline/types.ts';
+import type { Timeline } from '@glitch/shared/timeline/types.ts';
 
 export const DEFAULT_PROJECT_NAME = 'Untitled Project';
 
@@ -25,51 +25,24 @@ export type Project = ProjectInfo & {
 // BlobはMessagePackで直接保存できないため、フォントを含む素材の原本をバイト列にする。
 type StoredProject = Omit<Project, 'assets'> & {
 	assets: (Omit<Asset, 'fileData'> & { fileData: Uint8Array })[];
-	audioLayerTimingVersion?: 1;
 };
-
-type StoredTimelineLayer<T = TimelineLayer> = T extends TimelineLayer
-	? Omit<T, 'positionMs' | 'trimmedDurationMs' | 'trimStartMs'> & {
-		positionMs?: number; trimmedDurationMs?: number; trimStartMs?: number;
-		startTimeMs?: number; durationMs?: number; sourceOffsetMs?: number; endTimeMs?: number;
-	}
-	: never;
 
 export async function encodeProjectFile(project: Project): Promise<Uint8Array> {
 	const assets = await Promise.all(project.assets.map(async asset => ({
 		...asset,
 		fileData: new Uint8Array(await asset.fileData.arrayBuffer()),
 	})));
-	return msgpack.encode({ ...project, assets, audioLayerTimingVersion: 1 } satisfies StoredProject);
+	return msgpack.encode({ ...project, assets } satisfies StoredProject);
 }
 
 export function decodeProjectFile(bin: Uint8Array, currentVersion?: string): Project {
-	const project = msgpack.decode(bin) as Omit<StoredProject, 'timeline'> & {
-		timeline: StoredTimelineLayer[];
-	};
+	const project = msgpack.decode(bin) as StoredProject;
 	// 未来の形式は素材の構造も変わり得るため、復元処理に入る前にバージョンを確認する。
 	if (currentVersion != null && semverGt(project.gsVersion, currentVersion)) {
 		throw new Error(`未来のバージョンのプロジェクトファイルの読み込みはサポートしていません。（ファイル: ${project.gsVersion} / 現在: ${currentVersion}）`);
 	}
-	const { audioLayerTimingVersion, ...projectData } = project;
 	return {
-		...projectData,
-		// 開発中は同じバージョンでも保存形式が異なり得るため、プロパティで旧形式を判別する。
-		// 旧プロパティは残さず、配置・トリム量・表示区間の長さへ揃えて再保存する。
-		timeline: project.timeline.map((layer): TimelineLayer => {
-			const { startTimeMs, durationMs, sourceOffsetMs, endTimeMs, ...rest } = layer;
-			const positionMs = layer.positionMs ?? startTimeMs;
-			if (positionMs == null) throw new Error('Layer position is missing.');
-			const trimmedDurationMs = layer.trimmedDurationMs ?? durationMs ?? (endTimeMs != null ? endTimeMs - positionMs : undefined);
-			if (trimmedDurationMs == null) throw new Error('Layer duration is missing.');
-			const trimStartMs = layer.trimStartMs ?? sourceOffsetMs ?? 0;
-			let result: TimelineLayer = { ...rest, positionMs, trimmedDurationMs, trimStartMs };
-			// 旧形式のpositionMsは再生開始を指す。素材基準へ戻し、保存済みの再生区間を維持する。
-			if (result.layerType === 'audio' && audioLayerTimingVersion == null) {
-				result = { ...result, positionMs: result.positionMs - result.trimStartMs };
-			}
-			return result;
-		}),
+		...project,
 		assets: project.assets.map(asset => ({
 			...asset,
 			fileData: new Blob([new Uint8Array(asset.fileData)], { type: asset.fileDataType }),
@@ -145,4 +118,3 @@ export async function loadProjectFile(file?: File, handle?: FileSystemFileHandle
 		input.click();
 	});
 }
-
