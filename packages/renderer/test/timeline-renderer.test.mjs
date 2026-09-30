@@ -77,11 +77,10 @@ function fixture(overrides = {}) {
 			const id = layerEntry.id;
 			created.push(id);
 			return {
-				async prepare(context, signal) {
+				async evaluate(context, signal) {
 					prepared.push({ id, context, signal });
 					await overrides.prepare?.(id, context, signal);
-				},
-				async render(context) {
+					if (signal.aborted) return { gpuTime: 0 };
 					rendered.push({ id, context });
 					return overrides.render ? overrides.render(id, context) : { output: id, gpuTime: 10 };
 				},
@@ -288,7 +287,8 @@ test('ignores stale failures without clearing the current layers', async () => {
 	f.renderer.clear();
 });
 
-// 動画相当のレイヤーとVisual Moduleを混在させ、生成側だけで種類を解釈する
+// 【動画相当のレイヤーとVisual Moduleを混在させ、生成側だけで種類を解釈する】
+// 共通の評価契約にモジュール固有のパラメータや準備手順を要求せず、下層の出力を引き渡す。
 test('chains different layer types without requiring visual module fields', async () => {
 	const inputFrame = { name: 'video frame' };
 	const finalFrame = { name: 'processed frame' };
@@ -309,8 +309,8 @@ test('chains different layer types without requiring visual module fields', asyn
 				case 'video':
 					assert.equal(entry.layer.assetId, 'asset');
 					return {
-						async prepare(context) { prepared.push(context); },
-						async render(context) {
+						async evaluate(context) {
+							prepared.push(context);
 							assert.equal(context.time, 300);
 							assert.equal(context.endTime, 800);
 							assert.strictEqual(context.input, fallback);
@@ -345,7 +345,8 @@ test('chains different layer types without requiring visual module fields', asyn
 	assert.deepEqual(destroyed, ['video', 'effect']);
 });
 
-// 並行した準備でもVisual Moduleへの変換結果をシークごとに保持する
+// 【並行した評価でもVisual Moduleへの変換結果をシークごとに保持する】
+// 非同期の準備が逆順に完了しても、後から開始した評価の入力や時刻で古い評価を上書きしない。
 test('keeps visual module contexts separate across overlapping preparation', async () => {
 	const prepared = [];
 	const rendered = [];
@@ -364,12 +365,10 @@ test('keeps visual module contexts separate across overlapping preparation', asy
 	const first = { time: 1, timeDelta: 0, endTime: 10, input: 'first' };
 	const second = { time: 2, timeDelta: 0, endTime: 20, input: 'second' };
 	const controller = new AbortController();
-	const oldPreparation = layer.prepare(first, controller.signal);
-	await layer.prepare(second, controller.signal);
-	await layer.render(second);
+	const oldEvaluation = layer.evaluate(first, controller.signal);
+	await layer.evaluate(second, controller.signal);
 	pending.resolve();
-	await oldPreparation;
-	await layer.render(first);
+	await oldEvaluation;
 	assert.strictEqual(rendered[0], prepared[1]);
 	assert.strictEqual(rendered[1], prepared[0]);
 	assert.deepEqual(rendered.map(context => context.paramInputs.get('input')), ['second', 'first']);
@@ -379,7 +378,8 @@ test('keeps visual module contexts separate across overlapping preparation', asy
 	assert.ok(signals.every(signal => signal === controller.signal));
 });
 
-// 主入力を持たない素材モジュールでも、合成には元の背景を渡す。
+// 【主入力を持たない素材モジュールでも合成には元の背景を渡す】
+// モジュール内部の入力とタイムライン合成の背景は別の責務なので、主入力の有無で背景を失わない。
 test('provides the background for compositing modules without a primary input', async () => {
 	const background = { kind: 'uniform', value: [0, 0, 1, 1] };
 	const context = { time: 500, timeDelta: 16, endTime: 2000, isExport: true, input: background };
@@ -396,8 +396,32 @@ test('provides the background for compositing modules without a primary input', 
 		},
 		destroy() {},
 	});
-	await layer.prepare(context, new AbortController().signal);
-	await layer.render(context);
+	await layer.evaluate(context, new AbortController().signal);
+});
+
+// 【Visual Moduleの準備中に中断された評価は描画を開始しない】
+// レイヤー共通のprepare/render分離がなくても、中断後に履歴やGPU出力を更新してはいけない。
+// 準備前に中断済みの場合は準備自体を始めず、まだ有効な次の評価は通常どおり描画する。
+test('skips visual module drawing when evaluation is aborted before or during preparation', async () => {
+	const pending = deferred();
+	const prepared = [];
+	const rendered = [];
+	const layer = createVisualModuleTimelineLayer({ paramDefs: [], primaryInputId: null }, { paramValues: {}, automationGraphs: [] }, {
+		async prepare(context) { prepared.push(context.time); await pending.promise; },
+		async render(context) { rendered.push(context.time); return { output: 'frame', gpuTime: 3 }; },
+		destroy() {},
+	});
+	const controller = new AbortController();
+	const context = { time: 10, timeDelta: 0, endTime: 100, isExport: false, input: 'background' };
+	const evaluation = layer.evaluate(context, controller.signal);
+	controller.abort();
+	pending.resolve();
+	assert.deepEqual(await evaluation, { gpuTime: 0 });
+	assert.deepEqual(await layer.evaluate({ ...context, time: 20 }, controller.signal), { gpuTime: 0 });
+	assert.deepEqual(prepared, [10]);
+	assert.deepEqual(rendered, []);
+	assert.deepEqual(await layer.evaluate({ ...context, time: 30 }, new AbortController().signal), { output: 'frame', gpuTime: 3 });
+	assert.deepEqual(rendered, [30]);
 });
 
 // 【子Sceneの評価は最終表示せず、親の中断を非同期準備へ伝える】

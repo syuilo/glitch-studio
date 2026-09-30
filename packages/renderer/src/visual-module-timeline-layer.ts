@@ -1,12 +1,12 @@
 import { deepClone } from '@glitch/shared/utility/deep-clone.ts';
 import { genEmptyValue } from '@glitch/shared/utility/misc.ts';
 import { ParameterEvaluator } from '@glitch/shared/parameter-evaluator.js';
+import { createTimelineLayerEvaluationScope } from '@glitch/shared/timeline/evaluation-scope.ts';
 import type { VisualModuleCustomParameterId, VisualModule } from '@glitch/shared/visual-module/types.ts';
 import type { NodeOutput } from './node-output.ts';
 import type { TimelineVisualModuleLayer, TimelineInlineVisualModuleLayer } from '@glitch/shared/timeline/types.ts';
 import type { VisualModuleRenderContext } from './visual-module-renderer.ts';
 import type { TimelineLayerContext, TimelineLayerRenderer } from './timeline-renderer.ts';
-import type { LAYER_VAR_DEFS } from '@glitch/shared/expression.js';
 
 // 主入力の割り当てやパラメータはVisual Moduleレイヤーだけの責務とする。
 export function createVisualModuleTimelineLayer(
@@ -14,28 +14,19 @@ export function createVisualModuleTimelineLayer(
 	layer: TimelineVisualModuleLayer | TimelineInlineVisualModuleLayer,
 	renderer: {
 		prepare: (context: VisualModuleRenderContext, signal: AbortSignal) => Promise<void>;
-		render: (context: VisualModuleRenderContext, layerContext: TimelineLayerContext<NodeOutput>) => ReturnType<TimelineLayerRenderer<NodeOutput>['render']>;
+		render: (context: VisualModuleRenderContext, layerContext: TimelineLayerContext<NodeOutput>) => ReturnType<TimelineLayerRenderer<NodeOutput>['evaluate']>;
 		destroy: () => void;
 	},
 ): TimelineLayerRenderer<NodeOutput> {
-	// prepareとrenderは同じオブジェクトを渡し、評価結果を再利用する。
-	// 並行するシークのコンテキストを上書きしないよう、入力ごとに保持する。
-	const contexts = new WeakMap<TimelineLayerContext<NodeOutput>, VisualModuleRenderContext>();
 	const evaluator = new ParameterEvaluator();
-	const resolveContext = (context: TimelineLayerContext<NodeOutput>): VisualModuleRenderContext => {
-		let resolved = contexts.get(context);
-		if (resolved == null) {
+	return {
+		evaluate: async (context, signal) => {
+			if (signal.aborted) return { gpuTime: 0 };
 			const paramInputs = new Map<VisualModuleCustomParameterId, NodeOutput>();
 			if (visualModule.primaryInputId !== null) paramInputs.set(visualModule.primaryInputId, context.input);
 			const evaluationContext = {
+				...createTimelineLayerEvaluationScope({ ...context, automationGraphs: layer.automationGraphs }),
 				evaluatedParamValues: null,
-				variables: {
-					TEST_ONLY_LAYER: true,
-					TEST_SAME_NAME: 2,
-					IS_EXPORT: context.isExport,
-				} satisfies Record<typeof LAYER_VAR_DEFS[number], unknown>,
-				automationGraphs: layer.automationGraphs,
-				time: context.time, endTime: context.endTime,
 			};
 			const evaluatedParamValues = new Map<VisualModuleCustomParameterId, any>();
 			for (const def of visualModule.paramDefs) {
@@ -47,7 +38,8 @@ export function createVisualModuleTimelineLayer(
 				// prepare待機中にliteralの配列が編集されても、このフレームの値は変えない。
 				evaluatedParamValues.set(def.id, deepClone(evaluated));
 			}
-			resolved = {
+			// 評価ごとのローカル変数として保持し、並行するシークと共有しない。
+			const resolved: VisualModuleRenderContext = {
 				isExport: context.isExport,
 				time: context.time,
 				timeDelta: context.timeDelta,
@@ -57,13 +49,10 @@ export function createVisualModuleTimelineLayer(
 				pointerPosition: { x: -99999, y: -99999 },
 				pointerPositionPrev: { x: -99999, y: -99999 },
 			};
-			contexts.set(context, resolved);
-		}
-		return resolved;
-	};
-	return {
-		prepare: (context, signal) => renderer.prepare(resolveContext(context), signal),
-		render: context => renderer.render(resolveContext(context), context),
+			await renderer.prepare(resolved, signal);
+			if (signal.aborted) return { gpuTime: 0 };
+			return renderer.render(resolved, context);
+		},
 		destroy: () => renderer.destroy(),
 	};
 }

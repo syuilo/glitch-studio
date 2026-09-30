@@ -5,6 +5,7 @@ import defaultVertexShaderCode from './vertex.wgsl?raw';
 import { VisualModuleRenderer } from './visual-module-renderer.ts';
 import { TimelineRenderer } from './timeline-renderer.ts';
 import { createVisualModuleTimelineLayer } from './visual-module-timeline-layer.ts';
+import { createSceneTimelineLayer } from './scene-timeline-layer.ts';
 import { createTimelineCompositor } from './timeline-compositor.ts';
 import { TimelineCompositingParameters } from './timeline-compositing-parameters.ts';
 import { OutputTextureResolver } from './node-output.ts';
@@ -12,10 +13,10 @@ import { CanvasRenderer } from './canvas-renderer.ts';
 import type { ProjectVisualModule } from '@glitch/shared/project/types.ts';
 import type { NodeOutput } from './node-output.ts';
 import type { FrameScheduler } from './live-render-loop.ts';
-import type { TimelineLayerContext, TimelineLayerRenderer } from './timeline-renderer.ts';
+import type { TimelineLayerRenderer } from './timeline-renderer.ts';
 import type { EffectInstanceState, EffectStatusSource } from '@glitch/shared/effect/effect-status.ts';
 import type { Asset, IntermediateTextureFormat } from '@glitch/shared/types.ts';
-import type { TimelineScene, TimelineLayer, TimelineSceneLayer, TimelineVisualModuleLayer, TimelineInlineVisualModuleLayer } from '@glitch/shared/timeline/types.ts';
+import type { TimelineScene, TimelineLayer, TimelineVisualModuleLayer, TimelineInlineVisualModuleLayer } from '@glitch/shared/timeline/types.ts';
 import type { VisualModule } from '@glitch/shared/visual-module/types.ts';
 import type { EffectImplementation } from '@glitch/shared/effect/effect-implementation.js';
 import type { EffectDefinition } from '@glitch/shared/effect/effect-definition.js';
@@ -212,7 +213,13 @@ export class TimelineRendererManager extends EventEmitter<{
 	private createTimelineLayer(layer: TimelineLayer, layerPath: string[]): TimelineLayerRenderer<NodeOutput> {
 		// レイヤーの種類の解釈とリソース解決は、タイムライン制御の外側で行う。
 		switch (layer.layerType) {
-			case 'scene': return this.createSceneLayer(layer, layerPath);
+			case 'scene': return createSceneTimelineLayer(getTimelineScene(this.dynamicOptions.timelineScenes, layer.sceneId), layer, {
+				device: this.gpuDevice,
+				vertex: this.defaultVertexShaderModule,
+				resolution: this.dynamicOptions.resolution,
+				format: this.staticOptions.intermediateTextureFormat,
+				createLayer: entry => this.createTimelineLayer(entry, [...layerPath, entry.id]),
+			});
 			case 'visualModule': {
 				const visualModule = this.dynamicOptions.visualModules.find(module => module.id === layer.visualModuleId);
 				if (visualModule == null) throw new Error(`Visual module not found: ${layer.visualModuleId}`);
@@ -222,38 +229,6 @@ export class TimelineRendererManager extends EventEmitter<{
 				return this.createVisualModuleLayer(layer.visualModule, layer, layerPath);
 		}
 		throw new Error(`Unrecognized layer type: ${layer.layerType}`);
-	}
-
-	private createSceneLayer(layer: TimelineSceneLayer, layerPath: string[]): TimelineLayerRenderer<NodeOutput> {
-		const scene = getTimelineScene(this.dynamicOptions.timelineScenes, layer.sceneId);
-		// 定義が同じでも履歴・出力の所有者は配置ごとに分ける。親背景は子に渡さない。
-		const renderer = new TimelineRenderer<NodeOutput, TimelineLayer>({
-			fallbackOutput: { kind: 'uniform', value: [0, 0, 0, 0] },
-			createLayer: entry => this.createTimelineLayer(entry, [...layerPath, entry.id]),
-		});
-		const compositor = createTimelineCompositor({ device: this.gpuDevice, vertex: this.defaultVertexShaderModule,
-			resolution: this.dynamicOptions.resolution, format: this.staticOptions.intermediateTextureFormat });
-		const parameters = new TimelineCompositingParameters();
-		const prepared = new WeakMap<TimelineLayerContext<NodeOutput>, { output: NodeOutput; gpuTime: number }>();
-		return {
-			prepare: async (context, signal) => {
-				const result = await renderer.evaluateAt(context.time, scene.layers.filter(entry => entry.layerType !== 'audio'), context.timeDelta, context.isExport, signal);
-				if (result != null && !signal.aborted) prepared.set(context, result);
-			},
-			render: async context => {
-				const result = prepared.get(context);
-				if (result == null) return { gpuTime: 0 };
-				const encoder = this.gpuDevice.createCommandEncoder();
-				try {
-					const settings = parameters.evaluate({ time: context.time, endTime: context.endTime, isExport: context.isExport,
-						paramValues: layer.compositingParamValues, automationGraphs: layer.automationGraphs });
-					return { output: compositor.render(encoder, context.input, result.output, settings), gpuTime: result.gpuTime };
-				} finally {
-					this.gpuDevice.queue.submit([encoder.finish()]);
-				}
-			},
-			destroy: () => { renderer.clear(); compositor.dispose(); },
-		};
 	}
 
 	private createVisualModuleLayer(visualModule: VisualModule, layer: TimelineVisualModuleLayer | TimelineInlineVisualModuleLayer, layerPath: string[]): TimelineLayerRenderer<NodeOutput> {

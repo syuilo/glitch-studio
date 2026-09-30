@@ -15,9 +15,9 @@ export type TimelineLayerContext<Output> = {
 };
 
 export type TimelineLayerRenderer<Output> = {
-	prepare: (context: TimelineLayerContext<Output>, signal: AbortSignal) => Promise<void>;
-	// GPUコマンドの送信・計測の完了も実装側で待つ。
-	render: (context: TimelineLayerContext<Output>) => Promise<{ output?: Output; gpuTime: number }>;
+	// 準備・描画・GPUコマンドの送信・計測を含む。非同期待機後はsignalを確認し、
+	// 中断されていれば次の描画へ進まない。送信済みのGPU処理は取り消せない。
+	evaluate: (context: TimelineLayerContext<Output>, signal: AbortSignal) => Promise<{ output?: Output; gpuTime: number }>;
 	destroy: () => void;
 };
 
@@ -122,9 +122,7 @@ export class TimelineRenderer<Output, Entry extends TimelineRenderEntry = Timeli
 				endTime: entry.trimStartMs + entry.trimmedDurationMs,
 				input: output,
 			};
-			await layer.prepare(context, signal);
-			if (signal.aborted) return;
-			const result = await layer.render(context);
+			const result = await layer.evaluate(context, signal);
 			// 準備・描画・計測の待機中に別のシークが開始された場合は表示しない。
 			if (signal.aborted) return;
 			gpuTime += result.gpuTime;

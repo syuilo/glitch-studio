@@ -1,8 +1,9 @@
 import type { SceneAudioClip } from '@glitch/shared/timeline/scene-audio.ts';
-import type { AutomationGraph } from '@glitch/shared/types.ts';
+import type { EvaluationScope } from '@glitch/shared/parameter-evaluator.ts';
 import type { TimelineParameterBinding } from '@glitch/shared/timeline/types.ts';
 import { getTimelineLayerStart, getTimelineLayerEnd } from '@glitch/shared/timeline/timing.ts';
 import { ParameterEvaluator } from '@glitch/shared/parameter-evaluator.js';
+import { createAudioLayerEvaluationScope, createTimelineLayerEvaluationScope } from '@glitch/shared/timeline/evaluation-scope.ts';
 import type { TimelineAudioLayer } from '@glitch/shared/timeline/types.ts';
 import type { StereoPcm } from './pcm.ts';
 
@@ -31,9 +32,14 @@ export class TimelineAudioRenderer {
 			if (!Number.isFinite(duration) || duration <= 0) throw new Error('Audio has no finite duration.');
 			const pcm = await this.read(layer.assetId, (first / sampleRate * 1000 - clip.positionMs) / 1000, end - first, sampleRate);
 			const gains = [
-				{ positionMs: clip.positionMs, evaluate: this.createGain(layer.paramValues.volume, layer.automationGraphs, duration, isExport, true) },
+				{ positionMs: clip.positionMs, evaluate: this.createGain(layer.paramValues.volume, time => createAudioLayerEvaluationScope({
+					time, endTime: duration, automationGraphs: layer.automationGraphs, isExport,
+				})) },
+				// Scene配置の音量は映像の合成設定と同じスコープを使う。
 				...clip.gains.map(gain => ({ positionMs: gain.positionMs,
-					evaluate: this.createGain(gain.volume, gain.automationGraphs, gain.endTimeMs, isExport, false) })),
+					evaluate: this.createGain(gain.volume, time => createTimelineLayerEvaluationScope({
+						time, endTime: gain.endTimeMs, automationGraphs: gain.automationGraphs, isExport,
+					})) })),
 			];
 			for (let frame = first; frame < end; frame++) {
 				const time = frame / sampleRate * 1000;
@@ -46,15 +52,11 @@ export class TimelineAudioRenderer {
 		return output;
 	}
 
-	private createGain(binding: TimelineParameterBinding, automationGraphs: AutomationGraph[], endTime: number, isExport: boolean, isAudioLayer: boolean) {
+	private createGain(binding: TimelineParameterBinding, getScope: (time: number) => EvaluationScope) {
 		const cache = new Map<number, number>();
 		const evaluate = (time: number) => {
 			const value = this.evaluator.evaluate(binding, {
-				time, endTime, automationGraphs, evaluatedParamValues: null,
-				// Scene配置の音量は合成設定と同じスコープ。子の音声素材の変数を継承しない。
-				variables: isAudioLayer
-					? { TIME: time / 1000, TIME_MS: time, END_TIME: endTime / 1000, END_TIME_MS: endTime, PROGRESS: time / endTime, IS_EXPORT: isExport }
-					: { TEST_ONLY_LAYER: true, TEST_SAME_NAME: 2, IS_EXPORT: isExport },
+				...getScope(time), evaluatedParamValues: null,
 			}, 0);
 			return typeof value === 'number' && Number.isFinite(value) ? Math.max(0, value) : 0;
 		};
