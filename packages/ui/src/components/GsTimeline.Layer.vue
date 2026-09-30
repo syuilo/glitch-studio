@@ -20,6 +20,8 @@
 		</div>
 		<div :class="$style.tl">
 			<div v-if="sourceRect" :class="$style.tlSourceGhost" :style="{ left: sourceRect.left + 'px', width: sourceRect.width + 'px' }"></div>
+			<div v-show="layerRect.left > tlElWidth" :class="$style.stickyArrow" :style="{ right: 0 }"><i class="ti ti-arrow-right"></i></div>
+			<div v-show="layerRect.left + layerRect.width < 0" :class="$style.stickyArrow" :style="{ left: 0 }"><i class="ti ti-arrow-left"></i></div>
 			<div
 				:class="[$style.tlClip, { [$style.moving]: timingDragMode === 'move' }]"
 				:style="{ width: layerRect.width + 'px', left: layerRect.left + 'px' }"
@@ -501,6 +503,15 @@ function onLayerClipClick() {
 	overflow: clip;
 	user-select: none;
 	cursor: grab;
+}
+
+.stickyArrow {
+	position: absolute;
+	top: 0;
+	width: var(--mainLaneHeight);
+	height: var(--mainLaneHeight);
+	line-height: var(--mainLaneHeight);
+	text-align: center;
 }
 
 </style>
