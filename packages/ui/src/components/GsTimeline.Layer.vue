@@ -328,11 +328,20 @@ function onLayerClipClick() {
 .root {
 	--mainLaneHeight: 24px;
 	--keyframesLaneHeight: 20px;
+	--sideColor: #181818;
 
 	display: flex;
 	flex-direction: row;
 	width: 100%;
 	overflow: clip;
+
+	&:hover {
+		background: #ffffff06;
+
+		> .side {
+			background: hsl(from var(--sideColor) h s calc(l + 5));
+		}
+	}
 }
 
 .side {
@@ -341,7 +350,8 @@ function onLayerClipClick() {
 	box-sizing: border-box;
 	width: var(--sideWidth);
 	flex-shrink: 0;
-	background: #181818;
+	background: var(--sideColor);
+	border-bottom: solid 1px #fff2;
 	direction: ltr;
 }
 
@@ -358,6 +368,7 @@ function onLayerClipClick() {
 .sideKeyframesLane {
 	height: var(--keyframesLaneHeight);
 	line-height: var(--keyframesLaneHeight);
+	text-align: right;
 }
 
 .tl {
@@ -368,8 +379,9 @@ function onLayerClipClick() {
 
 .tlSourceGhost {
 	position: absolute;
-	top: 1px;
-	height: calc(var(--mainLaneHeight) - 2px);
+	//top: 1px;
+	//height: calc(var(--mainLaneHeight) - 2px);
+	height: var(--mainLaneHeight);
 	box-sizing: border-box;
 	background: color-mix(in srgb, var(--THEME-accent) 15%, transparent);
 	border: 1px dashed color-mix(in srgb, var(--THEME-accent) 45%, transparent);
@@ -391,7 +403,7 @@ function onLayerClipClick() {
 	margin: auto 0;
 	top: 0;
 	bottom: 0;
-	height: calc(100% - 2px);
+	//height: calc(100% - 2px);
 	width: 100%;
 	padding: 0 8px 0 8px;
 	box-sizing: border-box;

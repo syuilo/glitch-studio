@@ -49,6 +49,9 @@
 					/>
 				</template>
 			</GsDraggable>
+			<div>
+				footer
+			</div>
 		</div>
 		<div :class="$style.tlOverlayWrapper" data-timeline-surface>
 			<div :class="$style.tlOverlaySideSpacer"></div>
@@ -71,10 +74,13 @@
 			</div>
 			-->
 
+				<!--
+
 				<div :class="$style.infoBar" class="_monospace">
 					<div><b>TL Offset</b>{{ tlPosX.toFixed(2) }}, {{ tlPosY.toFixed(2) }}</div>
 					<div><b>Cursor</b>{{ cursorTime }}, {{ cursorValue }}</div>
 				</div>
+							-->
 			</div>
 		</div>
 
