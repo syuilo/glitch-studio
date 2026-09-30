@@ -32,7 +32,7 @@
 			{{ param.key }}
 		</div>
 		<div :class="$style.tl">
-			<div :style="{ width: layerRect.width + 'px', left: layerRect.left + 'px' }">
+			<div style="position: relative;">
 				<XKeyframes
 					:keyframes="param.binding.keyframesTimeline.keyframes"
 					:startTime="layer.positionMs"
