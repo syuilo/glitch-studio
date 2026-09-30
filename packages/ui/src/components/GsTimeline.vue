@@ -286,7 +286,7 @@ import type { TimelineLayer, TimelineVideoLayer } from '@glitch/shared/timeline/
 import type { ParameterBinding, KeyframesTimelineKeyframe } from '@glitch/shared/types.ts';
 import type { TimelineKeyframeSelection, TimelineSelection, TimelineSelectionGeometry, SelectionRect, TimelineMovePoint } from '@/utility/timeline-selection.ts';
 import type { ParamEdit } from './GsVisualParam.vue';
-import { timelineMarqueeRect, selectTimelineRange, keyframeSelectionKey, constrainTimelineMove, keyframeMoveBounds, getTimelineSnappingTimes } from '@/utility/timeline-selection.ts';
+import { timelineMarqueeRect, selectTimelineRange, keyframeSelectionKey, getTimelineStretchSelection, constrainTimelineMove, keyframeMoveBounds, getTimelineSnappingTimes } from '@/utility/timeline-selection.ts';
 import { createKeyframeStretch, stretchKeyframeX } from '@/utility/timeline-keyframe-stretch.ts';
 import { zoomTimelineX } from '@/utility/timeline-zoom.ts';
 import { getTimelineLayerTicks, formatTimelineTimecode as formatMsToTimecode } from '@/utility/timeline-ticks.ts';
@@ -745,11 +745,18 @@ function onLayerMoveStart(event: PointerEvent, layer: TimelineLayer) {
 function onKeyframeMoveStart(event: PointerEvent, point: TimelineKeyframeSelection) {
 	if (event.button !== 0 || !event.isPrimary || stopSelectionDrag || tlElWidth.value <= 0 || tlRangeX.value <= 0) return;
 	const key = keyframeSelectionKey(point);
-	const laneEntries = keyframeEntries.value.filter(entry => entry.selection.layerId === point.layerId && entry.selection.target === point.target && entry.selection.paramId === point.paramId);
-	const stretch = event.shiftKey ? createKeyframeStretch(laneEntries.map(entry => ({ id: entry.selection.keyframeId, x: entry.x })), point.keyframeId) : null;
+	const stretchSelection = event.shiftKey ? getTimelineStretchSelection(keyframeEntries.value.map(entry => entry.selection), selection.value, point) : [];
+	const stretchKeys = new Set(stretchSelection.map(keyframeSelectionKey));
+	const stretchEntries = keyframeEntries.value.filter(entry => stretchKeys.has(keyframeSelectionKey(entry.selection)));
+	const laneEntries = stretchEntries.filter(entry => entry.selection.target === point.target && entry.selection.paramId === point.paramId);
+	const stretch = event.shiftKey ? createKeyframeStretch(laneEntries.map(entry => ({ id: entry.selection.keyframeId, x: entry.x })), point.keyframeId,
+		stretchEntries.map(entry => {
+			const ids = new Set(stretchSelection.filter(point => point.target === entry.selection.target && point.paramId === entry.selection.paramId).map(point => point.keyframeId));
+			return { x: entry.x, ...keyframeMoveBounds(entry.keyframes, ids, entry.selection.keyframeId) };
+		})) : null;
 	if (stretch != null) {
-		// ストレッチは選択範囲にかかわらず、このパラメータ行の全キーを対象にする。
-		selection.value = { kind: 'keyframes', keyframes: laneEntries.map(entry => entry.selection) };
+		// 同じレイヤーの選択済みキーを、ドラッグしたレーンの選択範囲を基準に変形する。
+		selection.value = { kind: 'keyframes', keyframes: stretchSelection };
 	} else if (selection.value.kind !== 'keyframes' || !selection.value.keyframes.some(entry => keyframeSelectionKey(entry) === key)) onKeyframeSelected(point);
 	const current = selection.value;
 	if (current.kind !== 'keyframes') return;
@@ -762,7 +769,7 @@ function onKeyframeMoveStart(event: PointerEvent, point: TimelineKeyframeSelecti
 		const localTimes = ticks == null ? [] : [...ticks.major, ...ticks.minor].toSorted((a, b) => a - b).map(time => layer.positionMs + time);
 		return [layer.id, getTimelineSnapCandidates(snapSettings.value, otherTimes, xTicksWithHalf.value, localTimes)];
 	}));
-	const points = entries.filter(entry => stretch == null || entry.selection.keyframeId === point.keyframeId).map(entry => {
+	const points = entries.filter(entry => stretch == null || keyframeSelectionKey(entry.selection) === key).map(entry => {
 		const ids = new Set(current.keyframes.filter(point => point.layerId === entry.selection.layerId && point.target === entry.selection.target && point.paramId === entry.selection.paramId).map(point => point.keyframeId));
 		const bounds = stretch ?? keyframeMoveBounds(entry.keyframes, ids, entry.selection.keyframeId);
 		return { time: entry.time, minDelta: bounds.minDelta, maxDelta: bounds.maxDelta, snapTimes: candidatesByLayer.get(entry.selection.layerId) ?? [] };

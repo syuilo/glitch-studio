@@ -25,7 +25,7 @@ const bundled = await build({
 });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', bundled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
-const { selectTimelineRange, selectionRect, timelineMarqueeRect, keyframeSelectionKey, constrainTimelineMove, keyframeMoveBounds, AppStateManager, listenPointerDrag } = module.exports;
+const { selectTimelineRange, selectionRect, timelineMarqueeRect, keyframeSelectionKey, getTimelineStretchSelection, constrainTimelineMove, keyframeMoveBounds, AppStateManager, listenPointerDrag } = module.exports;
 const { getTimelineSnapCandidates, getTimelineSnappingTimes, getTimelineSeekPosition, getTimelineLocalTicks, getTimelineLayerTicks, formatTimelineTimecode } = module.exports;
 const { createKeyframeStretch, stretchKeyframeX, zoomTimelineX } = module.exports;
 
@@ -97,6 +97,62 @@ test('snaps the stretched endpoint within its bounds and scales intermediate key
 });
 
 const key = (layerId, keyframeId, target = 'audio', paramId = 'volume') => ({ layerId, target, paramId, keyframeId });
+
+// 【同じレイヤーの選択済みキーだけをストレッチ対象にする】
+// 一部だけ選んだレーンでは未選択キーを追加せず、別レイヤーも巻き込まない。
+// キーIDやパラメータIDが同じでも、レイヤー・パラメータの所属先を区別する。
+test('preserves partial selections across lanes when choosing stretch targets', () => {
+	const dragged = key('video', '0', 'compositing', 'opacity');
+	const lane = [dragged, key('video', '1', 'compositing', 'opacity')];
+	const selectedLane = [key('video', '0'), key('video', '1')];
+	const unselected = [key('video', '0', 'module', 'volume'), key('video', '0', 'compositing', 'rotation')];
+	const otherLayer = [key('audio', '0'), key('audio', '1')];
+	const all = [...lane, ...selectedLane, ...unselected, ...otherLayer];
+	const selection = { kind: 'keyframes', keyframes: [dragged, selectedLane[1], otherLayer[0]] };
+	assert.deepEqual(getTimelineStretchSelection(all, selection, dragged), [dragged, selectedLane[1]]);
+	assert.deepEqual(selection.keyframes, [dragged, selectedLane[1], otherLayer[0]]);
+	assert.deepEqual(getTimelineStretchSelection(all, { kind: 'keyframes', keyframes: [...lane, ...selectedLane] }, dragged), [...lane, ...selectedLane]);
+	assert.deepEqual(getTimelineStretchSelection(all, { kind: 'layers', ids: ['video', 'audio'] }, dragged), lane);
+	assert.deepEqual(getTimelineStretchSelection(all, { kind: 'keyframes', keyframes: [otherLayer[0]] }, dragged), lane);
+});
+
+// 【未選択キーとの境界で全体のストレッチを止める】
+// 選択範囲外・範囲内に未選択キーがある場合も、動くキーが追い越して順序を変えないようにする。
+// 共通固定端の左右で移動方向が逆になる場合の制約も確認する。
+test('constrains partial stretching against unselected neighbors on either side of the anchor', () => {
+	const lane = [{ id: 'a', x: 100 }, { id: 'b', x: 150 }, { id: 'c', x: 200 }, { id: 'd', x: 800 }];
+	const selected = new Set(['a', 'c']);
+	const affected = lane.filter(point => selected.has(point.id)).map(point => ({ ...point, ...keyframeMoveBounds(lane, selected, point.id) }));
+	const first = createKeyframeStretch(affected, 'a', affected);
+	assert.equal(first.maxDelta, 50);
+	assert.equal(stretchKeyframeX(100, first, 100), 150);
+	const last = createKeyframeStretch(affected, 'c', [...affected, { x: 50, minDelta: -25, maxDelta: 25 }]);
+	assert.equal(last.minDelta, -50);
+	assert.equal(last.maxDelta, 50);
+	assert.equal(stretchKeyframeX(200, last, 100), 250);
+	assert.equal(stretchKeyframeX(50, last, 100), 25);
+});
+
+// 【別レーンの範囲外キーも含めて伸縮の下限・上限を求める】
+// ドラッグ元より早いキーが存在すると、端点が0以上でも別レーンだけ負の時刻になり得る。
+// 個別の丸めで相対関係を壊さず、共通倍率を制限して先頭・末尾のどちらの操作でも防ぐ。
+test('bounds both stretch directions against keys outside the dragged lane', () => {
+	const lane = [{ id: 'first', x: 100 }, { id: 'last', x: 500 }];
+	const affected = [...lane, { x: 50 }, { x: 800 }];
+	const first = createKeyframeStretch(lane, 'first', affected);
+	const last = createKeyframeStretch(lane, 'last', affected);
+	assert.ok(Math.abs(first.minDelta + 400 / 9) < 1e-8);
+	assert.equal(last.maxDelta, 400);
+	assert.deepEqual(affected.map(point => stretchKeyframeX(point.x, last, 1000)), [100, 900, 0, 1500]);
+	for (const point of affected) {
+		assert.ok(stretchKeyframeX(point.x, first, -1000) >= 0);
+		assert.equal(stretchKeyframeX(point.x, first, 0), point.x);
+	}
+	const atZero = createKeyframeStretch(lane, 'last', [...affected, { x: 0 }]);
+	assert.equal(atZero.maxDelta, 0);
+	assert.deepEqual(constrainTimelineMove(401, [{ time: 500, ...last }], [902], 1), { delta: 400, snappingTime: null });
+});
+
 const empty = { kind: 'layers', ids: [] };
 const geometry = {
 	clips: [{ id: 'long', rect: { left: -1000, top: 0, right: 1000, bottom: 20 } }, { id: 'short', rect: { left: 30, top: 50, right: 60, bottom: 70 } }],
@@ -346,6 +402,72 @@ function fixture() {
 }
 const layers = manager => manager.state.timelineScenes.value[0].layers;
 const snapshot = manager => JSON.parse(JSON.stringify(layers(manager)));
+
+// 【複数レーンを共通の固定端で伸縮し、1回のUndoで復元する】
+// 全キーを選択した音声レーンとドラッグ元の合成レーンをまとめて操作する。
+// 別レイヤーは変更せず、値・補間を維持して全体の伸縮と履歴の統合を確認する。
+test('stretches selected lanes together in one undoable command', () => {
+	const manager = fixture();
+	layers(manager)[1].audioParamValues.volume.keyframesTimeline.keyframes.forEach((point, index) => { point.x = [50, 400, 1000][index]; });
+	const before = snapshot(manager);
+	const dragged = key('video', '2', 'compositing', 'opacity');
+	const all = before.flatMap(layer => (layer.layerType === 'audio'
+		? [['audio', 'volume', layer.paramValues.volume]]
+		: [['compositing', 'opacity', layer.compositingParamValues.opacity], ['audio', 'volume', layer.audioParamValues.volume]])
+		.flatMap(([target, paramId, binding]) => binding.keyframesTimeline.keyframes.map(point => ({ ...key(layer.id, point.id, target, paramId), x: point.x }))));
+	const selection = getTimelineStretchSelection(all, { kind: 'keyframes', keyframes: [...all.filter(point => point.layerId === 'video'), key('audio', '0')] }, dragged);
+	const selected = new Set(selection.map(keyframeSelectionKey));
+	const positions = all.filter(point => selected.has(keyframeSelectionKey(point)));
+	const lane = before[1].compositingParamValues.opacity.keyframesTimeline.keyframes;
+	const stretch = createKeyframeStretch(lane, dragged.keyframeId, positions);
+	for (const delta of [350, 700, 1000]) manager.commit('moveTimelineKeyframes', {
+		sceneId: 'scene', positions: positions.map(point => ({ ...point, x: stretchKeyframeX(point.x, stretch, delta) })),
+	}, 'stretch');
+	const expected = structuredClone(before);
+	expected[1].compositingParamValues.opacity.keyframesTimeline.keyframes.forEach((point, index) => { point.x = [100, 300, 1500][index]; });
+	expected[1].audioParamValues.volume.keyframesTimeline.keyframes.forEach((point, index) => { point.x = [0, 700, 1900][index]; });
+	assert.deepEqual(snapshot(manager), expected);
+	assert.equal(manager.undoStack.value.length, 1);
+	manager.undo();
+	assert.deepEqual(snapshot(manager), before);
+	manager.redo();
+	assert.deepEqual(snapshot(manager), expected);
+});
+
+// 【複数レーンの部分選択だけを伸縮し、未選択キーと値を維持してUndoする】
+// ドラッグ元では選択範囲の端を基準にし、別レーンの選択キーにも同じ倍率を適用する。
+// 未選択キーに達した時点で全体を制限し、繰り返しの更新を1回で復元できることを確認する。
+test('stretches only selected keys across lanes and restores them with one undo', () => {
+	const manager = fixture();
+	layers(manager)[1].audioParamValues.volume.keyframesTimeline.keyframes.forEach((point, index) => { point.x = [50, 400, 1000][index]; });
+	const before = snapshot(manager);
+	const opacity = before[1].compositingParamValues.opacity.keyframesTimeline.keyframes;
+	const volume = before[1].audioParamValues.volume.keyframesTimeline.keyframes;
+	const all = [...opacity.map(point => ({ ...key('video', point.id, 'compositing', 'opacity'), x: point.x })),
+		...volume.map(point => ({ ...key('video', point.id), x: point.x }))];
+	const selected = [key('video', '0', 'compositing', 'opacity'), key('video', '1', 'compositing', 'opacity'), key('video', '1')];
+	const selection = { kind: 'keyframes', keyframes: selected };
+	const targets = new Set(getTimelineStretchSelection(all, selection, selected[1]).map(keyframeSelectionKey));
+	const positions = all.filter(point => targets.has(keyframeSelectionKey(point)));
+	const bounds = positions.map(point => ({ x: point.x, ...keyframeMoveBounds(point.target === 'compositing' ? opacity : volume,
+		new Set(positions.filter(entry => entry.target === point.target).map(entry => entry.keyframeId)), point.keyframeId) }));
+	const stretch = createKeyframeStretch(opacity.filter(point => point.id !== '2'), '1', bounds);
+	assert.equal(stretch.anchorX, 100);
+	assert.equal(stretch.maxDelta, 200);
+	for (const delta of [50, 500, 100, 200]) manager.commit('moveTimelineKeyframes', {
+		sceneId: 'scene', positions: positions.map(point => ({ ...point, x: stretchKeyframeX(point.x, stretch, delta) })),
+	}, 'partial-stretch');
+	const expected = structuredClone(before);
+	expected[1].compositingParamValues.opacity.keyframesTimeline.keyframes[1].x = 400;
+	expected[1].audioParamValues.volume.keyframesTimeline.keyframes[1].x = 1000;
+	assert.deepEqual(snapshot(manager), expected);
+	assert.deepEqual(selection.keyframes, selected);
+	assert.equal(manager.undoStack.value.length, 1);
+	manager.undo();
+	assert.deepEqual(snapshot(manager), before);
+	manager.redo();
+	assert.deepEqual(snapshot(manager), expected);
+});
 
 // 【連続ストレッチを1回のUndoで復元し、他のパラメータを変更しない】
 // ドラッグ中の更新を同じ履歴にまとめ、端点・中間キーの時刻だけを変更する。

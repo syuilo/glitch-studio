@@ -21,6 +21,15 @@ export function keyframeSelectionKey(selection: TimelineKeyframeSelection): stri
 	return JSON.stringify([selection.layerId, selection.target, selection.paramId, selection.keyframeId]);
 }
 
+export function getTimelineStretchSelection(keyframes: readonly TimelineKeyframeSelection[], selection: TimelineSelection, dragged: TimelineKeyframeSelection): TimelineKeyframeSelection[] {
+	const selected = new Set((selection.kind === 'keyframes' ? selection.keyframes : [])
+		.filter(point => point.layerId === dragged.layerId).map(keyframeSelectionKey));
+	// 部分選択がある場合は未選択キーを巻き込まない。選択なしで端点を操作するときだけレーン全体を扱う。
+	return keyframes.filter(point => point.layerId === dragged.layerId && (selected.size > 0
+		? selected.has(keyframeSelectionKey(point))
+		: point.target === dragged.target && point.paramId === dragged.paramId));
+}
+
 export function selectionRect(x1: number, y1: number, x2: number, y2: number): SelectionRect {
 	return { left: Math.min(x1, x2), top: Math.min(y1, y2), right: Math.max(x1, x2), bottom: Math.max(y1, y2) };
 }
