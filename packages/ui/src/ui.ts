@@ -3,6 +3,9 @@ import type { Component, MaybeRef, InjectionKey, Ref } from 'vue';
 import type { ComponentEmit, ComponentProps as CP } from 'vue-component-type-helpers';
 import type { MenuItem } from '@/types/menu.ts';
 import type { OverloadToUnion } from '@/types/overload-to-union.ts';
+import type { GsSelectItem } from './components/common/GsSelect.vue';
+import type { OptionValue } from './types/option-value.ts';
+import type { GsDialogReturnType } from '@/components/common/GsDialog.vue';
 import { getHTMLElementOrNull } from '@/utility/get-dom-node-or-null.ts';
 import { focusParent } from '@/utility/focus.ts';
 import GsPopupMenu from '@/components/common/GsPopupMenu.vue';
@@ -216,6 +219,29 @@ export function confirm(props: {
 		}, {
 			done: result => {
 				resolve(result ? result : { canceled: true });
+			},
+			closed: () => dispose(),
+		});
+	});
+}
+
+export function select<C extends OptionValue, D extends C | null = null>(props: {
+	title?: string;
+	text?: string;
+	default?: D;
+	items: (GsSelectItem<C> | undefined)[];
+}): Promise<GsDialogReturnType<Exclude<D, undefined> extends null ? C | null : C>> {
+	return new Promise(resolve => {
+		const { dispose } = popup(GsDialog, {
+			title: props.title,
+			text: props.text,
+			select: {
+				items: props.items.filter(x => x !== undefined),
+				default: props.default ?? null,
+			},
+		}, {
+			done: result => {
+				resolve(result as GsDialogReturnType<Exclude<D, undefined> extends null ? C | null : C>);
 			},
 			closed: () => dispose(),
 		});

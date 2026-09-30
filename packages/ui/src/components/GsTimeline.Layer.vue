@@ -13,7 +13,9 @@
 					<i v-else-if="layer.layerType === 'video'" class="ti ti-video"></i>
 					<i v-else-if="layer.layerType === 'audio'" class="ti ti-music"></i>
 				</span>
-				<span>{{ layerLabel }}</span>
+				<span style="flex: 1; min-width: 0;">
+					<GsCondensedLine>{{ layerLabel }}</GsCondensedLine>
+				</span>
 			</div>
 		</div>
 		<div :class="$style.tl">
@@ -78,15 +80,15 @@ import { deepClone } from '@glitch/shared/utility/deep-clone.ts';
 import { genId } from '@glitch/shared/utility/id.ts';
 import { evaluateKeyframesTimeline } from '@glitch/shared/utility/keyframes-timeline.ts';
 import { getTimelineLayerStart, getTimelineLayerEnd } from '@glitch/shared/timeline/timing.ts';
+import { getSceneDuration } from '@glitch/shared/timeline/scenes.ts';
+import { readMediaMetadata } from '@glitch/shared/media/media-metadata.ts';
 import GsCondensedLine from './common/GsCondensedLine.vue';
 import XKeyframes from './GsTimeline.Layer.Keyframes.vue';
 import type { KeyframeMove } from './GsTimeline.Layer.Keyframes.vue';
-import { getSceneDuration } from '@glitch/shared/timeline/scenes.ts';
-import { getLayerParameterValues } from '@/utility/timeline-scene.ts';
 import type { TimelineLayer } from '@glitch/shared/timeline/types.ts';
 import type { ParameterBinding } from '@glitch/shared/types.ts';
+import { getLayerParameterValues } from '@/utility/timeline-scene.ts';
 import { appStateManager } from '@/app.ts';
-import { readMediaMetadata } from '@glitch/shared/media/media-metadata.ts';
 import { openAssetAudio } from '@/audio/asset-audio-reader.ts';
 
 const props = defineProps<{
@@ -316,8 +318,8 @@ function onKeyframeMove(param: KeyframeParameter, move: KeyframeMove) {
 	if (point == null || point.x === move.x) return;
 	point.x = move.x;
 	appStateManager.commit('editTimelineLayerParam', { sceneId: props.sceneId,
-		layerId: layer.id, target: param.target, paramId: param.paramId,
-		edit: { kind: 'keyframesTimelineInline', value },
+																																																				layerId: layer.id, target: param.target, paramId: param.paramId,
+																																																				edit: { kind: 'keyframesTimelineInline', value },
 	}, move.mergeKey);
 }
 
@@ -349,8 +351,8 @@ function onKeyframeInsert(param: KeyframeParameter, x: number) {
 	});
 	value.keyframesTimeline.keyframes.sort((a, b) => a.x - b.x);
 	appStateManager.commit('editTimelineLayerParam', { sceneId: props.sceneId,
-		layerId: layer.id, target: param.target, paramId: param.paramId,
-		edit: { kind: 'keyframesTimelineInline', value },
+																																																				layerId: layer.id, target: param.target, paramId: param.paramId,
+																																																				edit: { kind: 'keyframesTimelineInline', value },
 	});
 	emit('keyframeSelected', { layerId: layer.id, target: param.target, paramId: param.paramId, keyframeId });
 }
@@ -491,13 +493,14 @@ function onLayerClipClick() {
 }
 
 .layerHeader {
-	cursor: grab;
-	user-select: none;
 	gap: 4px;
 	height: var(--mainLaneHeight);
 	line-height: var(--mainLaneHeight);
 	display: flex;
 	align-items: center;
+	overflow: clip;
+	user-select: none;
+	cursor: grab;
 }
 
 </style>

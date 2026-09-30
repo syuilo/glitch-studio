@@ -714,16 +714,15 @@ function onVisualModuleLayerParamEdit(event: ParamEdit, target: 'module' | 'comp
 	if (layer == null || event.paramPath.length !== 1) return;
 	if (event.kind === 'node' || event.kind === 'externalCustomParameterInput' || event.kind === 'addElement' || event.kind === 'removeElement') return;
 	if (event.kind === 'inputSource' && (event.inputSource === 'node' || event.inputSource === 'externalCustomParameterInput')) return;
-	appStateManager.commit('editTimelineLayerParam', { sceneId: props.sceneId,
-																																																				layerId: layer.id,
-																																																				target,
-																																																				paramId: String(event.paramPath[0]),
-																																																				edit: event,
+	appStateManager.commit('editTimelineLayerParam', {
+		sceneId: props.sceneId,
+		layerId: layer.id,
+		target,
+		paramId: String(event.paramPath[0]),
+		edit: event,
 	}, event.mergeKey != null ? `${layer.id}:${target}:${event.paramPath[0]}:${event.mergeKey}` : undefined);
 }
 
-const videoAssetId = ref('');
-const addingVideo = ref(false);
 const selectedVideoMetadata = shallowRef<MediaMetadata | null>(null);
 const selectedVideoAudioError = ref<string | null>(null);
 const selectedVideoAsset = computed(() => {
@@ -746,24 +745,8 @@ watch(() => selectedVideoAsset.value?.fileData, async (blob, _, onCleanup) => {
 		if (!cancelled) audioError.value = error instanceof Error ? error.message : String(error);
 	}
 }, { immediate: true });
-const videoAssetItems = computed(() => [
-	{ label: 'Choose video asset', value: '' },
-	...appStateManager.state.assets.value.filter(asset => asset.fileDataType.startsWith('video/')).map(asset => ({ label: asset.name, value: asset.id })),
-]);
 
-async function importVideoLayer() {
-	audioError.value = null;
-	const projectAssets = appStateManager.state.assets.value;
-	try {
-		const result = await api.openMediaFile();
-		if (disposed || !result || appStateManager.state.assets.value !== projectAssets) return;
-		await addVideoLayer({ id: genId(), name: result.name, width: result.width, height: result.height, fileDataType: result.type, fileData: result.fileData }, true);
-	} catch (error) { audioError.value = error instanceof Error ? error.message : String(error); }
-}
-
-async function addVideoLayer(asset: Asset, addAsset: boolean) {
-	if (addingVideo.value) return;
-	addingVideo.value = true;
+async function addVideoLayer(asset: Asset) {
 	audioError.value = null;
 	const timeline = sceneLayers.value;
 	const projectAssets = appStateManager.state.assets.value;
@@ -777,8 +760,7 @@ async function addVideoLayer(asset: Asset, addAsset: boolean) {
 		}
 		// 読み取りやダイアログ中にプロジェクト・Sceneが変わった場合は追加先を取り違えない。
 		if (disposed || sceneLayers.value !== timeline || appStateManager.state.assets.value !== projectAssets) return;
-		if (!addAsset && !projectAssets.some(entry => entry.id === asset.id)) return;
-		if (addAsset) appStateManager.commit('addAsset', asset);
+		if (!projectAssets.some(entry => entry.id === asset.id)) return;
 		const layer: TimelineVideoLayer = {
 			id: genId(), layerType: 'video', assetId: asset.id, fitMode: 'contain', audioEnabled,
 			positionMs: Math.max(0, time.value), trimStartMs: 0, trimmedDurationMs: metadata.durationMs,
@@ -787,35 +769,12 @@ async function addVideoLayer(asset: Asset, addAsset: boolean) {
 		};
 		appStateManager.commit('addVideoLayer', { sceneId: props.sceneId, layer, sourceDurationMs: metadata.durationMs });
 		selectLayer(layer);
-	} catch (error) { audioError.value = error instanceof Error ? error.message : String(error); } finally { addingVideo.value = false; }
-}
-
-function addSelectedVideo() {
-	const asset = appStateManager.state.assets.value.find(asset => asset.id === videoAssetId.value);
-	if (asset) void addVideoLayer(asset, false);
-}
-
-const audioAssetId = ref('');
-const addingAudio = ref(false);
-const audioError = ref<string | null>(null);
-const audioAssetItems = computed(() => [
-	{ label: 'Choose audio asset', value: '' },
-	...appStateManager.state.assets.value.filter(asset => /^(audio|video)\//.test(asset.fileDataType)).map(asset => ({ label: asset.name, value: asset.id })),
-]);
-
-async function importAudioLayer() {
-	audioError.value = null;
-	const projectAssets = appStateManager.state.assets.value;
-	try {
-		const result = await api.openMediaFile();
-		if (disposed || !result || appStateManager.state.assets.value !== projectAssets) return;
-		await addAudioLayer({ id: genId(), name: result.name, width: result.width, height: result.height, fileDataType: result.type, fileData: result.fileData }, true);
 	} catch (error) { audioError.value = error instanceof Error ? error.message : String(error); }
 }
 
-async function addAudioLayer(asset: Asset, addAsset: boolean) {
-	if (addingAudio.value) return;
-	addingAudio.value = true;
+const audioError = ref<string | null>(null);
+
+async function addAudioLayer(asset: Asset) {
 	audioError.value = null;
 	const timeline = sceneLayers.value;
 	try {
@@ -824,8 +783,7 @@ async function addAudioLayer(asset: Asset, addAsset: boolean) {
 		audio.input.dispose();
 		if (!Number.isFinite(trimmedDurationMs) || trimmedDurationMs <= 0) throw new Error('Audio has no finite duration.');
 		if (disposed || sceneLayers.value !== timeline) return;
-		if (!addAsset && !appStateManager.state.assets.value.some(entry => entry.id === asset.id)) return;
-		if (addAsset) appStateManager.commit('addAsset', asset);
+		if (!appStateManager.state.assets.value.some(entry => entry.id === asset.id)) return;
 		const id = genId();
 		const positionMs = Math.round(time.value);
 		appStateManager.commit('addAudioLayer', { sceneId: props.sceneId, layer: {
@@ -834,7 +792,7 @@ async function addAudioLayer(asset: Asset, addAsset: boolean) {
 		} });
 		selectedLayerId.value = id;
 		selectedKeyframeSelection.value = null;
-	} catch (error) { audioError.value = error instanceof Error ? error.message : String(error); } finally { addingAudio.value = false; }
+	} catch (error) { audioError.value = error instanceof Error ? error.message : String(error); }
 }
 
 function editTrimmedLayerTiming(kind: 'move' | 'trimStart' | 'trimEnd' | 'offset', value: string | number) {
@@ -854,11 +812,6 @@ function editTrimmedLayerTiming(kind: 'move' | 'trimStart' | 'trimEnd' | 'offset
 	} else {
 		appStateManager.commit(layer.layerType === 'scene' ? 'editSceneLayerTiming' : 'editAudioLayerTiming', { sceneId: props.sceneId, layerId: layer.id, positionMs, trimmedDurationMs, trimStartMs });
 	}
-}
-
-function addSelectedAudio() {
-	const asset = appStateManager.state.assets.value.find(asset => asset.id === audioAssetId.value);
-	if (asset != null) void addAudioLayer(asset, false);
 }
 
 function addSceneLayer() {
@@ -900,13 +853,27 @@ function showAddLayerMenu(ev: PointerEvent) {
 			// TODO
 		},
 	}, {
-		text: 'Import video',
+		text: 'Video',
 		icon: 'ti ti-video',
-		action: importVideoLayer,
+		action: async () => {
+			const { canceled, result: assetId } = await ui.select({
+				title: 'Select Video Asset',
+				items: appStateManager.state.assets.value.filter(asset => asset.fileDataType.startsWith('video/')).map(asset => ({ label: asset.name, value: asset.id })),
+			});
+			if (canceled || assetId == null) return;
+			addVideoLayer(appStateManager.state.assets.value.find(asset => asset.id === assetId)!);
+		},
 	}, {
-		text: 'Import audio',
+		text: 'Audio',
 		icon: 'ti ti-music',
-		action: importAudioLayer,
+		action: async () => {
+			const { canceled, result: assetId } = await ui.select({
+				title: 'Select Audio Asset',
+				items: appStateManager.state.assets.value.filter(asset => asset.fileDataType.startsWith('audio/')).map(asset => ({ label: asset.name, value: asset.id })),
+			});
+			if (canceled || assetId == null) return;
+			addAudioLayer(appStateManager.state.assets.value.find(asset => asset.id === assetId)!);
+		},
 	}], ev.currentTarget ?? ev.target);
 }
 
