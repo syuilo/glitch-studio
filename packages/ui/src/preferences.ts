@@ -77,6 +77,7 @@ export const PREF_DEF = definePreferences({
 							element: {
 								id: 'dac041d318254045b0f55e90f4fb84a0',
 								type: 'tabs',
+								direction: 'horizontal',
 								children: [{
 									name: 'Main',
 									element: {

@@ -1,5 +1,5 @@
 <template>
-<div ref="root" :class="[$style.root, { [$style.collapsed]: collapsed }]">
+<div ref="root" :class="[$style.root, { [$style.collapsed]: collapsed, [$style.vertical]: vertical }]">
 	<div :class="$style.tabs">
 		<button v-if="canCollapse" :class="$style.toggleCollapse" class="_button" @click="toggleCollapse">
 			<template v-if="stackingDirection === 'vertical'">
@@ -13,10 +13,10 @@
 		</button>
 		<div v-for="tab in props.tabs.children" :key="tab.element.id" :class="[$style.tab, { [$style.activeTab]: tab.element.id === selectedTab?.element.id }]" @contextmenu.prevent.stop="showTabMenu($event, tab)">
 			<button class="_button" :class="$style.tabName" @click="select(tab)">{{ tab.name }}</button>
-			<button class="_button" :class="$style.tabMenu" @click="showTabMenu($event, tab)"><i class="ti ti-dots-vertical"></i></button>
+			<button class="_button" :class="$style.tabMenu" @click="showTabMenu($event, tab)"><i v-if="vertical" class="ti ti-dots"></i><i v-else class="ti ti-dots-vertical"></i></button>
 		</div>
 		<button class="_button" :class="$style.addTabButton" @click="addTab"><i class="ti ti-plus"></i></button>
-		<button class="_button" :class="$style.menuButton" style="margin-left: auto;" @click="showMenu"><i class="ti ti-dots"></i></button>
+		<button class="_button" :class="$style.menuButton" @click="showMenu"><i class="ti ti-dots"></i></button>
 	</div>
 	<GsWorkspaceElement
 		v-if="selectedTab != null && !collapsed"
@@ -89,6 +89,8 @@ const parent = computed(() => findWorkspaceParent(preferences.r.workspaceDefinit
 const canCollapse = computed(() => parent.value?.type === 'divider');
 const stackingDirection = computed(() => parent.value?.type === 'divider' ? parent.value.direction : 'vertical');
 const collapsed = computed(() => canCollapse.value && props.tabs.collapsed === true);
+// 折りたたみ中は親の分割方向に合わせ、細くなった領域にもタブ列を収める。
+const vertical = computed(() => collapsed.value ? stackingDirection.value === 'horizontal' : props.tabs.direction === 'vertical');
 
 function toggleCollapse() {
 	const workspace = deepClone(preferences.s.workspaceDefinition);
@@ -120,6 +122,7 @@ function toggleCollapse() {
 .tabs {
 	display: flex;
 	flex-direction: row;
+	flex-shrink: 0;
 	padding-left: 8px;
 	gap: 16px;
 	box-sizing: border-box;
@@ -173,6 +176,7 @@ function toggleCollapse() {
 
 .menuButton {
 	font-size: 90%;
+	margin-left: auto;
 }
 
 .toggleCollapse {
@@ -183,5 +187,50 @@ function toggleCollapse() {
 	flex: 1;
 	min-width: 0;
 	min-height: 0;
+}
+
+.vertical {
+	flex-direction: row;
+
+	> .tabs {
+		flex-direction: column;
+		width: var(--headerHeight);
+		height: auto;
+		padding: 8px 0 0;
+		border-bottom: 0;
+		border-right: solid 3px #111;
+		margin: 0 5px 0 0;
+
+		> .tab {
+			display: flex;
+			flex-direction: column;
+			align-items: center;
+			flex-shrink: 0;
+
+			&::after {
+				bottom: auto;
+				left: auto;
+				top: 0;
+				right: -3px;
+				width: 3px;
+				height: 100%;
+			}
+
+			> .tabName {
+				writing-mode: sideways-lr;
+				width: 100%;
+				height: auto;
+				padding: 6px 4px 0;
+			}
+
+			> .tabMenu {
+				margin: 8px 0 0;
+			}
+		}
+
+		> .menuButton {
+			margin: auto 0 0;
+		}
+	}
 }
 </style>

@@ -51,6 +51,7 @@ export type WorkspacePanel = {
 export type WorkspaceTabs = {
 	id: string;
 	type: 'tabs';
+	direction: 'horizontal' | 'vertical';
 	children: {
 		name: string;
 		element: WorkspaceElement;
@@ -96,6 +97,7 @@ export function getElementMenu(element: WorkspaceElement) {
 			const tabs: WorkspaceTabs = {
 				id: genId(),
 				type: 'tabs',
+				direction: 'horizontal',
 				children: [{
 					name: target.type === 'panel' ? workspacePanelDefinitions[target.contentType].label : 'Tab 1',
 					element: target,
@@ -120,6 +122,23 @@ export function getElementMenu(element: WorkspaceElement) {
 		text: 'Add panel to right',
 		action: () => preferences.commit('workspaceDefinition', splitAndAddWorkspacePanel(preferences.s.workspaceDefinition, element, 'right')),
 	});
+
+	if (element.type === 'tabs') {
+		menuItems.push({
+			type: 'parent',
+			text: 'Tab direction',
+			children: (['horizontal', 'vertical'] as const).map(direction => ({
+				type: 'radioOption',
+				text: direction === 'horizontal' ? 'Horizontal' : 'Vertical',
+				active: element.direction === direction,
+				action: () => {
+					const target = findWorkspaceElement(preferences.s.workspaceDefinition, element.id);
+					if (target?.type !== 'tabs') return;
+					preferences.commit('workspaceDefinition', replaceWorkspaceElement(preferences.s.workspaceDefinition, element.id, { ...target, direction }));
+				},
+			})),
+		});
+	}
 
 	menuItems.push({ type: 'divider' }, {
 		icon: 'ti ti-x',
