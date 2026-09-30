@@ -8,5 +8,7 @@ interface Window {
 	desktop?: {
 		showTestAlert(): Promise<void>;
 		openDevTools(): Promise<void>;
+		zoomIn(): Promise<void>;
+		zoomOut(): Promise<void>;
 	};
 }

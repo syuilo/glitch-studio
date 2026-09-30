@@ -99,6 +99,16 @@ app.whenReady().then(() => {
 		getTrustedMainWindow(event).webContents.openDevTools({ mode: 'detach' });
 	});
 
+	ipcMain.handle('desktop:zoom-in', event => {
+		const contents = getTrustedMainWindow(event).webContents;
+		contents.setZoomFactor(Math.min(3, contents.getZoomFactor() * 1.2));
+	});
+
+	ipcMain.handle('desktop:zoom-out', event => {
+		const contents = getTrustedMainWindow(event).webContents;
+		contents.setZoomFactor(Math.max(0.5, contents.getZoomFactor() / 1.2));
+	});
+
 	createWindow();
 	app.on('activate', () => {
 		if (BrowserWindow.getAllWindows().length === 0) createWindow();

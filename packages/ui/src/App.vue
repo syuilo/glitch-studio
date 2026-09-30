@@ -14,6 +14,7 @@
 			<button class="_button" :class="$style.undoRedo" :disabled="!appStateManager.canRedo.value" @click="appStateManager.redo"><i class="ti ti-arrow-forward-up"></i></button>
 			<button class="_button" :class="$style.headerMenuItem" @click="openHeaderFileMenu">File</button>
 			<button class="_button" :class="$style.headerMenuItem" @click="openHeaderEditMenu">Edit</button>
+			<button class="_button" :class="$style.headerMenuItem" @click="openHeaderViewMenu">View</button>
 			<button class="_button" :class="$style.headerMenuItem" @click="openHeaderHelpMenu">Help</button>
 		</div>
 		<div :class="$style.headerRight" :title="projectInfo.name">
@@ -268,6 +269,32 @@ function openHeaderEditMenu(ev: PointerEvent) {
 			// TODO
 		},
 	}], ev.currentTarget ?? ev.target);
+}
+
+async function changeZoom(direction: 'in' | 'out') {
+	if (!__ELECTRON__) return;
+	try {
+		if (!window.desktop) throw new Error('Desktop API is unavailable');
+		if (direction === 'in') {
+			await window.desktop.zoomIn();
+		} else {
+			await window.desktop.zoomOut();
+		}
+	} catch (error) {
+		await ui.alert({ type: 'error', title: '拡大率を変更できませんでした', text: String(error) });
+	}
+}
+
+function openHeaderViewMenu(ev: PointerEvent) {
+	ui.popupMenu(__ELECTRON__ ? [{
+		text: 'Zoom In',
+		icon: 'ti ti-zoom-in',
+		action: () => { void changeZoom('in'); },
+	}, {
+		text: 'Zoom Out',
+		icon: 'ti ti-zoom-out',
+		action: () => { void changeZoom('out'); },
+	}] : [], ev.currentTarget ?? ev.target);
 }
 
 function openHeaderHelpMenu(ev: PointerEvent) {
