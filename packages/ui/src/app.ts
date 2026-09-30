@@ -17,6 +17,8 @@ import { PreviewPlaybackController } from './PreviewPlaybackController.ts';
 import { AppStateManager } from './AppStateManager.ts';
 import { DEFAULT_PROJECT_NAME, loadProjectFile, saveProjectFile } from './gsproj.ts';
 import { preferences } from './preferences.ts';
+import { makeHotkey } from './utility/hotkey.ts';
+import type { Keymap } from './utility/hotkey.ts';
 import type { ProjectVisualModule } from '@glitch/shared/project/types.ts';
 import type { TimelineRendererManagerDynamicOptions } from '@glitch/renderer/timeline-renderer-manager.ts';
 import type { EffectNodeOf } from '@glitch/shared/visual-module/types.ts';
@@ -494,3 +496,15 @@ export const workspacePanelDraggingContext = {
 };
 
 export const timelineSubPanelTeleportTargetAvailable = ref(false);
+
+const keymap = {
+	'space': () => {
+		if (previewPlayback.isTimelinePlaying.value) {
+			previewPlayback.pauseTimeline();
+		} else {
+			previewPlayback.playTimeline();
+		}
+	},
+} as const satisfies Keymap;
+const listener = makeHotkey(keymap);
+window.document.addEventListener('keydown', listener, { passive: false });

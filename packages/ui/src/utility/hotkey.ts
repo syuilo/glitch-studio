@@ -151,8 +151,10 @@ const parseKeyCode = (input?: string | null) => {
 	if (input == null) return [];
 	const raw = getValueByKey(KEY_ALIASES, input);
 	if (raw == null) return [input];
-	if (typeof raw === 'string') return [trimLower(raw)];
-	return raw.map(trimLower);
+
+	// trimするとスペースキーの判定が動作しなくなるので注意
+	if (typeof raw === 'string') return [raw.toLowerCase()];
+	return raw.map(key => key.toLowerCase());
 };
 
 const getValueByKey = <
