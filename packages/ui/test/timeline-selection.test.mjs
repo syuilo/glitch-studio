@@ -26,7 +26,7 @@ const bundled = await build({
 const module = { exports: {} };
 new Function('require', 'module', 'exports', bundled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
 const { selectTimelineRange, selectionRect, timelineMarqueeRect, keyframeSelectionKey, constrainTimelineMove, keyframeMoveBounds, AppStateManager, listenPointerDrag } = module.exports;
-const { getTimelineSnapCandidates, getTimelineSnappingTimes, getTimelineLocalTicks, formatTimelineTimecode } = module.exports;
+const { getTimelineSnapCandidates, getTimelineSnappingTimes, getTimelineSeekPosition, getTimelineLocalTicks, getTimelineLayerTicks, formatTimelineTimecode } = module.exports;
 
 const key = (layerId, keyframeId, target = 'audio', paramId = 'volume') => ({ layerId, target, paramId, keyframeId });
 const empty = { kind: 'layers', ids: [] };
@@ -141,6 +141,56 @@ test('generates local ticks around the layer origin across panning and zooming',
 	assert.deepEqual(ticks, [200, 400, 600, 800, 1000, 1200]);
 	assert.equal(formatTimelineTimecode(trimmedLayer.trimStartMs), '0:00.7');
 	assert.deepEqual(getTimelineLocalTicks(0, 0, 0, 15), []);
+});
+
+// 【主目盛りと補助目盛りはトリム後の表示区間内に限定する】
+// ローカル時刻の原点は変えず、負の時刻・トリムで隠れた時刻・終了時刻以降を表示も吸着もさせない。
+test('limits local ruler ticks to the visible layer interval', () => {
+	assert.deepEqual(getTimelineLayerTicks({ positionMs: 1234, trimStartMs: 0, trimmedDurationMs: 2000 }, 0, 4000, 5), {
+		major: [0, 1000], minor: [500, 1500],
+	});
+	assert.deepEqual(getTimelineLayerTicks({ positionMs: -200, trimStartMs: 700, trimmedDurationMs: 600 }, 0, 1000, 6), {
+		major: [800, 1000, 1200], minor: [700, 900, 1100],
+	});
+	assert.deepEqual(getTimelineLayerTicks({ positionMs: 6000, trimStartMs: 0, trimmedDurationMs: 1000 }, 0, 1000, 6), {
+		major: [], minor: [],
+	});
+});
+
+// 【主目盛りを含まない短い表示区間でも補助目盛りを残す】
+// 主目盛りを先に絞ってから中間目盛りを作ると、区間内にある500msの補助目盛りが消えてしまう。
+test('preserves minor ticks near clipped ends and in short layers', () => {
+	assert.deepEqual(getTimelineLayerTicks({ positionMs: 0, trimStartMs: 250, trimmedDurationMs: 300 }, 0, 4000, 5), {
+		major: [], minor: [500],
+	});
+	assert.deepEqual(getTimelineLayerTicks({ positionMs: 0, trimStartMs: 500, trimmedDurationMs: 500 }, 0, 4000, 5), {
+		major: [], minor: [500],
+	});
+});
+
+// 【シークバーは追加オプションと全体・グローバル設定が有効なときだけ目盛りへ吸着する】
+// キーのローカル設定が有効でもシークバーの候補には影響させず、OFFでは通常のシーク位置を維持する。
+test('snaps seeking to global ticks only when all applicable switches are enabled', () => {
+	for (const enabled of [false, true]) {
+		for (const globalTicks of [false, true]) {
+			for (const seekBar of [false, true]) {
+				const candidates = seekBar ? getTimelineSnapCandidates({ enabled, globalTicks, localTicks: true }, [], [0, 1000, 2000]) : [];
+				assert.deepEqual(getTimelineSeekPosition(998, 3000, candidates, 1), enabled && globalTicks && seekBar
+					? { timeMs: 1000, snappingTime: 1000 } : { timeMs: 998, snappingTime: null });
+			}
+		}
+	}
+	assert.deepEqual(getTimelineSeekPosition(980, 3000, [1000], 1), { timeMs: 980, snappingTime: null });
+	assert.deepEqual(getTimelineSeekPosition(980, 3000, [1000], 10), { timeMs: 1000, snappingTime: 1000 });
+});
+
+// 【吸着候補が再生区間外ならシークせず、空のタイムラインも負の時刻にしない】
+// 終了時刻への吸着を後からクランプすると、実際には一致しない目盛りにガイドが出てしまうため候補段階で除外する。
+test('keeps seeking inside playback bounds before choosing a snap target', () => {
+	assert.deepEqual(getTimelineSeekPosition(1998, 2000, [2000], 1), { timeMs: 1998, snappingTime: null });
+	assert.deepEqual(getTimelineSeekPosition(2500, 2000, [2000], 1), { timeMs: 1999, snappingTime: null });
+	assert.deepEqual(getTimelineSeekPosition(-10, 2000, [-10], 1), { timeMs: 0, snappingTime: null });
+	assert.deepEqual(getTimelineSeekPosition(100, 0, [], 1), { timeMs: 0, snappingTime: null });
 });
 
 // 【レイヤーの前方にある負の時刻と短いミリ秒値も正しく表示する】

@@ -1,4 +1,16 @@
-import { niceScale } from '@glitch/shared/utility/misc.ts';
+import { niceScale, insertIntermediateNumbers } from '@glitch/shared/utility/misc.ts';
+import type { TimelineLayerTiming } from '@glitch/shared/timeline/timing.ts';
+
+export type TimelineLocalTicks = { major: number[]; minor: number[] };
+
+/** 目盛り間隔は画面の倍率で決め、主目盛り・補助目盛りをそれぞれ表示区間で絞る。 */
+export function getTimelineLayerTicks(timing: TimelineLayerTiming, viewportStartMs: number, viewportDurationMs: number, count: number): TimelineLocalTicks {
+	const ticks = getTimelineLocalTicks(timing.positionMs, viewportStartMs, viewportDurationMs, count);
+	const inVisibleRange = (time: number) => time >= timing.trimStartMs && time < timing.trimStartMs + timing.trimmedDurationMs;
+	// 先に主目盛りを絞ると、端の区間や短いレイヤーにある補助目盛りまで失われる。
+	const minor = ticks.length === 0 ? [] : insertIntermediateNumbers(ticks).filter((time, index) => index % 2 === 1 && inVisibleRange(time));
+	return { major: ticks.filter(inVisibleRange), minor };
+}
 
 /** 表示範囲をレイヤーの時間軸へ移してから目盛りを生成する。戻り値もローカル時刻。 */
 export function getTimelineLocalTicks(positionMs: number, viewportStartMs: number, viewportDurationMs: number, count: number): number[] {

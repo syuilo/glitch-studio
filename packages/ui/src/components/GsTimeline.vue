@@ -52,7 +52,7 @@
 						:tlElWidth="tlElWidth"
 						:tlRangeX="tlRangeX"
 						:timelineTicks="xTicks"
-						:localTicks="layerLocalTicks.get(layer.id) ?? []"
+						:localTicks="layerLocalTicks.get(layer.id) ?? { major: [], minor: [] }"
 						:snapSettings="snapSettings"
 						:selectedKeyframes="selection.kind === 'keyframes' ? selection.keyframes : []"
 						:class="$style.layersLane"
@@ -76,7 +76,7 @@
 			<div :class="$style.tlOverlay">
 				<div :class="$style.xTicks" @wheel="onXTicksWheel">
 					<div v-for="time of xTicks" :class="$style.xTick" class="_monospace" :style="{ left: timeToDomX(time) + 'px' }">{{ formatMsToTimecode(time) }}</div>
-					<div :class="$style.xTicksSeekBar" :style="{ left: (seekBarPos - 1) + 'px' }" @mousedown="onSeekBarMousedown"></div>
+					<div :class="$style.xTicksSeekBar" :style="{ left: (seekBarPos - 1) + 'px' }" @pointerdown="onSeekBarPointerDown"></div>
 				</div>
 				<div :class="$style.ticksCorner"></div>
 				<div v-if="selectionArea" :class="$style.selectedArea" :style="{ width: selectionArea.right - selectionArea.left + 'px', height: selectionArea.bottom - selectionArea.top + 'px', top: selectionArea.top + 'px', left: selectionArea.left + 'px' }"></div>
@@ -286,8 +286,8 @@ import type { TimelineLayer, TimelineVideoLayer } from '@glitch/shared/timeline/
 import type { ParameterBinding, KeyframesTimelineKeyframe } from '@glitch/shared/types.ts';
 import type { TimelineKeyframeSelection, TimelineSelection, TimelineSelectionGeometry, SelectionRect, TimelineMovePoint } from '@/utility/timeline-selection.ts';
 import { timelineMarqueeRect, selectTimelineRange, keyframeSelectionKey, constrainTimelineMove, keyframeMoveBounds, getTimelineSnappingTimes } from '@/utility/timeline-selection.ts';
-import { getTimelineLocalTicks, formatTimelineTimecode as formatMsToTimecode } from '@/utility/timeline-ticks.ts';
-import { getTimelineSnapCandidates } from '@/utility/timeline-snapping.ts';
+import { getTimelineLayerTicks, formatTimelineTimecode as formatMsToTimecode } from '@/utility/timeline-ticks.ts';
+import { getTimelineSnapCandidates, getTimelineSeekPosition } from '@/utility/timeline-snapping.ts';
 import { preferences } from '@/preferences.ts';
 import { listenPointerDrag } from '@/utility/pointer-drag.ts';
 import type { ParamEdit } from './GsVisualParam.vue';
@@ -306,6 +306,7 @@ const props = defineProps<{ sceneId: string }>();
 const snapEnabled = preferences.model('timelineSnapEnabled');
 const snapGlobalTicks = preferences.model('timelineSnapGlobalTicks');
 const snapLocalTicks = preferences.model('timelineSnapLocalTicks');
+const snapSeekBar = preferences.model('timelineSnapSeekBar');
 const snapSettings = computed(() => ({ enabled: snapEnabled.value, globalTicks: snapGlobalTicks.value, localTicks: snapLocalTicks.value }));
 
 function showSnapMenu(event: PointerEvent) {
@@ -315,6 +316,8 @@ function showSnapMenu(event: PointerEvent) {
 		text: 'Global ticks', type: 'switch', ref: snapGlobalTicks,
 	}, {
 		text: 'Local ticks', type: 'switch', ref: snapLocalTicks,
+	}, {
+		text: 'Snap seek bar to global ticks', type: 'switch', ref: snapSeekBar,
 	}], event.currentTarget ?? event.target);
 }
 
@@ -454,7 +457,7 @@ const xTicksCount = ref(15);
 const xTicks = computed(() => niceScale(tlPosX.value, tlPosX.value + tlRangeX.value, xTicksCount.value));
 const xTicksWithHalf = computed(() => insertIntermediateNumbers(xTicks.value));
 const layerLocalTicks = computed(() => new Map(sceneLayers.value.map(layer => [layer.id,
-	getTimelineLocalTicks(layer.positionMs, tlPosX.value, tlRangeX.value, xTicksCount.value),
+	getTimelineLayerTicks(layer, tlPosX.value, tlRangeX.value, xTicksCount.value),
 ])));
 const yTicksCount = ref(6);
 const yTicks = computed(() => niceScale(tlPosY.value, tlPosY.value + tlRangeY.value, yTicksCount.value));
@@ -733,8 +736,8 @@ function onKeyframeMoveStart(event: PointerEvent, point: TimelineKeyframeSelecti
 	const otherTimes = [0, time.value, ...sceneLayers.value.flatMap(entry => [getTimelineLayerStart(entry), getTimelineLayerEnd(entry)]),
 		...keyframeEntries.value.filter(entry => !selected.has(keyframeSelectionKey(entry.selection))).map(entry => entry.time)];
 	const candidatesByLayer = new Map(sceneLayers.value.map(layer => {
-		const ticks = layerLocalTicks.value.get(layer.id) ?? [];
-		const localTimes = ticks.length === 0 ? [] : insertIntermediateNumbers(ticks).map(time => layer.positionMs + time);
+		const ticks = layerLocalTicks.value.get(layer.id);
+		const localTimes = ticks == null ? [] : [...ticks.major, ...ticks.minor].toSorted((a, b) => a - b).map(time => layer.positionMs + time);
 		return [layer.id, getTimelineSnapCandidates(snapSettings.value, otherTimes, xTicksWithHalf.value, localTimes)];
 	}));
 	const points = entries.map(entry => {
@@ -752,19 +755,20 @@ function onKeyframeMoveStart(event: PointerEvent, point: TimelineKeyframeSelecti
 
 onBeforeUnmount(() => stopSelectionDrag?.());
 
-const SNAP_THRESHOLD = 5;
-
-function onSeekBarMousedown(ev: MouseEvent) {
-	if (tlEl.value == null) return;
+function onSeekBarPointerDown(ev: PointerEvent) {
+	if (ev.button !== 0 || !ev.isPrimary || stopSelectionDrag || panning.value || tlEl.value == null || tlElWidth.value <= 0 || tlRangeX.value <= 0) return;
+	ev.preventDefault();
 	ev.stopPropagation();
-	const position = tlEl.value.getBoundingClientRect();
-
-	function move(x: number, y: number) {
-		previewPlayback.seekTimeline(Math.min(duration.value - 1, Math.max(0, domXToTime(x))));
-	}
-
-	dragListen(me => {
-		move(me.clientX - position.left, me.clientY - position.top);
+	const timeline = tlEl.value;
+	stopSelectionDrag = listenPointerDrag(ev, event => {
+		const x = event.clientX - timeline.getBoundingClientRect().left;
+		const candidates = snapSeekBar.value ? getTimelineSnapCandidates(snapSettings.value, [], xTicks.value) : [];
+		const result = getTimelineSeekPosition(domXToTime(x), duration.value, candidates, tlRangeX.value / tlElWidth.value);
+		snappingTimes.value = result.snappingTime == null ? [] : [result.snappingTime];
+		previewPlayback.seekTimeline(result.timeMs);
+	}, () => {
+		snappingTimes.value = [];
+		stopSelectionDrag = undefined;
 	});
 }
 
@@ -1287,6 +1291,7 @@ onMounted(() => {
 }
 
 .xTicksSeekBar {
+	touch-action: none;
 	position: absolute;
 	top: 0;
 	height: 100%;

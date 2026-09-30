@@ -44,8 +44,10 @@
 	<div v-if="keyframeParameters.length > 0" :class="$style.localTicksLane">
 		<div :class="[$style.side, $style.localTicksLabel]">Local time</div>
 		<div :class="[$style.tl, $style.localTicks]">
-			<div v-for="time of localTicks" :key="time" :class="$style.localTick" class="_monospace" :style="{ left: timeToDomX(layer.positionMs + time) + 'px' }">{{ formatTimelineTimecode(time) }}</div>
-			<div v-for="time of localHalfTicks" :key="time" :class="$style.localHalfTick" :style="{ left: timeToDomX(layer.positionMs + time) + 'px' }"></div>
+			<div :class="$style.localTicksRange" :style="{ left: layerRect.left + 'px', width: layerRect.width + 'px' }">
+				<div v-for="time of localTicks.major" :key="time" :class="$style.localTick" class="_monospace" :style="{ left: timeToDomX(layer.positionMs + time) - layerRect.left + 'px' }">{{ formatTimelineTimecode(time) }}</div>
+				<div v-for="time of localTicks.minor" :key="time" :class="$style.localHalfTick" :style="{ left: timeToDomX(layer.positionMs + time) - layerRect.left + 'px' }"></div>
+			</div>
 		</div>
 	</div>
 	<div v-for="param in keyframeParameters" :key="param.key" :class="$style.keyframesLane" :data-parameter-target="param.target" :data-param-id="param.paramId">
@@ -80,12 +82,12 @@ import { evaluateKeyframesTimeline } from '@glitch/shared/utility/keyframes-time
 import { getTimelineLayerStart, getTimelineLayerEnd } from '@glitch/shared/timeline/timing.ts';
 import { getSceneDuration } from '@glitch/shared/timeline/scenes.ts';
 import { readMediaMetadata } from '@glitch/shared/media/media-metadata.ts';
-import { insertIntermediateNumbers } from '@glitch/shared/utility/misc.ts';
 import GsCondensedLine from './common/GsCondensedLine.vue';
 import XKeyframes from './GsTimeline.Layer.Keyframes.vue';
 import type { TimelineKeyframeSelection } from '@/utility/timeline-selection.ts';
 import { constrainTimelineMove } from '@/utility/timeline-selection.ts';
 import { formatTimelineTimecode } from '@/utility/timeline-ticks.ts';
+import type { TimelineLocalTicks } from '@/utility/timeline-ticks.ts';
 import { getTimelineSnapCandidates } from '@/utility/timeline-snapping.ts';
 import type { TimelineSnapSettings } from '@/utility/timeline-snapping.ts';
 import type { TimelineLayer } from '@glitch/shared/timeline/types.ts';
@@ -101,7 +103,7 @@ const props = defineProps<{
 	tlRangeX: number;
 	tlPosX: number;
 	timelineTicks: number[];
-	localTicks: number[];
+	localTicks: TimelineLocalTicks;
 	snapSettings: TimelineSnapSettings;
 	selectedKeyframes: TimelineKeyframeSelection[];
 	selected: boolean;
@@ -109,7 +111,6 @@ const props = defineProps<{
 }>();
 
 const sceneLayers = computed(() => appStateManager.state.timelineScenes.value.find(scene => scene.id === props.sceneId)?.layers ?? []);
-const localHalfTicks = computed(() => props.localTicks.length === 0 ? [] : insertIntermediateNumbers(props.localTicks).filter((_, index) => index % 2 === 1));
 
 const emit = defineEmits<{
 	(ev: 'update:tlPosX', value: number): void;
@@ -379,8 +380,14 @@ function look() {
 
 .localTicks {
 	overflow: clip;
-	background: #181818aa;
 	user-select: none;
+}
+
+.localTicksRange {
+	position: absolute;
+	height: 100%;
+	overflow: clip;
+	background: #181818aa;
 }
 
 .localTick {
