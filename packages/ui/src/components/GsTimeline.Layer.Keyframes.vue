@@ -9,24 +9,19 @@
 	<div
 		v-for="keyframe of keyframes"
 		:key="keyframe.id"
-		:class="[$style.keyframe, { [$style.selected]: selectedKeyframeId === keyframe.id }]"
+		:class="[$style.keyframe, { [$style.selected]: selectedKeyframeIds.includes(keyframe.id) }]"
 		:style="{ left: Math.round(timeToDomX(keyframeTime(keyframe.x))) + 'px' }"
-		@mousedown.stop.prevent="onKeyframeMousedown($event, keyframe.id)"
+		:data-timeline-keyframe-id="keyframe.id"
+		@pointerdown.stop="emit('dragStart', $event, keyframe.id)"
 		@click.stop.prevent
 		@dblclick.stop.prevent
 	></div>
 </div>
 </template>
 
-<script lang="ts">
-export type KeyframeMove = { keyframeId: string; x: number; mergeKey: string };
-</script>
-
 <script lang="ts" setup>
-import { computed, onBeforeUnmount } from 'vue';
-import { genId } from '@glitch/shared/utility/id.ts';
+import { computed } from 'vue';
 import type { KeyframesTimelineKeyframe } from '@glitch/shared/types.ts';
-import { dragListen } from '@/utility/drag.ts';
 
 const props = defineProps<{
 	keyframes: KeyframesTimelineKeyframe[];
@@ -34,15 +29,12 @@ const props = defineProps<{
 	tlElWidth: number;
 	tlRangeX: number;
 	tlPosX: number;
-	snapTimes: number[];
-	selectedKeyframeId: string | null;
+	selectedKeyframeIds: string[];
 }>();
 
 const emit = defineEmits<{
-	(ev: 'select', keyframeId: string): void;
-	(ev: 'move', move: KeyframeMove): void;
+	(ev: 'dragStart', event: PointerEvent, keyframeId: string): void;
 	(ev: 'insert', x: number): void;
-	(ev: 'snap', time: number | null): void;
 }>();
 
 function keyframeTime(x: number): number {
@@ -55,7 +47,6 @@ function timeToDomX(time: number): number {
 
 function onBackgroundDoubleClick(ev: MouseEvent) {
 	if (ev.button !== 0 || props.tlElWidth <= 0 || props.tlRangeX <= 0) return;
-	stopKeyframeDrag?.();
 	const rect = (ev.currentTarget as HTMLElement).getBoundingClientRect();
 	const time = props.tlPosX + (ev.clientX - rect.left) / props.tlElWidth * props.tlRangeX;
 	emit('insert', Math.max(0, time - props.startTime));
@@ -66,53 +57,6 @@ const keyframeSegments = computed(() => {
 	return keyframes.slice(1).map((keyframe, index) => ({ keyframe, prevKeyframe: keyframes[index] }));
 });
 
-let stopKeyframeDrag: (() => void) | undefined;
-const SNAP_THRESHOLD = 5;
-
-function onKeyframeMousedown(ev: MouseEvent, keyframeId: string) {
-	if (ev.button !== 0 || props.tlElWidth <= 0 || props.tlRangeX <= 0) return;
-	stopKeyframeDrag?.();
-	emit('select', keyframeId);
-	const keyframes = props.keyframes.toSorted((a, b) => a.x - b.x);
-	const index = keyframes.findIndex(keyframe => keyframe.id === keyframeId);
-	if (index < 0) return;
-	const keyframe = keyframes[index];
-	const minX = Math.max(0, keyframes[index - 1]?.x ?? -Infinity);
-	const maxX = keyframes[index + 1]?.x ?? Infinity;
-	const startTime = props.startTime;
-	const baseTime = keyframeTime(keyframe.x);
-	const baseClientX = ev.clientX;
-	const msPerPixel = props.tlRangeX / props.tlElWidth;
-	const mergeKey = genId();
-	stopKeyframeDrag = dragListen(event => {
-		const point = props.keyframes.find(entry => entry.id === keyframeId);
-		if (point == null) { stopKeyframeDrag?.(); return; }
-		const draggedTime = baseTime + (event.clientX - baseClientX) * msPerPixel;
-		let x = Math.max(minX, Math.min(maxX, draggedTime - startTime));
-		let snappingTime: number | null = null;
-		const candidates = [...props.snapTimes];
-		for (const entry of props.keyframes) {
-			if (entry.id !== keyframeId) candidates.push(keyframeTime(entry.x));
-		}
-		let nearestDistance = SNAP_THRESHOLD;
-		for (const time of candidates) {
-			const candidateX = time - startTime;
-			if (candidateX < minX || candidateX > maxX) continue;
-			const distance = Math.abs(time - draggedTime) / msPerPixel;
-			if (distance >= nearestDistance) continue;
-			nearestDistance = distance;
-			x = candidateX;
-			snappingTime = time;
-		}
-		emit('snap', snappingTime);
-		if (point.x !== x) emit('move', { keyframeId, x, mergeKey });
-	}, () => {
-		stopKeyframeDrag = undefined;
-		emit('snap', null);
-	});
-}
-
-onBeforeUnmount(() => stopKeyframeDrag?.());
 </script>
 
 <style module lang="scss">
@@ -133,6 +77,7 @@ onBeforeUnmount(() => stopKeyframeDrag?.());
 
 .keyframe {
 	cursor: ew-resize;
+	touch-action: none;
 	user-select: none;
 	position: absolute;
 	top: calc(var(--keyframesLaneHeight) / 2 - var(--knobSize) / 2);

@@ -22,10 +22,10 @@
 			<GsButton small iconOnly><i class="ti ti-magnet"></i></GsButton>
 		</div>
 	</div>
-	<div :class="[$style.body, { [$style.panning]: panning }]" @mousedown.capture="onPanMousedown" @auxclick.capture="onPanAuxclick">
+	<div :class="[$style.body, { [$style.panning]: panning }]" @pointerdown.capture="onBackgroundPointerDown" @click.capture="onTimelineClick" @mousedown.capture="onPanMousedown" @auxclick.capture="onPanAuxclick">
 		<div :class="$style.tlBgWrapper" data-timeline-surface>
 			<div :class="$style.tlBgSideSpacer"></div>
-			<div ref="tlEl" :class="$style.tlBg" tabindex="-1" @wheel="onTlWheel" @mousemove="onTlMousemove" @mousedown="onTlMousedown">
+			<div ref="tlEl" :class="$style.tlBg" tabindex="-1" @wheel="onTlWheel" @mousemove="onTlMousemove">
 				<div :class="$style.ticksCorner"></div>
 				<div :class="$style.tlRange" :style="{ width: tlRangeElWidth + 'px', left: tlRangeElPosX + 'px' }"></div>
 				<div v-for="time of xTicks" :class="[$style.inTlXTick]" :style="{ left: timeToDomX(time) + 'px' }"></div>
@@ -46,19 +46,20 @@
 			>
 				<template #default="{ item: layer, dragStart }">
 					<XLayer
+						v-model:tlPosX="tlPosX"
 						:layer="layer"
 						:sceneId="sceneId"
 						:tlElWidth="tlElWidth"
-						v-model:tlPosX="tlPosX"
 						:tlRangeX="tlRangeX"
-						:snapTimes="xTicksWithHalf"
 						:timelineTicks="xTicks"
-						:currentTime="time"
-						:selectedKeyframe="selectedKeyframeSelection"
+						:selectedKeyframes="selection.kind === 'keyframes' ? selection.keyframes : []"
 						:class="$style.layersLane"
-						:selected="selectedLayer?.id === layer.id"
+						:selected="selection.kind === 'layers' && selection.ids.includes(layer.id)"
+						:moving="movingSelection && selection.kind === 'layers' && selection.ids.includes(layer.id)"
 						@dragStart="dragStart"
 						@selected="selectLayer(layer)"
+						@moveStart="event => onLayerMoveStart(event, layer)"
+						@keyframeDragStart="onKeyframeMoveStart"
 						@keyframeSelected="onKeyframeSelected"
 						@snap="snappingTime = $event"
 					/>
@@ -76,7 +77,7 @@
 					<div :class="$style.xTicksSeekBar" :style="{ left: (seekBarPos - 1) + 'px' }" @mousedown="onSeekBarMousedown"></div>
 				</div>
 				<div :class="$style.ticksCorner"></div>
-				<div :class="$style.selectedArea" :style="{ width: selectedAreaElWidth + 'px', height: selectedAreaElHeight + 'px', bottom: selectedAreaElPosY + 'px', left: selectedAreaElPosX + 'px' }"></div>
+				<div v-if="selectionArea" :class="$style.selectedArea" :style="{ width: selectionArea.right - selectionArea.left + 'px', height: selectionArea.bottom - selectionArea.top + 'px', top: selectionArea.top + 'px', left: selectionArea.left + 'px' }"></div>
 				<div v-for="time of xTicks" :class="[$style.inTlXTick]" :style="{ left: timeToDomX(time) + 'px' }"></div>
 				<div :class="$style.seekBar" class="_monospace" :style="{ left: seekBarPos + 'px' }"><div :class="$style.seekBarFrame">{{ formatMsToTimecode(time) }}</div></div>
 				<div :class="$style.cursorBar" :style="{ left: cursorBarPos + 'px' }"></div>
@@ -100,7 +101,8 @@
 		</div>
 
 		<Teleport v-if="timelineSubPanelTeleportTargetAvailable" defer to="#timelineSubPanelTeleportTarget">
-			<div v-if="selectedKeyframe != null">
+			<div v-if="selectionCount > 1" :class="$style.keyframeEditor">{{ selectionCount }} {{ selection.kind === 'layers' ? 'layers' : 'keyframes' }} selected</div>
+			<div v-else-if="selectedKeyframe != null">
 				<div :key="keyframeEditorKey" :class="$style.keyframeEditor">
 					<GsButton small @click="selectedKeyframeSelection = null">Back to layer</GsButton>
 					<div>{{ selectedKeyframe.def.ui.label }} · Keyframe</div>
@@ -280,7 +282,9 @@ import type { Asset } from '@glitch/shared/types.ts';
 import type { VisualModuleEdit } from '@/types/visual-module-editor.ts';
 import type { TimelineLayer, TimelineVideoLayer } from '@glitch/shared/timeline/types.ts';
 import type { ParameterBinding, KeyframesTimelineKeyframe } from '@glitch/shared/types.ts';
-import type { TimelineKeyframeSelection } from './GsTimeline.Layer.vue';
+import type { TimelineKeyframeSelection, TimelineSelection, TimelineSelectionGeometry, SelectionRect, TimelineMovePoint } from '@/utility/timeline-selection.ts';
+import { selectionRect, selectTimelineRange, keyframeSelectionKey, constrainTimelineMove, keyframeMoveBounds } from '@/utility/timeline-selection.ts';
+import { listenPointerDrag } from '@/utility/pointer-drag.ts';
 import type { ParamEdit } from './GsVisualParam.vue';
 import { getLayerParameterValues } from '@/utility/timeline-scene.ts';
 import { inspectVideoLayerAsset } from '@/utility/video-layer-asset.ts';
@@ -340,36 +344,13 @@ const tlRangeElWidth = computed(() => {
 const tooltipDomPos = ref<null | [number, number]>(null);
 const cursorTime = ref(0);
 const cursorValue = ref(0);
-const nowSelecting = ref(false);
-const selectedAreaPosX = ref(0);
-const selectedAreaPosY = ref(0);
-const selectedAreaWidth = ref(0);
-const selectedAreaHeight = ref(0);
-const selectedAreaElPosX = computed(() => {
-	return ((selectedAreaPosX.value - tlPosX.value) / tlRangeX.value) * tlElWidth.value;
-});
-const selectedAreaElPosY = computed(() => {
-	return ((selectedAreaPosY.value - tlPosY.value) / tlRangeY.value) * tlElHeight.value;
-});
-const selectedAreaElWidth = computed(() => {
-	return ((selectedAreaWidth.value) / tlRangeX.value) * tlElWidth.value;
-});
-const selectedAreaElHeight = computed(() => {
-	return (((selectedAreaHeight.value) / tlRangeY.value) * tlElHeight.value);
-});
+const selectionArea = ref<SelectionRect | null>(null);
+const movingSelection = ref(false);
 
-const layerRects = computed(() => {
-	const obj: Record<string, { left: number; width: number }> = {};
-	for (const layer of sceneLayers.value) {
-		const left = timeToDomX(getTimelineLayerStart(layer));
-		const width = timeToDomX(getTimelineLayerEnd(layer)) - left;
-		obj[layer.id] = { left, width };
-	}
-	return obj;
-});
-
-const selectedLayerId = ref<string | null>(editorState?.selectedLayerId ?? null);
-const selectedLayer = computed(() => sceneLayers.value.find(layer => layer.id === selectedLayerId.value) ?? null);
+const selection = ref<TimelineSelection>({ kind: 'layers', ids: editorState?.selectedLayerId ? [editorState.selectedLayerId] : [] });
+const selectionCount = computed(() => selection.value.kind === 'layers' ? selection.value.ids.length : selection.value.keyframes.length);
+const selectedLayerId = computed(() => selection.value.kind === 'layers' ? selection.value.ids[0] ?? null : selection.value.keyframes[0]?.layerId ?? null);
+const selectedLayer = computed(() => selectionCount.value > 1 ? null : sceneLayers.value.find(layer => layer.id === selectedLayerId.value) ?? null);
 const visualModuleLayerTab = ref('settings');
 const selectedLayerModule = computed(() => {
 	const layer = selectedLayer.value;
@@ -379,7 +360,10 @@ const selectedLayerModule = computed(() => {
 const inlineEffectStates = computed(() => previewPlayback.state.value.mode === 'timeline' && selectedLayer.value != null
 	? timelineRendererManagerController.getLayerEffectStates(props.sceneId, selectedLayer.value.id) : undefined);
 
-const selectedKeyframeSelection = ref<TimelineKeyframeSelection | null>(null);
+const selectedKeyframeSelection = computed<TimelineKeyframeSelection | null>({
+	get: () => selection.value.kind === 'keyframes' && selection.value.keyframes.length === 1 ? selection.value.keyframes[0] : null,
+	set: point => { selection.value = point ? { kind: 'keyframes', keyframes: [point] } : { kind: 'layers', ids: selectedLayerId.value ? [selectedLayerId.value] : [] }; },
+});
 const keyframeValueMergeKey = ref<string | null>(null);
 const keyframeEditorKey = computed(() => JSON.stringify(selectedKeyframeSelection.value));
 const selectedKeyframe = computed(() => {
@@ -406,11 +390,10 @@ const selectedKeyframe = computed(() => {
 
 watch(selectedKeyframeSelection, () => { keyframeValueMergeKey.value = null; });
 watch(selectedKeyframe, value => {
-	if (value == null) selectedKeyframeSelection.value = null;
+	if (value == null && selectedKeyframeSelection.value != null) selectedKeyframeSelection.value = null;
 });
 
 function onKeyframeSelected(selection: TimelineKeyframeSelection) {
-	selectedLayerId.value = selection.layerId;
 	selectedKeyframeSelection.value = selection;
 }
 
@@ -529,8 +512,6 @@ function onXTicksWheel(ev: WheelEvent) {
 	tlPosX.value = anchorTime - domXToLogicalX(x);
 }
 
-let beforeClickedAt = 0;
-
 let stopPan: (() => void) | undefined;
 
 function onPanAuxclick(ev: MouseEvent) {
@@ -540,6 +521,7 @@ function onPanAuxclick(ev: MouseEvent) {
 }
 
 function onPanMousedown(ev: MouseEvent) {
+	if (stopSelectionDrag != null) return;
 	if (ev.button !== 1 || !(ev.target instanceof Element) || !ev.target.closest('[data-timeline-surface]')) return;
 	if (layersEl.value == null || tlElWidth.value <= 0) return;
 	// 子のレイヤー・キー・シーク操作より先に受け取り、ブラウザーの自動スクロールも抑止する。
@@ -573,48 +555,161 @@ function finishPan() {
 
 onBeforeUnmount(finishPan);
 
-function onTlMousedown(ev: MouseEvent) {
-	if (tlEl.value == null) return;
-	ev.preventDefault();
-	tlEl.value.focus();
+const keyframeEntries = computed(() => sceneLayers.value.flatMap(layer => {
+	const targets = layer.layerType === 'audio' ? ['audio'] as const
+		: layer.layerType === 'scene' || layer.layerType === 'video' ? ['compositing', 'audio'] as const : ['compositing', 'module'] as const;
+	return targets.flatMap(target => Object.entries(getLayerParameterValues(layer, target)).flatMap(([paramId, binding]) => {
+		if (binding.inputSource !== 'keyframesTimelineInline') return [];
+		return binding.keyframesTimeline.keyframes.map(point => ({
+			selection: { layerId: layer.id, target, paramId, keyframeId: point.id },
+			x: point.x, time: layer.positionMs + point.x, keyframes: binding.keyframesTimeline.keyframes,
+		}));
+	}));
+}));
 
-	if (ev.button !== 0) return;
-
-	// ダブルクリック判定
-	if (Date.now() - beforeClickedAt < 300) {
-		beforeClickedAt = Date.now();
-		//onTlDblclick(ev);
-		return;
+watch([sceneLayers, keyframeEntries], () => {
+	const current = selection.value;
+	if (current.kind === 'layers') {
+		const ids = current.ids.filter(id => sceneLayers.value.some(layer => layer.id === id));
+		if (ids.length !== current.ids.length) selection.value = { kind: 'layers', ids };
+	} else {
+		const available = new Set(keyframeEntries.value.map(entry => keyframeSelectionKey(entry.selection)));
+		const keyframes = current.keyframes.filter(point => available.has(keyframeSelectionKey(point)));
+		if (keyframes.length !== current.keyframes.length) selection.value = { kind: 'keyframes', keyframes };
 	}
+});
 
-	beforeClickedAt = Date.now();
+let stopSelectionDrag: (() => void) | undefined;
+let suppressTimelineClick = false;
 
-	const position = tlEl.value.getBoundingClientRect();
-	const moveBaseX = ev.clientX - position.left;
-	const moveBaseY = ev.clientY - position.top;
+function onTimelineClick(event: MouseEvent) {
+	if (!suppressTimelineClick) return;
+	suppressTimelineClick = false;
+	event.preventDefault();
+	event.stopPropagation();
+}
 
-	function move(x: number, y: number) {
-		const originFrame = domXToTime(Math.min(moveBaseX, x));
-		const targetFrame = domXToTime(Math.max(moveBaseX, x));
-		const originValue = domYToValue(Math.max(moveBaseY, y));
-		const targetValue = domYToValue(Math.min(moveBaseY, y));
-		selectedAreaPosX.value = originFrame;
-		selectedAreaPosY.value = originValue;
-		selectedAreaWidth.value = targetFrame - originFrame;
-		selectedAreaHeight.value = targetValue - originValue;
+function readSelectionGeometry(viewport: SelectionRect): TimelineSelectionGeometry {
+	const geometry: TimelineSelectionGeometry = { clips: [], keyframes: [] };
+	if (layersEl.value == null) return geometry;
+	// DOMへの依存は計測だけに限定する。CSSクラスや子要素の順序で対象を識別しない。
+	for (const element of layersEl.value.querySelectorAll<HTMLElement>('[data-timeline-clip]')) {
+		const id = element.closest<HTMLElement>('[data-timeline-layer-id]')?.dataset.timelineLayerId;
+		const rect = element.getBoundingClientRect();
+		const visible = { left: Math.max(rect.left, viewport.left), right: Math.min(rect.right, viewport.right), top: Math.max(rect.top, viewport.top), bottom: Math.min(rect.bottom, viewport.bottom) };
+		if (id && visible.left <= visible.right && visible.top < visible.bottom) geometry.clips.push({ id, rect: visible });
 	}
+	for (const element of layersEl.value.querySelectorAll<HTMLElement>('[data-timeline-keyframe-id]')) {
+		const layerId = element.closest<HTMLElement>('[data-timeline-layer-id]')?.dataset.timelineLayerId;
+		const lane = element.closest<HTMLElement>('[data-parameter-target]');
+		const target = lane?.dataset.parameterTarget;
+		const paramId = lane?.dataset.paramId;
+		const keyframeId = element.dataset.timelineKeyframeId;
+		if (!layerId || !paramId || !keyframeId || (target !== 'audio' && target !== 'module' && target !== 'compositing')) continue;
+		const rect = element.getBoundingClientRect();
+		const x = (rect.left + rect.right) / 2;
+		const y = (rect.top + rect.bottom) / 2;
+		if (x < viewport.left || x > viewport.right || y < viewport.top || y > viewport.bottom) continue;
+		geometry.keyframes.push({ selection: { layerId, target, paramId, keyframeId }, x, y });
+	}
+	return geometry;
+}
 
-	nowSelecting.value = true;
-	dragListen(me => {
-		move(me.clientX - position.left, me.clientY - position.top);
+function onBackgroundPointerDown(event: PointerEvent) {
+	suppressTimelineClick = false;
+	if (event.button !== 0 || !event.isPrimary || stopSelectionDrag || panning.value || tlEl.value == null || !(event.target instanceof Element)) return;
+	const target = event.target;
+	if (!layersEl.value?.contains(target) && !tlEl.value.contains(target)) return;
+	if (target.closest('[data-timeline-clip], [data-timeline-keyframe-id], button, input, select, textarea, [draggable="true"]')) return;
+	const bounds = tlEl.value.getBoundingClientRect();
+	const viewport = { left: bounds.left, right: bounds.right, top: bounds.top + X_TICKS_HEIGHT, bottom: bounds.bottom };
+	if (event.clientX < viewport.left || event.clientX > viewport.right || event.clientY < viewport.top || event.clientY > viewport.bottom) return;
+	event.preventDefault();
+	event.stopPropagation();
+	tlEl.value.focus({ preventScroll: true });
+	const previous = deepClone(selection.value);
+	stopSelectionDrag = listenPointerDrag(event, current => {
+		if (!selectionArea.value && Math.hypot(current.clientX - event.clientX, current.clientY - event.clientY) < 3) return;
+		suppressTimelineClick = true;
+		const rect = selectionRect(event.clientX, event.clientY,
+			Math.max(viewport.left, Math.min(viewport.right, current.clientX)), Math.max(viewport.top, Math.min(viewport.bottom, current.clientY)));
+		selectionArea.value = { left: rect.left - bounds.left, right: rect.right - bounds.left, top: rect.top - bounds.top, bottom: rect.bottom - bounds.top };
+		// 毎回開始時の選択に対して計算する。範囲を縮めたとき、途中で囲んだ要素を残さない。
+		selection.value = selectTimelineRange(rect, readSelectionGeometry(viewport), previous, event.shiftKey);
 	}, () => {
-		nowSelecting.value = false;
-		selectedAreaPosX.value = 0;
-		selectedAreaPosY.value = 0;
-		selectedAreaWidth.value = 0;
-		selectedAreaHeight.value = 0;
+		selectionArea.value = null;
+		stopSelectionDrag = undefined;
+	}, target as HTMLElement);
+}
+
+function startSelectionMove(event: PointerEvent, points: TimelineMovePoint[], snapTimes: number[], apply: (delta: number, mergeKey: string) => boolean) {
+	if (points.length === 0) return;
+	event.preventDefault();
+	tlEl.value?.focus({ preventScroll: true });
+	const msPerPixel = tlRangeX.value / tlElWidth.value;
+	const mergeKey = genId();
+	let moved = false;
+	let previousDelta = 0;
+	stopSelectionDrag = listenPointerDrag(event, current => {
+		if (!moved && Math.abs(current.clientX - event.clientX) < 3) return;
+		moved = true;
+		movingSelection.value = true;
+		suppressTimelineClick = true;
+		const result = constrainTimelineMove((current.clientX - event.clientX) * msPerPixel, points, snapTimes, msPerPixel);
+		snappingTime.value = result.snappingTime;
+		if (result.delta === previousDelta) return;
+		if (!apply(result.delta, mergeKey)) { stopSelectionDrag?.(); return; }
+		previousDelta = result.delta;
+	}, () => {
+		snappingTime.value = null;
+		movingSelection.value = false;
+		stopSelectionDrag = undefined;
 	});
 }
+
+function onLayerMoveStart(event: PointerEvent, layer: TimelineLayer) {
+	if (event.button !== 0 || !event.isPrimary || stopSelectionDrag || tlElWidth.value <= 0 || tlRangeX.value <= 0) return;
+	if (selection.value.kind !== 'layers' || !selection.value.ids.includes(layer.id)) selectLayer(layer);
+	const current = selection.value;
+	if (current.kind !== 'layers') return;
+	const layers = sceneLayers.value.filter(entry => current.ids.includes(entry.id));
+	if (layers.some(entry => entry.layerType === 'effect')) return;
+	const positions = layers.map(entry => ({ layerId: entry.id, positionMs: entry.positionMs }));
+	const points = layers.flatMap(entry => [getTimelineLayerStart(entry), getTimelineLayerEnd(entry)]
+		.map(time => ({ time, minDelta: -getTimelineLayerStart(entry), maxDelta: Infinity })));
+	const snapTimes = [0, ...xTicks.value, ...sceneLayers.value.filter(entry => !current.ids.includes(entry.id))
+		.flatMap(entry => [getTimelineLayerStart(entry), getTimelineLayerEnd(entry)])];
+	startSelectionMove(event, points, snapTimes, (delta, mergeKey) => {
+		if (positions.some(position => !sceneLayers.value.some(entry => entry.id === position.layerId))) return false;
+		appStateManager.commit('moveTimelineLayers', { sceneId: props.sceneId, positions: positions.map(position => ({ ...position, positionMs: position.positionMs + delta })) }, mergeKey);
+		return true;
+	});
+}
+
+function onKeyframeMoveStart(event: PointerEvent, point: TimelineKeyframeSelection) {
+	if (event.button !== 0 || !event.isPrimary || stopSelectionDrag || tlElWidth.value <= 0 || tlRangeX.value <= 0) return;
+	const key = keyframeSelectionKey(point);
+	if (selection.value.kind !== 'keyframes' || !selection.value.keyframes.some(entry => keyframeSelectionKey(entry) === key)) onKeyframeSelected(point);
+	const current = selection.value;
+	if (current.kind !== 'keyframes') return;
+	const selected = new Set(current.keyframes.map(keyframeSelectionKey));
+	const entries = keyframeEntries.value.filter(entry => selected.has(keyframeSelectionKey(entry.selection)));
+	const points = entries.map(entry => {
+		const ids = new Set(current.keyframes.filter(point => point.layerId === entry.selection.layerId && point.target === entry.selection.target && point.paramId === entry.selection.paramId).map(point => point.keyframeId));
+		return { time: entry.time, ...keyframeMoveBounds(entry.keyframes, ids, entry.selection.keyframeId) };
+	});
+	const positions = entries.map(entry => ({ ...entry.selection, x: entry.x }));
+	const snapTimes = [0, time.value, ...xTicksWithHalf.value, ...sceneLayers.value.flatMap(entry => [getTimelineLayerStart(entry), getTimelineLayerEnd(entry)]),
+		...keyframeEntries.value.filter(entry => !selected.has(keyframeSelectionKey(entry.selection))).map(entry => entry.time)];
+	startSelectionMove(event, points, snapTimes, (delta, mergeKey) => {
+		const available = new Set(keyframeEntries.value.map(entry => keyframeSelectionKey(entry.selection)));
+		if (positions.some(position => !available.has(keyframeSelectionKey(position)))) return false;
+		appStateManager.commit('moveTimelineKeyframes', { sceneId: props.sceneId, positions: positions.map(position => ({ ...position, x: position.x + delta })) }, mergeKey);
+		return true;
+	});
+}
+
+onBeforeUnmount(() => stopSelectionDrag?.());
 
 const SNAP_THRESHOLD = 5;
 
@@ -638,7 +733,7 @@ function onTlKeydown(ev: KeyboardEvent) {
 	if (target instanceof HTMLElement && (target.closest('input, textarea, select') || target.isContentEditable)) return;
 	const key = ev.key.toLowerCase();
 	if (key === 'c') {
-		if (selectedLayer.value == null || selectedKeyframeSelection.value != null) return;
+		if (selectedLayer.value == null || selection.value.kind !== 'layers') return;
 		ev.preventDefault();
 		ev.stopPropagation();
 		if (ev.repeat) return;
@@ -675,8 +770,7 @@ function formatMsToTimecode(ms: number) {
 }
 
 function selectLayer(layer: TimelineLayer) {
-	selectedLayerId.value = layer.id;
-	selectedKeyframeSelection.value = null;
+	selection.value = { kind: 'layers', ids: [layer.id] };
 	tlEl.value?.focus({ preventScroll: true });
 }
 
@@ -803,8 +897,7 @@ async function addAudioLayer(asset: Asset) {
 			id, layerType: 'audio', assetId: asset.id, positionMs, trimmedDurationMs, trimStartMs: 0,
 			paramValues: { volume: { inputSource: 'literal', value: 1 } }, automationGraphs: [],
 		} });
-		selectedLayerId.value = id;
-		selectedKeyframeSelection.value = null;
+		selection.value = { kind: 'layers', ids: [id] };
 	} catch (error) { audioError.value = error instanceof Error ? error.message : String(error); }
 }
 
@@ -975,6 +1068,7 @@ onMounted(() => {
 //}
 
 .layers {
+	touch-action: none;
 	display: flex;
 	flex-direction: column;
 	position: absolute;
@@ -1282,6 +1376,8 @@ onMounted(() => {
 .selectedArea {
 	position: absolute;
 	background: #fff1;
+	border: 1px solid var(--THEME-accent);
+	box-sizing: border-box;
 }
 
 .tooltip {

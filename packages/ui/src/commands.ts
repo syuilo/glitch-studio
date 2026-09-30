@@ -24,6 +24,7 @@ import { createInlineAutomationGraph } from '@/utility/automation-graph.ts';
 import { createInlineKeyframesTimeline } from '@/utility/keyframes-timeline.ts';
 import { getVisualModule, listVisualModules } from '@/utility/visual-module-target.ts';
 import type { VisualModuleTarget } from '@/utility/visual-module-target.ts';
+import type { TimelineKeyframeSelection } from '@/utility/timeline-selection.ts';
 
 export type CommandDef<Payload> = {
 	label: string;
@@ -1073,7 +1074,57 @@ const editSceneLayerTimingCommandDef = defineCommand<{ sceneId: string; layerId:
 	},
 });
 
+const moveTimelineLayersCommandDef = defineCommand<{ sceneId: string; positions: { layerId: string; positionMs: number }[] }>({
+	label: 'Move timeline layers',
+	create: payload => {
+		let before: typeof payload.positions;
+		const apply = (state: AppState, positions: typeof payload.positions) => {
+			const layers = getScene(state, payload.sceneId).layers;
+			// 全対象を検証してから変更し、途中の失敗で一部だけ移動した状態を残さない。
+			const updates = positions.map(position => {
+				const layer = layers.find(layer => layer.id === position.layerId);
+				if (layer == null || layer.layerType === 'effect' || !isTimelineLayerTimingValid({ ...layer, positionMs: position.positionMs })) throw new Error('Invalid layer move');
+				return { layer, positionMs: position.positionMs };
+			});
+			const previous = updates.map(({ layer }) => ({ layerId: layer.id, positionMs: layer.positionMs }));
+			for (const { layer, positionMs } of updates) layer.positionMs = positionMs;
+			return previous;
+		};
+		return {
+			execute(state) { before = apply(state, payload.positions); },
+			undo(state) { apply(state, before); },
+		};
+	},
+});
+
+const moveTimelineKeyframesCommandDef = defineCommand<{ sceneId: string; positions: (TimelineKeyframeSelection & { x: number })[] }>({
+	label: 'Move timeline keyframes',
+	create: payload => {
+		let before: typeof payload.positions;
+		const apply = (state: AppState, positions: typeof payload.positions) => {
+			const layers = getScene(state, payload.sceneId).layers;
+			const updates = positions.map(position => {
+				const layer = layers.find(layer => layer.id === position.layerId);
+				if (layer == null || !Number.isFinite(position.x) || position.x < 0) throw new Error('Invalid keyframe move');
+				const binding = getLayerParameterValues(layer, position.target)[position.paramId];
+				const point = binding?.inputSource === 'keyframesTimelineInline' ? binding.keyframesTimeline.keyframes.find(point => point.id === position.keyframeId) : undefined;
+				if (point == null) throw new Error('Timeline keyframe not found');
+				return { point, position };
+			});
+			const previous = updates.map(({ point, position }) => ({ ...position, x: point.x }));
+			for (const { point, position } of updates) point.x = position.x;
+			return previous;
+		};
+		return {
+			execute(state) { before = apply(state, payload.positions); },
+			undo(state) { apply(state, before); },
+		};
+	},
+});
+
 export const COMMAND_DEFS = {
+	moveTimelineLayers: moveTimelineLayersCommandDef,
+	moveTimelineKeyframes: moveTimelineKeyframesCommandDef,
 	addScene: addSceneCommandDef,
 	renameScene: renameSceneCommandDef,
 	removeScene: removeSceneCommandDef,
