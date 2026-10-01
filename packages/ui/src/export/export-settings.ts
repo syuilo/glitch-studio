@@ -1,4 +1,5 @@
 import type { TimelineExportSettings } from './timeline-export.ts';
+import { scaleResolution } from '@glitch/shared/resolution.ts';
 
 export function parseExportTime(text: string): number {
 	const match = /^(\d{2,}):([0-5]\d):([0-5]\d)\.(\d{3})$/.exec(text.trim());
@@ -25,7 +26,7 @@ export function adjustExportResolution(resolution: { width: number; height: numb
 }
 
 export function scaleExportResolution(resolution: { width: number; height: number }, scale: number, format: TimelineExportSettings['format'] = 'webp') {
-	return adjustExportResolution({ width: Math.round(resolution.width * scale), height: Math.round(resolution.height * scale) }, format);
+	return adjustExportResolution(scaleResolution(resolution, scale), format);
 }
 
 /** 平均的な複雑さの画像を想定する目安。実測や上限ではなく、ノイズ・動き・透過で大きく変わる。 */

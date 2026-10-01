@@ -376,7 +376,7 @@ export async function newProject() {
 		visualModules: [initialVisualModule],
 		assets: [],
 		players: [],
-		timelineScenes: [{ id: genId(), name: 'Main Scene', layers: [{
+		timelineScenes: [{ id: genId(), name: 'Main Scene', resolution: { mode: 'project' }, layers: [{
 			id: genId(),
 			layerType: 'visualModule',
 			visualModuleId: initialVisualModule.id,
@@ -502,7 +502,7 @@ export async function newProjectFromImageOrVideo(file?: File) {
 		visualModules: [initialVisualModule],
 		assets: [asset],
 		players: player ? [player] : [],
-		timelineScenes: [{ id: genId(), name: 'Main Scene', layers: [{
+		timelineScenes: [{ id: genId(), name: 'Main Scene', resolution: { mode: 'project' }, layers: [{
 			id: genId(),
 			layerType: 'visualModule',
 			visualModuleId: initialVisualModule.id,

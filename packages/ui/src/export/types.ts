@@ -3,10 +3,12 @@ import type { TimelineRendererManagerStaticOptions } from '@glitch/renderer/time
 import type { TimelineScene } from '@glitch/shared/timeline/types.ts';
 import type { ProjectVisualModule } from '@glitch/shared/project/types.ts';
 import type { ExportProgress, TimelineExportSettings } from './timeline-export.ts';
+import type { Resolution } from '@glitch/shared/resolution.ts';
 
 export type ExportRequest = {
 	settings: TimelineExportSettings;
-	project: { assets: Asset[]; visualModules: ProjectVisualModule[]; timelineScenes: TimelineScene[]; sceneId: string };
+	resolutionScale: number;
+	project: { assets: Asset[]; visualModules: ProjectVisualModule[]; timelineScenes: TimelineScene[]; sceneId: string; resolution: Resolution };
 	renderer: TimelineRendererManagerStaticOptions;
 };
 

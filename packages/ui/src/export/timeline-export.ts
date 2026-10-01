@@ -40,7 +40,7 @@ export function validateExportSettings(settings: TimelineExportSettings): string
 	}
 	if (!Number.isSafeInteger(settings.positionMs) || settings.positionMs < 0) return 'Enter a valid start time (HH:MM:SS.mmm).';
 	if (settings.format === 'webp') return null;
-	if (settings.width % 2 !== 0 || settings.height % 2 !== 0) return 'MP4 requires even dimensions. Choose another resolution scale or change the project resolution.';
+	if (settings.width % 2 !== 0 || settings.height % 2 !== 0) return 'MP4 requires even dimensions. Choose another resolution scale or change the scene resolution.';
 	if (!Number.isFinite(settings.fps) || settings.fps < 1 || settings.fps > 120) return 'Frame rate must be between 1 and 120 fps.';
 	if (!Number.isFinite(settings.positionMs) || !Number.isFinite(settings.endTimeMs)
 		|| settings.positionMs < 0 || settings.endTimeMs <= settings.positionMs) {

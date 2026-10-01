@@ -2,6 +2,7 @@ import type { AutomationGraph, ParameterBinding } from '../types.ts';
 import type { VisualModule } from '../visual-module/types.ts';
 import type { timelineCompositingParamDefs } from './timeline-compositing.ts';
 import type { TimelineLayerTiming } from './timing.ts';
+import type { TimelineSceneResolution } from './scene-resolution.ts';
 
 // NOTE: 各値の計算式は以下となる
 // const visibleStartMs = layer.positionMs + layer.trimStartMs;
@@ -71,6 +72,7 @@ export type TimelineLayer = TimelineVisualModuleLayer | TimelineInlineVisualModu
 export type TimelineScene = {
 	id: string;
 	name: string;
+	resolution: TimelineSceneResolution;
 
 	/** UIの上から下への表示順。先頭が最上層で、描画・合成は末尾から先頭へ行う。 */
 	layers: TimelineLayer[];

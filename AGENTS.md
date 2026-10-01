@@ -115,6 +115,15 @@ Visual Module内で別のVisual Moduleを通常のエフェクトのように使
 - originは透明な余白を含む入力テクスチャ全体を基準とし、中央が[0, 0]、左下が[-1, -1]、右上が[1, 1]です。範囲外も許容します。Visual Moduleなども出力テクスチャの寸法を使い、uniform出力にはタイムラインの画面サイズを仮想的な素材寸法として与えます。originとpositionの初期値は[0, 0]です。無回転・等倍でもoriginを変えると配置が変わります。Transformエフェクトのtranslationは従来どおり移動量です。
 - 変形と合成はタイムライン専用の1パスで行い、VisualModuleRendererは合成設定を扱いません。無変形・opacity=1の置き換えは元のNodeOutputをそのまま受け渡します。
 
+### シーンとノードの解像度
+
+- Sceneは `resolution: { mode: 'project' } | { mode: 'custom', width, height }` を持ちます。projectは親Sceneではなく、プロジェクト自身の基準寸法を参照します。設定は配置レイヤーではなくScene定義が所有します。
+- 数値指定は基準サイズです。プレビュー・書き出しの倍率はScene・素材・ノードの基準サイズに一度だけ適用し、入れ子や入力追従で重複適用しません。レイヤーのscaleは描画解像度を変えません。
+- Sceneの出力は、そのSceneの描画寸法を持つ画面として確定してから親へ渡します。定数や無変形replaceでもこの画面を維持し、親のfit・origin・transformは透明余白を含むScene全体を対象にします。Visual Module自体の境界では従来どおり定数を維持します。
+- ノードの解像度設定は `auto` / `context` / `custom` です。contextはLIVEではプロジェクト、タイムラインではそのノードが所属するSceneの解像度です。autoは素材・入力の寸法を優先し、それらがなければcontextへフォールバックします。ノードにprojectモードはありません。
+- Visual Module内の式の `WIDTH` / `HEIGHT` は倍率適用後のcontext解像度です。個々のノード出力の寸法ではありません。呼び出し側が寸法を渡し、Visual Module側はSceneやプロジェクトの定義を参照しません。
+- 書き出し寸法は選択したSceneの基準サイズと書き出し倍率から求めます。プロジェクトの基準サイズを上書きせず、倍率と最終出力寸法を独立して渡します。MP4の偶数寸法補正は最終Canvasだけに適用します。
+
 ### メディア入力の扱い
 
 Glitch Studioのメディアの扱いにあたっては、以下の概念があります。

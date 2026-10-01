@@ -1,9 +1,10 @@
 import { getTimelineScene, getSceneDuration, validateTimelineScenes } from '@glitch/shared/timeline/scenes.ts';
+import { getSceneBaseResolution } from '@glitch/shared/timeline/scene-resolution.ts';
 import { TimelineRendererManager } from '@glitch/renderer/timeline-renderer-manager.ts';
 import { effectDefinitions } from '@glitch/shared/effect/effect-definitions.ts';
 import { effectImplementations } from '@glitch/shared/effect/effect-implementations.js';
 import { createMp4Writer } from './mp4-writer.ts';
-import { adjustExportResolution } from './export-settings.ts';
+import { scaleExportResolution } from './export-settings.ts';
 import { encodeStillWebp } from './still-webp.ts';
 import { renderExportFrames, validateExportSettings } from './timeline-export.ts';
 import { getExportAudioClips } from './audio-export-settings.ts';
@@ -24,11 +25,12 @@ self.onmessage = async (event: MessageEvent<ExportRequest>) => {
 	const controller = new AbortController();
 	let finished = false;
 	try {
-		const { settings: requestedSettings, project, renderer: rendererSettings } = event.data;
+		const { settings: requestedSettings, project, resolutionScale, renderer: rendererSettings } = event.data;
 		// UI以外から呼ばれても、Canvasとエンコーダーに同じ調整済みサイズを使う。
-		const settings = { ...requestedSettings, ...adjustExportResolution(requestedSettings, requestedSettings.format) };
 		validateTimelineScenes(project.timelineScenes);
-		if (getSceneDuration(getTimelineScene(project.timelineScenes, project.sceneId)) <= 0) throw new Error('Cannot export an empty scene.');
+		const scene = getTimelineScene(project.timelineScenes, project.sceneId);
+		const settings = { ...requestedSettings, ...scaleExportResolution(getSceneBaseResolution(scene.resolution, project.resolution), resolutionScale, requestedSettings.format) };
+		if (getSceneDuration(scene) <= 0) throw new Error('Cannot export an empty scene.');
 		const validationError = validateExportSettings(settings);
 		if (validationError) throw new Error(validationError);
 		send({ type: 'progress', progress: { phase: 'preparing', completedFrames: 0, totalFrames: 0 } });
@@ -64,11 +66,12 @@ self.onmessage = async (event: MessageEvent<ExportRequest>) => {
 			const status = event.ctx.status?.status;
 			if (status?.type === 'error') fail(`Node ${event.ctx.nodeId}: ${status.message}`);
 		});
-		// プレビューの解像度・クリッピング表示・LIVE設定は持ち込まず、
-		// 書き出し専用の状態を設定して素材の準備が終わってから描画する。
+		// 基準サイズを上書きすると、customの子Sceneやノードに書き出し倍率が伝わらない。
+		// 倍率は独立して渡し、MP4の偶数寸法補正は最終Canvasだけに適用する。
 		await renderer.updateDynamicOptions({
 			...project,
-			resolution: { width: settings.width, height: settings.height },
+			resolutionScale,
+			outputResolution: { width: settings.width, height: settings.height },
 			opaqueOutput: settings.format === 'mp4',
 		});
 		controller.signal.throwIfAborted();

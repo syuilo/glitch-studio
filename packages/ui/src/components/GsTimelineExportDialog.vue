@@ -47,6 +47,7 @@
 <script lang="ts" setup>
 import { computed, onBeforeUnmount, ref, watch, useTemplateRef } from 'vue';
 import { getSceneDuration } from '@glitch/shared/timeline/scenes.ts';
+import { getSceneBaseResolution } from '@glitch/shared/timeline/scene-resolution.ts';
 import { deepClone } from '@glitch/shared/utility/deep-clone.ts';
 import GsModal from './common/GsModal.vue';
 import GsButton from './common/GsButton.vue';
@@ -94,7 +95,8 @@ const qualityOptions = computed(() => [
 ]);
 const resolutionScale = ref(1);
 const resolutionOptions = [0.25, 0.5, 1, 2, 4].map(value => ({ value, label: `${value}x` }));
-const resolution = computed(() => scaleExportResolution(appStateManager.state.resolution.value, resolutionScale.value, mode.value === 'video' ? 'mp4' : 'webp'));
+const resolution = computed(() => scaleExportResolution(getSceneBaseResolution(scene.value?.resolution ?? { mode: 'project' },
+	appStateManager.state.resolution.value), resolutionScale.value, mode.value === 'video' ? 'mp4' : 'webp'));
 const fps = ref(60);
 const startTime = ref('00:00:00.000');
 const endTime = ref(formatExportTime(0));
@@ -164,7 +166,9 @@ async function doExport() {
 		// VueのProxyを外し、編集中の状態とWorkerの状態を独立させる。
 		const buffer = await exportTimeline({
 			settings: exportSettings,
+			resolutionScale: resolutionScale.value,
 			project: deepClone({
+				resolution: appStateManager.state.resolution.value,
 				assets: appStateManager.state.assets.value,
 				visualModules: appStateManager.state.visualModules.value,
 				timelineScenes: appStateManager.state.timelineScenes.value,

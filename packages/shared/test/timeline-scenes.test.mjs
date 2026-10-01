@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { getSceneDuration, validateTimelineScenes, canReferenceScene } from '../src/timeline/scenes.ts';
 import { getSceneAudioClips } from '../src/timeline/scene-audio.ts';
 
-const scene = (id, layers = []) => ({ id, name: id, layers });
+const scene = (id, layers = []) => ({ id, name: id, resolution: { mode: 'project' }, layers });
 const nested = (id, sceneId, positionMs, trimStartMs, trimmedDurationMs) => ({
 	id, layerType: 'scene', sceneId, positionMs, trimStartMs, trimmedDurationMs,
 	compositingParamValues: {}, audioParamValues: { volume: { inputSource: 'literal', value: 1 } }, automationGraphs: [],

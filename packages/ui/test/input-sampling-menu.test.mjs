@@ -27,7 +27,7 @@ const { getNodeInputSamplingMenuItems, COMMAND_DEFS, reactive, computed } = modu
 
 const sampling = { fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' };
 function fixture() {
-	const node = reactive({ id: 'node', type: 'effect', resolution: { mode: 'project' }, effectId: 'test', isBypass: false, params: { inputs: { inputSource: 'literal', value: [{ inputSource: 'node', nodeId: 'source', outputPort: 'output', ...sampling }] } } });
+	const node = reactive({ id: 'node', type: 'effect', resolution: { mode: 'context' }, effectId: 'test', isBypass: false, params: { inputs: { inputSource: 'literal', value: [{ inputSource: 'node', nodeId: 'source', outputPort: 'output', ...sampling }] } } });
 	const state = { visualModules: { value: [{ id: 'module', nodes: [node] }] } };
 	const target = { visualModuleId: 'module', nodeId: 'node', paramPath: ['inputs', 0] };
 	const commands = [];

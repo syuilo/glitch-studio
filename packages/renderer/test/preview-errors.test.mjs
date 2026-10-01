@@ -28,8 +28,8 @@ function visualModule(circular) {
 		paramDefs: [],
 		outputDefs: [{ id: 'output', dataType: { kind: 'color' } }], primaryInputId: null, primaryOutputId: 'output',
 		nodes: [
-			{ id: 'a', type: 'effect', resolution: { mode: 'project' }, effectId: 'pass', isBypass: true, params: { input: { inputSource: 'node', nodeId: circular ? 'b' : null, outputPort: 'output' } } },
-			{ id: 'b', type: 'effect', resolution: { mode: 'project' }, effectId: 'pass', isBypass: true, params: { input: { inputSource: 'node', nodeId: 'a', outputPort: 'output' } } },
+			{ id: 'a', type: 'effect', resolution: { mode: 'context' }, effectId: 'pass', isBypass: true, params: { input: { inputSource: 'node', nodeId: circular ? 'b' : null, outputPort: 'output' } } },
+			{ id: 'b', type: 'effect', resolution: { mode: 'context' }, effectId: 'pass', isBypass: true, params: { input: { inputSource: 'node', nodeId: 'a', outputPort: 'output' } } },
 			{ id: 'out', type: 'globalOut', inputs: { output: { nodeId: 'a', outputPort: 'output' } } },
 		],
 	};
@@ -74,7 +74,7 @@ async function fixture(t, staticOptions = {}, Manager = VisualModuleRendererMana
 	await renderer.updateDynamicOptions({
 		resolution: { width: 1, height: 1 },
 		visualModules: [visualModule(true)],
-		...(Manager === TimelineRendererManager ? { timelineScenes: [{ id: 'scene', name: 'Scene', layers: [{ id: 'layer', layerType: 'visualModule', visualModuleId: 'module', positionMs: 0, trimStartMs: 0, trimmedDurationMs: 1000, visualModuleParamValues: {}, compositingParamValues: {}, automationGraphs: [] }] }], sceneId: 'scene' } : {}),
+		...(Manager === TimelineRendererManager ? { timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [{ id: 'layer', layerType: 'visualModule', visualModuleId: 'module', positionMs: 0, trimStartMs: 0, trimmedDurationMs: 1000, visualModuleParamValues: {}, compositingParamValues: {}, automationGraphs: [] }] }], sceneId: 'scene' } : {}),
 	});
 	return { renderer, errors, frames, frame(timestamp) {
 		const [id, callback] = frames.entries().next().value;

@@ -270,7 +270,7 @@ test('publishes output resolutions only after drawing and when state changes', a
 		assert.equal(prepared, false, 'resolution must not make a loading effect ready');
 		reports.at(-1)({ type: 'ready' });
 		await pending;
-		node.resolution = { mode: 'project' };
+		node.resolution = { mode: 'context' };
 		renderer.resize({ width: 50, height: 20 });
 		await renderer.prepare(renderContext(), new AbortController().signal);
 		const beforeStale = notifications.length;
@@ -319,10 +319,10 @@ test('passes module constants through bypasses without allocating input textures
 	const { device, calls, encoder } = gpuFixture();
 	const captured = [];
 	const connection = (port, nodeId = 'in') => ({ fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear', inputSource: 'node', nodeId, outputPort: port });
-	const bypass = { id: 'bypass', type: 'effect', resolution: { mode: 'project' }, effectId: 'colorMix', isBypass: true, params: {
+	const bypass = { id: 'bypass', type: 'effect', resolution: { mode: 'context' }, effectId: 'colorMix', isBypass: true, params: {
 		inputA: connection('color'), inputB: literal([0, 0, 0, 0]), amount: literal(0),
 	} };
-	const mix = { id: 'mix', type: 'effect', resolution: { mode: 'project' }, effectId: 'colorMix', params: {
+	const mix = { id: 'mix', type: 'effect', resolution: { mode: 'context' }, effectId: 'colorMix', params: {
 		inputA: connection('output', 'bypass'), inputB: connection('vector'), amount: connection('scalar'),
 	} };
 	const probe = { ...effect, init: () => ({ prepare: params => captured.push(['prepare', params]), render: ctx => captured.push(['render', ctx.params]), dispose() {} }) };
@@ -359,7 +359,7 @@ test('passes module constants through bypasses without allocating input textures
 test('switches module outputs between constants and borrowed textures', () => {
 	const { device, calls, encoder } = gpuFixture();
 	const captured = [];
-	const mix = { id: 'mix', type: 'effect', resolution: { mode: 'project' }, effectId: 'colorMix', params: {
+	const mix = { id: 'mix', type: 'effect', resolution: { mode: 'context' }, effectId: 'colorMix', params: {
 		inputA: { inputSource: 'node', nodeId: 'in', outputPort: 'color', fitMode: 'contain', wrapMode: 'clamp', filterMode: 'nearest' },
 		inputB: { fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear', inputSource: 'node', nodeId: 'in', outputPort: 'color' },
 		amount: { inputSource: 'node', nodeId: 'in', outputPort: 'gain', fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' },
@@ -431,8 +431,8 @@ test('resolves nested array inputs and invalidates sampling changes', () => {
 		init: () => ({ render: ctx => captured.push(ctx.params), dispose() {} }),
 	};
 	const connection = { inputSource: 'node', nodeId: 'source', outputPort: 'output', fitMode: 'contain', wrapMode: 'transparent', filterMode: 'nearest' };
-	const source = { id: 'source', type: 'effect', resolution: { mode: 'project' }, effectId: 'colorMix', params: { inputA: literal([1, 0, 0, 1]), inputB: literal([0, 0, 0, 0]), amount: literal(0) } };
-	const arrayNode = { id: 'array', type: 'effect', resolution: { mode: 'project' }, effectId: 'testStructArray', params: {
+	const source = { id: 'source', type: 'effect', resolution: { mode: 'context' }, effectId: 'colorMix', params: { inputA: literal([1, 0, 0, 1]), inputB: literal([0, 0, 0, 0]), amount: literal(0) } };
+	const arrayNode = { id: 'array', type: 'effect', resolution: { mode: 'context' }, effectId: 'testStructArray', params: {
 		foo: literal({ node: literal([0, 1, 0, 0.5]) }), bars: literal([literal([0, 0, 1, 0.5])]),
 		buzzs: literal([literal({ image: connection, x: literal(0), y: literal(0) }), literal({ image: literal([1, 0, 0, 0.25]), x: literal(1), y: literal(0) })]),
 	} };
@@ -534,7 +534,7 @@ test('reuses colorMix variants and releases all owned buffers', () => {
 // 実際のパラメータ評価・接続解決を通し、新方式では定数テクスチャを確保・更新しない。
 test('resolves colorMix inputs through the renderer without constant textures', () => {
 	const { device, calls, encoder } = gpuFixture();
-	const mix = { id: 'mix', type: 'effect', resolution: { mode: 'project' }, effectId: 'colorMix', isBypass: false, params: {
+	const mix = { id: 'mix', type: 'effect', resolution: { mode: 'context' }, effectId: 'colorMix', isBypass: false, params: {
 		inputA: literal([1, 0, 0, 0.5]), inputB: literal([0, 0, 1, 1]), amount: { inputSource: 'expression', expression: '0.25' },
 	} };
 	const visualModule = { paramDefs: [], automationGraphs: [], outputDefs: [{ id: 'out' }], primaryInputId: null, primaryOutputId: 'out', nodes: [mix, { id: 'out', type: 'globalOut', inputs: { out: { nodeId: 'mix', outputPort: 'output' } } }] };
@@ -574,7 +574,7 @@ test('resolves colorMix inputs through the renderer without constant textures', 
 // 同じ外部パラメータが定数→テクスチャ→定数へ戻るとき、古い描画キャッシュを使わない。
 test('refreshes external textures and restores constants after disconnecting them', () => {
 	const { device, calls, encoder } = gpuFixture();
-	const mix = { id: 'mix', type: 'effect', resolution: { mode: 'project' }, effectId: 'colorMix', params: {
+	const mix = { id: 'mix', type: 'effect', resolution: { mode: 'context' }, effectId: 'colorMix', params: {
 		inputA: { inputSource: 'node', nodeId: null, outputPort: null }, inputB: literal([0, 0, 1, 1]), amount: { inputSource: 'node', nodeId: 'in', outputPort: 'gain', fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' },
 	} };
 	const renderer = createRenderer(device, {
@@ -631,7 +631,7 @@ test('resizes automatic image outputs to the selected asset and preserves borrow
 	assert.deepEqual([resized.width, resized.height], [4, 9]);
 	assert.equal(initial.destroyed, true);
 	// プロジェクトモードはfitによらず描画先の寸法を使う。
-	raw.resolution = { mode: 'project' };
+	raw.resolution = { mode: 'context' };
 	for (const fit of ['stretch', 'cover', 'contain']) {
 		raw.params.fit = literal(fit);
 		const normal = renderer.render(renderContext(), encoder).texture;
@@ -641,7 +641,7 @@ test('resizes automatic image outputs to the selected asset and preserves borrow
 	const original = renderer.render(renderContext(), encoder).texture;
 	assert.deepEqual([original.width, original.height], [4, 9]);
 	// 自動のImage→プロジェクト解像度のcolorMixでも、元の比率をサンプリングに使う。
-	const mix = { id: 'mix', type: 'effect', resolution: { mode: 'project' }, effectId: 'colorMix', params: {
+	const mix = { id: 'mix', type: 'effect', resolution: { mode: 'context' }, effectId: 'colorMix', params: {
 		inputA: { fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear', inputSource: 'node', nodeId: 'raw', outputPort: 'output' }, inputB: literal([0, 0, 0, 0]), amount: literal(0),
 	} };
 	output.inputs.out.nodeId = 'mix';

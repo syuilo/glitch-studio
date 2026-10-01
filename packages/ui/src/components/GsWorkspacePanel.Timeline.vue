@@ -13,6 +13,7 @@ import { computed, ref, watch } from 'vue';
 import { genId } from '@glitch/shared/utility/id.ts';
 import { deepClone } from '@glitch/shared/utility/deep-clone.ts';
 import GsButton from './common/GsButton.vue';
+import GsSceneResolutionDialog from './GsSceneResolutionDialog.vue';
 import type { WorkspacePanel } from '@/workspace.ts';
 import type { MenuItem } from '@/types/menu.ts';
 import GsTimeline from '@/components/GsTimeline.vue';
@@ -27,7 +28,7 @@ const references = computed(() => appStateManager.state.timelineScenes.value.fil
 
 function createScene() {
 	const id = genId();
-	appStateManager.commit('addScene', { id, name: `Scene ${appStateManager.state.timelineScenes.value.length + 1}`, layers: [] });
+	appStateManager.commit('addScene', { id, name: `Scene ${appStateManager.state.timelineScenes.value.length + 1}`, resolution: { mode: 'project' }, layers: [] });
 	activeSceneId.value = id;
 }
 
@@ -78,6 +79,13 @@ function showSceneSelectMenu(ev: PointerEvent) {
 
 function showSceneMenu(ev: PointerEvent) {
 	const menuItems: MenuItem[] = [{
+		text: 'Scene resolution',
+		icon: 'ti ti-dimensions',
+		action: () => {
+			if (activeSceneId.value == null) return;
+			const { dispose } = ui.popup(GsSceneResolutionDialog, { sceneId: activeSceneId.value }, { closed: () => dispose() });
+		},
+	}, {
 		text: 'Rename Scene',
 		icon: 'ti ti-edit',
 		action: renameScene,

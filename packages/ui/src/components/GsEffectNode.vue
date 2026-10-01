@@ -26,6 +26,7 @@
 				<div class="_gaps_s">
 					<GsSelect :modelValue="node.resolution.mode" :items="resolutionModes" @update:modelValue="setResolutionMode">
 						<template #label>Resolution</template>
+						<template v-if="node.resolution.mode === 'context'" #caption>Uses the project size in LIVE and the containing scene size in the timeline.</template>
 					</GsSelect>
 					<div v-if="node.resolution.mode === 'custom'" style="display: flex; gap: 8px;">
 						<GsInput style="flex: 1" type="number" :modelValue="node.resolution.width" :min="1" :step="1" :debounce="400" @update:modelValue="setDimension('width', $event)"><template #label>Width</template><template #suffix>px</template></GsInput>
@@ -96,7 +97,7 @@ const allInPortEl = shallowRef<HTMLElement | null>(null);
 const effectStatus = computed(() => props.effectState?.status);
 
 const resolutionModes: { value: EffectNodeResolution['mode']; label: string }[] = [
-	{ value: 'project', label: 'Project resolution' },
+	{ value: 'context', label: 'Context resolution' },
 	{ value: 'auto', label: 'Auto' },
 	{ value: 'custom', label: 'Custom' },
 ];

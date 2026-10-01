@@ -41,7 +41,8 @@ export class VisualModuleRenderer {
 	private gpuContext: GPUCanvasContext;
 	private defaultVertexShaderModule: GPUShaderModule;
 	private fallbackTexture: GPUTexture;
-	private resolution: Resolution;
+	/** 呼び出し側から与えられた描画基準。倍率適用済みで、個々のノード寸法とは異なる。 */
+	private contextResolution: Resolution;
 	private resolutionScale: number;
 	private nodeResolutions = new Map<string, Resolution>();
 	private nodes: VisualModuleNode[] = [];
@@ -110,7 +111,7 @@ export class VisualModuleRenderer {
 		this.onEffectState = options.onEffectState;
 		this.enableStats = options.enableStats;
 		this.resolutionScale = options.resolutionScale ?? 1;
-		this.resolution = scaleResolution(options.resolution, this.resolutionScale);
+		this.contextResolution = scaleResolution(options.resolution, this.resolutionScale);
 		this.enable32bitDataTextures = options.enable32bitDataTextures;
 		this.intermediateTextureFormat = options.intermediateTextureFormat;
 		this.videoFrames = options.videoFrames;
@@ -159,8 +160,8 @@ export class VisualModuleRenderer {
 
 		const evalCtx = {
 			variables: {
-				WIDTH: this.resolution.width,
-				HEIGHT: this.resolution.height,
+				WIDTH: this.contextResolution.width,
+				HEIGHT: this.contextResolution.height,
 				TIME: context.time / 1000,
 				TIME_MS: context.time,
 				END_TIME: context.endTime / 1000,
@@ -371,10 +372,10 @@ export class VisualModuleRenderer {
 
 		for (const node of addedNodes) {
 			const effect = this.effectImplementations[node.effectId];
-			// プロジェクト・明示指定は入力評価を待たず確定できる。自動の場合だけ仮確保し、
-			// 上流の寸法が決まる前にプロジェクトサイズの大きな領域を確保することを避ける。
+			// context・明示指定は入力評価を待たず確定できる。自動の場合だけ仮確保し、
+			// 上流の寸法が決まる前に描画先サイズの大きな領域を確保することを避ける。
 			const initialResolution = node.resolution.mode === 'auto' ? undefined : resolveEffectNodeResolution({
-				setting: node.resolution, projectResolution: this.resolution, resolutionScale: this.resolutionScale,
+				setting: node.resolution, contextResolution: this.contextResolution, resolutionScale: this.resolutionScale,
 				maxDimension: this.gpuDevice.limits.maxTextureDimension2D,
 			});
 			if (initialResolution != null) this.nodeResolutions.set(node.id, initialResolution);
@@ -633,7 +634,7 @@ export class VisualModuleRenderer {
 		const inputKey = this.effectDefinitions[node.effectId].resolutionInputParameter;
 		const input = inputKey == null ? undefined : params[inputKey];
 		const resolution = resolveEffectNodeResolution({
-			setting: node.resolution, projectResolution: this.resolution,
+			setting: node.resolution, contextResolution: this.contextResolution,
 			resolutionScale: this.resolutionScale,
 			intrinsicResolution: node.resolution.mode === 'auto' ? effect.getIntrinsicResolution?.(params) : undefined,
 			inputResolution: input?.kind === 'texture' ? input.texture : undefined,
@@ -769,7 +770,7 @@ export class VisualModuleRenderer {
 
 	public resize(resolution: Resolution, resolutionScale = 1) {
 		this.resolutionScale = resolutionScale;
-		this.resolution = scaleResolution(resolution, resolutionScale);
+		this.contextResolution = scaleResolution(resolution, resolutionScale);
 		this.preparedContext = null;
 		this.effectCacheKeys.clear();
 		// 実際にサイズが変わったノードだけ、次の準備・描画でリソースを更新する。

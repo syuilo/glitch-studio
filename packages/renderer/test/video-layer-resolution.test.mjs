@@ -124,7 +124,7 @@ test('scales video sources once through replace composition and automatic proces
 	]) {
 		video.compositingParamValues.blendMode = literal(blendMode);
 		await manager.updateDynamicOptions({ resolution: { width: 1920, height: 1080 }, resolutionScale,
-			sceneId: 'scene', timelineScenes: [{ id: 'scene', name: 'Scene', layers: [processing, video] }] });
+			sceneId: 'scene', timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [processing, video] }] });
 		if (resolutionScale === 1) await manager.renderTimelineFrame(0, 0);
 		else await manager.renderTimelineAt(0);
 		assert.deepEqual(calls.errors, []);

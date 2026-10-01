@@ -6,7 +6,7 @@ import { loadShaderSource } from './helpers/load-shader-source.mjs';
 const { resolveEffectNodeResolution } = await loadShaderSource(fileURLToPath(new URL('../src/effect-node-resolution.ts', import.meta.url)));
 const { scaleResolution } = await loadShaderSource(fileURLToPath(new URL('../../shared/src/resolution.ts', import.meta.url)));
 const resolve = options => resolveEffectNodeResolution({
-	setting: { mode: 'auto' }, projectResolution: { width: 960, height: 540 }, resolutionScale: 0.5, maxDimension: 8192, ...options,
+	setting: { mode: 'auto' }, contextResolution: { width: 960, height: 540 }, resolutionScale: 0.5, maxDimension: 8192, ...options,
 });
 
 // 【原寸の枝にプレビュー倍率を一度だけ適用する】
@@ -21,17 +21,17 @@ test('scales intrinsic dimensions once and preserves them through processing nod
 
 // 【明示モードでは素材・入力の寸法に上書きされない】
 // サイズ指定ノードを挟めば、異なる比率の枝でも以降のキャンバスサイズを確実に決められる。
-test('honors project and custom modes independently of source dimensions', () => {
+test('honors context and custom modes independently of source dimensions', () => {
 	const sources = { intrinsicResolution: { width: 3000, height: 4000 }, inputResolution: { width: 128, height: 64 } };
-	assert.deepEqual(resolve({ ...sources, setting: { mode: 'project' } }), { width: 960, height: 540 });
+	assert.deepEqual(resolve({ ...sources, setting: { mode: 'context' } }), { width: 960, height: 540 });
 	const custom = resolve({ ...sources, setting: { mode: 'custom', width: 1000, height: 700 } });
 	assert.deepEqual(custom, { width: 500, height: 350 });
 	assert.deepEqual(resolve({ inputResolution: custom }), custom);
 });
 
-// 【寸法のない入力ではプロジェクト解像度へフォールバックする】
+// 【寸法のない入力では描画先の解像度へフォールバックする】
 // uniformや未接続を表示用の1x1テクスチャと取り違えず、生成系と同じ作業領域を与える。
-test('falls back to project dimensions when there is no sized source', () => {
+test('falls back to context dimensions when there is no sized source', () => {
 	assert.deepEqual(resolve({}), { width: 960, height: 540 });
 });
 

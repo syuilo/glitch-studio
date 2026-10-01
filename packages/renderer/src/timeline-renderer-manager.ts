@@ -1,5 +1,6 @@
 import { scaleResolution, type Resolution } from '@glitch/shared/resolution.ts';
 import { getTimelineScene, validateTimelineScenes } from '@glitch/shared/timeline/scenes.ts';
+import { getSceneBaseResolution, resolveSceneResolution } from '@glitch/shared/timeline/scene-resolution.ts';
 import EventEmitter from 'eventemitter3';
 import { AssetTextures } from './asset-textures.ts';
 import defaultVertexShaderCode from './vertex.wgsl?raw';
@@ -12,7 +13,7 @@ import { createVideoTimelineLayer } from './video-timeline-layer.ts';
 import { createImageTimelineLayer } from './image-timeline-layer.ts';
 import { createTimelineCompositor } from './timeline-compositor.ts';
 import { TimelineCompositingParameters } from './timeline-compositing-parameters.ts';
-import { OutputTextureResolver } from './node-output.ts';
+import { createSceneOutput } from './scene-output.ts';
 import { CanvasRenderer } from './canvas-renderer.ts';
 import type { ProjectVisualModule } from '@glitch/shared/project/types.ts';
 import type { NodeOutput } from './node-output.ts';
@@ -39,8 +40,10 @@ export type TimelineRendererManagerStaticOptions = {
  */
 export type TimelineRendererManagerDynamicOptions = {
 	resolution: Resolution;
-	/** プレビューの計算倍率。書き出しは1を使う。 */
+	/** 各Scene・素材・ノードの基準寸法に一度だけ適用する描画倍率。 */
 	resolutionScale: number;
+	/** エンコード用の最終寸法。Scene内部の解像度には影響させない。 */
+	outputResolution: Resolution | null;
 	/** 最終出力の黒つぶれを緑、白飛びをマゼンタで表示する。 */
 	highlightClipping: boolean;
 	/** 透過非対応の出力用に、乗算済みRGBを黒背景へ合成する。 */
@@ -68,7 +71,7 @@ export class TimelineRendererManager extends EventEmitter<{
 	private canvasRenderer: CanvasRenderer;
 	private defaultVertexShaderModule: GPUShaderModule;
 	private fallbackTexture: GPUTexture;
-	private outputTextures: OutputTextureResolver;
+	private sceneOutput: ReturnType<typeof createSceneOutput> | undefined;
 	private assetTextures: AssetTextures;
 	private effectDefinitions: Record<string, EffectDefinition<any>>;
 	private effectImplementations: Record<string, EffectImplementation<any>>;
@@ -78,6 +81,7 @@ export class TimelineRendererManager extends EventEmitter<{
 	private dynamicOptions: TimelineRendererManagerDynamicOptions = {
 		resolution: { width: 1, height: 1 },
 		resolutionScale: 1,
+		outputResolution: null,
 		highlightClipping: false,
 		opaqueOutput: false,
 		assets: [],
@@ -102,7 +106,6 @@ export class TimelineRendererManager extends EventEmitter<{
 
 		this.gpuDevice = coreConfig.gpuDevice;
 		this.assetTextures = new AssetTextures(this.gpuDevice);
-		this.outputTextures = new OutputTextureResolver(this.gpuDevice, this.staticOptions.enable32bitDataTextures);
 		this.gpuContext = coreConfig.gpuContext;
 		this.effectDefinitions = coreConfig.effectDefinitions;
 		this.effectImplementations = coreConfig.effectImplementations;
@@ -134,11 +137,13 @@ export class TimelineRendererManager extends EventEmitter<{
 		});
 
 		this.timelineRenderer = new TimelineRenderer<NodeOutput, TimelineLayer>({
-			fallbackOutput: { kind: 'texture', texture: this.fallbackTexture },
-			createLayer: entry => this.createTimelineLayer(entry, [entry.id]),
+			fallbackOutput: { kind: 'uniform', value: [0, 0, 0, 0] },
+			createLayer: entry => this.createTimelineLayer(entry, [entry.id], this.sceneBaseResolution),
 			present: (output, gpuTime) => {
 				const commandEncoder = this.gpuDevice.createCommandEncoder();
-				const tex = this.outputTextures.resolve(output);
+				this.sceneOutput ??= createSceneOutput({ device: this.gpuDevice, vertex: this.defaultVertexShaderModule,
+					resolution: this.renderResolution, format: this.staticOptions.intermediateTextureFormat });
+				const tex = this.sceneOutput.render(commandEncoder, output);
 				this.canvasRenderer.renderToCanvas(tex, commandEncoder);
 				this.gpuDevice.queue.submit([commandEncoder.finish()]);
 			},
@@ -159,6 +164,8 @@ export class TimelineRendererManager extends EventEmitter<{
 		this.previewScheduler.clear();
 		this.previewRenderGeneration++;
 		this.timelineRenderer.clear();
+		this.sceneOutput?.dispose();
+		this.sceneOutput = undefined;
 	}
 
 	// (非workerで)呼び出すときは値を独立した参照にすること！ パフォーマンス上の理由でこちら側ではdeepCloneしません
@@ -175,11 +182,21 @@ export class TimelineRendererManager extends EventEmitter<{
 		if (newOptions.resolution !== undefined || newOptions.resolutionScale !== undefined || newOptions.visualModules !== undefined || newOptions.timelineScenes !== undefined || newOptions.sceneId !== undefined) {
 			this.clearTimelineRenderers();
 		}
-		if (newOptions.resolution !== undefined || newOptions.resolutionScale !== undefined) {
-			const canvas = this.gpuContext.canvas;
-			const resolution = this.renderResolution;
-			if (canvas.width !== resolution.width) canvas.width = resolution.width;
-			if (canvas.height !== resolution.height) canvas.height = resolution.height;
+		if (newOptions.resolution !== undefined || newOptions.resolutionScale !== undefined || newOptions.timelineScenes !== undefined || newOptions.sceneId !== undefined || newOptions.outputResolution !== undefined) {
+			try {
+				// 出力寸法を上書きする書き出しでも、Scene内部の寸法を先に検証する。
+				const sceneResolution = this.renderResolution;
+				const resolution = this.dynamicOptions.outputResolution ?? sceneResolution;
+				if (![resolution.width, resolution.height].every(value => Number.isSafeInteger(value) && value > 0 && value <= this.gpuDevice.limits.maxTextureDimension2D)) {
+					throw new Error(`Invalid output resolution: ${resolution.width} × ${resolution.height}`);
+				}
+				const canvas = this.gpuContext.canvas;
+				if (canvas.width !== resolution.width) canvas.width = resolution.width;
+				if (canvas.height !== resolution.height) canvas.height = resolution.height;
+			} catch (error) {
+				this.setRenderError(error instanceof Error ? error.message : String(error));
+				throw error;
+			}
 		}
 
 		const assetsCommitted = assets === undefined ? null : await this.updateAssets(assets);
@@ -220,14 +237,22 @@ export class TimelineRendererManager extends EventEmitter<{
 	}
 
 	private get renderResolution(): Resolution {
-		return scaleResolution(this.dynamicOptions.resolution, this.dynamicOptions.resolutionScale);
+		return resolveSceneResolution(this.dynamicOptions.sceneId == null ? { mode: 'project' }
+			: getTimelineScene(this.dynamicOptions.timelineScenes, this.dynamicOptions.sceneId).resolution,
+		this.dynamicOptions.resolution, this.dynamicOptions.resolutionScale, this.gpuDevice.limits.maxTextureDimension2D);
+	}
+
+	private get sceneBaseResolution(): Resolution {
+		return this.dynamicOptions.sceneId == null ? this.dynamicOptions.resolution
+			: getSceneBaseResolution(getTimelineScene(this.dynamicOptions.timelineScenes, this.dynamicOptions.sceneId).resolution, this.dynamicOptions.resolution);
 	}
 
 	private getSceneLayers() {
 		return this.dynamicOptions.sceneId == null ? [] : getTimelineScene(this.dynamicOptions.timelineScenes, this.dynamicOptions.sceneId).layers.filter(layer => layer.layerType !== 'audio');
 	}
 
-	private createTimelineLayer(layer: TimelineLayer, layerPath: string[]): TimelineLayerRenderer<NodeOutput> {
+	private createTimelineLayer(layer: TimelineLayer, layerPath: string[], sceneBaseResolution: Resolution): TimelineLayerRenderer<NodeOutput> {
+		const renderResolution = scaleResolution(sceneBaseResolution, this.dynamicOptions.resolutionScale);
 		// レイヤーの種類の解釈とリソース解決は、タイムライン制御の外側で行う。
 		switch (layer.layerType) {
 			case 'image': {
@@ -237,7 +262,7 @@ export class TimelineRendererManager extends EventEmitter<{
 				if (!texture) throw new Error(`Image asset not found: ${layer.assetId}`);
 				return createImageTimelineLayer(layer, texture, {
 					device: this.gpuDevice, vertex: this.defaultVertexShaderModule,
-					resolution: this.renderResolution, format: this.staticOptions.intermediateTextureFormat,
+					resolution: renderResolution, format: this.staticOptions.intermediateTextureFormat,
 					resolutionScale: this.dynamicOptions.resolutionScale,
 				});
 			}
@@ -246,29 +271,35 @@ export class TimelineRendererManager extends EventEmitter<{
 				if (!asset) throw new Error(`Video asset not found: ${layer.assetId}`);
 				return createVideoTimelineLayer(layer, asset.fileData, {
 					device: this.gpuDevice, vertex: this.defaultVertexShaderModule,
-					resolution: this.renderResolution, format: this.staticOptions.intermediateTextureFormat,
+					resolution: renderResolution, format: this.staticOptions.intermediateTextureFormat,
 					resolutionScale: this.dynamicOptions.resolutionScale,
 				});
 			}
-			case 'scene': return createSceneTimelineLayer(getTimelineScene(this.dynamicOptions.timelineScenes, layer.sceneId), layer, {
-				device: this.gpuDevice,
-				vertex: this.defaultVertexShaderModule,
-				resolution: this.renderResolution,
-				format: this.staticOptions.intermediateTextureFormat,
-				createLayer: entry => this.createTimelineLayer(entry, [...layerPath, entry.id]),
-			});
+			case 'scene': {
+				const scene = getTimelineScene(this.dynamicOptions.timelineScenes, layer.sceneId);
+				const childBaseResolution = getSceneBaseResolution(scene.resolution, this.dynamicOptions.resolution);
+				return createSceneTimelineLayer(scene, layer, {
+					device: this.gpuDevice,
+					vertex: this.defaultVertexShaderModule,
+					resolution: renderResolution,
+					sceneResolution: resolveSceneResolution(scene.resolution, this.dynamicOptions.resolution,
+						this.dynamicOptions.resolutionScale, this.gpuDevice.limits.maxTextureDimension2D),
+					format: this.staticOptions.intermediateTextureFormat,
+					createLayer: entry => this.createTimelineLayer(entry, [...layerPath, entry.id], childBaseResolution),
+				});
+			}
 			case 'visualModule': {
 				const visualModule = this.dynamicOptions.visualModules.find(module => module.id === layer.visualModuleId);
 				if (visualModule == null) throw new Error(`Visual module not found: ${layer.visualModuleId}`);
-				return this.createVisualModuleLayer(visualModule, layer, layerPath);
+				return this.createVisualModuleLayer(visualModule, layer, layerPath, sceneBaseResolution);
 			}
 			case 'inlineVisualModule':
-				return this.createVisualModuleLayer(layer.visualModule, layer, layerPath);
+				return this.createVisualModuleLayer(layer.visualModule, layer, layerPath, sceneBaseResolution);
 		}
 		throw new Error(`Unrecognized layer type: ${layer.layerType}`);
 	}
 
-	private createVisualModuleLayer(visualModule: VisualModule, layer: TimelineVisualModuleLayer | TimelineInlineVisualModuleLayer, layerPath: string[]): TimelineLayerRenderer<NodeOutput> {
+	private createVisualModuleLayer(visualModule: VisualModule, layer: TimelineVisualModuleLayer | TimelineInlineVisualModuleLayer, layerPath: string[], sceneBaseResolution: Resolution): TimelineLayerRenderer<NodeOutput> {
 		const statusSource: EffectStatusSource = {
 			type: 'timelineLayer',
 			instanceId: `timeline:${this.nextTimelineLayerStatusId++}`,
@@ -280,7 +311,7 @@ export class TimelineRendererManager extends EventEmitter<{
 			gpuDevice: this.gpuDevice,
 			gpuContext: this.gpuContext,
 			fallbackTexture: this.fallbackTexture,
-			resolution: this.dynamicOptions.resolution,
+			resolution: sceneBaseResolution,
 			resolutionScale: this.dynamicOptions.resolutionScale,
 			enable32bitDataTextures: this.staticOptions.enable32bitDataTextures,
 			intermediateTextureFormat: this.staticOptions.intermediateTextureFormat,
@@ -299,7 +330,7 @@ export class TimelineRendererManager extends EventEmitter<{
 		const compositingParameters = new TimelineCompositingParameters();
 		const compositor = createTimelineCompositor({
 			device: this.gpuDevice, vertex: this.defaultVertexShaderModule,
-			resolution: this.renderResolution, format: this.staticOptions.intermediateTextureFormat,
+			resolution: scaleResolution(sceneBaseResolution, this.dynamicOptions.resolutionScale), format: this.staticOptions.intermediateTextureFormat,
 			beginPass: (encoder, descriptor) => encoder.beginRenderPass(descriptor),
 		});
 		return createVisualModuleTimelineLayer(visualModule, layer, {
@@ -335,7 +366,6 @@ export class TimelineRendererManager extends EventEmitter<{
 
 	public destroy() {
 		this.clearTimelineRenderers();
-		this.outputTextures.dispose();
 		this.assetTextures.dispose();
 		this.canvasRenderer.destroy();
 		this.gpuDevice?.destroy();

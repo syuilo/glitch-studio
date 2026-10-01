@@ -4,7 +4,8 @@ import type { ParameterDefinition } from '../parameter.ts';
 import type { FitMode, AutomationGraph, ParameterBinding, WrapMode } from '../types.ts';
 
 export type EffectNodeResolution =
-	| { mode: 'project' }
+	// LIVEではプロジェクト、タイムラインでは所属Scene。モジュール自身は呼び出し元を知らない。
+	| { mode: 'context' }
 	| { mode: 'auto' }
 	| { mode: 'custom'; width: number; height: number };
 

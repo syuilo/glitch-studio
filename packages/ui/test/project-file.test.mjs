@@ -84,7 +84,7 @@ const appBundle = await build({
 function project(overrides = {}) {
 	return {
 		id: 'project-id', gsVersion: '2.0.0-alpha.2', name: 'Example', description: 'First line\n日本語の説明', author: 'Author',
-		assets: [], players: [], visualModules: [], timelineScenes: [{ id: 'scene', name: 'Scene', layers: [] }], resolution: { width: 640, height: 480 },
+		assets: [], players: [], visualModules: [], timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [] }], resolution: { width: 640, height: 480 },
 		...overrides,
 	};
 }
@@ -93,10 +93,10 @@ function project(overrides = {}) {
 // 保存・読込で配置のトリムを再計算すると、同じSceneを使った複数の演出がずれてしまう。
 test('round-trips scene references without changing their source origins', async () => {
 	const original = project({ timelineScenes: [
-		{ id: 'root', name: 'Root', layers: [{ id: 'nested', layerType: 'scene', sceneId: 'child',
+		{ id: 'root', name: 'Root', resolution: { mode: 'project' }, layers: [{ id: 'nested', layerType: 'scene', sceneId: 'child',
 			positionMs: -50, trimStartMs: 100, trimmedDurationMs: 200,
 			compositingParamValues: {}, audioParamValues: { volume: { inputSource: 'literal', value: 0.5 } }, automationGraphs: [] }] },
-		{ id: 'child', name: 'Child', layers: [] },
+		{ id: 'child', name: 'Child', resolution: { mode: 'project' }, layers: [] },
 	] });
 	assert.deepEqual(decodeProjectFile(await encodeProjectFile(original)), original);
 });
@@ -422,7 +422,7 @@ test('refreshes audio only for audio content, source files or loop duration chan
 	const app = evaluate(appBundle);
 	await app.appReady(project({
 		assets: [{ id: 'audio', name: 'sound.wav', fileData: new Blob(['audio']) }, { id: 'image', fileData: new Blob(['image']) }],
-		timelineScenes: [{ id: 'scene', name: 'Scene', layers: [
+		timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [
 			{ id: 'visual', layerType: 'visualModule', visualModuleId: 'module', positionMs: 0, trimStartMs: 0, trimmedDurationMs: 10000, visualModuleParamValues: {}, compositingParamValues: { opacity: { inputSource: 'literal', value: 1 } }, automationGraphs: [] },
 			{ id: 'audio', layerType: 'audio', assetId: 'audio', positionMs: 0, trimmedDurationMs: 5000, trimStartMs: 0, audioParamValues: { volume: { inputSource: 'literal', value: 1 } }, automationGraphs: [] },
 		] }],

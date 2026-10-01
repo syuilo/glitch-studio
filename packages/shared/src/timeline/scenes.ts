@@ -1,5 +1,6 @@
 import { getTimelineLayerEnd, isTimelineLayerTimingValid } from './timing.ts';
 import type { TimelineScene } from './types.ts';
+import { validateSceneResolution } from './scene-resolution.ts';
 
 /** 子の長さを再帰計算しない。配置済みの区間は、参照先の編集でも変えない。 */
 export function getSceneDuration(scene: TimelineScene): number {
@@ -23,6 +24,7 @@ export function validateTimelineScenes(scenes: readonly TimelineScene[]): void {
 		if (visited.has(id)) return;
 		const scene = byId.get(id);
 		if (scene == null) throw new Error(`Scene not found: ${id}`);
+		validateSceneResolution(scene.resolution);
 		if (new Set(scene.layers.map(layer => layer.id)).size !== scene.layers.length) throw new Error(`Duplicate layer ID in scene: ${scene.name}`);
 		path.push(id);
 		for (const layer of scene.layers) {

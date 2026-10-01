@@ -32,7 +32,7 @@ function evaluate(evaluator, input) {
 	// GPUリソースを使わないパラメータ評価部分だけを呼ぶ。
 	const renderer = Object.assign(Object.create(VisualModuleRenderer.prototype), {
 		nodes: input.nodes, paramDefs: input.paramDefs, effectDefinitions: input.effectDefinitions,
-		automationGraphs: input.automationGraphs, resolution: input.resolution, parameterEvaluator: evaluator,
+		automationGraphs: input.automationGraphs, contextResolution: input.resolution, parameterEvaluator: evaluator,
 	});
 	renderer.evaluateParameters({ ...input, isExport: input.isExport ?? false, evaluatedParamValues: paramValues });
 	return { paramValues, nodeParams: renderer.evaledNodeParams };
@@ -54,7 +54,7 @@ function structParameter(fields) {
 }
 
 const number = { dataType: { kind: 'scalar' }, ui: { label: 'Value', control: { controlType: 'number' } }, defaultValue: literal(0) };
-const node = (params, isBypass = false) => ({ id: 'node', type: 'effect', resolution: { mode: 'project' }, effectId: 'test', isBypass, params });
+const node = (params, isBypass = false) => ({ id: 'node', type: 'effect', resolution: { mode: 'context' }, effectId: 'test', isBypass, params });
 const paramDef = (id, defaultValue = 7, dataType = 'scalar') => ({ id, nameForReference: id, dataType: { kind: dataType }, ui: { label: id, control: dataType === 'scalar' ? { controlType: 'number' } : {} }, defaultValue: literal(defaultValue), canNode: false });
 const context = (defs, params, overrides = {}) => ({
 	nodes: [node(params)],
@@ -337,6 +337,7 @@ test('uses shared scalar types for node inputs and module outputs', async () => 
 });
 
 for (const enable32bitDataTextures of [false, true]) {
+	// 【定数入力は保存精度によらずprepare時の値を維持する】
 	// 全エフェクトが定数をShaderInputで受け取り、保存精度に依存せず、prepareの評価結果を再利用する。
 	test(`resolves uniform inputs and reuses preparation with ${enable32bitDataTextures ? 32 : 16}-bit storage`, async t => {
 		const originalUsage = Object.getOwnPropertyDescriptor(globalThis, 'GPUTextureUsage');
@@ -355,6 +356,7 @@ for (const enable32bitDataTextures of [false, true]) {
 		const allocated = [];
 		const createTexture = (descriptor = {}) => { const texture = { ...descriptor, createView: () => ({}), destroy() {} }; allocated.push(texture); return texture; };
 		const device = {
+			limits: { maxTextureDimension2D: 8192 },
 			createTexture,
 			createShaderModule: () => ({}),
 			queue: { writeTexture({ texture }, data, layout) {

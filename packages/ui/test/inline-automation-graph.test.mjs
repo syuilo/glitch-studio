@@ -37,7 +37,7 @@ const defaultCompositing = () => Object.fromEntries(Object.entries(timelineCompo
 
 function imageFixture() {
 	const assets = ['first', 'second'].map(id => ({ id, name: id, fileDataType: 'image/png', fileData: new Blob([id], { type: 'image/png' }) }));
-	const state = { assets: { value: assets }, visualModules: { value: [] }, timelineScenes: { value: [{ id: 'scene', name: 'Scene', layers: [] }] } };
+	const state = { assets: { value: assets }, visualModules: { value: [] }, timelineScenes: { value: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [] }] } };
 	const layer = createImageLayer('first', 2000);
 	const target = { sceneId: 'scene', layerId: layer.id };
 	const add = COMMAND_DEFS.addImageLayer.create({ sceneId: 'scene', layer });
@@ -153,7 +153,7 @@ test('round-trips audio layers and undoes timing, volume and removal', async () 
 	remove.execute(state);
 	remove.undo(state);
 	assert.deepEqual(state.timelineScenes.value[0].layers, before);
-	const encoded = await encodeProjectFile({ gsVersion: '2.0.0', assets: [], timelineScenes: [{ id: 'scene', name: 'Scene', layers: state.timelineScenes.value[0].layers }] });
+	const encoded = await encodeProjectFile({ gsVersion: '2.0.0', assets: [], timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: state.timelineScenes.value[0].layers }] });
 	assert.deepEqual(decodeProjectFile(encoded).timelineScenes[0].layers, before);
 	timing.undo(state);
 	volume.undo(state);
@@ -203,7 +203,7 @@ test('preserves compositing graphs and settings through edits and serialization'
 	inline.execute(state);
 	edit('rotation', { kind: 'automationGraphReference', value: 'graph', options: { trimmedDurationMs: 2500, offsetMode: 'end', wrapMode: 'clamp' } });
 	edit('blendMode', { kind: 'literal', value: 'replace' });
-	const restored = decodeProjectFile(await encodeProjectFile({ timelineScenes: [{ id: 'scene', name: 'Scene', layers: [layer] }], assets: [] })).timelineScenes[0].layers[0];
+	const restored = decodeProjectFile(await encodeProjectFile({ timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [layer] }], assets: [] })).timelineScenes[0].layers[0];
 	assert.deepEqual(restored.compositingParamValues, layer.compositingParamValues);
 	assert.deepEqual(restored.automationGraphs, layer.automationGraphs);
 	assert.equal(restored.compositingParamValues.rotation.trimmedDurationMs, 2500);
@@ -244,10 +244,10 @@ test('provides normalized endpoints for empty and single-point inline graphs', (
 
 function fixture() {
 	const initial = { inputSource: 'literal', value: 3 };
-	const node = { id: 'node', type: 'effect', resolution: { mode: 'project' }, effectId: 'test', params: { values: { inputSource: 'literal', value: [initial] } } };
+	const node = { id: 'node', type: 'effect', resolution: { mode: 'context' }, effectId: 'test', params: { values: { inputSource: 'literal', value: [initial] } } };
 	const state = {
 		visualModules: { value: [{ id: 'module', nodes: [node], primaryInputId: null, paramDefs: [{ id: 'gain', defaultValue: initial }] }] },
-		timelineScenes: { value: [{ id: 'scene', name: 'Scene', layers: [{ id: 'layer', layerType: 'visualModule', visualModuleId: 'module', positionMs: 0, trimStartMs: 0, trimmedDurationMs: 1000, visualModuleParamValues: {}, compositingParamValues: defaultCompositing(), automationGraphs: [] }] }] },
+		timelineScenes: { value: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [{ id: 'layer', layerType: 'visualModule', visualModuleId: 'module', positionMs: 0, trimStartMs: 0, trimmedDurationMs: 1000, visualModuleParamValues: {}, compositingParamValues: defaultCompositing(), automationGraphs: [] }] }] },
 	};
 	return { state, node, target: { visualModuleId: 'module', nodeId: 'node', paramPath: ['values', 0] } };
 }
@@ -340,7 +340,7 @@ test('rejects referenced deletion and cyclic placement without mutating scenes',
 	const { state } = fixture();
 	const nested = { id: 'nested', layerType: 'scene', sceneId: 'scene', positionMs: 0, trimStartMs: 0, trimmedDurationMs: 1000,
 		compositingParamValues: defaultCompositing(), audioParamValues: { volume: { inputSource: 'literal', value: 1 } }, automationGraphs: [] };
-	COMMAND_DEFS.addScene.create({ id: 'parent', name: 'Parent', layers: [nested] }).execute(state);
+	COMMAND_DEFS.addScene.create({ id: 'parent', name: 'Parent', resolution: { mode: 'project' }, layers: [nested] }).execute(state);
 	const before = structuredClone(state.timelineScenes.value);
 	assert.throws(() => COMMAND_DEFS.removeScene.create({ sceneId: 'scene' }).execute(state), /Scene is used by/);
 	assert.throws(() => COMMAND_DEFS.addSceneLayer.create({ sceneId: 'scene', layer: { ...nested, sceneId: 'parent' } }).execute(state), /Circular scene reference/);
@@ -349,4 +349,24 @@ test('rejects referenced deletion and cyclic placement without mutating scenes',
 	remove.execute(state);
 	remove.undo(state);
 	assert.deepEqual(state.timelineScenes.value, before);
+});
+
+// 【Sceneの解像度設定をUndo/Redoと保存で維持する】
+// 配置ごとに設定を複製せず、参照先Sceneに保存する。不正値は変更前に拒否し、
+// 履歴操作や保存の往復でもモードと基準寸法を失わない。
+test('changes scene resolution with undo redo and project persistence', async () => {
+	const { state } = imageFixture();
+	const scene = state.timelineScenes.value[0];
+	const resolution = { mode: 'custom', width: 513, height: 257 };
+	const command = COMMAND_DEFS.changeSceneResolution.create({ sceneId: scene.id, resolution });
+	command.execute(state);
+	assert.deepEqual(scene.resolution, resolution);
+	const restored = decodeProjectFile(await encodeProjectFile({ assets: state.assets.value, timelineScenes: state.timelineScenes.value }));
+	assert.deepEqual(restored.timelineScenes[0].resolution, resolution);
+	command.undo(state);
+	assert.deepEqual(scene.resolution, { mode: 'project' });
+	command.execute(state);
+	assert.deepEqual(scene.resolution, resolution);
+	assert.throws(() => COMMAND_DEFS.changeSceneResolution.create({ sceneId: scene.id, resolution: { mode: 'custom', width: 0, height: 1 } }).execute(state));
+	assert.deepEqual(scene.resolution, resolution);
 });

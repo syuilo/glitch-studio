@@ -11,6 +11,8 @@ import { getNodeInputDataType, getNodeOutputs } from '@glitch/shared/utility/nod
 import { isTextureDataType } from '@glitch/shared/data-type.ts';
 import { timelineAudioParamDefs } from '@glitch/shared/timeline/timeline-audio.ts';
 import type { TimelineScene, TimelineSceneLayer, TimelineAudioLayer, TimelineVideoLayer, TimelineImageLayer, TimelineLayer, TimelineInlineVisualModuleLayer } from '@glitch/shared/timeline/types.ts';
+import { validateSceneResolution } from '@glitch/shared/timeline/scene-resolution.ts';
+import type { TimelineSceneResolution } from '@glitch/shared/timeline/scene-resolution.ts';
 import { timelineCompositingParamDefs } from '@glitch/shared/timeline/timeline-compositing.ts';
 import type { VisualModuleCustomParameterId, VisualModuleEffectNode, VisualModuleNode, NodeOutputReference, VisualModule, VisualModuleParamDef, VisualModuleOutputDef } from '@glitch/shared/visual-module/types.ts';
 import type { ParameterDefinition } from '@glitch/shared/parameter.ts';
@@ -590,6 +592,7 @@ const changeNodeResolutionCommandDef = defineCommand<NodeTarget & { resolution: 
 			execute(state) {
 				const node = stateUtility.findNode(state, payload);
 				if (node?.type !== 'effect') throw new Error('Effect node not found');
+				if (!['context', 'auto', 'custom'].includes(payload.resolution.mode)) throw new Error('Invalid node resolution mode');
 				if (payload.resolution.mode === 'custom' && ![payload.resolution.width, payload.resolution.height].every(value => Number.isSafeInteger(value) && value > 0)) {
 					throw new Error('Resolution width and height must be positive integers');
 				}
@@ -1081,6 +1084,22 @@ const addSceneCommandDef = defineCommand<TimelineScene>({
 	}),
 });
 
+const changeSceneResolutionCommandDef = defineCommand<{ sceneId: string; resolution: TimelineSceneResolution }>({
+	label: 'Change scene resolution',
+	create: payload => {
+		let before: TimelineSceneResolution;
+		return {
+			execute(state) {
+				validateSceneResolution(payload.resolution);
+				const scene = getScene(state, payload.sceneId);
+				before = deepClone(scene.resolution);
+				scene.resolution = deepClone(payload.resolution);
+			},
+			undo(state) { getScene(state, payload.sceneId).resolution = deepClone(before); },
+		};
+	},
+});
+
 const renameSceneCommandDef = defineCommand<{ sceneId: string; name: string }>({
 	label: 'Rename scene',
 	create: payload => {
@@ -1195,6 +1214,7 @@ export const COMMAND_DEFS = {
 	moveTimelineLayers: moveTimelineLayersCommandDef,
 	moveTimelineKeyframes: moveTimelineKeyframesCommandDef,
 	addScene: addSceneCommandDef,
+	changeSceneResolution: changeSceneResolutionCommandDef,
 	renameScene: renameSceneCommandDef,
 	removeScene: removeSceneCommandDef,
 	addSceneLayer: addSceneLayerCommandDef,

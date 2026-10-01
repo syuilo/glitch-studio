@@ -13,7 +13,7 @@ const reference = (nodeId, outputPort = 'output') => ({ nodeId, outputPort });
 const literal = value => ({ inputSource: 'literal', value });
 const relay = (id, input = reference('in', 'input'), kind = 'color') => ({ id, type: 'relay', dataType: { kind }, input });
 const connection = (nodeId, settings = {}) => ({ inputSource: 'node', ...reference(nodeId), fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear', ...settings });
-const effectNode = (id, params = {}, isBypass = false) => ({ id, type: 'effect', resolution: { mode: 'project' }, effectId: 'probe', params, isBypass });
+const effectNode = (id, params = {}, isBypass = false) => ({ id, type: 'effect', resolution: { mode: 'context' }, effectId: 'probe', params, isBypass });
 const context = (output = { kind: 'uniform', value: [0.25, 0, 0, 0.5] }) => ({
 	time: 0, timeDelta: 0, endTime: Infinity, isExport: false,
 	pointerPosition: { x: 0, y: 0 }, pointerPositionPrev: { x: 0, y: 0 },

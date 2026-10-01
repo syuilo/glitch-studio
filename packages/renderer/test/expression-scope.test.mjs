@@ -43,8 +43,8 @@ function externalValues(evaluator, defs, params, scope) {
 test('exposes exactly the declared variables for each scope', async () => {
 	let moduleVariables;
 	const renderer = Object.assign(Object.create(VisualModuleRenderer.prototype), {
-		resolution: { width: 800, height: 400 }, paramDefs: [], automationGraphs: [],
-		nodes: [{ id: 'probe', type: 'effect', resolution: { mode: 'project' }, effectId: 'probe', params: { value: literal(0) } }],
+		contextResolution: { width: 800, height: 400 }, paramDefs: [], automationGraphs: [],
+		nodes: [{ id: 'probe', type: 'effect', resolution: { mode: 'context' }, effectId: 'probe', params: { value: literal(0) } }],
 		effectDefinitions: { probe: { paramDefs: { value: def('value') } } },
 		parameterEvaluator: { evaluate(binding, context) { moduleVariables = context.variables; return 0; } },
 	});
@@ -60,7 +60,7 @@ test('exposes exactly the declared variables for each scope', async () => {
 	}, {
 		async prepare(context) { layerValues = context.evaluatedParamValues; }, render() {}, destroy() {},
 	});
-	await adapter.prepare({ ...frame, timeDelta: 0 }, new AbortController().signal);
+	await adapter.evaluate({ ...frame, timeDelta: 0 }, new AbortController().signal);
 	assert.deepEqual(Object.fromEntries(layerValues), Object.fromEntries(names.map(name => [name, layerScope.variables[name] ?? 0])));
 });
 
@@ -122,12 +122,17 @@ test('rejects input parameters and does not mutate external arrays', () => {
 	assert.equal(result.input, 0);
 });
 
+// 【準備中に指定値を変更しても同じフレームの評価結果を保持する】
 // prepareとrenderの間で元の指定が変わっても、同じフレームの評価結果を使い続ける。
 test('snapshots layer values once for prepare and render', async () => {
 	const layer = { visualModuleParamValues: { amount: expression('TEST_SAME_NAME'), array: literal([1, 2]) }, automationGraphs: [] };
 	let prepared;
 	const adapter = createVisualModuleTimelineLayer({ paramDefs: [def('amount'), def('array')], primaryInputId: null }, layer, {
-		async prepare(context) { prepared = context; },
+		async prepare(context) {
+			prepared = context;
+			layer.visualModuleParamValues.amount = literal(99);
+			layer.visualModuleParamValues.array.value[0] = 99;
+		},
 		async render(context) {
 			assert.strictEqual(context, prepared);
 			assert.equal(context.evaluatedParamValues.get('amount'), 2);
@@ -138,12 +143,10 @@ test('snapshots layer values once for prepare and render', async () => {
 		}, destroy() {},
 	});
 	const context = { ...frame, timeDelta: 0, input: { kind: 'uniform', value: [0, 0, 0, 0] } };
-	await adapter.prepare(context, new AbortController().signal);
-	layer.visualModuleParamValues.amount = literal(99);
-	layer.visualModuleParamValues.array.value[0] = 99;
-	await adapter.render(context);
+	await adapter.evaluate(context, new AbortController().signal);
 });
 
+// 【レイヤーからモジュールへの評価で既定値と主入力を区別する】
 // 呼び出し側の移行で既定値と主入力の扱いが失われないことを実際のレイヤー変換で確認する。
 test('keeps layer defaults and excludes primary inputs from evaluated values', async () => {
 	const definitions = [
@@ -160,7 +163,7 @@ test('keeps layer defaults and excludes primary inputs from evaluated values', a
 		},
 	}, { async prepare(context) { resolved = context; }, render() {}, destroy() {} });
 	const input = { kind: 'uniform', value: [1, 0, 0, 1] };
-	await adapter.prepare({ ...frame, timeDelta: 0, input }, new AbortController().signal);
+	await adapter.evaluate({ ...frame, timeDelta: 0, input }, new AbortController().signal);
 	assert.deepEqual([...resolved.evaluatedParamValues], [['gain-id', 8], ['missing', 9], ['invalid', 0], ['export', true]]);
 	assert.strictEqual(resolved.paramInputs.get('input'), input);
 });
