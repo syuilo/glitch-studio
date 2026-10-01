@@ -14,7 +14,7 @@ export type TimelineVisualModuleLayer = TimelineLayerTiming & {
 	id: string;
 	layerType: 'visualModule';
 	visualModuleId: string;
-	paramValues: Record<string, TimelineParameterBinding>;
+	visualModuleParamValues: Record<string, TimelineParameterBinding>;
 	compositingParamValues: Record<keyof typeof timelineCompositingParamDefs, TimelineParameterBinding>;
 	automationGraphs: AutomationGraph[];
 };
@@ -23,7 +23,7 @@ export type TimelineInlineVisualModuleLayer = TimelineLayerTiming & {
 	id: string;
 	layerType: 'inlineVisualModule';
 	visualModule: VisualModule;
-	paramValues: Record<string, TimelineParameterBinding>;
+	visualModuleParamValues: Record<string, TimelineParameterBinding>;
 	compositingParamValues: Record<keyof typeof timelineCompositingParamDefs, TimelineParameterBinding>;
 	automationGraphs: AutomationGraph[];
 };
@@ -32,7 +32,7 @@ export type TimelineEffectLayer = TimelineLayerTiming & { // TODO
 	id: string;
 	layerType: 'effect';
 	effectId: string;
-	paramValues: Record<string, TimelineParameterBinding>;
+	effectParamValues: Record<string, TimelineParameterBinding>;
 	compositingParamValues: Record<keyof typeof timelineCompositingParamDefs, TimelineParameterBinding>;
 	automationGraphs: AutomationGraph[];
 };
@@ -41,7 +41,7 @@ export type TimelineAudioLayer = TimelineLayerTiming & {
 	id: string;
 	layerType: 'audio';
 	assetId: string;
-	paramValues: { volume: TimelineParameterBinding };
+	audioParamValues: { volume: TimelineParameterBinding };
 	automationGraphs: AutomationGraph[];
 };
 
