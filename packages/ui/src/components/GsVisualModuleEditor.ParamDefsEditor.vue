@@ -2,6 +2,9 @@
 <div :class="$style.root" class="_gaps_m _spacer">
 	<GsFolder v-for="def in visualModule.paramDefs" :key="def.id" defaultOpen>
 		<template #label>{{ def.ui.label }}</template>
+		<template #suffix>
+			<template v-if="visualModule.primaryInputId === def.id">Primary</template>
+		</template>
 
 		<div>
 			<!-- TODO: struct / array / anyのカスタムパラメータ定義編集UI。共通の型定義からは除外しない。 -->
