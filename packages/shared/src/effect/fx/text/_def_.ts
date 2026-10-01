@@ -29,6 +29,18 @@ export default defineEffect({
 			defaultValue: { inputSource: 'literal', value: 0 },
 		},
 		outlineColor: { dataType: { kind: 'color' }, ui: { label: 'Outline color', control: {} }, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 1] }, canNode: true },
+		shadowEnabled: { dataType: { kind: 'bool' }, ui: { label: 'Drop shadow', control: {} }, defaultValue: { inputSource: 'literal', value: false } },
+		shadowColor: { dataType: { kind: 'color' }, ui: { label: 'Shadow color', control: {} }, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0.5] }, canNode: true },
+		shadowOffset: {
+			dataType: { kind: 'vector' },
+			ui: { label: 'Shadow offset (size ratio)', control: { controlType: 'vector', min: -1, max: 1, step: 0.01 } },
+			defaultValue: { inputSource: 'literal', value: [0.1, -0.1] },
+		},
+		shadowBlur: {
+			dataType: { kind: 'scalar' },
+			ui: { label: 'Shadow blur (size ratio)', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } },
+			defaultValue: { inputSource: 'literal', value: 0.1 },
+		},
 		position: { dataType: { kind: 'vector' }, ui: { label: 'Position', control: { controlType: 'xy' } }, defaultValue: { inputSource: 'literal', value: [0, 0] } },
 		align: {
 			dataType: { kind: 'enum', options: ['left', 'center', 'right'] },

@@ -16,7 +16,7 @@ type TextBlockMetrics = {
 	descent: number;
 };
 
-type TextLayout = {
+export type TextLayout = {
 	lines: string[];
 	fontSize: number;
 	// 文字の外側へ広がる幅。入力のsize比率を、採用したfontSizeでpxへ変換した値。
