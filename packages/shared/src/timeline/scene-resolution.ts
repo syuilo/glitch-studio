@@ -2,11 +2,11 @@ import { scaleResolution, type Resolution } from '../resolution.ts';
 
 export type TimelineSceneResolution =
 	| { mode: 'project' }
-	| { mode: 'custom'; width: number; height: number };
+	| { mode: 'customAbsolute'; width: number; height: number };
 
 export function validateSceneResolution(setting: TimelineSceneResolution): void {
 	if (setting?.mode === 'project') return;
-	if (setting?.mode !== 'custom' || ![setting.width, setting.height].every(value => Number.isSafeInteger(value) && value > 0)) {
+	if (setting?.mode !== 'customAbsolute' || ![setting.width, setting.height].every(value => Number.isSafeInteger(value) && value > 0)) {
 		throw new Error('Scene resolution must be project or custom with positive integer dimensions');
 	}
 }
@@ -14,7 +14,7 @@ export function validateSceneResolution(setting: TimelineSceneResolution): void 
 /** projectは親Sceneではなく、プロジェクト自身の基準寸法を参照する。 */
 export function getSceneBaseResolution(setting: TimelineSceneResolution, projectResolution: Resolution): Resolution {
 	validateSceneResolution(setting);
-	const { width, height } = setting.mode === 'custom' ? setting : projectResolution;
+	const { width, height } = setting.mode === 'customAbsolute' ? setting : projectResolution;
 	return { width, height };
 }
 

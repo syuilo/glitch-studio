@@ -66,7 +66,7 @@ self.onmessage = async (event: MessageEvent<ExportRequest>) => {
 			const status = event.ctx.status?.status;
 			if (status?.type === 'error') fail(`Node ${event.ctx.nodeId}: ${status.message}`);
 		});
-		// 基準サイズを上書きすると、customの子Sceneやノードに書き出し倍率が伝わらない。
+		// 基準サイズを上書きすると、customAbsoluteの子Sceneやノードに書き出し倍率が伝わらない。
 		// 倍率は独立して渡し、MP4の偶数寸法補正は最終Canvasだけに適用する。
 		await renderer.updateDynamicOptions({
 			...project,

@@ -117,10 +117,10 @@ Visual Module内で別のVisual Moduleを通常のエフェクトのように使
 
 ### シーンとノードの解像度
 
-- Sceneは `resolution: { mode: 'project' } | { mode: 'custom', width, height }` を持ちます。projectは親Sceneではなく、プロジェクト自身の基準寸法を参照します。設定は配置レイヤーではなくScene定義が所有します。
+- Sceneは `resolution: { mode: 'project' } | { mode: 'customAbsolute', width, height }` を持ちます。projectは親Sceneではなく、プロジェクト自身の基準寸法を参照します。設定は配置レイヤーではなくScene定義が所有します。
 - 数値指定は基準サイズです。プレビュー・書き出しの倍率はScene・素材・ノードの基準サイズに一度だけ適用し、入れ子や入力追従で重複適用しません。レイヤーのscaleは描画解像度を変えません。
 - Sceneの出力は、そのSceneの描画寸法を持つ画面として確定してから親へ渡します。定数や無変形replaceでもこの画面を維持し、親のfit・origin・transformは透明余白を含むScene全体を対象にします。Visual Module自体の境界では従来どおり定数を維持します。
-- ノードの解像度設定は `auto` / `context` / `custom` です。contextはLIVEではプロジェクト、タイムラインではそのノードが所属するSceneの解像度です。autoは素材・入力の寸法を優先し、それらがなければcontextへフォールバックします。ノードにprojectモードはありません。
+- ノードの解像度設定は `auto` / `context` / `customAbsolute` です。contextはLIVEではプロジェクト、タイムラインではそのノードが所属するSceneの解像度です。autoは素材・入力の寸法を優先し、それらがなければcontextへフォールバックします。ノードにprojectモードはありません。
 - Visual Module内の式の `WIDTH` / `HEIGHT` は倍率適用後のcontext解像度です。個々のノード出力の寸法ではありません。呼び出し側が寸法を渡し、Visual Module側はSceneやプロジェクトの定義を参照しません。
 - 書き出し寸法は選択したSceneの基準サイズと書き出し倍率から求めます。プロジェクトの基準サイズを上書きせず、倍率と最終出力寸法を独立して渡します。MP4の偶数寸法補正は最終Canvasだけに適用します。
 

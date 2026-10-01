@@ -357,7 +357,7 @@ test('rejects referenced deletion and cyclic placement without mutating scenes',
 test('changes scene resolution with undo redo and project persistence', async () => {
 	const { state } = imageFixture();
 	const scene = state.timelineScenes.value[0];
-	const resolution = { mode: 'custom', width: 513, height: 257 };
+	const resolution = { mode: 'customAbsolute', width: 513, height: 257 };
 	const command = COMMAND_DEFS.changeSceneResolution.create({ sceneId: scene.id, resolution });
 	command.execute(state);
 	assert.deepEqual(scene.resolution, resolution);
@@ -367,6 +367,6 @@ test('changes scene resolution with undo redo and project persistence', async ()
 	assert.deepEqual(scene.resolution, { mode: 'project' });
 	command.execute(state);
 	assert.deepEqual(scene.resolution, resolution);
-	assert.throws(() => COMMAND_DEFS.changeSceneResolution.create({ sceneId: scene.id, resolution: { mode: 'custom', width: 0, height: 1 } }).execute(state));
+	assert.throws(() => COMMAND_DEFS.changeSceneResolution.create({ sceneId: scene.id, resolution: { mode: 'customAbsolute', width: 0, height: 1 } }).execute(state));
 	assert.deepEqual(scene.resolution, resolution);
 });

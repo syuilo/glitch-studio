@@ -3,7 +3,7 @@
 	<div ref="dialogContent" class="_gaps_m" :class="$style.root" tabindex="-1" @keydown.stop @keydown.esc.prevent="closeDialog">
 		<div>Scene resolution — {{ scene?.name }}</div>
 		<GsSelect v-model="mode" :items="modes"><template #label>Resolution</template></GsSelect>
-		<div v-if="mode === 'custom'" :class="$style.row">
+		<div v-if="mode === 'customAbsolute'" :class="$style.row">
 			<GsInput v-model="width" type="number" :min="1" :step="1"><template #label>Width</template><template #suffix>px</template></GsInput>
 			<GsInput v-model="height" type="number" :min="1" :step="1"><template #label>Height</template><template #suffix>px</template></GsInput>
 		</div>
@@ -21,11 +21,11 @@
 <script lang="ts" setup>
 import { computed, ref, useTemplateRef } from 'vue';
 import { getSceneBaseResolution, validateSceneResolution } from '@glitch/shared/timeline/scene-resolution.ts';
-import type { TimelineSceneResolution } from '@glitch/shared/timeline/scene-resolution.ts';
 import GsModal from './common/GsModal.vue';
 import GsSelect from './common/GsSelect.vue';
 import GsInput from './common/GsInput.vue';
 import GsButton from './common/GsButton.vue';
+import type { TimelineSceneResolution } from '@glitch/shared/timeline/scene-resolution.ts';
 import { appStateManager } from '@/app.ts';
 
 const props = defineProps<{ sceneId: string }>();
@@ -39,9 +39,9 @@ const initialSize = getSceneBaseResolution(initialSetting, projectResolution.val
 const mode = ref(initialSetting.mode);
 const width = ref<number | null>(initialSize.width);
 const height = ref<number | null>(initialSize.height);
-const modes = [{ value: 'project', label: 'Project resolution' }, { value: 'custom', label: 'Custom' }];
+const modes = [{ value: 'project', label: 'Project resolution' }, { value: 'customAbsolute', label: 'Custom (Absolute)' }];
 const setting = computed<TimelineSceneResolution>(() => mode.value === 'project' ? { mode: 'project' }
-	: { mode: 'custom', width: width.value ?? 0, height: height.value ?? 0 });
+	: { mode: 'customAbsolute', width: width.value ?? 0, height: height.value ?? 0 });
 const error = computed(() => {
 	try {
 		validateSceneResolution(setting.value);

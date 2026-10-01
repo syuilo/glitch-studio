@@ -297,7 +297,7 @@ test('uses each containing scene for context nodes and preserves project referen
 	const probe = id => layer(id, visualModule({ params: { amount: expression('WIDTH'), local: expression('HEIGHT') } }), { positionMs: 0 });
 	const scenes = [
 		{ id: 'root', name: 'Root', resolution: { mode: 'project' }, layers: [sceneLayer('child-placement', 'child')] },
-		{ id: 'child', name: 'Child', resolution: { mode: 'custom', width: 512, height: 256 }, layers: [probe('child-probe'), sceneLayer('leaf-placement', 'leaf')] },
+		{ id: 'child', name: 'Child', resolution: { mode: 'customAbsolute', width: 512, height: 256 }, layers: [probe('child-probe'), sceneLayer('leaf-placement', 'leaf')] },
 		{ id: 'leaf', name: 'Leaf', resolution: { mode: 'project' }, layers: [probe('leaf-probe')] },
 	];
 	const dimensions = texture => [texture.width, texture.height];
@@ -322,7 +322,7 @@ test('uses each containing scene for context nodes and preserves project referen
 test('finalizes uniform and replace outputs at scene size before final canvas adjustment', async t => {
 	const { manager, calls } = fixture(t, { present: true });
 	const entry = layer('constant', visualModule(), { positionMs: 0 });
-	const scene = { id: 'scene', name: 'Scene', resolution: { mode: 'custom', width: 513, height: 257 }, layers: [entry] };
+	const scene = { id: 'scene', name: 'Scene', resolution: { mode: 'customAbsolute', width: 513, height: 257 }, layers: [entry] };
 	await manager.updateDynamicOptions({ timelineScenes: [scene], sceneId: 'scene', outputResolution: { width: 514, height: 258 } });
 	await manager.renderTimelineFrame(0, 0);
 	assert.deepEqual([calls.presented.at(-1).width, calls.presented.at(-1).height], [513, 257]);
@@ -330,7 +330,7 @@ test('finalizes uniform and replace outputs at scene size before final canvas ad
 	assert.equal(calls.passes.length, 1);
 	const oldOutput = calls.presented.at(-1);
 	const module = visualModule({ params: {} });
-	module.nodes.find(node => node.type === 'effect').resolution = { mode: 'custom', width: 1026, height: 514 };
+	module.nodes.find(node => node.type === 'effect').resolution = { mode: 'customAbsolute', width: 1026, height: 514 };
 	await manager.updateDynamicOptions({ timelineScenes: [{ ...scene, layers: [layer('texture', module, { positionMs: 0 })] }] });
 	assert.equal(oldOutput.destroyed, true);
 	await manager.renderTimelineFrame(0, 0);

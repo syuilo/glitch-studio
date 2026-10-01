@@ -24,7 +24,7 @@ test('scales intrinsic dimensions once and preserves them through processing nod
 test('honors context and custom modes independently of source dimensions', () => {
 	const sources = { intrinsicResolution: { width: 3000, height: 4000 }, inputResolution: { width: 128, height: 64 } };
 	assert.deepEqual(resolve({ ...sources, setting: { mode: 'context' } }), { width: 960, height: 540 });
-	const custom = resolve({ ...sources, setting: { mode: 'custom', width: 1000, height: 700 } });
+	const custom = resolve({ ...sources, setting: { mode: 'customAbsolute', width: 1000, height: 700 } });
 	assert.deepEqual(custom, { width: 500, height: 350 });
 	assert.deepEqual(resolve({ inputResolution: custom }), custom);
 });
@@ -45,7 +45,7 @@ test('rounds source dimensions and preserves at least one pixel per axis', () =>
 // 【無効な寸法・倍率とGPU上限超過を確保前に拒否する】
 // 原寸という指定を暗黙の縮小で置き換えず、失敗理由をユーザーへ返すための境界。
 test('rejects invalid dimensions and dimensions exceeding the device limit', () => {
-	for (const width of [0, -1, 1.5, NaN, Infinity]) assert.throws(() => resolve({ setting: { mode: 'custom', width, height: 10 } }));
+	for (const width of [0, -1, 1.5, NaN, Infinity]) assert.throws(() => resolve({ setting: { mode: 'customAbsolute', width, height: 10 } }));
 	for (const scale of [0, -1, NaN, Infinity]) assert.throws(() => scaleResolution({ width: 10, height: 10 }, scale));
-	assert.throws(() => resolve({ setting: { mode: 'custom', width: 20000, height: 10 } }), /8192/);
+	assert.throws(() => resolve({ setting: { mode: 'customAbsolute', width: 20000, height: 10 } }), /8192/);
 });

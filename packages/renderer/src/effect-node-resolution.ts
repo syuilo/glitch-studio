@@ -11,8 +11,8 @@ export function resolveEffectNodeResolution(options: {
 	maxDimension: number;
 }): Resolution {
 	const { setting } = options;
-	if (!['context', 'auto', 'custom'].includes(setting.mode)) throw new Error(`Invalid node resolution mode: ${setting.mode}`);
-	const resolution = setting.mode === 'custom' ? scaleResolution(setting, options.resolutionScale)
+	if (!['context', 'auto', 'customAbsolute'].includes(setting.mode)) throw new Error(`Invalid node resolution mode: ${setting.mode}`);
+	const resolution = setting.mode === 'customAbsolute' ? scaleResolution(setting, options.resolutionScale)
 		: setting.mode === 'context' ? options.contextResolution
 		: options.intrinsicResolution != null ? scaleResolution(options.intrinsicResolution, options.resolutionScale)
 		: options.inputResolution ?? options.contextResolution;

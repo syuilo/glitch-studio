@@ -28,7 +28,7 @@
 						<template #label>Resolution</template>
 						<template v-if="node.resolution.mode === 'context'" #caption>Uses the project size in LIVE and the containing scene size in the timeline.</template>
 					</GsSelect>
-					<div v-if="node.resolution.mode === 'custom'" style="display: flex; gap: 8px;">
+					<div v-if="node.resolution.mode === 'customAbsolute'" style="display: flex; gap: 8px;">
 						<GsInput style="flex: 1" type="number" :modelValue="node.resolution.width" :min="1" :step="1" :debounce="400" @update:modelValue="setDimension('width', $event)"><template #label>Width</template><template #suffix>px</template></GsInput>
 						<GsInput style="flex: 1" type="number" :modelValue="node.resolution.height" :min="1" :step="1" :debounce="400" @update:modelValue="setDimension('height', $event)"><template #label>Height</template><template #suffix>px</template></GsInput>
 					</div>
@@ -99,16 +99,16 @@ const effectStatus = computed(() => props.effectState?.status);
 const resolutionModes: { value: EffectNodeResolution['mode']; label: string }[] = [
 	{ value: 'context', label: 'Context resolution' },
 	{ value: 'auto', label: 'Auto' },
-	{ value: 'custom', label: 'Custom' },
+	{ value: 'customAbsolute', label: 'Custom (Absolute)' },
 ];
 
 function setResolutionMode(mode: EffectNodeResolution['mode']) {
 	if (mode === props.node.resolution.mode) return;
-	emit('setResolution', mode === 'custom' ? { mode, ...appStateManager.state.resolution.value } : { mode });
+	emit('setResolution', mode === 'customAbsolute' ? { mode, ...appStateManager.state.resolution.value } : { mode });
 }
 
 function setDimension(axis: 'width' | 'height', value: number | null) {
-	if (props.node.resolution.mode !== 'custom' || value == null || !Number.isSafeInteger(value) || value < 1) return;
+	if (props.node.resolution.mode !== 'customAbsolute' || value == null || !Number.isSafeInteger(value) || value < 1) return;
 	emit('setResolution', { ...props.node.resolution, [axis]: value });
 }
 

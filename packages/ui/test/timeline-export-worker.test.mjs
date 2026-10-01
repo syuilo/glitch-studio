@@ -160,7 +160,7 @@ test('aborts export when the timeline manager reports a node error', async () =>
 test('exports custom scene sizes with an explicit scale and unchanged project dimensions', { timeout: 2000 }, async () => {
 	const f = fixture();
 	const project = { resolution: { width: 1920, height: 1080 }, assets: [], visualModules: [], sceneId: 'root', timelineScenes: [
-		{ id: 'root', name: 'Root', resolution: { mode: 'custom', width: 513, height: 257 }, layers: [
+		{ id: 'root', name: 'Root', resolution: { mode: 'customAbsolute', width: 513, height: 257 }, layers: [
 			{ id: 'nested', layerType: 'scene', sceneId: 'child', positionMs: 0, trimStartMs: 0, trimmedDurationMs: 1000,
 				audioParamValues: { volume: { inputSource: 'literal', value: 1 } }, automationGraphs: [] },
 		] },

@@ -592,8 +592,8 @@ const changeNodeResolutionCommandDef = defineCommand<NodeTarget & { resolution: 
 			execute(state) {
 				const node = stateUtility.findNode(state, payload);
 				if (node?.type !== 'effect') throw new Error('Effect node not found');
-				if (!['context', 'auto', 'custom'].includes(payload.resolution.mode)) throw new Error('Invalid node resolution mode');
-				if (payload.resolution.mode === 'custom' && ![payload.resolution.width, payload.resolution.height].every(value => Number.isSafeInteger(value) && value > 0)) {
+				if (!['context', 'auto', 'customAbsolute'].includes(payload.resolution.mode)) throw new Error('Invalid node resolution mode');
+				if (payload.resolution.mode === 'customAbsolute' && ![payload.resolution.width, payload.resolution.height].every(value => Number.isSafeInteger(value) && value > 0)) {
 					throw new Error('Resolution width and height must be positive integers');
 				}
 				before = deepClone(node.resolution);

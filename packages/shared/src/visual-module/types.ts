@@ -7,7 +7,7 @@ export type EffectNodeResolution =
 	// LIVEではプロジェクト、タイムラインでは所属Scene。モジュール自身は呼び出し元を知らない。
 	| { mode: 'context' }
 	| { mode: 'auto' }
-	| { mode: 'custom'; width: number; height: number };
+	| { mode: 'customAbsolute'; width: number; height: number };
 
 export type VisualModuleEffectNode = {
 	id: string;
