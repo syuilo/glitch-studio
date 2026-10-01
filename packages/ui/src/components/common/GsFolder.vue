@@ -26,10 +26,6 @@
 				:leaveActiveClass="preferences.s.animation ? $style.transition_toggle_leaveActive : ''"
 				:enterFromClass="preferences.s.animation ? $style.transition_toggle_enterFrom : ''"
 				:leaveToClass="preferences.s.animation ? $style.transition_toggle_leaveTo : ''"
-				@enter="enter"
-				@afterEnter="afterEnter"
-				@leave="leave"
-				@afterLeave="afterLeave"
 			>
 				<KeepAlive>
 					<div v-show="opened">
@@ -92,42 +88,6 @@ const rootEl = useTemplateRef('rootEl');
 const bgSame = ref(false);
 const opened = ref(props.defaultOpen);
 const openedAtLeastOnce = ref(opened.value);
-
-//#region interpolate-sizeに対応していないブラウザ向け（TODO: 主要ブラウザが対応したら消す）
-function enter(el: Element) {
-	if (CSS.supports('interpolate-size', 'allow-keywords')) return;
-	if (!(el instanceof HTMLElement)) return;
-
-	const elementHeight = el.getBoundingClientRect().height;
-	el.style.height = '0';
-	el.offsetHeight; // reflow
-	el.style.height = `${Math.min(elementHeight, props.maxHeight ?? Infinity)}px`;
-}
-
-function afterEnter(el: Element) {
-	if (CSS.supports('interpolate-size', 'allow-keywords')) return;
-	if (!(el instanceof HTMLElement)) return;
-
-	el.style.height = '';
-}
-
-function leave(el: Element) {
-	if (CSS.supports('interpolate-size', 'allow-keywords')) return;
-	if (!(el instanceof HTMLElement)) return;
-
-	const elementHeight = el.getBoundingClientRect().height;
-	el.style.height = `${elementHeight}px`;
-	el.offsetHeight; // reflow
-	el.style.height = '0';
-}
-
-function afterLeave(el: Element) {
-	if (CSS.supports('interpolate-size', 'allow-keywords')) return;
-	if (!(el instanceof HTMLElement)) return;
-
-	el.style.height = '';
-}
-//#endregion
 
 async function toggle(ev: PointerEvent) {
 	if (!opened.value) {
