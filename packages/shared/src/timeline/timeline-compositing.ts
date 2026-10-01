@@ -20,19 +20,19 @@ export const timelineCompositingParamDefs = {
 	// Positionは移動量ではなく、素材内のOriginを配置する画面上の位置。
 	position: {
 		dataType: { kind: 'vector' },
-		ui: { label: 'Position', control: { controlType: 'xy', step: 0.01 } },
+		ui: { label: 'Position', control: { controlType: 'xy', min: -2, max: 2, step: 0.01 } },
 		defaultValue: { inputSource: 'literal', value: [0, 0] }, canNode: false,
 	},
 	// 透明な余白を含む入力全体の座標。中央が[0, 0]、左下が[-1, -1]、右上が[1, 1]。
-	// 画面外の支点も指定できるよう、値の範囲は制限しない。
+	// 素材の外側にも支点を指定できるよう、操作範囲を[-2, 2]にする。
 	origin: {
 		dataType: { kind: 'vector' },
-		ui: { label: 'Origin', control: { controlType: 'xy', step: 0.01 } },
+		ui: { label: 'Origin', control: { controlType: 'xy', min: -2, max: 2, step: 0.01 } },
 		defaultValue: { inputSource: 'literal', value: [0, 0] }, canNode: false,
 	},
 	scale: {
 		dataType: { kind: 'vector' },
-		ui: { label: 'Scale', control: { controlType: 'xy', step: 0.01 } },
+		ui: { label: 'Scale', control: { controlType: 'xy', min: -2, max: 2, step: 0.01 } },
 		defaultValue: { inputSource: 'literal', value: [1, 1] }, canNode: false,
 	},
 	rotation: {
