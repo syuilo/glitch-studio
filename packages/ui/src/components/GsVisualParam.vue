@@ -107,7 +107,6 @@
 	<div v-if="paramDef.dataType.kind === 'array'" :key="arrayVersion" :class="$style.children">
 		<GsVisualParam
 			v-for="(value, index) in arrayValues"
-			:key="index"
 			:automationGraphs="automationGraphs"
 			:availableVariables="availableVariables"
 			:visualModule="visualModule"
