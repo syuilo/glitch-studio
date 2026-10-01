@@ -1,21 +1,25 @@
+import { scaleResolution } from '../resolution.ts';
 import type { VideoSample } from 'mediabunny';
 import type { IntermediateTextureFormat } from '../types.ts';
 
-/** 元動画の表示解像度を維持するGPU転送。fitやレイヤーの変形は呼び出し側で行う。 */
+/** 動画の表示寸法に指定倍率を適用してGPUへ転送する。fitやレイヤーの変形は呼び出し側で行う。 */
 export function createVideoTexture(device: GPUDevice, format: IntermediateTextureFormat) {
 	let canvas: OffscreenCanvas | null = null;
 	let texture: GPUTexture | null = null;
 	return {
-		upload(sample: VideoSample): GPUTexture {
-			const width = Math.max(1, Math.round(sample.displayWidth));
-			const height = Math.max(1, Math.round(sample.displayHeight));
+		upload(sample: VideoSample, resolutionScale = 1): GPUTexture {
+			const { width, height } = scaleResolution({
+				width: Math.max(1, Math.round(sample.displayWidth)),
+				height: Math.max(1, Math.round(sample.displayHeight)),
+			}, resolutionScale);
 			canvas ??= new OffscreenCanvas(width, height);
 			if (canvas.width !== width) canvas.width = width;
 			if (canvas.height !== height) canvas.height = height;
 			const context = canvas.getContext('2d');
 			if (!context) throw new Error('Could not create a video frame canvas.');
 			context.clearRect(0, 0, width, height);
-			// 回転・ピクセル比はMediabunnyのdrawで補正する。縮小はここでは行わない。
+			// 回転・ピクセル比はMediabunnyのdrawで補正する。転送寸法を呼び出し側の倍率に
+			// 合わせ、後段には倍率適用済みのテクスチャを渡す。倍率未指定なら原寸を維持する。
 			sample.draw(context, 0, 0, width, height);
 			if (!texture || texture.width !== width || texture.height !== height) {
 				texture?.destroy();

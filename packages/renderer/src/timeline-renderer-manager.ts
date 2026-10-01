@@ -235,6 +235,7 @@ export class TimelineRendererManager extends EventEmitter<{
 				return createVideoTimelineLayer(layer, asset.fileData, {
 					device: this.gpuDevice, vertex: this.defaultVertexShaderModule,
 					resolution: this.renderResolution, format: this.staticOptions.intermediateTextureFormat,
+					resolutionScale: this.dynamicOptions.resolutionScale,
 				});
 			}
 			case 'scene': return createSceneTimelineLayer(getTimelineScene(this.dynamicOptions.timelineScenes, layer.sceneId), layer, {

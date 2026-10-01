@@ -11,6 +11,7 @@ export function createVideoTimelineLayer(layer: TimelineVideoLayer, blob: Blob, 
 	device: GPUDevice;
 	vertex: GPUShaderModule;
 	resolution: { width: number; height: number };
+	resolutionScale: number;
 	format: IntermediateTextureFormat;
 }): TimelineLayerRenderer<NodeOutput> {
 	const source = openVideoSource(blob);
@@ -28,7 +29,9 @@ export function createVideoTimelineLayer(layer: TimelineVideoLayer, blob: Blob, 
 				const sample = await source.getSample(context.time / 1000);
 				try {
 					if (disposed || signal.aborted) return { gpuTime: 0 };
-					const foreground: NodeOutput = sample ? { kind: 'texture', texture: texture.upload(sample) }
+					// replaceの無変形時はcompositorが素材を直接返すため、合成前に原寸へ倍率を
+					// 一度だけ適用する。後続モジュールの自動解像度は、この計算用寸法を継承する。
+					const foreground: NodeOutput = sample ? { kind: 'texture', texture: texture.upload(sample, options.resolutionScale) }
 						: { kind: 'uniform', value: [0, 0, 0, 0] };
 					const encoder = options.device.createCommandEncoder();
 					try {

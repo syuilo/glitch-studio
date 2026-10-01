@@ -54,11 +54,14 @@ const appBundle = await build({
 						isReady = ref(false); errorMessage = ref(null);
 						updates = []; renders = []; lifecycle = [];
 						options = {};
-						async init(resolution) { this.initialResolution = resolution; this.isReady.value = true; }
+						async init(resolution, resolutionScale) {
+							this.initialResolution = resolution;
+							this.initialResolutionScale = resolutionScale;
+							this.isReady.value = true;
+						}
 						async updateDynamicOptions(options) {
 							this.updates.push(options);
 							Object.assign(this.options, options);
-							if (options.resolution) this.previewResolution = options.resolution;
 							return { assetsCommitted: true };
 						}
 						async updateStaticOptions() {} async updatePlayers() {}
@@ -345,10 +348,10 @@ test('shows a future-version error without changing the current project or Save 
 	assert.equal(decodeProjectFile(futureHandle.bytes).name, 'Future project');
 });
 
-// プロジェクト読込でも画像読込と同じ倍率を使い、元の解像度は維持する。
-// 初回初期化から縮小しないと大型プロジェクトがGPUの上限に達し、小型へ切り替えたときに
-// 倍率を戻さないと前のプロジェクトの低解像度プレビューを引き継いでしまう。
-test('scales project previews before initialization and resets the scale for smaller projects', async t => {
+// 【プレビューには元の解像度と倍率を分けて渡し、小型プロジェクトでは倍率を戻す】
+// Controllerへ縮小済みの寸法を渡すと、レンダラーで再び倍率が掛かってしまう。
+// 初期化・プロジェクト切り替えの両方で同じ契約を守り、前の倍率も持ち越さないことを確認する。
+test('passes unscaled project dimensions and resets the preview scale for smaller projects', async t => {
 	setup(t);
 	const app = evaluate(appBundle);
 	for (const [width, height, factor] of [
@@ -363,11 +366,15 @@ test('scales project previews before initialization and resets the scale for sma
 		assert.equal(await app.openProject(file), true);
 		assert.equal(app.resolutionFactor.value, factor);
 		for (const controller of [app.visualModuleRendererManagerController, app.timelineRendererManagerController]) {
-			assert.deepEqual(controller.previewResolution, { width: Math.round(width * factor), height: Math.round(height * factor) });
+			assert.deepEqual(controller.options.resolution, resolution);
+			assert.equal(controller.options.resolutionScale, factor);
 		}
 		assert.deepEqual(app.appStateManager.state.resolution.value, resolution);
 	}
-	assert.deepEqual(app.visualModuleRendererManagerController.initialResolution, { width: 3000, height: 2000 });
+	for (const controller of [app.visualModuleRendererManagerController, app.timelineRendererManagerController]) {
+		assert.deepEqual(controller.initialResolution, { width: 12000, height: 8000 });
+		assert.equal(controller.initialResolutionScale, 0.25);
+	}
 	assert.deepEqual(globalThis.projectAlerts, []);
 });
 
