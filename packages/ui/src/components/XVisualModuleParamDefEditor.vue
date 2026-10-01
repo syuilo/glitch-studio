@@ -12,6 +12,7 @@
 				{ label: i18n.ts._CustomParameterInput._Types.String, value: 'string' },
 				{ label: i18n.ts._CustomParameterInput._Types.Color, value: 'color' },
 				{ label: i18n.ts._CustomParameterInput._Types.Vector, value: 'vector' },
+				{ label: i18n.ts._CustomParameterInput._Types.Enum, value: 'enum' },
 				{ label: i18n.ts._CustomParameterInput._Types.Image, value: 'assetReference' },
 				{ label: 'Video asset', value: 'videoAssetReference' },
 				{ label: 'Font asset', value: 'fontAssetReference' },
@@ -37,6 +38,25 @@
 			<GsInput type="number" :modelValue="def.ui.control.step ?? null" @update:modelValue="updateUiOption('step', Number($event))"/>
 		</div>
 	</div>
+	<div v-if="isParameterType(def, 'enum')" :class="$style.option">
+		<label :class="$style.optionLabel">{{ i18n.ts._CustomParameterInput.Options }}</label>
+		<XEnumOptionsEditor :class="$style.optionControl" :options="def.dataType.options" :labels="def.ui.control.labels" :defaultValue="def.defaultValue.value" @update="updateEnumOptions"/>
+	</div>
+	<div v-if="def.dataType.kind !== 'array' && def.dataType.kind !== 'struct' && def.dataType.kind !== 'any' && def.dataType.kind !== 'enum'" :class="$style.option">
+		<label :class="$style.optionLabel">{{ i18n.ts._CustomParameterInput.DefaultValue }}</label>
+		<GsLiteralLeafValueControl
+			:key="def.dataType.kind"
+			:class="$style.optionControl"
+			:dataType="def.dataType"
+			:control="def.ui.control"
+			:value="def.defaultValue.value"
+			@input="updateDefaultValue"
+			@beginChanging="beginDefaultValueChange"
+			@changeContinuous="value => updateDefaultValue(value, defaultValueMergeKey)"
+			@changeFinished="defaultValueMergeKey = null"
+			@reset="updateDefaultValue(genEmptyValue(def))"
+		/>
+	</div>
 	<div v-if="isTextureDataType(def.dataType) && def.dataType.kind !== 'any'" :class="$style.option">
 		<GsSwitch :modelValue="def.canNode" @update:modelValue="updateCanNode">Allow node input</GsSwitch>
 	</div>
@@ -57,10 +77,13 @@ import { visualModuleCustomParameterName } from '@glitch/shared/visual-module/ty
 import { genEmptyValue } from '@glitch/shared/utility/misc.ts';
 import { isParameterType } from '@glitch/shared/parameter.ts';
 import { isTextureDataType } from '@glitch/shared/data-type.ts';
+import { genId } from '@glitch/shared/utility/id.ts';
 import GsSelect from './common/GsSelect.vue';
 import GsInput from './common/GsInput.vue';
 import GsButton from './common/GsButton.vue';
 import GsSwitch from './common/GsSwitch.vue';
+import GsLiteralLeafValueControl from './GsLiteralLeafValueControl.vue';
+import XEnumOptionsEditor from './XEnumOptionsEditor.vue';
 import type { VisualModuleCustomParameterId, VisualModuleParamDef } from '@glitch/shared/visual-module/types.ts';
 import { i18n } from '@/i18n.ts';
 
@@ -71,7 +94,7 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-	update: [changes: Partial<Omit<ParamDef, 'id'>>];
+	update: [changes: Partial<Omit<ParamDef, 'id'>>, mergeKey?: string | null];
 	remove: [];
 	setPrimaryInput: [inputId: VisualModuleCustomParameterId | null];
 }>();
@@ -80,9 +103,30 @@ function update(changes: Partial<Omit<ParamDef, 'id'>>) {
 	emit('update', changes);
 }
 
+let defaultValueMergeKey: string | null = null;
+
+function beginDefaultValueChange() {
+	defaultValueMergeKey = genId();
+}
+
+function updateDefaultValue(value: any, mergeKey?: string | null) {
+	emit('update', { defaultValue: { inputSource: 'literal', value } }, mergeKey);
+}
+
+function updateEnumOptions(options: string[], labels: Record<string, string>, defaultValue: string) {
+	const def = props.def;
+	if (!isParameterType(def, 'enum')) return;
+	update({
+		dataType: { kind: 'enum', options },
+		ui: { ...def.ui, control: { labels } },
+		defaultValue: { inputSource: 'literal', value: defaultValue },
+	});
+}
+
 function updateType(dataType: ParamDef['dataType']['kind']) {
 	if (dataType === props.def.dataType.kind) return;
-	if (dataType !== 'scalar' && dataType !== 'bool' && dataType !== 'string' && dataType !== 'color' && dataType !== 'vector' && dataType !== 'assetReference' && dataType !== 'videoAssetReference' && dataType !== 'fontAssetReference') return;
+	defaultValueMergeKey = null;
+	if (dataType !== 'scalar' && dataType !== 'bool' && dataType !== 'string' && dataType !== 'color' && dataType !== 'vector' && dataType !== 'enum' && dataType !== 'assetReference' && dataType !== 'videoAssetReference' && dataType !== 'fontAssetReference') return;
 
 	const schemas = {
 		scalar: { dataType: { kind: 'scalar' }, ui: { label: props.def.ui.label, control: { controlType: 'number' } } },
@@ -90,6 +134,7 @@ function updateType(dataType: ParamDef['dataType']['kind']) {
 		string: { dataType: { kind: 'string' }, ui: { label: props.def.ui.label, control: {} } },
 		color: { dataType: { kind: 'color' }, ui: { label: props.def.ui.label, control: {} } },
 		vector: { dataType: { kind: 'vector' }, ui: { label: props.def.ui.label, control: { controlType: 'vector' } } },
+		enum: { dataType: { kind: 'enum', options: ['option1', 'option2'] }, ui: { label: props.def.ui.label, control: { labels: { option1: 'Option 1', option2: 'Option 2' } } } },
 		assetReference: { dataType: { kind: 'assetReference' }, ui: { label: props.def.ui.label, control: {} } },
 		videoAssetReference: { dataType: { kind: 'videoAssetReference' }, ui: { label: props.def.ui.label, control: {} } },
 		fontAssetReference: { dataType: { kind: 'fontAssetReference' }, ui: { label: props.def.ui.label, control: {} } },

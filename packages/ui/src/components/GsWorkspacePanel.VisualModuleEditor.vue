@@ -84,20 +84,34 @@ const effectStates = computed(() => {
 });
 
 const previewParamValues = ref<VisualModuleParameterBindings>({});
+const editedPreviewParamIds = new Set<VisualModuleCustomParameterId>();
 let previewModuleId: string | undefined;
 let previewParamTypes = new Map<string, VisualModuleParamDef['dataType']>();
 
 watch(visualModule, module => {
+	if (module?.id !== previewModuleId) editedPreviewParamIds.clear();
 	const values: VisualModuleParameterBindings = {};
 	for (const def of module?.paramDefs ?? []) {
-		// ノードの編集などでプレビューの入力値を初期化しない。
-		values[def.id] = module?.id === previewModuleId && (previewParamTypes.has(def.id) && areDataTypesEqual(previewParamTypes.get(def.id)!, def.dataType)) && previewParamValues.value[def.id] != null
-			? previewParamValues.value[def.id]
-			: deepClone(def.defaultValue);
+		const previousType = previewParamTypes.get(def.id);
+		const value = previewParamValues.value[def.id];
+		// プレビューで明示的に編集していない値は、定義のデフォルト値に追従する。
+		// enumの選択肢が増減しても値と式は維持する。無効な値は描画エラーにし、Undoで復元できるようにする。
+		const compatible = previousType != null && (areDataTypesEqual(previousType, def.dataType)
+			|| (previousType.kind === 'enum' && def.dataType.kind === 'enum'));
+		if (editedPreviewParamIds.has(def.id) && compatible && value != null) {
+			values[def.id] = value;
+		} else {
+			editedPreviewParamIds.delete(def.id);
+			values[def.id] = deepClone(def.defaultValue);
+		}
 	}
+	for (const id of editedPreviewParamIds) if (!(id in values)) editedPreviewParamIds.delete(id);
 	previewParamValues.value = values;
 	previewModuleId = module?.id;
 	previewParamTypes = new Map((module?.paramDefs ?? []).map(def => [def.id, def.dataType]));
+	if (module != null && previewPlayback.liveVisualModuleId.value === module.id) {
+		previewPlayback.updateLiveParamValues(module.id, values);
+	}
 }, { deep: true, immediate: true });
 
 function onPreviewParamEdit(event: ParamEdit) {
@@ -139,6 +153,8 @@ function onPreviewParamEdit(event: ParamEdit) {
 		case 'removeElement':
 			return;
 	}
+	if (event.kind === 'reset' || (event.kind === 'inputSource' && event.inputSource === 'literal')) editedPreviewParamIds.delete(id);
+	else editedPreviewParamIds.add(id);
 	previewLive();
 }
 

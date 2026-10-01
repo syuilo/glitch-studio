@@ -33,7 +33,7 @@ export function commitVisualModuleEdit(manager: AppStateManager, target: VisualM
 			manager.commit('addVisualModuleParamDef', { ...target, def: event.def });
 			break;
 		case 'updateParamDef':
-			manager.commit('updateVisualModuleParamDef', { ...target, defId: event.defId, changes: event.changes });
+			manager.commit('updateVisualModuleParamDef', { ...target, defId: event.defId, changes: event.changes }, event.mergeKey);
 			break;
 		case 'removeParamDef':
 			manager.commit('removeVisualModuleParamDef', { ...target, defId: event.defId });

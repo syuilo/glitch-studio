@@ -4,6 +4,7 @@ import { genId } from '@glitch/shared/utility/id.ts';
 import { genEmptyValue } from '@glitch/shared/utility/misc.ts';
 import EventEmitter from 'eventemitter3';
 import { ParameterEvaluator } from '@glitch/shared/parameter-evaluator.js';
+import { validateEnumParameterValue } from '@glitch/shared/parameter.ts';
 import { AssetTextures } from './asset-textures.ts';
 import TimingHelper from './utility/TimingHelper.ts';
 import { NonNegativeRollingAverage } from './utility/NonNegativeRollingAverage.ts';
@@ -322,10 +323,10 @@ export class VisualModuleRendererManager extends EventEmitter<{
 			const evaluatedParamValues = new Map<VisualModuleCustomParameterId, any>();
 			for (const def of visualModule.paramDefs) {
 				if (this.liveParamValues[def.id] == null) {
-					evaluatedParamValues.set(def.id, def.defaultValue.value);
+					evaluatedParamValues.set(def.id, validateEnumParameterValue(def, def.defaultValue.value));
 					continue;
 				}
-				evaluatedParamValues.set(def.id, this.liveParamEvaluator.evaluate(this.liveParamValues[def.id], {
+				evaluatedParamValues.set(def.id, validateEnumParameterValue(def, this.liveParamEvaluator.evaluate(this.liveParamValues[def.id], {
 					evaluatedParamValues: null,
 					variables: {
 						TIME: timing.time / 1000,
@@ -334,7 +335,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 					automationGraphs: [],
 					time: timing.time,
 					endTime: Infinity,
-				}, genEmptyValue(def))); // TODO: genEmptyValueを遅延評価したい
+				}, def.dataType.kind === 'enum' ? undefined : genEmptyValue(def)))); // TODO: genEmptyValueを遅延評価したい
 			}
 
 			const nodeOutput = this.liveVisualModuleRenderer.render({

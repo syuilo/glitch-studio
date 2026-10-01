@@ -1,6 +1,7 @@
 import { deepClone } from '@glitch/shared/utility/deep-clone.ts';
 import { genEmptyValue } from '@glitch/shared/utility/misc.ts';
 import { ParameterEvaluator } from '@glitch/shared/parameter-evaluator.js';
+import { validateEnumParameterValue } from '@glitch/shared/parameter.ts';
 import { createTimelineLayerEvaluationScope } from '@glitch/shared/timeline/evaluation-scope.ts';
 import type { VisualModuleCustomParameterId, VisualModule } from '@glitch/shared/visual-module/types.ts';
 import type { NodeOutput } from './node-output.ts';
@@ -34,9 +35,9 @@ export function createVisualModuleTimelineLayer(
 				if (paramInputs.has(def.id)) continue;
 				const value = layer.paramValues[def.id];
 				const evaluated = value == null ? def.defaultValue.value : evaluator.evaluate(value, evaluationContext,
-					value.inputSource === 'automationGraphReference' ? def.defaultValue.value : genEmptyValue(def));
+					def.dataType.kind === 'enum' ? undefined : value.inputSource === 'automationGraphReference' ? def.defaultValue.value : genEmptyValue(def));
 				// prepare待機中にliteralの配列が編集されても、このフレームの値は変えない。
-				evaluatedParamValues.set(def.id, deepClone(evaluated));
+				evaluatedParamValues.set(def.id, deepClone(validateEnumParameterValue(def, evaluated)));
 			}
 			// 評価ごとのローカル変数として保持し、並行するシークと共有しない。
 			const resolved: VisualModuleRenderContext = {

@@ -5,6 +5,7 @@ import { playerAudioSourceId } from '@glitch/shared/audio.ts';
 import { AudioHistory } from '@glitch/shared/audio-history.ts';
 import { genEmptyValue } from '@glitch/shared/utility/misc.js';
 import { ParameterEvaluator } from '@glitch/shared/parameter-evaluator.js';
+import { validateEnumParameterValue } from '@glitch/shared/parameter.ts';
 import { outputShaderInput } from './node-output.ts';
 import TimingHelper from './utility/TimingHelper.ts';
 import { getEvaluatedParam, mapNodeParam, walkNodeParams } from './utility/node-params.ts';
@@ -178,7 +179,8 @@ export class VisualModuleRenderer {
 			for (const [key, def] of Object.entries(paramDefs)) {
 				if (node.isBypass && key !== this.effectDefinitions[node.effectId].primaryInputParameter) continue;
 				evaluatedParamsPerNode[key] = mapNodeParam(def, node.params[key], [key], (def, param) => {
-					return this.parameterEvaluator.evaluate(param, evalCtx, genEmptyValue(def)); // TODO: genEmptyValueを遅延評価したい
+					return validateEnumParameterValue(def, this.parameterEvaluator.evaluate(param, evalCtx,
+						def.dataType.kind === 'enum' ? undefined : genEmptyValue(def))); // TODO: genEmptyValueを遅延評価したい
 				});
 			}
 			evaluated.set(node.id, evaluatedParamsPerNode);

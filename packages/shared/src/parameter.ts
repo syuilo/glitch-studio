@@ -3,7 +3,7 @@ import type { DataType, DataTypeUiDefinition, TextureDataType } from './data-typ
 import type { BlendMode } from './color-blend.ts';
 import type { FitMode, ParameterBinding, WrapMode } from './types.ts';
 
-// 初期値として保存する値。アセット・プレイヤーの初期参照は未選択とする。
+// 初期値として保存する値。アセットはIDまたは未選択、プレイヤーの初期参照は未選択とする。
 // anyの4成分は色ではなくデータであり、nullは未接続と同じゼロ値を表す。
 type ParameterDefaultValueMap = {
 	scalar: number;
@@ -14,9 +14,9 @@ type ParameterDefaultValueMap = {
 	blendMode: BlendMode;
 	fitMode: FitMode;
 	wrapMode: WrapMode;
-	assetReference: null;
-	videoAssetReference: null;
-	fontAssetReference: null;
+	assetReference: string | null;
+	videoAssetReference: string | null;
+	fontAssetReference: string | null;
 	playerReference: null;
 	any: [number, number, number, number] | null;
 };
@@ -107,6 +107,15 @@ export type ParameterDefinition_Any = ParameterDefinition<{ kind: 'any' }>;
 // 設定やUIも含む定義全体を対応する種類に絞り込む。
 export function isParameterType<P extends ParameterDefinition, K extends DataType['kind']>(definition: P, kind: K): definition is P & ParameterDefinition<Extract<DataType, { kind: K }>> {
 	return definition.dataType.kind === kind;
+}
+
+// 選択肢の削除・改名後も保存済みのBindingや式は残す。
+// 実際に使う境界で検証し、古い値や式が返した範囲外の値を描画エラーとして報告する。
+export function validateEnumParameterValue<T>(definition: ParameterDefinition, value: T): T {
+	if (isParameterType(definition, 'enum') && (typeof value !== 'string' || !definition.dataType.options.includes(value))) {
+		throw new Error(`Invalid enum value ${JSON.stringify(value)} for parameter ${JSON.stringify(definition.ui.label)}. Expected one of: ${JSON.stringify(definition.dataType.options)}`);
+	}
+	return value;
 }
 
 // 保存形式は型・UI・設定を分離し、子を処理する場面でのみ定義として組み合わせる。

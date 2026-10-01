@@ -2,7 +2,7 @@ import { getScene, getLayerParameterValues } from './utility/timeline-scene.ts';
 import { canReferenceScene, getSceneDuration, validateTimelineScenes } from '@glitch/shared/timeline/scenes.ts';
 import { createUntrimmedTimelineLayerTiming, isTimelineLayerTimingValid } from '@glitch/shared/timeline/timing.ts';
 import type { TimelineLayerTiming } from '@glitch/shared/timeline/timing.ts';
-import { getArrayElementDefinition } from '@glitch/shared/parameter.ts';
+import { getArrayElementDefinition, isParameterType } from '@glitch/shared/parameter.ts';
 import { visualModuleCustomParameterId } from '@glitch/shared/visual-module/types.ts';
 import { effectDefinitions } from '@glitch/shared/effect/effect-definitions.ts';
 import { AiSON } from '@syuilo/aiscript';
@@ -616,6 +616,13 @@ const updateGlobalOutInputCommandDef = defineCommand<NodeTarget & { outputId: st
 });
 
 function validateVisualModuleParamDef(module: VisualModule, def: VisualModuleParamDef, previousId?: VisualModuleCustomParameterId) {
+	if (isParameterType(def, 'enum')) {
+		const options = def.dataType.options;
+		if (options.length === 0 || options.some(value => value.trim() === '') || new Set(options).size !== options.length) {
+			throw new Error('Enum options must be non-empty and unique');
+		}
+		if (!options.includes(def.defaultValue.value)) throw new Error('Enum default must be one of its options');
+	}
 	// 部分更新ではdataTypeとcanNodeの組み合わせを型だけでは保証できない。
 	if (def.canNode && !isTextureDataType(def.dataType)) {
 		throw new Error('Only node-capable parameter types can be exposed as In node outputs');

@@ -9,7 +9,7 @@ export type VisualModuleEdit =
 	| { kind: 'reorderNodes'; nodeIds: string[] }
 	| { kind: 'setOutputConnection'; nodeId: string; outputId: string; value: NodeOutputReference | null }
 	| { kind: 'addParamDef'; def: VisualModuleParamDef }
-	| { kind: 'updateParamDef'; defId: VisualModuleCustomParameterId; changes: Partial<Omit<VisualModuleParamDef, 'id'>> }
+	| { kind: 'updateParamDef'; defId: VisualModuleCustomParameterId; changes: Partial<Omit<VisualModuleParamDef, 'id'>>; mergeKey?: string | null }
 	| { kind: 'removeParamDef'; defId: VisualModuleCustomParameterId }
 	| { kind: 'addOutputDef'; def: VisualModuleOutputDef }
 	| { kind: 'updateOutputDef'; defId: string; changes: Partial<Omit<VisualModuleOutputDef, 'id'>> }

@@ -109,6 +109,18 @@
 		"Name": "Name",
 		"Label": "Label",
 		"Type": "Type",
+		"DefaultValue": "Default value",
+		"Options": "Options",
+		"OptionValue": "Stored value",
+		"AddOption": "Add option",
+		"RemoveOption": "Remove option",
+		"MoveUp": "Move up",
+		"MoveDown": "Move down",
+		"ApplyOptions": "Apply options",
+		"DiscardOptions": "Discard changes",
+		"InvalidOptions": "Provide at least one option. Stored values must be non-empty and unique.",
+		"SelectValidDefault": "Select a default value from the edited options before applying.",
+		"InvalidEnumValue": "Invalid option: {value}. Select an available option.",
 		"_Types": {
 			"Number": "Number",
 			"Range": "Range",
@@ -116,6 +128,7 @@
 			"String": "String",
 			"Color": "Color",
 			"Vector": "Vector",
+			"Enum": "Enum",
 			"Image": "Image"
 		}
 	},

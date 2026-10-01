@@ -5,7 +5,7 @@
 		<div v-if="def.dataType.kind === 'struct' || def.dataType.kind === 'array' || def.dataType.kind === 'any'">{{ def.ui.label }}: Editing is not yet supported.</div>
 		<XVisualModuleParamDefEditor
 			v-else :primaryInputId="visualModule.primaryInputId" :def="def"
-			@update="changes => emit('update', def.id, changes)"
+			@update="(changes, mergeKey) => emit('update', def.id, changes, mergeKey)"
 			@remove="emit('remove', def.id)"
 			@setPrimaryInput="emit('setPrimaryInput', $event)"
 		/>
@@ -27,7 +27,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
 	add: [def: VisualModuleParamDef];
-	update: [defId: VisualModuleCustomParameterId, changes: Partial<Omit<VisualModuleParamDef, 'id'>>];
+	update: [defId: VisualModuleCustomParameterId, changes: Partial<Omit<VisualModuleParamDef, 'id'>>, mergeKey?: string | null];
 	remove: [defId: VisualModuleCustomParameterId];
 	setPrimaryInput: [inputId: VisualModuleCustomParameterId | null];
 }>();

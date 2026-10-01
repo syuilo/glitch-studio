@@ -108,6 +108,18 @@
 		"Name": "名前",
 		"Label": "ラベル",
 		"Type": "種類",
+		"DefaultValue": "デフォルト値",
+		"Options": "選択肢",
+		"OptionValue": "保存値",
+		"AddOption": "選択肢を追加",
+		"RemoveOption": "選択肢を削除",
+		"MoveUp": "上へ移動",
+		"MoveDown": "下へ移動",
+		"ApplyOptions": "選択肢を適用",
+		"DiscardOptions": "変更を破棄",
+		"InvalidOptions": "選択肢は1件以上必要です。保存値を空欄や重複した値にはできません。",
+		"SelectValidDefault": "適用する前に、編集中の選択肢からデフォルト値を選んでください。",
+		"InvalidEnumValue": "無効な選択肢: {value}。利用できる選択肢を選んでください。",
 		"_Types": {
 			"Number": "数値",
 			"Range": "範囲",
@@ -115,6 +127,7 @@
 			"String": "文字列",
 			"Color": "色",
 			"Vector": "ベクトル",
+			"Enum": "列挙型",
 			"Image": "画像"
 		}
 	},
