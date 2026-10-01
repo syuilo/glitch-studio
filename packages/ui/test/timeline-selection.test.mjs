@@ -394,7 +394,7 @@ function fixture() {
 	const binding = () => ({ inputSource: 'keyframesTimelineInline', offsetMode: 'start', wrapMode: 'clamp', trimmedDurationMs: 1000,
 		keyframesTimeline: { dataType: { kind: 'scalar' }, keyframes: [100, 200, 800].map((x, index) => ({ id: String(index), x, value: [index], interpolation: { type: 'linear' } })) } });
 	manager.state.timelineScenes.value = [{ id: 'scene', name: 'Scene', layers: [
-		{ id: 'audio', layerType: 'audio', positionMs: -100, trimStartMs: 200, trimmedDurationMs: 1000, assetId: 'sound', paramValues: { volume: binding() }, automationGraphs: [] },
+		{ id: 'audio', layerType: 'audio', positionMs: -100, trimStartMs: 200, trimmedDurationMs: 1000, assetId: 'sound', audioParamValues: { volume: binding() }, automationGraphs: [] },
 		{ id: 'video', layerType: 'video', positionMs: 1000, trimStartMs: 50, trimmedDurationMs: 2000, assetId: 'movie', audioEnabled: true,
 			compositingParamValues: { opacity: binding() }, audioParamValues: { volume: binding() }, automationGraphs: [] },
 	] }];
@@ -412,7 +412,7 @@ test('stretches selected lanes together in one undoable command', () => {
 	const before = snapshot(manager);
 	const dragged = key('video', '2', 'compositing', 'opacity');
 	const all = before.flatMap(layer => (layer.layerType === 'audio'
-		? [['audio', 'volume', layer.paramValues.volume]]
+		? [['audio', 'volume', layer.audioParamValues.volume]]
 		: [['compositing', 'opacity', layer.compositingParamValues.opacity], ['audio', 'volume', layer.audioParamValues.volume]])
 		.flatMap(([target, paramId, binding]) => binding.keyframesTimeline.keyframes.map(point => ({ ...key(layer.id, point.id, target, paramId), x: point.x }))));
 	const selection = getTimelineStretchSelection(all, { kind: 'keyframes', keyframes: [...all.filter(point => point.layerId === 'video'), key('audio', '0')] }, dragged);
@@ -476,13 +476,13 @@ test('undoes and redoes a stretch as one command while preserving other paramete
 	for (const endpoint of ['0', '2']) {
 		const manager = fixture();
 		const before = snapshot(manager);
-		const keyframes = before[0].paramValues.volume.keyframesTimeline.keyframes;
+		const keyframes = before[0].audioParamValues.volume.keyframesTimeline.keyframes;
 		const stretch = createKeyframeStretch(keyframes, endpoint);
 		for (const delta of [50, 80, 20, 70]) {
 			manager.commit('moveTimelineKeyframes', { sceneId: 'scene', positions: keyframes.map(point => ({ ...key('audio', point.id), x: stretchKeyframeX(point.x, stretch, delta) })) }, 'stretch');
 		}
 		const expected = structuredClone(before);
-		expected[0].paramValues.volume.keyframesTimeline.keyframes = keyframes.map(point => ({ ...point, x: stretchKeyframeX(point.x, stretch, 70) }));
+		expected[0].audioParamValues.volume.keyframesTimeline.keyframes = keyframes.map(point => ({ ...point, x: stretchKeyframeX(point.x, stretch, 70) }));
 		assert.deepEqual(snapshot(manager), expected);
 		assert.equal(manager.undoStack.value.length, 1);
 		manager.undo();
@@ -518,7 +518,7 @@ test('moves keyframes across layers and parameters in one undoable command', () 
 	for (const delta of [30, 50]) manager.commit('moveTimelineKeyframes', { sceneId: 'scene', positions: selected.map(point => ({ ...point, x: (point.keyframeId === '0' ? 100 : 200) + delta })) }, 'keys');
 	assert.equal(manager.undoStack.value.length, 1);
 	const after = snapshot(manager);
-	assert.deepEqual(after[0].paramValues.volume.keyframesTimeline.keyframes.map(point => point.x), [150, 250, 800]);
+	assert.deepEqual(after[0].audioParamValues.volume.keyframesTimeline.keyframes.map(point => point.x), [150, 250, 800]);
 	assert.deepEqual(after[1].compositingParamValues.opacity.keyframesTimeline.keyframes.map(point => point.x), [150, 200, 800]);
 	assert.deepEqual(after[1].audioParamValues.volume.keyframesTimeline.keyframes.map(point => point.x), [100, 250, 800]);
 	assert.deepEqual(after.map(layer => layer.positionMs), before.map(layer => layer.positionMs));

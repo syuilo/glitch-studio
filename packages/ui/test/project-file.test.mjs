@@ -394,7 +394,7 @@ test('synchronizes both previews and routes timeline-only edits', async t => {
 	app.previewPlayback.seekTimeline(500);
 	assert.equal(app.activePreviewRenderer.value, timeline);
 	timeline.renders.length = 0;
-	app.appStateManager.state.timelineScenes.value[0].layers = [{ id: 'layer', layerType: 'visualModule', visualModuleId: 'first', positionMs: 0, trimStartMs: 0, trimmedDurationMs: 1000, paramValues: {}, compositingParamValues: {}, automationGraphs: [] }];
+	app.appStateManager.state.timelineScenes.value[0].layers = [{ id: 'layer', layerType: 'visualModule', visualModuleId: 'first', positionMs: 0, trimStartMs: 0, trimmedDurationMs: 1000, visualModuleParamValues: {}, compositingParamValues: {}, automationGraphs: [] }];
 	await nextTick();
 	await setImmediate();
 	assert.equal('timelineScenes' in live.options, false);
@@ -423,8 +423,8 @@ test('refreshes audio only for audio content, source files or loop duration chan
 	await app.appReady(project({
 		assets: [{ id: 'audio', name: 'sound.wav', fileData: new Blob(['audio']) }, { id: 'image', fileData: new Blob(['image']) }],
 		timelineScenes: [{ id: 'scene', name: 'Scene', layers: [
-			{ id: 'visual', layerType: 'visualModule', visualModuleId: 'module', positionMs: 0, trimStartMs: 0, trimmedDurationMs: 10000, paramValues: {}, compositingParamValues: { opacity: { inputSource: 'literal', value: 1 } }, automationGraphs: [] },
-			{ id: 'audio', layerType: 'audio', assetId: 'audio', positionMs: 0, trimmedDurationMs: 5000, trimStartMs: 0, paramValues: { volume: { inputSource: 'literal', value: 1 } }, automationGraphs: [] },
+			{ id: 'visual', layerType: 'visualModule', visualModuleId: 'module', positionMs: 0, trimStartMs: 0, trimmedDurationMs: 10000, visualModuleParamValues: {}, compositingParamValues: { opacity: { inputSource: 'literal', value: 1 } }, automationGraphs: [] },
+			{ id: 'audio', layerType: 'audio', assetId: 'audio', positionMs: 0, trimmedDurationMs: 5000, trimStartMs: 0, audioParamValues: { volume: { inputSource: 'literal', value: 1 } }, automationGraphs: [] },
 		] }],
 	}));
 	const manager = app.appStateManager;

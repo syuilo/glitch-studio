@@ -102,7 +102,7 @@ test('scales video sources once through replace composition and automatic proces
 	const { manager, calls } = timelineFixture(t);
 	const timing = { positionMs: 0, trimStartMs: 0, trimmedDurationMs: 1000, automationGraphs: [] };
 	const video = { ...timing, id: 'video', layerType: 'video', assetId: 'asset', compositingParamValues: { fitMode: { inputSource: 'literal', value: 'cover' } } };
-	const processing = { ...timing, id: 'processing', layerType: 'inlineVisualModule', paramValues: {},
+	const processing = { ...timing, id: 'processing', layerType: 'inlineVisualModule', visualModuleParamValues: {},
 		compositingParamValues: { blendMode: literal('replace') },
 		visualModule: {
 			automationGraphs: [], paramDefs: [{ id: 'output', nameForReference: 'Input', dataType: { kind: 'color' }, canNode: true, defaultValue: literal([0, 0, 0, 0]) }],

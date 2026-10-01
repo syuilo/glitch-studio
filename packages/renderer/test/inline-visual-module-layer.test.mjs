@@ -52,7 +52,7 @@ function visualModule({ primaryInput = false, params } = {}) {
 function layer(id, module, overrides = {}) {
 	return {
 		id, layerType: 'inlineVisualModule', visualModule: module, positionMs: 100, trimStartMs: 0, trimmedDurationMs: 1000,
-		paramValues: {}, automationGraphs: [],
+		visualModuleParamValues: {}, automationGraphs: [],
 		compositingParamValues: {
 			...Object.fromEntries(Object.entries(timelineCompositingParamDefs).map(([key, def]) => [key, structuredClone(def.defaultValue)])),
 			blendMode: literal('replace'),
@@ -159,7 +159,7 @@ test('isolates inline module scopes and passes local time and export context', a
 	} });
 	module.paramDefs.push({ ...scalar, id: 'amount', nameForReference: 'Amount' });
 	module.automationGraphs = [graph(7)];
-	const entry = layer('inline', module, { automationGraphs: [graph(4)], paramValues: { amount: expression('GRAPH("Graph", 0, "clamp") + TEST_SAME_NAME') } });
+	const entry = layer('inline', module, { automationGraphs: [graph(4)], visualModuleParamValues: { amount: expression('GRAPH("Graph", 0, "clamp") + TEST_SAME_NAME') } });
 	await manager.updateDynamicOptions({ timelineScenes: [{ id: 'scene', name: 'Scene', layers: [entry] }], sceneId: 'scene' });
 	await manager.renderTimelineFrame(350, 50);
 	const { input, ...values } = calls.renders.at(-1).params;
@@ -207,7 +207,7 @@ test('applies opacity and the same transform uniforms to inline and referenced l
 	const bottom = layer('bottom', visualModule());
 	const top = layer('top', visualModule());
 	top.compositingParamValues.opacity = literal(0);
-	top.paramValues.input = literal([0, 1, 0, 1]);
+	top.visualModuleParamValues.input = literal([0, 1, 0, 1]);
 	await manager.updateDynamicOptions({ timelineScenes: [{ id: 'scene', name: 'Scene', layers: [bottom, top] }], sceneId: 'scene' });
 	await manager.renderTimelineFrame(100, 0);
 	assert.deepEqual(calls.outputs.at(-1), { kind: 'uniform', value: [0.5, 0, 0, 0.5] });

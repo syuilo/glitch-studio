@@ -136,7 +136,7 @@ for (const outsideTime of [99, 200]) {
 		const instances = [];
 		const timeline = [{
 			...entry('effect', 100, 200),
-			layer: { type: 'visualModule', visualModuleId: 'module', paramValues: {} },
+			layer: { type: 'visualModule', visualModuleId: 'module', visualModuleParamValues: {} },
 		}];
 		const renderer = new TimelineRenderer({
 			fallbackOutput: 'transparent',
@@ -299,7 +299,7 @@ test('chains different layer types without requiring visual module fields', asyn
 	const destroyed = [];
 	const params = { gain: { inputSource: 'literal', value: 2 } };
 	const timeline = [
-		{ ...entry('effect', 200, 600), layer: { type: 'visualModule', visualModuleId: 'module', paramValues: params, automationGraphs: [] } },
+		{ ...entry('effect', 200, 600), layer: { type: 'visualModule', visualModuleId: 'module', visualModuleParamValues: params, automationGraphs: [] } },
 		{ ...entry('video', 100, 900), layer: { type: 'video', assetId: 'asset' } },
 	];
 	const renderer = new TimelineRenderer({
@@ -353,7 +353,7 @@ test('keeps visual module contexts separate across overlapping preparation', asy
 	const layerContexts = [];
 	const pending = deferred();
 	const signals = [];
-	const layer = createVisualModuleTimelineLayer({ paramDefs: [{ id: 'input' }], primaryInputId: 'input' }, { paramValues: {}, automationGraphs: [] }, {
+	const layer = createVisualModuleTimelineLayer({ paramDefs: [{ id: 'input' }], primaryInputId: 'input' }, { visualModuleParamValues: {}, automationGraphs: [] }, {
 		async prepare(context, signal) {
 			prepared.push(context);
 			signals.push(signal);
@@ -384,7 +384,7 @@ test('provides the background for compositing modules without a primary input', 
 	const background = { kind: 'uniform', value: [0, 0, 1, 1] };
 	const context = { time: 500, timeDelta: 16, endTime: 2000, isExport: true, input: background };
 	const graphs = [{ id: 'layer-graph', name: 'Layer', isNormalized: true, points: [] }];
-	const layer = createVisualModuleTimelineLayer({ paramDefs: [], primaryInputId: null }, { paramValues: {}, automationGraphs: graphs }, {
+	const layer = createVisualModuleTimelineLayer({ paramDefs: [], primaryInputId: null }, { visualModuleParamValues: {}, automationGraphs: graphs }, {
 		async prepare() {},
 		async render(moduleContext, layerContext) {
 			assert.deepEqual([...moduleContext.evaluatedParamValues], []);
@@ -406,7 +406,7 @@ test('skips visual module drawing when evaluation is aborted before or during pr
 	const pending = deferred();
 	const prepared = [];
 	const rendered = [];
-	const layer = createVisualModuleTimelineLayer({ paramDefs: [], primaryInputId: null }, { paramValues: {}, automationGraphs: [] }, {
+	const layer = createVisualModuleTimelineLayer({ paramDefs: [], primaryInputId: null }, { visualModuleParamValues: {}, automationGraphs: [] }, {
 		async prepare(context) { prepared.push(context.time); await pending.promise; },
 		async render(context) { rendered.push(context.time); return { output: 'frame', gpuTime: 3 }; },
 		destroy() {},

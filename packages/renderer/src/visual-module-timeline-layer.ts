@@ -33,7 +33,7 @@ export function createVisualModuleTimelineLayer(
 			for (const def of visualModule.paramDefs) {
 				// 主入力はuniformでもCPU式には公開せず、Inノードからのみ読む。
 				if (paramInputs.has(def.id)) continue;
-				const value = layer.paramValues[def.id];
+				const value = layer.visualModuleParamValues[def.id];
 				const evaluated = value == null ? def.defaultValue.value : evaluator.evaluate(value, evaluationContext,
 					def.dataType.kind === 'enum' ? undefined : value.inputSource === 'automationGraphReference' ? def.defaultValue.value : genEmptyValue(def));
 				// prepare待機中にliteralの配列が編集されても、このフレームの値は変えない。

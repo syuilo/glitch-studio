@@ -9,7 +9,7 @@ const nested = (id, sceneId, positionMs, trimStartMs, trimmedDurationMs) => ({
 	compositingParamValues: {}, audioParamValues: { volume: { inputSource: 'literal', value: 1 } }, automationGraphs: [],
 });
 const audio = { id: 'audio', layerType: 'audio', assetId: 'asset', positionMs: 100, trimStartMs: 20, trimmedDurationMs: 200,
-	paramValues: { volume: { inputSource: 'literal', value: 1 } }, automationGraphs: [] };
+	audioParamValues: { volume: { inputSource: 'literal', value: 1 } }, automationGraphs: [] };
 
 // 【動画の音声も親Sceneのトリムと音量に従い、映像設定の変更では再生成しない】
 // 音声へレイヤー全体を渡すとfitやopacityの編集でも先読みPCMを破棄してしまう。
@@ -38,7 +38,7 @@ test('derives duration from direct placements including silent layers', () => {
 	const parent = scene('parent', [nested('placement', 'child', 1000, 20, 500)]);
 	assert.equal(getSceneDuration(parent), 1520);
 	child.layers[0].trimmedDurationMs = 10000;
-	child.layers[0].paramValues.volume.value = 0;
+	child.layers[0].audioParamValues.volume.value = 0;
 	assert.equal(getSceneDuration(child), 10120);
 	assert.equal(getSceneDuration(parent), 1520);
 	assert.equal(getSceneDuration(scene('empty')), 0);
@@ -66,7 +66,7 @@ test('intersects ancestor windows while retaining independent content clocks', (
 	const root = scene('root', [nested('outer', 'child', 1000, 180, 100)]);
 	const [clip] = getSceneAudioClips([root, child, leaf], 'root');
 	assert.equal(clip.assetId, leaf.layers[0].assetId);
-	assert.equal(clip.volume, leaf.layers[0].paramValues.volume);
+	assert.equal(clip.volume, leaf.layers[0].audioParamValues.volume);
 	assert.deepEqual([clip.startMs, clip.endMs, clip.positionMs], [1180, 1280, 1150]);
 	assert.deepEqual(clip.gains.map(gain => [gain.positionMs, gain.endTimeMs]), [[1000, 280], [1050, 250]]);
 	leaf.layers[0].trimmedDurationMs = 50;

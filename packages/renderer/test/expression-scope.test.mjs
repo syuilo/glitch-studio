@@ -56,7 +56,7 @@ test('exposes exactly the declared variables for each scope', async () => {
 	const names = [...new Set([...IN_VISUAL_MODULE_VAR_DEFS, ...LAYER_VAR_DEFS])];
 	let layerValues;
 	const adapter = createVisualModuleTimelineLayer({ paramDefs: names.map(name => def(name)), primaryInputId: null }, {
-		automationGraphs: [], paramValues: Object.fromEntries(names.map(name => [name, expression(name)])),
+		automationGraphs: [], visualModuleParamValues: Object.fromEntries(names.map(name => [name, expression(name)])),
 	}, {
 		async prepare(context) { layerValues = context.evaluatedParamValues; }, render() {}, destroy() {},
 	});
@@ -124,7 +124,7 @@ test('rejects input parameters and does not mutate external arrays', () => {
 
 // prepareとrenderの間で元の指定が変わっても、同じフレームの評価結果を使い続ける。
 test('snapshots layer values once for prepare and render', async () => {
-	const layer = { paramValues: { amount: expression('TEST_SAME_NAME'), array: literal([1, 2]) }, automationGraphs: [] };
+	const layer = { visualModuleParamValues: { amount: expression('TEST_SAME_NAME'), array: literal([1, 2]) }, automationGraphs: [] };
 	let prepared;
 	const adapter = createVisualModuleTimelineLayer({ paramDefs: [def('amount'), def('array')], primaryInputId: null }, layer, {
 		async prepare(context) { prepared = context; },
@@ -139,8 +139,8 @@ test('snapshots layer values once for prepare and render', async () => {
 	});
 	const context = { ...frame, timeDelta: 0, input: { kind: 'uniform', value: [0, 0, 0, 0] } };
 	await adapter.prepare(context, new AbortController().signal);
-	layer.paramValues.amount = literal(99);
-	layer.paramValues.array.value[0] = 99;
+	layer.visualModuleParamValues.amount = literal(99);
+	layer.visualModuleParamValues.array.value[0] = 99;
 	await adapter.render(context);
 });
 
@@ -153,7 +153,7 @@ test('keeps layer defaults and excludes primary inputs from evaluated values', a
 	];
 	let resolved;
 	const adapter = createVisualModuleTimelineLayer({ paramDefs: definitions, primaryInputId: 'input' }, {
-		automationGraphs: [], paramValues: {
+		automationGraphs: [], visualModuleParamValues: {
 			input: expression('invalid expression'),
 			missing: { inputSource: 'automationGraphReference', automationGraphId: 'absent' },
 			invalid: expression('UNKNOWN'), export: expression('IS_EXPORT'),

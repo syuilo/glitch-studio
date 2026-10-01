@@ -259,7 +259,7 @@ test('preserves constant outputs across timeline module layers', async () => {
 		fallbackOutput: constant,
 		createLayer() {
 			const renderer = createRenderer(device, module);
-			return createVisualModuleTimelineLayer(module, { paramValues: {}, automationGraphs: [] }, {
+			return createVisualModuleTimelineLayer(module, { visualModuleParamValues: {}, automationGraphs: [] }, {
 				prepare: (context, signal) => renderer.prepare(context, signal),
 				render: async context => ({ output: renderer.render(context, encoder), gpuTime: 0 }),
 				destroy: () => renderer.destroy(),

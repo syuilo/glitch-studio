@@ -39,7 +39,7 @@ export function getSceneAudioClips(scenes: readonly TimelineScene[], sceneId: st
 			const positionMs = offset + layer.positionMs;
 			if (layer.layerType === 'audio' || (layer.layerType === 'video' && layer.audioEnabled)) {
 				clips.push({ assetId: layer.assetId,
-					volume: layer.layerType === 'audio' ? layer.paramValues.volume : layer.audioParamValues.volume,
+					volume: layer.audioParamValues.volume,
 					automationGraphs: layer.automationGraphs, durationBasis: layer.layerType === 'audio' ? 'audio' : 'media',
 					positionMs, startMs, endMs, gains });
 			}

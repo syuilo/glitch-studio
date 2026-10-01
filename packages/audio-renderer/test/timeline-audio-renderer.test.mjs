@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { loadShaderSource } from '../../renderer/test/helpers/load-shader-source.mjs';
 
 const { TimelineAudioRenderer } = await loadShaderSource(fileURLToPath(new URL('../src/timeline-audio-renderer.ts', import.meta.url)));
-const layer = (changes = {}) => ({ id: 'audio', layerType: 'audio', assetId: 'asset', positionMs: 80, trimmedDurationMs: 100, trimStartMs: 20, paramValues: { volume: { inputSource: 'literal', value: 1 } }, automationGraphs: [], ...changes });
+const layer = (changes = {}) => ({ id: 'audio', layerType: 'audio', assetId: 'asset', positionMs: 80, trimmedDurationMs: 100, trimStartMs: 20, audioParamValues: { volume: { inputSource: 'literal', value: 1 } }, automationGraphs: [], ...changes });
 
 // 【動画の音量はトリム前の共通素材長を基準に評価する】
 // 映像の方が長い素材で音声トラックの長さを使うと、PROGRESSや終端合わせの音量が変わる。
@@ -55,7 +55,7 @@ test('mixes overlapping layers with source offsets and exclusive ends', async ()
 // プレビューの先読み量と将来の書き出しの処理単位が異なっても同じ音量になる。
 test('evaluates local-time expressions consistently across chunk boundaries', async () => {
 	const renderer = new TimelineAudioRenderer(constant, async () => 200);
-	const layers = [layer({ paramValues: { volume: { inputSource: 'expression', expression: 'TIME_MS / END_TIME_MS' } } })];
+	const layers = [layer({ audioParamValues: { volume: { inputSource: 'expression', expression: 'TIME_MS / END_TIME_MS' } } })];
 	const whole = await renderer.render(layers, 100, 100, 1000);
 	const first = await renderer.render(layers, 100, 37, 1000);
 	const second = await renderer.render(layers, 137, 63, 1000);
@@ -68,7 +68,7 @@ test('evaluates local-time expressions consistently across chunk boundaries', as
 test('keeps expression timing unchanged when either audio edge is trimmed', async () => {
 	const renderer = new TimelineAudioRenderer(constant, async () => 200);
 	const original = layer({ positionMs: 0, trimStartMs: 0, trimmedDurationMs: 200,
-		paramValues: { volume: { inputSource: 'expression', expression: 'PROGRESS + END_TIME_MS / 1000 + TIME_MS / 1000' } } });
+		audioParamValues: { volume: { inputSource: 'expression', expression: 'PROGRESS + END_TIME_MS / 1000 + TIME_MS / 1000' } } });
 	const trimmed = { ...original, trimStartMs: 40, trimmedDurationMs: 80 };
 	const whole = await renderer.render([original], 0, 200, 1000);
 	const part = await renderer.render([trimmed], 40, 80, 1000);
@@ -85,7 +85,7 @@ test('aligns end-relative audio keyframes to the source duration', async () => {
 			{ id: 'start', x: 0, value: [0], interpolation: { type: 'linear' } },
 			{ id: 'end', x: 100, value: [1], interpolation: { type: 'linear' } },
 		] } };
-	const pcm = await renderer.render([layer({ positionMs: 0, trimStartMs: 100, trimmedDurationMs: 60, paramValues: { volume: binding } })], 150, 1, 1000);
+	const pcm = await renderer.render([layer({ positionMs: 0, trimStartMs: 100, trimmedDurationMs: 60, audioParamValues: { volume: binding } })], 150, 1, 1000);
 	assert.equal(pcm[0][0], 0.5);
 });
 
@@ -99,7 +99,7 @@ test('preserves sub-control-period hold boundaries and linear keyframes', async 
 			{ id: 'b', x: 22, value: [1], interpolation: { type: 'linear' } },
 			{ id: 'c', x: 24, value: [0], interpolation: { type: 'linear' } },
 		] } };
-	const output = await renderer.render([layer({ paramValues: { volume: binding } })], 100, 6, 1000);
+	const output = await renderer.render([layer({ audioParamValues: { volume: binding } })], 100, 6, 1000);
 	assert.deepEqual([...output[0]], [0, 0, 1, 0.5, 0, 0]);
 });
 
@@ -108,10 +108,10 @@ test('preserves sub-control-period hold boundaries and linear keyframes', async 
 test('sanitizes invalid gains and permits amplification', async () => {
 	const renderer = new TimelineAudioRenderer(constant, async () => 200);
 	for (const value of [-1, NaN, Infinity, 'bad']) {
-		const output = await renderer.render([layer({ paramValues: { volume: { inputSource: 'literal', value } } })], 100, 2, 1000);
+		const output = await renderer.render([layer({ audioParamValues: { volume: { inputSource: 'literal', value } } })], 100, 2, 1000);
 		assert.deepEqual([...output[0]], [0, 0]);
 	}
-	assert.equal((await renderer.render([layer({ paramValues: { volume: { inputSource: 'literal', value: 3 } } })], 100, 1, 1000))[0][0], 3);
+	assert.equal((await renderer.render([layer({ audioParamValues: { volume: { inputSource: 'literal', value: 3 } } })], 100, 1, 1000))[0][0], 3);
 });
 
 // 【Sceneの各階層の音量と子の素材時刻を同時に適用する】

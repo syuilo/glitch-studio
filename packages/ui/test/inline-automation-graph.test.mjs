@@ -67,7 +67,7 @@ test('round-trips video settings and undoes trimmed timing and independent audio
 test('round-trips audio layers and undoes timing, volume and removal', async () => {
 	const { state } = fixture();
 	const layer = { id: 'audio', layerType: 'audio', assetId: 'sound', positionMs: 100, trimmedDurationMs: 1000, trimStartMs: 50,
-		paramValues: { volume: { inputSource: 'literal', value: 1 } }, automationGraphs: [] };
+		audioParamValues: { volume: { inputSource: 'literal', value: 1 } }, automationGraphs: [] };
 	const add = COMMAND_DEFS.addAudioLayer.create({ sceneId: 'scene', layer });
 	add.execute(state);
 	const volume = COMMAND_DEFS.editTimelineLayerParam.create({ sceneId: 'scene', layerId: 'audio', target: 'audio', paramId: 'volume', edit: { kind: 'expression', value: 'PROGRESS' } });
@@ -94,7 +94,7 @@ test('round-trips audio layers and undoes timing, volume and removal', async () 
 test('undoes and redoes compositing expressions without changing module parameters', () => {
 	const { state } = fixture();
 	const layer = state.timelineScenes.value[0].layers[0];
-	layer.paramValues.opacity = { inputSource: 'literal', value: 0.8 };
+	layer.visualModuleParamValues.opacity = { inputSource: 'literal', value: 0.8 };
 	const command = COMMAND_DEFS.editTimelineLayerParam.create({ sceneId: 'scene',
 		layerId: layer.id, target: 'compositing', paramId: 'opacity', edit: { kind: 'expression', value: 'PROGRESS' },
 	});
@@ -104,7 +104,7 @@ test('undoes and redoes compositing expressions without changing module paramete
 	assert.deepEqual(layer.compositingParamValues, defaultCompositing());
 	command.execute(state);
 	assert.equal(layer.compositingParamValues.opacity.expression, 'PROGRESS');
-	assert.equal(layer.paramValues.opacity.value, 0.8);
+	assert.equal(layer.visualModuleParamValues.opacity.value, 0.8);
 });
 
 // inlineグラフの編集データをコピーし、保存・読み込み後にも参照グラフや合成方法を保持する。
@@ -173,7 +173,7 @@ function fixture() {
 	const node = { id: 'node', type: 'effect', resolution: { mode: 'project' }, effectId: 'test', params: { values: { inputSource: 'literal', value: [initial] } } };
 	const state = {
 		visualModules: { value: [{ id: 'module', nodes: [node], primaryInputId: null, paramDefs: [{ id: 'gain', defaultValue: initial }] }] },
-		timelineScenes: { value: [{ id: 'scene', name: 'Scene', layers: [{ id: 'layer', layerType: 'visualModule', visualModuleId: 'module', positionMs: 0, trimStartMs: 0, trimmedDurationMs: 1000, paramValues: {}, compositingParamValues: defaultCompositing(), automationGraphs: [] }] }] },
+		timelineScenes: { value: [{ id: 'scene', name: 'Scene', layers: [{ id: 'layer', layerType: 'visualModule', visualModuleId: 'module', positionMs: 0, trimStartMs: 0, trimmedDurationMs: 1000, visualModuleParamValues: {}, compositingParamValues: defaultCompositing(), automationGraphs: [] }] }] },
 	};
 	return { state, node, target: { visualModuleId: 'module', nodeId: 'node', paramPath: ['values', 0] } };
 }
@@ -223,7 +223,7 @@ test('undoes inline graph edits and creation on timeline layers', () => {
 	const layer = state.timelineScenes.value[0].layers[0];
 	const create = COMMAND_DEFS.editTimelineLayerParam.create({ sceneId: 'scene', ...target, edit: { kind: 'inputSource', inputSource: 'automationGraphInline' } });
 	create.execute(state);
-	const before = structuredClone(layer.paramValues.gain);
+	const before = structuredClone(layer.visualModuleParamValues.gain);
 	const after = structuredClone(before);
 	after.automationGraph.isNormalized = false;
 	after.trimmedDurationMs = 2500;
@@ -232,14 +232,14 @@ test('undoes inline graph edits and creation on timeline layers', () => {
 	after.automationGraph.points[0].y = -2;
 	const edit = COMMAND_DEFS.editTimelineLayerParam.create({ sceneId: 'scene', ...target, edit: { kind: 'automationGraphInline', value: after } });
 	edit.execute(state);
-	assert.deepEqual(layer.paramValues.gain, after);
+	assert.deepEqual(layer.visualModuleParamValues.gain, after);
 	edit.undo(state);
-	assert.deepEqual(layer.paramValues.gain, before);
+	assert.deepEqual(layer.visualModuleParamValues.gain, before);
 	create.undo(state);
-	assert.equal(Object.hasOwn(layer.paramValues, 'gain'), false);
+	assert.equal(Object.hasOwn(layer.visualModuleParamValues, 'gain'), false);
 	create.execute(state);
 	edit.execute(state);
-	assert.deepEqual(layer.paramValues.gain, after);
+	assert.deepEqual(layer.visualModuleParamValues.gain, after);
 });
 
 // 【Sceneを切り替えてもレイヤー編集のUndoは元の定義へ戻る】

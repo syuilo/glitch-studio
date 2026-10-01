@@ -161,7 +161,7 @@
 								:automationGraphs="selectedLayer.automationGraphs"
 								:paramPath="[paramDef.id]"
 								:paramDef="{ ...paramDef, canNode: false }"
-								:paramValue="selectedLayer.paramValues[paramDef.id] ?? paramDef.defaultValue"
+								:paramValue="getLayerParameterValues(selectedLayer, 'module')[paramDef.id] ?? paramDef.defaultValue"
 								@edit="event => onVisualModuleLayerParamEdit(event, 'module')"
 							/>
 						</template>
@@ -953,7 +953,7 @@ async function addAudioLayer(asset: Asset) {
 		const positionMs = Math.round(time.value);
 		appStateManager.commit('addAudioLayer', { sceneId: props.sceneId, layer: {
 			id, layerType: 'audio', assetId: asset.id, positionMs, trimmedDurationMs, trimStartMs: 0,
-			paramValues: { volume: { inputSource: 'literal', value: 1 } }, automationGraphs: [],
+			audioParamValues: { volume: { inputSource: 'literal', value: 1 } }, automationGraphs: [],
 		} });
 		selection.value = { kind: 'layers', ids: [id] };
 	} catch (error) { audioError.value = error instanceof Error ? error.message : String(error); }

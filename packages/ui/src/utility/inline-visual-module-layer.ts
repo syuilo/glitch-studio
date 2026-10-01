@@ -10,7 +10,7 @@ export function createInlineVisualModuleLayer(positionMs: number): TimelineInlin
 	const outputId = genId();
 	return {
 		id: genId(), layerType: 'inlineVisualModule', ...createUntrimmedTimelineLayerTiming(positionMs, 5000),
-		paramValues: {}, automationGraphs: [],
+		visualModuleParamValues: {}, automationGraphs: [],
 		compositingParamValues: deepClone({
 			fitMode: timelineCompositingParamDefs.fitMode.defaultValue,
 			blendMode: timelineCompositingParamDefs.blendMode.defaultValue,
