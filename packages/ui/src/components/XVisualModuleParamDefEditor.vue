@@ -1,9 +1,16 @@
 <template>
-<div :class="$style.root">
+<div :class="$style.root" class="_gaps_m">
 	<div :class="$style.fields">
-		<GsInput :class="$style.field" type="text" :modelValue="def.ui.label" @update:modelValue="value => update({ ui: { ...def.ui, label: value } })"/>
-		<GsInput :class="$style.field" type="text" :modelValue="def.nameForReference" @update:modelValue="value => update({ nameForReference: visualModuleCustomParameterName(value) })"/>
+		<GsInput style="flex: 1" :class="$style.field" type="text" :modelValue="def.ui.label" @update:modelValue="value => update({ ui: { ...def.ui, label: value } })">
+			<template #label>UI Label</template>
+		</GsInput>
+		<GsInput style="flex: 1" monospace :class="$style.field" type="text" :modelValue="def.nameForReference" @update:modelValue="value => update({ nameForReference: visualModuleCustomParameterName(value) })">
+			<template #label>Reference Name</template>
+		</GsInput>
+	</div>
+	<div :class="$style.fields">
 		<GsSelect
+			style="flex: 1"
 			:class="$style.field"
 			:modelValue="def.dataType.kind"
 			:items="[
@@ -18,13 +25,19 @@
 				{ label: 'Font asset', value: 'fontAssetReference' },
 			]"
 			@update:modelValue="updateType"
-		/>
+		>
+			<template #label>Data Type</template>
+		</GsSelect>
 		<GsSelect
 			v-if="isParameterType(def, 'scalar')" :class="$style.field" :modelValue="def.ui.control.controlType"
+			style="flex: 1"
 			:items="[{ label: 'Number', value: 'number' }, { label: 'Range', value: 'range' }, { label: 'Angle', value: 'angle' }, { label: 'Seed', value: 'seed' }]"
 			@update:modelValue="updateControl"
-		/>
+		>
+			<template #label>Control</template>
+		</GsSelect>
 	</div>
+
 	<div v-if="isParameterType(def, 'scalar') && (def.ui.control.controlType === 'number' || def.ui.control.controlType === 'range')" :class="$style.option">
 		<label :class="$style.optionLabel">Min/Max</label>
 		<div :class="[$style.optionControl, { [$style.rangeBounds]: def.ui.control.controlType === 'range' }]">
@@ -208,7 +221,6 @@ function remove() {
 
 .option {
 	display: flex;
-	padding: 8px 0;
 }
 
 .optionLabel {

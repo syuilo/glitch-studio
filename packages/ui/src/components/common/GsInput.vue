@@ -6,7 +6,7 @@
 		<input
 			ref="inputEl"
 			v-model="v"
-			:class="$style.inputCore"
+			:class="[$style.inputCore, { '_monospace': monospace }]"
 			:type="type"
 			:disabled="disabled"
 			:required="required"
@@ -78,6 +78,7 @@ const props = defineProps<{
 	manualSave?: boolean;
 	small?: boolean;
 	large?: boolean;
+	monospace?: boolean;
 }>();
 
 const emit = defineEmits<{

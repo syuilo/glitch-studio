@@ -7,7 +7,9 @@
 			<!-- TODO: struct / array / anyのカスタムパラメータ定義編集UI。共通の型定義からは除外しない。 -->
 			<div v-if="def.dataType.kind === 'struct' || def.dataType.kind === 'array' || def.dataType.kind === 'any'">{{ def.ui.label }}: Editing is not yet supported.</div>
 			<XVisualModuleParamDefEditor
-				v-else :primaryInputId="visualModule.primaryInputId" :def="def"
+				v-else
+				:primaryInputId="visualModule.primaryInputId"
+				:def="def"
 				@update="(changes, mergeKey) => emit('update', def.id, changes, mergeKey)"
 				@remove="emit('remove', def.id)"
 				@setPrimaryInput="emit('setPrimaryInput', $event)"
