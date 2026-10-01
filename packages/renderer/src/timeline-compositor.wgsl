@@ -1,5 +1,6 @@
 struct Uniforms {
-	translation: vec2f,
+	position: vec2f,
+	originInOutputSpace: vec2f,
 	scale: vec2f,
 	rotation: f32,
 	opacity: f32,
@@ -11,15 +12,16 @@ struct Uniforms {
 
 fn readTransformedSource(position: vec2f) -> vec4f {
 	if (any(abs(uniforms.scale) < vec2f(0.000001))) { return vec4f(0.0); }
-	// Transformノードと同じ単位（位置の1は半画面、角度の1は時計回り180度）。
-	// 拡縮→回転→移動を逆順に戻し、回転時の距離だけアスペクト比で揃える。
+	// Positionは素材内のOriginの配置先（位置の1は半画面、角度の1は時計回り180度）。
+	// 配置→回転→拡縮の順に逆変換し、最後にfit後のOriginへ戻して入力を読む。
+	// 回転時の距離だけアスペクト比で揃え、長方形の画面でも歪ませない。
 	let extent = vec2f(uniforms.aspectRatio, 1.0);
-	let translated = (position - uniforms.translation) * extent;
+	let translated = (position - uniforms.position) * extent;
 	let angle = -uniforms.rotation * 3.141592653589793;
 	let c = cos(angle);
 	let s = sin(angle);
 	let rotated = vec2f(c * translated.x + s * translated.y, -s * translated.x + c * translated.y);
-	let sourcePosition = rotated / (uniforms.scale * extent);
+	let sourcePosition = rotated / (uniforms.scale * extent) + uniforms.originInOutputSpace;
 	// 定数には元画像の境界がないので出力枠を与える。テクスチャはfit後の元画像の境界で
 	// transparent wrapを適用する。ここで出力枠に切るとcoverの画面外部分を移動して見せられない。
 	if (uniforms.sourceIsUniform != 0u && any(abs(sourcePosition) > vec2f(1.0))) { return vec4f(0.0); }

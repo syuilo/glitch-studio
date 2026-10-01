@@ -12,20 +12,20 @@ const evaluate = (values, graphs = [], overrides = {}) => new TimelineCompositin
 
 // 保存された初期値は通常合成・不透明・無変形として評価する。
 test('defaults to normal compositing with an identity transform', () => {
-	assert.deepEqual(evaluate({}), { blendMode: 0, opacity: 1, translation: [0, 0], scale: [1, 1], rotation: 0 });
+	assert.deepEqual(evaluate({}), { blendMode: 0, opacity: 1, position: [0, 0], origin: [0, 0], scale: [1, 1], rotation: 0 });
 });
 
 // 合成設定にはレイヤーの変数だけを公開し、時刻や解像度は暗黙に継承しない。
 test('evaluates expressions and environment variables in layer context', () => {
 	const result = evaluate({
-		translation: expression('[TEST_SAME_NAME, 0]'),
+		position: expression('[TEST_SAME_NAME, 0]'),
 		scale: expression('[if TEST_ONLY_LAYER { 2 } else { 0 }, 0]'),
 		rotation: expression('if IS_EXPORT { 0.5 } else { 0 }'),
 		opacity: expression('TEST_SAME_NAME / 4'), blendMode: expression('"replace"'),
 	}, [], { isExport: true });
-	assert.deepEqual(result, { blendMode: 19, opacity: 0.5, translation: [2, 0], scale: [2, 0], rotation: 0.5 });
-	assert.deepEqual(evaluate({ translation: expression('[HEIGHT / WIDTH, 0]') }).translation, [0, 0]);
-	assert.deepEqual(evaluate({ translation: { inputSource: 'envVariable', variable: 'PROGRESS' } }).translation, [0, 0]);
+	assert.deepEqual(result, { blendMode: 19, opacity: 0.5, position: [2, 0], origin: [0, 0], scale: [2, 0], rotation: 0.5 });
+	assert.deepEqual(evaluate({ position: expression('[HEIGHT / WIDTH, 0]') }).position, [0, 0]);
+	assert.deepEqual(evaluate({ position: { inputSource: 'envVariable', variable: 'PROGRESS' } }).position, [0, 0]);
 });
 
 const point = (x, y) => ({ id: `${x}`, x, y, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] });
@@ -44,13 +44,25 @@ for (const inputSource of ['automationGraphInline', 'automationGraphReference'])
 
 // GRAPH参照は呼び出し側が渡したレイヤーのグラフを使い、欠落参照はパラメータ既定値へ戻す。
 test('reads named graphs and falls back for missing graph references', () => {
-	assert.ok(Math.abs(evaluate({ translation: expression('[GRAPH("Ramp", 0.25, "clamp"), 0]') }, [graph]).translation[0] - 0.25) < 0.00001);
+	assert.ok(Math.abs(evaluate({ position: expression('[GRAPH("Ramp", 0.25, "clamp"), 0]') }, [graph]).position[0] - 0.25) < 0.00001);
 	assert.equal(evaluate({ scale: { inputSource: 'automationGraphReference', automationGraphId: 'missing' } }).scale[0], 1);
 });
 
 // 不正な型・非有限値をGPUへ流さず、負の倍率は反転、0は透明化のために保持する。
 test('sanitizes invalid values while preserving flips and zero scales', () => {
-	const result = evaluate({ opacity: literal(2), translation: literal([Infinity, 'bad']), scale: literal([-2, 0]), rotation: literal(NaN), blendMode: literal('constructor') });
-	assert.deepEqual(result, { blendMode: 0, opacity: 1, translation: [0, 0], scale: [-2, 0], rotation: 0 });
+	const result = evaluate({ opacity: literal(2), position: literal([Infinity, 'bad']), scale: literal([-2, 0]), rotation: literal(NaN), blendMode: literal('constructor') });
+	assert.deepEqual(result, { blendMode: 0, opacity: 1, position: [0, 0], origin: [0, 0], scale: [-2, 0], rotation: 0 });
 	assert.equal(evaluate({ opacity: literal(-1) }).opacity, 0);
+});
+
+// 【素材の範囲外の支点と配置先もレイヤーの式で指定できる】
+// originは素材の端に制限しない。positionとは独立に評価し、画面外の点を支点にした
+// アニメーションを可能にする一方、非有限値や型が不正な成分はGPUへ渡さない。
+test('evaluates independent origins and positions without clamping finite coordinates', () => {
+	const result = evaluate({ origin: expression('[2, -3]'), position: expression('[-4, 5]') });
+	assert.deepEqual(result.origin, [2, -3]);
+	assert.deepEqual(result.position, [-4, 5]);
+	assert.deepEqual(evaluate({ origin: literal([Infinity, -2]) }).origin, [0, -2]);
+	assert.deepEqual(evaluate({ origin: literal(['bad', NaN]) }).origin, [0, 0]);
+	assert.deepEqual(evaluate({ origin: { inputSource: 'automationGraphReference', automationGraphId: 'missing' } }).origin, [0, 0]);
 });

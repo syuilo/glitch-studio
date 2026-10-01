@@ -58,7 +58,7 @@ test('composites native-resolution sources with the selected fit before replacin
 	const texture = device.createTexture({ size: [3840, 2160], format: 'rgba16float' });
 	const source = { kind: 'texture', texture };
 	const compositor = createTimelineCompositor({ device, vertex: {}, resolution: { width: 100, height: 100 }, format: 'rgba16float' });
-	const settings = { blendMode: 19, opacity: 1, translation: [0, 0], scale: [1, 1], rotation: 0 };
+	const settings = { blendMode: 19, opacity: 1, position: [0, 0], origin: [0, 0], scale: [1, 1], rotation: 0 };
 	const background = { kind: 'uniform', value: [0, 0, 0, 0] };
 	const contained = compositor.render(encoder, background, source, settings, 'contain');
 	assert.notEqual(contained, source);
@@ -70,6 +70,46 @@ test('composites native-resolution sources with the selected fit before replacin
 	assert.deepEqual(calls.textures.map(texture => [texture.width, texture.height]), [[3840, 2160], [100, 100]]);
 	compositor.dispose();
 	assert.equal(texture.destroyed, false);
+});
+
+// 【素材寸法とfitに応じて支点だけを画面座標へ変換する】
+// originを画面基準のまま渡すと、縦横比が違う素材の端を固定できない。
+// 同じcompositorへの入力サイズ・fit・uniform切り替えでも毎回換算し、Positionは保持する。
+test('maps source-relative origins through fit while keeping positions in output space', () => {
+	const { device, calls, encoder } = gpuFixture();
+	const compositor = createTimelineCompositor({ device, vertex: {}, resolution: { width: 100, height: 100 }, format: 'rgba16float' });
+	const background = { kind: 'uniform', value: [0, 0, 0, 0] };
+	const wide = { kind: 'texture', texture: device.createTexture({ size: [400, 200], format: 'rgba16float' }) };
+	const tall = { kind: 'texture', texture: device.createTexture({ size: [200, 400], format: 'rgba16float' }) };
+	const settings = { blendMode: 0, opacity: 1, position: [0.25, -0.5], origin: [1, -1], scale: [1, 1], rotation: 0 };
+	for (const [source, fit, expectedOrigin] of [
+		[wide, 'contain', [1, -0.5]], [wide, 'cover', [2, -1]], [wide, 'stretch', [1, -1]],
+		[tall, 'contain', [0.5, -1]], [tall, 'cover', [1, -2]], [background, 'contain', [1, -1]],
+	]) {
+		const writeIndex = calls.writes.length;
+		compositor.render(encoder, background, source, settings, fit);
+		const uniforms = calls.writes[writeIndex];
+		assert.deepEqual([...uniforms.slice(0, 2)], settings.position);
+		assert.deepEqual([...uniforms.slice(2, 4)], expectedOrigin);
+	}
+	compositor.dispose();
+});
+
+// 【支点だけの変更を無変形と誤認しない】
+// アンカーポイント方式では等倍・無回転でもoriginを変えると配置が動く。
+// positionが同じ点を指す場合は変換が相殺されるので、借用出力の最適化を維持する。
+test('only bypasses anchor placement when position cancels the fitted origin', () => {
+	const { device, calls, encoder } = gpuFixture();
+	const compositor = createTimelineCompositor({ device, vertex: {}, resolution: { width: 8, height: 4 }, format: 'rgba16float' });
+	const background = { kind: 'uniform', value: [0, 0, 0, 0] };
+	const textureSource = { kind: 'texture', texture: device.createTexture({ size: [4, 2], format: 'rgba16float' }) };
+	const settings = { blendMode: 19, opacity: 1, position: [0, 0], origin: [1, -1], scale: [1, 1], rotation: 0 };
+	for (const source of [textureSource, { kind: 'uniform', value: [1, 0, 0, 1] }]) {
+		assert.notEqual(compositor.render(encoder, background, source, settings), source);
+		assert.equal(compositor.render(encoder, background, source, { ...settings, position: [1, -1] }), source);
+	}
+	assert.equal(calls.draws, 2);
+	compositor.dispose();
 });
 
 // モジュールの主出力IDを変更すると描画対象が切り替わり、nullなら主出力を返さない。
@@ -101,7 +141,7 @@ test('passes through timeline outputs without taking ownership', () => {
 	const compositor = createTimelineCompositor({ device, vertex: {}, resolution: { width: 8, height: 4 }, format: 'rgba16float' });
 	const background = { kind: 'uniform', value: [0, 0, 0, 0] };
 	const source = { kind: 'texture', texture: device.createTexture({ size: [4, 2], format: 'rgba16float' }) };
-	const settings = { blendMode: 19, opacity: 1, translation: [0, 0], scale: [1, 1], rotation: 0 };
+	const settings = { blendMode: 19, opacity: 1, position: [0, 0], origin: [0, 0], scale: [1, 1], rotation: 0 };
 	assert.equal(compositor.render(encoder, background, source, settings), source);
 	assert.equal(compositor.render(encoder, background, source, { ...settings, opacity: 0 }), background);
 	assert.equal(compositor.render(encoder, background, source, { ...settings, blendMode: 10 }), background);
@@ -120,7 +160,7 @@ test('owns separate timeline targets and reuses pipelines across parameter chang
 	const second = createTimelineCompositor(options);
 	const background = { kind: 'uniform', value: [0, 0, 1, 1] };
 	const source = { kind: 'uniform', value: [0.5, 0, 0, 0.5] };
-	const settings = { blendMode: 0, opacity: 0.5, translation: [0, 0], scale: [1, 1], rotation: 0 };
+	const settings = { blendMode: 0, opacity: 0.5, position: [0, 0], origin: [0, 0], scale: [1, 1], rotation: 0 };
 	const a = first.render(encoder, background, source, settings);
 	const shaderCount = calls.shaders.length;
 	const updated = first.render(encoder, background, source, { ...settings, rotation: 0.5, blendMode: 3 });

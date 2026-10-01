@@ -14,7 +14,8 @@ export function createInlineVisualModuleLayer(positionMs: number): TimelineInlin
 		compositingParamValues: deepClone({
 			blendMode: timelineCompositingParamDefs.blendMode.defaultValue,
 			opacity: timelineCompositingParamDefs.opacity.defaultValue,
-			translation: timelineCompositingParamDefs.translation.defaultValue,
+			position: timelineCompositingParamDefs.position.defaultValue,
+			origin: timelineCompositingParamDefs.origin.defaultValue,
 			scale: timelineCompositingParamDefs.scale.defaultValue,
 			rotation: timelineCompositingParamDefs.rotation.defaultValue,
 		}),

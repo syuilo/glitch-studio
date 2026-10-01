@@ -211,7 +211,8 @@ test('applies opacity and the same transform uniforms to inline and referenced l
 	await manager.renderTimelineFrame(100, 0);
 	assert.deepEqual(calls.outputs.at(-1), { kind: 'uniform', value: [0.5, 0, 0, 0.5] });
 	top.compositingParamValues.opacity = literal(0.5);
-	top.compositingParamValues.translation = literal([0.2, -0.3]);
+	top.compositingParamValues.position = literal([0.2, -0.3]);
+	top.compositingParamValues.origin = literal([1, -1]);
 	top.compositingParamValues.rotation = literal(0.25);
 	await manager.updateDynamicOptions({ timelineScenes: [{ id: 'scene', name: 'Scene', layers: [top] }], sceneId: 'scene' });
 	await manager.renderTimelineFrame(100, 0);

@@ -11,9 +11,17 @@ export const timelineCompositingParamDefs = {
 		ui: { label: 'Opacity', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } },
 		defaultValue: { inputSource: 'literal', value: 1 }, canNode: false,
 	},
-	translation: {
+	// Positionは移動量ではなく、素材内のOriginを配置する画面上の位置。
+	position: {
 		dataType: { kind: 'vector' },
 		ui: { label: 'Position', control: { controlType: 'xy', step: 0.01 } },
+		defaultValue: { inputSource: 'literal', value: [0, 0] }, canNode: false,
+	},
+	// 透明な余白を含む入力全体の座標。中央が[0, 0]、左下が[-1, -1]、右上が[1, 1]。
+	// 画面外の支点も指定できるよう、値の範囲は制限しない。
+	origin: {
+		dataType: { kind: 'vector' },
+		ui: { label: 'Origin', control: { controlType: 'xy', step: 0.01 } },
 		defaultValue: { inputSource: 'literal', value: [0, 0] }, canNode: false,
 	},
 	scale: {

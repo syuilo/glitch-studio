@@ -1,6 +1,7 @@
 import { createTimelineCompositor } from '../../src/timeline-compositor.ts';
 import type { TimelineCompositingSettings } from '../../src/timeline-compositing-parameters.ts';
 import type { NodeOutput } from '../../src/node-output.ts';
+import type { FitMode } from '../../../shared/src/types.ts';
 import { colorBlendModes } from '../../../shared/src/color-blend.ts';
 
 // 実際の合成シェーダーを実行し、透明背景・変形後の空白・長方形での回転を画素で確認する。
@@ -9,7 +10,7 @@ export async function checkTimelineCompositor(device: GPUDevice, vertex: GPUShad
 	const compositor = createTimelineCompositor({ device, vertex, resolution, format: 'rgba8unorm' });
 	const textures: GPUTexture[] = [];
 	const completed: string[] = [];
-	const defaults: TimelineCompositingSettings = { blendMode: 0, opacity: 1, translation: [0, 0], scale: [1, 1], rotation: 0 };
+	const defaults: TimelineCompositingSettings = { blendMode: 0, opacity: 1, position: [0, 0], origin: [0, 0], scale: [1, 1], rotation: 0 };
 	const uniform = (value: number[]): NodeOutput => ({ kind: 'uniform', value });
 	const blue = uniform([0, 0, 1, 1]);
 	const red = uniform([1, 0, 0, 1]);
@@ -23,9 +24,10 @@ export async function checkTimelineCompositor(device: GPUDevice, vertex: GPUShad
 	};
 	const pixels = (pixel: (x: number, y: number) => number[]) => Array.from({ length: 4 }, (_, y) => Array.from({ length: 8 }, (_, x) => pixel(x, y))).flat(2);
 	const solid = (pixel: number[]) => pixels(() => pixel);
-	async function check(name: string, background: NodeOutput, source: NodeOutput, settings: Partial<TimelineCompositingSettings>, expected: number[]) {
+
+	async function check(name: string, background: NodeOutput, source: NodeOutput, settings: Partial<TimelineCompositingSettings>, expected: number[], fitMode: FitMode = 'cover') {
 		const encoder = device.createCommandEncoder();
-		const output = compositor.render(encoder, background, source, { ...defaults, ...settings });
+		const output = compositor.render(encoder, background, source, { ...defaults, ...settings }, fitMode);
 		device.queue.submit([encoder.finish()]);
 		if (output.kind !== 'texture') throw new Error(`${name}: expected a rendered texture`);
 		const actual = await read(output.texture);
@@ -34,6 +36,7 @@ export async function checkTimelineCompositor(device: GPUDevice, vertex: GPUShad
 		}
 		completed.push(name);
 	}
+
 	try {
 		// 半透明の素材にopacityを掛けても、RGBへalphaを二重乗算しない。
 		await check('timeline normal opacity preserves premultiplied colors', blue, uniform([0.5, 0, 0, 0.5]), { opacity: 0.5 }, solid([64, 0, 191, 255]));
@@ -42,13 +45,27 @@ export async function checkTimelineCompositor(device: GPUDevice, vertex: GPUShad
 		await check('timeline multiply blends straight colors', uniform([0.8, 0.4, 0.2, 1]), uniform([0.5, 1, 0.5, 1]), { blendMode: 3 }, solid([102, 102, 26, 255]));
 		// 置き換えでは素材のalpha=0も採用し、opacityは背景からの補間量となる。
 		await check('timeline replace interpolates transparent output', blue, transparent, { blendMode: 19, opacity: 0.5 }, solid([0, 0, 128, 128]));
-		await check('timeline translated source keeps background stationary', blue, red, { translation: [1, 0] }, pixels(x => x < 4 ? [0, 0, 255, 255] : [255, 0, 0, 255]));
-		await check('timeline replace clears translated margins', blue, red, { blendMode: 19, translation: [1, 0] }, pixels(x => x < 4 ? [0, 0, 0, 0] : [255, 0, 0, 255]));
-		await check('timeline replace opacity includes translated margins', blue, red, { blendMode: 19, translation: [1, 0], opacity: 0.5 }, pixels(x => x < 4 ? [0, 0, 128, 128] : [128, 0, 128, 255]));
+		await check('timeline translated source keeps background stationary', blue, red, { position: [1, 0] }, pixels(x => x < 4 ? [0, 0, 255, 255] : [255, 0, 0, 255]));
+		await check('timeline replace clears translated margins', blue, red, { blendMode: 19, position: [1, 0] }, pixels(x => x < 4 ? [0, 0, 0, 0] : [255, 0, 0, 255]));
+		await check('timeline replace opacity includes translated margins', blue, red, { blendMode: 19, position: [1, 0], opacity: 0.5 }, pixels(x => x < 4 ? [0, 0, 128, 128] : [128, 0, 128, 255]));
 		// 正のYは上方向。上下反転の取り違えを検出する。
-		await check('timeline positive y moves source upward', blue, red, { translation: [0, 1] }, pixels((_, y) => y < 2 ? [255, 0, 0, 255] : [0, 0, 255, 255]));
+		await check('timeline positive y moves source upward', blue, red, { position: [0, 1] }, pixels((_, y) => y < 2 ? [255, 0, 0, 255] : [0, 0, 255, 255]));
 		await check('timeline scale shrinks around canvas center', blue, red, { scale: [0.5, 0.5] }, pixels((x, y) => x >= 2 && x < 6 && y >= 1 && y < 3 ? [255, 0, 0, 255] : [0, 0, 255, 255]));
 		await check('timeline rotation respects rectangular aspect ratio', blue, red, { rotation: 0.5 }, pixels(x => x >= 2 && x < 6 ? [255, 0, 0, 255] : [0, 0, 255, 255]));
+		// 【素材の右端を画面中央に配置する】
+		// 定数には画面サイズの素材枠を与える。originだけを変えても配置が動くことを確認する。
+		await check('timeline anchors the right edge of a uniform source at the center', blue, red, { origin: [1, 0] }, pixels(x => x < 4 ? [255, 0, 0, 255] : [0, 0, 255, 255]));
+		// 【支点の配置先を維持して拡縮する】
+		// 拡縮を戻した後にoriginへ戻さないと、倍率に応じて右端が画面中央からずれる。
+		await check('timeline scales around the positioned source anchor', blue, red, { origin: [1, 0], scale: [0.5, 0.5] }, pixels((x, y) => x < 4 && y >= 1 && y < 3 ? [255, 0, 0, 255] : [0, 0, 255, 255]));
+		// 【長方形の素材を端の支点で回転する】
+		// 右端を中央に固定して時計回り90度回すと、素材は支点の上側へ伸びる。
+		await check('timeline rotates around the positioned source anchor', blue, red, { origin: [1, 0], rotation: 0.5 }, pixels((x, y) => x >= 2 && x < 6 && y < 2 ? [255, 0, 0, 255] : [0, 0, 255, 255]));
+		// 【fit後も画面端ではなく素材端を支点にする】
+		// coverでは画面外の端、containでは余白を除いた素材端を中央へ配置する。
+		const wideRed = texture(16, 4, Array.from({ length: 64 }, () => [255, 0, 0, 255]).flat());
+		await check('timeline anchors the covered source edge at the center', blue, wideRed, { origin: [1, 0] }, pixels(x => x < 4 ? [255, 0, 0, 255] : [0, 0, 255, 255]));
+		await check('timeline anchors the contained source edge at the center', blue, wideRed, { origin: [1, 0] }, pixels((x, y) => x < 4 && y >= 1 && y < 3 ? [255, 0, 0, 255] : [0, 0, 255, 255]), 'contain');
 		await check('timeline zero scale produces transparent source', blue, red, { scale: [0, 1] }, solid([0, 0, 255, 255]));
 		await check('timeline replace with zero scale clears background', blue, red, { blendMode: 19, scale: [0, 1] }, solid([0, 0, 0, 0]));
 		// テクスチャ入力の左右反転と、uniform/texture切り替え時のpipeline更新を確認する。

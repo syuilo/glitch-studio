@@ -8,7 +8,8 @@ import type { AutomationGraph, ParameterBinding } from '@glitch/shared/types.ts'
 export type TimelineCompositingSettings = {
 	blendMode: number;
 	opacity: number;
-	translation: [number, number];
+	position: [number, number];
+	origin: [number, number];
 	scale: [number, number];
 	rotation: number;
 };
@@ -40,7 +41,8 @@ export class TimelineCompositingParameters {
 		return {
 			blendMode: isBlendMode(mode) ? colorBlendModes[mode] : 0,
 			opacity: Math.min(1, Math.max(0, number('opacity', 1))),
-			translation: vector('translation', [0, 0]),
+			position: vector('position', [0, 0]),
+			origin: vector('origin', [0, 0]),
 			scale: vector('scale', [1, 1]),
 			rotation: number('rotation', 0),
 		};
