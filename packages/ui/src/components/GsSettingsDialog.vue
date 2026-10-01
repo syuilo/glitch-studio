@@ -1,6 +1,6 @@
 <template>
 <GsModal ref="modal" preferType="dialog" @closed="emit('closed')">
-	<div :class="$style.root" class="_gaps_s">
+	<div :class="$style.root" class="_gaps_m">
 	</div>
 </GsModal>
 </template>

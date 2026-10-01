@@ -1,6 +1,6 @@
 <template>
 <GsModal ref="modal" preferType="dialog" @opened="dialogContent?.focus()" @closed="emit('closed')" @esc="closeDialog" @click="closeDialog" @dragover.prevent.stop @drop.prevent.stop>
-	<div ref="dialogContent" :class="$style.root" class="_gaps_s" tabindex="-1" @keydown.stop @keydown.esc.prevent="closeDialog">
+	<div ref="dialogContent" :class="$style.root" class="_gaps_m" tabindex="-1" @keydown.stop @keydown.esc.prevent="closeDialog">
 		<div :class="$style.title">Export scene</div>
 		<GsSelect v-model="sceneId" :items="sceneItems" :disabled="exporting"><template #label>Scene</template></GsSelect>
 		<div :inert="exporting">
@@ -29,7 +29,7 @@
 		<div v-if="mode === 'video'" :class="$style.note">{{ includesAudio ? 'Timeline audio included: AAC, 48 kHz, stereo, 192 kbps.' : 'No timeline audio in the selected range.' }}</div>
 		<div :class="$style.note">{{ mode === 'video' ? 'No Player inputs. Transparent areas use a black background.' : 'No Player inputs. Transparency is preserved.' }}</div>
 		<div v-if="validationError" :class="$style.error">{{ validationError }}</div>
-		<div v-if="exporting" class="_gaps_s">
+		<div v-if="exporting" class="_gaps_m">
 			<div :class="$style.progress"><div :class="$style.progressFill" :style="{ width: `${progressPercent}%` }"></div></div>
 			<div>{{ progressText }}</div>
 		</div>

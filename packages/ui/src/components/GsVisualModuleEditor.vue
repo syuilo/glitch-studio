@@ -8,7 +8,7 @@
 
 	<div style="flex: 1; min-height: 0;">
 		<div v-if="tab === 'nodes'" style="height: 100%; overflow: auto; background: var(--THEME-bg);">
-			<div :class="$style.nodesContent" class="_gaps_s">
+			<div :class="$style.nodesContent" class="_gaps_m">
 				<XGlobalInNode v-if="globalInNode" :visualModule="visualModule" :node="globalInNode" :class="$style.node"/>
 
 				<hr>

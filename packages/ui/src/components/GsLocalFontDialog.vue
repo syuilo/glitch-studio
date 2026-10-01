@@ -1,6 +1,6 @@
 <template>
 <GsModal ref="modal" preferType="dialog" @closed="emit('closed')" @esc="close" @click="close">
-	<div :class="$style.root" class="_gaps_s" @keydown.stop @keydown.esc.prevent="close">
+	<div :class="$style.root" class="_gaps_m" @keydown.stop @keydown.esc.prevent="close">
 		<div :class="$style.title">Import local font</div>
 		<GsInput v-model="search" autofocus placeholder="Search fonts" :disabled="importing"/>
 		<div :class="$style.fonts">
