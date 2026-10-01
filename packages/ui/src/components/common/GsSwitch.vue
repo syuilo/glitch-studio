@@ -80,7 +80,6 @@ const toggle = () => {
 
 .body {
 	margin-left: 12px;
-	margin-top: 2px;
 	display: block;
 	transition: inherit;
 	color: var(--THEME-fg);
@@ -88,7 +87,7 @@ const toggle = () => {
 
 .label {
 	display: block;
-	line-height: 20px;
+	line-height: 17px;
 	cursor: pointer;
 	transition: inherit;
 }
