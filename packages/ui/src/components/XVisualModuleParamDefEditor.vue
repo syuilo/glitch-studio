@@ -11,6 +11,7 @@
 				{ label: i18n.ts._CustomParameterInput._Types.Flag, value: 'bool' },
 				{ label: i18n.ts._CustomParameterInput._Types.String, value: 'string' },
 				{ label: i18n.ts._CustomParameterInput._Types.Color, value: 'color' },
+				{ label: i18n.ts._CustomParameterInput._Types.Vector, value: 'vector' },
 				{ label: i18n.ts._CustomParameterInput._Types.Image, value: 'assetReference' },
 				{ label: 'Video asset', value: 'videoAssetReference' },
 				{ label: 'Font asset', value: 'fontAssetReference' },
@@ -81,13 +82,14 @@ function update(changes: Partial<Omit<ParamDef, 'id'>>) {
 
 function updateType(dataType: ParamDef['dataType']['kind']) {
 	if (dataType === props.def.dataType.kind) return;
-	if (dataType !== 'scalar' && dataType !== 'bool' && dataType !== 'string' && dataType !== 'color' && dataType !== 'assetReference' && dataType !== 'videoAssetReference' && dataType !== 'fontAssetReference') return;
+	if (dataType !== 'scalar' && dataType !== 'bool' && dataType !== 'string' && dataType !== 'color' && dataType !== 'vector' && dataType !== 'assetReference' && dataType !== 'videoAssetReference' && dataType !== 'fontAssetReference') return;
 
 	const schemas = {
 		scalar: { dataType: { kind: 'scalar' }, ui: { label: props.def.ui.label, control: { controlType: 'number' } } },
 		bool: { dataType: { kind: 'bool' }, ui: { label: props.def.ui.label, control: {} } },
 		string: { dataType: { kind: 'string' }, ui: { label: props.def.ui.label, control: {} } },
 		color: { dataType: { kind: 'color' }, ui: { label: props.def.ui.label, control: {} } },
+		vector: { dataType: { kind: 'vector' }, ui: { label: props.def.ui.label, control: { controlType: 'vector' } } },
 		assetReference: { dataType: { kind: 'assetReference' }, ui: { label: props.def.ui.label, control: {} } },
 		videoAssetReference: { dataType: { kind: 'videoAssetReference' }, ui: { label: props.def.ui.label, control: {} } },
 		fontAssetReference: { dataType: { kind: 'fontAssetReference' }, ui: { label: props.def.ui.label, control: {} } },

@@ -115,6 +115,7 @@
 			"Flag": "Flag",
 			"String": "String",
 			"Color": "Color",
+			"Vector": "Vector",
 			"Image": "Image"
 		}
 	},
