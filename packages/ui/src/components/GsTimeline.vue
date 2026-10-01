@@ -158,29 +158,46 @@
 				>
 					<template #label>Fit</template>
 				</GsSelect>
-				<div>Compositing</div>
-				<GsVisualParam
-					v-for="(paramDef, paramId) in timelineCompositingParamDefs" :key="selectedLayer.id + ':' + paramId"
-					:availableVariables="LAYER_VAR_DEFS" :automationGraphs="selectedLayer.automationGraphs" :paramPath="[paramId]" :paramDef="paramDef"
-					:paramValue="selectedLayer.compositingParamValues[paramId]" @edit="event => onVisualModuleLayerParamEdit(event, 'compositing')"
-				/>
-				<GsSwitch
-					:modelValue="selectedLayer.audioEnabled" :disabled="!selectedLayer.audioEnabled && (!selectedVideoMetadata?.audio || !!selectedVideoAudioError)"
-					@update:modelValue="audioEnabled => appStateManager.commit('editVideoLayerSettings', { sceneId: props.sceneId, layerId: selectedLayer!.id, audioEnabled })"
-				>
-					Audio enabled
-				</GsSwitch>
-				<div v-if="selectedVideoAudioError">{{ selectedVideoAudioError }}</div>
-				<div v-else-if="selectedVideoMetadata && !selectedVideoMetadata.audio">No audio track</div>
-				<GsVisualParam
-					:key="selectedLayer.id"
-					:availableVariables="AUDIO_LAYER_VAR_DEFS"
-					:automationGraphs="selectedLayer.automationGraphs"
-					:paramPath="['volume']"
-					:paramDef="timelineAudioParamDefs.volume"
-					:paramValue="selectedLayer.audioParamValues.volume"
-					@edit="event => onVisualModuleLayerParamEdit(event, 'audio')"
-				/>
+				<GsFolder :asSection="true" defaultOpen :withSpacer="false">
+					<template #icon><i class="ti ti-layers-selected"></i></template>
+					<template #label>Compositing</template>
+					<div style="padding: 8px 0;">
+						<GsVisualParam
+							v-for="(paramDef, paramId) in timelineCompositingParamDefs"
+							:key="paramId"
+							:availableVariables="LAYER_VAR_DEFS"
+							:automationGraphs="selectedLayer.automationGraphs"
+							:paramPath="[paramId]"
+							:paramDef="paramDef"
+							:paramValue="selectedLayer.compositingParamValues[paramId]"
+							@edit="event => onVisualModuleLayerParamEdit(event, 'compositing')"
+						/>
+					</div>
+				</GsFolder>
+				<GsFolder :asSection="true" defaultOpen>
+					<template #icon><i class="ti ti-music"></i></template>
+					<template #label>Audio</template>
+					<div class="_gaps_m">
+						<GsSwitch
+							:modelValue="selectedLayer.audioEnabled" :disabled="!selectedLayer.audioEnabled && (!selectedVideoMetadata?.audio || !!selectedVideoAudioError)"
+							@update:modelValue="audioEnabled => appStateManager.commit('editVideoLayerSettings', { sceneId: props.sceneId, layerId: selectedLayer!.id, audioEnabled })"
+						>
+							Audio enabled
+						</GsSwitch>
+						<div v-if="selectedVideoAudioError">{{ selectedVideoAudioError }}</div>
+						<div v-else-if="selectedVideoMetadata && !selectedVideoMetadata.audio">No audio track</div>
+						<GsVisualParam
+							:key="selectedLayer.id"
+							:availableVariables="AUDIO_LAYER_VAR_DEFS"
+							:automationGraphs="selectedLayer.automationGraphs"
+							:paramPath="['volume']"
+							:paramDef="timelineAudioParamDefs.volume"
+							:paramValue="selectedLayer.audioParamValues.volume"
+							@edit="event => onVisualModuleLayerParamEdit(event, 'audio')"
+						/>
+					</div>
+				</GsFolder>
+
 				<GsButton danger @click="appStateManager.commit('removeTimelineLayer', { sceneId: props.sceneId, layerId: selectedLayer.id })">Remove Layer</GsButton>
 			</div>
 			<div v-else-if="selectedLayer?.layerType === 'scene'" :class="$style.layerSettings">
@@ -190,12 +207,22 @@
 				<GsInput small type="number" :min="Math.max(0, selectedLayer.positionMs)" :max="getTimelineLayerEnd(selectedLayer) - 1" :modelValue="getTimelineLayerStart(selectedLayer)" @update:modelValue="value => editTrimmedLayerTiming('trimStart', value)"><template #label>Trim start (ms)</template></GsInput>
 				<GsInput small type="number" :min="getTimelineLayerStart(selectedLayer) + 1" :modelValue="getTimelineLayerEnd(selectedLayer)" @update:modelValue="value => editTrimmedLayerTiming('trimEnd', value)"><template #label>Trim end (ms)</template></GsInput>
 				<GsInput small type="number" :min="0" :modelValue="selectedLayer.trimStartMs" @update:modelValue="value => editTrimmedLayerTiming('offset', value)"><template #label>Source offset (ms)</template></GsInput>
-				<div>Compositing</div>
-				<GsVisualParam
-					v-for="(paramDef, paramId) in timelineCompositingParamDefs" :key="selectedLayer.id + ':' + paramId"
-					:availableVariables="LAYER_VAR_DEFS" :automationGraphs="selectedLayer.automationGraphs" :paramPath="[paramId]" :paramDef="paramDef"
-					:paramValue="selectedLayer.compositingParamValues[paramId]" @edit="event => onVisualModuleLayerParamEdit(event, 'compositing')"
-				/>
+				<GsFolder :asSection="true" defaultOpen :withSpacer="false">
+					<template #icon><i class="ti ti-layers-selected"></i></template>
+					<template #label>Compositing</template>
+					<div style="padding: 8px 0;">
+						<GsVisualParam
+							v-for="(paramDef, paramId) in timelineCompositingParamDefs"
+							:key="paramId"
+							:availableVariables="LAYER_VAR_DEFS"
+							:automationGraphs="selectedLayer.automationGraphs"
+							:paramPath="[paramId]"
+							:paramDef="paramDef"
+							:paramValue="selectedLayer.compositingParamValues[paramId]"
+							@edit="event => onVisualModuleLayerParamEdit(event, 'compositing')"
+						/>
+					</div>
+				</GsFolder>
 				<div>Audio</div>
 				<GsVisualParam
 					:key="selectedLayer.id + ':volume'" :availableVariables="LAYER_VAR_DEFS" :automationGraphs="selectedLayer.automationGraphs"
@@ -216,37 +243,55 @@
 				/>
 				<div v-else :class="$style.layerSettings">
 					<div>{{ selectedLayer.layerType === 'visualModule' ? appStateManager.getVisualModuleById(selectedLayer.visualModuleId)?.name : 'Inline Visual Module' }}</div>
-					<GsInput small type="number" :min="0" :modelValue="selectedLayer.positionMs" @update:modelValue="value => editVisualModuleTiming('position', value)"><template #label>Position (ms)</template></GsInput>
-					<GsInput small type="number" :min="1" :modelValue="selectedLayer.trimmedDurationMs" @update:modelValue="value => editVisualModuleTiming('duration', value)"><template #label>Duration (ms)</template></GsInput>
-					<div>Compositing</div>
-					<GsVisualParam
-						v-for="(paramDef, paramId) in timelineCompositingParamDefs"
-						:key="`${selectedLayer.id}:compositing:${paramId}`"
-						:availableVariables="LAYER_VAR_DEFS"
-						:automationGraphs="selectedLayer.automationGraphs"
-						:paramPath="[paramId]"
-						:paramDef="paramDef"
-						:paramValue="selectedLayer.compositingParamValues[paramId]"
-						@edit="event => onVisualModuleLayerParamEdit(event, 'compositing')"
-					/>
-					<div>Module parameters</div>
-					<!-- TODO: struct / array / anyのカスタムパラメータ編集UI。型定義では許可するが、子の編集や配列操作は未対応。 -->
-					<template
-						v-for="paramDef of selectedLayerModule?.paramDefs.filter(paramDef => paramDef.id !== selectedLayerModule?.primaryInputId) ?? []"
-						:key="`${selectedLayer.id}:${paramDef.id}`"
-					>
-						<div v-if="paramDef.dataType.kind === 'struct' || paramDef.dataType.kind === 'array' || isParameterType(paramDef, 'any')">{{ paramDef.ui.label }}: Editing is not yet supported.</div>
-						<GsVisualParam
-							v-else
-							:availableVariables="LAYER_VAR_DEFS"
-							:automationGraphs="selectedLayer.automationGraphs"
-							:paramPath="[paramDef.id]"
-							:paramDef="{ ...paramDef, canNode: false }"
-							:paramValue="selectedLayer.paramValues[paramDef.id] ?? paramDef.defaultValue"
-							@edit="event => onVisualModuleLayerParamEdit(event, 'module')"
-						/>
-					</template>
-					<GsButton danger @click="appStateManager.commit('removeTimelineLayer', { sceneId: props.sceneId, layerId: selectedLayer.id })">Remove Layer</GsButton>
+					<GsFolder :asSection="true" defaultOpen :withSpacer="false">
+						<template #icon><i class="ti ti-layers-selected"></i></template>
+						<template #label>Compositing</template>
+						<div style="padding: 8px 0;">
+							<GsVisualParam
+								v-for="(paramDef, paramId) in timelineCompositingParamDefs"
+								:key="paramId"
+								:availableVariables="LAYER_VAR_DEFS"
+								:automationGraphs="selectedLayer.automationGraphs"
+								:paramPath="[paramId]"
+								:paramDef="paramDef"
+								:paramValue="selectedLayer.compositingParamValues[paramId]"
+								@edit="event => onVisualModuleLayerParamEdit(event, 'compositing')"
+							/>
+						</div>
+					</GsFolder>
+					<GsFolder :asSection="true" defaultOpen :withSpacer="false">
+						<template #icon><i class="ti ti-adjustments-horizontal"></i></template>
+						<template #label>Module Parameters</template>
+						<div style="padding: 8px 0;">
+							<!-- TODO: struct / array / anyのカスタムパラメータ編集UI。型定義では許可するが、子の編集や配列操作は未対応。 -->
+							<template
+								v-for="paramDef of selectedLayerModule?.paramDefs.filter(paramDef => paramDef.id !== selectedLayerModule?.primaryInputId) ?? []"
+								:key="`${selectedLayer.id}:${paramDef.id}`"
+							>
+								<div v-if="paramDef.dataType.kind === 'struct' || paramDef.dataType.kind === 'array' || isParameterType(paramDef, 'any')">{{ paramDef.ui.label }}: Editing is not yet supported.</div>
+								<GsVisualParam
+									v-else
+									:availableVariables="LAYER_VAR_DEFS"
+									:automationGraphs="selectedLayer.automationGraphs"
+									:paramPath="[paramDef.id]"
+									:paramDef="{ ...paramDef, canNode: false }"
+									:paramValue="selectedLayer.paramValues[paramDef.id] ?? paramDef.defaultValue"
+									@edit="event => onVisualModuleLayerParamEdit(event, 'module')"
+								/>
+							</template>
+						</div>
+					</GsFolder>
+					<GsFolder :asSection="true" defaultOpen>
+						<template #label>Other</template>
+						<div class="_gaps_m">
+							<div style="display: flex; gap: 8px;">
+								<GsInput style="flex: 1" small type="number" :min="0" :modelValue="selectedLayer.positionMs" @update:modelValue="value => editVisualModuleTiming('position', value)"><template #label>Position</template><template #suffix>ms</template></GsInput>
+								<GsInput style="flex: 1" small type="number" :min="1" :modelValue="selectedLayer.trimmedDurationMs" @update:modelValue="value => editVisualModuleTiming('duration', value)"><template #label>Duration</template><template #suffix>ms</template></GsInput>
+							</div>
+							<hr>
+							<GsButton danger @click="appStateManager.commit('removeTimelineLayer', { sceneId: props.sceneId, layerId: selectedLayer.id })">Remove Layer</GsButton>
+						</div>
+					</GsFolder>
 				</div>
 			</div>
 		</Teleport>
@@ -279,6 +324,7 @@ import GsVisualParam from './GsVisualParam.vue';
 import GsVisualModuleEditor from './GsVisualModuleEditor.vue';
 import GsEffectPicker from './GsEffectPicker.vue';
 import GsTabs from './common/GsTabs.vue';
+import GsFolder from './common/GsFolder.vue';
 import type { MediaMetadata } from '@glitch/shared/media/media-metadata.ts';
 import type { Asset } from '@glitch/shared/types.ts';
 import type { VisualModuleEdit } from '@/types/visual-module-editor.ts';

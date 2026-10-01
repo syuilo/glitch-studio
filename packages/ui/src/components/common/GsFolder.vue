@@ -1,5 +1,5 @@
 <template>
-<div ref="rootEl" :class="$style.root">
+<div ref="rootEl" :class="[$style.root, { [$style.asSection]: props.asSection }]">
 	<GsStickyContainer>
 		<template #header>
 			<button :class="[$style.header, { [$style.opened]: opened }]" class="_button" data-testid="folder-header" @click="toggle">
@@ -71,12 +71,14 @@ const props = withDefaults(defineProps<{
 	withSpacer?: boolean;
 	spacerMin?: number;
 	spacerMax?: number;
+	asSection?: boolean;
 }>(), {
 	defaultOpen: false,
 	maxHeight: null,
 	withSpacer: true,
 	spacerMin: 8,
 	spacerMax: 12,
+	asSection: false,
 });
 
 const emit = defineEmits<{
@@ -100,10 +102,12 @@ async function toggle(ev: PointerEvent) {
 }
 
 onMounted(() => {
-	const computedStyle = window.getComputedStyle(window.document.documentElement);
-	const parentBg = getBgColor(rootEl.value?.parentElement) ?? 'transparent';
-	const myBg = computedStyle.getPropertyValue('--THEME-panel');
-	bgSame.value = tinycolor(parentBg).toHexString() === tinycolor(myBg).toHexString();
+	if (!props.asSection) {
+		const computedStyle = window.getComputedStyle(window.document.documentElement);
+		const parentBg = getBgColor(rootEl.value?.parentElement) ?? 'transparent';
+		const myBg = computedStyle.getPropertyValue('--THEME-panel');
+		bgSame.value = tinycolor(parentBg).toHexString() === tinycolor(myBg).toHexString();
+	}
 });
 
 watch(opened, (isOpened) => {
@@ -248,5 +252,11 @@ watch(opened, (isOpened) => {
 	background-size: auto auto;
 	background-image: repeating-linear-gradient(135deg, transparent, transparent 5px, var(--THEME-panel) 5px, var(--THEME-panel) 10px);
 	border-radius: 0 0 6px 6px;
+}
+
+.asSection {
+	.header {
+		border-radius: 0;
+	}
 }
 </style>
