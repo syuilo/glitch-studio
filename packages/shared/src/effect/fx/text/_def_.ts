@@ -23,6 +23,12 @@ export default defineEffect({
 			defaultValue: { inputSource: 'literal', value: 1 },
 		},
 		color: { dataType: { kind: 'color' }, ui: { label: 'Color', control: {} }, defaultValue: { inputSource: 'literal', value: [1, 1, 1, 1] }, canNode: true },
+		outlineWidth: {
+			dataType: { kind: 'scalar' },
+			ui: { label: 'Outline width (size ratio)', control: { controlType: 'range', min: 0, max: 0.25, step: 0.005 } },
+			defaultValue: { inputSource: 'literal', value: 0 },
+		},
+		outlineColor: { dataType: { kind: 'color' }, ui: { label: 'Outline color', control: {} }, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 1] }, canNode: true },
 		position: { dataType: { kind: 'vector' }, ui: { label: 'Position', control: { controlType: 'xy' } }, defaultValue: { inputSource: 'literal', value: [0, 0] } },
 		align: {
 			dataType: { kind: 'enum', options: ['left', 'center', 'right'] },

@@ -1,6 +1,7 @@
 type TextLayoutOptions = {
 	text: string;
 	fontSize: number;
+	outlineWidth: number;
 	lineHeight: number;
 	alignment: 'left' | 'center' | 'right';
 	overflow: 'none' | 'shrink' | 'compress';
@@ -18,6 +19,8 @@ type TextBlockMetrics = {
 type TextLayout = {
 	lines: string[];
 	fontSize: number;
+	// 文字の外側へ広がる幅。入力のsize比率を、採用したfontSizeでpxへ変換した値。
+	outlineWidth: number;
 	horizontalScale: number;
 	lineAdvance: number;
 	firstBaselineOffset: number;
@@ -28,9 +31,12 @@ type TextLayout = {
 export function layoutText(options: TextLayoutOptions, measureText: (text: string, fontSize: number) => TextLineMetrics): TextLayout | null {
 	const { overflow, maxWidth } = options;
 	const lineHeight = Math.max(0, options.lineHeight);
+	const outlineWidthRatio = Math.max(0, options.outlineWidth);
 	let fontSize = options.fontSize;
 	// Canvasは無効なfont代入を無視するため、以前の文字サイズを再利用させない。
 	if (!(fontSize > 0) || ![fontSize, lineHeight, lineHeight * fontSize].every(Number.isFinite)) return null;
+	// strokeTextには外側幅の2倍を渡す。非有限のlineWidthが無視されて前回値が残るのを防ぐ。
+	if (![outlineWidthRatio, outlineWidthRatio * fontSize * 2].every(Number.isFinite)) return null;
 	// noneでは最大幅を参照しない。幅が0以下や非有限値の場合、調整モードでは描画しない。
 	if (overflow !== 'none' && (!(maxWidth > 0) || !Number.isFinite(maxWidth))) return null;
 
@@ -41,6 +47,7 @@ export function layoutText(options: TextLayoutOptions, measureText: (text: strin
 		let width = 0;
 		let ascent = 0;
 		let descent = 0;
+		const outlineWidth = outlineWidthRatio * size;
 		for (const line of lines) {
 			// 空行にも従来の高さを与えるが、代用文字Mgの幅で縮小を発生させない。
 			const metrics = measureText(line || 'Mg', size);
@@ -51,9 +58,12 @@ export function layoutText(options: TextLayoutOptions, measureText: (text: strin
 			// 両者の領域の和集合を使い、空白を失ったり字形の幅を過小評価したりしない。
 			const advanceLeft = metrics.width * alignmentFraction;
 			const advanceRight = metrics.width - advanceLeft;
+			// round joinで描く輪郭の張り出しは外側幅以内に収まる。
+			// 空白だけの行には字形がないため、そのadvance領域を輪郭で膨らませない。
+			const outlinePadding = metrics.actualBoundingBoxLeft + metrics.actualBoundingBoxRight > 0 ? outlineWidth : 0;
 			width = Math.max(width,
-				Math.max(advanceLeft, metrics.actualBoundingBoxLeft)
-				+ Math.max(advanceRight, metrics.actualBoundingBoxRight));
+				Math.max(advanceLeft, metrics.actualBoundingBoxLeft + outlinePadding)
+				+ Math.max(advanceRight, metrics.actualBoundingBoxRight + outlinePadding));
 		}
 		return { width, ascent, descent };
 	}
@@ -96,5 +106,5 @@ export function layoutText(options: TextLayoutOptions, measureText: (text: strin
 	const lineAdvance = lineHeight * fontSize;
 	// Yは複数行全体の中央。縮小時は行送りも縮め、横圧縮時は高さを維持する。
 	const firstBaselineOffset = -(metrics.ascent + metrics.descent + (lines.length - 1) * lineAdvance) / 2 + metrics.ascent;
-	return { lines, fontSize, horizontalScale, lineAdvance, firstBaselineOffset };
+	return { lines, fontSize, outlineWidth: outlineWidthRatio * fontSize, horizontalScale, lineAdvance, firstBaselineOffset };
 }

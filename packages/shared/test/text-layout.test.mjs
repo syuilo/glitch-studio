@@ -19,7 +19,7 @@ function createMeasurer(alignment, measureWidth = (text, size) => text.length * 
 
 function layout(overrides = {}, measureText) {
 	const options = {
-		text: 'abcd\nab', fontSize: 100, lineHeight: 1.2,
+		text: 'abcd\nab', fontSize: 100, outlineWidth: 0, lineHeight: 1.2,
 		alignment: 'center', overflow: 'none', maxWidth: 300,
 		...overrides,
 	};
@@ -48,7 +48,7 @@ test('shrinks the whole block and its line spacing using the widest line', () =>
 	for (const alignment of ['left', 'center', 'right']) {
 		const result = layout({ overflow: 'shrink', alignment });
 		assert.deepEqual(result, {
-			lines: ['abcd', 'ab'], fontSize: 75, horizontalScale: 1,
+			lines: ['abcd', 'ab'], fontSize: 75, outlineWidth: 0, horizontalScale: 1,
 			lineAdvance: 90, firstBaselineOffset: -22.5,
 		});
 	}
@@ -122,11 +122,80 @@ test('rejects invalid dimensions before measuring', () => {
 // 縮小後のフォントサイズや行送りだけが同じ倍率で変わる必要がある。
 test('preserves relative layout when rendering resolution changes', () => {
 	for (const overflow of ['shrink', 'compress']) {
-		const original = layout({ overflow });
-		const doubled = layout({ overflow, fontSize: 200, maxWidth: 600 });
-		assert.equal(doubled.fontSize, original.fontSize * 2);
-		assert.equal(doubled.horizontalScale, original.horizontalScale);
-		assert.equal(doubled.lineAdvance, original.lineAdvance * 2);
-		assert.equal(doubled.firstBaselineOffset, original.firstBaselineOffset * 2);
+		for (const outlineWidth of [0, 0.1]) {
+			const original = layout({ overflow, outlineWidth });
+			const doubled = layout({ overflow, outlineWidth, fontSize: 200, maxWidth: 600 });
+			assert.equal(doubled.fontSize, original.fontSize * 2);
+			assert.equal(doubled.outlineWidth, original.outlineWidth * 2);
+			assert.equal(doubled.horizontalScale, original.horizontalScale);
+			assert.equal(doubled.lineAdvance, original.lineAdvance * 2);
+			assert.equal(doubled.firstBaselineOffset, original.firstBaselineOffset * 2);
+		}
+	}
+});
+
+// 【最大幅には外側の輪郭を含め、フォント縮小と同じ比率で太さを縮める】
+// 文字だけを収めると輪郭が最大幅からはみ出す。元の幅400と左右の輪郭10ずつを
+// 幅210へ収める場合、全行のフォントと輪郭の太さをともに半分にする必要がある。
+test('fits and shrinks the outer outline together with every line', () => {
+	for (const alignment of ['left', 'center', 'right']) {
+		const result = layout({ alignment, overflow: 'shrink', maxWidth: 210, outlineWidth: 0.1 });
+		assert.equal(result.fontSize, 50);
+		assert.equal(result.outlineWidth, 5);
+		assert.equal(result.horizontalScale, 1);
+		assert.equal(result.lineAdvance, 60);
+		assert.equal(result.firstBaselineOffset, -15);
+	}
+});
+
+// 【横圧縮では輪郭を含めた幅から倍率を求め、縦方向の太さは維持する】
+// Canvasでは文字とstrokeを同じ変換で描くため、輪郭の横幅だけが共通倍率で縮む。
+// fontSizeや外側幅そのものを縮めてしまうと、縦方向まで細くなる。
+test('includes the outline in horizontal compression without shrinking its height', () => {
+	for (const alignment of ['left', 'center', 'right']) {
+		const result = layout({ alignment, overflow: 'compress', maxWidth: 210, outlineWidth: 0.1 });
+		assert.equal(result.fontSize, 100);
+		assert.equal(result.outlineWidth, 10);
+		assert.equal(result.horizontalScale, 0.5);
+		assert.equal(result.lineAdvance, 120);
+		assert.equal(result.firstBaselineOffset, -30);
+	}
+});
+
+// 【前後の空白と空行自体にはアウトラインの余白を追加しない】
+// 輪郭が広がるのは字形だけであり、advance幅の両端へ一律に余白を足すと過剰に縮小する。
+// 空行の高さ計測用のMgも、輪郭を含む横幅の計算には使わない。
+test('expands ink bounds without adding outline margins to whitespace', () => {
+	const measure = () => ({
+		width: 400, actualBoundingBoxLeft: -50, actualBoundingBoxRight: 350,
+		fontBoundingBoxAscent: 80, fontBoundingBoxDescent: 20,
+	});
+	const result = layout({ text: ' text ', alignment: 'left', overflow: 'compress', maxWidth: 400, outlineWidth: 0.1 }, measure);
+	assert.equal(result.horizontalScale, 1);
+	const whitespace = layout({ text: '    ', overflow: 'compress', maxWidth: 400, outlineWidth: 0.1 }, () => ({
+		...measure(), actualBoundingBoxLeft: 0, actualBoundingBoxRight: 0,
+	}));
+	assert.equal(whitespace.horizontalScale, 1);
+	assert.equal(layout({ text: '\n', overflow: 'shrink', maxWidth: 1, outlineWidth: 0.1 }).fontSize, 100);
+});
+
+// 【追加のサイズ探索でも候補サイズに応じた輪郭の太さで判定する】
+// 最初に計算した輪郭幅を使い続けると、フォント縮小後に必要以上に小さくなってしまう。
+// size=25で文字幅500と左右2.5ずつの輪郭を合わせて505になる計測を使う。
+test('recalculates outline thickness while searching for a fitting font size', () => {
+	const measure = createMeasurer('center', (_text, size) => 100 * Math.sqrt(size));
+	const result = layout({ overflow: 'shrink', maxWidth: 505, outlineWidth: 0.1 }, measure);
+	assert.ok(result.fontSize <= 25 && result.fontSize > 24.999);
+	assert.equal(result.outlineWidth, result.fontSize * 0.1);
+	assert.ok(measure('abcd', result.fontSize).width + result.outlineWidth * 2 <= 505);
+});
+
+// 【輪郭幅0以下は無効とし、非有限のstroke幅をCanvasへ渡さない】
+// Canvasは無効なlineWidth代入を無視するため、前回の太さで輪郭が残ることを防ぐ。
+// 式で比率が有限でも、pxやstrokeの全幅への変換で溢れる場合も描画前に弾く。
+test('disables nonpositive outlines and rejects nonfinite stroke widths', () => {
+	assert.deepEqual(layout({ outlineWidth: -0.1 }), layout());
+	for (const outlineWidth of [NaN, Infinity, Number.MAX_VALUE]) {
+		assert.equal(layout({ outlineWidth }, () => assert.fail('Invalid widths must not be measured')), null);
 	}
 });
