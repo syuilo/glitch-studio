@@ -19,6 +19,7 @@ const { OutputTextureResolver, outputShaderInput } = await load('../src/node-out
 const { TimelineRenderer } = await load('../src/timeline-renderer.ts');
 const { createVisualModuleTimelineLayer } = await load('../src/visual-module-timeline-layer.ts');
 const { createTimelineCompositor } = await load('../src/timeline-compositor.ts');
+const { createImageTimelineLayer } = await load('../src/image-timeline-layer.ts');
 
 function gpuFixture() {
 	const calls = { textures: [], buffers: [], shaders: [], groups: [], samplers: [], writes: [], draws: 0, uploads: 0 };
@@ -50,6 +51,44 @@ function gpuFixture() {
 	return { device, calls, encoder };
 }
 const literal = value => ({ inputSource: 'literal', value });
+
+// 【画像レイヤーの素材寸法へ倍率を一度だけ適用し、縮小結果だけを所有する】
+// 無変形replaceで素材が直接後段へ流れても、原寸がプレビューへ漏れたり二重縮小されたりしない。
+// 再評価で縮小パスを繰り返さないことと、破棄時に共有Assetテクスチャを壊さないことも確認する。
+// GPUの画素検証ではなく、実際の合成・入力bindingを通してリソースと描画回数の契約を検証する。
+test('scales image layer sources once and preserves borrowed asset textures', async () => {
+	for (const resolutionScale of [0.5, 1]) {
+		const { device, calls, encoder } = gpuFixture();
+		device.createCommandEncoder = () => encoder;
+		encoder.finish = () => ({});
+		let submissions = 0;
+		device.queue.submit = () => { submissions++; };
+		const source = device.createTexture({ size: [3840, 2160], format: 'rgba8unorm' });
+		const layer = { compositingParamValues: { blendMode: literal('replace') }, automationGraphs: [] };
+		const renderer = createImageTimelineLayer(layer, source, {
+			device, vertex: {}, resolution: { width: 1920 * resolutionScale, height: 1080 * resolutionScale }, resolutionScale, format: 'rgba16float',
+		});
+		const context = { time: 0, endTime: 5000, isExport: resolutionScale === 1, input: { kind: 'uniform', value: [0, 0, 0, 0] } };
+		const signal = new AbortController().signal;
+		const first = await renderer.evaluate(context, signal);
+		const second = await renderer.evaluate({ ...context, time: 1000 }, signal);
+		assert.equal(first.output.texture, second.output.texture);
+		assert.deepEqual([first.output.texture.width, first.output.texture.height], [3840 * resolutionScale, 2160 * resolutionScale]);
+		assert.equal(calls.draws, resolutionScale === 1 ? 0 : 1);
+		assert.equal(calls.textures.length, resolutionScale === 1 ? 1 : 2);
+		if (resolutionScale === 1) assert.equal(first.output.texture, source);
+		else assert.equal(first.output.texture.format, 'rgba16float');
+		assert.equal(submissions, 2);
+		await renderer.evaluate(context, AbortSignal.abort());
+		assert.equal(submissions, 2);
+		renderer.destroy();
+		assert.equal(source.destroyed, false);
+		assert.ok(calls.textures.filter(texture => texture !== source).every(texture => texture.destroyed));
+		assert.ok(calls.buffers.every(buffer => buffer.destroyed));
+		await renderer.evaluate(context, signal);
+		assert.equal(submissions, 2);
+	}
+});
 
 // 【異なる解像度の素材は元テクスチャを直接読み、replaceでもfitを省略しない】
 // 先に出力解像度へ縮小すると拡大時に細部を失い、借用出力を返すだけではcontainが消える。

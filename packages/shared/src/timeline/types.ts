@@ -46,6 +46,12 @@ export type TimelineAudioLayer = TimelineLayerBase & TimelineLayerTiming & Timel
 	assetId: string;
 };
 
+/** 静止画像は素材長を持たず、表示区間の編集ではtrimStartMsを0に保つ。 */
+export type TimelineImageLayer = TimelineLayerBase & TimelineVisualLayerBase & {
+	layerType: 'image';
+	assetId: string;
+};
+
 /** 映像と音声は同じ素材時刻・トリムを共有する。Playerの再生状態には依存しない。 */
 export type TimelineVideoLayer = TimelineLayerBase & TimelineLayerTiming & TimelineAudioLayerBase & TimelineVisualLayerBase & {
 	layerType: 'video';
@@ -59,7 +65,7 @@ export type TimelineSceneLayer = TimelineLayerBase & TimelineLayerTiming & Timel
 	sceneId: string;
 };
 
-export type TimelineLayer = TimelineVisualModuleLayer | TimelineInlineVisualModuleLayer | TimelineEffectLayer | TimelineAudioLayer | TimelineVideoLayer | TimelineSceneLayer;
+export type TimelineLayer = TimelineVisualModuleLayer | TimelineInlineVisualModuleLayer | TimelineEffectLayer | TimelineAudioLayer | TimelineImageLayer | TimelineVideoLayer | TimelineSceneLayer;
 
 /** 長さは直下のレイヤーの終了時刻の最大値から求め、空の場合は0とする。 */
 export type TimelineScene = {

@@ -27,6 +27,7 @@ export function validateTimelineScenes(scenes: readonly TimelineScene[]): void {
 		path.push(id);
 		for (const layer of scene.layers) {
 			if (!isTimelineLayerTimingValid(layer)) throw new Error(`Invalid layer timing in scene: ${scene.name}`);
+			if (layer.layerType === 'image' && layer.trimStartMs !== 0) throw new Error(`Image layers cannot be trimmed in scene: ${scene.name}`);
 			if (layer.layerType === 'scene') visit(layer.sceneId);
 		}
 		path.pop();

@@ -10,7 +10,7 @@ import { deepClone } from '@glitch/shared/utility/deep-clone.ts';
 import { getNodeInputDataType, getNodeOutputs } from '@glitch/shared/utility/node-outputs.ts';
 import { isTextureDataType } from '@glitch/shared/data-type.ts';
 import { timelineAudioParamDefs } from '@glitch/shared/timeline/timeline-audio.ts';
-import type { TimelineScene, TimelineSceneLayer, TimelineAudioLayer, TimelineVideoLayer, TimelineLayer, TimelineInlineVisualModuleLayer } from '@glitch/shared/timeline/types.ts';
+import type { TimelineScene, TimelineSceneLayer, TimelineAudioLayer, TimelineVideoLayer, TimelineImageLayer, TimelineLayer, TimelineInlineVisualModuleLayer } from '@glitch/shared/timeline/types.ts';
 import { timelineCompositingParamDefs } from '@glitch/shared/timeline/timeline-compositing.ts';
 import type { VisualModuleCustomParameterId, VisualModuleEffectNode, VisualModuleNode, NodeOutputReference, VisualModule, VisualModuleParamDef, VisualModuleOutputDef } from '@glitch/shared/visual-module/types.ts';
 import type { ParameterDefinition } from '@glitch/shared/parameter.ts';
@@ -69,7 +69,7 @@ const editTimelineLayerParamCommandDef = defineCommand<{
 		const getLayer = (state: AppState) => {
 			const layer = getScene(state, payload.sceneId).layers.find(layer => layer.id === payload.layerId);
 			if (layer == null) throw new Error('Timeline layer not found');
-			if (layer.layerType !== 'visualModule' && layer.layerType !== 'inlineVisualModule' && layer.layerType !== 'audio' && layer.layerType !== 'scene' && layer.layerType !== 'video') throw new Error('Unsupported timeline layer');
+			if (layer.layerType === 'effect') throw new Error('Unsupported timeline layer');
 			getLayerParameterValues(layer, payload.target ?? 'module');
 			return layer;
 		};
@@ -858,18 +858,18 @@ const addInlineVisualModuleLayerCommandDef = defineCommand<{ sceneId: string; la
 	}),
 });
 
-const editVisualModuleLayerTimingCommandDef = defineCommand<{ sceneId: string; layerId: string; positionMs: number; trimmedDurationMs: number }>({
-	label: 'Edit visual module layer timing',
+const editUntrimmedTimelineLayerTimingCommandDef = defineCommand<{ sceneId: string; layerId: string; positionMs: number; trimmedDurationMs: number }>({
+	label: 'Edit layer duration and position',
 	create: payload => {
 		let before: TimelineLayerTiming;
 		const getLayer = (state: AppState) => {
 			const layer = getScene(state, payload.sceneId).layers.find(layer => layer.id === payload.layerId);
-			if (layer?.layerType !== 'visualModule' && layer?.layerType !== 'inlineVisualModule') throw new Error('Visual module layer not found');
+			if (layer?.layerType !== 'visualModule' && layer?.layerType !== 'inlineVisualModule' && layer?.layerType !== 'image') throw new Error('Untrimmed timeline layer not found');
 			return layer;
 		};
 		return {
 			execute(state) {
-				// Visual Moduleの端編集は当面、配置・表示区間の変更として扱い、トリムを作らない。
+				// Visual Moduleと画像の端編集は配置・表示区間の変更として扱い、トリムを作らない。
 				const timing = createUntrimmedTimelineLayerTiming(payload.positionMs, payload.trimmedDurationMs);
 				if (!isTimelineLayerTimingValid(timing)) throw new Error('Invalid layer timing');
 				const layer = getLayer(state);
@@ -877,6 +877,46 @@ const editVisualModuleLayerTimingCommandDef = defineCommand<{ sceneId: string; l
 				Object.assign(layer, timing);
 			},
 			undo(state) { Object.assign(getLayer(state), before); },
+		};
+	},
+});
+
+function validateImageLayerAsset(state: AppState, assetId: string) {
+	if (!state.assets.value.some(asset => asset.id === assetId && asset.fileDataType.startsWith('image/'))) {
+		throw new Error(`Image asset not found: ${assetId}`);
+	}
+}
+
+const addImageLayerCommandDef = defineCommand<{ sceneId: string; layer: TimelineImageLayer }>({
+	label: 'Add image layer',
+	create: payload => ({
+		execute(state) {
+			validateImageLayerAsset(state, payload.layer.assetId);
+			if (!isTimelineLayerTimingValid(payload.layer) || payload.layer.trimStartMs !== 0) throw new Error('Invalid image layer timing');
+			getScene(state, payload.sceneId).layers.unshift(deepClone(payload.layer));
+		},
+		undo(state) { getScene(state, payload.sceneId).layers = getScene(state, payload.sceneId).layers.filter(layer => layer.id !== payload.layer.id); },
+	}),
+});
+
+const editImageLayerAssetCommandDef = defineCommand<{ sceneId: string; layerId: string; assetId: string }>({
+	label: 'Change image layer asset',
+	create: payload => {
+		let previousAssetId: string;
+		const getLayer = (state: AppState) => {
+			const layer = getScene(state, payload.sceneId).layers.find(layer => layer.id === payload.layerId);
+			if (layer?.layerType !== 'image') throw new Error('Image layer not found');
+			return layer;
+		};
+		return {
+			execute(state) {
+				validateImageLayerAsset(state, payload.assetId);
+				const layer = getLayer(state);
+				previousAssetId = layer.assetId;
+				layer.assetId = payload.assetId;
+			},
+			// 変更前が参照切れでも、Undoではその状態を正確に復元する。
+			undo(state) { getLayer(state).assetId = previousAssetId; },
 		};
 	},
 });
@@ -1162,7 +1202,9 @@ export const COMMAND_DEFS = {
 	pasteTimelineLayer: pasteTimelineLayerCommandDef,
 	reorderTimelineLayers: reorderTimelineLayersCommandDef,
 	addInlineVisualModuleLayer: addInlineVisualModuleLayerCommandDef,
-	editVisualModuleLayerTiming: editVisualModuleLayerTimingCommandDef,
+	editUntrimmedTimelineLayerTiming: editUntrimmedTimelineLayerTimingCommandDef,
+	addImageLayer: addImageLayerCommandDef,
+	editImageLayerAsset: editImageLayerAssetCommandDef,
 	addAudioLayer: addAudioLayerCommandDef,
 	addVideoLayer: addVideoLayerCommandDef,
 	editVideoLayerTiming: editVideoLayerTimingCommandDef,

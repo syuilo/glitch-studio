@@ -10,6 +10,7 @@
 					<i v-if="layer.layerType === 'visualModule'" class="ti ti-chart-dots-3"></i>
 					<i v-else-if="layer.layerType === 'inlineVisualModule'" class="ti ti-chart-dots-3"></i>
 					<i v-else-if="layer.layerType === 'scene'" class="ti ti-timeline"></i>
+					<i v-else-if="layer.layerType === 'image'" class="ti ti-photo"></i>
 					<i v-else-if="layer.layerType === 'video'" class="ti ti-video"></i>
 					<i v-else-if="layer.layerType === 'audio'" class="ti ti-music"></i>
 				</span>
@@ -92,7 +93,7 @@ import type { ParameterBinding } from '@glitch/shared/types.ts';
 import { getTimelineSnapCandidates } from '@/utility/timeline-snapping.ts';
 import { formatTimelineTimecode } from '@/utility/timeline-ticks.ts';
 import { constrainTimelineMove } from '@/utility/timeline-selection.ts';
-import { getLayerParameterValues } from '@/utility/timeline-scene.ts';
+import { getLayerParameterTargets, getLayerParameterValues } from '@/utility/timeline-scene.ts';
 import { appStateManager } from '@/app.ts';
 import { openAssetAudio } from '@/audio/asset-audio-reader.ts';
 
@@ -122,8 +123,13 @@ const emit = defineEmits<{
 	(ev: 'snap', time: number | null): void;
 }>();
 
-const layerLabel = computed(() => props.layer.layerType === 'scene' ? appStateManager.state.timelineScenes.value.find(scene => scene.id === (props.layer.layerType === 'scene' ? props.layer.sceneId : ''))?.name ?? 'Missing scene' : (props.layer.layerType === 'audio' || props.layer.layerType === 'video')
-	? `${appStateManager.state.assets.value.find(asset => asset.id === ((props.layer.layerType === 'audio' || props.layer.layerType === 'video') ? props.layer.assetId : ''))?.name ?? 'Missing media'}` : props.layer.layerType === 'inlineVisualModule' ? 'Inline Visual Module' : props.layer.id);
+const layerLabel = computed(() => {
+	const layer = props.layer;
+	if (layer.layerType === 'scene') return appStateManager.state.timelineScenes.value.find(scene => scene.id === layer.sceneId)?.name ?? 'Missing scene';
+	if (layer.layerType === 'image') return appStateManager.state.assets.value.find(asset => asset.id === layer.assetId && asset.fileDataType.startsWith('image/'))?.name ?? 'Missing image';
+	if (layer.layerType === 'audio' || layer.layerType === 'video') return appStateManager.state.assets.value.find(asset => asset.id === layer.assetId)?.name ?? 'Missing media';
+	return layer.layerType === 'inlineVisualModule' ? 'Inline Visual Module' : layer.id;
+});
 
 const mediaAsset = computed(() => {
 	const layer = props.layer;
@@ -179,7 +185,7 @@ type KeyframeParameter = {
 
 const keyframeParameters = computed(() => {
 	const res: KeyframeParameter[] = [];
-	for (const target of (props.layer.layerType === 'audio' ? ['audio'] as const : (props.layer.layerType === 'scene' || props.layer.layerType === 'video') ? ['compositing', 'audio'] as const : ['compositing', 'module'] as const)) {
+	for (const target of getLayerParameterTargets(props.layer)) {
 		const values = getLayerParameterValues(props.layer, target);
 		for (const [paramId, binding] of Object.entries(values)) {
 			if (binding.inputSource !== 'keyframesTimelineInline') continue;
@@ -258,8 +264,8 @@ function onTimingPointerMove(event: PointerEvent) {
 		} else {
 			appStateManager.commit(layer.layerType === 'scene' ? 'editSceneLayerTiming' : 'editAudioLayerTiming', { sceneId: props.sceneId, layerId: layer.id, positionMs, trimmedDurationMs, trimStartMs }, drag.mergeKey);
 		}
-	} else if (layer.layerType === 'visualModule' || layer.layerType === 'inlineVisualModule') {
-		appStateManager.commit('editVisualModuleLayerTiming', { sceneId: props.sceneId, layerId: layer.id, positionMs, trimmedDurationMs }, drag.mergeKey);
+	} else if (layer.layerType === 'visualModule' || layer.layerType === 'inlineVisualModule' || layer.layerType === 'image') {
+		appStateManager.commit('editUntrimmedTimelineLayerTiming', { sceneId: props.sceneId, layerId: layer.id, positionMs, trimmedDurationMs }, drag.mergeKey);
 	}
 }
 

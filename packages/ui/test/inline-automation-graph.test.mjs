@@ -8,7 +8,7 @@ import { build } from 'esbuild';
 const bundled = await build({
 	absWorkingDir: fileURLToPath(new URL('../', import.meta.url)),
 	stdin: {
-		contents: "export { timelineCompositingParamDefs } from '../shared/src/timeline/timeline-compositing.ts'; export { COMMAND_DEFS } from './src/commands.ts'; export { createInlineAutomationGraph, setInlineAutomationGraphNormalized } from './src/utility/automation-graph.ts'; export { encodeProjectFile, decodeProjectFile } from './src/gsproj.ts';",
+		contents: "export { timelineCompositingParamDefs } from '../shared/src/timeline/timeline-compositing.ts'; export { COMMAND_DEFS } from './src/commands.ts'; export { createInlineAutomationGraph, setInlineAutomationGraphNormalized } from './src/utility/automation-graph.ts'; export { encodeProjectFile, decodeProjectFile } from './src/gsproj.ts'; export { createImageLayer } from './src/utility/image-layer.ts'; export { getLayerParameterTargets } from './src/utility/timeline-scene.ts';",
 		resolveDir: fileURLToPath(new URL('../', import.meta.url)),
 		loader: 'ts',
 	},
@@ -31,9 +31,83 @@ const bundled = await build({
 });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', bundled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
-const { timelineCompositingParamDefs, COMMAND_DEFS, createInlineAutomationGraph, setInlineAutomationGraphNormalized, encodeProjectFile, decodeProjectFile } = module.exports;
+const { timelineCompositingParamDefs, COMMAND_DEFS, createInlineAutomationGraph, setInlineAutomationGraphNormalized, encodeProjectFile, decodeProjectFile, createImageLayer, getLayerParameterTargets } = module.exports;
 
 const defaultCompositing = () => Object.fromEntries(Object.entries(timelineCompositingParamDefs).map(([key, def]) => [key, structuredClone(def.defaultValue)]));
+
+function imageFixture() {
+	const assets = ['first', 'second'].map(id => ({ id, name: id, fileDataType: 'image/png', fileData: new Blob([id], { type: 'image/png' }) }));
+	const state = { assets: { value: assets }, visualModules: { value: [] }, timelineScenes: { value: [{ id: 'scene', name: 'Scene', layers: [] }] } };
+	const layer = createImageLayer('first', 2000);
+	const target = { sceneId: 'scene', layerId: layer.id };
+	const add = COMMAND_DEFS.addImageLayer.create({ sceneId: 'scene', layer });
+	add.execute(state);
+	return { state, layer, target, add, current: () => state.timelineScenes.value[0].layers.find(entry => entry.id === layer.id) };
+}
+
+// 【画像の配置・合成設定・参照変更を保存とUndo/Redoで復元する】
+// 静止画像の期間に素材長の制約を持ち込まず、画像の変更でもアニメーションと配置を維持する。
+// BlobはAsset側だけに保存し、読み込み後にも同じIDで参照できることを確認する。
+test('round-trips image assets and independently undoes timing, compositing and source edits', async () => {
+	const { state, layer, target, add, current } = imageFixture();
+	assert.equal(layer.trimmedDurationMs, 5000);
+	assert.deepEqual(layer.compositingParamValues, defaultCompositing());
+	assert.deepEqual(getLayerParameterTargets(layer), ['compositing']);
+	const timing = COMMAND_DEFS.editUntrimmedTimelineLayerTiming.create({ ...target, positionMs: 1000, trimmedDurationMs: 60000 });
+	const opacity = COMMAND_DEFS.editTimelineLayerParam.create({ ...target, target: 'compositing', paramId: 'opacity', edit: { kind: 'inputSource', inputSource: 'keyframesTimelineInline' } });
+	const source = COMMAND_DEFS.editImageLayerAsset.create({ ...target, assetId: 'second' });
+	for (const command of [timing, opacity, source]) command.execute(state);
+	assert.equal(current().trimStartMs, 0);
+	assert.equal(current().trimmedDurationMs, 60000);
+	assert.equal(current().compositingParamValues.opacity.inputSource, 'keyframesTimelineInline');
+	const restored = decodeProjectFile(await encodeProjectFile({ assets: state.assets.value, timelineScenes: state.timelineScenes.value }));
+	assert.deepEqual(restored.timelineScenes, state.timelineScenes.value);
+	assert.equal(await restored.assets.find(asset => asset.id === current().assetId).fileData.text(), 'second');
+	for (const command of [source, opacity, timing]) command.undo(state);
+	assert.deepEqual(current(), layer);
+	add.undo(state);
+	assert.equal(current(), undefined);
+	add.execute(state);
+	assert.deepEqual(current(), layer);
+});
+
+// 【画像レイヤーの複製は設定だけを独立させ、Asset削除後も参照IDを保持する】
+// 画像を失ったレイヤーの期間やキーフレームを削除してしまうと、素材の復元や付け替えができない。
+// 削除のUndoと、参照切れから別画像へ変更した操作のUndoをそれぞれ保証する。
+test('preserves image references through asset deletion and keeps duplicated settings independent', async () => {
+	const { state, layer, target, current } = imageFixture();
+	const copy = { ...structuredClone(layer), id: 'copy' };
+	COMMAND_DEFS.pasteTimelineLayer.create({ sceneId: 'scene', layer: copy, sourceLayerId: layer.id }).execute(state);
+	COMMAND_DEFS.editTimelineLayerParam.create({ ...target, target: 'compositing', paramId: 'opacity', edit: { kind: 'literal', value: 0.5 } }).execute(state);
+	assert.equal(state.timelineScenes.value[0].layers.find(entry => entry.id === 'copy').compositingParamValues.opacity.value, 1);
+	const remove = COMMAND_DEFS.removeAsset.create({ assetId: 'first' });
+	remove.execute(state);
+	assert.equal(current().assetId, 'first');
+	const restored = decodeProjectFile(await encodeProjectFile({ assets: state.assets.value, timelineScenes: state.timelineScenes.value }));
+	assert.equal(restored.timelineScenes[0].layers.find(entry => entry.id === layer.id).assetId, 'first');
+	const change = COMMAND_DEFS.editImageLayerAsset.create({ ...target, assetId: 'second' });
+	change.execute(state);
+	assert.equal(current().compositingParamValues.opacity.value, 0.5);
+	change.undo(state);
+	assert.equal(current().assetId, 'first');
+	remove.undo(state);
+	assert.equal(await state.assets.value.find(asset => asset.id === current().assetId).fileData.text(), 'first');
+});
+
+// 【画像以外のAssetや不正な期間を状態変更前に拒否する】
+// UI以外からコマンドが呼ばれても、失敗した操作でUndo履歴に載らない部分変更を残さない。
+test('rejects invalid image sources and timing without mutating layers', () => {
+	const { state, layer, target } = imageFixture();
+	state.assets.value.push({ id: 'video', fileDataType: 'video/mp4', fileData: new Blob() });
+	const before = structuredClone(state.timelineScenes.value);
+	for (const assetId of ['missing', 'video']) {
+		assert.throws(() => COMMAND_DEFS.addImageLayer.create({ sceneId: 'scene', layer: { ...layer, assetId } }).execute(state), /Image asset not found/);
+		assert.throws(() => COMMAND_DEFS.editImageLayerAsset.create({ ...target, assetId }).execute(state), /Image asset not found/);
+	}
+	assert.throws(() => COMMAND_DEFS.addImageLayer.create({ sceneId: 'scene', layer: { ...layer, trimStartMs: 1 } }).execute(state), /Invalid image layer timing/);
+	assert.throws(() => COMMAND_DEFS.editUntrimmedTimelineLayerTiming.create({ ...target, positionMs: 0, trimmedDurationMs: 0 }).execute(state), /Invalid layer timing/);
+	assert.deepEqual(state.timelineScenes.value, before);
+});
 
 // 【動画レイヤーのトリム・映像・音声を保存と履歴で独立して復元する】
 // 音声無効化が配置長や音量キーを変更しないこと、範囲外トリムが状態を壊さないことも確認する。

@@ -129,6 +129,14 @@
 			</div>
 			<div v-else-if="selectedLayer != null">
 				<GsButton v-if="selectedLayer.layerType === 'scene'" small @click="activeSceneId = selectedLayer.sceneId">Open scene</GsButton>
+				<GsFolder v-if="selectedLayer.layerType === 'image'" :asSection="true" defaultOpen>
+					<template #icon><i class="ti ti-photo"></i></template>
+					<template #label>Image</template>
+					<div class="_gaps_m">
+						<div>{{ selectedImageAsset?.name ?? 'Missing image' }}</div>
+						<GsButton small @click="changeImageLayerAsset">Change image</GsButton>
+					</div>
+				</GsFolder>
 				<GsFolder v-if="selectedLayer.layerType === 'inlineVisualModule'" :asSection="true" defaultOpen :withSpacer="false">
 					<template #icon><i class="ti ti-chart-dots-3"></i></template>
 					<template #label>Visual Module</template>
@@ -144,7 +152,7 @@
 						/>
 					</div>
 				</GsFolder>
-				<GsFolder :asSection="true" defaultOpen :withSpacer="false">
+				<GsFolder v-if="selectedLayerModule != null" :asSection="true" defaultOpen :withSpacer="false">
 					<template #icon><i class="ti ti-adjustments-horizontal"></i></template>
 					<template #label>Module Parameters</template>
 					<div style="padding: 8px 0;">
@@ -210,9 +218,9 @@
 				<GsFolder :asSection="true" defaultOpen>
 					<template #label>Other</template>
 					<div class="_gaps_m">
-						<div v-if="selectedLayer.layerType === 'visualModule' || selectedLayer.layerType === 'inlineVisualModule'" style="display: flex; gap: 8px;">
-							<GsInput style="flex: 1" small type="number" :min="0" :modelValue="selectedLayer.positionMs" @update:modelValue="value => editVisualModuleTiming('position', value)"><template #label>Position</template><template #suffix>ms</template></GsInput>
-							<GsInput style="flex: 1" small type="number" :min="1" :modelValue="selectedLayer.trimmedDurationMs" @update:modelValue="value => editVisualModuleTiming('duration', value)"><template #label>Duration</template><template #suffix>ms</template></GsInput>
+						<div v-if="selectedLayer.layerType === 'visualModule' || selectedLayer.layerType === 'inlineVisualModule' || selectedLayer.layerType === 'image'" style="display: flex; gap: 8px;">
+							<GsInput style="flex: 1" small type="number" :min="0" :modelValue="selectedLayer.positionMs" @update:modelValue="value => editUntrimmedLayerTiming('position', value)"><template #label>Position</template><template #suffix>ms</template></GsInput>
+							<GsInput style="flex: 1" small type="number" :min="1" :modelValue="selectedLayer.trimmedDurationMs" @update:modelValue="value => editUntrimmedLayerTiming('duration', value)"><template #label>Duration</template><template #suffix>ms</template></GsInput>
 						</div>
 						<div v-if="selectedLayer.layerType === 'scene'" style="display: flex; gap: 8px;">
 							<GsInput small type="number" :min="-selectedLayer.trimStartMs" :modelValue="selectedLayer.positionMs" @update:modelValue="value => editTrimmedLayerTiming('move', value)"><template #label>Position (ms)</template></GsInput>
@@ -284,11 +292,12 @@ import { getTimelineLayerTicks, formatTimelineTimecode as formatMsToTimecode } f
 import { getTimelineSnapCandidates, getTimelineSeekPosition } from '@/utility/timeline-snapping.ts';
 import { preferences } from '@/preferences.ts';
 import { listenPointerDrag } from '@/utility/pointer-drag.ts';
-import { getLayerParameterValues } from '@/utility/timeline-scene.ts';
+import { getLayerParameterTargets, getLayerParameterValues } from '@/utility/timeline-scene.ts';
 import { inspectVideoLayerAsset } from '@/utility/video-layer-asset.ts';
 import { sceneEditorStates, timelineLayerClipboard } from '@/utility/timeline-editor-state.ts';
 import * as ui from '@/ui.ts';
 import { createInlineVisualModuleLayer } from '@/utility/inline-visual-module-layer.ts';
+import { createImageLayer } from '@/utility/image-layer.ts';
 import { commitVisualModuleEdit } from '@/utility/visual-module-edit.ts';
 import * as api from '@/api.ts';
 import { openAssetAudio } from '@/audio/asset-audio-reader.ts';
@@ -584,8 +593,7 @@ function finishPan() {
 onBeforeUnmount(finishPan);
 
 const keyframeEntries = computed(() => sceneLayers.value.flatMap(layer => {
-	const targets = layer.layerType === 'audio' ? ['audio'] as const
-		: layer.layerType === 'scene' || layer.layerType === 'video' ? ['compositing', 'audio'] as const : ['compositing', 'module'] as const;
+	const targets = getLayerParameterTargets(layer);
 	return targets.flatMap(target => Object.entries(getLayerParameterValues(layer, target)).flatMap(([paramId, binding]) => {
 		if (binding.inputSource !== 'keyframesTimelineInline') return [];
 		return binding.keyframesTimeline.keyframes.map(point => ({
@@ -831,13 +839,13 @@ function selectLayer(layer: TimelineLayer) {
 	tlEl.value?.focus({ preventScroll: true });
 }
 
-function editVisualModuleTiming(target: 'position' | 'duration', value: string | number) {
+function editUntrimmedLayerTiming(target: 'position' | 'duration', value: string | number) {
 	const layer = selectedLayer.value;
 	const amount = Number(value);
 	if (layer == null || !Number.isFinite(amount)) return;
 	const positionMs = target === 'position' ? Math.max(0, amount) : layer.positionMs;
 	const trimmedDurationMs = target === 'duration' ? Math.max(1, amount) : layer.trimmedDurationMs;
-	appStateManager.commit('editVisualModuleLayerTiming', { sceneId: props.sceneId, layerId: layer.id, positionMs, trimmedDurationMs });
+	appStateManager.commit('editUntrimmedTimelineLayerTiming', { sceneId: props.sceneId, layerId: layer.id, positionMs, trimmedDurationMs });
 }
 
 function onInlineVisualModuleEdit(event: VisualModuleEdit) {
@@ -909,6 +917,40 @@ watch(() => selectedVideoAsset.value?.fileData, async (blob, _, onCleanup) => {
 		if (!cancelled) audioError.value = error instanceof Error ? error.message : String(error);
 	}
 }, { immediate: true });
+
+const selectedImageAsset = computed(() => {
+	const layer = selectedLayer.value;
+	return layer?.layerType === 'image' ? appStateManager.state.assets.value.find(asset => asset.id === layer.assetId && asset.fileDataType.startsWith('image/')) : undefined;
+});
+
+async function selectImageAsset() {
+	const timeline = sceneLayers.value;
+	const assets = appStateManager.state.assets.value;
+	const { canceled, result: assetId } = await ui.select({
+		title: 'Select Image Asset',
+		items: assets.filter(asset => asset.fileDataType.startsWith('image/')).map(asset => ({ label: asset.name, value: asset.id })),
+	});
+	// ピッカーを開いている間のScene切替・プロジェクト切替・Asset削除で、追加先や参照を取り違えない。
+	if (canceled || assetId == null || disposed || sceneLayers.value !== timeline || appStateManager.state.assets.value !== assets) return;
+	return assets.find(asset => asset.id === assetId && asset.fileDataType.startsWith('image/'));
+}
+
+async function addImageLayer() {
+	const asset = await selectImageAsset();
+	if (!asset) return;
+	const layer = createImageLayer(asset.id, Math.max(0, time.value));
+	appStateManager.commit('addImageLayer', { sceneId: props.sceneId, layer });
+	selectLayer(layer);
+	previewPlayback.seekTimeline(getTimelineLayerStart(layer));
+}
+
+async function changeImageLayerAsset() {
+	const layer = selectedLayer.value;
+	if (layer?.layerType !== 'image') return;
+	const asset = await selectImageAsset();
+	if (!asset || !sceneLayers.value.includes(layer) || layer.assetId === asset.id) return;
+	appStateManager.commit('editImageLayerAsset', { sceneId: props.sceneId, layerId: layer.id, assetId: asset.id });
+}
 
 async function addVideoLayer(asset: Asset) {
 	audioError.value = null;
@@ -1014,6 +1056,10 @@ function showAddLayerMenu(ev: PointerEvent) {
 		action: () => {
 			// TODO
 		},
+	}, {
+		text: 'Image',
+		icon: 'ti ti-photo',
+		action: addImageLayer,
 	}, {
 		text: 'Video',
 		icon: 'ti ti-video',

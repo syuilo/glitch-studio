@@ -9,6 +9,7 @@ import { TimelineRenderer } from './timeline-renderer.ts';
 import { createVisualModuleTimelineLayer } from './visual-module-timeline-layer.ts';
 import { createSceneTimelineLayer } from './scene-timeline-layer.ts';
 import { createVideoTimelineLayer } from './video-timeline-layer.ts';
+import { createImageTimelineLayer } from './image-timeline-layer.ts';
 import { createTimelineCompositor } from './timeline-compositor.ts';
 import { TimelineCompositingParameters } from './timeline-compositing-parameters.ts';
 import { OutputTextureResolver } from './node-output.ts';
@@ -229,6 +230,17 @@ export class TimelineRendererManager extends EventEmitter<{
 	private createTimelineLayer(layer: TimelineLayer, layerPath: string[]): TimelineLayerRenderer<NodeOutput> {
 		// レイヤーの種類の解釈とリソース解決は、タイムライン制御の外側で行う。
 		switch (layer.layerType) {
+			case 'image': {
+				const texture = this.assetTextures.textures.get(layer.assetId);
+				// 参照切れを透明画像として合成すると、replaceで下層まで消してしまう。
+				// IDは保存したままエラーにし、Asset削除のUndoや参照画像の変更で復旧できるようにする。
+				if (!texture) throw new Error(`Image asset not found: ${layer.assetId}`);
+				return createImageTimelineLayer(layer, texture, {
+					device: this.gpuDevice, vertex: this.defaultVertexShaderModule,
+					resolution: this.renderResolution, format: this.staticOptions.intermediateTextureFormat,
+					resolutionScale: this.dynamicOptions.resolutionScale,
+				});
+			}
 			case 'video': {
 				const asset = this.dynamicOptions.assets.find(asset => asset.id === layer.assetId);
 				if (!asset) throw new Error(`Video asset not found: ${layer.assetId}`);
