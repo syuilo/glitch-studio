@@ -9,7 +9,7 @@ export default defineEffect({
 		font: { dataType: { kind: 'fontAssetReference' }, ui: { label: 'Font', control: {} }, defaultValue: { inputSource: 'literal', value: null } },
 		size: {
 			dataType: { kind: 'scalar' },
-			ui: { label: 'Size (height ratio)', control: { controlType: 'range', min: 0, max: 1 } },
+			ui: { label: 'Size (height ratio)', control: { controlType: 'range', min: 0.0001, max: 1, step: 0.01, logarithmic: true } },
 			defaultValue: { inputSource: 'literal', value: 0.1 },
 		},
 		color: { dataType: { kind: 'color' }, ui: { label: 'Color', control: {} }, defaultValue: { inputSource: 'literal', value: [1, 1, 1, 1] }, canNode: true },
