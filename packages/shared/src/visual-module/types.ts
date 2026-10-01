@@ -3,11 +3,17 @@ import type { EffectDefinition } from '../effect/effect-definition.ts';
 import type { ParameterDefinition } from '../parameter.ts';
 import type { FitMode, AutomationGraph, ParameterBinding, WrapMode } from '../types.ts';
 
+export type EffectNodeResolution =
+	| { mode: 'project' }
+	| { mode: 'auto' }
+	| { mode: 'custom'; width: number; height: number };
+
 export type VisualModuleEffectNode = {
 	id: string;
 	type: 'effect';
 	effectId: string;
 	isBypass: boolean;
+	resolution: EffectNodeResolution;
 	params: Record<string, ParameterBinding>;
 
 	// 2D平面上でノードを配置できるようになった時のため

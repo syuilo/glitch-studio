@@ -11,6 +11,7 @@ export default defineEffect({
 		blendMode: { dataType: { kind: 'blendMode' }, ui: { label: 'Blend mode', control: {} }, defaultValue: { inputSource: 'literal', value: 'add' } },
 	},
 	primaryInputParameter: 'inputA',
+	resolutionInputParameter: 'inputA',
 	outputDefs: {
 		output: { dataType: { kind: 'color' } },
 	},

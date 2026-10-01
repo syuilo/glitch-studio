@@ -17,6 +17,8 @@ export type EffectDefinition<In extends Record<string, ParameterDefinition> = Re
 	paramDefs: In;
 	// バイパス・自動接続に使うトップレベルの入力。主入力がないエフェクトはnull。
 	primaryInputParameter: Extract<keyof In, string> | null;
+	// 自動解像度の基準。バイパスの主入力とは独立した役割で、nullなら描画先を使う。
+	resolutionInputParameter: Extract<keyof In, string> | null;
 	outputDefs: Out;
 	primaryOutput: Extract<keyof NoInfer<Out>, string> | null;
 };
@@ -32,6 +34,9 @@ export function defineEffect<const In extends Record<string, ParameterDefinition
 	}
 	if (def.primaryOutput !== null && !Object.hasOwn(def.outputDefs, def.primaryOutput)) {
 		throw new Error(`Primary output must reference an existing output: ${def.id}.${def.primaryOutput}`);
+	}
+	if (def.resolutionInputParameter !== null && def.paramDefs[def.resolutionInputParameter]?.canNode !== true) {
+		throw new Error(`Resolution input must reference a node-capable parameter: ${def.id}.${def.resolutionInputParameter}`);
 	}
 	return def;
 }

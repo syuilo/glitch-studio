@@ -8,6 +8,9 @@ export function commitVisualModuleEdit(manager: AppStateManager, target: VisualM
 	const module = findVisualModule(manager.state, target);
 	if (module == null) return;
 	switch (event.kind) {
+		case 'setNodeResolution':
+			manager.commit('changeNodeResolution', { ...target, nodeId: event.nodeId, resolution: event.resolution });
+			break;
 		case 'removeNode':
 			manager.commit('removeNode', { ...target, nodeId: event.nodeId });
 			break;

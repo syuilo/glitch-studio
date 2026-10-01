@@ -23,6 +23,7 @@ const { createTimelineCompositor } = await load('../src/timeline-compositor.ts')
 function gpuFixture() {
 	const calls = { textures: [], buffers: [], shaders: [], groups: [], samplers: [], writes: [], draws: 0, uploads: 0 };
 	const device = {
+		limits: { maxTextureDimension2D: 8192 },
 		createTexture(options) {
 			const size = options.size;
 			const texture = { width: size.width ?? size[0], height: size.height ?? size[1], format: options.format, destroyed: false, createView() { return { texture }; }, destroy() { this.destroyed = true; } };
@@ -178,17 +179,18 @@ test('owns separate timeline targets and reuses pipelines across parameter chang
 	assert.ok(calls.buffers.every(buffer => buffer.destroyed));
 });
 
-// 仮確保サイズを隠し、描画・複数出力・サイズ変更・バイパス・破棄の状態を通知する。
+// 【描画済みの寸法だけを公開し、サイズ変更時に状態とインスタンスを更新する】
+// 仮確保や未使用出力をUIへ出さず、破棄したインスタンスの遅延通知も無視する。
 test('publishes output resolutions only after drawing and when state changes', async () => {
 	const { device, encoder } = gpuFixture();
 	const notifications = [];
 	const reports = [];
-	const node = { id: 'mix', type: 'effect', effectId: 'colorMix', params: { inputA: literal([1, 0, 0, 1]), inputB: literal([0, 0, 0, 0]), amount: literal(7) } };
+	const node = { id: 'mix', type: 'effect', resolution: { mode: 'auto' }, effectId: 'colorMix', params: { inputA: literal([1, 0, 0, 1]), inputB: literal([0, 0, 0, 0]), amount: literal(7) } };
 	const out = { id: 'out', type: 'globalOut', inputs: { out: { nodeId: node.id, outputPort: 'output' }, extra: { nodeId: node.id, outputPort: 'extra' } } };
 	const nodes = [node, out];
 	const probe = {
-		getOutputResolution: (params, port) => ({ width: params.amount.value[0], height: port === 'output' ? 3 : 5 }),
-		outputTextureFactories: Object.fromEntries(['output', 'extra'].map(port => [port, ({ resolution }) => device.createTexture({ size: resolution, format: 'rgba8unorm' })])),
+		getIntrinsicResolution: params => ({ width: params.amount.value[0], height: 3 }),
+		outputTextureFactories: Object.fromEntries(['output', 'extra'].map(port => [port, ({ resolution }) => device.createTexture({ size: { width: resolution.width, height: port === 'output' ? resolution.height : 5 }, format: 'rgba8unorm' })])),
 		init: ({ reportStatus }) => { reports.push(reportStatus); return { render() {}, dispose() {} }; },
 	};
 	const renderer = createRenderer(device, {
@@ -206,7 +208,7 @@ test('publishes output resolutions only after drawing and when state changes', a
 		assert.deepEqual(latest().outputs, { output: { width: 7, height: 3 }, extra: null });
 		const count = notifications.length;
 		renderer.render(renderContext(), encoder);
-		reports[0]({ type: 'ready' });
+		reports.at(-1)({ type: 'ready' });
 		assert.equal(notifications.length, count);
 		node.params.amount = literal(9);
 		renderer.render(renderContext({ outputIds: ['out', 'extra'] }), encoder);
@@ -220,17 +222,18 @@ test('publishes output resolutions only after drawing and when state changes', a
 		renderer.updateNodes(nodes);
 		renderer.render(renderContext(), encoder);
 		assert.deepEqual(latest().outputs.output, { width: 9, height: 3 });
-		reports[0]({ type: 'loading' });
+		reports.at(-1)({ type: 'loading' });
 		assert.equal(latest().status.type, 'loading');
 		const controller = new AbortController();
 		let prepared = false;
 		const pending = renderer.prepare(renderContext(), controller.signal).then(() => { prepared = true; });
 		await Promise.resolve();
 		assert.equal(prepared, false, 'resolution must not make a loading effect ready');
-		reports[0]({ type: 'ready' });
+		reports.at(-1)({ type: 'ready' });
 		await pending;
+		node.resolution = { mode: 'project' };
 		renderer.resize({ width: 50, height: 20 });
-		assert.equal(latest(), null);
+		await renderer.prepare(renderContext(), new AbortController().signal);
 		const beforeStale = notifications.length;
 		reports[0]({ type: 'error', message: 'stale' });
 		assert.equal(notifications.length, beforeStale);
@@ -277,10 +280,10 @@ test('passes module constants through bypasses without allocating input textures
 	const { device, calls, encoder } = gpuFixture();
 	const captured = [];
 	const connection = (port, nodeId = 'in') => ({ fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear', inputSource: 'node', nodeId, outputPort: port });
-	const bypass = { id: 'bypass', type: 'effect', effectId: 'colorMix', isBypass: true, params: {
+	const bypass = { id: 'bypass', type: 'effect', resolution: { mode: 'project' }, effectId: 'colorMix', isBypass: true, params: {
 		inputA: connection('color'), inputB: literal([0, 0, 0, 0]), amount: literal(0),
 	} };
-	const mix = { id: 'mix', type: 'effect', effectId: 'colorMix', params: {
+	const mix = { id: 'mix', type: 'effect', resolution: { mode: 'project' }, effectId: 'colorMix', params: {
 		inputA: connection('output', 'bypass'), inputB: connection('vector'), amount: connection('scalar'),
 	} };
 	const probe = { ...effect, init: () => ({ prepare: params => captured.push(['prepare', params]), render: ctx => captured.push(['render', ctx.params]), dispose() {} }) };
@@ -317,7 +320,7 @@ test('passes module constants through bypasses without allocating input textures
 test('switches module outputs between constants and borrowed textures', () => {
 	const { device, calls, encoder } = gpuFixture();
 	const captured = [];
-	const mix = { id: 'mix', type: 'effect', effectId: 'colorMix', params: {
+	const mix = { id: 'mix', type: 'effect', resolution: { mode: 'project' }, effectId: 'colorMix', params: {
 		inputA: { inputSource: 'node', nodeId: 'in', outputPort: 'color', fitMode: 'contain', wrapMode: 'clamp', filterMode: 'nearest' },
 		inputB: { fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear', inputSource: 'node', nodeId: 'in', outputPort: 'color' },
 		amount: { inputSource: 'node', nodeId: 'in', outputPort: 'gain', fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' },
@@ -389,8 +392,8 @@ test('resolves nested array inputs and invalidates sampling changes', () => {
 		init: () => ({ render: ctx => captured.push(ctx.params), dispose() {} }),
 	};
 	const connection = { inputSource: 'node', nodeId: 'source', outputPort: 'output', fitMode: 'contain', wrapMode: 'transparent', filterMode: 'nearest' };
-	const source = { id: 'source', type: 'effect', effectId: 'colorMix', params: { inputA: literal([1, 0, 0, 1]), inputB: literal([0, 0, 0, 0]), amount: literal(0) } };
-	const arrayNode = { id: 'array', type: 'effect', effectId: 'testStructArray', params: {
+	const source = { id: 'source', type: 'effect', resolution: { mode: 'project' }, effectId: 'colorMix', params: { inputA: literal([1, 0, 0, 1]), inputB: literal([0, 0, 0, 0]), amount: literal(0) } };
+	const arrayNode = { id: 'array', type: 'effect', resolution: { mode: 'project' }, effectId: 'testStructArray', params: {
 		foo: literal({ node: literal([0, 1, 0, 0.5]) }), bars: literal([literal([0, 0, 1, 0.5])]),
 		buzzs: literal([literal({ image: connection, x: literal(0), y: literal(0) }), literal({ image: literal([1, 0, 0, 0.25]), x: literal(1), y: literal(0) })]),
 	} };
@@ -492,7 +495,7 @@ test('reuses colorMix variants and releases all owned buffers', () => {
 // 実際のパラメータ評価・接続解決を通し、新方式では定数テクスチャを確保・更新しない。
 test('resolves colorMix inputs through the renderer without constant textures', () => {
 	const { device, calls, encoder } = gpuFixture();
-	const mix = { id: 'mix', type: 'effect', effectId: 'colorMix', isBypass: false, params: {
+	const mix = { id: 'mix', type: 'effect', resolution: { mode: 'project' }, effectId: 'colorMix', isBypass: false, params: {
 		inputA: literal([1, 0, 0, 0.5]), inputB: literal([0, 0, 1, 1]), amount: { inputSource: 'expression', expression: '0.25' },
 	} };
 	const visualModule = { paramDefs: [], automationGraphs: [], outputDefs: [{ id: 'out' }], primaryInputId: null, primaryOutputId: 'out', nodes: [mix, { id: 'out', type: 'globalOut', inputs: { out: { nodeId: 'mix', outputPort: 'output' } } }] };
@@ -532,7 +535,7 @@ test('resolves colorMix inputs through the renderer without constant textures', 
 // 同じ外部パラメータが定数→テクスチャ→定数へ戻るとき、古い描画キャッシュを使わない。
 test('refreshes external textures and restores constants after disconnecting them', () => {
 	const { device, calls, encoder } = gpuFixture();
-	const mix = { id: 'mix', type: 'effect', effectId: 'colorMix', params: {
+	const mix = { id: 'mix', type: 'effect', resolution: { mode: 'project' }, effectId: 'colorMix', params: {
 		inputA: { inputSource: 'node', nodeId: null, outputPort: null }, inputB: literal([0, 0, 1, 1]), amount: { inputSource: 'node', nodeId: 'in', outputPort: 'gain', fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' },
 	} };
 	const renderer = createRenderer(device, {
@@ -567,12 +570,13 @@ test('refreshes external textures and restores constants after disconnecting the
 	renderer.destroy();
 });
 
-// 素材の選択・差し替えに追従し、固定の描画解像度とは独立した出力を後段へ渡す。
-test('resizes Image Original outputs to the selected asset and preserves borrowed textures', () => {
+// 【画像の原寸・差し替えと解像度モードを独立して扱う】
+// fit変更は出力サイズを変えず、素材サイズ・明示モードの変更だけで再確保する。
+test('resizes automatic image outputs to the selected asset and preserves borrowed textures', () => {
 	const { device, calls, encoder } = gpuFixture();
 	const asset = device.createTexture({ size: [7, 3], format: 'rgba8unorm' });
 	const assets = new Map([['asset', asset]]);
-	const raw = { id: 'raw', type: 'effect', effectId: 'image', params: { image: literal('asset'), sizeMode: literal('original') } };
+	const raw = { id: 'raw', type: 'effect', resolution: { mode: 'auto' }, effectId: 'image', params: { image: literal('asset'), fit: literal('cover') } };
 	const output = { id: 'out', type: 'globalOut', inputs: { out: { nodeId: 'raw', outputPort: 'output' } } };
 	const visualModule = { nodes: [raw, output], paramDefs: [], automationGraphs: [], outputDefs: [{ id: 'out' }], primaryInputId: null, primaryOutputId: 'out' };
 	const renderer = createRenderer(device, visualModule, { assetTextures: assets });
@@ -587,28 +591,40 @@ test('resizes Image Original outputs to the selected asset and preserves borrowe
 	const resized = renderer.render(renderContext(), encoder).texture;
 	assert.deepEqual([resized.width, resized.height], [4, 9]);
 	assert.equal(initial.destroyed, true);
-	// 通常モードへ戻すとレンダリング解像度を使い、Originalに戻すと再び素材サイズになる。
-	for (const sizeMode of ['stretch', 'cover', 'contain']) {
-		raw.params.sizeMode = literal(sizeMode);
+	// プロジェクトモードはfitによらず描画先の寸法を使う。
+	raw.resolution = { mode: 'project' };
+	for (const fit of ['stretch', 'cover', 'contain']) {
+		raw.params.fit = literal(fit);
 		const normal = renderer.render(renderContext(), encoder).texture;
 		assert.deepEqual([normal.width, normal.height], [32, 32]);
 	}
-	raw.params.sizeMode = literal('original');
+	raw.resolution = { mode: 'auto' };
 	const original = renderer.render(renderContext(), encoder).texture;
 	assert.deepEqual([original.width, original.height], [4, 9]);
-	// Image Original→colorMixで、素材側の比率がサンプリングのuniformへ届くことを確認する。
-	const mix = { id: 'mix', type: 'effect', effectId: 'colorMix', params: {
+	// 自動のImage→プロジェクト解像度のcolorMixでも、元の比率をサンプリングに使う。
+	const mix = { id: 'mix', type: 'effect', resolution: { mode: 'project' }, effectId: 'colorMix', params: {
 		inputA: { fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear', inputSource: 'node', nodeId: 'raw', outputPort: 'output' }, inputB: literal([0, 0, 0, 0]), amount: literal(0),
 	} };
 	output.inputs.out.nodeId = 'mix';
 	renderer.updateNodes([raw, mix, output]);
 	renderer.render(renderContext(), encoder);
 	assert.deepEqual([...calls.writes.at(-1).slice(4, 6)], [1, Math.fround(4 / 9)]);
+	// 自動の加工ノードは、縮小済みImageのサイズを再度半分にしない。
+	mix.resolution = { mode: 'auto' };
+	renderer.resize({ width: 32, height: 32 }, 0.5);
+	const preview = renderer.render(renderContext(), encoder).texture;
+	assert.deepEqual([preview.width, preview.height], [2, 5]);
+	const previewAllocations = calls.textures.length;
+	renderer.render(renderContext(), encoder);
+	assert.equal(calls.textures.length, previewAllocations);
+	renderer.resize({ width: 32, height: 32 }, 1);
+	const fullSize = renderer.render(renderContext(), encoder).texture;
+	assert.deepEqual([fullSize.width, fullSize.height], [4, 9]);
 	raw.params.image = literal(null);
 	output.inputs.out.nodeId = 'raw';
 	renderer.updateNodes([raw, mix, output]);
 	const empty = renderer.render(renderContext(), encoder).texture;
-	assert.deepEqual([empty.width, empty.height], [1, 1]);
+	assert.deepEqual([empty.width, empty.height], [32, 32]);
 	renderer.destroy();
 	assert.equal(asset.destroyed, false);
 	assert.equal(replacement.destroyed, false);

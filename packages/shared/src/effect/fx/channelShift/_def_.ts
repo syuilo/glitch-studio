@@ -13,6 +13,7 @@ export default defineEffect({
 		inputBlendMode: { dataType: { kind: 'blendMode' }, ui: { label: 'Input Blend', control: {} }, defaultValue: { inputSource: 'literal', value: 'lighten' } },
 	},
 	primaryInputParameter: 'input',
+	resolutionInputParameter: 'input',
 	outputDefs: {
 		output: { dataType: { kind: 'color' } },
 	},

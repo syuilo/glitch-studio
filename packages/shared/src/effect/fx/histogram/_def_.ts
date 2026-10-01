@@ -15,6 +15,7 @@ export default defineEffect({
 		height: { dataType: { kind: 'scalar' }, ui: { label: 'Height', control: { controlType: 'range', min: 0, max: 10, step: 0.01 } }, defaultValue: { inputSource: 'literal', value: 1 } },
 	},
 	primaryInputParameter: 'input',
+	resolutionInputParameter: 'input',
 	outputDefs: {
 		output: { dataType: { kind: 'color' } },
 	},

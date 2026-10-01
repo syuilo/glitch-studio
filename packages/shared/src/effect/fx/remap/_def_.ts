@@ -12,6 +12,7 @@ export default defineEffect({
 		outMax: { dataType: { kind: 'scalar' }, ui: { label: 'Out Max', control: { controlType: 'number', step: 0.01 } }, canNode: true, defaultValue: { inputSource: 'literal', value: 1 } },
 	},
 	primaryInputParameter: 'input',
+	resolutionInputParameter: 'input',
 	outputDefs: {
 		output: { dataType: { kind: 'scalar' } },
 	},

@@ -116,7 +116,7 @@ export async function run() {
 		const rawOutput = texture(2, 2);
 		const raw = imageEffect.init({ wgpu: { device, defaultVertexShaderModule: vertex, intermediateTextureFormat: 'rgba8unorm' } } as any);
 		const rawEncoder = device.createCommandEncoder();
-		raw.render({ params: { image: rawSource, sizeMode: 'original' }, commandEncoder: rawEncoder, outputDataMap: { output: { texture: rawOutput, textureView: rawOutput.createView() } }, createPassEncoderFor: (encoder, view) => encoder.beginRenderPass({ colorAttachments: [{ view, loadOp: 'clear', storeOp: 'store' }] }), createPassEncoder: (encoder, descriptor) => encoder.beginRenderPass(descriptor) } as any);
+		raw.render({ params: { image: rawSource, fit: 'stretch' }, commandEncoder: rawEncoder, outputDataMap: { output: { texture: rawOutput, textureView: rawOutput.createView() } }, createPassEncoderFor: (encoder, view) => encoder.beginRenderPass({ colorAttachments: [{ view, loadOp: 'clear', storeOp: 'store' }] }), createPassEncoder: (encoder, descriptor) => encoder.beginRenderPass(descriptor) } as any);
 		const rawPixels = await read(rawOutput, rawEncoder);
 		check('original image top row and half alpha', rawPixels[0], [128, 0, 0, 128, 0, 255, 0, 255]);
 		check('original image bottom row and zero alpha', rawPixels[1], [0, 0, 64, 64, 0, 0, 0, 0]);
@@ -124,10 +124,10 @@ export async function run() {
 		const edgeSource = await loadImageAsset(2, 1, [255, 0, 0, 255, 0, 0, 0, 0]);
 		const edgeOutput = texture(1, 1);
 		const edgeEncoder = device.createCommandEncoder();
-		raw.render({ params: { image: edgeSource, sizeMode: 'stretch' }, commandEncoder: edgeEncoder, outputDataMap: { output: { texture: edgeOutput, textureView: edgeOutput.createView() } }, createPassEncoderFor: (encoder, view) => encoder.beginRenderPass({ colorAttachments: [{ view, loadOp: 'clear', storeOp: 'store' }] }) } as any);
+		raw.render({ params: { image: edgeSource, fit: 'stretch' }, commandEncoder: edgeEncoder, outputDataMap: { output: { texture: edgeOutput, textureView: edgeOutput.createView() } }, createPassEncoderFor: (encoder, view) => encoder.beginRenderPass({ colorAttachments: [{ view, loadOp: 'clear', storeOp: 'store' }] }) } as any);
 		check('image interpolation preserves premultiplied transparent edges', (await read(edgeOutput, edgeEncoder))[0], [128, 0, 0, 128]);
 		const emptyEncoder = device.createCommandEncoder();
-		raw.render({ params: { image: null, sizeMode: 'original' }, commandEncoder: emptyEncoder, outputDataMap: { output: { texture: rawOutput, textureView: rawOutput.createView() } }, createPassEncoderFor: (encoder, view) => encoder.beginRenderPass({ colorAttachments: [{ view, loadOp: 'clear', storeOp: 'store' }] }), createPassEncoder: (encoder, descriptor) => encoder.beginRenderPass(descriptor) } as any);
+		raw.render({ params: { image: null, fit: 'stretch' }, commandEncoder: emptyEncoder, outputDataMap: { output: { texture: rawOutput, textureView: rawOutput.createView() } }, createPassEncoderFor: (encoder, view) => encoder.beginRenderPass({ colorAttachments: [{ view, loadOp: 'clear', storeOp: 'store' }] }), createPassEncoder: (encoder, descriptor) => encoder.beginRenderPass(descriptor) } as any);
 		check('original image without asset is transparent', (await read(rawOutput, emptyEncoder))[0], Array(8).fill(0));
 		raw.dispose();
 		assetTextures.dispose();

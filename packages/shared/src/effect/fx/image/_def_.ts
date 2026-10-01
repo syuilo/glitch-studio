@@ -6,13 +6,14 @@ export default defineEffect({
 	tags: [],
 	paramDefs: {
 		image: { dataType: { kind: 'assetReference' }, ui: { label: 'Image', control: {} }, defaultValue: { inputSource: 'literal', value: null } },
-		sizeMode: {
-			dataType: { kind: 'enum', options: ['stretch', 'cover', 'contain', 'original'] },
-			ui: { label: 'Size mode', control: { labels: { 'stretch': 'Stretch', 'cover': 'Cover', 'contain': 'Contain', 'original': 'Original' } } },
+		fit: {
+			dataType: { kind: 'fitMode' },
+			ui: { label: 'Fit', control: {} },
 			defaultValue: { inputSource: 'literal', value: 'cover' },
 		},
 	},
 	primaryInputParameter: null,
+	resolutionInputParameter: null,
 	outputDefs: {
 		output: { dataType: { kind: 'color' } },
 	},

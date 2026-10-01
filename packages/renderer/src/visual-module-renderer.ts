@@ -1,3 +1,5 @@
+import { scaleResolution, type Resolution } from '@glitch/shared/resolution.ts';
+import { resolveEffectNodeResolution } from './effect-node-resolution.ts';
 import { visualModuleCustomParameterId, type VisualModuleCustomParameterId } from '@glitch/shared/visual-module/types.ts';
 import { constantShaderInput } from '@glitch/shared/shader-input.ts';
 import { getNodeOutputs } from '@glitch/shared/utility/node-outputs.ts';
@@ -39,7 +41,9 @@ export class VisualModuleRenderer {
 	private gpuContext: GPUCanvasContext;
 	private defaultVertexShaderModule: GPUShaderModule;
 	private fallbackTexture: GPUTexture;
-	private resolution: { width: number; height: number; };
+	private resolution: Resolution;
+	private resolutionScale: number;
+	private nodeResolutions = new Map<string, Resolution>();
 	private nodes: VisualModuleNode[] = [];
 	private paramDefs: VisualModule['paramDefs'];
 	private outputDefs: VisualModule['outputDefs'] = [];
@@ -86,7 +90,8 @@ export class VisualModuleRenderer {
 		gpuDevice: GPUDevice;
 		gpuContext: GPUCanvasContext;
 		fallbackTexture: GPUTexture;
-		resolution: { width: number; height: number; };
+		resolution: Resolution;
+		resolutionScale?: number;
 		enable32bitDataTextures: boolean;
 		intermediateTextureFormat: IntermediateTextureFormat;
 		videoFrames: Map<string, VideoFrame>;
@@ -104,7 +109,8 @@ export class VisualModuleRenderer {
 		this.paramDefs = options.visualModule.paramDefs;
 		this.onEffectState = options.onEffectState;
 		this.enableStats = options.enableStats;
-		this.resolution = options.resolution;
+		this.resolutionScale = options.resolutionScale ?? 1;
+		this.resolution = scaleResolution(options.resolution, this.resolutionScale);
 		this.enable32bitDataTextures = options.enable32bitDataTextures;
 		this.intermediateTextureFormat = options.intermediateTextureFormat;
 		this.videoFrames = options.videoFrames;
@@ -252,6 +258,7 @@ export class VisualModuleRenderer {
 				return null;
 			}
 			// 非同期のリソース更新も後続ノードのキャッシュキーに伝播させる。
+			key += JSON.stringify([node.resolution, this.nodeResolutions.get(node.id)]);
 			key += `cacheVersion=${this.effectInstances.get(node.id)?.cacheVersion ?? 0};`;
 			// 出力の利用開始・停止でも、依存先を含めキャッシュを更新する。
 			if (this.lazyOutputs.has(node.id)) key += `ports=${JSON.stringify([...(this.usedOutputPorts.get(node.id) ?? [])].sort())};`;
@@ -364,10 +371,16 @@ export class VisualModuleRenderer {
 
 		for (const node of addedNodes) {
 			const effect = this.effectImplementations[node.effectId];
+			// プロジェクト・明示指定は入力評価を待たず確定できる。自動の場合だけ仮確保し、
+			// 上流の寸法が決まる前にプロジェクトサイズの大きな領域を確保することを避ける。
+			const initialResolution = node.resolution.mode === 'auto' ? undefined : resolveEffectNodeResolution({
+				setting: node.resolution, projectResolution: this.resolution, resolutionScale: this.resolutionScale,
+				maxDimension: this.gpuDevice.limits.maxTextureDimension2D,
+			});
+			if (initialResolution != null) this.nodeResolutions.set(node.id, initialResolution);
 			const allocationArgs = {
 				wgpu: { device: this.gpuDevice, enable32bitDataTextures: this.enable32bitDataTextures, intermediateTextureFormat: this.intermediateTextureFormat },
-				// 入力依存のサイズはパラメータ評価後に確定する。仮の出力へ大きな領域を確保しない。
-				resolution: effect.getOutputResolution ? { width: 1, height: 1 } : { ...this.resolution },
+				resolution: initialResolution ?? { width: 1, height: 1 },
 			};
 			const outDataMap = {} as Record<string, {
 				texture: GPUTexture;
@@ -378,8 +391,9 @@ export class VisualModuleRenderer {
 			const lazy: Record<string, () => void> = {};
 			for (const [k, createTexture] of Object.entries(effect.outputTextureFactories)) {
 				const allocate = () => {
-					const tex = createTexture(allocationArgs);
-					const previousTexture = effect.needsPreviousFrame ? createTexture(allocationArgs) : undefined;
+					const args = { ...allocationArgs, resolution: this.nodeResolutions.get(node.id) ?? allocationArgs.resolution };
+					const tex = createTexture(args);
+					const previousTexture = effect.needsPreviousFrame ? createTexture(args) : undefined;
 					outDataMap[k] = {
 						texture: tex,
 						textureView: tex.createView(),
@@ -395,6 +409,7 @@ export class VisualModuleRenderer {
 		}
 
 		for (const node of removedNodes) {
+			this.nodeResolutions.delete(node.id);
 			this.lazyOutputs.delete(node.id);
 			this.usedOutputPorts.delete(node.id);
 			this.clearEffectStatus(node.id);
@@ -519,13 +534,6 @@ export class VisualModuleRenderer {
 			});
 		}
 
-		const key = this.evalCacheKey(node);
-		//console.log('Cache key for node', node.id, ':', key);
-		const prevKey = this.effectCacheKeys.get(node.id);
-		if (key != null && key === prevKey) {
-			return;
-		}
-
 		const effect = this.effectImplementations[node.effectId];
 
 		const params = this.evaledNodeParams.get(node.id)!;
@@ -542,23 +550,14 @@ export class VisualModuleRenderer {
 		}
 
 		const resolvedParams = this.resolveParams(node, params);
-		if (effect.getOutputResolution) {
-			for (const [port, data] of Object.entries(this.outDataMapPerNodes.get(node.id)!)) {
-				const resolution = effect.getOutputResolution(resolvedParams, port) ?? this.resolution;
-				if (data.texture.width === resolution.width && data.texture.height === resolution.height) continue;
-				const args = { resolution, wgpu: { device: this.gpuDevice, enable32bitDataTextures: this.enable32bitDataTextures, intermediateTextureFormat: this.intermediateTextureFormat } };
-				const texture = effect.outputTextureFactories[port](args);
-				const previous = effect.needsPreviousFrame ? effect.outputTextureFactories[port](args) : undefined;
-				data.texture.destroy();
-				data.previousFrameTexture?.destroy();
-				data.texture = texture;
-				data.textureView = texture.createView();
-				data.previousFrameTexture = previous;
-				data.previousFrameTextureView = previous?.createView();
-			}
-		}
-
+		this.ensureNodeResolution(node, resolvedParams);
 		const effectInstance = this.initializeEffect(node, resolvedParams);
+		// 上流のサイズ・非同期リソース更新を確定させてからキャッシュを判定する。
+		const key = this.evalCacheKey(node);
+		if (key != null && key === this.effectCacheKeys.get(node.id)) {
+			context.rendered.add(node.id);
+			return;
+		}
 
 		const outDataMap = this.outDataMapPerNodes.get(node.id)!;
 
@@ -629,6 +628,38 @@ export class VisualModuleRenderer {
 		else this.effectCacheKeys.delete(node.id);
 	}
 
+	private ensureNodeResolution(node: VisualModuleEffectNode, params: Record<string, any>) {
+		const effect = this.effectImplementations[node.effectId];
+		const inputKey = this.effectDefinitions[node.effectId].resolutionInputParameter;
+		const input = inputKey == null ? undefined : params[inputKey];
+		const resolution = resolveEffectNodeResolution({
+			setting: node.resolution, projectResolution: this.resolution,
+			resolutionScale: this.resolutionScale,
+			intrinsicResolution: node.resolution.mode === 'auto' ? effect.getIntrinsicResolution?.(params) : undefined,
+			inputResolution: input?.kind === 'texture' ? input.texture : undefined,
+			maxDimension: this.gpuDevice.limits.maxTextureDimension2D,
+		});
+		const previous = this.nodeResolutions.get(node.id);
+		if (previous?.width === resolution.width && previous.height === resolution.height) return;
+
+		// init時の寸法から内部bufferやuniformを作るエフェクトもあるため、出力だけを
+		// 差し替えない。サイズ変更時だけ再初期化し、履歴も新しい画素格子で開始する。
+		this.effectInstances.get(node.id)?.dispose();
+		this.effectInstances.delete(node.id);
+		this.clearEffectStatus(node.id);
+		this.effectCacheKeys.delete(node.id);
+		const outputs = this.outDataMapPerNodes.get(node.id)!;
+		const args = { resolution, wgpu: { device: this.gpuDevice, enable32bitDataTextures: this.enable32bitDataTextures, intermediateTextureFormat: this.intermediateTextureFormat } };
+		for (const [port, data] of Object.entries(outputs)) {
+			const texture = effect.outputTextureFactories[port](args);
+			const history = effect.needsPreviousFrame ? effect.outputTextureFactories[port](args) : undefined;
+			data.texture.destroy();
+			data.previousFrameTexture?.destroy();
+			outputs[port] = { texture, textureView: texture.createView(), previousFrameTexture: history, previousFrameTextureView: history?.createView() };
+		}
+		this.nodeResolutions.set(node.id, resolution);
+	}
+
 	private initializeEffect(node: VisualModuleEffectNode, params: Record<string, any>): EffectInstance {
 		const existing = this.effectInstances.get(node.id);
 		if (existing != null) return existing;
@@ -639,7 +670,7 @@ export class VisualModuleRenderer {
 				// 破棄・再作成後の古い通知は無視する。
 				if (this.effectStatuses.get(node.id) === state) this.setEffectStatus(node.id, status);
 			},
-			resolution: { ...this.resolution },
+			resolution: { ...this.nodeResolutions.get(node.id)! },
 			wgpu: { device: this.gpuDevice, context: this.gpuContext, defaultVertexShaderModule: this.defaultVertexShaderModule, enable32bitDataTextures: this.enable32bitDataTextures, intermediateTextureFormat: this.intermediateTextureFormat },
 			params,
 			fallbackTexture: this.fallbackTexture,
@@ -673,6 +704,7 @@ export class VisualModuleRenderer {
 				visit(source, [...visited, target.id, effectNode.id], param.outputPort ?? undefined);
 			}
 			const params = this.resolveParams(effectNode, this.evaledNodeParams.get(effectNode.id)!);
+			this.ensureNodeResolution(effectNode, params);
 			this.initializeEffect(effectNode, params).prepare?.(params);
 			prepared.add(effectNode.id);
 		};
@@ -735,35 +767,12 @@ export class VisualModuleRenderer {
 		return this.primaryOutputId == null ? undefined : outputs.get(this.primaryOutputId);
 	}
 
-	// TODO: もっとスマートなリソース更新方法を考える
-	public resize(resolution: {
-		width: number;
-		height: number;
-	}) {
-		this.resolution = resolution;
+	public resize(resolution: Resolution, resolutionScale = 1) {
+		this.resolutionScale = resolutionScale;
+		this.resolution = scaleResolution(resolution, resolutionScale);
 		this.preparedContext = null;
-
-		for (const id of this.effectStatuses.keys()) this.clearEffectStatus(id);
-		for (const instance of this.effectInstances.values()) {
-			instance?.dispose();
-		}
-		this.effectInstances.clear();
-
-		for (const outDataMap of this.outDataMapPerNodes.values()) {
-			for (const outData of Object.values(outDataMap)) {
-				outData.texture.destroy();
-				if (outData.previousFrameTexture) {
-					outData.previousFrameTexture.destroy();
-				}
-			}
-		}
-		this.outDataMapPerNodes.clear();
-		this.lazyOutputs.clear();
-		this.usedOutputPorts.clear();
-
-		const currentNodes = this.nodes;
-		this.updateNodes([]);
-		this.updateNodes(currentNodes);
+		this.effectCacheKeys.clear();
+		// 実際にサイズが変わったノードだけ、次の準備・描画でリソースを更新する。
 	}
 
 	public destroy() {

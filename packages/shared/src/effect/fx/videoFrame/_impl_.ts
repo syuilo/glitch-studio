@@ -7,6 +7,8 @@ import type definition from './_def_.ts';
 import code from './shader.wgsl?raw';
 
 export default implementEffect<typeof definition>({
+	getIntrinsicResolution: params => params.asset != null && params.asset.width > 0 && params.asset.height > 0
+		? { width: params.asset.width, height: params.asset.height } : undefined,
 	outputTextureFactories: {
 		output: ({ wgpu, resolution }) => wgpu.device.createTexture({
 			size: resolution,

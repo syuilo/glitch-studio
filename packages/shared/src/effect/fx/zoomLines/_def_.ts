@@ -13,6 +13,7 @@ export default defineEffect({
 		maskSize: { dataType: { kind: 'scalar' }, ui: { label: 'Mask size', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } }, defaultValue: { inputSource: 'literal', value: 0.5 } },
 	},
 	primaryInputParameter: 'input',
+	resolutionInputParameter: 'input',
 	outputDefs: {
 		output: { dataType: { kind: 'color' } },
 	},

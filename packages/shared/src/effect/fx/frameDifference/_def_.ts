@@ -11,6 +11,7 @@ export default defineEffect({
 		threshold: { dataType: { kind: 'scalar' }, ui: { label: 'Threshold', control: { controlType: 'range', min: 0, max: 1, step: 0.001 } }, defaultValue: { inputSource: 'literal', value: 0 } },
 	},
 	primaryInputParameter: 'input',
+	resolutionInputParameter: 'input',
 	outputDefs: {
 		output: { dataType: { kind: 'color' } },
 	},

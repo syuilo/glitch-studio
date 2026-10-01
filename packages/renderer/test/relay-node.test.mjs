@@ -13,7 +13,7 @@ const reference = (nodeId, outputPort = 'output') => ({ nodeId, outputPort });
 const literal = value => ({ inputSource: 'literal', value });
 const relay = (id, input = reference('in', 'input'), kind = 'color') => ({ id, type: 'relay', dataType: { kind }, input });
 const connection = (nodeId, settings = {}) => ({ inputSource: 'node', ...reference(nodeId), fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear', ...settings });
-const effectNode = (id, params = {}, isBypass = false) => ({ id, type: 'effect', effectId: 'probe', params, isBypass });
+const effectNode = (id, params = {}, isBypass = false) => ({ id, type: 'effect', resolution: { mode: 'project' }, effectId: 'probe', params, isBypass });
 const context = (output = { kind: 'uniform', value: [0.25, 0, 0, 0.5] }) => ({
 	time: 0, timeDelta: 0, endTime: Infinity, isExport: false,
 	pointerPosition: { x: 0, y: 0 }, pointerPositionPrev: { x: 0, y: 0 },
@@ -47,7 +47,7 @@ function fixture(t, nodes, { kind = 'color', paramDefs = {}, lazy = false, disab
 		nodes: [{ id: 'in', type: 'globalIn' }, ...nodes, { id: 'out', type: 'globalOut', inputs: { out: reference(nodes.at(-1).id) } }],
 	};
 	const renderer = new VisualModuleRenderer({
-		gpuDevice: { createShaderModule: () => ({}) }, gpuContext: {}, fallbackTexture: {}, timingHelper: null,
+		gpuDevice: { limits: { maxTextureDimension2D: 8192 }, createShaderModule: () => ({}) }, gpuContext: {}, fallbackTexture: {}, timingHelper: null,
 		resolution: { width: 16, height: 16 }, enableStats: false, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm',
 		videoFrames: new Map(), videoFrameVersions: new Map(), assets: [], assetTextures: new Map(), audioSources: new Map(),
 		effectDefinitions: { probe: definition }, effectImplementations: { probe: implementation }, visualModule: module,

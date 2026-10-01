@@ -15,6 +15,7 @@ export default defineEffect({
 		seed: { dataType: { kind: 'scalar' }, ui: { label: 'Seed', control: { controlType: 'seed' } }, canNode: false, defaultValue: { inputSource: 'literal', value: 0 } },
 	},
 	primaryInputParameter: null,
+	resolutionInputParameter: null,
 	outputDefs: {
 		output: { dataType: { kind: 'scalar' } },
 	},

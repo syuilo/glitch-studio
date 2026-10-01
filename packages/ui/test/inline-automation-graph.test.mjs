@@ -168,7 +168,7 @@ test('provides normalized endpoints for empty and single-point inline graphs', (
 
 function fixture() {
 	const initial = { inputSource: 'literal', value: 3 };
-	const node = { id: 'node', type: 'effect', effectId: 'test', params: { values: { inputSource: 'literal', value: [initial] } } };
+	const node = { id: 'node', type: 'effect', resolution: { mode: 'project' }, effectId: 'test', params: { values: { inputSource: 'literal', value: [initial] } } };
 	const state = {
 		visualModules: { value: [{ id: 'module', nodes: [node], primaryInputId: null, paramDefs: [{ id: 'gain', defaultValue: initial }] }] },
 		timelineScenes: { value: [{ id: 'scene', name: 'Scene', layers: [{ id: 'layer', layerType: 'visualModule', visualModuleId: 'module', positionMs: 0, trimStartMs: 0, trimmedDurationMs: 1000, paramValues: {}, compositingParamValues: defaultCompositing(), automationGraphs: [] }] }] },

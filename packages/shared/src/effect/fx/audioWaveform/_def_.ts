@@ -18,6 +18,7 @@ export default defineEffect({
 		colorR: { dataType: { kind: 'color' }, ui: { label: 'Color (R)', control: {} }, defaultValue: { inputSource: 'literal', value: [1, 0.3, 0.6, 1] } },
 	},
 	primaryInputParameter: null,
+	resolutionInputParameter: null,
 	outputDefs: {
 		output: { dataType: { kind: 'color' } },
 	},

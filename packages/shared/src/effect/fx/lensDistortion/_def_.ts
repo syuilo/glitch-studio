@@ -25,6 +25,7 @@ export default defineEffect({
 		angle: { dataType: { kind: 'scalar' }, ui: { label: 'Spread Angle', control: { controlType: 'angle' } }, defaultValue: { inputSource: 'literal', value: 0 } },
 	},
 	primaryInputParameter: 'input',
+	resolutionInputParameter: 'input',
 	outputDefs: {
 		output: { dataType: { kind: 'color' } },
 	},

@@ -18,6 +18,16 @@
 	</div>
 
 	<div v-show="expanded" :class="$style.params" :inert="node.isBypass">
+		<div :class="$style.resolution">
+			<GsSelect :modelValue="node.resolution.mode" :items="resolutionModes" @update:modelValue="setResolutionMode">
+				<template #label>Resolution</template>
+			</GsSelect>
+			<div v-if="node.resolution.mode === 'custom'" :class="$style.dimensions">
+				<GsInput type="number" :modelValue="node.resolution.width" :min="1" :step="1" :debounce="400" @update:modelValue="setDimension('width', $event)"><template #label>Width</template></GsInput>
+				<span>×</span>
+				<GsInput type="number" :modelValue="node.resolution.height" :min="1" :step="1" :debounce="400" @update:modelValue="setDimension('height', $event)"><template #label>Height</template></GsInput>
+			</div>
+		</div>
 		<GsVisualParam
 			v-for="[param, def] in Object.entries(getNodeParamDefs(props.node))"
 			:key="param"
@@ -44,8 +54,11 @@ import GsNodeOutputs from './GsNodeOutputs.vue';
 import GsNodePort from './GsNodePort.vue';
 import GsVisualParam from './GsVisualParam.vue';
 import GsButton from './common/GsButton.vue';
+import GsSelect from './common/GsSelect.vue';
+import GsInput from './common/GsInput.vue';
 import type { ParamEdit } from './GsVisualParam.vue';
-import type { VisualModule, VisualModuleEffectNode } from '@glitch/shared/visual-module/types.js';
+import type { EffectNodeResolution, VisualModule, VisualModuleEffectNode } from '@glitch/shared/visual-module/types.js';
+import { appStateManager } from '@/app.ts';
 import type { EffectInstanceState } from '@glitch/shared/effect/effect-status.ts';
 import { i18n } from '@/i18n.ts';
 import { useVisualModuleWires } from '@/utility/visual-module-wires.ts';
@@ -65,12 +78,29 @@ const emit = defineEmits<{
 	(ev: 'editParam', event: ParamEdit): void;
 	(ev: 'remove'): void;
 	(ev: 'setBypass', bypass: boolean): void;
+	(ev: 'setResolution', resolution: EffectNodeResolution): void;
 }>();
 
 const name = computed(() => effectDefinitions[props.node.effectId].displayName);
 const expanded = ref(true);
 const allInPortEl = shallowRef<HTMLElement | null>(null);
 const effectStatus = computed(() => props.effectState?.status);
+
+const resolutionModes: { value: EffectNodeResolution['mode']; label: string }[] = [
+	{ value: 'project', label: 'Project resolution' },
+	{ value: 'auto', label: 'Auto' },
+	{ value: 'custom', label: 'Custom' },
+];
+
+function setResolutionMode(mode: EffectNodeResolution['mode']) {
+	if (mode === props.node.resolution.mode) return;
+	emit('setResolution', mode === 'custom' ? { mode, ...appStateManager.state.resolution.value } : { mode });
+}
+
+function setDimension(axis: 'width' | 'height', value: number | null) {
+	if (props.node.resolution.mode !== 'custom' || value == null || !Number.isSafeInteger(value) || value < 1) return;
+	emit('setResolution', { ...props.node.resolution, [axis]: value });
+}
 
 function showEffectError() {
 	if (effectStatus.value?.type !== 'error') return;
@@ -97,6 +127,18 @@ watchEffect(onCleanup => {
 </script>
 
 <style module lang="scss">
+.resolution {
+	padding: 8px;
+}
+
+.dimensions {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+	align-items: end;
+	gap: 8px;
+	margin-top: 8px;
+}
+
 .root {
 	position: relative;
 	background: var(--THEME-nodeBg);

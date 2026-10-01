@@ -10,6 +10,7 @@ export default defineEffect({
 		halfLife: { dataType: { kind: 'scalar' }, ui: { label: 'Half-life (ms)', control: { controlType: 'range', min: 1, max: 5000, step: 1 } }, defaultValue: { inputSource: 'literal', value: 300 } },
 	},
 	primaryInputParameter: null,
+	resolutionInputParameter: null,
 	outputDefs: {
 		output: { dataType: { kind: 'vector' } },
 	},

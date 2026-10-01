@@ -42,6 +42,7 @@ export default defineEffect({
 		},
 	},
 	primaryInputParameter: null,
+	resolutionInputParameter: null,
 	outputDefs: {
 		scalar: { dataType: { kind: 'scalar' } },
 		vector: { dataType: { kind: 'vector' }, canLazyAllocation: true },

@@ -9,6 +9,7 @@ export default defineEffect({
 		v: { dataType: { kind: 'scalar' }, ui: { label: 'Value', control: { controlType: 'range', min: -10, max: 10, step: 0.01 } }, defaultValue: { inputSource: 'literal', value: 2 } },
 	},
 	primaryInputParameter: 'input',
+	resolutionInputParameter: 'input',
 	outputDefs: {
 		output: { dataType: { kind: 'scalar' } },
 	},

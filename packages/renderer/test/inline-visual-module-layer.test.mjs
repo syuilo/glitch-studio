@@ -40,7 +40,7 @@ function visualModule({ primaryInput = false, params } = {}) {
 		primaryOutputId: 'output',
 		nodes: [
 			{ id: 'in', type: 'globalIn' },
-			...(params ? [{ id: 'node', type: 'effect', effectId: 'probe', isBypass: false, params: {
+			...(params ? [{ id: 'node', type: 'effect', resolution: { mode: 'project' }, effectId: 'probe', isBypass: false, params: {
 				...Object.fromEntries(Object.entries(probeParamDefs).map(([key, def]) => [key, structuredClone(def.defaultValue)])),
 				input: connection('in', 'input'), ...params,
 			} }] : []),
@@ -69,6 +69,7 @@ function fixture(t) {
 		createView() { return { texture: this }; }, destroy() { this.destroyed = true; },
 	});
 	const device = {
+		limits: { maxTextureDimension2D: 8192 },
 		features: new Set(), destroy() {},
 		createTexture: texture, createBuffer: ({ size }) => ({ size, destroy() {} }),
 		createShaderModule: () => ({}), createSampler: () => ({}), createBindGroup: () => ({}),
@@ -86,7 +87,7 @@ function fixture(t) {
 		gpuDevice: device, gpuContext: { canvas: { width: 16, height: 16 }, configure() {}, getCurrentTexture: texture },
 		effectDefinitions: { probe: {
 			paramDefs: probeParamDefs,
-			primaryInputParameter: 'input', primaryOutput: 'output', outputDefs: { output: { dataType: { kind: 'color' } } },
+			primaryInputParameter: 'input', resolutionInputParameter: 'input', primaryOutput: 'output', outputDefs: { output: { dataType: { kind: 'color' } } },
 		} },
 		effectImplementations: { probe: {
 			disableCache: true,

@@ -11,6 +11,7 @@ export default defineEffect({
 		samples: { dataType: { kind: 'scalar' }, ui: { label: 'Samples', control: { controlType: 'range', min: 4, max: 256, step: 1 } }, defaultValue: { inputSource: 'literal', value: 32 } },
 	},
 	primaryInputParameter: 'input',
+	resolutionInputParameter: 'input',
 	outputDefs: {
 		output: { dataType: { kind: 'color' } },
 	},

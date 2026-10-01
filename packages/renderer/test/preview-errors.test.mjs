@@ -28,8 +28,8 @@ function visualModule(circular) {
 		paramDefs: [],
 		outputDefs: [{ id: 'output', dataType: { kind: 'color' } }], primaryInputId: null, primaryOutputId: 'output',
 		nodes: [
-			{ id: 'a', type: 'effect', effectId: 'pass', isBypass: true, params: { input: { inputSource: 'node', nodeId: circular ? 'b' : null, outputPort: 'output' } } },
-			{ id: 'b', type: 'effect', effectId: 'pass', isBypass: true, params: { input: { inputSource: 'node', nodeId: 'a', outputPort: 'output' } } },
+			{ id: 'a', type: 'effect', resolution: { mode: 'project' }, effectId: 'pass', isBypass: true, params: { input: { inputSource: 'node', nodeId: circular ? 'b' : null, outputPort: 'output' } } },
+			{ id: 'b', type: 'effect', resolution: { mode: 'project' }, effectId: 'pass', isBypass: true, params: { input: { inputSource: 'node', nodeId: 'a', outputPort: 'output' } } },
 			{ id: 'out', type: 'globalOut', inputs: { output: { nodeId: 'a', outputPort: 'output' } } },
 		],
 	};
@@ -41,6 +41,7 @@ function gpuFixture() {
 		format, dimension: '2d', createView: () => ({}), destroy() {},
 	});
 	const device = {
+		limits: { maxTextureDimension2D: 8192 },
 		features: new Set(), lost: new Promise(() => {}), destroy() {},
 		createTexture: texture, createBuffer: ({ size }) => ({ size, destroy() {} }),
 		createShaderModule: () => ({}), createSampler: () => ({}), createBindGroup: () => ({}),
@@ -63,7 +64,7 @@ async function fixture(t, staticOptions = {}, Manager = VisualModuleRendererMana
 		frameScheduler: { now: () => 0, requestFrame: callback => { frames.set(++frameId, callback); return frameId; }, cancelFrame: id => frames.delete(id) },
 		effectDefinitions: { pass: { paramDefs: {
 			input: { dataType: { kind: 'color' }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },
-		}, primaryInputParameter: 'input', outputDefs: { output: { dataType: { kind: 'color' } } }, primaryOutput: 'output' } },
+		}, primaryInputParameter: 'input', resolutionInputParameter: 'input', outputDefs: { output: { dataType: { kind: 'color' } } }, primaryOutput: 'output' } },
 		effectImplementations: { pass: { outputTextureFactories: {} } },
 	}, { enableStats: false, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm', ...staticOptions });
 	renderer.on('ev', event => {

@@ -14,6 +14,7 @@ export default defineEffect({
 		quality: { dataType: { kind: 'scalar' }, ui: { label: 'Quality', control: { controlType: 'range', min: 0.1, max: 1, step: 0.05 } }, defaultValue: { inputSource: 'literal', value: 0.5 } },
 	},
 	primaryInputParameter: 'input',
+	resolutionInputParameter: 'input',
 	outputDefs: {
 		output: { dataType: { kind: 'color' } },
 	},

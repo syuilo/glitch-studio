@@ -1,3 +1,4 @@
+import { scaleResolution, type Resolution } from '@glitch/shared/resolution.ts';
 import { getTimelineScene, validateTimelineScenes } from '@glitch/shared/timeline/scenes.ts';
 import EventEmitter from 'eventemitter3';
 import { AssetTextures } from './asset-textures.ts';
@@ -36,10 +37,9 @@ export type TimelineRendererManagerStaticOptions = {
  * 初期化後に変更可能な設定情報
  */
 export type TimelineRendererManagerDynamicOptions = {
-	resolution: {
-		width: number;
-		height: number;
-	};
+	resolution: Resolution;
+	/** プレビューの計算倍率。書き出しは1を使う。 */
+	resolutionScale: number;
 	/** 最終出力の黒つぶれを緑、白飛びをマゼンタで表示する。 */
 	highlightClipping: boolean;
 	/** 透過非対応の出力用に、乗算済みRGBを黒背景へ合成する。 */
@@ -76,6 +76,7 @@ export class TimelineRendererManager extends EventEmitter<{
 	private readonly staticOptions: TimelineRendererManagerStaticOptions;
 	private dynamicOptions: TimelineRendererManagerDynamicOptions = {
 		resolution: { width: 1, height: 1 },
+		resolutionScale: 1,
 		highlightClipping: false,
 		opaqueOutput: false,
 		assets: [],
@@ -170,13 +171,14 @@ export class TimelineRendererManager extends EventEmitter<{
 		this.canvasRenderer.highlightClipping = this.dynamicOptions.highlightClipping;
 		this.canvasRenderer.opaqueOutput = this.dynamicOptions.opaqueOutput;
 
-		if (newOptions.resolution !== undefined || newOptions.visualModules !== undefined || newOptions.timelineScenes !== undefined || newOptions.sceneId !== undefined) {
+		if (newOptions.resolution !== undefined || newOptions.resolutionScale !== undefined || newOptions.visualModules !== undefined || newOptions.timelineScenes !== undefined || newOptions.sceneId !== undefined) {
 			this.clearTimelineRenderers();
 		}
-		if (newOptions.resolution !== undefined) {
+		if (newOptions.resolution !== undefined || newOptions.resolutionScale !== undefined) {
 			const canvas = this.gpuContext.canvas;
-			if (canvas.width !== this.dynamicOptions.resolution.width) canvas.width = this.dynamicOptions.resolution.width;
-			if (canvas.height !== this.dynamicOptions.resolution.height) canvas.height = this.dynamicOptions.resolution.height;
+			const resolution = this.renderResolution;
+			if (canvas.width !== resolution.width) canvas.width = resolution.width;
+			if (canvas.height !== resolution.height) canvas.height = resolution.height;
 		}
 
 		const assetsCommitted = assets === undefined ? null : await this.updateAssets(assets);
@@ -216,6 +218,10 @@ export class TimelineRendererManager extends EventEmitter<{
 		await this.timelineRenderer.renderAt(time, this.getSceneLayers(), timeDelta, true);
 	}
 
+	private get renderResolution(): Resolution {
+		return scaleResolution(this.dynamicOptions.resolution, this.dynamicOptions.resolutionScale);
+	}
+
 	private getSceneLayers() {
 		return this.dynamicOptions.sceneId == null ? [] : getTimelineScene(this.dynamicOptions.timelineScenes, this.dynamicOptions.sceneId).layers.filter(layer => layer.layerType !== 'audio');
 	}
@@ -228,13 +234,13 @@ export class TimelineRendererManager extends EventEmitter<{
 				if (!asset) throw new Error(`Video asset not found: ${layer.assetId}`);
 				return createVideoTimelineLayer(layer, asset.fileData, {
 					device: this.gpuDevice, vertex: this.defaultVertexShaderModule,
-					resolution: this.dynamicOptions.resolution, format: this.staticOptions.intermediateTextureFormat,
+					resolution: this.renderResolution, format: this.staticOptions.intermediateTextureFormat,
 				});
 			}
 			case 'scene': return createSceneTimelineLayer(getTimelineScene(this.dynamicOptions.timelineScenes, layer.sceneId), layer, {
 				device: this.gpuDevice,
 				vertex: this.defaultVertexShaderModule,
-				resolution: this.dynamicOptions.resolution,
+				resolution: this.renderResolution,
 				format: this.staticOptions.intermediateTextureFormat,
 				createLayer: entry => this.createTimelineLayer(entry, [...layerPath, entry.id]),
 			});
@@ -262,6 +268,7 @@ export class TimelineRendererManager extends EventEmitter<{
 			gpuContext: this.gpuContext,
 			fallbackTexture: this.fallbackTexture,
 			resolution: this.dynamicOptions.resolution,
+			resolutionScale: this.dynamicOptions.resolutionScale,
 			enable32bitDataTextures: this.staticOptions.enable32bitDataTextures,
 			intermediateTextureFormat: this.staticOptions.intermediateTextureFormat,
 			enableStats: false,
@@ -279,7 +286,7 @@ export class TimelineRendererManager extends EventEmitter<{
 		const compositingParameters = new TimelineCompositingParameters();
 		const compositor = createTimelineCompositor({
 			device: this.gpuDevice, vertex: this.defaultVertexShaderModule,
-			resolution: this.dynamicOptions.resolution, format: this.staticOptions.intermediateTextureFormat,
+			resolution: this.renderResolution, format: this.staticOptions.intermediateTextureFormat,
 			beginPass: (encoder, descriptor) => encoder.beginRenderPass(descriptor),
 		});
 		return createVisualModuleTimelineLayer(visualModule, layer, {

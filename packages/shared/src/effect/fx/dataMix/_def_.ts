@@ -10,6 +10,7 @@ export default defineEffect({
 		amount: { dataType: { kind: 'scalar' }, ui: { label: 'Amount', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } }, canNode: true, defaultValue: { inputSource: 'literal', value: 0.5 } },
 	},
 	primaryInputParameter: 'inputA',
+	resolutionInputParameter: 'inputA',
 	outputDefs: {
 		output: { dataType: { kind: 'any' } },
 	},

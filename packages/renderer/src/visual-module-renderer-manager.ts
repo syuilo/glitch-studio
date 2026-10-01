@@ -1,3 +1,4 @@
+import { scaleResolution, type Resolution } from '@glitch/shared/resolution.ts';
 import type { ProjectVisualModule } from '@glitch/shared/project/types.ts';
 import { AudioHistory } from '@glitch/shared/audio-history.ts';
 import { genId } from '@glitch/shared/utility/id.ts';
@@ -36,10 +37,9 @@ export type VisualModuleRendererManagerStaticOptions = {
  * 初期化後に変更可能な設定情報
  */
 export type VisualModuleRendererManagerDynamicOptions = {
-	resolution: {
-		width: number;
-		height: number;
-	};
+	resolution: Resolution;
+	/** プレビューの計算倍率。書き出しは1を使う。 */
+	resolutionScale: number;
 	/** 最終出力の黒つぶれを緑、白飛びをマゼンタで表示する。 */
 	highlightClipping: boolean;
 	/** 透過非対応の出力用に、乗算済みRGBを黒背景へ合成する。 */
@@ -51,6 +51,7 @@ export type VisualModuleRendererManagerDynamicOptions = {
 };
 
 export type VisualModuleRendererManagerEvents = {
+	'outputResolution': (ctx: Resolution) => void;
 	'effectState': (ctx: { source: EffectStatusSource; nodeId: string; status: EffectInstanceState | null }) => void;
 	'renderError': (ctx: { message: string | null }) => void;
 	'telemetry': (ctx: { fpsAverage: number; gpuAverageFast: number; gpuAverageMedium: number; gpuAverageSlow: number; }) => void;
@@ -90,10 +91,12 @@ export class VisualModuleRendererManager extends EventEmitter<{
 	private gpuMemory: GpuMemoryTracker;
 	private gpuMemoryReportIntervalId: number;
 	private currentRenderError: string | null = null;
+	private displayedResolution: Resolution | null = null;
 
 	private readonly staticOptions: VisualModuleRendererManagerStaticOptions;
 	private dynamicOptions: VisualModuleRendererManagerDynamicOptions = {
 		resolution: { width: 1, height: 1 },
+		resolutionScale: 1,
 		highlightClipping: false,
 		liveTimeFactor: 1.0,
 		fpsLimit: null,
@@ -244,11 +247,9 @@ export class VisualModuleRendererManager extends EventEmitter<{
 		this.canvasRenderer.highlightClipping = this.dynamicOptions.highlightClipping;
 		this.canvasRenderer.opaqueOutput = this.dynamicOptions.opaqueOutput;
 
-		if (newOptions.resolution !== undefined) {
-			const canvas = this.gpuContext.canvas;
-			if (canvas.width !== this.dynamicOptions.resolution.width) canvas.width = this.dynamicOptions.resolution.width;
-			if (canvas.height !== this.dynamicOptions.resolution.height) canvas.height = this.dynamicOptions.resolution.height;
-			this.liveVisualModuleRenderer?.resize(this.dynamicOptions.resolution);
+		if (newOptions.resolution !== undefined || newOptions.resolutionScale !== undefined) {
+			this.updateCanvasResolution(scaleResolution(this.dynamicOptions.resolution, this.dynamicOptions.resolutionScale));
+			this.liveVisualModuleRenderer?.resize(this.dynamicOptions.resolution, this.dynamicOptions.resolutionScale);
 		}
 		if (newOptions.fpsLimit !== undefined) {
 			this.liveRenderLoop.fpsLimit = newOptions.fpsLimit;
@@ -295,6 +296,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 			gpuContext: this.gpuContext,
 			fallbackTexture: this.fallbackTexture,
 			resolution: this.dynamicOptions.resolution,
+			resolutionScale: this.dynamicOptions.resolutionScale,
 			enable32bitDataTextures: this.staticOptions.enable32bitDataTextures,
 			intermediateTextureFormat: this.staticOptions.intermediateTextureFormat,
 			enableStats: this.staticOptions.enableStats,
@@ -349,6 +351,8 @@ export class VisualModuleRendererManager extends EventEmitter<{
 			}, commandEncoder);
 			if (nodeOutput == null) return;
 
+			// 定数を表示用に1x1へ変換しても、表示枠の寸法は1x1にしない。
+			this.updateCanvasResolution(nodeOutput.kind === 'texture' ? nodeOutput.texture : scaleResolution(this.dynamicOptions.resolution, this.dynamicOptions.resolutionScale));
 			const tex = this.outputTextures.resolve(nodeOutput);
 			this.canvasRenderer.renderToCanvas(tex, commandEncoder);
 
@@ -369,6 +373,15 @@ export class VisualModuleRendererManager extends EventEmitter<{
 				});
 			}
 		}
+	}
+
+	private updateCanvasResolution(resolution: Resolution) {
+		if (this.displayedResolution?.width === resolution.width && this.displayedResolution.height === resolution.height) return;
+		const canvas = this.gpuContext.canvas;
+		if (canvas.width !== resolution.width) canvas.width = resolution.width;
+		if (canvas.height !== resolution.height) canvas.height = resolution.height;
+		this.displayedResolution = { width: resolution.width, height: resolution.height };
+		this.emit('ev', { type: 'outputResolution', ctx: this.displayedResolution });
 	}
 
 	public stopRenderLoop() {

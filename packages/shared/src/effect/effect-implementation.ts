@@ -21,7 +21,7 @@ type RuntimeEffectOptionValue<D extends DataType, S> =
 	D extends { kind: 'wrapMode' } ? WrapMode :
 	D extends { kind: 'enum'; options: readonly string[] } ? D['options'][number] :
 	D extends { kind: 'assetReference' } ? GPUTexture | null :
-	D extends { kind: 'videoAssetReference' } ? Pick<Asset, 'id' | 'fileData'> | null :
+	D extends { kind: 'videoAssetReference' } ? Pick<Asset, 'id' | 'fileData' | 'width' | 'height'> | null :
 	D extends { kind: 'fontAssetReference' } ? Pick<Asset, 'id' | 'fileData'> | null :
 	D extends { kind: 'playerReference' } ? { videoFrame: VideoFrame | null; audio: AudioHistory | null; } | null :
 	D extends { kind: 'struct'; fields: infer F extends Record<string, DataType> }
@@ -68,8 +68,8 @@ export type EffectInstance<Options extends Record<string, ParameterDefinition> =
 export type EffectImplementation<Definition extends Pick<EffectDefinition, 'paramDefs' | 'outputDefs'> = EffectDefinition, Options extends Record<string, ParameterDefinition> = Definition['paramDefs']> = {
 	disableCache?: boolean;
 	needsPreviousFrame?: boolean;
-	/** 入力に合わせて出力サイズを決めるエフェクト用。未指定またはundefinedを返す場合は描画先の解像度を使う。 */
-	getOutputResolution?: (params: GetRuntimeEffectOptionsSchemaValues<Options>, outputPort: Extract<keyof Definition['outputDefs'], string>) => { width: number; height: number } | undefined;
+	/** 自動モードで使う素材の原寸。プレビュー倍率の適用はレンダラーが行う。ノード入力の寸法は返さない。 */
+	getIntrinsicResolution?: (params: GetRuntimeEffectOptionsSchemaValues<Options>) => { width: number; height: number } | undefined;
 	outputTextureFactories: {
 		// canLazyAllocation=trueのポートだけ遅延確保する。それ以外はノード追加時に確保する。
 		[K in keyof Definition['outputDefs']]: (args: {
@@ -84,6 +84,7 @@ export type EffectImplementation<Definition extends Pick<EffectDefinition, 'para
 	shader?: string;
 	init: (args: {
 		reportStatus: (status: EffectStatus) => void;
+		/** ノードの計算用解像度（プレビュー倍率適用済み）。変更時はdispose後に再初期化する。 */
 		resolution: { width: number; height: number; },
 		wgpu: {
 			device: GPUDevice;

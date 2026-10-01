@@ -54,12 +54,12 @@ function structParameter(fields) {
 }
 
 const number = { dataType: { kind: 'scalar' }, ui: { label: 'Value', control: { controlType: 'number' } }, defaultValue: literal(0) };
-const node = (params, isBypass = false) => ({ id: 'node', type: 'effect', effectId: 'test', isBypass, params });
+const node = (params, isBypass = false) => ({ id: 'node', type: 'effect', resolution: { mode: 'project' }, effectId: 'test', isBypass, params });
 const paramDef = (id, defaultValue = 7, dataType = 'scalar') => ({ id, nameForReference: id, dataType: { kind: dataType }, ui: { label: id, control: dataType === 'scalar' ? { controlType: 'number' } : {} }, defaultValue: literal(defaultValue), canNode: false });
 const context = (defs, params, overrides = {}) => ({
 	nodes: [node(params)],
 	paramDefs: [],
-	effectDefinitions: { test: { id: 'test', displayName: 'Test', tags: [], paramDefs: defs, primaryInputParameter: null, outputDefs: {}, primaryOutput: null } },
+	effectDefinitions: { test: { id: 'test', displayName: 'Test', tags: [], paramDefs: defs, primaryInputParameter: null, resolutionInputParameter: null, outputDefs: {}, primaryOutput: null } },
 	automationGraphs: [],
 	resolution: { width: 640, height: 360 },
 	time: 500,

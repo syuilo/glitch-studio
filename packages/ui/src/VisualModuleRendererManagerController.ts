@@ -1,3 +1,4 @@
+import { scaleResolution } from '@glitch/shared/resolution.ts';
 import type { ProjectVisualModule } from '@glitch/shared/project/types.ts';
 import { ref, shallowReactive } from 'vue';
 import { deepEqual } from '@glitch/shared/utility/deep-equal.ts';
@@ -94,6 +95,11 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 				this.errorMessage.value = error?.message ?? null;
 			},
 			eventHandlers: {
+				outputResolution: ctx => {
+					// 転送済みcanvasのwidth属性は変更せず、表示枠だけをWorkerの実寸に合わせる。
+					this.canvas.style.width = ctx.width + 'px';
+					this.canvas.style.height = ctx.height + 'px';
+				},
 				gpuMemory: (ctx) => {
 					this.gpuMemoryUsage.value = ctx.usage;
 				},
@@ -185,8 +191,10 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 		this.sendPendingVideoFrame(playerId);
 	}
 
-	public async init(resolution: { width: number; height: number }) {
-		if (resolution.width > 8192 || resolution.height > 8192) {
+	public async init(resolution: { width: number; height: number }, resolutionScale = 1) {
+		const renderResolution = scaleResolution(resolution, resolutionScale);
+		this.dynamicOptions.resolutionScale = resolutionScale;
+		if (renderResolution.width > 8192 || renderResolution.height > 8192) {
 			ui.alert({
 				type: 'error',
 				text: 'maximum supported resolution is 8192x8192',
@@ -194,15 +202,14 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 			throw new Error('maximum supported resolution is 8192x8192');
 		}
 
-		// Scaled preview dimensions can be fractional. Use the same integer pixel
-		// dimensions for the canvas, textures, shader uniforms, and storage buffers.
+		// 基準寸法と倍率を別々に保存し、計算用寸法の丸めは共通処理で行う。
 		this.dynamicOptions.resolution = {
 			width: Math.max(1, Math.floor(resolution.width)),
 			height: Math.max(1, Math.floor(resolution.height)),
 		};
 
-		this.canvas.width = this.dynamicOptions.resolution.width;
-		this.canvas.height = this.dynamicOptions.resolution.height;
+		this.canvas.width = renderResolution.width;
+		this.canvas.height = renderResolution.height;
 
 		await this.launchManager(false);
 	}

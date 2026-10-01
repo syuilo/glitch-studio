@@ -9,6 +9,7 @@ export default defineEffect({
 		y: { dataType: { kind: 'scalar' }, ui: { label: 'Y', control: { controlType: 'number', step: 0.01 } }, canNode: true, defaultValue: { inputSource: 'literal', value: 0 } },
 	},
 	primaryInputParameter: null,
+	resolutionInputParameter: null,
 	outputDefs: {
 		output: { dataType: { kind: 'vector' } },
 	},

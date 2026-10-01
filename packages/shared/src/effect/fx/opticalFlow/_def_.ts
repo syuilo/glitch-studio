@@ -11,6 +11,7 @@ export default defineEffect({
 		smoothing: { dataType: { kind: 'scalar' }, ui: { label: 'Smoothing', control: { controlType: 'range', min: 0, max: 3, step: 0.1 } }, defaultValue: { inputSource: 'literal', value: 1 } },
 	},
 	primaryInputParameter: 'input',
+	resolutionInputParameter: 'input',
 	outputDefs: {
 		output: { dataType: { kind: 'vector' } },
 	},

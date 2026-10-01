@@ -27,6 +27,7 @@ export default defineEffect({
 		forceFieldWarp: { dataType: { kind: 'bool' }, ui: { label: 'Force Field Warp', control: {} }, defaultValue: { inputSource: 'literal', value: true } },
 	},
 	primaryInputParameter: 'input',
+	resolutionInputParameter: 'input',
 	outputDefs: {
 		output: { dataType: { kind: 'color' } },
 	},

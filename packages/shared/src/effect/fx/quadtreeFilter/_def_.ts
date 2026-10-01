@@ -13,6 +13,7 @@ export default defineEffect({
 		borderAbsolute: { dataType: { kind: 'bool' }, ui: { label: 'Border absolute', control: {} }, defaultValue: { inputSource: 'literal', value: false } },
 	},
 	primaryInputParameter: 'input',
+	resolutionInputParameter: 'input',
 	outputDefs: {
 		output: { dataType: { kind: 'color' } },
 	},

@@ -10,6 +10,7 @@ export default defineEffect({
 		twist: { dataType: { kind: 'scalar' }, ui: { label: 'Twist', control: { controlType: 'range', min: 0.04, max: 8, step: 0.001 } }, defaultValue: { inputSource: 'literal', value: 2 } },
 	},
 	primaryInputParameter: 'input',
+	resolutionInputParameter: 'input',
 	outputDefs: {
 		output: { dataType: { kind: 'color' } },
 	},

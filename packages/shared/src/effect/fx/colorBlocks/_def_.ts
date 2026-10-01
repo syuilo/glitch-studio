@@ -16,6 +16,7 @@ export default defineEffect({
 		white: { dataType: { kind: 'bool' }, ui: { label: 'White', control: {} }, defaultValue: { inputSource: 'literal', value: true } },
 	},
 	primaryInputParameter: 'input',
+	resolutionInputParameter: 'input',
 	outputDefs: {
 		output: { dataType: { kind: 'color' } },
 	},

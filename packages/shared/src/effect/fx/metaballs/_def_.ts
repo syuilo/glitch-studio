@@ -33,6 +33,7 @@ export default defineEffect({
 		offset: { dataType: { kind: 'vector' }, ui: { label: 'Offset', control: { controlType: 'vector', min: -1, max: 1, step: 0.01 } }, defaultValue: { inputSource: 'literal', value: [0, 0] } },
 	},
 	primaryInputParameter: 'background',
+	resolutionInputParameter: 'background',
 	outputDefs: {
 		output: { dataType: { kind: 'color' } },
 	},

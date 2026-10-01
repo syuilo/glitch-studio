@@ -13,6 +13,7 @@ export default defineEffect({
 		},
 	},
 	primaryInputParameter: 'input',
+	resolutionInputParameter: 'input',
 	outputDefs: {
 		output: { dataType: { kind: 'scalar' } },
 	},

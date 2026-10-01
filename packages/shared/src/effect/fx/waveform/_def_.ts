@@ -21,6 +21,7 @@ export default defineEffect({
 		showGrid: { dataType: { kind: 'bool' }, ui: { label: 'Grid', control: {} }, defaultValue: { inputSource: 'literal', value: false } },
 	},
 	primaryInputParameter: 'input',
+	resolutionInputParameter: 'input',
 	outputDefs: {
 		output: { dataType: { kind: 'color' } },
 	},

@@ -169,7 +169,7 @@ const addEffectNodeCommandDef = defineCommand<VisualModuleTarget & { id: string;
 						}
 					}
 					// ランダムな初期値や自動接続もRedo時に変えない。
-					addedNode = { id: payload.id, type: 'effect', effectId: payload.effectId, isBypass: false,
+					addedNode = { id: payload.id, type: 'effect', effectId: payload.effectId, isBypass: false, resolution: { mode: 'auto' },
 																			params: { ...params, ...deepClone(payload.params ?? {}) }, pos: { x: 0, y: 0 } };
 					const primaryPort = effectDefinitions[payload.effectId].primaryOutput;
 					const outputPort = primaryPort != null && canConnectNodeDataTypes(effectDefinitions[payload.effectId].outputDefs[primaryPort].dataType, { kind: 'color' }) ? primaryPort : null;
@@ -577,6 +577,29 @@ const changeNodeBypassStateCommandDef = defineCommand<NodeTarget & { bypass: boo
 				const node = stateUtility.findNode(state, payload);
 				if (node?.type !== 'effect') throw new Error('Effect node not found');
 				node.isBypass = before;
+			},
+		};
+	},
+});
+
+const changeNodeResolutionCommandDef = defineCommand<NodeTarget & { resolution: VisualModuleEffectNode['resolution'] }>({
+	label: 'Change node resolution',
+	create: payload => {
+		let before: VisualModuleEffectNode['resolution'];
+		return {
+			execute(state) {
+				const node = stateUtility.findNode(state, payload);
+				if (node?.type !== 'effect') throw new Error('Effect node not found');
+				if (payload.resolution.mode === 'custom' && ![payload.resolution.width, payload.resolution.height].every(value => Number.isSafeInteger(value) && value > 0)) {
+					throw new Error('Resolution width and height must be positive integers');
+				}
+				before = deepClone(node.resolution);
+				node.resolution = deepClone(payload.resolution);
+			},
+			undo(state) {
+				const node = stateUtility.findNode(state, payload);
+				if (node?.type !== 'effect') throw new Error('Effect node not found');
+				node.resolution = deepClone(before);
 			},
 		};
 	},
@@ -1158,6 +1181,7 @@ export const COMMAND_DEFS = {
 	updateVisualModuleParamDef: updateVisualModuleParamDefCommandDef,
 	updateGlobalOutInput: updateGlobalOutInputCommandDef,
 	addEffectNode: addEffectNodeCommandDef,
+	changeNodeResolution: changeNodeResolutionCommandDef,
 	moveNode: moveNodeCommandDef,
 	removeNode: removeNodeCommandDef,
 	addAsset: addAssetCommandDef,

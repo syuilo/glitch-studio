@@ -115,7 +115,7 @@ watch(activeSceneId, (sceneId, previousId) => {
 export const activePreviewRenderer = computed(() => previewPlayback.state.value.mode === 'live'
 	? visualModuleRendererManagerController : timelineRendererManagerController);
 
-async function updatePreviewOptions(options: Partial<Pick<TimelineRendererManagerDynamicOptions, 'assets' | 'visualModules' | 'resolution' | 'highlightClipping'>>) {
+async function updatePreviewOptions(options: Partial<Pick<TimelineRendererManagerDynamicOptions, 'assets' | 'visualModules' | 'resolution' | 'resolutionScale' | 'highlightClipping'>>) {
 	await Promise.all([
 		visualModuleRendererManagerController.updateDynamicOptions(options),
 		timelineRendererManagerController.updateDynamicOptions(options),
@@ -162,10 +162,8 @@ watch(liveTimeFactor, value => {
 
 watch([appStateManager.state.resolution, resolutionFactor], async () => {
 	await updatePreviewOptions({
-		resolution: {
-			width: Math.round(appStateManager.state.resolution.value.width * resolutionFactor.value), // 解像度が少数になるとバグるので丸める
-			height: Math.round(appStateManager.state.resolution.value.height * resolutionFactor.value), // 解像度が少数になるとバグるので丸める
-		},
+		resolution: { ...appStateManager.state.resolution.value },
+		resolutionScale: resolutionFactor.value,
 	});
 	previewPlayback.refresh();
 });
@@ -196,10 +194,7 @@ export async function appReady(project: Project, fileName = 'untitled.gsproj', f
 	const maxDimension = Math.max(project.resolution.width, project.resolution.height);
 	const initialResolutionFactor = maxDimension > 3000 ? 0.25 : maxDimension > 1500 ? 0.5 : 1;
 	// CanvasのOffscreen転送は一度だけ行い、別のプロジェクトを開くときもWorkerを再利用する。
-	rendererInitialization ??= Promise.all([visualModuleRendererManagerController, timelineRendererManagerController].map(controller => controller.init({
-		width: Math.round(project.resolution.width * initialResolutionFactor), // 解像度が少数になるとバグるので丸める
-		height: Math.round(project.resolution.height * initialResolutionFactor), // 解像度が少数になるとバグるので丸める
-	}))).then(() => {});
+	rendererInitialization ??= Promise.all([visualModuleRendererManagerController, timelineRendererManagerController].map(controller => controller.init(project.resolution, initialResolutionFactor))).then(() => {});
 	await rendererInitialization;
 
 	// 読み込み途中の状態を、直前のプロジェクトのファイルへ保存させない。
@@ -357,6 +352,7 @@ export async function newProject() {
 		}, {
 			id: initialEffectNodeId,
 			type: 'effect',
+			resolution: { mode: 'auto' },
 			effectId: 'fill',
 			params: {
 				color: { inputSource: 'literal', value: [0, 1, 0, 1] },
@@ -445,24 +441,27 @@ export async function newProjectFromImageOrVideo(file?: File) {
 		}, result.type.startsWith('image/') ? {
 			id: initialEffectNodeId,
 			type: 'effect',
+			resolution: { mode: 'auto' },
 			effectId: 'image',
 			params: {
 				image: { inputSource: 'literal', value: asset.id },
-				sizeMode: deepClone(imageEffectDef.paramDefs.sizeMode.defaultValue),
+				fit: deepClone(imageEffectDef.paramDefs.fit.defaultValue),
 			},
 			isBypass: false,
 		} satisfies EffectNodeOf<typeof imageEffectDef> : result.type.startsWith('video/') ? {
 			id: initialEffectNodeId,
 			type: 'effect',
+			resolution: { mode: 'auto' },
 			effectId: 'video',
 			params: {
 				player: { inputSource: 'literal', value: player!.id },
-				sizeMode: deepClone(videoEffectDef.paramDefs.sizeMode.defaultValue),
+				fit: deepClone(videoEffectDef.paramDefs.fit.defaultValue),
 			},
 			isBypass: false,
 		} satisfies EffectNodeOf<typeof videoEffectDef> : result.type.startsWith('audio/') ? {
 			id: initialEffectNodeId,
 			type: 'effect',
+			resolution: { mode: 'auto' },
 			effectId: 'audioWaveform',
 			params: {
 				player: { inputSource: 'literal', value: player!.id },
@@ -477,6 +476,7 @@ export async function newProjectFromImageOrVideo(file?: File) {
 		} satisfies EffectNodeOf<typeof audioWaveformEffectDef> : {
 			id: initialEffectNodeId,
 			type: 'effect',
+			resolution: { mode: 'auto' },
 			effectId: 'fill',
 			params: {
 				color: { inputSource: 'literal', value: [0, 1, 0, 1] },

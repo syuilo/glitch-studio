@@ -31,6 +31,7 @@
 							@editParam="edit => emit('edit', { kind: 'editNodeParam', nodeId: node.id, edit })"
 							@remove="emit('edit', { kind: 'removeNode', nodeId: node.id })"
 							@setBypass="bypass => emit('edit', { kind: 'setNodeBypass', nodeId: node.id, bypass })"
+							@setResolution="resolution => emit('edit', { kind: 'setNodeResolution', nodeId: node.id, resolution })"
 						/>
 					</template>
 					<template #footer>

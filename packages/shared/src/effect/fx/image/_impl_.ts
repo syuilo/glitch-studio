@@ -4,8 +4,7 @@ import code from './shader.wgsl?raw';
 import type definition from './_def_.ts';
 
 export default implementEffect<typeof definition>({
-	// 通常モードはレンダラーの解像度に従い、Originalだけ素材の解像度を使う。
-	getOutputResolution: params => params.sizeMode === 'original' ? { width: params.image?.width ?? 1, height: params.image?.height ?? 1 } : undefined,
+	getIntrinsicResolution: params => params.image == null ? undefined : { width: params.image.width, height: params.image.height },
 	outputTextureFactories: {
 		output: ({ wgpu, resolution }) => wgpu.device.createTexture({
 			size: resolution,
@@ -75,7 +74,7 @@ export default implementEffect<typeof definition>({
 					aspectRatio: ctx.outputDataMap.output.texture.width / ctx.outputDataMap.output.texture.height,
 					sourceAspectRatio: sourceTexture.width / sourceTexture.height,
 					// 保存する選択肢名をシェーダーのモード番号へ変換する。
-					mode: { stretch: 0, cover: 1, contain: 2, original: 3 }[ctx.params.sizeMode],
+					mode: { stretch: 0, cover: 1, contain: 2 }[ctx.params.fit],
 				});
 				wgpu.device.queue.writeBuffer(uniformBuffer, 0, uniformValues.arrayBuffer);
 

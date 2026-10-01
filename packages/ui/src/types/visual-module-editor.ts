@@ -1,10 +1,11 @@
-import type { NodeOutputReference, VisualModuleCustomParameterId, VisualModuleOutputDef, VisualModuleParamDef } from '@glitch/shared/visual-module/types.ts';
+import type { EffectNodeResolution, NodeOutputReference, VisualModuleCustomParameterId, VisualModuleOutputDef, VisualModuleParamDef } from '@glitch/shared/visual-module/types.ts';
 import type { ParamEdit } from '@/components/GsVisualParam.vue';
 
 // 編集操作だけを通知し、保存先の特定とUndo/Redo用コマンドへの変換は親が行う。
 export type VisualModuleEdit =
 	| { kind: 'removeNode'; nodeId: string }
 	| { kind: 'setNodeBypass'; nodeId: string; bypass: boolean }
+	| { kind: 'setNodeResolution'; nodeId: string; resolution: EffectNodeResolution }
 	| { kind: 'editNodeParam'; nodeId: string; edit: ParamEdit }
 	| { kind: 'reorderNodes'; nodeIds: string[] }
 	| { kind: 'setOutputConnection'; nodeId: string; outputId: string; value: NodeOutputReference | null }
