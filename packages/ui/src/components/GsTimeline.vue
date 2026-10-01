@@ -128,121 +128,8 @@
 					</GsSelect>
 				</div>
 			</div>
-			<div v-else-if="selectedLayer?.layerType === 'audio'">
-				<GsFolder :asSection="true" defaultOpen>
-					<template #icon><i class="ti ti-music"></i></template>
-					<template #label>Audio</template>
-					<div class="_gaps_m">
-						<GsVisualParam
-							:key="selectedLayer.id"
-							:availableVariables="AUDIO_LAYER_VAR_DEFS"
-							:automationGraphs="selectedLayer.automationGraphs"
-							:paramPath="['volume']"
-							:paramDef="timelineAudioParamDefs.volume"
-							:paramValue="selectedLayer.paramValues.volume"
-							@edit="event => onVisualModuleLayerParamEdit(event, 'audio')"
-						/>
-					</div>
-				</GsFolder>
-				<GsFolder :asSection="true" defaultOpen>
-					<template #label>Other</template>
-					<div class="_gaps_m">
-						<div style="display: flex; gap: 8px;">
-							<GsInput small type="number" :min="-selectedLayer.trimStartMs" :modelValue="selectedLayer.positionMs" @update:modelValue="value => editTrimmedLayerTiming('move', value)"><template #label>Position (ms)</template></GsInput>
-							<GsInput small type="number" :min="Math.max(0, selectedLayer.positionMs)" :max="getTimelineLayerEnd(selectedLayer) - 1" :modelValue="getTimelineLayerStart(selectedLayer)" @update:modelValue="value => editTrimmedLayerTiming('trimStart', value)"><template #label>Trim start (ms)</template></GsInput>
-							<GsInput small type="number" :min="getTimelineLayerStart(selectedLayer) + 1" :modelValue="getTimelineLayerEnd(selectedLayer)" @update:modelValue="value => editTrimmedLayerTiming('trimEnd', value)"><template #label>Trim end (ms)</template></GsInput>
-							<GsInput small type="number" :min="0" :modelValue="selectedLayer.trimStartMs" @update:modelValue="value => editTrimmedLayerTiming('offset', value)"><template #label>Source offset (ms)</template></GsInput>
-						</div>
-						<hr>
-						<GsButton danger @click="appStateManager.commit('removeTimelineLayer', { sceneId: props.sceneId, layerId: selectedLayer.id })">Remove Layer</GsButton>
-					</div>
-				</GsFolder>
-			</div>
-			<div v-else-if="selectedLayer?.layerType === 'video'">
-				<GsFolder :asSection="true" defaultOpen :withSpacer="false">
-					<template #icon><i class="ti ti-layers-selected"></i></template>
-					<template #label>Compositing</template>
-					<div style="padding: 8px 0;">
-						<GsVisualParam
-							v-for="(paramDef, paramId) in timelineCompositingParamDefs"
-							:key="paramId"
-							:availableVariables="LAYER_VAR_DEFS"
-							:automationGraphs="selectedLayer.automationGraphs"
-							:paramPath="[paramId]"
-							:paramDef="paramDef"
-							:paramValue="selectedLayer.compositingParamValues[paramId]"
-							@edit="event => onVisualModuleLayerParamEdit(event, 'compositing')"
-						/>
-					</div>
-				</GsFolder>
-				<GsFolder :asSection="true" defaultOpen>
-					<template #icon><i class="ti ti-music"></i></template>
-					<template #label>Audio</template>
-					<div class="_gaps_m">
-						<GsSwitch
-							:modelValue="selectedLayer.audioEnabled" :disabled="!selectedLayer.audioEnabled && (!selectedVideoMetadata?.audio || !!selectedVideoAudioError)"
-							@update:modelValue="audioEnabled => appStateManager.commit('editVideoLayerSettings', { sceneId: props.sceneId, layerId: selectedLayer!.id, audioEnabled })"
-						>
-							Audio enabled
-						</GsSwitch>
-						<div v-if="selectedVideoAudioError">{{ selectedVideoAudioError }}</div>
-						<div v-else-if="selectedVideoMetadata && !selectedVideoMetadata.audio">No audio track</div>
-						<GsVisualParam
-							:key="selectedLayer.id"
-							:availableVariables="AUDIO_LAYER_VAR_DEFS"
-							:automationGraphs="selectedLayer.automationGraphs"
-							:paramPath="['volume']"
-							:paramDef="timelineAudioParamDefs.volume"
-							:paramValue="selectedLayer.audioParamValues.volume"
-							@edit="event => onVisualModuleLayerParamEdit(event, 'audio')"
-						/>
-					</div>
-				</GsFolder>
-				<GsFolder :asSection="true" defaultOpen>
-					<template #label>Other</template>
-					<div class="_gaps_m">
-						<div style="display: flex; gap: 8px;">
-							<GsInput small type="number" :min="-selectedLayer.trimStartMs" :modelValue="selectedLayer.positionMs" @update:modelValue="value => editTrimmedLayerTiming('move', value)"><template #label>Position (ms)</template></GsInput>
-							<GsInput small type="number" :min="Math.max(0, selectedLayer.positionMs)" :max="getTimelineLayerEnd(selectedLayer) - 1" :modelValue="getTimelineLayerStart(selectedLayer)" @update:modelValue="value => editTrimmedLayerTiming('trimStart', value)"><template #label>Trim start (ms)</template></GsInput>
-							<GsInput small type="number" :min="getTimelineLayerStart(selectedLayer) + 1" :max="selectedVideoMetadata ? selectedLayer.positionMs + selectedVideoMetadata.durationMs : undefined" :modelValue="getTimelineLayerEnd(selectedLayer)" @update:modelValue="value => editTrimmedLayerTiming('trimEnd', value)"><template #label>Trim end (ms)</template></GsInput>
-							<GsInput small type="number" :min="0" :max="selectedVideoMetadata ? selectedVideoMetadata.durationMs - selectedLayer.trimmedDurationMs : undefined" :modelValue="selectedLayer.trimStartMs" @update:modelValue="value => editTrimmedLayerTiming('offset', value)"><template #label>Source offset (ms)</template></GsInput>
-						</div>
-						<div v-if="selectedVideoMetadata">Source duration: {{ formatMsToTimecode(selectedVideoMetadata.durationMs) }}</div>
-						<hr>
-						<GsButton danger @click="appStateManager.commit('removeTimelineLayer', { sceneId: props.sceneId, layerId: selectedLayer.id })">Remove Layer</GsButton>
-					</div>
-				</GsFolder>
-			</div>
-			<div v-else-if="selectedLayer?.layerType === 'scene'">
-				<GsButton small @click="activeSceneId = selectedLayer.sceneId">Open scene</GsButton>
-				<GsInput small type="number" :min="-selectedLayer.trimStartMs" :modelValue="selectedLayer.positionMs" @update:modelValue="value => editTrimmedLayerTiming('move', value)"><template #label>Position (ms)</template></GsInput>
-				<GsInput small type="number" :min="Math.max(0, selectedLayer.positionMs)" :max="getTimelineLayerEnd(selectedLayer) - 1" :modelValue="getTimelineLayerStart(selectedLayer)" @update:modelValue="value => editTrimmedLayerTiming('trimStart', value)"><template #label>Trim start (ms)</template></GsInput>
-				<GsInput small type="number" :min="getTimelineLayerStart(selectedLayer) + 1" :modelValue="getTimelineLayerEnd(selectedLayer)" @update:modelValue="value => editTrimmedLayerTiming('trimEnd', value)"><template #label>Trim end (ms)</template></GsInput>
-				<GsInput small type="number" :min="0" :modelValue="selectedLayer.trimStartMs" @update:modelValue="value => editTrimmedLayerTiming('offset', value)"><template #label>Source offset (ms)</template></GsInput>
-				<GsFolder :asSection="true" defaultOpen :withSpacer="false">
-					<template #icon><i class="ti ti-layers-selected"></i></template>
-					<template #label>Compositing</template>
-					<div style="padding: 8px 0;">
-						<GsVisualParam
-							v-for="(paramDef, paramId) in timelineCompositingParamDefs"
-							:key="paramId"
-							:availableVariables="LAYER_VAR_DEFS"
-							:automationGraphs="selectedLayer.automationGraphs"
-							:paramPath="[paramId]"
-							:paramDef="paramDef"
-							:paramValue="selectedLayer.compositingParamValues[paramId]"
-							@edit="event => onVisualModuleLayerParamEdit(event, 'compositing')"
-						/>
-					</div>
-				</GsFolder>
-				<div>Audio</div>
-				<GsVisualParam
-					:key="selectedLayer.id + ':volume'" :availableVariables="LAYER_VAR_DEFS" :automationGraphs="selectedLayer.automationGraphs"
-					:paramPath="['volume']" :paramDef="timelineAudioParamDefs.volume" :paramValue="selectedLayer.audioParamValues.volume" @edit="event => onVisualModuleLayerParamEdit(event, 'audio')"
-				/>
-				<GsButton danger @click="appStateManager.commit('removeTimelineLayer', { sceneId: props.sceneId, layerId: selectedLayer.id })">Remove Layer</GsButton>
-			</div>
-			<div v-else-if="selectedLayer?.layerType === 'visualModule' || selectedLayer?.layerType === 'inlineVisualModule'">
+			<div v-else-if="selectedLayer != null">
+				<GsButton v-if="selectedLayer.layerType === 'scene'" small @click="activeSceneId = selectedLayer.sceneId">Open scene</GsButton>
 				<GsFolder v-if="selectedLayer.layerType === 'inlineVisualModule'" :asSection="true" defaultOpen :withSpacer="false">
 					<template #icon><i class="ti ti-chart-dots-3"></i></template>
 					<template #label>Visual Module</template>
@@ -255,22 +142,6 @@
 							:effectStates="inlineEffectStates"
 							@edit="onInlineVisualModuleEdit"
 							@requestAddNode="showAddInlineNodeMenu"
-						/>
-					</div>
-				</GsFolder>
-				<GsFolder :asSection="true" defaultOpen :withSpacer="false">
-					<template #icon><i class="ti ti-layers-selected"></i></template>
-					<template #label>Compositing</template>
-					<div style="padding: 8px 0;">
-						<GsVisualParam
-							v-for="(paramDef, paramId) in timelineCompositingParamDefs"
-							:key="paramId"
-							:availableVariables="LAYER_VAR_DEFS"
-							:automationGraphs="selectedLayer.automationGraphs"
-							:paramPath="[paramId]"
-							:paramDef="paramDef"
-							:paramValue="selectedLayer.compositingParamValues[paramId]"
-							@edit="event => onVisualModuleLayerParamEdit(event, 'compositing')"
 						/>
 					</div>
 				</GsFolder>
@@ -296,13 +167,74 @@
 						</template>
 					</div>
 				</GsFolder>
+				<GsFolder v-if="selectedLayer.layerType !== 'audio'" :asSection="true" defaultOpen :withSpacer="false">
+					<template #icon><i class="ti ti-layers-selected"></i></template>
+					<template #label>Compositing</template>
+					<div style="padding: 8px 0;">
+						<GsVisualParam
+							v-for="(paramDef, paramId) in timelineCompositingParamDefs"
+							:key="paramId"
+							:availableVariables="LAYER_VAR_DEFS"
+							:automationGraphs="selectedLayer.automationGraphs"
+							:paramPath="[paramId]"
+							:paramDef="paramDef"
+							:paramValue="selectedLayer.compositingParamValues[paramId]"
+							@edit="event => onVisualModuleLayerParamEdit(event, 'compositing')"
+						/>
+					</div>
+				</GsFolder>
+				<GsFolder v-if="selectedLayer.layerType === 'audio' || selectedLayer.layerType === 'video' || selectedLayer.layerType === 'scene'" :asSection="true" defaultOpen>
+					<template #icon><i class="ti ti-music"></i></template>
+					<template #label>Audio</template>
+					<div class="_gaps_m">
+						<template v-if="selectedLayer.layerType === 'video'">
+							<GsSwitch
+								:modelValue="selectedLayer.audioEnabled" :disabled="!selectedLayer.audioEnabled && (!selectedVideoMetadata?.audio || !!selectedVideoAudioError)"
+								@update:modelValue="audioEnabled => appStateManager.commit('editVideoLayerSettings', { sceneId: props.sceneId, layerId: selectedLayer!.id, audioEnabled })"
+							>
+								Audio enabled
+							</GsSwitch>
+							<div v-if="selectedVideoAudioError">{{ selectedVideoAudioError }}</div>
+							<div v-else-if="selectedVideoMetadata && !selectedVideoMetadata.audio">No audio track</div>
+						</template>
+						<GsVisualParam
+							:key="selectedLayer.id"
+							:availableVariables="AUDIO_LAYER_VAR_DEFS"
+							:automationGraphs="selectedLayer.automationGraphs"
+							:paramPath="['volume']"
+							:paramDef="timelineAudioParamDefs.volume"
+							:paramValue="selectedLayer.audioParamValues.volume"
+							@edit="event => onVisualModuleLayerParamEdit(event, 'audio')"
+						/>
+					</div>
+				</GsFolder>
 				<GsFolder :asSection="true" defaultOpen>
 					<template #label>Other</template>
 					<div class="_gaps_m">
-						<div style="display: flex; gap: 8px;">
+						<div v-if="selectedLayer.layerType === 'visualModule' || selectedLayer.layerType === 'inlineVisualModule'" style="display: flex; gap: 8px;">
 							<GsInput style="flex: 1" small type="number" :min="0" :modelValue="selectedLayer.positionMs" @update:modelValue="value => editVisualModuleTiming('position', value)"><template #label>Position</template><template #suffix>ms</template></GsInput>
 							<GsInput style="flex: 1" small type="number" :min="1" :modelValue="selectedLayer.trimmedDurationMs" @update:modelValue="value => editVisualModuleTiming('duration', value)"><template #label>Duration</template><template #suffix>ms</template></GsInput>
 						</div>
+						<div v-if="selectedLayer.layerType === 'scene'" style="display: flex; gap: 8px;">
+							<GsInput small type="number" :min="-selectedLayer.trimStartMs" :modelValue="selectedLayer.positionMs" @update:modelValue="value => editTrimmedLayerTiming('move', value)"><template #label>Position (ms)</template></GsInput>
+							<GsInput small type="number" :min="Math.max(0, selectedLayer.positionMs)" :max="getTimelineLayerEnd(selectedLayer) - 1" :modelValue="getTimelineLayerStart(selectedLayer)" @update:modelValue="value => editTrimmedLayerTiming('trimStart', value)"><template #label>Trim start (ms)</template></GsInput>
+							<GsInput small type="number" :min="getTimelineLayerStart(selectedLayer) + 1" :modelValue="getTimelineLayerEnd(selectedLayer)" @update:modelValue="value => editTrimmedLayerTiming('trimEnd', value)"><template #label>Trim end (ms)</template></GsInput>
+							<GsInput small type="number" :min="0" :modelValue="selectedLayer.trimStartMs" @update:modelValue="value => editTrimmedLayerTiming('offset', value)"><template #label>Source offset (ms)</template></GsInput>
+						</div>
+						<div v-if="selectedLayer.layerType === 'audio'" style="display: flex; gap: 8px;">
+							<GsInput small type="number" :min="-selectedLayer.trimStartMs" :modelValue="selectedLayer.positionMs" @update:modelValue="value => editTrimmedLayerTiming('move', value)"><template #label>Position (ms)</template></GsInput>
+							<GsInput small type="number" :min="Math.max(0, selectedLayer.positionMs)" :max="getTimelineLayerEnd(selectedLayer) - 1" :modelValue="getTimelineLayerStart(selectedLayer)" @update:modelValue="value => editTrimmedLayerTiming('trimStart', value)"><template #label>Trim start (ms)</template></GsInput>
+							<GsInput small type="number" :min="getTimelineLayerStart(selectedLayer) + 1" :modelValue="getTimelineLayerEnd(selectedLayer)" @update:modelValue="value => editTrimmedLayerTiming('trimEnd', value)"><template #label>Trim end (ms)</template></GsInput>
+							<GsInput small type="number" :min="0" :modelValue="selectedLayer.trimStartMs" @update:modelValue="value => editTrimmedLayerTiming('offset', value)"><template #label>Source offset (ms)</template></GsInput>
+						</div>
+						<div v-if="selectedLayer.layerType === 'video'" style="display: flex; gap: 8px;">
+							<GsInput small type="number" :min="-selectedLayer.trimStartMs" :modelValue="selectedLayer.positionMs" @update:modelValue="value => editTrimmedLayerTiming('move', value)"><template #label>Position (ms)</template></GsInput>
+							<GsInput small type="number" :min="Math.max(0, selectedLayer.positionMs)" :max="getTimelineLayerEnd(selectedLayer) - 1" :modelValue="getTimelineLayerStart(selectedLayer)" @update:modelValue="value => editTrimmedLayerTiming('trimStart', value)"><template #label>Trim start (ms)</template></GsInput>
+							<GsInput small type="number" :min="getTimelineLayerStart(selectedLayer) + 1" :max="selectedVideoMetadata ? selectedLayer.positionMs + selectedVideoMetadata.durationMs : undefined" :modelValue="getTimelineLayerEnd(selectedLayer)" @update:modelValue="value => editTrimmedLayerTiming('trimEnd', value)"><template #label>Trim end (ms)</template></GsInput>
+							<GsInput small type="number" :min="0" :max="selectedVideoMetadata ? selectedVideoMetadata.durationMs - selectedLayer.trimmedDurationMs : undefined" :modelValue="selectedLayer.trimStartMs" @update:modelValue="value => editTrimmedLayerTiming('offset', value)"><template #label>Source offset (ms)</template></GsInput>
+						</div>
+						<div v-if="selectedVideoMetadata">Source duration: {{ formatMsToTimecode(selectedVideoMetadata.durationMs) }}</div>
+
 						<hr>
 						<GsButton danger @click="appStateManager.commit('removeTimelineLayer', { sceneId: props.sceneId, layerId: selectedLayer.id })">Remove Layer</GsButton>
 					</div>
