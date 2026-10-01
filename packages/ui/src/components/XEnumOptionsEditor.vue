@@ -5,11 +5,9 @@
 		<span>{{ i18n.ts._CustomParameterInput.Label }}</span>
 	</div>
 	<div v-for="(option, index) in draft" :key="option.id" :class="$style.row">
-		<GsInput v-model="option.value" :class="$style.field" type="text"/>
-		<GsInput v-model="option.label" :class="$style.field" type="text"/>
-		<GsButton small iconOnly :disabled="index === 0" :title="i18n.ts._CustomParameterInput.MoveUp" @click="move(index, -1)"><i class="ti ti-arrow-up"/></GsButton>
-		<GsButton small iconOnly :disabled="index === draft.length - 1" :title="i18n.ts._CustomParameterInput.MoveDown" @click="move(index, 1)"><i class="ti ti-arrow-down"/></GsButton>
-		<GsButton small iconOnly danger :disabled="draft.length === 1" :title="i18n.ts._CustomParameterInput.RemoveOption" @click="draft.splice(index, 1)"><i class="ti ti-trash"/></GsButton>
+		<GsInput v-model="option.value" small :class="$style.field" type="text"/>
+		<GsInput v-model="option.label" small :class="$style.field" type="text"/>
+		<GsButton small iconOnly danger :disabled="draft.length === 1" :title="i18n.ts._CustomParameterInput.RemoveOption" @click="draft.splice(index, 1)"><i class="ti ti-trash"></i></GsButton>
 	</div>
 	<div v-if="invalid" :class="$style.error">{{ i18n.ts._CustomParameterInput.InvalidOptions }}</div>
 	<GsSelect v-model="draftDefaultValue" :items="draft.map(option => ({ value: option.value, label: option.label || option.value }))" :disabled="invalid">
