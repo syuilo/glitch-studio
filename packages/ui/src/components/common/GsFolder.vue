@@ -80,7 +80,7 @@ const props = withDefaults(defineProps<{
 	maxHeight: null,
 	withSpacer: true,
 	spacerMin: 8,
-	spacerMax: 8,
+	spacerMax: 12,
 });
 
 const emit = defineEmits<{
