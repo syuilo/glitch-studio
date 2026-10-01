@@ -77,9 +77,8 @@
 
 <script lang="ts" setup>
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
-import { deepClone } from '@glitch/shared/utility/deep-clone.ts';
 import { genId } from '@glitch/shared/utility/id.ts';
-import { evaluateKeyframesTimeline } from '@glitch/shared/utility/keyframes-timeline.ts';
+import { insertInlineKeyframe } from '@/utility/keyframes-timeline.ts';
 import { getTimelineLayerStart, getTimelineLayerEnd } from '@glitch/shared/timeline/timing.ts';
 import { getSceneDuration } from '@glitch/shared/timeline/scenes.ts';
 import { readMediaMetadata } from '@glitch/shared/media/media-metadata.ts';
@@ -93,7 +92,7 @@ import type { ParameterBinding } from '@glitch/shared/types.ts';
 import { getTimelineSnapCandidates } from '@/utility/timeline-snapping.ts';
 import { formatTimelineTimecode } from '@/utility/timeline-ticks.ts';
 import { constrainTimelineMove } from '@/utility/timeline-selection.ts';
-import { getLayerParameterTargets, getLayerParameterValues } from '@/utility/timeline-scene.ts';
+import { getLayerParameterTargets, getLayerParameterValues, getLayerParameterDefinition } from '@/utility/timeline-scene.ts';
 import { appStateManager } from '@/app.ts';
 import { openAssetAudio } from '@/audio/asset-audio-reader.ts';
 
@@ -297,28 +296,15 @@ function onKeyframeInsert(param: KeyframeParameter, x: number) {
 	const values: Partial<Record<string, ParameterBinding>> = getLayerParameterValues(layer, param.target);
 	const current = values[param.paramId];
 	if (current?.inputSource !== 'keyframesTimelineInline') return;
-	const keyframes = current.keyframesTimeline.keyframes.toSorted((a, b) => a.x - b.x);
-	const previous = keyframes.findLast(point => point.x <= x);
-	if (previous?.x === x) {
-		emit('keyframeSelected', { layerId: layer.id, target: param.target, paramId: param.paramId, keyframeId: previous.id });
-		return;
-	}
-	const kind = current.keyframesTimeline.dataType.kind;
-	const fallback = Array<number>(kind === 'scalar' ? 1 : kind === 'vector' ? 2 : 4).fill(0);
-	// 挿入は元の区間を分割する操作。区間外では再生時の繰り返しを適用せず端の値を使う。
+	const definition = getLayerParameterDefinition(appStateManager.state, layer, param.target, param.paramId);
+	if (definition == null) return;
 	// 終端合わせのキーも再生時と同じ基準で評価する。素材の長さが未取得なら挿入を待つ。
 	const endTimeMs = (layer.layerType === 'audio' || (layer.layerType === 'video' && param.target === 'audio')) ? contentDurationMs.value : layer.trimStartMs + layer.trimmedDurationMs;
 	if (endTimeMs == null) return;
-	const evaluated = evaluateKeyframesTimeline({ ...current, wrapMode: 'clamp' }, x, endTimeMs, fallback);
-	const components = typeof evaluated === 'number' ? [evaluated] : evaluated;
-	const keyframeId = genId();
-	const value = deepClone(current);
-	value.keyframesTimeline.keyframes.push({
-		id: keyframeId, x, value: [...components],
-		interpolation: deepClone(previous?.interpolation ?? { type: 'linear' }),
-	});
-	value.keyframesTimeline.keyframes.sort((a, b) => a.x - b.x);
-	appStateManager.commit('editTimelineLayerParam', {
+	const inserted = insertInlineKeyframe(current, definition, x, endTimeMs);
+	if (inserted == null) return;
+	const { value, keyframeId } = inserted;
+	if (value !== current) appStateManager.commit('editTimelineLayerParam', {
 		sceneId: props.sceneId,
 		layerId: layer.id, target: param.target, paramId: param.paramId,
 		edit: { kind: 'keyframesTimelineInline', value },

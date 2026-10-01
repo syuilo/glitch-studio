@@ -3,11 +3,33 @@ import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
 
+// 【パラメータとキーフレームの型・値・編集方法の対応を型検査する】
 // データ型とUIの組み合わせ・デフォルト値・ネストした値の型推論を検証する。
-// 定義時と実行時で制約を揃え、不正な値がエフェクトまで渡るのを防ぐ。
+// キーフレームの離散値にLinearを許したり、scalarに配列を保存したりできないことも確認し、
+// 定義時と実行時で制約を揃えて不正な値がエフェクトまで渡るのを防ぐ。
 test('checks parameter controls and infers values independently of controls', () => {
 	const fileName = fileURLToPath(new URL('./parameter-schema.fixture.ts', import.meta.url)).replaceAll('\\', '/');
 	const source = `
+import type { KeyframesTimelineData, KeyframesTimelineKeyframe } from '../../shared/src/keyframes-timeline.ts';
+import type { ParameterBinding } from '../../shared/src/types.ts';
+const hold = { type: 'hold' } as const;
+const linear = { type: 'linear' } as const;
+const scalarKey: KeyframesTimelineKeyframe<{ kind: 'scalar' }> = { id: 'a', x: 0, value: 2, interpolation: linear };
+const stringKeys: KeyframesTimelineData = { dataType: { kind: 'string' }, isNormalized: false, keyframes: [{ id: 'a', x: 0, value: 'Hello', interpolation: hold }] };
+// @ts-expect-error scalarは1要素の配列ではなく素の数値を保存する
+const arrayScalar: KeyframesTimelineKeyframe<{ kind: 'scalar' }> = { ...scalarKey, value: [2] };
+// @ts-expect-error vectorの成分数は2に限る
+const shortVector: KeyframesTimelineKeyframe<{ kind: 'vector' }> = { ...scalarKey, value: [2] };
+// @ts-expect-error colorの成分数は4に限る
+const shortColor: KeyframesTimelineKeyframe<{ kind: 'color' }> = { ...scalarKey, value: [2, 3] };
+// @ts-expect-error 文字列にLinearを指定できない
+const linearString: KeyframesTimelineData = { dataType: { kind: 'string' }, isNormalized: false, keyframes: [{ id: 'a', x: 0, value: 'Hello', interpolation: linear }] };
+// @ts-expect-error boolの保存値に数値を使えない
+const numberBool: KeyframesTimelineData = { dataType: { kind: 'bool' }, isNormalized: false, keyframes: [{ id: 'a', x: 0, value: 1, interpolation: hold }] };
+// @ts-expect-error enumの候補のunionを維持する
+const invalidEnumKey: KeyframesTimelineKeyframe<{ kind: 'enum'; options: readonly ['left', 'right'] }> = { id: 'a', x: 0, value: 'center', interpolation: hold };
+// @ts-expect-error Binding経由でもタイムラインの型と値の対応を維持する
+const mismatchedBinding: ParameterBinding = { inputSource: 'keyframesTimelineInline', offsetMode: 'start', wrapMode: 'clamp', trimmedDurationMs: null, keyframesTimeline: { dataType: { kind: 'scalar' }, isNormalized: false, keyframes: [{ id: 'a', x: 0, value: 'Hello', interpolation: hold }] } };
 import { defineEffect, type EffectOutputDefinitions } from '../../shared/src/effect/effect-definition.ts';
 import type { ParameterDefinition, ParameterDefaultValue } from '../../shared/src/parameter.ts';
 import { colorBlendModes, type BlendMode } from '../../shared/src/color-blend.ts';

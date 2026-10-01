@@ -141,8 +141,7 @@ function onPreviewParamEdit(event: ParamEdit) {
 				case 'automationGraphReference': previewParamValues.value[id] = { inputSource: 'automationGraphReference', automationGraphId: null, trimmedDurationMs: 1000, wrapMode: 'repeat', offsetMode: 'start' }; break;
 				case 'automationGraphInline': previewParamValues.value[id] = createInlineAutomationGraph(); break;
 				case 'keyframesTimelineInline':
-					if (def.dataType.kind !== 'scalar' && def.dataType.kind !== 'vector' && def.dataType.kind !== 'color') return;
-					previewParamValues.value[id] = createInlineKeyframesTimeline(def.dataType);
+					previewParamValues.value[id] = createInlineKeyframesTimeline(def, current);
 					break;
 				case 'externalCustomParameterInput':
 				case 'node':

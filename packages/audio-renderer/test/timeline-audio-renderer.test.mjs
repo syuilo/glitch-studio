@@ -82,8 +82,8 @@ test('aligns end-relative audio keyframes to the source duration', async () => {
 	const renderer = new TimelineAudioRenderer(constant, async () => 200);
 	const binding = { inputSource: 'keyframesTimelineInline', offsetMode: 'end', wrapMode: 'clamp', trimmedDurationMs: null,
 		keyframesTimeline: { dataType: { kind: 'scalar' }, isNormalized: false, keyframes: [
-			{ id: 'start', x: 0, value: [0], interpolation: { type: 'linear' } },
-			{ id: 'end', x: 100, value: [1], interpolation: { type: 'linear' } },
+			{ id: 'start', x: 0, value: 0, interpolation: { type: 'linear' } },
+			{ id: 'end', x: 100, value: 1, interpolation: { type: 'linear' } },
 		] } };
 	const pcm = await renderer.render([layer({ positionMs: 0, trimStartMs: 100, trimmedDurationMs: 60, audioParamValues: { volume: binding } })], 150, 1, 1000);
 	assert.equal(pcm[0][0], 0.5);
@@ -95,9 +95,9 @@ test('preserves sub-control-period hold boundaries and linear keyframes', async 
 	const renderer = new TimelineAudioRenderer(constant, async () => 200);
 	const binding = { inputSource: 'keyframesTimelineInline', offsetMode: 'start', wrapMode: 'clamp', trimmedDurationMs: null,
 		keyframesTimeline: { dataType: { kind: 'scalar' }, isNormalized: false, keyframes: [
-			{ id: 'a', x: 20, value: [0], interpolation: { type: 'hold' } },
-			{ id: 'b', x: 22, value: [1], interpolation: { type: 'linear' } },
-			{ id: 'c', x: 24, value: [0], interpolation: { type: 'linear' } },
+			{ id: 'a', x: 20, value: 0, interpolation: { type: 'hold' } },
+			{ id: 'b', x: 22, value: 1, interpolation: { type: 'linear' } },
+			{ id: 'c', x: 24, value: 0, interpolation: { type: 'linear' } },
 		] } };
 	const output = await renderer.render([layer({ audioParamValues: { volume: binding } })], 100, 6, 1000);
 	assert.deepEqual([...output[0]], [0, 0, 1, 0.5, 0, 0]);

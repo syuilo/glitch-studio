@@ -112,9 +112,9 @@
 					</GsInput>
 					<div>Value</div>
 					<GsLiteralLeafValueControl
-						:dataType="selectedKeyframe.binding.keyframesTimeline.dataType"
+						:dataType="selectedKeyframe.def.dataType"
 						:control="selectedKeyframe.def.ui.control"
-						:value="selectedKeyframe.binding.keyframesTimeline.dataType.kind === 'scalar' ? selectedKeyframe.keyframe.value[0] : selectedKeyframe.keyframe.value.slice(0, selectedKeyframe.binding.keyframesTimeline.dataType.kind === 'vector' ? 2 : 4)"
+						:value="selectedKeyframe.keyframe.value"
 						:title="selectedKeyframe.def.ui.label"
 						@input="value => updateKeyframeValue(value)"
 						@beginChanging="keyframeValueMergeKey = genId()"
@@ -122,7 +122,7 @@
 						@changeFinished="keyframeValueMergeKey = null"
 						@reset="updateKeyframeValue(selectedKeyframe.def.defaultValue.value)"
 					/>
-					<GsSelect small :modelValue="selectedKeyframe.keyframe.interpolation.type" :items="[{ label: 'Hold', value: 'hold' }, { label: 'Linear', value: 'linear' }]" @update:modelValue="type => updateSelectedKeyframe({ interpolation: { type } })">
+					<GsSelect v-if="supportsKeyframeInterpolation(selectedKeyframe.def.dataType)" small :modelValue="selectedKeyframe.keyframe.interpolation.type" :items="[{ label: 'Hold', value: 'hold' }, { label: 'Linear', value: 'linear' }]" @update:modelValue="type => updateSelectedKeyframe({ interpolation: { type } })">
 						<template #label>Interpolation to next keyframe</template>
 					</GsSelect>
 				</div>
@@ -164,6 +164,7 @@
 							<div v-if="paramDef.dataType.kind === 'struct' || paramDef.dataType.kind === 'array' || isParameterType(paramDef, 'any')">{{ paramDef.ui.label }}: Editing is not yet supported.</div>
 							<GsVisualParam
 								v-else
+								keyframesEnabled
 								:availableVariables="LAYER_VAR_DEFS"
 								:automationGraphs="selectedLayer.automationGraphs"
 								:paramPath="[paramDef.id]"
@@ -180,6 +181,7 @@
 					<div style="padding: 8px 0;">
 						<GsVisualParam
 							v-for="(paramDef, paramId) in timelineCompositingParamDefs"
+							keyframesEnabled
 							:key="paramId"
 							:availableVariables="LAYER_VAR_DEFS"
 							:automationGraphs="selectedLayer.automationGraphs"
@@ -206,6 +208,7 @@
 						</template>
 						<GsVisualParam
 							:key="selectedLayer.id"
+							keyframesEnabled
 							:availableVariables="AUDIO_LAYER_VAR_DEFS"
 							:automationGraphs="selectedLayer.automationGraphs"
 							:paramPath="['volume']"
@@ -282,7 +285,9 @@ import type { MediaMetadata } from '@glitch/shared/media/media-metadata.ts';
 import type { Asset } from '@glitch/shared/types.ts';
 import type { VisualModuleEdit } from '@/types/visual-module-editor.ts';
 import type { TimelineLayer, TimelineVideoLayer } from '@glitch/shared/timeline/types.ts';
-import type { ParameterBinding, KeyframesTimelineKeyframe } from '@glitch/shared/types.ts';
+import type { ParameterBinding } from '@glitch/shared/types.ts';
+import { supportsKeyframeInterpolation, type KeyframeInterpolation } from '@glitch/shared/keyframes-timeline.ts';
+import { canEditKeyframesTimeline, updateInlineKeyframe } from '@/utility/keyframes-timeline.ts';
 import type { TimelineKeyframeSelection, TimelineSelection, TimelineSelectionGeometry, SelectionRect, TimelineMovePoint } from '@/utility/timeline-selection.ts';
 import type { ParamEdit } from './GsVisualParam.vue';
 import { timelineMarqueeRect, selectTimelineRange, keyframeSelectionKey, getTimelineStretchSelection, constrainTimelineMove, keyframeMoveBounds, getTimelineSnappingTimes } from '@/utility/timeline-selection.ts';
@@ -292,7 +297,7 @@ import { getTimelineLayerTicks, formatTimelineTimecode as formatMsToTimecode } f
 import { getTimelineSnapCandidates, getTimelineSeekPosition } from '@/utility/timeline-snapping.ts';
 import { preferences } from '@/preferences.ts';
 import { listenPointerDrag } from '@/utility/pointer-drag.ts';
-import { getLayerParameterTargets, getLayerParameterValues } from '@/utility/timeline-scene.ts';
+import { getLayerParameterTargets, getLayerParameterValues, getLayerParameterDefinition } from '@/utility/timeline-scene.ts';
 import { inspectVideoLayerAsset } from '@/utility/video-layer-asset.ts';
 import { sceneEditorStates, timelineLayerClipboard } from '@/utility/timeline-editor-state.ts';
 import * as ui from '@/ui.ts';
@@ -400,10 +405,8 @@ const selectedKeyframe = computed(() => {
 	const values: Partial<Record<string, ParameterBinding>> = getLayerParameterValues(layer, selection.target);
 	const binding = values[selection.paramId];
 	if (binding?.inputSource !== 'keyframesTimelineInline') return null;
-	const def = selection.target === 'audio' ? timelineAudioParamDefs.volume : selection.target === 'compositing'
-		? Object.entries(timelineCompositingParamDefs).find(([id]) => id === selection.paramId)?.[1]
-		: (layer.layerType === 'inlineVisualModule' ? layer.visualModule : layer.layerType === 'visualModule' ? appStateManager.getVisualModuleById(layer.visualModuleId) : null)?.paramDefs.find(entry => entry.id === selection.paramId);
-	if (def == null || !(isParameterType(def, 'scalar') || isParameterType(def, 'vector') || isParameterType(def, 'color')) || def.dataType.kind !== binding.keyframesTimeline.dataType.kind) return null;
+	const def = getLayerParameterDefinition(appStateManager.state, layer, selection.target, selection.paramId);
+	if (def == null || !canEditKeyframesTimeline(def, binding)) return null;
 	const keyframes = binding.keyframesTimeline.keyframes.toSorted((a, b) => a.x - b.x);
 	const index = keyframes.findIndex(entry => entry.id === selection.keyframeId);
 	if (index < 0) return null;
@@ -423,29 +426,21 @@ function onKeyframeSelected(selection: TimelineKeyframeSelection) {
 	selectedKeyframeSelection.value = selection;
 }
 
-function updateSelectedKeyframe(patch: Partial<Pick<KeyframesTimelineKeyframe, 'x' | 'value' | 'interpolation'>>, mergeKey?: string | null) {
+function updateSelectedKeyframe(patch: { x?: number; value?: unknown; interpolation?: KeyframeInterpolation }, mergeKey?: string | null) {
 	const selected = selectedKeyframe.value;
 	if (selected == null) return;
-	if (Object.entries(patch).every(([key, value]) => JSON.stringify(selected.keyframe[key as keyof KeyframesTimelineKeyframe]) === JSON.stringify(value))) return;
-	const value = deepClone(selected.binding);
-	const keyframe = value.keyframesTimeline.keyframes.find(entry => entry.id === selected.selection.keyframeId);
-	if (keyframe == null) return;
-	Object.assign(keyframe, deepClone(patch));
-	appStateManager.commit('editTimelineLayerParam', { sceneId: props.sceneId,
-																																																				layerId: selected.selection.layerId, target: selected.selection.target,
-																																																				paramId: selected.selection.paramId,
-																																																				edit: { kind: 'keyframesTimelineInline', value },
+	const value = updateInlineKeyframe(selected.binding, selected.def, selected.selection.keyframeId, patch);
+	if (value == null) return;
+	appStateManager.commit('editTimelineLayerParam', {
+		sceneId: props.sceneId,
+		layerId: selected.selection.layerId, target: selected.selection.target,
+		paramId: selected.selection.paramId,
+		edit: { kind: 'keyframesTimelineInline', value },
 	}, mergeKey);
 }
 
 function updateKeyframeValue(value: unknown, mergeKey?: string | null) {
-	const selected = selectedKeyframe.value;
-	if (selected == null) return;
-	const kind = selected.binding.keyframesTimeline.dataType.kind;
-	if (typeof value !== 'number' && !Array.isArray(value)) return;
-	const components = typeof value === 'number' ? [value] : [...value];
-	if (components.length !== (kind === 'scalar' ? 1 : kind === 'vector' ? 2 : 4) || !components.every(Number.isFinite)) return;
-	updateSelectedKeyframe({ value: components }, mergeKey);
+	updateSelectedKeyframe({ value }, mergeKey);
 }
 
 function updateKeyframeTime(value: string | number) {

@@ -1,8 +1,9 @@
 import type { ParameterBinding } from '../types.ts';
+import { supportsKeyframeInterpolation } from '../keyframes-timeline.ts';
 
 type InlineKeyframesTimeline = Extract<ParameterBinding, { inputSource: 'keyframesTimelineInline' }>;
 
-export function evaluateKeyframesTimeline<T>(input: InlineKeyframesTimeline, time: number, endTime: number, fallback: T): number | number[] | T {
+export function evaluateKeyframesTimeline<T>(input: InlineKeyframesTimeline, time: number, endTime: number, fallback: T): number | number[] | string | boolean | T {
 	const timeline = input.keyframesTimeline;
 	// 同じ時刻では元の配列で後にあるキーフレームを優先する。保存データは変更しない。
 	const keyframes = timeline.keyframes.toSorted((a, b) => a.x - b.x);
@@ -16,7 +17,7 @@ export function evaluateKeyframesTimeline<T>(input: InlineKeyframesTimeline, tim
 		? (time - endTime) / scale + last.x
 		: time / scale;
 	const duration = last.x - first.x;
-	let value: number[];
+	let value: number | number[] | string | boolean;
 	if (duration === 0) {
 		value = last.value;
 	} else {
@@ -39,13 +40,21 @@ export function evaluateKeyframesTimeline<T>(input: InlineKeyframesTimeline, tim
 		const next = keyframes.find(keyframe => keyframe.x > x);
 		if (previous == null) {
 			value = first.value;
-		} else if (next == null || previous.x === x || previous.interpolation.type === 'hold') {
+		} else if (next == null || previous.x === x || previous.interpolation.type === 'hold' || !supportsKeyframeInterpolation(timeline.dataType)) {
 			value = previous.value;
 		} else {
 			const progress = (x - previous.x) / (next.x - previous.x);
-			value = previous.value.map((component, i) => component + (next.value[i] - component) * progress);
+			const from = previous.value;
+			const to = next.value;
+			if (typeof from === 'number' && typeof to === 'number') {
+				value = from + (to - from) * progress;
+			} else if (Array.isArray(from) && Array.isArray(to)) {
+				value = from.map((component, i) => component + (to[i] - component) * progress);
+			} else {
+				return fallback;
+			}
 		}
 	}
-	// scalarは通常の数値として返す。色は未乗算のままShaderInputへの変換境界へ渡す。
-	return timeline.dataType.kind === 'scalar' ? value[0] : [...value];
+	// 保存配列を呼び出し側の変更から保護する。色は未乗算のまま変換境界へ渡す。
+	return Array.isArray(value) ? [...value] : value;
 }

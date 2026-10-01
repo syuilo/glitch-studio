@@ -55,7 +55,7 @@
 						</GsSelect>
 					</div>
 					<div v-else-if="paramValue.inputSource === 'keyframesTimelineInline'" style="display: grid; gap: 6px;">
-						TODO
+						{{ paramValue.keyframesTimeline.keyframes.length }} keyframes
 					</div>
 					<GsSelect
 						v-else-if="paramValue.inputSource === 'externalCustomParameterInput'"
@@ -162,6 +162,7 @@ export type ParamEdit = { paramPath: ParamPath; mergeKey?: string | null } & (
 
 <script lang="ts" setup>
 import { getArrayElementDefinition, getStructFieldDefinitions } from '@glitch/shared/parameter.ts';
+import { isKeyframesDataType } from '@glitch/shared/keyframes-timeline.ts';
 import { visualModuleCustomParameterId } from '@glitch/shared/visual-module/types.ts';
 import { computed, onBeforeUnmount, ref, shallowRef, useTemplateRef, watch, watchEffect } from 'vue';
 import { genId } from '@glitch/shared/utility/id.ts';
@@ -200,6 +201,7 @@ const props = defineProps<{
 	paramDef: ParameterDefinition;
 	paramValue: ParameterBinding;
 	label?: string;
+	keyframesEnabled?: boolean;
 }>();
 
 const emit = defineEmits<{ edit: [event: ParamEdit] }>();
@@ -353,7 +355,7 @@ function getMenu() {
 		if (props.node != null) types.push({ text: 'Custom Parameter', inputSource: 'externalCustomParameterInput', icon: 'ti ti-wifi' });
 		if (canNode.value) types.push({ text: 'Node', inputSource: 'node', icon: 'ti ti-plug' });
 		for (const { text, inputSource, icon } of types) {
-			if (inputSource === 'keyframesTimelineInline' && props.paramDef.dataType.kind !== 'scalar' && props.paramDef.dataType.kind !== 'vector' && props.paramDef.dataType.kind !== 'color') continue;
+			if (inputSource === 'keyframesTimelineInline' && (!props.keyframesEnabled || !isKeyframesDataType(props.paramDef.dataType))) continue;
 			menuItems.push({
 				text,
 				icon,

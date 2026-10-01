@@ -392,7 +392,7 @@ test('respects group bounds and displays every matching scoped snap position', (
 function fixture() {
 	const manager = new AppStateManager();
 	const binding = () => ({ inputSource: 'keyframesTimelineInline', offsetMode: 'start', wrapMode: 'clamp', trimmedDurationMs: 1000,
-		keyframesTimeline: { dataType: { kind: 'scalar' }, keyframes: [100, 200, 800].map((x, index) => ({ id: String(index), x, value: [index], interpolation: { type: 'linear' } })) } });
+		keyframesTimeline: { dataType: { kind: 'scalar' }, keyframes: [100, 200, 800].map((x, index) => ({ id: String(index), x, value: index, interpolation: { type: 'linear' } })) } });
 	manager.state.timelineScenes.value = [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [
 		{ id: 'audio', layerType: 'audio', positionMs: -100, trimStartMs: 200, trimmedDurationMs: 1000, assetId: 'sound', audioParamValues: { volume: binding() }, automationGraphs: [] },
 		{ id: 'video', layerType: 'video', positionMs: 1000, trimStartMs: 50, trimmedDurationMs: 2000, assetId: 'movie', audioEnabled: true,

@@ -8,7 +8,7 @@ import { build } from 'esbuild';
 const bundled = await build({
 	absWorkingDir: fileURLToPath(new URL('../', import.meta.url)),
 	stdin: {
-		contents: "export { timelineCompositingParamDefs } from '../shared/src/timeline/timeline-compositing.ts'; export { COMMAND_DEFS } from './src/commands.ts'; export { createInlineAutomationGraph, setInlineAutomationGraphNormalized } from './src/utility/automation-graph.ts'; export { encodeProjectFile, decodeProjectFile } from './src/gsproj.ts'; export { createImageLayer } from './src/utility/image-layer.ts'; export { getLayerParameterTargets } from './src/utility/timeline-scene.ts';",
+		contents: "export * from './src/utility/keyframes-timeline.ts'; export { timelineCompositingParamDefs } from '../shared/src/timeline/timeline-compositing.ts'; export { COMMAND_DEFS } from './src/commands.ts'; export { createInlineAutomationGraph, setInlineAutomationGraphNormalized } from './src/utility/automation-graph.ts'; export { encodeProjectFile, decodeProjectFile } from './src/gsproj.ts'; export { createImageLayer } from './src/utility/image-layer.ts'; export { getLayerParameterTargets } from './src/utility/timeline-scene.ts';",
 		resolveDir: fileURLToPath(new URL('../', import.meta.url)),
 		loader: 'ts',
 	},
@@ -34,6 +34,112 @@ new Function('require', 'module', 'exports', bundled.outputFiles[0].text)(create
 const { timelineCompositingParamDefs, COMMAND_DEFS, createInlineAutomationGraph, setInlineAutomationGraphNormalized, encodeProjectFile, decodeProjectFile, createImageLayer, getLayerParameterTargets } = module.exports;
 
 const defaultCompositing = () => Object.fromEntries(Object.entries(timelineCompositingParamDefs).map(([key, def]) => [key, structuredClone(def.defaultValue)]));
+const { createInlineKeyframesTimeline, insertInlineKeyframe, updateInlineKeyframe, canEditKeyframesTimeline } = module.exports;
+
+const keyframeDefinition = (dataType, value) => ({ dataType, defaultValue: { inputSource: 'literal', value }, ui: { label: 'Value', control: {} } });
+
+// 【キーフレームへの切り替えは現在の値を維持し、型ごとに正しい初期キーを作る】
+// 数値の0→1を一律に生成すると、変換した瞬間に文字や色が変わってしまう。
+// false・空文字列を欠損値と扱わず、式からの切り替えは定義の初期値に戻す。
+test('creates one typed keyframe from the current literal or definition default', () => {
+	for (const [kind, current, fallback, interpolation] of [
+		['scalar', 0.7, 1, 'linear'], ['vector', [2, -1], [0, 0], 'linear'],
+		['color', [1, 0, 0, 0.5], [0, 0, 0, 1], 'linear'],
+		['string', '', 'Default', 'hold'], ['bool', false, true, 'hold'], ['enum', 'b', 'a', 'hold'],
+	]) {
+		const definition = keyframeDefinition(kind === 'enum' ? { kind, options: ['a', 'b'] } : { kind }, fallback);
+		const input = createInlineKeyframesTimeline(definition, { inputSource: 'literal', value: current });
+		assert.equal(input.keyframesTimeline.isNormalized, false);
+		assert.equal(input.offsetMode, 'start');
+		assert.equal(input.wrapMode, 'clamp');
+		assert.equal(input.keyframesTimeline.keyframes.length, 1);
+		assert.deepEqual(input.keyframesTimeline.keyframes[0].value, current);
+		assert.equal(input.keyframesTimeline.keyframes[0].x, 0);
+		assert.equal(input.keyframesTimeline.keyframes[0].interpolation.type, interpolation);
+		assert.deepEqual(createInlineKeyframesTimeline(definition, { inputSource: 'expression', expression: 'TIME' }).keyframesTimeline.keyframes[0].value, fallback);
+		if (Array.isArray(current)) assert.notEqual(input.keyframesTimeline.keyframes[0].value, current);
+	}
+});
+
+// 【キーを追加しても元の数値補間や離散値の区間を変えない】
+// 文字列を配列へ展開したり、boolを数値化したりせず、同時刻では既存キーを選択する。
+// 区間外の挿入にはRepeatを適用せず、端の値を複製する。
+test('splits keyframe intervals without changing values and reuses existing keys', () => {
+	for (const [kind, first, last, midpoint] of [
+		['scalar', 2, 10, 6], ['vector', [0, 2], [4, 6], [2, 4]],
+		['color', [1, 0, 0, 0], [0, 1, 0, 1], [0.5, 0.5, 0, 0.5]],
+		['string', ' Hello\n世界 👋 ', '', ' Hello\n世界 👋 '], ['bool', true, false, true], ['enum', 'a', 'b', 'a'],
+	]) {
+		const definition = keyframeDefinition(kind === 'enum' ? { kind, options: ['a', 'b'] } : { kind }, first);
+		const input = createInlineKeyframesTimeline(definition);
+		input.keyframesTimeline.keyframes.push({ ...input.keyframesTimeline.keyframes[0], id: 'last', x: 10000, value: last });
+		const before = structuredClone(input);
+		const inserted = insertInlineKeyframe(input, definition, 5000, 20000);
+		assert.deepEqual(inserted.value.keyframesTimeline.keyframes[1].value, midpoint);
+		assert.deepEqual(input, before);
+		const existing = insertInlineKeyframe(inserted.value, definition, 5000, 20000);
+		assert.equal(existing.value, inserted.value);
+		assert.equal(existing.keyframeId, inserted.keyframeId);
+		input.wrapMode = 'repeat';
+		const outside = insertInlineKeyframe(input, definition, 15000, 20000);
+		assert.deepEqual(outside.value.keyframesTimeline.keyframes.at(-1).value, last);
+		if (['string', 'bool', 'enum'].includes(kind)) assert.equal(updateInlineKeyframe(input, definition, 'last', { interpolation: { type: 'linear' } }), null);
+	}
+});
+
+// 【enumの選択肢変更後もキーを保持して修正できる】
+// 古い型情報との不一致でエディタを閉じたり、別の選択肢へ勝手に置き換えたりしない。
+// 空タイムラインからの追加だけは、最新の定義の有効な既定値を使う。
+test('repairs enum keys using the current definition while preserving invalid stored values', () => {
+	const oldDefinition = keyframeDefinition({ kind: 'enum', options: ['old', 'kept'] }, 'old');
+	const definition = keyframeDefinition({ kind: 'enum', options: ['kept', 'new'] }, 'new');
+	const input = createInlineKeyframesTimeline(oldDefinition);
+	const id = input.keyframesTimeline.keyframes[0].id;
+	assert.equal(canEditKeyframesTimeline(definition, input), true);
+	const moved = updateInlineKeyframe(input, definition, id, { x: 100 });
+	assert.equal(moved.keyframesTimeline.keyframes[0].value, 'old');
+	assert.deepEqual(moved.keyframesTimeline.dataType, definition.dataType);
+	assert.throws(() => updateInlineKeyframe(input, definition, id, { value: 'missing' }), /Invalid enum value/);
+	const repaired = updateInlineKeyframe(input, definition, id, { value: 'new' });
+	assert.equal(repaired.keyframesTimeline.keyframes[0].value, 'new');
+	assert.equal(input.keyframesTimeline.keyframes[0].value, 'old');
+	input.keyframesTimeline.keyframes = [];
+	assert.equal(insertInlineKeyframe(input, definition, 0, 1000).value.keyframesTimeline.keyframes[0].value, 'new');
+});
+
+// 【離散値のタイムライン編集を履歴とプロジェクト保存へ統合する】
+// 一文字ずつの編集の集約に使うCommandが、保存値を参照共有せずUndo/Redoで復元することを確認する。
+// 通常のVisual ModuleとインラインVisual Moduleの両方で同じ入出力契約を維持する。
+test('round-trips and undoes discrete keyframe creation insertion and editing on both module layer types', async () => {
+	for (const inline of [false, true]) {
+		for (const [dataType, first, second] of [[{ kind: 'string' }, 'Hello\n世界', ''], [{ kind: 'bool' }, true, false], [{ kind: 'enum', options: ['a', 'b'] }, 'a', 'b']]) {
+			const { state } = fixture();
+			const definition = { ...keyframeDefinition(dataType, first), id: 'gain', nameForReference: 'Gain' };
+			state.visualModules.value[0].paramDefs = [definition];
+			const layer = state.timelineScenes.value[0].layers[0];
+			if (inline) { layer.layerType = 'inlineVisualModule'; layer.visualModule = state.visualModules.value[0]; delete layer.visualModuleId; }
+			const target = { sceneId: 'scene', layerId: layer.id, paramId: 'gain' };
+			const create = COMMAND_DEFS.editTimelineLayerParam.create({ ...target, edit: { kind: 'inputSource', inputSource: 'keyframesTimelineInline' } });
+			create.execute(state);
+			const initial = structuredClone(layer.visualModuleParamValues.gain);
+			const inserted = insertInlineKeyframe(initial, definition, 10000, 20000);
+			const value = updateInlineKeyframe(inserted.value, definition, inserted.keyframeId, { value: second });
+			const edit = COMMAND_DEFS.editTimelineLayerParam.create({ ...target, edit: { kind: 'keyframesTimelineInline', value } });
+			edit.execute(state);
+			const restored = decodeProjectFile(await encodeProjectFile({ assets: [], visualModules: state.visualModules.value, timelineScenes: state.timelineScenes.value }));
+			assert.deepEqual(restored.timelineScenes, state.timelineScenes.value);
+			value.keyframesTimeline.keyframes[0].value = 'mutated';
+			edit.undo(state);
+			assert.deepEqual(layer.visualModuleParamValues.gain, initial);
+			create.undo(state);
+			assert.equal(Object.hasOwn(layer.visualModuleParamValues, 'gain'), false);
+			create.execute(state);
+			edit.execute(state);
+			assert.equal(layer.visualModuleParamValues.gain.keyframesTimeline.keyframes[0].value, first);
+			assert.equal(layer.visualModuleParamValues.gain.keyframesTimeline.keyframes[1].value, second);
+		}
+	}
+});
 
 function imageFixture() {
 	const assets = ['first', 'second'].map(id => ({ id, name: id, fileDataType: 'image/png', fileData: new Blob([id], { type: 'image/png' }) }));

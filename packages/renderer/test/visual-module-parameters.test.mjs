@@ -80,7 +80,7 @@ const keyframesInput = (keyframes, dataType = 'scalar', options = {}) => ({
 // 【ネストした値とモジュール引数のキーフレーム評価】
 // コンテナの走査はレンダラーの責務なので、ここで単体評価器との連携を確認する。
 test('keyframes evaluate in nested node parameters and module arguments', () => {
-	const input = keyframesInput([keyframe(0, [0]), keyframe(1, [8])]);
+	const input = keyframesInput([keyframe(0, 0), keyframe(1, 8)]);
 	const result = evaluate(new ParameterEvaluator(), context({ values: arrayParameter(number) }, {
 		values: literal([input]),
 	}, { paramDefs: [paramDef('animated')], paramValues: { animated: input }, time: 250 }));

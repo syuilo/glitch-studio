@@ -1,59 +1,78 @@
 import { genId } from '@glitch/shared/utility/id.ts';
 import { deepClone } from '@glitch/shared/utility/deep-clone.ts';
-import type { KeyframesTimeline, ParameterBinding } from '@glitch/shared/types.ts';
+import { genEmptyValue } from '@glitch/shared/utility/misc.ts';
+import { areDataTypesEqual } from '@glitch/shared/data-type.ts';
+import { isKeyframesDataType, isKeyframeValue, supportsKeyframeInterpolation } from '@glitch/shared/keyframes-timeline.ts';
+import { evaluateKeyframesTimeline } from '@glitch/shared/utility/keyframes-timeline.ts';
+import { validateEnumParameterValue } from '@glitch/shared/parameter.ts';
+import type { KeyframesDataType, KeyframesTimelineData, KeyframesTimelineKeyframe, KeyframeInterpolation } from '@glitch/shared/keyframes-timeline.ts';
+import type { ParameterDefinition } from '@glitch/shared/parameter.ts';
+import type { ParameterBinding } from '@glitch/shared/types.ts';
 
 type InlineKeyframesTimeline = Extract<ParameterBinding, { inputSource: 'keyframesTimelineInline' }>;
 
-/*
-export function setInlineKeyframesTimelineNormalized(input: InlineKeyframesTimeline, isNormalized: boolean): InlineKeyframesTimeline {
-	const value = deepClone(input);
-	const graph = value.keyframesTimeline;
-	if (graph.isNormalized === isNormalized) return value;
-	const trimmedDurationMs = value.trimmedDurationMs != null && Number.isFinite(value.trimmedDurationMs) && value.trimmedDurationMs > 0 ? value.trimmedDurationMs : 1000;
-	graph.points.sort((a, b) => a.x - b.x);
-	const firstX = graph.points[0]?.x ?? 0;
-	const span = (graph.points.at(-1)?.x ?? firstX) - firstX;
-	const scale = isNormalized ? 1 / (span > 0 ? span : trimmedDurationMs) : trimmedDurationMs;
-	// 制御点はアンカーからの相対座標なので、平行移動せず倍率だけを適用する。
-	for (const point of graph.points) {
-		point.x = (point.x - (isNormalized ? firstX : 0)) * scale;
-		point.bezierControlPointA[0] *= scale;
-		point.bezierControlPointB[0] *= scale;
-	}
-	if (isNormalized) {
-		value.trimmedDurationMs = span > 0 ? span : trimmedDurationMs;
-		// 正規化エディタが固定する0と1の端点を、空・1点のグラフにも用意する。
-		if (graph.points.length === 0) {
-			graph.points.push({ id: genId(), x: 0, y: 0, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] });
-		}
-		if (span <= 0) {
-			const last = graph.points.at(-1)!;
-			last.bezierControlPointB = [0, 0];
-			graph.points.push({ id: genId(), x: 1, y: last.y, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] });
-		} else {
-			// 丸め誤差で固定端点の1をわずかに越えないようにする。
-			graph.points[0].x = 0;
-			graph.points.at(-1)!.x = 1;
-		}
-	}
-	graph.isNormalized = isNormalized;
-	return value;
+export function canEditKeyframesTimeline(definition: ParameterDefinition, input: InlineKeyframesTimeline): definition is ParameterDefinition<KeyframesDataType> {
+	if (!isKeyframesDataType(definition.dataType)) return false;
+	// enumの選択肢が更新されても、古いキーを表示し、最新の選択肢で修正できるようにする。
+	return (definition.dataType.kind === 'enum' && input.keyframesTimeline.dataType.kind === 'enum')
+		|| areDataTypesEqual(definition.dataType, input.keyframesTimeline.dataType);
 }
-	*/
 
-export function createInlineKeyframesTimeline(dataType: KeyframesTimeline['dataType']): Extract<ParameterBinding, { inputSource: 'keyframesTimelineInline' }> {
+type KeyframeDraft = { id: string; x: number; value: unknown; interpolation: KeyframeInterpolation };
+
+function createTimelineData(dataType: KeyframesDataType, keyframes: KeyframeDraft[], isNormalized: boolean): KeyframesTimelineData {
+	if (!keyframes.every(point => isKeyframeValue(dataType, point.value)
+		&& (supportsKeyframeInterpolation(dataType) || point.interpolation.type === 'hold'))) throw new Error('Invalid keyframe value or interpolation');
+	// 実行時に型と全キーの対応を確認済み。独立した引数の相関をunionへ戻す。
+	return deepClone({ dataType, keyframes, isNormalized }) as KeyframesTimelineData;
+}
+
+export function createInlineKeyframesTimeline(definition: ParameterDefinition, current?: ParameterBinding): InlineKeyframesTimeline {
+	if (!isKeyframesDataType(definition.dataType)) throw new Error('Parameter does not support keyframes');
+	const value = current?.inputSource === 'literal' ? current.value : definition.defaultValue.value;
 	return {
 		inputSource: 'keyframesTimelineInline',
-		keyframesTimeline: {
-			isNormalized: false,
-			dataType,
-			keyframes: [
-				{ id: genId(), x: 0, value: [0, 0, 0, 0], interpolation: { type: 'linear' } },
-				{ id: genId(), x: 1000, value: [1, 1, 1, 1], interpolation: { type: 'linear' } },
-			],
-		},
+		keyframesTimeline: createTimelineData(definition.dataType, [{
+			id: genId(), x: 0, value, interpolation: { type: supportsKeyframeInterpolation(definition.dataType) ? 'linear' : 'hold' },
+		}], false),
 		trimmedDurationMs: null,
 		wrapMode: 'clamp',
 		offsetMode: 'start',
 	};
+}
+
+export function updateInlineKeyframe(input: InlineKeyframesTimeline, definition: ParameterDefinition, keyframeId: string,
+	patch: { x?: number; value?: unknown; interpolation?: KeyframeInterpolation }): InlineKeyframesTimeline | null {
+	if (!canEditKeyframesTimeline(definition, input)) return null;
+	if (patch.x !== undefined && (!Number.isFinite(patch.x) || patch.x < 0)) return null;
+	if (Object.hasOwn(patch, 'value')) {
+		if (!isKeyframeValue(definition.dataType, patch.value)) return null;
+		validateEnumParameterValue(definition, patch.value);
+	}
+	if (patch.interpolation != null && !supportsKeyframeInterpolation(definition.dataType) && patch.interpolation.type !== 'hold') return null;
+	const keyframe = input.keyframesTimeline.keyframes.find(point => point.id === keyframeId);
+	if (keyframe == null || Object.entries(patch).every(([key, value]) => JSON.stringify(keyframe[key as keyof KeyframesTimelineKeyframe]) === JSON.stringify(value))) return null;
+	const keyframes = input.keyframesTimeline.keyframes.map(point => point.id === keyframeId ? { ...point, ...patch } : point);
+	return {
+		...deepClone(input),
+		keyframesTimeline: createTimelineData(definition.dataType, keyframes, input.keyframesTimeline.isNormalized),
+	};
+}
+
+export function insertInlineKeyframe(input: InlineKeyframesTimeline, definition: ParameterDefinition, x: number, endTime: number): { value: InlineKeyframesTimeline; keyframeId: string } | null {
+	if (!canEditKeyframesTimeline(definition, input) || !Number.isFinite(x) || x < 0) return null;
+	const keyframes: KeyframeDraft[] = input.keyframesTimeline.keyframes.toSorted((a, b) => a.x - b.x);
+	const previous = keyframes.findLast(point => point.x <= x);
+	if (previous?.x === x) return { value: input, keyframeId: previous.id };
+	const fallback = definition.dataType.kind === 'enum' ? definition.defaultValue.value : genEmptyValue(definition);
+	// 挿入は既存区間の分割なので、区間外では繰り返しを適用しない。
+	const evaluated = evaluateKeyframesTimeline({ ...input, wrapMode: 'clamp' }, x, endTime, fallback);
+	const keyframeId = genId();
+	const interpolation = previous?.interpolation ?? { type: supportsKeyframeInterpolation(definition.dataType) ? 'linear' : 'hold' };
+	keyframes.push({ id: keyframeId, x, value: evaluated, interpolation });
+	keyframes.sort((a, b) => a.x - b.x);
+	return { value: {
+		...deepClone(input),
+		keyframesTimeline: createTimelineData(definition.dataType, keyframes, input.keyframesTimeline.isNormalized),
+	}, keyframeId };
 }

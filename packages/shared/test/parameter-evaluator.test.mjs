@@ -29,7 +29,7 @@ const context = (overrides = {}) => ({
 const keyframe = (x, value, type = 'linear') => ({ id: `${x}`, x, value, interpolation: { type } });
 const keyframesInput = (keyframes, dataType = 'scalar', options = {}) => ({
 	inputSource: 'keyframesTimelineInline',
-	keyframesTimeline: { dataType: { kind: dataType }, isNormalized: true, keyframes },
+	keyframesTimeline: { dataType: typeof dataType === 'string' ? { kind: dataType } : dataType, isNormalized: true, keyframes },
 	trimmedDurationMs: 1000, wrapMode: 'clamp', offsetMode: 'start', ...options,
 });
 function evaluateKeyframes(input, time, endTime = 5000, fallback = -1) {
@@ -41,7 +41,7 @@ function evaluateKeyframes(input, time, endTime = 5000, fallback = -1) {
 // 【キーフレームの補間と境界】
 // holdとlinearの切り替えがキーの時刻で正確に起きることを確認する。
 test('keyframes use outgoing hold/linear interpolation and switch exactly at keys', () => {
-	const input = keyframesInput([keyframe(0, [2], 'hold'), keyframe(0.5, [10]), keyframe(1, [20], 'hold')]);
+	const input = keyframesInput([keyframe(0, 2, 'hold'), keyframe(0.5, 10), keyframe(1, 20, 'hold')]);
 	for (const [time, expected] of [[0, 2], [499, 2], [500, 10], [750, 15], [1000, 20]]) {
 		assert.equal(evaluateKeyframes(input, time), expected);
 	}
@@ -66,7 +66,7 @@ test('keyframes interpolate vector and straight color components without mutatin
 // 正規化座標・ミリ秒座標・終端合わせで再生位置を正しく解決する。
 test('keyframes respect normalized duration, millisecond coordinates, end alignment and live time', () => {
 	for (const isNormalized of [true, false]) {
-		const input = keyframesInput([keyframe(isNormalized ? 1.5 : 3000, [10]), keyframe(isNormalized ? 0.5 : 1000, [0])]);
+		const input = keyframesInput([keyframe(isNormalized ? 1.5 : 3000, 10), keyframe(isNormalized ? 0.5 : 1000, 0)]);
 		input.keyframesTimeline.isNormalized = isNormalized;
 		input.trimmedDurationMs = 2000;
 		assert.equal(evaluateKeyframes(input, 1500), 2.5);
@@ -76,7 +76,7 @@ test('keyframes respect normalized duration, millisecond coordinates, end alignm
 		assert.equal(evaluateKeyframes(input, 1500, Infinity), 2.5);
 	}
 	for (const trimmedDurationMs of [null, 0, -1, NaN, Infinity]) {
-		assert.equal(evaluateKeyframes(keyframesInput([keyframe(0, [0]), keyframe(1, [10])], 'scalar', { trimmedDurationMs }), 250), 2.5);
+		assert.equal(evaluateKeyframes(keyframesInput([keyframe(0, 0), keyframe(1, 10)], 'scalar', { trimmedDurationMs }), 250), 2.5);
 	}
 });
 
@@ -88,7 +88,7 @@ test('keyframes wrap negative time, endpoints and mirrored cycles consistently',
 		['repeat', [7.5, 0, 0, 2.5, 0]],
 		['repeatMirrored', [2.5, 0, 10, 7.5, 0]],
 	]) {
-		const input = keyframesInput([keyframe(0, [0]), keyframe(1, [10])], 'scalar', { wrapMode });
+		const input = keyframesInput([keyframe(0, 0), keyframe(1, 10)], 'scalar', { wrapMode });
 		assert.deepEqual([-250, 0, 1000, 1250, 2000].map(time => evaluateKeyframes(input, time)), values);
 	}
 });
@@ -99,17 +99,65 @@ test('empty, single and duplicate keyframes have deterministic results', () => {
 	assert.equal(evaluateKeyframes(keyframesInput([]), 500, 5000, 42), 42);
 	for (const wrapMode of ['clamp', 'repeat', 'repeatMirrored']) {
 		for (const time of [-1000, 0, 1000]) {
-			assert.equal(evaluateKeyframes(keyframesInput([keyframe(0, [3])], 'scalar', { wrapMode }), time), 3);
-			assert.equal(evaluateKeyframes(keyframesInput([keyframe(0, [3]), keyframe(0, [7])], 'scalar', { wrapMode }), time), 7);
+			assert.equal(evaluateKeyframes(keyframesInput([keyframe(0, 3)], 'scalar', { wrapMode }), time), 3);
+			assert.equal(evaluateKeyframes(keyframesInput([keyframe(0, 3), keyframe(0, 7)], 'scalar', { wrapMode }), time), 7);
 		}
 	}
-	const input = keyframesInput([keyframe(1, [20]), keyframe(0.5, [5]), keyframe(0, [0]), keyframe(0.5, [10])]);
+	const input = keyframesInput([keyframe(1, 20), keyframe(0.5, 5), keyframe(0, 0), keyframe(0.5, 10)]);
 	assert.equal(evaluateKeyframes(input, 250), 2.5);
 	assert.equal(evaluateKeyframes(input, 500), 10);
 	assert.equal(evaluateKeyframes(input, 750), 15);
 });
 
 const graphPoint = (x, y) => ({ id: `${x}`, x, y, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] });
+
+// 【離散値はキーの時刻ちょうどで切り替わり、シーク方向や過去の評価に依存しない】
+// 文字列の分割・数値化やboolの補間を行うと、字幕や状態切り替えを正確な時刻で指定できなくなる。
+// 空白・改行・空文字列も値として保持し、評価後に保存データを書き換えないことを確認する。
+test('holds strings booleans and enums with exact boundaries and deterministic seeking', () => {
+	for (const [dataType, first, second, third, fallback] of [
+		['string', ' Hello\n世界 👋 ', '', 'World', 'fallback'],
+		['bool', true, false, true, false],
+		[{ kind: 'enum', options: ['left', 'right'] }, 'left', 'right', 'left', 'right'],
+	]) {
+		const input = keyframesInput([keyframe(20, third, 'hold'), keyframe(0, first, 'hold'), keyframe(10, second, 'hold')], dataType);
+		const before = structuredClone(input);
+		for (const [time, expected] of [[10000, second], [9999.99, first], [30000, third], [-1, first], [10000.01, second], [0, first]]) {
+			assert.equal(evaluateKeyframes(input, time, 40000, fallback), expected);
+		}
+		assert.deepEqual(input, before);
+		input.keyframesTimeline.keyframes.push(keyframe(10, first, 'hold'));
+		assert.equal(evaluateKeyframes(input, 10000), first);
+		input.keyframesTimeline.keyframes = [keyframe(10, second, 'hold')];
+		assert.equal(evaluateKeyframes(input, -1000), second);
+		input.keyframesTimeline.keyframes = [];
+		assert.equal(evaluateKeyframes(input, 0, 40000, fallback), fallback);
+	}
+});
+
+// 【離散値も数値と同じ時刻変換と繰り返し規約を使う】
+// Repeatでは最終キーが周期の終端であり、最後の値に独自の保持時間を足さない。
+// 終端合わせや正規化の経路でも、変化するのは値の選択だけであることを保証する。
+test('applies normalized timing end alignment and wrapping to discrete keyframes', () => {
+	const input = keyframesInput([keyframe(0, 'A', 'hold'), keyframe(0.5, 'B', 'hold'), keyframe(1, 'C', 'hold')], 'string');
+	for (const [wrapMode, expected] of [
+		['clamp', ['A', 'A', 'B', 'C', 'C', 'C']],
+		['repeat', ['B', 'A', 'B', 'A', 'A', 'A']],
+		['repeatMirrored', ['A', 'A', 'B', 'C', 'B', 'A']],
+	]) {
+		input.wrapMode = wrapMode;
+		assert.deepEqual([-250, 0, 500, 1000, 1250, 2000].map(time => evaluateKeyframes(input, time)), expected);
+	}
+	input.wrapMode = 'clamp';
+	input.trimmedDurationMs = 2000;
+	input.offsetMode = 'end';
+	assert.equal(evaluateKeyframes(input, 3999, 5000), 'A');
+	assert.equal(evaluateKeyframes(input, 4000, 5000), 'B');
+	assert.equal(evaluateKeyframes(input, 1000, Infinity), 'B');
+	input.keyframesTimeline.isNormalized = false;
+	for (const point of input.keyframesTimeline.keyframes) point.x *= 2000;
+	assert.equal(evaluateKeyframes(input, 4000, 5000), 'B');
+});
 
 const rampGraph = (isNormalized = true) => ({
 	id: 'ramp-id', name: 'Ramp', isNormalized,

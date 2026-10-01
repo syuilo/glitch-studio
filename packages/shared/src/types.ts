@@ -1,4 +1,5 @@
-import type { DataType } from './data-type.ts';
+import type { KeyframesTimelineData } from './keyframes-timeline.ts';
+export type { KeyframeInterpolation, KeyframesTimelineKeyframe, KeyframesTimeline } from './keyframes-timeline.ts';
 
 import type { GlobalEnvVariable } from './expression.ts';
 import type { NodeOutputReference, VisualModuleCustomParameterId } from './visual-module/types.ts';
@@ -30,7 +31,7 @@ export type ParameterBinding = {
 	wrapMode: 'clamp' | 'repeat' | 'repeatMirrored'
 } | {
 	inputSource: 'keyframesTimelineInline';
-	keyframesTimeline: Omit<KeyframesTimeline, 'id' | 'name'>;
+	keyframesTimeline: KeyframesTimelineData;
 	trimmedDurationMs: number | null; // isNormalizedの場合のみ使用。nullの場合は1000ms。
 	offsetMode: 'start' | 'end';
 	wrapMode: 'clamp' | 'repeat' | 'repeatMirrored'
@@ -67,23 +68,6 @@ export type AutomationGraph = {
 	id: string;
 	name: string;
 	points: BezierAnchorPoint[];
-	isNormalized: boolean; // X軸が0~1に正規化されているかどうか。falseの場合はX軸単位がmsであるとみなす
-};
-
-export type KeyframeInterpolation = { type: 'hold' } | { type: 'linear' };
-
-export type KeyframesTimelineKeyframe = {
-	id: string;
-	x: number;
-	value: number[]; // ベクトル、色など複数成分の値も扱うため配列
-	interpolation: KeyframeInterpolation; // 次のキーフレームまでの補間。最後のキーフレームでは使用しない。
-};
-
-export type KeyframesTimeline = {
-	id: string;
-	name: string;
-	dataType: Extract<DataType, { kind: 'scalar' | 'vector' | 'color' }>;
-	keyframes: KeyframesTimelineKeyframe[];
 	isNormalized: boolean; // X軸が0~1に正規化されているかどうか。falseの場合はX軸単位がmsであるとみなす
 };
 

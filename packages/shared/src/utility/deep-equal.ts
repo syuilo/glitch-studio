@@ -1,4 +1,4 @@
-type JsonLike = string | number | boolean | null | undefined | JsonLike[] | { [key: string]: JsonLike } | Map<string, JsonLike>;
+type JsonLike = string | number | boolean | null | undefined | readonly JsonLike[] | { [key: string]: JsonLike } | Map<string, JsonLike>;
 
 export function deepEqual(a: JsonLike, b: JsonLike): boolean {
 	if (a === b) return true;
