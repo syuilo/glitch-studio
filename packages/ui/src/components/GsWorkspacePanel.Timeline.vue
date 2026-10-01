@@ -43,14 +43,17 @@ function duplicateScene() {
 }
 
 async function renameScene() {
+	const scene = activeScene.value;
+	if (scene == null) return;
+
 	const { canceled, result: name } = await ui.inputText({
 		title: 'Rename Scene',
-		placeholder: activeScene.value.name,
-		default: activeScene.value.name,
+		placeholder: scene.name,
+		default: scene.name,
 	});
 	if (canceled || name == null) return;
 
-	appStateManager.commit('renameScene', { sceneId: activeScene.value.id, name });
+	appStateManager.commit('renameScene', { sceneId: scene.id, name });
 }
 
 function removeScene() {
