@@ -28,5 +28,6 @@ onBeforeUnmount(() => {
 <style module lang="scss">
 .root {
 	height: 100%;
+	overflow-y: auto;
 }
 </style>
