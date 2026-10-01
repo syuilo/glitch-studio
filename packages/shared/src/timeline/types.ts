@@ -1,70 +1,62 @@
 import type { AutomationGraph, ParameterBinding } from '../types.ts';
-import type { TimelineLayerTiming } from './timing.ts';
 import type { VisualModule } from '../visual-module/types.ts';
 import type { timelineCompositingParamDefs } from './timeline-compositing.ts';
+import type { TimelineLayerTiming } from './timing.ts';
 
 // NOTE: 各値の計算式は以下となる
 // const visibleStartMs = layer.positionMs + layer.trimStartMs;
 // const visibleEndMs = visibleStartMs + layer.trimmedDurationMs;
 // const contentTimeMs = timelineTimeMs - layer.positionMs;
 
+type TimelineLayerBase = {
+	id: string;
+	automationGraphs: AutomationGraph[];
+} & TimelineLayerTiming;
+
+type TimelineAudioLayerBase = {
+	audioParamValues: { volume: TimelineParameterBinding };
+};
+
+type TimelineVisualLayerBase = {
+	compositingParamValues: Record<keyof typeof timelineCompositingParamDefs, TimelineParameterBinding>;
+};
+
 export type TimelineParameterBinding = Exclude<ParameterBinding, { inputSource: 'node' | 'externalCustomParameterInput' }>;
 
-export type TimelineVisualModuleLayer = TimelineLayerTiming & {
-	id: string;
+export type TimelineVisualModuleLayer = TimelineLayerBase & TimelineLayerTiming & TimelineVisualLayerBase & {
 	layerType: 'visualModule';
 	visualModuleId: string;
 	visualModuleParamValues: Record<string, TimelineParameterBinding>;
-	compositingParamValues: Record<keyof typeof timelineCompositingParamDefs, TimelineParameterBinding>;
-	automationGraphs: AutomationGraph[];
 };
 
-export type TimelineInlineVisualModuleLayer = TimelineLayerTiming & {
-	id: string;
+export type TimelineInlineVisualModuleLayer = TimelineLayerBase & TimelineLayerTiming & TimelineVisualLayerBase & {
 	layerType: 'inlineVisualModule';
 	visualModule: VisualModule;
 	visualModuleParamValues: Record<string, TimelineParameterBinding>;
-	compositingParamValues: Record<keyof typeof timelineCompositingParamDefs, TimelineParameterBinding>;
-	automationGraphs: AutomationGraph[];
 };
 
-export type TimelineEffectLayer = TimelineLayerTiming & { // TODO
-	id: string;
+export type TimelineEffectLayer = TimelineLayerBase & TimelineLayerTiming & TimelineVisualLayerBase & { // TODO
 	layerType: 'effect';
 	effectId: string;
 	effectParamValues: Record<string, TimelineParameterBinding>;
-	compositingParamValues: Record<keyof typeof timelineCompositingParamDefs, TimelineParameterBinding>;
-	automationGraphs: AutomationGraph[];
 };
 
-export type TimelineAudioLayer = TimelineLayerTiming & {
-	id: string;
+export type TimelineAudioLayer = TimelineLayerBase & TimelineLayerTiming & TimelineAudioLayerBase & {
 	layerType: 'audio';
 	assetId: string;
-	audioParamValues: { volume: TimelineParameterBinding };
-	automationGraphs: AutomationGraph[];
 };
 
 /** 映像と音声は同じ素材時刻・トリムを共有する。Playerの再生状態には依存しない。 */
-export type TimelineVideoLayer = TimelineLayerTiming & {
-	id: string;
+export type TimelineVideoLayer = TimelineLayerBase & TimelineLayerTiming & TimelineAudioLayerBase & TimelineVisualLayerBase & {
 	layerType: 'video';
 	assetId: string;
 	audioEnabled: boolean;
-	compositingParamValues: Record<keyof typeof timelineCompositingParamDefs, TimelineParameterBinding>;
-	audioParamValues: { volume: TimelineParameterBinding };
-	automationGraphs: AutomationGraph[];
 };
 
 /** 参照先は透明背景から描画する。配置期間は参照先の長さが変わっても自動伸縮しない。 */
-export type TimelineSceneLayer = TimelineLayerTiming & {
-	id: string;
+export type TimelineSceneLayer = TimelineLayerBase & TimelineLayerTiming & TimelineAudioLayerBase & TimelineVisualLayerBase & {
 	layerType: 'scene';
 	sceneId: string;
-	compositingParamValues: Record<keyof typeof timelineCompositingParamDefs, TimelineParameterBinding>;
-	/** 子の音声全体への音量。映像のopacity・変形・合成方法とは独立する。 */
-	audioParamValues: { volume: TimelineParameterBinding };
-	automationGraphs: AutomationGraph[];
 };
 
 export type TimelineLayer = TimelineVisualModuleLayer | TimelineInlineVisualModuleLayer | TimelineEffectLayer | TimelineAudioLayer | TimelineVideoLayer | TimelineSceneLayer;
