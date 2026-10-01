@@ -1,7 +1,9 @@
 import { getArrayElementDefinition, getStructFieldDefinitions } from '@glitch/shared/parameter.ts';
-import type { ParameterDefinition } from '@glitch/shared/parameter.ts';
+import type { ParameterArrayElement, ParameterDefinition } from '@glitch/shared/parameter.ts';
 import type { ParameterBinding } from '@glitch/shared/types.ts';
 
+// レンダラー内のパスは、この評価で生成する素の配列をたどるためのindexを使う。
+// 編集対象を長期的に保持するUIのIDパスとは用途が異なる。
 type ParamPath = (string | number)[];
 
 // コンテナ自身の式は評価しない。literalの子だけを定義に沿ってたどる。
@@ -11,7 +13,7 @@ export function mapNodeParam(def: ParameterDefinition, param: ParameterBinding, 
 		if (param.inputSource !== 'literal') throw new Error(`Container parameter must be literal: ${JSON.stringify(path)}`);
 		if (def.dataType.kind === 'array') {
 			if (!Array.isArray(param.value)) throw new Error(`Expected array parameter: ${JSON.stringify(path)}`);
-			return param.value.map((value: ParameterBinding, index: number) => mapNodeParam(getArrayElementDefinition(def), value, [...path, index], mapLeaf));
+			return param.value.map((element: ParameterArrayElement, index: number) => mapNodeParam(getArrayElementDefinition(def), element.binding, [...path, index], mapLeaf));
 		}
 		return Object.fromEntries(Object.entries(getStructFieldDefinitions(def)).map(([key, field]) =>
 			[key, mapNodeParam(field, param.value[key], [...path, key], mapLeaf)]));
@@ -27,7 +29,7 @@ export function* walkNodeParams(defs: Record<string, ParameterDefinition>, param
 			if (param.inputSource !== 'literal') throw new Error(`Container parameter must be literal: ${JSON.stringify(path)}`);
 			if (def.dataType.kind === 'array') {
 				if (!Array.isArray(param.value)) throw new Error(`Expected array parameter: ${JSON.stringify(path)}`);
-				for (const [index, value] of param.value.entries()) yield* walk(getArrayElementDefinition(def), value, [...path, index]);
+				for (const [index, element] of (param.value as ParameterArrayElement[]).entries()) yield* walk(getArrayElementDefinition(def), element.binding, [...path, index]);
 			} else {
 				for (const [key, field] of Object.entries(getStructFieldDefinitions(def))) yield* walk(field, param.value[key], [...path, key]);
 			}

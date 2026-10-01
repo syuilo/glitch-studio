@@ -58,6 +58,7 @@ import * as ui from '@/ui.ts';
 import { commitVisualModuleEdit } from '@/utility/visual-module-edit.ts';
 import { createInlineAutomationGraph } from '@/utility/automation-graph.ts';
 import { createInlineKeyframesTimeline } from '@/utility/keyframes-timeline.ts';
+import { createResetParameterBinding } from '@/utility/parameter-default.ts';
 
 defineProps<{ panel: WorkspacePanel }>();
 
@@ -121,7 +122,7 @@ function onPreviewParamEdit(event: ParamEdit) {
 	if (def == null) return;
 	const id = def.id;
 	const current = previewParamValues.value[id];
-	const reset = (): VisualModuleParameterBindings[VisualModuleCustomParameterId] => deepClone(def.defaultValue);
+	const reset = (): VisualModuleParameterBindings[VisualModuleCustomParameterId] => createResetParameterBinding(def);
 	switch (event.kind) {
 		case 'literal': previewParamValues.value[id] = { inputSource: 'literal', value: deepClone(event.value) }; break;
 		case 'automationGraphInline': previewParamValues.value[id] = deepClone(event.value); break;

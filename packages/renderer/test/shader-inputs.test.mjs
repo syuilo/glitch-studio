@@ -422,7 +422,9 @@ for (const enable32bit of [false, true]) {
 	});
 }
 
+// 【ID付き配列から接続と定数を評価し、エフェクトへは通常の配列を渡す】
 // 構造体配列内の接続・定数を解決し、要素の変更でレンダラーのキャッシュも更新する。
+// 保存用のラッパーをGPU入力へ渡したり、接続設定の走査を落としたりしないことを確認する。
 test('resolves nested array inputs and invalidates sampling changes', () => {
 	const { device, calls, encoder } = gpuFixture();
 	const captured = [];
@@ -433,8 +435,11 @@ test('resolves nested array inputs and invalidates sampling changes', () => {
 	const connection = { inputSource: 'node', nodeId: 'source', outputPort: 'output', fitMode: 'contain', wrapMode: 'transparent', filterMode: 'nearest' };
 	const source = { id: 'source', type: 'effect', resolution: { mode: 'context' }, effectId: 'colorMix', params: { inputA: literal([1, 0, 0, 1]), inputB: literal([0, 0, 0, 0]), amount: literal(0) } };
 	const arrayNode = { id: 'array', type: 'effect', resolution: { mode: 'context' }, effectId: 'testStructArray', params: {
-		foo: literal({ node: literal([0, 1, 0, 0.5]) }), bars: literal([literal([0, 0, 1, 0.5])]),
-		buzzs: literal([literal({ image: connection, x: literal(0), y: literal(0) }), literal({ image: literal([1, 0, 0, 0.25]), x: literal(1), y: literal(0) })]),
+		foo: literal({ node: literal([0, 1, 0, 0.5]) }), bars: literal([{ id: 'first', binding: literal([0, 0, 1, 0.5]) }]),
+		buzzs: literal([
+			{ id: 'first', binding: literal({ image: connection, x: literal(0), y: literal(0) }) },
+			{ id: 'second', binding: literal({ image: literal([1, 0, 0, 0.25]), x: literal(1), y: literal(0) }) },
+		]),
 	} };
 	const renderer = createRenderer(device, {
 		paramDefs: [], automationGraphs: [], outputDefs: [{ id: 'out' }], primaryInputId: null, primaryOutputId: 'out',

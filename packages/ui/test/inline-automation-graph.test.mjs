@@ -350,34 +350,37 @@ test('provides normalized endpoints for empty and single-point inline graphs', (
 
 function fixture() {
 	const initial = { inputSource: 'literal', value: 3 };
-	const node = { id: 'node', type: 'effect', resolution: { mode: 'context' }, effectId: 'test', params: { values: { inputSource: 'literal', value: [initial] } } };
+	const node = { id: 'node', type: 'effect', resolution: { mode: 'context' }, effectId: 'test', params: { values: { inputSource: 'literal', value: [{ id: 'first', binding: initial }] } } };
 	const state = {
 		visualModules: { value: [{ id: 'module', nodes: [node], primaryInputId: null, paramDefs: [{ id: 'gain', defaultValue: initial }] }] },
 		timelineScenes: { value: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [{ id: 'layer', layerType: 'visualModule', visualModuleId: 'module', positionMs: 0, trimStartMs: 0, trimmedDurationMs: 1000, visualModuleParamValues: {}, compositingParamValues: defaultCompositing(), automationGraphs: [] }] }] },
 	};
-	return { state, node, target: { visualModuleId: 'module', nodeId: 'node', paramPath: ['values', 0] } };
+	return { state, node, target: { visualModuleId: 'module', nodeId: 'node', paramPath: ['values', 'first'] } };
 }
 
-// inlineへの切り替えをUndoでき、RedoでポイントのIDも再現する。
+// 【配列要素のBindingを切り替えても要素IDを維持する】
+// inlineへの切り替えをUndoでき、RedoでグラフのポイントIDも再現する。
 test('restores inline graph creation in nested node parameters', () => {
 	const { state, node, target } = fixture();
 	const command = COMMAND_DEFS.changeParamValueInputSource.create({ ...target, inputSource: 'automationGraphInline' });
 	command.execute(state);
-	const created = structuredClone(node.params.values.value[0]);
+	const created = structuredClone(node.params.values.value[0].binding);
+	assert.equal(node.params.values.value[0].id, 'first');
 	assert.equal(created.inputSource, 'automationGraphInline');
 	assert.equal(created.automationGraph.isNormalized, true);
 	assert.deepEqual(created.automationGraph.points.map(point => point.x), [0, 1]);
 	command.undo(state);
-	assert.deepEqual(node.params.values.value[0], { inputSource: 'literal', value: 3 });
+	assert.deepEqual(node.params.values.value[0], { id: 'first', binding: { inputSource: 'literal', value: 3 } });
 	command.execute(state);
-	assert.deepEqual(node.params.values.value[0], created);
+	assert.deepEqual(node.params.values.value[0], { id: 'first', binding: created });
 });
 
+// 【結合したドラッグ操作でも元の配列要素のBindingを復元する】
 // AppContextは結合時に最初のundoと最後のexecuteを保持する。その契約で全ドラッグを復元できる。
 test('restores the first and final snapshots of a merged graph drag', () => {
 	const { state, node, target } = fixture();
 	COMMAND_DEFS.changeParamValueInputSource.create({ ...target, inputSource: 'automationGraphInline' }).execute(state);
-	const before = structuredClone(node.params.values.value[0]);
+	const before = structuredClone(node.params.values.value[0].binding);
 	const intermediate = structuredClone(before);
 	intermediate.automationGraph.points[0].y = 2;
 	const first = COMMAND_DEFS.updateParamAsAutomationGraphInline.create({ ...target, value: intermediate });
@@ -389,11 +392,11 @@ test('restores the first and final snapshots of a merged graph drag', () => {
 	last.execute(state);
 	// エディタが次に可変配列を編集しても、履歴のスナップショットは変わらない。
 	intermediate.automationGraph.points[0].y = 99;
-	node.params.values.value[0].automationGraph.points[0].y = 100;
+	node.params.values.value[0].binding.automationGraph.points[0].y = 100;
 	first.undo(state);
-	assert.deepEqual(node.params.values.value[0], before);
+	assert.deepEqual(node.params.values.value[0].binding, before);
 	last.execute(state);
-	assert.deepEqual(node.params.values.value[0], final);
+	assert.deepEqual(node.params.values.value[0].binding, final);
 });
 
 // レイヤーの設定変更もUndo/Redoでき、切り替え前の「既定値参照」へ戻せる。

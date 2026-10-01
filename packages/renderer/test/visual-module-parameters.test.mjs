@@ -40,6 +40,7 @@ function evaluate(evaluator, input) {
 
 const literal = value => ({ inputSource: 'literal', value });
 const expression = expression => ({ inputSource: 'expression', expression });
+const arrayBinding = bindings => literal(bindings.map((binding, index) => ({ id: `element-${index}`, binding })));
 // テスト用のコンテナも実際の保存形式と同様、型・UI・子設定を分離する。
 function arrayParameter({ dataType, ui, ...settings }) {
 	return { dataType: { kind: 'array', elementType: dataType }, ui: { label: 'Values', control: { element: ui.control } }, element: settings, defaultValue: literal([]) };
@@ -82,7 +83,7 @@ const keyframesInput = (keyframes, dataType = 'scalar', options = {}) => ({
 test('keyframes evaluate in nested node parameters and module arguments', () => {
 	const input = keyframesInput([keyframe(0, 0), keyframe(1, 8)]);
 	const result = evaluate(new ParameterEvaluator(), context({ values: arrayParameter(number) }, {
-		values: literal([input]),
+		values: arrayBinding([input]),
 	}, { paramDefs: [paramDef('animated')], paramValues: { animated: input }, time: 250 }));
 	assert.equal(result.paramValues.get('animated'), 2);
 	assert.deepEqual(result.nodeParams.get('node').values, [2]);
@@ -147,7 +148,7 @@ test('evaluates GRAPH by name in module and node expressions', () => {
 	const graph = rampGraph();
 	const msGraph = { ...rampGraph(false), id: 'ms-id', name: 'Milliseconds' };
 	const result = evaluate(new ParameterEvaluator(), context({ values: arrayParameter(number) }, {
-		values: literal([
+		values: arrayBinding([
 			expression('GRAPH("Ramp", 0.25, "clamp")'),
 			expression('GRAPH("Ramp", 1.25, "repeat")'),
 			expression('GRAPH("Ramp", -0.25, "repeatMirrored")'),
@@ -168,7 +169,7 @@ test('falls back for invalid GRAPH calls and does not expose inline graphs', () 
 	];
 	const evaluator = new ParameterEvaluator();
 	const result = evaluate(evaluator, context({ values: arrayParameter(number) }, {
-		values: literal(invalid.map(expression)),
+		values: arrayBinding(invalid.map(expression)),
 	}, { automationGraphs: [graph], paramDefs: [paramDef('invalid')], paramValues: { invalid: expression(invalid[0]) } }));
 	assert.deepEqual(result.nodeParams.get('node').values, invalid.map(() => 0));
 	assert.equal(result.paramValues.get('invalid'), 0);
@@ -193,7 +194,7 @@ test('reads single scope variables without parsing or executing AiScript', t => 
 	const evaluator = new ParameterEvaluator();
 	const parse = t.mock.method(evaluator.aisParser, 'parse');
 	const input = context({ values: arrayParameter(number) }, {
-		values: literal(['TIME', 'TIME_MS', 'WIDTH', 'HEIGHT', 'PROGRESS'].map(name => expression(` \t${name}\r\n`))),
+		values: arrayBinding(['TIME', 'TIME_MS', 'WIDTH', 'HEIGHT', 'PROGRESS'].map(name => expression(` \t${name}\r\n`))),
 	}, { paramDefs: [paramDef('time')], paramValues: { time: expression('TIME') } });
 	const first = evaluate(evaluator, input);
 	assert.equal(first.paramValues.get('time'), 0.5);
@@ -210,20 +211,21 @@ test('uses AiScript for complex expressions and unknown variables', t => {
 	const parse = t.mock.method(evaluator.aisParser, 'parse');
 	const expressions = ['TIME + 1', 'TIME // comment', 'PARAM("gain")', 'UNKNOWN', 'toString'];
 	const result = evaluate(evaluator, context({ values: arrayParameter(number) }, {
-		values: literal(expressions.map(expression)),
+		values: arrayBinding(expressions.map(expression)),
 	}, { paramDefs: [paramDef('gain', 4)] }));
 	assert.deepEqual(result.nodeParams.get('node').values, [1.5, 0.5, 4, 0, 0]);
 	assert.equal(parse.mock.callCount(), expressions.length);
 });
 
-// GPUなしでネストした値・式・接続参照を評価する
+// 【ID付き配列内の値・式・接続参照を評価する】
+// 保存時の要素IDやBindingを評価結果に混入させず、エフェクトが従来の値を受け取れるようにする。
 test('evaluates nested values, expressions and node references without a GPU', () => {
 	const input = context({
 		items: arrayParameter(structParameter({ value: number })),
 		link: { ...number, canNode: true },
 		empty: arrayParameter(number),
 	}, {
-		items: literal([literal({ value: expression('WIDTH + HEIGHT + TIME + TIME_MS + PROGRESS') }), literal({ value: literal(9) })]),
+		items: arrayBinding([literal({ value: expression('WIDTH + HEIGHT + TIME + TIME_MS + PROGRESS') }), literal({ value: literal(9) })]),
 		link: { fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear', inputSource: 'node', nodeId: 'source', outputPort: 'value' },
 		empty: literal([]),
 	});

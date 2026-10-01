@@ -73,6 +73,6 @@ function onNodeParamEdit(manager: AppStateManager, moduleTarget: VisualModuleTar
 		case 'inputSource': manager.commit('changeParamValueInputSource', { ...target, inputSource: event.inputSource }); break;
 		case 'reset': manager.commit('resetNodeParam', target); break;
 		case 'addElement': manager.commit('addArrayParamElement', target); break;
-		case 'removeElement': manager.commit('removeArrayParamElement', { ...target, index: event.index }); break;
+		case 'removeElement': manager.commit('removeArrayParamElement', { ...target, elementId: event.elementId }); break;
 	}
 }

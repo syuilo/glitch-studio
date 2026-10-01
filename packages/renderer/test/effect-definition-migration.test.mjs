@@ -15,6 +15,11 @@ function checkParameter(dataType, settings, control) {
 	assert.equal(settings.defaultValue.inputSource, 'literal');
 	if (dataType.kind === 'array') {
 		assert.ok(Array.isArray(settings.defaultValue.value));
+		assert.equal(new Set(settings.defaultValue.value.map(element => element.id)).size, settings.defaultValue.value.length);
+		for (const element of settings.defaultValue.value) {
+			assert.equal(typeof element.id, 'string');
+			assert.equal(typeof element.binding.inputSource, 'string');
+		}
 		checkParameter(dataType.elementType, settings.element, control.element);
 	} else if (dataType.kind === 'struct') {
 		assert.deepEqual(Object.keys(settings.fields), Object.keys(dataType.fields));
@@ -31,7 +36,8 @@ function checkParameter(dataType, settings, control) {
 	}
 }
 
-// 全定義を実際に読み込み、選択肢・初期値・子設定の移行漏れを検出する。
+// 【全エフェクトの定義と配列要素IDの整合性】
+// 全定義を実際に読み込み、選択肢・初期値・子設定の移行漏れや、配列内でのID重複を検出する。
 test('keeps all effect schemas and string enum defaults consistent', () => {
 	assert.ok(definitions.length > 0);
 	for (const definition of definitions) {
@@ -134,7 +140,7 @@ defineEffect({ ...definition, paramDefs: { struct: { ...struct, defaultValue: { 
 // @ts-expect-error 配列の要素UIに存在しないfieldを追加できない。
 defineEffect({ ...definition, paramDefs: { array: { ...array, ui: { ...array.ui, control: { element: { fields: { ...array.ui.control.element.fields, typo: uiField } } } } } }, primaryInputParameter: null, resolutionInputParameter: null });
 // @ts-expect-error 配列内の構造体初期値にも存在しないfieldを追加できない。
-defineEffect({ ...definition, paramDefs: { array: { ...array, defaultValue: { inputSource: 'literal', value: [{ inputSource: 'literal', value: { ...array.element.defaultValue.value, typo: binding } }] } } }, primaryInputParameter: null, resolutionInputParameter: null });
+defineEffect({ ...definition, paramDefs: { array: { ...array, defaultValue: { inputSource: 'literal', value: [{ id: 'first', binding: { inputSource: 'literal', value: { ...array.element.defaultValue.value, typo: binding } } }] } } }, primaryInputParameter: null, resolutionInputParameter: null });
 // @ts-expect-error 要素追加時の初期値にも存在しないfieldを追加できない。
 defineEffect({ ...definition, paramDefs: { array: { ...array, element: { ...array.element, defaultValue: { inputSource: 'literal', value: { ...array.element.defaultValue.value, typo: binding } } } } }, primaryInputParameter: null, resolutionInputParameter: null });
 // @ts-expect-error 正しいfield名でもリテラルの型は一致する必要がある。

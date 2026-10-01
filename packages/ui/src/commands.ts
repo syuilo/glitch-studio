@@ -7,6 +7,7 @@ import { visualModuleCustomParameterId } from '@glitch/shared/visual-module/type
 import { effectDefinitions } from '@glitch/shared/effect/effect-definitions.ts';
 import { AiSON } from '@syuilo/aiscript';
 import { deepClone } from '@glitch/shared/utility/deep-clone.ts';
+import { genId } from '@glitch/shared/utility/id.ts';
 import { getNodeInputDataType, getNodeOutputs } from '@glitch/shared/utility/node-outputs.ts';
 import { isTextureDataType } from '@glitch/shared/data-type.ts';
 import { timelineAudioParamDefs } from '@glitch/shared/timeline/timeline-audio.ts';
@@ -15,7 +16,7 @@ import { validateSceneResolution } from '@glitch/shared/timeline/scene-resolutio
 import type { TimelineSceneResolution } from '@glitch/shared/timeline/scene-resolution.ts';
 import { timelineCompositingParamDefs } from '@glitch/shared/timeline/timeline-compositing.ts';
 import type { VisualModuleCustomParameterId, VisualModuleEffectNode, VisualModuleNode, NodeOutputReference, VisualModule, VisualModuleParamDef, VisualModuleOutputDef } from '@glitch/shared/visual-module/types.ts';
-import type { ParameterDefinition } from '@glitch/shared/parameter.ts';
+import type { ParameterArrayElement, ParameterDefinition } from '@glitch/shared/parameter.ts';
 import type { AppState } from './types.ts';
 import type { Asset, AutomationGraphPlaybackOptions, ParameterBinding, Player } from '@glitch/shared/types.ts';
 import type { NodeParamTarget as EffectNodeParamTarget } from '@/utility/node-params.ts';
@@ -24,6 +25,7 @@ import { canConnectNodeDataTypes } from '@/utility/node-outputs.ts';
 import { resolveNodeParam, walkNodeParams } from '@/utility/node-params.ts';
 import { createInlineAutomationGraph } from '@/utility/automation-graph.ts';
 import { createInlineKeyframesTimeline } from '@/utility/keyframes-timeline.ts';
+import { createResetParameterBinding } from '@/utility/parameter-default.ts';
 import { getVisualModule, listVisualModules } from '@/utility/visual-module-target.ts';
 import type { VisualModuleTarget } from '@/utility/visual-module-target.ts';
 import type { TimelineKeyframeSelection } from '@/utility/timeline-selection.ts';
@@ -107,7 +109,7 @@ const editTimelineLayerParamCommandDef = defineCommand<{
 							automationGraphId: edit.value,
 							...edit.options,
 						}; break;
-						case 'reset': after = deepClone(def.defaultValue); break;
+						case 'reset': after = createResetParameterBinding(def); break;
 						case 'inputSource':
 							switch (edit.inputSource) {
 								case 'literal': after = deepClone(def.defaultValue); break;
@@ -419,7 +421,7 @@ function defineNodeParamCommand<Payload extends NodeParamTarget>(
 					const target = resolveNodeParam(node, payload.paramPath);
 					if (after === undefined) {
 						before = deepClone(target.value);
-						// default()が乱数を使っていてもRedoでは同じ値に戻す。
+						// 追加・リセットで発行した要素IDも、Redoでは同じ状態に戻す。
 						after = deepClone(update(target, payload));
 					}
 					target.setValue(deepClone(after));
@@ -548,17 +550,18 @@ const addArrayParamElementCommandDef = defineNodeParamCommand<NodeParamTarget>(
 	'Add array parameter element',
 	({ def, value }) => {
 		if (def.dataType.kind !== 'array' || value.inputSource !== 'literal' || !Array.isArray(value.value)) throw new Error('Expected array parameter');
-		const element = deepClone(getArrayElementDefinition(def).defaultValue);
+		const element: ParameterArrayElement = { id: genId(), binding: deepClone(getArrayElementDefinition(def).defaultValue) };
 		return { inputSource: 'literal', value: [...value.value, element] };
 	},
 );
 
-const removeArrayParamElementCommandDef = defineNodeParamCommand<NodeParamTarget & { index: number }>(
+const removeArrayParamElementCommandDef = defineNodeParamCommand<NodeParamTarget & { elementId: string }>(
 	'Remove array parameter element',
-	({ def, value }, { index }) => {
+	({ def, value }, { elementId }) => {
 		if (def.dataType.kind !== 'array' || value.inputSource !== 'literal' || !Array.isArray(value.value)) throw new Error('Expected array parameter');
-		if (!Number.isInteger(index) || index < 0 || index >= value.value.length) throw new Error('Invalid array index');
-		return { inputSource: 'literal', value: value.value.filter((_, i) => i !== index) };
+		const elements = value.value as ParameterArrayElement[];
+		if (!elements.some(element => element.id === elementId)) throw new Error('Unknown array element');
+		return { inputSource: 'literal', value: elements.filter(element => element.id !== elementId) };
 	},
 );
 
@@ -608,7 +611,7 @@ const changeNodeResolutionCommandDef = defineCommand<NodeTarget & { resolution: 
 
 const resetNodeParamCommandDef = defineNodeParamCommand<NodeParamTarget>(
 	'Reset node param',
-	({ def }) => deepClone(def.defaultValue),
+	({ def }) => createResetParameterBinding(def),
 );
 
 const updateGlobalOutInputCommandDef = defineCommand<NodeTarget & { outputId: string; value: NodeOutputReference | null }>({

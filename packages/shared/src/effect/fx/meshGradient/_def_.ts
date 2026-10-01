@@ -11,10 +11,10 @@ export default defineEffect({
 			defaultValue: {
 				inputSource: 'literal',
 				value: [
-					{ inputSource: 'literal', value: [224 / 255, 234 / 255, 1, 1] },
-					{ inputSource: 'literal', value: [36 / 255, 29 / 255, 154 / 255, 1] },
-					{ inputSource: 'literal', value: [247 / 255, 80 / 255, 146 / 255, 1] },
-					{ inputSource: 'literal', value: [159 / 255, 80 / 255, 211 / 255, 1] },
+					{ id: 'first', binding: { inputSource: 'literal', value: [224 / 255, 234 / 255, 1, 1] } },
+					{ id: 'second', binding: { inputSource: 'literal', value: [36 / 255, 29 / 255, 154 / 255, 1] } },
+					{ id: 'third', binding: { inputSource: 'literal', value: [247 / 255, 80 / 255, 146 / 255, 1] } },
+					{ id: 'fourth', binding: { inputSource: 'literal', value: [159 / 255, 80 / 255, 211 / 255, 1] } },
 				],
 			},
 			element: { canNode: true, defaultValue: { inputSource: 'literal', value: [1, 1, 1, 1] } },

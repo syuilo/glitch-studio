@@ -30,7 +30,7 @@ export default defineEffect({
 			defaultValue: {
 				inputSource: 'literal',
 				value: [
-					{ inputSource: 'literal', value: { image: { inputSource: 'literal', value: [0, 0, 1, 1] }, x: { inputSource: 'literal', value: 0 }, y: { inputSource: 'literal', value: 0 } } },
+					{ id: 'first', binding: { inputSource: 'literal', value: { image: { inputSource: 'literal', value: [0, 0, 1, 1] }, x: { inputSource: 'literal', value: 0 }, y: { inputSource: 'literal', value: 0 } } } },
 				],
 			},
 			element: {

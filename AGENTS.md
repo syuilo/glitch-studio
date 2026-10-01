@@ -73,6 +73,9 @@ sharedは、tree-shakableであることが求められます。
 | 子のパラメータ設定 | `element` | `fields[key]` |
 
 - 配列全体の `defaultValue` と、新規要素を追加するときの `element.defaultValue` は別です。
+- arrayの保存値は `ParameterArrayElement[]`（`{ id, binding }[]`）で、`defaultValue`も同じ形式です。IDは同じ配列内で一意にし、編集対象は親まで含むIDのパスで指定します。追加・要素の複製では新しいIDを発行し、値やBindingの種類の変更・移動・Undo/RedoではIDを維持します。新規ノードは既定値のIDをコピーできます。
+- リセットは対象Binding内部の配列要素IDを再帰的に再発行します。対象要素自身のIDは親が所有するため維持し、Undo/Redoでは生成済みのIDを復元します。color/vectorの成分配列やキーフレームのIDはこの処理の対象外です。
+- 評価後の配列は従来どおり素の値またはShaderInputの配列で、要素ID・Bindingのラッパーは含めません。式から要素IDを指定する参照は提供しません。
 - パラメータのコンテナはliteralのBindingを持ち、その内部にも子ごとのBindingを保存します。例えばstructの初期値は `{ inputSource: 'literal', value: { myColor: { inputSource: 'literal', value: [1, 0, 0, 1] } } }` です。評価済みの素の値や、キーフレームに保存するリテラル値と混同しないでください。
 - コンテナ自体への式・ノード接続は扱いません。配列・構造体の内部では、末端の設定に従って式や接続を扱います。
 

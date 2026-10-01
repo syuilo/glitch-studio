@@ -70,9 +70,13 @@ const replaceDefault: ParameterDefinition = { ...blend, defaultValue: { inputSou
 // @ts-expect-error エフェクト定義経由でも不正な初期値を拒否する
 defineEffect({ id: 'bad-blend', displayName: 'Bad blend', tags: [], paramDefs: { blend: { ...blend, defaultValue: { inputSource: 'literal', value: 'invalid' } } }, primaryInputParameter: null, resolutionInputParameter: null, outputDefs: {}, primaryOutput: null });
 type NestedBlendDefault = ParameterDefaultValue<{ kind: 'array'; elementType: { kind: 'struct'; fields: { mode: { kind: 'blendMode' } } } }>;
-const nestedBlend: NestedBlendDefault = { inputSource: 'literal', value: [{ inputSource: 'literal', value: { mode: { inputSource: 'literal', value: 'screen' } } }] };
+const nestedBlend: NestedBlendDefault = { inputSource: 'literal', value: [{ id: 'first', binding: { inputSource: 'literal', value: { mode: { inputSource: 'literal', value: 'screen' } } } }] };
 // @ts-expect-error 配列・構造体内部の初期値にもモードの制約を適用する
-const badNestedBlend: NestedBlendDefault = { inputSource: 'literal', value: [{ inputSource: 'literal', value: { mode: { inputSource: 'literal', value: 'invalid' } } }] };
+const badNestedBlend: NestedBlendDefault = { inputSource: 'literal', value: [{ id: 'first', binding: { inputSource: 'literal', value: { mode: { inputSource: 'literal', value: 'invalid' } } } }] };
+// @ts-expect-error 配列の初期値にも要素IDが必要
+const missingElementId: NestedBlendDefault = { inputSource: 'literal', value: [{ binding: nestedBlend.value[0].binding }] };
+// @ts-expect-error 子のBindingを直接配列に保存しない
+const unwrappedElement: NestedBlendDefault = { inputSource: 'literal', value: [nestedBlend.value[0].binding] };
 type BlendValues = Parameters<EffectInstance<{ blend: typeof blend }>['render']>[0]['params'];
 const runtimeBlend: BlendValues['blend'] = 'screen';
 // @ts-expect-error 実行時の型も初期値だけに絞らず、全モードのunionにする

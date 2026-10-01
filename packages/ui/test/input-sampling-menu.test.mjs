@@ -27,11 +27,11 @@ const { getNodeInputSamplingMenuItems, COMMAND_DEFS, reactive, computed } = modu
 
 const sampling = { fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' };
 function fixture() {
-	const node = reactive({ id: 'node', type: 'effect', resolution: { mode: 'context' }, effectId: 'test', isBypass: false, params: { inputs: { inputSource: 'literal', value: [{ inputSource: 'node', nodeId: 'source', outputPort: 'output', ...sampling }] } } });
+	const node = reactive({ id: 'node', type: 'effect', resolution: { mode: 'context' }, effectId: 'test', isBypass: false, params: { inputs: { inputSource: 'literal', value: [{ id: 'input', binding: { inputSource: 'node', nodeId: 'source', outputPort: 'output', ...sampling } }] } } });
 	const state = { visualModules: { value: [{ id: 'module', nodes: [node] }] } };
-	const target = { visualModuleId: 'module', nodeId: 'node', paramPath: ['inputs', 0] };
+	const target = { visualModuleId: 'module', nodeId: 'node', paramPath: ['inputs', 'input'] };
 	const commands = [];
-	const read = () => node.params.inputs.value[0];
+	const read = () => node.params.inputs.value[0].binding;
 	// 実際の呼び出し元と同じく、接続済みの値をcomputedで渡す。
 	const openMenu = () => getNodeInputSamplingMenuItems(computed(read), value => {
 		const command = COMMAND_DEFS.updateParamAsNode.create({ ...target, value, preserveSampling: false });

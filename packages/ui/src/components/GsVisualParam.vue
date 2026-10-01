@@ -104,21 +104,22 @@
 			@closed="inlineGraphEditorOpen = false"
 		/>
 	</Teleport>
-	<div v-if="paramDef.dataType.kind === 'array'" :key="arrayVersion" :class="$style.children">
+	<div v-if="paramDef.dataType.kind === 'array'" :class="$style.children">
 		<GsVisualParam
-			v-for="(value, index) in arrayValues"
+			v-for="(element, index) in arrayValues"
+			:key="element.id"
 			:automationGraphs="automationGraphs"
 			:availableVariables="availableVariables"
 			:visualModule="visualModule"
 			:node="node"
-			:paramPath="[...paramPath, index]"
+			:paramPath="[...paramPath, element.id]"
 			:paramDef="getArrayElementDefinition(paramDef)"
-			:paramValue="value"
+			:paramValue="element.binding"
 			:label="'[' + index + ']'"
 			@edit="emit('edit', $event)"
 		>
 			<template #actions>
-				<GsButton small iconOnly danger title="Remove element" @click="removeElement(index)"><i class="ti ti-x"></i></GsButton>
+				<GsButton small iconOnly danger title="Remove element" @click="removeElement(element.id)"><i class="ti ti-x"></i></GsButton>
 			</template>
 		</GsVisualParam>
 	</div>
@@ -141,7 +142,7 @@
 
 <script lang="ts">
 import { deepClone } from '@glitch/shared/utility/deep-clone.js';
-import type { ParameterDefinition } from '@glitch/shared/parameter.js';
+import type { ParameterArrayElement, ParameterDefinition } from '@glitch/shared/parameter.js';
 
 export type ParamEdit = { paramPath: ParamPath; mergeKey?: string | null } & (
 	| { kind: 'literal'; value: any }
@@ -155,7 +156,7 @@ export type ParamEdit = { paramPath: ParamPath; mergeKey?: string | null } & (
 	| { kind: 'inputSource'; inputSource: ParameterBinding['inputSource'] }
 	| { kind: 'reset' }
 	| { kind: 'addElement' }
-	| { kind: 'removeElement'; index: number }
+	| { kind: 'removeElement'; elementId: string }
 );
 </script>
 
@@ -207,7 +208,7 @@ const emit = defineEmits<{ edit: [event: ParamEdit] }>();
 
 const rowEl = useTemplateRef('rowEl');
 const portEl = shallowRef<HTMLElement | null>(null);
-const arrayValues = computed<ParameterBinding[]>(() => props.paramDef.dataType.kind === 'array' && props.paramValue.inputSource === 'literal' ? props.paramValue.value : []);
+const arrayValues = computed<ParameterArrayElement[]>(() => props.paramDef.dataType.kind === 'array' && props.paramValue.inputSource === 'literal' ? props.paramValue.value : []);
 const structValues = computed<Record<string, ParameterBinding> | null>(() => props.paramDef.dataType.kind === 'struct' && props.paramValue.inputSource === 'literal' ? props.paramValue.value : null);
 const visibleFields = computed(() => {
 	if (props.paramDef.dataType.kind !== 'struct') return [];
@@ -248,11 +249,6 @@ const inlineGraphEditorOpen = ref(false);
 let commandMergeKey: string | null = null;
 let mounted = true;
 onBeforeUnmount(() => { mounted = false; });
-const arrayVersion = ref(0);
-// 要素の増減時だけ子を作り直す。値の編集・Undoによる配列置換では開いたエディタを維持する。
-watch(() => arrayValues.value.length, () => {
-	arrayVersion.value++;
-});
 watch([() => props.visualModule, () => JSON.stringify([props.node?.id, props.paramPath, props.paramValue.inputSource])], () => {
 	commandMergeKey = null;
 	inlineGraphEditorOpen.value = false;
@@ -436,8 +432,8 @@ function addElement() {
 	emit('edit', { kind: 'addElement', ...target() });
 }
 
-function removeElement(index: number) {
-	emit('edit', { kind: 'removeElement', ...target(), index });
+function removeElement(elementId: string) {
+	emit('edit', { kind: 'removeElement', ...target(), elementId });
 }
 
 function onReset() {

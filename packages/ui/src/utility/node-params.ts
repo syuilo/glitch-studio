@@ -1,10 +1,12 @@
 import { getArrayElementDefinition, getStructFieldDefinitions } from '@glitch/shared/parameter.ts';
 import { effectDefinitions } from '@glitch/shared/effect/effect-definitions.ts';
-import type { ParameterDefinition } from '@glitch/shared/parameter.ts';
+import type { ParameterArrayElement, ParameterDefinition } from '@glitch/shared/parameter.ts';
 import type { ParameterBinding } from '@glitch/shared/types.ts';
 import type { VisualModuleEffectNode } from '@glitch/shared/visual-module/types.ts';
 
-export type ParamPath = readonly [string, ...(string | number)[]];
+// 配列はindexではなく要素IDで指定する。入れ子でも親までのパスがスコープとなり、
+// 別の配列や別ノードで同じ要素IDを使っても衝突しない。
+export type ParamPath = readonly [string, ...string[]];
 
 export type NodeParamTarget = {
 	nodeId: VisualModuleEffectNode['id'];
@@ -16,7 +18,7 @@ export function getNodeParamDefs(node: VisualModuleEffectNode): Record<string, P
 }
 
 export function paramPathKey(path: ParamPath): string {
-	// フィールド名に区切り文字が含まれても、配列インデックスと衝突しない。
+	// フィールド名や要素IDに区切り文字が含まれても、異なるパスが衝突しない。
 	return JSON.stringify(path);
 }
 
@@ -29,14 +31,16 @@ export function resolveNodeParam(node: VisualModuleEffectNode, path: ParamPath) 
 
 	for (const segment of path.slice(1)) {
 		if (def.dataType.kind === 'array') {
-			if (value.inputSource !== 'literal' || !Array.isArray(value.value) || typeof segment !== 'number' || !Number.isInteger(segment) || segment < 0 || segment >= value.value.length) {
+			if (value.inputSource !== 'literal' || !Array.isArray(value.value)) {
 				throw new Error(`Invalid array parameter path: ${paramPathKey(path)}`);
 			}
-			const array = value.value as ParameterBinding[];
+			const element = (value.value as ParameterArrayElement[]).find(element => element.id === segment);
+			// 削除済みのIDを同じ位置の別要素に読み替えない。Commandは変更前に失敗させる。
+			if (element == null) throw new Error(`Unknown array element: ${paramPathKey(path)}`);
 			def = getArrayElementDefinition(def);
-			value = array[segment];
+			value = element.binding;
 			setValue = next => {
-				array[segment] = next;
+				element.binding = next;
 			};
 		} else if (def.dataType.kind === 'struct' && value.inputSource === 'literal' && typeof segment === 'string') {
 			const fields = value.value as Record<string, ParameterBinding>;
@@ -55,8 +59,8 @@ export function resolveNodeParam(node: VisualModuleEffectNode, path: ParamPath) 
 export function* walkNodeParams(node: VisualModuleEffectNode): Generator<{ path: ParamPath; def: ParameterDefinition; value: ParameterBinding }> {
 	function* walk(def: ParameterDefinition, value: ParameterBinding, path: ParamPath): ReturnType<typeof walkNodeParams> {
 		if (def.dataType.kind === 'array' && value.inputSource === 'literal') {
-			const elements = value.value as ParameterBinding[];
-			for (const [index, element] of elements.entries()) yield* walk(getArrayElementDefinition(def), element, [...path, index]);
+			const elements = value.value as ParameterArrayElement[];
+			for (const element of elements) yield* walk(getArrayElementDefinition(def), element.binding, [...path, element.id]);
 		} else if (def.dataType.kind === 'struct' && value.inputSource === 'literal') {
 			for (const [key, field] of Object.entries(getStructFieldDefinitions(def))) yield* walk(field, value.value[key], [...path, key]);
 		} else {
