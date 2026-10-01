@@ -192,11 +192,6 @@ function remove() {
 
 <style module lang="scss">
 .root {
-	padding: 8px 0;
-
-	&:not(:first-child) {
-		border-top: solid 1px #0006;
-	}
 }
 
 .fields {
