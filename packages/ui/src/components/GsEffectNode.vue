@@ -10,24 +10,31 @@
 		<div :class="$style.headerRight">
 			<div :class="$style.nodeId" class="_monospace">{{ node.id }}</div>
 			<div :class="$style.headerButtons">
-				<GsButton :class="[$style.headerButton]" inline small iconOnly @click="expanded = !expanded"><i class="ti" :class="expanded ? 'ti-chevron-up' : 'ti-chevron-down'"></i></GsButton>
-				<GsButton :class="[$style.headerButton]" inline small iconOnly :primary="!node.isBypass" :title="node.isBypass ? i18n.ts.ClickToEnable : i18n.ts.ClickToDisable" @click="toggleBypass()"><i class="ti" :class="node.isBypass ? 'ti-eye-off' : 'ti-eye'"></i></GsButton>
-				<GsButton :class="[$style.headerButton]" inline small iconOnly :title="i18n.ts.RemoveEffect" @click="remove()"><i class="ti ti-x"></i></GsButton>
+				<GsButton transparent :class="[$style.headerButton]" inline small iconOnly @click="expanded = !expanded"><i class="ti" :class="expanded ? 'ti-chevron-up' : 'ti-chevron-down'"></i></GsButton>
+				<GsButton :transparent="!showSettings" :class="[$style.headerButton]" inline small iconOnly :primary="showSettings" @click="showSettings = !showSettings"><i class="ti ti-settings"></i></GsButton>
+				<GsButton :transparent="node.isBypass" :class="[$style.headerButton]" inline small iconOnly :primary="!node.isBypass" :title="node.isBypass ? i18n.ts.ClickToEnable : i18n.ts.ClickToDisable" @click="toggleBypass()"><i class="ti" :class="node.isBypass ? 'ti-eye-off' : 'ti-eye'"></i></GsButton>
+				<GsButton transparent :class="[$style.headerButton]" inline small iconOnly :title="i18n.ts.RemoveEffect" @click="remove()"><i class="ti ti-x"></i></GsButton>
 			</div>
 		</div>
 	</div>
 
 	<div v-show="expanded" :class="$style.params" :inert="node.isBypass">
-		<div :class="$style.resolution">
-			<GsSelect :modelValue="node.resolution.mode" :items="resolutionModes" @update:modelValue="setResolutionMode">
-				<template #label>Resolution</template>
-			</GsSelect>
-			<div v-if="node.resolution.mode === 'custom'" :class="$style.dimensions">
-				<GsInput type="number" :modelValue="node.resolution.width" :min="1" :step="1" :debounce="400" @update:modelValue="setDimension('width', $event)"><template #label>Width</template></GsInput>
-				<span>×</span>
-				<GsInput type="number" :modelValue="node.resolution.height" :min="1" :step="1" :debounce="400" @update:modelValue="setDimension('height', $event)"><template #label>Height</template></GsInput>
-			</div>
+		<div v-if="showSettings" class="_spacer">
+			<GsFolder defaultOpen>
+				<template #label>Settings</template>
+
+				<div class="_gaps_s">
+					<GsSelect :modelValue="node.resolution.mode" :items="resolutionModes" @update:modelValue="setResolutionMode">
+						<template #label>Resolution</template>
+					</GsSelect>
+					<div v-if="node.resolution.mode === 'custom'" style="display: flex; gap: 8px;">
+						<GsInput style="flex: 1" type="number" :modelValue="node.resolution.width" :min="1" :step="1" :debounce="400" @update:modelValue="setDimension('width', $event)"><template #label>Width</template><template #suffix>px</template></GsInput>
+						<GsInput style="flex: 1" type="number" :modelValue="node.resolution.height" :min="1" :step="1" :debounce="400" @update:modelValue="setDimension('height', $event)"><template #label>Height</template><template #suffix>px</template></GsInput>
+					</div>
+				</div>
+			</GsFolder>
 		</div>
+
 		<GsVisualParam
 			v-for="[param, def] in Object.entries(getNodeParamDefs(props.node))"
 			:key="param"
@@ -56,10 +63,11 @@ import GsVisualParam from './GsVisualParam.vue';
 import GsButton from './common/GsButton.vue';
 import GsSelect from './common/GsSelect.vue';
 import GsInput from './common/GsInput.vue';
+import GsFolder from './common/GsFolder.vue';
 import type { ParamEdit } from './GsVisualParam.vue';
 import type { EffectNodeResolution, VisualModule, VisualModuleEffectNode } from '@glitch/shared/visual-module/types.js';
-import { appStateManager } from '@/app.ts';
 import type { EffectInstanceState } from '@glitch/shared/effect/effect-status.ts';
+import { appStateManager } from '@/app.ts';
 import { i18n } from '@/i18n.ts';
 import { useVisualModuleWires } from '@/utility/visual-module-wires.ts';
 import { getNodeParamDefs } from '@/utility/node-params.ts';
@@ -83,6 +91,7 @@ const emit = defineEmits<{
 
 const name = computed(() => effectDefinitions[props.node.effectId].displayName);
 const expanded = ref(true);
+const showSettings = ref(false);
 const allInPortEl = shallowRef<HTMLElement | null>(null);
 const effectStatus = computed(() => props.effectState?.status);
 
@@ -127,18 +136,6 @@ watchEffect(onCleanup => {
 </script>
 
 <style module lang="scss">
-.resolution {
-	padding: 8px;
-}
-
-.dimensions {
-	display: grid;
-	grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
-	align-items: end;
-	gap: 8px;
-	margin-top: 8px;
-}
-
 .root {
 	position: relative;
 	background: var(--THEME-nodeBg);
