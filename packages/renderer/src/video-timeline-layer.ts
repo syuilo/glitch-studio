@@ -36,7 +36,7 @@ export function createVideoTimelineLayer(layer: TimelineVideoLayer, blob: Blob, 
 					const encoder = options.device.createCommandEncoder();
 					try {
 						const settings = parameters.evaluate({ ...context, paramValues: layer.compositingParamValues, automationGraphs: layer.automationGraphs });
-						return { output: compositor.render(encoder, context.input, foreground, settings, layer.fitMode), gpuTime: 0 };
+						return { output: compositor.render(encoder, context.input, foreground, settings), gpuTime: 0 };
 					} finally { options.device.queue.submit([encoder.finish()]); }
 				} finally { sample?.close(); }
 			};

@@ -40,20 +40,22 @@ const defaultCompositing = () => Object.fromEntries(Object.entries(timelineCompo
 test('round-trips video settings and undoes trimmed timing and independent audio controls', async () => {
 	const { state } = fixture();
 	const layer = { id: 'video', layerType: 'video', assetId: 'movie', positionMs: 8000, trimStartMs: 2000, trimmedDurationMs: 5000,
-		fitMode: 'contain', audioEnabled: true, compositingParamValues: defaultCompositing(), audioParamValues: { volume: { inputSource: 'literal', value: 1 } }, automationGraphs: [] };
+		audioEnabled: true, compositingParamValues: defaultCompositing(), audioParamValues: { volume: { inputSource: 'literal', value: 1 } }, automationGraphs: [] };
 	const target = { sceneId: 'scene', layerId: 'video' };
 	const add = COMMAND_DEFS.addVideoLayer.create({ sceneId: 'scene', layer, sourceDurationMs: 10000 });
 	add.execute(state);
-	const settings = COMMAND_DEFS.editVideoLayerSettings.create({ ...target, fitMode: 'cover', audioEnabled: false });
+	const settings = COMMAND_DEFS.editVideoLayerSettings.create({ ...target, audioEnabled: false });
+	const fit = COMMAND_DEFS.editTimelineLayerParam.create({ ...target, target: 'compositing', paramId: 'fitMode', edit: { kind: 'literal', value: 'cover' } });
 	const volume = COMMAND_DEFS.editTimelineLayerParam.create({ ...target, target: 'audio', paramId: 'volume', edit: { kind: 'expression', value: 'PROGRESS' } });
 	const timing = COMMAND_DEFS.editVideoLayerTiming.create({ ...target, positionMs: -1000, trimStartMs: 2000, trimmedDurationMs: 6000, sourceDurationMs: 10000 });
-	for (const command of [settings, volume, timing]) command.execute(state);
+	for (const command of [settings, fit, volume, timing]) command.execute(state);
+	assert.deepEqual(state.timelineScenes.value[0].layers.find(entry => entry.id === 'video').compositingParamValues.fitMode, { inputSource: 'literal', value: 'cover' });
 	const before = structuredClone(state.timelineScenes.value[0].layers);
 	const encoded = await encodeProjectFile({ gsVersion: '2.0.0', assets: [], timelineScenes: state.timelineScenes.value });
 	assert.deepEqual(decodeProjectFile(encoded).timelineScenes[0].layers, before);
 	assert.throws(() => COMMAND_DEFS.editVideoLayerTiming.create({ ...target, positionMs: 0, trimStartMs: 9000, trimmedDurationMs: 2000, sourceDurationMs: 10000 }).execute(state), /Invalid video layer timing/);
 	assert.deepEqual(state.timelineScenes.value[0].layers, before);
-	for (const command of [timing, volume, settings]) command.undo(state);
+	for (const command of [timing, volume, fit, settings]) command.undo(state);
 	assert.deepEqual(state.timelineScenes.value[0].layers.find(entry => entry.id === 'video'), layer);
 	add.undo(state);
 	add.execute(state);

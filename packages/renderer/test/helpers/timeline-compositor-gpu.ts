@@ -1,7 +1,6 @@
 import { createTimelineCompositor } from '../../src/timeline-compositor.ts';
 import type { TimelineCompositingSettings } from '../../src/timeline-compositing-parameters.ts';
 import type { NodeOutput } from '../../src/node-output.ts';
-import type { FitMode } from '../../../shared/src/types.ts';
 import { colorBlendModes } from '../../../shared/src/color-blend.ts';
 
 // 実際の合成シェーダーを実行し、透明背景・変形後の空白・長方形での回転を画素で確認する。
@@ -10,7 +9,7 @@ export async function checkTimelineCompositor(device: GPUDevice, vertex: GPUShad
 	const compositor = createTimelineCompositor({ device, vertex, resolution, format: 'rgba8unorm' });
 	const textures: GPUTexture[] = [];
 	const completed: string[] = [];
-	const defaults: TimelineCompositingSettings = { blendMode: 0, opacity: 1, position: [0, 0], origin: [0, 0], scale: [1, 1], rotation: 0 };
+	const defaults: TimelineCompositingSettings = { blendMode: 0, opacity: 1, fitMode: 'contain', position: [0, 0], origin: [0, 0], scale: [1, 1], rotation: 0 };
 	const uniform = (value: number[]): NodeOutput => ({ kind: 'uniform', value });
 	const blue = uniform([0, 0, 1, 1]);
 	const red = uniform([1, 0, 0, 1]);
@@ -25,9 +24,9 @@ export async function checkTimelineCompositor(device: GPUDevice, vertex: GPUShad
 	const pixels = (pixel: (x: number, y: number) => number[]) => Array.from({ length: 4 }, (_, y) => Array.from({ length: 8 }, (_, x) => pixel(x, y))).flat(2);
 	const solid = (pixel: number[]) => pixels(() => pixel);
 
-	async function check(name: string, background: NodeOutput, source: NodeOutput, settings: Partial<TimelineCompositingSettings>, expected: number[], fitMode: FitMode = 'cover') {
+	async function check(name: string, background: NodeOutput, source: NodeOutput, settings: Partial<TimelineCompositingSettings>, expected: number[]) {
 		const encoder = device.createCommandEncoder();
-		const output = compositor.render(encoder, background, source, { ...defaults, ...settings }, fitMode);
+		const output = compositor.render(encoder, background, source, { ...defaults, ...settings });
 		device.queue.submit([encoder.finish()]);
 		if (output.kind !== 'texture') throw new Error(`${name}: expected a rendered texture`);
 		const actual = await read(output.texture);
@@ -64,8 +63,8 @@ export async function checkTimelineCompositor(device: GPUDevice, vertex: GPUShad
 		// 【fit後も画面端ではなく素材端を支点にする】
 		// coverでは画面外の端、containでは余白を除いた素材端を中央へ配置する。
 		const wideRed = texture(16, 4, Array.from({ length: 64 }, () => [255, 0, 0, 255]).flat());
-		await check('timeline anchors the covered source edge at the center', blue, wideRed, { origin: [1, 0] }, pixels(x => x < 4 ? [255, 0, 0, 255] : [0, 0, 255, 255]));
-		await check('timeline anchors the contained source edge at the center', blue, wideRed, { origin: [1, 0] }, pixels((x, y) => x < 4 && y >= 1 && y < 3 ? [255, 0, 0, 255] : [0, 0, 255, 255]), 'contain');
+		await check('timeline anchors the covered source edge at the center', blue, wideRed, { origin: [1, 0], fitMode: 'cover' }, pixels(x => x < 4 ? [255, 0, 0, 255] : [0, 0, 255, 255]));
+		await check('timeline anchors the contained source edge at the center', blue, wideRed, { origin: [1, 0], fitMode: 'contain' }, pixels((x, y) => x < 4 && y >= 1 && y < 3 ? [255, 0, 0, 255] : [0, 0, 255, 255]));
 		await check('timeline zero scale produces transparent source', blue, red, { scale: [0, 1] }, solid([0, 0, 255, 255]));
 		await check('timeline replace with zero scale clears background', blue, red, { blendMode: 19, scale: [0, 1] }, solid([0, 0, 0, 0]));
 		// テクスチャ入力の左右反転と、uniform/texture切り替え時のpipeline更新を確認する。
@@ -74,7 +73,7 @@ export async function checkTimelineCompositor(device: GPUDevice, vertex: GPUShad
 		// 異なる比率の背景でも、その背景自身のサイズを使ってcoverする。
 		const wideBackground = texture(16, 4, Array.from({ length: 4 }, () => Array.from({ length: 16 }, (_, x) => x >= 4 && x < 12 ? [0, 255, 0, 255] : [255, 0, 0, 255])).flat(2));
 		await check('timeline fits background using its own dimensions', wideBackground, transparent, {}, solid([0, 255, 0, 255]));
-		await check('timeline fits source using its own dimensions', transparent, wideBackground, {}, solid([0, 255, 0, 255]));
+		await check('timeline fits source using its own dimensions', transparent, wideBackground, { fitMode: 'cover' }, solid([0, 255, 0, 255]));
 		if (device.features.has('float32-filterable')) {
 			const floatSource = texture(8, 4, solid([0.5, 0, 0, 0.5]), 'rgba32float');
 			await check('timeline filters float32 source without double premultiplication', blue, floatSource, { opacity: 0.5 }, solid([64, 0, 191, 255]));

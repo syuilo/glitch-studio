@@ -1,4 +1,4 @@
-import type { AutomationGraph, FitMode, ParameterBinding } from '../types.ts';
+import type { AutomationGraph, ParameterBinding } from '../types.ts';
 import type { TimelineLayerTiming } from './timing.ts';
 import type { VisualModule } from '../visual-module/types.ts';
 import type { timelineCompositingParamDefs } from './timeline-compositing.ts';
@@ -50,7 +50,6 @@ export type TimelineVideoLayer = TimelineLayerTiming & {
 	id: string;
 	layerType: 'video';
 	assetId: string;
-	fitMode: FitMode;
 	audioEnabled: boolean;
 	compositingParamValues: Record<keyof typeof timelineCompositingParamDefs, TimelineParameterBinding>;
 	audioParamValues: { volume: TimelineParameterBinding };

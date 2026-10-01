@@ -11,6 +11,12 @@ export const timelineCompositingParamDefs = {
 		ui: { label: 'Opacity', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } },
 		defaultValue: { inputSource: 'literal', value: 1 }, canNode: false,
 	},
+	// レイヤーの種類によらず、出力全体を画面へ収めてからtransformを適用する。
+	fitMode: {
+		dataType: { kind: 'fitMode' },
+		ui: { label: 'Fit', control: {} },
+		defaultValue: { inputSource: 'literal', value: 'contain' },
+	},
 	// Positionは移動量ではなく、素材内のOriginを配置する画面上の位置。
 	position: {
 		dataType: { kind: 'vector' },

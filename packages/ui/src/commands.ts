@@ -15,7 +15,7 @@ import { timelineCompositingParamDefs } from '@glitch/shared/timeline/timeline-c
 import type { VisualModuleCustomParameterId, VisualModuleEffectNode, VisualModuleNode, NodeOutputReference, VisualModule, VisualModuleParamDef, VisualModuleOutputDef } from '@glitch/shared/visual-module/types.ts';
 import type { ParameterDefinition } from '@glitch/shared/parameter.ts';
 import type { AppState } from './types.ts';
-import type { Asset, AutomationGraphPlaybackOptions, FitMode, ParameterBinding, Player } from '@glitch/shared/types.ts';
+import type { Asset, AutomationGraphPlaybackOptions, ParameterBinding, Player } from '@glitch/shared/types.ts';
 import type { NodeParamTarget as EffectNodeParamTarget } from '@/utility/node-params.ts';
 import type { GlobalEnvVariable } from '@glitch/shared/expression.js';
 import { canConnectNodeDataTypes } from '@/utility/node-outputs.ts';
@@ -918,10 +918,10 @@ const editVideoLayerTimingCommandDef = defineCommand<{ sceneId: string; layerId:
 	},
 });
 
-const editVideoLayerSettingsCommandDef = defineCommand<{ sceneId: string; layerId: string; fitMode?: FitMode; audioEnabled?: boolean }>({
+const editVideoLayerSettingsCommandDef = defineCommand<{ sceneId: string; layerId: string; audioEnabled?: boolean }>({
 	label: 'Edit video layer settings',
 	create: payload => {
-		let before: { fitMode: FitMode; audioEnabled: boolean };
+		let before: { audioEnabled: boolean };
 		const getLayer = (state: AppState) => {
 			const layer = getScene(state, payload.sceneId).layers.find(layer => layer.id === payload.layerId);
 			if (layer?.layerType !== 'video') throw new Error('Video layer not found');
@@ -930,8 +930,7 @@ const editVideoLayerSettingsCommandDef = defineCommand<{ sceneId: string; layerI
 		return {
 			execute(state) {
 				const layer = getLayer(state);
-				before = { fitMode: layer.fitMode, audioEnabled: layer.audioEnabled };
-				if (payload.fitMode != null) layer.fitMode = payload.fitMode;
+				before = { audioEnabled: layer.audioEnabled };
 				if (payload.audioEnabled != null) layer.audioEnabled = payload.audioEnabled;
 			},
 			undo(state) { Object.assign(getLayer(state), before); },

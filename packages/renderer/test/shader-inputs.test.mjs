@@ -59,13 +59,13 @@ test('composites native-resolution sources with the selected fit before replacin
 	const texture = device.createTexture({ size: [3840, 2160], format: 'rgba16float' });
 	const source = { kind: 'texture', texture };
 	const compositor = createTimelineCompositor({ device, vertex: {}, resolution: { width: 100, height: 100 }, format: 'rgba16float' });
-	const settings = { blendMode: 19, opacity: 1, position: [0, 0], origin: [0, 0], scale: [1, 1], rotation: 0 };
+	const settings = { blendMode: 19, opacity: 1, fitMode: 'contain', position: [0, 0], origin: [0, 0], scale: [1, 1], rotation: 0 };
 	const background = { kind: 'uniform', value: [0, 0, 0, 0] };
-	const contained = compositor.render(encoder, background, source, settings, 'contain');
+	const contained = compositor.render(encoder, background, source, settings);
 	assert.notEqual(contained, source);
 	assert.deepEqual([contained.texture.width, contained.texture.height], [100, 100]);
 	assert.deepEqual([...calls.writes.at(-1).slice(12, 14)], [1, Math.fround(3840 / 2160)]);
-	compositor.render(encoder, background, source, { ...settings, scale: [0.5, 0.5] }, 'cover');
+	compositor.render(encoder, background, source, { ...settings, fitMode: 'cover', scale: [0.5, 0.5] });
 	assert.deepEqual([...calls.writes.at(-1).slice(12, 14)], [2160 / 3840, 1]);
 	assert.ok(calls.groups.some(group => group.entries.some(entry => entry.resource.texture === texture)));
 	assert.deepEqual(calls.textures.map(texture => [texture.width, texture.height]), [[3840, 2160], [100, 100]]);
@@ -88,7 +88,7 @@ test('maps source-relative origins through fit while keeping positions in output
 		[tall, 'contain', [0.5, -1]], [tall, 'cover', [1, -2]], [background, 'contain', [1, -1]],
 	]) {
 		const writeIndex = calls.writes.length;
-		compositor.render(encoder, background, source, settings, fit);
+		compositor.render(encoder, background, source, { ...settings, fitMode: fit });
 		const uniforms = calls.writes[writeIndex];
 		assert.deepEqual([...uniforms.slice(0, 2)], settings.position);
 		assert.deepEqual([...uniforms.slice(2, 4)], expectedOrigin);
@@ -104,7 +104,7 @@ test('only bypasses anchor placement when position cancels the fitted origin', (
 	const compositor = createTimelineCompositor({ device, vertex: {}, resolution: { width: 8, height: 4 }, format: 'rgba16float' });
 	const background = { kind: 'uniform', value: [0, 0, 0, 0] };
 	const textureSource = { kind: 'texture', texture: device.createTexture({ size: [4, 2], format: 'rgba16float' }) };
-	const settings = { blendMode: 19, opacity: 1, position: [0, 0], origin: [1, -1], scale: [1, 1], rotation: 0 };
+	const settings = { blendMode: 19, opacity: 1, fitMode: 'contain', position: [0, 0], origin: [1, -1], scale: [1, 1], rotation: 0 };
 	for (const source of [textureSource, { kind: 'uniform', value: [1, 0, 0, 1] }]) {
 		assert.notEqual(compositor.render(encoder, background, source, settings), source);
 		assert.equal(compositor.render(encoder, background, source, { ...settings, position: [1, -1] }), source);
@@ -142,7 +142,7 @@ test('passes through timeline outputs without taking ownership', () => {
 	const compositor = createTimelineCompositor({ device, vertex: {}, resolution: { width: 8, height: 4 }, format: 'rgba16float' });
 	const background = { kind: 'uniform', value: [0, 0, 0, 0] };
 	const source = { kind: 'texture', texture: device.createTexture({ size: [4, 2], format: 'rgba16float' }) };
-	const settings = { blendMode: 19, opacity: 1, position: [0, 0], origin: [0, 0], scale: [1, 1], rotation: 0 };
+	const settings = { blendMode: 19, opacity: 1, fitMode: 'contain', position: [0, 0], origin: [0, 0], scale: [1, 1], rotation: 0 };
 	assert.equal(compositor.render(encoder, background, source, settings), source);
 	assert.equal(compositor.render(encoder, background, source, { ...settings, opacity: 0 }), background);
 	assert.equal(compositor.render(encoder, background, source, { ...settings, blendMode: 10 }), background);
@@ -161,7 +161,7 @@ test('owns separate timeline targets and reuses pipelines across parameter chang
 	const second = createTimelineCompositor(options);
 	const background = { kind: 'uniform', value: [0, 0, 1, 1] };
 	const source = { kind: 'uniform', value: [0.5, 0, 0, 0.5] };
-	const settings = { blendMode: 0, opacity: 0.5, position: [0, 0], origin: [0, 0], scale: [1, 1], rotation: 0 };
+	const settings = { blendMode: 0, opacity: 0.5, fitMode: 'contain', position: [0, 0], origin: [0, 0], scale: [1, 1], rotation: 0 };
 	const a = first.render(encoder, background, source, settings);
 	const shaderCount = calls.shaders.length;
 	const updated = first.render(encoder, background, source, { ...settings, rotation: 0.5, blendMode: 3 });

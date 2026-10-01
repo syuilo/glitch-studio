@@ -2,7 +2,7 @@ import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { createShaderInputPipeline } from '@glitch/shared/shader-input-pipeline.ts';
 import { inputUvScale } from '@glitch/shared/shader-input.ts';
 import blendCode from '@glitch/shared/color-blend.wgsl?raw';
-import type { FitMode, IntermediateTextureFormat } from '@glitch/shared/types.ts';
+import type { IntermediateTextureFormat } from '@glitch/shared/types.ts';
 import { outputShaderInput } from './node-output.ts';
 import type { NodeOutput } from './node-output.ts';
 import type { TimelineCompositingSettings } from './timeline-compositing-parameters.ts';
@@ -28,7 +28,8 @@ export function createTimelineCompositor(options: {
 	});
 	let texture: GPUTexture | undefined;
 	return {
-		render(encoder: GPUCommandEncoder, background: NodeOutput, source: NodeOutput, settings: TimelineCompositingSettings, fitMode: FitMode = 'cover'): NodeOutput {
+		render(encoder: GPUCommandEncoder, background: NodeOutput, source: NodeOutput, settings: TimelineCompositingSettings): NodeOutput {
+			const { fitMode } = settings;
 			if (settings.opacity === 0 || settings.blendMode === 10) return background;
 			// 共通サンプリングのfitは画面→素材の逆写像なので、割ると素材内のoriginを
 			// fit後の画面座標へ戻せる。元テクスチャ全体（透明な余白を含む）を基準にし、

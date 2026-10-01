@@ -152,12 +152,6 @@
 				<GsInput small type="number" :min="getTimelineLayerStart(selectedLayer) + 1" :max="selectedVideoMetadata ? selectedLayer.positionMs + selectedVideoMetadata.durationMs : undefined" :modelValue="getTimelineLayerEnd(selectedLayer)" @update:modelValue="value => editTrimmedLayerTiming('trimEnd', value)"><template #label>Trim end (ms)</template></GsInput>
 				<GsInput small type="number" :min="0" :max="selectedVideoMetadata ? selectedVideoMetadata.durationMs - selectedLayer.trimmedDurationMs : undefined" :modelValue="selectedLayer.trimStartMs" @update:modelValue="value => editTrimmedLayerTiming('offset', value)"><template #label>Source offset (ms)</template></GsInput>
 				<div v-if="selectedVideoMetadata">Source duration: {{ formatMsToTimecode(selectedVideoMetadata.durationMs) }}</div>
-				<GsSelect
-					small :modelValue="selectedLayer.fitMode" :items="[{ label: 'Contain', value: 'contain' }, { label: 'Cover', value: 'cover' }, { label: 'Stretch', value: 'stretch' }]"
-					@update:modelValue="fitMode => appStateManager.commit('editVideoLayerSettings', { sceneId: props.sceneId, layerId: selectedLayer!.id, fitMode })"
-				>
-					<template #label>Fit</template>
-				</GsSelect>
 				<GsFolder :asSection="true" defaultOpen :withSpacer="false">
 					<template #icon><i class="ti ti-layers-selected"></i></template>
 					<template #label>Compositing</template>
@@ -982,7 +976,7 @@ async function addVideoLayer(asset: Asset) {
 		if (disposed || sceneLayers.value !== timeline || appStateManager.state.assets.value !== projectAssets) return;
 		if (!projectAssets.some(entry => entry.id === asset.id)) return;
 		const layer: TimelineVideoLayer = {
-			id: genId(), layerType: 'video', assetId: asset.id, fitMode: 'contain', audioEnabled,
+			id: genId(), layerType: 'video', assetId: asset.id, audioEnabled,
 			positionMs: Math.max(0, time.value), trimStartMs: 0, trimmedDurationMs: metadata.durationMs,
 			compositingParamValues: deepClone(Object.fromEntries(Object.entries(timelineCompositingParamDefs).map(([key, def]) => [key, def.defaultValue]))) as TimelineVideoLayer['compositingParamValues'],
 			audioParamValues: { volume: deepClone(timelineAudioParamDefs.volume.defaultValue) }, automationGraphs: [],

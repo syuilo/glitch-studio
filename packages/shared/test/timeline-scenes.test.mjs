@@ -16,14 +16,14 @@ const audio = { id: 'audio', layerType: 'audio', assetId: 'asset', positionMs: 1
 // 音声無効化は再生計画だけを変え、素材位置やSceneの長さには影響しない。
 test('collects video audio independently of visual settings and preserves scene trims', () => {
 	const video = { id: 'video', layerType: 'video', assetId: 'movie', positionMs: 100, trimStartMs: 20, trimmedDurationMs: 200,
-		fitMode: 'contain', audioEnabled: true, audioParamValues: { volume: { inputSource: 'literal', value: 0.5 } },
-		compositingParamValues: {}, automationGraphs: [] };
+		audioEnabled: true, audioParamValues: { volume: { inputSource: 'literal', value: 0.5 } },
+		compositingParamValues: { fitMode: { inputSource: 'literal', value: 'contain' } }, automationGraphs: [] };
 	const scenes = [scene('root', [nested('placement', 'child', 1000, 150, 100)]), scene('child', [video])];
 	const [clip] = getSceneAudioClips(scenes, 'root');
 	assert.deepEqual([clip.assetId, clip.positionMs, clip.startMs, clip.endMs, clip.durationBasis], ['movie', 1100, 1150, 1250, 'media']);
 	assert.equal(clip.volume.value, 0.5);
 	assert.equal(clip.gains.length, 1);
-	video.fitMode = 'cover';
+	video.compositingParamValues.fitMode = { inputSource: 'literal', value: 'cover' };
 	video.compositingParamValues.opacity = { inputSource: 'literal', value: 0 };
 	assert.deepEqual(getSceneAudioClips(scenes, 'root'), [clip]);
 	video.audioEnabled = false;

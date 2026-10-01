@@ -3,11 +3,12 @@ import { genEmptyValue } from '@glitch/shared/utility/misc.ts';
 import { timelineCompositingParamDefs } from '@glitch/shared/timeline/timeline-compositing.js';
 import { ParameterEvaluator } from '@glitch/shared/parameter-evaluator.js';
 import { createTimelineLayerEvaluationScope } from '@glitch/shared/timeline/evaluation-scope.ts';
-import type { AutomationGraph, ParameterBinding } from '@glitch/shared/types.ts';
+import type { AutomationGraph, FitMode, ParameterBinding } from '@glitch/shared/types.ts';
 
 export type TimelineCompositingSettings = {
 	blendMode: number;
 	opacity: number;
+	fitMode: FitMode;
 	position: [number, number];
 	origin: [number, number];
 	scale: [number, number];
@@ -26,7 +27,9 @@ export class TimelineCompositingParameters {
 		for (const [key, def] of Object.entries(timelineCompositingParamDefs)) {
 			const value = context.paramValues[key];
 			// 未指定・欠落グラフは設定の既定値、式の失敗は型の空値に戻す。
-			values.set(key, value == null ? def.defaultValue.value : this.evaluator.evaluate(value, evaluationContext, value.inputSource === 'automationGraphReference' ? def.defaultValue.value : genEmptyValue(def)));
+			// Fitの失敗ではstretchへ切り替えて素材を歪めず、既定のcontainへ戻す。
+			values.set(key, value == null ? def.defaultValue.value : this.evaluator.evaluate(value, evaluationContext,
+				value.inputSource === 'automationGraphReference' || key === 'fitMode' ? def.defaultValue.value : genEmptyValue(def)));
 		}
 		// 不正な式の型や非有限値をGPUへ流さない。範囲外の有限な位置・倍率は制限しない。
 		const number = (id: string, fallback: number) => {
@@ -38,9 +41,11 @@ export class TimelineCompositingParameters {
 			return fallback.map((component, index) => Array.isArray(value) && typeof value[index] === 'number' && Number.isFinite(value[index]) ? value[index] : component) as [number, number];
 		};
 		const mode = values.get('blendMode');
+		const fitMode = values.get('fitMode');
 		return {
 			blendMode: isBlendMode(mode) ? colorBlendModes[mode] : 0,
 			opacity: Math.min(1, Math.max(0, number('opacity', 1))),
+			fitMode: fitMode === 'contain' || fitMode === 'cover' || fitMode === 'stretch' ? fitMode : timelineCompositingParamDefs.fitMode.defaultValue.value,
 			position: vector('position', [0, 0]),
 			origin: vector('origin', [0, 0]),
 			scale: vector('scale', [1, 1]),

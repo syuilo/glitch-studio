@@ -12,6 +12,7 @@ export function createInlineVisualModuleLayer(positionMs: number): TimelineInlin
 		id: genId(), layerType: 'inlineVisualModule', ...createUntrimmedTimelineLayerTiming(positionMs, 5000),
 		paramValues: {}, automationGraphs: [],
 		compositingParamValues: deepClone({
+			fitMode: timelineCompositingParamDefs.fitMode.defaultValue,
 			blendMode: timelineCompositingParamDefs.blendMode.defaultValue,
 			opacity: timelineCompositingParamDefs.opacity.defaultValue,
 			position: timelineCompositingParamDefs.position.defaultValue,
