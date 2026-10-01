@@ -49,15 +49,18 @@
 			</div>
 		</div>
 
-		<div v-if="tab === 'io'" style="height: 100%; overflow: auto;">
-			<XVisualModuleParamDefsEditor
+		<div v-else-if="tab === 'inputs'" style="height: 100%; overflow: auto;">
+			<XParamDefsEditor
 				:visualModule="visualModule"
 				@add="def => emit('edit', { kind: 'addParamDef', def })"
 				@update="(defId, changes, mergeKey) => emit('edit', { kind: 'updateParamDef', defId, changes, mergeKey })"
 				@remove="defId => emit('edit', { kind: 'removeParamDef', defId })"
 				@setPrimaryInput="inputId => emit('edit', { kind: 'setPrimaryInput', inputId })"
 			/>
-			<XVisualModuleOutputDefsEditor
+		</div>
+
+		<div v-else-if="tab === 'outputs'" style="height: 100%; overflow: auto;">
+			<XOutputDefsEditor
 				:visualModule="visualModule"
 				@add="def => emit('edit', { kind: 'addOutputDef', def })"
 				@update="(defId, changes) => emit('edit', { kind: 'updateOutputDef', defId, changes })"
@@ -71,19 +74,19 @@
 
 <script lang="ts" setup>
 import { computed, ref } from 'vue';
-import { provideVisualModuleWires } from '@/utility/visual-module-wires.ts';
 import GsWires from './GsWires.vue';
 import GsButton from './common/GsButton.vue';
 import GsDraggable from './common/GsDraggable.vue';
 import XEffectNode from './GsEffectNode.vue';
 import XGlobalInNode from './GsGlobalInNode.vue';
 import XGlobalOutNode from './GsGlobalOutNode.vue';
-import XVisualModuleParamDefsEditor from './XVisualModuleParamDefsEditor.vue';
-import XVisualModuleOutputDefsEditor from './XVisualModuleOutputDefsEditor.vue';
+import XParamDefsEditor from './GsVisualModuleEditor.ParamDefsEditor.vue';
+import XOutputDefsEditor from './GsVisualModuleEditor.OutputDefsEditor.vue';
 import GsTabs from './common/GsTabs.vue';
 import type { VisualModule, VisualModuleGlobalInNode, VisualModuleGlobalOutNode, VisualModuleNode, NodeOutputReference } from '@glitch/shared/visual-module/types.ts';
 import type { EffectInstanceState } from '@glitch/shared/effect/effect-status.ts';
 import type { VisualModuleEdit } from '@/types/visual-module-editor.ts';
+import { provideVisualModuleWires } from '@/utility/visual-module-wires.ts';
 
 provideVisualModuleWires();
 
@@ -100,7 +103,8 @@ const emit = defineEmits<{
 const tab = ref('nodes');
 const tabs = [
 	{ id: 'nodes', label: 'Nodes' },
-	{ id: 'io', label: 'I/O Definitions' },
+	{ id: 'inputs', label: 'Input Defs' },
+	{ id: 'outputs', label: 'Output Defs' },
 	{ id: 'other', label: 'Other' },
 ];
 

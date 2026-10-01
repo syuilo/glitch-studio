@@ -6,19 +6,21 @@
 	--THEME-globalBg: #000;
 	--THEME-bg: #060606;
 	--THEME-fg: #e7e7e7;
+	--THEME-panel: #111;
 	--THEME-workspacePanelBody: #111;
 	--THEME-workspacePanelHeader: #111;
 	--THEME-dialog: #000;
 	--THEME-buttonBg: #222;
 	--THEME-buttonHoverBg: #333;
 	--THEME-nodeBg: #181818;
-	--THEME-panel: #222;
+	--THEME-input: #222;
 	--THEME-success: #86b300;
 	--THEME-error: #ec4137;
 	--THEME-warn: #ecb637;
 	--THEME-shadow: #0006;
 	--THEME-modalBg: #0006;
-
+	--THEME-folderHeaderBg: rgba(255, 255, 255, 0.05);
+	--THEME-folderHeaderHoverBg: rgba(255, 255, 255, 0.1);
 	--THEME-dataType-color: var(--THEME-accent);
 	--THEME-dataType-scalar: #86c94a;
 	--THEME-dataType-vector: #b780ff;
@@ -104,7 +106,7 @@ textarea, input {
 }
 
 optgroup, option {
-	background: var(--THEME-panel);
+	background: var(--THEME-input);
 	color: var(--THEME-fg);
 }
 
@@ -273,19 +275,13 @@ hr {
 ._gaps_m {
 	display: flex;
 	flex-direction: column;
-	gap: 21px;
+	gap: 8px;
 }
 
 ._gaps_s {
 	display: flex;
 	flex-direction: column;
-	gap: 10px;
-}
-
-._gaps {
-	display: flex;
-	flex-direction: column;
-	gap: var(--MI-margin);
+	gap: 6px;
 }
 
 ._buttons {
@@ -311,4 +307,22 @@ hr {
 	background: color(from var(--THEME-panel) srgb r g b / 0.5);
 	-webkit-backdrop-filter: blur(15px);
 	backdrop-filter: blur(15px);
+}
+
+/* TODO: 引数は現在CSS変数経由で受け取っているが、将来的にはattr()を使った方が綺麗そう */
+._spacer {
+	width: 100%;
+	max-width: min(var(--SPACER-w, 100%), calc(100% - (var(--SPACER-max, 12px) * 2)));
+
+	/* marginを使って余白を表現すると、margin特有の親突き抜け仕様などが厄介になってくるので上下はpaddingを使う */
+	padding: var(--SPACER-max, 12px) 0;
+	margin: 0 auto;
+
+	box-sizing: border-box;
+	container-type: inline-size;
+
+	/* 子に継承させない */
+	--SPACER-w: initial;
+	--SPACER-min: initial;
+	--SPACER-max: initial;
 }

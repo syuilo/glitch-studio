@@ -178,8 +178,8 @@ onUnmounted(() => {
 	font-weight: normal;
 	font-size: 1em;
 	color: var(--THEME-fg);
-	background: var(--THEME-panel);
-	border: solid 1px var(--THEME-panel);
+	background: var(--THEME-input);
+	border: solid 1px var(--THEME-input);
 	border-radius: 6px;
 	outline: none;
 	box-shadow: none;

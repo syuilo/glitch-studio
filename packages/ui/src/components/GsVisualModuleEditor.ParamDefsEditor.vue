@@ -1,16 +1,20 @@
 <template>
-<div :class="$style.root">
-	<div v-for="def in visualModule.paramDefs" :key="def.id">
-		<!-- TODO: struct / array / anyのカスタムパラメータ定義編集UI。共通の型定義からは除外しない。 -->
-		<div v-if="def.dataType.kind === 'struct' || def.dataType.kind === 'array' || def.dataType.kind === 'any'">{{ def.ui.label }}: Editing is not yet supported.</div>
-		<XVisualModuleParamDefEditor
-			v-else :primaryInputId="visualModule.primaryInputId" :def="def"
-			@update="(changes, mergeKey) => emit('update', def.id, changes, mergeKey)"
-			@remove="emit('remove', def.id)"
-			@setPrimaryInput="emit('setPrimaryInput', $event)"
-		/>
-	</div>
-	<GsButton @click="add">Add parameter</GsButton>
+<div :class="$style.root" class="_gaps_m _spacer">
+	<GsFolder v-for="def in visualModule.paramDefs" :key="def.id" defaultOpen>
+		<template #label>{{ def.ui.label }}</template>
+
+		<div>
+			<!-- TODO: struct / array / anyのカスタムパラメータ定義編集UI。共通の型定義からは除外しない。 -->
+			<div v-if="def.dataType.kind === 'struct' || def.dataType.kind === 'array' || def.dataType.kind === 'any'">{{ def.ui.label }}: Editing is not yet supported.</div>
+			<XVisualModuleParamDefEditor
+				v-else :primaryInputId="visualModule.primaryInputId" :def="def"
+				@update="(changes, mergeKey) => emit('update', def.id, changes, mergeKey)"
+				@remove="emit('remove', def.id)"
+				@setPrimaryInput="emit('setPrimaryInput', $event)"
+			/>
+		</div>
+	</GsFolder>
+	<GsButton style="width: 100%;" @click="add"><i class="ti ti-plus"></i> Add Parameter</GsButton>
 </div>
 </template>
 
@@ -19,6 +23,7 @@ import { visualModuleCustomParameterId, visualModuleCustomParameterName } from '
 import { genId } from '@glitch/shared/utility/id.js';
 import GsButton from './common/GsButton.vue';
 import XVisualModuleParamDefEditor from './XVisualModuleParamDefEditor.vue';
+import GsFolder from './common/GsFolder.vue';
 import type { VisualModule, VisualModuleCustomParameterId, VisualModuleParamDef } from '@glitch/shared/visual-module/types.ts';
 
 const props = defineProps<{

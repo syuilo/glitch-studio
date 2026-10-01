@@ -1,30 +1,37 @@
 <template>
-<div class="_gaps_s">
-	<div v-for="def in visualModule.outputDefs" :key="def.id" :class="$style.definition">
-		<span>Label</span>
-		<GsInput :modelValue="def.label" @update:modelValue="update(def.id, { label: $event })"/>
-		<span>Name</span>
-		<GsInput :modelValue="def.name" @update:modelValue="update(def.id, { name: $event })"/>
-		<GsSelect :modelValue="def.dataType.kind" :items="dataTypes" @update:modelValue="update(def.id, { dataType: { kind: $event } })"/>
-		<GsSwitch
-			v-if="def.dataType.kind === 'color'"
-			:modelValue="visualModule.primaryOutputId === def.id"
-			:disabled="visualModule.primaryOutputId !== null && visualModule.primaryOutputId !== def.id"
-			@update:modelValue="emit('setPrimaryOutput', $event ? def.id : null)"
-		>Primary output</GsSwitch>
-		<GsButton small danger @click="emit('remove', def.id)">Remove output</GsButton>
-	</div>
-	<GsButton small @click="add">Add output</GsButton>
+<div class="_gaps_m _spacer">
+	<GsFolder v-for="def in visualModule.outputDefs" :key="def.id" defaultOpen>
+		<template #label>{{ def.label }}</template>
+
+		<div class="_gaps_s _spacer">
+			<span>Label</span>
+			<GsInput :modelValue="def.label" @update:modelValue="update(def.id, { label: $event })"/>
+			<span>Name</span>
+			<GsInput :modelValue="def.name" @update:modelValue="update(def.id, { name: $event })"/>
+			<GsSelect :modelValue="def.dataType.kind" :items="dataTypes" @update:modelValue="update(def.id, { dataType: { kind: $event } })"/>
+			<GsSwitch
+				v-if="def.dataType.kind === 'color'"
+				:modelValue="visualModule.primaryOutputId === def.id"
+				:disabled="visualModule.primaryOutputId !== null && visualModule.primaryOutputId !== def.id"
+				@update:modelValue="emit('setPrimaryOutput', $event ? def.id : null)"
+			>
+				Primary output
+			</GsSwitch>
+			<GsButton small danger @click="emit('remove', def.id)">Remove output</GsButton>
+		</div>
+	</GsFolder>
+	<GsButton style="width: 100%;" @click="add"><i class="ti ti-plus"></i> Add Output</GsButton>
 </div>
 </template>
 
 <script lang="ts" setup>
 import { genId } from '@glitch/shared/utility/id.js';
-import type { VisualModule, VisualModuleOutputDef } from '@glitch/shared/visual-module/types.ts';
 import GsInput from './common/GsInput.vue';
 import GsSelect from './common/GsSelect.vue';
 import GsSwitch from './common/GsSwitch.vue';
 import GsButton from './common/GsButton.vue';
+import GsFolder from './common/GsFolder.vue';
+import type { VisualModule, VisualModuleOutputDef } from '@glitch/shared/visual-module/types.ts';
 
 type OutputDef = VisualModuleOutputDef;
 const props = defineProps<{ visualModule: VisualModule }>();
@@ -53,10 +60,5 @@ function add() {
 </script>
 
 <style module lang="scss">
-.definition {
-	display: flex;
-	flex-direction: column;
-	gap: 6px;
-	padding: 8px 0;
-}
+
 </style>

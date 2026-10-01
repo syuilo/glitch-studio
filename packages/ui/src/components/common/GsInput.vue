@@ -264,8 +264,8 @@ defineExpose({
 	font-weight: normal;
 	font-size: 1em;
 	color: var(--THEME-fg);
-	background: var(--THEME-panel);
-	border: solid 1px var(--THEME-panel);
+	background: var(--THEME-input);
+	border: solid 1px var(--THEME-input);
 	border-radius: 6px;
 	outline: none;
 	box-shadow: none;
@@ -273,7 +273,7 @@ defineExpose({
 	transition: border-color 0.1s ease-out;
 
 	&:hover {
-		background: hsl(from var(--THEME-panel) h s calc(l + 5));
+		background: hsl(from var(--THEME-input) h s calc(l + 5));
 	}
 }
 
