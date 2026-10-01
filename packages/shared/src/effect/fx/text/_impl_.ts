@@ -1,6 +1,7 @@
 import { implementEffect } from '../../effect-implementation.ts';
 import { createShaderInputPipeline } from '../../../shader-input-pipeline.ts';
 import { createTextFontLoader } from './font-loader.ts';
+import { layoutText } from './layout.ts';
 import type definition from './_def_.ts';
 import code from './shader.wgsl?raw';
 
@@ -39,7 +40,7 @@ export default implementEffect<typeof definition>({
 			// 式の結果は数値などにもなり得るため、描画とキャッシュには文字列化した値を使う。
 			const text = String(values.text);
 			// 色のアニメーションや接続先の更新では、Canvas描画と転送を繰り返さない。
-			const key = JSON.stringify([font.cacheVersion, width, height, text, values.size, values.position, values.align, values.lineHeight]);
+			const key = JSON.stringify([font.cacheVersion, width, height, text, values.size, values.position, values.align, values.lineHeight, values.overflow, values.maxWidth]);
 			if (maskKey === key) return;
 			if (canvas.width !== width || canvas.height !== height || maskTexture == null) {
 				canvas.width = width;
@@ -57,29 +58,35 @@ export default implementEffect<typeof definition>({
 				] });
 			}
 			context!.clearRect(0, 0, width, height);
-			const size = values.size * height;
-			const lineAdvance = Math.max(0, values.lineHeight) * size;
 			const x = (values.position[0] + 1) * width / 2;
 			const y = (1 - values.position[1]) * height / 2;
-			// Canvasは無効なfont代入を無視するため、0や非有限値で以前の文字サイズを再利用させない。
-			if (size > 0 && [size, lineAdvance, x, y].every(Number.isFinite)) {
-				context!.font = `${size}px ${font.family}`;
+			if ([x, y].every(Number.isFinite)) {
 				context!.fillStyle = '#ffffff';
 				context!.textAlign = values.align;
 				context!.textBaseline = 'alphabetic';
 				context!.direction = 'ltr';
-				const lines = text.replace(/\r\n?/g, '\n').split('\n');
-				let ascent = 0;
-				let descent = 0;
-				for (const line of lines) {
-					const metrics = context!.measureText(line || 'Mg');
-					ascent = Math.max(ascent, metrics.fontBoundingBoxAscent);
-					descent = Math.max(descent, metrics.fontBoundingBoxDescent);
-				}
-				// 位置Yは複数行全体の中央。空行にも同じ行送りを適用する。
-				const firstBaseline = y - (ascent + descent + (lines.length - 1) * lineAdvance) / 2 + ascent;
-				for (let index = 0; index < lines.length; index++) {
-					context!.fillText(lines[index], x, firstBaseline + index * lineAdvance);
+				const layout = layoutText({
+					text,
+					fontSize: values.size * height,
+					lineHeight: values.lineHeight,
+					alignment: values.align,
+					overflow: values.overflow,
+					maxWidth: values.maxWidth * width,
+				}, (line, size) => {
+					context!.font = `${size}px ${font.family}`;
+					return context!.measureText(line);
+				});
+				if (layout != null) {
+					// 探索の最後に計測したサイズと採用サイズが異なる場合もあるため、明示的に設定する。
+					context!.font = `${layout.fontSize}px ${font.family}`;
+					context!.save();
+					// Positionを拡縮しないよう、基準点へ移動してから全行を同じ倍率で圧縮する。
+					context!.translate(x, y);
+					context!.scale(layout.horizontalScale, 1);
+					for (let index = 0; index < layout.lines.length; index++) {
+						context!.fillText(layout.lines[index], 0, layout.firstBaselineOffset + index * layout.lineAdvance);
+					}
+					context!.restore();
 				}
 			}
 			wgpu.device.queue.copyExternalImageToTexture(

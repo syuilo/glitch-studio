@@ -12,6 +12,16 @@ export default defineEffect({
 			ui: { label: 'Size (height ratio)', control: { controlType: 'range', min: 0.0001, max: 1, step: 0.01, logarithmic: true } },
 			defaultValue: { inputSource: 'literal', value: 0.1 },
 		},
+		overflow: {
+			dataType: { kind: 'enum', options: ['none', 'shrink', 'compress'] },
+			ui: { label: 'Overflow', control: { labels: { none: 'Do nothing', shrink: 'Shrink font size', compress: 'Compress horizontally' } } },
+			defaultValue: { inputSource: 'literal', value: 'compress' },
+		},
+		maxWidth: {
+			dataType: { kind: 'scalar' },
+			ui: { label: 'Max width (width ratio)', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } },
+			defaultValue: { inputSource: 'literal', value: 1 },
+		},
 		color: { dataType: { kind: 'color' }, ui: { label: 'Color', control: {} }, defaultValue: { inputSource: 'literal', value: [1, 1, 1, 1] }, canNode: true },
 		position: { dataType: { kind: 'vector' }, ui: { label: 'Position', control: { controlType: 'xy' } }, defaultValue: { inputSource: 'literal', value: [0, 0] } },
 		align: {
