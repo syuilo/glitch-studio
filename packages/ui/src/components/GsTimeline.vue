@@ -106,8 +106,7 @@
 			<div v-if="selectionCount > 1" :class="$style.keyframeEditor">{{ selectionCount }} {{ selection.kind === 'layers' ? 'layers' : 'keyframes' }} selected</div>
 			<div v-else-if="selectedKeyframe != null">
 				<div :key="keyframeEditorKey" :class="$style.keyframeEditor">
-					<GsButton small @click="selectedKeyframeSelection = null">Back to layer</GsButton>
-					<div>{{ selectedKeyframe.def.ui.label }} · Keyframe</div>
+					<div>{{ selectedKeyframe.def.ui.label }}</div>
 					<GsInput small type="number" :min="selectedKeyframe.minX" :max="selectedKeyframe.maxX" :modelValue="selectedKeyframe.keyframe.x" @update:modelValue="updateKeyframeTime">
 						<template #label>Time (ms)</template>
 					</GsInput>
