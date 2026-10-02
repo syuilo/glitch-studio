@@ -19,6 +19,7 @@
 			<GsButton small iconOnly><i class="ti ti-select-all"></i></GsButton>
 			<GsButton small iconOnly><i class="ti ti-cut"></i></GsButton>
 			<span>|</span>
+			<GsButton v-tooltip="'Timeline tick settings'" small iconOnly @click="showTickMenu"><i class="ti ti-ruler-2"></i></GsButton>
 			<GsButton v-tooltip="'Snap settings'" small iconOnly :primary="snapEnabled" @click="showSnapMenu"><i class="ti ti-magnet"></i></GsButton>
 		</div>
 	</div>
@@ -78,6 +79,7 @@
 			<div :class="$style.tlOverlay">
 				<div :class="$style.xTicks" @wheel="onXTicksWheel">
 					<div v-for="time of xTicks" :class="$style.xTick" class="_monospace" :style="{ left: timeToDomX(time) + 'px' }">{{ formatMsToTimecode(time) }}</div>
+					<div v-for="time of xMinorTicks" :class="$style.xMinorTick" :style="{ left: timeToDomX(time) + 'px' }"></div>
 					<div :class="$style.xTicksSeekBar" :style="{ left: (seekBarPos - 1) + 'px' }" @pointerdown="onSeekBarPointerDown"></div>
 				</div>
 				<div :class="$style.ticksCorner"></div>
@@ -293,7 +295,7 @@ import type { ParamEdit } from './GsVisualParam.vue';
 import type { TimelineClipMediaInfo } from '@/utility/timeline-clip-media.ts';
 import { createKeyframeStretch, stretchKeyframeX } from '@/utility/timeline-keyframe-stretch.ts';
 import { zoomTimelineX } from '@/utility/timeline-zoom.ts';
-import { getTimelineClipTicks, formatTimelineTimecode as formatMsToTimecode } from '@/utility/timeline-ticks.ts';
+import { getTimelineTicks, getTimelineClipTicks, formatTimelineTimecode as formatMsToTimecode } from '@/utility/timeline-ticks.ts';
 import { getTimelineSnapCandidates, getTimelineSeekPosition } from '@/utility/timeline-snapping.ts';
 import { preferences } from '@/preferences.ts';
 import { listenPointerDrag } from '@/utility/pointer-drag.ts';
@@ -310,11 +312,30 @@ import { appStateManager, activeSceneId, previewPlayback, timelineAudioPreview, 
 import { dragListen } from '@/utility/drag.ts';
 
 const props = defineProps<{ sceneId: string }>();
+const tickMode = preferences.model('timelineTickMode');
 const snapEnabled = preferences.model('timelineSnapEnabled');
 const snapGlobalTicks = preferences.model('timelineSnapGlobalTicks');
 const snapLocalTicks = preferences.model('timelineSnapLocalTicks');
 const snapSeekBar = preferences.model('timelineSnapSeekBar');
 const snapSettings = computed(() => ({ enabled: snapEnabled.value, globalTicks: snapGlobalTicks.value, localTicks: snapLocalTicks.value }));
+
+function showTickMenu(event: PointerEvent) {
+	ui.popupMenu([{
+		type: 'label', text: 'Timeline ticks',
+	}, {
+		type: 'radioOption', text: 'Original',
+		active: computed(() => tickMode.value === 'legacy'),
+		action: () => { tickMode.value = 'legacy'; },
+	}, {
+		type: 'radioOption', text: 'Binary (1, 0.5, 0.25, …)',
+		active: computed(() => tickMode.value === 'binary'),
+		action: () => { tickMode.value = 'binary'; },
+	}, {
+		type: 'radioOption', text: '1–2–5 (1, 0.5, 0.2, …)',
+		active: computed(() => tickMode.value === 'decimal125'),
+		action: () => { tickMode.value = 'decimal125'; },
+	}], event.currentTarget ?? event.target);
+}
 
 function showSnapMenu(event: PointerEvent) {
 	ui.popupMenu([{
@@ -502,10 +523,11 @@ function updateKeyframeTime(value: string | number) {
 
 // TODO: TLの表示DOMサイズに応じて変更
 const xTicksCount = ref(15);
-const xTicks = computed(() => niceScale(tlPosX.value, tlPosX.value + tlRangeX.value, xTicksCount.value));
-const xTicksWithHalf = computed(() => insertIntermediateNumbers(xTicks.value));
+const xTicks = computed(() => getTimelineTicks(tlPosX.value, tlRangeX.value, xTicksCount.value, tickMode.value));
+const xTicksWithHalf = computed(() => xTicks.value.length === 0 ? [] : insertIntermediateNumbers(xTicks.value));
+const xMinorTicks = computed(() => xTicksWithHalf.value.filter((_, index) => index % 2 === 1));
 const clipTicksByLayer = computed(() => new Map(sceneLayers.value.map(layer => [layer.id,
-																																																																																new Map(layer.clips.map(clip => [clip.id, getTimelineClipTicks(clip, tlPosX.value, tlRangeX.value, xTicksCount.value)])),
+																																																																																new Map(layer.clips.map(clip => [clip.id, getTimelineClipTicks(clip, tlPosX.value, tlRangeX.value, xTicksCount.value, tickMode.value)])),
 ])));
 const yTicksCount = ref(6);
 const yTicks = computed(() => niceScale(tlPosY.value, tlPosY.value + tlRangeY.value, yTicksCount.value));
@@ -801,7 +823,7 @@ function onClipMoveStart(event: PointerEvent, target: TimelineClipSelection) {
 	const selected = new Set(targets.map(clipSelectionKey));
 	const snapTimes = getTimelineSnapCandidates(snapSettings.value, [0, ...sceneLayers.value.flatMap(layer => layer.clips
 		.filter(clip => !selected.has(clipSelectionKey({ layerId: layer.id, clipId: clip.id })))
-		.flatMap(clip => [clip.startMs, getTimelineClipEnd(clip)]))], xTicks.value);
+		.flatMap(clip => [clip.startMs, getTimelineClipEnd(clip)]))], xTicksWithHalf.value);
 	const initialTargets = entries.map(({ target, clip }) => ({ ...target, initialStartMs: clip.startMs }));
 	startSelectionMove(event, points, snapTimes, (delta, mergeKey) => {
 		if (targets.some(target => !resolveClip(target))) return false;
@@ -823,7 +845,7 @@ function onClipTrimStart(event: PointerEvent, target: TimelineClipSelection, edg
 	if (bounds.minDelta > bounds.maxDelta) return;
 	const points = [{ time: edge === 'start' ? clip.startMs : getTimelineClipEnd(clip), ...bounds }];
 	const snapTimes = getTimelineSnapCandidates(snapSettings.value, [0, ...sceneLayers.value.flatMap(entry => entry.clips
-		.filter(other => entry.id !== layer.id || other.id !== clip.id).flatMap(other => [other.startMs, getTimelineClipEnd(other)]))], xTicks.value);
+		.filter(other => entry.id !== layer.id || other.id !== clip.id).flatMap(other => [other.startMs, getTimelineClipEnd(other)]))], xTicksWithHalf.value);
 	const initialTiming = { startMs: clip.startMs, durationMs: clip.durationMs, contentOffsetMs: clip.contentOffsetMs };
 	startSelectionMove(event, points, snapTimes, (delta, mergeKey) => {
 		if (!resolveClip(target)) return false;
@@ -888,7 +910,7 @@ function onSeekBarPointerDown(ev: PointerEvent) {
 	const timeline = tlEl.value;
 	stopSelectionDrag = listenPointerDrag(ev, event => {
 		const x = event.clientX - timeline.getBoundingClientRect().left;
-		const candidates = snapSeekBar.value ? getTimelineSnapCandidates(snapSettings.value, [], xTicks.value) : [];
+		const candidates = snapSeekBar.value ? getTimelineSnapCandidates(snapSettings.value, [], xTicksWithHalf.value) : [];
 		const result = getTimelineSeekPosition(domXToTime(x), duration.value, candidates, tlRangeX.value / tlElWidth.value);
 		snappingTimes.value = result.snappingTime == null ? [] : [result.snappingTime];
 		previewPlayback.seekTimeline(result.timeMs);
@@ -1403,6 +1425,12 @@ onMounted(() => {
 	line-height: var(--xTicksHeight);
 	font-size: 12px;
 	padding: 0 0 0 8px;
+	border-left: solid 1px #fff3;
+}
+.xMinorTick {
+	position: absolute;
+	bottom: 0;
+	height: 5px;
 	border-left: solid 1px #fff3;
 }
 

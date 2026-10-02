@@ -5,6 +5,7 @@ import type { Ref } from 'vue';
 import type { WorkspaceElement } from './workspace.ts';
 import type { MenuItem } from './types/menu.ts';
 import type { IntermediateTextureFormat } from '@glitch/shared/types.js';
+import type { TimelineTickMode } from './utility/timeline-ticks.ts';
 
 export const PREF_DEF = definePreferences({
 	animation: { default: () => true },
@@ -14,6 +15,7 @@ export const PREF_DEF = definePreferences({
 	previewVolume: { default: () => 0.5 },
 	forceTypeSafety: { default: () => false },
 	showTimecodeInPreview: { default: () => true },
+	timelineTickMode: { default: (): TimelineTickMode => 'decimal125' },
 	timelineSnapEnabled: { default: () => true },
 	timelineSnapGlobalTicks: { default: () => true },
 	timelineSnapLocalTicks: { default: () => false },
