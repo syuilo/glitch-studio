@@ -7,16 +7,8 @@
 		<span v-else-if="effectState?.status.type === 'error'" :class="$style.error" :title="effectState.status.message"><i class="ti ti-alert-triangle"></i> Error</span>
 		<span v-else-if="outputResolution">{{ outputResolution.width }} × {{ outputResolution.height }}</span>
 	</template>
-	<div class="_spacer _gaps_s">
-		<div v-if="effectState?.status.type === 'error'" :class="$style.errorMessage">{{ effectState.status.message }}</div>
-		<GsSelect :modelValue="layer.resolution.mode" :items="resolutionModes" @update:modelValue="setResolutionMode">
-			<template #label>Resolution</template>
-			<template v-if="layer.resolution.mode === 'context'" #caption>Uses the containing scene size.</template>
-		</GsSelect>
-		<div v-if="layer.resolution.mode === 'customAbsolute'" style="display: flex; gap: 8px;">
-			<GsInput style="flex: 1;" type="number" :modelValue="layer.resolution.width" :min="1" :step="1" :debounce="400" @update:modelValue="setDimension('width', $event)"><template #label>Width</template><template #suffix>px</template></GsInput>
-			<GsInput style="flex: 1;" type="number" :modelValue="layer.resolution.height" :min="1" :step="1" :debounce="400" @update:modelValue="setDimension('height', $event)"><template #label>Height</template><template #suffix>px</template></GsInput>
-		</div>
+	<div v-if="effectState?.status.type === 'error'" class="_spacer">
+		<div :class="$style.errorMessage">{{ effectState.status.message }}</div>
 	</div>
 	<div style="padding: 8px 0;">
 		<GsVisualParam
@@ -32,6 +24,16 @@
 			:paramValue="layer.effectParamValues[key] ?? getEffectLayerParameterDefault(definition, key)"
 			@edit="emit('edit', $event)"
 		/>
+	</div>
+	<div class="_spacer">
+		<GsSelect :modelValue="layer.resolution.mode" :items="resolutionModes" @update:modelValue="setResolutionMode">
+			<template #label>Resolution</template>
+			<template v-if="layer.resolution.mode === 'context'" #caption>Uses the containing scene size.</template>
+		</GsSelect>
+		<div v-if="layer.resolution.mode === 'customAbsolute'" style="display: flex; gap: 8px;">
+			<GsInput style="flex: 1;" type="number" :modelValue="layer.resolution.width" :min="1" :step="1" :debounce="400" @update:modelValue="setDimension('width', $event)"><template #label>Width</template><template #suffix>px</template></GsInput>
+			<GsInput style="flex: 1;" type="number" :modelValue="layer.resolution.height" :min="1" :step="1" :debounce="400" @update:modelValue="setDimension('height', $event)"><template #label>Height</template><template #suffix>px</template></GsInput>
+		</div>
 	</div>
 </GsFolder>
 </template>
