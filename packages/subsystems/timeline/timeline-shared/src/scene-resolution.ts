@@ -1,4 +1,4 @@
-import { scaleResolution, type Resolution } from '../resolution.ts';
+import { scaleResolution } from '@glitch/shared/resolution.js';
 
 export type TimelineSceneResolution =
 	| { mode: 'project' }

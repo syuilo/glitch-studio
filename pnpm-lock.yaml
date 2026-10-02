@@ -157,11 +157,11 @@ importers:
         specifier: npm:@typescript/typescript6@6.0.2
         version: '@typescript/typescript6@6.0.2'
 
-  packages/audio-renderer:
+  packages/glitch-studio/audio-renderer:
     dependencies:
       '@glitch/shared':
         specifier: workspace:*
-        version: link:../shared
+        version: link:../../shared
     devDependencies:
       '@types/web':
         specifier: 0.0.352
@@ -179,7 +179,7 @@ importers:
         specifier: 4.1.10
         version: 4.1.10(@types/node@26.2.0)(vite@8.2.2(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.83.4))
 
-  packages/desktop:
+  packages/glitch-studio/desktop:
     devDependencies:
       electron:
         specifier: 44.3.0
@@ -191,11 +191,11 @@ importers:
         specifier: 8.2.2
         version: 8.2.2(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.83.4)
 
-  packages/renderer:
+  packages/glitch-studio/renderer:
     dependencies:
       '@glitch/shared':
         specifier: workspace:*
-        version: link:../shared
+        version: link:../../shared
       eventemitter3:
         specifier: 5.0.4
         version: 5.0.4
@@ -221,6 +221,136 @@ importers:
       vitest:
         specifier: 4.1.10
         version: 4.1.10(@types/node@26.2.0)(vite@8.2.2(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.83.4))
+
+  packages/glitch-studio/ui:
+    dependencies:
+      '@glitch/audio-renderer':
+        specifier: workspace:*
+        version: link:../audio-renderer
+      '@glitch/renderer':
+        specifier: workspace:*
+        version: link:../renderer
+      '@glitch/shared':
+        specifier: workspace:*
+        version: link:../../shared
+      '@jsquash/webp':
+        specifier: 1.5.0
+        version: 1.5.0
+      '@msgpack/msgpack':
+        specifier: 3.1.3
+        version: 3.1.3
+      '@syuilo/aiscript':
+        specifier: 1.2.1
+        version: 1.2.1
+      '@tabler/icons-webfont':
+        specifier: 3.35.0
+        version: 3.35.0
+      color-blend:
+        specifier: 4.0.0
+        version: 4.0.0
+      eventemitter3:
+        specifier: 5.0.4
+        version: 5.0.4
+      hasha:
+        specifier: 7.0.0
+        version: 7.0.0
+      image-type:
+        specifier: 6.1.0
+        version: 6.1.0(supports-color@7.2.0)
+      jpeg-js:
+        specifier: 0.4.4
+        version: 0.4.4
+      mediabunny:
+        specifier: 1.56.2
+        version: 1.56.2
+      pngjs:
+        specifier: 7.0.0
+        version: 7.0.0
+      sanitize-html:
+        specifier: 2.17.7
+        version: 2.17.7
+      semver:
+        specifier: 7.8.5
+        version: 7.8.5
+      textarea-caret:
+        specifier: 3.1.0
+        version: 3.1.0
+      throttle-debounce:
+        specifier: 5.0.2
+        version: 5.0.2
+      tinycolor2:
+        specifier: 1.6.0
+        version: 1.6.0
+      utif:
+        specifier: 3.1.0
+        version: 3.1.0
+      uuid:
+        specifier: 11.0.5
+        version: 11.0.5
+      vue:
+        specifier: 3.5.42
+        version: 3.5.42(@typescript/typescript6@6.0.2)
+      vue-component-type-helpers:
+        specifier: 3.3.11
+        version: 3.3.11
+    devDependencies:
+      '@eslint/js':
+        specifier: 9.39.5
+        version: 9.39.5
+      '@misskey-dev/eslint-plugin':
+        specifier: 2.1.0
+        version: 2.1.0(@eslint/compat@2.1.0(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0)))(@stylistic/eslint-plugin@5.10.0(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0)))(@typescript-eslint/eslint-plugin@8.67.0(@typescript-eslint/parser@8.67.0(@typescript/typescript6@6.0.2)(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0))(@typescript/typescript6@6.0.2)(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0))(@typescript-eslint/parser@8.67.0(@typescript/typescript6@6.0.2)(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0))(eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.67.0(@typescript/typescript6@6.0.2)(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0))(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0))(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(globals@17.11.0)
+      '@types/sanitize-html':
+        specifier: 2.16.1
+        version: 2.16.1
+      '@types/semver':
+        specifier: 7.5.8
+        version: 7.5.8
+      '@types/textarea-caret':
+        specifier: 3.0.4
+        version: 3.0.4
+      '@types/throttle-debounce':
+        specifier: 5.0.2
+        version: 5.0.2
+      '@types/tinycolor2':
+        specifier: 1.4.6
+        version: 1.4.6
+      '@types/web':
+        specifier: 0.0.352
+        version: 0.0.352
+      '@typescript-eslint/eslint-plugin':
+        specifier: 8.67.0
+        version: 8.67.0(@typescript-eslint/parser@8.67.0(@typescript/typescript6@6.0.2)(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0))(@typescript/typescript6@6.0.2)(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)
+      '@typescript-eslint/parser':
+        specifier: 8.67.0
+        version: 8.67.0(@typescript/typescript6@6.0.2)(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)
+      '@vitejs/plugin-vue':
+        specifier: 6.0.8
+        version: 6.0.8(vite@8.2.2(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.83.4))(vue@3.5.42(@typescript/typescript6@6.0.2))
+      eslint:
+        specifier: 9.39.5
+        version: 9.39.5(jiti@2.7.0)(supports-color@7.2.0)
+      eslint-plugin-import:
+        specifier: 2.32.0
+        version: 2.32.0(@typescript-eslint/parser@8.67.0(@typescript/typescript6@6.0.2)(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0))(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)
+      eslint-plugin-vue:
+        specifier: 10.10.0
+        version: 10.10.0(@stylistic/eslint-plugin@5.10.0(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0)))(@typescript-eslint/parser@8.67.0(@typescript/typescript6@6.0.2)(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0))(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(vue-eslint-parser@10.4.1(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0))
+      sass:
+        specifier: 1.83.4
+        version: 1.83.4
+      typescript:
+        specifier: npm:@typescript/typescript6@6.0.2
+        version: '@typescript/typescript6@6.0.2'
+      vite:
+        specifier: 8.2.2
+        version: 8.2.2(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.83.4)
+      vue-eslint-parser:
+        specifier: 10.4.1
+        version: 10.4.1(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)
+      vue-tsc:
+        specifier: 3.3.11
+        version: 3.3.11(@typescript/typescript6@6.0.2)
 
   packages/shared:
     dependencies:
@@ -370,6 +500,52 @@ importers:
         specifier: 4.1.10
         version: 4.1.10(@types/node@26.2.0)(vite@8.2.2(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.83.4))
 
+  packages/subsystems/timeline/timeline-shared:
+    dependencies:
+      '@glitch/effect-shared':
+        specifier: workspace:*
+        version: link:../../effect/effect-shared
+      '@glitch/shared':
+        specifier: workspace:*
+        version: link:../../../shared
+      '@glitch/visual-module-shared':
+        specifier: workspace:*
+        version: link:../../visual-module/visual-module-shared
+      '@syuilo/aiscript':
+        specifier: 1.2.1
+        version: 1.2.1
+      bezier-easing:
+        specifier: 3.0.1
+        version: 3.0.1
+      mediabunny:
+        specifier: 1.56.2
+        version: 1.56.2
+      seedrandom:
+        specifier: 3.0.5
+        version: 3.0.5
+      webgpu-utils:
+        specifier: 2.1.1
+        version: 2.1.1
+    devDependencies:
+      '@types/seedrandom':
+        specifier: 3.0.8
+        version: 3.0.8
+      '@types/web':
+        specifier: 0.0.352
+        version: 0.0.352
+      '@typescript-eslint/eslint-plugin':
+        specifier: 8.59.2
+        version: 8.59.2(@typescript-eslint/parser@8.59.2(@typescript/typescript6@6.0.2)(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0))(@typescript/typescript6@6.0.2)(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)
+      '@typescript-eslint/parser':
+        specifier: 8.59.2
+        version: 8.59.2(@typescript/typescript6@6.0.2)(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)
+      '@webgpu/types':
+        specifier: 0.1.72
+        version: 0.1.72
+      vite:
+        specifier: 8.2.2
+        version: 8.2.2(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.83.4)
+
   packages/subsystems/visual-module/visual-module-renderer:
     dependencies:
       '@glitch/effect-renderer':
@@ -407,135 +583,48 @@ importers:
         specifier: 4.1.10
         version: 4.1.10(@types/node@26.2.0)(vite@8.2.2(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.83.4))
 
-  packages/ui:
+  packages/subsystems/visual-module/visual-module-shared:
     dependencies:
-      '@glitch/audio-renderer':
+      '@glitch/effect-shared':
         specifier: workspace:*
-        version: link:../audio-renderer
-      '@glitch/renderer':
-        specifier: workspace:*
-        version: link:../renderer
+        version: link:../../effect/effect-shared
       '@glitch/shared':
         specifier: workspace:*
-        version: link:../shared
-      '@jsquash/webp':
-        specifier: 1.5.0
-        version: 1.5.0
-      '@msgpack/msgpack':
-        specifier: 3.1.3
-        version: 3.1.3
+        version: link:../../../shared
       '@syuilo/aiscript':
         specifier: 1.2.1
         version: 1.2.1
-      '@tabler/icons-webfont':
-        specifier: 3.35.0
-        version: 3.35.0
-      color-blend:
-        specifier: 4.0.0
-        version: 4.0.0
-      eventemitter3:
-        specifier: 5.0.4
-        version: 5.0.4
-      hasha:
-        specifier: 7.0.0
-        version: 7.0.0
-      image-type:
-        specifier: 6.1.0
-        version: 6.1.0(supports-color@7.2.0)
-      jpeg-js:
-        specifier: 0.4.4
-        version: 0.4.4
+      bezier-easing:
+        specifier: 3.0.1
+        version: 3.0.1
       mediabunny:
         specifier: 1.56.2
         version: 1.56.2
-      pngjs:
-        specifier: 7.0.0
-        version: 7.0.0
-      sanitize-html:
-        specifier: 2.17.7
-        version: 2.17.7
-      semver:
-        specifier: 7.8.5
-        version: 7.8.5
-      textarea-caret:
-        specifier: 3.1.0
-        version: 3.1.0
-      throttle-debounce:
-        specifier: 5.0.2
-        version: 5.0.2
-      tinycolor2:
-        specifier: 1.6.0
-        version: 1.6.0
-      utif:
-        specifier: 3.1.0
-        version: 3.1.0
-      uuid:
-        specifier: 11.0.5
-        version: 11.0.5
-      vue:
-        specifier: 3.5.42
-        version: 3.5.42(@typescript/typescript6@6.0.2)
-      vue-component-type-helpers:
-        specifier: 3.3.11
-        version: 3.3.11
+      seedrandom:
+        specifier: 3.0.5
+        version: 3.0.5
+      webgpu-utils:
+        specifier: 2.1.1
+        version: 2.1.1
     devDependencies:
-      '@eslint/js':
-        specifier: 9.39.5
-        version: 9.39.5
-      '@misskey-dev/eslint-plugin':
-        specifier: 2.1.0
-        version: 2.1.0(@eslint/compat@2.1.0(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0)))(@stylistic/eslint-plugin@5.10.0(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0)))(@typescript-eslint/eslint-plugin@8.67.0(@typescript-eslint/parser@8.67.0(@typescript/typescript6@6.0.2)(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0))(@typescript/typescript6@6.0.2)(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0))(@typescript-eslint/parser@8.67.0(@typescript/typescript6@6.0.2)(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0))(eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.67.0(@typescript/typescript6@6.0.2)(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0))(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0))(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(globals@17.11.0)
-      '@types/sanitize-html':
-        specifier: 2.16.1
-        version: 2.16.1
-      '@types/semver':
-        specifier: 7.5.8
-        version: 7.5.8
-      '@types/textarea-caret':
-        specifier: 3.0.4
-        version: 3.0.4
-      '@types/throttle-debounce':
-        specifier: 5.0.2
-        version: 5.0.2
-      '@types/tinycolor2':
-        specifier: 1.4.6
-        version: 1.4.6
+      '@types/seedrandom':
+        specifier: 3.0.8
+        version: 3.0.8
       '@types/web':
         specifier: 0.0.352
         version: 0.0.352
       '@typescript-eslint/eslint-plugin':
-        specifier: 8.67.0
-        version: 8.67.0(@typescript-eslint/parser@8.67.0(@typescript/typescript6@6.0.2)(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0))(@typescript/typescript6@6.0.2)(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)
+        specifier: 8.59.2
+        version: 8.59.2(@typescript-eslint/parser@8.59.2(@typescript/typescript6@6.0.2)(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0))(@typescript/typescript6@6.0.2)(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)
       '@typescript-eslint/parser':
-        specifier: 8.67.0
-        version: 8.67.0(@typescript/typescript6@6.0.2)(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)
-      '@vitejs/plugin-vue':
-        specifier: 6.0.8
-        version: 6.0.8(vite@8.2.2(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.83.4))(vue@3.5.42(@typescript/typescript6@6.0.2))
-      eslint:
-        specifier: 9.39.5
-        version: 9.39.5(jiti@2.7.0)(supports-color@7.2.0)
-      eslint-plugin-import:
-        specifier: 2.32.0
-        version: 2.32.0(@typescript-eslint/parser@8.67.0(@typescript/typescript6@6.0.2)(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0))(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)
-      eslint-plugin-vue:
-        specifier: 10.10.0
-        version: 10.10.0(@stylistic/eslint-plugin@5.10.0(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0)))(@typescript-eslint/parser@8.67.0(@typescript/typescript6@6.0.2)(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0))(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(vue-eslint-parser@10.4.1(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0))
-      sass:
-        specifier: 1.83.4
-        version: 1.83.4
-      typescript:
-        specifier: npm:@typescript/typescript6@6.0.2
-        version: '@typescript/typescript6@6.0.2'
+        specifier: 8.59.2
+        version: 8.59.2(@typescript/typescript6@6.0.2)(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)
+      '@webgpu/types':
+        specifier: 0.1.72
+        version: 0.1.72
       vite:
         specifier: 8.2.2
         version: 8.2.2(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.83.4)
-      vue-eslint-parser:
-        specifier: 10.4.1
-        version: 10.4.1(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)
-      vue-tsc:
-        specifier: 3.3.11
-        version: 3.3.11(@typescript/typescript6@6.0.2)
 
 packages:
 

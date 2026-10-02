@@ -1,7 +1,7 @@
 import { getSceneDuration, getTimelineScene, validateTimelineScenes } from './scenes.ts';
 import { getTimelineClipEnd } from './timing.ts';
+import type { AutomationGraph } from '@glitch/shared/types.js';
 import type { TimelineParameterBinding, TimelineScene } from './types.ts';
-import type { AutomationGraph } from '../types.ts';
 
 export type SceneAudioGain = {
 	/** 最上位Scene上で、音量を所有するSceneの時刻0が置かれる位置。 */
@@ -41,7 +41,7 @@ export function getSceneAudioClips(scenes: readonly TimelineScene[], sceneId: st
 					visit(clip.sceneId, sourceStartMs, startMs, endMs, layerGains);
 				} else if (!('audioEnabled' in clip) || clip.audioEnabled) {
 					clips.push({ assetId: clip.assetId, durationBasis: layer.layerType === 'audio' ? 'audio' : 'media',
-						sourceStartMs, startMs, endMs, gains: layerGains });
+																		sourceStartMs, startMs, endMs, gains: layerGains });
 				}
 			}
 		}

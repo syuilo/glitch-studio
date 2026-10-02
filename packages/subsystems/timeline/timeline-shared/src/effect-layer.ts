@@ -1,10 +1,10 @@
-import { deepClone } from '../utility/deep-clone.ts';
-import type { EffectDefinition } from '../effect/effect-definition.ts';
-import type { ParameterBinding } from '../types.ts';
+import { validateEffectResolution } from '@glitch/effect-shared/resolution.js';
+import { deepClone } from '@glitch/shared/utility/deep-clone.js';
+import { validateTimelineParameterTree } from './parameter-binding.ts';
 import type { TimelineEffectParameterBinding } from './types.ts';
 import type { TimelineEffectLayer } from './types.ts';
-import { validateEffectResolution } from '../effect/resolution.ts';
-import { validateTimelineParameterTree } from './parameter-binding.ts';
+import type { EffectDefinition } from '@glitch/effect-shared/effect-definition.js';
+import type { ParameterBinding } from '@glitch/shared/types.js';
 
 export function createLayerInputBinding(): Extract<ParameterBinding, { inputSource: 'layerInput' }> {
 	return { inputSource: 'layerInput', fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' };

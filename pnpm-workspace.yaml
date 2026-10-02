@@ -7,10 +7,10 @@ packages:
   - packages/subsystems/visual-module/visual-module-renderer
   - packages/subsystems/timeline/timeline-shared
   - packages/subsystems/timeline/timeline-renderer
-  - packages/audio-renderer
-  - packages/renderer
-  - packages/ui
-  - packages/desktop
+  - packages/glitch-studio/audio-renderer
+  - packages/glitch-studio/renderer
+  - packages/glitch-studio/ui
+  - packages/glitch-studio/desktop
 minimumReleaseAge: 10080 # delay 7days to mitigate supply-chain attack
 minimumReleaseAgeExclude:
   - '@syuilo/aiscript'

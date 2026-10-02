@@ -1,8 +1,8 @@
-import type { TextureDataType } from '../data-type.ts';
-import type { EffectDefinition } from '../effect/effect-definition.ts';
-import type { EffectResolution } from '../effect/resolution.ts';
-import type { ParameterChangeKind, ParameterDefinition } from '../parameter.ts';
-import type { FitMode, AutomationGraph, ParameterBinding, WrapMode } from '../types.ts';
+import type { EffectDefinition } from '@glitch/effect-shared/effect-definition.ts';
+import type { EffectResolution } from '@glitch/effect-shared/resolution.ts';
+import type { TextureDataType } from '@glitch/shared/data-type.js';
+import type { ParameterChangeKind, ParameterDefinition } from '@glitch/shared/parameter.js';
+import type { ParameterBinding, AutomationGraph, FitMode, WrapMode } from '@glitch/shared/types.js';
 
 export type VisualModuleEffectNode = {
 	id: string;

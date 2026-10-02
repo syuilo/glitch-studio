@@ -52,7 +52,7 @@
 
 <script lang="ts" setup>
 import { computed, nextTick, onMounted, onBeforeUnmount, ref, shallowRef, useTemplateRef, watch } from 'vue';
-import { audioOutput, activePreviewRenderer, previewPlayback, visualModuleRendererManagerController, resolutionFactor, fpsLimit, liveTimeFactor, appStateManager, projectInfo, openProject, saveProject } from './app';
+import { audioOutput, activePreviewRenderer, previewPlayback, visualModuleRendererManagerController, resolutionFactor, fpsLimit, liveTimeFactor, appStateManager, projectInfo, openProject, saveProject } from './app.ts';
 import { preferences } from './preferences.ts';
 import GsRange from './components/common/GsRange.vue';
 import GsAboutDialog from '@/components/GsAboutDialog.vue';

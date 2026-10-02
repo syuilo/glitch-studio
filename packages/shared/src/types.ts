@@ -2,7 +2,7 @@ import type { KeyframesTimelineData } from './keyframes-timeline.ts';
 export type { KeyframeInterpolation, KeyframesTimelineKeyframe, KeyframesTimeline } from './keyframes-timeline.ts';
 
 import type { GlobalEnvVariable } from './expression.ts';
-import type { NodeOutputReference, VisualModuleCustomParameterId } from './visual-module/types.ts';
+import type { NodeOutputReference, VisualModuleCustomParameterId } from '../../subsystems/visual-module/visual-module-shared/src/types.ts';
 
 // NOTE: externalCustomParameterInput、node、layerInputについては本来的にはこの汎用ParameterBinding型ではなく、各利用ドメイン側で拡張するべきであるが、そこまで厳密に分けると実装が複雑化するため、便宜上ここに含めている
 export type ParameterBinding = {

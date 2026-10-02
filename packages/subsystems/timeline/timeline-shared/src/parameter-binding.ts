@@ -1,6 +1,5 @@
-import type { ParameterBinding } from '../types.ts';
-import { getArrayElementDefinition, getStructFieldDefinitions } from '../parameter.ts';
-import type { ParameterArrayElement, ParameterDefinition } from '../parameter.ts';
+import { type ParameterDefinition, type ParameterArrayElement, getArrayElementDefinition, getStructFieldDefinitions } from '@glitch/shared/parameter.js';
+import type { ParameterBinding } from '@glitch/shared/types.js';
 
 /** レイヤーに終端や接続スコープはない。UI以外から渡されたBindingも保存時に拒否する。 */
 export function validateTimelineParameterBinding(binding: ParameterBinding, allowLayerInput = false): void {

@@ -1,10 +1,10 @@
-import type { AutomationGraph, ParameterBinding } from '../types.ts';
-import type { VisualModule } from '../visual-module/types.ts';
 import type { timelineCompositingParamDefs } from './timeline-compositing.ts';
 import type { TimelineClip, TimelineAssetClip, TimelineVideoClip, TimelineSceneClip } from './clip.ts';
 import type { TimelineSceneResolution } from './scene-resolution.ts';
-import type { EffectResolution } from '../effect/resolution.ts';
-import type { ParameterChangeKind } from '../parameter.ts';
+import type { EffectResolution } from '@glitch/effect-shared/resolution.js';
+import type { ParameterChangeKind } from '@glitch/shared/parameter.js';
+import type { AutomationGraph, ParameterBinding } from '@glitch/shared/types.js';
+import type { VisualModule } from '@glitch/visual-module-shared/types.js';
 
 export type TimelineParameterTarget = 'module' | 'effect' | 'compositing' | 'audio';
 

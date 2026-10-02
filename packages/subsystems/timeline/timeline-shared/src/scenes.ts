@@ -1,8 +1,8 @@
+import { validateEffectResolution } from '@glitch/effect-shared/resolution.js';
 import { getTimelineClipEnd, validateTimelineClips } from './timing.ts';
-import type { TimelineLayer, TimelineScene } from './types.ts';
 import { validateSceneResolution } from './scene-resolution.ts';
 import { validateTimelineParameterBinding } from './parameter-binding.ts';
-import { validateEffectResolution } from '../effect/resolution.ts';
+import type { TimelineLayer, TimelineScene } from './types.ts';
 
 /** 子の長さを再帰計算しない。配置済みの区間は、参照先の編集でも変えない。 */
 export function getSceneDuration(scene: TimelineScene): number {

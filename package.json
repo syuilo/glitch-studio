@@ -5,15 +5,16 @@
 	"packageManager": "pnpm@12.3.4",
 	"workspaces": [
 		"packages/shared",
-		"packages/renderer",
 		"packages/subsystems/effect/effect-shared",
 		"packages/subsystems/effect/effect-renderer",
 		"packages/subsystems/visual-module/visual-module-shared",
 		"packages/subsystems/visual-module/visual-module-renderer",
 		"packages/subsystems/timeline/timeline-shared",
 		"packages/subsystems/timeline/timeline-renderer",
-		"packages/ui",
-		"packages/desktop"
+		"packages/glitch-studio/audio-renderer",
+		"packages/glitch-studio/renderer",
+		"packages/glitch-studio/ui",
+		"packages/glitch-studio/desktop"
 	],
 	"scripts": {
 		"test": "pnpm --no-bail -r test",

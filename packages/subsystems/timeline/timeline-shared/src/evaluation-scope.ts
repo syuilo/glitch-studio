@@ -1,5 +1,5 @@
-import type { LAYER_VAR_DEFS } from '../expression.ts';
-import type { EvaluationScope } from '../parameter-evaluator.ts';
+import type { LAYER_VAR_DEFS } from '@glitch/shared/expression.js';
+import type { EvaluationScope } from '@glitch/shared/parameter-evaluator.js';
 
 type TimelineEvaluationContext = Pick<EvaluationScope, 'time' | 'automationGraphs'> & { isExport: boolean };
 
