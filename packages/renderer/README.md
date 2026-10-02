@@ -1,0 +1,3 @@
+Glitch Studioとして、各subsystemのレンダラーを利用する統括層
+
+Glitch Studioのドメイン知識を持っていてもよい
