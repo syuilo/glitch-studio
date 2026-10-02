@@ -1,5 +1,5 @@
-import { getTimelineClipContentTime, isTimelineClipActive } from '@gs/shared/timeline/timing.ts';
-import type { TimelineClip } from '@gs/shared/timeline/clip.ts';
+import { getTimelineClipContentTime, isTimelineClipActive } from '@gs/subsystems_timeline_shared/timing.ts';
+import type { TimelineClip } from '@gs/subsystems_timeline_shared/clip.ts';
 
 // 制御に必要なのはIDと期間だけ。レイヤー固有のデータは生成関数にそのまま渡す。
 export type TimelineRenderEntry = { id: string; clips: readonly TimelineClip[] };

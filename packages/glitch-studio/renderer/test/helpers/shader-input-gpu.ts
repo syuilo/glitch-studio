@@ -5,7 +5,7 @@ import effect from '../../../shared/src/effect/fx/colorMix/_impl_.ts';
 import imageEffect from '../../../shared/src/effect/fx/image/_impl_.ts';
 import blockShuffle from '../../../shared/src/effect/fx/blockShuffle/_impl_.ts';
 import { constantShaderInput, textureShaderInput, generateShaderInputs, createShaderInputBindings } from '../../../shared/src/shader-input.ts';
-import vertexCode from '../../src/vertex.wgsl?raw';
+import vertexCode from '@gs/shared/gpu/vertex.wgsl?raw';
 import { createShaderInputPipeline } from '../../../shared/src/shader-input-pipeline.ts';
 import { AssetTextures } from '../../src/asset-textures.ts';
 

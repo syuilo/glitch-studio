@@ -2,7 +2,7 @@ import { TimelineAudioRenderer } from '@gs/glitch-studio_audio-renderer/timeline
 import { AssetAudioReader } from '../audio/asset-audio-reader.ts';
 import { MP4_AUDIO_SAMPLE_RATE } from './audio-export-settings.ts';
 import type { StereoPcm } from '@gs/glitch-studio_audio-renderer/pcm.ts';
-import type { SceneAudioClip } from '@gs/shared/timeline/scene-audio.ts';
+import type { SceneAudioClip } from '@gs/subsystems_timeline_shared/scene-audio.ts';
 import type { Asset } from '@gs/shared/types.ts';
 import type { VideoExportSettings } from './timeline-export.ts';
 

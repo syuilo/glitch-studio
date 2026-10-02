@@ -1,5 +1,5 @@
-import { getSceneAudioClips } from '@gs/shared/timeline/scene-audio.ts';
-import type { TimelineScene } from '@gs/shared/timeline/types.ts';
+import { getSceneAudioClips } from '@gs/subsystems_timeline_shared/scene-audio.ts';
+import type { TimelineScene } from '@gs/subsystems_timeline_shared/types.ts';
 import type { TimelineExportSettings } from './timeline-export.ts';
 
 export const MP4_AUDIO_SAMPLE_RATE = 48000;

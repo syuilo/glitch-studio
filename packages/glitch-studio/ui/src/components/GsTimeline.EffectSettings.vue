@@ -40,18 +40,18 @@
 
 <script lang="ts" setup>
 import { computed } from 'vue';
-import { effectDefinitions } from '@gs/shared/effect/effect-definitions.ts';
+import { effectDefinitions } from '@gs/subsystems_effect_shared/effect-definitions.ts';
 import { LAYER_VAR_DEFS } from '@gs/subsystems_timeline_shared/expression.ts';
-import { getEffectLayerParameterDefault } from '@gs/shared/timeline/effect-layer.ts';
+import { getEffectLayerParameterDefault } from '@gs/subsystems_timeline_shared/effect-layer.ts';
 import GsFolder from './common/GsFolder.vue';
 import GsInput from './common/GsInput.vue';
 import GsSelect from './common/GsSelect.vue';
 import GsVisualParam from './GsVisualParam.vue';
 import type { ParamEdit } from './GsVisualParam.vue';
-import type { TimelineEffectLayer } from '@gs/shared/timeline/types.ts';
-import type { EffectResolution } from '@gs/shared/effect/resolution.ts';
+import type { TimelineEffectLayer } from '@gs/subsystems_timeline_shared/types.ts';
+import type { EffectResolution } from '@gs/subsystems_effect_shared/resolution.ts';
 import type { Resolution } from '@gs/shared/resolution.ts';
-import type { EffectInstanceState } from '@gs/shared/effect/effect-status.ts';
+import type { EffectInstanceState } from '@gs/subsystems_effect_shared/effect-status.ts';
 
 const props = defineProps<{ layer: TimelineEffectLayer; contextResolution: Resolution; effectState?: EffectInstanceState }>();
 const emit = defineEmits<{ edit: [event: ParamEdit]; resolution: [resolution: EffectResolution] }>();

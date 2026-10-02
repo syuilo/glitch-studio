@@ -1,6 +1,6 @@
-import type { ProjectVisualModule } from '@gs/shared/project/types.ts';
+import type { ProjectVisualModule } from '@gs/glitch-studio_shared/project/types.ts';
 import { computed, readonly, ref, shallowRef } from 'vue';
-import type { VisualModuleParameterBindings } from '@gs/shared/visual-module/types.ts';
+import type { VisualModuleParameterBindings } from '@gs/subsystems_visual-module_shared/types.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import type { VisualModuleRendererManagerController } from './VisualModuleRendererManagerController.ts';
 import type { TimelineRendererManagerController } from './TimelineRendererManagerController.ts';

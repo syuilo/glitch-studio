@@ -1,6 +1,6 @@
 import { createWaveform } from '@gs/shared/utility/waveform/waveform.ts';
 import { textureShaderInput } from '@gs/shared/gpu/shader-input.ts';
-import vertexShaderCode from '../../vertex.wgsl?raw';
+import vertexShaderCode from '@gs/shared/gpu/vertex.wgsl?raw';
 
 const MAX_SAMPLE_EDGE = 1024;
 

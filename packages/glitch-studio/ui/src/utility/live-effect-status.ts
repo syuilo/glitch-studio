@@ -1,4 +1,4 @@
-import type { EffectInstanceState } from '@gs/shared/effect/effect-status.ts';
+import type { EffectInstanceState } from '@gs/subsystems_effect_shared/effect-status.ts';
 import type { LiveEffectStatusSource } from '@gs/glitch-studio_renderer/visual-module-renderer-manager.ts';
 
 export class LiveEffectStateStore {

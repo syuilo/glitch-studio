@@ -1,6 +1,6 @@
 import { colorBlendModes, isBlendMode } from '@gs/shared/color-blend.ts';
 import { genEmptyValue } from '@gs/shared/parameter/parameter-default.ts';
-import { timelineCompositingParamDefs } from '@gs/shared/timeline/timeline-compositing.js';
+import { timelineCompositingParamDefs } from '@gs/subsystems_timeline_shared/timeline-compositing.ts';
 import { TimelineParameterBindingEvaluator } from '@gs/subsystems_timeline_shared/parameter-binding-evaluator.ts';
 import { createTimelineLayerEvaluationScope } from '@gs/subsystems_timeline_shared/evaluation-scope.ts';
 import type { AutomationGraph } from '@gs/shared/automation-graph/automation-graph.ts';

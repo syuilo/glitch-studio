@@ -22,8 +22,13 @@
 		"vitest": "4.1.10"
 	},
 	"dependencies": {
-		"@gs/shared": "workspace:*",
 		"@gs/glitch-studio_shared": "workspace:*",
+		"@gs/shared": "workspace:*",
+		"@gs/subsystems_effect_shared": "workspace:*",
+		"@gs/subsystems_timeline_renderer": "workspace:*",
+		"@gs/subsystems_timeline_shared": "workspace:*",
+		"@gs/subsystems_visual-module_renderer": "workspace:*",
+		"@gs/subsystems_visual-module_shared": "workspace:*",
 		"eventemitter3": "5.0.4",
 		"webgpu-utils": "2.1.1"
 	}

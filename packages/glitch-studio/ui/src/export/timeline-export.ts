@@ -1,5 +1,5 @@
-import { getTimelineClipEnd } from '@gs/shared/timeline/timing.ts';
-import type { TimelineLayer } from '@gs/shared/timeline/types.ts';
+import { getTimelineClipEnd } from '@gs/subsystems_timeline_shared/timing.ts';
+import type { TimelineLayer } from '@gs/subsystems_timeline_shared/types.ts';
 export type ExportQuality = 'low' | 'medium' | 'high' | 'very-high';
 
 type ExportImageSettings = {

@@ -46,8 +46,8 @@
 
 <script lang="ts" setup>
 import { computed, onBeforeUnmount, ref, watch, useTemplateRef } from 'vue';
-import { getSceneDuration } from '@gs/shared/timeline/scenes.ts';
-import { getSceneBaseResolution } from '@gs/shared/timeline/scene-resolution.ts';
+import { getSceneDuration } from '@gs/subsystems_timeline_shared/scenes.ts';
+import { getSceneBaseResolution } from '@gs/subsystems_timeline_shared/scene-resolution.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import GsModal from './common/GsModal.vue';
 import GsButton from './common/GsButton.vue';

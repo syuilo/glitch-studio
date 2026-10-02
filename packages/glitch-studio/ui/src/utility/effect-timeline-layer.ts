@@ -1,10 +1,10 @@
-import { createTimelineClipTiming } from '@gs/shared/timeline/timing.ts';
-import { getEffectLayerParameterDefault } from '@gs/shared/timeline/effect-layer.ts';
-import { timelineCompositingParamDefs } from '@gs/shared/timeline/timeline-compositing.ts';
+import { createTimelineClipTiming } from '@gs/subsystems_timeline_shared/timing.ts';
+import { getEffectLayerParameterDefault } from '@gs/subsystems_timeline_shared/effect-layer.ts';
+import { timelineCompositingParamDefs } from '@gs/subsystems_timeline_shared/timeline-compositing.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { genId } from '@gs/shared/utility/id.ts';
-import type { EffectDefinition } from '@gs/shared/effect/effect-definition.ts';
-import type { TimelineEffectLayer } from '@gs/shared/timeline/types.ts';
+import type { EffectDefinition } from '@gs/subsystems_effect_shared/effect-definition.ts';
+import type { TimelineEffectLayer } from '@gs/subsystems_timeline_shared/types.ts';
 
 export function createEffectTimelineLayer(definition: EffectDefinition, startMs: number): TimelineEffectLayer {
 	return {

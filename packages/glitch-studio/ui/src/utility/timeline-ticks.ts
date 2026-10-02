@@ -1,5 +1,5 @@
 import { niceScale, insertIntermediateNumbers } from '@gs/shared/utility/misc.ts';
-import type { TimelineClipTiming } from '@gs/shared/timeline/timing.ts';
+import type { TimelineClipTiming } from '@gs/subsystems_timeline_shared/timing.ts';
 
 export type TimelineTickMode = 'legacy' | 'binary' | 'decimal125';
 export type TimelineClipTick = { contentTimeMs: number; sceneTimeMs: number };

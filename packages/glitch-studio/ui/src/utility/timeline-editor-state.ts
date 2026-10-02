@@ -1,4 +1,4 @@
-import type { TimelineLayer, TimelineScene } from '@gs/shared/timeline/types.ts';
+import type { TimelineLayer, TimelineScene } from '@gs/subsystems_timeline_shared/types.ts';
 import type { TimelineSelection } from './timeline-selection.ts';
 
 // 表示状態は保存・Undoの対象にせず、Sceneの定義が破棄されれば一緒に回収する。

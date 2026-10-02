@@ -1,5 +1,5 @@
 import { shallowReactive } from 'vue';
-import type { EffectInstanceState } from '@gs/shared/effect/effect-status.ts';
+import type { EffectInstanceState } from '@gs/subsystems_effect_shared/effect-status.ts';
 import type { TimelineLayerStatusSource } from '@gs/glitch-studio_renderer/timeline-renderer-manager.ts';
 
 /** 同じ定義・レイヤーIDでも、配置パスとクリップの実行インスタンスごとに状態を分離する。 */

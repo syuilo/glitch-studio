@@ -1,7 +1,7 @@
 import { TimelineAudioRenderer } from '@gs/glitch-studio_audio-renderer/timeline-audio-renderer.ts';
 import { AssetAudioReader } from './asset-audio-reader.ts';
 import type { Asset } from '@gs/shared/types.ts';
-import type { SceneAudioClip } from '@gs/shared/timeline/scene-audio.ts';
+import type { SceneAudioClip } from '@gs/subsystems_timeline_shared/scene-audio.ts';
 
 type Start = { type: 'start'; assets: Asset[]; clips: SceneAudioClip[]; sampleRate: number; startFrame: number; endFrame: number };
 let reader: AssetAudioReader;

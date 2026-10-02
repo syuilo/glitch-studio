@@ -1,4 +1,4 @@
-import { scaleResolution } from '@gs/shared/resolution.js';
+import { scaleResolution, type Resolution } from '@gs/shared/resolution.js';
 
 export type TimelineSceneResolution =
 	| { mode: 'project' }

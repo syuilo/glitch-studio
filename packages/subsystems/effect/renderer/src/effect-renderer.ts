@@ -2,7 +2,7 @@ import type { EffectDefinition } from '@gs/subsystems_effect_shared/effect-defin
 import type { EffectGpuContext, EffectImplementation, EffectInstance, EffectOutputData, EffectOutputDataMap, EffectRenderContext, RuntimeEffectParameters } from '@gs/subsystems_effect_shared/effect-implementation.ts';
 import type { EffectInstanceState, EffectStatus } from '@gs/subsystems_effect_shared/effect-status.ts';
 import type { Resolution } from '@gs/shared/resolution.ts';
-import type TimingHelper from '../../renderer/src/utility/TimingHelper.ts';
+import type TimingHelper from '@gs/shared/gpu/TimingHelper.ts';
 
 // 同じ呼び出し元のIDでレンダラーを作り直しても、過去の出力と同じキーに戻さない。
 // インスタンスからの通知を無効化する世代とは独立し、描画のたびには更新しない。

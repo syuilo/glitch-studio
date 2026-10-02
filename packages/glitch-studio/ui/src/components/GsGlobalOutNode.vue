@@ -14,7 +14,7 @@
 
 <script lang="ts" setup>
 import GsGlobalOutInput from './GsGlobalOutInput.vue';
-import type { NodeOutputReference, VisualModule, VisualModuleGlobalOutNode } from '@gs/shared/visual-module/types.js';
+import type { NodeOutputReference, VisualModule, VisualModuleGlobalOutNode } from '@gs/subsystems_visual-module_shared/types.ts';
 
 defineProps<{
 	visualModule: VisualModule;

@@ -176,10 +176,10 @@ export type ParamEdit = { paramPath: ParamPath; mergeKey?: string | null } & (
 <script lang="ts" setup>
 import { getArrayElementDefinition, getStructFieldDefinitions } from '@gs/shared/parameter/parameter-definition.ts';
 import { isKeyframesDataType } from '@gs/shared/keyframes/keyframes-timeline.ts';
-import { visualModuleCustomParameterId } from '@gs/shared/visual-module/types.ts';
+import { visualModuleCustomParameterId } from '@gs/subsystems_visual-module_shared/types.ts';
 import { computed, onBeforeUnmount, ref, shallowRef, useTemplateRef, watch, watchEffect } from 'vue';
 import { genId } from '@gs/shared/utility/id.ts';
-import { getNodeInputDataType, areNodeDataTypesCompatible } from '@gs/shared/utility/node-outputs.ts';
+import { getNodeInputDataType, areNodeDataTypesCompatible } from '@gs/shared/data-type/node-compatibility.ts';
 import * as AiScript from '@syuilo/aiscript';
 import GsNodePort from './GsNodePort.vue';
 import GsLiteralLeafValueControl from './GsLiteralLeafValueControl.vue';
@@ -189,7 +189,7 @@ import GsCondensedLine from './common/GsCondensedLine.vue';
 import GsSelect from './common/GsSelect.vue';
 import GsAutomationGraphPointsEditorWindow from './GsAutomationGraphPointsEditorWindow.vue';
 import type { Ref } from 'vue';
-import type { NodeOutputReference, VisualModule, VisualModuleCustomParameterId, VisualModuleEffectNode } from '@gs/shared/visual-module/types.ts';
+import type { NodeOutputReference, VisualModule, VisualModuleCustomParameterId, VisualModuleEffectNode } from '@gs/subsystems_visual-module_shared/types.ts';
 import type { ExpressionVariableName } from '@gs/shared/expression/expression-environment.ts';
 import type { ParamPath } from '@/utility/node-params.ts';
 import type { AutomationGraphPlaybackOptions, AutomationGraph, BezierAnchorPoint } from '@gs/shared/automation-graph/automation-graph.ts';

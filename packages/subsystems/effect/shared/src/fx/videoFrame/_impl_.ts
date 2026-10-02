@@ -1,7 +1,7 @@
 import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { implementEffect } from '../../effect-implementation.ts';
 import { createVideoFrameLoader } from './frame-loader.ts';
-import { createVideoTexture } from '../../../media/video-texture.ts';
+import { createVideoTexture } from '@gs/shared/media/video-texture.ts';
 import { openVideoFrameSource } from './video-source.ts';
 import type definition from './_def_.ts';
 import code from './shader.wgsl?raw';

@@ -1,6 +1,6 @@
 import type { Asset, Player } from '@gs/shared/types.ts';
-import type { ProjectVisualModule } from '@gs/shared/project/types.ts';
-import type { TimelineScene } from '@gs/shared/timeline/types.ts';
+import type { ProjectVisualModule } from '@gs/glitch-studio_shared/project/types.ts';
+import type { TimelineScene } from '@gs/subsystems_timeline_shared/types.ts';
 import type { Ref } from 'vue';
 
 export type AppState = {

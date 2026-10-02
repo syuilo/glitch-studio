@@ -1,10 +1,10 @@
 import { scaleResolution } from '@gs/shared/resolution.ts';
-import type { ProjectVisualModule } from '@gs/shared/project/types.ts';
+import type { ProjectVisualModule } from '@gs/glitch-studio_shared/project/types.ts';
 import { ref, shallowReactive } from 'vue';
 import { deepEqual } from '@gs/shared/utility/deep-equal.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
-import { applyRendererProjectChanges } from '@gs/shared/project/renderer-state.ts';
-import type { RendererProjectChange, RendererProjectState } from '@gs/shared/project/renderer-state.ts';
+import { applyRendererProjectChanges } from '@gs/glitch-studio_shared/project/renderer-state.ts';
+import type { RendererProjectChange, RendererProjectState } from '@gs/glitch-studio_shared/project/renderer-state.ts';
 import { genId } from '@gs/shared/utility/id.ts';
 import { createVisualModuleRendererManagerWorker } from '@gs/glitch-studio_renderer/client.ts';
 import { isVideoFrameAvailable, playVideoAfterFirstFrameIsReady } from './utility/video.ts';
@@ -14,8 +14,8 @@ import type { AudioOutput } from './audio/audio-output.ts';
 import { setupWebcam } from './utility/webcam.ts';
 import { RendererManagerControllerBase } from './RendererManagerControllerBase.ts';
 import type { Player } from '@gs/shared/types.ts';
-import type { VisualModuleParameterBindings } from '@gs/shared/visual-module/types.ts';
-import type { EffectInstanceState } from '@gs/shared/effect/effect-status.ts';
+import type { VisualModuleParameterBindings } from '@gs/subsystems_visual-module_shared/types.ts';
+import type { EffectInstanceState } from '@gs/subsystems_effect_shared/effect-status.ts';
 import type { VisualModuleRendererManager, VisualModuleRendererManagerStaticOptions, VisualModuleRendererManagerDynamicOptions, VisualModuleRendererManagerEvents } from '@gs/glitch-studio_renderer/visual-module-renderer-manager.ts';
 import * as ui from '@/ui.ts';
 

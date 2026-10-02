@@ -1,9 +1,9 @@
-import { validateTimelineScenes } from '@gs/shared/timeline/scenes.ts';
+import { validateTimelineScenes } from '@gs/subsystems_timeline_shared/scenes.ts';
 import * as msgpack from '@msgpack/msgpack';
 import semverGt from 'semver/functions/gt.js';
 import type { Asset, Player } from '@gs/shared/types.js';
-import type { ProjectVisualModule } from '@gs/shared/project/types.ts';
-import type { TimelineScene } from '@gs/shared/timeline/types.ts';
+import type { ProjectVisualModule } from '@gs/glitch-studio_shared/project/types.ts';
+import type { TimelineScene } from '@gs/subsystems_timeline_shared/types.ts';
 
 export const DEFAULT_PROJECT_NAME = 'Untitled Project';
 

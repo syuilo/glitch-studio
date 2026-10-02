@@ -1,8 +1,8 @@
 import { ref } from 'vue';
 import workletUrl from './timeline-audio.worklet.js?url';
 import type { Asset } from '@gs/shared/types.ts';
-import { getSceneAudioClips } from '@gs/shared/timeline/scene-audio.ts';
-import type { TimelineScene } from '@gs/shared/timeline/types.ts';
+import { getSceneAudioClips } from '@gs/subsystems_timeline_shared/scene-audio.ts';
+import type { TimelineScene } from '@gs/subsystems_timeline_shared/types.ts';
 
 type Clock = { contextFrame: number; playedFrames: number; running: boolean };
 

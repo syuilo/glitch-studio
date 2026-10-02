@@ -9,7 +9,7 @@ import colorMix from '../../../shared/src/effect/fx/colorMix/_impl_.ts';
 import { constantShaderInput } from '../../../shared/src/shader-input.ts';
 import type { RuntimeEffectParameters } from '../../../shared/src/effect/effect-implementation.ts';
 import type { VisualModule, VisualModuleEffectNode } from '../../../shared/src/visual-module/types.ts';
-import vertexCode from '../../src/vertex.wgsl?raw';
+import vertexCode from '@gs/shared/gpu/vertex.wgsl?raw';
 import { checkEffectTimelineLayers } from './effect-timeline-layer-gpu.ts';
 
 export async function run() {

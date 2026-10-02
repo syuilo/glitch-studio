@@ -1,6 +1,6 @@
 import type { ProjectVisualModule } from './types.ts';
-import type { VisualModule, VisualModuleNode, VisualModuleNodeChange } from '../../../../subsystems/visual-module/visual-module-shared/src/types.ts';
-import type { TimelineLayer, TimelineLayerChange, TimelineScene } from '../../../../subsystems/timeline/timeline-shared/src/types.ts';
+import type { VisualModule, VisualModuleNode, VisualModuleNodeChange } from '@gs/subsystems_visual-module_shared/types.ts';
+import type { TimelineLayer, TimelineLayerChange, TimelineScene } from '@gs/subsystems_timeline_shared/types.ts';
 import type { VisualModuleTarget } from './visual-module-target.ts';
 
 export type RendererProjectState = {

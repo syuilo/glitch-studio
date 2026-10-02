@@ -1,4 +1,4 @@
-import { openVideoSource } from '../../../media/video-source.ts';
+import { openVideoSource } from '@gs/shared/media/video-source.ts';
 import type { VideoSample } from 'mediabunny';
 import { videoTimestamp } from './frame-loader.ts';
 import type { VideoFrameSource } from './frame-loader.ts';

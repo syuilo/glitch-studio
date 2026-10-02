@@ -1,9 +1,9 @@
-import { createTimelineClipTiming } from '@gs/shared/timeline/timing.ts';
+import { createTimelineClipTiming } from '@gs/subsystems_timeline_shared/timing.ts';
 import { genId } from '@gs/shared/utility/id.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
-import { visualModuleCustomParameterId, visualModuleCustomParameterName } from '@gs/shared/visual-module/types.ts';
-import { timelineCompositingParamDefs } from '@gs/shared/timeline/timeline-compositing.ts';
-import type { TimelineInlineVisualModuleLayer } from '@gs/shared/timeline/types.ts';
+import { visualModuleCustomParameterId, visualModuleCustomParameterName } from '@gs/subsystems_visual-module_shared/types.ts';
+import { timelineCompositingParamDefs } from '@gs/subsystems_timeline_shared/timeline-compositing.ts';
+import type { TimelineInlineVisualModuleLayer } from '@gs/subsystems_timeline_shared/types.ts';
 
 export function createInlineVisualModuleLayer(startMs: number): TimelineInlineVisualModuleLayer {
 	const inputId = visualModuleCustomParameterId(genId());

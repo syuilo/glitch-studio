@@ -1,16 +1,16 @@
-import { getTimelineScene } from '@gs/shared/timeline/scenes.ts';
-import { timelineAudioParamDefs } from '@gs/shared/timeline/timeline-audio.ts';
-import { timelineCompositingParamDefs } from '@gs/shared/timeline/timeline-compositing.ts';
-import { effectDefinitions } from '@gs/shared/effect/effect-definitions.ts';
+import { getTimelineScene } from '@gs/subsystems_timeline_shared/scenes.ts';
+import { timelineAudioParamDefs } from '@gs/subsystems_timeline_shared/timeline-audio.ts';
+import { timelineCompositingParamDefs } from '@gs/subsystems_timeline_shared/timeline-compositing.ts';
+import { effectDefinitions } from '@gs/subsystems_effect_shared/effect-definitions.ts';
 import { resolveParameter, walkParameters } from '@gs/shared/parameter/parameter-path.ts';
 import { getParameterPathLabel } from './parameter-label.ts';
 import type { ParamPath } from '@gs/shared/parameter/parameter-path.ts';
 import type { ParameterBinding } from '@gs/shared/parameter/parameter-binding.ts';
 import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
 import type { AppState } from '../types.ts';
-import type { TimelineLayer, TimelineParameterTarget } from '@gs/shared/timeline/types.ts';
+import type { TimelineLayer, TimelineParameterTarget } from '@gs/subsystems_timeline_shared/types.ts';
 
-export type { TimelineParameterTarget } from '@gs/shared/timeline/types.ts';
+export type { TimelineParameterTarget } from '@gs/subsystems_timeline_shared/types.ts';
 
 export function getScene(state: AppState, sceneId: string) {
 	return getTimelineScene(state.timelineScenes.value, sceneId);

@@ -55,10 +55,10 @@
 </template>
 
 <script lang="ts" setup>
-import type { EffectResolution } from '@gs/shared/effect/resolution.ts';
+import type { EffectResolution } from '@gs/subsystems_effect_shared/resolution.ts';
 import { IN_VISUAL_MODULE_VAR_DEFS } from '@gs/subsystems_visual-module_shared/expression.ts';
 import { ref, computed, shallowRef, watchEffect } from 'vue';
-import { effectDefinitions } from '@gs/shared/effect/effect-definitions.ts';
+import { effectDefinitions } from '@gs/subsystems_effect_shared/effect-definitions.ts';
 import GsNodeOutputs from './GsNodeOutputs.vue';
 import GsNodePort from './GsNodePort.vue';
 import GsVisualParam from './GsVisualParam.vue';
@@ -67,8 +67,8 @@ import GsSelect from './common/GsSelect.vue';
 import GsInput from './common/GsInput.vue';
 import GsFolder from './common/GsFolder.vue';
 import type { ParamEdit } from './GsVisualParam.vue';
-import type { VisualModule, VisualModuleEffectNode } from '@gs/shared/visual-module/types.js';
-import type { EffectInstanceState } from '@gs/shared/effect/effect-status.ts';
+import type { VisualModule, VisualModuleEffectNode } from '@gs/subsystems_visual-module_shared/types.ts';
+import type { EffectInstanceState } from '@gs/subsystems_effect_shared/effect-status.ts';
 import { appStateManager } from '@/app.ts';
 import { i18n } from '@/i18n.ts';
 import { useVisualModuleWires } from '@/utility/visual-module-wires.ts';

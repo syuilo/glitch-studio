@@ -1,7 +1,7 @@
 import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { GpuHistogram } from './utility/histogram/GpuHistogram.ts';
 import { GpuWaveform } from './utility/waveform/GpuWaveform.ts';
-import defaultVertexShaderCode from './vertex.wgsl?raw';
+import defaultVertexShaderCode from '@gs/shared/gpu/vertex.wgsl?raw';
 import finalRenderShaderCode from './render.wgsl?raw';
 
 export class CanvasRenderer {

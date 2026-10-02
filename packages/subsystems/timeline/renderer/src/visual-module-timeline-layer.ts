@@ -3,11 +3,11 @@ import { genEmptyValue } from '@gs/shared/parameter/parameter-default.ts';
 import { TimelineParameterBindingEvaluator } from '@gs/subsystems_timeline_shared/parameter-binding-evaluator.ts';
 import { validateEnumParameterValue } from '@gs/shared/parameter/parameter-definition.ts';
 import { createTimelineLayerEvaluationScope } from '@gs/subsystems_timeline_shared/evaluation-scope.ts';
-import { validateTimelineParameterTree } from '@gs/shared/timeline/parameter-binding.ts';
-import type { VisualModuleCustomParameterId, VisualModule } from '@gs/shared/visual-module/types.ts';
+import { validateTimelineParameterTree } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
+import type { VisualModuleCustomParameterId, VisualModule } from '@gs/subsystems_visual-module_shared/types.ts';
 import type { UniformOrTexture } from '@gs/shared/gpu/uniform-or-texture.ts';
-import type { TimelineVisualModuleLayer, TimelineInlineVisualModuleLayer } from '@gs/shared/timeline/types.ts';
-import type { VisualModuleRenderContext } from './visual-module-renderer.ts';
+import type { TimelineVisualModuleLayer, TimelineInlineVisualModuleLayer } from '@gs/subsystems_timeline_shared/types.ts';
+import type { VisualModuleRenderContext } from '@gs/subsystems_visual-module_renderer/visual-module-renderer.ts';
 import type { TimelineLayerContext, TimelineLayerRenderer } from './timeline-renderer.ts';
 
 // 主入力の割り当てやパラメータはVisual Moduleレイヤーだけの責務とする。

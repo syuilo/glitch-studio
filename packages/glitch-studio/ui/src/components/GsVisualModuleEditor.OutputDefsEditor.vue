@@ -31,7 +31,7 @@ import GsSelect from './common/GsSelect.vue';
 import GsSwitch from './common/GsSwitch.vue';
 import GsButton from './common/GsButton.vue';
 import GsFolder from './common/GsFolder.vue';
-import type { VisualModule, VisualModuleOutputDef } from '@gs/shared/visual-module/types.ts';
+import type { VisualModule, VisualModuleOutputDef } from '@gs/subsystems_visual-module_shared/types.ts';
 
 type OutputDef = VisualModuleOutputDef;
 const props = defineProps<{ visualModule: VisualModule }>();

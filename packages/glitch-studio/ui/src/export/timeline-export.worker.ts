@@ -1,8 +1,8 @@
-import { getTimelineScene, getSceneDuration, validateTimelineScenes } from '@gs/shared/timeline/scenes.ts';
-import { getSceneBaseResolution } from '@gs/shared/timeline/scene-resolution.ts';
+import { getTimelineScene, getSceneDuration, validateTimelineScenes } from '@gs/subsystems_timeline_shared/scenes.ts';
+import { getSceneBaseResolution } from '@gs/subsystems_timeline_shared/scene-resolution.ts';
 import { TimelineRendererManager } from '@gs/glitch-studio_renderer/timeline-renderer-manager.ts';
-import { effectDefinitions } from '@gs/shared/effect/effect-definitions.ts';
-import { effectImplementations } from '@gs/shared/effect/effect-implementations.js';
+import { effectDefinitions } from '@gs/subsystems_effect_shared/effect-definitions.ts';
+import { effectImplementations } from '@gs/subsystems_effect_shared/effect-implementations.ts';
 import { createMp4Writer } from './mp4-writer.ts';
 import { scaleExportResolution } from './export-settings.ts';
 import { encodeStillWebp } from './still-webp.ts';

@@ -1,8 +1,8 @@
 import { genId } from '@gs/shared/utility/id.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
-import { createTimelineClipTiming } from '@gs/shared/timeline/timing.ts';
-import { timelineCompositingParamDefs } from '@gs/shared/timeline/timeline-compositing.ts';
-import type { TimelineImageLayer } from '@gs/shared/timeline/types.ts';
+import { createTimelineClipTiming } from '@gs/subsystems_timeline_shared/timing.ts';
+import { timelineCompositingParamDefs } from '@gs/subsystems_timeline_shared/timeline-compositing.ts';
+import type { TimelineImageLayer } from '@gs/subsystems_timeline_shared/types.ts';
 
 export function createImageLayer(assetId: string, startMs: number, name = 'Image'): TimelineImageLayer {
 	return {

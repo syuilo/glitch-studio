@@ -2,7 +2,7 @@ import { scaleResolution } from '@gs/shared/resolution.ts';
 import { createShaderInputPipeline } from '@gs/shared/gpu/shader-input-pipeline.ts';
 import { createTimelineCompositor } from './timeline-compositor.ts';
 import { TimelineCompositingParameters } from './timeline-compositing-parameters.ts';
-import type { TimelineImageLayer } from '@gs/shared/timeline/types.ts';
+import type { TimelineImageLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import type { IntermediateTextureFormat } from '@gs/shared/types.ts';
 import type { UniformOrTexture } from '@gs/shared/gpu/uniform-or-texture.ts';
 import type { TimelineLayerRenderer } from './timeline-renderer.ts';

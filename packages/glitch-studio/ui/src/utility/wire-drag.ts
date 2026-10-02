@@ -1,5 +1,5 @@
 import { shallowRef } from 'vue';
-import type { NodeOutputReference } from '@gs/shared/visual-module/types.ts';
+import type { NodeOutputReference } from '@gs/subsystems_visual-module_shared/types.ts';
 import { preferences } from '@/preferences.ts';
 
 export const wireDrag = shallowRef<{

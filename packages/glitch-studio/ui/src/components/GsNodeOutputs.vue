@@ -11,10 +11,10 @@
 
 <script lang="ts" setup>
 import { computed, onUnmounted } from 'vue';
-import { getNodeOutputs } from '@gs/shared/utility/node-outputs.ts';
+import { getNodeOutputs } from '@gs/subsystems_visual-module_shared/node-outputs.ts';
 import GsNodePort from './GsNodePort.vue';
-import type { EffectInstanceState } from '@gs/shared/effect/effect-status.ts';
-import type { VisualModuleNode, VisualModule } from '@gs/shared/visual-module/types.js';
+import type { EffectInstanceState } from '@gs/subsystems_effect_shared/effect-status.ts';
+import type { VisualModuleNode, VisualModule } from '@gs/subsystems_visual-module_shared/types.ts';
 import { useVisualModuleWires } from '@/utility/visual-module-wires.ts';
 import { startWireDrag } from '@/utility/wire-drag.ts';
 import { getNodeDataTypeColor } from '@/utility/node-outputs.ts';

@@ -1,9 +1,9 @@
-import type { VisualModule } from '@gs/shared/visual-module/types.ts';
+import type { VisualModule } from '@gs/subsystems_visual-module_shared/types.ts';
 import type { AppState } from '@/types.ts';
-import type { VisualModuleTarget } from '@gs/shared/project/visual-module-target.ts';
+import type { VisualModuleTarget } from '@gs/glitch-studio_shared/project/visual-module-target.ts';
 
 // 編集対象の所在はプロジェクトが管理し、Visual Moduleの定義には持ち込まない。
-export type { VisualModuleTarget } from '@gs/shared/project/visual-module-target.ts';
+export type { VisualModuleTarget } from '@gs/glitch-studio_shared/project/visual-module-target.ts';
 
 export function findVisualModule(state: AppState, target: VisualModuleTarget): VisualModule | null {
 	if ('visualModuleId' in target) {

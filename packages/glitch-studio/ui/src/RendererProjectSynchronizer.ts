@@ -1,7 +1,7 @@
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
-import { visualModuleTargetKey } from '@gs/shared/project/visual-module-target.ts';
-import type { VisualModuleTarget } from '@gs/shared/project/visual-module-target.ts';
-import type { RendererProjectChange, RendererProjectState } from '@gs/shared/project/renderer-state.ts';
+import { visualModuleTargetKey } from '@gs/glitch-studio_shared/project/visual-module-target.ts';
+import type { VisualModuleTarget } from '@gs/glitch-studio_shared/project/visual-module-target.ts';
+import type { RendererProjectChange, RendererProjectState } from '@gs/glitch-studio_shared/project/renderer-state.ts';
 import { findVisualModule } from './utility/visual-module-target.ts';
 import type { AppStateManager } from './AppStateManager.ts';
 import type { ProjectContentChange } from './AppStateChange.ts';

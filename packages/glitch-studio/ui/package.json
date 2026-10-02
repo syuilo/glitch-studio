@@ -15,6 +15,7 @@
 		"@gs/glitch-studio_renderer": "workspace:*",
 		"@gs/glitch-studio_shared": "workspace:*",
 		"@gs/shared": "workspace:*",
+		"@gs/subsystems_effect_shared": "workspace:*",
 		"@gs/subsystems_timeline_shared": "workspace:*",
 		"@gs/subsystems_visual-module_shared": "workspace:*",
 		"@jsquash/webp": "1.5.0",

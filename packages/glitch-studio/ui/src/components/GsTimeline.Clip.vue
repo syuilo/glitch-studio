@@ -16,7 +16,7 @@
 
 <script lang="ts" setup>
 import GsCondensedLine from './common/GsCondensedLine.vue';
-import type { TimelineClip } from '@gs/shared/timeline/clip.ts';
+import type { TimelineClip } from '@gs/subsystems_timeline_shared/clip.ts';
 
 const props = defineProps<{
 	clip: TimelineClip;

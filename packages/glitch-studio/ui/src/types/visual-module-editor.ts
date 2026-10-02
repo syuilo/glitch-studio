@@ -1,5 +1,5 @@
-import type { EffectResolution } from '@gs/shared/effect/resolution.ts';
-import type { NodeOutputReference, VisualModuleCustomParameterId, VisualModuleOutputDef, VisualModuleParamDef } from '@gs/shared/visual-module/types.ts';
+import type { EffectResolution } from '@gs/subsystems_effect_shared/resolution.ts';
+import type { NodeOutputReference, VisualModuleCustomParameterId, VisualModuleOutputDef, VisualModuleParamDef } from '@gs/subsystems_visual-module_shared/types.ts';
 import type { ParamEdit } from '@/components/GsVisualParam.vue';
 
 // 編集操作だけを通知し、保存先の特定とUndo/Redo用コマンドへの変換は親が行う。

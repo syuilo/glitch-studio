@@ -255,20 +255,20 @@
 </template>
 
 <script lang="ts" setup>
-import { createTimelineClipTiming, getTimelineClipEnd, getTimelineClipInsertionDuration, getTimelineClipMoveBounds, getTimelineClipTrimBounds } from '@gs/shared/timeline/timing.ts';
+import { createTimelineClipTiming, getTimelineClipEnd, getTimelineClipInsertionDuration, getTimelineClipMoveBounds, getTimelineClipTrimBounds } from '@gs/subsystems_timeline_shared/timing.ts';
 import { isParameterType } from '@gs/shared/parameter/parameter-definition.ts';
 import { LAYER_VAR_DEFS } from '@gs/subsystems_timeline_shared/expression.ts';
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef, useTemplateRef, watch } from 'vue';
 import { insertIntermediateNumbers, niceScale } from '@gs/shared/utility/misc.js';
 import { genId } from '@gs/shared/utility/id.js';
-import { timelineAudioParamDefs } from '@gs/shared/timeline/timeline-audio.ts';
-import { timelineCompositingParamDefs } from '@gs/shared/timeline/timeline-compositing.ts';
+import { timelineAudioParamDefs } from '@gs/subsystems_timeline_shared/timeline-audio.ts';
+import { timelineCompositingParamDefs } from '@gs/subsystems_timeline_shared/timeline-compositing.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
-import { canReferenceScene } from '@gs/shared/timeline/scenes.ts';
-import { getSceneBaseResolution } from '@gs/shared/timeline/scene-resolution.ts';
+import { canReferenceScene } from '@gs/subsystems_timeline_shared/scenes.ts';
+import { getSceneBaseResolution } from '@gs/subsystems_timeline_shared/scene-resolution.ts';
 import { paramPathKey } from '@gs/shared/parameter/parameter-path.ts';
 import { supportsKeyframeInterpolation } from '@gs/shared/keyframes/keyframes-timeline.ts';
-import { effectDefinitions } from '@gs/shared/effect/effect-definitions.js';
+import { effectDefinitions } from '@gs/subsystems_effect_shared/effect-definitions.ts';
 import XLayer from './GsTimeline.Layer.vue';
 import GsTimelineEffectSettings from './GsTimeline.EffectSettings.vue';
 import GsLiteralLeafValueControl from './GsLiteralLeafValueControl.vue';
@@ -285,7 +285,7 @@ import type { TimelineParameterTarget } from '@/utility/timeline-scene.ts';
 import type { ParamPath } from '@gs/shared/parameter/parameter-path.ts';
 import type { Asset } from '@gs/shared/types.ts';
 import type { VisualModuleEdit } from '@/types/visual-module-editor.ts';
-import type { TimelineLayer, TimelineScene } from '@gs/shared/timeline/types.ts';
+import type { TimelineLayer, TimelineScene } from '@gs/subsystems_timeline_shared/types.ts';
 import type { ParameterBinding } from '@gs/shared/parameter/parameter-binding.ts';
 import type { KeyframeInterpolation } from '@gs/shared/keyframes/keyframes-timeline.ts';
 import type { EasingDirection } from '@gs/shared/easing.ts';
@@ -1169,7 +1169,7 @@ async function readLayerMediaDurations(layer: TimelineLayer): Promise<Record<str
 }
 
 function initialCompositingParameters() {
-	return deepClone(Object.fromEntries(Object.entries(timelineCompositingParamDefs).map(([key, def]) => [key, def.defaultValue]))) as import('@gs/shared/timeline/types.ts').TimelineImageLayer['compositingParamValues'];
+	return deepClone(Object.fromEntries(Object.entries(timelineCompositingParamDefs).map(([key, def]) => [key, def.defaultValue]))) as import('@gs/subsystems_timeline_shared/types.ts').TimelineImageLayer['compositingParamValues'];
 }
 
 async function addMediaLayer(layerType: 'image' | 'video' | 'audio' | 'scene') {

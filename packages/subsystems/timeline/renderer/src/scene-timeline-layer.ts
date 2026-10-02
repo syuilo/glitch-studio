@@ -1,4 +1,4 @@
-import type { TimelineLayer, TimelineScene, TimelineSceneLayer } from '@gs/shared/timeline/types.ts';
+import type { TimelineLayer, TimelineScene, TimelineSceneLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import type { IntermediateTextureFormat } from '@gs/shared/types.ts';
 import type { UniformOrTexture } from '@gs/shared/gpu/uniform-or-texture.ts';
 import { TimelineRenderer } from './timeline-renderer.ts';
