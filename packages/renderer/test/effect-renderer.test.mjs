@@ -40,7 +40,7 @@ function gpu() {
 		beginRenderPass(descriptor) { const pass = { type: 'render', descriptor }; passes.push(pass); return pass; },
 		beginComputePass(descriptor) { const pass = { type: 'compute', descriptor }; passes.push(pass); return pass; },
 	};
-	return { textures, passes, device, encoder, wgpu: { device, context: {}, defaultVertexShaderModule: {}, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm' } };
+	return { textures, passes, device, encoder, wgpu: { device, defaultVertexShaderModule: {}, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm' } };
 }
 
 function probe(g, { history = false, lazy = false, loading = false, disableCache = false, paramDefs = {}, init, render, prepare, intrinsic } = {}) {
@@ -85,7 +85,7 @@ function graph(t, g, effects, nodes, outputs = { out: { nodeId: nodes.at(-1).id,
 		nodes: [...nodes, { id: 'out', type: 'globalOut', inputs: outputs }] };
 	const states = [];
 	const renderer = new VisualModuleRenderer({
-		gpuDevice: g.device, gpuContext: g.wgpu.context, fallbackTexture: {}, enableStats: false, timingHelper: null,
+		gpuDevice: g.device, fallbackTexture: {}, enableStats: false, timingHelper: null,
 		resolution: { width: 16, height: 9 }, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm',
 		videoFrames: new Map(), videoFrameVersions: new Map(), assets: [], assetTextures: new Map(), audioSources: new Map(),
 		effectDefinitions: Object.fromEntries(Object.entries(effects).map(([id, p]) => [id, p.definition])),

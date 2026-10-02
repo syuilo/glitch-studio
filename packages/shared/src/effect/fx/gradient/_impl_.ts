@@ -55,13 +55,14 @@ export default implementEffect<typeof definition>({
 					startValue: ctx.params.startValue, endValue: ctx.params.endValue,
 					frequency: ctx.params.frequency, phase: ctx.params.phase, skew: ctx.params.skew,
 				};
-				const needsGradient = ctx.usedOutputPorts?.has('vector') ?? true;
-				const pipelines = needsGradient ? getGradientPipelines() : scalarPipelines;
+				// 必要ポートはレンダラーが確保するため、実際の出力の有無を描画分岐の基準にする。
+				const vectorOutput = ctx.outputDataMap.vector;
+				const pipelines = vectorOutput != null ? getGradientPipelines() : scalarPipelines;
 				const variant = pipelines.update(inputs, ctx.outputDataMap.scalar.texture);
 
-				const passEncoder = needsGradient
+				const passEncoder = vectorOutput != null
 					? ctx.createPassEncoder(ctx.commandEncoder, {
-						colorAttachments: [ctx.outputDataMap.scalar.textureView, ctx.outputDataMap.vector.textureView].map(view => ({
+						colorAttachments: [ctx.outputDataMap.scalar.textureView, vectorOutput.textureView].map(view => ({
 							view, clearValue: { r: 0, g: 0, b: 0, a: 0 }, loadOp: 'clear' as const, storeOp: 'store' as const,
 						})),
 					})

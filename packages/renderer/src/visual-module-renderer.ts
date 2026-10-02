@@ -43,7 +43,6 @@ export type VisualModuleRenderContext = {
 
 export class VisualModuleRenderer {
 	private gpuDevice: GPUDevice;
-	private gpuContext: GPUCanvasContext;
 	private defaultVertexShaderModule: GPUShaderModule;
 	private fallbackTexture: GPUTexture;
 	/** 呼び出し側から与えられた描画基準。倍率適用済みで、個々のノード寸法とは異なる。 */
@@ -86,7 +85,6 @@ export class VisualModuleRenderer {
 		enableStats: boolean;
 		timingHelper: TimingHelper | null;
 		gpuDevice: GPUDevice;
-		gpuContext: GPUCanvasContext;
 		fallbackTexture: GPUTexture;
 		resolution: Resolution;
 		resolutionScale?: number;
@@ -102,7 +100,6 @@ export class VisualModuleRenderer {
 		effectImplementations: Record<string, EffectImplementation<any>>;
 	}) {
 		this.gpuDevice = options.gpuDevice;
-		this.gpuContext = options.gpuContext;
 		this.fallbackTexture = options.fallbackTexture;
 		this.paramDefs = options.visualModule.paramDefs;
 		this.onEffectState = options.onEffectState;
@@ -341,7 +338,7 @@ export class VisualModuleRenderer {
 				implementation: this.effectImplementations[node.effectId],
 				resolution,
 				wgpu: {
-					device: this.gpuDevice, context: this.gpuContext, defaultVertexShaderModule: this.defaultVertexShaderModule,
+					device: this.gpuDevice, defaultVertexShaderModule: this.defaultVertexShaderModule,
 					enable32bitDataTextures: this.enable32bitDataTextures, intermediateTextureFormat: this.intermediateTextureFormat,
 				},
 				fallbackTexture: this.fallbackTexture, enableStats: this.enableStats, timingHelper: this.timingHelper,

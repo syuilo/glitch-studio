@@ -68,11 +68,10 @@ async function checkEffectRenderers(device: GPUDevice, vertex: GPUShaderModule, 
 		}
 		completed.push(name);
 	}
-	const context = new OffscreenCanvas(4, 4).getContext('webgpu') as GPUCanvasContext;
 	const fallbackTexture = device.createTexture({ size: [1, 1], format: 'rgba8unorm', usage: GPUTextureUsage.TEXTURE_BINDING });
 	const single = new EffectRenderer({
 		definition: gradientDefinition, implementation: gradient, resolution: { width: 4, height: 4 }, fallbackTexture,
-		wgpu: { device, context, defaultVertexShaderModule: vertex, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm' },
+		wgpu: { device, defaultVertexShaderModule: vertex, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm' },
 	});
 	const params = Object.fromEntries(Object.entries(gradientDefinition.paramDefs).map(([key, def]) => [
 		key, 'canNode' in def && def.canNode ? constantShaderInput(def.dataType.kind, def.defaultValue.value) : def.defaultValue.value,
@@ -93,7 +92,7 @@ async function checkEffectRenderers(device: GPUDevice, vertex: GPUShaderModule, 
 		}, history, { id: 'out', type: 'globalOut', inputs: { out: { nodeId: 'history', outputPort: 'output' } } }],
 	};
 	const renderer = new VisualModuleRenderer({
-		gpuDevice: device, gpuContext: context, fallbackTexture, resolution: { width: 4, height: 4 }, enableStats: false, timingHelper: null,
+		gpuDevice: device, fallbackTexture, resolution: { width: 4, height: 4 }, enableStats: false, timingHelper: null,
 		enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm', assets: [], assetTextures: new Map(), audioSources: new Map(), videoFrames: new Map(), videoFrameVersions: new Map(),
 		effectDefinitions: { colorMix: { ...colorMixDefinition }, accumulate: { ...accumulateDefinition } }, effectImplementations: { colorMix, accumulate }, visualModule: module,
 	});

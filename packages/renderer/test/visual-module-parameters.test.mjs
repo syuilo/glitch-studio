@@ -377,7 +377,7 @@ for (const enable32bitDataTextures of [false, true]) {
 		} };
 		const output = createTexture();
 		const renderer = new VisualModuleRenderer({
-			gpuDevice: device, gpuContext: {}, timingHelper: null,
+			gpuDevice: device, timingHelper: null,
 			enableStats: false, enable32bitDataTextures, intermediateTextureFormat: 'rgba8unorm',
 			resolution: { width: 16, height: 16 }, fallbackTexture: createTexture(),
 			videoFrames: new Map(), videoFrameVersions: new Map(), assetTextures: new Map(), audioSources: new Map(), assets: [],

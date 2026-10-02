@@ -293,7 +293,6 @@ export class VisualModuleRendererManager extends EventEmitter<{
 		const statusSource: EffectStatusSource = { type: 'live', instanceId: statusInstanceId, visualModuleId };
 		this.liveVisualModuleRenderer = new VisualModuleRenderer({
 			gpuDevice: this.gpuDevice,
-			gpuContext: this.gpuContext,
 			fallbackTexture: this.fallbackTexture,
 			resolution: this.dynamicOptions.resolution,
 			resolutionScale: this.dynamicOptions.resolutionScale,

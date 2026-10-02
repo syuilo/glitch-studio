@@ -467,7 +467,7 @@ test('resolves nested array inputs and invalidates sampling changes', () => {
 });
 
 function createRenderer(device, visualModule, overrides = {}) {
-	return new VisualModuleRenderer({ gpuDevice: device, gpuContext: {}, defaultVertexShaderModule: {}, resolution: { width: 32, height: 32 }, enableStats: false, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm', videoFrames: new Map(), videoFrameVersions: new Map(), assets: [], assetTextures: new Map(), audioSources: new Map(), effectDefinitions: { colorMix: definition, image: imageDefinition }, effectImplementations: { colorMix: effect, image: imageEffect }, visualModule, ...overrides });
+	return new VisualModuleRenderer({ gpuDevice: device, defaultVertexShaderModule: {}, resolution: { width: 32, height: 32 }, enableStats: false, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm', videoFrames: new Map(), videoFrameVersions: new Map(), assets: [], assetTextures: new Map(), audioSources: new Map(), effectDefinitions: { colorMix: definition, image: imageDefinition }, effectImplementations: { colorMix: effect, image: imageEffect }, visualModule, ...overrides });
 }
 
 function renderContext(overrides = {}) {

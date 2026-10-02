@@ -312,7 +312,6 @@ export class TimelineRendererManager extends EventEmitter<{
 		};
 		const renderer = new VisualModuleRenderer({
 			gpuDevice: this.gpuDevice,
-			gpuContext: this.gpuContext,
 			fallbackTexture: this.fallbackTexture,
 			resolution: sceneBaseResolution,
 			resolutionScale: this.dynamicOptions.resolutionScale,

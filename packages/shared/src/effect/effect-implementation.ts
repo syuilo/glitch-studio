@@ -44,13 +44,16 @@ export type EffectOutputData = {
 	textureView: GPUTextureView;
 };
 
+// 遅延出力は未使用時には存在しない。定義を広い型で扱う場合も、
+// trueの可能性が残るポートは、エフェクト側で確保の有無を確認する。
 export type EffectOutputDataMap<Outputs extends EffectOutputDefinitions> = {
-	[K in keyof Outputs]: EffectOutputData;
+	[K in keyof Outputs]: 'canLazyAllocation' extends keyof Outputs[K]
+		? true extends Outputs[K]['canLazyAllocation'] ? EffectOutputData | undefined : EffectOutputData
+		: EffectOutputData;
 };
 
 export type EffectGpuContext = {
 	device: GPUDevice;
-	context: GPUCanvasContext;
 	defaultVertexShaderModule: GPUShaderModule;
 	enable32bitDataTextures: boolean;
 	intermediateTextureFormat: IntermediateTextureFormat;
