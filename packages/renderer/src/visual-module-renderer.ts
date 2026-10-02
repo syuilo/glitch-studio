@@ -123,7 +123,7 @@ export class VisualModuleRenderer {
 		this.updateVisualModule(options.visualModule);
 	}
 
-	public updateVisualModule(visualModule: VisualModule) {
+	public updateVisualModule(visualModule: VisualModule, preserveCache = false) {
 		this.automationGraphs = visualModule.automationGraphs;
 		this.outputDefs = visualModule.outputDefs;
 		this.primaryOutputId = visualModule.primaryOutputId;
@@ -132,7 +132,9 @@ export class VisualModuleRenderer {
 		this.preparedContext = null;
 		this.paramValues = new Map();
 		this.paramInputs = new Map();
-		this.effectCacheKeys.clear();
+		// 値の編集では既存のキーと再評価結果を比較する。全消去すると無関係な上流も描画される。
+		// 準備中のフレームはupdateNodesの世代更新で無効化し、出力キャッシュとは分ける。
+		if (!preserveCache) this.effectCacheKeys.clear();
 		this.updateNodes(visualModule.nodes);
 	}
 
@@ -191,15 +193,17 @@ export class VisualModuleRenderer {
 		this.evaledNodeParams = evaluated;
 	}
 
-	private evalCacheKey(node: VisualModuleNode, visited: VisualModuleNode['id'][] = []): string | null {
+	private evalCacheKey(node: VisualModuleNode, visited: VisualModuleNode['id'][] = [], outputPort?: string): string | null {
 		if (visited.includes(node.id)) {
 			throw new Error('circular dependency detected');
 		}
 
 		if (node.type === 'globalIn') {
 			// 定数は値でキャッシュできる。借用テクスチャは同一オブジェクトでも内容が変わり得る。
-			const outputs = Object.keys(getNodeOutputs(node, this.paramDefs)).map(id => this.getParamOutput(visualModuleCustomParameterId(id)));
-			return outputs.some(output => output?.kind === 'texture') ? null : JSON.stringify([node.id, outputs]);
+			// 別の公開入力の値変更を、このポートだけを読む枝へ伝播させない。
+			const ids = outputPort == null ? Object.keys(getNodeOutputs(node, this.paramDefs)) : [outputPort];
+			const outputs = ids.map(id => this.getParamOutput(visualModuleCustomParameterId(id)));
+			return outputs.some(output => output?.kind === 'texture') ? null : JSON.stringify([node.id, ids, outputs]);
 		}
 		if (node.type === 'globalOut') return null;
 
@@ -210,7 +214,7 @@ export class VisualModuleRenderer {
 			// 出力元のIDもキーに含め、同じパラメータの別ノードへの切り替えを検出する。
 			const output = this.getOutputNode(node);
 			if (output == null) return `${key}output=none;`;
-			const outputKey = this.evalCacheKey(output.node, [...visited, node.id]);
+			const outputKey = this.evalCacheKey(output.node, [...visited, node.id], output.outputPort);
 			return outputKey == null ? null : `${key}port=${output.outputPort};output=${outputKey};`;
 		} else {
 			if (this.effectImplementations[node.effectId].disableCache) { // TODO: 廃止(cacheVersionに一本化)
@@ -248,7 +252,7 @@ export class VisualModuleRenderer {
 				if (def.canNode && param.inputSource === 'node' && param.nodeId != null) {
 					const targetNode = this.allNodeIdMap.get(param.nodeId);
 					if (targetNode == null) throw new Error('Referenced node not found');
-					const targetNodeCacheKey = this.evalCacheKey(targetNode, [...visited, node.id]);
+					const targetNodeCacheKey = this.evalCacheKey(targetNode, [...visited, node.id], param.outputPort ?? undefined);
 					if (targetNodeCacheKey == null) return null;
 					key += JSON.stringify([path, targetNodeCacheKey]);
 				}

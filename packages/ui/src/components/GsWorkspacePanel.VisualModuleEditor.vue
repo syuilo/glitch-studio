@@ -157,7 +157,7 @@ function onPreviewParamEdit(event: ParamEdit) {
 	}
 	if (event.kind === 'reset' || (event.kind === 'inputSource' && event.inputSource === 'literal')) editedPreviewParamIds.delete(id);
 	else editedPreviewParamIds.add(id);
-	previewLive();
+	if (visualModule.value != null) previewPlayback.updateLiveParamValues(visualModule.value.id, previewParamValues.value);
 }
 
 function previewLive() {

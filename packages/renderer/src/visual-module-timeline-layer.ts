@@ -12,8 +12,8 @@ import type { TimelineLayerContext, TimelineLayerRenderer } from './timeline-ren
 
 // 主入力の割り当てやパラメータはVisual Moduleレイヤーだけの責務とする。
 export function createVisualModuleTimelineLayer(
-	visualModule: Pick<VisualModule, 'paramDefs' | 'primaryInputId'>,
-	layer: TimelineVisualModuleLayer | TimelineInlineVisualModuleLayer,
+	moduleSource: Pick<VisualModule, 'paramDefs' | 'primaryInputId'> | (() => Pick<VisualModule, 'paramDefs' | 'primaryInputId'>),
+	layerSource: TimelineVisualModuleLayer | TimelineInlineVisualModuleLayer | (() => TimelineVisualModuleLayer | TimelineInlineVisualModuleLayer),
 	renderer: {
 		prepare: (context: VisualModuleRenderContext, signal: AbortSignal) => Promise<void>;
 		render: (context: VisualModuleRenderContext, layerContext: TimelineLayerContext<NodeOutput>) => ReturnType<TimelineLayerRenderer<NodeOutput>['evaluate']>;
@@ -24,6 +24,8 @@ export function createVisualModuleTimelineLayer(
 	return {
 		evaluate: async (context, signal) => {
 			if (signal.aborted) return { gpuTime: 0 };
+			const visualModule = typeof moduleSource === 'function' ? moduleSource() : moduleSource;
+			const layer = typeof layerSource === 'function' ? layerSource() : layerSource;
 			const paramInputs = new Map<VisualModuleCustomParameterId, NodeOutput>();
 			if (visualModule.primaryInputId !== null) paramInputs.set(visualModule.primaryInputId, context.input);
 			const evaluationContext = {

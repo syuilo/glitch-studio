@@ -1,5 +1,7 @@
 import { scaleResolution, type Resolution } from '@glitch/shared/resolution.ts';
 import type { ProjectVisualModule } from '@glitch/shared/project/types.ts';
+import { applyRendererProjectChanges } from '@glitch/shared/project/renderer-state.ts';
+import type { RendererProjectChange, RendererProjectState } from '@glitch/shared/project/renderer-state.ts';
 import { AudioHistory } from '@glitch/shared/audio-history.ts';
 import { genId } from '@glitch/shared/utility/id.ts';
 import { genEmptyValue } from '@glitch/shared/utility/misc.ts';
@@ -269,6 +271,24 @@ export class VisualModuleRendererManager extends EventEmitter<{
 
 		const assetsCommitted = assets === undefined ? null : await this.updateAssets(assets);
 		return { assetsCommitted };
+	}
+
+	public replaceProjectState(state: RendererProjectState) {
+		// 全量置換は初期化・復旧の境界。差分更新と違い、同じIDでも履歴を引き継がない。
+		this.stopRenderLoop();
+		this.dynamicOptions.visualModules = state.visualModules;
+	}
+
+	public applyProjectChanges(changes: readonly RendererProjectChange[]) {
+		const relevant = changes.filter(change => (change.type === 'node' || change.type === 'visualModule') && 'visualModuleId' in change.target);
+		const next = applyRendererProjectChanges({ visualModules: this.dynamicOptions.visualModules, timelineScenes: [] }, relevant);
+		this.dynamicOptions.visualModules = next.visualModules;
+		const liveChanges = relevant.filter(change => (change.type === 'node' || change.type === 'visualModule')
+			&& 'visualModuleId' in change.target && change.target.visualModuleId === this.liveVisualModuleId);
+		if (liveChanges.length > 0 && this.liveVisualModuleRenderer != null) {
+			const module = next.visualModules.find(module => module.id === this.liveVisualModuleId)!;
+			this.liveVisualModuleRenderer.updateVisualModule(module, liveChanges.every(change => change.type === 'node' && change.preserveCache));
+		}
 	}
 
 	private updateAssets(assets: Asset[]): Promise<boolean> {

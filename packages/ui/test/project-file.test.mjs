@@ -50,9 +50,12 @@ const appBundle = await build({
 					`
 					: args.path.endsWith('RendererManagerController.ts') ? `
 					import { ref } from 'vue';
+					import { deepClone } from '@glitch/shared/utility/deep-clone.ts';
+					import { applyRendererProjectChanges } from '@glitch/shared/project/renderer-state.ts';
 					export class VisualModuleRendererManagerController {
 						isReady = ref(false); errorMessage = ref(null);
 						updates = []; renders = []; lifecycle = [];
+						patches = []; snapshots = [];
 						options = {};
 						async init(resolution, resolutionScale) {
 							this.initialResolution = resolution;
@@ -65,13 +68,25 @@ const appBundle = await build({
 							return { assetsCommitted: true };
 						}
 						async updateStaticOptions() {} async updatePlayers() {}
+						async replaceProjectState(state) {
+							const snapshot = deepClone(state);
+							this.snapshots.push(snapshot);
+							Object.assign(this.options, this.timeline ? snapshot : { visualModules: snapshot.visualModules });
+						}
+						async applyProjectChanges(changes) {
+							const patch = deepClone(this.timeline ? changes : changes.filter(change => (change.type === 'node' || change.type === 'visualModule') && 'visualModuleId' in change.target));
+							if (!patch.length) return;
+							this.patches.push(patch);
+							const next = applyRendererProjectChanges({ visualModules: this.options.visualModules, timelineScenes: this.options.timelineScenes ?? [] }, patch);
+							Object.assign(this.options, this.timeline ? next : { visualModules: next.visualModules });
+						}
 						startLiveRenderLoopFor() { this.lifecycle.push('start'); }
 						stopRenderLoop() { this.lifecycle.push('stop'); }
 						renderTimelineAt(time) { this.renders.push(time); }
 						disposeManager() { this.lifecycle.push('dispose'); this.isReady.value = false; }
 						async relaunchManager() { this.lifecycle.push('relaunch'); this.isReady.value = true; }
 					}
-					export class TimelineRendererManagerController extends VisualModuleRendererManagerController {}
+					export class TimelineRendererManagerController extends VisualModuleRendererManagerController { timeline = true; }
 				` : args.path.endsWith('.vue') ? 'export default {};' : `
 					export async function alert(options) { globalThis.projectAlerts.push(options.text); }
 					export function popup() { return { dispose() {} }; }
@@ -394,11 +409,13 @@ test('synchronizes both previews and routes timeline-only edits', async t => {
 	app.previewPlayback.seekTimeline(500);
 	assert.equal(app.activePreviewRenderer.value, timeline);
 	timeline.renders.length = 0;
-	app.appStateManager.state.timelineScenes.value[0].layers = [{ id: 'layer', layerType: 'visualModule', visualModuleId: 'first', name: 'Layer', clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 1000 }], visualModuleParamValues: {}, compositingParamValues: {}, automationGraphs: [] }];
+	app.appStateManager.commit('addTimelineLayer', { sceneId: 'scene', layer: { id: 'layer', layerType: 'visualModule', visualModuleId: 'first', name: 'Layer', clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 1000 }], visualModuleParamValues: {}, compositingParamValues: {}, automationGraphs: [] } });
 	await nextTick();
 	await setImmediate();
 	assert.equal('timelineScenes' in live.options, false);
 	assert.equal(timeline.options.timelineScenes[0].layers[0].id, 'layer');
+	assert.deepEqual(timeline.patches.at(-1).map(change => change.type), ['layer', 'layerOrder']);
+	assert.equal(live.patches.length, 0);
 	assert.deepEqual(timeline.renders, [500]);
 	app.highlightClipping.value = true;
 	await nextTick();

@@ -1,5 +1,5 @@
 import { getTimelineClipEnd, validateTimelineClips } from './timing.ts';
-import type { TimelineScene } from './types.ts';
+import type { TimelineLayer, TimelineScene } from './types.ts';
 import { validateSceneResolution } from './scene-resolution.ts';
 import { validateTimelineParameterBinding } from './parameter-binding.ts';
 import { validateEffectResolution } from '../effect/resolution.ts';
@@ -13,6 +13,20 @@ export function getTimelineScene(scenes: readonly TimelineScene[], sceneId: stri
 	const scene = scenes.find(scene => scene.id === sceneId);
 	if (scene == null) throw new Error(`Scene not found: ${sceneId}`);
 	return scene;
+}
+
+export function validateTimelineLayer(layer: TimelineLayer): void {
+	validateTimelineClips(layer.clips);
+	const parameterGroups = [
+		...('audioParamValues' in layer ? [layer.audioParamValues] : []),
+		...('compositingParamValues' in layer ? [layer.compositingParamValues] : []),
+		...('visualModuleParamValues' in layer ? [layer.visualModuleParamValues] : []),
+	];
+	for (const values of parameterGroups) for (const binding of Object.values(values)) validateTimelineParameterBinding(binding);
+	if (layer.layerType === 'effect') {
+		validateEffectResolution(layer.resolution);
+		for (const binding of Object.values(layer.effectParamValues)) validateTimelineParameterBinding(binding, true);
+	}
 }
 
 /** 同じSceneの複数配置は許可し、現在の参照経路に戻る場合だけ循環と判定する。 */
@@ -30,17 +44,7 @@ export function validateTimelineScenes(scenes: readonly TimelineScene[]): void {
 		if (new Set(scene.layers.map(layer => layer.id)).size !== scene.layers.length) throw new Error(`Duplicate layer ID in scene: ${scene.name}`);
 		path.push(id);
 		for (const layer of scene.layers) {
-			validateTimelineClips(layer.clips);
-			const parameterGroups = [
-				...('audioParamValues' in layer ? [layer.audioParamValues] : []),
-				...('compositingParamValues' in layer ? [layer.compositingParamValues] : []),
-				...('visualModuleParamValues' in layer ? [layer.visualModuleParamValues] : []),
-			];
-			for (const values of parameterGroups) for (const binding of Object.values(values)) validateTimelineParameterBinding(binding);
-			if (layer.layerType === 'effect') {
-				validateEffectResolution(layer.resolution);
-				for (const binding of Object.values(layer.effectParamValues)) validateTimelineParameterBinding(binding, true);
-			}
+			validateTimelineLayer(layer);
 			if (layer.layerType === 'scene') for (const clip of layer.clips) visit(clip.sceneId);
 		}
 		path.pop();

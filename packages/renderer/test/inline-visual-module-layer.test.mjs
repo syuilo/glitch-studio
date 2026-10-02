@@ -61,7 +61,7 @@ function layer(id, module, overrides = {}) {
 	};
 }
 
-function fixture(t, { present = false } = {}) {
+function fixture(t, { present = false, disableCache = true } = {}) {
 	const calls = { instances: [], renders: [], outputs: [], presented: [], statuses: [], errors: [], passes: [], writes: [] };
 	const texture = ({ size = [16, 16], format = 'rgba8unorm' } = {}) => ({
 		width: size.width ?? size[0], height: size.height ?? size[1], format,
@@ -90,7 +90,7 @@ function fixture(t, { present = false } = {}) {
 			primaryInputParameter: 'input', resolutionInputParameter: 'input', primaryOutput: 'output', outputDefs: { output: { dataType: { kind: 'color' } } },
 		} },
 		effectImplementations: { probe: {
-			disableCache: true,
+			disableCache,
 			outputTextureFactories: { output: ({ resolution }) => texture({ size: resolution }) },
 			init({ reportStatus }) {
 				const instance = { renders: 0, disposed: false, reportStatus };
@@ -112,6 +112,86 @@ function fixture(t, { present = false } = {}) {
 	t.after(() => manager.destroy());
 	return { manager, calls };
 }
+
+// 【共有Moduleの差分は各配置へ反映し、引数編集では配置ごとの履歴とキャッシュを保持する】
+// 同じModuleの二つのクリップは別インスタンスだが、定義編集は両方へ届く必要がある。
+// 引数だけを変えた配置のために、他の配置や上流のエフェクトを再生成してはいけない。
+test('updates shared definitions and module arguments without recreating placements', async t => {
+	const { manager, calls } = fixture(t, { disableCache: false });
+	const module = { ...visualModule({ params: { amount: expression('PARAM("Amount")') } }), id: 'registered', name: 'Module' };
+	module.paramDefs.push({ ...scalar, id: 'amount', nameForReference: 'Amount' });
+	const entries = ['first', 'second'].map(id => {
+		const { visualModule: _, ...entry } = layer(id, module);
+		return { ...entry, layerType: 'visualModule', visualModuleId: module.id, visualModuleParamValues: { amount: literal(1) } };
+	});
+	await manager.updateDynamicOptions({ visualModules: [module], timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: entries }], sceneId: 'scene' });
+	await manager.renderTimelineFrame(350, 20);
+	const instances = [...calls.instances];
+	assert.equal(instances.length, 2);
+	const changed = structuredClone(entries[0]);
+	changed.visualModuleParamValues.amount = literal(2);
+	manager.applyProjectChanges([{ type: 'layer', sceneId: 'scene', layerId: changed.id, layer: changed, preserveModuleInstance: true }]);
+	await manager.renderTimelineFrame(350, 20);
+	assert.equal(calls.renders.length, 3);
+	assert.equal(calls.renders.at(-1).params.amount, 2);
+	assert.equal(calls.renders.at(-1).instance, instances[1]);
+	const editedNode = structuredClone(module.nodes.find(node => node.type === 'effect'));
+	editedNode.params.local = literal(9);
+	manager.applyProjectChanges([{ type: 'node', target: { visualModuleId: module.id }, node: editedNode, preserveCache: true }]);
+	await manager.renderTimelineFrame(350, 20);
+	assert.deepEqual(calls.renders.slice(-2).map(call => call.params.local), [9, 9]);
+	assert.deepEqual(calls.instances, instances);
+	assert.ok(instances.every(instance => !instance.disposed));
+	manager.applyProjectChanges([{ type: 'layerOrder', sceneId: 'scene', layerIds: ['second', 'first'] }]);
+	await manager.renderTimelineFrame(350, 20);
+	assert.equal(calls.renders.length, 5);
+	assert.deepEqual(calls.errors, []);
+});
+
+// 【子Scene内の編集とレイヤー削除は親配置と無関係な兄弟を破棄しない】
+// 親が古いSceneの配列を捕まえていると差分が表示されず、親ごと再生成すると全レイヤーの履歴を失う。
+// 子の最新版を評価し、寿命の変更は対象レイヤーに限定することをインスタンスの同一性で確認する。
+test('updates nested scene content while preserving parent and sibling instances', async t => {
+	const { manager, calls } = fixture(t, { disableCache: false });
+	const first = layer('first', visualModule({ params: { amount: literal(1) } }));
+	const second = layer('second', visualModule({ params: { amount: literal(2) } }));
+	const { visualModule: _, visualModuleParamValues: __, ...base } = layer('parent', visualModule());
+	const parent = { ...base, layerType: 'scene', audioParamValues: {}, clips: [{ id: 'clip', startMs: 0, durationMs: 2000, contentOffsetMs: 0, sceneId: 'child' }] };
+	await manager.updateDynamicOptions({ timelineScenes: [
+		{ id: 'root', name: 'Root', resolution: { mode: 'project' }, layers: [parent] },
+		{ id: 'child', name: 'Child', resolution: { mode: 'project' }, layers: [first, second] },
+	], sceneId: 'root' });
+	await manager.renderTimelineFrame(350, 20);
+	const parentInstance = [...manager.timelineRenderer.layers.values()][0].renderer;
+	const firstInstance = calls.renders.find(call => call.params.amount === 1).instance;
+	const secondInstance = calls.renders.find(call => call.params.amount === 2).instance;
+	const changed = structuredClone(first.visualModule.nodes.find(node => node.type === 'effect'));
+	changed.params.amount = literal(3);
+	manager.applyProjectChanges([{ type: 'node', target: { sceneId: 'child', inlineVisualModuleLayerId: 'first' }, node: changed, preserveCache: true }]);
+	await manager.renderTimelineFrame(350, 20);
+	assert.equal(calls.renders.length, 3);
+	assert.equal(calls.renders.at(-1).params.amount, 3);
+	assert.equal(calls.renders.at(-1).instance, firstInstance);
+	assert.equal([...manager.timelineRenderer.layers.values()][0].renderer, parentInstance);
+	// 同じバッチでノードと公開引数を編集しても、更新済みModuleを基準に引数差分を検証する。
+	const editedLayer = structuredClone(first);
+	changed.params.amount = literal(4);
+	editedLayer.visualModule.nodes[1] = changed;
+	editedLayer.visualModuleParamValues.input = literal([0, 1, 0, 1]);
+	manager.applyProjectChanges([
+		{ type: 'node', target: { sceneId: 'child', inlineVisualModuleLayerId: 'first' }, node: changed, preserveCache: true },
+		{ type: 'layer', sceneId: 'child', layerId: 'first', layer: editedLayer, preserveModuleInstance: true },
+	]);
+	await manager.renderTimelineFrame(350, 20);
+	assert.equal(calls.renders.at(-1).params.amount, 4);
+	assert.equal(calls.renders.at(-1).instance, firstInstance);
+	manager.applyProjectChanges([{ type: 'layer', sceneId: 'child', layerId: 'first', layer: null, preserveModuleInstance: false }]);
+	await manager.renderTimelineFrame(350, 20);
+	assert.equal(firstInstance.disposed, true);
+	assert.equal(secondInstance.disposed, false);
+	assert.equal([...manager.timelineRenderer.layers.values()][0].renderer, parentInstance);
+	assert.deepEqual(calls.errors, []);
+});
 
 // 【登録済みモジュールがなくてもインライン定義を描画する】
 // IDによる検索を残すとインラインだけのプロジェクトが描画できず、境界での再乗算は半透明色を暗くする。

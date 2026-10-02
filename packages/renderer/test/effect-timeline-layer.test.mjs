@@ -95,6 +95,58 @@ function fixture(t, options = {}) {
 	} };
 }
 
+// 【直接エフェクトの編集では対象レイヤーだけを再生成する】
+// この種類の編集では対象の履歴リセットを許容するが、全タイムラインのリセットにはしない。
+// 不正なバッチは先行する編集も反映せず、次の正常な描画・編集を続けられる必要がある。
+test('recreates only an edited effect layer and rejects invalid batches atomically', async t => {
+	const f = fixture(t);
+	const first = layer('first', { amount: literal(1) });
+	const second = layer('second', { amount: literal(2) });
+	await f.setup([first, second]);
+	await f.manager.renderTimelineFrame(350, 20);
+	const firstInstance = f.calls.renders.find(call => call.params.amount === 1).instance;
+	const secondInstance = f.calls.renders.find(call => call.params.amount === 2).instance;
+	const edited = structuredClone(first);
+	edited.effectParamValues.amount = literal(3);
+	const patch = { type: 'layer', sceneId: 'scene', layerId: first.id, layer: edited, preserveModuleInstance: false };
+	assert.throws(() => f.manager.applyProjectChanges([patch, { type: 'layerOrder', sceneId: 'scene', layerIds: ['missing'] }]), /Invalid layer order/);
+	await f.manager.renderTimelineFrame(350, 20);
+	assert.equal(firstInstance.disposed, false);
+	assert.equal(f.calls.renders.at(-1).params.amount, 1);
+	f.manager.applyProjectChanges([patch]);
+	await f.manager.renderTimelineFrame(350, 20);
+	assert.equal(firstInstance.disposed, true);
+	assert.equal(secondInstance.disposed, false);
+	assert.equal(f.calls.instances.length, 3);
+	assert.equal(f.calls.renders.at(-1).params.amount, 3);
+	assert.equal(f.calls.renders.at(-1).timeDelta, 0);
+});
+
+// 【編集中の非同期フレームは中断し、変更のない準備済みインスタンスを次の描画へ使う】
+// デコード等の完了を待っている古いシークから、編集前の値や合成結果を表示させない。
+// 中断だけを理由に、今回編集していない下層のリソースを破棄しないことも確認する。
+test('cancels pending frames on edits without disposing an unchanged loading layer', async t => {
+	const f = fixture(t, { initialize: instance => instance.reportStatus({ type: 'loading' }) });
+	const first = layer('first', { amount: literal(1) });
+	await f.setup([first, layer('second', { amount: literal(2) })]);
+	const obsolete = f.manager.renderTimelineFrame(350, 20);
+	await new Promise(resolve => setImmediate(resolve));
+	const loading = f.calls.instances[0];
+	const edited = structuredClone(first);
+	edited.effectParamValues.amount = literal(3);
+	f.manager.applyProjectChanges([{ type: 'layer', sceneId: 'scene', layerId: 'first', layer: edited, preserveModuleInstance: false }]);
+	await obsolete;
+	assert.equal(f.calls.renders.length, 0);
+	assert.equal(loading.disposed, false);
+	loading.reportStatus({ type: 'ready' });
+	const current = f.manager.renderTimelineFrame(350, 20);
+	await new Promise(resolve => setImmediate(resolve));
+	f.calls.instances[1].reportStatus({ type: 'ready' });
+	await current;
+	assert.equal(f.calls.renders[0].instance, loading);
+	assert.deepEqual(f.calls.renders.map(call => call.params.amount), [2, 3]);
+});
+
 // 【レイヤーの式と配列内のキーはScene時刻、エフェクト実装は内容時刻を使う】
 // 同じクリップでも内容オフセットと配置開始が異なるため、一つの時刻を使い回すとキーがずれる。
 // 出力のないエフェクトでreplaceを実行すると下層が消えてしまうため、合成自体のスキップも確認する。

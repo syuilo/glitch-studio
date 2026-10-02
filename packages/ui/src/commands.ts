@@ -38,9 +38,13 @@ import { createResetParameterBinding } from '@/utility/parameter-default.ts';
 import { getVisualModule, listVisualModules } from '@/utility/visual-module-target.ts';
 import type { VisualModuleTarget } from '@/utility/visual-module-target.ts';
 import type { TimelineKeyframeSelection } from '@/utility/timeline-selection.ts';
+import type { RendererChangeTarget } from './RendererProjectSynchronizer.ts';
 
 export type CommandDef<Payload> = {
 	label: string;
+	// 描画データの変更対象を必ず宣言する。表示名等は空配列、Assets・Players・
+	// プロジェクトの解像度は既存の専用同期経路を使う。通常のグラフ編集をdeep watchへ戻さない。
+	rendererChanges: (state: AppState, payload: Payload) => RendererChangeTarget[];
 	create: (payload: Payload) => {
 		execute(state: AppState): void;
 		undo(state: AppState): void;
@@ -79,6 +83,7 @@ const editTimelineLayerParamCommandDef = defineCommand<{
 		| { kind: 'removeElement'; elementId: string };
 }>({
 	label: 'Edit timeline layer param',
+	rendererChanges: (_state, payload) => [{ type: 'layer', sceneId: payload.sceneId, layerId: payload.layerId, preserveModuleInstance: (payload.target ?? 'module') === 'module' && !['addElement', 'removeElement', 'reset', 'inputSource'].includes(payload.edit.kind) }],
 	create: payload => {
 		let before: ParameterBinding | undefined;
 		let after: ParameterBinding | undefined;
@@ -168,6 +173,7 @@ const editTimelineLayerParamCommandDef = defineCommand<{
 
 const addEffectNodeCommandDef = defineCommand<VisualModuleTarget & { id: string; effectId: string; params?: Record<string, ParameterBinding> }>({
 	label: 'Add fx node',
+	rendererChanges: (_state, payload) => [{ type: 'visualModule', target: payload }],
 	create: payload => {
 		let addedNode: VisualModuleEffectNode | undefined;
 		let outputConnection: {
@@ -236,6 +242,7 @@ const addEffectNodeCommandDef = defineCommand<VisualModuleTarget & { id: string;
 
 const moveNodeCommandDef = defineCommand<NodeTarget & { index: number }>({
 	label: 'Move node',
+	rendererChanges: (_state, payload) => [{ type: 'visualModule', target: payload }],
 	create: payload => {
 		let before: number;
 		const move = (state: AppState, index: number) => {
@@ -260,6 +267,7 @@ const moveNodeCommandDef = defineCommand<NodeTarget & { index: number }>({
 
 const removeNodeCommandDef = defineCommand<NodeTarget>({
 	label: 'Remove node',
+	rendererChanges: (_state, payload) => [{ type: 'visualModule', target: payload }],
 	create: payload => {
 		let before: VisualModuleNode[];
 		return {
@@ -307,6 +315,7 @@ const removeNodeCommandDef = defineCommand<NodeTarget>({
 
 const addAssetCommandDef = defineCommand<Asset>({
 	label: 'Add asset',
+	rendererChanges: () => [],
 	create: (payload) => {
 		return {
 			execute(state) {
@@ -329,6 +338,7 @@ const addAssetCommandDef = defineCommand<Asset>({
 
 const removeAssetCommandDef = defineCommand<{ assetId: string }>({
 	label: 'Remove asset',
+	rendererChanges: state => listVisualModules(state).map(({ target }) => ({ type: 'visualModule', target })),
 	create: payload => {
 		let before: {
 			assets: Asset[];
@@ -365,6 +375,7 @@ const removeAssetCommandDef = defineCommand<{ assetId: string }>({
 
 const renameAssetCommandDef = defineCommand<{ assetId: string; name: string }>({
 	label: 'Rename asset',
+	rendererChanges: () => [],
 	create: (payload) => {
 		return {
 			execute(state) {
@@ -380,6 +391,7 @@ const renameAssetCommandDef = defineCommand<{ assetId: string; name: string }>({
 
 const replaceAssetCommandDef = defineCommand<Asset & { assetId: string }>({
 	label: 'Replace asset',
+	rendererChanges: () => [],
 	create: (payload) => {
 		return {
 			execute(state) {
@@ -399,6 +411,7 @@ const replaceAssetCommandDef = defineCommand<Asset & { assetId: string }>({
 
 const addPlayerCommandDef = defineCommand<Player>({
 	label: 'Add player',
+	rendererChanges: () => [],
 	create: (payload) => {
 		return {
 			execute(state) {
@@ -413,6 +426,7 @@ const addPlayerCommandDef = defineCommand<Player>({
 
 const updatePlayerSourceTypeCommandDef = defineCommand<{ playerId: Player['id']; sourceType: Player['sourceType'] }>({
 	label: 'Update player sourceType',
+	rendererChanges: () => [],
 	create: (payload) => {
 		let previousType: Player['sourceType'];
 		return {
@@ -433,9 +447,11 @@ const updatePlayerSourceTypeCommandDef = defineCommand<{ playerId: Player['id'];
 function defineNodeParamCommand<Payload extends NodeParamTarget>(
 	label: string,
 	update: (target: ReturnType<typeof resolveNodeParam>, payload: Payload) => ParameterBinding,
+	preserveCache = true,
 ) {
 	return defineCommand<Payload>({
 		label,
+		rendererChanges: (_state, payload) => [{ type: 'node', target: payload, nodeId: payload.nodeId, preserveCache }],
 		create: payload => {
 			let before: ParameterBinding;
 			let after: ParameterBinding | undefined;
@@ -493,6 +509,7 @@ const changeParamValueInputSourceCommandDef = defineNodeParamCommand<NodeParamTa
 			}
 		}
 	},
+	false,
 );
 
 const updateParamAsLiteralCommandDef = defineNodeParamCommand<NodeParamTarget & { value: any }>(
@@ -556,6 +573,7 @@ const updateParamAsExternalCustomParameterInputCommandDef = defineNodeParamComma
 		assertLeafParam(target);
 		return { inputSource: 'externalCustomParameterInput', parameterId: payload.value };
 	},
+	false,
 );
 
 const updateParamAsNodeCommandDef = defineNodeParamCommand<NodeParamTarget & { value: NodeOutputReference | null; preserveSampling: boolean }>(
@@ -570,6 +588,7 @@ const updateParamAsNodeCommandDef = defineNodeParamCommand<NodeParamTarget & { v
 		const sampling = payload.preserveSampling && previous != null ? previous : payload.value;
 		return { inputSource: 'node', ...payload.value, fitMode: sampling.fitMode, wrapMode: sampling.wrapMode, filterMode: sampling.filterMode };
 	},
+	false,
 );
 
 const addArrayParamElementCommandDef = defineNodeParamCommand<NodeParamTarget>(
@@ -579,6 +598,7 @@ const addArrayParamElementCommandDef = defineNodeParamCommand<NodeParamTarget>(
 		const element: ParameterArrayElement = { id: genId(), binding: deepClone(getArrayElementDefinition(def).defaultValue) };
 		return { inputSource: 'literal', value: [...value.value, element] };
 	},
+	false,
 );
 
 const removeArrayParamElementCommandDef = defineNodeParamCommand<NodeParamTarget & { elementId: string }>(
@@ -589,10 +609,12 @@ const removeArrayParamElementCommandDef = defineNodeParamCommand<NodeParamTarget
 		if (!elements.some(element => element.id === elementId)) throw new Error('Unknown array element');
 		return { inputSource: 'literal', value: elements.filter(element => element.id !== elementId) };
 	},
+	false,
 );
 
 const changeNodeBypassStateCommandDef = defineCommand<NodeTarget & { bypass: boolean }>({
 	label: 'Change node bypass state',
+	rendererChanges: (_state, payload) => [{ type: 'node', target: payload, nodeId: payload.nodeId, preserveCache: false }],
 	create: (payload) => {
 		let before: boolean;
 		return {
@@ -613,6 +635,7 @@ const changeNodeBypassStateCommandDef = defineCommand<NodeTarget & { bypass: boo
 
 const changeNodeResolutionCommandDef = defineCommand<NodeTarget & { resolution: VisualModuleEffectNode['resolution'] }>({
 	label: 'Change node resolution',
+	rendererChanges: (_state, payload) => [{ type: 'node', target: payload, nodeId: payload.nodeId, preserveCache: false }],
 	create: payload => {
 		let before: VisualModuleEffectNode['resolution'];
 		return {
@@ -638,10 +661,12 @@ const changeNodeResolutionCommandDef = defineCommand<NodeTarget & { resolution: 
 const resetNodeParamCommandDef = defineNodeParamCommand<NodeParamTarget>(
 	'Reset node param',
 	({ def }) => createResetParameterBinding(def),
+	false,
 );
 
 const updateGlobalOutInputCommandDef = defineCommand<NodeTarget & { outputId: string; value: NodeOutputReference | null }>({
 	label: 'Update global output input',
+	rendererChanges: (_state, payload) => [{ type: 'visualModule', target: payload }],
 	create: payload => {
 		let before: { nodeId: string; outputPort: string } | { nodeId: null; outputPort: null } | undefined;
 		return {
@@ -687,6 +712,7 @@ function validateVisualModuleParamDef(module: VisualModule, def: VisualModulePar
 
 const setVisualModulePrimaryInputCommandDef = defineCommand<VisualModuleTarget & { primaryInputId: VisualModuleCustomParameterId | null }>({
 	label: 'Set visual module primary input',
+	rendererChanges: (_state, payload) => [{ type: 'visualModule', target: payload }],
 	create: payload => {
 		let before: VisualModuleCustomParameterId | null;
 		return {
@@ -707,6 +733,7 @@ const setVisualModulePrimaryInputCommandDef = defineCommand<VisualModuleTarget &
 
 const addVisualModuleParamDefCommandDef = defineCommand<VisualModuleTarget & { def: VisualModuleParamDef }>({
 	label: 'Add visual module parameter',
+	rendererChanges: (_state, payload) => [{ type: 'visualModule', target: payload }],
 	create: payload => ({
 		execute(state) {
 			const module = stateUtility.getVisualModule(state, payload);
@@ -722,6 +749,7 @@ const addVisualModuleParamDefCommandDef = defineCommand<VisualModuleTarget & { d
 
 const removeVisualModuleParamDefCommandDef = defineCommand<VisualModuleTarget & { defId: VisualModuleCustomParameterId }>({
 	label: 'Remove visual module parameter',
+	rendererChanges: (_state, payload) => [{ type: 'visualModule', target: payload }],
 	create: payload => {
 		let before: VisualModuleParamDef;
 		let index: number;
@@ -750,6 +778,7 @@ const updateVisualModuleParamDefCommandDef = defineCommand<VisualModuleTarget & 
 	defId: VisualModuleCustomParameterId; changes: Partial<Omit<VisualModuleParamDef, 'id'>>;
 }>({
 	label: 'Update visual module parameter',
+	rendererChanges: (_state, payload) => [{ type: 'visualModule', target: payload }],
 	create: payload => {
 		let before: VisualModuleParamDef;
 		let primaryInputId: VisualModuleCustomParameterId | null;
@@ -785,6 +814,7 @@ function validateVisualModuleOutputDef(module: VisualModule, def: VisualModuleOu
 
 const addVisualModuleOutputDefCommandDef = defineCommand<VisualModuleTarget & { def: VisualModuleOutputDef }>({
 	label: 'Add visual module output',
+	rendererChanges: (_state, payload) => [{ type: 'visualModule', target: payload }],
 	create: payload => {
 		let primaryOutputId: string | null;
 		return {
@@ -806,6 +836,7 @@ const addVisualModuleOutputDefCommandDef = defineCommand<VisualModuleTarget & { 
 
 const setVisualModulePrimaryOutputCommandDef = defineCommand<VisualModuleTarget & { primaryOutputId: string | null }>({
 	label: 'Set visual module primary output',
+	rendererChanges: (_state, payload) => [{ type: 'visualModule', target: payload }],
 	create: payload => {
 		let before: string | null;
 		return {
@@ -826,6 +857,7 @@ const setVisualModulePrimaryOutputCommandDef = defineCommand<VisualModuleTarget 
 
 const removeVisualModuleOutputDefCommandDef = defineCommand<VisualModuleTarget & { defId: string }>({
 	label: 'Remove visual module output',
+	rendererChanges: (_state, payload) => [{ type: 'visualModule', target: payload }],
 	create: payload => {
 		let before: VisualModuleOutputDef;
 		let primaryOutputId: string | null;
@@ -854,6 +886,7 @@ const updateVisualModuleOutputDefCommandDef = defineCommand<VisualModuleTarget &
 	defId: string; changes: Partial<Omit<VisualModuleOutputDef, 'id'>>;
 }>({
 	label: 'Update visual module output',
+	rendererChanges: (_state, payload) => [{ type: 'visualModule', target: payload }],
 	create: payload => {
 		let before: VisualModuleOutputDef;
 		let primaryOutputId: string | null;
@@ -923,6 +956,7 @@ function validateLayerClips(state: AppState, sceneId: string, layer: TimelineLay
 
 const addTimelineLayerCommandDef = defineCommand<{ sceneId: string; layer: TimelineLayer; sourceDurationsMs?: SourceDurations }>({
 	label: 'Add timeline layer',
+	rendererChanges: (_state, payload) => [{ type: 'layer', sceneId: payload.sceneId, layerId: payload.layer.id, preserveModuleInstance: false }, { type: 'layerOrder', sceneId: payload.sceneId }],
 	create: payload => ({
 		execute(state) {
 			const scene = getScene(state, payload.sceneId);
@@ -938,6 +972,7 @@ const addTimelineLayerCommandDef = defineCommand<{ sceneId: string; layer: Timel
 
 const renameTimelineLayerCommandDef = defineCommand<{ sceneId: string; layerId: string; name: string }>({
 	label: 'Rename timeline layer',
+	rendererChanges: () => [],
 	create: payload => {
 		let before: string;
 		return {
@@ -949,6 +984,7 @@ const renameTimelineLayerCommandDef = defineCommand<{ sceneId: string; layerId: 
 
 const changeEffectLayerResolutionCommandDef = defineCommand<{ sceneId: string; layerId: string; resolution: EffectResolution }>({
 	label: 'Change effect layer resolution',
+	rendererChanges: (_state, payload) => [{ type: 'layer', sceneId: payload.sceneId, layerId: payload.layerId, preserveModuleInstance: false }],
 	create: payload => {
 		let before: EffectResolution;
 		const getLayer = (state: AppState) => {
@@ -970,6 +1006,7 @@ const changeEffectLayerResolutionCommandDef = defineCommand<{ sceneId: string; l
 
 const addTimelineClipCommandDef = defineCommand<{ sceneId: string; layerId: string; clip: TimelineClipData; sourceDurationMs?: number }>({
 	label: 'Add timeline clip',
+	rendererChanges: (_state, payload) => [{ type: 'layer', sceneId: payload.sceneId, layerId: payload.layerId, preserveModuleInstance: false }],
 	create: payload => ({
 		execute(state) {
 			const layer = getTimelineLayer(state, payload.sceneId, payload.layerId);
@@ -986,6 +1023,7 @@ const addTimelineClipCommandDef = defineCommand<{ sceneId: string; layerId: stri
 
 const editTimelineClipTimingCommandDef = defineCommand<TimelineClipTarget & { sceneId: string; edge: 'start' | 'end'; deltaMs: number; sourceDurationMs?: number; initialTiming?: TimelineClipTiming }>({
 	label: 'Trim timeline clip',
+	rendererChanges: (_state, payload) => [{ type: 'layer', sceneId: payload.sceneId, layerId: payload.layerId, preserveModuleInstance: false }],
 	create: payload => {
 		let before: TimelineClipTiming;
 		let after: TimelineClipTiming | undefined;
@@ -1022,6 +1060,7 @@ const editTimelineClipTimingCommandDef = defineCommand<TimelineClipTarget & { sc
 
 const moveTimelineClipsCommandDef = defineCommand<{ sceneId: string; clips: (TimelineClipTarget & { initialStartMs?: number })[]; deltaMs: number }>({
 	label: 'Move timeline clips',
+	rendererChanges: (_state, payload) => payload.clips.map(clip => ({ type: 'layer', sceneId: payload.sceneId, layerId: clip.layerId, preserveModuleInstance: false })),
 	create: payload => {
 		let before: (TimelineClipTarget & { startMs: number })[];
 		let after: (TimelineClipTarget & { startMs: number })[] | undefined;
@@ -1067,6 +1106,7 @@ const moveTimelineClipsCommandDef = defineCommand<{ sceneId: string; clips: (Tim
 
 const removeTimelineClipsCommandDef = defineCommand<{ sceneId: string; clips: TimelineClipTarget[] }>({
 	label: 'Remove timeline clips',
+	rendererChanges: (_state, payload) => payload.clips.map(clip => ({ type: 'layer', sceneId: payload.sceneId, layerId: clip.layerId, preserveModuleInstance: false })),
 	create: payload => {
 		let before: { layerId: string; clips: TimelineClipData[] }[];
 		return {
@@ -1084,6 +1124,7 @@ const removeTimelineClipsCommandDef = defineCommand<{ sceneId: string; clips: Ti
 
 const changeTimelineClipSourceCommandDef = defineCommand<TimelineClipTarget & { sceneId: string; assetId?: string; referencedSceneId?: string; sourceDurationMs?: number; audioEnabled?: boolean }>({
 	label: 'Change timeline clip source',
+	rendererChanges: (_state, payload) => [{ type: 'layer', sceneId: payload.sceneId, layerId: payload.layerId, preserveModuleInstance: false }],
 	create: payload => {
 		let before: TimelineClipData;
 		return {
@@ -1110,6 +1151,7 @@ const changeTimelineClipSourceCommandDef = defineCommand<TimelineClipTarget & { 
 
 const editVideoClipAudioCommandDef = defineCommand<TimelineClipTarget & { sceneId: string; audioEnabled: boolean }>({
 	label: 'Edit video clip audio',
+	rendererChanges: (_state, payload) => [{ type: 'layer', sceneId: payload.sceneId, layerId: payload.layerId, preserveModuleInstance: false }],
 	create: payload => {
 		let before: boolean;
 		const find = (state: AppState) => {
@@ -1128,6 +1170,7 @@ const editVideoClipAudioCommandDef = defineCommand<TimelineClipTarget & { sceneI
 
 const pasteTimelineLayerCommandDef = defineCommand<{ sceneId: string; layer: TimelineLayer; sourceLayerId: string; sourceDurationsMs?: SourceDurations }>({
 	label: 'Paste timeline layer',
+	rendererChanges: (_state, payload) => [{ type: 'layer', sceneId: payload.sceneId, layerId: payload.layer.id, preserveModuleInstance: false }, { type: 'layerOrder', sceneId: payload.sceneId }],
 	create: payload => ({
 		execute(state) {
 			if (getScene(state, payload.sceneId).layers.some(layer => layer.id === payload.layer.id)) throw new Error('Duplicate layer ID');
@@ -1146,6 +1189,7 @@ const pasteTimelineLayerCommandDef = defineCommand<{ sceneId: string; layer: Tim
 
 const reorderTimelineLayersCommandDef = defineCommand<{ sceneId: string; layerIds: string[] }>({
 	label: 'Reorder timeline layers',
+	rendererChanges: (_state, payload) => [{ type: 'layerOrder', sceneId: payload.sceneId }],
 	create: payload => {
 		let before: string[];
 		const reorder = (state: AppState, layerIds: string[]) => {
@@ -1168,6 +1212,7 @@ const reorderTimelineLayersCommandDef = defineCommand<{ sceneId: string; layerId
 
 const removeTimelineLayerCommandDef = defineCommand<{ sceneId: string; layerId: string }>({
 	label: 'Remove timeline layer',
+	rendererChanges: (_state, payload) => [{ type: 'layer', sceneId: payload.sceneId, layerId: payload.layerId, preserveModuleInstance: false }, { type: 'layerOrder', sceneId: payload.sceneId }],
 	create: payload => {
 		let before: TimelineLayer;
 		let index: number;
@@ -1185,6 +1230,7 @@ const removeTimelineLayerCommandDef = defineCommand<{ sceneId: string; layerId: 
 
 const addSceneCommandDef = defineCommand<TimelineScene>({
 	label: 'Add scene',
+	rendererChanges: (_state, payload) => [{ type: 'scene', sceneId: payload.id }],
 	create: payload => ({
 		execute(state) {
 			validateTimelineScenes([...state.timelineScenes.value, payload]);
@@ -1196,6 +1242,7 @@ const addSceneCommandDef = defineCommand<TimelineScene>({
 
 const changeProjectResolutionCommandDef = defineCommand<Resolution>({
 	label: 'Change project resolution',
+	rendererChanges: () => [],
 	create: payload => {
 		let before: Resolution;
 		return {
@@ -1213,6 +1260,7 @@ const changeProjectResolutionCommandDef = defineCommand<Resolution>({
 
 const changeSceneResolutionCommandDef = defineCommand<{ sceneId: string; resolution: TimelineSceneResolution }>({
 	label: 'Change scene resolution',
+	rendererChanges: (_state, payload) => [{ type: 'scene', sceneId: payload.sceneId }],
 	create: payload => {
 		let before: TimelineSceneResolution;
 		return {
@@ -1229,6 +1277,7 @@ const changeSceneResolutionCommandDef = defineCommand<{ sceneId: string; resolut
 
 const renameSceneCommandDef = defineCommand<{ sceneId: string; name: string }>({
 	label: 'Rename scene',
+	rendererChanges: () => [],
 	create: payload => {
 		let before: string;
 		return {
@@ -1240,6 +1289,7 @@ const renameSceneCommandDef = defineCommand<{ sceneId: string; name: string }>({
 
 const removeSceneCommandDef = defineCommand<{ sceneId: string }>({
 	label: 'Remove scene',
+	rendererChanges: (_state, payload) => [{ type: 'scene', sceneId: payload.sceneId }],
 	create: payload => {
 		let before: TimelineScene;
 		let index: number;
@@ -1258,6 +1308,7 @@ const removeSceneCommandDef = defineCommand<{ sceneId: string }>({
 
 const moveTimelineKeyframesCommandDef = defineCommand<{ sceneId: string; positions: (TimelineKeyframeSelection & { x: number })[] }>({
 	label: 'Move timeline keyframes',
+	rendererChanges: (_state, payload) => payload.positions.map(position => ({ type: 'layer', sceneId: payload.sceneId, layerId: position.layerId, preserveModuleInstance: position.target === 'module' })),
 	create: payload => {
 		let before: typeof payload.positions;
 		const apply = (state: AppState, positions: typeof payload.positions) => {

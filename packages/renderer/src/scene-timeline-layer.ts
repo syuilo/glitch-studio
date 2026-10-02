@@ -9,7 +9,7 @@ import { createSceneOutput } from './scene-output.ts';
 
 /** 解決済みのSceneを独立して評価し、配置の合成設定を親背景に適用する。 */
 export function createSceneTimelineLayer(
-	scene: TimelineScene,
+	sceneSource: TimelineScene | (() => TimelineScene),
 	layer: TimelineSceneLayer,
 	options: {
 		device: GPUDevice;
@@ -18,12 +18,14 @@ export function createSceneTimelineLayer(
 		sceneResolution: { width: number; height: number };
 		format: IntermediateTextureFormat;
 		createLayer: (entry: TimelineLayer, clipId: string) => TimelineLayerRenderer<NodeOutput>;
+		getLayerVersion?: (entry: TimelineLayer, clipId: string) => string | number;
 	},
 ): TimelineLayerRenderer<NodeOutput> {
 	// 定義が同じでも履歴・出力の所有者は配置ごとに分ける。親背景は子に渡さない。
 	const renderer = new TimelineRenderer<NodeOutput, TimelineLayer>({
 		fallbackOutput: { kind: 'uniform', value: [0, 0, 0, 0] },
 		createLayer: options.createLayer,
+		getLayerVersion: options.getLayerVersion,
 	});
 	const compositor = createTimelineCompositor({
 		device: options.device, vertex: options.vertex, resolution: options.resolution, format: options.format,
@@ -32,6 +34,7 @@ export function createSceneTimelineLayer(
 	const sceneOutput = createSceneOutput({ ...options, resolution: options.sceneResolution });
 	return {
 		evaluate: async (context, signal) => {
+			const scene = typeof sceneSource === 'function' ? sceneSource() : sceneSource;
 			const result = await renderer.evaluateAt(context.contentTimeMs, scene.layers.filter(entry => entry.layerType !== 'audio'), context.timeDelta, context.isExport, signal);
 			if (result == null || signal.aborted) return { gpuTime: 0 };
 			const encoder = options.device.createCommandEncoder();

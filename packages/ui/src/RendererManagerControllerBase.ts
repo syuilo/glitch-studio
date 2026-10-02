@@ -19,6 +19,8 @@ export abstract class RendererManagerControllerBase<T extends RendererManager> {
 	private rejectInitialization: ((reason: Error) => void) | null = null;
 	private generation = 0;
 	private pendingCalls: { message: unknown; options?: StructuredSerializeOptions; onError?: (error: unknown) => void }[] = [];
+	protected initialSnapshotTaken = false;
+	protected initializationReady: Promise<void> = Promise.resolve();
 
 	private getInitialOptions: ((isReload: boolean) => Promise<{ options: Record<string, unknown>; transfer: Transferable[] }>);
 	private createWorker: () => Worker | Promise<Worker>;
@@ -118,6 +120,8 @@ export abstract class RendererManagerControllerBase<T extends RendererManager> {
 		const generation = ++this.generation;
 		const isCurrent = () => generation === this.generation;
 		const { promise: ready, resolve: resolveReady, reject: rejectReady } = Promise.withResolvers<void>();
+		this.initialSnapshotTaken = false;
+		this.initializationReady = ready;
 		this.rejectInitialization = rejectReady;
 
 		const fail = (reason: unknown) => {

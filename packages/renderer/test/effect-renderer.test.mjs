@@ -445,6 +445,69 @@ test('keeps graph caches stable and propagates parameter and cacheVersion change
 	assert.equal(consumer.renders.length, 3);
 });
 
+// 【通常の値編集は上流と独立した枝を描き直さず、変更ノードと後段だけに伝わる】
+// Module定義の置換でキャッシュを全消去してしまうと、大きなグラフでスライダー操作が重くなる。
+// 式・キー・配列内の末端値も同じ契約で、構造変更時だけModule全体を無効化できることを確認する。
+test('retains upstream caches and instances across literal expression keyframe and nested edits', async t => {
+	const { default: nested } = await load('../../shared/src/effect/fx/testStructArray/_def_.ts');
+	const g = gpu();
+	const a = probe(g);
+	const b = probe(g, { paramDefs: { input: color, amount: { dataType: { kind: 'scalar' } }, buzzs: nested.paramDefs.buzzs } });
+	const c = probe(g, { paramDefs: { input: color } });
+	const d = probe(g);
+	const f = graph(t, g, { a, b, c, d }, [node('a'), node('b', 'b', { input: connection('a'), amount: literal(1), buzzs: structuredClone(nested.paramDefs.buzzs.defaultValue) }),
+		node('c', 'c', { input: connection('b') }), node('d')], { out: { nodeId: 'c', outputPort: 'output' }, independent: { nodeId: 'd', outputPort: 'output' } });
+	const ctx = f.context({ outputIds: ['out', 'independent'] });
+	const counts = () => [a, b, c, d].map(effect => effect.renders.length);
+	f.render(ctx);
+	let module = f.module;
+	const edit = (update, preserveCache = true) => {
+		module = structuredClone(module);
+		update(module.nodes.find(node => node.id === 'b').params);
+		f.renderer.updateVisualModule(module, preserveCache);
+		f.render(ctx);
+	};
+	edit(params => { params.amount = literal(2); });
+	assert.deepEqual(counts(), [1, 2, 2, 1]);
+	edit(params => { params.amount = { inputSource: 'expression', expression: '3' }; });
+	assert.deepEqual(counts(), [1, 3, 3, 1]);
+	edit(params => { params.amount.expression = '1 + 2'; });
+	assert.deepEqual(counts(), [1, 3, 3, 1]);
+	edit(params => { params.amount = { inputSource: 'keyframesTimelineInline', offsetMode: 'start', wrapMode: 'clamp', keyframesTimeline: {
+		dataType: { kind: 'scalar' }, isNormalized: false, keyframes: [{ id: 'point', x: 0, value: 4, interpolation: { type: 'linear' } }],
+	} }; });
+	assert.deepEqual(counts(), [1, 4, 4, 1]);
+	edit(params => { params.buzzs.value[0].binding.value.x = literal(0.75); });
+	assert.deepEqual(counts(), [1, 5, 5, 1]);
+	edit(params => { params.buzzs.value[0].binding.value.x = literal(0); });
+	assert.deepEqual(counts(), [1, 6, 6, 1]);
+	assert.deepEqual([a, b, c, d].map(effect => effect.instances.length), [1, 1, 1, 1]);
+	edit(params => { params.input = connection('a', 'extra'); }, false);
+	assert.deepEqual(counts(), [2, 7, 7, 2]);
+});
+
+// 【Inの別ポートを使う枝は、無関係な引数や外部テクスチャに依存しない】
+// In全出力を一つのキーにすると、一つの公開引数の編集だけでModule全体が再描画される。
+// テクスチャを使う枝自体は、内容の世代を持たない既存仕様に従って毎回描画する。
+test('invalidates only consumers of the changed module input port', t => {
+	const g = gpu();
+	const a = probe(g, { paramDefs: { input: color } });
+	const b = probe(g, { paramDefs: { input: color } });
+	const f = graph(t, g, { a, b }, [{ id: 'in', type: 'globalIn' }, node('a', 'a', { input: connection('in', 'left') }),
+		node('b', 'b', { input: connection('in', 'right') })], { out: { nodeId: 'a', outputPort: 'output' }, other: { nodeId: 'b', outputPort: 'output' } });
+	f.module.paramDefs = ['left', 'right'].map(id => ({ ...color, id, nameForReference: id }));
+	f.renderer.updateVisualModule(f.module);
+	const ctx = f.context({ outputIds: ['out', 'other'], evaluatedParamValues: new Map([['left', [1, 0, 0, 1]], ['right', [0, 1, 0, 1]]]) });
+	f.render(ctx);
+	ctx.evaluatedParamValues.set('right', [0, 0, 1, 1]);
+	f.render(ctx);
+	assert.deepEqual([a.renders.length, b.renders.length], [1, 2]);
+	ctx.paramInputs = new Map([['right', { kind: 'texture', texture: g.device.createTexture({ size: { width: 16, height: 9 } }) }]]);
+	f.render(ctx);
+	f.render(ctx);
+	assert.deepEqual([a.renders.length, b.renders.length], [1, 4]);
+});
+
 // 【未描画の準備を挟んだ遅延出力の再確保でも後段キャッシュを無効化する】
 // 最終的なパラメータ・必要ポート・cacheVersionが以前と同じでも、出力の寿命が変われば再描画が必要。
 test('invalidates downstream caches when lazy outputs are released and reacquired during preparation', async t => {

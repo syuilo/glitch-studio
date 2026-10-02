@@ -1,5 +1,8 @@
 import { scaleResolution, type Resolution } from '@glitch/shared/resolution.ts';
-import { getTimelineScene, validateTimelineScenes } from '@glitch/shared/timeline/scenes.ts';
+import { getTimelineScene, validateTimelineLayer, validateTimelineScenes } from '@glitch/shared/timeline/scenes.ts';
+import { applyRendererProjectChanges, findRendererVisualModule } from '@glitch/shared/project/renderer-state.ts';
+import type { RendererProjectChange, RendererProjectState, VisualModuleTarget } from '@glitch/shared/project/renderer-state.ts';
+import { deepEqual } from '@glitch/shared/utility/deep-equal.ts';
 import { validateTimelineEffectLayer } from '@glitch/shared/timeline/effect-layer.ts';
 import { getSceneBaseResolution, resolveSceneResolution } from '@glitch/shared/timeline/scene-resolution.ts';
 import EventEmitter from 'eventemitter3';
@@ -8,6 +11,7 @@ import defaultVertexShaderCode from './vertex.wgsl?raw';
 import { VisualModuleRenderer } from './visual-module-renderer.ts';
 import { TimelinePreviewScheduler } from './timeline-preview-scheduler.ts';
 import { TimelineRenderer } from './timeline-renderer.ts';
+import { ProjectStateVersions } from './project-state-versions.ts';
 import { createVisualModuleTimelineLayer } from './visual-module-timeline-layer.ts';
 import { createSceneTimelineLayer } from './scene-timeline-layer.ts';
 import { createVideoTimelineLayer } from './video-timeline-layer.ts';
@@ -84,6 +88,7 @@ export class TimelineRendererManager extends EventEmitter<{
 	private effectDefinitions: Record<string, EffectDefinition<any>>;
 	private effectImplementations: Record<string, EffectImplementation<any>>;
 	private currentRenderError: string | null = null;
+	private projectVersions = new ProjectStateVersions();
 
 	private readonly staticOptions: TimelineRendererManagerStaticOptions;
 	private dynamicOptions: TimelineRendererManagerDynamicOptions = {
@@ -147,6 +152,7 @@ export class TimelineRendererManager extends EventEmitter<{
 		this.timelineRenderer = new TimelineRenderer<NodeOutput, TimelineLayer>({
 			fallbackOutput: { kind: 'uniform', value: [0, 0, 0, 0] },
 			createLayer: (entry, clipId) => this.createTimelineLayer(entry, clipId, [entry.id], this.sceneBaseResolution),
+			getLayerVersion: (entry, clipId) => this.getLayerVersion(this.dynamicOptions.sceneId!, entry, clipId),
 			present: (output, gpuTime) => {
 				const commandEncoder = this.gpuDevice.createCommandEncoder();
 				this.sceneOutput ??= createSceneOutput({ device: this.gpuDevice, vertex: this.defaultVertexShaderModule,
@@ -216,6 +222,89 @@ export class TimelineRendererManager extends EventEmitter<{
 		return { assetsCommitted };
 	}
 
+	public replaceProjectState(state: RendererProjectState) {
+		validateTimelineScenes(state.timelineScenes);
+		for (const scene of state.timelineScenes) for (const layer of scene.layers) {
+			if (layer.layerType === 'effect') validateTimelineEffectLayer(layer, this.effectDefinitions[layer.effectId]);
+		}
+		const resolution = this.resolveProjectOutputResolution(state);
+		this.clearTimelineRenderers();
+		this.projectVersions = new ProjectStateVersions();
+		Object.assign(this.dynamicOptions, state);
+		if (!state.timelineScenes.some(scene => scene.id === this.dynamicOptions.sceneId)) this.dynamicOptions.sceneId = null;
+		this.gpuContext.canvas.width = resolution.width;
+		this.gpuContext.canvas.height = resolution.height;
+	}
+
+	public applyProjectChanges(changes: readonly RendererProjectChange[]) {
+		let next: RendererProjectState = this.dynamicOptions;
+		let validateSceneReferences = false;
+		for (const change of changes) {
+			const previous = change.type === 'layer' ? next.timelineScenes.find(scene => scene.id === change.sceneId)?.layers.find(layer => layer.id === change.layerId) : undefined;
+			// 同じバッチのModule編集を後続の引数更新の検証にも使う。公開状態は最後まで変えない。
+			next = applyRendererProjectChanges(next, [change]);
+			if (change.type === 'scene') validateSceneReferences = true;
+			if (change.type !== 'layer' || change.layer === null) continue;
+			validateTimelineLayer(change.layer);
+			if (change.layer.layerType === 'effect') validateTimelineEffectLayer(change.layer, this.effectDefinitions[change.layer.effectId]);
+			if (change.layer.layerType === 'scene') validateSceneReferences = true;
+			if (change.preserveModuleInstance) {
+				if (!previous || !('visualModuleParamValues' in previous) || !('visualModuleParamValues' in change.layer)) {
+					throw new Error('Only module arguments can preserve a layer instance');
+				}
+				// 表示名は描画へ通知しないため、直前のUI状態とは異なることがある。
+				const { visualModuleParamValues: previousValues, name: previousName, ...previousRest } = previous;
+				const { visualModuleParamValues: nextValues, name: nextName, ...nextRest } = change.layer;
+				if (!deepEqual(previousRest, nextRest)) throw new Error('Layer structure changed while preserving its instance');
+			}
+		}
+		if (validateSceneReferences) {
+			validateTimelineScenes(next.timelineScenes);
+			for (const scene of next.timelineScenes) for (const layer of scene.layers) {
+				if (layer.layerType === 'effect') validateTimelineEffectLayer(layer, this.effectDefinitions[layer.effectId]);
+			}
+		}
+		const changesRootScene = changes.some(change => change.type === 'scene' && change.sceneId === this.dynamicOptions.sceneId);
+		const resolution = changesRootScene ? this.resolveProjectOutputResolution(next) : null;
+		// 差分の検証が成功するまで公開状態を変更しない。編集中の非同期フレームは
+		// 中断するが、履歴とキャッシュの破棄は変更された配置だけが次の評価で行う。
+		this.previewScheduler.clear();
+		this.previewRenderGeneration++;
+		this.timelineRenderer.cancelPendingRender();
+		Object.assign(this.dynamicOptions, next);
+		this.projectVersions.apply(changes);
+		if (!next.timelineScenes.some(scene => scene.id === this.dynamicOptions.sceneId)) {
+			this.dynamicOptions.sceneId = null;
+			this.clearTimelineRenderers();
+		} else if (resolution != null) {
+			this.sceneOutput?.dispose();
+			this.sceneOutput = undefined;
+			this.gpuContext.canvas.width = resolution.width;
+			this.gpuContext.canvas.height = resolution.height;
+		}
+	}
+
+	private resolveProjectOutputResolution(state: RendererProjectState): Resolution {
+		const scene = state.timelineScenes.find(scene => scene.id === this.dynamicOptions.sceneId);
+		const sceneResolution = resolveSceneResolution(scene?.resolution ?? { mode: 'project' }, this.dynamicOptions.resolution,
+			this.dynamicOptions.resolutionScale, this.gpuDevice.limits.maxTextureDimension2D);
+		const resolution = this.dynamicOptions.outputResolution ?? sceneResolution;
+		if (![resolution.width, resolution.height].every(value => Number.isSafeInteger(value) && value > 0 && value <= this.gpuDevice.limits.maxTextureDimension2D)) {
+			throw new Error(`Invalid output resolution: ${resolution.width} × ${resolution.height}`);
+		}
+		return resolution;
+	}
+
+	private getLayer(sceneId: string, layerId: string) {
+		return getTimelineScene(this.dynamicOptions.timelineScenes, sceneId).layers.find(layer => layer.id === layerId);
+	}
+
+	private getLayerVersion(sceneId: string, layer: TimelineLayer, clipId: string): string {
+		const childId = layer.layerType === 'scene' ? layer.clips.find(clip => clip.id === clipId)!.sceneId : null;
+		return JSON.stringify([this.projectVersions.scene(sceneId), this.projectVersions.layer(sceneId, layer.id),
+			childId == null ? 0 : this.projectVersions.scene(childId)]);
+	}
+
 	private updateAssets(assets: Asset[]): Promise<boolean> {
 		return this.assetTextures.update(assets, () => {
 			// 世代管理で採用された更新だけが一覧とキャッシュを切り替える。
@@ -264,7 +353,7 @@ export class TimelineRendererManager extends EventEmitter<{
 		return this.dynamicOptions.sceneId == null ? [] : getTimelineScene(this.dynamicOptions.timelineScenes, this.dynamicOptions.sceneId).layers.filter(layer => layer.layerType !== 'audio');
 	}
 
-	private createTimelineLayer(layer: TimelineLayer, clipId: string, layerPath: string[], sceneBaseResolution: Resolution): TimelineLayerRenderer<NodeOutput> {
+	private createTimelineLayer(layer: TimelineLayer, clipId: string, layerPath: string[], sceneBaseResolution: Resolution, sceneId = this.dynamicOptions.sceneId!): TimelineLayerRenderer<NodeOutput> {
 		const renderResolution = scaleResolution(sceneBaseResolution, this.dynamicOptions.resolutionScale);
 		// レイヤーの種類の解釈とリソース解決は、タイムライン制御の外側で行う。
 		switch (layer.layerType) {
@@ -307,23 +396,24 @@ export class TimelineRendererManager extends EventEmitter<{
 				const clip = layer.clips.find(clip => clip.id === clipId)!;
 				const scene = getTimelineScene(this.dynamicOptions.timelineScenes, clip.sceneId);
 				const childBaseResolution = getSceneBaseResolution(scene.resolution, this.dynamicOptions.resolution);
-				return createSceneTimelineLayer(scene, layer, {
+				return createSceneTimelineLayer(() => getTimelineScene(this.dynamicOptions.timelineScenes, scene.id), layer, {
 					device: this.gpuDevice,
 					vertex: this.defaultVertexShaderModule,
 					resolution: renderResolution,
 					sceneResolution: resolveSceneResolution(scene.resolution, this.dynamicOptions.resolution,
 						this.dynamicOptions.resolutionScale, this.gpuDevice.limits.maxTextureDimension2D),
 					format: this.staticOptions.intermediateTextureFormat,
-					createLayer: (entry, childClipId) => this.createTimelineLayer(entry, childClipId, [...layerPath, clipId, entry.id], childBaseResolution),
+					createLayer: (entry, childClipId) => this.createTimelineLayer(entry, childClipId, [...layerPath, clipId, entry.id], childBaseResolution, scene.id),
+					getLayerVersion: (entry, childClipId) => this.getLayerVersion(scene.id, entry, childClipId),
 				});
 			}
 			case 'visualModule': {
 				const visualModule = this.dynamicOptions.visualModules.find(module => module.id === layer.visualModuleId);
 				if (visualModule == null) throw new Error(`Visual module not found: ${layer.visualModuleId}`);
-				return this.createVisualModuleLayer(visualModule, layer, clipId, layerPath, sceneBaseResolution);
+				return this.createVisualModuleLayer(visualModule, layer, clipId, layerPath, sceneBaseResolution, sceneId);
 			}
 			case 'inlineVisualModule':
-				return this.createVisualModuleLayer(layer.visualModule, layer, clipId, layerPath, sceneBaseResolution);
+				return this.createVisualModuleLayer(layer.visualModule, layer, clipId, layerPath, sceneBaseResolution, sceneId);
 		}
 		throw new Error(`Unrecognized layer type: ${layer.layerType}`);
 	}
@@ -339,7 +429,12 @@ export class TimelineRendererManager extends EventEmitter<{
 		};
 	}
 
-	private createVisualModuleLayer(visualModule: VisualModule, layer: TimelineVisualModuleLayer | TimelineInlineVisualModuleLayer, clipId: string, layerPath: string[], sceneBaseResolution: Resolution): TimelineLayerRenderer<NodeOutput> {
+	private createVisualModuleLayer(visualModule: VisualModule, layer: TimelineVisualModuleLayer | TimelineInlineVisualModuleLayer, clipId: string, layerPath: string[], sceneBaseResolution: Resolution, sceneId: string): TimelineLayerRenderer<NodeOutput> {
+		const target: VisualModuleTarget = layer.layerType === 'visualModule' ? { visualModuleId: layer.visualModuleId }
+			: { sceneId, inlineVisualModuleLayerId: layer.id };
+		const getModule = () => findRendererVisualModule(this.dynamicOptions, target)!;
+		const getLayer = () => this.getLayer(sceneId, layer.id) as TimelineVisualModuleLayer | TimelineInlineVisualModuleLayer;
+		let moduleRevision = this.projectVersions.module(target).revision;
 		const statusSource = this.createLayerStatusSource(layer.id, clipId, layerPath);
 		const renderer = new VisualModuleRenderer({
 			gpuDevice: this.gpuDevice,
@@ -366,7 +461,7 @@ export class TimelineRendererManager extends EventEmitter<{
 			resolution: scaleResolution(sceneBaseResolution, this.dynamicOptions.resolutionScale), format: this.staticOptions.intermediateTextureFormat,
 			beginPass: (encoder, descriptor) => encoder.beginRenderPass(descriptor),
 		});
-		return createVisualModuleTimelineLayer(visualModule, layer, {
+		const instance = createVisualModuleTimelineLayer(getModule, getLayer, {
 			prepare: (context, signal) => renderer.prepare(context, signal),
 			render: async (context, layerContext) => {
 				const commandEncoder = this.gpuDevice.createCommandEncoder();
@@ -378,8 +473,8 @@ export class TimelineRendererManager extends EventEmitter<{
 						const settings = compositingParameters.evaluate({
 							time: layerContext.sceneTimeMs,
 							isExport: context.isExport,
-							paramValues: layer.compositingParamValues,
-							automationGraphs: layer.automationGraphs,
+							paramValues: getLayer().compositingParamValues,
+							automationGraphs: getLayer().automationGraphs,
 						});
 						output = compositor.render(commandEncoder, layerContext.input, output, settings);
 					}
@@ -394,6 +489,17 @@ export class TimelineRendererManager extends EventEmitter<{
 				renderer.destroy();
 			},
 		});
+		return {
+			evaluate: (context, signal) => {
+				const version = this.projectVersions.module(target);
+				if (version.revision !== moduleRevision) {
+					renderer.updateVisualModule(getModule(), version.cacheResetRevision <= moduleRevision);
+					moduleRevision = version.revision;
+				}
+				return instance.evaluate(context, signal);
+			},
+			destroy: () => instance.destroy(),
+		};
 	}
 
 	public destroy() {

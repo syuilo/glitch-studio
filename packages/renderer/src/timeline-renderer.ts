@@ -26,6 +26,8 @@ export type TimelineLayerRenderer<Output> = {
 type TimelineRendererOptions<Output, Entry extends TimelineRenderEntry> = {
 	fallbackOutput: Output;
 	createLayer: (entry: Entry, clipId: string) => TimelineLayerRenderer<Output>;
+	/** 定義の変更によって再生成が必要なときだけ変わる値。配置先の解釈は呼び出し側が行う。 */
+	getLayerVersion?: (entry: Entry, clipId: string) => string | number;
 	present?: (output: Output, gpuTime: number) => void;
 	onClear?: () => void;
 };
@@ -33,22 +35,26 @@ type TimelineRendererOptions<Output, Entry extends TimelineRenderEntry> = {
 // レイヤーの順序と寿命、非同期シークを管理する。GPUやCanvasには依存しない。
 export class TimelineRenderer<Output, Entry extends TimelineRenderEntry = TimelineRenderEntry> {
 	private options: TimelineRendererOptions<Output, Entry>;
-	private layers = new Map<string, TimelineLayerRenderer<Output>>();
+	private layers = new Map<string, { renderer: TimelineLayerRenderer<Output>; version: string | number | undefined }>();
 	private controller: AbortController | null = null;
 
 	constructor(options: TimelineRendererOptions<Output, Entry>) {
 		this.options = options;
 	}
 
-	public clear() {
+	public cancelPendingRender() {
 		this.controller?.abort();
 		this.controller = null;
-		for (const layer of this.layers.values()) layer.destroy();
+	}
+
+	public clear() {
+		this.cancelPendingRender();
+		for (const layer of this.layers.values()) layer.renderer.destroy();
 		this.layers.clear();
 		this.options.onClear?.();
 	}
 
-	/** timeはミリ秒。編集・リサイズ・破棄時はclearで準備中のシークも中断する。 */
+	/** timeはミリ秒。編集は準備中のシークだけを中断し、変更のない配置を再利用する。 */
 	public async renderAt(time: number, timeline: readonly Entry[], timeDelta = 0, isExport = false): Promise<void> {
 		const pending = this.evaluateAt(time, timeline, timeDelta, isExport);
 		const controller = this.controller;
@@ -100,7 +106,7 @@ export class TimelineRenderer<Output, Entry extends TimelineRenderEntry = Timeli
 	private releaseUnusedLayers(retainedIds: ReadonlySet<string>) {
 		for (const [id, layer] of this.layers) {
 			if (retainedIds.has(id)) continue;
-			layer.destroy();
+			layer.renderer.destroy();
 			this.layers.delete(id);
 		}
 	}
@@ -112,9 +118,15 @@ export class TimelineRenderer<Output, Entry extends TimelineRenderEntry = Timeli
 		for (const { entry, clip, instanceKey } of entries) {
 			// IDはレイヤー内だけで一意。同じモジュール・子Sceneの隣接クリップも別の履歴を持つ。
 			let layer = this.layers.get(instanceKey);
+			const version = this.options.getLayerVersion?.(entry, clip.id);
+			if (layer != null && layer.version !== version) {
+				layer.renderer.destroy();
+				this.layers.delete(instanceKey);
+				layer = undefined;
+			}
 			const isNewLayer = layer == null;
 			if (layer == null) {
-				layer = this.options.createLayer(entry, clip.id);
+				layer = { renderer: this.options.createLayer(entry, clip.id), version };
 				this.layers.set(instanceKey, layer);
 			}
 			const context: TimelineLayerContext<Output> = {
@@ -129,7 +141,7 @@ export class TimelineRenderer<Output, Entry extends TimelineRenderEntry = Timeli
 				contentEndTimeMs: clip.contentOffsetMs + clip.durationMs,
 				input: output,
 			};
-			const result = await layer.evaluate(context, signal);
+			const result = await layer.renderer.evaluate(context, signal);
 			// 準備・描画・計測の待機中に別のシークが開始された場合は表示しない。
 			if (signal.aborted) return;
 			gpuTime += result.gpuTime;

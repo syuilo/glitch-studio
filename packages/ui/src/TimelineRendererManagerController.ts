@@ -1,6 +1,8 @@
 import { scaleResolution } from '@glitch/shared/resolution.ts';
 import { ref } from 'vue';
 import { deepClone } from '@glitch/shared/utility/deep-clone.ts';
+import { applyRendererProjectChanges } from '@glitch/shared/project/renderer-state.ts';
+import type { RendererProjectChange, RendererProjectState } from '@glitch/shared/project/renderer-state.ts';
 import { createTimelineRendererManagerWorker } from '@glitch/renderer/client.ts';
 import { RendererManagerControllerBase } from './RendererManagerControllerBase.ts';
 import { TimelineEffectStateStore } from './utility/timeline-effect-status.ts';
@@ -46,6 +48,7 @@ export class TimelineRendererManagerController extends RendererManagerController
 				const waveformHorizontalOffscreen = this.waveformHorizontalCanvas.transferControlToOffscreen();
 				const waveformVerticalOffscreen = this.waveformVerticalCanvas.transferControlToOffscreen();
 
+				this.initialSnapshotTaken = true;
 				return {
 					options: {
 						canvas: offscreen,
@@ -151,6 +154,29 @@ export class TimelineRendererManagerController extends RendererManagerController
 		const result = await this.callAndWaitReturn('updateDynamicOptions', [options]);
 		this.effectStates.clearLayerErrors();
 		return result;
+	}
+
+	public async replaceProjectState(state: RendererProjectState) {
+		const snapshot = deepClone(state);
+		this.dynamicOptions = { ...this.dynamicOptions, ...snapshot,
+			sceneId: snapshot.timelineScenes.some(scene => scene.id === this.dynamicOptions.sceneId) ? this.dynamicOptions.sceneId : null };
+		if (!this.isReady.value && !this.isInitializing) return;
+		if (!this.initialSnapshotTaken) return this.initializationReady;
+		await this.callAndWaitReturn('replaceProjectState', [snapshot]);
+		this.effectStates.clearLayerErrors();
+	}
+
+	public async applyProjectChanges(changes: readonly RendererProjectChange[]) {
+		const patch = deepClone(changes);
+		const next = applyRendererProjectChanges({ visualModules: this.dynamicOptions.visualModules ?? [], timelineScenes: this.dynamicOptions.timelineScenes ?? [] }, patch);
+		this.dynamicOptions = { ...this.dynamicOptions, ...next,
+			sceneId: next.timelineScenes.some(scene => scene.id === this.dynamicOptions.sceneId) ? this.dynamicOptions.sceneId : null };
+		if (!this.isReady.value && !this.isInitializing) return;
+		// 初期スナップショットへ取り込まれた差分は再送しない。削除済みノードへの
+		// 更新を初期化後に再生すると失敗するため、送信境界以降だけをキューへ積む。
+		if (!this.initialSnapshotTaken) return this.initializationReady;
+		await this.callAndWaitReturn('applyProjectChanges', [patch]);
+		this.effectStates.clearLayerErrors();
 	}
 
 	public updateStaticOptions(newStaticOptions: Partial<TimelineRendererManagerStaticOptions>): Promise<void> {

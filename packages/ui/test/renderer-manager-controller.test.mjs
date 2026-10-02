@@ -76,6 +76,66 @@ async function initialize(controller, workers) {
 	return worker;
 }
 
+// 【初期スナップショット前の差分は吸収し、それ以降の差分だけを送信する】
+// Worker生成待ちの間に「編集→削除」が起きた場合、削除済みノードへの更新を再送してはいけない。
+// 初期化中の後続編集は順序を保って送り、再起動時にはそれを含む全量状態から復元する。
+for (const kind of ['VisualModule', 'Timeline']) test(`${kind} uses a snapshot boundary for project patches and restores the latest state on reload`, async t => {
+	const { controller } = fixture(t, kind);
+	const node = { id: 'node', type: 'effect', effectId: 'fill', params: { value: { inputSource: 'literal', value: 1 } } };
+	const visualModule = { id: 'module', name: 'Module', nodes: [node], paramDefs: [], outputDefs: [], primaryInputId: null, primaryOutputId: null, automationGraphs: [] };
+	await controller.replaceProjectState({ visualModules: [visualModule], timelineScenes: [] });
+	const created = Promise.withResolvers();
+	const worker = new FakeWorker();
+	controller.createWorker = () => created.promise;
+	const ready = controller.init({ width: 16, height: 16 });
+	const edited = { ...node, params: { value: { inputSource: 'literal', value: 2 } } };
+	const absorbed = controller.applyProjectChanges([{ type: 'node', target: { visualModuleId: 'module' }, node: edited, preserveCache: true }]);
+	const removed = controller.applyProjectChanges([{ type: 'visualModule', target: { visualModuleId: 'module' }, visualModule: { ...visualModule, nodes: [] } }]);
+	created.resolve(worker);
+	const initial = await worker.initialization.promise;
+	assert.deepEqual(initial.dynamicOptions.visualModules[0].nodes, []);
+	const queued = controller.applyProjectChanges([{ type: 'visualModule', target: { visualModuleId: 'module' }, visualModule: { ...visualModule, nodes: [edited] } }]);
+	assert.equal(worker.calls('applyProjectChanges').length, 0);
+	worker.reply({ type: 'inited' });
+	await ready;
+	await Promise.all([absorbed, removed]);
+	const calls = worker.calls('applyProjectChanges');
+	assert.equal(calls.length, 1);
+	assert.equal(calls[0].args[0][0].type, 'visualModule');
+	worker.returnValue(calls[0]);
+	await queued;
+	const restarted = new FakeWorker();
+	controller.createWorker = () => restarted;
+	const reloading = controller.reload();
+	const restored = await restarted.initialization.promise;
+	assert.deepEqual(restored.dynamicOptions.visualModules[0].nodes, [edited]);
+	restarted.reply({ type: 'inited' });
+	await reloading;
+	assert.equal(restarted.calls('applyProjectChanges').length, 0);
+});
+
+// 【全量復旧の再開要求は応答待ちより前に送り、後続編集やモード切替で巻き戻さない】
+// 置換の応答中に編集が続いてもLIVEを停止したままにせず、停止後に遅れた再開もしない。
+test('orders live recovery before later edits and does not restart after a mode switch', async t => {
+	const { controller, workers } = fixture(t);
+	const visualModule = { id: 'module', name: 'Module', nodes: [{ id: 'node', type: 'effect', effectId: 'fill', params: {} }] };
+	const state = { visualModules: [visualModule], timelineScenes: [] };
+	await controller.replaceProjectState(state);
+	const worker = await initialize(controller, workers);
+	controller.startLiveRenderLoopFor('module');
+	const replacing = controller.replaceProjectState(state);
+	const replacement = worker.calls('replaceProjectState').at(-1);
+	assert.equal(worker.messages.at(-1).fn, 'startLiveRenderLoopFor');
+	const patching = controller.applyProjectChanges([{ type: 'node', target: { visualModuleId: 'module' }, node: visualModule.nodes[0], preserveCache: true }]);
+	worker.returnValue(worker.calls('applyProjectChanges').at(-1));
+	await patching;
+	controller.stopRenderLoop();
+	worker.returnValue(replacement);
+	await replacing;
+	assert.equal(worker.messages.at(-1).fn, 'stopRenderLoop');
+	assert.equal(worker.calls('startLiveRenderLoopFor').length, 2);
+});
+
 // 【エフェクトレイヤーの状態をUIへ反映し、旧クリップと子Sceneの通知を分離する】
 // ノードIDのない状態通知を取りこぼさず、同じレイヤーを使う別配置や破棄済みクリップの通知で
 // 現在の表示を消さない。Worker障害後は状態を捨て、遅延通知による復活も防ぐ。

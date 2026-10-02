@@ -20,6 +20,8 @@ import { TimelineAudioPreview } from './audio/timeline-audio-preview.ts';
 import { AudioOutput } from './audio/audio-output.ts';
 import { PreviewPlaybackController } from './PreviewPlaybackController.ts';
 import { AppStateManager } from './AppStateManager.ts';
+import { RendererProjectSynchronizer } from './RendererProjectSynchronizer.ts';
+import type { RendererProjectState } from '@glitch/shared/project/renderer-state.ts';
 import { DEFAULT_PROJECT_NAME, loadProjectFile, saveProjectFile } from './gsproj.ts';
 import { preferences } from './preferences.ts';
 import { makeHotkey } from './utility/hotkey.ts';
@@ -117,10 +119,17 @@ watch(activeSceneId, (sceneId, previousId) => {
 export const activePreviewRenderer = computed(() => previewPlayback.state.value.mode === 'live'
 	? visualModuleRendererManagerController : timelineRendererManagerController);
 
-async function updatePreviewOptions(options: Partial<Pick<TimelineRendererManagerDynamicOptions, 'assets' | 'visualModules' | 'resolution' | 'resolutionScale' | 'highlightClipping'>>) {
+async function updatePreviewOptions(options: Partial<Pick<TimelineRendererManagerDynamicOptions, 'assets' | 'resolution' | 'resolutionScale' | 'highlightClipping'>>) {
 	await Promise.all([
 		visualModuleRendererManagerController.updateDynamicOptions(options),
 		timelineRendererManagerController.updateDynamicOptions(options),
+	]);
+}
+
+async function replacePreviewProject(state: RendererProjectState) {
+	await Promise.all([
+		visualModuleRendererManagerController.replaceProjectState(state),
+		timelineRendererManagerController.replaceProjectState(state),
 	]);
 }
 
@@ -209,8 +218,9 @@ export async function appReady(project: Project, fileName = 'untitled.gsproj', f
 	projectWatchers = [];
 	previewPlayback.dispose();
 	// 同じIDのプロジェクトを再読込した場合も、以前の再生・ノード履歴を引き継がない。
-	await updatePreviewOptions({ assets: [], visualModules: [] });
-	await timelineRendererManagerController.updateDynamicOptions({ timelineScenes: [], sceneId: null });
+	await replacePreviewProject({ visualModules: [], timelineScenes: [] });
+	await updatePreviewOptions({ assets: [] });
+	await timelineRendererManagerController.updateDynamicOptions({ sceneId: null });
 	await visualModuleRendererManagerController.updatePlayers([]);
 
 	appStateManager.state.resolution.value = project.resolution;
@@ -224,11 +234,9 @@ export async function appReady(project: Project, fileName = 'untitled.gsproj', f
 	pendingSceneSeek = null;
 	appStateManager.undoStack.value = [];
 	appStateManager.redoStack.value = [];
-	await updatePreviewOptions({
-		assets: deepClone(project.assets),
-		visualModules: deepClone(project.visualModules),
-	});
-	await timelineRendererManagerController.updateDynamicOptions({ timelineScenes: deepClone(project.timelineScenes), sceneId: activeSceneId.value });
+	await replacePreviewProject({ visualModules: project.visualModules, timelineScenes: project.timelineScenes });
+	await updatePreviewOptions({ assets: deepClone(project.assets) });
+	await timelineRendererManagerController.updateDynamicOptions({ sceneId: activeSceneId.value });
 	await visualModuleRendererManagerController.updatePlayers(deepClone(project.players));
 	projectMetadata = { id: project.id };
 	projectInfo.value = { name: project.name, description: project.description, author: project.author };
@@ -266,26 +274,35 @@ export async function appReady(project: Project, fileName = 'untitled.gsproj', f
 		visualModuleRendererManagerController.updatePlayers(deepClone(appStateManager.state.players.value));
 	}, { deep: true }));
 
-	projectWatchers.push(watch(appStateManager.state.visualModules, async () => {
-		await updatePreviewOptions({ visualModules: deepClone(appStateManager.state.visualModules.value) });
-		// 停止中は時刻が変化しないため、モジュールの編集・Undo/Redoでも現在位置を描き直す。
-		// 単体のLIVEプレビュー中は、その描画ループを維持する。
-		previewPlayback.refresh();
-	}, { deep: true }));
+	const rendererSync = new RendererProjectSynchronizer(appStateManager, {
+		apply: async changes => {
+			await Promise.all([
+				visualModuleRendererManagerController.applyProjectChanges(changes),
+				timelineRendererManagerController.applyProjectChanges(changes),
+			]);
+		},
+		replace: replacePreviewProject,
+		onUpdated: () => previewPlayback.refresh(),
+		onError: error => { void ui.alert({ type: 'error', text: error instanceof Error ? error.message : String(error) }); },
+	});
+	projectWatchers.push(() => rendererSync.dispose());
 
 	let sceneUpdateGeneration = 0;
-	projectWatchers.push(watch([appStateManager.state.timelineScenes, activeSceneId], async ([, sceneId], _previous, onCleanup) => {
+	projectWatchers.push(watch(activeSceneId, async (sceneId, _previous, onCleanup) => {
 		const generation = ++sceneUpdateGeneration;
 		let cancelled = false;
 		onCleanup(() => { cancelled = true; });
-		await timelineRendererManagerController.updateDynamicOptions({ timelineScenes: deepClone(appStateManager.state.timelineScenes.value), sceneId });
+		// Scene追加コマンドの通知は同期watchの後に届く。差分を確定してから参照を切り替える。
+		await rendererSync.flush();
+		if (cancelled || generation !== sceneUpdateGeneration) return;
+		await timelineRendererManagerController.updateDynamicOptions({ sceneId });
 		if (cancelled || generation !== sceneUpdateGeneration) return;
 		if (pendingSceneSeek != null) {
 			const time = pendingSceneSeek;
 			pendingSceneSeek = null;
 			previewPlayback.seekTimeline(time);
 		} else previewPlayback.refresh();
-	}, { deep: true }));
+	}));
 
 	previewPlayback.seekTimeline(0);
 	if (project.visualModules[0] != null) previewPlayback.startLive(project.visualModules[0].id);

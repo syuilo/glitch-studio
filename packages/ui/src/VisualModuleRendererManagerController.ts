@@ -3,6 +3,8 @@ import type { ProjectVisualModule } from '@glitch/shared/project/types.ts';
 import { ref, shallowReactive } from 'vue';
 import { deepEqual } from '@glitch/shared/utility/deep-equal.ts';
 import { deepClone } from '@glitch/shared/utility/deep-clone.ts';
+import { applyRendererProjectChanges } from '@glitch/shared/project/renderer-state.ts';
+import type { RendererProjectChange, RendererProjectState } from '@glitch/shared/project/renderer-state.ts';
 import { genId } from '@glitch/shared/utility/id.ts';
 import { createVisualModuleRendererManagerWorker } from '@glitch/renderer/client.ts';
 import { isVideoFrameAvailable, playVideoAfterFirstFrameIsReady } from './utility/video.ts';
@@ -71,6 +73,7 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 				const waveformHorizontalOffscreen = this.waveformHorizontalCanvas.transferControlToOffscreen();
 				const waveformVerticalOffscreen = this.waveformVerticalCanvas.transferControlToOffscreen();
 
+				this.initialSnapshotTaken = true;
 				return {
 					options: {
 						canvas: offscreen,
@@ -371,6 +374,30 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 			await this.updatePlayers(this.players);
 		}
 		return result;
+	}
+
+	public async replaceProjectState(state: RendererProjectState) {
+		const snapshot = { visualModules: deepClone(state.visualModules), timelineScenes: [] };
+		this.dynamicOptions = { ...this.dynamicOptions, visualModules: snapshot.visualModules };
+		if (!this.isReady.value && !this.isInitializing) return;
+		if (!this.initialSnapshotTaken) return this.initializationReady;
+		const replacement = this.callAndWaitReturn('replaceProjectState', [snapshot]);
+		// 復旧用の再開も置換の直後に送る。応答待ちの後に送ると、その間の
+		// パラメータ編集で再開を取りこぼしたり、モード切替後に古いLIVEを開始したりする。
+		if (this.renderLoopRunning && this.liveVisualModuleId.value != null) {
+			this.startLiveRenderLoopFor(this.liveVisualModuleId.value, this.liveParamValues);
+		}
+		await replacement;
+	}
+
+	public async applyProjectChanges(changes: readonly RendererProjectChange[]) {
+		const patch = deepClone(changes.filter(change => (change.type === 'node' || change.type === 'visualModule') && 'visualModuleId' in change.target));
+		if (patch.length === 0) return;
+		const next = applyRendererProjectChanges({ visualModules: this.dynamicOptions.visualModules ?? [], timelineScenes: [] }, patch);
+		this.dynamicOptions = { ...this.dynamicOptions, visualModules: next.visualModules };
+		if (!this.isReady.value && !this.isInitializing) return;
+		if (!this.initialSnapshotTaken) return this.initializationReady;
+		await this.callAndWaitReturn('applyProjectChanges', [patch]);
 	}
 
 	public updateStaticOptions(newStaticOptions: Partial<VisualModuleRendererManagerStaticOptions>): Promise<void> {
