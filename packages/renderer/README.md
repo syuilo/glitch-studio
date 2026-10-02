@@ -1,3 +1,7 @@
 Glitch Studioとして、各subsystemのレンダラーを利用する統括層
 
 Glitch Studioのドメイン知識を持っていてもよい
+
+注意する必要があるのは、すべてのサブシステムは公平だということです。
+
+TimelineはVisual Moduleを使用し、Visual ModuleはEffectを使用するという依存の階層構造自体はあるが、それは「Glitch Studioにおいてはタイムラインがメイン機能であり、タイムラインがすべてをk管理する」などということは意味せず、Glitch Studio自体の設計とは全く関係がない。
