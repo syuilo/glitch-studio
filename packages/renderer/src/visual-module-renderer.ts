@@ -10,6 +10,7 @@ import { ParameterEvaluator } from '@glitch/shared/parameter-evaluator.js';
 import { validateEnumParameterValue } from '@glitch/shared/parameter.ts';
 import { outputShaderInput } from './node-output.ts';
 import { EffectRenderer } from './effect-renderer.ts';
+import { resolveEffectParameterValue } from './effect-parameter-value.ts';
 import { getEvaluatedParam, mapNodeParam, walkNodeParams } from './utility/node-params.ts';
 import defaultVertexShaderCode from './vertex.wgsl?raw';
 import type TimingHelper from './utility/TimingHelper.ts';
@@ -262,22 +263,15 @@ export class VisualModuleRenderer {
 		for (const [key, def] of Object.entries(this.effectDefinitions[node.effectId].paramDefs)) {
 			resolvedParams[key] = mapNodeParam(def, node.params[key], [key], (def, param, path) => {
 				const v = getEvaluatedParam(params, path);
-				if (def.dataType.kind === 'assetReference') return this.assetTextures.get(v) ?? null;
-				if (def.dataType.kind === 'videoAssetReference') return this.assets.find(asset => asset.id === v && asset.fileDataType.startsWith('video/')) ?? null;
-				if (def.dataType.kind === 'fontAssetReference') return this.assets.find(asset => asset.id === v && asset.fileDataType.startsWith('font/')) ?? null;
 				if (def.dataType.kind === 'playerReference') return v == null ? null : {
 					videoFrame: this.videoFrames.get(v) ?? null,
 					audio: this.audioSources.get(playerAudioSourceId(v)) ?? null,
 				};
-				if (def.canNode) {
-					if (param.inputSource === 'node' && param.nodeId != null) {
-						const output = this.getOutputValue(this.allNodeIdMap.get(param.nodeId)!, param.outputPort);
-						return output == null ? constantShaderInput(def.dataType.kind, null) : outputShaderInput(output, param);
-					}
-					// NOTE: canNodeなcutom paramterは必ず配線(node)で参照し、externalCustomParameterInputとして直接参照することは仕様上禁止されるためここで対応する必要はない
-					return constantShaderInput(def.dataType.kind, v);
+				if (def.canNode && param.inputSource === 'node' && param.nodeId != null) {
+					const output = this.getOutputValue(this.allNodeIdMap.get(param.nodeId)!, param.outputPort);
+					return output == null ? constantShaderInput(def.dataType.kind, null) : outputShaderInput(output, param);
 				}
-				return v;
+				return resolveEffectParameterValue(def, v, { assets: this.assets, assetTextures: this.assetTextures });
 			});
 		}
 		return resolvedParams;

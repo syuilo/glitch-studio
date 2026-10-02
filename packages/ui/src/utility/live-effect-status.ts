@@ -1,4 +1,5 @@
-import type { EffectInstanceState, EffectStatusSource } from '@glitch/shared/effect/effect-status.ts';
+import type { EffectInstanceState } from '@glitch/shared/effect/effect-status.ts';
+import type { LiveEffectStatusSource } from '@glitch/renderer/visual-module-renderer-manager.ts';
 
 export class LiveEffectStateStore {
 	private current: { visualModuleId: string; instanceId: string } | null = null;
@@ -18,7 +19,7 @@ export class LiveEffectStateStore {
 		this.statuses.clear();
 	}
 
-	public update(source: EffectStatusSource, nodeId: string, status: EffectInstanceState | null) {
+	public update(source: LiveEffectStatusSource, nodeId: string, status: EffectInstanceState | null) {
 		// 同じノードIDでもタイムラインレイヤーや以前のLIVEインスタンスは別の状態を持つ。
 		const current = this.current;
 		if (current == null || source.type !== 'live' || source.instanceId !== current.instanceId

@@ -2,7 +2,13 @@
 <GsFolder :asSection="true" defaultOpen :withSpacer="false">
 	<template #icon><i class="ti ti-sparkles"></i></template>
 	<template #label>{{ definition.displayName }}</template>
+	<template #suffix>
+		<span v-if="effectState?.status.type === 'loading'"><i class="ti ti-loader-2"></i> Loading…</span>
+		<span v-else-if="effectState?.status.type === 'error'" :class="$style.error" :title="effectState.status.message"><i class="ti ti-alert-triangle"></i> Error</span>
+		<span v-else-if="outputResolution">{{ outputResolution.width }} × {{ outputResolution.height }}</span>
+	</template>
 	<div class="_spacer _gaps_s">
+		<div v-if="effectState?.status.type === 'error'" :class="$style.errorMessage">{{ effectState.status.message }}</div>
 		<GsSelect :modelValue="layer.resolution.mode" :items="resolutionModes" @update:modelValue="setResolutionMode">
 			<template #label>Resolution</template>
 			<template v-if="layer.resolution.mode === 'context'" #caption>Uses the containing scene size.</template>
@@ -43,10 +49,12 @@ import type { ParamEdit } from './GsVisualParam.vue';
 import type { TimelineEffectLayer } from '@glitch/shared/timeline/types.ts';
 import type { EffectResolution } from '@glitch/shared/effect/resolution.ts';
 import type { Resolution } from '@glitch/shared/resolution.ts';
+import type { EffectInstanceState } from '@glitch/shared/effect/effect-status.ts';
 
-const props = defineProps<{ layer: TimelineEffectLayer; contextResolution: Resolution }>();
+const props = defineProps<{ layer: TimelineEffectLayer; contextResolution: Resolution; effectState?: EffectInstanceState }>();
 const emit = defineEmits<{ edit: [event: ParamEdit]; resolution: [resolution: EffectResolution] }>();
 const definition = computed(() => effectDefinitions[props.layer.effectId]);
+const outputResolution = computed(() => definition.value.primaryOutput == null ? undefined : props.effectState?.outputs[definition.value.primaryOutput]);
 const resolutionModes: { value: EffectResolution['mode']; label: string }[] = [
 	{ value: 'auto', label: 'Auto' }, { value: 'context', label: 'Context resolution' }, { value: 'customAbsolute', label: 'Custom (Absolute)' },
 ];
@@ -60,3 +68,13 @@ function setDimension(axis: 'width' | 'height', value: number | null) {
 	emit('resolution', { ...props.layer.resolution, [axis]: value });
 }
 </script>
+
+<style module>
+.error, .errorMessage {
+	color: var(--THEME-error);
+}
+.errorMessage {
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+}
+</style>

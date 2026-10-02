@@ -2,11 +2,10 @@ import { deepClone } from '@glitch/shared/utility/deep-clone.ts';
 import { genEmptyValue } from '@glitch/shared/utility/misc.ts';
 import { ParameterEvaluator } from '@glitch/shared/parameter-evaluator.ts';
 import { validateEnumParameterValue } from '@glitch/shared/parameter.ts';
-import { constantShaderInput } from '@glitch/shared/shader-input.ts';
 import { createTimelineLayerEvaluationScope } from '@glitch/shared/timeline/evaluation-scope.ts';
-import { getEffectLayerParameterDefault } from '@glitch/shared/timeline/effect-layer.ts';
-import { validateTimelineParameterTree } from '@glitch/shared/timeline/parameter-binding.ts';
+import { getEffectLayerParameterDefault, validateTimelineEffectLayer } from '@glitch/shared/timeline/effect-layer.ts';
 import { EffectRenderer } from './effect-renderer.ts';
+import { resolveEffectParameterValue } from './effect-parameter-value.ts';
 import { resolveEffectNodeResolution } from './effect-node-resolution.ts';
 import { mapNodeParam } from './utility/node-params.ts';
 import { outputShaderInput } from './node-output.ts';
@@ -32,6 +31,9 @@ export function createEffectTimelineLayer(layer: TimelineEffectLayer, definition
 	assetTextures: ReadonlyMap<string, GPUTexture>;
 	onState?: (state: EffectInstanceState | null) => void;
 }): TimelineLayerRenderer<NodeOutput> {
+	// 設定更新時はManagerがインスタンスを作り直す。Bindingの検証と既定値の補完は
+	// 受け入れ時に行い、毎フレーム、未評価のキーフレーム列まで複製・再検証しない。
+	validateTimelineEffectLayer(layer, definition);
 	const port = definition.primaryOutput;
 	// 出力のないエフェクトは透明画像としてreplaceせず、合成自体をスキップする。
 	if (port == null) return { evaluate: async () => ({ gpuTime: 0 }), destroy() {} };
@@ -43,27 +45,26 @@ export function createEffectTimelineLayer(layer: TimelineEffectLayer, definition
 	const evaluator = new ParameterEvaluator();
 	const compositing = new TimelineCompositingParameters();
 	const usedOutputPorts = new Set([port]);
+	const parameters = Object.entries(definition.paramDefs).map(([key, def]) => ({
+		key, def, binding: layer.effectParamValues[key] ?? getEffectLayerParameterDefault(definition, key),
+	}));
 	let disposed = false;
 	return {
 		async evaluate(context, signal) {
 			if (disposed || signal.aborted) return { gpuTime: 0 };
 			const scope = { ...createTimelineLayerEvaluationScope({ time: context.sceneTimeMs, isExport: context.isExport,
 				automationGraphs: layer.automationGraphs }), evaluatedParamValues: null };
-			const params = Object.fromEntries(Object.entries(definition.paramDefs).map(([key, def]) => {
-				// 非同期準備中の編集や別シークと値を共有しない。GPUリソースだけは借用する。
-				const binding = deepClone(layer.effectParamValues[key] ?? getEffectLayerParameterDefault(definition, key));
-				validateTimelineParameterTree(def, binding, true);
+			const params = Object.fromEntries(parameters.map(({ key, def, binding }) => {
 				return [key, mapNodeParam(def, binding, [key], (leaf, value) => {
 					if (value.inputSource === 'layerInput') return outputShaderInput(context.input, value);
 					const fallback = value.inputSource === 'automationGraphReference' || (leaf.dataType.kind === 'enum' && value.inputSource === 'keyframesTimelineInline')
 						? leaf.defaultValue.value : leaf.dataType.kind === 'enum' ? undefined : genEmptyValue(leaf);
+					// await前に評価結果だけを固定する。literalの配列を準備中の編集と共有せず、
+					// AssetやGPUリソースはこの後の変換で借用する。
 					const evaluated = deepClone(validateEnumParameterValue(leaf, evaluator.evaluate(value, scope, fallback)));
-					if (leaf.dataType.kind === 'assetReference') return options.assetTextures.get(evaluated) ?? null;
-					if (leaf.dataType.kind === 'videoAssetReference') return options.assets.find(asset => asset.id === evaluated && asset.fileDataType.startsWith('video/')) ?? null;
-					if (leaf.dataType.kind === 'fontAssetReference') return options.assets.find(asset => asset.id === evaluated && asset.fileDataType.startsWith('font/')) ?? null;
 					// タイムラインにはPlayerの再生状態を持ち込まない。
 					if (leaf.dataType.kind === 'playerReference') return null;
-					return leaf.canNode ? constantShaderInput(leaf.dataType.kind, evaluated) : evaluated;
+					return resolveEffectParameterValue(leaf, evaluated, options);
 				})];
 			}));
 			const resolutionInput = definition.resolutionInputParameter == null ? undefined : params[definition.resolutionInputParameter];

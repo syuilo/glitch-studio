@@ -22,9 +22,15 @@ timeline.on('ev', event => {
 	if (event.type === 'renderError') {
 		const message: string | null = event.ctx.message;
 		void message;
-	} else {
+	} else if (event.type === 'effectState') {
 		const nodeId: string = event.ctx.nodeId;
 		void nodeId;
+	} else {
+		const layerId: string = event.ctx.source.layerId;
+		const clipId: string = event.ctx.source.clipId;
+		void [layerId, clipId];
+		// @ts-expect-error An effect layer does not have a node identity.
+		void event.ctx.nodeId;
 	}
 });
 

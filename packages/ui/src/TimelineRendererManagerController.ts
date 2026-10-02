@@ -1,8 +1,9 @@
 import { scaleResolution } from '@glitch/shared/resolution.ts';
-import { ref, shallowReactive } from 'vue';
+import { ref } from 'vue';
 import { deepClone } from '@glitch/shared/utility/deep-clone.ts';
 import { createTimelineRendererManagerWorker } from '@glitch/renderer/client.ts';
 import { RendererManagerControllerBase } from './RendererManagerControllerBase.ts';
+import { TimelineEffectStateStore } from './utility/timeline-effect-status.ts';
 import type { TimelineRendererManager, TimelineRendererManagerStaticOptions, TimelineRendererManagerDynamicOptions } from '@glitch/renderer/timeline-renderer-manager.ts';
 import type { EffectInstanceState } from '@glitch/shared/effect/effect-status.ts';
 import * as ui from '@/ui.ts';
@@ -18,10 +19,14 @@ export class TimelineRendererManagerController extends RendererManagerController
 		assets: [],
 	};
 	public errorMessage = ref<string | null>(null);
-	private layerEffectStates = shallowReactive(new Map<string, { instanceId: string; states: Map<string, EffectInstanceState> }>());
+	private effectStates = new TimelineEffectStateStore();
 
 	public getLayerEffectStates(sceneId: string, layerId: string): ReadonlyMap<string, EffectInstanceState> | undefined {
-		return this.layerEffectStates.get(JSON.stringify([sceneId, layerId]))?.states;
+		return this.effectStates.getNodes(sceneId, layerId);
+	}
+
+	public getEffectLayerState(sceneId: string, layerId: string): EffectInstanceState | undefined {
+		return this.effectStates.getLayer(sceneId, layerId);
 	}
 
 	constructor(staticOptions: TimelineRendererManagerStaticOptions, dynamicOptions: Partial<TimelineRendererManagerDynamicOptions>) {
@@ -63,37 +68,28 @@ export class TimelineRendererManagerController extends RendererManagerController
 			},
 			onError: error => {
 				this.errorMessage.value = error?.message ?? null;
+				if (error != null && !this.isReady.value) this.effectStates.clear();
 			},
 			eventHandlers: {
 				effectState: (ctx) => {
-					if (!this.isReady.value || ctx.source.type !== 'timelineLayer') return;
-					const { rootSceneId, layerPath, instanceId } = ctx.source;
-					const layerId = JSON.stringify([rootSceneId, ...layerPath]);
-					let entry = this.layerEffectStates.get(layerId);
-					if (ctx.status == null) {
-						// 旧インスタンスの破棄通知で、新しい描画の状態を消さない。
-						if (entry?.instanceId === instanceId) {
-							entry.states.delete(ctx.nodeId);
-							if (entry.states.size === 0) this.layerEffectStates.delete(layerId);
-						}
-						return;
-					}
-					if (entry?.instanceId !== instanceId) {
-						entry = { instanceId, states: shallowReactive(new Map()) };
-						this.layerEffectStates.set(layerId, entry);
-					}
-					entry.states.set(ctx.nodeId, ctx.status);
+					if (this.isReady.value) this.effectStates.updateNode(ctx.source, ctx.nodeId, ctx.status);
+				},
+				effectLayerState: (ctx) => {
+					if (this.isReady.value) this.effectStates.updateLayer(ctx.source, ctx.status);
 				},
 				renderError: (ctx) => {
 					// 描画できないグラフでも、修正するための更新は送り続ける。
 					// 致命的なWorkerエラー後の遅延通知では、そのエラー表示を上書きしない。
-					if (this.isReady.value) this.errorMessage.value = ctx.message;
+					if (this.isReady.value) {
+						this.errorMessage.value = ctx.message;
+						if (ctx.message == null) this.effectStates.clearLayerErrors();
+					}
 				},
 			},
 			onCreated: () => {
 			},
 			onDisposed: () => {
-				this.layerEffectStates.clear();
+				this.effectStates.clear();
 			},
 		});
 
@@ -153,6 +149,7 @@ export class TimelineRendererManagerController extends RendererManagerController
 		// 初回init前の設定は初期化メッセージに含める。初期化中はRPCのキューに積む。
 		if (!this.isReady.value && !this.isInitializing) return { assetsCommitted: null };
 		const result = await this.callAndWaitReturn('updateDynamicOptions', [options]);
+		this.effectStates.clearLayerErrors();
 		return result;
 	}
 

@@ -145,7 +145,7 @@ test('passes the referenced layer output through an inline primary input', async
 	assert.equal(calls.outputs.at(-1).texture, texture);
 	assert.equal(texture.destroyed, false);
 	assert.equal(calls.passes.length, 0);
-	assert.deepEqual(calls.statuses[0].source, { type: 'timelineLayer', rootSceneId: 'scene', layerPath: ['bottom'], layerId: 'bottom', instanceId: calls.statuses[0].source.instanceId });
+	assert.deepEqual(calls.statuses[0].source, { type: 'timelineLayer', rootSceneId: 'scene', layerPath: ['bottom'], layerId: 'bottom', clipId: 'clip', instanceId: calls.statuses[0].source.instanceId });
 });
 
 // 【モジュール内部とレイヤー引数の評価スコープを分離する】

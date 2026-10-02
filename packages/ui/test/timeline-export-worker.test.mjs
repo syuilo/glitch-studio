@@ -135,24 +135,30 @@ test('reports asset preparation failures without rendering export frames', { tim
 	assert.equal(f.destroyed, true);
 });
 
-// 【TimelineManagerからのノードエラーをエクスポート失敗として返す】
-// 新しいイベント形式への移行で通知を失うと、壊れたノードの出力を正常な動画として保存してしまう。
-test('aborts export when the timeline manager reports a node error', async () => {
-	const f = fixture();
-	const job = f.run({
-		resolutionScale: 1,
-		settings: { format: 'webp', quality: 'lossless', width: 2, height: 2, positionMs: 0 },
-		renderer: { enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm' },
-		project: { resolution: { width: 2, height: 2 }, assets: [], visualModules: [], timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [{ id: 'layer', layerType: 'effect', effectId: 'test', resolution: { mode: 'auto' }, effectParamValues: {}, name: 'Layer', clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 2000 }] }] }], sceneId: 'scene' },
+// 【TimelineManagerからのノード・エフェクトレイヤーのエラーをエクスポート失敗として返す】
+// ノードを持たないエフェクトレイヤーも失敗を検出し、原因となったレイヤーとクリップを通知する。
+// 通知を失うと、不完全な出力を正常な動画として保存してしまう。
+for (const [type, source, label] of [
+	['effectState', { nodeId: 'broken' }, 'Node broken'],
+	['effectLayerState', { source: { layerId: 'broken-layer', clipId: 'broken-clip' } }, 'Effect layer broken-layer (clip broken-clip)'],
+]) {
+	test(`aborts export on ${type} errors and identifies their source`, async () => {
+		const f = fixture();
+		const job = f.run({
+			resolutionScale: 1,
+			settings: { format: 'webp', quality: 'lossless', width: 2, height: 2, positionMs: 0 },
+			renderer: { enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm' },
+			project: { resolution: { width: 2, height: 2 }, assets: [], visualModules: [], timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [{ id: 'layer', layerType: 'effect', effectId: 'test', resolution: { mode: 'auto' }, effectParamValues: {}, name: 'Layer', clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 2000 }] }] }], sceneId: 'scene' },
+		});
+		await f.preparing.promise;
+		f.instance.handler({ type, ctx: { ...source, status: { status: { type: 'error', message: 'Invalid expression' } } } });
+		f.prepared.resolve();
+		await job;
+		assert.deepEqual(f.frames, []);
+		assert.equal(f.messages.at(-1).message, `${label}: Invalid expression`);
+		assert.equal(f.messages.some(message => message.type === 'complete'), false);
 	});
-	await f.preparing.promise;
-	f.instance.handler({ type: 'effectState', ctx: { nodeId: 'broken', status: { status: { type: 'error', message: 'Invalid expression' } } } });
-	f.prepared.resolve();
-	await job;
-	assert.deepEqual(f.frames, []);
-	assert.equal(f.messages.at(-1).message, 'Node broken: Invalid expression');
-	assert.equal(f.messages.some(message => message.type === 'complete'), false);
-});
+}
 
 // 【数値指定Sceneの書き出しも共通倍率を持ち、子Sceneの基準寸法を変更しない】
 // 最終幅から倍率を逆算すると丸めで誤差が生じる。Sceneとノードの数値指定にも

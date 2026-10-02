@@ -5,6 +5,7 @@ import { runInNewContext } from 'node:vm';
 import { test } from 'node:test';
 import { setImmediate } from 'node:timers/promises';
 import { build } from 'esbuild';
+import { computed } from 'vue';
 
 // Controller間の連携は実コードを使い、ブラウザーのリソース生成だけ置き換える。
 const result = await build({
@@ -74,6 +75,70 @@ async function initialize(controller, workers) {
 	await ready;
 	return worker;
 }
+
+// 【エフェクトレイヤーの状態をUIへ反映し、旧クリップと子Sceneの通知を分離する】
+// ノードIDのない状態通知を取りこぼさず、同じレイヤーを使う別配置や破棄済みクリップの通知で
+// 現在の表示を消さない。Worker障害後は状態を捨て、遅延通知による復活も防ぐ。
+// 描画失敗によるリソース破棄では、次の正常描画までエラーの原因を表示し続ける。
+test('tracks effect layer states reactively without mixing clip instances or nested placements', async t => {
+	const { controller, workers } = fixture(t, 'Timeline');
+	const worker = await initialize(controller, workers);
+	const previous = { type: 'timelineLayer', rootSceneId: 'scene', layerId: 'effect', layerPath: ['effect'], clipId: 'first', instanceId: 'first-instance' };
+	const current = { ...previous, clipId: 'second', instanceId: 'second-instance' };
+	const loading = { status: { type: 'loading' }, outputs: { output: null } };
+	const ready = { status: { type: 'ready' }, outputs: { output: { width: 640, height: 360 } } };
+	const failed = { status: { type: 'error', message: 'decode failed' }, outputs: { output: null } };
+	const notify = (source, status) => worker.reply({ type: 'ev', ev: { type: 'effectLayerState', ctx: { source, status } } });
+	const displayed = computed(() => controller.getEffectLayerState('scene', 'effect'));
+	assert.equal(displayed.value, undefined);
+	notify(previous, loading);
+	assert.deepEqual(displayed.value, loading);
+	notify(current, ready);
+	notify(previous, null);
+	assert.deepEqual(displayed.value, ready);
+	assert.equal(controller.getLayerEffectStates('scene', 'effect'), undefined);
+	notify({ ...current, layerPath: ['parent', 'parent-clip', 'effect'], instanceId: 'nested' }, failed);
+	assert.deepEqual(displayed.value, ready);
+	assert.equal(controller.getEffectLayerState('other-scene', 'effect'), undefined);
+	notify(current, failed);
+	assert.deepEqual(displayed.value, failed);
+	notify(current, null);
+	assert.deepEqual(structuredClone(displayed.value), failed);
+	worker.reply({ type: 'ev', ev: { type: 'renderError', ctx: { message: null } } });
+	assert.equal(displayed.value, undefined);
+	notify(current, ready);
+	worker.onerror({ message: 'worker crashed' });
+	assert.equal(displayed.value, undefined);
+	notify(current, ready);
+	assert.equal(displayed.value, undefined);
+});
+
+// 【モジュール内ノードの状態はレイヤー本体の状態と別に維持する】
+// 状態管理を切り出しても、複数ノードのうち一つが破棄されたときに他のノードを消してはいけない。
+// 新しいクリップで同じノードIDを使う場合も、旧インスタンスの破棄通知を無視する。
+test('preserves per-node timeline states across clip replacement and individual disposal', async t => {
+	const { controller, workers } = fixture(t, 'Timeline');
+	const worker = await initialize(controller, workers);
+	const previous = { type: 'timelineLayer', rootSceneId: 'scene', layerId: 'module', layerPath: ['module'], clipId: 'first', instanceId: 'first-instance' };
+	const current = { ...previous, clipId: 'second', instanceId: 'second-instance' };
+	const ready = { status: { type: 'ready' }, outputs: { output: { width: 640, height: 360 } } };
+	const notify = (source, nodeId, status) => worker.reply({ type: 'ev', ev: { type: 'effectState', ctx: { source, nodeId, status } } });
+	notify(previous, 'node', ready);
+	notify(previous, 'old-node', ready);
+	notify(current, 'node', ready);
+	notify(previous, 'node', null);
+	assert.equal(controller.getLayerEffectStates('scene', 'module').size, 1);
+	assert.deepEqual(controller.getLayerEffectStates('scene', 'module').get('node'), ready);
+	assert.equal(controller.getEffectLayerState('scene', 'module'), undefined);
+	notify(current, 'another', ready);
+	notify(current, 'node', null);
+	assert.equal(controller.getLayerEffectStates('scene', 'module').has('another'), true);
+	notify(current, 'another', null);
+	assert.equal(controller.getLayerEffectStates('scene', 'module'), undefined);
+	notify(current, 'node', ready);
+	controller.destroy();
+	assert.equal(controller.getLayerEffectStates('scene', 'module'), undefined);
+});
 
 function baseFixture(t, overrides) {
 	const { Base } = fixture(t);

@@ -3,6 +3,7 @@ import { timelineAudioParamDefs } from '@glitch/shared/timeline/timeline-audio.t
 import { timelineCompositingParamDefs } from '@glitch/shared/timeline/timeline-compositing.ts';
 import { effectDefinitions } from '@glitch/shared/effect/effect-definitions.ts';
 import { resolveParameter, walkParameters } from '@glitch/shared/parameter-path.ts';
+import { getParameterPathLabel } from './parameter-label.ts';
 import type { ParamPath } from '@glitch/shared/parameter-path.ts';
 import type { ParameterBinding } from '@glitch/shared/types.ts';
 import type { ParameterDefinition } from '@glitch/shared/parameter.ts';
@@ -62,7 +63,12 @@ export function getLayerParameterDefinition(state: Pick<AppState, 'visualModules
 }
 
 export function getLayerKeyframeParameters(state: Pick<AppState, 'visualModules'>, layer: TimelineLayer) {
-	return getLayerParameterTargets(layer).flatMap(target => [...walkParameters(getLayerParameterDefinitions(state, layer, target), getLayerParameterValues(layer, target))]
-		.flatMap(({ path, def, value, label }) => value.inputSource === 'keyframesTimelineInline'
-			? [{ key: JSON.stringify([target, path]), paramPath: path, target, def, label, binding: value }] : []));
+	const targetLabels: Record<TimelineParameterTarget, string> = { module: 'Module', effect: 'Effect', compositing: 'Compositing', audio: 'Audio' };
+	return getLayerParameterTargets(layer).flatMap(target => {
+		const defs = getLayerParameterDefinitions(state, layer, target);
+		const values = getLayerParameterValues(layer, target);
+		return [...walkParameters(defs, values)].flatMap(({ path, def, value }) => value.inputSource === 'keyframesTimelineInline'
+			? [{ key: JSON.stringify([target, path]), paramPath: path, target, def,
+				label: `${targetLabels[target]} / ${getParameterPathLabel(defs, values, path)}`, binding: value }] : []);
+	});
 }

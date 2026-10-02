@@ -21,7 +21,7 @@ import type { ProjectVisualModule } from '@glitch/shared/project/types.ts';
 import type { NodeOutput } from './node-output.ts';
 import type { FrameScheduler } from './live-render-loop.ts';
 import type { TimelineLayerRenderer } from './timeline-renderer.ts';
-import type { EffectInstanceState, EffectStatusSource } from '@glitch/shared/effect/effect-status.ts';
+import type { EffectInstanceState } from '@glitch/shared/effect/effect-status.ts';
 import type { Asset, IntermediateTextureFormat } from '@glitch/shared/types.ts';
 import type { TimelineScene, TimelineLayer, TimelineVisualModuleLayer, TimelineInlineVisualModuleLayer } from '@glitch/shared/timeline/types.ts';
 import type { VisualModule } from '@glitch/shared/visual-module/types.ts';
@@ -56,8 +56,14 @@ export type TimelineRendererManagerDynamicOptions = {
 	sceneId: string | null;
 };
 
+// エフェクトは配置場所を知らず、インスタンスを所有するManagerが通知元を付加する。
+export type TimelineLayerStatusSource = {
+	type: 'timelineLayer'; instanceId: string; layerId: string; clipId: string; rootSceneId: string; layerPath: string[];
+};
+
 export type TimelineRendererManagerEvents = {
-	'effectState': (ctx: { source: EffectStatusSource; nodeId: string; status: EffectInstanceState | null }) => void;
+	'effectState': (ctx: { source: TimelineLayerStatusSource; nodeId: string; status: EffectInstanceState | null }) => void;
+	'effectLayerState': (ctx: { source: TimelineLayerStatusSource; status: EffectInstanceState | null }) => void;
 	'renderError': (ctx: { message: string | null }) => void;
 };
 
@@ -266,11 +272,13 @@ export class TimelineRendererManager extends EventEmitter<{
 				const definition = this.effectDefinitions[layer.effectId];
 				const implementation = this.effectImplementations[layer.effectId];
 				if (!definition || !implementation) throw new Error(`Effect not found: ${layer.effectId}`);
+				const source = this.createLayerStatusSource(layer.id, clipId, layerPath);
 				return createEffectTimelineLayer(layer, definition, implementation, {
 					wgpu: { device: this.gpuDevice, defaultVertexShaderModule: this.defaultVertexShaderModule,
 						enable32bitDataTextures: this.staticOptions.enable32bitDataTextures, intermediateTextureFormat: this.staticOptions.intermediateTextureFormat },
 					fallbackTexture: this.fallbackTexture, resolution: renderResolution, resolutionScale: this.dynamicOptions.resolutionScale,
 					assets: this.dynamicOptions.assets, assetTextures: this.assetTextures.textures,
+					onState: status => this.emit('ev', { type: 'effectLayerState', ctx: { source, status } }),
 				});
 			}
 			case 'image': {
@@ -312,22 +320,27 @@ export class TimelineRendererManager extends EventEmitter<{
 			case 'visualModule': {
 				const visualModule = this.dynamicOptions.visualModules.find(module => module.id === layer.visualModuleId);
 				if (visualModule == null) throw new Error(`Visual module not found: ${layer.visualModuleId}`);
-				return this.createVisualModuleLayer(visualModule, layer, layerPath, sceneBaseResolution);
+				return this.createVisualModuleLayer(visualModule, layer, clipId, layerPath, sceneBaseResolution);
 			}
 			case 'inlineVisualModule':
-				return this.createVisualModuleLayer(layer.visualModule, layer, layerPath, sceneBaseResolution);
+				return this.createVisualModuleLayer(layer.visualModule, layer, clipId, layerPath, sceneBaseResolution);
 		}
 		throw new Error(`Unrecognized layer type: ${layer.layerType}`);
 	}
 
-	private createVisualModuleLayer(visualModule: VisualModule, layer: TimelineVisualModuleLayer | TimelineInlineVisualModuleLayer, layerPath: string[], sceneBaseResolution: Resolution): TimelineLayerRenderer<NodeOutput> {
-		const statusSource: EffectStatusSource = {
+	private createLayerStatusSource(layerId: string, clipId: string, layerPath: string[]): TimelineLayerStatusSource {
+		return {
 			type: 'timelineLayer',
 			instanceId: `timeline:${this.nextTimelineLayerStatusId++}`,
-			layerId: layer.id,
+			layerId,
+			clipId,
 			rootSceneId: this.dynamicOptions.sceneId!,
 			layerPath,
 		};
+	}
+
+	private createVisualModuleLayer(visualModule: VisualModule, layer: TimelineVisualModuleLayer | TimelineInlineVisualModuleLayer, clipId: string, layerPath: string[], sceneBaseResolution: Resolution): TimelineLayerRenderer<NodeOutput> {
+		const statusSource = this.createLayerStatusSource(layer.id, clipId, layerPath);
 		const renderer = new VisualModuleRenderer({
 			gpuDevice: this.gpuDevice,
 			fallbackTexture: this.fallbackTexture,

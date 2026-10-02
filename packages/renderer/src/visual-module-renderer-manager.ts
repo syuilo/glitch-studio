@@ -16,7 +16,7 @@ import { OutputTextureResolver } from './node-output.ts';
 import { CanvasRenderer } from './canvas-renderer.ts';
 import type { VisualModuleCustomParameterId, VisualModuleParameterBindings } from '@glitch/shared/visual-module/types.ts';
 import type { FrameScheduler, LiveFrameTiming } from './live-render-loop.ts';
-import type { EffectInstanceState, EffectStatusSource } from '@glitch/shared/effect/effect-status.ts';
+import type { EffectInstanceState } from '@glitch/shared/effect/effect-status.ts';
 import type { AudioCaptureMessage, AudioSourceId } from '@glitch/shared/audio.ts';
 import type { Asset, IntermediateTextureFormat, Player } from '@glitch/shared/types.ts';
 import type { EffectImplementation } from '@glitch/shared/effect/effect-implementation.js';
@@ -50,9 +50,11 @@ export type VisualModuleRendererManagerDynamicOptions = {
 	visualModules: ProjectVisualModule[];
 };
 
+export type LiveEffectStatusSource = { type: 'live'; instanceId: string; visualModuleId: string };
+
 export type VisualModuleRendererManagerEvents = {
 	'outputResolution': (ctx: Resolution) => void;
-	'effectState': (ctx: { source: EffectStatusSource; nodeId: string; status: EffectInstanceState | null }) => void;
+	'effectState': (ctx: { source: LiveEffectStatusSource; nodeId: string; status: EffectInstanceState | null }) => void;
 	'renderError': (ctx: { message: string | null }) => void;
 	'telemetry': (ctx: { fpsAverage: number; gpuAverageFast: number; gpuAverageMedium: number; gpuAverageSlow: number; }) => void;
 	'gpuMemory': (ctx: { usage: { total: number; textures: number; buffers: number; } }) => void;
@@ -290,7 +292,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 
 		this.liveVisualModuleId = visualModuleId;
 		this.liveParamValues = paramValues;
-		const statusSource: EffectStatusSource = { type: 'live', instanceId: statusInstanceId, visualModuleId };
+		const statusSource: LiveEffectStatusSource = { type: 'live', instanceId: statusInstanceId, visualModuleId };
 		this.liveVisualModuleRenderer = new VisualModuleRenderer({
 			gpuDevice: this.gpuDevice,
 			fallbackTexture: this.fallbackTexture,

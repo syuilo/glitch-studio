@@ -151,6 +151,7 @@
 					v-if="selectedLayer.layerType === 'effect'"
 					:key="selectedLayer.id"
 					:layer="selectedLayer"
+					:effectState="selectedEffectLayerState"
 					:contextResolution="getSceneBaseResolution(editedScene.resolution, appStateManager.state.resolution.value)"
 					@edit="event => onTimelineLayerParamEdit(event, 'effect')"
 					@resolution="resolution => appStateManager.commit('changeEffectLayerResolution', { sceneId, layerId: selectedLayer!.id, resolution })"
@@ -372,6 +373,8 @@ const selectedLayerModule = computed(() => {
 });
 const inlineEffectStates = computed(() => previewPlayback.state.value.mode === 'timeline' && selectedLayer.value != null
 	? timelineRendererManagerController.getLayerEffectStates(props.sceneId, selectedLayer.value.id) : undefined);
+const selectedEffectLayerState = computed(() => previewPlayback.state.value.mode === 'timeline' && selectedLayer.value?.layerType === 'effect'
+	? timelineRendererManagerController.getEffectLayerState(props.sceneId, selectedLayer.value.id) : undefined);
 
 const selectedKeyframeSelection = computed<TimelineKeyframeSelection | null>({
 	get: () => selection.value.kind === 'keyframes' && selection.value.keyframes.length === 1 ? selection.value.keyframes[0] : null,

@@ -62,9 +62,13 @@ self.onmessage = async (event: MessageEvent<ExportRequest>) => {
 			effectImplementations,
 		}, rendererSettings);
 		renderer.on('ev', event => {
-			if (event.type !== 'effectState') return;
+			if (event.type !== 'effectState' && event.type !== 'effectLayerState') return;
 			const status = event.ctx.status?.status;
-			if (status?.type === 'error') fail(`Node ${event.ctx.nodeId}: ${status.message}`);
+			if (status?.type === 'error') {
+				const source = event.type === 'effectState' ? `Node ${event.ctx.nodeId}`
+					: `Effect layer ${event.ctx.source.layerId} (clip ${event.ctx.source.clipId})`;
+				fail(`${source}: ${status.message}`);
+			}
 		});
 		// 基準サイズを上書きすると、customAbsoluteの子Sceneやノードに書き出し倍率が伝わらない。
 		// 倍率は独立して渡し、MP4の偶数寸法補正は最終Canvasだけに適用する。

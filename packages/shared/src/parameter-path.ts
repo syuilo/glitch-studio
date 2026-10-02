@@ -36,21 +36,21 @@ export function resolveParameter(defs: Record<string, ParameterDefinition>, para
 }
 
 export function* walkParameters(defs: Record<string, ParameterDefinition>, params: Record<string, ParameterBinding>): Generator<{
-	path: ParamPath; def: ParameterDefinition; value: ParameterBinding; label: string;
+	path: ParamPath; def: ParameterDefinition; value: ParameterBinding;
 }> {
-	function* walk(def: ParameterDefinition, value: ParameterBinding, path: ParamPath, label: string): ReturnType<typeof walkParameters> {
+	function* walk(def: ParameterDefinition, value: ParameterBinding, path: ParamPath): ReturnType<typeof walkParameters> {
 		if (def.dataType.kind === 'array' && value.inputSource === 'literal') {
-			for (const [index, element] of (value.value as ParameterArrayElement[]).entries()) {
-				yield* walk(getArrayElementDefinition(def), element.binding, [...path, element.id], `${label} [${index}]`);
+			for (const element of value.value as ParameterArrayElement[]) {
+				yield* walk(getArrayElementDefinition(def), element.binding, [...path, element.id]);
 			}
 		} else if (def.dataType.kind === 'struct' && value.inputSource === 'literal') {
 			for (const [key, field] of Object.entries(getStructFieldDefinitions(def))) {
-				yield* walk(field, value.value[key], [...path, key], `${label} / ${field.ui.label}`);
+				yield* walk(field, value.value[key], [...path, key]);
 			}
 		} else {
-			yield { path, def, value, label };
+			yield { path, def, value };
 		}
 	}
 
-	for (const [key, def] of Object.entries(defs)) yield* walk(def, params[key] ?? def.defaultValue, [key], def.ui.label);
+	for (const [key, def] of Object.entries(defs)) yield* walk(def, params[key] ?? def.defaultValue, [key]);
 }

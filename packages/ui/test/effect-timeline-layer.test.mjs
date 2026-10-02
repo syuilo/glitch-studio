@@ -61,6 +61,32 @@ function fixture(effectId = 'testStructArray') {
 	return { layer, state, target, edit, read: path => resolveLayerParameter(state, layer, 'effect', path).value };
 }
 
+// 【キーの行名は所有者を区別し、配列の並び替え後も同じIDを指す】
+// エフェクトと合成設定が同じ表示名を持っても、どちらを編集する行か分かるようにする。
+// 配列のindexは表示だけに使い、並び替えで選択キーや参照先のIDを変更しない。
+test('labels keyframe rows by owner and current array order while preserving path identity', t => {
+	effectDefinitions.labelProbe = { ...effectDefinitions.testStructArray, id: 'labelProbe', paramDefs: {
+		...effectDefinitions.testStructArray.paramDefs,
+		opacity: { dataType: { kind: 'scalar' }, ui: { label: 'Opacity', control: { controlType: 'number' } }, defaultValue: literal(1) },
+	} };
+	t.after(() => { delete effectDefinitions.labelProbe; });
+	const f = fixture('labelProbe');
+	f.edit(['opacity'], { kind: 'inputSource', inputSource: 'keyframesTimelineInline' });
+	COMMAND_DEFS.editTimelineLayerParam.create({ ...f.target, target: 'compositing', paramPath: ['opacity'],
+		edit: { kind: 'inputSource', inputSource: 'keyframesTimelineInline' } }).execute(f.state);
+	const path = ['buzzs', 'first', 'x'];
+	f.edit(path, { kind: 'inputSource', inputSource: 'keyframesTimelineInline' });
+	const rows = getLayerKeyframeParameters(f.state, f.layer);
+	assert.deepEqual(rows.map(row => row.label), ['Compositing / Opacity', 'Effect / Buzzs [0] / X', 'Effect / Opacity']);
+	const original = rows.find(row => row.paramPath.length > 1);
+	f.edit(['buzzs'], { kind: 'addElement' });
+	f.read(['buzzs']).value.reverse();
+	const moved = getLayerKeyframeParameters(f.state, f.layer).find(row => row.key === original.key);
+	assert.deepEqual(moved.paramPath, path);
+	assert.deepEqual(moved.binding, original.binding);
+	assert.equal(moved.label, 'Effect / Buzzs [1] / X');
+});
+
 // 【主入力がある生成系と加工系で初期入力・合成を分ける】
 // 背景入力の存在だけでGridを加工系にすると背景を二重に合成してしまう。
 // リセットはレイヤーとしての初期入力に戻し、共有するエフェクト定義を変更しない。

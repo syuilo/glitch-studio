@@ -45,7 +45,7 @@ const layer = (id, values = {}, overrides = {}) => ({
 });
 
 function fixture(t, options = {}) {
-	const calls = { instances: [], renders: [], outputs: [], passes: [], submits: 0 };
+	const calls = { instances: [], renders: [], outputs: [], passes: [], submits: 0, states: [] };
 	const texture = ({ size = [16, 16], format = 'rgba8unorm' } = {}) => ({
 		width: size.width ?? size[0], height: size.height ?? size[1], format, destroyed: false,
 		createView() { return { texture: this }; }, destroy() { this.destroyed = true; },
@@ -81,6 +81,9 @@ function fixture(t, options = {}) {
 		effectImplementations: { probe: implementation, noOutput: implementation },
 	}, { enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm' });
 	manager.timelineRenderer.options.present = output => calls.outputs.push(output);
+	manager.on('ev', event => {
+		if (event.type === 'effectLayerState') calls.states.push(event.ctx);
+	});
 	t.after(() => manager.destroy());
 	const setup = (layers, extra = {}) => manager.updateDynamicOptions({
 		timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers }], sceneId: 'scene',
@@ -159,6 +162,9 @@ test('resolves context and intrinsic sizes within nested scenes without inheriti
 	assert.deepEqual(f.calls.renders.at(-1).instance.resolution, { width: 120, height: 60 });
 	assert.deepEqual(f.calls.renders.at(-1).params.input, { kind: 'uniform', value: [0, 0, 0, 0] });
 	assert.equal(f.calls.renders.at(-1).time, 0.2705);
+	const childSource = f.calls.states.find(event => event.source.layerId === 'child').source;
+	assert.deepEqual(childSource, { type: 'timelineLayer', instanceId: childSource.instanceId,
+		rootSceneId: 'scene', layerId: 'child', clipId: 'clip', layerPath: ['placed', 'childClip', 'child'] });
 	for (const [resolution, expected] of [[{ mode: 'auto' }, { width: 100, height: 50 }], [{ mode: 'context' }, { width: 160, height: 90 }]]) {
 		await f.setup([layer('intrinsic', { amount: literal(1) }, { resolution })], { resolutionScale: 0.5 });
 		await f.manager.renderTimelineFrame(350, 0);
@@ -193,4 +199,69 @@ test('separates clip instances and cancels obsolete asynchronous preparation', a
 	assert.equal(pending.calls.renders.length, 1);
 	assert.equal(pending.calls.renders[0].time, 0.05);
 	assert.equal(pending.calls.instances[0].disposed, true);
+});
+
+// 【エフェクトレイヤーの読み込み・寸法・失敗・破棄をクリップごとに通知する】
+// ノードを持たないレイヤーでもUIが状態を表示でき、書き出し側が失敗した配置を特定できる必要がある。
+// 隣接クリップへの切り替え後は、旧インスタンスからの遅延通知を採用しない。
+test('publishes effect layer states with clip identities and suppresses disposed instances', async t => {
+	const f = fixture(t, { initialize: instance => instance.reportStatus({ type: 'loading' }) });
+	await f.setup([layer('effect', {}, { clips: [clip('first', 100, 100), clip('second', 200, 100)] })]);
+	const firstRender = f.manager.renderTimelineFrame(100, 0);
+	const first = f.calls.states.at(-1);
+	assert.deepEqual(first.source, { type: 'timelineLayer', instanceId: first.source.instanceId,
+		rootSceneId: 'scene', layerId: 'effect', clipId: 'first', layerPath: ['effect'] });
+	assert.equal('nodeId' in first, false);
+	assert.deepEqual(first.status, { status: { type: 'loading' }, outputs: { output: null, unused: null } });
+	f.calls.instances[0].reportStatus({ type: 'ready' });
+	await firstRender;
+	assert.deepEqual(f.calls.states.at(-1).status, { status: { type: 'ready' }, outputs: { output: { width: 320, height: 180 }, unused: null } });
+	const secondRender = f.manager.renderTimelineFrame(200, 0);
+	const second = f.calls.states.at(-1);
+	assert.equal(second.source.clipId, 'second');
+	assert.notEqual(second.source.instanceId, first.source.instanceId);
+	assert.ok(f.calls.states.some(event => event.source.instanceId === first.source.instanceId && event.status === null));
+	const count = f.calls.states.length;
+	f.calls.instances[0].reportStatus({ type: 'error', message: 'obsolete' });
+	assert.equal(f.calls.states.length, count);
+	f.calls.instances[1].reportStatus({ type: 'error', message: 'decode failed' });
+	await assert.rejects(secondRender, /decode failed/);
+	assert.deepEqual(f.calls.states.findLast(event => event.status != null).status.status, { type: 'error', message: 'decode failed' });
+	await f.manager.renderTimelineFrame(300, 0);
+	assert.equal(f.calls.states.at(-1).status, null);
+	assert.equal(f.calls.states.at(-1).source.instanceId, second.source.instanceId);
+});
+
+// 【非同期準備に渡す評価値は保存Bindingの配列から独立させる】
+// Binding全体のコピーを省いても、canNodeでないvectorなどはエフェクトへ素の配列として渡る。
+// await中の編集や次の評価で、すでに準備に渡した値が書き換わらないことを保証する。
+test('snapshots evaluated leaf arrays before asynchronous preparation', async t => {
+	const f = fixture(t, { initialize: instance => instance.reportStatus({ type: 'loading' }) });
+	const vectors = { dataType: { kind: 'array', elementType: { kind: 'vector' } },
+		ui: { label: 'Vectors', control: { element: {} } }, element: { defaultValue: literal([0, 0]) }, defaultValue: literal([]) };
+	const def = { ...definition, paramDefs: { ...definition.paramDefs, vectors } };
+	const entry = layer('effect', { vectors: literal([{ id: 'vector', binding: literal([1, 2]) }]) });
+	const renderer = createEffectTimelineLayer(entry, def, f.implementation, f.directOptions);
+	t.after(() => renderer.destroy());
+	const context = { sceneTimeMs: 150, contentTimeMs: 70.5, timeDelta: 0, isExport: false, input: { kind: 'uniform', value: [0, 0, 0, 0] } };
+	const rendering = renderer.evaluate(context, new AbortController().signal);
+	entry.effectParamValues.vectors.value[0].binding.value[0] = 9;
+	f.calls.instances[0].reportStatus({ type: 'ready' });
+	await rendering;
+	assert.deepEqual(f.calls.renders[0].params.vectors, [[1, 2]]);
+	await renderer.evaluate(context, new AbortController().signal);
+	assert.deepEqual(f.calls.renders[1].params.vectors, [[9, 2]]);
+	assert.deepEqual(f.calls.renders[0].params.vectors, [[1, 2]]);
+});
+
+// 【レイヤーのBinding制約は描画開始前の受け入れ境界で検証する】
+// 毎フレームの検証を省く代わりに、不正なネスト接続を持つインスタンスを作らせない。
+// Manager経由の更新とアダプターの直接利用の両方で、GPU処理前に拒否する。
+test('rejects invalid nested bindings when accepting layer settings', async t => {
+	const f = fixture(t);
+	const invalid = layer('effect');
+	invalid.effectParamValues.buzzs.value[0].binding.value.image = { inputSource: 'node', nodeId: 'outside' };
+	assert.throws(() => createEffectTimelineLayer(invalid, definition, f.implementation, f.directOptions), /Unsupported layer parameter input source/);
+	await assert.rejects(f.setup([invalid]), /Unsupported layer parameter input source/);
+	assert.equal(f.calls.instances.length, 0);
 });
