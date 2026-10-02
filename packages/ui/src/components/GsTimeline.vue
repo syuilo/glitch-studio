@@ -131,9 +131,9 @@
 			</div>
 			<div v-else-if="selectedClipEntry != null" :class="$style.keyframeEditor">
 				<div>{{ selectedClipLabel }}</div>
-				<GsInput small type="number" :min="0" :modelValue="selectedClipEntry.clip.startMs" @update:modelValue="value => editSelectedClipTime('move', value)"><template #label>Start (ms)</template></GsInput>
-				<GsInput small type="number" :min="0" :disabled="selectedClipNeedsMedia && !selectedClipMedia" :modelValue="selectedClipEntry.clip.startMs" @update:modelValue="value => editSelectedClipTime('start', value)"><template #label>Trim start (ms)</template></GsInput>
-				<GsInput small type="number" :min="1" :disabled="selectedClipNeedsMedia && !selectedClipMedia" :modelValue="selectedClipEntry.clip.durationMs" @update:modelValue="value => editSelectedClipTime('duration', value)"><template #label>Duration (ms)</template></GsInput>
+				<GsInput small type="number" :min="0" :modelValue="selectedClipEntry.clip.startMs" @update:modelValue="value => editSelectedClipTime('move', value)"><template #label>Start</template><template #suffix>ms</template></GsInput>
+				<GsInput small type="number" :min="0" :disabled="selectedClipNeedsMedia && !selectedClipMedia" :modelValue="selectedClipEntry.clip.startMs" @update:modelValue="value => editSelectedClipTime('start', value)"><template #label>Trim start</template><template #suffix>ms</template></GsInput>
+				<GsInput small type="number" :min="1" :disabled="selectedClipNeedsMedia && !selectedClipMedia" :modelValue="selectedClipEntry.clip.durationMs" @update:modelValue="value => editSelectedClipTime('duration', value)"><template #label>Duration</template><template #suffix>ms</template></GsInput>
 				<div>Content offset: {{ formatMsToTimecode(selectedClipEntry.clip.contentOffsetMs) }}</div>
 				<div v-if="selectedClipMedia">Source duration: {{ formatMsToTimecode(selectedClipMedia.durationMs) }}</div>
 				<template v-if="selectedVideoClip != null">
@@ -146,7 +146,9 @@
 				<GsButton danger small @click="removeSelectedClips">Remove clip</GsButton>
 			</div>
 			<div v-else-if="selectedLayer != null">
-				<GsInput small :modelValue="selectedLayer.name" @update:modelValue="name => appStateManager.commit('renameTimelineLayer', { sceneId, layerId: selectedLayer!.id, name: String(name) })"><template #label>Layer name</template></GsInput>
+				<div class="_spacer">
+					<GsInput small :modelValue="selectedLayer.name" @update:modelValue="name => appStateManager.commit('renameTimelineLayer', { sceneId, layerId: selectedLayer!.id, name: String(name) })"><template #label>Layer Name</template></GsInput>
+				</div>
 				<GsTimelineEffectSettings
 					v-if="selectedLayer.layerType === 'effect'"
 					:key="selectedLayer.id"
@@ -203,7 +205,7 @@
 							v-for="(paramDef, paramId) in timelineCompositingParamDefs"
 							:key="paramId"
 							keyframesEnabled
-								:automationGraphEndEnabled="false"
+							:automationGraphEndEnabled="false"
 							:availableVariables="LAYER_VAR_DEFS"
 							:automationGraphs="selectedLayer.automationGraphs"
 							:paramPath="[paramId]"
@@ -220,7 +222,7 @@
 						<GsVisualParam
 							:key="selectedLayer.id"
 							keyframesEnabled
-								:automationGraphEndEnabled="false"
+							:automationGraphEndEnabled="false"
 							:availableVariables="LAYER_VAR_DEFS"
 							:automationGraphs="selectedLayer.automationGraphs"
 							:paramPath="['volume']"
@@ -230,7 +232,12 @@
 						/>
 					</div>
 				</GsFolder>
-				<GsButton danger small @click="appStateManager.commit('removeTimelineLayer', { sceneId: props.sceneId, layerId: selectedLayer.id })">Remove Layer</GsButton>
+				<GsFolder :asSection="true" defaultOpen>
+					<template #label>Other</template>
+					<div class="_gaps_m">
+						<GsButton danger small @click="appStateManager.commit('removeTimelineLayer', { sceneId: props.sceneId, layerId: selectedLayer.id })">Remove Layer</GsButton>
+					</div>
+				</GsFolder>
 			</div>
 		</Teleport>
 		<div v-else :class="$style.rightSidePanel">
@@ -251,13 +258,12 @@ import { timelineAudioParamDefs } from '@glitch/shared/timeline/timeline-audio.t
 import { timelineCompositingParamDefs } from '@glitch/shared/timeline/timeline-compositing.ts';
 import { deepClone } from '@glitch/shared/utility/deep-clone.ts';
 import { canReferenceScene } from '@glitch/shared/timeline/scenes.ts';
-import XLayer from './GsTimeline.Layer.vue';
-import GsTimelineEffectSettings from './GsTimeline.EffectSettings.vue';
-import { createEffectTimelineLayer } from '@/utility/effect-timeline-layer.ts';
 import { getSceneBaseResolution } from '@glitch/shared/timeline/scene-resolution.ts';
 import { paramPathKey } from '@glitch/shared/parameter-path.ts';
-import type { ParamPath } from '@glitch/shared/parameter-path.ts';
-import type { TimelineParameterTarget } from '@/utility/timeline-scene.ts';
+import { supportsKeyframeInterpolation } from '@glitch/shared/keyframes-timeline.ts';
+import { effectDefinitions } from '@glitch/shared/effect/effect-definitions.js';
+import XLayer from './GsTimeline.Layer.vue';
+import GsTimelineEffectSettings from './GsTimeline.EffectSettings.vue';
 import GsLiteralLeafValueControl from './GsLiteralLeafValueControl.vue';
 import GsInput from './common/GsInput.vue';
 import GsSelect from './common/GsSelect.vue';
@@ -268,16 +274,16 @@ import GsVisualParam from './GsVisualParam.vue';
 import GsVisualModuleEditor from './GsVisualModuleEditor.vue';
 import GsEffectPicker from './GsEffectPicker.vue';
 import GsFolder from './common/GsFolder.vue';
+import type { TimelineParameterTarget } from '@/utility/timeline-scene.ts';
+import type { ParamPath } from '@glitch/shared/parameter-path.ts';
 import type { Asset } from '@glitch/shared/types.ts';
 import type { VisualModuleEdit } from '@/types/visual-module-editor.ts';
 import type { TimelineLayer, TimelineScene } from '@glitch/shared/timeline/types.ts';
 import type { ParameterBinding } from '@glitch/shared/types.ts';
-import { supportsKeyframeInterpolation } from '@glitch/shared/keyframes-timeline.ts';
 import type { KeyframeInterpolation } from '@glitch/shared/keyframes-timeline.ts';
-import { canEditKeyframesTimeline, updateInlineKeyframe } from '@/utility/keyframes-timeline.ts';
 import type { TimelineClipSelection, TimelineKeyframeSelection, TimelineSelection, TimelineSelectionGeometry, SelectionRect, TimelineMovePoint } from '@/utility/timeline-selection.ts';
 import type { ParamEdit } from './GsVisualParam.vue';
-import { timelineMarqueeRect, selectTimelineRange, clipSelectionKey, keyframeSelectionKey, getTimelineStretchSelection, constrainTimelineMove, keyframeMoveBounds, getTimelineSnappingTimes } from '@/utility/timeline-selection.ts';
+import type { TimelineClipMediaInfo } from '@/utility/timeline-clip-media.ts';
 import { createKeyframeStretch, stretchKeyframeX } from '@/utility/timeline-keyframe-stretch.ts';
 import { zoomTimelineX } from '@/utility/timeline-zoom.ts';
 import { getTimelineClipTicks, formatTimelineTimecode as formatMsToTimecode } from '@/utility/timeline-ticks.ts';
@@ -286,7 +292,9 @@ import { preferences } from '@/preferences.ts';
 import { listenPointerDrag } from '@/utility/pointer-drag.ts';
 import { getLayerParameterValues, getLayerParameterDefinition, resolveLayerParameter, getLayerKeyframeParameters } from '@/utility/timeline-scene.ts';
 import { inspectTimelineClipMedia } from '@/utility/timeline-clip-media.ts';
-import type { TimelineClipMediaInfo } from '@/utility/timeline-clip-media.ts';
+import { timelineMarqueeRect, selectTimelineRange, clipSelectionKey, keyframeSelectionKey, getTimelineStretchSelection, constrainTimelineMove, keyframeMoveBounds, getTimelineSnappingTimes } from '@/utility/timeline-selection.ts';
+import { canEditKeyframesTimeline, updateInlineKeyframe } from '@/utility/keyframes-timeline.ts';
+import { createEffectTimelineLayer } from '@/utility/effect-timeline-layer.ts';
 import { sceneEditorStates, timelineLayerClipboard } from '@/utility/timeline-editor-state.ts';
 import * as ui from '@/ui.ts';
 import { createInlineVisualModuleLayer } from '@/utility/inline-visual-module-layer.ts';
@@ -440,7 +448,7 @@ const xTicksCount = ref(15);
 const xTicks = computed(() => niceScale(tlPosX.value, tlPosX.value + tlRangeX.value, xTicksCount.value));
 const xTicksWithHalf = computed(() => insertIntermediateNumbers(xTicks.value));
 const clipTicksByLayer = computed(() => new Map(sceneLayers.value.map(layer => [layer.id,
-	new Map(layer.clips.map(clip => [clip.id, getTimelineClipTicks(clip, tlPosX.value, tlRangeX.value, xTicksCount.value)])),
+																																																																																new Map(layer.clips.map(clip => [clip.id, getTimelineClipTicks(clip, tlPosX.value, tlRangeX.value, xTicksCount.value)])),
 ])));
 const yTicksCount = ref(6);
 const yTicks = computed(() => niceScale(tlPosY.value, tlPosY.value + tlRangeY.value, yTicksCount.value));
@@ -960,7 +968,9 @@ const selectedClipLabel = computed(() => {
 	if ('assetId' in entry.clip) { const id = entry.clip.assetId; return appStateManager.state.assets.value.find(asset => asset.id === id)?.name ?? 'Missing media'; }
 	if ('sceneId' in entry.clip) { const id = entry.clip.sceneId; return appStateManager.state.timelineScenes.value.find(scene => scene.id === id)?.name ?? 'Missing scene'; }
 	if (entry.layer.layerType === 'visualModule') { const id = entry.layer.visualModuleId; return appStateManager.state.visualModules.value.find(module => module.id === id)?.name ?? 'Missing module'; }
-	return 'Inline Visual Module';
+	if (entry.layer.layerType === 'inlineVisualModule') return 'Inline Visual Module';
+	if (entry.layer.layerType === 'effect') { const id = entry.layer.effectId; return Object.entries(effectDefinitions).find(([key, effect]) => key === id)?.[1].displayName ?? 'Missing effect'; }
+	return '?';
 });
 
 function removeSelectedClips() {
@@ -975,8 +985,10 @@ function editSelectedClipTime(kind: 'move' | 'start' | 'duration', value: string
 	if (kind === 'move') appStateManager.commit('moveTimelineClips', { sceneId: props.sceneId, clips: [entry.target], deltaMs: next - entry.clip.startMs });
 	else {
 		if (selectedClipNeedsMedia.value && !selectedClipMedia.value) return;
-		appStateManager.commit('editTimelineClipTiming', { sceneId: props.sceneId, ...entry.target,
-			edge: kind === 'start' ? 'start' : 'end', deltaMs: kind === 'start' ? next - entry.clip.startMs : next - entry.clip.durationMs,
+		appStateManager.commit('editTimelineClipTiming', {
+			sceneId: props.sceneId, ...entry.target,
+			edge: kind === 'start' ? 'start' : 'end',
+			deltaMs: kind === 'start' ? next - entry.clip.startMs : next - entry.clip.durationMs,
 			sourceDurationMs: selectedClipMedia.value?.durationMs,
 		});
 	}
@@ -998,7 +1010,8 @@ async function chooseClipSource(layerType: 'image' | 'video' | 'audio' | 'scene'
 		const selected = availableScenes.value.find(scene => scene.id === id);
 		return canceled || !selected || disposed || sceneLayers.value !== scene ? null : { kind: 'scene', scene: selected };
 	}
-	const { canceled, result: id } = await ui.select({ title: 'Select ' + layerType + ' asset',
+	const { canceled, result: id } = await ui.select({
+		title: 'Select ' + layerType + ' asset',
 		items: assets.filter(asset => asset.fileDataType.startsWith(layerType + '/')).map(asset => ({ label: asset.name, value: asset.id })),
 	});
 	const asset = assets.find(asset => asset.id === id);
@@ -1026,7 +1039,9 @@ async function addClip(layer: TimelineLayer, startMs: number) {
 	const sourceDurationMs = source?.kind === 'asset' ? source.media?.durationMs : undefined;
 	const durationMs = getTimelineClipInsertionDuration(layer.clips, startMs, Math.min(5000, sourceDurationMs ?? Infinity));
 	if (durationMs <= 0) return;
-	const clip = { id: genId(), ...createTimelineClipTiming(startMs, durationMs),
+	const clip = {
+		id: genId(),
+		...createTimelineClipTiming(startMs, durationMs),
 		...(source?.kind === 'scene' ? { sceneId: source.scene.id } : source?.kind === 'asset' ? { assetId: source.asset.id } : {}),
 		...(type === 'video' ? { audioEnabled: source?.kind === 'asset' && !!source.media?.audioAvailable } : {}),
 	};
@@ -1046,9 +1061,15 @@ async function changeClipSource() {
 	if (source.kind === 'asset' && 'assetId' in entry.clip && entry.clip.assetId === source.asset.id) return;
 	if (source.kind === 'scene' && 'sceneId' in entry.clip && entry.clip.sceneId === source.scene.id) return;
 	try {
-		appStateManager.commit('changeTimelineClipSource', { sceneId: props.sceneId, ...entry.target,
-			...(source.kind === 'scene' ? { referencedSceneId: source.scene.id } : { assetId: source.asset.id, sourceDurationMs: source.media?.durationMs,
-				audioEnabled: !!source.media?.audioAvailable && (!('audioEnabled' in entry.clip) || entry.clip.audioEnabled === true) }),
+		appStateManager.commit('changeTimelineClipSource', {
+			sceneId: props.sceneId,
+			...entry.target,
+			...(source.kind === 'scene' ? {
+				referencedSceneId: source.scene.id,
+			} : {
+				assetId: source.asset.id, sourceDurationMs: source.media?.durationMs,
+				audioEnabled: !!source.media?.audioAvailable && (!('audioEnabled' in entry.clip) || entry.clip.audioEnabled === true),
+			}),
 		});
 	} catch (error) { audioError.value = error instanceof Error ? error.message : String(error); }
 }
@@ -1093,7 +1114,10 @@ async function addReferencedModuleLayer() {
 	const { canceled, result: id } = await ui.select({ title: 'Select Visual Module', items: appStateManager.state.visualModules.value.map(module => ({ label: module.name, value: module.id })) });
 	const module = appStateManager.state.visualModules.value.find(module => module.id === id);
 	if (canceled || !module || disposed || sceneLayers.value !== scene) return;
-	const layer: TimelineLayer = { id: genId(), name: module.name, layerType: 'visualModule', visualModuleId: module.id,
+	const layer: TimelineLayer = {
+		id: genId(), name: module.name,
+		layerType: 'visualModule',
+		visualModuleId: module.id,
 		clips: [{ id: genId(), ...createTimelineClipTiming(Math.max(0, time.value), 5000) }],
 		visualModuleParamValues: {}, compositingParamValues: initialCompositingParameters(), automationGraphs: [],
 	};
@@ -1128,17 +1152,39 @@ function showAddEffectLayerMenu() {
 
 function showAddLayerMenu(ev: PointerEvent) {
 	ui.popupMenu([{
-		text: 'Visual Module (Inline)', icon: 'ti ti-chart-dots-3', action: () => {
+		text: 'Effect',
+		icon: 'ti ti-sparkles',
+		action: showAddEffectLayerMenu,
+	}, {
+		text: 'Image',
+		icon: 'ti ti-photo',
+		action: () => addMediaLayer('image'),
+	}, {
+		text: 'Video',
+		icon: 'ti ti-video',
+		action: () => addMediaLayer('video'),
+	}, {
+		text: 'Audio',
+		icon: 'ti ti-music',
+		action: () => addMediaLayer('audio'),
+	}, {
+		text: 'Visual Module (Inline)',
+		icon: 'ti ti-chart-dots-3',
+		action: () => {
 			const layer = createInlineVisualModuleLayer(Math.max(0, time.value));
 			appStateManager.commit('addTimelineLayer', { sceneId: props.sceneId, layer });
 			selectLayer(layer);
 			previewPlayback.seekTimeline(layer.clips[0].startMs);
 		},
-	}, { text: 'Effect', icon: 'ti ti-sparkles', action: showAddEffectLayerMenu }, { text: 'Visual Module (Reference)', icon: 'ti ti-chart-dots-3', action: addReferencedModuleLayer },
-	{ text: 'Image', icon: 'ti ti-photo', action: () => addMediaLayer('image') },
-	{ text: 'Video', icon: 'ti ti-video', action: () => addMediaLayer('video') },
-	{ text: 'Audio', icon: 'ti ti-music', action: () => addMediaLayer('audio') },
-	{ text: 'Scene', icon: 'ti ti-timeline', action: () => addMediaLayer('scene') }], ev.currentTarget ?? ev.target);
+	}, {
+		text: 'Visual Module (Reference)',
+		icon: 'ti ti-chart-dots-3',
+		action: addReferencedModuleLayer,
+	}, {
+		text: 'Scene',
+		icon: 'ti ti-timeline',
+		action: () => addMediaLayer('scene'),
+	}], ev.currentTarget ?? ev.target);
 }
 
 function formatFullTimecode(timeMs: number): string {
