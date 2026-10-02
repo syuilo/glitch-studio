@@ -1,8 +1,9 @@
 import type { DataType } from './data-type.ts';
+import type { EasingFamily, EasingDirection } from './easing.ts';
 
 export type KeyframesDataType = Extract<DataType, { kind: 'scalar' | 'vector' | 'color' | 'string' | 'bool' | 'enum' }>;
 export type InterpolatedKeyframesDataType = Extract<KeyframesDataType, { kind: 'scalar' | 'vector' | 'color' }>;
-export type KeyframeInterpolation = { type: 'hold' } | { type: 'linear' };
+export type KeyframeInterpolation = { type: 'hold' } | { type: 'linear' } | { type: `ease:${EasingFamily}`; direction: EasingDirection };
 
 export type KeyframeValue<T extends KeyframesDataType = KeyframesDataType> =
 	T extends { kind: 'scalar' } ? number

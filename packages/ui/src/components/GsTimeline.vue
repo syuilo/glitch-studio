@@ -124,8 +124,11 @@
 						@changeFinished="keyframeValueMergeKey = null"
 						@reset="updateKeyframeValue(selectedKeyframe.def.defaultValue.value)"
 					/>
-					<GsSelect v-if="supportsKeyframeInterpolation(selectedKeyframe.def.dataType)" small :modelValue="selectedKeyframe.keyframe.interpolation.type" :items="[{ label: 'Hold', value: 'hold' }, { label: 'Linear', value: 'linear' }]" @update:modelValue="type => updateSelectedKeyframe({ interpolation: { type } })">
+					<GsSelect v-if="supportsKeyframeInterpolation(selectedKeyframe.def.dataType)" small :modelValue="selectedKeyframe.keyframe.interpolation.type" :items="keyframeInterpolationItems" @update:modelValue="updateKeyframeInterpolationType">
 						<template #label>Interpolation to next keyframe</template>
+					</GsSelect>
+					<GsSelect v-if="supportsKeyframeInterpolation(selectedKeyframe.def.dataType) && selectedKeyframeEasingDirection != null" small :modelValue="selectedKeyframeEasingDirection" :items="easingDirectionItems" @update:modelValue="updateKeyframeEasingDirection">
+						<template #label>Easing direction</template>
 					</GsSelect>
 				</div>
 			</div>
@@ -281,6 +284,8 @@ import type { VisualModuleEdit } from '@/types/visual-module-editor.ts';
 import type { TimelineLayer, TimelineScene } from '@glitch/shared/timeline/types.ts';
 import type { ParameterBinding } from '@glitch/shared/types.ts';
 import type { KeyframeInterpolation } from '@glitch/shared/keyframes-timeline.ts';
+import type { EasingDirection } from '@glitch/shared/easing.ts';
+import type { GsSelectItem } from './common/GsSelect.vue';
 import type { TimelineClipSelection, TimelineKeyframeSelection, TimelineSelection, TimelineSelectionGeometry, SelectionRect, TimelineMovePoint } from '@/utility/timeline-selection.ts';
 import type { ParamEdit } from './GsVisualParam.vue';
 import type { TimelineClipMediaInfo } from '@/utility/timeline-clip-media.ts';
@@ -410,6 +415,30 @@ const selectedKeyframe = computed(() => {
 	};
 });
 
+const keyframeInterpolationItems: GsSelectItem<KeyframeInterpolation['type']>[] = [
+	{ label: 'Hold', value: 'hold' },
+	{ label: 'Linear', value: 'linear' },
+	{ label: 'Sine', value: 'ease:sine' },
+	{ label: 'Quad', value: 'ease:quad' },
+	{ label: 'Cubic', value: 'ease:cubic' },
+	{ label: 'Quart', value: 'ease:quart' },
+	{ label: 'Quint', value: 'ease:quint' },
+	{ label: 'Expo', value: 'ease:expo' },
+	{ label: 'Circ', value: 'ease:circ' },
+	{ label: 'Back', value: 'ease:back' },
+	{ label: 'Elastic', value: 'ease:elastic' },
+	{ label: 'Bounce', value: 'ease:bounce' },
+];
+const easingDirectionItems: GsSelectItem<EasingDirection>[] = [
+	{ label: 'In', value: 'in' },
+	{ label: 'Out', value: 'out' },
+	{ label: 'InOut', value: 'inOut' },
+];
+const selectedKeyframeEasingDirection = computed(() => {
+	const interpolation = selectedKeyframe.value?.keyframe.interpolation;
+	return interpolation != null && 'direction' in interpolation ? interpolation.direction : null;
+});
+
 watch(selectedKeyframeSelection, () => { keyframeValueMergeKey.value = null; });
 watch(selectedKeyframe, value => {
 	if (value == null && selectedKeyframeSelection.value != null) selectedKeyframeSelection.value = null;
@@ -430,6 +459,18 @@ function updateSelectedKeyframe(patch: { x?: number; value?: unknown; interpolat
 		paramPath: selected.selection.paramPath,
 		edit: { kind: 'keyframesTimelineInline', value },
 	}, mergeKey);
+}
+
+function updateKeyframeInterpolationType(type: KeyframeInterpolation['type']) {
+	const interpolation: KeyframeInterpolation = type === 'linear' || type === 'hold' ? { type }
+		: { type, direction: selectedKeyframeEasingDirection.value ?? 'inOut' };
+	updateSelectedKeyframe({ interpolation });
+}
+
+function updateKeyframeEasingDirection(direction: EasingDirection) {
+	const interpolation = selectedKeyframe.value?.keyframe.interpolation;
+	if (interpolation == null || !('direction' in interpolation)) return;
+	updateSelectedKeyframe({ interpolation: { ...interpolation, direction } });
 }
 
 function updateKeyframeValue(value: unknown, mergeKey?: string | null) {

@@ -141,6 +141,66 @@ test('round-trips and undoes discrete keyframe creation insertion and editing on
 	}
 });
 
+// 【イージングの系統と方向を編集し、Undo・Redo・保存で両方とも保持する】
+// 補間方式を文字列だけとして扱う経路が残ると、再読み込み時などに方向の設定が失われる。
+// 既存コマンドを通して変更し、選択したキー以外の設定や時刻を変更しないことも確認する。
+test('round-trips easing family and direction and restores interpolation edits with undo and redo', async () => {
+	const { state } = fixture();
+	const definition = state.visualModules.value[0].paramDefs[0];
+	const layer = state.timelineScenes.value[0].layers[0];
+	const initial = createInlineKeyframesTimeline(definition);
+	const keyframeId = initial.keyframesTimeline.keyframes[0].id;
+	initial.keyframesTimeline.keyframes.push({ id: 'last', x: 1000, value: 10, interpolation: { type: 'hold' } });
+	layer.visualModuleParamValues.gain = structuredClone(initial);
+	const target = { sceneId: 'scene', layerId: layer.id, paramPath: ['gain'] };
+	for (const interpolation of [{ type: 'ease:back', direction: 'inOut' }, { type: 'ease:elastic', direction: 'out' }, { type: 'linear' }, { type: 'hold' }]) {
+		const before = structuredClone(layer.visualModuleParamValues.gain);
+		const value = updateInlineKeyframe(before, definition, keyframeId, { interpolation });
+		assert.notEqual(value, null);
+		const edit = COMMAND_DEFS.editTimelineLayerParam.create({ ...target, edit: { kind: 'keyframesTimelineInline', value } });
+		edit.execute(state);
+		assert.deepEqual(layer.visualModuleParamValues.gain.keyframesTimeline.keyframes[0].interpolation, interpolation);
+		assert.deepEqual(layer.visualModuleParamValues.gain.keyframesTimeline.keyframes[1], initial.keyframesTimeline.keyframes[1]);
+		const after = structuredClone(layer.visualModuleParamValues.gain);
+		const restored = decodeProjectFile(await encodeProjectFile({ assets: [], visualModules: state.visualModules.value, timelineScenes: state.timelineScenes.value }));
+		assert.deepEqual(restored.timelineScenes, state.timelineScenes.value);
+		edit.undo(state);
+		assert.deepEqual(layer.visualModuleParamValues.gain, before);
+		edit.execute(state);
+		assert.deepEqual(layer.visualModuleParamValues.gain, after);
+	}
+});
+
+// 【キーの追加は挿入時刻のイージング後の値と、元の系統・方向を引き継ぐ】
+// Linearとして値を求めると、イージング中の挿入位置で値が飛んでしまう。
+// 元のBindingを変更せず、新しく区切った区間に同じプリセットを適用する。
+test('inserts the eased value and inherits the outgoing easing family and direction', () => {
+	const definition = keyframeDefinition({ kind: 'scalar' }, 0);
+	const input = createInlineKeyframesTimeline(definition);
+	input.keyframesTimeline.keyframes[0].interpolation = { type: 'ease:quad', direction: 'out' };
+	input.keyframesTimeline.keyframes.push({ id: 'last', x: 1000, value: 8, interpolation: { type: 'hold' } });
+	const before = structuredClone(input);
+	const inserted = insertInlineKeyframe(input, definition, 500, 1000);
+	const keyframe = inserted.value.keyframesTimeline.keyframes.find(point => point.id === inserted.keyframeId);
+	assert.equal(keyframe.x, 500);
+	assert.equal(keyframe.value, 6);
+	assert.deepEqual(keyframe.interpolation, { type: 'ease:quad', direction: 'out' });
+	assert.deepEqual(input, before);
+});
+
+// 【文字列・真理値・列挙値ではイージングを選択できない】
+// 数値用の補間の種類が増えても、離散値のキーはその時刻で切り替えるという契約を維持する。
+test('rejects easing interpolation for discrete keyframe values', () => {
+	for (const [dataType, value] of [[{ kind: 'string' }, 'Hello'], [{ kind: 'bool' }, false], [{ kind: 'enum', options: ['a', 'b'] }, 'a']]) {
+		const definition = keyframeDefinition(dataType, value);
+		const input = createInlineKeyframesTimeline(definition);
+		const before = structuredClone(input);
+		assert.equal(updateInlineKeyframe(input, definition, input.keyframesTimeline.keyframes[0].id,
+			{ interpolation: { type: 'ease:sine', direction: 'inOut' } }), null);
+		assert.deepEqual(input, before);
+	}
+});
+
 function imageFixture() {
 	const assets = ['first', 'second'].map(id => ({ id, name: id, fileDataType: 'image/png', fileData: new Blob([id], { type: 'image/png' }) }));
 	const state = { assets: { value: assets }, visualModules: { value: [] }, timelineScenes: { value: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [] }] } };

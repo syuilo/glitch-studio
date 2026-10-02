@@ -109,6 +109,57 @@ test('empty, single and duplicate keyframes have deterministic results', () => {
 	assert.equal(evaluateKeyframes(input, 750), 15);
 });
 
+// 【イージングは開始キーの設定で区間の進行率に適用する】
+// 正規化と絶対時刻で同じ曲線を使い、後続キーの補間設定やシーク順で結果が変わらないようにする。
+// キーの境界では保存値をそのまま返し、Hold・Linearも従来の挙動を維持する。
+test('uses outgoing easing after time conversion and retains hold and linear boundaries', () => {
+	for (const isNormalized of [true, false]) {
+		const keyTime = time => isNormalized ? time / 1000 : time;
+		const first = keyframe(0, 2);
+		first.interpolation = { type: 'ease:quad', direction: 'in' };
+		const input = keyframesInput([first, keyframe(keyTime(1000), 10), keyframe(keyTime(2000), 20, 'hold'), keyframe(keyTime(3000), 30)], 'scalar');
+		input.keyframesTimeline.isNormalized = isNormalized;
+		const before = structuredClone(input);
+		for (const [time, expected] of [[1500, 15], [250, 2.5], [0, 2], [1000, 10], [2500, 20], [3000, 30], [500, 4], [250, 2.5]]) {
+			assert.equal(evaluateKeyframes(input, time), expected);
+		}
+		assert.deepEqual(input, before);
+	}
+});
+
+// 【ベクトルと未乗算の色に同じイージング率を使う】
+// 成分ごとに異なる進行率を使ったり、ここで色をpremultiplyしたりすると、移動経路や色が変わってしまう。
+test('eases vector and straight color components with one shared progress value', () => {
+	for (const [type, from, to, expected] of [
+		['vector', [0, -2], [4, 6], [3, 4]],
+		['color', [1, 0, 0, 0], [0, 1, 0.5, 1], [0.25, 0.75, 0.375, 0.75]],
+	]) {
+		const first = keyframe(0, from);
+		first.interpolation = { type: 'ease:quad', direction: 'out' };
+		const input = keyframesInput([first, keyframe(1, to)], type);
+		const before = structuredClone(input);
+		assert.deepEqual(evaluateKeyframes(input, 500), expected);
+		evaluateKeyframes(input, 500)[0] = 99;
+		assert.deepEqual(input, before);
+	}
+});
+
+// 【イージングのオーバーシュートをパラメータ評価でも維持する】
+// 共通の進行率や結果をクランプすると、位置・回転・拡縮で必要な跳ね返りを表現できなくなる。
+// 繰り返しの折り返しでも、その時刻の曲線を決定的に評価する。
+test('preserves easing overshoot and follows mirrored time without playback history', () => {
+	for (const family of ['back', 'elastic']) {
+		const first = keyframe(0, 0);
+		first.interpolation = { type: `ease:${family}`, direction: 'inOut' };
+		const input = keyframesInput([first, keyframe(1, 10)], 'scalar', { wrapMode: 'repeatMirrored' });
+		assert.ok(evaluateKeyframes(input, 250) < 0);
+		assert.ok(evaluateKeyframes(input, 750) > 10);
+		assert.equal(evaluateKeyframes(input, 1250), evaluateKeyframes(input, 750));
+		assert.equal(evaluateKeyframes(input, 1750), evaluateKeyframes(input, 250));
+		assert.equal(evaluateKeyframes(input, 1000), 10);
+	}
+});
+
 const graphPoint = (x, y) => ({ id: `${x}`, x, y, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] });
 
 // 【離散値はキーの時刻ちょうどで切り替わり、シーク方向や過去の評価に依存しない】

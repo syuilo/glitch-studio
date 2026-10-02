@@ -1,5 +1,7 @@
 import type { ParameterBinding } from '../types.ts';
 import { supportsKeyframeInterpolation } from '../keyframes-timeline.ts';
+import { evaluateEasing } from '../easing.ts';
+import type { EasingFamily } from '../easing.ts';
 
 type InlineKeyframesTimeline = Extract<ParameterBinding, { inputSource: 'keyframesTimelineInline' }>;
 
@@ -43,7 +45,10 @@ export function evaluateKeyframesTimeline<T>(input: InlineKeyframesTimeline, tim
 		} else if (next == null || previous.x === x || previous.interpolation.type === 'hold' || !supportsKeyframeInterpolation(timeline.dataType)) {
 			value = previous.value;
 		} else {
-			const progress = (x - previous.x) / (next.x - previous.x);
+			const linearProgress = (x - previous.x) / (next.x - previous.x);
+			const interpolation = previous.interpolation;
+			const progress = interpolation.type === 'linear' ? linearProgress
+				: evaluateEasing(linearProgress, interpolation.type.slice('ease:'.length) as EasingFamily, interpolation.direction);
 			const from = previous.value;
 			const to = next.value;
 			if (typeof from === 'number' && typeof to === 'number') {
