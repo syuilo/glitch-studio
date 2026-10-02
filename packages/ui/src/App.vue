@@ -27,7 +27,7 @@
 	<div :class="$style.footer" class="_monospace">
 		<div :class="$style.footerLeft">
 			<div :class="$style.footerItem">sRGB</div>
-			<button :class="$style.footerItem" class="_button" @click="openResolutionMenu">Proj: {{ appStateManager.state.resolution.value.width }} x {{ appStateManager.state.resolution.value.height }} px</button>
+			<button :class="$style.footerItem" class="_button" @click="openProjectSettings">Proj: {{ appStateManager.state.resolution.value.width }} x {{ appStateManager.state.resolution.value.height }} px</button>
 			<button :class="$style.footerItem" class="_button" @click="openResolutionFactorMenu">Preview: {{ resolutionFactor }}x ({{ Math.round(appStateManager.state.resolution.value.width * resolutionFactor) }} x {{ Math.round(appStateManager.state.resolution.value.height * resolutionFactor) }} px)</button>
 			<button :class="$style.footerItem" class="_button" @click="openFpsMenu">{{ previewPlayback.state.value.mode === 'live' ? `${Math.round(visualModuleRendererManagerController.fpsDisplay.value)}fps` : `FPS limit: ${fpsLimit ?? 'Unlimited'}` }}</button>
 			<button v-if="previewPlayback.state.value.mode === 'live'" :class="$style.footerItem" class="_button" @click="openTimeFactorMenu">TIME: {{ liveTimeFactor }}x</button>
@@ -56,6 +56,7 @@ import { audioOutput, activePreviewRenderer, previewPlayback, visualModuleRender
 import { preferences } from './preferences.ts';
 import GsRange from './components/common/GsRange.vue';
 import GsAboutDialog from '@/components/GsAboutDialog.vue';
+import GsProjectSettingsDialog from '@/components/GsProjectSettingsDialog.vue';
 import GsTimelineExportDialog from '@/components/GsTimelineExportDialog.vue';
 import GsDashboardDialog from '@/components/GsDashboardDialog.vue';
 import GsWorkspaceElement from '@/components/GsWorkspaceElement.vue';
@@ -175,8 +176,8 @@ function openTimeFactorMenu(ev: PointerEvent) {
 	}], ev.currentTarget ?? ev.target);
 }
 
-function openResolutionMenu(ev: PointerEvent) {
-	// TODO
+function openProjectSettings() {
+	const { dispose } = ui.popup(GsProjectSettingsDialog, {}, { closed: () => dispose() });
 }
 
 function openResolutionFactorMenu(ev: PointerEvent) {
@@ -264,10 +265,8 @@ function openHeaderFileMenu(ev: PointerEvent) {
 
 function openHeaderEditMenu(ev: PointerEvent) {
 	ui.popupMenu([{
-		text: 'Change Project Resolution',
-		action: () => {
-			// TODO
-		},
+		text: 'Project Settings',
+		action: openProjectSettings,
 	}], ev.currentTarget ?? ev.target);
 }
 

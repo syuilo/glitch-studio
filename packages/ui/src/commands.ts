@@ -26,6 +26,7 @@ import { timelineCompositingParamDefs } from '@glitch/shared/timeline/timeline-c
 import type { VisualModuleCustomParameterId, VisualModuleEffectNode, VisualModuleNode, NodeOutputReference, VisualModule, VisualModuleParamDef, VisualModuleOutputDef } from '@glitch/shared/visual-module/types.ts';
 import type { ParameterArrayElement, ParameterDefinition } from '@glitch/shared/parameter.ts';
 import type { AppState } from './types.ts';
+import type { Resolution } from '@glitch/shared/resolution.ts';
 import type { Asset, AutomationGraphPlaybackOptions, ParameterBinding, Player } from '@glitch/shared/types.ts';
 import type { NodeParamTarget as EffectNodeParamTarget } from '@/utility/node-params.ts';
 import type { GlobalEnvVariable } from '@glitch/shared/expression.js';
@@ -1193,6 +1194,23 @@ const addSceneCommandDef = defineCommand<TimelineScene>({
 	}),
 });
 
+const changeProjectResolutionCommandDef = defineCommand<Resolution>({
+	label: 'Change project resolution',
+	create: payload => {
+		let before: Resolution;
+		return {
+			execute(state) {
+				if (![payload.width, payload.height].every(value => Number.isSafeInteger(value) && value > 0)) {
+					throw new Error('Resolution width and height must be positive integers');
+				}
+				before = { ...state.resolution.value };
+				state.resolution.value = { ...payload };
+			},
+			undo(state) { state.resolution.value = { ...before }; },
+		};
+	},
+});
+
 const changeSceneResolutionCommandDef = defineCommand<{ sceneId: string; resolution: TimelineSceneResolution }>({
 	label: 'Change scene resolution',
 	create: payload => {
@@ -1264,6 +1282,7 @@ const moveTimelineKeyframesCommandDef = defineCommand<{ sceneId: string; positio
 });
 
 export const COMMAND_DEFS = {
+	changeProjectResolution: changeProjectResolutionCommandDef,
 	changeEffectLayerResolution: changeEffectLayerResolutionCommandDef,
 	addTimelineLayer: addTimelineLayerCommandDef,
 	renameTimelineLayer: renameTimelineLayerCommandDef,
