@@ -1,4 +1,4 @@
-import type { EffectImplementation } from '@glitch/shared/effect/effect-implementation.js';
+import type { EffectImplementation } from './effect-implementation.js';
 
 const modules = import.meta.glob<EffectImplementation<any>>('./fx/*/_impl_.ts', {
 	eager: true,

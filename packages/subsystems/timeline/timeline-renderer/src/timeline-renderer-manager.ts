@@ -1,38 +1,38 @@
 import { scaleResolution, type Resolution } from '@glitch/shared/resolution.ts';
 import { getTimelineScene, validateTimelineLayer, validateTimelineScenes } from '@glitch/shared/timeline/scenes.ts';
 import { applyRendererProjectChanges, findRendererVisualModule } from '@glitch/shared/project/renderer-state.ts';
-import type { RendererProjectChange, RendererProjectState } from '@glitch/shared/project/renderer-state.ts';
-import type { VisualModuleTarget } from '@glitch/shared/project/visual-module-target.ts';
-import { canPreserveModuleLayerInstance } from './project-change-policy.ts';
 import { deepEqual } from '@glitch/shared/utility/deep-equal.ts';
 import { validateTimelineEffectLayer } from '@glitch/shared/timeline/effect-layer.ts';
 import { getSceneBaseResolution, resolveSceneResolution } from '@glitch/shared/timeline/scene-resolution.ts';
 import EventEmitter from 'eventemitter3';
-import { AssetTextures } from './asset-textures.ts';
-import defaultVertexShaderCode from './vertex.wgsl?raw';
-import { VisualModuleRenderer } from './visual-module-renderer.ts';
-import { TimelinePreviewScheduler } from './timeline-preview-scheduler.ts';
-import { TimelineRenderer } from './timeline-renderer.ts';
-import { ProjectStateVersions } from './project-state-versions.ts';
-import { createVisualModuleTimelineLayer } from './visual-module-timeline-layer.ts';
-import { createSceneTimelineLayer } from './scene-timeline-layer.ts';
-import { createVideoTimelineLayer } from './video-timeline-layer.ts';
-import { createImageTimelineLayer } from './image-timeline-layer.ts';
-import { createEffectTimelineLayer } from './effect-timeline-layer.ts';
+import { canPreserveModuleLayerInstance } from '../../renderer/src/project-change-policy.ts';
+import { AssetTextures } from '../../renderer/src/asset-textures.ts';
+import { VisualModuleRenderer } from '../../visual-module-renderer/src/visual-module-renderer.ts';
+import { ProjectStateVersions } from '../../renderer/src/project-state-versions.ts';
+import { createVisualModuleTimelineLayer } from '../../renderer/src/visual-module-timeline-layer.ts';
+import { createSceneTimelineLayer } from '../../renderer/src/scene-timeline-layer.ts';
+import { createImageTimelineLayer } from '../../renderer/src/image-timeline-layer.ts';
+import { createEffectTimelineLayer } from '../../renderer/src/effect-timeline-layer.ts';
+import { CanvasRenderer } from '../../renderer/src/canvas-renderer.ts';
+import { createSceneOutput } from './scene-output.ts';
 import { createTimelineCompositor } from './timeline-compositor.ts';
 import { TimelineCompositingParameters } from './timeline-compositing-parameters.ts';
-import { createSceneOutput } from './scene-output.ts';
-import { CanvasRenderer } from './canvas-renderer.ts';
+import { createVideoTimelineLayer } from './video-timeline-layer.ts';
+import { TimelineRenderer } from './timeline-renderer.ts';
+import { TimelinePreviewScheduler } from './timeline-preview-scheduler.ts';
+import defaultVertexShaderCode from './vertex.wgsl?raw';
+import type { VisualModuleTarget } from '@glitch/shared/project/visual-module-target.ts';
+import type { RendererProjectChange, RendererProjectState } from '@glitch/shared/project/renderer-state.ts';
 import type { ProjectVisualModule } from '@glitch/shared/project/types.ts';
-import type { NodeOutput } from './node-output.ts';
-import type { FrameScheduler } from './live-render-loop.ts';
+import type { NodeOutput } from '../../renderer/src/node-output.ts';
+import type { FrameScheduler } from '../../visual-module-renderer/src/live-render-loop.ts';
 import type { TimelineLayerRenderer } from './timeline-renderer.ts';
-import type { EffectInstanceState } from '@glitch/shared/effect/effect-status.ts';
+import type { EffectInstanceState } from '@glitch/effect-shared/effect-status.ts';
 import type { Asset, IntermediateTextureFormat } from '@glitch/shared/types.ts';
 import type { TimelineScene, TimelineLayer, TimelineVisualModuleLayer, TimelineInlineVisualModuleLayer } from '@glitch/shared/timeline/types.ts';
 import type { VisualModule } from '@glitch/shared/visual-module/types.ts';
-import type { EffectImplementation } from '@glitch/shared/effect/effect-implementation.js';
-import type { EffectDefinition } from '@glitch/shared/effect/effect-definition.js';
+import type { EffectImplementation } from '@glitch/effect-shared/effect-implementation.js';
+import type { EffectDefinition } from '@glitch/effect-shared/effect-definition.js';
 
 /**
  * 初期化時に決まっている必要がある設定情報
@@ -158,7 +158,7 @@ export class TimelineRendererManager extends EventEmitter<{
 			present: (output, gpuTime) => {
 				const commandEncoder = this.gpuDevice.createCommandEncoder();
 				this.sceneOutput ??= createSceneOutput({ device: this.gpuDevice, vertex: this.defaultVertexShaderModule,
-					resolution: this.renderResolution, format: this.staticOptions.intermediateTextureFormat });
+																																													resolution: this.renderResolution, format: this.staticOptions.intermediateTextureFormat });
 				const tex = this.sceneOutput.render(commandEncoder, output);
 				this.canvasRenderer.renderToCanvas(tex, commandEncoder);
 				this.gpuDevice.queue.submit([commandEncoder.finish()]);
@@ -304,7 +304,7 @@ export class TimelineRendererManager extends EventEmitter<{
 	private getLayerVersion(sceneId: string, layer: TimelineLayer, clipId: string): string {
 		const childId = layer.layerType === 'scene' ? layer.clips.find(clip => clip.id === clipId)!.sceneId : null;
 		return JSON.stringify([this.projectVersions.scene(sceneId), this.projectVersions.layer(sceneId, layer.id),
-			childId == null ? 0 : this.projectVersions.scene(childId)]);
+																									childId == null ? 0 : this.projectVersions.scene(childId)]);
 	}
 
 	private updateAssets(assets: Asset[]): Promise<boolean> {
@@ -366,7 +366,7 @@ export class TimelineRendererManager extends EventEmitter<{
 				const source = this.createLayerStatusSource(layer.id, clipId, layerPath);
 				return createEffectTimelineLayer(layer, definition, implementation, {
 					wgpu: { device: this.gpuDevice, defaultVertexShaderModule: this.defaultVertexShaderModule,
-						enable32bitDataTextures: this.staticOptions.enable32bitDataTextures, intermediateTextureFormat: this.staticOptions.intermediateTextureFormat },
+													enable32bitDataTextures: this.staticOptions.enable32bitDataTextures, intermediateTextureFormat: this.staticOptions.intermediateTextureFormat },
 					fallbackTexture: this.fallbackTexture, resolution: renderResolution, resolutionScale: this.dynamicOptions.resolutionScale,
 					assets: this.dynamicOptions.assets, assetTextures: this.assetTextures.textures,
 					onState: status => this.emit('ev', { type: 'effectLayerState', ctx: { source, status } }),

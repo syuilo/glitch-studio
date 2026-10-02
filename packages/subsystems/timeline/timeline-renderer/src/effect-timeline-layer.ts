@@ -11,9 +11,9 @@ import { mapNodeParam } from './utility/node-params.ts';
 import { outputShaderInput } from './node-output.ts';
 import { createTimelineCompositor } from './timeline-compositor.ts';
 import { TimelineCompositingParameters } from './timeline-compositing-parameters.ts';
-import type { EffectDefinition } from '@glitch/shared/effect/effect-definition.ts';
-import type { EffectImplementation, EffectGpuContext } from '@glitch/shared/effect/effect-implementation.ts';
-import type { EffectInstanceState } from '@glitch/shared/effect/effect-status.ts';
+import type { EffectDefinition } from '@glitch/effect-shared/effect-definition.ts';
+import type { EffectImplementation, EffectGpuContext } from '@glitch/effect-shared/effect-implementation.ts';
+import type { EffectInstanceState } from '@glitch/effect-shared/effect-status.ts';
 import type { TimelineEffectLayer } from '@glitch/shared/timeline/types.ts';
 import type { Resolution } from '@glitch/shared/resolution.ts';
 import type { Asset } from '@glitch/shared/types.ts';
@@ -39,9 +39,9 @@ export function createEffectTimelineLayer(layer: TimelineEffectLayer, definition
 	if (port == null) return { evaluate: async () => ({ gpuTime: 0 }), destroy() {} };
 	const { device } = options.wgpu;
 	const renderer = new EffectRenderer({ definition, implementation, wgpu: options.wgpu,
-		fallbackTexture: options.fallbackTexture, onState: options.onState });
+																																							fallbackTexture: options.fallbackTexture, onState: options.onState });
 	const compositor = createTimelineCompositor({ device, vertex: options.wgpu.defaultVertexShaderModule,
-		resolution: options.resolution, format: options.wgpu.intermediateTextureFormat });
+																																															resolution: options.resolution, format: options.wgpu.intermediateTextureFormat });
 	const evaluator = new ParameterEvaluator();
 	const compositing = new TimelineCompositingParameters();
 	const usedOutputPorts = new Set([port]);
@@ -53,7 +53,7 @@ export function createEffectTimelineLayer(layer: TimelineEffectLayer, definition
 		async evaluate(context, signal) {
 			if (disposed || signal.aborted) return { gpuTime: 0 };
 			const scope = { ...createTimelineLayerEvaluationScope({ time: context.sceneTimeMs, isExport: context.isExport,
-				automationGraphs: layer.automationGraphs }), evaluatedParamValues: null };
+																																																											automationGraphs: layer.automationGraphs }), evaluatedParamValues: null };
 			const params = Object.fromEntries(parameters.map(({ key, def, binding }) => {
 				return [key, mapNodeParam(def, binding, [key], (leaf, value) => {
 					if (value.inputSource === 'layerInput') return outputShaderInput(context.input, value);
@@ -70,22 +70,22 @@ export function createEffectTimelineLayer(layer: TimelineEffectLayer, definition
 			const resolutionInput = definition.resolutionInputParameter == null ? undefined : params[definition.resolutionInputParameter];
 			renderer.setUsedOutputPorts(usedOutputPorts);
 			renderer.setResolution(resolveEffectNodeResolution({ setting: layer.resolution,
-				contextResolution: options.resolution, resolutionScale: options.resolutionScale,
-				intrinsicResolution: layer.resolution.mode === 'auto' ? implementation.getIntrinsicResolution?.(params) : undefined,
-				inputResolution: resolutionInput?.kind === 'texture' ? resolutionInput.texture : undefined,
-				maxDimension: device.limits.maxTextureDimension2D }));
+																																																								contextResolution: options.resolution, resolutionScale: options.resolutionScale,
+																																																								intrinsicResolution: layer.resolution.mode === 'auto' ? implementation.getIntrinsicResolution?.(params) : undefined,
+																																																								inputResolution: resolutionInput?.kind === 'texture' ? resolutionInput.texture : undefined,
+																																																								maxDimension: device.limits.maxTextureDimension2D }));
 			renderer.prepare(params);
 			if (!await renderer.waitUntilReady(signal) || signal.aborted || disposed) return { gpuTime: 0 };
 			const encoder = device.createCommandEncoder();
 			try {
 				// キー・式はScene時刻だが、エフェクト固有のアニメーションには内容時刻（秒）を渡す。
 				renderer.render({ params, time: context.contentTimeMs / 1000, timeDelta: context.timeDelta,
-					pointerPosition: { x: -99999, y: -99999 }, pointerVector: { x: 0, y: 0 },
-					usedOutputPorts, commandEncoder: encoder });
+																						pointerPosition: { x: -99999, y: -99999 }, pointerVector: { x: 0, y: 0 },
+																						usedOutputPorts, commandEncoder: encoder });
 				const texture = renderer.getOutputTexture(port);
 				if (texture == null) return { gpuTime: 0 };
 				const settings = compositing.evaluate({ time: context.sceneTimeMs, isExport: context.isExport,
-					paramValues: layer.compositingParamValues, automationGraphs: layer.automationGraphs });
+																																												paramValues: layer.compositingParamValues, automationGraphs: layer.automationGraphs });
 				return { output: compositor.render(encoder, context.input, { kind: 'texture', texture }, settings), gpuTime: 0 };
 			} finally {
 				// 次のフレームによる出力の再利用・破棄より先に、その出力を読む合成もsubmitする。

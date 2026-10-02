@@ -1,9 +1,9 @@
-import type { AudioHistory } from '../audio-history.ts';
-import type { BlendMode } from '../color-blend.ts';
-import type { ParameterDefinition } from '../parameter.ts';
-import type { DataType } from '../data-type.ts';
-import type { ShaderInput } from '../shader-input.ts';
-import type { Asset, FitMode, IntermediateTextureFormat, WrapMode } from '../types.ts';
+import type { AudioHistory } from '@glitch/shared/audio-history.ts';
+import type { BlendMode } from '@glitch/shared/color-blend.ts';
+import type { ParameterDefinition } from '@glitch/shared/parameter.ts';
+import type { DataType } from '@glitch/shared/data-type.ts';
+import type { ShaderInput } from '@glitch/shared/shader-input.js';
+import type { Asset, FitMode, IntermediateTextureFormat, WrapMode } from '@glitch/shared/types.ts';
 import type { EffectOutputDefinitions, EffectDefinition } from './effect-definition.ts';
 import type { EffectStatus } from './effect-status.ts';
 

@@ -1,12 +1,12 @@
 import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
-import { createShaderInputPipeline } from '@glitch/shared/shader-input-pipeline.ts';
-import { inputUvScale } from '@glitch/shared/shader-input.ts';
+import { createShaderInputPipeline } from '@glitch/effect-shared/shader-input-pipeline.ts';
+import { inputUvScale } from '@glitch/effect-shared/shader-input.ts';
 import blendCode from '@glitch/shared/color-blend.wgsl?raw';
-import type { IntermediateTextureFormat } from '@glitch/shared/types.ts';
-import { outputShaderInput } from './node-output.ts';
-import type { NodeOutput } from './node-output.ts';
-import type { TimelineCompositingSettings } from './timeline-compositing-parameters.ts';
+import { outputShaderInput } from '../../renderer/src/node-output.ts';
 import code from './timeline-compositor.wgsl?raw';
+import type { IntermediateTextureFormat } from '@glitch/shared/types.ts';
+import type { NodeOutput } from '../../renderer/src/node-output.ts';
+import type { TimelineCompositingSettings } from './timeline-compositing-parameters.ts';
 
 // レイヤーごとに出力を所有し、同一フレーム内で下のレイヤーの出力を上書きしない。
 export function createTimelineCompositor(options: {

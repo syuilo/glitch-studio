@@ -6,6 +6,12 @@
 	"workspaces": [
 		"packages/shared",
 		"packages/renderer",
+		"packages/subsystems/effect/effect-shared",
+		"packages/subsystems/effect/effect-renderer",
+		"packages/subsystems/visual-module/visual-module-shared",
+		"packages/subsystems/visual-module/visual-module-renderer",
+		"packages/subsystems/timeline/timeline-shared",
+		"packages/subsystems/timeline/timeline-renderer",
 		"packages/ui",
 		"packages/desktop"
 	],

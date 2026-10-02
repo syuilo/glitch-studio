@@ -1,7 +1,7 @@
 import { createShaderInputPipeline } from '@glitch/shared/shader-input-pipeline.ts';
+import { outputShaderInput, type NodeOutput } from '../../renderer/src/node-output.ts';
 import type { Resolution } from '@glitch/shared/resolution.ts';
 import type { IntermediateTextureFormat } from '@glitch/shared/types.ts';
-import { outputShaderInput, type NodeOutput } from './node-output.ts';
 
 /** Sceneの画面を確定する。親でのfitやoriginは、この透明余白を含む画面全体を基準とする。 */
 export function createSceneOutput(options: {
@@ -17,7 +17,7 @@ export function createSceneOutput(options: {
 			const { resolution } = options;
 			if (output.kind === 'texture' && output.texture.width === resolution.width && output.texture.height === resolution.height) return output.texture;
 			texture ??= options.device.createTexture({ size: resolution, format: options.format,
-				usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT });
+																																														usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT });
 			pipeline ??= createShaderInputPipeline({
 				device: options.device, vertex: options.vertex, schema: { source: 'color' }, targets: [{ format: options.format }],
 				code: '@fragment fn fs(@location(0) position: vec2f) -> @location(0) vec4f { return read_source(position); }',

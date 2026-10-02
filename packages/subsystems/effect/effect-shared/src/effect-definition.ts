@@ -1,5 +1,5 @@
-import type { TextureDataType } from '../data-type.ts';
-import type { CheckedParameterDefinition, ParameterDefinition } from '../parameter.ts';
+import type { TextureDataType } from '@glitch/shared/data-type.ts';
+import type { CheckedParameterDefinition, ParameterDefinition } from '@glitch/shared/parameter.ts';
 
 export type EffectOutputDefinitions = Record<string, {
 	dataType: TextureDataType;

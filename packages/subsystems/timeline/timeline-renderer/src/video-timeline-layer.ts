@@ -1,11 +1,11 @@
 import { openVideoSource } from '@glitch/shared/media/video-source.ts';
 import { createVideoTexture } from '@glitch/shared/media/video-texture.ts';
-import type { TimelineVideoLayer } from '@glitch/shared/timeline/types.ts';
-import type { IntermediateTextureFormat } from '@glitch/shared/types.ts';
-import type { NodeOutput } from './node-output.ts';
-import type { TimelineLayerRenderer } from './timeline-renderer.ts';
 import { createTimelineCompositor } from './timeline-compositor.ts';
 import { TimelineCompositingParameters } from './timeline-compositing-parameters.ts';
+import type { TimelineVideoLayer } from '@glitch/shared/timeline/types.ts';
+import type { IntermediateTextureFormat } from '@glitch/shared/types.ts';
+import type { NodeOutput } from '../../renderer/src/node-output.ts';
+import type { TimelineLayerRenderer } from './timeline-renderer.ts';
 
 export function createVideoTimelineLayer(layer: TimelineVideoLayer, blob: Blob, options: {
 	device: GPUDevice;

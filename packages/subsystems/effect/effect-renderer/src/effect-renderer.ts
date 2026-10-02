@@ -1,8 +1,8 @@
-import type { EffectDefinition } from '@glitch/shared/effect/effect-definition.ts';
-import type { EffectGpuContext, EffectImplementation, EffectInstance, EffectOutputData, EffectOutputDataMap, EffectRenderContext, RuntimeEffectParameters } from '@glitch/shared/effect/effect-implementation.ts';
-import type { EffectInstanceState, EffectStatus } from '@glitch/shared/effect/effect-status.ts';
+import type { EffectDefinition } from '@glitch/effect-shared/effect-definition.ts';
+import type { EffectGpuContext, EffectImplementation, EffectInstance, EffectOutputData, EffectOutputDataMap, EffectRenderContext, RuntimeEffectParameters } from '@glitch/effect-shared/effect-implementation.ts';
+import type { EffectInstanceState, EffectStatus } from '@glitch/effect-shared/effect-status.ts';
 import type { Resolution } from '@glitch/shared/resolution.ts';
-import type TimingHelper from './utility/TimingHelper.ts';
+import type TimingHelper from '../../renderer/src/utility/TimingHelper.ts';
 
 // 同じ呼び出し元のIDでレンダラーを作り直しても、過去の出力と同じキーに戻さない。
 // インスタンスからの通知を無効化する世代とは独立し、描画のたびには更新しない。
