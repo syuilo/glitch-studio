@@ -1,5 +1,5 @@
 <template>
-<GsModal ref="modal" @closed="emit('closed')">
+<GsModal ref="modal" @opened="searchInput?.focus()" @closed="emit('closed')">
 	<div :class="$style.root" class="_shadow _popup">
 		<div :class="$style.header">
 			<GsInput ref="searchInput" v-model="query" type="search" :class="$style.searchInput"/>
@@ -23,12 +23,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, useTemplateRef, watch } from 'vue';
+import { computed, ref, useTemplateRef } from 'vue';
 import { effectDefinitions } from '@glitch/shared/effect/effect-definitions.js';
 import GsModal from './common/GsModal.vue';
-import GsButton from './common/GsButton.vue';
 import GsInput from './common/GsInput.vue';
-import * as ui from '@/ui.ts';
 
 const emit = defineEmits<{
 	(ev: 'chosen', effect: typeof effectDefinitions[keyof typeof effectDefinitions]): void;
@@ -55,9 +53,6 @@ function choose(effect: typeof effectDefinitions[keyof typeof effectDefinitions]
 	close();
 }
 
-onMounted(() => {
-	searchInput.value?.focus();
-});
 </script>
 
 <style module lang="scss">
