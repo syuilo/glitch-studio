@@ -4,6 +4,15 @@ import type { timelineCompositingParamDefs } from './timeline-compositing.ts';
 import type { TimelineClip, TimelineAssetClip, TimelineVideoClip, TimelineSceneClip } from './clip.ts';
 import type { TimelineSceneResolution } from './scene-resolution.ts';
 import type { EffectResolution } from '../effect/resolution.ts';
+import type { ParameterChangeKind } from '../parameter.ts';
+
+export type TimelineParameterTarget = 'module' | 'effect' | 'compositing' | 'audio';
+
+// definitionはレイヤー全体の追加・削除・置換。部分編集では変更した内容を列挙し、
+// 実行インスタンスの扱いは利用側へ委ねる。
+export type TimelineLayerChange =
+	| { type: 'parameter'; target: TimelineParameterTarget; kind: ParameterChangeKind }
+	| { type: 'definition' | 'clips' | 'resolution' };
 
 type TimelineLayerBase<Clip extends TimelineClip> = {
 	id: string;

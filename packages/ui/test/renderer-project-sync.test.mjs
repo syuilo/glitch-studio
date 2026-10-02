@@ -51,7 +51,7 @@ function fixture(t, count = 1, overrides = {}) {
 
 // 【プロジェクトのノード数を増やしても、通常編集の送信量は変更ノード一つ分に収まる】
 // deep watchで全Moduleを複製する経路が復活しないことを、実際の送信データで確認する。
-// 配列内の末端値も、履歴のマージ・Undo・Redoを含めて値とキャッシュ保持方針が一致する必要がある。
+// 配列内の末端値も、履歴のマージ・Undo・Redoを含めて確定値と編集内容の通知が一致する必要がある。
 test('sends one node regardless of graph size and synchronizes merged edits undo and redo', async t => {
 	const sizes = [];
 	for (const count of [1, 1000]) {
@@ -62,7 +62,7 @@ test('sends one node regardless of graph size and synchronizes merged edits undo
 		assert.equal(f.batches.length, 1);
 		assert.equal(f.batches[0].length, 1);
 		assert.equal(f.batches[0][0].type, 'node');
-		assert.equal(f.batches[0][0].preserveCache, true);
+		assert.deepEqual(f.batches[0][0].changes, [{ type: 'parameter', kind: 'value' }]);
 		assert.deepEqual(f.batches[0][0].target, { visualModuleId: 'module' });
 		assert.equal(f.value(), 0.75);
 		sizes.push(JSON.stringify(f.batches[0]).length);
@@ -72,21 +72,21 @@ test('sends one node regardless of graph size and synchronizes merged edits undo
 		f.manager.redo();
 		await f.sync.flush();
 		assert.equal(f.value(), 0.75);
-		assert.ok(f.batches.every(batch => batch[0].preserveCache));
+		for (const batch of f.batches) assert.deepEqual(batch[0].changes, [{ type: 'parameter', kind: 'value' }]);
 		assert.deepEqual(f.errors, []);
 	}
 	assert.equal(sizes[0], sizes[1]);
 });
 
 // 【構造変更は後続の値編集に上書きされず、Module置換は古いノード差分を吸収する】
-// 同じターンで配列追加→値編集、ノード編集→削除を行っても、破棄方針の取り違えや
-// 削除済みIDへの更新を送らない。Undoでも最終的なグラフを一度で反映する。
+// 同じターンで配列追加→値編集、ノード編集→削除を行っても、途中の編集内容を失ったり
+// 削除済みIDへの更新を送ったりしない。Undoでも最終的なグラフを一度で反映する。
 test('coalesces structural changes without replaying obsolete node updates', async t => {
 	const f = fixture(t);
 	f.manager.commit('addArrayParamElement', { ...f.target, paramPath: ['buzzs'] });
 	f.manager.commit('updateParamAsLiteral', { ...f.target, value: 0.5 });
 	await f.sync.flush();
-	assert.equal(f.batches[0][0].preserveCache, false);
+	assert.deepEqual(f.batches[0][0].changes, [{ type: 'parameter', kind: 'arrayElements' }, { type: 'parameter', kind: 'value' }]);
 	assert.equal(f.replica.visualModules[0].nodes[0].params.buzzs.value.length, 2);
 	f.manager.commit('updateParamAsLiteral', { ...f.target, value: 0.9 });
 	f.manager.commit('removeNode', { visualModuleId: 'module', nodeId: 'node-0' });
@@ -120,6 +120,71 @@ test('absorbs child edits into newly added scenes and layers', async t => {
 	await f.sync.flush();
 	assert.equal(f.replica.timelineScenes.length, 1);
 	assert.deepEqual(f.errors, []);
+});
+
+// 【Module引数の履歴と、同時に編集したノード・合成設定の変更内容を通知する】
+// 同じレイヤーだからと最後の編集種別だけ残すと、合成設定やリセットが通常の値編集に
+// 化けてしまう。Inline Moduleの部分編集も吸収せず、レンダラーが判断する材料を保つ。
+test('retains layer edit kinds through merged history and simultaneous inline edits', async t => {
+	const f = fixture(t);
+	const visualModule = structuredClone(f.replica.visualModules[0]);
+	visualModule.paramDefs = [{ id: 'amount', nameForReference: 'Amount', dataType: { kind: 'scalar' },
+		ui: { label: 'Amount', control: { controlType: 'number' } }, canNode: false, defaultValue: { inputSource: 'literal', value: 1 } }];
+	f.manager.commit('addTimelineLayer', { sceneId: 'scene', layer: {
+		id: 'inline', name: 'Inline', layerType: 'inlineVisualModule', visualModule,
+		clips: [], visualModuleParamValues: {}, compositingParamValues: {}, automationGraphs: [],
+	} });
+	await f.sync.flush();
+	const target = { sceneId: 'scene', layerId: 'inline', target: 'module', paramPath: ['amount'] };
+	const edit = value => f.manager.commit('editTimelineLayerParam', { ...target, edit: { kind: 'literal', value } }, 'arguments');
+	edit(2);
+	edit(3);
+	await f.sync.flush();
+	assert.deepEqual(f.batches.at(-1)[0].changes, [{ type: 'parameter', target: 'module', kind: 'value' }]);
+	assert.equal(f.replica.timelineScenes[0].layers[0].visualModuleParamValues.amount.value, 3);
+	f.manager.undo();
+	await f.sync.flush();
+	assert.deepEqual(f.replica.timelineScenes[0].layers[0].visualModuleParamValues, {});
+	f.manager.redo();
+	await f.sync.flush();
+	assert.equal(f.replica.timelineScenes[0].layers[0].visualModuleParamValues.amount.value, 3);
+	assert.deepEqual(f.batches.at(-1)[0].changes, [{ type: 'parameter', target: 'module', kind: 'value' }]);
+
+	f.manager.commit('editTimelineLayerParam', { ...target, edit: { kind: 'reset' } });
+	edit(4);
+	f.manager.commit('editTimelineLayerParam', { ...target, target: 'compositing', paramPath: ['opacity'], edit: { kind: 'literal', value: 0.5 } });
+	f.manager.commit('updateParamAsLiteral', { sceneId: 'scene', inlineVisualModuleLayerId: 'inline', nodeId: 'node-0', paramPath: f.target.paramPath, value: 0.75 });
+	await f.sync.flush();
+	const batch = f.batches.at(-1);
+	assert.deepEqual(batch.map(change => change.type), ['node', 'layer']);
+	assert.deepEqual(batch[1].changes, [
+		{ type: 'parameter', target: 'module', kind: 'reset' },
+		{ type: 'parameter', target: 'module', kind: 'value' },
+		{ type: 'parameter', target: 'compositing', kind: 'value' },
+	]);
+	const replica = f.replica.timelineScenes[0].layers[0];
+	assert.equal(replica.visualModule.nodes[0].params.buzzs.value[0].binding.value.x.value, 0.75);
+	assert.equal(replica.visualModuleParamValues.amount.value, 4);
+	assert.equal(replica.compositingParamValues.opacity.value, 0.5);
+	assert.deepEqual(f.errors, []);
+});
+
+// 【状態管理は表示名や解像度の編集も通知し、描画同期側が対象を選ぶ】
+// Commandが描画の都合で通知を省略すると、状態管理が購読先に依存してしまう。
+// 専用の同期経路がある変更を、この差分経路から重複送信しないことも確認する。
+test('publishes state changes independently of renderer subscriptions', async t => {
+	const f = fixture(t);
+	const notifications = [];
+	const unsubscribe = f.manager.onChange(changes => notifications.push(changes));
+	f.manager.commit('renameScene', { sceneId: 'scene', name: 'Renamed' });
+	f.manager.commit('changeProjectResolution', { width: 320, height: 180 });
+	f.manager.undo();
+	await f.sync.flush();
+	assert.deepEqual(notifications, [[{ type: 'sceneName', sceneId: 'scene' }], [{ type: 'projectResolution' }], [{ type: 'projectResolution' }]]);
+	assert.deepEqual(f.batches, []);
+	unsubscribe();
+	f.manager.redo();
+	assert.equal(notifications.length, 3);
 });
 
 // 【差分失敗は最新スナップショットで復旧し、旧プロジェクトの完了通知は復旧を起動しない】

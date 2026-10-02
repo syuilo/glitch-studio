@@ -8,7 +8,7 @@ import type { Asset, Player } from '@glitch/shared/types.js';
 import type { ProjectVisualModule } from '@glitch/shared/project/types.ts';
 import type { CommandDef } from './commands.ts';
 import type { AppState } from './types.ts';
-import type { RendererChangeTarget } from './RendererProjectSynchronizer.ts';
+import type { AppStateChange } from './AppStateChange.ts';
 
 type CommandLog = {
 	type: keyof typeof COMMAND_DEFS;
@@ -25,11 +25,11 @@ export class AppStateManager {
 	public canUndo = computed(() => this.undoStack.value.length > 0);
 	public canRedo = computed(() => this.redoStack.value.length > 0);
 	private maxUndoStackSize = 100;
-	private rendererChangeListeners = new Set<(targets: RendererChangeTarget[]) => void>();
+	private changeListeners = new Set<(changes: AppStateChange[]) => void>();
 
-	public onRendererChange(listener: (targets: RendererChangeTarget[]) => void): () => void {
-		this.rendererChangeListeners.add(listener);
-		return () => { this.rendererChangeListeners.delete(listener); };
+	public onChange(listener: (changes: AppStateChange[]) => void): () => void {
+		this.changeListeners.add(listener);
+		return () => { this.changeListeners.delete(listener); };
 	}
 
 	constructor() {
@@ -47,8 +47,8 @@ export class AppStateManager {
 		const savedPayload = deepClone(payload);
 		const actions = commandDef.create(savedPayload);
 		const notify = (state: AppState) => {
-			const targets = commandDef.rendererChanges(state, savedPayload);
-			for (const listener of this.rendererChangeListeners) listener(targets);
+			const changes = commandDef.changes(state, savedPayload);
+			for (const listener of this.changeListeners) listener(changes);
 		};
 		// 履歴へ通知込みの操作を保存する。マージされたRedoも最終payloadを通知し、
 		// Undoは最初のpayloadを使うので、ドラッグ中も確定後も同じ同期経路を通る。

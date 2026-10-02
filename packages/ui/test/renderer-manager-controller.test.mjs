@@ -89,7 +89,7 @@ for (const kind of ['VisualModule', 'Timeline']) test(`${kind} uses a snapshot b
 	controller.createWorker = () => created.promise;
 	const ready = controller.init({ width: 16, height: 16 });
 	const edited = { ...node, params: { value: { inputSource: 'literal', value: 2 } } };
-	const absorbed = controller.applyProjectChanges([{ type: 'node', target: { visualModuleId: 'module' }, node: edited, preserveCache: true }]);
+	const absorbed = controller.applyProjectChanges([{ type: 'node', target: { visualModuleId: 'module' }, node: edited, changes: [{ type: 'parameter', kind: 'value' }] }]);
 	const removed = controller.applyProjectChanges([{ type: 'visualModule', target: { visualModuleId: 'module' }, visualModule: { ...visualModule, nodes: [] } }]);
 	created.resolve(worker);
 	const initial = await worker.initialization.promise;
@@ -126,7 +126,7 @@ test('orders live recovery before later edits and does not restart after a mode 
 	const replacing = controller.replaceProjectState(state);
 	const replacement = worker.calls('replaceProjectState').at(-1);
 	assert.equal(worker.messages.at(-1).fn, 'startLiveRenderLoopFor');
-	const patching = controller.applyProjectChanges([{ type: 'node', target: { visualModuleId: 'module' }, node: visualModule.nodes[0], preserveCache: true }]);
+	const patching = controller.applyProjectChanges([{ type: 'node', target: { visualModuleId: 'module' }, node: visualModule.nodes[0], changes: [{ type: 'parameter', kind: 'value' }] }]);
 	worker.returnValue(worker.calls('applyProjectChanges').at(-1));
 	await patching;
 	controller.stopRenderLoop();

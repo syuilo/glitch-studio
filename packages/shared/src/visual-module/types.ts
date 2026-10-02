@@ -1,7 +1,7 @@
 import type { TextureDataType } from '../data-type.ts';
 import type { EffectDefinition } from '../effect/effect-definition.ts';
 import type { EffectResolution } from '../effect/resolution.ts';
-import type { ParameterDefinition } from '../parameter.ts';
+import type { ParameterChangeKind, ParameterDefinition } from '../parameter.ts';
 import type { FitMode, AutomationGraph, ParameterBinding, WrapMode } from '../types.ts';
 
 export type VisualModuleEffectNode = {
@@ -45,6 +45,11 @@ export type VisualModuleRelayNode = {
 };
 
 export type VisualModuleNode = VisualModuleEffectNode | VisualModuleGlobalInNode | VisualModuleGlobalOutNode | VisualModuleRelayNode;
+
+// ノード自身の変更内容だけを表す。所属Moduleや変更後の描画方針は含めない。
+export type VisualModuleNodeChange =
+	| { type: 'parameter'; kind: ParameterChangeKind }
+	| { type: 'bypass' | 'resolution' };
 
 declare const visualModuleCustomParameterIdentity: unique symbol;
 

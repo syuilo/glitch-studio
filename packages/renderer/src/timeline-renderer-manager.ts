@@ -1,7 +1,9 @@
 import { scaleResolution, type Resolution } from '@glitch/shared/resolution.ts';
 import { getTimelineScene, validateTimelineLayer, validateTimelineScenes } from '@glitch/shared/timeline/scenes.ts';
 import { applyRendererProjectChanges, findRendererVisualModule } from '@glitch/shared/project/renderer-state.ts';
-import type { RendererProjectChange, RendererProjectState, VisualModuleTarget } from '@glitch/shared/project/renderer-state.ts';
+import type { RendererProjectChange, RendererProjectState } from '@glitch/shared/project/renderer-state.ts';
+import type { VisualModuleTarget } from '@glitch/shared/project/visual-module-target.ts';
+import { canPreserveModuleLayerInstance } from './project-change-policy.ts';
 import { deepEqual } from '@glitch/shared/utility/deep-equal.ts';
 import { validateTimelineEffectLayer } from '@glitch/shared/timeline/effect-layer.ts';
 import { getSceneBaseResolution, resolveSceneResolution } from '@glitch/shared/timeline/scene-resolution.ts';
@@ -248,7 +250,7 @@ export class TimelineRendererManager extends EventEmitter<{
 			validateTimelineLayer(change.layer);
 			if (change.layer.layerType === 'effect') validateTimelineEffectLayer(change.layer, this.effectDefinitions[change.layer.effectId]);
 			if (change.layer.layerType === 'scene') validateSceneReferences = true;
-			if (change.preserveModuleInstance) {
+			if (canPreserveModuleLayerInstance(change.changes)) {
 				if (!previous || !('visualModuleParamValues' in previous) || !('visualModuleParamValues' in change.layer)) {
 					throw new Error('Only module arguments can preserve a layer instance');
 				}

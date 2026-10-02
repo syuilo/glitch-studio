@@ -1,11 +1,7 @@
 import type { ProjectVisualModule } from './types.ts';
-import type { VisualModule, VisualModuleNode } from '../visual-module/types.ts';
-import type { TimelineLayer, TimelineScene } from '../timeline/types.ts';
-
-// Moduleは自身の配置先を知らない。登録・Scene内の所在はプロジェクト側で付加する。
-export type VisualModuleTarget =
-	| { visualModuleId: string }
-	| { sceneId: string; inlineVisualModuleLayerId: string };
+import type { VisualModule, VisualModuleNode, VisualModuleNodeChange } from '../visual-module/types.ts';
+import type { TimelineLayer, TimelineLayerChange, TimelineScene } from '../timeline/types.ts';
+import type { VisualModuleTarget } from './visual-module-target.ts';
 
 export type RendererProjectState = {
 	visualModules: ProjectVisualModule[];
@@ -13,16 +9,11 @@ export type RendererProjectState = {
 };
 
 export type RendererProjectChange =
-	| { type: 'node'; target: VisualModuleTarget; node: VisualModuleNode; preserveCache: boolean }
+	| { type: 'node'; target: VisualModuleTarget; node: VisualModuleNode; changes: VisualModuleNodeChange[] }
 	| { type: 'visualModule'; target: VisualModuleTarget; visualModule: VisualModule }
-	| { type: 'layer'; sceneId: string; layerId: string; layer: TimelineLayer | null; preserveModuleInstance: boolean }
+	| { type: 'layer'; sceneId: string; layerId: string; layer: TimelineLayer | null; changes: TimelineLayerChange[] }
 	| { type: 'layerOrder'; sceneId: string; layerIds: string[] }
 	| { type: 'scene'; sceneId: string; scene: TimelineScene | null };
-
-export function visualModuleTargetKey(target: VisualModuleTarget): string {
-	return 'visualModuleId' in target ? JSON.stringify(['module', target.visualModuleId])
-		: JSON.stringify(['inline', target.sceneId, target.inlineVisualModuleLayerId]);
-}
 
 export function findRendererVisualModule(state: RendererProjectState, target: VisualModuleTarget): VisualModule | undefined {
 	if ('visualModuleId' in target) return state.visualModules.find(module => module.id === target.visualModuleId);

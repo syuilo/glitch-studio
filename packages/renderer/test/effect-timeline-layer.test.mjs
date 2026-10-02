@@ -108,7 +108,7 @@ test('recreates only an edited effect layer and rejects invalid batches atomical
 	const secondInstance = f.calls.renders.find(call => call.params.amount === 2).instance;
 	const edited = structuredClone(first);
 	edited.effectParamValues.amount = literal(3);
-	const patch = { type: 'layer', sceneId: 'scene', layerId: first.id, layer: edited, preserveModuleInstance: false };
+	const patch = { type: 'layer', sceneId: 'scene', layerId: first.id, layer: edited, changes: [{ type: 'parameter', target: 'effect', kind: 'value' }] };
 	assert.throws(() => f.manager.applyProjectChanges([patch, { type: 'layerOrder', sceneId: 'scene', layerIds: ['missing'] }]), /Invalid layer order/);
 	await f.manager.renderTimelineFrame(350, 20);
 	assert.equal(firstInstance.disposed, false);
@@ -134,7 +134,7 @@ test('cancels pending frames on edits without disposing an unchanged loading lay
 	const loading = f.calls.instances[0];
 	const edited = structuredClone(first);
 	edited.effectParamValues.amount = literal(3);
-	f.manager.applyProjectChanges([{ type: 'layer', sceneId: 'scene', layerId: 'first', layer: edited, preserveModuleInstance: false }]);
+	f.manager.applyProjectChanges([{ type: 'layer', sceneId: 'scene', layerId: 'first', layer: edited, changes: [{ type: 'parameter', target: 'effect', kind: 'value' }] }]);
 	await obsolete;
 	assert.equal(f.calls.renders.length, 0);
 	assert.equal(loading.disposed, false);

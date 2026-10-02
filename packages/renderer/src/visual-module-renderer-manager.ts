@@ -2,6 +2,7 @@ import { scaleResolution, type Resolution } from '@glitch/shared/resolution.ts';
 import type { ProjectVisualModule } from '@glitch/shared/project/types.ts';
 import { applyRendererProjectChanges } from '@glitch/shared/project/renderer-state.ts';
 import type { RendererProjectChange, RendererProjectState } from '@glitch/shared/project/renderer-state.ts';
+import { canPreserveNodeOutputCache } from './project-change-policy.ts';
 import { AudioHistory } from '@glitch/shared/audio-history.ts';
 import { genId } from '@glitch/shared/utility/id.ts';
 import { genEmptyValue } from '@glitch/shared/utility/misc.ts';
@@ -287,7 +288,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 			&& 'visualModuleId' in change.target && change.target.visualModuleId === this.liveVisualModuleId);
 		if (liveChanges.length > 0 && this.liveVisualModuleRenderer != null) {
 			const module = next.visualModules.find(module => module.id === this.liveVisualModuleId)!;
-			this.liveVisualModuleRenderer.updateVisualModule(module, liveChanges.every(change => change.type === 'node' && change.preserveCache));
+			this.liveVisualModuleRenderer.updateVisualModule(module, liveChanges.every(change => change.type === 'node' && canPreserveNodeOutputCache(change.changes)));
 		}
 	}
 

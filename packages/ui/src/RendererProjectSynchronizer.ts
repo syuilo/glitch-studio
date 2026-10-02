@@ -1,19 +1,18 @@
 import { deepClone } from '@glitch/shared/utility/deep-clone.ts';
-import { visualModuleTargetKey } from '@glitch/shared/project/renderer-state.ts';
-import type { RendererProjectChange, RendererProjectState, VisualModuleTarget } from '@glitch/shared/project/renderer-state.ts';
+import { visualModuleTargetKey } from '@glitch/shared/project/visual-module-target.ts';
+import type { VisualModuleTarget } from '@glitch/shared/project/visual-module-target.ts';
+import type { RendererProjectChange, RendererProjectState } from '@glitch/shared/project/renderer-state.ts';
 import { findVisualModule } from './utility/visual-module-target.ts';
 import type { AppStateManager } from './AppStateManager.ts';
+import type { ProjectContentChange } from './AppStateChange.ts';
 
-export type RendererChangeTarget =
-	| { type: 'node'; target: VisualModuleTarget; nodeId: string; preserveCache: boolean }
-	| { type: 'visualModule'; target: VisualModuleTarget }
-	| { type: 'layer'; sceneId: string; layerId: string; preserveModuleInstance: boolean }
-	| { type: 'layerOrder'; sceneId: string }
-	| { type: 'scene'; sceneId: string };
+function mergeChanges<T>(previous: readonly T[], next: readonly T[]): T[] {
+	return [...new Map([...previous, ...next].map(change => [JSON.stringify(change), change])).values()];
+}
 
-/** コマンドは変更対象だけを通知する。同じターンの連続編集は最終値を一度だけ送る。 */
+/** コマンドは変更対象・内容を通知する。同じターンの連続編集は最終値を一度だけ送る。 */
 export class RendererProjectSynchronizer {
-	private pending = new Map<string, RendererChangeTarget>();
+	private pending = new Map<string, ProjectContentChange>();
 	private scheduled = false;
 	private disposed = false;
 	private unsubscribe: () => void;
@@ -25,15 +24,20 @@ export class RendererProjectSynchronizer {
 		onUpdated: () => void;
 		onError: (error: unknown) => void;
 	}) {
-		this.unsubscribe = manager.onRendererChange(targets => {
+		this.unsubscribe = manager.onChange(changes => {
+			// Assets・Players・プロジェクト解像度は既存の専用同期経路が扱い、表示名は送らない。
+			// どの通知を描画へ送るかは、状態管理ではなくこの購読側で選ぶ。
+			const targets = changes.filter((change): change is ProjectContentChange =>
+				change.type === 'node' || change.type === 'visualModule' || change.type === 'layer' || change.type === 'layerOrder' || change.type === 'scene');
 			for (let target of targets) {
 				const key = target.type === 'node' ? JSON.stringify([target.type, visualModuleTargetKey(target.target), target.nodeId])
 					: target.type === 'visualModule' ? JSON.stringify([target.type, visualModuleTargetKey(target.target)])
 					: JSON.stringify([target.type, target.sceneId, target.type === 'layer' ? target.layerId : null]);
 				const previous = this.pending.get(key);
-				// 一度でも構造変更があれば、その後の値編集でキャッシュ保持へ戻さない。
-				if (target.type === 'node' && previous?.type === 'node') target = { ...target, preserveCache: previous.preserveCache && target.preserveCache };
-				if (target.type === 'layer' && previous?.type === 'layer') target = { ...target, preserveModuleInstance: previous.preserveModuleInstance && target.preserveModuleInstance };
+				// 同じ種類の連続編集はまとめるが、途中の配列操作や接続変更などは捨てない。
+				// 最終値と全ての変更種別を渡し、破棄範囲の判断はレンダラーへ委ねる。
+				if (target.type === 'node' && previous?.type === 'node') target = { ...target, changes: mergeChanges(previous.changes, target.changes) };
+				if (target.type === 'layer' && previous?.type === 'layer') target = { ...target, changes: mergeChanges(previous.changes, target.changes) };
 				this.pending.set(key, target);
 			}
 			if (this.scheduled || targets.length === 0) return;
@@ -51,7 +55,9 @@ export class RendererProjectSynchronizer {
 		const targets = [...this.pending.values()];
 		this.pending.clear();
 		const scenes = new Set(targets.filter(target => target.type === 'scene').map(target => target.sceneId));
-		const layers = new Set(targets.flatMap(target => target.type === 'layer' && !target.preserveModuleInstance ? [JSON.stringify([target.sceneId, target.layerId])] : []));
+		// 追加・削除・置換されたレイヤーでは、内部Moduleもレイヤーの最終状態に含まれる。
+		// 部分編集同士ならModuleの変更種別も残すため、個別通知を吸収しない。
+		const layers = new Set(targets.flatMap(target => target.type === 'layer' && target.changes.some(change => change.type === 'definition') ? [JSON.stringify([target.sceneId, target.layerId])] : []));
 		const modules = new Set(targets.filter(target => target.type === 'visualModule').map(target => visualModuleTargetKey(target.target)));
 		const changes: RendererProjectChange[] = [];
 		for (const target of targets) {
@@ -68,7 +74,7 @@ export class RendererProjectSynchronizer {
 				else {
 					const node = module.nodes.find(node => node.id === target.nodeId);
 					if (!node) throw new Error('Changed node not found');
-					changes.push({ type: 'node', target: address, node, preserveCache: target.preserveCache });
+					changes.push({ type: 'node', target: address, node, changes: target.changes });
 				}
 			} else {
 				if (target.type !== 'scene' && scenes.has(target.sceneId)) continue;

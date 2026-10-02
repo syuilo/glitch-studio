@@ -130,14 +130,14 @@ test('updates shared definitions and module arguments without recreating placeme
 	assert.equal(instances.length, 2);
 	const changed = structuredClone(entries[0]);
 	changed.visualModuleParamValues.amount = literal(2);
-	manager.applyProjectChanges([{ type: 'layer', sceneId: 'scene', layerId: changed.id, layer: changed, preserveModuleInstance: true }]);
+	manager.applyProjectChanges([{ type: 'layer', sceneId: 'scene', layerId: changed.id, layer: changed, changes: [{ type: 'parameter', target: 'module', kind: 'value' }] }]);
 	await manager.renderTimelineFrame(350, 20);
 	assert.equal(calls.renders.length, 3);
 	assert.equal(calls.renders.at(-1).params.amount, 2);
 	assert.equal(calls.renders.at(-1).instance, instances[1]);
 	const editedNode = structuredClone(module.nodes.find(node => node.type === 'effect'));
 	editedNode.params.local = literal(9);
-	manager.applyProjectChanges([{ type: 'node', target: { visualModuleId: module.id }, node: editedNode, preserveCache: true }]);
+	manager.applyProjectChanges([{ type: 'node', target: { visualModuleId: module.id }, node: editedNode, changes: [{ type: 'parameter', kind: 'value' }] }]);
 	await manager.renderTimelineFrame(350, 20);
 	assert.deepEqual(calls.renders.slice(-2).map(call => call.params.local), [9, 9]);
 	assert.deepEqual(calls.instances, instances);
@@ -146,6 +146,56 @@ test('updates shared definitions and module arguments without recreating placeme
 	await manager.renderTimelineFrame(350, 20);
 	assert.equal(calls.renders.length, 5);
 	assert.deepEqual(calls.errors, []);
+});
+
+// 【値編集と接続変更の扱いをレンダラー側で決め、同じバッチの変更内容を全て考慮する】
+// 通知から保持フラグを外しても、通常の値編集では上流を描き直さず、接続変更を含む
+// 編集ではModule全体のキャッシュを更新する。どちらも既存のエフェクトインスタンスは保つ。
+test('derives module cache invalidation from all node edit kinds', async t => {
+	const { manager, calls } = fixture(t, { disableCache: false });
+	const module = visualModule({ params: { amount: literal(1) } });
+	const upstream = module.nodes[1];
+	const downstream = { ...structuredClone(upstream), id: 'downstream', params: { ...upstream.params, input: connection(upstream.id), amount: literal(2) } };
+	module.nodes.splice(2, 0, downstream);
+	module.nodes.at(-1).inputs.output.nodeId = downstream.id;
+	await manager.updateDynamicOptions({ timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [layer('inline', module)] }], sceneId: 'scene' });
+	await manager.renderTimelineFrame(350, 20);
+	const instances = [...calls.instances];
+	const edited = structuredClone(downstream);
+	edited.params.amount = literal(3);
+	const patch = { type: 'node', target: { sceneId: 'scene', inlineVisualModuleLayerId: 'inline' }, node: edited,
+		changes: [{ type: 'parameter', kind: 'value' }] };
+	manager.applyProjectChanges([patch]);
+	await manager.renderTimelineFrame(350, 20);
+	assert.deepEqual(instances.map(instance => instance.renders), [1, 2]);
+	manager.applyProjectChanges([{ ...patch, changes: [{ type: 'parameter', kind: 'connection' }, { type: 'parameter', kind: 'value' }] }]);
+	await manager.renderTimelineFrame(350, 20);
+	assert.deepEqual(instances.map(instance => instance.renders), [2, 3]);
+	assert.deepEqual(calls.instances, instances);
+	assert.ok(instances.every(instance => !instance.disposed));
+});
+
+// 【Module引数のリセットに値編集が続いても、対象配置だけを再生成する】
+// 最終値だけでは途中のリセットを識別できない。集約された編集内容から履歴の扱いを決め、
+// 通常の引数編集とは区別しつつ、同じSceneの無関係な配置は維持する。
+test('recreates only the module placement whose argument edits include a reset', async t => {
+	const { manager, calls } = fixture(t, { disableCache: false });
+	const module = visualModule({ params: { amount: expression('PARAM("Amount")') } });
+	module.paramDefs.push({ ...scalar, id: 'amount', nameForReference: 'Amount' });
+	const entries = ['first', 'second'].map(id => layer(id, structuredClone(module), { visualModuleParamValues: { amount: literal(1) } }));
+	await manager.updateDynamicOptions({ timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: entries }], sceneId: 'scene' });
+	await manager.renderTimelineFrame(350, 20);
+	const instances = [...calls.instances];
+	const edited = structuredClone(entries[0]);
+	edited.visualModuleParamValues.amount = literal(2);
+	manager.applyProjectChanges([{ type: 'layer', sceneId: 'scene', layerId: 'first', layer: edited, changes: [
+		{ type: 'parameter', target: 'module', kind: 'reset' }, { type: 'parameter', target: 'module', kind: 'value' },
+	] }]);
+	await manager.renderTimelineFrame(350, 20);
+	assert.equal(instances[0].disposed, false);
+	assert.equal(instances[1].disposed, true);
+	assert.equal(calls.instances.length, 3);
+	assert.equal(calls.renders.at(-1).params.amount, 2);
 });
 
 // 【子Scene内の編集とレイヤー削除は親配置と無関係な兄弟を破棄しない】
@@ -167,7 +217,7 @@ test('updates nested scene content while preserving parent and sibling instances
 	const secondInstance = calls.renders.find(call => call.params.amount === 2).instance;
 	const changed = structuredClone(first.visualModule.nodes.find(node => node.type === 'effect'));
 	changed.params.amount = literal(3);
-	manager.applyProjectChanges([{ type: 'node', target: { sceneId: 'child', inlineVisualModuleLayerId: 'first' }, node: changed, preserveCache: true }]);
+	manager.applyProjectChanges([{ type: 'node', target: { sceneId: 'child', inlineVisualModuleLayerId: 'first' }, node: changed, changes: [{ type: 'parameter', kind: 'value' }] }]);
 	await manager.renderTimelineFrame(350, 20);
 	assert.equal(calls.renders.length, 3);
 	assert.equal(calls.renders.at(-1).params.amount, 3);
@@ -179,13 +229,13 @@ test('updates nested scene content while preserving parent and sibling instances
 	editedLayer.visualModule.nodes[1] = changed;
 	editedLayer.visualModuleParamValues.input = literal([0, 1, 0, 1]);
 	manager.applyProjectChanges([
-		{ type: 'node', target: { sceneId: 'child', inlineVisualModuleLayerId: 'first' }, node: changed, preserveCache: true },
-		{ type: 'layer', sceneId: 'child', layerId: 'first', layer: editedLayer, preserveModuleInstance: true },
+		{ type: 'node', target: { sceneId: 'child', inlineVisualModuleLayerId: 'first' }, node: changed, changes: [{ type: 'parameter', kind: 'value' }] },
+		{ type: 'layer', sceneId: 'child', layerId: 'first', layer: editedLayer, changes: [{ type: 'parameter', target: 'module', kind: 'value' }] },
 	]);
 	await manager.renderTimelineFrame(350, 20);
 	assert.equal(calls.renders.at(-1).params.amount, 4);
 	assert.equal(calls.renders.at(-1).instance, firstInstance);
-	manager.applyProjectChanges([{ type: 'layer', sceneId: 'child', layerId: 'first', layer: null, preserveModuleInstance: false }]);
+	manager.applyProjectChanges([{ type: 'layer', sceneId: 'child', layerId: 'first', layer: null, changes: [{ type: 'definition' }] }]);
 	await manager.renderTimelineFrame(350, 20);
 	assert.equal(firstInstance.disposed, true);
 	assert.equal(secondInstance.disposed, false);

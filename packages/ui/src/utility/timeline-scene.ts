@@ -8,9 +8,9 @@ import type { ParamPath } from '@glitch/shared/parameter-path.ts';
 import type { ParameterBinding } from '@glitch/shared/types.ts';
 import type { ParameterDefinition } from '@glitch/shared/parameter.ts';
 import type { AppState } from '../types.ts';
-import type { TimelineLayer } from '@glitch/shared/timeline/types.ts';
+import type { TimelineLayer, TimelineParameterTarget } from '@glitch/shared/timeline/types.ts';
 
-export type TimelineParameterTarget = 'module' | 'effect' | 'compositing' | 'audio';
+export type { TimelineParameterTarget } from '@glitch/shared/timeline/types.ts';
 
 export function getScene(state: AppState, sceneId: string) {
 	return getTimelineScene(state.timelineScenes.value, sceneId);

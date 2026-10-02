@@ -3,6 +3,10 @@ import type { DataType, DataTypeUiDefinition, TextureDataType } from './data-typ
 import type { BlendMode } from './color-blend.ts';
 import type { FitMode, ParameterBinding, WrapMode } from './types.ts';
 
+// 値には式・キー・automationの内容を含む。入力方式の切替、接続先の変更、
+// 配列要素の追加削除、既定値へのリセットとは分けて、行った編集を表す。
+export type ParameterChangeKind = 'value' | 'inputSource' | 'connection' | 'arrayElements' | 'reset';
+
 // IDは同じ配列内で一意。値やBindingの種類が変わっても編集対象を追跡できるよう、
 // Bindingの外側に保持する。評価後の配列やDataType自体にはこのIDを含めない。
 export type ParameterArrayElement<Binding extends ParameterBinding = ParameterBinding> = {

@@ -1,5 +1,7 @@
-import { visualModuleTargetKey } from '@glitch/shared/project/renderer-state.ts';
-import type { RendererProjectChange, VisualModuleTarget } from '@glitch/shared/project/renderer-state.ts';
+import { visualModuleTargetKey } from '@glitch/shared/project/visual-module-target.ts';
+import type { VisualModuleTarget } from '@glitch/shared/project/visual-module-target.ts';
+import type { RendererProjectChange } from '@glitch/shared/project/renderer-state.ts';
+import { canPreserveModuleLayerInstance, canPreserveNodeOutputCache } from './project-change-policy.ts';
 
 /** 定義の変更だけを数える。描画回数やGPUリソースの世代とは独立して扱う。 */
 export class ProjectStateVersions {
@@ -21,8 +23,8 @@ export class ProjectStateVersions {
 			if (change.type === 'node' || change.type === 'visualModule') {
 				const previous = this.module(change.target);
 				this.modules.set(visualModuleTargetKey(change.target), { revision,
-					cacheResetRevision: change.type === 'node' && change.preserveCache ? previous.cacheResetRevision : revision });
-			} else if (change.type === 'layer' && !change.preserveModuleInstance) {
+					cacheResetRevision: change.type === 'node' && canPreserveNodeOutputCache(change.changes) ? previous.cacheResetRevision : revision });
+			} else if (change.type === 'layer' && !canPreserveModuleLayerInstance(change.changes)) {
 				this.layers.set(JSON.stringify([change.sceneId, change.layerId]), revision);
 			} else if (change.type === 'scene') {
 				this.scenes.set(change.sceneId, revision);
