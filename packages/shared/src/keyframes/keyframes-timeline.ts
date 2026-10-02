@@ -1,5 +1,5 @@
-import type { DataType } from './data-type.ts';
-import type { EasingFamily, EasingDirection } from './easing.ts';
+import type { DataType } from '../data-type/data-type.ts';
+import type { EasingFamily, EasingDirection } from '../easing.ts';
 
 export type KeyframesDataType = Extract<DataType, { kind: 'scalar' | 'vector' | 'color' | 'string' | 'bool' | 'enum' }>;
 export type InterpolatedKeyframesDataType = Extract<KeyframesDataType, { kind: 'scalar' | 'vector' | 'color' }>;
@@ -51,3 +51,10 @@ export function isKeyframeValue(dataType: KeyframesDataType, value: unknown): va
 		case 'enum': return typeof value === 'string';
 	}
 }
+
+// 再生方法はParameterBindingやTimelineの配置情報から独立した契約とする。
+export type KeyframesTimelinePlaybackOptions = {
+	trimmedDurationMs: number | null; // isNormalizedの場合のみ使用。nullの場合は1000ms。
+	offsetMode: 'start' | 'end';
+	wrapMode: 'clamp' | 'repeat' | 'repeatMirrored';
+};

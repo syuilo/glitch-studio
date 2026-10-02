@@ -1,4 +1,4 @@
-import type { ParameterDefinition } from '@glitch/shared/parameter.ts';
+import type { ParameterDefinition } from '@glitch/shared/parameter/parameter-definition.ts';
 import type { EffectDefinition } from './effect-definition.ts';
 
 type Definition = Omit<EffectDefinition<any>, 'paramDefs'> & { paramDefs: Record<string, ParameterDefinition> };

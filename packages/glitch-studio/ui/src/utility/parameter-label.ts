@@ -1,7 +1,8 @@
-import { resolveParameter } from '@glitch/shared/parameter-path.ts';
-import type { ParamPath } from '@glitch/shared/parameter-path.ts';
-import type { ParameterArrayElement, ParameterDefinition } from '@glitch/shared/parameter.ts';
-import type { ParameterBinding } from '@glitch/shared/types.ts';
+import { resolveParameter } from '@glitch/shared/parameter/parameter-path.ts';
+import type { ParamPath } from '@glitch/shared/parameter/parameter-path.ts';
+import type { ParameterArrayElement } from '@glitch/shared/parameter/parameter-binding.ts';
+import type { ParameterDefinition } from '@glitch/shared/parameter/parameter-definition.ts';
+import type { ParameterBinding } from '@glitch/shared/parameter/parameter-binding.ts';
 
 /** 保存・選択にはIDパスを使い、表示だけを現在の配列順とフィールド名に変換する。 */
 export function getParameterPathLabel(defs: Record<string, ParameterDefinition>, params: Record<string, ParameterBinding>, path: ParamPath): string {

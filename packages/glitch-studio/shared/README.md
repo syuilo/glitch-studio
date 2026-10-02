@@ -1,1 +1,3 @@
 Glitch Studioドメイン内で共通の型や処理などを置く
+
+`src/live-expression.ts`はLIVEのカスタムパラメータプレビューに公開する変数名を定義する。LIVEはGlitch Studio側の利用スコープであり、Visual Module自身の評価スコープとは分ける。

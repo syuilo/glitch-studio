@@ -1,14 +1,14 @@
 import { deepClone } from '@glitch/shared/utility/deep-clone.ts';
-import { genEmptyValue } from '@glitch/shared/utility/misc.ts';
-import { ParameterEvaluator } from '@glitch/shared/parameter-evaluator.ts';
-import { validateEnumParameterValue } from '@glitch/shared/parameter.ts';
-import { createTimelineLayerEvaluationScope } from '@glitch/shared/timeline/evaluation-scope.ts';
+import { genEmptyValue } from '@glitch/shared/parameter/parameter-default.ts';
+import { TimelineParameterBindingEvaluator } from '@glitch/timeline-shared/parameter-binding-evaluator.ts';
+import { validateEnumParameterValue } from '@glitch/shared/parameter/parameter-definition.ts';
+import { createTimelineLayerEvaluationScope } from '@glitch/timeline-shared/evaluation-scope.ts';
 import { getEffectLayerParameterDefault, validateTimelineEffectLayer } from '@glitch/shared/timeline/effect-layer.ts';
 import { toShaderInput } from '@glitch/shared/gpu/shader-input.ts';
 import { EffectRenderer } from './effect-renderer.ts';
-import { resolveEffectParameterValue } from './effect-parameter-value.ts';
+import { resolveEffectParameterValue } from '@glitch/effect-renderer/effect-parameter-value.ts';
 import { resolveEffectNodeResolution } from './effect-node-resolution.ts';
-import { mapNodeParam } from './utility/node-params.ts';
+import { mapParameterTree } from '@glitch/shared/parameter/parameter-tree.ts';
 import { createTimelineCompositor } from './timeline-compositor.ts';
 import { TimelineCompositingParameters } from './timeline-compositing-parameters.ts';
 import type { EffectDefinition } from '@glitch/effect-shared/effect-definition.ts';
@@ -42,7 +42,7 @@ export function createEffectTimelineLayer(layer: TimelineEffectLayer, definition
 																																							fallbackTexture: options.fallbackTexture, onState: options.onState });
 	const compositor = createTimelineCompositor({ device, vertex: options.wgpu.defaultVertexShaderModule,
 																																															resolution: options.resolution, format: options.wgpu.intermediateTextureFormat });
-	const evaluator = new ParameterEvaluator();
+	const evaluator = new TimelineParameterBindingEvaluator();
 	const compositing = new TimelineCompositingParameters();
 	const usedOutputPorts = new Set([port]);
 	const parameters = Object.entries(definition.paramDefs).map(([key, def]) => ({
@@ -52,10 +52,9 @@ export function createEffectTimelineLayer(layer: TimelineEffectLayer, definition
 	return {
 		async evaluate(context, signal) {
 			if (disposed || signal.aborted) return { gpuTime: 0 };
-			const scope = { ...createTimelineLayerEvaluationScope({ time: context.sceneTimeMs, isExport: context.isExport,
-																																																											automationGraphs: layer.automationGraphs }), evaluatedParamValues: null };
+			const scope = createTimelineLayerEvaluationScope({ time: context.sceneTimeMs, isExport: context.isExport, automationGraphs: layer.automationGraphs });
 			const params = Object.fromEntries(parameters.map(({ key, def, binding }) => {
-				return [key, mapNodeParam(def, binding, [key], (leaf, value) => {
+				return [key, mapParameterTree(def, binding, [key], (leaf, value) => {
 					if (value.inputSource === 'layerInput') return toShaderInput(context.input, value);
 					const fallback = value.inputSource === 'automationGraphReference' || (leaf.dataType.kind === 'enum' && value.inputSource === 'keyframesTimelineInline')
 						? leaf.defaultValue.value : leaf.dataType.kind === 'enum' ? undefined : genEmptyValue(leaf);

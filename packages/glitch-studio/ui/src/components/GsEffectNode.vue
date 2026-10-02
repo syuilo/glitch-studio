@@ -56,7 +56,7 @@
 
 <script lang="ts" setup>
 import type { EffectResolution } from '@glitch/shared/effect/resolution.ts';
-import { IN_VISUAL_MODULE_VAR_DEFS } from '@glitch/shared/expression.ts';
+import { IN_VISUAL_MODULE_VAR_DEFS } from '@glitch/visual-module-shared/expression.ts';
 import { ref, computed, shallowRef, watchEffect } from 'vue';
 import { effectDefinitions } from '@glitch/shared/effect/effect-definitions.ts';
 import GsNodeOutputs from './GsNodeOutputs.vue';

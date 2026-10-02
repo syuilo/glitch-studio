@@ -1,13 +1,13 @@
 import { genId } from '@glitch/shared/utility/id.ts';
 import { deepClone } from '@glitch/shared/utility/deep-clone.ts';
-import { genEmptyValue } from '@glitch/shared/utility/misc.ts';
-import { areDataTypesEqual } from '@glitch/shared/data-type.ts';
-import { isKeyframesDataType, isKeyframeValue, supportsKeyframeInterpolation } from '@glitch/shared/keyframes-timeline.ts';
-import { evaluateKeyframesTimeline } from '@glitch/shared/utility/keyframes-timeline.ts';
-import { validateEnumParameterValue } from '@glitch/shared/parameter.ts';
-import type { KeyframesDataType, KeyframesTimelineData, KeyframesTimelineKeyframe, KeyframeInterpolation } from '@glitch/shared/keyframes-timeline.ts';
-import type { ParameterDefinition } from '@glitch/shared/parameter.ts';
-import type { ParameterBinding } from '@glitch/shared/types.ts';
+import { genEmptyValue } from '@glitch/shared/parameter/parameter-default.ts';
+import { areDataTypesEqual } from '@glitch/shared/data-type/data-type.ts';
+import { isKeyframesDataType, isKeyframeValue, supportsKeyframeInterpolation } from '@glitch/shared/keyframes/keyframes-timeline.ts';
+import { evaluateKeyframesTimeline } from '@glitch/shared/keyframes/keyframes-timeline-evaluator.ts';
+import { validateEnumParameterValue } from '@glitch/shared/parameter/parameter-definition.ts';
+import type { KeyframesDataType, KeyframesTimelineData, KeyframesTimelineKeyframe, KeyframeInterpolation } from '@glitch/shared/keyframes/keyframes-timeline.ts';
+import type { ParameterDefinition } from '@glitch/shared/parameter/parameter-definition.ts';
+import type { ParameterBinding } from '@glitch/shared/parameter/parameter-binding.ts';
 
 type InlineKeyframesTimeline = Extract<ParameterBinding, { inputSource: 'keyframesTimelineInline' }>;
 
@@ -66,7 +66,7 @@ export function insertInlineKeyframe(input: InlineKeyframesTimeline, definition:
 	if (previous?.x === x) return { value: input, keyframeId: previous.id };
 	const fallback = definition.dataType.kind === 'enum' ? definition.defaultValue.value : genEmptyValue(definition);
 	// 挿入は既存区間の分割なので、区間外では繰り返しを適用しない。
-	const evaluated = evaluateKeyframesTimeline({ ...input, wrapMode: 'clamp' }, x, endTime, fallback);
+	const evaluated = evaluateKeyframesTimeline(input.keyframesTimeline, { ...input, wrapMode: 'clamp' }, x, endTime, fallback);
 	const keyframeId = genId();
 	const interpolation = previous?.interpolation ?? { type: supportsKeyframeInterpolation(definition.dataType) ? 'linear' : 'hold' };
 	keyframes.push({ id: keyframeId, x, value: evaluated, interpolation });

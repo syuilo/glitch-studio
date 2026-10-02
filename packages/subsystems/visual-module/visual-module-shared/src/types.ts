@@ -1,8 +1,11 @@
 import type { EffectDefinition } from '@glitch/effect-shared/effect-definition.ts';
 import type { EffectResolution } from '@glitch/effect-shared/resolution.ts';
-import type { TextureDataType } from '@glitch/shared/data-type.js';
-import type { ParameterChangeKind, ParameterDefinition } from '@glitch/shared/parameter.js';
-import type { ParameterBinding, AutomationGraph, FitMode, WrapMode } from '@glitch/shared/types.js';
+import type { TextureDataType } from '@glitch/shared/data-type/data-type.ts';
+import type { ParameterChangeKind, ParameterDefinition } from '@glitch/shared/parameter/parameter-definition.ts';
+import type { ParameterBinding } from '@glitch/shared/parameter/parameter-binding.ts';
+import type { ValueParameterBinding } from '@glitch/shared/parameter/value-parameter-binding.ts';
+import type { AutomationGraph } from '@glitch/shared/automation-graph/automation-graph.ts';
+import type { FitMode, WrapMode } from '@glitch/shared/types.js';
 
 export type VisualModuleEffectNode = {
 	id: string;
@@ -90,7 +93,7 @@ export type VisualModule = {
 };
 
 // レイヤー・live modeからは、モジュール内部のノードやパラメータを参照しない。
-export type VisualModuleParameterBindings = Record<VisualModuleCustomParameterId, Exclude<ParameterBinding, { inputSource: 'node' | 'externalCustomParameterInput' | 'layerInput' }>>;
+export type VisualModuleParameterBindings = Record<VisualModuleCustomParameterId, ValueParameterBinding>;
 
 export type EffectNodeOf<DEF extends Pick<EffectDefinition, 'id' | 'paramDefs'>> =
 	Omit<VisualModuleEffectNode, 'effectId' | 'params'> & {

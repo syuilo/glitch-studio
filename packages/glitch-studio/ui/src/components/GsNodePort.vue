@@ -4,7 +4,7 @@
 
 <script lang="ts" setup>
 import { onMounted, onBeforeUnmount, useId, useTemplateRef } from 'vue';
-import type { TextureDataType } from '@glitch/shared/data-type.ts';
+import type { TextureDataType } from '@glitch/shared/data-type/data-type.ts';
 import { getNodeDataTypeColor } from '@/utility/node-outputs.ts';
 
 defineProps<{

@@ -1,10 +1,10 @@
-import type { LAYER_VAR_DEFS } from '@glitch/shared/expression.js';
-import type { EvaluationScope } from '@glitch/shared/parameter-evaluator.js';
+import type { LAYER_VAR_DEFS } from './expression.ts';
+import type { ParameterEvaluationScope } from '@glitch/shared/parameter/parameter-evaluation-scope.ts';
 
-type TimelineEvaluationContext = Pick<EvaluationScope, 'time' | 'automationGraphs'> & { isExport: boolean };
+type TimelineEvaluationContext = Pick<ParameterEvaluationScope, 'time' | 'automationGraphs'> & { isExport: boolean };
 
 /** 映像・音声ともに所属Sceneの時刻で評価する。クリップの時刻や終端は継承しない。 */
-export function createTimelineLayerEvaluationScope(context: TimelineEvaluationContext): EvaluationScope {
+export function createTimelineLayerEvaluationScope(context: TimelineEvaluationContext): ParameterEvaluationScope {
 	return {
 		time: context.time,
 		// レイヤーには終端がない。Automation Graphも開始基準だけを利用する。

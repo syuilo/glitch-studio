@@ -1,9 +1,9 @@
 import type { SceneAudioClip } from '@glitch/shared/timeline/scene-audio.ts';
-import type { EvaluationScope } from '@glitch/shared/parameter-evaluator.ts';
+import type { ParameterEvaluationScope } from '@glitch/shared/parameter/parameter-evaluation-scope.ts';
 import type { TimelineParameterBinding } from '@glitch/shared/timeline/types.ts';
 import { getTimelineClipEnd } from '@glitch/shared/timeline/timing.ts';
-import { ParameterEvaluator } from '@glitch/shared/parameter-evaluator.js';
-import { createTimelineLayerEvaluationScope } from '@glitch/shared/timeline/evaluation-scope.ts';
+import { TimelineParameterBindingEvaluator } from '@glitch/timeline-shared/parameter-binding-evaluator.ts';
+import { createTimelineLayerEvaluationScope } from '@glitch/timeline-shared/evaluation-scope.ts';
 import type { TimelineAudioLayer } from '@glitch/shared/timeline/types.ts';
 import type { StereoPcm } from './pcm.ts';
 
@@ -12,7 +12,7 @@ export type AudioDurationReader = (assetId: string, basis?: 'audio' | 'media') =
 
 /** DOM・GPU・再生状態を持たない。書き出しも独立インスタンスで同じPCMを生成できる。 */
 export class TimelineAudioRenderer {
-	private evaluator = new ParameterEvaluator();
+	private evaluator = new TimelineParameterBindingEvaluator();
 
 	constructor(private read: AudioPcmReader, private getDurationMs: AudioDurationReader) {}
 
@@ -48,12 +48,10 @@ export class TimelineAudioRenderer {
 		return output;
 	}
 
-	private createGain(binding: TimelineParameterBinding, getScope: (time: number) => EvaluationScope) {
+	private createGain(binding: TimelineParameterBinding, getScope: (time: number) => ParameterEvaluationScope) {
 		const cache = new Map<number, number>();
 		const evaluate = (time: number) => {
-			const value = this.evaluator.evaluate(binding, {
-				...getScope(time), evaluatedParamValues: null,
-			}, 0);
+			const value = this.evaluator.evaluate(binding, getScope(time), 0);
 			return typeof value === 'number' && Number.isFinite(value) ? Math.max(0, value) : 0;
 		};
 		const control = (index: number) => {

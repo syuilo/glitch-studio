@@ -53,11 +53,11 @@ sharedは、tree-shakableであることが求められます。
 - `NodeOutputReference` はVisual Module内の接続情報、`UniformOrTexture` は生成元によらない定数またはテクスチャの値、`ShaderInput` は受け取り側のサンプリング設定を付けたシェーダー入力です。GPU共通基盤は `packages/shared/src/gpu` に置き、ノードやVisual Moduleの型を要求せず、必要なサンプリング設定やリソースだけを渡します。
 - 共通化は責務が一致する範囲で行います。型を共有するためだけに、子のドメインへ親固有のフィールドを追加したり、あらゆる利用場所を含む巨大な型を作ったりしないでください。
 
-**現在の意図的な例外:** `ParameterBinding` の `node` / `externalCustomParameterInput` は本来Visual Module側、`layerInput` は本来エフェクトレイヤー側の拡張ですが、実装を複雑化させないため共通の `types.ts` に含めています。この型が共通であることは、全ドメインで全種類のBindingを使えるという意味ではありません。レイヤーやliveからモジュールへ渡す引数、およびタイムラインの合成設定では、この3種類を除外します。エフェクトレイヤーのパラメータでは `layerInput` だけを許可し、Visual Module内部では使用できません。この例外を理由に他の逆依存を増やさないでください。
+**現在の意図的な例外:** `ParameterBinding` の `node` / `externalCustomParameterInput` は本来Visual Module側、`layerInput` は本来エフェクトレイヤー側の拡張ですが、実装を複雑化させないため共通の `parameter/parameter-binding.ts` に含めています。この型が共通であることは、全ドメインで全種類のBindingを使えるという意味ではありません。レイヤーやliveからモジュールへ渡す引数、およびタイムラインの合成設定では、この3種類を除外します。エフェクトレイヤーのパラメータでは `layerInput` だけを許可し、Visual Module内部では使用できません。この例外を理由に他の逆依存を増やさないでください。
 
 ### DataTypeとParameterの定義
 
-データの型・編集UI・パラメータとしての設定は、それぞれ独立した責務です。定義は `packages/shared/src/data-type.ts` と `packages/shared/src/parameter.ts` にあります。
+データの型・編集UI・パラメータとしての設定は、それぞれ独立した責務です。定義は `packages/shared/src/data-type/data-type.ts`・`packages/shared/src/data-type/data-type-ui.ts` と `packages/shared/src/parameter/parameter-definition.ts` にあります。
 
 - **`DataType`** は `{ kind: 'scalar' }` のようなオブジェクトです。arrayは `elementType`、structは `fields`、enumは `options` に型に付随する情報を持ちます。UI・初期値・接続可否は持ちません。
 - **`DataTypeUiDefinition<T>`** は型に対応する編集方法です。scalarの `controlType` や操作範囲、enumの選択肢の表示名などを持ち、array・structでは再帰します。パラメータ以外のリテラル値の編集にも使えます。

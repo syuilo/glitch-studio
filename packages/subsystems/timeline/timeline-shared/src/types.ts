@@ -2,8 +2,10 @@ import type { timelineCompositingParamDefs } from './timeline-compositing.ts';
 import type { TimelineClip, TimelineAssetClip, TimelineVideoClip, TimelineSceneClip } from './clip.ts';
 import type { TimelineSceneResolution } from './scene-resolution.ts';
 import type { EffectResolution } from '@glitch/effect-shared/resolution.js';
-import type { ParameterChangeKind } from '@glitch/shared/parameter.js';
-import type { AutomationGraph, ParameterBinding } from '@glitch/shared/types.js';
+import type { ParameterChangeKind } from '@glitch/shared/parameter/parameter-definition.ts';
+import type { AutomationGraph } from '@glitch/shared/automation-graph/automation-graph.ts';
+import type { ParameterBinding } from '@glitch/shared/parameter/parameter-binding.ts';
+import type { ValueParameterBinding } from '@glitch/shared/parameter/value-parameter-binding.ts';
 import type { VisualModule } from '@glitch/visual-module-shared/types.js';
 
 export type TimelineParameterTarget = 'module' | 'effect' | 'compositing' | 'audio';
@@ -29,7 +31,7 @@ type TimelineVisualLayerBase = {
 	compositingParamValues: Record<keyof typeof timelineCompositingParamDefs, TimelineParameterBinding>;
 };
 
-export type TimelineParameterBinding = Exclude<ParameterBinding, { inputSource: 'node' | 'externalCustomParameterInput' | 'layerInput' }>;
+export type TimelineParameterBinding = ValueParameterBinding;
 export type TimelineEffectParameterBinding = TimelineParameterBinding | Extract<ParameterBinding, { inputSource: 'layerInput' }>;
 
 export type TimelineVisualModuleLayer = TimelineLayerBase<TimelineClip> & TimelineVisualLayerBase & {

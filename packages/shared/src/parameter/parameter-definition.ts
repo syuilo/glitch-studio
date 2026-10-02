@@ -1,18 +1,13 @@
 /* eslint-disable @typescript-eslint/naming-convention */
-import type { DataType, DataTypeUiDefinition, TextureDataType } from './data-type.ts';
-import type { BlendMode } from './color-blend.ts';
-import type { FitMode, ParameterBinding, WrapMode } from './types.ts';
+import type { DataType, TextureDataType } from '../data-type/data-type.ts';
+import type { DataTypeUiDefinition } from '../data-type/data-type-ui.ts';
+import type { BlendMode } from '../color-blend.ts';
+import type { FitMode, WrapMode } from '../types.ts';
+import type { ParameterBinding, ParameterArrayElement } from './parameter-binding.ts';
 
 // 値には式・キー・automationの内容を含む。入力方式の切替、接続先の変更、
 // 配列要素の追加削除、既定値へのリセットとは分けて、行った編集を表す。
 export type ParameterChangeKind = 'value' | 'inputSource' | 'connection' | 'arrayElements' | 'reset';
-
-// IDは同じ配列内で一意。値やBindingの種類が変わっても編集対象を追跡できるよう、
-// Bindingの外側に保持する。評価後の配列やDataType自体にはこのIDを含めない。
-export type ParameterArrayElement<Binding extends ParameterBinding = ParameterBinding> = {
-	id: string;
-	binding: Binding;
-};
 
 // 初期値として保存する値。アセットはIDまたは未選択、プレイヤーの初期参照は未選択とする。
 // anyの4成分は色ではなくデータであり、nullは未接続と同じゼロ値を表す。

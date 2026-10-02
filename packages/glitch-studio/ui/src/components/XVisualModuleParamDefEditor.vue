@@ -87,9 +87,9 @@
 
 <script lang="ts" setup>
 import { visualModuleCustomParameterName } from '@glitch/shared/visual-module/types.ts';
-import { genEmptyValue } from '@glitch/shared/utility/misc.ts';
-import { isParameterType } from '@glitch/shared/parameter.ts';
-import { isTextureDataType } from '@glitch/shared/data-type.ts';
+import { genEmptyValue } from '@glitch/shared/parameter/parameter-default.ts';
+import { isParameterType } from '@glitch/shared/parameter/parameter-definition.ts';
+import { isTextureDataType } from '@glitch/shared/data-type/data-type.ts';
 import { genId } from '@glitch/shared/utility/id.ts';
 import GsSelect from './common/GsSelect.vue';
 import GsInput from './common/GsInput.vue';

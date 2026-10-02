@@ -153,12 +153,13 @@
 
 <script lang="ts">
 import { deepClone } from '@glitch/shared/utility/deep-clone.js';
-import type { ParameterArrayElement, ParameterDefinition } from '@glitch/shared/parameter.js';
+import type { ParameterArrayElement } from '@glitch/shared/parameter/parameter-binding.ts';
+import type { ParameterDefinition } from '@glitch/shared/parameter/parameter-definition.ts';
 
 export type ParamEdit = { paramPath: ParamPath; mergeKey?: string | null } & (
 	| { kind: 'literal'; value: any }
 	| { kind: 'automationGraphInline'; value: Extract<ParameterBinding, { inputSource: 'automationGraphInline' }> }
-	| { kind: 'envVariable'; value: GlobalEnvVariable }
+	| { kind: 'envVariable'; value: ExpressionVariableName }
 	| { kind: 'expression'; value: string }
 	| { kind: 'automationGraphReference'; value: string | null; options?: Partial<AutomationGraphPlaybackOptions> }
 	| { kind: 'keyframesTimelineInline'; value: Extract<ParameterBinding, { inputSource: 'keyframesTimelineInline' }> }
@@ -173,8 +174,8 @@ export type ParamEdit = { paramPath: ParamPath; mergeKey?: string | null } & (
 </script>
 
 <script lang="ts" setup>
-import { getArrayElementDefinition, getStructFieldDefinitions } from '@glitch/shared/parameter.ts';
-import { isKeyframesDataType } from '@glitch/shared/keyframes-timeline.ts';
+import { getArrayElementDefinition, getStructFieldDefinitions } from '@glitch/shared/parameter/parameter-definition.ts';
+import { isKeyframesDataType } from '@glitch/shared/keyframes/keyframes-timeline.ts';
 import { visualModuleCustomParameterId } from '@glitch/shared/visual-module/types.ts';
 import { computed, onBeforeUnmount, ref, shallowRef, useTemplateRef, watch, watchEffect } from 'vue';
 import { genId } from '@glitch/shared/utility/id.ts';
@@ -189,9 +190,10 @@ import GsSelect from './common/GsSelect.vue';
 import GsAutomationGraphPointsEditorWindow from './GsAutomationGraphPointsEditorWindow.vue';
 import type { Ref } from 'vue';
 import type { NodeOutputReference, VisualModule, VisualModuleCustomParameterId, VisualModuleEffectNode } from '@glitch/shared/visual-module/types.ts';
-import type { GlobalEnvVariable } from '@glitch/shared/expression.ts';
+import type { ExpressionVariableName } from '@glitch/shared/expression/expression-environment.ts';
 import type { ParamPath } from '@/utility/node-params.ts';
-import type { AutomationGraphPlaybackOptions, AutomationGraph, BezierAnchorPoint, ParameterBinding } from '@glitch/shared/types.ts';
+import type { AutomationGraphPlaybackOptions, AutomationGraph, BezierAnchorPoint } from '@glitch/shared/automation-graph/automation-graph.ts';
+import type { ParameterBinding } from '@glitch/shared/parameter/parameter-binding.ts';
 import type { MenuItem } from '@/types/menu.ts';
 import { i18n } from '@/i18n.ts';
 import { useVisualModuleWires } from '@/utility/visual-module-wires.ts';
@@ -206,7 +208,7 @@ const wireMap = useVisualModuleWires();
 
 const props = defineProps<{
 	automationGraphs: readonly AutomationGraph[];
-	availableVariables: readonly Exclude<GlobalEnvVariable, ''>[];
+	availableVariables: readonly ExpressionVariableName[];
 	visualModule?: VisualModule;
 	node?: VisualModuleEffectNode;
 	paramPath: ParamPath;

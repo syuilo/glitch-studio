@@ -2,10 +2,10 @@ import { scaleResolution, type Resolution } from '@glitch/shared/resolution.ts';
 import { applyRendererProjectChanges } from '@glitch/shared/project/renderer-state.ts';
 import { AudioHistory } from '@glitch/shared/audio-history.ts';
 import { genId } from '@glitch/shared/utility/id.ts';
-import { genEmptyValue } from '@glitch/shared/utility/misc.ts';
+import { genEmptyValue } from '@glitch/shared/parameter/parameter-default.ts';
 import EventEmitter from 'eventemitter3';
-import { ParameterEvaluator } from '@glitch/shared/parameter-evaluator.js';
-import { validateEnumParameterValue } from '@glitch/shared/parameter.ts';
+import { ParameterBindingEvaluator } from '@glitch/shared/parameter/parameter-binding-evaluator.ts';
+import { validateEnumParameterValue } from '@glitch/shared/parameter/parameter-definition.ts';
 import { UniformOrTextureToTextureResolver } from '@glitch/shared/gpu/uniform-or-texture-to-texture-resolver.ts';
 import { LiveRenderLoop, browserFrameScheduler } from '../../subsystems/visual-module/visual-module-renderer/src/live-render-loop.ts';
 import { VisualModuleRenderer } from '../../subsystems/visual-module/visual-module-renderer/src/visual-module-renderer.ts';
@@ -24,7 +24,7 @@ import type { AudioCaptureMessage, AudioSourceId } from '@glitch/shared/audio.ts
 import type { Asset, IntermediateTextureFormat, Player } from '@glitch/shared/types.ts';
 import type { EffectImplementation } from '@glitch/effect-shared/effect-implementation.js';
 import type { EffectDefinition } from '@glitch/effect-shared/effect-definition.js';
-import type { LIVE_VAR_DEFS } from '@glitch/shared/expression.js';
+import type { LIVE_VAR_DEFS } from '../../shared/src/live-expression.ts';
 
 /**
  * 初期化時に決まっている必要がある設定情報
@@ -76,7 +76,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 	private liveRenderLoop: LiveRenderLoop;
 	private liveVisualModuleId: ProjectVisualModule['id'] | null = null;
 	private liveParamValues: VisualModuleParameterBindings = {};
-	private liveParamEvaluator = new ParameterEvaluator();
+	private liveParamEvaluator = new ParameterBindingEvaluator();
 	private liveVisualModuleRenderer: VisualModuleRenderer | null = null;
 	private assetTextures: AssetTextures;
 	private videoFrames: Map<Player['id'], VideoFrame> = new Map();
@@ -351,7 +351,6 @@ export class VisualModuleRendererManager extends EventEmitter<{
 					continue;
 				}
 				evaluatedParamValues.set(def.id, validateEnumParameterValue(def, this.liveParamEvaluator.evaluate(this.liveParamValues[def.id], {
-					evaluatedParamValues: null,
 					variables: {
 						TIME: timing.time / 1000,
 						TIME_MS: timing.time,

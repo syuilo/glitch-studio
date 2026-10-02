@@ -21,7 +21,7 @@
 
 <script lang="ts" setup>
 import { computed } from 'vue';
-import type { KeyframesTimelineKeyframe } from '@glitch/shared/types.ts';
+import type { KeyframesTimelineKeyframe } from '@glitch/shared/keyframes/keyframes-timeline.ts';
 
 const props = defineProps<{
 	keyframes: KeyframesTimelineKeyframe[];

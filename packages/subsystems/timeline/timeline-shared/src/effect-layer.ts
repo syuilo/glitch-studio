@@ -4,7 +4,7 @@ import { validateTimelineParameterTree } from './parameter-binding.ts';
 import type { TimelineEffectParameterBinding } from './types.ts';
 import type { TimelineEffectLayer } from './types.ts';
 import type { EffectDefinition } from '@glitch/effect-shared/effect-definition.js';
-import type { ParameterBinding } from '@glitch/shared/types.js';
+import type { ParameterBinding } from '@glitch/shared/parameter/parameter-binding.ts';
 
 export function createLayerInputBinding(): Extract<ParameterBinding, { inputSource: 'layerInput' }> {
 	return { inputSource: 'layerInput', fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' };

@@ -20,9 +20,10 @@
 		"vitest": "4.1.10"
 	},
 	"dependencies": {
-		"@glitch/shared": "workspace:*",
-		"@glitch/effect-shared": "workspace:*",
 		"@glitch/effect-renderer": "workspace:*",
+		"@glitch/effect-shared": "workspace:*",
+		"@glitch/shared": "workspace:*",
+		"@glitch/visual-module-shared": "workspace:*",
 		"eventemitter3": "5.0.4",
 		"webgpu-utils": "2.1.1"
 	}

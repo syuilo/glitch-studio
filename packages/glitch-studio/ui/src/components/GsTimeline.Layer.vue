@@ -56,7 +56,7 @@
 
 <script lang="ts" setup>
 import { computed } from 'vue';
-import { paramPathKey } from '@glitch/shared/parameter-path.ts';
+import { paramPathKey } from '@glitch/shared/parameter/parameter-path.ts';
 import { effectDefinitions } from '@glitch/shared/effect/effect-definitions.ts';
 import { insertInlineKeyframe } from '@/utility/keyframes-timeline.ts';
 import { getSceneDuration } from '@glitch/shared/timeline/scenes.ts';

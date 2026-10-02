@@ -256,8 +256,8 @@
 
 <script lang="ts" setup>
 import { createTimelineClipTiming, getTimelineClipEnd, getTimelineClipInsertionDuration, getTimelineClipMoveBounds, getTimelineClipTrimBounds } from '@glitch/shared/timeline/timing.ts';
-import { isParameterType } from '@glitch/shared/parameter.ts';
-import { LAYER_VAR_DEFS } from '@glitch/shared/expression.ts';
+import { isParameterType } from '@glitch/shared/parameter/parameter-definition.ts';
+import { LAYER_VAR_DEFS } from '@glitch/timeline-shared/expression.ts';
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef, useTemplateRef, watch } from 'vue';
 import { insertIntermediateNumbers, niceScale } from '@glitch/shared/utility/misc.js';
 import { genId } from '@glitch/shared/utility/id.js';
@@ -266,8 +266,8 @@ import { timelineCompositingParamDefs } from '@glitch/shared/timeline/timeline-c
 import { deepClone } from '@glitch/shared/utility/deep-clone.ts';
 import { canReferenceScene } from '@glitch/shared/timeline/scenes.ts';
 import { getSceneBaseResolution } from '@glitch/shared/timeline/scene-resolution.ts';
-import { paramPathKey } from '@glitch/shared/parameter-path.ts';
-import { supportsKeyframeInterpolation } from '@glitch/shared/keyframes-timeline.ts';
+import { paramPathKey } from '@glitch/shared/parameter/parameter-path.ts';
+import { supportsKeyframeInterpolation } from '@glitch/shared/keyframes/keyframes-timeline.ts';
 import { effectDefinitions } from '@glitch/shared/effect/effect-definitions.js';
 import XLayer from './GsTimeline.Layer.vue';
 import GsTimelineEffectSettings from './GsTimeline.EffectSettings.vue';
@@ -282,12 +282,12 @@ import GsVisualModuleEditor from './GsVisualModuleEditor.vue';
 import GsEffectPicker from './GsEffectPicker.vue';
 import GsFolder from './common/GsFolder.vue';
 import type { TimelineParameterTarget } from '@/utility/timeline-scene.ts';
-import type { ParamPath } from '@glitch/shared/parameter-path.ts';
+import type { ParamPath } from '@glitch/shared/parameter/parameter-path.ts';
 import type { Asset } from '@glitch/shared/types.ts';
 import type { VisualModuleEdit } from '@/types/visual-module-editor.ts';
 import type { TimelineLayer, TimelineScene } from '@glitch/shared/timeline/types.ts';
-import type { ParameterBinding } from '@glitch/shared/types.ts';
-import type { KeyframeInterpolation } from '@glitch/shared/keyframes-timeline.ts';
+import type { ParameterBinding } from '@glitch/shared/parameter/parameter-binding.ts';
+import type { KeyframeInterpolation } from '@glitch/shared/keyframes/keyframes-timeline.ts';
 import type { EasingDirection } from '@glitch/shared/easing.ts';
 import type { GsSelectItem } from './common/GsSelect.vue';
 import type { TimelineClipSelection, TimelineKeyframeSelection, TimelineSelection, TimelineSelectionGeometry, SelectionRect, TimelineMovePoint } from '@/utility/timeline-selection.ts';

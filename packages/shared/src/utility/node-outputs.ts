@@ -1,6 +1,6 @@
-import { isTextureDataType } from '../data-type.ts';
+import { isTextureDataType } from '../data-type/data-type.ts';
 import { effectDefinitions } from '../effect/effect-definitions.ts';
-import type { DataType, TextureDataType } from '../data-type.ts';
+import type { DataType, TextureDataType } from '../data-type/data-type.ts';
 import type { EffectOutputDefinitions } from '../effect/effect-definition.ts';
 import type { VisualModuleNode, VisualModule } from '../visual-module/types.ts';
 

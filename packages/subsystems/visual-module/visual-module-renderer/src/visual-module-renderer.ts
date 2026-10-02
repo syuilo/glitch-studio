@@ -4,24 +4,26 @@ import { constantShaderInput, toShaderInput } from '@glitch/shared/gpu/shader-in
 import { getNodeOutputs } from '@glitch/shared/utility/node-outputs.ts';
 import { playerAudioSourceId } from '@glitch/shared/audio.ts';
 import { AudioHistory } from '@glitch/shared/audio-history.ts';
-import { genEmptyValue } from '@glitch/shared/utility/misc.js';
-import { ParameterEvaluator } from '@glitch/shared/parameter-evaluator.js';
-import { validateEnumParameterValue } from '@glitch/shared/parameter.ts';
+import { genEmptyValue } from '@glitch/shared/parameter/parameter-default.ts';
+import { VisualModuleParameterBindingEvaluator } from './visual-module-parameter-binding-evaluator.ts';
+import { validateEnumParameterValue } from '@glitch/shared/parameter/parameter-definition.ts';
 import { EffectRenderer } from '@glitch/effect-renderer/effect-renderer.ts';
 import { resolveEffectNodeResolution } from '../../../../renderer/src/effect-node-resolution.ts';
-import { resolveEffectParameterValue } from '../../../../renderer/src/effect-parameter-value.ts';
-import { getEvaluatedParam, mapNodeParam, walkNodeParams } from '../../../../renderer/src/utility/node-params.ts';
+import { resolveEffectParameterValue } from '@glitch/effect-renderer/effect-parameter-value.ts';
+import { getEvaluatedParameterValue, mapParameterTree, walkParameterLeaves } from '@glitch/shared/parameter/parameter-tree.ts';
 import defaultVertexShaderCode from './vertex.wgsl?raw';
 import type TimingHelper from '../../../../renderer/src/utility/TimingHelper.ts';
-import type { EvaluatedParameterValues, ParameterEvaluationContext } from '@glitch/shared/parameter-evaluator.js';
+import type { VisualModuleEvaluatedParameterValues } from '@glitch/visual-module-shared/parameter-evaluation.ts';
+import type { VisualModuleParameterEvaluationContext } from './visual-module-parameter-binding-evaluator.ts';
 import type { UniformOrTexture } from '@glitch/shared/gpu/uniform-or-texture.ts';
 import type { EffectInstanceState } from '@glitch/effect-shared/effect-status.ts';
 import type { AudioSourceId } from '@glitch/shared/audio.ts';
-import type { Asset, AutomationGraph, IntermediateTextureFormat } from '@glitch/shared/types.ts';
+import type { Asset, IntermediateTextureFormat } from '@glitch/shared/types.ts';
+import type { AutomationGraph } from '@glitch/shared/automation-graph/automation-graph.ts';
 import type { VisualModuleEffectNode, VisualModuleGlobalInNode, VisualModuleNode, NodeOutputReference, VisualModule } from '@glitch/shared/visual-module/types.ts';
 import type { EffectImplementation } from '@glitch/effect-shared/effect-implementation.js';
 import type { EffectDefinition } from '@glitch/effect-shared/effect-definition.js';
-import type { IN_VISUAL_MODULE_VAR_DEFS } from '@glitch/shared/expression.js';
+import type { IN_VISUAL_MODULE_VAR_DEFS } from '@glitch/visual-module-shared/expression.ts';
 
 const NO_OUTPUT_PORTS: ReadonlySet<string> = new Set();
 
@@ -38,7 +40,7 @@ export type VisualModuleRenderContext = {
 	paramInputs?: ReadonlyMap<VisualModuleCustomParameterId, UniformOrTexture>;
 	pointerPosition: { x: number; y: number };
 	pointerPositionPrev: { x: number; y: number };
-	evaluatedParamValues: EvaluatedParameterValues;
+	evaluatedParamValues: VisualModuleEvaluatedParameterValues;
 };
 
 export class VisualModuleRenderer {
@@ -53,7 +55,7 @@ export class VisualModuleRenderer {
 	private outputDefs: VisualModule['outputDefs'] = [];
 	private primaryOutputId: string | null = null;
 	private primaryInputId: VisualModuleCustomParameterId | null = null;
-	private paramValues: EvaluatedParameterValues = new Map();
+	private paramValues: VisualModuleEvaluatedParameterValues = new Map();
 	private paramInputs: ReadonlyMap<VisualModuleCustomParameterId, UniformOrTexture> = new Map();
 	private preparedContext: VisualModuleRenderContext | null = null;
 	private preparationVersion = 0;
@@ -78,7 +80,7 @@ export class VisualModuleRenderer {
 	private renderNodeId: VisualModuleNode['id'] | null = null;
 	private effectDefinitions: Record<string, EffectDefinition>;
 	private effectImplementations: Record<string, EffectImplementation<any>>;
-	private parameterEvaluator = new ParameterEvaluator();
+	private parameterEvaluator = new VisualModuleParameterBindingEvaluator();
 
 	constructor(options: {
 		onEffectState?: (nodeId: string, state: EffectInstanceState | null) => void;
@@ -172,7 +174,7 @@ export class VisualModuleRenderer {
 			evaluatedParamValues: new Map(expressionParamDefs.filter(def => context.evaluatedParamValues.has(def.id))
 				.map(def => [def.id, context.evaluatedParamValues.get(def.id)])),
 			paramIdsByName: new Map(expressionParamDefs.map(def => [def.nameForReference, def.id])),
-		} satisfies ParameterEvaluationContext;
+		} satisfies VisualModuleParameterEvaluationContext;
 
 		const evaluated = new Map<VisualModuleNode['id'], Record<string, any>>();
 		for (const node of this.nodes.filter((n): n is VisualModuleEffectNode => n.type === 'effect')) {
@@ -180,7 +182,7 @@ export class VisualModuleRenderer {
 			const evaluatedParamsPerNode = {} as Record<string, any>;
 			for (const [key, def] of Object.entries(paramDefs)) {
 				if (node.isBypass && key !== this.effectDefinitions[node.effectId].primaryInputParameter) continue;
-				evaluatedParamsPerNode[key] = mapNodeParam(def, node.params[key], [key], (def, param) => {
+				evaluatedParamsPerNode[key] = mapParameterTree(def, node.params[key], [key], (def, param) => {
 					return validateEnumParameterValue(def, this.parameterEvaluator.evaluate(param, evalCtx,
 						def.dataType.kind === 'enum' ? undefined : genEmptyValue(def))); // TODO: genEmptyValueを遅延評価したい
 				});
@@ -231,8 +233,8 @@ export class VisualModuleRenderer {
 			const params = this.evaledNodeParams.get(node.id)!;
 			// 空配列・空structや要素数の変化もキーに含める。
 			key += JSON.stringify(params);
-			for (const { def, param, path } of walkNodeParams(paramDefs, node.params)) {
-				const v = getEvaluatedParam(params, path);
+			for (const { def, param, path } of walkParameterLeaves(paramDefs, node.params)) {
+				const v = getEvaluatedParameterValue(params, path);
 				key += JSON.stringify([path, param.inputSource]);
 				if (param.inputSource === 'node' && param.nodeId != null) {
 					key += JSON.stringify([param.fitMode, param.wrapMode, param.filterMode]);
@@ -264,8 +266,8 @@ export class VisualModuleRenderer {
 	private resolveParams(node: VisualModuleEffectNode, params: Record<string, any>): Record<string, any> {
 		const resolvedParams: Record<string, any> = {};
 		for (const [key, def] of Object.entries(this.effectDefinitions[node.effectId].paramDefs)) {
-			resolvedParams[key] = mapNodeParam(def, node.params[key], [key], (def, param, path) => {
-				const v = getEvaluatedParam(params, path);
+			resolvedParams[key] = mapParameterTree(def, node.params[key], [key], (def, param, path) => {
+				const v = getEvaluatedParameterValue(params, path);
 				if (def.dataType.kind === 'playerReference') return v == null ? null : {
 					videoFrame: this.videoFrames.get(v) ?? null,
 					audio: this.audioSources.get(playerAudioSourceId(v)) ?? null,
@@ -292,7 +294,7 @@ export class VisualModuleRenderer {
 				return;
 			}
 			this.usedOutputPorts.set(output.node.id, new Set([output.outputPort]));
-			for (const { def, param } of walkNodeParams(this.effectDefinitions[output.node.effectId].paramDefs, output.node.params)) {
+			for (const { def, param } of walkParameterLeaves(this.effectDefinitions[output.node.effectId].paramDefs, output.node.params)) {
 				if (!def.canNode || param.inputSource !== 'node' || param.nodeId == null) continue;
 				const source = this.allNodeIdMap.get(param.nodeId);
 				if (source != null) visit(source, param.outputPort ?? undefined);
@@ -444,7 +446,7 @@ export class VisualModuleRenderer {
 
 		const params = this.evaledNodeParams.get(node.id)!;
 
-		for (const { def, param } of walkNodeParams(this.effectDefinitions[node.effectId].paramDefs, node.params)) {
+		for (const { def, param } of walkParameterLeaves(this.effectDefinitions[node.effectId].paramDefs, node.params)) {
 			if (!def.canNode || param.inputSource !== 'node' || param.nodeId == null) continue;
 			const targetNode = this.allNodeIdMap.get(param.nodeId);
 			if (targetNode == null) throw new Error('Referenced node not found');
@@ -516,7 +518,7 @@ export class VisualModuleRenderer {
 			if (output == null || output.node.type === 'globalIn') return;
 			const effectNode = output.node;
 			if (prepared.has(effectNode.id)) return;
-			for (const { def, param } of walkNodeParams(this.effectDefinitions[effectNode.effectId].paramDefs, effectNode.params)) {
+			for (const { def, param } of walkParameterLeaves(this.effectDefinitions[effectNode.effectId].paramDefs, effectNode.params)) {
 				if (!def.canNode || param.inputSource !== 'node' || param.nodeId == null) continue;
 				const source = this.allNodeIdMap.get(param.nodeId);
 				if (source == null) throw new Error('Referenced node not found');

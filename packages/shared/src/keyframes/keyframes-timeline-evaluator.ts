@@ -1,21 +1,18 @@
-import type { ParameterBinding } from '../types.ts';
-import { supportsKeyframeInterpolation } from '../keyframes-timeline.ts';
+import type { KeyframesTimelineData, KeyframesTimelinePlaybackOptions } from './keyframes-timeline.ts';
+import { supportsKeyframeInterpolation } from './keyframes-timeline.ts';
 import { evaluateEasing } from '../easing.ts';
 import type { EasingFamily } from '../easing.ts';
 
-type InlineKeyframesTimeline = Extract<ParameterBinding, { inputSource: 'keyframesTimelineInline' }>;
-
-export function evaluateKeyframesTimeline<T>(input: InlineKeyframesTimeline, time: number, endTime: number, fallback: T): number | number[] | string | boolean | T {
-	const timeline = input.keyframesTimeline;
+export function evaluateKeyframesTimeline<T>(timeline: KeyframesTimelineData, playback: KeyframesTimelinePlaybackOptions, time: number, endTime: number, fallback: T): number | number[] | string | boolean | T {
 	// 同じ時刻では元の配列で後にあるキーフレームを優先する。保存データは変更しない。
 	const keyframes = timeline.keyframes.toSorted((a, b) => a.x - b.x);
 	if (keyframes.length === 0) return fallback;
 	const first = keyframes[0];
 	const last = keyframes[keyframes.length - 1];
 	const scale = timeline.isNormalized
-		? (input.trimmedDurationMs != null && Number.isFinite(input.trimmedDurationMs) && input.trimmedDurationMs > 0 ? input.trimmedDurationMs : 1000)
+		? (playback.trimmedDurationMs != null && Number.isFinite(playback.trimmedDurationMs) && playback.trimmedDurationMs > 0 ? playback.trimmedDurationMs : 1000)
 		: 1;
-	let x = input.offsetMode === 'end' && Number.isFinite(endTime)
+	let x = playback.offsetMode === 'end' && Number.isFinite(endTime)
 		? (time - endTime) / scale + last.x
 		: time / scale;
 	const duration = last.x - first.x;
@@ -23,7 +20,7 @@ export function evaluateKeyframesTimeline<T>(input: InlineKeyframesTimeline, tim
 	if (duration === 0) {
 		value = last.value;
 	} else {
-		switch (input.wrapMode) {
+		switch (playback.wrapMode) {
 			case 'clamp': x = Math.max(first.x, Math.min(last.x, x)); break;
 			case 'repeat': {
 				const offset = (x - first.x) % duration;

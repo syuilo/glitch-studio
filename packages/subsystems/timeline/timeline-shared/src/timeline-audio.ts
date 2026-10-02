@@ -1,4 +1,4 @@
-import type { ParameterDefinition } from '@glitch/shared/parameter.js';
+import type { ParameterDefinition } from '@glitch/shared/parameter/parameter-definition.ts';
 
 export const timelineAudioParamDefs = {
 	volume: {

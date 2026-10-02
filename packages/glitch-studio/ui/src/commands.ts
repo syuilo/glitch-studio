@@ -1,5 +1,5 @@
-import { resolveParameter, walkParameters } from '@glitch/shared/parameter-path.ts';
-import type { ParamPath } from '@glitch/shared/parameter-path.ts';
+import { resolveParameter, walkParameters } from '@glitch/shared/parameter/parameter-path.ts';
+import type { ParamPath } from '@glitch/shared/parameter/parameter-path.ts';
 import type { TimelineParameterTarget } from './utility/timeline-scene.ts';
 import { createLayerInputBinding, validateTimelineEffectLayer } from '@glitch/shared/timeline/effect-layer.ts';
 import { validateEffectResolution } from '@glitch/shared/effect/resolution.ts';
@@ -10,26 +10,29 @@ import { getTimelineClipMoveBounds, getTimelineClipTrimBounds, getTimelineClipIn
 import type { TimelineClipTiming } from '@glitch/shared/timeline/timing.ts';
 import type { TimelineClip, TimelineAssetClip, TimelineVideoClip, TimelineSceneClip } from '@glitch/shared/timeline/clip.ts';
 import { validateTimelineParameterTree } from '@glitch/shared/timeline/parameter-binding.ts';
-import { getArrayElementDefinition, isParameterType } from '@glitch/shared/parameter.ts';
+import { getArrayElementDefinition, isParameterType } from '@glitch/shared/parameter/parameter-definition.ts';
 import { visualModuleCustomParameterId } from '@glitch/shared/visual-module/types.ts';
 import { effectDefinitions } from '@glitch/shared/effect/effect-definitions.ts';
 import { AiSON } from '@syuilo/aiscript';
 import { deepClone } from '@glitch/shared/utility/deep-clone.ts';
 import { genId } from '@glitch/shared/utility/id.ts';
 import { getNodeInputDataType, getNodeOutputs } from '@glitch/shared/utility/node-outputs.ts';
-import { isTextureDataType } from '@glitch/shared/data-type.ts';
+import { isTextureDataType } from '@glitch/shared/data-type/data-type.ts';
 import { timelineAudioParamDefs } from '@glitch/shared/timeline/timeline-audio.ts';
 import type { TimelineScene, TimelineLayer } from '@glitch/shared/timeline/types.ts';
 import { validateSceneResolution } from '@glitch/shared/timeline/scene-resolution.ts';
 import type { TimelineSceneResolution } from '@glitch/shared/timeline/scene-resolution.ts';
 import { timelineCompositingParamDefs } from '@glitch/shared/timeline/timeline-compositing.ts';
 import type { VisualModuleCustomParameterId, VisualModuleEffectNode, VisualModuleNode, NodeOutputReference, VisualModule, VisualModuleParamDef, VisualModuleOutputDef } from '@glitch/shared/visual-module/types.ts';
-import type { ParameterArrayElement, ParameterChangeKind, ParameterDefinition } from '@glitch/shared/parameter.ts';
+import type { ParameterArrayElement } from '@glitch/shared/parameter/parameter-binding.ts';
+import type { ParameterChangeKind, ParameterDefinition } from '@glitch/shared/parameter/parameter-definition.ts';
 import type { AppState } from './types.ts';
 import type { Resolution } from '@glitch/shared/resolution.ts';
-import type { Asset, AutomationGraphPlaybackOptions, ParameterBinding, Player } from '@glitch/shared/types.ts';
+import type { Asset, Player } from '@glitch/shared/types.ts';
+import type { AutomationGraphPlaybackOptions } from '@glitch/shared/automation-graph/automation-graph.ts';
+import type { ParameterBinding } from '@glitch/shared/parameter/parameter-binding.ts';
 import type { NodeParamTarget as EffectNodeParamTarget } from '@/utility/node-params.ts';
-import type { GlobalEnvVariable } from '@glitch/shared/expression.js';
+import type { ExpressionVariableName } from '@glitch/shared/expression/expression-environment.ts';
 import { canConnectNodeDataTypes } from '@/utility/node-outputs.ts';
 import { resolveNodeParam, walkNodeParams } from '@/utility/node-params.ts';
 import { createInlineAutomationGraph } from '@/utility/automation-graph.ts';
@@ -131,7 +134,7 @@ const editTimelineLayerParamCommandDef = defineCommand<{
 						case 'automationGraphInline':
 						case 'keyframesTimelineInline':
 						case 'layerInput': next = deepClone(edit.value); break;
-						case 'envVariable': next = { inputSource: 'envVariable', variable: edit.value as GlobalEnvVariable }; break;
+						case 'envVariable': next = { inputSource: 'envVariable', variable: edit.value }; break;
 						case 'expression': next = { inputSource: 'expression', expression: edit.value }; break;
 						case 'automationGraphReference': next = {
 							inputSource: 'automationGraphReference', trimmedDurationMs: 1000, wrapMode: 'repeat', offsetMode: 'start',
@@ -533,7 +536,7 @@ const updateParamAsLiteralCommandDef = defineNodeParamCommand<NodeParamTarget & 
 	},
 );
 
-const updateParamAsEnvVariableCommandDef = defineNodeParamCommand<NodeParamTarget & { value: GlobalEnvVariable }>(
+const updateParamAsEnvVariableCommandDef = defineNodeParamCommand<NodeParamTarget & { value: ExpressionVariableName }>(
 	'Update param as environment variable',
 	(target, payload) => {
 		assertLeafParam(target);

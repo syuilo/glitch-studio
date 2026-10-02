@@ -1,35 +1,3 @@
-import { rawBezierEasing } from './bezier.ts';
-import { deepClone } from './deep-clone.ts';
-import type { AutomationGraph } from '../types.ts';
-import type { DataType } from '../data-type.ts';
-import type { ParameterSettings } from '../parameter.ts';
-
-// 型変更時にも利用するため、完成済みのUIや最上位の初期値は要求しない。
-// structの空値には各フィールドのBindingの初期値を使う。
-type EmptyValueDefinition =
-	| { dataType: Exclude<DataType, { kind: 'struct' }> }
-	| { dataType: Extract<DataType, { kind: 'struct' }>; fields: Record<string, ParameterSettings<DataType>> };
-
-export function genEmptyValue(paramDef: EmptyValueDefinition): any {
-	switch (paramDef.dataType.kind) {
-		case 'scalar': return 0;
-		case 'enum': return paramDef.dataType.options[0] ?? '';
-		case 'bool': return false;
-		case 'string': return '';
-		case 'blendMode': return 'normal';
-		case 'fitMode': return 'stretch';
-		case 'wrapMode': return 'repeatMirrored';
-		case 'vector': return [0, 0];
-		case 'color': return [0, 0, 0, 1];
-		case 'any': case 'assetReference': case 'videoAssetReference': case 'fontAssetReference': case 'playerReference': return null;
-		case 'array': return [];
-		case 'struct': {
-			if (!('fields' in paramDef)) throw new Error('Struct parameter settings are required');
-			return Object.fromEntries(Object.keys(paramDef.dataType.fields).map(key => [key, deepClone(paramDef.fields[key].defaultValue)]));
-		}
-	}
-}
-
 // https://stackoverflow.com/questions/326679/choosing-an-attractive-linear-scale-for-a-graphs-y-axis
 // https://github.com/apexcharts/apexcharts.js/blob/master/src/modules/Scales.js
 // This routine creates the Y axis values for a graph.
@@ -101,52 +69,6 @@ export function niceNormalizedScale(lowerBound: number, upperBound: number, tick
 		values.push((divisions + index * stride) / divisions);
 	}
 	return values;
-}
-
-export function evalAutomationGraphValue(automationGraph: { points: AutomationGraph['points'] }, x: number, wrapMode: 'clamp' | 'repeat' | 'repeatMirrored'): number {
-	// 元の配列を変更せずX順に並べる。同じXでは元の順序を保ち、後のポイントを優先する。
-	const points = automationGraph.points.toSorted((a, b) => a.x - b.x);
-	if (points.length === 0) return 0;
-	const first = points[0];
-	const last = points[points.length - 1];
-	const duration = last.x - first.x;
-	// 1点だけの場合や全点が同じXの場合は、周期を作れないので定数として扱う。
-	if (duration === 0) return last.y;
-
-	switch (wrapMode) {
-		case 'clamp':
-			x = Math.max(first.x, Math.min(last.x, x));
-			break;
-		case 'repeat': {
-			// 負のXでも正の周期内へ折り返す。終端は次の周期の先頭になる。
-			const offset = (x - first.x) % duration;
-			x = first.x + (offset < 0 ? offset + duration : offset);
-			break;
-		}
-		case 'repeatMirrored': {
-			const period = duration * 2;
-			const offset = (x - first.x) % period;
-			const phase = offset < 0 ? offset + period : offset;
-			x = first.x + (phase <= duration ? phase : period - phase);
-			break;
-		}
-	}
-
-	const prevPoint = points.findLast(point => point.x <= x);
-	const nextPoint = points.find(point => point.x > x);
-	if (prevPoint == null) return first.y;
-	if (nextPoint == null || prevPoint.x === x) return prevPoint.y;
-	return rawBezierEasing(
-		prevPoint.x,
-		prevPoint.x + prevPoint.bezierControlPointB[0],
-		nextPoint.x + nextPoint.bezierControlPointA[0],
-		nextPoint.x,
-		prevPoint.y,
-		prevPoint.y + prevPoint.bezierControlPointB[1],
-		nextPoint.y + nextPoint.bezierControlPointA[1],
-		nextPoint.y,
-		x,
-	);
 }
 
 export function insertIntermediateNumbers(array: number[]): number[] {

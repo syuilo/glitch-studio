@@ -1,6 +1,6 @@
-import { getArrayElementDefinition, getStructFieldDefinitions } from './parameter.ts';
-import type { ParameterArrayElement, ParameterDefinition } from './parameter.ts';
-import type { ParameterBinding } from './types.ts';
+import { getArrayElementDefinition, getStructFieldDefinitions } from './parameter-definition.ts';
+import type { ParameterArrayElement, ParameterBinding } from './parameter-binding.ts';
+import type { ParameterDefinition } from './parameter-definition.ts';
 
 // 配列はindexではなく要素IDで指定する。親までのパスがIDのスコープとなる。
 export type ParamPath = readonly [string, ...string[]];

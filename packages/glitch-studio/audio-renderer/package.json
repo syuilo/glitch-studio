@@ -21,6 +21,7 @@
 		"vitest": "4.1.10"
 	},
 	"dependencies": {
-		"@glitch/shared": "workspace:*"
+		"@glitch/shared": "workspace:*",
+		"@glitch/timeline-shared": "workspace:*"
 	}
 }

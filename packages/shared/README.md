@@ -6,6 +6,18 @@
 
 Glitch Studioドメイン内だけで共有する必要のあるものは、ここではなく`glitch-studio/shared`に置くべし。
 
+## データ型・パラメータ・式の共通基盤
+
+- `src/data-type`: 値の型と、その型に対応する編集UIのメタデータ。UIメタデータは`data-type-ui.ts`に分け、Vueコンポーネントやパラメータの初期値を含めない。
+- `src/parameter`: パラメータ定義・Binding・初期値・ツリー操作・CPU値の評価。`parameter-path.ts`は編集対象を識別するIDパス、`parameter-tree.ts`は評価後の配列をたどるindexのパスを扱う。
+- `src/expression`: AiScriptの構文・ASTキャッシュ・式の実行。変数と関数は呼び出し側から明示し、Visual ModuleやTimelineを参照しない。
+- `src/automation-graph`: グラフの定義・再生設定・補間。`GRAPH`への公開はパラメータ評価器が担当する。
+- `src/keyframes`: キーフレームの定義・再生設定・補間。TimelineのScene・レイヤー・クリップから独立し、再生設定は`ParameterBinding`から逆算しない。
+
+`ParameterBindingEvaluator`が受け取る`ValueParameterBinding`は、literal・環境変数・式・グラフ参照・インライングラフ・キーフレームに限定する。時刻、終了時刻、グラフ一覧と式の環境は`ParameterEvaluationScope`で渡す。評価結果やスコープは保持しない。
+
+保存用の`ParameterBinding`には、意図的な例外として`node`・`externalCustomParameterInput`・`layerInput`も含める。それらの利用可否と解決は各ドメインの責務とし、共通評価器には持ち込まない。`PARAM`とカスタムパラメータ参照はVisual Module、レイヤーの入力と時刻の規約はTimeline、実行時のエフェクト入力への変換はEffect Rendererが担当する。
+
 ## GPU共通基盤
 
 `src/gpu`には、Effect・Visual Module・Timelineやプロジェクトを知らずに使えるGPUデータ表現と処理を置く。

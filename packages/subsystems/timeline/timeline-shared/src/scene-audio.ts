@@ -1,6 +1,6 @@
 import { getSceneDuration, getTimelineScene, validateTimelineScenes } from './scenes.ts';
 import { getTimelineClipEnd } from './timing.ts';
-import type { AutomationGraph } from '@glitch/shared/types.js';
+import type { AutomationGraph } from '@glitch/shared/automation-graph/automation-graph.ts';
 import type { TimelineParameterBinding, TimelineScene } from './types.ts';
 
 export type SceneAudioGain = {

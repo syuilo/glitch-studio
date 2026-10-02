@@ -17,7 +17,7 @@
 import { useTemplateRef } from 'vue';
 import GsWindow from './common/GsWindow.vue';
 import GsAutomationGraphPointsEditor from './GsAutomationGraphPointsEditor.vue';
-import type { AutomationGraph } from '@glitch/shared/types.js';
+import type { AutomationGraph } from '@glitch/shared/automation-graph/automation-graph.ts';
 
 const props = defineProps<{
 	automationGraph: Pick<AutomationGraph, 'points' | 'isNormalized'> & { name?: string };

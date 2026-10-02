@@ -1,9 +1,11 @@
 import { colorBlendModes, isBlendMode } from '@glitch/shared/color-blend.ts';
-import { genEmptyValue } from '@glitch/shared/utility/misc.ts';
+import { genEmptyValue } from '@glitch/shared/parameter/parameter-default.ts';
 import { timelineCompositingParamDefs } from '@glitch/shared/timeline/timeline-compositing.js';
-import { ParameterEvaluator } from '@glitch/shared/parameter-evaluator.js';
-import { createTimelineLayerEvaluationScope } from '@glitch/shared/timeline/evaluation-scope.ts';
-import type { AutomationGraph, FitMode, ParameterBinding } from '@glitch/shared/types.ts';
+import { TimelineParameterBindingEvaluator } from '@glitch/timeline-shared/parameter-binding-evaluator.ts';
+import { createTimelineLayerEvaluationScope } from '@glitch/timeline-shared/evaluation-scope.ts';
+import type { AutomationGraph } from '@glitch/shared/automation-graph/automation-graph.ts';
+import type { FitMode } from '@glitch/shared/types.ts';
+import type { ParameterBinding } from '@glitch/shared/parameter/parameter-binding.ts';
 
 export type TimelineCompositingSettings = {
 	blendMode: number;
@@ -16,13 +18,10 @@ export type TimelineCompositingSettings = {
 };
 
 export class TimelineCompositingParameters {
-	private evaluator = new ParameterEvaluator();
+	private evaluator = new TimelineParameterBindingEvaluator();
 
 	evaluate(context: { time: number; isExport: boolean; paramValues: Record<string, ParameterBinding>; automationGraphs: AutomationGraph[] }): TimelineCompositingSettings {
-		const evaluationContext = {
-			...createTimelineLayerEvaluationScope(context),
-			evaluatedParamValues: null,
-		};
+		const evaluationContext = createTimelineLayerEvaluationScope(context);
 		const values = new Map<string, any>();
 		for (const [key, def] of Object.entries(timelineCompositingParamDefs)) {
 			const value = context.paramValues[key];

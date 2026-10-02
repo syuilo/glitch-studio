@@ -41,7 +41,7 @@
 <script lang="ts" setup>
 import { computed } from 'vue';
 import { effectDefinitions } from '@glitch/shared/effect/effect-definitions.ts';
-import { LAYER_VAR_DEFS } from '@glitch/shared/expression.ts';
+import { LAYER_VAR_DEFS } from '@glitch/timeline-shared/expression.ts';
 import { getEffectLayerParameterDefault } from '@glitch/shared/timeline/effect-layer.ts';
 import GsFolder from './common/GsFolder.vue';
 import GsInput from './common/GsInput.vue';

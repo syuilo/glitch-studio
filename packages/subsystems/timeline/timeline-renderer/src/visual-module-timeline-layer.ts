@@ -1,8 +1,8 @@
 import { deepClone } from '@glitch/shared/utility/deep-clone.ts';
-import { genEmptyValue } from '@glitch/shared/utility/misc.ts';
-import { ParameterEvaluator } from '@glitch/shared/parameter-evaluator.js';
-import { validateEnumParameterValue } from '@glitch/shared/parameter.ts';
-import { createTimelineLayerEvaluationScope } from '@glitch/shared/timeline/evaluation-scope.ts';
+import { genEmptyValue } from '@glitch/shared/parameter/parameter-default.ts';
+import { TimelineParameterBindingEvaluator } from '@glitch/timeline-shared/parameter-binding-evaluator.ts';
+import { validateEnumParameterValue } from '@glitch/shared/parameter/parameter-definition.ts';
+import { createTimelineLayerEvaluationScope } from '@glitch/timeline-shared/evaluation-scope.ts';
 import { validateTimelineParameterTree } from '@glitch/shared/timeline/parameter-binding.ts';
 import type { VisualModuleCustomParameterId, VisualModule } from '@glitch/shared/visual-module/types.ts';
 import type { UniformOrTexture } from '@glitch/shared/gpu/uniform-or-texture.ts';
@@ -20,7 +20,7 @@ export function createVisualModuleTimelineLayer(
 		destroy: () => void;
 	},
 ): TimelineLayerRenderer<UniformOrTexture> {
-	const evaluator = new ParameterEvaluator();
+	const evaluator = new TimelineParameterBindingEvaluator();
 	return {
 		evaluate: async (context, signal) => {
 			if (signal.aborted) return { gpuTime: 0 };
@@ -28,10 +28,7 @@ export function createVisualModuleTimelineLayer(
 			const layer = typeof layerSource === 'function' ? layerSource() : layerSource;
 			const paramInputs = new Map<VisualModuleCustomParameterId, UniformOrTexture>();
 			if (visualModule.primaryInputId !== null) paramInputs.set(visualModule.primaryInputId, context.input);
-			const evaluationContext = {
-				...createTimelineLayerEvaluationScope({ time: context.sceneTimeMs, isExport: context.isExport, automationGraphs: layer.automationGraphs }),
-				evaluatedParamValues: null,
-			};
+			const evaluationContext = createTimelineLayerEvaluationScope({ time: context.sceneTimeMs, isExport: context.isExport, automationGraphs: layer.automationGraphs });
 			const evaluatedParamValues = new Map<VisualModuleCustomParameterId, any>();
 			for (const def of visualModule.paramDefs) {
 				// 主入力はuniformでもCPU式には公開せず、Inノードからのみ読む。

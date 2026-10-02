@@ -9,7 +9,8 @@
 		"lint": "pnpm typecheck && pnpm eslint"
 	},
 	"exports": {
-		"./effect-renderer.ts": "./src/effect-renderer.ts"
+		"./effect-renderer.ts": "./src/effect-renderer.ts",
+		"./effect-parameter-value.ts": "./src/effect-parameter-value.ts"
 	},
 	"devDependencies": {
 		"@types/web": "0.0.352",

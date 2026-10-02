@@ -35,9 +35,9 @@
 </template>
 
 <script lang="ts" setup>
-import { areDataTypesEqual } from '@glitch/shared/data-type.ts';
-import { isParameterType } from '@glitch/shared/parameter.ts';
-import { LIVE_VAR_DEFS } from '@glitch/shared/expression.ts';
+import { areDataTypesEqual } from '@glitch/shared/data-type/data-type.ts';
+import { isParameterType } from '@glitch/shared/parameter/parameter-definition.ts';
+import { LIVE_VAR_DEFS } from '../../../shared/src/live-expression.ts';
 import { computed, ref, watch, onBeforeUnmount } from 'vue';
 import { AiSON } from '@syuilo/aiscript';
 import { deepClone } from '@glitch/shared/utility/deep-clone.ts';
