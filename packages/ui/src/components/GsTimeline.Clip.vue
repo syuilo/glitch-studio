@@ -8,15 +8,15 @@
 	@click.stop
 	@dblclick.stop
 >
-	<GsCondensedLine>{{ label }}</GsCondensedLine>
+	<div style="padding: 0 8px;"><GsCondensedLine>{{ label }}</GsCondensedLine></div>
 	<div :class="[$style.trimHandle, $style.trimStart]" @pointerdown.stop="emit('trimStart', $event, 'start')"></div>
 	<div :class="[$style.trimHandle, $style.trimEnd]" @pointerdown.stop="emit('trimStart', $event, 'end')"></div>
 </div>
 </template>
 
 <script lang="ts" setup>
-import type { TimelineClip } from '@glitch/shared/timeline/clip.ts';
 import GsCondensedLine from './common/GsCondensedLine.vue';
+import type { TimelineClip } from '@glitch/shared/timeline/clip.ts';
 
 const props = defineProps<{
 	clip: TimelineClip;
@@ -43,7 +43,6 @@ function timeToDomX(time: number): number {
 	position: absolute;
 	height: var(--mainLaneHeight);
 	box-sizing: border-box;
-	padding: 0 8px;
 	overflow: clip;
 	cursor: grab;
 	touch-action: none;
