@@ -8,9 +8,8 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { bundleSource } from './helpers/load-shader-source.mjs';
 
-// ChromeのWebGPUで生成WGSLを実行し、実画素を比較する。CIではChromeのパスを明示する。
-test('renders generated shader inputs on WebGPU', { skip: !process.env.CHROME_PATH, timeout: 60000 }, async () => {
-	const bundle = await bundleSource(fileURLToPath(new URL('./helpers/shader-input-gpu.ts', import.meta.url)), 'browser');
+async function runGpuTest(entry, minimumChecks) {
+	const bundle = await bundleSource(fileURLToPath(new URL(entry, import.meta.url)), 'browser');
 	let resolveResult;
 	const result = new Promise(resolve => { resolveResult = resolve; });
 	const server = createServer((request, response) => {
@@ -38,7 +37,7 @@ catch (error) { await fetch('/result', { method: 'POST', body: JSON.stringify({ 
 		timer = setTimeout(() => resolveResult({ error: 'WebGPU test timed out' }), 45000);
 		const output = await result;
 		assert.equal(output.error, undefined, output.error);
-		assert.ok(output.passed.length >= 20);
+		assert.ok(output.passed.length >= minimumChecks);
 	} finally {
 		clearTimeout(timer);
 		if (browser && browser.exitCode === null) {
@@ -50,4 +49,12 @@ catch (error) { await fetch('/result', { method: 'POST', body: JSON.stringify({ 
 		await new Promise(resolve => server.close(resolve));
 		await rm(profile, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
 	}
-});
+}
+
+// 【ChromeのWebGPUで生成WGSLの実画素を比較する】
+// モックでは検出できないシェーダーとbindingの不整合を検出する。CIではChromeのパスを明示する。
+test('renders generated shader inputs on WebGPU', { skip: !process.env.CHROME_PATH, timeout: 60000 }, () => runGpuTest('./helpers/shader-input-gpu.ts', 20));
+
+// 【分離したエフェクトと既存モジュールの描画・履歴を実GPUで検証する】
+// テクスチャの参照だけでなく、複数出力・履歴交換・バイパス・リサイズ後の画素を確認する。
+test('renders extracted effects and visual modules on WebGPU', { skip: !process.env.CHROME_PATH, timeout: 60000 }, () => runGpuTest('./helpers/effect-renderer-gpu.ts', 8));

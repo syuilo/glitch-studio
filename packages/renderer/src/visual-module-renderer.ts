@@ -9,18 +9,21 @@ import { genEmptyValue } from '@glitch/shared/utility/misc.js';
 import { ParameterEvaluator } from '@glitch/shared/parameter-evaluator.js';
 import { validateEnumParameterValue } from '@glitch/shared/parameter.ts';
 import { outputShaderInput } from './node-output.ts';
-import TimingHelper from './utility/TimingHelper.ts';
+import { EffectRenderer } from './effect-renderer.ts';
 import { getEvaluatedParam, mapNodeParam, walkNodeParams } from './utility/node-params.ts';
 import defaultVertexShaderCode from './vertex.wgsl?raw';
+import type TimingHelper from './utility/TimingHelper.ts';
 import type { EvaluatedParameterValues, ParameterEvaluationContext } from '@glitch/shared/parameter-evaluator.js';
 import type { NodeOutput } from './node-output.ts';
-import type { EffectStatus, EffectInstanceState } from '@glitch/shared/effect/effect-status.ts';
+import type { EffectInstanceState } from '@glitch/shared/effect/effect-status.ts';
 import type { AudioSourceId } from '@glitch/shared/audio.ts';
 import type { Asset, AutomationGraph, IntermediateTextureFormat } from '@glitch/shared/types.ts';
 import type { VisualModuleEffectNode, VisualModuleGlobalInNode, VisualModuleNode, NodeOutputReference, VisualModule } from '@glitch/shared/visual-module/types.ts';
-import type { EffectImplementation, EffectInstance } from '@glitch/shared/effect/effect-implementation.js';
+import type { EffectImplementation } from '@glitch/shared/effect/effect-implementation.js';
 import type { EffectDefinition } from '@glitch/shared/effect/effect-definition.js';
 import type { IN_VISUAL_MODULE_VAR_DEFS } from '@glitch/shared/expression.js';
+
+const NO_OUTPUT_PORTS: ReadonlySet<string> = new Set();
 
 export type VisualModuleRenderContext = {
 	isExport: boolean;
@@ -46,7 +49,6 @@ export class VisualModuleRenderer {
 	/** 呼び出し側から与えられた描画基準。倍率適用済みで、個々のノード寸法とは異なる。 */
 	private contextResolution: Resolution;
 	private resolutionScale: number;
-	private nodeResolutions = new Map<string, Resolution>();
 	private nodes: VisualModuleNode[] = [];
 	private paramDefs: VisualModule['paramDefs'];
 	private outputDefs: VisualModule['outputDefs'] = [];
@@ -55,21 +57,14 @@ export class VisualModuleRenderer {
 	private paramValues: EvaluatedParameterValues = new Map();
 	private paramInputs: ReadonlyMap<VisualModuleCustomParameterId, NodeOutput> = new Map();
 	private preparedContext: VisualModuleRenderContext | null = null;
-	private statusWaiters = new Set<() => void>();
+	private preparationVersion = 0;
 	private destroyed = false;
 	private allNodeIdMap: Map<VisualModuleNode['id'], VisualModuleNode> = new Map(); // モジュール内のノードをIDで解決する。
 	private evaledNodeParams: Map<VisualModuleNode['id'], Record<string, any>> = new Map();
-	private effectInstances: Map<VisualModuleEffectNode['id'], EffectInstance | null> = new Map();
-	private outDataMapPerNodes: Map<VisualModuleEffectNode['id'], Record<string, {
-		texture: GPUTexture;
-		textureView: GPUTextureView;
-		previousFrameTexture?: GPUTexture;
-		previousFrameTextureView?: GPUTextureView;
-	}>> = new Map();
+	private effectRenderers = new Map<string, EffectRenderer>();
 	private effectCacheKeys: Map<VisualModuleEffectNode['id'], string> = new Map();
-	private lazyOutputs = new Map<string, Record<string, () => void>>();
+	private lazyEffectRenderers = new Map<string, EffectRenderer>();
 	private usedOutputPorts = new Map<string, Set<string>>();
-	private effectStatuses = new Map<string, { sent?: EffectStatus; outputs: EffectInstanceState['outputs']; published?: string }>();
 	private onEffectState?: (nodeId: string, state: EffectInstanceState | null) => void;
 	private automationGraphs: AutomationGraph[] = [];
 	private enable32bitDataTextures = false;
@@ -124,11 +119,10 @@ export class VisualModuleRenderer {
 		this.timingHelper = options.timingHelper;
 		this.effectDefinitions = options.effectDefinitions;
 		this.effectImplementations = options.effectImplementations;
-		this.updateVisualModule(options.visualModule);
-
 		this.defaultVertexShaderModule = this.gpuDevice.createShaderModule({
 			code: defaultVertexShaderCode,
 		});
+		this.updateVisualModule(options.visualModule);
 	}
 
 	public updateVisualModule(visualModule: VisualModule) {
@@ -199,42 +193,6 @@ export class VisualModuleRenderer {
 		this.evaledNodeParams = evaluated;
 	}
 
-	private setEffectStatus(nodeId: string, status: EffectStatus) {
-		const state = this.effectStatuses.get(nodeId);
-		if (!state) return;
-		const previous = state.sent;
-		if (previous?.type === status.type && (status.type !== 'error' || (previous.type === 'error' && previous.message === status.message))) return;
-		state.sent = status;
-		for (const notify of this.statusWaiters) notify();
-		this.publishEffectState(nodeId);
-	}
-
-	private publishEffectState(nodeId: string) {
-		const state = this.effectStatuses.get(nodeId);
-		if (state?.sent == null) return;
-		const snapshot: EffectInstanceState = { status: state.sent, outputs: state.outputs };
-		const key = JSON.stringify(snapshot);
-		if (state.published === key) return;
-		state.published = key;
-		this.onEffectState?.(nodeId, snapshot);
-	}
-
-	private updateOutputState(node: VisualModuleEffectNode, rendered: boolean) {
-		const state = this.effectStatuses.get(node.id);
-		if (state == null) return;
-		// 描画完了後の出力だけ公開する。初期化用の1x1や前回の未使用出力を表示しない。
-		state.outputs = Object.fromEntries(Object.entries(this.effectDefinitions[node.effectId].outputDefs).map(([port, def]) => {
-			const texture = rendered && !node.isBypass && (!def.canLazyAllocation || this.usedOutputPorts.get(node.id)?.has(port))
-				? this.outDataMapPerNodes.get(node.id)?.[port]?.texture : undefined;
-			return [port, texture == null ? null : { width: texture.width, height: texture.height }];
-		}));
-		this.publishEffectState(node.id);
-	}
-
-	private clearEffectStatus(nodeId: string) {
-		if (this.effectStatuses.delete(nodeId)) this.onEffectState?.(nodeId, null);
-	}
-
 	private evalCacheKey(node: VisualModuleNode, visited: VisualModuleNode['id'][] = []): string | null {
 		if (visited.includes(node.id)) {
 			throw new Error('circular dependency detected');
@@ -261,10 +219,11 @@ export class VisualModuleRenderer {
 				return null;
 			}
 			// 非同期のリソース更新も後続ノードのキャッシュキーに伝播させる。
-			key += JSON.stringify([node.resolution, this.nodeResolutions.get(node.id)]);
-			key += `cacheVersion=${this.effectInstances.get(node.id)?.cacheVersion ?? 0};`;
+			const renderer = this.effectRenderers.get(node.id)!;
+			key += JSON.stringify([node.resolution, renderer.resolution]);
+			key += `cacheVersion=${renderer.cacheVersion};resources=${renderer.resourceVersion};`;
 			// 出力の利用開始・停止でも、依存先を含めキャッシュを更新する。
-			if (this.lazyOutputs.has(node.id)) key += `ports=${JSON.stringify([...(this.usedOutputPorts.get(node.id) ?? [])].sort())};`;
+			if (renderer.hasLazyOutputs) key += `ports=${JSON.stringify([...(this.usedOutputPorts.get(node.id) ?? [])].sort())};`;
 
 			const paramDefs = this.effectDefinitions[node.effectId].paramDefs;
 
@@ -347,24 +306,15 @@ export class VisualModuleRenderer {
 		};
 		for (const id of outputIds) visit(node, id);
 		// 描画順によらず必要なポートを先に集め、同じノードは1回の描画で全需要を満たす。
-		for (const [id, factories] of this.lazyOutputs) {
-			const outputs = this.outDataMapPerNodes.get(id)!;
-			for (const [port, allocate] of Object.entries(factories)) {
-				if (this.usedOutputPorts.get(id)?.has(port)) {
-					if (outputs[port] == null) allocate();
-				} else if (outputs[port] != null) {
-					outputs[port].texture.destroy();
-					outputs[port].previousFrameTexture?.destroy();
-					delete outputs[port];
-					// 後で再確保した際に古い描画済みキャッシュを使わない。
-					this.effectCacheKeys.delete(id);
-				}
-			}
+		for (const [id, renderer] of this.lazyEffectRenderers) {
+			renderer.setUsedOutputPorts(this.usedOutputPorts.get(id) ?? NO_OUTPUT_PORTS);
 		}
 	}
 
 	// (非workerで)呼び出すときはnewNodesを独立した参照にすること！ パフォーマンス上の理由でこちら側ではdeepCloneしません
 	public updateNodes(newNodes: VisualModuleNode[]) {
+		this.preparedContext = null;
+		++this.preparationVersion;
 		const oldEffectNodes = this.nodes.filter(node => node.type === 'effect');
 		const newEffectNodes = newNodes.filter(node => node.type === 'effect');
 		const oldNodeIds = new Set(oldEffectNodes.map(node => node.id));
@@ -372,90 +322,51 @@ export class VisualModuleRenderer {
 		const addedNodes = newEffectNodes.filter(node => !oldNodeIds.has(node.id));
 		const removedNodes = oldEffectNodes.filter(node => !newNodeIds.has(node.id));
 
+		for (const node of removedNodes) {
+			this.effectRenderers.get(node.id)?.dispose();
+			this.effectRenderers.delete(node.id);
+			this.lazyEffectRenderers.delete(node.id);
+			this.usedOutputPorts.delete(node.id);
+			this.effectCacheKeys.delete(node.id);
+		}
+
 		for (const node of addedNodes) {
-			const effect = this.effectImplementations[node.effectId];
-			// context・明示指定は入力評価を待たず確定できる。自動の場合だけ仮確保し、
-			// 上流の寸法が決まる前に描画先サイズの大きな領域を確保することを避ける。
-			const initialResolution = node.resolution.mode === 'auto' ? undefined : resolveEffectNodeResolution({
+			// 自動解像度は上流・素材の解決まで未確定。それまでは小さい仮出力を使う。
+			const resolution = node.resolution.mode === 'auto' ? undefined : resolveEffectNodeResolution({
 				setting: node.resolution, contextResolution: this.contextResolution, resolutionScale: this.resolutionScale,
 				maxDimension: this.gpuDevice.limits.maxTextureDimension2D,
 			});
-			if (initialResolution != null) this.nodeResolutions.set(node.id, initialResolution);
-			const allocationArgs = {
-				wgpu: { device: this.gpuDevice, enable32bitDataTextures: this.enable32bitDataTextures, intermediateTextureFormat: this.intermediateTextureFormat },
-				resolution: initialResolution ?? { width: 1, height: 1 },
-			};
-			const outDataMap = {} as Record<string, {
-				texture: GPUTexture;
-				textureView: GPUTextureView;
-				previousFrameTexture: GPUTexture | undefined;
-				previousFrameTextureView: GPUTextureView | undefined;
-			}>;
-			const lazy: Record<string, () => void> = {};
-			for (const [k, createTexture] of Object.entries(effect.outputTextureFactories)) {
-				const allocate = () => {
-					const args = { ...allocationArgs, resolution: this.nodeResolutions.get(node.id) ?? allocationArgs.resolution };
-					const tex = createTexture(args);
-					const previousTexture = effect.needsPreviousFrame ? createTexture(args) : undefined;
-					outDataMap[k] = {
-						texture: tex,
-						textureView: tex.createView(),
-						previousFrameTexture: previousTexture,
-						previousFrameTextureView: previousTexture?.createView(),
-					};
-				};
-				if (this.effectDefinitions[node.effectId].outputDefs[k].canLazyAllocation === true) lazy[k] = allocate;
-				else allocate();
-			}
-			if (Object.keys(lazy).length > 0) this.lazyOutputs.set(node.id, lazy);
-			this.outDataMapPerNodes.set(node.id, outDataMap);
-		}
-
-		for (const node of removedNodes) {
-			this.nodeResolutions.delete(node.id);
-			this.lazyOutputs.delete(node.id);
-			this.usedOutputPorts.delete(node.id);
-			this.clearEffectStatus(node.id);
-			// 出力を破棄するため、リサイズや同じIDでの復元後は再描画が必要。
-			this.effectCacheKeys.delete(node.id);
-			const outDataMap = this.outDataMapPerNodes.get(node.id);
-			if (outDataMap) {
-				for (const data of Object.values(outDataMap)) {
-					data.texture.destroy();
-					data.previousFrameTexture?.destroy();
-				}
-				this.outDataMapPerNodes.delete(node.id);
-			}
-			const instance = this.effectInstances.get(node.id);
-			if (instance) {
-				instance.dispose();
-				this.effectInstances.delete(node.id);
-			}
+			const renderer = new EffectRenderer({
+				definition: this.effectDefinitions[node.effectId],
+				implementation: this.effectImplementations[node.effectId],
+				resolution,
+				wgpu: {
+					device: this.gpuDevice, context: this.gpuContext, defaultVertexShaderModule: this.defaultVertexShaderModule,
+					enable32bitDataTextures: this.enable32bitDataTextures, intermediateTextureFormat: this.intermediateTextureFormat,
+				},
+				fallbackTexture: this.fallbackTexture, enableStats: this.enableStats, timingHelper: this.timingHelper,
+				onState: state => this.onEffectState?.(node.id, state),
+			});
+			this.effectRenderers.set(node.id, renderer);
+			if (renderer.hasLazyOutputs) this.lazyEffectRenderers.set(node.id, renderer);
 		}
 
 		for (const node of newEffectNodes) {
 			if (node.isBypass) {
-				this.updateOutputState(node, false);
-				// 再有効化時に出力情報も再確定する。
+				this.effectRenderers.get(node.id)!.clearOutputState();
+				// 履歴を維持したまま公開だけを休止し、再有効化時に再描画する。
 				this.effectCacheKeys.delete(node.id);
 			}
 		}
 		this.nodes = newNodes;
-
-		this.allNodeIdMap.clear();
-		const indexNodes = (nodes: VisualModuleNode[]) => {
-			for (const node of nodes) {
-				this.allNodeIdMap.set(node.id, node);
-			}
-		};
-		indexNodes(newNodes);
-
+		this.allNodeIdMap = new Map(newNodes.map(node => [node.id, node]));
 		this.renderNodeId = this.nodes.find(node => node.type === 'globalOut')?.id ?? null;
 	}
 
 	public updateAssets(assets: Asset[]) {
 		this.assets = assets;
 		this.preparedContext = null;
+		++this.preparationVersion;
 		// 同じAsset IDでもテクスチャを作り直すため、ネスト内の画像参照も再解決する。
 		this.effectCacheKeys.clear();
 	}
@@ -502,7 +413,7 @@ export class VisualModuleRenderer {
 		const output = this.getOutputNode(node, outputPort);
 		if (output == null) return undefined;
 		if (output.node.type === 'globalIn') return this.getParamOutput(visualModuleCustomParameterId(output.outputPort));
-		const texture = this.outDataMapPerNodes.get(output.node.id)?.[output.outputPort]?.texture;
+		const texture = this.effectRenderers.get(output.node.id)?.getOutputTexture(output.outputPort);
 		return texture == null ? undefined : { kind: 'texture', texture };
 	}
 
@@ -537,8 +448,6 @@ export class VisualModuleRenderer {
 			});
 		}
 
-		const effect = this.effectImplementations[node.effectId];
-
 		const params = this.evaledNodeParams.get(node.id)!;
 
 		for (const { def, param } of walkNodeParams(this.effectDefinitions[node.effectId].paramDefs, node.params)) {
@@ -554,7 +463,7 @@ export class VisualModuleRenderer {
 
 		const resolvedParams = this.resolveParams(node, params);
 		this.ensureNodeResolution(node, resolvedParams);
-		const effectInstance = this.initializeEffect(node, resolvedParams);
+		this.effectRenderers.get(node.id)!.initialize(resolvedParams);
 		// 上流のサイズ・非同期リソース更新を確定させてからキャッシュを判定する。
 		const key = this.evalCacheKey(node);
 		if (key != null && key === this.effectCacheKeys.get(node.id)) {
@@ -562,27 +471,8 @@ export class VisualModuleRenderer {
 			return;
 		}
 
-		const outDataMap = this.outDataMapPerNodes.get(node.id)!;
-
-		const resolvedOutputDataMap = {} as Record<string, {
-			previousFrameTexture: GPUTexture | undefined;
-			previousFrameTextureView: GPUTextureView | undefined;
-			texture: GPUTexture;
-			textureView: GPUTextureView;
-		}>;
-		for (const [k, v] of Object.entries(outDataMap)) {
-			resolvedOutputDataMap[k] = {
-				// 現在公開されている出力を、前回の結果として読む
-				previousFrameTexture: effect.needsPreviousFrame ? v.texture : undefined,
-				previousFrameTextureView: effect.needsPreviousFrame ? v.textureView : undefined,
-
-				// もう1枚へ書く
-				texture: effect.needsPreviousFrame ? v.previousFrameTexture! : v.texture,
-				textureView: effect.needsPreviousFrame ? v.previousFrameTextureView! : v.textureView,
-			};
-		}
-
-		effectInstance.render({
+		const renderer = this.effectRenderers.get(node.id)!;
+		renderer.render({
 			time: context.time / 1000,
 			timeDelta: context.timeDelta,
 			pointerPosition: context.pointerPosition,
@@ -591,41 +481,9 @@ export class VisualModuleRenderer {
 				y: context.pointerPositionPrev.y === -99999 ? 0 : context.pointerPosition.y - context.pointerPositionPrev.y,
 			},
 			params: resolvedParams,
-			outputDataMap: resolvedOutputDataMap,
 			usedOutputPorts: this.usedOutputPorts.get(node.id),
-			commandEncoder: commandEncoder,
-			createPassEncoderFor: (commandEncoder, view) => {
-				const descriptor = {
-					colorAttachments: [{
-						view: view,
-						clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
-						loadOp: 'clear',
-						storeOp: 'store',
-					}],
-				} satisfies GPURenderPassDescriptor;
-				return this.enableStats && this.timingHelper != null ? this.timingHelper.beginRenderPass(commandEncoder, descriptor) : commandEncoder.beginRenderPass(descriptor);
-			},
-			createPassEncoder: (commandEncoder, descriptor) => {
-				return this.enableStats && this.timingHelper != null ? this.timingHelper.beginRenderPass(commandEncoder, descriptor) : commandEncoder.beginRenderPass(descriptor);
-			},
-			createComputePassEncoder: (commandEncoder, descriptor) => {
-				return this.enableStats && this.timingHelper != null ? this.timingHelper.beginComputePass(commandEncoder, descriptor) : commandEncoder.beginComputePass(descriptor);
-			},
+			commandEncoder,
 		});
-
-		if (effect.needsPreviousFrame) {
-			for (const [k, v] of Object.entries(outDataMap)) {
-				// 今回書いた結果を後段へ公開
-				v.texture = resolvedOutputDataMap[k].texture;
-				v.textureView = resolvedOutputDataMap[k].textureView;
-
-				// 今回読んだものを次回の書き込み先として保持
-				v.previousFrameTexture = resolvedOutputDataMap[k].previousFrameTexture!;
-				v.previousFrameTextureView = resolvedOutputDataMap[k].previousFrameTextureView!;
-			}
-		}
-
-		this.updateOutputState(node, true);
 		context.rendered.add(node.id);
 		if (key != null) this.effectCacheKeys.set(node.id, key);
 		else this.effectCacheKeys.delete(node.id);
@@ -635,56 +493,20 @@ export class VisualModuleRenderer {
 		const effect = this.effectImplementations[node.effectId];
 		const inputKey = this.effectDefinitions[node.effectId].resolutionInputParameter;
 		const input = inputKey == null ? undefined : params[inputKey];
-		const resolution = resolveEffectNodeResolution({
+		this.effectRenderers.get(node.id)!.setResolution(resolveEffectNodeResolution({
 			setting: node.resolution, contextResolution: this.contextResolution,
 			resolutionScale: this.resolutionScale,
 			intrinsicResolution: node.resolution.mode === 'auto' ? effect.getIntrinsicResolution?.(params) : undefined,
 			inputResolution: input?.kind === 'texture' ? input.texture : undefined,
 			maxDimension: this.gpuDevice.limits.maxTextureDimension2D,
-		});
-		const previous = this.nodeResolutions.get(node.id);
-		if (previous?.width === resolution.width && previous.height === resolution.height) return;
-
-		// init時の寸法から内部bufferやuniformを作るエフェクトもあるため、出力だけを
-		// 差し替えない。サイズ変更時だけ再初期化し、履歴も新しい画素格子で開始する。
-		this.effectInstances.get(node.id)?.dispose();
-		this.effectInstances.delete(node.id);
-		this.clearEffectStatus(node.id);
-		this.effectCacheKeys.delete(node.id);
-		const outputs = this.outDataMapPerNodes.get(node.id)!;
-		const args = { resolution, wgpu: { device: this.gpuDevice, enable32bitDataTextures: this.enable32bitDataTextures, intermediateTextureFormat: this.intermediateTextureFormat } };
-		for (const [port, data] of Object.entries(outputs)) {
-			const texture = effect.outputTextureFactories[port](args);
-			const history = effect.needsPreviousFrame ? effect.outputTextureFactories[port](args) : undefined;
-			data.texture.destroy();
-			data.previousFrameTexture?.destroy();
-			outputs[port] = { texture, textureView: texture.createView(), previousFrameTexture: history, previousFrameTextureView: history?.createView() };
-		}
-		this.nodeResolutions.set(node.id, resolution);
-	}
-
-	private initializeEffect(node: VisualModuleEffectNode, params: Record<string, any>): EffectInstance {
-		const existing = this.effectInstances.get(node.id);
-		if (existing != null) return existing;
-		const state: { sent?: EffectStatus; outputs: EffectInstanceState['outputs']; published?: string } = { outputs: Object.fromEntries(Object.keys(this.effectDefinitions[node.effectId].outputDefs).map(port => [port, null])) };
-		this.effectStatuses.set(node.id, state);
-		const instance = this.effectImplementations[node.effectId].init({
-			reportStatus: status => {
-				// 破棄・再作成後の古い通知は無視する。
-				if (this.effectStatuses.get(node.id) === state) this.setEffectStatus(node.id, status);
-			},
-			resolution: { ...this.nodeResolutions.get(node.id)! },
-			wgpu: { device: this.gpuDevice, context: this.gpuContext, defaultVertexShaderModule: this.defaultVertexShaderModule, enable32bitDataTextures: this.enable32bitDataTextures, intermediateTextureFormat: this.intermediateTextureFormat },
-			params,
-			fallbackTexture: this.fallbackTexture,
-		});
-		this.effectInstances.set(node.id, instance);
-		if (state.sent == null) this.setEffectStatus(node.id, { type: 'ready' });
-		return instance;
+		}));
 	}
 
 	// 描画せずに初期化・パラメータ変更の準備を行い、履歴を余分に進めない。
 	public async prepare(context: VisualModuleRenderContext, signal: AbortSignal): Promise<void> {
+		if (signal.aborted || this.destroyed) return;
+		const preparationVersion = ++this.preparationVersion;
+		this.preparedContext = null;
 		const node = this.renderNodeId == null ? undefined : this.allNodeIdMap.get(this.renderNodeId);
 		if (node == null) return;
 
@@ -708,7 +530,7 @@ export class VisualModuleRenderer {
 			}
 			const params = this.resolveParams(effectNode, this.evaledNodeParams.get(effectNode.id)!);
 			this.ensureNodeResolution(effectNode, params);
-			this.initializeEffect(effectNode, params).prepare?.(params);
+			this.effectRenderers.get(effectNode.id)!.prepare(params);
 			prepared.add(effectNode.id);
 		};
 
@@ -716,22 +538,21 @@ export class VisualModuleRenderer {
 			visit(node, [], id);
 		}
 
-		await new Promise<void>((resolve, reject) => {
-			const check = () => {
-				const states = [...prepared].map(id => this.effectStatuses.get(id)!);
-				const error = states.find(state => state.sent?.type === 'error')?.sent;
-				if (!signal.aborted && !this.destroyed && error == null && states.some(state => state.sent?.type === 'loading')) return;
-				this.statusWaiters.delete(check);
-				signal.removeEventListener('abort', check);
-				if (!signal.aborted && !this.destroyed && error?.type === 'error') reject(new Error(error.message));
-				else resolve();
-			};
-			this.statusWaiters.add(check);
-			signal.addEventListener('abort', check);
-			check();
-		});
-
-		if (!signal.aborted && !this.destroyed) this.preparedContext = context;
+		// 各エフェクトの準備は先に開始し、待機だけをまとめる。失敗時には他の待機も
+		// 終了させるが、エフェクト自体は破棄せず、次の要求でリソース・履歴を再利用する。
+		const waitController = new AbortController();
+		const waitSignal = AbortSignal.any([signal, waitController.signal]);
+		try {
+			const ready = await Promise.all([...prepared].map(id => this.effectRenderers.get(id)!.waitUntilReady(waitSignal).then(ready => {
+				if (!ready) waitController.abort();
+				return ready;
+			})));
+			if (ready.every(Boolean) && !signal.aborted && !this.destroyed && preparationVersion === this.preparationVersion) {
+				this.preparedContext = context;
+			}
+		} finally {
+			waitController.abort();
+		}
 	}
 
 	private getRequestedOutputIds(context: VisualModuleRenderContext): readonly string[] {
@@ -740,7 +561,7 @@ export class VisualModuleRenderer {
 
 	private renderOutputs(context: VisualModuleRenderContext, commandEncoder: GPUCommandEncoder): Map<string, NodeOutput> {
 		const outputs = new Map<string, NodeOutput>();
-		if (this.renderNodeId == null) return outputs;
+		if (this.destroyed || this.renderNodeId == null) return outputs;
 		const node = this.allNodeIdMap.get(this.renderNodeId);
 		if (node == null) return outputs;
 
@@ -774,29 +595,19 @@ export class VisualModuleRenderer {
 		this.resolutionScale = resolutionScale;
 		this.contextResolution = scaleResolution(resolution, resolutionScale);
 		this.preparedContext = null;
+		++this.preparationVersion;
 		this.effectCacheKeys.clear();
 		// 実際にサイズが変わったノードだけ、次の準備・描画でリソースを更新する。
 	}
 
 	public destroy() {
 		this.destroyed = true;
-		for (const notify of this.statusWaiters) notify();
-		for (const id of this.effectStatuses.keys()) this.clearEffectStatus(id);
-		for (const instance of this.effectInstances.values()) {
-			instance?.dispose();
-		}
-		this.effectInstances.clear();
-
-		for (const outDataMap of this.outDataMapPerNodes.values()) {
-			for (const outData of Object.values(outDataMap)) {
-				outData.texture.destroy();
-				if (outData.previousFrameTexture) {
-					outData.previousFrameTexture.destroy();
-				}
-			}
-		}
-		this.outDataMapPerNodes.clear();
-		this.lazyOutputs.clear();
+		this.preparedContext = null;
+		++this.preparationVersion;
+		for (const renderer of this.effectRenderers.values()) renderer.dispose();
+		this.effectRenderers.clear();
+		this.effectCacheKeys.clear();
+		this.lazyEffectRenderers.clear();
 		this.usedOutputPorts.clear();
 	}
 }

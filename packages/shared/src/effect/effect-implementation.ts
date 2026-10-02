@@ -33,35 +33,51 @@ type RuntimeEffectOptionValue<D extends DataType, S> =
 			never;
 
 // パラメータ定義を元にresolveされた実行時に実際に渡される値
-type GetRuntimeEffectOptionsSchemaValues<T extends Record<string, ParameterDefinition>> = {
+export type RuntimeEffectParameters<T extends Record<string, ParameterDefinition>> = {
 	[K in keyof T]: RuntimeEffectOptionValue<T[K]['dataType'], T[K]>;
+};
+
+export type EffectOutputData = {
+	previousFrameTexture?: GPUTexture;
+	previousFrameTextureView?: GPUTextureView;
+	texture: GPUTexture;
+	textureView: GPUTextureView;
+};
+
+export type EffectOutputDataMap<Outputs extends EffectOutputDefinitions> = {
+	[K in keyof Outputs]: EffectOutputData;
+};
+
+export type EffectGpuContext = {
+	device: GPUDevice;
+	context: GPUCanvasContext;
+	defaultVertexShaderModule: GPUShaderModule;
+	enable32bitDataTextures: boolean;
+	intermediateTextureFormat: IntermediateTextureFormat;
+};
+
+export type EffectRenderContext<Options extends Record<string, ParameterDefinition> = any, Outputs extends EffectOutputDefinitions = any> = {
+	/** 呼び出し側が選んだ時刻（秒）。式・キーの評価スコープはここでは決めない。 */
+	time: number;
+	/** 前回描画からの経過時間（ミリ秒）。 */
+	timeDelta: number;
+	pointerPosition: { x: number; y: number; };
+	pointerVector: { x: number; y: number; };
+	outputDataMap: EffectOutputDataMap<Outputs>;
+	// この描画で必要な出力。定義済みのポート名だけを許可する。省略時は全出力を必要とする。
+	usedOutputPorts?: ReadonlySet<Extract<keyof Outputs, string>>;
+	commandEncoder: GPUCommandEncoder;
+	createPassEncoderFor: (commandEncoder: GPUCommandEncoder, view: GPUTextureView) => GPURenderPassEncoder;
+	createPassEncoder: (commandEncoder: GPUCommandEncoder, descriptor: GPURenderPassDescriptor) => GPURenderPassEncoder;
+	createComputePassEncoder: (commandEncoder: GPUCommandEncoder, descriptor?: GPUComputePassDescriptor) => GPUComputePassEncoder;
+	params: RuntimeEffectParameters<Options>;
 };
 
 export type EffectInstance<Options extends Record<string, ParameterDefinition> = any, Outputs extends EffectOutputDefinitions = any> = {
 	readonly cacheVersion?: number;
 	/** パラメータ変更による非同期の準備を開始する。完了はreportStatusで通知する。 */
-	prepare?: (params: GetRuntimeEffectOptionsSchemaValues<Options>) => void;
-	render: (ctx: {
-		time: number;
-		timeDelta: number;
-		pointerPosition: { x: number; y: number; };
-		pointerVector: { x: number; y: number; };
-		outputDataMap: {
-			[K in keyof Outputs]: {
-				previousFrameTexture?: GPUTexture;
-				previousFrameTextureView?: GPUTextureView;
-				texture: GPUTexture;
-				textureView: GPUTextureView;
-			};
-		};
-		// この描画で必要な出力。定義済みのポート名だけを許可する。省略時は全出力を必要とする。
-		usedOutputPorts?: ReadonlySet<Extract<keyof Outputs, string>>;
-		commandEncoder: GPUCommandEncoder;
-		createPassEncoderFor: (commandEncoder: GPUCommandEncoder, view: GPUTextureView) => GPURenderPassEncoder;
-		createPassEncoder: (commandEncoder: GPUCommandEncoder, descriptor: GPURenderPassDescriptor) => GPURenderPassEncoder;
-		createComputePassEncoder: (commandEncoder: GPUCommandEncoder, descriptor?: GPUComputePassDescriptor) => GPUComputePassEncoder;
-		params: GetRuntimeEffectOptionsSchemaValues<Options>;
-	}) => void;
+	prepare?: (params: RuntimeEffectParameters<Options>) => void;
+	render: (ctx: EffectRenderContext<Options, Outputs>) => void;
 	dispose: () => void;
 };
 
@@ -69,9 +85,9 @@ export type EffectImplementation<Definition extends Pick<EffectDefinition, 'para
 	disableCache?: boolean;
 	needsPreviousFrame?: boolean;
 	/** 自動モードで使う素材の原寸。プレビュー倍率の適用はレンダラーが行う。ノード入力の寸法は返さない。 */
-	getIntrinsicResolution?: (params: GetRuntimeEffectOptionsSchemaValues<Options>) => { width: number; height: number } | undefined;
+	getIntrinsicResolution?: (params: RuntimeEffectParameters<Options>) => { width: number; height: number } | undefined;
 	outputTextureFactories: {
-		// canLazyAllocation=trueのポートだけ遅延確保する。それ以外はノード追加時に確保する。
+		// canLazyAllocation=trueのポートだけ遅延確保する。それ以外はレンダラー作成時に確保する。
 		[K in keyof Definition['outputDefs']]: (args: {
 			resolution: { width: number; height: number; };
 			wgpu: {
@@ -84,16 +100,10 @@ export type EffectImplementation<Definition extends Pick<EffectDefinition, 'para
 	shader?: string;
 	init: (args: {
 		reportStatus: (status: EffectStatus) => void;
-		/** ノードの計算用解像度（プレビュー倍率適用済み）。変更時はdispose後に再初期化する。 */
+		/** 計算用解像度（プレビュー倍率適用済み）。変更時はdispose後に再初期化する。 */
 		resolution: { width: number; height: number; },
-		wgpu: {
-			device: GPUDevice;
-			context: GPUCanvasContext;
-			defaultVertexShaderModule: GPUShaderModule;
-			enable32bitDataTextures: boolean;
-			intermediateTextureFormat: IntermediateTextureFormat;
-		};
-		params: GetRuntimeEffectOptionsSchemaValues<Options>;
+		wgpu: EffectGpuContext;
+		params: RuntimeEffectParameters<Options>;
 		fallbackTexture: GPUTexture;
 	}) => EffectInstance<Options, Definition['outputDefs']>;
 };

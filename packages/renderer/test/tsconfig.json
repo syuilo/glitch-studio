@@ -3,6 +3,6 @@
 	"compilerOptions": {
 		"skipLibCheck": true
 	},
-	"include": ["*.types.ts"],
+	"include": ["*.types.ts", "helpers/effect-renderer-gpu.ts"],
 	"exclude": []
 }
