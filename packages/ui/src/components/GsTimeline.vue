@@ -124,12 +124,14 @@
 						@changeFinished="keyframeValueMergeKey = null"
 						@reset="updateKeyframeValue(selectedKeyframe.def.defaultValue.value)"
 					/>
-					<GsSelect v-if="supportsKeyframeInterpolation(selectedKeyframe.def.dataType)" small :modelValue="selectedKeyframe.keyframe.interpolation.type" :items="keyframeInterpolationItems" @update:modelValue="updateKeyframeInterpolationType">
-						<template #label>Interpolation to next keyframe</template>
-					</GsSelect>
-					<GsSelect v-if="supportsKeyframeInterpolation(selectedKeyframe.def.dataType) && selectedKeyframeEasingDirection != null" small :modelValue="selectedKeyframeEasingDirection" :items="easingDirectionItems" @update:modelValue="updateKeyframeEasingDirection">
-						<template #label>Easing direction</template>
-					</GsSelect>
+					<template v-for="editor in keyframeInterpolationEditors" :key="editor.keyframe.id">
+						<GsSelect small :modelValue="editor.keyframe.interpolation.type" :items="keyframeInterpolationItems" @update:modelValue="type => updateKeyframeInterpolationType(editor.keyframe.id, type)">
+							<template #label>{{ editor.label }}</template>
+						</GsSelect>
+						<GsSelect v-if="editor.direction != null" small :modelValue="editor.direction" :items="easingDirectionItems" @update:modelValue="direction => updateKeyframeEasingDirection(editor.keyframe.id, direction)">
+							<template #label>Easing direction</template>
+						</GsSelect>
+					</template>
 				</div>
 			</div>
 			<div v-else-if="selectedClipEntry != null" :class="$style.keyframeEditor">
@@ -410,6 +412,7 @@ const selectedKeyframe = computed(() => {
 	if (index < 0) return null;
 	return {
 		selection, binding, def, keyframe: keyframes[index],
+		previousKeyframe: keyframes[index - 1] ?? null,
 		minX: Math.max(0, keyframes[index - 1]?.x ?? -Infinity),
 		maxX: keyframes[index + 1]?.x ?? Infinity,
 	};
@@ -434,9 +437,18 @@ const easingDirectionItems: GsSelectItem<EasingDirection>[] = [
 	{ label: 'Out', value: 'out' },
 	{ label: 'InOut', value: 'inOut' },
 ];
-const selectedKeyframeEasingDirection = computed(() => {
-	const interpolation = selectedKeyframe.value?.keyframe.interpolation;
-	return interpolation != null && 'direction' in interpolation ? interpolation.direction : null;
+const keyframeInterpolationEditors = computed(() => {
+	const selected = selectedKeyframe.value;
+	if (selected == null || !supportsKeyframeInterpolation(selected.def.dataType)) return [];
+	const editors = [{ keyframe: selected.keyframe, label: 'Interpolation to next keyframe' }];
+	// このキーまでの補間は直前のキーが所有する。選択は維持し、編集先のIDだけを切り替える。
+	if (selected.previousKeyframe != null) {
+		editors.unshift({ keyframe: selected.previousKeyframe, label: 'Interpolation from previous keyframe' });
+	}
+	return editors.map(editor => ({
+		...editor,
+		direction: 'direction' in editor.keyframe.interpolation ? editor.keyframe.interpolation.direction : null,
+	}));
 });
 
 watch(selectedKeyframeSelection, () => { keyframeValueMergeKey.value = null; });
@@ -448,10 +460,10 @@ function onKeyframeSelected(selection: TimelineKeyframeSelection) {
 	selectedKeyframeSelection.value = selection;
 }
 
-function updateSelectedKeyframe(patch: { x?: number; value?: unknown; interpolation?: KeyframeInterpolation }, mergeKey?: string | null) {
+function updateKeyframe(keyframeId: string, patch: { x?: number; value?: unknown; interpolation?: KeyframeInterpolation }, mergeKey?: string | null) {
 	const selected = selectedKeyframe.value;
 	if (selected == null) return;
-	const value = updateInlineKeyframe(selected.binding, selected.def, selected.selection.keyframeId, patch);
+	const value = updateInlineKeyframe(selected.binding, selected.def, keyframeId, patch);
 	if (value == null) return;
 	appStateManager.commit('editTimelineLayerParam', {
 		sceneId: props.sceneId,
@@ -461,27 +473,31 @@ function updateSelectedKeyframe(patch: { x?: number; value?: unknown; interpolat
 	}, mergeKey);
 }
 
-function updateKeyframeInterpolationType(type: KeyframeInterpolation['type']) {
+function updateKeyframeInterpolationType(keyframeId: string, type: KeyframeInterpolation['type']) {
+	const current = selectedKeyframe.value?.binding.keyframesTimeline.keyframes.find(keyframe => keyframe.id === keyframeId)?.interpolation;
+	if (current == null) return;
 	const interpolation: KeyframeInterpolation = type === 'linear' || type === 'hold' ? { type }
-		: { type, direction: selectedKeyframeEasingDirection.value ?? 'inOut' };
-	updateSelectedKeyframe({ interpolation });
+		: { type, direction: 'direction' in current ? current.direction : 'inOut' };
+	updateKeyframe(keyframeId, { interpolation });
 }
 
-function updateKeyframeEasingDirection(direction: EasingDirection) {
-	const interpolation = selectedKeyframe.value?.keyframe.interpolation;
+function updateKeyframeEasingDirection(keyframeId: string, direction: EasingDirection) {
+	const interpolation = selectedKeyframe.value?.binding.keyframesTimeline.keyframes.find(keyframe => keyframe.id === keyframeId)?.interpolation;
 	if (interpolation == null || !('direction' in interpolation)) return;
-	updateSelectedKeyframe({ interpolation: { ...interpolation, direction } });
+	updateKeyframe(keyframeId, { interpolation: { ...interpolation, direction } });
 }
 
 function updateKeyframeValue(value: unknown, mergeKey?: string | null) {
-	updateSelectedKeyframe({ value }, mergeKey);
+	const selected = selectedKeyframe.value;
+	if (selected == null) return;
+	updateKeyframe(selected.selection.keyframeId, { value }, mergeKey);
 }
 
 function updateKeyframeTime(value: string | number) {
 	const selected = selectedKeyframe.value;
 	const x = Number(value);
 	if (selected == null || !Number.isFinite(x)) return;
-	updateSelectedKeyframe({ x: Math.max(selected.minX, Math.min(selected.maxX, x)) });
+	updateKeyframe(selected.selection.keyframeId, { x: Math.max(selected.minX, Math.min(selected.maxX, x)) });
 }
 
 // TODO: TLの表示DOMサイズに応じて変更
