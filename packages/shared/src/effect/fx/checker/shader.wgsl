@@ -32,7 +32,10 @@ fn fs(fragData: FragmentIn) -> @location(0) vec4f {
 	let checkerMask = indexSum - 2.0 * floor(indexSum * 0.5);
 	let opacity = checkerMask * clamp(uniforms.color.a, 0.0, 1.0);
 
-	// 元の入力alphaを維持する。定数色だけを入力alphaに合わせて乗算し、
-	// 既にpremultipliedな入力RGBには再乗算しない。色自身のalphaは強度に反映する。
-	return vec4f(mix(backgroundColor.rgb, uniforms.color.rgb * backgroundColor.a, opacity), backgroundColor.a);
+	// 透明な背景にもパターンを描けるよう、source-overでalphaも合成する。
+	// 定数色だけをpremultiplyし、既に乗算済みの背景RGBにはalphaを再乗算しない。
+	return vec4f(
+		uniforms.color.rgb * opacity + backgroundColor.rgb * (1.0 - opacity),
+		opacity + backgroundColor.a * (1.0 - opacity),
+	);
 }

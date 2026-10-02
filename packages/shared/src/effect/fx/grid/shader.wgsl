@@ -51,7 +51,11 @@ fn fs(fragData: FragmentIn) -> @location(0) vec4f {
 		}
 	}
 
-	// 入力alphaを維持し、線のalphaを着色の強度として使う。
-	// 定数色だけを入力alphaに合わせ、premultipliedな入力RGBは再乗算しない。
-	return vec4f(mix(backgroundColor.rgb, lineColor.rgb * backgroundColor.a, clamp(lineColor.a, 0.0, 1.0)), backgroundColor.a);
+	let opacity = clamp(lineColor.a, 0.0, 1.0);
+	// 透明な背景にも線を描けるよう、source-overでalphaも合成する。
+	// 定数色だけをpremultiplyし、既に乗算済みの背景RGBにはalphaを再乗算しない。
+	return vec4f(
+		lineColor.rgb * opacity + backgroundColor.rgb * (1.0 - opacity),
+		opacity + backgroundColor.a * (1.0 - opacity),
+	);
 }

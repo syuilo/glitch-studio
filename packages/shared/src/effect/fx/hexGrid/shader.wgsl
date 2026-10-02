@@ -45,7 +45,10 @@ fn fs(fragData: FragmentIn) -> @location(0) vec4f {
 	let isLine = uniforms.lineWidth > 0.0 && edgeDistance <= uniforms.lineWidth * 0.5;
 	// セル内部はBackgroundをそのまま表示し、線の部分だけを着色する。
 	let opacity = select(0.0, clamp(uniforms.lineColor.a, 0.0, 1.0), isLine);
-	// 他のパターンと同じく背景のalphaを保持し、色のalphaを着色強度に使う。
-	// 背景RGBは既にpremultipliedなので、定数色だけを背景alphaに合わせる。
-	return vec4f(mix(backgroundColor.rgb, uniforms.lineColor.rgb * backgroundColor.a, opacity), backgroundColor.a);
+	// 透明な背景にも線を描けるよう、source-overでalphaも合成する。
+	// 定数色だけをpremultiplyし、既に乗算済みの背景RGBにはalphaを再乗算しない。
+	return vec4f(
+		uniforms.lineColor.rgb * opacity + backgroundColor.rgb * (1.0 - opacity),
+		opacity + backgroundColor.a * (1.0 - opacity),
+	);
 }

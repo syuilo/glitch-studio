@@ -25,6 +25,10 @@ fn fs(fragData: FragmentIn) -> @location(0) vec4f {
 	// 元の正弦波のしきい値を維持するため、Widthは実際の面積比には比例しない。
 	let stripeMask = select(0.0, 1.0, wave < uniforms.threshold);
 	let opacity = stripeMask * clamp(uniforms.color.a, 0.0, 1.0);
-	// 入力alphaは保持し、定数色だけを同じalphaの乗算済みRGBに変換する。
-	return vec4f(mix(backgroundColor.rgb, uniforms.color.rgb * backgroundColor.a, opacity), backgroundColor.a);
+	// 透明な背景にも縞を描けるよう、source-overでalphaも合成する。
+	// 定数色だけをpremultiplyし、既に乗算済みの背景RGBにはalphaを再乗算しない。
+	return vec4f(
+		uniforms.color.rgb * opacity + backgroundColor.rgb * (1.0 - opacity),
+		opacity + backgroundColor.a * (1.0 - opacity),
+	);
 }

@@ -45,7 +45,11 @@ fn fs(fragData: FragmentIn) -> @location(0) vec4f {
 		dotColor = uniforms.minorColor;
 	}
 
-	// 元の入力alphaを維持する。定数色だけを入力alphaに合わせて乗算し、
-	// 既にpremultipliedな入力RGBには再乗算しない。色自身のalphaは強度に反映する。
-	return vec4f(mix(backgroundColor.rgb, dotColor.rgb * backgroundColor.a, clamp(dotColor.a, 0.0, 1.0)), backgroundColor.a);
+	let opacity = clamp(dotColor.a, 0.0, 1.0);
+	// 透明な背景にもドットを描けるよう、source-overでalphaも合成する。
+	// 定数色だけをpremultiplyし、既に乗算済みの背景RGBにはalphaを再乗算しない。
+	return vec4f(
+		dotColor.rgb * opacity + backgroundColor.rgb * (1.0 - opacity),
+		opacity + backgroundColor.a * (1.0 - opacity),
+	);
 }
