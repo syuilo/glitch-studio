@@ -1,4 +1,4 @@
-import { constantShaderInput } from '@glitch/shared/shader-input.ts';
+import { constantShaderInput } from '@glitch/shared/gpu/shader-input.ts';
 import type { ParameterDefinition } from '@glitch/shared/parameter.ts';
 import type { Asset } from '@glitch/shared/types.ts';
 

@@ -4,7 +4,7 @@ import { createTimelineCompositor } from './timeline-compositor.ts';
 import { TimelineCompositingParameters } from './timeline-compositing-parameters.ts';
 import type { TimelineVideoLayer } from '@glitch/shared/timeline/types.ts';
 import type { IntermediateTextureFormat } from '@glitch/shared/types.ts';
-import type { NodeOutput } from '../../renderer/src/node-output.ts';
+import type { UniformOrTexture } from '@glitch/shared/gpu/uniform-or-texture.ts';
 import type { TimelineLayerRenderer } from './timeline-renderer.ts';
 
 export function createVideoTimelineLayer(layer: TimelineVideoLayer, blob: Blob, options: {
@@ -13,7 +13,7 @@ export function createVideoTimelineLayer(layer: TimelineVideoLayer, blob: Blob, 
 	resolution: { width: number; height: number };
 	resolutionScale: number;
 	format: IntermediateTextureFormat;
-}): TimelineLayerRenderer<NodeOutput> {
+}): TimelineLayerRenderer<UniformOrTexture> {
 	const source = openVideoSource(blob);
 	const texture = createVideoTexture(options.device, options.format);
 	const compositor = createTimelineCompositor(options);
@@ -31,7 +31,7 @@ export function createVideoTimelineLayer(layer: TimelineVideoLayer, blob: Blob, 
 					if (disposed || signal.aborted) return { gpuTime: 0 };
 					// replaceの無変形時はcompositorが素材を直接返すため、合成前に原寸へ倍率を
 					// 一度だけ適用する。後続モジュールの自動解像度は、この計算用寸法を継承する。
-					const foreground: NodeOutput = sample ? { kind: 'texture', texture: texture.upload(sample, options.resolutionScale) }
+					const foreground: UniformOrTexture = sample ? { kind: 'texture', texture: texture.upload(sample, options.resolutionScale) }
 						: { kind: 'uniform', value: [0, 0, 0, 0] };
 					const encoder = options.device.createCommandEncoder();
 					try {

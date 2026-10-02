@@ -4,11 +4,11 @@ import { ParameterEvaluator } from '@glitch/shared/parameter-evaluator.ts';
 import { validateEnumParameterValue } from '@glitch/shared/parameter.ts';
 import { createTimelineLayerEvaluationScope } from '@glitch/shared/timeline/evaluation-scope.ts';
 import { getEffectLayerParameterDefault, validateTimelineEffectLayer } from '@glitch/shared/timeline/effect-layer.ts';
+import { toShaderInput } from '@glitch/shared/gpu/shader-input.ts';
 import { EffectRenderer } from './effect-renderer.ts';
 import { resolveEffectParameterValue } from './effect-parameter-value.ts';
 import { resolveEffectNodeResolution } from './effect-node-resolution.ts';
 import { mapNodeParam } from './utility/node-params.ts';
-import { outputShaderInput } from './node-output.ts';
 import { createTimelineCompositor } from './timeline-compositor.ts';
 import { TimelineCompositingParameters } from './timeline-compositing-parameters.ts';
 import type { EffectDefinition } from '@glitch/effect-shared/effect-definition.ts';
@@ -18,7 +18,7 @@ import type { TimelineEffectLayer } from '@glitch/shared/timeline/types.ts';
 import type { Resolution } from '@glitch/shared/resolution.ts';
 import type { Asset } from '@glitch/shared/types.ts';
 import type { TimelineLayerRenderer } from './timeline-renderer.ts';
-import type { NodeOutput } from './node-output.ts';
+import type { UniformOrTexture } from '@glitch/shared/gpu/uniform-or-texture.ts';
 
 /** レイヤーの評価スコープ・入力・合成を所有し、エフェクト自身の実行はEffectRendererへ委ねる。 */
 export function createEffectTimelineLayer(layer: TimelineEffectLayer, definition: EffectDefinition, implementation: EffectImplementation, options: {
@@ -30,7 +30,7 @@ export function createEffectTimelineLayer(layer: TimelineEffectLayer, definition
 	assets: readonly Asset[];
 	assetTextures: ReadonlyMap<string, GPUTexture>;
 	onState?: (state: EffectInstanceState | null) => void;
-}): TimelineLayerRenderer<NodeOutput> {
+}): TimelineLayerRenderer<UniformOrTexture> {
 	// 設定更新時はManagerがインスタンスを作り直す。Bindingの検証と既定値の補完は
 	// 受け入れ時に行い、毎フレーム、未評価のキーフレーム列まで複製・再検証しない。
 	validateTimelineEffectLayer(layer, definition);
@@ -56,7 +56,7 @@ export function createEffectTimelineLayer(layer: TimelineEffectLayer, definition
 																																																											automationGraphs: layer.automationGraphs }), evaluatedParamValues: null };
 			const params = Object.fromEntries(parameters.map(({ key, def, binding }) => {
 				return [key, mapNodeParam(def, binding, [key], (leaf, value) => {
-					if (value.inputSource === 'layerInput') return outputShaderInput(context.input, value);
+					if (value.inputSource === 'layerInput') return toShaderInput(context.input, value);
 					const fallback = value.inputSource === 'automationGraphReference' || (leaf.dataType.kind === 'enum' && value.inputSource === 'keyframesTimelineInline')
 						? leaf.defaultValue.value : leaf.dataType.kind === 'enum' ? undefined : genEmptyValue(leaf);
 					// await前に評価結果だけを固定する。literalの配列を準備中の編集と共有せず、

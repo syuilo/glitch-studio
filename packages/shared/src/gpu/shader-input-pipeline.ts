@@ -1,7 +1,7 @@
 import { createShaderInputBindings, generateShaderInputs, shaderInputVariantKey } from './shader-input.ts';
 import type { ShaderInputValues, ShaderInputSchema } from './shader-input.ts';
 
-/** 入力種別ごとのpipelineと入力bufferを所有する。内部リソースは先行するgroupへ置く。 */
+/** シェーダー入力種別ごとのpipelineと入力bufferを所有する。内部リソースは先行するgroupへ置く。 */
 export function createShaderInputPipeline<const Schema extends ShaderInputSchema>(options: {
 	device: GPUDevice;
 	vertex: GPUShaderModule;

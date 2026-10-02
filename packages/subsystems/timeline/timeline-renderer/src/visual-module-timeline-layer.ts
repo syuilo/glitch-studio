@@ -5,7 +5,7 @@ import { validateEnumParameterValue } from '@glitch/shared/parameter.ts';
 import { createTimelineLayerEvaluationScope } from '@glitch/shared/timeline/evaluation-scope.ts';
 import { validateTimelineParameterTree } from '@glitch/shared/timeline/parameter-binding.ts';
 import type { VisualModuleCustomParameterId, VisualModule } from '@glitch/shared/visual-module/types.ts';
-import type { NodeOutput } from './node-output.ts';
+import type { UniformOrTexture } from '@glitch/shared/gpu/uniform-or-texture.ts';
 import type { TimelineVisualModuleLayer, TimelineInlineVisualModuleLayer } from '@glitch/shared/timeline/types.ts';
 import type { VisualModuleRenderContext } from './visual-module-renderer.ts';
 import type { TimelineLayerContext, TimelineLayerRenderer } from './timeline-renderer.ts';
@@ -16,17 +16,17 @@ export function createVisualModuleTimelineLayer(
 	layerSource: TimelineVisualModuleLayer | TimelineInlineVisualModuleLayer | (() => TimelineVisualModuleLayer | TimelineInlineVisualModuleLayer),
 	renderer: {
 		prepare: (context: VisualModuleRenderContext, signal: AbortSignal) => Promise<void>;
-		render: (context: VisualModuleRenderContext, layerContext: TimelineLayerContext<NodeOutput>) => ReturnType<TimelineLayerRenderer<NodeOutput>['evaluate']>;
+		render: (context: VisualModuleRenderContext, layerContext: TimelineLayerContext<UniformOrTexture>) => ReturnType<TimelineLayerRenderer<UniformOrTexture>['evaluate']>;
 		destroy: () => void;
 	},
-): TimelineLayerRenderer<NodeOutput> {
+): TimelineLayerRenderer<UniformOrTexture> {
 	const evaluator = new ParameterEvaluator();
 	return {
 		evaluate: async (context, signal) => {
 			if (signal.aborted) return { gpuTime: 0 };
 			const visualModule = typeof moduleSource === 'function' ? moduleSource() : moduleSource;
 			const layer = typeof layerSource === 'function' ? layerSource() : layerSource;
-			const paramInputs = new Map<VisualModuleCustomParameterId, NodeOutput>();
+			const paramInputs = new Map<VisualModuleCustomParameterId, UniformOrTexture>();
 			if (visualModule.primaryInputId !== null) paramInputs.set(visualModule.primaryInputId, context.input);
 			const evaluationContext = {
 				...createTimelineLayerEvaluationScope({ time: context.sceneTimeMs, isExport: context.isExport, automationGraphs: layer.automationGraphs }),

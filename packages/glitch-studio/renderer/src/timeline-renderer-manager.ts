@@ -24,7 +24,7 @@ import defaultVertexShaderCode from './vertex.wgsl?raw';
 import type { VisualModuleTarget } from '@glitch/shared/project/visual-module-target.ts';
 import type { RendererProjectChange, RendererProjectState } from '@glitch/shared/project/renderer-state.ts';
 import type { ProjectVisualModule } from '@glitch/shared/project/types.ts';
-import type { NodeOutput } from '../../renderer/src/node-output.ts';
+import type { UniformOrTexture } from '@glitch/shared/gpu/uniform-or-texture.ts';
 import type { FrameScheduler } from '../../visual-module-renderer/src/live-render-loop.ts';
 import type { TimelineLayerRenderer } from '../../subsystems/timeline/timeline-renderer/src/timeline-renderer.ts';
 import type { EffectInstanceState } from '@glitch/effect-shared/effect-status.ts';
@@ -76,7 +76,7 @@ export type TimelineRendererManagerEvents = {
 export class TimelineRendererManager extends EventEmitter<{
 	'ev': (ctx: { [K in keyof TimelineRendererManagerEvents]: { type: K; ctx: Parameters<TimelineRendererManagerEvents[K]>[0] } }[keyof TimelineRendererManagerEvents]) => void;
 }> {
-	private timelineRenderer: TimelineRenderer<NodeOutput, TimelineLayer>;
+	private timelineRenderer: TimelineRenderer<UniformOrTexture, TimelineLayer>;
 	private previewRenderGeneration = 0;
 	private nextTimelineLayerStatusId = 0;
 	private previewScheduler = new TimelinePreviewScheduler(time => this.renderPreviewFrame(time));
@@ -151,7 +151,7 @@ export class TimelineRendererManager extends EventEmitter<{
 			waveformVerticalGpuContext: coreConfig.waveformVerticalGpuContext,
 		});
 
-		this.timelineRenderer = new TimelineRenderer<NodeOutput, TimelineLayer>({
+		this.timelineRenderer = new TimelineRenderer<UniformOrTexture, TimelineLayer>({
 			fallbackOutput: { kind: 'uniform', value: [0, 0, 0, 0] },
 			createLayer: (entry, clipId) => this.createTimelineLayer(entry, clipId, [entry.id], this.sceneBaseResolution),
 			getLayerVersion: (entry, clipId) => this.getLayerVersion(this.dynamicOptions.sceneId!, entry, clipId),
@@ -355,7 +355,7 @@ export class TimelineRendererManager extends EventEmitter<{
 		return this.dynamicOptions.sceneId == null ? [] : getTimelineScene(this.dynamicOptions.timelineScenes, this.dynamicOptions.sceneId).layers.filter(layer => layer.layerType !== 'audio');
 	}
 
-	private createTimelineLayer(layer: TimelineLayer, clipId: string, layerPath: string[], sceneBaseResolution: Resolution, sceneId = this.dynamicOptions.sceneId!): TimelineLayerRenderer<NodeOutput> {
+	private createTimelineLayer(layer: TimelineLayer, clipId: string, layerPath: string[], sceneBaseResolution: Resolution, sceneId = this.dynamicOptions.sceneId!): TimelineLayerRenderer<UniformOrTexture> {
 		const renderResolution = scaleResolution(sceneBaseResolution, this.dynamicOptions.resolutionScale);
 		// レイヤーの種類の解釈とリソース解決は、タイムライン制御の外側で行う。
 		switch (layer.layerType) {
@@ -431,7 +431,7 @@ export class TimelineRendererManager extends EventEmitter<{
 		};
 	}
 
-	private createVisualModuleLayer(visualModule: VisualModule, layer: TimelineVisualModuleLayer | TimelineInlineVisualModuleLayer, clipId: string, layerPath: string[], sceneBaseResolution: Resolution, sceneId: string): TimelineLayerRenderer<NodeOutput> {
+	private createVisualModuleLayer(visualModule: VisualModule, layer: TimelineVisualModuleLayer | TimelineInlineVisualModuleLayer, clipId: string, layerPath: string[], sceneBaseResolution: Resolution, sceneId: string): TimelineLayerRenderer<UniformOrTexture> {
 		const target: VisualModuleTarget = layer.layerType === 'visualModule' ? { visualModuleId: layer.visualModuleId }
 			: { sceneId, inlineVisualModuleLayerId: layer.id };
 		const getModule = () => findRendererVisualModule(this.dynamicOptions, target)!;
@@ -467,7 +467,7 @@ export class TimelineRendererManager extends EventEmitter<{
 			prepare: (context, signal) => renderer.prepare(context, signal),
 			render: async (context, layerContext) => {
 				const commandEncoder = this.gpuDevice.createCommandEncoder();
-				let output: NodeOutput | undefined;
+				let output: UniformOrTexture | undefined;
 				const gpuTime = 0;
 				try {
 					output = renderer.render(context, commandEncoder);

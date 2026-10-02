@@ -1,10 +1,10 @@
 import { scaleResolution } from '@glitch/shared/resolution.ts';
-import { createShaderInputPipeline } from '@glitch/effect-shared/shader-input-pipeline.ts';
+import { createShaderInputPipeline } from '@glitch/shared/gpu/shader-input-pipeline.ts';
 import { createTimelineCompositor } from './timeline-compositor.ts';
 import { TimelineCompositingParameters } from './timeline-compositing-parameters.ts';
 import type { TimelineImageLayer } from '@glitch/shared/timeline/types.ts';
 import type { IntermediateTextureFormat } from '@glitch/shared/types.ts';
-import type { NodeOutput } from './node-output.ts';
+import type { UniformOrTexture } from '@glitch/shared/gpu/uniform-or-texture.ts';
 import type { TimelineLayerRenderer } from './timeline-renderer.ts';
 
 export function createImageTimelineLayer(layer: TimelineImageLayer, sourceTexture: GPUTexture, options: {
@@ -13,7 +13,7 @@ export function createImageTimelineLayer(layer: TimelineImageLayer, sourceTextur
 	resolution: { width: number; height: number };
 	resolutionScale: number;
 	format: IntermediateTextureFormat;
-}): TimelineLayerRenderer<NodeOutput> {
+}): TimelineLayerRenderer<UniformOrTexture> {
 	const compositor = createTimelineCompositor(options);
 	const parameters = new TimelineCompositingParameters();
 	const sourceResolution = scaleResolution(sourceTexture, options.resolutionScale);
@@ -46,7 +46,7 @@ export function createImageTimelineLayer(layer: TimelineImageLayer, sourceTextur
 					pass.draw(6);
 					pass.end();
 				}
-				const foreground: NodeOutput = { kind: 'texture', texture: scaledTexture ?? sourceTexture };
+				const foreground: UniformOrTexture = { kind: 'texture', texture: scaledTexture ?? sourceTexture };
 				return { output: compositor.render(encoder, context.input, foreground, settings), gpuTime: 0 };
 			} finally { options.device.queue.submit([encoder.finish()]); }
 		},

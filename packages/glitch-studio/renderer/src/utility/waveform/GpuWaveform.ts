@@ -1,5 +1,5 @@
 import { createWaveform } from '@glitch/shared/utility/waveform/waveform.ts';
-import { textureShaderInput } from '@glitch/shared/shader-input.ts';
+import { textureShaderInput } from '@glitch/shared/gpu/shader-input.ts';
 import vertexShaderCode from '../../vertex.wgsl?raw';
 
 const MAX_SAMPLE_EDGE = 1024;

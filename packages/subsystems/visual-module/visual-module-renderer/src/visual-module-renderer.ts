@@ -1,6 +1,6 @@
 import { scaleResolution, type Resolution } from '@glitch/shared/resolution.ts';
 import { visualModuleCustomParameterId, type VisualModuleCustomParameterId } from '@glitch/shared/visual-module/types.ts';
-import { constantShaderInput } from '@glitch/effect-shared/shader-input.ts';
+import { constantShaderInput, toShaderInput } from '@glitch/shared/gpu/shader-input.ts';
 import { getNodeOutputs } from '@glitch/shared/utility/node-outputs.ts';
 import { playerAudioSourceId } from '@glitch/shared/audio.ts';
 import { AudioHistory } from '@glitch/shared/audio-history.ts';
@@ -9,13 +9,12 @@ import { ParameterEvaluator } from '@glitch/shared/parameter-evaluator.js';
 import { validateEnumParameterValue } from '@glitch/shared/parameter.ts';
 import { EffectRenderer } from '@glitch/effect-renderer/effect-renderer.ts';
 import { resolveEffectNodeResolution } from '../../../../renderer/src/effect-node-resolution.ts';
-import { outputShaderInput } from '../../../../renderer/src/node-output.ts';
 import { resolveEffectParameterValue } from '../../../../renderer/src/effect-parameter-value.ts';
 import { getEvaluatedParam, mapNodeParam, walkNodeParams } from '../../../../renderer/src/utility/node-params.ts';
 import defaultVertexShaderCode from './vertex.wgsl?raw';
 import type TimingHelper from '../../../../renderer/src/utility/TimingHelper.ts';
 import type { EvaluatedParameterValues, ParameterEvaluationContext } from '@glitch/shared/parameter-evaluator.js';
-import type { NodeOutput } from '../../../../renderer/src/node-output.ts';
+import type { UniformOrTexture } from '@glitch/shared/gpu/uniform-or-texture.ts';
 import type { EffectInstanceState } from '@glitch/effect-shared/effect-status.ts';
 import type { AudioSourceId } from '@glitch/shared/audio.ts';
 import type { Asset, AutomationGraph, IntermediateTextureFormat } from '@glitch/shared/types.ts';
@@ -36,7 +35,7 @@ export type VisualModuleRenderContext = {
 	endTime: number; // 終了時刻という概念がないコンテキスト(例: live mode)の場合はInfinityとすること。
 	/** 内容時刻と独立した表示区間の進行率。タイムラインの呼び出し側で計算する。 */
 	progress?: number;
-	paramInputs?: ReadonlyMap<VisualModuleCustomParameterId, NodeOutput>;
+	paramInputs?: ReadonlyMap<VisualModuleCustomParameterId, UniformOrTexture>;
 	pointerPosition: { x: number; y: number };
 	pointerPositionPrev: { x: number; y: number };
 	evaluatedParamValues: EvaluatedParameterValues;
@@ -55,7 +54,7 @@ export class VisualModuleRenderer {
 	private primaryOutputId: string | null = null;
 	private primaryInputId: VisualModuleCustomParameterId | null = null;
 	private paramValues: EvaluatedParameterValues = new Map();
-	private paramInputs: ReadonlyMap<VisualModuleCustomParameterId, NodeOutput> = new Map();
+	private paramInputs: ReadonlyMap<VisualModuleCustomParameterId, UniformOrTexture> = new Map();
 	private preparedContext: VisualModuleRenderContext | null = null;
 	private preparationVersion = 0;
 	private destroyed = false;
@@ -138,7 +137,7 @@ export class VisualModuleRenderer {
 		this.updateNodes(visualModule.nodes);
 	}
 
-	private getParamOutput(paramId: VisualModuleCustomParameterId): NodeOutput | undefined {
+	private getParamOutput(paramId: VisualModuleCustomParameterId): UniformOrTexture | undefined {
 		const def = this.paramDefs.find(def => def.id === paramId);
 		if (def == null || !def.canNode) return undefined;
 		const input = this.paramInputs.get(paramId);
@@ -273,7 +272,7 @@ export class VisualModuleRenderer {
 				};
 				if (def.canNode && param.inputSource === 'node' && param.nodeId != null) {
 					const output = this.getOutputValue(this.allNodeIdMap.get(param.nodeId)!, param.outputPort);
-					return output == null ? constantShaderInput(def.dataType.kind, null) : outputShaderInput(output, param);
+					return output == null ? constantShaderInput(def.dataType.kind, null) : toShaderInput(output, param);
 				}
 				return resolveEffectParameterValue(def, v, { assets: this.assets, assetTextures: this.assetTextures });
 			});
@@ -404,7 +403,7 @@ export class VisualModuleRenderer {
 		return source == null ? undefined : this.getOutputNode(source, input!.outputPort, nextVisited);
 	}
 
-	private getOutputValue(node: VisualModuleNode, outputPort: string): NodeOutput | undefined {
+	private getOutputValue(node: VisualModuleNode, outputPort: string): UniformOrTexture | undefined {
 		const output = this.getOutputNode(node, outputPort);
 		if (output == null) return undefined;
 		if (output.node.type === 'globalIn') return this.getParamOutput(visualModuleCustomParameterId(output.outputPort));
@@ -554,8 +553,8 @@ export class VisualModuleRenderer {
 		return context.outputIds ?? (this.primaryOutputId == null ? [] : [this.primaryOutputId]);
 	}
 
-	private renderOutputs(context: VisualModuleRenderContext, commandEncoder: GPUCommandEncoder): Map<string, NodeOutput> {
-		const outputs = new Map<string, NodeOutput>();
+	private renderOutputs(context: VisualModuleRenderContext, commandEncoder: GPUCommandEncoder): Map<string, UniformOrTexture> {
+		const outputs = new Map<string, UniformOrTexture>();
 		if (this.destroyed || this.renderNodeId == null) return outputs;
 		const node = this.allNodeIdMap.get(this.renderNodeId);
 		if (node == null) return outputs;
@@ -581,7 +580,7 @@ export class VisualModuleRenderer {
 		return outputs;
 	}
 
-	public render(context: VisualModuleRenderContext, commandEncoder: GPUCommandEncoder): NodeOutput | undefined {
+	public render(context: VisualModuleRenderContext, commandEncoder: GPUCommandEncoder): UniformOrTexture | undefined {
 		const outputs = this.renderOutputs(context, commandEncoder);
 		return this.primaryOutputId == null ? undefined : outputs.get(this.primaryOutputId);
 	}

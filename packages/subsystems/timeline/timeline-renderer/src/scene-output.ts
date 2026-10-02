@@ -1,5 +1,6 @@
-import { createShaderInputPipeline } from '@glitch/shared/shader-input-pipeline.ts';
-import { outputShaderInput, type NodeOutput } from '../../renderer/src/node-output.ts';
+import { createShaderInputPipeline } from '@glitch/shared/gpu/shader-input-pipeline.ts';
+import { toShaderInput } from '@glitch/shared/gpu/shader-input.ts';
+import type { UniformOrTexture } from '@glitch/shared/gpu/uniform-or-texture.ts';
 import type { Resolution } from '@glitch/shared/resolution.ts';
 import type { IntermediateTextureFormat } from '@glitch/shared/types.ts';
 
@@ -13,7 +14,7 @@ export function createSceneOutput(options: {
 	let texture: GPUTexture | undefined;
 	let pipeline: ReturnType<typeof createShaderInputPipeline> | undefined;
 	return {
-		render(encoder: GPUCommandEncoder, output: NodeOutput): GPUTexture {
+		render(encoder: GPUCommandEncoder, output: UniformOrTexture): GPUTexture {
 			const { resolution } = options;
 			if (output.kind === 'texture' && output.texture.width === resolution.width && output.texture.height === resolution.height) return output.texture;
 			texture ??= options.device.createTexture({ size: resolution, format: options.format,
@@ -25,7 +26,7 @@ export function createSceneOutput(options: {
 			// 各レイヤーのfitは合成済み。replaceの省略経路も画面と同じ縦横比に限られるため、
 			// ここでは再度fitせず画面全体を転写する。定数もSceneの寸法を持つ素材にする。
 			// 入力はpremultiply済みなので、RGBAをそのまま補間して二重乗算を避ける。
-			const variant = pipeline.update({ source: outputShaderInput(output, { fitMode: 'stretch', wrapMode: 'clamp', filterMode: 'linear' }) }, resolution);
+			const variant = pipeline.update({ source: toShaderInput(output, { fitMode: 'stretch', wrapMode: 'clamp', filterMode: 'linear' }) }, resolution);
 			const pass = encoder.beginRenderPass({ colorAttachments: [{ view: texture.createView(), loadOp: 'clear', storeOp: 'store', clearValue: [0, 0, 0, 0] }] });
 			pass.setPipeline(variant.pipeline);
 			pass.setBindGroup(pipeline.inputGroup, variant.bindGroup);

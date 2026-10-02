@@ -1,3 +1,5 @@
+import type { UniformOrTexture, UniformValue, TextureValue } from './uniform-or-texture.ts';
+
 type InputFitMode = 'stretch' | 'cover' | 'contain';
 type InputWrapMode = 'repeat' | 'repeatMirrored' | 'clamp' | 'transparent';
 type InputFilterMode = 'nearest' | 'linear';
@@ -5,11 +7,19 @@ type InputFilterMode = 'nearest' | 'linear';
 export type ShaderInputSampling = { fitMode: InputFitMode; wrapMode: InputWrapMode; filterMode: InputFilterMode };
 
 export type ShaderInput =
-	| { kind: 'uniform'; value: readonly number[] }
-	| ({ kind: 'texture'; texture: GPUTexture } & ShaderInputSampling);
+	| UniformValue
+	| (TextureValue & ShaderInputSampling);
 
-export function textureShaderInput(texture: GPUTexture, reference: ShaderInputSampling): ShaderInput {
-	return { kind: 'texture', texture, fitMode: reference.fitMode, wrapMode: reference.wrapMode, filterMode: reference.filterMode };
+export function textureShaderInput(texture: GPUTexture, sampling: ShaderInputSampling): ShaderInput {
+	return { kind: 'texture', texture, fitMode: sampling.fitMode, wrapMode: sampling.wrapMode, filterMode: sampling.filterMode };
+}
+
+/** 受け取り側の読み取り設定を付ける。定数をテクスチャ化せず、色の再乗算も行わない。 */
+export function toShaderInput(source: UniformOrTexture, sampling: ShaderInputSampling): ShaderInput {
+	if (source.kind === 'texture') return textureShaderInput(source.texture, sampling);
+	// r/rgテクスチャを別の型の入力へ接続した場合と同じ、欠けた成分=(0, 0, 1)。
+	// 受け取り側の型でpremultiplyし直すと色が二重乗算されるため、そのまま渡す。
+	return { kind: 'uniform', value: [source.value[0] ?? 0, source.value[1] ?? 0, source.value[2] ?? 0, source.value[3] ?? 1] };
 }
 
 /** 色のリテラルは未乗算。画像入力と同じ意味になる境界で一度だけ乗算する。 */

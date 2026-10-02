@@ -1,7 +1,7 @@
 import { implementEffect } from '../../effect-implementation.ts';
-import { createShaderInputBindings, generateShaderInputs } from '../../../shader-input.ts';
+import { createShaderInputBindings, generateShaderInputs } from '@glitch/shared/gpu/shader-input.ts';
 import code from './shader.wgsl?raw';
-import type { ShaderInput } from '../../../shader-input.ts';
+import type { ShaderInput } from '@glitch/shared/gpu/shader-input.ts';
 import type definition from './_def_.ts';
 
 export default implementEffect<typeof definition>({

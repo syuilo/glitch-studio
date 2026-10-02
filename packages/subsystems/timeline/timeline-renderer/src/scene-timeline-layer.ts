@@ -1,6 +1,6 @@
 import type { TimelineLayer, TimelineScene, TimelineSceneLayer } from '@glitch/shared/timeline/types.ts';
 import type { IntermediateTextureFormat } from '@glitch/shared/types.ts';
-import type { NodeOutput } from './node-output.ts';
+import type { UniformOrTexture } from '@glitch/shared/gpu/uniform-or-texture.ts';
 import { TimelineRenderer } from './timeline-renderer.ts';
 import type { TimelineLayerRenderer } from './timeline-renderer.ts';
 import { createTimelineCompositor } from './timeline-compositor.ts';
@@ -17,12 +17,12 @@ export function createSceneTimelineLayer(
 		resolution: { width: number; height: number };
 		sceneResolution: { width: number; height: number };
 		format: IntermediateTextureFormat;
-		createLayer: (entry: TimelineLayer, clipId: string) => TimelineLayerRenderer<NodeOutput>;
+		createLayer: (entry: TimelineLayer, clipId: string) => TimelineLayerRenderer<UniformOrTexture>;
 		getLayerVersion?: (entry: TimelineLayer, clipId: string) => string | number;
 	},
-): TimelineLayerRenderer<NodeOutput> {
+): TimelineLayerRenderer<UniformOrTexture> {
 	// 定義が同じでも履歴・出力の所有者は配置ごとに分ける。親背景は子に渡さない。
-	const renderer = new TimelineRenderer<NodeOutput, TimelineLayer>({
+	const renderer = new TimelineRenderer<UniformOrTexture, TimelineLayer>({
 		fallbackOutput: { kind: 'uniform', value: [0, 0, 0, 0] },
 		createLayer: options.createLayer,
 		getLayerVersion: options.getLayerVersion,
@@ -41,7 +41,7 @@ export function createSceneTimelineLayer(
 			try {
 				const settings = parameters.evaluate({ time: context.sceneTimeMs, isExport: context.isExport,
 					paramValues: layer.compositingParamValues, automationGraphs: layer.automationGraphs });
-				const source: NodeOutput = { kind: 'texture', texture: sceneOutput.render(encoder, result.output) };
+				const source: UniformOrTexture = { kind: 'texture', texture: sceneOutput.render(encoder, result.output) };
 				return { output: compositor.render(encoder, context.input, source, settings), gpuTime: result.gpuTime };
 			} finally {
 				options.device.queue.submit([encoder.finish()]);

@@ -1,7 +1,7 @@
 import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { implementEffect } from '../../effect-implementation.ts';
-import { createShaderInputPipeline } from '../../../shader-input-pipeline.ts';
-import { inputUvScale } from '../../../shader-input.ts';
+import { createShaderInputPipeline } from '@glitch/shared/gpu/shader-input-pipeline.ts';
+import { inputUvScale } from '@glitch/shared/gpu/shader-input.ts';
 import { colorBlendModes } from '../../../color-blend.ts';
 import blendCode from '../../../color-blend.wgsl?raw';
 import commonCode from './common.wgsl?raw';

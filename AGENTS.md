@@ -50,7 +50,7 @@ sharedは、tree-shakableであることが求められます。
 型を追加・変更するときは、次の方針を守ってください。
 
 - 親固有のID・参照名・役割などは、親ドメイン側で子の型に付加します。子の定義を親の `Parent['children'][number]` から逆算して作らないでください。子だけを扱う処理のために型を切り出す場合も、親がその型を参照する方向にします。
-- `NodeOutputReference` はVisual Module内の接続情報、`NodeOutput` は解決済みの出力、`ShaderInput` はエフェクトが読む入力です。GPU用の汎用ヘルパーにノードやモジュールの型を要求せず、必要なサンプリング設定やリソースだけを渡します。
+- `NodeOutputReference` はVisual Module内の接続情報、`UniformOrTexture` は生成元によらない定数またはテクスチャの値、`ShaderInput` は受け取り側のサンプリング設定を付けたシェーダー入力です。GPU共通基盤は `packages/shared/src/gpu` に置き、ノードやVisual Moduleの型を要求せず、必要なサンプリング設定やリソースだけを渡します。
 - 共通化は責務が一致する範囲で行います。型を共有するためだけに、子のドメインへ親固有のフィールドを追加したり、あらゆる利用場所を含む巨大な型を作ったりしないでください。
 
 **現在の意図的な例外:** `ParameterBinding` の `node` / `externalCustomParameterInput` は本来Visual Module側、`layerInput` は本来エフェクトレイヤー側の拡張ですが、実装を複雑化させないため共通の `types.ts` に含めています。この型が共通であることは、全ドメインで全種類のBindingを使えるという意味ではありません。レイヤーやliveからモジュールへ渡す引数、およびタイムラインの合成設定では、この3種類を除外します。エフェクトレイヤーのパラメータでは `layerInput` だけを許可し、Visual Module内部では使用できません。この例外を理由に他の逆依存を増やさないでください。
@@ -130,7 +130,7 @@ Visual Module内で別のVisual Moduleを通常のエフェクトのように使
 - `replace` は背景を含めた完成結果を出力するモジュール向けです。変形後の出力で透明部分も含めて置き換えます。opacityは背景からその出力へのRGBAの補間量で、0なら背景、1なら出力そのものです。
 - transformはレイヤーの出力全体に適用します。背景を加工する処理の中心・作用範囲だけを動かす機能ではありません。素材内のoriginを支点にfit後の素材を拡縮→回転し、その支点を画面上のpositionへ配置します。範囲外は透明です。positionの1は画面幅/高さの半分、回転の1は時計回り180度です。position・origin・scaleはvectorで、負の倍率は反転、0は透明化として扱います。
 - originは透明な余白を含む入力テクスチャ全体を基準とし、中央が[0, 0]、左下が[-1, -1]、右上が[1, 1]です。範囲外も許容します。Visual Moduleなども出力テクスチャの寸法を使い、uniform出力にはタイムラインの画面サイズを仮想的な素材寸法として与えます。originとpositionの初期値は[0, 0]です。無回転・等倍でもoriginを変えると配置が変わります。Transformエフェクトのtranslationは従来どおり移動量です。
-- 変形と合成はタイムライン専用の1パスで行い、VisualModuleRendererは合成設定を扱いません。無変形・opacity=1の置き換えは元のNodeOutputをそのまま受け渡します。
+- 変形と合成はタイムライン専用の1パスで行い、VisualModuleRendererは合成設定を扱いません。無変形・opacity=1の置き換えは元のUniformOrTextureをそのまま受け渡します。
 
 ### エフェクトレイヤー
 
@@ -291,11 +291,11 @@ let amount = read_amount(position);
 
 #### モジュール出力とテクスチャ化の境界
 
-Visual ModuleのIn/Out・バイパス・タイムラインのレイヤー間では、定数またはテクスチャを表す `NodeOutput` を受け渡します。モジュールの境界だけを理由に定数をテクスチャ化しません。エフェクトが描画した出力はtexture、Inから渡された定数はuniformのままです。
+Visual ModuleのIn/Out・バイパス・タイムラインのレイヤー間では、定数またはテクスチャを表す `UniformOrTexture` を受け渡します。モジュールの境界だけを理由に定数をテクスチャ化しません。エフェクトが描画した出力はtexture、Inから渡された定数はuniformのままです。
 
-- `NodeOutput` 自体はサンプリング設定を持ちません。エフェクト入力になるときに `outputShaderInput()` が受け取り側の接続設定を付け、`ShaderInput` にします。色の再乗算は行いません。scalar/vectorの不足成分はr/rgテクスチャと同じくRGBを0、alphaを1で補います。
-- モジュールの `paramValues` はCPUで評価する通常のパラメータ値、`paramInputs` は上流から渡された `NodeOutput` です。`paramInputs` はuniformでも `PARAM` 式からは参照せず、Inノードや `canNode` 入力から読みます。上流の出力種別によって式の可否を変えないためです。
-- 最終表示・集計など、`GPUTexture` が必要な境界では `OutputTextureResolver` が定数だけを1x1テクスチャへ変換します。成分数ごとに再利用し、同値の転送を省略します。保存精度は `enable32bitDataTextures` に従います。
+- `UniformOrTexture` 自体はサンプリング設定を持ちません。エフェクトやタイムラインの合成などでシェーダー入力になるときに `toShaderInput()` が受け取り側の設定を付け、`ShaderInput` にします。色の再乗算は行いません。scalar/vectorの不足成分はr/rgテクスチャと同じくRGBを0、alphaを1で補います。
+- モジュールの `paramValues` はCPUで評価する通常のパラメータ値、`paramInputs` は上流から渡された `UniformOrTexture` です。`paramInputs` はuniformでも `PARAM` 式からは参照せず、Inノードや `canNode` 入力から読みます。上流の出力種別によって式の可否を変えないためです。
+- 最終表示・集計など、`GPUTexture` が必要な境界では `UniformOrTextureToTextureResolver` が定数だけを1x1テクスチャへ変換します。成分数ごとに再利用し、同値の転送を省略します。保存精度は `enable32bitDataTextures` に従います。
 - 借用した出力テクスチャは変換・破棄しません。resolver自身の定数テクスチャは `dispose()` で破棄します。再利用するテクスチャを上書きするため、そのテクスチャを読むコマンドをsubmitしてから次の `resolve()` を呼んでください。
 
 ### 浮動小数点テクスチャの精度とサンプリング

@@ -1,11 +1,10 @@
 import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
-import { createShaderInputPipeline } from '@glitch/effect-shared/shader-input-pipeline.ts';
-import { inputUvScale } from '@glitch/effect-shared/shader-input.ts';
+import { createShaderInputPipeline } from '@glitch/shared/gpu/shader-input-pipeline.ts';
+import { inputUvScale, toShaderInput } from '@glitch/shared/gpu/shader-input.ts';
 import blendCode from '@glitch/shared/color-blend.wgsl?raw';
-import { outputShaderInput } from '../../renderer/src/node-output.ts';
 import code from './timeline-compositor.wgsl?raw';
 import type { IntermediateTextureFormat } from '@glitch/shared/types.ts';
-import type { NodeOutput } from '../../renderer/src/node-output.ts';
+import type { UniformOrTexture } from '@glitch/shared/gpu/uniform-or-texture.ts';
 import type { TimelineCompositingSettings } from './timeline-compositing-parameters.ts';
 
 // レイヤーごとに出力を所有し、同一フレーム内で下のレイヤーの出力を上書きしない。
@@ -28,7 +27,7 @@ export function createTimelineCompositor(options: {
 	});
 	let texture: GPUTexture | undefined;
 	return {
-		render(encoder: GPUCommandEncoder, background: NodeOutput, source: NodeOutput, settings: TimelineCompositingSettings): NodeOutput {
+		render(encoder: GPUCommandEncoder, background: UniformOrTexture, source: UniformOrTexture, settings: TimelineCompositingSettings): UniformOrTexture {
 			const { fitMode } = settings;
 			if (settings.opacity === 0 || settings.blendMode === 10) return background;
 			// 共通サンプリングのfitは画面→素材の逆写像なので、割ると素材内のoriginを
@@ -52,8 +51,8 @@ export function createTimelineCompositor(options: {
 			device.queue.writeBuffer(buffer, 0, uniforms.arrayBuffer);
 			// fitは読み取り座標にだけ適用する。表示枠で先に切り取らず、元画像の細部を保持する。
 			const variant = pipelines.update({
-				background: outputShaderInput(background, { fitMode: 'cover', wrapMode: 'clamp', filterMode: 'linear' }),
-				source: outputShaderInput(source, { fitMode, wrapMode: 'transparent', filterMode: 'linear' }),
+				background: toShaderInput(background, { fitMode: 'cover', wrapMode: 'clamp', filterMode: 'linear' }),
+				source: toShaderInput(source, { fitMode, wrapMode: 'transparent', filterMode: 'linear' }),
 			}, resolution);
 			const descriptor: GPURenderPassDescriptor = { colorAttachments: [{ view: texture.createView(), loadOp: 'clear', storeOp: 'store', clearValue: [0, 0, 0, 0] }] };
 			const pass = options.beginPass?.(encoder, descriptor) ?? encoder.beginRenderPass(descriptor);

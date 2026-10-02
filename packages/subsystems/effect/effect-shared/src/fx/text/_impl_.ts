@@ -1,5 +1,5 @@
 import { implementEffect } from '../../effect-implementation.ts';
-import { createShaderInputPipeline } from '../../../shader-input-pipeline.ts';
+import { createShaderInputPipeline } from '@glitch/shared/gpu/shader-input-pipeline.ts';
 import { createTextFontLoader } from './font-loader.ts';
 import { layoutText } from './layout.ts';
 import { createTextShadowMaskRenderer } from './shadow.ts';
