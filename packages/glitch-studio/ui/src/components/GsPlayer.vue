@@ -18,7 +18,7 @@ import GsButton from './common/GsButton.vue';
 import GsVideoControls from './common/GsVideoControls.vue';
 import GsAudioLevelMeter from './common/GsAudioLevelMeter.vue';
 import GsCondensedLine from './common/GsCondensedLine.vue';
-import type { Player } from '@glitch/shared/types.ts';
+import type { Player } from '@gs/shared/types.ts';
 import { i18n } from '@/i18n.ts';
 import * as api from '@/api.ts';
 import * as ui from '@/ui.ts';

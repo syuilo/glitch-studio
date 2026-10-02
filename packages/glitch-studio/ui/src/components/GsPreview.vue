@@ -17,7 +17,7 @@
 
 <script lang="ts" setup>
 import { watch, useTemplateRef, ref, computed, onBeforeUnmount } from 'vue';
-import { genId } from '@glitch/shared/utility/id.ts';
+import { genId } from '@gs/shared/utility/id.ts';
 import { useRendererCanvas } from '@/use-renderer-canvas.ts';
 import GsDetachableView from './GsDetachableView.vue';
 import * as api from '@/api.ts';

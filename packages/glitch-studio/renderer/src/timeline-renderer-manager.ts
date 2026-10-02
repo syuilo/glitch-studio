@@ -1,9 +1,9 @@
-import { scaleResolution, type Resolution } from '@glitch/shared/resolution.ts';
-import { getTimelineScene, validateTimelineLayer, validateTimelineScenes } from '@glitch/shared/timeline/scenes.ts';
-import { applyRendererProjectChanges, findRendererVisualModule } from '@glitch/shared/project/renderer-state.ts';
-import { deepEqual } from '@glitch/shared/utility/deep-equal.ts';
-import { validateTimelineEffectLayer } from '@glitch/shared/timeline/effect-layer.ts';
-import { getSceneBaseResolution, resolveSceneResolution } from '@glitch/shared/timeline/scene-resolution.ts';
+import { scaleResolution, type Resolution } from '@gs/shared/resolution.ts';
+import { getTimelineScene, validateTimelineLayer, validateTimelineScenes } from '@gs/shared/timeline/scenes.ts';
+import { applyRendererProjectChanges, findRendererVisualModule } from '@gs/shared/project/renderer-state.ts';
+import { deepEqual } from '@gs/shared/utility/deep-equal.ts';
+import { validateTimelineEffectLayer } from '@gs/shared/timeline/effect-layer.ts';
+import { getSceneBaseResolution, resolveSceneResolution } from '@gs/shared/timeline/scene-resolution.ts';
 import EventEmitter from 'eventemitter3';
 import { canPreserveModuleLayerInstance } from '../../renderer/src/project-change-policy.ts';
 import { AssetTextures } from '../../renderer/src/asset-textures.ts';
@@ -21,18 +21,18 @@ import { createVideoTimelineLayer } from '../../subsystems/timeline/timeline-ren
 import { TimelineRenderer } from '../../subsystems/timeline/timeline-renderer/src/timeline-renderer.ts';
 import { TimelinePreviewScheduler } from '../../subsystems/timeline/timeline-renderer/src/timeline-preview-scheduler.ts';
 import defaultVertexShaderCode from './vertex.wgsl?raw';
-import type { VisualModuleTarget } from '@glitch/shared/project/visual-module-target.ts';
-import type { RendererProjectChange, RendererProjectState } from '@glitch/shared/project/renderer-state.ts';
-import type { ProjectVisualModule } from '@glitch/shared/project/types.ts';
-import type { UniformOrTexture } from '@glitch/shared/gpu/uniform-or-texture.ts';
+import type { VisualModuleTarget } from '@gs/shared/project/visual-module-target.ts';
+import type { RendererProjectChange, RendererProjectState } from '@gs/shared/project/renderer-state.ts';
+import type { ProjectVisualModule } from '@gs/shared/project/types.ts';
+import type { UniformOrTexture } from '@gs/shared/gpu/uniform-or-texture.ts';
 import type { FrameScheduler } from '../../visual-module-renderer/src/live-render-loop.ts';
 import type { TimelineLayerRenderer } from '../../subsystems/timeline/timeline-renderer/src/timeline-renderer.ts';
-import type { EffectInstanceState } from '@glitch/effect-shared/effect-status.ts';
-import type { Asset, IntermediateTextureFormat } from '@glitch/shared/types.ts';
-import type { TimelineScene, TimelineLayer, TimelineVisualModuleLayer, TimelineInlineVisualModuleLayer } from '@glitch/shared/timeline/types.ts';
-import type { VisualModule } from '@glitch/shared/visual-module/types.ts';
-import type { EffectImplementation } from '@glitch/effect-shared/effect-implementation.js';
-import type { EffectDefinition } from '@glitch/effect-shared/effect-definition.js';
+import type { EffectInstanceState } from '@gs/subsystems_effect_shared/effect-status.ts';
+import type { Asset, IntermediateTextureFormat } from '@gs/shared/types.ts';
+import type { TimelineScene, TimelineLayer, TimelineVisualModuleLayer, TimelineInlineVisualModuleLayer } from '@gs/shared/timeline/types.ts';
+import type { VisualModule } from '@gs/shared/visual-module/types.ts';
+import type { EffectImplementation } from '@gs/subsystems_effect_shared/effect-implementation.js';
+import type { EffectDefinition } from '@gs/subsystems_effect_shared/effect-definition.js';
 
 /**
  * 初期化時に決まっている必要がある設定情報

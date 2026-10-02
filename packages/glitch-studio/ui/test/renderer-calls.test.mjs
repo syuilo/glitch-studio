@@ -14,7 +14,7 @@ async function bundle(path) {
 		plugins: [{
 			name: 'renderer-call-dependencies',
 			setup(build) {
-				build.onResolve({ filter: /.*/ }, args => args.kind === 'entry-point' || args.path === './RendererManagerControllerBase.ts' || args.path === '@glitch/shared/resolution.ts' || args.path === '@glitch/shared/project/renderer-state.ts' ? undefined : { path: args.path, namespace: 'stub' });
+				build.onResolve({ filter: /.*/ }, args => args.kind === 'entry-point' || args.path === './RendererManagerControllerBase.ts' || args.path === '@gs/shared/resolution.ts' || args.path === '@gs/shared/project/renderer-state.ts' ? undefined : { path: args.path, namespace: 'stub' });
 				build.onLoad({ filter: /.*/, namespace: 'stub' }, () => ({ contents: `
 					export const ref = value => ({ value });
 					export const shallowReactive = value => value;

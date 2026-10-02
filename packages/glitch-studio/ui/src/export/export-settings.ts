@@ -1,5 +1,5 @@
 import type { TimelineExportSettings } from './timeline-export.ts';
-import { scaleResolution } from '@glitch/shared/resolution.ts';
+import { scaleResolution } from '@gs/shared/resolution.ts';
 
 export function parseExportTime(text: string): number {
 	const match = /^(\d{2,}):([0-5]\d):([0-5]\d)\.(\d{3})$/.exec(text.trim());

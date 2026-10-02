@@ -1,6 +1,6 @@
 {
 	"type": "module",
-	"name": "@glitch/renderer",
+	"name": "@gs/glitch-studio_renderer",
 	"private": true,
 	"scripts": {
 		"eslint": "eslint --quiet './**/*.{js,jsx,ts,tsx}'",
@@ -22,7 +22,7 @@
 		"vitest": "4.1.10"
 	},
 	"dependencies": {
-		"@glitch/shared": "workspace:*",
+		"@gs/shared": "workspace:*",
 		"eventemitter3": "5.0.4",
 		"webgpu-utils": "2.1.1"
 	}

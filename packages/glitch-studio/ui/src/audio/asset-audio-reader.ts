@@ -1,9 +1,9 @@
 import { ALL_FORMATS, AudioSampleSink, BlobSource, Input } from 'mediabunny';
-import { readMediaMetadata } from '@glitch/shared/media/media-metadata.ts';
+import { readMediaMetadata } from '@gs/shared/media/media-metadata.ts';
 import { getAudioTrackError } from './audio-track-support.ts';
-import { PcmResampler, resamplingPaddingSeconds } from '@glitch/audio-renderer/pcm-resampler.ts';
-import type { Asset } from '@glitch/shared/types.ts';
-import type { DecodedPcmBlock, StereoPcm } from '@glitch/audio-renderer/pcm.ts';
+import { PcmResampler, resamplingPaddingSeconds } from '@gs/glitch-studio_audio-renderer/pcm-resampler.ts';
+import type { Asset } from '@gs/shared/types.ts';
+import type { DecodedPcmBlock, StereoPcm } from '@gs/glitch-studio_audio-renderer/pcm.ts';
 
 type DecodedWindow = { blocks: DecodedPcmBlock[]; bytes: number };
 type AssetAudio = Awaited<ReturnType<typeof openAssetAudio>>;

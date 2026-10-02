@@ -1,5 +1,4 @@
 {
-	"name": "@glitch/desktop",
 	"private": true,
 	"type": "module",
 	"main": "main.mjs",

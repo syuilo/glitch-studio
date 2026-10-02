@@ -1,9 +1,9 @@
-import { deepClone } from '@glitch/shared/utility/deep-clone.ts';
-import { genId } from '@glitch/shared/utility/id.ts';
-import type { DataType } from '@glitch/shared/data-type/data-type.ts';
-import type { ParameterArrayElement } from '@glitch/shared/parameter/parameter-binding.ts';
-import type { ParameterDefinition } from '@glitch/shared/parameter/parameter-definition.ts';
-import type { ParameterBinding } from '@glitch/shared/parameter/parameter-binding.ts';
+import { deepClone } from '@gs/shared/utility/deep-clone.ts';
+import { genId } from '@gs/shared/utility/id.ts';
+import type { DataType } from '@gs/shared/data-type/data-type.ts';
+import type { ParameterArrayElement } from '@gs/shared/parameter/parameter-binding.ts';
+import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
+import type { ParameterBinding } from '@gs/shared/parameter/parameter-binding.ts';
 
 // リセットでは既定の要素を復活させず、新しい要素として作り直す。
 // 対象要素自身のIDは親が持つため維持し、そのBinding内部にある配列のIDだけを再発行する。

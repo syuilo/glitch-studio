@@ -11,10 +11,10 @@
 
 <script lang="ts" setup>
 import { computed, onUnmounted } from 'vue';
-import { getNodeOutputs } from '@glitch/shared/utility/node-outputs.ts';
+import { getNodeOutputs } from '@gs/shared/utility/node-outputs.ts';
 import GsNodePort from './GsNodePort.vue';
-import type { EffectInstanceState } from '@glitch/shared/effect/effect-status.ts';
-import type { VisualModuleNode, VisualModule } from '@glitch/shared/visual-module/types.js';
+import type { EffectInstanceState } from '@gs/shared/effect/effect-status.ts';
+import type { VisualModuleNode, VisualModule } from '@gs/shared/visual-module/types.js';
 import { useVisualModuleWires } from '@/utility/visual-module-wires.ts';
 import { startWireDrag } from '@/utility/wire-drag.ts';
 import { getNodeDataTypeColor } from '@/utility/node-outputs.ts';

@@ -1,4 +1,4 @@
-import type { SpectrogramSettings } from '@glitch/shared/utility/audio-spectrogram/audio-spectrogram.ts';
+import type { SpectrogramSettings } from '@gs/shared/utility/audio-spectrogram/audio-spectrogram.ts';
 
 export type MonitorSettings = { overlay: boolean; waveformSeconds: number };
 export type PreviewOptions =

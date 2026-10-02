@@ -1,4 +1,4 @@
-import { genId } from '@glitch/shared/utility/id.js';
+import { genId } from '@gs/shared/utility/id.js';
 import { markRaw } from 'vue';
 import { findWorkspaceElement, removeWorkspaceElement, replaceWorkspaceElement, splitAndAddWorkspacePanel } from './utility/workspace.ts';
 import type { MenuItem } from './types/menu.ts';

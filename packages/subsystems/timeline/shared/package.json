@@ -1,0 +1,32 @@
+{
+	"type": "module",
+	"name": "@gs/subsystems_timeline_shared",
+	"private": true,
+	"scripts": {
+		"test": "node --test test/*.test.mjs",
+		"eslint": "eslint --quiet './**/*.{js,jsx,ts,tsx}'",
+		"typecheck": "tsc6 --noEmit",
+		"lint": "pnpm typecheck && pnpm eslint"
+	},
+	"exports": {
+		"./*": "./src/*"
+	},
+	"devDependencies": {
+		"@types/seedrandom": "3.0.8",
+		"@types/web": "0.0.352",
+		"@typescript-eslint/eslint-plugin": "8.59.2",
+		"@typescript-eslint/parser": "8.59.2",
+		"@webgpu/types": "0.1.72",
+		"vite": "8.2.2"
+	},
+	"dependencies": {
+		"@gs/shared": "workspace:*",
+		"@gs/subsystems_effect_shared": "workspace:*",
+		"@gs/subsystems_visual-module_shared": "workspace:*",
+		"@syuilo/aiscript": "1.2.1",
+		"bezier-easing": "3.0.1",
+		"mediabunny": "1.56.2",
+		"seedrandom": "3.0.5",
+		"webgpu-utils": "2.1.1"
+	}
+}

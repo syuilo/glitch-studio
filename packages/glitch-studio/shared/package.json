@@ -1,0 +1,22 @@
+{
+	"type": "module",
+	"name": "@gs/glitch-studio_shared",
+	"private": true,
+	"scripts": {
+		"test": "node --test test/*.test.mjs",
+		"eslint": "eslint --quiet './**/*.{js,jsx,ts,tsx}'",
+		"typecheck": "tsc6 --noEmit",
+		"lint": "pnpm typecheck && pnpm eslint"
+	},
+	"exports": {
+		"./*": "./src/*"
+	},
+	"devDependencies": {
+		"@typescript-eslint/eslint-plugin": "8.59.2",
+		"@typescript-eslint/parser": "8.59.2",
+		"@webgpu/types": "0.1.72",
+		"vite": "8.2.2"
+	},
+	"dependencies": {
+	}
+}

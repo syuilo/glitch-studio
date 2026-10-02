@@ -38,10 +38,10 @@
 
 <script lang="ts" setup>
 import { computed, onMounted, onBeforeUnmount, ref, shallowReactive, shallowRef, useId, useTemplateRef, watch } from 'vue';
-import { getNodeInputDataType, getNodeOutputs } from '@glitch/shared/utility/node-outputs.ts';
+import { getNodeInputDataType, getNodeOutputs } from '@gs/shared/utility/node-outputs.ts';
 import type { ComponentPublicInstance } from 'vue';
-import type { TextureDataType } from '@glitch/shared/data-type/data-type.ts';
-import type { VisualModule } from '@glitch/shared/visual-module/types.ts';
+import type { TextureDataType } from '@gs/shared/data-type/data-type.ts';
+import type { VisualModule } from '@gs/shared/visual-module/types.ts';
 import { useVisualModuleWires } from '@/utility/visual-module-wires.ts';
 import { wireDrag } from '@/utility/wire-drag.ts';
 import { getNodeDataTypeColor } from '@/utility/node-outputs.ts';

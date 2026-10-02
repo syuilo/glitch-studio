@@ -159,12 +159,12 @@ importers:
 
   packages/glitch-studio/audio-renderer:
     dependencies:
-      '@glitch/shared':
+      '@gs/shared':
         specifier: workspace:*
         version: link:../../shared
-      '@glitch/timeline-shared':
+      '@gs/subsystems_timeline_shared':
         specifier: workspace:*
-        version: link:../../subsystems/timeline/timeline-shared
+        version: link:../../subsystems/timeline/shared
     devDependencies:
       '@types/web':
         specifier: 0.0.352
@@ -196,7 +196,7 @@ importers:
 
   packages/glitch-studio/renderer:
     dependencies:
-      '@glitch/shared':
+      '@gs/shared':
         specifier: workspace:*
         version: link:../../shared
       eventemitter3:
@@ -227,21 +227,21 @@ importers:
 
   packages/glitch-studio/ui:
     dependencies:
-      '@glitch/audio-renderer':
+      '@gs/glitch-studio_audio-renderer':
         specifier: workspace:*
         version: link:../audio-renderer
-      '@glitch/renderer':
+      '@gs/glitch-studio_renderer':
         specifier: workspace:*
         version: link:../renderer
-      '@glitch/shared':
+      '@gs/shared':
         specifier: workspace:*
         version: link:../../shared
-      '@glitch/timeline-shared':
+      '@gs/subsystems_timeline_shared':
         specifier: workspace:*
-        version: link:../../subsystems/timeline/timeline-shared
-      '@glitch/visual-module-shared':
+        version: link:../../subsystems/timeline/shared
+      '@gs/subsystems_visual-module_shared':
         specifier: workspace:*
-        version: link:../../subsystems/visual-module/visual-module-shared
+        version: link:../../subsystems/visual-module/shared
       '@jsquash/webp':
         specifier: 1.5.0
         version: 1.5.0
@@ -398,14 +398,14 @@ importers:
         specifier: 8.2.2
         version: 8.2.2(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.83.4)
 
-  packages/subsystems/effect/effect-renderer:
+  packages/subsystems/effect/renderer:
     dependencies:
-      '@glitch/effect-shared':
-        specifier: workspace:*
-        version: link:../effect-shared
-      '@glitch/shared':
+      '@gs/shared':
         specifier: workspace:*
         version: link:../../../shared
+      '@gs/subsystems_effect_shared':
+        specifier: workspace:*
+        version: link:../shared
       eventemitter3:
         specifier: 5.0.4
         version: 5.0.4
@@ -432,9 +432,9 @@ importers:
         specifier: 4.1.10
         version: 4.1.10(@types/node@26.2.0)(vite@8.2.2(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.83.4))
 
-  packages/subsystems/effect/effect-shared:
+  packages/subsystems/effect/shared:
     dependencies:
-      '@glitch/shared':
+      '@gs/shared':
         specifier: workspace:*
         version: link:../../../shared
       '@syuilo/aiscript':
@@ -472,20 +472,20 @@ importers:
         specifier: 8.2.2
         version: 8.2.2(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.83.4)
 
-  packages/subsystems/timeline/timeline-renderer:
+  packages/subsystems/timeline/renderer:
     dependencies:
-      '@glitch/effect-renderer':
-        specifier: workspace:*
-        version: link:../../effect/effect-renderer
-      '@glitch/effect-shared':
-        specifier: workspace:*
-        version: link:../../effect/effect-shared
-      '@glitch/shared':
+      '@gs/shared':
         specifier: workspace:*
         version: link:../../../shared
-      '@glitch/timeline-shared':
+      '@gs/subsystems_effect_renderer':
         specifier: workspace:*
-        version: link:../timeline-shared
+        version: link:../../effect/renderer
+      '@gs/subsystems_effect_shared':
+        specifier: workspace:*
+        version: link:../../effect/shared
+      '@gs/subsystems_timeline_shared':
+        specifier: workspace:*
+        version: link:../shared
       eventemitter3:
         specifier: 5.0.4
         version: 5.0.4
@@ -512,17 +512,17 @@ importers:
         specifier: 4.1.10
         version: 4.1.10(@types/node@26.2.0)(vite@8.2.2(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.83.4))
 
-  packages/subsystems/timeline/timeline-shared:
+  packages/subsystems/timeline/shared:
     dependencies:
-      '@glitch/effect-shared':
-        specifier: workspace:*
-        version: link:../../effect/effect-shared
-      '@glitch/shared':
+      '@gs/shared':
         specifier: workspace:*
         version: link:../../../shared
-      '@glitch/visual-module-shared':
+      '@gs/subsystems_effect_shared':
         specifier: workspace:*
-        version: link:../../visual-module/visual-module-shared
+        version: link:../../effect/shared
+      '@gs/subsystems_visual-module_shared':
+        specifier: workspace:*
+        version: link:../../visual-module/shared
       '@syuilo/aiscript':
         specifier: 1.2.1
         version: 1.2.1
@@ -558,20 +558,20 @@ importers:
         specifier: 8.2.2
         version: 8.2.2(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.83.4)
 
-  packages/subsystems/visual-module/visual-module-renderer:
+  packages/subsystems/visual-module/renderer:
     dependencies:
-      '@glitch/effect-renderer':
-        specifier: workspace:*
-        version: link:../../effect/effect-renderer
-      '@glitch/effect-shared':
-        specifier: workspace:*
-        version: link:../../effect/effect-shared
-      '@glitch/shared':
+      '@gs/shared':
         specifier: workspace:*
         version: link:../../../shared
-      '@glitch/visual-module-shared':
+      '@gs/subsystems_effect_renderer':
         specifier: workspace:*
-        version: link:../visual-module-shared
+        version: link:../../effect/renderer
+      '@gs/subsystems_effect_shared':
+        specifier: workspace:*
+        version: link:../../effect/shared
+      '@gs/subsystems_visual-module_shared':
+        specifier: workspace:*
+        version: link:../shared
       eventemitter3:
         specifier: 5.0.4
         version: 5.0.4
@@ -598,14 +598,14 @@ importers:
         specifier: 4.1.10
         version: 4.1.10(@types/node@26.2.0)(vite@8.2.2(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.83.4))
 
-  packages/subsystems/visual-module/visual-module-shared:
+  packages/subsystems/visual-module/shared:
     dependencies:
-      '@glitch/effect-shared':
-        specifier: workspace:*
-        version: link:../../effect/effect-shared
-      '@glitch/shared':
+      '@gs/shared':
         specifier: workspace:*
         version: link:../../../shared
+      '@gs/subsystems_effect_shared':
+        specifier: workspace:*
+        version: link:../../effect/shared
       '@syuilo/aiscript':
         specifier: 1.2.1
         version: 1.2.1

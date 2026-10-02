@@ -1,4 +1,4 @@
-import type { Asset } from '@glitch/shared/types.ts';
+import type { Asset } from '@gs/shared/types.ts';
 
 /** 画像の原本から作ったGPUリソースだけを所有し、デコード済み画素をプロジェクトへ持ち込まない。 */
 export class AssetTextures {

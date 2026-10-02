@@ -1,22 +1,22 @@
-import { scaleResolution } from '@glitch/shared/resolution.ts';
-import type { ProjectVisualModule } from '@glitch/shared/project/types.ts';
+import { scaleResolution } from '@gs/shared/resolution.ts';
+import type { ProjectVisualModule } from '@gs/shared/project/types.ts';
 import { ref, shallowReactive } from 'vue';
-import { deepEqual } from '@glitch/shared/utility/deep-equal.ts';
-import { deepClone } from '@glitch/shared/utility/deep-clone.ts';
-import { applyRendererProjectChanges } from '@glitch/shared/project/renderer-state.ts';
-import type { RendererProjectChange, RendererProjectState } from '@glitch/shared/project/renderer-state.ts';
-import { genId } from '@glitch/shared/utility/id.ts';
-import { createVisualModuleRendererManagerWorker } from '@glitch/renderer/client.ts';
+import { deepEqual } from '@gs/shared/utility/deep-equal.ts';
+import { deepClone } from '@gs/shared/utility/deep-clone.ts';
+import { applyRendererProjectChanges } from '@gs/shared/project/renderer-state.ts';
+import type { RendererProjectChange, RendererProjectState } from '@gs/shared/project/renderer-state.ts';
+import { genId } from '@gs/shared/utility/id.ts';
+import { createVisualModuleRendererManagerWorker } from '@gs/glitch-studio_renderer/client.ts';
 import { isVideoFrameAvailable, playVideoAfterFirstFrameIsReady } from './utility/video.ts';
 import { LiveEffectStateStore } from './utility/live-effect-status.ts';
 import { AudioInputs } from './audio/audio-inputs.ts';
 import type { AudioOutput } from './audio/audio-output.ts';
 import { setupWebcam } from './utility/webcam.ts';
 import { RendererManagerControllerBase } from './RendererManagerControllerBase.ts';
-import type { Player } from '@glitch/shared/types.ts';
-import type { VisualModuleParameterBindings } from '@glitch/shared/visual-module/types.ts';
-import type { EffectInstanceState } from '@glitch/shared/effect/effect-status.ts';
-import type { VisualModuleRendererManager, VisualModuleRendererManagerStaticOptions, VisualModuleRendererManagerDynamicOptions, VisualModuleRendererManagerEvents } from '@glitch/renderer/visual-module-renderer-manager.ts';
+import type { Player } from '@gs/shared/types.ts';
+import type { VisualModuleParameterBindings } from '@gs/shared/visual-module/types.ts';
+import type { EffectInstanceState } from '@gs/shared/effect/effect-status.ts';
+import type { VisualModuleRendererManager, VisualModuleRendererManagerStaticOptions, VisualModuleRendererManagerDynamicOptions, VisualModuleRendererManagerEvents } from '@gs/glitch-studio_renderer/visual-module-renderer-manager.ts';
 import * as ui from '@/ui.ts';
 
 export class VisualModuleRendererManagerController extends RendererManagerControllerBase<VisualModuleRendererManager> {

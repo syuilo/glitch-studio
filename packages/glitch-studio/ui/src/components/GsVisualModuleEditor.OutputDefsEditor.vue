@@ -25,13 +25,13 @@
 </template>
 
 <script lang="ts" setup>
-import { genId } from '@glitch/shared/utility/id.js';
+import { genId } from '@gs/shared/utility/id.js';
 import GsInput from './common/GsInput.vue';
 import GsSelect from './common/GsSelect.vue';
 import GsSwitch from './common/GsSwitch.vue';
 import GsButton from './common/GsButton.vue';
 import GsFolder from './common/GsFolder.vue';
-import type { VisualModule, VisualModuleOutputDef } from '@glitch/shared/visual-module/types.ts';
+import type { VisualModule, VisualModuleOutputDef } from '@gs/shared/visual-module/types.ts';
 
 type OutputDef = VisualModuleOutputDef;
 const props = defineProps<{ visualModule: VisualModule }>();

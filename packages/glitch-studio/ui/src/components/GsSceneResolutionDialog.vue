@@ -20,12 +20,12 @@
 
 <script lang="ts" setup>
 import { computed, ref, useTemplateRef } from 'vue';
-import { getSceneBaseResolution, validateSceneResolution } from '@glitch/shared/timeline/scene-resolution.ts';
+import { getSceneBaseResolution, validateSceneResolution } from '@gs/shared/timeline/scene-resolution.ts';
 import GsModal from './common/GsModal.vue';
 import GsSelect from './common/GsSelect.vue';
 import GsInput from './common/GsInput.vue';
 import GsButton from './common/GsButton.vue';
-import type { TimelineSceneResolution } from '@glitch/shared/timeline/scene-resolution.ts';
+import type { TimelineSceneResolution } from '@gs/shared/timeline/scene-resolution.ts';
 import { appStateManager } from '@/app.ts';
 
 const props = defineProps<{ sceneId: string }>();

@@ -1,5 +1,5 @@
-import { AudioSpectrum } from '@glitch/shared/utility/audio-spectrum.ts';
-import type { AudioHistory } from '@glitch/shared/audio-history.ts';
+import { AudioSpectrum } from '@gs/shared/utility/audio-spectrum.ts';
+import type { AudioHistory } from '@gs/shared/audio-history.ts';
 import type { MonitorSettings } from './audio-preview-types.ts';
 
 export function createPreviewSpectrum(device: GPUDevice) {

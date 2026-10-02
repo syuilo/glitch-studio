@@ -24,7 +24,7 @@
 
 <script setup lang="ts">
 import { computed, ref, useTemplateRef } from 'vue';
-import { effectDefinitions } from '@glitch/shared/effect/effect-definitions.js';
+import { effectDefinitions } from '@gs/shared/effect/effect-definitions.js';
 import GsModal from './common/GsModal.vue';
 import GsInput from './common/GsInput.vue';
 

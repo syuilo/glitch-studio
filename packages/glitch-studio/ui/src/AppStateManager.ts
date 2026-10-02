@@ -1,11 +1,11 @@
 import { shallowRef } from 'vue';
 import { computed, ref } from 'vue';
-import { deepClone } from '@glitch/shared/utility/deep-clone.js';
+import { deepClone } from '@gs/shared/utility/deep-clone.js';
 import { triggerRef } from 'vue';
 import { COMMAND_DEFS } from './commands.ts';
-import type { TimelineScene } from '@glitch/shared/timeline/types.js';
-import type { Asset, Player } from '@glitch/shared/types.js';
-import type { ProjectVisualModule } from '@glitch/shared/project/types.ts';
+import type { TimelineScene } from '@gs/shared/timeline/types.js';
+import type { Asset, Player } from '@gs/shared/types.js';
+import type { ProjectVisualModule } from '@gs/shared/project/types.ts';
 import type { CommandDef } from './commands.ts';
 import type { AppState } from './types.ts';
 import type { AppStateChange } from './AppStateChange.ts';

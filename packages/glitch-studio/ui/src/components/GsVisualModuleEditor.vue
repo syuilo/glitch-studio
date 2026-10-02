@@ -84,8 +84,8 @@ import XGlobalOutNode from './GsGlobalOutNode.vue';
 import XParamDefsEditor from './GsVisualModuleEditor.ParamDefsEditor.vue';
 import XOutputDefsEditor from './GsVisualModuleEditor.OutputDefsEditor.vue';
 import GsTabs from './common/GsTabs.vue';
-import type { VisualModule, VisualModuleGlobalInNode, VisualModuleGlobalOutNode, VisualModuleNode, NodeOutputReference } from '@glitch/shared/visual-module/types.ts';
-import type { EffectInstanceState } from '@glitch/shared/effect/effect-status.ts';
+import type { VisualModule, VisualModuleGlobalInNode, VisualModuleGlobalOutNode, VisualModuleNode, NodeOutputReference } from '@gs/shared/visual-module/types.ts';
+import type { EffectInstanceState } from '@gs/shared/effect/effect-status.ts';
 import type { VisualModuleEdit } from '@/types/visual-module-editor.ts';
 import { provideVisualModuleWires } from '@/utility/visual-module-wires.ts';
 

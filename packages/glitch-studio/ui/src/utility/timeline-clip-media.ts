@@ -1,4 +1,4 @@
-import type { Asset } from '@glitch/shared/types.ts';
+import type { Asset } from '@gs/shared/types.ts';
 import { inspectVideoLayerAsset } from './video-layer-asset.ts';
 import { openAssetAudio } from '../audio/asset-audio-reader.ts';
 

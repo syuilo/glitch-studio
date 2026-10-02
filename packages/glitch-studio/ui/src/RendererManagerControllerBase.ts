@@ -1,6 +1,6 @@
 import { ref } from 'vue';
-import type { VisualModuleRendererManager } from '@glitch/renderer/visual-module-renderer-manager.ts';
-import type { TimelineRendererManager } from '@glitch/renderer/timeline-renderer-manager.ts';
+import type { VisualModuleRendererManager } from '@gs/glitch-studio_renderer/visual-module-renderer-manager.ts';
+import type { TimelineRendererManager } from '@gs/glitch-studio_renderer/timeline-renderer-manager.ts';
 
 type ManagerMethods<T> = {
 	[K in keyof T as T[K] extends (...args: never[]) => unknown ? K : never]: Extract<T[K], (...args: never[]) => unknown>;

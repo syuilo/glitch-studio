@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
 
 const bundle = await build({
-	stdin: { contents: `export { readMediaMetadata } from '@glitch/shared/media/media-metadata.ts';
+	stdin: { contents: `export { readMediaMetadata } from '@gs/shared/media/media-metadata.ts';
 		export { inspectVideoLayerAsset } from './utility/video-layer-asset.ts';
 		export { AssetAudioReader, openAssetAudio } from './audio/asset-audio-reader.ts';`,
 		resolveDir: fileURLToPath(new URL('../src/', import.meta.url)), loader: 'ts' },

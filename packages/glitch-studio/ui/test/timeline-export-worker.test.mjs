@@ -9,7 +9,7 @@ const bundled = await build({
 	entryPoints: [fileURLToPath(new URL('../src/export/timeline-export.worker.ts', import.meta.url))],
 	bundle: true, platform: 'node', format: 'cjs', write: false,
 	plugins: [{ name: 'export-worker-platform', setup(build) {
-		build.onResolve({ filter: /^@glitch\/|\/mp4-writer\.ts$|\/still-webp\.ts$|\/timeline-audio-export\.ts$/ }, args => args.path.startsWith('@glitch/shared/timeline/') || args.path === '@glitch/shared/resolution.ts' ? undefined : ({ path: args.path, namespace: 'platform' }));
+		build.onResolve({ filter: /^@glitch\/|\/mp4-writer\.ts$|\/still-webp\.ts$|\/timeline-audio-export\.ts$/ }, args => args.path.startsWith('@gs/shared/timeline/') || args.path === '@gs/shared/resolution.ts' ? undefined : ({ path: args.path, namespace: 'platform' }));
 		build.onLoad({ filter: /.*/, namespace: 'platform' }, () => ({ contents: `
 			export const TimelineRendererManager = dependencies.TimelineRendererManager;
 			export const TimelineAudioExport = dependencies.TimelineAudioExport;

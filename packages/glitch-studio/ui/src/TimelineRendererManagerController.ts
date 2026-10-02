@@ -1,13 +1,13 @@
-import { scaleResolution } from '@glitch/shared/resolution.ts';
+import { scaleResolution } from '@gs/shared/resolution.ts';
 import { ref } from 'vue';
-import { deepClone } from '@glitch/shared/utility/deep-clone.ts';
-import { applyRendererProjectChanges } from '@glitch/shared/project/renderer-state.ts';
-import type { RendererProjectChange, RendererProjectState } from '@glitch/shared/project/renderer-state.ts';
-import { createTimelineRendererManagerWorker } from '@glitch/renderer/client.ts';
+import { deepClone } from '@gs/shared/utility/deep-clone.ts';
+import { applyRendererProjectChanges } from '@gs/shared/project/renderer-state.ts';
+import type { RendererProjectChange, RendererProjectState } from '@gs/shared/project/renderer-state.ts';
+import { createTimelineRendererManagerWorker } from '@gs/glitch-studio_renderer/client.ts';
 import { RendererManagerControllerBase } from './RendererManagerControllerBase.ts';
 import { TimelineEffectStateStore } from './utility/timeline-effect-status.ts';
-import type { TimelineRendererManager, TimelineRendererManagerStaticOptions, TimelineRendererManagerDynamicOptions } from '@glitch/renderer/timeline-renderer-manager.ts';
-import type { EffectInstanceState } from '@glitch/shared/effect/effect-status.ts';
+import type { TimelineRendererManager, TimelineRendererManagerStaticOptions, TimelineRendererManagerDynamicOptions } from '@gs/glitch-studio_renderer/timeline-renderer-manager.ts';
+import type { EffectInstanceState } from '@gs/shared/effect/effect-status.ts';
 import * as ui from '@/ui.ts';
 
 export class TimelineRendererManagerController extends RendererManagerControllerBase<TimelineRendererManager> {

@@ -1,13 +1,13 @@
-import { genId } from '@glitch/shared/utility/id.ts';
-import { deepClone } from '@glitch/shared/utility/deep-clone.ts';
-import { genEmptyValue } from '@glitch/shared/parameter/parameter-default.ts';
-import { areDataTypesEqual } from '@glitch/shared/data-type/data-type.ts';
-import { isKeyframesDataType, isKeyframeValue, supportsKeyframeInterpolation } from '@glitch/shared/keyframes/keyframes-timeline.ts';
-import { evaluateKeyframesTimeline } from '@glitch/shared/keyframes/keyframes-timeline-evaluator.ts';
-import { validateEnumParameterValue } from '@glitch/shared/parameter/parameter-definition.ts';
-import type { KeyframesDataType, KeyframesTimelineData, KeyframesTimelineKeyframe, KeyframeInterpolation } from '@glitch/shared/keyframes/keyframes-timeline.ts';
-import type { ParameterDefinition } from '@glitch/shared/parameter/parameter-definition.ts';
-import type { ParameterBinding } from '@glitch/shared/parameter/parameter-binding.ts';
+import { genId } from '@gs/shared/utility/id.ts';
+import { deepClone } from '@gs/shared/utility/deep-clone.ts';
+import { genEmptyValue } from '@gs/shared/parameter/parameter-default.ts';
+import { areDataTypesEqual } from '@gs/shared/data-type/data-type.ts';
+import { isKeyframesDataType, isKeyframeValue, supportsKeyframeInterpolation } from '@gs/shared/keyframes/keyframes-timeline.ts';
+import { evaluateKeyframesTimeline } from '@gs/shared/keyframes/keyframes-timeline-evaluator.ts';
+import { validateEnumParameterValue } from '@gs/shared/parameter/parameter-definition.ts';
+import type { KeyframesDataType, KeyframesTimelineData, KeyframesTimelineKeyframe, KeyframeInterpolation } from '@gs/shared/keyframes/keyframes-timeline.ts';
+import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
+import type { ParameterBinding } from '@gs/shared/parameter/parameter-binding.ts';
 
 type InlineKeyframesTimeline = Extract<ParameterBinding, { inputSource: 'keyframesTimelineInline' }>;
 

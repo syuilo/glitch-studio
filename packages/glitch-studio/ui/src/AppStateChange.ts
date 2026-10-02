@@ -1,6 +1,6 @@
-import type { VisualModuleNodeChange } from '@glitch/shared/visual-module/types.ts';
-import type { TimelineLayerChange } from '@glitch/shared/timeline/types.ts';
-import type { VisualModuleTarget } from '@glitch/shared/project/visual-module-target.ts';
+import type { VisualModuleNodeChange } from '@gs/shared/visual-module/types.ts';
+import type { TimelineLayerChange } from '@gs/shared/timeline/types.ts';
+import type { VisualModuleTarget } from '@gs/shared/project/visual-module-target.ts';
 
 // 状態を所有する側の通知契約。通知先やキャッシュ・実行インスタンスの方針には依存しない。
 export type ProjectContentChange =

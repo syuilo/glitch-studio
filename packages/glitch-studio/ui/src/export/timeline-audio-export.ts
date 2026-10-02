@@ -1,9 +1,9 @@
-import { TimelineAudioRenderer } from '@glitch/audio-renderer/timeline-audio-renderer.ts';
+import { TimelineAudioRenderer } from '@gs/glitch-studio_audio-renderer/timeline-audio-renderer.ts';
 import { AssetAudioReader } from '../audio/asset-audio-reader.ts';
 import { MP4_AUDIO_SAMPLE_RATE } from './audio-export-settings.ts';
-import type { StereoPcm } from '@glitch/audio-renderer/pcm.ts';
-import type { SceneAudioClip } from '@glitch/shared/timeline/scene-audio.ts';
-import type { Asset } from '@glitch/shared/types.ts';
+import type { StereoPcm } from '@gs/glitch-studio_audio-renderer/pcm.ts';
+import type { SceneAudioClip } from '@gs/shared/timeline/scene-audio.ts';
+import type { Asset } from '@gs/shared/types.ts';
 import type { VideoExportSettings } from './timeline-export.ts';
 
 /** 書き出し専用のデコーダー・評価器。プレビューの再生位置や試聴音量を参照しない。 */

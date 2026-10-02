@@ -1,10 +1,10 @@
 import { customRef, ref, watch, onScopeDispose } from 'vue';
 import { EventEmitter } from 'eventemitter3';
-import { deepEqual } from '@glitch/shared/utility/deep-equal.js';
+import { deepEqual } from '@gs/shared/utility/deep-equal.js';
 import type { Ref } from 'vue';
 import type { WorkspaceElement } from './workspace.ts';
 import type { MenuItem } from './types/menu.ts';
-import type { IntermediateTextureFormat } from '@glitch/shared/types.js';
+import type { IntermediateTextureFormat } from '@gs/shared/types.js';
 import type { TimelineTickMode } from './utility/timeline-ticks.ts';
 
 export const PREF_DEF = definePreferences({

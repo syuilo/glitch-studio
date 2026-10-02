@@ -1,16 +1,16 @@
-import { getTimelineScene } from '@glitch/shared/timeline/scenes.ts';
-import { timelineAudioParamDefs } from '@glitch/shared/timeline/timeline-audio.ts';
-import { timelineCompositingParamDefs } from '@glitch/shared/timeline/timeline-compositing.ts';
-import { effectDefinitions } from '@glitch/shared/effect/effect-definitions.ts';
-import { resolveParameter, walkParameters } from '@glitch/shared/parameter/parameter-path.ts';
+import { getTimelineScene } from '@gs/shared/timeline/scenes.ts';
+import { timelineAudioParamDefs } from '@gs/shared/timeline/timeline-audio.ts';
+import { timelineCompositingParamDefs } from '@gs/shared/timeline/timeline-compositing.ts';
+import { effectDefinitions } from '@gs/shared/effect/effect-definitions.ts';
+import { resolveParameter, walkParameters } from '@gs/shared/parameter/parameter-path.ts';
 import { getParameterPathLabel } from './parameter-label.ts';
-import type { ParamPath } from '@glitch/shared/parameter/parameter-path.ts';
-import type { ParameterBinding } from '@glitch/shared/parameter/parameter-binding.ts';
-import type { ParameterDefinition } from '@glitch/shared/parameter/parameter-definition.ts';
+import type { ParamPath } from '@gs/shared/parameter/parameter-path.ts';
+import type { ParameterBinding } from '@gs/shared/parameter/parameter-binding.ts';
+import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
 import type { AppState } from '../types.ts';
-import type { TimelineLayer, TimelineParameterTarget } from '@glitch/shared/timeline/types.ts';
+import type { TimelineLayer, TimelineParameterTarget } from '@gs/shared/timeline/types.ts';
 
-export type { TimelineParameterTarget } from '@glitch/shared/timeline/types.ts';
+export type { TimelineParameterTarget } from '@gs/shared/timeline/types.ts';
 
 export function getScene(state: AppState, sceneId: string) {
 	return getTimelineScene(state.timelineScenes.value, sceneId);

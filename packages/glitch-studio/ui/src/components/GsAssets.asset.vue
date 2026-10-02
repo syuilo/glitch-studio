@@ -17,7 +17,7 @@
 import { shallowRef, watch } from 'vue';
 import GsButton from './common/GsButton.vue';
 import { i18n } from '@/i18n.ts';
-import type { Asset } from '@glitch/shared/types.ts';
+import type { Asset } from '@gs/shared/types.ts';
 import * as api from '@/api.ts';
 import { appStateManager } from '@/app.ts';
 import { popup } from '@/ui.ts';

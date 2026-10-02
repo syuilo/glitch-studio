@@ -24,12 +24,12 @@
 </template>
 
 <script lang="ts" setup>
-import { visualModuleCustomParameterId, visualModuleCustomParameterName } from '@glitch/shared/visual-module/types.ts';
-import { genId } from '@glitch/shared/utility/id.js';
+import { visualModuleCustomParameterId, visualModuleCustomParameterName } from '@gs/shared/visual-module/types.ts';
+import { genId } from '@gs/shared/utility/id.js';
 import GsButton from './common/GsButton.vue';
 import XVisualModuleParamDefEditor from './XVisualModuleParamDefEditor.vue';
 import GsFolder from './common/GsFolder.vue';
-import type { VisualModule, VisualModuleCustomParameterId, VisualModuleParamDef } from '@glitch/shared/visual-module/types.ts';
+import type { VisualModule, VisualModuleCustomParameterId, VisualModuleParamDef } from '@gs/shared/visual-module/types.ts';
 
 const props = defineProps<{
 	visualModule: VisualModule;

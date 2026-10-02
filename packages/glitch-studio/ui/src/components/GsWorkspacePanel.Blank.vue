@@ -5,7 +5,7 @@
 </template>
 
 <script lang="ts" setup>
-import { deepClone } from '@glitch/shared/utility/deep-clone.js';
+import { deepClone } from '@gs/shared/utility/deep-clone.js';
 import GsButton from './common/GsButton.vue';
 import type { WorkspacePanel } from '@/workspace.ts';
 import { findWorkspaceElement } from '@/utility/workspace.ts';

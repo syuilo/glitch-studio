@@ -1,10 +1,10 @@
-import type { SceneAudioClip } from '@glitch/shared/timeline/scene-audio.ts';
-import type { ParameterEvaluationScope } from '@glitch/shared/parameter/parameter-evaluation-scope.ts';
-import type { TimelineParameterBinding } from '@glitch/shared/timeline/types.ts';
-import { getTimelineClipEnd } from '@glitch/shared/timeline/timing.ts';
-import { TimelineParameterBindingEvaluator } from '@glitch/timeline-shared/parameter-binding-evaluator.ts';
-import { createTimelineLayerEvaluationScope } from '@glitch/timeline-shared/evaluation-scope.ts';
-import type { TimelineAudioLayer } from '@glitch/shared/timeline/types.ts';
+import type { SceneAudioClip } from '@gs/shared/timeline/scene-audio.ts';
+import type { ParameterEvaluationScope } from '@gs/shared/parameter/parameter-evaluation-scope.ts';
+import type { TimelineParameterBinding } from '@gs/shared/timeline/types.ts';
+import { getTimelineClipEnd } from '@gs/shared/timeline/timing.ts';
+import { TimelineParameterBindingEvaluator } from '@gs/subsystems_timeline_shared/parameter-binding-evaluator.ts';
+import { createTimelineLayerEvaluationScope } from '@gs/subsystems_timeline_shared/evaluation-scope.ts';
+import type { TimelineAudioLayer } from '@gs/shared/timeline/types.ts';
 import type { StereoPcm } from './pcm.ts';
 
 export type AudioPcmReader = (assetId: string, timeSeconds: number, frames: number, sampleRate: number) => Promise<StereoPcm>;

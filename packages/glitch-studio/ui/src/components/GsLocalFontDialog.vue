@@ -25,7 +25,7 @@
 
 <script lang="ts" setup>
 import { computed, onBeforeUnmount, ref, useTemplateRef } from 'vue';
-import { genId } from '@glitch/shared/utility/id.ts';
+import { genId } from '@gs/shared/utility/id.ts';
 import GsModal from './common/GsModal.vue';
 import GsInput from './common/GsInput.vue';
 import GsButton from './common/GsButton.vue';

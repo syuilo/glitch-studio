@@ -1,6 +1,6 @@
-import { genId } from '@glitch/shared/utility/id.ts';
-import { deepClone } from '@glitch/shared/utility/deep-clone.ts';
-import type { ParameterBinding } from '@glitch/shared/parameter/parameter-binding.ts';
+import { genId } from '@gs/shared/utility/id.ts';
+import { deepClone } from '@gs/shared/utility/deep-clone.ts';
+import type { ParameterBinding } from '@gs/shared/parameter/parameter-binding.ts';
 
 type InlineAutomationGraph = Extract<ParameterBinding, { inputSource: 'automationGraphInline' }>;
 

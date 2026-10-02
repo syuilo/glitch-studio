@@ -86,18 +86,18 @@
 </template>
 
 <script lang="ts" setup>
-import { visualModuleCustomParameterName } from '@glitch/shared/visual-module/types.ts';
-import { genEmptyValue } from '@glitch/shared/parameter/parameter-default.ts';
-import { isParameterType } from '@glitch/shared/parameter/parameter-definition.ts';
-import { isTextureDataType } from '@glitch/shared/data-type/data-type.ts';
-import { genId } from '@glitch/shared/utility/id.ts';
+import { visualModuleCustomParameterName } from '@gs/shared/visual-module/types.ts';
+import { genEmptyValue } from '@gs/shared/parameter/parameter-default.ts';
+import { isParameterType } from '@gs/shared/parameter/parameter-definition.ts';
+import { isTextureDataType } from '@gs/shared/data-type/data-type.ts';
+import { genId } from '@gs/shared/utility/id.ts';
 import GsSelect from './common/GsSelect.vue';
 import GsInput from './common/GsInput.vue';
 import GsButton from './common/GsButton.vue';
 import GsSwitch from './common/GsSwitch.vue';
 import GsLiteralLeafValueControl from './GsLiteralLeafValueControl.vue';
 import XEnumOptionsEditor from './XEnumOptionsEditor.vue';
-import type { VisualModuleCustomParameterId, VisualModuleParamDef } from '@glitch/shared/visual-module/types.ts';
+import type { VisualModuleCustomParameterId, VisualModuleParamDef } from '@gs/shared/visual-module/types.ts';
 import { i18n } from '@/i18n.ts';
 
 type ParamDef = VisualModuleParamDef;

@@ -10,8 +10,8 @@
 
 <script lang="ts" setup>
 import { computed, ref, watch } from 'vue';
-import { genId } from '@glitch/shared/utility/id.ts';
-import { deepClone } from '@glitch/shared/utility/deep-clone.ts';
+import { genId } from '@gs/shared/utility/id.ts';
+import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import GsButton from './common/GsButton.vue';
 import GsSceneResolutionDialog from './GsSceneResolutionDialog.vue';
 import type { WorkspacePanel } from '@/workspace.ts';

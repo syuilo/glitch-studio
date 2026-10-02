@@ -1,5 +1,5 @@
-import { paramPathKey } from '@glitch/shared/parameter/parameter-path.ts';
-import type { ParamPath } from '@glitch/shared/parameter/parameter-path.ts';
+import { paramPathKey } from '@gs/shared/parameter/parameter-path.ts';
+import type { ParamPath } from '@gs/shared/parameter/parameter-path.ts';
 import type { TimelineParameterTarget } from './timeline-scene.ts';
 
 export type TimelineKeyframeSelection = {

@@ -1,5 +1,5 @@
-import type { EffectInstanceState } from '@glitch/shared/effect/effect-status.ts';
-import type { LiveEffectStatusSource } from '@glitch/renderer/visual-module-renderer-manager.ts';
+import type { EffectInstanceState } from '@gs/shared/effect/effect-status.ts';
+import type { LiveEffectStatusSource } from '@gs/glitch-studio_renderer/visual-module-renderer-manager.ts';
 
 export class LiveEffectStateStore {
 	private current: { visualModuleId: string; instanceId: string } | null = null;

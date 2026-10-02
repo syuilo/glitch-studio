@@ -53,7 +53,7 @@ let dropCallback: ((targetInstanceId: string) => void) | null = null;
 </script>
 
 <script lang="ts" setup generic="T extends { id: string; }">
-import { genId } from '@glitch/shared/utility/id.js';
+import { genId } from '@gs/shared/utility/id.js';
 import { nextTick } from 'vue';
 import { getDragData, setDragData } from '@/utility/drag-and-drop.ts';
 

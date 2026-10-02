@@ -56,19 +56,19 @@
 
 <script lang="ts" setup>
 import { computed } from 'vue';
-import { paramPathKey } from '@glitch/shared/parameter/parameter-path.ts';
-import { effectDefinitions } from '@glitch/shared/effect/effect-definitions.ts';
+import { paramPathKey } from '@gs/shared/parameter/parameter-path.ts';
+import { effectDefinitions } from '@gs/shared/effect/effect-definitions.ts';
 import { insertInlineKeyframe } from '@/utility/keyframes-timeline.ts';
-import { getSceneDuration } from '@glitch/shared/timeline/scenes.ts';
-import { getTimelineClipEnd } from '@glitch/shared/timeline/timing.ts';
-import type { TimelineClip, TimelineAssetClip, TimelineVideoClip, TimelineSceneClip } from '@glitch/shared/timeline/clip.ts';
+import { getSceneDuration } from '@gs/shared/timeline/scenes.ts';
+import { getTimelineClipEnd } from '@gs/shared/timeline/timing.ts';
+import type { TimelineClip, TimelineAssetClip, TimelineVideoClip, TimelineSceneClip } from '@gs/shared/timeline/clip.ts';
 import GsCondensedLine from './common/GsCondensedLine.vue';
 import XClip from './GsTimeline.Clip.vue';
 import XKeyframes from './GsTimeline.Layer.Keyframes.vue';
 import type { TimelineKeyframeSelection, TimelineClipSelection } from '@/utility/timeline-selection.ts';
 import type { TimelineClipTicks } from '@/utility/timeline-ticks.ts';
 import type { TimelineClipMediaInfo } from '@/utility/timeline-clip-media.ts';
-import type { TimelineLayer } from '@glitch/shared/timeline/types.ts';
+import type { TimelineLayer } from '@gs/shared/timeline/types.ts';
 import { formatTimelineTimecode } from '@/utility/timeline-ticks.ts';
 import { resolveLayerParameter, getLayerKeyframeParameters } from '@/utility/timeline-scene.ts';
 import { appStateManager } from '@/app.ts';

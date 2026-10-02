@@ -120,12 +120,12 @@
 
 <script lang="ts" setup>
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef, useTemplateRef, watch } from 'vue';
-import { evalAutomationGraphValue } from '@glitch/shared/automation-graph/automation-graph-evaluator.ts';
-import { insertIntermediateNumbers, nearlyEqual, niceScale, niceNormalizedScale } from '@glitch/shared/utility/misc.js';
-import { genId } from '@glitch/shared/utility/id.js';
-import { deepClone } from '@glitch/shared/utility/deep-clone.js';
+import { evalAutomationGraphValue } from '@gs/shared/automation-graph/automation-graph-evaluator.ts';
+import { insertIntermediateNumbers, nearlyEqual, niceScale, niceNormalizedScale } from '@gs/shared/utility/misc.js';
+import { genId } from '@gs/shared/utility/id.js';
+import { deepClone } from '@gs/shared/utility/deep-clone.js';
 import GsButton from './common/GsButton.vue';
-import type { AutomationGraph, BezierAnchorPoint } from '@glitch/shared/automation-graph/automation-graph.ts';
+import type { AutomationGraph, BezierAnchorPoint } from '@gs/shared/automation-graph/automation-graph.ts';
 import { dragListen } from '@/utility/drag.ts';
 
 // TODO: dom座標としてのx/yとpointの値としてのx/yは同じ数値ではあるが意味が異なるので、Phantom Typeなどで区別する

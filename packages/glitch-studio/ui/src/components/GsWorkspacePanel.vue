@@ -81,7 +81,7 @@
 </template>
 
 <script lang="ts" setup>
-import { deepClone } from '@glitch/shared/utility/deep-clone.js';
+import { deepClone } from '@gs/shared/utility/deep-clone.js';
 import { useTemplateRef, ref, computed, nextTick } from 'vue';
 import GsDetachableView from './GsDetachableView.vue';
 import type { MenuItem } from '@/types/menu.ts';

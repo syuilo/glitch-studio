@@ -11,11 +11,11 @@
 		"lint": "pnpm typecheck && pnpm eslint"
 	},
 	"dependencies": {
-		"@glitch/audio-renderer": "workspace:*",
-		"@glitch/renderer": "workspace:*",
-		"@glitch/shared": "workspace:*",
-		"@glitch/timeline-shared": "workspace:*",
-		"@glitch/visual-module-shared": "workspace:*",
+		"@gs/glitch-studio_audio-renderer": "workspace:*",
+		"@gs/glitch-studio_renderer": "workspace:*",
+		"@gs/shared": "workspace:*",
+		"@gs/subsystems_timeline_shared": "workspace:*",
+		"@gs/subsystems_visual-module_shared": "workspace:*",
 		"@jsquash/webp": "1.5.0",
 		"@msgpack/msgpack": "3.1.3",
 		"@syuilo/aiscript": "1.2.1",

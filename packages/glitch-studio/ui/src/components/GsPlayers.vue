@@ -9,7 +9,7 @@
 </template>
 
 <script lang="ts" setup>
-import { genId } from '@glitch/shared/utility/id.ts';
+import { genId } from '@gs/shared/utility/id.ts';
 import GsButton from './common/GsButton.vue';
 import GsPlayer from './GsPlayer.vue';
 import { appStateManager } from '@/app.ts';

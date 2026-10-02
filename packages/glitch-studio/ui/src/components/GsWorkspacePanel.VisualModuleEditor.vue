@@ -35,21 +35,21 @@
 </template>
 
 <script lang="ts" setup>
-import { areDataTypesEqual } from '@glitch/shared/data-type/data-type.ts';
-import { isParameterType } from '@glitch/shared/parameter/parameter-definition.ts';
+import { areDataTypesEqual } from '@gs/shared/data-type/data-type.ts';
+import { isParameterType } from '@gs/shared/parameter/parameter-definition.ts';
 import { LIVE_VAR_DEFS } from '../../../shared/src/live-expression.ts';
 import { computed, ref, watch, onBeforeUnmount } from 'vue';
 import { AiSON } from '@syuilo/aiscript';
-import { deepClone } from '@glitch/shared/utility/deep-clone.ts';
-import { genId } from '@glitch/shared/utility/id.ts';
+import { deepClone } from '@gs/shared/utility/deep-clone.ts';
+import { genId } from '@gs/shared/utility/id.ts';
 import GsVisualModuleEditor from './GsVisualModuleEditor.vue';
 import GsVisualParam from './GsVisualParam.vue';
 import GsEffectPicker from './GsEffectPicker.vue';
 import GsButton from './common/GsButton.vue';
 import GsTabs from './common/GsTabs.vue';
-import type { ProjectVisualModule } from '@glitch/shared/project/types.ts';
-import type { VisualModuleParamDef, VisualModuleParameterBindings, VisualModuleCustomParameterId } from '@glitch/shared/visual-module/types.ts';
-import type { EffectInstanceState } from '@glitch/shared/effect/effect-status.ts';
+import type { ProjectVisualModule } from '@gs/shared/project/types.ts';
+import type { VisualModuleParamDef, VisualModuleParameterBindings, VisualModuleCustomParameterId } from '@gs/shared/visual-module/types.ts';
+import type { EffectInstanceState } from '@gs/shared/effect/effect-status.ts';
 import type { ParamEdit } from './GsVisualParam.vue';
 import type { VisualModuleEdit } from '@/types/visual-module-editor.ts';
 import type { WorkspacePanel } from '@/workspace.ts';

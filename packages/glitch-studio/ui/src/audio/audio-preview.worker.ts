@@ -1,8 +1,8 @@
-import { AudioHistory } from '@glitch/shared/audio-history.ts';
-import { createAudioSpectrogram } from '@glitch/shared/utility/audio-spectrogram/audio-spectrogram.ts';
+import { AudioHistory } from '@gs/shared/audio-history.ts';
+import { createAudioSpectrogram } from '@gs/shared/utility/audio-spectrogram/audio-spectrogram.ts';
 import { createPreviewSpectrum } from './audio-preview-spectrum.ts';
 import { createPreviewWaveform } from './audio-preview-waveform.ts';
-import type { AudioCaptureMessage } from '@glitch/shared/audio.ts';
+import type { AudioCaptureMessage } from '@gs/shared/audio.ts';
 import type { MeterReading, PreviewOptions, PreviewRequest, PreviewResponse, PreviewSize } from './audio-preview-types.ts';
 
 type Panel = {

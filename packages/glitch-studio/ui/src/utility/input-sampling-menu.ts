@@ -1,6 +1,6 @@
 import { computed } from 'vue';
 import type { Ref } from 'vue';
-import type { ShaderInputSampling } from '@glitch/shared/gpu/shader-input.ts';
+import type { ShaderInputSampling } from '@gs/shared/gpu/shader-input.ts';
 import type { MenuItem } from '@/types/menu.ts';
 import { i18n } from '@/i18n.ts';
 

@@ -1,8 +1,8 @@
-import { projectAudioSourceId } from '@glitch/shared/audio.ts';
+import { projectAudioSourceId } from '@gs/shared/audio.ts';
 import { ref, shallowReactive } from 'vue';
 import workletUrl from './audio-capture.worklet.js?url';
 import { AudioPreview } from './audio-preview.ts';
-import type { AudioSourceId } from '@glitch/shared/audio.ts';
+import type { AudioSourceId } from '@gs/shared/audio.ts';
 
 const silentLevels = [0, 0] as const;
 

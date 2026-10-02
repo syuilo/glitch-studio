@@ -1,7 +1,7 @@
 // Managerクラスのメソッドの呼び出しやイベント通知を行うだけ。独自の処理を追加しないこと！ そうしないとWorkerでの利用と非Workerでの利用で機能に差が生まれることになる
 
-import { effectDefinitions } from '@glitch/effect-shared/effect-definitions.ts';
-import { effectImplementations } from '@glitch/effect-shared/effect-implementations.js';
+import { effectDefinitions } from '@gs/subsystems_effect_shared/effect-definitions.ts';
+import { effectImplementations } from '@gs/subsystems_effect_shared/effect-implementations.js';
 import { createManager, VisualModuleRendererManager } from './visual-module-renderer-manager.ts';
 
 let manager: VisualModuleRendererManager | null = null;

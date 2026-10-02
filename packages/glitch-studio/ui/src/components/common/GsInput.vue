@@ -48,7 +48,7 @@ type ModelValueType<T extends SupportedTypes> =
 <script lang="ts" setup generic="T extends SupportedTypes = 'text'">
 import { onMounted, onUnmounted, nextTick, ref, useTemplateRef, watch, computed, toRefs } from 'vue';
 import { throttle, debounce } from 'throttle-debounce';
-import { genId } from '@glitch/shared/utility/id.ts';
+import { genId } from '@gs/shared/utility/id.ts';
 import type { InputHTMLAttributes } from 'vue';
 import type { SuggestionType } from '@/utility/autocomplete.ts';
 import GsButton from '@/components/common/GsButton.vue';

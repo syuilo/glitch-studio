@@ -1,8 +1,8 @@
 // NOTE: このファイルはpreferencesへの参照・知識を持っていてはならない
 // また、引数をmutateしてはならない
 
-import { deepClone } from '@glitch/shared/utility/deep-clone.js';
-import { genId } from '@glitch/shared/utility/id.js';
+import { deepClone } from '@gs/shared/utility/deep-clone.js';
+import { genId } from '@gs/shared/utility/id.js';
 import type { WorkspaceElement, WorkspaceDivider, WorkspaceTabs, WorkspacePanel } from '@/workspace.ts';
 
 export function findWorkspaceParent(root: WorkspaceElement, id: string): WorkspaceDivider | WorkspaceTabs | null {

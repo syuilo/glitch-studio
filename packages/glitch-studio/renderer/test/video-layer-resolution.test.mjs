@@ -7,7 +7,7 @@ import { loadShaderSource } from './helpers/load-shader-source.mjs';
 
 // デコードとGPU実行だけを置き換える。倍率の受け渡し・動画転送・合成の分岐・
 // モジュール内の自動解像度は実装を通し、境界のどこかで倍率が失われる回帰を検出する。
-const videoSourceModule = '@glitch/shared/media/video-source.ts';
+const videoSourceModule = '@gs/shared/media/video-source.ts';
 const managerBundle = await build({
 	entryPoints: [fileURLToPath(new URL('../src/timeline-renderer-manager.ts', import.meta.url))],
 	bundle: true, platform: 'node', format: 'cjs', write: false,

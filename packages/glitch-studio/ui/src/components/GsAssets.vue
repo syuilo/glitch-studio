@@ -16,7 +16,7 @@
 
 <script lang="ts" setup>
 import { onBeforeUnmount, ref } from 'vue';
-import { genId } from '@glitch/shared/utility/id.ts';
+import { genId } from '@gs/shared/utility/id.ts';
 import GsButton from './common/GsButton.vue';
 import XAsset from './GsAssets.asset.vue';
 import GsLocalFontDialog from './GsLocalFontDialog.vue';

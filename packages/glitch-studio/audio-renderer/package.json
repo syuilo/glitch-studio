@@ -1,6 +1,6 @@
 {
 	"type": "module",
-	"name": "@glitch/audio-renderer",
+	"name": "@gs/glitch-studio_audio-renderer",
 	"private": true,
 	"scripts": {
 		"eslint": "eslint --quiet './**/*.{js,jsx,ts,tsx}'",
@@ -21,7 +21,7 @@
 		"vitest": "4.1.10"
 	},
 	"dependencies": {
-		"@glitch/shared": "workspace:*",
-		"@glitch/timeline-shared": "workspace:*"
+		"@gs/shared": "workspace:*",
+		"@gs/subsystems_timeline_shared": "workspace:*"
 	}
 }

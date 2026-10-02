@@ -1,7 +1,7 @@
-import { areNodeDataTypesCompatible, getNodeOutputs } from '@glitch/shared/utility/node-outputs.ts';
-import { effectDefinitions } from '@glitch/shared/effect/effect-definitions.js';
-import type { TextureDataType } from '@glitch/shared/data-type/data-type.ts';
-import type { VisualModuleNode, NodeOutputReference, VisualModule } from '@glitch/shared/visual-module/types.ts';
+import { areNodeDataTypesCompatible, getNodeOutputs } from '@gs/shared/utility/node-outputs.ts';
+import { effectDefinitions } from '@gs/shared/effect/effect-definitions.js';
+import type { TextureDataType } from '@gs/shared/data-type/data-type.ts';
+import type { VisualModuleNode, NodeOutputReference, VisualModule } from '@gs/shared/visual-module/types.ts';
 import { preferences } from '@/preferences.ts';
 
 export function getNodeDataTypeColor(dataType: TextureDataType | null | undefined): string {

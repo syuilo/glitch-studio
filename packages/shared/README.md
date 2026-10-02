@@ -4,7 +4,7 @@
 
 あまり肥大化させないのが望ましい
 
-Glitch Studioドメイン内だけで共有する必要のあるものは、ここではなく`glitch-studio/shared`に置くべし。
+Glitch Studioドメイン内だけで共有する必要のあるものは、ここではなく`glitch-studio_shared`に置くべし。
 
 ## データ型・パラメータ・式の共通基盤
 

@@ -24,7 +24,7 @@
 
 <script lang="ts" setup>
 import { computed, nextTick, ref, watch } from 'vue';
-import { genId } from '@glitch/shared/utility/id.ts';
+import { genId } from '@gs/shared/utility/id.ts';
 import GsInput from './common/GsInput.vue';
 import GsSelect from './common/GsSelect.vue';
 import GsButton from './common/GsButton.vue';

@@ -1,4 +1,4 @@
-import type { AudioHistory } from '@glitch/shared/audio-history.ts';
+import type { AudioHistory } from '@gs/shared/audio-history.ts';
 import type { MonitorSettings } from './audio-preview-types.ts';
 
 export function createPreviewWaveform(device: GPUDevice) {

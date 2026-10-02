@@ -1,5 +1,5 @@
-import type { VisualModuleNodeChange } from '@glitch/shared/visual-module/types.ts';
-import type { TimelineLayerChange } from '@glitch/shared/timeline/types.ts';
+import type { VisualModuleNodeChange } from '@gs/shared/visual-module/types.ts';
+import type { TimelineLayerChange } from '@gs/shared/timeline/types.ts';
 
 // 通知は編集内容だけを伝える。キャッシュと履歴をどこまで残すかは、LIVEと
 // タイムラインが共通で使うレンダラー側の方針としてここに集約する。

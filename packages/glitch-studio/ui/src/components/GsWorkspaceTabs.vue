@@ -28,9 +28,9 @@
 </template>
 
 <script lang="ts" setup>
-import { deepClone } from '@glitch/shared/utility/deep-clone.js';
+import { deepClone } from '@gs/shared/utility/deep-clone.js';
 import { computed, ref, watch } from 'vue';
-import { genId } from '@glitch/shared/utility/id.js';
+import { genId } from '@gs/shared/utility/id.js';
 import type { MenuItem } from '@/types/menu.ts';
 import type { WorkspaceTabs } from '@/workspace.ts';
 import { getElementMenu, workspacePanelChoices } from '@/workspace.ts';

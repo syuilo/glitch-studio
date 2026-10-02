@@ -1,5 +1,5 @@
-import { playerAudioSourceId } from '@glitch/shared/audio.ts';
-import type { AudioSourceId } from '@glitch/shared/audio.ts';
+import { playerAudioSourceId } from '@gs/shared/audio.ts';
+import type { AudioSourceId } from '@gs/shared/audio.ts';
 import type { AudioCapture, AudioOutput } from './audio-output.ts';
 
 type PlayerAudio = {

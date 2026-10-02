@@ -1,10 +1,10 @@
-import { effectDefinitions } from '@glitch/shared/effect/effect-definitions.ts';
-import { resolveParameter, walkParameters } from '@glitch/shared/parameter/parameter-path.ts';
-import type { ParameterDefinition } from '@glitch/shared/parameter/parameter-definition.ts';
-import type { VisualModuleEffectNode } from '@glitch/shared/visual-module/types.ts';
-import type { ParamPath } from '@glitch/shared/parameter/parameter-path.ts';
-export { paramPathKey } from '@glitch/shared/parameter/parameter-path.ts';
-export type { ParamPath } from '@glitch/shared/parameter/parameter-path.ts';
+import { effectDefinitions } from '@gs/shared/effect/effect-definitions.ts';
+import { resolveParameter, walkParameters } from '@gs/shared/parameter/parameter-path.ts';
+import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
+import type { VisualModuleEffectNode } from '@gs/shared/visual-module/types.ts';
+import type { ParamPath } from '@gs/shared/parameter/parameter-path.ts';
+export { paramPathKey } from '@gs/shared/parameter/parameter-path.ts';
+export type { ParamPath } from '@gs/shared/parameter/parameter-path.ts';
 
 export type NodeParamTarget = { nodeId: VisualModuleEffectNode['id']; paramPath: ParamPath };
 
