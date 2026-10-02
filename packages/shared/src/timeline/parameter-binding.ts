@@ -9,4 +9,7 @@ export function validateTimelineParameterBinding(binding: ParameterBinding): voi
 	if (binding.inputSource === 'keyframesTimelineInline' && (binding.keyframesTimeline.isNormalized || binding.offsetMode !== 'start' || binding.wrapMode !== 'clamp' || binding.trimmedDurationMs != null)) {
 		throw new Error('Timeline keyframes must use absolute scene time without wrapping');
 	}
+	if (binding.inputSource === 'keyframesTimelineInline' && binding.keyframesTimeline.keyframes.some(point => !Number.isSafeInteger(point.x) || point.x < 0)) {
+		throw new Error('Timeline keyframes must use non-negative integer milliseconds');
+	}
 }

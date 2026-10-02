@@ -1,12 +1,15 @@
 /** Scene上の表示区間と、素材・モジュールの内容時刻を独立して保持する。 */
 export type TimelineClipTiming = {
+	/** Scene上の配置と長さは安全な整数ミリ秒。 */
 	startMs: number;
 	durationMs: number;
+	/** 素材のフレーム・サンプル位置を失わないよう、小数ミリ秒を保持する。 */
 	contentOffsetMs: number;
 };
 
 export function createTimelineClipTiming(startMs: number, durationMs: number): TimelineClipTiming {
-	return { startMs, durationMs, contentOffsetMs: 0 };
+	// 開始は最寄りのmsへ配置する。長さは素材や空き区間を超えない方向へ丸める。
+	return { startMs: Math.round(startMs), durationMs: Math.floor(durationMs), contentOffsetMs: 0 };
 }
 
 export function getTimelineClipEnd(timing: TimelineClipTiming): number {
@@ -18,12 +21,26 @@ export function isTimelineClipActive(timing: TimelineClipTiming, sceneTimeMs: nu
 }
 
 export function getTimelineClipContentTime(timing: TimelineClipTiming, sceneTimeMs: number): number {
-	return timing.contentOffsetMs + sceneTimeMs - timing.startMs;
+	// 先にScene上の差を求め、大きな開始時刻への加算で素材位置の小数精度を失わないようにする。
+	return timing.contentOffsetMs + (sceneTimeMs - timing.startMs);
 }
 
 export function isTimelineClipTimingValid(timing: TimelineClipTiming): boolean {
-	return [timing.startMs, timing.durationMs, timing.contentOffsetMs, getTimelineClipEnd(timing), timing.contentOffsetMs + timing.durationMs].every(Number.isFinite)
+	return [timing.startMs, timing.durationMs, getTimelineClipEnd(timing)].every(Number.isSafeInteger)
+		&& [timing.contentOffsetMs, timing.contentOffsetMs + timing.durationMs].every(Number.isFinite)
 		&& timing.startMs >= 0 && timing.durationMs > 0 && timing.contentOffsetMs >= 0;
+}
+
+/** 素材の残り時間に収まる整数msの長さ。表示区間の衝突判定には使わない。 */
+export function getTimelineMediaMaxDurationMs(contentOffsetMs: number, sourceDurationMs: number): number {
+	if (sourceDurationMs === Infinity) return Infinity;
+	const remainingMs = sourceDurationMs - contentOffsetMs;
+	const nearestMs = Math.round(remainingMs);
+	// 小数の内容オフセットを左トリムで進めた際、加減算の誤差で残り時間が
+	// 整数の直前になることがある。その誤差だけを吸収し、丸々1ms短くなるのを防ぐ。
+	// 通常の小数部分は切り捨て、トリム制限と保存時の素材長検証で同じ上限を使う。
+	const roundingErrorMs = 4 * Number.EPSILON * Math.max(1, Math.abs(sourceDurationMs), Math.abs(contentOffsetMs));
+	return Math.abs(remainingMs - nearestMs) <= roundingErrorMs ? nearestMs : Math.floor(remainingMs);
 }
 
 /** 境界の接触は許可する。素材の未使用部分は衝突判定に含めない。 */
@@ -52,9 +69,9 @@ export function getTimelineClipMoveBounds(clips: readonly (TimelineClipTiming & 
 
 /** 追加場所が既存クリップ内なら追加しない。次の開始位置までに必ず収める。 */
 export function getTimelineClipInsertionDuration(clips: readonly TimelineClipTiming[], startMs: number, requestedDurationMs = 5000): number {
-	if (!Number.isFinite(startMs) || startMs < 0 || clips.some(clip => isTimelineClipActive(clip, startMs))) return 0;
+	if (!Number.isSafeInteger(startMs) || startMs < 0 || clips.some(clip => isTimelineClipActive(clip, startMs))) return 0;
 	const nextStart = clips.reduce((next, clip) => clip.startMs > startMs ? Math.min(next, clip.startMs) : next, Infinity);
-	return Math.max(0, Math.min(requestedDurationMs, nextStart - startMs));
+	return Math.max(0, Math.floor(Math.min(requestedDurationMs, nextStart - startMs, Number.MAX_SAFE_INTEGER - startMs)));
 }
 
 /** UIとコマンドで同じ制限を使う。生成系は左への延長を行わず、Undoだけで元の区間に戻す。 */
@@ -62,10 +79,9 @@ export function getTimelineClipTrimBounds(clips: readonly (TimelineClipTiming & 
 	const clip = clips.find(clip => clip.id === clipId);
 	if (!clip) throw new Error('Timeline clip not found');
 	const bounds = getTimelineClipMoveBounds(clips, new Set([clipId]), clipId);
-	// 保存形式は任意の正の長さを許可する。通常の操作では1msを下限とし、
-	// それより短い既存クリップを編集しただけで勝手に伸ばさない。
-	const minimumDurationMs = Math.min(1, clip.durationMs);
+	// 内容オフセットと素材長は小数でも、実際に適用できる移動量は整数msに限る。
+	// 下限は切り上げ、上限は切り捨てることで内容時刻0や素材終端を越えない。
 	return edge === 'start'
-		? { minDelta: canExtendStart ? Math.max(bounds.minDelta, -clip.contentOffsetMs) : 0, maxDelta: clip.durationMs - minimumDurationMs }
-		: { minDelta: minimumDurationMs - clip.durationMs, maxDelta: Math.min(bounds.maxDelta, sourceDurationMs - clip.contentOffsetMs - clip.durationMs) };
+		? { minDelta: canExtendStart ? Math.ceil(Math.max(bounds.minDelta, -clip.contentOffsetMs)) : 0, maxDelta: clip.durationMs - 1 }
+		: { minDelta: 1 - clip.durationMs, maxDelta: Math.min(bounds.maxDelta, getTimelineMediaMaxDurationMs(clip.contentOffsetMs, sourceDurationMs) - clip.durationMs) };
 }

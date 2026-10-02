@@ -520,3 +520,75 @@ test('resets a video source within its gap and restores it on undo', () => {
 	command.undo(state);
 	assert.deepEqual(current, layer);
 });
+
+function mediaFixture(layerType, contentOffsetMs = 0.25, durationMs = 5000) {
+	const { state } = fixture();
+	const asset = { id: 'media', fileDataType: layerType + '/test', fileData: new Blob(['original']), hash: 'original', width: 100, height: 100 };
+	state.assets = { value: [asset] };
+	const layer = { id: 'media-layer', name: 'Media', layerType, automationGraphs: [],
+		...(layerType === 'video' ? { compositingParamValues: defaultCompositing() } : {}),
+		audioParamValues: { volume: { inputSource: 'literal', value: 0.5 } },
+		clips: [{ id: 'clip', startMs: 100, durationMs, contentOffsetMs, assetId: asset.id, ...(layerType === 'video' ? { audioEnabled: true } : {}) }] };
+	COMMAND_DEFS.addTimelineLayer.create({ sceneId: 'scene', layer, sourceDurationsMs: { clip: contentOffsetMs + durationMs } }).execute(state);
+	return { state, asset, target: { sceneId: 'scene', layerId: layer.id, clipId: 'clip' }, current: state.timelineScenes.value[0].layers.find(entry => entry.id === layer.id) };
+}
+
+// 【Asset一覧で短い素材へ差し替えた後も、右トリムで区間を修復できる】
+// 変更前の区間が素材長を超えていても、新しい区間が収まれば音声・動画とも受け付ける。
+// 素材位置の小数とレイヤー設定を保持し、Undoでは差し替え後の元の区間へ戻す。
+test('repairs oversized video and audio clips after replacing their assets', () => {
+	for (const layerType of ['video', 'audio']) {
+		const { state, asset, target, current } = mediaFixture(layerType);
+		COMMAND_DEFS.replaceAsset.create({ ...asset, assetId: asset.id, fileData: new Blob(['shorter']), hash: 'shorter' }).execute(state);
+		const before = structuredClone(current);
+		const trim = COMMAND_DEFS.editTimelineClipTiming.create({ ...target,
+			edge: 'end', deltaMs: -2999.6, sourceDurationMs: 2000.75 });
+		trim.execute(state);
+		assert.deepEqual(current, { ...before, clips: [{ ...before.clips[0], durationMs: 2000 }] });
+		trim.undo(state);
+		assert.deepEqual(current, before);
+		trim.execute(state);
+		assert.equal(current.clips[0].durationMs, 2000);
+		assert.equal(current.clips[0].contentOffsetMs, 0.25);
+	}
+});
+
+// 【小数オフセットを丸めずに整数msの左トリムを適用する】
+// 0未満へ延長しない整数の下限で止め、表示終了と素材終端を維持する。
+// 内容オフセットを0にスナップして動画・音声の開始位置を変えてはいけない。
+test('preserves fractional offsets while trimming within integer placement bounds', () => {
+	const { state, target, current: layer } = mediaFixture('video', 1.1);
+	const before = structuredClone(layer.clips[0]);
+	const trim = COMMAND_DEFS.editTimelineClipTiming.create({ ...target, edge: 'start', deltaMs: -1.4, sourceDurationMs: 5001.1 });
+	trim.execute(state);
+	assert.equal(layer.clips[0].startMs, before.startMs - 1);
+	assert.equal(layer.clips[0].durationMs, before.durationMs + 1);
+	assert.equal(layer.clips[0].contentOffsetMs, before.contentOffsetMs - 1);
+	assert.ok(layer.clips[0].contentOffsetMs > 0);
+	trim.undo(state);
+	assert.deepEqual(layer.clips[0], before);
+});
+
+// 【右トリムでも1msを確保できない素材位置は部分変更せず拒否する】
+// 素材差し替えで内容の開始位置自体が素材終端を超えた場合、長さだけでは修復できない。
+// 0長や負の長さにしてしまわず、参照変更など別の操作で直せる状態を保持する。
+test('rejects an impossible media trim without changing the clip', () => {
+	const { state, target, current } = mediaFixture('audio', 3000.25);
+	const before = structuredClone(current);
+	assert.throws(() => COMMAND_DEFS.editTimelineClipTiming.create({ ...target, edge: 'end', deltaMs: -4000, sourceDurationMs: 2000.75 }).execute(state), /No valid clip duration/);
+	assert.deepEqual(current, before);
+});
+
+// 【素材参照の変更で小数の素材長を切り捨て、オフセットをリセットする】
+// 四捨五入で素材を超えたり、素材長の小数を表示区間へ保存したりしないための確認。
+test('floors a replacement media duration and restores the fractional offset on undo', () => {
+	const { state, target, current: layer } = mediaFixture('video', 12.75);
+	state.assets.value.push({ id: 'movie', fileDataType: 'video/mp4', fileData: new Blob() });
+	const before = structuredClone(layer);
+	const change = COMMAND_DEFS.changeTimelineClipSource.create({ ...target, assetId: 'movie', sourceDurationMs: 1234.75 });
+	change.execute(state);
+	assert.equal(layer.clips[0].durationMs, 1234);
+	assert.equal(layer.clips[0].contentOffsetMs, 0);
+	change.undo(state);
+	assert.deepEqual(layer, before);
+});

@@ -512,7 +512,7 @@ test('undoes and redoes a stretch as one command while preserving other paramete
 			manager.commit('moveTimelineKeyframes', { sceneId: 'scene', positions: keyframes.map(point => ({ ...key('audio', point.id), x: stretchKeyframeX(point.x, stretch, delta) })) }, 'stretch');
 		}
 		const expected = structuredClone(before);
-		expected[0].audioParamValues.volume.keyframesTimeline.keyframes = keyframes.map(point => ({ ...point, x: stretchKeyframeX(point.x, stretch, 70) }));
+		expected[0].audioParamValues.volume.keyframesTimeline.keyframes = keyframes.map(point => ({ ...point, x: Math.round(stretchKeyframeX(point.x, stretch, 70)) }));
 		assert.deepEqual(snapshot(manager), expected);
 		assert.equal(manager.undoStack.value.length, 1);
 		manager.undo();
@@ -620,4 +620,63 @@ test('clamps all selected clips together and retains empty layers with their key
 	assert.deepEqual(snapshot(manager), before.map(layer => ({ ...layer, clips: [] })));
 	manager.undo();
 	assert.deepEqual(snapshot(manager), before);
+});
+
+// 【接触した複数クリップを開始位置から共通の整数差分で移動する】
+// 小数のpointermoveを繰り返し加算せず、最後の累積差分だけで配置が決まることを確認する。
+// 別レイヤーにも同量を適用し、素材位置・長さ・キーを保ったままUndo/Redoできる必要がある。
+test('moves touching clips from drag snapshots with one rounded delta and stable undo', () => {
+	const manager = fixture();
+	const [audio, video] = layers(manager);
+	Object.assign(audio.clips[0], { startMs: 1000, durationMs: 1000, contentOffsetMs: 0.25 });
+	audio.clips.push({ ...audio.clips[0], id: 'next', startMs: 2000, contentOffsetMs: 11.75 });
+	video.clips[0].contentOffsetMs = 50.25;
+	const before = snapshot(manager);
+	const targets = before.flatMap(layer => layer.clips.map(clip => ({ layerId: layer.id, clipId: clip.id, initialStartMs: clip.startMs })));
+	for (const deltaMs of [0.4, -10.6, -1000.1]) {
+		manager.commit('moveTimelineClips', { sceneId: 'scene', clips: targets, deltaMs }, 'integer-drag');
+	}
+	const expected = before.map(layer => ({ ...layer, clips: layer.clips.map(clip => ({ ...clip, startMs: clip.startMs - 1000 })) }));
+	assert.deepEqual(snapshot(manager), expected);
+	assert.equal(audio.clips[0].startMs + audio.clips[0].durationMs, audio.clips[1].startMs);
+	assert.equal(manager.undoStack.value.length, 1);
+	for (let index = 0; index < 2; index++) {
+		manager.undo();
+		assert.deepEqual(snapshot(manager), before);
+		manager.redo();
+		assert.deepEqual(snapshot(manager), expected);
+	}
+});
+
+// 【小数のローカル目盛りへの吸着と表示線を整数msへ揃える】
+// 素材オフセット由来の目盛りは小数でも、配置とキーには小数時刻を保存しない。
+// 移動可能範囲も内側の整数へ制限し、素材範囲を超える丸めを防ぐ。
+test('snaps edits to integer milliseconds within fractional bounds', () => {
+	const points = [{ time: 100, minDelta: -100, maxDelta: 1000, snapTimes: [500.4] }];
+	assert.deepEqual(constrainTimelineMove(400.2, points, [], 1), { delta: 400, snappingTime: 500 });
+	assert.deepEqual(getTimelineSnappingTimes(points, [], 400), [500]);
+	assert.deepEqual(constrainTimelineMove(3.6, [{ time: 100, minDelta: 0.25, maxDelta: 3.75 }], [], 1), { delta: 3, snappingTime: null });
+	assert.deepEqual(constrainTimelineMove(0, [{ time: 100, minDelta: 0.25, maxDelta: 3.75 }], [], 1), { delta: 1, snappingTime: null });
+});
+
+// 【キーの数値編集も整数msへ丸めて履歴を復元する】
+// ドラッグ以外からコマンドを呼んでも、タイムラインの保存値へ小数位置を混入させない。
+test('rounds keyframe command positions and restores them on undo', () => {
+	for (const editBinding of [false, true]) {
+		const manager = fixture();
+		const before = snapshot(manager);
+		if (editBinding) {
+			const value = structuredClone(before[0].audioParamValues.volume);
+			value.keyframesTimeline.keyframes[0].x = 100.6;
+			manager.commit('editTimelineLayerParam', { sceneId: 'scene', layerId: 'audio', target: 'audio', paramId: 'volume', edit: { kind: 'keyframesTimelineInline', value } });
+			assert.equal(value.keyframesTimeline.keyframes[0].x, 100.6);
+		} else {
+			manager.commit('moveTimelineKeyframes', { sceneId: 'scene', positions: [{ ...key('audio', '0'), x: 100.6 }] });
+		}
+		assert.equal(layers(manager)[0].audioParamValues.volume.keyframesTimeline.keyframes[0].x, 101);
+		manager.undo();
+		assert.deepEqual(snapshot(manager), before);
+		manager.redo();
+		assert.equal(layers(manager)[0].audioParamValues.volume.keyframesTimeline.keyframes[0].x, 101);
+	}
 });

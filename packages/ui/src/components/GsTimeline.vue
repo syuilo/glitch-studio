@@ -133,7 +133,7 @@
 				<div>{{ selectedClipLabel }}</div>
 				<GsInput small type="number" :min="0" :modelValue="selectedClipEntry.clip.startMs" @update:modelValue="value => editSelectedClipTime('move', value)"><template #label>Start (ms)</template></GsInput>
 				<GsInput small type="number" :min="0" :disabled="selectedClipNeedsMedia && !selectedClipMedia" :modelValue="selectedClipEntry.clip.startMs" @update:modelValue="value => editSelectedClipTime('start', value)"><template #label>Trim start (ms)</template></GsInput>
-				<GsInput small type="number" :min="0" :disabled="selectedClipNeedsMedia && !selectedClipMedia" :modelValue="selectedClipEntry.clip.durationMs" @update:modelValue="value => editSelectedClipTime('duration', value)"><template #label>Duration (ms)</template></GsInput>
+				<GsInput small type="number" :min="1" :disabled="selectedClipNeedsMedia && !selectedClipMedia" :modelValue="selectedClipEntry.clip.durationMs" @update:modelValue="value => editSelectedClipTime('duration', value)"><template #label>Duration (ms)</template></GsInput>
 				<div>Content offset: {{ formatMsToTimecode(selectedClipEntry.clip.contentOffsetMs) }}</div>
 				<div v-if="selectedClipMedia">Source duration: {{ formatMsToTimecode(selectedClipMedia.durationMs) }}</div>
 				<template v-if="selectedVideoClip != null">
@@ -721,11 +721,10 @@ function onClipMoveStart(event: PointerEvent, target: TimelineClipSelection) {
 	const snapTimes = getTimelineSnapCandidates(snapSettings.value, [0, ...sceneLayers.value.flatMap(layer => layer.clips
 		.filter(clip => !selected.has(clipSelectionKey({ layerId: layer.id, clipId: clip.id })))
 		.flatMap(clip => [clip.startMs, getTimelineClipEnd(clip)]))], xTicks.value);
-	let previousDelta = 0;
+	const initialTargets = entries.map(({ target, clip }) => ({ ...target, initialStartMs: clip.startMs }));
 	startSelectionMove(event, points, snapTimes, (delta, mergeKey) => {
 		if (targets.some(target => !resolveClip(target))) return false;
-		appStateManager.commit('moveTimelineClips', { sceneId: props.sceneId, clips: targets, deltaMs: delta - previousDelta }, mergeKey);
-		previousDelta = delta;
+		appStateManager.commit('moveTimelineClips', { sceneId: props.sceneId, clips: initialTargets, deltaMs: delta }, mergeKey);
 		return true;
 	});
 }
@@ -740,6 +739,7 @@ function onClipTrimStart(event: PointerEvent, target: TimelineClipSelection, edg
 	const sourceDurationMs = 'assetId' in clip && typeof clip.assetId === 'string' ? mediaInfo.value.get(clip.assetId)?.durationMs : undefined;
 	if (media && sourceDurationMs == null) return;
 	const bounds = getTimelineClipTrimBounds(layer.clips, clip.id, edge, media || layer.layerType === 'scene', sourceDurationMs);
+	if (bounds.minDelta > bounds.maxDelta) return;
 	const points = [{ time: edge === 'start' ? clip.startMs : getTimelineClipEnd(clip), ...bounds }];
 	const snapTimes = getTimelineSnapCandidates(snapSettings.value, [0, ...sceneLayers.value.flatMap(entry => entry.clips
 		.filter(other => entry.id !== layer.id || other.id !== clip.id).flatMap(other => [other.startMs, getTimelineClipEnd(other)]))], xTicks.value);
@@ -786,7 +786,7 @@ function onKeyframeMoveStart(event: PointerEvent, point: TimelineKeyframeSelecti
 		return { time: entry.time, minDelta: bounds.minDelta, maxDelta: bounds.maxDelta, snapTimes: candidatesByLayer.get(entry.selection.layerId) ?? [] };
 	});
 	const positions = entries.map(entry => ({ ...entry.selection, x: entry.x }));
-	const movedX = (x: number, delta: number) => stretch == null ? x + delta : stretchKeyframeX(x, stretch, delta);
+	const movedX = (x: number, delta: number) => Math.round(stretch == null ? x + delta : stretchKeyframeX(x, stretch, delta));
 	startSelectionMove(event, points, [], (delta, mergeKey) => {
 		const available = new Set(keyframeEntries.value.map(entry => keyframeSelectionKey(entry.selection)));
 		if (positions.some(position => !available.has(keyframeSelectionKey(position)))) return false;
@@ -1006,6 +1006,7 @@ async function chooseClipSource(layerType: 'image' | 'video' | 'audio' | 'scene'
 }
 
 async function addClip(layer: TimelineLayer, startMs: number) {
+	startMs = Math.round(startMs);
 	if (layer.layerType === 'effect' || getTimelineClipInsertionDuration(layer.clips, startMs) <= 0) return;
 	const type = layer.layerType;
 	const source = type === 'image' || type === 'video' || type === 'audio' || type === 'scene' ? await chooseClipSource(type) : null;
@@ -1063,6 +1064,7 @@ async function addMediaLayer(layerType: 'image' | 'video' | 'audio' | 'scene') {
 	if (!source || disposed) return;
 	const sourceDurationMs = source.kind === 'asset' ? source.media?.durationMs : undefined;
 	const clip = { id: genId(), ...createTimelineClipTiming(Math.max(0, time.value), Math.min(5000, sourceDurationMs ?? Infinity)) };
+	if (clip.durationMs < 1) { audioError.value = 'Media is shorter than 1 ms.'; return; }
 	const base = { id: genId(), name: source.kind === 'asset' ? source.asset.name : source.scene.name, automationGraphs: [] };
 	const audioParamValues = { volume: deepClone(timelineAudioParamDefs.volume.defaultValue) };
 	const compositingParamValues = initialCompositingParameters();

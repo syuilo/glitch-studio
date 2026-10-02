@@ -1,6 +1,6 @@
 import { getScene, getLayerParameterValues } from './utility/timeline-scene.ts';
 import { canReferenceScene, validateTimelineScenes } from '@glitch/shared/timeline/scenes.ts';
-import { getTimelineClipMoveBounds, getTimelineClipTrimBounds, getTimelineClipInsertionDuration, validateTimelineClips } from '@glitch/shared/timeline/timing.ts';
+import { getTimelineClipMoveBounds, getTimelineClipTrimBounds, getTimelineClipInsertionDuration, getTimelineMediaMaxDurationMs, validateTimelineClips } from '@glitch/shared/timeline/timing.ts';
 import type { TimelineClipTiming } from '@glitch/shared/timeline/timing.ts';
 import type { TimelineClip, TimelineAssetClip, TimelineVideoClip, TimelineSceneClip } from '@glitch/shared/timeline/clip.ts';
 import { validateTimelineParameterBinding } from '@glitch/shared/timeline/parameter-binding.ts';
@@ -129,6 +129,10 @@ const editTimelineLayerParamCommandDef = defineCommand<{
 							}
 							break;
 					}
+				}
+				// レイヤーのキーだけを整数msにする。モジュール内部のキーや素材時刻には適用しない。
+				if (after?.inputSource === 'keyframesTimelineInline') {
+					for (const point of after.keyframesTimeline.keyframes) point.x = Math.round(point.x);
 				}
 				validateTimelineParameterBinding(after!);
 				values[payload.paramId] = deepClone(after);
@@ -874,9 +878,13 @@ function getTimelineClip(state: AppState, sceneId: string, target: TimelineClipT
 	return { layer, clip };
 }
 
+function requireMediaDurationMs(sourceDurationMs: number | undefined): number {
+	if (sourceDurationMs == null || !Number.isFinite(sourceDurationMs) || sourceDurationMs <= 0) throw new Error('Invalid media duration');
+	return sourceDurationMs;
+}
+
 function validateMediaClipTiming(clip: TimelineClip, sourceDurationMs: number | undefined) {
-	if (sourceDurationMs == null || !Number.isFinite(sourceDurationMs) || sourceDurationMs <= 0
-		|| clip.contentOffsetMs + clip.durationMs > sourceDurationMs) throw new Error('Clip exceeds the media duration');
+	if (clip.durationMs > getTimelineMediaMaxDurationMs(clip.contentOffsetMs, requireMediaDurationMs(sourceDurationMs))) throw new Error('Clip exceeds the media duration');
 }
 
 /** 異なる素材種類の混入をコマンド境界で拒否してから、型別のclips配列へ保存する。 */
@@ -946,14 +954,17 @@ const editTimelineClipTimingCommandDef = defineCommand<TimelineClipTarget & { sc
 				if (after) { Object.assign(clip, after); return; }
 				if (!Number.isFinite(payload.deltaMs)) throw new Error('Invalid trim');
 				const media = layer.layerType === 'audio' || layer.layerType === 'video';
-				if (media) validateMediaClipTiming(clip, payload.sourceDurationMs);
+				// Asset一覧で短い素材へ置き換えると、現在の区間は素材長を超え得る。
+				// 変更前の長さでは拒否せず、素材長自体と、修復後の区間を別々に検証する。
+				const sourceDurationMs = media ? requireMediaDurationMs(payload.sourceDurationMs) : undefined;
 				// ドラッグの途中でポインターを戻す操作は、確定済みクリップの左延長とは別。
 				// 開始時の区間から制限し、同じドラッグ内では開始状態まで戻れるようにする。
 				const initial = { ...clip, ...payload.initialTiming };
 				const initialClips = layer.clips.map(entry => entry.id === clip.id ? initial : entry);
 				validateTimelineClips(initialClips);
-				const bounds = getTimelineClipTrimBounds(initialClips, clip.id, payload.edge, media || layer.layerType === 'scene', payload.sourceDurationMs);
-				const delta = Math.max(bounds.minDelta, Math.min(bounds.maxDelta, payload.deltaMs));
+				const bounds = getTimelineClipTrimBounds(initialClips, clip.id, payload.edge, media || layer.layerType === 'scene', sourceDurationMs);
+				if (bounds.minDelta > bounds.maxDelta) throw new Error('No valid clip duration within the media');
+				const delta = Math.max(bounds.minDelta, Math.min(bounds.maxDelta, Math.round(payload.deltaMs)));
 				before = { startMs: clip.startMs, durationMs: clip.durationMs, contentOffsetMs: clip.contentOffsetMs };
 				const next = payload.edge === 'start'
 					? { ...clip, startMs: initial.startMs + delta, durationMs: initial.durationMs - delta, contentOffsetMs: initial.contentOffsetMs + delta }
@@ -968,7 +979,7 @@ const editTimelineClipTimingCommandDef = defineCommand<TimelineClipTarget & { sc
 	},
 });
 
-const moveTimelineClipsCommandDef = defineCommand<{ sceneId: string; clips: TimelineClipTarget[]; deltaMs: number }>({
+const moveTimelineClipsCommandDef = defineCommand<{ sceneId: string; clips: (TimelineClipTarget & { initialStartMs?: number })[]; deltaMs: number }>({
 	label: 'Move timeline clips',
 	create: payload => {
 		let before: (TimelineClipTarget & { startMs: number })[];
@@ -981,14 +992,24 @@ const moveTimelineClipsCommandDef = defineCommand<{ sceneId: string; clips: Time
 				if (!Number.isFinite(payload.deltaMs)) throw new Error('Invalid clip move');
 				if (payload.clips.length === 0) { before = []; after = []; return; }
 				if (new Set(payload.clips.map(target => JSON.stringify([target.layerId, target.clipId]))).size !== payload.clips.length) throw new Error('Duplicate clip move target');
-				const entries = payload.clips.map(target => ({ target, ...getTimelineClip(state, payload.sceneId, target) }));
-				const bounds = entries.map(({ layer, clip }) => getTimelineClipMoveBounds(layer.clips,
+				const entries = payload.clips.map(({ initialStartMs, ...target }) => ({ target, initialStartMs, ...getTimelineClip(state, payload.sceneId, target) }));
+				// ドラッグは開始時の配置から計算する。各pointermoveの小数差分を個別に
+				// 丸めて足すと、イベントの頻度によって最終位置が変わってしまうため。
+				const initialClipsByLayer = new Map([...new Set(entries.map(entry => entry.layer))].map(layer => {
+					const clips = layer.clips.map(clip => {
+						const entry = entries.find(entry => entry.layer === layer && entry.clip === clip);
+						return entry?.initialStartMs == null ? clip : { ...clip, startMs: entry.initialStartMs };
+					});
+					validateTimelineClips(clips);
+					return [layer, clips] as const;
+				}));
+				const bounds = entries.map(({ layer, clip }) => getTimelineClipMoveBounds(initialClipsByLayer.get(layer)!,
 					new Set(payload.clips.filter(target => target.layerId === layer.id).map(target => target.clipId)), clip.id));
-				const delta = Math.max(Math.max(...bounds.map(bound => bound.minDelta)), Math.min(Math.min(...bounds.map(bound => bound.maxDelta)), payload.deltaMs));
+				const delta = Math.max(Math.max(...bounds.map(bound => bound.minDelta)), Math.min(Math.min(...bounds.map(bound => bound.maxDelta)), Math.round(payload.deltaMs)));
 				before = entries.map(({ target, clip }) => ({ ...target, startMs: clip.startMs }));
 				// 全対象の制限を交差させた単一の移動量を適用する。隣を飛び越す移動も許可しない。
 				// TODO: 移動区間内のレイヤーのキーフレームを追従させるオプション。
-				const proposed = entries.map(({ target, clip }) => ({ ...target, startMs: clip.startMs + delta }));
+				const proposed = entries.map(({ target, clip, initialStartMs }) => ({ ...target, startMs: (initialStartMs ?? clip.startMs) + delta }));
 				for (const layer of new Set(entries.map(entry => entry.layer))) {
 					validateTimelineClips(layer.clips.map(clip => {
 						const position = proposed.find(target => target.layerId === layer.id && target.clipId === clip.id);
@@ -1028,7 +1049,7 @@ const changeTimelineClipSourceCommandDef = defineCommand<TimelineClipTarget & { 
 			execute(state) {
 				const { layer, clip } = getTimelineClip(state, payload.sceneId, payload);
 				const media = layer.layerType === 'video' || layer.layerType === 'audio';
-				if (media && (payload.sourceDurationMs == null || !Number.isFinite(payload.sourceDurationMs) || payload.sourceDurationMs <= 0)) throw new Error('Invalid media duration');
+				if (media) requireMediaDurationMs(payload.sourceDurationMs);
 				const next = { ...clip, contentOffsetMs: 0,
 					durationMs: media ? getTimelineClipInsertionDuration(layer.clips.filter(entry => entry.id !== clip.id), clip.startMs, payload.sourceDurationMs) : clip.durationMs,
 					...(layer.layerType === 'scene' ? { sceneId: payload.referencedSceneId } : { assetId: payload.assetId }),
@@ -1184,14 +1205,14 @@ const moveTimelineKeyframesCommandDef = defineCommand<{ sceneId: string; positio
 			const layers = getScene(state, payload.sceneId).layers;
 			const updates = positions.map(position => {
 				const layer = layers.find(layer => layer.id === position.layerId);
-				if (layer == null || !Number.isFinite(position.x) || position.x < 0) throw new Error('Invalid keyframe move');
+				if (layer == null || !Number.isSafeInteger(Math.round(position.x)) || position.x < 0) throw new Error('Invalid keyframe move');
 				const binding = getLayerParameterValues(layer, position.target)[position.paramId];
 				const point = binding?.inputSource === 'keyframesTimelineInline' ? binding.keyframesTimeline.keyframes.find(point => point.id === position.keyframeId) : undefined;
 				if (point == null) throw new Error('Timeline keyframe not found');
 				return { point, position };
 			});
 			const previous = updates.map(({ point, position }) => ({ ...position, x: point.x }));
-			for (const { point, position } of updates) point.x = position.x;
+			for (const { point, position } of updates) point.x = Math.round(position.x);
 			return previous;
 		};
 		return {

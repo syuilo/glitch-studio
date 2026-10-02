@@ -156,7 +156,7 @@ function onKeyframeInsert(param: KeyframeParameter, x: number) {
 	const definition = getLayerParameterDefinition(appStateManager.state, layer, param.target, param.paramId);
 	if (!definition) return;
 	// キーはクリップの空白にも配置でき、挿入時の値もScene時刻で補間する。
-	const inserted = insertInlineKeyframe(current, definition, x, Infinity);
+	const inserted = insertInlineKeyframe(current, definition, Math.round(x), Infinity);
 	if (!inserted) return;
 	if (inserted.value !== current) appStateManager.commit('editTimelineLayerParam', {
 		sceneId: props.sceneId, layerId: layer.id, target: param.target, paramId: param.paramId,

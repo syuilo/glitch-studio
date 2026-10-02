@@ -1,5 +1,3 @@
-import { nearlyEqual } from '@glitch/shared/utility/misc.ts';
-
 export type TimelineKeyframeSelection = {
 	layerId: string;
 	target: 'compositing' | 'module' | 'audio';
@@ -73,21 +71,22 @@ export type TimelineMovePoint = {
 };
 
 export function constrainTimelineMove(rawDelta: number, points: TimelineMovePoint[], snapTimes: number[], msPerPixel: number): { delta: number; snappingTime: number | null } {
-	const minDelta = Math.max(...points.map(point => point.minDelta));
-	const maxDelta = Math.min(...points.map(point => point.maxDelta));
-	let delta = Math.max(minDelta, Math.min(maxDelta, rawDelta));
+	const minDelta = Math.ceil(Math.max(...points.map(point => point.minDelta)));
+	const maxDelta = Math.floor(Math.min(...points.map(point => point.maxDelta)));
+	let delta = Math.max(minDelta, Math.min(maxDelta, Math.round(rawDelta)));
 	let snappingTime: number | null = null;
 	let nearestDistance = 5;
 	// 各要素を個別にクランプせず、共通の移動量を制限して相対位置を守る。
 	for (const point of points) {
 		for (const time of point.snapTimes ?? snapTimes) {
-			const candidateDelta = time - point.time;
+			// 素材の小数オフセット由来の目盛りにも、最寄りの整数msで吸着する。
+			const candidateDelta = Math.round(time) - point.time;
 			if (candidateDelta < minDelta || candidateDelta > maxDelta) continue;
 			const distance = Math.abs(candidateDelta - rawDelta) / msPerPixel;
 			if (distance >= nearestDistance) continue;
 			nearestDistance = distance;
 			delta = candidateDelta;
-			snappingTime = time;
+			snappingTime = point.time + candidateDelta;
 		}
 	}
 	return { delta, snappingTime };
@@ -95,8 +94,8 @@ export function constrainTimelineMove(rawDelta: number, points: TimelineMovePoin
 
 export function getTimelineSnappingTimes(points: TimelineMovePoint[], snapTimes: number[], delta: number): number[] {
 	// 表示する線にも各点の候補を使う。別レイヤーの目盛りとの偶然の一致は表示しない。
-	// 吸着距離の5pxではなく浮動小数点の誤差だけを許容する。
-	return [...new Set(points.flatMap(point => (point.snapTimes ?? snapTimes).filter(time => nearlyEqual(point.time + delta, time))))];
+	// 保存される整数msの位置と線を一致させ、元の小数目盛りに線だけ残さない。
+	return [...new Set(points.flatMap(point => (point.snapTimes ?? snapTimes).map(Math.round).filter(time => point.time + delta === time)))];
 }
 
 export function keyframeMoveBounds(keyframes: { id: string; x: number }[], selectedIds: ReadonlySet<string>, keyframeId: string): { minDelta: number; maxDelta: number } {
