@@ -358,6 +358,7 @@ const sceneLayers = computed(() => appStateManager.state.timelineScenes.value.fi
 const availableScenes = computed(() => appStateManager.state.timelineScenes.value.filter(scene => canReferenceScene(appStateManager.state.timelineScenes.value, props.sceneId, scene.id)));
 
 const X_TICKS_HEIGHT = 20;
+const X_TICK_TARGET_SPACING_PX = 120;
 const Y_TICKS_WIDTH = 0;
 
 function onLayersSorted(layers: TimelineLayer[]) {
@@ -521,8 +522,10 @@ function updateKeyframeTime(value: string | number) {
 	updateKeyframe(selected.selection.keyframeId, { x: Math.max(selected.minX, Math.min(selected.maxX, x)) });
 }
 
-// TODO: TLの表示DOMサイズに応じて変更
-const xTicksCount = ref(15);
+// レイヤー名の欄を除いた描画幅に合わせ、主目盛りの間隔を約120pxを目安に選ぶ。
+// ResizeObserverで更新される幅を使うことで、パネルのリサイズにも追従する。
+// 刻み方に応じた丸めは目盛り生成側で行い、全体・ローカル・スナップの密度を揃える。
+const xTicksCount = computed(() => Math.max(3, Math.floor(tlElWidth.value / X_TICK_TARGET_SPACING_PX) + 1));
 const xTicks = computed(() => getTimelineTicks(tlPosX.value, tlRangeX.value, xTicksCount.value, tickMode.value));
 const xTicksWithHalf = computed(() => xTicks.value.length === 0 ? [] : insertIntermediateNumbers(xTicks.value));
 const xMinorTicks = computed(() => xTicksWithHalf.value.filter((_, index) => index % 2 === 1));
