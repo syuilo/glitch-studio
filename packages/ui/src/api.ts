@@ -22,22 +22,28 @@ function getFontFileType(file: File): string | null {
 	return mimeTypes[file.type.toLowerCase()] ?? extensions[file.name.split('.').pop()?.toLowerCase() ?? ''] ?? null;
 }
 
-export function openMediaFile(options: { multiple?: boolean; file?: File; includeFonts?: boolean } = {}): Promise<{
+type OpenedMediaFile = {
 	width: number;
 	height: number;
 	name: string;
 	type: string;
 	fileData: Blob;
 	hash?: string;
-} | null> {
+};
+
+type OpenMediaFileOptions = { multiple?: boolean; file?: File; includeFonts?: boolean };
+
+export function openMediaFile(options: OpenMediaFileOptions & { multiple: true }): Promise<OpenedMediaFile[] | null>;
+export function openMediaFile(options?: OpenMediaFileOptions & { multiple?: false }): Promise<OpenedMediaFile | null>;
+export function openMediaFile(options: OpenMediaFileOptions): Promise<OpenedMediaFile | OpenedMediaFile[] | null>;
+export function openMediaFile(options: OpenMediaFileOptions = {}): Promise<OpenedMediaFile | OpenedMediaFile[] | null> {
 	return new Promise((resolve, reject) => {
 		const input = window.document.createElement('input');
 		input.type = 'file';
 		input.accept = options.includeFonts ? 'image/*,video/*,audio/*,.ttf,.otf,.woff,.woff2' : 'image/*,video/*,audio/*';
 		input.multiple = options.multiple ?? false;
 		input.addEventListener('cancel', () => resolve(null), { once: true });
-		const loadFile = (file: File | undefined) => {
-			if (file == null) { resolve(null); return; }
+		const loadFile = (file: File) => new Promise<OpenedMediaFile>((resolve, reject) => {
 			const fontType = options.includeFonts ? getFontFileType(file) : null;
 			if (fontType != null) {
 				// フォントは画像へデコードせず、使用するエフェクトがFontFaceとして読み込む。
@@ -85,11 +91,19 @@ export function openMediaFile(options: { multiple?: boolean; file?: File; includ
 					bitmap.close();
 				}
 			}, reject);
+		});
+		const loadFiles = async (files: File[]) => {
+			if (files.length === 0) return null;
+			if (!options.multiple) return loadFile(files[0]);
+			const results: OpenedMediaFile[] = [];
+			// 大量の画像・動画を同時にデコードしてメモリを圧迫しないよう、選択順に読み込む。
+			for (const file of files) results.push(await loadFile(file));
+			return results;
 		};
 		if (options.file != null) {
-			loadFile(options.file);
+			void loadFiles([options.file]).then(resolve, reject);
 		} else {
-			input.onchange = () => loadFile(input.files?.[0]);
+			input.onchange = () => { void loadFiles(Array.from(input.files ?? [])).then(resolve, reject); };
 			input.click();
 		}
 	});

@@ -47,20 +47,22 @@ async function addLocalFont() {
 }
 
 async function addAsset() {
-	const result = await api.openMediaFile({ includeFonts: true });
-	if (!result) return;
-	const assetId = genId();
-	appStateManager.commit('addAsset', {
-		id: assetId,
-		name: result.name,
-		width: result.width,
-		height: result.height,
-		fileDataType: result.type,
-		fileData: result.fileData,
-		hash: result.hash, // TODO
-	});
-	if (result.type.startsWith('audio/') || result.type.startsWith('video/')) {
-		appStateManager.commit('addPlayer', { id: genId(), name: result.name, sourceType: 'asset', assetId });
+	const results = await api.openMediaFile({ multiple: true, includeFonts: true });
+	if (!results) return;
+	for (const result of results) {
+		const assetId = genId();
+		appStateManager.commit('addAsset', {
+			id: assetId,
+			name: result.name,
+			width: result.width,
+			height: result.height,
+			fileDataType: result.type,
+			fileData: result.fileData,
+			hash: result.hash, // TODO
+		});
+		if (result.type.startsWith('audio/') || result.type.startsWith('video/')) {
+			appStateManager.commit('addPlayer', { id: genId(), name: result.name, sourceType: 'asset', assetId });
+		}
 	}
 }
 
