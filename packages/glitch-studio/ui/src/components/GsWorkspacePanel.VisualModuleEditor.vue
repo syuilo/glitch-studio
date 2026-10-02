@@ -37,11 +37,11 @@
 <script lang="ts" setup>
 import { areDataTypesEqual } from '@gs/shared/data-type/data-type.ts';
 import { isParameterType } from '@gs/shared/parameter/parameter-definition.ts';
-import { LIVE_VAR_DEFS } from '../../../shared/src/live-expression.ts';
 import { computed, ref, watch, onBeforeUnmount } from 'vue';
 import { AiSON } from '@syuilo/aiscript';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { genId } from '@gs/shared/utility/id.ts';
+import { LIVE_VAR_DEFS } from '@gs/glitch-studio_shared/live-expression.js';
 import GsVisualModuleEditor from './GsVisualModuleEditor.vue';
 import GsVisualParam from './GsVisualParam.vue';
 import GsEffectPicker from './GsEffectPicker.vue';

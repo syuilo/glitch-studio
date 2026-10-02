@@ -7,6 +7,7 @@ packages:
   - packages/subsystems/visual-module/renderer
   - packages/subsystems/timeline/shared
   - packages/subsystems/timeline/renderer
+  - packages/glitch-studio/shared
   - packages/glitch-studio/audio-renderer
   - packages/glitch-studio/renderer
   - packages/glitch-studio/ui

@@ -7,8 +7,6 @@ import EventEmitter from 'eventemitter3';
 import { ParameterBindingEvaluator } from '@gs/shared/parameter/parameter-binding-evaluator.ts';
 import { validateEnumParameterValue } from '@gs/shared/parameter/parameter-definition.ts';
 import { UniformOrTextureToTextureResolver } from '@gs/shared/gpu/uniform-or-texture-to-texture-resolver.ts';
-import { LiveRenderLoop, browserFrameScheduler } from '../../subsystems/visual-module/visual-module-renderer/src/live-render-loop.ts';
-import { VisualModuleRenderer } from '../../subsystems/visual-module/visual-module-renderer/src/visual-module-renderer.ts';
 import { canPreserveNodeOutputCache } from './project-change-policy.ts';
 import { AssetTextures } from './asset-textures.ts';
 import TimingHelper from './utility/TimingHelper.ts';
@@ -18,13 +16,12 @@ import { CanvasRenderer } from './canvas-renderer.ts';
 import type { RendererProjectChange, RendererProjectState } from '@gs/shared/project/renderer-state.ts';
 import type { ProjectVisualModule } from '@gs/shared/project/types.ts';
 import type { VisualModuleCustomParameterId, VisualModuleParameterBindings } from '@gs/shared/visual-module/types.ts';
-import type { FrameScheduler, LiveFrameTiming } from '../../subsystems/visual-module/visual-module-renderer/src/live-render-loop.ts';
 import type { EffectInstanceState } from '@gs/subsystems_effect_shared/effect-status.ts';
 import type { AudioCaptureMessage, AudioSourceId } from '@gs/shared/audio.ts';
 import type { Asset, IntermediateTextureFormat, Player } from '@gs/shared/types.ts';
 import type { EffectImplementation } from '@gs/subsystems_effect_shared/effect-implementation.js';
 import type { EffectDefinition } from '@gs/subsystems_effect_shared/effect-definition.js';
-import type { LIVE_VAR_DEFS } from '../../shared/src/live-expression.ts';
+import type { LIVE_VAR_DEFS } from '@gs/glitch-studio_shared/live-expression.js';
 
 /**
  * 初期化時に決まっている必要がある設定情報

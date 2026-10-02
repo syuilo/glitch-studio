@@ -13,6 +13,7 @@
 	"dependencies": {
 		"@gs/glitch-studio_audio-renderer": "workspace:*",
 		"@gs/glitch-studio_renderer": "workspace:*",
+		"@gs/glitch-studio_shared": "workspace:*",
 		"@gs/shared": "workspace:*",
 		"@gs/subsystems_timeline_shared": "workspace:*",
 		"@gs/subsystems_visual-module_shared": "workspace:*",
