@@ -1,13 +1,13 @@
 import { genId } from '@glitch/shared/utility/id.ts';
 import { deepClone } from '@glitch/shared/utility/deep-clone.ts';
-import { createUntrimmedTimelineLayerTiming } from '@glitch/shared/timeline/timing.ts';
+import { createTimelineClipTiming } from '@glitch/shared/timeline/timing.ts';
 import { timelineCompositingParamDefs } from '@glitch/shared/timeline/timeline-compositing.ts';
 import type { TimelineImageLayer } from '@glitch/shared/timeline/types.ts';
 
-export function createImageLayer(assetId: string, positionMs: number): TimelineImageLayer {
+export function createImageLayer(assetId: string, startMs: number, name = 'Image'): TimelineImageLayer {
 	return {
-		id: genId(), layerType: 'image', assetId,
-		...createUntrimmedTimelineLayerTiming(positionMs, 5000),
+		id: genId(), name, layerType: 'image',
+		clips: [{ id: genId(), assetId, ...createTimelineClipTiming(startMs, 5000) }],
 		automationGraphs: [],
 		compositingParamValues: deepClone({
 			fitMode: timelineCompositingParamDefs.fitMode.defaultValue,

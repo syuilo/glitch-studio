@@ -138,7 +138,7 @@ export class TimelineRendererManager extends EventEmitter<{
 
 		this.timelineRenderer = new TimelineRenderer<NodeOutput, TimelineLayer>({
 			fallbackOutput: { kind: 'uniform', value: [0, 0, 0, 0] },
-			createLayer: entry => this.createTimelineLayer(entry, [entry.id], this.sceneBaseResolution),
+			createLayer: (entry, clipId) => this.createTimelineLayer(entry, clipId, [entry.id], this.sceneBaseResolution),
 			present: (output, gpuTime) => {
 				const commandEncoder = this.gpuDevice.createCommandEncoder();
 				this.sceneOutput ??= createSceneOutput({ device: this.gpuDevice, vertex: this.defaultVertexShaderModule,
@@ -251,15 +251,16 @@ export class TimelineRendererManager extends EventEmitter<{
 		return this.dynamicOptions.sceneId == null ? [] : getTimelineScene(this.dynamicOptions.timelineScenes, this.dynamicOptions.sceneId).layers.filter(layer => layer.layerType !== 'audio');
 	}
 
-	private createTimelineLayer(layer: TimelineLayer, layerPath: string[], sceneBaseResolution: Resolution): TimelineLayerRenderer<NodeOutput> {
+	private createTimelineLayer(layer: TimelineLayer, clipId: string, layerPath: string[], sceneBaseResolution: Resolution): TimelineLayerRenderer<NodeOutput> {
 		const renderResolution = scaleResolution(sceneBaseResolution, this.dynamicOptions.resolutionScale);
 		// レイヤーの種類の解釈とリソース解決は、タイムライン制御の外側で行う。
 		switch (layer.layerType) {
 			case 'image': {
-				const texture = this.assetTextures.textures.get(layer.assetId);
+				const clip = layer.clips.find(clip => clip.id === clipId)!;
+				const texture = this.assetTextures.textures.get(clip.assetId);
 				// 参照切れを透明画像として合成すると、replaceで下層まで消してしまう。
 				// IDは保存したままエラーにし、Asset削除のUndoや参照画像の変更で復旧できるようにする。
-				if (!texture) throw new Error(`Image asset not found: ${layer.assetId}`);
+				if (!texture) throw new Error(`Image asset not found: ${clip.assetId}`);
 				return createImageTimelineLayer(layer, texture, {
 					device: this.gpuDevice, vertex: this.defaultVertexShaderModule,
 					resolution: renderResolution, format: this.staticOptions.intermediateTextureFormat,
@@ -267,8 +268,9 @@ export class TimelineRendererManager extends EventEmitter<{
 				});
 			}
 			case 'video': {
-				const asset = this.dynamicOptions.assets.find(asset => asset.id === layer.assetId);
-				if (!asset) throw new Error(`Video asset not found: ${layer.assetId}`);
+				const clip = layer.clips.find(clip => clip.id === clipId)!;
+				const asset = this.dynamicOptions.assets.find(asset => asset.id === clip.assetId);
+				if (!asset) throw new Error(`Video asset not found: ${clip.assetId}`);
 				return createVideoTimelineLayer(layer, asset.fileData, {
 					device: this.gpuDevice, vertex: this.defaultVertexShaderModule,
 					resolution: renderResolution, format: this.staticOptions.intermediateTextureFormat,
@@ -276,7 +278,8 @@ export class TimelineRendererManager extends EventEmitter<{
 				});
 			}
 			case 'scene': {
-				const scene = getTimelineScene(this.dynamicOptions.timelineScenes, layer.sceneId);
+				const clip = layer.clips.find(clip => clip.id === clipId)!;
+				const scene = getTimelineScene(this.dynamicOptions.timelineScenes, clip.sceneId);
 				const childBaseResolution = getSceneBaseResolution(scene.resolution, this.dynamicOptions.resolution);
 				return createSceneTimelineLayer(scene, layer, {
 					device: this.gpuDevice,
@@ -285,7 +288,7 @@ export class TimelineRendererManager extends EventEmitter<{
 					sceneResolution: resolveSceneResolution(scene.resolution, this.dynamicOptions.resolution,
 						this.dynamicOptions.resolutionScale, this.gpuDevice.limits.maxTextureDimension2D),
 					format: this.staticOptions.intermediateTextureFormat,
-					createLayer: entry => this.createTimelineLayer(entry, [...layerPath, entry.id], childBaseResolution),
+					createLayer: (entry, childClipId) => this.createTimelineLayer(entry, childClipId, [...layerPath, clipId, entry.id], childBaseResolution),
 				});
 			}
 			case 'visualModule': {
@@ -343,8 +346,7 @@ export class TimelineRendererManager extends EventEmitter<{
 					output = renderer.render(context, commandEncoder);
 					if (output != null) {
 						const settings = compositingParameters.evaluate({
-							time: context.time,
-							endTime: context.endTime,
+							time: layerContext.sceneTimeMs,
 							isExport: context.isExport,
 							paramValues: layer.compositingParamValues,
 							automationGraphs: layer.automationGraphs,

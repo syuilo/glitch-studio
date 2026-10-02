@@ -30,6 +30,8 @@ export type VisualModuleRenderContext = {
 	time: number;
 	timeDelta: number;
 	endTime: number; // 終了時刻という概念がないコンテキスト(例: live mode)の場合はInfinityとすること。
+	/** 内容時刻と独立した表示区間の進行率。タイムラインの呼び出し側で計算する。 */
+	progress?: number;
 	paramInputs?: ReadonlyMap<VisualModuleCustomParameterId, NodeOutput>;
 	pointerPosition: { x: number; y: number };
 	pointerPositionPrev: { x: number; y: number };
@@ -166,7 +168,7 @@ export class VisualModuleRenderer {
 				TIME_MS: context.time,
 				END_TIME: context.endTime / 1000,
 				END_TIME_MS: context.endTime,
-				PROGRESS: context.time / context.endTime,
+				PROGRESS: context.progress ?? context.time / context.endTime,
 				IS_EXPORT: context.isExport,
 				TEST_ONLY_VM: true,
 				TEST_SAME_NAME: 1,

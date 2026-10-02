@@ -26,7 +26,7 @@ const bundled = await build({
 const module = { exports: {} };
 new Function('require', 'module', 'exports', bundled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
 const { selectTimelineRange, selectionRect, timelineMarqueeRect, keyframeSelectionKey, getTimelineStretchSelection, constrainTimelineMove, keyframeMoveBounds, AppStateManager, listenPointerDrag } = module.exports;
-const { getTimelineSnapCandidates, getTimelineSnappingTimes, getTimelineSeekPosition, getTimelineLocalTicks, getTimelineLayerTicks, formatTimelineTimecode } = module.exports;
+const { getTimelineSnapCandidates, getTimelineSnappingTimes, getTimelineSeekPosition, getTimelineLocalTicks, getTimelineClipTicks, formatTimelineTimecode } = module.exports;
 const { createKeyframeStretch, stretchKeyframeX, zoomTimelineX } = module.exports;
 
 // 【拡大縮小してもカーソル直下の時刻を維持する】
@@ -153,45 +153,46 @@ test('bounds both stretch directions against keys outside the dragged lane', () 
 	assert.deepEqual(constrainTimelineMove(401, [{ time: 500, ...last }], [902], 1), { delta: 400, snappingTime: null });
 });
 
-const empty = { kind: 'layers', ids: [] };
+const clip = layerId => ({ layerId, clipId: 'clip' });
+const empty = { kind: 'clips', clips: [] };
 const geometry = {
-	clips: [{ id: 'long', rect: { left: -1000, top: 0, right: 1000, bottom: 20 } }, { id: 'short', rect: { left: 30, top: 50, right: 60, bottom: 70 } }],
+	clips: [{ selection: clip('long'), rect: { left: -1000, top: 0, right: 1000, bottom: 20 } }, { selection: clip('short'), rect: { left: 30, top: 50, right: 60, bottom: 70 } }],
 	keyframes: [{ selection: key('long', 'a'), x: 10, y: 30 }, { selection: key('short', 'b'), x: 50, y: 80 }],
 };
 
-// 【一部だけ重なる長いクリップも選び、キーよりレイヤーを優先する】
+// 【一部だけ重なる長いクリップも選び、キーよりクリップを優先する】
 // クリップ全体を囲めないズーム倍率でも選択でき、上下左右どちら向きのドラッグでも結果が揃う必要がある。
 test('selects intersecting clips before keyframes in every drag direction', () => {
 	for (const [x1, y1, x2, y2] of [[0, 10, 55, 85], [55, 85, 0, 10], [0, 85, 55, 10], [55, 10, 0, 85]]) {
-		assert.deepEqual(selectTimelineRange(selectionRect(x1, y1, x2, y2), geometry, empty, false), { kind: 'layers', ids: ['long', 'short'] });
+		assert.deepEqual(selectTimelineRange(selectionRect(x1, y1, x2, y2), geometry, empty, false), { kind: 'clips', clips: ['long', 'short'].map(clip) });
 	}
 });
 
 // 【キーは中心点で判定し、通常選択では以前の選択を置き換える】
 // ノブの大きさやCSSの変更で選択判定が変わらないよう、境界上の中心を含み、外れた中心を除く。
 test('selects keyframe centers inclusively and replaces previous selection', () => {
-	assert.deepEqual(selectTimelineRange(selectionRect(10, 30, 20, 40), geometry, { kind: 'layers', ids: ['old'] }, false), { kind: 'keyframes', keyframes: [key('long', 'a')] });
+	assert.deepEqual(selectTimelineRange(selectionRect(10, 30, 20, 40), geometry, { kind: 'clips', clips: ['old'].map(clip) }, false), { kind: 'keyframes', keyframes: [key('long', 'a')] });
 	assert.deepEqual(selectTimelineRange(selectionRect(11, 30, 20, 40), geometry, { kind: 'keyframes', keyframes: [key('long', 'a')] }, false), { kind: 'keyframes', keyframes: [] });
 });
 
 // 【Shiftで種類を維持し、同じ対象を重複追加しない】
-// キーを追加する途中でクリップを囲んでも既存のキーを失わず、レイヤー選択中はキーだけを囲んでも種類を変えない。
+// キーを追加する途中でクリップを囲んでも既存のキーを失わず、クリップ選択中はキーだけを囲んでも種類を変えない。
 test('adds only the existing selection kind and deduplicates identities', () => {
 	const all = selectionRect(-10, -10, 100, 100);
 	assert.deepEqual(selectTimelineRange(all, geometry, { kind: 'keyframes', keyframes: [key('long', 'a')] }, true), { kind: 'keyframes', keyframes: [key('long', 'a'), key('short', 'b')] });
-	assert.deepEqual(selectTimelineRange(all, geometry, { kind: 'layers', ids: ['long'] }, true), { kind: 'layers', ids: ['long', 'short'] });
-	assert.deepEqual(selectTimelineRange(selectionRect(0, 25, 20, 35), geometry, { kind: 'layers', ids: ['short'] }, true), { kind: 'layers', ids: ['short'] });
-	assert.deepEqual(selectTimelineRange(all, geometry, empty, true), { kind: 'layers', ids: ['long', 'short'] });
+	assert.deepEqual(selectTimelineRange(all, geometry, { kind: 'clips', clips: ['long'].map(clip) }, true), { kind: 'clips', clips: ['long', 'short'].map(clip) });
+	assert.deepEqual(selectTimelineRange(selectionRect(0, 25, 20, 35), geometry, { kind: 'clips', clips: ['short'].map(clip) }, true), { kind: 'clips', clips: ['short'].map(clip) });
+	assert.deepEqual(selectTimelineRange(all, geometry, empty, true), { kind: 'clips', clips: ['long', 'short'].map(clip) });
 	assert.notEqual(keyframeSelectionKey(key('long', 'a')), keyframeSelectionKey(key('short', 'a')));
 });
 
 // 【囲む範囲を縮めたときは途中で選択した対象を残さない】
 // 各更新をドラッグ開始時の選択へ適用することで、追加選択でも今回のドラッグで一度触れただけの対象は解除できる。
 test('shrinks the marquee against its initial selection', () => {
-	const previous = { kind: 'layers', ids: ['old'] };
-	assert.deepEqual(selectTimelineRange(selectionRect(0, 0, 100, 100), geometry, previous, true).ids, ['old', 'long', 'short']);
-	assert.deepEqual(selectTimelineRange(selectionRect(0, 0, 20, 10), geometry, previous, true).ids, ['old', 'long']);
-	assert.deepEqual(previous.ids, ['old']);
+	const previous = { kind: 'clips', clips: ['old'].map(clip) };
+	assert.deepEqual(selectTimelineRange(selectionRect(0, 0, 100, 100), geometry, previous, true).clips, ['old', 'long', 'short'].map(clip));
+	assert.deepEqual(selectTimelineRange(selectionRect(0, 0, 20, 10), geometry, previous, true).clips, ['old', 'long'].map(clip));
+	assert.deepEqual(previous.clips, ['old'].map(clip));
 });
 
 // 【ポインターが静止していてもスクロールで選択範囲を更新する】
@@ -219,9 +220,9 @@ test('retains offscreen selections and removes them when scrolling shrinks the r
 	for (const scrollTop of [40, 180, 40]) {
 		const rect = timelineMarqueeRect(origin, pointer, viewport, scrollTop);
 		const expectedIds = scrollTop === 180 ? ['first', 'second'] : ['first'];
-		const clips = content.map(({ id, y }) => ({ id, rect: { left: 130, right: 150, top: viewport.top + y - scrollTop - 10, bottom: viewport.top + y - scrollTop + 10 } }));
+		const clips = content.map(({ id, y }) => ({ selection: clip(id), rect: { left: 130, right: 150, top: viewport.top + y - scrollTop - 10, bottom: viewport.top + y - scrollTop + 10 } }));
 		const keyframes = content.map(({ id, y }) => ({ selection: key(id, 'point'), x: 140, y: viewport.top + y - scrollTop }));
-		assert.deepEqual(selectTimelineRange(rect, { clips, keyframes }, empty, false), { kind: 'layers', ids: expectedIds });
+		assert.deepEqual(selectTimelineRange(rect, { clips, keyframes }, empty, false), { kind: 'clips', clips: expectedIds.map(clip) });
 		assert.deepEqual(selectTimelineRange(rect, { clips: [], keyframes }, empty, false), { kind: 'keyframes', keyframes: expectedIds.map(id => key(id, 'point')) });
 		assert.deepEqual(selectTimelineRange(rect, { clips, keyframes }, { kind: 'keyframes', keyframes: [key('old', 'point')] }, true), {
 			kind: 'keyframes', keyframes: [key('old', 'point'), ...expectedIds.map(id => key(id, 'point'))],
@@ -253,43 +254,72 @@ test('constrains keyframes against unselected neighbors and local time zero', ()
 	assert.deepEqual(keyframeMoveBounds(points, new Set(points.map(point => point.id)), '100'), { minDelta: -100, maxDelta: Infinity });
 });
 
-// 【ローカル目盛りは表示範囲とレイヤーの配置時刻から生成する】
+// 【ローカル目盛りは表示範囲と内容の時間原点から生成する】
 // グローバル目盛りのラベルだけを引き算するとローカル0が目盛りにならないため、ローカル時間軸で刻む。
-// パン・レイヤー移動・ズーム後も基準を保ち、トリム量を時間原点として使わないことを確認する。
-test('generates local ticks around the layer origin across panning and zooming', () => {
+// パン・クリップ移動・ズーム後も基準を保ち、左トリム後の内容時刻を0に戻さないことを確認する。
+test('generates local ticks around the content origin across panning and zooming', () => {
 	assert.deepEqual(getTimelineLocalTicks(1234, 0, 4000, 5), [-2000, -1000, 0, 1000, 2000, 3000]);
 	assert.deepEqual(getTimelineLocalTicks(2334, 1100, 4000, 5), [-2000, -1000, 0, 1000, 2000, 3000]);
 	assert.deepEqual(getTimelineLocalTicks(1234, 1234, 2000, 5), [0, 500, 1000, 1500, 2000]);
-	const trimmedLayer = { positionMs: -200, trimStartMs: 700 };
-	const ticks = getTimelineLocalTicks(trimmedLayer.positionMs, 0, 1000, 6);
+	const trimmedClip = { startMs: 500, durationMs: 1000, contentOffsetMs: 700 };
+	const ticks = getTimelineLocalTicks(trimmedClip.startMs - trimmedClip.contentOffsetMs, 0, 1000, 6);
 	assert.deepEqual(ticks, [200, 400, 600, 800, 1000, 1200]);
-	assert.equal(formatTimelineTimecode(trimmedLayer.trimStartMs), '0:00.7');
+	assert.equal(formatTimelineTimecode(trimmedClip.contentOffsetMs), '0:00.7');
 	assert.deepEqual(getTimelineLocalTicks(0, 0, 0, 15), []);
 });
 
-// 【主目盛りと補助目盛りはトリム後の表示区間内に限定する】
-// ローカル時刻の原点は変えず、負の時刻・トリムで隠れた時刻・終了時刻以降を表示も吸着もさせない。
-test('limits local ruler ticks to the visible layer interval', () => {
-	assert.deepEqual(getTimelineLayerTicks({ positionMs: 1234, trimStartMs: 0, trimmedDurationMs: 2000 }, 0, 4000, 5), {
-		major: [0, 1000], minor: [500, 1500],
+// 【クリップごとに内容時刻で刻み、表示区間の終端には目盛りを置かない】
+// トリム済みクリップの内容時刻と、隣接する別クリップの0を区別する。
+// ラベルとScene上の吸着位置を一組で返すことで、両者の原点が混ざる退行を防ぐ。
+test('returns clip content labels and scene positions within half-open clip bounds', () => {
+	assert.deepEqual(getTimelineClipTicks({ startMs: 1250, durationMs: 1500, contentOffsetMs: 750 }, 0, 4000, 5), {
+		major: [{ contentTimeMs: 1000, sceneTimeMs: 1500 }, { contentTimeMs: 2000, sceneTimeMs: 2500 }],
+		minor: [{ contentTimeMs: 1500, sceneTimeMs: 2000 }],
 	});
-	assert.deepEqual(getTimelineLayerTicks({ positionMs: -200, trimStartMs: 700, trimmedDurationMs: 600 }, 0, 1000, 6), {
-		major: [800, 1000, 1200], minor: [700, 900, 1100],
-	});
-	assert.deepEqual(getTimelineLayerTicks({ positionMs: 6000, trimStartMs: 0, trimmedDurationMs: 1000 }, 0, 1000, 6), {
-		major: [], minor: [],
+	assert.deepEqual(getTimelineClipTicks({ startMs: 2750, durationMs: 1000, contentOffsetMs: 0 }, 0, 4000, 5), {
+		major: [{ contentTimeMs: 0, sceneTimeMs: 2750 }],
+		minor: [{ contentTimeMs: 500, sceneTimeMs: 3250 }],
 	});
 });
 
-// 【主目盛りを含まない短い表示区間でも補助目盛りを残す】
-// 主目盛りを先に絞ってから中間目盛りを作ると、区間内にある500msの補助目盛りが消えてしまう。
-test('preserves minor ticks near clipped ends and in short layers', () => {
-	assert.deepEqual(getTimelineLayerTicks({ positionMs: 0, trimStartMs: 250, trimmedDurationMs: 300 }, 0, 4000, 5), {
-		major: [], minor: [500],
+// 【短いクリップの補助目盛りを残し、画面外には候補を作らない】
+// 主目盛りが1本も入らない表示区間でも補助目盛りへ吸着できるよう、範囲を絞る順序を守る。
+// パン後は見えている目盛りだけを返し、ズームの倍率で目盛り間隔を決める。
+test('preserves minor ticks in short clips and clips ticks to the viewport', () => {
+	const clip = { startMs: 1250, durationMs: 200, contentOffsetMs: 450 };
+	assert.deepEqual(getTimelineClipTicks(clip, 0, 4000, 5), {
+		major: [], minor: [{ contentTimeMs: 500, sceneTimeMs: 1300 }],
 	});
-	assert.deepEqual(getTimelineLayerTicks({ positionMs: 0, trimStartMs: 500, trimmedDurationMs: 500 }, 0, 4000, 5), {
-		major: [], minor: [500],
+	assert.deepEqual(getTimelineClipTicks(clip, 1350, 4000, 5), { major: [], minor: [] });
+	assert.deepEqual(getTimelineClipTicks(clip, 0, 1000, 5), { major: [], minor: [] });
+	assert.deepEqual(getTimelineClipTicks(clip, 1250, 200, 5), {
+		major: [450, 500, 550, 600].map(contentTimeMs => ({ contentTimeMs, sceneTimeMs: contentTimeMs + 800 })),
+		minor: [475, 525, 575, 625].map(contentTimeMs => ({ contentTimeMs, sceneTimeMs: contentTimeMs + 800 })),
 	});
+	assert.deepEqual(getTimelineClipTicks(clip, 0, 0, 15), { major: [], minor: [] });
+});
+
+// 【キーは各クリップの目盛りへScene時刻のまま吸着し、空白には吸着しない】
+// 同じレイヤー内でもクリップごとに原点が違う。表示に使った目盛りのScene時刻を候補にして、
+// クリップ間の空白へ仮想的なローカル目盛りを延長しないことを確認する。
+test('snaps scene-time keyframes to each clip ruler without extending ticks into gaps', () => {
+	const clips = [
+		{ startMs: 250, durationMs: 1000, contentOffsetMs: 0 },
+		{ startMs: 2250, durationMs: 1000, contentOffsetMs: 500 },
+	];
+	const localTimes = clips.flatMap(clip => {
+		const ticks = getTimelineClipTicks(clip, 0, 4000, 5);
+		return [...ticks.major, ...ticks.minor].map(tick => tick.sceneTimeMs);
+	});
+	const candidates = getTimelineSnapCandidates({ enabled: true, globalTicks: false, localTicks: true }, [], [], localTimes);
+	for (const time of [747, 2747]) {
+		const points = [{ time, minDelta: -time, maxDelta: Infinity, snapTimes: candidates }];
+		assert.deepEqual(constrainTimelineMove(2, points, [], 1), { delta: 3, snappingTime: time + 3 });
+		assert.deepEqual(getTimelineSnappingTimes(points, [], 3), [time + 3]);
+	}
+	const gapPoints = [{ time: 1747, minDelta: -1747, maxDelta: Infinity, snapTimes: candidates }];
+	assert.deepEqual(constrainTimelineMove(2, gapPoints, [], 1), { delta: 2, snappingTime: null });
+	assert.deepEqual(getTimelineSnappingTimes(gapPoints, [], 3), []);
 });
 
 // 【シークバーは追加オプションと全体・グローバル設定が有効なときだけ目盛りへ吸着する】
@@ -391,11 +421,11 @@ test('respects group bounds and displays every matching scoped snap position', (
 
 function fixture() {
 	const manager = new AppStateManager();
-	const binding = () => ({ inputSource: 'keyframesTimelineInline', offsetMode: 'start', wrapMode: 'clamp', trimmedDurationMs: 1000,
-		keyframesTimeline: { dataType: { kind: 'scalar' }, keyframes: [100, 200, 800].map((x, index) => ({ id: String(index), x, value: index, interpolation: { type: 'linear' } })) } });
+	const binding = () => ({ inputSource: 'keyframesTimelineInline', offsetMode: 'start', wrapMode: 'clamp', trimmedDurationMs: null,
+		keyframesTimeline: { dataType: { kind: 'scalar' }, isNormalized: false, keyframes: [100, 200, 800].map((x, index) => ({ id: String(index), x, value: index, interpolation: { type: 'linear' } })) } });
 	manager.state.timelineScenes.value = [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [
-		{ id: 'audio', layerType: 'audio', positionMs: -100, trimStartMs: 200, trimmedDurationMs: 1000, assetId: 'sound', audioParamValues: { volume: binding() }, automationGraphs: [] },
-		{ id: 'video', layerType: 'video', positionMs: 1000, trimStartMs: 50, trimmedDurationMs: 2000, assetId: 'movie', audioEnabled: true,
+		{ id: 'audio', layerType: 'audio', name: 'Layer', clips: [{ id: 'clip', startMs: 100, contentOffsetMs: 200, durationMs: 1000, assetId: 'sound' }], audioParamValues: { volume: binding() }, automationGraphs: [] },
+		{ id: 'video', layerType: 'video', name: 'Layer', clips: [{ id: 'clip', startMs: 1050, contentOffsetMs: 50, durationMs: 2000, assetId: 'movie', audioEnabled: true }],
 			compositingParamValues: { opacity: binding() }, audioParamValues: { volume: binding() }, automationGraphs: [] },
 	] }];
 	return manager;
@@ -492,14 +522,14 @@ test('undoes and redoes a stretch as one command while preserving other paramete
 	}
 });
 
-// 【一括レイヤー移動を1回のUndoで戻し、同じ結果へRedoする】
+// 【一括クリップ移動を1回のUndoで戻し、同じ結果へRedoする】
 // ドラッグの更新回数にかかわらず履歴を1件にまとめ、素材のトリムやパラメータ値を変更しない。
-test('undoes and redoes a multi-layer drag as one history entry', () => {
+test('undoes and redoes a multi-clip drag as one history entry', () => {
 	const manager = fixture();
 	const before = snapshot(manager);
-	for (const delta of [20, 60, 100]) manager.commit('moveTimelineLayers', { sceneId: 'scene', positions: before.map(layer => ({ layerId: layer.id, positionMs: layer.positionMs + delta })) }, 'drag');
+	for (const deltaMs of [20, 40, 40]) manager.commit('moveTimelineClips', { sceneId: 'scene', clips: before.map(layer => ({ layerId: layer.id, clipId: 'clip' })), deltaMs }, 'drag');
 	assert.equal(manager.undoStack.value.length, 1);
-	const after = before.map(layer => ({ ...layer, positionMs: layer.positionMs + 100 }));
+	const after = before.map(layer => ({ ...layer, clips: layer.clips.map(clip => ({ ...clip, startMs: clip.startMs + 100 })) }));
 	assert.deepEqual(snapshot(manager), after);
 	for (let i = 0; i < 2; i++) {
 		manager.undo();
@@ -521,7 +551,7 @@ test('moves keyframes across layers and parameters in one undoable command', () 
 	assert.deepEqual(after[0].audioParamValues.volume.keyframesTimeline.keyframes.map(point => point.x), [150, 250, 800]);
 	assert.deepEqual(after[1].compositingParamValues.opacity.keyframesTimeline.keyframes.map(point => point.x), [150, 200, 800]);
 	assert.deepEqual(after[1].audioParamValues.volume.keyframesTimeline.keyframes.map(point => point.x), [100, 250, 800]);
-	assert.deepEqual(after.map(layer => layer.positionMs), before.map(layer => layer.positionMs));
+	assert.deepEqual(after.map(layer => layer.clips), before.map(layer => layer.clips));
 	for (let i = 0; i < 2; i++) {
 		manager.undo();
 		assert.deepEqual(snapshot(manager), before);
@@ -535,7 +565,7 @@ test('moves keyframes across layers and parameters in one undoable command', () 
 test('rejects invalid batch moves atomically', () => {
 	const manager = fixture();
 	const before = snapshot(manager);
-	assert.throws(() => manager.commit('moveTimelineLayers', { sceneId: 'scene', positions: [{ layerId: 'audio', positionMs: 0 }, { layerId: 'video', positionMs: -100 }] }), /Invalid layer move/);
+	assert.throws(() => manager.commit('moveTimelineClips', { sceneId: 'scene', clips: [{ layerId: 'audio', clipId: 'clip' }, { layerId: 'video', clipId: 'missing' }], deltaMs: 100 }), /Timeline clip not found/);
 	assert.throws(() => manager.commit('moveTimelineKeyframes', { sceneId: 'scene', positions: [{ ...key('audio', '0'), x: 150 }, { ...key('video', 'missing'), x: 200 }] }), /Timeline keyframe not found/);
 	assert.throws(() => manager.commit('moveTimelineKeyframes', { sceneId: 'scene', positions: [{ ...key('audio', '0'), x: -1 }] }), /Invalid keyframe move/);
 	assert.deepEqual(snapshot(manager), before);
@@ -570,4 +600,24 @@ test('cleans up pointer drags on release, cancellation, lost capture, blur and d
 		assert.equal(ended, 1);
 		assert.equal(captured, false);
 	}
+});
+
+// 【複数レイヤーのクリップを最も近い衝突位置で一括停止する】
+// 一つでも移動不能なら共通差分を制限する。最終位置に空きがあっても隣を飛び越さず、
+// 最後のクリップを削除した場合もレイヤー設定とキーを復元可能な形で残す。
+test('clamps all selected clips together and retains empty layers with their keys', () => {
+	const manager = fixture();
+	const layers = manager.state.timelineScenes.value[0].layers;
+	layers[0].clips.push({ ...layers[0].clips[0], id: 'next', startMs: 1200 });
+	const before = snapshot(manager);
+	const targets = before.map(layer => ({ layerId: layer.id, clipId: 'clip' }));
+	manager.commit('moveTimelineClips', { sceneId: 'scene', clips: targets, deltaMs: 10000 });
+	assert.deepEqual(layers.map(layer => layer.clips[0].startMs), [200, 1150]);
+	assert.equal(layers[0].clips[1].startMs, 1200);
+	manager.undo();
+	assert.deepEqual(snapshot(manager), before);
+	manager.commit('removeTimelineClips', { sceneId: 'scene', clips: [...targets, { layerId: 'audio', clipId: 'next' }] });
+	assert.deepEqual(snapshot(manager), before.map(layer => ({ ...layer, clips: [] })));
+	manager.undo();
+	assert.deepEqual(snapshot(manager), before);
 });

@@ -51,7 +51,7 @@ function visualModule({ primaryInput = false, params } = {}) {
 
 function layer(id, module, overrides = {}) {
 	return {
-		id, layerType: 'inlineVisualModule', visualModule: module, positionMs: 100, trimStartMs: 0, trimmedDurationMs: 1000,
+		id, layerType: 'inlineVisualModule', visualModule: module, name: 'Layer', clips: [{ id: 'clip', startMs: 100, contentOffsetMs: 0, durationMs: 1000 }],
 		visualModuleParamValues: {}, automationGraphs: [],
 		compositingParamValues: {
 			...Object.fromEntries(Object.entries(timelineCompositingParamDefs).map(([key, def]) => [key, structuredClone(def.defaultValue)])),
@@ -175,7 +175,7 @@ test('isolates inline module scopes and passes local time and export context', a
 // 複製した定義のインスタンスを共有すると、一方の描画や削除が他方の履歴を進めたり破棄したりする。
 test('retains independent instances and disposes inactive or edited inline layers', async t => {
 	const { manager, calls } = fixture(t);
-	const first = layer('first', visualModule({ params: { amount: literal(1) } }), { trimmedDurationMs: 400 });
+	const first = layer('first', visualModule({ params: { amount: literal(1) } }), { clips: [{ id: 'clip', startMs: 100, contentOffsetMs: 0, durationMs: 400 }] });
 	const second = layer('second', visualModule({ params: { amount: literal(2) } }));
 	await manager.updateDynamicOptions({ timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [first, second] }], sceneId: 'scene' });
 	await manager.renderTimelineFrame(100, 50);
@@ -250,7 +250,7 @@ test('reports invalid inline graphs, rejects exports and recovers after editing'
 });
 
 const sceneLayer = (id, sceneId, positionMs = 0) => ({
-	id, layerType: 'scene', sceneId, positionMs, trimStartMs: 0, trimmedDurationMs: 1000,
+	id, name: id, layerType: 'scene', clips: [{ id: 'clip', sceneId, startMs: positionMs, contentOffsetMs: 0, durationMs: 1000 }],
 	compositingParamValues: { ...layer('template', visualModule()).compositingParamValues },
 	audioParamValues: { volume: literal(1) }, automationGraphs: [],
 });
@@ -259,7 +259,7 @@ const sceneLayer = (id, sceneId, positionMs = 0) => ({
 // Scene定義を共有してもGPUの出力先や履歴を共有してはいけない。二回目の描画でも配置ごとに状態を維持する。
 test('isolates repeated scene instances and reports their placement paths', async t => {
 	const { manager, calls } = fixture(t);
-	const child = layer('inner', visualModule({ params: { localTime: expression('TIME_MS') } }), { positionMs: 0 });
+	const child = layer('inner', visualModule({ params: { localTime: expression('TIME_MS') } }), { clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 1000 }] });
 	await manager.updateDynamicOptions({ sceneId: 'root', timelineScenes: [
 		{ id: 'root', name: 'Root', resolution: { mode: 'project' }, layers: [sceneLayer('first', 'child'), sceneLayer('second', 'child', 50)] },
 		{ id: 'child', name: 'Child', resolution: { mode: 'project' }, layers: [child] },
@@ -268,7 +268,7 @@ test('isolates repeated scene instances and reports their placement paths', asyn
 	assert.deepEqual(calls.renders.map(call => call.params.localTime), [50, 100]);
 	assert.equal(calls.instances.length, 2);
 	assert.notEqual(calls.renders[0].outputDataMap.output.texture, calls.renders[1].outputDataMap.output.texture);
-	assert.deepEqual(new Set(calls.statuses.map(event => JSON.stringify(event.source.layerPath))), new Set(['["second","inner"]', '["first","inner"]']));
+	assert.deepEqual(new Set(calls.statuses.map(event => JSON.stringify(event.source.layerPath))), new Set(['["second","clip","inner"]', '["first","clip","inner"]']));
 	await manager.renderTimelineFrame(150, 50);
 	assert.deepEqual(calls.instances.map(instance => instance.renders), [2, 2]);
 	assert.deepEqual(calls.renders.slice(-2).map(call => call.timeDelta), [50, 50]);
@@ -280,8 +280,8 @@ test('isolates repeated scene instances and reports their placement paths', asyn
 test('starts nested scenes on transparent backgrounds and materializes their canvas', async t => {
 	const { manager, calls } = fixture(t);
 	await manager.updateDynamicOptions({ sceneId: 'root', timelineScenes: [
-		{ id: 'root', name: 'Root', resolution: { mode: 'project' }, layers: [sceneLayer('nested', 'child'), layer('background', visualModule(), { positionMs: 0 })] },
-		{ id: 'child', name: 'Child', resolution: { mode: 'project' }, layers: [layer('input', visualModule({ primaryInput: true }), { positionMs: 0 })] },
+		{ id: 'root', name: 'Root', resolution: { mode: 'project' }, layers: [sceneLayer('nested', 'child'), layer('background', visualModule(), { clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 1000 }] })] },
+		{ id: 'child', name: 'Child', resolution: { mode: 'project' }, layers: [layer('input', visualModule({ primaryInput: true }), { clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 1000 }] })] },
 	] });
 	await manager.renderTimelineFrame(100, 0);
 	assert.equal(calls.outputs.at(-1).kind, 'texture');
@@ -294,7 +294,7 @@ test('starts nested scenes on transparent backgrounds and materializes their can
 // WIDTH/HEIGHT・Canvasの更新・解像度変更時の履歴破棄も同じ境界で確認する。
 test('uses each containing scene for context nodes and preserves project references through nesting', async t => {
 	const { manager, calls } = fixture(t, { present: true });
-	const probe = id => layer(id, visualModule({ params: { amount: expression('WIDTH'), local: expression('HEIGHT') } }), { positionMs: 0 });
+	const probe = id => layer(id, visualModule({ params: { amount: expression('WIDTH'), local: expression('HEIGHT') } }), { clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 1000 }] });
 	const scenes = [
 		{ id: 'root', name: 'Root', resolution: { mode: 'project' }, layers: [sceneLayer('child-placement', 'child')] },
 		{ id: 'child', name: 'Child', resolution: { mode: 'customAbsolute', width: 512, height: 256 }, layers: [probe('child-probe'), sceneLayer('leaf-placement', 'leaf')] },
@@ -321,7 +321,7 @@ test('uses each containing scene for context nodes and preserves project referen
 // 再利用し、MP4用の最終寸法補正はノードやSceneのサイズへ混ぜない。
 test('finalizes uniform and replace outputs at scene size before final canvas adjustment', async t => {
 	const { manager, calls } = fixture(t, { present: true });
-	const entry = layer('constant', visualModule(), { positionMs: 0 });
+	const entry = layer('constant', visualModule(), { clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 1000 }] });
 	const scene = { id: 'scene', name: 'Scene', resolution: { mode: 'customAbsolute', width: 513, height: 257 }, layers: [entry] };
 	await manager.updateDynamicOptions({ timelineScenes: [scene], sceneId: 'scene', outputResolution: { width: 514, height: 258 } });
 	await manager.renderTimelineFrame(0, 0);
@@ -331,10 +331,37 @@ test('finalizes uniform and replace outputs at scene size before final canvas ad
 	const oldOutput = calls.presented.at(-1);
 	const module = visualModule({ params: {} });
 	module.nodes.find(node => node.type === 'effect').resolution = { mode: 'customAbsolute', width: 1026, height: 514 };
-	await manager.updateDynamicOptions({ timelineScenes: [{ ...scene, layers: [layer('texture', module, { positionMs: 0 })] }] });
+	await manager.updateDynamicOptions({ timelineScenes: [{ ...scene, layers: [layer('texture', module, { clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 1000 }] })] }] });
 	assert.equal(oldOutput.destroyed, true);
 	await manager.renderTimelineFrame(0, 0);
 	assert.deepEqual([calls.presented.at(-1).width, calls.presented.at(-1).height], [513, 257]);
 	assert.notEqual(calls.presented.at(-1), calls.renders.at(-1).outputDataMap.output.texture);
 	assert.equal(calls.renders.at(-1).outputDataMap.output.texture.destroyed, false);
+});
+
+// 【同じSceneレイヤー内のクリップも独立した子Sceneを実行する】
+// 親の内容オフセットを子Sceneの時刻へ変換し、その子のレイヤー引数とモジュール内部を
+// さらに別の時計で評価する。隣接クリップへ移ると、子の履歴も新しく開始する。
+test('restarts child scene state between adjacent clips and uses the child scene clock', async t => {
+	const { manager, calls } = fixture(t);
+	const module = visualModule({ params: { localTime: expression('TIME_MS'), amount: expression('PARAM("SceneTime")') } });
+	module.paramDefs.push({ ...scalar, id: 'scene-time', nameForReference: 'SceneTime' });
+	const child = layer('inner', module, {
+		clips: [{ id: 'inner-clip', startMs: 500, durationMs: 200, contentOffsetMs: 20 }],
+		visualModuleParamValues: { 'scene-time': expression('TIME_MS') },
+	});
+	const parent = { ...sceneLayer('parent', 'child'), clips: [
+		{ id: 'first', sceneId: 'child', startMs: 100, durationMs: 100, contentOffsetMs: 500 },
+		{ id: 'second', sceneId: 'child', startMs: 200, durationMs: 100, contentOffsetMs: 500 },
+	] };
+	await manager.updateDynamicOptions({ sceneId: 'root', timelineScenes: [
+		{ id: 'root', name: 'Root', resolution: { mode: 'project' }, layers: [parent] },
+		{ id: 'child', name: 'Child', resolution: { mode: 'project' }, layers: [child] },
+	] });
+	await manager.renderTimelineFrame(150, 50);
+	await manager.renderTimelineFrame(250, 100);
+	assert.deepEqual(calls.renders.map(call => [call.params.localTime, call.params.amount, call.timeDelta]), [[70, 550, 0], [70, 550, 0]]);
+	assert.equal(calls.instances.length, 2);
+	assert.equal(calls.instances[0].disposed, true);
+	assert.equal(calls.instances[1].disposed, false);
 });

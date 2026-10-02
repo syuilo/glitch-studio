@@ -6,38 +6,38 @@ import { loadShaderSource } from './helpers/load-shader-source.mjs';
 const { createVisualModuleTimelineLayer } = await loadShaderSource(fileURLToPath(new URL('../src/visual-module-timeline-layer.ts', import.meta.url)));
 
 const entry = (id, positionMs = 0, endTimeMs = 1000, type = 'test') => ({
-	id, positionMs, trimStartMs: 0, trimmedDurationMs: endTimeMs - positionMs, layer: { type },
+	id, clips: [{ id: 'clip', startMs: positionMs, contentOffsetMs: 0, durationMs: endTimeMs - positionMs }], layer: { type },
 });
 
 // 【内容時刻と表示区間内の時刻を分け、トリムした先頭を表示しない】
 // 事前評価はまだ行わなくても、表示開始で内容時刻を0へ戻さない契約を保つ。
 test('separates content time from visible time without preroll', async () => {
 	const f = fixture();
-	const timeline = [{ ...entry('trimmed', 100, 400), trimStartMs: 200, trimmedDurationMs: 100 }];
+	const timeline = [{ ...entry('trimmed', 100, 400), clips: [{ id: 'clip', startMs: 300, contentOffsetMs: 200, durationMs: 100 }] }];
 	await f.renderer.renderAt(299, timeline);
 	assert.equal(f.created.length, 0);
 	await f.renderer.renderAt(300, timeline);
-	assert.equal(f.prepared[0].context.time, 200);
-	assert.equal(f.prepared[0].context.visibleTimeMs, 0);
-	assert.equal(f.prepared[0].context.endTime, 300);
+	assert.equal(f.prepared[0].context.contentTimeMs, 200);
+	assert.equal(f.prepared[0].context.clipElapsedTimeMs, 0);
+	assert.equal(f.prepared[0].context.contentEndTimeMs, 300);
 	assert.equal(f.prepared[0].context.timeDelta, 0);
 	await f.renderer.renderAt(399, timeline, 99);
-	assert.equal(f.prepared[1].context.time, 299);
-	assert.equal(f.prepared[1].context.visibleTimeMs, 99);
+	assert.equal(f.prepared[1].context.contentTimeMs, 299);
+	assert.equal(f.prepared[1].context.clipElapsedTimeMs, 99);
 	await f.renderer.renderAt(400, timeline);
 	assert.equal(f.prepared.length, 2);
 	assert.deepEqual(f.destroyed, ['trimmed']);
 });
 
 // 【Visual Moduleの左トリムでは終了基準を保ち、右端の伸縮でだけ変更する】
-// 内容時刻とEND_TIMEを同じ座標系に置き、トリムでPROGRESSの分母が縮まらないようにする。
+// 内容時刻とEND_TIMEは同じ座標系に置く。PROGRESSは別途、トリム後の表示区間から求める。
 test('changes the visual module end time only when its right edge changes', async () => {
 	const f = fixture();
 	const original = entry('module', 100, 1100);
 	await f.renderer.renderAt(500, [original]);
-	await f.renderer.renderAt(500, [{ ...original, trimStartMs: 200, trimmedDurationMs: 800 }]);
-	await f.renderer.renderAt(500, [{ ...original, trimStartMs: 200, trimmedDurationMs: 1000 }]);
-	assert.deepEqual(f.prepared.map(({ context }) => [context.time, context.endTime]), [[400, 1000], [400, 1000], [400, 1200]]);
+	await f.renderer.renderAt(500, [{ ...original, clips: [{ id: 'clip', startMs: 300, contentOffsetMs: 200, durationMs: 800 }] }]);
+	await f.renderer.renderAt(500, [{ ...original, clips: [{ id: 'clip', startMs: 300, contentOffsetMs: 200, durationMs: 1000 }] }]);
+	assert.deepEqual(f.prepared.map(({ context }) => [context.contentTimeMs, context.contentEndTimeMs]), [[400, 1000], [400, 1000], [400, 1200]]);
 	f.renderer.clear();
 });
 
@@ -100,8 +100,8 @@ test('renders layers in order with local time, end time and chained outputs', as
 	const timeline = [entry('top', 200, 600), entry('bottom', 100, 900)];
 	await f.renderer.renderAt(400, timeline);
 	assert.deepEqual(f.rendered.map(item => item.id), ['bottom', 'top']);
-	assert.deepEqual(f.prepared.map(item => item.context.time), [300, 200]);
-	assert.deepEqual(f.prepared.map(item => item.context.endTime), [800, 400]);
+	assert.deepEqual(f.prepared.map(item => item.context.contentTimeMs), [300, 200]);
+	assert.deepEqual(f.prepared.map(item => item.context.contentEndTimeMs), [800, 400]);
 	assert.deepEqual(f.prepared.map(item => item.context.input), ['transparent', 'bottom']);
 	for (let i = 0; i < 2; i++) {
 		assert.strictEqual(f.prepared[i].context, f.rendered[i].context);
@@ -121,7 +121,7 @@ test('renders layers in order with local time, end time and chained outputs', as
 // 開始を含み終了を含まない期間判定と、期間外の破棄・空出力を確認する
 test('uses half-open intervals and clears the display when no layers are active', async () => {
 	const f = fixture();
-	const timeline = [entry('first', 0, 100), entry('second', 100, 200), entry('zero', 100, 100)];
+	const timeline = [entry('first', 0, 100), entry('second', 100, 200), { ...entry('empty'), clips: [] }];
 	await f.renderer.renderAt(0, timeline);
 	await f.renderer.renderAt(100, timeline);
 	await f.renderer.renderAt(200, timeline);
@@ -210,14 +210,14 @@ test('rejects unavailable layers and destroys previously created layers', async 
 // 古いシークの準備が後から完了しても描画・表示を行わない
 test('ignores an older seek that finishes preparation after a newer seek', async () => {
 	const oldPreparation = deferred();
-	const f = fixture({ prepare: (id, context) => context.time === 10 ? oldPreparation.promise : undefined });
+	const f = fixture({ prepare: (id, context) => context.contentTimeMs === 10 ? oldPreparation.promise : undefined });
 	const timeline = [entry('a')];
 	const oldSeek = f.renderer.renderAt(10, timeline);
 	await f.renderer.renderAt(20, timeline);
 	assert.equal(f.prepared[0].signal.aborted, true);
 	oldPreparation.resolve();
 	await oldSeek;
-	assert.deepEqual(f.rendered.map(item => item.context.time), [20]);
+	assert.deepEqual(f.rendered.map(item => item.context.contentTimeMs), [20]);
 	assert.equal(f.presented.length, 1);
 	f.renderer.clear();
 });
@@ -227,7 +227,7 @@ test('ignores stale render completion and does not render subsequent layers', as
 	const started = deferred();
 	const oldRender = deferred();
 	const f = fixture({ render: async (id, context) => {
-		if (context.time === 10) { started.resolve(); return oldRender.promise; }
+		if (context.contentTimeMs === 10) { started.resolve(); return oldRender.promise; }
 		return { output: id, gpuTime: 2 };
 	} });
 	const timeline = [entry('b'), entry('a')];
@@ -236,7 +236,7 @@ test('ignores stale render completion and does not render subsequent layers', as
 	await f.renderer.renderAt(20, timeline);
 	oldRender.resolve({ output: 'stale', gpuTime: 100 });
 	await oldSeek;
-	assert.deepEqual(f.rendered.map(item => [item.id, item.context.time]), [['a', 10], ['a', 20], ['b', 20]]);
+	assert.deepEqual(f.rendered.map(item => [item.id, item.context.contentTimeMs]), [['a', 10], ['a', 20], ['b', 20]]);
 	assert.deepEqual(f.presented, [{ output: 'b', gpuTime: 4 }]);
 	f.renderer.clear();
 });
@@ -275,7 +275,7 @@ test('clears failed layers and permits a subsequent seek', async () => {
 // 古いシークの失敗が新しいシークのインスタンスを破棄しない
 test('ignores stale failures without clearing the current layers', async () => {
 	const preparation = deferred();
-	const f = fixture({ prepare: (id, context) => context.time === 10 ? preparation.promise : undefined });
+	const f = fixture({ prepare: (id, context) => context.contentTimeMs === 10 ? preparation.promise : undefined });
 	const timeline = [entry('a')];
 	const oldSeek = f.renderer.renderAt(10, timeline);
 	await f.renderer.renderAt(20, timeline);
@@ -311,8 +311,8 @@ test('chains different layer types without requiring visual module fields', asyn
 					return {
 						async evaluate(context) {
 							prepared.push(context);
-							assert.equal(context.time, 300);
-							assert.equal(context.endTime, 800);
+							assert.equal(context.contentTimeMs, 300);
+							assert.equal(context.contentEndTimeMs, 800);
 							assert.strictEqual(context.input, fallback);
 							assert.equal('paramValues' in context, false);
 							assert.equal('paramInputs' in context, false);
@@ -362,8 +362,8 @@ test('keeps visual module contexts separate across overlapping preparation', asy
 		async render(context, layerContext) { rendered.push(context); layerContexts.push(layerContext); return { output: context.paramInputs.get('input'), gpuTime: 0 }; },
 		destroy() {},
 	});
-	const first = { time: 1, timeDelta: 0, endTime: 10, input: 'first' };
-	const second = { time: 2, timeDelta: 0, endTime: 20, input: 'second' };
+	const first = { sceneTimeMs: 5, contentTimeMs: 1, clipElapsedTimeMs: 1, clipDurationMs: 10, contentEndTimeMs: 10, timeDelta: 0, input: 'first' };
+	const second = { ...first, sceneTimeMs: 6, contentTimeMs: 2, contentEndTimeMs: 20, input: 'second' };
 	const controller = new AbortController();
 	const oldEvaluation = layer.evaluate(first, controller.signal);
 	await layer.evaluate(second, controller.signal);
@@ -382,7 +382,7 @@ test('keeps visual module contexts separate across overlapping preparation', asy
 // モジュール内部の入力とタイムライン合成の背景は別の責務なので、主入力の有無で背景を失わない。
 test('provides the background for compositing modules without a primary input', async () => {
 	const background = { kind: 'uniform', value: [0, 0, 1, 1] };
-	const context = { time: 500, timeDelta: 16, endTime: 2000, isExport: true, input: background };
+	const context = { sceneTimeMs: 800, contentTimeMs: 500, clipElapsedTimeMs: 500, clipDurationMs: 2000, contentEndTimeMs: 2000, timeDelta: 16, isExport: true, input: background };
 	const graphs = [{ id: 'layer-graph', name: 'Layer', isNormalized: true, points: [] }];
 	const layer = createVisualModuleTimelineLayer({ paramDefs: [], primaryInputId: null }, { visualModuleParamValues: {}, automationGraphs: graphs }, {
 		async prepare() {},
@@ -412,15 +412,15 @@ test('skips visual module drawing when evaluation is aborted before or during pr
 		destroy() {},
 	});
 	const controller = new AbortController();
-	const context = { time: 10, timeDelta: 0, endTime: 100, isExport: false, input: 'background' };
+	const context = { sceneTimeMs: 20, contentTimeMs: 10, clipElapsedTimeMs: 10, clipDurationMs: 100, contentEndTimeMs: 100, timeDelta: 0, isExport: false, input: 'background' };
 	const evaluation = layer.evaluate(context, controller.signal);
 	controller.abort();
 	pending.resolve();
 	assert.deepEqual(await evaluation, { gpuTime: 0 });
-	assert.deepEqual(await layer.evaluate({ ...context, time: 20 }, controller.signal), { gpuTime: 0 });
+	assert.deepEqual(await layer.evaluate({ ...context, contentTimeMs: 20 }, controller.signal), { gpuTime: 0 });
 	assert.deepEqual(prepared, [10]);
 	assert.deepEqual(rendered, []);
-	assert.deepEqual(await layer.evaluate({ ...context, time: 30 }, new AbortController().signal), { output: 'frame', gpuTime: 3 });
+	assert.deepEqual(await layer.evaluate({ ...context, contentTimeMs: 30 }, new AbortController().signal), { output: 'frame', gpuTime: 3 });
 	assert.deepEqual(rendered, [30]);
 });
 
@@ -440,4 +440,57 @@ test('evaluates offscreen results and propagates parent cancellation', async () 
 	assert.deepEqual(result, { output: 'transparent', gpuTime: 0 });
 	assert.deepEqual(f.presented, []);
 	f.renderer.clear();
+});
+
+// 【同じレイヤーの隣接クリップも実行状態を共有せず、空白は下層を通す】
+// クリップIDはレイヤー内だけで一意。同名IDの別レイヤーを混同せず、半開区間の境界で
+// 新しい履歴を開始する。有効な透明出力は空白とは異なり下層を置き換える。
+test('separates clip instances and distinguishes transparent output from a gap', async () => {
+	const created = [];
+	const destroyed = [];
+	const evaluations = [];
+	const renderer = new TimelineRenderer({ fallbackOutput: 'transparent',
+		createLayer(layer, clipId) {
+			const id = layer.id + ':' + clipId;
+			created.push(id);
+			return {
+				async evaluate(context) {
+					evaluations.push({ id, ...context });
+					return { output: layer.id === 'top' ? 'transparent' : 'background', gpuTime: 0 };
+				}, destroy() { destroyed.push(id); },
+			};
+		},
+	});
+	const top = { id: 'top', clips: [
+		{ id: 'a', startMs: 100, durationMs: 100, contentOffsetMs: 500 },
+		{ id: 'b', startMs: 200, durationMs: 100, contentOffsetMs: 50 },
+	] };
+	const bottom = { id: 'bottom', clips: [{ id: 'a', startMs: 0, durationMs: 1000, contentOffsetMs: 0 }] };
+	assert.equal((await renderer.evaluateAt(50, [top, bottom])).output, 'background');
+	assert.equal((await renderer.evaluateAt(100, [top, bottom], 50)).output, 'transparent');
+	await renderer.evaluateAt(150, [top, bottom], 50);
+	await renderer.evaluateAt(200, [top, bottom], 50);
+	assert.deepEqual(created, ['bottom:a', 'top:a', 'top:b']);
+	assert.deepEqual(destroyed, ['top:a']);
+	assert.deepEqual(evaluations.filter(ctx => ctx.id.startsWith('top')).map(ctx => [ctx.sceneTimeMs, ctx.contentTimeMs, ctx.clipElapsedTimeMs, ctx.contentEndTimeMs, ctx.timeDelta]), [
+		[100, 500, 0, 600, 0], [150, 550, 50, 600, 50], [200, 50, 0, 150, 0],
+	]);
+	assert.equal((await renderer.evaluateAt(300, [top, bottom])).output, 'background');
+	renderer.clear();
+});
+
+// 【進行率は内容時刻と独立して表示区間から求め、引数はScene時刻で評価する】
+// 左トリム後も同じ内容時刻・終端を使いながら、表示区間内でのPROGRESSは変化する。
+// TIME / END_TIMEで進行率を再計算する実装へ戻さないための契約。
+test('passes clip progress separately from module content time and scene arguments', async () => {
+	const contexts = [];
+	const adapter = createVisualModuleTimelineLayer({ primaryInputId: null, paramDefs: [
+		{ id: 'time', nameForReference: 'Time', dataType: { kind: 'scalar' }, defaultValue: { inputSource: 'literal', value: 0 }, canNode: false },
+	] }, { visualModuleParamValues: { time: { inputSource: 'expression', expression: 'TIME_MS' } }, automationGraphs: [] }, {
+		async prepare(context) { contexts.push(context); }, async render() { return { gpuTime: 0 }; }, destroy() {},
+	});
+	const context = { sceneTimeMs: 700, contentTimeMs: 600, contentEndTimeMs: 1000, clipElapsedTimeMs: 600, clipDurationMs: 1000, timeDelta: 0, isExport: false };
+	await adapter.evaluate(context, new AbortController().signal);
+	await adapter.evaluate({ ...context, clipElapsedTimeMs: 400, clipDurationMs: 800 }, new AbortController().signal);
+	assert.deepEqual(contexts.map(ctx => [ctx.time, ctx.endTime, ctx.progress, ctx.evaluatedParamValues.get('time')]), [[600, 1000, 0.6, 700], [600, 1000, 0.5, 700]]);
 });

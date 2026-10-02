@@ -1,18 +1,15 @@
 import type { AutomationGraph, ParameterBinding } from '../types.ts';
 import type { VisualModule } from '../visual-module/types.ts';
 import type { timelineCompositingParamDefs } from './timeline-compositing.ts';
-import type { TimelineLayerTiming } from './timing.ts';
+import type { TimelineClip, TimelineAssetClip, TimelineVideoClip, TimelineSceneClip } from './clip.ts';
 import type { TimelineSceneResolution } from './scene-resolution.ts';
 
-// NOTE: 各値の計算式は以下となる
-// const visibleStartMs = layer.positionMs + layer.trimStartMs;
-// const visibleEndMs = visibleStartMs + layer.trimmedDurationMs;
-// const contentTimeMs = timelineTimeMs - layer.positionMs;
-
-type TimelineLayerBase = {
+type TimelineLayerBase<Clip extends TimelineClip> = {
 	id: string;
+	name: string;
+	clips: Clip[];
 	automationGraphs: AutomationGraph[];
-} & TimelineLayerTiming;
+};
 
 type TimelineAudioLayerBase = {
 	audioParamValues: { volume: TimelineParameterBinding };
@@ -24,51 +21,46 @@ type TimelineVisualLayerBase = {
 
 export type TimelineParameterBinding = Exclude<ParameterBinding, { inputSource: 'node' | 'externalCustomParameterInput' }>;
 
-export type TimelineVisualModuleLayer = TimelineLayerBase & TimelineLayerTiming & TimelineVisualLayerBase & {
+export type TimelineVisualModuleLayer = TimelineLayerBase<TimelineClip> & TimelineVisualLayerBase & {
 	layerType: 'visualModule';
 	visualModuleId: string;
 	visualModuleParamValues: Record<string, TimelineParameterBinding>;
 };
 
-export type TimelineInlineVisualModuleLayer = TimelineLayerBase & TimelineLayerTiming & TimelineVisualLayerBase & {
+export type TimelineInlineVisualModuleLayer = TimelineLayerBase<TimelineClip> & TimelineVisualLayerBase & {
 	layerType: 'inlineVisualModule';
 	visualModule: VisualModule;
 	visualModuleParamValues: Record<string, TimelineParameterBinding>;
 };
 
-export type TimelineEffectLayer = TimelineLayerBase & TimelineLayerTiming & TimelineVisualLayerBase & { // TODO
+export type TimelineEffectLayer = TimelineLayerBase<TimelineClip> & TimelineVisualLayerBase & { // TODO
 	layerType: 'effect';
 	effectId: string;
 	effectParamValues: Record<string, TimelineParameterBinding>;
 };
 
-export type TimelineAudioLayer = TimelineLayerBase & TimelineLayerTiming & TimelineAudioLayerBase & {
+export type TimelineAudioLayer = TimelineLayerBase<TimelineAssetClip> & TimelineAudioLayerBase & {
 	layerType: 'audio';
-	assetId: string;
 };
 
-/** 静止画像は素材長を持たず、表示区間の編集ではtrimStartMsを0に保つ。 */
-export type TimelineImageLayer = TimelineLayerBase & TimelineVisualLayerBase & {
+/** 静止画像は素材長を持たず、内容時刻は描画に影響しない。 */
+export type TimelineImageLayer = TimelineLayerBase<TimelineAssetClip> & TimelineVisualLayerBase & {
 	layerType: 'image';
-	assetId: string;
 };
 
 /** 映像と音声は同じ素材時刻・トリムを共有する。Playerの再生状態には依存しない。 */
-export type TimelineVideoLayer = TimelineLayerBase & TimelineLayerTiming & TimelineAudioLayerBase & TimelineVisualLayerBase & {
+export type TimelineVideoLayer = TimelineLayerBase<TimelineVideoClip> & TimelineAudioLayerBase & TimelineVisualLayerBase & {
 	layerType: 'video';
-	assetId: string;
-	audioEnabled: boolean;
 };
 
 /** 参照先は透明背景から描画する。配置期間は参照先の長さが変わっても自動伸縮しない。 */
-export type TimelineSceneLayer = TimelineLayerBase & TimelineLayerTiming & TimelineAudioLayerBase & TimelineVisualLayerBase & {
+export type TimelineSceneLayer = TimelineLayerBase<TimelineSceneClip> & TimelineAudioLayerBase & TimelineVisualLayerBase & {
 	layerType: 'scene';
-	sceneId: string;
 };
 
 export type TimelineLayer = TimelineVisualModuleLayer | TimelineInlineVisualModuleLayer | TimelineEffectLayer | TimelineAudioLayer | TimelineImageLayer | TimelineVideoLayer | TimelineSceneLayer;
 
-/** 長さは直下のレイヤーの終了時刻の最大値から求め、空の場合は0とする。 */
+/** 長さは直下の全クリップの終了時刻の最大値から求め、空の場合は0とする。 */
 export type TimelineScene = {
 	id: string;
 	name: string;

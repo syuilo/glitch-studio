@@ -1,4 +1,4 @@
-import { getTimelineLayerEnd } from '@glitch/shared/timeline/timing.ts';
+import { getTimelineClipEnd } from '@glitch/shared/timeline/timing.ts';
 import type { TimelineLayer } from '@glitch/shared/timeline/types.ts';
 export type ExportQuality = 'low' | 'medium' | 'high' | 'very-high';
 
@@ -29,7 +29,7 @@ export type ExportProgress = {
 };
 
 export function getTimelineEnd(timeline: readonly TimelineLayer[]): number {
-	return timeline.reduce((end, entry) => Math.max(end, getTimelineLayerEnd(entry)), 0);
+	return timeline.reduce((end, entry) => entry.clips.reduce((end, clip) => Math.max(end, getTimelineClipEnd(clip)), end), 0);
 }
 
 export function validateExportSettings(settings: TimelineExportSettings): string | null {

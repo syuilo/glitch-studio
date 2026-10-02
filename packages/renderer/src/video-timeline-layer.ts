@@ -26,7 +26,7 @@ export function createVideoTimelineLayer(layer: TimelineVideoLayer, blob: Blob, 
 			// デコードせず、完了が遅れた旧フレームも新しいテクスチャへ書き込まない。
 			const render = async () => {
 				if (disposed || signal.aborted) return { gpuTime: 0 };
-				const sample = await source.getSample(context.time / 1000);
+				const sample = await source.getSample(context.contentTimeMs / 1000);
 				try {
 					if (disposed || signal.aborted) return { gpuTime: 0 };
 					// replaceの無変形時はcompositorが素材を直接返すため、合成前に原寸へ倍率を
@@ -35,7 +35,7 @@ export function createVideoTimelineLayer(layer: TimelineVideoLayer, blob: Blob, 
 						: { kind: 'uniform', value: [0, 0, 0, 0] };
 					const encoder = options.device.createCommandEncoder();
 					try {
-						const settings = parameters.evaluate({ ...context, paramValues: layer.compositingParamValues, automationGraphs: layer.automationGraphs });
+						const settings = parameters.evaluate({ time: context.sceneTimeMs, isExport: context.isExport, paramValues: layer.compositingParamValues, automationGraphs: layer.automationGraphs });
 						return { output: compositor.render(encoder, context.input, foreground, settings), gpuTime: 0 };
 					} finally { options.device.queue.submit([encoder.finish()]); }
 				} finally { sample?.close(); }

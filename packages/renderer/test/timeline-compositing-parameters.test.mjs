@@ -16,7 +16,7 @@ test('defaults to normal compositing with an identity transform', () => {
 	assert.deepEqual(evaluate({}), { blendMode: 0, opacity: 1, fitMode: 'contain', position: [0, 0], origin: [0, 0], scale: [1, 1], rotation: 0 });
 });
 
-// 合成設定にはレイヤーの変数だけを公開し、時刻や解像度は暗黙に継承しない。
+// 合成設定にはレイヤーの変数だけを公開し、Scene時刻を明示し、モジュールの進行率や解像度は継承しない。
 test('evaluates expressions and environment variables in layer context', () => {
 	const result = evaluate({
 		position: expression('[TEST_SAME_NAME, 0]'),
@@ -32,11 +32,11 @@ test('evaluates expressions and environment variables in layer context', () => {
 const point = (x, y) => ({ id: `${x}`, x, y, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] });
 const graph = { id: 'ramp', name: 'Ramp', isNormalized: true, points: [point(0, 0), point(1, 1)] };
 for (const inputSource of ['automationGraphInline', 'automationGraphReference']) {
-	// duration・終端合わせ・wrapを含めて、位置や回転も既存グラフと同じ規約で動かす。
+	// duration・Scene開始基準・wrapを含めて、位置や回転も既存グラフと同じ規約で動かす。
 	test(`evaluates timing and wrapping for ${inputSource}`, () => {
 		const input = {
 			inputSource, automationGraph: graph, automationGraphId: graph.id,
-			trimmedDurationMs: 1000, offsetMode: 'end', wrapMode: 'repeatMirrored',
+			trimmedDurationMs: 1000, offsetMode: 'start', wrapMode: 'repeatMirrored',
 		};
 		const result = evaluate({ opacity: input, rotation: input }, [graph]);
 		for (const value of [result.opacity, result.rotation]) assert.ok(Math.abs(value - 0.5) < 0.00001);

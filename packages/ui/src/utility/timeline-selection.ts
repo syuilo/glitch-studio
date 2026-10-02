@@ -9,11 +9,18 @@ export type TimelineKeyframeSelection = {
 
 export type TimelineSelection =
 	| { kind: 'layers'; ids: string[] }
+	| { kind: 'clips'; clips: TimelineClipSelection[] }
 	| { kind: 'keyframes'; keyframes: TimelineKeyframeSelection[] };
+
+export type TimelineClipSelection = { layerId: string; clipId: string };
+
+export function clipSelectionKey(selection: TimelineClipSelection): string {
+	return JSON.stringify([selection.layerId, selection.clipId]);
+}
 
 export type SelectionRect = { left: number; top: number; right: number; bottom: number };
 export type TimelineSelectionGeometry = {
-	clips: { id: string; rect: SelectionRect }[];
+	clips: { selection: TimelineClipSelection; rect: SelectionRect }[];
 	keyframes: { selection: TimelineKeyframeSelection; x: number; y: number }[];
 };
 
@@ -42,15 +49,17 @@ export function timelineMarqueeRect(origin: { x: number; y: number }, pointer: {
 }
 
 export function selectTimelineRange(rect: SelectionRect, geometry: TimelineSelectionGeometry, previous: TimelineSelection, additive: boolean): TimelineSelection {
-	const ids = geometry.clips.filter(clip => clip.rect.left <= rect.right && clip.rect.right >= rect.left
-		&& clip.rect.top <= rect.bottom && clip.rect.bottom >= rect.top).map(clip => clip.id);
+	const clips = geometry.clips.filter(clip => clip.rect.left <= rect.right && clip.rect.right >= rect.left
+		&& clip.rect.top <= rect.bottom && clip.rect.bottom >= rect.top).map(clip => clip.selection);
 	const keyframes = geometry.keyframes.filter(point => point.x >= rect.left && point.x <= rect.right
 		&& point.y >= rect.top && point.y <= rect.bottom).map(point => point.selection);
-	const hasPrevious = previous.kind === 'layers' ? previous.ids.length > 0 : previous.keyframes.length > 0;
+	const hasPrevious = previous.kind === 'layers' ? previous.ids.length > 0 : previous.kind === 'clips' ? previous.clips.length > 0 : previous.keyframes.length > 0;
 	// Shiftで追加する間は既存の種類を固定する。囲む途中で別の種類へ切り替わると、
 	// 追加したかったキーがクリップとの交差によって失われてしまうため。
-	const kind = additive && hasPrevious ? previous.kind : ids.length > 0 ? 'layers' : 'keyframes';
-	if (kind === 'layers') return { kind, ids: [...new Set([...(additive && previous.kind === kind ? previous.ids : []), ...ids])] };
+	const kind = additive && hasPrevious ? previous.kind : clips.length > 0 ? 'clips' : 'keyframes';
+	if (kind === 'layers') return previous;
+	if (kind === 'clips') return { kind, clips: [...new Map([...(additive && previous.kind === kind ? previous.clips : []), ...clips]
+		.map(clip => [clipSelectionKey(clip), clip])).values()] };
 	return { kind, keyframes: [...new Map([...(additive && previous.kind === kind ? previous.keyframes : []), ...keyframes]
 		.map(point => [keyframeSelectionKey(point), point])).values()] };
 }

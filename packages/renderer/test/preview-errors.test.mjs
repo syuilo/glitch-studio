@@ -74,7 +74,7 @@ async function fixture(t, staticOptions = {}, Manager = VisualModuleRendererMana
 	await renderer.updateDynamicOptions({
 		resolution: { width: 1, height: 1 },
 		visualModules: [visualModule(true)],
-		...(Manager === TimelineRendererManager ? { timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [{ id: 'layer', layerType: 'visualModule', visualModuleId: 'module', positionMs: 0, trimStartMs: 0, trimmedDurationMs: 1000, visualModuleParamValues: {}, compositingParamValues: {}, automationGraphs: [] }] }], sceneId: 'scene' } : {}),
+		...(Manager === TimelineRendererManager ? { timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [{ id: 'layer', layerType: 'visualModule', visualModuleId: 'module', name: 'Layer', clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 1000 }], visualModuleParamValues: {}, compositingParamValues: {}, automationGraphs: [] }] }], sceneId: 'scene' } : {}),
 	});
 	return { renderer, errors, frames, frame(timestamp) {
 		const [id, callback] = frames.entries().next().value;

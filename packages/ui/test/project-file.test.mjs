@@ -93,8 +93,8 @@ function project(overrides = {}) {
 // 保存・読込で配置のトリムを再計算すると、同じSceneを使った複数の演出がずれてしまう。
 test('round-trips scene references without changing their source origins', async () => {
 	const original = project({ timelineScenes: [
-		{ id: 'root', name: 'Root', resolution: { mode: 'project' }, layers: [{ id: 'nested', layerType: 'scene', sceneId: 'child',
-			positionMs: -50, trimStartMs: 100, trimmedDurationMs: 200,
+		{ id: 'root', name: 'Root', resolution: { mode: 'project' }, layers: [{ id: 'nested', layerType: 'scene',
+			name: 'Layer', clips: [{ id: 'clip', startMs: 50, contentOffsetMs: 100, durationMs: 200, sceneId: 'child' }],
 			compositingParamValues: {}, audioParamValues: { volume: { inputSource: 'literal', value: 0.5 } }, automationGraphs: [] }] },
 		{ id: 'child', name: 'Child', resolution: { mode: 'project' }, layers: [] },
 	] });
@@ -394,7 +394,7 @@ test('synchronizes both previews and routes timeline-only edits', async t => {
 	app.previewPlayback.seekTimeline(500);
 	assert.equal(app.activePreviewRenderer.value, timeline);
 	timeline.renders.length = 0;
-	app.appStateManager.state.timelineScenes.value[0].layers = [{ id: 'layer', layerType: 'visualModule', visualModuleId: 'first', positionMs: 0, trimStartMs: 0, trimmedDurationMs: 1000, visualModuleParamValues: {}, compositingParamValues: {}, automationGraphs: [] }];
+	app.appStateManager.state.timelineScenes.value[0].layers = [{ id: 'layer', layerType: 'visualModule', visualModuleId: 'first', name: 'Layer', clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 1000 }], visualModuleParamValues: {}, compositingParamValues: {}, automationGraphs: [] }];
 	await nextTick();
 	await setImmediate();
 	assert.equal('timelineScenes' in live.options, false);
@@ -423,8 +423,8 @@ test('refreshes audio only for audio content, source files or loop duration chan
 	await app.appReady(project({
 		assets: [{ id: 'audio', name: 'sound.wav', fileData: new Blob(['audio']) }, { id: 'image', fileData: new Blob(['image']) }],
 		timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [
-			{ id: 'visual', layerType: 'visualModule', visualModuleId: 'module', positionMs: 0, trimStartMs: 0, trimmedDurationMs: 10000, visualModuleParamValues: {}, compositingParamValues: { opacity: { inputSource: 'literal', value: 1 } }, automationGraphs: [] },
-			{ id: 'audio', layerType: 'audio', assetId: 'audio', positionMs: 0, trimmedDurationMs: 5000, trimStartMs: 0, audioParamValues: { volume: { inputSource: 'literal', value: 1 } }, automationGraphs: [] },
+			{ id: 'visual', layerType: 'visualModule', visualModuleId: 'module', name: 'Layer', clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 10000 }], visualModuleParamValues: {}, compositingParamValues: { opacity: { inputSource: 'literal', value: 1 } }, automationGraphs: [] },
+			{ id: 'audio', layerType: 'audio', name: 'Layer', clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 5000, assetId: 'audio' }], audioParamValues: { volume: { inputSource: 'literal', value: 1 } }, automationGraphs: [] },
 		] }],
 	}));
 	const manager = app.appStateManager;
@@ -455,7 +455,7 @@ test('refreshes audio only for audio content, source files or loop duration chan
 		manager.state.assets.value[0].fileData = new Blob(['new audio']);
 		await nextTick();
 		assert.equal(starts.length, 5);
-		manager.state.timelineScenes.value[0].layers[0].trimmedDurationMs = 20000;
+		manager.state.timelineScenes.value[0].layers[0].clips[0].durationMs = 20000;
 		await nextTick();
 		assert.equal(starts.length, 6);
 		manager.commit('removeTimelineLayer', { sceneId: 'scene', layerId: 'audio' });

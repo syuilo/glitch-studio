@@ -26,7 +26,7 @@ export function createVisualModuleTimelineLayer(
 			const paramInputs = new Map<VisualModuleCustomParameterId, NodeOutput>();
 			if (visualModule.primaryInputId !== null) paramInputs.set(visualModule.primaryInputId, context.input);
 			const evaluationContext = {
-				...createTimelineLayerEvaluationScope({ ...context, automationGraphs: layer.automationGraphs }),
+				...createTimelineLayerEvaluationScope({ time: context.sceneTimeMs, isExport: context.isExport, automationGraphs: layer.automationGraphs }),
 				evaluatedParamValues: null,
 			};
 			const evaluatedParamValues = new Map<VisualModuleCustomParameterId, any>();
@@ -44,9 +44,10 @@ export function createVisualModuleTimelineLayer(
 			// 評価ごとのローカル変数として保持し、並行するシークと共有しない。
 			const resolved: VisualModuleRenderContext = {
 				isExport: context.isExport,
-				time: context.time,
+				time: context.contentTimeMs,
 				timeDelta: context.timeDelta,
-				endTime: context.endTime,
+				endTime: context.contentEndTimeMs,
+				progress: context.clipElapsedTimeMs / context.clipDurationMs,
 				evaluatedParamValues,
 				paramInputs,
 				pointerPosition: { x: -99999, y: -99999 },

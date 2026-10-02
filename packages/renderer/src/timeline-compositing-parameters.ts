@@ -18,7 +18,7 @@ export type TimelineCompositingSettings = {
 export class TimelineCompositingParameters {
 	private evaluator = new ParameterEvaluator();
 
-	evaluate(context: { time: number; endTime: number; isExport: boolean; paramValues: Record<string, ParameterBinding>; automationGraphs: AutomationGraph[] }): TimelineCompositingSettings {
+	evaluate(context: { time: number; isExport: boolean; paramValues: Record<string, ParameterBinding>; automationGraphs: AutomationGraph[] }): TimelineCompositingSettings {
 		const evaluationContext = {
 			...createTimelineLayerEvaluationScope(context),
 			evaluatedParamValues: null,

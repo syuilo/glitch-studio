@@ -1,52 +1,49 @@
 import { getSceneDuration, getTimelineScene, validateTimelineScenes } from './scenes.ts';
-import { getTimelineLayerStart, getTimelineLayerEnd } from './timing.ts';
+import { getTimelineClipEnd } from './timing.ts';
 import type { TimelineParameterBinding, TimelineScene } from './types.ts';
 import type { AutomationGraph } from '../types.ts';
 
 export type SceneAudioGain = {
-	/** 最上位Scene上での、この音量設定の内容時刻0。 */
-	positionMs: number;
-	/** 配置レイヤー自身の内容時刻での終端。子Sceneの長さとは独立する。 */
-	endTimeMs: number;
+	/** 最上位Scene上で、音量を所有するSceneの時刻0が置かれる位置。 */
+	sceneStartMs: number;
 	volume: TimelineParameterBinding;
 	automationGraphs: AutomationGraph[];
 };
 
 export type SceneAudioClip = {
 	assetId: string;
-	volume: TimelineParameterBinding;
-	automationGraphs: AutomationGraph[];
-	/** 音量のEND_TIME。動画では映像・音声共通の素材長を使う。 */
 	durationBasis: 'audio' | 'media';
-	/** 最上位Scene上での素材時刻0。元のキーフレームや式の時刻は書き換えない。 */
-	positionMs: number;
+	/** 最上位Scene上での素材時刻0。音量の評価基準には使用しない。 */
+	sourceStartMs: number;
 	startMs: number;
 	endMs: number;
 	gains: SceneAudioGain[];
 };
 
-/** 描画結果や音量に依存せず、祖先すべての表示区間の交差から音声の再生計画を作る。 */
+/** 祖先クリップすべての表示区間を交差させ、素材と各階層の音量の時計を別々に展開する。 */
 export function getSceneAudioClips(scenes: readonly TimelineScene[], sceneId: string): SceneAudioClip[] {
 	validateTimelineScenes(scenes);
 	const clips: SceneAudioClip[] = [];
-	const visit = (id: string, offset: number, start: number, end: number, gains: SceneAudioGain[]) => {
+	const visit = (id: string, sceneStartMs: number, start: number, end: number, gains: SceneAudioGain[]) => {
 		const scene = getTimelineScene(scenes, id);
-		end = Math.min(end, offset + getSceneDuration(scene));
+		end = Math.min(end, sceneStartMs + getSceneDuration(scene));
 		for (const layer of scene.layers) {
-			const startMs = Math.max(start, offset + getTimelineLayerStart(layer));
-			const endMs = Math.min(end, offset + getTimelineLayerEnd(layer));
-			if (endMs <= startMs) continue;
-			const positionMs = offset + layer.positionMs;
-			if (layer.layerType === 'audio' || (layer.layerType === 'video' && layer.audioEnabled)) {
-				clips.push({ assetId: layer.assetId,
-					volume: layer.audioParamValues.volume,
-					automationGraphs: layer.automationGraphs, durationBasis: layer.layerType === 'audio' ? 'audio' : 'media',
-					positionMs, startMs, endMs, gains });
+			if (layer.layerType !== 'audio' && layer.layerType !== 'video' && layer.layerType !== 'scene') continue;
+			const layerGains = [...gains, { sceneStartMs, volume: layer.audioParamValues.volume, automationGraphs: layer.automationGraphs }];
+			for (const clip of layer.clips) {
+				const startMs = Math.max(start, sceneStartMs + clip.startMs);
+				const endMs = Math.min(end, sceneStartMs + getTimelineClipEnd(clip));
+				if (endMs <= startMs) continue;
+				// 子Sceneの時刻0と素材の時刻0は同じ変換式だが、親レイヤーのキーは
+				// 親Sceneに固定する。トリムしても親の音量キーまで移動してはいけない。
+				const sourceStartMs = sceneStartMs + clip.startMs - clip.contentOffsetMs;
+				if ('sceneId' in clip) {
+					visit(clip.sceneId, sourceStartMs, startMs, endMs, layerGains);
+				} else if (!('audioEnabled' in clip) || clip.audioEnabled) {
+					clips.push({ assetId: clip.assetId, durationBasis: layer.layerType === 'audio' ? 'audio' : 'media',
+						sourceStartMs, startMs, endMs, gains: layerGains });
+				}
 			}
-			if (layer.layerType === 'scene') visit(layer.sceneId, positionMs, startMs, endMs, [...gains, {
-				positionMs, endTimeMs: layer.trimStartMs + layer.trimmedDurationMs,
-				volume: layer.audioParamValues.volume, automationGraphs: layer.automationGraphs,
-			}]);
 		}
 	};
 	visit(sceneId, 0, 0, Infinity, []);

@@ -2,99 +2,75 @@
 <div :class="[$style.root, { [$style.selected]: selected }]" :data-timeline-layer-id="layer.id">
 	<div :class="$style.mainLane">
 		<div :class="$style.side">
-			<div :class="$style.layerHeader" draggable="true" @click="emit('selected')" @dragstart.stop="emit('dragStart', $event)">
-				<span style="font-size: 85%; color: color-mix(in srgb, var(--THEME-fg), var(--sideColor) 50%);">
-					<i class="ti ti-grip-vertical"></i>
-				</span>
-				<span style="font-size: 90%;">
-					<i v-if="layer.layerType === 'visualModule'" class="ti ti-chart-dots-3"></i>
-					<i v-else-if="layer.layerType === 'inlineVisualModule'" class="ti ti-chart-dots-3"></i>
-					<i v-else-if="layer.layerType === 'scene'" class="ti ti-timeline"></i>
-					<i v-else-if="layer.layerType === 'image'" class="ti ti-photo"></i>
-					<i v-else-if="layer.layerType === 'video'" class="ti ti-video"></i>
-					<i v-else-if="layer.layerType === 'audio'" class="ti ti-music"></i>
-				</span>
-				<span style="flex: 1; min-width: 0;">
-					<GsCondensedLine>{{ layerLabel }}</GsCondensedLine>
-				</span>
+			<div :class="$style.layerHeader" draggable="true" @click="emit('selected', $event)" @dragstart.stop="emit('dragStart', $event)">
+				<i class="ti ti-grip-vertical"></i>
+				<i :class="'ti ' + layerIcon"></i>
+				<GsCondensedLine style="flex: 1; min-width: 0;">{{ layer.name }}</GsCondensedLine>
 			</div>
 		</div>
-		<div :class="$style.tl">
-			<div v-if="sourceRect" :class="$style.tlSourceGhost" :style="{ left: sourceRect.left + 'px', width: sourceRect.width + 'px' }"></div>
-			<button v-show="layerRect.left > tlElWidth" class="_button" :class="$style.stickyArrow" :style="{ right: 0 }" @click="look"><i class="ti ti-arrow-right"></i></button>
-			<button v-show="layerRect.left + layerRect.width < 0" class="_button" :class="$style.stickyArrow" :style="{ left: 0 }" @click="look"><i class="ti ti-arrow-left"></i></button>
-			<div
-				data-timeline-clip
-				:class="[$style.tlClip, { [$style.moving]: moving }]"
-				:style="{ width: layerRect.width + 'px', left: layerRect.left + 'px' }"
-				@pointerdown.stop="emit('moveStart', $event)"
-				@pointermove="onTimingPointerMove"
-				@pointerup="onTimingPointerUp"
-				@pointercancel="onTimingPointerCancel"
-				@lostpointercapture="onTimingPointerCancel"
-				@click.stop
-			>
-				<div :class="$style.tlClipInner">
-					<GsCondensedLine>{{ layerLabel }}</GsCondensedLine>
-					<div :class="[$style.trimHandle, $style.trimStart]" @pointerdown.stop="onTimingPointerDown($event, 'trimStart')"></div>
-					<div :class="[$style.trimHandle, $style.trimEnd]" @pointerdown.stop="onTimingPointerDown($event, 'trimEnd')"></div>
-				</div>
-			</div>
+		<div :class="$style.tl" @dblclick.stop.prevent="onBackgroundDoubleClick">
+			<button v-if="offscreenClips.previous" class="_button" :class="$style.stickyArrow" style="left: 0;" @click.stop="look(offscreenClips.previous)" @dblclick.stop><i class="ti ti-arrow-left"></i></button>
+			<button v-if="offscreenClips.next" class="_button" :class="$style.stickyArrow" style="right: 0;" @click.stop="look(offscreenClips.next)" @dblclick.stop><i class="ti ti-arrow-right"></i></button>
+			<XClip
+				v-for="clip in layer.clips"
+				:key="clip.id"
+				:clip="clip"
+				:label="clipLabel(clip)"
+				:sourceDurationMs="sourceDuration(clip)"
+				:tlElWidth="tlElWidth"
+				:tlRangeX="tlRangeX"
+				:tlPosX="tlPosX"
+				:selected="selectedClipIds.includes(clip.id)"
+				:moving="moving && selectedClipIds.includes(clip.id)"
+				@moveStart="event => emit('clipMoveStart', event, { layerId: layer.id, clipId: clip.id })"
+				@trimStart="(event, edge) => emit('clipTrimStart', event, { layerId: layer.id, clipId: clip.id }, edge)"
+			/>
 		</div>
 	</div>
 	<div v-if="keyframeParameters.length > 0" :class="$style.localTicksLane">
-		<div :class="[$style.side, $style.localTicksLabel]">Local time</div>
+		<div :class="[$style.side, $style.localTicksLabel]">Clip time</div>
 		<div :class="[$style.tl, $style.localTicks]">
-			<div :class="$style.localTicksRange" :style="{ left: layerRect.left + 'px', width: layerRect.width + 'px' }">
-				<div v-for="time of localTicks.major" :key="time" :class="$style.localTick" class="_monospace" :style="{ left: timeToDomX(layer.positionMs + time) - layerRect.left + 'px' }">{{ formatTimelineTimecode(time) }}</div>
-				<div v-for="time of localTicks.minor" :key="time" :class="$style.localHalfTick" :style="{ left: timeToDomX(layer.positionMs + time) - layerRect.left + 'px' }"></div>
+			<div v-for="clip in layer.clips" :key="clip.id" :class="$style.localTicksRange" :style="{ left: timeToDomX(clip.startMs) + 'px', width: clip.durationMs / tlRangeX * tlElWidth + 'px' }">
+				<div v-for="tick of clipTicks.get(clip.id)?.major" :key="tick.contentTimeMs" :class="$style.localTick" class="_monospace" :style="{ left: (tick.sceneTimeMs - clip.startMs) / tlRangeX * tlElWidth + 'px' }">{{ formatTimelineTimecode(tick.contentTimeMs) }}</div>
+				<div v-for="tick of clipTicks.get(clip.id)?.minor" :key="tick.contentTimeMs" :class="$style.localHalfTick" :style="{ left: (tick.sceneTimeMs - clip.startMs) / tlRangeX * tlElWidth + 'px' }"></div>
 			</div>
 		</div>
 	</div>
 	<div v-for="param in keyframeParameters" :key="param.key" :class="$style.keyframesLane" :data-parameter-target="param.target" :data-param-id="param.paramId">
-		<div :class="$style.side">
-			<div style="padding: 0 10px 0 0;">
-				{{ param.key }}
-			</div>
-		</div>
+		<div :class="$style.side"><div style="padding-right: 10px;">{{ param.key }}</div></div>
 		<div :class="$style.tl">
-			<div style="position: relative;">
-				<XKeyframes
-					:keyframes="param.binding.keyframesTimeline.keyframes"
-					:startTime="layer.positionMs"
-					:tlElWidth="tlElWidth"
-					:tlRangeX="tlRangeX"
-					:tlPosX="tlPosX"
-					:selectedKeyframeIds="selectedKeyframes.filter(point => point.layerId === layer.id && point.target === param.target && point.paramId === param.paramId).map(point => point.keyframeId)"
-					@dragStart="(event, keyframeId) => emit('keyframeDragStart', event, { layerId: layer.id, target: param.target, paramId: param.paramId, keyframeId })"
-					@insert="onKeyframeInsert(param, $event)"
-				/>
-			</div>
+			<XKeyframes
+				:keyframes="param.binding.keyframesTimeline.keyframes"
+				:startTime="0"
+				:tlElWidth="tlElWidth"
+				:tlRangeX="tlRangeX"
+				:tlPosX="tlPosX"
+				:selectedKeyframeIds="selectedKeyframes.filter(point => point.layerId === layer.id && point.target === param.target && point.paramId === param.paramId).map(point => point.keyframeId)"
+				@dragStart="(event, keyframeId) => emit('keyframeDragStart', event, { layerId: layer.id, target: param.target, paramId: param.paramId, keyframeId })"
+				@insert="onKeyframeInsert(param, $event)"
+			/>
 		</div>
 	</div>
 </div>
 </template>
 
 <script lang="ts" setup>
-import { computed, onBeforeUnmount, ref, watch } from 'vue';
-import { genId } from '@glitch/shared/utility/id.ts';
+import { computed } from 'vue';
 import { insertInlineKeyframe } from '@/utility/keyframes-timeline.ts';
-import { getTimelineLayerStart, getTimelineLayerEnd } from '@glitch/shared/timeline/timing.ts';
 import { getSceneDuration } from '@glitch/shared/timeline/scenes.ts';
-import { readMediaMetadata } from '@glitch/shared/media/media-metadata.ts';
+import { getTimelineClipEnd } from '@glitch/shared/timeline/timing.ts';
+import type { TimelineClip, TimelineAssetClip, TimelineVideoClip, TimelineSceneClip } from '@glitch/shared/timeline/clip.ts';
 import GsCondensedLine from './common/GsCondensedLine.vue';
+import XClip from './GsTimeline.Clip.vue';
 import XKeyframes from './GsTimeline.Layer.Keyframes.vue';
-import type { TimelineKeyframeSelection } from '@/utility/timeline-selection.ts';
-import type { TimelineLocalTicks } from '@/utility/timeline-ticks.ts';
-import type { TimelineSnapSettings } from '@/utility/timeline-snapping.ts';
+import type { TimelineKeyframeSelection, TimelineClipSelection } from '@/utility/timeline-selection.ts';
+import type { TimelineClipTicks } from '@/utility/timeline-ticks.ts';
+import type { TimelineClipMediaInfo } from '@/utility/timeline-clip-media.ts';
 import type { TimelineLayer } from '@glitch/shared/timeline/types.ts';
 import type { ParameterBinding } from '@glitch/shared/types.ts';
-import { getTimelineSnapCandidates } from '@/utility/timeline-snapping.ts';
 import { formatTimelineTimecode } from '@/utility/timeline-ticks.ts';
-import { constrainTimelineMove } from '@/utility/timeline-selection.ts';
 import { getLayerParameterTargets, getLayerParameterValues, getLayerParameterDefinition } from '@/utility/timeline-scene.ts';
 import { appStateManager } from '@/app.ts';
-import { openAssetAudio } from '@/audio/asset-audio-reader.ts';
 
 const props = defineProps<{
 	sceneId: string;
@@ -102,226 +78,94 @@ const props = defineProps<{
 	tlElWidth: number;
 	tlRangeX: number;
 	tlPosX: number;
-	timelineTicks: number[];
-	localTicks: TimelineLocalTicks;
-	snapSettings: TimelineSnapSettings;
+	clipTicks: ReadonlyMap<string, TimelineClipTicks>;
+	mediaInfo: ReadonlyMap<string, TimelineClipMediaInfo>;
 	selectedKeyframes: TimelineKeyframeSelection[];
+	selectedClipIds: string[];
 	selected: boolean;
 	moving: boolean;
 }>();
-
-const sceneLayers = computed(() => appStateManager.state.timelineScenes.value.find(scene => scene.id === props.sceneId)?.layers ?? []);
-
 const emit = defineEmits<{
-	(ev: 'update:tlPosX', value: number): void;
 	(ev: 'dragStart', event: DragEvent): void;
-	(ev: 'selected'): void;
-	(ev: 'moveStart', event: PointerEvent): void;
+	(ev: 'selected', event: MouseEvent): void;
+	(ev: 'addClip', startMs: number): void;
+	(ev: 'look', centerTimeMs: number): void;
+	(ev: 'clipMoveStart', event: PointerEvent, selection: TimelineClipSelection): void;
+	(ev: 'clipTrimStart', event: PointerEvent, selection: TimelineClipSelection, edge: 'start' | 'end'): void;
 	(ev: 'keyframeDragStart', event: PointerEvent, selection: TimelineKeyframeSelection): void;
 	(ev: 'keyframeSelected', selection: TimelineKeyframeSelection): void;
-	(ev: 'snap', time: number | null): void;
 }>();
+const layerIcon = computed(() => ({ image: 'ti-photo', video: 'ti-video', audio: 'ti-music', scene: 'ti-timeline', visualModule: 'ti-chart-dots-3', inlineVisualModule: 'ti-chart-dots-3', effect: 'ti-sparkles' })[props.layer.layerType]);
+type Clip = TimelineClip | TimelineAssetClip | TimelineVideoClip | TimelineSceneClip;
 
-const layerLabel = computed(() => {
+const offscreenClips = computed(() => {
+	const clips = props.layer.clips.toSorted((a, b) => a.startMs - b.startMs);
+	const viewportEnd = props.tlPosX + props.tlRangeX;
+	// 表示中のクリップの有無にかかわらず、左右それぞれの最寄りの画面外クリップを示す。
+	// 一部でも見えているクリップは対象にせず、空白を挟んだ先へ移動できるようにする。
+	return {
+		previous: clips.findLast(clip => getTimelineClipEnd(clip) <= props.tlPosX),
+		next: clips.find(clip => clip.startMs >= viewportEnd),
+	};
+});
+
+function look(clip: TimelineClip) {
+	emit('look', clip.startMs + clip.durationMs / 2);
+}
+
+function clipLabel(clip: Clip): string {
+	if ('assetId' in clip) return appStateManager.state.assets.value.find(asset => asset.id === clip.assetId)?.name ?? 'Missing media';
+	if ('sceneId' in clip) return appStateManager.state.timelineScenes.value.find(scene => scene.id === clip.sceneId)?.name ?? 'Missing scene';
 	const layer = props.layer;
-	if (layer.layerType === 'scene') return appStateManager.state.timelineScenes.value.find(scene => scene.id === layer.sceneId)?.name ?? 'Missing scene';
-	if (layer.layerType === 'image') return appStateManager.state.assets.value.find(asset => asset.id === layer.assetId && asset.fileDataType.startsWith('image/'))?.name ?? 'Missing image';
-	if (layer.layerType === 'audio' || layer.layerType === 'video') return appStateManager.state.assets.value.find(asset => asset.id === layer.assetId)?.name ?? 'Missing media';
-	return layer.layerType === 'inlineVisualModule' ? 'Inline Visual Module' : layer.id;
-});
+	if (layer.layerType === 'visualModule') return appStateManager.state.visualModules.value.find(module => module.id === layer.visualModuleId)?.name ?? 'Missing module';
+	return layer.layerType === 'inlineVisualModule' ? 'Inline Visual Module' : 'Effect';
+}
 
-const mediaAsset = computed(() => {
-	const layer = props.layer;
-	return (layer.layerType === 'audio' || layer.layerType === 'video') ? appStateManager.state.assets.value.find(asset => asset.id === layer.assetId) : undefined;
-});
-const contentDurationMs = ref<number | null>(null);
-watch(() => mediaAsset.value?.fileData, async (_, __, onCleanup) => {
-	const asset = mediaAsset.value;
-	contentDurationMs.value = null;
-	let cancelled = false;
-	onCleanup(() => { cancelled = true; });
-	if (asset == null) return;
-	try {
-		if (props.layer.layerType === 'video') {
-			const metadata = await readMediaMetadata(asset.fileData);
-			if (!cancelled) contentDurationMs.value = metadata.durationMs;
-			return;
-		}
-		const audio = await openAssetAudio(asset);
-		try {
-			const durationMs = audio.duration * 1000;
-			if (!cancelled && Number.isFinite(durationMs) && durationMs > 0) contentDurationMs.value = durationMs;
-		} finally {
-			audio.input.dispose();
-		}
-	} catch {
-		// 素材を読めない場合は長さを推測せず、ゴーストだけを非表示にする。
+function sourceDuration(clip: Clip): number | null {
+	if ('assetId' in clip) return props.mediaInfo.get(clip.assetId)?.durationMs ?? null;
+	if ('sceneId' in clip) {
+		const scene = appStateManager.state.timelineScenes.value.find(scene => scene.id === clip.sceneId);
+		return scene ? getSceneDuration(scene) : null;
 	}
-}, { immediate: true });
+	return null;
+}
 
-const layerRect = computed(() => {
-	const left = timeToDomX(getTimelineLayerStart(props.layer));
-	const width = timeToDomX(getTimelineLayerEnd(props.layer)) - left;
-	return { left, width };
-});
-
-const sourceRect = computed(() => {
-	if (props.layer.layerType === 'scene') {
-		const scene = appStateManager.state.timelineScenes.value.find(scene => scene.id === (props.layer.layerType === 'scene' ? props.layer.sceneId : ''));
-		return scene == null ? null : { left: timeToDomX(props.layer.positionMs), width: getSceneDuration(scene) / props.tlRangeX * props.tlElWidth };
-	}
-	if ((props.layer.layerType !== 'audio' && props.layer.layerType !== 'video') || contentDurationMs.value == null) return null;
-	return { left: timeToDomX(props.layer.positionMs), width: contentDurationMs.value / props.tlRangeX * props.tlElWidth };
-});
+function onBackgroundDoubleClick(event: MouseEvent) {
+	if (event.button !== 0 || props.tlElWidth <= 0 || props.tlRangeX <= 0) return;
+	const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+	const startMs = props.tlPosX + (event.clientX - rect.left) / props.tlElWidth * props.tlRangeX;
+	if (startMs >= 0) emit('addClip', startMs);
+}
 
 type InlineKeyframesTimeline = Extract<ParameterBinding, { inputSource: 'keyframesTimelineInline' }>;
-type KeyframeParameter = {
-	key: string;
-	paramId: string;
-	target: 'compositing' | 'module' | 'audio';
-	binding: InlineKeyframesTimeline;
-};
-
+type KeyframeParameter = { key: string; paramId: string; target: 'compositing' | 'module' | 'audio'; binding: InlineKeyframesTimeline };
 const keyframeParameters = computed(() => {
-	const res: KeyframeParameter[] = [];
+	const result: KeyframeParameter[] = [];
 	for (const target of getLayerParameterTargets(props.layer)) {
-		const values = getLayerParameterValues(props.layer, target);
-		for (const [paramId, binding] of Object.entries(values)) {
-			if (binding.inputSource !== 'keyframesTimelineInline') continue;
-			res.push({ key: `${target}:${paramId}`, paramId, target, binding });
+		for (const [paramId, binding] of Object.entries(getLayerParameterValues(props.layer, target))) {
+			if (binding.inputSource === 'keyframesTimelineInline') result.push({ key: target + ':' + paramId, paramId, target, binding });
 		}
 	}
-	return res;
+	return result;
 });
 
-type TimingDragMode = 'trimStart' | 'trimEnd';
-let timingDrag: {
-	pointerId: number;
-	element: HTMLElement;
-	layerId: string;
-	mode: TimingDragMode;
-	clientX: number;
-	moved: boolean;
-	positionMs: number;
-	trimmedDurationMs: number;
-	trimStartMs: number;
-	msPerPixel: number;
-	mergeKey: string;
-} | null = null;
-
-function onTimingPointerDown(event: PointerEvent, mode: TimingDragMode) {
-	if (event.button !== 0 || timingDrag != null || props.tlElWidth <= 0 || props.tlRangeX <= 0) return;
-	const layer = props.layer;
-	if (layer.layerType === 'effect' || (layer.layerType === 'video' && contentDurationMs.value == null)) return; // effectレイヤーは未実装。
-	event.preventDefault();
-	emit('selected');
-	const element = event.currentTarget as HTMLElement;
-	timingDrag = {
-		pointerId: event.pointerId, element, layerId: layer.id, mode, clientX: event.clientX, moved: false,
-		positionMs: layer.positionMs, trimmedDurationMs: layer.trimmedDurationMs,
-		trimStartMs: layer.trimStartMs,
-		msPerPixel: props.tlRangeX / props.tlElWidth, mergeKey: genId(),
-	};
-	element.setPointerCapture(event.pointerId);
-	window.addEventListener('blur', finishTimingDrag);
-}
-
-function onTimingPointerMove(event: PointerEvent) {
-	const drag = timingDrag;
-	if (drag == null || event.pointerId !== drag.pointerId) return;
-	// 選択のクリックだけで付近の目盛へ吸着して時刻が変わらないようにする。
-	if (!drag.moved && Math.abs(event.clientX - drag.clientX) < 3) return;
-	drag.moved = true;
-	const layer = sceneLayers.value.find(entry => entry.id === drag.layerId);
-	if (layer == null) { finishTimingDrag(); return; }
-	const rawDelta = (event.clientX - drag.clientX) * drag.msPerPixel;
-	const playbackStartMs = drag.positionMs + drag.trimStartMs;
-	// 左端トリムでは音声の読み出し位置も動かすため、素材の先頭より前には伸ばさない。
-	const minDelta = drag.mode === 'trimEnd' ? 1 - drag.trimmedDurationMs
-		: drag.mode === 'trimStart' && (layer.layerType === 'audio' || layer.layerType === 'scene' || layer.layerType === 'video') ? Math.max(-playbackStartMs, -drag.trimStartMs)
-		: -playbackStartMs;
-	const maxDelta = drag.mode === 'trimStart' ? drag.trimmedDurationMs - 1
-		: drag.mode === 'trimEnd' && (layer.layerType === 'audio' || layer.layerType === 'video') && contentDurationMs.value != null
-			? Math.max(0, contentDurationMs.value - drag.trimStartMs - drag.trimmedDurationMs) : Infinity;
-	const candidates = getTimelineSnapCandidates(props.snapSettings, [0, ...sceneLayers.value
-		.filter(entry => entry.id !== drag.layerId)
-		.flatMap(entry => [getTimelineLayerStart(entry), getTimelineLayerEnd(entry)])], props.timelineTicks);
-	const edge = drag.mode === 'trimStart' ? playbackStartMs : playbackStartMs + drag.trimmedDurationMs;
-	const { delta, snappingTime } = constrainTimelineMove(rawDelta, [{ time: edge, minDelta, maxDelta }], candidates, drag.msPerPixel);
-	emit('snap', snappingTime);
-	// 音声のpositionMsは素材の配置基準。左端のトリムでは基準を動かさず、
-	// trimStartMsとtrimmedDurationMsを逆方向へ変更して右端を保つ。
-	const positionMs = drag.positionMs + (drag.mode === 'trimStart' && layer.layerType !== 'audio' && layer.layerType !== 'scene' && layer.layerType !== 'video' ? delta : 0);
-	const trimmedDurationMs = drag.trimmedDurationMs + (drag.mode === 'trimStart' ? -delta : delta);
-	if (layer.positionMs === positionMs && layer.trimmedDurationMs === trimmedDurationMs) return;
-	if (layer.layerType === 'audio' || layer.layerType === 'scene' || layer.layerType === 'video') {
-		const trimStartMs = drag.trimStartMs + (drag.mode === 'trimStart' ? delta : 0);
-		if (layer.layerType === 'video') {
-			const sourceDurationMs = contentDurationMs.value;
-			if (sourceDurationMs == null || trimStartMs + trimmedDurationMs > sourceDurationMs) return;
-			appStateManager.commit('editVideoLayerTiming', { sceneId: props.sceneId, layerId: layer.id, positionMs, trimmedDurationMs, trimStartMs, sourceDurationMs }, drag.mergeKey);
-		} else {
-			appStateManager.commit(layer.layerType === 'scene' ? 'editSceneLayerTiming' : 'editAudioLayerTiming', { sceneId: props.sceneId, layerId: layer.id, positionMs, trimmedDurationMs, trimStartMs }, drag.mergeKey);
-		}
-	} else if (layer.layerType === 'visualModule' || layer.layerType === 'inlineVisualModule' || layer.layerType === 'image') {
-		appStateManager.commit('editUntrimmedTimelineLayerTiming', { sceneId: props.sceneId, layerId: layer.id, positionMs, trimmedDurationMs }, drag.mergeKey);
-	}
-}
-
-function onTimingPointerUp(event: PointerEvent) {
-	if (timingDrag?.pointerId !== event.pointerId) return;
-	onTimingPointerMove(event);
-	finishTimingDrag();
-}
-
-function onTimingPointerCancel(event: PointerEvent) {
-	if (timingDrag?.pointerId !== event.pointerId) return;
-	finishTimingDrag();
-}
-
-function finishTimingDrag() {
-	const drag = timingDrag;
-	if (drag == null) return;
-	timingDrag = null;
-	emit('snap', null);
-	window.removeEventListener('blur', finishTimingDrag);
-	if (drag.element.hasPointerCapture(drag.pointerId)) drag.element.releasePointerCapture(drag.pointerId);
-}
-
-onBeforeUnmount(finishTimingDrag);
-
 function onKeyframeInsert(param: KeyframeParameter, x: number) {
-	const layer = sceneLayers.value.find(entry => entry.id === props.layer.id);
-	if (layer == null) return;
-	const values: Partial<Record<string, ParameterBinding>> = getLayerParameterValues(layer, param.target);
-	const current = values[param.paramId];
+	const layer = props.layer;
+	const current = getLayerParameterValues(layer, param.target)[param.paramId];
 	if (current?.inputSource !== 'keyframesTimelineInline') return;
 	const definition = getLayerParameterDefinition(appStateManager.state, layer, param.target, param.paramId);
-	if (definition == null) return;
-	// 終端合わせのキーも再生時と同じ基準で評価する。素材の長さが未取得なら挿入を待つ。
-	const endTimeMs = (layer.layerType === 'audio' || (layer.layerType === 'video' && param.target === 'audio')) ? contentDurationMs.value : layer.trimStartMs + layer.trimmedDurationMs;
-	if (endTimeMs == null) return;
-	const inserted = insertInlineKeyframe(current, definition, x, endTimeMs);
-	if (inserted == null) return;
-	const { value, keyframeId } = inserted;
-	if (value !== current) appStateManager.commit('editTimelineLayerParam', {
-		sceneId: props.sceneId,
-		layerId: layer.id, target: param.target, paramId: param.paramId,
-		edit: { kind: 'keyframesTimelineInline', value },
+	if (!definition) return;
+	// キーはクリップの空白にも配置でき、挿入時の値もScene時刻で補間する。
+	const inserted = insertInlineKeyframe(current, definition, x, Infinity);
+	if (!inserted) return;
+	if (inserted.value !== current) appStateManager.commit('editTimelineLayerParam', {
+		sceneId: props.sceneId, layerId: layer.id, target: param.target, paramId: param.paramId,
+		edit: { kind: 'keyframesTimelineInline', value: inserted.value },
 	});
-	emit('keyframeSelected', { layerId: layer.id, target: param.target, paramId: param.paramId, keyframeId });
+	emit('keyframeSelected', { layerId: layer.id, target: param.target, paramId: param.paramId, keyframeId: inserted.keyframeId });
 }
 
-function timeToDomX(time: number): number {
-	return ((time - props.tlPosX) / props.tlRangeX) * props.tlElWidth;
-}
-
-function look() {
-	const start = getTimelineLayerStart(props.layer);
-	const end = getTimelineLayerEnd(props.layer);
-	emit('update:tlPosX', (start + end) / 2 - props.tlRangeX / 2);
-}
-
+function timeToDomX(time: number): number { return (time - props.tlPosX) / props.tlRangeX * props.tlElWidth; }
 </script>
 
 <style module lang="scss">
@@ -329,190 +173,20 @@ function look() {
 	--mainLaneHeight: 24px;
 	--keyframesLaneHeight: 20px;
 	--sideColor: #181818;
-
 	overflow: clip;
-
-	&:hover {
-		background: #ffffff06;
-
-		.side {
-			background: hsl(from var(--sideColor) h s calc(l + 2));
-		}
-	}
-
-	&.selected {
-		.tlClipInner {
-			box-shadow: inset 0 0 0 2px var(--THEME-fg);
-		}
-
-		.layerHeader {
-			color: var(--THEME-accent);
-		}
-	}
+	&:hover { background: #ffffff06; }
+	&.selected .layerHeader { color: var(--THEME-accent); }
 }
-
-.mainLane {
-	display: flex;
-	flex-direction: row;
-	width: 100%;
-}
-
-.localTicksLane {
-	display: flex;
-	height: var(--xTicksHeight);
-	line-height: var(--xTicksHeight);
-	font-size: 12px;
-}
-
-.localTicksLabel {
-	padding-right: 10px;
-	text-align: right;
-	color: color-mix(in srgb, var(--THEME-fg) 60%, transparent);
-}
-
-.localTicks {
-	overflow: clip;
-	user-select: none;
-}
-
-.localTicksRange {
-	position: absolute;
-	height: 100%;
-	overflow: clip;
-}
-
-.localTick {
-	position: absolute;
-	top: 0;
-	height: 100%;
-	padding-left: 8px;
-	border-left: solid 1px #fff3;
-	white-space: nowrap;
-	pointer-events: none;
-}
-
-.localHalfTick {
-	position: absolute;
-	bottom: 0;
-	height: 4px;
-	border-left: solid 1px #fff3;
-	pointer-events: none;
-}
-
-.keyframesLane {
-	display: flex;
-	flex-direction: row;
-	width: 100%;
-	height: var(--keyframesLaneHeight);
-	line-height: var(--keyframesLaneHeight);
-	text-align: right;
-
-	&:hover {
-		background: #ffffff06;
-
-		.side {
-			background: hsl(from var(--sideColor) h s calc(l + 8));
-		}
-	}
-}
-
-.side {
-	position: relative;
-	z-index: 1;
-	box-sizing: border-box;
-	width: var(--sideWidth);
-	flex-shrink: 0;
-	background: var(--sideColor);
-	direction: ltr;
-}
-
-.tl {
-	position: relative;
-	flex: 1;
-	direction: ltr;
-}
-
-.tlSourceGhost {
-	position: absolute;
-	//top: 1px;
-	//height: calc(var(--mainLaneHeight) - 2px);
-	height: var(--mainLaneHeight);
-	box-sizing: border-box;
-	background: color-mix(in srgb, var(--THEME-accent) 15%, transparent);
-	border: 1px dashed color-mix(in srgb, var(--THEME-accent) 45%, transparent);
-	pointer-events: none;
-}
-
-.tlClip {
-	position: relative;
-	height: var(--mainLaneHeight);
-	box-sizing: border-box;
-	overflow: clip;
-	cursor: grab;
-	touch-action: none;
-	user-select: none;
-}
-
-.tlClipInner {
-	position: absolute;
-	margin: auto 0;
-	top: 0;
-	bottom: 0;
-	//height: calc(100% - 2px);
-	width: 100%;
-	padding: 0 8px 0 8px;
-	box-sizing: border-box;
-	//background: linear-gradient(0deg, hsl(from var(--THEME-accent) h calc(s + 20) calc(l - 10)), hsl(from var(--THEME-accent) h s calc(l + 10)));
-	background: var(--THEME-accent);
-	color: var(--THEME-fgOnAccent);
-	border-radius: 8px 0 0 0;
-	corner-shape: bevel;
-}
-
-.moving {
-	cursor: grabbing;
-}
-
-.trimHandle {
-	position: absolute;
-	top: 0;
-	bottom: 0;
-	width: min(8px, 25%);
-	cursor: ew-resize;
-	touch-action: none;
-	//background: color-mix(in srgb, var(--THEME-fgOnAccent) 20%, transparent);
-
-	&:hover {
-		background: #fff8;
-	}
-}
-
-.trimStart {
-	left: 0;
-}
-
-.trimEnd {
-	right: 0;
-}
-
-.layerHeader {
-	gap: 4px;
-	height: var(--mainLaneHeight);
-	line-height: var(--mainLaneHeight);
-	display: flex;
-	align-items: center;
-	overflow: clip;
-	user-select: none;
-	cursor: grab;
-}
-
-.stickyArrow {
-	position: absolute;
-	top: 0;
-	width: var(--mainLaneHeight);
-	height: var(--mainLaneHeight);
-	line-height: var(--mainLaneHeight);
-	text-align: center;
-}
-
+.mainLane { display: flex; width: 100%; height: var(--mainLaneHeight); }
+.side { position: relative; z-index: 1; box-sizing: border-box; width: var(--sideWidth); flex-shrink: 0; background: var(--sideColor); direction: ltr; }
+.tl { position: relative; flex: 1; min-width: 0; direction: ltr; }
+.layerHeader { display: flex; gap: 4px; height: var(--mainLaneHeight); line-height: var(--mainLaneHeight); align-items: center; overflow: clip; user-select: none; cursor: grab; font-size: 90%; }
+.localTicksLane { display: flex; height: var(--xTicksHeight); line-height: var(--xTicksHeight); font-size: 12px; }
+.localTicksLabel { padding-right: 10px; text-align: right; color: color-mix(in srgb, var(--THEME-fg) 60%, transparent); }
+.localTicks { overflow: clip; user-select: none; }
+.localTicksRange { position: absolute; height: 100%; overflow: clip; }
+.localTick { position: absolute; top: 0; height: 100%; padding-left: 8px; border-left: solid 1px #fff3; white-space: nowrap; pointer-events: none; }
+.localHalfTick { position: absolute; bottom: 0; height: 4px; border-left: solid 1px #fff3; pointer-events: none; }
+.keyframesLane { display: flex; width: 100%; height: var(--keyframesLaneHeight); line-height: var(--keyframesLaneHeight); text-align: right; &:hover { background: #ffffff06; } }
+.stickyArrow { position: absolute; z-index: 1; top: 0; width: var(--mainLaneHeight); height: var(--mainLaneHeight); line-height: var(--mainLaneHeight); text-align: center; background: var(--sideColor); }
 </style>

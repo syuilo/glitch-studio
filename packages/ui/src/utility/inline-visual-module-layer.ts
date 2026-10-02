@@ -1,15 +1,16 @@
-import { createUntrimmedTimelineLayerTiming } from '@glitch/shared/timeline/timing.ts';
+import { createTimelineClipTiming } from '@glitch/shared/timeline/timing.ts';
 import { genId } from '@glitch/shared/utility/id.ts';
 import { deepClone } from '@glitch/shared/utility/deep-clone.ts';
 import { visualModuleCustomParameterId, visualModuleCustomParameterName } from '@glitch/shared/visual-module/types.ts';
 import { timelineCompositingParamDefs } from '@glitch/shared/timeline/timeline-compositing.ts';
 import type { TimelineInlineVisualModuleLayer } from '@glitch/shared/timeline/types.ts';
 
-export function createInlineVisualModuleLayer(positionMs: number): TimelineInlineVisualModuleLayer {
+export function createInlineVisualModuleLayer(startMs: number): TimelineInlineVisualModuleLayer {
 	const inputId = visualModuleCustomParameterId(genId());
 	const outputId = genId();
 	return {
-		id: genId(), layerType: 'inlineVisualModule', ...createUntrimmedTimelineLayerTiming(positionMs, 5000),
+		id: genId(), name: 'Visual Module', layerType: 'inlineVisualModule',
+		clips: [{ id: genId(), ...createTimelineClipTiming(startMs, 5000) }],
 		visualModuleParamValues: {}, automationGraphs: [],
 		compositingParamValues: deepClone({
 			fitMode: timelineCompositingParamDefs.fitMode.defaultValue,

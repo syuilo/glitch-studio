@@ -1,10 +1,11 @@
-import { getTimelineLayerEnd, isTimelineLayerTimingValid } from './timing.ts';
+import { getTimelineClipEnd, validateTimelineClips } from './timing.ts';
 import type { TimelineScene } from './types.ts';
 import { validateSceneResolution } from './scene-resolution.ts';
+import { validateTimelineParameterBinding } from './parameter-binding.ts';
 
 /** 子の長さを再帰計算しない。配置済みの区間は、参照先の編集でも変えない。 */
 export function getSceneDuration(scene: TimelineScene): number {
-	return scene.layers.reduce((duration, layer) => Math.max(duration, getTimelineLayerEnd(layer)), 0);
+	return scene.layers.reduce((duration, layer) => layer.clips.reduce((end, clip) => Math.max(end, getTimelineClipEnd(clip)), duration), 0);
 }
 
 export function getTimelineScene(scenes: readonly TimelineScene[], sceneId: string): TimelineScene {
@@ -28,9 +29,15 @@ export function validateTimelineScenes(scenes: readonly TimelineScene[]): void {
 		if (new Set(scene.layers.map(layer => layer.id)).size !== scene.layers.length) throw new Error(`Duplicate layer ID in scene: ${scene.name}`);
 		path.push(id);
 		for (const layer of scene.layers) {
-			if (!isTimelineLayerTimingValid(layer)) throw new Error(`Invalid layer timing in scene: ${scene.name}`);
-			if (layer.layerType === 'image' && layer.trimStartMs !== 0) throw new Error(`Image layers cannot be trimmed in scene: ${scene.name}`);
-			if (layer.layerType === 'scene') visit(layer.sceneId);
+			validateTimelineClips(layer.clips);
+			const parameterGroups = [
+				...('audioParamValues' in layer ? [layer.audioParamValues] : []),
+				...('compositingParamValues' in layer ? [layer.compositingParamValues] : []),
+				...('visualModuleParamValues' in layer ? [layer.visualModuleParamValues] : []),
+				...('effectParamValues' in layer ? [layer.effectParamValues] : []),
+			];
+			for (const values of parameterGroups) for (const binding of Object.values(values)) validateTimelineParameterBinding(binding);
+			if (layer.layerType === 'scene') for (const clip of layer.clips) visit(clip.sceneId);
 		}
 		path.pop();
 		visited.add(id);
@@ -44,7 +51,7 @@ export function canReferenceScene(scenes: readonly TimelineScene[], parentId: st
 		if (id === parentId) return true;
 		if (visited.has(id)) return false;
 		visited.add(id);
-		return getTimelineScene(scenes, id).layers.some(layer => layer.layerType === 'scene' && reachesParent(layer.sceneId));
+		return getTimelineScene(scenes, id).layers.some(layer => layer.layerType === 'scene' && layer.clips.some(clip => reachesParent(clip.sceneId)));
 	};
 	return !reachesParent(childId);
 }

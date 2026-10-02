@@ -15,10 +15,11 @@ const literal = value => ({ inputSource: 'literal', value });
 const expression = expression => ({ inputSource: 'expression', expression });
 const def = (id, value = 7) => ({ id, nameForReference: id, dataType: { kind: 'scalar' }, ui: { label: id, control: { controlType: 'number' } }, defaultValue: literal(value), canNode: false });
 const frame = { time: 500, endTime: 2000, isExport: true };
+const clipFrame = { sceneTimeMs: 500, contentTimeMs: 250, contentEndTimeMs: 2000, clipElapsedTimeMs: 100, clipDurationMs: 1850, isExport: true };
 
 // 【レイヤーの離散キーフレームは評価済みの引数としてモジュールへ渡す】
 // 文字列・bool・enumをテクスチャや式へ変換せず、プレビューと書き出しで同じ切り替え時刻を使う。
-// トリム後の見かけの開始時刻でキーをリセットしないよう、内容時刻を渡して往復シークも確認する。
+// トリム後の見かけの開始時刻でキーをリセットしないよう、Scene時刻と内容時刻を分けて往復シークも確認する。
 test('passes discrete layer keyframes to modules consistently during preview export and seeking', async () => {
 	const definitions = [
 		{ ...def('text', ''), dataType: { kind: 'string' } },
@@ -41,7 +42,7 @@ test('passes discrete layer keyframes to modules consistently during preview exp
 	});
 	for (const isExport of [false, true]) {
 		for (const time of [10000, 9999, 15000, 5000]) {
-			await adapter.evaluate({ time, timeDelta: 0, endTime: 20000, isExport }, new AbortController().signal);
+			await adapter.evaluate({ sceneTimeMs: time, contentTimeMs: time - 1000, clipElapsedTimeMs: time - 1000, clipDurationMs: 20000, contentEndTimeMs: 20000, timeDelta: 0, isExport }, new AbortController().signal);
 			assert.deepEqual(Object.fromEntries(resolved), time >= 10000 ? { text: '', enabled: false, mode: 'b' } : { text: 'Hello\n世界', enabled: true, mode: 'a' });
 		}
 	}
@@ -58,7 +59,7 @@ test('uses current enum defaults only for empty timelines and rejects obsolete k
 	const adapter = createVisualModuleTimelineLayer({ paramDefs: [definition], primaryInputId: null }, {
 		automationGraphs: [], visualModuleParamValues: { mode: input },
 	}, { async prepare(context) { resolved = context.evaluatedParamValues.get('mode'); }, render() {}, destroy() {} });
-	const evaluate = () => adapter.evaluate({ ...frame, timeDelta: 0 }, new AbortController().signal);
+	const evaluate = () => adapter.evaluate({ ...clipFrame, timeDelta: 0 }, new AbortController().signal);
 	await evaluate();
 	assert.equal(resolved, 'b');
 	definition.defaultValue.value = 'a';
@@ -71,7 +72,7 @@ test('uses current enum defaults only for empty timelines and rejects obsolete k
 	await evaluate();
 	assert.equal(resolved, 'b');
 });
-const layerScope = { ...frame, variables: { TEST_ONLY_LAYER: true, TEST_SAME_NAME: 2, IS_EXPORT: true }, automationGraphs: [] };
+const layerScope = { ...frame, endTime: Infinity, variables: { TIME: 0.5, TIME_MS: 500, TEST_ONLY_LAYER: true, TEST_SAME_NAME: 2, IS_EXPORT: true }, automationGraphs: [] };
 const moduleScope = { ...frame, variables: {
 	WIDTH: 800, HEIGHT: 400, TIME: 0.5, TIME_MS: 500,
 	END_TIME: 2, END_TIME_MS: 2000, PROGRESS: 0.25, IS_EXPORT: true,
@@ -116,7 +117,7 @@ test('exposes exactly the declared variables for each scope', async () => {
 	}, {
 		async prepare(context) { layerValues = context.evaluatedParamValues; }, render() {}, destroy() {},
 	});
-	await adapter.evaluate({ ...frame, timeDelta: 0 }, new AbortController().signal);
+	await adapter.evaluate({ ...clipFrame, timeDelta: 0 }, new AbortController().signal);
 	assert.deepEqual(Object.fromEntries(layerValues), Object.fromEntries(names.map(name => [name, layerScope.variables[name] ?? 0])));
 });
 
@@ -132,7 +133,7 @@ test('isolates variables across repeated layer and module evaluations', () => {
 	for (let i = 0; i < 3; i++) {
 		assert.deepEqual(nodes(evaluator, params), { vm: true, layer: 0, same: 1, compound: 11, time: 0.5, progress: 0.25, export: true });
 		const values = externalValues(evaluator, Object.keys(params).map(key => def(key)), params, layerScope);
-		assert.deepEqual(Object.fromEntries(values), { vm: 0, layer: true, same: 2, compound: 12, time: 0, progress: 0, export: true });
+		assert.deepEqual(Object.fromEntries(values), { vm: 0, layer: true, same: 2, compound: 12, time: 0.5, progress: 0, export: true });
 	}
 });
 
@@ -198,7 +199,7 @@ test('snapshots layer values once for prepare and render', async () => {
 			return { gpuTime: 0 };
 		}, destroy() {},
 	});
-	const context = { ...frame, timeDelta: 0, input: { kind: 'uniform', value: [0, 0, 0, 0] } };
+	const context = { ...clipFrame, timeDelta: 0, input: { kind: 'uniform', value: [0, 0, 0, 0] } };
 	await adapter.evaluate(context, new AbortController().signal);
 });
 
@@ -219,7 +220,7 @@ test('keeps layer defaults and excludes primary inputs from evaluated values', a
 		},
 	}, { async prepare(context) { resolved = context; }, render() {}, destroy() {} });
 	const input = { kind: 'uniform', value: [1, 0, 0, 1] };
-	await adapter.evaluate({ ...frame, timeDelta: 0, input }, new AbortController().signal);
+	await adapter.evaluate({ ...clipFrame, timeDelta: 0, input }, new AbortController().signal);
 	assert.deepEqual([...resolved.evaluatedParamValues], [['gain-id', 8], ['missing', 9], ['invalid', 0], ['export', true]]);
 	assert.strictEqual(resolved.paramInputs.get('input'), input);
 });

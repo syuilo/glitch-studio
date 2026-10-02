@@ -50,7 +50,7 @@
 						<GsSelect small :modelValue="paramValue.wrapMode" :items="graphWrapModeItems" @update:modelValue="wrapMode => updateAutomationGraphOptions({ wrapMode })">
 							<template #label>Wrap mode</template>
 						</GsSelect>
-						<GsSelect small :modelValue="paramValue.offsetMode" :items="graphOffsetModeItems" @update:modelValue="offsetMode => updateAutomationGraphOptions({ offsetMode })">
+						<GsSelect v-if="automationGraphEndEnabled !== false" small :modelValue="paramValue.offsetMode" :items="graphOffsetModeItems" @update:modelValue="offsetMode => updateAutomationGraphOptions({ offsetMode })">
 							<template #label>Offset</template>
 						</GsSelect>
 					</div>
@@ -110,6 +110,7 @@
 			:key="element.id"
 			:automationGraphs="automationGraphs"
 			:availableVariables="availableVariables"
+			:automationGraphEndEnabled="automationGraphEndEnabled"
 			:visualModule="visualModule"
 			:node="node"
 			:paramPath="[...paramPath, element.id]"
@@ -129,6 +130,7 @@
 			:key="key"
 			:automationGraphs="automationGraphs"
 			:availableVariables="availableVariables"
+			:automationGraphEndEnabled="automationGraphEndEnabled"
 			:visualModule="visualModule"
 			:node="node"
 			:paramPath="[...paramPath, key]"
@@ -202,6 +204,7 @@ const props = defineProps<{
 	paramValue: ParameterBinding;
 	label?: string;
 	keyframesEnabled?: boolean;
+	automationGraphEndEnabled?: boolean;
 }>();
 
 const emit = defineEmits<{ edit: [event: ParamEdit] }>();

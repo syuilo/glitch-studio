@@ -24,7 +24,7 @@ defineProps<{
 	panel: WorkspacePanel;
 }>();
 
-const references = computed(() => appStateManager.state.timelineScenes.value.filter(scene => scene.layers.some(layer => layer.layerType === 'scene' && layer.sceneId === activeSceneId.value)));
+const references = computed(() => appStateManager.state.timelineScenes.value.filter(scene => scene.layers.some(layer => layer.layerType === 'scene' && layer.clips.some(clip => clip.sceneId === activeSceneId.value))));
 
 function createScene() {
 	const id = genId();

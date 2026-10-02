@@ -100,8 +100,8 @@ function timelineFixture(t) {
 // 通常合成では画面寸法を使い、倍率1の書き出しでは素材の原寸を維持する。
 test('scales video sources once through replace composition and automatic processing', async t => {
 	const { manager, calls } = timelineFixture(t);
-	const timing = { positionMs: 0, trimStartMs: 0, trimmedDurationMs: 1000, automationGraphs: [] };
-	const video = { ...timing, id: 'video', layerType: 'video', assetId: 'asset', compositingParamValues: { fitMode: { inputSource: 'literal', value: 'cover' } } };
+	const timing = { name: 'Layer', clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 1000 }], automationGraphs: [] };
+	const video = { ...timing, id: 'video', layerType: 'video', clips: [{ ...timing.clips[0], assetId: 'asset', audioEnabled: false }], audioParamValues: { volume: literal(1) }, compositingParamValues: { fitMode: { inputSource: 'literal', value: 'cover' } } };
 	const processing = { ...timing, id: 'processing', layerType: 'inlineVisualModule', visualModuleParamValues: {},
 		compositingParamValues: { blendMode: literal('replace') },
 		visualModule: {

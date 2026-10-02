@@ -1,9 +1,9 @@
 import type { SceneAudioClip } from '@glitch/shared/timeline/scene-audio.ts';
 import type { EvaluationScope } from '@glitch/shared/parameter-evaluator.ts';
 import type { TimelineParameterBinding } from '@glitch/shared/timeline/types.ts';
-import { getTimelineLayerStart, getTimelineLayerEnd } from '@glitch/shared/timeline/timing.ts';
+import { getTimelineClipEnd } from '@glitch/shared/timeline/timing.ts';
 import { ParameterEvaluator } from '@glitch/shared/parameter-evaluator.js';
-import { createAudioLayerEvaluationScope, createTimelineLayerEvaluationScope } from '@glitch/shared/timeline/evaluation-scope.ts';
+import { createTimelineLayerEvaluationScope } from '@glitch/shared/timeline/evaluation-scope.ts';
 import type { TimelineAudioLayer } from '@glitch/shared/timeline/types.ts';
 import type { StereoPcm } from './pcm.ts';
 
@@ -17,8 +17,10 @@ export class TimelineAudioRenderer {
 	constructor(private read: AudioPcmReader, private getDurationMs: AudioDurationReader) {}
 
 	async render(layers: readonly TimelineAudioLayer[], startFrame: number, frames: number, sampleRate: number, isExport = false): Promise<StereoPcm> {
-		return this.renderClips(layers.map(layer => ({ assetId: layer.assetId, volume: layer.audioParamValues.volume, automationGraphs: layer.automationGraphs, durationBasis: 'audio', positionMs: layer.positionMs,
-			startMs: getTimelineLayerStart(layer), endMs: getTimelineLayerEnd(layer), gains: [] })), startFrame, frames, sampleRate, isExport);
+		return this.renderClips(layers.flatMap(layer => layer.clips.map(clip => ({ assetId: clip.assetId, durationBasis: 'audio' as const,
+			sourceStartMs: clip.startMs - clip.contentOffsetMs, startMs: clip.startMs, endMs: getTimelineClipEnd(clip),
+			gains: [{ sceneStartMs: 0, volume: layer.audioParamValues.volume, automationGraphs: layer.automationGraphs }],
+		}))), startFrame, frames, sampleRate, isExport);
 	}
 
 	async renderClips(clips: readonly SceneAudioClip[], startFrame: number, frames: number, sampleRate: number, isExport = false): Promise<StereoPcm> {
@@ -29,21 +31,16 @@ export class TimelineAudioRenderer {
 			if (end <= first) continue;
 			const duration = await this.getDurationMs(clip.assetId, clip.durationBasis);
 			if (!Number.isFinite(duration) || duration <= 0) throw new Error('Audio has no finite duration.');
-			const pcm = await this.read(clip.assetId, (first / sampleRate * 1000 - clip.positionMs) / 1000, end - first, sampleRate);
-			const gains = [
-				{ positionMs: clip.positionMs, evaluate: this.createGain(clip.volume, time => createAudioLayerEvaluationScope({
-					time, endTime: duration, automationGraphs: clip.automationGraphs, isExport,
-				})) },
-				// Scene配置の音量は映像の合成設定と同じスコープを使う。
-				...clip.gains.map(gain => ({ positionMs: gain.positionMs,
-					evaluate: this.createGain(gain.volume, time => createTimelineLayerEvaluationScope({
-						time, endTime: gain.endTimeMs, automationGraphs: gain.automationGraphs, isExport,
-					})) })),
-			];
+			const pcm = await this.read(clip.assetId, (first / sampleRate * 1000 - clip.sourceStartMs) / 1000, end - first, sampleRate);
+			const gains = clip.gains.map(gain => ({ sceneStartMs: gain.sceneStartMs,
+				evaluate: this.createGain(gain.volume, time => createTimelineLayerEvaluationScope({
+					time, automationGraphs: gain.automationGraphs, isExport,
+				})),
+			}));
 			for (let frame = first; frame < end; frame++) {
 				const time = frame / sampleRate * 1000;
-				// 各階層の音量はそれぞれの内容時刻で評価する。祖先のトリムでキーを移動しない。
-				const gain = gains.reduce((value, control) => value * control.evaluate(time - control.positionMs), 1);
+				// 各階層の音量は所属Sceneの時刻で評価する。素材の内容時刻と混同しない。
+				const gain = gains.reduce((value, control) => value * control.evaluate(time - control.sceneStartMs), 1);
 				for (let channel = 0; channel < 2; channel++) output[channel][frame - startFrame] += pcm[channel][frame - first] * gain;
 			}
 		}

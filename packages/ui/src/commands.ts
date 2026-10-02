@@ -1,7 +1,9 @@
 import { getScene, getLayerParameterValues } from './utility/timeline-scene.ts';
-import { canReferenceScene, getSceneDuration, validateTimelineScenes } from '@glitch/shared/timeline/scenes.ts';
-import { createUntrimmedTimelineLayerTiming, isTimelineLayerTimingValid } from '@glitch/shared/timeline/timing.ts';
-import type { TimelineLayerTiming } from '@glitch/shared/timeline/timing.ts';
+import { canReferenceScene, validateTimelineScenes } from '@glitch/shared/timeline/scenes.ts';
+import { getTimelineClipMoveBounds, getTimelineClipTrimBounds, getTimelineClipInsertionDuration, validateTimelineClips } from '@glitch/shared/timeline/timing.ts';
+import type { TimelineClipTiming } from '@glitch/shared/timeline/timing.ts';
+import type { TimelineClip, TimelineAssetClip, TimelineVideoClip, TimelineSceneClip } from '@glitch/shared/timeline/clip.ts';
+import { validateTimelineParameterBinding } from '@glitch/shared/timeline/parameter-binding.ts';
 import { getArrayElementDefinition, isParameterType } from '@glitch/shared/parameter.ts';
 import { visualModuleCustomParameterId } from '@glitch/shared/visual-module/types.ts';
 import { effectDefinitions } from '@glitch/shared/effect/effect-definitions.ts';
@@ -11,7 +13,7 @@ import { genId } from '@glitch/shared/utility/id.ts';
 import { getNodeInputDataType, getNodeOutputs } from '@glitch/shared/utility/node-outputs.ts';
 import { isTextureDataType } from '@glitch/shared/data-type.ts';
 import { timelineAudioParamDefs } from '@glitch/shared/timeline/timeline-audio.ts';
-import type { TimelineScene, TimelineSceneLayer, TimelineAudioLayer, TimelineVideoLayer, TimelineImageLayer, TimelineLayer, TimelineInlineVisualModuleLayer } from '@glitch/shared/timeline/types.ts';
+import type { TimelineScene, TimelineLayer } from '@glitch/shared/timeline/types.ts';
 import { validateSceneResolution } from '@glitch/shared/timeline/scene-resolution.ts';
 import type { TimelineSceneResolution } from '@glitch/shared/timeline/scene-resolution.ts';
 import { timelineCompositingParamDefs } from '@glitch/shared/timeline/timeline-compositing.ts';
@@ -128,6 +130,7 @@ const editTimelineLayerParamCommandDef = defineCommand<{
 							break;
 					}
 				}
+				validateTimelineParameterBinding(after!);
 				values[payload.paramId] = deepClone(after);
 			},
 			undo(state) {
@@ -854,169 +857,220 @@ const updateVisualModuleOutputDefCommandDef = defineCommand<VisualModuleTarget &
 	},
 });
 
-const addInlineVisualModuleLayerCommandDef = defineCommand<{ sceneId: string; layer: TimelineInlineVisualModuleLayer }>({
-	label: 'Add inline visual module layer',
-	create: payload => ({
-		execute(state) { getScene(state, payload.sceneId).layers.unshift(deepClone(payload.layer)); },
-		undo(state) { getScene(state, payload.sceneId).layers = getScene(state, payload.sceneId).layers.filter(layer => layer.id !== payload.layer.id); },
-	}),
-});
+type TimelineClipData = TimelineClip | TimelineAssetClip | TimelineVideoClip | TimelineSceneClip;
+type TimelineClipTarget = { layerId: string; clipId: string };
+type SourceDurations = Record<string, number>;
 
-const editUntrimmedTimelineLayerTimingCommandDef = defineCommand<{ sceneId: string; layerId: string; positionMs: number; trimmedDurationMs: number }>({
-	label: 'Edit layer duration and position',
-	create: payload => {
-		let before: TimelineLayerTiming;
-		const getLayer = (state: AppState) => {
-			const layer = getScene(state, payload.sceneId).layers.find(layer => layer.id === payload.layerId);
-			if (layer?.layerType !== 'visualModule' && layer?.layerType !== 'inlineVisualModule' && layer?.layerType !== 'image') throw new Error('Untrimmed timeline layer not found');
-			return layer;
-		};
-		return {
-			execute(state) {
-				// Visual Moduleと画像の端編集は配置・表示区間の変更として扱い、トリムを作らない。
-				const timing = createUntrimmedTimelineLayerTiming(payload.positionMs, payload.trimmedDurationMs);
-				if (!isTimelineLayerTimingValid(timing)) throw new Error('Invalid layer timing');
-				const layer = getLayer(state);
-				before = { positionMs: layer.positionMs, trimmedDurationMs: layer.trimmedDurationMs, trimStartMs: layer.trimStartMs };
-				Object.assign(layer, timing);
-			},
-			undo(state) { Object.assign(getLayer(state), before); },
-		};
-	},
-});
+function getTimelineLayer(state: AppState, sceneId: string, layerId: string): TimelineLayer {
+	const layer = getScene(state, sceneId).layers.find(layer => layer.id === layerId);
+	if (!layer) throw new Error('Timeline layer not found');
+	return layer;
+}
 
-function validateImageLayerAsset(state: AppState, assetId: string) {
-	if (!state.assets.value.some(asset => asset.id === assetId && asset.fileDataType.startsWith('image/'))) {
-		throw new Error(`Image asset not found: ${assetId}`);
+function getTimelineClip(state: AppState, sceneId: string, target: TimelineClipTarget) {
+	const layer = getTimelineLayer(state, sceneId, target.layerId);
+	const clip = layer.clips.find(clip => clip.id === target.clipId);
+	if (!clip) throw new Error('Timeline clip not found');
+	return { layer, clip };
+}
+
+function validateMediaClipTiming(clip: TimelineClip, sourceDurationMs: number | undefined) {
+	if (sourceDurationMs == null || !Number.isFinite(sourceDurationMs) || sourceDurationMs <= 0
+		|| clip.contentOffsetMs + clip.durationMs > sourceDurationMs) throw new Error('Clip exceeds the media duration');
+}
+
+/** 異なる素材種類の混入をコマンド境界で拒否してから、型別のclips配列へ保存する。 */
+function validateLayerClips(state: AppState, sceneId: string, layer: TimelineLayer, clips: readonly TimelineClipData[], sourceDurationsMs?: SourceDurations) {
+	validateTimelineClips(clips);
+	for (const clip of clips) {
+		if (layer.layerType === 'image' || layer.layerType === 'video' || layer.layerType === 'audio') {
+			if (!('assetId' in clip) || typeof clip.assetId !== 'string'
+				|| !state.assets.value.some(asset => asset.id === clip.assetId && asset.fileDataType.startsWith(layer.layerType + '/'))) throw new Error('Asset type does not match the layer');
+			if (layer.layerType === 'video' && (!('audioEnabled' in clip) || typeof clip.audioEnabled !== 'boolean')) throw new Error('Invalid video clip');
+			if (sourceDurationsMs && layer.layerType !== 'image') validateMediaClipTiming(clip, sourceDurationsMs[clip.id]);
+		} else if (layer.layerType === 'scene') {
+			if (!('sceneId' in clip) || typeof clip.sceneId !== 'string' || !canReferenceScene(state.timelineScenes.value, sceneId, clip.sceneId)) throw new Error('Invalid or circular scene reference');
+		}
 	}
 }
 
-const addImageLayerCommandDef = defineCommand<{ sceneId: string; layer: TimelineImageLayer }>({
-	label: 'Add image layer',
+const addTimelineLayerCommandDef = defineCommand<{ sceneId: string; layer: TimelineLayer; sourceDurationsMs?: SourceDurations }>({
+	label: 'Add timeline layer',
 	create: payload => ({
 		execute(state) {
-			validateImageLayerAsset(state, payload.layer.assetId);
-			if (!isTimelineLayerTimingValid(payload.layer) || payload.layer.trimStartMs !== 0) throw new Error('Invalid image layer timing');
-			getScene(state, payload.sceneId).layers.unshift(deepClone(payload.layer));
+			const scene = getScene(state, payload.sceneId);
+			if (scene.layers.some(layer => layer.id === payload.layer.id)) throw new Error('Duplicate layer ID');
+			if ((payload.layer.layerType === 'video' || payload.layer.layerType === 'audio') && payload.layer.clips.length > 0 && !payload.sourceDurationsMs) throw new Error('Media duration is required');
+			validateLayerClips(state, payload.sceneId, payload.layer, payload.layer.clips, payload.sourceDurationsMs);
+			scene.layers.unshift(deepClone(payload.layer));
 		},
-		undo(state) { getScene(state, payload.sceneId).layers = getScene(state, payload.sceneId).layers.filter(layer => layer.id !== payload.layer.id); },
+		undo(state) { const scene = getScene(state, payload.sceneId); scene.layers = scene.layers.filter(layer => layer.id !== payload.layer.id); },
 	}),
 });
 
-const editImageLayerAssetCommandDef = defineCommand<{ sceneId: string; layerId: string; assetId: string }>({
-	label: 'Change image layer asset',
+const renameTimelineLayerCommandDef = defineCommand<{ sceneId: string; layerId: string; name: string }>({
+	label: 'Rename timeline layer',
 	create: payload => {
-		let previousAssetId: string;
-		const getLayer = (state: AppState) => {
-			const layer = getScene(state, payload.sceneId).layers.find(layer => layer.id === payload.layerId);
-			if (layer?.layerType !== 'image') throw new Error('Image layer not found');
-			return layer;
-		};
+		let before: string;
 		return {
-			execute(state) {
-				validateImageLayerAsset(state, payload.assetId);
-				const layer = getLayer(state);
-				previousAssetId = layer.assetId;
-				layer.assetId = payload.assetId;
-			},
-			// 変更前が参照切れでも、Undoではその状態を正確に復元する。
-			undo(state) { getLayer(state).assetId = previousAssetId; },
+			execute(state) { const layer = getTimelineLayer(state, payload.sceneId, payload.layerId); before = layer.name; layer.name = payload.name; },
+			undo(state) { getTimelineLayer(state, payload.sceneId, payload.layerId).name = before; },
 		};
 	},
 });
 
-function validateVideoTiming(timing: TimelineLayerTiming, sourceDurationMs: number) {
-	if (!isTimelineLayerTimingValid(timing) || !Number.isFinite(sourceDurationMs) || sourceDurationMs <= 0
-		|| timing.trimStartMs + timing.trimmedDurationMs > sourceDurationMs) throw new Error('Invalid video layer timing');
-}
-
-const addVideoLayerCommandDef = defineCommand<{ sceneId: string; layer: TimelineVideoLayer; sourceDurationMs: number }>({
-	label: 'Add video layer',
+const addTimelineClipCommandDef = defineCommand<{ sceneId: string; layerId: string; clip: TimelineClipData; sourceDurationMs?: number }>({
+	label: 'Add timeline clip',
 	create: payload => ({
 		execute(state) {
-			validateVideoTiming(payload.layer, payload.sourceDurationMs);
-			getScene(state, payload.sceneId).layers.unshift(deepClone(payload.layer));
+			const layer = getTimelineLayer(state, payload.sceneId, payload.layerId);
+			const clips = [...layer.clips, deepClone(payload.clip)];
+			validateTimelineClips(clips);
+			validateLayerClips(state, payload.sceneId, layer, [payload.clip]);
+			if (layer.layerType === 'video' || layer.layerType === 'audio') validateMediaClipTiming(payload.clip, payload.sourceDurationMs);
+			// validateLayerClipsが保存先の種類と素材の対応を検証済み。キーや設定は変更しない。
+			Object.assign(layer, { clips });
 		},
-		undo(state) { getScene(state, payload.sceneId).layers = getScene(state, payload.sceneId).layers.filter(layer => layer.id !== payload.layer.id); },
+		undo(state) { const layer = getTimelineLayer(state, payload.sceneId, payload.layerId); Object.assign(layer, { clips: layer.clips.filter(clip => clip.id !== payload.clip.id) }); },
 	}),
 });
 
-const editVideoLayerTimingCommandDef = defineCommand<{ sceneId: string; layerId: string; sourceDurationMs: number } & TimelineLayerTiming>({
-	label: 'Edit video layer timing',
+const editTimelineClipTimingCommandDef = defineCommand<TimelineClipTarget & { sceneId: string; edge: 'start' | 'end'; deltaMs: number; sourceDurationMs?: number; initialTiming?: TimelineClipTiming }>({
+	label: 'Trim timeline clip',
 	create: payload => {
-		let before: TimelineLayerTiming;
-		const getLayer = (state: AppState) => {
-			const layer = getScene(state, payload.sceneId).layers.find(layer => layer.id === payload.layerId);
-			if (layer?.layerType !== 'video') throw new Error('Video layer not found');
-			return layer;
-		};
+		let before: TimelineClipTiming;
+		let after: TimelineClipTiming | undefined;
 		return {
 			execute(state) {
-				validateVideoTiming(payload, payload.sourceDurationMs);
-				const layer = getLayer(state);
-				before = { positionMs: layer.positionMs, trimStartMs: layer.trimStartMs, trimmedDurationMs: layer.trimmedDurationMs };
-				Object.assign(layer, { positionMs: payload.positionMs, trimStartMs: payload.trimStartMs, trimmedDurationMs: payload.trimmedDurationMs });
+				const { layer, clip } = getTimelineClip(state, payload.sceneId, payload);
+				if (after) { Object.assign(clip, after); return; }
+				if (!Number.isFinite(payload.deltaMs)) throw new Error('Invalid trim');
+				const media = layer.layerType === 'audio' || layer.layerType === 'video';
+				if (media) validateMediaClipTiming(clip, payload.sourceDurationMs);
+				// ドラッグの途中でポインターを戻す操作は、確定済みクリップの左延長とは別。
+				// 開始時の区間から制限し、同じドラッグ内では開始状態まで戻れるようにする。
+				const initial = { ...clip, ...payload.initialTiming };
+				const initialClips = layer.clips.map(entry => entry.id === clip.id ? initial : entry);
+				validateTimelineClips(initialClips);
+				const bounds = getTimelineClipTrimBounds(initialClips, clip.id, payload.edge, media || layer.layerType === 'scene', payload.sourceDurationMs);
+				const delta = Math.max(bounds.minDelta, Math.min(bounds.maxDelta, payload.deltaMs));
+				before = { startMs: clip.startMs, durationMs: clip.durationMs, contentOffsetMs: clip.contentOffsetMs };
+				const next = payload.edge === 'start'
+					? { ...clip, startMs: initial.startMs + delta, durationMs: initial.durationMs - delta, contentOffsetMs: initial.contentOffsetMs + delta }
+					: { ...clip, durationMs: initial.durationMs + delta };
+				validateTimelineClips(layer.clips.map(entry => entry.id === clip.id ? next : entry));
+				if (media) validateMediaClipTiming(next, payload.sourceDurationMs);
+				after = { startMs: next.startMs, durationMs: next.durationMs, contentOffsetMs: next.contentOffsetMs };
+				Object.assign(clip, after);
 			},
-			undo(state) { Object.assign(getLayer(state), before); },
+			undo(state) { Object.assign(getTimelineClip(state, payload.sceneId, payload).clip, before); },
 		};
 	},
 });
 
-const editVideoLayerSettingsCommandDef = defineCommand<{ sceneId: string; layerId: string; audioEnabled?: boolean }>({
-	label: 'Edit video layer settings',
+const moveTimelineClipsCommandDef = defineCommand<{ sceneId: string; clips: TimelineClipTarget[]; deltaMs: number }>({
+	label: 'Move timeline clips',
 	create: payload => {
-		let before: { audioEnabled: boolean };
-		const getLayer = (state: AppState) => {
-			const layer = getScene(state, payload.sceneId).layers.find(layer => layer.id === payload.layerId);
-			if (layer?.layerType !== 'video') throw new Error('Video layer not found');
-			return layer;
-		};
+		let before: (TimelineClipTarget & { startMs: number })[];
+		let after: (TimelineClipTarget & { startMs: number })[] | undefined;
 		return {
 			execute(state) {
-				const layer = getLayer(state);
-				before = { audioEnabled: layer.audioEnabled };
-				if (payload.audioEnabled != null) layer.audioEnabled = payload.audioEnabled;
+				// Commandのマージは最後のexecuteだけを残す。差分を再実行するとRedoが
+				// 最後のpointermove一回分に縮むため、計算済みの絶対位置を復元する。
+				if (after) { for (const target of after) getTimelineClip(state, payload.sceneId, target).clip.startMs = target.startMs; return; }
+				if (!Number.isFinite(payload.deltaMs)) throw new Error('Invalid clip move');
+				if (payload.clips.length === 0) { before = []; after = []; return; }
+				if (new Set(payload.clips.map(target => JSON.stringify([target.layerId, target.clipId]))).size !== payload.clips.length) throw new Error('Duplicate clip move target');
+				const entries = payload.clips.map(target => ({ target, ...getTimelineClip(state, payload.sceneId, target) }));
+				const bounds = entries.map(({ layer, clip }) => getTimelineClipMoveBounds(layer.clips,
+					new Set(payload.clips.filter(target => target.layerId === layer.id).map(target => target.clipId)), clip.id));
+				const delta = Math.max(Math.max(...bounds.map(bound => bound.minDelta)), Math.min(Math.min(...bounds.map(bound => bound.maxDelta)), payload.deltaMs));
+				before = entries.map(({ target, clip }) => ({ ...target, startMs: clip.startMs }));
+				// 全対象の制限を交差させた単一の移動量を適用する。隣を飛び越す移動も許可しない。
+				// TODO: 移動区間内のレイヤーのキーフレームを追従させるオプション。
+				const proposed = entries.map(({ target, clip }) => ({ ...target, startMs: clip.startMs + delta }));
+				for (const layer of new Set(entries.map(entry => entry.layer))) {
+					validateTimelineClips(layer.clips.map(clip => {
+						const position = proposed.find(target => target.layerId === layer.id && target.clipId === clip.id);
+						return position ? { ...clip, startMs: position.startMs } : clip;
+					}));
+				}
+				after = proposed;
+				for (const position of after) getTimelineClip(state, payload.sceneId, position).clip.startMs = position.startMs;
 			},
-			undo(state) { Object.assign(getLayer(state), before); },
+			undo(state) { for (const target of before) getTimelineClip(state, payload.sceneId, target).clip.startMs = target.startMs; },
 		};
 	},
 });
 
-const addAudioLayerCommandDef = defineCommand<{ sceneId: string; layer: TimelineAudioLayer }>({
-	label: 'Add audio layer',
-	create: payload => ({
-		execute(state) { getScene(state, payload.sceneId).layers.unshift(deepClone(payload.layer)); },
-		undo(state) { getScene(state, payload.sceneId).layers = getScene(state, payload.sceneId).layers.filter(layer => layer.id !== payload.layer.id); },
-	}),
-});
-
-const editAudioLayerTimingCommandDef = defineCommand<{ sceneId: string; layerId: string } & TimelineLayerTiming>({
-	label: 'Edit audio layer timing',
+const removeTimelineClipsCommandDef = defineCommand<{ sceneId: string; clips: TimelineClipTarget[] }>({
+	label: 'Remove timeline clips',
 	create: payload => {
-		let before: TimelineLayerTiming;
-		const getLayer = (state: AppState) => {
-			const layer = getScene(state, payload.sceneId).layers.find(layer => layer.id === payload.layerId);
-			if (layer?.layerType !== 'audio') throw new Error('Audio layer not found');
-			return layer;
-		};
+		let before: { layerId: string; clips: TimelineClipData[] }[];
 		return {
 			execute(state) {
-				const { positionMs, trimmedDurationMs, trimStartMs } = payload;
-				const layer = getLayer(state);
-				if (!isTimelineLayerTimingValid({ positionMs, trimmedDurationMs, trimStartMs })) throw new Error('Invalid audio layer timing');
-				before = { positionMs: layer.positionMs, trimmedDurationMs: layer.trimmedDurationMs, trimStartMs: layer.trimStartMs };
-				Object.assign(layer, { positionMs, trimmedDurationMs, trimStartMs });
+				for (const target of payload.clips) getTimelineClip(state, payload.sceneId, target);
+				const layers = [...new Set(payload.clips.map(target => target.layerId))].map(id => getTimelineLayer(state, payload.sceneId, id));
+				before = layers.map(layer => ({ layerId: layer.id, clips: deepClone(layer.clips) }));
+				// 空になってもレイヤー・キー・合成設定を残し、次の追加で再利用できるようにする。
+				for (const layer of layers) Object.assign(layer, { clips: layer.clips.filter(clip => !payload.clips.some(target => target.layerId === layer.id && target.clipId === clip.id)) });
 			},
-			undo(state) { Object.assign(getLayer(state), before); },
+			undo(state) { for (const entry of before) Object.assign(getTimelineLayer(state, payload.sceneId, entry.layerId), { clips: deepClone(entry.clips) }); },
 		};
 	},
 });
 
-const pasteTimelineLayerCommandDef = defineCommand<{ sceneId: string; layer: TimelineLayer; sourceLayerId: string }>({
+const changeTimelineClipSourceCommandDef = defineCommand<TimelineClipTarget & { sceneId: string; assetId?: string; referencedSceneId?: string; sourceDurationMs?: number; audioEnabled?: boolean }>({
+	label: 'Change timeline clip source',
+	create: payload => {
+		let before: TimelineClipData;
+		return {
+			execute(state) {
+				const { layer, clip } = getTimelineClip(state, payload.sceneId, payload);
+				const media = layer.layerType === 'video' || layer.layerType === 'audio';
+				if (media && (payload.sourceDurationMs == null || !Number.isFinite(payload.sourceDurationMs) || payload.sourceDurationMs <= 0)) throw new Error('Invalid media duration');
+				const next = { ...clip, contentOffsetMs: 0,
+					durationMs: media ? getTimelineClipInsertionDuration(layer.clips.filter(entry => entry.id !== clip.id), clip.startMs, payload.sourceDurationMs) : clip.durationMs,
+					...(layer.layerType === 'scene' ? { sceneId: payload.referencedSceneId } : { assetId: payload.assetId }),
+					...(layer.layerType === 'video' ? { audioEnabled: payload.audioEnabled ?? ('audioEnabled' in clip && clip.audioEnabled) } : {}),
+				};
+				if (layer.layerType !== 'scene' && layer.layerType !== 'image' && !media) throw new Error('Layer has no clip source');
+				validateTimelineClips(layer.clips.map(entry => entry.id === clip.id ? next : entry));
+				// 他のクリップが参照切れでも、選択した素材の修復を妨げない。
+				validateLayerClips(state, payload.sceneId, layer, [next]);
+				before = deepClone(clip);
+				Object.assign(clip, next);
+			},
+			undo(state) { Object.assign(getTimelineClip(state, payload.sceneId, payload).clip, deepClone(before)); },
+		};
+	},
+});
+
+const editVideoClipAudioCommandDef = defineCommand<TimelineClipTarget & { sceneId: string; audioEnabled: boolean }>({
+	label: 'Edit video clip audio',
+	create: payload => {
+		let before: boolean;
+		const find = (state: AppState) => {
+			const layer = getTimelineLayer(state, payload.sceneId, payload.layerId);
+			if (layer.layerType !== 'video') throw new Error('Video layer not found');
+			const clip = layer.clips.find(clip => clip.id === payload.clipId);
+			if (!clip) throw new Error('Video clip not found');
+			return clip;
+		};
+		return {
+			execute(state) { const clip = find(state); before = clip.audioEnabled; clip.audioEnabled = payload.audioEnabled; },
+			undo(state) { find(state).audioEnabled = before; },
+		};
+	},
+});
+
+const pasteTimelineLayerCommandDef = defineCommand<{ sceneId: string; layer: TimelineLayer; sourceLayerId: string; sourceDurationsMs?: SourceDurations }>({
 	label: 'Paste timeline layer',
 	create: payload => ({
 		execute(state) {
-			validateSceneLayerPlacement(state, payload.sceneId, payload.layer);
+			if (getScene(state, payload.sceneId).layers.some(layer => layer.id === payload.layer.id)) throw new Error('Duplicate layer ID');
+			if ((payload.layer.layerType === 'video' || payload.layer.layerType === 'audio') && payload.layer.clips.length > 0 && !payload.sourceDurationsMs) throw new Error('Media duration is required');
+			validateLayerClips(state, payload.sceneId, payload.layer, payload.layer.clips, payload.sourceDurationsMs);
 			const sourceIndex = getScene(state, payload.sceneId).layers.findIndex(layer => layer.id === payload.sourceLayerId);
 			// 表示順は先頭が最上層。コピー元が削除済みなら最上層へ挿入する。
 			getScene(state, payload.sceneId).layers.splice(Math.max(0, sourceIndex), 0, deepClone(payload.layer));
@@ -1066,14 +1120,6 @@ const removeTimelineLayerCommandDef = defineCommand<{ sceneId: string; layerId: 
 	},
 });
 
-// 配置先はCommandに保存する。Undo/Redo時のUIの選択Sceneには依存させない。
-function validateSceneLayerPlacement(state: AppState, sceneId: string, layer: TimelineLayer) {
-	if (!isTimelineLayerTimingValid(layer)) throw new Error('Invalid layer timing');
-	if (layer.layerType !== 'scene') return;
-	if (!canReferenceScene(state.timelineScenes.value, sceneId, layer.sceneId)) throw new Error('Circular scene reference');
-	if (getSceneDuration(getScene(state, layer.sceneId)) <= 0) throw new Error('Cannot place an empty scene');
-}
-
 const addSceneCommandDef = defineCommand<TimelineScene>({
 	label: 'Add scene',
 	create: payload => ({
@@ -1119,69 +1165,13 @@ const removeSceneCommandDef = defineCommand<{ sceneId: string }>({
 		let index: number;
 		return {
 			execute(state) {
-				const references = state.timelineScenes.value.filter(scene => scene.layers.some(layer => layer.layerType === 'scene' && layer.sceneId === payload.sceneId));
+				const references = state.timelineScenes.value.filter(scene => scene.layers.some(layer => layer.layerType === 'scene' && layer.clips.some(clip => clip.sceneId === payload.sceneId)));
 				if (references.length > 0) throw new Error('Scene is used by: ' + references.map(scene => scene.name).join(', '));
 				before = deepClone(getScene(state, payload.sceneId));
 				index = state.timelineScenes.value.findIndex(scene => scene.id === payload.sceneId);
 				state.timelineScenes.value.splice(index, 1);
 			},
 			undo(state) { state.timelineScenes.value.splice(index, 0, deepClone(before)); },
-		};
-	},
-});
-
-const addSceneLayerCommandDef = defineCommand<{ sceneId: string; layer: TimelineSceneLayer }>({
-	label: 'Add scene layer',
-	create: payload => ({
-		execute(state) {
-			validateSceneLayerPlacement(state, payload.sceneId, payload.layer);
-			getScene(state, payload.sceneId).layers.unshift(deepClone(payload.layer));
-		},
-		undo(state) { const scene = getScene(state, payload.sceneId); scene.layers = scene.layers.filter(layer => layer.id !== payload.layer.id); },
-	}),
-});
-
-const editSceneLayerTimingCommandDef = defineCommand<{ sceneId: string; layerId: string } & TimelineLayerTiming>({
-	label: 'Edit scene layer timing',
-	create: payload => {
-		let before: TimelineLayerTiming;
-		const getLayer = (state: AppState) => {
-			const layer = getScene(state, payload.sceneId).layers.find(layer => layer.id === payload.layerId);
-			if (layer?.layerType !== 'scene') throw new Error('Scene layer not found');
-			return layer;
-		};
-		return {
-			execute(state) {
-				const { positionMs, trimStartMs, trimmedDurationMs } = payload;
-				if (!isTimelineLayerTimingValid(payload)) throw new Error('Invalid layer timing');
-				const layer = getLayer(state);
-				before = { positionMs: layer.positionMs, trimStartMs: layer.trimStartMs, trimmedDurationMs: layer.trimmedDurationMs };
-				Object.assign(layer, { positionMs, trimStartMs, trimmedDurationMs });
-			},
-			undo(state) { Object.assign(getLayer(state), before); },
-		};
-	},
-});
-
-const moveTimelineLayersCommandDef = defineCommand<{ sceneId: string; positions: { layerId: string; positionMs: number }[] }>({
-	label: 'Move timeline layers',
-	create: payload => {
-		let before: typeof payload.positions;
-		const apply = (state: AppState, positions: typeof payload.positions) => {
-			const layers = getScene(state, payload.sceneId).layers;
-			// 全対象を検証してから変更し、途中の失敗で一部だけ移動した状態を残さない。
-			const updates = positions.map(position => {
-				const layer = layers.find(layer => layer.id === position.layerId);
-				if (layer == null || layer.layerType === 'effect' || !isTimelineLayerTimingValid({ ...layer, positionMs: position.positionMs })) throw new Error('Invalid layer move');
-				return { layer, positionMs: position.positionMs };
-			});
-			const previous = updates.map(({ layer }) => ({ layerId: layer.id, positionMs: layer.positionMs }));
-			for (const { layer, positionMs } of updates) layer.positionMs = positionMs;
-			return previous;
-		};
-		return {
-			execute(state) { before = apply(state, payload.positions); },
-			undo(state) { apply(state, before); },
 		};
 	},
 });
@@ -1212,25 +1202,21 @@ const moveTimelineKeyframesCommandDef = defineCommand<{ sceneId: string; positio
 });
 
 export const COMMAND_DEFS = {
-	moveTimelineLayers: moveTimelineLayersCommandDef,
+	addTimelineLayer: addTimelineLayerCommandDef,
+	renameTimelineLayer: renameTimelineLayerCommandDef,
+	addTimelineClip: addTimelineClipCommandDef,
+	editTimelineClipTiming: editTimelineClipTimingCommandDef,
+	moveTimelineClips: moveTimelineClipsCommandDef,
+	removeTimelineClips: removeTimelineClipsCommandDef,
+	changeTimelineClipSource: changeTimelineClipSourceCommandDef,
+	editVideoClipAudio: editVideoClipAudioCommandDef,
 	moveTimelineKeyframes: moveTimelineKeyframesCommandDef,
 	addScene: addSceneCommandDef,
 	changeSceneResolution: changeSceneResolutionCommandDef,
 	renameScene: renameSceneCommandDef,
 	removeScene: removeSceneCommandDef,
-	addSceneLayer: addSceneLayerCommandDef,
-	editSceneLayerTiming: editSceneLayerTimingCommandDef,
 	pasteTimelineLayer: pasteTimelineLayerCommandDef,
 	reorderTimelineLayers: reorderTimelineLayersCommandDef,
-	addInlineVisualModuleLayer: addInlineVisualModuleLayerCommandDef,
-	editUntrimmedTimelineLayerTiming: editUntrimmedTimelineLayerTimingCommandDef,
-	addImageLayer: addImageLayerCommandDef,
-	editImageLayerAsset: editImageLayerAssetCommandDef,
-	addAudioLayer: addAudioLayerCommandDef,
-	addVideoLayer: addVideoLayerCommandDef,
-	editVideoLayerTiming: editVideoLayerTimingCommandDef,
-	editVideoLayerSettings: editVideoLayerSettingsCommandDef,
-	editAudioLayerTiming: editAudioLayerTimingCommandDef,
 	removeTimelineLayer: removeTimelineLayerCommandDef,
 	editTimelineLayerParam: editTimelineLayerParamCommandDef,
 	setVisualModulePrimaryOutput: setVisualModulePrimaryOutputCommandDef,

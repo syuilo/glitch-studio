@@ -145,8 +145,8 @@ function imageFixture() {
 	const assets = ['first', 'second'].map(id => ({ id, name: id, fileDataType: 'image/png', fileData: new Blob([id], { type: 'image/png' }) }));
 	const state = { assets: { value: assets }, visualModules: { value: [] }, timelineScenes: { value: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [] }] } };
 	const layer = createImageLayer('first', 2000);
-	const target = { sceneId: 'scene', layerId: layer.id };
-	const add = COMMAND_DEFS.addImageLayer.create({ sceneId: 'scene', layer });
+	const target = { sceneId: 'scene', layerId: layer.id, clipId: layer.clips[0].id };
+	const add = COMMAND_DEFS.addTimelineLayer.create({ sceneId: 'scene', layer });
 	add.execute(state);
 	return { state, layer, target, add, current: () => state.timelineScenes.value[0].layers.find(entry => entry.id === layer.id) };
 }
@@ -156,19 +156,19 @@ function imageFixture() {
 // BlobはAsset側だけに保存し、読み込み後にも同じIDで参照できることを確認する。
 test('round-trips image assets and independently undoes timing, compositing and source edits', async () => {
 	const { state, layer, target, add, current } = imageFixture();
-	assert.equal(layer.trimmedDurationMs, 5000);
+	assert.equal(layer.clips[0].durationMs, 5000);
 	assert.deepEqual(layer.compositingParamValues, defaultCompositing());
 	assert.deepEqual(getLayerParameterTargets(layer), ['compositing']);
-	const timing = COMMAND_DEFS.editUntrimmedTimelineLayerTiming.create({ ...target, positionMs: 1000, trimmedDurationMs: 60000 });
+	const timing = COMMAND_DEFS.editTimelineClipTiming.create({ ...target, edge: 'end', deltaMs: 55000 });
 	const opacity = COMMAND_DEFS.editTimelineLayerParam.create({ ...target, target: 'compositing', paramId: 'opacity', edit: { kind: 'inputSource', inputSource: 'keyframesTimelineInline' } });
-	const source = COMMAND_DEFS.editImageLayerAsset.create({ ...target, assetId: 'second' });
+	const source = COMMAND_DEFS.changeTimelineClipSource.create({ ...target, assetId: 'second' });
 	for (const command of [timing, opacity, source]) command.execute(state);
-	assert.equal(current().trimStartMs, 0);
-	assert.equal(current().trimmedDurationMs, 60000);
+	assert.equal(current().clips[0].contentOffsetMs, 0);
+	assert.equal(current().clips[0].durationMs, 60000);
 	assert.equal(current().compositingParamValues.opacity.inputSource, 'keyframesTimelineInline');
 	const restored = decodeProjectFile(await encodeProjectFile({ assets: state.assets.value, timelineScenes: state.timelineScenes.value }));
 	assert.deepEqual(restored.timelineScenes, state.timelineScenes.value);
-	assert.equal(await restored.assets.find(asset => asset.id === current().assetId).fileData.text(), 'second');
+	assert.equal(await restored.assets.find(asset => asset.id === current().clips[0].assetId).fileData.text(), 'second');
 	for (const command of [source, opacity, timing]) command.undo(state);
 	assert.deepEqual(current(), layer);
 	add.undo(state);
@@ -188,16 +188,16 @@ test('preserves image references through asset deletion and keeps duplicated set
 	assert.equal(state.timelineScenes.value[0].layers.find(entry => entry.id === 'copy').compositingParamValues.opacity.value, 1);
 	const remove = COMMAND_DEFS.removeAsset.create({ assetId: 'first' });
 	remove.execute(state);
-	assert.equal(current().assetId, 'first');
+	assert.equal(current().clips[0].assetId, 'first');
 	const restored = decodeProjectFile(await encodeProjectFile({ assets: state.assets.value, timelineScenes: state.timelineScenes.value }));
-	assert.equal(restored.timelineScenes[0].layers.find(entry => entry.id === layer.id).assetId, 'first');
-	const change = COMMAND_DEFS.editImageLayerAsset.create({ ...target, assetId: 'second' });
+	assert.equal(restored.timelineScenes[0].layers.find(entry => entry.id === layer.id).clips[0].assetId, 'first');
+	const change = COMMAND_DEFS.changeTimelineClipSource.create({ ...target, assetId: 'second' });
 	change.execute(state);
 	assert.equal(current().compositingParamValues.opacity.value, 0.5);
 	change.undo(state);
-	assert.equal(current().assetId, 'first');
+	assert.equal(current().clips[0].assetId, 'first');
 	remove.undo(state);
-	assert.equal(await state.assets.value.find(asset => asset.id === current().assetId).fileData.text(), 'first');
+	assert.equal(await state.assets.value.find(asset => asset.id === current().clips[0].assetId).fileData.text(), 'first');
 });
 
 // 【画像以外のAssetや不正な期間を状態変更前に拒否する】
@@ -207,11 +207,11 @@ test('rejects invalid image sources and timing without mutating layers', () => {
 	state.assets.value.push({ id: 'video', fileDataType: 'video/mp4', fileData: new Blob() });
 	const before = structuredClone(state.timelineScenes.value);
 	for (const assetId of ['missing', 'video']) {
-		assert.throws(() => COMMAND_DEFS.addImageLayer.create({ sceneId: 'scene', layer: { ...layer, assetId } }).execute(state), /Image asset not found/);
-		assert.throws(() => COMMAND_DEFS.editImageLayerAsset.create({ ...target, assetId }).execute(state), /Image asset not found/);
+		assert.throws(() => COMMAND_DEFS.addTimelineLayer.create({ sceneId: 'scene', layer: { ...layer, id: 'invalid', clips: [{ ...layer.clips[0], assetId }] } }).execute(state), /Asset type does not match/);
+		assert.throws(() => COMMAND_DEFS.changeTimelineClipSource.create({ ...target, assetId }).execute(state), /Asset type does not match/);
 	}
-	assert.throws(() => COMMAND_DEFS.addImageLayer.create({ sceneId: 'scene', layer: { ...layer, trimStartMs: 1 } }).execute(state), /Invalid image layer timing/);
-	assert.throws(() => COMMAND_DEFS.editUntrimmedTimelineLayerTiming.create({ ...target, positionMs: 0, trimmedDurationMs: 0 }).execute(state), /Invalid layer timing/);
+	assert.throws(() => COMMAND_DEFS.addTimelineLayer.create({ sceneId: 'scene', layer: { ...layer, id: 'invalid', clips: [{ ...layer.clips[0], contentOffsetMs: -1 }] } }).execute(state), /Invalid clip timing/);
+	assert.throws(() => COMMAND_DEFS.editTimelineClipTiming.create({ ...target, edge: 'end', deltaMs: NaN }).execute(state), /Invalid trim/);
 	assert.deepEqual(state.timelineScenes.value, before);
 });
 
@@ -219,21 +219,21 @@ test('rejects invalid image sources and timing without mutating layers', () => {
 // 音声無効化が配置長や音量キーを変更しないこと、範囲外トリムが状態を壊さないことも確認する。
 test('round-trips video settings and undoes trimmed timing and independent audio controls', async () => {
 	const { state } = fixture();
-	const layer = { id: 'video', layerType: 'video', assetId: 'movie', positionMs: 8000, trimStartMs: 2000, trimmedDurationMs: 5000,
-		audioEnabled: true, compositingParamValues: defaultCompositing(), audioParamValues: { volume: { inputSource: 'literal', value: 1 } }, automationGraphs: [] };
-	const target = { sceneId: 'scene', layerId: 'video' };
-	const add = COMMAND_DEFS.addVideoLayer.create({ sceneId: 'scene', layer, sourceDurationMs: 10000 });
+	const layer = { id: 'video', layerType: 'video', name: 'Layer', clips: [{ id: 'clip', startMs: 10000, contentOffsetMs: 2000, durationMs: 5000, assetId: 'movie', audioEnabled: true }], compositingParamValues: defaultCompositing(), audioParamValues: { volume: { inputSource: 'literal', value: 1 } }, automationGraphs: [] };
+	const target = { sceneId: 'scene', layerId: 'video', clipId: 'clip' };
+	state.assets = { value: [{ id: 'movie', fileDataType: 'video/mp4', fileData: new Blob() }] };
+	const add = COMMAND_DEFS.addTimelineLayer.create({ sceneId: 'scene', layer, sourceDurationsMs: { clip: 10000 } });
 	add.execute(state);
-	const settings = COMMAND_DEFS.editVideoLayerSettings.create({ ...target, audioEnabled: false });
+	const settings = COMMAND_DEFS.editVideoClipAudio.create({ ...target, audioEnabled: false });
 	const fit = COMMAND_DEFS.editTimelineLayerParam.create({ ...target, target: 'compositing', paramId: 'fitMode', edit: { kind: 'literal', value: 'cover' } });
-	const volume = COMMAND_DEFS.editTimelineLayerParam.create({ ...target, target: 'audio', paramId: 'volume', edit: { kind: 'expression', value: 'PROGRESS' } });
-	const timing = COMMAND_DEFS.editVideoLayerTiming.create({ ...target, positionMs: -1000, trimStartMs: 2000, trimmedDurationMs: 6000, sourceDurationMs: 10000 });
+	const volume = COMMAND_DEFS.editTimelineLayerParam.create({ ...target, target: 'audio', paramId: 'volume', edit: { kind: 'expression', value: 'TIME_MS / 1000' } });
+	const timing = COMMAND_DEFS.editTimelineClipTiming.create({ ...target, edge: 'end', deltaMs: 1000, sourceDurationMs: 10000 });
 	for (const command of [settings, fit, volume, timing]) command.execute(state);
 	assert.deepEqual(state.timelineScenes.value[0].layers.find(entry => entry.id === 'video').compositingParamValues.fitMode, { inputSource: 'literal', value: 'cover' });
 	const before = structuredClone(state.timelineScenes.value[0].layers);
 	const encoded = await encodeProjectFile({ gsVersion: '2.0.0', assets: [], timelineScenes: state.timelineScenes.value });
 	assert.deepEqual(decodeProjectFile(encoded).timelineScenes[0].layers, before);
-	assert.throws(() => COMMAND_DEFS.editVideoLayerTiming.create({ ...target, positionMs: 0, trimStartMs: 9000, trimmedDurationMs: 2000, sourceDurationMs: 10000 }).execute(state), /Invalid video layer timing/);
+	assert.throws(() => COMMAND_DEFS.editTimelineClipTiming.create({ ...target, edge: 'start', deltaMs: NaN, sourceDurationMs: 10000 }).execute(state), /Invalid trim/);
 	assert.deepEqual(state.timelineScenes.value[0].layers, before);
 	for (const command of [timing, volume, fit, settings]) command.undo(state);
 	assert.deepEqual(state.timelineScenes.value[0].layers.find(entry => entry.id === 'video'), layer);
@@ -246,13 +246,14 @@ test('round-trips video settings and undoes trimmed timing and independent audio
 // 音量Bindingと素材位置を別々にUndoでき、保存後もPlayerへの依存を持ち込まない。
 test('round-trips audio layers and undoes timing, volume and removal', async () => {
 	const { state } = fixture();
-	const layer = { id: 'audio', layerType: 'audio', assetId: 'sound', positionMs: 100, trimmedDurationMs: 1000, trimStartMs: 50,
+	const layer = { id: 'audio', layerType: 'audio', name: 'Layer', clips: [{ id: 'clip', startMs: 150, contentOffsetMs: 50, durationMs: 1000, assetId: 'sound' }],
 		audioParamValues: { volume: { inputSource: 'literal', value: 1 } }, automationGraphs: [] };
-	const add = COMMAND_DEFS.addAudioLayer.create({ sceneId: 'scene', layer });
+	state.assets = { value: [{ id: 'sound', fileDataType: 'audio/wav', fileData: new Blob() }] };
+	const add = COMMAND_DEFS.addTimelineLayer.create({ sceneId: 'scene', layer, sourceDurationsMs: { clip: 2000 } });
 	add.execute(state);
-	const volume = COMMAND_DEFS.editTimelineLayerParam.create({ sceneId: 'scene', layerId: 'audio', target: 'audio', paramId: 'volume', edit: { kind: 'expression', value: 'PROGRESS' } });
+	const volume = COMMAND_DEFS.editTimelineLayerParam.create({ sceneId: 'scene', layerId: 'audio', target: 'audio', paramId: 'volume', edit: { kind: 'expression', value: 'TIME_MS / 1000' } });
 	volume.execute(state);
-	const timing = COMMAND_DEFS.editAudioLayerTiming.create({ sceneId: 'scene', layerId: 'audio', positionMs: 200, trimmedDurationMs: 1000, trimStartMs: 50 });
+	const timing = COMMAND_DEFS.moveTimelineClips.create({ sceneId: 'scene', clips: [{ layerId: 'audio', clipId: 'clip' }], deltaMs: 100 });
 	timing.execute(state);
 	const before = structuredClone(state.timelineScenes.value[0].layers);
 	const remove = COMMAND_DEFS.removeTimelineLayer.create({ sceneId: 'scene', layerId: 'audio' });
@@ -276,14 +277,14 @@ test('undoes and redoes compositing expressions without changing module paramete
 	const layer = state.timelineScenes.value[0].layers[0];
 	layer.visualModuleParamValues.opacity = { inputSource: 'literal', value: 0.8 };
 	const command = COMMAND_DEFS.editTimelineLayerParam.create({ sceneId: 'scene',
-		layerId: layer.id, target: 'compositing', paramId: 'opacity', edit: { kind: 'expression', value: 'PROGRESS' },
+		layerId: layer.id, target: 'compositing', paramId: 'opacity', edit: { kind: 'expression', value: 'TIME_MS / 1000' },
 	});
 	command.execute(state);
-	assert.deepEqual(layer.compositingParamValues.opacity, { inputSource: 'expression', expression: 'PROGRESS' });
+	assert.deepEqual(layer.compositingParamValues.opacity, { inputSource: 'expression', expression: 'TIME_MS / 1000' });
 	command.undo(state);
 	assert.deepEqual(layer.compositingParamValues, defaultCompositing());
 	command.execute(state);
-	assert.equal(layer.compositingParamValues.opacity.expression, 'PROGRESS');
+	assert.equal(layer.compositingParamValues.opacity.expression, 'TIME_MS / 1000');
 	assert.equal(layer.visualModuleParamValues.opacity.value, 0.8);
 });
 
@@ -307,7 +308,7 @@ test('preserves compositing graphs and settings through edits and serialization'
 	inline.undo(state);
 	assert.deepEqual(layer.compositingParamValues, defaultCompositing());
 	inline.execute(state);
-	edit('rotation', { kind: 'automationGraphReference', value: 'graph', options: { trimmedDurationMs: 2500, offsetMode: 'end', wrapMode: 'clamp' } });
+	edit('rotation', { kind: 'automationGraphReference', value: 'graph', options: { trimmedDurationMs: 2500, offsetMode: 'start', wrapMode: 'clamp' } });
 	edit('blendMode', { kind: 'literal', value: 'replace' });
 	const restored = decodeProjectFile(await encodeProjectFile({ timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [layer] }], assets: [] })).timelineScenes[0].layers[0];
 	assert.deepEqual(restored.compositingParamValues, layer.compositingParamValues);
@@ -353,7 +354,7 @@ function fixture() {
 	const node = { id: 'node', type: 'effect', resolution: { mode: 'context' }, effectId: 'test', params: { values: { inputSource: 'literal', value: [{ id: 'first', binding: initial }] } } };
 	const state = {
 		visualModules: { value: [{ id: 'module', nodes: [node], primaryInputId: null, paramDefs: [{ id: 'gain', defaultValue: initial }] }] },
-		timelineScenes: { value: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [{ id: 'layer', layerType: 'visualModule', visualModuleId: 'module', positionMs: 0, trimStartMs: 0, trimmedDurationMs: 1000, visualModuleParamValues: {}, compositingParamValues: defaultCompositing(), automationGraphs: [] }] }] },
+		timelineScenes: { value: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [{ id: 'layer', layerType: 'visualModule', visualModuleId: 'module', name: 'Layer', clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 1000 }], visualModuleParamValues: {}, compositingParamValues: defaultCompositing(), automationGraphs: [] }] }] },
 	};
 	return { state, node, target: { visualModuleId: 'module', nodeId: 'node', paramPath: ['values', 'first'] } };
 }
@@ -411,7 +412,7 @@ test('undoes inline graph edits and creation on timeline layers', () => {
 	after.automationGraph.isNormalized = false;
 	after.trimmedDurationMs = 2500;
 	after.wrapMode = 'repeatMirrored';
-	after.offsetMode = 'end';
+	after.offsetMode = 'start';
 	after.automationGraph.points[0].y = -2;
 	const edit = COMMAND_DEFS.editTimelineLayerParam.create({ sceneId: 'scene', ...target, edit: { kind: 'automationGraphInline', value: after } });
 	edit.execute(state);
@@ -447,12 +448,12 @@ test('targets scene definitions explicitly across layer parameter undo and redo'
 // 失敗したCommandが部分的な変更を残すと、Undo履歴へ積まれない壊れた参照が保存されてしまう。
 test('rejects referenced deletion and cyclic placement without mutating scenes', () => {
 	const { state } = fixture();
-	const nested = { id: 'nested', layerType: 'scene', sceneId: 'scene', positionMs: 0, trimStartMs: 0, trimmedDurationMs: 1000,
+	const nested = { id: 'nested', layerType: 'scene', name: 'Layer', clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 1000, sceneId: 'scene' }],
 		compositingParamValues: defaultCompositing(), audioParamValues: { volume: { inputSource: 'literal', value: 1 } }, automationGraphs: [] };
 	COMMAND_DEFS.addScene.create({ id: 'parent', name: 'Parent', resolution: { mode: 'project' }, layers: [nested] }).execute(state);
 	const before = structuredClone(state.timelineScenes.value);
 	assert.throws(() => COMMAND_DEFS.removeScene.create({ sceneId: 'scene' }).execute(state), /Scene is used by/);
-	assert.throws(() => COMMAND_DEFS.addSceneLayer.create({ sceneId: 'scene', layer: { ...nested, sceneId: 'parent' } }).execute(state), /Circular scene reference/);
+	assert.throws(() => COMMAND_DEFS.addTimelineLayer.create({ sceneId: 'scene', layer: { ...nested, clips: [{ ...nested.clips[0], sceneId: 'parent' }] } }).execute(state), /circular scene reference/i);
 	assert.deepEqual(state.timelineScenes.value, before);
 	const remove = COMMAND_DEFS.removeScene.create({ sceneId: 'parent' });
 	remove.execute(state);
@@ -478,4 +479,44 @@ test('changes scene resolution with undo redo and project persistence', async ()
 	assert.deepEqual(scene.resolution, resolution);
 	assert.throws(() => COMMAND_DEFS.changeSceneResolution.create({ sceneId: scene.id, resolution: { mode: 'customAbsolute', width: 0, height: 1 } }).execute(state));
 	assert.deepEqual(scene.resolution, resolution);
+});
+
+// 【生成系の左トリムは同一ドラッグ内で元に戻せ、確定後の左延長はしない】
+// 各pointermoveで上限を再計算するとドラッグを引き返せなくなる。内容オフセットと右端を保ち、
+// 操作を確定した後はUndoだけで元の区間を復元する。
+test('reverses generated trims within a gesture and disallows subsequent left extension', () => {
+	const { state, target, current } = imageFixture();
+	const initialTiming = structuredClone(current().clips[0]);
+	const first = COMMAND_DEFS.editTimelineClipTiming.create({ ...target, edge: 'start', deltaMs: 500, initialTiming });
+	first.execute(state);
+	assert.equal(current().clips[0].contentOffsetMs, 500);
+	const reverse = COMMAND_DEFS.editTimelineClipTiming.create({ ...target, edge: 'start', deltaMs: 200, initialTiming });
+	reverse.execute(state);
+	assert.equal(current().clips[0].contentOffsetMs, 200);
+	assert.equal(current().clips[0].startMs + current().clips[0].durationMs, 7000);
+	COMMAND_DEFS.editTimelineClipTiming.create({ ...target, edge: 'start', deltaMs: -100 }).execute(state);
+	assert.equal(current().clips[0].contentOffsetMs, 200);
+	reverse.undo(state);
+	first.undo(state);
+	assert.deepEqual(current().clips[0], initialTiming);
+});
+
+// 【素材変更でトリムをリセットし、後続クリップを変更せず新素材を収める】
+// 動画の音声設定・レイヤーのキーを維持し、Undoで元の参照と三つの時間情報をまとめて復元する。
+test('resets a video source within its gap and restores it on undo', () => {
+	const { state } = fixture();
+	state.assets = { value: ['old', 'new'].map(id => ({ id, fileDataType: 'video/mp4', fileData: new Blob() })) };
+	const layer = { id: 'video', name: 'Video', layerType: 'video', automationGraphs: [], compositingParamValues: defaultCompositing(),
+		audioParamValues: { volume: { inputSource: 'literal', value: 0.5 } }, clips: [
+			{ id: 'a', assetId: 'old', audioEnabled: false, startMs: 100, durationMs: 100, contentOffsetMs: 50 },
+			{ id: 'b', assetId: 'old', audioEnabled: true, startMs: 400, durationMs: 100, contentOffsetMs: 0 },
+		] };
+	COMMAND_DEFS.addTimelineLayer.create({ sceneId: 'scene', layer, sourceDurationsMs: { a: 1000, b: 1000 } }).execute(state);
+	const current = state.timelineScenes.value[0].layers[0];
+	const command = COMMAND_DEFS.changeTimelineClipSource.create({ sceneId: 'scene', layerId: 'video', clipId: 'a', assetId: 'new', sourceDurationMs: 1000 });
+	command.execute(state);
+	assert.deepEqual(current.clips[0], { id: 'a', assetId: 'new', audioEnabled: false, startMs: 100, durationMs: 300, contentOffsetMs: 0 });
+	assert.deepEqual(current.clips[1], layer.clips[1]);
+	command.undo(state);
+	assert.deepEqual(current, layer);
 });

@@ -1,6 +1,6 @@
 import { getSceneDuration, validateTimelineScenes } from '@glitch/shared/timeline/scenes.ts';
 import { getSceneAudioClips } from '@glitch/shared/timeline/scene-audio.ts';
-import { createUntrimmedTimelineLayerTiming } from '@glitch/shared/timeline/timing.ts';
+import { createTimelineClipTiming } from '@glitch/shared/timeline/timing.ts';
 import { visualModuleCustomParameterId, visualModuleCustomParameterName } from '@glitch/shared/visual-module/types.ts';
 import { computed, ref, markRaw, watch } from 'vue';
 import { deepClone } from '@glitch/shared/utility/deep-clone.ts';
@@ -391,7 +391,7 @@ export async function newProject() {
 				rotation: timelineCompositingParamDefs.rotation.defaultValue,
 			}),
 			automationGraphs: [],
-			...createUntrimmedTimelineLayerTiming(0, 1000 * 10),
+			name: 'Visual Module', clips: [{ id: genId(), ...createTimelineClipTiming(0, 1000 * 10) }],
 		}] }],
 		resolution: { width: 1024, height: 1024 },
 	});
@@ -517,7 +517,7 @@ export async function newProjectFromImageOrVideo(file?: File) {
 				rotation: timelineCompositingParamDefs.rotation.defaultValue,
 			}),
 			automationGraphs: [],
-			...createUntrimmedTimelineLayerTiming(0, 1000 * 10),
+			name: 'Visual Module', clips: [{ id: genId(), ...createTimelineClipTiming(0, 1000 * 10) }],
 		}] }],
 		resolution: { width: result.width || 1024, height: result.height || 1024 },
 	});

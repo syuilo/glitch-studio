@@ -1,21 +1,27 @@
 import { niceScale, insertIntermediateNumbers } from '@glitch/shared/utility/misc.ts';
-import type { TimelineLayerTiming } from '@glitch/shared/timeline/timing.ts';
+import type { TimelineClipTiming } from '@glitch/shared/timeline/timing.ts';
 
-export type TimelineLocalTicks = { major: number[]; minor: number[] };
+export type TimelineClipTick = { contentTimeMs: number; sceneTimeMs: number };
+export type TimelineClipTicks = { major: TimelineClipTick[]; minor: TimelineClipTick[] };
 
-/** 目盛り間隔は画面の倍率で決め、主目盛り・補助目盛りをそれぞれ表示区間で絞る。 */
-export function getTimelineLayerTicks(timing: TimelineLayerTiming, viewportStartMs: number, viewportDurationMs: number, count: number): TimelineLocalTicks {
-	const ticks = getTimelineLocalTicks(timing.positionMs, viewportStartMs, viewportDurationMs, count);
-	const inVisibleRange = (time: number) => time >= timing.trimStartMs && time < timing.trimStartMs + timing.trimmedDurationMs;
-	// 先に主目盛りを絞ると、端の区間や短いレイヤーにある補助目盛りまで失われる。
-	const minor = ticks.length === 0 ? [] : insertIntermediateNumbers(ticks).filter((time, index) => index % 2 === 1 && inVisibleRange(time));
-	return { major: ticks.filter(inVisibleRange), minor };
+/** 表示・スナップで同じ目盛りを使い、内容時刻とScene上の位置を取り違えないようにする。 */
+export function getTimelineClipTicks(clip: TimelineClipTiming, viewportStartMs: number, viewportDurationMs: number, count: number): TimelineClipTicks {
+	// トリムしても内容の時間原点は変わらない。目盛り間隔はクリップ長ではなく画面の倍率で決める。
+	const originMs = clip.startMs - clip.contentOffsetMs;
+	const ticks = getTimelineLocalTicks(originMs, viewportStartMs, viewportDurationMs, count);
+	const toTick = (contentTimeMs: number): TimelineClipTick => ({ contentTimeMs, sceneTimeMs: originMs + contentTimeMs });
+	const inVisibleRange = (tick: TimelineClipTick) => tick.contentTimeMs >= clip.contentOffsetMs
+		&& tick.contentTimeMs < clip.contentOffsetMs + clip.durationMs
+		&& tick.sceneTimeMs >= viewportStartMs && tick.sceneTimeMs <= viewportStartMs + viewportDurationMs;
+	// 先に主目盛りを絞ると、端の区間や短いクリップにある補助目盛りまで失われる。
+	const minor = ticks.length === 0 ? [] : insertIntermediateNumbers(ticks).filter((_, index) => index % 2 === 1);
+	return { major: ticks.map(toTick).filter(inVisibleRange), minor: minor.map(toTick).filter(inVisibleRange) };
 }
 
-/** 表示範囲をレイヤーの時間軸へ移してから目盛りを生成する。戻り値もローカル時刻。 */
-export function getTimelineLocalTicks(positionMs: number, viewportStartMs: number, viewportDurationMs: number, count: number): number[] {
-	if (viewportDurationMs <= 0 || ![positionMs, viewportStartMs, viewportDurationMs, count].every(Number.isFinite)) return [];
-	return niceScale(viewportStartMs - positionMs, viewportStartMs - positionMs + viewportDurationMs, count);
+/** 表示範囲を内容の時間原点へ移してから目盛りを生成する。戻り値もローカル時刻。 */
+export function getTimelineLocalTicks(originMs: number, viewportStartMs: number, viewportDurationMs: number, count: number): number[] {
+	if (viewportDurationMs <= 0 || ![originMs, viewportStartMs, viewportDurationMs, count].every(Number.isFinite)) return [];
+	return niceScale(viewportStartMs - originMs, viewportStartMs - originMs + viewportDurationMs, count);
 }
 
 export function formatTimelineTimecode(timeMs: number): string {

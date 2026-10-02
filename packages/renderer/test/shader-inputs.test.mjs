@@ -68,10 +68,10 @@ test('scales image layer sources once and preserves borrowed asset textures', as
 		const renderer = createImageTimelineLayer(layer, source, {
 			device, vertex: {}, resolution: { width: 1920 * resolutionScale, height: 1080 * resolutionScale }, resolutionScale, format: 'rgba16float',
 		});
-		const context = { time: 0, endTime: 5000, isExport: resolutionScale === 1, input: { kind: 'uniform', value: [0, 0, 0, 0] } };
+		const context = { sceneTimeMs: 0, contentTimeMs: 0, contentEndTimeMs: 5000, clipElapsedTimeMs: 0, clipDurationMs: 5000, isExport: resolutionScale === 1, input: { kind: 'uniform', value: [0, 0, 0, 0] } };
 		const signal = new AbortController().signal;
 		const first = await renderer.evaluate(context, signal);
-		const second = await renderer.evaluate({ ...context, time: 1000 }, signal);
+		const second = await renderer.evaluate({ ...context, sceneTimeMs: 1000, contentTimeMs: 1000, clipElapsedTimeMs: 1000 }, signal);
 		assert.equal(first.output.texture, second.output.texture);
 		assert.deepEqual([first.output.texture.width, first.output.texture.height], [3840 * resolutionScale, 2160 * resolutionScale]);
 		assert.equal(calls.draws, resolutionScale === 1 ? 0 : 1);
@@ -307,7 +307,7 @@ test('preserves constant outputs across timeline module layers', async () => {
 		present: output => presented.push(output),
 	});
 	try {
-		await timeline.renderAt(10, [{ id: 'a', positionMs: 0, trimStartMs: 0, trimmedDurationMs: 100 }, { id: 'b', positionMs: 0, trimStartMs: 0, trimmedDurationMs: 100 }]);
+		await timeline.renderAt(10, [{ id: 'a', name: 'Layer', clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 100 }] }, { id: 'b', name: 'Layer', clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 100 }] }]);
 		assert.strictEqual(presented[0], constant);
 		assert.equal(calls.textures.length, 0);
 		assert.equal(calls.uploads, 0);

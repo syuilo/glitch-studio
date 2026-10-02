@@ -2,7 +2,7 @@
 export const IN_VISUAL_MODULE_VAR_DEFS = ['WIDTH', 'HEIGHT', 'TIME', 'TIME_MS', 'END_TIME', 'END_TIME_MS', 'PROGRESS', 'IS_EXPORT', 'TEST_ONLY_VM', 'TEST_SAME_NAME'] as const;
 
 // TimelineのLayer(Visual Moduleに限らず)のパラメータで使用可能な変数
-export const LAYER_VAR_DEFS = ['TEST_ONLY_LAYER', 'TEST_SAME_NAME', 'IS_EXPORT'] as const;
+export const LAYER_VAR_DEFS = ['TIME', 'TIME_MS', 'TEST_ONLY_LAYER', 'TEST_SAME_NAME', 'IS_EXPORT'] as const;
 
 // Visual Moduleのカスタムパラメータプレビュー内のパラメータで使用可能な変数
 export const LIVE_VAR_DEFS = ['TIME', 'TIME_MS'] as const;

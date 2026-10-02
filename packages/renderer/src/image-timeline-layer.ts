@@ -23,7 +23,7 @@ export function createImageTimelineLayer(layer: TimelineImageLayer, sourceTextur
 	return {
 		async evaluate(context, signal) {
 			if (disposed || signal.aborted) return { gpuTime: 0 };
-			const settings = parameters.evaluate({ ...context, paramValues: layer.compositingParamValues, automationGraphs: layer.automationGraphs });
+			const settings = parameters.evaluate({ time: context.sceneTimeMs, isExport: context.isExport, paramValues: layer.compositingParamValues, automationGraphs: layer.automationGraphs });
 			const encoder = options.device.createCommandEncoder();
 			try {
 				// replaceの無変形経路は素材を直接後段へ渡す。原寸のままだと後続モジュールの

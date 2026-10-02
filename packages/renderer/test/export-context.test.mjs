@@ -27,7 +27,7 @@ test('passes export context through timeline layers and resets it for preview', 
 		}),
 		present() {},
 	});
-	const timeline = [{ id: 'layer', positionMs: 0, trimStartMs: 0, trimmedDurationMs: 1000 }];
+	const timeline = [{ id: 'layer', name: 'Layer', clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 1000 }] }];
 	await renderer.renderAt(0, timeline, 0, true);
 	await renderer.renderAt(100, timeline, 100, true);
 	await renderer.renderAt(200, timeline);

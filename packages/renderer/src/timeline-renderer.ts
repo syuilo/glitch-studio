@@ -1,16 +1,18 @@
-import { getTimelineLayerContentTime, getTimelineLayerVisibleTime, isTimelineLayerVisible } from '@glitch/shared/timeline/timing.ts';
-import type { TimelineLayerTiming } from '@glitch/shared/timeline/timing.ts';
+import { getTimelineClipContentTime, isTimelineClipActive } from '@glitch/shared/timeline/timing.ts';
+import type { TimelineClip } from '@glitch/shared/timeline/clip.ts';
 
 // 制御に必要なのはIDと期間だけ。レイヤー固有のデータは生成関数にそのまま渡す。
-export type TimelineRenderEntry = TimelineLayerTiming & { id: string };
+export type TimelineRenderEntry = { id: string; clips: readonly TimelineClip[] };
 
 export type TimelineLayerContext<Output> = {
 	isExport: boolean;
-	/** 内容のローカル時刻。トリム後の表示開始からの経過時間ではない。 */
-	time: number;
-	visibleTimeMs: number;
+	/** レイヤー設定・キーは所属Scene上、素材・モジュールは内容時刻で評価する。 */
+	sceneTimeMs: number;
+	contentTimeMs: number;
+	clipElapsedTimeMs: number;
+	clipDurationMs: number;
+	contentEndTimeMs: number;
 	timeDelta: number;
-	endTime: number;
 	input: Output;
 };
 
@@ -23,7 +25,7 @@ export type TimelineLayerRenderer<Output> = {
 
 type TimelineRendererOptions<Output, Entry extends TimelineRenderEntry> = {
 	fallbackOutput: Output;
-	createLayer: (entry: Entry) => TimelineLayerRenderer<Output>;
+	createLayer: (entry: Entry, clipId: string) => TimelineLayerRenderer<Output>;
 	present?: (output: Output, gpuTime: number) => void;
 	onClear?: () => void;
 };
@@ -74,11 +76,14 @@ export class TimelineRenderer<Output, Entry extends TimelineRenderEntry = Timeli
 			if (isCancelled()) return;
 			// 配列は先頭が最上層の表示順。下層の合成結果を上層へ渡すため、描画は逆順に行う。
 			// 終端を含めず、隣接するレイヤーを境界で重ねない。
-			const visibleEntries = timeline.filter(entry => isTimelineLayerVisible(entry, time)).reverse();
+			const visibleEntries = timeline.flatMap(entry => {
+				const clip = entry.clips.find(clip => isTimelineClipActive(clip, time));
+				return clip ? [{ entry, clip, instanceKey: JSON.stringify([entry.id, clip.id]) }] : [];
+			}).reverse();
 			// 現時点では表示するレイヤーだけを評価する。事前評価を追加するときは、
 			// 必要な下層も含む評価対象をここで決め、表示判定とは独立して寿命を管理する。
 			const evaluationEntries = visibleEntries;
-			this.releaseUnusedLayers(new Set(evaluationEntries.map(entry => entry.id)));
+			this.releaseUnusedLayers(new Set(evaluationEntries.map(entry => entry.instanceKey)));
 			const result = await this.evaluateLayers(time, evaluationEntries, timeDelta, isExport, controller.signal);
 			if (result == null || isCancelled()) return;
 			// レイヤーがない場合も透明な出力を表示し、前回の表示を残さない。
@@ -101,25 +106,27 @@ export class TimelineRenderer<Output, Entry extends TimelineRenderEntry = Timeli
 	}
 
 	/** 表示範囲の判定やpresentは行わず、指定された対象を内容時刻で評価・合成する。 */
-	private async evaluateLayers(time: number, entries: readonly Entry[], timeDelta: number, isExport: boolean, signal: AbortSignal) {
+	private async evaluateLayers(time: number, entries: readonly { entry: Entry; clip: TimelineClip; instanceKey: string }[], timeDelta: number, isExport: boolean, signal: AbortSignal) {
 		let output = this.options.fallbackOutput;
 		let gpuTime = 0;
-		for (const entry of entries) {
-			let layer = this.layers.get(entry.id);
+		for (const { entry, clip, instanceKey } of entries) {
+			// IDはレイヤー内だけで一意。同じモジュール・子Sceneの隣接クリップも別の履歴を持つ。
+			let layer = this.layers.get(instanceKey);
 			const isNewLayer = layer == null;
 			if (layer == null) {
-				layer = this.options.createLayer(entry);
-				this.layers.set(entry.id, layer);
+				layer = this.options.createLayer(entry, clip.id);
+				this.layers.set(instanceKey, layer);
 			}
 			const context: TimelineLayerContext<Output> = {
 				isExport,
-				time: getTimelineLayerContentTime(entry, time),
-				visibleTimeMs: getTimelineLayerVisibleTime(entry, time),
+				sceneTimeMs: time,
+				contentTimeMs: getTimelineClipContentTime(clip, time),
+				clipElapsedTimeMs: time - clip.startMs,
+				clipDurationMs: clip.durationMs,
 				// 新規レイヤーには履歴がない。途中からの書き出しでも過去のフレームは再現しない。
 				timeDelta: isNewLayer ? 0 : timeDelta,
-				// Visual Moduleの右端は内容の終了位置。左トリムで両値が逆方向へ動いても
-				// END_TIMEは不変で、右端を伸縮したときだけ評価基準の長さが変わる。
-				endTime: entry.trimStartMs + entry.trimmedDurationMs,
+				// 終端は内容の座標系、進行率は表示区間で定義する。TIME / END_TIMEでは求められない。
+				contentEndTimeMs: clip.contentOffsetMs + clip.durationMs,
 				input: output,
 			};
 			const result = await layer.evaluate(context, signal);

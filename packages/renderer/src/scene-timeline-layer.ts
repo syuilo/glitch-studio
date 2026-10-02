@@ -17,7 +17,7 @@ export function createSceneTimelineLayer(
 		resolution: { width: number; height: number };
 		sceneResolution: { width: number; height: number };
 		format: IntermediateTextureFormat;
-		createLayer: (entry: TimelineLayer) => TimelineLayerRenderer<NodeOutput>;
+		createLayer: (entry: TimelineLayer, clipId: string) => TimelineLayerRenderer<NodeOutput>;
 	},
 ): TimelineLayerRenderer<NodeOutput> {
 	// 定義が同じでも履歴・出力の所有者は配置ごとに分ける。親背景は子に渡さない。
@@ -32,11 +32,11 @@ export function createSceneTimelineLayer(
 	const sceneOutput = createSceneOutput({ ...options, resolution: options.sceneResolution });
 	return {
 		evaluate: async (context, signal) => {
-			const result = await renderer.evaluateAt(context.time, scene.layers.filter(entry => entry.layerType !== 'audio'), context.timeDelta, context.isExport, signal);
+			const result = await renderer.evaluateAt(context.contentTimeMs, scene.layers.filter(entry => entry.layerType !== 'audio'), context.timeDelta, context.isExport, signal);
 			if (result == null || signal.aborted) return { gpuTime: 0 };
 			const encoder = options.device.createCommandEncoder();
 			try {
-				const settings = parameters.evaluate({ time: context.time, endTime: context.endTime, isExport: context.isExport,
+				const settings = parameters.evaluate({ time: context.sceneTimeMs, isExport: context.isExport,
 					paramValues: layer.compositingParamValues, automationGraphs: layer.automationGraphs });
 				const source: NodeOutput = { kind: 'texture', texture: sceneOutput.render(encoder, result.output) };
 				return { output: compositor.render(encoder, context.input, source, settings), gpuTime: result.gpuTime };
