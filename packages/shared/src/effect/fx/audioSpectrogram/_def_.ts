@@ -3,6 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'audioSpectrogram',
 	displayName: 'Audio Spectrogram',
+	kind: 'generate',
 	tags: [],
 	paramDefs: {
 		player: { dataType: { kind: 'playerReference' }, ui: { label: 'Player', control: {} }, defaultValue: { inputSource: 'literal', value: null } },

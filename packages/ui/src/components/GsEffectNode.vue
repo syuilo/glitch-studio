@@ -55,6 +55,7 @@
 </template>
 
 <script lang="ts" setup>
+import type { EffectResolution } from '@glitch/shared/effect/resolution.ts';
 import { IN_VISUAL_MODULE_VAR_DEFS } from '@glitch/shared/expression.ts';
 import { ref, computed, shallowRef, watchEffect } from 'vue';
 import { effectDefinitions } from '@glitch/shared/effect/effect-definitions.ts';
@@ -66,7 +67,7 @@ import GsSelect from './common/GsSelect.vue';
 import GsInput from './common/GsInput.vue';
 import GsFolder from './common/GsFolder.vue';
 import type { ParamEdit } from './GsVisualParam.vue';
-import type { EffectNodeResolution, VisualModule, VisualModuleEffectNode } from '@glitch/shared/visual-module/types.js';
+import type { VisualModule, VisualModuleEffectNode } from '@glitch/shared/visual-module/types.js';
 import type { EffectInstanceState } from '@glitch/shared/effect/effect-status.ts';
 import { appStateManager } from '@/app.ts';
 import { i18n } from '@/i18n.ts';
@@ -87,7 +88,7 @@ const emit = defineEmits<{
 	(ev: 'editParam', event: ParamEdit): void;
 	(ev: 'remove'): void;
 	(ev: 'setBypass', bypass: boolean): void;
-	(ev: 'setResolution', resolution: EffectNodeResolution): void;
+	(ev: 'setResolution', resolution: EffectResolution): void;
 }>();
 
 const name = computed(() => effectDefinitions[props.node.effectId].displayName);
@@ -96,13 +97,13 @@ const showSettings = ref(false);
 const allInPortEl = shallowRef<HTMLElement | null>(null);
 const effectStatus = computed(() => props.effectState?.status);
 
-const resolutionModes: { value: EffectNodeResolution['mode']; label: string }[] = [
+const resolutionModes: { value: EffectResolution['mode']; label: string }[] = [
 	{ value: 'context', label: 'Context resolution' },
 	{ value: 'auto', label: 'Auto' },
 	{ value: 'customAbsolute', label: 'Custom (Absolute)' },
 ];
 
-function setResolutionMode(mode: EffectNodeResolution['mode']) {
+function setResolutionMode(mode: EffectResolution['mode']) {
 	if (mode === props.node.resolution.mode) return;
 	emit('setResolution', mode === 'customAbsolute' ? { mode, ...appStateManager.state.resolution.value } : { mode });
 }

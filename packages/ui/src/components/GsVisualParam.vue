@@ -3,7 +3,7 @@
 	<div ref="rowEl" :class="$style.row" data-wire-input-row @contextmenu.prevent.stop="onRowContextmenu">
 		<div :class="[$style.paramHeader, { [$style.isDyamic]: paramValue.inputSource !== 'literal' }]">
 			<button v-if="paramDef.dataType.kind === 'array' || paramDef.dataType.kind === 'struct'" class="_button"><i class="ti ti-chevron-down" style="vertical-align: middle;"></i></button>
-			<GsNodePort v-else-if="canNode" :dataType="inputDataType" style="cursor: pointer;" @pointerdown.stop @click.stop="showNodeInputMenu" @update:element="portEl = $event"/>
+			<GsNodePort v-else-if="canNode && node != null" :dataType="inputDataType" style="cursor: pointer;" @pointerdown.stop @click.stop="showNodeInputMenu" @update:element="portEl = $event"/>
 			<div v-else style="width: 24px; height: 24px; line-height: 24px; text-align: center; opacity: 0.2;"><i class="ti ti-point"></i></div>
 
 			<div :class="$style.paramLabel" @click="showMenu">
@@ -14,6 +14,7 @@
 				<i v-else-if="paramValue.inputSource === 'expression'" v-tooltip="'Expression'" class="ti ti-math-function" :class="$style.typeIcon"></i>
 				<i v-else-if="paramValue.inputSource === 'externalCustomParameterInput'" v-tooltip="'Parameter'" class="ti ti-wifi" :class="$style.typeIcon"></i>
 				<i v-else-if="paramValue.inputSource === 'node'" v-tooltip="'Node'" class="ti ti-plug" :class="$style.typeIcon"></i>
+				<i v-else-if="paramValue.inputSource === 'layerInput'" v-tooltip="'Layers below'" class="ti ti-stack-2" :class="$style.typeIcon"></i>
 				<i v-else-if="paramValue.inputSource === 'keyframesTimelineInline'" v-tooltip="'Keyframes'" class="ti ti-timeline" :class="$style.typeIcon"></i>
 				<i v-else-if="paramValue.inputSource === 'automationGraphReference' || paramValue.inputSource === 'automationGraphInline'" v-tooltip="'AutomationGraph'" class="ti ti-ease-in-out-control-points" :class="$style.typeIcon"></i>
 			</div>
@@ -24,7 +25,7 @@
 				<GsButton small iconOnly title="Add element" @click="addElement"><i class="ti ti-plus"></i></GsButton>
 			</template>
 			<template v-else-if="paramDef.dataType.kind !== 'struct'">
-				<i v-if="hasNodeInputTypeMismatch(nodes, nodeConnection, inputDataType, paramDefs)" v-tooltip="'Data type mismatch'" class="ti ti-alert-triangle" :class="$style.typeWarning"></i>
+				<i v-if="hasNodeInputTypeMismatch(nodes, nodeConnection, inputDataType, paramDefs) || (paramValue.inputSource === 'layerInput' && !layerInputTypeCompatible)" v-tooltip="'Data type mismatch'" class="ti ti-alert-triangle" :class="$style.typeWarning"></i>
 				<div :class="$style.control">
 					<GsInput v-if="paramValue.inputSource === 'expression'" type="text" class="_monospace" :modelValue="paramValue.expression" @focusin="onBeginChanging" @focusout="onFinishChanging" @update:modelValue="updateParamAsExpression">
 						<template #caption>
@@ -74,6 +75,10 @@
 						/>
 						<button class="_button" style="padding: 4px;" @click="showNodeInputMenu"><i class="ti ti-dots"></i></button>
 					</div>
+					<div v-else-if="paramValue.inputSource === 'layerInput'" style="display: flex; gap: 4px; align-items: center;">
+						<span style="flex: 1;">Layers below</span>
+						<button class="_button" style="padding: 4px;" @click="showLayerInputSamplingMenu"><i class="ti ti-dots"></i></button>
+					</div>
 					<GsLiteralLeafValueControl
 						v-else-if="paramValue.inputSource === 'literal'"
 						ref="controlComponent"
@@ -111,6 +116,8 @@
 			:automationGraphs="automationGraphs"
 			:availableVariables="availableVariables"
 			:automationGraphEndEnabled="automationGraphEndEnabled"
+			:keyframesEnabled="keyframesEnabled"
+			:layerInputEnabled="layerInputEnabled"
 			:visualModule="visualModule"
 			:node="node"
 			:paramPath="[...paramPath, element.id]"
@@ -131,6 +138,8 @@
 			:automationGraphs="automationGraphs"
 			:availableVariables="availableVariables"
 			:automationGraphEndEnabled="automationGraphEndEnabled"
+			:keyframesEnabled="keyframesEnabled"
+			:layerInputEnabled="layerInputEnabled"
 			:visualModule="visualModule"
 			:node="node"
 			:paramPath="[...paramPath, key]"
@@ -154,6 +163,7 @@ export type ParamEdit = { paramPath: ParamPath; mergeKey?: string | null } & (
 	| { kind: 'automationGraphReference'; value: string | null; options?: Partial<AutomationGraphPlaybackOptions> }
 	| { kind: 'keyframesTimelineInline'; value: Extract<ParameterBinding, { inputSource: 'keyframesTimelineInline' }> }
 	| { kind: 'node'; value: NodeOutputReference | null; preserveSampling: boolean }
+	| { kind: 'layerInput'; value: Extract<ParameterBinding, { inputSource: 'layerInput' }> }
 	| { kind: 'externalCustomParameterInput'; value: VisualModuleCustomParameterId }
 	| { kind: 'inputSource'; inputSource: ParameterBinding['inputSource'] }
 	| { kind: 'reset' }
@@ -168,7 +178,7 @@ import { isKeyframesDataType } from '@glitch/shared/keyframes-timeline.ts';
 import { visualModuleCustomParameterId } from '@glitch/shared/visual-module/types.ts';
 import { computed, onBeforeUnmount, ref, shallowRef, useTemplateRef, watch, watchEffect } from 'vue';
 import { genId } from '@glitch/shared/utility/id.ts';
-import { getNodeInputDataType } from '@glitch/shared/utility/node-outputs.ts';
+import { getNodeInputDataType, areNodeDataTypesCompatible } from '@glitch/shared/utility/node-outputs.ts';
 import * as AiScript from '@syuilo/aiscript';
 import GsNodePort from './GsNodePort.vue';
 import GsLiteralLeafValueControl from './GsLiteralLeafValueControl.vue';
@@ -186,7 +196,7 @@ import type { MenuItem } from '@/types/menu.ts';
 import { i18n } from '@/i18n.ts';
 import { useVisualModuleWires } from '@/utility/visual-module-wires.ts';
 import { paramPathKey } from '@/utility/node-params.ts';
-import { getNodeOutputItems, hasNodeInputTypeMismatch, nodeOutputKey } from '@/utility/node-outputs.ts';
+import { getNodeOutputItems, hasNodeInputTypeMismatch, nodeOutputKey, canConnectNodeDataTypes } from '@/utility/node-outputs.ts';
 import { registerWireInput } from '@/utility/wire-drag.ts';
 import { getNodeInputSamplingMenuItems } from '@/utility/input-sampling-menu.ts';
 import * as ui from '@/ui.ts';
@@ -204,6 +214,7 @@ const props = defineProps<{
 	paramValue: ParameterBinding;
 	label?: string;
 	keyframesEnabled?: boolean;
+	layerInputEnabled?: boolean;
 	automationGraphEndEnabled?: boolean;
 }>();
 
@@ -220,6 +231,8 @@ const visibleFields = computed(() => {
 });
 const canNode = computed(() => props.paramDef.canNode);
 const inputDataType = computed(() => getNodeInputDataType(props.paramDef));
+const layerInputTypeCompatible = computed(() => areNodeDataTypesCompatible({ kind: 'color' }, inputDataType.value));
+const layerInputConnection = computed(() => props.paramValue.inputSource === 'layerInput' ? props.paramValue : null);
 const paramDefs = computed(() => props.visualModule?.paramDefs ?? []);
 const nodes = computed(() => props.visualModule?.nodes ?? []);
 
@@ -263,7 +276,7 @@ function target() {
 
 watchEffect(onCleanup => {
 	const row = rowEl.value;
-	if (!row || !canNode.value) return;
+	if (!row || !canNode.value || props.node == null) return;
 	onCleanup(registerWireInput(row, connectNode,
 		connection => nodeOutputItems.value.find(item => item.value === nodeOutputKey(connection))?.typeCompatible ?? null));
 });
@@ -351,7 +364,10 @@ function getMenu() {
 			{ text: 'Automation Graph (Inline)', inputSource: 'automationGraphInline', icon: 'ti ti-ease-in-out-control-points' },
 		];
 		if (props.node != null) types.push({ text: 'Custom Parameter', inputSource: 'externalCustomParameterInput', icon: 'ti ti-wifi' });
-		if (canNode.value) types.push({ text: 'Node', inputSource: 'node', icon: 'ti ti-plug' });
+		if (canNode.value && props.node != null) types.push({ text: 'Node', inputSource: 'node', icon: 'ti ti-plug' });
+		if (props.layerInputEnabled && canConnectNodeDataTypes({ kind: 'color' }, inputDataType.value)) {
+			types.push({ text: 'Layers below', inputSource: 'layerInput', icon: 'ti ti-stack-2' });
+		}
 		for (const { text, inputSource, icon } of types) {
 			if (inputSource === 'keyframesTimelineInline' && (!props.keyframesEnabled || !isKeyframesDataType(props.paramDef.dataType))) continue;
 			menuItems.push({
@@ -394,6 +410,12 @@ function showNodeInputMenu(ev: PointerEvent) {
 	ui.popupMenu(menuItems, ev.currentTarget ?? ev.target, {
 		abortSignal: abortController.signal,
 	});
+}
+
+function showLayerInputSamplingMenu(ev: PointerEvent) {
+	if (layerInputConnection.value == null) return;
+	ui.popupMenu(getNodeInputSamplingMenuItems(layerInputConnection as Ref<Extract<ParameterBinding, { inputSource: 'layerInput' }>>,
+		value => emit('edit', { kind: 'layerInput', ...target(), value })), ev.currentTarget ?? ev.target);
 }
 
 function onRowContextmenu(ev: PointerEvent) {

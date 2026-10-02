@@ -1,20 +1,15 @@
 import type { TextureDataType } from '../data-type.ts';
 import type { EffectDefinition } from '../effect/effect-definition.ts';
+import type { EffectResolution } from '../effect/resolution.ts';
 import type { ParameterDefinition } from '../parameter.ts';
 import type { FitMode, AutomationGraph, ParameterBinding, WrapMode } from '../types.ts';
-
-export type EffectNodeResolution =
-	// LIVEではプロジェクト、タイムラインでは所属Scene。モジュール自身は呼び出し元を知らない。
-	| { mode: 'context' }
-	| { mode: 'auto' }
-	| { mode: 'customAbsolute'; width: number; height: number };
 
 export type VisualModuleEffectNode = {
 	id: string;
 	type: 'effect';
 	effectId: string;
 	isBypass: boolean;
-	resolution: EffectNodeResolution;
+	resolution: EffectResolution;
 	params: Record<string, ParameterBinding>;
 
 	// 2D平面上でノードを配置できるようになった時のため
@@ -90,7 +85,7 @@ export type VisualModule = {
 };
 
 // レイヤー・live modeからは、モジュール内部のノードやパラメータを参照しない。
-export type VisualModuleParameterBindings = Record<VisualModuleCustomParameterId, Exclude<ParameterBinding, { inputSource: 'node' | 'externalCustomParameterInput' }>>;
+export type VisualModuleParameterBindings = Record<VisualModuleCustomParameterId, Exclude<ParameterBinding, { inputSource: 'node' | 'externalCustomParameterInput' | 'layerInput' }>>;
 
 export type EffectNodeOf<DEF extends Pick<EffectDefinition, 'id' | 'paramDefs'>> =
 	Omit<VisualModuleEffectNode, 'effectId' | 'params'> & {

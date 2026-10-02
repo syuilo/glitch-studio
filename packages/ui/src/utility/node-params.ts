@@ -1,72 +1,21 @@
-import { getArrayElementDefinition, getStructFieldDefinitions } from '@glitch/shared/parameter.ts';
 import { effectDefinitions } from '@glitch/shared/effect/effect-definitions.ts';
-import type { ParameterArrayElement, ParameterDefinition } from '@glitch/shared/parameter.ts';
-import type { ParameterBinding } from '@glitch/shared/types.ts';
+import { resolveParameter, walkParameters } from '@glitch/shared/parameter-path.ts';
+import type { ParameterDefinition } from '@glitch/shared/parameter.ts';
 import type { VisualModuleEffectNode } from '@glitch/shared/visual-module/types.ts';
+import type { ParamPath } from '@glitch/shared/parameter-path.ts';
+export { paramPathKey } from '@glitch/shared/parameter-path.ts';
+export type { ParamPath } from '@glitch/shared/parameter-path.ts';
 
-// 配列はindexではなく要素IDで指定する。入れ子でも親までのパスがスコープとなり、
-// 別の配列や別ノードで同じ要素IDを使っても衝突しない。
-export type ParamPath = readonly [string, ...string[]];
-
-export type NodeParamTarget = {
-	nodeId: VisualModuleEffectNode['id'];
-	paramPath: ParamPath;
-};
+export type NodeParamTarget = { nodeId: VisualModuleEffectNode['id']; paramPath: ParamPath };
 
 export function getNodeParamDefs(node: VisualModuleEffectNode): Record<string, ParameterDefinition> {
 	return effectDefinitions[node.effectId].paramDefs as Record<string, ParameterDefinition>;
 }
 
-export function paramPathKey(path: ParamPath): string {
-	// フィールド名や要素IDに区切り文字が含まれても、異なるパスが衝突しない。
-	return JSON.stringify(path);
-}
-
 export function resolveNodeParam(node: VisualModuleEffectNode, path: ParamPath) {
-	let def = getNodeParamDefs(node)[path[0]];
-	const params = node.params;
-	let value = params[path[0]];
-	let setValue = (next: ParameterBinding) => { params[path[0]] = next; };
-	if (def == null || value == null) throw new Error(`Unknown parameter: ${paramPathKey(path)}`);
-
-	for (const segment of path.slice(1)) {
-		if (def.dataType.kind === 'array') {
-			if (value.inputSource !== 'literal' || !Array.isArray(value.value)) {
-				throw new Error(`Invalid array parameter path: ${paramPathKey(path)}`);
-			}
-			const element = (value.value as ParameterArrayElement[]).find(element => element.id === segment);
-			// 削除済みのIDを同じ位置の別要素に読み替えない。Commandは変更前に失敗させる。
-			if (element == null) throw new Error(`Unknown array element: ${paramPathKey(path)}`);
-			def = getArrayElementDefinition(def);
-			value = element.binding;
-			setValue = next => {
-				element.binding = next;
-			};
-		} else if (def.dataType.kind === 'struct' && value.inputSource === 'literal' && typeof segment === 'string') {
-			const fields = value.value as Record<string, ParameterBinding>;
-			def = getStructFieldDefinitions(def)[segment];
-			value = fields[segment];
-			setValue = next => { fields[segment] = next; };
-			if (def == null || value == null) throw new Error(`Unknown struct field: ${paramPathKey(path)}`);
-		} else {
-			throw new Error(`Invalid parameter path: ${paramPathKey(path)}`);
-		}
-	}
-	return { def, value, setValue };
+	return resolveParameter(getNodeParamDefs(node), node.params, path);
 }
 
-// ワイヤー表示と参照の更新でも、定義に沿って子をたどる（color等のliteral配列とは区別する）。
-export function* walkNodeParams(node: VisualModuleEffectNode): Generator<{ path: ParamPath; def: ParameterDefinition; value: ParameterBinding }> {
-	function* walk(def: ParameterDefinition, value: ParameterBinding, path: ParamPath): ReturnType<typeof walkNodeParams> {
-		if (def.dataType.kind === 'array' && value.inputSource === 'literal') {
-			const elements = value.value as ParameterArrayElement[];
-			for (const element of elements) yield* walk(getArrayElementDefinition(def), element.binding, [...path, element.id]);
-		} else if (def.dataType.kind === 'struct' && value.inputSource === 'literal') {
-			for (const [key, field] of Object.entries(getStructFieldDefinitions(def))) yield* walk(field, value.value[key], [...path, key]);
-		} else {
-			yield { path, def, value };
-		}
-	}
-
-	for (const [key, def] of Object.entries(getNodeParamDefs(node))) yield* walk(def, node.params[key], [key]);
+export function walkNodeParams(node: VisualModuleEffectNode) {
+	return walkParameters(getNodeParamDefs(node), node.params);
 }

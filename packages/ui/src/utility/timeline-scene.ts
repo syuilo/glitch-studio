@@ -1,41 +1,68 @@
 import { getTimelineScene } from '@glitch/shared/timeline/scenes.ts';
 import { timelineAudioParamDefs } from '@glitch/shared/timeline/timeline-audio.ts';
 import { timelineCompositingParamDefs } from '@glitch/shared/timeline/timeline-compositing.ts';
+import { effectDefinitions } from '@glitch/shared/effect/effect-definitions.ts';
+import { resolveParameter, walkParameters } from '@glitch/shared/parameter-path.ts';
+import type { ParamPath } from '@glitch/shared/parameter-path.ts';
+import type { ParameterBinding } from '@glitch/shared/types.ts';
 import type { ParameterDefinition } from '@glitch/shared/parameter.ts';
 import type { AppState } from '../types.ts';
-import type { TimelineLayer, TimelineParameterBinding } from '@glitch/shared/timeline/types.ts';
+import type { TimelineLayer } from '@glitch/shared/timeline/types.ts';
+
+export type TimelineParameterTarget = 'module' | 'effect' | 'compositing' | 'audio';
 
 export function getScene(state: AppState, sceneId: string) {
 	return getTimelineScene(state.timelineScenes.value, sceneId);
 }
 
 /** キーフレームの表示と選択で、存在しないパラメータ群を参照しないよう一覧を共有する。 */
-export function getLayerParameterTargets(layer: TimelineLayer): readonly ('module' | 'compositing' | 'audio')[] {
+export function getLayerParameterTargets(layer: TimelineLayer): readonly TimelineParameterTarget[] {
 	switch (layer.layerType) {
 		case 'audio': return ['audio'];
 		case 'image': return ['compositing'];
 		case 'video':
 		case 'scene': return ['compositing', 'audio'];
 		case 'visualModule':
-		case 'inlineVisualModule':
-		case 'effect': return ['compositing', 'module'];
+		case 'inlineVisualModule': return ['compositing', 'module'];
+		case 'effect': return ['compositing', 'effect'];
 	}
 }
 
-export function getLayerParameterValues(layer: TimelineLayer, target: 'module' | 'compositing' | 'audio'): Record<string, TimelineParameterBinding> {
+export function getLayerParameterValues(layer: TimelineLayer, target: TimelineParameterTarget): Record<string, ParameterBinding> {
 	if (target === 'compositing' && layer.layerType !== 'audio') return layer.compositingParamValues;
 	if (target === 'audio' && (layer.layerType === 'scene' || layer.layerType === 'video' || layer.layerType === 'audio')) return layer.audioParamValues;
 	if (target === 'module' && (layer.layerType === 'visualModule' || layer.layerType === 'inlineVisualModule')) return layer.visualModuleParamValues;
-	if (target === 'module' && layer.layerType === 'effect') return layer.effectParamValues;
+	if (target === 'effect' && layer.layerType === 'effect') return layer.effectParamValues;
 	throw new Error('Invalid layer parameter target');
 }
 
 /** キーの値編集・挿入は、保存した型の古い選択肢ではなく現在の定義を使う。 */
-export function getLayerParameterDefinition(state: Pick<AppState, 'visualModules'>, layer: TimelineLayer, target: 'module' | 'compositing' | 'audio', paramId: string): ParameterDefinition | undefined {
-	if (!getLayerParameterTargets(layer).includes(target)) return undefined;
-	if (target === 'audio') return Object.entries(timelineAudioParamDefs).find(([id]) => id === paramId)?.[1];
-	if (target === 'compositing') return Object.entries(timelineCompositingParamDefs).find(([id]) => id === paramId)?.[1];
+export function getLayerParameterDefinitions(state: Pick<AppState, 'visualModules'>, layer: TimelineLayer, target: TimelineParameterTarget): Record<string, ParameterDefinition> {
+	if (!getLayerParameterTargets(layer).includes(target)) throw new Error('Invalid layer parameter target');
+	if (target === 'audio') return timelineAudioParamDefs;
+	if (target === 'compositing') return timelineCompositingParamDefs;
+	if (target === 'effect' && layer.layerType === 'effect') return effectDefinitions[layer.effectId].paramDefs;
 	const module = layer.layerType === 'inlineVisualModule' ? layer.visualModule
 		: layer.layerType === 'visualModule' ? state.visualModules.value.find(module => module.id === layer.visualModuleId) : undefined;
-	return module?.paramDefs.find(definition => definition.id === paramId);
+	return Object.fromEntries(module?.paramDefs.map(def => [def.id, def]) ?? []);
+}
+
+export function resolveLayerParameter(state: Pick<AppState, 'visualModules'>, layer: TimelineLayer, target: TimelineParameterTarget, path: ParamPath) {
+	const defs = getLayerParameterDefinitions(state, layer, target);
+	const values = getLayerParameterValues(layer, target);
+	// 未編集のモジュール引数は定義の既定値を参照する。参照だけでは保存値を増やさない。
+	if (path.length === 1 && values[path[0]] == null && defs[path[0]] != null) {
+		return { def: defs[path[0]], value: defs[path[0]].defaultValue as ParameterBinding, setValue: (value: ParameterBinding) => { values[path[0]] = value; } };
+	}
+	return resolveParameter(defs, values, path);
+}
+
+export function getLayerParameterDefinition(state: Pick<AppState, 'visualModules'>, layer: TimelineLayer, target: TimelineParameterTarget, path: ParamPath): ParameterDefinition | undefined {
+	try { return resolveLayerParameter(state, layer, target, path).def; } catch { return undefined; }
+}
+
+export function getLayerKeyframeParameters(state: Pick<AppState, 'visualModules'>, layer: TimelineLayer) {
+	return getLayerParameterTargets(layer).flatMap(target => [...walkParameters(getLayerParameterDefinitions(state, layer, target), getLayerParameterValues(layer, target))]
+		.flatMap(({ path, def, value, label }) => value.inputSource === 'keyframesTimelineInline'
+			? [{ key: JSON.stringify([target, path]), paramPath: path, target, def, label, binding: value }] : []));
 }

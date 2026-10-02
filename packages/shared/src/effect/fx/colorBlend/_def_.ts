@@ -3,6 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'colorBlend',
 	displayName: 'Blend (Color)',
+	kind: 'modify',
 	tags: [],
 	paramDefs: {
 		inputA: { dataType: { kind: 'color' }, ui: { label: 'A', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },

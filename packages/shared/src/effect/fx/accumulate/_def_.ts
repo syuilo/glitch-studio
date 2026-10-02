@@ -3,6 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'accumulate',
 	displayName: 'Accumulate',
+	kind: 'modify',
 	tags: [],
 	paramDefs: {
 		input: { dataType: { kind: 'any' }, ui: { label: 'Input', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },

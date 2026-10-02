@@ -147,6 +147,14 @@
 			</div>
 			<div v-else-if="selectedLayer != null">
 				<GsInput small :modelValue="selectedLayer.name" @update:modelValue="name => appStateManager.commit('renameTimelineLayer', { sceneId, layerId: selectedLayer!.id, name: String(name) })"><template #label>Layer name</template></GsInput>
+				<GsTimelineEffectSettings
+					v-if="selectedLayer.layerType === 'effect'"
+					:key="selectedLayer.id"
+					:layer="selectedLayer"
+					:contextResolution="getSceneBaseResolution(editedScene.resolution, appStateManager.state.resolution.value)"
+					@edit="event => onTimelineLayerParamEdit(event, 'effect')"
+					@resolution="resolution => appStateManager.commit('changeEffectLayerResolution', { sceneId, layerId: selectedLayer!.id, resolution })"
+				/>
 				<GsFolder v-if="selectedLayer.layerType === 'inlineVisualModule'" :asSection="true" defaultOpen :withSpacer="false">
 					<template #icon><i class="ti ti-chart-dots-3"></i></template>
 					<template #label>Visual Module</template>
@@ -181,7 +189,7 @@
 								:paramPath="[paramDef.id]"
 								:paramDef="{ ...paramDef, canNode: false }"
 								:paramValue="getLayerParameterValues(selectedLayer, 'module')[paramDef.id] ?? paramDef.defaultValue"
-								@edit="event => onVisualModuleLayerParamEdit(event, 'module')"
+								@edit="event => onTimelineLayerParamEdit(event, 'module')"
 							/>
 						</template>
 					</div>
@@ -200,7 +208,7 @@
 							:paramPath="[paramId]"
 							:paramDef="paramDef"
 							:paramValue="selectedLayer.compositingParamValues[paramId]"
-							@edit="event => onVisualModuleLayerParamEdit(event, 'compositing')"
+							@edit="event => onTimelineLayerParamEdit(event, 'compositing')"
 						/>
 					</div>
 				</GsFolder>
@@ -217,7 +225,7 @@
 							:paramPath="['volume']"
 							:paramDef="timelineAudioParamDefs.volume"
 							:paramValue="selectedLayer.audioParamValues.volume"
-							@edit="event => onVisualModuleLayerParamEdit(event, 'audio')"
+							@edit="event => onTimelineLayerParamEdit(event, 'audio')"
 						/>
 					</div>
 				</GsFolder>
@@ -243,6 +251,12 @@ import { timelineCompositingParamDefs } from '@glitch/shared/timeline/timeline-c
 import { deepClone } from '@glitch/shared/utility/deep-clone.ts';
 import { canReferenceScene } from '@glitch/shared/timeline/scenes.ts';
 import XLayer from './GsTimeline.Layer.vue';
+import GsTimelineEffectSettings from './GsTimeline.EffectSettings.vue';
+import { createEffectTimelineLayer } from '@/utility/effect-timeline-layer.ts';
+import { getSceneBaseResolution } from '@glitch/shared/timeline/scene-resolution.ts';
+import { paramPathKey } from '@glitch/shared/parameter-path.ts';
+import type { ParamPath } from '@glitch/shared/parameter-path.ts';
+import type { TimelineParameterTarget } from '@/utility/timeline-scene.ts';
 import GsLiteralLeafValueControl from './GsLiteralLeafValueControl.vue';
 import GsInput from './common/GsInput.vue';
 import GsSelect from './common/GsSelect.vue';
@@ -269,7 +283,7 @@ import { getTimelineClipTicks, formatTimelineTimecode as formatMsToTimecode } fr
 import { getTimelineSnapCandidates, getTimelineSeekPosition } from '@/utility/timeline-snapping.ts';
 import { preferences } from '@/preferences.ts';
 import { listenPointerDrag } from '@/utility/pointer-drag.ts';
-import { getLayerParameterTargets, getLayerParameterValues, getLayerParameterDefinition } from '@/utility/timeline-scene.ts';
+import { getLayerParameterValues, getLayerParameterDefinition, resolveLayerParameter, getLayerKeyframeParameters } from '@/utility/timeline-scene.ts';
 import { inspectTimelineClipMedia } from '@/utility/timeline-clip-media.ts';
 import type { TimelineClipMediaInfo } from '@/utility/timeline-clip-media.ts';
 import { sceneEditorStates, timelineLayerClipboard } from '@/utility/timeline-editor-state.ts';
@@ -369,11 +383,11 @@ const selectedKeyframe = computed(() => {
 	const selection = selectedKeyframeSelection.value;
 	if (selection == null) return null;
 	const layer = sceneLayers.value.find(entry => entry.id === selection.layerId);
-	if (layer == null || layer.layerType === 'effect') return null;
-	const values: Partial<Record<string, ParameterBinding>> = getLayerParameterValues(layer, selection.target);
-	const binding = values[selection.paramId];
+	if (layer == null) return null;
+	let binding: ParameterBinding;
+	try { binding = resolveLayerParameter(appStateManager.state, layer, selection.target, selection.paramPath).value; } catch { return null; }
 	if (binding?.inputSource !== 'keyframesTimelineInline') return null;
-	const def = getLayerParameterDefinition(appStateManager.state, layer, selection.target, selection.paramId);
+	const def = getLayerParameterDefinition(appStateManager.state, layer, selection.target, selection.paramPath);
 	if (def == null || !canEditKeyframesTimeline(def, binding)) return null;
 	const keyframes = binding.keyframesTimeline.keyframes.toSorted((a, b) => a.x - b.x);
 	const index = keyframes.findIndex(entry => entry.id === selection.keyframeId);
@@ -402,7 +416,7 @@ function updateSelectedKeyframe(patch: { x?: number; value?: unknown; interpolat
 	appStateManager.commit('editTimelineLayerParam', {
 		sceneId: props.sceneId,
 		layerId: selected.selection.layerId, target: selected.selection.target,
-		paramId: selected.selection.paramId,
+		paramPath: selected.selection.paramPath,
 		edit: { kind: 'keyframesTimelineInline', value },
 	}, mergeKey);
 }
@@ -556,14 +570,12 @@ function finishPan() {
 onBeforeUnmount(finishPan);
 
 const keyframeEntries = computed(() => sceneLayers.value.flatMap(layer => {
-	const targets = getLayerParameterTargets(layer);
-	return targets.flatMap(target => Object.entries(getLayerParameterValues(layer, target)).flatMap(([paramId, binding]) => {
-		if (binding.inputSource !== 'keyframesTimelineInline') return [];
+	return getLayerKeyframeParameters(appStateManager.state, layer).flatMap(({ target, paramPath, binding }) => {
 		return binding.keyframesTimeline.keyframes.map(point => ({
-			selection: { layerId: layer.id, target, paramId, keyframeId: point.id },
+			selection: { layerId: layer.id, target, paramPath, keyframeId: point.id },
 			x: point.x, time: point.x, keyframes: binding.keyframesTimeline.keyframes,
 		}));
-	}));
+	});
 }));
 
 // clips配列の差し替えはレイヤー配列やキー一覧を変更しない。最後のクリップを
@@ -609,14 +621,15 @@ function readSelectionGeometry(viewport: SelectionRect): TimelineSelectionGeomet
 		const layerId = element.closest<HTMLElement>('[data-timeline-layer-id]')?.dataset.timelineLayerId;
 		const lane = element.closest<HTMLElement>('[data-parameter-target]');
 		const target = lane?.dataset.parameterTarget;
-		const paramId = lane?.dataset.paramId;
+		const encodedPath = lane?.dataset.paramPath;
 		const keyframeId = element.dataset.timelineKeyframeId;
-		if (!layerId || !paramId || !keyframeId || (target !== 'audio' && target !== 'module' && target !== 'compositing')) continue;
+		if (!layerId || !encodedPath || !keyframeId || (target !== 'audio' && target !== 'module' && target !== 'compositing' && target !== 'effect')) continue;
+		const paramPath = JSON.parse(encodedPath) as ParamPath;
 		const rect = element.getBoundingClientRect();
 		const x = (rect.left + rect.right) / 2;
 		const y = (rect.top + rect.bottom) / 2;
 		if (x < viewport.left || x > viewport.right) continue;
-		geometry.keyframes.push({ selection: { layerId, target, paramId, keyframeId }, x, y });
+		geometry.keyframes.push({ selection: { layerId, target, paramPath, keyframeId }, x, y });
 	}
 	return geometry;
 }
@@ -757,10 +770,10 @@ function onKeyframeMoveStart(event: PointerEvent, point: TimelineKeyframeSelecti
 	const stretchSelection = event.shiftKey ? getTimelineStretchSelection(keyframeEntries.value.map(entry => entry.selection), selection.value, point) : [];
 	const stretchKeys = new Set(stretchSelection.map(keyframeSelectionKey));
 	const stretchEntries = keyframeEntries.value.filter(entry => stretchKeys.has(keyframeSelectionKey(entry.selection)));
-	const laneEntries = stretchEntries.filter(entry => entry.selection.target === point.target && entry.selection.paramId === point.paramId);
+	const laneEntries = stretchEntries.filter(entry => entry.selection.target === point.target && paramPathKey(entry.selection.paramPath) === paramPathKey(point.paramPath));
 	const stretch = event.shiftKey ? createKeyframeStretch(laneEntries.map(entry => ({ id: entry.selection.keyframeId, x: entry.x })), point.keyframeId,
 		stretchEntries.map(entry => {
-			const ids = new Set(stretchSelection.filter(point => point.target === entry.selection.target && point.paramId === entry.selection.paramId).map(point => point.keyframeId));
+			const ids = new Set(stretchSelection.filter(point => point.target === entry.selection.target && paramPathKey(point.paramPath) === paramPathKey(entry.selection.paramPath)).map(point => point.keyframeId));
 			return { x: entry.x, ...keyframeMoveBounds(entry.keyframes, ids, entry.selection.keyframeId) };
 		})) : null;
 	if (stretch != null) {
@@ -781,7 +794,7 @@ function onKeyframeMoveStart(event: PointerEvent, point: TimelineKeyframeSelecti
 		return [layer.id, getTimelineSnapCandidates(snapSettings.value, otherTimes, xTicksWithHalf.value, localTimes)];
 	}));
 	const points = entries.filter(entry => stretch == null || keyframeSelectionKey(entry.selection) === key).map(entry => {
-		const ids = new Set(current.keyframes.filter(point => point.layerId === entry.selection.layerId && point.target === entry.selection.target && point.paramId === entry.selection.paramId).map(point => point.keyframeId));
+		const ids = new Set(current.keyframes.filter(point => point.layerId === entry.selection.layerId && point.target === entry.selection.target && paramPathKey(point.paramPath) === paramPathKey(entry.selection.paramPath)).map(point => point.keyframeId));
 		const bounds = stretch ?? keyframeMoveBounds(entry.keyframes, ids, entry.selection.keyframeId);
 		return { time: entry.time, minDelta: bounds.minDelta, maxDelta: bounds.maxDelta, snapTimes: candidatesByLayer.get(entry.selection.layerId) ?? [] };
 	});
@@ -898,19 +911,13 @@ function showAddInlineNodeMenu() {
 	disposeEffectPicker = dispose;
 }
 
-function onVisualModuleLayerParamEdit(event: ParamEdit, target: 'module' | 'compositing' | 'audio') {
+function onTimelineLayerParamEdit(event: ParamEdit, target: TimelineParameterTarget) {
 	const layer = selectedLayer.value;
-	// TODO: struct / arrayの子の編集・要素操作。現在のカスタムパラメータ編集UIは末端の型だけを扱う。
-	if (layer == null || event.paramPath.length !== 1) return;
-	if (event.kind === 'node' || event.kind === 'externalCustomParameterInput' || event.kind === 'addElement' || event.kind === 'removeElement') return;
+	if (layer == null || event.kind === 'node' || event.kind === 'externalCustomParameterInput') return;
 	if (event.kind === 'inputSource' && (event.inputSource === 'node' || event.inputSource === 'externalCustomParameterInput')) return;
 	appStateManager.commit('editTimelineLayerParam', {
-		sceneId: props.sceneId,
-		layerId: layer.id,
-		target,
-		paramId: String(event.paramPath[0]),
-		edit: event,
-	}, event.mergeKey != null ? `${layer.id}:${target}:${event.paramPath[0]}:${event.mergeKey}` : undefined);
+		sceneId: props.sceneId, layerId: layer.id, target, paramPath: event.paramPath, edit: event,
+	}, event.mergeKey != null ? JSON.stringify([layer.id, target, event.paramPath, event.mergeKey]) : undefined);
 }
 
 const audioError = ref<string | null>(null);
@@ -1007,7 +1014,7 @@ async function chooseClipSource(layerType: 'image' | 'video' | 'audio' | 'scene'
 
 async function addClip(layer: TimelineLayer, startMs: number) {
 	startMs = Math.round(startMs);
-	if (layer.layerType === 'effect' || getTimelineClipInsertionDuration(layer.clips, startMs) <= 0) return;
+	if (getTimelineClipInsertionDuration(layer.clips, startMs) <= 0) return;
 	const type = layer.layerType;
 	const source = type === 'image' || type === 'video' || type === 'audio' || type === 'scene' ? await chooseClipSource(type) : null;
 	if (disposed || !sceneLayers.value.includes(layer)) return;
@@ -1099,6 +1106,23 @@ function pause() {
 	previewPlayback.pauseTimeline();
 }
 
+function showAddEffectLayerMenu() {
+	const sceneId = props.sceneId;
+	const startMs = Math.max(0, time.value);
+	disposeEffectPicker?.();
+	const { dispose } = ui.popup(GsEffectPicker, {}, {
+		chosen: definition => {
+			if (props.sceneId !== sceneId) return;
+			const layer = createEffectTimelineLayer(definition, startMs);
+			appStateManager.commit('addTimelineLayer', { sceneId, layer });
+			selectLayer(layer);
+			previewPlayback.seekTimeline(layer.clips[0].startMs);
+		},
+		closed: () => { dispose(); if (disposeEffectPicker === dispose) disposeEffectPicker = undefined; },
+	});
+	disposeEffectPicker = dispose;
+}
+
 function showAddLayerMenu(ev: PointerEvent) {
 	ui.popupMenu([{
 		text: 'Visual Module (Inline)', icon: 'ti ti-chart-dots-3', action: () => {
@@ -1107,7 +1131,7 @@ function showAddLayerMenu(ev: PointerEvent) {
 			selectLayer(layer);
 			previewPlayback.seekTimeline(layer.clips[0].startMs);
 		},
-	}, { text: 'Visual Module (Reference)', icon: 'ti ti-chart-dots-3', action: addReferencedModuleLayer },
+	}, { text: 'Effect', icon: 'ti ti-sparkles', action: showAddEffectLayerMenu }, { text: 'Visual Module (Reference)', icon: 'ti ti-chart-dots-3', action: addReferencedModuleLayer },
 	{ text: 'Image', icon: 'ti ti-photo', action: () => addMediaLayer('image') },
 	{ text: 'Video', icon: 'ti ti-video', action: () => addMediaLayer('video') },
 	{ text: 'Audio', icon: 'ti ti-music', action: () => addMediaLayer('audio') },

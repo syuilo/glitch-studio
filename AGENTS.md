@@ -53,7 +53,7 @@ sharedは、tree-shakableであることが求められます。
 - `NodeOutputReference` はVisual Module内の接続情報、`NodeOutput` は解決済みの出力、`ShaderInput` はエフェクトが読む入力です。GPU用の汎用ヘルパーにノードやモジュールの型を要求せず、必要なサンプリング設定やリソースだけを渡します。
 - 共通化は責務が一致する範囲で行います。型を共有するためだけに、子のドメインへ親固有のフィールドを追加したり、あらゆる利用場所を含む巨大な型を作ったりしないでください。
 
-**現在の意図的な例外:** `ParameterBinding` の `node` / `externalCustomParameterInput` は本来Visual Module側の拡張ですが、実装を複雑化させないため共通の `types.ts` に含めています。この型が共通であることは、全ドメインで全種類のBindingを使えるという意味ではありません。レイヤーやliveからモジュールへ渡す引数、およびタイムラインの合成設定では、この2種類を除外します。この例外を理由に他の逆依存を増やさないでください。
+**現在の意図的な例外:** `ParameterBinding` の `node` / `externalCustomParameterInput` は本来Visual Module側、`layerInput` は本来エフェクトレイヤー側の拡張ですが、実装を複雑化させないため共通の `types.ts` に含めています。この型が共通であることは、全ドメインで全種類のBindingを使えるという意味ではありません。レイヤーやliveからモジュールへ渡す引数、およびタイムラインの合成設定では、この3種類を除外します。エフェクトレイヤーのパラメータでは `layerInput` だけを許可し、Visual Module内部では使用できません。この例外を理由に他の逆依存を増やさないでください。
 
 ### DataTypeとParameterの定義
 
@@ -131,6 +131,15 @@ Visual Module内で別のVisual Moduleを通常のエフェクトのように使
 - transformはレイヤーの出力全体に適用します。背景を加工する処理の中心・作用範囲だけを動かす機能ではありません。素材内のoriginを支点にfit後の素材を拡縮→回転し、その支点を画面上のpositionへ配置します。範囲外は透明です。positionの1は画面幅/高さの半分、回転の1は時計回り180度です。position・origin・scaleはvectorで、負の倍率は反転、0は透明化として扱います。
 - originは透明な余白を含む入力テクスチャ全体を基準とし、中央が[0, 0]、左下が[-1, -1]、右上が[1, 1]です。範囲外も許容します。Visual Moduleなども出力テクスチャの寸法を使い、uniform出力にはタイムラインの画面サイズを仮想的な素材寸法として与えます。originとpositionの初期値は[0, 0]です。無回転・等倍でもoriginを変えると配置が変わります。Transformエフェクトのtranslationは従来どおり移動量です。
 - 変形と合成はタイムライン専用の1パスで行い、VisualModuleRendererは合成設定を扱いません。無変形・opacity=1の置き換えは元のNodeOutputをそのまま受け渡します。
+
+### エフェクトレイヤー
+
+- `TimelineEffectLayer` はエフェクトの種類・パラメータ・解像度を所有し、クリップは時間情報だけを所有します。作成後のエフェクト種別変更は扱いません。Visual Moduleを経由せず `EffectRenderer` をクリップごとに使用し、区間外では破棄します。
+- `EffectDefinition.kind` は `modify` / `generate` を明示します。作成時、modifyは主入力を `layerInput`、合成を `replace` にし、generateは定義の入力初期値と `normal` を使います。主入力がnullなら自動割当を行いません。modifyの主入力のリセットも `layerInput` に戻しますが、手動の入力・合成変更は互いに連動しません。
+- `layerInput` は同じScene内の下層の合成結果です。下層がなければ透明黒です。配列・構造体内を含め `canNode: true` の末端にだけ指定でき、主入力以外にも指定できます。サンプリング設定の既定値は `cover` / `repeatMirrored` / `linear` です。入力型はcolorとして既存のノード互換性判定を使い、UIの型安全設定が有効なら不一致の接続を禁止、無効なら警告付きで許可します。
+- 直接のパラメータ編集・選択・キー操作は `['items', 'item-id', 'color']` のようなIDパスを使います。配列要素の削除で内部のキーも消え、UndoでIDごと復元します。キー・式の評価時刻とスコープは通常のレイヤー引数と同じです。`EffectRenderContext.time` だけはクリップの内容時刻を秒で渡します。
+- 出力は `primaryOutput` だけを使用し、nullの場合は合成をスキップします。タイムラインに不向きなエフェクトも候補から除外しません。Player入力、シーク前の履歴再現などは保証しません。
+- 解像度はノードと共通の `EffectResolution`（`auto` / `context` / `customAbsolute`）で、初期値はautoです。autoは素材固有寸法・解像度用入力のテクスチャ寸法・所属Sceneの順で解決し、倍率は一度だけ適用します。
 
 ### シーンとノードの解像度
 

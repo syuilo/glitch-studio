@@ -3,6 +3,7 @@ import { genEmptyValue } from '@glitch/shared/utility/misc.ts';
 import { ParameterEvaluator } from '@glitch/shared/parameter-evaluator.js';
 import { validateEnumParameterValue } from '@glitch/shared/parameter.ts';
 import { createTimelineLayerEvaluationScope } from '@glitch/shared/timeline/evaluation-scope.ts';
+import { validateTimelineParameterTree } from '@glitch/shared/timeline/parameter-binding.ts';
 import type { VisualModuleCustomParameterId, VisualModule } from '@glitch/shared/visual-module/types.ts';
 import type { NodeOutput } from './node-output.ts';
 import type { TimelineVisualModuleLayer, TimelineInlineVisualModuleLayer } from '@glitch/shared/timeline/types.ts';
@@ -34,6 +35,7 @@ export function createVisualModuleTimelineLayer(
 				// 主入力はuniformでもCPU式には公開せず、Inノードからのみ読む。
 				if (paramInputs.has(def.id)) continue;
 				const value = layer.visualModuleParamValues[def.id];
+				validateTimelineParameterTree(def, value ?? def.defaultValue);
 				// 空のenumキーフレームには有効な既定値が必要。保存済みの無効値は置換せず下で報告する。
 				const enumFallback = value?.inputSource === 'keyframesTimelineInline' ? def.defaultValue.value : undefined;
 				const evaluated = value == null ? def.defaultValue.value : evaluator.evaluate(value, evaluationContext,

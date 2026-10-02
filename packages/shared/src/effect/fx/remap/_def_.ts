@@ -3,6 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'remap',
 	displayName: 'Remap',
+	kind: 'modify',
 	tags: [],
 	paramDefs: {
 		input: { dataType: { kind: 'scalar' }, ui: { label: 'Input', control: { controlType: 'number' } }, canNode: true, defaultValue: { inputSource: 'literal', value: 0 } },

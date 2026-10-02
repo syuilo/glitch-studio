@@ -22,8 +22,8 @@ async function runGpuTest(entry, minimumChecks) {
 			response.end(bundle.outputFiles[0].text);
 		} else {
 			response.setHeader('Content-Type', 'text/html');
-			response.end(`<script type="module">import { run } from '/test.js';
-try { await fetch('/result', { method: 'POST', body: JSON.stringify({ passed: await run() }) }); }
+			response.end(`<script type="module">
+try { const { run } = await import('/test.js'); await fetch('/result', { method: 'POST', body: JSON.stringify({ passed: await run() }) }); }
 catch (error) { await fetch('/result', { method: 'POST', body: JSON.stringify({ error: error.stack }) }); }</script>`);
 		}
 	});
@@ -55,6 +55,6 @@ catch (error) { await fetch('/result', { method: 'POST', body: JSON.stringify({ 
 // モックでは検出できないシェーダーとbindingの不整合を検出する。CIではChromeのパスを明示する。
 test('renders generated shader inputs on WebGPU', { skip: !process.env.CHROME_PATH, timeout: 60000 }, () => runGpuTest('./helpers/shader-input-gpu.ts', 20));
 
-// 【分離したエフェクトと既存モジュールの描画・履歴を実GPUで検証する】
-// テクスチャの参照だけでなく、複数出力・履歴交換・バイパス・リサイズ後の画素を確認する。
-test('renders extracted effects and visual modules on WebGPU', { skip: !process.env.CHROME_PATH, timeout: 60000 }, () => runGpuTest('./helpers/effect-renderer-gpu.ts', 8));
+// 【分離したエフェクト・モジュール・エフェクトレイヤーの描画を実GPUで検証する】
+// 複数出力・履歴交換・バイパス・リサイズに加え、レイヤーの下層入力・キー・合成後の画素を確認する。
+test('renders extracted effects, visual modules and timeline effects on WebGPU', { skip: !process.env.CHROME_PATH, timeout: 60000 }, () => runGpuTest('./helpers/effect-renderer-gpu.ts', 14));

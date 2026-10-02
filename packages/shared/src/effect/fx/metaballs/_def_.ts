@@ -5,6 +5,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'metaballs',
 	displayName: 'Metaballs',
+	kind: 'generate',
 	tags: [],
 	paramDefs: {
 		background: { dataType: { kind: 'color' }, ui: { label: 'Background', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 1] } },

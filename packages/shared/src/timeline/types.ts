@@ -3,6 +3,7 @@ import type { VisualModule } from '../visual-module/types.ts';
 import type { timelineCompositingParamDefs } from './timeline-compositing.ts';
 import type { TimelineClip, TimelineAssetClip, TimelineVideoClip, TimelineSceneClip } from './clip.ts';
 import type { TimelineSceneResolution } from './scene-resolution.ts';
+import type { EffectResolution } from '../effect/resolution.ts';
 
 type TimelineLayerBase<Clip extends TimelineClip> = {
 	id: string;
@@ -19,7 +20,8 @@ type TimelineVisualLayerBase = {
 	compositingParamValues: Record<keyof typeof timelineCompositingParamDefs, TimelineParameterBinding>;
 };
 
-export type TimelineParameterBinding = Exclude<ParameterBinding, { inputSource: 'node' | 'externalCustomParameterInput' }>;
+export type TimelineParameterBinding = Exclude<ParameterBinding, { inputSource: 'node' | 'externalCustomParameterInput' | 'layerInput' }>;
+export type TimelineEffectParameterBinding = TimelineParameterBinding | Extract<ParameterBinding, { inputSource: 'layerInput' }>;
 
 export type TimelineVisualModuleLayer = TimelineLayerBase<TimelineClip> & TimelineVisualLayerBase & {
 	layerType: 'visualModule';
@@ -33,10 +35,11 @@ export type TimelineInlineVisualModuleLayer = TimelineLayerBase<TimelineClip> & 
 	visualModuleParamValues: Record<string, TimelineParameterBinding>;
 };
 
-export type TimelineEffectLayer = TimelineLayerBase<TimelineClip> & TimelineVisualLayerBase & { // TODO
+export type TimelineEffectLayer = TimelineLayerBase<TimelineClip> & TimelineVisualLayerBase & {
 	layerType: 'effect';
 	effectId: string;
-	effectParamValues: Record<string, TimelineParameterBinding>;
+	effectParamValues: Record<string, TimelineEffectParameterBinding>;
+	resolution: EffectResolution;
 };
 
 export type TimelineAudioLayer = TimelineLayerBase<TimelineAssetClip> & TimelineAudioLayerBase & {

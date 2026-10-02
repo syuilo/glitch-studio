@@ -3,12 +3,13 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'testStructArray',
 	displayName: 'Test of Struct and Array',
+	kind: 'generate',
 	tags: [],
 	paramDefs: {
 		foo: {
 			dataType: { kind: 'struct', fields: { node: { kind: 'color' } } },
 			ui: { label: 'Foo', control: { fields: { node: { label: 'Node', control: {} } } } },
-			defaultValue: { inputSource: 'literal', value: { node: { inputSource: 'node', nodeId: null, outputPort: null } } },
+			defaultValue: { inputSource: 'literal', value: { node: { inputSource: 'literal', value: [0, 0, 0, 0] } } },
 			fields: { node: { canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } } },
 		},
 		bars: {

@@ -1,20 +1,20 @@
 import { computed } from 'vue';
 import type { Ref } from 'vue';
-import type { NodeOutputReference } from '@glitch/shared/visual-module/types.ts';
+import type { ShaderInputSampling } from '@glitch/shared/shader-input.ts';
 import type { MenuItem } from '@/types/menu.ts';
 import { i18n } from '@/i18n.ts';
 
 // NOTE: 実装の簡略化のため、このメニューの表示中にconnectionRefの内容がUndoなどで変化した場合はエッジケースとして扱い対応はしません。
 // (メニューを開いている間にそのような操作をすることはあまり無いと考えられます。そもそもメニュー表示中は、メニュー項目の選択以外の操作が制限されます)
 
-export function getNodeInputSamplingMenuItems(connectionRef: Ref<NodeOutputReference>, update: (connection: NodeOutputReference) => void): MenuItem[] {
+export function getNodeInputSamplingMenuItems<T extends ShaderInputSampling>(connectionRef: Ref<T>, update: (connection: T) => void): MenuItem[] {
 	return [{
 		type: 'radio',
 		text: 'Fit Mode',
 		caption: computed(() => i18n.t(`_FitModes.${connectionRef.value.fitMode}`)),
 		ref: computed({
 			get: () => connectionRef.value.fitMode,
-			set: (fitMode: NodeOutputReference['fitMode']) => {
+			set: (fitMode: ShaderInputSampling['fitMode']) => {
 				update({ ...connectionRef.value, fitMode });
 			},
 		}),
@@ -25,7 +25,7 @@ export function getNodeInputSamplingMenuItems(connectionRef: Ref<NodeOutputRefer
 		caption: computed(() => i18n.t(`_WrapModes.${connectionRef.value.wrapMode}`)),
 		ref: computed({
 			get: () => connectionRef.value.wrapMode,
-			set: (wrapMode: NodeOutputReference['wrapMode']) => {
+			set: (wrapMode: ShaderInputSampling['wrapMode']) => {
 				update({ ...connectionRef.value, wrapMode });
 			},
 		}),
@@ -36,7 +36,7 @@ export function getNodeInputSamplingMenuItems(connectionRef: Ref<NodeOutputRefer
 		caption: computed(() => i18n.t(`_FilterModes.${connectionRef.value.filterMode}`)),
 		ref: computed({
 			get: () => connectionRef.value.filterMode,
-			set: (filterMode: NodeOutputReference['filterMode']) => {
+			set: (filterMode: ShaderInputSampling['filterMode']) => {
 				update({ ...connectionRef.value, filterMode });
 			},
 		}),

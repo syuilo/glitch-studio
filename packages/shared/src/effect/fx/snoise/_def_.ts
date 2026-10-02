@@ -3,6 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'snoise',
 	displayName: 'snoise',
+	kind: 'generate',
 	tags: [],
 	paramDefs: {
 		density: { dataType: { kind: 'vector' }, ui: { label: 'Density', control: { controlType: 'vector', min: 1, max: 1000, logarithmic: true } }, canNode: true, defaultValue: { inputSource: 'literal', value: [2, 2] } },

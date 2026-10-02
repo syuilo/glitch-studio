@@ -3,6 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'rainDropsOnWindow1',
 	displayName: 'Rain Drops On Window (Type 1)',
+	kind: 'modify',
 	tags: [],
 	paramDefs: {
 		input: { dataType: { kind: 'color' }, ui: { label: 'Input', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },

@@ -3,6 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'meshGradient',
 	displayName: 'Mesh Gradient',
+	kind: 'generate',
 	tags: [],
 	paramDefs: {
 		colors: {

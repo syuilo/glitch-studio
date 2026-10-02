@@ -2,11 +2,13 @@ type InputFitMode = 'stretch' | 'cover' | 'contain';
 type InputWrapMode = 'repeat' | 'repeatMirrored' | 'clamp' | 'transparent';
 type InputFilterMode = 'nearest' | 'linear';
 
+export type ShaderInputSampling = { fitMode: InputFitMode; wrapMode: InputWrapMode; filterMode: InputFilterMode };
+
 export type ShaderInput =
 	| { kind: 'uniform'; value: readonly number[] }
-	| { kind: 'texture'; texture: GPUTexture; fitMode: InputFitMode; wrapMode: InputWrapMode; filterMode: InputFilterMode };
+	| ({ kind: 'texture'; texture: GPUTexture } & ShaderInputSampling);
 
-export function textureShaderInput(texture: GPUTexture, reference: { fitMode: InputFitMode; wrapMode: InputWrapMode; filterMode: InputFilterMode }): ShaderInput {
+export function textureShaderInput(texture: GPUTexture, reference: ShaderInputSampling): ShaderInput {
 	return { kind: 'texture', texture, fitMode: reference.fitMode, wrapMode: reference.wrapMode, filterMode: reference.filterMode };
 }
 

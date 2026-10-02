@@ -2,6 +2,7 @@ import { getTimelineClipEnd, validateTimelineClips } from './timing.ts';
 import type { TimelineScene } from './types.ts';
 import { validateSceneResolution } from './scene-resolution.ts';
 import { validateTimelineParameterBinding } from './parameter-binding.ts';
+import { validateEffectResolution } from '../effect/resolution.ts';
 
 /** 子の長さを再帰計算しない。配置済みの区間は、参照先の編集でも変えない。 */
 export function getSceneDuration(scene: TimelineScene): number {
@@ -34,9 +35,12 @@ export function validateTimelineScenes(scenes: readonly TimelineScene[]): void {
 				...('audioParamValues' in layer ? [layer.audioParamValues] : []),
 				...('compositingParamValues' in layer ? [layer.compositingParamValues] : []),
 				...('visualModuleParamValues' in layer ? [layer.visualModuleParamValues] : []),
-				...('effectParamValues' in layer ? [layer.effectParamValues] : []),
 			];
 			for (const values of parameterGroups) for (const binding of Object.values(values)) validateTimelineParameterBinding(binding);
+			if (layer.layerType === 'effect') {
+				validateEffectResolution(layer.resolution);
+				for (const binding of Object.values(layer.effectParamValues)) validateTimelineParameterBinding(binding, true);
+			}
 			if (layer.layerType === 'scene') for (const clip of layer.clips) visit(clip.sceneId);
 		}
 		path.pop();

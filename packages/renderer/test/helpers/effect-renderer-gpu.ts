@@ -10,6 +10,7 @@ import { constantShaderInput } from '../../../shared/src/shader-input.ts';
 import type { RuntimeEffectParameters } from '../../../shared/src/effect/effect-implementation.ts';
 import type { VisualModule, VisualModuleEffectNode } from '../../../shared/src/visual-module/types.ts';
 import vertexCode from '../../src/vertex.wgsl?raw';
+import { checkEffectTimelineLayers } from './effect-timeline-layer-gpu.ts';
 
 export async function run() {
 	const adapter = await navigator.gpu.requestAdapter();
@@ -54,6 +55,7 @@ export async function run() {
 	}
 	try {
 		const completed = await checkEffectRenderers(device, vertex, read);
+		completed.push(...await checkEffectTimelineLayers(device, vertex, read));
 		const error = await device.popErrorScope();
 		if (error) throw new Error(error.message);
 		return completed;

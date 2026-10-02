@@ -97,6 +97,8 @@ export class ParameterEvaluator {
 	 * 渡されたparameterBindingを評価した結果を返す
 	 */
 	public evaluate(parameterBinding: ParameterBinding, context: ParameterEvaluationContext, fallback: any) {
+		// レイヤー入力は画像の参照であり、CPU式の値ではない。利用側で解決し、他スコープへの流入を拒否する。
+		if (parameterBinding.inputSource === 'layerInput') throw new Error('Layer input is only available in effect layer parameters');
 		const readGraph = this.graphReader(context);
 		const getEnvironmentVariableValue = (variable: string) => Object.hasOwn(context.variables, variable) ? deepClone(context.variables[variable]) : undefined;
 

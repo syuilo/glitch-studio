@@ -1,7 +1,11 @@
+import { paramPathKey } from '@glitch/shared/parameter-path.ts';
+import type { ParamPath } from '@glitch/shared/parameter-path.ts';
+import type { TimelineParameterTarget } from './timeline-scene.ts';
+
 export type TimelineKeyframeSelection = {
 	layerId: string;
-	target: 'compositing' | 'module' | 'audio';
-	paramId: string;
+	target: TimelineParameterTarget;
+	paramPath: ParamPath;
 	keyframeId: string;
 };
 
@@ -23,7 +27,7 @@ export type TimelineSelectionGeometry = {
 };
 
 export function keyframeSelectionKey(selection: TimelineKeyframeSelection): string {
-	return JSON.stringify([selection.layerId, selection.target, selection.paramId, selection.keyframeId]);
+	return JSON.stringify([selection.layerId, selection.target, selection.paramPath, selection.keyframeId]);
 }
 
 export function getTimelineStretchSelection(keyframes: readonly TimelineKeyframeSelection[], selection: TimelineSelection, dragged: TimelineKeyframeSelection): TimelineKeyframeSelection[] {
@@ -32,7 +36,7 @@ export function getTimelineStretchSelection(keyframes: readonly TimelineKeyframe
 	// 部分選択がある場合は未選択キーを巻き込まない。選択なしで端点を操作するときだけレーン全体を扱う。
 	return keyframes.filter(point => point.layerId === dragged.layerId && (selected.size > 0
 		? selected.has(keyframeSelectionKey(point))
-		: point.target === dragged.target && point.paramId === dragged.paramId));
+		: point.target === dragged.target && paramPathKey(point.paramPath) === paramPathKey(dragged.paramPath)));
 }
 
 export function selectionRect(x1: number, y1: number, x2: number, y2: number): SelectionRect {

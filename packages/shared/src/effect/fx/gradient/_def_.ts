@@ -3,6 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'gradient',
 	displayName: 'Gradient',
+	kind: 'generate',
 	tags: [],
 	paramDefs: {
 		mode: { dataType: { kind: 'enum', options: ['linear', 'radial'] }, ui: { label: 'Type', control: { labels: { 'linear': 'Linear', 'radial': 'Radial' } } }, defaultValue: { inputSource: 'literal', value: 'linear' } },

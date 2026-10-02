@@ -1,9 +1,9 @@
 import { scaleResolution, type Resolution } from '@glitch/shared/resolution.ts';
-import type { EffectNodeResolution } from '@glitch/shared/visual-module/types.ts';
+import type { EffectResolution } from '@glitch/shared/effect/resolution.ts';
 
 /** GPUに触れずサイズを解決する。context/inputは計算用、intrinsic/customは倍率適用前の寸法。 */
 export function resolveEffectNodeResolution(options: {
-	setting: EffectNodeResolution;
+	setting: EffectResolution;
 	contextResolution: Resolution;
 	resolutionScale: number;
 	intrinsicResolution?: Resolution;

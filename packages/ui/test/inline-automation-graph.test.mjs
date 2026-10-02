@@ -118,7 +118,7 @@ test('round-trips and undoes discrete keyframe creation insertion and editing on
 			state.visualModules.value[0].paramDefs = [definition];
 			const layer = state.timelineScenes.value[0].layers[0];
 			if (inline) { layer.layerType = 'inlineVisualModule'; layer.visualModule = state.visualModules.value[0]; delete layer.visualModuleId; }
-			const target = { sceneId: 'scene', layerId: layer.id, paramId: 'gain' };
+			const target = { sceneId: 'scene', layerId: layer.id, paramPath: ['gain'] };
 			const create = COMMAND_DEFS.editTimelineLayerParam.create({ ...target, edit: { kind: 'inputSource', inputSource: 'keyframesTimelineInline' } });
 			create.execute(state);
 			const initial = structuredClone(layer.visualModuleParamValues.gain);
@@ -160,7 +160,7 @@ test('round-trips image assets and independently undoes timing, compositing and 
 	assert.deepEqual(layer.compositingParamValues, defaultCompositing());
 	assert.deepEqual(getLayerParameterTargets(layer), ['compositing']);
 	const timing = COMMAND_DEFS.editTimelineClipTiming.create({ ...target, edge: 'end', deltaMs: 55000 });
-	const opacity = COMMAND_DEFS.editTimelineLayerParam.create({ ...target, target: 'compositing', paramId: 'opacity', edit: { kind: 'inputSource', inputSource: 'keyframesTimelineInline' } });
+	const opacity = COMMAND_DEFS.editTimelineLayerParam.create({ ...target, target: 'compositing', paramPath: ['opacity'], edit: { kind: 'inputSource', inputSource: 'keyframesTimelineInline' } });
 	const source = COMMAND_DEFS.changeTimelineClipSource.create({ ...target, assetId: 'second' });
 	for (const command of [timing, opacity, source]) command.execute(state);
 	assert.equal(current().clips[0].contentOffsetMs, 0);
@@ -184,7 +184,7 @@ test('preserves image references through asset deletion and keeps duplicated set
 	const { state, layer, target, current } = imageFixture();
 	const copy = { ...structuredClone(layer), id: 'copy' };
 	COMMAND_DEFS.pasteTimelineLayer.create({ sceneId: 'scene', layer: copy, sourceLayerId: layer.id }).execute(state);
-	COMMAND_DEFS.editTimelineLayerParam.create({ ...target, target: 'compositing', paramId: 'opacity', edit: { kind: 'literal', value: 0.5 } }).execute(state);
+	COMMAND_DEFS.editTimelineLayerParam.create({ ...target, target: 'compositing', paramPath: ['opacity'], edit: { kind: 'literal', value: 0.5 } }).execute(state);
 	assert.equal(state.timelineScenes.value[0].layers.find(entry => entry.id === 'copy').compositingParamValues.opacity.value, 1);
 	const remove = COMMAND_DEFS.removeAsset.create({ assetId: 'first' });
 	remove.execute(state);
@@ -225,8 +225,8 @@ test('round-trips video settings and undoes trimmed timing and independent audio
 	const add = COMMAND_DEFS.addTimelineLayer.create({ sceneId: 'scene', layer, sourceDurationsMs: { clip: 10000 } });
 	add.execute(state);
 	const settings = COMMAND_DEFS.editVideoClipAudio.create({ ...target, audioEnabled: false });
-	const fit = COMMAND_DEFS.editTimelineLayerParam.create({ ...target, target: 'compositing', paramId: 'fitMode', edit: { kind: 'literal', value: 'cover' } });
-	const volume = COMMAND_DEFS.editTimelineLayerParam.create({ ...target, target: 'audio', paramId: 'volume', edit: { kind: 'expression', value: 'TIME_MS / 1000' } });
+	const fit = COMMAND_DEFS.editTimelineLayerParam.create({ ...target, target: 'compositing', paramPath: ['fitMode'], edit: { kind: 'literal', value: 'cover' } });
+	const volume = COMMAND_DEFS.editTimelineLayerParam.create({ ...target, target: 'audio', paramPath: ['volume'], edit: { kind: 'expression', value: 'TIME_MS / 1000' } });
 	const timing = COMMAND_DEFS.editTimelineClipTiming.create({ ...target, edge: 'end', deltaMs: 1000, sourceDurationMs: 10000 });
 	for (const command of [settings, fit, volume, timing]) command.execute(state);
 	assert.deepEqual(state.timelineScenes.value[0].layers.find(entry => entry.id === 'video').compositingParamValues.fitMode, { inputSource: 'literal', value: 'cover' });
@@ -251,7 +251,7 @@ test('round-trips audio layers and undoes timing, volume and removal', async () 
 	state.assets = { value: [{ id: 'sound', fileDataType: 'audio/wav', fileData: new Blob() }] };
 	const add = COMMAND_DEFS.addTimelineLayer.create({ sceneId: 'scene', layer, sourceDurationsMs: { clip: 2000 } });
 	add.execute(state);
-	const volume = COMMAND_DEFS.editTimelineLayerParam.create({ sceneId: 'scene', layerId: 'audio', target: 'audio', paramId: 'volume', edit: { kind: 'expression', value: 'TIME_MS / 1000' } });
+	const volume = COMMAND_DEFS.editTimelineLayerParam.create({ sceneId: 'scene', layerId: 'audio', target: 'audio', paramPath: ['volume'], edit: { kind: 'expression', value: 'TIME_MS / 1000' } });
 	volume.execute(state);
 	const timing = COMMAND_DEFS.moveTimelineClips.create({ sceneId: 'scene', clips: [{ layerId: 'audio', clipId: 'clip' }], deltaMs: 100 });
 	timing.execute(state);
@@ -277,7 +277,7 @@ test('undoes and redoes compositing expressions without changing module paramete
 	const layer = state.timelineScenes.value[0].layers[0];
 	layer.visualModuleParamValues.opacity = { inputSource: 'literal', value: 0.8 };
 	const command = COMMAND_DEFS.editTimelineLayerParam.create({ sceneId: 'scene',
-		layerId: layer.id, target: 'compositing', paramId: 'opacity', edit: { kind: 'expression', value: 'TIME_MS / 1000' },
+		layerId: layer.id, target: 'compositing', paramPath: ['opacity'], edit: { kind: 'expression', value: 'TIME_MS / 1000' },
 	});
 	command.execute(state);
 	assert.deepEqual(layer.compositingParamValues.opacity, { inputSource: 'expression', expression: 'TIME_MS / 1000' });
@@ -295,7 +295,7 @@ test('preserves compositing graphs and settings through edits and serialization'
 	const { state } = fixture();
 	const layer = state.timelineScenes.value[0].layers[0];
 	const edit = (paramId, edit) => {
-		const command = COMMAND_DEFS.editTimelineLayerParam.create({ sceneId: 'scene', layerId: layer.id, target: 'compositing', paramId, edit });
+		const command = COMMAND_DEFS.editTimelineLayerParam.create({ sceneId: 'scene', layerId: layer.id, target: 'compositing', paramPath: [paramId], edit });
 		command.execute(state);
 		return command;
 	};
@@ -353,7 +353,7 @@ function fixture() {
 	const initial = { inputSource: 'literal', value: 3 };
 	const node = { id: 'node', type: 'effect', resolution: { mode: 'context' }, effectId: 'test', params: { values: { inputSource: 'literal', value: [{ id: 'first', binding: initial }] } } };
 	const state = {
-		visualModules: { value: [{ id: 'module', nodes: [node], primaryInputId: null, paramDefs: [{ id: 'gain', defaultValue: initial }] }] },
+		visualModules: { value: [{ id: 'module', nodes: [node], primaryInputId: null, paramDefs: [{ ...keyframeDefinition({ kind: 'scalar' }, initial.value), id: 'gain' }] }] },
 		timelineScenes: { value: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [{ id: 'layer', layerType: 'visualModule', visualModuleId: 'module', name: 'Layer', clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 1000 }], visualModuleParamValues: {}, compositingParamValues: defaultCompositing(), automationGraphs: [] }] }] },
 	};
 	return { state, node, target: { visualModuleId: 'module', nodeId: 'node', paramPath: ['values', 'first'] } };
@@ -403,7 +403,7 @@ test('restores the first and final snapshots of a merged graph drag', () => {
 // レイヤーの設定変更もUndo/Redoでき、切り替え前の「既定値参照」へ戻せる。
 test('undoes inline graph edits and creation on timeline layers', () => {
 	const { state } = fixture();
-	const target = { layerId: 'layer', paramId: 'gain' };
+	const target = { layerId: 'layer', paramPath: ['gain'] };
 	const layer = state.timelineScenes.value[0].layers[0];
 	const create = COMMAND_DEFS.editTimelineLayerParam.create({ sceneId: 'scene', ...target, edit: { kind: 'inputSource', inputSource: 'automationGraphInline' } });
 	create.execute(state);
@@ -434,7 +434,7 @@ test('targets scene definitions explicitly across layer parameter undo and redo'
 	const other = structuredClone(original);
 	other.id = 'other';
 	state.timelineScenes.value.push(other);
-	const edit = COMMAND_DEFS.editTimelineLayerParam.create({ sceneId: 'scene', layerId: 'layer', target: 'compositing', paramId: 'opacity', edit: { kind: 'literal', value: 0.25 } });
+	const edit = COMMAND_DEFS.editTimelineLayerParam.create({ sceneId: 'scene', layerId: 'layer', target: 'compositing', paramPath: ['opacity'], edit: { kind: 'literal', value: 0.25 } });
 	edit.execute(state);
 	assert.equal(original.layers[0].compositingParamValues.opacity.value, 0.25);
 	assert.equal(other.layers[0].compositingParamValues.opacity.value, 1);

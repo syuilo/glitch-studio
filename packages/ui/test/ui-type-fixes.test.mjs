@@ -48,7 +48,7 @@ test('round trips original asset files without a decoded data field', async () =
 		id: String(index), name: type, width: 4, height: 2,
 		fileDataType: type, fileData: new Blob([new Uint8Array([index, 42, 255])], { type }),
 	}));
-	const encoded = await encodeProjectFile({ assets });
+	const encoded = await encodeProjectFile({ assets, timelineScenes: [] });
 	const stored = decode(encoded);
 	const restored = decodeProjectFile(encoded);
 	for (let index = 0; index < assets.length; index++) {

@@ -432,7 +432,7 @@ test('refreshes audio only for audio content, source files or loop duration chan
 	app.previewPlayback.playTimeline();
 	try {
 		assert.equal(starts.length, 1);
-		manager.commit('editTimelineLayerParam', { sceneId: 'scene', layerId: 'visual', target: 'compositing', paramId: 'opacity', edit: { kind: 'literal', value: 0.5 } });
+		manager.commit('editTimelineLayerParam', { sceneId: 'scene', layerId: 'visual', target: 'compositing', paramPath: ['opacity'], edit: { kind: 'literal', value: 0.5 } });
 		await nextTick();
 		manager.undo();
 		await nextTick();
@@ -443,7 +443,7 @@ test('refreshes audio only for audio content, source files or loop duration chan
 		manager.state.assets.value.push({ id: 'unused', fileData: new Blob(['unused']) });
 		await nextTick();
 		assert.equal(starts.length, 1);
-		manager.commit('editTimelineLayerParam', { sceneId: 'scene', layerId: 'audio', target: 'audio', paramId: 'volume', edit: { kind: 'literal', value: 0.3 } });
+		manager.commit('editTimelineLayerParam', { sceneId: 'scene', layerId: 'audio', target: 'audio', paramPath: ['volume'], edit: { kind: 'literal', value: 0.3 } });
 		await nextTick();
 		assert.equal(starts.length, 2);
 		manager.undo();

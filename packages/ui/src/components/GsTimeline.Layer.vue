@@ -36,8 +36,8 @@
 			</div>
 		</div>
 	</div>
-	<div v-for="param in keyframeParameters" :key="param.key" :class="$style.keyframesLane" :data-parameter-target="param.target" :data-param-id="param.paramId">
-		<div :class="$style.side"><div style="padding-right: 10px;">{{ param.key }}</div></div>
+	<div v-for="param in keyframeParameters" :key="param.key" :class="$style.keyframesLane" :data-parameter-target="param.target" :data-param-path="paramPathKey(param.paramPath)">
+		<div :class="$style.side"><div style="padding-right: 10px;">{{ param.label }}</div></div>
 		<div :class="$style.tl">
 			<XKeyframes
 				:keyframes="param.binding.keyframesTimeline.keyframes"
@@ -45,8 +45,8 @@
 				:tlElWidth="tlElWidth"
 				:tlRangeX="tlRangeX"
 				:tlPosX="tlPosX"
-				:selectedKeyframeIds="selectedKeyframes.filter(point => point.layerId === layer.id && point.target === param.target && point.paramId === param.paramId).map(point => point.keyframeId)"
-				@dragStart="(event, keyframeId) => emit('keyframeDragStart', event, { layerId: layer.id, target: param.target, paramId: param.paramId, keyframeId })"
+				:selectedKeyframeIds="selectedKeyframes.filter(point => point.layerId === layer.id && point.target === param.target && paramPathKey(point.paramPath) === paramPathKey(param.paramPath)).map(point => point.keyframeId)"
+				@dragStart="(event, keyframeId) => emit('keyframeDragStart', event, { layerId: layer.id, target: param.target, paramPath: param.paramPath, keyframeId })"
 				@insert="onKeyframeInsert(param, $event)"
 			/>
 		</div>
@@ -56,6 +56,8 @@
 
 <script lang="ts" setup>
 import { computed } from 'vue';
+import { paramPathKey } from '@glitch/shared/parameter-path.ts';
+import { effectDefinitions } from '@glitch/shared/effect/effect-definitions.ts';
 import { insertInlineKeyframe } from '@/utility/keyframes-timeline.ts';
 import { getSceneDuration } from '@glitch/shared/timeline/scenes.ts';
 import { getTimelineClipEnd } from '@glitch/shared/timeline/timing.ts';
@@ -67,9 +69,8 @@ import type { TimelineKeyframeSelection, TimelineClipSelection } from '@/utility
 import type { TimelineClipTicks } from '@/utility/timeline-ticks.ts';
 import type { TimelineClipMediaInfo } from '@/utility/timeline-clip-media.ts';
 import type { TimelineLayer } from '@glitch/shared/timeline/types.ts';
-import type { ParameterBinding } from '@glitch/shared/types.ts';
 import { formatTimelineTimecode } from '@/utility/timeline-ticks.ts';
-import { getLayerParameterTargets, getLayerParameterValues, getLayerParameterDefinition } from '@/utility/timeline-scene.ts';
+import { resolveLayerParameter, getLayerKeyframeParameters } from '@/utility/timeline-scene.ts';
 import { appStateManager } from '@/app.ts';
 
 const props = defineProps<{
@@ -118,7 +119,7 @@ function clipLabel(clip: Clip): string {
 	if ('sceneId' in clip) return appStateManager.state.timelineScenes.value.find(scene => scene.id === clip.sceneId)?.name ?? 'Missing scene';
 	const layer = props.layer;
 	if (layer.layerType === 'visualModule') return appStateManager.state.visualModules.value.find(module => module.id === layer.visualModuleId)?.name ?? 'Missing module';
-	return layer.layerType === 'inlineVisualModule' ? 'Inline Visual Module' : 'Effect';
+	return layer.layerType === 'inlineVisualModule' ? 'Inline Visual Module' : layer.layerType === 'effect' ? effectDefinitions[layer.effectId].displayName : layer.name;
 }
 
 function sourceDuration(clip: Clip): number | null {
@@ -137,32 +138,23 @@ function onBackgroundDoubleClick(event: MouseEvent) {
 	if (startMs >= 0) emit('addClip', startMs);
 }
 
-type InlineKeyframesTimeline = Extract<ParameterBinding, { inputSource: 'keyframesTimelineInline' }>;
-type KeyframeParameter = { key: string; paramId: string; target: 'compositing' | 'module' | 'audio'; binding: InlineKeyframesTimeline };
-const keyframeParameters = computed(() => {
-	const result: KeyframeParameter[] = [];
-	for (const target of getLayerParameterTargets(props.layer)) {
-		for (const [paramId, binding] of Object.entries(getLayerParameterValues(props.layer, target))) {
-			if (binding.inputSource === 'keyframesTimelineInline') result.push({ key: target + ':' + paramId, paramId, target, binding });
-		}
-	}
-	return result;
-});
+type KeyframeParameter = ReturnType<typeof getLayerKeyframeParameters>[number];
+const keyframeParameters = computed(() => getLayerKeyframeParameters(appStateManager.state, props.layer));
 
 function onKeyframeInsert(param: KeyframeParameter, x: number) {
 	const layer = props.layer;
-	const current = getLayerParameterValues(layer, param.target)[param.paramId];
+	const current = resolveLayerParameter(appStateManager.state, layer, param.target, param.paramPath).value;
 	if (current?.inputSource !== 'keyframesTimelineInline') return;
-	const definition = getLayerParameterDefinition(appStateManager.state, layer, param.target, param.paramId);
+	const definition = param.def;
 	if (!definition) return;
 	// キーはクリップの空白にも配置でき、挿入時の値もScene時刻で補間する。
 	const inserted = insertInlineKeyframe(current, definition, Math.round(x), Infinity);
 	if (!inserted) return;
 	if (inserted.value !== current) appStateManager.commit('editTimelineLayerParam', {
-		sceneId: props.sceneId, layerId: layer.id, target: param.target, paramId: param.paramId,
+		sceneId: props.sceneId, layerId: layer.id, target: param.target, paramPath: param.paramPath,
 		edit: { kind: 'keyframesTimelineInline', value: inserted.value },
 	});
-	emit('keyframeSelected', { layerId: layer.id, target: param.target, paramId: param.paramId, keyframeId: inserted.keyframeId });
+	emit('keyframeSelected', { layerId: layer.id, target: param.target, paramPath: param.paramPath, keyframeId: inserted.keyframeId });
 }
 
 function timeToDomX(time: number): number { return (time - props.tlPosX) / props.tlRangeX * props.tlElWidth; }

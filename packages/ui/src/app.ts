@@ -1,4 +1,6 @@
 import { getSceneDuration, validateTimelineScenes } from '@glitch/shared/timeline/scenes.ts';
+import { validateTimelineEffectLayer } from '@glitch/shared/timeline/effect-layer.ts';
+import { effectDefinitions } from '@glitch/shared/effect/effect-definitions.ts';
 import { getSceneAudioClips } from '@glitch/shared/timeline/scene-audio.ts';
 import { createTimelineClipTiming } from '@glitch/shared/timeline/timing.ts';
 import { visualModuleCustomParameterId, visualModuleCustomParameterName } from '@glitch/shared/visual-module/types.ts';
@@ -188,6 +190,9 @@ let savingProject = false;
 
 export async function appReady(project: Project, fileName = 'untitled.gsproj', fileHandle: FileSystemFileHandle | null = null) {
 	validateTimelineScenes(project.timelineScenes);
+	for (const scene of project.timelineScenes) for (const layer of scene.layers) {
+		if (layer.layerType === 'effect') validateTimelineEffectLayer(layer, effectDefinitions[layer.effectId]);
+	}
 	timelineLayerClipboard.layer = null;
 	scenePlaybackTimes.clear();
 	// 画像からの新規作成とプロジェクト読込で同じ基準を使い、初回のGPU初期化にも反映する。

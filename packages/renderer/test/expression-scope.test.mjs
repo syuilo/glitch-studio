@@ -215,7 +215,7 @@ test('keeps layer defaults and excludes primary inputs from evaluated values', a
 	const adapter = createVisualModuleTimelineLayer({ paramDefs: definitions, primaryInputId: 'input' }, {
 		automationGraphs: [], visualModuleParamValues: {
 			input: expression('invalid expression'),
-			missing: { inputSource: 'automationGraphReference', automationGraphId: 'absent' },
+			missing: { inputSource: 'automationGraphReference', automationGraphId: 'absent', offsetMode: 'start', wrapMode: 'repeat', trimmedDurationMs: 1000 },
 			invalid: expression('UNKNOWN'), export: expression('IS_EXPORT'),
 		},
 	}, { async prepare(context) { resolved = context; }, render() {}, destroy() {} });

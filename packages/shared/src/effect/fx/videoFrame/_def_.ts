@@ -3,6 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'videoFrame',
 	displayName: 'Video Frame',
+	kind: 'generate',
 	tags: ['video'],
 	paramDefs: {
 		asset: { dataType: { kind: 'videoAssetReference' }, ui: { label: 'Asset', control: {} }, defaultValue: { inputSource: 'literal', value: null } },

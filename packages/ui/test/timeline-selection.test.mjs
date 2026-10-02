@@ -96,7 +96,7 @@ test('snaps the stretched endpoint within its bounds and scales intermediate key
 	assert.deepEqual(constrainTimelineMove(-399, points, [1100], 1), { delta: -399, snappingTime: null });
 });
 
-const key = (layerId, keyframeId, target = 'audio', paramId = 'volume') => ({ layerId, target, paramId, keyframeId });
+const key = (layerId, keyframeId, target = 'audio', paramId = 'volume') => ({ layerId, target, paramPath: [paramId], keyframeId });
 
 // 【同じレイヤーの選択済みキーだけをストレッチ対象にする】
 // 一部だけ選んだレーンでは未選択キーを追加せず、別レイヤーも巻き込まない。
@@ -668,7 +668,7 @@ test('rounds keyframe command positions and restores them on undo', () => {
 		if (editBinding) {
 			const value = structuredClone(before[0].audioParamValues.volume);
 			value.keyframesTimeline.keyframes[0].x = 100.6;
-			manager.commit('editTimelineLayerParam', { sceneId: 'scene', layerId: 'audio', target: 'audio', paramId: 'volume', edit: { kind: 'keyframesTimelineInline', value } });
+			manager.commit('editTimelineLayerParam', { sceneId: 'scene', layerId: 'audio', target: 'audio', paramPath: ['volume'], edit: { kind: 'keyframesTimelineInline', value } });
 			assert.equal(value.keyframesTimeline.keyframes[0].x, 100.6);
 		} else {
 			manager.commit('moveTimelineKeyframes', { sceneId: 'scene', positions: [{ ...key('audio', '0'), x: 100.6 }] });

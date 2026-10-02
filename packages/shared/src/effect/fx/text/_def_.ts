@@ -3,6 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'text',
 	displayName: 'Text',
+	kind: 'generate',
 	tags: ['typography'],
 	paramDefs: {
 		text: { dataType: { kind: 'string' }, ui: { label: 'Text', control: {} }, defaultValue: { inputSource: 'literal', value: 'Hello, world!' } },

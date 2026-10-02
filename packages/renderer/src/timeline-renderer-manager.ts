@@ -1,5 +1,6 @@
 import { scaleResolution, type Resolution } from '@glitch/shared/resolution.ts';
 import { getTimelineScene, validateTimelineScenes } from '@glitch/shared/timeline/scenes.ts';
+import { validateTimelineEffectLayer } from '@glitch/shared/timeline/effect-layer.ts';
 import { getSceneBaseResolution, resolveSceneResolution } from '@glitch/shared/timeline/scene-resolution.ts';
 import EventEmitter from 'eventemitter3';
 import { AssetTextures } from './asset-textures.ts';
@@ -11,6 +12,7 @@ import { createVisualModuleTimelineLayer } from './visual-module-timeline-layer.
 import { createSceneTimelineLayer } from './scene-timeline-layer.ts';
 import { createVideoTimelineLayer } from './video-timeline-layer.ts';
 import { createImageTimelineLayer } from './image-timeline-layer.ts';
+import { createEffectTimelineLayer } from './effect-timeline-layer.ts';
 import { createTimelineCompositor } from './timeline-compositor.ts';
 import { TimelineCompositingParameters } from './timeline-compositing-parameters.ts';
 import { createSceneOutput } from './scene-output.ts';
@@ -170,7 +172,12 @@ export class TimelineRendererManager extends EventEmitter<{
 
 	// (非workerで)呼び出すときは値を独立した参照にすること！ パフォーマンス上の理由でこちら側ではdeepCloneしません
 	public async updateDynamicOptions(newOptions: Partial<TimelineRendererManagerDynamicOptions>) {
-		if (newOptions.timelineScenes != null) validateTimelineScenes(newOptions.timelineScenes);
+		if (newOptions.timelineScenes != null) {
+			validateTimelineScenes(newOptions.timelineScenes);
+			for (const scene of newOptions.timelineScenes) for (const layer of scene.layers) {
+				if (layer.layerType === 'effect') validateTimelineEffectLayer(layer, this.effectDefinitions[layer.effectId]);
+			}
+		}
 		const { assets, ...synchronousOptions } = newOptions;
 		// 通常の設定は呼び出し順に反映する。画像のデコード完了を待ってから反映すると、
 		// 後から届いたモジュール編集やFPS変更を古い更新で巻き戻してしまう。
@@ -255,6 +262,17 @@ export class TimelineRendererManager extends EventEmitter<{
 		const renderResolution = scaleResolution(sceneBaseResolution, this.dynamicOptions.resolutionScale);
 		// レイヤーの種類の解釈とリソース解決は、タイムライン制御の外側で行う。
 		switch (layer.layerType) {
+			case 'effect': {
+				const definition = this.effectDefinitions[layer.effectId];
+				const implementation = this.effectImplementations[layer.effectId];
+				if (!definition || !implementation) throw new Error(`Effect not found: ${layer.effectId}`);
+				return createEffectTimelineLayer(layer, definition, implementation, {
+					wgpu: { device: this.gpuDevice, defaultVertexShaderModule: this.defaultVertexShaderModule,
+						enable32bitDataTextures: this.staticOptions.enable32bitDataTextures, intermediateTextureFormat: this.staticOptions.intermediateTextureFormat },
+					fallbackTexture: this.fallbackTexture, resolution: renderResolution, resolutionScale: this.dynamicOptions.resolutionScale,
+					assets: this.dynamicOptions.assets, assetTextures: this.assetTextures.textures,
+				});
+			}
 			case 'image': {
 				const clip = layer.clips.find(clip => clip.id === clipId)!;
 				const texture = this.assetTextures.textures.get(clip.assetId);

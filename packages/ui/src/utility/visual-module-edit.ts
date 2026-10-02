@@ -62,6 +62,7 @@ export function commitVisualModuleEdit(manager: AppStateManager, target: VisualM
 function onNodeParamEdit(manager: AppStateManager, moduleTarget: VisualModuleTarget, nodeId: string, event: ParamEdit) {
 	const target = { ...moduleTarget, nodeId, paramPath: event.paramPath };
 	switch (event.kind) {
+		case 'layerInput': throw new Error('Layer input is only available in effect layer parameters');
 		case 'literal': manager.commit('updateParamAsLiteral', { ...target, value: event.value }, event.mergeKey); break;
 		case 'automationGraphInline': manager.commit('updateParamAsAutomationGraphInline', { ...target, value: event.value }, event.mergeKey); break;
 		case 'envVariable': manager.commit('updateParamAsEnvVariable', { ...target, value: event.value }); break;

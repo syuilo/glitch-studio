@@ -131,6 +131,7 @@ function onPreviewParamEdit(event: ParamEdit) {
 		case 'expression': previewParamValues.value[id] = { inputSource: 'expression', expression: event.value }; break;
 		case 'automationGraphReference': previewParamValues.value[id] = { inputSource: 'automationGraphReference', trimmedDurationMs: 1000, wrapMode: 'repeat', offsetMode: 'start', ...(current?.inputSource === 'automationGraphReference' ? current : {}), automationGraphId: event.value, ...event.options }; break;
 		case 'node':
+		case 'layerInput':
 		case 'externalCustomParameterInput': return;
 		case 'reset': previewParamValues.value[id] = reset(); break;
 		case 'inputSource':
@@ -145,6 +146,7 @@ function onPreviewParamEdit(event: ParamEdit) {
 					previewParamValues.value[id] = createInlineKeyframesTimeline(def, current);
 					break;
 				case 'externalCustomParameterInput':
+				case 'layerInput':
 				case 'node':
 					return;
 			}

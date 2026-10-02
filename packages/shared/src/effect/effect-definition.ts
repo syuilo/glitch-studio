@@ -13,6 +13,8 @@ export type EffectTags = string; // TODO
 export type EffectDefinition<In extends Record<string, ParameterDefinition> = Record<string, ParameterDefinition>, Out extends EffectOutputDefinitions = EffectOutputDefinitions> = {
 	id: string;
 	displayName: string;
+	// レイヤー作成時の主入力と合成方法を決める。入力の有無からは推測しない。
+	kind: 'modify' | 'generate';
 	tags: EffectTags[];
 	paramDefs: In;
 	// バイパス・自動接続に使うトップレベルの入力。主入力がないエフェクトはnull。

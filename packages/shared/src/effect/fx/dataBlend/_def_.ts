@@ -3,6 +3,7 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'dataBlend',
 	displayName: 'Blend (Data)',
+	kind: 'modify',
 	tags: [],
 	paramDefs: {
 		inputA: { dataType: { kind: 'any' }, ui: { label: 'A', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: null } },
