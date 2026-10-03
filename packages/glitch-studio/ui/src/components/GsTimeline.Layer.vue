@@ -32,7 +32,7 @@
 		<div :class="[$style.tl, $style.localTicks]">
 			<div v-for="clip in layer.clips" :key="clip.id" :class="$style.localTicksRange" :style="{ left: timeToDomX(clip.startMs) + 'px', width: clip.durationMs / tlRangeX * tlElWidth + 'px' }">
 				<div v-for="tick of clipTicks.get(clip.id)?.major" :key="tick.contentTimeMs" :class="$style.localTick" class="_monospace" :style="{ left: (tick.sceneTimeMs - clip.startMs) / tlRangeX * tlElWidth + 'px' }">{{ formatTimelineTimecode(tick.contentTimeMs) }}</div>
-				<div v-for="tick of clipTicks.get(clip.id)?.minor" :key="tick.contentTimeMs" :class="$style.localHalfTick" :style="{ left: (tick.sceneTimeMs - clip.startMs) / tlRangeX * tlElWidth + 'px' }"></div>
+				<div v-for="tick of clipTicks.get(clip.id)?.minor" :key="tick.contentTimeMs" :class="$style.localMinorTick" :style="{ left: (tick.sceneTimeMs - clip.startMs) / tlRangeX * tlElWidth + 'px' }"></div>
 			</div>
 		</div>
 	</div>
@@ -178,7 +178,7 @@ function timeToDomX(time: number): number { return (time - props.tlPosX) / props
 .localTicks { overflow: clip; user-select: none; }
 .localTicksRange { position: absolute; height: 100%; overflow: clip; }
 .localTick { position: absolute; top: 0; height: 100%; padding-left: 8px; border-left: solid 1px #fff3; white-space: nowrap; pointer-events: none; }
-.localHalfTick { position: absolute; bottom: 0; height: 4px; border-left: solid 1px #fff3; pointer-events: none; }
+.localMinorTick { position: absolute; bottom: 0; height: 4px; border-left: solid 1px #fff3; pointer-events: none; }
 .keyframesLane { display: flex; width: 100%; height: var(--keyframesLaneHeight); line-height: var(--keyframesLaneHeight); text-align: right; &:hover { background: #ffffff06; } }
 .stickyArrow { position: absolute; z-index: 1; top: 0; width: var(--mainLaneHeight); height: var(--mainLaneHeight); line-height: var(--mainLaneHeight); text-align: center; background: var(--sideColor); }
 </style>

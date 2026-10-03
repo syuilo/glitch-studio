@@ -1,7 +1,8 @@
-import { niceScale, insertIntermediateNumbers } from '@gs/shared/utility/misc.ts';
+import { niceScale } from '@gs/shared/utility/misc.ts';
 import type { TimelineClipTiming } from '@gs/subsystems_timeline_shared/timing.ts';
 
 export type TimelineTickMode = 'legacy' | 'binary' | 'decimal125';
+export type TimelineTickSubdivisions = { halves: boolean; thirds: boolean };
 export type TimelineClipTick = { contentTimeMs: number; sceneTimeMs: number };
 export type TimelineClipTicks = { major: TimelineClipTick[]; minor: TimelineClipTick[] };
 
@@ -28,8 +29,23 @@ export function getTimelineTicks(startMs: number, durationMs: number, count: num
 	return Array.from({ length: lastIndex - firstIndex + 1 }, (_, index) => (firstIndex + index) * stepMs);
 }
 
+/** 主目盛り間の補助目盛りを生成し、表示とスナップで同じ位置・有効設定を使う。 */
+export function getTimelineMinorTicks(majorTicks: readonly number[], subdivisions: TimelineTickSubdivisions): number[] {
+	const minorTicks: number[] = [];
+	for (let index = 0; index < majorTicks.length - 1; index++) {
+		const start = majorTicks[index];
+		const interval = majorTicks[index + 1] - start;
+		// 1/3・2/3は主目盛り間を三分割する。1/2の有効・無効で位置が変わらないようにする。
+		// 小数msを保ち、Scene上の位置を解決した後、スナップ処理だけで整数msに丸める。
+		if (subdivisions.thirds) minorTicks.push(start + interval / 3);
+		if (subdivisions.halves) minorTicks.push(start + interval / 2);
+		if (subdivisions.thirds) minorTicks.push(start + interval * 2 / 3);
+	}
+	return minorTicks;
+}
+
 /** 表示・スナップで同じ目盛りを使い、内容時刻とScene上の位置を取り違えないようにする。 */
-export function getTimelineClipTicks(clip: TimelineClipTiming, viewportStartMs: number, viewportDurationMs: number, count: number, mode: TimelineTickMode = 'legacy'): TimelineClipTicks {
+export function getTimelineClipTicks(clip: TimelineClipTiming, viewportStartMs: number, viewportDurationMs: number, count: number, mode: TimelineTickMode = 'legacy', subdivisions: TimelineTickSubdivisions = { halves: true, thirds: false }): TimelineClipTicks {
 	// トリムしても内容の時間原点は変わらない。目盛り間隔はクリップ長ではなく画面の倍率で決める。
 	const originMs = clip.startMs - clip.contentOffsetMs;
 	const ticks = getTimelineLocalTicks(originMs, viewportStartMs, viewportDurationMs, count, mode);
@@ -38,7 +54,7 @@ export function getTimelineClipTicks(clip: TimelineClipTiming, viewportStartMs: 
 		&& tick.contentTimeMs < clip.contentOffsetMs + clip.durationMs
 		&& tick.sceneTimeMs >= viewportStartMs && tick.sceneTimeMs <= viewportStartMs + viewportDurationMs;
 	// 先に主目盛りを絞ると、端の区間や短いクリップにある補助目盛りまで失われる。
-	const minor = ticks.length === 0 ? [] : insertIntermediateNumbers(ticks).filter((_, index) => index % 2 === 1);
+	const minor = getTimelineMinorTicks(ticks, subdivisions);
 	return { major: ticks.map(toTick).filter(inVisibleRange), minor: minor.map(toTick).filter(inVisibleRange) };
 }
 

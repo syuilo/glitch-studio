@@ -295,7 +295,7 @@ import type { ParamEdit } from './GsVisualParam.vue';
 import type { TimelineClipMediaInfo } from '@/utility/timeline-clip-media.ts';
 import { createKeyframeStretch, stretchKeyframeX } from '@/utility/timeline-keyframe-stretch.ts';
 import { zoomTimelineX } from '@/utility/timeline-zoom.ts';
-import { getTimelineTicks, getTimelineClipTicks, formatTimelineTimecode as formatMsToTimecode } from '@/utility/timeline-ticks.ts';
+import { getTimelineTicks, getTimelineMinorTicks, getTimelineClipTicks, formatTimelineTimecode as formatMsToTimecode } from '@/utility/timeline-ticks.ts';
 import { getTimelineSnapCandidates, getTimelineSeekPosition } from '@/utility/timeline-snapping.ts';
 import { preferences } from '@/preferences.ts';
 import { listenPointerDrag } from '@/utility/pointer-drag.ts';
@@ -313,6 +313,9 @@ import { dragListen } from '@/utility/drag.ts';
 
 const props = defineProps<{ sceneId: string }>();
 const tickMode = preferences.model('timelineTickMode');
+const halfTicks = preferences.model('timelineHalfTicks');
+const thirdTicks = preferences.model('timelineThirdTicks');
+const tickSubdivisions = computed(() => ({ halves: halfTicks.value, thirds: thirdTicks.value }));
 const snapEnabled = preferences.model('timelineSnapEnabled');
 const snapGlobalTicks = preferences.model('timelineSnapGlobalTicks');
 const snapLocalTicks = preferences.model('timelineSnapLocalTicks');
@@ -334,6 +337,14 @@ function showTickMenu(event: PointerEvent) {
 		type: 'radioOption', text: '1–2–5 (1, 0.5, 0.2, …)',
 		active: computed(() => tickMode.value === 'decimal125'),
 		action: () => { tickMode.value = 'decimal125'; },
+	}, {
+		type: 'divider',
+	}, {
+		type: 'label', text: 'Subdivisions (display and snap)',
+	}, {
+		text: 'Midpoints (1/2)', type: 'switch', ref: halfTicks,
+	}, {
+		text: 'Thirds (1/3, 2/3)', type: 'switch', ref: thirdTicks,
 	}], event.currentTarget ?? event.target);
 }
 
@@ -527,10 +538,10 @@ function updateKeyframeTime(value: string | number) {
 // 刻み方に応じた丸めは目盛り生成側で行い、全体・ローカル・スナップの密度を揃える。
 const xTicksCount = computed(() => Math.max(3, Math.floor(tlElWidth.value / X_TICK_TARGET_SPACING_PX) + 1));
 const xTicks = computed(() => getTimelineTicks(tlPosX.value, tlRangeX.value, xTicksCount.value, tickMode.value));
-const xTicksWithHalf = computed(() => xTicks.value.length === 0 ? [] : insertIntermediateNumbers(xTicks.value));
-const xMinorTicks = computed(() => xTicksWithHalf.value.filter((_, index) => index % 2 === 1));
+const xMinorTicks = computed(() => getTimelineMinorTicks(xTicks.value, tickSubdivisions.value));
+const xTicksWithMinor = computed(() => [...xTicks.value, ...xMinorTicks.value].toSorted((a, b) => a - b));
 const clipTicksByLayer = computed(() => new Map(sceneLayers.value.map(layer => [layer.id,
-																																																																																new Map(layer.clips.map(clip => [clip.id, getTimelineClipTicks(clip, tlPosX.value, tlRangeX.value, xTicksCount.value, tickMode.value)])),
+																																																																																new Map(layer.clips.map(clip => [clip.id, getTimelineClipTicks(clip, tlPosX.value, tlRangeX.value, xTicksCount.value, tickMode.value, tickSubdivisions.value)])),
 ])));
 const yTicksCount = ref(6);
 const yTicks = computed(() => niceScale(tlPosY.value, tlPosY.value + tlRangeY.value, yTicksCount.value));
@@ -826,7 +837,7 @@ function onClipMoveStart(event: PointerEvent, target: TimelineClipSelection) {
 	const selected = new Set(targets.map(clipSelectionKey));
 	const snapTimes = getTimelineSnapCandidates(snapSettings.value, [0, ...sceneLayers.value.flatMap(layer => layer.clips
 		.filter(clip => !selected.has(clipSelectionKey({ layerId: layer.id, clipId: clip.id })))
-		.flatMap(clip => [clip.startMs, getTimelineClipEnd(clip)]))], xTicksWithHalf.value);
+		.flatMap(clip => [clip.startMs, getTimelineClipEnd(clip)]))], xTicksWithMinor.value);
 	const initialTargets = entries.map(({ target, clip }) => ({ ...target, initialStartMs: clip.startMs }));
 	startSelectionMove(event, points, snapTimes, (delta, mergeKey) => {
 		if (targets.some(target => !resolveClip(target))) return false;
@@ -848,7 +859,7 @@ function onClipTrimStart(event: PointerEvent, target: TimelineClipSelection, edg
 	if (bounds.minDelta > bounds.maxDelta) return;
 	const points = [{ time: edge === 'start' ? clip.startMs : getTimelineClipEnd(clip), ...bounds }];
 	const snapTimes = getTimelineSnapCandidates(snapSettings.value, [0, ...sceneLayers.value.flatMap(entry => entry.clips
-		.filter(other => entry.id !== layer.id || other.id !== clip.id).flatMap(other => [other.startMs, getTimelineClipEnd(other)]))], xTicksWithHalf.value);
+		.filter(other => entry.id !== layer.id || other.id !== clip.id).flatMap(other => [other.startMs, getTimelineClipEnd(other)]))], xTicksWithMinor.value);
 	const initialTiming = { startMs: clip.startMs, durationMs: clip.durationMs, contentOffsetMs: clip.contentOffsetMs };
 	startSelectionMove(event, points, snapTimes, (delta, mergeKey) => {
 		if (!resolveClip(target)) return false;
@@ -884,7 +895,7 @@ function onKeyframeMoveStart(event: PointerEvent, point: TimelineKeyframeSelecti
 		// 空白区間にはローカル目盛りがなく、別レイヤーのクリップも候補に含めない。
 		const localTimes = [...(clipTicksByLayer.value.get(layer.id)?.values() ?? [])]
 			.flatMap(ticks => [...ticks.major, ...ticks.minor].map(tick => tick.sceneTimeMs)).toSorted((a, b) => a - b);
-		return [layer.id, getTimelineSnapCandidates(snapSettings.value, otherTimes, xTicksWithHalf.value, localTimes)];
+		return [layer.id, getTimelineSnapCandidates(snapSettings.value, otherTimes, xTicksWithMinor.value, localTimes)];
 	}));
 	const points = entries.filter(entry => stretch == null || keyframeSelectionKey(entry.selection) === key).map(entry => {
 		const ids = new Set(current.keyframes.filter(point => point.layerId === entry.selection.layerId && point.target === entry.selection.target && paramPathKey(point.paramPath) === paramPathKey(entry.selection.paramPath)).map(point => point.keyframeId));
@@ -913,7 +924,7 @@ function onSeekBarPointerDown(ev: PointerEvent) {
 	const timeline = tlEl.value;
 	stopSelectionDrag = listenPointerDrag(ev, event => {
 		const x = event.clientX - timeline.getBoundingClientRect().left;
-		const candidates = snapSeekBar.value ? getTimelineSnapCandidates(snapSettings.value, [], xTicksWithHalf.value) : [];
+		const candidates = snapSeekBar.value ? getTimelineSnapCandidates(snapSettings.value, [], xTicksWithMinor.value) : [];
 		const result = getTimelineSeekPosition(domXToTime(x), duration.value, candidates, tlRangeX.value / tlElWidth.value);
 		snappingTimes.value = result.snappingTime == null ? [] : [result.snappingTime];
 		previewPlayback.seekTimeline(result.timeMs);
