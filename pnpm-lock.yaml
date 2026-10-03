@@ -224,6 +224,9 @@ importers:
         specifier: 2.1.1
         version: 2.1.1
     devDependencies:
+      '@gs/subsystems_effect_renderer':
+        specifier: workspace:*
+        version: link:../../subsystems/effect/renderer
       '@types/web':
         specifier: 0.0.352
         version: 0.0.352

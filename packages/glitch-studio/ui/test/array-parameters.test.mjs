@@ -13,7 +13,7 @@ const bundled = await build({
 			export { COMMAND_DEFS } from './src/commands.ts';
 			export { resolveNodeParam, walkNodeParams } from './src/utility/node-params.ts';
 			export { createResetParameterBinding } from './src/utility/parameter-default.ts';
-			export { default as definition } from '../shared/src/effect/fx/testStructArray/_def_.ts';
+			export { default as definition } from '@gs/subsystems_effect_shared/fx/testStructArray/_def_.ts';
 		`,
 		resolveDir: uiDirectory, loader: 'ts',
 	},
@@ -25,7 +25,7 @@ const bundled = await build({
 			loader: 'ts', resolveDir: uiDirectory,
 			contents: path === 'preferences'
 				? 'export const preferences = { s: { forceTypeSafety: false } };'
-				: "import definition from '../shared/src/effect/fx/testStructArray/_def_.ts'; export const effectDefinitions = { [definition.id]: definition };",
+				: "import definition from '@gs/subsystems_effect_shared/fx/testStructArray/_def_.ts'; export const effectDefinitions = { [definition.id]: definition };",
 		}));
 	} }],
 });

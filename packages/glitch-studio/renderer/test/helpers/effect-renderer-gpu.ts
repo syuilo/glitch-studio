@@ -1,14 +1,14 @@
-import { EffectRenderer } from '../../src/effect-renderer.ts';
-import { VisualModuleRenderer } from '../../src/visual-module-renderer.ts';
-import gradientDefinition from '../../../shared/src/effect/fx/gradient/_def_.ts';
-import gradient from '../../../shared/src/effect/fx/gradient/_impl_.ts';
-import accumulateDefinition from '../../../shared/src/effect/fx/accumulate/_def_.ts';
-import accumulate from '../../../shared/src/effect/fx/accumulate/_impl_.ts';
-import colorMixDefinition from '../../../shared/src/effect/fx/colorMix/_def_.ts';
-import colorMix from '../../../shared/src/effect/fx/colorMix/_impl_.ts';
-import { constantShaderInput } from '../../../shared/src/shader-input.ts';
-import type { RuntimeEffectParameters } from '../../../shared/src/effect/effect-implementation.ts';
-import type { VisualModule, VisualModuleEffectNode } from '../../../shared/src/visual-module/types.ts';
+import { EffectRenderer } from '@gs/subsystems_effect_renderer/effect-renderer.ts';
+import { VisualModuleRenderer } from '@gs/subsystems_visual-module_renderer/visual-module-renderer.ts';
+import gradientDefinition from '@gs/subsystems_effect_shared/fx/gradient/_def_.ts';
+import gradient from '@gs/subsystems_effect_shared/fx/gradient/_impl_.ts';
+import accumulateDefinition from '@gs/subsystems_effect_shared/fx/accumulate/_def_.ts';
+import accumulate from '@gs/subsystems_effect_shared/fx/accumulate/_impl_.ts';
+import colorMixDefinition from '@gs/subsystems_effect_shared/fx/colorMix/_def_.ts';
+import colorMix from '@gs/subsystems_effect_shared/fx/colorMix/_impl_.ts';
+import { constantShaderInput } from '@gs/shared/gpu/shader-input.ts';
+import type { RuntimeEffectParameters } from '@gs/subsystems_effect_shared/effect-implementation.ts';
+import type { VisualModule, VisualModuleEffectNode } from '@gs/subsystems_visual-module_shared/types.ts';
 import vertexCode from '@gs/shared/gpu/vertex.wgsl?raw';
 import { checkEffectTimelineLayers } from './effect-timeline-layer-gpu.ts';
 

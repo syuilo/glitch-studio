@@ -7,8 +7,8 @@ import { readdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 
 const uiDirectory = fileURLToPath(new URL('../', import.meta.url));
-const effectNames = (await readdir(new URL('../../shared/src/effect/fx/', import.meta.url)))
-	.filter(name => existsSync(new URL(`../../shared/src/effect/fx/${name}/_def_.ts`, import.meta.url)));
+const effectNames = (await readdir(new URL(import.meta.resolve('@gs/subsystems_effect_shared/fx/'))))
+	.filter(name => existsSync(new URL(import.meta.resolve(`@gs/subsystems_effect_shared/fx/${name}/_def_.ts`))));
 const bundled = await build({
 	absWorkingDir: uiDirectory,
 	stdin: { contents: `
@@ -17,10 +17,10 @@ const bundled = await build({
 		export { resolveLayerParameter, getLayerKeyframeParameters } from './src/utility/timeline-scene.ts';
 		export { encodeProjectFile, decodeProjectFile } from './src/gsproj.ts';
 		export { canConnectNodeDataTypes } from './src/utility/node-outputs.ts';
-		export { areNodeDataTypesCompatible } from '../shared/src/utility/node-outputs.ts';
-		export { effectDefinitions } from '../shared/src/effect/effect-definitions.ts';
+		export { areNodeDataTypesCompatible } from '@gs/shared/data-type/node-compatibility.ts';
+		export { effectDefinitions } from '@gs/subsystems_effect_shared/effect-definitions.ts';
 		export { preferences } from './src/preferences.ts';
-		export { validateTimelineEffectLayer } from '../shared/src/timeline/effect-layer.ts';
+		export { validateTimelineEffectLayer } from '@gs/subsystems_timeline_shared/effect-layer.ts';
 	`, resolveDir: uiDirectory, loader: 'ts' },
 	bundle: true, platform: 'node', format: 'cjs', write: false,
 	plugins: [{ name: 'effect-layer-test', setup(build) {
@@ -29,7 +29,7 @@ const bundled = await build({
 		build.onLoad({ filter: /.*/, namespace: 'test' }, ({ path }) => ({
 			loader: 'ts', resolveDir: uiDirectory,
 			contents: path === 'preferences' ? 'export const preferences = { s: { forceTypeSafety: false } };'
-				: effectNames.map((name, index) => `import effect${index} from '../shared/src/effect/fx/${name}/_def_.ts';`).join('\n')
+				: effectNames.map((name, index) => `import effect${index} from '@gs/subsystems_effect_shared/fx/${name}/_def_.ts';`).join('\n')
 				+ `\nexport const effectDefinitions = Object.fromEntries([${effectNames.map((_, index) => `effect${index}`).join(',')}].map(def => [def.id, def]));`,
 		}));
 	} }],

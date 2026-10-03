@@ -1,5 +1,5 @@
-import { createShaderInputPipeline } from '../../shared/src/shader-input-pipeline.ts';
-import type { ShaderInput } from '../../shared/src/shader-input.ts';
+import { createShaderInputPipeline } from '@gs/shared/gpu/shader-input-pipeline.ts';
+import type { ShaderInput } from '@gs/shared/gpu/shader-input.ts';
 
 declare const device: GPUDevice;
 declare const vertex: GPUShaderModule;

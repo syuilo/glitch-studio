@@ -3,8 +3,8 @@ import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { loadShaderSource } from './helpers/load-shader-source.mjs';
 
-const { resolveEffectNodeResolution } = await loadShaderSource(fileURLToPath(new URL('../src/effect-node-resolution.ts', import.meta.url)));
-const { scaleResolution } = await loadShaderSource(fileURLToPath(new URL('../../shared/src/resolution.ts', import.meta.url)));
+const { resolveEffectNodeResolution } = await loadShaderSource(fileURLToPath(import.meta.resolve('@gs/subsystems_effect_shared/effect-node-resolution.ts')));
+const { scaleResolution } = await loadShaderSource(fileURLToPath(import.meta.resolve('@gs/shared/resolution.ts')));
 const resolve = options => resolveEffectNodeResolution({
 	setting: { mode: 'auto' }, contextResolution: { width: 960, height: 540 }, resolutionScale: 0.5, maxDimension: 8192, ...options,
 });

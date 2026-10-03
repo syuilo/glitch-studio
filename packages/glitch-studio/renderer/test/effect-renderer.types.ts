@@ -1,9 +1,9 @@
-import { EffectRenderer } from '../src/effect-renderer.ts';
-import definition from '../../shared/src/effect/fx/testStructArray/_def_.ts';
-import implementation from '../../shared/src/effect/fx/testStructArray/_impl_.ts';
-import type gradientDefinition from '../../shared/src/effect/fx/gradient/_def_.ts';
-import type { EffectOutputDefinitions } from '../../shared/src/effect/effect-definition.ts';
-import type { EffectGpuContext, EffectOutputDataMap, RuntimeEffectParameters } from '../../shared/src/effect/effect-implementation.ts';
+import { EffectRenderer } from '@gs/subsystems_effect_renderer/effect-renderer.ts';
+import definition from '@gs/subsystems_effect_shared/fx/testStructArray/_def_.ts';
+import implementation from '@gs/subsystems_effect_shared/fx/testStructArray/_impl_.ts';
+import type gradientDefinition from '@gs/subsystems_effect_shared/fx/gradient/_def_.ts';
+import type { EffectOutputDefinitions } from '@gs/subsystems_effect_shared/effect-definition.ts';
+import type { EffectGpuContext, EffectOutputDataMap, RuntimeEffectParameters } from '@gs/subsystems_effect_shared/effect-implementation.ts';
 
 declare const device: GPUDevice;
 declare const defaultVertexShaderModule: GPUShaderModule;

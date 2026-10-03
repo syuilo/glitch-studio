@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { TimelineRenderer } from '../src/timeline-renderer.ts';
+import { TimelineRenderer } from '@gs/subsystems_timeline_renderer/timeline-renderer.ts';
 import { fileURLToPath } from 'node:url';
 import { loadShaderSource } from './helpers/load-shader-source.mjs';
-const { createVisualModuleTimelineLayer } = await loadShaderSource(fileURLToPath(new URL('../src/visual-module-timeline-layer.ts', import.meta.url)));
+const { createVisualModuleTimelineLayer } = await loadShaderSource(fileURLToPath(import.meta.resolve('@gs/subsystems_timeline_renderer/visual-module-timeline-layer.ts')));
 
 const entry = (id, positionMs = 0, endTimeMs = 1000, type = 'test') => ({
 	id, clips: [{ id: 'clip', startMs: positionMs, contentOffsetMs: 0, durationMs: endTimeMs - positionMs }], layer: { type },

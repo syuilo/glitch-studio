@@ -2,15 +2,16 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { loadShaderSource } from './helpers/load-shader-source.mjs';
+import { createVisualModuleRenderer } from './helpers/create-visual-module-renderer.mjs';
 
-const load = path => loadShaderSource(fileURLToPath(new URL(path, import.meta.url)));
-const { genEmptyValue } = await load('../../shared/src/utility/misc.ts');
-const { ParameterEvaluator } = await load('../../shared/src/parameter-evaluator.ts');
-const { createVisualModuleTimelineLayer } = await load('../src/visual-module-timeline-layer.ts');
-const { IN_VISUAL_MODULE_VAR_DEFS, LAYER_VAR_DEFS } = await load('../../shared/src/expression.ts');
+const load = path => loadShaderSource(fileURLToPath(import.meta.resolve(path)));
+const { genEmptyValue } = await load('@gs/shared/parameter/parameter-default.ts');
+const { createVisualModuleTimelineLayer } = await load('@gs/subsystems_timeline_renderer/visual-module-timeline-layer.ts');
+const { IN_VISUAL_MODULE_VAR_DEFS } = await load('@gs/subsystems_visual-module_shared/expression.ts');
+const { LAYER_VAR_DEFS } = await load('@gs/subsystems_timeline_shared/expression.ts');
 // GPUを初期化せず、レンダラーが実際に構築する式のスコープを検証する。
 globalThis.GPUQueue = class { submit() {} };
-const { VisualModuleRenderer } = await load('../src/visual-module-renderer.ts');
+const { VisualModuleRenderer } = await load('@gs/subsystems_visual-module_renderer/visual-module-renderer.ts');
 const literal = value => ({ inputSource: 'literal', value });
 const expression = expression => ({ inputSource: 'expression', expression });
 const def = (id, value = 7) => ({ id, nameForReference: id, dataType: { kind: 'scalar' }, ui: { label: id, control: { controlType: 'number' } }, defaultValue: literal(value), canNode: false });
@@ -89,8 +90,8 @@ function nodes(evaluator, params, scope = moduleScope, external = new Map(), def
 function externalValues(evaluator, defs, params, scope) {
 	return new Map(defs.map(def => {
 		const value = params[def.id];
-		return [def.id, value == null ? structuredClone(def.defaultValue.value) : evaluator.evaluate(value,
-			{ ...scope, evaluatedParamValues: null },
+		return [def.id, value == null ? structuredClone(def.defaultValue.value) : evaluator.valueEvaluator.evaluate(value,
+			scope,
 			value.inputSource === 'automationGraphReference' ? structuredClone(def.defaultValue.value) : genEmptyValue(def))];
 	}));
 }
@@ -123,7 +124,7 @@ test('exposes exactly the declared variables for each scope', async () => {
 
 // 単独変数の高速経路・通常の式・環境変数指定すべてで、双方向のスコープ混入を防ぐ。
 test('isolates variables across repeated layer and module evaluations', () => {
-	const evaluator = new ParameterEvaluator();
+	const evaluator = createVisualModuleRenderer(VisualModuleRenderer).parameterEvaluator;
 	const params = {
 		vm: expression('TEST_ONLY_VM'), layer: expression('TEST_ONLY_LAYER'),
 		same: expression('TEST_SAME_NAME'), compound: expression('TEST_SAME_NAME + 10'),
@@ -139,7 +140,7 @@ test('isolates variables across repeated layer and module evaluations', () => {
 
 // レイヤーで評価した値は内部の同名変数で再評価しない。PARAMは外から渡された値だけを読む。
 test('passes evaluated values across the boundary without reinterpreting them', () => {
-	const evaluator = new ParameterEvaluator();
+	const evaluator = createVisualModuleRenderer(VisualModuleRenderer).parameterEvaluator;
 	const defs = [def('amount'), def('text')];
 	const values = externalValues(evaluator, defs, { amount: expression('TEST_SAME_NAME'), text: literal('TEST_SAME_NAME') }, layerScope);
 	assert.deepEqual(nodes(evaluator, { amount: expression('PARAM("amount")'), local: expression('TEST_SAME_NAME'), text: expression('PARAM("text")'), direct: { inputSource: 'externalCustomParameterInput', parameterId: 'amount' } }, moduleScope, values, defs), { amount: 2, local: 1, text: 'TEST_SAME_NAME', direct: 2 });
@@ -147,7 +148,7 @@ test('passes evaluated values across the boundary without reinterpreting them', 
 
 // PARAMや式内の変数が次の式へ残ると、自己参照や別スコープの値を読む経路になる。
 test('does not retain PARAM functions or local declarations between expressions', () => {
-	const evaluator = new ParameterEvaluator();
+	const evaluator = createVisualModuleRenderer(VisualModuleRenderer).parameterEvaluator;
 	assert.equal(nodes(evaluator, { value: expression('PARAM("amount")') }, moduleScope, new Map([['amount', 99]]), [def('amount')]).value, 99);
 	assert.equal(externalValues(evaluator, [def('amount')], { amount: expression('PARAM("amount")') }, layerScope).get('amount'), 0);
 	assert.equal(nodes(evaluator, { value: expression('let privateValue = 23\nprivateValue') }).value, 23);
@@ -157,7 +158,7 @@ test('does not retain PARAM functions or local declarations between expressions'
 
 // IDと名前が同じグラフでも所有者ごとに解決し、削除後は他スコープへフォールバックしない。
 test('isolates graph references and GRAPH functions without inheriting graphs', () => {
-	const evaluator = new ParameterEvaluator();
+	const evaluator = createVisualModuleRenderer(VisualModuleRenderer).parameterEvaluator;
 	const graph = value => ({ id: 'graph', name: 'Graph', isNormalized: true, points: [{ id: 'point', x: 0, y: value, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] }] });
 	const params = { ref: { inputSource: 'automationGraphReference', automationGraphId: 'graph', trimmedDurationMs: 1000, offsetMode: 'start', wrapMode: 'clamp' }, named: expression('GRAPH("Graph", 0, "clamp")') };
 	const defs = [def('ref'), def('named')];
@@ -170,7 +171,7 @@ test('isolates graph references and GRAPH functions without inheriting graphs', 
 
 // 定数のノード入力もPARAMでは参照不可。入力種別で式の可否を変えない。
 test('rejects input parameters and does not mutate external arrays', () => {
-	const evaluator = new ParameterEvaluator();
+	const evaluator = createVisualModuleRenderer(VisualModuleRenderer).parameterEvaluator;
 	const value = [1, 2];
 	const external = new Map([['array', value], ['input', 5]]);
 	const result = nodes(evaluator, { array: expression('PARAM("array")'), input: expression('PARAM("input")') }, moduleScope, external, [def('array'), def('input')], new Set(['input']));

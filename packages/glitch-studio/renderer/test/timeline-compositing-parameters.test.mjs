@@ -3,8 +3,8 @@ import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { loadShaderSource } from './helpers/load-shader-source.mjs';
 
-const { TimelineCompositingParameters } = await loadShaderSource(fileURLToPath(new URL('../src/timeline-compositing-parameters.ts', import.meta.url)));
-const { timelineCompositingParamDefs } = await loadShaderSource(fileURLToPath(new URL('../../shared/src/timeline/timeline-compositing.ts', import.meta.url)));
+const { TimelineCompositingParameters } = await loadShaderSource(fileURLToPath(import.meta.resolve('@gs/subsystems_timeline_renderer/timeline-compositing-parameters.ts')));
+const { timelineCompositingParamDefs } = await loadShaderSource(fileURLToPath(import.meta.resolve('@gs/subsystems_timeline_shared/timeline-compositing.ts')));
 const literal = value => ({ inputSource: 'literal', value });
 const expression = expression => ({ inputSource: 'expression', expression });
 const context = { time: 500, endTime: 2000, isExport: false };

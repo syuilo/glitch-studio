@@ -5,7 +5,7 @@ import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
 
-const effectDirectory = new URL('../../shared/src/effect/fx/', import.meta.url);
+const effectDirectory = new URL(import.meta.resolve('@gs/subsystems_effect_shared/fx/'));
 const definitions = await Promise.all((await readdir(effectDirectory, { withFileTypes: true }))
 	.filter(entry => entry.isDirectory() && existsSync(new URL(`${entry.name}/_def_.ts`, effectDirectory)))
 	.map(async entry => (await import(new URL(`${entry.name}/_def_.ts`, effectDirectory))).default));
@@ -73,9 +73,9 @@ test('uses string sizes and named processing modes', () => {
 test('infers string enums and nested shader inputs from migrated definitions', () => {
 	const fileName = fileURLToPath(new URL('./effect-definition-migration.fixture.ts', import.meta.url)).replaceAll('\\', '/');
 	const source = `
-import type spectrum from '../../shared/src/effect/fx/audioSpectrum/_def_.ts';
-import type nested from '../../shared/src/effect/fx/testStructArray/_def_.ts';
-import type { EffectInstance } from '../../shared/src/effect/effect-implementation.ts';
+import type spectrum from '@gs/subsystems_effect_shared/fx/audioSpectrum/_def_.ts';
+import type nested from '@gs/subsystems_effect_shared/fx/testStructArray/_def_.ts';
+import type { EffectInstance } from '@gs/subsystems_effect_shared/effect-implementation.ts';
 type Spectrum = Parameters<EffectInstance<typeof spectrum.paramDefs>['render']>[0]['params'];
 type Nested = Parameters<EffectInstance<typeof nested.paramDefs>['render']>[0]['params'];
 const fftSize: Spectrum['fftSize'] = '2048';
@@ -117,8 +117,8 @@ function assertTypeChecks(fileName, source) {
 test('rejects unknown and missing struct fields in effect definitions', () => {
 	const fileName = fileURLToPath(new URL('./exact-effect-definition.fixture.ts', import.meta.url)).replaceAll('\\', '/');
 	const source = `
-import { defineEffect } from '../../shared/src/effect/effect-definition.ts';
-import definition from '../../shared/src/effect/fx/testStructArray/_def_.ts';
+import { defineEffect } from '@gs/subsystems_effect_shared/effect-definition.ts';
+import definition from '@gs/subsystems_effect_shared/fx/testStructArray/_def_.ts';
 const struct = definition.paramDefs.foo;
 const array = definition.paramDefs.buzzs;
 const uiField = struct.ui.control.fields.node;

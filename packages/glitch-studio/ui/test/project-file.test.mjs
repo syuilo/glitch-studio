@@ -42,7 +42,7 @@ const appBundle = await build({
 			build.onLoad({ filter: /.*/, namespace: 'platform' }, args => ({
 				loader: 'ts', resolveDir: import.meta.dirname,
 				contents: /effect-definitions\.[jt]s$/.test(args.path)
-					? "import fill from '@gs/shared/effect/fx/fill/_def_.ts'; export const effectDefinitions = { fill };"
+					? "import fill from '@gs/subsystems_effect_shared/fx/fill/_def_.ts'; export const effectDefinitions = { fill };"
 					: args.path.endsWith('preferences.ts') ? `
 						import { reactive, toRefs } from 'vue';
 						const settings = reactive({ forceTypeSafety: false, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm' });
@@ -51,7 +51,7 @@ const appBundle = await build({
 					: args.path.endsWith('RendererManagerController.ts') ? `
 					import { ref } from 'vue';
 					import { deepClone } from '@gs/shared/utility/deep-clone.ts';
-					import { applyRendererProjectChanges } from '@gs/shared/project/renderer-state.ts';
+					import { applyRendererProjectChanges } from '@gs/glitch-studio_shared/project/renderer-state.ts';
 					export class VisualModuleRendererManagerController {
 						isReady = ref(false); errorMessage = ref(null);
 						updates = []; renders = []; lifecycle = [];

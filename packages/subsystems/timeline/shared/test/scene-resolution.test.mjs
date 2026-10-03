@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { getSceneBaseResolution, resolveSceneResolution, validateSceneResolution } from '../src/timeline/scene-resolution.ts';
+import { fileURLToPath } from 'node:url';
+import { loadSource } from './helpers/load-source.mjs';
+
+const { getSceneBaseResolution, resolveSceneResolution, validateSceneResolution } = await loadSource(fileURLToPath(new URL('../src/scene-resolution.ts', import.meta.url)));
 
 // 【基準寸法を維持したまま、各Sceneに描画倍率を一度だけ適用する】
 // customもプレビュー・書き出し倍率に追従する。親の計算用寸法を子へ渡してしまうと、

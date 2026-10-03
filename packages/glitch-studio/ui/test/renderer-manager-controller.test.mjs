@@ -19,7 +19,7 @@ const result = await build({
 	plugins: [{
 		name: 'browser-resources',
 		setup(build) {
-			build.onResolve({ filter: /^(?:@glitch\/renderer\/client\.ts|\.\/audio\/audio-inputs\.ts|\.\/utility\/(?:video|webcam)\.ts|@\/ui\.ts)$/ }, args => ({ path: args.path, namespace: 'browser-stub' }));
+			build.onResolve({ filter: /^(?:@gs\/glitch-studio_renderer\/client\.ts|\.\/audio\/audio-inputs\.ts|\.\/utility\/(?:video|webcam)\.ts|@\/ui\.ts)$/ }, args => ({ path: args.path, namespace: 'browser-stub' }));
 			build.onLoad({ filter: /.*/, namespace: 'browser-stub' }, () => ({ contents: `
 				export const createVisualModuleRendererManagerWorker = () => dependencies.createWorker();
 				export const createTimelineRendererManagerWorker = () => dependencies.createWorker();

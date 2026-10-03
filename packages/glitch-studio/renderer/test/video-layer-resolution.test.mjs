@@ -17,7 +17,7 @@ const managerBundle = await build({
 		build.onLoad({ filter: /.*/, namespace: 'video-resolution-test' }, () => ({ contents: 'export const effectDefinitions = {};', loader: 'ts' }));
 	} }],
 });
-const { createVideoTexture } = await loadShaderSource(fileURLToPath(new URL('../../shared/src/media/video-texture.ts', import.meta.url)));
+const { createVideoTexture } = await loadShaderSource(fileURLToPath(import.meta.resolve('@gs/shared/media/video-texture.ts')));
 const literal = value => ({ inputSource: 'literal', value });
 const connection = nodeId => ({ inputSource: 'node', nodeId, outputPort: 'output', fitMode: 'cover', wrapMode: 'clamp', filterMode: 'linear' });
 const dimensions = value => [value.width, value.height];

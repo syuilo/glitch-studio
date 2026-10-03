@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
 
 const bundle = await build({
-	entryPoints: [fileURLToPath(new URL('../../shared/src/media/video-source.ts', import.meta.url))],
+	entryPoints: [fileURLToPath(import.meta.resolve('@gs/shared/media/video-source.ts'))],
 	bundle: true, platform: 'node', format: 'cjs', write: false, external: ['mediabunny'],
 });
 

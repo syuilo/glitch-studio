@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { getSceneDuration, validateTimelineScenes, canReferenceScene } from '../src/timeline/scenes.ts';
-import { getSceneAudioClips } from '../src/timeline/scene-audio.ts';
+import { fileURLToPath } from 'node:url';
+import { loadSource } from './helpers/load-source.mjs';
+
+const { getSceneDuration, validateTimelineScenes, canReferenceScene } = await loadSource(fileURLToPath(new URL('../src/scenes.ts', import.meta.url)));
+const { getSceneAudioClips } = await loadSource(fileURLToPath(new URL('../src/scene-audio.ts', import.meta.url)));
 
 const scene = (id, layers = []) => ({ id, name: id, resolution: { mode: 'project' }, layers });
 const nested = (id, sceneId, positionMs, trimStartMs, trimmedDurationMs) => ({

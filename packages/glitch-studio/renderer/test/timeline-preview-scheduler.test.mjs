@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { loadShaderSource } from './helpers/load-shader-source.mjs';
 
-const { TimelinePreviewScheduler } = await loadShaderSource(fileURLToPath(new URL('../src/timeline-preview-scheduler.ts', import.meta.url)));
+const { TimelinePreviewScheduler } = await loadShaderSource(fileURLToPath(import.meta.resolve('@gs/subsystems_timeline_renderer/timeline-preview-scheduler.ts')));
 
 // 【デコードより速い再生要求でも処理中のフレームを完成させる】
 // 毎回中断すると一枚も表示できなくなる。未処理の中間要求は捨て、最新の音声時刻へ追従する。

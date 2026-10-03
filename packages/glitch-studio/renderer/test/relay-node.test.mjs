@@ -5,9 +5,9 @@ import { loadShaderSource } from './helpers/load-shader-source.mjs';
 
 globalThis.GPUQueue = class { submit() {} };
 
-const load = path => loadShaderSource(fileURLToPath(new URL(path, import.meta.url)));
-const { VisualModuleRenderer } = await load('../src/visual-module-renderer.ts');
-const { getNodeOutputs } = await load('../../shared/src/utility/node-outputs.ts');
+const load = path => loadShaderSource(fileURLToPath(import.meta.resolve(path)));
+const { VisualModuleRenderer } = await load('@gs/subsystems_visual-module_renderer/visual-module-renderer.ts');
+const { getNodeOutputs } = await load('@gs/subsystems_visual-module_shared/node-outputs.ts');
 
 const reference = (nodeId, outputPort = 'output') => ({ nodeId, outputPort });
 const literal = value => ({ inputSource: 'literal', value });

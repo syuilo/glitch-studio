@@ -7,7 +7,7 @@ import { build } from 'esbuild';
 
 // 実際のデコーダー・GPUを使わず、要求の完了順を制御する。
 const bundled = await build({
-	entryPoints: [fileURLToPath(new URL('../../shared/src/effect/fx/videoFrame/frame-loader.ts', import.meta.url))],
+	entryPoints: [fileURLToPath(import.meta.resolve('@gs/subsystems_effect_shared/fx/videoFrame/frame-loader.ts'))],
 	bundle: true, platform: 'node', format: 'cjs', write: false,
 });
 const module = { exports: {} };

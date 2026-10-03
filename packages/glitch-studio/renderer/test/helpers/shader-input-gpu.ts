@@ -1,12 +1,12 @@
 import { checkMigratedEffects } from './migrated-shader-input-gpu.ts';
 import { checkGradientInputs } from './gradient-shader-input-gpu.ts';
 import { checkTimelineCompositor } from './timeline-compositor-gpu.ts';
-import effect from '../../../shared/src/effect/fx/colorMix/_impl_.ts';
-import imageEffect from '../../../shared/src/effect/fx/image/_impl_.ts';
-import blockShuffle from '../../../shared/src/effect/fx/blockShuffle/_impl_.ts';
-import { constantShaderInput, textureShaderInput, generateShaderInputs, createShaderInputBindings } from '../../../shared/src/shader-input.ts';
+import effect from '@gs/subsystems_effect_shared/fx/colorMix/_impl_.ts';
+import imageEffect from '@gs/subsystems_effect_shared/fx/image/_impl_.ts';
+import blockShuffle from '@gs/subsystems_effect_shared/fx/blockShuffle/_impl_.ts';
+import { constantShaderInput, textureShaderInput, generateShaderInputs, createShaderInputBindings } from '@gs/shared/gpu/shader-input.ts';
 import vertexCode from '@gs/shared/gpu/vertex.wgsl?raw';
-import { createShaderInputPipeline } from '../../../shared/src/shader-input-pipeline.ts';
+import { createShaderInputPipeline } from '@gs/shared/gpu/shader-input-pipeline.ts';
 import { AssetTextures } from '../../src/asset-textures.ts';
 
 // 実際のGPU出力を読む。モックでは検出できないWGSL・layout・補間の不整合を確認する。

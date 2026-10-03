@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { resolveEffectParameterValue } from '../src/effect-parameter-value.ts';
+import { resolveEffectParameterValue } from '@gs/subsystems_effect_renderer/effect-parameter-value.ts';
 
 // 【Asset参照を種類に対応する借用リソースへ変換する】
 // ノードとエフェクトレイヤーで、同じIDの解決結果や参照切れの扱いが変わらないようにする。

@@ -5,9 +5,9 @@ import { loadShaderSource } from './helpers/load-shader-source.mjs';
 
 globalThis.GPUShaderStage = { FRAGMENT: 2, COMPUTE: 4 };
 globalThis.GPUBufferUsage = { UNIFORM: 64, COPY_DST: 8 };
-const load = path => loadShaderSource(fileURLToPath(new URL(path, import.meta.url)));
-const { constantShaderInput, textureShaderInput, generateShaderInputs, createShaderInputBindings } = await load('../../shared/src/shader-input.ts');
-const { createShaderInputPipeline } = await load('../../shared/src/shader-input-pipeline.ts');
+const load = path => loadShaderSource(fileURLToPath(import.meta.resolve(path)));
+const { constantShaderInput, textureShaderInput, generateShaderInputs, createShaderInputBindings } = await load('@gs/shared/gpu/shader-input.ts');
+const { createShaderInputPipeline } = await load('@gs/shared/gpu/shader-input-pipeline.ts');
 const color = value => constantShaderInput('color', value);
 const red = color([1, 0, 0, 0.5]);
 const texture = { width: 200, height: 100, createView() { return { texture: this }; } };

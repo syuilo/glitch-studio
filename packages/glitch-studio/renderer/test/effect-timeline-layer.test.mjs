@@ -20,11 +20,11 @@ after(() => {
 	else delete navigator.gpu;
 });
 
-const load = path => loadShaderSource(fileURLToPath(new URL(path, import.meta.url)));
+const load = path => loadShaderSource(fileURLToPath(import.meta.resolve(path)));
 const { TimelineRendererManager } = await load('../src/timeline-renderer-manager.ts');
-const { createEffectTimelineLayer } = await load('../src/effect-timeline-layer.ts');
-const { timelineCompositingParamDefs } = await load('../../shared/src/timeline/timeline-compositing.ts');
-const { default: nested } = await load('../../shared/src/effect/fx/testStructArray/_def_.ts');
+const { createEffectTimelineLayer } = await load('@gs/subsystems_timeline_renderer/effect-timeline-layer.ts');
+const { timelineCompositingParamDefs } = await load('@gs/subsystems_timeline_shared/timeline-compositing.ts');
+const { default: nested } = await load('@gs/subsystems_effect_shared/fx/testStructArray/_def_.ts');
 const literal = value => ({ inputSource: 'literal', value });
 const expression = expression => ({ inputSource: 'expression', expression });
 const input = { inputSource: 'layerInput', fitMode: 'contain', wrapMode: 'transparent', filterMode: 'nearest' };

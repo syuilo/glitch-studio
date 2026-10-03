@@ -20,9 +20,9 @@ after(() => {
 	else delete navigator.gpu;
 });
 
-const load = path => loadShaderSource(fileURLToPath(new URL(path, import.meta.url)));
+const load = path => loadShaderSource(fileURLToPath(import.meta.resolve(path)));
 const { TimelineRendererManager } = await load('../src/timeline-renderer-manager.ts');
-const { timelineCompositingParamDefs } = await load('../../shared/src/timeline/timeline-compositing.ts');
+const { timelineCompositingParamDefs } = await load('@gs/subsystems_timeline_shared/timeline-compositing.ts');
 const literal = value => ({ inputSource: 'literal', value });
 const expression = expression => ({ inputSource: 'expression', expression });
 const connection = (nodeId, outputPort = 'output') => ({ inputSource: 'node', nodeId, outputPort, fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' });

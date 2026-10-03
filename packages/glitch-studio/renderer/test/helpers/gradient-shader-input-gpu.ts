@@ -1,7 +1,7 @@
-import gradient from '../../../shared/src/effect/fx/gradient/_impl_.ts';
-import definition from '../../../shared/src/effect/fx/gradient/_def_.ts';
-import { constantShaderInput, textureShaderInput } from '../../../shared/src/shader-input.ts';
-import { float32ToFloat16Bits } from '../../../shared/src/utility/float32ToFloat16Bits.ts';
+import gradient from '@gs/subsystems_effect_shared/fx/gradient/_impl_.ts';
+import definition from '@gs/subsystems_effect_shared/fx/gradient/_def_.ts';
+import { constantShaderInput, textureShaderInput } from '@gs/shared/gpu/shader-input.ts';
+import { float32ToFloat16Bits } from '@gs/shared/utility/float32ToFloat16Bits.ts';
 
 function fromHalf(bits: number) {
 	const exponent = (bits >> 10) & 31;

@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { areDataTypesEqual } from '../../shared/src/data-type.ts';
-import { getArrayElementDefinition, getStructFieldDefinitions, isParameterType } from '../../shared/src/parameter.ts';
-import { genEmptyValue } from '../../shared/src/utility/misc.ts';
-import definition from '../../shared/src/effect/fx/testStructArray/_def_.ts';
+import { areDataTypesEqual } from '@gs/shared/data-type/data-type.ts';
+import { getArrayElementDefinition, getStructFieldDefinitions, isParameterType } from '@gs/shared/parameter/parameter-definition.ts';
+import { genEmptyValue } from '@gs/shared/parameter/parameter-default.ts';
+import definition from '@gs/subsystems_effect_shared/fx/testStructArray/_def_.ts';
 
 // 参照が異なる型でも同じ構造ならプレビュー値を維持し、要素型が変われば再初期化する。
 test('compares data type structures independently of object identity and field order', () => {

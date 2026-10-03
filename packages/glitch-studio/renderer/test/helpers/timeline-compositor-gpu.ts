@@ -1,7 +1,7 @@
-import { createTimelineCompositor } from '../../src/timeline-compositor.ts';
-import type { TimelineCompositingSettings } from '../../src/timeline-compositing-parameters.ts';
-import type { NodeOutput } from '../../src/node-output.ts';
-import { colorBlendModes } from '../../../shared/src/color-blend.ts';
+import { createTimelineCompositor } from '@gs/subsystems_timeline_renderer/timeline-compositor.ts';
+import type { TimelineCompositingSettings } from '@gs/subsystems_timeline_renderer/timeline-compositing-parameters.ts';
+import type { UniformOrTexture } from '@gs/shared/gpu/uniform-or-texture.ts';
+import { colorBlendModes } from '@gs/shared/color-blend.ts';
 
 // 実際の合成シェーダーを実行し、透明背景・変形後の空白・長方形での回転を画素で確認する。
 export async function checkTimelineCompositor(device: GPUDevice, vertex: GPUShaderModule, read: (output: GPUTexture) => Promise<number[]>) {
@@ -10,11 +10,11 @@ export async function checkTimelineCompositor(device: GPUDevice, vertex: GPUShad
 	const textures: GPUTexture[] = [];
 	const completed: string[] = [];
 	const defaults: TimelineCompositingSettings = { blendMode: 0, opacity: 1, fitMode: 'contain', position: [0, 0], origin: [0, 0], scale: [1, 1], rotation: 0 };
-	const uniform = (value: number[]): NodeOutput => ({ kind: 'uniform', value });
+	const uniform = (value: number[]): UniformOrTexture => ({ kind: 'uniform', value });
 	const blue = uniform([0, 0, 1, 1]);
 	const red = uniform([1, 0, 0, 1]);
 	const transparent = uniform([0, 0, 0, 0]);
-	const texture = (width: number, height: number, values: number[], format: 'rgba8unorm' | 'rgba32float' = 'rgba8unorm'): NodeOutput => {
+	const texture = (width: number, height: number, values: number[], format: 'rgba8unorm' | 'rgba32float' = 'rgba8unorm'): UniformOrTexture => {
 		const texture = device.createTexture({ size: [width, height], format, usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST });
 		textures.push(texture);
 		const data = format === 'rgba32float' ? new Float32Array(values) : new Uint8Array(values);
@@ -24,7 +24,7 @@ export async function checkTimelineCompositor(device: GPUDevice, vertex: GPUShad
 	const pixels = (pixel: (x: number, y: number) => number[]) => Array.from({ length: 4 }, (_, y) => Array.from({ length: 8 }, (_, x) => pixel(x, y))).flat(2);
 	const solid = (pixel: number[]) => pixels(() => pixel);
 
-	async function check(name: string, background: NodeOutput, source: NodeOutput, settings: Partial<TimelineCompositingSettings>, expected: number[]) {
+	async function check(name: string, background: UniformOrTexture, source: UniformOrTexture, settings: Partial<TimelineCompositingSettings>, expected: number[]) {
 		const encoder = device.createCommandEncoder();
 		const output = compositor.render(encoder, background, source, { ...defaults, ...settings });
 		device.queue.submit([encoder.finish()]);

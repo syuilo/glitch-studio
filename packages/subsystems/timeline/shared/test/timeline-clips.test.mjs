@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { createTimelineClipTiming, validateTimelineClips, isTimelineClipActive, getTimelineClipContentTime, getTimelineClipMoveBounds, getTimelineClipTrimBounds, getTimelineClipInsertionDuration, getTimelineMediaMaxDurationMs } from '../src/timeline/timing.ts';
-import { validateTimelineParameterBinding } from '../src/timeline/parameter-binding.ts';
+import { createTimelineClipTiming, validateTimelineClips, isTimelineClipActive, getTimelineClipContentTime, getTimelineClipMoveBounds, getTimelineClipTrimBounds, getTimelineClipInsertionDuration, getTimelineMediaMaxDurationMs } from '../src/timing.ts';
+import { validateTimelineParameterBinding } from '../src/parameter-binding.ts';
 
 const clip = (id, startMs, durationMs, contentOffsetMs = 0) => ({ id, startMs, durationMs, contentOffsetMs });
 

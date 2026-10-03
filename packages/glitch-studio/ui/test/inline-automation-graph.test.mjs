@@ -8,7 +8,7 @@ import { build } from 'esbuild';
 const bundled = await build({
 	absWorkingDir: fileURLToPath(new URL('../', import.meta.url)),
 	stdin: {
-		contents: "export * from './src/utility/keyframes-timeline.ts'; export { timelineCompositingParamDefs } from '../shared/src/timeline/timeline-compositing.ts'; export { COMMAND_DEFS } from './src/commands.ts'; export { createInlineAutomationGraph, setInlineAutomationGraphNormalized } from './src/utility/automation-graph.ts'; export { encodeProjectFile, decodeProjectFile } from './src/gsproj.ts'; export { createImageLayer } from './src/utility/image-layer.ts'; export { getLayerParameterTargets } from './src/utility/timeline-scene.ts';",
+		contents: "export * from './src/utility/keyframes-timeline.ts'; export { timelineCompositingParamDefs } from '@gs/subsystems_timeline_shared/timeline-compositing.ts'; export { COMMAND_DEFS } from './src/commands.ts'; export { createInlineAutomationGraph, setInlineAutomationGraphNormalized } from './src/utility/automation-graph.ts'; export { encodeProjectFile, decodeProjectFile } from './src/gsproj.ts'; export { createImageLayer } from './src/utility/image-layer.ts'; export { getLayerParameterTargets } from './src/utility/timeline-scene.ts';",
 		resolveDir: fileURLToPath(new URL('../', import.meta.url)),
 		loader: 'ts',
 	},

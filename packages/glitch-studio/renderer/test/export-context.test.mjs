@@ -1,19 +1,13 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
-import { build } from 'esbuild';
-import { TimelineRenderer } from '../src/timeline-renderer.ts';
+import { TimelineRenderer } from '@gs/subsystems_timeline_renderer/timeline-renderer.ts';
 import { loadShaderSource } from './helpers/load-shader-source.mjs';
-const { createVisualModuleTimelineLayer } = await loadShaderSource(fileURLToPath(new URL('../src/visual-module-timeline-layer.ts', import.meta.url)));
+import { createVisualModuleRenderer } from './helpers/create-visual-module-renderer.mjs';
+const { createVisualModuleTimelineLayer } = await loadShaderSource(fileURLToPath(import.meta.resolve('@gs/subsystems_timeline_renderer/visual-module-timeline-layer.ts')));
 
-const bundled = await build({
-	entryPoints: [fileURLToPath(new URL('../../shared/src/parameter-evaluator.ts', import.meta.url))],
-	bundle: true, platform: 'node', format: 'cjs', write: false,
-});
-const module = { exports: {} };
-new Function('require', 'module', 'exports', bundled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
-const { ParameterEvaluator } = module.exports;
+globalThis.GPUQueue = class { submit() {} };
+const { VisualModuleRenderer } = await loadShaderSource(fileURLToPath(import.meta.resolve('@gs/subsystems_visual-module_renderer/visual-module-renderer.ts')));
 
 // エクスポート指定をレイヤー変換まで伝え、後続の通常シークには残さない。
 test('passes export context through timeline layers and resets it for preview', async () => {
@@ -37,10 +31,10 @@ test('passes export context through timeline layers and resets it for preview', 
 
 // 単独参照と複合式の両方で真偽値を評価し、繰り返し評価しても値が残らない。
 test('evaluates IS_EXPORT in module and node expressions without leaking state', () => {
-	const evaluator = new ParameterEvaluator();
+	const evaluator = createVisualModuleRenderer(VisualModuleRenderer).parameterEvaluator;
 	for (const isExport of [false, true, false, true, false]) {
 		const scope = { variables: { IS_EXPORT: isExport }, automationGraphs: [], time: 0, endTime: 1000 };
-		const value = evaluator.evaluate({ inputSource: 'expression', expression: 'IS_EXPORT' }, { ...scope, evaluatedParamValues: null }, false);
+		const value = evaluator.valueEvaluator.evaluate({ inputSource: 'expression', expression: 'IS_EXPORT' }, scope, false);
 		assert.equal(value, isExport);
 		for (const expression of ['IS_EXPORT', 'IS_EXPORT == true', 'PARAM("export")']) {
 			assert.equal(evaluator.evaluate({ inputSource: 'expression', expression }, {

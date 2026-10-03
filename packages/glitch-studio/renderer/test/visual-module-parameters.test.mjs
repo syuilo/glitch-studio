@@ -2,14 +2,15 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { loadShaderSource } from './helpers/load-shader-source.mjs';
+import { createVisualModuleRenderer } from './helpers/create-visual-module-renderer.mjs';
 
-const loadSource = name => loadShaderSource(fileURLToPath(new URL(`../src/${name}.ts`, import.meta.url)));
-const { ParameterEvaluator } = await loadSource('../../shared/src/parameter-evaluator');
+const loadSource = name => loadShaderSource(fileURLToPath(import.meta.resolve(name)));
 
-const { genEmptyValue } = await loadSource('../../shared/src/utility/misc');
+const { getNodeInputDataType, areNodeDataTypesCompatible } = await loadSource('@gs/shared/data-type/node-compatibility.ts');
+const { genEmptyValue } = await loadSource('@gs/shared/parameter/parameter-default.ts');
 // TimingHelperは読み込み時にGPUQueue.prototypeを参照するため、レンダラーより先に用意する。
 globalThis.GPUQueue = class { submit() {} };
-const { VisualModuleRenderer } = await loadShaderSource(fileURLToPath(new URL('../src/visual-module-renderer.ts', import.meta.url)));
+const { VisualModuleRenderer } = await loadShaderSource(fileURLToPath(import.meta.resolve('@gs/subsystems_visual-module_renderer/visual-module-renderer.ts')));
 
 // 外部値を単一値APIで用意し、内部ノードの列挙は実際のレンダラーで検証する。
 function evaluate(evaluator, input) {
@@ -25,8 +26,8 @@ function evaluate(evaluator, input) {
 	for (const def of input.paramDefs) {
 		if (input.inputParamIds.has(def.id)) continue;
 		const value = input.paramValues[def.id];
-		paramValues.set(def.id, structuredClone(value == null ? def.defaultValue.value : evaluator.evaluate(value, {
-			variables, automationGraphs: input.callerGraphs ?? [], time: input.time, endTime: input.endTime, evaluatedParamValues: null,
+		paramValues.set(def.id, structuredClone(value == null ? def.defaultValue.value : evaluator.valueEvaluator.evaluate(value, {
+			variables, automationGraphs: input.callerGraphs ?? [], time: input.time, endTime: input.endTime,
 		}, value.inputSource === 'automationGraphReference' ? def.defaultValue.value : genEmptyValue(def))));
 	}
 	// GPUリソースを使わないパラメータ評価部分だけを呼ぶ。
@@ -82,7 +83,7 @@ const keyframesInput = (keyframes, dataType = 'scalar', options = {}) => ({
 // コンテナの走査はレンダラーの責務なので、ここで単体評価器との連携を確認する。
 test('keyframes evaluate in nested node parameters and module arguments', () => {
 	const input = keyframesInput([keyframe(0, 0), keyframe(1, 8)]);
-	const result = evaluate(new ParameterEvaluator(), context({ values: arrayParameter(number) }, {
+	const result = evaluate(createVisualModuleRenderer(VisualModuleRenderer).parameterEvaluator, context({ values: arrayParameter(number) }, {
 		values: arrayBinding([input]),
 	}, { paramDefs: [paramDef('animated')], paramValues: { animated: input }, time: 250 }));
 	assert.equal(result.paramValues.get('animated'), 2);
@@ -91,7 +92,7 @@ test('keyframes evaluate in nested node parameters and module arguments', () => 
 
 // IDと表示名が異なっても、PARAMは名前、外部入力参照はIDで同じ評価済み値を読む。
 test('resolves PARAM names separately from external parameter IDs', () => {
-	const result = evaluate(new ParameterEvaluator(), context({ named: number, direct: number, invalid: number }, {
+	const result = evaluate(createVisualModuleRenderer(VisualModuleRenderer).parameterEvaluator, context({ named: number, direct: number, invalid: number }, {
 		named: expression('PARAM("Gain")'),
 		direct: { inputSource: 'externalCustomParameterInput', parameterId: 'gain-id' },
 		invalid: expression('PARAM("gain-id")'),
@@ -118,7 +119,7 @@ test('isolates caller and module graphs for references and GRAPH expressions', (
 		automationGraphs: [internal], callerGraphs: [external],
 		paramDefs: [paramDef('reference'), paramDef('named')], paramValues: { reference, named },
 	});
-	const evaluator = new ParameterEvaluator();
+	const evaluator = createVisualModuleRenderer(VisualModuleRenderer).parameterEvaluator;
 	const result = evaluate(evaluator, input);
 	assert.deepEqual([...result.paramValues.values()], [3, 3]);
 	assert.deepEqual(result.nodeParams.get('node'), { reference: 9, named: 9 });
@@ -147,7 +148,7 @@ function assertClose(actual, expected) {
 test('evaluates GRAPH by name in module and node expressions', () => {
 	const graph = rampGraph();
 	const msGraph = { ...rampGraph(false), id: 'ms-id', name: 'Milliseconds' };
-	const result = evaluate(new ParameterEvaluator(), context({ values: arrayParameter(number) }, {
+	const result = evaluate(createVisualModuleRenderer(VisualModuleRenderer).parameterEvaluator, context({ values: arrayParameter(number) }, {
 		values: arrayBinding([
 			expression('GRAPH("Ramp", 0.25, "clamp")'),
 			expression('GRAPH("Ramp", 1.25, "repeat")'),
@@ -167,7 +168,7 @@ test('falls back for invalid GRAPH calls and does not expose inline graphs', () 
 		'GRAPH("Ramp", 0.5, "invalid")', 'GRAPH("Ramp", "0.5", "clamp")',
 		'GRAPH(1, 0.5, "clamp")', 'GRAPH("Ramp", 0.5)', 'GRAPH("Ramp", 0.5, "clamp", 1)',
 	];
-	const evaluator = new ParameterEvaluator();
+	const evaluator = createVisualModuleRenderer(VisualModuleRenderer).parameterEvaluator;
 	const result = evaluate(evaluator, context({ values: arrayParameter(number) }, {
 		values: arrayBinding(invalid.map(expression)),
 	}, { automationGraphs: [graph], paramDefs: [paramDef('invalid')], paramValues: { invalid: expression(invalid[0]) } }));
@@ -182,7 +183,7 @@ test('falls back for invalid GRAPH calls and does not expose inline graphs', () 
 
 // ASTを再利用しても別モジュールや変更前のグラフを参照しない。
 test('refreshes GRAPH definitions between evaluations', () => {
-	const evaluator = new ParameterEvaluator();
+	const evaluator = createVisualModuleRenderer(VisualModuleRenderer).parameterEvaluator;
 	const input = context({ value: number }, { value: expression('GRAPH("Ramp", 0.5, "clamp")') }, { automationGraphs: [rampGraph()] });
 	assertClose(evaluate(evaluator, input).nodeParams.get('node').value, 5);
 	assertClose(evaluate(evaluator, { ...input, automationGraphs: [{ ...rampGraph(), points: [graphPoint(0, 20)] }] }).nodeParams.get('node').value, 20);
@@ -191,8 +192,8 @@ test('refreshes GRAPH definitions between evaluations', () => {
 
 // 単一の組み込み変数はモジュール・ネストしたノードのどちらでもパースも実行もしない
 test('reads single scope variables without parsing or executing AiScript', t => {
-	const evaluator = new ParameterEvaluator();
-	const parse = t.mock.method(evaluator.aisParser, 'parse');
+	const evaluator = createVisualModuleRenderer(VisualModuleRenderer).parameterEvaluator;
+	const parse = t.mock.method(evaluator.valueEvaluator.expressionEvaluator.parser, 'parse');
 	const input = context({ values: arrayParameter(number) }, {
 		values: arrayBinding(['TIME', 'TIME_MS', 'WIDTH', 'HEIGHT', 'PROGRESS'].map(name => expression(` \t${name}\r\n`))),
 	}, { paramDefs: [paramDef('time')], paramValues: { time: expression('TIME') } });
@@ -207,8 +208,8 @@ test('reads single scope variables without parsing or executing AiScript', t => 
 
 // 複合式・コメント・関数呼び出し・未定義変数は従来のAiScript評価に渡す
 test('uses AiScript for complex expressions and unknown variables', t => {
-	const evaluator = new ParameterEvaluator();
-	const parse = t.mock.method(evaluator.aisParser, 'parse');
+	const evaluator = createVisualModuleRenderer(VisualModuleRenderer).parameterEvaluator;
+	const parse = t.mock.method(evaluator.valueEvaluator.expressionEvaluator.parser, 'parse');
 	const expressions = ['TIME + 1', 'TIME // comment', 'PARAM("gain")', 'UNKNOWN', 'toString'];
 	const result = evaluate(evaluator, context({ values: arrayParameter(number) }, {
 		values: arrayBinding(expressions.map(expression)),
@@ -229,7 +230,7 @@ test('evaluates nested values, expressions and node references without a GPU', (
 		link: { fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear', inputSource: 'node', nodeId: 'source', outputPort: 'value' },
 		empty: literal([]),
 	});
-	const result = evaluate(new ParameterEvaluator(), input);
+	const result = evaluate(createVisualModuleRenderer(VisualModuleRenderer).parameterEvaluator, input);
 	assert.deepEqual(result.nodeParams.get('node'), {
 		items: [{ value: 1500.75 }, { value: 9 }],
 		link: { nodeId: 'source', outputPort: 'value' },
@@ -239,7 +240,7 @@ test('evaluates nested values, expressions and node references without a GPU', (
 
 // 呼び出し側で評価した既定値・式を、内部の外部入力参照・PARAMから読む
 test('reads caller evaluated values through externalCustomParameterInputs and PARAM', () => {
-	const result = evaluate(new ParameterEvaluator(), context({ a: number, b: number, c: number }, {
+	const result = evaluate(createVisualModuleRenderer(VisualModuleRenderer).parameterEvaluator, context({ a: number, b: number, c: number }, {
 		a: { inputSource: 'externalCustomParameterInput', parameterId: 'gain' },
 		b: expression('PARAM("gain") + PARAM("offset")'),
 		c: expression('PARAM("literal")'),
@@ -262,7 +263,7 @@ test('falls back for texture parameters, missing references and invalid expressi
 		missingCustomParameterInput: { inputSource: 'externalCustomParameterInput', parameterId: 'missing' },
 		missingAutomationGraph: { inputSource: 'automationGraphReference', automationGraphId: 'missing' },
 	};
-	const result = evaluate(new ParameterEvaluator(), context(Object.fromEntries(Object.keys(params).map(key => [key, number])), params, {
+	const result = evaluate(createVisualModuleRenderer(VisualModuleRenderer).parameterEvaluator, context(Object.fromEntries(Object.keys(params).map(key => [key, number])), params, {
 		paramDefs: [paramDef('texture', 99), paramDef('missingAutomationGraph', 12)],
 		paramValues: { missingAutomationGraph: { inputSource: 'automationGraphReference', automationGraphId: 'missing' } },
 		inputParamIds: new Set(['texture']),
@@ -277,12 +278,12 @@ test('evaluates only the primary parameter when bypassed', () => {
 	const params = { main: literal(4), unused: expression('invalid container') };
 	const input = context({ main: { ...number, canNode: true }, unused: arrayParameter(number) }, params, { nodes: [node(params, true)] });
 	input.effectDefinitions.test.primaryInputParameter = 'main';
-	assert.deepEqual(evaluate(new ParameterEvaluator(), input).nodeParams.get('node'), { main: 4 });
+	assert.deepEqual(evaluate(createVisualModuleRenderer(VisualModuleRenderer).parameterEvaluator, input).nodeParams.get('node'), { main: 4 });
 });
 
 // 次回評価で前回の結果を書き換えず、既定値の配列を共有しない
 test('keeps previous results and clones module defaults between evaluations', () => {
-	const evaluator = new ParameterEvaluator();
+	const evaluator = createVisualModuleRenderer(VisualModuleRenderer).parameterEvaluator;
 	const def = paramDef('color', [1, 0.5, 0, 0.25], 'color');
 	const input = context({ value: number }, { value: expression('TIME') }, { paramDefs: [def] });
 	const first = evaluate(evaluator, input);
@@ -297,8 +298,7 @@ test('keeps previous results and clones module defaults between evaluations', ()
 
 // UIの範囲やコントロールの種類は式・外部パラメータ・接続の数値型に影響しない。
 test('evaluates numeric parameters independently of their UI controls', async () => {
-	const { getNodeInputDataType } = await loadSource('../../shared/src/utility/node-outputs');
-	const evaluator = new ParameterEvaluator();
+	const evaluator = createVisualModuleRenderer(VisualModuleRenderer).parameterEvaluator;
 	for (const control of [{ controlType: 'number' }, { controlType: 'range', min: 10, max: 20, step: 1 }, { controlType: 'seed' }, { controlType: 'angle' }]) {
 		const ui = { label: 'Value', control };
 		const def = { ...number, ui, canNode: true };
@@ -315,7 +315,7 @@ test('evaluates numeric parameters independently of their UI controls', async ()
 
 // ノード対応型だけをInの出力として公開し、真偽値や素材参照は変換しない。
 test('uses shared scalar types for node inputs and module outputs', async () => {
-	const { getNodeInputDataType, getNodeOutputs, areNodeDataTypesCompatible } = await loadSource('../../shared/src/utility/node-outputs');
+	const { getNodeOutputs } = await loadSource('@gs/subsystems_visual-module_shared/node-outputs.ts');
 	const defs = [
 		{ ...paramDef('amount'), canNode: true }, paramDef('flag', true, 'bool'), paramDef('image', null, 'assetReference'),
 		{ ...paramDef('vector', [0, 0], 'vector'), canNode: true }, { ...paramDef('color', [0, 0, 0, 1], 'color'), canNode: true },
@@ -352,7 +352,7 @@ for (const enable32bitDataTextures of [false, true]) {
 			if (originalQueue) Object.defineProperty(globalThis, 'GPUQueue', originalQueue);
 			else delete globalThis.GPUQueue;
 		});
-		const { VisualModuleRenderer } = await loadShaderSource(fileURLToPath(new URL('../src/visual-module-renderer.ts', import.meta.url)));
+		const { VisualModuleRenderer } = await loadShaderSource(fileURLToPath(import.meta.resolve('@gs/subsystems_visual-module_renderer/visual-module-renderer.ts')));
 		const writes = [];
 		const renderedValues = [];
 		const allocated = [];

@@ -3,12 +3,12 @@ import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { loadShaderSource } from './helpers/load-shader-source.mjs';
 
-const load = path => loadShaderSource(fileURLToPath(new URL(path, import.meta.url)));
-const { EffectRenderer } = await load('../src/effect-renderer.ts');
-const { VisualModuleRenderer } = await load('../src/visual-module-renderer.ts');
-const { createVisualModuleTimelineLayer } = await load('../src/visual-module-timeline-layer.ts');
-const { createVideoFrameLoader } = await load('../../shared/src/effect/fx/videoFrame/frame-loader.ts');
-const { createTextFontLoader } = await load('../../shared/src/effect/fx/text/font-loader.ts');
+const load = path => loadShaderSource(fileURLToPath(import.meta.resolve(path)));
+const { EffectRenderer } = await load('@gs/subsystems_effect_renderer/effect-renderer.ts');
+const { VisualModuleRenderer } = await load('@gs/subsystems_visual-module_renderer/visual-module-renderer.ts');
+const { createVisualModuleTimelineLayer } = await load('@gs/subsystems_timeline_renderer/visual-module-timeline-layer.ts');
+const { createVideoFrameLoader } = await load('@gs/subsystems_effect_shared/fx/videoFrame/frame-loader.ts');
+const { createTextFontLoader } = await load('@gs/subsystems_effect_shared/fx/text/font-loader.ts');
 
 const literal = value => ({ inputSource: 'literal', value });
 const connection = (nodeId, outputPort = 'output') => ({ inputSource: 'node', nodeId, outputPort, fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' });
@@ -449,7 +449,7 @@ test('keeps graph caches stable and propagates parameter and cacheVersion change
 // Module定義の置換でキャッシュを全消去してしまうと、大きなグラフでスライダー操作が重くなる。
 // 式・キー・配列内の末端値も同じ契約で、構造変更時だけModule全体を無効化できることを確認する。
 test('retains upstream caches and instances across literal expression keyframe and nested edits', async t => {
-	const { default: nested } = await load('../../shared/src/effect/fx/testStructArray/_def_.ts');
+	const { default: nested } = await load('@gs/subsystems_effect_shared/fx/testStructArray/_def_.ts');
 	const g = gpu();
 	const a = probe(g);
 	const b = probe(g, { paramDefs: { input: color, amount: { dataType: { kind: 'scalar' } }, buzzs: nested.paramDefs.buzzs } });

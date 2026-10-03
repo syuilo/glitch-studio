@@ -17,13 +17,13 @@ async function loadSource(name) {
 	new Function('require', 'module', 'exports', bundled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
 	return module.exports;
 }
-const { ParameterEvaluator } = await loadSource('parameter-evaluator');
+const { ParameterBindingEvaluator } = await loadSource('parameter/parameter-binding-evaluator');
 
 const literal = value => ({ inputSource: 'literal', value });
 const expression = expression => ({ inputSource: 'expression', expression });
 const context = (overrides = {}) => ({
 	variables: {}, automationGraphs: [], time: 500, endTime: 5000,
-	evaluatedParamValues: null, ...overrides,
+	...overrides,
 });
 
 const keyframe = (x, value, type = 'linear') => ({ id: `${x}`, x, value, interpolation: { type } });
@@ -33,8 +33,8 @@ const keyframesInput = (keyframes, dataType = 'scalar', options = {}) => ({
 	trimmedDurationMs: 1000, wrapMode: 'clamp', offsetMode: 'start', ...options,
 });
 function evaluateKeyframes(input, time, endTime = 5000, fallback = -1) {
-	return new ParameterEvaluator().evaluate(input, {
-		variables: {}, automationGraphs: [], evaluatedParamValues: null, time, endTime,
+	return new ParameterBindingEvaluator().evaluate(input, {
+		variables: {}, automationGraphs: [], time, endTime,
 	}, fallback);
 }
 
@@ -224,7 +224,7 @@ const graphInput = (inputSource, graph, options = {}) => ({
 });
 
 function evaluateGraphInput(inputSource, graph, { time = 500, endTime = 5000, ...options } = {}) {
-	return new ParameterEvaluator().evaluate(graphInput(inputSource, graph, options), context({
+	return new ParameterBindingEvaluator().evaluate(graphInput(inputSource, graph, options), context({
 		automationGraphs: inputSource === 'automationGraphReference' ? [graph] : [], time, endTime,
 	}), -1);
 }
@@ -292,22 +292,20 @@ for (const source of ['automationGraphReference', 'automationGraphInline']) {
 }
 
 
-// 【リテラルと接続参照の評価】
+// 【リテラルの評価】
 // ノードの列挙やコンテナの走査を持ち込まず、単一Bindingの返り値を検証する。
-test('evaluates literal values and node references directly', () => {
-	const evaluator = new ParameterEvaluator();
+test('evaluates literal values directly', () => {
+	const evaluator = new ParameterBindingEvaluator();
 	for (const value of [0, false, null, 'text', [1, 2], { value: 3 }]) {
 		assert.deepEqual(evaluator.evaluate(literal(value), context(), -1), value);
 	}
-	assert.deepEqual(evaluator.evaluate({ inputSource: 'node', nodeId: 'source', outputPort: 'value' }, context(), -1), { nodeId: 'source', outputPort: 'value' });
-	assert.equal(evaluator.evaluate({ inputSource: 'node', nodeId: null }, context(), -1), null);
 });
 
 // 【明示的なスコープと変数の高速経路】
 // 再利用時も前回の変数を保持せず、再生時刻から式の変数を暗黙に補わない。
 test('reads only explicit scope variables and skips parsing for single variables', t => {
-	const evaluator = new ParameterEvaluator();
-	const parse = t.mock.method(evaluator.aisParser, 'parse');
+	const evaluator = new ParameterBindingEvaluator();
+	const parse = t.mock.method(evaluator.expressionEvaluator.parser, 'parse');
 	for (const value of [0.5, 0]) {
 		const scope = context({ variables: { TIME: value } });
 		assert.equal(evaluator.evaluate(expression(' \tTIME\r\n'), scope, -1), value);
@@ -321,29 +319,13 @@ test('reads only explicit scope variables and skips parsing for single variables
 	assert.equal(evaluator.evaluate(expression('TIME + 1'), context({ variables: { TIME: 2 } }), -1), 3);
 });
 
-// 【PARAMの名前と直接参照のID】
-// 評価済みの値と名前の対応を直接渡し、Visual Moduleの生成やレンダラーに依存しない。
-test('resolves parameter names separately from IDs and falls back for unavailable values', () => {
-	const evaluator = new ParameterEvaluator();
-	const scope = context({ evaluatedParamValues: new Map([['gain-id', 0]]), paramIdsByName: new Map([['Gain', 'gain-id']]) });
-	assert.equal(evaluator.evaluate(expression('PARAM("Gain")'), scope, -1), 0);
-	assert.equal(evaluator.evaluate({ inputSource: 'externalCustomParameterInput', parameterId: 'gain-id' }, scope, -1), 0);
-	for (const text of ['PARAM("gain-id")', 'PARAM("missing")', 'PARAM(1)', 'PARAM()', 'PARAM("Gain", 1)', '1 +', '']) {
-		assert.equal(evaluator.evaluate(expression(text), scope, -1), -1);
-	}
-	for (const empty of [context(), context({ evaluatedParamValues: new Map(), paramIdsByName: scope.paramIdsByName })]) {
-		assert.equal(evaluator.evaluate(expression('PARAM("Gain")'), empty, -1), -1);
-		assert.equal(evaluator.evaluate({ inputSource: 'externalCustomParameterInput', parameterId: 'gain-id' }, empty, -1), -1);
-	}
-});
-
 // 【参照値の複製】
-// 評価結果の変更が、次回の評価で使うスコープや評価済みパラメータを破壊しない。
-test('clones values read from variables and evaluated parameters', () => {
-	const evaluator = new ParameterEvaluator();
+// 評価結果の変更が、次回の評価で使うスコープを破壊しない。
+test('clones values read from variables', () => {
+	const evaluator = new ParameterBindingEvaluator();
 	const value = [1, 0.5, 0, 0.25];
-	const scope = context({ variables: { COLOR: value }, evaluatedParamValues: new Map([['color-id', value]]), paramIdsByName: new Map([['Color', 'color-id']]) });
-	for (const binding of [expression('COLOR'), { inputSource: 'envVariable', variable: 'COLOR' }, expression('PARAM("Color")'), { inputSource: 'externalCustomParameterInput', parameterId: 'color-id' }]) {
+	const scope = context({ variables: { COLOR: value } });
+	for (const binding of [expression('COLOR'), { inputSource: 'envVariable', variable: 'COLOR' }]) {
 		const result = evaluator.evaluate(binding, scope, null);
 		assert.deepEqual(result, value);
 		result[0] = 99;
@@ -354,7 +336,7 @@ test('clones values read from variables and evaluated parameters', () => {
 // 【GRAPHの名前解決とスコープの更新】
 // ASTを再利用しても、グラフは毎回渡されたスコープからのみ参照する。
 test('evaluates GRAPH by name and refreshes definitions between scopes', () => {
-	const evaluator = new ParameterEvaluator();
+	const evaluator = new ParameterBindingEvaluator();
 	const binding = expression('GRAPH("Ramp", 0.5, "clamp")');
 	assertClose(evaluator.evaluate(binding, context({ automationGraphs: [rampGraph()] }), -1), 5);
 	assert.equal(evaluator.evaluate(binding, context({ automationGraphs: [{ ...rampGraph(), points: [graphPoint(0, 20)] }] }), -1), 20);

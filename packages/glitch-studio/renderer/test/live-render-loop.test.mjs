@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { LiveRenderLoop } from '../src/live-render-loop.ts';
+import { LiveRenderLoop } from '@gs/subsystems_visual-module_renderer/live-render-loop.ts';
 
 function createFixture(options = {}) {
 	let now = 0;

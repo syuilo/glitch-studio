@@ -10,8 +10,8 @@ import ts from 'typescript';
 test('checks parameter controls and infers values independently of controls', () => {
 	const fileName = fileURLToPath(new URL('./parameter-schema.fixture.ts', import.meta.url)).replaceAll('\\', '/');
 	const source = `
-import type { KeyframesTimelineData, KeyframesTimelineKeyframe } from '../../shared/src/keyframes-timeline.ts';
-import type { ParameterBinding } from '../../shared/src/types.ts';
+import type { KeyframesTimelineData, KeyframesTimelineKeyframe } from '@gs/shared/keyframes/keyframes-timeline.ts';
+import type { ValueParameterBinding } from '@gs/shared/parameter/value-parameter-binding.ts';
 const hold = { type: 'hold' } as const;
 const linear = { type: 'linear' } as const;
 const scalarKey: KeyframesTimelineKeyframe<{ kind: 'scalar' }> = { id: 'a', x: 0, value: 2, interpolation: linear };
@@ -29,14 +29,14 @@ const numberBool: KeyframesTimelineData = { dataType: { kind: 'bool' }, isNormal
 // @ts-expect-error enumの候補のunionを維持する
 const invalidEnumKey: KeyframesTimelineKeyframe<{ kind: 'enum'; options: readonly ['left', 'right'] }> = { id: 'a', x: 0, value: 'center', interpolation: hold };
 // @ts-expect-error Binding経由でもタイムラインの型と値の対応を維持する
-const mismatchedBinding: ParameterBinding = { inputSource: 'keyframesTimelineInline', offsetMode: 'start', wrapMode: 'clamp', trimmedDurationMs: null, keyframesTimeline: { dataType: { kind: 'scalar' }, isNormalized: false, keyframes: [{ id: 'a', x: 0, value: 'Hello', interpolation: hold }] } };
-import { defineEffect, type EffectOutputDefinitions } from '../../shared/src/effect/effect-definition.ts';
-import type { ParameterDefinition, ParameterDefaultValue } from '../../shared/src/parameter.ts';
-import { colorBlendModes, type BlendMode } from '../../shared/src/color-blend.ts';
-import type { EffectInstance } from '../../shared/src/effect/effect-implementation.ts';
-import { visualModuleCustomParameterId, visualModuleCustomParameterName, type VisualModule, type VisualModuleParameterBindings } from '../../shared/src/visual-module/types.ts';
-import type { NodeOutputReference } from '../../shared/src/visual-module/types.ts';
-import type { DataType, TextureDataType } from '../../shared/src/data-type.ts';
+const mismatchedBinding: ValueParameterBinding = { inputSource: 'keyframesTimelineInline', offsetMode: 'start', wrapMode: 'clamp', trimmedDurationMs: null, keyframesTimeline: { dataType: { kind: 'scalar' }, isNormalized: false, keyframes: [{ id: 'a', x: 0, value: 'Hello', interpolation: hold }] } };
+import { defineEffect, type EffectOutputDefinitions } from '@gs/subsystems_effect_shared/effect-definition.ts';
+import type { ParameterDefinition, ParameterDefaultValue } from '@gs/shared/parameter/parameter-definition.ts';
+import { colorBlendModes, type BlendMode } from '@gs/shared/color-blend.ts';
+import type { EffectInstance } from '@gs/subsystems_effect_shared/effect-implementation.ts';
+import { visualModuleCustomParameterId, visualModuleCustomParameterName, type VisualModule, type VisualModuleArgumentBindings } from '@gs/subsystems_visual-module_shared/types.ts';
+import type { NodeOutputReference } from '@gs/subsystems_visual-module_shared/types.ts';
+import type { DataType, TextureDataType } from '@gs/shared/data-type/data-type.ts';
 type VisualModuleParamDef = VisualModule['paramDefs'][number];
 
 type AssertNever<T extends never> = T;
@@ -121,7 +121,7 @@ const missingDefault: ParameterDefinition = { dataType: { kind: 'scalar' }, ui: 
 const boolInput: VisualModuleParamDef = { ...external, dataType: { kind: 'bool' }, ui: { control: {}, label: 'Bool' }, defaultValue: { inputSource: 'literal', value: false }, canNode: true };
 // @ts-expect-error 接続のサンプリング設定は省略できない
 const missingSampling: NodeOutputReference = { nodeId: 'node', outputPort: 'output' };
-const externalValues: VisualModuleParameterBindings = {};
+const externalValues: VisualModuleArgumentBindings = {};
 // @ts-expect-error モジュールの外から内部ノードを参照できない
 externalValues[external.id] = { inputSource: 'node', nodeId: null, outputPort: null };
 // @ts-expect-error モジュールの外から内部カスタムパラメータを参照できない
