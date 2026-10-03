@@ -18,7 +18,7 @@ import { GpuMemoryTracker } from './utility/GpuMemoryTracker.ts';
 import { CanvasRenderer } from './canvas-renderer.ts';
 import type { RendererProjectChange, RendererProjectState } from '@gs/glitch-studio_shared/project/renderer-state.ts';
 import type { ProjectVisualModule } from '@gs/glitch-studio_shared/project/types.ts';
-import type { VisualModuleCustomParameterId, VisualModuleParameterBindings } from '@gs/subsystems_visual-module_shared/types.ts';
+import type { VisualModuleCustomParameterId, VisualModuleArgumentBindings } from '@gs/subsystems_visual-module_shared/types.ts';
 import type { EffectInstanceState } from '@gs/subsystems_effect_shared/effect-status.ts';
 import type { AudioCaptureMessage, AudioSourceId } from '@gs/shared/audio.ts';
 import type { Asset, IntermediateTextureFormat, Player } from '@gs/shared/types.ts';
@@ -75,7 +75,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 	private frameScheduler: FrameScheduler;
 	private liveRenderLoop: LiveRenderLoop;
 	private liveVisualModuleId: ProjectVisualModule['id'] | null = null;
-	private liveParamValues: VisualModuleParameterBindings = {};
+	private liveParamValues: VisualModuleArgumentBindings = {};
 	private liveParamEvaluator = new ParameterBindingEvaluator();
 	private liveVisualModuleRenderer: VisualModuleRenderer | null = null;
 	private assetTextures: AssetTextures;
@@ -301,11 +301,11 @@ export class VisualModuleRendererManager extends EventEmitter<{
 		});
 	}
 
-	public updateLiveParamValues(paramValues: VisualModuleParameterBindings) {
+	public updateLiveParamValues(paramValues: VisualModuleArgumentBindings) {
 		this.liveParamValues = paramValues;
 	}
 
-	public startLiveRenderLoopFor(visualModuleId: string, paramValues: VisualModuleParameterBindings = {}, statusInstanceId = genId()) {
+	public startLiveRenderLoopFor(visualModuleId: string, paramValues: VisualModuleArgumentBindings = {}, statusInstanceId = genId()) {
 		this.stopRenderLoop();
 
 		const visualModule = this.dynamicOptions.visualModules.find(g => g.id === visualModuleId);

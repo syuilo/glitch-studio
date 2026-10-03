@@ -157,19 +157,11 @@ import type { ParameterArrayElement } from '@gs/shared/parameter/parameter-bindi
 import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
 
 export type ParamEdit = { paramPath: ParamPath; mergeKey?: string | null } & (
-	| { kind: 'literal'; value: any }
-	| { kind: 'automationGraphInline'; value: Extract<ParameterBinding, { inputSource: 'automationGraphInline' }> }
-	| { kind: 'envVariable'; value: ExpressionVariableName }
-	| { kind: 'expression'; value: string }
-	| { kind: 'automationGraphReference'; value: string | null; options?: Partial<AutomationGraphPlaybackOptions> }
-	| { kind: 'keyframesTimelineInline'; value: Extract<ParameterBinding, { inputSource: 'keyframesTimelineInline' }> }
+	| ValueParameterEdit
 	| { kind: 'node'; value: NodeOutputReference | null; preserveSampling: boolean }
-	| { kind: 'layerInput'; value: Extract<ParameterBinding, { inputSource: 'layerInput' }> }
+	| { kind: 'layerInput'; value: Extract<EditableParameterBinding, { inputSource: 'layerInput' }> }
 	| { kind: 'externalCustomParameterInput'; value: VisualModuleCustomParameterId }
-	| { kind: 'inputSource'; inputSource: ParameterBinding['inputSource'] }
-	| { kind: 'reset' }
-	| { kind: 'addElement' }
-	| { kind: 'removeElement'; elementId: string }
+	| ParameterInputSourceEdit<'node' | 'layerInput' | 'externalCustomParameterInput'>
 );
 </script>
 
@@ -193,7 +185,7 @@ import type { NodeOutputReference, VisualModule, VisualModuleCustomParameterId, 
 import type { ExpressionVariableName } from '@gs/shared/expression/expression-environment.ts';
 import type { ParamPath } from '@/utility/node-params.ts';
 import type { AutomationGraphPlaybackOptions, AutomationGraph, BezierAnchorPoint } from '@gs/shared/automation-graph/automation-graph.ts';
-import type { ParameterBinding } from '@gs/shared/parameter/parameter-binding.ts';
+import type { EditableParameterBinding, ParameterInputSourceEdit, ValueParameterEdit } from '@/types/parameter-edit.ts';
 import type { MenuItem } from '@/types/menu.ts';
 import { i18n } from '@/i18n.ts';
 import { useVisualModuleWires } from '@/utility/visual-module-wires.ts';
@@ -213,7 +205,7 @@ const props = defineProps<{
 	node?: VisualModuleEffectNode;
 	paramPath: ParamPath;
 	paramDef: ParameterDefinition;
-	paramValue: ParameterBinding;
+	paramValue: EditableParameterBinding;
 	label?: string;
 	keyframesEnabled?: boolean;
 	layerInputEnabled?: boolean;
@@ -224,8 +216,8 @@ const emit = defineEmits<{ edit: [event: ParamEdit] }>();
 
 const rowEl = useTemplateRef('rowEl');
 const portEl = shallowRef<HTMLElement | null>(null);
-const arrayValues = computed<ParameterArrayElement[]>(() => props.paramDef.dataType.kind === 'array' && props.paramValue.inputSource === 'literal' ? props.paramValue.value : []);
-const structValues = computed<Record<string, ParameterBinding> | null>(() => props.paramDef.dataType.kind === 'struct' && props.paramValue.inputSource === 'literal' ? props.paramValue.value : null);
+const arrayValues = computed<ParameterArrayElement<EditableParameterBinding>[]>(() => props.paramDef.dataType.kind === 'array' && props.paramValue.inputSource === 'literal' ? props.paramValue.value : []);
+const structValues = computed<Record<string, EditableParameterBinding> | null>(() => props.paramDef.dataType.kind === 'struct' && props.paramValue.inputSource === 'literal' ? props.paramValue.value : null);
 const visibleFields = computed(() => {
 	if (props.paramDef.dataType.kind !== 'struct') return [];
 	const fields: Record<string, ParameterDefinition> = getStructFieldDefinitions(props.paramDef);
@@ -357,7 +349,7 @@ function getMenu() {
 	// コンテナ自体は静的な構造を維持し、値の種類を変更できるのは末端だけにする。
 	if (props.paramDef.dataType.kind !== 'array' && props.paramDef.dataType.kind !== 'struct') {
 		menuItems.push({ type: 'label', text: 'Input source' });
-		const types: { text: string; inputSource: ParameterBinding['inputSource']; icon: string }[] = [
+		const types: { text: string; inputSource: EditableParameterBinding['inputSource']; icon: string }[] = [
 			{ text: 'Literal', inputSource: 'literal', icon: 'ti ti-adjustments-horizontal' },
 			{ text: 'Environment Variable', inputSource: 'envVariable', icon: 'ti ti-variable' },
 			{ text: 'Expression', inputSource: 'expression', icon: 'ti ti-math-function' },
@@ -416,7 +408,7 @@ function showNodeInputMenu(ev: PointerEvent) {
 
 function showLayerInputSamplingMenu(ev: PointerEvent) {
 	if (layerInputConnection.value == null) return;
-	ui.popupMenu(getNodeInputSamplingMenuItems(layerInputConnection as Ref<Extract<ParameterBinding, { inputSource: 'layerInput' }>>,
+	ui.popupMenu(getNodeInputSamplingMenuItems(layerInputConnection as Ref<Extract<EditableParameterBinding, { inputSource: 'layerInput' }>>,
 		value => emit('edit', { kind: 'layerInput', ...target(), value })), ev.currentTarget ?? ev.target);
 }
 

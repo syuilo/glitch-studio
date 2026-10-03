@@ -14,7 +14,7 @@ import type { AudioOutput } from './audio/audio-output.ts';
 import { setupWebcam } from './utility/webcam.ts';
 import { RendererManagerControllerBase } from './RendererManagerControllerBase.ts';
 import type { Player } from '@gs/shared/types.ts';
-import type { VisualModuleParameterBindings } from '@gs/subsystems_visual-module_shared/types.ts';
+import type { VisualModuleArgumentBindings } from '@gs/subsystems_visual-module_shared/types.ts';
 import type { EffectInstanceState } from '@gs/subsystems_effect_shared/effect-status.ts';
 import type { VisualModuleRendererManager, VisualModuleRendererManagerStaticOptions, VisualModuleRendererManagerDynamicOptions, VisualModuleRendererManagerEvents } from '@gs/glitch-studio_renderer/visual-module-renderer-manager.ts';
 import * as ui from '@/ui.ts';
@@ -28,7 +28,7 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 	private renderLoopRunning = false;
 	// Worker再読み込みとエフェクト状態の参照に必要な内部情報。UIの再生状態はPreviewPlaybackControllerが所有する。
 	private liveVisualModuleId = ref<ProjectVisualModule['id'] | null>(null);
-	private liveParamValues: VisualModuleParameterBindings = {};
+	private liveParamValues: VisualModuleArgumentBindings = {};
 	private pointerPosition = { x: 0, y: 0 };
 	private staticOptions: VisualModuleRendererManagerStaticOptions;
 	private dynamicOptions: Partial<VisualModuleRendererManagerDynamicOptions> & Pick<VisualModuleRendererManagerDynamicOptions, 'assets'> = {
@@ -217,7 +217,7 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 		await this.launchManager(false);
 	}
 
-	public startLiveRenderLoopFor(visualModuleId: ProjectVisualModule['id'], paramValues: VisualModuleParameterBindings = {}) {
+	public startLiveRenderLoopFor(visualModuleId: ProjectVisualModule['id'], paramValues: VisualModuleArgumentBindings = {}) {
 		this.liveParamValues = deepClone(paramValues);
 		const statusInstanceId = genId();
 		// 再初期化中のモード変更はonCreatedで最新状態だけを復元し、古い開始要求をキューに残さない。
@@ -227,7 +227,7 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 		this.renderLoopRunning = true;
 	}
 
-	public updateLiveParamValues(visualModuleId: ProjectVisualModule['id'], paramValues: VisualModuleParameterBindings) {
+	public updateLiveParamValues(visualModuleId: ProjectVisualModule['id'], paramValues: VisualModuleArgumentBindings) {
 		if (!this.renderLoopRunning || this.liveVisualModuleId.value !== visualModuleId) {
 			this.startLiveRenderLoopFor(visualModuleId, paramValues);
 			return;

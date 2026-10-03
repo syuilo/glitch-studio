@@ -1,4 +1,5 @@
 import { resolveParameter, walkParameters } from '@gs/shared/parameter/parameter-path.ts';
+import { isValueParameterBinding } from '@gs/shared/parameter/parameter-binding.ts';
 import type { ParamPath } from '@gs/shared/parameter/parameter-path.ts';
 import type { TimelineParameterTarget } from './utility/timeline-scene.ts';
 import { createLayerInputBinding, validateTimelineEffectLayer } from '@gs/subsystems_timeline_shared/effect-layer.ts';
@@ -31,7 +32,9 @@ import type { AppState } from './types.ts';
 import type { Resolution } from '@gs/shared/resolution.ts';
 import type { Asset, Player } from '@gs/shared/types.ts';
 import type { AutomationGraphPlaybackOptions } from '@gs/shared/automation-graph/automation-graph.ts';
-import type { ParameterBinding } from '@gs/shared/parameter/parameter-binding.ts';
+import type { TimelineEffectParameterBinding, TimelineLayerInputBinding } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
+import type { ValueParameterEdit } from '@/types/parameter-edit.ts';
+import type { VisualModuleParameterBinding } from '@gs/subsystems_visual-module_shared/types.ts';
 import type { NodeParamTarget as EffectNodeParamTarget } from '@/utility/node-params.ts';
 import type { ExpressionVariableName } from '@gs/shared/expression/expression-environment.ts';
 import { canConnectNodeDataTypes } from '@/utility/node-outputs.ts';
@@ -73,19 +76,10 @@ const editTimelineLayerParamCommandDef = defineCommand<{
 	sceneId: string;
 	layerId: string;
 	paramPath: ParamPath;
-	target?: TimelineParameterTarget;
-	edit:
-		| { kind: 'literal'; value: any }
-		| { kind: 'automationGraphInline'; value: Extract<ParameterBinding, { inputSource: 'automationGraphInline' }> }
-		| { kind: 'keyframesTimelineInline'; value: Extract<ParameterBinding, { inputSource: 'keyframesTimelineInline' }> }
-		| { kind: 'layerInput'; value: Extract<ParameterBinding, { inputSource: 'layerInput' }> }
-		| { kind: 'envVariable' | 'expression'; value: string }
-		| { kind: 'automationGraphReference'; value: string | null; options?: Partial<AutomationGraphPlaybackOptions> }
-		| { kind: 'inputSource'; inputSource: ParameterBinding['inputSource'] }
-		| { kind: 'reset' }
-		| { kind: 'addElement' }
-		| { kind: 'removeElement'; elementId: string };
-}>({
+} & (
+	| { target?: TimelineParameterTarget; edit: ValueParameterEdit }
+	| { target: 'effect'; edit: { kind: 'layerInput'; value: TimelineLayerInputBinding } | { kind: 'inputSource'; inputSource: 'layerInput' } }
+)>({
 	label: 'Edit timeline layer param',
 	changes: (_state, payload) => {
 		let kind: ParameterChangeKind;
@@ -101,8 +95,8 @@ const editTimelineLayerParamCommandDef = defineCommand<{
 			changes: [{ type: 'parameter', target: payload.target ?? 'module', kind }] }];
 	},
 	create: payload => {
-		let before: ParameterBinding | undefined;
-		let after: ParameterBinding | undefined;
+		let before: TimelineEffectParameterBinding | undefined;
+		let after: TimelineEffectParameterBinding | undefined;
 		const target = payload.target ?? 'module';
 		const rootKey = payload.paramPath[0];
 		const getLayer = (state: AppState) => {
@@ -110,6 +104,20 @@ const editTimelineLayerParamCommandDef = defineCommand<{
 			if (layer == null) throw new Error('Timeline layer not found');
 			getLayerParameterValues(layer, target);
 			return layer;
+		};
+		const setBinding = (layer: TimelineLayer, binding: TimelineEffectParameterBinding | undefined) => {
+			if (target === 'effect') {
+				const values = getLayerParameterValues(layer, target);
+				if (binding === undefined) delete values[rootKey];
+				else values[rootKey] = deepClone(binding);
+			} else {
+				const values = getLayerParameterValues(layer, target);
+				if (binding === undefined) delete values[rootKey];
+				else {
+					if (!isValueParameterBinding(binding)) throw new Error('Unsupported layer parameter input source');
+					values[rootKey] = deepClone(binding);
+				}
+			}
 		};
 		return {
 			execute(state) {
@@ -127,7 +135,7 @@ const editTimelineLayerParamCommandDef = defineCommand<{
 					const resolved = resolveParameter(defs, draft, payload.paramPath);
 					const { def, value: current } = resolved;
 					const edit = payload.edit;
-					let next: ParameterBinding;
+					let next: TimelineEffectParameterBinding;
 					const container = def.dataType.kind === 'array' || def.dataType.kind === 'struct';
 					if (container && !['reset', 'addElement', 'removeElement'].includes(edit.kind)) throw new Error('Container parameters must be edited through their children');
 					switch (edit.kind) {
@@ -147,7 +155,7 @@ const editTimelineLayerParamCommandDef = defineCommand<{
 						case 'addElement':
 						case 'removeElement': {
 							if (def.dataType.kind !== 'array' || current.inputSource !== 'literal') throw new Error('Expected array parameter');
-							const elements = current.value as ParameterArrayElement[];
+							const elements = current.value as ParameterArrayElement<TimelineEffectParameterBinding>[];
 							if (edit.kind === 'removeElement' && !elements.some(element => element.id === edit.elementId)) throw new Error('Unknown array element');
 							next = { inputSource: 'literal', value: edit.kind === 'addElement'
 								? [...elements, { id: genId(), binding: createResetParameterBinding(getArrayElementDefinition(def)) }]
@@ -163,8 +171,7 @@ const editTimelineLayerParamCommandDef = defineCommand<{
 								case 'automationGraphInline': next = createInlineAutomationGraph(); break;
 								case 'keyframesTimelineInline': next = createInlineKeyframesTimeline(def, current); break;
 								case 'layerInput': next = createLayerInputBinding(); break;
-								case 'node':
-								case 'externalCustomParameterInput': throw new Error('Unsupported layer parameter input source');
+								default: throw new Error('Unsupported layer parameter input source');
 							}
 							break;
 					}
@@ -176,18 +183,16 @@ const editTimelineLayerParamCommandDef = defineCommand<{
 					// 生成済みの要素IDをRedoでも使う。検証に失敗した編集は保存しない。
 					after = draft[rootKey];
 				}
-				values[rootKey] = deepClone(after);
+				setBinding(layer, after);
 			},
 			undo(state) {
-				const values = getLayerParameterValues(getLayer(state), target);
-				if (before === undefined) delete values[rootKey];
-				else values[rootKey] = deepClone(before);
+				setBinding(getLayer(state), before);
 			},
 		};
 	},
 });
 
-const addEffectNodeCommandDef = defineCommand<VisualModuleTarget & { id: string; effectId: string; params?: Record<string, ParameterBinding> }>({
+const addEffectNodeCommandDef = defineCommand<VisualModuleTarget & { id: string; effectId: string; params?: Record<string, VisualModuleParameterBinding> }>({
 	label: 'Add fx node',
 	changes: (_state, payload) => [{ type: 'visualModule', target: payload }],
 	create: payload => {
@@ -463,15 +468,15 @@ const updatePlayerSourceTypeCommandDef = defineCommand<{ playerId: Player['id'];
 // 対象は実行・Undoのたびに解決する。配列の置換やUndo後の古い参照を保持しない。
 function defineNodeParamCommand<Payload extends NodeParamTarget>(
 	label: string,
-	update: (target: ReturnType<typeof resolveNodeParam>, payload: Payload) => ParameterBinding,
+	update: (target: ReturnType<typeof resolveNodeParam>, payload: Payload) => VisualModuleParameterBinding,
 	kind: ParameterChangeKind = 'value',
 ) {
 	return defineCommand<Payload>({
 		label,
 		changes: (_state, payload) => [{ type: 'node', target: payload, nodeId: payload.nodeId, changes: [{ type: 'parameter', kind }] }],
 		create: payload => {
-			let before: ParameterBinding;
-			let after: ParameterBinding | undefined;
+			let before: VisualModuleParameterBinding;
+			let after: VisualModuleParameterBinding | undefined;
 			return {
 				execute(state) {
 					const node = stateUtility.findNode(state, payload);
@@ -501,7 +506,7 @@ function assertLeafParam(target: ReturnType<typeof resolveNodeParam>) {
 }
 
 // TODO: 別のtypeの設定値を失わない(内部的には持ったまま)ようにする
-const changeParamValueInputSourceCommandDef = defineNodeParamCommand<NodeParamTarget & { inputSource: ParameterBinding['inputSource'] }>(
+const changeParamValueInputSourceCommandDef = defineNodeParamCommand<NodeParamTarget & { inputSource: VisualModuleParameterBinding['inputSource'] }>(
 	'Change param value type',
 	(target, payload) => {
 		assertLeafParam(target);
@@ -519,11 +524,11 @@ const changeParamValueInputSourceCommandDef = defineNodeParamCommand<NodeParamTa
 			case 'keyframesTimelineInline':
 				return createInlineKeyframesTimeline(target.def, currentValue);
 			case 'externalCustomParameterInput': return { inputSource: 'externalCustomParameterInput', parameterId: visualModuleCustomParameterId('') };
-			case 'layerInput': throw new Error('Layer input is only available in effect layer parameters');
 			case 'node': {
 				if (!('canNode' in target.def) || !target.def.canNode) throw new Error('Parameter does not support node input');
 				return { inputSource: 'node', nodeId: null, outputPort: null };
 			}
+			default: throw new Error('Unsupported visual module parameter input source');
 		}
 	},
 	'inputSource',
@@ -568,7 +573,7 @@ const updateParamAsAutomationGraphReferenceCommandDef = defineNodeParamCommand<N
 	},
 );
 
-const updateParamAsAutomationGraphInlineCommandDef = defineNodeParamCommand<NodeParamTarget & { value: Extract<ParameterBinding, { inputSource: 'automationGraphInline' }> }>(
+const updateParamAsAutomationGraphInlineCommandDef = defineNodeParamCommand<NodeParamTarget & { value: Extract<VisualModuleParameterBinding, { inputSource: 'automationGraphInline' }> }>(
 	'Update inline automation graph',
 	(target, payload) => {
 		assertLeafParam(target);
@@ -576,7 +581,7 @@ const updateParamAsAutomationGraphInlineCommandDef = defineNodeParamCommand<Node
 	},
 );
 
-const updateParamAsKeyframesTimelineInlineCommandDef = defineNodeParamCommand<NodeParamTarget & { value: Extract<ParameterBinding, { inputSource: 'keyframesTimelineInline' }> }>(
+const updateParamAsKeyframesTimelineInlineCommandDef = defineNodeParamCommand<NodeParamTarget & { value: Extract<VisualModuleParameterBinding, { inputSource: 'keyframesTimelineInline' }> }>(
 	'Update inline keyframes timeline',
 	(target, payload) => {
 		assertLeafParam(target);
@@ -622,7 +627,7 @@ const removeArrayParamElementCommandDef = defineNodeParamCommand<NodeParamTarget
 	'Remove array parameter element',
 	({ def, value }, { elementId }) => {
 		if (def.dataType.kind !== 'array' || value.inputSource !== 'literal' || !Array.isArray(value.value)) throw new Error('Expected array parameter');
-		const elements = value.value as ParameterArrayElement[];
+		const elements = value.value as ParameterArrayElement<VisualModuleParameterBinding>[];
 		if (!elements.some(element => element.id === elementId)) throw new Error('Unknown array element');
 		return { inputSource: 'literal', value: elements.filter(element => element.id !== elementId) };
 	},

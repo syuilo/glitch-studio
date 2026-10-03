@@ -59,8 +59,8 @@ export function commitVisualModuleEdit(manager: AppStateManager, target: VisualM
 	}
 }
 
-function onNodeParamEdit(manager: AppStateManager, moduleTarget: VisualModuleTarget, nodeId: string, event: ParamEdit) {
-	const target = { ...moduleTarget, nodeId, paramPath: event.paramPath };
+function onNodeParamEdit(manager: AppStateManager, visualModuleTarget: VisualModuleTarget, nodeId: string, event: ParamEdit) {
+	const target = { ...visualModuleTarget, nodeId, paramPath: event.paramPath };
 	switch (event.kind) {
 		case 'layerInput': throw new Error('Layer input is only available in effect layer parameters');
 		case 'literal': manager.commit('updateParamAsLiteral', { ...target, value: event.value }, event.mergeKey); break;
@@ -71,7 +71,10 @@ function onNodeParamEdit(manager: AppStateManager, moduleTarget: VisualModuleTar
 		case 'keyframesTimelineInline': manager.commit('updateParamAsKeyframesTimelineInline', { ...target, value: event.value }, event.mergeKey); break;
 		case 'node': manager.commit('updateParamAsNode', { ...target, value: event.value, preserveSampling: event.preserveSampling }); break;
 		case 'externalCustomParameterInput': manager.commit('updateParamAsExternalCustomParameterInput', { ...target, value: event.value }); break;
-		case 'inputSource': manager.commit('changeParamValueInputSource', { ...target, inputSource: event.inputSource }); break;
+		case 'inputSource':
+			if (event.inputSource === 'layerInput') throw new Error('Layer input is only available in effect layer parameters');
+			manager.commit('changeParamValueInputSource', { ...target, inputSource: event.inputSource });
+			break;
 		case 'reset': manager.commit('resetNodeParam', target); break;
 		case 'addElement': manager.commit('addArrayParamElement', target); break;
 		case 'removeElement': manager.commit('removeArrayParamElement', { ...target, elementId: event.elementId }); break;

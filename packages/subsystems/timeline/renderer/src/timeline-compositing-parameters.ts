@@ -5,7 +5,7 @@ import { TimelineParameterBindingEvaluator } from '@gs/subsystems_timeline_share
 import { createTimelineLayerEvaluationScope } from '@gs/subsystems_timeline_shared/evaluation-scope.ts';
 import type { AutomationGraph } from '@gs/shared/automation-graph/automation-graph.ts';
 import type { FitMode } from '@gs/shared/types.ts';
-import type { ParameterBinding } from '@gs/shared/parameter/parameter-binding.ts';
+import type { TimelineParameterBinding } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
 
 export type TimelineCompositingSettings = {
 	blendMode: number;
@@ -20,7 +20,7 @@ export type TimelineCompositingSettings = {
 export class TimelineCompositingParameters {
 	private evaluator = new TimelineParameterBindingEvaluator();
 
-	evaluate(context: { time: number; isExport: boolean; paramValues: Record<string, ParameterBinding>; automationGraphs: AutomationGraph[] }): TimelineCompositingSettings {
+	evaluate(context: { time: number; isExport: boolean; paramValues: Record<string, TimelineParameterBinding>; automationGraphs: AutomationGraph[] }): TimelineCompositingSettings {
 		const evaluationContext = createTimelineLayerEvaluationScope(context);
 		const values = new Map<string, any>();
 		for (const [key, def] of Object.entries(timelineCompositingParamDefs)) {

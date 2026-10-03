@@ -4,8 +4,7 @@ import type { TimelineSceneResolution } from './scene-resolution.ts';
 import type { EffectResolution } from '@gs/subsystems_effect_shared/resolution.js';
 import type { ParameterChangeKind } from '@gs/shared/parameter/parameter-definition.ts';
 import type { AutomationGraph } from '@gs/shared/automation-graph/automation-graph.ts';
-import type { ParameterBinding } from '@gs/shared/parameter/parameter-binding.ts';
-import type { ValueParameterBinding } from '@gs/shared/parameter/value-parameter-binding.ts';
+import type { TimelineParameterBinding, TimelineEffectParameterBinding } from './parameter-binding.ts';
 import type { VisualModule } from '@gs/subsystems_visual-module_shared/types.js';
 
 export type TimelineParameterTarget = 'module' | 'effect' | 'compositing' | 'audio';
@@ -31,8 +30,7 @@ type TimelineVisualLayerBase = {
 	compositingParamValues: Record<keyof typeof timelineCompositingParamDefs, TimelineParameterBinding>;
 };
 
-export type TimelineParameterBinding = ValueParameterBinding;
-export type TimelineEffectParameterBinding = TimelineParameterBinding | Extract<ParameterBinding, { inputSource: 'layerInput' }>;
+export type { TimelineParameterBinding, TimelineEffectParameterBinding } from './parameter-binding.ts';
 
 export type TimelineVisualModuleLayer = TimelineLayerBase<TimelineClip> & TimelineVisualLayerBase & {
 	layerType: 'visualModule';

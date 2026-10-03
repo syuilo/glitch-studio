@@ -3,7 +3,8 @@ import type { DataType, TextureDataType } from '../data-type/data-type.ts';
 import type { DataTypeUiDefinition } from '../data-type/data-type-ui.ts';
 import type { BlendMode } from '../color-blend.ts';
 import type { FitMode, WrapMode } from '../types.ts';
-import type { ParameterBinding, ParameterArrayElement } from './parameter-binding.ts';
+import type { ParameterArrayElement } from './parameter-binding.ts';
+import type { ValueParameterBinding } from './value-parameter-binding.ts';
 
 // 値には式・キー・automationの内容を含む。入力方式の切替、接続先の変更、
 // 配列要素の追加削除、既定値へのリセットとは分けて、行った編集を表す。
@@ -42,10 +43,11 @@ export type ParameterDefaultValue<T extends DataType> = {
 					: never;
 };
 
-// コンテナ自体の式・接続は扱わず、末端でのみ非literalのBindingを許可する。
+// コンテナ自体の式は扱わず、末端でのみ共通の非literalのBindingを許可する。
+// 定義の既定値は利用場所から独立させ、ノード接続やレイヤー入力は各ドメインで設定する。
 type ParameterDefaultBinding<T extends DataType> = T extends { kind: 'array' | 'struct' }
 	? ParameterDefaultValue<T>
-	: ParameterDefaultValue<T> | Exclude<ParameterBinding, { inputSource: 'literal' }>;
+	: ParameterDefaultValue<T> | Exclude<ValueParameterBinding, { inputSource: 'literal' }>;
 
 // 型とUIは別のツリーにあるため、ここでは子の接続可否・初期値だけを定義する。
 // element.defaultValueは要素追加時の初期値、外側のdefaultValueは配列全体の初期値。

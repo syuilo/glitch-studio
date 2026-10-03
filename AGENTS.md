@@ -53,7 +53,9 @@ sharedは、tree-shakableであることが求められます。
 - `NodeOutputReference` はVisual Module内の接続情報、`UniformOrTexture` は生成元によらない定数またはテクスチャの値、`ShaderInput` は受け取り側のサンプリング設定を付けたシェーダー入力です。GPU共通基盤は `packages/shared/src/gpu` に置き、ノードやVisual Moduleの型を要求せず、必要なサンプリング設定やリソースだけを渡します。
 - 共通化は責務が一致する範囲で行います。型を共有するためだけに、子のドメインへ親固有のフィールドを追加したり、あらゆる利用場所を含む巨大な型を作ったりしないでください。
 
-**現在の意図的な例外:** `ParameterBinding` の `node` / `externalCustomParameterInput` は本来Visual Module側、`layerInput` は本来エフェクトレイヤー側の拡張ですが、実装を複雑化させないため共通の `parameter/parameter-binding.ts` に含めています。この型が共通であることは、全ドメインで全種類のBindingを使えるという意味ではありません。レイヤーやliveからモジュールへ渡す引数、およびタイムラインの合成設定では、この3種類を除外します。エフェクトレイヤーのパラメータでは `layerInput` だけを許可し、Visual Module内部では使用できません。この例外を理由に他の逆依存を増やさないでください。
+Bindingは利用可能な入力方式を所有するドメインで定義します。共通の `ValueParameterBinding` はliteral・環境変数・式・automation・キーフレームだけを扱います。Visual Module内部の `VisualModuleParameterBinding` は共通方式に `node` / `externalCustomParameterInput` を加え、Timelineの `TimelineEffectParameterBinding` は共通方式に `layerInput` を加えます。レイヤーやLIVEからVisual Moduleへ渡す `VisualModuleArgumentBindings`、タイムラインの通常の引数・合成設定・音量には共通方式だけを許可します。
+
+共通の `ParameterBindingBase` はツリー操作に必要な `inputSource` だけを持ち、保存用の全方式を集めたunionにはしません。共通の走査・IDパスによる編集処理はジェネリックにし、呼び出し側のBinding型を保持します。パラメータ定義の初期値も子要素を含めて共通方式に限定し、ノード接続やレイヤー入力は利用ドメイン側で設定します。複数ドメインを扱う編集用unionはUI側に置き、各Commandへ渡す境界で対象を絞り込みます。literalの内部値の完全な静的型付けは行っていないため、配列・構造体内部の入力方式の実行時検証も維持します。
 
 ### DataTypeとParameterの定義
 

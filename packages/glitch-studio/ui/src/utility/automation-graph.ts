@@ -1,8 +1,8 @@
 import { genId } from '@gs/shared/utility/id.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
-import type { ParameterBinding } from '@gs/shared/parameter/parameter-binding.ts';
+import type { ValueParameterBinding } from '@gs/shared/parameter/value-parameter-binding.ts';
 
-type InlineAutomationGraph = Extract<ParameterBinding, { inputSource: 'automationGraphInline' }>;
+type InlineAutomationGraph = Extract<ValueParameterBinding, { inputSource: 'automationGraphInline' }>;
 
 export function setInlineAutomationGraphNormalized(input: InlineAutomationGraph, isNormalized: boolean): InlineAutomationGraph {
 	const value = deepClone(input);
@@ -39,7 +39,7 @@ export function setInlineAutomationGraphNormalized(input: InlineAutomationGraph,
 	return value;
 }
 
-export function createInlineAutomationGraph(): Extract<ParameterBinding, { inputSource: 'automationGraphInline' }> {
+export function createInlineAutomationGraph(): Extract<ValueParameterBinding, { inputSource: 'automationGraphInline' }> {
 	return {
 		inputSource: 'automationGraphInline',
 		automationGraph: {

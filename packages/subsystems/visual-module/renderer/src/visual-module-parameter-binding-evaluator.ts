@@ -1,7 +1,8 @@
 import { ParameterBindingEvaluator } from '@gs/shared/parameter/parameter-binding-evaluator.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { visualModuleCustomParameterName } from '@gs/subsystems_visual-module_shared/types.ts';
-import type { ParameterBinding } from '@gs/shared/parameter/parameter-binding.ts';
+import { isValueParameterBinding } from '@gs/shared/parameter/parameter-binding.ts';
+import type { VisualModuleParameterBinding } from '@gs/subsystems_visual-module_shared/types.ts';
 import type { ParameterEvaluationScope } from '@gs/shared/parameter/parameter-evaluation-scope.ts';
 import type { VisualModuleEvaluatedParameterValues } from '@gs/subsystems_visual-module_shared/parameter-evaluation.ts';
 import type { VisualModuleCustomParameterId, VisualModuleCustomParameterName } from '@gs/subsystems_visual-module_shared/types.ts';
@@ -15,12 +16,12 @@ export type VisualModuleParameterEvaluationContext = ParameterEvaluationScope & 
 export class VisualModuleParameterBindingEvaluator {
 	private valueEvaluator = new ParameterBindingEvaluator();
 
-	evaluate(binding: ParameterBinding, context: VisualModuleParameterEvaluationContext, fallback: any): any {
-		if (binding.inputSource === 'layerInput') throw new Error('Layer input is only available in effect layer parameters');
+	evaluate(binding: VisualModuleParameterBinding, context: VisualModuleParameterEvaluationContext, fallback: any): any {
 		if (binding.inputSource === 'node') return binding.nodeId == null ? null : { nodeId: binding.nodeId, outputPort: binding.outputPort };
 		if (binding.inputSource === 'externalCustomParameterInput') {
 			return context.evaluatedParamValues.has(binding.parameterId) ? deepClone(context.evaluatedParamValues.get(binding.parameterId)) : fallback;
 		}
+		if (!isValueParameterBinding(binding)) throw new Error('Unsupported visual module parameter input source');
 		return this.valueEvaluator.evaluate(binding, {
 			...context,
 			functions: {

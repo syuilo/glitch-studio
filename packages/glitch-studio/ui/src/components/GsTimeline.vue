@@ -286,7 +286,7 @@ import type { ParamPath } from '@gs/shared/parameter/parameter-path.ts';
 import type { Asset } from '@gs/shared/types.ts';
 import type { VisualModuleEdit } from '@/types/visual-module-editor.ts';
 import type { TimelineLayer, TimelineScene } from '@gs/subsystems_timeline_shared/types.ts';
-import type { ParameterBinding } from '@gs/shared/parameter/parameter-binding.ts';
+import type { TimelineEffectParameterBinding } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
 import type { KeyframeInterpolation } from '@gs/shared/keyframes/keyframes-timeline.ts';
 import type { EasingDirection } from '@gs/shared/easing.ts';
 import type { GsSelectItem } from './common/GsSelect.vue';
@@ -424,7 +424,7 @@ const selectedKeyframe = computed(() => {
 	if (selection == null) return null;
 	const layer = sceneLayers.value.find(entry => entry.id === selection.layerId);
 	if (layer == null) return null;
-	let binding: ParameterBinding;
+	let binding: TimelineEffectParameterBinding;
 	try { binding = resolveLayerParameter(appStateManager.state, layer, selection.target, selection.paramPath).value; } catch { return null; }
 	if (binding?.inputSource !== 'keyframesTimelineInline') return null;
 	const def = getLayerParameterDefinition(appStateManager.state, layer, selection.target, selection.paramPath);
@@ -1008,9 +1008,17 @@ function onTimelineLayerParamEdit(event: ParamEdit, target: TimelineParameterTar
 	const layer = selectedLayer.value;
 	if (layer == null || event.kind === 'node' || event.kind === 'externalCustomParameterInput') return;
 	if (event.kind === 'inputSource' && (event.inputSource === 'node' || event.inputSource === 'externalCustomParameterInput')) return;
+	const mergeKey = event.mergeKey != null ? JSON.stringify([layer.id, target, event.paramPath, event.mergeKey]) : undefined;
+	if (event.kind === 'layerInput' || (event.kind === 'inputSource' && event.inputSource === 'layerInput')) {
+		if (target !== 'effect') return;
+		appStateManager.commit('editTimelineLayerParam', {
+			sceneId: props.sceneId, layerId: layer.id, target, paramPath: event.paramPath, edit: event,
+		}, mergeKey);
+		return;
+	}
 	appStateManager.commit('editTimelineLayerParam', {
 		sceneId: props.sceneId, layerId: layer.id, target, paramPath: event.paramPath, edit: event,
-	}, event.mergeKey != null ? JSON.stringify([layer.id, target, event.paramPath, event.mergeKey]) : undefined);
+	}, mergeKey);
 }
 
 const audioError = ref<string | null>(null);

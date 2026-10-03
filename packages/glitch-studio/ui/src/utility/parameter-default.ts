@@ -3,7 +3,7 @@ import { genId } from '@gs/shared/utility/id.ts';
 import type { DataType } from '@gs/shared/data-type/data-type.ts';
 import type { ParameterArrayElement } from '@gs/shared/parameter/parameter-binding.ts';
 import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
-import type { ParameterBinding } from '@gs/shared/parameter/parameter-binding.ts';
+import type { ValueParameterBinding } from '@gs/shared/parameter/value-parameter-binding.ts';
 
 // リセットでは既定の要素を復活させず、新しい要素として作り直す。
 // 対象要素自身のIDは親が持つため維持し、そのBinding内部にある配列のIDだけを再発行する。
@@ -11,7 +11,7 @@ import type { ParameterBinding } from '@gs/shared/parameter/parameter-binding.ts
 export function createResetParameterBinding(definition: ParameterDefinition): ParameterDefinition['defaultValue'] {
 	const binding = deepClone(definition.defaultValue);
 
-	function renewArrayElementIds(dataType: DataType, value: ParameterBinding): void {
+	function renewArrayElementIds(dataType: DataType, value: ValueParameterBinding): void {
 		if (value.inputSource !== 'literal') return;
 		if (dataType.kind === 'array') {
 			for (const element of value.value as ParameterArrayElement[]) {

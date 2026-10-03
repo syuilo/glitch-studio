@@ -48,7 +48,7 @@ import GsEffectPicker from './GsEffectPicker.vue';
 import GsButton from './common/GsButton.vue';
 import GsTabs from './common/GsTabs.vue';
 import type { ProjectVisualModule } from '@gs/glitch-studio_shared/project/types.ts';
-import type { VisualModuleParamDef, VisualModuleParameterBindings, VisualModuleCustomParameterId } from '@gs/subsystems_visual-module_shared/types.ts';
+import type { VisualModuleParamDef, VisualModuleArgumentBindings, VisualModuleCustomParameterId } from '@gs/subsystems_visual-module_shared/types.ts';
 import type { EffectInstanceState } from '@gs/subsystems_effect_shared/effect-status.ts';
 import type { ParamEdit } from './GsVisualParam.vue';
 import type { VisualModuleEdit } from '@/types/visual-module-editor.ts';
@@ -84,14 +84,14 @@ const effectStates = computed(() => {
 	return states;
 });
 
-const previewParamValues = ref<VisualModuleParameterBindings>({});
+const previewParamValues = ref<VisualModuleArgumentBindings>({});
 const editedPreviewParamIds = new Set<VisualModuleCustomParameterId>();
 let previewModuleId: string | undefined;
 let previewParamTypes = new Map<string, VisualModuleParamDef['dataType']>();
 
 watch(visualModule, module => {
 	if (module?.id !== previewModuleId) editedPreviewParamIds.clear();
-	const values: VisualModuleParameterBindings = {};
+	const values: VisualModuleArgumentBindings = {};
 	for (const def of module?.paramDefs ?? []) {
 		const previousType = previewParamTypes.get(def.id);
 		const value = previewParamValues.value[def.id];
@@ -122,7 +122,7 @@ function onPreviewParamEdit(event: ParamEdit) {
 	if (def == null) return;
 	const id = def.id;
 	const current = previewParamValues.value[id];
-	const reset = (): VisualModuleParameterBindings[VisualModuleCustomParameterId] => createResetParameterBinding(def);
+	const reset = (): VisualModuleArgumentBindings[VisualModuleCustomParameterId] => createResetParameterBinding(def);
 	switch (event.kind) {
 		case 'literal': previewParamValues.value[id] = { inputSource: 'literal', value: deepClone(event.value) }; break;
 		case 'automationGraphInline': previewParamValues.value[id] = deepClone(event.value); break;

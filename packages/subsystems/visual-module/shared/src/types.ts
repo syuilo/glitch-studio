@@ -2,10 +2,19 @@ import type { EffectDefinition } from '@gs/subsystems_effect_shared/effect-defin
 import type { EffectResolution } from '@gs/subsystems_effect_shared/resolution.ts';
 import type { TextureDataType } from '@gs/shared/data-type/data-type.ts';
 import type { ParameterChangeKind, ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
-import type { ParameterBinding } from '@gs/shared/parameter/parameter-binding.ts';
 import type { ValueParameterBinding } from '@gs/shared/parameter/value-parameter-binding.ts';
 import type { AutomationGraph } from '@gs/shared/automation-graph/automation-graph.ts';
 import type { FitMode, WrapMode } from '@gs/shared/types.js';
+
+export type VisualModuleNodeParameterBinding = { inputSource: 'node' } & (NodeOutputReference | { nodeId: null; outputPort: null });
+
+export type VisualModuleCustomParameterInputBinding = {
+	inputSource: 'externalCustomParameterInput';
+	parameterId: VisualModuleCustomParameterId;
+};
+
+// Visual Module内部でだけ解決できる参照を、共通の値入力に加える。
+export type VisualModuleParameterBinding = ValueParameterBinding | VisualModuleNodeParameterBinding | VisualModuleCustomParameterInputBinding;
 
 export type VisualModuleEffectNode = {
 	id: string;
@@ -13,7 +22,7 @@ export type VisualModuleEffectNode = {
 	effectId: string;
 	isBypass: boolean;
 	resolution: EffectResolution;
-	params: Record<string, ParameterBinding>;
+	params: Record<string, VisualModuleParameterBinding>;
 
 	// 2D平面上でノードを配置できるようになった時のため
 	pos?: { x: number; y: number };
@@ -93,13 +102,13 @@ export type VisualModule = {
 };
 
 // レイヤー・live modeからは、モジュール内部のノードやパラメータを参照しない。
-export type VisualModuleParameterBindings = Record<VisualModuleCustomParameterId, ValueParameterBinding>;
+export type VisualModuleArgumentBindings = Record<VisualModuleCustomParameterId, ValueParameterBinding>;
 
 export type EffectNodeOf<DEF extends Pick<EffectDefinition, 'id' | 'paramDefs'>> =
 	Omit<VisualModuleEffectNode, 'effectId' | 'params'> & {
 		effectId: DEF['id'];
 		params: {
-			[K in keyof DEF['paramDefs']]-?: ParameterBinding;
+			[K in keyof DEF['paramDefs']]-?: VisualModuleParameterBinding;
 		};
 	};
 

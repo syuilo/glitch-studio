@@ -4,9 +4,9 @@ import { validateTimelineParameterTree } from './parameter-binding.ts';
 import type { TimelineEffectParameterBinding } from './types.ts';
 import type { TimelineEffectLayer } from './types.ts';
 import type { EffectDefinition } from '@gs/subsystems_effect_shared/effect-definition.js';
-import type { ParameterBinding } from '@gs/shared/parameter/parameter-binding.ts';
+import type { TimelineLayerInputBinding } from './parameter-binding.ts';
 
-export function createLayerInputBinding(): Extract<ParameterBinding, { inputSource: 'layerInput' }> {
+export function createLayerInputBinding(): TimelineLayerInputBinding {
 	return { inputSource: 'layerInput', fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' };
 }
 

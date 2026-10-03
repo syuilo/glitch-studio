@@ -7,9 +7,11 @@ import { evaluateKeyframesTimeline } from '@gs/shared/keyframes/keyframes-timeli
 import { validateEnumParameterValue } from '@gs/shared/parameter/parameter-definition.ts';
 import type { KeyframesDataType, KeyframesTimelineData, KeyframesTimelineKeyframe, KeyframeInterpolation } from '@gs/shared/keyframes/keyframes-timeline.ts';
 import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
-import type { ParameterBinding } from '@gs/shared/parameter/parameter-binding.ts';
+import { isLiteralParameterBinding } from '@gs/shared/parameter/parameter-binding.ts';
+import type { ParameterBindingBase } from '@gs/shared/parameter/parameter-binding.ts';
+import type { ValueParameterBinding } from '@gs/shared/parameter/value-parameter-binding.ts';
 
-type InlineKeyframesTimeline = Extract<ParameterBinding, { inputSource: 'keyframesTimelineInline' }>;
+type InlineKeyframesTimeline = Extract<ValueParameterBinding, { inputSource: 'keyframesTimelineInline' }>;
 
 export function canEditKeyframesTimeline(definition: ParameterDefinition, input: InlineKeyframesTimeline): definition is ParameterDefinition<KeyframesDataType> {
 	if (!isKeyframesDataType(definition.dataType)) return false;
@@ -27,9 +29,9 @@ function createTimelineData(dataType: KeyframesDataType, keyframes: KeyframeDraf
 	return deepClone({ dataType, keyframes, isNormalized }) as KeyframesTimelineData;
 }
 
-export function createInlineKeyframesTimeline(definition: ParameterDefinition, current?: ParameterBinding): InlineKeyframesTimeline {
+export function createInlineKeyframesTimeline(definition: ParameterDefinition, current?: ParameterBindingBase): InlineKeyframesTimeline {
 	if (!isKeyframesDataType(definition.dataType)) throw new Error('Parameter does not support keyframes');
-	const value = current?.inputSource === 'literal' ? current.value : definition.defaultValue.value;
+	const value = current != null && isLiteralParameterBinding(current) ? current.value : definition.defaultValue.value;
 	return {
 		inputSource: 'keyframesTimelineInline',
 		keyframesTimeline: createTimelineData(definition.dataType, [{
