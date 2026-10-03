@@ -42,7 +42,7 @@ export default defineEffect({
 			ui: { label: 'Shadow blur (size ratio)', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } },
 			defaultValue: { inputSource: 'literal', value: 0.1 },
 		},
-		position: { dataType: { kind: 'vector' }, ui: { label: 'Position', control: { controlType: 'xy' } }, defaultValue: { inputSource: 'literal', value: [0, 0] } },
+		position: { dataType: { kind: 'vector' }, ui: { label: 'Position', control: { controlType: 'xy', min: -1, max: 1, step: 0.01 } }, defaultValue: { inputSource: 'literal', value: [0, 0] } },
 		align: {
 			dataType: { kind: 'enum', options: ['left', 'center', 'right'] },
 			ui: { label: 'Alignment', control: { labels: { left: 'Left', center: 'Center', right: 'Right' } } },
