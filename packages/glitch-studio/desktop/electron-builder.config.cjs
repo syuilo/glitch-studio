@@ -1,4 +1,4 @@
-const { version } = require('../../package.json');
+const { version } = require('../../../package.json');
 
 module.exports = {
 	appId: 'io.github.syuilo.glitch-studio',
