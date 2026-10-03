@@ -317,6 +317,9 @@ const halfTicks = preferences.model('timelineHalfTicks');
 const thirdTicks = preferences.model('timelineThirdTicks');
 const tickSubdivisions = computed(() => ({ halves: halfTicks.value, thirds: thirdTicks.value }));
 const snapEnabled = preferences.model('timelineSnapEnabled');
+const snapClipStart = preferences.model('timelineSnapClipStart');
+const snapClipEnd = preferences.model('timelineSnapClipEnd');
+const snapToSeekBar = preferences.model('timelineSnapToSeekBar');
 const snapGlobalTicks = preferences.model('timelineSnapGlobalTicks');
 const snapLocalTicks = preferences.model('timelineSnapLocalTicks');
 const snapSeekBar = preferences.model('timelineSnapSeekBar');
@@ -354,9 +357,23 @@ function showSnapMenu(event: PointerEvent) {
 	}, {
 		type: 'divider',
 	}, {
+		type: 'label', text: 'Clip edges to snap (move and trim)',
+	}, {
+		text: 'Clip start', type: 'switch', ref: snapClipStart, disabled: computed(() => !snapEnabled.value),
+	}, {
+		text: 'Clip end', type: 'switch', ref: snapClipEnd, disabled: computed(() => !snapEnabled.value),
+	}, {
+		type: 'divider',
+	}, {
+		type: 'label', text: 'Snap targets',
+	}, {
 		text: 'Global ticks', type: 'switch', ref: snapGlobalTicks, disabled: computed(() => !snapEnabled.value),
 	}, {
 		text: 'Clip local ticks', type: 'switch', ref: snapLocalTicks, disabled: computed(() => !snapEnabled.value),
+	}, {
+		text: 'Seek bar position', type: 'switch', ref: snapToSeekBar, disabled: computed(() => !snapEnabled.value),
+	}, {
+		type: 'divider',
 	}, {
 		text: 'Snap seek bar to global ticks', type: 'switch', ref: snapSeekBar, disabled: computed(() => !snapEnabled.value),
 	}], event.currentTarget ?? event.target);
@@ -382,6 +399,7 @@ const duration = computed(() => {
 	return sceneLayers.value.reduce((max, layer) => layer.clips.reduce((end, clip) => Math.max(end, getTimelineClipEnd(clip)), max), 0);
 });
 const time = previewPlayback.currentTimelineTime;
+const seekBarSnapTimes = computed(() => snapToSeekBar.value ? [time.value] : []);
 
 const tlEl = useTemplateRef('tlEl');
 const layersEl = useTemplateRef('layersEl');
@@ -832,10 +850,15 @@ function onClipMoveStart(event: PointerEvent, target: TimelineClipSelection) {
 	const entries = targets.map(resolveClip).filter(entry => entry != null);
 	const points = entries.flatMap(({ layer, clip }) => {
 		const bounds = getTimelineClipMoveBounds(layer.clips, new Set(targets.filter(target => target.layerId === layer.id).map(target => target.clipId)), clip.id);
-		return [clip.startMs, getTimelineClipEnd(clip)].map(time => ({ time, ...bounds }));
+		// 無効な端も移動制約の計算には残し、吸着候補だけを空にする。
+		// 両端をオフにしてもクリップを移動でき、複数移動でも全クリップの衝突制限を守れる。
+		return [
+			{ time: clip.startMs, ...bounds, snapTimes: snapClipStart.value ? undefined : [] },
+			{ time: getTimelineClipEnd(clip), ...bounds, snapTimes: snapClipEnd.value ? undefined : [] },
+		];
 	});
 	const selected = new Set(targets.map(clipSelectionKey));
-	const snapTimes = getTimelineSnapCandidates(snapSettings.value, [0, ...sceneLayers.value.flatMap(layer => layer.clips
+	const snapTimes = getTimelineSnapCandidates(snapSettings.value, [0, ...seekBarSnapTimes.value, ...sceneLayers.value.flatMap(layer => layer.clips
 		.filter(clip => !selected.has(clipSelectionKey({ layerId: layer.id, clipId: clip.id })))
 		.flatMap(clip => [clip.startMs, getTimelineClipEnd(clip)]))], xTicksWithMinor.value);
 	const initialTargets = entries.map(({ target, clip }) => ({ ...target, initialStartMs: clip.startMs }));
@@ -857,8 +880,11 @@ function onClipTrimStart(event: PointerEvent, target: TimelineClipSelection, edg
 	if (media && sourceDurationMs == null) return;
 	const bounds = getTimelineClipTrimBounds(layer.clips, clip.id, edge, media || layer.layerType === 'scene', sourceDurationMs);
 	if (bounds.minDelta > bounds.maxDelta) return;
-	const points = [{ time: edge === 'start' ? clip.startMs : getTimelineClipEnd(clip), ...bounds }];
-	const snapTimes = getTimelineSnapCandidates(snapSettings.value, [0, ...sceneLayers.value.flatMap(entry => entry.clips
+	const points = [{
+		time: edge === 'start' ? clip.startMs : getTimelineClipEnd(clip), ...bounds,
+		snapTimes: (edge === 'start' ? snapClipStart.value : snapClipEnd.value) ? undefined : [],
+	}];
+	const snapTimes = getTimelineSnapCandidates(snapSettings.value, [0, ...seekBarSnapTimes.value, ...sceneLayers.value.flatMap(entry => entry.clips
 		.filter(other => entry.id !== layer.id || other.id !== clip.id).flatMap(other => [other.startMs, getTimelineClipEnd(other)]))], xTicksWithMinor.value);
 	const initialTiming = { startMs: clip.startMs, durationMs: clip.durationMs, contentOffsetMs: clip.contentOffsetMs };
 	startSelectionMove(event, points, snapTimes, (delta, mergeKey) => {
@@ -888,7 +914,7 @@ function onKeyframeMoveStart(event: PointerEvent, point: TimelineKeyframeSelecti
 	if (current.kind !== 'keyframes') return;
 	const selected = new Set(current.keyframes.map(keyframeSelectionKey));
 	const entries = keyframeEntries.value.filter(entry => selected.has(keyframeSelectionKey(entry.selection)));
-	const otherTimes = [0, time.value, ...sceneLayers.value.flatMap(entry => entry.clips.flatMap(clip => [clip.startMs, getTimelineClipEnd(clip)])),
+	const otherTimes = [0, ...seekBarSnapTimes.value, ...sceneLayers.value.flatMap(entry => entry.clips.flatMap(clip => [clip.startMs, getTimelineClipEnd(clip)])),
 																					...keyframeEntries.value.filter(entry => !selected.has(keyframeSelectionKey(entry.selection))).map(entry => entry.time)];
 	const candidatesByLayer = new Map(sceneLayers.value.map(layer => {
 		// キーはScene時刻のまま、所属レイヤーの各クリップに描いた目盛りへ吸着させる。
