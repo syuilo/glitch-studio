@@ -723,7 +723,7 @@ function guardMouseMove(ev: MouseEvent) {
 
 .switchButton {
 	margin-left: -2px;
-	--height: 1.35em;
+	--height: 1.25em;
 }
 
 .switchText {

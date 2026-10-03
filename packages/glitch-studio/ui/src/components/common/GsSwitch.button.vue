@@ -71,9 +71,9 @@ const toggle = () => {
 .knob {
 	position: absolute;
 	box-sizing: border-box;
-	top: 3px;
-	width: calc(var(--height) - 6px);
-	height: calc(var(--height) - 6px);
+	top: 2px;
+	width: calc(var(--height) - 4px);
+	height: calc(var(--height) - 4px);
 	border-radius: 999px;
 	transition: all 0.2s ease;
 
@@ -84,7 +84,7 @@ const toggle = () => {
 }
 
 .knobChecked {
-	left: calc(calc(100% - var(--height)) + 3px);
+	left: calc(calc(100% - var(--height)) + 2px);
 	background: var(--switchOnFg);
 }
 </style>

@@ -353,29 +353,29 @@ function showTickMenu(event: PointerEvent) {
 
 function showSnapMenu(event: PointerEvent) {
 	ui.popupMenu([{
-		text: 'Enable snapping', type: 'switch', ref: snapEnabled,
+		text: 'Enable Snapping', type: 'switch', ref: snapEnabled,
 	}, {
 		type: 'divider',
 	}, {
-		type: 'label', text: 'Clip edges to snap (move and trim)',
+		type: 'label', text: 'What Snaps',
 	}, {
-		text: 'Clip start', type: 'switch', ref: snapClipStart, disabled: computed(() => !snapEnabled.value),
+		text: 'Clip Start', type: 'switch', ref: snapClipStart, disabled: computed(() => !snapEnabled.value),
 	}, {
-		text: 'Clip end', type: 'switch', ref: snapClipEnd, disabled: computed(() => !snapEnabled.value),
-	}, {
-		type: 'divider',
-	}, {
-		type: 'label', text: 'Snap targets',
-	}, {
-		text: 'Global ticks', type: 'switch', ref: snapGlobalTicks, disabled: computed(() => !snapEnabled.value),
-	}, {
-		text: 'Clip local ticks', type: 'switch', ref: snapLocalTicks, disabled: computed(() => !snapEnabled.value),
-	}, {
-		text: 'Seek bar position', type: 'switch', ref: snapToSeekBar, disabled: computed(() => !snapEnabled.value),
+		text: 'Clip End', type: 'switch', ref: snapClipEnd, disabled: computed(() => !snapEnabled.value),
 	}, {
 		type: 'divider',
 	}, {
-		text: 'Snap seek bar to global ticks', type: 'switch', ref: snapSeekBar, disabled: computed(() => !snapEnabled.value),
+		type: 'label', text: 'Snap to',
+	}, {
+		text: 'Global Ticks', type: 'switch', ref: snapGlobalTicks, disabled: computed(() => !snapEnabled.value),
+	}, {
+		text: 'Clip Local Ticks', type: 'switch', ref: snapLocalTicks, disabled: computed(() => !snapEnabled.value),
+	}, {
+		text: 'Seekbar', type: 'switch', ref: snapToSeekBar, disabled: computed(() => !snapEnabled.value),
+	}, {
+		type: 'divider',
+	}, {
+		text: 'Snap Seekbar to Global Ticks', type: 'switch', ref: snapSeekBar, disabled: computed(() => !snapEnabled.value),
 	}], event.currentTarget ?? event.target);
 }
 
