@@ -8,12 +8,12 @@ type TextLayoutOptions = {
 	maxWidth: number;
 };
 
-type TextLineMetrics = Pick<TextMetrics, 'width' | 'actualBoundingBoxLeft' | 'actualBoundingBoxRight' | 'fontBoundingBoxAscent' | 'fontBoundingBoxDescent'>;
+type TextLineMetrics = Pick<TextMetrics, 'width' | 'actualBoundingBoxLeft' | 'actualBoundingBoxRight' | 'actualBoundingBoxAscent' | 'actualBoundingBoxDescent' | 'fontBoundingBoxAscent' | 'fontBoundingBoxDescent'>;
 
 type TextBlockMetrics = {
 	width: number;
-	ascent: number;
-	descent: number;
+	top: number;
+	bottom: number;
 };
 
 export type TextLayout = {
@@ -45,14 +45,23 @@ export function layoutText(options: TextLayoutOptions, measureText: (text: strin
 
 	function measureBlock(size: number): TextBlockMetrics {
 		let width = 0;
-		let ascent = 0;
-		let descent = 0;
+		let top = Infinity;
+		let bottom = -Infinity;
 		const outlineWidth = outlineWidthRatio * size;
-		for (const line of lines) {
+		const lineAdvance = lineHeight * size;
+		for (const [index, line] of lines.entries()) {
 			// 空行にも従来の高さを与えるが、代用文字Mgの幅で縮小を発生させない。
 			const metrics = measureText(line || 'Mg', size);
-			ascent = Math.max(ascent, metrics.fontBoundingBoxAscent);
-			descent = Math.max(descent, metrics.fontBoundingBoxDescent);
+			// フォント全体の余白を中央の基準にすると、サイズ変更時に見た目の中心が移動する。
+			// 各行の実際の字形と行送りから上下端を求める。描画されない空行・空白行だけは
+			// フォントの高さを使い、先頭・末尾の改行による余白を維持する。
+			const hasInk = line.length > 0 && metrics.actualBoundingBoxLeft + metrics.actualBoundingBoxRight > 0;
+			const ascent = hasInk ? metrics.actualBoundingBoxAscent : metrics.fontBoundingBoxAscent;
+			const descent = hasInk ? metrics.actualBoundingBoxDescent : metrics.fontBoundingBoxDescent;
+			const baseline = index * lineAdvance;
+			// 記号などではascentやdescentが負になるため、0へ丸めず上下端をそのまま使う。
+			top = Math.min(top, baseline - ascent);
+			bottom = Math.max(bottom, baseline + descent);
 			if (line.length === 0) continue;
 			// advance幅には前後の空白、actual幅には斜体などの張り出しが含まれる。
 			// 両者の領域の和集合を使い、空白を失ったり字形の幅を過小評価したりしない。
@@ -60,12 +69,12 @@ export function layoutText(options: TextLayoutOptions, measureText: (text: strin
 			const advanceRight = metrics.width - advanceLeft;
 			// round joinで描く輪郭の張り出しは外側幅以内に収まる。
 			// 空白だけの行には字形がないため、そのadvance領域を輪郭で膨らませない。
-			const outlinePadding = metrics.actualBoundingBoxLeft + metrics.actualBoundingBoxRight > 0 ? outlineWidth : 0;
+			const outlinePadding = hasInk ? outlineWidth : 0;
 			width = Math.max(width,
 				Math.max(advanceLeft, metrics.actualBoundingBoxLeft + outlinePadding)
 				+ Math.max(advanceRight, metrics.actualBoundingBoxRight + outlinePadding));
 		}
-		return { width, ascent, descent };
+		return { width, top, bottom };
 	}
 
 	let metrics = measureBlock(fontSize);
@@ -105,6 +114,6 @@ export function layoutText(options: TextLayoutOptions, measureText: (text: strin
 
 	const lineAdvance = lineHeight * fontSize;
 	// Yは複数行全体の中央。縮小時は行送りも縮め、横圧縮時は高さを維持する。
-	const firstBaselineOffset = -(metrics.ascent + metrics.descent + (lines.length - 1) * lineAdvance) / 2 + metrics.ascent;
+	const firstBaselineOffset = -(metrics.top + metrics.bottom) / 2;
 	return { lines, fontSize, outlineWidth: outlineWidthRatio * fontSize, horizontalScale, lineAdvance, firstBaselineOffset };
 }

@@ -11,6 +11,8 @@ function createMeasurer(alignment, measureWidth = (text, size) => text.length * 
 			width,
 			actualBoundingBoxLeft: width * alignmentFraction,
 			actualBoundingBoxRight: width * (1 - alignmentFraction),
+			actualBoundingBoxAscent: size * 0.8,
+			actualBoundingBoxDescent: size * 0.2,
 			fontBoundingBoxAscent: size * 0.8,
 			fontBoundingBoxDescent: size * 0.2,
 		};
@@ -65,6 +67,66 @@ test('compresses all lines uniformly without changing vertical layout', () => {
 	}
 });
 
+// 【サイズを変更しても実際の字形の中央を基準に拡縮する】
+// フォントの上下の余白は、表示する文字の上下端と一致するとは限らない。
+// ベースラインの片側にだけ描かれる記号も含め、見た目の中心が移動しないことを確認する。
+test('keeps the ink center fixed as the font size changes', () => {
+	const measure = createMeasurer('center');
+	for (const [ascentRatio, descentRatio] of [[0.75, 0], [0.625, -0.5], [-0.125, 0.25]]) {
+		for (const fontSize of [64, 128, 256]) {
+			for (const outlineWidth of [0, 0.1]) {
+				const result = layout({ text: 'A', fontSize, outlineWidth }, (text, size) => ({
+					...measure(text, size),
+					actualBoundingBoxAscent: size * ascentRatio,
+					actualBoundingBoxDescent: size * descentRatio,
+				}));
+				const top = result.firstBaselineOffset - fontSize * ascentRatio;
+				const bottom = result.firstBaselineOffset + fontSize * descentRatio;
+				assert.equal((top + bottom) / 2, 0);
+			}
+		}
+	}
+});
+
+// 【複数行は行ごとの字形と行送りを含めた全体の中央に配置する】
+// 各行で字形の高さが違う場合、フォントの最大ascent/descentを全行へ当てはめるとずれる。
+// 行送りが小さいと途中の行が上下端になる場合もあり、先頭と末尾だけでは判定できない。
+// 最大幅による縮小・横圧縮でも同じ中央を保つ必要がある。
+test('centers the complete multiline ink bounds for every overflow mode', () => {
+	const measure = createMeasurer('center');
+	const heights = { A: [0.5, 0], g: [0.375, 0.5], É: [1.125, 0] };
+	for (const overflow of ['none', 'shrink', 'compress']) {
+		for (const [lineHeight, topRatio, bottomRatio] of [[0, -1.125, 0.5], [0.25, -0.625, 0.75], [1.25, -0.5, 2.5]]) {
+			const result = layout({ text: 'A\ng\nÉ', fontSize: 128, lineHeight, overflow, maxWidth: 64 }, (text, size) => ({
+				...measure(text, size),
+				actualBoundingBoxAscent: size * heights[text][0],
+				actualBoundingBoxDescent: size * heights[text][1],
+			}));
+			const top = result.firstBaselineOffset + result.fontSize * topRatio;
+			const bottom = result.firstBaselineOffset + result.fontSize * bottomRatio;
+			assert.equal((top + bottom) / 2, 0);
+		}
+	}
+});
+
+// 【空白行は字形の中央揃えに切り替えても縦の余白を維持する】
+// 先頭・末尾の空行や空白だけの行を無視すると、ユーザーが改行で指定した余白が消える。
+// 字形のない行はフォントの高さで扱い、見える文字の上下端だけは実測値を使う。
+test('retains leading and trailing blank line spacing around visible text', () => {
+	const measure = createMeasurer('center');
+	for (const text of ['\nA', 'A\n', ' \nA', 'A\n ']) {
+		const result = layout({ text, lineHeight: 1.25 }, (line, size) => ({
+			...measure(line, size),
+			actualBoundingBoxLeft: line.trim() ? size / 2 : 0,
+			actualBoundingBoxRight: line.trim() ? size / 2 : 0,
+			actualBoundingBoxAscent: line.trim() ? size * 0.6 : 0,
+			actualBoundingBoxDescent: 0,
+		}));
+		// 先頭が空行なら上下端は-80と125、末尾が空行なら-60と145になる。
+		assert.equal(result.firstBaselineOffset, text.startsWith('A') ? -42.5 : -22.5);
+	}
+});
+
 // 【前後の空白と字形の張り出しをどちらも幅に含める】
 // advance幅だけでは斜体などの張り出しを失い、actual幅だけでは空白を失う。
 // 左へ20張り出し、advanceが400、描画の右端が300なら必要幅は420になる。
@@ -72,6 +134,7 @@ test('includes both whitespace and ink overhang for every alignment', () => {
 	for (const [alignment, anchor] of [['left', 0], ['center', 200], ['right', 400]]) {
 		const result = layout({ text: 'text ', alignment, overflow: 'compress', maxWidth: 210 }, () => ({
 			width: 400, actualBoundingBoxLeft: 20 + anchor, actualBoundingBoxRight: 300 - anchor,
+			actualBoundingBoxAscent: 80, actualBoundingBoxDescent: 20,
 			fontBoundingBoxAscent: 80, fontBoundingBoxDescent: 20,
 		}));
 		assert.equal(result.horizontalScale, 0.5);
@@ -168,6 +231,7 @@ test('includes the outline in horizontal compression without shrinking its heigh
 test('expands ink bounds without adding outline margins to whitespace', () => {
 	const measure = () => ({
 		width: 400, actualBoundingBoxLeft: -50, actualBoundingBoxRight: 350,
+		actualBoundingBoxAscent: 80, actualBoundingBoxDescent: 20,
 		fontBoundingBoxAscent: 80, fontBoundingBoxDescent: 20,
 	});
 	const result = layout({ text: ' text ', alignment: 'left', overflow: 'compress', maxWidth: 400, outlineWidth: 0.1 }, measure);
