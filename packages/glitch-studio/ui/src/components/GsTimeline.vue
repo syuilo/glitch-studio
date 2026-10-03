@@ -295,8 +295,8 @@ import type { ParamEdit } from './GsVisualParam.vue';
 import type { TimelineClipMediaInfo } from '@/utility/timeline-clip-media.ts';
 import { createKeyframeStretch, stretchKeyframeX } from '@/utility/timeline-keyframe-stretch.ts';
 import { zoomTimelineX } from '@/utility/timeline-zoom.ts';
-import { getTimelineTicks, getTimelineMinorTicks, getTimelineClipTicks, formatTimelineTimecode as formatMsToTimecode } from '@/utility/timeline-ticks.ts';
-import { getTimelineSnapCandidates, getTimelineSeekPosition } from '@/utility/timeline-snapping.ts';
+import { getTimelineTickCount, getTimelineTicks, getTimelineMinorTicks, getTimelineClipTicks, formatTimelineTimecode as formatMsToTimecode } from '@/utility/timeline-ticks.ts';
+import { getTimelineClipSnapPoints, getTimelineSnapCandidates, getTimelineSeekPosition } from '@/utility/timeline-snapping.ts';
 import { preferences } from '@/preferences.ts';
 import { listenPointerDrag } from '@/utility/pointer-drag.ts';
 import { getLayerParameterValues, getLayerParameterDefinition, resolveLayerParameter, getLayerKeyframeParameters } from '@/utility/timeline-scene.ts';
@@ -323,7 +323,8 @@ const snapToSeekBar = preferences.model('timelineSnapToSeekBar');
 const snapGlobalTicks = preferences.model('timelineSnapGlobalTicks');
 const snapLocalTicks = preferences.model('timelineSnapLocalTicks');
 const snapSeekBar = preferences.model('timelineSnapSeekBar');
-const snapSettings = computed(() => ({ enabled: snapEnabled.value, globalTicks: snapGlobalTicks.value, localTicks: snapLocalTicks.value }));
+const snapSettings = computed(() => ({ enabled: snapEnabled.value, globalTicks: snapGlobalTicks.value, localTicks: snapLocalTicks.value, seekBar: snapToSeekBar.value }));
+const clipSnapSettings = computed(() => ({ start: snapClipStart.value, end: snapClipEnd.value }));
 
 function showTickMenu(event: PointerEvent) {
 	ui.popupMenu([{
@@ -386,7 +387,6 @@ const sceneLayers = computed(() => appStateManager.state.timelineScenes.value.fi
 const availableScenes = computed(() => appStateManager.state.timelineScenes.value.filter(scene => canReferenceScene(appStateManager.state.timelineScenes.value, props.sceneId, scene.id)));
 
 const X_TICKS_HEIGHT = 20;
-const X_TICK_TARGET_SPACING_PX = 120;
 const Y_TICKS_WIDTH = 0;
 
 function onLayersSorted(layers: TimelineLayer[]) {
@@ -399,7 +399,6 @@ const duration = computed(() => {
 	return sceneLayers.value.reduce((max, layer) => layer.clips.reduce((end, clip) => Math.max(end, getTimelineClipEnd(clip)), max), 0);
 });
 const time = previewPlayback.currentTimelineTime;
-const seekBarSnapTimes = computed(() => snapToSeekBar.value ? [time.value] : []);
 
 const tlEl = useTemplateRef('tlEl');
 const layersEl = useTemplateRef('layersEl');
@@ -554,7 +553,7 @@ function updateKeyframeTime(value: string | number) {
 // レイヤー名の欄を除いた描画幅に合わせ、主目盛りの間隔を約120pxを目安に選ぶ。
 // ResizeObserverで更新される幅を使うことで、パネルのリサイズにも追従する。
 // 刻み方に応じた丸めは目盛り生成側で行い、全体・ローカル・スナップの密度を揃える。
-const xTicksCount = computed(() => Math.max(3, Math.floor(tlElWidth.value / X_TICK_TARGET_SPACING_PX) + 1));
+const xTicksCount = computed(() => getTimelineTickCount(tlElWidth.value));
 const xTicks = computed(() => getTimelineTicks(tlPosX.value, tlRangeX.value, xTicksCount.value, tickMode.value));
 const xMinorTicks = computed(() => getTimelineMinorTicks(xTicks.value, tickSubdivisions.value));
 const xTicksWithMinor = computed(() => [...xTicks.value, ...xMinorTicks.value].toSorted((a, b) => a - b));
@@ -850,17 +849,12 @@ function onClipMoveStart(event: PointerEvent, target: TimelineClipSelection) {
 	const entries = targets.map(resolveClip).filter(entry => entry != null);
 	const points = entries.flatMap(({ layer, clip }) => {
 		const bounds = getTimelineClipMoveBounds(layer.clips, new Set(targets.filter(target => target.layerId === layer.id).map(target => target.clipId)), clip.id);
-		// 無効な端も移動制約の計算には残し、吸着候補だけを空にする。
-		// 両端をオフにしてもクリップを移動でき、複数移動でも全クリップの衝突制限を守れる。
-		return [
-			{ time: clip.startMs, ...bounds, snapTimes: snapClipStart.value ? undefined : [] },
-			{ time: getTimelineClipEnd(clip), ...bounds, snapTimes: snapClipEnd.value ? undefined : [] },
-		];
+		return getTimelineClipSnapPoints(clip, bounds, clipSnapSettings.value);
 	});
 	const selected = new Set(targets.map(clipSelectionKey));
-	const snapTimes = getTimelineSnapCandidates(snapSettings.value, [0, ...seekBarSnapTimes.value, ...sceneLayers.value.flatMap(layer => layer.clips
+	const snapTimes = getTimelineSnapCandidates(snapSettings.value, [0, ...sceneLayers.value.flatMap(layer => layer.clips
 		.filter(clip => !selected.has(clipSelectionKey({ layerId: layer.id, clipId: clip.id })))
-		.flatMap(clip => [clip.startMs, getTimelineClipEnd(clip)]))], xTicksWithMinor.value);
+		.flatMap(clip => [clip.startMs, getTimelineClipEnd(clip)]))], xTicksWithMinor.value, [], time.value);
 	const initialTargets = entries.map(({ target, clip }) => ({ ...target, initialStartMs: clip.startMs }));
 	startSelectionMove(event, points, snapTimes, (delta, mergeKey) => {
 		if (targets.some(target => !resolveClip(target))) return false;
@@ -880,12 +874,9 @@ function onClipTrimStart(event: PointerEvent, target: TimelineClipSelection, edg
 	if (media && sourceDurationMs == null) return;
 	const bounds = getTimelineClipTrimBounds(layer.clips, clip.id, edge, media || layer.layerType === 'scene', sourceDurationMs);
 	if (bounds.minDelta > bounds.maxDelta) return;
-	const points = [{
-		time: edge === 'start' ? clip.startMs : getTimelineClipEnd(clip), ...bounds,
-		snapTimes: (edge === 'start' ? snapClipStart.value : snapClipEnd.value) ? undefined : [],
-	}];
-	const snapTimes = getTimelineSnapCandidates(snapSettings.value, [0, ...seekBarSnapTimes.value, ...sceneLayers.value.flatMap(entry => entry.clips
-		.filter(other => entry.id !== layer.id || other.id !== clip.id).flatMap(other => [other.startMs, getTimelineClipEnd(other)]))], xTicksWithMinor.value);
+	const points = getTimelineClipSnapPoints(clip, bounds, clipSnapSettings.value, edge);
+	const snapTimes = getTimelineSnapCandidates(snapSettings.value, [0, ...sceneLayers.value.flatMap(entry => entry.clips
+		.filter(other => entry.id !== layer.id || other.id !== clip.id).flatMap(other => [other.startMs, getTimelineClipEnd(other)]))], xTicksWithMinor.value, [], time.value);
 	const initialTiming = { startMs: clip.startMs, durationMs: clip.durationMs, contentOffsetMs: clip.contentOffsetMs };
 	startSelectionMove(event, points, snapTimes, (delta, mergeKey) => {
 		if (!resolveClip(target)) return false;
@@ -914,14 +905,14 @@ function onKeyframeMoveStart(event: PointerEvent, point: TimelineKeyframeSelecti
 	if (current.kind !== 'keyframes') return;
 	const selected = new Set(current.keyframes.map(keyframeSelectionKey));
 	const entries = keyframeEntries.value.filter(entry => selected.has(keyframeSelectionKey(entry.selection)));
-	const otherTimes = [0, ...seekBarSnapTimes.value, ...sceneLayers.value.flatMap(entry => entry.clips.flatMap(clip => [clip.startMs, getTimelineClipEnd(clip)])),
+	const otherTimes = [0, ...sceneLayers.value.flatMap(entry => entry.clips.flatMap(clip => [clip.startMs, getTimelineClipEnd(clip)])),
 																					...keyframeEntries.value.filter(entry => !selected.has(keyframeSelectionKey(entry.selection))).map(entry => entry.time)];
 	const candidatesByLayer = new Map(sceneLayers.value.map(layer => {
 		// キーはScene時刻のまま、所属レイヤーの各クリップに描いた目盛りへ吸着させる。
 		// 空白区間にはローカル目盛りがなく、別レイヤーのクリップも候補に含めない。
 		const localTimes = [...(clipTicksByLayer.value.get(layer.id)?.values() ?? [])]
 			.flatMap(ticks => [...ticks.major, ...ticks.minor].map(tick => tick.sceneTimeMs)).toSorted((a, b) => a - b);
-		return [layer.id, getTimelineSnapCandidates(snapSettings.value, otherTimes, xTicksWithMinor.value, localTimes)];
+		return [layer.id, getTimelineSnapCandidates(snapSettings.value, otherTimes, xTicksWithMinor.value, localTimes, time.value)];
 	}));
 	const points = entries.filter(entry => stretch == null || keyframeSelectionKey(entry.selection) === key).map(entry => {
 		const ids = new Set(current.keyframes.filter(point => point.layerId === entry.selection.layerId && point.target === entry.selection.target && paramPathKey(point.paramPath) === paramPathKey(entry.selection.paramPath)).map(point => point.keyframeId));

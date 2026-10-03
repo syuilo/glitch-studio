@@ -6,6 +6,11 @@ export type TimelineTickSubdivisions = { halves: boolean; thirds: boolean };
 export type TimelineClipTick = { contentTimeMs: number; sceneTimeMs: number };
 export type TimelineClipTicks = { major: TimelineClipTick[]; minor: TimelineClipTick[] };
 
+export function getTimelineTickCount(viewportWidth: number): number {
+	// 主目盛りの間隔は約120pxを目安とし、刻み方に応じた丸めは生成側で行う。
+	return Math.max(3, Math.floor(viewportWidth / 120) + 1);
+}
+
 /** 全体・ローカルとも同じ倍率で同じ間隔を選び、原点からの整数倍に目盛りを置く。 */
 export function getTimelineTicks(startMs: number, durationMs: number, count: number, mode: TimelineTickMode = 'legacy'): number[] {
 	if (durationMs <= 0 || ![startMs, durationMs, count].every(Number.isFinite)) return [];
