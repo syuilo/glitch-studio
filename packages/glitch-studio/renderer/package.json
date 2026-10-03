@@ -1,0 +1,36 @@
+{
+	"type": "module",
+	"name": "@gs/glitch-studio_renderer",
+	"private": true,
+	"scripts": {
+		"eslint": "eslint --quiet './**/*.{js,jsx,ts,tsx}'",
+		"test": "node --test test/*.test.mjs",
+		"typecheck": "tsc6 --noEmit",
+		"lint": "pnpm typecheck && pnpm eslint"
+	},
+	"exports": {
+		"./client.ts": "./src/client.ts",
+		"./visual-module-renderer-manager.ts": "./src/visual-module-renderer-manager.ts",
+		"./timeline-renderer-manager.ts": "./src/timeline-renderer-manager.ts"
+	},
+	"devDependencies": {
+		"@gs/subsystems_effect_renderer": "workspace:*",
+		"@types/web": "0.0.352",
+		"@typescript-eslint/eslint-plugin": "8.59.2",
+		"@typescript-eslint/parser": "8.59.2",
+		"@webgpu/types": "0.1.72",
+		"vite": "8.2.2",
+		"vitest": "4.1.10"
+	},
+	"dependencies": {
+		"@gs/glitch-studio_shared": "workspace:*",
+		"@gs/shared": "workspace:*",
+		"@gs/subsystems_effect_shared": "workspace:*",
+		"@gs/subsystems_timeline_renderer": "workspace:*",
+		"@gs/subsystems_timeline_shared": "workspace:*",
+		"@gs/subsystems_visual-module_renderer": "workspace:*",
+		"@gs/subsystems_visual-module_shared": "workspace:*",
+		"eventemitter3": "5.0.4",
+		"webgpu-utils": "2.1.1"
+	}
+}

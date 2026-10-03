@@ -1,0 +1,56 @@
+import { genId } from '@gs/shared/utility/id.ts';
+import { deepClone } from '@gs/shared/utility/deep-clone.ts';
+import type { ValueParameterBinding } from '@gs/shared/parameter/value-parameter-binding.ts';
+
+type InlineAutomationGraph = Extract<ValueParameterBinding, { inputSource: 'automationGraphInline' }>;
+
+export function setInlineAutomationGraphNormalized(input: InlineAutomationGraph, isNormalized: boolean): InlineAutomationGraph {
+	const value = deepClone(input);
+	const graph = value.automationGraph;
+	if (graph.isNormalized === isNormalized) return value;
+	const trimmedDurationMs = value.trimmedDurationMs != null && Number.isFinite(value.trimmedDurationMs) && value.trimmedDurationMs > 0 ? value.trimmedDurationMs : 1000;
+	graph.points.sort((a, b) => a.x - b.x);
+	const firstX = graph.points[0]?.x ?? 0;
+	const span = (graph.points.at(-1)?.x ?? firstX) - firstX;
+	const scale = isNormalized ? 1 / (span > 0 ? span : trimmedDurationMs) : trimmedDurationMs;
+	// 制御点はアンカーからの相対座標なので、平行移動せず倍率だけを適用する。
+	for (const point of graph.points) {
+		point.x = (point.x - (isNormalized ? firstX : 0)) * scale;
+		point.bezierControlPointA[0] *= scale;
+		point.bezierControlPointB[0] *= scale;
+	}
+	if (isNormalized) {
+		value.trimmedDurationMs = span > 0 ? span : trimmedDurationMs;
+		// 正規化エディタが固定する0と1の端点を、空・1点のグラフにも用意する。
+		if (graph.points.length === 0) {
+			graph.points.push({ id: genId(), x: 0, y: 0, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] });
+		}
+		if (span <= 0) {
+			const last = graph.points.at(-1)!;
+			last.bezierControlPointB = [0, 0];
+			graph.points.push({ id: genId(), x: 1, y: last.y, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] });
+		} else {
+			// 丸め誤差で固定端点の1をわずかに越えないようにする。
+			graph.points[0].x = 0;
+			graph.points.at(-1)!.x = 1;
+		}
+	}
+	graph.isNormalized = isNormalized;
+	return value;
+}
+
+export function createInlineAutomationGraph(): Extract<ValueParameterBinding, { inputSource: 'automationGraphInline' }> {
+	return {
+		inputSource: 'automationGraphInline',
+		automationGraph: {
+			isNormalized: true,
+			points: [
+				{ id: genId(), x: 0, y: 0, bezierControlPointA: [0, 0], bezierControlPointB: [0.5, 0] },
+				{ id: genId(), x: 1, y: 1, bezierControlPointA: [-0.5, 0], bezierControlPointB: [0, 0] },
+			],
+		},
+		trimmedDurationMs: 1000,
+		wrapMode: 'repeat',
+		offsetMode: 'start',
+	};
+}

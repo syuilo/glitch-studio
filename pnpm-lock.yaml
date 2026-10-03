@@ -157,11 +157,14 @@ importers:
         specifier: npm:@typescript/typescript6@6.0.2
         version: '@typescript/typescript6@6.0.2'
 
-  packages/audio-renderer:
+  packages/glitch-studio/audio-renderer:
     dependencies:
-      '@glitch/shared':
+      '@gs/shared':
         specifier: workspace:*
-        version: link:../shared
+        version: link:../../shared
+      '@gs/subsystems_timeline_shared':
+        specifier: workspace:*
+        version: link:../../subsystems/timeline/shared
     devDependencies:
       '@types/web':
         specifier: 0.0.352
@@ -179,7 +182,7 @@ importers:
         specifier: 4.1.10
         version: 4.1.10(@types/node@26.2.0)(vite@8.2.2(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.83.4))
 
-  packages/desktop:
+  packages/glitch-studio/desktop:
     devDependencies:
       electron:
         specifier: 44.3.0
@@ -191,11 +194,29 @@ importers:
         specifier: 8.2.2
         version: 8.2.2(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.83.4)
 
-  packages/renderer:
+  packages/glitch-studio/renderer:
     dependencies:
-      '@glitch/shared':
+      '@gs/glitch-studio_shared':
         specifier: workspace:*
         version: link:../shared
+      '@gs/shared':
+        specifier: workspace:*
+        version: link:../../shared
+      '@gs/subsystems_effect_shared':
+        specifier: workspace:*
+        version: link:../../subsystems/effect/shared
+      '@gs/subsystems_timeline_renderer':
+        specifier: workspace:*
+        version: link:../../subsystems/timeline/renderer
+      '@gs/subsystems_timeline_shared':
+        specifier: workspace:*
+        version: link:../../subsystems/timeline/shared
+      '@gs/subsystems_visual-module_renderer':
+        specifier: workspace:*
+        version: link:../../subsystems/visual-module/renderer
+      '@gs/subsystems_visual-module_shared':
+        specifier: workspace:*
+        version: link:../../subsystems/visual-module/shared
       eventemitter3:
         specifier: 5.0.4
         version: 5.0.4
@@ -203,6 +224,9 @@ importers:
         specifier: 2.1.1
         version: 2.1.1
     devDependencies:
+      '@gs/subsystems_effect_renderer':
+        specifier: workspace:*
+        version: link:../../subsystems/effect/renderer
       '@types/web':
         specifier: 0.0.352
         version: 0.0.352
@@ -222,27 +246,15 @@ importers:
         specifier: 4.1.10
         version: 4.1.10(@types/node@26.2.0)(vite@8.2.2(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.83.4))
 
-  packages/shared:
+  packages/glitch-studio/shared:
     dependencies:
-      '@syuilo/aiscript':
-        specifier: 1.2.1
-        version: 1.2.1
-      bezier-easing:
-        specifier: 3.0.1
-        version: 3.0.1
-      mediabunny:
-        specifier: 1.56.2
-        version: 1.56.2
-      seedrandom:
-        specifier: 3.0.5
-        version: 3.0.5
-      webgpu-utils:
-        specifier: 2.1.1
-        version: 2.1.1
+      '@gs/subsystems_timeline_shared':
+        specifier: workspace:*
+        version: link:../../subsystems/timeline/shared
+      '@gs/subsystems_visual-module_shared':
+        specifier: workspace:*
+        version: link:../../subsystems/visual-module/shared
     devDependencies:
-      '@types/seedrandom':
-        specifier: 3.0.8
-        version: 3.0.8
       '@types/web':
         specifier: 0.0.352
         version: 0.0.352
@@ -259,17 +271,29 @@ importers:
         specifier: 8.2.2
         version: 8.2.2(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.83.4)
 
-  packages/ui:
+  packages/glitch-studio/ui:
     dependencies:
-      '@glitch/audio-renderer':
+      '@gs/glitch-studio_audio-renderer':
         specifier: workspace:*
         version: link:../audio-renderer
-      '@glitch/renderer':
+      '@gs/glitch-studio_renderer':
         specifier: workspace:*
         version: link:../renderer
-      '@glitch/shared':
+      '@gs/glitch-studio_shared':
         specifier: workspace:*
         version: link:../shared
+      '@gs/shared':
+        specifier: workspace:*
+        version: link:../../shared
+      '@gs/subsystems_effect_shared':
+        specifier: workspace:*
+        version: link:../../subsystems/effect/shared
+      '@gs/subsystems_timeline_shared':
+        specifier: workspace:*
+        version: link:../../subsystems/timeline/shared
+      '@gs/subsystems_visual-module_shared':
+        specifier: workspace:*
+        version: link:../../subsystems/visual-module/shared
       '@jsquash/webp':
         specifier: 1.5.0
         version: 1.5.0
@@ -388,6 +412,292 @@ importers:
       vue-tsc:
         specifier: 3.3.11
         version: 3.3.11(@typescript/typescript6@6.0.2)
+
+  packages/shared:
+    dependencies:
+      '@syuilo/aiscript':
+        specifier: 1.2.1
+        version: 1.2.1
+      bezier-easing:
+        specifier: 3.0.1
+        version: 3.0.1
+      mediabunny:
+        specifier: 1.56.2
+        version: 1.56.2
+      seedrandom:
+        specifier: 3.0.5
+        version: 3.0.5
+      webgpu-utils:
+        specifier: 2.1.1
+        version: 2.1.1
+    devDependencies:
+      '@types/seedrandom':
+        specifier: 3.0.8
+        version: 3.0.8
+      '@types/web':
+        specifier: 0.0.352
+        version: 0.0.352
+      '@typescript-eslint/eslint-plugin':
+        specifier: 8.59.2
+        version: 8.59.2(@typescript-eslint/parser@8.59.2(@typescript/typescript6@6.0.2)(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0))(@typescript/typescript6@6.0.2)(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)
+      '@typescript-eslint/parser':
+        specifier: 8.59.2
+        version: 8.59.2(@typescript/typescript6@6.0.2)(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)
+      '@webgpu/types':
+        specifier: 0.1.72
+        version: 0.1.72
+      vite:
+        specifier: 8.2.2
+        version: 8.2.2(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.83.4)
+
+  packages/subsystems/effect/renderer:
+    dependencies:
+      '@gs/shared':
+        specifier: workspace:*
+        version: link:../../../shared
+      '@gs/subsystems_effect_shared':
+        specifier: workspace:*
+        version: link:../shared
+      eventemitter3:
+        specifier: 5.0.4
+        version: 5.0.4
+      webgpu-utils:
+        specifier: 2.1.1
+        version: 2.1.1
+    devDependencies:
+      '@types/web':
+        specifier: 0.0.352
+        version: 0.0.352
+      '@typescript-eslint/eslint-plugin':
+        specifier: 8.59.2
+        version: 8.59.2(@typescript-eslint/parser@8.59.2(@typescript/typescript6@6.0.2)(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0))(@typescript/typescript6@6.0.2)(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)
+      '@typescript-eslint/parser':
+        specifier: 8.59.2
+        version: 8.59.2(@typescript/typescript6@6.0.2)(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)
+      '@webgpu/types':
+        specifier: 0.1.72
+        version: 0.1.72
+      vite:
+        specifier: 8.2.2
+        version: 8.2.2(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.83.4)
+      vitest:
+        specifier: 4.1.10
+        version: 4.1.10(@types/node@26.2.0)(vite@8.2.2(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.83.4))
+
+  packages/subsystems/effect/shared:
+    dependencies:
+      '@gs/shared':
+        specifier: workspace:*
+        version: link:../../../shared
+      '@syuilo/aiscript':
+        specifier: 1.2.1
+        version: 1.2.1
+      bezier-easing:
+        specifier: 3.0.1
+        version: 3.0.1
+      mediabunny:
+        specifier: 1.56.2
+        version: 1.56.2
+      seedrandom:
+        specifier: 3.0.5
+        version: 3.0.5
+      webgpu-utils:
+        specifier: 2.1.1
+        version: 2.1.1
+    devDependencies:
+      '@types/seedrandom':
+        specifier: 3.0.8
+        version: 3.0.8
+      '@types/web':
+        specifier: 0.0.352
+        version: 0.0.352
+      '@typescript-eslint/eslint-plugin':
+        specifier: 8.59.2
+        version: 8.59.2(@typescript-eslint/parser@8.59.2(@typescript/typescript6@6.0.2)(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0))(@typescript/typescript6@6.0.2)(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)
+      '@typescript-eslint/parser':
+        specifier: 8.59.2
+        version: 8.59.2(@typescript/typescript6@6.0.2)(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)
+      '@webgpu/types':
+        specifier: 0.1.72
+        version: 0.1.72
+      vite:
+        specifier: 8.2.2
+        version: 8.2.2(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.83.4)
+
+  packages/subsystems/timeline/renderer:
+    dependencies:
+      '@gs/shared':
+        specifier: workspace:*
+        version: link:../../../shared
+      '@gs/subsystems_effect_renderer':
+        specifier: workspace:*
+        version: link:../../effect/renderer
+      '@gs/subsystems_effect_shared':
+        specifier: workspace:*
+        version: link:../../effect/shared
+      '@gs/subsystems_timeline_shared':
+        specifier: workspace:*
+        version: link:../shared
+      '@gs/subsystems_visual-module_renderer':
+        specifier: workspace:*
+        version: link:../../visual-module/renderer
+      '@gs/subsystems_visual-module_shared':
+        specifier: workspace:*
+        version: link:../../visual-module/shared
+      eventemitter3:
+        specifier: 5.0.4
+        version: 5.0.4
+      webgpu-utils:
+        specifier: 2.1.1
+        version: 2.1.1
+    devDependencies:
+      '@types/web':
+        specifier: 0.0.352
+        version: 0.0.352
+      '@typescript-eslint/eslint-plugin':
+        specifier: 8.59.2
+        version: 8.59.2(@typescript-eslint/parser@8.59.2(@typescript/typescript6@6.0.2)(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0))(@typescript/typescript6@6.0.2)(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)
+      '@typescript-eslint/parser':
+        specifier: 8.59.2
+        version: 8.59.2(@typescript/typescript6@6.0.2)(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)
+      '@webgpu/types':
+        specifier: 0.1.72
+        version: 0.1.72
+      vite:
+        specifier: 8.2.2
+        version: 8.2.2(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.83.4)
+      vitest:
+        specifier: 4.1.10
+        version: 4.1.10(@types/node@26.2.0)(vite@8.2.2(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.83.4))
+
+  packages/subsystems/timeline/shared:
+    dependencies:
+      '@gs/shared':
+        specifier: workspace:*
+        version: link:../../../shared
+      '@gs/subsystems_effect_shared':
+        specifier: workspace:*
+        version: link:../../effect/shared
+      '@gs/subsystems_visual-module_shared':
+        specifier: workspace:*
+        version: link:../../visual-module/shared
+      '@syuilo/aiscript':
+        specifier: 1.2.1
+        version: 1.2.1
+      bezier-easing:
+        specifier: 3.0.1
+        version: 3.0.1
+      mediabunny:
+        specifier: 1.56.2
+        version: 1.56.2
+      seedrandom:
+        specifier: 3.0.5
+        version: 3.0.5
+      webgpu-utils:
+        specifier: 2.1.1
+        version: 2.1.1
+    devDependencies:
+      '@types/seedrandom':
+        specifier: 3.0.8
+        version: 3.0.8
+      '@types/web':
+        specifier: 0.0.352
+        version: 0.0.352
+      '@typescript-eslint/eslint-plugin':
+        specifier: 8.59.2
+        version: 8.59.2(@typescript-eslint/parser@8.59.2(@typescript/typescript6@6.0.2)(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0))(@typescript/typescript6@6.0.2)(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)
+      '@typescript-eslint/parser':
+        specifier: 8.59.2
+        version: 8.59.2(@typescript/typescript6@6.0.2)(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)
+      '@webgpu/types':
+        specifier: 0.1.72
+        version: 0.1.72
+      vite:
+        specifier: 8.2.2
+        version: 8.2.2(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.83.4)
+
+  packages/subsystems/visual-module/renderer:
+    dependencies:
+      '@gs/shared':
+        specifier: workspace:*
+        version: link:../../../shared
+      '@gs/subsystems_effect_renderer':
+        specifier: workspace:*
+        version: link:../../effect/renderer
+      '@gs/subsystems_effect_shared':
+        specifier: workspace:*
+        version: link:../../effect/shared
+      '@gs/subsystems_visual-module_shared':
+        specifier: workspace:*
+        version: link:../shared
+      eventemitter3:
+        specifier: 5.0.4
+        version: 5.0.4
+      webgpu-utils:
+        specifier: 2.1.1
+        version: 2.1.1
+    devDependencies:
+      '@types/web':
+        specifier: 0.0.352
+        version: 0.0.352
+      '@typescript-eslint/eslint-plugin':
+        specifier: 8.59.2
+        version: 8.59.2(@typescript-eslint/parser@8.59.2(@typescript/typescript6@6.0.2)(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0))(@typescript/typescript6@6.0.2)(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)
+      '@typescript-eslint/parser':
+        specifier: 8.59.2
+        version: 8.59.2(@typescript/typescript6@6.0.2)(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)
+      '@webgpu/types':
+        specifier: 0.1.72
+        version: 0.1.72
+      vite:
+        specifier: 8.2.2
+        version: 8.2.2(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.83.4)
+      vitest:
+        specifier: 4.1.10
+        version: 4.1.10(@types/node@26.2.0)(vite@8.2.2(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.83.4))
+
+  packages/subsystems/visual-module/shared:
+    dependencies:
+      '@gs/shared':
+        specifier: workspace:*
+        version: link:../../../shared
+      '@gs/subsystems_effect_shared':
+        specifier: workspace:*
+        version: link:../../effect/shared
+      '@syuilo/aiscript':
+        specifier: 1.2.1
+        version: 1.2.1
+      bezier-easing:
+        specifier: 3.0.1
+        version: 3.0.1
+      mediabunny:
+        specifier: 1.56.2
+        version: 1.56.2
+      seedrandom:
+        specifier: 3.0.5
+        version: 3.0.5
+      webgpu-utils:
+        specifier: 2.1.1
+        version: 2.1.1
+    devDependencies:
+      '@types/seedrandom':
+        specifier: 3.0.8
+        version: 3.0.8
+      '@types/web':
+        specifier: 0.0.352
+        version: 0.0.352
+      '@typescript-eslint/eslint-plugin':
+        specifier: 8.59.2
+        version: 8.59.2(@typescript-eslint/parser@8.59.2(@typescript/typescript6@6.0.2)(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0))(@typescript/typescript6@6.0.2)(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)
+      '@typescript-eslint/parser':
+        specifier: 8.59.2
+        version: 8.59.2(@typescript/typescript6@6.0.2)(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)
+      '@webgpu/types':
+        specifier: 0.1.72
+        version: 0.1.72
+      vite:
+        specifier: 8.2.2
+        version: 8.2.2(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.83.4)
 
 packages:
 

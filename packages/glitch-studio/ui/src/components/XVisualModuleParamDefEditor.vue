@@ -1,0 +1,243 @@
+<template>
+<div :class="$style.root" class="_gaps_m">
+	<div :class="$style.fields">
+		<GsInput style="flex: 1" :class="$style.field" type="text" :modelValue="def.ui.label" @update:modelValue="value => update({ ui: { ...def.ui, label: value } })">
+			<template #label>UI Label</template>
+		</GsInput>
+		<GsInput style="flex: 1" monospace :class="$style.field" type="text" :modelValue="def.nameForReference" @update:modelValue="value => update({ nameForReference: visualModuleCustomParameterName(value) })">
+			<template #label>Reference Name</template>
+		</GsInput>
+	</div>
+	<div :class="$style.fields">
+		<GsSelect
+			style="flex: 1"
+			:class="$style.field"
+			:modelValue="def.dataType.kind"
+			:items="[
+				{ label: i18n.ts._CustomParameterInput._Types.Number, value: 'scalar' },
+				{ label: i18n.ts._CustomParameterInput._Types.Flag, value: 'bool' },
+				{ label: i18n.ts._CustomParameterInput._Types.String, value: 'string' },
+				{ label: i18n.ts._CustomParameterInput._Types.Color, value: 'color' },
+				{ label: i18n.ts._CustomParameterInput._Types.Vector, value: 'vector' },
+				{ label: i18n.ts._CustomParameterInput._Types.Enum, value: 'enum' },
+				{ label: i18n.ts._CustomParameterInput._Types.Image, value: 'assetReference' },
+				{ label: 'Video asset', value: 'videoAssetReference' },
+				{ label: 'Font asset', value: 'fontAssetReference' },
+			]"
+			@update:modelValue="updateType"
+		>
+			<template #label>Data Type</template>
+		</GsSelect>
+		<GsSelect
+			v-if="isParameterType(def, 'scalar')" :class="$style.field" :modelValue="def.ui.control.controlType"
+			style="flex: 1"
+			:items="[{ label: 'Number', value: 'number' }, { label: 'Range', value: 'range' }, { label: 'Angle', value: 'angle' }, { label: 'Seed', value: 'seed' }]"
+			@update:modelValue="updateControl"
+		>
+			<template #label>Control</template>
+		</GsSelect>
+	</div>
+
+	<div v-if="isParameterType(def, 'scalar') && (def.ui.control.controlType === 'number' || def.ui.control.controlType === 'range')" :class="$style.option">
+		<label :class="$style.optionLabel">Min/Max</label>
+		<div :class="[$style.optionControl, { [$style.rangeBounds]: def.ui.control.controlType === 'range' }]">
+			<GsInput type="number" :modelValue="def.ui.control.min ?? null" @update:modelValue="updateUiOption('min', Number($event))"/>
+			<GsInput type="number" :modelValue="def.ui.control.max ?? null" @update:modelValue="updateUiOption('max', Number($event))"/>
+		</div>
+	</div>
+	<div v-if="isParameterType(def, 'scalar') && (def.ui.control.controlType === 'number' || def.ui.control.controlType === 'range')" :class="$style.option">
+		<label :class="$style.optionLabel">Step</label>
+		<div :class="$style.optionControl">
+			<GsInput type="number" :modelValue="def.ui.control.step ?? null" @update:modelValue="updateUiOption('step', Number($event))"/>
+		</div>
+	</div>
+	<div v-if="isParameterType(def, 'enum')" :class="$style.option">
+		<label :class="$style.optionLabel">{{ i18n.ts._CustomParameterInput.Options }}</label>
+		<XEnumOptionsEditor :class="$style.optionControl" :options="def.dataType.options" :labels="def.ui.control.labels" :defaultValue="def.defaultValue.value" @update="updateEnumOptions"/>
+	</div>
+	<div v-if="def.dataType.kind !== 'array' && def.dataType.kind !== 'struct' && def.dataType.kind !== 'any' && def.dataType.kind !== 'enum'" :class="$style.option">
+		<label :class="$style.optionLabel">{{ i18n.ts._CustomParameterInput.DefaultValue }}</label>
+		<GsLiteralLeafValueControl
+			:key="def.dataType.kind"
+			:class="$style.optionControl"
+			:dataType="def.dataType"
+			:control="def.ui.control"
+			:value="def.defaultValue.value"
+			@input="updateDefaultValue"
+			@beginChanging="beginDefaultValueChange"
+			@changeContinuous="value => updateDefaultValue(value, defaultValueMergeKey)"
+			@changeFinished="defaultValueMergeKey = null"
+			@reset="updateDefaultValue(genEmptyValue(def))"
+		/>
+	</div>
+	<div v-if="isTextureDataType(def.dataType) && def.dataType.kind !== 'any'" :class="$style.option">
+		<GsSwitch :modelValue="def.canNode" @update:modelValue="updateCanNode">Allow node input</GsSwitch>
+	</div>
+	<div v-if="def.canNode && def.dataType.kind === 'color'" :class="$style.option">
+		<GsSwitch
+			:modelValue="primaryInputId === def.id"
+			@update:modelValue="emit('setPrimaryInput', $event ? def.id : null)"
+		>
+			Primary input
+		</GsSwitch>
+	</div>
+	<GsButton small danger @click="remove">Remove parameter</GsButton>
+</div>
+</template>
+
+<script lang="ts" setup>
+import { visualModuleCustomParameterName } from '@gs/subsystems_visual-module_shared/types.ts';
+import { genEmptyValue } from '@gs/shared/parameter/parameter-default.ts';
+import { isParameterType } from '@gs/shared/parameter/parameter-definition.ts';
+import { isTextureDataType } from '@gs/shared/data-type/data-type.ts';
+import { genId } from '@gs/shared/utility/id.ts';
+import GsSelect from './common/GsSelect.vue';
+import GsInput from './common/GsInput.vue';
+import GsButton from './common/GsButton.vue';
+import GsSwitch from './common/GsSwitch.vue';
+import GsLiteralLeafValueControl from './GsLiteralLeafValueControl.vue';
+import XEnumOptionsEditor from './XEnumOptionsEditor.vue';
+import type { VisualModuleCustomParameterId, VisualModuleParamDef } from '@gs/subsystems_visual-module_shared/types.ts';
+import { i18n } from '@/i18n.ts';
+
+type ParamDef = VisualModuleParamDef;
+const props = defineProps<{
+	primaryInputId: VisualModuleCustomParameterId | null;
+	def: ParamDef;
+}>();
+
+const emit = defineEmits<{
+	update: [changes: Partial<Omit<ParamDef, 'id'>>, mergeKey?: string | null];
+	remove: [];
+	setPrimaryInput: [inputId: VisualModuleCustomParameterId | null];
+}>();
+
+function update(changes: Partial<Omit<ParamDef, 'id'>>) {
+	emit('update', changes);
+}
+
+let defaultValueMergeKey: string | null = null;
+
+function beginDefaultValueChange() {
+	defaultValueMergeKey = genId();
+}
+
+function updateDefaultValue(value: any, mergeKey?: string | null) {
+	emit('update', { defaultValue: { inputSource: 'literal', value } }, mergeKey);
+}
+
+function updateEnumOptions(options: string[], labels: Record<string, string>, defaultValue: string) {
+	const def = props.def;
+	if (!isParameterType(def, 'enum')) return;
+	update({
+		dataType: { kind: 'enum', options },
+		ui: { ...def.ui, control: { labels } },
+		defaultValue: { inputSource: 'literal', value: defaultValue },
+	});
+}
+
+function updateType(dataType: ParamDef['dataType']['kind']) {
+	if (dataType === props.def.dataType.kind) return;
+	defaultValueMergeKey = null;
+	if (dataType !== 'scalar' && dataType !== 'bool' && dataType !== 'string' && dataType !== 'color' && dataType !== 'vector' && dataType !== 'enum' && dataType !== 'assetReference' && dataType !== 'videoAssetReference' && dataType !== 'fontAssetReference') return;
+
+	const schemas = {
+		scalar: { dataType: { kind: 'scalar' }, ui: { label: props.def.ui.label, control: { controlType: 'number' } } },
+		bool: { dataType: { kind: 'bool' }, ui: { label: props.def.ui.label, control: {} } },
+		string: { dataType: { kind: 'string' }, ui: { label: props.def.ui.label, control: {} } },
+		color: { dataType: { kind: 'color' }, ui: { label: props.def.ui.label, control: {} } },
+		vector: { dataType: { kind: 'vector' }, ui: { label: props.def.ui.label, control: { controlType: 'vector' } } },
+		enum: { dataType: { kind: 'enum', options: ['option1', 'option2'] }, ui: { label: props.def.ui.label, control: { labels: { option1: 'Option 1', option2: 'Option 2' } } } },
+		assetReference: { dataType: { kind: 'assetReference' }, ui: { label: props.def.ui.label, control: {} } },
+		videoAssetReference: { dataType: { kind: 'videoAssetReference' }, ui: { label: props.def.ui.label, control: {} } },
+		fontAssetReference: { dataType: { kind: 'fontAssetReference' }, ui: { label: props.def.ui.label, control: {} } },
+	} as const;
+
+	const schema = schemas[dataType];
+
+	update({
+		...schema,
+		// Inノードでは型変換せず公開するため、ノード入出力に対応しない型では解除する。
+		canNode: isTextureDataType(schema.dataType) && props.def.canNode,
+		defaultValue: { inputSource: 'literal', value: genEmptyValue(schema) },
+	});
+}
+
+function updateControl(controlType: 'number' | 'range' | 'angle' | 'seed') {
+	const def = props.def;
+	if (!isParameterType(def, 'scalar') || def.ui.control.controlType === controlType) return;
+	// UIだけを変更するときは、保存値・式・ノード接続を維持する。
+	const previous = def.ui.control;
+	const control = controlType === 'range'
+		? { controlType, min: 'min' in previous ? previous.min ?? 0 : 0, max: 'max' in previous ? previous.max ?? 1 : 1, step: 'step' in previous ? previous.step ?? 0.01 : 0.01 }
+		: { controlType };
+	update({ dataType: { kind: 'scalar' }, ui: { label: def.ui.label, control } });
+}
+
+function updateUiOption(key: 'min' | 'max' | 'step', value: number) {
+	const def = props.def;
+	if (!isParameterType(def, 'scalar') || (def.ui.control.controlType !== 'number' && def.ui.control.controlType !== 'range')) return;
+	update({ dataType: { kind: 'scalar' }, ui: { ...def.ui, control: { ...def.ui.control, [key]: value } } });
+}
+
+function updateCanNode(canNode: boolean) {
+	if (!isTextureDataType(props.def.dataType) || props.def.dataType.kind === 'any') return;
+	update({ canNode });
+}
+
+function remove() {
+	emit('remove');
+}
+</script>
+
+<style module lang="scss">
+.root {
+}
+
+.fields {
+	display: flex;
+}
+
+.field {
+	margin: 0 2px;
+
+	&:first-child {
+		margin-left: 0;
+	}
+
+	&:last-child {
+		margin-right: 0;
+	}
+}
+
+.remove {
+	width: 64px;
+}
+
+.option {
+	display: flex;
+}
+
+.optionLabel {
+	width: 30%;
+	box-sizing: border-box;
+	padding-left: 8px;
+	padding-top: 4px;
+	padding-right: 8px;
+	flex-shrink: 0;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+	overflow: hidden;
+	cursor: pointer;
+}
+
+.optionControl {
+	width: 70%;
+	flex-shrink: 1;
+}
+
+.rangeBounds {
+	display: flex;
+	gap: 4px;
+}
+</style>

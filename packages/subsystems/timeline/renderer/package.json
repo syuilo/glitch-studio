@@ -1,0 +1,41 @@
+{
+	"type": "module",
+	"name": "@gs/subsystems_timeline_renderer",
+	"private": true,
+	"scripts": {
+		"eslint": "eslint --quiet './**/*.{js,jsx,ts,tsx}'",
+		"test": "node --test test/*.test.mjs",
+		"typecheck": "tsc6 --noEmit",
+		"lint": "pnpm typecheck && pnpm eslint"
+	},
+	"exports": {
+		"./timeline-renderer.ts": "./src/timeline-renderer.ts",
+		"./effect-timeline-layer.ts": "./src/effect-timeline-layer.ts",
+		"./image-timeline-layer.ts": "./src/image-timeline-layer.ts",
+		"./scene-output.ts": "./src/scene-output.ts",
+		"./scene-timeline-layer.ts": "./src/scene-timeline-layer.ts",
+		"./timeline-compositing-parameters.ts": "./src/timeline-compositing-parameters.ts",
+		"./timeline-compositor.ts": "./src/timeline-compositor.ts",
+		"./timeline-preview-scheduler.ts": "./src/timeline-preview-scheduler.ts",
+		"./video-timeline-layer.ts": "./src/video-timeline-layer.ts",
+		"./visual-module-timeline-layer.ts": "./src/visual-module-timeline-layer.ts"
+	},
+	"devDependencies": {
+		"@types/web": "0.0.352",
+		"@typescript-eslint/eslint-plugin": "8.59.2",
+		"@typescript-eslint/parser": "8.59.2",
+		"@webgpu/types": "0.1.72",
+		"vite": "8.2.2",
+		"vitest": "4.1.10"
+	},
+	"dependencies": {
+		"@gs/shared": "workspace:*",
+		"@gs/subsystems_effect_renderer": "workspace:*",
+		"@gs/subsystems_effect_shared": "workspace:*",
+		"@gs/subsystems_timeline_shared": "workspace:*",
+		"@gs/subsystems_visual-module_renderer": "workspace:*",
+		"@gs/subsystems_visual-module_shared": "workspace:*",
+		"eventemitter3": "5.0.4",
+		"webgpu-utils": "2.1.1"
+	}
+}

@@ -1,6 +1,6 @@
 {
 	"type": "module",
-	"name": "@glitch/shared",
+	"name": "@gs/shared",
 	"private": true,
 	"scripts": {
 		"test": "node --test test/*.test.mjs",

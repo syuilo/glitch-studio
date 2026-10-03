@@ -1,6 +1,6 @@
 import shader from './waveform.wgsl?raw';
-import { createShaderInputBindings, generateShaderInputs } from '../../shader-input.ts';
-import type { ShaderInput } from '../../shader-input.ts';
+import { createShaderInputBindings, generateShaderInputs } from '../../gpu/shader-input.ts';
+import type { ShaderInput } from '../../gpu/shader-input.ts';
 
 // エフェクトのパラメータ定義やCanvasに依存しない共通設定。
 export type WaveformSettings = {
