@@ -20,7 +20,7 @@ import type { EffectInstanceState } from '@gs/subsystems_effect_shared/effect-st
 import type { AudioSourceId } from '@gs/shared/audio.ts';
 import type { Asset, IntermediateTextureFormat } from '@gs/shared/types.ts';
 import type { AutomationGraph } from '@gs/shared/automation-graph/automation-graph.ts';
-import type { VisualModuleEffectNode, VisualModuleGlobalInNode, VisualModuleNode, NodeOutputReference, VisualModule } from '@gs/subsystems_visual-module_shared/types.ts';
+import type { VisualModuleEffectNode, VisualModuleGlobalInNode, VisualModuleNode, NodeOutputReference, VisualModule, VisualModuleParameterBinding } from '@gs/subsystems_visual-module_shared/types.ts';
 import type { EffectImplementation } from '@gs/subsystems_effect_shared/effect-implementation.js';
 import type { EffectDefinition } from '@gs/subsystems_effect_shared/effect-definition.js';
 import type { IN_VISUAL_MODULE_VAR_DEFS } from '@gs/subsystems_visual-module_shared/expression.ts';
@@ -182,7 +182,7 @@ export class VisualModuleRenderer {
 			const evaluatedParamsPerNode = {} as Record<string, any>;
 			for (const [key, def] of Object.entries(paramDefs)) {
 				if (node.isBypass && key !== this.effectDefinitions[node.effectId].primaryInputParameter) continue;
-				evaluatedParamsPerNode[key] = mapParameterTree(def, node.params[key], [key], (def, param) => {
+				evaluatedParamsPerNode[key] = mapParameterTree<VisualModuleParameterBinding>(def, node.params[key], [key], (def, param) => {
 					return validateEnumParameterValue(def, this.parameterEvaluator.evaluate(param, evalCtx,
 						def.dataType.kind === 'enum' ? undefined : genEmptyValue(def))); // TODO: genEmptyValueを遅延評価したい
 				});
@@ -233,7 +233,7 @@ export class VisualModuleRenderer {
 			const params = this.evaledNodeParams.get(node.id)!;
 			// 空配列・空structや要素数の変化もキーに含める。
 			key += JSON.stringify(params);
-			for (const { def, param, path } of walkParameterLeaves(paramDefs, node.params)) {
+			for (const { def, param, path } of walkParameterLeaves<VisualModuleParameterBinding>(paramDefs, node.params)) {
 				const v = getEvaluatedParameterValue(params, path);
 				key += JSON.stringify([path, param.inputSource]);
 				if (param.inputSource === 'node' && param.nodeId != null) {
@@ -266,7 +266,7 @@ export class VisualModuleRenderer {
 	private resolveParams(node: VisualModuleEffectNode, params: Record<string, any>): Record<string, any> {
 		const resolvedParams: Record<string, any> = {};
 		for (const [key, def] of Object.entries(this.effectDefinitions[node.effectId].paramDefs)) {
-			resolvedParams[key] = mapParameterTree(def, node.params[key], [key], (def, param, path) => {
+			resolvedParams[key] = mapParameterTree<VisualModuleParameterBinding>(def, node.params[key], [key], (def, param, path) => {
 				const v = getEvaluatedParameterValue(params, path);
 				if (def.dataType.kind === 'playerReference') return v == null ? null : {
 					videoFrame: this.videoFrames.get(v) ?? null,
@@ -294,7 +294,7 @@ export class VisualModuleRenderer {
 				return;
 			}
 			this.usedOutputPorts.set(output.node.id, new Set([output.outputPort]));
-			for (const { def, param } of walkParameterLeaves(this.effectDefinitions[output.node.effectId].paramDefs, output.node.params)) {
+			for (const { def, param } of walkParameterLeaves<VisualModuleParameterBinding>(this.effectDefinitions[output.node.effectId].paramDefs, output.node.params)) {
 				if (!def.canNode || param.inputSource !== 'node' || param.nodeId == null) continue;
 				const source = this.allNodeIdMap.get(param.nodeId);
 				if (source != null) visit(source, param.outputPort ?? undefined);
@@ -446,7 +446,7 @@ export class VisualModuleRenderer {
 
 		const params = this.evaledNodeParams.get(node.id)!;
 
-		for (const { def, param } of walkParameterLeaves(this.effectDefinitions[node.effectId].paramDefs, node.params)) {
+		for (const { def, param } of walkParameterLeaves<VisualModuleParameterBinding>(this.effectDefinitions[node.effectId].paramDefs, node.params)) {
 			if (!def.canNode || param.inputSource !== 'node' || param.nodeId == null) continue;
 			const targetNode = this.allNodeIdMap.get(param.nodeId);
 			if (targetNode == null) throw new Error('Referenced node not found');
@@ -518,7 +518,7 @@ export class VisualModuleRenderer {
 			if (output == null || output.node.type === 'globalIn') return;
 			const effectNode = output.node;
 			if (prepared.has(effectNode.id)) return;
-			for (const { def, param } of walkParameterLeaves(this.effectDefinitions[effectNode.effectId].paramDefs, effectNode.params)) {
+		for (const { def, param } of walkParameterLeaves<VisualModuleParameterBinding>(this.effectDefinitions[effectNode.effectId].paramDefs, effectNode.params)) {
 				if (!def.canNode || param.inputSource !== 'node' || param.nodeId == null) continue;
 				const source = this.allNodeIdMap.get(param.nodeId);
 				if (source == null) throw new Error('Referenced node not found');

@@ -60,7 +60,7 @@ export function resolveLayerParameter(state: Pick<AppState, 'visualModules'>, la
 	if (path.length === 1 && values[path[0]] == null && defs[path[0]] != null) {
 		return { def: defs[path[0]], value: defs[path[0]].defaultValue };
 	}
-	const { def, value } = resolveParameter(defs, values, path);
+	const { def, value } = resolveParameter<TimelineEffectParameterBinding>(defs, values, path);
 	return { def, value };
 }
 
@@ -73,7 +73,7 @@ export function getLayerKeyframeParameters(state: Pick<AppState, 'visualModules'
 	return getLayerParameterTargets(layer).flatMap(target => {
 		const defs = getLayerParameterDefinitions(state, layer, target);
 		const values = getLayerParameterValues(layer, target);
-		return [...walkParameters(defs, values)].flatMap(({ path, def, value }) => value.inputSource === 'keyframesTimelineInline'
+		return [...walkParameters<TimelineEffectParameterBinding>(defs, values)].flatMap(({ path, def, value }) => value.inputSource === 'keyframesTimelineInline'
 			? [{ key: JSON.stringify([target, path]), paramPath: path, target, def,
 				label: `${targetLabels[target]} / ${getParameterPathLabel(defs, values, path)}`, binding: value }] : []);
 	});

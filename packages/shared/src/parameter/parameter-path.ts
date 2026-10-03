@@ -11,7 +11,9 @@ export function paramPathKey(path: ParamPath): string {
 	return JSON.stringify(path);
 }
 
-export function resolveParameter<Binding extends ParameterBindingBase>(defs: Record<string, ParameterDefinition>, params: Record<string, Binding>, path: ParamPath) {
+// 親の具体型を子や書き込み先の型に流用せず、利用ドメインのBinding全体を明示させる。
+// literalの親だけを渡した場合も、末端では式・接続への切替ができる必要がある。
+export function resolveParameter<Binding extends ParameterBindingBase = never>(defs: Record<string, ParameterDefinition>, params: NoInfer<Record<string, Binding>>, path: ParamPath) {
 	let def = defs[path[0]];
 	let value = params[path[0]];
 	let setValue = (next: NoInfer<Binding>) => { params[path[0]] = next; };
@@ -38,7 +40,7 @@ export function resolveParameter<Binding extends ParameterBindingBase>(defs: Rec
 }
 
 // 未設定の値には共通の既定値を使うため、走査結果にはその子要素の入力方式も含める。
-export function* walkParameters<Binding extends ParameterBindingBase>(defs: Record<string, ParameterDefinition>, params: Record<string, Binding>): Generator<{
+export function* walkParameters<Binding extends ParameterBindingBase = never>(defs: Record<string, ParameterDefinition>, params: NoInfer<Record<string, Binding>>): Generator<{
 	path: ParamPath; def: ParameterDefinition; value: Binding | ValueParameterBinding;
 }> {
 	function* walk(def: ParameterDefinition, value: Binding | ValueParameterBinding, path: ParamPath): ReturnType<typeof walkParameters<Binding>> {

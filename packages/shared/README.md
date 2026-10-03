@@ -16,7 +16,7 @@ Glitch Studioドメイン内だけで共有する必要のあるものは、こ�
 
 `ParameterBindingEvaluator`が受け取る`ValueParameterBinding`は、literal・環境変数・式・グラフ参照・インライングラフ・キーフレームに限定する。時刻、終了時刻、グラフ一覧と式の環境は`ParameterEvaluationScope`で渡す。評価結果やスコープは保持しない。
 
-共通の`ParameterBindingBase`はツリー操作に必要な`inputSource`だけを定義する。`resolveParameter`・`walkParameters`・`mapParameterTree`・`walkParameterLeaves`と`ParameterArrayElement`は呼び出し側のBinding型を保持する。既定値にもフォールバックする`walkParameters`の結果には`ValueParameterBinding`を含める。パラメータ定義の初期値は、配列・構造体内部も共通方式に限定する。
+共通の`ParameterBindingBase`はツリー操作に必要な`inputSource`だけを定義する。`resolveParameter`・`walkParameters`・`mapParameterTree`・`walkParameterLeaves`の型引数には、ツリー全体で許可するBinding型を明示する。親がliteralでも子は式やドメイン固有方式になり得るため、親の具体型からは推論しない。走査結果・編集先と`ParameterArrayElement`は指定したBinding型を保持する。既定値にもフォールバックする`walkParameters`の結果には`ValueParameterBinding`を含める。パラメータ定義の初期値は、配列・構造体内部も共通方式に限定する。
 
 `node`・`externalCustomParameterInput`はVisual Module、`layerInput`はTimeline側が型を定義し、共通基盤から参照しない。各ドメインは共通方式に固有方式を組み合わせ、利用可否の検証と参照の解決を担当する。literalの内部値は完全には静的型付けしていないため、配列・構造体内のBindingも受け入れ時に検証する。
 

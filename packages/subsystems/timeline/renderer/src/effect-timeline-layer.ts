@@ -15,6 +15,7 @@ import type { EffectDefinition } from '@gs/subsystems_effect_shared/effect-defin
 import type { EffectImplementation, EffectGpuContext } from '@gs/subsystems_effect_shared/effect-implementation.ts';
 import type { EffectInstanceState } from '@gs/subsystems_effect_shared/effect-status.ts';
 import type { TimelineEffectLayer } from '@gs/subsystems_timeline_shared/types.ts';
+import type { TimelineEffectParameterBinding } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
 import type { Resolution } from '@gs/shared/resolution.ts';
 import type { Asset } from '@gs/shared/types.ts';
 import type { TimelineLayerRenderer } from './timeline-renderer.ts';
@@ -54,7 +55,7 @@ export function createEffectTimelineLayer(layer: TimelineEffectLayer, definition
 			if (disposed || signal.aborted) return { gpuTime: 0 };
 			const scope = createTimelineLayerEvaluationScope({ time: context.sceneTimeMs, isExport: context.isExport, automationGraphs: layer.automationGraphs });
 			const params = Object.fromEntries(parameters.map(({ key, def, binding }) => {
-				return [key, mapParameterTree(def, binding, [key], (leaf, value) => {
+				return [key, mapParameterTree<TimelineEffectParameterBinding>(def, binding, [key], (leaf, value) => {
 					if (value.inputSource === 'layerInput') return toShaderInput(context.input, value);
 					const fallback = value.inputSource === 'automationGraphReference' || (leaf.dataType.kind === 'enum' && value.inputSource === 'keyframesTimelineInline')
 						? leaf.defaultValue.value : leaf.dataType.kind === 'enum' ? undefined : genEmptyValue(leaf);

@@ -132,7 +132,7 @@ const editTimelineLayerParamCommandDef = defineCommand<{
 				if (after === undefined) {
 					before = deepClone(values[rootKey]);
 					const draft = { [rootKey]: deepClone(before ?? rootDef.defaultValue) };
-					const resolved = resolveParameter(defs, draft, payload.paramPath);
+					const resolved = resolveParameter<TimelineEffectParameterBinding>(defs, draft, payload.paramPath);
 					const { def, value: current } = resolved;
 					const edit = payload.edit;
 					let next: TimelineEffectParameterBinding;
@@ -176,7 +176,7 @@ const editTimelineLayerParamCommandDef = defineCommand<{
 							break;
 					}
 					resolved.setValue(next);
-					for (const { value } of walkParameters({ [rootKey]: rootDef }, draft)) {
+					for (const { value } of walkParameters<TimelineEffectParameterBinding>({ [rootKey]: rootDef }, draft)) {
 						if (value.inputSource === 'keyframesTimelineInline') for (const point of value.keyframesTimeline.keyframes) point.x = Math.round(point.x);
 					}
 					validateTimelineParameterTree(rootDef, draft[rootKey], target === 'effect');
