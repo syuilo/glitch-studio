@@ -24,10 +24,10 @@
 		"preview": "pnpm --dir packages/glitch-studio/ui preview",
 		"typecheck": "pnpm --no-bail -r typecheck",
 		"lint": "pnpm --no-bail -r lint",
-		"dev:desktop": "pnpm --dir packages/desktop dev",
+		"dev:desktop": "pnpm --dir packages/glitch-studio/desktop dev",
 		"build:desktop": "cross-env BUILD_TARGET=electron pnpm --dir packages/glitch-studio/ui build",
-		"start:desktop": "pnpm --dir packages/desktop start",
-		"dist:desktop": "pnpm build:desktop && pnpm --dir packages/desktop dist"
+		"start:desktop": "pnpm --dir packages/glitch-studio/desktop start",
+		"dist:desktop": "pnpm build:desktop && pnpm --dir packages/glitch-studio/desktop dist"
 	},
 	"dependencies": {
 		"esbuild": "0.28.2",
