@@ -3,7 +3,7 @@
 依存関係を `pnpm install` でインストールしてから実行します。
 
 - `pnpm dev:desktop`: ViteとElectronを起動します。UIの変更はHMRで反映されます。main/preloadの変更時は再起動してください。
-- `pnpm build:desktop`: Electron用UIを `packages/ui/dist-electron` にビルドします。
+- `pnpm build:desktop`: Electron用UIを `packages/glitch-studio/ui/dist-electron` にビルドします。
 - `pnpm start:desktop`: ビルド済みUIをElectronで起動します。
 - `pnpm dist:desktop`: UIをビルドし、Windows x64向けNSISインストーラーを生成します。
 

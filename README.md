@@ -1,4 +1,4 @@
-<img src="./packages/ui/public/gs.svg" width="100"/>
+<img src="./packages/glitch-studio/ui/public/gs.svg" width="100"/>
 
 # Glitch Studio (⚠️Under Development!!!)
 
