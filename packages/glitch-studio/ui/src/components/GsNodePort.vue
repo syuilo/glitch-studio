@@ -26,16 +26,18 @@ onBeforeUnmount(() => emit('update:element', null));
 
 <style module lang="scss">
 .root {
+	--size: var(--NODE_PORT_SIZE, 24px);
+
 	flex-shrink: 0;
 	text-align: center;
-	width: 24px;
-	height: 24px;
-	line-height: 24px;
+	width: var(--size);
+	height: var(--size);
+	line-height: var(--size);
 	user-select: none;
 }
 
 .output {
-	width: 24px;
+	width: var(--size);
 	cursor: crosshair;
 	touch-action: none;
 }
