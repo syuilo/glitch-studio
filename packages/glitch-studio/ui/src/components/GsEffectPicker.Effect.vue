@@ -30,6 +30,10 @@ const emit = defineEmits<{
 	text-align: center;
 	background: light-dark(#0001, #fff1);
 	border-radius: 6px;
+
+	&:hover {
+		background: light-dark(#0002, #fff2);
+	}
 }
 
 .detailed {
