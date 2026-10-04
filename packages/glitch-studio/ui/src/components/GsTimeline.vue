@@ -107,145 +107,157 @@
 		</div>
 
 		<Teleport v-if="timelineSubPanelTeleportTargetAvailable" defer to="#timelineSubPanelTeleportTarget">
-			<div v-if="selectionCount > 1" :class="$style.keyframeEditor">{{ selectionCount }} {{ selection.kind === 'layers' ? 'layers' : selection.kind === 'clips' ? 'clips' : 'keyframes' }} selected</div>
-			<div v-else-if="selectedKeyframe != null">
-				<div :key="keyframeEditorKey" :class="$style.keyframeEditor">
-					<div>{{ selectedKeyframe.def.ui.label }}</div>
-					<GsInput small type="number" :min="selectedKeyframe.minX" :max="selectedKeyframe.maxX" :modelValue="selectedKeyframe.keyframe.x" @update:modelValue="updateKeyframeTime">
-						<template #label>Time (ms)</template>
-					</GsInput>
-					<div>Value</div>
-					<GsLiteralLeafValueControl
-						:dataType="selectedKeyframe.def.dataType"
-						:control="selectedKeyframe.def.ui.control"
-						:value="selectedKeyframe.keyframe.value"
-						:title="selectedKeyframe.def.ui.label"
-						@input="value => updateKeyframeValue(value)"
-						@beginChanging="keyframeValueMergeKey = genId()"
-						@changeContinuous="value => updateKeyframeValue(value, keyframeValueMergeKey)"
-						@changeFinished="keyframeValueMergeKey = null"
-						@reset="updateKeyframeValue(selectedKeyframe.def.defaultValue.value)"
-					/>
-					<template v-for="editor in keyframeInterpolationEditors" :key="editor.keyframe.id">
-						<GsSelect small :modelValue="editor.keyframe.interpolation.type" :items="keyframeInterpolationItems" @update:modelValue="type => updateKeyframeInterpolationType(editor.keyframe.id, type)">
-							<template #label>{{ editor.label }}</template>
-						</GsSelect>
-						<GsSelect v-if="editor.direction != null" small :modelValue="editor.direction" :items="easingDirectionItems" @update:modelValue="direction => updateKeyframeEasingDirection(editor.keyframe.id, direction)">
-							<template #label>Easing direction</template>
-						</GsSelect>
-					</template>
-				</div>
-			</div>
-			<div v-else-if="selectedClipEntry != null" :class="$style.keyframeEditor">
-				<div>{{ selectedClipLabel }}</div>
-				<GsInput small type="number" :min="0" :modelValue="selectedClipEntry.clip.startMs" @update:modelValue="value => editSelectedClipTime('move', value)"><template #label>Start</template><template #suffix>ms</template></GsInput>
-				<GsInput small type="number" :min="0" :disabled="selectedClipNeedsMedia && !selectedClipMedia" :modelValue="selectedClipEntry.clip.startMs" @update:modelValue="value => editSelectedClipTime('start', value)"><template #label>Trim start</template><template #suffix>ms</template></GsInput>
-				<GsInput small type="number" :min="1" :disabled="selectedClipNeedsMedia && !selectedClipMedia" :modelValue="selectedClipEntry.clip.durationMs" @update:modelValue="value => editSelectedClipTime('duration', value)"><template #label>Duration</template><template #suffix>ms</template></GsInput>
-				<div>Content offset: {{ formatMsToTimecode(selectedClipEntry.clip.contentOffsetMs) }}</div>
-				<div v-if="selectedClipMedia">Source duration: {{ formatMsToTimecode(selectedClipMedia.durationMs) }}</div>
-				<template v-if="selectedVideoClip != null">
-					<GsSwitch :modelValue="selectedVideoClip.audioEnabled" :disabled="!selectedVideoClip.audioEnabled && !selectedClipMedia?.audioAvailable" @update:modelValue="editSelectedClipAudio">Audio enabled</GsSwitch>
-					<div v-if="selectedClipMedia?.audioError">{{ selectedClipMedia.audioError }}</div>
-				</template>
-				<GsButton v-if="selectedClipEntry.layer.layerType === 'image' || selectedClipEntry.layer.layerType === 'video' || selectedClipEntry.layer.layerType === 'audio' || selectedClipEntry.layer.layerType === 'scene'" small @click="changeClipSource">Change source</GsButton>
-				<GsButton v-if="selectedSceneClip != null" small @click="activeSceneId = selectedSceneClip.sceneId">Open scene</GsButton>
-				<GsButton small @click="selectLayer(selectedClipEntry.layer)">Layer settings</GsButton>
-				<GsButton danger small @click="removeSelectedClips">Remove clip</GsButton>
-			</div>
-			<div v-else-if="selectedLayer != null">
-				<div class="_spacer">
-					<GsInput small :modelValue="selectedLayer.name" @update:modelValue="name => appStateManager.commit('renameTimelineLayer', { sceneId, layerId: selectedLayer!.id, name: String(name) })"><template #label>Layer Name</template></GsInput>
-				</div>
-				<GsTimelineEffectSettings
-					v-if="selectedLayer.layerType === 'effect'"
-					:key="selectedLayer.id"
-					:layer="selectedLayer"
-					:effectState="selectedEffectLayerState"
-					:contextResolution="getSceneBaseResolution(editedScene.resolution, appStateManager.state.resolution.value)"
-					@edit="event => onTimelineLayerParamEdit(event, 'effect')"
-					@resolution="resolution => appStateManager.commit('changeEffectLayerResolution', { sceneId, layerId: selectedLayer!.id, resolution })"
-				/>
-				<GsFolder v-if="selectedLayer.layerType === 'inlineVisualModule'" :asSection="true" defaultOpen :withSpacer="false">
-					<template #icon><i class="ti ti-chart-dots-3"></i></template>
-					<template #label>Visual Module</template>
-					<div>
-						<GsVisualModuleEditor
-
-							:key="selectedLayer.id"
-							:class="$style.inlineModuleEditor"
-							:visualModule="selectedLayer.visualModule"
-							:effectStates="inlineEffectStates"
-							@edit="onInlineVisualModuleEdit"
-							@requestAddNode="showAddInlineNodeMenu"
+			<GsFolder v-if="selectedKeyframe != null" :key="keyframeEditorKey" defaultOpen asSection :withSpacer="false">
+				<template #icon><i class="ti ti-keyframe"></i></template>
+				<template #label>Keyframe: {{ selectedKeyframe.def.ui.label }}</template>
+				<div style="margin-left: 16px; border-left: solid 1px #fff2;">
+					<div class="_spacer _gaps_m">
+						<GsInput small type="number" :min="selectedKeyframe.minX" :max="selectedKeyframe.maxX" :modelValue="selectedKeyframe.keyframe.x" @update:modelValue="updateKeyframeTime">
+							<template #label>Time (ms)</template>
+						</GsInput>
+						<div>Value</div>
+						<GsLiteralLeafValueControl
+							:dataType="selectedKeyframe.def.dataType"
+							:control="selectedKeyframe.def.ui.control"
+							:value="selectedKeyframe.keyframe.value"
+							:title="selectedKeyframe.def.ui.label"
+							@input="value => updateKeyframeValue(value)"
+							@beginChanging="keyframeValueMergeKey = genId()"
+							@changeContinuous="value => updateKeyframeValue(value, keyframeValueMergeKey)"
+							@changeFinished="keyframeValueMergeKey = null"
+							@reset="updateKeyframeValue(selectedKeyframe.def.defaultValue.value)"
 						/>
+						<template v-for="editor in keyframeInterpolationEditors" :key="editor.keyframe.id">
+							<GsSelect small :modelValue="editor.keyframe.interpolation.type" :items="keyframeInterpolationItems" @update:modelValue="type => updateKeyframeInterpolationType(editor.keyframe.id, type)">
+								<template #label>{{ editor.label }}</template>
+							</GsSelect>
+							<GsSelect v-if="editor.direction != null" small :modelValue="editor.direction" :items="easingDirectionItems" @update:modelValue="direction => updateKeyframeEasingDirection(editor.keyframe.id, direction)">
+								<template #label>Easing direction</template>
+							</GsSelect>
+						</template>
 					</div>
-				</GsFolder>
-				<GsFolder v-if="selectedLayerModule != null" :asSection="true" defaultOpen :withSpacer="false">
-					<template #icon><i class="ti ti-adjustments-horizontal"></i></template>
-					<template #label>Module Parameters</template>
-					<div style="padding: 8px 0;">
-						<!-- TODO: struct / array / anyのカスタムパラメータ編集UI。型定義では許可するが、子の編集や配列操作は未対応。 -->
-						<template
-							v-for="paramDef of selectedLayerModule?.paramDefs.filter(paramDef => paramDef.id !== selectedLayerModule?.primaryInputId) ?? []"
-							:key="`${selectedLayer.id}:${paramDef.id}`"
-						>
-							<div v-if="paramDef.dataType.kind === 'struct' || paramDef.dataType.kind === 'array' || isParameterType(paramDef, 'any')">{{ paramDef.ui.label }}: Editing is not yet supported.</div>
+				</div>
+			</GsFolder>
+			<GsFolder v-if="selectedClipEntry != null" defaultOpen asSection :withSpacer="false">
+				<template #icon><i class="ti ti-ticket"></i></template>
+				<template #label>Clip: {{ selectedClipLabel }}</template>
+				<div style="margin-left: 16px; border-left: solid 1px #fff2;">
+					<div class="_spacer _gaps_m">
+						<GsInput small type="number" :min="0" :modelValue="selectedClipEntry.clip.startMs" @update:modelValue="value => editSelectedClipTime('move', value)"><template #label>Start</template><template #suffix>ms</template></GsInput>
+						<GsInput small type="number" :min="0" :disabled="selectedClipNeedsMedia && !selectedClipMedia" :modelValue="selectedClipEntry.clip.startMs" @update:modelValue="value => editSelectedClipTime('start', value)"><template #label>Trim start</template><template #suffix>ms</template></GsInput>
+						<GsInput small type="number" :min="1" :disabled="selectedClipNeedsMedia && !selectedClipMedia" :modelValue="selectedClipEntry.clip.durationMs" @update:modelValue="value => editSelectedClipTime('duration', value)"><template #label>Duration</template><template #suffix>ms</template></GsInput>
+						<div>Content offset: {{ formatMsToTimecode(selectedClipEntry.clip.contentOffsetMs) }}</div>
+						<div v-if="selectedClipMedia">Source duration: {{ formatMsToTimecode(selectedClipMedia.durationMs) }}</div>
+						<template v-if="selectedVideoClip != null">
+							<GsSwitch :modelValue="selectedVideoClip.audioEnabled" :disabled="!selectedVideoClip.audioEnabled && !selectedClipMedia?.audioAvailable" @update:modelValue="editSelectedClipAudio">Audio enabled</GsSwitch>
+							<div v-if="selectedClipMedia?.audioError">{{ selectedClipMedia.audioError }}</div>
+						</template>
+						<GsButton v-if="selectedClipEntry.layer.layerType === 'image' || selectedClipEntry.layer.layerType === 'video' || selectedClipEntry.layer.layerType === 'audio' || selectedClipEntry.layer.layerType === 'scene'" small @click="changeClipSource">Change source</GsButton>
+						<GsButton v-if="selectedSceneClip != null" small @click="activeSceneId = selectedSceneClip.sceneId">Open scene</GsButton>
+						<GsButton small @click="selectLayer(selectedClipEntry.layer)">Layer settings</GsButton>
+						<GsButton danger small @click="removeSelectedClips">Remove clip</GsButton>
+					</div>
+				</div>
+			</GsFolder>
+			<GsFolder v-if="selectedLayer != null" defaultOpen asSection :withSpacer="false">
+				<template #icon><i class="ti ti-stack-middle"></i></template>
+				<template #label>Layer: {{ selectedLayer?.name }}</template>
+
+				<div style="margin-left: 16px; border-left: solid 1px #fff2;">
+					<div class="_spacer">
+						<GsInput small :modelValue="selectedLayer.name" @update:modelValue="name => appStateManager.commit('renameTimelineLayer', { sceneId, layerId: selectedLayer!.id, name: String(name) })"><template #label>Layer Name</template></GsInput>
+					</div>
+					<GsTimelineEffectSettings
+						v-if="selectedLayer.layerType === 'effect'"
+						:key="selectedLayer.id"
+						:layer="selectedLayer"
+						:effectState="selectedEffectLayerState"
+						:contextResolution="getSceneBaseResolution(editedScene.resolution, appStateManager.state.resolution.value)"
+						@edit="event => onTimelineLayerParamEdit(event, 'effect')"
+						@resolution="resolution => appStateManager.commit('changeEffectLayerResolution', { sceneId, layerId: selectedLayer!.id, resolution })"
+					/>
+					<GsFolder v-if="selectedLayer.layerType === 'inlineVisualModule'" :asSection="true" defaultOpen :withSpacer="false">
+						<template #icon><i class="ti ti-chart-dots-3"></i></template>
+						<template #label>Visual Module</template>
+						<div>
+							<GsVisualModuleEditor
+
+								:key="selectedLayer.id"
+								:class="$style.inlineModuleEditor"
+								:visualModule="selectedLayer.visualModule"
+								:effectStates="inlineEffectStates"
+								@edit="onInlineVisualModuleEdit"
+								@requestAddNode="showAddInlineNodeMenu"
+							/>
+						</div>
+					</GsFolder>
+					<GsFolder v-if="selectedLayerModule != null" :asSection="true" defaultOpen :withSpacer="false">
+						<template #icon><i class="ti ti-adjustments-horizontal"></i></template>
+						<template #label>Module Parameters</template>
+						<div style="padding: 8px 0;">
+							<!-- TODO: struct / array / anyのカスタムパラメータ編集UI。型定義では許可するが、子の編集や配列操作は未対応。 -->
+							<template
+								v-for="paramDef of selectedLayerModule?.paramDefs.filter(paramDef => paramDef.id !== selectedLayerModule?.primaryInputId) ?? []"
+								:key="`${selectedLayer.id}:${paramDef.id}`"
+							>
+								<div v-if="paramDef.dataType.kind === 'struct' || paramDef.dataType.kind === 'array' || isParameterType(paramDef, 'any')">{{ paramDef.ui.label }}: Editing is not yet supported.</div>
+								<GsVisualParam
+									v-else
+									keyframesEnabled
+									:automationGraphEndEnabled="false"
+									:availableVariables="LAYER_VAR_DEFS"
+									:automationGraphs="selectedLayer.automationGraphs"
+									:paramPath="[paramDef.id]"
+									:paramDef="{ ...paramDef, canNode: false }"
+									:paramValue="getLayerParameterValues(selectedLayer, 'module')[paramDef.id] ?? paramDef.defaultValue"
+									@edit="event => onTimelineLayerParamEdit(event, 'module')"
+								/>
+							</template>
+						</div>
+					</GsFolder>
+					<GsFolder v-if="selectedLayer.layerType !== 'audio'" :asSection="true" defaultOpen :withSpacer="false">
+						<template #icon><i class="ti ti-layers-selected"></i></template>
+						<template #label>Compositing</template>
+						<div style="padding: 8px 0;">
 							<GsVisualParam
-								v-else
+								v-for="(paramDef, paramId) in timelineCompositingParamDefs"
+								:key="paramId"
 								keyframesEnabled
 								:automationGraphEndEnabled="false"
 								:availableVariables="LAYER_VAR_DEFS"
 								:automationGraphs="selectedLayer.automationGraphs"
-								:paramPath="[paramDef.id]"
-								:paramDef="{ ...paramDef, canNode: false }"
-								:paramValue="getLayerParameterValues(selectedLayer, 'module')[paramDef.id] ?? paramDef.defaultValue"
-								@edit="event => onTimelineLayerParamEdit(event, 'module')"
+								:paramPath="[paramId]"
+								:paramDef="paramDef"
+								:paramValue="selectedLayer.compositingParamValues[paramId]"
+								@edit="event => onTimelineLayerParamEdit(event, 'compositing')"
 							/>
-						</template>
-					</div>
-				</GsFolder>
-				<GsFolder v-if="selectedLayer.layerType !== 'audio'" :asSection="true" defaultOpen :withSpacer="false">
-					<template #icon><i class="ti ti-layers-selected"></i></template>
-					<template #label>Compositing</template>
-					<div style="padding: 8px 0;">
-						<GsVisualParam
-							v-for="(paramDef, paramId) in timelineCompositingParamDefs"
-							:key="paramId"
-							keyframesEnabled
-							:automationGraphEndEnabled="false"
-							:availableVariables="LAYER_VAR_DEFS"
-							:automationGraphs="selectedLayer.automationGraphs"
-							:paramPath="[paramId]"
-							:paramDef="paramDef"
-							:paramValue="selectedLayer.compositingParamValues[paramId]"
-							@edit="event => onTimelineLayerParamEdit(event, 'compositing')"
-						/>
-					</div>
-				</GsFolder>
-				<GsFolder v-if="selectedLayer.layerType === 'audio' || selectedLayer.layerType === 'video' || selectedLayer.layerType === 'scene'" :asSection="true" defaultOpen>
-					<template #icon><i class="ti ti-music"></i></template>
-					<template #label>Audio</template>
-					<div class="_gaps_m">
-						<GsVisualParam
-							:key="selectedLayer.id"
-							keyframesEnabled
-							:automationGraphEndEnabled="false"
-							:availableVariables="LAYER_VAR_DEFS"
-							:automationGraphs="selectedLayer.automationGraphs"
-							:paramPath="['volume']"
-							:paramDef="timelineAudioParamDefs.volume"
-							:paramValue="selectedLayer.audioParamValues.volume"
-							@edit="event => onTimelineLayerParamEdit(event, 'audio')"
-						/>
-					</div>
-				</GsFolder>
-				<GsFolder :asSection="true" defaultOpen>
-					<template #label>Other</template>
-					<div class="_gaps_m">
-						<GsButton danger small @click="appStateManager.commit('removeTimelineLayer', { sceneId: props.sceneId, layerId: selectedLayer.id })">Remove Layer</GsButton>
-					</div>
-				</GsFolder>
-			</div>
+						</div>
+					</GsFolder>
+					<GsFolder v-if="selectedLayer.layerType === 'audio' || selectedLayer.layerType === 'video' || selectedLayer.layerType === 'scene'" :asSection="true" defaultOpen>
+						<template #icon><i class="ti ti-music"></i></template>
+						<template #label>Audio</template>
+						<div class="_gaps_m">
+							<GsVisualParam
+								:key="selectedLayer.id"
+								keyframesEnabled
+								:automationGraphEndEnabled="false"
+								:availableVariables="LAYER_VAR_DEFS"
+								:automationGraphs="selectedLayer.automationGraphs"
+								:paramPath="['volume']"
+								:paramDef="timelineAudioParamDefs.volume"
+								:paramValue="selectedLayer.audioParamValues.volume"
+								@edit="event => onTimelineLayerParamEdit(event, 'audio')"
+							/>
+						</div>
+					</GsFolder>
+					<GsFolder :asSection="true" defaultOpen>
+						<template #label>Other</template>
+						<div class="_gaps_m">
+							<GsButton danger small @click="appStateManager.commit('removeTimelineLayer', { sceneId: props.sceneId, layerId: selectedLayer.id })">Remove Layer</GsButton>
+						</div>
+					</GsFolder>
+				</div>
+			</GsFolder>
 		</Teleport>
 		<div v-else :class="$style.rightSidePanel">
 			<!-- TODO -->

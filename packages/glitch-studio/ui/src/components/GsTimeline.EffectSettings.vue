@@ -1,7 +1,7 @@
 <template>
 <GsFolder :asSection="true" defaultOpen :withSpacer="false">
 	<template #icon><i class="ti ti-sparkles"></i></template>
-	<template #label>{{ definition.displayName }}</template>
+	<template #label>Effect: {{ definition.displayName }}</template>
 	<template #suffix>
 		<span v-if="effectState?.status.type === 'loading'"><i class="ti ti-loader-2"></i> Loading…</span>
 		<span v-else-if="effectState?.status.type === 'error'" :class="$style.error" :title="effectState.status.message"><i class="ti ti-alert-triangle"></i> Error</span>

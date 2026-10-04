@@ -14,7 +14,8 @@
 		<div :class="$style.body">
 			<div :class="$style.leftArea">
 				<GsFolder defaultOpen asSection>
-					<template #label><i class="ti ti-filter"></i> {{ i18n.ts._EffectPicker.PortTypes }}</template>
+					<template #icon><i class="ti ti-filter"></i></template>
+					<template #label>{{ i18n.ts._EffectPicker.PortTypes }}</template>
 					<div :class="$style.typeFilters">
 						<div>
 							<div :class="$style.typeFilterLabel">{{ i18n.ts._EffectPicker.InputType }}</div>
@@ -37,7 +38,8 @@
 					</div>
 				</GsFolder>
 				<GsFolder defaultOpen asSection>
-					<template #label><i class="ti ti-tags"></i> {{ i18n.ts._EffectPicker.Tags }}</template>
+					<template #icon><i class="ti ti-tags"></i></template>
+					<template #label>{{ i18n.ts._EffectPicker.Tags }}</template>
 					<div :class="$style.tags">
 						<button type="button" class="_button" :class="[$style.tag, { [$style.selected]: selectedTags.length === 0 }]" @click="selectedTags = []">
 							<span>{{ i18n.ts._EffectPicker.AllEffects }}</span>
@@ -50,7 +52,8 @@
 					</div>
 				</GsFolder>
 				<GsFolder defaultOpen asSection>
-					<template #label><i class="ti ti-history"></i> {{ i18n.ts._EffectPicker.RecentEffects }}</template>
+					<template #icon><i class="ti ti-history"></i></template>
+					<template #label>{{ i18n.ts._EffectPicker.RecentEffects }}</template>
 					<div v-if="recentEffects.length > 0" :class="$style.recentEffects">
 						<GsEffectPickerEffect v-for="[key, effect] in recentEffects" :key="key" :effect="effect" :detailed="false" @click="choose(key, effect)"/>
 					</div>
