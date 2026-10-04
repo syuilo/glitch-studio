@@ -11,7 +11,10 @@
 		</div>
 		<i class="ti ti-arrow-right" :class="$style.arrow"></i>
 		<div :class="[$style.ports, $style.outputs]">
-			<GsNodePort v-for="(output, key) in effect.outputDefs" :key="key" v-tooltip="`${key} (${output.dataType.kind})`" :class="{ [$style.secondaryPort]: key !== effect.primaryOutput }" :dataType="output.dataType"/>
+			<div :class="$style.secondaryPorts">
+				<GsNodePort v-for="output in outputPorts.filter(port => !port.isPrimary)" :key="output.key" v-tooltip="`${output.key} (${output.dataType.kind})`" :class="$style.secondaryPort" :dataType="output.dataType"/>
+			</div>
+			<GsNodePort v-for="output in outputPorts.filter(port => port.isPrimary)" :key="output.key" v-tooltip="`${output.key} (${output.dataType.kind})`" style="margin-left: 3px;" :dataType="output.dataType"/>
 		</div>
 	</div>
 </button>
@@ -46,6 +49,12 @@ type InputPort = {
 
 const inputPorts = computed(() => Object.entries(props.effect.paramDefs).flatMap(([key, definition]) =>
 	getInputPorts(definition, [key], definition.ui.label)));
+
+const outputPorts = computed(() => Object.entries(props.effect.outputDefs).map(([key, definition]) => ({
+	key,
+	dataType: definition.dataType,
+	isPrimary: key === props.effect.primaryOutput,
+})));
 
 function getInputPorts(definition: ParameterDefinition, path: string[], label: string): InputPort[] {
 	if (definition.dataType.kind === 'array') {
