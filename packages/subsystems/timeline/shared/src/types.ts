@@ -20,6 +20,7 @@ type TimelineLayerBase<Clip extends TimelineClip> = {
 	name: string;
 	clips: Clip[];
 	automationGraphs: AutomationGraph[];
+	isDisabled: boolean;
 };
 
 type TimelineAudioLayerBase = {

@@ -6,6 +6,7 @@
 				<i class="ti ti-grip-vertical"></i>
 				<i :class="'ti ' + layerIcon"></i>
 				<GsCondensedLine style="flex: 1; min-width: 0;">{{ layer.name }}</GsCondensedLine>
+				<GsButton iconOnly :primary="!layer.isDisabled" @click=""><i class="ti ti-eye"></i></GsButton>
 			</div>
 		</div>
 		<div :class="$style.tl" @dblclick.stop.prevent="onBackgroundDoubleClick">
@@ -58,13 +59,13 @@
 import { computed } from 'vue';
 import { paramPathKey } from '@gs/shared/parameter/parameter-path.ts';
 import { effectDefinitions } from '@gs/subsystems_effect_shared/effect-definitions.ts';
-import { insertInlineKeyframe } from '@/utility/keyframes-timeline.ts';
 import { getSceneDuration } from '@gs/subsystems_timeline_shared/scenes.ts';
 import { getTimelineClipEnd } from '@gs/subsystems_timeline_shared/timing.ts';
-import type { TimelineClip, TimelineAssetClip, TimelineVideoClip, TimelineSceneClip } from '@gs/subsystems_timeline_shared/clip.ts';
 import GsCondensedLine from './common/GsCondensedLine.vue';
 import XClip from './GsTimeline.Clip.vue';
 import XKeyframes from './GsTimeline.Layer.Keyframes.vue';
+import GsButton from './common/GsButton.vue';
+import type { TimelineClip, TimelineAssetClip, TimelineVideoClip, TimelineSceneClip } from '@gs/subsystems_timeline_shared/clip.ts';
 import type { TimelineKeyframeSelection, TimelineClipSelection } from '@/utility/timeline-selection.ts';
 import type { TimelineClipTicks } from '@/utility/timeline-ticks.ts';
 import type { TimelineClipMediaInfo } from '@/utility/timeline-clip-media.ts';
@@ -72,6 +73,7 @@ import type { TimelineLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import { formatTimelineTimecode } from '@/utility/timeline-ticks.ts';
 import { resolveLayerParameter, getLayerKeyframeParameters } from '@/utility/timeline-scene.ts';
 import { appStateManager } from '@/app.ts';
+import { insertInlineKeyframe } from '@/utility/keyframes-timeline.ts';
 
 const props = defineProps<{
 	sceneId: string;
