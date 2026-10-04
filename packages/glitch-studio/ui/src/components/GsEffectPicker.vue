@@ -87,6 +87,7 @@ function choose(effect: typeof effectDefinitions[keyof typeof effectDefinitions]
 	display: flex;
 	flex-direction: row;
 	gap: 16px;
+	min-height: 0;
 }
 .leftArea {
 	flex: 0.3;
@@ -99,7 +100,7 @@ function choose(effect: typeof effectDefinitions[keyof typeof effectDefinitions]
 .effects {
 	display: grid;
 	grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-	gap: 16px;
+	gap: 8px;
 }
 
 .effect {
