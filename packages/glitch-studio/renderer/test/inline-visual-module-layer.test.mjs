@@ -52,7 +52,7 @@ function visualModule({ primaryInput = false, params } = {}) {
 function layer(id, module, overrides = {}) {
 	return {
 		id, layerType: 'inlineVisualModule', visualModule: module, name: 'Layer', clips: [{ id: 'clip', startMs: 100, contentOffsetMs: 0, durationMs: 1000 }],
-		visualModuleParamValues: {}, automationGraphs: [],
+		visualModuleParamValues: {}, automationGraphs: [], isDisabled: false,
 		compositingParamValues: {
 			...Object.fromEntries(Object.entries(timelineCompositingParamDefs).map(([key, def]) => [key, structuredClone(def.defaultValue)])),
 			blendMode: literal('replace'),
@@ -369,6 +369,45 @@ test('updates shared definitions and module arguments without recreating placeme
 	manager.applyProjectChanges([{ type: 'layerOrder', sceneId: 'scene', layerIds: ['second', 'first'] }]);
 	await manager.renderTimelineFrame(350, 20);
 	assert.equal(calls.renders.length, 5);
+	assert.deepEqual(calls.errors, []);
+});
+
+// 【表示状態の差分で対象配置だけを破棄し、子Scene内の切り替えも親へ反映する】
+// UIから届いたdisabled通知がWorker側で無視されることを防ぐ。兄弟の履歴と親Sceneの
+// インスタンスは維持し、再表示時は現在の内容時刻で対象のエフェクトだけを再生成する。
+test('applies visibility patches to nested layers while retaining parent and sibling instances', async t => {
+	const { manager, calls } = fixture(t, { disableCache: false });
+	const first = layer('first', visualModule({ params: { amount: literal(1) } }));
+	const second = layer('second', visualModule({ params: { amount: literal(2) } }));
+	const { visualModule: _, visualModuleParamValues: __, ...base } = layer('parent', visualModule());
+	const parent = { ...base, layerType: 'scene', audioParamValues: {}, clips: [{ id: 'clip', startMs: 0, durationMs: 2000, contentOffsetMs: 0, sceneId: 'child' }] };
+	await manager.updateDynamicOptions({ timelineScenes: [
+		{ id: 'root', name: 'Root', resolution: { mode: 'project' }, layers: [parent] },
+		{ id: 'child', name: 'Child', resolution: { mode: 'project' }, layers: [first, second] },
+	], sceneId: 'root' });
+	await manager.renderTimelineFrame(350, 20);
+	const parentInstance = [...manager.timelineRenderer.layers.values()][0].renderer;
+	const firstInstance = calls.renders.find(call => call.params.amount === 1).instance;
+	const secondInstance = calls.renders.find(call => call.params.amount === 2).instance;
+	const patch = (sceneId, layer, isDisabled) => manager.applyProjectChanges([
+		{ type: 'layer', sceneId, layerId: layer.id, layer: { ...layer, isDisabled }, changes: [{ type: 'disabled' }] },
+	]);
+	patch('child', first, true);
+	await manager.renderTimelineFrame(400, 20);
+	assert.equal(firstInstance.disposed, true);
+	assert.equal(secondInstance.disposed, false);
+	assert.equal(calls.instances.length, 2);
+	assert.equal([...manager.timelineRenderer.layers.values()][0].renderer, parentInstance);
+	patch('child', first, false);
+	await manager.renderTimelineFrame(450, 20);
+	assert.equal(calls.instances.length, 3);
+	assert.equal(calls.renders.at(-1).params.amount, 1);
+	assert.notEqual(calls.renders.at(-1).instance, firstInstance);
+	assert.equal(secondInstance.disposed, false);
+	patch('root', parent, true);
+	await manager.renderTimelineFrame(500, 20);
+	assert.ok(calls.instances.every(instance => instance.disposed));
+	assert.deepEqual(calls.outputs.at(-1), { kind: 'uniform', value: [0, 0, 0, 0] });
 	assert.deepEqual(calls.errors, []);
 });
 

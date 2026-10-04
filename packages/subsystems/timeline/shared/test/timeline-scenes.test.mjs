@@ -14,6 +14,30 @@ const nested = (id, sceneId, positionMs, trimStartMs, trimmedDurationMs) => ({
 const audio = { id: 'audio', layerType: 'audio', name: 'Layer', clips: [{ id: 'clip', startMs: 120, contentOffsetMs: 20, durationMs: 200, assetId: 'asset' }],
 	audioParamValues: { volume: { inputSource: 'literal', value: 1 } }, automationGraphs: [] };
 
+// 【非表示の音声・動画・子Sceneを音声計画から除外し、Sceneの長さを維持する】
+// 映像だけが消えて音声が残ることを防ぐ。子Scene内の無効化と親の配置の無効化は
+// それぞれの範囲に作用し、再表示時には元のクリップ・音量・素材時刻を復元できる。
+test('omits disabled audio video and scene layers without changing clip timing or scene duration', () => {
+	const sound = { ...structuredClone(audio), isDisabled: false };
+	const video = { ...structuredClone(audio), id: 'video', layerType: 'video', isDisabled: false,
+		clips: [{ ...audio.clips[0], assetId: 'movie', audioEnabled: true }], compositingParamValues: {} };
+	const placement = { ...nested('placement', 'child', 1000, 0, 500), isDisabled: false };
+	const child = scene('child', [sound, video]);
+	const root = scene('root', [placement]);
+	const scenes = [root, child];
+	const original = getSceneAudioClips(scenes, 'root');
+	assert.deepEqual(original.map(clip => clip.assetId), ['asset', 'movie']);
+	for (const layer of [sound, video, placement]) {
+		layer.isDisabled = true;
+		const clips = getSceneAudioClips(scenes, 'root');
+		assert.deepEqual(clips, layer === placement ? [] : original.filter(clip => clip.assetId !== (layer === sound ? 'asset' : 'movie')));
+		assert.equal(getSceneDuration(root), 1500);
+		assert.equal(getSceneDuration(child), 320);
+		layer.isDisabled = false;
+		assert.deepEqual(getSceneAudioClips(scenes, 'root'), original);
+	}
+});
+
 // 【動画の音声も親Sceneのトリムと音量に従い、映像設定の変更では再生成しない】
 // 音声へレイヤー全体を渡すとfitやopacityの編集でも先読みPCMを破棄してしまう。
 // 音声無効化は再生計画だけを変え、素材位置やSceneの長さには影響しない。

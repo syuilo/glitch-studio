@@ -12,6 +12,9 @@ const bundle = await build({
 		export { RendererProjectSynchronizer } from './src/RendererProjectSynchronizer.ts';
 		export { applyRendererProjectChanges } from '@gs/glitch-studio_shared/project/renderer-state.ts';
 		export { default as definition } from '@gs/subsystems_effect_shared/fx/testStructArray/_def_.ts';
+		export { createEffectTimelineLayer } from './src/utility/effect-timeline-layer.ts';
+		export { createInlineVisualModuleLayer } from './src/utility/inline-visual-module-layer.ts';
+		export { createImageLayer } from './src/utility/image-layer.ts';
 	` },
 	absWorkingDir: directory, bundle: true, platform: 'node', format: 'cjs', write: false,
 	plugins: [{ name: 'sync-test', setup(build) {
@@ -24,7 +27,8 @@ const bundle = await build({
 });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', 'console', bundle.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports, { ...console, log() {} });
-const { AppStateManager, RendererProjectSynchronizer, applyRendererProjectChanges, definition } = module.exports;
+const { AppStateManager, RendererProjectSynchronizer, applyRendererProjectChanges, definition,
+	createEffectTimelineLayer, createInlineVisualModuleLayer, createImageLayer } = module.exports;
 
 function fixture(t, count = 1, overrides = {}) {
 	const manager = new AppStateManager();
@@ -76,6 +80,54 @@ test('sends one node regardless of graph size and synchronizes merged edits undo
 		assert.deepEqual(f.errors, []);
 	}
 	assert.equal(sizes[0], sizes[1]);
+});
+
+// 【レイヤー生成関数は表示状態で作成し、コピー元に依存しない】
+// 必須のisDisabledが未設定だとUIと保存データの状態が曖昧になるため、新規作成時にfalseを保存する。
+test('creates image effect and inline visual module layers enabled by default', () => {
+	for (const layer of [createImageLayer('asset', 100), createEffectTimelineLayer(definition, 100), createInlineVisualModuleLayer(100)]) {
+		assert.equal(layer.isDisabled, false);
+	}
+});
+
+// 【全種類のレイヤーの表示切り替えを対象だけへ同期し、Undo/Redoでも同じ変更を通知する】
+// 状態を直接書き換えると履歴やWorker側の表示が追従しない。別Sceneに同じレイヤーIDがあっても
+// 影響せず、クリップ・引数・キーは表示切り替えの前後で保持する必要がある。
+test('synchronizes visibility for every layer type through undo and redo with scene-local targeting', async t => {
+	const f = fixture(t);
+	const base = { id: 'layer', name: 'Layer', isDisabled: false, clips: [], automationGraphs: [] };
+	const compositing = { compositingParamValues: {} };
+	const audio = { audioParamValues: { volume: { inputSource: 'literal', value: 1 } } };
+	const layers = [
+		{ ...base, ...compositing, layerType: 'image' },
+		{ ...base, ...compositing, ...audio, layerType: 'video' },
+		{ ...base, ...audio, layerType: 'audio' },
+		{ ...base, ...compositing, ...audio, layerType: 'scene' },
+		{ ...base, ...compositing, layerType: 'visualModule', visualModuleId: 'module', visualModuleParamValues: {} },
+		{ ...createInlineVisualModuleLayer(100), id: base.id },
+		{ ...createEffectTimelineLayer(definition, 100), id: base.id },
+	];
+	f.manager.commit('addScene', { id: 'other', name: 'Other', resolution: { mode: 'project' }, layers: [layers[0]] });
+	await f.sync.flush();
+	for (const original of layers) {
+		f.manager.state.timelineScenes.value[0].layers = [structuredClone(original)];
+		const target = { sceneId: 'scene', layerId: 'layer' };
+		for (const isDisabled of [true, false]) {
+			f.manager.commit('setTimelineLayerDisabled', { ...target, isDisabled });
+			await f.sync.flush();
+			assert.equal(f.batches.at(-1).length, 1);
+			assert.deepEqual(f.batches.at(-1)[0], { type: 'layer', ...target, changes: [{ type: 'disabled' }], layer: { ...original, isDisabled } });
+			assert.deepEqual(f.replica.timelineScenes[0].layers[0], { ...original, isDisabled });
+			f.manager.undo();
+			await f.sync.flush();
+			assert.deepEqual(f.replica.timelineScenes[0].layers[0], { ...original, isDisabled: !isDisabled });
+			f.manager.redo();
+			await f.sync.flush();
+			assert.deepEqual(f.replica.timelineScenes[0].layers[0], { ...original, isDisabled });
+			assert.equal(f.replica.timelineScenes[1].layers[0].isDisabled, false);
+		}
+	}
+	assert.deepEqual(f.errors, []);
 });
 
 // 【構造変更は後続の値編集に上書きされず、Module置換は古いノード差分を吸収する】

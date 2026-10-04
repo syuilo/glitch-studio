@@ -167,6 +167,49 @@ test('persists timeline render settings and synchronizes undo and redo without c
 	assert.equal(manager.state.timelineFps.value, 29.97);
 });
 
+// 【レイヤーの表示状態を保存・復元し、停止中のプレビューも履歴に合わせて描き直す】
+// UIのボタンだけを更新して停止位置の映像が残ったり、再読込で非表示状態を失ったりしない。
+// 新規プロジェクトのレイヤーは表示状態で始まり、切り替えても期間や再生時刻を変更しない。
+test('persists disabled layers and refreshes the paused preview on visibility edits undo and redo', async t => {
+	const window = setup(t);
+	const app = evaluate(appBundle);
+	await app.newProject();
+	const manager = app.appStateManager;
+	const scene = manager.state.timelineScenes.value[0];
+	const layer = scene.layers[0];
+	assert.equal(layer.isDisabled, false);
+	const original = JSON.parse(JSON.stringify(layer));
+	const timeline = app.timelineRendererManagerController;
+	app.previewPlayback.seekTimeline(500);
+	timeline.renders.length = 0;
+	manager.commit('setTimelineLayerDisabled', { sceneId: scene.id, layerId: layer.id, isDisabled: true });
+	await nextTick();
+	await setImmediate();
+	assert.deepEqual(timeline.options.timelineScenes[0].layers[0], { ...original, isDisabled: true });
+	assert.ok(timeline.renders.length > 0);
+	const renders = timeline.renders.length;
+	manager.undo();
+	await nextTick();
+	await setImmediate();
+	assert.deepEqual(timeline.options.timelineScenes[0].layers[0], original);
+	assert.ok(timeline.renders.length > renders);
+	manager.redo();
+	await nextTick();
+	await setImmediate();
+	assert.equal(timeline.options.timelineScenes[0].layers[0].isDisabled, true);
+	assert.equal(app.previewPlayback.currentTimelineTime.value, 500);
+	assert.equal(app.previewPlayback.isTimelinePlaying.value, false);
+	const handle = fileHandle('disabled-layer.gsproj');
+	window.showSaveFilePicker = async () => handle;
+	await app.saveProject();
+	assert.deepEqual(decodeProjectFile(handle.bytes).timelineScenes[0].layers[0], { ...original, isDisabled: true });
+	await app.newProject();
+	window.showOpenFilePicker = async () => [handle];
+	assert.equal(await app.openProject(), true);
+	assert.equal(manager.state.timelineScenes.value[0].layers[0].isDisabled, true);
+	assert.equal(timeline.options.timelineScenes[0].layers[0].isDisabled, true);
+});
+
 // 【初回生成からプロジェクトのfps・ブラー設定とプレビュー既定の0サンプルを使う】
 // プレビューのブラーは既定でオフにし、保存された書き出し用サンプル数は維持する。
 // 初期化後にwatchで設定を変えると、初回表示が遅れ、読込中の動的更新も中断される。
@@ -601,6 +644,7 @@ test('synchronizes both previews and routes timeline-only edits', async t => {
 // 【音声に影響しない編集とUndo/Redoでは再生を中断しない】
 // 映像のスライダー操作や素材名の変更で先読みPCMを破棄せず、音量・参照素材・
 // ループ長が変わったときだけ音声を再生成する。実際のappの監視とコマンドを組み合わせる。
+// 表示切り替えも音声レイヤーだけが音声計画を変更し、映像だけの無効化では再生を中断しない。
 test('refreshes audio only for audio content, source files or loop duration changes', async t => {
 	const window = setup(t);
 	window.requestAnimationFrame = () => 1;
@@ -609,8 +653,8 @@ test('refreshes audio only for audio content, source files or loop duration chan
 	await app.appReady(project({
 		assets: [{ id: 'audio', name: 'sound.wav', fileData: new Blob(['audio']) }, { id: 'image', fileData: new Blob(['image']) }],
 		timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [
-			{ id: 'visual', layerType: 'visualModule', visualModuleId: 'module', name: 'Layer', clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 10000 }], visualModuleParamValues: {}, compositingParamValues: { opacity: { inputSource: 'literal', value: 1 } }, automationGraphs: [] },
-			{ id: 'audio', layerType: 'audio', name: 'Layer', clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 5000, assetId: 'audio' }], audioParamValues: { volume: { inputSource: 'literal', value: 1 } }, automationGraphs: [] },
+			{ id: 'visual', isDisabled: false, layerType: 'visualModule', visualModuleId: 'module', name: 'Layer', clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 10000 }], visualModuleParamValues: {}, compositingParamValues: { opacity: { inputSource: 'literal', value: 1 } }, automationGraphs: [] },
+			{ id: 'audio', isDisabled: false, layerType: 'audio', name: 'Layer', clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 5000, assetId: 'audio' }], audioParamValues: { volume: { inputSource: 'literal', value: 1 } }, automationGraphs: [] },
 		] }],
 	}));
 	const manager = app.appStateManager;
@@ -650,6 +694,21 @@ test('refreshes audio only for audio content, source files or loop duration chan
 		manager.undo();
 		await nextTick();
 		assert.equal(starts.length, 8);
+		manager.commit('setTimelineLayerDisabled', { sceneId: 'scene', layerId: 'visual', isDisabled: true });
+		await nextTick();
+		assert.equal(starts.length, 8);
+		manager.commit('setTimelineLayerDisabled', { sceneId: 'scene', layerId: 'audio', isDisabled: true });
+		await nextTick();
+		assert.equal(starts.length, 9);
+		manager.undo();
+		await nextTick();
+		assert.equal(starts.length, 10);
+		manager.redo();
+		await nextTick();
+		assert.equal(starts.length, 11);
+		manager.commit('setTimelineLayerDisabled', { sceneId: 'scene', layerId: 'audio', isDisabled: false });
+		await nextTick();
+		assert.equal(starts.length, 12);
 	} finally { app.previewPlayback.dispose(); }
 });
 

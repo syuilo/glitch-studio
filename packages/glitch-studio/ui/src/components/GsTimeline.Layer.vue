@@ -1,12 +1,12 @@
 <template>
-<div :class="[$style.root, { [$style.selected]: selected }]" :data-timeline-layer-id="layer.id">
+<div :class="[$style.root, { [$style.selected]: selected, [$style.disabled]: layer.isDisabled }]" :data-timeline-layer-id="layer.id">
 	<div :class="$style.mainLane">
 		<div :class="$style.side">
 			<div :class="$style.layerHeader" draggable="true" @click="emit('selected', $event)" @dragstart.stop="emit('dragStart', $event)">
 				<i class="ti ti-grip-vertical"></i>
 				<i :class="'ti ' + layerIcon"></i>
 				<GsCondensedLine style="flex: 1; min-width: 0;">{{ layer.name }}</GsCondensedLine>
-				<GsButton iconOnly :primary="!layer.isDisabled" @click=""><i class="ti ti-eye"></i></GsButton>
+				<GsButton iconOnly :primary="!layer.isDisabled" @click.stop="toggleDisabled"><i :class="layer.isDisabled ? 'ti ti-eye-off' : 'ti ti-eye'"></i></GsButton>
 			</div>
 		</div>
 		<div :class="$style.tl" @dblclick.stop.prevent="onBackgroundDoubleClick">
@@ -116,6 +116,12 @@ function look(clip: TimelineClip) {
 	emit('look', clip.startMs + clip.durationMs / 2);
 }
 
+function toggleDisabled() {
+	appStateManager.commit('setTimelineLayerDisabled', {
+		sceneId: props.sceneId, layerId: props.layer.id, isDisabled: !props.layer.isDisabled,
+	});
+}
+
 function clipLabel(clip: Clip): string {
 	if ('assetId' in clip) return appStateManager.state.assets.value.find(asset => asset.id === clip.assetId)?.name ?? 'Missing media';
 	if ('sceneId' in clip) return appStateManager.state.timelineScenes.value.find(scene => scene.id === clip.sceneId)?.name ?? 'Missing scene';
@@ -168,19 +174,118 @@ function timeToDomX(time: number): number { return (time - props.tlPosX) / props
 	--keyframesLaneHeight: 20px;
 	--sideColor: #181818;
 	overflow: clip;
-	&:hover { background: #ffffff06; }
-	&.selected .layerHeader { color: var(--THEME-accent); }
+
+	&:hover {
+		background: #ffffff06;
+	}
+
+	&.selected .layerHeader {
+		color: var(--THEME-accent);
+	}
+
+	&.disabled .tl {
+		pointer-events: none;
+		opacity: 0.5;
+	}
 }
-.mainLane { display: flex; width: 100%; height: var(--mainLaneHeight); }
-.side { position: relative; z-index: 1; box-sizing: border-box; width: var(--sideWidth); flex-shrink: 0; background: var(--sideColor); direction: ltr; }
-.tl { position: relative; flex: 1; min-width: 0; direction: ltr; }
-.layerHeader { display: flex; gap: 4px; height: var(--mainLaneHeight); line-height: var(--mainLaneHeight); align-items: center; overflow: clip; user-select: none; cursor: grab; font-size: 90%; }
-.localTicksLane { display: flex; height: var(--xTicksHeight); line-height: var(--xTicksHeight); font-size: 12px; }
-.localTicksLabel { padding-right: 10px; text-align: right; color: color-mix(in srgb, var(--THEME-fg) 60%, transparent); }
-.localTicks { overflow: clip; user-select: none; }
-.localTicksRange { position: absolute; height: 100%; overflow: clip; }
-.localTick { position: absolute; top: 0; height: 100%; padding-left: 8px; border-left: solid 1px #fff3; white-space: nowrap; pointer-events: none; }
-.localMinorTick { position: absolute; bottom: 0; height: 4px; border-left: solid 1px #fff3; pointer-events: none; }
-.keyframesLane { display: flex; width: 100%; height: var(--keyframesLaneHeight); line-height: var(--keyframesLaneHeight); text-align: right; &:hover { background: #ffffff06; } }
-.stickyArrow { position: absolute; z-index: 1; top: 0; width: var(--mainLaneHeight); height: var(--mainLaneHeight); line-height: var(--mainLaneHeight); text-align: center; background: var(--sideColor); }
+
+.mainLane {
+	display: flex;
+	width: 100%;
+	height: var(--mainLaneHeight);
+}
+
+.side {
+	position: relative;
+	z-index: 1;
+	box-sizing: border-box;
+	width: var(--sideWidth);
+	flex-shrink: 0;
+	background: var(--sideColor);
+	direction: ltr;
+}
+
+.tl {
+	position: relative;
+	flex: 1;
+	min-width: 0;
+	direction: ltr;
+}
+
+.layerHeader {
+	display: flex;
+	gap: 4px;
+	height: var(--mainLaneHeight);
+	line-height: var(--mainLaneHeight);
+	align-items: center;
+	overflow: clip;
+	user-select: none;
+	cursor: grab;
+	font-size: 90%;
+}
+
+.localTicksLane {
+	display: flex;
+	height: var(--xTicksHeight);
+	line-height: var(--xTicksHeight);
+	font-size: 12px;
+}
+
+.localTicksLabel {
+	padding-right: 10px;
+	text-align: right;
+	color: color-mix(in srgb, var(--THEME-fg) 60%, transparent);
+}
+
+.localTicks {
+	overflow: clip;
+	user-select: none;
+}
+
+.localTicksRange {
+	position: absolute;
+	height: 100%;
+	overflow: clip;
+}
+
+.localTick {
+	position: absolute;
+	top: 0;
+	height: 100%;
+	padding-left: 8px;
+	border-left: solid 1px #fff3;
+	white-space: nowrap;
+	pointer-events: none;
+}
+
+.localMinorTick {
+	position: absolute;
+	bottom: 0;
+	height: 4px;
+	border-left: solid 1px #fff3;
+	pointer-events: none;
+}
+
+.keyframesLane {
+	display: flex;
+	width: 100%;
+	height: var(--keyframesLaneHeight);
+	line-height: var(--keyframesLaneHeight);
+	text-align: right;
+
+	&:hover {
+		background: #ffffff06;
+	}
+}
+
+.stickyArrow {
+	position: absolute;
+	z-index: 1;
+	top: 0;
+	width: var(--mainLaneHeight);
+	height: var(--mainLaneHeight);
+	line-height: var(--mainLaneHeight);
+	text-align: center;
+	background: var(--sideColor);
+}
 </style>

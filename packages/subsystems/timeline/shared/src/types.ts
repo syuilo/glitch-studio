@@ -13,13 +13,14 @@ export type TimelineParameterTarget = 'module' | 'effect' | 'compositing' | 'aud
 // 実行インスタンスの扱いは利用側へ委ねる。
 export type TimelineLayerChange =
 	| { type: 'parameter'; target: TimelineParameterTarget; kind: ParameterChangeKind }
-	| { type: 'definition' | 'clips' | 'resolution' };
+	| { type: 'definition' | 'clips' | 'resolution' | 'disabled' };
 
 type TimelineLayerBase<Clip extends TimelineClip> = {
 	id: string;
 	name: string;
 	clips: Clip[];
 	automationGraphs: AutomationGraph[];
+	/** 無効時は映像・音声とも評価せず、クリップの配置やSceneの長さは維持する。 */
 	isDisabled: boolean;
 };
 

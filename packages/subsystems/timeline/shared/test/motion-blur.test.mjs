@@ -20,6 +20,26 @@ test('collects nested visible boundaries without audio cuts or rounded offsets',
 	assert.deepEqual(getTimelineMotionBlurBoundaries(scenes, 'root'), [0, 200, 249.75, 449.75, 600, 700, 900, 1000]);
 });
 
+// 【非表示レイヤーと子Sceneのカットで、表示中の映像の露光を切り詰めない】
+// 描画対象から外すだけでは境界が残り、非表示レイヤーの開始・終了でブラーが変化してしまう。
+// Scene自体の長さは配置全体で決まり、再表示すれば元のカット境界が復元される。
+test('excludes disabled cuts and scene descendants from motion blur boundaries', () => {
+	const hiddenImage = { layerType: 'image', isDisabled: true, clips: [clip(100, 200)] };
+	const hiddenScene = { layerType: 'scene', isDisabled: true, clips: [clip(200, 400, { sceneId: 'child' })] };
+	const scenes = [scene('root', [
+		{ layerType: 'image', isDisabled: false, clips: [clip(0, 1000)] }, hiddenImage, hiddenScene,
+	]), scene('child', [{ layerType: 'image', isDisabled: false, clips: [clip(100, 200)] }])];
+	assert.deepEqual(getTimelineMotionBlurBoundaries(scenes, 'root'), [0, 1000]);
+	const samples = getTimelineSampleTimes(100, 60, settings, getTimelineMotionBlurBoundaries(scenes, 'root'));
+	assert.ok(samples[0] < 100 && samples.at(-1) > 100);
+	hiddenScene.isDisabled = false;
+	assert.deepEqual(getTimelineMotionBlurBoundaries(scenes, 'root'), [0, 200, 300, 500, 600, 1000]);
+	scenes[1].layers[0].isDisabled = true;
+	assert.deepEqual(getTimelineMotionBlurBoundaries(scenes, 'root'), [0, 200, 500, 600, 1000]);
+	hiddenImage.isDisabled = false;
+	assert.deepEqual(getTimelineMotionBlurBoundaries(scenes, 'root'), [0, 100, 200, 300, 500, 600, 1000]);
+});
+
 // 【切り詰めた露光区間へ再配置し、カットちょうどは次の区間に属する】
 // 前の映像の混入と先頭・末尾での暗化を防ぎ、指定したサンプル数を維持する。
 test('redistributes samples inside half-open clip intervals', () => {

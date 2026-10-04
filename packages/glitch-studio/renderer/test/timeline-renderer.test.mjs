@@ -6,7 +6,59 @@ import { loadShaderSource } from './helpers/load-shader-source.mjs';
 const { createVisualModuleTimelineLayer } = await loadShaderSource(fileURLToPath(import.meta.resolve('@gs/subsystems_timeline_renderer/visual-module-timeline-layer.ts')));
 
 const entry = (id, positionMs = 0, endTimeMs = 1000, type = 'test') => ({
-	id, clips: [{ id: 'clip', startMs: positionMs, contentOffsetMs: 0, durationMs: endTimeMs - positionMs }], layer: { type },
+	id, isDisabled: false, clips: [{ id: 'clip', startMs: positionMs, contentOffsetMs: 0, durationMs: endTimeMs - positionMs }], layer: { type },
+});
+
+// 【非表示レイヤーを評価せず、下層の合成結果をそのまま上層へ渡す】
+// opacityを0にするだけではreplace合成で背景が消えたり、不要な素材読み出しが発生する。
+// 書き出しでも同じ判定を使い、全レイヤー非表示時は前回の表示を残さない。
+test('skips disabled layers and passes the remaining background through in preview and export', async () => {
+	for (const isExport of [false, true]) {
+		const f = fixture();
+		const hidden = { ...entry('hidden', 0, 1000, 'missing'), isDisabled: true };
+		await f.renderer.renderAt(100, [entry('top'), hidden, entry('bottom')], 0, isExport);
+		assert.deepEqual(f.created, ['bottom', 'top']);
+		assert.deepEqual(f.prepared.map(({ context }) => context.input), ['transparent', 'bottom']);
+		assert.deepEqual(f.presented.at(-1), { output: 'top', gpuTime: 20 });
+		await f.renderer.renderAt(100, [hidden], 0, isExport);
+		assert.deepEqual(f.presented.at(-1), { output: 'transparent', gpuTime: 0 });
+		assert.deepEqual(f.destroyed, ['bottom', 'top']);
+	}
+});
+
+// 【非表示にした配置を破棄し、再表示時は新しい履歴で現在の内容時刻から再開する】
+// 非表示中のGPU・動画・子Sceneのリソースを保持せず、再表示時に停止前の履歴を使わない。
+// 対象外のレイヤーは再生成せず、これまでの描画履歴を維持する。
+test('releases disabled instances and recreates only the enabled placement without preroll', async () => {
+	const f = fixture();
+	const hidden = entry('toggle');
+	const bottom = entry('bottom');
+	await f.renderer.renderAt(100, [hidden, bottom]);
+	await f.renderer.renderAt(200, [{ ...hidden, isDisabled: true }, bottom], 100);
+	await f.renderer.renderAt(300, [{ ...hidden, isDisabled: true }, bottom], 100);
+	assert.deepEqual(f.destroyed, ['toggle']);
+	assert.deepEqual(f.created, ['bottom', 'toggle']);
+	await f.renderer.renderAt(400, [hidden, bottom], 100);
+	assert.deepEqual(f.created, ['bottom', 'toggle', 'toggle']);
+	assert.deepEqual(f.prepared.slice(-2).map(({ id, context }) => [id, context.contentTimeMs, context.timeDelta]), [
+		['bottom', 400, 100], ['toggle', 400, 0],
+	]);
+	f.renderer.clear();
+});
+
+// 【非同期評価中の非表示切り替えは古いフレームを表示しない】
+// 動画のデコード等を待っている間に無効化しても、完了した旧描画が再び表示されてはいけない。
+test('cancels a pending frame when its layer is disabled', async () => {
+	const gate = deferred();
+	const f = fixture({ prepare: () => gate.promise });
+	const layer = entry('pending');
+	const pending = f.renderer.renderAt(100, [layer]);
+	await f.renderer.renderAt(100, [{ ...layer, isDisabled: true }]);
+	gate.resolve();
+	await pending;
+	assert.deepEqual(f.rendered, []);
+	assert.deepEqual(f.destroyed, ['pending']);
+	assert.deepEqual(f.presented, [{ output: 'transparent', gpuTime: 0 }]);
 });
 
 // 【内容時刻と表示区間内の時刻を分け、トリムした先頭を表示しない】

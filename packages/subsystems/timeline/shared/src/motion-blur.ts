@@ -31,7 +31,8 @@ export function getTimelineMotionBlurBoundaries(scenes: readonly TimelineScene[]
 		const scene = getTimelineScene(scenes, id);
 		const boundaries = new Set([0, getSceneDuration(scene)]);
 		for (const layer of scene.layers) {
-			if (layer.layerType === 'audio') continue;
+			// 非表示のカットで露光を切り詰めると、表示中のレイヤーの動きまで変わってしまう。
+			if (layer.isDisabled || layer.layerType === 'audio') continue;
 			for (const clip of layer.clips) {
 				boundaries.add(clip.startMs);
 				boundaries.add(getTimelineClipEnd(clip));

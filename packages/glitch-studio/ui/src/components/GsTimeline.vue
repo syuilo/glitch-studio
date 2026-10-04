@@ -1227,7 +1227,7 @@ async function addMediaLayer(layerType: 'image' | 'video' | 'audio' | 'scene') {
 	const sourceDurationMs = source.kind === 'asset' ? source.media?.durationMs : undefined;
 	const clip = { id: genId(), ...createTimelineClipTiming(Math.max(0, time.value), Math.min(5000, sourceDurationMs ?? Infinity)) };
 	if (clip.durationMs < 1) { audioError.value = 'Media is shorter than 1 ms.'; return; }
-	const base = { id: genId(), name: source.kind === 'asset' ? source.asset.name : source.scene.name, automationGraphs: [] };
+	const base = { id: genId(), name: source.kind === 'asset' ? source.asset.name : source.scene.name, automationGraphs: [], isDisabled: false };
 	const audioParamValues = { volume: deepClone(timelineAudioParamDefs.volume.defaultValue) };
 	const compositingParamValues = initialCompositingParameters();
 	let layer: TimelineLayer;
@@ -1248,6 +1248,7 @@ async function addReferencedModuleLayer() {
 	const layer: TimelineLayer = {
 		id: genId(), name: module.name,
 		layerType: 'visualModule',
+		isDisabled: false,
 		visualModuleId: module.id,
 		clips: [{ id: genId(), ...createTimelineClipTiming(Math.max(0, time.value), 5000) }],
 		visualModuleParamValues: {}, compositingParamValues: initialCompositingParameters(), automationGraphs: [],

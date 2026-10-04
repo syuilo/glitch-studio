@@ -24,6 +24,27 @@ test('uses scene time for video volume without shifting audio timestamps', async
 });
 const constant = async (_id, _time, frames) => [new Float32Array(frames).fill(1), new Float32Array(frames).fill(0.5)];
 
+// 【非表示の音声レイヤーは素材を読み出さず、再表示すると元の時刻で音声を出力する】
+// 音量0として評価すると不要なデコードやエラーが残るため、期間内でも完全にスキップする。
+// 直接レイヤーを渡すAPIも、Sceneから展開する音声計画と同じ無効化仕様にする。
+test('skips disabled audio layers before reading media in preview and export', async () => {
+	for (const isExport of [false, true]) {
+		const calls = [];
+		const renderer = new TimelineAudioRenderer(async (...args) => { calls.push(args); return constant(...args); }, async () => {
+			calls.push('duration');
+			return 200;
+		});
+		const hidden = layer({ isDisabled: true });
+		const silence = await renderer.render([hidden], 150, 10, 1000, isExport);
+		assert.deepEqual(calls, []);
+		assert.deepEqual(silence, [new Float32Array(10), new Float32Array(10)]);
+		hidden.isDisabled = false;
+		const audible = await renderer.render([hidden], 150, 10, 1000, isExport);
+		assert.deepEqual(calls, ['duration', ['asset', 0.07, 10, 1000]]);
+		assert.deepEqual(audible[0], new Float32Array(10).fill(1));
+	}
+});
+
 // 【素材の配置基準を固定した左トリムは、再生開始と読み出し位置を同じ量だけ進める】
 // 表示開始とオフセットを同量進めても、トリム前の区間を再生せず右端を維持する。
 test('trims audio relative to a fixed source origin', async () => {

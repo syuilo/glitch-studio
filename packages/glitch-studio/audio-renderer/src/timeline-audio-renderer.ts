@@ -17,7 +17,7 @@ export class TimelineAudioRenderer {
 	constructor(private read: AudioPcmReader, private getDurationMs: AudioDurationReader) {}
 
 	async render(layers: readonly TimelineAudioLayer[], startFrame: number, frames: number, sampleRate: number, isExport = false): Promise<StereoPcm> {
-		return this.renderClips(layers.flatMap(layer => layer.clips.map(clip => ({ assetId: clip.assetId, durationBasis: 'audio' as const,
+		return this.renderClips(layers.filter(layer => !layer.isDisabled).flatMap(layer => layer.clips.map(clip => ({ assetId: clip.assetId, durationBasis: 'audio' as const,
 			sourceStartMs: clip.startMs - clip.contentOffsetMs, startMs: clip.startMs, endMs: getTimelineClipEnd(clip),
 			gains: [{ sceneStartMs: 0, volume: layer.audioParamValues.volume, automationGraphs: layer.automationGraphs }],
 		}))), startFrame, frames, sampleRate, isExport);

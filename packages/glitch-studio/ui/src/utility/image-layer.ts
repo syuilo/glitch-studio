@@ -7,6 +7,7 @@ import type { TimelineImageLayer } from '@gs/subsystems_timeline_shared/types.ts
 export function createImageLayer(assetId: string, startMs: number, name = 'Image'): TimelineImageLayer {
 	return {
 		id: genId(), name, layerType: 'image',
+		isDisabled: false,
 		clips: [{ id: genId(), assetId, ...createTimelineClipTiming(startMs, 5000) }],
 		automationGraphs: [],
 		compositingParamValues: deepClone({

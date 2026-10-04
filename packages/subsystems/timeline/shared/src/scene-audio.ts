@@ -28,6 +28,7 @@ export function getSceneAudioClips(scenes: readonly TimelineScene[], sceneId: st
 		const scene = getTimelineScene(scenes, id);
 		end = Math.min(end, sceneStartMs + getSceneDuration(scene));
 		for (const layer of scene.layers) {
+			if (layer.isDisabled) continue;
 			if (layer.layerType !== 'audio' && layer.layerType !== 'video' && layer.layerType !== 'scene') continue;
 			const layerGains = [...gains, { sceneStartMs, volume: layer.audioParamValues.volume, automationGraphs: layer.automationGraphs }];
 			for (const clip of layer.clips) {

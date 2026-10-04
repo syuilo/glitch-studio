@@ -440,6 +440,7 @@ export async function newProject() {
 		timelineScenes: [{ id: genId(), name: 'Main Scene', resolution: { mode: 'project' }, layers: [{
 			id: genId(),
 			layerType: 'visualModule',
+			isDisabled: false,
 			visualModuleId: initialVisualModule.id,
 			visualModuleParamValues: {},
 			compositingParamValues: deepClone({
@@ -568,6 +569,7 @@ export async function newProjectFromImageOrVideo(file?: File) {
 		timelineScenes: [{ id: genId(), name: 'Main Scene', resolution: { mode: 'project' }, layers: [{
 			id: genId(),
 			layerType: 'visualModule',
+			isDisabled: false,
 			visualModuleId: initialVisualModule.id,
 			visualModuleParamValues: {},
 			compositingParamValues: deepClone({

@@ -10,6 +10,7 @@ export function createInlineVisualModuleLayer(startMs: number): TimelineInlineVi
 	const outputId = genId();
 	return {
 		id: genId(), name: 'Visual Module', layerType: 'inlineVisualModule',
+		isDisabled: false,
 		clips: [{ id: genId(), ...createTimelineClipTiming(startMs, 5000) }],
 		visualModuleParamValues: {}, automationGraphs: [],
 		compositingParamValues: deepClone({

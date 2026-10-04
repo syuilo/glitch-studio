@@ -1006,6 +1006,22 @@ const renameTimelineLayerCommandDef = defineCommand<{ sceneId: string; layerId: 
 	},
 });
 
+const setTimelineLayerDisabledCommandDef = defineCommand<{ sceneId: string; layerId: string; isDisabled: boolean }>({
+	label: 'Change timeline layer visibility',
+	changes: (_state, payload) => [{ type: 'layer', sceneId: payload.sceneId, layerId: payload.layerId, changes: [{ type: 'disabled' }] }],
+	create: payload => {
+		let before: boolean;
+		return {
+			execute(state) {
+				const layer = getTimelineLayer(state, payload.sceneId, payload.layerId);
+				before = layer.isDisabled;
+				layer.isDisabled = payload.isDisabled;
+			},
+			undo(state) { getTimelineLayer(state, payload.sceneId, payload.layerId).isDisabled = before; },
+		};
+	},
+});
+
 const changeEffectLayerResolutionCommandDef = defineCommand<{ sceneId: string; layerId: string; resolution: EffectResolution }>({
 	label: 'Change effect layer resolution',
 	changes: (_state, payload) => [{ type: 'layer', sceneId: payload.sceneId, layerId: payload.layerId, changes: [{ type: 'resolution' }] }],
@@ -1384,6 +1400,7 @@ export const COMMAND_DEFS = {
 	changeEffectLayerResolution: changeEffectLayerResolutionCommandDef,
 	addTimelineLayer: addTimelineLayerCommandDef,
 	renameTimelineLayer: renameTimelineLayerCommandDef,
+	setTimelineLayerDisabled: setTimelineLayerDisabledCommandDef,
 	addTimelineClip: addTimelineClipCommandDef,
 	editTimelineClipTiming: editTimelineClipTimingCommandDef,
 	moveTimelineClips: moveTimelineClipsCommandDef,

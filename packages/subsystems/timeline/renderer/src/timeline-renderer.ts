@@ -1,8 +1,8 @@
 import { getTimelineClipContentTime, isTimelineClipActive } from '@gs/subsystems_timeline_shared/timing.ts';
 import type { TimelineClip } from '@gs/subsystems_timeline_shared/clip.ts';
 
-// 制御に必要なのはIDと期間だけ。レイヤー固有のデータは生成関数にそのまま渡す。
-export type TimelineRenderEntry = { id: string; clips: readonly TimelineClip[] };
+// 制御に必要なID・期間・有効状態だけを要求し、レイヤー固有のデータは生成関数にそのまま渡す。
+export type TimelineRenderEntry = { id: string; clips: readonly TimelineClip[]; isDisabled: boolean };
 
 export type TimelineLayerContext<Output> = {
 	isExport: boolean;
@@ -83,6 +83,8 @@ export class TimelineRenderer<Output, Entry extends TimelineRenderEntry = Timeli
 			// 配列は先頭が最上層の表示順。下層の合成結果を上層へ渡すため、描画は逆順に行う。
 			// 終端を含めず、隣接するレイヤーを境界で重ねない。
 			const visibleEntries = timeline.flatMap(entry => {
+				// 無効なレイヤーは区間外と同様に扱い、履歴・メディア・子Sceneのリソースも解放する。
+				if (entry.isDisabled) return [];
 				const clip = entry.clips.find(clip => isTimelineClipActive(clip, time));
 				return clip ? [{ entry, clip, instanceKey: JSON.stringify([entry.id, clip.id]) }] : [];
 			}).reverse();
