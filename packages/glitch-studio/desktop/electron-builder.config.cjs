@@ -11,7 +11,7 @@ module.exports = {
 		author: 'syuilo',
 	},
 	// 開発用スクリプトや依存パッケージを配布物に含めない。
-	files: ['main.mjs', 'preload.cjs', 'protocol-path.mjs', '!node_modules/**/*'],
+	files: ['main.mjs', 'preload.cjs', 'protocol-path.mjs', 'project-files.mjs', 'project-file-ipc.mjs', '!node_modules/**/*'],
 	extraResources: [{ from: '../ui/dist-electron', to: 'ui' }],
 	asar: true,
 	npmRebuild: false,

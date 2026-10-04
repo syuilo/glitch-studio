@@ -18,7 +18,7 @@ const buildOptions = {
 	bundle: true, platform: 'node', format: 'cjs', write: false, external: ['vue'],
 	define: { _VERSION_: '"2.0.0-alpha.2"' },
 };
-const { encodeProjectFile, decodeProjectFile, loadProjectFile, saveProjectFile, getProjectFileName, getProjectSaveFileHandle } = evaluate(await build({
+const { encodeProjectFile, decodeProjectFile, loadProjectFile, saveProjectFile, getProjectFileName, getProjectSaveFileHandle, desktopProjectFile } = evaluate(await build({
 	...buildOptions, entryPoints: ['./src/gsproj.ts'],
 }));
 
@@ -45,7 +45,9 @@ const appBundle = await build({
 					? "import fill from '@gs/subsystems_effect_shared/fx/fill/_def_.ts'; export const effectDefinitions = { fill };"
 					: args.path.endsWith('preferences.ts') ? `
 						import { reactive, toRefs } from 'vue';
-						const settings = reactive({ forceTypeSafety: false, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm' });
+						const settings = reactive({ forceTypeSafety: false, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm',
+							projectBackups: { autoEnabled: false, autoIntervalMinutes: 1, autoRetentionDays: 1, saveEnabled: false, saveRetentionDays: 7 } });
+						window.testPreferences = settings;
 						export const preferences = { s: settings, r: toRefs(settings) };
 					`
 					: args.path.endsWith('RendererManagerController.ts') ? `
@@ -100,7 +102,7 @@ const appBundle = await build({
 							if (component.name === 'GsProjectSaveDialog.vue') {
 								queueMicrotask(async () => {
 									const handle = await window.selectProjectSaveFile(props.name);
-									if (handle != null) events.selected(handle);
+									if (handle != null) events.selected(handle, window.selectedProjectDirectory);
 									events.closed();
 								});
 							}
@@ -372,6 +374,7 @@ function setup(t) {
 	// appのキーボード登録だけ受け取り、実際のDOMやイベントループは使わない。
 	globalThis.window = {
 		document: { title: '', addEventListener() {} },
+		setTimeout() { return 1; }, clearTimeout() {},
 		// 旧APIに戻すと、保存先選択だけで既存データが失われる。新経路では一切呼び出さない。
 		showSaveFilePicker() { assert.fail('The destructive save picker must not be used'); },
 	};
@@ -978,4 +981,145 @@ test('keeps playback suspended and waits for the other worker after a restart fa
 	await nextTick();
 	app.previewPlayback.refresh();
 	assert.deepEqual(timeline.renders, []);
+});
+
+// 【Electronで開いたファイルの上書き前データを残し、フォルダ選択を要求しない】
+// ネイティブAPIから保存先を得た後は、現在の編集内容ではなくディスクの旧内容を保護する。
+// バックアップに失敗した場合は本体書込みを開始しないことも同じ保存経路で検証する。
+test('uses Electron backup access without a folder picker and stops overwrite on backup failure', async t => {
+	const window = setup(t);
+	const files = new Map();
+	let fail = false;
+	window.desktop = {
+		async chooseProjectFile() { return { id: 'native.gsproj', name: 'native.gsproj' }; },
+		async readProjectFile() { return handle.bytes; },
+		async writeProjectFile(_id, data) { await saveProjectFile(data, handle); },
+		async listProjectBackups() { return [...files.keys()]; },
+		async writeProjectBackup(id, name, data) {
+			assert.equal(id, 'native.gsproj');
+			if (fail) throw new Error('Backup disk full');
+			if (files.has(name)) return false;
+			files.set(name, new Uint8Array(data));
+			return true;
+		},
+		async removeProjectBackup(_id, name) { files.delete(name); },
+	};
+	window.showDirectoryPicker = () => assert.fail('Electron must not ask for a folder');
+	const original = await encodeProjectFile(project({ name: 'On disk' }));
+	const handle = fileHandle('native.gsproj', { bytes: original });
+	window.showOpenFilePicker = async () => [handle];
+	const app = evaluate(appBundle);
+	window.testPreferences.projectBackups.saveEnabled = true;
+	assert.equal(await app.openProject(), true);
+	assert.equal(app.projectBackupAccess.value, 'ready');
+	app.projectInfo.value.name = 'Edited';
+	await app.saveProject();
+	assert.equal(decodeProjectFile(handle.bytes).name, 'Edited');
+	assert.equal(decodeProjectFile([...files.values()][0]).name, 'On disk');
+	assert.equal(app.projectBackupStatus.value.lastSaveBackup != null, true);
+	const persisted = handle.bytes;
+	const previousWrites = handle.calls.filter(call => call[0] === 'create').length;
+	fail = true;
+	app.projectInfo.value.name = 'More edits';
+	await app.saveProject();
+	assert.equal(handle.bytes, persisted);
+	assert.equal(handle.calls.filter(call => call[0] === 'create').length, previousWrites);
+	assert.deepEqual(globalThis.projectAlerts, ['Backup disk full']);
+	app.projectBackupController.setTarget(null);
+});
+
+// 【Save asの既存宛先をバックアップし、成功後だけ自動バックアップの対象を切り替える】
+// 元の編集中ファイルを複製しても、実際に置き換える別ファイルを復元できない。
+// 自動バックアップは保存先やUndo履歴を変えず、設定値の間隔で現在の編集を保存する。
+test('backs up the Save as destination and keeps automatic backups separate from the Save target', async t => {
+	const window = setup(t);
+	const backups = new Map();
+	window.desktop = {
+		async chooseProjectSaveFile() { return { id: destination.name, name: destination.name }; },
+		async readProjectFile(id) { return id === original.name ? original.bytes : destination.bytes; },
+		async writeProjectFile(id, data) { await saveProjectFile(data, id === original.name ? original : destination); },
+		async listProjectBackups(id) { return [...(backups.get(id)?.keys() ?? [])]; },
+		async writeProjectBackup(id, name, data) {
+			if (!backups.has(id)) backups.set(id, new Map());
+			if (backups.get(id).has(name)) return false;
+			backups.get(id).set(name, new Uint8Array(data)); return true;
+		},
+		async removeProjectBackup(id, name) { backups.get(id).delete(name); },
+	};
+	const original = fileHandle('first.gsproj', { bytes: await encodeProjectFile(project({ name: 'First file' })) });
+	const destination = fileHandle('second.gsproj', { bytes: await encodeProjectFile(project({ name: 'Destination before overwrite' })) });
+	const app = evaluate(appBundle);
+	window.testPreferences.projectBackups = { autoEnabled: true, autoIntervalMinutes: 3, autoRetentionDays: 1, saveEnabled: true, saveRetentionDays: 7 };
+	await app.appReady(project(), original.name, desktopProjectFile({ id: original.name, name: original.name }));
+	app.projectInfo.value.name = 'Saving as second';
+	window.selectProjectSaveFile = async () => destination;
+	await app.saveProject(true);
+	assert.equal(decodeProjectFile([...backups.get(destination.name).values()][0]).name, 'Destination before overwrite');
+	assert.equal(backups.has(original.name), false);
+	let now = Date.now();
+	t.mock.method(Date, 'now', () => now);
+	app.projectInfo.value.description = 'Unsaved description';
+	const historyLength = app.appStateManager.undoStack.value.length;
+	now += 180001;
+	await app.projectBackupController.tick();
+	const automatic = [...backups.get(destination.name)].filter(([name]) => name.includes('.auto-backup-'));
+	assert.equal(automatic.length, 1);
+	assert.equal(decodeProjectFile(automatic[0][1]).description, 'Unsaved description');
+	assert.equal(app.appStateManager.undoStack.value.length, historyLength);
+	assert.notEqual(decodeProjectFile(destination.bytes).description, 'Unsaved description');
+	await app.saveProject();
+	assert.equal(decodeProjectFile(destination.bytes).description, 'Unsaved description');
+	assert.equal(decodeProjectFile(original.bytes).name, 'First file');
+	app.projectBackupController.setTarget(null);
+});
+
+// 【Chromeの初回保存で選んだフォルダを保持し、その後の自動・保存時バックアップに使う】
+// 初回保存前には書き出さず、保存ダイアログを閉じた後にフォルダ権限が捨てられないことを確認する。
+// 自動バックアップで本体を変更せず、次のSaveでは本体の旧内容を別ファイルに残す。
+test('retains the Chrome save folder and starts backups only after the first save', { timeout: 5000 }, async t => {
+	const window = setup(t);
+	t.mock.method(navigator.locks, 'request', async (_name, callback) => callback());
+	const handles = new Map();
+	const handle = fileHandle('browser.gsproj', { bytes: new Uint8Array() });
+	handles.set(handle.name, handle);
+	window.selectedProjectDirectory = {
+		async queryPermission() { return 'granted'; },
+		async *entries() { yield* handles; },
+		async getFileHandle(name, options) {
+			if (!handles.has(name)) {
+				if (!options?.create) throw new DOMException('Missing', 'NotFoundError');
+				handles.set(name, fileHandle(name, { bytes: new Uint8Array() }));
+			}
+			return handles.get(name);
+		},
+		async removeEntry(name) { handles.delete(name); },
+	};
+	window.selectProjectSaveFile = async () => handle;
+	window.showDirectoryPicker = () => assert.fail('The chosen save folder should be retained');
+	const app = evaluate(appBundle);
+	window.testPreferences.projectBackups = { autoEnabled: true, autoIntervalMinutes: 2, autoRetentionDays: 1, saveEnabled: true, saveRetentionDays: 7 };
+	await app.newProject();
+	await app.projectBackupController.tick();
+	assert.equal(app.projectBackupAccess.value, 'unsaved');
+	assert.equal(handles.size, 1);
+	await app.saveProject();
+	assert.equal(app.projectBackupAccess.value, 'ready');
+	assert.equal(handles.size, 1);
+	const saved = handle.bytes;
+	let now = Date.now();
+	t.mock.method(Date, 'now', () => now);
+	app.projectInfo.value.name = 'Unsaved editing';
+	now += 120001;
+	await app.projectBackupController.tick();
+	const automatic = [...handles].filter(([name]) => name.includes('.auto-backup-'));
+	assert.equal(automatic.length, 1);
+	assert.equal(decodeProjectFile(automatic[0][1].bytes).name, 'Unsaved editing');
+	assert.equal(handle.bytes, saved);
+	await app.saveProject();
+	const beforeSave = [...handles].filter(([name]) => name.includes('.save-backup-'));
+	assert.equal(beforeSave.length, 1);
+	assert.deepEqual(beforeSave[0][1].bytes, saved);
+	assert.equal(decodeProjectFile(handle.bytes).name, 'Unsaved editing');
+	await app.newProject();
+	assert.equal(app.projectBackupAccess.value, 'unsaved');
 });

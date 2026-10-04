@@ -1,5 +1,6 @@
 import { customRef, ref, watch, onScopeDispose } from 'vue';
 import { EventEmitter } from 'eventemitter3';
+import { DEFAULT_PROJECT_BACKUP_SETTINGS } from './project-backups.ts';
 import { deepEqual } from '@gs/shared/utility/deep-equal.js';
 import type { Ref } from 'vue';
 import type { WorkspaceElement } from './workspace.ts';
@@ -8,6 +9,7 @@ import type { IntermediateTextureFormat } from '@gs/shared/types.js';
 import type { TimelineTickMode } from './utility/timeline-ticks.ts';
 
 export const PREF_DEF = definePreferences({
+	projectBackups: { default: () => ({ ...DEFAULT_PROJECT_BACKUP_SETTINGS }) },
 	animation: { default: () => true },
 	menuStyle: { default: () => 'auto' },
 	locale: { default: () => 'en' },

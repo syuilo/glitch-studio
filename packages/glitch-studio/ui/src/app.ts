@@ -23,8 +23,12 @@ import { AudioOutput } from './audio/audio-output.ts';
 import { PreviewPlaybackController } from './PreviewPlaybackController.ts';
 import { AppStateManager } from './AppStateManager.ts';
 import { RendererProjectSynchronizer } from './RendererProjectSynchronizer.ts';
-import { DEFAULT_PROJECT_NAME, encodeProjectFile, loadProjectFile, saveProjectFile } from './gsproj.ts';
+import { DEFAULT_PROJECT_NAME, desktopProjectFile, encodeProjectFile, loadProjectFile, saveProjectFile } from './gsproj.ts';
 import GsProjectSaveDialog from './components/GsProjectSaveDialog.vue';
+import GsProjectBackupFolderDialog from './components/GsProjectBackupFolderDialog.vue';
+import { createProjectBackupFingerprint, DEFAULT_PROJECT_BACKUP_SETTINGS, ProjectBackupController } from './project-backups.ts';
+import { browserProjectBackupDirectory, desktopProjectBackupDirectory, selectProjectBackupFolder } from './project-backup-directory.ts';
+import type { ProjectBackupStatus, ProjectBackupTarget } from './project-backups.ts';
 import { preferences } from './preferences.ts';
 import { makeHotkey } from './utility/hotkey.ts';
 import type { RendererProjectState } from '@gs/glitch-studio_shared/project/renderer-state.ts';
@@ -34,7 +38,7 @@ import type { ProjectAsset } from './types.ts';
 import type { TimelineRendererManagerDynamicOptions } from '@gs/glitch-studio_renderer/timeline-renderer-manager.ts';
 import type { EffectNodeOf } from '@gs/subsystems_visual-module_shared/types.ts';
 import type { IntermediateTextureFormat, Player } from '@gs/shared/types.ts';
-import type { Project, ProjectInfo } from './gsproj.ts';
+import type { Project, ProjectInfo, ProjectFileHandle } from './gsproj.ts';
 import type { WatchStopHandle } from 'vue';
 import * as ui from '@/ui.ts';
 import * as api from '@/api.ts';
@@ -205,10 +209,75 @@ let rendererInitialization: Promise<void> | null = null;
 let projectWatchers: WatchStopHandle[] = [];
 let projectMetadata: Pick<Project, 'id'> | null = null;
 let projectFileName = 'untitled.gsproj';
-let projectFileHandle: FileSystemFileHandle | null = null;
-let savingProject = false;
+let projectFileHandle: ProjectFileHandle | null = null;
+let projectDirectory: FileSystemDirectoryHandle | null = null;
+let projectBackupTarget: ProjectBackupTarget | null = null;
+export const projectBackupAccess = ref<'unsaved' | 'folder-required' | 'ready'>('unsaved');
+export const projectBackupStatus = ref<ProjectBackupStatus>({ lastAutoBackup: null, lastSaveBackup: null, error: null });
+const backupFingerprint = createProjectBackupFingerprint();
 
-export async function appReady(project: Project, fileName = 'untitled.gsproj', fileHandle: FileSystemFileHandle | null = null) {
+function captureProject(): Project | null {
+	if (!projectMetadata) return null;
+	return deepClone({
+		...projectMetadata,
+		...projectInfo.value,
+		gsVersion: _VERSION_,
+		visualModules: appStateManager.state.visualModules.value,
+		assets: appStateManager.state.assets.value,
+		players: appStateManager.state.players.value,
+		timelineScenes: appStateManager.state.timelineScenes.value,
+		resolution: appStateManager.state.resolution.value,
+		timelineFps: appStateManager.state.timelineFps.value,
+		timelineMotionBlur: appStateManager.state.timelineMotionBlur.value,
+	} satisfies Project);
+}
+
+function backupSettings() { return preferences.s.projectBackups ?? DEFAULT_PROJECT_BACKUP_SETTINGS; }
+
+export const projectBackupController = new ProjectBackupController({
+	settings: backupSettings,
+	snapshot: () => {
+		const project = captureProject();
+		return project ? { fingerprint: backupFingerprint(project), encode: () => encodeProjectFile(project) } : null;
+	},
+	onStatus: status => { projectBackupStatus.value = status; },
+	now: () => Date.now(),
+	schedule: (callback, delay) => window.setTimeout(callback, delay),
+	cancel: timer => { if (timer != null) window.clearTimeout(timer as number); },
+});
+watch(() => preferences.r.projectBackups?.value, () => projectBackupController.refreshSchedule(), { deep: true });
+
+function setProjectBackupTarget(target: ProjectBackupTarget | null) {
+	projectBackupTarget = target;
+	projectBackupAccess.value = target ? 'ready' : projectFileHandle ? 'folder-required' : 'unsaved';
+	projectBackupController.setTarget(target);
+}
+
+function resolveBackupTarget(handle: ProjectFileHandle, directory: FileSystemDirectoryHandle | null): ProjectBackupTarget | null {
+	const native = handle.kind === 'desktop-project-file' ? desktopProjectBackupDirectory(handle.id) : null;
+	return native ? { name: handle.name, directory: native } : directory ? { name: handle.name, directory: browserProjectBackupDirectory(directory) } : null;
+}
+
+export async function grantProjectBackupAccess(): Promise<void> {
+	const handle = projectFileHandle;
+	if (!handle) return;
+	try {
+		if (handle.kind === 'desktop-project-file') {
+			const target = resolveBackupTarget(handle, null);
+			if (projectFileHandle === handle && target) setProjectBackupTarget(target);
+			return;
+		}
+		// フォルダ選択はこのクリックから開始する。タイマーから権限ダイアログを要求しない。
+		const directory = await selectProjectBackupFolder(handle);
+		if (projectFileHandle !== handle) return;
+		projectDirectory = directory;
+		setProjectBackupTarget({ name: handle.name, directory: browserProjectBackupDirectory(directory) });
+	} catch (error) {
+		if (!(error instanceof DOMException && error.name === 'AbortError')) projectBackupController.reportError(error);
+	}
+}
+
+export async function appReady(project: Project, fileName = 'untitled.gsproj', fileHandle: ProjectFileHandle | null = null) {
 	validateTimelineScenes(project.timelineScenes);
 	validateTimelineFps(project.timelineFps);
 	validateTimelineMotionBlur(project.timelineMotionBlur);
@@ -234,6 +303,8 @@ export async function appReady(project: Project, fileName = 'untitled.gsproj', f
 	// 読み込み途中の状態を、直前のプロジェクトのファイルへ保存させない。
 	projectMetadata = null;
 	projectFileHandle = null;
+	projectDirectory = null;
+	setProjectBackupTarget(null);
 	for (const stop of projectWatchers) stop();
 	projectWatchers = [];
 	previewPlayback.dispose();
@@ -269,6 +340,12 @@ export async function appReady(project: Project, fileName = 'untitled.gsproj', f
 	projectInfo.value = { name: project.name, description: project.description, author: project.author };
 	projectFileName = fileName;
 	projectFileHandle = fileHandle;
+	try {
+		setProjectBackupTarget(fileHandle ? resolveBackupTarget(fileHandle, null) : null);
+	} catch (error) {
+		projectBackupAccess.value = 'folder-required';
+		projectBackupController.reportError(error);
+	}
 
 	// 1回のCommandで変わるfpsとブラー設定をまとめて送り、Undo/Redoも同じ再生成経路を通す。
 	projectWatchers.push(watch([appStateManager.state.timelineFps, appStateManager.state.timelineMotionBlur, timelinePreviewMotionBlurSamples], async () => {
@@ -347,54 +424,78 @@ export async function appReady(project: Project, fileName = 'untitled.gsproj', f
 	if (project.visualModules[0] != null) previewPlayback.startLive(project.visualModules[0].id);
 }
 
-function selectProjectSaveFile(name: string): Promise<FileSystemFileHandle | null> {
+async function selectProjectSaveFile(name: string): Promise<{ handle: ProjectFileHandle; directory: FileSystemDirectoryHandle | null } | null> {
+	if (window.desktop?.chooseProjectSaveFile) {
+		const descriptor = await window.desktop.chooseProjectSaveFile(name);
+		return descriptor ? { handle: desktopProjectFile(descriptor), directory: null } : null;
+	}
 	return new Promise(resolve => {
 		const { dispose } = ui.popup(GsProjectSaveDialog, { name }, {
-			selected: handle => resolve(handle),
+			selected: (handle, directory) => resolve({ handle, directory: directory ?? null }),
 			closed: () => { resolve(null); dispose(); },
 		});
 	});
 }
 
-export async function saveProject(saveAs = false) {
-	if (projectMetadata == null || savingProject) return;
-	savingProject = true;
+function requestBackupDirectory(handle: FileSystemFileHandle): Promise<FileSystemDirectoryHandle | null> {
+	return new Promise(resolve => {
+		const { dispose } = ui.popup(GsProjectBackupFolderDialog, { handle }, {
+			selected: directory => resolve(directory),
+			closed: () => { resolve(null); dispose(); },
+		});
+	});
+}
+
+export async function saveProject(saveAs = false): Promise<void> {
+	const project = captureProject();
+	if (!project) return;
 	const metadata = projectMetadata;
-	try {
-		// 素材の読み出し中に編集されても、保存開始時点の状態を一貫して書き出す。
-		const project = deepClone({
-			...projectMetadata,
-			...projectInfo.value,
-			gsVersion: _VERSION_,
-			visualModules: appStateManager.state.visualModules.value,
-			assets: appStateManager.state.assets.value,
-			players: appStateManager.state.players.value,
-			timelineScenes: appStateManager.state.timelineScenes.value,
-			resolution: appStateManager.state.resolution.value,
-			timelineFps: appStateManager.state.timelineFps.value,
-			timelineMotionBlur: appStateManager.state.timelineMotionBlur.value,
-		} satisfies Project);
-		let handle = saveAs ? null : projectFileHandle;
-		// 既存の保存先の権限要求にはクリックの有効期間が必要なので、エンコードより先に行う。
-		if (handle != null && await handle.requestPermission({ mode: 'readwrite' }) !== 'granted') {
-			throw new Error('Write permission was not granted. Use Save as... to choose another file.');
+	let handle = saveAs ? null : projectFileHandle;
+	let directory = saveAs ? null : projectDirectory;
+	let target = saveAs ? null : projectBackupTarget;
+	// 待ち行列やエンコードより前に権限要求を始め、クリックの有効期間を失わない。
+	// 待機中の拒否は値として受け、未処理のPromise rejectionにしない。
+	const permission = handle?.requestPermission({ mode: 'readwrite' }).catch((error: unknown) => error);
+	await projectBackupController.runExclusive(async () => {
+		try {
+			if (metadata !== projectMetadata) return;
+			if (handle && await permission !== 'granted') throw new Error('Write permission was not granted. Use Save as... to choose another file.');
+			const data = await encodeProjectFile(project);
+			if (metadata !== projectMetadata) return;
+			if (!handle) {
+				const selected = await selectProjectSaveFile(projectFileName);
+				if (!selected) return;
+				({ handle, directory } = selected);
+			}
+			if (metadata !== projectMetadata) return;
+			target ??= resolveBackupTarget(handle, directory);
+			if (backupSettings().saveEnabled && (!target || !await target.directory.hasPermission())) {
+				if (handle.kind === 'desktop-project-file') throw new Error('The project backup folder is unavailable.');
+				directory = await requestBackupDirectory(handle);
+				if (!directory) return;
+				target = { name: handle.name, directory: browserProjectBackupDirectory(directory) };
+			}
+			if (metadata !== projectMetadata) return;
+			let saveBackupTime: number | null = null;
+			if (target && backupSettings().saveEnabled) {
+				// 上書き前の実ファイルを最後まで読み、バックアップ確定後にだけ本体を変更する。
+				const previous = new Uint8Array(await (await handle.getFile()).arrayBuffer());
+				saveBackupTime = await projectBackupController.beforeSave(target, previous);
+			}
+			if (metadata !== projectMetadata) return;
+			await saveProjectFile(data, handle);
+			if (metadata === projectMetadata) {
+				projectFileHandle = handle;
+				projectFileName = handle.name;
+				projectDirectory = directory;
+				if (target !== projectBackupTarget) setProjectBackupTarget(target);
+				else projectBackupAccess.value = target ? 'ready' : 'folder-required';
+				if (target) await projectBackupController.afterSave(target, saveBackupTime);
+			}
+		} catch (error) {
+			await ui.alert({ type: 'error', text: error instanceof Error ? error.message : String(error) });
 		}
-		const data = await encodeProjectFile(project);
-		// 初回保存・Save asはデータの準備後に選択する。フォルダ選択のクリックが新たなユーザー操作になる。
-		// 保存先の取得時に新規ファイルを作成する場合も、読込失敗ならここへ到達しない。
-		handle ??= await selectProjectSaveFile(projectFileName);
-		if (handle == null) return;
-		await saveProjectFile(data, handle);
-		// 保存中に別プロジェクトを開いた場合、そのプロジェクトの保存先は変更しない。
-		if (projectMetadata === metadata) {
-			projectFileHandle = handle;
-			projectFileName = handle.name;
-		}
-	} catch (error) {
-		await ui.alert({ type: 'error', text: error instanceof Error ? error.message : String(error) });
-	} finally {
-		savingProject = false;
-	}
+	});
 }
 
 export async function openProject(file?: File, fileHandle?: FileSystemFileHandle): Promise<boolean> {

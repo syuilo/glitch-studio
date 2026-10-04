@@ -12,6 +12,7 @@ interface Window {
 
 interface FileSystemHandle {
 	requestPermission(options?: { mode?: 'read' | 'readwrite' }): Promise<PermissionState>;
+	queryPermission(options?: { mode?: 'read' | 'readwrite' }): Promise<PermissionState>;
 }
 
 interface DataTransferItem {

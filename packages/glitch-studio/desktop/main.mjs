@@ -2,6 +2,10 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { app, BrowserWindow, dialog, ipcMain, Menu, net, protocol, shell } from 'electron';
 import { resolveAppPath } from './protocol-path.mjs';
+import { ProjectFiles } from './project-files.mjs';
+import { registerProjectFileIpc } from './project-file-ipc.mjs';
+
+const projectFiles = new ProjectFiles();
 
 // 配布版は開発サーバー用の環境変数を参照しない。
 const developmentUrl = app.isPackaged ? undefined : process.env.GLITCH_DESKTOP_DEV_URL;
@@ -62,7 +66,7 @@ function createWindow() {
 		}
 		return { action: 'deny' };
 	});
-	mainWindow.on('closed', () => { mainWindow = undefined; });
+	mainWindow.on('closed', () => { projectFiles.clear(); mainWindow = undefined; });
 	void mainWindow.loadURL(entryUrl).catch(error => {
 		console.error('Failed to load Glitch Studio. Run pnpm build:desktop first for a production launch.', error);
 		app.exit(1);
@@ -117,6 +121,8 @@ app.whenReady().then(() => {
 		const contents = getTrustedMainWindow(event).webContents;
 		contents.setZoomFactor(Math.max(0.5, contents.getZoomFactor() / 1.2));
 	});
+
+	registerProjectFileIpc(ipcMain, dialog, projectFiles, getTrustedMainWindow);
 
 	createWindow();
 	app.on('activate', () => {

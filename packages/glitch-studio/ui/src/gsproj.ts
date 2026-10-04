@@ -10,6 +10,28 @@ import type { TimelineScene } from '@gs/subsystems_timeline_shared/types.ts';
 
 export const DEFAULT_PROJECT_NAME = 'Untitled Project';
 
+// OSのファイル参照とブラウザのハンドルを区別し、ブラウザ側に実パスを要求しない。
+export type DesktopProjectFile = {
+	kind: 'desktop-project-file';
+	id: string;
+	name: string;
+	getFile(): Promise<File>;
+	requestPermission(options?: { mode?: 'read' | 'readwrite' }): Promise<PermissionState>;
+};
+export type ProjectFileHandle = FileSystemFileHandle | DesktopProjectFile;
+
+export function desktopProjectFile(descriptor: { id: string; name: string }): DesktopProjectFile {
+	return {
+		...descriptor,
+		kind: 'desktop-project-file',
+		async getFile() {
+			const data = await window.desktop!.readProjectFile(descriptor.id);
+			return new File(data ? [new Uint8Array(data)] : [], descriptor.name);
+		},
+		async requestPermission() { return 'granted'; },
+	};
+}
+
 export type ProjectInfo = {
 	name: string;
 	description: string;
@@ -96,9 +118,13 @@ export async function getProjectSaveFileHandle(
 }
 
 // エンコードと保存先選択は呼び出し元で済ませ、ここでは確定したバイト列だけを書き込む。
-export async function saveProjectFile(data: Uint8Array, handle: FileSystemFileHandle): Promise<void> {
+export async function saveProjectFile(data: Uint8Array, handle: ProjectFileHandle): Promise<void> {
 	// 有効なMessagePackプロジェクトは空にならない。空のデータで既存ファイルを確定させない。
 	if (data.byteLength === 0) throw new Error('The project contains no save data.');
+	if (handle.kind === 'desktop-project-file') {
+		await window.desktop!.writeProjectFile(handle.id, data);
+		return;
+	}
 	const writable = await handle.createWritable();
 	try {
 		await writable.write(new Uint8Array(data));
@@ -110,9 +136,19 @@ export async function saveProjectFile(data: Uint8Array, handle: FileSystemFileHa
 	}
 }
 
-export async function loadProjectFile(file?: File, handle?: FileSystemFileHandle): Promise<{ project: Project; name: string; handle?: FileSystemFileHandle } | null> {
+export async function loadProjectFile(file?: File, handle?: ProjectFileHandle): Promise<{ project: Project; name: string; handle?: ProjectFileHandle } | null> {
 	if (file != null) {
+		if (window.desktop?.registerProjectFile && handle?.kind !== 'desktop-project-file') {
+			const descriptor = await window.desktop.registerProjectFile(file);
+			if (descriptor) handle = desktopProjectFile(descriptor);
+		}
 		return { project: decodeProjectFile(new Uint8Array(await file.arrayBuffer()), _VERSION_), name: file.name, handle };
+	}
+	if (window.desktop?.chooseProjectFile) {
+		const descriptor = await window.desktop.chooseProjectFile();
+		if (!descriptor) return null;
+		const selected = desktopProjectFile(descriptor);
+		return loadProjectFile(await selected.getFile(), selected);
 	}
 	if (typeof window.showOpenFilePicker === 'function') {
 		let selectedHandle: FileSystemFileHandle | undefined;

@@ -48,6 +48,7 @@
 			</div>
 		</div>
 		<div :class="$style.footerRight">
+			<button v-if="preferences.r.projectBackups.value.autoEnabled || preferences.r.projectBackups.value.saveEnabled" class="_button" :class="$style.footerItem" :title="projectBackupStatus.error ?? 'Project backup preferences and status'" @click="openPreferences">{{ projectBackupStatus.error ? 'Backup error' : projectBackupAccess === 'ready' ? 'Backups' : projectBackupAccess === 'unsaved' ? 'Backups: save project first' : 'Backups: folder access required' }}</button>
 			<div v-if="activePreviewRenderer.errorMessage.value != null" v-tooltip="activePreviewRenderer.errorMessage.value" :class="$style.footerError"><i class="ti ti-alert-triangle"></i> {{ activePreviewRenderer.errorMessage.value }}</div>
 			<div :class="$style.footerStats">
 				<div v-if="previewPlayback.state.value.mode === 'live' && visualModuleRendererManagerController.gpuMemoryUsage.value" v-tooltip="gpuMemoryTooltip" :class="$style.footerMemory">{{ (visualModuleRendererManagerController.gpuMemoryUsage.value.total / 1000 ** 2).toFixed(1) }} MB</div>
@@ -67,6 +68,8 @@ import { preferences } from './preferences.ts';
 import GsRange from './components/common/GsRange.vue';
 import GsAboutDialog from '@/components/GsAboutDialog.vue';
 import GsProjectSettingsDialog from '@/components/GsProjectSettingsDialog.vue';
+import GsSettingsDialog from '@/components/GsSettingsDialog.vue';
+import { projectBackupAccess, projectBackupStatus } from './app.ts';
 import GsTimelineExportDialog from '@/components/GsTimelineExportDialog.vue';
 import GsDashboardDialog from '@/components/GsDashboardDialog.vue';
 import GsWorkspaceElement from '@/components/GsWorkspaceElement.vue';
@@ -190,6 +193,10 @@ function openProjectSettings() {
 	const { dispose } = ui.popup(GsProjectSettingsDialog, {}, { closed: () => dispose() });
 }
 
+function openPreferences() {
+	const { dispose } = ui.popup(GsSettingsDialog, {}, { closed: () => dispose() });
+}
+
 function openResolutionFactorMenu(ev: PointerEvent) {
 	ui.popupMenu([{
 		type: 'radioOption',
@@ -295,6 +302,9 @@ function openHeaderEditMenu(ev: PointerEvent) {
 	ui.popupMenu([{
 		text: 'Project Settings',
 		action: openProjectSettings,
+	}, {
+		text: 'Preferences...',
+		action: openPreferences,
 	}], ev.currentTarget ?? ev.target);
 }
 

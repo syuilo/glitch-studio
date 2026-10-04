@@ -26,7 +26,7 @@ import { confirm } from '@/ui.ts';
 
 const props = defineProps<{ name: string }>();
 const emit = defineEmits<{
-	(ev: 'selected', handle: FileSystemFileHandle): void;
+	(ev: 'selected', handle: FileSystemFileHandle, directory: FileSystemDirectoryHandle): void;
 	(ev: 'closed'): void;
 }>();
 const modal = useTemplateRef('modal');
@@ -65,7 +65,7 @@ async function selectFile() {
 			return !result.canceled;
 		});
 		if (handle == null) return;
-		emit('selected', handle);
+		emit('selected', handle, directory.value);
 		modal.value?.close();
 	} catch (cause) {
 		error.value = cause instanceof Error ? cause.message : String(cause);
