@@ -3,6 +3,10 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'rainDropsOnWindow2',
 	displayName: 'Rain Drops On Window (Type 2)',
+	description: {
+		'ja-JP': '入力画像を、雨粒の付いた窓ガラス越しに見たように歪めます。',
+		'en-US': 'Distorts the input image as if viewed through a window covered in raindrops.',
+	},
 	kind: 'modify',
 	tags: ['distortion', 'liquid', 'gimmicky'],
 	paramDefs: {

@@ -3,6 +3,10 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'remap',
 	displayName: 'Remap',
+	description: {
+		'ja-JP': '入力の数値を、指定した入力範囲から出力範囲へ変換します。',
+		'en-US': 'Remaps input values from a specified input range to an output range.',
+	},
 	kind: 'modify',
 	tags: ['math', 'utility'],
 	paramDefs: {

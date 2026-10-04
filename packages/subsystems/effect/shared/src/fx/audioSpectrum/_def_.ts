@@ -3,6 +3,10 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'audioSpectrum',
 	displayName: 'Audio Spectrum',
+	description: {
+		'ja-JP': 'Playerの音声を周波数ごとの強さで表示します。',
+		'en-US': 'Visualizes audio from a Player as a frequency spectrum.',
+	},
 	kind: 'generate',
 	tags: ['audio', 'analysis'],
 	paramDefs: {

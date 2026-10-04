@@ -32,6 +32,7 @@ const scalar = { dataType: { kind: 'scalar' }, ui: { label: 'Value', control: { 
 const color = { dataType: { kind: 'color' }, ui: { label: 'Color', control: {} }, canNode: true, defaultValue: literal([1, 0, 0, 0.5]) };
 const definition = {
 	id: 'probe', displayName: 'Probe', kind: 'modify', tags: [],
+	description: { 'ja-JP': 'エフェクトレイヤーの動作を検証します。', 'en-US': 'Verifies effect layer behavior.' },
 	paramDefs: { input: color, amount: scalar, forbidden: scalar, exported: scalar, ...nested.paramDefs },
 	primaryInputParameter: 'input', resolutionInputParameter: 'input', primaryOutput: 'output',
 	outputDefs: { output: { dataType: { kind: 'color' } }, unused: { dataType: { kind: 'color' }, canLazyAllocation: true } },

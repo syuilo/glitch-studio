@@ -3,6 +3,10 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'colorBlend',
 	displayName: 'Blend (Color)',
+	description: {
+		'ja-JP': '2つの画像を指定した合成方法で重ね合わせます。',
+		'en-US': 'Combines two images using the selected blend mode.',
+	},
 	kind: 'modify',
 	tags: ['color', 'composite', 'utility'],
 	paramDefs: {

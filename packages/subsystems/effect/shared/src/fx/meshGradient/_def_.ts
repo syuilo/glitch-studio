@@ -3,6 +3,10 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'meshGradient',
 	displayName: 'Mesh Gradient',
+	description: {
+		'ja-JP': '複数の色がなめらかに混ざり合うグラデーションを生成します。',
+		'en-US': 'Generates a gradient with multiple colors blending smoothly into one another.',
+	},
 	kind: 'generate',
 	tags: ['color', 'gradient'],
 	paramDefs: {

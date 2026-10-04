@@ -3,6 +3,10 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'audioWaveform',
 	displayName: 'Audio Waveform',
+	description: {
+		'ja-JP': 'Playerの音声を波形で表示します。',
+		'en-US': 'Visualizes audio from a Player as a waveform.',
+	},
 	kind: 'generate',
 	tags: ['audio', 'analysis'],
 	paramDefs: {

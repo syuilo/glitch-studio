@@ -3,6 +3,10 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'zoomLines',
 	displayName: 'Zoom lines',
+	description: {
+		'ja-JP': '入力画像に、指定した位置を中心とする集中線を加えます。',
+		'en-US': 'Adds radial speed lines around a specified point on the input image.',
+	},
 	kind: 'modify',
 	tags: ['pattern', 'gimmicky', 'stylized'],
 	paramDefs: {

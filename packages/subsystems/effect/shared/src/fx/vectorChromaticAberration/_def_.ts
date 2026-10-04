@@ -3,6 +3,10 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'vectorChromaticAberration',
 	displayName: 'Vector Chromatic Aberration',
+	description: {
+		'ja-JP': '入力したベクトル場に沿ってRGBチャンネルをずらし、色収差を作ります。',
+		'en-US': 'Shifts RGB channels along an input vector field to create chromatic aberration.',
+	},
 	kind: 'modify',
 	tags: ['color', 'distortion', 'glitch'],
 	paramDefs: {

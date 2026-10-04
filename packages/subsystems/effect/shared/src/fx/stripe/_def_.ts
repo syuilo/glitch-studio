@@ -3,6 +3,10 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'stripe',
 	displayName: 'Stripe',
+	description: {
+		'ja-JP': '縞模様を描画します。',
+		'en-US': 'Draws a striped pattern.',
+	},
 	kind: 'generate',
 	tags: ['pattern'],
 	paramDefs: {

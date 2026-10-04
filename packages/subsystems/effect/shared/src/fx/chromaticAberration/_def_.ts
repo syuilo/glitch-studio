@@ -3,6 +3,10 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'chromaticAberration',
 	displayName: 'Chromatic Aberration',
+	description: {
+		'ja-JP': '入力画像に色収差による色の分離やにじみを加えます。',
+		'en-US': 'Adds color separation and fringing to the input image to simulate chromatic aberration.',
+	},
 	kind: 'modify',
 	tags: ['color', 'distortion', 'glitch'],
 	paramDefs: {

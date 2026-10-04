@@ -3,6 +3,10 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'pixelSort',
 	displayName: 'Pixel sort',
+	description: {
+		'ja-JP': '入力画像の画素を明るさ順に並べ替え、色が流れるような模様を作ります。',
+		'en-US': 'Sorts pixels of the input image by luminance to create streaks of color.',
+	},
 	kind: 'modify',
 	tags: ['glitch', 'pixel', 'stylized', 'experimental'],
 	paramDefs: {

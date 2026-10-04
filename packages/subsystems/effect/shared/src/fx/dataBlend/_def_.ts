@@ -3,6 +3,10 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'dataBlend',
 	displayName: 'Blend (Data)',
+	description: {
+		'ja-JP': '2つのデータを指定した合成方法で組み合わせます。',
+		'en-US': 'Combines two data inputs using the selected blend mode.',
+	},
 	kind: 'modify',
 	tags: ['composite', 'math', 'utility'],
 	paramDefs: {

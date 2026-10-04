@@ -3,6 +3,10 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'symbols',
 	displayName: 'Symbols',
+	description: {
+		'ja-JP': '入力画像を記号での表現に置き換えます。',
+		'en-US': 'Recreates the input image using symbols.',
+	},
 	kind: 'modify',
 	tags: ['pixel', 'typography', 'gimmicky', 'stylized'],
 	paramDefs: {

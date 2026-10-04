@@ -5,6 +5,10 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'lensDistortion',
 	displayName: 'Lens Distortion',
+	description: {
+		'ja-JP': '入力画像にレンズ越しに見たような歪みを加えます。',
+		'en-US': 'Distorts the input image as if viewed through a lens.',
+	},
 	kind: 'modify',
 	tags: ['distortion'],
 	paramDefs: {

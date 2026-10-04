@@ -3,6 +3,10 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'transform',
 	displayName: 'Transform',
+	description: {
+		'ja-JP': '入力画像を移動・回転・拡大縮小します。',
+		'en-US': 'Translates, rotates, and scales the input image.',
+	},
 	kind: 'modify',
 	tags: ['transform', 'utility'],
 	paramDefs: {

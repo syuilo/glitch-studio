@@ -3,6 +3,10 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'text',
 	displayName: 'Text',
+	description: {
+		'ja-JP': '指定したフォントや色で文字を描画します。',
+		'en-US': 'Draws text using the specified font and color.',
+	},
 	kind: 'generate',
 	tags: ['typography'],
 	paramDefs: {

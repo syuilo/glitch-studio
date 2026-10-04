@@ -3,6 +3,10 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'polkadot',
 	displayName: 'Polka dot',
+	description: {
+		'ja-JP': '水玉模様を描画します。',
+		'en-US': 'Draws a polka dot pattern.',
+	},
 	kind: 'generate',
 	tags: ['pattern'],
 	paramDefs: {

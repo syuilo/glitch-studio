@@ -3,6 +3,10 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'colorMix',
 	displayName: 'Mix (Color)',
+	description: {
+		'ja-JP': '2つの画像を指定した割合で混ぜ合わせます。',
+		'en-US': 'Mixes two images at the specified ratio.',
+	},
 	kind: 'modify',
 	tags: ['color', 'composite', 'utility'],
 	paramDefs: {

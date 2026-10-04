@@ -3,6 +3,10 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'dataMix',
 	displayName: 'Mix (Data)',
+	description: {
+		'ja-JP': '2つのデータを指定した割合で混ぜ合わせます。',
+		'en-US': 'Mixes two data inputs at the specified ratio.',
+	},
 	kind: 'modify',
 	tags: ['composite', 'math', 'utility'],
 	paramDefs: {

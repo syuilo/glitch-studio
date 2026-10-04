@@ -3,6 +3,10 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'pointerTrail',
 	displayName: 'pointerTrail',
+	description: {
+		'ja-JP': 'ポインターの動きを、時間とともに減衰するベクトル場として出力します。',
+		'en-US': 'Outputs pointer motion as a vector field that fades over time.',
+	},
 	kind: 'generate',
 	tags: ['temporal', 'utility'],
 	paramDefs: {

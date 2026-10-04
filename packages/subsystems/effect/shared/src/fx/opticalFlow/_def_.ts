@@ -3,6 +3,10 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'opticalFlow',
 	displayName: 'Optical flow',
+	description: {
+		'ja-JP': 'フレーム間の動きを推定し、移動方向と大きさをベクトル場として出力します。',
+		'en-US': 'Estimates motion between frames and outputs its direction and magnitude as a vector field.',
+	},
 	kind: 'modify',
 	tags: ['temporal', 'analysis'],
 	paramDefs: {

@@ -3,6 +3,10 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'waveform',
 	displayName: 'Waveform',
+	description: {
+		'ja-JP': '入力画像の位置ごとの明るさやRGB値を波形で表示します。',
+		'en-US': 'Displays luminance or RGB values across the input image as a waveform.',
+	},
 	kind: 'modify',
 	tags: ['color', 'analysis', 'utility'],
 	paramDefs: {

@@ -3,6 +3,10 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'tearings',
 	displayName: 'Tearings',
+	description: {
+		'ja-JP': '入力画像を帯状にずらし、引き裂かれたようなグリッチを加えます。',
+		'en-US': 'Shifts strips of the input image to create a torn glitch effect.',
+	},
 	kind: 'modify',
 	tags: ['distortion', 'glitch', 'stylized'],
 	paramDefs: {

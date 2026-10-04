@@ -3,6 +3,10 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'lcd',
 	displayName: 'LCD',
+	description: {
+		'ja-JP': '入力画像を液晶ディスプレイのRGBサブピクセル風に表現します。',
+		'en-US': 'Renders the input image as RGB subpixels like an LCD screen.',
+	},
 	kind: 'modify',
 	tags: ['pixel', 'pattern', 'gimmicky', 'stylized'],
 	paramDefs: {

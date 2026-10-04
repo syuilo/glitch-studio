@@ -61,7 +61,7 @@ const paramDef = (id, defaultValue = 7, dataType = 'scalar') => ({ id, nameForRe
 const context = (defs, params, overrides = {}) => ({
 	nodes: [node(params)],
 	paramDefs: [],
-	effectDefinitions: { test: { id: 'test', displayName: 'Test', tags: [], paramDefs: defs, primaryInputParameter: null, resolutionInputParameter: null, outputDefs: {}, primaryOutput: null } },
+	effectDefinitions: { test: { id: 'test', displayName: 'Test', description: { 'ja-JP': 'パラメータの評価を検証します。', 'en-US': 'Verifies parameter evaluation.' }, tags: [], paramDefs: defs, primaryInputParameter: null, resolutionInputParameter: null, outputDefs: {}, primaryOutput: null } },
 	automationGraphs: [],
 	resolution: { width: 640, height: 360 },
 	time: 500,

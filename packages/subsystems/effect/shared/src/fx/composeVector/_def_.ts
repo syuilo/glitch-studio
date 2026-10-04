@@ -3,6 +3,10 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'composeVector',
 	displayName: 'Compose Vector',
+	description: {
+		'ja-JP': 'X成分とY成分の入力を組み合わせ、2次元ベクトルを作ります。',
+		'en-US': 'Combines X and Y inputs into a two-dimensional vector.',
+	},
 	kind: 'generate',
 	tags: ['math', 'utility'],
 	paramDefs: {

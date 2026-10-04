@@ -3,6 +3,10 @@ import { defineEffect } from '../../effect-definition.ts';
 export default defineEffect({
 	id: 'hexGrid',
 	displayName: 'Hex grid',
+	description: {
+		'ja-JP': '六角形の格子模様を描画します。',
+		'en-US': 'Draws a hexagonal grid pattern.',
+	},
 	kind: 'generate',
 	tags: ['pattern'],
 	paramDefs: {
