@@ -1,6 +1,8 @@
 import { scaleResolution } from '@gs/shared/resolution.ts';
 import { ref } from 'vue';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
+import { deepEqual } from '@gs/shared/utility/deep-equal.ts';
+import { validateTimelineFps, validateTimelineMotionBlur } from '@gs/subsystems_timeline_shared/motion-blur.ts';
 import { applyRendererProjectChanges } from '@gs/glitch-studio_shared/project/renderer-state.ts';
 import type { RendererProjectChange, RendererProjectState } from '@gs/glitch-studio_shared/project/renderer-state.ts';
 import { createTimelineRendererManagerWorker } from '@gs/glitch-studio_renderer/client.ts';
@@ -17,6 +19,7 @@ export class TimelineRendererManagerController extends RendererManagerController
 	public waveformHorizontalCanvas: HTMLCanvasElement;
 	public waveformVerticalCanvas: HTMLCanvasElement;
 	private staticOptions: TimelineRendererManagerStaticOptions;
+	private initializationStaticOptions: TimelineRendererManagerStaticOptions | null = null;
 	private dynamicOptions: Partial<TimelineRendererManagerDynamicOptions> & Pick<TimelineRendererManagerDynamicOptions, 'assets'> = {
 		assets: [],
 	};
@@ -49,6 +52,7 @@ export class TimelineRendererManagerController extends RendererManagerController
 				const waveformVerticalOffscreen = this.waveformVerticalCanvas.transferControlToOffscreen();
 
 				this.initialSnapshotTaken = true;
+				this.initializationStaticOptions = this.staticOptions;
 				return {
 					options: {
 						canvas: offscreen,
@@ -113,7 +117,7 @@ export class TimelineRendererManagerController extends RendererManagerController
 		this.waveformVerticalCanvas.height = 512;
 		this.waveformVerticalCanvas.style.width = '100%';
 		this.waveformVerticalCanvas.style.height = '100%';
-		this.staticOptions = staticOptions;
+		this.staticOptions = deepClone(staticOptions);
 		this.dynamicOptions = { ...this.dynamicOptions, ...dynamicOptions };
 	}
 
@@ -179,11 +183,19 @@ export class TimelineRendererManagerController extends RendererManagerController
 		this.effectStates.clearLayerErrors();
 	}
 
-	public updateStaticOptions(newStaticOptions: Partial<TimelineRendererManagerStaticOptions>): Promise<void> {
-		this.staticOptions = { ...this.staticOptions, ...newStaticOptions };
+	public async updateStaticOptions(newStaticOptions: Partial<TimelineRendererManagerStaticOptions>): Promise<void> {
+		const options = { ...this.staticOptions, ...deepClone(newStaticOptions) };
+		validateTimelineFps(options.timelineFps);
+		validateTimelineMotionBlur(options.timelineMotionBlur);
+		this.staticOptions = options;
 		// 解放中は設定のみ保持する。Worker障害時は再生成して復旧できるようにする。
-		if (!this.hasManager && !this.isInitializing) return Promise.resolve();
-		return this.reload();
+		if (!this.hasManager && !this.isInitializing) return;
+		// 送信前の変更は初期スナップショットに含まれる。送信後の変更は初期化後に
+		// 再生成して反映する。同値の適用や同時変更は、既存のreload待機を共有する。
+		if (this.isInitializing) await this.initializationReady;
+		while (this.hasManager && !deepEqual(this.initializationStaticOptions, this.staticOptions)) {
+			await this.reload();
+		}
 	}
 
 	public renderTimelineAt(time: number, playback = false) {

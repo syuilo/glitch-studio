@@ -34,7 +34,7 @@ export class PreviewPlaybackController {
 	constructor(
 		private readonly liveRenderer: LiveRenderer,
 		private readonly timelineRenderer: TimelineRenderer,
-		private readonly getFpsLimit: () => number | null,
+		private readonly getTimelinePreviewFps: () => number | null,
 		private readonly getDuration: () => number = () => Infinity,
 		private readonly audio?: TimelineAudio,
 	) {}
@@ -82,9 +82,9 @@ export class PreviewPlaybackController {
 				return;
 			}
 			const delta = timestamp - previousFrameTime;
-			const fpsLimit = this.getFpsLimit();
-			if (fpsLimit != null && fpsLimit > 0) {
-				const interval = 1000 / fpsLimit;
+			const timelinePreviewFps = this.getTimelinePreviewFps();
+			if (timelinePreviewFps != null && timelinePreviewFps > 0) {
+				const interval = 1000 / timelinePreviewFps;
 				if (delta < interval) return;
 				previousFrameTime = timestamp - (delta % interval);
 			} else {

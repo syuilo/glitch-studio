@@ -7,3 +7,7 @@ Scene・レイヤー・クリップと、その時間・合成・音声設定の
 `parameter-binding.ts`は共通方式だけの`TimelineParameterBinding`と、`TimelineLayerInputBinding`を加えた`TimelineEffectParameterBinding`を定義する。Visual Module引数・合成設定・音量は前者、エフェクトレイヤーのパラメータは後者を使う。
 
 同じファイルで保存データの制約を配列・構造体内部まで検証し、`TimelineParameterBindingEvaluator`はCPU値として扱えるBindingだけを共通評価器へ渡す。`layerInput`はTimeline Renderer内のエフェクトレイヤーが下層の合成結果として解決する。他ドメインの入力方式を列挙せず、このスコープが扱える方式だけを受け入れる。
+
+`motion-blur.ts`はシャッター角・サンプル数の設定と検証、Sceneの端と映像クリップ境界の収集、中央露光のサンプル時刻計算を担当する。子Sceneの境界は配置の内容オフセットを反映し、表示区間内だけ親へ渡す。切り詰めた露光区間へ指定数のサンプルを等間隔で再配置するため、重みは均等で合計1となる。0・1サンプル、角度0、無効時は基準時刻を1回評価する。時間は整数msに丸めない。
+
+`render-history-effects.ts`は配置されたエフェクトとVisual Moduleの定義から`dependsOnRenderHistory`を調べる。これは警告用の検査であり、実行制限や履歴リセットの方針ではない。

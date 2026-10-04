@@ -48,7 +48,7 @@ test('round trips original asset files without a decoded data field', async () =
 		id: String(index), name: type, width: 4, height: 2,
 		fileDataType: type, fileData: new Blob([new Uint8Array([index, 42, 255])], { type }),
 	}));
-	const encoded = await encodeProjectFile({ assets, timelineScenes: [] });
+	const encoded = await encodeProjectFile({ timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16, previewSamples: 4 }, assets, timelineScenes: [] });
 	const stored = decode(encoded);
 	const restored = decodeProjectFile(encoded);
 	for (let index = 0; index < assets.length; index++) {
@@ -90,7 +90,7 @@ test('loads a MessagePack project and handles cancellation and invalid data', as
 	const cancelled = loadProjectFile();
 	input.dispatchEvent(new Event('cancel'));
 	assert.equal(await cancelled, null);
-	const project = { id: 'project', gsVersion: '2.0.0-alpha.2', name: 'Test', visualModules: [], assets: [], players: [], timelineScenes: [] };
+	const project = { timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16, previewSamples: 4 }, id: 'project', gsVersion: '2.0.0-alpha.2', name: 'Test', visualModules: [], assets: [], players: [], timelineScenes: [] };
 	const loaded = loadProjectFile();
 	input.files = [new File([encode(project)], 'test.gsproj')];
 	input.dispatchEvent(new Event('change'));

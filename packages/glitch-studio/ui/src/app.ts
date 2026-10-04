@@ -1,3 +1,4 @@
+import { DEFAULT_TIMELINE_FPS, DEFAULT_TIMELINE_MOTION_BLUR, validateTimelineFps, validateTimelineMotionBlur } from '@gs/subsystems_timeline_shared/motion-blur.ts';
 import { getSceneDuration, validateTimelineScenes } from '@gs/subsystems_timeline_shared/scenes.ts';
 import { validateTimelineEffectLayer } from '@gs/subsystems_timeline_shared/effect-layer.ts';
 import { effectDefinitions } from '@gs/subsystems_effect_shared/effect-definitions.ts';
@@ -69,7 +70,8 @@ function benchmark(count = 100, visualModuleId = appStateManager.state.visualMod
 
 (window as any).benchmark = benchmark; // debug
 
-export const fpsLimit = ref<number | null>(60);
+export const liveFpsLimit = ref<number | null>(60);
+export const timelinePreviewFpsFactor = ref(1);
 export const liveTimeFactor = ref(1);
 export const resolutionFactor = ref(1);
 export const highlightClipping = ref(false);
@@ -92,12 +94,14 @@ export const visualModuleRendererManagerController = markRaw(new VisualModuleRen
 	intermediateTextureFormat: getRendererIntermediateTextureFormat(),
 	enableStats: true,
 }, {
-	fpsLimit: fpsLimit.value,
+	fpsLimit: liveFpsLimit.value,
 	liveTimeFactor: liveTimeFactor.value,
 	highlightClipping: highlightClipping.value,
 }, audioOutput));
 
 export const timelineRendererManagerController = markRaw(new TimelineRendererManagerController({
+	timelineFps: appStateManager.state.timelineFps.value,
+	timelineMotionBlur: deepClone(appStateManager.state.timelineMotionBlur.value),
 	enable32bitDataTextures: preferences.s.enable32bitDataTextures,
 	intermediateTextureFormat: getRendererIntermediateTextureFormat(),
 }, { highlightClipping: highlightClipping.value }));
@@ -107,7 +111,7 @@ export const timelineAudioPreview = markRaw(new TimelineAudioPreview(
 	() => ({ assets: deepClone(appStateManager.state.assets.value), timelineScenes: deepClone(appStateManager.state.timelineScenes.value), sceneId: activeSceneId.value }),
 ));
 export const previewPlayback = markRaw(new PreviewPlaybackController(
-	visualModuleRendererManagerController, timelineRendererManagerController, () => fpsLimit.value,
+	visualModuleRendererManagerController, timelineRendererManagerController, () => appStateManager.state.timelineFps.value * timelinePreviewFpsFactor.value,
 	() => activeScene.value == null ? 0 : getSceneDuration(activeScene.value), timelineAudioPreview,
 ));
 watch(activeSceneId, (sceneId, previousId) => {
@@ -163,8 +167,8 @@ watch(highlightClipping, async value => {
 
 (window as any).renderer = visualModuleRendererManagerController; // debug
 
-watch(fpsLimit, () => {
-	visualModuleRendererManagerController.updateDynamicOptions({ fpsLimit: fpsLimit.value });
+watch(liveFpsLimit, () => {
+	visualModuleRendererManagerController.updateDynamicOptions({ fpsLimit: liveFpsLimit.value });
 });
 
 watch(liveTimeFactor, value => {
@@ -199,6 +203,8 @@ let savingProject = false;
 
 export async function appReady(project: Project, fileName = 'untitled.gsproj', fileHandle: FileSystemFileHandle | null = null) {
 	validateTimelineScenes(project.timelineScenes);
+	validateTimelineFps(project.timelineFps);
+	validateTimelineMotionBlur(project.timelineMotionBlur);
 	for (const scene of project.timelineScenes) for (const layer of scene.layers) {
 		if (layer.layerType === 'effect') validateTimelineEffectLayer(layer, effectDefinitions[layer.effectId]);
 	}
@@ -207,8 +213,12 @@ export async function appReady(project: Project, fileName = 'untitled.gsproj', f
 	// 画像からの新規作成とプロジェクト読込で同じ基準を使い、初回のGPU初期化にも反映する。
 	const maxDimension = Math.max(project.resolution.width, project.resolution.height);
 	const initialResolutionFactor = maxDimension > 3000 ? 0.25 : maxDimension > 1500 ? 0.5 : 1;
-	// CanvasのOffscreen転送は一度だけ行い、別のプロジェクトを開くときもWorkerを再利用する。
-	rendererInitialization ??= Promise.all([visualModuleRendererManagerController, timelineRendererManagerController].map(controller => controller.init(project.resolution, initialResolutionFactor))).then(() => {});
+	const timelineRenderSettings = { timelineFps: project.timelineFps, timelineMotionBlur: deepClone(project.timelineMotionBlur) };
+	if (rendererInitialization == null) {
+		// 初回からプロジェクトの設定を使い、既定設定で起動してすぐ再生成するのを避ける。
+		await timelineRendererManagerController.updateStaticOptions(timelineRenderSettings);
+		rendererInitialization = Promise.all([visualModuleRendererManagerController, timelineRendererManagerController].map(controller => controller.init(project.resolution, initialResolutionFactor))).then(() => {});
+	}
 	await rendererInitialization;
 
 	// 読み込み途中の状態を、直前のプロジェクトのファイルへ保存させない。
@@ -222,8 +232,14 @@ export async function appReady(project: Project, fileName = 'untitled.gsproj', f
 	await updatePreviewOptions({ assets: [] });
 	await timelineRendererManagerController.updateDynamicOptions({ sceneId: null });
 	await visualModuleRendererManagerController.updatePlayers([]);
+	// 旧プロジェクトを解放してから設定を適用し、不要な素材の再アップロードを避ける。
+	// 初回や同値の設定では再生成しない。通常編集のwatchは読込完了後に登録する。
+	await timelineRendererManagerController.updateStaticOptions(timelineRenderSettings);
 
 	appStateManager.state.resolution.value = project.resolution;
+	appStateManager.state.timelineFps.value = project.timelineFps;
+	appStateManager.state.timelineMotionBlur.value = deepClone(project.timelineMotionBlur);
+	timelinePreviewFpsFactor.value = 1;
 	resolutionFactor.value = initialResolutionFactor;
 	appStateManager.state.assets.value = project.assets;
 	appStateManager.state.visualModules.value = project.visualModules;
@@ -242,6 +258,18 @@ export async function appReady(project: Project, fileName = 'untitled.gsproj', f
 	projectInfo.value = { name: project.name, description: project.description, author: project.author };
 	projectFileName = fileName;
 	projectFileHandle = fileHandle;
+
+	// 1回のCommandで変わるfpsとブラー設定をまとめて送り、Undo/Redoも同じ再生成経路を通す。
+	projectWatchers.push(watch([appStateManager.state.timelineFps, appStateManager.state.timelineMotionBlur], async () => {
+		try {
+			await timelineRendererManagerController.updateStaticOptions({
+				timelineFps: appStateManager.state.timelineFps.value,
+				timelineMotionBlur: deepClone(appStateManager.state.timelineMotionBlur.value),
+			});
+		} catch (error) {
+			void ui.alert({ type: 'error', text: error instanceof Error ? error.message : String(error) });
+		}
+	}));
 
 	// 音声の内容・参照素材・ループ長だけを比較する。Blobは不変なので同一性で判定し、
 	// 素材名や映像パラメータの編集では再生中のWorkerと先読みPCMを維持する。
@@ -323,6 +351,8 @@ export async function saveProject(saveAs = false) {
 			players: appStateManager.state.players.value,
 			timelineScenes: appStateManager.state.timelineScenes.value,
 			resolution: appStateManager.state.resolution.value,
+			timelineFps: appStateManager.state.timelineFps.value,
+			timelineMotionBlur: appStateManager.state.timelineMotionBlur.value,
 		} satisfies Project);
 		const handle = await saveProjectFile(project, projectFileName, saveAs ? null : projectFileHandle);
 		// 保存中に別プロジェクトを開いた場合、そのプロジェクトの保存先は変更しない。
@@ -415,6 +445,8 @@ export async function newProject() {
 			automationGraphs: [],
 			name: 'Visual Module', clips: [{ id: genId(), ...createTimelineClipTiming(0, 1000 * 10) }],
 		}] }],
+		timelineFps: DEFAULT_TIMELINE_FPS,
+		timelineMotionBlur: { ...DEFAULT_TIMELINE_MOTION_BLUR },
 		resolution: { width: 1024, height: 1024 },
 	});
 }
@@ -541,6 +573,8 @@ export async function newProjectFromImageOrVideo(file?: File) {
 			automationGraphs: [],
 			name: 'Visual Module', clips: [{ id: genId(), ...createTimelineClipTiming(0, 1000 * 10) }],
 		}] }],
+		timelineFps: DEFAULT_TIMELINE_FPS,
+		timelineMotionBlur: { ...DEFAULT_TIMELINE_MOTION_BLUR },
 		resolution: { width: result.width || 1024, height: result.height || 1024 },
 	});
 

@@ -1,3 +1,5 @@
+import { validateTimelineFps, validateTimelineMotionBlur } from '@gs/subsystems_timeline_shared/motion-blur.ts';
+import type { TimelineMotionBlurSettings } from '@gs/subsystems_timeline_shared/motion-blur.ts';
 import { resolveParameter, walkParameters } from '@gs/shared/parameter/parameter-path.ts';
 import { isValueParameterBinding } from '@gs/shared/parameter/parameter-binding.ts';
 import type { ParamPath } from '@gs/shared/parameter/parameter-path.ts';
@@ -1262,6 +1264,27 @@ const addSceneCommandDef = defineCommand<TimelineScene>({
 	}),
 });
 
+const changeTimelineRenderSettingsCommandDef = defineCommand<{ timelineFps: number; timelineMotionBlur: TimelineMotionBlurSettings }>({
+	label: 'Change timeline render settings',
+	changes: () => [{ type: 'timelineRenderSettings' }],
+	create: payload => {
+		let before: typeof payload;
+		return {
+			execute(state) {
+				validateTimelineFps(payload.timelineFps);
+				validateTimelineMotionBlur(payload.timelineMotionBlur);
+				before = { timelineFps: state.timelineFps.value, timelineMotionBlur: deepClone(state.timelineMotionBlur.value) };
+				state.timelineFps.value = payload.timelineFps;
+				state.timelineMotionBlur.value = deepClone(payload.timelineMotionBlur);
+			},
+			undo(state) {
+				state.timelineFps.value = before.timelineFps;
+				state.timelineMotionBlur.value = deepClone(before.timelineMotionBlur);
+			},
+		};
+	},
+});
+
 const changeProjectResolutionCommandDef = defineCommand<Resolution>({
 	label: 'Change project resolution',
 	changes: () => [{ type: 'projectResolution' }],
@@ -1357,6 +1380,7 @@ const moveTimelineKeyframesCommandDef = defineCommand<{ sceneId: string; positio
 
 export const COMMAND_DEFS = {
 	changeProjectResolution: changeProjectResolutionCommandDef,
+	changeTimelineRenderSettings: changeTimelineRenderSettingsCommandDef,
 	changeEffectLayerResolution: changeEffectLayerResolutionCommandDef,
 	addTimelineLayer: addTimelineLayerCommandDef,
 	renameTimelineLayer: renameTimelineLayerCommandDef,

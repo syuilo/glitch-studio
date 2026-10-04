@@ -61,7 +61,7 @@ function layer(id, module, overrides = {}) {
 	};
 }
 
-function fixture(t, { present = false, disableCache = true } = {}) {
+function fixture(t, { present = false, disableCache = true, timelineFps = 60, timelineMotionBlur = { enabled: false, shutterAngle: 180, samples: 16, previewSamples: 4 } } = {}) {
 	const calls = { instances: [], renders: [], outputs: [], presented: [], statuses: [], errors: [], passes: [], writes: [] };
 	const texture = ({ size = [16, 16], format = 'rgba8unorm' } = {}) => ({
 		width: size.width ?? size[0], height: size.height ?? size[1], format,
@@ -101,17 +101,176 @@ function fixture(t, { present = false, disableCache = true } = {}) {
 				};
 			},
 		} },
-	}, { enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm' });
+	}, { timelineFps, timelineMotionBlur, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm' });
 	manager.on('ev', event => {
 		if (event.type === 'effectState') calls.statuses.push(event.ctx);
 		if (event.type === 'renderError') calls.errors.push(event.ctx.message);
 	});
 	// Canvasへの最終テクスチャ化の直前で観測し、モジュール境界でuniformが失われていないか調べる。
-	if (!present) manager.timelineRenderer.options.present = output => calls.outputs.push(output);
+	if (!present) manager.presentOutput = output => calls.outputs.push(output);
 	manager.canvasRenderer.renderToCanvas = texture => calls.presented.push(texture);
 	t.after(() => manager.destroy());
 	return { manager, calls };
 }
+
+for (const isExport of [false, true]) {
+	for (const reason of ['disabled', 'zero shutter angle', 'zero samples', 'one sample']) {
+		// 【ブラー不要時は単発描画で時刻・時間差・表示とインスタンスを維持する】
+		// サンプル数を1にするだけでは露光用の中断管理や配列生成が残るため、
+		// プレビューと書き出しの両方で複数サンプル用の経路を通らないことも確認する。
+		test(`renders ${isExport ? 'export' : 'preview'} directly with ${reason}`, async t => {
+			const settings = { enabled: reason !== 'disabled', shutterAngle: reason === 'zero shutter angle' ? 0 : 180, samples: 8, previewSamples: 4 };
+			if (reason === 'zero samples' || reason === 'one sample') {
+				settings[isExport ? 'samples' : 'previewSamples'] = reason === 'zero samples' ? 0 : 1;
+			}
+			const { manager, calls } = fixture(t, { present: true, timelineMotionBlur: settings });
+			await manager.updateDynamicOptions({
+				timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [
+					layer('layer', visualModule({ params: { localTime: expression('TIME_MS') } })),
+				] }], sceneId: 'scene',
+			});
+			const frameRender = t.mock.method(manager.frameRenderer, 'render');
+			const evaluate = t.mock.method(manager.timelineRenderer, 'evaluateAt');
+			for (const time of [200, 225]) {
+				if (isExport) await manager.renderTimelineFrame(time, 25);
+				else await manager.renderTimelineAt(time);
+			}
+			assert.equal(frameRender.mock.callCount(), 0);
+			assert.equal(evaluate.mock.callCount(), 2);
+			assert.ok(evaluate.mock.calls.every(call => call.arguments[4] === undefined));
+			assert.deepEqual(calls.renders.map(call => [call.params.localTime, call.timeDelta]), [[100, 0], [125, isExport ? 25 : 0]]);
+			assert.equal(calls.instances.length, 1);
+			assert.equal(calls.instances[0].disposed, false);
+			assert.equal(calls.presented.length, 2);
+			assert.equal(manager.motionBlurAccumulator, undefined);
+			assert.equal(manager.motionBlurBoundaries, undefined);
+			assert.deepEqual(calls.errors, []);
+		});
+	}
+
+	for (const initiallyEnabled of [false, true]) {
+		// 【設定変更による再生成後に古いフレームを表示せず、旧レイヤーと蓄積資源を破棄する】
+		// 複数サンプルの途中と通常の単発描画の両方を待機させ、新しい設定での描画後に完了させる。
+		// 旧フレームの再開による表示の巻き戻りや、後続サンプルによる新しい描画の中断を防ぐ。
+		test(`disposes pending ${isExport ? 'export' : 'preview'} before recreating with motion blur ${initiallyEnabled ? 'disabled' : 'enabled'}`, async t => {
+			const settings = { enabled: initiallyEnabled, shutterAngle: 180, samples: 4, previewSamples: 4 };
+			const { manager, calls } = fixture(t, { timelineMotionBlur: settings });
+			const pending = Promise.withResolvers();
+			const entered = Promise.withResolvers();
+			const evaluated = [];
+			let disposed = 0;
+			const createLayer = t.mock.method(manager, 'createTimelineLayer', () => ({
+				async evaluate(context, signal) {
+					evaluated.push(context.sceneTimeMs);
+					if (evaluated.length === (initiallyEnabled ? 2 : 1)) {
+						entered.resolve(signal);
+						await pending.promise;
+					}
+					return { output: { kind: 'uniform', value: [context.sceneTimeMs, 0, 0, 1] }, gpuTime: 0 };
+				},
+				destroy() { disposed++; },
+			}));
+			const dynamicOptions = {
+				timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [layer('layer', visualModule())] }], sceneId: 'scene',
+			};
+			await manager.updateDynamicOptions(dynamicOptions);
+			const render = (renderer, time) => isExport ? renderer.renderTimelineFrame(time, 25) : renderer.renderTimelineAt(time);
+			const oldFrame = render(manager, 200);
+			const oldSignal = await entered.promise;
+			manager.destroy();
+			assert.equal(oldSignal.aborted, true);
+			assert.equal(manager.motionBlurAccumulator, undefined);
+			const replacement = fixture(t, { timelineMotionBlur: { ...settings, enabled: !initiallyEnabled } });
+			await replacement.manager.updateDynamicOptions(dynamicOptions);
+			await render(replacement.manager, 700);
+			const newOutput = replacement.calls.outputs[0];
+			assert.equal(replacement.calls.outputs.length, 1);
+			if (initiallyEnabled) assert.equal(newOutput.kind, 'uniform');
+			else assert.equal(newOutput.texture.format, 'rgba16float');
+			pending.resolve();
+			await oldFrame;
+			assert.deepEqual(calls.outputs, []);
+			assert.deepEqual(replacement.calls.outputs, [newOutput]);
+			assert.equal(evaluated.length, initiallyEnabled ? 2 : 1);
+			assert.equal(createLayer.mock.callCount(), 1);
+			assert.equal(disposed, 1);
+			assert.deepEqual(calls.errors, []);
+		});
+	}
+}
+
+// 【初期化時のfpsとブラー設定を描画中は固定する】
+// 非Workerの利用でも、呼び出し元の設定オブジェクトの変更が進行中のレンダラーへ漏れてはいけない。
+// 基準fpsが既定値と異なる場合も、そのfpsに対応する露光時間で評価する。
+test('keeps initial motion blur settings and derives exposure from the static timeline fps', async t => {
+	const settings = { enabled: true, shutterAngle: 180, samples: 8, previewSamples: 4 };
+	const { manager, calls } = fixture(t, { timelineFps: 24, timelineMotionBlur: settings });
+	settings.enabled = false;
+	settings.shutterAngle = 360;
+	await manager.updateDynamicOptions({
+		timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [
+			layer('layer', visualModule({ params: { localTime: expression('TIME_MS') } })),
+		] }], sceneId: 'scene',
+	});
+	await manager.renderTimelineAt(200);
+	assert.equal(calls.renders.length, 4);
+	const firstTime = calls.renders[0].params.localTime;
+	const lastTime = calls.renders.at(-1).params.localTime;
+	assert.equal((firstTime + lastTime) / 2, 100);
+	assert.ok(Math.abs(lastTime - firstTime - (1000 / 24 * 0.5 * 3 / 4)) < 1e-8);
+});
+
+// 【子Sceneを各時刻で評価しても、露光の平均は最上位だけで行う】
+// Sceneの入れ子ごとにサンプル数が掛け合わされたり、プレビュー用サンプル数が書き出しへ漏れたりしない。
+test('samples nested scenes once per root sample and uses the export frame rate', async t => {
+	const { manager, calls } = fixture(t, { timelineMotionBlur: { enabled: true, shutterAngle: 180, samples: 8, previewSamples: 4 } });
+	const child = layer('child-layer', visualModule({ params: { localTime: expression('TIME_MS') } }));
+	const { visualModule: _, visualModuleParamValues: __, ...base } = layer('parent', visualModule());
+	const parent = { ...base, layerType: 'scene', audioParamValues: {}, clips: [{ id: 'clip', startMs: 100, durationMs: 1000, contentOffsetMs: 250, sceneId: 'child' }] };
+	await manager.updateDynamicOptions({
+		timelineScenes: [
+			{ id: 'root', name: 'Root', resolution: { mode: 'project' }, layers: [parent] },
+			{ id: 'child', name: 'Child', resolution: { mode: 'project' }, layers: [child] },
+		], sceneId: 'root',
+	});
+	await manager.renderTimelineAt(400);
+	assert.equal(calls.outputs.length, 1);
+	assert.equal(calls.renders.length, 4);
+	assert.ok(calls.renders.every(call => call.params.localTime > 445 && call.params.localTime < 455));
+	const previewSpan = calls.renders.at(-1).params.localTime - calls.renders[0].params.localTime;
+	calls.renders.length = 0;
+	await manager.renderTimelineFrame(400, 0, 30);
+	assert.equal(calls.outputs.length, 2);
+	assert.equal(calls.renders.length, 8);
+	const exportSpan = calls.renders.at(-1).params.localTime - calls.renders[0].params.localTime;
+	assert.ok(Math.abs(exportSpan * 8 / 7 - 2 * previewSpan * 4 / 3) < 1e-8);
+	assert.equal(calls.outputs.at(-1).texture.format, 'rgba16float');
+	const firstTarget = calls.outputs.at(-1).texture;
+	// リサイズは蓄積先も再作成し、古い寸法の画面を再利用しない。
+	await manager.updateDynamicOptions({ resolution: { width: 32, height: 24 } });
+	assert.equal(firstTarget.destroyed, true);
+	await manager.renderTimelineAt(400);
+	assert.equal(calls.outputs.at(-1).texture.width, 32);
+	assert.equal(calls.outputs.at(-1).texture.height, 24);
+	assert.deepEqual(calls.errors, []);
+});
+
+// 【クリップ編集後は境界を再収集する】
+// 古い境界がキャッシュに残ると、編集済みカットの前後が混ざったり無関係な位置で露光が切れる。
+test('invalidates cut boundaries after edits', async t => {
+	const { manager, calls } = fixture(t, { timelineMotionBlur: { enabled: true, shutterAngle: 360, samples: 8, previewSamples: 4 } });
+	const entry = layer('layer', visualModule({ params: { localTime: expression('TIME_MS') } }));
+	await manager.updateDynamicOptions({ timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [entry] }], sceneId: 'scene' });
+	await manager.renderTimelineAt(200);
+	assert.ok(calls.renders[0].params.localTime < 100);
+	const edited = structuredClone(entry);
+	edited.clips = [{ id: 'first', startMs: 100, contentOffsetMs: 0, durationMs: 100 }, { id: 'second', startMs: 200, contentOffsetMs: 100, durationMs: 900 }];
+	manager.applyProjectChanges([{ type: 'layer', sceneId: 'scene', layerId: 'layer', layer: edited, changes: [{ type: 'clips' }] }]);
+	calls.renders.length = 0;
+	await manager.renderTimelineAt(200);
+	assert.equal(calls.renders.length, 4);
+	assert.ok(calls.renders.every(call => call.params.localTime > 100));
+});
 
 // 【共有Moduleの差分は各配置へ反映し、引数編集では配置ごとの履歴とキャッシュを保持する】
 // 同じModuleの二つのクリップは別インスタンスだが、定義編集は両方へ届く必要がある。

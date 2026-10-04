@@ -29,7 +29,7 @@
 			<div :class="$style.footerItem">sRGB</div>
 			<button :class="$style.footerItem" class="_button" @click="openProjectSettings">Proj: {{ appStateManager.state.resolution.value.width }} x {{ appStateManager.state.resolution.value.height }} px</button>
 			<button :class="$style.footerItem" class="_button" @click="openResolutionFactorMenu">Preview: {{ resolutionFactor }}x ({{ Math.round(appStateManager.state.resolution.value.width * resolutionFactor) }} x {{ Math.round(appStateManager.state.resolution.value.height * resolutionFactor) }} px)</button>
-			<button :class="$style.footerItem" class="_button" @click="openFpsMenu">{{ previewPlayback.state.value.mode === 'live' ? `${Math.round(visualModuleRendererManagerController.fpsDisplay.value)}fps` : `FPS limit: ${fpsLimit ?? 'Unlimited'}` }}</button>
+			<button :class="$style.footerItem" class="_button" @click="openFpsMenu">{{ previewPlayback.state.value.mode === 'live' ? `LIVE: ${Math.round(visualModuleRendererManagerController.fpsDisplay.value)}fps` : `Timeline: ${timelinePreviewFpsFactor}x (${appStateManager.state.timelineFps.value * timelinePreviewFpsFactor}fps)` }}</button>
 			<button v-if="previewPlayback.state.value.mode === 'live'" :class="$style.footerItem" class="_button" @click="openTimeFactorMenu">TIME: {{ liveTimeFactor }}x</button>
 			<div :class="[$style.footerItem, $style.previewVolume]">
 				<i :class="previewVolume === 0 ? 'ti ti-volume-off' : 'ti ti-volume'"></i>
@@ -52,7 +52,7 @@
 
 <script lang="ts" setup>
 import { computed, nextTick, onMounted, onBeforeUnmount, ref, shallowRef, useTemplateRef, watch } from 'vue';
-import { audioOutput, activePreviewRenderer, previewPlayback, visualModuleRendererManagerController, resolutionFactor, fpsLimit, liveTimeFactor, appStateManager, projectInfo, openProject, saveProject } from './app.ts';
+import { audioOutput, activePreviewRenderer, previewPlayback, visualModuleRendererManagerController, resolutionFactor, liveFpsLimit, timelinePreviewFpsFactor, liveTimeFactor, appStateManager, projectInfo, openProject, saveProject } from './app.ts';
 import { preferences } from './preferences.ts';
 import GsRange from './components/common/GsRange.vue';
 import GsAboutDialog from '@/components/GsAboutDialog.vue';
@@ -210,31 +210,40 @@ function openResolutionFactorMenu(ev: PointerEvent) {
 }
 
 function openFpsMenu(ev: PointerEvent) {
+	if (previewPlayback.state.value.mode === 'timeline') {
+		ui.popupMenu([0.5, 1, 2].map(factor => ({
+			type: 'radioOption' as const,
+			text: factor + 'x (' + appStateManager.state.timelineFps.value * factor + 'fps)',
+			active: computed(() => timelinePreviewFpsFactor.value === factor),
+			action: () => { timelinePreviewFpsFactor.value = factor; },
+		})), ev.currentTarget ?? ev.target);
+		return;
+	}
 	ui.popupMenu([{
 		type: 'radioOption',
-		text: 'Max',
-		active: computed(() => fpsLimit.value === null),
-		action: () => fpsLimit.value = null,
+		text: 'LIVE: Unlimited',
+		active: computed(() => liveFpsLimit.value === null),
+		action: () => liveFpsLimit.value = null,
 	}, {
 		type: 'radioOption',
-		text: '120fps',
-		active: computed(() => fpsLimit.value === 120),
-		action: () => fpsLimit.value = 120,
+		text: 'LIVE: 120fps',
+		active: computed(() => liveFpsLimit.value === 120),
+		action: () => liveFpsLimit.value = 120,
 	}, {
 		type: 'radioOption',
-		text: '60fps',
-		active: computed(() => fpsLimit.value === 60),
-		action: () => fpsLimit.value = 60,
+		text: 'LIVE: 60fps',
+		active: computed(() => liveFpsLimit.value === 60),
+		action: () => liveFpsLimit.value = 60,
 	}, {
 		type: 'radioOption',
-		text: '30fps',
-		active: computed(() => fpsLimit.value === 30),
-		action: () => fpsLimit.value = 30,
+		text: 'LIVE: 30fps',
+		active: computed(() => liveFpsLimit.value === 30),
+		action: () => liveFpsLimit.value = 30,
 	}, {
 		type: 'radioOption',
-		text: '15fps',
-		active: computed(() => fpsLimit.value === 15),
-		action: () => fpsLimit.value = 15,
+		text: 'LIVE: 15fps',
+		active: computed(() => liveFpsLimit.value === 15),
+		action: () => liveFpsLimit.value = 15,
 	}], ev.currentTarget ?? ev.target);
 }
 

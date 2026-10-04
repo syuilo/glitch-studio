@@ -48,6 +48,7 @@ export type VisualModuleRendererManagerDynamicOptions = {
 	/** 透過非対応の出力用に、乗算済みRGBを黒背景へ合成する。 */
 	opaqueOutput: boolean;
 	liveTimeFactor: number;
+	/** Visual ModuleのLIVE専用の描画頻度上限。タイムラインには適用しない。 */
 	fpsLimit: number | null;
 	assets: Asset[];
 	visualModules: ProjectVisualModule[];

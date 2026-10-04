@@ -1,3 +1,4 @@
+import { DEFAULT_TIMELINE_FPS, DEFAULT_TIMELINE_MOTION_BLUR } from '@gs/subsystems_timeline_shared/motion-blur.ts';
 import { shallowRef } from 'vue';
 import { computed, ref } from 'vue';
 import { deepClone } from '@gs/shared/utility/deep-clone.js';
@@ -34,6 +35,8 @@ export class AppStateManager {
 
 	constructor() {
 		this.state = {
+			timelineFps: ref(DEFAULT_TIMELINE_FPS),
+			timelineMotionBlur: ref({ ...DEFAULT_TIMELINE_MOTION_BLUR }),
 			resolution: ref<{ width: number; height: number }>({ width: 1024, height: 1024 }),
 			assets: ref<Asset[]>([]), // TODO: バイナリをリアクティブでwrapするのをやめる
 			players: ref<Player[]>([]),

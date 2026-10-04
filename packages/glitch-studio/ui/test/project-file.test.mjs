@@ -55,9 +55,12 @@ const appBundle = await build({
 					export class VisualModuleRendererManagerController {
 						isReady = ref(false); errorMessage = ref(null);
 						updates = []; renders = []; lifecycle = [];
+						staticUpdates = [];
 						patches = []; snapshots = [];
 						options = {};
+						constructor(staticOptions) { this.staticOptions = deepClone(staticOptions); }
 						async init(resolution, resolutionScale) {
+							this.initialStaticOptions = deepClone(this.staticOptions);
 							this.initialResolution = resolution;
 							this.initialResolutionScale = resolutionScale;
 							this.isReady.value = true;
@@ -67,7 +70,11 @@ const appBundle = await build({
 							Object.assign(this.options, options);
 							return { assetsCommitted: true };
 						}
-						async updateStaticOptions() {} async updatePlayers() {}
+						async updateStaticOptions(options) {
+							this.staticUpdates.push(deepClone(options));
+							Object.assign(this.staticOptions, deepClone(options));
+						}
+						async updatePlayers() {}
 						async replaceProjectState(state) {
 							const snapshot = deepClone(state);
 							this.snapshots.push(snapshot);
@@ -98,11 +105,119 @@ const appBundle = await build({
 
 function project(overrides = {}) {
 	return {
+		timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16, previewSamples: 4 },
 		id: 'project-id', gsVersion: '2.0.0-alpha.2', name: 'Example', description: 'First line\n日本語の説明', author: 'Author',
 		assets: [], players: [], visualModules: [], timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [] }], resolution: { width: 640, height: 480 },
 		...overrides,
 	};
 }
+
+// 【描画設定を保存・復元し、Undo/Redoでもタイムラインだけへ同期する】
+// プレビュー用の値だけが変わって保存から漏れたり、LIVE側のfps制限を書き換えたりしないことを保証する。
+test('persists timeline render settings and synchronizes undo and redo without changing LIVE', async t => {
+	const window = setup(t);
+	const app = evaluate(appBundle);
+	await app.newProject();
+	const manager = app.appStateManager;
+	const notifications = [];
+	manager.onChange(changes => notifications.push(changes));
+	const settings = { timelineFps: 29.97, timelineMotionBlur: { enabled: true, shutterAngle: 270, samples: 32, previewSamples: 0 } };
+	const live = app.visualModuleRendererManagerController;
+	const timeline = app.timelineRendererManagerController;
+	live.updates.length = 0;
+	live.staticUpdates.length = 0;
+	timeline.staticUpdates.length = 0;
+	timeline.updates.length = 0;
+	manager.commit('changeTimelineRenderSettings', settings);
+	await nextTick();
+	assert.equal(timeline.staticOptions.timelineFps, 29.97);
+	assert.deepEqual(timeline.staticOptions.timelineMotionBlur, settings.timelineMotionBlur);
+	assert.deepEqual(timeline.staticUpdates, [settings]);
+	assert.equal(timeline.updates.length, 0);
+	assert.equal(live.updates.length, 0);
+	assert.equal(live.staticUpdates.length, 0);
+	manager.undo();
+	await nextTick();
+	assert.equal(timeline.staticOptions.timelineFps, 60);
+	assert.equal(manager.state.timelineMotionBlur.value.enabled, false);
+	manager.redo();
+	await nextTick();
+	assert.equal(timeline.staticOptions.timelineFps, 29.97);
+	assert.equal(timeline.staticUpdates.length, 3);
+	assert.deepEqual(notifications, Array.from({ length: 3 }, () => [{ type: 'timelineRenderSettings' }]));
+	const handle = fileHandle('motion-blur.gsproj');
+	window.showSaveFilePicker = async () => handle;
+	await app.saveProject();
+	const saved = decodeProjectFile(handle.bytes);
+	assert.equal(saved.timelineFps, 29.97);
+	assert.deepEqual(saved.timelineMotionBlur, settings.timelineMotionBlur);
+	assert.equal('timelinePreviewFpsFactor' in saved, false);
+	await app.newProject();
+	window.showOpenFilePicker = async () => [handle];
+	assert.equal(await app.openProject(), true);
+	assert.deepEqual(manager.state.timelineMotionBlur.value, settings.timelineMotionBlur);
+	assert.equal(manager.state.timelineFps.value, 29.97);
+	assert.equal(timeline.staticOptions.timelineFps, 29.97);
+	assert.equal('timelineFps' in timeline.options, false);
+	assert.equal('timelineMotionBlur' in timeline.options, false);
+	assert.throws(() => manager.commit('changeTimelineRenderSettings', { ...settings, timelineFps: 0 }));
+	assert.equal(manager.state.timelineFps.value, 29.97);
+});
+
+// 【初回生成から読み込んだプロジェクトのfpsとブラー設定を使う】
+// 既定値で起動してからwatchで再生成すると、初回表示が遅れ、読込中の動的更新も中断される。
+test('uses project render settings for the initial renderer creation', async t => {
+	setup(t);
+	const app = evaluate(appBundle);
+	const loaded = project({ timelineFps: 24, timelineMotionBlur: { enabled: true, shutterAngle: 90, samples: 8, previewSamples: 2 } });
+	await app.appReady(loaded);
+	const timeline = app.timelineRendererManagerController;
+	assert.equal(timeline.initialStaticOptions.timelineFps, 24);
+	assert.deepEqual(timeline.initialStaticOptions.timelineMotionBlur, loaded.timelineMotionBlur);
+	assert.ok(timeline.updates.every(options => !('timelineFps' in options) && !('timelineMotionBlur' in options)));
+});
+
+// 【倍率はタイムラインの描画頻度だけを変更し、LIVEのfps制限は干渉しない】
+// appの実際の接続と再生スケジューラを使い、独立した設定が再び混線するのを防ぐ。
+test('applies timeline preview factors independently of the LIVE fps limit', async t => {
+	const window = setup(t);
+	const callbacks = new Map();
+	let nextId = 0;
+	window.requestAnimationFrame = callback => { const id = ++nextId; callbacks.set(id, callback); return id; };
+	window.cancelAnimationFrame = id => callbacks.delete(id);
+	const app = evaluate(appBundle);
+	await app.newProject();
+	t.after(() => app.previewPlayback.dispose());
+	app.timelineRendererManagerController.staticUpdates.length = 0;
+	const measure = (factor, liveFpsLimit) => {
+		app.previewPlayback.pauseTimeline();
+		app.previewPlayback.seekTimeline(0);
+		app.timelinePreviewFpsFactor.value = factor;
+		app.liveFpsLimit.value = liveFpsLimit;
+		app.previewPlayback.playTimeline();
+		const timeline = app.timelineRendererManagerController;
+		timeline.renders.length = 0;
+		for (let time = 0; time <= 1000; time++) {
+			app.timelineAudioPreview.time = time;
+			const [id, callback] = callbacks.entries().next().value;
+			callbacks.delete(id);
+			callback(time);
+		}
+		const count = timeline.renders.length;
+		assert.ok(app.previewPlayback.currentTimelineTime.value >= 1000 - 1000 / (60 * factor) - 1);
+		app.previewPlayback.pauseTimeline();
+		return count;
+	};
+	for (const factor of [0.5, 1, 2]) {
+		const limited = measure(factor, 1);
+		const unlimited = measure(factor, null);
+		assert.equal(limited, unlimited);
+		assert.ok(Math.abs(limited - 60 * factor) <= 1, `factor ${factor}: ${limited}`);
+	}
+	assert.equal(app.appStateManager.state.timelineFps.value, 60);
+	await nextTick();
+	assert.equal(app.timelineRendererManagerController.staticUpdates.length, 0);
+});
 
 // 【Scene参照と内容時刻を保存後も維持する】
 // 保存・読込で配置のトリムを再計算すると、同じSceneを使った複数の演出がずれてしまう。

@@ -1,3 +1,5 @@
+import type { TimelineMotionBlurSettings } from '@gs/subsystems_timeline_shared/motion-blur.ts';
+import { validateTimelineFps, validateTimelineMotionBlur } from '@gs/subsystems_timeline_shared/motion-blur.ts';
 import { validateTimelineScenes } from '@gs/subsystems_timeline_shared/scenes.ts';
 import * as msgpack from '@msgpack/msgpack';
 import semverGt from 'semver/functions/gt.js';
@@ -14,6 +16,8 @@ export type ProjectInfo = {
 };
 
 export type Project = ProjectInfo & {
+	timelineFps: number;
+	timelineMotionBlur: TimelineMotionBlurSettings;
 	id: string;
 	gsVersion: string;
 	visualModules: ProjectVisualModule[];
@@ -43,6 +47,8 @@ export function decodeProjectFile(bin: Uint8Array, currentVersion?: string): Pro
 		throw new Error(`未来のバージョンのプロジェクトファイルの読み込みはサポートしていません。（ファイル: ${project.gsVersion} / 現在: ${currentVersion}）`);
 	}
 	validateTimelineScenes(project.timelineScenes);
+	validateTimelineFps(project.timelineFps);
+	validateTimelineMotionBlur(project.timelineMotionBlur);
 	return {
 		...project,
 		assets: project.assets.map(asset => ({

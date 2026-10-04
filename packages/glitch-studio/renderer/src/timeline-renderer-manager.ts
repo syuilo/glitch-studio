@@ -1,3 +1,6 @@
+import { validateTimelineFps, validateTimelineMotionBlur, getTimelineMotionBlurBoundaries, getTimelineSampleTimes } from '@gs/subsystems_timeline_shared/motion-blur.ts';
+import { TimelineFrameRenderer } from '@gs/subsystems_timeline_renderer/timeline-frame-renderer.ts';
+import { createMotionBlurAccumulator } from '@gs/subsystems_timeline_renderer/motion-blur-accumulator.ts';
 import { scaleResolution, type Resolution } from '@gs/shared/resolution.ts';
 import { getTimelineScene, validateTimelineLayer, validateTimelineScenes } from '@gs/subsystems_timeline_shared/scenes.ts';
 import { applyRendererProjectChanges, findRendererVisualModule } from '@gs/glitch-studio_shared/project/renderer-state.ts';
@@ -21,6 +24,7 @@ import { createVideoTimelineLayer } from '@gs/subsystems_timeline_renderer/video
 import { TimelineRenderer } from '@gs/subsystems_timeline_renderer/timeline-renderer.ts';
 import { TimelinePreviewScheduler } from '@gs/subsystems_timeline_renderer/timeline-preview-scheduler.ts';
 import defaultVertexShaderCode from '@gs/shared/gpu/vertex.wgsl?raw';
+import type { TimelineMotionBlurSettings } from '@gs/subsystems_timeline_shared/motion-blur.ts';
 import type { VisualModuleTarget } from '@gs/glitch-studio_shared/project/visual-module-target.ts';
 import type { RendererProjectChange, RendererProjectState } from '@gs/glitch-studio_shared/project/renderer-state.ts';
 import type { ProjectVisualModule } from '@gs/glitch-studio_shared/project/types.ts';
@@ -38,6 +42,8 @@ import type { EffectDefinition } from '@gs/subsystems_effect_shared/effect-defin
  * 初期化時に決まっている必要がある設定情報
  */
 export type TimelineRendererManagerStaticOptions = {
+	timelineFps: number;
+	timelineMotionBlur: TimelineMotionBlurSettings;
 	enable32bitDataTextures: boolean;
 	/** 画像の中間テクスチャ形式。Canvas・データ用テクスチャには適用しない。 */
 	intermediateTextureFormat: IntermediateTextureFormat;
@@ -78,6 +84,9 @@ export class TimelineRendererManager extends EventEmitter<{
 }> {
 	private timelineRenderer: TimelineRenderer<UniformOrTexture, TimelineLayer>;
 	private previewRenderGeneration = 0;
+	private frameRenderer: TimelineFrameRenderer<UniformOrTexture>;
+	private motionBlurAccumulator: ReturnType<typeof createMotionBlurAccumulator> | undefined;
+	private motionBlurBoundaries: number[] | undefined;
 	private nextTimelineLayerStatusId = 0;
 	private previewScheduler = new TimelinePreviewScheduler(time => this.renderPreviewFrame(time));
 	private gpuContext: GPUCanvasContext;
@@ -117,7 +126,9 @@ export class TimelineRendererManager extends EventEmitter<{
 	}, staticOptions: TimelineRendererManagerStaticOptions) {
 		super();
 
-		this.staticOptions = { ...staticOptions };
+		validateTimelineFps(staticOptions.timelineFps);
+		validateTimelineMotionBlur(staticOptions.timelineMotionBlur);
+		this.staticOptions = { ...staticOptions, timelineMotionBlur: { ...staticOptions.timelineMotionBlur } };
 
 		this.gpuDevice = coreConfig.gpuDevice;
 		this.assetTextures = new AssetTextures(this.gpuDevice);
@@ -155,18 +166,40 @@ export class TimelineRendererManager extends EventEmitter<{
 			fallbackOutput: { kind: 'uniform', value: [0, 0, 0, 0] },
 			createLayer: (entry, clipId) => this.createTimelineLayer(entry, clipId, [entry.id], this.sceneBaseResolution),
 			getLayerVersion: (entry, clipId) => this.getLayerVersion(this.dynamicOptions.sceneId!, entry, clipId),
-			present: (output, gpuTime) => {
-				const commandEncoder = this.gpuDevice.createCommandEncoder();
-				this.sceneOutput ??= createSceneOutput({ device: this.gpuDevice, vertex: this.defaultVertexShaderModule,
-																																													resolution: this.renderResolution, format: this.staticOptions.intermediateTextureFormat });
-				const tex = this.sceneOutput.render(commandEncoder, output);
-				this.canvasRenderer.renderToCanvas(tex, commandEncoder);
-				this.gpuDevice.queue.submit([commandEncoder.finish()]);
-			},
+			present: output => this.presentOutput(output),
 			onClear: () => {
 				this.canvasRenderer.clear();
 			},
 		});
+		this.frameRenderer = new TimelineFrameRenderer({
+			evaluate: (time, delta, isExport, signal) => this.timelineRenderer.evaluateAt(time, this.getSceneLayers(), delta, isExport, signal),
+			accumulate: (output, index) => {
+				this.motionBlurAccumulator ??= createMotionBlurAccumulator({
+					device: this.gpuDevice,
+					vertex: this.defaultVertexShaderModule,
+					resolution: this.renderResolution,
+					enable32bitDataTextures: this.staticOptions.enable32bitDataTextures,
+				});
+				const encoder = this.gpuDevice.createCommandEncoder();
+				const averaged = this.motionBlurAccumulator.add(encoder, output, index);
+				// 借用した出力は次の評価で上書き・破棄され得るので、必ず先にGPUへ送信する。
+				this.gpuDevice.queue.submit([encoder.finish()]);
+				return averaged;
+			},
+			present: output => this.presentOutput(output),
+		});
+	}
+
+	private presentOutput(output: UniformOrTexture) {
+		const encoder = this.gpuDevice.createCommandEncoder();
+		this.sceneOutput ??= createSceneOutput({
+			device: this.gpuDevice,
+			vertex: this.defaultVertexShaderModule,
+			resolution: this.renderResolution,
+			format: this.staticOptions.intermediateTextureFormat,
+		});
+		this.canvasRenderer.renderToCanvas(this.sceneOutput.render(encoder, output), encoder);
+		this.gpuDevice.queue.submit([encoder.finish()]);
 	}
 
 	// 毎フレーム通知を発生させないように前回から変わっている場合のみ通知
@@ -177,6 +210,10 @@ export class TimelineRendererManager extends EventEmitter<{
 	}
 
 	private clearTimelineRenderers() {
+		this.frameRenderer.clear();
+		this.motionBlurBoundaries = undefined;
+		this.motionBlurAccumulator?.dispose();
+		this.motionBlurAccumulator = undefined;
 		this.previewScheduler.clear();
 		this.previewRenderGeneration++;
 		this.timelineRenderer.clear();
@@ -273,12 +310,16 @@ export class TimelineRendererManager extends EventEmitter<{
 		this.previewScheduler.clear();
 		this.previewRenderGeneration++;
 		this.timelineRenderer.cancelPendingRender();
+		this.frameRenderer.cancel();
+		this.motionBlurBoundaries = undefined;
 		Object.assign(this.dynamicOptions, next);
 		this.projectVersions.apply(changes);
 		if (!next.timelineScenes.some(scene => scene.id === this.dynamicOptions.sceneId)) {
 			this.dynamicOptions.sceneId = null;
 			this.clearTimelineRenderers();
 		} else if (resolution != null) {
+			this.motionBlurAccumulator?.dispose();
+			this.motionBlurAccumulator = undefined;
 			this.sceneOutput?.dispose();
 			this.sceneOutput = undefined;
 			this.gpuContext.canvas.width = resolution.width;
@@ -325,7 +366,7 @@ export class TimelineRendererManager extends EventEmitter<{
 		const generation = ++this.previewRenderGeneration;
 		try {
 			if (!Number.isFinite(time)) throw new Error('Timeline time must be finite');
-			await this.timelineRenderer.renderAt(time, this.getSceneLayers());
+			await this.renderFrame(time, false);
 			// 中断されたシークの完了で、新しい描画のエラーを消さない。
 			if (generation === this.previewRenderGeneration) this.setRenderError(null);
 			return true;
@@ -336,8 +377,24 @@ export class TimelineRendererManager extends EventEmitter<{
 	}
 
 	/** 専用インスタンスで順番に呼び、フレーム間の履歴と一定の経過時間を保持する。 */
-	public async renderTimelineFrame(time: number, timeDelta: number): Promise<void> {
-		await this.timelineRenderer.renderAt(time, this.getSceneLayers(), timeDelta, true);
+	public async renderTimelineFrame(time: number, timeDelta: number, fps = this.staticOptions.timelineFps): Promise<void> {
+		// 書き出しfpsはプロジェクト基準とは別に指定できるため、呼び出し境界で検証する。
+		validateTimelineFps(fps);
+		await this.renderFrame(time, true, fps, timeDelta);
+	}
+
+	private renderFrame(time: number, isExport: boolean, fps = this.staticOptions.timelineFps, initialTimeDelta = 0) {
+		const settings = this.staticOptions.timelineMotionBlur;
+		if (!settings.enabled || settings.shutterAngle === 0 || (isExport ? settings.samples : settings.previewSamples) <= 1) {
+			// 単発描画ではサンプル配列や露光全体用の中断管理を作らない。
+			// 直前の複数サンプル描画が待機中なら、残りの評価・表示も止める。
+			this.frameRenderer.cancel();
+			return this.timelineRenderer.renderAt(time, this.getSceneLayers(), initialTimeDelta, isExport);
+		}
+		this.motionBlurBoundaries ??= this.dynamicOptions.sceneId == null ? []
+			: getTimelineMotionBlurBoundaries(this.dynamicOptions.timelineScenes, this.dynamicOptions.sceneId);
+		const times = getTimelineSampleTimes(time, fps, settings, !isExport, this.motionBlurBoundaries);
+		return this.frameRenderer.render(times, isExport, initialTimeDelta);
 	}
 
 	private get renderResolution(): Resolution {

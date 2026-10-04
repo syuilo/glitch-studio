@@ -87,9 +87,9 @@ function timelineFixture(t) {
 			outputTextureFactories: { output: ({ resolution }) => texture({ size: resolution }) },
 			init: () => ({ render: ctx => calls.renders.push(ctx), dispose() {} }),
 		} },
-	}, { enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm' });
+	}, { timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16, previewSamples: 4 }, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm' });
 	manager.on('ev', event => { if (event.type === 'renderError') calls.errors.push(event.ctx.message); });
-	manager.timelineRenderer.options.present = output => calls.outputs.push(output);
+	manager.presentOutput = output => calls.outputs.push(output);
 	t.after(() => manager.destroy());
 	return { ...fixture, manager };
 }

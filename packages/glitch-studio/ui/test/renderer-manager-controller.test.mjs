@@ -61,6 +61,7 @@ function fixture(t, kind = 'VisualModule') {
 		dependencies: { createWorker() { const worker = new FakeWorker(); workers.push(worker); return worker; } },
 	});
 	const controller = new module.exports[kind + 'RendererManagerController']({
+		...(kind === 'Timeline' ? { timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16, previewSamples: 4 } } : {}),
 		enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm', enableStats: false,
 	}, { assets: [], fpsLimit: null });
 	t.after(() => controller.destroy());
@@ -75,6 +76,83 @@ async function initialize(controller, workers) {
 	await ready;
 	return worker;
 }
+
+// 【fpsとモーションブラーを一度の再生成で反映し、同値の適用では再生成しない】
+// 1回の設定適用やUndoでWorkerを二重生成せず、旧Workerの完了通知で表示を巻き戻さない。
+test('recreates the timeline once for combined render settings and ignores unchanged settings', async t => {
+	const { controller, workers } = fixture(t, 'Timeline');
+	const oldWorker = await initialize(controller, workers);
+	const previousCanvas = controller.canvas;
+	const settings = { timelineFps: 24, timelineMotionBlur: { enabled: true, shutterAngle: 270, samples: 32, previewSamples: 8 } };
+	const ready = controller.updateStaticOptions(settings);
+	assert.equal(oldWorker.terminated, true);
+	const replacement = workers[1];
+	const initial = await replacement.initialization.promise;
+	assert.equal(initial.staticOptions.timelineFps, 24);
+	assert.deepEqual(initial.staticOptions.timelineMotionBlur, settings.timelineMotionBlur);
+	assert.equal('timelineFps' in initial.dynamicOptions, false);
+	assert.equal('timelineMotionBlur' in initial.dynamicOptions, false);
+	const sameSettings = controller.updateStaticOptions(structuredClone(settings));
+	oldWorker.reply({ type: 'inited' });
+	assert.equal(controller.isReady.value, false);
+	replacement.reply({ type: 'inited' });
+	await Promise.all([ready, sameSettings]);
+	await controller.updateStaticOptions(structuredClone(settings));
+	assert.equal(workers.length, 2);
+	assert.notEqual(controller.canvas, previousCanvas);
+	assert.equal(controller.canvasRevision.value, 1);
+	assert.equal(controller.isReady.value, true);
+});
+
+// 【初期設定の送信前に変わった値は最初のWorkerへまとめる】
+// 初期化中という理由だけで再生成すると、プロジェクト読込で不要なGPU初期化を繰り返す。
+test('absorbs static timeline changes before the initial snapshot', async t => {
+	const { controller, workers } = fixture(t, 'Timeline');
+	const ready = controller.init({ width: 16, height: 16 });
+	const changed = controller.updateStaticOptions({ timelineFps: 30 });
+	const initial = await workers[0].initialization.promise;
+	assert.equal(initial.staticOptions.timelineFps, 30);
+	workers[0].reply({ type: 'inited' });
+	await Promise.all([ready, changed]);
+	assert.equal(workers.length, 1);
+});
+
+// 【再生成中のUndo/Redoでも最後の設定を取りこぼさない】
+// 初期スナップショット送信後の変更は動的更新できないため、次の生成へ集約して反映する。
+// 最初のreloadのPromiseを返すだけでは古い設定のWorkerが残ってしまう。
+test('recreates again with the latest timeline settings changed after the snapshot', async t => {
+	const { controller, workers } = fixture(t, 'Timeline');
+	await initialize(controller, workers);
+	const first = controller.updateStaticOptions({ timelineFps: 24 });
+	await workers[1].initialization.promise;
+	const undone = controller.updateStaticOptions({ timelineFps: 60 });
+	const latestBlur = { enabled: true, shutterAngle: 90, samples: 8, previewSamples: 2 };
+	const latest = controller.updateStaticOptions({ timelineFps: 48, timelineMotionBlur: latestBlur });
+	// 呼び出し元による変更で、保持した初期化設定を後から書き換えない。
+	latestBlur.shutterAngle = 360;
+	workers[1].reply({ type: 'inited' });
+	await setImmediate();
+	assert.equal(workers[1].terminated, true);
+	const initial = await workers[2].initialization.promise;
+	assert.equal(initial.staticOptions.timelineFps, 48);
+	assert.equal(initial.staticOptions.timelineMotionBlur.shutterAngle, 90);
+	workers[2].reply({ type: 'inited' });
+	await Promise.all([first, undone, latest]);
+	assert.equal(workers.length, 3);
+	assert.equal(controller.isReady.value, true);
+});
+
+// 【不正な描画設定では動作中のWorkerを破棄しない】
+// 検証をWorkerの初期化だけに任せると、入力ミスで正常なプレビューまで失われる。
+test('rejects invalid static timeline settings before recreating the renderer', async t => {
+	const { controller, workers } = fixture(t, 'Timeline');
+	const worker = await initialize(controller, workers);
+	await assert.rejects(controller.updateStaticOptions({ timelineFps: 0 }), /frame rate/);
+	await assert.rejects(controller.updateStaticOptions({ timelineMotionBlur: { enabled: true, shutterAngle: 361, samples: 8, previewSamples: 4 } }), /Motion blur/);
+	assert.equal(worker.terminated, false);
+	assert.equal(workers.length, 1);
+	assert.equal(controller.isReady.value, true);
+});
 
 // 【初期スナップショット前の差分は吸収し、それ以降の差分だけを送信する】
 // Worker生成待ちの間に「編集→削除」が起きた場合、削除済みノードへの更新を再送してはいけない。

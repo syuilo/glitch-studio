@@ -21,6 +21,45 @@ const { TimelineRenderer } = await load('@gs/subsystems_timeline_renderer/timeli
 const { createVisualModuleTimelineLayer } = await load('@gs/subsystems_timeline_renderer/visual-module-timeline-layer.ts');
 const { createTimelineCompositor } = await load('@gs/subsystems_timeline_renderer/timeline-compositor.ts');
 const { createImageTimelineLayer } = await load('@gs/subsystems_timeline_renderer/image-timeline-layer.ts');
+const { createMotionBlurAccumulator } = await load('@gs/subsystems_timeline_renderer/motion-blur-accumulator.ts');
+
+// 【モーションブラーは浮動小数点の平均を保持し、読み書きを別テクスチャへ分ける】
+// 8bit蓄積による階調劣化・同一パスの読み書き競合・借用入力の破棄を防ぐ。
+// GPU実行ではなく、実際のpipeline・binding構築を通して資源の契約を検証する。
+test('accumulates motion blur using separate floating point targets and normalized weights', () => {
+	for (const enable32bitDataTextures of [false, true]) {
+		const { device, calls } = gpuFixture();
+		const passes = [];
+		const encoder = { beginRenderPass(descriptor) {
+			const pass = { descriptor, groups: [], setPipeline(pipeline) { this.pipeline = pipeline; }, setBindGroup(index, group) { this.groups[index] = group; }, draw() {}, end() {} };
+			passes.push(pass);
+			return pass;
+		} };
+		const accumulator = createMotionBlurAccumulator({ device, vertex: {}, resolution: { width: 20, height: 10 }, enable32bitDataTextures });
+		const source = device.createTexture({ size: [20, 10], format: 'rgba8unorm' });
+		const outputs = [];
+		for (const index of [0, 1, 2, 0]) {
+			outputs.push(accumulator.add(encoder, index === 0 ? { kind: 'uniform', value: [0.5, 0, 0, 0.5] } : { kind: 'texture', texture: source }, index));
+		}
+		assert.equal(calls.textures.length, 3);
+		assert.equal(outputs[0].texture, outputs[2].texture);
+		assert.equal(outputs[0].texture, outputs[3].texture);
+		assert.notEqual(outputs[0].texture, outputs[1].texture);
+		for (const pass of passes) {
+			const format = enable32bitDataTextures ? 'rgba32float' : 'rgba16float';
+			assert.equal(pass.pipeline.fragment.targets[0].format, format);
+			assert.equal(pass.pipeline.fragment.targets[0].blend, undefined);
+			const target = pass.descriptor.colorAttachments[0].view.texture;
+			assert.equal(target.format, format);
+			assert.notEqual(target, pass.groups[0].entries[0].resource.texture);
+		}
+		assert.deepEqual(calls.writes.filter(values => values.length === 1).map(values => values[0]), [1, 0.5, Math.fround(1 / 3), 1]);
+		accumulator.dispose();
+		assert.ok(calls.textures.slice(0, 2).every(texture => texture.destroyed));
+		assert.equal(source.destroyed, false);
+		assert.ok(calls.buffers.every(buffer => buffer.destroyed));
+	}
+});
 
 function gpuFixture() {
 	const calls = { textures: [], buffers: [], shaders: [], groups: [], samplers: [], writes: [], draws: 0, uploads: 0 };

@@ -47,7 +47,7 @@ function fixture() {
 				await prepared.promise;
 				return { assetsCommitted: true };
 			}
-			async renderTimelineFrame(time, delta) { frames.push([time, delta]); }
+			async renderTimelineFrame(time, delta, fps) { this.renderFps = fps ?? this.staticOptions.timelineFps; frames.push([time, delta]); }
 			destroy() { destroyed = true; }
 		},
 		async createMp4Writer(canvas, settings) {
@@ -90,20 +90,22 @@ for (const format of ['mp4', 'webp']) {
 			settings: { format, quality: 'high', width: 3, height: 5, positionMs: 1000,
 				...(format === 'mp4' ? { fps: 30, endTimeMs: 1010 } : {}) },
 			renderer: { enable32bitDataTextures: true, intermediateTextureFormat: 'rgba16float' },
-			project: { resolution: { width: 3, height: 5 }, assets: [{ id: 'image' }], visualModules: [{ id: 'module' }], timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [{ id: 'layer', layerType: 'effect', effectId: 'test', resolution: { mode: 'auto' }, effectParamValues: {}, name: 'Layer', clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 2000 }] }] }], sceneId: 'scene' },
+			project: { timelineFps: 60, timelineMotionBlur: { enabled: true, shutterAngle: 180, samples: 16, previewSamples: 4 }, resolution: { width: 3, height: 5 }, assets: [{ id: 'image' }], visualModules: [{ id: 'module' }], timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [{ id: 'layer', layerType: 'effect', effectId: 'test', resolution: { mode: 'auto' }, effectParamValues: {}, name: 'Layer', clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 2000 }] }] }], sceneId: 'scene' },
 		};
 		const job = f.run(request);
 		await f.preparing.promise;
 		assert.deepEqual(f.frames, []);
 		assert.deepEqual(structuredClone(f.deviceSettings.requiredFeatures), ['float32-filterable']);
-		assert.deepEqual(structuredClone(f.instance.staticOptions), { ...request.renderer });
+		const { timelineFps, timelineMotionBlur, ...dynamicProjectOptions } = request.project;
+		assert.deepEqual(structuredClone(f.instance.staticOptions), { ...request.renderer, timelineFps, timelineMotionBlur });
 		const resolution = format === 'mp4' ? { width: 4, height: 6 } : { width: 3, height: 5 };
 		assert.deepEqual(structuredClone(f.instance.dynamicOptions), {
-			...request.project, resolutionScale: 1, outputResolution: resolution, opaqueOutput: format === 'mp4',
+			...dynamicProjectOptions, resolutionScale: 1, outputResolution: resolution, opaqueOutput: format === 'mp4',
 		});
 		f.prepared.resolve();
 		await job;
 		assert.deepEqual(f.frames, [[1000, 0]]);
+		assert.equal(f.instance.renderFps, format === 'mp4' ? 30 : 60);
 		assert.equal(f.encodings.length, 1);
 		assert.equal(f.encodings[0].canvas.width, resolution.width);
 		assert.equal(f.encodings[0].canvas.height, resolution.height);
@@ -121,7 +123,7 @@ test('reports asset preparation failures without rendering export frames', { tim
 		resolutionScale: 1,
 		settings: { format: 'webp', quality: 'lossless', width: 2, height: 2, positionMs: 0 },
 		renderer: { enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm' },
-		project: { resolution: { width: 2, height: 2 }, assets: [], visualModules: [], timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [{ id: 'layer', layerType: 'effect', effectId: 'test', resolution: { mode: 'auto' }, effectParamValues: {}, name: 'Layer', clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 2000 }] }] }], sceneId: 'scene' },
+		project: { timelineFps: 60, timelineMotionBlur: { enabled: true, shutterAngle: 180, samples: 16, previewSamples: 4 }, resolution: { width: 2, height: 2 }, assets: [], visualModules: [], timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [{ id: 'layer', layerType: 'effect', effectId: 'test', resolution: { mode: 'auto' }, effectParamValues: {}, name: 'Layer', clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 2000 }] }] }], sceneId: 'scene' },
 	});
 	await f.preparing.promise;
 	assert.deepEqual(structuredClone(f.deviceSettings.requiredFeatures), []);
@@ -148,7 +150,7 @@ for (const [type, source, label] of [
 			resolutionScale: 1,
 			settings: { format: 'webp', quality: 'lossless', width: 2, height: 2, positionMs: 0 },
 			renderer: { enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm' },
-			project: { resolution: { width: 2, height: 2 }, assets: [], visualModules: [], timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [{ id: 'layer', layerType: 'effect', effectId: 'test', resolution: { mode: 'auto' }, effectParamValues: {}, name: 'Layer', clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 2000 }] }] }], sceneId: 'scene' },
+			project: { timelineFps: 60, timelineMotionBlur: { enabled: true, shutterAngle: 180, samples: 16, previewSamples: 4 }, resolution: { width: 2, height: 2 }, assets: [], visualModules: [], timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [{ id: 'layer', layerType: 'effect', effectId: 'test', resolution: { mode: 'auto' }, effectParamValues: {}, name: 'Layer', clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 2000 }] }] }], sceneId: 'scene' },
 		});
 		await f.preparing.promise;
 		f.instance.handler({ type, ctx: { ...source, status: { status: { type: 'error', message: 'Invalid expression' } } } });

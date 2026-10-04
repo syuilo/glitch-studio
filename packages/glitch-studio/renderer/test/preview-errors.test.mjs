@@ -66,7 +66,7 @@ async function fixture(t, staticOptions = {}, Manager = VisualModuleRendererMana
 			input: { dataType: { kind: 'color' }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },
 		}, primaryInputParameter: 'input', resolutionInputParameter: 'input', outputDefs: { output: { dataType: { kind: 'color' } } }, primaryOutput: 'output' } },
 		effectImplementations: { pass: { outputTextureFactories: {} } },
-	}, { enableStats: false, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm', ...staticOptions });
+	}, { timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16, previewSamples: 4 }, enableStats: false, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm', ...staticOptions });
 	renderer.on('ev', event => {
 		if (event.type === 'renderError') errors.push(event.ctx.message);
 	});
@@ -124,7 +124,7 @@ test('still rejects export frames for invalid graphs', async t => {
 test('ignores obsolete timeline completions after destruction', async t => {
 	const { renderer, errors } = await fixture(t, {}, TimelineRendererManager);
 	const pending = [];
-	renderer.timelineRenderer.renderAt = () => new Promise(resolve => pending.push(resolve));
+	renderer.renderFrame = () => new Promise(resolve => pending.push(resolve));
 	const first = renderer.renderTimelineAt(0);
 	const second = renderer.renderTimelineAt(10);
 	renderer.destroy();
@@ -140,7 +140,7 @@ test('ignores obsolete timeline completions after destruction', async t => {
 test('keeps the latest seek result when older requests settle later', async t => {
 	const { renderer, errors } = await fixture(t, {}, TimelineRendererManager);
 	const pending = [];
-	renderer.timelineRenderer.renderAt = () => {
+	renderer.renderFrame = () => {
 		const gate = Promise.withResolvers();
 		pending.push(gate);
 		return gate.promise;
@@ -305,7 +305,7 @@ for (const [name, createManager] of [['live', createLiveManager], ['timeline', c
 			const canvas = { getContext: () => failure === 'context' ? null : new Context() };
 			await assert.rejects(createManager({
 				canvas, histogramCanvas: canvas, waveformHorizontalCanvas: canvas, waveformVerticalCanvas: canvas,
-				staticOptions: { enableStats: false, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm' },
+				staticOptions: { timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16, previewSamples: 4 }, enableStats: false, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm' },
 				dynamicOptions: { assets: [{ id: 'broken', fileDataType: 'image/png', fileData: new Blob() }] },
 				effectDefinitions: {}, effectImplementations: {},
 			}), failure === 'context' ? /cannot get webgpu context/ : failure === 'constructor' ? /pipeline failed/ : /asset decode failed/);

@@ -2,6 +2,10 @@ Glitch Studioとして、各subsystemのレンダラーを利用する統括層
 
 Glitch Studioのドメイン知識を持っていてもよい
 
+タイムラインの`timelineFps`と`timelineMotionBlur`は`TimelineRendererManager`のstatic optionsとして初期化時に確定する。変更時はUI側のControllerがWorkerごと再生成し、キャッシュ・エフェクトの履歴・蓄積用GPUリソースを引き継がない。fpsとブラー設定の同時適用は1回にまとめ、再生成中の後続変更も最新値まで反映する。
+
+プレビューfps倍率は描画要求の頻度だけを変更するUI側の設定で、再生成を必要としない。動画書き出しでは呼び出し側が指定したfpsを露光時間の基準に使い、静止画とプレビューではstatic optionsの`timelineFps`を使う。ブラー無効・シャッター角0・サンプル数0/1の場合は`TimelineRenderer.renderAt()`で単発描画し、複数サンプル用の管理を経由しない。
+
 注意する必要があるのは、すべてのサブシステムは公平だということです。
 
 TimelineはVisual Moduleを使用し、Visual ModuleはEffectを使用するという依存の階層構造自体はあるが、それは「Glitch Studioにおいてはタイムラインがメイン機能であり、タイムラインがすべてをk管理する」などということは意味せず、Glitch Studio自体の設計とは全く関係がない。

@@ -97,7 +97,7 @@ const resolutionScale = ref(1);
 const resolutionOptions = [0.25, 0.5, 1, 2, 4].map(value => ({ value, label: `${value}x` }));
 const resolution = computed(() => scaleExportResolution(getSceneBaseResolution(scene.value?.resolution ?? { mode: 'project' },
 	appStateManager.state.resolution.value), resolutionScale.value, mode.value === 'video' ? 'mp4' : 'webp'));
-const fps = ref(60);
+const fps = ref(appStateManager.state.timelineFps.value);
 const startTime = ref('00:00:00.000');
 const endTime = ref(formatExportTime(0));
 watch(sceneId, () => { startTime.value = formatExportTime(0); endTime.value = formatExportTime(scene.value == null ? 0 : getSceneDuration(scene.value)); });
@@ -169,6 +169,8 @@ async function doExport() {
 			resolutionScale: resolutionScale.value,
 			project: deepClone({
 				resolution: appStateManager.state.resolution.value,
+				timelineFps: appStateManager.state.timelineFps.value,
+				timelineMotionBlur: appStateManager.state.timelineMotionBlur.value,
 				assets: appStateManager.state.assets.value,
 				visualModules: appStateManager.state.visualModules.value,
 				timelineScenes: appStateManager.state.timelineScenes.value,

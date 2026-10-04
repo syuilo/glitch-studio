@@ -26,6 +26,7 @@ self.onmessage = async (event: MessageEvent<ExportRequest>) => {
 	let finished = false;
 	try {
 		const { settings: requestedSettings, project, resolutionScale, renderer: rendererSettings } = event.data;
+		const { timelineFps, timelineMotionBlur, ...dynamicProjectOptions } = project;
 		// UI以外から呼ばれても、Canvasとエンコーダーに同じ調整済みサイズを使う。
 		validateTimelineScenes(project.timelineScenes);
 		const scene = getTimelineScene(project.timelineScenes, project.sceneId);
@@ -60,7 +61,7 @@ self.onmessage = async (event: MessageEvent<ExportRequest>) => {
 			gpuContext: context,
 			effectDefinitions,
 			effectImplementations,
-		}, rendererSettings);
+		}, { ...rendererSettings, timelineFps, timelineMotionBlur });
 		renderer.on('ev', event => {
 			if (event.type !== 'effectState' && event.type !== 'effectLayerState') return;
 			const status = event.ctx.status?.status;
@@ -73,7 +74,7 @@ self.onmessage = async (event: MessageEvent<ExportRequest>) => {
 		// 基準サイズを上書きすると、customAbsoluteの子Sceneやノードに書き出し倍率が伝わらない。
 		// 倍率は独立して渡し、MP4の偶数寸法補正は最終Canvasだけに適用する。
 		await renderer.updateDynamicOptions({
-			...project,
+			...dynamicProjectOptions,
 			resolutionScale,
 			outputResolution: { width: settings.width, height: settings.height },
 			opaqueOutput: settings.format === 'mp4',
@@ -94,7 +95,7 @@ self.onmessage = async (event: MessageEvent<ExportRequest>) => {
 		let lastProgressTime = 0;
 		await renderExportFrames(settings, {
 			signal: controller.signal,
-			render: frame => renderer!.renderTimelineFrame(frame.timeMs, frame.timeDeltaMs),
+			render: frame => renderer!.renderTimelineFrame(frame.timeMs, frame.timeDeltaMs, settings.fps),
 			addFrame: frame => writer!.addFrame(frame.timestamp, frame.duration),
 			addAudioUntil: audio ? time => audio!.renderUntil(time, (pcm, timestamp) => writer!.addAudio(pcm, timestamp), controller.signal) : undefined,
 			finalize: () => writer!.finalize(),

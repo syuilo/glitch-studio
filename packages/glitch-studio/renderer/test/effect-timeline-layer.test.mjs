@@ -80,8 +80,8 @@ function fixture(t, options = {}) {
 		gpuDevice: device, gpuContext: { canvas: { width: 16, height: 16 }, configure() {}, getCurrentTexture: texture },
 		effectDefinitions: { probe: definition, noOutput: { ...definition, id: 'noOutput', primaryOutput: null } },
 		effectImplementations: { probe: implementation, noOutput: implementation },
-	}, { enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm' });
-	manager.timelineRenderer.options.present = output => calls.outputs.push(output);
+	}, { timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16, previewSamples: 4 }, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm' });
+	manager.presentOutput = output => calls.outputs.push(output);
 	manager.on('ev', event => {
 		if (event.type === 'effectLayerState') calls.states.push(event.ctx);
 	});
