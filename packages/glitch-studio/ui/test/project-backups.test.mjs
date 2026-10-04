@@ -6,11 +6,13 @@ import { setImmediate } from 'node:timers/promises';
 import { build } from 'esbuild';
 
 const bundle = await build({ absWorkingDir: fileURLToPath(new URL('../', import.meta.url)),
-	entryPoints: ['./src/project-backups.ts'], bundle: true, platform: 'node', format: 'cjs', write: false });
+	stdin: { contents: "export * from './src/project-backups.ts'; export * from './src/project-save-session.ts';", resolveDir: fileURLToPath(new URL('../', import.meta.url)) },
+	bundle: true, platform: 'node', format: 'cjs', write: false });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', bundle.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
 const { ProjectBackupController, DEFAULT_PROJECT_BACKUP_SETTINGS, projectBackupName, projectBackupTime,
-	writeProjectBackup, pruneProjectBackups, validateProjectBackupSettings, createProjectBackupFingerprint } = module.exports;
+	writeProjectBackup, pruneProjectBackups, validateProjectBackupSettings, createProjectBackupFingerprint,
+	ProjectSaveSession, projectSaveBackupWriter } = module.exports;
 
 const start = new Date(2026, 0, 1, 12, 34, 56).getTime();
 const day = 86400000;
@@ -30,7 +32,9 @@ function harness() {
 		async remove(name) { files.delete(name); },
 	};
 	const target = { name: 'myProject.gsproj', directory };
+	const session = new ProjectSaveSession(() => {});
 	const options = {
+		runExclusive: operation => session.runExclusive(operation),
 		settings: () => settings,
 		snapshot: () => ({ fingerprint, async encode() { encodeCount++; return new TextEncoder().encode(fingerprint); } }),
 		onStatus: value => { status = value; },
@@ -39,7 +43,7 @@ function harness() {
 		cancel(id) { timers.delete(id); },
 	};
 	const controller = new ProjectBackupController(options);
-	return { controller, directory, target, settings, files, timers, options,
+	return { controller, session, directory, target, settings, files, timers, options,
 		advance: duration => { now += duration; }, change: value => { fingerprint = value; },
 		get encodeCount() { return encodeCount; }, get status() { return status; } };
 }
@@ -102,6 +106,36 @@ test('starts only with a saved target and honors the configured interval and cha
 	assert.equal(h.encodeCount, 2);
 	assert.equal(h.files.size, 2);
 	assert.equal(h.status.error, null);
+});
+
+// 【変更がなく期限を超えても最後の復元地点を残し、次の成功後に古いものを整理する】
+// 未保存の編集をバックアップしてから放置・スリープすると、変更検出が新規作成を省略する。
+// この状態で最後の1件を削除するとクラッシュ時に復元できなくなるため、期限を超えても保護する。
+test('retains the last successful automatic backup until a newer one succeeds', async () => {
+	const h = harness();
+	h.controller.setTarget(h.target);
+	h.advance(60000);
+	await h.controller.tick();
+	const first = [...h.files.keys()][0];
+	h.advance(2 * day);
+	await h.controller.tick();
+	h.advance(60000);
+	await h.controller.tick();
+	assert.deepEqual([...h.files.keys()], [first]);
+	assert.equal(h.encodeCount, 1);
+	assert.equal(new TextDecoder().decode(h.files.get(first)), 'initial');
+	h.change('edited again');
+	const create = h.directory.create;
+	h.directory.create = async () => { throw new Error('Disk full'); };
+	h.advance(60000);
+	await h.controller.tick();
+	assert.deepEqual([...h.files.keys()], [first]);
+	h.directory.create = create;
+	h.advance(60000);
+	await h.controller.tick();
+	assert.equal(h.files.has(first), false);
+	assert.equal(h.files.size, 1);
+	assert.equal(new TextDecoder().decode([...h.files.values()][0]), 'edited again');
 });
 
 // 【休止後は最新状態を1回だけ残し、設定変更・無効化・プロジェクト切替で予約を更新する】
@@ -197,7 +231,7 @@ test('queues manual saves and cancels stale automatic work after a target change
 	const automatic = h.controller.tick();
 	await encodingStarted;
 	let saved = false;
-	const manual = h.controller.runExclusive(async () => { saved = true; });
+	const manual = h.session.runExclusive(async () => { saved = true; });
 	assert.equal(saved, false);
 	h.controller.setTarget(null);
 	finishEncoding(new Uint8Array([1]));
@@ -205,8 +239,8 @@ test('queues manual saves and cancels stale automatic work after a target change
 	assert.equal(saved, true);
 	assert.equal(h.files.size, 0);
 	assert.equal(h.status.lastAutoBackup, null);
-	await assert.rejects(h.controller.runExclusive(async () => { throw new Error('failed job'); }));
-	assert.equal(await h.controller.runExclusive(async () => 'next job'), 'next job');
+	await assert.rejects(h.session.runExclusive(async () => { throw new Error('failed job'); }));
+	assert.equal(await h.session.runExclusive(async () => 'next job'), 'next job');
 });
 
 // 【権限拒否・空データ・不正な設定では書込みや削除を開始しない】
@@ -236,17 +270,18 @@ test('backs up exact previous bytes and keeps save backup settings independent',
 	const h = harness();
 	h.settings.autoEnabled = false;
 	const previous = new Uint8Array([4, 5, 6]);
-	const time = await h.controller.beforeSave(h.target, previous);
+	const copyPrevious = projectSaveBackupWriter({ kind: 'file', getFile: async () => new File([previous], h.target.name) }, h.directory);
+	const time = await h.controller.beforeSave(h.target, copyPrevious);
 	assert.equal(time, start);
 	assert.deepEqual([...h.files.values()], [previous]);
 	await h.controller.afterSave(h.target, time);
 	assert.equal(h.status.lastSaveBackup, start);
-	assert.equal(await h.controller.beforeSave(h.target, new Uint8Array()), null);
+	assert.equal(await h.controller.beforeSave(h.target, projectSaveBackupWriter({ kind: 'file', getFile: async () => new File([], h.target.name) }, h.directory)), null);
 	h.settings.saveEnabled = false;
-	assert.equal(await h.controller.beforeSave(h.target, previous), null);
+	assert.equal(await h.controller.beforeSave(h.target, copyPrevious), null);
 	h.settings.saveEnabled = true;
 	h.directory.create = async () => { throw new Error('write failed'); };
-	await assert.rejects(h.controller.beforeSave(h.target, previous), /write failed/);
+	await assert.rejects(h.controller.beforeSave(h.target, copyPrevious), /write failed/);
 	h.directory.remove = async () => { throw new Error('delete failed'); };
 	h.advance(8 * day);
 	await h.controller.afterSave(h.target, null);

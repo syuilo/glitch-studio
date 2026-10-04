@@ -29,6 +29,7 @@ import GsProjectBackupFolderDialog from './components/GsProjectBackupFolderDialo
 import { createProjectBackupFingerprint, DEFAULT_PROJECT_BACKUP_SETTINGS, ProjectBackupController } from './project-backups.ts';
 import { browserProjectBackupDirectory, desktopProjectBackupDirectory, selectProjectBackupFolder } from './project-backup-directory.ts';
 import type { ProjectBackupStatus, ProjectBackupTarget } from './project-backups.ts';
+import { ProjectSaveSession, projectSaveBackupWriter } from './project-save-session.ts';
 import { preferences } from './preferences.ts';
 import { makeHotkey } from './utility/hotkey.ts';
 import type { RendererProjectState } from '@gs/glitch-studio_shared/project/renderer-state.ts';
@@ -208,10 +209,6 @@ watch([preferences.r.enable32bitDataTextures, preferences.r.intermediateTextureF
 let rendererInitialization: Promise<void> | null = null;
 let projectWatchers: WatchStopHandle[] = [];
 let projectMetadata: Pick<Project, 'id'> | null = null;
-let projectFileName = 'untitled.gsproj';
-let projectFileHandle: ProjectFileHandle | null = null;
-let projectDirectory: FileSystemDirectoryHandle | null = null;
-let projectBackupTarget: ProjectBackupTarget | null = null;
 export const projectBackupAccess = ref<'unsaved' | 'folder-required' | 'ready'>('unsaved');
 export const projectBackupStatus = ref<ProjectBackupStatus>({ lastAutoBackup: null, lastSaveBackup: null, error: null });
 const backupFingerprint = createProjectBackupFingerprint();
@@ -234,7 +231,13 @@ function captureProject(): Project | null {
 
 function backupSettings() { return preferences.s.projectBackups ?? DEFAULT_PROJECT_BACKUP_SETTINGS; }
 
+const projectSaveSession = new ProjectSaveSession((target, previous) => {
+	projectBackupAccess.value = target?.backup ? 'ready' : target ? 'folder-required' : 'unsaved';
+	if (target?.backup !== previous?.backup) projectBackupController.setTarget(target?.backup ?? null);
+});
+
 export const projectBackupController = new ProjectBackupController({
+	runExclusive: operation => projectSaveSession.runExclusive(operation),
 	settings: backupSettings,
 	snapshot: () => {
 		const project = captureProject();
@@ -247,31 +250,25 @@ export const projectBackupController = new ProjectBackupController({
 });
 watch(() => preferences.r.projectBackups?.value, () => projectBackupController.refreshSchedule(), { deep: true });
 
-function setProjectBackupTarget(target: ProjectBackupTarget | null) {
-	projectBackupTarget = target;
-	projectBackupAccess.value = target ? 'ready' : projectFileHandle ? 'folder-required' : 'unsaved';
-	projectBackupController.setTarget(target);
-}
-
 function resolveBackupTarget(handle: ProjectFileHandle, directory: FileSystemDirectoryHandle | null): ProjectBackupTarget | null {
 	const native = handle.kind === 'desktop-project-file' ? desktopProjectBackupDirectory(handle.id) : null;
 	return native ? { name: handle.name, directory: native } : directory ? { name: handle.name, directory: browserProjectBackupDirectory(directory) } : null;
 }
 
 export async function grantProjectBackupAccess(): Promise<void> {
-	const handle = projectFileHandle;
+	const savedTarget = projectSaveSession.target;
+	const handle = savedTarget?.handle;
 	if (!handle) return;
 	try {
 		if (handle.kind === 'desktop-project-file') {
 			const target = resolveBackupTarget(handle, null);
-			if (projectFileHandle === handle && target) setProjectBackupTarget(target);
+			if (projectSaveSession.target === savedTarget && target) projectSaveSession.setTarget({ handle, directory: null, backup: target });
 			return;
 		}
 		// フォルダ選択はこのクリックから開始する。タイマーから権限ダイアログを要求しない。
 		const directory = await selectProjectBackupFolder(handle);
-		if (projectFileHandle !== handle) return;
-		projectDirectory = directory;
-		setProjectBackupTarget({ name: handle.name, directory: browserProjectBackupDirectory(directory) });
+		if (projectSaveSession.target !== savedTarget) return;
+		projectSaveSession.setTarget({ handle, directory, backup: resolveBackupTarget(handle, directory) });
 	} catch (error) {
 		if (!(error instanceof DOMException && error.name === 'AbortError')) projectBackupController.reportError(error);
 	}
@@ -302,9 +299,7 @@ export async function appReady(project: Project, fileName = 'untitled.gsproj', f
 
 	// 読み込み途中の状態を、直前のプロジェクトのファイルへ保存させない。
 	projectMetadata = null;
-	projectFileHandle = null;
-	projectDirectory = null;
-	setProjectBackupTarget(null);
+	projectSaveSession.setTarget(null);
 	for (const stop of projectWatchers) stop();
 	projectWatchers = [];
 	previewPlayback.dispose();
@@ -338,12 +333,11 @@ export async function appReady(project: Project, fileName = 'untitled.gsproj', f
 	await visualModuleRendererManagerController.updatePlayers(deepClone(project.players));
 	projectMetadata = { id: project.id };
 	projectInfo.value = { name: project.name, description: project.description, author: project.author };
-	projectFileName = fileName;
-	projectFileHandle = fileHandle;
+	projectSaveSession.suggestedName = fileName;
 	try {
-		setProjectBackupTarget(fileHandle ? resolveBackupTarget(fileHandle, null) : null);
+		projectSaveSession.setTarget(fileHandle ? { handle: fileHandle, directory: null, backup: resolveBackupTarget(fileHandle, null) } : null);
 	} catch (error) {
-		projectBackupAccess.value = 'folder-required';
+		projectSaveSession.setTarget(fileHandle ? { handle: fileHandle, directory: null, backup: null } : null);
 		projectBackupController.reportError(error);
 	}
 
@@ -450,20 +444,25 @@ export async function saveProject(saveAs = false): Promise<void> {
 	const project = captureProject();
 	if (!project) return;
 	const metadata = projectMetadata;
-	let handle = saveAs ? null : projectFileHandle;
-	let directory = saveAs ? null : projectDirectory;
-	let target = saveAs ? null : projectBackupTarget;
+	const requestedHandle = saveAs ? null : projectSaveSession.target?.handle;
 	// 待ち行列やエンコードより前に権限要求を始め、クリックの有効期間を失わない。
 	// 待機中の拒否は値として受け、未処理のPromise rejectionにしない。
-	const permission = handle?.requestPermission({ mode: 'readwrite' }).catch((error: unknown) => error);
-	await projectBackupController.runExclusive(async () => {
+	const permission = requestedHandle?.requestPermission({ mode: 'readwrite' }).catch((error: unknown) => error);
+	await projectSaveSession.runExclusive(async savedTarget => {
 		try {
 			if (metadata !== projectMetadata) return;
-			if (handle && await permission !== 'granted') throw new Error('Write permission was not granted. Use Save as... to choose another file.');
+			let handle = saveAs ? null : savedTarget?.handle ?? null;
+			let directory = saveAs ? null : savedTarget?.directory ?? null;
+			let target = saveAs ? null : savedTarget?.backup ?? null;
+			// 待機中にSave asが成功した場合、その保存先は選択時に許可済み。
+			// 旧ハンドルの権限結果を流用せず確認し、ユーザー操作のないキュー内で新たな権限要求はしない。
+			const granted = handle === requestedHandle ? await permission
+				: handle?.kind === 'file' ? await handle.queryPermission({ mode: 'readwrite' }) : 'granted';
+			if (handle && granted !== 'granted') throw new Error('Write permission was not granted. Use Save as... to choose another file.');
 			const data = await encodeProjectFile(project);
 			if (metadata !== projectMetadata) return;
 			if (!handle) {
-				const selected = await selectProjectSaveFile(projectFileName);
+				const selected = await selectProjectSaveFile(projectSaveSession.suggestedName);
 				if (!selected) return;
 				({ handle, directory } = selected);
 			}
@@ -478,18 +477,13 @@ export async function saveProject(saveAs = false): Promise<void> {
 			if (metadata !== projectMetadata) return;
 			let saveBackupTime: number | null = null;
 			if (target && backupSettings().saveEnabled) {
-				// 上書き前の実ファイルを最後まで読み、バックアップ確定後にだけ本体を変更する。
-				const previous = new Uint8Array(await (await handle.getFile()).arrayBuffer());
-				saveBackupTime = await projectBackupController.beforeSave(target, previous);
+				// 上書き前の実ファイルのバックアップが確定してから、本体を変更する。
+				saveBackupTime = await projectBackupController.beforeSave(target, projectSaveBackupWriter(handle, target.directory));
 			}
 			if (metadata !== projectMetadata) return;
 			await saveProjectFile(data, handle);
 			if (metadata === projectMetadata) {
-				projectFileHandle = handle;
-				projectFileName = handle.name;
-				projectDirectory = directory;
-				if (target !== projectBackupTarget) setProjectBackupTarget(target);
-				else projectBackupAccess.value = target ? 'ready' : 'folder-required';
+				projectSaveSession.setTarget({ handle, directory, backup: target });
 				if (target) await projectBackupController.afterSave(target, saveBackupTime);
 			}
 		} catch (error) {

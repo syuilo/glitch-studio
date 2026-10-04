@@ -20,7 +20,7 @@
 		<GsButton v-else-if="projectBackupAccess === 'folder-required' || projectBackupStatus.error" @click="grantProjectBackupAccess">Allow access to project folder</GsButton>
 		<div v-else>Backup folder is ready.</div>
 		<div v-if="projectBackupStatus.error" role="alert">{{ projectBackupStatus.error }}</div>
-		<div>Expired backups are removed while this project is open and the corresponding feature is enabled. Closing or suspending the app pauses backups.</div>
+		<div>Expired backups are removed while this project is open and the corresponding feature is enabled. The latest successful automatic backup is kept until a newer one succeeds, even after its retention period. Closing or suspending the app pauses backups.</div>
 		<div v-if="validationError" role="alert">{{ validationError }}</div>
 		<div :class="$style.actions">
 			<GsButton inline @click="modal?.close()">Cancel</GsButton>

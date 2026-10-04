@@ -42,6 +42,47 @@ test('allows exactly one concurrent creator for a backup name', async t => {
 	assert.ok((await fs.readdir(root)).every(entry => !entry.endsWith('.tmp')));
 });
 
+// 【保存前の実ファイルをコピーし、元ファイルの後続の書換えから独立した復元地点を残す】
+// Rendererへバイト列を返さずにバックアップできることを実ファイルで検証する。
+// 本体へのハードリンクで代用すると外部アプリの上書きで両方が変わるため、その退行も防ぐ。
+test('copies the registered project into an independent backup without replacing existing backups', async t => {
+	const { root, project, service, id } = await fixture(t);
+	const original = new Uint8Array(2 * 1024 * 1024).fill(73);
+	await fs.writeFile(project, original);
+	const name = 'myProject.save-backup-2026-01-01-12-34-56.gsproj';
+	const results = await Promise.all([service.copyProjectBackup(id, name), service.copyProjectBackup(id, name)]);
+	assert.deepEqual(results.sort(), ['created', 'exists']);
+	assert.deepEqual(new Uint8Array(await fs.readFile(project)), original);
+	await fs.writeFile(project, new Uint8Array([4, 5]));
+	assert.equal(await service.copyProjectBackup(id, name), 'exists');
+	assert.deepEqual(new Uint8Array(await fs.readFile(path.join(root, name))), original);
+	assert.deepEqual(new Uint8Array(await fs.readFile(project)), new Uint8Array([4, 5]));
+	assert.ok((await fs.readdir(root)).every(entry => !entry.endsWith('.tmp')));
+});
+
+// 【新規・空の保存先だけはコピーを省略し、不正な対象やコピー失敗は本体を変えずに返す】
+// 初回保存のための未作成ファイルをエラーにせず、それ以外の失敗を「バックアップ不要」と誤認しない。
+// 不正な名前や未知のIDにも、通常のバックアップ作成と同じ制限を適用する。
+test('skips only empty or absent copy sources and rejects invalid backup requests', async t => {
+	const { root, project, service, id } = await fixture(t);
+	const name = 'myProject.save-backup-2026-01-01-12-34-56.gsproj';
+	for (const invalid of ['myProject.gsproj', '../outside.gsproj', 'other.save-backup-2026-01-01-12-34-56.gsproj']) {
+		await assert.rejects(service.copyProjectBackup(id, invalid), /Invalid/);
+	}
+	await assert.rejects(service.copyProjectBackup('unknown', name), /Unknown/);
+	assert.deepEqual(new Uint8Array(await fs.readFile(project)), new Uint8Array([9, 8, 7]));
+	await fs.writeFile(project, new Uint8Array());
+	assert.equal(await service.copyProjectBackup(id, name), 'empty');
+	await fs.unlink(project);
+	assert.equal(await service.copyProjectBackup(id, name), 'empty');
+	assert.deepEqual(await fs.readdir(root), []);
+	await fs.mkdir(project);
+	await fs.writeFile(path.join(project, 'untouched'), 'original');
+	await assert.rejects(service.copyProjectBackup(id, name), /regular file/);
+	assert.equal(await fs.readFile(path.join(project, 'untouched'), 'utf8'), 'original');
+	assert.deepEqual(await fs.readdir(root), ['myProject.gsproj']);
+});
+
 // 【IPCのファイル名検証は本体・別プロジェクト・親ディレクトリを拒否する】
 // Rendererに汎用的な書込み・削除権限を渡さず、登録済みプロジェクトのバックアップだけ操作する。
 test('rejects paths outside the registered backup namespace and empty data', async t => {

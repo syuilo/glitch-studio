@@ -14,6 +14,7 @@ interface Window {
 		writeProjectFile(id: string, data: Uint8Array): Promise<void>;
 		listProjectBackups(id: string): Promise<string[]>;
 		writeProjectBackup(id: string, name: string, data: Uint8Array): Promise<boolean>;
+		copyProjectBackup(id: string, name: string): Promise<'created' | 'exists' | 'empty'>;
 		removeProjectBackup(id: string, name: string): Promise<void>;
 		showTestAlert(): Promise<void>;
 		openDevTools(): Promise<void>;

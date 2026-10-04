@@ -89,21 +89,54 @@ export class ProjectFiles {
 			await file.sync();
 			await file.close();
 			file = null;
-			// renameは既存の宛先を上書きするため使わない。linkは同名なら失敗し、完成した内容だけを公開する。
-			// ハードリンク非対応の外部ドライブ等では、既存宛先を拒否するコピーを使う。
-			try { await fs.link(temporary, destination); } catch (error) {
-				if (error.code === 'EEXIST') return false;
-				if (!['ENOTSUP', 'EOPNOTSUPP', 'EPERM', 'EXDEV'].includes(error.code)) throw error;
-				try { await fs.copyFile(temporary, destination, constants.COPYFILE_EXCL); } catch (copyError) {
-					if (copyError.code === 'EEXIST') return false;
-					throw copyError;
-				}
-			}
-			return true;
+			return await this.#publishBackup(temporary, destination);
 		} finally {
 			await file?.close().catch(() => {});
 			await fs.unlink(temporary).catch(() => {});
 		}
+	}
+
+	async copyProjectBackup(id, name) {
+		const source = this.#project(id);
+		const destination = this.#backupPath(id, name);
+		let sourceStat;
+		try { sourceStat = await fs.stat(source); } catch (error) {
+			// 初回保存先はまだ存在しない。読めない既存ファイルなどのエラーは握りつぶさない。
+			if (error.code === 'ENOENT') return 'empty';
+			throw error;
+		}
+		if (!sourceStat.isFile()) throw new Error('The project is not a regular file');
+		if (!sourceStat.size) return 'empty';
+		const temporary = path.join(path.dirname(destination), `.glitch-studio-backup-${randomUUID()}.tmp`);
+		let file;
+		try {
+			// プロジェクト本体へのハードリンクでは、外部アプリによる上書きで復元地点も変わる。
+			// 独立した一時ファイルへOSでコピーし、完成後にだけバックアップ名で公開する。
+			await fs.copyFile(source, temporary, constants.COPYFILE_EXCL);
+			file = await fs.open(temporary, 'r+');
+			if (!(await file.stat()).size) throw new Error('The project became empty while creating its backup');
+			await file.sync();
+			await file.close();
+			file = null;
+			return await this.#publishBackup(temporary, destination) ? 'created' : 'exists';
+		} finally {
+			await file?.close().catch(() => {});
+			await fs.unlink(temporary).catch(() => {});
+		}
+	}
+
+	async #publishBackup(temporary, destination) {
+		// renameは既存の宛先を上書きするため使わない。linkは同名なら失敗し、完成した内容だけを公開する。
+		// ハードリンク非対応の外部ドライブ等では、既存宛先を拒否するコピーを使う。
+		try { await fs.link(temporary, destination); } catch (error) {
+			if (error.code === 'EEXIST') return false;
+			if (!['ENOTSUP', 'EOPNOTSUPP', 'EPERM', 'EXDEV'].includes(error.code)) throw error;
+			try { await fs.copyFile(temporary, destination, constants.COPYFILE_EXCL); } catch (copyError) {
+				if (copyError.code === 'EEXIST') return false;
+				throw copyError;
+			}
+		}
+		return true;
 	}
 
 	async remove(id, name) {

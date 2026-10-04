@@ -38,7 +38,8 @@ test('selects native project targets without truncating them or requesting a fol
 	assert.equal(h.calls.length, 2);
 	assert.deepEqual(new Uint8Array(await h.invoke('read-project-file', selected.id)), new Uint8Array([1, 2, 3]));
 	const backup = 'project.save-backup-2026-01-01-12-34-56.gsproj';
-	await h.invoke('write-project-backup', opened.id, backup, await h.invoke('read-project-file', opened.id));
+	assert.equal(await h.invoke('copy-project-backup', opened.id, backup), 'created');
+	assert.equal(await h.invoke('copy-project-backup', opened.id, backup), 'exists');
 	await h.invoke('write-project-file', selected.id, new Uint8Array([4]));
 	assert.deepEqual(new Uint8Array(await fs.readFile(h.file)), new Uint8Array([4]));
 	assert.deepEqual(new Uint8Array(await fs.readFile(path.join(path.dirname(h.file), backup))), new Uint8Array([1, 2, 3]));

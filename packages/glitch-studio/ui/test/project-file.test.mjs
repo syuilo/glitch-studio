@@ -347,6 +347,7 @@ function fileHandle(name, options = {}) {
 		get bytes() { return bytes; },
 		async getFile() { return new File([bytes], name); },
 		async requestPermission(mode) { calls.push(['permission', mode]); return options.permission ?? 'granted'; },
+		async queryPermission() { return options.permission ?? 'granted'; },
 		async createWritable() {
 			calls.push(['create']);
 			if (options.fail === 'create') throw new Error('create failed');
@@ -367,6 +368,96 @@ function fileHandle(name, options = {}) {
 		},
 	};
 }
+
+// 【Save as中に追加したSaveは、確定後の新しい保存先へ書き込む】
+// 保存の呼出時に旧ハンドルを固定すると、待機中のSaveが元ファイルを上書きし、現在の保存先まで戻してしまう。
+// 追加編集を含むSaveを失わず、新しい保存先とその後の保存先がともにBになることを確認する。
+test('resolves queued Save against the destination committed by Save as', async t => {
+	const window = setup(t);
+	const app = evaluate(appBundle);
+	const original = await encodeProjectFile(project({ name: 'Original A' }));
+	const first = fileHandle('A.gsproj', { bytes: original });
+	const second = fileHandle('B.gsproj');
+	const started = Promise.withResolvers();
+	const finish = Promise.withResolvers();
+	const createWritable = second.createWritable;
+	second.createWritable = async () => {
+		const stream = await createWritable();
+		return { ...stream, async close() { started.resolve(); await finish.promise; await stream.close(); } };
+	};
+	await app.appReady(project({ name: 'Save as snapshot' }), first.name, first);
+	window.selectProjectSaveFile = async () => second;
+	const saveAs = app.saveProject(true);
+	await started.promise;
+	app.projectInfo.value.name = 'Queued Save snapshot';
+	const save = app.saveProject();
+	finish.resolve();
+	await Promise.all([saveAs, save]);
+	assert.deepEqual(first.bytes, original);
+	assert.equal(decodeProjectFile(second.bytes).name, 'Queued Save snapshot');
+	app.projectInfo.value.name = 'Next Save';
+	await app.saveProject();
+	assert.deepEqual(first.bytes, original);
+	assert.equal(decodeProjectFile(second.bytes).name, 'Next Save');
+	assert.deepEqual(globalThis.projectAlerts, []);
+});
+
+// 【Save asがキャンセル・失敗した場合、待機中のSaveは以前の保存先を使う】
+// キューに登録した時点で新しい保存先へ切り替えると、未確定のファイルへ後続の保存が流れる。
+// 元のプロジェクトと同じIDを開き直した場合も、古いセッションの保存を実行させない。
+test('keeps the committed destination after cancelled or failed Save as and discards old project saves', async t => {
+	for (const outcome of ['cancel', 'failure', 'reopen']) {
+		await t.test(outcome, async t => {
+			const window = setup(t);
+			const app = evaluate(appBundle);
+			const first = fileHandle('A.gsproj');
+			const second = fileHandle('B.gsproj', { fail: 'write' });
+			const started = Promise.withResolvers();
+			const finish = Promise.withResolvers();
+			window.selectProjectSaveFile = async () => { started.resolve(); await finish.promise; return outcome === 'cancel' ? null : second; };
+			await app.appReady(project(), first.name, first);
+			const original = first.bytes;
+			const saveAs = app.saveProject(true);
+			await started.promise;
+			app.projectInfo.value.name = 'Queued edit';
+			const save = app.saveProject();
+			if (outcome === 'reopen') await app.appReady(project(), first.name, first);
+			finish.resolve();
+			await Promise.all([saveAs, save]);
+			assert.deepEqual(second.bytes, new Uint8Array([42]));
+			if (outcome === 'reopen') assert.equal(first.bytes, original);
+			else assert.equal(decodeProjectFile(first.bytes).name, 'Queued edit');
+			assert.deepEqual(globalThis.projectAlerts, outcome === 'failure' ? ['write failed'] : []);
+		});
+	}
+});
+
+// 【待機中に保存先が変わった場合、実際の保存先の権限を確認する】
+// 旧ファイルの許可を新しい宛先へ流用したり、旧ファイルの拒否で許可済みの新しい宛先への保存を止めない。
+test('checks the new destination permission instead of reusing the queued permission result', async t => {
+	for (const allowed of [true, false]) {
+		await t.test(allowed ? 'new destination granted' : 'new destination denied', async t => {
+			const window = setup(t);
+			const app = evaluate(appBundle);
+			const first = fileHandle('A.gsproj', { permission: allowed ? 'denied' : 'granted' });
+			const second = fileHandle('B.gsproj', { permission: allowed ? 'granted' : 'denied' });
+			const started = Promise.withResolvers();
+			const finish = Promise.withResolvers();
+			window.selectProjectSaveFile = async () => { started.resolve(); await finish.promise; return second; };
+			await app.appReady(project({ name: 'Save as' }), first.name, first);
+			const saveAs = app.saveProject(true);
+			await started.promise;
+			app.projectInfo.value.name = 'Queued Save';
+			const save = app.saveProject();
+			finish.resolve();
+			await Promise.all([saveAs, save]);
+			assert.deepEqual(first.bytes, new Uint8Array([42]));
+			assert.equal(decodeProjectFile(second.bytes).name, allowed ? 'Queued Save' : 'Save as');
+			assert.equal(globalThis.projectAlerts.length, allowed ? 0 : 1);
+			if (!allowed) assert.match(globalThis.projectAlerts[0], /Write permission/);
+		});
+	}
+});
 
 function setup(t) {
 	const previousWindow = globalThis.window;
@@ -995,12 +1086,12 @@ test('uses Electron backup access without a folder picker and stops overwrite on
 		async readProjectFile() { return handle.bytes; },
 		async writeProjectFile(_id, data) { await saveProjectFile(data, handle); },
 		async listProjectBackups() { return [...files.keys()]; },
-		async writeProjectBackup(id, name, data) {
+		async copyProjectBackup(id, name) {
 			assert.equal(id, 'native.gsproj');
 			if (fail) throw new Error('Backup disk full');
-			if (files.has(name)) return false;
-			files.set(name, new Uint8Array(data));
-			return true;
+			if (files.has(name)) return 'exists';
+			files.set(name, new Uint8Array(handle.bytes));
+			return 'created';
 		},
 		async removeProjectBackup(_id, name) { files.delete(name); },
 	};
@@ -1012,6 +1103,7 @@ test('uses Electron backup access without a folder picker and stops overwrite on
 	window.testPreferences.projectBackups.saveEnabled = true;
 	assert.equal(await app.openProject(), true);
 	assert.equal(app.projectBackupAccess.value, 'ready');
+	window.desktop.readProjectFile = () => assert.fail('Save backup must not read the old file into the renderer');
 	app.projectInfo.value.name = 'Edited';
 	await app.saveProject();
 	assert.equal(decodeProjectFile(handle.bytes).name, 'Edited');
@@ -1036,9 +1128,13 @@ test('backs up the Save as destination and keeps automatic backups separate from
 	const backups = new Map();
 	window.desktop = {
 		async chooseProjectSaveFile() { return { id: destination.name, name: destination.name }; },
-		async readProjectFile(id) { return id === original.name ? original.bytes : destination.bytes; },
+		async readProjectFile() { assert.fail('Save backup must stay in the main process'); },
 		async writeProjectFile(id, data) { await saveProjectFile(data, id === original.name ? original : destination); },
 		async listProjectBackups(id) { return [...(backups.get(id)?.keys() ?? [])]; },
+		async copyProjectBackup(id, name) {
+			const data = id === original.name ? original.bytes : destination.bytes;
+			return await this.writeProjectBackup(id, name, data) ? 'created' : 'exists';
+		},
 		async writeProjectBackup(id, name, data) {
 			if (!backups.has(id)) backups.set(id, new Map());
 			if (backups.get(id).has(name)) return false;

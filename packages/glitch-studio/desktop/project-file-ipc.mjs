@@ -47,6 +47,10 @@ export function registerProjectFileIpc(ipcMain, dialog, projectFiles, getTrusted
 		getTrustedMainWindow(event);
 		return projectFiles.create(id, name, data);
 	});
+	ipcMain.handle('desktop:copy-project-backup', (event, id, name) => {
+		getTrustedMainWindow(event);
+		return projectFiles.copyProjectBackup(id, name);
+	});
 	ipcMain.handle('desktop:remove-project-backup', (event, id, name) => {
 		getTrustedMainWindow(event);
 		return projectFiles.remove(id, name);

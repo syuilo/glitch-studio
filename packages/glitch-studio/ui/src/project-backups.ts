@@ -26,6 +26,7 @@ export interface ProjectBackupDirectory {
 
 export type ProjectBackupTarget = { name: string; directory: ProjectBackupDirectory };
 export type ProjectBackupStatus = { lastAutoBackup: number | null; lastSaveBackup: number | null; error: string | null };
+export type SaveBackupWriter = (name: string) => Promise<'created' | 'exists' | 'empty'>;
 
 export function validateProjectBackupSettings(settings: ProjectBackupSettings): void {
 	for (const value of [settings.autoIntervalMinutes, settings.autoRetentionDays, settings.saveRetentionDays]) {
@@ -59,21 +60,22 @@ export function projectBackupTime(projectName: string, kind: ProjectBackupKind, 
 	return date.getTime();
 }
 
-export async function writeProjectBackup(target: ProjectBackupTarget, kind: ProjectBackupKind, data: Uint8Array, time: number): Promise<void> {
+export async function writeProjectBackup(target: ProjectBackupTarget, kind: ProjectBackupKind, data: Uint8Array, time: number): Promise<string> {
 	if (!data.byteLength) throw new Error('The backup contains no save data.');
 	if (!await target.directory.hasPermission()) throw new Error('Backup folder access is required. Open Preferences to grant access.');
 	for (let sequence = 0; ; sequence++) {
-		if (await target.directory.create(projectBackupName(target.name, kind, time, sequence), data)) return;
+		const name = projectBackupName(target.name, kind, time, sequence);
+		if (await target.directory.create(name, data)) return name;
 	}
 }
 
-export async function pruneProjectBackups(target: ProjectBackupTarget, kind: ProjectBackupKind, retentionDays: number, time: number): Promise<void> {
+export async function pruneProjectBackups(target: ProjectBackupTarget, kind: ProjectBackupKind, retentionDays: number, time: number, protectedName?: string): Promise<void> {
 	if (!Number.isSafeInteger(retentionDays) || retentionDays < 1) throw new Error('Invalid backup retention period.');
 	if (!await target.directory.hasPermission()) throw new Error('Backup folder access is required. Open Preferences to grant access.');
 	const cutoff = time - retentionDays * 86400000;
 	for (const name of await target.directory.list()) {
 		const created = projectBackupTime(target.name, kind, name);
-		if (created != null && created < cutoff) await target.directory.remove(name);
+		if (name !== protectedName && created != null && created < cutoff) await target.directory.remove(name);
 	}
 }
 
@@ -90,6 +92,7 @@ export function createProjectBackupFingerprint(): (project: unknown) => string {
 }
 
 type BackupControllerOptions = {
+	runExclusive<T>(operation: () => Promise<T>): Promise<T>;
 	settings(): ProjectBackupSettings;
 	snapshot(): { fingerprint: string; encode(): Promise<Uint8Array> } | null;
 	onStatus(status: ProjectBackupStatus): void;
@@ -102,25 +105,19 @@ export class ProjectBackupController {
 	private target: ProjectBackupTarget | null = null;
 	private generation = 0;
 	private lastFingerprint: string | null = null;
+	private lastAutoBackupName: string | undefined;
 	private autoBackupFailed = false;
 	private nextAutoBackup = 0;
 	private timer: unknown;
-	private queue: Promise<unknown> = Promise.resolve();
 	private status: ProjectBackupStatus = { lastAutoBackup: null, lastSaveBackup: null, error: null };
 
 	constructor(private options: BackupControllerOptions) {}
-
-	// 手動保存を自動バックアップ中という理由で捨てない。失敗したジョブも次の保存を妨げない。
-	runExclusive<T>(operation: () => Promise<T>): Promise<T> {
-		const result = this.queue.then(operation);
-		this.queue = result.catch(() => {});
-		return result;
-	}
 
 	setTarget(target: ProjectBackupTarget | null): void {
 		this.target = target;
 		this.generation++;
 		this.lastFingerprint = null;
+		this.lastAutoBackupName = undefined;
 		this.autoBackupFailed = false;
 		this.status = { lastAutoBackup: null, lastSaveBackup: null, error: null };
 		this.publish();
@@ -155,7 +152,7 @@ export class ProjectBackupController {
 	async tick(): Promise<void> {
 		const target = this.target;
 		const generation = this.generation;
-		await this.runExclusive(async () => {
+		await this.options.runExclusive(async () => {
 			if (!target || generation !== this.generation) return;
 			try {
 				const settings = this.options.settings();
@@ -170,8 +167,9 @@ export class ProjectBackupController {
 							this.autoBackupFailed = true;
 							const data = await snapshot.encode();
 							if (generation !== this.generation) return;
-							await writeProjectBackup(target, 'auto', data, now);
+							const name = await writeProjectBackup(target, 'auto', data, now);
 							if (generation !== this.generation) return;
+							this.lastAutoBackupName = name;
 							this.lastFingerprint = snapshot.fingerprint;
 							this.status.lastAutoBackup = now;
 							this.autoBackupFailed = false;
@@ -179,7 +177,11 @@ export class ProjectBackupController {
 					}
 					if (generation !== this.generation) return;
 					// 新しい復元地点を作れない間は以前の自動バックアップを消さず、失敗表示も維持する。
-					if (settings.autoEnabled && this.lastFingerprint != null && !this.autoBackupFailed) await pruneProjectBackups(target, 'auto', settings.autoRetentionDays, now);
+					// 未変更なら新規作成を省略するため、最後に成功した1件は期限を超えても残す。
+					// 次の作成に成功すると保護対象が移り、以前の復元地点は通常の期限で整理される。
+					if (settings.autoEnabled && this.lastFingerprint != null && !this.autoBackupFailed) {
+						await pruneProjectBackups(target, 'auto', settings.autoRetentionDays, now, this.lastAutoBackupName);
+					}
 					if (!this.autoBackupFailed) automaticError = null;
 				} catch (error) {
 					automaticError = error instanceof Error ? error.message : String(error);
@@ -202,12 +204,17 @@ export class ProjectBackupController {
 		});
 	}
 
-	async beforeSave(target: ProjectBackupTarget, previous: Uint8Array): Promise<number | null> {
-		if (!this.options.settings().saveEnabled || !previous.byteLength) return null;
+	async beforeSave(target: ProjectBackupTarget, copyPrevious: SaveBackupWriter): Promise<number | null> {
+		if (!this.options.settings().saveEnabled) return null;
 		validateProjectBackupSettings(this.options.settings());
 		const now = this.options.now();
 		const generation = this.generation;
-		await writeProjectBackup(target, 'save', previous, now);
+		if (!await target.directory.hasPermission()) throw new Error('Backup folder access is required. Open Preferences to grant access.');
+		for (let sequence = 0; ; sequence++) {
+			const result = await copyPrevious(projectBackupName(target.name, 'save', now, sequence));
+			if (result === 'empty') return null;
+			if (result === 'created') break;
+		}
 		if (generation === this.generation) {
 			this.status.lastSaveBackup = now;
 			this.publish();

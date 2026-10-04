@@ -14,6 +14,7 @@ contextBridge.exposeInMainWorld('desktop', {
 	writeProjectFile: (id, data) => ipcRenderer.invoke('desktop:write-project-file', id, data),
 	listProjectBackups: (id) => ipcRenderer.invoke('desktop:list-project-backups', id),
 	writeProjectBackup: (id, name, data) => ipcRenderer.invoke('desktop:write-project-backup', id, name, data),
+	copyProjectBackup: (id, name) => ipcRenderer.invoke('desktop:copy-project-backup', id, name),
 	removeProjectBackup: (id, name) => ipcRenderer.invoke('desktop:remove-project-backup', id, name),
 	showTestAlert: () => ipcRenderer.invoke('desktop:show-test-alert'),
 	openDevTools: () => ipcRenderer.invoke('desktop:open-dev-tools'),
