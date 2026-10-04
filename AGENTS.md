@@ -27,19 +27,31 @@
 
 モノリポになっています。
 
-- [**`shared`**](./packages/shared) ... 全てのパッケージで使用される共通の処理や定義などが含まれます。他パッケージを参照することはありません。
-  - effect/fx ... 各種エフェクトのパラメータ定義・実装などが含まれます。定義はレンダラーからもUIからも参照される情報なのでここに置かれています。1つのエフェクトに1つのディレクトリを割り当てます。定義と実装(シェーダーコードの登録、uniformsやバッファなどの準備処理)は、それぞれ `_def_.ts` / `_impl_.ts` として分離します。シェーダーコード自体も通常wgslファイルとして分離します。(最低限`_def_.ts`と`_impl_.ts`があればよく、その他のファイルを置くことは自由です)
-- [**`audio-renderer`**](./packages/audio-renderer) ... 音声レンダラー実装が含まれます。`shared`しか参照しません。
-- [**`renderer`**](./packages/renderer) ... レンダラー実装が含まれます。レンダラーはノードやタイムライン定義を受け取り、ノード・パラメータの評価を行いWebGPUを用いてレンダリングを行います。なお、レンダラーはWebWorkers上で動作し、オフスクリーンでレンダリングを行うことができます。そのため、DOMに依存しない実装になっています。`shared`しか参照しません。
-- [**`ui`**](./packages/ui) ... UI実装が含まれます。状態の管理・レンダラーの呼び出し、表示、ファイルの入出力などを行います。状態の操作は原則Command patternで行うようになっていてUndo/Redoを可能にしています。
-  - RendererManagerControllerBase.ts ... rendererのラッパーのような役割をする基底クラスで、レンダラーがワーカー越しに動いていることを隠蔽しつつレンダラーの管理を行います。
-  - app.ts ... アプリケーションのステートの管理などを行います。
-  - commands.ts ... ステートに対する操作(コマンド)の実装をまとめています。
-- [**`desktop`**](./packages/desktop) ... Electron上で動かす場合の実装が含まれます。
+- [**`glitch-studio`**](./packages/glitch-studio) ... Glitch Studioドメイン固有の層
+	- [**`glitch-studio/shared`**](./packages/glitch-studio/shared) ... Glitch Studioドメイン内で共通の型や処理などを置きます。
+	- [**`glitch-studio/audio-renderer`**](./packages/glitch-studio/audio-renderer)
+	- [**`glitch-studio/desktop`**](./packages/glitch-studio/desktop) ... Electron上で動かす場合のAPI実装などが含まれます。
+	- [**`glitch-studio/renderer`**](./packages/glitch-studio/renderer) ... Glitch Studioとして、各subsystemのレンダラーを利用する統括層
+	- [**`glitch-studio/ui`**](./packages/glitch-studio/ui) ... UI実装が含まれます。状態の管理・レンダラーの呼び出し、表示、ファイルの入出力などを行います。状態の操作は原則Command patternで行うようになっていてUndo/Redoを可能にしています。
+		- RendererManagerControllerBase.ts ... rendererのラッパーのような役割をする基底クラスで、レンダラーがワーカー越しに動いていることを隠蔽しつつレンダラーの管理を行います。
+		- app.ts ... アプリケーションのステートの管理などを行います。
+		- commands.ts ... ステートに対する操作(コマンド)の実装をまとめています。
+- [**`shared`**](./packages/shared) ... 全てのパッケージで使用される共通の処理や定義などが含まれます。横着してなんでもかんでもこの層に置くのではなく、本当にどのドメインにも属さず共有する必要があるものだけ置くこと。他パッケージを参照することはありません。Glitch Studioドメイン内だけで共有する必要のあるものは、ここではなく`glitch-studio_shared`に置くべし。
+- [**`subsystems`**](./packages/subsystems) ... 個々の独立した機能が入る層。これらのパッケージは一機能にすぎず、「プロジェクト」の状態などの上位概念を知っていてはならない。Glitch Studioとは関係ないライブラリとして提供できるレベルで、Glitch Studioのコンテキストから分離されているのが理想。もちろんglitch-studio層へは依存しないが、他のsubsystemへの一方向への依存や、トップレベルのsharedへの依存はあってもいい。
+	- [**`subsystems/effect`**](./packages/subsystems/effect) ... 各種エフェクトのパラメータ定義・実装、エフェクトレンダラー実装などが含まれます。
+		- [**`subsystems/effect/shared`**](./packages/subsystems/effect/shared) ... 各種エフェクトのパラメータ定義・実装。定義はレンダラーからもUIからも参照される情報なのでここに置かれています。1つのエフェクトに1つのディレクトリを割り当てます。定義と実装(シェーダーコードの登録、uniformsやバッファなどの準備処理)は、それぞれ `_def_.ts` / `_impl_.ts` として分離します。シェーダーコード自体も通常wgslファイルとして分離します。(最低限`_def_.ts`と`_impl_.ts`があればよく、その他のファイルを置くことは自由です)
+	- [**`subsystems/visual-module`**](./packages/subsystems/visual-module) ... エフェクトをノードグラフで組み合わせられるVisual Moduleのレンダラー実装などが含まれます。
+	- [**`subsystems/timeline`**](./packages/subsystems/timeline) ... 複数のレイヤー・クリップを作成して動画を作成できるタイムライン機能のレンダラー実装などが含まれる。エフェクトやVisual Moduleなどもレイヤーとして使用可能。
+
+各パッケージの責務については各ディレクトリのREADME.mdも参照してください。
+
+サブシステム間の依存は一方向で、TimelineはVisual ModuleやEffectに依存し、Visual ModuleはEffectに依存します。その逆の依存を作ってはならない。
+
+各種レンダラー実装は、WebWorkers上で動作し、オフスクリーンでレンダリングを行える必要があるため、DOMに依存してはならない。
 
 各エフェクト実装は独立させ、他のエフェクトを参照したりしないでください。
 
-sharedは、tree-shakableであることが求められます。
+各パッケージの依存方向を守ってください。例えば、subsystemがglitch-studio層に依存してはならない。
 
 ## ドメインと型の依存方向
 
