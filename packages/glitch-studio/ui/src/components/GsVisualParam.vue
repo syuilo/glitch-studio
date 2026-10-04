@@ -4,7 +4,7 @@
 		<div :class="[$style.paramHeader, { [$style.isDyamic]: paramValue.inputSource !== 'literal' }]">
 			<button v-if="paramDef.dataType.kind === 'array' || paramDef.dataType.kind === 'struct'" class="_button"><i class="ti ti-chevron-down" style="vertical-align: middle;"></i></button>
 			<GsNodePort v-else-if="canNode && node != null" :dataType="inputDataType" style="cursor: pointer;" @pointerdown.stop @click.stop="showNodeInputMenu" @update:element="portEl = $event"/>
-			<div v-else style="width: 24px; height: 24px; line-height: 24px; text-align: center; opacity: 0.2;"><i class="ti ti-point"></i></div>
+			<GsNodePort v-else placeholder :data-type="null"/>
 
 			<div :class="$style.paramLabel" @click="showMenu">
 				<GsCondensedLine>{{ label ?? paramDef.ui.label }}</GsCondensedLine>
@@ -154,7 +154,6 @@
 <script lang="ts">
 import { deepClone } from '@gs/shared/utility/deep-clone.js';
 import type { ParameterArrayElement } from '@gs/shared/parameter/parameter-binding.ts';
-import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
 
 export type ParamEdit = { paramPath: ParamPath; mergeKey?: string | null } & (
 	| ValueParameterEdit
@@ -180,6 +179,7 @@ import GsInput from './common/GsInput.vue';
 import GsCondensedLine from './common/GsCondensedLine.vue';
 import GsSelect from './common/GsSelect.vue';
 import GsAutomationGraphPointsEditorWindow from './GsAutomationGraphPointsEditorWindow.vue';
+import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
 import type { Ref } from 'vue';
 import type { NodeOutputReference, VisualModule, VisualModuleCustomParameterId, VisualModuleEffectNode } from '@gs/subsystems_visual-module_shared/types.ts';
 import type { ExpressionVariableName } from '@gs/shared/expression/expression-environment.ts';

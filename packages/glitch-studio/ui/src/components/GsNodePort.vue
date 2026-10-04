@@ -1,5 +1,5 @@
 <template>
-<div ref="rootEl" :class="[$style.root, { [$style.output]: output }]" :data-type="dataType?.kind ?? 'any'" :data-wire-anchor="anchorName" :style="{ color: getNodeDataTypeColor(dataType), anchorName }">
+<div ref="rootEl" :class="[$style.root, { [$style.output]: output, [$style.placeholder]: placeholder }]" :data-type="dataType?.kind ?? 'any'" :data-wire-anchor="anchorName" :style="{ color: getNodeDataTypeColor(dataType), anchorName }">
 	<div :class="$style.icon"></div>
 </div>
 </template>
@@ -11,6 +11,7 @@ import { getNodeDataTypeColor } from '@/utility/node-outputs.ts';
 
 defineProps<{
 	output?: boolean;
+	placeholder?: boolean;
 	dataType: TextureDataType | null;
 }>();
 
@@ -37,6 +38,14 @@ onBeforeUnmount(() => emit('update:element', null));
 	height: var(--size);
 	line-height: var(--size);
 	user-select: none;
+
+	&.placeholder {
+		color: #fff2 !important;
+
+		.icon {
+			border-color: transparent !important;
+		}
+	}
 }
 
 .icon {
