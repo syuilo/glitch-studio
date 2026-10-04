@@ -132,6 +132,7 @@ function getInputPorts(definition: ParameterDefinition, path: string[], label: s
 	gap: var(--gap);
 	height: var(--height);
 	box-sizing: border-box;
+	opacity: 0.7;
 }
 
 .secondaryPort {
