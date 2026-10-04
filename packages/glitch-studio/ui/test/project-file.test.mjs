@@ -167,22 +167,23 @@ test('persists timeline render settings and synchronizes undo and redo without c
 	assert.equal(manager.state.timelineFps.value, 29.97);
 });
 
-// 【初回生成から読み込んだプロジェクトのfpsとブラー設定を使う】
-// 既定値で起動してからwatchで再生成すると、初回表示が遅れ、読込中の動的更新も中断される。
-test('uses project render settings for the initial renderer creation', async t => {
+// 【初回生成からプロジェクトのfps・ブラー設定とプレビュー既定の0サンプルを使う】
+// プレビューのブラーは既定でオフにし、保存された書き出し用サンプル数は維持する。
+// 初期化後にwatchで設定を変えると、初回表示が遅れ、読込中の動的更新も中断される。
+test('uses project render settings with motion blur sampling disabled for the initial preview', async t => {
 	setup(t);
 	const app = evaluate(appBundle);
 	const loaded = project({ timelineFps: 24, timelineMotionBlur: { enabled: true, shutterAngle: 90, samples: 32 } });
 	await app.appReady(loaded);
 	const timeline = app.timelineRendererManagerController;
 	assert.equal(timeline.initialStaticOptions.timelineFps, 24);
-	assert.deepEqual(timeline.initialStaticOptions.timelineMotionBlur, { ...loaded.timelineMotionBlur, samples: 8 });
+	assert.deepEqual(timeline.initialStaticOptions.timelineMotionBlur, { ...loaded.timelineMotionBlur, samples: 0 });
 	assert.ok(timeline.updates.every(options => !('timelineFps' in options) && !('timelineMotionBlur' in options)));
 });
 
 // 【プレビューのブラー品質はUIだけで保持し、プロジェクト・Undo履歴・LIVEには反映しない】
 // プレビューをオフにしても書き出し用サンプル数を失わず、プロジェクトの有効設定は維持する。
-// 読み込み時は保存された書き出し設定とUIの既定品質を、それぞれの用途に使う。
+// 読み込み時は保存された書き出し設定を復元し、プレビューは既定の0サンプルへ戻す。
 test('keeps preview motion blur samples separate from project settings and saved files', async t => {
 	const window = setup(t);
 	const app = evaluate(appBundle);
@@ -219,10 +220,14 @@ test('keeps preview motion blur samples separate from project settings and saved
 	assert.deepEqual(saved.timelineMotionBlur, settings.timelineMotionBlur);
 	assert.equal('previewSamples' in saved.timelineMotionBlur, false);
 	assert.equal('timelinePreviewMotionBlurSamples' in saved, false);
+	// 読み込み前にオンにしておき、単に直前のオフ状態を維持しているだけではないことを確認する。
+	app.timelinePreviewMotionBlurSamples.value = 4;
+	await nextTick();
+	assert.equal(timeline.staticOptions.timelineMotionBlur.samples, 4);
 	window.showOpenFilePicker = async () => [handle];
 	assert.equal(await app.openProject(), true);
-	assert.equal(app.timelinePreviewMotionBlurSamples.value, 8);
-	assert.equal(timeline.staticOptions.timelineMotionBlur.samples, 8);
+	assert.equal(app.timelinePreviewMotionBlurSamples.value, 0);
+	assert.equal(timeline.staticOptions.timelineMotionBlur.samples, 0);
 	assert.equal(manager.state.timelineMotionBlur.value.samples, 32);
 });
 
