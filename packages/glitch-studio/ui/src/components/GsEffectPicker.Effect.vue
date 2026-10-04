@@ -101,7 +101,7 @@ function getInputPorts(definition: ParameterDefinition, path: string[], label: s
 }
 
 .footer {
-	--height: 16px;
+	--height: 15px;
 	display: grid;
 	grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
 	align-items: center;
@@ -112,6 +112,7 @@ function getInputPorts(definition: ParameterDefinition, path: string[], label: s
 }
 
 .ports {
+	--NODE_PORT_SIZE: var(--height);
 	display: flex;
 	flex-wrap: wrap;
 	align-items: center;
@@ -119,18 +120,17 @@ function getInputPorts(definition: ParameterDefinition, path: string[], label: s
 }
 
 .outputs {
-	--NODE_PORT_SIZE: var(--height);
 	justify-content: flex-end;
 }
 
 .secondaryPorts {
-	--NODE_PORT_SIZE: 7px;
+	--gap: 2px;
+	--NODE_PORT_SIZE: calc((var(--height) / 2) - (var(--gap) / 2));
 	display: flex;
 	flex-direction: column;
 	flex-wrap: wrap;
-	gap: 2px;
+	gap: var(--gap);
 	height: var(--height);
-	padding: 1px 0;
 	box-sizing: border-box;
 }
 
@@ -138,6 +138,8 @@ function getInputPorts(definition: ParameterDefinition, path: string[], label: s
 }
 
 .arrow {
-	opacity: 0.5;
+	height: var(--height);
+	line-height: var(--height);
+	opacity: 0.3;
 }
 </style>
