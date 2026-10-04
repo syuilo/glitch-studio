@@ -15,6 +15,7 @@ export const PREF_DEF = definePreferences({
 	previewVolume: { default: () => 0.5 },
 	forceTypeSafety: { default: () => false },
 	showTimecodeInPreview: { default: () => true },
+	showGridInPreview: { default: () => false },
 	timelineTickMode: { default: (): TimelineTickMode => 'decimal125' },
 	timelineHalfTicks: { default: () => true },
 	timelineThirdTicks: { default: () => false },

@@ -9,7 +9,13 @@
 			<button :class="$style.menuButton" class="_button" @click="showMenu"><i class="ti ti-dots"></i></button>
 		</div>
 		<div ref="containerContainer" :class="[$style.containerContainer, { [$style.animatedBg]: preferences.r.animatedBgInPreview.value }]" @wheel="onViewWheel" @click="onViewClick" @pointermove="onPointermove">
-			<div ref="canvasContainer" :class="$style.canvasContainer" :style="{ scale: zoom }"></div>
+			<div :class="$style.canvasFrame" :style="{ scale: zoom }">
+				<div ref="canvasContainer" :class="$style.canvasContainer"></div>
+				<div v-if="showGridInPreview" :class="$style.grid">
+					<div v-for="position in gridLinePositions" :key="`vertical-${position}`" :class="[$style.gridLine, $style.gridLineVertical]" :style="{ left: `${position * 100}%` }"></div>
+					<div v-for="position in gridLinePositions" :key="`horizontal-${position}`" :class="[$style.gridLine, $style.gridLineHorizontal]" :style="{ top: `${position * 100}%` }"></div>
+				</div>
+			</div>
 		</div>
 	</div>
 </GsDetachableView>
@@ -28,6 +34,7 @@ import * as ui from '@/ui.ts';
 const canvasContainer = useTemplateRef('canvasContainer');
 const containerContainer = useTemplateRef('containerContainer');
 const ZOOM_STEP = 1.25;
+const gridLinePositions = [1 / 4, 1 / 3, 1 / 2, 2 / 3, 3 / 4];
 const zoom = ref(1 / ZOOM_STEP / ZOOM_STEP / ZOOM_STEP);
 const liveTime = ref(0);
 const time = computed(() => previewPlayback.state.value.mode === 'timeline' ? previewPlayback.currentTimelineTime.value : liveTime.value);
@@ -134,6 +141,7 @@ function formatTime(timeMs: number): string {
 
 const animatedBgInPreview = preferences.model('animatedBgInPreview');
 const showTimecodeInPreview = preferences.model('showTimecodeInPreview');
+const showGridInPreview = preferences.model('showGridInPreview');
 
 function showMenu(ev: PointerEvent) {
 	ui.popupMenu([{
@@ -151,6 +159,11 @@ function showMenu(ev: PointerEvent) {
 		icon: 'ti ti-clock',
 		type: 'switch',
 		ref: showTimecodeInPreview,
+	}, {
+		text: 'Show Grid',
+		icon: 'ti ti-grid-3x3',
+		type: 'switch',
+		ref: showGridInPreview,
 	}], ev.currentTarget ?? ev.target);
 }
 </script>
@@ -180,8 +193,39 @@ function showMenu(ev: PointerEvent) {
 	}
 }
 
-.canvasContainer {
+.canvasFrame {
+	position: relative;
+}
+
+.canvasContainer,
+.canvasContainer > canvas {
 	display: block;
+}
+
+.grid {
+	position: absolute;
+	inset: 0;
+	pointer-events: none;
+}
+
+.gridLine {
+	position: absolute;
+	background: #ffffff80;
+	box-shadow: 0 0 1px #000c;
+}
+
+.gridLineVertical {
+	top: 0;
+	bottom: 0;
+	width: 1px;
+	translate: -50% 0;
+}
+
+.gridLineHorizontal {
+	left: 0;
+	right: 0;
+	height: 1px;
+	translate: 0 -50%;
 }
 
 .topLeft {
