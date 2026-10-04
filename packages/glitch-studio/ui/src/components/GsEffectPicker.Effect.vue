@@ -4,11 +4,11 @@
 	<span v-if="detailed" :class="$style.description">{{ effect.description['ja-JP'] }}</span>
 	<div v-if="detailed" :class="$style.footer">
 		<div :class="$style.ports">
-			<GsNodePort v-for="input in inputPorts" :key="input.key" :dataType="input.dataType" :title="`${input.label} (${input.dataType.kind})`"/>
+			<GsNodePort v-for="input in inputPorts" :key="input.key" v-tooltip="`${input.label} (${input.dataType.kind})`" :dataType="input.dataType"/>
 		</div>
 		<i class="ti ti-arrow-right" :class="$style.arrow"></i>
 		<div :class="[$style.ports, $style.outputs]">
-			<GsNodePort v-for="(output, key) in effect.outputDefs" :key="key" :dataType="output.dataType" :title="`${key} (${output.dataType.kind})`"/>
+			<GsNodePort v-for="(output, key) in effect.outputDefs" :key="key" v-tooltip="`${key} (${output.dataType.kind})`" :dataType="output.dataType"/>
 		</div>
 	</div>
 </button>
@@ -16,10 +16,12 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
-import type { EffectDefinition } from '@gs/subsystems_effect_shared/effect-definition.ts';
-import { isTextureDataType, type TextureDataType } from '@gs/shared/data-type/data-type.ts';
-import { getArrayElementDefinition, getStructFieldDefinitions, type ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
+import { isTextureDataType } from '@gs/shared/data-type/data-type.ts';
+import { getArrayElementDefinition, getStructFieldDefinitions } from '@gs/shared/parameter/parameter-definition.ts';
 import GsNodePort from './GsNodePort.vue';
+import type { TextureDataType } from '@gs/shared/data-type/data-type.ts';
+import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
+import type { EffectDefinition } from '@gs/subsystems_effect_shared/effect-definition.ts';
 
 const props = withDefaults(defineProps<{
 	effect: Pick<EffectDefinition, 'displayName' | 'description' | 'paramDefs' | 'outputDefs'>;
