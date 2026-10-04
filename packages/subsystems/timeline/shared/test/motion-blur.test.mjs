@@ -3,9 +3,9 @@ import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { loadSource } from './helpers/load-source.mjs';
 
-const { DEFAULT_TIMELINE_MOTION_BLUR, getTimelineMotionBlurBoundaries, getTimelineSampleTimes, validateTimelineFps, validateTimelineMotionBlur } = await loadSource(fileURLToPath(new URL('../src/motion-blur.ts', import.meta.url)));
+const { getTimelineMotionBlurBoundaries, getTimelineSampleTimes, validateTimelineFps, validateTimelineMotionBlur } = await loadSource(fileURLToPath(new URL('../src/motion-blur.ts', import.meta.url)));
 const { findTimelineHistoryEffects } = await loadSource(fileURLToPath(new URL('../src/render-history-effects.ts', import.meta.url)));
-const settings = { ...DEFAULT_TIMELINE_MOTION_BLUR, enabled: true, samples: 8, previewSamples: 4 };
+const settings = { enabled: true, shutterAngle: 180, samples: 8 };
 const clip = (startMs, durationMs, extra = {}) => ({ startMs, durationMs, contentOffsetMs: 0, ...extra });
 const scene = (id, layers) => ({ id, layers });
 
@@ -25,27 +25,27 @@ test('collects nested visible boundaries without audio cuts or rounded offsets',
 test('redistributes samples inside half-open clip intervals', () => {
 	const boundaries = [0, 100, 200];
 	for (const time of [0, 1, 99, 100, 199]) {
-		const samples = getTimelineSampleTimes(time, 50, settings, false, boundaries);
+		const samples = getTimelineSampleTimes(time, 50, settings, boundaries);
 		assert.equal(samples.length, 8);
 		const start = time < 100 ? 0 : 100;
 		assert.ok(samples.every(sample => sample > start && sample < start + 100));
 		assert.ok(samples.every(sample => Math.abs(sample - time) < 5));
 	}
-	assert.deepEqual(getTimelineSampleTimes(200, 50, settings, false, boundaries), [200]);
-	assert.deepEqual(getTimelineSampleTimes(-1, 50, settings, false, boundaries), [-1]);
+	assert.deepEqual(getTimelineSampleTimes(200, 50, settings, boundaries), [200]);
+	assert.deepEqual(getTimelineSampleTimes(-1, 50, settings, boundaries), [-1]);
 });
 
-// 【シャッター角と基準fpsから露光を計算し、プレビューのサンプル数だけを変更する】
+// 【シャッター角と基準fpsから露光を計算し、サンプル数だけの変更では露光時間を保つ】
 // 描画頻度を落としても長いブラーにならず、書き出しfpsを変えたときだけ露光時間が変わる。
 test('separates preview quality from exposure and scales exposure with output fps', () => {
-	const samples = getTimelineSampleTimes(100, 60, settings, false, [0, 1000]);
-	const preview = getTimelineSampleTimes(100, 60, settings, true, [0, 1000]);
+	const samples = getTimelineSampleTimes(100, 60, settings, [0, 1000]);
+	const preview = getTimelineSampleTimes(100, 60, { ...settings, samples: 4 }, [0, 1000]);
 	assert.equal(preview.length, 4);
 	assert.equal(samples.length, 8);
 	const exposureFromSamples = times => (times.at(-1) - times[0]) * times.length / (times.length - 1);
 	assert.ok(Math.abs(exposureFromSamples(samples) - 1000 / 120) < 1e-10);
 	assert.ok(Math.abs(exposureFromSamples(samples) - exposureFromSamples(preview)) < 1e-10);
-	const slower = getTimelineSampleTimes(100, 30, settings, false, [0, 1000]);
+	const slower = getTimelineSampleTimes(100, 30, settings, [0, 1000]);
 	assert.ok(Math.abs(exposureFromSamples(slower) - 1000 / 60) < 1e-10);
 });
 
@@ -53,10 +53,8 @@ test('separates preview quality from exposure and scales exposure with output fp
 // 境界で露光が片側に偏っても、単独サンプルのプレビュー位置をずらさない。
 test('uses the reference time for disabled or single-sample rendering', () => {
 	for (const override of [{ enabled: false }, { shutterAngle: 0 }, { samples: 0 }, { samples: 1 }]) {
-		assert.deepEqual(getTimelineSampleTimes(0, 60, { ...settings, ...override }, false, [0, 100]), [0]);
+		assert.deepEqual(getTimelineSampleTimes(0, 60, { ...settings, ...override }, [0, 100]), [0]);
 	}
-	assert.deepEqual(getTimelineSampleTimes(0, 60, { ...settings, previewSamples: 0 }, true, [0, 100]), [0]);
-	assert.equal(getTimelineSampleTimes(50, 60, { ...settings, previewSamples: 0 }, false, [0, 100]).length, 8);
 });
 
 // 【UI以外から来る設定でも無限ループや巨大なサンプル配列を作らない】
@@ -65,7 +63,7 @@ test('validates finite fps, angles and bounded integer sample counts', () => {
 	validateTimelineFps(29.97);
 	validateTimelineMotionBlur(settings);
 	for (const fps of [0, -1, NaN, Infinity, 121]) assert.throws(() => validateTimelineFps(fps));
-	for (const override of [{ shutterAngle: 361 }, { shutterAngle: NaN }, { samples: -1 }, { samples: 1.5 }, { previewSamples: 129 }, { enabled: 1 }]) {
+	for (const override of [{ shutterAngle: 361 }, { shutterAngle: NaN }, { samples: -1 }, { samples: 1.5 }, { samples: 129 }, { enabled: 1 }]) {
 		assert.throws(() => validateTimelineMotionBlur({ ...settings, ...override }));
 	}
 });

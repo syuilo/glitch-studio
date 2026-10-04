@@ -178,7 +178,7 @@ test('round trips effect layers and changes resolution and clips with undo', asy
 	resolution.execute(f.state);
 	const add = COMMAND_DEFS.addTimelineClip.create({ ...f.target, clip: { id: 'second', startMs: 6000, durationMs: 1000, contentOffsetMs: 50.25 } });
 	add.execute(f.state);
-	const project = { timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16, previewSamples: 4 }, id: 'project', gsVersion: '2.0.0-alpha', name: 'Test', description: '', author: '', resolution: { width: 800, height: 600 },
+	const project = { timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, id: 'project', gsVersion: '2.0.0-alpha', name: 'Test', description: '', author: '', resolution: { width: 800, height: 600 },
 		assets: [], players: [], visualModules: [], timelineScenes: f.state.timelineScenes.value };
 	assert.deepEqual(decodeProjectFile(await encodeProjectFile(project)), project);
 	resolution.undo(f.state);

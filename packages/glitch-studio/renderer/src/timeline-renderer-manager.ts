@@ -385,7 +385,7 @@ export class TimelineRendererManager extends EventEmitter<{
 
 	private renderFrame(time: number, isExport: boolean, fps = this.staticOptions.timelineFps, initialTimeDelta = 0) {
 		const settings = this.staticOptions.timelineMotionBlur;
-		if (!settings.enabled || settings.shutterAngle === 0 || (isExport ? settings.samples : settings.previewSamples) <= 1) {
+		if (!settings.enabled || settings.shutterAngle === 0 || settings.samples <= 1) {
 			// 単発描画ではサンプル配列や露光全体用の中断管理を作らない。
 			// 直前の複数サンプル描画が待機中なら、残りの評価・表示も止める。
 			this.frameRenderer.cancel();
@@ -393,7 +393,7 @@ export class TimelineRendererManager extends EventEmitter<{
 		}
 		this.motionBlurBoundaries ??= this.dynamicOptions.sceneId == null ? []
 			: getTimelineMotionBlurBoundaries(this.dynamicOptions.timelineScenes, this.dynamicOptions.sceneId);
-		const times = getTimelineSampleTimes(time, fps, settings, !isExport, this.motionBlurBoundaries);
+		const times = getTimelineSampleTimes(time, fps, settings, this.motionBlurBoundaries);
 		return this.frameRenderer.render(times, isExport, initialTimeDelta);
 	}
 

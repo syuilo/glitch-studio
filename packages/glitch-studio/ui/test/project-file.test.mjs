@@ -105,7 +105,7 @@ const appBundle = await build({
 
 function project(overrides = {}) {
 	return {
-		timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16, previewSamples: 4 },
+		timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 },
 		id: 'project-id', gsVersion: '2.0.0-alpha.2', name: 'Example', description: 'First line\n日本語の説明', author: 'Author',
 		assets: [], players: [], visualModules: [], timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [] }], resolution: { width: 640, height: 480 },
 		...overrides,
@@ -121,7 +121,7 @@ test('persists timeline render settings and synchronizes undo and redo without c
 	const manager = app.appStateManager;
 	const notifications = [];
 	manager.onChange(changes => notifications.push(changes));
-	const settings = { timelineFps: 29.97, timelineMotionBlur: { enabled: true, shutterAngle: 270, samples: 32, previewSamples: 0 } };
+	const settings = { timelineFps: 29.97, timelineMotionBlur: { enabled: true, shutterAngle: 270, samples: 32 } };
 	const live = app.visualModuleRendererManagerController;
 	const timeline = app.timelineRendererManagerController;
 	live.updates.length = 0;
@@ -130,9 +130,10 @@ test('persists timeline render settings and synchronizes undo and redo without c
 	timeline.updates.length = 0;
 	manager.commit('changeTimelineRenderSettings', settings);
 	await nextTick();
+	const previewSettings = { ...settings, timelineMotionBlur: { ...settings.timelineMotionBlur, samples: app.timelinePreviewMotionBlurSamples.value } };
 	assert.equal(timeline.staticOptions.timelineFps, 29.97);
-	assert.deepEqual(timeline.staticOptions.timelineMotionBlur, settings.timelineMotionBlur);
-	assert.deepEqual(timeline.staticUpdates, [settings]);
+	assert.deepEqual(timeline.staticOptions.timelineMotionBlur, previewSettings.timelineMotionBlur);
+	assert.deepEqual(timeline.staticUpdates, [previewSettings]);
 	assert.equal(timeline.updates.length, 0);
 	assert.equal(live.updates.length, 0);
 	assert.equal(live.staticUpdates.length, 0);
@@ -152,6 +153,8 @@ test('persists timeline render settings and synchronizes undo and redo without c
 	assert.equal(saved.timelineFps, 29.97);
 	assert.deepEqual(saved.timelineMotionBlur, settings.timelineMotionBlur);
 	assert.equal('timelinePreviewFpsFactor' in saved, false);
+	assert.equal('timelinePreviewMotionBlurSamples' in saved, false);
+	assert.equal('previewSamples' in saved.timelineMotionBlur, false);
 	await app.newProject();
 	window.showOpenFilePicker = async () => [handle];
 	assert.equal(await app.openProject(), true);
@@ -169,12 +172,58 @@ test('persists timeline render settings and synchronizes undo and redo without c
 test('uses project render settings for the initial renderer creation', async t => {
 	setup(t);
 	const app = evaluate(appBundle);
-	const loaded = project({ timelineFps: 24, timelineMotionBlur: { enabled: true, shutterAngle: 90, samples: 8, previewSamples: 2 } });
+	const loaded = project({ timelineFps: 24, timelineMotionBlur: { enabled: true, shutterAngle: 90, samples: 32 } });
 	await app.appReady(loaded);
 	const timeline = app.timelineRendererManagerController;
 	assert.equal(timeline.initialStaticOptions.timelineFps, 24);
-	assert.deepEqual(timeline.initialStaticOptions.timelineMotionBlur, loaded.timelineMotionBlur);
+	assert.deepEqual(timeline.initialStaticOptions.timelineMotionBlur, { ...loaded.timelineMotionBlur, samples: 8 });
 	assert.ok(timeline.updates.every(options => !('timelineFps' in options) && !('timelineMotionBlur' in options)));
+});
+
+// 【プレビューのブラー品質はUIだけで保持し、プロジェクト・Undo履歴・LIVEには反映しない】
+// プレビューをオフにしても書き出し用サンプル数を失わず、プロジェクトの有効設定は維持する。
+// 読み込み時は保存された書き出し設定とUIの既定品質を、それぞれの用途に使う。
+test('keeps preview motion blur samples separate from project settings and saved files', async t => {
+	const window = setup(t);
+	const app = evaluate(appBundle);
+	await app.newProject();
+	const manager = app.appStateManager;
+	const settings = { timelineFps: 30, timelineMotionBlur: { enabled: true, shutterAngle: 270, samples: 32 } };
+	manager.commit('changeTimelineRenderSettings', settings);
+	await nextTick();
+	const historyLength = manager.undoStack.value.length;
+	const timeline = app.timelineRendererManagerController;
+	const live = app.visualModuleRendererManagerController;
+	live.staticUpdates.length = 0;
+	assert.deepEqual([...app.TIMELINE_PREVIEW_MOTION_BLUR_SAMPLE_OPTIONS], [0, 2, 4, 8]);
+	for (const samples of [2, 4, 8, 0]) {
+		app.timelinePreviewMotionBlurSamples.value = samples;
+		await nextTick();
+		assert.deepEqual(timeline.staticOptions.timelineMotionBlur, { ...settings.timelineMotionBlur, samples });
+		assert.deepEqual(manager.state.timelineMotionBlur.value, settings.timelineMotionBlur);
+		assert.equal(manager.undoStack.value.length, historyLength);
+	}
+	assert.equal(live.staticUpdates.length, 0);
+	manager.undo();
+	await nextTick();
+	assert.equal(app.timelinePreviewMotionBlurSamples.value, 0);
+	assert.equal(timeline.staticOptions.timelineMotionBlur.enabled, false);
+	manager.redo();
+	await nextTick();
+	assert.equal(timeline.staticOptions.timelineMotionBlur.samples, 0);
+	assert.equal(manager.state.timelineMotionBlur.value.samples, 32);
+	const handle = fileHandle('preview-quality.gsproj');
+	window.showSaveFilePicker = async () => handle;
+	await app.saveProject();
+	const saved = decodeProjectFile(handle.bytes);
+	assert.deepEqual(saved.timelineMotionBlur, settings.timelineMotionBlur);
+	assert.equal('previewSamples' in saved.timelineMotionBlur, false);
+	assert.equal('timelinePreviewMotionBlurSamples' in saved, false);
+	window.showOpenFilePicker = async () => [handle];
+	assert.equal(await app.openProject(), true);
+	assert.equal(app.timelinePreviewMotionBlurSamples.value, 8);
+	assert.equal(timeline.staticOptions.timelineMotionBlur.samples, 8);
+	assert.equal(manager.state.timelineMotionBlur.value.samples, 32);
 });
 
 // 【倍率はタイムラインの描画頻度だけを変更し、LIVEのfps制限は干渉しない】

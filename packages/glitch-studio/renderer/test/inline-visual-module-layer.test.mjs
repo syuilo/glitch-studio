@@ -61,7 +61,7 @@ function layer(id, module, overrides = {}) {
 	};
 }
 
-function fixture(t, { present = false, disableCache = true, timelineFps = 60, timelineMotionBlur = { enabled: false, shutterAngle: 180, samples: 16, previewSamples: 4 } } = {}) {
+function fixture(t, { present = false, disableCache = true, timelineFps = 60, timelineMotionBlur = { enabled: false, shutterAngle: 180, samples: 16 } } = {}) {
 	const calls = { instances: [], renders: [], outputs: [], presented: [], statuses: [], errors: [], passes: [], writes: [] };
 	const texture = ({ size = [16, 16], format = 'rgba8unorm' } = {}) => ({
 		width: size.width ?? size[0], height: size.height ?? size[1], format,
@@ -119,9 +119,9 @@ for (const isExport of [false, true]) {
 		// サンプル数を1にするだけでは露光用の中断管理や配列生成が残るため、
 		// プレビューと書き出しの両方で複数サンプル用の経路を通らないことも確認する。
 		test(`renders ${isExport ? 'export' : 'preview'} directly with ${reason}`, async t => {
-			const settings = { enabled: reason !== 'disabled', shutterAngle: reason === 'zero shutter angle' ? 0 : 180, samples: 8, previewSamples: 4 };
+			const settings = { enabled: reason !== 'disabled', shutterAngle: reason === 'zero shutter angle' ? 0 : 180, samples: 8 };
 			if (reason === 'zero samples' || reason === 'one sample') {
-				settings[isExport ? 'samples' : 'previewSamples'] = reason === 'zero samples' ? 0 : 1;
+				settings.samples = reason === 'zero samples' ? 0 : 1;
 			}
 			const { manager, calls } = fixture(t, { present: true, timelineMotionBlur: settings });
 			await manager.updateDynamicOptions({
@@ -153,7 +153,7 @@ for (const isExport of [false, true]) {
 		// 複数サンプルの途中と通常の単発描画の両方を待機させ、新しい設定での描画後に完了させる。
 		// 旧フレームの再開による表示の巻き戻りや、後続サンプルによる新しい描画の中断を防ぐ。
 		test(`disposes pending ${isExport ? 'export' : 'preview'} before recreating with motion blur ${initiallyEnabled ? 'disabled' : 'enabled'}`, async t => {
-			const settings = { enabled: initiallyEnabled, shutterAngle: 180, samples: 4, previewSamples: 4 };
+			const settings = { enabled: initiallyEnabled, shutterAngle: 180, samples: 4 };
 			const { manager, calls } = fixture(t, { timelineMotionBlur: settings });
 			const pending = Promise.withResolvers();
 			const entered = Promise.withResolvers();
@@ -203,7 +203,7 @@ for (const isExport of [false, true]) {
 // 非Workerの利用でも、呼び出し元の設定オブジェクトの変更が進行中のレンダラーへ漏れてはいけない。
 // 基準fpsが既定値と異なる場合も、そのfpsに対応する露光時間で評価する。
 test('keeps initial motion blur settings and derives exposure from the static timeline fps', async t => {
-	const settings = { enabled: true, shutterAngle: 180, samples: 8, previewSamples: 4 };
+	const settings = { enabled: true, shutterAngle: 180, samples: 4 };
 	const { manager, calls } = fixture(t, { timelineFps: 24, timelineMotionBlur: settings });
 	settings.enabled = false;
 	settings.shutterAngle = 360;
@@ -223,28 +223,30 @@ test('keeps initial motion blur settings and derives exposure from the static ti
 // 【子Sceneを各時刻で評価しても、露光の平均は最上位だけで行う】
 // Sceneの入れ子ごとにサンプル数が掛け合わされたり、プレビュー用サンプル数が書き出しへ漏れたりしない。
 test('samples nested scenes once per root sample and uses the export frame rate', async t => {
-	const { manager, calls } = fixture(t, { timelineMotionBlur: { enabled: true, shutterAngle: 180, samples: 8, previewSamples: 4 } });
+	const { manager, calls } = fixture(t, { timelineMotionBlur: { enabled: true, shutterAngle: 180, samples: 4 } });
+	const exporting = fixture(t, { timelineMotionBlur: { enabled: true, shutterAngle: 180, samples: 8 } });
 	const child = layer('child-layer', visualModule({ params: { localTime: expression('TIME_MS') } }));
 	const { visualModule: _, visualModuleParamValues: __, ...base } = layer('parent', visualModule());
 	const parent = { ...base, layerType: 'scene', audioParamValues: {}, clips: [{ id: 'clip', startMs: 100, durationMs: 1000, contentOffsetMs: 250, sceneId: 'child' }] };
-	await manager.updateDynamicOptions({
+	const dynamicOptions = {
 		timelineScenes: [
 			{ id: 'root', name: 'Root', resolution: { mode: 'project' }, layers: [parent] },
 			{ id: 'child', name: 'Child', resolution: { mode: 'project' }, layers: [child] },
 		], sceneId: 'root',
-	});
+	};
+	await manager.updateDynamicOptions(dynamicOptions);
+	await exporting.manager.updateDynamicOptions(dynamicOptions);
 	await manager.renderTimelineAt(400);
 	assert.equal(calls.outputs.length, 1);
 	assert.equal(calls.renders.length, 4);
 	assert.ok(calls.renders.every(call => call.params.localTime > 445 && call.params.localTime < 455));
 	const previewSpan = calls.renders.at(-1).params.localTime - calls.renders[0].params.localTime;
-	calls.renders.length = 0;
-	await manager.renderTimelineFrame(400, 0, 30);
-	assert.equal(calls.outputs.length, 2);
-	assert.equal(calls.renders.length, 8);
-	const exportSpan = calls.renders.at(-1).params.localTime - calls.renders[0].params.localTime;
+	await exporting.manager.renderTimelineFrame(400, 0, 30);
+	assert.equal(exporting.calls.outputs.length, 1);
+	assert.equal(exporting.calls.renders.length, 8);
+	const exportSpan = exporting.calls.renders.at(-1).params.localTime - exporting.calls.renders[0].params.localTime;
 	assert.ok(Math.abs(exportSpan * 8 / 7 - 2 * previewSpan * 4 / 3) < 1e-8);
-	assert.equal(calls.outputs.at(-1).texture.format, 'rgba16float');
+	assert.equal(exporting.calls.outputs.at(-1).texture.format, 'rgba16float');
 	const firstTarget = calls.outputs.at(-1).texture;
 	// リサイズは蓄積先も再作成し、古い寸法の画面を再利用しない。
 	await manager.updateDynamicOptions({ resolution: { width: 32, height: 24 } });
@@ -258,7 +260,7 @@ test('samples nested scenes once per root sample and uses the export frame rate'
 // 【クリップ編集後は境界を再収集する】
 // 古い境界がキャッシュに残ると、編集済みカットの前後が混ざったり無関係な位置で露光が切れる。
 test('invalidates cut boundaries after edits', async t => {
-	const { manager, calls } = fixture(t, { timelineMotionBlur: { enabled: true, shutterAngle: 360, samples: 8, previewSamples: 4 } });
+	const { manager, calls } = fixture(t, { timelineMotionBlur: { enabled: true, shutterAngle: 360, samples: 4 } });
 	const entry = layer('layer', visualModule({ params: { localTime: expression('TIME_MS') } }));
 	await manager.updateDynamicOptions({ timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [entry] }], sceneId: 'scene' });
 	await manager.renderTimelineAt(200);

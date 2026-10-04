@@ -1,4 +1,4 @@
-import { DEFAULT_TIMELINE_FPS, DEFAULT_TIMELINE_MOTION_BLUR, validateTimelineFps, validateTimelineMotionBlur } from '@gs/subsystems_timeline_shared/motion-blur.ts';
+import { validateTimelineFps, validateTimelineMotionBlur } from '@gs/subsystems_timeline_shared/motion-blur.ts';
 import { getSceneDuration, validateTimelineScenes } from '@gs/subsystems_timeline_shared/scenes.ts';
 import { validateTimelineEffectLayer } from '@gs/subsystems_timeline_shared/effect-layer.ts';
 import { effectDefinitions } from '@gs/subsystems_effect_shared/effect-definitions.ts';
@@ -14,6 +14,7 @@ import fillEffectDef from '@gs/subsystems_effect_shared/fx/fill/_def_.ts';
 import imageEffectDef from '@gs/subsystems_effect_shared/fx/image/_def_.ts';
 import videoEffectDef from '@gs/subsystems_effect_shared/fx/video/_def_.ts';
 import audioWaveformEffectDef from '@gs/subsystems_effect_shared/fx/audioWaveform/_def_.ts';
+import { DEFAULT_TIMELINE_FPS, DEFAULT_TIMELINE_MOTION_BLUR } from './project-defaults.ts';
 import { timelineLayerClipboard } from './utility/timeline-editor-state.ts';
 import { VisualModuleRendererManagerController } from './VisualModuleRendererManagerController.ts';
 import { TimelineRendererManagerController } from './TimelineRendererManagerController.ts';
@@ -22,10 +23,10 @@ import { AudioOutput } from './audio/audio-output.ts';
 import { PreviewPlaybackController } from './PreviewPlaybackController.ts';
 import { AppStateManager } from './AppStateManager.ts';
 import { RendererProjectSynchronizer } from './RendererProjectSynchronizer.ts';
-import type { RendererProjectState } from '@gs/glitch-studio_shared/project/renderer-state.ts';
 import { DEFAULT_PROJECT_NAME, loadProjectFile, saveProjectFile } from './gsproj.ts';
 import { preferences } from './preferences.ts';
 import { makeHotkey } from './utility/hotkey.ts';
+import type { RendererProjectState } from '@gs/glitch-studio_shared/project/renderer-state.ts';
 import type { Keymap } from './utility/hotkey.ts';
 import type { ProjectVisualModule } from '@gs/glitch-studio_shared/project/types.ts';
 import type { TimelineRendererManagerDynamicOptions } from '@gs/glitch-studio_renderer/timeline-renderer-manager.ts';
@@ -72,6 +73,9 @@ function benchmark(count = 100, visualModuleId = appStateManager.state.visualMod
 
 export const liveFpsLimit = ref<number | null>(60);
 export const timelinePreviewFpsFactor = ref(1);
+export const TIMELINE_PREVIEW_MOTION_BLUR_SAMPLE_OPTIONS = [0, 2, 4, 8] as const;
+const DEFAULT_TIMELINE_PREVIEW_MOTION_BLUR_SAMPLES = 0;
+export const timelinePreviewMotionBlurSamples = ref<(typeof TIMELINE_PREVIEW_MOTION_BLUR_SAMPLE_OPTIONS)[number]>(DEFAULT_TIMELINE_PREVIEW_MOTION_BLUR_SAMPLES);
 export const liveTimeFactor = ref(1);
 export const resolutionFactor = ref(1);
 export const highlightClipping = ref(false);
@@ -101,7 +105,8 @@ export const visualModuleRendererManagerController = markRaw(new VisualModuleRen
 
 export const timelineRendererManagerController = markRaw(new TimelineRendererManagerController({
 	timelineFps: appStateManager.state.timelineFps.value,
-	timelineMotionBlur: deepClone(appStateManager.state.timelineMotionBlur.value),
+	// プレビュー品質はUIだけが所有し、保存するプロジェクトのサンプル数は変更しない。
+	timelineMotionBlur: { ...appStateManager.state.timelineMotionBlur.value, samples: timelinePreviewMotionBlurSamples.value },
 	enable32bitDataTextures: preferences.s.enable32bitDataTextures,
 	intermediateTextureFormat: getRendererIntermediateTextureFormat(),
 }, { highlightClipping: highlightClipping.value }));
@@ -213,7 +218,10 @@ export async function appReady(project: Project, fileName = 'untitled.gsproj', f
 	// 画像からの新規作成とプロジェクト読込で同じ基準を使い、初回のGPU初期化にも反映する。
 	const maxDimension = Math.max(project.resolution.width, project.resolution.height);
 	const initialResolutionFactor = maxDimension > 3000 ? 0.25 : maxDimension > 1500 ? 0.5 : 1;
-	const timelineRenderSettings = { timelineFps: project.timelineFps, timelineMotionBlur: deepClone(project.timelineMotionBlur) };
+	const timelineRenderSettings = {
+		timelineFps: project.timelineFps,
+		timelineMotionBlur: { ...project.timelineMotionBlur, samples: DEFAULT_TIMELINE_PREVIEW_MOTION_BLUR_SAMPLES },
+	};
 	if (rendererInitialization == null) {
 		// 初回からプロジェクトの設定を使い、既定設定で起動してすぐ再生成するのを避ける。
 		await timelineRendererManagerController.updateStaticOptions(timelineRenderSettings);
@@ -240,6 +248,7 @@ export async function appReady(project: Project, fileName = 'untitled.gsproj', f
 	appStateManager.state.timelineFps.value = project.timelineFps;
 	appStateManager.state.timelineMotionBlur.value = deepClone(project.timelineMotionBlur);
 	timelinePreviewFpsFactor.value = 1;
+	timelinePreviewMotionBlurSamples.value = DEFAULT_TIMELINE_PREVIEW_MOTION_BLUR_SAMPLES;
 	resolutionFactor.value = initialResolutionFactor;
 	appStateManager.state.assets.value = project.assets;
 	appStateManager.state.visualModules.value = project.visualModules;
@@ -260,11 +269,11 @@ export async function appReady(project: Project, fileName = 'untitled.gsproj', f
 	projectFileHandle = fileHandle;
 
 	// 1回のCommandで変わるfpsとブラー設定をまとめて送り、Undo/Redoも同じ再生成経路を通す。
-	projectWatchers.push(watch([appStateManager.state.timelineFps, appStateManager.state.timelineMotionBlur], async () => {
+	projectWatchers.push(watch([appStateManager.state.timelineFps, appStateManager.state.timelineMotionBlur, timelinePreviewMotionBlurSamples], async () => {
 		try {
 			await timelineRendererManagerController.updateStaticOptions({
 				timelineFps: appStateManager.state.timelineFps.value,
-				timelineMotionBlur: deepClone(appStateManager.state.timelineMotionBlur.value),
+				timelineMotionBlur: { ...appStateManager.state.timelineMotionBlur.value, samples: timelinePreviewMotionBlurSamples.value },
 			});
 		} catch (error) {
 			void ui.alert({ type: 'error', text: error instanceof Error ? error.message : String(error) });

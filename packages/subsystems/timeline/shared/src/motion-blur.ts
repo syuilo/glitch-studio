@@ -6,13 +6,8 @@ export type TimelineMotionBlurSettings = {
 	enabled: boolean;
 	shutterAngle: number;
 	samples: number;
-	previewSamples: number;
 };
 
-export const DEFAULT_TIMELINE_FPS = 60;
-export const DEFAULT_TIMELINE_MOTION_BLUR: Readonly<TimelineMotionBlurSettings> = {
-	enabled: false, shutterAngle: 360, samples: 32, previewSamples: 8,
-};
 export const MAX_MOTION_BLUR_SAMPLES = 128;
 
 export function validateTimelineFps(fps: number): void {
@@ -22,7 +17,7 @@ export function validateTimelineFps(fps: number): void {
 export function validateTimelineMotionBlur(settings: TimelineMotionBlurSettings): void {
 	if (!settings || typeof settings.enabled !== 'boolean'
 		|| !Number.isFinite(settings.shutterAngle) || settings.shutterAngle < 0 || settings.shutterAngle > 360
-		|| ![settings.samples, settings.previewSamples].every(value => Number.isInteger(value) && value >= 0 && value <= MAX_MOTION_BLUR_SAMPLES)) {
+		|| !Number.isInteger(settings.samples) || settings.samples < 0 || settings.samples > MAX_MOTION_BLUR_SAMPLES) {
 		throw new Error(`Motion blur requires a shutter angle from 0 to 360 and integer sample counts from 0 to ${MAX_MOTION_BLUR_SAMPLES}.`);
 	}
 }
@@ -57,8 +52,8 @@ export function getTimelineMotionBlurBoundaries(scenes: readonly TimelineScene[]
 }
 
 /** 出力fpsと露光時間の関係だけを扱い、プレビューの描画頻度や書き出し範囲には依存しない。 */
-export function getTimelineSampleTimes(time: number, fps: number, settings: TimelineMotionBlurSettings, preview: boolean, boundaries: readonly number[]): number[] {
-	const count = preview ? settings.previewSamples : settings.samples;
+export function getTimelineSampleTimes(time: number, fps: number, settings: TimelineMotionBlurSettings, boundaries: readonly number[]): number[] {
+	const count = settings.samples;
 	if (!settings.enabled || settings.shutterAngle === 0 || count <= 1) return [time];
 	// upper_boundで境界ちょうどを後ろの区間に所属させ、既存の[start, end)と一致させる。
 	let low = 0;

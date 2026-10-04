@@ -61,7 +61,7 @@ function fixture(t, kind = 'VisualModule') {
 		dependencies: { createWorker() { const worker = new FakeWorker(); workers.push(worker); return worker; } },
 	});
 	const controller = new module.exports[kind + 'RendererManagerController']({
-		...(kind === 'Timeline' ? { timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16, previewSamples: 4 } } : {}),
+		...(kind === 'Timeline' ? { timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 } } : {}),
 		enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm', enableStats: false,
 	}, { assets: [], fpsLimit: null });
 	t.after(() => controller.destroy());
@@ -83,7 +83,7 @@ test('recreates the timeline once for combined render settings and ignores uncha
 	const { controller, workers } = fixture(t, 'Timeline');
 	const oldWorker = await initialize(controller, workers);
 	const previousCanvas = controller.canvas;
-	const settings = { timelineFps: 24, timelineMotionBlur: { enabled: true, shutterAngle: 270, samples: 32, previewSamples: 8 } };
+	const settings = { timelineFps: 24, timelineMotionBlur: { enabled: true, shutterAngle: 270, samples: 32 } };
 	const ready = controller.updateStaticOptions(settings);
 	assert.equal(oldWorker.terminated, true);
 	const replacement = workers[1];
@@ -126,7 +126,7 @@ test('recreates again with the latest timeline settings changed after the snapsh
 	const first = controller.updateStaticOptions({ timelineFps: 24 });
 	await workers[1].initialization.promise;
 	const undone = controller.updateStaticOptions({ timelineFps: 60 });
-	const latestBlur = { enabled: true, shutterAngle: 90, samples: 8, previewSamples: 2 };
+	const latestBlur = { enabled: true, shutterAngle: 90, samples: 8 };
 	const latest = controller.updateStaticOptions({ timelineFps: 48, timelineMotionBlur: latestBlur });
 	// 呼び出し元による変更で、保持した初期化設定を後から書き換えない。
 	latestBlur.shutterAngle = 360;
@@ -148,7 +148,7 @@ test('rejects invalid static timeline settings before recreating the renderer', 
 	const { controller, workers } = fixture(t, 'Timeline');
 	const worker = await initialize(controller, workers);
 	await assert.rejects(controller.updateStaticOptions({ timelineFps: 0 }), /frame rate/);
-	await assert.rejects(controller.updateStaticOptions({ timelineMotionBlur: { enabled: true, shutterAngle: 361, samples: 8, previewSamples: 4 } }), /Motion blur/);
+	await assert.rejects(controller.updateStaticOptions({ timelineMotionBlur: { enabled: true, shutterAngle: 361, samples: 8 } }), /Motion blur/);
 	assert.equal(worker.terminated, false);
 	assert.equal(workers.length, 1);
 	assert.equal(controller.isReady.value, true);

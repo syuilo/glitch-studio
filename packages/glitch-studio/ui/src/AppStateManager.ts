@@ -1,4 +1,4 @@
-import { DEFAULT_TIMELINE_FPS, DEFAULT_TIMELINE_MOTION_BLUR } from '@gs/subsystems_timeline_shared/motion-blur.ts';
+import { DEFAULT_TIMELINE_FPS, DEFAULT_TIMELINE_MOTION_BLUR } from './project-defaults.ts';
 import { shallowRef } from 'vue';
 import { computed, ref } from 'vue';
 import { deepClone } from '@gs/shared/utility/deep-clone.js';

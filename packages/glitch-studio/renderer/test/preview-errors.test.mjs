@@ -66,7 +66,7 @@ async function fixture(t, staticOptions = {}, Manager = VisualModuleRendererMana
 			input: { dataType: { kind: 'color' }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },
 		}, primaryInputParameter: 'input', resolutionInputParameter: 'input', outputDefs: { output: { dataType: { kind: 'color' } } }, primaryOutput: 'output' } },
 		effectImplementations: { pass: { outputTextureFactories: {} } },
-	}, { timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16, previewSamples: 4 }, enableStats: false, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm', ...staticOptions });
+	}, { timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, enableStats: false, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm', ...staticOptions });
 	renderer.on('ev', event => {
 		if (event.type === 'renderError') errors.push(event.ctx.message);
 	});
@@ -305,7 +305,7 @@ for (const [name, createManager] of [['live', createLiveManager], ['timeline', c
 			const canvas = { getContext: () => failure === 'context' ? null : new Context() };
 			await assert.rejects(createManager({
 				canvas, histogramCanvas: canvas, waveformHorizontalCanvas: canvas, waveformVerticalCanvas: canvas,
-				staticOptions: { timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16, previewSamples: 4 }, enableStats: false, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm' },
+				staticOptions: { timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, enableStats: false, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm' },
 				dynamicOptions: { assets: [{ id: 'broken', fileDataType: 'image/png', fileData: new Blob() }] },
 				effectDefinitions: {}, effectImplementations: {},
 			}), failure === 'context' ? /cannot get webgpu context/ : failure === 'constructor' ? /pipeline failed/ : /asset decode failed/);

@@ -29,6 +29,7 @@
 			<div :class="$style.footerItem">sRGB</div>
 			<button :class="$style.footerItem" class="_button" @click="openProjectSettings">Proj: {{ appStateManager.state.resolution.value.width }} x {{ appStateManager.state.resolution.value.height }} px</button>
 			<button :class="$style.footerItem" class="_button" @click="openResolutionFactorMenu">Preview: {{ resolutionFactor }}x ({{ Math.round(appStateManager.state.resolution.value.width * resolutionFactor) }} x {{ Math.round(appStateManager.state.resolution.value.height * resolutionFactor) }} px)</button>
+			<button v-if="previewPlayback.state.value.mode === 'timeline'" :class="$style.footerItem" class="_button" title="Preview motion blur samples. Requires motion blur to be enabled in Project Settings." @click="openMotionBlurSamplesMenu">Motion blur: {{ timelinePreviewMotionBlurSamples === 0 ? 'Off' : `${timelinePreviewMotionBlurSamples} samples` }}</button>
 			<button :class="$style.footerItem" class="_button" @click="openFpsMenu">{{ previewPlayback.state.value.mode === 'live' ? `LIVE: ${Math.round(visualModuleRendererManagerController.fpsDisplay.value)}fps` : `Timeline: ${timelinePreviewFpsFactor}x (${appStateManager.state.timelineFps.value * timelinePreviewFpsFactor}fps)` }}</button>
 			<button v-if="previewPlayback.state.value.mode === 'live'" :class="$style.footerItem" class="_button" @click="openTimeFactorMenu">TIME: {{ liveTimeFactor }}x</button>
 			<div :class="[$style.footerItem, $style.previewVolume]">
@@ -52,7 +53,7 @@
 
 <script lang="ts" setup>
 import { computed, nextTick, onMounted, onBeforeUnmount, ref, shallowRef, useTemplateRef, watch } from 'vue';
-import { audioOutput, activePreviewRenderer, previewPlayback, visualModuleRendererManagerController, resolutionFactor, liveFpsLimit, timelinePreviewFpsFactor, liveTimeFactor, appStateManager, projectInfo, openProject, saveProject } from './app.ts';
+import { audioOutput, activePreviewRenderer, previewPlayback, visualModuleRendererManagerController, resolutionFactor, liveFpsLimit, timelinePreviewFpsFactor, timelinePreviewMotionBlurSamples, TIMELINE_PREVIEW_MOTION_BLUR_SAMPLE_OPTIONS, liveTimeFactor, appStateManager, projectInfo, openProject, saveProject } from './app.ts';
 import { preferences } from './preferences.ts';
 import GsRange from './components/common/GsRange.vue';
 import GsAboutDialog from '@/components/GsAboutDialog.vue';
@@ -207,6 +208,15 @@ function openResolutionFactorMenu(ev: PointerEvent) {
 		active: computed(() => resolutionFactor.value === 0.25),
 		action: () => resolutionFactor.value = 0.25,
 	}], ev.currentTarget ?? ev.target);
+}
+
+function openMotionBlurSamplesMenu(ev: PointerEvent) {
+	ui.popupMenu(TIMELINE_PREVIEW_MOTION_BLUR_SAMPLE_OPTIONS.map(samples => ({
+		type: 'radioOption' as const,
+		text: samples === 0 ? 'Off' : String(samples),
+		active: computed(() => timelinePreviewMotionBlurSamples.value === samples),
+		action: () => { timelinePreviewMotionBlurSamples.value = samples; },
+	})), ev.currentTarget ?? ev.target);
 }
 
 function openFpsMenu(ev: PointerEvent) {
