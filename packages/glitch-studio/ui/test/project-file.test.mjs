@@ -18,7 +18,7 @@ const buildOptions = {
 	bundle: true, platform: 'node', format: 'cjs', write: false, external: ['vue'],
 	define: { _VERSION_: '"2.0.0-alpha.2"' },
 };
-const { encodeProjectFile, decodeProjectFile, loadProjectFile, saveProjectFile } = evaluate(await build({
+const { encodeProjectFile, decodeProjectFile, loadProjectFile, saveProjectFile, getProjectFileName, getProjectSaveFileHandle } = evaluate(await build({
 	...buildOptions, entryPoints: ['./src/gsproj.ts'],
 }));
 
@@ -94,9 +94,18 @@ const appBundle = await build({
 						async relaunchManager() { this.lifecycle.push('relaunch'); this.isReady.value = true; }
 					}
 					export class TimelineRendererManagerController extends VisualModuleRendererManagerController { timeline = true; }
-				` : args.path.endsWith('.vue') ? 'export default {};' : `
+					` : args.path.endsWith('.vue') ? `export default { name: '${args.path.split('/').at(-1)}' };` : `
 					export async function alert(options) { globalThis.projectAlerts.push(options.text); }
-					export function popup() { return { dispose() {} }; }
+						export function popup(component, props, events) {
+							if (component.name === 'GsProjectSaveDialog.vue') {
+								queueMicrotask(async () => {
+									const handle = await window.selectProjectSaveFile(props.name);
+									if (handle != null) events.selected(handle);
+									events.closed();
+								});
+							}
+							return { dispose() {} };
+						}
 				`,
 			}));
 		},
@@ -147,7 +156,7 @@ test('persists timeline render settings and synchronizes undo and redo without c
 	assert.equal(timeline.staticUpdates.length, 3);
 	assert.deepEqual(notifications, Array.from({ length: 3 }, () => [{ type: 'timelineRenderSettings' }]));
 	const handle = fileHandle('motion-blur.gsproj');
-	window.showSaveFilePicker = async () => handle;
+	window.selectProjectSaveFile = async () => handle;
 	await app.saveProject();
 	const saved = decodeProjectFile(handle.bytes);
 	assert.equal(saved.timelineFps, 29.97);
@@ -200,7 +209,7 @@ test('persists disabled layers and refreshes the paused preview on visibility ed
 	assert.equal(app.previewPlayback.currentTimelineTime.value, 500);
 	assert.equal(app.previewPlayback.isTimelinePlaying.value, false);
 	const handle = fileHandle('disabled-layer.gsproj');
-	window.showSaveFilePicker = async () => handle;
+	window.selectProjectSaveFile = async () => handle;
 	await app.saveProject();
 	assert.deepEqual(decodeProjectFile(handle.bytes).timelineScenes[0].layers[0], { ...original, isDisabled: true });
 	await app.newProject();
@@ -257,7 +266,7 @@ test('keeps preview motion blur samples separate from project settings and saved
 	assert.equal(timeline.staticOptions.timelineMotionBlur.samples, 0);
 	assert.equal(manager.state.timelineMotionBlur.value.samples, 32);
 	const handle = fileHandle('preview-quality.gsproj');
-	window.showSaveFilePicker = async () => handle;
+	window.selectProjectSaveFile = async () => handle;
 	await app.saveProject();
 	const saved = decodeProjectFile(handle.bytes);
 	assert.deepEqual(saved.timelineMotionBlur, settings.timelineMotionBlur);
@@ -338,6 +347,7 @@ function fileHandle(name, options = {}) {
 		async requestPermission(mode) { calls.push(['permission', mode]); return options.permission ?? 'granted'; },
 		async createWritable() {
 			calls.push(['create']);
+			if (options.fail === 'create') throw new Error('create failed');
 			let pending;
 			return {
 				async write(data) {
@@ -360,7 +370,11 @@ function setup(t) {
 	const previousWindow = globalThis.window;
 	const previousAlerts = globalThis.projectAlerts;
 	// appのキーボード登録だけ受け取り、実際のDOMやイベントループは使わない。
-	globalThis.window = { document: { title: '', addEventListener() {} } };
+	globalThis.window = {
+		document: { title: '', addEventListener() {} },
+		// 旧APIに戻すと、保存先選択だけで既存データが失われる。新経路では一切呼び出さない。
+		showSaveFilePicker() { assert.fail('The destructive save picker must not be used'); },
+	};
 	globalThis.projectAlerts = [];
 	t.after(() => { globalThis.window = previousWindow; globalThis.projectAlerts = previousAlerts; });
 	return globalThis.window;
@@ -377,72 +391,190 @@ test('round trips project information and original assets', async () => {
 	assert.equal(restored.assets[0].fileData.type, 'font/ttf');
 });
 
-// Openで得たハンドルを使い、選択ダイアログなしで元ファイルへ上書きする。
+// 【Openで得たハンドルを使い、選択ダイアログなしで元ファイルへ上書きする】
 // Fileだけを保持すると開いたファイルを上書きできず、Save asと同じ動作になってしまう。
 test('retains the opened handle and overwrites it without a save picker', async t => {
 	const window = setup(t);
 	const handle = fileHandle('opened.gsproj', { bytes: await encodeProjectFile(project()) });
 	window.showOpenFilePicker = async () => [handle];
-	window.showSaveFilePicker = () => assert.fail('Save must reuse the opened file');
+	window.selectProjectSaveFile = () => assert.fail('Save must reuse the opened file');
 	const loaded = await loadProjectFile();
 	assert.equal(loaded.handle, handle);
 	assert.equal(loaded.name, 'opened.gsproj');
 	loaded.project.name = 'Edited';
-	assert.equal(await saveProjectFile(loaded.project, loaded.name, loaded.handle), handle);
+	await saveProjectFile(await encodeProjectFile(loaded.project), loaded.handle);
 	assert.equal(decodeProjectFile(handle.bytes).name, 'Edited');
-	assert.deepEqual(handle.calls, [['permission', { mode: 'readwrite' }], ['create'], ['write'], ['close']]);
-});
-
-// 初回保存は素材を読む前に保存先を選ぶ。
-// 大きな素材のエンコード後では、ファイル選択に必要なユーザー操作の権限が失効し得る。
-test('opens the save picker before encoding assets and supplies the project extension', async t => {
-	const window = setup(t);
-	const handle = fileHandle('chosen.gsproj');
-	let picked = false;
-	window.showSaveFilePicker = async options => {
-		assert.equal(options.suggestedName, 'chosen.gsproj');
-		assert.deepEqual(options.types[0].accept, { 'application/octet-stream': ['.gsproj'] });
-		picked = true;
-		return handle;
-	};
-	const source = project({ assets: [{ fileData: { async arrayBuffer() {
-		assert.equal(picked, true);
-		return new ArrayBuffer(0);
-	} } }] });
-	assert.equal(await saveProjectFile(source, 'chosen'), handle);
 	assert.deepEqual(handle.calls, [['create'], ['write'], ['close']]);
 });
 
-// ファイル選択キャンセルは失敗として表示せず、書き込みやエンコードを始めない。
+// 【保存名に拡張子を補い、フォルダ外を指すパスは受け付けない】
+// フォルダ選択とファイル名入力を分けても、プロジェクト形式と保存先の範囲を維持する。
+test('normalizes project file names and rejects paths', () => {
+	assert.equal(getProjectFileName(' chosen '), 'chosen.gsproj');
+	assert.equal(getProjectFileName('chosen.GSPROJ'), 'chosen.GSPROJ');
+	for (const name of ['', '   ', '.', '..', '../chosen', 'child/chosen', 'child\\chosen']) {
+		assert.throws(() => getProjectFileName(name), /file name/i);
+	}
+});
+
+// 【Save asで既存ファイルの内容を保持したまま選択・書き込みする】
+// showSaveFilePickerのモックだけでは、選択時にファイルが空になる不具合を検出できない。
+// フォルダから既存ハンドルを取得し、closeが成功するまで元の内容を維持する経路を検証する。
+test('selects an existing Save as target without clearing it and preserves it on write failures', async () => {
+	const original = await encodeProjectFile(project({ name: 'Original' }));
+	const updated = await encodeProjectFile(project({ name: 'Updated' }));
+	for (const fail of [undefined, 'create', 'write', 'close']) {
+		const handle = fileHandle('existing.gsproj', { bytes: original, fail });
+		const directory = { async getFileHandle(name, options) {
+			assert.equal(name, handle.name);
+			assert.equal(options, undefined);
+			return handle;
+		} };
+		let confirmations = 0;
+		const selected = await getProjectSaveFileHandle(directory, 'existing', async name => {
+			confirmations++;
+			assert.equal(name, handle.name);
+			assert.equal(handle.bytes, original);
+			return true;
+		});
+		assert.equal(confirmations, 1);
+		assert.equal(selected, handle);
+		assert.equal(handle.bytes, original);
+		if (fail) {
+			await assert.rejects(saveProjectFile(updated, selected), new RegExp(`${fail} failed`));
+			assert.equal(handle.bytes, original);
+		} else {
+			await saveProjectFile(updated, selected);
+			assert.equal(decodeProjectFile(handle.bytes).name, 'Updated');
+		}
+	}
+});
+
+// 【上書き確認を取り消しても元ファイルを変更しない】
+// 保存先の取得だけで書き込みストリームを開いたり、createで内容を置き換えたりしない。
+test('leaves an existing target untouched when overwrite is declined', async () => {
+	const handle = fileHandle('existing.gsproj');
+	const original = handle.bytes;
+	const selected = await getProjectSaveFileHandle({ async getFileHandle() { return handle; } }, handle.name, async () => false);
+	assert.equal(selected, null);
+	assert.equal(handle.bytes, original);
+	assert.deepEqual(handle.calls, []);
+});
+
+// 【存在しない保存先だけを新規作成し、権限・種別のエラーはそのまま返す】
+// 読取権限不足や同名フォルダを「ファイルがない」と誤認して作成・上書きしない。
+test('creates only missing targets and propagates other lookup errors', async () => {
+	const calls = [];
+	const created = fileHandle('new.gsproj');
+	const directory = { async getFileHandle(name, options) {
+		calls.push([name, options]);
+		if (!options?.create) throw new DOMException('Missing', 'NotFoundError');
+		return created;
+	} };
+	assert.equal(await getProjectSaveFileHandle(directory, 'new', () => assert.fail('New files need no overwrite confirmation')), created);
+	assert.deepEqual(calls, [['new.gsproj', undefined], ['new.gsproj', { create: true }]]);
+	for (const name of ['NotAllowedError', 'TypeMismatchError']) {
+		const cause = new DOMException('Lookup failed', name);
+		await assert.rejects(getProjectSaveFileHandle({ async getFileHandle(_name, options) {
+			assert.equal(options, undefined);
+			throw cause;
+		} }, 'new', () => assert.fail('Failed lookups need no confirmation')), error => error === cause);
+	}
+});
+
+// 【素材読込が失敗したら、保存先を選ぶ前に停止し、どの保存方法でも元ファイルを維持する】
+// 元ファイル変更で読めないFileを含む場合や、準備中にストレージの読取が失敗する場合を扱う。
+// エラーには素材名を含め、ユーザーがどの素材を差し替えればよいか特定できるようにする。
+test('stops before selecting or writing a target when asset encoding fails', async t => {
+	const window = setup(t);
+	const cause = new DOMException('The requested file could not be read', 'NotReadableError');
+	class UnreadableBlob extends Blob {
+		async arrayBuffer() { throw cause; }
+	}
+	const handle = fileHandle('existing.gsproj', { bytes: await encodeProjectFile(project()) });
+	const original = handle.bytes;
+	const app = evaluate(appBundle);
+	await app.appReady(project(), handle.name, handle);
+	app.appStateManager.state.assets.value = [{ id: 'asset', name: 'missing.png', fileData: new UnreadableBlob() }];
+	window.selectProjectSaveFile = () => assert.fail('No target should be selected after an encoding failure');
+	await app.saveProject(true);
+	assert.deepEqual(handle.calls, []);
+	await app.saveProject();
+	assert.deepEqual(handle.calls, [['permission', { mode: 'readwrite' }]]);
+	assert.equal(handle.bytes, original);
+	assert.equal(globalThis.projectAlerts.length, 2);
+	assert.ok(globalThis.projectAlerts.every(message => message.includes('missing.png')));
+	await assert.rejects(encodeProjectFile(project({ assets: app.appStateManager.state.assets.value })), error => error.cause === cause);
+});
+
+// 【保存先選択前に準備を完了し、ダイアログ表示中の編集を保存内容へ混入させない】
+// 非同期の素材読込とユーザー操作を挟んでも、保存開始時点の状態を一貫して書き出す。
+test('prepares a complete snapshot before selecting a Save as target', async t => {
+	const window = setup(t);
+	const app = evaluate(appBundle);
+	await app.newProject();
+	let read = false;
+	class TrackedBlob extends Blob {
+		async arrayBuffer() { read = true; return super.arrayBuffer(); }
+	}
+	app.projectInfo.value.name = 'Snapshot';
+	app.appStateManager.state.assets.value = [{ id: 'asset', name: 'snapshot.png', fileData: new TrackedBlob(['original']) }];
+	const handle = fileHandle('snapshot.gsproj');
+	window.selectProjectSaveFile = async name => {
+		assert.equal(name, 'untitled.gsproj');
+		assert.equal(read, true);
+		app.projectInfo.value.name = 'Later edit';
+		app.appStateManager.state.assets.value = [];
+		return handle;
+	};
+	await app.saveProject(true);
+	const saved = decodeProjectFile(handle.bytes);
+	assert.equal(saved.name, 'Snapshot');
+	assert.equal(await saved.assets[0].fileData.text(), 'original');
+});
+
+// 【読込用のファイル選択キャンセルとファイル破損を区別する】
 // キャンセルと実際のファイル破損は呼び出し側で区別できる必要がある。
 test('returns null for picker cancellation and rejects corrupt project files', async t => {
 	const window = setup(t);
-	window.showSaveFilePicker = window.showOpenFilePicker = async () => { throw new DOMException('Cancelled', 'AbortError'); };
-	assert.equal(await saveProjectFile(project({ assets: null }), 'cancelled'), null);
+	window.showOpenFilePicker = async () => { throw new DOMException('Cancelled', 'AbortError'); };
 	assert.equal(await loadProjectFile(), null);
 	await assert.rejects(loadProjectFile(new File([new Uint8Array([0xc1])], 'bad.gsproj')));
 });
 
-// 書込権限が拒否されたファイルは開かず、元の内容を残す。
+// 【書込権限が拒否されたファイルは開かず、元の内容を残す】
 // Saveを押しただけで読込専用ファイルを壊したり、別の保存先へ勝手に切り替えたりしない。
 test('does not write when permission is denied', async t => {
 	setup(t);
-	const handle = fileHandle('readonly.gsproj', { permission: 'denied' });
-	await assert.rejects(saveProjectFile(project(), handle.name, handle), /permission/i);
+	const handle = fileHandle('readonly.gsproj', { permission: 'denied', bytes: await encodeProjectFile(project()) });
+	const original = handle.bytes;
+	const app = evaluate(appBundle);
+	await app.appReady(project(), handle.name, handle);
+	await app.saveProject();
 	assert.deepEqual(handle.calls, [['permission', { mode: 'readwrite' }]]);
-	assert.deepEqual(handle.bytes, new Uint8Array([42]));
+	assert.equal(handle.bytes, original);
+	assert.match(globalThis.projectAlerts[0], /permission/i);
 });
 
-// 書き込みまたは確定に失敗したストリームは破棄する。
+// 【書き込みまたは確定に失敗したストリームは破棄する】
 // 不完全な保存を成功扱いせず、元ファイルを保持したままエラーを呼び出し側へ返す。
 test('aborts failed writes and failed closes without replacing the original data', async t => {
 	setup(t);
 	for (const fail of ['write', 'close']) {
 		const handle = fileHandle('failed.gsproj', { fail });
-		await assert.rejects(saveProjectFile(project(), handle.name, handle), new RegExp(`${fail} failed`));
+		await assert.rejects(saveProjectFile(await encodeProjectFile(project()), handle), new RegExp(`${fail} failed`));
 		assert.deepEqual(handle.calls.at(-1), ['abort']);
 		assert.deepEqual(handle.bytes, new Uint8Array([42]));
 	}
+});
+
+// 【空の保存データでは書き込みを開始しない】
+// エンコード済みバイト列を受け取る境界でも、空データで元プロジェクトを消すことを防ぐ。
+test('rejects empty save data without opening a writable', async () => {
+	const handle = fileHandle('existing.gsproj');
+	await assert.rejects(saveProjectFile(new Uint8Array(), handle), /no save data/);
+	assert.deepEqual(handle.calls, []);
+	assert.deepEqual(handle.bytes, new Uint8Array([42]));
 });
 
 // プロジェクト情報の編集を保存し、再読込時に復元する。Undo履歴には追加しない。
@@ -465,7 +597,7 @@ test('saves editable project information, updates the title and preserves undo h
 	manager.redo();
 	assert.equal(app.projectInfo.value.name, 'Edited Project');
 	const handle = fileHandle('saved.gsproj');
-	window.showSaveFilePicker = async () => handle;
+	window.selectProjectSaveFile = async () => handle;
 	await app.saveProject();
 	const saved = decodeProjectFile(handle.bytes);
 	assert.equal(saved.name, 'Edited Project');
@@ -487,23 +619,23 @@ test('changes the Save target only after a successful Save as', async t => {
 	await app.newProject();
 	const original = fileHandle('original.gsproj');
 	const copy = fileHandle('copy.gsproj');
-	window.showSaveFilePicker = async () => original;
+	window.selectProjectSaveFile = async () => original;
 	await app.saveProject();
-	window.showSaveFilePicker = async () => { throw new DOMException('Cancelled', 'AbortError'); };
+	window.selectProjectSaveFile = async () => null;
 	await app.saveProject(true);
 	app.projectInfo.value.name = 'After cancellation';
 	await app.saveProject();
 	assert.equal(decodeProjectFile(original.bytes).name, 'After cancellation');
 	const failed = fileHandle('failed.gsproj', { fail: 'write' });
-	window.showSaveFilePicker = async () => failed;
+	window.selectProjectSaveFile = async () => failed;
 	await app.saveProject(true);
 	app.projectInfo.value.name = 'After failure';
 	await app.saveProject();
 	assert.equal(decodeProjectFile(original.bytes).name, 'After failure');
 	assert.deepEqual(globalThis.projectAlerts, ['write failed']);
-	window.showSaveFilePicker = async () => copy;
+	window.selectProjectSaveFile = async () => copy;
 	await app.saveProject(true);
-	window.showSaveFilePicker = () => assert.fail('Save should reuse the new target');
+	window.selectProjectSaveFile = () => assert.fail('Save should reuse the new target');
 	app.projectInfo.value.name = 'After Save as';
 	await app.saveProject();
 	assert.equal(decodeProjectFile(copy.bytes).name, 'After Save as');
@@ -517,13 +649,13 @@ test('asks for a fresh Save target after creating another project', async t => {
 	const app = evaluate(appBundle);
 	await app.newProject();
 	const first = fileHandle('first.gsproj');
-	window.showSaveFilePicker = async () => first;
+	window.selectProjectSaveFile = async () => first;
 	await app.saveProject();
 	const savedBytes = first.bytes;
 	await app.newProject();
 	const second = fileHandle('second.gsproj');
 	let pickerCalls = 0;
-	window.showSaveFilePicker = async () => { pickerCalls++; return second; };
+	window.selectProjectSaveFile = async () => { pickerCalls++; return second; };
 	await app.saveProject();
 	assert.equal(pickerCalls, 1);
 	assert.equal(first.bytes, savedBytes);
@@ -552,7 +684,7 @@ test('shows a future-version error without changing the current project or Save 
 	await app.newProject();
 	app.projectInfo.value.name = 'Current project';
 	const currentHandle = fileHandle('current.gsproj');
-	window.showSaveFilePicker = async () => currentHandle;
+	window.selectProjectSaveFile = async () => currentHandle;
 	await app.saveProject();
 	const manager = app.appStateManager;
 	manager.commit('addEffectNode', { visualModuleId: manager.state.visualModules.value[0].id, effectId: 'fill', id: 'keep-node' });
@@ -569,7 +701,7 @@ test('shows a future-version error without changing the current project or Save 
 	assert.equal(globalThis.projectAlerts.length, 1);
 	assert.match(globalThis.projectAlerts[0], /未来のバージョンのプロジェクトファイルの読み込みはサポートしていません/);
 	assert.match(globalThis.projectAlerts[0], /ファイル: 2\.0\.0 \/ 現在: 2\.0\.0-alpha\.2/);
-	window.showSaveFilePicker = () => assert.fail('The existing Save target must be retained');
+	window.selectProjectSaveFile = () => assert.fail('The existing Save target must be retained');
 	await app.saveProject();
 	assert.equal(decodeProjectFile(currentHandle.bytes).name, 'Current project');
 	assert.equal(decodeProjectFile(futureHandle.bytes).name, 'Future project');

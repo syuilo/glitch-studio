@@ -33,10 +33,13 @@ type StoredProject = Omit<Project, 'assets'> & {
 };
 
 export async function encodeProjectFile(project: Project): Promise<Uint8Array> {
-	const assets = await Promise.all(project.assets.map(async asset => ({
-		...asset,
-		fileData: new Uint8Array(await asset.fileData.arrayBuffer()),
-	})));
+	const assets = await Promise.all(project.assets.map(async asset => {
+		try {
+			return { ...asset, fileData: new Uint8Array(await asset.fileData.arrayBuffer()) };
+		} catch (cause) {
+			throw new Error(`Could not read asset "${asset.name}". Replace it with the source file and try saving again.`, { cause });
+		}
+	}));
 	return msgpack.encode({ ...project, assets } satisfies StoredProject);
 }
 
@@ -64,23 +67,37 @@ const projectFilePickerOptions = {
 	excludeAcceptAllOption: true,
 };
 
-export async function saveProjectFile(project: Project, name: string, handle: FileSystemFileHandle | null = null): Promise<FileSystemFileHandle | null> {
-	// ユーザー操作の権限が失効しないよう、素材のエンコードより前に保存先・書込権限を得る。
-	if (handle == null) {
-		try {
-			handle = await window.showSaveFilePicker({
-				...projectFilePickerOptions,
-				suggestedName: name.toLowerCase().endsWith('.gsproj') ? name : `${name}.gsproj`,
-			});
-		} catch (error) {
-			if (error instanceof DOMException && error.name === 'AbortError') return null;
-			throw error;
-		}
-	} else if (await handle.requestPermission({ mode: 'readwrite' }) !== 'granted') {
-		throw new Error('Write permission was not granted. Use Save as... to choose another file.');
+export function getProjectFileName(name: string): string {
+	const trimmed = name.trim();
+	if (!trimmed || trimmed === '.' || trimmed === '..' || /[/\\]/.test(trimmed)) {
+		throw new Error('Enter a file name without a folder path.');
 	}
+	return trimmed.toLowerCase().endsWith('.gsproj') ? trimmed : `${trimmed}.gsproj`;
+}
 
-	const data = await encodeProjectFile(project);
+export async function getProjectSaveFileHandle(
+	directory: FileSystemDirectoryHandle,
+	name: string,
+	confirmOverwrite: (name: string) => Promise<boolean>,
+): Promise<FileSystemFileHandle | null> {
+	const fileName = getProjectFileName(name);
+	let handle: FileSystemFileHandle;
+	try {
+		// showSaveFilePickerは選択した既存ファイルをその場で空にしてしまう。
+		// フォルダから取得すれば内容を維持したまま上書き確認・書き込みを行える。
+		handle = await directory.getFileHandle(fileName);
+	} catch (error) {
+		if (!(error instanceof DOMException && error.name === 'NotFoundError')) throw error;
+		// 呼び出し元は先に保存データを準備する。素材の読込失敗で空ファイルを作らない。
+		return directory.getFileHandle(fileName, { create: true });
+	}
+	return await confirmOverwrite(fileName) ? handle : null;
+}
+
+// エンコードと保存先選択は呼び出し元で済ませ、ここでは確定したバイト列だけを書き込む。
+export async function saveProjectFile(data: Uint8Array, handle: FileSystemFileHandle): Promise<void> {
+	// 有効なMessagePackプロジェクトは空にならない。空のデータで既存ファイルを確定させない。
+	if (data.byteLength === 0) throw new Error('The project contains no save data.');
 	const writable = await handle.createWritable();
 	try {
 		await writable.write(new Uint8Array(data));
@@ -90,7 +107,6 @@ export async function saveProjectFile(project: Project, name: string, handle: Fi
 		await writable.abort().catch(() => {});
 		throw error;
 	}
-	return handle;
 }
 
 export async function loadProjectFile(file?: File, handle?: FileSystemFileHandle): Promise<{ project: Project; name: string; handle?: FileSystemFileHandle } | null> {

@@ -7,7 +7,7 @@ interface ProjectFilePickerOptions {
 
 interface Window {
 	showOpenFilePicker(options?: ProjectFilePickerOptions & { multiple?: boolean }): Promise<FileSystemFileHandle[]>;
-	showSaveFilePicker(options?: ProjectFilePickerOptions & { suggestedName?: string; startIn?: FileSystemHandle }): Promise<FileSystemFileHandle>;
+	showDirectoryPicker(options?: { id?: string; mode?: 'read' | 'readwrite'; startIn?: FileSystemHandle }): Promise<FileSystemDirectoryHandle>;
 }
 
 interface FileSystemHandle {

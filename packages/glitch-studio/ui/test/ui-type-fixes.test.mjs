@@ -20,7 +20,7 @@ const { dragListen } = await loadSource('../src/utility/drag.ts');
 const { openMediaFile } = await loadSource('../src/api.ts');
 const { loadProjectFile, encodeProjectFile, decodeProjectFile } = await loadSource('../src/gsproj.ts');
 
-// 取り込み時は寸法だけを取得し、デコード結果は閉じて元ファイルだけを保持する。
+// 【画像は原本のコピーと寸法だけを保持する】
 // 画素列をAssetへ残すと、状態の複製や保存のたびに原本とは別の大きなRGBA配列を持つことになる。
 // デコードは入力検証と寸法取得のためだけに使い、画像リソースの寿命を取り込み処理内で閉じる。
 test('imports image files without retaining decoded pixels', async t => {
@@ -28,12 +28,15 @@ test('imports image files without retaining decoded pixels', async t => {
 	let closed = false;
 	const file = new File(['encoded image'], 'image.png', { type: 'image/png' });
 	globalThis.createImageBitmap = async source => {
-		assert.equal(source, file);
+		assert.notEqual(source, file);
+		assert.equal(await source.text(), await file.text());
 		return { width: 4, height: 2, close() { closed = true; } };
 	};
 	t.after(() => { delete globalThis.window; delete globalThis.createImageBitmap; });
 	const imported = await openMediaFile({ file });
-	assert.deepEqual(imported, { width: 4, height: 2, name: file.name, type: file.type, fileData: file });
+	assert.deepEqual(imported, { width: 4, height: 2, name: file.name, type: file.type, fileData: imported.fileData });
+	assert.equal(await imported.fileData.text(), 'encoded image');
+	assert.equal(imported.fileData.type, 'image/png');
 	assert.equal(closed, true);
 	globalThis.createImageBitmap = async () => { throw new Error('invalid image'); };
 	await assert.rejects(openMediaFile({ file }), /invalid image/);

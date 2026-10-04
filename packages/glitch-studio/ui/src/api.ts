@@ -43,22 +43,27 @@ export function openMediaFile(options: OpenMediaFileOptions = {}): Promise<Opene
 		input.accept = options.includeFonts ? 'image/*,video/*,audio/*,.ttf,.otf,.woff,.woff2' : 'image/*,video/*,audio/*';
 		input.multiple = options.multiple ?? false;
 		input.addEventListener('cancel', () => resolve(null), { once: true });
-		const loadFile = (file: File) => new Promise<OpenedMediaFile>((resolve, reject) => {
+		const loadFile = async (file: File): Promise<OpenedMediaFile> => {
 			const fontType = options.includeFonts ? getFontFileType(file) : null;
+			const type = fontType ?? file.type;
+			if (fontType == null && !/^(image|audio|video)\//.test(type)) throw new Error('Unsupported media type');
+			// Fileやそのsliceを保持しただけでは、元ファイルの変更・削除後に読み出せなくなる。
+			// 原本のバイト列を取り込み時にコピーし、寸法取得・プレビュー・保存で同じ内容を使う。
+			// new Blob([file])も元ファイルを参照するため、必ずarrayBufferを経由する。
+			let fileData: Blob;
+			try {
+				fileData = new Blob([await file.arrayBuffer()], { type });
+			} catch (cause) {
+				throw new Error(`Could not read "${file.name}". Select the source file again.`, { cause });
+			}
+			const source = { name: file.name, type, fileData };
 			if (fontType != null) {
 				// フォントは画像へデコードせず、使用するエフェクトがFontFaceとして読み込む。
-				resolve({
-					width: 0,
-					height: 0,
-					name: file.name,
-					type: fontType,
-					fileData: file.slice(0, file.size, fontType),
-				});
-				return;
+				return { ...source, width: 0, height: 0 };
 			}
-			if (file.type.startsWith('audio/') || file.type.startsWith('video/')) {
-				const media = window.document.createElement(file.type.startsWith('audio/') ? 'audio' : 'video');
-				const url = URL.createObjectURL(file);
+			if (type.startsWith('audio/') || type.startsWith('video/')) return new Promise((resolve, reject) => {
+				const media = window.document.createElement(type.startsWith('audio/') ? 'audio' : 'video');
+				const url = URL.createObjectURL(fileData);
 				const cleanup = () => {
 					media.onloadedmetadata = null;
 					media.onerror = null;
@@ -69,29 +74,24 @@ export function openMediaFile(options: OpenMediaFileOptions = {}): Promise<Opene
 				media.preload = 'metadata';
 				media.onloadedmetadata = () => {
 					resolve({
+						...source,
 						width: media instanceof HTMLVideoElement ? media.videoWidth : 0,
 						height: media instanceof HTMLVideoElement ? media.videoHeight : 0,
-						name: file.name,
-						type: file.type,
-						fileData: file,
 					});
 					cleanup();
 				};
 				media.onerror = () => { const error = media.error; cleanup(); reject(error ?? new Error('Could not decode media')); };
 				media.src = url;
-				return;
-			}
-			if (!file.type.startsWith('image/')) { reject(new Error('Unsupported media type')); return; }
+			});
 			// デコード可能かと寸法だけを確認し、画素データは保持しない。
 			// レンダラーと同じデコード経路を使い、取り込めても描画できない画像を避ける。
-			void createImageBitmap(file).then(bitmap => {
-				try {
-					resolve({ width: bitmap.width, height: bitmap.height, name: file.name, type: file.type, fileData: file });
-				} finally {
-					bitmap.close();
-				}
-			}, reject);
-		});
+			const bitmap = await createImageBitmap(fileData);
+			try {
+				return { ...source, width: bitmap.width, height: bitmap.height };
+			} finally {
+				bitmap.close();
+			}
+		};
 		const loadFiles = async (files: File[]) => {
 			if (files.length === 0) return null;
 			if (!options.multiple) return loadFile(files[0]);

@@ -23,7 +23,8 @@ import { AudioOutput } from './audio/audio-output.ts';
 import { PreviewPlaybackController } from './PreviewPlaybackController.ts';
 import { AppStateManager } from './AppStateManager.ts';
 import { RendererProjectSynchronizer } from './RendererProjectSynchronizer.ts';
-import { DEFAULT_PROJECT_NAME, loadProjectFile, saveProjectFile } from './gsproj.ts';
+import { DEFAULT_PROJECT_NAME, encodeProjectFile, loadProjectFile, saveProjectFile } from './gsproj.ts';
+import GsProjectSaveDialog from './components/GsProjectSaveDialog.vue';
 import { preferences } from './preferences.ts';
 import { makeHotkey } from './utility/hotkey.ts';
 import type { RendererProjectState } from '@gs/glitch-studio_shared/project/renderer-state.ts';
@@ -345,6 +346,15 @@ export async function appReady(project: Project, fileName = 'untitled.gsproj', f
 	if (project.visualModules[0] != null) previewPlayback.startLive(project.visualModules[0].id);
 }
 
+function selectProjectSaveFile(name: string): Promise<FileSystemFileHandle | null> {
+	return new Promise(resolve => {
+		const { dispose } = ui.popup(GsProjectSaveDialog, { name }, {
+			selected: handle => resolve(handle),
+			closed: () => { resolve(null); dispose(); },
+		});
+	});
+}
+
 export async function saveProject(saveAs = false) {
 	if (projectMetadata == null || savingProject) return;
 	savingProject = true;
@@ -363,9 +373,19 @@ export async function saveProject(saveAs = false) {
 			timelineFps: appStateManager.state.timelineFps.value,
 			timelineMotionBlur: appStateManager.state.timelineMotionBlur.value,
 		} satisfies Project);
-		const handle = await saveProjectFile(project, projectFileName, saveAs ? null : projectFileHandle);
+		let handle = saveAs ? null : projectFileHandle;
+		// 既存の保存先の権限要求にはクリックの有効期間が必要なので、エンコードより先に行う。
+		if (handle != null && await handle.requestPermission({ mode: 'readwrite' }) !== 'granted') {
+			throw new Error('Write permission was not granted. Use Save as... to choose another file.');
+		}
+		const data = await encodeProjectFile(project);
+		// 初回保存・Save asはデータの準備後に選択する。フォルダ選択のクリックが新たなユーザー操作になる。
+		// 保存先の取得時に新規ファイルを作成する場合も、読込失敗ならここへ到達しない。
+		handle ??= await selectProjectSaveFile(projectFileName);
+		if (handle == null) return;
+		await saveProjectFile(data, handle);
 		// 保存中に別プロジェクトを開いた場合、そのプロジェクトの保存先は変更しない。
-		if (handle != null && projectMetadata === metadata) {
+		if (projectMetadata === metadata) {
 			projectFileHandle = handle;
 			projectFileName = handle.name;
 		}
