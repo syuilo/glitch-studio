@@ -39,12 +39,6 @@ onBeforeUnmount(() => emit('update:element', null));
 	user-select: none;
 }
 
-.output {
-	width: var(--size);
-	cursor: crosshair;
-	touch-action: none;
-}
-
 .icon {
 	position: relative;
 	width: 100%;
@@ -61,9 +55,22 @@ onBeforeUnmount(() => emit('update:element', null));
 		width: 30%;
 		height: 30%;
 		border-radius: 100%;
-		box-sizing: border-box;
-		background-color: currentColor;
+		background-color: transparent;
+		border: solid calc(var(--size) * 0.1) currentColor;
 		transform: translate(-50%, -50%);
+	}
+}
+
+.output {
+	width: var(--size);
+	cursor: crosshair;
+	touch-action: none;
+
+	.icon {
+		&:before {
+			background-color: currentColor;
+			border: none;
+		}
 	}
 }
 </style>

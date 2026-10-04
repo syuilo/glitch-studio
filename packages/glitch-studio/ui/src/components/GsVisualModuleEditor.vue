@@ -35,7 +35,7 @@
 						/>
 					</template>
 					<template #footer>
-						<GsButton :class="$style.addButton" full style="margin-top: 8px;" @click="emit('requestAddNode')"><i class="ti ti-plus"></i> Add node...</GsButton>
+						<GsButton :class="$style.addButton" full style="margin-top: 8px;" @click="emit('requestAddNode')"><i class="ti ti-plus"></i> Add Effect Node...</GsButton>
 					</template>
 				</GsDraggable>
 

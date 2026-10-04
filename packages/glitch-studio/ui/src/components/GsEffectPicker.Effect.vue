@@ -12,9 +12,9 @@
 		<i class="ti ti-arrow-right" :class="$style.arrow"></i>
 		<div :class="[$style.ports, $style.outputs]">
 			<div :class="$style.secondaryPorts">
-				<GsNodePort v-for="output in outputPorts.filter(port => !port.isPrimary)" :key="output.key" v-tooltip="`${output.key} (${output.dataType.kind})`" :class="$style.secondaryPort" :dataType="output.dataType"/>
+				<GsNodePort v-for="output in outputPorts.filter(port => !port.isPrimary)" :key="output.key" v-tooltip="`${output.key} (${output.dataType.kind})`" output :class="$style.secondaryPort" :dataType="output.dataType"/>
 			</div>
-			<GsNodePort v-for="output in outputPorts.filter(port => port.isPrimary)" :key="output.key" v-tooltip="`${output.key} (${output.dataType.kind})`" style="margin-left: 3px;" :dataType="output.dataType"/>
+			<GsNodePort v-for="output in outputPorts.filter(port => port.isPrimary)" :key="output.key" v-tooltip="`${output.key} (${output.dataType.kind})`" output style="margin-left: 3px;" :dataType="output.dataType"/>
 		</div>
 	</div>
 </button>

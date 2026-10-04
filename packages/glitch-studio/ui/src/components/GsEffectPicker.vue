@@ -30,7 +30,7 @@
 							<div :class="$style.typeFilterLabel">{{ i18n.ts._EffectPicker.OutputType }}</div>
 							<div :class="$style.tags">
 								<button v-for="{ value, label } in dataTypeItems" :key="value ?? 'all'" type="button" class="_button" :class="[$style.tag, { [$style.selected]: selectedOutputType === value }]" @click="selectedOutputType = value">
-									<GsNodePort v-if="value !== null" :dataType="{ kind: value }" :class="$style.typePort"/>
+									<GsNodePort v-if="value !== null" output :dataType="{ kind: value }" :class="$style.typePort"/>
 									<span>{{ label }}</span>
 								</button>
 							</div>
