@@ -1,5 +1,5 @@
 <template>
-<GsModal ref="modal" @opened="searchInput?.focus()" @closed="emit('closed')">
+<GsModal ref="modal" @opened="searchInput?.focus()" @closed="emit('closed')" @click="close">
 	<div :class="$style.root" class="_shadow _popup">
 		<div :class="$style.header">
 			<GsInput ref="searchInput" v-model="query" type="search" :placeholder="i18n.ts._EffectPicker.Search" :class="$style.searchInput">
