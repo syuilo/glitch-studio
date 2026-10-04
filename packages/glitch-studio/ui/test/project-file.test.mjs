@@ -380,7 +380,7 @@ function setup(t) {
 	return globalThis.window;
 }
 
-// 名前・説明・作者と素材の原本を一緒に保存・復元する。
+// 【名前・説明・作者と素材の原本を一緒に保存・復元する】
 // 表示用の情報だけが保存対象から漏れたり、改行や日本語が失われたりすることを防ぐ。
 test('round trips project information and original assets', async () => {
 	const original = project({ assets: [{ id: 'asset', name: 'font.ttf', width: 0, height: 0,
@@ -389,6 +389,93 @@ test('round trips project information and original assets', async () => {
 	assert.deepEqual({ ...restored, assets: [] }, { ...original, assets: [] });
 	assert.deepEqual(new Uint8Array(await restored.assets[0].fileData.arrayBuffer()), new Uint8Array([0, 42, 255]));
 	assert.equal(restored.assets[0].fileData.type, 'font/ttf');
+});
+
+// 【素材の原本パスは編集履歴とプロジェクトの保存・再読込を通して保持する】
+// 取り込みAPIにだけパスがあっても、Commandが捨ててしまうと保存できない。
+// 表示名は原本の場所とは別なので、改名や追加・削除のUndo/Redoでもパスを変えない。
+// Electronで保存したパスは、パス取得APIがないブラウザで開いても記録として保持する。
+test('preserves asset source paths through commands and project save and reload', async t => {
+	const window = setup(t);
+	const app = evaluate(appBundle);
+	await app.newProject();
+	const manager = app.appStateManager;
+	const path = 'C:\\素材 フォルダ\\original.png';
+	manager.commit('addAsset', { id: 'asset', name: 'original.png', width: 4, height: 2,
+		fileDataType: 'image/png', fileData: new Blob(['original image'], { type: 'image/png' }), sourceFilePath: path });
+	assert.equal(manager.state.assets.value[0].sourceFilePath, path);
+	manager.undo();
+	assert.equal(manager.state.assets.value.length, 0);
+	manager.redo();
+	assert.equal(manager.state.assets.value[0].sourceFilePath, path);
+	manager.commit('renameAsset', { assetId: 'asset', name: 'Renamed image' });
+	assert.equal(manager.state.assets.value[0].sourceFilePath, path);
+	manager.commit('removeAsset', { assetId: 'asset' });
+	assert.equal(manager.state.assets.value.length, 0);
+	manager.undo();
+	assert.equal(manager.state.assets.value[0].sourceFilePath, path);
+	const handle = fileHandle('paths.gsproj');
+	window.selectProjectSaveFile = async () => handle;
+	await app.saveProject();
+	assert.equal(decodeProjectFile(handle.bytes).assets[0].sourceFilePath, path);
+	await app.newProject();
+	window.showOpenFilePicker = async () => [handle];
+	assert.equal(await app.openProject(), true);
+	const restored = manager.state.assets.value[0];
+	assert.equal(restored.sourceFilePath, path);
+	assert.equal(restored.name, 'Renamed image');
+	assert.equal(await restored.fileData.text(), 'original image');
+});
+
+// 【素材の差し替えは原本パスを更新し、取得できないときは旧パスを消す】
+// 差し替え前の場所が残ると、現在の素材の原本と誤認してしまう。
+// パスの有無を両方向で切り替え、保存結果と実際の素材の内容が対応することを確認する。
+test('updates or clears source paths when replacing assets', async t => {
+	const window = setup(t);
+	const app = evaluate(appBundle);
+	await app.newProject();
+	const manager = app.appStateManager;
+	const asset = { id: 'asset', name: 'Display name', width: 4, height: 2, fileDataType: 'image/png',
+		fileData: new Blob(['original']), sourceFilePath: 'C:\\original.png' };
+	manager.commit('addAsset', asset);
+	const handle = fileHandle('replacement.gsproj');
+	window.selectProjectSaveFile = async () => handle;
+	for (const path of ['D:\\new source.png', null, '/home/artist/another.png']) {
+		const content = `replacement from ${path}`;
+		manager.commit('replaceAsset', { ...asset, assetId: asset.id, name: 'Replacement file',
+			fileData: new Blob([content]), sourceFilePath: path });
+		assert.equal(manager.state.assets.value[0].sourceFilePath, path);
+		assert.equal(manager.state.assets.value[0].name, asset.name);
+		await app.saveProject();
+		const saved = decodeProjectFile(handle.bytes).assets[0];
+		assert.equal(saved.sourceFilePath, path);
+		assert.equal(await saved.fileData.text(), content);
+	}
+});
+
+// 【画像から新規プロジェクトを作る経路でも取り込み元のパスを保存する】
+// この経路はaddAsset Commandを経由せずに初期状態を作るため、独立して転記漏れを検出する。
+test('retains the source path when creating a project from an image', async t => {
+	const window = setup(t);
+	const app = evaluate(appBundle);
+	const file = new File(['encoded image'], 'source.png', { type: 'image/png' });
+	const path = 'C:\\素材\\source.png';
+	window.document.createElement = () => new EventTarget();
+	window.desktop = { getPathForFile(source) { assert.equal(source, file); return path; } };
+	const previous = Object.getOwnPropertyDescriptor(globalThis, 'createImageBitmap');
+	globalThis.createImageBitmap = async () => ({ width: 4, height: 2, close() {} });
+	t.after(() => {
+		if (previous) Object.defineProperty(globalThis, 'createImageBitmap', previous);
+		else delete globalThis.createImageBitmap;
+	});
+	assert.equal(await app.newProjectFromImageOrVideo(file), true);
+	assert.equal(app.appStateManager.state.assets.value[0].sourceFilePath, path);
+	const handle = fileHandle('from-image.gsproj');
+	window.selectProjectSaveFile = async () => handle;
+	await app.saveProject();
+	const saved = decodeProjectFile(handle.bytes).assets[0];
+	assert.equal(saved.sourceFilePath, path);
+	assert.equal(await saved.fileData.text(), 'encoded image');
 });
 
 // 【Openで得たハンドルを使い、選択ダイアログなしで元ファイルへ上書きする】

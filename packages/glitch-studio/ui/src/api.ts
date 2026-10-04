@@ -28,6 +28,7 @@ type OpenedMediaFile = {
 	name: string;
 	type: string;
 	fileData: Blob;
+	sourceFilePath: string | null;
 	hash?: string;
 };
 
@@ -47,6 +48,9 @@ export function openMediaFile(options: OpenMediaFileOptions = {}): Promise<Opene
 			const fontType = options.includeFonts ? getFontFileType(file) : null;
 			const type = fontType ?? file.type;
 			if (fontType == null && !/^(image|audio|video)\//.test(type)) throw new Error('Unsupported media type');
+			// パスは元のFileからだけ取得できる。ブラウザのfakepathや相対パスは原本の場所を示さない。
+			// ElectronでもJSで生成したFileにはパスがないため、空文字列は未取得として扱う。
+			const sourceFilePath = window.desktop?.getPathForFile(file) || null;
 			// Fileやそのsliceを保持しただけでは、元ファイルの変更・削除後に読み出せなくなる。
 			// 原本のバイト列を取り込み時にコピーし、寸法取得・プレビュー・保存で同じ内容を使う。
 			// new Blob([file])も元ファイルを参照するため、必ずarrayBufferを経由する。
@@ -56,7 +60,7 @@ export function openMediaFile(options: OpenMediaFileOptions = {}): Promise<Opene
 			} catch (cause) {
 				throw new Error(`Could not read "${file.name}". Select the source file again.`, { cause });
 			}
-			const source = { name: file.name, type, fileData };
+			const source = { name: file.name, type, fileData, sourceFilePath };
 			if (fontType != null) {
 				// フォントは画像へデコードせず、使用するエフェクトがFontFaceとして読み込む。
 				return { ...source, width: 0, height: 0 };

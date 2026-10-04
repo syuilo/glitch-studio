@@ -6,6 +6,7 @@ declare const __ELECTRON__: boolean;
 
 interface Window {
 	desktop?: {
+		getPathForFile(file: File): string;
 		showTestAlert(): Promise<void>;
 		openDevTools(): Promise<void>;
 		toggleDevTools(): Promise<void>;

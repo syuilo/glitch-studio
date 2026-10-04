@@ -5,10 +5,10 @@ import { deepClone } from '@gs/shared/utility/deep-clone.js';
 import { triggerRef } from 'vue';
 import { COMMAND_DEFS } from './commands.ts';
 import type { TimelineScene } from '@gs/subsystems_timeline_shared/types.ts';
-import type { Asset, Player } from '@gs/shared/types.js';
+import type { Player } from '@gs/shared/types.js';
 import type { ProjectVisualModule } from '@gs/glitch-studio_shared/project/types.ts';
 import type { CommandDef } from './commands.ts';
-import type { AppState } from './types.ts';
+import type { AppState, ProjectAsset } from './types.ts';
 import type { AppStateChange } from './AppStateChange.ts';
 
 type CommandLog = {
@@ -38,7 +38,7 @@ export class AppStateManager {
 			timelineFps: ref(DEFAULT_TIMELINE_FPS),
 			timelineMotionBlur: ref({ ...DEFAULT_TIMELINE_MOTION_BLUR }),
 			resolution: ref<{ width: number; height: number }>({ width: 1024, height: 1024 }),
-			assets: ref<Asset[]>([]), // TODO: バイナリをリアクティブでwrapするのをやめる
+			assets: ref<ProjectAsset[]>([]), // TODO: バイナリをリアクティブでwrapするのをやめる
 			players: ref<Player[]>([]),
 			visualModules: ref<ProjectVisualModule[]>([]),
 			timelineScenes: ref<TimelineScene[]>([]),

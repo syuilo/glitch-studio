@@ -30,9 +30,10 @@ import { makeHotkey } from './utility/hotkey.ts';
 import type { RendererProjectState } from '@gs/glitch-studio_shared/project/renderer-state.ts';
 import type { Keymap } from './utility/hotkey.ts';
 import type { ProjectVisualModule } from '@gs/glitch-studio_shared/project/types.ts';
+import type { ProjectAsset } from './types.ts';
 import type { TimelineRendererManagerDynamicOptions } from '@gs/glitch-studio_renderer/timeline-renderer-manager.ts';
 import type { EffectNodeOf } from '@gs/subsystems_visual-module_shared/types.ts';
-import type { Asset, IntermediateTextureFormat, Player } from '@gs/shared/types.ts';
+import type { IntermediateTextureFormat, Player } from '@gs/shared/types.ts';
 import type { Project, ProjectInfo } from './gsproj.ts';
 import type { WatchStopHandle } from 'vue';
 import * as ui from '@/ui.ts';
@@ -492,8 +493,9 @@ export async function newProjectFromImageOrVideo(file?: File) {
 		height: result.height,
 		fileDataType: result.type,
 		fileData: result.fileData,
+		sourceFilePath: result.sourceFilePath,
 		hash: result.hash,
-	} satisfies Asset;
+	} satisfies ProjectAsset;
 
 	const player = result.type.startsWith('video/') || result.type.startsWith('audio/') ? {
 		id: genId(),

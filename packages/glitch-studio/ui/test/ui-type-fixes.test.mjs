@@ -34,7 +34,7 @@ test('imports image files without retaining decoded pixels', async t => {
 	};
 	t.after(() => { delete globalThis.window; delete globalThis.createImageBitmap; });
 	const imported = await openMediaFile({ file });
-	assert.deepEqual(imported, { width: 4, height: 2, name: file.name, type: file.type, fileData: imported.fileData });
+	assert.deepEqual(imported, { width: 4, height: 2, name: file.name, type: file.type, fileData: imported.fileData, sourceFilePath: null });
 	assert.equal(await imported.fileData.text(), 'encoded image');
 	assert.equal(imported.fileData.type, 'image/png');
 	assert.equal(closed, true);

@@ -58,6 +58,7 @@ async function addAsset() {
 			height: result.height,
 			fileDataType: result.type,
 			fileData: result.fileData,
+			sourceFilePath: result.sourceFilePath,
 			hash: result.hash, // TODO
 		});
 		if (result.type.startsWith('audio/') || result.type.startsWith('video/')) {
@@ -86,7 +87,7 @@ async function addAsset() {
 	flex: 1;
 	display: grid;
 	grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-	gap: 16px;
+	gap: 8px;
 	overflow: auto;
 }
 

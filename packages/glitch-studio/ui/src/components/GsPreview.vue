@@ -119,6 +119,7 @@ async function addMedia(file?: File) {
 		height: result.height,
 		fileDataType: result.type,
 		fileData: result.fileData,
+		sourceFilePath: result.sourceFilePath,
 		hash: result.hash,
 	});
 

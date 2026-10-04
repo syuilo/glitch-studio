@@ -30,9 +30,9 @@ import { timelineCompositingParamDefs } from '@gs/subsystems_timeline_shared/tim
 import type { VisualModuleCustomParameterId, VisualModuleEffectNode, VisualModuleNode, NodeOutputReference, VisualModule, VisualModuleParamDef, VisualModuleOutputDef } from '@gs/subsystems_visual-module_shared/types.ts';
 import type { ParameterArrayElement } from '@gs/shared/parameter/parameter-binding.ts';
 import type { ParameterChangeKind, ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
-import type { AppState } from './types.ts';
+import type { AppState, ProjectAsset } from './types.ts';
 import type { Resolution } from '@gs/shared/resolution.ts';
-import type { Asset, Player } from '@gs/shared/types.ts';
+import type { Player } from '@gs/shared/types.ts';
 import type { AutomationGraphPlaybackOptions } from '@gs/shared/automation-graph/automation-graph.ts';
 import type { TimelineEffectParameterBinding, TimelineLayerInputBinding } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
 import type { ValueParameterEdit } from '@/types/parameter-edit.ts';
@@ -336,7 +336,7 @@ const removeNodeCommandDef = defineCommand<NodeTarget>({
 	},
 });
 
-const addAssetCommandDef = defineCommand<Asset>({
+const addAssetCommandDef = defineCommand<ProjectAsset>({
 	label: 'Add asset',
 	changes: (_state, payload) => [{ type: 'asset', assetId: payload.id }],
 	create: (payload) => {
@@ -349,6 +349,7 @@ const addAssetCommandDef = defineCommand<Asset>({
 					height: payload.height,
 					fileDataType: payload.fileDataType,
 					fileData: payload.fileData, // blobはimmutableなので多分deepCloneの必要なし
+					sourceFilePath: payload.sourceFilePath,
 					hash: payload.hash,
 				});
 			},
@@ -365,7 +366,7 @@ const removeAssetCommandDef = defineCommand<{ assetId: string }>({
 		...listVisualModules(state).map(({ target }) => ({ type: 'visualModule' as const, target }))],
 	create: payload => {
 		let before: {
-			assets: Asset[];
+			assets: ProjectAsset[];
 			visualModules: { target: VisualModuleTarget; nodes: VisualModuleNode[] }[];
 		};
 		return {
@@ -413,7 +414,7 @@ const renameAssetCommandDef = defineCommand<{ assetId: string; name: string }>({
 	},
 });
 
-const replaceAssetCommandDef = defineCommand<Asset & { assetId: string }>({
+const replaceAssetCommandDef = defineCommand<ProjectAsset & { assetId: string }>({
 	label: 'Replace asset',
 	changes: (_state, payload) => [{ type: 'asset', assetId: payload.assetId }],
 	create: (payload) => {
@@ -424,6 +425,8 @@ const replaceAssetCommandDef = defineCommand<Asset & { assetId: string }>({
 				asset.height = payload.height;
 				asset.fileDataType = payload.fileDataType;
 				asset.fileData = payload.fileData; // blobはimmutableなので多分deepCloneの必要なし
+				// 取得できない素材へ差し替えたときも、以前の原本のパスを残さない。
+				asset.sourceFilePath = payload.sourceFilePath;
 				asset.hash = payload.hash;
 			},
 			undo(state) {

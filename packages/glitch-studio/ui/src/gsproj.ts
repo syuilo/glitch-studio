@@ -3,8 +3,9 @@ import { validateTimelineScenes } from '@gs/subsystems_timeline_shared/scenes.ts
 import * as msgpack from '@msgpack/msgpack';
 import semverGt from 'semver/functions/gt.js';
 import type { TimelineMotionBlurSettings } from '@gs/subsystems_timeline_shared/motion-blur.ts';
-import type { Asset, Player } from '@gs/shared/types.js';
+import type { Player } from '@gs/shared/types.js';
 import type { ProjectVisualModule } from '@gs/glitch-studio_shared/project/types.ts';
+import type { ProjectAsset } from './types.ts';
 import type { TimelineScene } from '@gs/subsystems_timeline_shared/types.ts';
 
 export const DEFAULT_PROJECT_NAME = 'Untitled Project';
@@ -21,7 +22,7 @@ export type Project = ProjectInfo & {
 	id: string;
 	gsVersion: string;
 	visualModules: ProjectVisualModule[];
-	assets: Asset[];
+	assets: ProjectAsset[];
 	players: Player[];
 	timelineScenes: TimelineScene[];
 	resolution: { width: number; height: number; };
@@ -29,7 +30,7 @@ export type Project = ProjectInfo & {
 
 // BlobはMessagePackで直接保存できないため、フォントを含む素材の原本をバイト列にする。
 type StoredProject = Omit<Project, 'assets'> & {
-	assets: (Omit<Asset, 'fileData'> & { fileData: Uint8Array })[];
+	assets: (Omit<ProjectAsset, 'fileData'> & { fileData: Uint8Array })[];
 };
 
 export async function encodeProjectFile(project: Project): Promise<Uint8Array> {
