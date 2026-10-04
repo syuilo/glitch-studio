@@ -2,9 +2,9 @@
 <div :class="$style.root">
 	<div :class="$style.header">{{ asset.name }}</div>
 	<div :class="$style.buttons">
-		<GsButton :class="$style.button" :vTooltip="i18n.ts.ReplaceAsset" @click="replace()"><i class="ti ti-refresh"></i></GsButton>
-		<GsButton :class="$style.button" :vTooltip="i18n.ts.RenameAsset" @click="rename()"><i class="ti ti-cursor-text"></i></GsButton>
-		<GsButton :class="$style.button" :vTooltip="i18n.ts.RemoveAsset" @click="remove()"><i class="ti ti-trash"></i></GsButton>
+		<GsButton iconOnly :class="$style.button" :vTooltip="i18n.ts.ReplaceAsset" @click="replace()"><i class="ti ti-refresh"></i></GsButton>
+		<GsButton iconOnly :class="$style.button" :vTooltip="i18n.ts.RenameAsset" @click="rename()"><i class="ti ti-cursor-text"></i></GsButton>
+		<GsButton iconOnly danger :class="$style.button" :vTooltip="i18n.ts.RemoveAsset" @click="remove()"><i class="ti ti-trash"></i></GsButton>
 	</div>
 	<div :class="$style.body">
 		<img v-if="imageUrl" :src="imageUrl" :class="$style.image">
@@ -16,12 +16,12 @@
 <script lang="ts" setup>
 import { shallowRef, watch } from 'vue';
 import GsButton from './common/GsButton.vue';
-import { i18n } from '@/i18n.ts';
+import GsDialog from './common/GsDialog.vue';
 import type { Asset } from '@gs/shared/types.ts';
+import { i18n } from '@/i18n.ts';
 import * as api from '@/api.ts';
 import { appStateManager } from '@/app.ts';
 import { popup } from '@/ui.ts';
-import GsDialog from './common/GsDialog.vue';
 
 const props = defineProps<{
 	asset: Asset;
@@ -99,11 +99,11 @@ watch(() => [props.asset.fileData, props.asset.fileDataType] as const, ([file, t
 }
 
 .buttons {
+	display: flex;
 	position: absolute;
 	top: 4px;
 	right: 4px;
 	text-align: right;
-	width: 85px;
 }
 
 .button {

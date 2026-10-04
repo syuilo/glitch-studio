@@ -70,7 +70,10 @@ async function addAsset() {
 
 <style module lang="scss">
 .root {
-
+	display: flex;
+	flex-direction: column;
+	min-height: 0;
+	height: 100%;
 }
 
 .actions {
@@ -80,9 +83,11 @@ async function addAsset() {
 }
 
 .assets {
+	flex: 1;
 	display: grid;
 	grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
 	gap: 16px;
+	overflow: auto;
 }
 
 .asset {
