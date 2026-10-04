@@ -9,12 +9,9 @@
 			<button :class="$style.menuButton" class="_button" @click="showMenu"><i class="ti ti-dots"></i></button>
 		</div>
 		<div ref="containerContainer" :class="[$style.containerContainer, { [$style.animatedBg]: preferences.r.animatedBgInPreview.value }]" @wheel="onViewWheel" @click="onViewClick" @pointermove="onPointermove">
-			<div :class="$style.canvasFrame" :style="{ scale: zoom }">
-				<div ref="canvasContainer" :class="$style.canvasContainer"></div>
-				<div v-if="showGridInPreview" :class="$style.grid">
-					<div v-for="position in gridLinePositions" :key="`vertical-${position}`" :class="[$style.gridLine, $style.gridLineVertical]" :style="{ left: `${position * 100}%` }"></div>
-					<div v-for="position in gridLinePositions" :key="`horizontal-${position}`" :class="[$style.gridLine, $style.gridLineHorizontal]" :style="{ top: `${position * 100}%` }"></div>
-				</div>
+			<div ref="canvasContainer" :class="$style.canvasContainer" :style="{ scale: zoom }"></div>
+			<div v-if="showGridInPreview" ref="gridOverlay" :class="$style.grid">
+				<div v-for="(line, index) in gridLines" :key="index" :class="$style.gridLine" :style="line"></div>
 			</div>
 		</div>
 	</div>
@@ -22,7 +19,8 @@
 </template>
 
 <script lang="ts" setup>
-import { watch, useTemplateRef, ref, computed, onBeforeUnmount } from 'vue';
+import { watch, useTemplateRef, ref, shallowRef, computed, onBeforeUnmount } from 'vue';
+import type { CSSProperties } from 'vue';
 import { genId } from '@gs/shared/utility/id.ts';
 import { useRendererCanvas } from '@/use-renderer-canvas.ts';
 import GsDetachableView from './GsDetachableView.vue';
@@ -33,6 +31,8 @@ import * as ui from '@/ui.ts';
 
 const canvasContainer = useTemplateRef('canvasContainer');
 const containerContainer = useTemplateRef('containerContainer');
+const gridOverlay = useTemplateRef('gridOverlay');
+const gridLines = shallowRef<CSSProperties[]>([]);
 const ZOOM_STEP = 1.25;
 const gridLinePositions = [1 / 4, 1 / 3, 1 / 2, 2 / 3, 3 / 4];
 const zoom = ref(1 / ZOOM_STEP / ZOOM_STEP / ZOOM_STEP);
@@ -40,11 +40,13 @@ const liveTime = ref(0);
 const time = computed(() => previewPlayback.state.value.mode === 'timeline' ? previewPlayback.currentTimelineTime.value : liveTime.value);
 
 let latestTime: number | null = null;
+let latestGridGeometry = '';
 
 let timecodeRaf = window.requestAnimationFrame(function update(t) {
 	const delta = latestTime == null ? 0 : t - latestTime;
 	latestTime = t;
 	if (previewPlayback.state.value.mode === 'live') liveTime.value += delta * liveTimeFactor.value;
+	updateGridLines();
 	timecodeRaf = window.requestAnimationFrame(update);
 });
 
@@ -54,6 +56,44 @@ watch(resolutionFactor, (newFactor, oldFactor) => {
 
 useRendererCanvas(canvasContainer, activePreviewRenderer, () => 'canvas');
 onBeforeUnmount(() => window.cancelAnimationFrame(timecodeRaf));
+
+function updateGridLines() {
+	const overlay = gridOverlay.value;
+	const canvas = canvasContainer.value;
+	if (overlay == null || canvas == null) return;
+
+	// 既存の表示更新に合わせて実寸を読むことで、パネル移動・Canvas交換・別画面のDPR変更にも追従する。
+	const canvasRect = canvas.getBoundingClientRect();
+	const overlayRect = overlay.getBoundingClientRect();
+	const pixelRatio = overlay.ownerDocument.defaultView?.devicePixelRatio ?? 1;
+	const geometry = [canvasRect.left, canvasRect.top, canvasRect.width, canvasRect.height, overlayRect.left, overlayRect.top, pixelRatio].join(',');
+	if (geometry === latestGridGeometry) return;
+	latestGridGeometry = geometry;
+	if (canvasRect.width <= 0 || canvasRect.height <= 0) {
+		gridLines.value = [];
+		return;
+	}
+
+	// 線はscaleの外に置き、両端を物理ピクセル境界に揃える。
+	// コンテナの原点も小数になり得るため、画面座標で丸めてからローカル座標へ戻す。
+	const snap = (value: number) => Math.round(value * pixelRatio) / pixelRatio;
+	const lineWidth = Math.max(1, Math.round(pixelRatio)) / pixelRatio;
+	const left = snap(canvasRect.left) - overlayRect.left;
+	const top = snap(canvasRect.top) - overlayRect.top;
+	const width = snap(canvasRect.right) - snap(canvasRect.left);
+	const height = snap(canvasRect.bottom) - snap(canvasRect.top);
+	gridLines.value = gridLinePositions.flatMap(position => [{
+		left: `${snap(canvasRect.left + canvasRect.width * position - lineWidth / 2) - overlayRect.left}px`,
+		top: `${top}px`,
+		width: `${lineWidth}px`,
+		height: `${height}px`,
+	}, {
+		left: `${left}px`,
+		top: `${snap(canvasRect.top + canvasRect.height * position - lineWidth / 2) - overlayRect.top}px`,
+		width: `${width}px`,
+		height: `${lineWidth}px`,
+	}]);
+}
 
 async function onViewClick() {
 
@@ -175,6 +215,7 @@ function showMenu(ev: PointerEvent) {
 }
 
 .containerContainer {
+	position: relative;
 	width: 100%;
 	height: 100%;
 	display: grid;
@@ -193,10 +234,6 @@ function showMenu(ev: PointerEvent) {
 	}
 }
 
-.canvasFrame {
-	position: relative;
-}
-
 .canvasContainer,
 .canvasContainer > canvas {
 	display: block;
@@ -211,21 +248,6 @@ function showMenu(ev: PointerEvent) {
 .gridLine {
 	position: absolute;
 	background: #ffffff80;
-	box-shadow: 0 0 1px #000c;
-}
-
-.gridLineVertical {
-	top: 0;
-	bottom: 0;
-	width: 1px;
-	translate: -50% 0;
-}
-
-.gridLineHorizontal {
-	left: 0;
-	right: 0;
-	height: 1px;
-	translate: 0 -50%;
 }
 
 .topLeft {
