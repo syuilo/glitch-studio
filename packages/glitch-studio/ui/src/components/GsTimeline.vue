@@ -113,7 +113,8 @@
 				<div style="margin-left: 16px; border-left: solid 1px #fff2;">
 					<div class="_spacer _gaps_m">
 						<GsInput small type="number" :min="selectedKeyframe.minX" :max="selectedKeyframe.maxX" :modelValue="selectedKeyframe.keyframe.x" @update:modelValue="updateKeyframeTime">
-							<template #label>Time (ms)</template>
+							<template #label>Time</template>
+							<template #suffix>ms</template>
 						</GsInput>
 						<div>Value</div>
 						<GsLiteralLeafValueControl
@@ -135,6 +136,7 @@
 								<template #label>Easing direction</template>
 							</GsSelect>
 						</template>
+						<GsButton danger small><i class="ti ti-trash"></i> Remove Keyframe</GsButton>
 					</div>
 				</div>
 			</GsFolder>
@@ -154,8 +156,7 @@
 						</template>
 						<GsButton v-if="selectedClipEntry.layer.layerType === 'image' || selectedClipEntry.layer.layerType === 'video' || selectedClipEntry.layer.layerType === 'audio' || selectedClipEntry.layer.layerType === 'scene'" small @click="changeClipSource">Change source</GsButton>
 						<GsButton v-if="selectedSceneClip != null" small @click="activeSceneId = selectedSceneClip.sceneId">Open scene</GsButton>
-						<GsButton small @click="selectLayer(selectedClipEntry.layer)">Layer settings</GsButton>
-						<GsButton danger small @click="removeSelectedClips">Remove clip</GsButton>
+						<GsButton danger small @click="removeSelectedClips"><i class="ti ti-trash"></i> Remove Clip</GsButton>
 					</div>
 				</div>
 			</GsFolder>
@@ -253,7 +254,7 @@
 					<GsFolder :asSection="true" defaultOpen>
 						<template #label>Other</template>
 						<div class="_gaps_m">
-							<GsButton danger small @click="appStateManager.commit('removeTimelineLayer', { sceneId: props.sceneId, layerId: selectedLayer.id })">Remove Layer</GsButton>
+							<GsButton danger small @click="appStateManager.commit('removeTimelineLayer', { sceneId: props.sceneId, layerId: selectedLayer.id })"><i class="ti ti-trash"></i> Remove Layer</GsButton>
 						</div>
 					</GsFolder>
 				</div>
