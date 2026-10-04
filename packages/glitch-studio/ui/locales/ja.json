@@ -2,6 +2,16 @@
 	"_EffectPicker": {
 		"Search": "エフェクトを検索",
 		"Close": "閉じる",
+		"PortTypes": "入出力の型",
+		"InputType": "入力の型",
+		"OutputType": "出力の型",
+		"NoTypeFilter": "指定なし",
+		"_DataTypes": {
+			"color": "色 (color)",
+			"scalar": "スカラー (scalar)",
+			"vector": "ベクトル (vector)",
+			"any": "任意型 (any)"
+		},
 		"Tags": "タグ",
 		"TagFilterHint": "選択したタグをすべて含むエフェクトを表示",
 		"AllEffects": "すべてのエフェクト",

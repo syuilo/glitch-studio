@@ -2,6 +2,16 @@
 	"_EffectPicker": {
 		"Search": "Search effects",
 		"Close": "Close",
+		"PortTypes": "Input / output types",
+		"InputType": "Input type",
+		"OutputType": "Output type",
+		"NoTypeFilter": "No filter",
+		"_DataTypes": {
+			"color": "Color",
+			"scalar": "Scalar",
+			"vector": "Vector",
+			"any": "Any"
+		},
 		"Tags": "Tags",
 		"TagFilterHint": "Matches all selected tags",
 		"AllEffects": "All effects",

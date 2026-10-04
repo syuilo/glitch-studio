@@ -22,12 +22,9 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
-import { isTextureDataType } from '@gs/shared/data-type/data-type.ts';
-import { getArrayElementDefinition, getStructFieldDefinitions } from '@gs/shared/parameter/parameter-definition.ts';
 import GsNodePort from './GsNodePort.vue';
-import type { TextureDataType } from '@gs/shared/data-type/data-type.ts';
-import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
 import type { EffectDefinition } from '@gs/subsystems_effect_shared/effect-definition.ts';
+import { getEffectInputPorts, getEffectOutputPorts } from '@/utility/effect-ports.ts';
 
 const props = withDefaults(defineProps<{
 	effect: Pick<EffectDefinition, 'displayName' | 'description' | 'paramDefs' | 'outputDefs' | 'primaryInputParameter' | 'primaryOutput'>;
@@ -40,39 +37,8 @@ const emit = defineEmits<{
 	(ev: 'click', event: MouseEvent): void;
 }>();
 
-type InputPort = {
-	key: string;
-	label: string;
-	dataType: TextureDataType;
-	isPrimary: boolean;
-};
-
-const inputPorts = computed(() => Object.entries(props.effect.paramDefs).flatMap(([key, definition]) =>
-	getInputPorts(definition, [key], definition.ui.label)));
-
-const outputPorts = computed(() => Object.entries(props.effect.outputDefs).map(([key, definition]) => ({
-	key,
-	dataType: definition.dataType,
-	isPrimary: key === props.effect.primaryOutput,
-})));
-
-function getInputPorts(definition: ParameterDefinition, path: string[], label: string): InputPort[] {
-	if (definition.dataType.kind === 'array') {
-		// Pickerではまだ配列要素が確定していないため、初期値の個数ではなく要素の定義を1回表示する。
-		return getInputPorts(getArrayElementDefinition(definition), path, `${label}[]`);
-	}
-	if (definition.dataType.kind === 'struct') {
-		return Object.entries(getStructFieldDefinitions(definition)).flatMap(([key, field]) =>
-			getInputPorts(field, [...path, key], `${label} / ${field.ui.label}`));
-	}
-	if (definition.canNode !== true || !isTextureDataType(definition.dataType)) return [];
-	return [{
-		key: JSON.stringify(path),
-		label,
-		dataType: definition.dataType,
-		isPrimary: path.length === 1 && path[0] === props.effect.primaryInputParameter,
-	}];
-}
+const inputPorts = computed(() => getEffectInputPorts(props.effect));
+const outputPorts = computed(() => getEffectOutputPorts(props.effect));
 </script>
 
 <style module lang="scss">

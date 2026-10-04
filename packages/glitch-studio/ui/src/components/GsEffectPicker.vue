@@ -14,6 +14,17 @@
 		<div :class="$style.body">
 			<div :class="$style.leftArea">
 				<GsFolder defaultOpen asSection>
+					<template #label><i class="ti ti-filter"></i> {{ i18n.ts._EffectPicker.PortTypes }}</template>
+					<div :class="$style.typeFilters">
+						<GsSelect v-model="selectedInputType" :items="dataTypeItems">
+							<template #label>{{ i18n.ts._EffectPicker.InputType }}</template>
+						</GsSelect>
+						<GsSelect v-model="selectedOutputType" :items="dataTypeItems">
+							<template #label>{{ i18n.ts._EffectPicker.OutputType }}</template>
+						</GsSelect>
+					</div>
+				</GsFolder>
+				<GsFolder defaultOpen asSection>
 					<template #label><i class="ti ti-tags"></i> {{ i18n.ts._EffectPicker.Tags }}</template>
 					<div :class="$style.tags">
 						<button type="button" class="_button" :class="[$style.tag, { [$style.selected]: selectedTags.length === 0 }]" @click="selectedTags = []">
@@ -52,8 +63,11 @@ import GsEffectPickerEffect from './GsEffectPicker.Effect.vue';
 import GsModal from './common/GsModal.vue';
 import GsInput from './common/GsInput.vue';
 import GsFolder from './common/GsFolder.vue';
+import GsSelect from './common/GsSelect.vue';
+import type { TextureDataType } from '@gs/shared/data-type/data-type.ts';
 import type { EffectTags } from '@gs/subsystems_effect_shared/effect-definition.ts';
 import { i18n } from '@/i18n.ts';
+import { getEffectInputPorts, getEffectOutputPorts } from '@/utility/effect-ports.ts';
 
 const emit = defineEmits<{
 	(ev: 'chosen', effect: typeof effectDefinitions[keyof typeof effectDefinitions]): void;
@@ -65,7 +79,22 @@ const searchInput = useTemplateRef('searchInput');
 
 const query = ref('');
 const selectedTags = ref<EffectTags[]>([]);
+const selectedInputType = ref<TextureDataType['kind'] | null>(null);
+const selectedOutputType = ref<TextureDataType['kind'] | null>(null);
+const dataTypeItems: { value: TextureDataType['kind'] | null; label: string }[] = [
+	{ value: null, label: i18n.ts._EffectPicker.NoTypeFilter },
+	{ value: 'color', label: i18n.ts._EffectPicker._DataTypes.color },
+	{ value: 'scalar', label: i18n.ts._EffectPicker._DataTypes.scalar },
+	{ value: 'vector', label: i18n.ts._EffectPicker._DataTypes.vector },
+	{ value: 'any', label: i18n.ts._EffectPicker._DataTypes.any },
+];
 const effects = Object.entries(effectDefinitions);
+const searchableEffects = effects.map(([key, effect]) => ({
+	key,
+	effect,
+	inputPorts: getEffectInputPorts(effect),
+	outputPorts: getEffectOutputPorts(effect),
+}));
 
 // 検索条件でタグの件数や順番が動かないよう、登録済みの全エフェクトから集計する。
 // 同数のタグはEFFECT_TAGSの定義順を保つ。
@@ -81,10 +110,22 @@ const recentEffects = computed(() => recentEffectKeys.value.map(key => [key, eff
 
 const results = computed(() => {
 	const keyword = query.value.toLowerCase();
-	return effects.filter(([, effect]) => {
+	const inputType = selectedInputType.value;
+	const outputType = selectedOutputType.value;
+	return searchableEffects.filter(({ effect, inputPorts, outputPorts }) => {
+		// 接続互換性ではなく定義された型で検索する。any型と「指定なし」も区別する。
 		return effect.displayName.toLowerCase().includes(keyword)
-			&& selectedTags.value.every(tag => effect.tags.includes(tag));
-	});
+			&& selectedTags.value.every(tag => effect.tags.includes(tag))
+			&& (inputType === null || inputPorts.some(port => port.dataType.kind === inputType))
+			&& (outputType === null || outputPorts.some(port => port.dataType.kind === outputType));
+	}).map(item => ({
+		...item,
+		// 両方指定した場合は主入出力の両方が一致、片方が一致、どちらも一致しない順。
+		// 同点では元の登録順を保ち、型が未指定なら従来の並び順を維持する。
+		primaryMatches: Number(item.inputPorts.some(port => port.isPrimary && port.dataType.kind === inputType))
+			+ Number(item.outputPorts.some(port => port.isPrimary && port.dataType.kind === outputType)),
+	})).sort((a, b) => b.primaryMatches - a.primaryMatches)
+		.map(({ key, effect }) => [key, effect] as const);
 });
 
 function toggleTag(tag: EffectTags) {
@@ -169,6 +210,11 @@ function choose(key: string, effect: typeof effectDefinitions[keyof typeof effec
 	min-width: 0;
 	padding: 16px;
 	overflow: auto;
+}
+
+.typeFilters {
+	display: grid;
+	gap: 12px;
 }
 
 .tags {
