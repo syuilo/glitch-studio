@@ -2,7 +2,7 @@
 <div :class="[$style.root, { [$style.isBypass]: node.isBypass }]">
 	<div :class="[$style.header, { [$style.hasStatus]: effectStatus?.type === 'loading' || effectStatus?.type === 'error' }]" :draggable="true" @dragstart.stop="emit('dragStart', $event)">
 		<div :class="$style.headerLeft">
-			<GsNodePort :class="$style.allInPort" :dataType="{ kind: 'any' }" @update:element="allInPortEl = $event"/>
+			<GsNodePort v-show="!expanded" :class="$style.allInPort" :dataType="{ kind: 'any' }" @update:element="allInPortEl = $event"/>
 			<div :class="$style.effectName">{{ name }}</div>
 			<div v-if="effectStatus?.type === 'loading'" :class="$style.headerButton" inline small iconOnly title="Loading…"><i class="ti ti-loader-2" :class="$style.loading"></i></div>
 			<div v-else-if="effectStatus?.type === 'error'" :class="[$style.headerButton, $style.error]" inline small iconOnly :title="effectStatus.message" @click.stop="showEffectError"><i class="ti ti-alert-triangle"></i></div>
@@ -55,7 +55,6 @@
 </template>
 
 <script lang="ts" setup>
-import type { EffectResolution } from '@gs/subsystems_effect_shared/resolution.ts';
 import { IN_VISUAL_MODULE_VAR_DEFS } from '@gs/subsystems_visual-module_shared/expression.ts';
 import { ref, computed, shallowRef, watchEffect } from 'vue';
 import { effectDefinitions } from '@gs/subsystems_effect_shared/effect-definitions.ts';
@@ -66,6 +65,7 @@ import GsButton from './common/GsButton.vue';
 import GsSelect from './common/GsSelect.vue';
 import GsInput from './common/GsInput.vue';
 import GsFolder from './common/GsFolder.vue';
+import type { EffectResolution } from '@gs/subsystems_effect_shared/resolution.ts';
 import type { ParamEdit } from './GsVisualParam.vue';
 import type { VisualModule, VisualModuleEffectNode } from '@gs/subsystems_visual-module_shared/types.ts';
 import type { EffectInstanceState } from '@gs/subsystems_effect_shared/effect-status.ts';
