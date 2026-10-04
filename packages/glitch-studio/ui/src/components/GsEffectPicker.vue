@@ -2,7 +2,7 @@
 <GsModal ref="modal" @opened="searchInput?.focus()" @closed="emit('closed')" @click="close">
 	<div :class="$style.root" class="_shadow _popup">
 		<div :class="$style.header">
-			<GsInput ref="searchInput" v-model="query" type="search" :placeholder="i18n.ts._EffectPicker.Search" :class="$style.searchInput">
+			<GsInput ref="searchInput" v-model="query" type="search" :placeholder="i18n.ts._EffectPicker.Search" :class="$style.searchInput" @keydown.enter.stop.prevent="chooseFirstResult">
 				<template #prefix>
 					<i class="ti ti-search"></i>
 				</template>
@@ -160,6 +160,12 @@ function readRecentEffectKeys(): string[] {
 
 function close() {
 	modal.value?.close();
+}
+
+function chooseFirstResult(event: KeyboardEvent) {
+	if (event.repeat) return;
+	const firstResult = results.value[0];
+	if (firstResult) choose(firstResult[0], firstResult[1]);
 }
 
 function choose(key: string, effect: typeof effectDefinitions[keyof typeof effectDefinitions]) {
