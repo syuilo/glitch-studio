@@ -1,6 +1,7 @@
 import { getNodeOutputs } from '@gs/subsystems_visual-module_shared/node-outputs.ts';
 import { areNodeDataTypesCompatible } from '@gs/shared/data-type/node-compatibility.ts';
 import { effectDefinitions } from '@gs/subsystems_effect_shared/effect-definitions.ts';
+import { prettyId } from '@gs/shared/utility/id.js';
 import type { TextureDataType } from '@gs/shared/data-type/data-type.ts';
 import type { VisualModuleNode, NodeOutputReference, VisualModule } from '@gs/subsystems_visual-module_shared/types.ts';
 import { preferences } from '@/preferences.ts';
@@ -39,7 +40,7 @@ export function getNodeOutputItems(nodes: VisualModuleNode[], excludedNodeId?: s
 			const connection: NodeOutputReference = { nodeId: node.id, outputPort, fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' };
 			const typeCompatible = inputDataType === undefined || areNodeDataTypesCompatible(output.dataType, inputDataType);
 			return {
-				label: `${name} [${node.id}]: ${node.type === 'globalIn' ? paramDefs.find(def => def.id === outputPort)?.ui.label ?? outputPort : outputPort}`,
+				label: `${name} [${prettyId(node.id)}]: ${node.type === 'globalIn' ? paramDefs.find(def => def.id === outputPort)?.ui.label ?? outputPort : outputPort}`,
 				value: nodeOutputKey(connection)!,
 				connection,
 				dataType: output.dataType,

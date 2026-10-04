@@ -1,20 +1,20 @@
-// ランダムな文字列が生成できればなんでも良い(時系列でソートできるなら尚良)が、とりあえずaidの実装を拝借
-
-const TIME2000 = 946684800000;
-let counter = Math.floor(Math.random() * 10000);
+let counter = -1;
 
 function getTime(time: number): string {
-	time = time - TIME2000;
-	if (time < 0) time = 0;
-
-	return time.toString(36).padStart(8, '0');
+	return time.toString().padStart(16, '0');
 }
 
 function getNoise(): string {
-	return counter.toString(36).padStart(2, '0').slice(-2);
+	return Math.random().toString(36).slice(2, 10);
 }
 
 export function genId(): string {
 	counter++;
-	return getTime(Date.now()) + getNoise();
+	return getTime(Date.now()) + '_' + getNoise() + '_' + counter.toString();
+}
+
+export function prettyId(id: string): string {
+	const parts = id.split('_');
+	if (parts.length !== 3) return id;
+	return '#' + parts[1].toUpperCase();
 }

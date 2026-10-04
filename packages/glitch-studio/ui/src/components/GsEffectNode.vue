@@ -8,7 +8,7 @@
 			<div v-else-if="effectStatus?.type === 'error'" :class="[$style.headerButton, $style.error]" inline small iconOnly :title="effectStatus.message" @click.stop="showEffectError"><i class="ti ti-alert-triangle"></i></div>
 		</div>
 		<div :class="$style.headerRight">
-			<div :class="$style.nodeId" class="_monospace">{{ node.id }}</div>
+			<div :class="$style.nodeId" class="_monospace">{{ prettyId(node.id) }}</div>
 			<div :class="$style.headerButtons">
 				<GsButton transparent :class="[$style.headerButton]" inline small iconOnly @click="expanded = !expanded"><i class="ti" :class="expanded ? 'ti-chevron-up' : 'ti-chevron-down'"></i></GsButton>
 				<GsButton :transparent="!showSettings" :class="[$style.headerButton]" inline small iconOnly :primary="showSettings" @click="showSettings = !showSettings"><i class="ti ti-settings"></i></GsButton>
@@ -58,6 +58,7 @@
 import { IN_VISUAL_MODULE_VAR_DEFS } from '@gs/subsystems_visual-module_shared/expression.ts';
 import { ref, computed, shallowRef, watchEffect } from 'vue';
 import { effectDefinitions } from '@gs/subsystems_effect_shared/effect-definitions.ts';
+import { prettyId } from '@gs/shared/utility/id.ts';
 import GsNodeOutputs from './GsNodeOutputs.vue';
 import GsNodePort from './GsNodePort.vue';
 import GsVisualParam from './GsVisualParam.vue';
