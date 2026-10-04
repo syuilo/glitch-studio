@@ -258,5 +258,9 @@ watch(opened, (isOpened) => {
 	.header {
 		border-radius: 0;
 	}
+
+	.body {
+		background: transparent;
+	}
 }
 </style>

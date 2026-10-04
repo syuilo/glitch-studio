@@ -2,16 +2,19 @@
 <GsModal ref="modal" @opened="searchInput?.focus()" @closed="emit('closed')">
 	<div :class="$style.root" class="_shadow _popup">
 		<div :class="$style.header">
-			<GsInput ref="searchInput" v-model="query" type="search" :placeholder="i18n.ts._EffectPicker.Search" :class="$style.searchInput"/>
+			<GsInput ref="searchInput" v-model="query" type="search" :placeholder="i18n.ts._EffectPicker.Search" :class="$style.searchInput">
+				<template #prefix>
+					<i class="ti ti-search"></i>
+				</template>
+			</GsInput>
 			<div :class="$style.actions">
 				<div :class="$style.button" :title="i18n.ts._EffectPicker.Close" tabindex="0" @click="close" @keydown.enter.prevent="close"><i class="ti ti-x"></i></div>
 			</div>
 		</div>
 		<div :class="$style.body">
 			<div :class="$style.leftArea">
-				<div :class="$style.sidebarSection">
-					<div :class="$style.sectionTitle">{{ i18n.ts._EffectPicker.Tags }}</div>
-					<div :class="$style.hint">{{ i18n.ts._EffectPicker.TagFilterHint }}</div>
+				<GsFolder defaultOpen asSection>
+					<template #label><i class="ti ti-tags"></i> {{ i18n.ts._EffectPicker.Tags }}</template>
 					<div :class="$style.tags">
 						<button type="button" class="_button" :class="[$style.tag, { [$style.selected]: selectedTags.length === 0 }]" @click="selectedTags = []">
 							<span>{{ i18n.ts._EffectPicker.AllEffects }}</span>
@@ -22,20 +25,19 @@
 							<span :class="$style.count">{{ count }}</span>
 						</button>
 					</div>
-				</div>
-				<div :class="$style.sidebarSection">
-					<div :class="$style.sectionTitle">{{ i18n.ts._EffectPicker.RecentEffects }}</div>
+				</GsFolder>
+				<GsFolder defaultOpen asSection>
+					<template #label><i class="ti ti-history"></i> {{ i18n.ts._EffectPicker.RecentEffects }}</template>
 					<div v-if="recentEffects.length > 0" :class="$style.recentEffects">
 						<GsEffectPickerEffect v-for="[key, effect] in recentEffects" :key="key" :effect="effect" :detailed="false" @click="choose(key, effect)"/>
 					</div>
-					<div v-else :class="$style.empty">{{ i18n.ts._EffectPicker.NoRecentEffects }}</div>
-				</div>
+				</GsFolder>
 			</div>
 			<div :class="$style.rightArea">
 				<div :class="$style.effects">
 					<GsEffectPickerEffect v-for="[key, effect] in results" :key="key" :effect="effect" detailed @click="choose(key, effect)"/>
 				</div>
-				<div v-if="results.length === 0" :class="$style.empty">{{ i18n.ts._EffectPicker.NoResults }}</div>
+				<div v-if="results.length === 0">{{ i18n.ts._EffectPicker.NoResults }}</div>
 			</div>
 		</div>
 	</div>
@@ -45,10 +47,12 @@
 <script setup lang="ts">
 import { computed, ref, useTemplateRef } from 'vue';
 import { effectDefinitions } from '@gs/subsystems_effect_shared/effect-definitions.ts';
-import { EFFECT_TAGS, type EffectTags } from '@gs/subsystems_effect_shared/effect-definition.ts';
+import { EFFECT_TAGS } from '@gs/subsystems_effect_shared/effect-definition.ts';
 import GsEffectPickerEffect from './GsEffectPicker.Effect.vue';
 import GsModal from './common/GsModal.vue';
 import GsInput from './common/GsInput.vue';
+import GsFolder from './common/GsFolder.vue';
+import type { EffectTags } from '@gs/subsystems_effect_shared/effect-definition.ts';
 import { i18n } from '@/i18n.ts';
 
 const emit = defineEmits<{
@@ -134,11 +138,11 @@ function choose(key: string, effect: typeof effectDefinitions[keyof typeof effec
 }
 
 .header, .actions, .sliderRow { display: flex; align-items: center; gap: 12px; }
-.header { justify-content: space-between; margin-bottom: 6px; padding-left: 4px; }
 .actions { gap: 6px; }
 
 .header {
 	padding: 16px;
+	border-bottom: solid 1px #fff2;
 }
 
 .searchInput {
@@ -149,41 +153,22 @@ function choose(key: string, effect: typeof effectDefinitions[keyof typeof effec
 	flex: 1;
 	display: flex;
 	flex-direction: row;
-	gap: 16px;
 	min-height: 0;
 }
 .leftArea {
 	flex: 0.3;
 	display: flex;
 	flex-direction: column;
-	gap: 24px;
 	min-width: 0;
-	padding: 0 0 16px 16px;
+	border-right: solid 1px #fff2;
 	text-align: left;
 	overflow: auto;
 }
 .rightArea {
 	flex: 0.7;
 	min-width: 0;
-	padding: 0 16px 16px 0;
+	padding: 16px;
 	overflow: auto;
-}
-
-.sidebarSection {
-	display: flex;
-	flex-direction: column;
-	flex-shrink: 0;
-	gap: 8px;
-}
-
-.sectionTitle {
-	font-weight: bold;
-}
-
-.hint, .empty {
-	font-size: 85%;
-	line-height: 1.5;
-	opacity: 0.7;
 }
 
 .tags {
