@@ -16,12 +16,24 @@
 				<GsFolder defaultOpen asSection>
 					<template #label><i class="ti ti-filter"></i> {{ i18n.ts._EffectPicker.PortTypes }}</template>
 					<div :class="$style.typeFilters">
-						<GsSelect v-model="selectedInputType" :items="dataTypeItems">
-							<template #label>{{ i18n.ts._EffectPicker.InputType }}</template>
-						</GsSelect>
-						<GsSelect v-model="selectedOutputType" :items="dataTypeItems">
-							<template #label>{{ i18n.ts._EffectPicker.OutputType }}</template>
-						</GsSelect>
+						<div>
+							<div :class="$style.typeFilterLabel">{{ i18n.ts._EffectPicker.InputType }}</div>
+							<div :class="$style.tags">
+								<button v-for="{ value, label } in dataTypeItems" :key="value ?? 'all'" type="button" class="_button" :class="[$style.tag, { [$style.selected]: selectedInputType === value }]" @click="selectedInputType = value">
+									<GsNodePort v-if="value !== null" :dataType="{ kind: value }" :class="$style.typePort"/>
+									<span>{{ label }}</span>
+								</button>
+							</div>
+						</div>
+						<div>
+							<div :class="$style.typeFilterLabel">{{ i18n.ts._EffectPicker.OutputType }}</div>
+							<div :class="$style.tags">
+								<button v-for="{ value, label } in dataTypeItems" :key="value ?? 'all'" type="button" class="_button" :class="[$style.tag, { [$style.selected]: selectedOutputType === value }]" @click="selectedOutputType = value">
+									<GsNodePort v-if="value !== null" :dataType="{ kind: value }" :class="$style.typePort"/>
+									<span>{{ label }}</span>
+								</button>
+							</div>
+						</div>
 					</div>
 				</GsFolder>
 				<GsFolder defaultOpen asSection>
@@ -60,10 +72,10 @@ import { computed, ref, useTemplateRef } from 'vue';
 import { effectDefinitions } from '@gs/subsystems_effect_shared/effect-definitions.ts';
 import { EFFECT_TAGS } from '@gs/subsystems_effect_shared/effect-definition.ts';
 import GsEffectPickerEffect from './GsEffectPicker.Effect.vue';
+import GsNodePort from './GsNodePort.vue';
 import GsModal from './common/GsModal.vue';
 import GsInput from './common/GsInput.vue';
 import GsFolder from './common/GsFolder.vue';
-import GsSelect from './common/GsSelect.vue';
 import type { TextureDataType } from '@gs/shared/data-type/data-type.ts';
 import type { EffectTags } from '@gs/subsystems_effect_shared/effect-definition.ts';
 import { i18n } from '@/i18n.ts';
@@ -169,7 +181,7 @@ function choose(key: string, effect: typeof effectDefinitions[keyof typeof effec
 	flex-direction: column;
 	margin: auto;
 	position: relative;
-	width: 1200px;
+	width: 100%;
 	max-width: 100%;
 	height: 100%;
 	box-sizing: border-box;
@@ -217,6 +229,15 @@ function choose(key: string, effect: typeof effectDefinitions[keyof typeof effec
 	gap: 12px;
 }
 
+.typeFilterLabel {
+	margin-bottom: 6px;
+	font-size: 85%;
+}
+
+.typePort {
+	--NODE_PORT_SIZE: 16px;
+}
+
 .tags {
 	display: flex;
 	flex-wrap: wrap;
@@ -228,11 +249,12 @@ function choose(key: string, effect: typeof effectDefinitions[keyof typeof effec
 	align-items: center;
 	gap: 8px;
 	max-width: 100%;
-	padding: 6px 8px;
+	padding: 4px 8px;
 	text-align: left;
 	overflow-wrap: anywhere;
 	background: var(--THEME-buttonBg);
 	border-radius: 6px;
+	font-size: 90%;
 
 	&:hover {
 		background: var(--THEME-buttonHoverBg);
