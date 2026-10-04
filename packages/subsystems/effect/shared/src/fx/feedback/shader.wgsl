@@ -16,7 +16,7 @@ fn fs(@location(0) uv: vec2f, @builtin(position) position: vec4f) -> @location(0
 		value = textureLoad(previous, vec2i(position.xy), 0) * params.decay;
 	}
 	if (params.inputWeight > 0.0) {
-		// Accumulate channels as data, preserving negative vectors and values above one.
+		// 全チャンネルをデータとして扱い、加算・補間のどちらも負のベクトルや1を超える値を維持する。
 		value += read_input(uv) * params.inputWeight;
 	}
 	// Saturate only at the storage format's limits, preventing overflow from poisoning history.

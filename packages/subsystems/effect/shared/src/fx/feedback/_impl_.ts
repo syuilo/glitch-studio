@@ -53,14 +53,22 @@ export default implementEffect<typeof definition>({
 				}
 				const seconds = Number.isFinite(ctx.timeDelta) ? Math.max(0, ctx.timeDelta / 1000) : 0;
 				const halfLife = Math.max(0, ctx.params.halfLife) / 1000;
-				const rate = halfLife > 0 ? Math.LN2 / halfLife : 0;
-				const decay = Math.exp(-rate * seconds);
-				// Exact integration of dA/dt = strength * input - rate * A for constant input.
-				// expm1 preserves precision when the frame interval is small relative to the half-life.
-				const integration = rate > 0 ? -Math.expm1(-rate * seconds) / rate : seconds;
+				// 半減期0は即時減衰。加算の積分量は0、補間は現在の入力へ即座に追従する。
+				let decay = 0;
+				let integration = 0;
+				let interpolation = 1;
+				if (halfLife > 0) {
+					const exponent = Math.LN2 * (seconds / halfLife);
+					decay = Math.exp(-exponent);
+					// 加算は dA/dt = strength * input - rate * A、補間は dA/dt = rate * (strength * input - A)。
+					// expm1で短いフレーム間隔の桁落ちを避け、どちらも経過時間に基づいて計算する。
+					interpolation = -Math.expm1(-exponent);
+					integration = exponent > 0 ? (interpolation / Math.LN2) * halfLife : seconds;
+				}
+				// 補間の初回は比較する履歴がないため、Strength適用後の入力から始める。
+				const inputWeight = ctx.params.mode === 'interpolate' ? (hasPrevious ? interpolation : 1) : integration;
 				values[0] = hasPrevious && !ctx.params.reset ? decay : 0;
-				// 未接続入力は0のuniformとして渡されるため、加算しても履歴に影響しない。
-				values[1] = !ctx.params.reset ? integration * Math.max(0, ctx.params.strength) : 0;
+				values[1] = !ctx.params.reset ? inputWeight * Math.max(0, ctx.params.strength) : 0;
 				device.queue.writeBuffer(uniforms, 0, values);
 				const variant = pipelines.update({ input: ctx.params.input }, ctx.outputDataMap.output.texture);
 				const render = ctx.createPassEncoderFor(ctx.commandEncoder, ctx.outputDataMap.output.textureView);

@@ -2,8 +2,8 @@ import { EffectRenderer } from '@gs/subsystems_effect_renderer/effect-renderer.t
 import { VisualModuleRenderer } from '@gs/subsystems_visual-module_renderer/visual-module-renderer.ts';
 import gradientDefinition from '@gs/subsystems_effect_shared/fx/gradient/_def_.ts';
 import gradient from '@gs/subsystems_effect_shared/fx/gradient/_impl_.ts';
-import accumulateDefinition from '@gs/subsystems_effect_shared/fx/accumulate/_def_.ts';
-import accumulate from '@gs/subsystems_effect_shared/fx/accumulate/_impl_.ts';
+import feedbackDefinition from '@gs/subsystems_effect_shared/fx/feedback/_def_.ts';
+import feedback from '@gs/subsystems_effect_shared/fx/feedback/_impl_.ts';
 import colorMixDefinition from '@gs/subsystems_effect_shared/fx/colorMix/_def_.ts';
 import colorMix from '@gs/subsystems_effect_shared/fx/colorMix/_impl_.ts';
 import { constantShaderInput } from '@gs/shared/gpu/shader-input.ts';
@@ -79,7 +79,7 @@ async function checkEffectRenderers(device: GPUDevice, vertex: GPUShaderModule, 
 		key, 'canNode' in def && def.canNode ? constantShaderInput(def.dataType.kind, def.defaultValue.value) : def.defaultValue.value,
 	])) as unknown as RuntimeEffectParameters<typeof gradientDefinition.paramDefs>;
 	const history: VisualModuleEffectNode = {
-		id: 'history', type: 'effect', effectId: 'accumulate', isBypass: false, resolution: { mode: 'context' },
+		id: 'history', type: 'effect', effectId: 'feedback', isBypass: false, resolution: { mode: 'context' },
 		params: {
 			input: { inputSource: 'node', nodeId: 'source', outputPort: 'output', fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' },
 			strength: { inputSource: 'literal', value: 1 }, halfLife: { inputSource: 'literal', value: 0 }, reset: { inputSource: 'literal', value: false },
@@ -96,7 +96,7 @@ async function checkEffectRenderers(device: GPUDevice, vertex: GPUShaderModule, 
 	const renderer = new VisualModuleRenderer({
 		gpuDevice: device, fallbackTexture, resolution: { width: 4, height: 4 }, enableStats: false, timingHelper: null,
 		enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm', assets: [], assetTextures: new Map(), audioSources: new Map(), videoFrames: new Map(), videoFrameVersions: new Map(),
-		effectDefinitions: { colorMix: { ...colorMixDefinition }, accumulate: { ...accumulateDefinition } }, effectImplementations: { colorMix, accumulate }, visualModule: module,
+		effectDefinitions: { colorMix: { ...colorMixDefinition }, feedback: { ...feedbackDefinition } }, effectImplementations: { colorMix, feedback }, visualModule: module,
 	});
 	const frame = () => ({ time: 1000, timeDelta: 250, endTime: Infinity, isExport: false, pointerPosition: { x: 0, y: 0 }, pointerPositionPrev: { x: 0, y: 0 }, evaluatedParamValues: new Map() });
 	async function drawModule() {

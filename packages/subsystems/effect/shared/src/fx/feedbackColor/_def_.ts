@@ -1,8 +1,8 @@
 import { defineEffect } from '../../effect-definition.ts';
 
 export default defineEffect({
-	id: 'accumulateColor',
-	displayName: 'Accumulate (Color)',
+	id: 'feedbackColor',
+	displayName: 'Feedback (Color)',
 	description: {
 		'ja-JP': 'RGBを時間とともに加算・減衰、または過去の値と補間します。補間ではHalf-lifeに応じてStrength適用後の入力に近づきます。アルファ値は現在の入力値を維持します。',
 		'en-US': 'Adds and fades RGB over time, or interpolates history toward the strength-scaled input using the half-life. Preserves the current input alpha.',
