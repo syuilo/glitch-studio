@@ -1,5 +1,7 @@
 <template>
-<div ref="rootEl" :class="[$style.root, { [$style.output]: output }]" :data-type="dataType?.kind ?? 'any'" :data-wire-anchor="anchorName" :style="{ color: getNodeDataTypeColor(dataType), anchorName }"><i class="ti ti-circle-dot"></i></div>
+<div ref="rootEl" :class="[$style.root, { [$style.output]: output }]" :data-type="dataType?.kind ?? 'any'" :data-wire-anchor="anchorName" :style="{ color: getNodeDataTypeColor(dataType), anchorName }">
+	<div :class="$style.icon"></div>
+</div>
 </template>
 
 <script lang="ts" setup>
@@ -26,8 +28,9 @@ onBeforeUnmount(() => emit('update:element', null));
 
 <style module lang="scss">
 .root {
-	--size: var(--NODE_PORT_SIZE, 24px);
+	--size: var(--NODE_PORT_SIZE, 18px);
 
+	position: relative;
 	flex-shrink: 0;
 	text-align: center;
 	width: var(--size);
@@ -40,5 +43,27 @@ onBeforeUnmount(() => emit('update:element', null));
 	width: var(--size);
 	cursor: crosshair;
 	touch-action: none;
+}
+
+.icon {
+	position: relative;
+	width: 100%;
+	height: 100%;
+	border-radius: 100%;
+	box-sizing: border-box;
+	border: solid calc(var(--size) * 0.125) currentColor;
+
+	&:before {
+		content: '';
+		position: absolute;
+		top: 50%;
+		left: 50%;
+		width: 30%;
+		height: 30%;
+		border-radius: 100%;
+		box-sizing: border-box;
+		background-color: currentColor;
+		transform: translate(-50%, -50%);
+	}
 }
 </style>

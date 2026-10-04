@@ -3,8 +3,8 @@
 	<div v-for="(output, port) in ports" :key="port" :class="$style.output" @pointerdown="startDrag($event, port)">
 		<span v-if="outputResolutions" :class="$style.resolution">{{ outputResolutions[port] ? `${outputResolutions[port].width}px × ${outputResolutions[port].height}px` : '—' }}</span>
 		<span style="flex: 1; text-align: right;">{{ node.type === 'globalIn' ? paramDefs?.find(def => def.id === port)?.ui.label ?? port : port }}</span>
-		<span :class="$style.dataType" :style="{ color: getNodeDataTypeColor(output.dataType) }">{{ output.dataType.kind }}</span>
-		<GsNodePort output :dataType="output.dataType" @update:element="el => setPort(port, el)"/>
+		<span :class="$style.dataType" style="margin-right: 4px;" :style="{ color: getNodeDataTypeColor(output.dataType) }">{{ output.dataType.kind }}</span>
+		<GsNodePort style="place-self: center;" output :dataType="output.dataType" @update:element="el => setPort(port, el)"/>
 	</div>
 </div>
 </template>
@@ -70,6 +70,7 @@ onUnmounted(() => {
 	display: flex;
 	min-width: 0;
 	overflow-wrap: anywhere;
+	padding-right: 4px;
 }
 
 .dataType {
