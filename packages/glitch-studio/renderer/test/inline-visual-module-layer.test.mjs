@@ -79,7 +79,7 @@ function fixture(t, { present = false, disableCache = true, timelineFps = 60, ti
 			calls.passes.push(descriptor);
 			return { setPipeline() {}, setBindGroup() {}, draw() {}, end() {} };
 		} }),
-		queue: { submit() {}, writeTexture() {}, writeBuffer(buffer, offset, data) {
+		queue: { submit() {}, async onSubmittedWorkDone() {}, writeTexture() {}, writeBuffer(buffer, offset, data) {
 			calls.writes.push(new Uint8Array(data).slice());
 		} },
 	};
@@ -111,6 +111,69 @@ function fixture(t, { present = false, disableCache = true, timelineFps = 60, ti
 	manager.canvasRenderer.renderToCanvas = texture => calls.presented.push(texture);
 	t.after(() => manager.destroy());
 	return { manager, calls };
+}
+
+for (const samples of [1, 4]) {
+	// 【GPUが完了するまで次のプレビューフレームを投入しない】
+	// JavaScript側の描画完了だけを待つと、重いGPU処理がフレームごとに蓄積する。
+	// 単発・モーションブラーとも最終表示まで送信してから待ち、連続した要求の
+	// 中間位置を捨てることを、実際のレイヤー評価とManagerを通して確認する。
+	test(`waits for GPU completion and coalesces preview requests with a sample count of ${samples}`, async t => {
+		const { manager, calls } = fixture(t, { present: true, timelineMotionBlur: { enabled: true, shutterAngle: 180, samples } });
+		await manager.updateDynamicOptions({
+			timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [
+				layer('layer', visualModule({ params: { localTime: expression('TIME_MS') } })),
+			] }], sceneId: 'scene',
+		});
+		const gpuFinished = Promise.withResolvers();
+		const waitingForGpu = Promise.withResolvers();
+		const submit = t.mock.method(manager.gpuDevice.queue, 'submit');
+		const render = t.mock.method(manager, 'renderFrame');
+		let waits = 0;
+		t.mock.method(manager.gpuDevice.queue, 'onSubmittedWorkDone', async () => {
+			waits++;
+			assert.equal(calls.presented.length, waits);
+			assert.equal(calls.renders.length, waits * samples);
+			if (waits === 1) {
+				waitingForGpu.resolve();
+				await gpuFinished.promise;
+			}
+		});
+		let finished = false;
+		const first = manager.renderTimelineAt(200).then(() => { finished = true; });
+		await waitingForGpu.promise;
+		const submitted = submit.mock.callCount();
+		assert.ok(submitted > 0);
+		for (const time of [225, 250, 800, 300, 900]) await manager.renderTimelineAt(time);
+		assert.equal(finished, false);
+		assert.equal(submit.mock.callCount(), submitted);
+		assert.equal(render.mock.callCount(), 1);
+		assert.equal(calls.presented.length, 1);
+		gpuFinished.resolve();
+		await first;
+		assert.deepEqual(render.mock.calls.map(call => call.arguments[0]), [200, 900]);
+		assert.equal(waits, 2);
+		assert.equal(calls.presented.length, 2);
+		assert.deepEqual(calls.errors, []);
+	});
+
+	// 【書き出しではプレビュー用の間引きやGPU完了待ちを使わない】
+	// 書き出しは呼び出し側が描画・エンコードを直列に進める。プレビューの
+	// 要求統合を共有すると、出力動画のフレームやブラーのサンプルが欠落する。
+	test(`renders every export frame without preview scheduling with a sample count of ${samples}`, async t => {
+		const { manager, calls } = fixture(t, { present: true, timelineMotionBlur: { enabled: true, shutterAngle: 180, samples } });
+		await manager.updateDynamicOptions({
+			timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [
+				layer('layer', visualModule({ params: { localTime: expression('TIME_MS') } })),
+			] }], sceneId: 'scene',
+		});
+		t.mock.method(manager.gpuDevice.queue, 'onSubmittedWorkDone', () => assert.fail('Export must not use preview GPU waits'));
+		const render = t.mock.method(manager, 'renderFrame');
+		for (const time of [200, 225, 250]) await manager.renderTimelineFrame(time, 25);
+		assert.deepEqual(render.mock.calls.map(call => call.arguments[0]), [200, 225, 250]);
+		assert.equal(calls.renders.length, 3 * samples);
+		assert.equal(calls.presented.length, 3);
+	});
 }
 
 for (const isExport of [false, true]) {

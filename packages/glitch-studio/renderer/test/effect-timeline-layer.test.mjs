@@ -61,7 +61,7 @@ function fixture(t, options = {}) {
 			calls.passes.push(descriptor);
 			return { setPipeline() {}, setBindGroup() {}, draw() {}, end() {} };
 		} }),
-		queue: { submit() { calls.submits++; }, writeTexture() {}, writeBuffer() {} },
+		queue: { submit() { calls.submits++; }, async onSubmittedWorkDone() {}, writeTexture() {}, writeBuffer() {} },
 	};
 	const implementation = {
 		getIntrinsicResolution: options.intrinsicResolution,

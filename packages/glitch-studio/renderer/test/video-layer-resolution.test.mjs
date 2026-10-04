@@ -60,7 +60,7 @@ function gpuFixture(t) {
 		createRenderPipeline: () => ({ getBindGroupLayout: () => ({}) }),
 		createCommandEncoder: () => ({ finish: () => ({}), beginRenderPass: () => ({ setPipeline() {}, setBindGroup() {}, draw() {}, end() {} }) }),
 		queue: {
-			submit() {}, writeTexture() {}, writeBuffer() {},
+			submit() {}, async onSubmittedWorkDone() {}, writeTexture() {}, writeBuffer() {},
 			copyExternalImageToTexture(source, destination, size) { calls.uploads.push({ destination, size, canvasSize: dimensions(source.source) }); },
 		},
 	};

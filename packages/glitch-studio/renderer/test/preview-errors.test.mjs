@@ -49,7 +49,7 @@ function gpuFixture() {
 		createRenderPipeline: () => ({ getBindGroupLayout: () => ({}) }),
 		createComputePipeline: () => ({}),
 		createCommandEncoder: () => ({ finish: () => ({}), beginRenderPass: () => ({ setPipeline() {}, setBindGroup() {}, draw() {}, end() {} }) }),
-		queue: { submit() {}, writeBuffer() {}, writeTexture() {}, copyExternalImageToTexture() {} },
+		queue: { submit() {}, async onSubmittedWorkDone() {}, writeBuffer() {}, writeTexture() {}, copyExternalImageToTexture() {} },
 	};
 	return { device, texture };
 }
@@ -127,38 +127,121 @@ test('ignores obsolete timeline completions after destruction', async t => {
 	renderer.renderFrame = () => new Promise(resolve => pending.push(resolve));
 	const first = renderer.renderTimelineAt(0);
 	const second = renderer.renderTimelineAt(10);
+	assert.equal(pending.length, 1);
 	renderer.destroy();
-	pending[1]();
 	pending[0]();
 	await Promise.all([first, second]);
+	assert.equal(pending.length, 1);
 	assert.deepEqual(errors, []);
 });
 
-// 【古いシークの成功・失敗は新しいシークの結果を上書きしない】
-// 正常終了の順序だけでなく失敗の順序も逆転し得るため、両方を確認する。
-// 新しい位置のエラーを消すことも、修正後に古いエラーを再表示することも防ぐ。
-test('keeps the latest seek result when older requests settle later', async t => {
+for (const failure of ['render', 'GPU completion']) {
+	// 【描画途中の失敗でも送信済みGPU処理を待ち、完了待ちの失敗からも復旧できる】
+	// 失敗で即座に処理中フラグを解除すると、再試行時に古いGPU処理が残る。
+	// 完了待ちのrejectもプレビューエラーとして通知し、後続要求を止めたうえで
+	// 新しい明示的な描画要求は受け付ける必要がある。
+	test(`waits for submitted work and allows retry after ${failure} failure`, async t => {
+		const { renderer, errors } = await fixture(t, {}, TimelineRendererManager);
+		const gpuFinished = Promise.withResolvers();
+		const waitingForGpu = Promise.withResolvers();
+		const times = [];
+		let submitted = 0;
+		t.mock.method(renderer.gpuDevice.queue, 'submit', () => { submitted++; });
+		renderer.renderFrame = async time => {
+			times.push(time);
+			renderer.gpuDevice.queue.submit([]);
+			if (time === 0 && failure === 'render') throw new Error('partial rendering failed');
+		};
+		let waits = 0;
+		t.mock.method(renderer.gpuDevice.queue, 'onSubmittedWorkDone', async () => {
+			assert.equal(submitted, ++waits);
+			if (waits === 1) {
+				waitingForGpu.resolve();
+				await gpuFinished.promise;
+			}
+		});
+		const first = renderer.renderTimelineAt(0);
+		await waitingForGpu.promise;
+		await renderer.renderTimelineAt(10);
+		assert.deepEqual(times, [0]);
+		assert.deepEqual(errors, []);
+		if (failure === 'render') gpuFinished.resolve();
+		else gpuFinished.reject(new Error('GPU completion failed'));
+		await first;
+		const message = failure === 'render' ? 'partial rendering failed' : 'GPU completion failed';
+		assert.deepEqual(errors, [message]);
+		assert.deepEqual(times, [0]);
+		await renderer.renderTimelineAt(20);
+		assert.deepEqual(times, [0, 20]);
+		assert.deepEqual(errors, [message, null]);
+	});
+}
+
+for (const invalidation of ['edit', 'scene change', 'destroy']) {
+	// 【GPU完了待ち中の編集・Scene切り替え・破棄でも待機制限を維持する】
+	// CPU評価が終わっていても、GPUへの送信を取り消すことはできない。
+	// 古い完了待ちが失敗しても無効化後のエラー表示へ漏らさず、破棄時は
+	// 待機要求を実行しない。編集・Scene切り替えでは新しい要求だけを実行する。
+	test(`keeps GPU backpressure and ignores stale errors after ${invalidation}`, async t => {
+		const { renderer, errors } = await fixture(t, {}, TimelineRendererManager);
+		await renderer.updateDynamicOptions({ visualModules: [visualModule(false)] });
+		const gpuFinished = Promise.withResolvers();
+		const waitingForGpu = Promise.withResolvers();
+		let waits = 0;
+		t.mock.method(renderer.gpuDevice.queue, 'onSubmittedWorkDone', async () => {
+			if (++waits === 1) {
+				waitingForGpu.resolve();
+				await gpuFinished.promise;
+			}
+		});
+		const render = t.mock.method(renderer, 'renderFrame');
+		const first = renderer.renderTimelineAt(0);
+		await waitingForGpu.promise;
+		await renderer.renderTimelineAt(10);
+		if (invalidation === 'edit') {
+			const updatedVisualModule = visualModule(false);
+			updatedVisualModule.nodes[0].params.input = { inputSource: 'literal', value: [1, 0, 0, 1] };
+			renderer.applyProjectChanges([{ type: 'visualModule', target: { visualModuleId: 'module' }, visualModule: updatedVisualModule }]);
+		} else if (invalidation === 'scene change') await renderer.updateDynamicOptions({ sceneId: null });
+		else renderer.destroy();
+		if (invalidation !== 'destroy') await renderer.renderTimelineAt(20);
+		assert.equal(render.mock.callCount(), 1);
+		gpuFinished.reject(new Error('obsolete GPU completion failed'));
+		await first;
+		assert.deepEqual(render.mock.calls.map(call => call.arguments[0]), invalidation === 'destroy' ? [0] : [0, 20]);
+		assert.deepEqual(errors, []);
+	});
+}
+
+// 【編集前の描画結果でエラーを変更せず、編集後の要求を実行する】
+// 描画を直列化した後も、待機中に受信した編集による無効化は必要になる。
+// 古い成功で既存のエラーを消さず、古い失敗で修正後の描画を止めないことを確認する。
+test('ignores obsolete frame results after edits and renders the updated state', async t => {
 	const { renderer, errors } = await fixture(t, {}, TimelineRendererManager);
-	const pending = [];
-	renderer.renderFrame = () => {
+	await renderer.renderTimelineAt(0);
+	assert.equal(errors.at(-1), 'circular dependency detected');
+	for (const fails of [false, true]) {
 		const gate = Promise.withResolvers();
-		pending.push(gate);
-		return gate.promise;
-	};
-	const first = renderer.renderTimelineAt(0);
-	const second = renderer.renderTimelineAt(10);
-	pending[1].reject(new Error('current failure'));
-	await second;
-	pending[0].resolve();
-	await first;
-	assert.deepEqual(errors, ['current failure']);
-	const third = renderer.renderTimelineAt(20);
-	const fourth = renderer.renderTimelineAt(30);
-	pending[3].resolve();
-	await fourth;
-	pending[2].reject(new Error('obsolete failure'));
-	await third;
-	assert.deepEqual(errors, ['current failure', null]);
+		const times = [];
+		renderer.renderFrame = async time => {
+			times.push(time);
+			if (time === 0) await gate.promise;
+			else throw new Error('updated failure');
+		};
+		const pending = renderer.renderTimelineAt(0);
+		await renderer.renderTimelineAt(10);
+		renderer.applyProjectChanges([{ type: 'visualModule', target: { visualModuleId: 'module' }, visualModule: visualModule(false) }]);
+		await renderer.renderTimelineAt(20);
+		assert.deepEqual(times, [0]);
+		if (fails) gate.reject(new Error('obsolete failure'));
+		else gate.resolve();
+		await pending;
+		assert.deepEqual(times, [0, 20]);
+		assert.deepEqual(errors, ['circular dependency detected', 'updated failure']);
+	}
+	renderer.renderFrame = async () => {};
+	await renderer.renderTimelineAt(30);
+	assert.deepEqual(errors, ['circular dependency detected', 'updated failure', null]);
 });
 
 // LIVE描画の途中で例外が起きても、GPUコマンドと計測を終了して次のフレームへ進む。

@@ -358,16 +358,23 @@ export class TimelineRendererManager extends EventEmitter<{
 	}
 
 	/** timeはミリ秒。表示期間中はレイヤーごとのインスタンスと履歴を保持する。 */
-	public renderTimelineAt(time: number, playback = false): Promise<void> {
-		return this.previewScheduler.render(time, playback);
+	public renderTimelineAt(time: number): Promise<void> {
+		return this.previewScheduler.render(time);
 	}
 
 	private async renderPreviewFrame(time: number): Promise<boolean> {
 		const generation = ++this.previewRenderGeneration;
 		try {
-			if (!Number.isFinite(time)) throw new Error('Timeline time must be finite');
-			await this.renderFrame(time, false);
-			// 中断されたシークの完了で、新しい描画のエラーを消さない。
+			try {
+				if (!Number.isFinite(time)) throw new Error('Timeline time must be finite');
+				await this.renderFrame(time, false);
+			} finally {
+				// submitはGPUへの実行予約であり、描画完了ではない。最終表示・ブラーの
+				// 全サンプルを含めて待ち、重いフレームの後ろにGPU処理を積み重ねない。
+				// 途中で失敗・編集による中断が起きても、送信済みの処理は待ち切る。
+				await this.gpuDevice.queue.onSubmittedWorkDone();
+			}
+			// 編集や破棄で無効になったフレームの完了で、エラー表示を変更しない。
 			if (generation === this.previewRenderGeneration) this.setRenderError(null);
 			return true;
 		} catch (error) {

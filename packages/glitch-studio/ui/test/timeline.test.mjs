@@ -147,6 +147,34 @@ function setup(t, fpsLimit = null, audio, duration = Infinity) {
 	};
 }
 
+// 【描画が遅くても音声時計に追従し、一時停止の位置を最後に要求する】
+// 描画完了をUIで待つと音声と再生時刻がずれる。要求の間引きはレンダラーに任せ、
+// 停止時には古い再生要求を最新の停止位置へ置き換えられるようにする。
+test('keeps audio time advancing during slow rendering and requests the paused position last', async t => {
+	let position = 0;
+	const audio = { error: { value: null }, currentTime: () => position, start() {}, stop() {} };
+	const { playback, timelineRenderer, frame, callbacks } = setup(t, null, audio, 30000);
+	const pending = Promise.withResolvers();
+	const requested = [];
+	timelineRenderer.renderTimelineAt = time => { requested.push(time); return pending.promise; };
+	playback.playTimeline();
+	frame(0);
+	position = 100;
+	frame(17);
+	position = 200;
+	frame(34);
+	assert.equal(playback.currentTimelineTime.value, 200);
+	position = 225;
+	playback.pauseTimeline();
+	assert.equal(playback.currentTimelineTime.value, 225);
+	assert.equal(playback.isTimelinePlaying.value, false);
+	assert.equal(callbacks.size, 0);
+	assert.deepEqual(requested, [0, 100, 200, 225]);
+	pending.resolve();
+	await pending.promise;
+	assert.deepEqual(requested, [0, 100, 200, 225]);
+});
+
 // 【タイムラインの表示だけを切り替えても時刻や再生状態を変更しない】
 // LIVEから停止中のプレビューへ戻る際に、再生開始や先頭へのシークを強制しない。
 test('shows the paused timeline at its retained position', t => {

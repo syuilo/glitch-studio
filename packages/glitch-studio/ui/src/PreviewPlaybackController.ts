@@ -93,7 +93,7 @@ export class PreviewPlaybackController {
 			// FPS制限の余りは描画タイミングだけに使い、経過時間を二重加算しない。
 			this.timelineTime.value = this.audio ? this.audio.currentTime() : (this.timelineTime.value + timestamp - previousAdvanceTime) % this.getDuration();
 			previousAdvanceTime = timestamp;
-			this.refresh(true);
+			this.refresh();
 		};
 		this.timelineRafId = window.requestAnimationFrame(renderLoop);
 	}
@@ -132,9 +132,9 @@ export class PreviewPlaybackController {
 	}
 
 	/** 編集による再描画では表示モードを切り替えない。LIVEはWorkerのループが描画する。 */
-	public refresh(playbackFrame = false) {
+	public refresh() {
 		if (!this.suspended.value && this.playbackState.value.mode === 'timeline' && this.timelineRenderer.isReady.value) {
-			this.timelineRenderer.renderTimelineAt(this.timelineTime.value, playbackFrame);
+			this.timelineRenderer.renderTimelineAt(this.timelineTime.value);
 		}
 	}
 
