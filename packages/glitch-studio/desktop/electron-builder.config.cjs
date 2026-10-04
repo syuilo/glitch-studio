@@ -3,7 +3,7 @@ const { version } = require('../../../package.json');
 module.exports = {
 	appId: 'io.github.syuilo.glitch-studio',
 	productName: 'Glitch Studio',
-	directories: { output: '../../release' },
+	directories: { output: '../../../release' },
 	extraMetadata: {
 		name: 'glitch-studio',
 		version,
