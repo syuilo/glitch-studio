@@ -12,9 +12,9 @@ export default defineEffect({
 	paramDefs: {
 		input: { dataType: { kind: 'color' }, ui: { label: 'Input', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },
 		strength: { dataType: { kind: 'scalar' }, ui: { label: 'Strength', control: { controlType: 'range', min: 0, max: 10, step: 0.01 } }, defaultValue: { inputSource: 'literal', value: 1 } },
-		strengthFactor: { dataType: { kind: 'color' }, ui: { label: 'Strength factor', control: { controlType: 'signal' } }, defaultValue: { inputSource: 'literal', value: [1, 1, 1, 1] } },
-		halfLife: { dataType: { kind: 'scalar' }, ui: { label: 'Half-life (ms, 0 = infinite)', control: { controlType: 'range', min: 0, max: 10000, step: 1 } }, defaultValue: { inputSource: 'literal', value: 300 } },
-		halfLifeFactor: { dataType: { kind: 'color' }, ui: { label: 'Half-life factor', control: { controlType: 'signal' } }, defaultValue: { inputSource: 'literal', value: [1, 1, 1, 1] } },
+		strengthFactor: { dataType: { kind: 'color' }, ui: { label: 'Strength factor', control: { controlType: 'signal' } }, canNode: true, defaultValue: { inputSource: 'literal', value: [1, 1, 1, 1] } },
+		halfLife: { dataType: { kind: 'scalar' }, ui: { label: 'Half-life (ms)', control: { controlType: 'range', min: 0, max: 10000, step: 1 } }, defaultValue: { inputSource: 'literal', value: 300 } },
+		halfLifeFactor: { dataType: { kind: 'color' }, ui: { label: 'Half-life factor', control: { controlType: 'signal' } }, canNode: true, defaultValue: { inputSource: 'literal', value: [1, 1, 1, 1] } },
 		reset: { dataType: { kind: 'bool' }, ui: { label: 'Reset', control: {} }, defaultValue: { inputSource: 'literal', value: false } },
 	},
 	primaryInputParameter: 'input',
