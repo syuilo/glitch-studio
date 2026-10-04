@@ -1,10 +1,10 @@
-import { implementEffect } from '../../effect-implementation.ts';
 import { createShaderInputPipeline } from '@gs/shared/gpu/shader-input-pipeline.ts';
+import { implementEffect } from '../../effect-implementation.ts';
 import { createTextFontLoader } from './font-loader.ts';
 import { layoutText } from './layout.ts';
 import { createTextShadowMaskRenderer } from './shadow.ts';
-import type definition from './_def_.ts';
 import code from './shader.wgsl?raw';
+import type definition from './_def_.ts';
 
 export default implementEffect<typeof definition>({
 	outputTextureFactories: {
@@ -40,7 +40,7 @@ export default implementEffect<typeof definition>({
 
 		function updateMask(values: typeof params, width: number, height: number) {
 			// 式の結果は数値などにもなり得るため、描画とキャッシュには文字列化した値を使う。
-			const text = String(values.text);
+			const text = String(values.text).trim();
 			// 色のアニメーションや接続先の更新では、Canvas描画と転送を繰り返さない。
 			const key = JSON.stringify([
 				font.cacheVersion, width, height, text, values.size, values.outlineWidth,
