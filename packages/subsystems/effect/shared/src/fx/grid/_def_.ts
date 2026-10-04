@@ -8,6 +8,7 @@ export default defineEffect({
 		'en-US': 'Draws a grid pattern.',
 	},
 	kind: 'generate',
+	dependsOnRenderHistory: false,
 	tags: ['pattern'],
 	paramDefs: {
 		background: { dataType: { kind: 'color' }, ui: { label: 'Background', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },

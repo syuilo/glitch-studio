@@ -8,6 +8,7 @@ export default defineEffect({
 		'en-US': 'Creates a mosaic by dividing the input image into squares sized according to color variation.',
 	},
 	kind: 'modify',
+	dependsOnRenderHistory: false,
 	tags: ['pixel', 'stylized', 'experimental'],
 	paramDefs: {
 		input: { dataType: { kind: 'color' }, ui: { label: 'Input', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },

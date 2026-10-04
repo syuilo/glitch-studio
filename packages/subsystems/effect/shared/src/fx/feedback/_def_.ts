@@ -8,6 +8,7 @@ export default defineEffect({
 		'en-US': 'Adds and fades input over time, or interpolates history toward the strength-scaled input using the half-life. Treats all channels as data.',
 	},
 	kind: 'modify',
+	dependsOnRenderHistory: true,
 	tags: ['temporal', 'utility'],
 	paramDefs: {
 		input: { dataType: { kind: 'any' }, ui: { label: 'Input', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },

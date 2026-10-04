@@ -8,6 +8,7 @@ export default defineEffect({
 		'en-US': 'Draws text using the specified font and color.',
 	},
 	kind: 'generate',
+	dependsOnRenderHistory: false,
 	tags: ['typography'],
 	paramDefs: {
 		text: { dataType: { kind: 'string' }, ui: { label: 'Text', control: {} }, defaultValue: { inputSource: 'literal', value: 'Hello, world!' } },

@@ -8,6 +8,7 @@ export default defineEffect({
 		'en-US': 'Outputs a solid color.',
 	},
 	kind: 'generate',
+	dependsOnRenderHistory: false,
 	tags: ['color', 'utility'],
 	paramDefs: {
 		color: { dataType: { kind: 'color' }, ui: { label: 'Color', control: {} }, defaultValue: { inputSource: 'literal', value: [1, 1, 1, 1] } },

@@ -8,6 +8,7 @@ export default defineEffect({
 		'en-US': 'Combines X and Y inputs into a two-dimensional vector.',
 	},
 	kind: 'generate',
+	dependsOnRenderHistory: false,
 	tags: ['math', 'utility'],
 	paramDefs: {
 		x: { dataType: { kind: 'scalar' }, ui: { label: 'X', control: { controlType: 'number', step: 0.01 } }, canNode: true, defaultValue: { inputSource: 'literal', value: 0 } },

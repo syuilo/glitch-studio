@@ -8,6 +8,7 @@ export default defineEffect({
 		'en-US': 'Outputs pointer motion as a vector field that fades over time.',
 	},
 	kind: 'generate',
+	dependsOnRenderHistory: true,
 	tags: ['temporal', 'utility'],
 	paramDefs: {
 		strength: { dataType: { kind: 'scalar' }, ui: { label: 'Strength', control: { controlType: 'range', min: 0, max: 2, step: 0.01 } }, defaultValue: { inputSource: 'literal', value: 0.3 } },

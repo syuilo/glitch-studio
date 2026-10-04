@@ -8,6 +8,7 @@ export default defineEffect({
 		'en-US': 'Sorts pixels of the input image by luminance to create streaks of color.',
 	},
 	kind: 'modify',
+	dependsOnRenderHistory: false,
 	tags: ['glitch', 'pixel', 'stylized', 'experimental'],
 	paramDefs: {
 		input: { dataType: { kind: 'color' }, ui: { label: 'Input', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },

@@ -8,6 +8,7 @@ export default defineEffect({
 		'en-US': 'Warps the input image using a vector field.',
 	},
 	kind: 'modify',
+	dependsOnRenderHistory: false,
 	tags: ['distortion', 'utility'],
 	paramDefs: {
 		input: { dataType: { kind: 'color' }, ui: { label: 'Input', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },

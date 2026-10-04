@@ -8,6 +8,7 @@ export default defineEffect({
 		'en-US': 'Adds radial speed lines around a specified point on the input image.',
 	},
 	kind: 'modify',
+	dependsOnRenderHistory: false,
 	tags: ['pattern', 'gimmicky', 'stylized'],
 	paramDefs: {
 		input: { dataType: { kind: 'color' }, ui: { label: 'Input', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },

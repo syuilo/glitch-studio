@@ -10,6 +10,7 @@ export default defineEffect({
 		'en-US': 'Adds ripples and light patterns to the input image as if viewed through water.',
 	},
 	kind: 'modify',
+	dependsOnRenderHistory: false,
 	tags: ['distortion', 'liquid', 'gimmicky', 'stylized'],
 	paramDefs: {
 		input: { dataType: { kind: 'color' }, ui: { label: 'Input', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },

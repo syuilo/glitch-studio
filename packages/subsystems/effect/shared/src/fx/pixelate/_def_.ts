@@ -8,6 +8,7 @@ export default defineEffect({
 		'en-US': 'Turns the input image into a mosaic of large pixels.',
 	},
 	kind: 'modify',
+	dependsOnRenderHistory: false,
 	tags: ['pixel', 'stylized'],
 	paramDefs: {
 		input: { dataType: { kind: 'color' }, ui: { label: 'Input', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },

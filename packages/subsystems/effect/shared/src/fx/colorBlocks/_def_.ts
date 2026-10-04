@@ -8,6 +8,7 @@ export default defineEffect({
 		'en-US': 'Overlays randomly colored blocks on the input image.',
 	},
 	kind: 'modify',
+	dependsOnRenderHistory: false,
 	tags: ['color', 'glitch', 'pixel', 'gimmicky', 'stylized'],
 	paramDefs: {
 		input: { dataType: { kind: 'color' }, ui: { label: 'Input', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },

@@ -8,6 +8,7 @@ export default defineEffect({
 		'en-US': 'Blurs the input image.',
 	},
 	kind: 'modify',
+	dependsOnRenderHistory: false,
 	tags: ['blur'],
 	paramDefs: {
 		input: { dataType: { kind: 'color' }, ui: { label: 'Input', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },

@@ -10,6 +10,7 @@ export default defineEffect({
 		'en-US': 'Gives the input image the sheen and flowing patterns of liquid metal.',
 	},
 	kind: 'modify',
+	dependsOnRenderHistory: false,
 	tags: ['distortion', 'liquid', 'gimmicky', 'stylized'],
 	paramDefs: {
 		input: { dataType: { kind: 'color' }, ui: { label: 'Input', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },

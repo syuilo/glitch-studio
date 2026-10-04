@@ -8,6 +8,7 @@ export default defineEffect({
 		'en-US': 'Remaps input values from a specified input range to an output range.',
 	},
 	kind: 'modify',
+	dependsOnRenderHistory: false,
 	tags: ['math', 'utility'],
 	paramDefs: {
 		input: { dataType: { kind: 'scalar' }, ui: { label: 'Input', control: { controlType: 'number' } }, canNode: true, defaultValue: { inputSource: 'literal', value: 0 } },

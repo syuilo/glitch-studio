@@ -8,6 +8,7 @@ export default defineEffect({
 		'en-US': 'Outputs a coordinate-based color gradient for testing rendering.',
 	},
 	kind: 'generate',
+	dependsOnRenderHistory: false,
 	tags: ['utility'],
 	paramDefs: {
 		x: { dataType: { kind: 'scalar' }, ui: { label: 'X', control: { controlType: 'range', min: -1, max: 1, step: 0.01 } }, defaultValue: { inputSource: 'literal', value: 0 } },

@@ -8,6 +8,7 @@ export default defineEffect({
 		'en-US': 'Multiplies the scalar input by the specified value.',
 	},
 	kind: 'modify',
+	dependsOnRenderHistory: false,
 	tags: ['math', 'utility'],
 	paramDefs: {
 		input: { dataType: { kind: 'scalar' }, ui: { label: 'Input', control: { controlType: 'number' } }, canNode: true, defaultValue: { inputSource: 'literal', value: 0 } },

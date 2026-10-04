@@ -8,6 +8,7 @@ export default defineEffect({
 		'en-US': 'Combines two data inputs using the selected blend mode.',
 	},
 	kind: 'modify',
+	dependsOnRenderHistory: false,
 	tags: ['composite', 'math', 'utility'],
 	paramDefs: {
 		inputA: { dataType: { kind: 'any' }, ui: { label: 'A', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: null } },

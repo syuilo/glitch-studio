@@ -8,6 +8,7 @@ export default defineEffect({
 		'en-US': 'Mixes two images at the specified ratio.',
 	},
 	kind: 'modify',
+	dependsOnRenderHistory: false,
 	tags: ['color', 'composite', 'utility'],
 	paramDefs: {
 		inputA: { dataType: { kind: 'color' }, ui: { label: 'A', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },

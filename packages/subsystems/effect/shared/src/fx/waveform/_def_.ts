@@ -8,6 +8,7 @@ export default defineEffect({
 		'en-US': 'Displays luminance or RGB values across the input image as a waveform.',
 	},
 	kind: 'modify',
+	dependsOnRenderHistory: false,
 	tags: ['color', 'analysis', 'utility'],
 	paramDefs: {
 		input: { dataType: { kind: 'color' }, ui: { label: 'Input', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },

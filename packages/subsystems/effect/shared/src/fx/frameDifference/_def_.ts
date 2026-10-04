@@ -8,6 +8,7 @@ export default defineEffect({
 		'en-US': 'Extracts changes by comparing the current input with the previous frame.',
 	},
 	kind: 'modify',
+	dependsOnRenderHistory: true,
 	tags: ['temporal', 'analysis', 'utility'],
 	paramDefs: {
 		input: { dataType: { kind: 'color' }, ui: { label: 'Input', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },

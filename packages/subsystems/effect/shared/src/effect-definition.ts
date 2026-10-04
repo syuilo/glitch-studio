@@ -47,6 +47,15 @@ export type EffectDefinition<In extends Record<string, ParameterDefinition> = Re
 	description: Record<'ja-JP' | 'en-US', string>;
 	// レイヤー作成時の主入力と合成方法を決める。入力の有無からは推測しない。
 	kind: 'modify' | 'generate';
+	/**
+	 * 自身の過去の描画で更新した履歴・蓄積状態に依存する。
+	 * 評価時刻・現在の入力・パラメータが同じでも、それまでの描画回数・順序・間隔により
+	 * 出力が変わり得るため、時間方向の複数回評価などで注意が必要なエフェクトを識別する。
+	 * 一部の設定でのみ履歴を使う場合もtrueとする。上流エフェクトの履歴依存は含めない。
+	 * 単なる描画キャッシュ・GPUリソースの再利用や、外部から渡された履歴の読み取りは含めない。
+	 * needsPreviousFrameによる共通管理と、エフェクト内部での独自管理のどちらも対象とする。
+	 */
+	dependsOnRenderHistory: boolean;
 	tags: EffectTags[];
 	paramDefs: In;
 	// バイパス・自動接続に使うトップレベルの入力。主入力がないエフェクトはnull。

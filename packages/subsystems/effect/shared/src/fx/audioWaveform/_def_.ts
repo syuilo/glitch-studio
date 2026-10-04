@@ -8,6 +8,8 @@ export default defineEffect({
 		'en-US': 'Visualizes audio from a Player as a waveform.',
 	},
 	kind: 'generate',
+	// 入力音声の履歴から毎回計算し、過去の描画結果には依存しない。
+	dependsOnRenderHistory: false,
 	tags: ['audio', 'analysis'],
 	paramDefs: {
 		player: { dataType: { kind: 'playerReference' }, ui: { label: 'Player', control: {} }, defaultValue: { inputSource: 'literal', value: null } },

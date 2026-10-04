@@ -8,6 +8,7 @@ export default defineEffect({
 		'en-US': 'Mixes two data inputs at the specified ratio.',
 	},
 	kind: 'modify',
+	dependsOnRenderHistory: false,
 	tags: ['composite', 'math', 'utility'],
 	paramDefs: {
 		inputA: { dataType: { kind: 'any' }, ui: { label: 'A', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: null } },

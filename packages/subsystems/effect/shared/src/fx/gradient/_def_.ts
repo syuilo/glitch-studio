@@ -8,6 +8,7 @@ export default defineEffect({
 		'en-US': 'Generates a linear or radial scalar field and a vector field of its gradient.',
 	},
 	kind: 'generate',
+	dependsOnRenderHistory: false,
 	tags: ['gradient', 'utility'],
 	paramDefs: {
 		mode: { dataType: { kind: 'enum', options: ['linear', 'radial'] }, ui: { label: 'Type', control: { labels: { 'linear': 'Linear', 'radial': 'Radial' } } }, defaultValue: { inputSource: 'literal', value: 'linear' } },

@@ -8,6 +8,7 @@ export default defineEffect({
 		'en-US': 'Outputs the current video frame from a Player.',
 	},
 	kind: 'generate',
+	dependsOnRenderHistory: false,
 	tags: ['media'],
 	paramDefs: {
 		player: { dataType: { kind: 'playerReference' }, ui: { label: 'Player', control: {} }, defaultValue: { inputSource: 'literal', value: null } },

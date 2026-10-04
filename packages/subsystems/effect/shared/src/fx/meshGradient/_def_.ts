@@ -8,6 +8,7 @@ export default defineEffect({
 		'en-US': 'Generates a gradient with multiple colors blending smoothly into one another.',
 	},
 	kind: 'generate',
+	dependsOnRenderHistory: false,
 	tags: ['color', 'gradient'],
 	paramDefs: {
 		colors: {

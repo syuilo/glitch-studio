@@ -8,6 +8,7 @@ export default defineEffect({
 		'en-US': 'Shifts strips of the input image to create a torn glitch effect.',
 	},
 	kind: 'modify',
+	dependsOnRenderHistory: false,
 	tags: ['distortion', 'glitch', 'stylized'],
 	paramDefs: {
 		input: { dataType: { kind: 'color' }, ui: { label: 'Input', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },

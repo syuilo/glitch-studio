@@ -8,6 +8,7 @@ export default defineEffect({
 		'en-US': 'Extracts a frame at the specified time from a video asset.',
 	},
 	kind: 'generate',
+	dependsOnRenderHistory: false,
 	tags: ['media'],
 	paramDefs: {
 		asset: { dataType: { kind: 'videoAssetReference' }, ui: { label: 'Asset', control: {} }, defaultValue: { inputSource: 'literal', value: null } },

@@ -8,6 +8,7 @@ export default defineEffect({
 		'en-US': 'Estimates motion between frames and outputs its direction and magnitude as a vector field.',
 	},
 	kind: 'modify',
+	dependsOnRenderHistory: true,
 	tags: ['temporal', 'analysis'],
 	paramDefs: {
 		input: { dataType: { kind: 'color' }, ui: { label: 'Input', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },

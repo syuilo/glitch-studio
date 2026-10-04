@@ -8,6 +8,7 @@ export default defineEffect({
 		'en-US': 'Spreads light from bright areas of the input image to create a glow.',
 	},
 	kind: 'modify',
+	dependsOnRenderHistory: false,
 	tags: ['blur', 'light'],
 	paramDefs: {
 		input: { dataType: { kind: 'color' }, ui: { label: 'Input', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },

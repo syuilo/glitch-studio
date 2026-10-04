@@ -8,6 +8,7 @@ export default defineEffect({
 		'en-US': 'Computes the gradient of a scalar field and outputs it as a vector field.',
 	},
 	kind: 'modify',
+	dependsOnRenderHistory: false,
 	tags: ['math', 'utility'],
 	paramDefs: {
 		input: { dataType: { kind: 'scalar' }, ui: { label: 'Input', control: { controlType: 'number' } }, canNode: true, defaultValue: { inputSource: 'literal', value: 0 } },

@@ -8,6 +8,7 @@ export default defineEffect({
 		'en-US': 'Repeats the input image in a spiral to create a receding recursive pattern.',
 	},
 	kind: 'modify',
+	dependsOnRenderHistory: false,
 	tags: ['distortion', 'gimmicky', 'experimental'],
 	paramDefs: {
 		input: { dataType: { kind: 'color' }, ui: { label: 'Input', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },

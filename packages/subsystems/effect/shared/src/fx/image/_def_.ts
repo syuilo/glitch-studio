@@ -8,6 +8,7 @@ export default defineEffect({
 		'en-US': 'Outputs an imported image asset.',
 	},
 	kind: 'generate',
+	dependsOnRenderHistory: false,
 	tags: ['media'],
 	paramDefs: {
 		image: { dataType: { kind: 'assetReference' }, ui: { label: 'Image', control: {} }, defaultValue: { inputSource: 'literal', value: null } },

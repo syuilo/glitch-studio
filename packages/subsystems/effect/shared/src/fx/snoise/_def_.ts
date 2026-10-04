@@ -8,6 +8,7 @@ export default defineEffect({
 		'en-US': 'Generates smoothly varying noise as a scalar field.',
 	},
 	kind: 'generate',
+	dependsOnRenderHistory: false,
 	tags: ['noise', 'utility'],
 	paramDefs: {
 		density: { dataType: { kind: 'vector' }, ui: { label: 'Density', control: { controlType: 'vector', min: 1, max: 1000, logarithmic: true } }, canNode: true, defaultValue: { inputSource: 'literal', value: [2, 2] } },

@@ -8,6 +8,7 @@ export default defineEffect({
 		'en-US': 'Shifts the RGB channels of the input image to create color separation.',
 	},
 	kind: 'modify',
+	dependsOnRenderHistory: false,
 	tags: ['color', 'distortion', 'glitch'],
 	paramDefs: {
 		input: { dataType: { kind: 'color' }, ui: { label: 'Input', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },

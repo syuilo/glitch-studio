@@ -10,6 +10,7 @@ export default defineEffect({
 		'en-US': 'Generates intricate noise patterns resembling a network of neurons.',
 	},
 	kind: 'generate',
+	dependsOnRenderHistory: false,
 	tags: ['pattern', 'noise', 'stylized', 'experimental'],
 	paramDefs: {
 		background: { dataType: { kind: 'color' }, ui: { label: 'Background', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 1] } },

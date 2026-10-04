@@ -8,6 +8,7 @@ export default defineEffect({
 		'en-US': 'Adds and fades RGB over time, or interpolates history toward the strength-scaled input using the half-life. Preserves the current input alpha.',
 	},
 	kind: 'modify',
+	dependsOnRenderHistory: true,
 	tags: ['temporal', 'color', 'utility'],
 	paramDefs: {
 		input: { dataType: { kind: 'color' }, ui: { label: 'Input', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },

@@ -8,6 +8,7 @@ export default defineEffect({
 		'en-US': 'Distorts the input image as if viewed through a window covered in raindrops.',
 	},
 	kind: 'modify',
+	dependsOnRenderHistory: false,
 	tags: ['distortion', 'liquid', 'gimmicky'],
 	paramDefs: {
 		input: { dataType: { kind: 'color' }, ui: { label: 'Input', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },

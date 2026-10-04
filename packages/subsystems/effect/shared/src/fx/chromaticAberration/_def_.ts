@@ -8,6 +8,7 @@ export default defineEffect({
 		'en-US': 'Adds color separation and fringing to the input image to simulate chromatic aberration.',
 	},
 	kind: 'modify',
+	dependsOnRenderHistory: false,
 	tags: ['color', 'distortion', 'glitch'],
 	paramDefs: {
 		input: { dataType: { kind: 'color' }, ui: { label: 'Input', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },

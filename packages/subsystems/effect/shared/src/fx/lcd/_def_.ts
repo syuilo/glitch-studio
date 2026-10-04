@@ -8,6 +8,7 @@ export default defineEffect({
 		'en-US': 'Renders the input image as RGB subpixels like an LCD screen.',
 	},
 	kind: 'modify',
+	dependsOnRenderHistory: false,
 	tags: ['pixel', 'pattern', 'gimmicky', 'stylized'],
 	paramDefs: {
 		input: { dataType: { kind: 'color' }, ui: { label: 'Input', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },

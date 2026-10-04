@@ -10,6 +10,7 @@ export default defineEffect({
 		'en-US': 'Generates colored blobs that smoothly merge into one another.',
 	},
 	kind: 'generate',
+	dependsOnRenderHistory: false,
 	tags: ['pattern', 'liquid', 'gimmicky', 'stylized'],
 	paramDefs: {
 		background: { dataType: { kind: 'color' }, ui: { label: 'Background', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 1] } },

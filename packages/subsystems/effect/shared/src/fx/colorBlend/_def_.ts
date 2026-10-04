@@ -8,6 +8,7 @@ export default defineEffect({
 		'en-US': 'Combines two images using the selected blend mode.',
 	},
 	kind: 'modify',
+	dependsOnRenderHistory: false,
 	tags: ['color', 'composite', 'utility'],
 	paramDefs: {
 		inputA: { dataType: { kind: 'color' }, ui: { label: 'A', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },

@@ -8,6 +8,7 @@ export default defineEffect({
 		'en-US': 'Displays the luminance or RGB distribution of the input image as a histogram.',
 	},
 	kind: 'modify',
+	dependsOnRenderHistory: false,
 	tags: ['color', 'analysis', 'utility'],
 	paramDefs: {
 		input: { dataType: { kind: 'color' }, ui: { label: 'Input', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },

@@ -8,6 +8,7 @@ export default defineEffect({
 		'en-US': 'Adds distortion and fog to the input image like raindrops on a window.',
 	},
 	kind: 'modify',
+	dependsOnRenderHistory: false,
 	tags: ['distortion', 'liquid', 'gimmicky'],
 	paramDefs: {
 		input: { dataType: { kind: 'color' }, ui: { label: 'Input', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },

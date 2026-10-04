@@ -8,6 +8,8 @@ export default defineEffect({
 		'en-US': 'Visualizes audio from a Player as a frequency spectrum.',
 	},
 	kind: 'generate',
+	// 解析は音声サンプル間隔で進むが、過去の描画で更新した平滑化状態を保持する。
+	dependsOnRenderHistory: true,
 	tags: ['audio', 'analysis'],
 	paramDefs: {
 		player: { dataType: { kind: 'playerReference' }, ui: { label: 'Player', control: {} }, defaultValue: { inputSource: 'literal', value: null } },

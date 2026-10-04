@@ -8,6 +8,7 @@ export default defineEffect({
 		'en-US': 'A development effect for checking how struct and array parameters are passed.',
 	},
 	kind: 'generate',
+	dependsOnRenderHistory: false,
 	tags: ['utility'],
 	paramDefs: {
 		foo: {
