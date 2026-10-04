@@ -4,7 +4,7 @@ export default defineEffect({
 	id: 'dataBlend',
 	displayName: 'Blend (Data)',
 	kind: 'modify',
-	tags: [],
+	tags: ['composite', 'math', 'utility'],
 	paramDefs: {
 		inputA: { dataType: { kind: 'any' }, ui: { label: 'A', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: null } },
 		inputB: { dataType: { kind: 'any' }, ui: { label: 'B', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: null } },

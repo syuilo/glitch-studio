@@ -4,7 +4,7 @@ export default defineEffect({
 	id: 'channelShift',
 	displayName: 'Channel Shift',
 	kind: 'modify',
-	tags: [],
+	tags: ['color', 'distortion', 'glitch'],
 	paramDefs: {
 		input: { dataType: { kind: 'color' }, ui: { label: 'Input', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },
 		amount: { dataType: { kind: 'vector' }, ui: { label: 'Amount', control: { controlType: 'vector', min: -1, max: 1, step: 0.01 } }, canNode: true, defaultValue: { inputSource: 'literal', value: [0.02, 0] } },

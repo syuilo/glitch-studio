@@ -8,7 +8,34 @@ export type EffectOutputDefinitions = Record<string, {
 	canLazyAllocation?: boolean;
 }>;
 
-export type EffectTags = string; // TODO
+/**
+ * 用途・見た目からエフェクトを検索するためのタグ。複数の観点を重ねて付けられる。
+ * 生成／加工や入出力型は既存の定義から判定できるため、タグには重複して持たせない。
+ */
+export type EffectTags =
+	| 'color' // 色・チャンネル
+	| 'composite' // 合成・ミックス
+	| 'transform' // 移動・回転・拡縮
+	| 'distortion' // 歪み・変形
+	| 'blur' // ぼかし
+	| 'light' // 光・発光
+	| 'glitch' // 映像の乱れ・破損を模した表現
+	| 'pixel' // ピクセル・ブロック
+	| 'pattern' // 繰り返し模様・幾何学的なパターン
+	| 'gradient' // 見た目の階調変化。微分としての勾配計算はmathに分類する。
+	| 'noise' // ノイズ
+	| 'liquid' // 水・液体
+	| 'typography' // 文字・記号
+	| 'temporal' // 過去フレームや入力の履歴を使う処理。単にアニメーション可能なだけでは付けない。
+	| 'audio' // 音声ビジュアライズ
+	| 'analysis' // 解析・計測
+	| 'math' // 演算・データ処理
+	| 'media' // 画像・動画などのメディア入力
+	| 'utility' // 組み立て・調整・動作確認を補助する処理。その他の分類の受け皿にはしない。
+	| 'convert' // 型・表現の変換が主目的の処理。入出力型が異なるだけでは付けない。
+	| 'gimmicky' // 特徴的な仕掛けやクセの強い視覚表現
+	| 'stylized' // 特定の画風・質感を作る表現
+	| 'experimental'; // 抽象的・実験的な視覚表現。実装の未完成・不安定さは表さない。
 
 export type EffectDefinition<In extends Record<string, ParameterDefinition> = Record<string, ParameterDefinition>, Out extends EffectOutputDefinitions = EffectOutputDefinitions> = {
 	id: string;

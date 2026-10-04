@@ -4,7 +4,7 @@ export default defineEffect({
 	id: 'testStructArray',
 	displayName: 'Test of Struct and Array',
 	kind: 'generate',
-	tags: [],
+	tags: ['utility'],
 	paramDefs: {
 		foo: {
 			dataType: { kind: 'struct', fields: { node: { kind: 'color' } } },

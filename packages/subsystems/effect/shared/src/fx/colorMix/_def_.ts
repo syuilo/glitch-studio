@@ -4,7 +4,7 @@ export default defineEffect({
 	id: 'colorMix',
 	displayName: 'Mix (Color)',
 	kind: 'modify',
-	tags: [],
+	tags: ['color', 'composite', 'utility'],
 	paramDefs: {
 		inputA: { dataType: { kind: 'color' }, ui: { label: 'A', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },
 		inputB: { dataType: { kind: 'color' }, ui: { label: 'B', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },

@@ -4,7 +4,7 @@ export default defineEffect({
 	id: 'composeVector',
 	displayName: 'Compose Vector',
 	kind: 'generate',
-	tags: [],
+	tags: ['math', 'utility'],
 	paramDefs: {
 		x: { dataType: { kind: 'scalar' }, ui: { label: 'X', control: { controlType: 'number', step: 0.01 } }, canNode: true, defaultValue: { inputSource: 'literal', value: 0 } },
 		y: { dataType: { kind: 'scalar' }, ui: { label: 'Y', control: { controlType: 'number', step: 0.01 } }, canNode: true, defaultValue: { inputSource: 'literal', value: 0 } },

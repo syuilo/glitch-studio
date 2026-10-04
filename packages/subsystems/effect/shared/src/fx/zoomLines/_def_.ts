@@ -4,7 +4,7 @@ export default defineEffect({
 	id: 'zoomLines',
 	displayName: 'Zoom lines',
 	kind: 'modify',
-	tags: [],
+	tags: ['pattern', 'gimmicky', 'stylized'],
 	paramDefs: {
 		input: { dataType: { kind: 'color' }, ui: { label: 'Input', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },
 		position: { dataType: { kind: 'vector' }, ui: { label: 'Position', control: { controlType: 'vector', min: -1, max: 1, step: 0.01 } }, defaultValue: { inputSource: 'literal', value: [0, 0] } },

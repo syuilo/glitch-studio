@@ -4,7 +4,7 @@ export default defineEffect({
 	id: 'drosteRegression',
 	displayName: 'Droste Regression',
 	kind: 'modify',
-	tags: [],
+	tags: ['distortion', 'gimmicky', 'experimental'],
 	paramDefs: {
 		input: { dataType: { kind: 'color' }, ui: { label: 'Input', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },
 		amount: { dataType: { kind: 'scalar' }, ui: { label: 'Amount', control: { controlType: 'range', min: 0, max: 32, step: 0.01 } }, defaultValue: { inputSource: 'literal', value: 0.5 } },

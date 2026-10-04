@@ -4,7 +4,7 @@ export default defineEffect({
 	id: 'colorBlocks',
 	displayName: 'Color blocks',
 	kind: 'modify',
-	tags: [],
+	tags: ['color', 'glitch', 'pixel', 'gimmicky', 'stylized'],
 	paramDefs: {
 		input: { dataType: { kind: 'color' }, ui: { label: 'Input', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },
 		amount: { dataType: { kind: 'scalar' }, ui: { label: 'Amount', control: { controlType: 'range', min: 0, max: 100, step: 1 } }, defaultValue: { inputSource: 'literal', value: 50 } },

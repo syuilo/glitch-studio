@@ -4,7 +4,7 @@ export default defineEffect({
 	id: 'audioSpectrogram',
 	displayName: 'Audio Spectrogram',
 	kind: 'generate',
-	tags: [],
+	tags: ['audio', 'analysis', 'temporal'],
 	paramDefs: {
 		player: { dataType: { kind: 'playerReference' }, ui: { label: 'Player', control: {} }, defaultValue: { inputSource: 'literal', value: null } },
 		channel: {

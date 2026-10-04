@@ -4,7 +4,7 @@ export default defineEffect({
 	id: 'symbols',
 	displayName: 'Symbols',
 	kind: 'modify',
-	tags: [],
+	tags: ['pixel', 'typography', 'gimmicky', 'stylized'],
 	paramDefs: {
 		input: { dataType: { kind: 'color' }, ui: { label: 'Input', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },
 		iconset: {

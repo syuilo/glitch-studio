@@ -6,7 +6,7 @@ export default defineEffect({
 	id: 'lensDistortion',
 	displayName: 'Lens Distortion',
 	kind: 'modify',
-	tags: [],
+	tags: ['distortion'],
 	paramDefs: {
 		input: { dataType: { kind: 'color' }, ui: { label: 'Input', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },
 		spread: { dataType: { kind: 'scalar' }, ui: { label: 'Spread', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } }, defaultValue: { inputSource: 'literal', value: 0.6 } },

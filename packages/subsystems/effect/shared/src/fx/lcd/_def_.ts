@@ -4,7 +4,7 @@ export default defineEffect({
 	id: 'lcd',
 	displayName: 'LCD',
 	kind: 'modify',
-	tags: [],
+	tags: ['pixel', 'pattern', 'gimmicky', 'stylized'],
 	paramDefs: {
 		input: { dataType: { kind: 'color' }, ui: { label: 'Input', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },
 		density: { dataType: { kind: 'scalar' }, ui: { label: 'Density', control: { controlType: 'range', min: 1, max: 1000, logarithmic: true } }, defaultValue: { inputSource: 'literal', value: 200 } },

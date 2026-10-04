@@ -4,7 +4,7 @@ export default defineEffect({
 	id: 'rgbTo',
 	displayName: 'RGB To',
 	kind: 'modify',
-	tags: [],
+	tags: ['color', 'utility', 'convert'],
 	paramDefs: {
 		input: { dataType: { kind: 'color' }, ui: { label: 'Input', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },
 		mode: {

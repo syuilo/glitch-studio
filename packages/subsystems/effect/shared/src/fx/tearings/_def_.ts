@@ -4,7 +4,7 @@ export default defineEffect({
 	id: 'tearings',
 	displayName: 'Tearings',
 	kind: 'modify',
-	tags: [],
+	tags: ['distortion', 'glitch', 'stylized'],
 	paramDefs: {
 		input: { dataType: { kind: 'color' }, ui: { label: 'Input', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },
 		amount: { dataType: { kind: 'scalar' }, ui: { label: 'Amount', control: { controlType: 'range', min: 0, max: 100 } }, defaultValue: { inputSource: 'literal', value: 3 } },

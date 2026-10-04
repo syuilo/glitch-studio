@@ -4,7 +4,7 @@ export default defineEffect({
 	id: 'pointerTrail',
 	displayName: 'pointerTrail',
 	kind: 'generate',
-	tags: [],
+	tags: ['temporal', 'utility'],
 	paramDefs: {
 		strength: { dataType: { kind: 'scalar' }, ui: { label: 'Strength', control: { controlType: 'range', min: 0, max: 2, step: 0.01 } }, defaultValue: { inputSource: 'literal', value: 0.3 } },
 		radius: { dataType: { kind: 'scalar' }, ui: { label: 'Radius', control: { controlType: 'range', min: 0, max: 2, step: 0.01 } }, defaultValue: { inputSource: 'literal', value: 0.3 } },

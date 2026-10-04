@@ -4,7 +4,7 @@ export default defineEffect({
 	id: 'transform',
 	displayName: 'Transform',
 	kind: 'modify',
-	tags: [],
+	tags: ['transform', 'utility'],
 	paramDefs: {
 		input: { dataType: { kind: 'color' }, ui: { label: 'Input', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },
 		// ±2で画面幅/高さ1つ分の移動。これはUIの操作範囲であり、入力値自体は制限しない。

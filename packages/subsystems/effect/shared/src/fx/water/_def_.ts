@@ -6,7 +6,7 @@ export default defineEffect({
 	id: 'water',
 	displayName: 'Water',
 	kind: 'modify',
-	tags: [],
+	tags: ['distortion', 'liquid', 'gimmicky', 'stylized'],
 	paramDefs: {
 		input: { dataType: { kind: 'color' }, ui: { label: 'Input', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },
 		colorHighlight: { dataType: { kind: 'color' }, ui: { label: 'Highlight color', control: {} }, defaultValue: { inputSource: 'literal', value: [1, 1, 1, 1] } },

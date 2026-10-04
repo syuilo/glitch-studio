@@ -4,7 +4,7 @@ export default defineEffect({
 	id: 'meshGradient',
 	displayName: 'Mesh Gradient',
 	kind: 'generate',
-	tags: [],
+	tags: ['color', 'gradient'],
 	paramDefs: {
 		colors: {
 			dataType: { kind: 'array', elementType: { kind: 'color' } },

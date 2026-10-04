@@ -4,7 +4,7 @@ export default defineEffect({
 	id: 'snoise',
 	displayName: 'snoise',
 	kind: 'generate',
-	tags: [],
+	tags: ['noise', 'utility'],
 	paramDefs: {
 		density: { dataType: { kind: 'vector' }, ui: { label: 'Density', control: { controlType: 'vector', min: 1, max: 1000, logarithmic: true } }, canNode: true, defaultValue: { inputSource: 'literal', value: [2, 2] } },
 		offset: { dataType: { kind: 'vector' }, ui: { label: 'Offset', control: { controlType: 'vector', min: 0, max: 16, step: 0.01 } }, defaultValue: { inputSource: 'literal', value: [0, 0] } },

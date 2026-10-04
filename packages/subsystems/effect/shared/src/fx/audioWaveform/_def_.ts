@@ -4,7 +4,7 @@ export default defineEffect({
 	id: 'audioWaveform',
 	displayName: 'Audio Waveform',
 	kind: 'generate',
-	tags: [],
+	tags: ['audio', 'analysis'],
 	paramDefs: {
 		player: { dataType: { kind: 'playerReference' }, ui: { label: 'Player', control: {} }, defaultValue: { inputSource: 'literal', value: null } },
 		channel: {

@@ -4,7 +4,7 @@ export default defineEffect({
 	id: 'pixelate',
 	displayName: 'Pixelate',
 	kind: 'modify',
-	tags: [],
+	tags: ['pixel', 'stylized'],
 	paramDefs: {
 		input: { dataType: { kind: 'color' }, ui: { label: 'Input', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },
 		density: {

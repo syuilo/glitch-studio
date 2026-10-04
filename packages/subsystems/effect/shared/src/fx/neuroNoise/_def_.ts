@@ -6,7 +6,7 @@ export default defineEffect({
 	id: 'neuroNoise',
 	displayName: 'Neuro Noise',
 	kind: 'generate',
-	tags: [],
+	tags: ['pattern', 'noise', 'stylized', 'experimental'],
 	paramDefs: {
 		background: { dataType: { kind: 'color' }, ui: { label: 'Background', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 1] } },
 		colorFront: { dataType: { kind: 'color' }, ui: { label: 'Highlight Color', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [1, 1, 1, 1] } },

@@ -4,7 +4,7 @@ export default defineEffect({
 	id: 'waveform',
 	displayName: 'Waveform',
 	kind: 'modify',
-	tags: [],
+	tags: ['color', 'analysis', 'utility'],
 	paramDefs: {
 		input: { dataType: { kind: 'color' }, ui: { label: 'Input', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },
 		resolution: {

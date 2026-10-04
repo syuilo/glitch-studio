@@ -4,7 +4,7 @@ export default defineEffect({
 	id: 'quadtreeFilter',
 	displayName: 'Quadtree filter',
 	kind: 'modify',
-	tags: [],
+	tags: ['pixel', 'stylized', 'experimental'],
 	paramDefs: {
 		input: { dataType: { kind: 'color' }, ui: { label: 'Input', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },
 		threshold: { dataType: { kind: 'scalar' }, ui: { label: 'Thresold', control: { controlType: 'range', min: 0, max: 0.15, step: 0.00001 } }, defaultValue: { inputSource: 'literal', value: 0.005 } },

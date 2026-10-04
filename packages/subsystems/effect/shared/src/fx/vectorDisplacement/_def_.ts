@@ -4,7 +4,7 @@ export default defineEffect({
 	id: 'vectorDisplacement',
 	displayName: 'Vector displacement',
 	kind: 'modify',
-	tags: [],
+	tags: ['distortion', 'utility'],
 	paramDefs: {
 		input: { dataType: { kind: 'color' }, ui: { label: 'Input', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },
 		vector: { dataType: { kind: 'vector' }, ui: { label: 'Vector', control: { controlType: 'vector', min: -1, max: 1 } }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0] } },

@@ -4,7 +4,7 @@ export default defineEffect({
 	id: 'video',
 	displayName: 'Video',
 	kind: 'generate',
-	tags: [],
+	tags: ['media'],
 	paramDefs: {
 		player: { dataType: { kind: 'playerReference' }, ui: { label: 'Player', control: {} }, defaultValue: { inputSource: 'literal', value: null } },
 		fit: {

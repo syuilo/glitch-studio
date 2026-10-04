@@ -6,7 +6,7 @@ export default defineEffect({
 	id: 'liquidMetal',
 	displayName: 'Liquid Metal',
 	kind: 'modify',
-	tags: [],
+	tags: ['distortion', 'liquid', 'gimmicky', 'stylized'],
 	paramDefs: {
 		input: { dataType: { kind: 'color' }, ui: { label: 'Input', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },
 		colorBack: { dataType: { kind: 'color' }, ui: { label: 'Background color', control: {} }, defaultValue: { inputSource: 'literal', value: [170 / 255, 170 / 255, 172 / 255, 0] } },

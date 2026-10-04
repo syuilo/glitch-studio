@@ -4,7 +4,7 @@ export default defineEffect({
 	id: 'rainDropsOnWindow2',
 	displayName: 'Rain Drops On Window (Type 2)',
 	kind: 'modify',
-	tags: [],
+	tags: ['distortion', 'liquid', 'gimmicky'],
 	paramDefs: {
 		input: { dataType: { kind: 'color' }, ui: { label: 'Input', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },
 		density: { dataType: { kind: 'scalar' }, ui: { label: 'Density', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } }, defaultValue: { inputSource: 'literal', value: 0.5 } },

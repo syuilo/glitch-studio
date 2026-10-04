@@ -6,7 +6,7 @@ export default defineEffect({
 	id: 'metaballs',
 	displayName: 'Metaballs',
 	kind: 'generate',
-	tags: [],
+	tags: ['pattern', 'liquid', 'gimmicky', 'stylized'],
 	paramDefs: {
 		background: { dataType: { kind: 'color' }, ui: { label: 'Background', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 1] } },
 		colors: {

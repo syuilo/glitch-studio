@@ -4,7 +4,7 @@ export default defineEffect({
 	id: 'scalarGradient',
 	displayName: 'Scalar Gradient',
 	kind: 'modify',
-	tags: [],
+	tags: ['math', 'utility'],
 	paramDefs: {
 		input: { dataType: { kind: 'scalar' }, ui: { label: 'Input', control: { controlType: 'number' } }, canNode: true, defaultValue: { inputSource: 'literal', value: 0 } },
 		strength: { dataType: { kind: 'scalar' }, ui: { label: 'Strength', control: { controlType: 'number', step: 0.01 } }, defaultValue: { inputSource: 'literal', value: 1 } },

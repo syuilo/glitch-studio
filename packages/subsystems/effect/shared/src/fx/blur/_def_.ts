@@ -4,7 +4,7 @@ export default defineEffect({
 	id: 'blur',
 	displayName: 'Blur',
 	kind: 'modify',
-	tags: [],
+	tags: ['blur'],
 	paramDefs: {
 		input: { dataType: { kind: 'color' }, ui: { label: 'Input', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },
 		radius: { dataType: { kind: 'vector' }, ui: { label: 'Radius', control: { controlType: 'vector', min: 0, max: 1, step: 0.01 } }, canNode: true, defaultValue: { inputSource: 'literal', value: [0.25, 0.25] } },

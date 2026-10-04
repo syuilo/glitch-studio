@@ -4,7 +4,7 @@ export default defineEffect({
 	id: 'bloom',
 	displayName: 'Bloom',
 	kind: 'modify',
-	tags: [],
+	tags: ['blur', 'light'],
 	paramDefs: {
 		input: { dataType: { kind: 'color' }, ui: { label: 'Input', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },
 		inputBlendMode: { dataType: { kind: 'blendMode' }, ui: { label: 'Input Blend', control: {} }, defaultValue: { inputSource: 'literal', value: 'emission' } },
