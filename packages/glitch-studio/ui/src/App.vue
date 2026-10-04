@@ -26,16 +26,25 @@
 	</div>
 	<div :class="$style.footer" class="_monospace">
 		<div :class="$style.footerLeft">
-			<div :class="$style.footerItem">sRGB</div>
-			<button :class="$style.footerItem" class="_button" @click="openProjectSettings">Proj: {{ appStateManager.state.resolution.value.width }} x {{ appStateManager.state.resolution.value.height }} px</button>
-			<button :class="$style.footerItem" class="_button" @click="openResolutionFactorMenu">Preview: {{ resolutionFactor }}x ({{ Math.round(appStateManager.state.resolution.value.width * resolutionFactor) }} x {{ Math.round(appStateManager.state.resolution.value.height * resolutionFactor) }} px)</button>
-			<button v-if="previewPlayback.state.value.mode === 'timeline' && appStateManager.state.timelineMotionBlur.value.enabled" :class="$style.footerItem" class="_button" title="Preview motion blur samples. Requires motion blur to be enabled in Project Settings." @click="openMotionBlurSamplesMenu">Motion blur: {{ timelinePreviewMotionBlurSamples === 0 ? 'Off' : `${timelinePreviewMotionBlurSamples} samples` }}</button>
-			<button :class="$style.footerItem" class="_button" @click="openFpsMenu">{{ previewPlayback.state.value.mode === 'live' ? `LIVE: ${Math.round(visualModuleRendererManagerController.fpsDisplay.value)}fps` : `Timeline: ${timelinePreviewFpsFactor}x (${appStateManager.state.timelineFps.value * timelinePreviewFpsFactor}fps)` }}</button>
-			<button v-if="previewPlayback.state.value.mode === 'live'" :class="$style.footerItem" class="_button" @click="openTimeFactorMenu">TIME: {{ liveTimeFactor }}x</button>
-			<div :class="[$style.footerItem, $style.previewVolume]">
-				<i :class="previewVolume === 0 ? 'ti ti-volume-off' : 'ti ti-volume'"></i>
-				<GsRange v-model="previewVolume" :min="0" :max="1" :step="0.01" :continuousUpdate="true" style="width: 150px;"/>
-				<span :class="$style.volumeValue">{{ Math.round(previewVolume * 100) }}%</span>
+			<div :class="$style.footerSection">
+				<div :class="$style.footerSectionTitle">Project:</div>
+				<div :class="$style.footerSectionContents">
+					<button :class="$style.footerItem" class="_button" @click="openProjectSettings">sRGB / {{ appStateManager.state.resolution.value.width }} x {{ appStateManager.state.resolution.value.height }} px / {{ appStateManager.state.timelineFps.value }}fps</button>
+				</div>
+			</div>
+			<div :class="$style.footerSection">
+				<div :class="$style.footerSectionTitle">Preview:</div>
+				<div :class="$style.footerSectionContents">
+					<button :class="$style.footerItem" class="_button" @click="openResolutionFactorMenu">{{ Math.round(appStateManager.state.resolution.value.width * resolutionFactor) }} x {{ Math.round(appStateManager.state.resolution.value.height * resolutionFactor) }} px ({{ resolutionFactor }}x)</button>
+					<button v-if="previewPlayback.state.value.mode === 'timeline' && appStateManager.state.timelineMotionBlur.value.enabled" :class="$style.footerItem" class="_button" title="Preview motion blur samples. Requires motion blur to be enabled in Project Settings." @click="openMotionBlurSamplesMenu">Motion blur: {{ timelinePreviewMotionBlurSamples === 0 ? 'Off' : `${timelinePreviewMotionBlurSamples} samples` }}</button>
+					<button :class="$style.footerItem" class="_button" @click="openFpsMenu">{{ previewPlayback.state.value.mode === 'live' ? `${Math.round(visualModuleRendererManagerController.fpsDisplay.value)}fps` : `${appStateManager.state.timelineFps.value * timelinePreviewFpsFactor}fps (${timelinePreviewFpsFactor}x)` }}</button>
+					<button v-if="previewPlayback.state.value.mode === 'live'" :class="$style.footerItem" class="_button" @click="openTimeFactorMenu">TIME: {{ liveTimeFactor }}x</button>
+					<div :class="[$style.footerItem, $style.previewVolume]">
+						<i :class="previewVolume === 0 ? 'ti ti-volume-off' : 'ti ti-volume'"></i>
+						<GsRange v-model="previewVolume" :min="0" :max="1" :step="0.01" :continuousUpdate="true" style="width: 150px;"/>
+						<span :class="$style.volumeValue">{{ Math.round(previewVolume * 100) }}%</span>
+					</div>
+				</div>
 			</div>
 		</div>
 		<div :class="$style.footerRight">
@@ -221,7 +230,7 @@ function openMotionBlurSamplesMenu(ev: PointerEvent) {
 
 function openFpsMenu(ev: PointerEvent) {
 	if (previewPlayback.state.value.mode === 'timeline') {
-		ui.popupMenu([0.5, 1, 2].map(factor => ({
+		ui.popupMenu([2, 1, 0.5, 0.25].map(factor => ({
 			type: 'radioOption' as const,
 			text: factor + 'x (' + appStateManager.state.timelineFps.value * factor + 'fps)',
 			active: computed(() => timelinePreviewFpsFactor.value === factor),
@@ -420,6 +429,20 @@ onMounted(() => {
 	display: flex;
 	margin-left: auto;
 	gap: 16px;
+}
+
+.footerSection {
+	display: flex;
+	padding: 0 1em;
+}
+
+.footerSectionTitle {
+	font-weight: bold;
+	margin-bottom: 0.5em;
+}
+
+.footerSectionContents {
+	display: flex;
 }
 
 .footerItem {
