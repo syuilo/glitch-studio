@@ -6,7 +6,7 @@ import os from 'node:os';
 import { ProjectFiles } from '../project-files.mjs';
 import { registerProjectFileIpc } from '../project-file-ipc.mjs';
 
-async function fixture(t) {
+async function fixture(t, { startup = false } = {}) {
 	const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'glitch-studio-project-ipc-'));
 	t.after(() => fs.rm(directory, { recursive: true, force: true }));
 	const file = path.join(directory, 'project.gsproj');
@@ -23,9 +23,31 @@ async function fixture(t) {
 	registerProjectFileIpc({ handle: (name, action) => handlers.set(name, action) }, dialogs, new ProjectFiles(), event => {
 		if (event !== trusted) throw new Error('Untrusted');
 		return parent;
-	});
+	}, startup ? file : null);
 	return { file, handlers, calls, dialogs, trusted, invoke: (name, ...args) => handlers.get(`desktop:${name}`)(trusted, ...args) };
 }
+
+// 【起動ファイルはUIの準備後に一度だけ渡し、保存先としても使える】
+// 先行pushではVueの購読前に消えるためUIから取得する。再取得による編集の巻き戻しと、
+// 信頼できない送信元による起動要求の横取りも防ぐ。
+test('delivers the startup project once to the trusted UI and preserves its save target', async t => {
+	const h = await fixture(t, { startup: true });
+	assert.throws(() => h.handlers.get('desktop:take-startup-project-file')({}), /Untrusted/);
+	const opened = await h.invoke('take-startup-project-file');
+	assert.equal(opened.name, 'project.gsproj');
+	assert.deepEqual(new Uint8Array(await h.invoke('read-project-file', opened.id)), new Uint8Array([1, 2, 3]));
+	await h.invoke('write-project-file', opened.id, new Uint8Array([4]));
+	assert.deepEqual(new Uint8Array(await fs.readFile(h.file)), new Uint8Array([4]));
+	assert.equal(await h.invoke('take-startup-project-file'), null);
+	assert.deepEqual(h.calls, []);
+});
+
+// 【ファイルを指定しない通常起動では自動読込しない】
+// 以前開いたプロジェクトを推測せず、UIがダッシュボードを表示できるようにする。
+test('returns no startup project for a regular launch', async t => {
+	const h = await fixture(t);
+	assert.equal(await h.invoke('take-startup-project-file'), null);
+});
 
 // 【ネイティブのOpen/Save asはファイルだけを選び、選択時に旧内容を空にしない】
 // Electron版がブラウザの破壊的な保存ピッカーへ戻ったり、追加のフォルダ選択を要求することを防ぐ。

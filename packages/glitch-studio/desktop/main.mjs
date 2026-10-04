@@ -4,8 +4,13 @@ import { app, BrowserWindow, dialog, ipcMain, Menu, net, protocol, shell } from 
 import { resolveAppPath } from './protocol-path.mjs';
 import { ProjectFiles } from './project-files.mjs';
 import { registerProjectFileIpc } from './project-file-ipc.mjs';
+import { getStartupProjectPath } from './startup-project.mjs';
 
 const projectFiles = new ProjectFiles();
+const startupProjectPath = getStartupProjectPath(process.argv, { defaultApp: process.defaultApp });
+
+// Windowsのファイル関連付けからの起動はプロセスごとに別ウィンドウを開く。
+// 編集中のプロジェクトを維持するため、単一インスタンスへ転送して置き換えない。
 
 // 配布版は開発サーバー用の環境変数を参照しない。
 const developmentUrl = app.isPackaged ? undefined : process.env.GLITCH_DESKTOP_DEV_URL;
@@ -122,7 +127,7 @@ app.whenReady().then(() => {
 		contents.setZoomFactor(Math.max(0.5, contents.getZoomFactor() / 1.2));
 	});
 
-	registerProjectFileIpc(ipcMain, dialog, projectFiles, getTrustedMainWindow);
+	registerProjectFileIpc(ipcMain, dialog, projectFiles, getTrustedMainWindow, startupProjectPath);
 
 	createWindow();
 	app.on('activate', () => {

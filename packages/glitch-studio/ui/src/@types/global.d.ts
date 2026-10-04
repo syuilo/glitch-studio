@@ -6,6 +6,7 @@ declare const __ELECTRON__: boolean;
 
 interface Window {
 	desktop?: {
+		takeStartupProjectFile(): Promise<{ id: string; name: string } | null>;
 		getPathForFile(file: File): string;
 		registerProjectFile(file: File): Promise<{ id: string; name: string } | null>;
 		chooseProjectFile(): Promise<{ id: string; name: string } | null>;

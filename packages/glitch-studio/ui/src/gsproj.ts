@@ -26,7 +26,8 @@ export function desktopProjectFile(descriptor: { id: string; name: string }): De
 		kind: 'desktop-project-file',
 		async getFile() {
 			const data = await window.desktop!.readProjectFile(descriptor.id);
-			return new File(data ? [new Uint8Array(data)] : [], descriptor.name);
+			if (data == null) throw new Error(`Project file not found: ${descriptor.name}`);
+			return new File([new Uint8Array(data)], descriptor.name);
 		},
 		async requestPermission() { return 'granted'; },
 	};
@@ -137,6 +138,7 @@ export async function saveProjectFile(data: Uint8Array, handle: ProjectFileHandl
 }
 
 export async function loadProjectFile(file?: File, handle?: ProjectFileHandle): Promise<{ project: Project; name: string; handle?: ProjectFileHandle } | null> {
+	if (file == null && handle != null) return loadProjectFile(await handle.getFile(), handle);
 	if (file != null) {
 		if (window.desktop?.registerProjectFile && handle?.kind !== 'desktop-project-file') {
 			const descriptor = await window.desktop.registerProjectFile(file);

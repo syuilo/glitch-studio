@@ -65,6 +65,7 @@
 import { computed, nextTick, onMounted, onBeforeUnmount, ref, shallowRef, useTemplateRef, watch } from 'vue';
 import { audioOutput, activePreviewRenderer, previewPlayback, visualModuleRendererManagerController, resolutionFactor, liveFpsLimit, timelinePreviewFpsFactor, timelinePreviewMotionBlurSamples, TIMELINE_PREVIEW_MOTION_BLUR_SAMPLE_OPTIONS, liveTimeFactor, appStateManager, projectInfo, openProject, saveProject } from './app.ts';
 import { preferences } from './preferences.ts';
+import { desktopProjectFile } from './gsproj.ts';
 import GsRange from './components/common/GsRange.vue';
 import GsAboutDialog from '@/components/GsAboutDialog.vue';
 import GsProjectSettingsDialog from '@/components/GsProjectSettingsDialog.vue';
@@ -356,7 +357,14 @@ function openHeaderHelpMenu(ev: PointerEvent) {
 	}] : [])], ev.currentTarget ?? ev.target);
 }
 
-onMounted(() => {
+onMounted(async () => {
+	try {
+		const startupProject = await window.desktop?.takeStartupProjectFile();
+		if (startupProject && await openProject(undefined, desktopProjectFile(startupProject))) return;
+	} catch (error) {
+		await ui.alert({ type: 'error', text: error instanceof Error ? error.message : String(error) });
+	}
+	// 通常起動時と読込失敗時には、別のプロジェクトを選べるようにする。
 	const { dispose } = ui.popup(GsDashboardDialog, {}, {
 		closed: () => dispose(),
 	});

@@ -1074,6 +1074,46 @@ test('keeps playback suspended and waits for the other worker after a restart fa
 	assert.deepEqual(timeline.renders, []);
 });
 
+// 【OSから指定されたプロジェクトを選択ダイアログなしで開き、元のファイルへ保存する】
+// 起動時にFileSystemFileHandleがなくても、デスクトップの参照を保存・バックアップへ引き継ぐ。
+test('opens a startup project handle without a picker and saves back to that file', async t => {
+	const window = setup(t);
+	let bytes = await encodeProjectFile(project({ name: 'From Explorer' }));
+	window.desktop = {
+		async chooseProjectFile() { assert.fail('Startup must not open a picker'); },
+		async registerProjectFile() { assert.fail('The startup file is already registered'); },
+		async readProjectFile(id) { assert.equal(id, 'startup'); return bytes; },
+		async writeProjectFile(id, data) { assert.equal(id, 'startup'); bytes = data; },
+	};
+	const app = evaluate(appBundle);
+	assert.equal(await app.openProject(undefined, desktopProjectFile({ id: 'startup', name: '作品.gsproj' })), true);
+	assert.equal(app.projectInfo.value.name, 'From Explorer');
+	assert.equal(app.projectBackupAccess.value, 'ready');
+	app.projectInfo.value.name = 'Edited';
+	await app.saveProject();
+	assert.equal(decodeProjectFile(bytes).name, 'Edited');
+	assert.deepEqual(globalThis.projectAlerts, []);
+	app.projectBackupController.setTarget(null);
+});
+
+// 【起動時のファイルが存在しない・壊れている場合は失敗をUIへ返す】
+// 読込失敗後にダッシュボードを表示できるよう、未処理の例外や成功扱いにしない。
+test('reports missing and corrupt startup projects without opening a picker', async t => {
+	const window = setup(t);
+	let bytes = null;
+	window.desktop = {
+		async chooseProjectFile() { assert.fail('Startup must not open a picker'); },
+		async readProjectFile() { return bytes; },
+	};
+	const app = evaluate(appBundle);
+	const handle = desktopProjectFile({ id: 'startup', name: 'missing.gsproj' });
+	assert.equal(await app.openProject(undefined, handle), false);
+	assert.deepEqual(globalThis.projectAlerts, ['Project file not found: missing.gsproj']);
+	bytes = new Uint8Array([0xc1]);
+	assert.equal(await app.openProject(undefined, handle), false);
+	assert.equal(globalThis.projectAlerts.length, 2);
+});
+
 // 【Electronで開いたファイルの上書き前データを残し、フォルダ選択を要求しない】
 // ネイティブAPIから保存先を得た後は、現在の編集内容ではなくディスクの旧内容を保護する。
 // バックアップに失敗した場合は本体書込みを開始しないことも同じ保存経路で検証する。

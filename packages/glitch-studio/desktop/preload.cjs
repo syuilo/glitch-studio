@@ -2,6 +2,7 @@ const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
 // 汎用的なIPC送信口ではなく、UIに必要な操作だけを公開する。
 contextBridge.exposeInMainWorld('desktop', {
+	takeStartupProjectFile: () => ipcRenderer.invoke('desktop:take-startup-project-file'),
 	// FileをIPCへ送るとネイティブな情報が失われるため、preload内で元ファイルのパスを取得する。
 	getPathForFile: (file) => webUtils.getPathForFile(file),
 	registerProjectFile: (file) => {

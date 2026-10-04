@@ -1,7 +1,15 @@
 import path from 'node:path';
 
 // メインウィンドウの検証を全操作に適用し、UIへ汎用的なファイル操作を公開しない。
-export function registerProjectFileIpc(ipcMain, dialog, projectFiles, getTrustedMainWindow) {
+export function registerProjectFileIpc(ipcMain, dialog, projectFiles, getTrustedMainWindow, startupProjectPath = null) {
+	ipcMain.handle('desktop:take-startup-project-file', event => {
+		getTrustedMainWindow(event);
+		if (startupProjectPath == null) return null;
+		const descriptor = projectFiles.describe(projectFiles.register(startupProjectPath));
+		// UIが準備できてから一度だけ渡す。HMRなどで編集内容を再読込させない。
+		startupProjectPath = null;
+		return descriptor;
+	});
 	ipcMain.handle('desktop:register-project-file', (event, filePath) => {
 		getTrustedMainWindow(event);
 		return projectFiles.describe(projectFiles.register(filePath));

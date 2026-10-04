@@ -492,7 +492,7 @@ export async function saveProject(saveAs = false): Promise<void> {
 	});
 }
 
-export async function openProject(file?: File, fileHandle?: FileSystemFileHandle): Promise<boolean> {
+export async function openProject(file?: File, fileHandle?: ProjectFileHandle): Promise<boolean> {
 	try {
 		const result = await loadProjectFile(file, fileHandle);
 		if (result == null) return false;
