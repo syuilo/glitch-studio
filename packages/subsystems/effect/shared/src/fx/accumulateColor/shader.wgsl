@@ -6,6 +6,7 @@ struct Params {
 	strength: f32,
 	halfLife: f32,
 	usePrevious: f32,
+	interpolate: f32,
 };
 
 struct Output {
@@ -25,19 +26,20 @@ fn readFactor(color: vec4f) -> vec3f {
 	return vec3f(0.0);
 }
 
-// 一定入力での dA/dt = strength * input - rate * A の減衰率と積分時間を返す。
-fn decayAndIntegration(halfLifeFactor: f32) -> vec2f {
-	// 半減期・係数の0は半減期を短くした極限として扱い、履歴も新規の蓄積も残さない。
+// 減衰率・加算用の積分時間・補間用の入力比率を返す。
+// 加算は dA/dt = strength * input - rate * A、補間は dA/dt = rate * (strength * input - A)。
+fn decayAndInputWeights(halfLifeFactor: f32) -> vec3f {
+	// 半減期0では履歴は即時に消える。加算の積分量は0、補間は現在の入力へ即座に追従する。
 	if (params.halfLife <= 0.0 || halfLifeFactor <= 0.0) {
-		return vec2f(0.0);
+		return vec3f(0.0, 0.0, 1.0);
 	}
 	let halfLife = params.halfLife * halfLifeFactor;
 	// 非常に小さい係数との積が0に丸められた場合も、即時減衰とする。
 	if (halfLife <= 0.0) {
-		return vec2f(0.0);
+		return vec3f(0.0, 0.0, 1.0);
 	}
 	if (params.seconds <= 0.0) {
-		return vec2f(1.0, params.seconds);
+		return vec3f(1.0, 0.0, 0.0);
 	}
 	let ln2 = 0.6931471805599453;
 	let exponent = ln2 * (params.seconds / halfLife);
@@ -45,9 +47,9 @@ fn decayAndIntegration(halfLifeFactor: f32) -> vec2f {
 	// WGSLにはexpm1がないため、短いフレーム間隔では級数で1-exp(-x)の桁落ちを避ける。
 	if (exponent < 0.01) {
 		let integralFactor = 1.0 + exponent * (-0.5 + exponent * (1.0 / 6.0 - exponent / 24.0));
-		return vec2f(decay, params.seconds * integralFactor);
+		return vec3f(decay, params.seconds * integralFactor, exponent * integralFactor);
 	}
-	return vec2f(decay, ((1.0 - decay) / ln2) * halfLife);
+	return vec3f(decay, ((1.0 - decay) / ln2) * halfLife, 1.0 - decay);
 }
 
 @fragment
@@ -59,9 +61,17 @@ fn fs(@location(0) uv: vec2f, @builtin(position) position: vec4f) -> Output {
 	var decay = vec3f(0.0);
 	var inputWeight = vec3f(0.0);
 	for (var channel = 0u; channel < 3u; channel++) {
-		let factors = decayAndIntegration(halfLifeFactor[channel]);
+		let factors = decayAndInputWeights(halfLifeFactor[channel]);
 		decay[channel] = factors.x;
-		inputWeight[channel] = factors.y * strength[channel];
+		var weight = factors.y;
+		if (params.interpolate > 0.0) {
+			weight = factors.z;
+			// 初回は比較する履歴がないため現在の入力から始める。Reset時はstrengthが0なので黒に戻る。
+			if (params.usePrevious <= 0.0) {
+				weight = 1.0;
+			}
+		}
+		inputWeight[channel] = weight * strength[channel];
 	}
 	var value = vec3f(0.0);
 	if (params.usePrevious > 0.0) {

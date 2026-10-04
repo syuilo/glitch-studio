@@ -37,7 +37,7 @@ export default implementEffect<typeof definition>({
 			},
 			targets: [{ format: intermediateTextureFormat }, { format: historyFormat }],
 		});
-		const values = new Float32Array(4);
+		const values = new Float32Array(5);
 		const uniforms = device.createBuffer({
 			size: values.byteLength,
 			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
@@ -58,6 +58,7 @@ export default implementEffect<typeof definition>({
 				values[1] = !ctx.params.reset ? Math.max(0, ctx.params.strength) : 0;
 				values[2] = Math.max(0, ctx.params.halfLife) / 1000;
 				values[3] = hasPrevious && !ctx.params.reset ? 1 : 0;
+				values[4] = ctx.params.mode === 'interpolate' ? 1 : 0;
 				device.queue.writeBuffer(uniforms, 0, values);
 				const variant = pipelines.update({
 					input: ctx.params.input,
