@@ -29,15 +29,15 @@
 			<div :class="$style.footerSection">
 				<div :class="$style.footerSectionTitle">Project:</div>
 				<div :class="$style.footerSectionContents">
-					<button :class="$style.footerItem" class="_button" @click="openProjectSettings">sRGB / {{ appStateManager.state.resolution.value.width }} x {{ appStateManager.state.resolution.value.height }} px / {{ appStateManager.state.timelineFps.value }}fps</button>
+					<button :class="$style.footerItem" class="_button" @click="openProjectSettings">sRGB / {{ appContext.projectContext.stateManager.state.resolution.value.width }} x {{ appContext.projectContext.stateManager.state.resolution.value.height }} px / {{ appContext.projectContext.stateManager.state.timelineFps.value }}fps</button>
 				</div>
 			</div>
 			<div :class="$style.footerSection">
 				<div :class="$style.footerSectionTitle">Preview:</div>
 				<div :class="$style.footerSectionContents">
-					<button :class="$style.footerItem" class="_button" @click="openResolutionFactorMenu">{{ Math.round(appStateManager.state.resolution.value.width * resolutionFactor) }} x {{ Math.round(appStateManager.state.resolution.value.height * resolutionFactor) }} px ({{ resolutionFactor }}x)</button>
-					<button v-if="previewPlayback.state.value.mode === 'timeline' && appStateManager.state.timelineMotionBlur.value.enabled" :class="$style.footerItem" class="_button" title="Preview motion blur samples. Requires motion blur to be enabled in Project Settings." @click="openMotionBlurSamplesMenu">Motion blur: {{ timelinePreviewMotionBlurSamples === 0 ? 'Off' : `${timelinePreviewMotionBlurSamples} samples` }}</button>
-					<button :class="$style.footerItem" class="_button" @click="openFpsMenu">{{ previewPlayback.state.value.mode === 'live' ? `${Math.round(visualModuleRendererManagerController.fpsDisplay.value)}fps` : `${appStateManager.state.timelineFps.value * timelinePreviewFpsFactor}fps (${timelinePreviewFpsFactor}x)` }}</button>
+					<button :class="$style.footerItem" class="_button" @click="openResolutionFactorMenu">{{ Math.round(appContext.projectContext.stateManager.state.resolution.value.width * resolutionFactor) }} x {{ Math.round(appContext.projectContext.stateManager.state.resolution.value.height * resolutionFactor) }} px ({{ resolutionFactor }}x)</button>
+					<button v-if="previewPlayback.state.value.mode === 'timeline' && appContext.projectContext.stateManager.state.timelineMotionBlur.value.enabled" :class="$style.footerItem" class="_button" title="Preview motion blur samples. Requires motion blur to be enabled in Project Settings." @click="openMotionBlurSamplesMenu">Motion blur: {{ timelinePreviewMotionBlurSamples === 0 ? 'Off' : `${timelinePreviewMotionBlurSamples} samples` }}</button>
+					<button :class="$style.footerItem" class="_button" @click="openFpsMenu">{{ previewPlayback.state.value.mode === 'live' ? `${Math.round(visualModuleRendererManagerController.fpsDisplay.value)}fps` : `${appContext.projectContext.stateManager.state.timelineFps.value * timelinePreviewFpsFactor}fps (${timelinePreviewFpsFactor}x)` }}</button>
 					<button v-if="previewPlayback.state.value.mode === 'live'" :class="$style.footerItem" class="_button" @click="openTimeFactorMenu">TIME: {{ liveTimeFactor }}x</button>
 					<div :class="[$style.footerItem, $style.previewVolume]">
 						<i :class="previewVolume === 0 ? 'ti ti-volume-off' : 'ti ti-volume'"></i>
@@ -67,10 +67,10 @@ import { audioOutput, activePreviewRenderer, previewPlayback, visualModuleRender
 import { preferences } from './preferences.ts';
 import { desktopProjectFile } from './gsproj.ts';
 import GsRange from './components/common/GsRange.vue';
+import { projectBackupAccess, projectBackupStatus } from './app.ts';
 import GsAboutDialog from '@/components/GsAboutDialog.vue';
 import GsProjectSettingsDialog from '@/components/GsProjectSettingsDialog.vue';
 import GsSettingsDialog from '@/components/GsSettingsDialog.vue';
-import { projectBackupAccess, projectBackupStatus } from './app.ts';
 import GsTimelineExportDialog from '@/components/GsTimelineExportDialog.vue';
 import GsDashboardDialog from '@/components/GsDashboardDialog.vue';
 import GsWorkspaceElement from '@/components/GsWorkspaceElement.vue';
@@ -240,7 +240,7 @@ function openFpsMenu(ev: PointerEvent) {
 	if (previewPlayback.state.value.mode === 'timeline') {
 		ui.popupMenu([2, 1, 0.5, 0.25].map(factor => ({
 			type: 'radioOption' as const,
-			text: factor + 'x (' + appStateManager.state.timelineFps.value * factor + 'fps)',
+			text: factor + 'x (' + appContext.projectContext.stateManager.state.timelineFps.value * factor + 'fps)',
 			active: computed(() => timelinePreviewFpsFactor.value === factor),
 			action: () => { timelinePreviewFpsFactor.value = factor; },
 		})), ev.currentTarget ?? ev.target);

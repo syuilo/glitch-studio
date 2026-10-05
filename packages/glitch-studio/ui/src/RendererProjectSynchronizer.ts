@@ -1,10 +1,9 @@
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { visualModuleTargetKey } from '@gs/glitch-studio_shared/project/visual-module-target.ts';
+import { findVisualModule } from './utility/visual-module-target.ts';
 import type { VisualModuleTarget } from '@gs/glitch-studio_shared/project/visual-module-target.ts';
 import type { RendererProjectChange, RendererProjectState } from '@gs/glitch-studio_shared/project/renderer-state.ts';
-import { findVisualModule } from './utility/visual-module-target.ts';
-import type { AppStateManager } from './AppStateManager.ts';
-import type { ProjectContentChange } from './AppStateChange.ts';
+import type { ProjectContentChange, ProjectContext } from './Project.ts';
 
 function mergeChanges<T>(previous: readonly T[], next: readonly T[]): T[] {
 	return [...new Map([...previous, ...next].map(change => [JSON.stringify(change), change])).values()];
@@ -18,7 +17,7 @@ export class RendererProjectSynchronizer {
 	private unsubscribe: () => void;
 	private inFlight: Promise<void> = Promise.resolve();
 
-	constructor(private manager: AppStateManager, private destination: {
+	constructor(private manager: ProjectContext['stateManager'], private destination: {
 		apply: (changes: RendererProjectChange[]) => Promise<void>;
 		replace: (state: RendererProjectState) => Promise<void>;
 		onUpdated: () => void;

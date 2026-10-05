@@ -322,7 +322,7 @@ test('applies timeline preview factors independently of the LIVE fps limit', asy
 		assert.equal(limited, unlimited);
 		assert.ok(Math.abs(limited - 60 * factor) <= 1, `factor ${factor}: ${limited}`);
 	}
-	assert.equal(app.appStateManager.state.timelineFps.value, 60);
+	assert.equal(app.appContext.projectContext.stateManager.state.timelineFps.value, 60);
 	await nextTick();
 	assert.equal(app.timelineRendererManagerController.staticUpdates.length, 0);
 });
@@ -563,7 +563,7 @@ test('retains the source path when creating a project from an image', async t =>
 		else delete globalThis.createImageBitmap;
 	});
 	assert.equal(await app.newProjectFromImageOrVideo(file), true);
-	assert.equal(app.appStateManager.state.assets.value[0].sourceFilePath, path);
+	assert.equal(app.appContext.projectContext.stateManager.state.assets.value[0].sourceFilePath, path);
 	const handle = fileHandle('from-image.gsproj');
 	window.selectProjectSaveFile = async () => handle;
 	await app.saveProject();
@@ -676,7 +676,7 @@ test('stops before selecting or writing a target when asset encoding fails', asy
 	const original = handle.bytes;
 	const app = evaluate(appBundle);
 	await app.appReady(project(), handle.name, handle);
-	app.appStateManager.state.assets.value = [{ id: 'asset', name: 'missing.png', fileData: new UnreadableBlob() }];
+	app.appContext.projectContext.stateManager.state.assets.value = [{ id: 'asset', name: 'missing.png', fileData: new UnreadableBlob() }];
 	window.selectProjectSaveFile = () => assert.fail('No target should be selected after an encoding failure');
 	await app.saveProject(true);
 	assert.deepEqual(handle.calls, []);
@@ -685,7 +685,7 @@ test('stops before selecting or writing a target when asset encoding fails', asy
 	assert.equal(handle.bytes, original);
 	assert.equal(globalThis.projectAlerts.length, 2);
 	assert.ok(globalThis.projectAlerts.every(message => message.includes('missing.png')));
-	await assert.rejects(encodeProjectFile(project({ assets: app.appStateManager.state.assets.value })), error => error.cause === cause);
+	await assert.rejects(encodeProjectFile(project({ assets: app.appContext.projectContext.stateManager.state.assets.value })), error => error.cause === cause);
 });
 
 // 【保存先選択前に準備を完了し、ダイアログ表示中の編集を保存内容へ混入させない】
@@ -699,13 +699,13 @@ test('prepares a complete snapshot before selecting a Save as target', async t =
 		async arrayBuffer() { read = true; return super.arrayBuffer(); }
 	}
 	app.projectInfo.value.name = 'Snapshot';
-	app.appStateManager.state.assets.value = [{ id: 'asset', name: 'snapshot.png', fileData: new TrackedBlob(['original']) }];
+	app.appContext.projectContext.stateManager.state.assets.value = [{ id: 'asset', name: 'snapshot.png', fileData: new TrackedBlob(['original']) }];
 	const handle = fileHandle('snapshot.gsproj');
 	window.selectProjectSaveFile = async name => {
 		assert.equal(name, 'untitled.gsproj');
 		assert.equal(read, true);
 		app.projectInfo.value.name = 'Later edit';
-		app.appStateManager.state.assets.value = [];
+		app.appContext.projectContext.stateManager.state.assets.value = [];
 		return handle;
 	};
 	await app.saveProject(true);
@@ -909,7 +909,7 @@ test('passes unscaled project dimensions and resets the preview scale for smalle
 			assert.deepEqual(controller.options.resolution, resolution);
 			assert.equal(controller.options.resolutionScale, factor);
 		}
-		assert.deepEqual(app.appStateManager.state.resolution.value, resolution);
+		assert.deepEqual(app.appContext.projectContext.stateManager.state.resolution.value, resolution);
 	}
 	for (const controller of [app.visualModuleRendererManagerController, app.timelineRendererManagerController]) {
 		assert.deepEqual(controller.initialResolution, { width: 12000, height: 8000 });

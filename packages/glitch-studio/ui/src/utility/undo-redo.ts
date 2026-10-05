@@ -1,63 +1,62 @@
-import { DEFAULT_TIMELINE_FPS, DEFAULT_TIMELINE_MOTION_BLUR } from './project-defaults.ts';
+// 汎用的なUndo/Redo実装。Glitch Studioのドメイン知識を持っていてはならない
+
 import { shallowRef } from 'vue';
 import { computed, ref } from 'vue';
 import { deepClone } from '@gs/shared/utility/deep-clone.js';
 import { triggerRef } from 'vue';
-import { COMMAND_DEFS } from './commands.ts';
-import type { TimelineScene } from '@gs/subsystems_timeline_shared/types.ts';
-import type { Player } from '@gs/shared/types.js';
-import type { ProjectVisualModule } from '@gs/glitch-studio_shared/project/types.ts';
-import type { CommandDef } from './commands.ts';
-import type { AppState, ProjectAsset } from './types.ts';
-import type { AppStateChange } from './AppStateChange.ts';
 
-type CommandLog = {
-	type: keyof typeof COMMAND_DEFS;
+export type CommandDef<S, Payload, Change> = {
+	label: string;
+	// 確定した状態の変更対象・内容を宣言する。どの通知を同期するか、キャッシュや
+	// 実行インスタンスを保持するかは購読側の責務とし、履歴操作でも同じ通知を使う。
+	changes: (state: S, payload: Payload) => Change[];
+	create: (payload: Payload) => {
+		execute(state: S): void;
+		undo(state: S): void;
+	};
+};
+
+type CommandLog<S, Change, T extends Record<string, CommandDef<S, any, Change>>> = {
+	type: keyof T;
 	date: number;
-	execute: (state: AppState) => void;
-	undo: (state: AppState) => void;
+	execute: (state: S) => void;
+	undo: (state: S) => void;
 	mergeKey?: string | null;
 };
 
-export class AppStateManager {
-	public state: AppState;
-	public undoStack = shallowRef([] as CommandLog[]);
-	public redoStack = shallowRef([] as CommandLog[]);
+export class UndoRedo<S extends Record<string, any>, Change extends { type: string }[], COMMAND_DEFS extends Record<string, CommandDef<S, Change, any>>> {
+	public state: S;
+	public undoStack = shallowRef([] as CommandLog<S, Change, COMMAND_DEFS>[]);
+	public redoStack = shallowRef([] as CommandLog<S, Change, COMMAND_DEFS>[]);
 	public canUndo = computed(() => this.undoStack.value.length > 0);
 	public canRedo = computed(() => this.redoStack.value.length > 0);
 	private maxUndoStackSize = 100;
-	private changeListeners = new Set<(changes: AppStateChange[]) => void>();
+	private changeListeners = new Set<(changes: Change[]) => void>();
+	private commandDefs: COMMAND_DEFS;
 
-	public onChange(listener: (changes: AppStateChange[]) => void): () => void {
+	public onChange(listener: (changes: Change[]) => void): () => void {
 		this.changeListeners.add(listener);
 		return () => { this.changeListeners.delete(listener); };
 	}
 
-	constructor() {
-		this.state = {
-			timelineFps: ref(DEFAULT_TIMELINE_FPS),
-			timelineMotionBlur: ref({ ...DEFAULT_TIMELINE_MOTION_BLUR }),
-			resolution: ref<{ width: number; height: number }>({ width: 1024, height: 1024 }),
-			assets: ref<ProjectAsset[]>([]), // TODO: バイナリをリアクティブでwrapするのをやめる
-			players: ref<Player[]>([]),
-			visualModules: ref<ProjectVisualModule[]>([]),
-			timelineScenes: ref<TimelineScene[]>([]),
-		};
+	constructor(state: S, commandDefs: COMMAND_DEFS) {
+		this.state = state;
+		this.commandDefs = commandDefs;
 	}
 
-	public commit<T extends keyof typeof COMMAND_DEFS>(type: T, payload: Parameters<typeof COMMAND_DEFS[T]['create']>[0], mergeKey?: string | null) {
-		const commandDef = COMMAND_DEFS[type] as CommandDef<any>;
+	public commit<T extends keyof COMMAND_DEFS>(type: T, payload: Parameters<COMMAND_DEFS[T]['create']>[0], mergeKey?: string | null) {
+		const commandDef = this.commandDefs[type] as CommandDef<S, Parameters<COMMAND_DEFS[typeof type]['create']>[0], Change>;
 		const savedPayload = deepClone(payload);
 		const actions = commandDef.create(savedPayload);
-		const notify = (state: AppState) => {
+		const notify = (state: S) => {
 			const changes = commandDef.changes(state, savedPayload);
 			for (const listener of this.changeListeners) listener(changes);
 		};
 		// 履歴へ通知込みの操作を保存する。マージされたRedoも最終payloadを通知し、
 		// Undoは最初のpayloadを使うので、ドラッグ中も確定後も同じ同期経路を通る。
 		const command = {
-			execute: (state: AppState) => { actions.execute(state); notify(state); },
-			undo: (state: AppState) => { actions.undo(state); notify(state); },
+			execute: (state: S) => { actions.execute(state); notify(state); },
+			undo: (state: S) => { actions.undo(state); notify(state); },
 		};
 		command.execute(this.state);
 
@@ -99,9 +98,5 @@ export class AppStateManager {
 		command.execute(this.state);
 		this.undoStack.value.push(command);
 		triggerRef(this.undoStack);
-	}
-
-	public getVisualModuleById(id: ProjectVisualModule['id']) {
-		return this.state.visualModules.value.find(vm => vm.id === id) ?? null;
 	}
 }
