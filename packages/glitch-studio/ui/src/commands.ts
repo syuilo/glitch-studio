@@ -27,7 +27,7 @@ import { genId } from '@gs/shared/utility/id.ts';
 import { getNodeOutputs } from '@gs/subsystems_visual-module_shared/node-outputs.ts';
 import { getNodeInputDataType } from '@gs/shared/data-type/node-compatibility.ts';
 import { isTextureDataType } from '@gs/shared/data-type/data-type.ts';
-import { isTimelineAudioOutputLayer, timelineAudioParamDefs } from '@gs/subsystems_timeline_shared/timeline-audio.ts';
+import { resolveTimelineAudioLayerReference, timelineAudioParamDefs } from '@gs/subsystems_timeline_shared/timeline-audio.ts';
 import type { TimelineScene, TimelineLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import { validateSceneResolution } from '@gs/subsystems_timeline_shared/scene-resolution.ts';
 import type { TimelineSceneResolution } from '@gs/subsystems_timeline_shared/scene-resolution.ts';
@@ -153,8 +153,8 @@ const editTimelineLayerParamCommandDef = defineCommand<{
 						case 'keyframesTimelineInline':
 						case 'layerInput': next = deepClone(edit.value); break;
 						case 'layerAudio': {
-							const source = getScene(state, payload.sceneId).layers.find(candidate => candidate.id === edit.value);
-							if (edit.value !== null && (!source || source.id === layer.id || !isTimelineAudioOutputLayer(source))) throw new Error('Audio source must be an audio, video, or scene layer in the same scene');
+							const source = resolveTimelineAudioLayerReference(getScene(state, payload.sceneId), layer.id, edit.value);
+							if (edit.value !== null && source === null) throw new Error('Audio source must be an audio, video, or scene layer in the same scene');
 							next = { inputSource: 'layerAudio', layerId: edit.value };
 							break;
 						}
