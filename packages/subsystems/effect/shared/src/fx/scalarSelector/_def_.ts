@@ -1,0 +1,36 @@
+import { defineEffect } from '../../effect-definition.ts';
+
+export default defineEffect({
+	id: 'scalarSelector',
+	displayName: 'Selector (Scalar)',
+	description: {
+		'ja-JP': 'スカラーの一覧から0始まりのインデックスで入力を選択します。小数では隣接する入力を線形補間し、範囲外は先頭または末尾に固定します。',
+		'en-US': 'Selects from scalar inputs using a zero-based index. Fractional indices linearly interpolate adjacent inputs; out-of-range indices clamp to the first or last input.',
+	},
+	kind: 'modify',
+	dependsOnRenderHistory: false,
+	tags: ['math', 'utility'],
+	paramDefs: {
+		inputs: {
+			dataType: { kind: 'array', elementType: { kind: 'scalar' } },
+			ui: { label: 'Inputs', control: { element: { controlType: 'number', step: 0.01 } } },
+			defaultValue: {
+				inputSource: 'literal',
+				value: [
+					{ id: 'first', binding: { inputSource: 'literal', value: 0 } },
+					{ id: 'second', binding: { inputSource: 'literal', value: 0 } },
+				],
+			},
+			element: { canNode: true, defaultValue: { inputSource: 'literal', value: 0 } },
+		},
+		// 選択は描画全体で共通にし、候補数によらず最大2入力だけをGPUへ渡す。
+		index: { dataType: { kind: 'scalar' }, ui: { label: 'Index', control: { controlType: 'number', min: 0, step: 0.01 } }, defaultValue: { inputSource: 'literal', value: 0 } },
+	},
+	// 配列の特定要素を主入力にせず、解像度は描画先に従う。
+	primaryInputParameter: null,
+	resolutionInputParameter: null,
+	outputDefs: {
+		output: { dataType: { kind: 'scalar' } },
+	},
+	primaryOutput: 'output',
+});
