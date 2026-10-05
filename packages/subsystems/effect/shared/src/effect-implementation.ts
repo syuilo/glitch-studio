@@ -1,4 +1,5 @@
 import type { AudioHistory } from '@gs/shared/audio-history.ts';
+import type { AudioInput } from '@gs/subsystems_audio_shared/audio-input.ts';
 import type { BlendMode } from '@gs/shared/color-blend.ts';
 import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
 import type { DataType } from '@gs/shared/data-type/data-type.ts';
@@ -24,6 +25,7 @@ type RuntimeEffectOptionValue<D extends DataType, S> =
 	D extends { kind: 'videoAssetReference' } ? Pick<Asset, 'id' | 'fileData' | 'width' | 'height'> | null :
 	D extends { kind: 'fontAssetReference' } ? Pick<Asset, 'id' | 'fileData'> | null :
 	D extends { kind: 'playerReference' } ? { videoFrame: VideoFrame | null; audio: AudioHistory | null; } | null :
+	D extends { kind: 'audioSource' } ? AudioInput | null :
 	D extends { kind: 'struct'; fields: infer F extends Record<string, DataType> }
 		? S extends { fields: infer Settings }
 			? { [K in keyof F]: RuntimeEffectOptionValue<F[K], K extends keyof Settings ? Settings[K] : never> }
@@ -79,7 +81,7 @@ export type EffectRenderContext<Options extends Record<string, ParameterDefiniti
 export type EffectInstance<Options extends Record<string, ParameterDefinition> = any, Outputs extends EffectOutputDefinitions = any> = {
 	readonly cacheVersion?: number;
 	/** パラメータ変更による非同期の準備を開始する。完了はreportStatusで通知する。 */
-	prepare?: (params: RuntimeEffectParameters<Options>) => void;
+	prepare?: (params: RuntimeEffectParameters<Options>, signal?: AbortSignal) => void;
 	render: (ctx: EffectRenderContext<Options, Outputs>) => void;
 	dispose: () => void;
 };

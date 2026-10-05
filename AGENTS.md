@@ -69,7 +69,7 @@
 - `NodeOutputReference` はVisual Module内の接続情報、`UniformOrTexture` は生成元によらない定数またはテクスチャの値、`ShaderInput` は受け取り側のサンプリング設定を付けたシェーダー入力です。GPU共通基盤は `packages/shared/src/gpu` に置き、ノードやVisual Moduleの型を要求せず、必要なサンプリング設定やリソースだけを渡します。
 - 共通化は責務が一致する範囲で行います。型を共有するためだけに、子のドメインへ親固有のフィールドを追加したり、あらゆる利用場所を含む巨大な型を作ったりしないでください。
 
-Bindingは利用可能な入力方式を所有するドメインで定義します。共通の `ValueParameterBinding` はliteral・環境変数・式・automation・キーフレームだけを扱います。Visual Module内部の `VisualModuleParameterBinding` は共通方式に `node` / `externalCustomParameterInput` を加え、Timelineの `TimelineEffectParameterBinding` は共通方式に `layerInput` を加えます。レイヤーやLIVEからVisual Moduleへ渡す `VisualModuleArgumentBindings`、タイムラインの通常の引数・合成設定・音量には共通方式だけを許可します。
+Bindingは利用可能な入力方式を所有するドメインで定義します。共通の `ValueParameterBinding` はliteral・環境変数・式・automation・キーフレームだけを扱います。Visual Module内部の `VisualModuleParameterBinding` は共通方式に `node` / `externalCustomParameterInput` を加えます。Timelineの `TimelineVisualModuleParameterBinding` は共通方式に音声用の `lowerLayerAudio` を加え、`TimelineEffectParameterBinding` はさらに画像用の `layerInput` を加えます。LIVEから渡す `VisualModuleArgumentBindings`、タイムラインの合成設定・音量には共通方式だけを許可します。
 
 共通の `ParameterBindingBase` はツリー操作に必要な `inputSource` だけを持ち、保存用の全方式を集めたunionにはしません。共通の走査・IDパスによる編集処理はジェネリックにし、呼び出し側のBinding型を保持します。パラメータ定義の初期値も子要素を含めて共通方式に限定し、ノード接続やレイヤー入力は利用ドメイン側で設定します。複数ドメインを扱う編集用unionはUI側に置き、各Commandへ渡す境界で対象を絞り込みます。literalの内部値の完全な静的型付けは行っていないため、配列・構造体内部の入力方式の実行時検証も維持します。
 
@@ -107,7 +107,7 @@ Bindingは利用可能な入力方式を所有するドメインで定義しま�
 ### パラメータの参照スコープ
 
 - カスタムパラメータの `id` は接続・引数・直接参照の識別子、`nameForReference` は `PARAM` 式から参照する名前、`ui.label` は表示名です。IDと参照名のブランド型を相互に代用せず、表示名を接続のキーにしないでください。
-- カスタムパラメータの `canNode: true` はInノードの出力として公開することを表します。内部からはInノードへの配線で参照し、`externalCustomParameterInput` や `PARAM` による直接参照は `canNode: false` のカスタムパラメータに限定する仕様です。入力が定数かテクスチャかによって参照方法を変えません。
+- カスタムパラメータの `canNode: true` はInノードの出力として公開することを表します。内部からはInノードへの配線で参照し、`externalCustomParameterInput` や `PARAM` による直接参照は `canNode: false` のカスタムパラメータに限定する仕様です。ただし音声は`externalCustomParameterInput`だけで参照し、`PARAM`には公開しません。入力が定数かテクスチャかによって参照方法を変えません。
 - レイヤーの引数・合成設定と、モジュール内部の式は別の評価スコープです。変数・automation graph・参照可能なパラメータを呼び出し側から明示し、親スコープを暗黙に継承しません。グラフの再生時刻を渡すことと、同名の変数を式に公開することも別です。
 
 ## Concepts
@@ -158,6 +158,14 @@ Visual Module内で別のVisual Moduleを通常のエフェクトのように使
 - 直接のパラメータ編集・選択・キー操作は `['items', 'item-id', 'color']` のようなIDパスを使います。配列要素の削除で内部のキーも消え、UndoでIDごと復元します。キー・式の評価時刻とスコープは通常のレイヤー引数と同じです。`EffectRenderContext.time` だけはクリップの内容時刻を秒で渡します。
 - 出力は `primaryOutput` だけを使用し、nullの場合は合成をスキップします。タイムラインに不向きなエフェクトも候補から除外しません。Player入力、シーク前の履歴再現などは保証しません。
 - 解像度はノードと共通の `EffectResolution`（`auto` / `context` / `customAbsolute`）で、初期値はautoです。autoは素材固有寸法・解像度用入力のテクスチャ寸法・所属Sceneの順で解決し、倍率は一度だけ適用します。
+
+### 音声パラメータと波形
+
+- `audioSource`は音声取得元の静的な指定です。`canNode: false`で、式・キー・automation・画像の配線には使いません。LIVEでは`literal`の`null`または`{ type: 'player', playerId }`、Timelineでは`literal: null`または専用Bindingの`lowerLayerAudio`を使います。
+- 公開音声パラメータは`externalCustomParameterInput`経由で内部エフェクトへ渡し、`PARAM`には公開しません。`EffectDefinition.primaryAudioInputParameter` / `VisualModule.primaryAudioInputId`は主音声入力を指定し、Timelineでの初期割当・リセットを下層音声にします。画像の主入力・解像度・合成方法とは独立した役割です。
+- `AudioInput`は取得元に依存しない描画時の契約で、PCMは保存データに含めません。`audioWaveform`はこの入力から音声窓を取得します。Timelineの窓は所属Scene時刻までの過去区間で48kHz固定、LIVEはPlayerの保持PCMを使います。モノラルは左右へ複製します。
+- 下層音声は同じScene内で自分より下の音声・音声有効の動画・子Sceneを含み、所属Scene時刻で各階層の音量を適用します。現在有効なクリップだけでなく窓内の過去のクリップも含め、区間外は無音にします。正規化・クリッピング・プレビュー出力音量は適用しません。音声入力の未選択は透明、入力があって無音なら基準線を描画します。
+- 非同期の音声準備は描画前に待機し、古い要求の完了・失敗は新しい入力へ反映しません。各モーションブラーサブサンプルは自身のScene時刻で取得します。シーク履歴や再生Workerの時計に依存させません。
 
 ### シーンとノードの解像度
 

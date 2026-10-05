@@ -211,7 +211,8 @@
 									:automationGraphs="selectedLayer.automationGraphs"
 									:paramPath="[paramDef.id]"
 									:paramDef="{ ...paramDef, canNode: false }"
-									:paramValue="getLayerParameterValues(selectedLayer, 'module')[paramDef.id] ?? paramDef.defaultValue"
+									lowerLayerAudioEnabled
+									:paramValue="getLayerParameterValues(selectedLayer, 'module')[paramDef.id] ?? getTimelineVisualModuleArgumentDefault(selectedLayerModule!, paramDef)"
 									@edit="event => onTimelineLayerParamEdit(event, 'module')"
 								/>
 							</template>
@@ -314,6 +315,7 @@ import { getTimelineTickCount, getTimelineTicks, getTimelineMinorTicks, getTimel
 import { getTimelineClipSnapPoints, getTimelineSnapCandidates, getTimelineSeekPosition } from '@/utility/timeline-snapping.ts';
 import { preferences } from '@/preferences.ts';
 import { listenPointerDrag } from '@/utility/pointer-drag.ts';
+import { getTimelineVisualModuleArgumentDefault } from '@gs/subsystems_timeline_shared/visual-module-arguments.ts';
 import { getLayerParameterValues, getLayerParameterDefinition, resolveLayerParameter, getLayerKeyframeParameters } from '@/utility/timeline-scene.ts';
 import { inspectTimelineClipMedia } from '@/utility/timeline-clip-media.ts';
 import { timelineMarqueeRect, selectTimelineRange, clipSelectionKey, keyframeSelectionKey, getTimelineStretchSelection, constrainTimelineMove, keyframeMoveBounds, getTimelineSnappingTimes } from '@/utility/timeline-selection.ts';
@@ -1054,6 +1056,10 @@ function onTimelineLayerParamEdit(event: ParamEdit, target: TimelineParameterTar
 	if (layer == null || event.kind === 'node' || event.kind === 'externalCustomParameterInput') return;
 	if (event.kind === 'inputSource' && (event.inputSource === 'node' || event.inputSource === 'externalCustomParameterInput')) return;
 	const mergeKey = event.mergeKey != null ? JSON.stringify([layer.id, target, event.paramPath, event.mergeKey]) : undefined;
+	if (event.kind === 'inputSource' && event.inputSource === 'lowerLayerAudio') {
+		if (target === 'effect' || target === 'module') stateManager.commit('editTimelineLayerParam', { sceneId: props.sceneId, layerId: layer.id, target, paramPath: event.paramPath, edit: event }, mergeKey);
+		return;
+	}
 	if (event.kind === 'layerInput' || (event.kind === 'inputSource' && event.inputSource === 'layerInput')) {
 		if (target !== 'effect') return;
 		stateManager.commit('editTimelineLayerParam', {

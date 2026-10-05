@@ -60,6 +60,8 @@ export type EffectDefinition<In extends Record<string, ParameterDefinition> = Re
 	paramDefs: In;
 	// バイパス・自動接続に使うトップレベルの入力。主入力がないエフェクトはnull。
 	primaryInputParameter: Extract<keyof In, string> | null;
+	/** 音声の自動割当先。画像のバイパス・合成方法・解像度とは独立する。 */
+	primaryAudioInputParameter?: Extract<keyof In, string> | null;
 	// 自動解像度の基準。バイパスの主入力とは独立した役割で、nullなら描画先を使う。
 	resolutionInputParameter: Extract<keyof In, string> | null;
 	outputDefs: Out;
@@ -71,7 +73,10 @@ export function defineEffect<const In extends Record<string, ParameterDefinition
 		paramDefs: { [K in keyof In]: CheckedParameterDefinition<NoInfer<In[K]>> };
 	},
 ): EffectDefinition<In, Out> {
-	// 主入力は接続を受け取るため、通常の数値設定やコンテナは指定できない。
+	if (def.primaryAudioInputParameter != null && def.paramDefs[def.primaryAudioInputParameter]?.dataType.kind !== 'audioSource') {
+		throw new Error(`Primary audio input must reference an audio parameter: ${def.id}.${def.primaryAudioInputParameter}`);
+	}
+	// 画像の主入力は接続を受け取るため、通常の数値設定やコンテナは指定できない。
 	if (def.primaryInputParameter !== null && def.paramDefs[def.primaryInputParameter]?.canNode !== true) {
 		throw new Error(`Primary input must reference a node-capable parameter: ${def.id}.${def.primaryInputParameter}`);
 	}

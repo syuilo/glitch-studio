@@ -50,7 +50,9 @@ fn fs(@location(0) uv: vec2f) -> @location(0) vec4f {
 	let scale = select(1.0, 0.45, stereo);
 	left = waveformCoverage(uv, index, false, select(0.0, 0.5, stereo), scale);
 	if (stereo) { right = waveformCoverage(uv, index, true, -0.5, scale); }
+	left *= uniforms.color.a;
+	right *= uniforms.rightColor.a;
 	let alpha = max(left, right);
 	let color = (uniforms.color.rgb * left + uniforms.rightColor.rgb * right) / max(left + right, 0.000001);
-	return vec4f(color, alpha);
+	return vec4f(color * alpha, alpha);
 }

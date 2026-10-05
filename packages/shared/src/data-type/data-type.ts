@@ -13,6 +13,7 @@ export type DataType =
 	| { kind: 'videoAssetReference' }
 	| { kind: 'fontAssetReference' }
 	| { kind: 'playerReference' }
+	| { kind: 'audioSource' }
 	| { kind: 'struct'; fields: Record<string, DataType> }
 	| { kind: 'array'; elementType: DataType }
 	| { kind: 'any' };

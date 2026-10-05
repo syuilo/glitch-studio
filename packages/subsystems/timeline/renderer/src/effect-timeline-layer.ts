@@ -20,6 +20,7 @@ import type { Resolution } from '@gs/shared/resolution.ts';
 import type { Asset } from '@gs/shared/types.ts';
 import type { TimelineLayerRenderer } from './timeline-renderer.ts';
 import type { UniformOrTexture } from '@gs/shared/gpu/uniform-or-texture.ts';
+import type { AudioInput } from '@gs/subsystems_audio_shared/audio-input.ts';
 
 /** レイヤーの評価スコープ・入力・合成を所有し、エフェクト自身の実行はEffectRendererへ委ねる。 */
 export function createEffectTimelineLayer(layer: TimelineEffectLayer, definition: EffectDefinition, implementation: EffectImplementation, options: {
@@ -30,6 +31,7 @@ export function createEffectTimelineLayer(layer: TimelineEffectLayer, definition
 	resolutionScale: number;
 	assets: readonly Asset[];
 	assetTextures: ReadonlyMap<string, GPUTexture>;
+	getAudioInput?: (sceneTimeMs: number, isExport: boolean) => AudioInput;
 	onState?: (state: EffectInstanceState | null) => void;
 }): TimelineLayerRenderer<UniformOrTexture> {
 	// 設定更新時はManagerがインスタンスを作り直す。Bindingの検証と既定値の補完は
@@ -54,9 +56,14 @@ export function createEffectTimelineLayer(layer: TimelineEffectLayer, definition
 		async evaluate(context, signal) {
 			if (disposed || signal.aborted) return { gpuTime: 0 };
 			const scope = createTimelineLayerEvaluationScope({ time: context.sceneTimeMs, isExport: context.isExport, automationGraphs: layer.automationGraphs });
+			let audioInput: AudioInput | undefined;
 			const params = Object.fromEntries(parameters.map(({ key, def, binding }) => {
 				return [key, mapParameterTree<TimelineEffectParameterBinding>(def, binding, [key], (leaf, value) => {
 					if (value.inputSource === 'layerInput') return toShaderInput(context.input, value);
+					if (value.inputSource === 'lowerLayerAudio') {
+						if (!options.getAudioInput) throw new Error('Timeline audio input is unavailable');
+						return audioInput ??= options.getAudioInput(context.sceneTimeMs, context.isExport);
+					}
 					const fallback = value.inputSource === 'automationGraphReference' || (leaf.dataType.kind === 'enum' && value.inputSource === 'keyframesTimelineInline')
 						? leaf.defaultValue.value : leaf.dataType.kind === 'enum' ? undefined : genEmptyValue(leaf);
 					// await前に評価結果だけを固定する。literalの配列を準備中の編集と共有せず、
@@ -74,7 +81,7 @@ export function createEffectTimelineLayer(layer: TimelineEffectLayer, definition
 																																																								intrinsicResolution: layer.resolution.mode === 'auto' ? implementation.getIntrinsicResolution?.(params) : undefined,
 																																																								inputResolution: resolutionInput?.kind === 'texture' ? resolutionInput.texture : undefined,
 																																																								maxDimension: device.limits.maxTextureDimension2D }));
-			renderer.prepare(params);
+			renderer.prepare(params, signal);
 			if (!await renderer.waitUntilReady(signal) || signal.aborted || disposed) return { gpuTime: 0 };
 			const encoder = device.createCommandEncoder();
 			try {

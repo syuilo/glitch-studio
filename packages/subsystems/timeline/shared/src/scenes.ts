@@ -20,9 +20,11 @@ export function validateTimelineLayer(layer: TimelineLayer): void {
 	const parameterGroups = [
 		...('audioParamValues' in layer ? [layer.audioParamValues] : []),
 		...('compositingParamValues' in layer ? [layer.compositingParamValues] : []),
-		...('visualModuleParamValues' in layer ? [layer.visualModuleParamValues] : []),
 	];
 	for (const values of parameterGroups) for (const binding of Object.values(values)) validateTimelineParameterBinding(binding);
+	if ('visualModuleParamValues' in layer) {
+		for (const binding of Object.values(layer.visualModuleParamValues)) validateTimelineParameterBinding(binding, false, true);
+	}
 	if (layer.layerType === 'effect') {
 		validateEffectResolution(layer.resolution);
 		for (const binding of Object.values(layer.effectParamValues)) validateTimelineParameterBinding(binding, true);

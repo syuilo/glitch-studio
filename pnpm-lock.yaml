@@ -177,9 +177,18 @@ importers:
       '@gs/shared':
         specifier: workspace:*
         version: link:../../shared
+      '@gs/subsystems_audio_renderer':
+        specifier: workspace:*
+        version: link:../../subsystems/audio/renderer
+      '@gs/subsystems_audio_shared':
+        specifier: workspace:*
+        version: link:../../subsystems/audio/shared
       '@gs/subsystems_effect_shared':
         specifier: workspace:*
         version: link:../../subsystems/effect/shared
+      '@gs/subsystems_timeline_audio-renderer':
+        specifier: workspace:*
+        version: link:../../subsystems/timeline/audio-renderer
       '@gs/subsystems_timeline_renderer':
         specifier: workspace:*
         version: link:../../subsystems/timeline/renderer
@@ -507,6 +516,9 @@ importers:
       '@gs/shared':
         specifier: workspace:*
         version: link:../../../shared
+      '@gs/subsystems_audio_shared':
+        specifier: workspace:*
+        version: link:../../audio/shared
       '@syuilo/aiscript':
         specifier: 1.2.1
         version: 1.2.1
@@ -572,6 +584,9 @@ importers:
       '@gs/shared':
         specifier: workspace:*
         version: link:../../../shared
+      '@gs/subsystems_audio_shared':
+        specifier: workspace:*
+        version: link:../../audio/shared
       '@gs/subsystems_effect_renderer':
         specifier: workspace:*
         version: link:../../effect/renderer
@@ -664,6 +679,9 @@ importers:
       '@gs/shared':
         specifier: workspace:*
         version: link:../../../shared
+      '@gs/subsystems_audio_shared':
+        specifier: workspace:*
+        version: link:../../audio/shared
       '@gs/subsystems_effect_renderer':
         specifier: workspace:*
         version: link:../../effect/renderer

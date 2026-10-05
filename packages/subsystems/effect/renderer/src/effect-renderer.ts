@@ -153,9 +153,9 @@ export class EffectRenderer<Definition extends Pick<EffectDefinition, 'paramDefs
 	}
 
 	/** 準備の開始だけを行う。描画・履歴交換はせず、リクエスト同士の競合管理は各実装に任せる。 */
-	prepare(params: RuntimeEffectParameters<Definition['paramDefs']>) {
+	prepare(params: RuntimeEffectParameters<Definition['paramDefs']>, signal?: AbortSignal) {
 		this.initialize(params);
-		this.instance!.prepare?.(params);
+		this.instance!.prepare?.(params, signal);
 	}
 
 	/** falseは待機の中断または対象インスタンスの破棄・再初期化。中断だけでdisposeはしない。 */

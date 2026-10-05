@@ -40,6 +40,99 @@ const { COMMAND_DEFS, createEffectTimelineLayer, resolveLayerParameter, getLayer
 	canConnectNodeDataTypes, areNodeDataTypesCompatible, encodeProjectFile, decodeProjectFile, validateTimelineEffectLayer } = module.exports;
 const literal = value => ({ inputSource: 'literal', value });
 
+// 【波形レイヤーは主音声入力を下層へ割り当て、リセットとUndo/Redoでも復元する】
+// 音声の主入力を画像の主入力とは別に扱い、生成系の通常合成を維持する。
+// 未選択を明示した状態も保存し、自動入力によって勝手に上書きしない。
+test('defaults waveform audio to lower layers and restores overrides through undo and redo', () => {
+	const f = fixture('audioWaveform');
+	assert.deepEqual(f.read(['audio']), { inputSource: 'lowerLayerAudio' });
+	assert.deepEqual(f.layer.compositingParamValues.blendMode, literal('normal'));
+	f.edit(['audio'], { kind: 'literal', value: null });
+	const reset = f.edit(['audio'], { kind: 'reset' });
+	assert.equal(f.read(['audio']).inputSource, 'lowerLayerAudio');
+	reset.undo(f.state);
+	assert.deepEqual(f.read(['audio']), literal(null));
+	reset.execute(f.state);
+	assert.equal(f.read(['audio']).inputSource, 'lowerLayerAudio');
+	assert.deepEqual(effectDefinitions.audioWaveform.paramDefs.audio.defaultValue, literal(null));
+	for (const edit of [
+		{ kind: 'literal', value: { type: 'player', playerId: 'player' } },
+		{ kind: 'inputSource', inputSource: 'expression' },
+		{ kind: 'inputSource', inputSource: 'keyframesTimelineInline' },
+		{ kind: 'inputSource', inputSource: 'layerInput' },
+	]) assert.throws(() => f.edit(['audio'], edit));
+	assert.throws(() => f.edit(['amplitude'], { kind: 'inputSource', inputSource: 'lowerLayerAudio' }));
+	assert.equal(f.read(['audio']).inputSource, 'lowerLayerAudio');
+});
+
+// 【配列・構造体内でも音声入力だけに下層音声を許可する】
+// 親のliteralの中へ別ドメインのBindingを隠せないよう、保存前に末端まで検証する。
+// IDパスによるリセット・削除・復元は通常のパラメータと同じCommandを利用する。
+test('validates and edits nested audio bindings using stable parameter paths', t => {
+	const audio = effectDefinitions.audioWaveform.paramDefs.audio;
+	effectDefinitions.nestedAudio = { ...effectDefinitions.audioWaveform, id: 'nestedAudio', primaryAudioInputParameter: null, paramDefs: {
+		inputs: { dataType: { kind: 'array', elementType: { kind: 'struct', fields: { source: audio.dataType } } },
+			ui: { label: 'Inputs', control: { element: { fields: { source: audio.ui } } } },
+			element: { fields: { source: { defaultValue: literal(null), canNode: false } }, defaultValue: literal({ source: literal(null) }) },
+			defaultValue: literal([{ id: 'first', binding: literal({ source: literal(null) }) }]) },
+	} };
+	t.after(() => { delete effectDefinitions.nestedAudio; });
+	const f = fixture('nestedAudio');
+	const path = ['inputs', 'first', 'source'];
+	f.edit(path, { kind: 'inputSource', inputSource: 'lowerLayerAudio' });
+	assert.equal(f.read(path).inputSource, 'lowerLayerAudio');
+	const reset = f.edit(path, { kind: 'reset' });
+	assert.deepEqual(f.read(path), literal(null));
+	reset.undo(f.state);
+	assert.equal(f.read(path).inputSource, 'lowerLayerAudio');
+	assert.throws(() => f.edit(path, { kind: 'expression', value: 'null' }));
+	assert.throws(() => f.edit(['inputs'], { kind: 'literal', value: [{ id: 'first', binding: literal({ source: literal({ type: 'player', playerId: 'x' }) }) }] }));
+});
+
+// 【公開音声入力の指定と引数の既定値を保存し、定義編集とUndoで対応を維持する】
+// 主音声入力のメタデータはVisual Moduleが所有し、エフェクト定義やパラメータ自体へ役割を混ぜない。
+// 音声型からの変更・削除で参照を解除し、Undoでは元のIDと設定を復元する。
+test('edits primary audio parameters and timeline arguments with independent undo history', () => {
+	const f = fixture('audioWaveform');
+	const audio = { ...effectDefinitions.audioWaveform.paramDefs.audio, id: 'sound', nameForReference: 'Sound' };
+	const visualModule = { id: 'visual', nodes: [], outputDefs: [], primaryOutputId: null, primaryInputId: null, primaryAudioInputId: null,
+		paramDefs: [audio], automationGraphs: [] };
+	f.state.visualModules.value.push(visualModule);
+	const command = (name, payload) => COMMAND_DEFS[name].create({ visualModuleId: visualModule.id, ...payload });
+	const primary = command('setVisualModulePrimaryAudioInput', { primaryAudioInputId: 'sound' });
+	primary.execute(f.state);
+	assert.equal(visualModule.primaryAudioInputId, 'sound');
+	primary.undo(f.state);
+	assert.equal(visualModule.primaryAudioInputId, null);
+	primary.execute(f.state);
+	assert.throws(() => command('setVisualModulePrimaryAudioInput', { primaryAudioInputId: 'missing' }).execute(f.state));
+	const layer = { ...f.layer, layerType: 'visualModule', visualModuleId: 'visual', visualModuleParamValues: {} };
+	f.state.timelineScenes.value[0].layers = [layer];
+	assert.deepEqual(resolveLayerParameter(f.state, layer, 'module', ['sound']).value, { inputSource: 'lowerLayerAudio' });
+	const none = COMMAND_DEFS.editTimelineLayerParam.create({ ...f.target, target: 'module', paramPath: ['sound'], edit: { kind: 'literal', value: null } });
+	none.execute(f.state);
+	assert.deepEqual(layer.visualModuleParamValues.sound, literal(null));
+	const reset = COMMAND_DEFS.editTimelineLayerParam.create({ ...f.target, target: 'module', paramPath: ['sound'], edit: { kind: 'reset' } });
+	reset.execute(f.state);
+	assert.deepEqual(layer.visualModuleParamValues.sound, { inputSource: 'lowerLayerAudio' });
+	reset.undo(f.state);
+	assert.deepEqual(layer.visualModuleParamValues.sound, literal(null));
+	none.undo(f.state);
+	assert.equal(Object.hasOwn(layer.visualModuleParamValues, 'sound'), false);
+	for (const [name, payload] of [
+		['removeVisualModuleParamDef', { defId: 'sound' }],
+		['updateVisualModuleParamDef', { defId: 'sound', changes: { dataType: { kind: 'scalar' }, ui: { label: 'Value', control: { controlType: 'number' } }, defaultValue: literal(0) } }],
+	]) {
+		const edit = command(name, payload);
+		edit.execute(f.state);
+		assert.equal(visualModule.primaryAudioInputId, null);
+		edit.undo(f.state);
+		assert.equal(visualModule.primaryAudioInputId, 'sound');
+		assert.equal(visualModule.paramDefs[0].dataType.kind, 'audioSource');
+	}
+	assert.throws(() => command('updateVisualModuleParamDef', { defId: 'sound', changes: { canNode: true } }).execute(f.state));
+});
+
 // 【すべてのエフェクトを既定値のままレイヤーとして作成できる】
 // タイムライン向けの候補制限は設けないため、配列・構造体の既定値もレイヤーのBinding制約に従う必要がある。
 test('creates every bundled effect without illegal binding defaults', () => {

@@ -28,6 +28,7 @@ export type DataTypeUiControlDefinitionMap = {
 	videoAssetReference: {};
 	fontAssetReference: {};
 	playerReference: {};
+	audioSource: {};
 	any: {};
 };
 

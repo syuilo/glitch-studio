@@ -184,6 +184,9 @@
 			@update:modelValue="v => changeValue(v)"
 		/>
 	</div>
+	<div v-else-if="dataType.kind === 'audioSource'">
+		<GsSelect small :modelValue="value?.playerId ?? null" :items="[{ label: i18n.ts.None, value: null }, ...stateManager.state.players.value.map(player => ({ label: player.name, value: player.id }))]" @update:modelValue="v => changeValue(v == null ? null : { type: 'player', playerId: v })"/>
+	</div>
 	<div v-else-if="dataType.kind === 'playerReference'">
 		<GsSelect
 			small

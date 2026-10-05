@@ -57,6 +57,7 @@
 				@update="(defId, changes, mergeKey) => emit('edit', { kind: 'updateParamDef', defId, changes, mergeKey })"
 				@remove="defId => emit('edit', { kind: 'removeParamDef', defId })"
 				@setPrimaryInput="inputId => emit('edit', { kind: 'setPrimaryInput', inputId })"
+				@setPrimaryAudioInput="inputId => emit('edit', { kind: 'setPrimaryAudioInput', inputId })"
 			/>
 		</div>
 

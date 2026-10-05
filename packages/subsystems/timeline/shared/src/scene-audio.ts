@@ -20,13 +20,18 @@ export type SceneAudioClip = {
 };
 
 /** 祖先クリップすべての表示区間を交差させ、素材と各階層の音量の時計を別々に展開する。 */
-export function getSceneAudioClips(scenes: readonly TimelineScene[], sceneId: string): SceneAudioClip[] {
+export function getSceneAudioClips(scenes: readonly TimelineScene[], sceneId: string, belowLayerId?: string): SceneAudioClip[] {
 	validateTimelineScenes(scenes);
+	const rootScene = getTimelineScene(scenes, sceneId);
+	const boundary = belowLayerId == null ? -1 : rootScene.layers.findIndex(layer => layer.id === belowLayerId);
+	if (belowLayerId != null && boundary === -1) throw new Error('Audio input layer not found');
 	const clips: SceneAudioClip[] = [];
 	const visit = (id: string, sceneStartMs: number, start: number, end: number, gains: SceneAudioGain[]) => {
 		const scene = getTimelineScene(scenes, id);
 		end = Math.min(end, sceneStartMs + getSceneDuration(scene));
-		for (const layer of scene.layers) {
+		// 境界は取得元Sceneの直下だけに適用する。下層の子Sceneは音声全体を出力する。
+		const layers = gains.length === 0 ? scene.layers.slice(boundary + 1) : scene.layers;
+		for (const layer of layers) {
 			if (layer.isDisabled) continue;
 			if (layer.layerType !== 'audio' && layer.layerType !== 'video' && layer.layerType !== 'scene') continue;
 			const layerGains = [...gains, { sceneStartMs, volume: layer.audioParamValues.volume, automationGraphs: layer.automationGraphs }];

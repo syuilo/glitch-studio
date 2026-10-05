@@ -3,6 +3,7 @@ import { applyRendererProjectChanges } from '@gs/glitch-studio_shared/project/re
 import { AudioHistory } from '@gs/shared/audio-history.ts';
 import { genId } from '@gs/shared/utility/id.ts';
 import { genEmptyValue } from '@gs/shared/parameter/parameter-default.ts';
+import { validateLiteralAudioSourceBinding } from '@gs/shared/parameter/audio-source.ts';
 import EventEmitter from 'eventemitter3';
 import { ParameterBindingEvaluator } from '@gs/shared/parameter/parameter-binding-evaluator.ts';
 import { validateEnumParameterValue } from '@gs/shared/parameter/parameter-definition.ts';
@@ -347,6 +348,12 @@ export class VisualModuleRendererManager extends EventEmitter<{
 		try {
 			const evaluatedParamValues = new Map<VisualModuleCustomParameterId, any>();
 			for (const def of visualModule.paramDefs) {
+				if (def.dataType.kind === 'audioSource') {
+					const binding = this.liveParamValues[def.id] ?? def.defaultValue;
+					validateLiteralAudioSourceBinding(binding);
+					evaluatedParamValues.set(def.id, binding.value);
+					continue;
+				}
 				if (this.liveParamValues[def.id] == null) {
 					evaluatedParamValues.set(def.id, validateEnumParameterValue(def, def.defaultValue.value));
 					continue;

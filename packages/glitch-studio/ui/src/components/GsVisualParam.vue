@@ -15,6 +15,7 @@
 				<i v-else-if="paramValue.inputSource === 'externalCustomParameterInput'" v-tooltip="'Parameter'" class="ti ti-wifi" :class="$style.typeIcon"></i>
 				<i v-else-if="paramValue.inputSource === 'node'" v-tooltip="'Node'" class="ti ti-plug" :class="$style.typeIcon"></i>
 				<i v-else-if="paramValue.inputSource === 'layerInput'" v-tooltip="'Layers below'" class="ti ti-stack-2" :class="$style.typeIcon"></i>
+				<i v-else-if="paramValue.inputSource === 'lowerLayerAudio'" v-tooltip="'Audio from layers below'" class="ti ti-wave-sine" :class="$style.typeIcon"></i>
 				<i v-else-if="paramValue.inputSource === 'keyframesTimelineInline'" v-tooltip="'Keyframes'" class="ti ti-timeline" :class="$style.typeIcon"></i>
 				<i v-else-if="paramValue.inputSource === 'automationGraphReference' || paramValue.inputSource === 'automationGraphInline'" v-tooltip="'AutomationGraph'" class="ti ti-ease-in-out-control-points" :class="$style.typeIcon"></i>
 			</div>
@@ -79,6 +80,8 @@
 						<span style="flex: 1;">Layers below</span>
 						<button class="_button" style="padding: 4px;" @click="showLayerInputSamplingMenu"><i class="ti ti-dots"></i></button>
 					</div>
+					<span v-else-if="paramValue.inputSource === 'lowerLayerAudio'">Audio from layers below</span>
+					<GsSelect v-else-if="paramValue.inputSource === 'literal' && paramDef.dataType.kind === 'audioSource' && lowerLayerAudioEnabled" small :modelValue="null" :items="[{ label: i18n.ts.None, value: null }]" @update:modelValue="updateParamAsLiteral(null)"/>
 					<GsLiteralLeafValueControl
 						v-else-if="paramValue.inputSource === 'literal'"
 						ref="controlComponent"
@@ -118,6 +121,7 @@
 			:automationGraphEndEnabled="automationGraphEndEnabled"
 			:keyframesEnabled="keyframesEnabled"
 			:layerInputEnabled="layerInputEnabled"
+			:lowerLayerAudioEnabled="lowerLayerAudioEnabled"
 			:visualModule="visualModule"
 			:node="node"
 			:paramPath="[...paramPath, element.id]"
@@ -140,6 +144,7 @@
 			:automationGraphEndEnabled="automationGraphEndEnabled"
 			:keyframesEnabled="keyframesEnabled"
 			:layerInputEnabled="layerInputEnabled"
+			:lowerLayerAudioEnabled="lowerLayerAudioEnabled"
 			:visualModule="visualModule"
 			:node="node"
 			:paramPath="[...paramPath, key]"
@@ -160,7 +165,7 @@ export type ParamEdit = { paramPath: ParamPath; mergeKey?: string | null } & (
 	| { kind: 'node'; value: NodeOutputReference | null; preserveSampling: boolean }
 	| { kind: 'layerInput'; value: Extract<EditableParameterBinding, { inputSource: 'layerInput' }> }
 	| { kind: 'externalCustomParameterInput'; value: VisualModuleCustomParameterId }
-	| ParameterInputSourceEdit<'node' | 'layerInput' | 'externalCustomParameterInput'>
+	| ParameterInputSourceEdit<'node' | 'layerInput' | 'lowerLayerAudio' | 'externalCustomParameterInput'>
 );
 </script>
 
@@ -209,6 +214,7 @@ const props = defineProps<{
 	label?: string;
 	keyframesEnabled?: boolean;
 	layerInputEnabled?: boolean;
+	lowerLayerAudioEnabled?: boolean;
 	automationGraphEndEnabled?: boolean;
 }>();
 
@@ -250,6 +256,7 @@ const graphOffsetModeItems = [
 ] satisfies { label: string; value: AutomationGraphPlaybackOptions['offsetMode'] }[];
 const envVariableItems = computed(() => props.availableVariables.map(variable => ({ label: variable.startsWith('TEST_') ? variable : `${i18n.t(`_EnvVariables.${variable}`)} (${variable})`, value: variable })));
 const externalCustomParameterInputItems = computed(() => (props.node == null ? [] : paramDefs.value)
+	.filter(def => !def.canNode && (def.dataType.kind === 'audioSource') === (props.paramDef.dataType.kind === 'audioSource'))
 	.map(def => ({ label: `${def.ui.label} (${def.nameForReference})`, value: def.id })));
 const nodeOutputItems = computed(() => props.node == null ? [] : getNodeOutputItems(nodes.value, props.node.id, inputDataType.value, paramDefs.value));
 const nodeConnection = computed<NodeOutputReference | null>(() => props.paramValue.inputSource === 'node' && props.paramValue.nodeId != null ? props.paramValue : null);
@@ -357,9 +364,13 @@ function getMenu() {
 			{ text: 'Automation Graph (Reference)', inputSource: 'automationGraphReference', icon: 'ti ti-ease-in-out-control-points' },
 			{ text: 'Automation Graph (Inline)', inputSource: 'automationGraphInline', icon: 'ti ti-ease-in-out-control-points' },
 		];
+		if (props.paramDef.dataType.kind === 'audioSource') {
+			types.splice(1);
+			if (props.lowerLayerAudioEnabled) types.push({ text: 'Audio from layers below', inputSource: 'lowerLayerAudio', icon: 'ti ti-wave-sine' });
+		}
 		if (props.node != null) types.push({ text: 'Custom Parameter', inputSource: 'externalCustomParameterInput', icon: 'ti ti-wifi' });
 		if (canNode.value && props.node != null) types.push({ text: 'Node', inputSource: 'node', icon: 'ti ti-plug' });
-		if (props.layerInputEnabled && canConnectNodeDataTypes({ kind: 'color' }, inputDataType.value)) {
+		if (props.layerInputEnabled && canNode.value && canConnectNodeDataTypes({ kind: 'color' }, inputDataType.value)) {
 			types.push({ text: 'Layers below', inputSource: 'layerInput', icon: 'ti ti-stack-2' });
 		}
 		for (const { text, inputSource, icon } of types) {

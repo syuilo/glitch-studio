@@ -31,6 +31,9 @@
 		"@gs/subsystems_visual-module_renderer": "workspace:*",
 		"@gs/subsystems_visual-module_shared": "workspace:*",
 		"eventemitter3": "5.0.4",
-		"webgpu-utils": "2.1.1"
+		"webgpu-utils": "2.1.1",
+		"@gs/subsystems_audio_shared": "workspace:*",
+		"@gs/subsystems_audio_renderer": "workspace:*",
+		"@gs/subsystems_timeline_audio-renderer": "workspace:*"
 	}
 }

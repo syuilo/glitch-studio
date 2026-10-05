@@ -2,10 +2,12 @@ import { getTimelineScene } from '@gs/subsystems_timeline_shared/scenes.ts';
 import { timelineAudioParamDefs } from '@gs/subsystems_timeline_shared/timeline-audio.ts';
 import { timelineCompositingParamDefs } from '@gs/subsystems_timeline_shared/timeline-compositing.ts';
 import { effectDefinitions } from '@gs/subsystems_effect_shared/effect-definitions.ts';
+import { getTimelineVisualModuleArgumentDefault } from '@gs/subsystems_timeline_shared/visual-module-arguments.ts';
+import { getEffectLayerParameterDefault } from '@gs/subsystems_timeline_shared/effect-layer.ts';
 import { resolveParameter, walkParameters } from '@gs/shared/parameter/parameter-path.ts';
 import { getParameterPathLabel } from './parameter-label.ts';
 import type { ParamPath } from '@gs/shared/parameter/parameter-path.ts';
-import type { TimelineEffectParameterBinding, TimelineParameterBinding } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
+import type { TimelineEffectParameterBinding, TimelineParameterBinding, TimelineVisualModuleParameterBinding } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
 import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
 import type { ProjectState } from '../Project.ts';
 import type { TimelineLayer, TimelineParameterTarget } from '@gs/subsystems_timeline_shared/types.ts';
@@ -31,8 +33,9 @@ export function getLayerParameterTargets(layer: TimelineLayer): readonly Timelin
 
 // 保存先が確定した場合だけ、そのドメインのBindingを書き込める。
 // 動的なtargetで取得する一覧は読み取り専用にし、音量や合成設定へのlayerInputの書き込みを防ぐ。
+export function getLayerParameterValues(layer: TimelineLayer, target: 'module'): Record<string, TimelineVisualModuleParameterBinding>;
 export function getLayerParameterValues(layer: TimelineLayer, target: 'effect'): Record<string, TimelineEffectParameterBinding>;
-export function getLayerParameterValues(layer: TimelineLayer, target: Exclude<TimelineParameterTarget, 'effect'>): Record<string, TimelineParameterBinding>;
+export function getLayerParameterValues(layer: TimelineLayer, target: 'compositing' | 'audio'): Record<string, TimelineParameterBinding>;
 export function getLayerParameterValues(layer: TimelineLayer, target: TimelineParameterTarget): Readonly<Record<string, TimelineEffectParameterBinding>>;
 export function getLayerParameterValues(layer: TimelineLayer, target: TimelineParameterTarget): Readonly<Record<string, TimelineEffectParameterBinding>> {
 	if (target === 'compositing' && layer.layerType !== 'audio') return layer.compositingParamValues;
@@ -58,6 +61,13 @@ export function resolveLayerParameter(state: Pick<ProjectState, 'visualModules'>
 	const values = getLayerParameterValues(layer, target);
 	// 未編集のモジュール引数は定義の既定値を参照する。参照だけでは保存値を増やさない。
 	if (path.length === 1 && values[path[0]] == null && defs[path[0]] != null) {
+		if (target === 'module') {
+			const visualModule = layer.layerType === 'inlineVisualModule' ? layer.visualModule
+				: layer.layerType === 'visualModule' ? state.visualModules.value.find(visualModule => visualModule.id === layer.visualModuleId) : undefined;
+			const def = visualModule?.paramDefs.find(def => def.id === path[0]);
+			if (visualModule && def) return { def, value: getTimelineVisualModuleArgumentDefault(visualModule, def) };
+		}
+		if (target === 'effect' && layer.layerType === 'effect') return { def: defs[path[0]], value: getEffectLayerParameterDefault(effectDefinitions[layer.effectId], path[0]) };
 		return { def: defs[path[0]], value: defs[path[0]].defaultValue };
 	}
 	const { def, value } = resolveParameter<TimelineEffectParameterBinding>(defs, values, path);

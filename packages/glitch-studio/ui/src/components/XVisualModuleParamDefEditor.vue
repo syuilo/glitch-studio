@@ -23,6 +23,7 @@
 				{ label: i18n.ts._CustomParameterInput._Types.Image, value: 'assetReference' },
 				{ label: 'Video asset', value: 'videoAssetReference' },
 				{ label: 'Font asset', value: 'fontAssetReference' },
+				{ label: 'Audio', value: 'audioSource' },
 			]"
 			@update:modelValue="updateType"
 		>
@@ -55,7 +56,7 @@
 		<label :class="$style.optionLabel">{{ i18n.ts._CustomParameterInput.Options }}</label>
 		<XEnumOptionsEditor :class="$style.optionControl" :options="def.dataType.options" :labels="def.ui.control.labels" :defaultValue="def.defaultValue.value" @update="updateEnumOptions"/>
 	</div>
-	<div v-if="def.dataType.kind !== 'array' && def.dataType.kind !== 'struct' && def.dataType.kind !== 'any' && def.dataType.kind !== 'enum'" :class="$style.option">
+	<div v-if="def.dataType.kind !== 'array' && def.dataType.kind !== 'struct' && def.dataType.kind !== 'any' && def.dataType.kind !== 'enum' && def.dataType.kind !== 'audioSource'" :class="$style.option">
 		<label :class="$style.optionLabel">{{ i18n.ts._CustomParameterInput.DefaultValue }}</label>
 		<GsLiteralLeafValueControl
 			:key="def.dataType.kind"
@@ -81,6 +82,9 @@
 			Primary input
 		</GsSwitch>
 	</div>
+	<div v-if="def.dataType.kind === 'audioSource'" :class="$style.option">
+		<GsSwitch :modelValue="primaryAudioInputId === def.id" @update:modelValue="emit('setPrimaryAudioInput', $event ? def.id : null)">Primary audio input</GsSwitch>
+	</div>
 	<GsButton small danger @click="remove">Remove parameter</GsButton>
 </div>
 </template>
@@ -103,6 +107,7 @@ import { i18n } from '@/i18n.ts';
 type ParamDef = VisualModuleParamDef;
 const props = defineProps<{
 	primaryInputId: VisualModuleCustomParameterId | null;
+	primaryAudioInputId?: VisualModuleCustomParameterId | null;
 	def: ParamDef;
 }>();
 
@@ -110,6 +115,7 @@ const emit = defineEmits<{
 	update: [changes: Partial<Omit<ParamDef, 'id'>>, mergeKey?: string | null];
 	remove: [];
 	setPrimaryInput: [inputId: VisualModuleCustomParameterId | null];
+	setPrimaryAudioInput: [inputId: VisualModuleCustomParameterId | null];
 }>();
 
 function update(changes: Partial<Omit<ParamDef, 'id'>>) {
@@ -139,7 +145,7 @@ function updateEnumOptions(options: string[], labels: Record<string, string>, de
 function updateType(dataType: ParamDef['dataType']['kind']) {
 	if (dataType === props.def.dataType.kind) return;
 	defaultValueMergeKey = null;
-	if (dataType !== 'scalar' && dataType !== 'bool' && dataType !== 'string' && dataType !== 'color' && dataType !== 'vector' && dataType !== 'enum' && dataType !== 'assetReference' && dataType !== 'videoAssetReference' && dataType !== 'fontAssetReference') return;
+	if (dataType !== 'scalar' && dataType !== 'bool' && dataType !== 'string' && dataType !== 'color' && dataType !== 'vector' && dataType !== 'enum' && dataType !== 'assetReference' && dataType !== 'videoAssetReference' && dataType !== 'fontAssetReference' && dataType !== 'audioSource') return;
 
 	const schemas = {
 		scalar: { dataType: { kind: 'scalar' }, ui: { label: props.def.ui.label, control: { controlType: 'number' } } },
@@ -150,6 +156,7 @@ function updateType(dataType: ParamDef['dataType']['kind']) {
 		enum: { dataType: { kind: 'enum', options: ['option1', 'option2'] }, ui: { label: props.def.ui.label, control: { labels: { option1: 'Option 1', option2: 'Option 2' } } } },
 		assetReference: { dataType: { kind: 'assetReference' }, ui: { label: props.def.ui.label, control: {} } },
 		videoAssetReference: { dataType: { kind: 'videoAssetReference' }, ui: { label: props.def.ui.label, control: {} } },
+		audioSource: { dataType: { kind: 'audioSource' }, ui: { label: props.def.ui.label, control: {} } },
 		fontAssetReference: { dataType: { kind: 'fontAssetReference' }, ui: { label: props.def.ui.label, control: {} } },
 	} as const;
 

@@ -12,10 +12,12 @@
 			<XVisualModuleParamDefEditor
 				v-else
 				:primaryInputId="visualModule.primaryInputId"
+				:primaryAudioInputId="visualModule.primaryAudioInputId"
 				:def="def"
 				@update="(changes, mergeKey) => emit('update', def.id, changes, mergeKey)"
 				@remove="emit('remove', def.id)"
 				@setPrimaryInput="emit('setPrimaryInput', $event)"
+				@setPrimaryAudioInput="emit('setPrimaryAudioInput', $event)"
 			/>
 		</div>
 	</GsFolder>
@@ -40,6 +42,7 @@ const emit = defineEmits<{
 	update: [defId: VisualModuleCustomParameterId, changes: Partial<Omit<VisualModuleParamDef, 'id'>>, mergeKey?: string | null];
 	remove: [defId: VisualModuleCustomParameterId];
 	setPrimaryInput: [inputId: VisualModuleCustomParameterId | null];
+	setPrimaryAudioInput: [inputId: VisualModuleCustomParameterId | null];
 }>();
 
 function add() {

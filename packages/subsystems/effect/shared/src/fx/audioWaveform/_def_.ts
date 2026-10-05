@@ -4,15 +4,15 @@ export default defineEffect({
 	id: 'audioWaveform',
 	displayName: 'Audio Waveform',
 	description: {
-		'ja-JP': 'Playerの音声を波形で表示します。',
-		'en-US': 'Visualizes audio from a Player as a waveform.',
+		'ja-JP': '入力音声を波形で表示します。',
+		'en-US': 'Visualizes input audio as a waveform.',
 	},
 	kind: 'generate',
 	// 入力音声の履歴から毎回計算し、過去の描画結果には依存しない。
 	dependsOnRenderHistory: false,
 	tags: ['audio', 'analysis'],
 	paramDefs: {
-		player: { dataType: { kind: 'playerReference' }, ui: { label: 'Player', control: {} }, defaultValue: { inputSource: 'literal', value: null } },
+		audio: { dataType: { kind: 'audioSource' }, ui: { label: 'Audio', control: {} }, defaultValue: { inputSource: 'literal', value: null } },
 		channel: {
 			dataType: { kind: 'enum', options: ['left', 'right', 'mix', 'stereo'] },
 			ui: { label: 'Channel', control: { labels: { 'left': 'Left', 'right': 'Right', 'mix': 'Mix (L + R)', 'stereo': 'Stereo' } } },
@@ -25,6 +25,7 @@ export default defineEffect({
 		colorR: { dataType: { kind: 'color' }, ui: { label: 'Color (R)', control: {} }, defaultValue: { inputSource: 'literal', value: [1, 0.3, 0.6, 1] } },
 	},
 	primaryInputParameter: null,
+	primaryAudioInputParameter: 'audio',
 	resolutionInputParameter: null,
 	outputDefs: {
 		output: { dataType: { kind: 'color' } },

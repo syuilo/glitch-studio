@@ -4,7 +4,11 @@ import { resolveParameter, walkParameters } from '@gs/shared/parameter/parameter
 import { isValueParameterBinding } from '@gs/shared/parameter/parameter-binding.ts';
 import type { ParamPath } from '@gs/shared/parameter/parameter-path.ts';
 import type { TimelineParameterTarget } from './utility/timeline-scene.ts';
-import { createLayerInputBinding, validateTimelineEffectLayer } from '@gs/subsystems_timeline_shared/effect-layer.ts';
+import { getTimelineVisualModuleArgumentDefault } from '@gs/subsystems_timeline_shared/visual-module-arguments.ts';
+import { validateVisualModuleAudioBinding } from '@gs/subsystems_visual-module_shared/audio-parameters.ts';
+import { mapParameterTree } from '@gs/shared/parameter/parameter-tree.ts';
+import { validateLiteralAudioSourceBinding } from '@gs/shared/parameter/audio-source.ts';
+import { createLayerInputBinding, getEffectLayerParameterDefault, validateTimelineEffectLayer } from '@gs/subsystems_timeline_shared/effect-layer.ts';
 import { validateEffectResolution } from '@gs/subsystems_effect_shared/resolution.ts';
 import type { EffectResolution } from '@gs/subsystems_effect_shared/resolution.ts';
 import { getScene, getLayerParameterValues, getLayerParameterDefinitions, resolveLayerParameter } from './utility/timeline-scene.ts';
@@ -71,6 +75,7 @@ const editTimelineLayerParamCommandDef = defineCommand<{
 	paramPath: ParamPath;
 } & (
 	| { target?: TimelineParameterTarget; edit: ValueParameterEdit }
+	| { target: 'effect' | 'module'; edit: { kind: 'inputSource'; inputSource: 'lowerLayerAudio' } }
 	| { target: 'effect'; edit: { kind: 'layerInput'; value: TimelineLayerInputBinding } | { kind: 'inputSource'; inputSource: 'layerInput' } }
 )>({
 	label: 'Edit timeline layer param',
@@ -103,6 +108,13 @@ const editTimelineLayerParamCommandDef = defineCommand<{
 				const values = getLayerParameterValues(layer, target);
 				if (binding === undefined) delete values[rootKey];
 				else values[rootKey] = deepClone(binding);
+			} else if (target === 'module') {
+				const values = getLayerParameterValues(layer, target);
+				if (binding === undefined) delete values[rootKey];
+				else {
+					if (binding.inputSource === 'layerInput') throw new Error('Image layer input is not a module argument');
+					values[rootKey] = deepClone(binding);
+				}
 			} else {
 				const values = getLayerParameterValues(layer, target);
 				if (binding === undefined) delete values[rootKey];
@@ -124,7 +136,9 @@ const editTimelineLayerParamCommandDef = defineCommand<{
 				if (module?.primaryInputId === rootKey) throw new Error('Cannot edit the visual module primary input');
 				if (after === undefined) {
 					before = deepClone(values[rootKey]);
-					const draft = { [rootKey]: deepClone(before ?? rootDef.defaultValue) };
+					const defaultBinding = module ? getTimelineVisualModuleArgumentDefault(module, module.paramDefs.find(def => def.id === rootKey)!)
+						: target === 'effect' && layer.layerType === 'effect' ? getEffectLayerParameterDefault(effectDefinitions[layer.effectId], rootKey) : rootDef.defaultValue;
+					const draft = { [rootKey]: deepClone(before ?? defaultBinding) };
 					const resolved = resolveParameter<TimelineEffectParameterBinding>(defs, draft, payload.paramPath);
 					const { def, value: current } = resolved;
 					const edit = payload.edit;
@@ -142,7 +156,9 @@ const editTimelineLayerParamCommandDef = defineCommand<{
 							inputSource: 'automationGraphReference', trimmedDurationMs: 1000, wrapMode: 'repeat', offsetMode: 'start',
 							...(current.inputSource === 'automationGraphReference' ? current : {}), automationGraphId: edit.value, ...edit.options,
 						}; break;
-						case 'reset': next = target === 'effect' && layer.layerType === 'effect' && payload.paramPath.length === 1
+						case 'reset':
+							if (payload.paramPath.length === 1 && def.dataType.kind === 'audioSource') { next = deepClone(defaultBinding); break; }
+							next = target === 'effect' && layer.layerType === 'effect' && payload.paramPath.length === 1
 							&& effectDefinitions[layer.effectId].kind === 'modify' && effectDefinitions[layer.effectId].primaryInputParameter === rootKey
 							? createLayerInputBinding() : createResetParameterBinding(def); break;
 						case 'addElement':
@@ -164,6 +180,7 @@ const editTimelineLayerParamCommandDef = defineCommand<{
 								case 'automationGraphInline': next = createInlineAutomationGraph(); break;
 								case 'keyframesTimelineInline': next = createInlineKeyframesTimeline(def, current); break;
 								case 'layerInput': next = createLayerInputBinding(); break;
+								case 'lowerLayerAudio': next = { inputSource: 'lowerLayerAudio' }; break;
 								default: throw new Error('Unsupported layer parameter input source');
 							}
 							break;
@@ -172,7 +189,7 @@ const editTimelineLayerParamCommandDef = defineCommand<{
 					for (const { value } of walkParameters<TimelineEffectParameterBinding>({ [rootKey]: rootDef }, draft)) {
 						if (value.inputSource === 'keyframesTimelineInline') for (const point of value.keyframesTimeline.keyframes) point.x = Math.round(point.x);
 					}
-					validateTimelineParameterTree(rootDef, draft[rootKey], target === 'effect');
+					validateTimelineParameterTree(rootDef, draft[rootKey], target === 'effect', target === 'effect' || target === 'module');
 					// 生成済みの要素IDをRedoでも使う。検証に失敗した編集は保存しない。
 					after = draft[rootKey];
 				}
@@ -483,6 +500,9 @@ function defineNodeParamCommand<Payload extends NodeParamTarget>(
 						// 追加・リセットで発行した要素IDも、Redoでは同じ状態に戻す。
 						after = deepClone(update(target, payload));
 					}
+					mapParameterTree<VisualModuleParameterBinding>(target.def, after, [], (def, binding) => {
+						validateVisualModuleAudioBinding(def, binding, stateUtility.getVisualModule(state, payload).paramDefs);
+					});
 					target.setValue(deepClone(after));
 				},
 				undo(state) {
@@ -712,6 +732,10 @@ const updateGlobalOutInputCommandDef = defineCommand<NodeTarget & { outputId: st
 });
 
 function validateVisualModuleParamDef(module: VisualModule, def: VisualModuleParamDef, previousId?: VisualModuleCustomParameterId) {
+	if (def.dataType.kind === 'audioSource') {
+		validateLiteralAudioSourceBinding(def.defaultValue);
+		if (def.defaultValue.value !== null) throw new Error('The default audio source must be unselected');
+	}
 	if (isParameterType(def, 'enum')) {
 		const options = def.dataType.options;
 		if (options.length === 0 || options.some(value => value.trim() === '') || new Set(options).size !== options.length) {
@@ -749,6 +773,27 @@ const setVisualModulePrimaryInputCommandDef = defineCommand<VisualModuleTarget &
 	},
 });
 
+const setVisualModulePrimaryAudioInputCommandDef = defineCommand<VisualModuleTarget & { primaryAudioInputId: VisualModuleCustomParameterId | null }>({
+	label: 'Set visual module primary audio input',
+	changes: (_state, payload) => [{ type: 'visualModule', target: payload }],
+	create: payload => {
+		let before: VisualModuleCustomParameterId | null | undefined;
+		return {
+			execute(state) {
+				const visualModule = stateUtility.getVisualModule(state, payload);
+				if (payload.primaryAudioInputId !== null && !visualModule.paramDefs.some(def => def.id === payload.primaryAudioInputId && !def.canNode && def.dataType.kind === 'audioSource')) {
+					throw new Error('Primary audio input must reference an audio parameter');
+				}
+				before = visualModule.primaryAudioInputId;
+				visualModule.primaryAudioInputId = payload.primaryAudioInputId;
+			},
+			undo(state) {
+				stateUtility.getVisualModule(state, payload).primaryAudioInputId = before;
+			},
+		};
+	},
+});
+
 const addVisualModuleParamDefCommandDef = defineCommand<VisualModuleTarget & { def: VisualModuleParamDef }>({
 	label: 'Add visual module parameter',
 	changes: (_state, payload) => [{ type: 'visualModule', target: payload }],
@@ -772,6 +817,7 @@ const removeVisualModuleParamDefCommandDef = defineCommand<VisualModuleTarget & 
 		let before: VisualModuleParamDef;
 		let index: number;
 		let primaryInputId: VisualModuleCustomParameterId | null;
+		let primaryAudioInputId: VisualModuleCustomParameterId | null | undefined;
 		return {
 			execute(state) {
 				const module = stateUtility.getVisualModule(state, payload);
@@ -779,7 +825,9 @@ const removeVisualModuleParamDefCommandDef = defineCommand<VisualModuleTarget & 
 				if (index < 0) throw new Error('Visual module parameter not found');
 				before = deepClone(module.paramDefs[index]);
 				primaryInputId = module.primaryInputId;
+				primaryAudioInputId = module.primaryAudioInputId;
 				if (module.primaryInputId === payload.defId) module.primaryInputId = null;
+				if (module.primaryAudioInputId === payload.defId) module.primaryAudioInputId = null;
 				// ノードからの参照IDやレイヤーの値は保持する。未解決になった参照はUndoで再び有効になる。
 				module.paramDefs.splice(index, 1);
 			},
@@ -787,6 +835,7 @@ const removeVisualModuleParamDefCommandDef = defineCommand<VisualModuleTarget & 
 				const module = stateUtility.getVisualModule(state, payload);
 				module.paramDefs.splice(index, 0, deepClone(before));
 				module.primaryInputId = primaryInputId;
+				module.primaryAudioInputId = primaryAudioInputId;
 			},
 		};
 	},
@@ -800,6 +849,7 @@ const updateVisualModuleParamDefCommandDef = defineCommand<VisualModuleTarget & 
 	create: payload => {
 		let before: VisualModuleParamDef;
 		let primaryInputId: VisualModuleCustomParameterId | null;
+		let primaryAudioInputId: VisualModuleCustomParameterId | null | undefined;
 		return {
 			execute(state) {
 				const module = stateUtility.getVisualModule(state, payload);
@@ -809,8 +859,10 @@ const updateVisualModuleParamDefCommandDef = defineCommand<VisualModuleTarget & 
 				validateVisualModuleParamDef(module, next, payload.defId);
 				before = deepClone(module.paramDefs[index]);
 				primaryInputId = module.primaryInputId;
+				primaryAudioInputId = module.primaryAudioInputId;
 				// 主入力の条件を失う変更と指定の解除を、同じUndo単位で扱う。
 				if (module.primaryInputId === payload.defId && (!next.canNode || next.dataType.kind !== 'color')) module.primaryInputId = null;
+				if (module.primaryAudioInputId === payload.defId && next.dataType.kind !== 'audioSource') module.primaryAudioInputId = null;
 				module.paramDefs[index] = next;
 			},
 			undo(state) {
@@ -819,6 +871,7 @@ const updateVisualModuleParamDefCommandDef = defineCommand<VisualModuleTarget & 
 				if (index < 0) throw new Error('Visual module parameter not found');
 				module.paramDefs[index] = deepClone(before);
 				module.primaryInputId = primaryInputId;
+				module.primaryAudioInputId = primaryAudioInputId;
 			},
 		};
 	},
@@ -1412,6 +1465,7 @@ export const COMMAND_DEFS = {
 	editTimelineLayerParam: editTimelineLayerParamCommandDef,
 	setVisualModulePrimaryOutput: setVisualModulePrimaryOutputCommandDef,
 	setVisualModulePrimaryInput: setVisualModulePrimaryInputCommandDef,
+	setVisualModulePrimaryAudioInput: setVisualModulePrimaryAudioInputCommandDef,
 	addVisualModuleOutputDef: addVisualModuleOutputDefCommandDef,
 	removeVisualModuleOutputDef: removeVisualModuleOutputDefCommandDef,
 	updateVisualModuleOutputDef: updateVisualModuleOutputDefCommandDef,

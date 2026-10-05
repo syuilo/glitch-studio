@@ -25,6 +25,7 @@ type ParameterDefaultValueMap = {
 	videoAssetReference: string | null;
 	fontAssetReference: string | null;
 	playerReference: null;
+	audioSource: null;
 	any: [number, number, number, number] | null;
 };
 

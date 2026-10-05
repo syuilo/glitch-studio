@@ -125,26 +125,26 @@ const uiField = struct.ui.control.fields.node;
 const fieldSettings = struct.fields.node;
 const binding = struct.defaultValue.value.node;
 // 正しいフィールドと既存のBindingは受け入れる。
-const valid = defineEffect({ ...definition, paramDefs: { struct, array }, primaryInputParameter: null, resolutionInputParameter: null });
+const valid = defineEffect({ ...definition, paramDefs: { struct, array }, primaryInputParameter: null, primaryAudioInputParameter: null, resolutionInputParameter: null });
 const preserved: true = valid.paramDefs.struct.fields.node.canNode;
 // @ts-expect-error UIに存在しないfieldを追加できない。
-defineEffect({ ...definition, paramDefs: { struct: { ...struct, ui: { ...struct.ui, control: { fields: { ...struct.ui.control.fields, typo: uiField } } } } }, primaryInputParameter: null, resolutionInputParameter: null });
+defineEffect({ ...definition, paramDefs: { struct: { ...struct, ui: { ...struct.ui, control: { fields: { ...struct.ui.control.fields, typo: uiField } } } } }, primaryInputParameter: null, primaryAudioInputParameter: null, resolutionInputParameter: null });
 // @ts-expect-error 初期値に存在しないfieldを追加できない。
-defineEffect({ ...definition, paramDefs: { struct: { ...struct, defaultValue: { inputSource: 'literal', value: { node: binding, typo: binding } } } }, primaryInputParameter: null, resolutionInputParameter: null });
+defineEffect({ ...definition, paramDefs: { struct: { ...struct, defaultValue: { inputSource: 'literal', value: { node: binding, typo: binding } } } }, primaryInputParameter: null, primaryAudioInputParameter: null, resolutionInputParameter: null });
 // @ts-expect-error 子設定に存在しないfieldを追加できない。
-defineEffect({ ...definition, paramDefs: { struct: { ...struct, fields: { ...struct.fields, typo: fieldSettings } } }, primaryInputParameter: null, resolutionInputParameter: null });
+defineEffect({ ...definition, paramDefs: { struct: { ...struct, fields: { ...struct.fields, typo: fieldSettings } } }, primaryInputParameter: null, primaryAudioInputParameter: null, resolutionInputParameter: null });
 // @ts-expect-error UIの必須fieldを省略できない。
-defineEffect({ ...definition, paramDefs: { struct: { ...struct, ui: { ...struct.ui, control: { fields: {} } } } }, primaryInputParameter: null, resolutionInputParameter: null });
+defineEffect({ ...definition, paramDefs: { struct: { ...struct, ui: { ...struct.ui, control: { fields: {} } } } }, primaryInputParameter: null, primaryAudioInputParameter: null, resolutionInputParameter: null });
 // @ts-expect-error 初期値の必須fieldを省略できない。
-defineEffect({ ...definition, paramDefs: { struct: { ...struct, defaultValue: { inputSource: 'literal', value: {} } } }, primaryInputParameter: null, resolutionInputParameter: null });
+defineEffect({ ...definition, paramDefs: { struct: { ...struct, defaultValue: { inputSource: 'literal', value: {} } } }, primaryInputParameter: null, primaryAudioInputParameter: null, resolutionInputParameter: null });
 // @ts-expect-error 配列の要素UIに存在しないfieldを追加できない。
-defineEffect({ ...definition, paramDefs: { array: { ...array, ui: { ...array.ui, control: { element: { fields: { ...array.ui.control.element.fields, typo: uiField } } } } } }, primaryInputParameter: null, resolutionInputParameter: null });
+defineEffect({ ...definition, paramDefs: { array: { ...array, ui: { ...array.ui, control: { element: { fields: { ...array.ui.control.element.fields, typo: uiField } } } } } }, primaryInputParameter: null, primaryAudioInputParameter: null, resolutionInputParameter: null });
 // @ts-expect-error 配列内の構造体初期値にも存在しないfieldを追加できない。
-defineEffect({ ...definition, paramDefs: { array: { ...array, defaultValue: { inputSource: 'literal', value: [{ id: 'first', binding: { inputSource: 'literal', value: { ...array.element.defaultValue.value, typo: binding } } }] } } }, primaryInputParameter: null, resolutionInputParameter: null });
+defineEffect({ ...definition, paramDefs: { array: { ...array, defaultValue: { inputSource: 'literal', value: [{ id: 'first', binding: { inputSource: 'literal', value: { ...array.element.defaultValue.value, typo: binding } } }] } } }, primaryInputParameter: null, primaryAudioInputParameter: null, resolutionInputParameter: null });
 // @ts-expect-error 要素追加時の初期値にも存在しないfieldを追加できない。
-defineEffect({ ...definition, paramDefs: { array: { ...array, element: { ...array.element, defaultValue: { inputSource: 'literal', value: { ...array.element.defaultValue.value, typo: binding } } } } }, primaryInputParameter: null, resolutionInputParameter: null });
+defineEffect({ ...definition, paramDefs: { array: { ...array, element: { ...array.element, defaultValue: { inputSource: 'literal', value: { ...array.element.defaultValue.value, typo: binding } } } } }, primaryInputParameter: null, primaryAudioInputParameter: null, resolutionInputParameter: null });
 // @ts-expect-error 正しいfield名でもリテラルの型は一致する必要がある。
-defineEffect({ ...definition, paramDefs: { array: { ...array, element: { ...array.element, defaultValue: { inputSource: 'literal', value: { ...array.element.defaultValue.value, x: { inputSource: 'literal', value: 'bad' } } } } } }, primaryInputParameter: null, resolutionInputParameter: null });
+defineEffect({ ...definition, paramDefs: { array: { ...array, element: { ...array.element, defaultValue: { inputSource: 'literal', value: { ...array.element.defaultValue.value, x: { inputSource: 'literal', value: 'bad' } } } } } }, primaryInputParameter: null, primaryAudioInputParameter: null, resolutionInputParameter: null });
 `;
 	assertTypeChecks(fileName, source);
 });

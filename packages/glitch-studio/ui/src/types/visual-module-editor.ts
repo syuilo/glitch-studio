@@ -17,4 +17,5 @@ export type VisualModuleEdit =
 	| { kind: 'updateOutputDef'; defId: string; changes: Partial<Omit<VisualModuleOutputDef, 'id'>> }
 	| { kind: 'removeOutputDef'; defId: string }
 	| { kind: 'setPrimaryOutput'; outputId: string | null }
+	| { kind: 'setPrimaryAudioInput'; inputId: VisualModuleCustomParameterId | null }
 	| { kind: 'setPrimaryInput'; inputId: VisualModuleCustomParameterId | null };

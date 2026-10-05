@@ -4,6 +4,10 @@ import { constantShaderInput, toShaderInput } from '@gs/shared/gpu/shader-input.
 import { getNodeOutputs } from '@gs/subsystems_visual-module_shared/node-outputs.ts';
 import { playerAudioSourceId } from '@gs/shared/audio.ts';
 import { AudioHistory } from '@gs/shared/audio-history.ts';
+import { validateVisualModuleAudioBinding } from '@gs/subsystems_visual-module_shared/audio-parameters.ts';
+import { validateAudioSourceSelection } from '@gs/shared/parameter/audio-source.ts';
+import { createPlayerAudioInput } from './player-audio-input.ts';
+import type { AudioInput } from '@gs/subsystems_audio_shared/audio-input.ts';
 import { genEmptyValue } from '@gs/shared/parameter/parameter-default.ts';
 import { VisualModuleParameterBindingEvaluator } from './visual-module-parameter-binding-evaluator.ts';
 import { validateEnumParameterValue } from '@gs/shared/parameter/parameter-definition.ts';
@@ -38,6 +42,7 @@ export type VisualModuleRenderContext = {
 	/** 内容時刻と独立した表示区間の進行率。タイムラインの呼び出し側で計算する。 */
 	progress?: number;
 	paramInputs?: ReadonlyMap<VisualModuleCustomParameterId, UniformOrTexture>;
+	audioParamInputs?: ReadonlyMap<VisualModuleCustomParameterId, AudioInput | null>;
 	pointerPosition: { x: number; y: number };
 	pointerPositionPrev: { x: number; y: number };
 	evaluatedParamValues: VisualModuleEvaluatedParameterValues;
@@ -57,6 +62,8 @@ export class VisualModuleRenderer {
 	private primaryInputId: VisualModuleCustomParameterId | null = null;
 	private paramValues: VisualModuleEvaluatedParameterValues = new Map();
 	private paramInputs: ReadonlyMap<VisualModuleCustomParameterId, UniformOrTexture> = new Map();
+	private audioParamInputs: ReadonlyMap<VisualModuleCustomParameterId, AudioInput | null> = new Map();
+	private resolvedAudioInputs = new Map<string, AudioInput | null>();
 	private preparedContext: VisualModuleRenderContext | null = null;
 	private preparationVersion = 0;
 	private destroyed = false;
@@ -150,10 +157,12 @@ export class VisualModuleRenderer {
 
 	private evaluateParameters(context: VisualModuleRenderContext) {
 		this.paramInputs = context.paramInputs ?? new Map();
+		this.audioParamInputs = context.audioParamInputs ?? new Map();
+		this.resolvedAudioInputs = new Map();
 		// モジュール内部の式から直接参照できるのはcanNode: falseのパラメータだけ。
 		// canNode: trueは定数でもInノード経由で読み、定数／テクスチャで参照方法を変えない。
 		// Inノード用の評価済み値は保持し、式へ渡す値と参照名だけを絞り込む。
-		const expressionParamDefs = this.paramDefs.filter(def => !def.canNode);
+		const expressionParamDefs = this.paramDefs.filter(def => !def.canNode && def.dataType.kind !== 'audioSource');
 
 		const evalCtx = {
 			variables: {
@@ -183,6 +192,8 @@ export class VisualModuleRenderer {
 			for (const [key, def] of Object.entries(paramDefs)) {
 				if (node.isBypass && key !== this.effectDefinitions[node.effectId].primaryInputParameter) continue;
 				evaluatedParamsPerNode[key] = mapParameterTree<VisualModuleParameterBinding>(def, node.params[key], [key], (def, param) => {
+					validateVisualModuleAudioBinding(def, param, this.paramDefs);
+					if (def.dataType.kind === 'audioSource' && param.inputSource === 'externalCustomParameterInput') return null;
 					return validateEnumParameterValue(def, this.parameterEvaluator.evaluate(param, evalCtx,
 						def.dataType.kind === 'enum' ? undefined : genEmptyValue(def))); // TODO: genEmptyValueを遅延評価したい
 				});
@@ -250,6 +261,7 @@ export class VisualModuleRenderer {
 					const audio = v == null ? undefined : this.audioSources.get(playerAudioSourceId(v));
 					key += JSON.stringify([path, 'audio', audio == null ? null : [audio.generation, audio.revision, audio.endFrame]]);
 				}
+				if (def.dataType.kind === 'audioSource') key += JSON.stringify([path, this.resolveAudioInput(node.id, path, param, v)?.cacheKey ?? null]);
 				if (def.canNode && param.inputSource === 'node' && param.nodeId != null) {
 					const targetNode = this.allNodeIdMap.get(param.nodeId);
 					if (targetNode == null) throw new Error('Referenced node not found');
@@ -268,6 +280,7 @@ export class VisualModuleRenderer {
 		for (const [key, def] of Object.entries(this.effectDefinitions[node.effectId].paramDefs)) {
 			resolvedParams[key] = mapParameterTree<VisualModuleParameterBinding>(def, node.params[key], [key], (def, param, path) => {
 				const v = getEvaluatedParameterValue(params, path);
+				if (def.dataType.kind === 'audioSource') return this.resolveAudioInput(node.id, path, param, v);
 				if (def.dataType.kind === 'playerReference') return v == null ? null : {
 					videoFrame: this.videoFrames.get(v) ?? null,
 					audio: this.audioSources.get(playerAudioSourceId(v)) ?? null,
@@ -280,6 +293,25 @@ export class VisualModuleRenderer {
 			});
 		}
 		return resolvedParams;
+	}
+
+	private resolveAudioInput(nodeId: string, path: readonly (string | number)[], binding: VisualModuleParameterBinding, value: unknown): AudioInput | null {
+		const key = JSON.stringify([nodeId, path]);
+		if (this.resolvedAudioInputs.has(key)) return this.resolvedAudioInputs.get(key)!;
+		let input: AudioInput | null = null;
+		if (binding.inputSource === 'externalCustomParameterInput' && this.audioParamInputs.has(binding.parameterId)) {
+			input = this.audioParamInputs.get(binding.parameterId)!;
+		} else {
+			const selection = binding.inputSource === 'externalCustomParameterInput'
+				? this.paramValues.get(binding.parameterId) ?? this.paramDefs.find(def => def.id === binding.parameterId)?.defaultValue.value ?? null : value;
+			validateAudioSourceSelection(selection);
+			if (selection != null) {
+				const history = this.audioSources.get(playerAudioSourceId(selection.playerId));
+				if (history) input = createPlayerAudioInput(selection.playerId, history);
+			}
+		}
+		this.resolvedAudioInputs.set(key, input);
+		return input;
 	}
 
 	private prepareOutputPorts(node: VisualModuleNode, outputIds: readonly string[]): void {
@@ -526,7 +558,7 @@ export class VisualModuleRenderer {
 			}
 			const params = this.resolveParams(effectNode, this.evaledNodeParams.get(effectNode.id)!);
 			this.ensureNodeResolution(effectNode, params);
-			this.effectRenderers.get(effectNode.id)!.prepare(params);
+			this.effectRenderers.get(effectNode.id)!.prepare(params, signal);
 			prepared.add(effectNode.id);
 		};
 

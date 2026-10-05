@@ -205,7 +205,7 @@ export async function newProjectFromImageOrVideo(file?: File) {
 			resolution: { mode: 'auto' },
 			effectId: 'audioWaveform',
 			params: {
-				player: { inputSource: 'literal', value: player!.id },
+				audio: { inputSource: 'literal', value: { type: 'player', playerId: player!.id } },
 				channel: deepClone(audioWaveformEffectDef.paramDefs.channel.defaultValue),
 				duration: deepClone(audioWaveformEffectDef.paramDefs.duration.defaultValue),
 				amplitude: deepClone(audioWaveformEffectDef.paramDefs.amplitude.defaultValue),

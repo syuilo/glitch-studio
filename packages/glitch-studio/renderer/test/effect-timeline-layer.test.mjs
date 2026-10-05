@@ -96,6 +96,39 @@ function fixture(t, options = {}) {
 	} };
 }
 
+// 【直接エフェクトへ渡す音声は、最新Sceneの下層とScene時刻を参照する】
+// トリムしたエフェクトの内容時刻を使うと、見えている音声と波形の位置がずれる。
+// 音量編集・並び替えでは上位エフェクトを作り直さず、入力だけが最新の定義を使う必要がある。
+test('refreshes lower audio inputs after timeline edits without recreating the receiver', async t => {
+	const audioDef = { dataType: { kind: 'audioSource' }, ui: { label: 'Audio', control: {} }, canNode: false, defaultValue: literal(null) };
+	definition.paramDefs.audio = audioDef;
+	t.after(() => { delete definition.paramDefs.audio; });
+	const f = fixture(t);
+	const calls = [];
+	f.manager.audioInputs.getInput = (...args) => {
+		calls.push(args);
+		return { cacheKey: String(calls.length), readWindow: () => assert.fail('the effect controls window reads') };
+	};
+	const below = { id: 'sound', name: 'Sound', layerType: 'audio', isDisabled: false, clips: [{ ...clip('sound', 0, 1000), assetId: 'asset' }],
+		audioParamValues: { volume: literal(1) }, automationGraphs: [] };
+	await f.setup([layer('effect', { audio: { inputSource: 'lowerLayerAudio' } }), below]);
+	await f.manager.renderTimelineFrame(350.25, 0);
+	assert.deepEqual(calls[0].slice(1), ['scene', 'effect', 350.25, true]);
+	const receiver = f.calls.renders.at(-1);
+	assert.equal(receiver.time, 0.27075);
+	assert.equal(receiver.params.audio.cacheKey, '1');
+	const edited = { ...below, audioParamValues: { volume: literal(0.25) } };
+	f.manager.applyProjectChanges([{ type: 'layer', sceneId: 'scene', layerId: below.id, layer: edited, changes: [{ type: 'parameter', target: 'audio', kind: 'value' }] }]);
+	await f.manager.renderTimelineAt(350.25);
+	assert.equal(calls.at(-1)[0][0].layers[1].audioParamValues.volume.value, 0.25);
+	assert.equal(calls.at(-1)[4], false);
+	assert.equal(f.calls.renders.at(-1).instance, receiver.instance);
+	f.manager.applyProjectChanges([{ type: 'layerOrder', sceneId: 'scene', layerIds: ['sound', 'effect'] }]);
+	await f.manager.renderTimelineAt(350.25);
+	assert.deepEqual(calls.at(-1)[0][0].layers.map(layer => layer.id), ['sound', 'effect']);
+	assert.equal(f.calls.renders.at(-1).instance, receiver.instance);
+});
+
 // 【直接エフェクトの編集では対象レイヤーだけを再生成する】
 // この種類の編集では対象の履歴リセットを許容するが、全タイムラインのリセットにはしない。
 // 不正なバッチは先行する編集も反映せず、次の正常な描画・編集を続けられる必要がある。

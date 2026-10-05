@@ -57,6 +57,9 @@ export function commitVisualModuleEdit(manager: ProjectCommands, target: VisualM
 		case 'setPrimaryOutput':
 			manager.commit('setVisualModulePrimaryOutput', { ...target, primaryOutputId: event.outputId });
 			break;
+		case 'setPrimaryAudioInput':
+			manager.commit('setVisualModulePrimaryAudioInput', { ...target, primaryAudioInputId: event.inputId });
+			break;
 		case 'setPrimaryInput':
 			manager.commit('setVisualModulePrimaryInput', { ...target, primaryInputId: event.inputId });
 			break;
@@ -76,7 +79,7 @@ function onNodeParamEdit(manager: ProjectCommands, visualModuleTarget: VisualMod
 		case 'node': manager.commit('updateParamAsNode', { ...target, value: event.value, preserveSampling: event.preserveSampling }); break;
 		case 'externalCustomParameterInput': manager.commit('updateParamAsExternalCustomParameterInput', { ...target, value: event.value }); break;
 		case 'inputSource':
-			if (event.inputSource === 'layerInput') throw new Error('Layer input is only available in effect layer parameters');
+			if ((event.inputSource === 'layerInput' || event.inputSource === 'lowerLayerAudio')) throw new Error('Layer input is only available in effect layer parameters');
 			manager.commit('changeParamValueInputSource', { ...target, inputSource: event.inputSource });
 			break;
 		case 'reset': manager.commit('resetNodeParam', target); break;

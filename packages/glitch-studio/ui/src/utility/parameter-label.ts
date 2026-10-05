@@ -1,8 +1,8 @@
 import { resolveParameter } from '@gs/shared/parameter/parameter-path.ts';
 import type { ParamPath } from '@gs/shared/parameter/parameter-path.ts';
-import type { ParameterArrayElement } from '@gs/shared/parameter/parameter-binding.ts';
+import type { ParameterArrayElement, ParameterBindingBase } from '@gs/shared/parameter/parameter-binding.ts';
 import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
-import { isLiteralParameterBinding, type ParameterBindingBase } from '@gs/shared/parameter/parameter-binding.ts';
+import { isLiteralParameterBinding } from '@gs/shared/parameter/parameter-binding.ts';
 
 /** 保存・選択にはIDパスを使い、表示だけを現在の配列順とフィールド名に変換する。 */
 export function getParameterPathLabel(defs: Record<string, ParameterDefinition>, params: Readonly<Record<string, ParameterBindingBase>>, path: ParamPath): string {

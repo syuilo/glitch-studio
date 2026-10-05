@@ -98,6 +98,8 @@ export type VisualModule = {
 	primaryOutputId: string | null;
 	paramDefs: VisualModuleParamDef[];
 	primaryInputId: VisualModuleCustomParameterId | null;
+	/** 音声の自動割当先。Inノードの画像入力とは独立する。 */
+	primaryAudioInputId?: VisualModuleCustomParameterId | null;
 	automationGraphs: AutomationGraph[];
 };
 

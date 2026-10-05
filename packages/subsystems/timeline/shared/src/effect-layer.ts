@@ -12,6 +12,7 @@ export function createLayerInputBinding(): TimelineLayerInputBinding {
 
 // エフェクト定義の既定値は変更しない。レイヤーとしての作成・リセットだけで上書きする。
 export function getEffectLayerParameterDefault(definition: EffectDefinition, key: string): TimelineEffectParameterBinding {
+	if (definition.primaryAudioInputParameter === key) return { inputSource: 'lowerLayerAudio' };
 	return definition.kind === 'modify' && definition.primaryInputParameter === key
 		? createLayerInputBinding() : deepClone(definition.paramDefs[key].defaultValue);
 }

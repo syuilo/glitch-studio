@@ -2,6 +2,7 @@ import { validateTimelineFps, validateTimelineMotionBlur, getTimelineMotionBlurB
 import { TimelineFrameRenderer } from '@gs/subsystems_timeline_renderer/timeline-frame-renderer.ts';
 import { createMotionBlurAccumulator } from '@gs/subsystems_timeline_renderer/motion-blur-accumulator.ts';
 import { scaleResolution, type Resolution } from '@gs/shared/resolution.ts';
+import { TimelineAudioInputs } from './timeline-audio-inputs.ts';
 import { getTimelineScene, validateTimelineLayer, validateTimelineScenes } from '@gs/subsystems_timeline_shared/scenes.ts';
 import { applyRendererProjectChanges, findRendererVisualModule } from '@gs/glitch-studio_shared/project/renderer-state.ts';
 import { deepEqual } from '@gs/shared/utility/deep-equal.ts';
@@ -96,6 +97,7 @@ export class TimelineRendererManager extends EventEmitter<{
 	private fallbackTexture: GPUTexture;
 	private sceneOutput: ReturnType<typeof createSceneOutput> | undefined;
 	private assetTextures: AssetTextures;
+	private audioInputs = new TimelineAudioInputs();
 	private effectDefinitions: Record<string, EffectDefinition<any>>;
 	private effectImplementations: Record<string, EffectImplementation<any>>;
 	private currentRenderError: string | null = null;
@@ -354,6 +356,7 @@ export class TimelineRendererManager extends EventEmitter<{
 			// 中断されたデコードの完了後に、Asset一覧だけを上書きしてはいけない。
 			this.clearTimelineRenderers();
 			this.dynamicOptions.assets = assets;
+			this.audioInputs.setAssets(assets);
 		});
 	}
 
@@ -433,6 +436,7 @@ export class TimelineRendererManager extends EventEmitter<{
 													enable32bitDataTextures: this.staticOptions.enable32bitDataTextures, intermediateTextureFormat: this.staticOptions.intermediateTextureFormat },
 					fallbackTexture: this.fallbackTexture, resolution: renderResolution, resolutionScale: this.dynamicOptions.resolutionScale,
 					assets: this.dynamicOptions.assets, assetTextures: this.assetTextures.textures,
+					getAudioInput: (time, isExport) => this.audioInputs.getInput(this.dynamicOptions.timelineScenes, sceneId, layer.id, time, isExport),
 					onState: status => this.emit('ev', { type: 'effectLayerState', ctx: { source, status } }),
 				});
 			}
@@ -528,6 +532,7 @@ export class TimelineRendererManager extends EventEmitter<{
 			beginPass: (encoder, descriptor) => encoder.beginRenderPass(descriptor),
 		});
 		const instance = createVisualModuleTimelineLayer(getModule, getLayer, {
+			getAudioInput: (time, isExport) => this.audioInputs.getInput(this.dynamicOptions.timelineScenes, sceneId, layer.id, time, isExport),
 			prepare: (context, signal) => renderer.prepare(context, signal),
 			render: async (context, layerContext) => {
 				const commandEncoder = this.gpuDevice.createCommandEncoder();
@@ -570,6 +575,7 @@ export class TimelineRendererManager extends EventEmitter<{
 
 	public destroy() {
 		this.clearTimelineRenderers();
+		this.audioInputs.dispose();
 		this.assetTextures.dispose();
 		this.canvasRenderer.destroy();
 		this.gpuDevice?.destroy();

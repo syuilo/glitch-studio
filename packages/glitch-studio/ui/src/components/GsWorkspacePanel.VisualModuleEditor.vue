@@ -150,6 +150,7 @@ function onPreviewParamEdit(event: ParamEdit) {
 					break;
 				case 'externalCustomParameterInput':
 				case 'layerInput':
+				case 'lowerLayerAudio':
 				case 'node':
 					return;
 			}

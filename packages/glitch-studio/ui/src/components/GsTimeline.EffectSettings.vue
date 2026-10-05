@@ -16,6 +16,7 @@
 			:key="key"
 			keyframesEnabled
 			layerInputEnabled
+			lowerLayerAudioEnabled
 			:automationGraphEndEnabled="false"
 			:availableVariables="LAYER_VAR_DEFS"
 			:automationGraphs="layer.automationGraphs"
