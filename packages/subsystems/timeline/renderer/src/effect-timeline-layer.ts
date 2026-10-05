@@ -2,6 +2,7 @@ import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { genEmptyValue } from '@gs/shared/parameter/parameter-default.ts';
 import { TimelineParameterBindingEvaluator } from '@gs/subsystems_timeline_shared/parameter-binding-evaluator.ts';
 import { validateEnumParameterValue } from '@gs/shared/parameter/parameter-definition.ts';
+import { coerceParameterValue } from '@gs/shared/parameter/coerce-parameter-value.ts';
 import { createTimelineLayerEvaluationScope } from '@gs/subsystems_timeline_shared/evaluation-scope.ts';
 import { getEffectLayerParameterDefault, validateTimelineEffectLayer } from '@gs/subsystems_timeline_shared/effect-layer.ts';
 import { toShaderInput } from '@gs/shared/gpu/shader-input.ts';
@@ -67,7 +68,7 @@ export function createEffectTimelineLayer(layer: TimelineEffectLayer, definition
 						? leaf.defaultValue.value : leaf.dataType.kind === 'enum' ? undefined : genEmptyValue(leaf);
 					// await前に評価結果だけを固定する。literalの配列を準備中の編集と共有せず、
 					// AssetやGPUリソースはこの後の変換で借用する。
-					const evaluated = deepClone(validateEnumParameterValue(leaf, evaluator.evaluate(value, scope, fallback)));
+					const evaluated = deepClone(coerceParameterValue(leaf, validateEnumParameterValue(leaf, evaluator.evaluate(value, scope, fallback))));
 					// タイムラインにはPlayerの再生状態を持ち込まない。
 					if (leaf.dataType.kind === 'playerReference') return null;
 					return resolveEffectParameterValue(leaf, evaluated, options);

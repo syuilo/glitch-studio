@@ -9,6 +9,7 @@ import { validatePlayerAudioSourceSelection } from '@gs/glitch-studio_shared/pla
 import EventEmitter from 'eventemitter3';
 import { ParameterBindingEvaluator } from '@gs/shared/parameter/parameter-binding-evaluator.ts';
 import { validateEnumParameterValue } from '@gs/shared/parameter/parameter-definition.ts';
+import { coerceParameterValue } from '@gs/shared/parameter/coerce-parameter-value.ts';
 import { UniformOrTextureToTextureResolver } from '@gs/shared/gpu/uniform-or-texture-to-texture-resolver.ts';
 import { VisualModuleRenderer } from '@gs/subsystems_visual-module_renderer/visual-module-renderer.ts';
 import { browserFrameScheduler, LiveRenderLoop } from '@gs/subsystems_visual-module_renderer/live-render-loop.ts';
@@ -363,10 +364,10 @@ export class VisualModuleRendererManager extends EventEmitter<{
 					continue;
 				}
 				if (this.liveParamValues[def.id] == null) {
-					evaluatedParamValues.set(def.id, validateEnumParameterValue(def, def.defaultValue.value));
+					evaluatedParamValues.set(def.id, coerceParameterValue(def, validateEnumParameterValue(def, def.defaultValue.value)));
 					continue;
 				}
-				evaluatedParamValues.set(def.id, validateEnumParameterValue(def, this.liveParamEvaluator.evaluate(this.liveParamValues[def.id], {
+				evaluatedParamValues.set(def.id, coerceParameterValue(def, validateEnumParameterValue(def, this.liveParamEvaluator.evaluate(this.liveParamValues[def.id], {
 					variables: {
 						TIME: timing.time / 1000,
 						TIME_MS: timing.time,
@@ -374,7 +375,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 					automationGraphs: [],
 					time: timing.time,
 					endTime: Infinity,
-				}, def.dataType.kind === 'enum' ? undefined : genEmptyValue(def)))); // TODO: genEmptyValueを遅延評価したい
+				}, def.dataType.kind === 'enum' ? undefined : genEmptyValue(def))))); // TODO: genEmptyValueを遅延評価したい
 			}
 
 			const nodeOutput = this.liveVisualModuleRenderer.render({

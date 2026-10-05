@@ -3,6 +3,8 @@ import type { ParameterEvaluationScope } from '@gs/shared/parameter/parameter-ev
 import type { TimelineParameterBinding } from '@gs/subsystems_timeline_shared/types.ts';
 import { TimelineParameterBindingEvaluator } from '@gs/subsystems_timeline_shared/parameter-binding-evaluator.ts';
 import { createTimelineLayerEvaluationScope } from '@gs/subsystems_timeline_shared/evaluation-scope.ts';
+import { timelineAudioParamDefs } from '@gs/subsystems_timeline_shared/timeline-audio.ts';
+import { coerceParameterValue } from '@gs/shared/parameter/coerce-parameter-value.ts';
 import type { StereoPcm } from '@gs/subsystems_audio_shared/pcm.ts';
 
 /** 指定素材時刻（秒）から、指定レートでframes個ずつの左右PCMを返す。素材外は無音とする。 */
@@ -44,7 +46,7 @@ export class TimelineAudioRenderer {
 	private createGain(binding: TimelineParameterBinding, getScope: (time: number) => ParameterEvaluationScope) {
 		const cache = new Map<number, number>();
 		const evaluate = (time: number) => {
-			const value = this.evaluator.evaluate(binding, getScope(time), 0);
+			const value = coerceParameterValue(timelineAudioParamDefs.volume, this.evaluator.evaluate(binding, getScope(time), 0));
 			return typeof value === 'number' && Number.isFinite(value) ? Math.max(0, value) : 0;
 		};
 		const control = (index: number) => {

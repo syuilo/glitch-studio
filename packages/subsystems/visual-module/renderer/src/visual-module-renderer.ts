@@ -9,6 +9,7 @@ import type { AudioInput } from '@gs/subsystems_audio_shared/audio-input.ts';
 import { genEmptyValue } from '@gs/shared/parameter/parameter-default.ts';
 import { VisualModuleParameterBindingEvaluator } from './visual-module-parameter-binding-evaluator.ts';
 import { validateEnumParameterValue } from '@gs/shared/parameter/parameter-definition.ts';
+import { coerceParameterValue } from '@gs/shared/parameter/coerce-parameter-value.ts';
 import { EffectRenderer } from '@gs/subsystems_effect_renderer/effect-renderer.ts';
 import { resolveEffectNodeResolution } from '@gs/subsystems_effect_shared/effect-node-resolution.ts';
 import { resolveEffectParameterValue } from '@gs/subsystems_effect_renderer/effect-parameter-value.ts';
@@ -196,8 +197,8 @@ export class VisualModuleRenderer {
 				evaluatedParamsPerNode[key] = mapParameterTree<VisualModuleParameterBinding>(def, node.params[key], [key], (def, param) => {
 					validateVisualModuleAudioBinding(def, param, this.paramDefs);
 					if (def.dataType.kind === 'audioSource' && param.inputSource === 'externalCustomParameterInput') return null;
-					return validateEnumParameterValue(def, this.parameterEvaluator.evaluate(param, evalCtx,
-						def.dataType.kind === 'enum' ? undefined : genEmptyValue(def))); // TODO: genEmptyValueを遅延評価したい
+					return coerceParameterValue(def, validateEnumParameterValue(def, this.parameterEvaluator.evaluate(param, evalCtx,
+						def.dataType.kind === 'enum' ? undefined : genEmptyValue(def)))); // TODO: genEmptyValueを遅延評価したい
 				});
 			}
 			evaluated.set(node.id, evaluatedParamsPerNode);

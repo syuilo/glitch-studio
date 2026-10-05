@@ -2,6 +2,7 @@ import { getShapeParameterDefinitions } from '@gs/subsystems_timeline_shared/sha
 import { TimelineParameterBindingEvaluator } from '@gs/subsystems_timeline_shared/parameter-binding-evaluator.ts';
 import { createTimelineLayerEvaluationScope } from '@gs/subsystems_timeline_shared/evaluation-scope.ts';
 import { genEmptyValue } from '@gs/shared/parameter/parameter-default.ts';
+import { coerceParameterValue } from '@gs/shared/parameter/coerce-parameter-value.ts';
 import type { Shape, EvaluatedShape } from '@gs/subsystems_timeline_shared/shape.ts';
 import type { AutomationGraph } from '@gs/shared/automation-graph/automation-graph.ts';
 import type { ValueParameterBinding } from '@gs/shared/parameter/value-parameter-binding.ts';
@@ -17,7 +18,7 @@ export class ShapeParameters {
 		for (const [key, def] of Object.entries(definitions)) {
 			const binding = bindings[key] ?? def.defaultValue;
 			const fallback = binding.inputSource === 'automationGraphReference' || def.dataType.kind === 'enum' ? def.defaultValue.value : genEmptyValue(def);
-			values[key] = this.evaluator.evaluate(binding, scope, fallback);
+			values[key] = coerceParameterValue(def, this.evaluator.evaluate(binding, scope, fallback));
 		}
 		// 式は任意の型を返せる。保存値は変更せず、GPUへ渡す境界で有限なf32だけを採用する。
 		const number = (value: unknown, fallback = 0) => typeof value === 'number' && Number.isFinite(Math.fround(value)) ? value : fallback;

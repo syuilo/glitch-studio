@@ -2,6 +2,7 @@ import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { genEmptyValue } from '@gs/shared/parameter/parameter-default.ts';
 import { TimelineParameterBindingEvaluator } from '@gs/subsystems_timeline_shared/parameter-binding-evaluator.ts';
 import { validateEnumParameterValue } from '@gs/shared/parameter/parameter-definition.ts';
+import { coerceParameterValue } from '@gs/shared/parameter/coerce-parameter-value.ts';
 import { createTimelineLayerEvaluationScope } from '@gs/subsystems_timeline_shared/evaluation-scope.ts';
 import { isTimelineAudioInputBinding, validateTimelineParameterTree } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
 import { getTimelineVisualModuleArgumentDefault } from '@gs/subsystems_timeline_shared/visual-module-arguments.ts';
@@ -53,7 +54,7 @@ export function createVisualModuleTimelineLayer(
 				const evaluated = value == null ? def.defaultValue.value : evaluator.evaluate(value, evaluationContext,
 					def.dataType.kind === 'enum' ? enumFallback : value.inputSource === 'automationGraphReference' ? def.defaultValue.value : genEmptyValue(def));
 				// prepare待機中にliteralの配列が編集されても、このフレームの値は変えない。
-				evaluatedParamValues.set(def.id, deepClone(validateEnumParameterValue(def, evaluated)));
+				evaluatedParamValues.set(def.id, deepClone(coerceParameterValue(def, validateEnumParameterValue(def, evaluated))));
 			}
 			// 評価ごとのローカル変数として保持し、並行するシークと共有しない。
 			const resolved: VisualModuleRenderContext = {
