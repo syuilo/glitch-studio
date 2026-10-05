@@ -6,13 +6,13 @@
 		</div>
 		<div :class="$style.headerCenter" style="gap: 20px;">
 			<GsButton small :primary="previewPlayback.state.value.mode === 'timeline'" @click="previewPlayback.showTimeline()">Preview</GsButton>
-			<GsButton v-tooltip="'CUE'" small><i class="ti ti-arrow-right-bar"></i></GsButton>
+			<GsButton v-tooltip="'CUE [C]'" small><i class="ti ti-arrow-right-bar"></i></GsButton>
 			<div style="display: flex; gap: 4px;">
 				<GsButton small iconOnly><i class="ti ti-player-skip-back"></i></GsButton>
 				<GsButton small iconOnly><i class="ti ti-rewind-backward-10"></i></GsButton>
 				<GsButton small iconOnly><i class="ti ti-rewind-backward-5"></i></GsButton>
-				<GsButton v-if="previewPlayback.isTimelinePlaying.value" small primary @click="pause"><i class="ti ti-player-pause"></i></GsButton>
-				<GsButton v-else small @click="play"><i class="ti ti-player-play"></i></GsButton>
+				<GsButton v-if="previewPlayback.isTimelinePlaying.value" v-tooltip="'PAUSE [SPACE]'" small primary @click="pause"><i class="ti ti-player-pause"></i></GsButton>
+				<GsButton v-else v-tooltip="'PLAY [SPACE]'" small @click="play"><i class="ti ti-player-play"></i></GsButton>
 				<GsButton small iconOnly><i class="ti ti-rewind-forward-5"></i></GsButton>
 				<GsButton small iconOnly><i class="ti ti-rewind-forward-10"></i></GsButton>
 			</div>
