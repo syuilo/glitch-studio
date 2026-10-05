@@ -19,7 +19,8 @@ export class AudioFileReader {
 		if (!Number.isFinite(this.maxCacheBytes) || this.maxCacheBytes < 0) throw new Error('Invalid audio cache capacity');
 	}
 
-	private async readWindow(sourceId: string, entry: AudioFile, window: number, rate: number): Promise<DecodedPcmBlock[]> {
+	private async readWindow(sourceId: string, entry: AudioFile, window: number, rate: number, signal?: AbortSignal): Promise<DecodedPcmBlock[]> {
+		signal?.throwIfAborted();
 		// 必要な前後の幅は出力レートにも依存する。小さい幅で読んだ窓を別のレートで再利用しない。
 		const key = `${sourceId}:${rate}:${window}`;
 		const cached = this.windows.get(key);
@@ -32,9 +33,13 @@ export class AudioFileReader {
 		const blocks: DecodedPcmBlock[] = [];
 		let bytes = 0;
 		for await (const block of entry.readBlocks(Math.max(0, window * 2 - padding), (window + 1) * 2 + padding)) {
+			// デコーダーの待機自体は完了させ、次のブロックを要求する前に中断する。
+			// 途中までの窓をキャッシュへ登録すると、次の要求で欠けたPCMを再利用してしまう。
+			signal?.throwIfAborted();
 			blocks.push(block);
 			bytes += block.channels[0].byteLength + block.channels[1].byteLength;
 		}
+		signal?.throwIfAborted();
 		// 単独で上限を超える窓は今回だけ使用し、既存のキャッシュを追い出して保持しない。
 		if (bytes <= this.maxCacheBytes) {
 			// 音声の欠落区間では空の窓もできるので、バイト数だけでなく個数にも上限を置く。
@@ -59,16 +64,20 @@ export class AudioFileReader {
 	}
 
 	/** 素材時刻は秒。指定レートでframes個ずつの左右PCMを返し、素材外は無音にする。 */
-	async read(sourceId: string, time: number, frames: number, rate: number): Promise<StereoPcm> {
+	async read(sourceId: string, time: number, frames: number, rate: number, signal?: AbortSignal): Promise<StereoPcm> {
+		signal?.throwIfAborted();
 		const entry = await this.getEntry(sourceId);
+		signal?.throwIfAborted();
 		const output: StereoPcm = [new Float32Array(frames), new Float32Array(frames)];
 		for (let frame = 0; frame < frames;) {
+			signal?.throwIfAborted();
 			const position = time + frame / rate;
 			if (position >= entry.durationSeconds) break;
 			if (position < 0) { frame += Math.max(1, Math.ceil(-position * rate)); continue; }
 			const window = Math.floor(position / 2);
 			const count = Math.min(frames - frame, Math.max(1, Math.ceil((Math.min((window + 1) * 2, entry.durationSeconds) - position) * rate)));
-			const blocks = await this.readWindow(sourceId, entry, window, rate);
+			const blocks = await this.readWindow(sourceId, entry, window, rate, signal);
+			signal?.throwIfAborted();
 			const channels = this.resampler.resample(blocks, position, count, rate);
 			output[0].set(channels[0], frame);
 			output[1].set(channels[1], frame);

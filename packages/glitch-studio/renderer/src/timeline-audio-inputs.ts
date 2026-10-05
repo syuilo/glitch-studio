@@ -7,6 +7,7 @@ import type { SceneAudioClip } from '@gs/subsystems_timeline_shared/scene-audio.
 import type { TimelineScene } from '@gs/subsystems_timeline_shared/types.ts';
 import type { Asset } from '@gs/shared/types.ts';
 import type { StereoPcm } from '@gs/subsystems_audio_shared/pcm.ts';
+import type { AudioFile } from '@gs/subsystems_audio_renderer/audio-file.ts';
 
 /** 描画用デコーダーの寿命とAssetの解決を所有する。再生Workerの時計やデコーダーは共有しない。 */
 export class TimelineAudioInputs {
@@ -15,7 +16,7 @@ export class TimelineAudioInputs {
 	private plans = new Map<string, SceneAudioClip[]>();
 	private revision = 0;
 
-	constructor(private assets: readonly Asset[] = []) {}
+	constructor(private assets: readonly Asset[] = [], private openFile: (file: Blob) => Promise<AudioFile> = openAudioFile) {}
 
 	setAssets(assets: readonly Asset[]) {
 		this.current?.dispose();
@@ -30,7 +31,7 @@ export class TimelineAudioInputs {
 		const reader = new AudioFileReader(async id => {
 			const asset = assets.find(asset => asset.id === id);
 			if (!asset) throw new Error(`Audio asset not found: ${id}`);
-			try { return await openAudioFile(asset.fileData); } catch (error) {
+			try { return await this.openFile(asset.fileData); } catch (error) {
 				throw new Error(`${asset.name}: ${error instanceof Error ? error.message : String(error)}`);
 			}
 		});
@@ -38,7 +39,10 @@ export class TimelineAudioInputs {
 		let disposed = false;
 		const renderer = new TimelineAudioRenderer((...args) => {
 			// 複数のエフェクトは並行してprepareする。同じ素材のデコーダーを同時にseekしない。
+			const signal = args[4];
 			const result: Promise<StereoPcm> = pending.then(() => {
+				// 待機中に不要になった要求で、最新フレームのデコードを遅らせない。
+				signal?.throwIfAborted();
 				if (disposed) throw new Error('Audio input has been disposed');
 				return reader.read(...args);
 			});

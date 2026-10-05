@@ -24,7 +24,7 @@ function renderSceneAudio(renderer, layers, ...args) {
 // PCMは同じ素材時刻で読み、音声だけを先頭へ詰め直さない。
 test('uses scene time for video volume without shifting audio timestamps', async () => {
 	const calls = [];
-	const renderer = new TimelineAudioRenderer(async (...args) => { calls.push(args); return constant(...args); });
+	const renderer = new TimelineAudioRenderer(async (...args) => { calls.push(args.slice(0, 4)); return constant(...args); });
 	const clip = { assetId: 'movie', sourceStartMs: 8000, startMs: 10000, endMs: 11000,
 		gains: [{ sceneStartMs: 0, volume: { inputSource: 'expression', expression: 'TIME_MS / 20000' }, automationGraphs: [] }] };
 	const result = await renderer.renderClips([clip], 10000, 1, 1000);
@@ -39,7 +39,7 @@ const constant = async (_id, _time, frames) => [new Float32Array(frames).fill(1)
 test('skips disabled audio layers before reading media in preview and export', async () => {
 	for (const isExport of [false, true]) {
 		const calls = [];
-		const renderer = new TimelineAudioRenderer(async (...args) => { calls.push(args); return constant(...args); });
+		const renderer = new TimelineAudioRenderer(async (...args) => { calls.push(args.slice(0, 4)); return constant(...args); });
 		const hidden = layer({ isDisabled: true });
 		const silence = await renderSceneAudio(renderer, [hidden], 150, 10, 1000, isExport);
 		assert.deepEqual(calls, []);
@@ -55,7 +55,7 @@ test('skips disabled audio layers before reading media in preview and export', a
 // 表示開始とオフセットを同量進めても、トリム前の区間を再生せず右端を維持する。
 test('trims audio relative to a fixed source origin', async () => {
 	const calls = [];
-	const renderer = new TimelineAudioRenderer(async (...args) => { calls.push(args); return constant(...args); });
+	const renderer = new TimelineAudioRenderer(async (...args) => { calls.push(args.slice(0, 4)); return constant(...args); });
 	const output = await renderSceneAudio(renderer, [layer({ name: 'Layer', clips: [{ id: 'clip', startMs: 140, contentOffsetMs: 40, durationMs: 60, assetId: 'asset' }] })], 100, 110, 1000);
 	assert.deepEqual(calls, [['asset', 0.04, 60, 1000]]);
 	assert.deepEqual([...output[0].slice(0, 40)], Array(40).fill(0));
@@ -67,7 +67,7 @@ test('trims audio relative to a fixed source origin', async () => {
 // 途中シークやトリミングで素材の先頭を再生せず、半開区間の外は無音にする。
 test('mixes overlapping layers with source offsets and exclusive ends', async () => {
 	const calls = [];
-	const renderer = new TimelineAudioRenderer(async (...args) => { calls.push(args); return constant(...args); });
+	const renderer = new TimelineAudioRenderer(async (...args) => { calls.push(args.slice(0, 4)); return constant(...args); });
 	const output = await renderSceneAudio(renderer, [layer(), layer({ id: 'second' })], 90, 120, 1000);
 	assert.deepEqual(calls[0], ['asset', 0.02, 100, 1000]);
 	assert.deepEqual([...output[0].slice(0, 10)], Array(10).fill(0));
@@ -146,7 +146,7 @@ test('sanitizes invalid gains and permits amplification', async () => {
 // チャンク分割を変えても同じサンプル列を生成し、末端のTIME変数は所属Sceneの時刻を指す。
 test('mixes scene gains using local clocks independently of chunk boundaries', async () => {
 	const calls = [];
-	const renderer = new TimelineAudioRenderer(async (...args) => { calls.push(args); return constant(...args); });
+	const renderer = new TimelineAudioRenderer(async (...args) => { calls.push(args.slice(0, 4)); return constant(...args); });
 	const clip = {
 		assetId: 'asset',
 		sourceStartMs: 1150, startMs: 1180, endMs: 1280,

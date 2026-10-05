@@ -26,8 +26,8 @@ export class AssetAudioReader {
 		}, options);
 	}
 
-	read(assetId: string, time: number, frames: number, rate: number): Promise<StereoPcm> {
-		return this.reader.read(assetId, time, frames, rate);
+	read(assetId: string, time: number, frames: number, rate: number, signal?: AbortSignal): Promise<StereoPcm> {
+		return this.reader.read(assetId, time, frames, rate, signal);
 	}
 
 	dispose() { this.reader.dispose(); }

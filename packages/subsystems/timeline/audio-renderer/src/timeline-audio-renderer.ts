@@ -6,7 +6,7 @@ import { createTimelineLayerEvaluationScope } from '@gs/subsystems_timeline_shar
 import type { StereoPcm } from '@gs/subsystems_audio_shared/pcm.ts';
 
 /** 指定素材時刻（秒）から、指定レートでframes個ずつの左右PCMを返す。素材外は無音とする。 */
-export type AudioPcmReader = (assetId: string, timeSeconds: number, frames: number, sampleRate: number) => Promise<StereoPcm>;
+export type AudioPcmReader = (assetId: string, timeSeconds: number, frames: number, sampleRate: number, signal?: AbortSignal) => Promise<StereoPcm>;
 
 /** DOM・GPU・再生状態を持たない。書き出しも独立インスタンスで同じPCMを生成できる。 */
 export class TimelineAudioRenderer {
@@ -14,13 +14,17 @@ export class TimelineAudioRenderer {
 
 	constructor(private read: AudioPcmReader) {}
 
-	async renderClips(clips: readonly SceneAudioClip[], startFrame: number, frames: number, sampleRate: number, isExport = false): Promise<StereoPcm> {
+	async renderClips(clips: readonly SceneAudioClip[], startFrame: number, frames: number, sampleRate: number, isExport = false, signal?: AbortSignal): Promise<StereoPcm> {
+		signal?.throwIfAborted();
 		const output: StereoPcm = [new Float32Array(frames), new Float32Array(frames)];
 		for (const clip of clips) {
+			signal?.throwIfAborted();
 			const first = Math.max(startFrame, Math.ceil(clip.startMs * sampleRate / 1000));
 			const end = Math.min(startFrame + frames, Math.ceil(clip.endMs * sampleRate / 1000));
 			if (end <= first) continue;
-			const pcm = await this.read(clip.assetId, (first / sampleRate * 1000 - clip.sourceStartMs) / 1000, end - first, sampleRate);
+			const pcm = await this.read(clip.assetId, (first / sampleRate * 1000 - clip.sourceStartMs) / 1000, end - first, sampleRate, signal);
+			// 読み取り側が即時中断できなくても、古い要求のミックスや残りの素材取得は進めない。
+			signal?.throwIfAborted();
 			const gains = clip.gains.map(gain => ({ sceneStartMs: gain.sceneStartMs,
 				evaluate: this.createGain(gain.volume, time => createTimelineLayerEvaluationScope({
 					time, automationGraphs: gain.automationGraphs, isExport,

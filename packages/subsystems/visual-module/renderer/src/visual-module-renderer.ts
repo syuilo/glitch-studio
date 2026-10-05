@@ -5,8 +5,6 @@ import { getNodeOutputs } from '@gs/subsystems_visual-module_shared/node-outputs
 import { playerAudioSourceId } from '@gs/shared/audio.ts';
 import { AudioHistory } from '@gs/shared/audio-history.ts';
 import { validateVisualModuleAudioBinding } from '@gs/subsystems_visual-module_shared/audio-parameters.ts';
-import { validateAudioSourceSelection } from '@gs/shared/parameter/audio-source.ts';
-import { createPlayerAudioInput } from './player-audio-input.ts';
 import type { AudioInput } from '@gs/subsystems_audio_shared/audio-input.ts';
 import { genEmptyValue } from '@gs/shared/parameter/parameter-default.ts';
 import { VisualModuleParameterBindingEvaluator } from './visual-module-parameter-binding-evaluator.ts';
@@ -64,6 +62,7 @@ export class VisualModuleRenderer {
 	private paramInputs: ReadonlyMap<VisualModuleCustomParameterId, UniformOrTexture> = new Map();
 	private audioParamInputs: ReadonlyMap<VisualModuleCustomParameterId, AudioInput | null> = new Map();
 	private resolvedAudioInputs = new Map<string, AudioInput | null>();
+	private resolveAudioSource?: (selection: unknown) => AudioInput | null;
 	private preparedContext: VisualModuleRenderContext | null = null;
 	private preparationVersion = 0;
 	private destroyed = false;
@@ -105,6 +104,8 @@ export class VisualModuleRenderer {
 		visualModule: VisualModule;
 		assetTextures: Map<string, GPUTexture>;
 		audioSources: Map<AudioSourceId, AudioHistory>;
+		/** 静的な音声指定の解釈は呼び出し側が所有する。未提供の取得元は未接続とする。 */
+		resolveAudioSource?: (selection: unknown) => AudioInput | null;
 		effectDefinitions: Record<string, EffectDefinition>;
 		effectImplementations: Record<string, EffectImplementation<any>>;
 	}) {
@@ -122,6 +123,7 @@ export class VisualModuleRenderer {
 		this.assetTextures = options.assetTextures;
 		this.assets = options.assets;
 		this.audioSources = options.audioSources;
+		this.resolveAudioSource = options.resolveAudioSource;
 		this.timingHelper = options.timingHelper;
 		this.effectDefinitions = options.effectDefinitions;
 		this.effectImplementations = options.effectImplementations;
@@ -304,11 +306,7 @@ export class VisualModuleRenderer {
 		} else {
 			const selection = binding.inputSource === 'externalCustomParameterInput'
 				? this.paramValues.get(binding.parameterId) ?? this.paramDefs.find(def => def.id === binding.parameterId)?.defaultValue.value ?? null : value;
-			validateAudioSourceSelection(selection);
-			if (selection != null) {
-				const history = this.audioSources.get(playerAudioSourceId(selection.playerId));
-				if (history) input = createPlayerAudioInput(selection.playerId, history);
-			}
+			if (selection != null) input = this.resolveAudioSource?.(selection) ?? null;
 		}
 		this.resolvedAudioInputs.set(key, input);
 		return input;

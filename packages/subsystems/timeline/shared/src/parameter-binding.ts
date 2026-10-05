@@ -57,7 +57,7 @@ export function validateTimelineParameterTree(def: ParameterDefinition, binding:
 	if (def.dataType.kind === 'audioSource') {
 		if (binding.inputSource === 'lowerLayerAudio') return;
 		validateLiteralAudioSourceBinding(binding);
-		if (binding.inputSource !== 'literal' || binding.value !== null) throw new Error('Players are not available in the timeline');
+		if (binding.value !== null) throw new Error('Timeline audio literals must be unselected');
 		return;
 	}
 	if (def.dataType.kind !== 'array' && def.dataType.kind !== 'struct') return;

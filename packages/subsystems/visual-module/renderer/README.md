@@ -6,4 +6,4 @@ RendererはWeb Worker内で動作し、DOM・UIの実装にアクセスできな
 
 `VisualModuleParameterBindingEvaluator`はノード出力参照・外部カスタムパラメータ参照・`PARAM`関数を解決する。`canNode: false`で音声以外の公開パラメータだけを式の評価環境に渡し、CPU値の評価は共通の`ParameterBindingEvaluator`へ委ねる。解決済みの値をエフェクト入力へ変換する処理はEffect Rendererを利用する。
 
-`audioSource`は静的な音声取得元の指定で、ノードの画像配線・式・キー・automationへは流さない。LIVEでは`literal`の`null`または`{ type: 'player', playerId }`を解決し、Playerの保持PCMを描画ごとに固定する。公開音声パラメータは`externalCustomParameterInput`で内部エフェクトへ渡せる。Timelineなどが提供する音声は`audioParamInputs`で受け取り、Scene・レイヤー・デコーダーの解決をこのパッケージへ持ち込まない。
+`audioSource`は静的な音声取得元の指定で、ノードの画像配線・式・キー・automationへは流さない。リテラルの取得元は呼び出し側が注入する`resolveAudioSource`へ渡し、このパッケージでは取得元の種類や指定形式を解釈しない。解決関数が未提供なら未接続として扱う。公開音声パラメータは`externalCustomParameterInput`で内部エフェクトへ渡せる。Timelineなどが解決済みの音声を提供する場合は`audioParamInputs`で受け取り、Scene・レイヤー・デコーダーの解決をこのパッケージへ持ち込まない。同じ描画内では解決した入力を保持し、非同期準備中に読み直さない。

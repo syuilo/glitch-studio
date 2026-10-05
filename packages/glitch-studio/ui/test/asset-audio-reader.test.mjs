@@ -46,3 +46,16 @@ test('rejects missing assets before opening audio', async () => {
 		assert.equal(opened, 0);
 	} finally { reader.dispose(); }
 });
+
+// 【Assetのラッパーでも呼び出し側のキャンセルをPCM読み出しへ伝える】
+// 読み出しAPIにSignalを追加しても、アプリ側の境界で落とすと中断済みの素材取得が続いてしまう。
+test('forwards cancellation before resolving the asset', async () => {
+	let opened = 0;
+	const reader = new AssetAudioReader([{ id: 'sound' }], { open: async () => { opened++; throw new Error('unexpected open'); } });
+	const controller = new AbortController();
+	controller.abort();
+	try {
+		await assert.rejects(reader.read('sound', 0, 10, 48000, controller.signal), { name: 'AbortError' });
+		assert.equal(opened, 0);
+	} finally { reader.dispose(); }
+});

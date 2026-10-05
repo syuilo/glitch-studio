@@ -74,6 +74,60 @@ function decodedSource() {
 	} };
 }
 
+// 【中断したデコード窓は途中のPCMをキャッシュせず、反復を終了する】
+// 中断後に同じ位置へ戻っても欠けた音声を再利用せず、次の窓やブロックの取得を進めない。
+test('closes cancelled block reads and retries without caching partial windows', async () => {
+	const waiting = Promise.withResolvers();
+	const release = Promise.withResolvers();
+	let reads = 0;
+	let finished = 0;
+	let lastBlocks = 0;
+	const reader = new AudioFileReader(async () => ({ durationSeconds: 10, sampleRate: 1000, dispose() {},
+		async *readBlocks() {
+			reads++;
+			try {
+				for (let block = 0; block < 3; block++) {
+					if (reads === 1 && block === 1) { waiting.resolve(); await release.promise; }
+					if (block === 2) lastBlocks++;
+					yield { time: block, rate: 1000, channels: [new Float32Array(1000).fill(0.25), new Float32Array(1000).fill(0.25)] };
+				}
+			} finally { finished++; }
+		},
+	}));
+	try {
+		const controller = new AbortController();
+		const cancelled = assert.rejects(reader.read('source', 0, 10, 1000, controller.signal), { name: 'AbortError' });
+		await waiting.promise;
+		controller.abort();
+		release.resolve();
+		await cancelled;
+		assert.equal(finished, 1);
+		assert.equal(lastBlocks, 0);
+		const output = await reader.read('source', 0, 10, 1000);
+		assert.equal(reads, 2);
+		assert.equal(finished, 2);
+		assert.ok(output[0].every(value => Math.abs(value - 0.25) < 0.0001));
+	} finally { release.resolve(); reader.dispose(); }
+});
+
+// 【ファイルを開く途中の中断ではデコードを始めず、開いた資源の所有権を維持する】
+// open自体が中断不能でも、後から返ったファイルを漏らさずdisposeで解放する。
+test('stops after opening a cancelled source and retains it for disposal', async () => {
+	const opened = Promise.withResolvers();
+	const started = Promise.withResolvers();
+	const source = decodedSource();
+	const reader = new AudioFileReader(() => { started.resolve(); return opened.promise; });
+	const controller = new AbortController();
+	const cancelled = assert.rejects(reader.read('source', 0, 10, 1000, controller.signal), { name: 'AbortError' });
+	await started.promise;
+	controller.abort();
+	opened.resolve(await source.open());
+	await cancelled;
+	assert.equal(source.calls.length, 0);
+	reader.dispose();
+	assert.equal(source.disposed, 1);
+});
+
 // 【同じソースの読み取りでは開いた資源を共有する】
 // シークやチャンク分割のたびに素材を開き直さず、readerの破棄時に一度だけ解放する。
 test('reuses an opened source across PCM reads', async () => {

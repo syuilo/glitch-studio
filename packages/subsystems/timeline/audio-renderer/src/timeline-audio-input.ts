@@ -15,7 +15,7 @@ export function createTimelineAudioInput(renderer: TimelineAudioRenderer, clips:
 		async readWindow(durationSeconds, signal) {
 			signal.throwIfAborted();
 			const frames = getAudioWindowFrameCount(durationSeconds, sampleRate);
-			const channels = await renderer.renderClips(clips, endFrame - frames, frames, sampleRate, isExport);
+			const channels = await renderer.renderClips(clips, endFrame - frames, frames, sampleRate, isExport, signal);
 			signal.throwIfAborted();
 			return { sampleRate, channels };
 		},

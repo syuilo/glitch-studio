@@ -164,8 +164,10 @@ Visual Module内で別のVisual Moduleを通常のエフェクトのように使
 - `audioSource`は音声取得元の静的な指定です。`canNode: false`で、式・キー・automation・画像の配線には使いません。LIVEでは`literal`の`null`または`{ type: 'player', playerId }`、Timelineでは`literal: null`または専用Bindingの`lowerLayerAudio`を使います。
 - 公開音声パラメータは`externalCustomParameterInput`経由で内部エフェクトへ渡し、`PARAM`には公開しません。`EffectDefinition.primaryAudioInputParameter` / `VisualModule.primaryAudioInputId`は主音声入力を指定し、Timelineでの初期割当・リセットを下層音声にします。画像の主入力・解像度・合成方法とは独立した役割です。
 - `AudioInput`は取得元に依存しない描画時の契約で、PCMは保存データに含めません。`audioWaveform`はこの入力から音声窓を取得します。Timelineの窓は所属Scene時刻までの過去区間で48kHz固定、LIVEはPlayerの保持PCMを使います。モノラルは左右へ複製します。
+- Playerの指定形式・検証はGlitch Studio shared、履歴からの`AudioInput`生成と共有はGlitch Studio rendererが所有します。Visual Moduleには取得元の解決関数を注入し、共通パラメータ層へPlayerやTimelineのレイヤー参照を集めません。同じPlayerの同じ履歴状態はノード・描画間で共有し、更新時だけ新しいPCMスナップショットを作ります。
 - 下層音声は同じScene内で自分より下の音声・音声有効の動画・子Sceneを含み、所属Scene時刻で各階層の音量を適用します。現在有効なクリップだけでなく窓内の過去のクリップも含め、区間外は無音にします。正規化・クリッピング・プレビュー出力音量は適用しません。音声入力の未選択は透明、入力があって無音なら基準線を描画します。
 - 非同期の音声準備は描画前に待機し、古い要求の完了・失敗は新しい入力へ反映しません。各モーションブラーサブサンプルは自身のScene時刻で取得します。シーク履歴や再生Workerの時計に依存させません。
+- 描画要求のキャンセルは読み出しキュー・ミックス・PCM読み出しへ伝え、待機中の要求を実行せず、実行中もクリップ・デコードブロック・窓の境界で終了します。中断した窓はキャッシュせず、デコーダー資源は実行中の読み出し完了後に解放します。
 
 ### シーンとノードの解像度
 

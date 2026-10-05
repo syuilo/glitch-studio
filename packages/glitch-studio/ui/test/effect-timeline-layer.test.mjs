@@ -40,6 +40,30 @@ const { COMMAND_DEFS, createEffectTimelineLayer, resolveLayerParameter, getLayer
 	canConnectNodeDataTypes, areNodeDataTypesCompatible, encodeProjectFile, decodeProjectFile, validateTimelineEffectLayer } = module.exports;
 const literal = value => ({ inputSource: 'literal', value });
 
+// 【Playerの音声指定はGlitch StudioのCommand境界で検証する】
+// 共通パラメータの検証から取得元の種類を取り除いても、保存されるPlayer指定の制約は維持する。
+// 公開パラメータ参照の扱いはVisual Module側に残し、異なる取得元の指定を混入させない。
+test('validates player audio selections at the application command boundary', () => {
+	const audio = { ...effectDefinitions.audioWaveform.paramDefs.audio, id: 'sound', nameForReference: 'Sound' };
+	const node = { id: 'waveform', type: 'effect', effectId: 'audioWaveform', params: { audio: literal(null) } };
+	const state = { visualModules: { value: [{ id: 'visual', paramDefs: [audio], nodes: [node] }] } };
+	const target = { visualModuleId: 'visual', nodeId: node.id, paramPath: ['audio'] };
+	const command = value => COMMAND_DEFS.updateParamAsLiteral.create({ ...target, value });
+	const selection = { type: 'player', playerId: 'player' };
+	const edit = command(selection);
+	edit.execute(state);
+	assert.deepEqual(node.params.audio, literal(selection));
+	for (const invalid of [{ type: 'player', playerId: '' }, { type: 'layer', layerId: 'audio' }, 'player']) {
+		assert.throws(() => command(invalid).execute(state), /Invalid player audio source/);
+		assert.deepEqual(node.params.audio, literal(selection));
+	}
+	edit.undo(state);
+	assert.deepEqual(node.params.audio, literal(null));
+	COMMAND_DEFS.updateParamAsExternalCustomParameterInput.create({ ...target, value: audio.id }).execute(state);
+	assert.equal(node.params.audio.parameterId, audio.id);
+	assert.throws(() => COMMAND_DEFS.updateParamAsExpression.create({ ...target, value: 'null' }).execute(state), /static input/);
+});
+
 // 【波形レイヤーは主音声入力を下層へ割り当て、リセットとUndo/Redoでも復元する】
 // 音声の主入力を画像の主入力とは別に扱い、生成系の通常合成を維持する。
 // 未選択を明示した状態も保存し、自動入力によって勝手に上書きしない。

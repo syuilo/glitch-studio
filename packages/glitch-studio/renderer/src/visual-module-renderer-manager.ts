@@ -4,6 +4,8 @@ import { AudioHistory } from '@gs/shared/audio-history.ts';
 import { genId } from '@gs/shared/utility/id.ts';
 import { genEmptyValue } from '@gs/shared/parameter/parameter-default.ts';
 import { validateLiteralAudioSourceBinding } from '@gs/shared/parameter/audio-source.ts';
+import { PlayerAudioInputs } from './player-audio-inputs.ts';
+import { validatePlayerAudioSourceSelection } from '@gs/glitch-studio_shared/player-audio-source.ts';
 import EventEmitter from 'eventemitter3';
 import { ParameterBindingEvaluator } from '@gs/shared/parameter/parameter-binding-evaluator.ts';
 import { validateEnumParameterValue } from '@gs/shared/parameter/parameter-definition.ts';
@@ -84,6 +86,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 	private videoFrames: Map<Player['id'], VideoFrame> = new Map();
 	private videoFrameVersions: Map<Player['id'], number> = new Map();
 	private audioSources = new Map<AudioSourceId, AudioHistory>();
+	private playerAudioInputs = new PlayerAudioInputs(this.audioSources);
 	private audioPorts = new Map<AudioSourceId, MessagePort>();
 	private timingHelper: TimingHelper;
 	private pointerPosition: { x: number; y: number } = { x: -99999, y: -99999 };
@@ -332,6 +335,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 			visualModule,
 			assetTextures: this.assetTextures.textures,
 			audioSources: this.audioSources,
+			resolveAudioSource: selection => this.playerAudioInputs.resolve(selection),
 			effectDefinitions: this.effectDefinitions,
 			effectImplementations: this.effectImplementations,
 		});
@@ -351,6 +355,9 @@ export class VisualModuleRendererManager extends EventEmitter<{
 				if (def.dataType.kind === 'audioSource') {
 					const binding = this.liveParamValues[def.id] ?? def.defaultValue;
 					validateLiteralAudioSourceBinding(binding);
+					validatePlayerAudioSourceSelection(binding.value);
+					// 未使用の公開入力では履歴をコピーしない。実際の読み手が必要になった時に
+					// 注入したresolveAudioSourceで取得する。音声の指定はPARAMへ公開されない。
 					evaluatedParamValues.set(def.id, binding.value);
 					continue;
 				}

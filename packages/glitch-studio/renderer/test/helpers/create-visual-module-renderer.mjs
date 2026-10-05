@@ -1,6 +1,6 @@
 // 評価器はVisual Moduleの内部実装なので、公開コンストラクターで実際の構成を作る。
 // パラメータ評価だけのテストではGPUリソースを使わず、シェーダーモジュールの作成だけ置き換える。
-export function createVisualModuleRenderer(VisualModuleRenderer) {
+export function createVisualModuleRenderer(VisualModuleRenderer, options = {}) {
 	return new VisualModuleRenderer({
 		gpuDevice: { createShaderModule: () => ({}) }, fallbackTexture: {},
 		timingHelper: null, enableStats: false, enable32bitDataTextures: false,
@@ -11,5 +11,6 @@ export function createVisualModuleRenderer(VisualModuleRenderer) {
 			nodes: [], paramDefs: [], outputDefs: [], automationGraphs: [],
 			primaryInputId: null, primaryOutputId: null,
 		},
+		...options,
 	});
 }

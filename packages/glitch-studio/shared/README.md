@@ -1,3 +1,5 @@
 Glitch Studioドメイン内で共通の型や処理などを置く
 
 `src/live-expression.ts`はLIVEのカスタムパラメータプレビューに公開する変数名を定義する。LIVEはGlitch Studio側の利用スコープであり、Visual Module自身の評価スコープとは分ける。
+
+`src/player-audio-source.ts`は音声取得元としてのPlayer指定と、その検証を所有する。共通パラメータ層は静的な指定であることだけを扱い、Playerの選択形式やTimelineのレイヤー参照を共通の取得元一覧へ集めない。

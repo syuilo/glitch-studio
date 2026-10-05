@@ -50,7 +50,7 @@ test('selects only lower layers and includes complete nested scene audio', async
 // 素材オフセットは小数を維持し、音量適用後のピークを正規化・クリップしない。
 test('reads historical clips across silence and preserves fractional source offsets and gain', async () => {
 	const calls = [];
-	const renderer = new TimelineAudioRenderer(async (...args) => { calls.push(args); return constant(...args); });
+	const renderer = new TimelineAudioRenderer(async (...args) => { calls.push(args.slice(0, 4)); return constant(...args); });
 	const root = scene('root', [waveform, audio('short', { clips: [clip('short', { durationMs: 2, contentOffsetMs: 0.125 })], audioParamValues: { volume: literal(3) } })]);
 	const input = createTimelineAudioInput(renderer, getSceneAudioClips([root], 'root', 'waveform'), 4, 'r', false);
 	const result = await input.readWindow(0.006, signal());
@@ -90,4 +90,30 @@ test('propagates source failures and rejects cancelled windows', async () => {
 	const controller = new AbortController();
 	controller.abort();
 	await assert.rejects(input.readWindow(0.01, controller.signal), { name: 'AbortError' });
+});
+
+// 【読み取り中に中断した要求は、残りの素材取得や音量評価へ進めない】
+// 古い結果を捨てるだけでは、複数クリップ分のデコードが最新の描画と競合し続ける。
+// 即時中断に対応しない読み取り側でも、完了後の境界で止められることを確認する。
+test('forwards cancellation and stops before reading the remaining clips', async () => {
+	const started = Promise.withResolvers();
+	const release = Promise.withResolvers();
+	const controller = new AbortController();
+	const calls = [];
+	const renderer = new TimelineAudioRenderer(async (id, time, frames, rate, signal) => {
+		assert.equal(signal, controller.signal);
+		calls.push(id);
+		started.resolve();
+		await release.promise;
+		return constant(id, time, frames, rate);
+	});
+	const root = scene('root', [waveform, audio('first'), audio('second')]);
+	const input = createTimelineAudioInput(renderer, getSceneAudioClips([root], 'root', 'waveform'), 50, 'r', false);
+	const pending = input.readWindow(0.01, controller.signal);
+	const rejected = assert.rejects(pending, { name: 'AbortError' });
+	await started.promise;
+	controller.abort();
+	release.resolve();
+	await rejected;
+	assert.deepEqual(calls, ['first']);
 });
