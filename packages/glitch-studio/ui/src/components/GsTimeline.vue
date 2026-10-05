@@ -16,11 +16,13 @@
 				<GsButton small iconOnly><i class="ti ti-rewind-forward-5"></i></GsButton>
 				<GsButton small iconOnly><i class="ti ti-rewind-forward-10"></i></GsButton>
 			</div>
-			<span v-if="timelineAudioPreview.buffering.value"><i class="ti ti-loader"></i></span>
-			<span v-if="audioError || timelineAudioPreview.error.value || timelineRendererManagerController.errorMessage.value" v-tooltip="audioError || timelineAudioPreview.error.value || timelineRendererManagerController.errorMessage.value"><i class="ti ti-alert-triangle"></i></span>
 		</div>
 		<div :class="$style.headerCenter">
 			<span class="_monospace">{{ formatFullTimecode(time) }}</span>
+		</div>
+		<div :class="$style.headerCenter">
+			<span v-if="timelineAudioPreview.buffering.value"><i class="ti ti-loader"></i></span>
+			<span v-if="audioError || timelineAudioPreview.error.value || timelineRendererManagerController.errorMessage.value" v-tooltip="audioError || timelineAudioPreview.error.value || timelineRendererManagerController.errorMessage.value"><i class="ti ti-alert-triangle"></i></span>
 		</div>
 		<div :class="$style.headerRight">
 			<GsButton small iconOnly><i class="ti ti-pointer"></i></GsButton>
@@ -1418,7 +1420,7 @@ onMounted(() => {
 
 .header {
 	display: grid;
-	grid-template-columns: 1fr 1fr 1fr 1fr;
+	grid-template-columns: 1fr 1fr 1fr 1fr 1fr;
 	gap: 4px;
 	padding: 4px;
 }
