@@ -702,12 +702,15 @@ function onPanMousedown(ev: MouseEvent) {
 	if (stopSelectionDrag != null) return;
 	if (ev.button !== 1 || !(ev.target instanceof Element) || !ev.target.closest('[data-timeline-surface]')) return;
 	if (layersEl.value == null || tlElWidth.value <= 0) return;
+	const layers = layersEl.value;
+	// パネルを別ウィンドウで開いた場合も、そのウィンドウ内の移動・終了を追跡する。
+	const ownerWindow = layers.ownerDocument.defaultView;
+	if (ownerWindow == null) return;
 	// 子のレイヤー・キー・シーク操作より先に受け取り、ブラウザーの自動スクロールも抑止する。
 	ev.preventDefault();
 	ev.stopPropagation();
 	stopPan?.();
 	tlEl.value?.focus({ preventScroll: true });
-	const layers = layersEl.value;
 	const baseX = ev.clientX;
 	const baseY = ev.clientY;
 	const baseTime = tlPosX.value;
@@ -722,9 +725,11 @@ function onPanMousedown(ev: MouseEvent) {
 	}, () => {
 		panning.value = false;
 		stopPan = undefined;
-		window.removeEventListener('blur', finishPan);
-	});
-	window.addEventListener('blur', finishPan);
+		ownerWindow.removeEventListener('blur', finishPan);
+		ownerWindow.removeEventListener('pagehide', finishPan);
+	}, ownerWindow);
+	ownerWindow.addEventListener('blur', finishPan);
+	ownerWindow.addEventListener('pagehide', finishPan);
 }
 
 function finishPan() {

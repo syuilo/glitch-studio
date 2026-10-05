@@ -1,17 +1,17 @@
-export function dragListen(move: (ev: MouseEvent) => void, end?: () => void) {
+export function dragListen(move: (ev: MouseEvent) => void, end?: () => void, ownerWindow: Window = window) {
 	let active = true;
 	// 登録時と同じ関数を解除し、ドラッグ終了後にリスナーを残さない。
 	const clear = () => {
 		if (!active) return;
 		active = false;
-		window.removeEventListener('mousemove', move);
-		window.removeEventListener('mouseleave', clear);
-		window.removeEventListener('mouseup', clear);
+		ownerWindow.removeEventListener('mousemove', move);
+		ownerWindow.removeEventListener('mouseleave', clear);
+		ownerWindow.removeEventListener('mouseup', clear);
 		end?.();
 	};
-	window.addEventListener('mousemove', move);
-	window.addEventListener('mouseleave', clear);
-	window.addEventListener('mouseup', clear);
+	ownerWindow.addEventListener('mousemove', move);
+	ownerWindow.addEventListener('mouseleave', clear);
+	ownerWindow.addEventListener('mouseup', clear);
 	return clear;
 }
 
