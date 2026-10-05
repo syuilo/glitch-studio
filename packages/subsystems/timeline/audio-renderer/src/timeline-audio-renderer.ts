@@ -1,27 +1,18 @@
 import type { SceneAudioClip } from '@gs/subsystems_timeline_shared/scene-audio.ts';
 import type { ParameterEvaluationScope } from '@gs/shared/parameter/parameter-evaluation-scope.ts';
 import type { TimelineParameterBinding } from '@gs/subsystems_timeline_shared/types.ts';
-import { getTimelineClipEnd } from '@gs/subsystems_timeline_shared/timing.ts';
 import { TimelineParameterBindingEvaluator } from '@gs/subsystems_timeline_shared/parameter-binding-evaluator.ts';
 import { createTimelineLayerEvaluationScope } from '@gs/subsystems_timeline_shared/evaluation-scope.ts';
-import type { TimelineAudioLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import type { StereoPcm } from '@gs/subsystems_audio_shared/pcm.ts';
 
+/** 指定素材時刻（秒）から、指定レートでframes個ずつの左右PCMを返す。素材外は無音とする。 */
 export type AudioPcmReader = (assetId: string, timeSeconds: number, frames: number, sampleRate: number) => Promise<StereoPcm>;
-export type AudioDurationReader = (assetId: string, basis?: 'audio' | 'media') => Promise<number>;
 
 /** DOM・GPU・再生状態を持たない。書き出しも独立インスタンスで同じPCMを生成できる。 */
 export class TimelineAudioRenderer {
 	private evaluator = new TimelineParameterBindingEvaluator();
 
-	constructor(private read: AudioPcmReader, private getDurationMs: AudioDurationReader) {}
-
-	async render(layers: readonly TimelineAudioLayer[], startFrame: number, frames: number, sampleRate: number, isExport = false): Promise<StereoPcm> {
-		return this.renderClips(layers.filter(layer => !layer.isDisabled).flatMap(layer => layer.clips.map(clip => ({ assetId: clip.assetId, durationBasis: 'audio' as const,
-			sourceStartMs: clip.startMs - clip.contentOffsetMs, startMs: clip.startMs, endMs: getTimelineClipEnd(clip),
-			gains: [{ sceneStartMs: 0, volume: layer.audioParamValues.volume, automationGraphs: layer.automationGraphs }],
-		}))), startFrame, frames, sampleRate, isExport);
-	}
+	constructor(private read: AudioPcmReader) {}
 
 	async renderClips(clips: readonly SceneAudioClip[], startFrame: number, frames: number, sampleRate: number, isExport = false): Promise<StereoPcm> {
 		const output: StereoPcm = [new Float32Array(frames), new Float32Array(frames)];
@@ -29,8 +20,6 @@ export class TimelineAudioRenderer {
 			const first = Math.max(startFrame, Math.ceil(clip.startMs * sampleRate / 1000));
 			const end = Math.min(startFrame + frames, Math.ceil(clip.endMs * sampleRate / 1000));
 			if (end <= first) continue;
-			const duration = await this.getDurationMs(clip.assetId, clip.durationBasis);
-			if (!Number.isFinite(duration) || duration <= 0) throw new Error('Audio has no finite duration.');
 			const pcm = await this.read(clip.assetId, (first / sampleRate * 1000 - clip.sourceStartMs) / 1000, end - first, sampleRate);
 			const gains = clip.gains.map(gain => ({ sceneStartMs: gain.sceneStartMs,
 				evaluate: this.createGain(gain.volume, time => createTimelineLayerEvaluationScope({

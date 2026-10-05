@@ -143,7 +143,7 @@ test('joins the scene end and beginning when a playback packet crosses the loop 
 // IS_EXPORTを使う音量は意図的に再生時と異なる。両経路を単に同一結果へ揃える変更を防ぐ。
 test('retains the explicit export flag in the audio expression scope', { timeout: 10000 }, async () => {
 	const settings = fixture();
-	settings.clips = [{ assetId: 'sound', durationBasis: 'audio', sourceStartMs: 0, startMs: 0, endMs: 600,
+	settings.clips = [{ assetId: 'sound', sourceStartMs: 0, startMs: 0, endMs: 600,
 		gains: [{ sceneStartMs: 0, volume: { inputSource: 'expression', expression: 'if IS_EXPORT { 1 } else { 0.5 }' }, automationGraphs: [] }] }];
 	const preview = await startPlayback(settings, 50).pull();
 	assert.equal(preview.type, 'pcm');

@@ -16,37 +16,33 @@ test('resolves asset identities and delegates PCM reads and resource ownership',
 	const asset = { id: 'sound', name: 'Sound.wav', fileData: new Blob() };
 	const opened = [];
 	let disposed = 0;
-	let closed = 0;
 	const reader = new AssetAudioReader([asset], { open: async resolved => {
 		opened.push(resolved);
-		return { duration: 1, sampleRate: 1000, input: { dispose() { disposed++; } }, sink: {
-			async *samples() {
-				yield { timestamp: 0, sampleRate: 1000, numberOfFrames: 1000, numberOfChannels: 2,
-					copyTo(target, { planeIndex }) { target.set(Float32Array.from({ length: 1000 }, (_, frame) => (planeIndex === 0 ? 1 : -1) * frame / 1000)); },
-					close() { closed++; } };
+		return { durationSeconds: 1, sampleRate: 1000, dispose() { disposed++; },
+			async *readBlocks() {
+				yield { time: 0, rate: 1000, channels: [
+					Float32Array.from({ length: 1000 }, (_, frame) => frame / 1000),
+					Float32Array.from({ length: 1000 }, (_, frame) => -frame / 1000),
+				] };
 			},
-		} };
+		};
 	} });
 	try {
-		assert.equal(await reader.getDurationMs('sound'), 1000);
 		const pcm = await reader.read('sound', 0.5, 3, 1000);
 		assert.deepEqual(pcm, [Float32Array.of(0.5, 0.501, 0.502), Float32Array.of(-0.5, -0.501, -0.502)]);
-		assert.equal(await reader.getDurationMs('sound'), 1000);
+		await reader.read('sound', 0.6, 3, 1000);
 		assert.deepEqual(opened, [asset]);
-		assert.equal(closed, 1);
 	} finally { reader.dispose(); }
 	assert.equal(disposed, 1);
 });
 
 // 【参照切れのAssetをデコーダーへ渡さず、呼び出し元へエラーを返す】
-// 音声用と動画の素材長用のどちらも、無音や長さ0に置き換えて成功扱いにしない。
-test('rejects missing assets before opening audio or reading media metadata', async () => {
+// 参照切れを無音に置き換えて成功扱いにせず、ソースを開く前に拒否する。
+test('rejects missing assets before opening audio', async () => {
 	let opened = 0;
 	const reader = new AssetAudioReader([], { open: async () => { opened++; throw new Error('unexpected open'); } });
 	try {
 		await assert.rejects(reader.read('missing', 0, 10, 48000), /Audio asset not found: missing/);
-		await assert.rejects(reader.getDurationMs('missing'), /Audio asset not found: missing/);
-		await assert.rejects(reader.getDurationMs('missing', 'media'), /Media asset not found: missing/);
 		assert.equal(opened, 0);
 	} finally { reader.dispose(); }
 });

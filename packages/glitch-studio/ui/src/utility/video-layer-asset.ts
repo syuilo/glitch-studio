@@ -13,6 +13,6 @@ export async function inspectVideoLayerAsset(blob: Blob) {
 		const video = await input.getPrimaryVideoTrack();
 		if (!video || !await video.canDecode()) throw new Error('Video track cannot be decoded.');
 		const audio = await input.getPrimaryAudioTrack();
-		return { metadata, audioError: audio ? await getAudioTrackError(audio) : null };
+		return { metadata, audioError: audio ? getAudioTrackError({ decodable: await audio.canDecode(), numberOfChannels: await audio.getNumberOfChannels() }) : null };
 	} finally { input.dispose(); }
 }

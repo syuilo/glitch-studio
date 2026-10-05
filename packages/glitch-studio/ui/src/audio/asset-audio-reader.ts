@@ -1,4 +1,3 @@
-import { readMediaMetadata } from '@gs/shared/media/media-metadata.ts';
 import { openAudioFile } from '@gs/subsystems_audio_renderer/audio-file.ts';
 import { AudioFileReader } from '@gs/subsystems_audio_renderer/audio-file-reader.ts';
 import type { AudioFileReaderOptions } from '@gs/subsystems_audio_renderer/audio-file-reader.ts';
@@ -14,7 +13,7 @@ export async function openAssetAudio(asset: Asset) {
 	}
 }
 
-/** Assetの参照解決と素材長の用途を扱う。PCM・デコーダー・キャッシュは音声subsystemが所有する。 */
+/** Assetの参照を解決する。PCM・デコーダー・キャッシュは音声subsystemが所有する。 */
 export class AssetAudioReader {
 	private reader: AudioFileReader;
 
@@ -25,15 +24,6 @@ export class AssetAudioReader {
 			if (!asset) throw new Error(`Audio asset not found: ${assetId}`);
 			return open(asset);
 		}, options);
-	}
-
-	async getDurationMs(assetId: string, basis: 'audio' | 'media' = 'audio'): Promise<number> {
-		if (basis === 'media') {
-			const asset = this.assets.find(asset => asset.id === assetId);
-			if (!asset) throw new Error('Media asset not found: ' + assetId);
-			return (await readMediaMetadata(asset.fileData)).durationMs;
-		}
-		return this.reader.getDurationMs(assetId);
 	}
 
 	read(assetId: string, time: number, frames: number, rate: number): Promise<StereoPcm> {

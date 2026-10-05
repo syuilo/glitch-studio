@@ -19,10 +19,8 @@ export function inspectTimelineClipMedia(asset: Asset): Promise<TimelineClipMedi
 		}
 		const audio = await openAssetAudio(asset);
 		try {
-			const durationMs = audio.duration * 1000;
-			if (!Number.isFinite(durationMs) || durationMs <= 0) throw new Error('Audio has no finite duration');
-			return { durationMs, audioAvailable: true, audioError: null };
-		} finally { audio.input.dispose(); }
+			return { durationMs: audio.durationSeconds * 1000, audioAvailable: true, audioError: null };
+		} finally { audio.dispose(); }
 	})();
 	metadataCache.set(blob, pending);
 	void pending.catch(() => { metadataCache.delete(blob); });

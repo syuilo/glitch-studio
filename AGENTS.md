@@ -45,7 +45,7 @@
 		- [**`subsystems/effect/shared`**](./packages/subsystems/effect/shared) ... 各種エフェクトのパラメータ定義・実装。定義はレンダラーからもUIからも参照される情報なのでここに置かれています。1つのエフェクトに1つのディレクトリを割り当てます。定義と実装(シェーダーコードの登録、uniformsやバッファなどの準備処理)は、それぞれ `_def_.ts` / `_impl_.ts` として分離します。シェーダーコード自体も通常wgslファイルとして分離します。(最低限`_def_.ts`と`_impl_.ts`があればよく、その他のファイルを置くことは自由です)
 	- [**`subsystems/visual-module`**](./packages/subsystems/visual-module) ... エフェクトをノードグラフで組み合わせられるVisual Moduleのレンダラー実装などが含まれます。
 	- [**`subsystems/timeline`**](./packages/subsystems/timeline) ... 複数のレイヤー・クリップを作成して動画を作成できるタイムライン機能のレンダラー実装などが含まれる。エフェクトやVisual Moduleなどもレイヤーとして使用可能。
-		- [**`subsystems/timeline/audio-renderer`**](./packages/subsystems/timeline/audio-renderer) ... クリップの時刻変換と、所属Sceneの時刻での音量・式・キー評価を行い、音声をミックスします。素材PCM・素材長の読み出しは呼び出し側から受け取り、DOM・GPU・デコーダー・再生状態を所有しません。
+		- [**`subsystems/timeline/audio-renderer`**](./packages/subsystems/timeline/audio-renderer) ... timeline/sharedで作成した音声計画を受け取り、所属Sceneの時刻での音量・式・キー評価を行い、音声をミックスします。素材PCMの読み出しは呼び出し側から受け取り、素材長の検証・DOM・GPU・デコーダー・再生状態を所有しません。
 
 各パッケージの責務については各ディレクトリのREADME.mdも参照してください。
 

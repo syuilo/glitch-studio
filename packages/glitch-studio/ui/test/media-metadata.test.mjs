@@ -7,7 +7,8 @@ import { build } from 'esbuild';
 const bundle = await build({
 	stdin: { contents: `export { readMediaMetadata } from '@gs/shared/media/media-metadata.ts';
 		export { inspectVideoLayerAsset } from './utility/video-layer-asset.ts';
-		export { AssetAudioReader, openAssetAudio } from './audio/asset-audio-reader.ts';`,
+		export { inspectTimelineClipMedia } from './utility/timeline-clip-media.ts';
+		export { openAssetAudio } from './audio/asset-audio-reader.ts';`,
 		resolveDir: fileURLToPath(new URL('../src/', import.meta.url)), loader: 'ts' },
 	bundle: true, platform: 'node', format: 'cjs', write: false, external: ['mediabunny'],
 });
@@ -32,19 +33,17 @@ function setup(overrides = {}) {
 	return { ...module.exports, calls, options };
 }
 
-// 【音声評価用の素材長を、映像のデコード可否やチャンネル制限から独立させる】
-// 未対応映像・多チャンネル音声でもメタデータ自体は読める。音量のEND_TIME取得が映像の検証を要求してはいけない。
+// 【素材のメタデータ取得を、デコード可否やチャンネル制限から独立させる】
+// 未対応映像・多チャンネル音声でも素材の事実自体は読める。読み出し側の制約をメタデータへ混ぜない。
 test('reads and caches factual media metadata without probing decoding support', async () => {
 	const h = setup({ videoDecodable: false, audioDecodable: false, channels: 6 });
 	const blob = new Blob();
-	const reader = new h.AssetAudioReader([{ id: 'movie', fileData: blob }]);
-	assert.equal(await reader.getDurationMs('movie', 'media'), 10000);
+	assert.equal((await h.readMediaMetadata(blob)).durationMs, 10000);
 	assert.deepEqual(await h.readMediaMetadata(blob), {
 		durationMs: 10000, video: { firstTimestamp: 2, endTimestamp: 8 },
 		audio: { firstTimestamp: 0, endTimestamp: 10, numberOfChannels: 6 },
 	});
 	assert.deepEqual(h.calls, { opened: 1, disposed: 1, videoSupport: 0, audioSupport: 0 });
-	reader.dispose();
 });
 
 // 【動画追加時の対応判定はメタデータ取得とは別に実行する】
@@ -107,4 +106,18 @@ test('applies the same audio support policy to PCM opening', async () => {
 		await assert.rejects(h.openAssetAudio({ name: 'movie', fileData: blob }), error => error.message === `movie: ${audioError}`);
 		assert.equal(h.calls.opened, h.calls.disposed);
 	}
+});
+
+// 【音声素材の配置情報は公開ハンドルから取得し、確認後に資源を解放する】
+// UIはデコーダーの具体型に触れずに秒をmsへ変換する。不正な素材長は開く境界から素材名付きで返る。
+test('inspects audio clip duration through the audio file handle', async () => {
+	const h = setup({ missingVideo: true, audioEnd: 1.25 });
+	const asset = { name: 'Sound.wav', fileDataType: 'audio/wav', fileData: new Blob() };
+	assert.deepEqual(await h.inspectTimelineClipMedia(asset), { durationMs: 1250, audioAvailable: true, audioError: null });
+	assert.equal(h.calls.opened, 1);
+	assert.equal(h.calls.disposed, 1);
+
+	const invalid = setup({ audioEnd: 0 });
+	await assert.rejects(invalid.inspectTimelineClipMedia(asset), /Sound\.wav: Audio has no finite duration/);
+	assert.equal(invalid.calls.opened, invalid.calls.disposed);
 });

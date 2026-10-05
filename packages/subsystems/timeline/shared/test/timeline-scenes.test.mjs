@@ -46,7 +46,7 @@ test('collects video audio independently of visual settings and preserves scene 
 		compositingParamValues: { fitMode: { inputSource: 'literal', value: 'contain' } }, automationGraphs: [] };
 	const scenes = [scene('root', [nested('placement', 'child', 1000, 150, 100)]), scene('child', [video])];
 	const [clip] = getSceneAudioClips(scenes, 'root');
-	assert.deepEqual([clip.assetId, clip.sourceStartMs, clip.startMs, clip.endMs, clip.durationBasis], ['movie', 1100, 1150, 1250, 'media']);
+	assert.deepEqual([clip.assetId, clip.sourceStartMs, clip.startMs, clip.endMs], ['movie', 1100, 1150, 1250]);
 	assert.equal(clip.gains.at(-1).volume.value, 0.5);
 	assert.equal(clip.gains.length, 2);
 	video.compositingParamValues.fitMode = { inputSource: 'literal', value: 'cover' };

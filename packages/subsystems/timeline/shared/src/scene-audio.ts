@@ -12,7 +12,6 @@ export type SceneAudioGain = {
 
 export type SceneAudioClip = {
 	assetId: string;
-	durationBasis: 'audio' | 'media';
 	/** 最上位Scene上での素材時刻0。音量の評価基準には使用しない。 */
 	sourceStartMs: number;
 	startMs: number;
@@ -41,8 +40,7 @@ export function getSceneAudioClips(scenes: readonly TimelineScene[], sceneId: st
 				if ('sceneId' in clip) {
 					visit(clip.sceneId, sourceStartMs, startMs, endMs, layerGains);
 				} else if (!('audioEnabled' in clip) || clip.audioEnabled) {
-					clips.push({ assetId: clip.assetId, durationBasis: layer.layerType === 'audio' ? 'audio' : 'media',
-																		sourceStartMs, startMs, endMs, gains: layerGains });
+					clips.push({ assetId: clip.assetId, sourceStartMs, startMs, endMs, gains: layerGains });
 				}
 			}
 		}

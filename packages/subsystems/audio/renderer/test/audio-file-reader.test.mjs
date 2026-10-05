@@ -62,30 +62,45 @@ function decodedSource() {
 	const calls = [];
 	let disposed = 0;
 	return { calls, get disposed() { return disposed; }, async open() {
-		return { duration: 20, sampleRate: 1000, input: { dispose() { disposed++; } }, sink: {
-			async *samples(start, end) {
+		return { durationSeconds: 20, sampleRate: 1000, dispose() { disposed++; },
+			async *readBlocks(start, end) {
 				calls.push([start, end]);
 				const first = Math.floor(start * 1000);
-				yield { timestamp: first / 1000, sampleRate: 1000, numberOfFrames: Math.ceil(end * 1000) - first,
-					numberOfChannels: 1, copyTo(target) { target.fill(0.25); }, close() {} };
+				const frames = Math.ceil(end * 1000) - first;
+				yield { time: first / 1000, rate: 1000,
+					channels: [new Float32Array(frames).fill(0.25), new Float32Array(frames).fill(0.25)] };
 			},
-		} };
+		};
 	} };
 }
 
-// 【素材の長さとPCM読み出しで同じデコーダーを共有する】
-// トリム前の長さを評価のたびに取得しても素材を開き直さず、単位をmsへ揃える。
-test('shares source metadata with PCM reads', async () => {
+// 【同じソースの読み取りでは開いた資源を共有する】
+// シークやチャンク分割のたびに素材を開き直さず、readerの破棄時に一度だけ解放する。
+test('reuses an opened source across PCM reads', async () => {
 	const source = decodedSource();
 	let opens = 0;
 	const reader = new AudioFileReader(async sourceId => { assert.equal(sourceId, 'audio'); opens++; return source.open(); });
 	try {
-		assert.equal(await reader.getDurationMs('audio'), 20000);
 		await reader.read('audio', 0, 10, 1000);
-		assert.equal(await reader.getDurationMs('audio'), 20000);
+		await reader.read('audio', 4, 10, 1000);
 		assert.equal(opens, 1);
 	} finally { reader.dispose(); }
 	assert.equal(source.disposed, 1);
+});
+
+// 【素材の開始前・終了後を含む読み取りでも、指定フレーム数を無音で埋めて返す】
+// Timelineは素材長を参照せずに表示区間を要求するので、素材外の扱いと出力長はreaderが保証する。
+test('pads both source boundaries with silence while preserving the requested frame count', async () => {
+	const source = decodedSource();
+	const reader = new AudioFileReader(source.open);
+	try {
+		const beforeStart = await reader.read('source', -0.002, 4, 1000);
+		const afterEnd = await reader.read('source', 19.998, 4, 1000);
+		for (let channel = 0; channel < 2; channel++) {
+			assert.deepEqual(beforeStart[channel], Float32Array.of(0, 0, 0.25, 0.25));
+			assert.deepEqual(afterEnd[channel], Float32Array.of(0.25, 0.25, 0, 0));
+		}
+	} finally { reader.dispose(); }
 });
 
 // 【同じ素材の離れた再生位置でデコード窓を奪い合わない】
@@ -136,7 +151,6 @@ test('retries a failed source opener and disposes only successfully opened files
 	});
 	try {
 		await assert.rejects(reader.read('retry', 0, 10, 1000), /temporarily unavailable/);
-		assert.equal(await reader.getDurationMs('retry'), 20000);
 		assert.deepEqual((await reader.read('retry', 0.1, 10, 1000))[0], new Float32Array(10).fill(0.25));
 		assert.equal(attempts, 2);
 	} finally { reader.dispose(); }

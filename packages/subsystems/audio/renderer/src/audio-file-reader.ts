@@ -31,16 +31,9 @@ export class AudioFileReader {
 		const padding = resamplingPaddingSeconds(entry.sampleRate, rate);
 		const blocks: DecodedPcmBlock[] = [];
 		let bytes = 0;
-		for await (const sample of entry.sink.samples(Math.max(0, window * 2 - padding), (window + 1) * 2 + padding)) {
-			try {
-				const left = new Float32Array(sample.numberOfFrames);
-				const right = new Float32Array(sample.numberOfFrames);
-				sample.copyTo(left, { planeIndex: 0, format: 'f32-planar' });
-				if (sample.numberOfChannels > 1) sample.copyTo(right, { planeIndex: 1, format: 'f32-planar' });
-				else right.set(left);
-				blocks.push({ time: sample.timestamp, rate: sample.sampleRate, channels: [left, right] });
-				bytes += left.byteLength + right.byteLength;
-			} finally { sample.close(); }
+		for await (const block of entry.readBlocks(Math.max(0, window * 2 - padding), (window + 1) * 2 + padding)) {
+			blocks.push(block);
+			bytes += block.channels[0].byteLength + block.channels[1].byteLength;
 		}
 		// 単独で上限を超える窓は今回だけ使用し、既存のキャッシュを追い出して保持しない。
 		if (bytes <= this.maxCacheBytes) {
@@ -65,19 +58,16 @@ export class AudioFileReader {
 		return entry;
 	}
 
-	async getDurationMs(sourceId: string): Promise<number> {
-		return (await this.getEntry(sourceId)).duration * 1000;
-	}
-
+	/** 素材時刻は秒。指定レートでframes個ずつの左右PCMを返し、素材外は無音にする。 */
 	async read(sourceId: string, time: number, frames: number, rate: number): Promise<StereoPcm> {
 		const entry = await this.getEntry(sourceId);
 		const output: StereoPcm = [new Float32Array(frames), new Float32Array(frames)];
 		for (let frame = 0; frame < frames;) {
 			const position = time + frame / rate;
-			if (position >= entry.duration) break;
+			if (position >= entry.durationSeconds) break;
 			if (position < 0) { frame += Math.max(1, Math.ceil(-position * rate)); continue; }
 			const window = Math.floor(position / 2);
-			const count = Math.min(frames - frame, Math.max(1, Math.ceil((Math.min((window + 1) * 2, entry.duration) - position) * rate)));
+			const count = Math.min(frames - frame, Math.max(1, Math.ceil((Math.min((window + 1) * 2, entry.durationSeconds) - position) * rate)));
 			const blocks = await this.readWindow(sourceId, entry, window, rate);
 			const channels = this.resampler.resample(blocks, position, count, rate);
 			output[0].set(channels[0], frame);
@@ -88,7 +78,7 @@ export class AudioFileReader {
 	}
 
 	dispose() {
-		for (const entry of this.entries.values()) entry.input.dispose();
+		for (const entry of this.entries.values()) entry.dispose();
 		this.entries.clear();
 		this.windows.clear();
 		this.cachedBytes = 0;
