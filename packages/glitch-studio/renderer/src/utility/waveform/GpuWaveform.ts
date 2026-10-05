@@ -37,7 +37,6 @@ export class GpuWaveform {
 			intensity: 0.22,
 			size: vertical ? { width: 256, height: 512 } : { width: 512, height: 256 },
 			sampleSize: fitWaveformSampleSize(sourceTexture.width, sourceTexture.height),
-			showGrid: true,
 		}, commandEncoder)) {
 			const pass = commandEncoder.beginComputePass({ label: 'accumulate waveform' });
 			this.waveform.accumulate(pass);

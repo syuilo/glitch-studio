@@ -2,9 +2,8 @@ struct Params {
 	mode: u32,
 	intensity: f32,
 	size: vec2u,
-	verticalPosition: u32,
-	showGrid: u32,
 	sampleSize: vec2u,
+	verticalPosition: u32,
 };
 
 @group(0) @binding(0) var<uniform> params: Params;
@@ -88,16 +87,5 @@ fn fs(@location(0) uv: vec2f) -> @location(0) vec4f {
 		fraction.y,
 	);
 	let signal = vec3f(1.0) - exp(-value * params.intensity);
-	var color = signal;
-	if (params.showGrid == 1u) {
-		let cell = vec2u(round(position));
-		let spacing = max(size / 4u, vec2u(1u));
-		let onGrid = cell.x % spacing.x == 0u || cell.y % spacing.y == 0u;
-		color = min(signal + vec3f(0.012), vec3f(1.0));
-		// 加算では白い波形に埋もれるため、明るいグレーを波形の上から合成する。
-		if (onGrid) {
-			color = mix(color, vec3f(0.3), 0.75);
-		}
-	}
-	return vec4f(color, 1.0);
+	return vec4f(signal, 1.0);
 }

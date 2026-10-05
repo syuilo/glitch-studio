@@ -12,7 +12,6 @@ export type WaveformSettings = {
 	// 波形の位置・強度の分解能と、入力を読むサンプル数は別々に指定できる。
 	size: { width: number; height: number };
 	sampleSize?: { width: number; height: number };
-	showGrid?: boolean;
 };
 
 export function createWaveform(options: {
@@ -96,7 +95,7 @@ export function createWaveform(options: {
 			}
 			integers[0] = Number(p.mode === 'luminance');
 			floats[1] = Math.max(0, p.intensity);
-			integers.set([width, height, Number(p.direction === 'vertical'), Number(p.showGrid ?? false), samples.width, samples.height], 2);
+			integers.set([width, height, samples.width, samples.height, Number(p.direction === 'vertical')], 2);
 			device.queue.writeBuffer(uniforms, 0, values);
 			encoder.clearBuffer(counts!);
 			drawable = true;
@@ -107,7 +106,7 @@ export function createWaveform(options: {
 			pass.setPipeline(activeVariant.pipeline);
 			pass.setBindGroup(0, computeGroup);
 			pass.setBindGroup(1, inputGroup);
-			pass.dispatchWorkgroups(Math.ceil(integers[6] / 16), Math.ceil(integers[7] / 16));
+			pass.dispatchWorkgroups(Math.ceil(integers[4] / 16), Math.ceil(integers[5] / 16));
 		},
 		render(pass: GPURenderPassEncoder) {
 			if (!drawable || renderPipeline == null || outputGroup == null) return;

@@ -24,7 +24,6 @@ export default defineEffect({
 		},
 		mode: { dataType: { kind: 'enum', options: ['rgb', 'luminance'] }, ui: { label: 'Mode', control: { labels: { 'rgb': 'RGB', 'luminance': 'Luminance' } } }, defaultValue: { inputSource: 'literal', value: 'rgb' } },
 		intensity: { dataType: { kind: 'scalar' }, ui: { label: 'Intensity', control: { controlType: 'range', min: 0, max: 10, step: 0.01 } }, defaultValue: { inputSource: 'literal', value: 1 } },
-		showGrid: { dataType: { kind: 'bool' }, ui: { label: 'Grid', control: {} }, defaultValue: { inputSource: 'literal', value: false } },
 	},
 	primaryInputParameter: 'input',
 	resolutionInputParameter: 'input',

@@ -21,7 +21,6 @@ export default implementEffect<typeof definition>({
 					mode: ctx.params.mode,
 					direction: ctx.params.direction,
 					intensity: ctx.params.intensity,
-					showGrid: ctx.params.showGrid,
 					size: {
 						width: Math.max(1, Math.ceil(resolution.width / divisor)),
 						height: Math.max(1, Math.ceil(resolution.height / divisor)),
