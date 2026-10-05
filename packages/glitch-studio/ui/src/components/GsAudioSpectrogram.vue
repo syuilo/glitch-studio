@@ -10,7 +10,7 @@
 <script lang="ts" setup>
 import { computed, useTemplateRef } from 'vue';
 import GsDetachableView from './GsDetachableView.vue';
-import type { SpectrogramSettings } from '@gs/shared/utility/audio-spectrogram/audio-spectrogram.ts';
+import type { SpectrogramSettings } from '@gs/subsystems_effect_shared/audio-spectrogram/audio-spectrogram.ts';
 import type { PreviewOptions } from '@/audio/audio-preview-types.ts';
 import { useAudioPreview } from '@/use-audio-preview.ts';
 

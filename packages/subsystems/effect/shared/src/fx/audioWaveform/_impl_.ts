@@ -1,4 +1,4 @@
-import { audioChannel, finiteNumber } from '@gs/shared/utility/audio-spectrum.js';
+import { audioChannel, finiteNumber } from '@gs/subsystems_audio_renderer/audio-spectrum.ts';
 import { implementEffect } from '../../effect-implementation.ts';
 import { createAudioWindowLoader } from '../../audio-window-loader.ts';
 import shader from './shader.wgsl?raw';
@@ -49,13 +49,9 @@ export default implementEffect<typeof definition>({
 				const amplitude = finiteNumber(params.amplitude, 1, 0, 10);
 				data.fill(0);
 				if (audioWindow) {
-					const frames = audioWindow.channels[0].length;
+					const frames = audioWindow.frameCount;
 					const start = 0;
-					const sample = (frame: number, selected: 'left' | 'right' | 'mix') => {
-						const left = audioWindow.channels[0][frame] ?? 0;
-						const right = audioWindow.channels[1][frame] ?? 0;
-						return selected === 'left' ? left : selected === 'right' ? right : (left + right) * 0.5;
-					};
+					const sample = (frame: number, selected: 'left' | 'right' | 'mix') => audioWindow.sample(frame, selected);
 					for (let x = 0; x < columns; x++) {
 						for (let side = 0; side < (channel === 'stereo' ? 2 : 1); side++) {
 							const selected = channel === 'stereo' ? (side === 0 ? 'left' : 'right') : channel;

@@ -1,6 +1,4 @@
-import type { StereoPcm } from './pcm.ts';
-
-export type AudioWindow = { sampleRate: number; channels: Readonly<StereoPcm> };
+import type { AudioWindow } from './audio-window.ts';
 
 /**
  * 1回の描画に固定した音声入力。基準時刻や取得元の解釈は呼び出し側が所有する。

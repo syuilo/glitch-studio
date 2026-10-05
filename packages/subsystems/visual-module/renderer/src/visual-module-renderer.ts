@@ -3,7 +3,7 @@ import { visualModuleCustomParameterId, type VisualModuleCustomParameterId } fro
 import { constantShaderInput, toShaderInput } from '@gs/shared/gpu/shader-input.ts';
 import { getNodeOutputs } from '@gs/subsystems_visual-module_shared/node-outputs.ts';
 import { playerAudioSourceId } from '@gs/shared/audio.ts';
-import { AudioHistory } from '@gs/shared/audio-history.ts';
+import { AudioHistory } from '@gs/subsystems_audio_renderer/audio-history.ts';
 import { validateVisualModuleAudioBinding } from '@gs/subsystems_visual-module_shared/audio-parameters.ts';
 import type { AudioInput } from '@gs/subsystems_audio_shared/audio-input.ts';
 import { genEmptyValue } from '@gs/shared/parameter/parameter-default.ts';

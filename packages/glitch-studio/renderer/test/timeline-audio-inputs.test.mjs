@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { loadShaderSource } from './helpers/load-shader-source.mjs';
 
 const { TimelineAudioInputs } = await loadShaderSource(fileURLToPath(new URL('../src/timeline-audio-inputs.ts', import.meta.url)));
+const samples = (window, channel = 'left') => Float32Array.from({ length: window.frameCount }, (_, frame) => window.sample(frame, channel));
 const literal = value => ({ inputSource: 'literal', value });
 const scenes = [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [
 	{ id: 'waveform', name: 'Waveform', layerType: 'effect', effectId: 'audioWaveform', resolution: { mode: 'auto' }, isDisabled: false,
@@ -56,7 +57,7 @@ test('skips cancelled queued reads and continues with the latest window', async 
 		assert.equal(f.starts.length, 2);
 		assert.equal(f.starts[0], 0);
 		assert.ok(f.starts[1] > 5, 'The cancelled four-second window must not be decoded');
-		assert.ok(result.channels[0].every(value => Math.abs(value - 0.25) < 0.0001));
+		assert.ok(samples(result).every(value => Math.abs(value - 0.25) < 0.0001));
 	} finally {
 		f.release.resolve();
 		f.inputs.dispose();
@@ -78,14 +79,14 @@ test('separates source plans and refreshes selected audio after edits and restor
 		const original = input();
 		assert.notEqual(original.cacheKey, input({ inputSource: 'lowerLayerAudio' }).cacheKey);
 		assert.equal(original.cacheKey, input().cacheKey);
-		assert.ok(Math.abs((await read(original)).channels[0][0] - 0.25) < 0.000001);
+		assert.ok(Math.abs((await read(original)).sample(0, 'left') - 0.25) < 0.000001);
 		current = structuredClone(current);
 		current[0].layers.reverse();
 		current[0].layers[0].name = 'Renamed';
 		current[0].layers[0].audioParamValues.volume = literal(2);
 		assert.notEqual(input().cacheKey, original.cacheKey);
-		assert.ok(Math.abs((await read(input())).channels[0][0] - 0.5) < 0.000001);
-		assert.ok((await read(input({ inputSource: 'lowerLayerAudio' }))).channels[0].every(value => value === 0));
+		assert.ok(Math.abs((await read(input())).sample(0, 'left') - 0.5) < 0.000001);
+		assert.ok(samples(await read(input({ inputSource: 'lowerLayerAudio' }))).every(value => value === 0));
 		// 名前や並び順は保存された参照IDを書き換えない。
 		assert.deepEqual(binding, { inputSource: 'layerAudio', layerId: 'audio' });
 		const restored = structuredClone(current);
@@ -94,11 +95,11 @@ test('separates source plans and refreshes selected audio after edits and restor
 		assert.equal(input({ inputSource: 'layerAudio', layerId: null }), null);
 		assert.equal(input({ inputSource: 'layerAudio', layerId: 'waveform' }), null);
 		current = restored;
-		assert.ok(Math.abs((await read(input())).channels[0][0] - 0.5) < 0.000001);
+		assert.ok(Math.abs(samples(await read(input()))[0] - 0.5) < 0.000001);
 		current = structuredClone(restored);
 		current[0].layers[0].isDisabled = true;
 		assert.ok(input() !== null, 'A disabled source is silence, not a missing input');
-		assert.ok((await read(input())).channels[0].every(value => value === 0));
+		assert.ok(samples(await read(input())).every(value => value === 0));
 	} finally {
 		f.inputs.dispose();
 		await f.closed.promise;

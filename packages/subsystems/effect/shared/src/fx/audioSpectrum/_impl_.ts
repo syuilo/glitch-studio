@@ -1,4 +1,4 @@
-import { audioChannel, finiteNumber } from '@gs/shared/utility/audio-spectrum.js';
+import { audioChannel, finiteNumber } from '@gs/subsystems_audio_renderer/audio-spectrum.ts';
 import { AudioInputSpectrum } from '@gs/subsystems_audio_renderer/audio-input-spectrum.ts';
 import { implementEffect } from '../../effect-implementation.ts';
 import { createAudioWindowLoader } from '../../audio-window-loader.ts';
@@ -49,7 +49,7 @@ export default implementEffect<typeof definition>({
 				request = params.audio ? spectrum.plan(params.audio, audioChannel(params.channel), params.window) : null;
 				requestKey = key;
 			}
-			loader.prepare(request?.input ?? null, request?.durationSeconds ?? 1, signal);
+			loader.prepare(request ? params.audio : null, request?.durationSeconds ?? 1, signal);
 		};
 		return {
 			get cacheVersion() { return loader.revision; },

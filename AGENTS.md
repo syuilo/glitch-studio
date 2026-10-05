@@ -40,7 +40,7 @@
 		- commands.ts ... ステートに対する操作(コマンド)の実装をまとめています。
 - [**`shared`**](./packages/shared) ... 全てのパッケージで使用される共通の処理や定義などが含まれます。横着してなんでもかんでもこの層に置くのではなく、本当にどのドメインにも属さず共有する必要があるものだけ置くこと。他パッケージを参照することはありません。Glitch Studioドメイン内だけで共有する必要のあるものは、ここではなく`glitch-studio_shared`に置くべし。
 - [**`subsystems`**](./packages/subsystems) ... 個々の独立した機能が入る層。これらのパッケージは一機能にすぎず、「プロジェクト」の状態などの上位概念を知っていてはならない。Glitch Studioとは関係ないライブラリとして提供できるレベルで、Glitch Studioのコンテキストから分離されているのが理想。もちろんglitch-studio層へは依存しないが、他のsubsystemへの一方向への依存や、トップレベルのsharedへの依存はあってもいい。
-	- [**`subsystems/audio`**](./packages/subsystems/audio) ... 取得元に依存しないPCMの型をsharedに、音声ファイルのデコード・リサンプリング・PCMキャッシュをrendererに置きます。Asset・Player・Scene・レイヤーの定義や再生状態を知りません。Asset IDからファイルを解決する処理はGlitch Studio層が注入します。
+	- [**`subsystems/audio`**](./packages/subsystems/audio) ... 取得元に依存しないPCM・キャプチャメッセージ・読み取り専用ビューの型をsharedに、音声履歴・FFT解析・音声ファイルのデコード・リサンプリング・PCMキャッシュをrendererに置きます。Asset・Player・Scene・レイヤーの定義や再生状態を知りません。Asset IDからファイルを解決する処理はGlitch Studio層が注入します。
 	- [**`subsystems/effect`**](./packages/subsystems/effect) ... 各種エフェクトのパラメータ定義・実装、エフェクトレンダラー実装などが含まれます。
 		- [**`subsystems/effect/shared`**](./packages/subsystems/effect/shared) ... 各種エフェクトのパラメータ定義・実装。定義はレンダラーからもUIからも参照される情報なのでここに置かれています。1つのエフェクトに1つのディレクトリを割り当てます。定義と実装(シェーダーコードの登録、uniformsやバッファなどの準備処理)は、それぞれ `_def_.ts` / `_impl_.ts` として分離します。シェーダーコード自体も通常wgslファイルとして分離します。(最低限`_def_.ts`と`_impl_.ts`があればよく、その他のファイルを置くことは自由です)
 	- [**`subsystems/visual-module`**](./packages/subsystems/visual-module) ... エフェクトをノードグラフで組み合わせられるVisual Moduleのレンダラー実装などが含まれます。
@@ -166,9 +166,10 @@ Visual Module内で別のVisual Moduleを通常のエフェクトのように使
 - `AudioInput`は取得元に依存しない描画時の契約で、PCMは保存データに含めません。`audioWaveform`と`audioSpectrum`はこの入力から音声窓を取得します。Timelineの窓は所属Scene時刻までの過去区間で48kHz固定、LIVEはPlayerの保持PCMを使います。モノラルは左右へ複製します。
 - `AudioInput.sourceKey`は取得元・変更世代を、`cacheKey`は現在の窓も含めたスナップショットを識別します。通常の追記ではsourceKeyを維持します。`sampleRate`と半開区間の`startFrame`・`endFrame`を公開し、任意の過去を取得できる入力のstartFrameは-Infinityです。履歴の差し替えやPCMの編集ではsourceKeyを変更します。
 - `audioSpectrum`はFFTサイズの1/4サンプル間隔で解析し、最大128区間まで追いつきます。初回・入力変更・逆方向シーク・窓関数/チャンネル変更では最新の1窓から再開し、平滑化の値を保持します。FFTサイズまたはサンプルレート変更では周波数binが変わるため初期化します。同じ位置の再描画では平滑化を進めず、入力未選択中は透明です。平滑化は描画履歴に依存する例外で、`dependsOnRenderHistory: true`を維持します。エフェクトの再作成時やクリップ区間外では通常どおり履歴を破棄します。
-- Playerの指定形式・検証はGlitch Studio shared、履歴からの`AudioInput`生成と共有はGlitch Studio rendererが所有します。Visual Moduleには取得元の解決関数を注入し、共通パラメータ層へPlayerやTimelineのレイヤー参照を集めません。同じPlayerの同じ履歴状態はノード・描画間で共有し、更新時だけ新しいPCMスナップショットを作ります。
+- Playerの指定形式・検証はGlitch Studio shared、履歴からの`AudioInput`生成と共有はGlitch Studio rendererが所有します。Visual Moduleには取得元の解決関数を注入し、共通パラメータ層へPlayerやTimelineのレイヤー参照を集めません。音声履歴は受信時に一度コピーした不変PCMブロックで保持します。同じPlayerの同じ履歴状態はノード・描画間で共有し、更新時も区間とブロック参照だけを固定してPCMを複製しません。
 - 下層音声は同じScene内で自分より下の音声・音声有効の動画・子Sceneを含み、所属Scene時刻で各階層の音量を適用します。現在有効なクリップだけでなく窓内の過去のクリップも含め、区間外は無音にします。正規化・クリッピング・プレビュー出力音量は適用しません。音声入力の未選択は透明、入力があって無音なら基準線を描画します。
 - 指定レイヤーの音声は、入力を所有するレイヤーと同じScene直下の音声・動画・Sceneレイヤーから選びます。上下の順序によらず指定レイヤー単体の出力を使い、Sceneレイヤーは配置のトリム・音量を適用した子Scene全体の音声を出力します。子Scene内部のレイヤーは直接指定できません。選択はIDで保存し、削除・欠落・不適合な参照先はIDを保持して入力なしとし、Undoで復旧します。空・無効のレイヤーや音声無効の動画は有効な参照先として無音を返します。Visual Moduleの共有定義にScene参照を保存せず、配置レイヤーの引数が所有します。
+- `AudioWindow`は`frameCount`と`sample(frame, channel)`で読む固定区間のビューです。LIVEは必要な不変ブロックだけ、Timelineはミックス済みPCMを参照し、窓取得・モノラルの左右複製・無音補完のための配列を作りません。ブロックは有限の直近区間と参照中の窓だけが保持し、利用終了後はGCへ任せます。ブロックプール・独自参照カウント・シーク前の解析履歴再現は行いません。解析状態に不要な音声入力やPCMを保持しません。
 - 非同期の音声準備は描画前に待機し、古い要求の完了・失敗は新しい入力へ反映しません。各モーションブラーサブサンプルは自身のScene時刻で取得します。PCMの取得はシーク履歴や再生Workerの時計に依存させません。Spectrumの平滑化は描画されたサブサンプルの順序に従います。
 - 描画要求のキャンセルは読み出しキュー・ミックス・PCM読み出しへ伝え、待機中の要求を実行せず、実行中もクリップ・デコードブロック・窓の境界で終了します。中断した窓はキャッシュせず、デコーダー資源は実行中の読み出し完了後に解放します。
 

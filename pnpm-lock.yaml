@@ -685,6 +685,9 @@ importers:
       '@gs/shared':
         specifier: workspace:*
         version: link:../../../shared
+      '@gs/subsystems_audio_renderer':
+        specifier: workspace:*
+        version: link:../../audio/renderer
       '@gs/subsystems_audio_shared':
         specifier: workspace:*
         version: link:../../audio/shared

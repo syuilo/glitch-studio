@@ -3,10 +3,10 @@ import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
 
-const bundle = await build({ entryPoints: [fileURLToPath(new URL('../src/audio-input-spectrum.ts', import.meta.url))], bundle: true, platform: 'node', format: 'cjs', write: false });
+const bundle = await build({ stdin: { contents: "export { AudioInputSpectrum } from './audio-input-spectrum.ts'; export { createAudioWindow } from '@gs/subsystems_audio_shared/audio-window.ts';", resolveDir: fileURLToPath(new URL('../src', import.meta.url)), loader: 'ts' }, bundle: true, platform: 'node', format: 'cjs', write: false });
 const module = { exports: {} };
 new Function('module', 'exports', bundle.outputFiles[0].text)(module, module.exports);
-const { AudioInputSpectrum } = module.exports;
+const { AudioInputSpectrum, createAudioWindow } = module.exports;
 
 const size = 256;
 const rate = 1024;
@@ -18,10 +18,10 @@ function input(endFrame, sample = () => 1, overrides = {}) {
 		cacheKey: `audio-${endFrame}`, sourceKey: 'audio', sampleRate: rate, startFrame: -Infinity, endFrame, ...overrides,
 		readWindow(duration) {
 			const frames = Math.round(duration * this.sampleRate);
-			return { sampleRate: this.sampleRate, channels: [0, 1].map(channel => Float32Array.from({ length: frames }, (_, index) => {
+			return createAudioWindow(this.sampleRate, [0, 1].map(channel => Float32Array.from({ length: frames }, (_, index) => {
 				const frame = this.endFrame - frames + index;
 				return frame < this.startFrame ? 0 : sample(frame, channel);
-			})) };
+			})));
 		},
 	};
 }

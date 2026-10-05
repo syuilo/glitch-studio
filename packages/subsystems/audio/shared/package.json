@@ -9,7 +9,9 @@
 	},
 	"exports": {
 		"./pcm.ts": "./src/pcm.ts",
-		"./audio-input.ts": "./src/audio-input.ts"
+		"./audio-input.ts": "./src/audio-input.ts",
+		"./audio-window.ts": "./src/audio-window.ts",
+		"./audio-capture.ts": "./src/audio-capture.ts"
 	},
 	"devDependencies": {
 		"@types/web": "0.0.352",

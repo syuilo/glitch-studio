@@ -13,6 +13,8 @@ const bundle = await build({ stdin: {
 const loaded = { exports: {} };
 new Function('require', 'module', 'exports', bundle.outputFiles[0].text)(createRequire(import.meta.url), loaded, loaded.exports);
 const { TimelineAudioRenderer, createTimelineAudioInput, getSceneAudioClips } = loaded.exports;
+const samples = (window, channel = 'left') => Float32Array.from({ length: window.frameCount }, (_, frame) => window.sample(frame, channel));
+const contents = window => ({ sampleRate: window.sampleRate, channels: [samples(window), samples(window, 'right')] });
 const literal = value => ({ inputSource: 'literal', value });
 const signal = () => new AbortController().signal;
 const clip = (assetId, changes = {}) => ({ id: assetId, assetId, startMs: 0, durationMs: 100, contentOffsetMs: 0, ...changes });
@@ -57,14 +59,14 @@ test('mixes only the selected scene placement with its offsets, bounds, and gain
 	const renderer = new TimelineAudioRenderer(constant);
 	const read = (time, isExport) => createTimelineAudioInput(renderer, plan, time, 'selected', isExport).readWindow(0.012, signal());
 	const pcm = await read(31, false);
-	assert.equal(pcm.channels[0].length, 576);
-	for (let i = 0; i < pcm.channels[0].length; i++) {
+	assert.equal(pcm.frameCount, 576);
+	for (let i = 0; i < pcm.frameCount; i++) {
 		const time = 19 + i / 48;
 		const expected = time >= 20 && time < 30 ? (1 + (time - 14.875) / 10) * time / 20 : 0;
-		assert.ok(Math.abs(pcm.channels[0][i] - expected) < 0.000001);
+		assert.ok(Math.abs(pcm.sample(i, 'left') - expected) < 0.000001);
 	}
 	await read(90, false);
-	assert.deepEqual(await read(31, true), pcm);
+	assert.deepEqual(contents(await read(31, true)), contents(pcm));
 });
 
 // 【下層だけを選び、子Sceneの内部には親のレイヤー境界を持ち込まない】
@@ -80,8 +82,8 @@ test('selects only lower layers and includes complete nested scene audio', async
 	assert.deepEqual(plan.map(item => item.assetId), ['child-top', 'child-bottom', 'video']);
 	const renderer = new TimelineAudioRenderer(constant);
 	const result = await createTimelineAudioInput(renderer, plan, 50, 'revision', false).readWindow(0.01, signal());
-	assert.deepEqual(result.channels[0], new Float32Array(480).fill(2));
-	assert.deepEqual(result.channels[1], new Float32Array(480).fill(-1));
+	assert.deepEqual(samples(result), new Float32Array(480).fill(2));
+	assert.deepEqual(samples(result, 'right'), new Float32Array(480).fill(-1));
 	assert.deepEqual(getSceneAudioClips([root, child], 'root', { type: 'belowLayer', layerId: 'hidden' }), []);
 	assert.throws(() => getSceneAudioClips([root, child], 'root', { type: 'belowLayer', layerId: 'missing' }), /layer not found/);
 	// 並び替え後は、それまで上層だった音声も入力になる。
@@ -105,7 +107,7 @@ test('reads historical clips across silence and preserves fractional source offs
 	const result = await input.readWindow(0.006, signal());
 	assert.equal(result.sampleRate, 48000);
 	assert.deepEqual(calls, [['short', 0.000125, 96, 48000]]);
-	assert.deepEqual(result.channels[0], Float32Array.from([...Array(96).fill(0), ...Array(96).fill(3), ...Array(96).fill(0)]));
+	assert.deepEqual(samples(result), Float32Array.from([...Array(96).fill(0), ...Array(96).fill(3), ...Array(96).fill(0)]));
 });
 
 // 【シーク順序や書き出しによらず同じ時刻のPCMを得る】
@@ -122,11 +124,11 @@ test('is deterministic across seeking and export and distinguishes fractional sa
 	const expected = await read(10.01);
 	await read(80);
 	await read(1);
-	assert.deepEqual(await read(10.01), expected);
-	assert.deepEqual(await read(10.01, true), expected);
-	assert.notDeepEqual(await read(10.04), expected);
+	assert.deepEqual(contents(await read(10.01)), contents(expected));
+	assert.deepEqual(contents(await read(10.01, true)), contents(expected));
+	assert.notDeepEqual(contents(await read(10.04)), contents(expected));
 	const lastTime = 480 / 48000;
-	assert.ok(Math.abs(expected.channels[0].at(-1) - lastTime) < 1e-8);
+	assert.ok(Math.abs(expected.sample(expected.frameCount - 1, 'left') - lastTime) < 1e-8);
 });
 
 // 【デコード失敗とキャンセルを無音として成功させない】

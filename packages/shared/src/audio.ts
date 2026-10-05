@@ -4,19 +4,3 @@ export type AudioSourceId = string;
 export const projectAudioSourceId: AudioSourceId = 'output:project';
 
 export const playerAudioSourceId = (playerId: string): AudioSourceId => `player:${playerId}`;
-
-export type AudioChunk = {
-	type: 'samples';
-	generation: number;
-	startFrame: number;
-	sampleRate: number;
-	channelCount: number;
-	frameCount: number;
-	// 最大2チャンネル、チャンネルごとにframeCount個のサンプル。
-	buffer: ArrayBuffer;
-};
-
-export type AudioCaptureMessage = AudioChunk | {
-	type: 'reset';
-	generation: number;
-};

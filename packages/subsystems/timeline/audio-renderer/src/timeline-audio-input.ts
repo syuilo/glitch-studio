@@ -1,4 +1,5 @@
 import { getAudioWindowFrameCount } from '@gs/subsystems_audio_shared/audio-input.ts';
+import { createAudioWindow } from '@gs/subsystems_audio_shared/audio-window.ts';
 import type { AudioInput } from '@gs/subsystems_audio_shared/audio-input.ts';
 import type { SceneAudioClip } from '@gs/subsystems_timeline_shared/scene-audio.ts';
 import type { TimelineAudioRenderer } from './timeline-audio-renderer.ts';
@@ -21,7 +22,7 @@ export function createTimelineAudioInput(renderer: TimelineAudioRenderer, clips:
 			const frames = getAudioWindowFrameCount(durationSeconds, sampleRate);
 			const channels = await renderer.renderClips(clips, endFrame - frames, frames, sampleRate, isExport, signal);
 			signal.throwIfAborted();
-			return { sampleRate, channels };
+			return createAudioWindow(sampleRate, channels);
 		},
 	};
 }

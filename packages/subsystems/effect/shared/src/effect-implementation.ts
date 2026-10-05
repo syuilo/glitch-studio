@@ -1,4 +1,4 @@
-import type { AudioHistory } from '@gs/shared/audio-history.ts';
+import type { AudioHistory } from '@gs/subsystems_audio_renderer/audio-history.ts';
 import type { AudioInput } from '@gs/subsystems_audio_shared/audio-input.ts';
 import type { BlendMode } from '@gs/shared/color-blend.ts';
 import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';

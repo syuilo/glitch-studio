@@ -1,9 +1,13 @@
 import { WindowedFft } from '@gs/shared/utility/windowed-fft.ts';
-import type { AudioChannel } from '@gs/shared/utility/audio-spectrum.ts';
-import type { AudioInput, AudioWindow } from '@gs/subsystems_audio_shared/audio-input.ts';
+import type { AudioChannel } from './audio-spectrum.ts';
+import type { AudioInput } from '@gs/subsystems_audio_shared/audio-input.ts';
+import type { AudioWindow } from '@gs/subsystems_audio_shared/audio-window.ts';
 
 export interface SpectrumAnalysisRequest {
-	readonly input: AudioInput;
+	// 解析履歴は座標と世代だけを保持する。過去の入力やPCMブロックを引き留めない。
+	readonly sourceKey: string;
+	readonly sampleRate: number;
+	readonly endFrame: number;
 	readonly channel: AudioChannel;
 	readonly windowName: string;
 	readonly firstEndFrame: number;
@@ -32,8 +36,8 @@ export class AudioInputSpectrum {
 		const hop = this.size / 4;
 		const lastEndFrame = Math.floor(input.endFrame / hop) * hop;
 		const previous = this.lastRequest;
-		const continuous = previous && previous.input.sourceKey === input.sourceKey
-			&& previous.input.sampleRate === input.sampleRate && previous.input.endFrame <= input.endFrame
+		const continuous = previous && previous.sourceKey === input.sourceKey
+			&& previous.sampleRate === input.sampleRate && previous.endFrame <= input.endFrame
 			&& previous.channel === channel && previous.windowName === windowName;
 		// 初回・取得元変更・逆方向シークでは最新の1窓から再開する。
 		// サンプル格子は常に同じなので、通常再生中の描画fpsが変わってもFFTの区間は変わらない。
@@ -44,34 +48,33 @@ export class AudioInputSpectrum {
 		firstEndFrame = Math.max(firstEndFrame, Math.min(lastEndFrame, Math.ceil((input.startFrame + this.size) / hop) * hop));
 		if (firstEndFrame > lastEndFrame) return null;
 		return {
-			input, channel, windowName, firstEndFrame, lastEndFrame,
+			sourceKey: input.sourceKey, sampleRate: input.sampleRate, endFrame: input.endFrame,
+			channel, windowName, firstEndFrame, lastEndFrame,
 			durationSeconds: (input.endFrame - firstEndFrame + this.size) / input.sampleRate,
 		};
 	}
 
 	public update(request: SpectrumAnalysisRequest, window: AudioWindow, smoothing: number) {
 		if (this.lastRequest === request) return;
-		const { input, channel, windowName } = request;
+		const { sampleRate, channel, windowName } = request;
 		if (!this.fft || this.fft.windowName !== windowName) this.fft = new WindowedFft(this.size, windowName);
 		// レート変更もFFTサイズ変更と同じく各binの周波数が変わるため、添字のまま引き継がない。
-		if (this.sampleRate !== input.sampleRate) {
+		if (this.sampleRate !== sampleRate) {
 			this.left.fill(0);
 			this.right.fill(0);
 			this.hasData = false;
-			this.sampleRate = input.sampleRate;
+			this.sampleRate = sampleRate;
 		}
 		const hop = this.size / 4;
 		// 時刻差ではなく、処理した音声サンプル数に対する時定数。逆方向シークでも負にならない。
-		const alpha = smoothing > 0 ? Math.exp(-hop / input.sampleRate / smoothing) : 0;
-		const startFrame = input.endFrame - window.channels[0].length;
+		const alpha = smoothing > 0 ? Math.exp(-hop / sampleRate / smoothing) : 0;
+		const startFrame = request.endFrame - window.frameCount;
 		for (let endFrame = request.firstEndFrame; endFrame <= request.lastEndFrame; endFrame += hop) {
 			for (let side = 0; side < (channel === 'stereo' ? 2 : 1); side++) {
 				const selected = channel === 'stereo' ? (side === 0 ? 'left' : 'right') : channel;
 				this.fft.transform(index => {
 					const frame = endFrame - this.size + index - startFrame;
-					const left = window.channels[0][frame] ?? 0;
-					const right = window.channels[1][frame] ?? 0;
-					return selected === 'left' ? left : selected === 'right' ? right : (left + right) * 0.5;
+					return window.sample(frame, selected);
 				}, this.amplitudes);
 				const output = side === 0 ? this.left : this.right;
 				for (let bin = 0; bin < output.length; bin++) output[bin] = output[bin] * alpha + this.amplitudes[bin] * (1 - alpha);

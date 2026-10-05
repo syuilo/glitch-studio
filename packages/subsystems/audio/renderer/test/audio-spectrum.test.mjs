@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
 
 const bundle = await build({
-	stdin: { contents: "export { AudioSpectrum } from './utility/audio-spectrum.ts'; export { AudioHistory } from './audio-history.ts';", resolveDir: fileURLToPath(new URL('../src', import.meta.url)), loader: 'ts' },
+	stdin: { contents: "export { AudioSpectrum } from './audio-spectrum.ts'; export { AudioHistory } from './audio-history.ts';", resolveDir: fileURLToPath(new URL('../src', import.meta.url)), loader: 'ts' },
 	bundle: true, platform: 'node', format: 'cjs', write: false,
 });
 const module = { exports: {} };

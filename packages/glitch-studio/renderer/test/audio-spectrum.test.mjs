@@ -8,6 +8,7 @@ const { default: implementation } = await load('@gs/subsystems_effect_shared/fx/
 const { default: definition } = await load('@gs/subsystems_effect_shared/fx/audioSpectrum/_def_.ts');
 const { createTimelineAudioInput } = await load('@gs/subsystems_timeline_audio-renderer/timeline-audio-input.ts');
 const { TimelineAudioRenderer } = await load('@gs/subsystems_timeline_audio-renderer/timeline-audio-renderer.ts');
+const { createAudioWindow } = await load('@gs/subsystems_audio_shared/audio-window.ts');
 const tick = () => new Promise(resolve => setImmediate(resolve));
 
 function fixture() {
@@ -27,7 +28,7 @@ function input(endFrame, sample = () => 1, overrides = {}) {
 		readWindow(duration, signal) {
 			signal.throwIfAborted();
 			const frames = Math.round(duration * this.sampleRate);
-			return { sampleRate: this.sampleRate, channels: [0, 1].map(channel => Float32Array.from({ length: frames }, (_, index) => sample(endFrame - frames + index, channel))) };
+			return createAudioWindow(this.sampleRate, [0, 1].map(channel => Float32Array.from({ length: frames }, (_, index) => sample(endFrame - frames + index, channel))));
 		} };
 }
 

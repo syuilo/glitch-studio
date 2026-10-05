@@ -13,7 +13,9 @@
 		"./audio-file.ts": "./src/audio-file.ts",
 		"./pcm-resampler.ts": "./src/pcm-resampler.ts",
 		"./audio-file-reader.ts": "./src/audio-file-reader.ts",
-		"./audio-track-support.ts": "./src/audio-track-support.ts"
+		"./audio-track-support.ts": "./src/audio-track-support.ts",
+		"./audio-history.ts": "./src/audio-history.ts",
+		"./audio-spectrum.ts": "./src/audio-spectrum.ts"
 	},
 	"devDependencies": {
 		"@types/web": "0.0.352",

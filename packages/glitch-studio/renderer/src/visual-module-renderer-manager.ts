@@ -1,6 +1,6 @@
 import { scaleResolution, type Resolution } from '@gs/shared/resolution.ts';
 import { applyRendererProjectChanges } from '@gs/glitch-studio_shared/project/renderer-state.ts';
-import { AudioHistory } from '@gs/shared/audio-history.ts';
+import { AudioHistory } from '@gs/subsystems_audio_renderer/audio-history.ts';
 import { genId } from '@gs/shared/utility/id.ts';
 import { genEmptyValue } from '@gs/shared/parameter/parameter-default.ts';
 import { validateLiteralAudioSourceBinding } from '@gs/shared/parameter/audio-source.ts';
@@ -23,7 +23,8 @@ import type { RendererProjectChange, RendererProjectState } from '@gs/glitch-stu
 import type { ProjectVisualModule } from '@gs/glitch-studio_shared/project/types.ts';
 import type { VisualModuleCustomParameterId, VisualModuleArgumentBindings } from '@gs/subsystems_visual-module_shared/types.ts';
 import type { EffectInstanceState } from '@gs/subsystems_effect_shared/effect-status.ts';
-import type { AudioCaptureMessage, AudioSourceId } from '@gs/shared/audio.ts';
+import type { AudioSourceId } from '@gs/shared/audio.ts';
+import type { AudioCaptureMessage } from '@gs/subsystems_audio_shared/audio-capture.ts';
 import type { Asset, IntermediateTextureFormat, Player } from '@gs/shared/types.ts';
 import type { EffectImplementation } from '@gs/subsystems_effect_shared/effect-implementation.js';
 import type { EffectDefinition } from '@gs/subsystems_effect_shared/effect-definition.js';

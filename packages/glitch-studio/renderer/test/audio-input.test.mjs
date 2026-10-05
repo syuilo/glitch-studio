@@ -6,7 +6,7 @@ import { createVisualModuleRenderer } from './helpers/create-visual-module-rende
 
 const load = path => loadShaderSource(fileURLToPath(import.meta.resolve(path)));
 const { createAudioWindowLoader } = await load('@gs/subsystems_effect_shared/audio-window-loader.ts');
-const { AudioHistory } = await load('@gs/shared/audio-history.ts');
+const { AudioHistory } = await load('@gs/subsystems_audio_renderer/audio-history.ts');
 const { playerAudioSourceId } = await load('@gs/shared/audio.ts');
 const { PlayerAudioInputs } = await loadShaderSource(fileURLToPath(new URL('../src/player-audio-inputs.ts', import.meta.url)));
 const { VisualModuleRenderer } = await load('@gs/subsystems_visual-module_renderer/visual-module-renderer.ts');
@@ -17,7 +17,9 @@ const literal = value => ({ inputSource: 'literal', value });
 const audioDef = waveformDefinition.paramDefs.audio;
 const signal = () => new AbortController().signal;
 const tick = () => new Promise(resolve => setImmediate(resolve));
-const window = (left = [1, -1], right = left) => ({ sampleRate: 48000, channels: [Float32Array.from(left), Float32Array.from(right)] });
+const { createAudioWindow } = await load('@gs/subsystems_audio_shared/audio-window.ts');
+const samples = (window, channel = 'left') => Float32Array.from({ length: window.frameCount }, (_, frame) => window.sample(frame, channel));
+const window = (left = [1, -1], right = left) => createAudioWindow(48000, [Float32Array.from(left), Float32Array.from(right)]);
 const deferred = () => Promise.withResolvers();
 
 // 【古いシークの完了・失敗・破棄後の応答を公開しない】
@@ -82,8 +84,34 @@ test('freezes player PCM, pads missing history, and duplicates mono channels', (
 	const input = inputs.resolve(selection);
 	append([9, 8, 7], 2);
 	const result = input.readWindow(0.005, signal());
-	assert.deepEqual(result.channels, [Float32Array.from([0, 0, 1, 2, 3]), Float32Array.from([0, 0, 1, 2, 3])]);
+	assert.deepEqual([samples(result), samples(result, 'right')], [Float32Array.from([0, 0, 1, 2, 3]), Float32Array.from([0, 0, 1, 2, 3])]);
 	assert.notEqual(input.cacheKey, inputs.resolve(selection).cacheKey);
+});
+
+// 【Playerの履歴更新後も、入力の解決と窓取得でPCMを複製しない】
+// 同じ状態のキャッシュヒットだけでなく、毎フレーム新しい音声が届く経路の全量コピーを防ぐ。
+// 長い窓のゼロ補完や、同じ入力を読む複数ノードもPCM配列を確保せず処理できる必要がある。
+test('resolves updated player inputs and multiple windows without copying PCM', () => {
+	const history = new AudioHistory();
+	const inputs = new PlayerAudioInputs(new Map([[playerAudioSourceId('player'), history]]));
+	const selection = { type: 'player', playerId: 'player' };
+	const Float32 = globalThis.Float32Array;
+	for (let frame = 0; frame < 3; frame++) {
+		history.append({ generation: 1, startFrame: frame, sampleRate: 48000, channelCount: 1,
+			frameCount: 1, buffer: Float32.of(frame + 1).buffer });
+		globalThis.Float32Array = new Proxy(Float32, { construct() { throw new Error('Unexpected PCM allocation'); } });
+		try {
+			const input = inputs.resolve(selection);
+			assert.equal(inputs.resolve(selection), input);
+			for (const seconds of [0.01, 1, 10]) {
+				const window = input.readWindow(seconds, signal());
+				assert.equal(window.sample(0, 'left'), 0);
+				assert.equal(window.sample(window.frameCount - 1, 'right'), frame + 1);
+			}
+		} finally {
+			globalThis.Float32Array = Float32;
+		}
+	}
 });
 
 // 【同じ取得元のスナップショットをノード間と停止中の描画間で共有する】
@@ -131,7 +159,7 @@ test('invalidates player snapshots on append, reset, replacement, and disconnect
 	assert.equal(appended.startFrame, 0);
 	assert.equal(appended.endFrame, 4);
 	assert.equal(first.endFrame, 2);
-	assert.deepEqual(appended.readWindow(0.002, signal()).channels[0], Float32Array.of(3, 4));
+	assert.deepEqual(samples(appended.readWindow(0.002, signal())), Float32Array.of(3, 4));
 	const replacement = new AudioHistory();
 	append(replacement, 0, [5, 6, 7, 8]);
 	assert.equal(replacement.revision, history.revision);
@@ -140,13 +168,13 @@ test('invalidates player snapshots on append, reset, replacement, and disconnect
 	const replaced = inputs.resolve(selection);
 	assert.notEqual(replaced.cacheKey, appended.cacheKey);
 	assert.notEqual(replaced.sourceKey, appended.sourceKey);
-	assert.deepEqual(replaced.readWindow(0.002, signal()).channels[0], Float32Array.of(7, 8));
+	assert.deepEqual(samples(replaced.readWindow(0.002, signal())), Float32Array.of(7, 8));
 	replacement.reset();
 	const reset = inputs.resolve(selection);
 	assert.notEqual(reset.cacheKey, replaced.cacheKey);
 	assert.notEqual(reset.sourceKey, replaced.sourceKey);
-	assert.deepEqual(reset.readWindow(0.002, signal()).channels[0], Float32Array.of(0, 0));
-	assert.deepEqual(first.readWindow(0.002, signal()).channels[0], Float32Array.of(1, 2));
+	assert.deepEqual(samples(reset.readWindow(0.002, signal())), Float32Array.of(0, 0));
+	assert.deepEqual(samples(first.readWindow(0.002, signal())), Float32Array.of(1, 2));
 	sources.clear();
 	assert.equal(inputs.resolve(selection), null);
 	assert.equal(inputs.resolve(null), null);
@@ -187,7 +215,7 @@ test('resolves live player selections and rejects dynamic audio bindings', () =>
 	const context = { time: 0, endTime: Infinity, isExport: false, evaluatedParamValues: new Map() };
 	renderer.evaluateParameters(context);
 	const input = renderer.resolveParams(node, renderer.evaledNodeParams.get(node.id)).audio;
-	assert.deepEqual(input.readWindow(0.002, signal()).channels[0], Float32Array.from([1, -1]));
+	assert.deepEqual(samples(input.readWindow(0.002, signal())), Float32Array.from([1, -1]));
 	for (const binding of [{ inputSource: 'expression', expression: 'null' }, { inputSource: 'node', nodeId: null, outputPort: null }]) {
 		node.params.audio = binding;
 		assert.throws(() => renderer.evaluateParameters(context), /static input/);
@@ -276,6 +304,7 @@ test('resolves independent public audio sources and shares only matching frame i
 
 // 【波形は短いピークを保持し、未選択と無音を区別する】
 // GPUへ渡すmin/maxを実エフェクトで検証し、入力変換後にも正規化せず振幅と左右の値を保つ。
+// ブロック境界の両側にピークを置き、窓を連続配列へコピーせずに読み取れることも確認する。
 // ピクセル描画はブラウザを使わず、既存シェーダーへ渡すデータと色のalphaを確認する。
 test('uploads stereo peaks and distinguishes silence from no source', () => {
 	globalThis.GPUBufferUsage = { UNIFORM: 1, STORAGE: 2, COPY_DST: 4 };
@@ -283,8 +312,19 @@ test('uploads stereo peaks and distinguishes silence from no source', () => {
 	const device = { createShaderModule: () => ({}), createRenderPipeline: () => ({ getBindGroupLayout: () => ({}) }), createBuffer: () => ({ destroy() {} }), createBindGroup: () => ({}),
 		queue: { writeBuffer: (_buffer, _offset, data) => writes.push([...data]) } };
 	const instance = waveform.init({ wgpu: { device }, resolution: { width: 2, height: 2 }, reportStatus() {} });
+	const history = new AudioHistory();
+	const left = new Float32Array(240);
+	const right = new Float32Array(240);
+	left[119] = 3; left[120] = -2;
+	right[0] = 1; right[119] = -1; right[120] = 2; right[239] = -3;
+	for (const [start, end] of [[0, 119], [119, 121], [121, 240]]) {
+		history.append({ generation: 1, startFrame: start, sampleRate: 48000, channelCount: 2, frameCount: end - start,
+			buffer: Float32Array.from([...left.subarray(start, end), ...right.subarray(start, end)]).buffer });
+	}
+	const inputs = new PlayerAudioInputs(new Map([[playerAudioSourceId('player'), history]]));
 	const params = { ...Object.fromEntries(Object.entries(waveformDefinition.paramDefs).map(([key, def]) => [key, def.defaultValue.value])),
-		channel: 'stereo', colorL: [1, 0, 0, 0.5], audio: { cacheKey: 'peaks', readWindow: () => window([0, 3, -2, 0], [1, -1, 2, -3]) } };
+		channel: 'stereo', duration: 0.005, colorL: [1, 0, 0, 0.5], audio: inputs.resolve({ type: 'player', playerId: 'player' }) };
+	history.reset();
 	const draw = () => instance.render({ params, outputDataMap: { output: { textureView: {} } }, createPassEncoderFor: () => ({ setPipeline() {}, setBindGroup() {}, draw() {}, end() {} }) });
 	draw();
 	assert.deepEqual(writes.at(-1), [0, 3, -1, 1, -2, 0, -3, 2]);

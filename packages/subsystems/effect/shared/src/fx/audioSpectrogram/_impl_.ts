@@ -1,4 +1,4 @@
-import { createAudioSpectrogram } from '@gs/shared/utility/audio-spectrogram/audio-spectrogram.js';
+import { createAudioSpectrogram } from '../../audio-spectrogram/audio-spectrogram.ts';
 import { implementEffect } from '../../effect-implementation.ts';
 import type definition from './_def_.ts';
 

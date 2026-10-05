@@ -1,5 +1,5 @@
-import { WindowedFft } from './windowed-fft.ts';
-import type { AudioHistory } from '../audio-history.ts';
+import { WindowedFft } from '@gs/shared/utility/windowed-fft.ts';
+import type { AudioHistory } from './audio-history.ts';
 
 export type AudioChannel = 'left' | 'right' | 'mix' | 'stereo';
 

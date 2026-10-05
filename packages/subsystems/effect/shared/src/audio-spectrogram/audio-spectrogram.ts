@@ -1,7 +1,7 @@
-import { float32ToFloat16Bits } from '../float32ToFloat16Bits.ts';
-import { audioChannel, AudioSpectrum, finiteNumber } from '../audio-spectrum.ts';
+import { float32ToFloat16Bits } from '@gs/shared/utility/float32ToFloat16Bits.ts';
+import { audioChannel, AudioSpectrum, finiteNumber } from '@gs/subsystems_audio_renderer/audio-spectrum.ts';
 import shader from './audio-spectrogram.wgsl?raw';
-import type { AudioHistory } from '../../audio-history.ts';
+import type { AudioHistory } from '@gs/subsystems_audio_renderer/audio-history.ts';
 
 // 共通描画処理の設定。エフェクトのパラメータスキーマとは独立して定義する。
 export type SpectrogramSettings = {
