@@ -4,15 +4,15 @@ export default defineEffect({
 	id: 'audioSpectrum',
 	displayName: 'Audio Spectrum',
 	description: {
-		'ja-JP': 'Playerの音声を周波数ごとの強さで表示します。',
-		'en-US': 'Visualizes audio from a Player as a frequency spectrum.',
+		'ja-JP': '入力音声を周波数ごとの強さで表示します。平滑化は描画履歴に依存します。',
+		'en-US': 'Visualizes input audio as a frequency spectrum. Smoothing depends on render history.',
 	},
 	kind: 'generate',
 	// 解析は音声サンプル間隔で進むが、過去の描画で更新した平滑化状態を保持する。
 	dependsOnRenderHistory: true,
 	tags: ['audio', 'analysis'],
 	paramDefs: {
-		player: { dataType: { kind: 'playerReference' }, ui: { label: 'Player', control: {} }, defaultValue: { inputSource: 'literal', value: null } },
+		audio: { dataType: { kind: 'audioSource' }, ui: { label: 'Audio', control: {} }, canNode: false, defaultValue: { inputSource: 'literal', value: null } },
 		channel: {
 			dataType: { kind: 'enum', options: ['left', 'right', 'mix', 'stereo'] },
 			ui: { label: 'Channel', control: { labels: { 'left': 'Left', 'right': 'Right', 'mix': 'Mix (L + R)', 'stereo': 'Stereo' } } },
@@ -38,6 +38,7 @@ export default defineEffect({
 		rightColor: { dataType: { kind: 'color' }, ui: { label: 'Color (R)', control: {} }, defaultValue: { inputSource: 'literal', value: [1, 0.3, 0.6, 1] } },
 	},
 	primaryInputParameter: null,
+	primaryAudioInputParameter: 'audio',
 	resolutionInputParameter: null,
 	outputDefs: {
 		output: { dataType: { kind: 'color' } },

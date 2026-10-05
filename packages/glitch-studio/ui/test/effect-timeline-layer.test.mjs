@@ -120,11 +120,11 @@ test('validates player audio selections at the application command boundary', ()
 	assert.throws(() => COMMAND_DEFS.updateParamAsExpression.create({ ...target, value: 'null' }).execute(state), /static input/);
 });
 
-// 【波形レイヤーは主音声入力を下層へ割り当て、リセットとUndo/Redoでも復元する】
+// 【波形・Spectrumレイヤーは主音声入力を下層へ割り当て、リセットとUndo/Redoでも復元する】
 // 音声の主入力を画像の主入力とは別に扱い、生成系の通常合成を維持する。
 // 未選択を明示した状態も保存し、自動入力によって勝手に上書きしない。
-test('defaults waveform audio to lower layers and restores overrides through undo and redo', () => {
-	const f = fixture('audioWaveform');
+for (const effectId of ['audioWaveform', 'audioSpectrum']) test(`defaults ${effectId} audio to lower layers and restores overrides through undo and redo`, () => {
+	const f = fixture(effectId);
 	assert.deepEqual(f.read(['audio']), { inputSource: 'lowerLayerAudio' });
 	assert.deepEqual(f.layer.compositingParamValues.blendMode, literal('normal'));
 	f.edit(['audio'], { kind: 'literal', value: null });
@@ -134,14 +134,14 @@ test('defaults waveform audio to lower layers and restores overrides through und
 	assert.deepEqual(f.read(['audio']), literal(null));
 	reset.execute(f.state);
 	assert.equal(f.read(['audio']).inputSource, 'lowerLayerAudio');
-	assert.deepEqual(effectDefinitions.audioWaveform.paramDefs.audio.defaultValue, literal(null));
+	assert.deepEqual(effectDefinitions[effectId].paramDefs.audio.defaultValue, literal(null));
 	for (const edit of [
 		{ kind: 'literal', value: { type: 'player', playerId: 'player' } },
 		{ kind: 'inputSource', inputSource: 'expression' },
 		{ kind: 'inputSource', inputSource: 'keyframesTimelineInline' },
 		{ kind: 'inputSource', inputSource: 'layerInput' },
 	]) assert.throws(() => f.edit(['audio'], edit));
-	assert.throws(() => f.edit(['amplitude'], { kind: 'inputSource', inputSource: 'lowerLayerAudio' }));
+	assert.throws(() => f.edit([effectId === 'audioWaveform' ? 'amplitude' : 'smoothing'], { kind: 'inputSource', inputSource: 'lowerLayerAudio' }));
 	assert.equal(f.read(['audio']).inputSource, 'lowerLayerAudio');
 });
 

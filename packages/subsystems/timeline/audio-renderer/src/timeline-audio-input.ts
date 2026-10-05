@@ -12,6 +12,10 @@ export function createTimelineAudioInput(renderer: TimelineAudioRenderer, clips:
 	const endFrame = Math.ceil(sceneTimeMs * sampleRate / 1000);
 	return {
 		cacheKey: JSON.stringify([cacheKey, endFrame, isExport]),
+		sourceKey: JSON.stringify([cacheKey, isExport]),
+		sampleRate,
+		startFrame: -Infinity,
+		endFrame,
 		async readWindow(durationSeconds, signal) {
 			signal.throwIfAborted();
 			const frames = getAudioWindowFrameCount(durationSeconds, sampleRate);

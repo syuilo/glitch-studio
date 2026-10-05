@@ -1,6 +1,10 @@
-import { audioChannel, AudioSpectrum, finiteNumber } from '@gs/shared/utility/audio-spectrum.js';
+import { audioChannel, finiteNumber } from '@gs/shared/utility/audio-spectrum.js';
+import { AudioInputSpectrum } from '@gs/subsystems_audio_renderer/audio-input-spectrum.ts';
 import { implementEffect } from '../../effect-implementation.ts';
+import { createAudioWindowLoader } from '../../audio-window-loader.ts';
 import shader from './shader.wgsl?raw';
+import type { SpectrumAnalysisRequest } from '@gs/subsystems_audio_renderer/audio-input-spectrum.ts';
+import type { RuntimeEffectParameters } from '../../effect-implementation.ts';
 import type definition from './_def_.ts';
 
 export default implementEffect<typeof definition>({
@@ -12,7 +16,8 @@ export default implementEffect<typeof definition>({
 			usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
 		}),
 	},
-	init: ({ wgpu, resolution }) => {
+	init: ({ wgpu, resolution, reportStatus }) => {
+		const loader = createAudioWindowLoader(reportStatus);
 		const columns = Math.max(2, Math.min(2048, resolution.width));
 		const device = wgpu.device;
 		const module = device.createShaderModule({ code: shader });
@@ -33,18 +38,34 @@ export default implementEffect<typeof definition>({
 				{ binding: 1, resource: { buffer: dataBuffer } },
 			],
 		});
-		let spectrum: AudioSpectrum | null = null;
+		let spectrum = new AudioInputSpectrum(2048);
+		let request: SpectrumAnalysisRequest | null = null;
+		let requestKey: string | undefined;
+		const prepare = (params: RuntimeEffectParameters<typeof definition.paramDefs>, signal?: AbortSignal) => {
+			const size = 2 ** Math.round(Math.log2(finiteNumber(Number(params.fftSize), 2048, 256, 32768)));
+			const key = JSON.stringify([params.audio?.cacheKey ?? null, size, params.channel, params.window]);
+			if (key !== requestKey) {
+				if (spectrum.size !== size) spectrum = new AudioInputSpectrum(size);
+				request = params.audio ? spectrum.plan(params.audio, audioChannel(params.channel), params.window) : null;
+				requestKey = key;
+			}
+			loader.prepare(request?.input ?? null, request?.durationSeconds ?? 1, signal);
+		};
 		return {
+			get cacheVersion() { return loader.revision; },
+			prepare,
 			render(ctx) {
 				const { params } = ctx;
-				const size = 2 ** Math.round(Math.log2(finiteNumber(Number(params.fftSize), 2048, 256, 32768)));
-				if (!spectrum || spectrum.size !== size || spectrum.windowName !== params.window) spectrum = new AudioSpectrum(size, params.window);
-				const history = params.player?.audio ?? null;
+				// LIVEでは同期取得、Timelineではprepareで待機した窓を使う。
+				prepare(params);
 				const channel = audioChannel(params.channel);
-				spectrum.update(history, channel, finiteNumber(params.smoothing, 0.15, 0, 2));
+				if (request && loader.window) spectrum.update(request, loader.window, finiteNumber(params.smoothing, 0.15, 0, 2));
+				if (!params.audio) spectrum.disconnect();
+				const visible = params.audio != null && spectrum.hasData && (!request || loader.window != null);
+				const size = spectrum.size;
 				data.fill(0);
-				if (history && spectrum.hasData) {
-					const nyquist = history.sampleRate / 2;
+				if (params.audio && visible) {
+					const nyquist = params.audio.sampleRate / 2;
 					const minFrequency = finiteNumber(params.minFrequency, 20, params.logarithmic ? 1 : 0, nyquist - 1);
 					const maxFrequency = finiteNumber(params.maxFrequency, 20000, minFrequency + 1, nyquist);
 					const minDb = finiteNumber(params.minDb, -80, -120, -1);
@@ -53,8 +74,8 @@ export default implementEffect<typeof definition>({
 						? minFrequency * (maxFrequency / minFrequency) ** x
 						: minFrequency + (maxFrequency - minFrequency) * x;
 					for (let x = 0; x < columns; x++) {
-						const from = frequency(x / columns) * size / history.sampleRate;
-						const to = frequency((x + 1) / columns) * size / history.sampleRate;
+						const from = frequency(x / columns) * size / params.audio.sampleRate;
+						const to = frequency((x + 1) / columns) * size / params.audio.sampleRate;
 						for (let side = 0; side < (channel === 'stereo' ? 2 : 1); side++) {
 							const values = side === 0 ? spectrum.left : spectrum.right;
 							let amplitude = 0;
@@ -72,9 +93,9 @@ export default implementEffect<typeof definition>({
 					}
 				}
 				uniforms.set([
-					params.color[0], params.color[1], params.color[2], 1,
-					params.rightColor[0], params.rightColor[1], params.rightColor[2], 1,
-					columns, Number(channel === 'stereo'), Number(spectrum.hasData), 0,
+					...params.color,
+					...params.rightColor,
+					columns, Number(channel === 'stereo'), Number(visible), 0,
 				]);
 				device.queue.writeBuffer(uniformBuffer, 0, uniforms);
 				device.queue.writeBuffer(dataBuffer, 0, data);
@@ -85,6 +106,7 @@ export default implementEffect<typeof definition>({
 				pass.end();
 			},
 			dispose() {
+				loader.dispose();
 				uniformBuffer.destroy();
 				dataBuffer.destroy();
 			},

@@ -1,5 +1,5 @@
 import type { AudioInput, AudioWindow } from '@gs/subsystems_audio_shared/audio-input.ts';
-import type { EffectStatus } from '../../effect-status.ts';
+import type { EffectStatus } from './effect-status.ts';
 
 /** 描画を進めず音声だけ準備する。古いシークの完了は次の窓や状態を上書きしない。 */
 export function createAudioWindowLoader(reportStatus: (status: EffectStatus) => void) {

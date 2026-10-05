@@ -8,7 +8,7 @@ import type { AudioSourceId } from '@gs/shared/audio.ts';
 /** Playerの履歴を解決し、同じ履歴状態のスナップショットをノード・描画間で共有する。 */
 export class PlayerAudioInputs {
 	// 取得元の切断・差し替えで、使われなくなった履歴とPCMを保持し続けない。
-	private snapshots = new WeakMap<AudioHistory, { key: string; input: AudioInput }>();
+	private snapshots = new WeakMap<AudioHistory, { key: string; sourceRevision: string; input: AudioInput }>();
 	private snapshotVersion = 0;
 
 	constructor(private sources: ReadonlyMap<AudioSourceId, AudioHistory>) {}
@@ -24,14 +24,19 @@ export class PlayerAudioInputs {
 			history.startFrame, history.endFrame, history.sampleRate, history.channelCount]);
 		const cached = this.snapshots.get(history);
 		if (cached?.key === key) return cached.input;
-		const input = createPlayerAudioInput(history, JSON.stringify(['player', selection.playerId, ++this.snapshotVersion]));
-		this.snapshots.set(history, { key, input });
+		const cacheKey = JSON.stringify(['player', selection.playerId, ++this.snapshotVersion]);
+		const sourceRevision = JSON.stringify([selection.playerId, history.generation, history.revision, history.sampleRate, history.channelCount]);
+		// endFrameだけが進んだ場合は同じ音声の続きとしてFFTを進められる。
+		// 履歴の差し替え・シークは、カウンターが偶然一致しても別の取得元にする。
+		const sourceKey = cached?.sourceRevision === sourceRevision ? cached.input.sourceKey : cacheKey;
+		const input = createPlayerAudioInput(history, cacheKey, sourceKey);
+		this.snapshots.set(history, { key, sourceRevision, input });
 		return input;
 	}
 }
 
 /** prepare中のPlayer更新で同じ描画の入力が変わらないよう、保持中のPCMを一度だけ固定する。 */
-function createPlayerAudioInput(history: AudioHistory, cacheKey: string): AudioInput {
+function createPlayerAudioInput(history: AudioHistory, cacheKey: string, sourceKey: string): AudioInput {
 	const { startFrame, endFrame, sampleRate } = history;
 	const channels = [new Float32Array(endFrame - startFrame), new Float32Array(endFrame - startFrame)] as const;
 	for (let frame = startFrame; frame < endFrame; frame++) {
@@ -40,6 +45,10 @@ function createPlayerAudioInput(history: AudioHistory, cacheKey: string): AudioI
 	}
 	return {
 		cacheKey,
+		sourceKey,
+		sampleRate,
+		startFrame,
+		endFrame,
 		readWindow(durationSeconds, signal) {
 			signal.throwIfAborted();
 			const frames = getAudioWindowFrameCount(durationSeconds, sampleRate);

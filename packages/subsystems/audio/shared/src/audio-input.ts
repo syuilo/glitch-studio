@@ -8,6 +8,13 @@ export type AudioWindow = { sampleRate: number; channels: Readonly<StereoPcm> };
  */
 export interface AudioInput {
 	readonly cacheKey: string;
+	/** 同じサンプル座標・PCMを共有する取得元と変更世代。通常の追記では変えない。 */
+	readonly sourceKey: string;
+	readonly sampleRate: number;
+	/** 読めるPCMの先頭。過去を任意に取得できる入力は-Infinity。範囲外はゼロで埋める。 */
+	readonly startFrame: number;
+	/** readWindowが返す半開区間の終端（このフレーム自身は含まない）。 */
+	readonly endFrame: number;
 	readWindow: (durationSeconds: number, signal: AbortSignal) => AudioWindow | Promise<AudioWindow>;
 }
 

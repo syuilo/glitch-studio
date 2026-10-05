@@ -9,6 +9,7 @@
 		"lint": "pnpm typecheck && pnpm eslint"
 	},
 	"exports": {
+		"./audio-input-spectrum.ts": "./src/audio-input-spectrum.ts",
 		"./audio-file.ts": "./src/audio-file.ts",
 		"./pcm-resampler.ts": "./src/pcm-resampler.ts",
 		"./audio-file-reader.ts": "./src/audio-file-reader.ts",
@@ -21,6 +22,7 @@
 		"vite": "8.2.2"
 	},
 	"dependencies": {
+		"@gs/shared": "workspace:*",
 		"mediabunny": "1.56.2",
 		"@gs/subsystems_audio_shared": "workspace:*"
 	}

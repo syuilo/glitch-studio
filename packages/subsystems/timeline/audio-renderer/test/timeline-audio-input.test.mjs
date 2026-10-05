@@ -97,6 +97,11 @@ test('reads historical clips across silence and preserves fractional source offs
 	const renderer = new TimelineAudioRenderer(async (...args) => { calls.push(args.slice(0, 4)); return constant(...args); });
 	const root = scene('root', [waveform, audio('short', { clips: [clip('short', { durationMs: 2, contentOffsetMs: 0.125 })], audioParamValues: { volume: literal(3) } })]);
 	const input = createTimelineAudioInput(renderer, getSceneAudioClips([root], 'root', { type: 'belowLayer', layerId: 'waveform' }), 4, 'r', false);
+	assert.equal(input.sampleRate, 48000);
+	assert.equal(input.startFrame, -Infinity);
+	assert.equal(input.endFrame, 192);
+	assert.equal(createTimelineAudioInput(renderer, [], 5, 'r', false).sourceKey, input.sourceKey);
+	assert.notEqual(createTimelineAudioInput(renderer, [], 4, 'edited', false).sourceKey, input.sourceKey);
 	const result = await input.readWindow(0.006, signal());
 	assert.equal(result.sampleRate, 48000);
 	assert.deepEqual(calls, [['short', 0.000125, 96, 48000]]);

@@ -5,7 +5,7 @@ import { loadShaderSource } from './helpers/load-shader-source.mjs';
 import { createVisualModuleRenderer } from './helpers/create-visual-module-renderer.mjs';
 
 const load = path => loadShaderSource(fileURLToPath(import.meta.resolve(path)));
-const { createAudioWindowLoader } = await load('@gs/subsystems_effect_shared/fx/audioWaveform/audio-window-loader.ts');
+const { createAudioWindowLoader } = await load('@gs/subsystems_effect_shared/audio-window-loader.ts');
 const { AudioHistory } = await load('@gs/shared/audio-history.ts');
 const { playerAudioSourceId } = await load('@gs/shared/audio.ts');
 const { PlayerAudioInputs } = await loadShaderSource(fileURLToPath(new URL('../src/player-audio-inputs.ts', import.meta.url)));
@@ -126,6 +126,11 @@ test('invalidates player snapshots on append, reset, replacement, and disconnect
 	assert.equal(history.revision, revision);
 	const appended = inputs.resolve(selection);
 	assert.notEqual(appended.cacheKey, first.cacheKey);
+	assert.equal(appended.sourceKey, first.sourceKey);
+	assert.equal(appended.sampleRate, 1000);
+	assert.equal(appended.startFrame, 0);
+	assert.equal(appended.endFrame, 4);
+	assert.equal(first.endFrame, 2);
 	assert.deepEqual(appended.readWindow(0.002, signal()).channels[0], Float32Array.of(3, 4));
 	const replacement = new AudioHistory();
 	append(replacement, 0, [5, 6, 7, 8]);
@@ -134,10 +139,12 @@ test('invalidates player snapshots on append, reset, replacement, and disconnect
 	sources.set(playerAudioSourceId('player'), replacement);
 	const replaced = inputs.resolve(selection);
 	assert.notEqual(replaced.cacheKey, appended.cacheKey);
+	assert.notEqual(replaced.sourceKey, appended.sourceKey);
 	assert.deepEqual(replaced.readWindow(0.002, signal()).channels[0], Float32Array.of(7, 8));
 	replacement.reset();
 	const reset = inputs.resolve(selection);
 	assert.notEqual(reset.cacheKey, replaced.cacheKey);
+	assert.notEqual(reset.sourceKey, replaced.sourceKey);
 	assert.deepEqual(reset.readWindow(0.002, signal()).channels[0], Float32Array.of(0, 0));
 	assert.deepEqual(first.readWindow(0.002, signal()).channels[0], Float32Array.of(1, 2));
 	sources.clear();

@@ -20,6 +20,7 @@
 		"vite": "8.2.2"
 	},
 	"dependencies": {
+		"@gs/subsystems_audio_renderer": "workspace:*",
 		"@gs/shared": "workspace:*",
 		"@syuilo/aiscript": "1.2.1",
 		"bezier-easing": "3.0.1",

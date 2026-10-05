@@ -1,6 +1,6 @@
 import { audioChannel, finiteNumber } from '@gs/shared/utility/audio-spectrum.js';
 import { implementEffect } from '../../effect-implementation.ts';
-import { createAudioWindowLoader } from './audio-window-loader.ts';
+import { createAudioWindowLoader } from '../../audio-window-loader.ts';
 import shader from './shader.wgsl?raw';
 import type definition from './_def_.ts';
 

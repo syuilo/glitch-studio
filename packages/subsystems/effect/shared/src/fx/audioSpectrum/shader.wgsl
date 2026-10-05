@@ -28,7 +28,10 @@ fn fs(@location(0) uv: vec2f) -> @location(0) vec4f {
 			* step(bottom, uv.y) * select(0.0, 1.0, values.w > 0.0);
 	}
 
-	let alpha = max(left, right);
-	let color = (uniforms.color.rgb * left + uniforms.rightColor.rgb * right) / max(left + right, 0.000001);
-	return vec4f(color, alpha);
+	// 色パラメータは未乗算。被覆率と指定アルファをここで一度だけ乗算する。
+	let leftAlpha = left * uniforms.color.a;
+	let rightAlpha = right * uniforms.rightColor.a;
+	let alpha = max(leftAlpha, rightAlpha);
+	let color = (uniforms.color.rgb * leftAlpha + uniforms.rightColor.rgb * rightAlpha) / max(leftAlpha + rightAlpha, 0.000001);
+	return vec4f(color * alpha, alpha);
 }
