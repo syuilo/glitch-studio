@@ -1,5 +1,6 @@
 import { getSceneDuration, getTimelineScene, validateTimelineScenes } from './scenes.ts';
 import { getTimelineClipEnd } from './timing.ts';
+import { isTimelineAudioOutputLayer } from './timeline-audio.ts';
 import type { AutomationGraph } from '@gs/shared/automation-graph/automation-graph.ts';
 import type { TimelineParameterBinding, TimelineScene } from './types.ts';
 
@@ -19,21 +20,28 @@ export type SceneAudioClip = {
 	gains: SceneAudioGain[];
 };
 
+export type SceneAudioSelection = { type: 'all' } | { type: 'belowLayer'; layerId: string } | { type: 'layer'; layerId: string };
+
 /** 祖先クリップすべての表示区間を交差させ、素材と各階層の音量の時計を別々に展開する。 */
-export function getSceneAudioClips(scenes: readonly TimelineScene[], sceneId: string, belowLayerId?: string): SceneAudioClip[] {
+export function getSceneAudioClips(scenes: readonly TimelineScene[], sceneId: string, selection: SceneAudioSelection = { type: 'all' }): SceneAudioClip[] {
 	validateTimelineScenes(scenes);
 	const rootScene = getTimelineScene(scenes, sceneId);
-	const boundary = belowLayerId == null ? -1 : rootScene.layers.findIndex(layer => layer.id === belowLayerId);
-	if (belowLayerId != null && boundary === -1) throw new Error('Audio input layer not found');
+	let rootLayers = rootScene.layers;
+	if (selection.type !== 'all') {
+		const index = rootLayers.findIndex(layer => layer.id === selection.layerId);
+		if (index === -1) throw new Error('Audio input layer not found in scene');
+		if (selection.type === 'layer' && !isTimelineAudioOutputLayer(rootLayers[index])) throw new Error('Layer has no audio output');
+		rootLayers = selection.type === 'layer' ? [rootLayers[index]] : rootLayers.slice(index + 1);
+	}
 	const clips: SceneAudioClip[] = [];
 	const visit = (id: string, sceneStartMs: number, start: number, end: number, gains: SceneAudioGain[]) => {
 		const scene = getTimelineScene(scenes, id);
 		end = Math.min(end, sceneStartMs + getSceneDuration(scene));
-		// 境界は取得元Sceneの直下だけに適用する。下層の子Sceneは音声全体を出力する。
-		const layers = gains.length === 0 ? scene.layers.slice(boundary + 1) : scene.layers;
+		// 選択は取得元Sceneの直下だけに適用する。Sceneレイヤーは子Sceneの音声全体を出力する。
+		const layers = gains.length === 0 ? rootLayers : scene.layers;
 		for (const layer of layers) {
 			if (layer.isDisabled) continue;
-			if (layer.layerType !== 'audio' && layer.layerType !== 'video' && layer.layerType !== 'scene') continue;
+			if (!isTimelineAudioOutputLayer(layer)) continue;
 			const layerGains = [...gains, { sceneStartMs, volume: layer.audioParamValues.volume, automationGraphs: layer.automationGraphs }];
 			for (const clip of layer.clips) {
 				const startMs = Math.max(start, sceneStartMs + clip.startMs);

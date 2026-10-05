@@ -27,7 +27,7 @@ import { genId } from '@gs/shared/utility/id.ts';
 import { getNodeOutputs } from '@gs/subsystems_visual-module_shared/node-outputs.ts';
 import { getNodeInputDataType } from '@gs/shared/data-type/node-compatibility.ts';
 import { isTextureDataType } from '@gs/shared/data-type/data-type.ts';
-import { timelineAudioParamDefs } from '@gs/subsystems_timeline_shared/timeline-audio.ts';
+import { isTimelineAudioOutputLayer, timelineAudioParamDefs } from '@gs/subsystems_timeline_shared/timeline-audio.ts';
 import type { TimelineScene, TimelineLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import { validateSceneResolution } from '@gs/subsystems_timeline_shared/scene-resolution.ts';
 import type { TimelineSceneResolution } from '@gs/subsystems_timeline_shared/scene-resolution.ts';
@@ -76,7 +76,7 @@ const editTimelineLayerParamCommandDef = defineCommand<{
 	paramPath: ParamPath;
 } & (
 	| { target?: TimelineParameterTarget; edit: ValueParameterEdit }
-	| { target: 'effect' | 'module'; edit: { kind: 'inputSource'; inputSource: 'lowerLayerAudio' } }
+	| { target: 'effect' | 'module'; edit: { kind: 'inputSource'; inputSource: 'lowerLayerAudio' | 'layerAudio' } | { kind: 'layerAudio'; value: string | null } }
 	| { target: 'effect'; edit: { kind: 'layerInput'; value: TimelineLayerInputBinding } | { kind: 'inputSource'; inputSource: 'layerInput' } }
 )>({
 	label: 'Edit timeline layer param',
@@ -87,7 +87,8 @@ const editTimelineLayerParamCommandDef = defineCommand<{
 			case 'removeElement': kind = 'arrayElements'; break;
 			case 'reset': kind = 'reset'; break;
 			case 'inputSource': kind = 'inputSource'; break;
-			case 'layerInput': kind = 'connection'; break;
+			case 'layerInput':
+			case 'layerAudio': kind = 'connection'; break;
 			default: kind = 'value'; break;
 		}
 		return [{ type: 'layer', sceneId: payload.sceneId, layerId: payload.layerId,
@@ -151,6 +152,12 @@ const editTimelineLayerParamCommandDef = defineCommand<{
 						case 'automationGraphInline':
 						case 'keyframesTimelineInline':
 						case 'layerInput': next = deepClone(edit.value); break;
+						case 'layerAudio': {
+							const source = getScene(state, payload.sceneId).layers.find(candidate => candidate.id === edit.value);
+							if (edit.value !== null && (!source || source.id === layer.id || !isTimelineAudioOutputLayer(source))) throw new Error('Audio source must be an audio, video, or scene layer in the same scene');
+							next = { inputSource: 'layerAudio', layerId: edit.value };
+							break;
+						}
 						case 'envVariable': next = { inputSource: 'envVariable', variable: edit.value }; break;
 						case 'expression': next = { inputSource: 'expression', expression: edit.value }; break;
 						case 'automationGraphReference': next = {
@@ -182,6 +189,7 @@ const editTimelineLayerParamCommandDef = defineCommand<{
 								case 'keyframesTimelineInline': next = createInlineKeyframesTimeline(def, current); break;
 								case 'layerInput': next = createLayerInputBinding(); break;
 								case 'lowerLayerAudio': next = { inputSource: 'lowerLayerAudio' }; break;
+								case 'layerAudio': next = { inputSource: 'layerAudio', layerId: null }; break;
 								default: throw new Error('Unsupported layer parameter input source');
 							}
 							break;

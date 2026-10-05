@@ -221,7 +221,7 @@ test('anchors module audio to scene time while preserving content time and expli
 	const context = { input: { kind: 'uniform', value: [0, 0, 0, 0] }, sceneTimeMs: 600.25, contentTimeMs: 120.25, contentEndTimeMs: 500,
 		clipElapsedTimeMs: 100, clipDurationMs: 400, timeDelta: 0, isExport: true };
 	await renderer.evaluate(context, signal());
-	assert.deepEqual(calls, [[600.25, true]]);
+	assert.deepEqual(calls, [[{ inputSource: 'lowerLayerAudio' }, 600.25, true]]);
 	assert.equal(prepared.time, 120.25);
 	assert.equal(prepared.audioParamInputs.get(publicAudio.id), input);
 	assert.equal(prepared.evaluatedParamValues.has(publicAudio.id), false);
@@ -229,6 +229,42 @@ test('anchors module audio to scene time while preserving content time and expli
 	await renderer.evaluate(context, signal());
 	assert.equal(prepared.audioParamInputs.get(publicAudio.id), null);
 	assert.equal(calls.length, 1);
+});
+
+// 【公開音声パラメータごとに参照先を解決し、同じ参照だけをフレーム内で共有する】
+// 単一の入力を使い回すと、下層音声と指定レイヤーを同時に使うVisual Moduleで誤った波形になる。
+// 欠落参照のnullもキャッシュし、次のフレームでは再解決してUndoや編集を反映する。
+test('resolves independent public audio sources and shares only matching frame inputs', async () => {
+	const bindings = {
+		lower: { inputSource: 'lowerLayerAudio' }, first: { inputSource: 'layerAudio', layerId: 'a' },
+		again: { inputSource: 'layerAudio', layerId: 'a' }, second: { inputSource: 'layerAudio', layerId: 'b' },
+		missing: { inputSource: 'layerAudio', layerId: 'missing' }, missingAgain: { inputSource: 'layerAudio', layerId: 'missing' },
+		none: { inputSource: 'layerAudio', layerId: null },
+	};
+	const visualModule = { primaryInputId: null, primaryAudioInputId: null,
+		paramDefs: Object.keys(bindings).map(id => ({ ...audioDef, id, nameForReference: id })) };
+	const calls = [];
+	let prepared;
+	const renderer = createVisualModuleTimelineLayer(visualModule, { visualModuleParamValues: bindings, automationGraphs: [] }, {
+		getAudioInput: (binding, time, isExport) => {
+			calls.push([binding, time, isExport]);
+			return binding.layerId === 'missing' ? null : { cacheKey: JSON.stringify(binding), readWindow: () => window() };
+		},
+		prepare: async context => { prepared = context; }, render: () => ({ gpuTime: 0 }), destroy() {},
+	});
+	const context = { input: { kind: 'uniform', value: [0, 0, 0, 0] }, sceneTimeMs: 400.25, contentTimeMs: 10, contentEndTimeMs: 100,
+		clipElapsedTimeMs: 10, clipDurationMs: 100, timeDelta: 0, isExport: true };
+	await renderer.evaluate(context, signal());
+	assert.deepEqual(calls, [bindings.lower, bindings.first, bindings.second, bindings.missing].map(binding => [binding, 400.25, true]));
+	const inputs = prepared.audioParamInputs;
+	assert.equal(inputs.get('first'), inputs.get('again'));
+	assert.notEqual(inputs.get('lower'), inputs.get('first'));
+	assert.notEqual(inputs.get('first'), inputs.get('second'));
+	assert.equal(inputs.get('missing'), null);
+	assert.equal(inputs.get('none'), null);
+	await renderer.evaluate(context, signal());
+	assert.equal(calls.length, 8);
+	assert.notEqual(prepared.audioParamInputs.get('first'), inputs.get('first'));
 });
 
 // 【波形は短いピークを保持し、未選択と無音を区別する】

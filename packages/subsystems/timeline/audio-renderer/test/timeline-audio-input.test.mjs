@@ -23,6 +23,50 @@ const waveform = { id: 'waveform', layerType: 'effect', name: 'Waveform', effect
 	clips: [{ id: 'wave', startMs: 0, durationMs: 100, contentOffsetMs: 0 }], effectParamValues: {}, compositingParamValues: {}, automationGraphs: [] };
 const constant = async (_id, _time, frames) => [new Float32Array(frames).fill(1), new Float32Array(frames).fill(-0.5)];
 
+// 【指定レイヤーの音声は並び順に依存せず、他のレイヤーの音声を含めない】
+// 上層も参照できる一方、子Scene内部のIDを直接指定することはできない。
+// 無効・空・音声無効の動画を選んでも、別のレイヤーへフォールバックさせない。
+test('selects one direct audio output regardless of order and rejects descendants', () => {
+	const video = audio('video', { layerType: 'video', clips: [clip('muted', { audioEnabled: false }), clip('audible', { startMs: 100, audioEnabled: true })], compositingParamValues: {} });
+	const root = scene('root', [audio('above'), waveform, video, audio('hidden', { isDisabled: true }), audio('empty', { clips: [] })]);
+	const child = scene('child', [audio('descendant')]);
+	const select = id => getSceneAudioClips([root, child], 'root', { type: 'layer', layerId: id });
+	const expected = select('above');
+	assert.deepEqual(expected.map(item => item.assetId), ['above']);
+	root.layers.reverse();
+	root.layers.find(layer => layer.id === 'above').name = 'Renamed';
+	assert.deepEqual(select('above'), expected);
+	assert.deepEqual(select('video').map(item => item.assetId), ['audible']);
+	assert.deepEqual(select('hidden'), []);
+	assert.deepEqual(select('empty'), []);
+	assert.throws(() => select('descendant'), /not found in scene/);
+	assert.throws(() => select('waveform'), /no audio output/);
+});
+
+// 【Sceneレイヤーを指定した音声に配置のトリムと各階層の音量を反映する】
+// 同じ子Sceneを複数配置していても、選んだ配置の内容時刻と区間だけを使う。
+// 子と親のTIME_MSを混同せず、親のScene時刻で波形の窓を読む必要がある。
+test('mixes only the selected scene placement with its offsets, bounds, and gain clocks', async () => {
+	const child = scene('child', [audio('child-a', { audioParamValues: { volume: { inputSource: 'expression', expression: 'TIME_MS / 10' } } }), audio('child-b')]);
+	const nested = audio('nested', { layerType: 'scene', clips: [{ id: 'placement', sceneId: 'child', startMs: 20, durationMs: 10, contentOffsetMs: 5.125 }],
+		audioParamValues: { volume: { inputSource: 'expression', expression: 'TIME_MS / 20' } }, compositingParamValues: {} });
+	const root = scene('root', [audio('unrelated'), nested, waveform, { ...nested, id: 'other-placement', clips: [{ ...nested.clips[0], contentOffsetMs: 50 }] }]);
+	const plan = getSceneAudioClips([root, child], 'root', { type: 'layer', layerId: 'nested' });
+	assert.deepEqual(plan.map(item => [item.assetId, item.sourceStartMs, item.startMs, item.endMs]), [['child-a', 14.875, 20, 30], ['child-b', 14.875, 20, 30]]);
+	assert.deepEqual(plan[0].gains.map(gain => gain.sceneStartMs), [0, 14.875]);
+	const renderer = new TimelineAudioRenderer(constant);
+	const read = (time, isExport) => createTimelineAudioInput(renderer, plan, time, 'selected', isExport).readWindow(0.012, signal());
+	const pcm = await read(31, false);
+	assert.equal(pcm.channels[0].length, 576);
+	for (let i = 0; i < pcm.channels[0].length; i++) {
+		const time = 19 + i / 48;
+		const expected = time >= 20 && time < 30 ? (1 + (time - 14.875) / 10) * time / 20 : 0;
+		assert.ok(Math.abs(pcm.channels[0][i] - expected) < 0.000001);
+	}
+	await read(90, false);
+	assert.deepEqual(await read(31, true), pcm);
+});
+
 // 【下層だけを選び、子Sceneの内部には親のレイヤー境界を持ち込まない】
 // 配列は上から下の順なので、波形レイヤー自身と上層は入力に含めない。
 // 子Sceneは全体の出力として扱い、動画の音声無効化と非表示も通常再生と同じ計画で除外する。
@@ -32,17 +76,17 @@ test('selects only lower layers and includes complete nested scene audio', async
 		audioParamValues: { volume: literal(0.5) }, compositingParamValues: {} });
 	const video = audio('video', { layerType: 'video', clips: [clip('video', { audioEnabled: true }), clip('muted-video', { startMs: 100, audioEnabled: false })], compositingParamValues: {} });
 	const root = scene('root', [audio('above'), waveform, nested, video, audio('hidden', { isDisabled: true })]);
-	const plan = getSceneAudioClips([root, child], 'root', 'waveform');
+	const plan = getSceneAudioClips([root, child], 'root', { type: 'belowLayer', layerId: 'waveform' });
 	assert.deepEqual(plan.map(item => item.assetId), ['child-top', 'child-bottom', 'video']);
 	const renderer = new TimelineAudioRenderer(constant);
 	const result = await createTimelineAudioInput(renderer, plan, 50, 'revision', false).readWindow(0.01, signal());
 	assert.deepEqual(result.channels[0], new Float32Array(480).fill(2));
 	assert.deepEqual(result.channels[1], new Float32Array(480).fill(-1));
-	assert.deepEqual(getSceneAudioClips([root, child], 'root', 'hidden'), []);
-	assert.throws(() => getSceneAudioClips([root, child], 'root', 'missing'), /layer not found/);
+	assert.deepEqual(getSceneAudioClips([root, child], 'root', { type: 'belowLayer', layerId: 'hidden' }), []);
+	assert.throws(() => getSceneAudioClips([root, child], 'root', { type: 'belowLayer', layerId: 'missing' }), /layer not found/);
 	// 並び替え後は、それまで上層だった音声も入力になる。
 	const reordered = { ...root, layers: [waveform, ...root.layers.filter(layer => layer !== waveform)] };
-	assert.equal(getSceneAudioClips([reordered, child], 'root', 'waveform')[0].assetId, 'above');
+	assert.equal(getSceneAudioClips([reordered, child], 'root', { type: 'belowLayer', layerId: 'waveform' })[0].assetId, 'above');
 });
 
 // 【波形の窓は過去のクリップも含み、Scene先頭より前と表示区間外は無音にする】
@@ -52,7 +96,7 @@ test('reads historical clips across silence and preserves fractional source offs
 	const calls = [];
 	const renderer = new TimelineAudioRenderer(async (...args) => { calls.push(args.slice(0, 4)); return constant(...args); });
 	const root = scene('root', [waveform, audio('short', { clips: [clip('short', { durationMs: 2, contentOffsetMs: 0.125 })], audioParamValues: { volume: literal(3) } })]);
-	const input = createTimelineAudioInput(renderer, getSceneAudioClips([root], 'root', 'waveform'), 4, 'r', false);
+	const input = createTimelineAudioInput(renderer, getSceneAudioClips([root], 'root', { type: 'belowLayer', layerId: 'waveform' }), 4, 'r', false);
 	const result = await input.readWindow(0.006, signal());
 	assert.equal(result.sampleRate, 48000);
 	assert.deepEqual(calls, [['short', 0.000125, 96, 48000]]);
@@ -68,7 +112,7 @@ test('is deterministic across seeking and export and distinguishes fractional sa
 		return [samples, samples.slice()];
 	});
 	const root = scene('root', [waveform, audio('ramp', { audioParamValues: { volume: { inputSource: 'expression', expression: 'TIME_MS / 10' } } })]);
-	const plan = getSceneAudioClips([root], 'root', 'waveform');
+	const plan = getSceneAudioClips([root], 'root', { type: 'belowLayer', layerId: 'waveform' });
 	const read = (time, isExport = false) => createTimelineAudioInput(renderer, plan, time, 'r', isExport).readWindow(0.005, signal());
 	const expected = await read(10.01);
 	await read(80);
@@ -85,7 +129,7 @@ test('is deterministic across seeking and export and distinguishes fractional sa
 test('propagates source failures and rejects cancelled windows', async () => {
 	const root = scene('root', [waveform, audio('broken')]);
 	const renderer = new TimelineAudioRenderer(async () => { throw new Error('decode failed'); });
-	const input = createTimelineAudioInput(renderer, getSceneAudioClips([root], 'root', 'waveform'), 50, 'r', false);
+	const input = createTimelineAudioInput(renderer, getSceneAudioClips([root], 'root', { type: 'belowLayer', layerId: 'waveform' }), 50, 'r', false);
 	await assert.rejects(input.readWindow(0.01, signal()), /decode failed/);
 	const controller = new AbortController();
 	controller.abort();
@@ -108,7 +152,7 @@ test('forwards cancellation and stops before reading the remaining clips', async
 		return constant(id, time, frames, rate);
 	});
 	const root = scene('root', [waveform, audio('first'), audio('second')]);
-	const input = createTimelineAudioInput(renderer, getSceneAudioClips([root], 'root', 'waveform'), 50, 'r', false);
+	const input = createTimelineAudioInput(renderer, getSceneAudioClips([root], 'root', { type: 'belowLayer', layerId: 'waveform' }), 50, 'r', false);
 	const pending = input.readWindow(0.01, controller.signal);
 	const rejected = assert.rejects(pending, { name: 'AbortError' });
 	await started.promise;

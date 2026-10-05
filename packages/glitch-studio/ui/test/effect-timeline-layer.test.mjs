@@ -39,6 +39,62 @@ new Function('require', 'module', 'exports', bundled.outputFiles[0].text)(create
 const { COMMAND_DEFS, createEffectTimelineLayer, resolveLayerParameter, getLayerKeyframeParameters, effectDefinitions, preferences,
 	canConnectNodeDataTypes, areNodeDataTypesCompatible, encodeProjectFile, decodeProjectFile, validateTimelineEffectLayer } = module.exports;
 const literal = value => ({ inputSource: 'literal', value });
+const audioLayer = id => ({ id, name: id, layerType: 'audio', isDisabled: false, clips: [], audioParamValues: { volume: literal(1) }, automationGraphs: [] });
+
+// 【指定レイヤーの選択は同じSceneの音声出力だけを許可し、Undo/RedoでIDを維持する】
+// UI候補の絞り込みだけではCommandから別Sceneや画像レイヤーを混入できるため、保存前にも検証する。
+// 空・無効のレイヤーは後から音声を置けるので有効な選択先とする。
+test('edits same-scene audio references with undo, reset, and command validation', () => {
+	const f = fixture('audioWaveform');
+	const root = f.state.timelineScenes.value[0];
+	const video = { ...audioLayer('video'), layerType: 'video', compositingParamValues: {} };
+	const child = { ...audioLayer('child'), layerType: 'scene', compositingParamValues: {} };
+	const image = { ...audioLayer('image'), layerType: 'image', compositingParamValues: {} };
+	root.layers = [{ ...audioLayer('sound'), isDisabled: true }, f.layer, video, child, image];
+	f.state.timelineScenes.value.push({ ...root, id: 'other', layers: [audioLayer('outside')] });
+	f.edit(['audio'], { kind: 'inputSource', inputSource: 'layerAudio' });
+	assert.deepEqual(f.read(['audio']), { inputSource: 'layerAudio', layerId: null });
+	for (const id of ['sound', 'video', 'child']) {
+		const before = structuredClone(f.read(['audio']));
+		const command = f.edit(['audio'], { kind: 'layerAudio', value: id });
+		assert.deepEqual(f.read(['audio']), { inputSource: 'layerAudio', layerId: id });
+		command.undo(f.state);
+		assert.deepEqual(f.read(['audio']), before);
+		command.execute(f.state);
+		assert.equal(f.read(['audio']).layerId, id);
+	}
+	for (const id of ['outside', 'image', f.layer.id, 'missing']) assert.throws(() => f.edit(['audio'], { kind: 'layerAudio', value: id }), /same scene/);
+	assert.equal(f.read(['audio']).layerId, 'child');
+	assert.throws(() => f.edit(['amplitude'], { kind: 'layerAudio', value: 'sound' }), /not available/);
+	assert.throws(() => f.edit(['amplitude'], { kind: 'inputSource', inputSource: 'layerAudio' }), /not available/);
+	const reset = f.edit(['audio'], { kind: 'reset' });
+	assert.deepEqual(f.read(['audio']), { inputSource: 'lowerLayerAudio' });
+	reset.undo(f.state);
+	assert.equal(f.read(['audio']).layerId, 'child');
+	f.edit(['audio'], { kind: 'layerAudio', value: null });
+	assert.equal(f.read(['audio']).layerId, null);
+	assert.equal(COMMAND_DEFS.editTimelineLayerParam.changes(f.state, { ...f.target, paramPath: ['audio'], edit: { kind: 'layerAudio', value: 'sound' } })[0].changes[0].kind, 'connection');
+});
+
+// 【音声参照の削除中もIDを保存し、Undoで同じ参照先へ復旧する】
+// 削除時に参照を消すと、Undoしても波形の配線を手作業で戻す必要がある。
+// 欠落した参照を持つプロジェクトも保存・再読込でき、別パラメータの編集を妨げない。
+test('preserves dangling layer audio references through deletion, saving, and undo', async () => {
+	const f = fixture('audioWaveform');
+	f.state.timelineScenes.value[0].layers.push(audioLayer('sound'));
+	f.edit(['audio'], { kind: 'layerAudio', value: 'sound' });
+	const remove = COMMAND_DEFS.removeTimelineLayer.create({ sceneId: 'scene', layerId: 'sound' });
+	remove.execute(f.state);
+	assert.deepEqual(f.read(['audio']), { inputSource: 'layerAudio', layerId: 'sound' });
+	f.edit(['amplitude'], { kind: 'literal', value: 2 });
+	const project = { timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, id: 'project', gsVersion: '2.0.0-alpha', name: 'Audio', description: '', author: '', resolution: { width: 800, height: 600 },
+		assets: [], players: [], visualModules: [], timelineScenes: f.state.timelineScenes.value };
+	assert.deepEqual(decodeProjectFile(await encodeProjectFile(project)), project);
+	remove.undo(f.state);
+	assert.equal(f.state.timelineScenes.value[0].layers.at(-1).id, f.read(['audio']).layerId);
+	remove.execute(f.state);
+	assert.equal(f.read(['audio']).layerId, 'sound');
+});
 
 // 【Playerの音声指定はGlitch StudioのCommand境界で検証する】
 // 共通パラメータの検証から取得元の種類を取り除いても、保存されるPlayer指定の制約は維持する。
@@ -111,6 +167,14 @@ test('validates and edits nested audio bindings using stable parameter paths', t
 	assert.equal(f.read(path).inputSource, 'lowerLayerAudio');
 	assert.throws(() => f.edit(path, { kind: 'expression', value: 'null' }));
 	assert.throws(() => f.edit(['inputs'], { kind: 'literal', value: [{ id: 'first', binding: literal({ source: literal({ type: 'player', playerId: 'x' }) }) }] }));
+	f.state.timelineScenes.value[0].layers.push(audioLayer('sound'));
+	f.edit(path, { kind: 'layerAudio', value: 'sound' });
+	assert.deepEqual(f.read(path), { inputSource: 'layerAudio', layerId: 'sound' });
+	const remove = f.edit(['inputs'], { kind: 'removeElement', elementId: 'first' });
+	assert.deepEqual(f.read(['inputs']).value, []);
+	remove.undo(f.state);
+	assert.deepEqual(f.read(path), { inputSource: 'layerAudio', layerId: 'sound' });
+	assert.throws(() => f.edit(path, { kind: 'layerAudio', value: 'outside' }), /same scene/);
 });
 
 // 【公開音声入力の指定と引数の既定値を保存し、定義編集とUndoで対応を維持する】
@@ -143,6 +207,14 @@ test('edits primary audio parameters and timeline arguments with independent und
 	assert.deepEqual(layer.visualModuleParamValues.sound, literal(null));
 	none.undo(f.state);
 	assert.equal(Object.hasOwn(layer.visualModuleParamValues, 'sound'), false);
+	f.state.timelineScenes.value[0].layers.push(audioLayer('source'));
+	const selected = COMMAND_DEFS.editTimelineLayerParam.create({ ...f.target, target: 'module', paramPath: ['sound'], edit: { kind: 'layerAudio', value: 'source' } });
+	selected.execute(f.state);
+	assert.deepEqual(layer.visualModuleParamValues.sound, { inputSource: 'layerAudio', layerId: 'source' });
+	assert.deepEqual(visualModule.paramDefs[0].defaultValue, literal(null));
+	selected.undo(f.state);
+	assert.equal(Object.hasOwn(layer.visualModuleParamValues, 'sound'), false);
+	selected.execute(f.state);
 	for (const [name, payload] of [
 		['removeVisualModuleParamDef', { defId: 'sound' }],
 		['updateVisualModuleParamDef', { defId: 'sound', changes: { dataType: { kind: 'scalar' }, ui: { label: 'Value', control: { controlType: 'number' } }, defaultValue: literal(0) } }],

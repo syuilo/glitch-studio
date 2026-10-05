@@ -3,7 +3,10 @@ import { openAudioFile } from '@gs/subsystems_audio_renderer/audio-file.ts';
 import { TimelineAudioRenderer } from '@gs/subsystems_timeline_audio-renderer/timeline-audio-renderer.ts';
 import { createTimelineAudioInput } from '@gs/subsystems_timeline_audio-renderer/timeline-audio-input.ts';
 import { getSceneAudioClips } from '@gs/subsystems_timeline_shared/scene-audio.ts';
-import type { SceneAudioClip } from '@gs/subsystems_timeline_shared/scene-audio.ts';
+import type { SceneAudioClip, SceneAudioSelection } from '@gs/subsystems_timeline_shared/scene-audio.ts';
+import type { TimelineAudioInputBinding } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
+import { isTimelineAudioOutputLayer } from '@gs/subsystems_timeline_shared/timeline-audio.ts';
+import { getTimelineScene } from '@gs/subsystems_timeline_shared/scenes.ts';
 import type { TimelineScene } from '@gs/subsystems_timeline_shared/types.ts';
 import type { Asset } from '@gs/shared/types.ts';
 import type { StereoPcm } from '@gs/subsystems_audio_shared/pcm.ts';
@@ -57,16 +60,25 @@ export class TimelineAudioInputs {
 		return renderer;
 	}
 
-	getInput(scenes: readonly TimelineScene[], sceneId: string, layerId: string, sceneTimeMs: number, isExport: boolean) {
+	getInput(scenes: readonly TimelineScene[], sceneId: string, layerId: string, binding: TimelineAudioInputBinding, sceneTimeMs: number, isExport: boolean) {
 		if (this.scenes !== scenes) {
 			this.scenes = scenes;
 			this.plans.clear();
 			this.revision++;
 		}
-		const key = JSON.stringify([sceneId, layerId]);
+		let selection: SceneAudioSelection;
+		if (binding.inputSource === 'layerAudio') {
+			const source = getTimelineScene(scenes, sceneId).layers.find(layer => layer.id === binding.layerId);
+			// 削除された参照は保存してUndoで復旧できるようにし、評価時は入力なしにする。
+			if (!source || source.id === layerId || !isTimelineAudioOutputLayer(source)) return null;
+			selection = { type: 'layer', layerId: source.id };
+		} else {
+			selection = { type: 'belowLayer', layerId };
+		}
+		const key = JSON.stringify([sceneId, selection.type, selection.layerId]);
 		let clips = this.plans.get(key);
 		if (!clips) {
-			clips = getSceneAudioClips(scenes, sceneId, layerId);
+			clips = getSceneAudioClips(scenes, sceneId, selection);
 			this.plans.set(key, clips);
 		}
 		return createTimelineAudioInput(this.getRenderer(), clips, sceneTimeMs, `${this.revision}:${key}`, isExport);

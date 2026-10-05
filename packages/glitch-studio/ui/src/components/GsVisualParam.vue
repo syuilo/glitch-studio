@@ -16,6 +16,7 @@
 				<i v-else-if="paramValue.inputSource === 'node'" v-tooltip="'Node'" class="ti ti-plug" :class="$style.typeIcon"></i>
 				<i v-else-if="paramValue.inputSource === 'layerInput'" v-tooltip="'Layers below'" class="ti ti-stack-2" :class="$style.typeIcon"></i>
 				<i v-else-if="paramValue.inputSource === 'lowerLayerAudio'" v-tooltip="'Audio from layers below'" class="ti ti-wave-sine" :class="$style.typeIcon"></i>
+				<i v-else-if="paramValue.inputSource === 'layerAudio'" v-tooltip="'Audio from layer'" class="ti ti-wave-sine" :class="$style.typeIcon"></i>
 				<i v-else-if="paramValue.inputSource === 'keyframesTimelineInline'" v-tooltip="'Keyframes'" class="ti ti-timeline" :class="$style.typeIcon"></i>
 				<i v-else-if="paramValue.inputSource === 'automationGraphReference' || paramValue.inputSource === 'automationGraphInline'" v-tooltip="'AutomationGraph'" class="ti ti-ease-in-out-control-points" :class="$style.typeIcon"></i>
 			</div>
@@ -81,7 +82,8 @@
 						<button class="_button" style="padding: 4px;" @click="showLayerInputSamplingMenu"><i class="ti ti-dots"></i></button>
 					</div>
 					<span v-else-if="paramValue.inputSource === 'lowerLayerAudio'">Audio from layers below</span>
-					<GsSelect v-else-if="paramValue.inputSource === 'literal' && paramDef.dataType.kind === 'audioSource' && lowerLayerAudioEnabled" small :modelValue="null" :items="[{ label: i18n.ts.None, value: null }]" @update:modelValue="updateParamAsLiteral(null)"/>
+					<GsSelect v-else-if="paramValue.inputSource === 'layerAudio'" small :modelValue="paramValue.layerId" :items="audioLayerItems" @update:modelValue="updateAudioLayer"/>
+					<GsSelect v-else-if="paramValue.inputSource === 'literal' && paramDef.dataType.kind === 'audioSource' && audioLayerOptions != null" small :modelValue="null" :items="[{ label: i18n.ts.None, value: null }]" @update:modelValue="updateParamAsLiteral(null)"/>
 					<GsLiteralLeafValueControl
 						v-else-if="paramValue.inputSource === 'literal'"
 						ref="controlComponent"
@@ -121,7 +123,7 @@
 			:automationGraphEndEnabled="automationGraphEndEnabled"
 			:keyframesEnabled="keyframesEnabled"
 			:layerInputEnabled="layerInputEnabled"
-			:lowerLayerAudioEnabled="lowerLayerAudioEnabled"
+			:audioLayerOptions="audioLayerOptions"
 			:visualModule="visualModule"
 			:node="node"
 			:paramPath="[...paramPath, element.id]"
@@ -144,7 +146,7 @@
 			:automationGraphEndEnabled="automationGraphEndEnabled"
 			:keyframesEnabled="keyframesEnabled"
 			:layerInputEnabled="layerInputEnabled"
-			:lowerLayerAudioEnabled="lowerLayerAudioEnabled"
+			:audioLayerOptions="audioLayerOptions"
 			:visualModule="visualModule"
 			:node="node"
 			:paramPath="[...paramPath, key]"
@@ -160,12 +162,15 @@
 import { deepClone } from '@gs/shared/utility/deep-clone.js';
 import type { ParameterArrayElement } from '@gs/shared/parameter/parameter-binding.ts';
 
+export type AudioLayerOption = { value: string; label: string };
+
 export type ParamEdit = { paramPath: ParamPath; mergeKey?: string | null } & (
 	| ValueParameterEdit
 	| { kind: 'node'; value: NodeOutputReference | null; preserveSampling: boolean }
 	| { kind: 'layerInput'; value: Extract<EditableParameterBinding, { inputSource: 'layerInput' }> }
+	| { kind: 'layerAudio'; value: string | null }
 	| { kind: 'externalCustomParameterInput'; value: VisualModuleCustomParameterId }
-	| ParameterInputSourceEdit<'node' | 'layerInput' | 'lowerLayerAudio' | 'externalCustomParameterInput'>
+	| ParameterInputSourceEdit<'node' | 'layerInput' | 'lowerLayerAudio' | 'layerAudio' | 'externalCustomParameterInput'>
 );
 </script>
 
@@ -214,7 +219,8 @@ const props = defineProps<{
 	label?: string;
 	keyframesEnabled?: boolean;
 	layerInputEnabled?: boolean;
-	lowerLayerAudioEnabled?: boolean;
+	/** 指定された場合、Timelineの音声入力を有効にする。候補は呼び出し元Sceneが所有する。 */
+	audioLayerOptions?: readonly AudioLayerOption[];
 	automationGraphEndEnabled?: boolean;
 }>();
 
@@ -233,6 +239,17 @@ const canNode = computed(() => props.paramDef.canNode);
 const inputDataType = computed(() => getNodeInputDataType(props.paramDef));
 const layerInputTypeCompatible = computed(() => areNodeDataTypesCompatible({ kind: 'color' }, inputDataType.value));
 const layerInputConnection = computed(() => props.paramValue.inputSource === 'layerInput' ? props.paramValue : null);
+const audioLayerItems = computed(() => {
+	const items: { value: string | null; label: string }[] = [{ value: null, label: i18n.ts.None }, ...props.audioLayerOptions ?? []];
+	const id = props.paramValue.inputSource === 'layerAudio' ? props.paramValue.layerId : null;
+	if (id !== null && !items.some(item => item.value === id)) items.push({ value: id, label: `Missing layer (${id})` });
+	return items;
+});
+
+function updateAudioLayer(value: string | null) {
+	if (props.paramValue.inputSource === 'layerAudio' && props.paramValue.layerId !== value) emit('edit', { kind: 'layerAudio', ...target(), value });
+}
+
 const paramDefs = computed(() => props.visualModule?.paramDefs ?? []);
 const nodes = computed(() => props.visualModule?.nodes ?? []);
 
@@ -366,7 +383,10 @@ function getMenu() {
 		];
 		if (props.paramDef.dataType.kind === 'audioSource') {
 			types.splice(1);
-			if (props.lowerLayerAudioEnabled) types.push({ text: 'Audio from layers below', inputSource: 'lowerLayerAudio', icon: 'ti ti-wave-sine' });
+			if (props.audioLayerOptions != null) types.push(
+				{ text: 'Audio from layers below', inputSource: 'lowerLayerAudio', icon: 'ti ti-wave-sine' },
+				{ text: 'Audio from layer', inputSource: 'layerAudio', icon: 'ti ti-wave-sine' },
+			);
 		}
 		if (props.node != null) types.push({ text: 'Custom Parameter', inputSource: 'externalCustomParameterInput', icon: 'ti ti-wifi' });
 		if (canNode.value && props.node != null) types.push({ text: 'Node', inputSource: 'node', icon: 'ti ti-plug' });

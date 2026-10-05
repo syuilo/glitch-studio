@@ -14,8 +14,14 @@ export type TimelineLayerInputBinding = {
 
 export type TimelineParameterBinding = ValueParameterBinding;
 export type TimelineLowerLayerAudioBinding = { inputSource: 'lowerLayerAudio' };
-export type TimelineVisualModuleParameterBinding = TimelineParameterBinding | TimelineLowerLayerAudioBinding;
+export type TimelineLayerAudioBinding = { inputSource: 'layerAudio'; layerId: string | null };
+export type TimelineAudioInputBinding = TimelineLowerLayerAudioBinding | TimelineLayerAudioBinding;
+export type TimelineVisualModuleParameterBinding = TimelineParameterBinding | TimelineAudioInputBinding;
 export type TimelineEffectParameterBinding = TimelineVisualModuleParameterBinding | TimelineLayerInputBinding;
+
+export function isTimelineAudioInputBinding(binding: ParameterBindingBase): binding is TimelineAudioInputBinding {
+	return binding.inputSource === 'lowerLayerAudio' || binding.inputSource === 'layerAudio';
+}
 
 function isTimelineLayerInputBinding(binding: ParameterBindingBase): binding is TimelineLayerInputBinding {
 	return binding.inputSource === 'layerInput';
@@ -23,10 +29,11 @@ function isTimelineLayerInputBinding(binding: ParameterBindingBase): binding is 
 
 /** レイヤーに終端や接続スコープはない。UI以外から渡されたBindingも保存時に拒否する。 */
 export function validateTimelineParameterBinding(binding: ParameterBindingBase, allowLayerInput?: false): asserts binding is TimelineParameterBinding;
-export function validateTimelineParameterBinding(binding: ParameterBindingBase, allowLayerInput: boolean, allowLowerLayerAudio?: boolean): asserts binding is TimelineEffectParameterBinding;
-export function validateTimelineParameterBinding(binding: ParameterBindingBase, allowLayerInput = false, allowLowerLayerAudio = allowLayerInput): asserts binding is TimelineEffectParameterBinding {
-	if (binding.inputSource === 'lowerLayerAudio') {
-		if (!allowLowerLayerAudio) throw new Error('Lower layer audio is not available in this parameter');
+export function validateTimelineParameterBinding(binding: ParameterBindingBase, allowLayerInput: boolean, allowAudioInput?: boolean): asserts binding is TimelineEffectParameterBinding;
+export function validateTimelineParameterBinding(binding: ParameterBindingBase, allowLayerInput = false, allowAudioInput = allowLayerInput): asserts binding is TimelineEffectParameterBinding {
+	if (isTimelineAudioInputBinding(binding)) {
+		if (!allowAudioInput) throw new Error('Layer audio is not available in this parameter');
+		if (binding.inputSource === 'layerAudio' && binding.layerId !== null && (typeof binding.layerId !== 'string' || binding.layerId.length === 0)) throw new Error('Invalid audio layer reference');
 		return;
 	}
 	if (isTimelineLayerInputBinding(binding)) {
@@ -51,11 +58,11 @@ export function validateTimelineParameterBinding(binding: ParameterBindingBase, 
 
 /** 保存と評価で同じ制約を使い、配列内への不正なBindingの混入も防ぐ。互換性の強制はUI設定に従う。 */
 export function validateTimelineParameterTree(def: ParameterDefinition, binding: ParameterBindingBase, allowLayerInput?: false): asserts binding is TimelineParameterBinding;
-export function validateTimelineParameterTree(def: ParameterDefinition, binding: ParameterBindingBase, allowLayerInput: boolean, allowLowerLayerAudio?: boolean): asserts binding is TimelineEffectParameterBinding;
-export function validateTimelineParameterTree(def: ParameterDefinition, binding: ParameterBindingBase, allowLayerInput = false, allowLowerLayerAudio = allowLayerInput): asserts binding is TimelineEffectParameterBinding {
-	validateTimelineParameterBinding(binding, allowLayerInput && def.canNode === true, allowLowerLayerAudio && def.dataType.kind === 'audioSource');
+export function validateTimelineParameterTree(def: ParameterDefinition, binding: ParameterBindingBase, allowLayerInput: boolean, allowAudioInput?: boolean): asserts binding is TimelineEffectParameterBinding;
+export function validateTimelineParameterTree(def: ParameterDefinition, binding: ParameterBindingBase, allowLayerInput = false, allowAudioInput = allowLayerInput): asserts binding is TimelineEffectParameterBinding {
+	validateTimelineParameterBinding(binding, allowLayerInput && def.canNode === true, allowAudioInput && def.dataType.kind === 'audioSource');
 	if (def.dataType.kind === 'audioSource') {
-		if (binding.inputSource === 'lowerLayerAudio') return;
+		if (isTimelineAudioInputBinding(binding)) return;
 		validateLiteralAudioSourceBinding(binding);
 		if (binding.value !== null) throw new Error('Timeline audio literals must be unselected');
 		return;
@@ -66,8 +73,8 @@ export function validateTimelineParameterTree(def: ParameterDefinition, binding:
 		if (!Array.isArray(binding.value)) throw new Error('Expected array parameter');
 		const elements = binding.value as ParameterArrayElement<ParameterBindingBase>[];
 		if (new Set(elements.map(element => element.id)).size !== elements.length) throw new Error('Duplicate array element ID');
-		for (const element of elements) validateTimelineParameterTree(getArrayElementDefinition(def), element.binding, allowLayerInput, allowLowerLayerAudio);
+		for (const element of elements) validateTimelineParameterTree(getArrayElementDefinition(def), element.binding, allowLayerInput, allowAudioInput);
 	} else {
-		for (const [key, field] of Object.entries(getStructFieldDefinitions(def))) validateTimelineParameterTree(field, binding.value[key], allowLayerInput, allowLowerLayerAudio);
+		for (const [key, field] of Object.entries(getStructFieldDefinitions(def))) validateTimelineParameterTree(field, binding.value[key], allowLayerInput, allowAudioInput);
 	}
 }

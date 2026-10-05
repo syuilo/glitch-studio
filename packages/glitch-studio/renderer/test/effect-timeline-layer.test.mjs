@@ -113,7 +113,7 @@ test('refreshes lower audio inputs after timeline edits without recreating the r
 		audioParamValues: { volume: literal(1) }, automationGraphs: [] };
 	await f.setup([layer('effect', { audio: { inputSource: 'lowerLayerAudio' } }), below]);
 	await f.manager.renderTimelineFrame(350.25, 0);
-	assert.deepEqual(calls[0].slice(1), ['scene', 'effect', 350.25, true]);
+	assert.deepEqual(calls[0].slice(1), ['scene', 'effect', { inputSource: 'lowerLayerAudio' }, 350.25, true]);
 	const receiver = f.calls.renders.at(-1);
 	assert.equal(receiver.time, 0.27075);
 	assert.equal(receiver.params.audio.cacheKey, '1');
@@ -121,12 +121,43 @@ test('refreshes lower audio inputs after timeline edits without recreating the r
 	f.manager.applyProjectChanges([{ type: 'layer', sceneId: 'scene', layerId: below.id, layer: edited, changes: [{ type: 'parameter', target: 'audio', kind: 'value' }] }]);
 	await f.manager.renderTimelineAt(350.25);
 	assert.equal(calls.at(-1)[0][0].layers[1].audioParamValues.volume.value, 0.25);
-	assert.equal(calls.at(-1)[4], false);
+	assert.equal(calls.at(-1)[5], false);
 	assert.equal(f.calls.renders.at(-1).instance, receiver.instance);
 	f.manager.applyProjectChanges([{ type: 'layerOrder', sceneId: 'scene', layerIds: ['sound', 'effect'] }]);
 	await f.manager.renderTimelineAt(350.25);
 	assert.deepEqual(calls.at(-1)[0][0].layers.map(layer => layer.id), ['sound', 'effect']);
 	assert.equal(f.calls.renders.at(-1).instance, receiver.instance);
+});
+
+// 【直接エフェクトと構造体内の音声入力を参照先ごとに解決する】
+// audioSourceは配列・構造体内にも置けるため、最初に取得した入力を全末端へ使い回してはいけない。
+// 未選択や欠落参照はnullにし、下層・異なるレイヤー・同じ参照の共有を実際の評価経路で確認する。
+test('resolves distinct layer audio inputs in nested effect parameters', async t => {
+	const audioDef = { dataType: { kind: 'audioSource' }, ui: { label: 'Audio', control: {} }, canNode: false, defaultValue: literal(null) };
+	definition.paramDefs.audio = audioDef;
+	definition.paramDefs.sounds = { dataType: { kind: 'struct', fields: { first: audioDef.dataType, again: audioDef.dataType, second: audioDef.dataType, none: audioDef.dataType } },
+		ui: { label: 'Sounds', control: { fields: Object.fromEntries(['first', 'again', 'second', 'none'].map(key => [key, audioDef.ui])) } },
+		fields: Object.fromEntries(['first', 'again', 'second', 'none'].map(key => [key, { canNode: false, defaultValue: literal(null) }])),
+		defaultValue: literal({ first: literal(null), again: literal(null), second: literal(null), none: literal(null) }) };
+	t.after(() => { delete definition.paramDefs.audio; delete definition.paramDefs.sounds; });
+	const f = fixture(t);
+	const calls = [];
+	f.manager.audioInputs.getInput = (...args) => {
+		calls.push(args);
+		return { cacheKey: JSON.stringify(args[3]), readWindow: () => assert.fail('No PCM needed by the probe') };
+	};
+	const selected = id => ({ inputSource: 'layerAudio', layerId: id });
+	await f.setup([layer('effect', { audio: { inputSource: 'lowerLayerAudio' }, sounds: literal({ first: selected('a'), again: selected('a'), second: selected('b'), none: selected(null) }) })]);
+	await f.manager.renderTimelineFrame(350.25, 0);
+	assert.deepEqual(calls.map(call => call.slice(1)), [
+		['scene', 'effect', { inputSource: 'lowerLayerAudio' }, 350.25, true],
+		['scene', 'effect', selected('a'), 350.25, true], ['scene', 'effect', selected('b'), 350.25, true],
+	]);
+	const params = f.calls.renders.at(-1).params;
+	assert.equal(params.sounds.first, params.sounds.again);
+	assert.notEqual(params.audio, params.sounds.first);
+	assert.notEqual(params.sounds.first, params.sounds.second);
+	assert.equal(params.sounds.none, null);
 });
 
 // 【直接エフェクトの編集では対象レイヤーだけを再生成する】

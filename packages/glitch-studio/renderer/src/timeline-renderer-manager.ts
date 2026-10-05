@@ -436,7 +436,7 @@ export class TimelineRendererManager extends EventEmitter<{
 													enable32bitDataTextures: this.staticOptions.enable32bitDataTextures, intermediateTextureFormat: this.staticOptions.intermediateTextureFormat },
 					fallbackTexture: this.fallbackTexture, resolution: renderResolution, resolutionScale: this.dynamicOptions.resolutionScale,
 					assets: this.dynamicOptions.assets, assetTextures: this.assetTextures.textures,
-					getAudioInput: (time, isExport) => this.audioInputs.getInput(this.dynamicOptions.timelineScenes, sceneId, layer.id, time, isExport),
+					getAudioInput: (binding, time, isExport) => this.audioInputs.getInput(this.dynamicOptions.timelineScenes, sceneId, layer.id, binding, time, isExport),
 					onState: status => this.emit('ev', { type: 'effectLayerState', ctx: { source, status } }),
 				});
 			}
@@ -532,7 +532,7 @@ export class TimelineRendererManager extends EventEmitter<{
 			beginPass: (encoder, descriptor) => encoder.beginRenderPass(descriptor),
 		});
 		const instance = createVisualModuleTimelineLayer(getModule, getLayer, {
-			getAudioInput: (time, isExport) => this.audioInputs.getInput(this.dynamicOptions.timelineScenes, sceneId, layer.id, time, isExport),
+			getAudioInput: (binding, time, isExport) => this.audioInputs.getInput(this.dynamicOptions.timelineScenes, sceneId, layer.id, binding, time, isExport),
 			prepare: (context, signal) => renderer.prepare(context, signal),
 			render: async (context, layerContext) => {
 				const commandEncoder = this.gpuDevice.createCommandEncoder();

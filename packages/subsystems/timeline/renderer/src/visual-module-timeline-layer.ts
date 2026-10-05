@@ -3,8 +3,10 @@ import { genEmptyValue } from '@gs/shared/parameter/parameter-default.ts';
 import { TimelineParameterBindingEvaluator } from '@gs/subsystems_timeline_shared/parameter-binding-evaluator.ts';
 import { validateEnumParameterValue } from '@gs/shared/parameter/parameter-definition.ts';
 import { createTimelineLayerEvaluationScope } from '@gs/subsystems_timeline_shared/evaluation-scope.ts';
-import { validateTimelineParameterTree } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
+import { isTimelineAudioInputBinding, validateTimelineParameterTree } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
 import { getTimelineVisualModuleArgumentDefault } from '@gs/subsystems_timeline_shared/visual-module-arguments.ts';
+import { createTimelineAudioInputResolver } from './timeline-audio-input-resolver.ts';
+import type { TimelineAudioInputProvider } from './timeline-audio-input-resolver.ts';
 import type { VisualModuleCustomParameterId, VisualModule } from '@gs/subsystems_visual-module_shared/types.ts';
 import type { UniformOrTexture } from '@gs/shared/gpu/uniform-or-texture.ts';
 import type { TimelineVisualModuleLayer, TimelineInlineVisualModuleLayer } from '@gs/subsystems_timeline_shared/types.ts';
@@ -17,7 +19,7 @@ export function createVisualModuleTimelineLayer(
 	moduleSource: Pick<VisualModule, 'paramDefs' | 'primaryInputId' | 'primaryAudioInputId'> | (() => Pick<VisualModule, 'paramDefs' | 'primaryInputId' | 'primaryAudioInputId'>),
 	layerSource: TimelineVisualModuleLayer | TimelineInlineVisualModuleLayer | (() => TimelineVisualModuleLayer | TimelineInlineVisualModuleLayer),
 	renderer: {
-		getAudioInput?: (sceneTimeMs: number, isExport: boolean) => AudioInput;
+		getAudioInput?: TimelineAudioInputProvider;
 		prepare: (context: VisualModuleRenderContext, signal: AbortSignal) => Promise<void>;
 		render: (context: VisualModuleRenderContext, layerContext: TimelineLayerContext<UniformOrTexture>) => ReturnType<TimelineLayerRenderer<UniformOrTexture>['evaluate']>;
 		destroy: () => void;
@@ -34,7 +36,7 @@ export function createVisualModuleTimelineLayer(
 			const evaluationContext = createTimelineLayerEvaluationScope({ time: context.sceneTimeMs, isExport: context.isExport, automationGraphs: layer.automationGraphs });
 			const evaluatedParamValues = new Map<VisualModuleCustomParameterId, any>();
 			const audioParamInputs = new Map<VisualModuleCustomParameterId, AudioInput | null>();
-			let audioInput: AudioInput | undefined;
+			const resolveAudioInput = createTimelineAudioInputResolver(renderer.getAudioInput, context.sceneTimeMs, context.isExport);
 			if (visualModule.primaryAudioInputId != null && !visualModule.paramDefs.some(def => def.id === visualModule.primaryAudioInputId && def.dataType.kind === 'audioSource' && !def.canNode)) throw new Error('Invalid primary audio input');
 			for (const def of visualModule.paramDefs) {
 				// 主入力はuniformでもCPU式には公開せず、Inノードからのみ読む。
@@ -42,14 +44,10 @@ export function createVisualModuleTimelineLayer(
 				const value = layer.visualModuleParamValues[def.id] ?? getTimelineVisualModuleArgumentDefault(visualModule, def);
 				validateTimelineParameterTree(def, value, false, true);
 				if (def.dataType.kind === 'audioSource') {
-					if (value.inputSource === 'lowerLayerAudio') {
-						if (!renderer.getAudioInput) throw new Error('Timeline audio input is unavailable');
-						audioInput ??= renderer.getAudioInput(context.sceneTimeMs, context.isExport);
-						audioParamInputs.set(def.id, audioInput);
-					} else audioParamInputs.set(def.id, null);
+					audioParamInputs.set(def.id, isTimelineAudioInputBinding(value) ? resolveAudioInput(value) : null);
 					continue;
 				}
-				if (value.inputSource === 'lowerLayerAudio') throw new Error('Expected audio parameter');
+				if (isTimelineAudioInputBinding(value)) throw new Error('Expected audio parameter');
 				// 空のenumキーフレームには有効な既定値が必要。保存済みの無効値は置換せず下で報告する。
 				const enumFallback = value?.inputSource === 'keyframesTimelineInline' ? def.defaultValue.value : undefined;
 				const evaluated = value == null ? def.defaultValue.value : evaluator.evaluate(value, evaluationContext,

@@ -16,7 +16,7 @@
 			:key="key"
 			keyframesEnabled
 			layerInputEnabled
-			lowerLayerAudioEnabled
+			:audioLayerOptions="audioLayerOptions"
 			:automationGraphEndEnabled="false"
 			:availableVariables="LAYER_VAR_DEFS"
 			:automationGraphs="layer.automationGraphs"
@@ -48,13 +48,13 @@ import GsFolder from './common/GsFolder.vue';
 import GsInput from './common/GsInput.vue';
 import GsSelect from './common/GsSelect.vue';
 import GsVisualParam from './GsVisualParam.vue';
-import type { ParamEdit } from './GsVisualParam.vue';
+import type { AudioLayerOption, ParamEdit } from './GsVisualParam.vue';
 import type { TimelineEffectLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import type { EffectResolution } from '@gs/subsystems_effect_shared/resolution.ts';
 import type { Resolution } from '@gs/shared/resolution.ts';
 import type { EffectInstanceState } from '@gs/subsystems_effect_shared/effect-status.ts';
 
-const props = defineProps<{ layer: TimelineEffectLayer; contextResolution: Resolution; effectState?: EffectInstanceState }>();
+const props = defineProps<{ layer: TimelineEffectLayer; contextResolution: Resolution; effectState?: EffectInstanceState; audioLayerOptions: readonly AudioLayerOption[] }>();
 const emit = defineEmits<{ edit: [event: ParamEdit]; resolution: [resolution: EffectResolution] }>();
 const definition = computed(() => effectDefinitions[props.layer.effectId]);
 const outputResolution = computed(() => definition.value.primaryOutput == null ? undefined : props.effectState?.outputs[definition.value.primaryOutput]);

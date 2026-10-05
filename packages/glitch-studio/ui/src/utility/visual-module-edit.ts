@@ -69,7 +69,8 @@ export function commitVisualModuleEdit(manager: ProjectCommands, target: VisualM
 function onNodeParamEdit(manager: ProjectCommands, visualModuleTarget: VisualModuleTarget, nodeId: string, event: ParamEdit) {
 	const target = { ...visualModuleTarget, nodeId, paramPath: event.paramPath };
 	switch (event.kind) {
-		case 'layerInput': throw new Error('Layer input is only available in effect layer parameters');
+		case 'layerInput':
+		case 'layerAudio': throw new Error('Layer input is only available in timeline layer parameters');
 		case 'literal': manager.commit('updateParamAsLiteral', { ...target, value: event.value }, event.mergeKey); break;
 		case 'automationGraphInline': manager.commit('updateParamAsAutomationGraphInline', { ...target, value: event.value }, event.mergeKey); break;
 		case 'envVariable': manager.commit('updateParamAsEnvVariable', { ...target, value: event.value }); break;
@@ -79,7 +80,7 @@ function onNodeParamEdit(manager: ProjectCommands, visualModuleTarget: VisualMod
 		case 'node': manager.commit('updateParamAsNode', { ...target, value: event.value, preserveSampling: event.preserveSampling }); break;
 		case 'externalCustomParameterInput': manager.commit('updateParamAsExternalCustomParameterInput', { ...target, value: event.value }); break;
 		case 'inputSource':
-			if ((event.inputSource === 'layerInput' || event.inputSource === 'lowerLayerAudio')) throw new Error('Layer input is only available in effect layer parameters');
+			if (event.inputSource === 'layerInput' || event.inputSource === 'lowerLayerAudio' || event.inputSource === 'layerAudio') throw new Error('Layer input is only available in timeline layer parameters');
 			manager.commit('changeParamValueInputSource', { ...target, inputSource: event.inputSource });
 			break;
 		case 'reset': manager.commit('resetNodeParam', target); break;

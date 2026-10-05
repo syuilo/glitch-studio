@@ -33,7 +33,7 @@ function fixture() {
 		},
 		dispose() { assert.equal(active, 0); closed.resolve(); },
 	}));
-	const read = (time, signal = new AbortController().signal) => inputs.getInput(scenes, 'scene', 'waveform', time, false).readWindow(0.01, signal);
+	const read = (time, signal = new AbortController().signal) => inputs.getInput(scenes, 'scene', 'waveform', { inputSource: 'lowerLayerAudio' }, time, false).readWindow(0.01, signal);
 	return { inputs, started, release, closed, starts, read };
 }
 
@@ -59,6 +59,47 @@ test('skips cancelled queued reads and continues with the latest window', async 
 		assert.ok(result.channels[0].every(value => Math.abs(value - 0.25) < 0.0001));
 	} finally {
 		f.release.resolve();
+		f.inputs.dispose();
+		await f.closed.promise;
+	}
+});
+
+// 【入力方式・参照先・Scene更新をキャッシュで区別し、参照の削除と復元を反映する】
+// 下層用の計画を指定レイヤーへ流用すると、並び替えや音量編集後に別の音声を表示する。
+// 同じIDが他Sceneにあっても探しに行かず、削除中は入力なし、Undo後は再び音声を得る。
+test('separates source plans and refreshes selected audio after edits and restoration', async () => {
+	const f = fixture();
+	f.release.resolve();
+	let current = structuredClone(scenes);
+	const binding = { inputSource: 'layerAudio', layerId: 'audio' };
+	const input = (selection = binding) => f.inputs.getInput(current, 'scene', 'waveform', selection, 500, false);
+	const read = value => value.readWindow(0.01, new AbortController().signal);
+	try {
+		const original = input();
+		assert.notEqual(original.cacheKey, input({ inputSource: 'lowerLayerAudio' }).cacheKey);
+		assert.equal(original.cacheKey, input().cacheKey);
+		assert.ok(Math.abs((await read(original)).channels[0][0] - 0.25) < 0.000001);
+		current = structuredClone(current);
+		current[0].layers.reverse();
+		current[0].layers[0].name = 'Renamed';
+		current[0].layers[0].audioParamValues.volume = literal(2);
+		assert.notEqual(input().cacheKey, original.cacheKey);
+		assert.ok(Math.abs((await read(input())).channels[0][0] - 0.5) < 0.000001);
+		assert.ok((await read(input({ inputSource: 'lowerLayerAudio' }))).channels[0].every(value => value === 0));
+		// 名前や並び順は保存された参照IDを書き換えない。
+		assert.deepEqual(binding, { inputSource: 'layerAudio', layerId: 'audio' });
+		const restored = structuredClone(current);
+		current = [{ ...current[0], layers: [current[0].layers[1]] }, { ...restored[0], id: 'other-scene', layers: [restored[0].layers[0]] }];
+		assert.equal(input(), null);
+		assert.equal(input({ inputSource: 'layerAudio', layerId: null }), null);
+		assert.equal(input({ inputSource: 'layerAudio', layerId: 'waveform' }), null);
+		current = restored;
+		assert.ok(Math.abs((await read(input())).channels[0][0] - 0.5) < 0.000001);
+		current = structuredClone(restored);
+		current[0].layers[0].isDisabled = true;
+		assert.ok(input() !== null, 'A disabled source is silence, not a missing input');
+		assert.ok((await read(input())).channels[0].every(value => value === 0));
+	} finally {
 		f.inputs.dispose();
 		await f.closed.promise;
 	}

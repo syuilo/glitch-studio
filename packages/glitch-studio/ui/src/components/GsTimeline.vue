@@ -175,6 +175,7 @@
 						:layer="selectedLayer"
 						:effectState="selectedEffectLayerState"
 						:contextResolution="getSceneBaseResolution(editedScene.resolution, stateManager.state.resolution.value)"
+						:audioLayerOptions="audioLayerOptions"
 						@edit="event => onTimelineLayerParamEdit(event, 'effect')"
 						@resolution="resolution => stateManager.commit('changeEffectLayerResolution', { sceneId, layerId: selectedLayer!.id, resolution })"
 					/>
@@ -211,7 +212,7 @@
 									:automationGraphs="selectedLayer.automationGraphs"
 									:paramPath="[paramDef.id]"
 									:paramDef="{ ...paramDef, canNode: false }"
-									lowerLayerAudioEnabled
+									:audioLayerOptions="audioLayerOptions"
 									:paramValue="getLayerParameterValues(selectedLayer, 'module')[paramDef.id] ?? getTimelineVisualModuleArgumentDefault(selectedLayerModule!, paramDef)"
 									@edit="event => onTimelineLayerParamEdit(event, 'module')"
 								/>
@@ -308,6 +309,7 @@ import type { EasingDirection } from '@gs/shared/easing.ts';
 import type { GsSelectItem } from './common/GsSelect.vue';
 import type { TimelineClipSelection, TimelineKeyframeSelection, TimelineSelection, TimelineSelectionGeometry, SelectionRect, TimelineMovePoint } from '@/utility/timeline-selection.ts';
 import type { ParamEdit } from './GsVisualParam.vue';
+import { isTimelineAudioOutputLayer } from '@gs/subsystems_timeline_shared/timeline-audio.ts';
 import type { TimelineClipMediaInfo } from '@/utility/timeline-clip-media.ts';
 import { createKeyframeStretch, stretchKeyframeX } from '@/utility/timeline-keyframe-stretch.ts';
 import { zoomTimelineX } from '@/utility/timeline-zoom.ts';
@@ -450,6 +452,9 @@ const selection = ref<TimelineSelection>(editorState?.selection ? deepClone(edit
 const selectionCount = computed(() => selection.value.kind === 'layers' ? selection.value.ids.length : selection.value.kind === 'clips' ? selection.value.clips.length : selection.value.keyframes.length);
 const selectedLayerId = computed(() => selection.value.kind === 'layers' ? selection.value.ids[0] ?? null : selection.value.kind === 'clips' ? selection.value.clips[0]?.layerId ?? null : selection.value.keyframes[0]?.layerId ?? null);
 const selectedLayer = computed(() => selectionCount.value > 1 ? null : sceneLayers.value.find(layer => layer.id === selectedLayerId.value) ?? null);
+const audioLayerOptions = computed(() => sceneLayers.value
+	.filter(layer => layer.id !== selectedLayer.value?.id && isTimelineAudioOutputLayer(layer))
+	.map(layer => ({ value: layer.id, label: layer.name })));
 const selectedLayerModule = computed(() => {
 	const layer = selectedLayer.value;
 	return layer?.layerType === 'inlineVisualModule' ? layer.visualModule
@@ -1056,7 +1061,7 @@ function onTimelineLayerParamEdit(event: ParamEdit, target: TimelineParameterTar
 	if (layer == null || event.kind === 'node' || event.kind === 'externalCustomParameterInput') return;
 	if (event.kind === 'inputSource' && (event.inputSource === 'node' || event.inputSource === 'externalCustomParameterInput')) return;
 	const mergeKey = event.mergeKey != null ? JSON.stringify([layer.id, target, event.paramPath, event.mergeKey]) : undefined;
-	if (event.kind === 'inputSource' && event.inputSource === 'lowerLayerAudio') {
+	if (event.kind === 'layerAudio' || (event.kind === 'inputSource' && (event.inputSource === 'lowerLayerAudio' || event.inputSource === 'layerAudio'))) {
 		if (target === 'effect' || target === 'module') stateManager.commit('editTimelineLayerParam', { sceneId: props.sceneId, layerId: layer.id, target, paramPath: event.paramPath, edit: event }, mergeKey);
 		return;
 	}
