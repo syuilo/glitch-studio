@@ -6,7 +6,7 @@
 	</template>
 	<template #footer>
 		<div style="display: flex; gap: 4px;">
-			<GsButton iconOnly :class="$style.button" :vTooltip="i18n.ts.ReplaceAsset" @click="replace()"><i class="ti ti-refresh"></i></GsButton>
+			<GsButton iconOnly :class="$style.button" :vTooltip="i18n.ts.ReplaceAsset" @click="replace()"><i class="ti ti-replace"></i></GsButton>
 			<GsButton iconOnly :class="$style.button" :vTooltip="i18n.ts.RenameAsset" @click="rename()"><i class="ti ti-cursor-text"></i></GsButton>
 			<GsButton iconOnly danger :class="$style.button" :vTooltip="i18n.ts.RemoveAsset" @click="remove()"><i class="ti ti-trash"></i></GsButton>
 		</div>
@@ -20,12 +20,12 @@
 </template>
 
 <script lang="ts" setup>
-import { appContext } from '@/app.ts';
 import { shallowRef, watch } from 'vue';
 import GsButton from './common/GsButton.vue';
 import GsDialog from './common/GsDialog.vue';
 import GsFolder from './common/GsFolder.vue';
 import type { Asset } from '@gs/shared/types.ts';
+import { appContext } from '@/app.ts';
 import { i18n } from '@/i18n.ts';
 import * as api from '@/api.ts';
 import { popup } from '@/ui.ts';

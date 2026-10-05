@@ -4,12 +4,20 @@
 		<div :class="$style.headerLeft">
 			<slot></slot>
 		</div>
-		<div :class="$style.headerCenter">
+		<div :class="$style.headerCenter" style="gap: 20px;">
 			<GsButton small :primary="previewPlayback.state.value.mode === 'timeline'" @click="previewPlayback.showTimeline()">Preview</GsButton>
-			<GsButton v-if="previewPlayback.isTimelinePlaying.value" small primary @click="pause"><i class="ti ti-player-pause"></i></GsButton>
-			<GsButton v-else small @click="play"><i class="ti ti-player-play"></i></GsButton>
-			<span v-if="timelineAudioPreview.buffering.value">Buffering audio…</span>
-			<span v-if="audioError || timelineAudioPreview.error.value || timelineRendererManagerController.errorMessage.value">{{ audioError || timelineAudioPreview.error.value || timelineRendererManagerController.errorMessage.value }}</span>
+			<GsButton v-tooltip="'CUE'" small><i class="ti ti-arrow-right-bar"></i></GsButton>
+			<div style="display: flex; gap: 4px;">
+				<GsButton small iconOnly><i class="ti ti-player-skip-back"></i></GsButton>
+				<GsButton small iconOnly><i class="ti ti-rewind-backward-10"></i></GsButton>
+				<GsButton small iconOnly><i class="ti ti-rewind-backward-5"></i></GsButton>
+				<GsButton v-if="previewPlayback.isTimelinePlaying.value" small primary @click="pause"><i class="ti ti-player-pause"></i></GsButton>
+				<GsButton v-else small @click="play"><i class="ti ti-player-play"></i></GsButton>
+				<GsButton small iconOnly><i class="ti ti-rewind-forward-5"></i></GsButton>
+				<GsButton small iconOnly><i class="ti ti-rewind-forward-10"></i></GsButton>
+			</div>
+			<span v-if="timelineAudioPreview.buffering.value"><i class="ti ti-loader"></i></span>
+			<span v-if="audioError || timelineAudioPreview.error.value || timelineRendererManagerController.errorMessage.value" v-tooltip="audioError || timelineAudioPreview.error.value || timelineRendererManagerController.errorMessage.value"><i class="ti ti-alert-triangle"></i></span>
 		</div>
 		<div :class="$style.headerCenter">
 			<span class="_monospace">{{ formatFullTimecode(time) }}</span>
@@ -19,6 +27,7 @@
 			<GsButton small iconOnly><i class="ti ti-select-all"></i></GsButton>
 			<GsButton small iconOnly><i class="ti ti-cut"></i></GsButton>
 			<span>|</span>
+			<GsButton small iconOnly><i class="ti ti-arrow-narrow-right-dashed"></i></GsButton>
 			<GsButton v-tooltip="'Timeline tick settings'" small iconOnly @click="showTickMenu"><i class="ti ti-ruler-2"></i></GsButton>
 			<GsButton v-tooltip="'Snap settings'" small iconOnly :primary="snapEnabled" @click="showSnapMenu"><i class="ti ti-magnet"></i></GsButton>
 		</div>
@@ -277,7 +286,6 @@
 </template>
 
 <script lang="ts" setup>
-import { appContext, timelineSubPanelTeleportTargetAvailable } from '@/app.ts';
 import { createTimelineClipTiming, getTimelineClipEnd, getTimelineClipInsertionDuration, getTimelineClipMoveBounds, getTimelineClipTrimBounds } from '@gs/subsystems_timeline_shared/timing.ts';
 import { isParameterType } from '@gs/shared/parameter/parameter-definition.ts';
 import { LAYER_VAR_DEFS } from '@gs/subsystems_timeline_shared/expression.ts';
@@ -292,6 +300,9 @@ import { getSceneBaseResolution } from '@gs/subsystems_timeline_shared/scene-res
 import { paramPathKey } from '@gs/shared/parameter/parameter-path.ts';
 import { supportsKeyframeInterpolation } from '@gs/shared/keyframes/keyframes-timeline.ts';
 import { effectDefinitions } from '@gs/subsystems_effect_shared/effect-definitions.ts';
+import { isTimelineAudioOutputLayer } from '@gs/subsystems_timeline_shared/timeline-audio.ts';
+import { getTimelineVisualModuleArgumentDefault } from '@gs/subsystems_timeline_shared/visual-module-arguments.ts';
+import { shapeDefinitions } from '@gs/subsystems_timeline_shared/shape.ts';
 import XLayer from './GsTimeline.Layer.vue';
 import GsTimelineEffectSettings from './GsTimeline.EffectSettings.vue';
 import GsTimelineShapeSettings from './GsTimeline.ShapeSettings.vue';
@@ -316,23 +327,21 @@ import type { EasingDirection } from '@gs/shared/easing.ts';
 import type { GsSelectItem } from './common/GsSelect.vue';
 import type { TimelineClipSelection, TimelineKeyframeSelection, TimelineSelection, TimelineSelectionGeometry, SelectionRect, TimelineMovePoint } from '@/utility/timeline-selection.ts';
 import type { ParamEdit } from './GsVisualParam.vue';
-import { isTimelineAudioOutputLayer } from '@gs/subsystems_timeline_shared/timeline-audio.ts';
 import type { TimelineClipMediaInfo } from '@/utility/timeline-clip-media.ts';
+import type { ShapeType } from '@gs/subsystems_timeline_shared/shape.ts';
 import { createKeyframeStretch, stretchKeyframeX } from '@/utility/timeline-keyframe-stretch.ts';
 import { zoomTimelineX } from '@/utility/timeline-zoom.ts';
 import { getTimelineTickCount, getTimelineTicks, getTimelineMinorTicks, getTimelineClipTicks, formatTimelineTimecode as formatMsToTimecode } from '@/utility/timeline-ticks.ts';
 import { getTimelineClipSnapPoints, getTimelineSnapCandidates, getTimelineSeekPosition } from '@/utility/timeline-snapping.ts';
 import { preferences } from '@/preferences.ts';
 import { listenPointerDrag } from '@/utility/pointer-drag.ts';
-import { getTimelineVisualModuleArgumentDefault } from '@gs/subsystems_timeline_shared/visual-module-arguments.ts';
 import { getLayerParameterValues, getLayerParameterDefinition, resolveLayerParameter, getLayerKeyframeParameters } from '@/utility/timeline-scene.ts';
 import { inspectTimelineClipMedia } from '@/utility/timeline-clip-media.ts';
 import { timelineMarqueeRect, selectTimelineRange, clipSelectionKey, keyframeSelectionKey, getTimelineStretchSelection, constrainTimelineMove, keyframeMoveBounds, getTimelineSnappingTimes } from '@/utility/timeline-selection.ts';
 import { canEditKeyframesTimeline, updateInlineKeyframe } from '@/utility/keyframes-timeline.ts';
 import { createEffectTimelineLayer } from '@/utility/effect-timeline-layer.ts';
 import { createShapeTimelineLayer } from '@/utility/shape-timeline-layer.ts';
-import { shapeDefinitions } from '@gs/subsystems_timeline_shared/shape.ts';
-import type { ShapeType } from '@gs/subsystems_timeline_shared/shape.ts';
+import { appContext, timelineSubPanelTeleportTargetAvailable } from '@/app.ts';
 import { sceneEditorStates, timelineLayerClipboard } from '@/utility/timeline-editor-state.ts';
 import * as ui from '@/ui.ts';
 import { createInlineVisualModuleLayer } from '@/utility/inline-visual-module-layer.ts';
