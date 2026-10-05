@@ -29,9 +29,9 @@
 			<GsButton small iconOnly><i class="ti ti-select-all"></i></GsButton>
 			<GsButton small iconOnly><i class="ti ti-cut"></i></GsButton>
 			<span>|</span>
-			<GsButton small iconOnly><i class="ti ti-arrow-narrow-right-dashed"></i></GsButton>
-			<GsButton v-tooltip="'Timeline tick settings'" small iconOnly @click="showTickMenu"><i class="ti ti-ruler-2"></i></GsButton>
-			<GsButton v-tooltip="'Snap settings'" small iconOnly :primary="snapEnabled" @click="showSnapMenu"><i class="ti ti-magnet"></i></GsButton>
+			<GsButton v-tooltip="'Follow Playhead'" small iconOnly><i class="ti ti-arrow-narrow-right-dashed"></i></GsButton>
+			<GsButton v-tooltip="'Timeline Tick Settings...'" small iconOnly @click="showTickMenu"><i class="ti ti-ruler-2"></i></GsButton>
+			<GsButton v-tooltip="'Snap Settings...'" small iconOnly :primary="snapEnabled" @click="showSnapMenu"><i class="ti ti-magnet"></i></GsButton>
 		</div>
 	</div>
 	<div :class="[$style.body, { [$style.panning]: panning }]" @pointerdown.capture="onBackgroundPointerDown" @click.capture="onTimelineClick" @mousedown.capture="onPanMousedown" @auxclick.capture="onPanAuxclick" @wheel.capture="onTimelineWheel">
