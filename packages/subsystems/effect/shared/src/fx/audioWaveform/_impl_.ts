@@ -1,4 +1,4 @@
-import { audioChannel, finiteNumber } from '@gs/subsystems_audio_renderer/audio-spectrum.ts';
+import { finiteNumber } from '@gs/subsystems_audio_renderer/audio-spectrum.ts';
 import { implementEffect } from '../../effect-implementation.ts';
 import { createAudioWindowLoader } from '../../audio-window-loader.ts';
 import shader from './shader.wgsl?raw';
@@ -24,10 +24,10 @@ export default implementEffect<typeof definition>({
 			fragment: { module, targets: [{ format: wgpu.intermediateTextureFormat }] },
 			primitive: { topology: 'triangle-list' },
 		});
-		const uniformBuffer = device.createBuffer({ size: 64, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
-		const dataBuffer = device.createBuffer({ size: columns * 16, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
-		const data = new Float32Array(columns * 4);
-		const uniforms = new Float32Array(16);
+		const uniformBuffer = device.createBuffer({ size: 32, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+		const dataBuffer = device.createBuffer({ size: columns * 8, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
+		const data = new Float32Array(columns * 2);
+		const uniforms = new Float32Array(8);
 		const bindGroup = device.createBindGroup({
 			layout: pipeline.getBindGroupLayout(0),
 			entries: [
@@ -45,43 +45,39 @@ export default implementEffect<typeof definition>({
 				// LIVEのPlayer入力は固定済みPCMを同期で読める。Timelineではprepareで取得済み。
 				loader.prepare(params.audio, finiteNumber(params.duration, 0.05, 0.005, 1));
 				const audioWindow = loader.window;
-				const channel = audioChannel(params.channel);
+				// Stereoも左右を混ぜた1本の波形にし、従来のMixと同じサンプルを使う。
+				const channel = params.channel === 'left' || params.channel === 'right' ? params.channel : 'mix';
 				const amplitude = finiteNumber(params.amplitude, 1, 0, 10);
 				data.fill(0);
 				if (audioWindow) {
 					const frames = audioWindow.frameCount;
 					const start = 0;
-					const sample = (frame: number, selected: 'left' | 'right' | 'mix') => audioWindow.sample(frame, selected);
+					const sample = (frame: number) => audioWindow.sample(frame, channel);
 					for (let x = 0; x < columns; x++) {
-						for (let side = 0; side < (channel === 'stereo' ? 2 : 1); side++) {
-							const selected = channel === 'stereo' ? (side === 0 ? 'left' : 'right') : channel;
-							let min = Infinity;
-							let max = -Infinity;
-							if (frames < columns) {
-								const position = start + x / (columns - 1) * (frames - 1);
-								const frame = Math.floor(position);
-								const mix = position - frame;
-								min = max = sample(frame, selected) * (1 - mix) + sample(frame + 1, selected) * mix;
-							} else {
-								// 単純な間引きでは消える短いピークをmin/maxで保持する。
-								const from = start + Math.floor(x * frames / columns);
-								const to = start + Math.floor((x + 1) * frames / columns);
-								for (let frame = from; frame < to; frame++) {
-									const value = sample(frame, selected);
-									min = Math.min(min, value);
-									max = Math.max(max, value);
-								}
+						let min = Infinity;
+						let max = -Infinity;
+						if (frames < columns) {
+							const position = start + x / (columns - 1) * (frames - 1);
+							const frame = Math.floor(position);
+							const mix = position - frame;
+							min = max = sample(frame) * (1 - mix) + sample(frame + 1) * mix;
+						} else {
+							// 単純な間引きでは消える短いピークをmin/maxで保持する。
+							const from = start + Math.floor(x * frames / columns);
+							const to = start + Math.floor((x + 1) * frames / columns);
+							for (let frame = from; frame < to; frame++) {
+								const value = sample(frame);
+								min = Math.min(min, value);
+								max = Math.max(max, value);
 							}
-							data[x * 4 + side * 2] = min * amplitude;
-							data[x * 4 + side * 2 + 1] = max * amplitude;
 						}
+						data[x * 2] = min * amplitude;
+						data[x * 2 + 1] = max * amplitude;
 					}
 				}
 				uniforms.set([
-					...params.colorL,
-					...params.colorR,
-					columns, Number(channel === 'stereo'), finiteNumber(params.lineWidth, 0.003, 0.001, 0.05), resolution.width / resolution.height,
-					Number(audioWindow != null), 0, 0, 0,
+					...params.color,
+					columns, finiteNumber(params.lineWidth, 0.003, 0.001, 0.05), resolution.width / resolution.height, Number(audioWindow != null),
 				]);
 				device.queue.writeBuffer(uniformBuffer, 0, uniforms);
 				device.queue.writeBuffer(dataBuffer, 0, data);

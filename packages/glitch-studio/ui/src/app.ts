@@ -210,8 +210,7 @@ export async function newProjectFromImageOrVideo(file?: File) {
 				duration: deepClone(audioWaveformEffectDef.paramDefs.duration.defaultValue),
 				amplitude: deepClone(audioWaveformEffectDef.paramDefs.amplitude.defaultValue),
 				lineWidth: deepClone(audioWaveformEffectDef.paramDefs.lineWidth.defaultValue),
-				colorL: deepClone(audioWaveformEffectDef.paramDefs.colorL.defaultValue),
-				colorR: deepClone(audioWaveformEffectDef.paramDefs.colorR.defaultValue),
+				color: deepClone(audioWaveformEffectDef.paramDefs.color.defaultValue),
 			},
 			isBypass: false,
 		} satisfies EffectNodeOf<typeof audioWaveformEffectDef> : {
