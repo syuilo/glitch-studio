@@ -59,7 +59,6 @@ onUnmounted(() => {
 <style module lang="scss">
 .root {
 	line-height: 24px;
-	background-color: #2d2d2d;
 	background-image: repeating-linear-gradient(45deg, transparent, transparent 6px, #222222 6px, #222222 12px);
 }
 
