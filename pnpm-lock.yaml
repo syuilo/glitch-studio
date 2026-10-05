@@ -157,31 +157,6 @@ importers:
         specifier: npm:@typescript/typescript6@6.0.2
         version: '@typescript/typescript6@6.0.2'
 
-  packages/glitch-studio/audio-renderer:
-    dependencies:
-      '@gs/shared':
-        specifier: workspace:*
-        version: link:../../shared
-      '@gs/subsystems_timeline_shared':
-        specifier: workspace:*
-        version: link:../../subsystems/timeline/shared
-    devDependencies:
-      '@types/web':
-        specifier: 0.0.352
-        version: 0.0.352
-      '@typescript-eslint/eslint-plugin':
-        specifier: 8.59.2
-        version: 8.59.2(@typescript-eslint/parser@8.59.2(@typescript/typescript6@6.0.2)(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0))(@typescript/typescript6@6.0.2)(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)
-      '@typescript-eslint/parser':
-        specifier: 8.59.2
-        version: 8.59.2(@typescript/typescript6@6.0.2)(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)
-      vite:
-        specifier: 8.2.2
-        version: 8.2.2(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.83.4)
-      vitest:
-        specifier: 4.1.10
-        version: 4.1.10(@types/node@26.2.0)(vite@8.2.2(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.83.4))
-
   packages/glitch-studio/desktop:
     devDependencies:
       electron:
@@ -273,9 +248,6 @@ importers:
 
   packages/glitch-studio/ui:
     dependencies:
-      '@gs/glitch-studio_audio-renderer':
-        specifier: workspace:*
-        version: link:../audio-renderer
       '@gs/glitch-studio_renderer':
         specifier: workspace:*
         version: link:../renderer
@@ -285,9 +257,18 @@ importers:
       '@gs/shared':
         specifier: workspace:*
         version: link:../../shared
+      '@gs/subsystems_audio_renderer':
+        specifier: workspace:*
+        version: link:../../subsystems/audio/renderer
+      '@gs/subsystems_audio_shared':
+        specifier: workspace:*
+        version: link:../../subsystems/audio/shared
       '@gs/subsystems_effect_shared':
         specifier: workspace:*
         version: link:../../subsystems/effect/shared
+      '@gs/subsystems_timeline_audio-renderer':
+        specifier: workspace:*
+        version: link:../../subsystems/timeline/audio-renderer
       '@gs/subsystems_timeline_shared':
         specifier: workspace:*
         version: link:../../subsystems/timeline/shared
@@ -450,6 +431,43 @@ importers:
         specifier: 8.2.2
         version: 8.2.2(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.83.4)
 
+  packages/subsystems/audio/renderer:
+    dependencies:
+      '@gs/subsystems_audio_shared':
+        specifier: workspace:*
+        version: link:../shared
+      mediabunny:
+        specifier: 1.56.2
+        version: 1.56.2
+    devDependencies:
+      '@types/web':
+        specifier: 0.0.352
+        version: 0.0.352
+      '@typescript-eslint/eslint-plugin':
+        specifier: 8.59.2
+        version: 8.59.2(@typescript-eslint/parser@8.59.2(@typescript/typescript6@6.0.2)(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0))(@typescript/typescript6@6.0.2)(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)
+      '@typescript-eslint/parser':
+        specifier: 8.59.2
+        version: 8.59.2(@typescript/typescript6@6.0.2)(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)
+      vite:
+        specifier: 8.2.2
+        version: 8.2.2(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.83.4)
+
+  packages/subsystems/audio/shared:
+    devDependencies:
+      '@types/web':
+        specifier: 0.0.352
+        version: 0.0.352
+      '@typescript-eslint/eslint-plugin':
+        specifier: 8.59.2
+        version: 8.59.2(@typescript-eslint/parser@8.59.2(@typescript/typescript6@6.0.2)(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0))(@typescript/typescript6@6.0.2)(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)
+      '@typescript-eslint/parser':
+        specifier: 8.59.2
+        version: 8.59.2(@typescript/typescript6@6.0.2)(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)
+      vite:
+        specifier: 8.2.2
+        version: 8.2.2(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.83.4)
+
   packages/subsystems/effect/renderer:
     dependencies:
       '@gs/shared':
@@ -520,6 +538,31 @@ importers:
       '@webgpu/types':
         specifier: 0.1.72
         version: 0.1.72
+      vite:
+        specifier: 8.2.2
+        version: 8.2.2(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.83.4)
+
+  packages/subsystems/timeline/audio-renderer:
+    dependencies:
+      '@gs/shared':
+        specifier: workspace:*
+        version: link:../../../shared
+      '@gs/subsystems_audio_shared':
+        specifier: workspace:*
+        version: link:../../audio/shared
+      '@gs/subsystems_timeline_shared':
+        specifier: workspace:*
+        version: link:../shared
+    devDependencies:
+      '@types/web':
+        specifier: 0.0.352
+        version: 0.0.352
+      '@typescript-eslint/eslint-plugin':
+        specifier: 8.59.2
+        version: 8.59.2(@typescript-eslint/parser@8.59.2(@typescript/typescript6@6.0.2)(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0))(@typescript/typescript6@6.0.2)(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)
+      '@typescript-eslint/parser':
+        specifier: 8.59.2
+        version: 8.59.2(@typescript/typescript6@6.0.2)(eslint@9.39.5(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)
       vite:
         specifier: 8.2.2
         version: 8.2.2(@types/node@26.2.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.83.4)

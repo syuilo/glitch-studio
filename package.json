@@ -5,14 +5,16 @@
 	"packageManager": "pnpm@12.3.4",
 	"workspaces": [
 		"packages/shared",
+		"packages/subsystems/audio/shared",
+		"packages/subsystems/audio/renderer",
 		"packages/subsystems/effect/shared",
 		"packages/subsystems/effect/renderer",
 		"packages/subsystems/visual-module/shared",
 		"packages/subsystems/visual-module/renderer",
 		"packages/subsystems/timeline/shared",
 		"packages/subsystems/timeline/renderer",
+		"packages/subsystems/timeline/audio-renderer",
 		"packages/glitch-studio/shared",
-		"packages/glitch-studio/audio-renderer",
 		"packages/glitch-studio/renderer",
 		"packages/glitch-studio/ui",
 		"packages/glitch-studio/desktop"

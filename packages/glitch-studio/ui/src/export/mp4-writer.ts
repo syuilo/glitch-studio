@@ -1,6 +1,6 @@
 import { AudioSample, AudioSampleSource, BufferTarget, CanvasSource, Output, Mp4OutputFormat, Quality, canEncodeAudio, canEncodeVideo } from 'mediabunny';
 import { MP4_AUDIO_BITRATE, MP4_AUDIO_SAMPLE_RATE } from './audio-export-settings.ts';
-import type { StereoPcm } from '@gs/glitch-studio_audio-renderer/pcm.ts';
+import type { StereoPcm } from '@gs/subsystems_audio_shared/pcm.ts';
 import type { VideoExportSettings } from './timeline-export.ts';
 
 export async function createMp4Writer(canvas: OffscreenCanvas, settings: VideoExportSettings, includeAudio = false) {

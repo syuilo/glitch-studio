@@ -1,9 +1,13 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { loadShaderSource } from '../../renderer/test/helpers/load-shader-source.mjs';
+import { createRequire } from 'node:module';
+import { build } from 'esbuild';
 
-const { TimelineAudioRenderer } = await loadShaderSource(fileURLToPath(new URL('../src/timeline-audio-renderer.ts', import.meta.url)));
+const bundle = await build({ entryPoints: [fileURLToPath(new URL('../src/timeline-audio-renderer.ts', import.meta.url))], bundle: true, platform: 'node', format: 'cjs', write: false });
+const module = { exports: {} };
+new Function('require', 'module', 'exports', bundle.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
+const { TimelineAudioRenderer } = module.exports;
 const layer = (changes = {}) => ({ id: 'audio', layerType: 'audio', name: 'Layer', clips: [{ id: 'clip', startMs: 100, contentOffsetMs: 20, durationMs: 100, assetId: 'asset' }], audioParamValues: { volume: { inputSource: 'literal', value: 1 } }, automationGraphs: [], ...changes });
 
 // 【動画の音量はScene時刻で評価し、素材時刻は独立して読み出す】

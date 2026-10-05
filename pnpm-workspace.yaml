@@ -1,14 +1,16 @@
 packageImportMethod: copy # Codexのサンドボックス内で場合によっては特定パッケージのアクセス権が不足する現象を回避するため
 packages:
   - packages/shared
+  - packages/subsystems/audio/shared
+  - packages/subsystems/audio/renderer
   - packages/subsystems/effect/shared
   - packages/subsystems/effect/renderer
   - packages/subsystems/visual-module/shared
   - packages/subsystems/visual-module/renderer
   - packages/subsystems/timeline/shared
   - packages/subsystems/timeline/renderer
+  - packages/subsystems/timeline/audio-renderer
   - packages/glitch-studio/shared
-  - packages/glitch-studio/audio-renderer
   - packages/glitch-studio/renderer
   - packages/glitch-studio/ui
   - packages/glitch-studio/desktop

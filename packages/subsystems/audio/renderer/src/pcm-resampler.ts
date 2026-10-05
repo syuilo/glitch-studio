@@ -1,4 +1,4 @@
-import type { DecodedPcmBlock, StereoPcm } from './pcm.ts';
+import type { DecodedPcmBlock, StereoPcm } from '@gs/subsystems_audio_shared/pcm.ts';
 
 const lobes = 32;
 const phases = 1024;

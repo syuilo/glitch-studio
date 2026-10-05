@@ -1,4 +1,4 @@
-import { TimelineAudioRenderer } from '@gs/glitch-studio_audio-renderer/timeline-audio-renderer.ts';
+import { TimelineAudioRenderer } from '@gs/subsystems_timeline_audio-renderer/timeline-audio-renderer.ts';
 import { AssetAudioReader } from './asset-audio-reader.ts';
 import type { Asset } from '@gs/shared/types.ts';
 import type { SceneAudioClip } from '@gs/subsystems_timeline_shared/scene-audio.ts';

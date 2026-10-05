@@ -5,7 +5,7 @@ import { getTimelineClipEnd } from '@gs/subsystems_timeline_shared/timing.ts';
 import { TimelineParameterBindingEvaluator } from '@gs/subsystems_timeline_shared/parameter-binding-evaluator.ts';
 import { createTimelineLayerEvaluationScope } from '@gs/subsystems_timeline_shared/evaluation-scope.ts';
 import type { TimelineAudioLayer } from '@gs/subsystems_timeline_shared/types.ts';
-import type { StereoPcm } from './pcm.ts';
+import type { StereoPcm } from '@gs/subsystems_audio_shared/pcm.ts';
 
 export type AudioPcmReader = (assetId: string, timeSeconds: number, frames: number, sampleRate: number) => Promise<StereoPcm>;
 export type AudioDurationReader = (assetId: string, basis?: 'audio' | 'media') => Promise<number>;
