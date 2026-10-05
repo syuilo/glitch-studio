@@ -52,7 +52,7 @@ export type AppStateChange = ProjectContentChange
 
 export class ProjectContext {
 	private projectId: Project['id'] | null = null;
-	public stateManager: UndoRedo<ProjectState, AppStateChange, typeof COMMAND_DEFS>;
+	public readonly stateManager: UndoRedo<ProjectState, AppStateChange, typeof COMMAND_DEFS>;
 
 	constructor() {
 		this.stateManager = new UndoRedo<ProjectState, AppStateChange, typeof COMMAND_DEFS>({

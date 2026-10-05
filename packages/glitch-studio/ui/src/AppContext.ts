@@ -35,7 +35,7 @@ function getRendererIntermediateTextureFormat(): IntermediateTextureFormat {
 const TIMELINE_PREVIEW_MOTION_BLUR_SAMPLE_OPTIONS = [0, 2, 4, 8] as const;
 
 export class AppContext {
-	public projectContext: ProjectContext;
+	public readonly projectContext: ProjectContext;
 	public activeSceneId = ref<string | null>(null);
 	public activeScene = computed(() => this.projectContext.stateManager.state.timelineScenes.value.find(scene => scene.id === this.activeSceneId.value) ?? null);
 	public liveFpsLimit = ref<number | null>(60);
