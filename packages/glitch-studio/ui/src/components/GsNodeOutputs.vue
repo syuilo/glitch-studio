@@ -69,7 +69,7 @@ onUnmounted(() => {
 	display: flex;
 	min-width: 0;
 	overflow-wrap: anywhere;
-	padding-right: 4px;
+	padding-right: 6px;
 }
 
 .dataType {
