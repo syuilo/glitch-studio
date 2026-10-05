@@ -87,7 +87,7 @@
 		<div :class="$style.tlOverlayWrapper" data-timeline-surface>
 			<div :class="$style.tlOverlaySideSpacer"></div>
 			<div :class="$style.tlOverlay">
-				<div :class="$style.xTicks" @wheel="onXTicksWheel">
+				<div :class="$style.xTicks" @pointerdown="onSeekBarPointerDown" @wheel="onXTicksWheel">
 					<div v-for="time of xTicks" :class="$style.xTick" class="_monospace" :style="{ left: timeToDomX(time) + 'px' }">{{ formatMsToTimecode(time) }}</div>
 					<div v-for="time of xMinorTicks" :class="$style.xMinorTick" :style="{ left: timeToDomX(time) + 'px' }"></div>
 					<div :class="$style.xTicksSeekBar" :style="{ left: (seekBarPos - 1) + 'px' }" @pointerdown="onSeekBarPointerDown"></div>
@@ -1508,6 +1508,9 @@ onMounted(() => {
 }
 
 .xTicks {
+	touch-action: none;
+	user-select: none;
+	cursor: ew-resize;
 	position: absolute;
 	z-index: 1000;
 	top: 0;
