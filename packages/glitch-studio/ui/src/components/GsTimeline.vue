@@ -6,15 +6,15 @@
 		</div>
 		<div :class="$style.headerCenter" style="gap: 20px;">
 			<GsButton small :primary="previewPlayback.state.value.mode === 'timeline'" @click="previewPlayback.showTimeline()">Preview</GsButton>
-			<GsButton v-tooltip="'CUE [C]'" small><i class="ti ti-arrow-right-bar"></i></GsButton>
+			<GsButton v-tooltip="'CUE [C]'" small :primary="cueActive" :class="$style.cueButton" @pointerdown="onCuePointerDown" @keydown="onCueButtonKeydown" @click.prevent><i class="ti ti-arrow-right-bar"></i></GsButton>
 			<div style="display: flex; gap: 4px;">
-				<GsButton small iconOnly><i class="ti ti-player-skip-back"></i></GsButton>
-				<GsButton small iconOnly><i class="ti ti-rewind-backward-10"></i></GsButton>
-				<GsButton small iconOnly><i class="ti ti-rewind-backward-5"></i></GsButton>
+				<GsButton v-tooltip="'Go to Start'" small iconOnly @click="seek(0)"><i class="ti ti-player-skip-back"></i></GsButton>
+				<GsButton v-tooltip="'Back 10 Seconds'" small iconOnly @click="seek(time - 10000)"><i class="ti ti-rewind-backward-10"></i></GsButton>
+				<GsButton v-tooltip="'Back 5 Seconds'" small iconOnly @click="seek(time - 5000)"><i class="ti ti-rewind-backward-5"></i></GsButton>
 				<GsButton v-if="previewPlayback.isTimelinePlaying.value" v-tooltip="'PAUSE [SPACE]'" small primary @click="pause"><i class="ti ti-player-pause"></i></GsButton>
 				<GsButton v-else v-tooltip="'PLAY [SPACE]'" small @click="play"><i class="ti ti-player-play"></i></GsButton>
-				<GsButton small iconOnly><i class="ti ti-rewind-forward-5"></i></GsButton>
-				<GsButton small iconOnly><i class="ti ti-rewind-forward-10"></i></GsButton>
+				<GsButton v-tooltip="'Forward 5 Seconds'" small iconOnly @click="seek(time + 5000)"><i class="ti ti-rewind-forward-5"></i></GsButton>
+				<GsButton v-tooltip="'Forward 10 Seconds'" small iconOnly @click="seek(time + 10000)"><i class="ti ti-rewind-forward-10"></i></GsButton>
 			</div>
 		</div>
 		<div :class="$style.headerCenter">
@@ -29,7 +29,7 @@
 			<GsButton small iconOnly><i class="ti ti-select-all"></i></GsButton>
 			<GsButton small iconOnly><i class="ti ti-cut"></i></GsButton>
 			<span>|</span>
-			<GsButton v-tooltip="'Follow Playhead'" small iconOnly><i class="ti ti-arrow-narrow-right-dashed"></i></GsButton>
+			<GsButton v-tooltip="'Follow Playhead'" small iconOnly :primary="followPlayhead" @click="followPlayhead = !followPlayhead"><i class="ti ti-arrow-narrow-right-dashed"></i></GsButton>
 			<GsButton v-tooltip="'Timeline Tick Settings...'" small iconOnly @click="showTickMenu"><i class="ti ti-ruler-2"></i></GsButton>
 			<GsButton v-tooltip="'Snap Settings...'" small iconOnly :primary="snapEnabled" @click="showSnapMenu"><i class="ti ti-magnet"></i></GsButton>
 		</div>
@@ -354,6 +354,7 @@ const { activeSceneId, previewPlayback, timelineAudioPreview, timelineRendererMa
 const { stateManager } = appContext.projectContext;
 
 const props = defineProps<{ sceneId: string }>();
+const followPlayhead = preferences.model('timelineFollowPlayhead');
 const tickMode = preferences.model('timelineTickMode');
 const halfTicks = preferences.model('timelineHalfTicks');
 const thirdTicks = preferences.model('timelineThirdTicks');
@@ -441,6 +442,8 @@ const duration = computed(() => {
 	return sceneLayers.value.reduce((max, layer) => layer.clips.reduce((end, clip) => Math.max(end, getTimelineClipEnd(clip)), max), 0);
 });
 const time = previewPlayback.currentTimelineTime;
+const cueActive = ref(false);
+let stopCueHold: (() => void) | undefined;
 
 const tlEl = useTemplateRef('tlEl');
 const layersEl = useTemplateRef('layersEl');
@@ -769,6 +772,12 @@ watch([sceneLayers, keyframeEntries, () => sceneLayers.value.flatMap(layer => la
 let stopSelectionDrag: (() => void) | undefined;
 let suppressTimelineClick = false;
 
+watch([time, previewPlayback.isTimelinePlaying, followPlayhead, tlRangeX, tlElWidth, panning, movingSelection], () => {
+	if (!followPlayhead.value || !previewPlayback.isTimelinePlaying.value || panning.value || stopSelectionDrag || tlElWidth.value <= 0 || tlRangeX.value <= 0) return;
+	// 再生位置を中央に保つ。ドラッグ中は座標変換の基準が動かないよう追従を止める。
+	tlPosX.value = time.value - tlRangeX.value / 2;
+}, { immediate: true });
+
 function onTimelineClick(event: MouseEvent) {
 	if (!suppressTimelineClick) return;
 	suppressTimelineClick = false;
@@ -1006,6 +1015,7 @@ async function onTlKeydown(ev: KeyboardEvent) {
 	const target = ev.target;
 	if (target instanceof HTMLElement && (target.closest('input, textarea, select') || target.isContentEditable)) return;
 	const key = ev.key.toLowerCase();
+	if (key === 'c' && !(ev.ctrlKey || ev.metaKey || ev.altKey || ev.shiftKey)) { onCueKeyboardDown(ev); return; }
 	if ((key === 'delete' || key === 'backspace') && selection.value.kind === 'clips') { ev.preventDefault(); ev.stopPropagation(); removeSelectedClips(); return; }
 	if (!(ev.ctrlKey || ev.metaKey) || ev.altKey || ev.shiftKey) return;
 	if (selection.value.kind === 'clips') {
@@ -1058,6 +1068,7 @@ function onInlineVisualModuleEdit(event: VisualModuleEdit) {
 
 let disposeEffectPicker: (() => void) | undefined;
 onBeforeUnmount(() => {
+	stopCueHold?.();
 	disposed = true;
 	disposeEffectPicker?.();
 	sceneEditorStates.set(editedScene, { selection: deepClone(selection.value), rangeX: tlRangeX.value, positionX: tlPosX.value });
@@ -1307,6 +1318,62 @@ function pause() {
 	previewPlayback.pauseTimeline();
 }
 
+function seek(timeMs: number) {
+	previewPlayback.seekTimeline(Math.max(0, Math.min(duration.value, timeMs)));
+}
+
+function startCue(): () => void {
+	// 通常再生中に押した場合も、音声時計の最新位置を取得してから戻り先を記録する。
+	previewPlayback.pauseTimeline();
+	const startTime = time.value;
+	const startPositionX = tlPosX.value;
+	cueActive.value = true;
+	previewPlayback.playTimeline();
+	return () => {
+		if (!cueActive.value) return;
+		cueActive.value = false;
+		stopCueHold = undefined;
+		// Scene切替やプロジェクト読み込み後に、旧Sceneの位置を新しいSceneへ反映しない。
+		if (activeSceneId.value !== props.sceneId || stateManager.state.timelineScenes.value.find(scene => scene.id === props.sceneId) !== editedScene) return;
+		previewPlayback.pauseTimeline();
+		previewPlayback.seekTimeline(startTime);
+		// CUEは一時的な試聴なので、追従で移動した表示範囲も元へ戻す。
+		if (followPlayhead.value) tlPosX.value = startPositionX;
+	};
+}
+
+function onCuePointerDown(event: PointerEvent) {
+	if (event.button !== 0 || !event.isPrimary || cueActive.value || duration.value <= 0) return;
+	event.preventDefault();
+	event.stopPropagation();
+	stopCueHold = listenPointerDrag(event, () => {}, startCue());
+}
+
+function onCueButtonKeydown(event: KeyboardEvent) {
+	if (event.key !== ' ' && event.key !== 'Enter') return;
+	onCueKeyboardDown(event);
+}
+
+function onCueKeyboardDown(event: KeyboardEvent) {
+	event.preventDefault();
+	event.stopPropagation();
+	if (event.repeat || cueActive.value || duration.value <= 0) return;
+	const ownerWindow = (event.currentTarget as HTMLElement).ownerDocument.defaultView;
+	if (ownerWindow == null) return;
+	const finishCue = startCue();
+	const onKeyup = (released: KeyboardEvent) => { if (released.code === event.code) finish(); };
+	const finish = () => {
+		ownerWindow.removeEventListener('keyup', onKeyup);
+		ownerWindow.removeEventListener('blur', finish);
+		ownerWindow.removeEventListener('pagehide', finish);
+		finishCue();
+	};
+	ownerWindow.addEventListener('keyup', onKeyup);
+	ownerWindow.addEventListener('blur', finish);
+	ownerWindow.addEventListener('pagehide', finish);
+	stopCueHold = finish;
+}
+
 function showAddEffectLayerMenu() {
 	const sceneId = props.sceneId;
 	const startMs = Math.max(0, time.value);
@@ -1445,6 +1512,11 @@ onMounted(() => {
 
 .audioAssetSelect {
 	width: 180px;
+}
+
+.cueButton {
+	touch-action: none;
+	user-select: none;
 }
 
 .body {
