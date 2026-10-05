@@ -45,6 +45,7 @@
 </template>
 
 <script lang="ts" setup>
+import { appContext } from '@/app.ts';
 import { computed, onBeforeUnmount, ref, watch, useTemplateRef } from 'vue';
 import { getSceneDuration } from '@gs/subsystems_timeline_shared/scenes.ts';
 import { getSceneBaseResolution } from '@gs/subsystems_timeline_shared/scene-resolution.ts';
@@ -55,12 +56,15 @@ import GsInput from './common/GsInput.vue';
 import GsSelect from './common/GsSelect.vue';
 import GsTabs from './common/GsTabs.vue';
 import type { ExportProgress, ExportQuality, TimelineExportSettings } from '@/export/timeline-export.ts';
-import { appStateManager, activeSceneId, projectInfo, previewPlayback, suspendPreview, resumePreview } from '@/app.ts';
 import { preferences } from '@/preferences.ts';
 import { exportTimeline } from '@/export/client.ts';
 import { validateExportSettings } from '@/export/timeline-export.ts';
 import { estimateExportBytes, formatExportTime, parseExportTime, scaleExportResolution } from '@/export/export-settings.ts';
 import { getExportAudioClips, MP4_AUDIO_BITRATE } from '@/export/audio-export-settings.ts';
+
+const { activeSceneId, previewPlayback } = appContext;
+const { stateManager } = appContext.projectContext;
+const { name: projectName } = appContext.projectContext.stateManager.state;
 
 const currentTimelineTime = previewPlayback.currentTimelineTime;
 
@@ -72,8 +76,8 @@ const emit = defineEmits<{
 }>();
 
 const sceneId = ref('');
-const sceneItems = computed(() => [{ label: 'Choose scene', value: '' }, ...appContext.projectContext.stateManager.state.timelineScenes.value.map(scene => ({ label: scene.name, value: scene.id }))]);
-const scene = computed(() => appContext.projectContext.stateManager.state.timelineScenes.value.find(scene => scene.id === sceneId.value));
+const sceneItems = computed(() => [{ label: 'Choose scene', value: '' }, ...stateManager.state.timelineScenes.value.map(scene => ({ label: scene.name, value: scene.id }))]);
+const scene = computed(() => stateManager.state.timelineScenes.value.find(scene => scene.id === sceneId.value));
 const mode = ref('video');
 const videoFormat = ref<'mp4'>('mp4');
 const stillFormat = ref<'webp'>('webp');
@@ -96,8 +100,8 @@ const qualityOptions = computed(() => [
 const resolutionScale = ref(1);
 const resolutionOptions = [0.25, 0.5, 1, 2, 4].map(value => ({ value, label: `${value}x` }));
 const resolution = computed(() => scaleExportResolution(getSceneBaseResolution(scene.value?.resolution ?? { mode: 'project' },
-	appContext.projectContext.stateManager.state.resolution.value), resolutionScale.value, mode.value === 'video' ? 'mp4' : 'webp'));
-const fps = ref(appContext.projectContext.stateManager.state.timelineFps.value);
+	stateManager.state.resolution.value), resolutionScale.value, mode.value === 'video' ? 'mp4' : 'webp'));
+const fps = ref(stateManager.state.timelineFps.value);
 const startTime = ref('00:00:00.000');
 const endTime = ref(formatExportTime(0));
 watch(sceneId, () => { startTime.value = formatExportTime(0); endTime.value = formatExportTime(scene.value == null ? 0 : getSceneDuration(scene.value)); });
@@ -120,7 +124,7 @@ const validationError = computed(() => {
 	if (mode.value === 'video' && !Number.isFinite(parseExportTime(endTime.value))) return 'Enter a valid end time (HH:MM:SS.mmm).';
 	return validateExportSettings(settings.value);
 });
-const includesAudio = computed(() => scene.value != null && getExportAudioClips(appContext.projectContext.stateManager.state.timelineScenes.value, sceneId.value, settings.value).length > 0);
+const includesAudio = computed(() => scene.value != null && getExportAudioClips(stateManager.state.timelineScenes.value, sceneId.value, settings.value).length > 0);
 const estimatedSize = computed(() => {
 	if (validationError.value) return '—';
 	const bytes = estimateExportBytes(settings.value, includesAudio.value ? MP4_AUDIO_BITRATE : 0);
@@ -161,19 +165,19 @@ async function doExport() {
 		const exportSettings = { ...settings.value };
 		const preferredFormat = navigator.gpu.getPreferredCanvasFormat();
 		// エクスポート中はリソース節約のためプレビュー用レンダラーは破棄
-		suspendPreview();
+		await appContext.suspendPreview();
 		previewDisposed = true;
 		// VueのProxyを外し、編集中の状態とWorkerの状態を独立させる。
 		const buffer = await exportTimeline({
 			settings: exportSettings,
 			resolutionScale: resolutionScale.value,
 			project: deepClone({
-				resolution: appContext.projectContext.stateManager.state.resolution.value,
-				timelineFps: appContext.projectContext.stateManager.state.timelineFps.value,
-				timelineMotionBlur: appContext.projectContext.stateManager.state.timelineMotionBlur.value,
-				assets: appContext.projectContext.stateManager.state.assets.value,
-				visualModules: appContext.projectContext.stateManager.state.visualModules.value,
-				timelineScenes: appContext.projectContext.stateManager.state.timelineScenes.value,
+				resolution: stateManager.state.resolution.value,
+				timelineFps: stateManager.state.timelineFps.value,
+				timelineMotionBlur: stateManager.state.timelineMotionBlur.value,
+				assets: stateManager.state.assets.value,
+				visualModules: stateManager.state.visualModules.value,
+				timelineScenes: stateManager.state.timelineScenes.value,
 				sceneId: sceneId.value,
 			}),
 			// 書き出し開始時の環境設定から独立した設定を作る。
@@ -185,7 +189,7 @@ async function doExport() {
 			},
 		}, signal, value => { progress.value = value; });
 		signal.throwIfAborted();
-		downloadName.value = `${projectInfo.value.name || 'project'}-${scene.value?.name || 'scene'}.${exportSettings.format}`;
+		downloadName.value = `${projectName.value || 'project'}-${scene.value?.name || 'scene'}.${exportSettings.format}`;
 		downloadUrl.value = URL.createObjectURL(new Blob([buffer], { type: exportSettings.format === 'mp4' ? 'video/mp4' : 'image/webp' }));
 		const link = window.document.createElement('a');
 		link.href = downloadUrl.value;
@@ -198,7 +202,7 @@ async function doExport() {
 	} finally {
 		// 再初期化が終わるまで操作を戻さず、次の書き出しによる初期化の中断を防ぐ。
 		try {
-			if (previewDisposed) await resumePreview();
+			if (previewDisposed) await appContext.resumePreview();
 		} catch (cause) {
 			const message = cause instanceof Error ? cause.message : String(cause);
 			error.value = [error.value, `Preview restart failed: ${message}`].filter(Boolean).join('\n');

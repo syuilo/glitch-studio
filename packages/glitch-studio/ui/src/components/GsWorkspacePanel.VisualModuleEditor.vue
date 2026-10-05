@@ -35,6 +35,7 @@
 </template>
 
 <script lang="ts" setup>
+import { appContext } from '@/app.ts';
 import { areDataTypesEqual } from '@gs/shared/data-type/data-type.ts';
 import { isParameterType } from '@gs/shared/parameter/parameter-definition.ts';
 import { computed, ref, watch, onBeforeUnmount } from 'vue';
@@ -53,19 +54,21 @@ import type { EffectInstanceState } from '@gs/subsystems_effect_shared/effect-st
 import type { ParamEdit } from './GsVisualParam.vue';
 import type { VisualModuleEdit } from '@/types/visual-module-editor.ts';
 import type { WorkspacePanel } from '@/workspace.ts';
-import { appStateManager, previewPlayback, visualModuleRendererManagerController } from '@/app.ts';
 import * as ui from '@/ui.ts';
 import { commitVisualModuleEdit } from '@/utility/visual-module-edit.ts';
 import { createInlineAutomationGraph } from '@/utility/automation-graph.ts';
 import { createInlineKeyframesTimeline } from '@/utility/keyframes-timeline.ts';
 import { createResetParameterBinding } from '@/utility/parameter-default.ts';
 
+const { previewPlayback, visualModuleRendererManagerController } = appContext;
+const { stateManager } = appContext.projectContext;
+
 defineProps<{ panel: WorkspacePanel }>();
 
 const previewParamsShowing = ref(false);
 const selectedModuleId = ref<ProjectVisualModule['id'] | null>(null);
-const visualModule = computed(() => appContext.projectContext.stateManager.state.visualModules.value.find(module => module.id === selectedModuleId.value)
-	?? appContext.projectContext.stateManager.state.visualModules.value[0] ?? null);
+const visualModule = computed(() => stateManager.state.visualModules.value.find(module => module.id === selectedModuleId.value)
+	?? stateManager.state.visualModules.value[0] ?? null);
 
 // 選択した定義が削除・置換されても、常に現在のプロジェクトから対象を解決する。
 watch(() => visualModule.value?.id, id => {
@@ -174,7 +177,7 @@ function showSwitchMenu(ev: PointerEvent) {
 		},
 	}, {
 		type: 'divider',
-	}, ...appContext.projectContext.stateManager.state.visualModules.value.map(_visualModule => ({
+	}, ...stateManager.state.visualModules.value.map(_visualModule => ({
 		text: _visualModule.name,
 		active: _visualModule.id === visualModule.value?.id,
 		action: () => {
@@ -194,8 +197,8 @@ function showAddNodeMenu() {
 	disposeEffectPicker?.();
 	const { dispose } = ui.popup(GsEffectPicker, {}, {
 		chosen: effect => {
-			if (appStateManager.getVisualModuleById(visualModuleId) == null) return;
-			appStateManager.commit('addEffectNode', { visualModuleId, effectId: effect.id, id: genId() });
+			if (appContext.projectContext.getVisualModuleById(visualModuleId) == null) return;
+			stateManager.commit('addEffectNode', { visualModuleId, effectId: effect.id, id: genId() });
 		},
 		closed: () => {
 			dispose();
@@ -208,7 +211,7 @@ function showAddNodeMenu() {
 function onEdit(event: VisualModuleEdit) {
 	const module = visualModule.value;
 	if (module == null) return;
-	commitVisualModuleEdit(appStateManager, { visualModuleId: module.id }, event);
+	commitVisualModuleEdit(stateManager, { visualModuleId: module.id }, event);
 }
 </script>
 

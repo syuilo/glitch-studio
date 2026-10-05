@@ -56,6 +56,7 @@
 </template>
 
 <script lang="ts" setup>
+import { appContext } from '@/app.ts';
 import { computed } from 'vue';
 import { paramPathKey } from '@gs/shared/parameter/parameter-path.ts';
 import { effectDefinitions } from '@gs/subsystems_effect_shared/effect-definitions.ts';
@@ -72,8 +73,9 @@ import type { TimelineClipMediaInfo } from '@/utility/timeline-clip-media.ts';
 import type { TimelineLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import { formatTimelineTimecode } from '@/utility/timeline-ticks.ts';
 import { resolveLayerParameter, getLayerKeyframeParameters } from '@/utility/timeline-scene.ts';
-import { appStateManager } from '@/app.ts';
 import { insertInlineKeyframe } from '@/utility/keyframes-timeline.ts';
+
+const { stateManager } = appContext.projectContext;
 
 const props = defineProps<{
 	sceneId: string;
@@ -117,23 +119,23 @@ function look(clip: TimelineClip) {
 }
 
 function toggleDisabled() {
-	appStateManager.commit('setTimelineLayerDisabled', {
+	stateManager.commit('setTimelineLayerDisabled', {
 		sceneId: props.sceneId, layerId: props.layer.id, isDisabled: !props.layer.isDisabled,
 	});
 }
 
 function clipLabel(clip: Clip): string {
-	if ('assetId' in clip) return appContext.projectContext.stateManager.state.assets.value.find(asset => asset.id === clip.assetId)?.name ?? 'Missing media';
-	if ('sceneId' in clip) return appContext.projectContext.stateManager.state.timelineScenes.value.find(scene => scene.id === clip.sceneId)?.name ?? 'Missing scene';
+	if ('assetId' in clip) return stateManager.state.assets.value.find(asset => asset.id === clip.assetId)?.name ?? 'Missing media';
+	if ('sceneId' in clip) return stateManager.state.timelineScenes.value.find(scene => scene.id === clip.sceneId)?.name ?? 'Missing scene';
 	const layer = props.layer;
-	if (layer.layerType === 'visualModule') return appContext.projectContext.stateManager.state.visualModules.value.find(module => module.id === layer.visualModuleId)?.name ?? 'Missing module';
+	if (layer.layerType === 'visualModule') return stateManager.state.visualModules.value.find(module => module.id === layer.visualModuleId)?.name ?? 'Missing module';
 	return layer.layerType === 'inlineVisualModule' ? 'Inline Visual Module' : layer.layerType === 'effect' ? effectDefinitions[layer.effectId].displayName : layer.name;
 }
 
 function sourceDuration(clip: Clip): number | null {
 	if ('assetId' in clip) return props.mediaInfo.get(clip.assetId)?.durationMs ?? null;
 	if ('sceneId' in clip) {
-		const scene = appContext.projectContext.stateManager.state.timelineScenes.value.find(scene => scene.id === clip.sceneId);
+		const scene = stateManager.state.timelineScenes.value.find(scene => scene.id === clip.sceneId);
 		return scene ? getSceneDuration(scene) : null;
 	}
 	return null;
@@ -147,18 +149,18 @@ function onBackgroundDoubleClick(event: MouseEvent) {
 }
 
 type KeyframeParameter = ReturnType<typeof getLayerKeyframeParameters>[number];
-const keyframeParameters = computed(() => getLayerKeyframeParameters(appContext.projectContext.stateManager.state, props.layer));
+const keyframeParameters = computed(() => getLayerKeyframeParameters(stateManager.state, props.layer));
 
 function onKeyframeInsert(param: KeyframeParameter, x: number) {
 	const layer = props.layer;
-	const current = resolveLayerParameter(appContext.projectContext.stateManager.state, layer, param.target, param.paramPath).value;
+	const current = resolveLayerParameter(stateManager.state, layer, param.target, param.paramPath).value;
 	if (current?.inputSource !== 'keyframesTimelineInline') return;
 	const definition = param.def;
 	if (!definition) return;
 	// キーはクリップの空白にも配置でき、挿入時の値もScene時刻で補間する。
 	const inserted = insertInlineKeyframe(current, definition, Math.round(x), Infinity);
 	if (!inserted) return;
-	if (inserted.value !== current) appStateManager.commit('editTimelineLayerParam', {
+	if (inserted.value !== current) stateManager.commit('editTimelineLayerParam', {
 		sceneId: props.sceneId, layerId: layer.id, target: param.target, paramPath: param.paramPath,
 		edit: { kind: 'keyframesTimelineInline', value: inserted.value },
 	});

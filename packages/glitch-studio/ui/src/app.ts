@@ -22,7 +22,7 @@ import type { ProjectFileHandle } from './gsproj.ts';
 import * as ui from '@/ui.ts';
 import * as api from '@/api.ts';
 
-const appContext = new AppContext(new ProjectContext());
+export const appContext = new AppContext(new ProjectContext());
 
 watch(() => appContext.projectContext.stateManager.state.name.value, name => {
 	window.document.title = name ? `Glitch Studio (${name})` : 'Glitch Studio';

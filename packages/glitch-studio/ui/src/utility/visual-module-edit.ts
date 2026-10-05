@@ -1,10 +1,14 @@
-import type { AppStateManager } from '@/AppStateManager.ts';
+import type { ProjectState, AppStateChange } from '../Project.ts';
+import type { COMMAND_DEFS } from '../commands.ts';
+import type { UndoRedo } from './undo-redo.ts';
 import type { VisualModuleEdit } from '@/types/visual-module-editor.ts';
 import type { ParamEdit } from '@/components/GsVisualParam.vue';
 import type { VisualModuleTarget } from './visual-module-target.ts';
 import { findVisualModule } from './visual-module-target.ts';
 
-export function commitVisualModuleEdit(manager: AppStateManager, target: VisualModuleTarget, event: VisualModuleEdit) {
+type ProjectCommands = Pick<UndoRedo<ProjectState, AppStateChange, typeof COMMAND_DEFS>, 'state' | 'commit'>;
+
+export function commitVisualModuleEdit(manager: ProjectCommands, target: VisualModuleTarget, event: VisualModuleEdit) {
 	const module = findVisualModule(manager.state, target);
 	if (module == null) return;
 	switch (event.kind) {
@@ -59,7 +63,7 @@ export function commitVisualModuleEdit(manager: AppStateManager, target: VisualM
 	}
 }
 
-function onNodeParamEdit(manager: AppStateManager, visualModuleTarget: VisualModuleTarget, nodeId: string, event: ParamEdit) {
+function onNodeParamEdit(manager: ProjectCommands, visualModuleTarget: VisualModuleTarget, nodeId: string, event: ParamEdit) {
 	const target = { ...visualModuleTarget, nodeId, paramPath: event.paramPath };
 	switch (event.kind) {
 		case 'layerInput': throw new Error('Layer input is only available in effect layer parameters');

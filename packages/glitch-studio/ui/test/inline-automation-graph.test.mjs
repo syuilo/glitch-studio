@@ -437,7 +437,7 @@ test('restores inline graph creation in nested node parameters', () => {
 });
 
 // 【結合したドラッグ操作でも元の配列要素のBindingを復元する】
-// AppContextは結合時に最初のundoと最後のexecuteを保持する。その契約で全ドラッグを復元できる。
+// UndoRedoは結合時に最初のundoと最後のexecuteを保持する。その契約で全ドラッグを復元できる。
 test('restores the first and final snapshots of a merged graph drag', () => {
 	const { state, node, target } = fixture();
 	COMMAND_DEFS.changeParamValueInputSource.create({ ...target, inputSource: 'automationGraphInline' }).execute(state);

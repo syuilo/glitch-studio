@@ -8,7 +8,7 @@ const directory = fileURLToPath(new URL('../', import.meta.url));
 // コマンド・履歴・差分生成は実コード。ブラウザ依存の設定とエフェクト登録だけを置き換える。
 const bundle = await build({
 	stdin: { resolveDir: directory, loader: 'ts', contents: `
-		export { AppStateManager } from './src/AppStateManager.ts';
+		export { ProjectContext } from './src/Project.ts';
 		export { RendererProjectSynchronizer } from './src/RendererProjectSynchronizer.ts';
 		export { applyRendererProjectChanges } from '@gs/glitch-studio_shared/project/renderer-state.ts';
 		export { default as definition } from '@gs/subsystems_effect_shared/fx/testStructArray/_def_.ts';
@@ -27,11 +27,11 @@ const bundle = await build({
 });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', 'console', bundle.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports, { ...console, log() {} });
-const { AppStateManager, RendererProjectSynchronizer, applyRendererProjectChanges, definition,
+const { ProjectContext, RendererProjectSynchronizer, applyRendererProjectChanges, definition,
 	createEffectTimelineLayer, createInlineVisualModuleLayer, createImageLayer } = module.exports;
 
 function fixture(t, count = 1, overrides = {}) {
-	const manager = new AppStateManager();
+	const manager = new ProjectContext().stateManager;
 	const nodes = Array.from({ length: count }, (_, i) => ({
 		id: 'node-' + i, type: 'effect', effectId: definition.id, pos: { x: 0, y: 0 }, isBypass: false, resolution: { mode: 'auto' },
 		params: Object.fromEntries(Object.entries(definition.paramDefs).map(([key, def]) => [key, structuredClone(def.defaultValue)])),

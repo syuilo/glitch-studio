@@ -24,7 +24,11 @@ const { encodeProjectFile, decodeProjectFile, loadProjectFile, saveProjectFile, 
 
 // 実際のapp・状態管理・保存処理を組み合わせ、GPUとダイアログだけ置き換える。
 const appBundle = await build({
-	...buildOptions, entryPoints: ['./src/app.ts'],
+	...buildOptions,
+	stdin: { resolveDir: buildOptions.absWorkingDir, loader: 'ts', contents: `
+		export * from './src/app.ts';
+		export { TIMELINE_PREVIEW_MOTION_BLUR_SAMPLE_OPTIONS } from './src/AppContext.ts';
+	` },
 	plugins: [{
 		name: 'project-test-platform',
 		setup(build) {
@@ -38,7 +42,13 @@ const appBundle = await build({
 				}
 				export class AudioOutput {}
 			`, loader: 'ts' }));
-			build.onResolve({ filter: /RendererManagerController\.ts$|\.vue$|^@\/ui\.ts$|effect-definitions\.[jt]s$|preferences\.ts$/ }, args => ({ path: args.path, namespace: 'platform' }));
+			// 相対パスとaliasからの参照でも、本番と同じ設定インスタンスを共有する。
+			// 別々に生成すると、クラスへの分離でimport順が変わっただけでテスト側の設定変更が届かなくなる。
+			build.onResolve({ filter: /RendererManagerController\.ts$|\.vue$|^@\/ui\.ts$|effect-definitions\.[jt]s$|preferences\.ts$/ }, args => ({
+				path: /preferences\.ts$/.test(args.path) ? 'preferences.ts'
+					: /effect-definitions\.[jt]s$/.test(args.path) ? 'effect-definitions.ts' : args.path,
+				namespace: 'platform',
+			}));
 			build.onLoad({ filter: /.*/, namespace: 'platform' }, args => ({
 				loader: 'ts', resolveDir: import.meta.dirname,
 				contents: /effect-definitions\.[jt]s$/.test(args.path)
@@ -128,20 +138,21 @@ function project(overrides = {}) {
 test('persists timeline render settings and synchronizes undo and redo without changing LIVE', async t => {
 	const window = setup(t);
 	const app = evaluate(appBundle);
+	const { appContext } = app;
 	await app.newProject();
-	const manager = app.appStateManager;
+	const manager = appContext.projectContext.stateManager;
 	const notifications = [];
 	manager.onChange(changes => notifications.push(changes));
 	const settings = { timelineFps: 29.97, timelineMotionBlur: { enabled: true, shutterAngle: 270, samples: 32 } };
-	const live = app.visualModuleRendererManagerController;
-	const timeline = app.timelineRendererManagerController;
+	const live = appContext.visualModuleRendererManagerController;
+	const timeline = appContext.timelineRendererManagerController;
 	live.updates.length = 0;
 	live.staticUpdates.length = 0;
 	timeline.staticUpdates.length = 0;
 	timeline.updates.length = 0;
 	manager.commit('changeTimelineRenderSettings', settings);
 	await nextTick();
-	const previewSettings = { ...settings, timelineMotionBlur: { ...settings.timelineMotionBlur, samples: app.timelinePreviewMotionBlurSamples.value } };
+	const previewSettings = { ...settings, timelineMotionBlur: { ...settings.timelineMotionBlur, samples: appContext.timelinePreviewMotionBlurSamples.value } };
 	assert.equal(timeline.staticOptions.timelineFps, 29.97);
 	assert.deepEqual(timeline.staticOptions.timelineMotionBlur, previewSettings.timelineMotionBlur);
 	assert.deepEqual(timeline.staticUpdates, [previewSettings]);
@@ -159,7 +170,7 @@ test('persists timeline render settings and synchronizes undo and redo without c
 	assert.deepEqual(notifications, Array.from({ length: 3 }, () => [{ type: 'timelineRenderSettings' }]));
 	const handle = fileHandle('motion-blur.gsproj');
 	window.selectProjectSaveFile = async () => handle;
-	await app.saveProject();
+	await appContext.saveProject();
 	const saved = decodeProjectFile(handle.bytes);
 	assert.equal(saved.timelineFps, 29.97);
 	assert.deepEqual(saved.timelineMotionBlur, settings.timelineMotionBlur);
@@ -184,14 +195,15 @@ test('persists timeline render settings and synchronizes undo and redo without c
 test('persists disabled layers and refreshes the paused preview on visibility edits undo and redo', async t => {
 	const window = setup(t);
 	const app = evaluate(appBundle);
+	const { appContext } = app;
 	await app.newProject();
-	const manager = app.appStateManager;
+	const manager = appContext.projectContext.stateManager;
 	const scene = manager.state.timelineScenes.value[0];
 	const layer = scene.layers[0];
 	assert.equal(layer.isDisabled, false);
 	const original = JSON.parse(JSON.stringify(layer));
-	const timeline = app.timelineRendererManagerController;
-	app.previewPlayback.seekTimeline(500);
+	const timeline = appContext.timelineRendererManagerController;
+	appContext.previewPlayback.seekTimeline(500);
 	timeline.renders.length = 0;
 	manager.commit('setTimelineLayerDisabled', { sceneId: scene.id, layerId: layer.id, isDisabled: true });
 	await nextTick();
@@ -208,11 +220,11 @@ test('persists disabled layers and refreshes the paused preview on visibility ed
 	await nextTick();
 	await setImmediate();
 	assert.equal(timeline.options.timelineScenes[0].layers[0].isDisabled, true);
-	assert.equal(app.previewPlayback.currentTimelineTime.value, 500);
-	assert.equal(app.previewPlayback.isTimelinePlaying.value, false);
+	assert.equal(appContext.previewPlayback.currentTimelineTime.value, 500);
+	assert.equal(appContext.previewPlayback.isTimelinePlaying.value, false);
 	const handle = fileHandle('disabled-layer.gsproj');
 	window.selectProjectSaveFile = async () => handle;
-	await app.saveProject();
+	await appContext.saveProject();
 	assert.deepEqual(decodeProjectFile(handle.bytes).timelineScenes[0].layers[0], { ...original, isDisabled: true });
 	await app.newProject();
 	window.showOpenFilePicker = async () => [handle];
@@ -227,9 +239,10 @@ test('persists disabled layers and refreshes the paused preview on visibility ed
 test('uses project render settings with motion blur sampling disabled for the initial preview', async t => {
 	setup(t);
 	const app = evaluate(appBundle);
+	const { appContext } = app;
 	const loaded = project({ timelineFps: 24, timelineMotionBlur: { enabled: true, shutterAngle: 90, samples: 32 } });
-	await app.appReady(loaded);
-	const timeline = app.timelineRendererManagerController;
+	await appContext.ready(loaded);
+	const timeline = appContext.timelineRendererManagerController;
 	assert.equal(timeline.initialStaticOptions.timelineFps, 24);
 	assert.deepEqual(timeline.initialStaticOptions.timelineMotionBlur, { ...loaded.timelineMotionBlur, samples: 0 });
 	assert.ok(timeline.updates.every(options => !('timelineFps' in options) && !('timelineMotionBlur' in options)));
@@ -241,18 +254,19 @@ test('uses project render settings with motion blur sampling disabled for the in
 test('keeps preview motion blur samples separate from project settings and saved files', async t => {
 	const window = setup(t);
 	const app = evaluate(appBundle);
+	const { appContext } = app;
 	await app.newProject();
-	const manager = app.appStateManager;
+	const manager = appContext.projectContext.stateManager;
 	const settings = { timelineFps: 30, timelineMotionBlur: { enabled: true, shutterAngle: 270, samples: 32 } };
 	manager.commit('changeTimelineRenderSettings', settings);
 	await nextTick();
 	const historyLength = manager.undoStack.value.length;
-	const timeline = app.timelineRendererManagerController;
-	const live = app.visualModuleRendererManagerController;
+	const timeline = appContext.timelineRendererManagerController;
+	const live = appContext.visualModuleRendererManagerController;
 	live.staticUpdates.length = 0;
 	assert.deepEqual([...app.TIMELINE_PREVIEW_MOTION_BLUR_SAMPLE_OPTIONS], [0, 2, 4, 8]);
 	for (const samples of [2, 4, 8, 0]) {
-		app.timelinePreviewMotionBlurSamples.value = samples;
+		appContext.timelinePreviewMotionBlurSamples.value = samples;
 		await nextTick();
 		assert.deepEqual(timeline.staticOptions.timelineMotionBlur, { ...settings.timelineMotionBlur, samples });
 		assert.deepEqual(manager.state.timelineMotionBlur.value, settings.timelineMotionBlur);
@@ -261,7 +275,7 @@ test('keeps preview motion blur samples separate from project settings and saved
 	assert.equal(live.staticUpdates.length, 0);
 	manager.undo();
 	await nextTick();
-	assert.equal(app.timelinePreviewMotionBlurSamples.value, 0);
+	assert.equal(appContext.timelinePreviewMotionBlurSamples.value, 0);
 	assert.equal(timeline.staticOptions.timelineMotionBlur.enabled, false);
 	manager.redo();
 	await nextTick();
@@ -269,18 +283,18 @@ test('keeps preview motion blur samples separate from project settings and saved
 	assert.equal(manager.state.timelineMotionBlur.value.samples, 32);
 	const handle = fileHandle('preview-quality.gsproj');
 	window.selectProjectSaveFile = async () => handle;
-	await app.saveProject();
+	await appContext.saveProject();
 	const saved = decodeProjectFile(handle.bytes);
 	assert.deepEqual(saved.timelineMotionBlur, settings.timelineMotionBlur);
 	assert.equal('previewSamples' in saved.timelineMotionBlur, false);
 	assert.equal('timelinePreviewMotionBlurSamples' in saved, false);
 	// 読み込み前にオンにしておき、単に直前のオフ状態を維持しているだけではないことを確認する。
-	app.timelinePreviewMotionBlurSamples.value = 4;
+	appContext.timelinePreviewMotionBlurSamples.value = 4;
 	await nextTick();
 	assert.equal(timeline.staticOptions.timelineMotionBlur.samples, 4);
 	window.showOpenFilePicker = async () => [handle];
 	assert.equal(await app.openProject(), true);
-	assert.equal(app.timelinePreviewMotionBlurSamples.value, 0);
+	assert.equal(appContext.timelinePreviewMotionBlurSamples.value, 0);
 	assert.equal(timeline.staticOptions.timelineMotionBlur.samples, 0);
 	assert.equal(manager.state.timelineMotionBlur.value.samples, 32);
 });
@@ -294,26 +308,27 @@ test('applies timeline preview factors independently of the LIVE fps limit', asy
 	window.requestAnimationFrame = callback => { const id = ++nextId; callbacks.set(id, callback); return id; };
 	window.cancelAnimationFrame = id => callbacks.delete(id);
 	const app = evaluate(appBundle);
+	const { appContext } = app;
 	await app.newProject();
-	t.after(() => app.previewPlayback.dispose());
-	app.timelineRendererManagerController.staticUpdates.length = 0;
+	t.after(() => appContext.previewPlayback.dispose());
+	appContext.timelineRendererManagerController.staticUpdates.length = 0;
 	const measure = (factor, liveFpsLimit) => {
-		app.previewPlayback.pauseTimeline();
-		app.previewPlayback.seekTimeline(0);
-		app.timelinePreviewFpsFactor.value = factor;
-		app.liveFpsLimit.value = liveFpsLimit;
-		app.previewPlayback.playTimeline();
-		const timeline = app.timelineRendererManagerController;
+		appContext.previewPlayback.pauseTimeline();
+		appContext.previewPlayback.seekTimeline(0);
+		appContext.timelinePreviewFpsFactor.value = factor;
+		appContext.liveFpsLimit.value = liveFpsLimit;
+		appContext.previewPlayback.playTimeline();
+		const timeline = appContext.timelineRendererManagerController;
 		timeline.renders.length = 0;
 		for (let time = 0; time <= 1000; time++) {
-			app.timelineAudioPreview.time = time;
+			appContext.timelineAudioPreview.time = time;
 			const [id, callback] = callbacks.entries().next().value;
 			callbacks.delete(id);
 			callback(time);
 		}
 		const count = timeline.renders.length;
-		assert.ok(app.previewPlayback.currentTimelineTime.value >= 1000 - 1000 / (60 * factor) - 1);
-		app.previewPlayback.pauseTimeline();
+		assert.ok(appContext.previewPlayback.currentTimelineTime.value >= 1000 - 1000 / (60 * factor) - 1);
+		appContext.previewPlayback.pauseTimeline();
 		return count;
 	};
 	for (const factor of [0.5, 1, 2]) {
@@ -322,9 +337,9 @@ test('applies timeline preview factors independently of the LIVE fps limit', asy
 		assert.equal(limited, unlimited);
 		assert.ok(Math.abs(limited - 60 * factor) <= 1, `factor ${factor}: ${limited}`);
 	}
-	assert.equal(app.appContext.projectContext.stateManager.state.timelineFps.value, 60);
+	assert.equal(appContext.projectContext.stateManager.state.timelineFps.value, 60);
 	await nextTick();
-	assert.equal(app.timelineRendererManagerController.staticUpdates.length, 0);
+	assert.equal(appContext.timelineRendererManagerController.staticUpdates.length, 0);
 });
 
 // 【Scene参照と内容時刻を保存後も維持する】
@@ -375,6 +390,7 @@ function fileHandle(name, options = {}) {
 test('resolves queued Save against the destination committed by Save as', async t => {
 	const window = setup(t);
 	const app = evaluate(appBundle);
+	const { appContext } = app;
 	const original = await encodeProjectFile(project({ name: 'Original A' }));
 	const first = fileHandle('A.gsproj', { bytes: original });
 	const second = fileHandle('B.gsproj');
@@ -385,18 +401,18 @@ test('resolves queued Save against the destination committed by Save as', async 
 		const stream = await createWritable();
 		return { ...stream, async close() { started.resolve(); await finish.promise; await stream.close(); } };
 	};
-	await app.appReady(project({ name: 'Save as snapshot' }), first.name, first);
+	await appContext.ready(project({ name: 'Save as snapshot' }), first.name, first);
 	window.selectProjectSaveFile = async () => second;
-	const saveAs = app.saveProject(true);
+	const saveAs = appContext.saveProject(true);
 	await started.promise;
-	app.projectInfo.value.name = 'Queued Save snapshot';
-	const save = app.saveProject();
+	appContext.projectContext.stateManager.state.name.value = 'Queued Save snapshot';
+	const save = appContext.saveProject();
 	finish.resolve();
 	await Promise.all([saveAs, save]);
 	assert.deepEqual(first.bytes, original);
 	assert.equal(decodeProjectFile(second.bytes).name, 'Queued Save snapshot');
-	app.projectInfo.value.name = 'Next Save';
-	await app.saveProject();
+	appContext.projectContext.stateManager.state.name.value = 'Next Save';
+	await appContext.saveProject();
 	assert.deepEqual(first.bytes, original);
 	assert.equal(decodeProjectFile(second.bytes).name, 'Next Save');
 	assert.deepEqual(globalThis.projectAlerts, []);
@@ -410,18 +426,19 @@ test('keeps the committed destination after cancelled or failed Save as and disc
 		await t.test(outcome, async t => {
 			const window = setup(t);
 			const app = evaluate(appBundle);
+			const { appContext } = app;
 			const first = fileHandle('A.gsproj');
 			const second = fileHandle('B.gsproj', { fail: 'write' });
 			const started = Promise.withResolvers();
 			const finish = Promise.withResolvers();
 			window.selectProjectSaveFile = async () => { started.resolve(); await finish.promise; return outcome === 'cancel' ? null : second; };
-			await app.appReady(project(), first.name, first);
+			await appContext.ready(project(), first.name, first);
 			const original = first.bytes;
-			const saveAs = app.saveProject(true);
+			const saveAs = appContext.saveProject(true);
 			await started.promise;
-			app.projectInfo.value.name = 'Queued edit';
-			const save = app.saveProject();
-			if (outcome === 'reopen') await app.appReady(project(), first.name, first);
+			appContext.projectContext.stateManager.state.name.value = 'Queued edit';
+			const save = appContext.saveProject();
+			if (outcome === 'reopen') await appContext.ready(project(), first.name, first);
 			finish.resolve();
 			await Promise.all([saveAs, save]);
 			assert.deepEqual(second.bytes, new Uint8Array([42]));
@@ -439,16 +456,17 @@ test('checks the new destination permission instead of reusing the queued permis
 		await t.test(allowed ? 'new destination granted' : 'new destination denied', async t => {
 			const window = setup(t);
 			const app = evaluate(appBundle);
+			const { appContext } = app;
 			const first = fileHandle('A.gsproj', { permission: allowed ? 'denied' : 'granted' });
 			const second = fileHandle('B.gsproj', { permission: allowed ? 'granted' : 'denied' });
 			const started = Promise.withResolvers();
 			const finish = Promise.withResolvers();
 			window.selectProjectSaveFile = async () => { started.resolve(); await finish.promise; return second; };
-			await app.appReady(project({ name: 'Save as' }), first.name, first);
-			const saveAs = app.saveProject(true);
+			await appContext.ready(project({ name: 'Save as' }), first.name, first);
+			const saveAs = appContext.saveProject(true);
 			await started.promise;
-			app.projectInfo.value.name = 'Queued Save';
-			const save = app.saveProject();
+			appContext.projectContext.stateManager.state.name.value = 'Queued Save';
+			const save = appContext.saveProject();
 			finish.resolve();
 			await Promise.all([saveAs, save]);
 			assert.deepEqual(first.bytes, new Uint8Array([42]));
@@ -492,8 +510,9 @@ test('round trips project information and original assets', async () => {
 test('preserves asset source paths through commands and project save and reload', async t => {
 	const window = setup(t);
 	const app = evaluate(appBundle);
+	const { appContext } = app;
 	await app.newProject();
-	const manager = app.appStateManager;
+	const manager = appContext.projectContext.stateManager;
 	const path = 'C:\\素材 フォルダ\\original.png';
 	manager.commit('addAsset', { id: 'asset', name: 'original.png', width: 4, height: 2,
 		fileDataType: 'image/png', fileData: new Blob(['original image'], { type: 'image/png' }), sourceFilePath: path });
@@ -510,7 +529,7 @@ test('preserves asset source paths through commands and project save and reload'
 	assert.equal(manager.state.assets.value[0].sourceFilePath, path);
 	const handle = fileHandle('paths.gsproj');
 	window.selectProjectSaveFile = async () => handle;
-	await app.saveProject();
+	await appContext.saveProject();
 	assert.equal(decodeProjectFile(handle.bytes).assets[0].sourceFilePath, path);
 	await app.newProject();
 	window.showOpenFilePicker = async () => [handle];
@@ -527,8 +546,9 @@ test('preserves asset source paths through commands and project save and reload'
 test('updates or clears source paths when replacing assets', async t => {
 	const window = setup(t);
 	const app = evaluate(appBundle);
+	const { appContext } = app;
 	await app.newProject();
-	const manager = app.appStateManager;
+	const manager = appContext.projectContext.stateManager;
 	const asset = { id: 'asset', name: 'Display name', width: 4, height: 2, fileDataType: 'image/png',
 		fileData: new Blob(['original']), sourceFilePath: 'C:\\original.png' };
 	manager.commit('addAsset', asset);
@@ -540,7 +560,7 @@ test('updates or clears source paths when replacing assets', async t => {
 			fileData: new Blob([content]), sourceFilePath: path });
 		assert.equal(manager.state.assets.value[0].sourceFilePath, path);
 		assert.equal(manager.state.assets.value[0].name, asset.name);
-		await app.saveProject();
+		await appContext.saveProject();
 		const saved = decodeProjectFile(handle.bytes).assets[0];
 		assert.equal(saved.sourceFilePath, path);
 		assert.equal(await saved.fileData.text(), content);
@@ -552,6 +572,7 @@ test('updates or clears source paths when replacing assets', async t => {
 test('retains the source path when creating a project from an image', async t => {
 	const window = setup(t);
 	const app = evaluate(appBundle);
+	const { appContext } = app;
 	const file = new File(['encoded image'], 'source.png', { type: 'image/png' });
 	const path = 'C:\\素材\\source.png';
 	window.document.createElement = () => new EventTarget();
@@ -563,10 +584,10 @@ test('retains the source path when creating a project from an image', async t =>
 		else delete globalThis.createImageBitmap;
 	});
 	assert.equal(await app.newProjectFromImageOrVideo(file), true);
-	assert.equal(app.appContext.projectContext.stateManager.state.assets.value[0].sourceFilePath, path);
+	assert.equal(appContext.projectContext.stateManager.state.assets.value[0].sourceFilePath, path);
 	const handle = fileHandle('from-image.gsproj');
 	window.selectProjectSaveFile = async () => handle;
-	await app.saveProject();
+	await appContext.saveProject();
 	const saved = decodeProjectFile(handle.bytes).assets[0];
 	assert.equal(saved.sourceFilePath, path);
 	assert.equal(await saved.fileData.text(), 'encoded image');
@@ -675,17 +696,18 @@ test('stops before selecting or writing a target when asset encoding fails', asy
 	const handle = fileHandle('existing.gsproj', { bytes: await encodeProjectFile(project()) });
 	const original = handle.bytes;
 	const app = evaluate(appBundle);
-	await app.appReady(project(), handle.name, handle);
-	app.appContext.projectContext.stateManager.state.assets.value = [{ id: 'asset', name: 'missing.png', fileData: new UnreadableBlob() }];
+	const { appContext } = app;
+	await appContext.ready(project(), handle.name, handle);
+	appContext.projectContext.stateManager.state.assets.value = [{ id: 'asset', name: 'missing.png', fileData: new UnreadableBlob() }];
 	window.selectProjectSaveFile = () => assert.fail('No target should be selected after an encoding failure');
-	await app.saveProject(true);
+	await appContext.saveProject(true);
 	assert.deepEqual(handle.calls, []);
-	await app.saveProject();
+	await appContext.saveProject();
 	assert.deepEqual(handle.calls, [['permission', { mode: 'readwrite' }]]);
 	assert.equal(handle.bytes, original);
 	assert.equal(globalThis.projectAlerts.length, 2);
 	assert.ok(globalThis.projectAlerts.every(message => message.includes('missing.png')));
-	await assert.rejects(encodeProjectFile(project({ assets: app.appContext.projectContext.stateManager.state.assets.value })), error => error.cause === cause);
+	await assert.rejects(encodeProjectFile(project({ assets: appContext.projectContext.stateManager.state.assets.value })), error => error.cause === cause);
 });
 
 // 【保存先選択前に準備を完了し、ダイアログ表示中の編集を保存内容へ混入させない】
@@ -693,22 +715,23 @@ test('stops before selecting or writing a target when asset encoding fails', asy
 test('prepares a complete snapshot before selecting a Save as target', async t => {
 	const window = setup(t);
 	const app = evaluate(appBundle);
+	const { appContext } = app;
 	await app.newProject();
 	let read = false;
 	class TrackedBlob extends Blob {
 		async arrayBuffer() { read = true; return super.arrayBuffer(); }
 	}
-	app.projectInfo.value.name = 'Snapshot';
-	app.appContext.projectContext.stateManager.state.assets.value = [{ id: 'asset', name: 'snapshot.png', fileData: new TrackedBlob(['original']) }];
+	appContext.projectContext.stateManager.state.name.value = 'Snapshot';
+	appContext.projectContext.stateManager.state.assets.value = [{ id: 'asset', name: 'snapshot.png', fileData: new TrackedBlob(['original']) }];
 	const handle = fileHandle('snapshot.gsproj');
 	window.selectProjectSaveFile = async name => {
 		assert.equal(name, 'untitled.gsproj');
 		assert.equal(read, true);
-		app.projectInfo.value.name = 'Later edit';
-		app.appContext.projectContext.stateManager.state.assets.value = [];
+		appContext.projectContext.stateManager.state.name.value = 'Later edit';
+		appContext.projectContext.stateManager.state.assets.value = [];
 		return handle;
 	};
-	await app.saveProject(true);
+	await appContext.saveProject(true);
 	const saved = decodeProjectFile(handle.bytes);
 	assert.equal(saved.name, 'Snapshot');
 	assert.equal(await saved.assets[0].fileData.text(), 'original');
@@ -730,8 +753,9 @@ test('does not write when permission is denied', async t => {
 	const handle = fileHandle('readonly.gsproj', { permission: 'denied', bytes: await encodeProjectFile(project()) });
 	const original = handle.bytes;
 	const app = evaluate(appBundle);
-	await app.appReady(project(), handle.name, handle);
-	await app.saveProject();
+	const { appContext } = app;
+	await appContext.ready(project(), handle.name, handle);
+	await appContext.saveProject();
 	assert.deepEqual(handle.calls, [['permission', { mode: 'readwrite' }]]);
 	assert.equal(handle.bytes, original);
 	assert.match(globalThis.projectAlerts[0], /permission/i);
@@ -763,32 +787,35 @@ test('rejects empty save data without opening a writable', async () => {
 test('saves editable project information, updates the title and preserves undo history', async t => {
 	const window = setup(t);
 	const app = evaluate(appBundle);
+	const { appContext } = app;
 	await app.newProject();
-	const manager = app.appStateManager;
-	assert.deepEqual(app.projectInfo.value, { name: 'Untitled Project', description: '', author: '' });
+	const manager = appContext.projectContext.stateManager;
+	assert.deepEqual([manager.state.name.value, manager.state.description.value, manager.state.author.value], ['Untitled Project', '', '']);
 	manager.commit('addEffectNode', { visualModuleId: manager.state.visualModules.value[0].id, effectId: 'fill', id: 'added-node' });
 	manager.undo();
 	const undoCount = manager.undoStack.value.length;
 	const redoCount = manager.redoStack.value.length;
-	Object.assign(app.projectInfo.value, { name: 'Edited Project', description: 'Description\n説明', author: 'Alice' });
+	manager.state.name.value = 'Edited Project';
+	manager.state.description.value = 'Description\n説明';
+	manager.state.author.value = 'Alice';
 	await nextTick();
 	assert.equal(window.document.title, 'Glitch Studio (Edited Project)');
 	assert.equal(manager.undoStack.value.length, undoCount);
 	assert.equal(manager.redoStack.value.length, redoCount);
 	manager.redo();
-	assert.equal(app.projectInfo.value.name, 'Edited Project');
+	assert.equal(appContext.projectContext.stateManager.state.name.value, 'Edited Project');
 	const handle = fileHandle('saved.gsproj');
 	window.selectProjectSaveFile = async () => handle;
-	await app.saveProject();
+	await appContext.saveProject();
 	const saved = decodeProjectFile(handle.bytes);
 	assert.equal(saved.name, 'Edited Project');
 	assert.equal(saved.description, 'Description\n説明');
 	assert.equal(saved.author, 'Alice');
 	await app.newProject();
-	assert.equal(app.projectInfo.value.name, 'Untitled Project');
+	assert.equal(appContext.projectContext.stateManager.state.name.value, 'Untitled Project');
 	window.showOpenFilePicker = async () => [handle];
 	assert.equal(await app.openProject(), true);
-	assert.deepEqual(app.projectInfo.value, { name: saved.name, description: saved.description, author: saved.author });
+	assert.deepEqual([manager.state.name.value, manager.state.description.value, manager.state.author.value], [saved.name, saved.description, saved.author]);
 	assert.deepEqual(globalThis.projectAlerts, []);
 });
 
@@ -797,28 +824,29 @@ test('saves editable project information, updates the title and preserves undo h
 test('changes the Save target only after a successful Save as', async t => {
 	const window = setup(t);
 	const app = evaluate(appBundle);
+	const { appContext } = app;
 	await app.newProject();
 	const original = fileHandle('original.gsproj');
 	const copy = fileHandle('copy.gsproj');
 	window.selectProjectSaveFile = async () => original;
-	await app.saveProject();
+	await appContext.saveProject();
 	window.selectProjectSaveFile = async () => null;
-	await app.saveProject(true);
-	app.projectInfo.value.name = 'After cancellation';
-	await app.saveProject();
+	await appContext.saveProject(true);
+	appContext.projectContext.stateManager.state.name.value = 'After cancellation';
+	await appContext.saveProject();
 	assert.equal(decodeProjectFile(original.bytes).name, 'After cancellation');
 	const failed = fileHandle('failed.gsproj', { fail: 'write' });
 	window.selectProjectSaveFile = async () => failed;
-	await app.saveProject(true);
-	app.projectInfo.value.name = 'After failure';
-	await app.saveProject();
+	await appContext.saveProject(true);
+	appContext.projectContext.stateManager.state.name.value = 'After failure';
+	await appContext.saveProject();
 	assert.equal(decodeProjectFile(original.bytes).name, 'After failure');
 	assert.deepEqual(globalThis.projectAlerts, ['write failed']);
 	window.selectProjectSaveFile = async () => copy;
-	await app.saveProject(true);
+	await appContext.saveProject(true);
 	window.selectProjectSaveFile = () => assert.fail('Save should reuse the new target');
-	app.projectInfo.value.name = 'After Save as';
-	await app.saveProject();
+	appContext.projectContext.stateManager.state.name.value = 'After Save as';
+	await appContext.saveProject();
 	assert.equal(decodeProjectFile(copy.bytes).name, 'After Save as');
 	assert.equal(decodeProjectFile(original.bytes).name, 'After failure');
 });
@@ -828,16 +856,17 @@ test('changes the Save target only after a successful Save as', async t => {
 test('asks for a fresh Save target after creating another project', async t => {
 	const window = setup(t);
 	const app = evaluate(appBundle);
+	const { appContext } = app;
 	await app.newProject();
 	const first = fileHandle('first.gsproj');
 	window.selectProjectSaveFile = async () => first;
-	await app.saveProject();
+	await appContext.saveProject();
 	const savedBytes = first.bytes;
 	await app.newProject();
 	const second = fileHandle('second.gsproj');
 	let pickerCalls = 0;
 	window.selectProjectSaveFile = async () => { pickerCalls++; return second; };
-	await app.saveProject();
+	await appContext.saveProject();
 	assert.equal(pickerCalls, 1);
 	assert.equal(first.bytes, savedBytes);
 	assert.notEqual(decodeProjectFile(first.bytes).id, decodeProjectFile(second.bytes).id);
@@ -862,12 +891,13 @@ test('accepts same and older versions and rejects newer semantic versions', asyn
 test('shows a future-version error without changing the current project or Save target', async t => {
 	const window = setup(t);
 	const app = evaluate(appBundle);
+	const { appContext } = app;
 	await app.newProject();
-	app.projectInfo.value.name = 'Current project';
+	appContext.projectContext.stateManager.state.name.value = 'Current project';
 	const currentHandle = fileHandle('current.gsproj');
 	window.selectProjectSaveFile = async () => currentHandle;
-	await app.saveProject();
-	const manager = app.appStateManager;
+	await appContext.saveProject();
+	const manager = appContext.projectContext.stateManager;
 	manager.commit('addEffectNode', { visualModuleId: manager.state.visualModules.value[0].id, effectId: 'fill', id: 'keep-node' });
 	const modules = manager.state.visualModules.value;
 	const undoCount = manager.undoStack.value.length;
@@ -875,7 +905,7 @@ test('shows a future-version error without changing the current project or Save 
 	const futureHandle = fileHandle('future.gsproj', { bytes: await encodeProjectFile(future) });
 	window.showOpenFilePicker = async () => [futureHandle];
 	assert.equal(await app.openProject(), false);
-	assert.equal(app.projectInfo.value.name, 'Current project');
+	assert.equal(appContext.projectContext.stateManager.state.name.value, 'Current project');
 	assert.equal(manager.state.visualModules.value, modules);
 	assert.equal(manager.undoStack.value.length, undoCount);
 	assert.equal(window.document.title, 'Glitch Studio (Current project)');
@@ -883,7 +913,7 @@ test('shows a future-version error without changing the current project or Save 
 	assert.match(globalThis.projectAlerts[0], /未来のバージョンのプロジェクトファイルの読み込みはサポートしていません/);
 	assert.match(globalThis.projectAlerts[0], /ファイル: 2\.0\.0 \/ 現在: 2\.0\.0-alpha\.2/);
 	window.selectProjectSaveFile = () => assert.fail('The existing Save target must be retained');
-	await app.saveProject();
+	await appContext.saveProject();
 	assert.equal(decodeProjectFile(currentHandle.bytes).name, 'Current project');
 	assert.equal(decodeProjectFile(futureHandle.bytes).name, 'Future project');
 });
@@ -894,6 +924,7 @@ test('shows a future-version error without changing the current project or Save 
 test('passes unscaled project dimensions and resets the preview scale for smaller projects', async t => {
 	setup(t);
 	const app = evaluate(appBundle);
+	const { appContext } = app;
 	for (const [width, height, factor] of [
 		[12000, 8000, 0.25],
 		[1500, 3001, 0.25],
@@ -904,14 +935,14 @@ test('passes unscaled project dimensions and resets the preview scale for smalle
 		const resolution = { width, height };
 		const file = new File([await encodeProjectFile(project({ resolution }))], 'resolution.gsproj');
 		assert.equal(await app.openProject(file), true);
-		assert.equal(app.resolutionFactor.value, factor);
-		for (const controller of [app.visualModuleRendererManagerController, app.timelineRendererManagerController]) {
+		assert.equal(appContext.resolutionFactor.value, factor);
+		for (const controller of [appContext.visualModuleRendererManagerController, appContext.timelineRendererManagerController]) {
 			assert.deepEqual(controller.options.resolution, resolution);
 			assert.equal(controller.options.resolutionScale, factor);
 		}
-		assert.deepEqual(app.appContext.projectContext.stateManager.state.resolution.value, resolution);
+		assert.deepEqual(appContext.projectContext.stateManager.state.resolution.value, resolution);
 	}
-	for (const controller of [app.visualModuleRendererManagerController, app.timelineRendererManagerController]) {
+	for (const controller of [appContext.visualModuleRendererManagerController, appContext.timelineRendererManagerController]) {
 		assert.deepEqual(controller.initialResolution, { width: 12000, height: 8000 });
 		assert.equal(controller.initialResolutionScale, 0.25);
 	}
@@ -923,18 +954,19 @@ test('passes unscaled project dimensions and resets the preview scale for smalle
 test('synchronizes both previews and routes timeline-only edits', async t => {
 	setup(t);
 	const app = evaluate(appBundle);
+	const { appContext } = app;
 	const first = project({ visualModules: [{ id: 'first', nodes: [], paramDefs: [] }] });
-	await app.appReady(first);
-	const live = app.visualModuleRendererManagerController;
-	const timeline = app.timelineRendererManagerController;
-	assert.equal(app.activePreviewRenderer.value, live);
+	await appContext.ready(first);
+	const live = appContext.visualModuleRendererManagerController;
+	const timeline = appContext.timelineRendererManagerController;
+	assert.equal(appContext.activePreviewRenderer.value, live);
 	assert.deepEqual(live.options.visualModules, first.visualModules);
 	assert.deepEqual(timeline.options.visualModules, first.visualModules);
 	assert.equal('timelineScenes' in live.options, false);
-	app.previewPlayback.seekTimeline(500);
-	assert.equal(app.activePreviewRenderer.value, timeline);
+	appContext.previewPlayback.seekTimeline(500);
+	assert.equal(appContext.activePreviewRenderer.value, timeline);
 	timeline.renders.length = 0;
-	app.appStateManager.commit('addTimelineLayer', { sceneId: 'scene', layer: { id: 'layer', layerType: 'visualModule', visualModuleId: 'first', name: 'Layer', clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 1000 }], visualModuleParamValues: {}, compositingParamValues: {}, automationGraphs: [] } });
+	appContext.projectContext.stateManager.commit('addTimelineLayer', { sceneId: 'scene', layer: { id: 'layer', layerType: 'visualModule', visualModuleId: 'first', name: 'Layer', clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 1000 }], visualModuleParamValues: {}, compositingParamValues: {}, automationGraphs: [] } });
 	await nextTick();
 	await setImmediate();
 	assert.equal('timelineScenes' in live.options, false);
@@ -942,13 +974,13 @@ test('synchronizes both previews and routes timeline-only edits', async t => {
 	assert.deepEqual(timeline.patches.at(-1).map(change => change.type), ['layer', 'layerOrder']);
 	assert.equal(live.patches.length, 0);
 	assert.deepEqual(timeline.renders, [500]);
-	app.highlightClipping.value = true;
+	appContext.highlightClipping.value = true;
 	await nextTick();
 	await setImmediate();
 	assert.equal(live.options.highlightClipping, true);
 	assert.equal(timeline.options.highlightClipping, true);
 	assert.equal(timeline.renders.at(-1), 500);
-	await app.appReady(project());
+	await appContext.ready(project());
 	assert.deepEqual(live.options.visualModules, []);
 	assert.deepEqual(timeline.options.visualModules, []);
 	assert.deepEqual(timeline.options.timelineScenes[0].layers, []);
@@ -963,16 +995,17 @@ test('refreshes audio only for audio content, source files or loop duration chan
 	window.requestAnimationFrame = () => 1;
 	window.cancelAnimationFrame = () => {};
 	const app = evaluate(appBundle);
-	await app.appReady(project({
+	const { appContext } = app;
+	await appContext.ready(project({
 		assets: [{ id: 'audio', name: 'sound.wav', fileData: new Blob(['audio']) }, { id: 'image', fileData: new Blob(['image']) }],
 		timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [
 			{ id: 'visual', isDisabled: false, layerType: 'visualModule', visualModuleId: 'module', name: 'Layer', clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 10000 }], visualModuleParamValues: {}, compositingParamValues: { opacity: { inputSource: 'literal', value: 1 } }, automationGraphs: [] },
 			{ id: 'audio', isDisabled: false, layerType: 'audio', name: 'Layer', clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 5000, assetId: 'audio' }], audioParamValues: { volume: { inputSource: 'literal', value: 1 } }, automationGraphs: [] },
 		] }],
 	}));
-	const manager = app.appStateManager;
-	const starts = app.timelineAudioPreview.starts;
-	app.previewPlayback.playTimeline();
+	const manager = appContext.projectContext.stateManager;
+	const starts = appContext.timelineAudioPreview.starts;
+	appContext.previewPlayback.playTimeline();
 	try {
 		assert.equal(starts.length, 1);
 		manager.commit('editTimelineLayerParam', { sceneId: 'scene', layerId: 'visual', target: 'compositing', paramPath: ['opacity'], edit: { kind: 'literal', value: 0.5 } });
@@ -1022,7 +1055,7 @@ test('refreshes audio only for audio content, source files or loop duration chan
 		manager.commit('setTimelineLayerDisabled', { sceneId: 'scene', layerId: 'audio', isDisabled: false });
 		await nextTick();
 		assert.equal(starts.length, 12);
-	} finally { app.previewPlayback.dispose(); }
+	} finally { appContext.previewPlayback.dispose(); }
 });
 
 // 【両Workerの復帰完了後にだけプレビューを再開する】
@@ -1030,24 +1063,25 @@ test('refreshes audio only for audio content, source files or loop duration chan
 test('waits for both preview workers before restoring the paused timeline', async t => {
 	setup(t);
 	const app = evaluate(appBundle);
-	await app.appReady(project());
-	app.previewPlayback.seekTimeline(123);
-	const live = app.visualModuleRendererManagerController;
-	const timeline = app.timelineRendererManagerController;
-	app.suspendPreview();
+	const { appContext } = app;
+	await appContext.ready(project());
+	appContext.previewPlayback.seekTimeline(123);
+	const live = appContext.visualModuleRendererManagerController;
+	const timeline = appContext.timelineRendererManagerController;
+	await appContext.suspendPreview();
 	assert.equal(live.isReady.value, false);
 	assert.equal(timeline.isReady.value, false);
 	timeline.renders.length = 0;
 	const gate = Promise.withResolvers();
 	live.relaunchManager = async () => { await gate.promise; live.isReady.value = true; };
-	const restarting = app.resumePreview();
+	const restarting = appContext.resumePreview();
 	await nextTick();
 	assert.equal(timeline.isReady.value, true);
 	assert.deepEqual(timeline.renders, []);
 	gate.resolve();
 	await restarting;
 	assert.deepEqual(timeline.renders, [123]);
-	assert.equal(app.previewPlayback.isTimelinePlaying.value, false);
+	assert.equal(appContext.previewPlayback.isTimelinePlaying.value, false);
 });
 
 // 【復帰に失敗してももう一方の初期化を待ち、描画は再開しない】
@@ -1055,22 +1089,23 @@ test('waits for both preview workers before restoring the paused timeline', asyn
 test('keeps playback suspended and waits for the other worker after a restart failure', async t => {
 	setup(t);
 	const app = evaluate(appBundle);
-	await app.appReady(project());
-	app.suspendPreview();
-	const timeline = app.timelineRendererManagerController;
+	const { appContext } = app;
+	await appContext.ready(project());
+	await appContext.suspendPreview();
+	const timeline = appContext.timelineRendererManagerController;
 	timeline.renders.length = 0;
-	app.visualModuleRendererManagerController.relaunchManager = async () => { throw new Error('GPU unavailable'); };
+	appContext.visualModuleRendererManagerController.relaunchManager = async () => { throw new Error('GPU unavailable'); };
 	const gate = Promise.withResolvers();
 	timeline.relaunchManager = async () => { await gate.promise; timeline.isReady.value = true; };
 	let settled = false;
-	const restarting = app.resumePreview();
+	const restarting = appContext.resumePreview();
 	const rejected = assert.rejects(restarting, /GPU unavailable/).then(() => { settled = true; });
 	await setImmediate();
 	assert.equal(settled, false);
 	gate.resolve();
 	await rejected;
 	await nextTick();
-	app.previewPlayback.refresh();
+	appContext.previewPlayback.refresh();
 	assert.deepEqual(timeline.renders, []);
 });
 
@@ -1086,14 +1121,15 @@ test('opens a startup project handle without a picker and saves back to that fil
 		async writeProjectFile(id, data) { assert.equal(id, 'startup'); bytes = data; },
 	};
 	const app = evaluate(appBundle);
+	const { appContext } = app;
 	assert.equal(await app.openProject(undefined, desktopProjectFile({ id: 'startup', name: '作品.gsproj' })), true);
-	assert.equal(app.projectInfo.value.name, 'From Explorer');
-	assert.equal(app.projectBackupAccess.value, 'ready');
-	app.projectInfo.value.name = 'Edited';
-	await app.saveProject();
+	assert.equal(appContext.projectContext.stateManager.state.name.value, 'From Explorer');
+	assert.equal(appContext.projectBackupAccess.value, 'ready');
+	appContext.projectContext.stateManager.state.name.value = 'Edited';
+	await appContext.saveProject();
 	assert.equal(decodeProjectFile(bytes).name, 'Edited');
 	assert.deepEqual(globalThis.projectAlerts, []);
-	app.projectBackupController.setTarget(null);
+	appContext.projectBackupController.setTarget(null);
 });
 
 // 【起動時のファイルが存在しない・壊れている場合は失敗をUIへ返す】
@@ -1140,24 +1176,25 @@ test('uses Electron backup access without a folder picker and stops overwrite on
 	const handle = fileHandle('native.gsproj', { bytes: original });
 	window.showOpenFilePicker = async () => [handle];
 	const app = evaluate(appBundle);
+	const { appContext } = app;
 	window.testPreferences.projectBackups.saveEnabled = true;
 	assert.equal(await app.openProject(), true);
-	assert.equal(app.projectBackupAccess.value, 'ready');
+	assert.equal(appContext.projectBackupAccess.value, 'ready');
 	window.desktop.readProjectFile = () => assert.fail('Save backup must not read the old file into the renderer');
-	app.projectInfo.value.name = 'Edited';
-	await app.saveProject();
+	appContext.projectContext.stateManager.state.name.value = 'Edited';
+	await appContext.saveProject();
 	assert.equal(decodeProjectFile(handle.bytes).name, 'Edited');
 	assert.equal(decodeProjectFile([...files.values()][0]).name, 'On disk');
-	assert.equal(app.projectBackupStatus.value.lastSaveBackup != null, true);
+	assert.equal(appContext.projectBackupStatus.value.lastSaveBackup != null, true);
 	const persisted = handle.bytes;
 	const previousWrites = handle.calls.filter(call => call[0] === 'create').length;
 	fail = true;
-	app.projectInfo.value.name = 'More edits';
-	await app.saveProject();
+	appContext.projectContext.stateManager.state.name.value = 'More edits';
+	await appContext.saveProject();
 	assert.equal(handle.bytes, persisted);
 	assert.equal(handle.calls.filter(call => call[0] === 'create').length, previousWrites);
 	assert.deepEqual(globalThis.projectAlerts, ['Backup disk full']);
-	app.projectBackupController.setTarget(null);
+	appContext.projectBackupController.setTarget(null);
 });
 
 // 【Save asの既存宛先をバックアップし、成功後だけ自動バックアップの対象を切り替える】
@@ -1185,28 +1222,29 @@ test('backs up the Save as destination and keeps automatic backups separate from
 	const original = fileHandle('first.gsproj', { bytes: await encodeProjectFile(project({ name: 'First file' })) });
 	const destination = fileHandle('second.gsproj', { bytes: await encodeProjectFile(project({ name: 'Destination before overwrite' })) });
 	const app = evaluate(appBundle);
+	const { appContext } = app;
 	window.testPreferences.projectBackups = { autoEnabled: true, autoIntervalMinutes: 3, autoRetentionDays: 1, saveEnabled: true, saveRetentionDays: 7 };
-	await app.appReady(project(), original.name, desktopProjectFile({ id: original.name, name: original.name }));
-	app.projectInfo.value.name = 'Saving as second';
+	await appContext.ready(project(), original.name, desktopProjectFile({ id: original.name, name: original.name }));
+	appContext.projectContext.stateManager.state.name.value = 'Saving as second';
 	window.selectProjectSaveFile = async () => destination;
-	await app.saveProject(true);
+	await appContext.saveProject(true);
 	assert.equal(decodeProjectFile([...backups.get(destination.name).values()][0]).name, 'Destination before overwrite');
 	assert.equal(backups.has(original.name), false);
 	let now = Date.now();
 	t.mock.method(Date, 'now', () => now);
-	app.projectInfo.value.description = 'Unsaved description';
-	const historyLength = app.appStateManager.undoStack.value.length;
+	appContext.projectContext.stateManager.state.description.value = 'Unsaved description';
+	const historyLength = appContext.projectContext.stateManager.undoStack.value.length;
 	now += 180001;
-	await app.projectBackupController.tick();
+	await appContext.projectBackupController.tick();
 	const automatic = [...backups.get(destination.name)].filter(([name]) => name.includes('.auto-backup-'));
 	assert.equal(automatic.length, 1);
 	assert.equal(decodeProjectFile(automatic[0][1]).description, 'Unsaved description');
-	assert.equal(app.appStateManager.undoStack.value.length, historyLength);
+	assert.equal(appContext.projectContext.stateManager.undoStack.value.length, historyLength);
 	assert.notEqual(decodeProjectFile(destination.bytes).description, 'Unsaved description');
-	await app.saveProject();
+	await appContext.saveProject();
 	assert.equal(decodeProjectFile(destination.bytes).description, 'Unsaved description');
 	assert.equal(decodeProjectFile(original.bytes).name, 'First file');
-	app.projectBackupController.setTarget(null);
+	appContext.projectBackupController.setTarget(null);
 });
 
 // 【Chromeの初回保存で選んだフォルダを保持し、その後の自動・保存時バックアップに使う】
@@ -1233,29 +1271,30 @@ test('retains the Chrome save folder and starts backups only after the first sav
 	window.selectProjectSaveFile = async () => handle;
 	window.showDirectoryPicker = () => assert.fail('The chosen save folder should be retained');
 	const app = evaluate(appBundle);
+	const { appContext } = app;
 	window.testPreferences.projectBackups = { autoEnabled: true, autoIntervalMinutes: 2, autoRetentionDays: 1, saveEnabled: true, saveRetentionDays: 7 };
 	await app.newProject();
-	await app.projectBackupController.tick();
-	assert.equal(app.projectBackupAccess.value, 'unsaved');
+	await appContext.projectBackupController.tick();
+	assert.equal(appContext.projectBackupAccess.value, 'unsaved');
 	assert.equal(handles.size, 1);
-	await app.saveProject();
-	assert.equal(app.projectBackupAccess.value, 'ready');
+	await appContext.saveProject();
+	assert.equal(appContext.projectBackupAccess.value, 'ready');
 	assert.equal(handles.size, 1);
 	const saved = handle.bytes;
 	let now = Date.now();
 	t.mock.method(Date, 'now', () => now);
-	app.projectInfo.value.name = 'Unsaved editing';
+	appContext.projectContext.stateManager.state.name.value = 'Unsaved editing';
 	now += 120001;
-	await app.projectBackupController.tick();
+	await appContext.projectBackupController.tick();
 	const automatic = [...handles].filter(([name]) => name.includes('.auto-backup-'));
 	assert.equal(automatic.length, 1);
 	assert.equal(decodeProjectFile(automatic[0][1].bytes).name, 'Unsaved editing');
 	assert.equal(handle.bytes, saved);
-	await app.saveProject();
+	await appContext.saveProject();
 	const beforeSave = [...handles].filter(([name]) => name.includes('.save-backup-'));
 	assert.equal(beforeSave.length, 1);
 	assert.deepEqual(beforeSave[0][1].bytes, saved);
 	assert.equal(decodeProjectFile(handle.bytes).name, 'Unsaved editing');
 	await app.newProject();
-	assert.equal(app.projectBackupAccess.value, 'unsaved');
+	assert.equal(appContext.projectBackupAccess.value, 'unsaved');
 });

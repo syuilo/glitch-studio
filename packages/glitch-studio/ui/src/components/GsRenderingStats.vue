@@ -36,9 +36,11 @@
 </template>
 
 <script lang="ts" setup>
+import { appContext } from '@/app.ts';
 import { computed, onBeforeUnmount, onMounted, ref, useTemplateRef } from 'vue';
-import { visualModuleRendererManagerController, previewPlayback } from '@/app.ts';
 import { i18n } from '@/i18n.ts';
+
+const { visualModuleRendererManagerController, previewPlayback } = appContext;
 
 type SeriesKey = 'fast' | 'medium' | 'slow';
 type RenderTimes = Record<SeriesKey, number>;

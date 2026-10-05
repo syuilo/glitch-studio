@@ -20,6 +20,7 @@
 </template>
 
 <script lang="ts" setup>
+import { appContext } from '@/app.ts';
 import { shallowRef, watch } from 'vue';
 import GsButton from './common/GsButton.vue';
 import GsDialog from './common/GsDialog.vue';
@@ -27,8 +28,9 @@ import GsFolder from './common/GsFolder.vue';
 import type { Asset } from '@gs/shared/types.ts';
 import { i18n } from '@/i18n.ts';
 import * as api from '@/api.ts';
-import { appStateManager } from '@/app.ts';
 import { popup } from '@/ui.ts';
+
+const { stateManager } = appContext.projectContext;
 
 const props = defineProps<{
 	asset: Asset;
@@ -37,7 +39,7 @@ const props = defineProps<{
 const imageUrl = shallowRef<string>();
 
 function remove() {
-	appStateManager.commit('removeAsset', {
+	stateManager.commit('removeAsset', {
 		assetId: props.asset.id,
 	});
 }
@@ -46,7 +48,7 @@ async function rename() {
 	const { dispose } = popup(GsDialog, { input: { default: props.asset.name } }, {
 		done: result => {
 			if (!result.canceled && typeof result.result === 'string') {
-				appStateManager.commit('renameAsset', { assetId: props.asset.id, name: result.result });
+				stateManager.commit('renameAsset', { assetId: props.asset.id, name: result.result });
 			}
 		},
 		closed: () => dispose(),
@@ -56,7 +58,7 @@ async function rename() {
 async function replace() {
 	const result = await api.openMediaFile({ includeFonts: true });
 	if (!result) return;
-	appStateManager.commit('replaceAsset', {
+	stateManager.commit('replaceAsset', {
 		id: props.asset.id,
 		name: props.asset.name,
 		assetId: props.asset.id,

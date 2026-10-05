@@ -10,15 +10,15 @@
 <div :class="$style.root">
 	<div :class="$style.header">
 		<div :class="$style.headerLeft">
-			<button class="_button" :class="$style.undoRedo" :disabled="!appStateManager.canUndo.value" @click="appStateManager.undo"><i class="ti ti-arrow-back-up"></i></button>
-			<button class="_button" :class="$style.undoRedo" :disabled="!appStateManager.canRedo.value" @click="appStateManager.redo"><i class="ti ti-arrow-forward-up"></i></button>
+			<button class="_button" :class="$style.undoRedo" :disabled="!stateManager.canUndo.value" @click="stateManager.undo()"><i class="ti ti-arrow-back-up"></i></button>
+			<button class="_button" :class="$style.undoRedo" :disabled="!stateManager.canRedo.value" @click="stateManager.redo()"><i class="ti ti-arrow-forward-up"></i></button>
 			<button class="_button" :class="$style.headerMenuItem" @click="openHeaderFileMenu">File</button>
 			<button class="_button" :class="$style.headerMenuItem" @click="openHeaderEditMenu">Edit</button>
 			<button class="_button" :class="$style.headerMenuItem" @click="openHeaderViewMenu">View</button>
 			<button class="_button" :class="$style.headerMenuItem" @click="openHeaderHelpMenu">Help</button>
 		</div>
-		<div :class="$style.headerRight" :title="projectInfo.name">
-			{{ projectInfo.name }}
+		<div :class="$style.headerRight" :title="projectName">
+			{{ projectName }}
 		</div>
 	</div>
 	<div :class="$style.body">
@@ -29,15 +29,15 @@
 			<div :class="$style.footerSection">
 				<div :class="$style.footerSectionTitle">Project:</div>
 				<div :class="$style.footerSectionContents">
-					<button :class="$style.footerItem" class="_button" @click="openProjectSettings">sRGB / {{ appContext.projectContext.stateManager.state.resolution.value.width }} x {{ appContext.projectContext.stateManager.state.resolution.value.height }} px / {{ appContext.projectContext.stateManager.state.timelineFps.value }}fps</button>
+					<button :class="$style.footerItem" class="_button" @click="openProjectSettings">sRGB / {{ stateManager.state.resolution.value.width }} x {{ stateManager.state.resolution.value.height }} px / {{ stateManager.state.timelineFps.value }}fps</button>
 				</div>
 			</div>
 			<div :class="$style.footerSection">
 				<div :class="$style.footerSectionTitle">Preview:</div>
 				<div :class="$style.footerSectionContents">
-					<button :class="$style.footerItem" class="_button" @click="openResolutionFactorMenu">{{ Math.round(appContext.projectContext.stateManager.state.resolution.value.width * resolutionFactor) }} x {{ Math.round(appContext.projectContext.stateManager.state.resolution.value.height * resolutionFactor) }} px ({{ resolutionFactor }}x)</button>
-					<button v-if="previewPlayback.state.value.mode === 'timeline' && appContext.projectContext.stateManager.state.timelineMotionBlur.value.enabled" :class="$style.footerItem" class="_button" title="Preview motion blur samples. Requires motion blur to be enabled in Project Settings." @click="openMotionBlurSamplesMenu">Motion blur: {{ timelinePreviewMotionBlurSamples === 0 ? 'Off' : `${timelinePreviewMotionBlurSamples} samples` }}</button>
-					<button :class="$style.footerItem" class="_button" @click="openFpsMenu">{{ previewPlayback.state.value.mode === 'live' ? `${Math.round(visualModuleRendererManagerController.fpsDisplay.value)}fps` : `${appContext.projectContext.stateManager.state.timelineFps.value * timelinePreviewFpsFactor}fps (${timelinePreviewFpsFactor}x)` }}</button>
+					<button :class="$style.footerItem" class="_button" @click="openResolutionFactorMenu">{{ Math.round(stateManager.state.resolution.value.width * resolutionFactor) }} x {{ Math.round(stateManager.state.resolution.value.height * resolutionFactor) }} px ({{ resolutionFactor }}x)</button>
+					<button v-if="previewPlayback.state.value.mode === 'timeline' && stateManager.state.timelineMotionBlur.value.enabled" :class="$style.footerItem" class="_button" title="Preview motion blur samples. Requires motion blur to be enabled in Project Settings." @click="openMotionBlurSamplesMenu">Motion blur: {{ timelinePreviewMotionBlurSamples === 0 ? 'Off' : `${timelinePreviewMotionBlurSamples} samples` }}</button>
+					<button :class="$style.footerItem" class="_button" @click="openFpsMenu">{{ previewPlayback.state.value.mode === 'live' ? `${Math.round(visualModuleRendererManagerController.fpsDisplay.value)}fps` : `${stateManager.state.timelineFps.value * timelinePreviewFpsFactor}fps (${timelinePreviewFpsFactor}x)` }}</button>
 					<button v-if="previewPlayback.state.value.mode === 'live'" :class="$style.footerItem" class="_button" @click="openTimeFactorMenu">TIME: {{ liveTimeFactor }}x</button>
 					<div :class="[$style.footerItem, $style.previewVolume]">
 						<i :class="previewVolume === 0 ? 'ti ti-volume-off' : 'ti ti-volume'"></i>
@@ -62,12 +62,12 @@
 </template>
 
 <script lang="ts" setup>
+import { appContext, openProject } from './app.ts';
+import { TIMELINE_PREVIEW_MOTION_BLUR_SAMPLE_OPTIONS } from './AppContext.ts';
 import { computed, nextTick, onMounted, onBeforeUnmount, ref, shallowRef, useTemplateRef, watch } from 'vue';
-import { audioOutput, activePreviewRenderer, previewPlayback, visualModuleRendererManagerController, resolutionFactor, liveFpsLimit, timelinePreviewFpsFactor, timelinePreviewMotionBlurSamples, TIMELINE_PREVIEW_MOTION_BLUR_SAMPLE_OPTIONS, liveTimeFactor, appStateManager, projectInfo, openProject, saveProject } from './app.ts';
 import { preferences } from './preferences.ts';
 import { desktopProjectFile } from './gsproj.ts';
 import GsRange from './components/common/GsRange.vue';
-import { projectBackupAccess, projectBackupStatus } from './app.ts';
 import GsAboutDialog from '@/components/GsAboutDialog.vue';
 import GsProjectSettingsDialog from '@/components/GsProjectSettingsDialog.vue';
 import GsSettingsDialog from '@/components/GsSettingsDialog.vue';
@@ -78,6 +78,10 @@ import { i18n } from '@/i18n.ts';
 import GsButton from '@/components/common/GsButton.vue';
 import GsAudioLevelMeter from '@/components/common/GsAudioLevelMeter.vue';
 import * as ui from '@/ui.ts';
+
+const { audioOutput, activePreviewRenderer, previewPlayback, visualModuleRendererManagerController, resolutionFactor, liveFpsLimit, timelinePreviewFpsFactor, timelinePreviewMotionBlurSamples, liveTimeFactor, projectBackupAccess, projectBackupStatus } = appContext;
+const { stateManager } = appContext.projectContext;
+const { name: projectName } = appContext.projectContext.stateManager.state;
 
 const releaseOutputCapture = audioOutput.retainOutputCapture();
 onBeforeUnmount(releaseOutputCapture);
@@ -133,7 +137,7 @@ async function importPreset() {
 	const assets = await api.decodeAssets(result.preset.assets);
 
 	for (const asset of assets) {
-		appContext.commit('addAsset', asset);
+		stateManager.commit('addAsset', asset);
 	}
 
 	for (const node of result.preset.nodes) {
@@ -240,7 +244,7 @@ function openFpsMenu(ev: PointerEvent) {
 	if (previewPlayback.state.value.mode === 'timeline') {
 		ui.popupMenu([2, 1, 0.5, 0.25].map(factor => ({
 			type: 'radioOption' as const,
-			text: factor + 'x (' + appContext.projectContext.stateManager.state.timelineFps.value * factor + 'fps)',
+			text: factor + 'x (' + stateManager.state.timelineFps.value * factor + 'fps)',
 			active: computed(() => timelinePreviewFpsFactor.value === factor),
 			action: () => { timelinePreviewFpsFactor.value = factor; },
 		})), ev.currentTarget ?? ev.target);
@@ -280,10 +284,10 @@ function openHeaderFileMenu(ev: PointerEvent) {
 		action: () => { void openProject(); },
 	}, {
 		text: 'Save',
-		action: () => { void saveProject(); },
+		action: () => { void appContext.saveProject(); },
 	}, {
 		text: 'Save as...',
-		action: () => { void saveProject(true); },
+		action: () => { void appContext.saveProject(true); },
 	}, {
 		type: 'divider',
 	}, {

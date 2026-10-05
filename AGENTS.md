@@ -34,7 +34,10 @@
 	- [**`glitch-studio/renderer`**](./packages/glitch-studio/renderer) ... Glitch Studioとして、各subsystemのレンダラーを利用する統括層
 	- [**`glitch-studio/ui`**](./packages/glitch-studio/ui) ... UI実装が含まれます。状態の管理・レンダラーの呼び出し、表示、ファイルの入出力などを行います。状態の操作は原則Command patternで行うようになっていてUndo/Redoを可能にしています。
 		- RendererManagerControllerBase.ts ... rendererのラッパーのような役割をする基底クラスで、レンダラーがワーカー越しに動いていることを隠蔽しつつレンダラーの管理を行います。
-		- app.ts ... アプリケーションのステートの管理などを行います。
+		- app.ts ... AppContextの生成・公開と、新規作成やファイルを開く操作の入口です。
+		- AppContext.ts ... プレビューの管理と、プロジェクト読み込み・レンダラー同期の手順を調整します。
+		- Project.ts ... ProjectContextがプロジェクト状態・IDを所有し、load()とsnapshot()で取り込み・取り出しを行います。UndoRedoがCommandの実行・履歴・変更通知を担当します。
+		- ProjectSaveController.ts ... 保存先・権限確認・手動保存・バックアップを管理します。読み込み中の保存を止め、読み込みごとの世代で古い保存要求を無効化します。
 		- commands.ts ... ステートに対する操作(コマンド)の実装をまとめています。
 - [**`shared`**](./packages/shared) ... 全てのパッケージで使用される共通の処理や定義などが含まれます。横着してなんでもかんでもこの層に置くのではなく、本当にどのドメインにも属さず共有する必要があるものだけ置くこと。他パッケージを参照することはありません。Glitch Studioドメイン内だけで共有する必要のあるものは、ここではなく`glitch-studio_shared`に置くべし。
 - [**`subsystems`**](./packages/subsystems) ... 個々の独立した機能が入る層。これらのパッケージは一機能にすぎず、「プロジェクト」の状態などの上位概念を知っていてはならない。Glitch Studioとは関係ないライブラリとして提供できるレベルで、Glitch Studioのコンテキストから分離されているのが理想。もちろんglitch-studio層へは依存しないが、他のsubsystemへの一方向への依存や、トップレベルのsharedへの依存はあってもいい。
@@ -206,8 +209,8 @@ Glitch Studioのメディアの扱いにあたっては、以下の概念があ�
 
 #### 責務と変更通知
 
-- 正となるプロジェクト状態はUIの `AppState` が所有します。Commandは状態の変更とUndo/Redoを担当し、変更後に対象IDと編集内容を `AppStateChange` として通知します。レンダラーでCommandを再実行したり、ID発行・配線修復・時刻の丸めを再度行ったりしません。
-- Commandと `AppStateManager` は同期先を知りません。`AppStateManager.onChange()` の購読側が必要な通知を選びます。通常実行・Undo・Redo・履歴へのマージを伴う連続編集は、同じ通知経路を通します。
+- 正となるプロジェクト状態はUIの `ProjectContext` が `ProjectState` として所有します。Commandは状態の変更とUndo/Redoを担当し、変更後に対象IDと編集内容を `AppStateChange` として通知します。レンダラーでCommandを再実行したり、ID発行・配線修復・時刻の丸めを再度行ったりしません。
+- Commandと汎用の `UndoRedo` は同期先を知りません。`ProjectContext.stateManager.onChange()` の購読側が必要な通知を選びます。通常実行・Undo・Redo・履歴へのマージを伴う連続編集は、同じ通知経路を通します。
 - 通知は「値・入力種別・接続・配列要素・リセット」「バイパス・解像度」「レイヤー定義・クリップ」など、ドメイン上の変更を表します。Commandや通信型に `preserveCache` / `preserveModuleInstance` のようなレンダラーの保持方針を含めません。
 - `RendererProjectSynchronizer` は通知の集約と、確定済み状態から送信データを取り出す役割を持ちます。キャッシュ・インスタンスの保持判断は、レンダラー内の [project-change-policy.ts](./packages/renderer/src/project-change-policy.ts) に集約します。各Managerが対象の特定や変更世代の管理を行い、`VisualModuleRenderer` はModule内部の評価とキャッシュを扱います。汎用の `TimelineRenderer` には実行インスタンスの更新判定に必要な世代を渡し、Commandの種類を解釈させません。
 - 型も同じ責務に分けます。`ParameterChangeKind` はparameter、`VisualModuleNodeChange` はvisual-module、`TimelineLayerChange` はtimelineが所有します。登録Moduleとinline Moduleの所在を表す `VisualModuleTarget` はproject、UIの通知契約 `AppStateChange` はuiが所有します。子ドメインから同期クラスやプロジェクト内の配置へ依存させません。

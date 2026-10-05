@@ -19,6 +19,7 @@
 </template>
 
 <script lang="ts" setup>
+import { appContext } from '@/app.ts';
 import { computed, ref, useTemplateRef } from 'vue';
 import { getSceneBaseResolution, validateSceneResolution } from '@gs/subsystems_timeline_shared/scene-resolution.ts';
 import GsModal from './common/GsModal.vue';
@@ -26,14 +27,15 @@ import GsSelect from './common/GsSelect.vue';
 import GsInput from './common/GsInput.vue';
 import GsButton from './common/GsButton.vue';
 import type { TimelineSceneResolution } from '@gs/subsystems_timeline_shared/scene-resolution.ts';
-import { appStateManager } from '@/app.ts';
+
+const { stateManager } = appContext.projectContext;
 
 const props = defineProps<{ sceneId: string }>();
 const emit = defineEmits<{ (ev: 'closed'): void }>();
 const modal = useTemplateRef('modal');
 const dialogContent = useTemplateRef('dialogContent');
-const scene = computed(() => appContext.projectContext.stateManager.state.timelineScenes.value.find(entry => entry.id === props.sceneId));
-const projectResolution = appContext.projectContext.stateManager.state.resolution;
+const scene = computed(() => stateManager.state.timelineScenes.value.find(entry => entry.id === props.sceneId));
+const projectResolution = stateManager.state.resolution;
 const initialSetting: TimelineSceneResolution = scene.value?.resolution ?? { mode: 'project' };
 const initialSize = getSceneBaseResolution(initialSetting, projectResolution.value);
 const mode = ref(initialSetting.mode);
@@ -55,7 +57,7 @@ function closeDialog() { modal.value?.close(); }
 
 function apply() {
 	if (error.value != null || scene.value == null) return;
-	appStateManager.commit('changeSceneResolution', { sceneId: props.sceneId, resolution: setting.value });
+	stateManager.commit('changeSceneResolution', { sceneId: props.sceneId, resolution: setting.value });
 	closeDialog();
 }
 </script>

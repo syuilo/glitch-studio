@@ -17,7 +17,7 @@
 			<div>Last save backup: {{ formatTime(projectBackupStatus.lastSaveBackup) }}</div>
 		</section>
 		<div v-if="projectBackupAccess === 'unsaved'">Save the project once to start backups.</div>
-		<GsButton v-else-if="projectBackupAccess === 'folder-required' || projectBackupStatus.error" @click="grantProjectBackupAccess">Allow access to project folder</GsButton>
+		<GsButton v-else-if="projectBackupAccess === 'folder-required' || projectBackupStatus.error" @click="appContext.grantProjectBackupAccess()">Allow access to project folder</GsButton>
 		<div v-else>Backup folder is ready.</div>
 		<div v-if="projectBackupStatus.error" role="alert">{{ projectBackupStatus.error }}</div>
 		<div>Expired backups are removed while this project is open and the corresponding feature is enabled. The latest successful automatic backup is kept until a newer one succeeds, even after its retention period. Closing or suspending the app pauses backups.</div>
@@ -31,14 +31,16 @@
 </template>
 
 <script lang="ts" setup>
+import { appContext } from '@/app.ts';
 import { computed, ref, useTemplateRef } from 'vue';
 import GsModal from './common/GsModal.vue';
 import GsButton from './common/GsButton.vue';
 import GsInput from './common/GsInput.vue';
 import GsSwitch from './common/GsSwitch.vue';
 import { preferences } from '@/preferences.ts';
-import { projectBackupAccess, projectBackupStatus, grantProjectBackupAccess } from '@/app.ts';
 import { validateProjectBackupSettings } from '@/project-backups.ts';
+
+const { projectBackupAccess, projectBackupStatus } = appContext;
 
 const modal = useTemplateRef('modal');
 const settings = ref({ ...preferences.s.projectBackups });

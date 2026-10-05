@@ -175,10 +175,10 @@
 			:modelValue="value"
 			:items="[
 				{ label: i18n.ts.None, value: null },
-				...(appContext.projectContext.stateManager.state.assets.value.length > 0 ? [{
+				...(stateManager.state.assets.value.length > 0 ? [{
 					type: 'group' as const,
 					label: 'Assets',
-					items: appContext.projectContext.stateManager.state.assets.value.filter(asset => asset.fileDataType.startsWith(dataType.kind === 'fontAssetReference' ? 'font/' : dataType.kind === 'videoAssetReference' ? 'video/' : 'image/')).map(asset => ({ label: asset.name, value: asset.id })),
+					items: stateManager.state.assets.value.filter(asset => asset.fileDataType.startsWith(dataType.kind === 'fontAssetReference' ? 'font/' : dataType.kind === 'videoAssetReference' ? 'video/' : 'image/')).map(asset => ({ label: asset.name, value: asset.id })),
 				}] : []),
 			]"
 			@update:modelValue="v => changeValue(v)"
@@ -190,10 +190,10 @@
 			:modelValue="value"
 			:items="[
 				{ label: i18n.ts.None, value: null },
-				...(appContext.projectContext.stateManager.state.players.value.length > 0 ? [{
+				...(stateManager.state.players.value.length > 0 ? [{
 					type: 'group' as const,
 					label: 'Players',
-					items: appContext.projectContext.stateManager.state.players.value.map(player => ({ label: player.name, value: player.id })),
+					items: stateManager.state.players.value.map(player => ({ label: player.name, value: player.id })),
 				}] : []),
 			]"
 			@update:modelValue="v => changeValue(v)"
@@ -203,6 +203,7 @@
 </template>
 
 <script lang="ts" setup generic="T extends LeafDataType">
+import { appContext } from '@/app.ts';
 import { computed, ref } from 'vue';
 import GsXy from './common/GsXy.vue';
 import GsColorInput from './common/GsColorInput.vue';
@@ -216,8 +217,9 @@ import GsSelect from './common/GsSelect.vue';
 import type { DataTypeUiControlDefinitionMap, DataTypeUiDefinition } from '@gs/shared/data-type/data-type-ui.ts';
 import type { LeafDataType } from '@gs/shared/data-type/data-type.ts';
 import { i18n } from '@/i18n.ts';
-import { appStateManager } from '@/app.ts';
 import { normalizeColor } from '@/utility/color-input.ts';
+
+const { stateManager } = appContext.projectContext;
 
 const props = defineProps<{
 	// コンテナの子や配列操作は呼び出し元が扱い、このコントロールには末端の定義だけを渡す。

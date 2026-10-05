@@ -55,6 +55,7 @@
 </template>
 
 <script lang="ts" setup>
+import { appContext } from '@/app.ts';
 import { IN_VISUAL_MODULE_VAR_DEFS } from '@gs/subsystems_visual-module_shared/expression.ts';
 import { ref, computed, shallowRef, watchEffect } from 'vue';
 import { effectDefinitions } from '@gs/subsystems_effect_shared/effect-definitions.ts';
@@ -70,11 +71,12 @@ import type { EffectResolution } from '@gs/subsystems_effect_shared/resolution.t
 import type { ParamEdit } from './GsVisualParam.vue';
 import type { VisualModule, VisualModuleEffectNode } from '@gs/subsystems_visual-module_shared/types.ts';
 import type { EffectInstanceState } from '@gs/subsystems_effect_shared/effect-status.ts';
-import { appStateManager } from '@/app.ts';
 import { i18n } from '@/i18n.ts';
 import { useVisualModuleWires } from '@/utility/visual-module-wires.ts';
 import { getNodeParamDefs } from '@/utility/node-params.ts';
 import * as ui from '@/ui.ts';
+
+const { stateManager } = appContext.projectContext;
 
 const wireMap = useVisualModuleWires();
 
@@ -106,7 +108,7 @@ const resolutionModes: { value: EffectResolution['mode']; label: string }[] = [
 
 function setResolutionMode(mode: EffectResolution['mode']) {
 	if (mode === props.node.resolution.mode) return;
-	emit('setResolution', mode === 'customAbsolute' ? { mode, ...appContext.projectContext.stateManager.state.resolution.value } : { mode });
+	emit('setResolution', mode === 'customAbsolute' ? { mode, ...stateManager.state.resolution.value } : { mode });
 }
 
 function setDimension(axis: 'width' | 'height', value: number | null) {

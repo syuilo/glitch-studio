@@ -7,7 +7,7 @@
 	<div v-if="!localFontsSupported">Local fonts are unavailable. Use Add asset to import a font file.</div>
 	<div v-if="localFontError">{{ localFontError }}</div>
 	<div :class="$style.assets">
-		<div v-for="asset in appContext.projectContext.stateManager.state.assets.value" :key="asset.id" :class="$style.asset">
+		<div v-for="asset in stateManager.state.assets.value" :key="asset.id" :class="$style.asset">
 			<XAsset :asset="asset"/>
 		</div>
 	</div>
@@ -15,15 +15,17 @@
 </template>
 
 <script lang="ts" setup>
+import { appContext } from '@/app.ts';
 import { onBeforeUnmount, ref } from 'vue';
 import { genId } from '@gs/shared/utility/id.ts';
 import GsButton from './common/GsButton.vue';
 import XAsset from './GsAssets.asset.vue';
 import GsLocalFontDialog from './GsLocalFontDialog.vue';
-import { appStateManager } from '@/app.ts';
 import * as api from '@/api.ts';
 import { popup } from '@/ui.ts';
 import { localFontErrorMessage, queryLocalFonts, supportsLocalFonts } from '@/utility/local-fonts.ts';
+
+const { stateManager } = appContext.projectContext;
 
 const localFontsSupported = supportsLocalFonts();
 const loadingLocalFonts = ref(false);
@@ -51,7 +53,7 @@ async function addAsset() {
 	if (!results) return;
 	for (const result of results) {
 		const assetId = genId();
-		appStateManager.commit('addAsset', {
+		stateManager.commit('addAsset', {
 			id: assetId,
 			name: result.name,
 			width: result.width,
@@ -62,7 +64,7 @@ async function addAsset() {
 			hash: result.hash, // TODO
 		});
 		if (result.type.startsWith('audio/') || result.type.startsWith('video/')) {
-			appStateManager.commit('addPlayer', { id: genId(), name: result.name, sourceType: 'asset', assetId });
+			stateManager.commit('addPlayer', { id: genId(), name: result.name, sourceType: 'asset', assetId });
 		}
 	}
 }

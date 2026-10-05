@@ -13,6 +13,7 @@
 </template>
 
 <script lang="ts" setup>
+import { appContext } from '@/app.ts';
 import { computed } from 'vue';
 import GsButton from './common/GsButton.vue';
 import GsVideoControls from './common/GsVideoControls.vue';
@@ -22,7 +23,9 @@ import type { Player } from '@gs/shared/types.ts';
 import { i18n } from '@/i18n.ts';
 import * as api from '@/api.ts';
 import * as ui from '@/ui.ts';
-import { appStateManager, visualModuleRendererManagerController } from '@/app.ts';
+
+const { visualModuleRendererManagerController } = appContext;
+const { stateManager } = appContext.projectContext;
 
 const props = defineProps<{
 	player: Player;
@@ -31,7 +34,7 @@ const props = defineProps<{
 const videoEl = computed(() => visualModuleRendererManagerController.getMediaElement(props.player.id));
 
 function remove() {
-	//appContext.commit('removePlayer', {
+	//stateManager.commit('removePlayer', {
 	//	playerId: props.player.id,
 	//});
 }
@@ -39,7 +42,7 @@ function remove() {
 async function rename() {
 	//const { canceled, result } = await inputDialog({ default: props.asset.name });
 	//if (canceled) return;
-	//appContext.commit('renamePlayer', {
+	//stateManager.commit('renamePlayer', {
 	//	playerId: props.player.id,
 	//	name: result,
 	//});
@@ -52,7 +55,7 @@ function showMenu(ev: PointerEvent) {
 		active: props.player.sourceType === 'webcam',
 		action: () => {
 			if (props.player.sourceType === 'webcam') return;
-			appStateManager.commit('updatePlayerSourceType', {
+			stateManager.commit('updatePlayerSourceType', {
 				playerId: props.player.id,
 				sourceType: 'webcam',
 			});

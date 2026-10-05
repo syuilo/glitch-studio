@@ -32,7 +32,7 @@ function getRendererIntermediateTextureFormat(): IntermediateTextureFormat {
 	return preferred === 'bgra8unorm' ? 'bgra8unorm' : 'rgba8unorm';
 }
 
-const TIMELINE_PREVIEW_MOTION_BLUR_SAMPLE_OPTIONS = [0, 2, 4, 8] as const;
+export const TIMELINE_PREVIEW_MOTION_BLUR_SAMPLE_OPTIONS = [0, 2, 4, 8] as const;
 
 export class AppContext {
 	public readonly projectContext: ProjectContext;

@@ -1,9 +1,10 @@
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import type { Ref } from 'vue';
 import type { PreviewOptions } from './audio/audio-preview-types.ts';
-import { audioOutput } from './app.ts';
+import { appContext } from './app.ts';
 
 export function useAudioPreview(canvas: Readonly<Ref<HTMLCanvasElement | null>>, options: Readonly<Ref<PreviewOptions>>) {
+	const { audioOutput } = appContext;
 	const error = ref('');
 	let panel: ReturnType<typeof audioOutput.preview.add> | undefined;
 	let releaseCapture: (() => void) | undefined;

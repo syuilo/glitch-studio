@@ -7,7 +7,7 @@ import { build } from 'esbuild';
 const bundled = await build({
 	absWorkingDir: fileURLToPath(new URL('../', import.meta.url)),
 	stdin: {
-		contents: "export * from './src/utility/timeline-selection.ts'; export * from './src/utility/timeline-snapping.ts'; export * from './src/utility/timeline-ticks.ts'; export * from './src/utility/timeline-keyframe-stretch.ts'; export * from './src/utility/timeline-zoom.ts'; export { AppStateManager } from './src/AppStateManager.ts'; export { listenPointerDrag } from './src/utility/pointer-drag.ts';",
+		contents: "export * from './src/utility/timeline-selection.ts'; export * from './src/utility/timeline-snapping.ts'; export * from './src/utility/timeline-ticks.ts'; export * from './src/utility/timeline-keyframe-stretch.ts'; export * from './src/utility/timeline-zoom.ts'; export { ProjectContext } from './src/Project.ts'; export { listenPointerDrag } from './src/utility/pointer-drag.ts';",
 		resolveDir: fileURLToPath(new URL('../', import.meta.url)), loader: 'ts',
 	},
 	bundle: true, platform: 'node', format: 'cjs', write: false,
@@ -25,7 +25,7 @@ const bundled = await build({
 });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', bundled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
-const { selectTimelineRange, selectionRect, timelineMarqueeRect, keyframeSelectionKey, getTimelineStretchSelection, constrainTimelineMove, keyframeMoveBounds, AppStateManager, listenPointerDrag } = module.exports;
+const { selectTimelineRange, selectionRect, timelineMarqueeRect, keyframeSelectionKey, getTimelineStretchSelection, constrainTimelineMove, keyframeMoveBounds, ProjectContext, listenPointerDrag } = module.exports;
 const { getTimelineSnapCandidates, getTimelineSnappingTimes, getTimelineSeekPosition, getTimelineLocalTicks, getTimelineClipTicks, formatTimelineTimecode } = module.exports;
 const { createKeyframeStretch, stretchKeyframeX, zoomTimelineX } = module.exports;
 
@@ -420,7 +420,7 @@ test('respects group bounds and displays every matching scoped snap position', (
 });
 
 function fixture() {
-	const manager = new AppStateManager();
+	const manager = new ProjectContext().stateManager;
 	const binding = () => ({ inputSource: 'keyframesTimelineInline', offsetMode: 'start', wrapMode: 'clamp', trimmedDurationMs: null,
 		keyframesTimeline: { dataType: { kind: 'scalar' }, isNormalized: false, keyframes: [100, 200, 800].map((x, index) => ({ id: String(index), x, value: index, interpolation: { type: 'linear' } })) } });
 	manager.state.timelineScenes.value = [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [

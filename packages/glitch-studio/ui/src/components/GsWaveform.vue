@@ -9,10 +9,12 @@
 </template>
 
 <script lang="ts" setup>
+import { appContext } from '@/app.ts';
 import { useTemplateRef } from 'vue';
 import { useRendererCanvas } from '@/use-renderer-canvas.ts';
 import GsDetachableView from './GsDetachableView.vue';
-import { activePreviewRenderer } from '@/app.ts';
+
+const { activePreviewRenderer } = appContext;
 
 const props = defineProps<{
 	direction: 'horizontal' | 'vertical';

@@ -19,15 +19,18 @@
 </template>
 
 <script lang="ts" setup>
+import { appContext } from '@/app.ts';
 import { watch, useTemplateRef, ref, shallowRef, computed, onBeforeUnmount } from 'vue';
 import type { CSSProperties } from 'vue';
 import { genId } from '@gs/shared/utility/id.ts';
 import { useRendererCanvas } from '@/use-renderer-canvas.ts';
 import GsDetachableView from './GsDetachableView.vue';
 import * as api from '@/api.ts';
-import { appStateManager, activePreviewRenderer, visualModuleRendererManagerController, previewPlayback, highlightClipping, resolutionFactor, liveTimeFactor } from '@/app.ts';
 import { preferences } from '@/preferences.ts';
 import * as ui from '@/ui.ts';
+
+const { activePreviewRenderer, visualModuleRendererManagerController, previewPlayback, highlightClipping, resolutionFactor, liveTimeFactor } = appContext;
+const { stateManager } = appContext.projectContext;
 
 const canvasContainer = useTemplateRef('canvasContainer');
 const containerContainer = useTemplateRef('containerContainer');
@@ -112,7 +115,7 @@ async function addMedia(file?: File) {
 	if (result == null) return;
 
 	const assetId = genId();
-	appStateManager.commit('addAsset', {
+	stateManager.commit('addAsset', {
 		id: assetId,
 		name: result.name,
 		width: result.width,
@@ -124,7 +127,7 @@ async function addMedia(file?: File) {
 	});
 
 	if (result.type.startsWith('image/')) {
-		appStateManager.commit('addEffectNode', {
+		stateManager.commit('addEffectNode', {
 			visualModuleId,
 			effectId: 'image',
 			id: genId(),
@@ -135,14 +138,14 @@ async function addMedia(file?: File) {
 	} else if (result.type.startsWith('video/') || result.type.startsWith('audio/')) {
 		const playerId = genId();
 
-		appStateManager.commit('addPlayer', {
+		stateManager.commit('addPlayer', {
 			id: playerId,
 			name: result.name,
 			sourceType: 'asset',
 			assetId: assetId,
 		});
 
-		appStateManager.commit('addEffectNode', {
+		stateManager.commit('addEffectNode', {
 			visualModuleId,
 			effectId: result.type.startsWith('audio/') ? 'audioWaveform' : 'video',
 			id: genId(),

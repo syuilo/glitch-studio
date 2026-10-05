@@ -29,17 +29,19 @@
 </template>
 
 <script lang="ts" setup>
+import { appContext } from '@/app.ts';
 import { computed, ref, useTemplateRef } from 'vue';
 import GsModal from './common/GsModal.vue';
 import GsButton from './common/GsButton.vue';
 import GsInput from './common/GsInput.vue';
 import GsSwitch from './common/GsSwitch.vue';
-import { appStateManager } from '@/app.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { deepEqual } from '@gs/shared/utility/deep-equal.ts';
 import { MAX_MOTION_BLUR_SAMPLES, validateTimelineFps, validateTimelineMotionBlur } from '@gs/subsystems_timeline_shared/motion-blur.ts';
 import { findTimelineHistoryEffects } from '@gs/subsystems_timeline_shared/render-history-effects.ts';
 import { effectDefinitions } from '@gs/subsystems_effect_shared/effect-definitions.ts';
+
+const { stateManager } = appContext.projectContext;
 
 const modal = useTemplateRef('modal');
 const dialogContent = useTemplateRef('dialogContent');
@@ -48,10 +50,10 @@ const emit = defineEmits<{
 	(ev: 'closed'): void;
 }>();
 
-const width = ref(appContext.projectContext.stateManager.state.resolution.value.width);
-const height = ref(appContext.projectContext.stateManager.state.resolution.value.height);
-const timelineFps = ref(appContext.projectContext.stateManager.state.timelineFps.value);
-const timelineMotionBlur = ref(deepClone(appContext.projectContext.stateManager.state.timelineMotionBlur.value));
+const width = ref(stateManager.state.resolution.value.width);
+const height = ref(stateManager.state.resolution.value.height);
+const timelineFps = ref(stateManager.state.timelineFps.value);
+const timelineMotionBlur = ref(deepClone(stateManager.state.timelineMotionBlur.value));
 const renderSettingsError = computed(() => {
 	try {
 		validateTimelineFps(timelineFps.value);
@@ -60,8 +62,8 @@ const renderSettingsError = computed(() => {
 	} catch (error) { return error instanceof Error ? error.message : String(error); }
 });
 const exposureMs = computed(() => renderSettingsError.value ? '—' : (1000 / timelineFps.value * timelineMotionBlur.value.shutterAngle / 360).toFixed(2));
-const historyEffects = computed(() => findTimelineHistoryEffects(appContext.projectContext.stateManager.state.timelineScenes.value,
-	id => appContext.projectContext.stateManager.state.visualModules.value.find(visualModule => visualModule.id === id), effectDefinitions)
+const historyEffects = computed(() => findTimelineHistoryEffects(stateManager.state.timelineScenes.value,
+	id => stateManager.state.visualModules.value.find(visualModule => visualModule.id === id), effectDefinitions)
 	.map(id => effectDefinitions[id].displayName));
 const lockedAspectRatio = ref<number | null>(width.value / height.value);
 const isResolutionValid = computed(() => isValidDimension(width.value) && isValidDimension(height.value));
@@ -96,12 +98,12 @@ function closeDialog() {
 
 function apply() {
 	if (!isResolutionValid.value || renderSettingsError.value != null) return;
-	const currentResolution = appContext.projectContext.stateManager.state.resolution.value;
+	const currentResolution = stateManager.state.resolution.value;
 	if (width.value !== currentResolution.width || height.value !== currentResolution.height) {
-		appStateManager.commit('changeProjectResolution', { width: width.value, height: height.value });
+		stateManager.commit('changeProjectResolution', { width: width.value, height: height.value });
 	}
-	if (timelineFps.value !== appContext.projectContext.stateManager.state.timelineFps.value || !deepEqual(timelineMotionBlur.value, appContext.projectContext.stateManager.state.timelineMotionBlur.value)) {
-		appStateManager.commit('changeTimelineRenderSettings', { timelineFps: timelineFps.value, timelineMotionBlur: timelineMotionBlur.value });
+	if (timelineFps.value !== stateManager.state.timelineFps.value || !deepEqual(timelineMotionBlur.value, stateManager.state.timelineMotionBlur.value)) {
+		stateManager.commit('changeTimelineRenderSettings', { timelineFps: timelineFps.value, timelineMotionBlur: timelineMotionBlur.value });
 	}
 	closeDialog();
 }
