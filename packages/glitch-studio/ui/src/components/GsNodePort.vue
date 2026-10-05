@@ -29,7 +29,7 @@ onBeforeUnmount(() => emit('update:element', null));
 
 <style module lang="scss">
 .root {
-	--size: var(--NODE_PORT_SIZE, 18px);
+	--size: var(--NODE_PORT_SIZE, 16px);
 
 	position: relative;
 	flex-shrink: 0;
