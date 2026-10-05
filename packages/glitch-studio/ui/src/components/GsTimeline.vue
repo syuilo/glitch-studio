@@ -50,6 +50,7 @@
 						:tlPosX="tlPosX"
 						:layer="layer"
 						:sceneId="sceneId"
+						:sceneTimeMs="time"
 						:tlElWidth="tlElWidth"
 						:tlRangeX="tlRangeX"
 						:clipTicks="clipTicksByLayer.get(layer.id) ?? new Map()"

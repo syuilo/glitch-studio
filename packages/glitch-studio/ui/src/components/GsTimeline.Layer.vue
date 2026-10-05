@@ -22,6 +22,7 @@
 				:tlRangeX="tlRangeX"
 				:tlPosX="tlPosX"
 				:selected="selectedClipIds.includes(clip.id)"
+				:active="!layer.isDisabled && isTimelineClipActive(clip, sceneTimeMs)"
 				:moving="moving && selectedClipIds.includes(clip.id)"
 				@moveStart="event => emit('clipMoveStart', event, { layerId: layer.id, clipId: clip.id })"
 				@trimStart="(event, edge) => emit('clipTrimStart', event, { layerId: layer.id, clipId: clip.id }, edge)"
@@ -61,7 +62,7 @@ import { computed } from 'vue';
 import { paramPathKey } from '@gs/shared/parameter/parameter-path.ts';
 import { effectDefinitions } from '@gs/subsystems_effect_shared/effect-definitions.ts';
 import { getSceneDuration } from '@gs/subsystems_timeline_shared/scenes.ts';
-import { getTimelineClipEnd } from '@gs/subsystems_timeline_shared/timing.ts';
+import { getTimelineClipEnd, isTimelineClipActive } from '@gs/subsystems_timeline_shared/timing.ts';
 import GsCondensedLine from './common/GsCondensedLine.vue';
 import XClip from './GsTimeline.Clip.vue';
 import XKeyframes from './GsTimeline.Layer.Keyframes.vue';
@@ -79,6 +80,7 @@ const { stateManager } = appContext.projectContext;
 
 const props = defineProps<{
 	sceneId: string;
+	sceneTimeMs: number;
 	layer: TimelineLayer;
 	tlElWidth: number;
 	tlRangeX: number;

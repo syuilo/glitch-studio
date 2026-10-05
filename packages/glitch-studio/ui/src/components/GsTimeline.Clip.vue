@@ -2,7 +2,7 @@
 <div v-if="selected && sourceDurationMs != null" :class="$style.sourceGhost" :style="{ left: timeToDomX(clip.startMs - clip.contentOffsetMs) + 'px', width: sourceDurationMs / tlRangeX * tlElWidth + 'px' }"></div>
 <div
 	:data-timeline-clip-id="clip.id"
-	:class="[$style.clip, { [$style.selected]: selected, [$style.moving]: moving }]"
+	:class="[$style.clip, { [$style.selected]: selected, [$style.active]: active, [$style.moving]: moving }]"
 	:style="{ left: timeToDomX(clip.startMs) + 'px', width: clip.durationMs / tlRangeX * tlElWidth + 'px' }"
 	@pointerdown.stop="emit('moveStart', $event)"
 	@click.stop
@@ -26,6 +26,7 @@ const props = defineProps<{
 	tlRangeX: number;
 	tlPosX: number;
 	selected: boolean;
+	active: boolean;
 	moving: boolean;
 }>();
 const emit = defineEmits<{
@@ -53,6 +54,7 @@ function timeToDomX(time: number): number {
 	corner-shape: bevel;
 }
 .selected { box-shadow: inset 0 0 0 2px var(--THEME-fg); }
+.active { background: color-mix(in srgb, var(--THEME-accent) 65%, white); }
 .moving { cursor: grabbing; }
 .sourceGhost {
 	position: absolute;
