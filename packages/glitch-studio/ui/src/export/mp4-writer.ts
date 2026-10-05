@@ -14,7 +14,14 @@ export async function createMp4Writer(canvas: OffscreenCanvas, settings: VideoEx
 	}
 	const target = new BufferTarget();
 	const output = new Output({ format: new Mp4OutputFormat(), target });
-	const video = new CanvasSource(canvas, { codec: 'avc', quality });
+	let videoEncoderConfig: VideoEncoderConfig | undefined;
+	const video = new CanvasSource(canvas, {
+		codec: 'avc', quality,
+		// Mediabunnyは量子化指定とビットレート指定を順番に試す。最後に試した設定を
+		// 成功した書き出しの診断に残す。hardwareAccelerationは選択のヒントであり、
+		// この設定だけでは実際に使われたハードウェア/ソフトウェア実装は判定できない。
+		onEncoderConfig: config => { videoEncoderConfig = { ...config }; },
+	});
 	output.addVideoTrack(video, { frameRate: settings.fps });
 	const audio = includeAudio ? new AudioSampleSource({ codec: 'aac', quality: audioQuality }) : null;
 	if (audio) output.addAudioTrack(audio);
@@ -25,6 +32,7 @@ export async function createMp4Writer(canvas: OffscreenCanvas, settings: VideoEx
 		throw error;
 	}
 	return {
+		getVideoEncoderConfig: () => videoEncoderConfig,
 		addFrame: (timestamp: number, duration: number) => video.add(timestamp, duration),
 		async addAudio(channels: StereoPcm, timestamp: number) {
 			if (!audio) throw new Error('MP4 audio track was not initialized.');

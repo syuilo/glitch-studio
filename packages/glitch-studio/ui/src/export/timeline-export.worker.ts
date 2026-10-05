@@ -93,12 +93,40 @@ self.onmessage = async (event: MessageEvent<ExportRequest>) => {
 			return;
 		}
 		let lastProgressTime = 0;
+		const stages = {
+			render: { totalMs: 0, maxMs: 0, calls: 0 },
+			video: { totalMs: 0, maxMs: 0, calls: 0 },
+			audio: { totalMs: 0, maxMs: 0, calls: 0 },
+			finalize: { totalMs: 0, maxMs: 0, calls: 0 },
+		};
+		let videoAddSynchronousMs = 0;
+		let videoAddWaitMs = 0;
+		const startedAt = performance.now();
+		const measure = async (stage: keyof typeof stages, operation: () => Promise<void>) => {
+			const start = performance.now();
+			try {
+				// operationは最初のawaitより前に呼ぶ。Canvasの取り込み前にタスクを
+				// 切り替えず、計測のためにGPU完了待ちを追加することもしない。
+				await operation();
+			} finally {
+				const elapsed = performance.now() - start;
+				stages[stage].totalMs += elapsed;
+				stages[stage].maxMs = Math.max(stages[stage].maxMs, elapsed);
+				stages[stage].calls++;
+			}
+		};
 		await renderExportFrames(settings, {
 			signal: controller.signal,
-			render: frame => renderer!.renderTimelineFrame(frame.timeMs, frame.timeDeltaMs, settings.fps),
-			addFrame: frame => writer!.addFrame(frame.timestamp, frame.duration),
-			addAudioUntil: audio ? time => audio!.renderUntil(time, (pcm, timestamp) => writer!.addAudio(pcm, timestamp), controller.signal) : undefined,
-			finalize: () => writer!.finalize(),
+			render: frame => measure('render', () => renderer!.renderTimelineFrame(frame.timeMs, frame.timeDeltaMs, settings.fps)),
+			addFrame: frame => measure('video', async () => {
+				const start = performance.now();
+				const pending = writer!.addFrame(frame.timestamp, frame.duration);
+				const submittedAt = performance.now();
+				videoAddSynchronousMs += submittedAt - start;
+				try { await pending; } finally { videoAddWaitMs += performance.now() - submittedAt; }
+			}),
+			addAudioUntil: audio ? time => measure('audio', () => audio!.renderUntil(time, (pcm, timestamp) => writer!.addAudio(pcm, timestamp), controller.signal)) : undefined,
+			finalize: () => measure('finalize', () => writer!.finalize()),
 			onProgress: progress => {
 				const now = performance.now();
 				if (progress.phase === 'finalizing' || now - lastProgressTime >= 100) {
@@ -107,6 +135,22 @@ self.onmessage = async (event: MessageEvent<ExportRequest>) => {
 				}
 			},
 		});
+		// renderはGPUへのsubmitまでの時間。GPUの実行・Canvasのコピー・色変換・
+		// エンコードの待機はvideo側にも現れるため、GPU時間や純粋な圧縮時間とは呼ばない。
+		// 毎フレームのログやGPU readbackを避け、書き出し完了時に1回だけ集計する。
+		// 完了直後にWorkerが終了するので、DevToolsから後で読める文字列として残す。
+		console.info('[Timeline export] performance', JSON.stringify({
+			userAgent: navigator.userAgent,
+			elapsedMs: performance.now() - startedAt,
+			width: settings.width, height: settings.height, fps: settings.fps,
+			frames: stages.render.calls,
+			stages,
+			// 同期部分にはCanvasの取得・受付処理、Promise待ちにはGPUの同期や
+			// エンコーダー・muxerのbackpressureが含まれ得る。純粋なCPU/GPU時間ではない。
+			videoAddSynchronousMs,
+			videoAddWaitMs,
+			videoEncoderConfig: writer!.getVideoEncoderConfig?.(),
+		}, null, 2));
 		const buffer = writer!.getBuffer();
 		finished = true;
 		send({ type: 'complete', buffer }, [buffer]);
