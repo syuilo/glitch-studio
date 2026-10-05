@@ -72,8 +72,8 @@ const emit = defineEmits<{
 }>();
 
 const sceneId = ref('');
-const sceneItems = computed(() => [{ label: 'Choose scene', value: '' }, ...appStateManager.state.timelineScenes.value.map(scene => ({ label: scene.name, value: scene.id }))]);
-const scene = computed(() => appStateManager.state.timelineScenes.value.find(scene => scene.id === sceneId.value));
+const sceneItems = computed(() => [{ label: 'Choose scene', value: '' }, ...appContext.projectContext.stateManager.state.timelineScenes.value.map(scene => ({ label: scene.name, value: scene.id }))]);
+const scene = computed(() => appContext.projectContext.stateManager.state.timelineScenes.value.find(scene => scene.id === sceneId.value));
 const mode = ref('video');
 const videoFormat = ref<'mp4'>('mp4');
 const stillFormat = ref<'webp'>('webp');
@@ -96,8 +96,8 @@ const qualityOptions = computed(() => [
 const resolutionScale = ref(1);
 const resolutionOptions = [0.25, 0.5, 1, 2, 4].map(value => ({ value, label: `${value}x` }));
 const resolution = computed(() => scaleExportResolution(getSceneBaseResolution(scene.value?.resolution ?? { mode: 'project' },
-	appStateManager.state.resolution.value), resolutionScale.value, mode.value === 'video' ? 'mp4' : 'webp'));
-const fps = ref(appStateManager.state.timelineFps.value);
+	appContext.projectContext.stateManager.state.resolution.value), resolutionScale.value, mode.value === 'video' ? 'mp4' : 'webp'));
+const fps = ref(appContext.projectContext.stateManager.state.timelineFps.value);
 const startTime = ref('00:00:00.000');
 const endTime = ref(formatExportTime(0));
 watch(sceneId, () => { startTime.value = formatExportTime(0); endTime.value = formatExportTime(scene.value == null ? 0 : getSceneDuration(scene.value)); });
@@ -120,7 +120,7 @@ const validationError = computed(() => {
 	if (mode.value === 'video' && !Number.isFinite(parseExportTime(endTime.value))) return 'Enter a valid end time (HH:MM:SS.mmm).';
 	return validateExportSettings(settings.value);
 });
-const includesAudio = computed(() => scene.value != null && getExportAudioClips(appStateManager.state.timelineScenes.value, sceneId.value, settings.value).length > 0);
+const includesAudio = computed(() => scene.value != null && getExportAudioClips(appContext.projectContext.stateManager.state.timelineScenes.value, sceneId.value, settings.value).length > 0);
 const estimatedSize = computed(() => {
 	if (validationError.value) return '—';
 	const bytes = estimateExportBytes(settings.value, includesAudio.value ? MP4_AUDIO_BITRATE : 0);
@@ -168,12 +168,12 @@ async function doExport() {
 			settings: exportSettings,
 			resolutionScale: resolutionScale.value,
 			project: deepClone({
-				resolution: appStateManager.state.resolution.value,
-				timelineFps: appStateManager.state.timelineFps.value,
-				timelineMotionBlur: appStateManager.state.timelineMotionBlur.value,
-				assets: appStateManager.state.assets.value,
-				visualModules: appStateManager.state.visualModules.value,
-				timelineScenes: appStateManager.state.timelineScenes.value,
+				resolution: appContext.projectContext.stateManager.state.resolution.value,
+				timelineFps: appContext.projectContext.stateManager.state.timelineFps.value,
+				timelineMotionBlur: appContext.projectContext.stateManager.state.timelineMotionBlur.value,
+				assets: appContext.projectContext.stateManager.state.assets.value,
+				visualModules: appContext.projectContext.stateManager.state.visualModules.value,
+				timelineScenes: appContext.projectContext.stateManager.state.timelineScenes.value,
 				sceneId: sceneId.value,
 			}),
 			// 書き出し開始時の環境設定から独立した設定を作る。

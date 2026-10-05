@@ -1,9 +1,7 @@
 // 汎用的なUndo/Redo実装。Glitch Studioのドメイン知識を持っていてはならない
 
-import { shallowRef } from 'vue';
-import { computed, ref } from 'vue';
+import { computed, shallowRef, triggerRef } from 'vue';
 import { deepClone } from '@gs/shared/utility/deep-clone.js';
-import { triggerRef } from 'vue';
 
 export type CommandDef<S, Payload, Change> = {
 	label: string;
@@ -24,28 +22,28 @@ type CommandLog<S, Change, T extends Record<string, CommandDef<S, any, Change>>>
 	mergeKey?: string | null;
 };
 
-export class UndoRedo<S extends Record<string, any>, Change extends { type: string }[], COMMAND_DEFS extends Record<string, CommandDef<S, Change, any>>> {
+export class UndoRedo<S, Change, Commands extends Record<string, CommandDef<S, any, Change>>> {
 	public state: S;
-	public undoStack = shallowRef([] as CommandLog<S, Change, COMMAND_DEFS>[]);
-	public redoStack = shallowRef([] as CommandLog<S, Change, COMMAND_DEFS>[]);
+	public undoStack = shallowRef([] as CommandLog<S, Change, Commands>[]);
+	public redoStack = shallowRef([] as CommandLog<S, Change, Commands>[]);
 	public canUndo = computed(() => this.undoStack.value.length > 0);
 	public canRedo = computed(() => this.redoStack.value.length > 0);
 	private maxUndoStackSize = 100;
 	private changeListeners = new Set<(changes: Change[]) => void>();
-	private commandDefs: COMMAND_DEFS;
+	private commandDefs: Commands;
 
 	public onChange(listener: (changes: Change[]) => void): () => void {
 		this.changeListeners.add(listener);
 		return () => { this.changeListeners.delete(listener); };
 	}
 
-	constructor(state: S, commandDefs: COMMAND_DEFS) {
+	constructor(state: S, commandDefs: Commands) {
 		this.state = state;
 		this.commandDefs = commandDefs;
 	}
 
-	public commit<T extends keyof COMMAND_DEFS>(type: T, payload: Parameters<COMMAND_DEFS[T]['create']>[0], mergeKey?: string | null) {
-		const commandDef = this.commandDefs[type] as CommandDef<S, Parameters<COMMAND_DEFS[typeof type]['create']>[0], Change>;
+	public commit<T extends keyof Commands>(type: T, payload: Parameters<Commands[T]['create']>[0], mergeKey?: string | null) {
+		const commandDef = this.commandDefs[type] as CommandDef<S, Parameters<Commands[T]['create']>[0], Change>;
 		const savedPayload = deepClone(payload);
 		const actions = commandDef.create(savedPayload);
 		const notify = (state: S) => {

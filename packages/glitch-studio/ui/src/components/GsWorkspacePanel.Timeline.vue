@@ -24,11 +24,11 @@ defineProps<{
 	panel: WorkspacePanel;
 }>();
 
-const references = computed(() => appStateManager.state.timelineScenes.value.filter(scene => scene.layers.some(layer => layer.layerType === 'scene' && layer.clips.some(clip => clip.sceneId === activeSceneId.value))));
+const references = computed(() => appContext.projectContext.stateManager.state.timelineScenes.value.filter(scene => scene.layers.some(layer => layer.layerType === 'scene' && layer.clips.some(clip => clip.sceneId === activeSceneId.value))));
 
 function createScene() {
 	const id = genId();
-	appStateManager.commit('addScene', { id, name: `Scene ${appStateManager.state.timelineScenes.value.length + 1}`, resolution: { mode: 'project' }, layers: [] });
+	appStateManager.commit('addScene', { id, name: `Scene ${appContext.projectContext.stateManager.state.timelineScenes.value.length + 1}`, resolution: { mode: 'project' }, layers: [] });
 	activeSceneId.value = id;
 }
 
@@ -62,7 +62,7 @@ function removeScene() {
 }
 
 function showSceneSelectMenu(ev: PointerEvent) {
-	const menuItems = appStateManager.state.timelineScenes.value.map(scene => ({
+	const menuItems = appContext.projectContext.stateManager.state.timelineScenes.value.map(scene => ({
 		text: scene.name,
 		icon: 'ti ti-layout-dashboard',
 		active: activeSceneId.value === scene.id,

@@ -30,7 +30,8 @@ import { timelineCompositingParamDefs } from '@gs/subsystems_timeline_shared/tim
 import type { VisualModuleCustomParameterId, VisualModuleEffectNode, VisualModuleNode, NodeOutputReference, VisualModule, VisualModuleParamDef, VisualModuleOutputDef } from '@gs/subsystems_visual-module_shared/types.ts';
 import type { ParameterArrayElement } from '@gs/shared/parameter/parameter-binding.ts';
 import type { ParameterChangeKind, ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
-import type { AppState, ProjectAsset } from './types.ts';
+import type { AppStateChange, ProjectState, ProjectAsset } from './Project.ts';
+import type { CommandDef as UndoRedoCommandDef } from './utility/undo-redo.ts';
 import type { Resolution } from '@gs/shared/resolution.ts';
 import type { Player } from '@gs/shared/types.ts';
 import type { AutomationGraphPlaybackOptions } from '@gs/shared/automation-graph/automation-graph.ts';
@@ -47,18 +48,8 @@ import { createResetParameterBinding } from '@/utility/parameter-default.ts';
 import { getVisualModule, listVisualModules } from '@/utility/visual-module-target.ts';
 import type { VisualModuleTarget } from '@/utility/visual-module-target.ts';
 import type { TimelineKeyframeSelection } from '@/utility/timeline-selection.ts';
-import type { AppStateChange } from './AppStateChange.ts';
 
-export type CommandDef<Payload> = {
-	label: string;
-	// 確定した状態の変更対象・内容を宣言する。どの通知を同期するか、キャッシュや
-	// 実行インスタンスを保持するかは購読側の責務とし、履歴操作でも同じ通知を使う。
-	changes: (state: AppState, payload: Payload) => AppStateChange[];
-	create: (payload: Payload) => {
-		execute(state: AppState): void;
-		undo(state: AppState): void;
-	};
-};
+export type CommandDef<Payload> = UndoRedoCommandDef<ProjectState, Payload, AppStateChange>;
 
 function defineCommand<Payload>(def: CommandDef<Payload>) {
 	return def;
@@ -69,7 +60,7 @@ type NodeParamTarget = EffectNodeParamTarget & VisualModuleTarget;
 
 const stateUtility = {
 	getVisualModule,
-	findNode: (state: AppState, target: NodeTarget): VisualModuleNode | undefined => {
+	findNode: (state: ProjectState, target: NodeTarget): VisualModuleNode | undefined => {
 		return getVisualModule(state, target).nodes.find(node => node.id === target.nodeId);
 	},
 };
@@ -101,7 +92,7 @@ const editTimelineLayerParamCommandDef = defineCommand<{
 		let after: TimelineEffectParameterBinding | undefined;
 		const target = payload.target ?? 'module';
 		const rootKey = payload.paramPath[0];
-		const getLayer = (state: AppState) => {
+		const getLayer = (state: ProjectState) => {
 			const layer = getScene(state, payload.sceneId).layers.find(layer => layer.id === payload.layerId);
 			if (layer == null) throw new Error('Timeline layer not found');
 			getLayerParameterValues(layer, target);
@@ -268,7 +259,7 @@ const moveNodeCommandDef = defineCommand<NodeTarget & { index: number }>({
 	changes: (_state, payload) => [{ type: 'visualModule', target: payload }],
 	create: payload => {
 		let before: number;
-		const move = (state: AppState, index: number) => {
+		const move = (state: ProjectState, index: number) => {
 			const nodes = stateUtility.getVisualModule(state, payload).nodes;
 			const source = nodes.findIndex(node => node.id === payload.nodeId);
 			if (source < 0) throw new Error('Node not found');
@@ -944,13 +935,13 @@ type TimelineClipData = TimelineClip | TimelineAssetClip | TimelineVideoClip | T
 type TimelineClipTarget = { layerId: string; clipId: string };
 type SourceDurations = Record<string, number>;
 
-function getTimelineLayer(state: AppState, sceneId: string, layerId: string): TimelineLayer {
+function getTimelineLayer(state: ProjectState, sceneId: string, layerId: string): TimelineLayer {
 	const layer = getScene(state, sceneId).layers.find(layer => layer.id === layerId);
 	if (!layer) throw new Error('Timeline layer not found');
 	return layer;
 }
 
-function getTimelineClip(state: AppState, sceneId: string, target: TimelineClipTarget) {
+function getTimelineClip(state: ProjectState, sceneId: string, target: TimelineClipTarget) {
 	const layer = getTimelineLayer(state, sceneId, target.layerId);
 	const clip = layer.clips.find(clip => clip.id === target.clipId);
 	if (!clip) throw new Error('Timeline clip not found');
@@ -967,7 +958,7 @@ function validateMediaClipTiming(clip: TimelineClip, sourceDurationMs: number | 
 }
 
 /** 異なる素材種類の混入をコマンド境界で拒否してから、型別のclips配列へ保存する。 */
-function validateLayerClips(state: AppState, sceneId: string, layer: TimelineLayer, clips: readonly TimelineClipData[], sourceDurationsMs?: SourceDurations) {
+function validateLayerClips(state: ProjectState, sceneId: string, layer: TimelineLayer, clips: readonly TimelineClipData[], sourceDurationsMs?: SourceDurations) {
 	validateTimelineClips(clips);
 	for (const clip of clips) {
 		if (layer.layerType === 'image' || layer.layerType === 'video' || layer.layerType === 'audio') {
@@ -1030,7 +1021,7 @@ const changeEffectLayerResolutionCommandDef = defineCommand<{ sceneId: string; l
 	changes: (_state, payload) => [{ type: 'layer', sceneId: payload.sceneId, layerId: payload.layerId, changes: [{ type: 'resolution' }] }],
 	create: payload => {
 		let before: EffectResolution;
-		const getLayer = (state: AppState) => {
+		const getLayer = (state: ProjectState) => {
 			const layer = getTimelineLayer(state, payload.sceneId, payload.layerId);
 			if (layer.layerType !== 'effect') throw new Error('Effect layer not found');
 			return layer;
@@ -1197,7 +1188,7 @@ const editVideoClipAudioCommandDef = defineCommand<TimelineClipTarget & { sceneI
 	changes: (_state, payload) => [{ type: 'layer', sceneId: payload.sceneId, layerId: payload.layerId, changes: [{ type: 'clips' }] }],
 	create: payload => {
 		let before: boolean;
-		const find = (state: AppState) => {
+		const find = (state: ProjectState) => {
 			const layer = getTimelineLayer(state, payload.sceneId, payload.layerId);
 			if (layer.layerType !== 'video') throw new Error('Video layer not found');
 			const clip = layer.clips.find(clip => clip.id === payload.clipId);
@@ -1235,7 +1226,7 @@ const reorderTimelineLayersCommandDef = defineCommand<{ sceneId: string; layerId
 	changes: (_state, payload) => [{ type: 'layerOrder', sceneId: payload.sceneId }],
 	create: payload => {
 		let before: string[];
-		const reorder = (state: AppState, layerIds: string[]) => {
+		const reorder = (state: ProjectState, layerIds: string[]) => {
 			const layers = new Map(getScene(state, payload.sceneId).layers.map(layer => [layer.id, layer]));
 			if (layerIds.length !== layers.size || new Set(layerIds).size !== layers.size || layerIds.some(id => !layers.has(id))) {
 				throw new Error('Invalid timeline layer order');
@@ -1376,7 +1367,7 @@ const moveTimelineKeyframesCommandDef = defineCommand<{ sceneId: string; positio
 		changes: [{ type: 'parameter', target: position.target, kind: 'value' }] })),
 	create: payload => {
 		let before: typeof payload.positions;
-		const apply = (state: AppState, positions: typeof payload.positions) => {
+		const apply = (state: ProjectState, positions: typeof payload.positions) => {
 			const layers = getScene(state, payload.sceneId).layers;
 			const updates = positions.map(position => {
 				const layer = layers.find(layer => layer.id === position.layerId);

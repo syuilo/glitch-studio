@@ -14,15 +14,9 @@ import { TimelineRendererManagerController } from './TimelineRendererManagerCont
 import { TimelineAudioPreview } from './audio/timeline-audio-preview.ts';
 import { PreviewPlaybackController } from './PreviewPlaybackController.ts';
 import { RendererProjectSynchronizer } from './RendererProjectSynchronizer.ts';
+import { ProjectSaveController } from './ProjectSaveController.ts';
 import { timelineLayerClipboard } from './utility/timeline-editor-state.ts';
-import { projectSaveBackupWriter, ProjectSaveSession } from './project-save-session.ts';
-import { createProjectBackupFingerprint, DEFAULT_PROJECT_BACKUP_SETTINGS, ProjectBackupController } from './project-backups.ts';
-import { desktopProjectFile, encodeProjectFile, saveProjectFile } from './gsproj.ts';
-import { browserProjectBackupDirectory, desktopProjectBackupDirectory, selectProjectBackupFolder } from './project-backup-directory.ts';
-import GsProjectSaveDialog from './components/GsProjectSaveDialog.vue';
-import GsProjectBackupFolderDialog from './components/GsProjectBackupFolderDialog.vue';
 import type { Project, ProjectFileHandle } from './gsproj.ts';
-import type { ProjectBackupStatus, ProjectBackupTarget } from './project-backups.ts';
 import type { WatchStopHandle } from 'vue';
 import type { IntermediateTextureFormat } from '@gs/shared/types.js';
 import type { ProjectContext } from './Project.ts';
@@ -37,35 +31,6 @@ function getRendererIntermediateTextureFormat(): IntermediateTextureFormat {
 	const preferred = navigator.gpu.getPreferredCanvasFormat();
 	return preferred === 'bgra8unorm' ? 'bgra8unorm' : 'rgba8unorm';
 }
-
-function resolveBackupTarget(handle: ProjectFileHandle, directory: FileSystemDirectoryHandle | null): ProjectBackupTarget | null {
-	const native = handle.kind === 'desktop-project-file' ? desktopProjectBackupDirectory(handle.id) : null;
-	return native ? { name: handle.name, directory: native } : directory ? { name: handle.name, directory: browserProjectBackupDirectory(directory) } : null;
-}
-
-async function selectProjectSaveFile(name: string): Promise<{ handle: ProjectFileHandle; directory: FileSystemDirectoryHandle | null } | null> {
-	if (window.desktop?.chooseProjectSaveFile) {
-		const descriptor = await window.desktop.chooseProjectSaveFile(name);
-		return descriptor ? { handle: desktopProjectFile(descriptor), directory: null } : null;
-	}
-	return new Promise(resolve => {
-		const { dispose } = ui.popup(GsProjectSaveDialog, { name }, {
-			selected: (handle, directory) => resolve({ handle, directory: directory ?? null }),
-			closed: () => { resolve(null); dispose(); },
-		});
-	});
-}
-
-function requestBackupDirectory(handle: FileSystemFileHandle): Promise<FileSystemDirectoryHandle | null> {
-	return new Promise(resolve => {
-		const { dispose } = ui.popup(GsProjectBackupFolderDialog, { handle }, {
-			selected: directory => resolve(directory),
-			closed: () => { resolve(null); dispose(); },
-		});
-	});
-}
-
-function backupSettings() { return preferences.s.projectBackups ?? DEFAULT_PROJECT_BACKUP_SETTINGS; }
 
 const TIMELINE_PREVIEW_MOTION_BLUR_SAMPLE_OPTIONS = [0, 2, 4, 8] as const;
 
@@ -88,13 +53,11 @@ export class AppContext {
 	private scenePlaybackTimes = new Map<string, number>();
 	private rendererInitialization: Promise<void> | null = null;
 	private projectWatchers: WatchStopHandle[] = [];
-	private projectMetadata: Pick<Project, 'id'> | null = null;
-	private projectSaveSession: ProjectSaveSession;
+	private projectSaveController: ProjectSaveController;
 	public activePreviewRenderer = computed(() => this.previewPlayback.state.value.mode === 'live' ? this.visualModuleRendererManagerController : this.timelineRendererManagerController);
-	public projectBackupAccess = ref<'unsaved' | 'folder-required' | 'ready'>('unsaved');
-	public projectBackupStatus = ref<ProjectBackupStatus>({ lastAutoBackup: null, lastSaveBackup: null, error: null });
-	public projectBackupController: ProjectBackupController;
-	private backupFingerprint = createProjectBackupFingerprint();
+	public get projectBackupAccess() { return this.projectSaveController.projectBackupAccess; }
+	public get projectBackupStatus() { return this.projectSaveController.projectBackupStatus; }
+	public get projectBackupController() { return this.projectSaveController.projectBackupController; }
 
 	constructor(projectContext: ProjectContext) {
 		this.projectContext = projectContext;
@@ -179,24 +142,7 @@ export class AppContext {
 			]);
 		});
 
-		this.projectSaveSession = new ProjectSaveSession((target, previous) => {
-			this.projectBackupAccess.value = target?.backup ? 'ready' : target ? 'folder-required' : 'unsaved';
-			if (target?.backup !== previous?.backup) this.projectBackupController.setTarget(target?.backup ?? null);
-		});
-
-		this.projectBackupController = new ProjectBackupController({
-			runExclusive: operation => this.projectSaveSession.runExclusive(operation),
-			settings: backupSettings,
-			snapshot: () => {
-				const project = this.captureProject();
-				return project ? { fingerprint: this.backupFingerprint(project), encode: () => encodeProjectFile(project) } : null;
-			},
-			onStatus: status => { this.projectBackupStatus.value = status; },
-			now: () => Date.now(),
-			schedule: (callback, delay) => window.setTimeout(callback, delay),
-			cancel: timer => { if (timer != null) window.clearTimeout(timer as number); },
-		});
-		watch(() => preferences.r.projectBackups?.value, () => this.projectBackupController.refreshSchedule(), { deep: true });
+		this.projectSaveController = new ProjectSaveController(() => this.projectContext.snapshot());
 	}
 
 	private async updatePreviewOptions(options: Partial<Pick<TimelineRendererManagerDynamicOptions, 'assets' | 'resolution' | 'resolutionScale' | 'highlightClipping'>>) {
@@ -221,7 +167,7 @@ export class AppContext {
 	}
 
 	public async resumePreview() {
-	// 一方が失敗しても他方の初期化が終わるまで待ち、次の操作との競合を防ぐ。
+		// 一方が失敗しても他方の初期化が終わるまで待ち、次の操作との競合を防ぐ。
 		const results = await Promise.allSettled([
 			this.visualModuleRendererManagerController.relaunchManager(),
 			this.timelineRendererManagerController.relaunchManager(),
@@ -229,24 +175,6 @@ export class AppContext {
 		const failure = results.find(result => result.status === 'rejected');
 		if (failure?.status === 'rejected') throw failure.reason;
 		this.previewPlayback.resume();
-	}
-
-	private captureProject(): Project | null {
-		if (this.projectMetadata == null) return null;
-		return deepClone({
-			...this.projectMetadata,
-			gsVersion: _VERSION_,
-			name: this.projectContext.stateManager.state.name.value,
-			description: this.projectContext.stateManager.state.description.value,
-			author: this.projectContext.stateManager.state.author.value,
-			visualModules: this.projectContext.stateManager.state.visualModules.value,
-			assets: this.projectContext.stateManager.state.assets.value,
-			players: this.projectContext.stateManager.state.players.value,
-			timelineScenes: this.projectContext.stateManager.state.timelineScenes.value,
-			resolution: this.projectContext.stateManager.state.resolution.value,
-			timelineFps: this.projectContext.stateManager.state.timelineFps.value,
-			timelineMotionBlur: this.projectContext.stateManager.state.timelineMotionBlur.value,
-		} satisfies Project);
 	}
 
 	public async ready(project: Project, fileName = 'untitled.gsproj', fileHandle: ProjectFileHandle | null = null) {
@@ -276,8 +204,7 @@ export class AppContext {
 		await this.rendererInitialization;
 
 		// 読み込み途中の状態を、直前のプロジェクトのファイルへ保存させない。
-		this.projectMetadata = null;
-		this.projectSaveSession.setTarget(null);
+		this.projectSaveController.beginProjectLoad();
 		for (const stop of this.projectWatchers) stop();
 		this.projectWatchers = [];
 		this.previewPlayback.dispose();
@@ -303,14 +230,7 @@ export class AppContext {
 		await this.updatePreviewOptions({ assets: deepClone(project.assets) });
 		await this.timelineRendererManagerController.updateDynamicOptions({ sceneId: this.activeSceneId.value });
 		await this.visualModuleRendererManagerController.updatePlayers(deepClone(project.players));
-		this.projectMetadata = { id: project.id };
-		this.projectSaveSession.suggestedName = fileName;
-		try {
-			this.projectSaveSession.setTarget(fileHandle ? { handle: fileHandle, directory: null, backup: resolveBackupTarget(fileHandle, null) } : null);
-		} catch (error) {
-			this.projectSaveSession.setTarget(fileHandle ? { handle: fileHandle, directory: null, backup: null } : null);
-			this.projectBackupController.reportError(error);
-		}
+		this.projectSaveController.finishProjectLoad(fileName, fileHandle);
 
 		// 1回のCommandで変わるfpsとブラー設定をまとめて送り、Undo/Redoも同じ再生成経路を通す。
 		this.projectWatchers.push(watch([this.projectContext.stateManager.state.timelineFps, this.projectContext.stateManager.state.timelineMotionBlur, this.timelinePreviewMotionBlurSamples], async () => {
@@ -362,7 +282,7 @@ export class AppContext {
 					this.timelineRendererManagerController.applyProjectChanges(changes),
 				]);
 			},
-			replace: this.replacePreviewProject,
+			replace: state => this.replacePreviewProject(state),
 			onUpdated: () => this.previewPlayback.refresh(),
 			onError: error => { void ui.alert({ type: 'error', text: error instanceof Error ? error.message : String(error) }); },
 		});
@@ -389,74 +309,11 @@ export class AppContext {
 		if (project.visualModules[0] != null) this.previewPlayback.startLive(project.visualModules[0].id);
 	}
 
-	public async grantProjectBackupAccess(): Promise<void> {
-		const savedTarget = this.projectSaveSession.target;
-		const handle = savedTarget?.handle;
-		if (!handle) return;
-		try {
-			if (handle.kind === 'desktop-project-file') {
-				const target = resolveBackupTarget(handle, null);
-				if (this.projectSaveSession.target === savedTarget && target) this.projectSaveSession.setTarget({ handle, directory: null, backup: target });
-				return;
-			}
-			// フォルダ選択はこのクリックから開始する。タイマーから権限ダイアログを要求しない。
-			const directory = await selectProjectBackupFolder(handle);
-			if (this.projectSaveSession.target !== savedTarget) return;
-			this.projectSaveSession.setTarget({ handle, directory, backup: resolveBackupTarget(handle, directory) });
-		} catch (error) {
-			if (!(error instanceof DOMException && error.name === 'AbortError')) this.projectBackupController.reportError(error);
-		}
+	public grantProjectBackupAccess(): Promise<void> {
+		return this.projectSaveController.grantProjectBackupAccess();
 	}
 
-	public async saveProject(saveAs = false): Promise<void> {
-		const project = this.captureProject();
-		if (!project) return;
-		const metadata = this.projectMetadata;
-		const requestedHandle = saveAs ? null : this.projectSaveSession.target?.handle;
-		// 待ち行列やエンコードより前に権限要求を始め、クリックの有効期間を失わない。
-		// 待機中の拒否は値として受け、未処理のPromise rejectionにしない。
-		const permission = requestedHandle?.requestPermission({ mode: 'readwrite' }).catch((error: unknown) => error);
-		await this.projectSaveSession.runExclusive(async savedTarget => {
-			try {
-				if (metadata !== this.projectMetadata) return;
-				let handle = saveAs ? null : savedTarget?.handle ?? null;
-				let directory = saveAs ? null : savedTarget?.directory ?? null;
-				let target = saveAs ? null : savedTarget?.backup ?? null;
-				// 待機中にSave asが成功した場合、その保存先は選択時に許可済み。
-				// 旧ハンドルの権限結果を流用せず確認し、ユーザー操作のないキュー内で新たな権限要求はしない。
-				const granted = handle === requestedHandle ? await permission
-					: handle?.kind === 'file' ? await handle.queryPermission({ mode: 'readwrite' }) : 'granted';
-				if (handle && granted !== 'granted') throw new Error('Write permission was not granted. Use Save as... to choose another file.');
-				const data = await encodeProjectFile(project);
-				if (metadata !== this.projectMetadata) return;
-				if (!handle) {
-					const selected = await selectProjectSaveFile(this.projectSaveSession.suggestedName);
-					if (!selected) return;
-					({ handle, directory } = selected);
-				}
-				if (metadata !== this.projectMetadata) return;
-				target ??= resolveBackupTarget(handle, directory);
-				if (backupSettings().saveEnabled && (!target || !await target.directory.hasPermission())) {
-					if (handle.kind === 'desktop-project-file') throw new Error('The project backup folder is unavailable.');
-					directory = await requestBackupDirectory(handle);
-					if (!directory) return;
-					target = { name: handle.name, directory: browserProjectBackupDirectory(directory) };
-				}
-				if (metadata !== this.projectMetadata) return;
-				let saveBackupTime: number | null = null;
-				if (target && backupSettings().saveEnabled) {
-					// 上書き前の実ファイルのバックアップが確定してから、本体を変更する。
-					saveBackupTime = await this.projectBackupController.beforeSave(target, projectSaveBackupWriter(handle, target.directory));
-				}
-				if (metadata !== this.projectMetadata) return;
-				await saveProjectFile(data, handle);
-				if (metadata === this.projectMetadata) {
-					this.projectSaveSession.setTarget({ handle, directory, backup: target });
-					if (target) await this.projectBackupController.afterSave(target, saveBackupTime);
-				}
-			} catch (error) {
-				await ui.alert({ type: 'error', text: error instanceof Error ? error.message : String(error) });
-			}
-		});
+	public saveProject(saveAs = false): Promise<void> {
+		return this.projectSaveController.saveProject(saveAs);
 	}
 }

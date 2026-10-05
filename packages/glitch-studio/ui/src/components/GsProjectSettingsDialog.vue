@@ -48,10 +48,10 @@ const emit = defineEmits<{
 	(ev: 'closed'): void;
 }>();
 
-const width = ref(appStateManager.state.resolution.value.width);
-const height = ref(appStateManager.state.resolution.value.height);
-const timelineFps = ref(appStateManager.state.timelineFps.value);
-const timelineMotionBlur = ref(deepClone(appStateManager.state.timelineMotionBlur.value));
+const width = ref(appContext.projectContext.stateManager.state.resolution.value.width);
+const height = ref(appContext.projectContext.stateManager.state.resolution.value.height);
+const timelineFps = ref(appContext.projectContext.stateManager.state.timelineFps.value);
+const timelineMotionBlur = ref(deepClone(appContext.projectContext.stateManager.state.timelineMotionBlur.value));
 const renderSettingsError = computed(() => {
 	try {
 		validateTimelineFps(timelineFps.value);
@@ -60,8 +60,8 @@ const renderSettingsError = computed(() => {
 	} catch (error) { return error instanceof Error ? error.message : String(error); }
 });
 const exposureMs = computed(() => renderSettingsError.value ? '—' : (1000 / timelineFps.value * timelineMotionBlur.value.shutterAngle / 360).toFixed(2));
-const historyEffects = computed(() => findTimelineHistoryEffects(appStateManager.state.timelineScenes.value,
-	id => appStateManager.state.visualModules.value.find(visualModule => visualModule.id === id), effectDefinitions)
+const historyEffects = computed(() => findTimelineHistoryEffects(appContext.projectContext.stateManager.state.timelineScenes.value,
+	id => appContext.projectContext.stateManager.state.visualModules.value.find(visualModule => visualModule.id === id), effectDefinitions)
 	.map(id => effectDefinitions[id].displayName));
 const lockedAspectRatio = ref<number | null>(width.value / height.value);
 const isResolutionValid = computed(() => isValidDimension(width.value) && isValidDimension(height.value));
@@ -96,11 +96,11 @@ function closeDialog() {
 
 function apply() {
 	if (!isResolutionValid.value || renderSettingsError.value != null) return;
-	const currentResolution = appStateManager.state.resolution.value;
+	const currentResolution = appContext.projectContext.stateManager.state.resolution.value;
 	if (width.value !== currentResolution.width || height.value !== currentResolution.height) {
 		appStateManager.commit('changeProjectResolution', { width: width.value, height: height.value });
 	}
-	if (timelineFps.value !== appStateManager.state.timelineFps.value || !deepEqual(timelineMotionBlur.value, appStateManager.state.timelineMotionBlur.value)) {
+	if (timelineFps.value !== appContext.projectContext.stateManager.state.timelineFps.value || !deepEqual(timelineMotionBlur.value, appContext.projectContext.stateManager.state.timelineMotionBlur.value)) {
 		appStateManager.commit('changeTimelineRenderSettings', { timelineFps: timelineFps.value, timelineMotionBlur: timelineMotionBlur.value });
 	}
 	closeDialog();

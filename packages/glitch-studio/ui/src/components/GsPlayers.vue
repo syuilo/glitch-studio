@@ -1,7 +1,7 @@
 <template>
 <div :class="$style.root">
 	<div :class="$style.players">
-		<div v-for="player in appStateManager.state.players.value" :key="player.id" :class="$style.player">
+		<div v-for="player in appContext.projectContext.stateManager.state.players.value" :key="player.id" :class="$style.player">
 			<GsPlayer :player="player"/>
 		</div>
 	</div>

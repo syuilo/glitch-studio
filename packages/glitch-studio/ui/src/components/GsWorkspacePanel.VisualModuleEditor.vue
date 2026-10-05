@@ -64,8 +64,8 @@ defineProps<{ panel: WorkspacePanel }>();
 
 const previewParamsShowing = ref(false);
 const selectedModuleId = ref<ProjectVisualModule['id'] | null>(null);
-const visualModule = computed(() => appStateManager.state.visualModules.value.find(module => module.id === selectedModuleId.value)
-	?? appStateManager.state.visualModules.value[0] ?? null);
+const visualModule = computed(() => appContext.projectContext.stateManager.state.visualModules.value.find(module => module.id === selectedModuleId.value)
+	?? appContext.projectContext.stateManager.state.visualModules.value[0] ?? null);
 
 // 選択した定義が削除・置換されても、常に現在のプロジェクトから対象を解決する。
 watch(() => visualModule.value?.id, id => {
@@ -174,7 +174,7 @@ function showSwitchMenu(ev: PointerEvent) {
 		},
 	}, {
 		type: 'divider',
-	}, ...appStateManager.state.visualModules.value.map(_visualModule => ({
+	}, ...appContext.projectContext.stateManager.state.visualModules.value.map(_visualModule => ({
 		text: _visualModule.name,
 		active: _visualModule.id === visualModule.value?.id,
 		action: () => {

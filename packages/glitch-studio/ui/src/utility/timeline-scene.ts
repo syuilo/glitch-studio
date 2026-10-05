@@ -7,12 +7,12 @@ import { getParameterPathLabel } from './parameter-label.ts';
 import type { ParamPath } from '@gs/shared/parameter/parameter-path.ts';
 import type { TimelineEffectParameterBinding, TimelineParameterBinding } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
 import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
-import type { AppState } from '../types.ts';
+import type { ProjectState } from '../Project.ts';
 import type { TimelineLayer, TimelineParameterTarget } from '@gs/subsystems_timeline_shared/types.ts';
 
 export type { TimelineParameterTarget } from '@gs/subsystems_timeline_shared/types.ts';
 
-export function getScene(state: AppState, sceneId: string) {
+export function getScene(state: ProjectState, sceneId: string) {
 	return getTimelineScene(state.timelineScenes.value, sceneId);
 }
 
@@ -43,7 +43,7 @@ export function getLayerParameterValues(layer: TimelineLayer, target: TimelinePa
 }
 
 /** キーの値編集・挿入は、保存した型の古い選択肢ではなく現在の定義を使う。 */
-export function getLayerParameterDefinitions(state: Pick<AppState, 'visualModules'>, layer: TimelineLayer, target: TimelineParameterTarget): Record<string, ParameterDefinition> {
+export function getLayerParameterDefinitions(state: Pick<ProjectState, 'visualModules'>, layer: TimelineLayer, target: TimelineParameterTarget): Record<string, ParameterDefinition> {
 	if (!getLayerParameterTargets(layer).includes(target)) throw new Error('Invalid layer parameter target');
 	if (target === 'audio') return timelineAudioParamDefs;
 	if (target === 'compositing') return timelineCompositingParamDefs;
@@ -53,7 +53,7 @@ export function getLayerParameterDefinitions(state: Pick<AppState, 'visualModule
 	return Object.fromEntries(module?.paramDefs.map(def => [def.id, def]) ?? []);
 }
 
-export function resolveLayerParameter(state: Pick<AppState, 'visualModules'>, layer: TimelineLayer, target: TimelineParameterTarget, path: ParamPath) {
+export function resolveLayerParameter(state: Pick<ProjectState, 'visualModules'>, layer: TimelineLayer, target: TimelineParameterTarget, path: ParamPath) {
 	const defs = getLayerParameterDefinitions(state, layer, target);
 	const values = getLayerParameterValues(layer, target);
 	// 未編集のモジュール引数は定義の既定値を参照する。参照だけでは保存値を増やさない。
@@ -64,11 +64,11 @@ export function resolveLayerParameter(state: Pick<AppState, 'visualModules'>, la
 	return { def, value };
 }
 
-export function getLayerParameterDefinition(state: Pick<AppState, 'visualModules'>, layer: TimelineLayer, target: TimelineParameterTarget, path: ParamPath): ParameterDefinition | undefined {
+export function getLayerParameterDefinition(state: Pick<ProjectState, 'visualModules'>, layer: TimelineLayer, target: TimelineParameterTarget, path: ParamPath): ParameterDefinition | undefined {
 	try { return resolveLayerParameter(state, layer, target, path).def; } catch { return undefined; }
 }
 
-export function getLayerKeyframeParameters(state: Pick<AppState, 'visualModules'>, layer: TimelineLayer) {
+export function getLayerKeyframeParameters(state: Pick<ProjectState, 'visualModules'>, layer: TimelineLayer) {
 	const targetLabels: Record<TimelineParameterTarget, string> = { module: 'Module', effect: 'Effect', compositing: 'Compositing', audio: 'Audio' };
 	return getLayerParameterTargets(layer).flatMap(target => {
 		const defs = getLayerParameterDefinitions(state, layer, target);

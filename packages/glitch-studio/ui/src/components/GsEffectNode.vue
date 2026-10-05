@@ -106,7 +106,7 @@ const resolutionModes: { value: EffectResolution['mode']; label: string }[] = [
 
 function setResolutionMode(mode: EffectResolution['mode']) {
 	if (mode === props.node.resolution.mode) return;
-	emit('setResolution', mode === 'customAbsolute' ? { mode, ...appStateManager.state.resolution.value } : { mode });
+	emit('setResolution', mode === 'customAbsolute' ? { mode, ...appContext.projectContext.stateManager.state.resolution.value } : { mode });
 }
 
 function setDimension(axis: 'width' | 'height', value: number | null) {

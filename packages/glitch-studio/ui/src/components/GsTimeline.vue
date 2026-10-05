@@ -173,7 +173,7 @@
 						:key="selectedLayer.id"
 						:layer="selectedLayer"
 						:effectState="selectedEffectLayerState"
-						:contextResolution="getSceneBaseResolution(editedScene.resolution, appStateManager.state.resolution.value)"
+						:contextResolution="getSceneBaseResolution(editedScene.resolution, appContext.projectContext.stateManager.state.resolution.value)"
 						@edit="event => onTimelineLayerParamEdit(event, 'effect')"
 						@resolution="resolution => appStateManager.commit('changeEffectLayerResolution', { sceneId, layerId: selectedLayer!.id, resolution })"
 					/>
@@ -393,11 +393,11 @@ function showSnapMenu(event: PointerEvent) {
 	}], event.currentTarget ?? event.target);
 }
 
-const editedScene = appStateManager.state.timelineScenes.value.find(scene => scene.id === props.sceneId)!;
+const editedScene = appContext.projectContext.stateManager.state.timelineScenes.value.find(scene => scene.id === props.sceneId)!;
 const editorState = sceneEditorStates.get(editedScene);
 let disposed = false;
-const sceneLayers = computed(() => appStateManager.state.timelineScenes.value.find(scene => scene.id === props.sceneId)?.layers ?? []);
-const availableScenes = computed(() => appStateManager.state.timelineScenes.value.filter(scene => canReferenceScene(appStateManager.state.timelineScenes.value, props.sceneId, scene.id)));
+const sceneLayers = computed(() => appContext.projectContext.stateManager.state.timelineScenes.value.find(scene => scene.id === props.sceneId)?.layers ?? []);
+const availableScenes = computed(() => appContext.projectContext.stateManager.state.timelineScenes.value.filter(scene => canReferenceScene(appContext.projectContext.stateManager.state.timelineScenes.value, props.sceneId, scene.id)));
 
 const X_TICKS_HEIGHT = 20;
 const Y_TICKS_WIDTH = 0;
@@ -466,9 +466,9 @@ const selectedKeyframe = computed(() => {
 	const layer = sceneLayers.value.find(entry => entry.id === selection.layerId);
 	if (layer == null) return null;
 	let binding: TimelineEffectParameterBinding;
-	try { binding = resolveLayerParameter(appStateManager.state, layer, selection.target, selection.paramPath).value; } catch { return null; }
+	try { binding = resolveLayerParameter(appContext.projectContext.stateManager.state, layer, selection.target, selection.paramPath).value; } catch { return null; }
 	if (binding?.inputSource !== 'keyframesTimelineInline') return null;
-	const def = getLayerParameterDefinition(appStateManager.state, layer, selection.target, selection.paramPath);
+	const def = getLayerParameterDefinition(appContext.projectContext.stateManager.state, layer, selection.target, selection.paramPath);
 	if (def == null || !canEditKeyframesTimeline(def, binding)) return null;
 	const keyframes = binding.keyframesTimeline.keyframes.toSorted((a, b) => a.x - b.x);
 	const index = keyframes.findIndex(entry => entry.id === selection.keyframeId);
@@ -704,7 +704,7 @@ function finishPan() {
 onBeforeUnmount(finishPan);
 
 const keyframeEntries = computed(() => sceneLayers.value.flatMap(layer => {
-	return getLayerKeyframeParameters(appStateManager.state, layer).flatMap(({ target, paramPath, binding }) => {
+	return getLayerKeyframeParameters(appContext.projectContext.stateManager.state, layer).flatMap(({ target, paramPath, binding }) => {
 		return binding.keyframesTimeline.keyframes.map(point => ({
 			selection: { layerId: layer.id, target, paramPath, keyframeId: point.id },
 			x: point.x, time: point.x, keyframes: binding.keyframesTimeline.keyframes,
@@ -1066,7 +1066,7 @@ const audioError = ref<string | null>(null);
 const mediaInfo = shallowRef<ReadonlyMap<string, TimelineClipMediaInfo>>(new Map());
 const mediaAssets = computed(() => {
 	const ids = new Set(sceneLayers.value.flatMap(layer => layer.layerType === 'video' || layer.layerType === 'audio' ? layer.clips.map(clip => clip.assetId) : []));
-	return appStateManager.state.assets.value.filter(asset => ids.has(asset.id));
+	return appContext.projectContext.stateManager.state.assets.value.filter(asset => ids.has(asset.id));
 });
 watch(() => mediaAssets.value.map(asset => ({ asset, blob: asset.fileData })), async (entries, _, onCleanup) => {
 	let cancelled = false;
@@ -1096,9 +1096,9 @@ const selectedSceneClip = computed(() => {
 const selectedClipLabel = computed(() => {
 	const entry = selectedClipEntry.value;
 	if (!entry) return '';
-	if ('assetId' in entry.clip) { const id = entry.clip.assetId; return appStateManager.state.assets.value.find(asset => asset.id === id)?.name ?? 'Missing media'; }
-	if ('sceneId' in entry.clip) { const id = entry.clip.sceneId; return appStateManager.state.timelineScenes.value.find(scene => scene.id === id)?.name ?? 'Missing scene'; }
-	if (entry.layer.layerType === 'visualModule') { const id = entry.layer.visualModuleId; return appStateManager.state.visualModules.value.find(module => module.id === id)?.name ?? 'Missing module'; }
+	if ('assetId' in entry.clip) { const id = entry.clip.assetId; return appContext.projectContext.stateManager.state.assets.value.find(asset => asset.id === id)?.name ?? 'Missing media'; }
+	if ('sceneId' in entry.clip) { const id = entry.clip.sceneId; return appContext.projectContext.stateManager.state.timelineScenes.value.find(scene => scene.id === id)?.name ?? 'Missing scene'; }
+	if (entry.layer.layerType === 'visualModule') { const id = entry.layer.visualModuleId; return appContext.projectContext.stateManager.state.visualModules.value.find(module => module.id === id)?.name ?? 'Missing module'; }
 	if (entry.layer.layerType === 'inlineVisualModule') return 'Inline Visual Module';
 	if (entry.layer.layerType === 'effect') { const id = entry.layer.effectId; return Object.entries(effectDefinitions).find(([key, effect]) => key === id)?.[1].displayName ?? 'Missing effect'; }
 	return '?';
@@ -1135,7 +1135,7 @@ type ClipSource = { kind: 'asset'; asset: Asset; media?: TimelineClipMediaInfo }
 
 async function chooseClipSource(layerType: 'image' | 'video' | 'audio' | 'scene'): Promise<ClipSource | null> {
 	const scene = sceneLayers.value;
-	const assets = appStateManager.state.assets.value;
+	const assets = appContext.projectContext.stateManager.state.assets.value;
 	if (layerType === 'scene') {
 		const { canceled, result: id } = await ui.select({ title: 'Select Scene', items: availableScenes.value.map(scene => ({ label: scene.name, value: scene.id })) });
 		const selected = availableScenes.value.find(scene => scene.id === id);
@@ -1146,14 +1146,14 @@ async function chooseClipSource(layerType: 'image' | 'video' | 'audio' | 'scene'
 		items: assets.filter(asset => asset.fileDataType.startsWith(layerType + '/')).map(asset => ({ label: asset.name, value: asset.id })),
 	});
 	const asset = assets.find(asset => asset.id === id);
-	if (canceled || !asset || disposed || sceneLayers.value !== scene || appStateManager.state.assets.value !== assets) return null;
+	if (canceled || !asset || disposed || sceneLayers.value !== scene || appContext.projectContext.stateManager.state.assets.value !== assets) return null;
 	const blob = asset.fileData;
 	try {
 		const media = layerType === 'image' ? undefined : await inspectTimelineClipMedia(asset);
-		if (disposed || sceneLayers.value !== scene || !appStateManager.state.assets.value.includes(asset) || asset.fileData !== blob) return null;
+		if (disposed || sceneLayers.value !== scene || !appContext.projectContext.stateManager.state.assets.value.includes(asset) || asset.fileData !== blob) return null;
 		if (media?.audioError) {
 			const result = await ui.confirm({ type: 'warning', title: asset.name, text: media.audioError, okText: 'Add without audio' });
-			if (result.canceled || disposed || sceneLayers.value !== scene || !appStateManager.state.assets.value.includes(asset) || asset.fileData !== blob) return null;
+			if (result.canceled || disposed || sceneLayers.value !== scene || !appContext.projectContext.stateManager.state.assets.value.includes(asset) || asset.fileData !== blob) return null;
 		}
 		return { kind: 'asset', asset, media };
 	} catch (error) { audioError.value = error instanceof Error ? error.message : String(error); return null; }
@@ -1208,12 +1208,12 @@ async function changeClipSource() {
 async function readLayerMediaDurations(layer: TimelineLayer): Promise<Record<string, number> | undefined> {
 	if (layer.layerType !== 'audio' && layer.layerType !== 'video') return undefined;
 	const sources = layer.clips.map(clip => {
-		const asset = appStateManager.state.assets.value.find(asset => asset.id === clip.assetId);
+		const asset = appContext.projectContext.stateManager.state.assets.value.find(asset => asset.id === clip.assetId);
 		if (!asset) throw new Error('Missing media');
 		return { clipId: clip.id, asset, blob: asset.fileData };
 	});
 	const durations = await Promise.all(sources.map(async ({ clipId, asset }) => [clipId, (await inspectTimelineClipMedia(asset)).durationMs] as const));
-	if (sources.some(({ asset, blob }) => !appStateManager.state.assets.value.includes(asset) || asset.fileData !== blob)) throw new Error('Media changed during loading');
+	if (sources.some(({ asset, blob }) => !appContext.projectContext.stateManager.state.assets.value.includes(asset) || asset.fileData !== blob)) throw new Error('Media changed during loading');
 	return Object.fromEntries(durations);
 }
 
@@ -1242,8 +1242,8 @@ async function addMediaLayer(layerType: 'image' | 'video' | 'audio' | 'scene') {
 
 async function addReferencedModuleLayer() {
 	const scene = sceneLayers.value;
-	const { canceled, result: id } = await ui.select({ title: 'Select Visual Module', items: appStateManager.state.visualModules.value.map(module => ({ label: module.name, value: module.id })) });
-	const module = appStateManager.state.visualModules.value.find(module => module.id === id);
+	const { canceled, result: id } = await ui.select({ title: 'Select Visual Module', items: appContext.projectContext.stateManager.state.visualModules.value.map(module => ({ label: module.name, value: module.id })) });
+	const module = appContext.projectContext.stateManager.state.visualModules.value.find(module => module.id === id);
 	if (canceled || !module || disposed || sceneLayers.value !== scene) return;
 	const layer: TimelineLayer = {
 		id: genId(), name: module.name,

@@ -175,10 +175,10 @@
 			:modelValue="value"
 			:items="[
 				{ label: i18n.ts.None, value: null },
-				...(appStateManager.state.assets.value.length > 0 ? [{
+				...(appContext.projectContext.stateManager.state.assets.value.length > 0 ? [{
 					type: 'group' as const,
 					label: 'Assets',
-					items: appStateManager.state.assets.value.filter(asset => asset.fileDataType.startsWith(dataType.kind === 'fontAssetReference' ? 'font/' : dataType.kind === 'videoAssetReference' ? 'video/' : 'image/')).map(asset => ({ label: asset.name, value: asset.id })),
+					items: appContext.projectContext.stateManager.state.assets.value.filter(asset => asset.fileDataType.startsWith(dataType.kind === 'fontAssetReference' ? 'font/' : dataType.kind === 'videoAssetReference' ? 'video/' : 'image/')).map(asset => ({ label: asset.name, value: asset.id })),
 				}] : []),
 			]"
 			@update:modelValue="v => changeValue(v)"
@@ -190,10 +190,10 @@
 			:modelValue="value"
 			:items="[
 				{ label: i18n.ts.None, value: null },
-				...(appStateManager.state.players.value.length > 0 ? [{
+				...(appContext.projectContext.stateManager.state.players.value.length > 0 ? [{
 					type: 'group' as const,
 					label: 'Players',
-					items: appStateManager.state.players.value.map(player => ({ label: player.name, value: player.id })),
+					items: appContext.projectContext.stateManager.state.players.value.map(player => ({ label: player.name, value: player.id })),
 				}] : []),
 			]"
 			@update:modelValue="v => changeValue(v)"

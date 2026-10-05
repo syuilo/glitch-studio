@@ -51,10 +51,11 @@ export type AppStateChange = ProjectContentChange
 	| { type: 'sceneName'; sceneId: string };
 
 export class ProjectContext {
-	public stateManager: UndoRedo<ProjectState, any, typeof COMMAND_DEFS>;
+	private projectId: Project['id'] | null = null;
+	public stateManager: UndoRedo<ProjectState, AppStateChange, typeof COMMAND_DEFS>;
 
 	constructor() {
-		this.stateManager = new UndoRedo({
+		this.stateManager = new UndoRedo<ProjectState, AppStateChange, typeof COMMAND_DEFS>({
 			name: ref(DEFAULT_PROJECT_NAME),
 			description: ref(''),
 			author: ref(''),
@@ -81,6 +82,28 @@ export class ProjectContext {
 		this.stateManager.state.timelineScenes.value = project.timelineScenes;
 		this.stateManager.undoStack.value = [];
 		this.stateManager.redoStack.value = [];
+		this.projectId = project.id;
+	}
+
+	public snapshot(): Project | null {
+		if (this.projectId == null) return null;
+		const state = this.stateManager.state;
+		// 保存・バックアップで同じ完全な状態を使う。非同期のエンコードや保存先選択の間に
+		// 編集されても、取得済みのスナップショットへ変更が混入しないよう切り離す。
+		return deepClone({
+			id: this.projectId,
+			gsVersion: _VERSION_,
+			name: state.name.value,
+			description: state.description.value,
+			author: state.author.value,
+			resolution: state.resolution.value,
+			timelineFps: state.timelineFps.value,
+			timelineMotionBlur: state.timelineMotionBlur.value,
+			assets: state.assets.value,
+			visualModules: state.visualModules.value,
+			players: state.players.value,
+			timelineScenes: state.timelineScenes.value,
+		} satisfies Project);
 	}
 
 	public getVisualModuleById(id: ProjectVisualModule['id']) {

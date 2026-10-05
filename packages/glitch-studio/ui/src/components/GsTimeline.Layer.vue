@@ -123,17 +123,17 @@ function toggleDisabled() {
 }
 
 function clipLabel(clip: Clip): string {
-	if ('assetId' in clip) return appStateManager.state.assets.value.find(asset => asset.id === clip.assetId)?.name ?? 'Missing media';
-	if ('sceneId' in clip) return appStateManager.state.timelineScenes.value.find(scene => scene.id === clip.sceneId)?.name ?? 'Missing scene';
+	if ('assetId' in clip) return appContext.projectContext.stateManager.state.assets.value.find(asset => asset.id === clip.assetId)?.name ?? 'Missing media';
+	if ('sceneId' in clip) return appContext.projectContext.stateManager.state.timelineScenes.value.find(scene => scene.id === clip.sceneId)?.name ?? 'Missing scene';
 	const layer = props.layer;
-	if (layer.layerType === 'visualModule') return appStateManager.state.visualModules.value.find(module => module.id === layer.visualModuleId)?.name ?? 'Missing module';
+	if (layer.layerType === 'visualModule') return appContext.projectContext.stateManager.state.visualModules.value.find(module => module.id === layer.visualModuleId)?.name ?? 'Missing module';
 	return layer.layerType === 'inlineVisualModule' ? 'Inline Visual Module' : layer.layerType === 'effect' ? effectDefinitions[layer.effectId].displayName : layer.name;
 }
 
 function sourceDuration(clip: Clip): number | null {
 	if ('assetId' in clip) return props.mediaInfo.get(clip.assetId)?.durationMs ?? null;
 	if ('sceneId' in clip) {
-		const scene = appStateManager.state.timelineScenes.value.find(scene => scene.id === clip.sceneId);
+		const scene = appContext.projectContext.stateManager.state.timelineScenes.value.find(scene => scene.id === clip.sceneId);
 		return scene ? getSceneDuration(scene) : null;
 	}
 	return null;
@@ -147,11 +147,11 @@ function onBackgroundDoubleClick(event: MouseEvent) {
 }
 
 type KeyframeParameter = ReturnType<typeof getLayerKeyframeParameters>[number];
-const keyframeParameters = computed(() => getLayerKeyframeParameters(appStateManager.state, props.layer));
+const keyframeParameters = computed(() => getLayerKeyframeParameters(appContext.projectContext.stateManager.state, props.layer));
 
 function onKeyframeInsert(param: KeyframeParameter, x: number) {
 	const layer = props.layer;
-	const current = resolveLayerParameter(appStateManager.state, layer, param.target, param.paramPath).value;
+	const current = resolveLayerParameter(appContext.projectContext.stateManager.state, layer, param.target, param.paramPath).value;
 	if (current?.inputSource !== 'keyframesTimelineInline') return;
 	const definition = param.def;
 	if (!definition) return;

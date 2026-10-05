@@ -7,7 +7,7 @@
 	<div v-if="!localFontsSupported">Local fonts are unavailable. Use Add asset to import a font file.</div>
 	<div v-if="localFontError">{{ localFontError }}</div>
 	<div :class="$style.assets">
-		<div v-for="asset in appStateManager.state.assets.value" :key="asset.id" :class="$style.asset">
+		<div v-for="asset in appContext.projectContext.stateManager.state.assets.value" :key="asset.id" :class="$style.asset">
 			<XAsset :asset="asset"/>
 		</div>
 	</div>
