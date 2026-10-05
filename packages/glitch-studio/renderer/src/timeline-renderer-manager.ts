@@ -17,6 +17,7 @@ import { createVisualModuleTimelineLayer } from '@gs/subsystems_timeline_rendere
 import { createSceneTimelineLayer } from '@gs/subsystems_timeline_renderer/scene-timeline-layer.ts';
 import { createImageTimelineLayer } from '@gs/subsystems_timeline_renderer/image-timeline-layer.ts';
 import { createEffectTimelineLayer } from '@gs/subsystems_timeline_renderer/effect-timeline-layer.ts';
+import { createShapeTimelineLayer } from '@gs/subsystems_timeline_renderer/shape-timeline-layer.ts';
 import { CanvasRenderer } from './canvas-renderer.ts';
 import { createSceneOutput } from '@gs/subsystems_timeline_renderer/scene-output.ts';
 import { createTimelineCompositor } from '@gs/subsystems_timeline_renderer/timeline-compositor.ts';
@@ -426,6 +427,11 @@ export class TimelineRendererManager extends EventEmitter<{
 		const renderResolution = scaleResolution(sceneBaseResolution, this.dynamicOptions.resolutionScale);
 		// レイヤーの種類の解釈とリソース解決は、タイムライン制御の外側で行う。
 		switch (layer.layerType) {
+			case 'shape':
+				return createShapeTimelineLayer(layer, {
+					device: this.gpuDevice, vertex: this.defaultVertexShaderModule,
+					resolution: renderResolution, format: this.staticOptions.intermediateTextureFormat,
+				});
 			case 'effect': {
 				const definition = this.effectDefinitions[layer.effectId];
 				const implementation = this.effectImplementations[layer.effectId];

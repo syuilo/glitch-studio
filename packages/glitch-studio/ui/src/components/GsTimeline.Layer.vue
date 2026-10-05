@@ -102,7 +102,7 @@ const emit = defineEmits<{
 	(ev: 'keyframeDragStart', event: PointerEvent, selection: TimelineKeyframeSelection): void;
 	(ev: 'keyframeSelected', selection: TimelineKeyframeSelection): void;
 }>();
-const layerIcon = computed(() => ({ image: 'ti-photo', video: 'ti-video', audio: 'ti-music', scene: 'ti-timeline', visualModule: 'ti-chart-dots-3', inlineVisualModule: 'ti-chart-dots-3', effect: 'ti-sparkles' })[props.layer.layerType]);
+const layerIcon = computed(() => ({ image: 'ti-photo', video: 'ti-video', audio: 'ti-music', scene: 'ti-timeline', visualModule: 'ti-chart-dots-3', inlineVisualModule: 'ti-chart-dots-3', effect: 'ti-sparkles', shape: 'ti-shape' })[props.layer.layerType]);
 type Clip = TimelineClip | TimelineAssetClip | TimelineVideoClip | TimelineSceneClip;
 
 const offscreenClips = computed(() => {

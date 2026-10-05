@@ -179,6 +179,12 @@
 						@edit="event => onTimelineLayerParamEdit(event, 'effect')"
 						@resolution="resolution => stateManager.commit('changeEffectLayerResolution', { sceneId, layerId: selectedLayer!.id, resolution })"
 					/>
+					<GsTimelineShapeSettings
+						v-if="selectedLayer.layerType === 'shape'"
+						:key="selectedLayer.id"
+						:layer="selectedLayer"
+						@edit="event => onTimelineLayerParamEdit(event, 'shape')"
+					/>
 					<GsFolder v-if="selectedLayer.layerType === 'inlineVisualModule'" :asSection="true" defaultOpen :withSpacer="false">
 						<template #icon><i class="ti ti-chart-dots-3"></i></template>
 						<template #label>Visual Module</template>
@@ -288,6 +294,7 @@ import { supportsKeyframeInterpolation } from '@gs/shared/keyframes/keyframes-ti
 import { effectDefinitions } from '@gs/subsystems_effect_shared/effect-definitions.ts';
 import XLayer from './GsTimeline.Layer.vue';
 import GsTimelineEffectSettings from './GsTimeline.EffectSettings.vue';
+import GsTimelineShapeSettings from './GsTimeline.ShapeSettings.vue';
 import GsLiteralLeafValueControl from './GsLiteralLeafValueControl.vue';
 import GsInput from './common/GsInput.vue';
 import GsSelect from './common/GsSelect.vue';
@@ -323,6 +330,9 @@ import { inspectTimelineClipMedia } from '@/utility/timeline-clip-media.ts';
 import { timelineMarqueeRect, selectTimelineRange, clipSelectionKey, keyframeSelectionKey, getTimelineStretchSelection, constrainTimelineMove, keyframeMoveBounds, getTimelineSnappingTimes } from '@/utility/timeline-selection.ts';
 import { canEditKeyframesTimeline, updateInlineKeyframe } from '@/utility/keyframes-timeline.ts';
 import { createEffectTimelineLayer } from '@/utility/effect-timeline-layer.ts';
+import { createShapeTimelineLayer } from '@/utility/shape-timeline-layer.ts';
+import { shapeDefinitions } from '@gs/subsystems_timeline_shared/shape.ts';
+import type { ShapeType } from '@gs/subsystems_timeline_shared/shape.ts';
 import { sceneEditorStates, timelineLayerClipboard } from '@/utility/timeline-editor-state.ts';
 import * as ui from '@/ui.ts';
 import { createInlineVisualModuleLayer } from '@/utility/inline-visual-module-layer.ts';
@@ -1116,6 +1126,7 @@ const selectedClipLabel = computed(() => {
 	if (entry.layer.layerType === 'visualModule') { const id = entry.layer.visualModuleId; return stateManager.state.visualModules.value.find(module => module.id === id)?.name ?? 'Missing module'; }
 	if (entry.layer.layerType === 'inlineVisualModule') return 'Inline Visual Module';
 	if (entry.layer.layerType === 'effect') { const id = entry.layer.effectId; return Object.entries(effectDefinitions).find(([key, effect]) => key === id)?.[1].displayName ?? 'Missing effect'; }
+	if (entry.layer.layerType === 'shape') return shapeDefinitions[entry.layer.shape.type].label;
 	return '?';
 });
 
@@ -1299,6 +1310,20 @@ function showAddEffectLayerMenu() {
 
 function showAddLayerMenu(ev: PointerEvent) {
 	ui.popupMenu([{
+		type: 'parent',
+		text: 'Shape',
+		icon: 'ti ti-shape',
+		children: (Object.keys(shapeDefinitions) as ShapeType[]).map(type => ({
+			text: shapeDefinitions[type].label,
+			icon: type === 'ellipse' ? 'ti ti-circle' : 'ti ti-rectangle',
+			action: () => {
+				const layer = createShapeTimelineLayer(type, Math.max(0, time.value));
+				stateManager.commit('addTimelineLayer', { sceneId: props.sceneId, layer });
+				selectLayer(layer);
+				previewPlayback.seekTimeline(layer.clips[0].startMs);
+			},
+		})),
+	}, {
 		text: 'Effect',
 		icon: 'ti ti-sparkles',
 		action: showAddEffectLayerMenu,
