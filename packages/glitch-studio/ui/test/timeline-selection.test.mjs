@@ -2,7 +2,10 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
-import { build } from 'esbuild';
+import { readFile } from 'node:fs/promises';
+import { build, transform } from 'esbuild';
+import { parse } from 'vue/compiler-sfc';
+import { createSourceFile, isFunctionDeclaration, ScriptTarget } from 'typescript';
 
 const bundled = await build({
 	absWorkingDir: fileURLToPath(new URL('../', import.meta.url)),
@@ -28,6 +31,16 @@ new Function('require', 'module', 'exports', bundled.outputFiles[0].text)(create
 const { selectTimelineRange, selectionRect, timelineMarqueeRect, keyframeSelectionKey, getTimelineStretchSelection, constrainTimelineMove, keyframeMoveBounds, ProjectContext, listenPointerDrag } = module.exports;
 const { getTimelineSnapCandidates, getTimelineSnappingTimes, getTimelineSeekPosition, getTimelineLocalTicks, getTimelineClipTicks, formatTimelineTimecode } = module.exports;
 const { createKeyframeStretch, stretchKeyframeX, zoomTimelineX } = module.exports;
+
+// SFC内の対象収集処理そのものを実行し、描画するレーンと選択判定の対応漏れを検出する。
+// コンポーネント全体の初期化は不要なので、DOM計測に使うlayersElだけを差し込む。
+const timelineSource = await readFile(new URL('../src/components/GsTimeline.vue', import.meta.url), 'utf8');
+const timelineScript = parse(timelineSource).descriptor.scriptSetup.content;
+const timelineAst = createSourceFile('GsTimeline.ts', timelineScript, ScriptTarget.Latest);
+const geometryFunction = timelineAst.statements.find(statement => isFunctionDeclaration(statement) && statement.name?.text === 'readSelectionGeometry');
+assert.ok(geometryFunction);
+const geometryScript = await transform(geometryFunction.getText(timelineAst), { loader: 'ts' });
+const createGeometryReader = new Function('layersEl', `${geometryScript.code}\nreturn readSelectionGeometry;`);
 
 // 【拡大縮小してもカーソル直下の時刻を維持する】
 // 横スクロール済みの状態や左右端でも、ズーム操作によって注目している時刻を見失わないようにする。
@@ -159,6 +172,39 @@ const geometry = {
 	clips: [{ selection: clip('long'), rect: { left: -1000, top: 0, right: 1000, bottom: 20 } }, { selection: clip('short'), rect: { left: 30, top: 50, right: 60, bottom: 70 } }],
 	keyframes: [{ selection: key('long', 'a'), x: 10, y: 30 }, { selection: key('short', 'b'), x: 50, y: 80 }],
 };
+
+// 【Shapeを含む全パラメータ種別のキーをDOMから集めて複数選択する】
+// Shapeのキーは表示・単体操作できても、対象種別の許可リストから漏れると範囲選択だけが壊れる。
+// 配列・構造体のIDパスと所属レイヤーを維持し、通常選択とShiftによる追加選択の両方で確認する。
+test('collects and marquee-selects keyframes from every timeline parameter target', () => {
+	const targets = ['audio', 'module', 'compositing', 'effect', 'shape'];
+	const selections = targets.flatMap(target => ['a', 'b'].map(keyframeId => ({
+		layerId: `${target}-layer`, target, paramPath: ['items', 'element-id', 'value'], keyframeId,
+	})));
+	const elements = selections.map((selection, index) => ({
+		dataset: { timelineKeyframeId: selection.keyframeId },
+		closest(selector) {
+			if (selector === '[data-timeline-layer-id]') return { dataset: { timelineLayerId: selection.layerId } };
+			if (selector === '[data-parameter-target]') return { dataset: {
+				parameterTarget: selection.target, paramPath: JSON.stringify(selection.paramPath),
+			} };
+			throw new Error(`Unexpected selector: ${selector}`);
+		},
+		getBoundingClientRect: () => ({ left: 10 + index * 10, right: 20 + index * 10, top: 30, bottom: 40 }),
+	}));
+	const readGeometry = createGeometryReader({ value: {
+		querySelectorAll: selector => selector === '[data-timeline-keyframe-id]' ? elements : [],
+	} });
+	const rect = selectionRect(0, 25, 150, 45);
+	const collected = readGeometry(rect);
+	assert.deepEqual(collected.keyframes.map(point => point.selection), selections);
+	assert.deepEqual(selectTimelineRange(rect, collected, empty, false), { kind: 'keyframes', keyframes: selections });
+	const shapeSelection = selections.filter(point => point.target === 'shape');
+	assert.deepEqual(selectTimelineRange(selectionRect(90, 25, 110, 45), collected,
+		{ kind: 'keyframes', keyframes: [selections[0], shapeSelection[0]] }, true), {
+		kind: 'keyframes', keyframes: [selections[0], ...shapeSelection],
+	});
+});
 
 // 【一部だけ重なる長いクリップも選び、キーよりクリップを優先する】
 // クリップ全体を囲めないズーム倍率でも選択でき、上下左右どちら向きのドラッグでも結果が揃う必要がある。
@@ -581,6 +627,7 @@ test('cleans up pointer drags on release, cancellation, lost capture, blur and d
 	for (const ending of ['pointerup', 'pointercancel', 'lostpointercapture', 'blur', 'dispose']) {
 		globalThis.window = new EventTarget();
 		const element = new EventTarget();
+		element.ownerDocument = { defaultView: globalThis.window };
 		let captured = false;
 		element.setPointerCapture = () => { captured = true; };
 		element.hasPointerCapture = () => captured;

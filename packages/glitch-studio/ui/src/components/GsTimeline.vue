@@ -812,7 +812,7 @@ function readSelectionGeometry(viewport: SelectionRect): TimelineSelectionGeomet
 		const target = lane?.dataset.parameterTarget;
 		const encodedPath = lane?.dataset.paramPath;
 		const keyframeId = element.dataset.timelineKeyframeId;
-		if (!layerId || !encodedPath || !keyframeId || (target !== 'audio' && target !== 'module' && target !== 'compositing' && target !== 'effect')) continue;
+		if (!layerId || !encodedPath || !keyframeId || (target !== 'audio' && target !== 'module' && target !== 'compositing' && target !== 'effect' && target !== 'shape')) continue;
 		const paramPath = JSON.parse(encodedPath) as ParamPath;
 		const rect = element.getBoundingClientRect();
 		const x = (rect.left + rect.right) / 2;
