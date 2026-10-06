@@ -325,6 +325,54 @@ test('resizes the canvas and live renderer through dynamic options', async t => 
 	assert.deepEqual(resolutions, [{ width: 320, height: 180 }]);
 });
 
+// 【LIVEのOutを切断したら透明な出力を描画し、再接続で復旧する】
+// 出力なしで描画をスキップすると、接続中の最後の映像がCanvasに残ってしまう。
+// 実際のIn/Outの配線を差分更新し、透明RGBAの転送と最終描画が行われること、
+// 未接続のままでも描画ループが継続し、再接続した次のフレームで色が戻ることを確認する。
+test('renders transparent live output after disconnecting Out and recovers on reconnection', async t => {
+	const { renderer, errors, frames, frame } = await fixture(t);
+	const out = { id: 'out', type: 'globalOut', inputs: { output: { nodeId: 'in', outputPort: 'color' } } };
+	await renderer.updateDynamicOptions({
+		resolution: { width: 320, height: 180 }, resolutionScale: 0.5,
+		visualModules: [{
+			id: 'module', automationGraphs: [],
+			paramDefs: [{ id: 'color', dataType: { kind: 'color' }, canNode: true, defaultValue: { inputSource: 'literal', value: [1, 0, 0, 1] } }],
+			outputDefs: [{ id: 'output', dataType: { kind: 'color' } }], primaryInputId: null, primaryOutputId: 'output',
+			nodes: [{ id: 'in', type: 'globalIn' }, out],
+		}],
+	});
+	const writes = [];
+	t.mock.method(renderer.gpuDevice.queue, 'writeTexture', (destination, data) => writes.push(Array.from(data)));
+	const present = t.mock.method(renderer.canvasRenderer, 'renderToCanvas');
+	renderer.startLiveRenderLoopFor('module');
+	frame(16);
+	assert.deepEqual(writes.at(-1), [0x3c00, 0, 0, 0x3c00]);
+	assert.equal(present.mock.callCount(), 1);
+
+	renderer.applyProjectChanges([{
+		type: 'node', target: { visualModuleId: 'module' },
+		node: { ...out, inputs: { output: { nodeId: null, outputPort: null } } },
+		changes: [{ type: 'parameter', kind: 'connection' }],
+	}]);
+	frame(32);
+	assert.deepEqual(writes.at(-1), [0, 0, 0, 0]);
+	assert.equal(present.mock.callCount(), 2);
+	assert.equal(renderer.gpuContext.canvas.width, 160);
+	assert.equal(renderer.gpuContext.canvas.height, 90);
+	frame(48);
+	assert.equal(present.mock.callCount(), 3);
+	assert.equal(frames.size, 1);
+
+	renderer.applyProjectChanges([{
+		type: 'node', target: { visualModuleId: 'module' }, node: out,
+		changes: [{ type: 'parameter', kind: 'connection' }],
+	}]);
+	frame(64);
+	assert.deepEqual(writes.at(-1), [0x3c00, 0, 0, 0x3c00]);
+	assert.equal(present.mock.callCount(), 4);
+	assert.deepEqual(errors, []);
+});
+
 for (const Manager of [VisualModuleRendererManager, TimelineRendererManager]) {
 	// 【最終表示の設定をGPUへ反映する】
 	// 設定の保存だけでは描画に届かないため、最終パスのuniform転送まで確認する。

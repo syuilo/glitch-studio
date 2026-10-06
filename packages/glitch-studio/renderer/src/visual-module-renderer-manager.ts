@@ -378,6 +378,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 				}, def.dataType.kind === 'enum' ? undefined : genEmptyValue(def))))); // TODO: genEmptyValueを遅延評価したい
 			}
 
+			// Outが未接続でも透明な出力を描画し、前の映像や集計結果を残さない。
 			const nodeOutput = this.liveVisualModuleRenderer.render({
 				evaluatedParamValues: evaluatedParamValues,
 				time: timing.time,
@@ -386,8 +387,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 				pointerPosition: this.pointerPosition,
 				pointerPositionPrev: this.pointerPositionPrev,
 				isExport: false,
-			}, commandEncoder);
-			if (nodeOutput == null) return;
+			}, commandEncoder) ?? { kind: 'uniform', value: [0, 0, 0, 0] };
 
 			// 定数を表示用に1x1へ変換しても、表示枠の寸法は1x1にしない。
 			this.updateCanvasResolution(nodeOutput.kind === 'texture' ? nodeOutput.texture : scaleResolution(this.dynamicOptions.resolution, this.dynamicOptions.resolutionScale));
