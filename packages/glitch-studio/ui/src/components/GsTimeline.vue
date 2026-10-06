@@ -201,13 +201,12 @@
 						<template #label>Visual Module</template>
 						<div>
 							<GsVisualModuleEditor
-
 								:key="selectedLayer.id"
 								:class="$style.inlineModuleEditor"
 								:visualModule="selectedLayer.visualModule"
 								:effectStates="inlineEffectStates"
 								@edit="onInlineVisualModuleEdit"
-								@requestAddNode="showAddInlineNodeMenu"
+								@requestAddEffectNode="showAddInlineEffectNodeMenu"
 							/>
 						</div>
 					</GsFolder>
@@ -1074,7 +1073,7 @@ onBeforeUnmount(() => {
 	sceneEditorStates.set(editedScene, { selection: deepClone(selection.value), rangeX: tlRangeX.value, positionX: tlPosX.value });
 });
 
-function showAddInlineNodeMenu() {
+function showAddInlineEffectNodeMenu() {
 	const layer = selectedLayer.value;
 	if (layer?.layerType !== 'inlineVisualModule') return;
 	const layerId = layer.id;

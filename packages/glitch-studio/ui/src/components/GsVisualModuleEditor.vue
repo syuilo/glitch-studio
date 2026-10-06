@@ -35,7 +35,7 @@
 						/>
 					</template>
 					<template #footer>
-						<GsButton :class="$style.addButton" full style="margin-top: 8px;" @click="emit('requestAddNode')"><i class="ti ti-plus"></i> Add Effect Node...</GsButton>
+						<GsButton :class="$style.addButton" full style="margin-top: 8px;" @click="emit('requestAddEffectNode')"><i class="ti ti-plus"></i> Add Effect Node...</GsButton>
 					</template>
 				</GsDraggable>
 
@@ -99,7 +99,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
 	edit: [event: VisualModuleEdit];
-	requestAddNode: [];
+	requestAddEffectNode: [];
 }>();
 
 const tab = ref('nodes');

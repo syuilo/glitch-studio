@@ -29,13 +29,12 @@
 		:visualModule="visualModule"
 		:effectStates="effectStates"
 		@edit="onEdit"
-		@requestAddNode="showAddNodeMenu"
+		@requestAddEffectNode="showAddEffectNodeMenu"
 	/>
 </div>
 </template>
 
 <script lang="ts" setup>
-import { appContext } from '@/app.ts';
 import { areDataTypesEqual } from '@gs/shared/data-type/data-type.ts';
 import { isParameterType } from '@gs/shared/parameter/parameter-definition.ts';
 import { computed, ref, watch, onBeforeUnmount } from 'vue';
@@ -54,6 +53,7 @@ import type { EffectInstanceState } from '@gs/subsystems_effect_shared/effect-st
 import type { ParamEdit } from './GsVisualParam.vue';
 import type { VisualModuleEdit } from '@/types/visual-module-editor.ts';
 import type { WorkspacePanel } from '@/workspace.ts';
+import { appContext } from '@/app.ts';
 import * as ui from '@/ui.ts';
 import { commitVisualModuleEdit } from '@/utility/visual-module-edit.ts';
 import { createInlineAutomationGraph } from '@/utility/automation-graph.ts';
@@ -192,16 +192,12 @@ function showSwitchMenu(ev: PointerEvent) {
 let disposeEffectPicker: (() => void) | undefined;
 onBeforeUnmount(() => disposeEffectPicker?.());
 
-function showAddNodeMenu() {
-	const module = visualModule.value;
-	if (module == null) return;
-	// ピッカーを開いた後に選択を変えても、開いた時点のモジュールに追加する。
-	const visualModuleId = module.id;
+function showAddEffectNodeMenu() {
 	disposeEffectPicker?.();
 	const { dispose } = ui.popup(GsEffectPicker, {}, {
 		chosen: effect => {
-			if (appContext.projectContext.getVisualModuleById(visualModuleId) == null) return;
-			stateManager.commit('addEffectNode', { visualModuleId, effectId: effect.id, id: genId() });
+			if (appContext.projectContext.getVisualModuleById(visualModule.value.id) == null) return;
+			stateManager.commit('addEffectNode', { visualModuleId: visualModule.value.id, effectId: effect.id, id: genId() });
 		},
 		closed: () => {
 			dispose();
