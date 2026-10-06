@@ -72,7 +72,7 @@ const keyframeSegments = computed(() => {
 	position: absolute;
 	top: calc(var(--keyframesLaneHeight) / 2 - var(--knobSize) / 2);
 	height: var(--knobSize);
-	background: color(from var(--THEME-accent) srgb r g b / 0.25);
+	background: color(from var(--LAYER_COLOR) srgb r g b / 0.25);
 }
 
 .keyframe {
@@ -84,13 +84,13 @@ const keyframeSegments = computed(() => {
 	width: var(--knobSize);
 	height: var(--knobSize);
 	margin-left: calc(var(--knobSize) / -2);
-	background: var(--THEME-accent);
+	background: var(--LAYER_COLOR);
 	corner-shape: bevel;
 	border-radius: 100%;
 }
 
 .selected {
 	background: var(--THEME-fg);
-	box-shadow: 0 0 0 2px var(--THEME-accent);
+	box-shadow: 0 0 0 2px var(--LAYER_COLOR);
 }
 </style>

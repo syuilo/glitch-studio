@@ -1,12 +1,12 @@
 <template>
-<div :class="[$style.root, { [$style.selected]: selected, [$style.disabled]: layer.isDisabled }]" :data-timeline-layer-id="layer.id">
+<div :class="[$style.root, { [$style.selected]: selected, [$style.disabled]: layer.isDisabled, [$style.type_effect]: layer.layerType === 'effect', [$style.type_audio]: layer.layerType === 'audio', [$style.type_image]: layer.layerType === 'image' }]" :data-timeline-layer-id="layer.id">
 	<div :class="$style.mainLane">
 		<div :class="$style.side">
 			<div :class="$style.layerHeader" draggable="true" @click="emit('selected', $event)" @dragstart.stop="emit('dragStart', $event)">
 				<i class="ti ti-grip-vertical"></i>
 				<i :class="'ti ' + layerIcon"></i>
 				<GsCondensedLine style="flex: 1; min-width: 0;">{{ layer.name }}</GsCondensedLine>
-				<GsButton iconOnly :primary="!layer.isDisabled" @click.stop="toggleDisabled"><i :class="layer.isDisabled ? 'ti ti-eye-off' : 'ti ti-eye'"></i></GsButton>
+				<button class="_button" :class="[$style.disableButton, { [$style.active]: !layer.isDisabled }]" @click.stop="toggleDisabled"><i :class="layer.isDisabled ? 'ti ti-eye-off' : 'ti ti-eye'"></i></button>
 			</div>
 		</div>
 		<div :class="$style.tl" @dblclick.stop.prevent="onBackgroundDoubleClick">
@@ -57,7 +57,6 @@
 </template>
 
 <script lang="ts" setup>
-import { appContext } from '@/app.ts';
 import { computed } from 'vue';
 import { paramPathKey } from '@gs/shared/parameter/parameter-path.ts';
 import { effectDefinitions } from '@gs/subsystems_effect_shared/effect-definitions.ts';
@@ -72,6 +71,7 @@ import type { TimelineKeyframeSelection, TimelineClipSelection } from '@/utility
 import type { TimelineClipTicks } from '@/utility/timeline-ticks.ts';
 import type { TimelineClipMediaInfo } from '@/utility/timeline-clip-media.ts';
 import type { TimelineLayer } from '@gs/subsystems_timeline_shared/types.ts';
+import { appContext } from '@/app.ts';
 import { formatTimelineTimecode } from '@/utility/timeline-ticks.ts';
 import { resolveLayerParameter, getLayerKeyframeParameters } from '@/utility/timeline-scene.ts';
 import { insertInlineKeyframe } from '@/utility/keyframes-timeline.ts';
@@ -191,6 +191,17 @@ function timeToDomX(time: number): number { return (time - props.tlPosX) / props
 		pointer-events: none;
 		opacity: 0.5;
 	}
+
+	--LAYER_COLOR: var(--THEME-accent);
+	&.type_effect {
+		--LAYER_COLOR: var(--THEME-layer-effect);
+	}
+	&.type_audio {
+		--LAYER_COLOR: var(--THEME-layer-audio);
+	}
+	&.type_image {
+		--LAYER_COLOR: var(--THEME-layer-image);
+	}
 }
 
 .mainLane {
@@ -226,6 +237,20 @@ function timeToDomX(time: number): number { return (time - props.tlPosX) / props
 	user-select: none;
 	cursor: grab;
 	font-size: 90%;
+}
+
+.disableButton {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: var(--mainLaneHeight);
+	height: var(--mainLaneHeight);
+	color: #fff;
+
+	&.active {
+		background: var(--LAYER_COLOR);
+		color: #000;
+	}
 }
 
 .localTicksLane {

@@ -48,20 +48,20 @@ function timeToDomX(time: number): number {
 	cursor: grab;
 	touch-action: none;
 	user-select: none;
-	background: var(--THEME-accent);
+	background: color-mix(in srgb, var(--LAYER_COLOR) 75%, #000);
 	color: var(--THEME-fgOnAccent);
 	border-radius: 8px 0 0 0;
 	corner-shape: bevel;
 }
 .selected { box-shadow: inset 0 0 0 2px var(--THEME-fg); }
-.active { background: color-mix(in srgb, var(--THEME-accent) 65%, white); }
+.active { background: var(--LAYER_COLOR); }
 .moving { cursor: grabbing; }
 .sourceGhost {
 	position: absolute;
 	height: var(--mainLaneHeight);
 	box-sizing: border-box;
-	background: color-mix(in srgb, var(--THEME-accent) 15%, transparent);
-	border: 1px dashed color-mix(in srgb, var(--THEME-accent) 45%, transparent);
+	background: color-mix(in srgb, var(--LAYER_COLOR) 15%, transparent);
+	border: 1px dashed color-mix(in srgb, var(--LAYER_COLOR) 45%, transparent);
 	pointer-events: none;
 }
 .trimHandle {
