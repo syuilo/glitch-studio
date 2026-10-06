@@ -1,7 +1,7 @@
 import { customRef, ref, watch, onScopeDispose } from 'vue';
 import { EventEmitter } from 'eventemitter3';
-import { DEFAULT_PROJECT_BACKUP_SETTINGS } from './project-backups.ts';
 import { deepEqual } from '@gs/shared/utility/deep-equal.js';
+import { DEFAULT_PROJECT_BACKUP_SETTINGS } from './project-backups.ts';
 import type { Ref } from 'vue';
 import type { WorkspaceElement } from './workspace.ts';
 import type { MenuItem } from './types/menu.ts';
@@ -29,8 +29,8 @@ export const PREF_DEF = definePreferences({
 	timelineSnapGlobalTicks: { default: () => true },
 	timelineSnapLocalTicks: { default: () => false },
 	timelineSnapSeekBar: { default: () => false },
-	enable32bitDataTextures: { default: () => false },
-	intermediateTextureFormat: { default: () => null as IntermediateTextureFormat | null },
+	enable32bitDataTextures: { default: () => true },
+	intermediateTextureFormat: { default: () => 'rgba16float' as IntermediateTextureFormat | null },
 	workspaceDefinition: {
 		default: (): WorkspaceElement => {
 			return {
