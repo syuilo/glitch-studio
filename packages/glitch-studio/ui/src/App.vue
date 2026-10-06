@@ -19,6 +19,7 @@
 		</div>
 		<div :class="$style.headerCenter">
 			{{ projectName }}
+			<span v-if="projectFileName" :class="$style.projectFileName">({{ projectFileName }})</span>
 		</div>
 		<div :class="$style.headerRight">
 			Glitch Studio
@@ -85,6 +86,7 @@ import * as ui from '@/ui.ts';
 const { audioOutput, activePreviewRenderer, previewPlayback, visualModuleRendererManagerController, resolutionFactor, liveFpsLimit, timelinePreviewFpsFactor, timelinePreviewMotionBlurSamples, liveTimeFactor, projectBackupAccess, projectBackupStatus } = appContext;
 const { stateManager } = appContext.projectContext;
 const { name: projectName } = appContext.projectContext.stateManager.state;
+const { projectFileName } = appContext;
 
 const releaseOutputCapture = audioOutput.retainOutputCapture();
 onBeforeUnmount(releaseOutputCapture);
@@ -427,6 +429,11 @@ onMounted(async () => {
 	padding: 0 12px;
 	text-overflow: ellipsis;
 	white-space: nowrap;
+}
+
+.projectFileName {
+	margin-left: 0.5em;
+	color: color-mix(in srgb, var(--THEME-fg), var(--THEME-bg) 30%);
 }
 
 .undoRedo {

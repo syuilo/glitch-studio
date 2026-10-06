@@ -45,12 +45,14 @@ export class ProjectSaveController {
 	private projectReady = false;
 	private projectSaveSession: ProjectSaveSession;
 	private backupFingerprint = createProjectBackupFingerprint();
+	public projectFileName = ref<string | null>(null);
 	public projectBackupAccess = ref<'unsaved' | 'folder-required' | 'ready'>('unsaved');
 	public projectBackupStatus = ref<ProjectBackupStatus>({ lastAutoBackup: null, lastSaveBackup: null, error: null });
 	public projectBackupController: ProjectBackupController;
 
 	constructor(private getSnapshot: () => Project | null) {
 		this.projectSaveSession = new ProjectSaveSession((target, previous) => {
+			this.projectFileName.value = target?.handle.name ?? null;
 			this.projectBackupAccess.value = target?.backup ? 'ready' : target ? 'folder-required' : 'unsaved';
 			if (target?.backup !== previous?.backup) this.projectBackupController.setTarget(target?.backup ?? null);
 		});
@@ -78,8 +80,8 @@ export class ProjectSaveController {
 		this.projectSaveSession.setTarget(null);
 	}
 
-	public finishProjectLoad(fileName: string, fileHandle: ProjectFileHandle | null): void {
-		this.projectSaveSession.suggestedName = fileName;
+	public finishProjectLoad(fileName: string | null, fileHandle: ProjectFileHandle | null): void {
+		this.projectSaveSession.suggestedName = fileName ?? 'untitled.gsproj';
 		this.projectReady = true;
 		try {
 			this.projectSaveSession.setTarget(fileHandle ? { handle: fileHandle, directory: null, backup: resolveBackupTarget(fileHandle, null) } : null);
@@ -87,6 +89,8 @@ export class ProjectSaveController {
 			this.projectSaveSession.setTarget(fileHandle ? { handle: fileHandle, directory: null, backup: null } : null);
 			this.projectBackupController.reportError(error);
 		}
+		// Fileだけで開いた場合も、保存先ハンドルの有無によらず読み込んだ名前を表示する。
+		this.projectFileName.value = fileHandle?.name ?? fileName;
 	}
 
 	public async grantProjectBackupAccess(): Promise<void> {

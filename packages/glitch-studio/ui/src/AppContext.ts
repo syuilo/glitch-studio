@@ -55,6 +55,7 @@ export class AppContext {
 	private projectWatchers: WatchStopHandle[] = [];
 	private projectSaveController: ProjectSaveController;
 	public activePreviewRenderer = computed(() => this.previewPlayback.state.value.mode === 'live' ? this.visualModuleRendererManagerController : this.timelineRendererManagerController);
+	public get projectFileName() { return this.projectSaveController.projectFileName; }
 	public get projectBackupAccess() { return this.projectSaveController.projectBackupAccess; }
 	public get projectBackupStatus() { return this.projectSaveController.projectBackupStatus; }
 	public get projectBackupController() { return this.projectSaveController.projectBackupController; }
@@ -177,7 +178,7 @@ export class AppContext {
 		this.previewPlayback.resume();
 	}
 
-	public async ready(project: Project, fileName = 'untitled.gsproj', fileHandle: ProjectFileHandle | null = null) {
+	public async ready(project: Project, fileName: string | null = null, fileHandle: ProjectFileHandle | null = null) {
 		validateTimelineScenes(project.timelineScenes);
 		validateTimelineFps(project.timelineFps);
 		validateTimelineMotionBlur(project.timelineMotionBlur);
