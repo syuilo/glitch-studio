@@ -460,9 +460,9 @@ onMounted(async () => {
 
 .footer {
 	display: flex;
-	height: 32px;
+	height: 28px;
 	box-sizing: border-box;
-	line-height: 32px;
+	line-height: 28px;
 	font-size: 90%;
 	padding: 0 12px;
 }
