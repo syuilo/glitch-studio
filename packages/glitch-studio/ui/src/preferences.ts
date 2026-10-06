@@ -29,8 +29,8 @@ export const PREF_DEF = definePreferences({
 	timelineSnapGlobalTicks: { default: () => true },
 	timelineSnapLocalTicks: { default: () => false },
 	timelineSnapSeekBar: { default: () => false },
-	enable32bitDataTextures: { default: () => true },
-	intermediateTextureFormat: { default: () => 'rgba16float' as IntermediateTextureFormat | null },
+	enable32bitDataTextures: { default: () => false },
+	intermediateTextureFormat: { default: () => null as IntermediateTextureFormat | null },
 	workspaceDefinition: {
 		default: (): WorkspaceElement => {
 			return {
