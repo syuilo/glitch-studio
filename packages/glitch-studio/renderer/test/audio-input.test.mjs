@@ -303,10 +303,11 @@ test('resolves independent public audio sources and shares only matching frame i
 });
 
 // 【波形は短いピークを保持し、未選択と無音を区別する】
-// GPUへ渡すmin/maxを実エフェクトで検証し、入力変換後にも正規化せず振幅と左右の値を保つ。
+// GPUへ渡すmin/maxを実エフェクトで検証し、入力変換後にも正規化せず振幅を保つ。
+// Stereoは左右を平均した1本の波形、L/Rは選択したチャンネルの波形として検証する。
 // ブロック境界の両側にピークを置き、窓を連続配列へコピーせずに読み取れることも確認する。
 // ピクセル描画はブラウザを使わず、既存シェーダーへ渡すデータと色のalphaを確認する。
-test('uploads stereo peaks and distinguishes silence from no source', () => {
+test('uploads selected channel peaks and distinguishes silence from no source', () => {
 	globalThis.GPUBufferUsage = { UNIFORM: 1, STORAGE: 2, COPY_DST: 4 };
 	const writes = [];
 	const device = { createShaderModule: () => ({}), createRenderPipeline: () => ({ getBindGroupLayout: () => ({}) }), createBuffer: () => ({ destroy() {} }), createBindGroup: () => ({}),
@@ -323,18 +324,27 @@ test('uploads stereo peaks and distinguishes silence from no source', () => {
 	}
 	const inputs = new PlayerAudioInputs(new Map([[playerAudioSourceId('player'), history]]));
 	const params = { ...Object.fromEntries(Object.entries(waveformDefinition.paramDefs).map(([key, def]) => [key, def.defaultValue.value])),
-		channel: 'stereo', duration: 0.005, colorL: [1, 0, 0, 0.5], audio: inputs.resolve({ type: 'player', playerId: 'player' }) };
+		channel: 'stereo', duration: 0.005, color: [1, 0, 0, 0.5], audio: inputs.resolve({ type: 'player', playerId: 'player' }) };
 	history.reset();
 	const draw = () => instance.render({ params, outputDataMap: { output: { textureView: {} } }, createPassEncoderFor: () => ({ setPipeline() {}, setBindGroup() {}, draw() {}, end() {} }) });
-	draw();
-	assert.deepEqual(writes.at(-1), [0, 3, -1, 1, -2, 0, -3, 2]);
-	assert.equal(writes.at(-2)[3], 0.5);
-	assert.equal(writes.at(-2)[12], 1);
+	for (const [channel, peaks] of [
+		['stereo', [0, 1, -1.5, 0]],
+		['left', [0, 3, -2, 0]],
+		['right', [-1, 1, -3, 2]],
+	]) {
+		params.channel = channel;
+		draw();
+		assert.deepEqual(writes.at(-1), peaks, channel);
+		assert.equal(writes.at(-2)[3], 0.5);
+		assert.equal(writes.at(-2)[7], 1);
+	}
 	params.audio = { cacheKey: 'silence', readWindow: () => window([0, 0]) };
 	draw();
-	assert.equal(writes.at(-2)[12], 1);
+	assert.deepEqual(writes.at(-1), [0, 0, 0, 0]);
+	assert.equal(writes.at(-2)[7], 1);
 	params.audio = null;
 	draw();
-	assert.equal(writes.at(-2)[12], 0);
+	assert.deepEqual(writes.at(-1), [0, 0, 0, 0]);
+	assert.equal(writes.at(-2)[7], 0);
 	instance.dispose();
 });
