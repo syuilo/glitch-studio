@@ -47,9 +47,15 @@
 			</div>
 		</div>
 		<div ref="layersEl" :class="$style.layers" data-timeline-surface>
-			<div :class="$style.layersHeader">
-				<GsButton v-tooltip="'Add Layer'" small iconOnly @click="showAddLayerMenu"><i class="ti ti-plus"></i></GsButton>
-				<span class="_monospace">{{ formatFullTimecode(time) }}</span>
+			<div style="direction: ltr;">
+				<!--
+				<div :class="$style.layersHeader">
+					<span class="_monospace">{{ formatFullTimecode(time) }}</span>
+				</div>
+				-->
+				<div :class="$style.layersActions">
+					<GsButton v-tooltip="'Add Layer'" small iconOnly @click="showAddLayerMenu"><i class="ti ti-plus"></i></GsButton>
+				</div>
 			</div>
 			<GsDraggable
 				:class="$style.layerList"
@@ -1550,11 +1556,22 @@ onMounted(() => {
 
 .layersHeader {
 	flex-shrink: 0;
-	direction: ltr;
-	height: 40px;
+	display: flex;
+	width: var(--sideWidth);
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
+	margin-bottom: 8px;
+}
+
+.layersActions {
+	flex-shrink: 0;
+	width: var(--sideWidth);
 	display: flex;
 	align-items: center;
+	justify-content: center;
 	gap: 8px;
+	margin-bottom: 8px;
 }
 
 .layerList {
