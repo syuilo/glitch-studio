@@ -284,22 +284,27 @@ function openFpsMenu(ev: PointerEvent) {
 function openHeaderFileMenu(ev: PointerEvent) {
 	ui.popupMenu([{
 		text: 'Open...',
+		icon: 'ti ti-folder-open',
 		action: () => { void openProject(); },
 	}, {
 		text: 'Save',
+		icon: 'ti ti-device-floppy',
 		action: () => { void appContext.saveProject(); },
 	}, {
 		text: 'Save as...',
+		icon: 'ti ti-device-floppy',
 		action: () => { void appContext.saveProject(true); },
 	}, {
 		type: 'divider',
 	}, {
 		text: 'Save Preview Snapshot...',
+		icon: 'ti ti-photo',
 		action: () => {
 			savePreviewSnapshot();
 		},
 	}, {
 		text: 'Export Scene...',
+		icon: 'ti ti-movie',
 		action: () => {
 			const { dispose } = ui.popup(GsTimelineExportDialog, {}, { closed: () => dispose() });
 		},
@@ -308,10 +313,12 @@ function openHeaderFileMenu(ev: PointerEvent) {
 
 function openHeaderEditMenu(ev: PointerEvent) {
 	ui.popupMenu([{
-		text: 'Project Settings',
+		text: 'Project Settings...',
+		icon: 'ti ti-file-settings',
 		action: openProjectSettings,
 	}, {
 		text: 'Preferences...',
+		icon: 'ti ti-settings',
 		action: openPreferences,
 	}], ev.currentTarget ?? ev.target);
 }
@@ -355,6 +362,7 @@ async function toggleDevTools() {
 function openHeaderHelpMenu(ev: PointerEvent) {
 	ui.popupMenu([{
 		text: 'About',
+		icon: 'ti ti-info-circle',
 		action: () => {
 			showAbout();
 		},
