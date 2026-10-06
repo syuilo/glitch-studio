@@ -7,6 +7,7 @@ export type VisualModuleEdit =
 	| { kind: 'removeNode'; nodeId: string }
 	| { kind: 'setNodeBypass'; nodeId: string; bypass: boolean }
 	| { kind: 'setNodeResolution'; nodeId: string; resolution: EffectResolution }
+	| { kind: 'setNodeDisplayName'; nodeId: string; displayName: string }
 	| { kind: 'editNodeParam'; nodeId: string; edit: ParamEdit }
 	| { kind: 'reorderNodes'; nodeIds: string[] }
 	| { kind: 'setOutputConnection'; nodeId: string; outputId: string; value: NodeOutputReference | null }

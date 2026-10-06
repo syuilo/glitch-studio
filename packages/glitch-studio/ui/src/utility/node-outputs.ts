@@ -1,10 +1,10 @@
 import { getNodeOutputs } from '@gs/subsystems_visual-module_shared/node-outputs.ts';
 import { areNodeDataTypesCompatible } from '@gs/shared/data-type/node-compatibility.ts';
-import { effectDefinitions } from '@gs/subsystems_effect_shared/effect-definitions.ts';
 import { prettyId } from '@gs/shared/utility/id.js';
 import type { TextureDataType } from '@gs/shared/data-type/data-type.ts';
 import type { VisualModuleNode, NodeOutputReference, VisualModule } from '@gs/subsystems_visual-module_shared/types.ts';
 import { preferences } from '@/preferences.ts';
+import { getEffectNodeName } from './node-name.ts';
 
 export function getNodeDataTypeColor(dataType: TextureDataType | null | undefined): string {
 	return `var(--THEME-dataType-${dataType?.kind ?? 'any'})`;
@@ -35,7 +35,7 @@ export function hasNodeInputTypeMismatch(nodes: VisualModuleNode[], connection: 
 export function getNodeOutputItems(nodes: VisualModuleNode[], excludedNodeId?: string, inputDataType?: TextureDataType | null, paramDefs: VisualModule['paramDefs'] = []): { label: string; value: string; connection: NodeOutputReference; dataType: TextureDataType; typeCompatible: boolean; icon?: string }[] {
 	return nodes.flatMap(node => {
 		if (node.id === excludedNodeId) return [];
-		const name = node.type === 'effect' ? effectDefinitions[node.effectId].displayName : node.type === 'globalIn' ? 'In' : 'Out';
+		const name = node.type === 'effect' ? getEffectNodeName(node) : node.type === 'globalIn' ? 'In' : 'Out';
 		const outputs = Object.entries(getNodeOutputs(node, paramDefs)).filter(([, output]) => inputDataType === undefined || canConnectNodeDataTypes(output.dataType, inputDataType)).map(([outputPort, output]) => {
 			const connection: NodeOutputReference = { nodeId: node.id, outputPort, fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' };
 			const typeCompatible = inputDataType === undefined || areNodeDataTypesCompatible(output.dataType, inputDataType);

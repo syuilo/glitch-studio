@@ -79,7 +79,7 @@ async function checkEffectRenderers(device: GPUDevice, vertex: GPUShaderModule, 
 		key, 'canNode' in def && def.canNode ? constantShaderInput(def.dataType.kind, def.defaultValue.value) : def.defaultValue.value,
 	])) as unknown as RuntimeEffectParameters<typeof gradientDefinition.paramDefs>;
 	const history: VisualModuleEffectNode = {
-		id: 'history', type: 'effect', effectId: 'feedback', isBypass: false, resolution: { mode: 'context' },
+		id: 'history', type: 'effect', effectId: 'feedback', displayName: '', isBypass: false, resolution: { mode: 'context' },
 		params: {
 			input: { inputSource: 'node', nodeId: 'source', outputPort: 'output', fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' },
 			strength: { inputSource: 'literal', value: 1 }, halfLife: { inputSource: 'literal', value: 0 }, reset: { inputSource: 'literal', value: false },
@@ -89,7 +89,7 @@ async function checkEffectRenderers(device: GPUDevice, vertex: GPUShaderModule, 
 		automationGraphs: [], paramDefs: [], primaryInputId: null,
 		outputDefs: [{ id: 'out', name: 'out', label: 'Out', dataType: { kind: 'any' } }], primaryOutputId: 'out',
 		nodes: [{
-			id: 'source', type: 'effect', effectId: 'colorMix', isBypass: false, resolution: { mode: 'context' },
+			id: 'source', type: 'effect', effectId: 'colorMix', displayName: '', isBypass: false, resolution: { mode: 'context' },
 			params: { inputA: { inputSource: 'literal', value: [1, 0, 0, 1] }, inputB: { inputSource: 'literal', value: [0, 0, 0, 0] }, amount: { inputSource: 'literal', value: 0 } },
 		}, history, { id: 'out', type: 'globalOut', inputs: { out: { nodeId: 'history', outputPort: 'output' } } }],
 	};

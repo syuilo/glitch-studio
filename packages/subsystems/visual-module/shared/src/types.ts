@@ -24,6 +24,8 @@ export type VisualModuleEffectNode = {
 	resolution: EffectResolution;
 	params: Record<string, VisualModuleParameterBinding>;
 
+	displayName: string;
+
 	// 2D平面上でノードを配置できるようになった時のため
 	pos?: { x: number; y: number };
 };

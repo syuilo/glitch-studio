@@ -90,6 +90,7 @@ export async function newProject() {
 			type: 'effect',
 			resolution: { mode: 'auto' },
 			effectId: 'fill',
+			displayName: '',
 			params: {
 				color: { inputSource: 'literal', value: [0, 1, 0, 1] },
 			},
@@ -184,6 +185,7 @@ export async function newProjectFromImageOrVideo(file?: File) {
 			type: 'effect',
 			resolution: { mode: 'auto' },
 			effectId: 'image',
+			displayName: '',
 			params: {
 				image: { inputSource: 'literal', value: asset.id },
 				fit: deepClone(imageEffectDef.paramDefs.fit.defaultValue),
@@ -194,6 +196,7 @@ export async function newProjectFromImageOrVideo(file?: File) {
 			type: 'effect',
 			resolution: { mode: 'auto' },
 			effectId: 'video',
+			displayName: '',
 			params: {
 				player: { inputSource: 'literal', value: player!.id },
 				fit: deepClone(videoEffectDef.paramDefs.fit.defaultValue),
@@ -204,6 +207,7 @@ export async function newProjectFromImageOrVideo(file?: File) {
 			type: 'effect',
 			resolution: { mode: 'auto' },
 			effectId: 'audioWaveform',
+			displayName: '',
 			params: {
 				audio: { inputSource: 'literal', value: { type: 'player', playerId: player!.id } },
 				channel: deepClone(audioWaveformEffectDef.paramDefs.channel.defaultValue),
@@ -218,6 +222,7 @@ export async function newProjectFromImageOrVideo(file?: File) {
 			type: 'effect',
 			resolution: { mode: 'auto' },
 			effectId: 'fill',
+			displayName: '',
 			params: {
 				color: { inputSource: 'literal', value: [0, 1, 0, 1] },
 			},

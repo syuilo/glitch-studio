@@ -12,6 +12,9 @@ export function commitVisualModuleEdit(manager: ProjectCommands, target: VisualM
 	const module = findVisualModule(manager.state, target);
 	if (module == null) return;
 	switch (event.kind) {
+		case 'setNodeDisplayName':
+			manager.commit('changeNodeDisplayName', { ...target, nodeId: event.nodeId, displayName: event.displayName });
+			break;
 		case 'setNodeResolution':
 			manager.commit('changeNodeResolution', { ...target, nodeId: event.nodeId, resolution: event.resolution });
 			break;

@@ -24,6 +24,7 @@
 				<template #label>Settings</template>
 
 				<div class="_gaps_s">
+					<GsInput :modelValue="node.displayName" :debounce="400" @update:modelValue="emit('setDisplayName', $event)"><template #label>Name</template></GsInput>
 					<GsSelect :modelValue="node.resolution.mode" :items="resolutionModes" @update:modelValue="setResolutionMode">
 						<template #label>Resolution</template>
 						<template v-if="node.resolution.mode === 'context'" #caption>Uses the project size in LIVE and the containing scene size in the timeline.</template>
@@ -58,7 +59,6 @@
 import { appContext } from '@/app.ts';
 import { IN_VISUAL_MODULE_VAR_DEFS } from '@gs/subsystems_visual-module_shared/expression.ts';
 import { ref, computed, shallowRef, watchEffect } from 'vue';
-import { effectDefinitions } from '@gs/subsystems_effect_shared/effect-definitions.ts';
 import { prettyId } from '@gs/shared/utility/id.ts';
 import GsNodeOutputs from './GsNodeOutputs.vue';
 import GsNodePort from './GsNodePort.vue';
@@ -74,6 +74,7 @@ import type { EffectInstanceState } from '@gs/subsystems_effect_shared/effect-st
 import { i18n } from '@/i18n.ts';
 import { useVisualModuleWires } from '@/utility/visual-module-wires.ts';
 import { getNodeParamDefs } from '@/utility/node-params.ts';
+import { getEffectNodeName } from '@/utility/node-name.ts';
 import * as ui from '@/ui.ts';
 
 const { stateManager } = appContext.projectContext;
@@ -92,9 +93,10 @@ const emit = defineEmits<{
 	(ev: 'remove'): void;
 	(ev: 'setBypass', bypass: boolean): void;
 	(ev: 'setResolution', resolution: EffectResolution): void;
+	(ev: 'setDisplayName', displayName: string): void;
 }>();
 
-const name = computed(() => effectDefinitions[props.node.effectId].displayName);
+const name = computed(() => getEffectNodeName(props.node));
 const expanded = ref(true);
 const showSettings = ref(false);
 const allInPortEl = shallowRef<HTMLElement | null>(null);

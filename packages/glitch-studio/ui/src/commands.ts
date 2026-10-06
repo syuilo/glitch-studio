@@ -251,7 +251,7 @@ const addEffectNodeCommandDef = defineCommand<VisualModuleTarget & { id: string;
 						*/
 					}
 					// ランダムな初期値もRedo時に変えない。
-					addedNode = { id: payload.id, type: 'effect', effectId: payload.effectId, isBypass: false, resolution: { mode: 'auto' },
+					addedNode = { id: payload.id, type: 'effect', effectId: payload.effectId, displayName: '', isBypass: false, resolution: { mode: 'auto' },
 																			params: { ...params, ...deepClone(payload.params ?? {}) }, pos: { x: 0, y: 0 } };
 					/*
 					const primaryPort = effectDefinitions[payload.effectId].primaryOutput;
@@ -690,6 +690,27 @@ const changeNodeBypassStateCommandDef = defineCommand<NodeTarget & { bypass: boo
 				const node = stateUtility.findNode(state, payload);
 				if (node?.type !== 'effect') throw new Error('Effect node not found');
 				node.isBypass = before;
+			},
+		};
+	},
+});
+
+const changeNodeDisplayNameCommandDef = defineCommand<NodeTarget & { displayName: string }>({
+	label: 'Change node name',
+	changes: (_state, payload) => [{ type: 'nodeName', target: payload, nodeId: payload.nodeId }],
+	create: payload => {
+		let before: string;
+		return {
+			execute(state) {
+				const node = stateUtility.findNode(state, payload);
+				if (node?.type !== 'effect') throw new Error('Effect node not found');
+				before = node.displayName;
+				node.displayName = payload.displayName;
+			},
+			undo(state) {
+				const node = stateUtility.findNode(state, payload);
+				if (node?.type !== 'effect') throw new Error('Effect node not found');
+				node.displayName = before;
 			},
 		};
 	},
@@ -1501,6 +1522,7 @@ export const COMMAND_DEFS = {
 	updateGlobalOutInput: updateGlobalOutInputCommandDef,
 	addEffectNode: addEffectNodeCommandDef,
 	changeNodeResolution: changeNodeResolutionCommandDef,
+	changeNodeDisplayName: changeNodeDisplayNameCommandDef,
 	moveNode: moveNodeCommandDef,
 	removeNode: removeNodeCommandDef,
 	addAsset: addAssetCommandDef,
