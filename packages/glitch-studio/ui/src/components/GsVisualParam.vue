@@ -69,17 +69,17 @@
 					/>
 					<div v-else-if="paramValue.inputSource === 'node'" style="display: flex; gap: 4px;">
 						<GsSelect
-							style="flex: 1;"
+							style="flex: 1; min-width: 0;"
 							small
 							:modelValue="nodeOutputKey(nodeConnection)"
 							:items="[{ label: i18n.ts.None, value: null }, ...nodeOutputItems]"
 							@update:modelValue="updateParamAsNode"
 						/>
-						<button class="_button" style="padding: 4px;" @click="showNodeInputMenu"><i class="ti ti-dots"></i></button>
+						<button class="_button" style="padding: 4px; flex-shrink: 0;" @click="showNodeInputMenu"><i class="ti ti-dots"></i></button>
 					</div>
 					<div v-else-if="paramValue.inputSource === 'layerInput'" style="display: flex; gap: 4px; align-items: center;">
-						<span style="flex: 1;">Layers below</span>
-						<button class="_button" style="padding: 4px;" @click="showLayerInputSamplingMenu"><i class="ti ti-dots"></i></button>
+						<span style="flex: 1; min-width: 0;">Layers below</span>
+						<button class="_button" style="padding: 4px; flex-shrink: 0;" @click="showLayerInputSamplingMenu"><i class="ti ti-dots"></i></button>
 					</div>
 					<span v-else-if="paramValue.inputSource === 'lowerLayerAudio'">Audio from layers below</span>
 					<GsSelect v-else-if="paramValue.inputSource === 'layerAudio'" small :modelValue="paramValue.layerId" :items="audioLayerItems" @update:modelValue="updateAudioLayer"/>
