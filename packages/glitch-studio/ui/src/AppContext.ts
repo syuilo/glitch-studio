@@ -15,7 +15,7 @@ import { TimelineAudioPreview } from './audio/timeline-audio-preview.ts';
 import { PreviewPlaybackController } from './PreviewPlaybackController.ts';
 import { RendererProjectSynchronizer } from './RendererProjectSynchronizer.ts';
 import { ProjectSaveController } from './ProjectSaveController.ts';
-import { timelineLayerClipboard } from './utility/timeline-editor-state.ts';
+import { timelineClipboard } from './utility/timeline-editor-state.ts';
 import type { Project, ProjectFileHandle } from './gsproj.ts';
 import type { WatchStopHandle } from 'vue';
 import type { IntermediateTextureFormat } from '@gs/shared/types.js';
@@ -185,7 +185,7 @@ export class AppContext {
 		for (const scene of project.timelineScenes) for (const layer of scene.layers) {
 			if (layer.layerType === 'effect') validateTimelineEffectLayer(layer, effectDefinitions[layer.effectId]);
 		}
-		timelineLayerClipboard.layer = null;
+		timelineClipboard.value = null;
 		this.scenePlaybackTimes.clear();
 		// 画像からの新規作成とプロジェクト読込で同じ基準を使い、初回のGPU初期化にも反映する。
 		const maxDimension = Math.max(project.resolution.width, project.resolution.height);

@@ -54,6 +54,7 @@ import { createResetParameterBinding } from '@/utility/parameter-default.ts';
 import { getVisualModule, listVisualModules } from '@/utility/visual-module-target.ts';
 import type { VisualModuleTarget } from '@/utility/visual-module-target.ts';
 import type { TimelineKeyframeSelection } from '@/utility/timeline-selection.ts';
+import type { TimelineClipPaste } from '@/utility/timeline-clip-clipboard.ts';
 
 export type CommandDef<Payload> = UndoRedoCommandDef<ProjectState, Payload, AppStateChange>;
 
@@ -1154,6 +1155,37 @@ const addTimelineClipCommandDef = defineCommand<{ sceneId: string; layerId: stri
 	}),
 });
 
+const pasteTimelineClipsCommandDef = defineCommand<{ sceneId: string; clips: TimelineClipPaste[]; sourceDurationsMs?: SourceDurations }>({
+	label: 'Paste timeline clips',
+	changes: (_state, payload) => [...new Set(payload.clips.map(entry => entry.layerId))]
+		.map(layerId => ({ type: 'layer', sceneId: payload.sceneId, layerId, changes: [{ type: 'clips' }] })),
+	create: payload => ({
+		execute(state) {
+			if (payload.clips.length === 0) throw new Error('No clips to paste');
+			const proposed = [...new Set(payload.clips.map(entry => entry.layerId))].map(layerId => {
+				const layer = getTimelineLayer(state, payload.sceneId, layerId);
+				const added = payload.clips.filter(entry => entry.layerId === layerId).map(entry => entry.clip);
+				const clips = [...layer.clips, ...deepClone(added)];
+				validateTimelineClips(clips);
+				validateLayerClips(state, payload.sceneId, layer, added);
+				if (layer.layerType === 'video' || layer.layerType === 'audio') {
+					for (const clip of added) validateMediaClipTiming(clip, payload.sourceDurationsMs?.[clip.id]);
+				}
+				return { layer, clips };
+			});
+			// 全レイヤーの検証が済むまで変更しない。一部だけ貼り付けられる状態を防ぐ。
+			for (const { layer, clips } of proposed) Object.assign(layer, { clips });
+		},
+		undo(state) {
+			for (const layerId of new Set(payload.clips.map(entry => entry.layerId))) {
+				const layer = getTimelineLayer(state, payload.sceneId, layerId);
+				const ids = new Set(payload.clips.filter(entry => entry.layerId === layerId).map(entry => entry.clip.id));
+				Object.assign(layer, { clips: layer.clips.filter(clip => !ids.has(clip.id)) });
+			}
+		},
+	}),
+});
+
 const editTimelineClipTimingCommandDef = defineCommand<TimelineClipTarget & { sceneId: string; edge: 'start' | 'end'; deltaMs: number; sourceDurationMs?: number; initialTiming?: TimelineClipTiming }>({
 	label: 'Trim timeline clip',
 	changes: (_state, payload) => [{ type: 'layer', sceneId: payload.sceneId, layerId: payload.layerId, changes: [{ type: 'clips' }] }],
@@ -1496,6 +1528,7 @@ export const COMMAND_DEFS = {
 	renameTimelineLayer: renameTimelineLayerCommandDef,
 	setTimelineLayerDisabled: setTimelineLayerDisabledCommandDef,
 	addTimelineClip: addTimelineClipCommandDef,
+	pasteTimelineClips: pasteTimelineClipsCommandDef,
 	editTimelineClipTiming: editTimelineClipTimingCommandDef,
 	moveTimelineClips: moveTimelineClipsCommandDef,
 	removeTimelineClips: removeTimelineClipsCommandDef,

@@ -353,7 +353,9 @@ import { canEditKeyframesTimeline, updateInlineKeyframe } from '@/utility/keyfra
 import { createEffectTimelineLayer } from '@/utility/effect-timeline-layer.ts';
 import { createShapeTimelineLayer } from '@/utility/shape-timeline-layer.ts';
 import { appContext, timelineSubPanelTeleportTargetAvailable } from '@/app.ts';
-import { sceneEditorStates, timelineLayerClipboard } from '@/utility/timeline-editor-state.ts';
+import { sceneEditorStates, timelineClipboard } from '@/utility/timeline-editor-state.ts';
+import { copyTimelineClips, prepareTimelineClipPaste, canPasteTimelineClips } from '@/utility/timeline-clip-clipboard.ts';
+import type { TimelineClipClipboard } from '@/utility/timeline-clip-clipboard.ts';
 import * as ui from '@/ui.ts';
 import { createInlineVisualModuleLayer } from '@/utility/inline-visual-module-layer.ts';
 import { commitVisualModuleEdit } from '@/utility/visual-module-edit.ts';
@@ -1027,8 +1029,16 @@ async function onTlKeydown(ev: KeyboardEvent) {
 	if (key === 'c' && !(ev.ctrlKey || ev.metaKey || ev.altKey || ev.shiftKey)) { onCueKeyboardDown(ev); return; }
 	if ((key === 'delete' || key === 'backspace') && selection.value.kind === 'clips') { ev.preventDefault(); ev.stopPropagation(); removeSelectedClips(); return; }
 	if (!(ev.ctrlKey || ev.metaKey) || ev.altKey || ev.shiftKey) return;
-	if (selection.value.kind === 'clips') {
-		if (key === 'c' || key === 'v') { ev.preventDefault(); ev.stopPropagation(); }
+	if (key === 'c' && selection.value.kind === 'clips') {
+		ev.preventDefault();
+		ev.stopPropagation();
+		if (!ev.repeat) timelineClipboard.value = copyTimelineClips(editedScene, selection.value.clips);
+		return;
+	}
+	if (key === 'v' && timelineClipboard.value?.kind === 'clips') {
+		ev.preventDefault();
+		ev.stopPropagation();
+		if (!ev.repeat) await pasteClips(timelineClipboard.value);
 		return;
 	}
 	if (key === 'c') {
@@ -1037,18 +1047,18 @@ async function onTlKeydown(ev: KeyboardEvent) {
 		ev.stopPropagation();
 		if (ev.repeat) return;
 		// コピー後の編集がクリップボードの内容に影響しないよう、ここでスナップショットを作る。
-		timelineLayerClipboard.layer = deepClone(selectedLayer.value);
+		timelineClipboard.value = { kind: 'layer', layer: deepClone(selectedLayer.value) };
 	} else if (key === 'v') {
-		if (timelineLayerClipboard.layer == null) return;
+		if (timelineClipboard.value?.kind !== 'layer' || selection.value.kind === 'clips') return;
 		ev.preventDefault();
 		ev.stopPropagation();
 		if (ev.repeat) return;
-		const layer = deepClone(timelineLayerClipboard.layer);
+		const sourceLayerId = timelineClipboard.value.layer.id;
+		const layer = deepClone(timelineClipboard.value.layer);
 		layer.id = genId();
 		// レイヤー全体の複製ではScene上のキーと全クリップの位置関係をそのまま保持する。
 		for (const clip of layer.clips) clip.id = genId();
 		try {
-			const sourceLayerId = timelineLayerClipboard.layer.id;
 			const scene = sceneLayers.value;
 			const sourceDurationsMs = await readLayerMediaDurations(layer);
 			if (disposed || sceneLayers.value !== scene) return;
@@ -1058,6 +1068,33 @@ async function onTlKeydown(ev: KeyboardEvent) {
 			return;
 		}
 		selectLayer(layer);
+	}
+}
+
+async function pasteClips(clipboard: TimelineClipClipboard) {
+	const scene = stateManager.state.timelineScenes.value.find(scene => scene.id === props.sceneId);
+	if (!scene || scene !== editedScene) return;
+	// シーク位置は操作時点で固定し、素材情報の読み込み中に再生が進んでも位置を変えない。
+	const clips = prepareTimelineClipPaste(scene, clipboard, time.value);
+	if (!clips) return;
+	try {
+		const sources = clips.flatMap(({ layerId, clip }) => {
+			const layer = scene.layers.find(layer => layer.id === layerId)!;
+			if (layer.layerType !== 'audio' && layer.layerType !== 'video') return [];
+			const asset = 'assetId' in clip ? stateManager.state.assets.value.find(asset => asset.id === clip.assetId) : undefined;
+			if (!asset) throw new Error('Missing media');
+			return [{ clipId: clip.id, asset, blob: asset.fileData }];
+		});
+		const durations = await Promise.all(sources.map(async ({ clipId, asset }) => [clipId, (await inspectTimelineClipMedia(asset)).durationMs] as const));
+		if (disposed || stateManager.state.timelineScenes.value.find(entry => entry.id === props.sceneId) !== scene) return;
+		if (sources.some(({ asset, blob }) => !stateManager.state.assets.value.includes(asset) || asset.fileData !== blob)) return;
+		// 読み込み待ちの間にクリップが追加・移動されても、重なる場合は履歴を作らず終了する。
+		if (!canPasteTimelineClips(scene, clips)) return;
+		stateManager.commit('pasteTimelineClips', { sceneId: props.sceneId, clips, sourceDurationsMs: Object.fromEntries(durations) });
+		selection.value = { kind: 'clips', clips: clips.map(({ layerId, clip }) => ({ layerId, clipId: clip.id })) };
+		tlEl.value?.focus({ preventScroll: true });
+	} catch (error) {
+		void ui.alert({ type: 'error', text: error instanceof Error ? error.message : String(error) });
 	}
 }
 
