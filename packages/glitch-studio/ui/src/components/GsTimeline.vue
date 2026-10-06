@@ -16,9 +16,12 @@
 				<GsButton v-tooltip="'Forward 5 Seconds'" small iconOnly @click="seek(time + 5000)"><i class="ti ti-rewind-forward-5"></i></GsButton>
 				<GsButton v-tooltip="'Forward 10 Seconds'" small iconOnly @click="seek(time + 10000)"><i class="ti ti-rewind-forward-10"></i></GsButton>
 			</div>
+			<div style="display: flex; gap: 4px;">
+			</div>
 		</div>
 		<div :class="$style.headerCenter">
-			<span class="_monospace">{{ formatFullTimecode(time) }}</span>
+			<GsButton v-tooltip="'Prev Frame'" small iconOnly @click=""><i class="ti ti-chevron-left"></i></GsButton>
+			<GsButton v-tooltip="'Next Frame'" small iconOnly @click=""><i class="ti ti-chevron-right"></i></GsButton>
 		</div>
 		<div :class="$style.headerCenter">
 			<span v-if="timelineAudioPreview.buffering.value"><i class="ti ti-loader"></i></span>
@@ -46,6 +49,7 @@
 		<div ref="layersEl" :class="$style.layers" data-timeline-surface>
 			<div :class="$style.layersHeader">
 				<GsButton v-tooltip="'Add Layer'" small iconOnly @click="showAddLayerMenu"><i class="ti ti-plus"></i></GsButton>
+				<span class="_monospace">{{ formatFullTimecode(time) }}</span>
 			</div>
 			<GsDraggable
 				:class="$style.layerList"
@@ -1548,6 +1552,9 @@ onMounted(() => {
 	flex-shrink: 0;
 	direction: ltr;
 	height: 40px;
+	display: flex;
+	align-items: center;
+	gap: 8px;
 }
 
 .layerList {
