@@ -1,5 +1,5 @@
 <template>
-<div :class="[$style.root, { [$style.selected]: selected, [$style.disabled]: layer.isDisabled, [$style.type_effect]: layer.layerType === 'effect', [$style.type_audio]: layer.layerType === 'audio', [$style.type_image]: layer.layerType === 'image' }]" :data-timeline-layer-id="layer.id">
+<div :class="[$style.root, { [$style.selected]: selected, [$style.disabled]: layer.isDisabled, [$style.type_effect]: layer.layerType === 'effect', [$style.type_audio]: layer.layerType === 'audio', [$style.type_image]: layer.layerType === 'image', [$style.type_video]: layer.layerType === 'video' }]" :data-timeline-layer-id="layer.id">
 	<div :class="$style.mainLane">
 		<div :class="$style.side">
 			<div :class="$style.layerHeader" draggable="true" @click="emit('selected', $event)" @dragstart.stop="emit('dragStart', $event)">
@@ -201,6 +201,9 @@ function timeToDomX(time: number): number { return (time - props.tlPosX) / props
 	}
 	&.type_image {
 		--LAYER_COLOR: var(--THEME-layer-image);
+	}
+	&.type_video {
+		--LAYER_COLOR: var(--THEME-layer-video);
 	}
 }
 
