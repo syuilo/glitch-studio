@@ -17,8 +17,11 @@
 			<button class="_button" :class="$style.headerMenuItem" @click="openHeaderViewMenu">View</button>
 			<button class="_button" :class="$style.headerMenuItem" @click="openHeaderHelpMenu">Help</button>
 		</div>
-		<div :class="$style.headerRight" :title="projectName">
+		<div :class="$style.headerCenter">
 			{{ projectName }}
+		</div>
+		<div :class="$style.headerRight">
+			Glitch Studio
 		</div>
 	</div>
 	<div :class="$style.body">
@@ -62,9 +65,9 @@
 </template>
 
 <script lang="ts" setup>
+import { computed, nextTick, onMounted, onBeforeUnmount, ref, shallowRef, useTemplateRef, watch } from 'vue';
 import { appContext, openProject } from './app.ts';
 import { TIMELINE_PREVIEW_MOTION_BLUR_SAMPLE_OPTIONS } from './AppContext.ts';
-import { computed, nextTick, onMounted, onBeforeUnmount, ref, shallowRef, useTemplateRef, watch } from 'vue';
 import { preferences } from './preferences.ts';
 import { desktopProjectFile } from './gsproj.ts';
 import GsRange from './components/common/GsRange.vue';
@@ -402,11 +405,18 @@ onMounted(async () => {
 	flex-shrink: 0;
 }
 
+.headerCenter {
+	flex: 1;
+	min-width: 0;
+	text-align: center;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
 .headerRight {
 	margin-left: auto;
 	min-width: 0;
 	padding: 0 12px;
-	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
 }
