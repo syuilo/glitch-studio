@@ -54,7 +54,7 @@ export function createVisualModuleTimelineLayer(
 				const evaluated = value == null ? def.defaultValue.value : evaluator.evaluate(value, evaluationContext,
 					def.dataType.kind === 'enum' ? enumFallback : value.inputSource === 'automationGraphReference' ? def.defaultValue.value : genEmptyValue(def));
 				// prepare待機中にliteralの配列が編集されても、このフレームの値は変えない。
-				evaluatedParamValues.set(def.id, deepClone(coerceParameterValue(def, validateEnumParameterValue(def, evaluated))));
+				evaluatedParamValues.set(def.id, coerceParameterValue(def, deepClone(validateEnumParameterValue(def, evaluated))));
 			}
 			// 評価ごとのローカル変数として保持し、並行するシークと共有しない。
 			const resolved: VisualModuleRenderContext = {

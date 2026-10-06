@@ -68,7 +68,7 @@ export function createEffectTimelineLayer(layer: TimelineEffectLayer, definition
 						? leaf.defaultValue.value : leaf.dataType.kind === 'enum' ? undefined : genEmptyValue(leaf);
 					// await前に評価結果だけを固定する。literalの配列を準備中の編集と共有せず、
 					// AssetやGPUリソースはこの後の変換で借用する。
-					const evaluated = deepClone(coerceParameterValue(leaf, validateEnumParameterValue(leaf, evaluator.evaluate(value, scope, fallback))));
+					const evaluated = coerceParameterValue(leaf, deepClone(validateEnumParameterValue(leaf, evaluator.evaluate(value, scope, fallback))));
 					// タイムラインにはPlayerの再生状態を持ち込まない。
 					if (leaf.dataType.kind === 'playerReference') return null;
 					return resolveEffectParameterValue(leaf, evaluated, options);
