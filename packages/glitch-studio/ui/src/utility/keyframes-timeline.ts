@@ -78,3 +78,20 @@ export function insertInlineKeyframe(input: InlineKeyframesTimeline, definition:
 		keyframesTimeline: createTimelineData(definition.dataType, keyframes, input.keyframesTimeline.isNormalized),
 	}, keyframeId };
 }
+
+/** コピーした値・補間を保持して追加する。同時刻の既存キーを上書きせず、全件を拒否する。 */
+export function appendInlineKeyframes(input: InlineKeyframesTimeline, definition: ParameterDefinition, added: readonly KeyframesTimelineKeyframe[]): InlineKeyframesTimeline | null {
+	if (!canEditKeyframesTimeline(definition, input) || added.length === 0) return null;
+	const ids = new Set(input.keyframesTimeline.keyframes.map(point => point.id));
+	const times = new Set(input.keyframesTimeline.keyframes.map(point => point.x));
+	for (const point of added) {
+		if (!Number.isFinite(point.x) || point.x < 0 || ids.has(point.id) || times.has(point.x)
+			|| !isKeyframeValue(definition.dataType, point.value)
+			|| (!supportsKeyframeInterpolation(definition.dataType) && point.interpolation.type !== 'hold')) return null;
+		try { validateEnumParameterValue(definition, point.value); } catch { return null; }
+		ids.add(point.id);
+		times.add(point.x);
+	}
+	return { ...deepClone(input), keyframesTimeline: createTimelineData(definition.dataType,
+		[...input.keyframesTimeline.keyframes, ...added].toSorted((a, b) => a.x - b.x), input.keyframesTimeline.isNormalized) };
+}

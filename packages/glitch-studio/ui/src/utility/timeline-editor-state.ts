@@ -1,6 +1,7 @@
 import type { TimelineLayer, TimelineScene } from '@gs/subsystems_timeline_shared/types.ts';
 import type { TimelineSelection } from './timeline-selection.ts';
 import type { TimelineClipClipboard } from './timeline-clip-clipboard.ts';
+import type { TimelineKeyframeClipboard } from './timeline-keyframe-clipboard.ts';
 
 // 表示状態は保存・Undoの対象にせず、Sceneの定義が破棄されれば一緒に回収する。
 export const sceneEditorStates = new WeakMap<TimelineScene, {
@@ -9,4 +10,4 @@ export const sceneEditorStates = new WeakMap<TimelineScene, {
 	positionX: number;
 }>();
 
-export const timelineClipboard: { value: { kind: 'layer'; layer: TimelineLayer } | TimelineClipClipboard | null } = { value: null };
+export const timelineClipboard: { value: { kind: 'layer'; layer: TimelineLayer } | TimelineClipClipboard | TimelineKeyframeClipboard | null } = { value: null };

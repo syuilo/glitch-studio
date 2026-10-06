@@ -55,6 +55,8 @@ import { getVisualModule, listVisualModules } from '@/utility/visual-module-targ
 import type { VisualModuleTarget } from '@/utility/visual-module-target.ts';
 import type { TimelineKeyframeSelection } from '@/utility/timeline-selection.ts';
 import type { TimelineClipPaste } from '@/utility/timeline-clip-clipboard.ts';
+import { getTimelineKeyframePasteUpdates } from '@/utility/timeline-keyframe-clipboard.ts';
+import type { TimelineKeyframePaste } from '@/utility/timeline-keyframe-clipboard.ts';
 
 export type CommandDef<Payload> = UndoRedoCommandDef<ProjectState, Payload, AppStateChange>;
 
@@ -64,6 +66,28 @@ function defineCommand<Payload>(def: CommandDef<Payload>) {
 
 type NodeTarget = VisualModuleTarget & { nodeId: string };
 type NodeParamTarget = EffectNodeParamTarget & VisualModuleTarget;
+
+function setTimelineLayerParameterRoot(layer: TimelineLayer, target: TimelineParameterTarget, rootKey: string, binding: TimelineEffectParameterBinding | undefined) {
+	if (target === 'effect') {
+		const values = getLayerParameterValues(layer, target);
+		if (binding === undefined) delete values[rootKey];
+		else values[rootKey] = deepClone(binding);
+	} else if (target === 'module') {
+		const values = getLayerParameterValues(layer, target);
+		if (binding === undefined) delete values[rootKey];
+		else {
+			if (binding.inputSource === 'layerInput') throw new Error('Image layer input is not a module argument');
+			values[rootKey] = deepClone(binding);
+		}
+	} else {
+		const values = getLayerParameterValues(layer, target);
+		if (binding === undefined) delete values[rootKey];
+		else {
+			if (!isValueParameterBinding(binding)) throw new Error('Unsupported layer parameter input source');
+			values[rootKey] = deepClone(binding);
+		}
+	}
+}
 
 const stateUtility = {
 	getVisualModule,
@@ -106,27 +130,6 @@ const editTimelineLayerParamCommandDef = defineCommand<{
 			if (layer == null) throw new Error('Timeline layer not found');
 			getLayerParameterValues(layer, target);
 			return layer;
-		};
-		const setBinding = (layer: TimelineLayer, binding: TimelineEffectParameterBinding | undefined) => {
-			if (target === 'effect') {
-				const values = getLayerParameterValues(layer, target);
-				if (binding === undefined) delete values[rootKey];
-				else values[rootKey] = deepClone(binding);
-			} else if (target === 'module') {
-				const values = getLayerParameterValues(layer, target);
-				if (binding === undefined) delete values[rootKey];
-				else {
-					if (binding.inputSource === 'layerInput') throw new Error('Image layer input is not a module argument');
-					values[rootKey] = deepClone(binding);
-				}
-			} else {
-				const values = getLayerParameterValues(layer, target);
-				if (binding === undefined) delete values[rootKey];
-				else {
-					if (!isValueParameterBinding(binding)) throw new Error('Unsupported layer parameter input source');
-					values[rootKey] = deepClone(binding);
-				}
-			}
 		};
 		return {
 			execute(state) {
@@ -204,10 +207,10 @@ const editTimelineLayerParamCommandDef = defineCommand<{
 					// 生成済みの要素IDをRedoでも使う。検証に失敗した編集は保存しない。
 					after = draft[rootKey];
 				}
-				setBinding(layer, after);
+				setTimelineLayerParameterRoot(layer, target, rootKey, after);
 			},
 			undo(state) {
-				setBinding(getLayer(state), before);
+				setTimelineLayerParameterRoot(getLayer(state), target, rootKey, before);
 			},
 		};
 	},
@@ -1493,6 +1496,29 @@ const removeSceneCommandDef = defineCommand<{ sceneId: string }>({
 	},
 });
 
+const pasteTimelineKeyframesCommandDef = defineCommand<{ sceneId: string; keyframes: TimelineKeyframePaste[] }>({
+	label: 'Paste timeline keyframes',
+	changes: (_state, payload) => [...new Map(payload.keyframes.map(entry => [JSON.stringify([entry.layerId, entry.target]),
+		{ type: 'layer' as const, sceneId: payload.sceneId, layerId: entry.layerId,
+			changes: [{ type: 'parameter' as const, target: entry.target, kind: 'value' as const }] }])).values()],
+	create: payload => {
+		let updates: NonNullable<ReturnType<typeof getTimelineKeyframePasteUpdates>>;
+		return {
+			execute(state) {
+				const proposed = getTimelineKeyframePasteUpdates(state, getScene(state, payload.sceneId), payload.keyframes);
+				if (!proposed) throw new Error('Invalid or overlapping timeline keyframe paste');
+				updates = proposed;
+				for (const update of updates) setTimelineLayerParameterRoot(getTimelineLayer(state, payload.sceneId, update.layerId),
+					update.target, update.paramId, update.after);
+			},
+			undo(state) {
+				for (const update of updates) setTimelineLayerParameterRoot(getTimelineLayer(state, payload.sceneId, update.layerId),
+					update.target, update.paramId, update.before);
+			},
+		};
+	},
+});
+
 const moveTimelineKeyframesCommandDef = defineCommand<{ sceneId: string; positions: (TimelineKeyframeSelection & { x: number })[] }>({
 	label: 'Move timeline keyframes',
 	changes: (_state, payload) => payload.positions.map(position => ({ type: 'layer', sceneId: payload.sceneId, layerId: position.layerId,
@@ -1535,6 +1561,7 @@ export const COMMAND_DEFS = {
 	changeTimelineClipSource: changeTimelineClipSourceCommandDef,
 	editVideoClipAudio: editVideoClipAudioCommandDef,
 	moveTimelineKeyframes: moveTimelineKeyframesCommandDef,
+	pasteTimelineKeyframes: pasteTimelineKeyframesCommandDef,
 	addScene: addSceneCommandDef,
 	changeSceneResolution: changeSceneResolutionCommandDef,
 	renameScene: renameSceneCommandDef,

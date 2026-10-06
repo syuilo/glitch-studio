@@ -356,6 +356,7 @@ import { appContext, timelineSubPanelTeleportTargetAvailable } from '@/app.ts';
 import { sceneEditorStates, timelineClipboard } from '@/utility/timeline-editor-state.ts';
 import { copyTimelineClips, prepareTimelineClipPaste, canPasteTimelineClips } from '@/utility/timeline-clip-clipboard.ts';
 import type { TimelineClipClipboard } from '@/utility/timeline-clip-clipboard.ts';
+import { copyTimelineKeyframes, prepareTimelineKeyframePaste } from '@/utility/timeline-keyframe-clipboard.ts';
 import * as ui from '@/ui.ts';
 import { createInlineVisualModuleLayer } from '@/utility/inline-visual-module-layer.ts';
 import { commitVisualModuleEdit } from '@/utility/visual-module-edit.ts';
@@ -1029,6 +1030,23 @@ async function onTlKeydown(ev: KeyboardEvent) {
 	if (key === 'c' && !(ev.ctrlKey || ev.metaKey || ev.altKey || ev.shiftKey)) { onCueKeyboardDown(ev); return; }
 	if ((key === 'delete' || key === 'backspace') && selection.value.kind === 'clips') { ev.preventDefault(); ev.stopPropagation(); removeSelectedClips(); return; }
 	if (!(ev.ctrlKey || ev.metaKey) || ev.altKey || ev.shiftKey) return;
+	if (key === 'c' && selection.value.kind === 'keyframes') {
+		ev.preventDefault();
+		ev.stopPropagation();
+		if (!ev.repeat) timelineClipboard.value = copyTimelineKeyframes(stateManager.state, editedScene, selection.value.keyframes);
+		return;
+	}
+	if (key === 'v' && timelineClipboard.value?.kind === 'keyframes') {
+		ev.preventDefault();
+		ev.stopPropagation();
+		if (ev.repeat || disposed || stateManager.state.timelineScenes.value.find(scene => scene.id === props.sceneId) !== editedScene) return;
+		const keyframes = prepareTimelineKeyframePaste(stateManager.state, editedScene, timelineClipboard.value, time.value);
+		if (!keyframes) return;
+		stateManager.commit('pasteTimelineKeyframes', { sceneId: props.sceneId, keyframes });
+		selection.value = { kind: 'keyframes', keyframes: keyframes.map(({ layerId, target, paramPath, keyframe }) => ({ layerId, target, paramPath, keyframeId: keyframe.id })) };
+		tlEl.value?.focus({ preventScroll: true });
+		return;
+	}
 	if (key === 'c' && selection.value.kind === 'clips') {
 		ev.preventDefault();
 		ev.stopPropagation();
