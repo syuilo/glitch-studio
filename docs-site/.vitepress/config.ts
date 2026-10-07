@@ -21,16 +21,15 @@ export default defineConfig({
 		siteTitle: 'Glitch Studio Docs',
 		nav: [
 			{ text: 'ガイド', link: '/guide/getting-started', activeMatch: '/guide/' },
-			{ text: 'アプリを開く', link: 'https://syuilo.github.io/glitch-studio/' },
+			{ text: 'ダウンロード', link: '/guide/download' },
+			{ text: 'Web版', link: 'https://syuilo.github.io/glitch-studio/' },
+			{ text: 'リリースノート', link: '/guide/release-notes' },
 		],
 		sidebar: [
 			{
-				text: 'ユーザーガイド',
+				text: 'User Guide',
 				items: [
-					{ text: 'はじめに', link: '/guide/getting-started' },
-					{ text: 'Visual Moduleとノード', link: '/guide/visual-modules' },
-					{ text: 'タイムライン', link: '/guide/timeline' },
-					{ text: 'パラメータ', link: '/guide/parameters' },
+					{ text: 'Glitch Studioとは？', link: '/guide/getting-started' },
 				],
 			},
 		],
