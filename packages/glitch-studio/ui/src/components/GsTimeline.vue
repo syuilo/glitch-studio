@@ -22,8 +22,8 @@
 		<div :class="$style.headerCenter">
 			<GsButton v-tooltip="'Prev Frame'" small iconOnly @click="stepFrame(-1)"><i class="ti ti-chevron-left"></i></GsButton>
 			<GsButton v-tooltip="'Next Frame'" small iconOnly @click="stepFrame(1)"><i class="ti ti-chevron-right"></i></GsButton>
-			<GsButton v-tooltip="'Prev Keyframe'" small iconOnly @click="seekToKeyframe(previousKeyframeTime)"><i class="ti ti-keyframe"></i><i class="ti ti-chevron-left"></i></GsButton>
-			<GsButton v-tooltip="'Next Keyframe'" small iconOnly @click="seekToKeyframe(nextKeyframeTime)"><i class="ti ti-chevron-right"></i><i class="ti ti-keyframe"></i></GsButton>
+			<GsButton v-tooltip="'Prev Keyframe'" small iconOnly @click="seekToKeyframe(getPreviousKeyframeTime())"><i class="ti ti-keyframe"></i><i class="ti ti-chevron-left"></i></GsButton>
+			<GsButton v-tooltip="'Next Keyframe'" small iconOnly @click="seekToKeyframe(getNextKeyframeTime())"><i class="ti ti-chevron-right"></i><i class="ti ti-keyframe"></i></GsButton>
 		</div>
 		<div :class="$style.headerCenter">
 			<span v-if="timelineAudioPreview.buffering.value"><i class="ti ti-loader"></i></span>
@@ -557,8 +557,8 @@ const selectedLayerKeyframeTimes = computed(() => {
 		.flatMap(({ binding }) => binding.keyframesTimeline.keyframes.map(keyframe => keyframe.x))
 		.sort((a, b) => a - b);
 });
-const previousKeyframeTime = computed(() => selectedLayerKeyframeTimes.value.findLast(keyframeTime => keyframeTime < time.value) ?? null);
-const nextKeyframeTime = computed(() => selectedLayerKeyframeTimes.value.find(keyframeTime => keyframeTime > time.value) ?? null);
+const getPreviousKeyframeTime = () => selectedLayerKeyframeTimes.value.findLast(keyframeTime => keyframeTime < time.value) ?? null;
+const getNextKeyframeTime = () => selectedLayerKeyframeTimes.value.find(keyframeTime => keyframeTime > time.value) ?? null;
 
 function seekToKeyframe(timeMs: number | null) {
 	const layer = selectedLayer.value;
