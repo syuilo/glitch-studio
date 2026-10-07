@@ -112,7 +112,7 @@ test('round-trips and duplicates text layers without sharing parameter values', 
 	assert.equal(f.layer.textParamValues.shadowColor.value[0], 0.2);
 	const project = { id: 'project', gsVersion: '2.0.0-alpha', name: 'Text', description: '', author: '',
 		resolution: { width: 1920, height: 1080 }, timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 },
-		assets: [], players: [], visualModules: [], timelineScenes: f.state.timelineScenes.value };
+		assets: [], generatedSpeech: [], players: [], visualModules: [], timelineScenes: f.state.timelineScenes.value };
 	assert.deepEqual(decodeProjectFile(await encodeProjectFile(project)), project);
 	const invalid = structuredClone(project);
 	invalid.timelineScenes[0].layers[0].textParamValues.color = { inputSource: 'layerInput' };

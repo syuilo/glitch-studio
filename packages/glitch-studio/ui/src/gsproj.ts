@@ -1,3 +1,4 @@
+import type { GeneratedSpeech } from '@gs/glitch-studio_shared/voicevox.ts';
 import { validateTimelineFps, validateTimelineMotionBlur } from '@gs/subsystems_timeline_shared/motion-blur.ts';
 import { validateTimelineScenes } from '@gs/subsystems_timeline_shared/scenes.ts';
 import * as msgpack from '@msgpack/msgpack';
@@ -46,13 +47,15 @@ export type Project = ProjectInfo & {
 	gsVersion: string;
 	visualModules: ProjectVisualModule[];
 	assets: ProjectAsset[];
+	generatedSpeech: GeneratedSpeech[];
 	players: Player[];
 	timelineScenes: TimelineScene[];
 	resolution: { width: number; height: number; };
 };
 
 // BlobはMessagePackで直接保存できないため、フォントを含む素材の原本をバイト列にする。
-type StoredProject = Omit<Project, 'assets'> & {
+type StoredProject = Omit<Project, 'assets' | 'generatedSpeech'> & {
+	generatedSpeech: (Omit<GeneratedSpeech, 'fileData'> & { fileData: Uint8Array })[];
 	assets: (Omit<ProjectAsset, 'fileData'> & { fileData: Uint8Array })[];
 };
 
@@ -64,7 +67,8 @@ export async function encodeProjectFile(project: Project): Promise<Uint8Array> {
 			throw new Error(`Could not read asset "${asset.name}". Replace it with the source file and try saving again.`, { cause });
 		}
 	}));
-	return msgpack.encode({ ...project, assets } satisfies StoredProject);
+	const generatedSpeech = await Promise.all(project.generatedSpeech.map(async speech => ({ ...speech, fileData: new Uint8Array(await speech.fileData.arrayBuffer()) })));
+	return msgpack.encode({ ...project, assets, generatedSpeech } satisfies StoredProject);
 }
 
 export function decodeProjectFile(bin: Uint8Array, currentVersion?: string): Project {
@@ -78,6 +82,7 @@ export function decodeProjectFile(bin: Uint8Array, currentVersion?: string): Pro
 	validateTimelineMotionBlur(project.timelineMotionBlur);
 	return {
 		...project,
+		generatedSpeech: project.generatedSpeech.map(speech => ({ ...speech, fileData: new Blob([new Uint8Array(speech.fileData)], { type: 'audio/wav' }) })),
 		assets: project.assets.map(asset => ({
 			...asset,
 			fileData: new Blob([new Uint8Array(asset.fileData)], { type: asset.fileDataType }),

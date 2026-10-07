@@ -1,6 +1,8 @@
 import { getSceneDuration, getTimelineScene, validateTimelineScenes } from './scenes.ts';
 import { getTimelineClipEnd } from './timing.ts';
 import { isTimelineAudioOutputLayer } from './timeline-audio.ts';
+import { getVoicevoxRequest } from './layers/voicevox/voicevox.ts';
+import type { SpeechResolver } from './layers/voicevox/voicevox.ts';
 import type { AutomationGraph } from '@gs/shared/automation-graph/automation-graph.ts';
 import type { TimelineParameterBinding, TimelineScene } from './types.ts';
 
@@ -12,7 +14,7 @@ export type SceneAudioGain = {
 };
 
 export type SceneAudioClip = {
-	assetId: string;
+	sourceId: string;
 	/** 最上位Scene上での素材時刻0。音量の評価基準には使用しない。 */
 	sourceStartMs: number;
 	startMs: number;
@@ -23,7 +25,7 @@ export type SceneAudioClip = {
 export type SceneAudioSelection = { type: 'all' } | { type: 'belowLayer'; layerId: string } | { type: 'layer'; layerId: string };
 
 /** 祖先クリップすべての表示区間を交差させ、素材と各階層の音量の時計を別々に展開する。 */
-export function getSceneAudioClips(scenes: readonly TimelineScene[], sceneId: string, selection: SceneAudioSelection = { type: 'all' }): SceneAudioClip[] {
+export function getSceneAudioClips(scenes: readonly TimelineScene[], sceneId: string, selection: SceneAudioSelection = { type: 'all' }, resolveSpeech: SpeechResolver = () => undefined): SceneAudioClip[] {
 	validateTimelineScenes(scenes);
 	const rootScene = getTimelineScene(scenes, sceneId);
 	let rootLayers = rootScene.layers;
@@ -43,6 +45,23 @@ export function getSceneAudioClips(scenes: readonly TimelineScene[], sceneId: st
 			if (layer.isDisabled) continue;
 			if (!isTimelineAudioOutputLayer(layer)) continue;
 			const layerGains = [...gains, { sceneStartMs, volume: layer.audioParamValues.volume, automationGraphs: layer.automationGraphs }];
+			if (layer.layerType === 'voicevox') {
+				const utterances = layer.utterances.toSorted((a, b) => a.timeMs - b.timeMs);
+				for (const [index, utterance] of utterances.entries()) {
+					if (utterance.text === '') continue;
+					const speech = resolveSpeech(getVoicevoxRequest(layer.voicevox, utterance));
+					if (!speech) continue;
+					const sourceStartMs = sceneStartMs + utterance.timeMs;
+					const utteranceEnd = sceneStartMs + Math.min(utterance.timeMs + speech.durationMs, utterances[index + 1]?.timeMs ?? Infinity);
+					for (const clip of layer.clips) {
+						// 左トリムや途中シークでもキーからの経過時間を使い、発話を最初から再開しない。
+						const startMs = Math.max(start, sourceStartMs, sceneStartMs + clip.startMs);
+						const endMs = Math.min(end, utteranceEnd, sceneStartMs + getTimelineClipEnd(clip));
+						if (endMs > startMs) clips.push({ sourceId: speech.sourceId, sourceStartMs, startMs, endMs, gains: layerGains });
+					}
+				}
+				continue;
+			}
 			for (const clip of layer.clips) {
 				const startMs = Math.max(start, sceneStartMs + clip.startMs);
 				const endMs = Math.min(end, sceneStartMs + getTimelineClipEnd(clip));
@@ -53,7 +72,7 @@ export function getSceneAudioClips(scenes: readonly TimelineScene[], sceneId: st
 				if ('sceneId' in clip) {
 					visit(clip.sceneId, sourceStartMs, startMs, endMs, layerGains);
 				} else if (!('audioEnabled' in clip) || clip.audioEnabled) {
-					clips.push({ assetId: clip.assetId, sourceStartMs, startMs, endMs, gains: layerGains });
+					clips.push({ sourceId: clip.assetId, sourceStartMs, startMs, endMs, gains: layerGains });
 				}
 			}
 		}

@@ -1,3 +1,6 @@
+import { validateVoicevoxSubtitle } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox-subtitle-validation.ts';
+import { validateVoicevoxLayer } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox.ts';
+import type { VoicevoxSettings, VoicevoxUtterance } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox.ts';
 import { validateTimelineFps, validateTimelineMotionBlur } from '@gs/subsystems_timeline_shared/motion-blur.ts';
 import type { TimelineMotionBlurSettings } from '@gs/subsystems_timeline_shared/motion-blur.ts';
 import { resolveParameter, walkParameters } from '@gs/shared/parameter/parameter-path.ts';
@@ -1130,6 +1133,10 @@ const addTimelineLayerCommandDef = defineCommand<{ sceneId: string; layer: Timel
 			const scene = getScene(state, payload.sceneId);
 			if (scene.layers.some(layer => layer.id === payload.layer.id)) throw new Error('Duplicate layer ID');
 			if (payload.layer.layerType === 'effect') validateTimelineEffectLayer(payload.layer, effectDefinitions[payload.layer.effectId]);
+			if (payload.layer.layerType === 'voicevox') {
+				validateVoicevoxLayer(payload.layer);
+				validateVoicevoxSubtitle(payload.layer.subtitleParamValues);
+			}
 			if (payload.layer.layerType === 'text') validateTimelineText(payload.layer.textParamValues);
 			if (payload.layer.layerType === 'shape') validateTimelineShape(payload.layer.shape);
 			if ((payload.layer.layerType === 'video' || payload.layer.layerType === 'audio') && payload.layer.clips.length > 0 && !payload.sourceDurationsMs) throw new Error('Media duration is required');
@@ -1392,6 +1399,10 @@ const pasteTimelineLayerCommandDef = defineCommand<{ sceneId: string; layer: Tim
 		execute(state) {
 			if (getScene(state, payload.sceneId).layers.some(layer => layer.id === payload.layer.id)) throw new Error('Duplicate layer ID');
 			if (payload.layer.layerType === 'effect') validateTimelineEffectLayer(payload.layer, effectDefinitions[payload.layer.effectId]);
+			if (payload.layer.layerType === 'voicevox') {
+				validateVoicevoxLayer(payload.layer);
+				validateVoicevoxSubtitle(payload.layer.subtitleParamValues);
+			}
 			if (payload.layer.layerType === 'text') validateTimelineText(payload.layer.textParamValues);
 			if (payload.layer.layerType === 'shape') validateTimelineShape(payload.layer.shape);
 			if ((payload.layer.layerType === 'video' || payload.layer.layerType === 'audio') && payload.layer.clips.length > 0 && !payload.sourceDurationsMs) throw new Error('Media duration is required');
@@ -1596,7 +1607,30 @@ const moveTimelineKeyframesCommandDef = defineCommand<{ sceneId: string; positio
 	},
 });
 
+const editVoicevoxLayerCommandDef = defineCommand<{ sceneId: string; layerId: string; voicevox: VoicevoxSettings; utterances: VoicevoxUtterance[] }>({
+	label: 'Edit VOICEVOX speech',
+	changes: (_state, payload) => [{ type: 'layer', sceneId: payload.sceneId, layerId: payload.layerId, changes: [{ type: 'definition' }] }],
+	create: payload => {
+		let before: { voicevox: VoicevoxSettings; utterances: VoicevoxUtterance[] };
+		const find = (state: ProjectState) => {
+			const layer = getTimelineLayer(state, payload.sceneId, payload.layerId);
+			if (layer.layerType !== 'voicevox') throw new Error('VOICEVOX layer not found');
+			return layer;
+		};
+		return {
+			execute(state) {
+				validateVoicevoxLayer(payload);
+				const layer = find(state);
+				before = deepClone({ voicevox: layer.voicevox, utterances: layer.utterances });
+				Object.assign(layer, deepClone({ voicevox: payload.voicevox, utterances: payload.utterances }));
+			},
+			undo(state) { Object.assign(find(state), deepClone(before)); },
+		};
+	},
+});
+
 export const COMMAND_DEFS = {
+	editVoicevoxLayer: editVoicevoxLayerCommandDef,
 	changeProjectResolution: changeProjectResolutionCommandDef,
 	changeTimelineRenderSettings: changeTimelineRenderSettingsCommandDef,
 	changeEffectLayerResolution: changeEffectLayerResolutionCommandDef,

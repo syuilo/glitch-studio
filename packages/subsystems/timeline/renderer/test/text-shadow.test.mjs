@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { getTextShadowMetrics } from '../src/layers/text/text-shadow.ts';
+import { getTextShadowMetrics } from '../src/text-rendering/text-shadow.ts';
 
 // 【影の移動量とぼかし幅を、縮小後の文字サイズから求める】
 // フォント縮小や書き出し倍率に追従させるため、固定pxや縮小前のSizeからは求めない。

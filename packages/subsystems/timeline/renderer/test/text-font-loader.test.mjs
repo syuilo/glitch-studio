@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { createTextFontLoader } from '../src/layers/text/text-font-loader.ts';
+import { createTextFontLoader } from '../src/text-rendering/text-font-loader.ts';
 
 function fixture(t) {
 	const loads = [];

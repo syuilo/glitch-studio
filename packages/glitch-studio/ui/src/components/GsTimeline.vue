@@ -222,6 +222,13 @@
 						@edit="event => onTimelineLayerParamEdit(event, 'effect')"
 						@resolution="resolution => stateManager.commit('changeEffectLayerResolution', { sceneId, layerId: selectedLayer!.id, resolution })"
 					/>
+					<GsTimelineVoicevoxSettings v-if="selectedLayer.layerType === 'voicevox'" :key="selectedLayer.id" :sceneId="sceneId" :layer="selectedLayer" />
+					<GsTimelineVoicevoxSubtitleSettings
+						v-if="selectedLayer.layerType === 'voicevox'"
+						:key="selectedLayer.id"
+						:layer="selectedLayer"
+						@edit="event => onTimelineLayerParamEdit(event, 'voicevoxSubtitle')"
+					/>
 					<GsTimelineTextSettings
 						v-if="selectedLayer.layerType === 'text'"
 						:key="selectedLayer.id"
@@ -291,7 +298,7 @@
 							/>
 						</div>
 					</GsFolder>
-					<GsFolder v-if="selectedLayer.layerType === 'audio' || selectedLayer.layerType === 'video' || selectedLayer.layerType === 'scene'" :asSection="true" defaultOpen>
+					<GsFolder v-if="selectedLayer.layerType === 'voicevox' || selectedLayer.layerType === 'audio' || selectedLayer.layerType === 'video' || selectedLayer.layerType === 'scene'" :asSection="true" defaultOpen>
 						<template #icon><i class="ti ti-music"></i></template>
 						<template #label>Audio</template>
 						<div class="_gaps_m">
@@ -344,6 +351,7 @@ import { getTimelineVisualModuleArgumentDefault } from '@gs/subsystems_timeline_
 import { shapeDefinitions } from '@gs/subsystems_timeline_shared/layers/shape/shape.ts';
 import XLayer from './GsTimeline.Layer.vue';
 import GsTimelineEffectSettings from './GsTimeline.EffectSettings.vue';
+import GsTimelineVoicevoxSubtitleSettings from './GsTimeline.VoicevoxSubtitleSettings.vue';
 import GsTimelineTextSettings from './GsTimeline.TextSettings.vue';
 import GsTimelineShapeSettings from './GsTimeline.ShapeSettings.vue';
 import GsLiteralLeafValueControl from './GsLiteralLeafValueControl.vue';
@@ -384,6 +392,8 @@ import { selectionRect, mergeTimelineRangeSelection, clipSelectionKey, keyframeS
 import { canEditKeyframesTimeline, updateInlineKeyframe } from '@/utility/keyframes-timeline.ts';
 import { createEffectTimelineLayer } from '@/utility/effect-timeline-layer.ts';
 import { createShapeTimelineLayer } from '@/utility/shape-timeline-layer.ts';
+import GsTimelineVoicevoxSettings from './GsTimeline.VoicevoxSettings.vue';
+import { createVoicevoxTimelineLayer } from '@/utility/voicevox-timeline-layer.ts';
 import { createTextTimelineLayer } from '@/utility/text-timeline-layer.ts';
 import { appContext } from '@/app.ts';
 import { getTimelineEditorState, getSelectedTimelineLayerId, timelineClipboard } from '@/utility/timeline-editor-state.ts';
@@ -1377,6 +1387,7 @@ const selectedClipLabel = computed(() => {
 	if (entry.layer.layerType === 'visualModule') { const id = entry.layer.visualModuleId; return stateManager.state.visualModules.value.find(module => module.id === id)?.name ?? 'Missing module'; }
 	if (entry.layer.layerType === 'inlineVisualModule') return 'Inline Visual Module';
 	if (entry.layer.layerType === 'effect') { const id = entry.layer.effectId; return Object.entries(effectDefinitions).find(([key, effect]) => key === id)?.[1].displayName ?? 'Missing effect'; }
+	if (entry.layer.layerType === 'voicevox') return 'VOICEVOX';
 	if (entry.layer.layerType === 'text') return 'Text';
 	if (entry.layer.layerType === 'shape') return shapeDefinitions[entry.layer.shape.type].label;
 	return '?';
@@ -1679,6 +1690,18 @@ function showAddLayerMenu(ev: PointerEvent) {
 		text: 'Scene',
 		icon: 'ti ti-timeline',
 		action: () => addMediaLayer('scene'),
+	}, {
+		text: window.desktop ? 'VOICEVOX' : 'VOICEVOX (使用不可)',
+		icon: 'ti ti-microphone',
+		action: () => {
+			if (!window.desktop) {
+				void ui.alert({ type: 'error', text: 'VOICEVOXレイヤーの追加はWeb版では対応していません。Electron版を使用する必要があります。' });
+				return;
+			}
+			const layer = createVoicevoxTimelineLayer(Math.max(0, time.value));
+			stateManager.commit('addTimelineLayer', { sceneId: props.sceneId, layer });
+			selectLayer(layer);
+		},
 	}], ev.currentTarget ?? ev.target);
 }
 

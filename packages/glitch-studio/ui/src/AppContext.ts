@@ -1,5 +1,11 @@
+import { VoicevoxGeneration, getVoicevoxRequests } from './audio/voicevox-generation.ts';
+import { getVoicevoxRequestKey, createSpeechResolver } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox.ts';
+import { openAudioFile } from '@gs/subsystems_audio_renderer/audio-file.ts';
+import { genId } from '@gs/shared/utility/id.ts';
+import type { VoicevoxSpeaker } from '@gs/glitch-studio_shared/voicevox.ts';
+import type { GeneratedSpeech } from '@gs/glitch-studio_shared/voicevox.ts';
 
-import { computed, ref, markRaw, watch } from 'vue';
+import { computed, ref, shallowRef, markRaw, watch } from 'vue';
 import { deepClone } from '@gs/shared/utility/deep-clone.js';
 import { getSceneDuration, validateTimelineScenes } from '@gs/subsystems_timeline_shared/scenes.js';
 import { deepEqual } from '@gs/shared/utility/deep-equal.js';
@@ -55,6 +61,9 @@ export class AppContext {
 	public timelineRendererManagerController: TimelineRendererManagerController;
 	public timelineAudioPreview: TimelineAudioPreview;
 	public previewPlayback: PreviewPlaybackController;
+	public readonly voicevoxGeneration: VoicevoxGeneration;
+	public readonly voicevoxConnection = { endpoint: ref('http://127.0.0.1:50021'), version: ref(''), speakers: ref<VoicevoxSpeaker[]>([]) };
+	private readonly previewSpeech = shallowRef<GeneratedSpeech[]>([]);
 	private pendingSceneSeek: number | null = null;
 	private scenePlaybackTimes = new Map<string, number>();
 	private rendererInitialization: Promise<void> | null = null;
@@ -94,7 +103,7 @@ export class AppContext {
 
 		this.timelineAudioPreview = markRaw(new TimelineAudioPreview(
 			() => this.audioOutput.getOutput(),
-			() => ({ assets: deepClone(this.projectContext.stateManager.state.assets.value), timelineScenes: deepClone(this.projectContext.stateManager.state.timelineScenes.value), sceneId: this.activeSceneId.value }),
+			() => ({ generatedSpeech: this.previewSpeech.value, assets: deepClone(this.projectContext.stateManager.state.assets.value), timelineScenes: deepClone(this.projectContext.stateManager.state.timelineScenes.value), sceneId: this.activeSceneId.value }),
 		));
 
 		this.previewPlayback = markRaw(new PreviewPlaybackController(
@@ -104,6 +113,37 @@ export class AppContext {
 			() => this.activeScene.value == null ? 0 : getSceneDuration(this.activeScene.value),
 			this.timelineAudioPreview,
 		));
+
+		this.voicevoxGeneration = markRaw(new VoicevoxGeneration({
+			getScenes: () => this.projectContext.stateManager.state.timelineScenes.value,
+			getSpeech: () => this.projectContext.stateManager.state.generatedSpeech.value,
+			setSpeech: speech => { this.projectContext.stateManager.state.generatedSpeech.value = speech; },
+			synthesize: async request => {
+				if (!window.desktop) throw new Error('VOICEVOX generation requires the Electron app.');
+				const result = await window.desktop.voicevoxSynthesize(request);
+				const fileData = new Blob([new Uint8Array(result.data)], { type: 'audio/wav' });
+				const audio = await openAudioFile(fileData);
+				try {
+					return { key: getVoicevoxRequestKey(request), sourceId: genId(), durationMs: audio.durationSeconds * 1000,
+						fileData, engineVersion: result.engineVersion, audioQuery: result.audioQuery };
+				} finally { audio.dispose(); }
+			},
+		}));
+
+		// 再生中は生成結果を採用しない。シークで音声Workerを再作成してもこの一覧を使う。
+		watch([this.previewPlayback.isTimelinePlaying, this.projectContext.stateManager.state.generatedSpeech], ([playing], previous) => {
+			if (!playing || !previous?.[0]) {
+				const speech = this.projectContext.stateManager.state.generatedSpeech.value;
+				// 配列だけのコピーでは各音声・AudioQueryにVueのProxyが残り、音声Workerの
+				// postMessageが失敗する。ここで入れ子まで通常の値にし、再生中の一覧を固定する。
+				if (speech.length !== this.previewSpeech.value.length || speech.some((item, index) => item.sourceId !== this.previewSpeech.value[index]?.sourceId)) this.previewSpeech.value = deepClone(speech);
+			}
+		}, { flush: 'sync' });
+		watch(this.previewSpeech, speech => {
+			void this.timelineRendererManagerController.updateDynamicOptions({ generatedSpeech: deepClone(speech) }).then(() => this.previewPlayback.refresh()).catch(error => {
+				void ui.alert({ type: 'error', text: String(error) });
+			});
+		}, { flush: 'sync' });
 
 		watch(this.activeSceneId, (sceneId, previousId) => {
 			// 音声更新のwatchより前に旧Sceneの時計を止め、切替先の長さで位置を丸めない。
@@ -228,6 +268,7 @@ export class AppContext {
 		this.timelinePreviewMotionBlurSamples.value = DEFAULT_TIMELINE_PREVIEW_MOTION_BLUR_SAMPLES;
 		this.resolutionFactor.value = initialResolutionFactor;
 
+		this.voicevoxGeneration.reset();
 		this.projectContext.load(project);
 
 		this.activeSceneId.value = project.timelineScenes[0]?.id ?? null;
@@ -238,6 +279,16 @@ export class AppContext {
 		await this.timelineRendererManagerController.updateDynamicOptions({ sceneId: this.activeSceneId.value });
 		await this.visualModuleRendererManagerController.updatePlayers(deepClone(project.players));
 		this.projectSaveController.finishProjectLoad(fileName, fileHandle);
+
+		// 発話編集・削除・Undo/Redoでは、旧音声と新字幕を混在させず再生を停止する。
+		this.projectWatchers.push(watch(() => JSON.stringify(this.projectContext.stateManager.state.timelineScenes.value.map(scene => ({
+			id: scene.id, layers: scene.layers.filter(layer => layer.layerType === 'voicevox').map(layer => ({
+				id: layer.id, voicevox: layer.voicevox, utterances: layer.utterances, clips: layer.clips, isDisabled: layer.isDisabled,
+			})),
+		}))), () => { if (this.previewPlayback.isTimelinePlaying.value) this.previewPlayback.pauseTimeline(); }, { flush: 'sync' }));
+		this.projectWatchers.push(watch(() => JSON.stringify(getVoicevoxRequests(this.projectContext.stateManager.state.timelineScenes.value)), () => {
+			if (window.desktop) this.voicevoxGeneration.schedule();
+		}, { immediate: true }));
 
 		// 1回のCommandで変わるfpsとブラー設定をまとめて送り、Undo/Redoも同じ再生成経路を通す。
 		this.projectWatchers.push(watch([this.projectContext.stateManager.state.timelineFps, this.projectContext.stateManager.state.timelineMotionBlur, this.timelinePreviewMotionBlurSamples], async () => {
@@ -254,8 +305,8 @@ export class AppContext {
 		// 音声の内容・参照素材・ループ長だけを比較する。Blobは不変なので同一性で判定し、
 		// 素材名や映像パラメータの編集では再生中のWorkerと先読みPCMを維持する。
 		this.projectWatchers.push(watch(() => {
-			const layers = this.activeSceneId.value == null ? [] : getSceneAudioClips(this.projectContext.stateManager.state.timelineScenes.value, this.activeSceneId.value);
-			const assetIds = new Set(layers.map(clip => clip.assetId));
+			const layers = this.activeSceneId.value == null ? [] : getSceneAudioClips(this.projectContext.stateManager.state.timelineScenes.value, this.activeSceneId.value, { type: 'all' }, createSpeechResolver(this.previewSpeech.value));
+			const assetIds = new Set(layers.map(clip => clip.sourceId));
 			return {
 				layers: deepClone(layers),
 				duration: this.activeScene.value == null ? 0 : getSceneDuration(this.activeScene.value),

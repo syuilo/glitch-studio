@@ -29,7 +29,7 @@ export function measureTimelineLayerSelection(element: HTMLElement): TimelineLay
 	for (const lane of element.querySelectorAll<HTMLElement>('[data-parameter-target]')) {
 		const target = lane.dataset.parameterTarget;
 		const path = lane.dataset.paramPath;
-		if (!path || (target !== 'audio' && target !== 'module' && target !== 'compositing' && target !== 'effect' && target !== 'shape' && target !== 'text')) continue;
+		if (!path || (target !== 'audio' && target !== 'module' && target !== 'compositing' && target !== 'effect' && target !== 'shape' && target !== 'text' && target !== 'voicevoxSubtitle')) continue;
 		const rect = lane.getBoundingClientRect();
 		keyframeLanes.set(timelineLaneKey(target, JSON.parse(path) as ParamPath), (rect.top + rect.bottom) / 2 - top);
 	}

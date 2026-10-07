@@ -1,3 +1,4 @@
+import type { GeneratedSpeech } from '@gs/glitch-studio_shared/voicevox.ts';
 import { ref } from 'vue';
 import { deepClone } from '@gs/shared/utility/deep-clone.js';
 import { DEFAULT_TIMELINE_FPS, DEFAULT_TIMELINE_MOTION_BLUR } from './project-defaults.ts';
@@ -29,6 +30,7 @@ export type ProjectState = {
 	timelineMotionBlur: Ref<TimelineMotionBlurSettings>;
 	resolution: Ref<{ width: number; height: number }>;
 	assets: Ref<ProjectAsset[]>;
+	generatedSpeech: Ref<GeneratedSpeech[]>;
 	players: Ref<Player[]>;
 	visualModules: Ref<ProjectVisualModule[]>;
 	timelineScenes: Ref<TimelineScene[]>;
@@ -65,6 +67,7 @@ export class ProjectContext {
 			resolution: ref<{ width: number; height: number }>({ width: 1024, height: 1024 }),
 			assets: ref<ProjectAsset[]>([]), // TODO: バイナリをリアクティブでwrapするのをやめる
 			players: ref<Player[]>([]),
+			generatedSpeech: ref<GeneratedSpeech[]>([]),
 			visualModules: ref<ProjectVisualModule[]>([]),
 			timelineScenes: ref<TimelineScene[]>([]),
 		}, COMMAND_DEFS);
@@ -79,6 +82,7 @@ export class ProjectContext {
 		this.stateManager.state.timelineFps.value = project.timelineFps;
 		this.stateManager.state.timelineMotionBlur.value = deepClone(project.timelineMotionBlur);
 		this.stateManager.state.assets.value = project.assets;
+		this.stateManager.state.generatedSpeech.value = project.generatedSpeech;
 		this.stateManager.state.visualModules.value = project.visualModules;
 		this.stateManager.state.players.value = project.players;
 		this.stateManager.state.timelineScenes.value = project.timelineScenes;
@@ -102,6 +106,7 @@ export class ProjectContext {
 			timelineFps: state.timelineFps.value,
 			timelineMotionBlur: state.timelineMotionBlur.value,
 			assets: state.assets.value,
+			generatedSpeech: state.generatedSpeech.value,
 			visualModules: state.visualModules.value,
 			players: state.players.value,
 			timelineScenes: state.timelineScenes.value,

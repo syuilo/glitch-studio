@@ -4,7 +4,7 @@
 	<template #label>Text</template>
 	<div style="padding: 8px 0;">
 		<GsVisualParam
-			v-for="[key, def] in Object.entries(definitions)"
+			v-for="[key, def] in Object.entries(textParamDefs)"
 			:key="key"
 			keyframesEnabled
 			:automationGraphEndEnabled="false"
@@ -31,6 +31,5 @@ import type { ValueParameterBinding } from '@gs/shared/parameter/value-parameter
 
 const props = defineProps<{ layer: TimelineTextLayer }>();
 const emit = defineEmits<{ edit: [event: ParamEdit] }>();
-const definitions = textParamDefs;
 const values = computed<Record<string, ValueParameterBinding>>(() => props.layer.textParamValues);
 </script>

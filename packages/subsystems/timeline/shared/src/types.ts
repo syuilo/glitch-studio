@@ -6,10 +6,12 @@ import type { ParameterChangeKind } from '@gs/shared/parameter/parameter-definit
 import type { AutomationGraph } from '@gs/shared/automation-graph/automation-graph.ts';
 import type { TimelineParameterBinding, TimelineEffectParameterBinding, TimelineVisualModuleParameterBinding } from './parameter-binding.ts';
 import type { VisualModule } from '@gs/subsystems_visual-module_shared/types.js';
+import type { VoicevoxSubtitleParameterValues } from './layers/voicevox/voicevox-subtitle.ts';
 import type { TextParameterValues } from './layers/text/text.ts';
 import type { Shape } from './layers/shape/shape.ts';
+import type { VoicevoxSettings, VoicevoxUtterance } from './layers/voicevox/voicevox.ts';
 
-export type TimelineParameterTarget = 'module' | 'effect' | 'shape' | 'text' | 'compositing' | 'audio';
+export type TimelineParameterTarget = 'module' | 'effect' | 'shape' | 'text' | 'voicevoxSubtitle' | 'compositing' | 'audio';
 
 // definitionはレイヤー全体の追加・削除・置換。部分編集では変更した内容を列挙し、
 // 実行インスタンスの扱いは利用側へ委ねる。
@@ -71,6 +73,14 @@ export type TimelineAudioLayer = TimelineLayerBase<TimelineAssetClip> & Timeline
 	layerType: 'audio';
 };
 
+/** 発話はScene時刻に固定し、クリップは発話と字幕の有効区間だけを所有する。 */
+export type TimelineVoicevoxLayer = TimelineLayerBase<TimelineClip> & TimelineAudioLayerBase & TimelineVisualLayerBase & {
+	layerType: 'voicevox';
+	voicevox: VoicevoxSettings;
+	utterances: VoicevoxUtterance[];
+	subtitleParamValues: VoicevoxSubtitleParameterValues;
+};
+
 /** 静止画像は素材長を持たず、内容時刻は描画に影響しない。 */
 export type TimelineImageLayer = TimelineLayerBase<TimelineAssetClip> & TimelineVisualLayerBase & {
 	layerType: 'image';
@@ -86,7 +96,7 @@ export type TimelineSceneLayer = TimelineLayerBase<TimelineSceneClip> & Timeline
 	layerType: 'scene';
 };
 
-export type TimelineLayer = TimelineVisualModuleLayer | TimelineInlineVisualModuleLayer | TimelineEffectLayer | TimelineShapeLayer | TimelineTextLayer | TimelineAudioLayer | TimelineImageLayer | TimelineVideoLayer | TimelineSceneLayer;
+export type TimelineLayer = TimelineVisualModuleLayer | TimelineInlineVisualModuleLayer | TimelineEffectLayer | TimelineShapeLayer | TimelineTextLayer | TimelineAudioLayer | TimelineImageLayer | TimelineVideoLayer | TimelineSceneLayer | TimelineVoicevoxLayer;
 
 /** 長さは直下の全クリップの終了時刻の最大値から求め、空の場合は0とする。 */
 export type TimelineScene = {

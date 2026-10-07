@@ -23,3 +23,15 @@ literalは値を変更し、キーフレームは現在のScene時刻（最寄�
 `preview-transform.ts`が操作時の座標計算・スナップ、`timeline-transform-edit.ts`がキーの準備・更新を担当する。`editTimelineLayerTransform`は位置・倍率などを一括検証・適用する。`UndoRedo.beginEdit()`は描画更新を通知しながら、確定時に一履歴だけを作る。Esc・pointercancel・ウィンドウ切替・選択やSceneの変更では取消し、開始時の値と既存Redoを保つ。外部のCommandは先にセッションを確定し、プロジェクト読み込みは状態交換前に取り消す。
 
 Workerは表示対象だけを購読し、ポインター移動による更新はrequestAnimationFrameへまとめる。操作中の枠はUIで計算し、Workerの往復を待たない。購読の変更と状態の世代で古い通知を除外する。別ウィンドウでは表示先のDocument・requestAnimationFrame・DPRを使う。
+
+## VOICEVOX音声の生成と編集
+
+Electron版のTimelineの追加メニューからVOICEVOXレイヤーを作成する。外部エンジンを起動し、レイヤー設定のEngine URL（初期値はhttp://127.0.0.1:50021）でConnectを実行すると声・スタイルを選択できる。エンジンはGlitch Studioから起動・終了しない。
+
+Speechレーンのダブルクリック、またはAdd speech key at playheadでキーを追加する。本文・任意の読み・開始時刻は設定パネルで編集し、レーン上のキーはドラッグで移動できる。編集・複製・削除・移動はCommandを通し、Undo/Redoに対応する。話速と声はレイヤー単位の静的な設定。字幕装飾は専用の`GsTimeline.VoicevoxSubtitleSettings.vue`と`voicevoxSubtitle`対象で編集する。TextレイヤーのUI・定義・初期値・検証・生成処理は参照しない。音量・合成設定には既存のパラメータ編集を使う。Fit last clip to speechは生成済み音声に最後のクリップ終端を合わせ、キーを動かさない。
+
+`VoicevoxGeneration`は編集後に要求を集約し、同じ要求を共有して直列に合成する。要求キーは読み・スタイルID・話速だけから作り、キー移動・字幕装飾・再生音量の変更では再合成しない。Regenerateではエンジンの現在の辞書で読みを再解析する。古い要求の結果は異なる本文には採用せず、プロジェクト変更を跨ぐ結果は破棄する。
+
+プロジェクトは生成音声を`generatedSpeech`にAssetとは別に保持し、WAV・AudioQuery・エンジンバージョンを保存する。未生成のキーも保存でき、Web版やエンジンが停止した環境でも保存済み音声を再生できる。`ProjectAudioReader`は素材と生成音声の所在を解決し、既存の音声subsystemへデコードを委ねる。
+
+プレビューでは再生開始時の生成音声一覧を固定し、シーク・ループ・通常音量編集でもその一覧を維持する。生成完了は再生を止めず、停止後の次回再生で採用する。未生成の発話は無音だが字幕を表示する。発話キー・声・クリップ・有効状態の編集とUndo/Redoは再生を停止する。動画書き出しは独立した編集状態のスナップショットを取り、必要な音声を準備してから開始する。失敗した発話を無音のまま書き出さず、取消しは生成待ちからも復帰できる。

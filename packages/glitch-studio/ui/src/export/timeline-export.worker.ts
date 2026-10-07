@@ -37,9 +37,9 @@ self.onmessage = async (event: MessageEvent<ExportRequest>) => {
 		send({ type: 'progress', progress: { phase: 'preparing', completedFrames: 0, totalFrames: 0 } });
 		const canvas = new OffscreenCanvas(settings.width, settings.height);
 		if (settings.format === 'mp4') {
-			const audioClips = getExportAudioClips(project.timelineScenes, project.sceneId, settings);
+			const audioClips = getExportAudioClips(project.timelineScenes, project.sceneId, settings, project.generatedSpeech);
 			writer = await createMp4Writer(canvas, settings, audioClips.length > 0);
-			if (audioClips.length > 0) audio = new TimelineAudioExport(project.assets, audioClips, settings);
+			if (audioClips.length > 0) audio = new TimelineAudioExport(project.assets, audioClips, settings, project.generatedSpeech);
 		}
 		const adapter = await navigator.gpu?.requestAdapter({ powerPreference: 'high-performance' });
 		if (!adapter) throw new Error('WebGPU is unavailable.');

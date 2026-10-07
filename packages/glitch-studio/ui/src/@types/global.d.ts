@@ -6,6 +6,8 @@ declare const __ELECTRON__: boolean;
 
 interface Window {
 	desktop?: {
+		voicevoxConnect(endpoint: string): Promise<{ version: string; speakers: import('@gs/glitch-studio_shared/voicevox.ts').VoicevoxSpeaker[] }>;
+		voicevoxSynthesize(request: import('@gs/subsystems_timeline_shared/layers/voicevox/voicevox.ts').VoicevoxRequest): Promise<{ data: Uint8Array; engineVersion: string; audioQuery: Record<string, unknown> }>;
 		takeStartupProjectFile(): Promise<{ id: string; name: string } | null>;
 		getPathForFile(file: File): string;
 		registerProjectFile(file: File): Promise<{ id: string; name: string } | null>;

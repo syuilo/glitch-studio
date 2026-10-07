@@ -85,7 +85,7 @@ test('retains each source path when selecting multiple desktop media files', asy
 	const imported = await pending;
 	assert.deepEqual(requestedFiles, files);
 	assert.deepEqual(imported.map(source => source.sourceFilePath), paths);
-	const encoded = await encodeProjectFile({ timelineFps: 60,
+	const encoded = await encodeProjectFile({ generatedSpeech: [], timelineFps: 60,
 		timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, timelineScenes: [],
 		assets: imported.map((source, index) => ({ id: String(index), ...source, fileDataType: source.type })) });
 	const restored = decodeProjectFile(encoded).assets;
@@ -154,7 +154,7 @@ for (const media of mediaTypes) {
 			assert.ok(platform.decodedSources.every(source => source === imported.fileData));
 			assert.equal(platform.activeUrls.size, 0);
 			assert.equal(platform.closedBitmaps, media.type.startsWith('image/') ? 1 : 0);
-			const encoded = await encodeProjectFile({ timelineFps: 60,
+			const encoded = await encodeProjectFile({ generatedSpeech: [], timelineFps: 60,
 				timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, timelineScenes: [],
 				assets: [{ id: 'asset', ...imported, fileDataType: imported.type }] });
 			assert.equal(await decodeProjectFile(encoded).assets[0].fileData.text(), original);

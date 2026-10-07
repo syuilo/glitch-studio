@@ -4,11 +4,11 @@ import { createTextFontLoader } from './text-font-loader.ts';
 import { layoutText } from './text-layout.ts';
 import { createTextShadowMaskRenderer } from './text-shadow.ts';
 import code from './text-renderer.wgsl?raw';
-import type { EvaluatedText } from '@gs/subsystems_timeline_shared/layers/text/text.ts';
+import type { TextRenderValues } from './text-render-values.ts';
 import type { Resolution } from '@gs/shared/resolution.ts';
 import type { IntermediateTextureFormat } from '@gs/shared/types.ts';
 
-/** Textレイヤー専用。評価済みの文字・装飾をScene解像度のpremultiplied RGBAへ描く。 */
+/** 呼び出し元のレイヤーを知らず、評価済みの文字・装飾を指定解像度のpremultiplied RGBAへ描く。 */
 export function createTextRenderer(options: { device: GPUDevice; vertex: GPUShaderModule; resolution: Resolution; format: IntermediateTextureFormat }) {
 	const output = options.device.createTexture({ size: options.resolution, format: options.format,
 		usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT });
@@ -34,7 +34,7 @@ export function createTextRenderer(options: { device: GPUDevice; vertex: GPUShad
 	let maskKey: string | null = null;
 	let shadowRenderer: ReturnType<typeof createTextShadowMaskRenderer> | null = null;
 
-	function updateMask(values: EvaluatedText, width: number, height: number) {
+	function updateMask(values: TextRenderValues, width: number, height: number) {
 		const text = values.text;
 		// 色のアニメーションでは、Canvas描画と転送を繰り返さない。
 		const key = JSON.stringify([
@@ -147,7 +147,7 @@ export function createTextRenderer(options: { device: GPUDevice; vertex: GPUShad
 	let outputKey: string | null = null;
 	return {
 		prepare: (blob: Blob | null, signal: AbortSignal) => font.prepare(blob, signal),
-		render(encoder: GPUCommandEncoder, values: EvaluatedText): GPUTexture {
+		render(encoder: GPUCommandEncoder, values: TextRenderValues): GPUTexture {
 			const key = JSON.stringify([font.cacheVersion, values]);
 			if (key === outputKey) return output;
 			updateMask(values, output.width, output.height);

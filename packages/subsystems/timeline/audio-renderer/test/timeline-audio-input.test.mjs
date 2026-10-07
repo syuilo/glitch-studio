@@ -34,11 +34,11 @@ test('selects one direct audio output regardless of order and rejects descendant
 	const child = scene('child', [audio('descendant')]);
 	const select = id => getSceneAudioClips([root, child], 'root', { type: 'layer', layerId: id });
 	const expected = select('above');
-	assert.deepEqual(expected.map(item => item.assetId), ['above']);
+	assert.deepEqual(expected.map(item => item.sourceId), ['above']);
 	root.layers.reverse();
 	root.layers.find(layer => layer.id === 'above').name = 'Renamed';
 	assert.deepEqual(select('above'), expected);
-	assert.deepEqual(select('video').map(item => item.assetId), ['audible']);
+	assert.deepEqual(select('video').map(item => item.sourceId), ['audible']);
 	assert.deepEqual(select('hidden'), []);
 	assert.deepEqual(select('empty'), []);
 	assert.throws(() => select('descendant'), /not found in scene/);
@@ -54,7 +54,7 @@ test('mixes only the selected scene placement with its offsets, bounds, and gain
 		audioParamValues: { volume: { inputSource: 'expression', expression: 'TIME_MS / 20' } }, compositingParamValues: {} });
 	const root = scene('root', [audio('unrelated'), nested, waveform, { ...nested, id: 'other-placement', clips: [{ ...nested.clips[0], contentOffsetMs: 50 }] }]);
 	const plan = getSceneAudioClips([root, child], 'root', { type: 'layer', layerId: 'nested' });
-	assert.deepEqual(plan.map(item => [item.assetId, item.sourceStartMs, item.startMs, item.endMs]), [['child-a', 14.875, 20, 30], ['child-b', 14.875, 20, 30]]);
+	assert.deepEqual(plan.map(item => [item.sourceId, item.sourceStartMs, item.startMs, item.endMs]), [['child-a', 14.875, 20, 30], ['child-b', 14.875, 20, 30]]);
 	assert.deepEqual(plan[0].gains.map(gain => gain.sceneStartMs), [0, 14.875]);
 	const renderer = new TimelineAudioRenderer(constant);
 	const read = (time, isExport) => createTimelineAudioInput(renderer, plan, time, 'selected', isExport).readWindow(0.012, signal());
@@ -79,7 +79,7 @@ test('selects only lower layers and includes complete nested scene audio', async
 	const video = audio('video', { layerType: 'video', clips: [clip('video', { audioEnabled: true }), clip('muted-video', { startMs: 100, audioEnabled: false })], compositingParamValues: {} });
 	const root = scene('root', [audio('above'), waveform, nested, video, audio('hidden', { isDisabled: true })]);
 	const plan = getSceneAudioClips([root, child], 'root', { type: 'belowLayer', layerId: 'waveform' });
-	assert.deepEqual(plan.map(item => item.assetId), ['child-top', 'child-bottom', 'video']);
+	assert.deepEqual(plan.map(item => item.sourceId), ['child-top', 'child-bottom', 'video']);
 	const renderer = new TimelineAudioRenderer(constant);
 	const result = await createTimelineAudioInput(renderer, plan, 50, 'revision', false).readWindow(0.01, signal());
 	assert.deepEqual(samples(result), new Float32Array(480).fill(2));
@@ -88,7 +88,7 @@ test('selects only lower layers and includes complete nested scene audio', async
 	assert.throws(() => getSceneAudioClips([root, child], 'root', { type: 'belowLayer', layerId: 'missing' }), /layer not found/);
 	// 並び替え後は、それまで上層だった音声も入力になる。
 	const reordered = { ...root, layers: [waveform, ...root.layers.filter(layer => layer !== waveform)] };
-	assert.equal(getSceneAudioClips([reordered, child], 'root', { type: 'belowLayer', layerId: 'waveform' })[0].assetId, 'above');
+	assert.equal(getSceneAudioClips([reordered, child], 'root', { type: 'belowLayer', layerId: 'waveform' })[0].sourceId, 'above');
 });
 
 // 【波形の窓は過去のクリップも含み、Scene先頭より前と表示区間外は無音にする】

@@ -1,3 +1,4 @@
+import { registerVoicevoxIpc } from './voicevox.mjs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { app, BrowserWindow, dialog, ipcMain, Menu, net, protocol, shell } from 'electron';
@@ -127,6 +128,7 @@ app.whenReady().then(() => {
 		contents.setZoomFactor(Math.max(0.5, contents.getZoomFactor() / 1.2));
 	});
 
+	registerVoicevoxIpc(ipcMain, getTrustedMainWindow);
 	registerProjectFileIpc(ipcMain, dialog, projectFiles, getTrustedMainWindow, startupProjectPath);
 
 	createWindow();

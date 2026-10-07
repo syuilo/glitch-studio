@@ -1,10 +1,11 @@
+import type { GeneratedSpeech } from '@gs/glitch-studio_shared/voicevox.ts';
 import { TimelineAudioRenderer } from '@gs/subsystems_timeline_audio-renderer/timeline-audio-renderer.ts';
-import { AssetAudioReader } from './asset-audio-reader.ts';
+import { ProjectAudioReader } from './project-audio-reader.ts';
 import type { Asset } from '@gs/shared/types.ts';
 import type { SceneAudioClip } from '@gs/subsystems_timeline_shared/scene-audio.ts';
 
-type Start = { type: 'start'; assets: Asset[]; clips: SceneAudioClip[]; sampleRate: number; startFrame: number; endFrame: number };
-let reader: AssetAudioReader;
+type Start = { type: 'start'; assets: Asset[]; generatedSpeech: GeneratedSpeech[]; clips: SceneAudioClip[]; sampleRate: number; startFrame: number; endFrame: number };
+let reader: ProjectAudioReader;
 let renderer: TimelineAudioRenderer;
 let settings: Start;
 let frame = 0;
@@ -14,7 +15,7 @@ let pending = Promise.resolve();
 self.onmessage = ({ data }: MessageEvent<Start | { type: 'pull' }>) => {
 	if (data.type === 'start') {
 		settings = data;
-		reader = new AssetAudioReader(data.assets);
+		reader = new ProjectAudioReader(data.assets, { generatedSpeech: data.generatedSpeech });
 		renderer = new TimelineAudioRenderer((...args) => reader.read(...args));
 		frame = data.startFrame;
 		return;

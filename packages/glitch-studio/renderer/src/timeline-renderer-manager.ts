@@ -1,3 +1,4 @@
+import type { GeneratedSpeech } from '@gs/glitch-studio_shared/voicevox.ts';
 import { validateTimelineFps, validateTimelineMotionBlur, getTimelineMotionBlurBoundaries, getTimelineSampleTimes } from '@gs/subsystems_timeline_shared/motion-blur.ts';
 import { TimelineFrameRenderer } from '@gs/subsystems_timeline_renderer/timeline-frame-renderer.ts';
 import { createMotionBlurAccumulator } from '@gs/subsystems_timeline_renderer/motion-blur-accumulator.ts';
@@ -17,6 +18,7 @@ import { createVisualModuleTimelineLayer } from '@gs/subsystems_timeline_rendere
 import { createSceneTimelineLayer } from '@gs/subsystems_timeline_renderer/layers/scene/scene-timeline-layer.ts';
 import { createImageTimelineLayer } from '@gs/subsystems_timeline_renderer/layers/image/image-timeline-layer.ts';
 import { createEffectTimelineLayer } from '@gs/subsystems_timeline_renderer/layers/effect/effect-timeline-layer.ts';
+import { createVoicevoxTimelineLayer } from '@gs/subsystems_timeline_renderer/layers/voicevox/voicevox-timeline-layer.ts';
 import { createTextTimelineLayer } from '@gs/subsystems_timeline_renderer/layers/text/text-timeline-layer.ts';
 import { createShapeTimelineLayer } from '@gs/subsystems_timeline_renderer/layers/shape/shape-timeline-layer.ts';
 import { CanvasRenderer } from './canvas-renderer.ts';
@@ -69,6 +71,7 @@ export type TimelineRendererManagerDynamicOptions = {
 	/** 透過非対応の出力用に、乗算済みRGBを黒背景へ合成する。 */
 	opaqueOutput: boolean;
 	assets: Asset[];
+	generatedSpeech: GeneratedSpeech[];
 	visualModules: ProjectVisualModule[];
 	timelineScenes: TimelineScene[];
 	sceneId: string | null;
@@ -123,6 +126,7 @@ export class TimelineRendererManager extends EventEmitter<{
 		highlightClipping: false,
 		opaqueOutput: false,
 		assets: [],
+		generatedSpeech: [],
 		visualModules: [],
 		timelineScenes: [],
 		sceneId: null,
@@ -246,6 +250,10 @@ export class TimelineRendererManager extends EventEmitter<{
 			}
 		}
 		const { assets, ...synchronousOptions } = newOptions;
+		if (newOptions.generatedSpeech) {
+			this.frameRenderer.clear();
+			this.audioInputs.setGeneratedSpeech(newOptions.generatedSpeech);
+		}
 		// 通常の設定は呼び出し順に反映する。画像のデコード完了を待ってから反映すると、
 		// 後から届いたモジュール編集やFPS変更を古い更新で巻き戻してしまう。
 		// Asset一覧だけはテクスチャと同時に切り替えるため、ここではマージしない。
@@ -484,6 +492,13 @@ export class TimelineRendererManager extends EventEmitter<{
 		const onCompositing = this.createCompositingObserver(sceneId, layer.id, clipId, layerPath, renderResolution);
 		// レイヤーの種類の解釈とリソース解決は、タイムライン制御の外側で行う。
 		switch (layer.layerType) {
+			case 'voicevox':
+				return createVoicevoxTimelineLayer(layer, {
+					onCompositing,
+					device: this.gpuDevice, vertex: this.defaultVertexShaderModule,
+					resolution: renderResolution, format: this.staticOptions.intermediateTextureFormat,
+					getFont: id => this.dynamicOptions.assets.find(asset => asset.id === id && asset.fileDataType.startsWith('font/'))?.fileData ?? null,
+				});
 			case 'text':
 				return createTextTimelineLayer(layer, {
 					onCompositing,

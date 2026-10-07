@@ -1,16 +1,17 @@
+import type { TextRenderValues } from '../../text-rendering/text-render-values.ts';
 import { textParamDefs } from '@gs/subsystems_timeline_shared/layers/text/text.ts';
 import { TimelineParameterBindingEvaluator } from '@gs/subsystems_timeline_shared/parameter-binding-evaluator.ts';
 import { createTimelineLayerEvaluationScope } from '@gs/subsystems_timeline_shared/evaluation-scope.ts';
 import { genEmptyValue } from '@gs/shared/parameter/parameter-default.ts';
 import { coerceParameterValue } from '@gs/shared/parameter/coerce-parameter-value.ts';
 import { validateEnumParameterValue } from '@gs/shared/parameter/parameter-definition.ts';
-import type { TextParameterValues, EvaluatedText } from '@gs/subsystems_timeline_shared/layers/text/text.ts';
+import type { TextParameterValues } from '@gs/subsystems_timeline_shared/layers/text/text.ts';
 import type { AutomationGraph } from '@gs/shared/automation-graph/automation-graph.ts';
 
 export class TextParameters {
 	private evaluator = new TimelineParameterBindingEvaluator();
 
-	evaluate(bindings: TextParameterValues, context: { time: number; isExport: boolean; automationGraphs: AutomationGraph[] }): EvaluatedText {
+	evaluate(bindings: TextParameterValues, context: { time: number; isExport: boolean; automationGraphs: AutomationGraph[] }): TextRenderValues {
 		const scope = createTimelineLayerEvaluationScope(context);
 		const values: Record<string, unknown> = {};
 		for (const [key, def] of Object.entries(textParamDefs)) {
@@ -29,7 +30,7 @@ export class TextParameters {
 		return {
 			text: String(values.text).trim(), font: typeof values.font === 'string' ? values.font : null,
 			size: Math.max(0, number(values.size)), maxWidth: number(values.maxWidth),
-			overflow: values.overflow as EvaluatedText['overflow'], align: values.align as EvaluatedText['align'],
+			overflow: values.overflow as TextRenderValues['overflow'], align: values.align as TextRenderValues['align'],
 			position: vector(values.position), lineHeight: Math.max(0, number(values.lineHeight)),
 			color: color(values.color), outlineColor: color(values.outlineColor), outlineWidth: Math.max(0, number(values.outlineWidth)),
 			shadowEnabled: values.shadowEnabled === true, shadowColor: color(values.shadowColor),

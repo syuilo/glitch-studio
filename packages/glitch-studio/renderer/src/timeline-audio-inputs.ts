@@ -1,3 +1,5 @@
+import type { GeneratedSpeech } from '@gs/glitch-studio_shared/voicevox.ts';
+import { createSpeechResolver } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox.ts';
 import { AudioFileReader } from '@gs/subsystems_audio_renderer/audio-file-reader.ts';
 import { openAudioFile } from '@gs/subsystems_audio_renderer/audio-file.ts';
 import { TimelineAudioRenderer } from '@gs/subsystems_timeline_audio-renderer/timeline-audio-renderer.ts';
@@ -18,6 +20,15 @@ export class TimelineAudioInputs {
 	private scenes?: readonly TimelineScene[];
 	private plans = new Map<string, SceneAudioClip[]>();
 	private revision = 0;
+	private generatedSpeech: readonly GeneratedSpeech[] = [];
+
+	setGeneratedSpeech(speech: readonly GeneratedSpeech[]) {
+		this.current?.dispose();
+		this.current = undefined;
+		this.generatedSpeech = speech;
+		this.plans.clear();
+		this.revision++;
+	}
 
 	constructor(private assets: readonly Asset[] = [], private openFile: (file: Blob) => Promise<AudioFile> = openAudioFile) {}
 
@@ -31,7 +42,10 @@ export class TimelineAudioInputs {
 	private getRenderer() {
 		if (this.current) return this.current.renderer;
 		const assets = this.assets;
+		const speech = this.generatedSpeech;
 		const reader = new AudioFileReader(async id => {
+			const generated = speech.find(item => item.sourceId === id);
+			if (generated) return this.openFile(generated.fileData);
 			const asset = assets.find(asset => asset.id === id);
 			if (!asset) throw new Error(`Audio asset not found: ${id}`);
 			try { return await this.openFile(asset.fileData); } catch (error) {
@@ -78,7 +92,7 @@ export class TimelineAudioInputs {
 		const key = JSON.stringify([sceneId, selection.type, selection.layerId]);
 		let clips = this.plans.get(key);
 		if (!clips) {
-			clips = getSceneAudioClips(scenes, sceneId, selection);
+			clips = getSceneAudioClips(scenes, sceneId, selection, createSpeechResolver(this.generatedSpeech));
 			this.plans.set(key, clips);
 		}
 		return createTimelineAudioInput(this.getRenderer(), clips, sceneTimeMs, `${this.revision}:${key}`, isExport);

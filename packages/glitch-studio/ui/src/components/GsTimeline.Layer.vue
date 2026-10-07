@@ -1,5 +1,5 @@
 <template>
-<div :class="[$style.root, { [$style.selected]: selected, [$style.disabled]: layer.isDisabled, [$style.type_effect]: layer.layerType === 'effect', [$style.type_audio]: layer.layerType === 'audio', [$style.type_image]: layer.layerType === 'image', [$style.type_video]: layer.layerType === 'video', [$style.type_text]: layer.layerType === 'text' }]" :data-timeline-layer-id="layer.id">
+<div :class="[$style.root, { [$style.selected]: selected, [$style.disabled]: layer.isDisabled, [$style.type_effect]: layer.layerType === 'effect', [$style.type_audio]: layer.layerType === 'audio', [$style.type_image]: layer.layerType === 'image', [$style.type_video]: layer.layerType === 'video', [$style.type_text]: layer.layerType === 'text', [$style.type_voicevox]: layer.layerType === 'voicevox' }]" :data-timeline-layer-id="layer.id">
 	<div :class="$style.mainLane" data-timeline-clip-lane>
 		<div :class="$style.side">
 			<div :class="$style.layerHeader" draggable="true" @click="emit('selected', $event)" @dragstart.stop="emit('dragStart', $event)">
@@ -25,6 +25,10 @@
 				/>
 			</div>
 		</div>
+	</div>
+	<div v-if="layer.layerType === 'voicevox'" :class="$style.speechLane" @click="emit('selected', $event)">
+		<div :class="$style.side">Speech</div>
+		<VoicevoxKeys :class="$style.tl" :sceneId="sceneId" :layer="layer" :pixelsPerMs="pixelsPerMs" :offsetMs="tlPosX" />
 	</div>
 	<div v-if="keyframeParameters.length > 0" :class="$style.localTicksLane">
 		<div :class="[$style.side, $style.localTicksLabel]">Clip time</div>
@@ -58,6 +62,7 @@ import { effectDefinitions } from '@gs/subsystems_effect_shared/effect-definitio
 import { getSceneDuration } from '@gs/subsystems_timeline_shared/scenes.ts';
 import { getTimelineClipEnd } from '@gs/subsystems_timeline_shared/timing.ts';
 import GsCondensedLine from './common/GsCondensedLine.vue';
+import VoicevoxKeys from './GsTimeline.VoicevoxKeys.vue';
 import XClips from './GsTimeline.Layer.Clips.vue';
 import XKeyframes from './GsTimeline.Layer.Keyframes.vue';
 import GsButton from './common/GsButton.vue';
@@ -100,7 +105,7 @@ const emit = defineEmits<{
 	(ev: 'keyframeDragStart', event: PointerEvent, selection: TimelineKeyframeSelection): void;
 	(ev: 'keyframeSelected', selection: TimelineKeyframeSelection): void;
 }>();
-const layerIcon = computed(() => ({ image: 'ti-photo', video: 'ti-video', audio: 'ti-music', scene: 'ti-timeline', visualModule: 'ti-chart-dots-3', inlineVisualModule: 'ti-chart-dots-3', effect: 'ti-sparkles', shape: 'ti-shape', text: 'ti-typography' })[props.layer.layerType]);
+const layerIcon = computed(() => ({ voicevox: 'ti-microphone', image: 'ti-photo', video: 'ti-video', audio: 'ti-music', scene: 'ti-timeline', visualModule: 'ti-chart-dots-3', inlineVisualModule: 'ti-chart-dots-3', effect: 'ti-sparkles', shape: 'ti-shape', text: 'ti-typography' })[props.layer.layerType]);
 type Clip = TimelineClip | TimelineAssetClip | TimelineVideoClip | TimelineSceneClip;
 
 const pixelsPerMs = computed(() => props.tlElWidth / props.tlRangeX);
@@ -240,6 +245,9 @@ function timeToDomX(time: number): number { return timelineTimeToX(time, props.t
 	&.type_text {
 		--LAYER_COLOR: var(--THEME-layer-text);
 	}
+	&.type_voicevox {
+		--LAYER_COLOR: var(--THEME-layer-voicevox);
+	}
 }
 
 .mainLane {
@@ -339,6 +347,12 @@ function timeToDomX(time: number): number { return timelineTimeToX(time, props.t
 	height: 4px;
 	border-left: solid 1px #fff3;
 	pointer-events: none;
+}
+
+.speechLane {
+	display: flex;
+	height: 32px;
+	line-height: 32px;
 }
 
 .keyframesLane {

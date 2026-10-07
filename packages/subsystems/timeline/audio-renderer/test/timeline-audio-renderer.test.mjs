@@ -25,7 +25,7 @@ function renderSceneAudio(renderer, layers, ...args) {
 test('uses scene time for video volume without shifting audio timestamps', async () => {
 	const calls = [];
 	const renderer = new TimelineAudioRenderer(async (...args) => { calls.push(args.slice(0, 4)); return constant(...args); });
-	const clip = { assetId: 'movie', sourceStartMs: 8000, startMs: 10000, endMs: 11000,
+	const clip = { sourceId: 'movie', sourceStartMs: 8000, startMs: 10000, endMs: 11000,
 		gains: [{ sceneStartMs: 0, volume: { inputSource: 'expression', expression: 'TIME_MS / 20000' }, automationGraphs: [] }] };
 	const result = await renderer.renderClips([clip], 10000, 1, 1000);
 	assert.deepEqual(calls, [['movie', 2, 1, 1000]]);
@@ -172,7 +172,7 @@ test('mixes scene gains using local clocks independently of chunk boundaries', a
 	const calls = [];
 	const renderer = new TimelineAudioRenderer(async (...args) => { calls.push(args.slice(0, 4)); return constant(...args); });
 	const clip = {
-		assetId: 'asset',
+		sourceId: 'asset',
 		sourceStartMs: 1150, startMs: 1180, endMs: 1280,
 		gains: [
 			{ sceneStartMs: 0, volume: { inputSource: 'literal', value: 2 }, automationGraphs: [] },
@@ -199,7 +199,7 @@ test('isolates scene gain variables and graphs from the audio layer scope', asyn
 		points: [{ id: 'point', x: 0, y: value, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] }] });
 	const renderer = new TimelineAudioRenderer(constant);
 	const clip = {
-		assetId: 'asset',
+		sourceId: 'asset',
 		sourceStartMs: 1000, startMs: 1400, endMs: 1600,
 		gains: [{ sceneStartMs: 900,
 			volume: expression('if IS_EXPORT { TEST_SAME_NAME + GRAPH("Shared", 0, "clamp") } else { 0 }'), automationGraphs: [graph(0.5)] }, { sceneStartMs: 1000,

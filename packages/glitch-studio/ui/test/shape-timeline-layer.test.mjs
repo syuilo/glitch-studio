@@ -125,7 +125,7 @@ test('round-trips animated shapes and duplicates their independent settings', as
 	assert.equal(f.layer.shape.paramValues.fillColor.value[0], 0.2);
 	const project = { id: 'project', gsVersion: '2.0.0-alpha', name: 'Shapes', description: '', author: '',
 		resolution: { width: 1920, height: 1080 }, timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 },
-		assets: [], players: [], visualModules: [], timelineScenes: f.state.timelineScenes.value };
+		assets: [], generatedSpeech: [], players: [], visualModules: [], timelineScenes: f.state.timelineScenes.value };
 	assert.deepEqual(decodeProjectFile(await encodeProjectFile(project)), project);
 	const invalidProject = structuredClone(project);
 	invalidProject.timelineScenes[0].layers[0].shape.paramValues.fillColor = { inputSource: 'layerInput' };
