@@ -2,6 +2,7 @@ import { validateEffectResolution } from '@gs/subsystems_effect_shared/resolutio
 import { getTimelineClipEnd, validateTimelineClips } from './timing.ts';
 import { validateSceneResolution } from './scene-resolution.ts';
 import { validateTimelineParameterBinding } from './parameter-binding.ts';
+import { validateTimelineText } from './text-layer.ts';
 import { validateTimelineShape } from './shape-layer.ts';
 import type { TimelineLayer, TimelineScene } from './types.ts';
 
@@ -18,6 +19,7 @@ export function getTimelineScene(scenes: readonly TimelineScene[], sceneId: stri
 
 export function validateTimelineLayer(layer: TimelineLayer): void {
 	validateTimelineClips(layer.clips);
+	if (layer.layerType === 'text') validateTimelineText(layer.textParamValues);
 	if (layer.layerType === 'shape') validateTimelineShape(layer.shape);
 	const parameterGroups = [
 		...('audioParamValues' in layer ? [layer.audioParamValues] : []),

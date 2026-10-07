@@ -10,6 +10,7 @@ import { mapParameterTree } from '@gs/shared/parameter/parameter-tree.ts';
 import { validateLiteralAudioSourceBinding } from '@gs/shared/parameter/audio-source.ts';
 import { validatePlayerAudioSourceSelection } from '@gs/glitch-studio_shared/player-audio-source.ts';
 import { createLayerInputBinding, getEffectLayerParameterDefault, validateTimelineEffectLayer } from '@gs/subsystems_timeline_shared/effect-layer.ts';
+import { validateTimelineText } from '@gs/subsystems_timeline_shared/text-layer.ts';
 import { validateTimelineShape } from '@gs/subsystems_timeline_shared/shape-layer.ts';
 import { validateEffectResolution } from '@gs/subsystems_effect_shared/resolution.ts';
 import type { EffectResolution } from '@gs/subsystems_effect_shared/resolution.ts';
@@ -1082,6 +1083,7 @@ const addTimelineLayerCommandDef = defineCommand<{ sceneId: string; layer: Timel
 			const scene = getScene(state, payload.sceneId);
 			if (scene.layers.some(layer => layer.id === payload.layer.id)) throw new Error('Duplicate layer ID');
 			if (payload.layer.layerType === 'effect') validateTimelineEffectLayer(payload.layer, effectDefinitions[payload.layer.effectId]);
+			if (payload.layer.layerType === 'text') validateTimelineText(payload.layer.textParamValues);
 			if (payload.layer.layerType === 'shape') validateTimelineShape(payload.layer.shape);
 			if ((payload.layer.layerType === 'video' || payload.layer.layerType === 'audio') && payload.layer.clips.length > 0 && !payload.sourceDurationsMs) throw new Error('Media duration is required');
 			validateLayerClips(state, payload.sceneId, payload.layer, payload.layer.clips, payload.sourceDurationsMs);
@@ -1343,6 +1345,7 @@ const pasteTimelineLayerCommandDef = defineCommand<{ sceneId: string; layer: Tim
 		execute(state) {
 			if (getScene(state, payload.sceneId).layers.some(layer => layer.id === payload.layer.id)) throw new Error('Duplicate layer ID');
 			if (payload.layer.layerType === 'effect') validateTimelineEffectLayer(payload.layer, effectDefinitions[payload.layer.effectId]);
+			if (payload.layer.layerType === 'text') validateTimelineText(payload.layer.textParamValues);
 			if (payload.layer.layerType === 'shape') validateTimelineShape(payload.layer.shape);
 			if ((payload.layer.layerType === 'video' || payload.layer.layerType === 'audio') && payload.layer.clips.length > 0 && !payload.sourceDurationsMs) throw new Error('Media duration is required');
 			validateLayerClips(state, payload.sceneId, payload.layer, payload.layer.clips, payload.sourceDurationsMs);

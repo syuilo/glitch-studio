@@ -13,6 +13,7 @@
 		"./timeline-frame-renderer.ts": "./src/timeline-frame-renderer.ts",
 		"./timeline-renderer.ts": "./src/timeline-renderer.ts",
 		"./effect-timeline-layer.ts": "./src/effect-timeline-layer.ts",
+		"./text-timeline-layer.ts": "./src/text-timeline-layer.ts",
 		"./shape-timeline-layer.ts": "./src/shape-timeline-layer.ts",
 		"./image-timeline-layer.ts": "./src/image-timeline-layer.ts",
 		"./scene-output.ts": "./src/scene-output.ts",

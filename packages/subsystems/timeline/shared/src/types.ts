@@ -6,9 +6,10 @@ import type { ParameterChangeKind } from '@gs/shared/parameter/parameter-definit
 import type { AutomationGraph } from '@gs/shared/automation-graph/automation-graph.ts';
 import type { TimelineParameterBinding, TimelineEffectParameterBinding, TimelineVisualModuleParameterBinding } from './parameter-binding.ts';
 import type { VisualModule } from '@gs/subsystems_visual-module_shared/types.js';
+import type { TextParameterValues } from './text.ts';
 import type { Shape } from './shape.ts';
 
-export type TimelineParameterTarget = 'module' | 'effect' | 'shape' | 'compositing' | 'audio';
+export type TimelineParameterTarget = 'module' | 'effect' | 'shape' | 'text' | 'compositing' | 'audio';
 
 // definitionはレイヤー全体の追加・削除・置換。部分編集では変更した内容を列挙し、
 // 実行インスタンスの扱いは利用側へ委ねる。
@@ -60,6 +61,12 @@ export type TimelineShapeLayer = TimelineLayerBase<TimelineClip> & TimelineVisua
 	shape: Shape;
 };
 
+/** 本文と装飾はレイヤー所有。クリップは表示区間だけを持つ。 */
+export type TimelineTextLayer = TimelineLayerBase<TimelineClip> & TimelineVisualLayerBase & {
+	layerType: 'text';
+	textParamValues: TextParameterValues;
+};
+
 export type TimelineAudioLayer = TimelineLayerBase<TimelineAssetClip> & TimelineAudioLayerBase & {
 	layerType: 'audio';
 };
@@ -79,7 +86,7 @@ export type TimelineSceneLayer = TimelineLayerBase<TimelineSceneClip> & Timeline
 	layerType: 'scene';
 };
 
-export type TimelineLayer = TimelineVisualModuleLayer | TimelineInlineVisualModuleLayer | TimelineEffectLayer | TimelineShapeLayer | TimelineAudioLayer | TimelineImageLayer | TimelineVideoLayer | TimelineSceneLayer;
+export type TimelineLayer = TimelineVisualModuleLayer | TimelineInlineVisualModuleLayer | TimelineEffectLayer | TimelineShapeLayer | TimelineTextLayer | TimelineAudioLayer | TimelineImageLayer | TimelineVideoLayer | TimelineSceneLayer;
 
 /** 長さは直下の全クリップの終了時刻の最大値から求め、空の場合は0とする。 */
 export type TimelineScene = {

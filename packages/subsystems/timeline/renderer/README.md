@@ -4,6 +4,8 @@ RendererはWeb Worker内で動作し、DOM・UIの実装にアクセスできな
 
 ただし、必要に応じて(別スレッドとして動かすとかえってパフォーマンスが悪化する環境で動かす場合)メインスレッドから直接利用することもできる設計
 
+Textレイヤーは`TextParameters`でScene時刻の値を評価し、`createTextRenderer()`がOffscreenCanvasの本体・輪郭・影マスクを作成してWebGPUで色を合成する。出力はScene解像度・`intermediateTextureFormat`のpremultiplied RGBA。Textエフェクトへの参照は持たず、レイアウト・影・フォント読み込みもTimeline内で独立して所有する。色だけの変化ではマスクを再利用し、静止時も下層との合成は毎回行う。空文字やサイズ0は透明な出力を返す。フォントBlobは呼び出し側がAsset IDから解決し、読み込み完了をプレビュー・書き出しの双方で待つ。シークの中断・フォント変更・破棄より古い結果は描画へ使わず、クリップ区間外ではGPUリソースとFontFaceを解放する。
+
 シェイプレイヤーは`ShapeParameters`で所属Scene時刻の値を評価し、`createShapeRenderer()`が評価済みの形状だけを受け取ってWebGPUで描画する。テクスチャは倍率適用後のScene解像度を保ち、形状の移動・寸法・回転はその内部で反映する。画面外は切り取り、出力は`intermediateTextureFormat`のpremultiplied RGBA。`createShapeTimelineLayer()`がその出力へ通常のレイヤー変形・不透明度・合成方法を適用するため、形状編集で合成設定を変更する必要はない。
 
 楕円は実際の輪郭までの距離で太さを保ち、長方形は内外周を別々に構築して角丸0の直角を保つ。静止した形状のテクスチャは再利用するが、下層との合成は毎回行う。寸法0でも透明な出力を返して`replace`の意味を保ち、クリップ区間外ではリソースを破棄する。直接編集用のハンドルやUI状態は描画処理へ含めない。

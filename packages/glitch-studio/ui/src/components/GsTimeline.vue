@@ -219,6 +219,12 @@
 						@edit="event => onTimelineLayerParamEdit(event, 'effect')"
 						@resolution="resolution => stateManager.commit('changeEffectLayerResolution', { sceneId, layerId: selectedLayer!.id, resolution })"
 					/>
+					<GsTimelineTextSettings
+						v-if="selectedLayer.layerType === 'text'"
+						:key="selectedLayer.id"
+						:layer="selectedLayer"
+						@edit="event => onTimelineLayerParamEdit(event, 'text')"
+					/>
 					<GsTimelineShapeSettings
 						v-if="selectedLayer.layerType === 'shape'"
 						:key="selectedLayer.id"
@@ -335,6 +341,7 @@ import { getTimelineVisualModuleArgumentDefault } from '@gs/subsystems_timeline_
 import { shapeDefinitions } from '@gs/subsystems_timeline_shared/shape.ts';
 import XLayer from './GsTimeline.Layer.vue';
 import GsTimelineEffectSettings from './GsTimeline.EffectSettings.vue';
+import GsTimelineTextSettings from './GsTimeline.TextSettings.vue';
 import GsTimelineShapeSettings from './GsTimeline.ShapeSettings.vue';
 import GsLiteralLeafValueControl from './GsLiteralLeafValueControl.vue';
 import GsInput from './common/GsInput.vue';
@@ -374,6 +381,7 @@ import { selectionRect, mergeTimelineRangeSelection, clipSelectionKey, keyframeS
 import { canEditKeyframesTimeline, updateInlineKeyframe } from '@/utility/keyframes-timeline.ts';
 import { createEffectTimelineLayer } from '@/utility/effect-timeline-layer.ts';
 import { createShapeTimelineLayer } from '@/utility/shape-timeline-layer.ts';
+import { createTextTimelineLayer } from '@/utility/text-timeline-layer.ts';
 import { appContext, timelineSubPanelTeleportTargetAvailable } from '@/app.ts';
 import { sceneEditorStates, timelineClipboard } from '@/utility/timeline-editor-state.ts';
 import { copyTimelineClips, prepareTimelineClipPaste, canPasteTimelineClips } from '@/utility/timeline-clip-clipboard.ts';
@@ -1322,6 +1330,7 @@ const selectedClipLabel = computed(() => {
 	if (entry.layer.layerType === 'visualModule') { const id = entry.layer.visualModuleId; return stateManager.state.visualModules.value.find(module => module.id === id)?.name ?? 'Missing module'; }
 	if (entry.layer.layerType === 'inlineVisualModule') return 'Inline Visual Module';
 	if (entry.layer.layerType === 'effect') { const id = entry.layer.effectId; return Object.entries(effectDefinitions).find(([key, effect]) => key === id)?.[1].displayName ?? 'Missing effect'; }
+	if (entry.layer.layerType === 'text') return 'Text';
 	if (entry.layer.layerType === 'shape') return shapeDefinitions[entry.layer.shape.type].label;
 	return '?';
 });
@@ -1575,6 +1584,15 @@ function showAddLayerMenu(ev: PointerEvent) {
 				previewPlayback.seekTimeline(layer.clips[0].startMs);
 			},
 		})),
+	}, {
+		text: 'Text',
+		icon: 'ti ti-typography',
+		action: () => {
+			const layer = createTextTimelineLayer(Math.max(0, time.value));
+			stateManager.commit('addTimelineLayer', { sceneId: props.sceneId, layer });
+			selectLayer(layer);
+			previewPlayback.seekTimeline(layer.clips[0].startMs);
+		},
 	}, {
 		text: 'Effect',
 		icon: 'ti ti-sparkles',
