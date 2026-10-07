@@ -238,31 +238,47 @@ export const PREF_DEF = definePreferences({
 											ratio: 0.3,
 											element: {
 												id: '8252d957c19647069064078c9bc9d367',
-												type: 'divider',
-												direction: 'vertical',
+												type: 'tabs',
+												direction: 'horizontal',
 												children: [{
-													ratio: 0.33,
+													name: 'Monitor',
 													element: {
-														id: '5845486291544b84877198a20cbecb61',
-														type: 'panel',
-														direction: 'horizontal',
-														contentType: 'histogram',
+														id: '107e36379050499986c630d68b93f137',
+														type: 'divider',
+														direction: 'vertical',
+														children: [{
+															ratio: 0.33,
+															element: {
+																id: '5845486291544b84877198a20cbecb61',
+																type: 'panel',
+																direction: 'horizontal',
+																contentType: 'histogram',
+															},
+														}, {
+															ratio: 0.33,
+															element: {
+																id: 'db466a3f5f064366abb30d21b52e4682',
+																type: 'panel',
+																direction: 'horizontal',
+																contentType: 'waveformHorizontal',
+															},
+														}, {
+															ratio: 0.33,
+															element: {
+																id: 'b14cc29ebe304b3f8b7754e20b0fdc17',
+																type: 'panel',
+																direction: 'horizontal',
+																contentType: 'waveformVertical',
+															},
+														}],
 													},
 												}, {
-													ratio: 0.33,
+													name: 'Asset',
 													element: {
-														id: 'db466a3f5f064366abb30d21b52e4682',
+														id: 'a73c5f933cd94f1ab8e51caf9ca4542a',
 														type: 'panel',
 														direction: 'horizontal',
-														contentType: 'waveformHorizontal',
-													},
-												}, {
-													ratio: 0.33,
-													element: {
-														id: 'b14cc29ebe304b3f8b7754e20b0fdc17',
-														type: 'panel',
-														direction: 'horizontal',
-														contentType: 'waveformVertical',
+														contentType: 'assets',
 													},
 												}],
 											},
@@ -290,25 +306,9 @@ export const PREF_DEF = definePreferences({
 							ratio: 0.3,
 							element: {
 								id: 'f4901ad62b6a49a5b95fc57ed851190e',
-								type: 'tabs',
+								type: 'panel',
 								direction: 'horizontal',
-								children: [{
-									name: 'Side',
-									element: {
-										id: 'f515e9b3507442c6bb0849cbcedf62b9',
-										type: 'panel',
-										direction: 'horizontal',
-										contentType: 'timelineSubPanel',
-									},
-								}, {
-									name: 'Assets',
-									element: {
-										id: 'f45eb89c7aee4b3794b30771e365cf44',
-										type: 'panel',
-										direction: 'horizontal',
-										contentType: 'assets',
-									},
-								}],
+								contentType: 'timelineSubPanel',
 							},
 						}],
 					},
