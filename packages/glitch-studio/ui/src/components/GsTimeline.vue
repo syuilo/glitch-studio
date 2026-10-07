@@ -1575,6 +1575,19 @@ function showAddEffectLayerMenu() {
 
 function showAddLayerMenu(ev: PointerEvent) {
 	ui.popupMenu([{
+		text: 'Effect',
+		icon: 'ti ti-sparkles',
+		action: showAddEffectLayerMenu,
+	}, {
+		text: 'Text',
+		icon: 'ti ti-typography',
+		action: () => {
+			const layer = createTextTimelineLayer(Math.max(0, time.value));
+			stateManager.commit('addTimelineLayer', { sceneId: props.sceneId, layer });
+			selectLayer(layer);
+			previewPlayback.seekTimeline(layer.clips[0].startMs);
+		},
+	}, {
 		type: 'parent',
 		text: 'Shape',
 		icon: 'ti ti-shape',
@@ -1588,19 +1601,6 @@ function showAddLayerMenu(ev: PointerEvent) {
 				previewPlayback.seekTimeline(layer.clips[0].startMs);
 			},
 		})),
-	}, {
-		text: 'Text',
-		icon: 'ti ti-typography',
-		action: () => {
-			const layer = createTextTimelineLayer(Math.max(0, time.value));
-			stateManager.commit('addTimelineLayer', { sceneId: props.sceneId, layer });
-			selectLayer(layer);
-			previewPlayback.seekTimeline(layer.clips[0].startMs);
-		},
-	}, {
-		text: 'Effect',
-		icon: 'ti ti-sparkles',
-		action: showAddEffectLayerMenu,
 	}, {
 		text: 'Image',
 		icon: 'ti ti-photo',
