@@ -1,5 +1,6 @@
 packageImportMethod: copy # Codexのサンドボックス内で場合によっては特定パッケージのアクセス権が不足する現象を回避するため
 packages:
+  - docs-site
   - packages/shared
   - packages/subsystems/audio/shared
   - packages/subsystems/audio/renderer

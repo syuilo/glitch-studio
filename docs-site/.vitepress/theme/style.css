@@ -1,0 +1,24 @@
+:root {
+	--gs-brand: #ff8400;
+	/* 明るい背景のリンクには濃いオレンジを使い、本文の読みやすさを保つ。 */
+	--vp-c-brand-1: #a84b00;
+	--vp-c-brand-2: #c65d00;
+	--vp-c-brand-3: var(--gs-brand);
+	--vp-c-brand-soft: rgb(255 132 0 / 14%);
+	--vp-font-family-base: 'Inter', 'Noto Sans JP', 'Hiragino Sans', 'Yu Gothic UI', sans-serif;
+
+	--vp-button-brand-text: #1b1b1f;
+	--vp-button-brand-bg: var(--gs-brand);
+	--vp-button-brand-hover-text: #1b1b1f;
+	--vp-button-brand-hover-bg: #ff9d33;
+	--vp-button-brand-active-text: #1b1b1f;
+	--vp-button-brand-active-bg: #ed7900;
+	--vp-home-hero-name-color: var(--vp-c-brand-1);
+}
+
+.dark {
+	--vp-c-brand-1: var(--gs-brand);
+	--vp-c-brand-2: #ff9d33;
+	--vp-c-brand-3: var(--gs-brand);
+	--vp-c-brand-soft: rgb(255 132 0 / 16%);
+}

@@ -2,6 +2,8 @@
 
 # Glitch Studio (⚠️Under Development!!!)
 
+[アプリを開く](https://syuilo.github.io/glitch-studio/) · [ユーザーガイド](https://syuilo.github.io/glitch-studio/docs/)
+
 ![](./ss.webp)
 
 Glitch Studioは、リアルタイムな画像・動画の加工・編集・作成を行ったり、シェーダーのplaygroundとして使える統合動画像編集環境です。
