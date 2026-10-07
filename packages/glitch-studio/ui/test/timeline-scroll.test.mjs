@@ -78,7 +78,7 @@ async function fixture(t) {
 	const visible = ref([0]);
 	const props = reactive({ sceneId: 'scene', sceneTimeMs: 0, tlElWidth: 1000, tlRangeX: 500, tlPosX: 0,
 		tickMode: 'binary', tickSubdivisions: { halves: true, thirds: false }, mediaInfo: new Map([['sound', { durationMs: 1000 }]]),
-		selectedKeyframes: [], selectedClipIds: [], selected: false, moving: false,
+		selectedKeyframes: [], selectedClipIds: [], selected: false, moving: false, optimizeHorizontalMovement: false,
 	});
 	const events = [];
 	const root = element();
@@ -99,16 +99,25 @@ async function fixture(t) {
 // 【横移動では一覧・クリップ・キーを再評価せず、倍率変更では再配置する】
 // propsからtlPosXを外しても親のv-forや選択配列が毎回更新されると効果が失われるため、
 // 実際のコンポーネント境界を通して更新回数を確認する。
+// 移動の開始・終了で描画のヒントを切り替えても、子の再評価を発生させない。
 test('pans by updating parent transforms without rerendering clips or keyframes', async t => {
 	const state = await fixture(t);
+	const translated = descendants(state.root).filter(node => node.props.class === 'scrollingContent');
+	assert.equal(translated.length, 2);
+	assert.ok(translated.every(node => node.props.style.willChange === 'auto'));
+	state.props.optimizeHorizontalMovement = true;
+	await nextTick();
+	assert.ok(translated.every(node => node.props.style.willChange === 'transform'));
 	for (const position of [10.25, -50, 180, 0]) { state.props.tlPosX = position; await nextTick(); }
 	assert.ok(updates.get('GsTimeline.Layer.vue') > 0);
 	for (const name of components) assert.equal(updates.get(name) ?? 0, 0, name);
 	state.props.tlPosX = 40.25;
 	await nextTick();
-	const translated = descendants(state.root).filter(node => node.props.class === 'scrollingContent');
-	assert.equal(translated.length, 2);
 	assert.ok(translated.every(node => node.props.style.transform === 'translateX(-80.5px)'));
+	state.props.optimizeHorizontalMovement = false;
+	await nextTick();
+	assert.ok(translated.every(node => node.props.style.willChange === 'auto'));
+	for (const name of components) assert.equal(updates.get(name) ?? 0, 0, name);
 	state.props.tlRangeX = 250;
 	await nextTick();
 	for (const name of components) assert.ok(updates.get(name) > 0, name);

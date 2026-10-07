@@ -87,6 +87,7 @@
 				<template #default="{ item: layer, dragStart }">
 					<XLayer
 						:tlPosX="tlPosX"
+						:optimizeHorizontalMovement="optimizeHorizontalMovement"
 						:layer="layer"
 						:sceneId="sceneId"
 						:sceneTimeMs="time"
@@ -503,6 +504,8 @@ function getLayerKey(layer: TimelineLayer) { return layer.id; }
 function getLayerSizeKey(layer: TimelineLayer) { return layerSizeKeys.value.get(layer.id); }
 
 const panning = ref(false);
+// 連続的に横移動する間だけ描画の準備を促し、停止後はリソースを解放できるようにする。
+const optimizeHorizontalMovement = computed(() => (previewPlayback.isTimelinePlaying.value && followPlayhead.value) || panning.value);
 const tlElWidth = ref(0);
 const tlElHeight = ref(0);
 const tlRangeX = ref(editorState?.rangeX ?? 30000);

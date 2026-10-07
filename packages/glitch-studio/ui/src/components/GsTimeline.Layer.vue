@@ -81,6 +81,7 @@ const props = defineProps<{
 	tlElWidth: number;
 	tlRangeX: number;
 	tlPosX: number;
+	optimizeHorizontalMovement: boolean;
 	tickMode: TimelineTickMode;
 	tickSubdivisions: TimelineTickSubdivisions;
 	mediaInfo: ReadonlyMap<string, TimelineClipMediaInfo>;
@@ -103,7 +104,11 @@ const layerIcon = computed(() => ({ image: 'ti-photo', video: 'ti-video', audio:
 type Clip = TimelineClip | TimelineAssetClip | TimelineVideoClip | TimelineSceneClip;
 
 const pixelsPerMs = computed(() => props.tlElWidth / props.tlRangeX);
-const scrollingStyle = computed(() => ({ transform: 'translateX(' + (-props.tlPosX * pixelsPerMs.value) + 'px)' }));
+const scrollingStyle = computed(() => ({
+	transform: 'translateX(' + (-props.tlPosX * pixelsPerMs.value) + 'px)',
+	// クリップ・キー個別ではなく、実際に横移動する親だけを最適化の対象にする。
+	willChange: props.optimizeHorizontalMovement ? 'transform' : 'auto',
+}));
 const sortedClips = computed(() => props.layer.clips.toSorted((a, b) => a.startMs - b.startMs));
 const clipItems = computed(() => props.layer.clips.map(clip => ({ clip, label: clipLabel(clip), sourceDurationMs: sourceDuration(clip) })));
 const emptySelectionIds: string[] = [];
