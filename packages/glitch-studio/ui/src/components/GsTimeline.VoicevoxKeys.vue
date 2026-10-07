@@ -1,23 +1,26 @@
 <template>
 <div :class="$style.lane" @dblclick.stop.prevent="add">
 	<div v-for="range in ranges" :key="range.key" :class="$style.audio" :style="{ left: x(range.startMs) + 'px', width: (range.endMs - range.startMs) * pixelsPerMs + 'px' }"></div>
-	<button v-for="utterance in layer.utterances" :key="utterance.id" class="_button" :class="$style.key" :style="{ left: x(utterance.timeMs) + 'px' }" :title="`${utterance.timeMs} ms: ${utterance.text || '(clear)'}`" @pointerdown.stop.prevent="drag($event, utterance)" @dblclick.stop>
-		◆ <span>{{ utterance.text || '(clear)' }}</span>
+	<button v-for="utterance in layer.utterances" :key="utterance.id" class="_button" :class="[$style.key, { [$style.selected]: selectedIds.has(utterance.id) }]" :data-timeline-keyframe-id="utterance.id" :style="{ left: keyX(utterance.timeMs) + 'px' }" :title="`${utterance.timeMs} ms: ${utterance.text || '(clear)'}`" @pointerdown.stop="emit('dragStart', $event, utterance.id)" @click.stop.prevent @dblclick.stop.prevent>
+		<span>{{ utterance.text || '(clear)' }}</span>
 	</button>
 </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount } from 'vue';
-import { genId } from '@gs/shared/utility/id.ts';
+import { computed } from 'vue';
+import { insertVoicevoxUtterance } from '@/utility/voicevox-utterance-edit.ts';
+import { timelineKeyframePosition } from '@/utility/timeline-coordinates.ts';
 import { getVoicevoxRequest, getVoicevoxRequestKey } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox.ts';
-import type { VoicevoxUtterance } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox.ts';
 import type { TimelineVoicevoxLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import { appContext } from '@/app.ts';
 
-const props = defineProps<{ sceneId: string; layer: TimelineVoicevoxLayer; pixelsPerMs: number; offsetMs: number }>();
+const props = defineProps<{ sceneId: string; layer: TimelineVoicevoxLayer; pixelsPerMs: number; offsetMs: number; selectedKeyframeIds: string[] }>();
+const emit = defineEmits<{ dragStart: [event: PointerEvent, id: string]; selected: [id: string] }>();
+const selectedIds = computed(() => new Set(props.selectedKeyframeIds));
 const { stateManager } = appContext.projectContext;
 const x = (time: number) => (time - props.offsetMs) * props.pixelsPerMs;
+const keyX = (time: number) => timelineKeyframePosition(time, props.pixelsPerMs) - props.offsetMs * props.pixelsPerMs;
 const ranges = computed(() => {
 	const utterances = props.layer.utterances.toSorted((a, b) => a.timeMs - b.timeMs);
 	return utterances.flatMap((utterance, index) => {
@@ -34,58 +37,16 @@ const ranges = computed(() => {
 });
 
 function add(event: MouseEvent) {
-	const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
-	const timeMs = Math.max(0, Math.round(props.offsetMs + (event.clientX - rect.left) / props.pixelsPerMs));
-	if (!Number.isSafeInteger(timeMs) || props.layer.utterances.some(item => item.timeMs === timeMs)) return;
-	stateManager.commit('editVoicevoxLayer', {
-		sceneId: props.sceneId, layerId: props.layer.id, voicevox: props.layer.voicevox,
-		utterances: [...props.layer.utterances, { id: genId(), timeMs, text: '', reading: null }],
-	});
-}
-
-let cancelDrag: (() => void) | undefined;
-onBeforeUnmount(() => cancelDrag?.());
-
-function drag(event: PointerEvent, utterance: VoicevoxUtterance) {
 	if (event.button !== 0 || props.pixelsPerMs <= 0) return;
-	cancelDrag?.();
-	const element = event.currentTarget as HTMLElement;
-	const startX = event.clientX;
-	const pixelsPerMs = props.pixelsPerMs;
-	const ownerWindow = element.ownerDocument.defaultView;
-	const original = props.layer.utterances.map(item => ({ ...item }));
-	const settings = { ...props.layer.voicevox };
-	const session = stateManager.beginEdit('editVoicevoxLayer');
-	const move = (next: PointerEvent) => {
-		if (next.pointerId !== event.pointerId) return;
-		const timeMs = Math.max(0, Math.round(utterance.timeMs + (next.clientX - startX) / pixelsPerMs));
-		if (!Number.isSafeInteger(timeMs) || original.some(item => item.id !== utterance.id && item.timeMs === timeMs)) return;
-		session.update({
-			sceneId: props.sceneId, layerId: props.layer.id, voicevox: settings,
-			utterances: original.map(item => item.id === utterance.id ? { ...item, timeMs } : item),
-		});
-	};
-	const cleanup = () => {
-		element.removeEventListener('pointermove', move);
-		element.removeEventListener('pointerup', finish);
-		element.removeEventListener('pointercancel', cancel);
-		element.removeEventListener('lostpointercapture', cancel);
-		ownerWindow?.removeEventListener('blur', cancel);
-		ownerWindow?.removeEventListener('keydown', onKey);
-		if (element.hasPointerCapture(event.pointerId)) element.releasePointerCapture(event.pointerId);
-		cancelDrag = undefined;
-	};
-	const finish = () => { session.finish(); cleanup(); };
-	const cancel = () => { session.cancel(); cleanup(); };
-	const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') { event.preventDefault(); cancel(); } };
-	cancelDrag = cancel;
-	element.setPointerCapture(event.pointerId);
-	element.addEventListener('pointermove', move);
-	element.addEventListener('pointerup', finish);
-	element.addEventListener('pointercancel', cancel);
-	element.addEventListener('lostpointercapture', cancel);
-	ownerWindow?.addEventListener('blur', cancel);
-	ownerWindow?.addEventListener('keydown', onKey);
+	const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+	const timeMs = props.offsetMs + (event.clientX - rect.left) / props.pixelsPerMs;
+	const inserted = insertVoicevoxUtterance(props.layer.utterances, timeMs);
+	if (!inserted) return;
+	if (inserted.utterances !== props.layer.utterances) stateManager.commit('editVoicevoxLayer', {
+		sceneId: props.sceneId, layerId: props.layer.id, voicevox: props.layer.voicevox,
+		utterances: [...inserted.utterances],
+	});
+	emit('selected', inserted.utterance.id);
 }
 </script>
 
@@ -99,23 +60,37 @@ function drag(event: PointerEvent, utterance: VoicevoxUtterance) {
 
 .audio {
 	position: absolute;
-	top: 20px;
-	height: 8px;
+	top: 26px;
+	height: 4px;
 	background: color(from var(--LAYER_COLOR) srgb r g b / 0.4);
 	pointer-events: none;
 }
 
 .key {
 	position: absolute;
-	top: 2px;
-	transform: translateX(-6px);
-	color: var(--LAYER_COLOR);
+	top: calc(50% - 6.5px);
+	width: 13px;
+	height: 13px;
+	margin-left: -6.5px;
+	background: var(--LAYER_COLOR);
+	color: var(--THEME-fg);
+	corner-shape: bevel;
+	border-radius: 100%;
 	white-space: nowrap;
 	cursor: ew-resize;
 	touch-action: none;
 }
 
+.selected {
+	background: var(--THEME-fg);
+	box-shadow: 0 0 0 2px var(--LAYER_COLOR);
+}
+
 .key span {
+	position: absolute;
+	left: 18px;
+	top: -2px;
+	line-height: 17px;
 	display: inline-block;
 	max-width: 120px;
 	overflow: hidden;

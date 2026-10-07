@@ -1561,7 +1561,7 @@ const pasteTimelineKeyframesCommandDef = defineCommand<{ sceneId: string; keyfra
 	label: 'Paste timeline keyframes',
 	changes: (_state, payload) => [...new Map(payload.keyframes.map(entry => [JSON.stringify([entry.layerId, entry.target]),
 		{ type: 'layer' as const, sceneId: payload.sceneId, layerId: entry.layerId,
-			changes: [{ type: 'parameter' as const, target: entry.target, kind: 'value' as const }] }])).values()],
+			changes: entry.target === 'utterance' ? [{ type: 'definition' as const }] : [{ type: 'parameter' as const, target: entry.target, kind: 'value' as const }] }])).values()],
 	create: payload => {
 		let updates: NonNullable<ReturnType<typeof getTimelineKeyframePasteUpdates>>;
 		return {
@@ -1569,12 +1569,20 @@ const pasteTimelineKeyframesCommandDef = defineCommand<{ sceneId: string; keyfra
 				const proposed = getTimelineKeyframePasteUpdates(state, getScene(state, payload.sceneId), payload.keyframes);
 				if (!proposed) throw new Error('Invalid or overlapping timeline keyframe paste');
 				updates = proposed;
-				for (const update of updates) setTimelineLayerParameterRoot(getTimelineLayer(state, payload.sceneId, update.layerId),
-					update.target, update.paramId, update.after);
+				for (const update of updates) {
+					const layer = getTimelineLayer(state, payload.sceneId, update.layerId);
+					if (update.target === 'utterance') {
+						if (layer.layerType === 'voicevox') layer.utterances = deepClone(update.after);
+					} else setTimelineLayerParameterRoot(layer, update.target, update.paramId, update.after);
+				}
 			},
 			undo(state) {
-				for (const update of updates) setTimelineLayerParameterRoot(getTimelineLayer(state, payload.sceneId, update.layerId),
-					update.target, update.paramId, update.before);
+				for (const update of updates) {
+					const layer = getTimelineLayer(state, payload.sceneId, update.layerId);
+					if (update.target === 'utterance') {
+						if (layer.layerType === 'voicevox') layer.utterances = deepClone(update.before);
+					} else setTimelineLayerParameterRoot(layer, update.target, update.paramId, update.before);
+				}
 			},
 		};
 	},
@@ -1583,22 +1591,36 @@ const pasteTimelineKeyframesCommandDef = defineCommand<{ sceneId: string; keyfra
 const moveTimelineKeyframesCommandDef = defineCommand<{ sceneId: string; positions: (TimelineKeyframeSelection & { x: number })[] }>({
 	label: 'Move timeline keyframes',
 	changes: (_state, payload) => payload.positions.map(position => ({ type: 'layer', sceneId: payload.sceneId, layerId: position.layerId,
-		changes: [{ type: 'parameter', target: position.target, kind: 'value' }] })),
+		changes: position.target === 'utterance' ? [{ type: 'definition' }] : [{ type: 'parameter', target: position.target, kind: 'value' }] })),
 	create: payload => {
 		let before: typeof payload.positions;
 		const apply = (state: ProjectState, positions: typeof payload.positions) => {
 			const layers = getScene(state, payload.sceneId).layers;
+			const speechUpdates = new Map<string, VoicevoxUtterance[]>();
 			const updates = positions.map(position => {
 				const layer = layers.find(layer => layer.id === position.layerId);
 				if (layer == null || !Number.isSafeInteger(Math.round(position.x)) || position.x < 0) throw new Error('Invalid keyframe move');
+				if (position.target === 'utterance') {
+					if (layer.layerType !== 'voicevox' || (position.paramPath.length !== 1 || position.paramPath[0] !== 'utterances')) throw new Error('Invalid utterance target');
+					const utterance = layer.utterances.find(utterance => utterance.id === position.keyframeId);
+					if (!utterance) throw new Error('Utterance not found');
+					const proposed = speechUpdates.get(layer.id) ?? deepClone(layer.utterances);
+					proposed.find(utterance => utterance.id === position.keyframeId)!.timeMs = Math.round(position.x);
+					speechUpdates.set(layer.id, proposed);
+					return { before: { ...position, x: utterance.timeMs }, apply: () => { layer.utterances = proposed; } };
+				}
 				const binding = resolveLayerParameter(state, layer, position.target, position.paramPath).value;
 				const point = binding?.inputSource === 'keyframesTimelineInline' ? binding.keyframesTimeline.keyframes.find(point => point.id === position.keyframeId) : undefined;
 				if (point == null) throw new Error('Timeline keyframe not found');
-				return { point, position };
+				return { before: { ...position, x: point.x }, apply: () => { point.x = Math.round(position.x); } };
 			});
-			const previous = updates.map(({ point, position }) => ({ ...position, x: point.x }));
-			for (const { point, position } of updates) point.x = Math.round(position.x);
-			return previous;
+			// 異なるレイヤーや通常キーを同時に動かす場合も、発話の衝突を全件検証してから保存する。
+			for (const [id, utterances] of speechUpdates) {
+				const layer = layers.find(layer => layer.id === id)!;
+				if (layer.layerType === 'voicevox') validateVoicevoxLayer({ voicevox: layer.voicevox, utterances });
+			}
+			for (const update of updates) update.apply();
+			return updates.map(update => update.before);
 		};
 		return {
 			execute(state) { before = apply(state, payload.positions); },
@@ -1629,7 +1651,43 @@ const editVoicevoxLayerCommandDef = defineCommand<{ sceneId: string; layerId: st
 	},
 });
 
+const removeTimelineKeyframesCommandDef = defineCommand<{ sceneId: string; keyframes: TimelineKeyframeSelection[] }>({
+	label: 'Remove timeline keyframes',
+	changes: (_state, payload) => [...new Set(payload.keyframes.map(point => point.layerId))].map(layerId => ({
+		type: 'layer', sceneId: payload.sceneId, layerId, changes: [{ type: 'definition' }],
+	})),
+	create: payload => {
+		let before: TimelineLayer[];
+		return {
+			execute(state) {
+				const scene = getScene(state, payload.sceneId);
+				const ids = new Set(payload.keyframes.map(point => point.layerId));
+				before = deepClone(scene.layers.filter(layer => ids.has(layer.id)));
+				const proposed = deepClone(before);
+				for (const point of payload.keyframes) {
+					const layer = proposed.find(layer => layer.id === point.layerId);
+					if (!layer) throw new Error('Timeline layer not found');
+					if (point.target === 'utterance') {
+						if (layer.layerType !== 'voicevox' || (point.paramPath.length !== 1 || point.paramPath[0] !== 'utterances') || !layer.utterances.some(utterance => utterance.id === point.keyframeId)) throw new Error('Utterance not found');
+						layer.utterances = layer.utterances.filter(utterance => utterance.id !== point.keyframeId);
+					} else {
+						const binding = resolveLayerParameter(state, layer, point.target, point.paramPath).value;
+						if (binding.inputSource !== 'keyframesTimelineInline' || !binding.keyframesTimeline.keyframes.some(keyframe => keyframe.id === point.keyframeId)) throw new Error('Timeline keyframe not found');
+						binding.keyframesTimeline.keyframes.splice(binding.keyframesTimeline.keyframes.findIndex(keyframe => keyframe.id === point.keyframeId), 1);
+					}
+				}
+				for (const layer of proposed) scene.layers[scene.layers.findIndex(entry => entry.id === layer.id)] = layer;
+			},
+			undo(state) {
+				const scene = getScene(state, payload.sceneId);
+				for (const layer of before) scene.layers[scene.layers.findIndex(entry => entry.id === layer.id)] = deepClone(layer);
+			},
+		};
+	},
+});
+
 export const COMMAND_DEFS = {
+	removeTimelineKeyframes: removeTimelineKeyframesCommandDef,
 	editVoicevoxLayer: editVoicevoxLayerCommandDef,
 	changeProjectResolution: changeProjectResolutionCommandDef,
 	changeTimelineRenderSettings: changeTimelineRenderSettingsCommandDef,

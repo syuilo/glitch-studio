@@ -3,6 +3,10 @@ import { test } from 'node:test';
 import { build } from 'esbuild';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
+import { readFile } from 'node:fs/promises';
+import { transform } from 'esbuild';
+import { parse } from 'vue/compiler-sfc';
+import { createSourceFile, isFunctionDeclaration, ScriptTarget } from 'typescript';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const bundled = await build({
@@ -13,6 +17,16 @@ const bundled = await build({
 		export { createTextTimelineLayer } from './src/utility/text-timeline-layer.ts';
 		export { resolveLayerParameter, getLayerKeyframeParameters } from './src/utility/timeline-scene.ts';
 		export { validateVoicevoxSubtitle } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox-subtitle-validation.ts';
+		export * from './src/utility/timeline-keyframe-lanes.ts';
+		export * from './src/utility/voicevox-utterance-edit.ts';
+		export * from './src/utility/timeline-keyframe-clipboard.ts';
+		export * from './src/utility/timeline-selection.ts';
+		export * from './src/utility/timeline-marquee.ts';
+		export * from './src/utility/timeline-snapping.ts';
+		export * from './src/utility/timeline-ticks.ts';
+		export * from './src/utility/timeline-keyframe-stretch.ts';
+		export { paramPathKey } from '@gs/shared/parameter/parameter-path.ts';
+		export { getTimelineClipEnd } from '@gs/subsystems_timeline_shared/timing.ts';
 		export * from './src/gsproj.ts';
 		export { COMMAND_DEFS } from './src/commands.ts';
 		export { UndoRedo } from './src/utility/undo-redo.ts';
@@ -34,6 +48,20 @@ const { createVoicevoxTimelineLayer, getVoicevoxRequest, getVoicevoxRequestKey, 
 	getSceneAudioClips, TimelineAudioRenderer, VoicevoxGeneration, getRequiredVoicevoxRequests,
 	COMMAND_DEFS, UndoRedo, encodeProjectFile, decodeProjectFile, TimelineAudioExport, getExportAudioClips,
 	createTextTimelineLayer, resolveLayerParameter, getLayerKeyframeParameters, validateVoicevoxSubtitle } = module.exports;
+const { getTimelineKeyframeLanes, getTimelineKeyframeEntries, insertVoicevoxUtterance, getVoicevoxUtteranceTimeBounds,
+	copyTimelineKeyframes, prepareTimelineKeyframePaste, getPastedTimelineKeySelection,
+	constrainTimelineMove, keyframeMoveBounds, collectTimelineMarqueeCandidates, timelineLaneKey } = module.exports;
+
+// Vueの実ハンドラーを実行し、DOM・描画機器を起動せず選択とScene時刻の結び付きを確認する。
+async function loadHandler(name, context, component = 'GsTimeline.vue') {
+	const source = await readFile(new URL(`../src/components/${component}`, import.meta.url), 'utf8');
+	const script = parse(source).descriptor.scriptSetup.content;
+	const ast = createSourceFile(component, script, ScriptTarget.Latest);
+	const handler = ast.statements.find(statement => isFunctionDeclaration(statement) && statement.name?.text === name);
+	assert.ok(handler);
+	const { code } = await transform(handler.getText(ast), { loader: 'ts' });
+	return new Function('context', `const { ${Object.keys(context).join(', ')} } = context; ${code}; return ${name};`)(context);
+}
 const literal = value => ({ inputSource: 'literal', value });
 const utterance = (id, timeMs, text = 'Hello', reading = null) => ({ id, timeMs, text, reading });
 const scene = (id, layers) => ({ id, name: id, resolution: { mode: 'project' }, layers });
@@ -47,6 +75,151 @@ function fixture() {
 		fileData: new Blob([Uint8Array.of(1, 2, 3)], { type: 'audio/wav' }), audioQuery: { speedScale: 1 }, engineVersion: 'test' };
 	return { layer, scenes: [scene('root', [layer])], request, speech };
 }
+
+function editFixture(t) {
+	t.mock.method(console, 'log', () => {});
+	const f = fixture();
+	const state = { timelineScenes: { value: f.scenes }, assets: { value: [] }, visualModules: { value: [] } };
+	const history = new UndoRedo(state, COMMAND_DEFS);
+	return { ...f, state, history, point: id => ({ layerId: 'speech', target: 'utterance', paramPath: ['utterances'], keyframeId: id }) };
+}
+
+// 【発話と字幕装飾のキーを同じ範囲選択と前後移動で扱う】
+// 発話だけのレイヤーにもレーンを公開し、クリップ外の発話へ移動して個別編集できるようにする。
+test('includes utterances in marquee selection and selects speech when seeking to a key', async t => {
+	const f = editFixture(t);
+	const lanes = getTimelineKeyframeLanes(f.state, f.layer);
+	assert.deepEqual(lanes[0].keyframes.map(key => key.x), [100, 400, 600]);
+	const selection = collectTimelineMarqueeCandidates([{ id: 'speech', clips: f.layer.clips, lanes }],
+		{ layerId: 'speech', offsetY: 24 }, { layerId: 'speech', offsetY: 56 },
+		new Map([['speech', { clipLane: { top: 0, bottom: 23 }, keyframeLanes: new Map([[timelineLaneKey('utterance', ['utterances']), 40]]) }]]),
+		{ left: 50, right: 500, position: 0, range: 1000, width: 1000 });
+	assert.deepEqual(selection.clips, []);
+	assert.deepEqual(selection.keyframes, [f.point('a'), f.point('b')]);
+	const selected = { value: { kind: 'layers', ids: ['speech'] } };
+	const position = { value: 0 };
+	let sought;
+	const seek = await loadHandler('seekToKeyframe', {
+		selectedLayer: { value: f.layer }, keyframeEntries: { value: getTimelineKeyframeEntries(f.state, f.scenes[0].layers) },
+		selection: selected, revealDetails() {}, previewPlayback: { seekTimeline(time) { sought = time; } }, tlPosX: position, tlRangeX: { value: 500 },
+	});
+	seek(100);
+	assert.equal(sought, 100);
+	assert.deepEqual(selected.value, { kind: 'keyframes', keyframes: [f.point('a')] });
+	assert.equal(position.value, -150);
+});
+
+// 【複数発話を間隔を保ってスナップ移動し、隣接発話との衝突を避ける】
+// 通常キーと同じドラッグ処理を通し、一連の移動が一回のUndoになり、最小時刻も負にならない。
+test('snaps multiple utterances through the timeline drag handler and merges their history', async t => {
+	const f = editFixture(t);
+	const selection = { value: { kind: 'keyframes', keyframes: [f.point('a'), f.point('b')] } };
+	const entries = { get value() { return getTimelineKeyframeEntries(f.state, f.scenes[0].layers); } };
+	let move;
+	const handler = await loadHandler('onKeyframeMoveStart', {
+		...module.exports, selection, selectedTimelineKeyframes: { get value() { return selection.value.keyframes; } }, keyframeEntries: entries,
+		stopSelectionDrag: undefined, tlElWidth: { value: 1000 }, tlRangeX: { value: 1000 }, tlPosX: { value: 0 },
+		tlEl: { value: { focus() {} } }, sceneLayers: { value: f.scenes[0].layers }, stateManager: f.history,
+		props: { sceneId: 'root' }, time: { value: 550 }, xTicksWithMinor: { value: [] },
+		snapSettings: { value: { enabled: true, globalTicks: false, localTicks: false, seekBar: true } },
+		xTicksCount: { value: 10 }, tickMode: { value: 'time' }, tickSubdivisions: { value: 1 },
+		revealDetails() {}, onKeyframeSelected() { assert.fail('Existing multiple selection must be preserved'); },
+		startSelectionMove(event, points, times, apply) { move = { points, times, apply }; },
+	});
+	handler({ button: 0, isPrimary: true, shiftKey: false, ctrlKey: false, metaKey: false }, f.point('a'));
+	assert.equal(move.points.length, 2);
+	assert.equal(move.points[1].maxDelta, 199);
+	const snapped = constrainTimelineMove(148, move.points, move.times, 1);
+	assert.equal(snapped.delta, 150);
+	assert.equal(snapped.snappingTime, 550);
+	move.apply(snapped.delta, 'drag');
+	move.apply(160, 'drag');
+	assert.deepEqual(f.layer.utterances.map(utterance => utterance.timeMs), [260, 560, 600]);
+	assert.equal(f.history.undoStack.value.length, 1);
+	f.history.undo();
+	assert.deepEqual(f.layer.utterances.map(utterance => utterance.timeMs), [100, 400, 600]);
+	f.history.redo();
+	assert.deepEqual(f.layer.utterances.map(utterance => utterance.timeMs), [260, 560, 600]);
+	assert.equal(constrainTimelineMove(-1000, move.points, [], 1).delta, -100);
+	handler({ button: 0, isPrimary: true, ctrlKey: true, preventDefault() {} }, f.point('b'));
+	assert.deepEqual(selection.value.keyframes, [f.point('a')]);
+	handler({ button: 0, isPrimary: true, metaKey: true, preventDefault() {} }, f.point('clear'));
+	assert.deepEqual(selection.value.keyframes, [f.point('a'), f.point('clear')]);
+});
+
+// 【ダブルクリックの時刻で追加し、同時刻に既存キーがあればそれを編集する】
+// 横スクロールと倍率を反映し、二重作成や本文の上書きをせず追加直後のキーを選択する。
+test('adds and selects a speech key using the double-click handler', async t => {
+	const f = editFixture(t);
+	let selected;
+	const add = await loadHandler('add', { insertVoicevoxUtterance, stateManager: f.history,
+		props: { layer: f.layer, sceneId: 'root', offsetMs: 100, pixelsPerMs: 2 }, emit(event, id) { assert.equal(event, 'selected'); selected = id; } }, 'GsTimeline.VoicevoxKeys.vue');
+	add({ button: 0, clientX: 620, currentTarget: { getBoundingClientRect: () => ({ left: 20 }) } });
+	assert.equal(selected, 'b');
+	assert.equal(f.history.undoStack.value.length, 0);
+	add({ button: 0, clientX: 721, currentTarget: { getBoundingClientRect: () => ({ left: 20 }) } });
+	assert.deepEqual(f.layer.utterances.find(utterance => utterance.id === selected), { id: selected, timeMs: 451, text: '', reading: null });
+	assert.deepEqual(getVoicevoxUtteranceTimeBounds(f.layer.utterances, selected), { min: 401, max: 599 });
+	f.history.undo();
+	assert.equal(f.layer.utterances.some(utterance => utterance.id === selected), false);
+});
+
+// 【単独選択した発話の本文・読み・時刻だけを編集する】
+// 個別編集欄の値が別の発話へ波及せず、時刻の数値入力も隣の発話を追い越さないことを保証する。
+test('edits only the selected utterance and clamps its time between neighbours', async t => {
+	const f = editFixture(t);
+	const props = { layer: f.layer, sceneId: 'root', get utterance() { return f.layer.utterances.find(utterance => utterance.id === 'b'); } };
+	const error = { value: '' };
+	const component = 'GsTimeline.VoicevoxUtteranceSettings.vue';
+	const commit = await loadHandler('commit', { props, error, stateManager: f.history }, component);
+	const edit = await loadHandler('edit', { props, commit }, component);
+	const bounds = { get value() { return getVoicevoxUtteranceTimeBounds(f.layer.utterances, 'b'); } };
+	const editTime = await loadHandler('editTime', { bounds, edit }, component);
+	edit({ text: 'New subtitle', reading: 'ニューサブタイトル' });
+	assert.equal(f.layer.utterances[0].text, 'Hello');
+	assert.equal(props.utterance.text, 'New subtitle');
+	editTime(999);
+	assert.equal(props.utterance.timeMs, 599);
+	editTime(-10);
+	assert.equal(props.utterance.timeMs, 101);
+	f.history.undo();
+	assert.equal(props.utterance.timeMs, 599);
+	f.history.undo();
+	f.history.undo();
+	assert.deepEqual(props.utterance, utterance('b', 400));
+	assert.equal(error.value, '');
+});
+
+// 【発話と通常キーを混在させても移動・貼付けの失敗を一部反映しない】
+// 発話の同時刻禁止を操作境界で守り、コピー時の本文・読みとID再発行、混在削除のUndoを保証する。
+test('keeps mixed key moves and pastes atomic and restores mixed deletions', t => {
+	const f = editFixture(t);
+	f.history.commit('editTimelineLayerParam', { sceneId: 'root', layerId: 'speech', target: 'voicevoxSubtitle', paramPath: ['size'], edit: { kind: 'inputSource', inputSource: 'keyframesTimelineInline' } });
+	const binding = f.layer.subtitleParamValues.size;
+	binding.keyframesTimeline.keyframes = [{ id: 'style', x: 120, value: 0.2, interpolation: { type: 'linear' } }];
+	const style = { layerId: 'speech', target: 'voicevoxSubtitle', paramPath: ['size'], keyframeId: 'style' };
+	assert.throws(() => f.history.commit('moveTimelineKeyframes', { sceneId: 'root', positions: [{ ...style, x: 200 }, { ...f.point('a'), x: 400 }] }), /Invalid VOICEVOX utterance/);
+	assert.equal(binding.keyframesTimeline.keyframes[0].x, 120);
+	assert.equal(f.layer.utterances[0].timeMs, 100);
+	f.layer.utterances[0].reading = '読み';
+	const clipboard = copyTimelineKeyframes(f.state, f.scenes[0], [f.point('a'), style]);
+	f.layer.utterances[0].text = 'Changed after copy';
+	assert.equal(prepareTimelineKeyframePaste(f.state, f.scenes[0], clipboard, 400), null);
+	const paste = prepareTimelineKeyframePaste(f.state, f.scenes[0], clipboard, 800);
+	f.history.commit('pasteTimelineKeyframes', { sceneId: 'root', keyframes: paste });
+	assert.equal(f.layer.utterances.at(-1).text, 'Hello');
+	assert.equal(f.layer.utterances.at(-1).reading, '読み');
+	assert.equal(f.layer.utterances.at(-1).timeMs, 800);
+	assert.notEqual(f.layer.utterances.at(-1).id, 'a');
+	f.history.undo(); assert.equal(f.layer.utterances.length, 3);
+	f.history.redo(); assert.equal(f.layer.utterances.length, 4);
+	f.history.commit('removeTimelineKeyframes', { sceneId: 'root', keyframes: paste.map(getPastedTimelineKeySelection) });
+	assert.equal(f.scenes[0].layers[0].utterances.length, 3);
+	assert.equal(f.scenes[0].layers[0].subtitleParamValues.size.keyframesTimeline.keyframes.length, 1);
+	f.history.undo();
+	assert.equal(f.scenes[0].layers[0].utterances.length, 4);
+	assert.equal(f.scenes[0].layers[0].subtitleParamValues.size.keyframesTimeline.keyframes.length, 2);
+});
 
 // 【VOICEVOX字幕の定義・保存先・キー編集をTextレイヤーから独立させる】
 // 同名の装飾でも専用の対象へ保存し、Text用の編集経路や本文Bindingを受け入れない。

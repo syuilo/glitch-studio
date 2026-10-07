@@ -35,7 +35,7 @@ const bundled = await build({
 });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', bundled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
-const { copyTimelineKeyframes, prepareTimelineKeyframePaste, getTimelineKeyframePasteUpdates, copyTimelineClips,
+const { copyTimelineKeyframes, prepareTimelineKeyframePaste, getPastedTimelineKeySelection, getTimelineKeyframePasteUpdates, copyTimelineClips,
 	COMMAND_DEFS, UndoRedo, createShapeTimelineLayer, createInlineKeyframesTimeline, resolveLayerParameter,
 	getLayerParameterDefinitions, getLayerParameterValues, resolveParameter, arrayDefinition, genId } = module.exports;
 
@@ -48,7 +48,7 @@ assert.ok(handler);
 const transformed = await transform(handler.getText(ast), { loader: 'ts' });
 const createHandler = new Function('context', `
 	const { HTMLElement, selection, editedScene, timelineClipboard, selectedLayer, props, stateManager,
-		tlEl, time, disposed, copyTimelineKeyframes, prepareTimelineKeyframePaste, copyTimelineClips } = context;
+		tlEl, time, disposed, copyTimelineKeyframes, prepareTimelineKeyframePaste, getPastedTimelineKeySelection, copyTimelineClips } = context;
 	const deepClone = structuredClone;
 	${transformed.code}
 	return onTlKeydown;
@@ -227,7 +227,7 @@ test('copies and pastes keyframes through shortcuts and switches clipboard kinds
 		const context = { HTMLElement: class {}, selection, editedScene: f.scene, timelineClipboard,
 			selectedLayer: { value: f.layer }, props: { sceneId: 'scene' }, stateManager: f.history,
 			tlEl: { value: { focus() {} } }, time: { value: 1000.4 }, disposed: false,
-			copyTimelineKeyframes, prepareTimelineKeyframePaste, copyTimelineClips };
+			copyTimelineKeyframes, prepareTimelineKeyframePaste, getPastedTimelineKeySelection, copyTimelineClips };
 		const keydown = createHandler(context);
 		const keyboard = (key, overrides = {}) => ({ key, ctrlKey: true, metaKey: false, ...modifiers,
 			repeat: false, defaultPrevented: false, target: null, preventDefault() { this.defaultPrevented = true; }, stopPropagation() {}, ...overrides });

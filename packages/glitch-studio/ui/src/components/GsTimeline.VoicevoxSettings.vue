@@ -18,18 +18,7 @@
 		<label>Speech speed<input type="number" min="0.5" max="2" step="0.05" :value="layer.voicevox.speedScale" @change="changeSettings({ speedScale: Number(($event.target as HTMLInputElement).value) })"/></label>
 		<GsButton small @click="add">Add speech key at playhead</GsButton>
 		<GsButton small :disabled="layer.clips.length === 0" @click="fitLastClip">Fit last clip to speech</GsButton>
-		<div v-for="utterance in sortedUtterances" :key="utterance.id" :class="$style.utterance">
-			<label>Scene time (ms)<input type="number" min="0" step="1" :value="utterance.timeMs" @change="edit(utterance.id, { timeMs: Math.round(Number(($event.target as HTMLInputElement).value)) })"/></label>
-			<label>Subtitle<textarea :value="utterance.text" @change="edit(utterance.id, { text: ($event.target as HTMLTextAreaElement).value })"></textarea></label>
-			<label>Reading (optional)<textarea :value="utterance.reading ?? ''" placeholder="Use subtitle text" @change="edit(utterance.id, { reading: ($event.target as HTMLTextAreaElement).value.trim() || null })"></textarea></label>
-			<div>{{ status(utterance) }}</div>
-			<div :class="$style.actions">
-				<GsButton small @click="appContext.previewPlayback.seekTimeline(utterance.timeMs)">Seek</GsButton>
-				<GsButton v-if="desktop && utterance.text" small :disabled="isGenerating(utterance)" @click="regenerate(utterance)">Regenerate</GsButton>
-				<GsButton small @click="duplicate(utterance)">Duplicate at playhead</GsButton>
-				<GsButton small danger @click="commit(layer.utterances.filter(item => item.id !== utterance.id))">Delete</GsButton>
-			</div>
-		</div>
+		<div>Select a speech key in the timeline to edit its text and reading.</div>
 		<div v-if="error" :class="$style.error">{{ error }}</div>
 	</div>
 </GsFolder>
@@ -37,7 +26,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import { genId } from '@gs/shared/utility/id.ts';
+import { insertVoicevoxUtterance } from '@/utility/voicevox-utterance-edit.ts';
 import { getVoicevoxRequest, getVoicevoxRequestKey } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox.ts';
 import GsFolder from './common/GsFolder.vue';
 import GsButton from './common/GsButton.vue';
@@ -46,6 +35,7 @@ import type { TimelineVoicevoxLayer } from '@gs/subsystems_timeline_shared/types
 import { appContext } from '@/app.ts';
 
 const props = defineProps<{ layer: TimelineVoicevoxLayer; sceneId: string }>();
+const emit = defineEmits<{ selected: [id: string] }>();
 const { stateManager } = appContext.projectContext;
 const desktop = window.desktop;
 const { endpoint, version, speakers } = appContext.voicevoxConnection;
@@ -72,13 +62,12 @@ function commit(utterances: VoicevoxUtterance[], voicevox = props.layer.voicevox
 
 function changeSettings(settings: Partial<VoicevoxSettings>) { commit(props.layer.utterances, { ...props.layer.voicevox, ...settings }); }
 
-function edit(id: string, value: Partial<VoicevoxUtterance>) { commit(props.layer.utterances.map(item => item.id === id ? { ...item, ...value } : item)); }
-
-function duplicate(utterance: VoicevoxUtterance) {
-	commit([...props.layer.utterances, { ...utterance, id: genId(), timeMs: Math.round(appContext.previewPlayback.currentTimelineTime.value) }]);
+function add() {
+	const inserted = insertVoicevoxUtterance(props.layer.utterances, appContext.previewPlayback.currentTimelineTime.value);
+	if (!inserted) return;
+	if (inserted.utterances !== props.layer.utterances) commit([...inserted.utterances]);
+	emit('selected', inserted.utterance.id);
 }
-
-function add() { duplicate({ id: '', timeMs: 0, text: '', reading: null }); }
 
 function fitLastClip() {
 	error.value = '';
@@ -104,21 +93,6 @@ function fitLastClip() {
 
 function key(utterance: VoicevoxUtterance) { return getVoicevoxRequestKey(getVoicevoxRequest(props.layer.voicevox, utterance)); }
 
-function isGenerating(utterance: VoicevoxUtterance) { return appContext.voicevoxGeneration.statuses.value[key(utterance)]?.state === 'generating'; }
-
-function status(utterance: VoicevoxUtterance) {
-	if (!utterance.text) return 'Clear subtitle / stop speech';
-	const state = appContext.voicevoxGeneration.statuses.value[key(utterance)];
-	if (state?.state === 'generating') return 'Generating…';
-	if (state?.state === 'error') return state.message;
-	const speech = stateManager.state.generatedSpeech.value.find(item => item.key === key(utterance));
-	return speech ? `Ready · ${(speech.durationMs / 1000).toFixed(2)} s` : 'Not generated';
-}
-
-async function regenerate(utterance: VoicevoxUtterance) {
-	error.value = '';
-	try { await appContext.voicevoxGeneration.generate(getVoicevoxRequest(props.layer.voicevox, utterance), true); } catch (cause) { error.value = String(cause); }
-}
 </script>
 
 <style module>
@@ -149,19 +123,6 @@ async function regenerate(utterance: VoicevoxUtterance) {
 .body textarea {
 	min-height: 52px;
 	resize: vertical;
-}
-
-.utterance {
-	display: grid;
-	gap: 8px;
-	padding-top: 12px;
-	border-top: 1px solid #fff2;
-}
-
-.actions {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 5px;
 }
 
 .error {

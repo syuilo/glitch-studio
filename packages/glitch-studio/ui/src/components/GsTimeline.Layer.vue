@@ -26,11 +26,7 @@
 			</div>
 		</div>
 	</div>
-	<div v-if="layer.layerType === 'voicevox'" :class="$style.speechLane" @click="emit('selected', $event)">
-		<div :class="$style.side">Speech</div>
-		<VoicevoxKeys :class="$style.tl" :sceneId="sceneId" :layer="layer" :pixelsPerMs="pixelsPerMs" :offsetMs="tlPosX" />
-	</div>
-	<div v-if="keyframeParameters.length > 0" :class="$style.localTicksLane">
+	<div v-if="keyframeParameters.length > 0 || layer.layerType === 'voicevox'" :class="$style.localTicksLane">
 		<div :class="[$style.side, $style.localTicksLabel]">Clip time</div>
 		<div :class="[$style.tl, $style.localTicks]">
 			<div v-for="{ clip, ticks } in visibleClipTicks" :key="clip.id" :class="$style.localTicksRange" :style="{ left: timeToDomX(clip.startMs) + 'px', width: clip.durationMs / tlRangeX * tlElWidth + 'px' }">
@@ -38,6 +34,15 @@
 				<div v-for="tick of ticks.minor" :key="tick.contentTimeMs" :class="$style.localMinorTick" :style="{ left: (tick.sceneTimeMs - clip.startMs) / tlRangeX * tlElWidth + 'px' }"></div>
 			</div>
 		</div>
+	</div>
+	<div v-if="layer.layerType === 'voicevox'" :class="$style.speechLane" data-parameter-target="utterance" :data-param-path="JSON.stringify(['utterances'])">
+		<div :class="$style.side" @click="emit('selected', $event)">Speech</div>
+		<VoicevoxKeys
+			:class="$style.tl" :sceneId="sceneId" :layer="layer" :pixelsPerMs="pixelsPerMs" :offsetMs="tlPosX"
+			:selectedKeyframeIds="selectedKeyframeIdsByParameter.get(JSON.stringify(['utterance', ['utterances']])) ?? emptySelectionIds"
+			@dragStart="(event, keyframeId) => emit('keyframeDragStart', event, { layerId: layer.id, target: 'utterance', paramPath: ['utterances'], keyframeId })"
+			@selected="keyframeId => emit('keyframeSelected', { layerId: layer.id, target: 'utterance', paramPath: ['utterances'], keyframeId })"
+		/>
 	</div>
 	<div v-for="param in keyframeParameters" :key="param.key" :class="$style.keyframesLane" :data-parameter-target="param.target" :data-param-path="paramPathKey(param.paramPath)">
 		<div :class="$style.side"><div style="padding-right: 10px;">{{ param.label }}</div></div>
@@ -202,7 +207,7 @@ function onKeyframeInsert(param: KeyframeParameter, x: number) {
 }
 
 // このレイヤーがマウントされ、キーのレーンを表示するときだけローカル目盛りを作る。
-const visibleClipTicks = computed(() => keyframeParameters.value.length === 0 ? [] : getTimelineVisibleClipTicks(
+const visibleClipTicks = computed(() => keyframeParameters.value.length === 0 && props.layer.layerType !== 'voicevox' ? [] : getTimelineVisibleClipTicks(
 	props.layer.clips, props.tlPosX, props.tlRangeX, getTimelineTickCount(props.tlElWidth), props.tickMode, props.tickSubdivisions,
 ));
 
