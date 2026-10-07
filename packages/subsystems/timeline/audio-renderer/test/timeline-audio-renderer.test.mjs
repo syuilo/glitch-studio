@@ -130,15 +130,39 @@ test('preserves sub-control-period hold boundaries and linear keyframes', async 
 	assert.deepEqual([...output[0]], [0, 0, 1, 0.5, 0, 0]);
 });
 
-// 【不正な音量は無音にし、増幅値はレイヤー単位ではクリップしない】
+// 【負数・非有限数の音量は無音にし、増幅値はレイヤー単位ではクリップしない】
 // NaNを音声出力に流さず、重ね合わせ前に音量情報を失わない。
-test('sanitizes invalid gains and permits amplification', async () => {
+// 数値へ変換できない文字列は設定ミスとして拒否するため、別のテストで確認する。
+test('sanitizes negative and nonfinite gains and permits amplification', async () => {
 	const renderer = new TimelineAudioRenderer(constant);
-	for (const value of [-1, NaN, Infinity, 'bad']) {
+	for (const value of [-1, NaN, Infinity, -Infinity]) {
 		const output = await renderSceneAudio(renderer, [layer({ audioParamValues: { volume: { inputSource: 'literal', value } } })], 100, 2, 1000);
 		assert.deepEqual([...output[0]], [0, 0]);
 	}
 	assert.equal((await renderSceneAudio(renderer, [layer({ audioParamValues: { volume: { inputSource: 'literal', value: 3 } } })], 100, 1, 1000))[0][0], 3);
+});
+
+// 【音量の数値文字列も共通の数値パラメータと同じ規則で変換する】
+// 文字列を一律に無音にせず、変換後の負数は0へ制限し、増幅値は保持する。
+test('converts numeric gain strings before applying gain limits', async () => {
+	const renderer = new TimelineAudioRenderer(constant);
+	for (const [value, expected] of [['0.5', 0.5], [' 3 ', 3], ['1e-1', 0.1], ['-1', 0]]) {
+		const output = await renderSceneAudio(renderer, [layer({ audioParamValues: { volume: { inputSource: 'literal', value } } })], 100, 2, 1000);
+		assert.deepEqual(output, [new Float32Array(2).fill(expected), new Float32Array(2).fill(expected * 0.5)]);
+	}
+});
+
+// 【数値に変換できない音量文字列は設定エラーとして伝える】
+// 無音へ置き換えると設定ミスに気づけず、一部だけ数値として読むと意図しない音量になる。
+// 空白や非有限数を表す文字列も、共通のパラメータ評価の規則に従って拒否する。
+test('rejects invalid numeric gain strings instead of silently muting them', async () => {
+	const renderer = new TimelineAudioRenderer(constant);
+	for (const value of ['bad', '', ' ', '1foo', 'NaN', 'Infinity']) {
+		await assert.rejects(
+			renderSceneAudio(renderer, [layer({ audioParamValues: { volume: { inputSource: 'literal', value } } })], 100, 2, 1000),
+			{ message: `Invalid numeric string ${JSON.stringify(value)} for parameter "Volume". Expected a finite number.` },
+		);
+	}
 });
 
 // 【Sceneの各階層の音量と子の素材時刻を同時に適用する】
