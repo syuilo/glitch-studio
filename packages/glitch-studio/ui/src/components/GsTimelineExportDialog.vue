@@ -61,7 +61,7 @@ import { getRequiredVoicevoxRequests } from '@/audio/voicevox-generation.ts';
 import { exportTimeline } from '@/export/client.ts';
 import { validateExportSettings } from '@/export/timeline-export.ts';
 import { estimateExportBytes, formatExportTime, parseExportTime, scaleExportResolution } from '@/export/export-settings.ts';
-import { getExportAudioClips, MP4_AUDIO_BITRATE } from '@/export/audio-export-settings.ts';
+import { hasExportAudio, MP4_AUDIO_BITRATE } from '@/export/audio-export-settings.ts';
 
 const { activeSceneId, previewPlayback } = appContext;
 const { stateManager } = appContext.projectContext;
@@ -125,7 +125,7 @@ const validationError = computed(() => {
 	if (mode.value === 'video' && !Number.isFinite(parseExportTime(endTime.value))) return 'Enter a valid end time (HH:MM:SS.mmm).';
 	return validateExportSettings(settings.value);
 });
-const includesAudio = computed(() => scene.value != null && getExportAudioClips(stateManager.state.timelineScenes.value, sceneId.value, settings.value).length > 0);
+const includesAudio = computed(() => scene.value != null && hasExportAudio(stateManager.state.timelineScenes.value, sceneId.value, settings.value, stateManager.state.generatedSpeech.value));
 const estimatedSize = computed(() => {
 	if (validationError.value) return '—';
 	const bytes = estimateExportBytes(settings.value, includesAudio.value ? MP4_AUDIO_BITRATE : 0);

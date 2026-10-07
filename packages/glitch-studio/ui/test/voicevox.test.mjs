@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { readFile } from 'node:fs/promises';
 import { transform } from 'esbuild';
 import { parse } from 'vue/compiler-sfc';
-import { createSourceFile, isFunctionDeclaration, ScriptTarget } from 'typescript';
+import { createSourceFile, isFunctionDeclaration, isVariableStatement, ScriptTarget } from 'typescript';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const bundled = await build({
@@ -31,7 +31,7 @@ const bundled = await build({
 		export { COMMAND_DEFS } from './src/commands.ts';
 		export { UndoRedo } from './src/utility/undo-redo.ts';
 		export { TimelineAudioExport } from './src/export/timeline-audio-export.ts';
-		export { getExportAudioClips } from './src/export/audio-export-settings.ts';
+		export * from './src/export/audio-export-settings.ts';
 		export * from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox.ts';
 		export { getSceneAudioClips } from '@gs/subsystems_timeline_shared/scene-audio.ts';
 		export { TimelineAudioRenderer } from '@gs/subsystems_timeline_audio-renderer/timeline-audio-renderer.ts';
@@ -443,6 +443,178 @@ test('deduplicates synthesis and rejects responses from an old project', async (
 	assert.equal(stored.length, 1);
 	await generation.generate(f.request);
 	assert.equal(calls, 2);
+});
+
+function queuedGenerationFixture(t) {
+	t.mock.timers.enable({ apis: ['setTimeout'] });
+	const f = fixture();
+	f.layer.utterances = [utterance('first', 100, 'First')];
+	let stored = [];
+	const calls = [];
+	const generation = new VoicevoxGeneration({
+		getScenes: () => f.scenes, getSpeech: () => stored, setSpeech: value => { stored = value; },
+		synthesize: request => new Promise(resolve => { calls.push({ request, resolve }); }),
+	});
+	t.after(() => generation.reset());
+	const flush = () => new Promise(resolve => setImmediate(resolve));
+	return { ...f, generation, calls, get stored() { return stored; },
+		async schedule() { generation.schedule(); t.mock.timers.tick(400); await flush(); },
+		async complete(index) {
+			const call = calls[index];
+			call.resolve({ ...f.speech, key: getVoicevoxRequestKey(call.request), sourceId: call.request.text });
+			await flush();
+		},
+		request: text => ({ styleId: 1, speedScale: 1, text }),
+	};
+}
+
+// 【自動生成の待機中に本文を再編集したら、途中の文章を合成せず最新を処理する】
+// 実行中の合成は完了させて再利用可能にしつつ、未着手の古い要求で最新の発話を待たせない。
+test('drops obsolete automatic requests and synthesizes the latest edit next', async t => {
+	const f = queuedGenerationFixture(t);
+	await f.schedule();
+	for (const text of ['Intermediate 1', 'Intermediate 2', 'Latest']) {
+		f.layer.utterances[0].text = text;
+		await f.schedule();
+	}
+	assert.deepEqual(f.calls.map(call => call.request.text), ['First']);
+	await f.complete(0);
+	assert.deepEqual(f.calls.map(call => call.request.text), ['First', 'Latest']);
+	for (const text of ['Intermediate 1', 'Intermediate 2']) assert.equal(f.generation.statuses.value[getVoicevoxRequestKey(f.request(text))], undefined);
+	await f.complete(1);
+	assert.deepEqual(f.stored.map(speech => speech.sourceId), ['First', 'Latest']);
+});
+
+// 【キーやレイヤーの削除で不要になった未着手の自動生成を取り除く】
+// 編集時の整理に加えて、実行直前にも現在の要求を確認し、変更通知前の古い要求も送信しない。
+test('removes automatic work for deleted utterances and layers before synthesis starts', async t => {
+	const f = queuedGenerationFixture(t);
+	await f.schedule();
+	f.layer.utterances.push(utterance('removed', 400, 'Removed key'));
+	await f.schedule();
+	f.layer.utterances.pop();
+	f.generation.schedule();
+	assert.equal(f.generation.statuses.value[getVoicevoxRequestKey(f.request('Removed key'))], undefined);
+	const removedLayer = createVoicevoxTimelineLayer(0);
+	removedLayer.utterances = [utterance('removed', 100, 'Removed layer')];
+	f.scenes[0].layers.push(removedLayer);
+	await f.schedule();
+	f.scenes[0].layers.pop();
+	await f.complete(0);
+	assert.deepEqual(f.calls.map(call => call.request.text), ['First']);
+	assert.equal(f.generation.statuses.value[getVoicevoxRequestKey(f.request('Removed layer'))], undefined);
+});
+
+// 【取消し済みの本文へ戻した場合は、同じ要求キーを再度生成待ちにできる】
+// 古い要求の終了処理で新しい待機状態を消さず、Undoなどで戻した本文を一度だけ合成する。
+test('can queue a cancelled automatic request again without keeping its stale status', async t => {
+	const f = queuedGenerationFixture(t);
+	await f.schedule();
+	for (const text of ['Restored', 'Discarded', 'Restored']) {
+		f.layer.utterances[0].text = text;
+		await f.schedule();
+	}
+	await f.complete(0);
+	assert.deepEqual(f.calls.map(call => call.request.text), ['First', 'Restored']);
+	await f.complete(1);
+	assert.equal(f.generation.statuses.value[getVoicevoxRequestKey(f.request('Restored'))].state, 'ready');
+	assert.equal(f.generation.statuses.value[getVoicevoxRequestKey(f.request('Discarded'))], undefined);
+});
+
+// 【書き出しのスナップショットが必要とする全要求は、編集中の削除から保護する】
+// prepareが先頭の発話を待っている間も後続を保持し、共有した自動生成をキャンセルしない。
+test('retains every export snapshot request while removing unused automatic work', async t => {
+	const f = queuedGenerationFixture(t);
+	await f.schedule();
+	f.layer.utterances.push(utterance('snapshot', 400, 'Snapshot'), utterance('unused', 600, 'Unused'));
+	await f.schedule();
+	const preparation = f.generation.prepare([f.request('First'), f.request('Snapshot')], new AbortController().signal);
+	f.scenes[0].layers = [];
+	await f.schedule();
+	assert.equal(f.generation.statuses.value[getVoicevoxRequestKey(f.request('Unused'))], undefined);
+	await f.complete(0);
+	assert.deepEqual(f.calls.map(call => call.request.text), ['First', 'Snapshot']);
+	await f.complete(1);
+	await preparation;
+	assert.deepEqual(f.stored.map(speech => speech.sourceId), ['First', 'Snapshot']);
+});
+
+// 【書き出し待ちを共有しても最後の取消しだけで不要な待機要求を除去する】
+// 別の書き出しや手動再生成の要求を巻き込まず、取消し後の未着手合成を残さない。
+test('releases cancelled export requests without cancelling other exports or manual generation', async t => {
+	const f = queuedGenerationFixture(t);
+	await f.schedule();
+	const request = f.request('Snapshot');
+	const firstController = new AbortController();
+	const secondController = new AbortController();
+	const first = f.generation.prepare([request], firstController.signal);
+	const second = f.generation.prepare([request], secondController.signal);
+	firstController.abort(new Error('First cancelled'));
+	await assert.rejects(first, /First cancelled/);
+	assert.equal(f.generation.statuses.value[getVoicevoxRequestKey(request)].state, 'generating');
+	secondController.abort(new Error('Second cancelled'));
+	await assert.rejects(second, /Second cancelled/);
+	assert.equal(f.generation.statuses.value[getVoicevoxRequestKey(request)], undefined);
+	const manual = f.generation.generate(f.request('Manual'), true);
+	await f.schedule();
+	await f.complete(0);
+	assert.deepEqual(f.calls.map(call => call.request.text), ['First', 'Manual']);
+	await f.complete(1);
+	await manual;
+});
+
+// 【プロジェクト切替で旧待機要求を捨てても、新プロジェクトの同じ要求を保護する】
+// 旧書き出しのfinallyが遅れて実行されても新しい予約を減らさず、実行中の旧結果も混入させない。
+test('resets queued work without releasing new-project export reservations for the same key', async t => {
+	const f = queuedGenerationFixture(t);
+	await f.schedule();
+	const request = f.request('Snapshot');
+	const oldPreparation = f.generation.prepare([request], new AbortController().signal);
+	const oldResult = assert.rejects(oldPreparation, /Project changed/);
+	f.generation.reset();
+	f.scenes[0].layers = [];
+	const newPreparation = f.generation.prepare([request], new AbortController().signal);
+	await oldResult;
+	await f.schedule();
+	await f.complete(0);
+	assert.deepEqual(f.calls.map(call => call.request.text), ['First', 'Snapshot']);
+	assert.deepEqual(f.stored, []);
+	await f.complete(1);
+	await newPreparation;
+	assert.deepEqual(f.stored.map(speech => speech.sourceId), ['Snapshot']);
+});
+
+// 【書き出しダイアログの音声有無は未生成でも表示し、生成済みの長さは反映する】
+// 実行時の未生成検証をcomputedで呼ぶと、準備ボタンを押す前にダイアログが例外になる。
+// 実際のcomputedの依存を渡して、静止画・範囲外・無効レイヤーも音声なしと判定する。
+test('evaluates export dialog audio presence without requiring prepared speech', async () => {
+	const f = fixture();
+	const source = await readFile(new URL('../src/components/GsTimelineExportDialog.vue', import.meta.url), 'utf8');
+	const ast = createSourceFile('export-dialog.ts', parse(source).descriptor.scriptSetup.content, ScriptTarget.Latest);
+	const declaration = ast.statements.filter(isVariableStatement).flatMap(statement => [...statement.declarationList.declarations])
+		.find(declaration => declaration.name.getText(ast) === 'includesAudio');
+	assert.ok(declaration);
+	const { code } = await transform(`const ${declaration.getText(ast)};`, { loader: 'ts' });
+	const context = { ...module.exports, computed: getter => getter, scene: { value: f.scenes[0] }, sceneId: { value: 'root' },
+		settings: { value: { format: 'mp4', positionMs: 250, endTimeMs: 300 } },
+		stateManager: { state: { timelineScenes: { value: f.scenes }, generatedSpeech: { value: [] } } } };
+	const includesAudio = new Function('context', `const { ${Object.keys(context).join(', ')} } = context; ${code}; return includesAudio;`)(context);
+	assert.equal(includesAudio(), true);
+	context.stateManager.state.generatedSpeech.value = [f.speech];
+	assert.equal(includesAudio(), true);
+	context.stateManager.state.generatedSpeech.value = [{ ...f.speech, durationMs: 50 }];
+	assert.equal(includesAudio(), false);
+	context.stateManager.state.generatedSpeech.value = [];
+	f.layer.isDisabled = true;
+	assert.equal(includesAudio(), false);
+	f.layer.isDisabled = false;
+	context.settings.value.positionMs = 701;
+	context.settings.value.endTimeMs = 900;
+	assert.equal(includesAudio(), false);
+	context.settings.value = { format: 'webp', positionMs: 250 };
+	assert.equal(includesAudio(), false);
+	context.scene.value = undefined;
+	assert.equal(includesAudio(), false);
 });
 
 // 【書き出しは有効範囲だけを準備し、生成失敗を無音として通さない】

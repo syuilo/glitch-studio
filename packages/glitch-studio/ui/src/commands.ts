@@ -1671,9 +1671,15 @@ const removeTimelineKeyframesCommandDef = defineCommand<{ sceneId: string; keyfr
 						if (layer.layerType !== 'voicevox' || (point.paramPath.length !== 1 || point.paramPath[0] !== 'utterances') || !layer.utterances.some(utterance => utterance.id === point.keyframeId)) throw new Error('Utterance not found');
 						layer.utterances = layer.utterances.filter(utterance => utterance.id !== point.keyframeId);
 					} else {
-						const binding = resolveLayerParameter(state, layer, point.target, point.paramPath).value;
+						// 未設定の引数は既定値のコピーを返すため、ルートから独立した編集案を作る。
+						// 入れ子のIDパスもこの案で解決し、次の削除には保存済みの案を引き継ぐ。
+						// レイヤー全体を確定する前の変更なので、後続の失敗時も元の未設定状態を保つ。
+						const rootKey = point.paramPath[0];
+						const draft = { [rootKey]: deepClone(resolveLayerParameter(state, layer, point.target, [rootKey]).value) };
+						const binding = resolveParameter<TimelineEffectParameterBinding>(getLayerParameterDefinitions(state, layer, point.target), draft, point.paramPath).value;
 						if (binding.inputSource !== 'keyframesTimelineInline' || !binding.keyframesTimeline.keyframes.some(keyframe => keyframe.id === point.keyframeId)) throw new Error('Timeline keyframe not found');
 						binding.keyframesTimeline.keyframes.splice(binding.keyframesTimeline.keyframes.findIndex(keyframe => keyframe.id === point.keyframeId), 1);
+						setTimelineLayerParameterRoot(layer, point.target, rootKey, draft[rootKey]);
 					}
 				}
 				for (const layer of proposed) scene.layers[scene.layers.findIndex(entry => entry.id === layer.id)] = layer;
