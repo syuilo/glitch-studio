@@ -20,10 +20,10 @@
 			</div>
 		</div>
 		<div :class="$style.headerCenter">
-			<GsButton v-tooltip="'Prev Frame'" small iconOnly><i class="ti ti-chevron-left"></i></GsButton>
-			<GsButton v-tooltip="'Next Frame'" small iconOnly><i class="ti ti-chevron-right"></i></GsButton>
-			<GsButton v-tooltip="'Prev Keyframe'" small iconOnly :disabled="previousKeyframeTime == null" @click="seekToKeyframe(previousKeyframeTime)"><i class="ti ti-keyframe"></i><i class="ti ti-chevron-left"></i></GsButton>
-			<GsButton v-tooltip="'Next Keyframe'" small iconOnly :disabled="nextKeyframeTime == null" @click="seekToKeyframe(nextKeyframeTime)"><i class="ti ti-chevron-right"></i><i class="ti ti-keyframe"></i></GsButton>
+			<GsButton v-tooltip="'Prev Frame'" small iconOnly @click="stepFrame(-1)"><i class="ti ti-chevron-left"></i></GsButton>
+			<GsButton v-tooltip="'Next Frame'" small iconOnly @click="stepFrame(1)"><i class="ti ti-chevron-right"></i></GsButton>
+			<GsButton v-tooltip="'Prev Keyframe'" small iconOnly @click="seekToKeyframe(previousKeyframeTime)"><i class="ti ti-keyframe"></i><i class="ti ti-chevron-left"></i></GsButton>
+			<GsButton v-tooltip="'Next Keyframe'" small iconOnly @click="seekToKeyframe(nextKeyframeTime)"><i class="ti ti-chevron-right"></i><i class="ti ti-keyframe"></i></GsButton>
 		</div>
 		<div :class="$style.headerCenter">
 			<span v-if="timelineAudioPreview.buffering.value"><i class="ti ti-loader"></i></span>
@@ -1527,6 +1527,12 @@ function pause() {
 
 function seek(timeMs: number) {
 	previewPlayback.seekTimeline(Math.max(0, Math.min(duration.value, timeMs)));
+}
+
+function stepFrame(direction: -1 | 1) {
+	// 再生中は音声時計の最新位置で停止してから、設定fpsに相当する時間だけ進める。
+	previewPlayback.pauseTimeline();
+	seek(time.value + direction * 1000 / stateManager.state.timelineFps.value);
 }
 
 function startCue(): () => void {
