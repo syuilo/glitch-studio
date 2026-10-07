@@ -2,7 +2,7 @@ import { paramPathKey } from '@gs/shared/parameter/parameter-path.ts';
 import type { ParamPath } from '@gs/shared/parameter/parameter-path.ts';
 import type { TimelineParameterTarget } from './timeline-scene.ts';
 import type { TimelineClipSelection, TimelineKeyframeSelection } from './timeline-selection.ts';
-import { timelineTimeToX } from './timeline-coordinates.ts';
+import { timelineTimeToX, timelineKeyframePosition } from './timeline-coordinates.ts';
 
 export type TimelineMarqueeAnchor = { layerId: string; offsetY: number };
 export type TimelineLayerSelectionLayout = {
@@ -53,6 +53,7 @@ export function collectTimelineMarqueeCandidates(
 	const last = forward ? end : start;
 	const firstIndex = Math.min(startIndex, endIndex);
 	const lastIndex = Math.max(startIndex, endIndex);
+	const pixelsPerMs = horizontal.width / horizontal.range;
 	const x = (time: number) => timelineTimeToX(time, horizontal.position, horizontal.range, horizontal.width);
 	for (let index = firstIndex; index <= lastIndex; index++) {
 		const layer = layers[index];
@@ -75,7 +76,7 @@ export function collectTimelineMarqueeCandidates(
 				if (y == null || y < top || y > bottom) continue;
 			}
 			for (const point of lane.keyframes) {
-				const center = Math.round(x(point.x));
+				const center = timelineKeyframePosition(point.x, pixelsPerMs) - horizontal.position * pixelsPerMs;
 				if (center >= 0 && center <= horizontal.width && center >= horizontal.left && center <= horizontal.right) keyframes.push({ layerId: layer.id, target: lane.target, paramPath: lane.paramPath, keyframeId: point.id });
 			}
 		}

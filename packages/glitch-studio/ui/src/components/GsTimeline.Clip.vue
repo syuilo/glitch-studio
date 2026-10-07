@@ -1,9 +1,9 @@
 <template>
-<div v-if="selected && sourceDurationMs != null" :class="$style.sourceGhost" :style="{ left: timeToDomX(clip.startMs - clip.contentOffsetMs) + 'px', width: sourceDurationMs / tlRangeX * tlElWidth + 'px' }"></div>
+<div v-if="selected && sourceDurationMs != null" :class="$style.sourceGhost" :style="{ left: (clip.startMs - clip.contentOffsetMs) * pixelsPerMs + 'px', width: sourceDurationMs * pixelsPerMs + 'px' }"></div>
 <div
 	:data-timeline-clip-id="clip.id"
 	:class="[$style.clip, { [$style.selected]: selected, [$style.active]: active, [$style.moving]: moving }]"
-	:style="{ left: timeToDomX(clip.startMs) + 'px', width: clip.durationMs / tlRangeX * tlElWidth + 'px' }"
+	:style="{ left: clip.startMs * pixelsPerMs + 'px', width: clip.durationMs * pixelsPerMs + 'px' }"
 	@pointerdown.stop="emit('moveStart', $event)"
 	@click.stop
 	@dblclick.stop
@@ -16,16 +16,13 @@
 
 <script lang="ts" setup>
 import GsCondensedLine from './common/GsCondensedLine.vue';
-import { timelineTimeToX } from '@/utility/timeline-coordinates.ts';
 import type { TimelineClip } from '@gs/subsystems_timeline_shared/clip.ts';
 
 const props = defineProps<{
 	clip: TimelineClip;
 	label: string;
 	sourceDurationMs: number | null;
-	tlElWidth: number;
-	tlRangeX: number;
-	tlPosX: number;
+	pixelsPerMs: number;
 	selected: boolean;
 	active: boolean;
 	moving: boolean;
@@ -35,9 +32,6 @@ const emit = defineEmits<{
 	(ev: 'trimStart', event: PointerEvent, edge: 'start' | 'end'): void;
 }>();
 
-function timeToDomX(time: number): number {
-	return timelineTimeToX(time, props.tlPosX, props.tlRangeX, props.tlElWidth);
-}
 </script>
 
 <style module lang="scss">

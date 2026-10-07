@@ -58,11 +58,12 @@ test('handles gaps and space before and after the list without selecting adjacen
 
 // 【横スクロール・倍率と描画側のキーの丸めを範囲判定にも適用する】
 // 左右の非表示部分を選ばず、長いクリップの部分交差とキー中心の境界を保つ。
+// 配置を丸めた後に親を小数px移動するため、移動後の座標を再度丸めない。
 test('matches painted key centers and clips horizontal geometry to the viewport', () => {
 	const layouts = new Map([['a', measured]]);
 	const from = { layerId: 'a', offsetY: 0 };
 	const to = { layerId: 'a', offsetY: 60 };
-	const selection = collectTimelineMarqueeCandidates(layers, from, to, layouts, { left: 1, right: 1, position: 24.6, range: 50, width: 100 });
+	const selection = collectTimelineMarqueeCandidates(layers, from, to, layouts, { left: 0.75, right: 0.85, position: 24.6, range: 50, width: 100 });
 	assert.equal(selection.clips.length, 1);
 	assert.deepEqual(selection.keyframes.map(point => point.keyframeId), ['a']);
 	assert.deepEqual(collectTimelineMarqueeCandidates(layers, from, to, layouts, { ...horizontal, position: 200 }), { clips: [], keyframes: [] });

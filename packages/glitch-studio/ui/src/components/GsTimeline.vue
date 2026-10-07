@@ -20,8 +20,8 @@
 			</div>
 		</div>
 		<div :class="$style.headerCenter">
-			<GsButton v-tooltip="'Prev Frame'" small iconOnly @click=""><i class="ti ti-chevron-left"></i></GsButton>
-			<GsButton v-tooltip="'Next Frame'" small iconOnly @click=""><i class="ti ti-chevron-right"></i></GsButton>
+			<GsButton v-tooltip="'Prev Frame'" small iconOnly><i class="ti ti-chevron-left"></i></GsButton>
+			<GsButton v-tooltip="'Next Frame'" small iconOnly><i class="ti ti-chevron-right"></i></GsButton>
 		</div>
 		<div :class="$style.headerCenter">
 			<span v-if="timelineAudioPreview.buffering.value"><i class="ti ti-loader"></i></span>
@@ -37,7 +37,7 @@
 			<GsButton v-tooltip="'Snap Settings...'" small iconOnly :primary="snapEnabled" @click="showSnapMenu"><i class="ti ti-magnet"></i></GsButton>
 		</div>
 	</div>
-	<div :class="[$style.body, { [$style.panning]: panning }]" @pointerdown.capture="onBackgroundPointerDown" @click.capture="onTimelineClick" @mousedown.capture="onPanMousedown" @auxclick.capture="onPanAuxclick" @wheel.capture="onTimelineWheel">
+	<div :class="$style.body" @pointerdown.capture="onBackgroundPointerDown" @click.capture="onTimelineClick" @mousedown.capture="onPanMousedown" @auxclick.capture="onPanAuxclick" @wheel.capture="onTimelineWheel">
 		<div :class="$style.tlBgWrapper" data-timeline-surface>
 			<div :class="$style.tlBgSideSpacer"></div>
 			<div ref="tlEl" :class="$style.tlBg" tabindex="-1" @wheel="onTlWheel" @mousemove="onTlMousemove">
@@ -92,10 +92,11 @@
 						:sceneTimeMs="time"
 						:tlElWidth="tlElWidth"
 						:tlRangeX="tlRangeX"
-						:clipTicks="clipTicksByLayer.get(layer.id) ?? new Map()"
+						:tickMode="tickMode"
+						:tickSubdivisions="tickSubdivisions"
 						:mediaInfo="mediaInfo"
-						:selectedClipIds="selection.kind === 'clips' ? selection.clips.filter(clip => clip.layerId === layer.id).map(clip => clip.clipId) : []"
-						:selectedKeyframes="selection.kind === 'keyframes' ? selection.keyframes : []"
+						:selectedClipIds="selectedClipIdsByLayer.get(layer.id) ?? emptySelectionIds"
+						:selectedKeyframes="selectedTimelineKeyframes"
 						:class="$style.layersLane"
 						:selected="selection.kind === 'layers' && selection.ids.includes(layer.id)"
 						:moving="movingSelection"
@@ -363,7 +364,7 @@ import type { ShapeType } from '@gs/subsystems_timeline_shared/shape.ts';
 import type { TimelineClipClipboard } from '@/utility/timeline-clip-clipboard.ts';
 import { createKeyframeStretch, stretchKeyframeX } from '@/utility/timeline-keyframe-stretch.ts';
 import { zoomTimelineX } from '@/utility/timeline-zoom.ts';
-import { getTimelineTickCount, getTimelineTicks, getTimelineMinorTicks, getTimelineClipTicks, formatTimelineTimecode as formatMsToTimecode } from '@/utility/timeline-ticks.ts';
+import { getTimelineTickCount, getTimelineTicks, getTimelineMinorTicks, getTimelineVisibleClipTicks, formatTimelineTimecode as formatMsToTimecode } from '@/utility/timeline-ticks.ts';
 import { getTimelineClipSnapPoints, getTimelineSnapCandidates, getTimelineSeekPosition } from '@/utility/timeline-snapping.ts';
 import { preferences } from '@/preferences.ts';
 import { listenPointerDrag } from '@/utility/pointer-drag.ts';
@@ -519,6 +520,20 @@ const selectionArea = ref<SelectionRect | null>(null);
 const movingSelection = ref(false);
 
 const selection = ref<TimelineSelection>(editorState?.selection ? deepClone(editorState.selection) : { kind: 'layers', ids: [] });
+// スクロールや縦仮想一覧の更新で同じ選択配列を作り直さない。
+const emptySelectionIds: string[] = [];
+const emptyKeyframeSelection: TimelineKeyframeSelection[] = [];
+const selectedTimelineKeyframes = computed(() => selection.value.kind === 'keyframes' ? selection.value.keyframes : emptyKeyframeSelection);
+const selectedClipIdsByLayer = computed(() => {
+	const result = new Map<string, string[]>();
+	if (selection.value.kind !== 'clips') return result;
+	for (const clip of selection.value.clips) {
+		const ids = result.get(clip.layerId) ?? [];
+		ids.push(clip.clipId);
+		result.set(clip.layerId, ids);
+	}
+	return result;
+});
 const selectionCount = computed(() => selection.value.kind === 'layers' ? selection.value.ids.length : selection.value.kind === 'clips' ? selection.value.clips.length : selection.value.keyframes.length);
 const selectedLayerId = computed(() => selection.value.kind === 'layers' ? selection.value.ids[0] ?? null : selection.value.kind === 'clips' ? selection.value.clips[0]?.layerId ?? null : selection.value.keyframes[0]?.layerId ?? null);
 const selectedLayer = computed(() => selectionCount.value > 1 ? null : sceneLayers.value.find(layer => layer.id === selectedLayerId.value) ?? null);
@@ -651,9 +666,6 @@ const xTicksCount = computed(() => getTimelineTickCount(tlElWidth.value));
 const xTicks = computed(() => getTimelineTicks(tlPosX.value, tlRangeX.value, xTicksCount.value, tickMode.value));
 const xMinorTicks = computed(() => getTimelineMinorTicks(xTicks.value, tickSubdivisions.value));
 const xTicksWithMinor = computed(() => [...xTicks.value, ...xMinorTicks.value].toSorted((a, b) => a - b));
-const clipTicksByLayer = computed(() => new Map(sceneLayers.value.map(layer => [layer.id,
-																																																																																new Map(layer.clips.map(clip => [clip.id, getTimelineClipTicks(clip, tlPosX.value, tlRangeX.value, xTicksCount.value, tickMode.value, tickSubdivisions.value)])),
-])));
 const yTicksCount = ref(6);
 const yTicks = computed(() => niceScale(tlPosY.value, tlPosY.value + tlRangeY.value, yTicksCount.value));
 const yTicksWithHalf = computed(() => insertIntermediateNumbers(yTicks.value));
@@ -1069,11 +1081,13 @@ function onKeyframeMoveStart(event: PointerEvent, point: TimelineKeyframeSelecti
 	const entries = keyframeEntries.value.filter(entry => selected.has(keyframeSelectionKey(entry.selection)));
 	const otherTimes = [0, ...sceneLayers.value.flatMap(entry => entry.clips.flatMap(clip => [clip.startMs, getTimelineClipEnd(clip)])),
 																					...keyframeEntries.value.filter(entry => !selected.has(keyframeSelectionKey(entry.selection))).map(entry => entry.time)];
-	const candidatesByLayer = new Map(sceneLayers.value.map(layer => {
+	const affectedLayerIds = new Set(entries.map(entry => entry.selection.layerId));
+	const candidatesByLayer = new Map(sceneLayers.value.filter(layer => affectedLayerIds.has(layer.id)).map(layer => {
 		// キーはScene時刻のまま、所属レイヤーの各クリップに描いた目盛りへ吸着させる。
 		// 空白区間にはローカル目盛りがなく、別レイヤーのクリップも候補に含めない。
-		const localTimes = [...(clipTicksByLayer.value.get(layer.id)?.values() ?? [])]
-			.flatMap(ticks => [...ticks.major, ...ticks.minor].map(tick => tick.sceneTimeMs)).toSorted((a, b) => a - b);
+		const localTimes = snapSettings.value.localTicks ? getTimelineVisibleClipTicks(
+			layer.clips, tlPosX.value, tlRangeX.value, xTicksCount.value, tickMode.value, tickSubdivisions.value,
+		).flatMap(({ ticks }) => [...ticks.major, ...ticks.minor].map(tick => tick.sceneTimeMs)).toSorted((a, b) => a - b) : [];
 		return [layer.id, getTimelineSnapCandidates(snapSettings.value, otherTimes, xTicksWithMinor.value, localTimes, time.value)];
 	}));
 	const points = entries.filter(entry => stretch == null || keyframeSelectionKey(entry.selection) === key).map(entry => {

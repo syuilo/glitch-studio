@@ -12,45 +12,40 @@
 		<div :class="$style.tl" @dblclick.stop.prevent="onBackgroundDoubleClick">
 			<button v-if="offscreenClips.previous" class="_button" :class="$style.stickyArrow" style="left: 0;" @click.stop="look(offscreenClips.previous)" @dblclick.stop><i class="ti ti-arrow-left"></i></button>
 			<button v-if="offscreenClips.next" class="_button" :class="$style.stickyArrow" style="right: 0;" @click.stop="look(offscreenClips.next)" @dblclick.stop><i class="ti ti-arrow-right"></i></button>
-			<XClip
-				v-for="clip in layer.clips"
-				:key="clip.id"
-				:clip="clip"
-				:label="clipLabel(clip)"
-				:sourceDurationMs="sourceDuration(clip)"
-				:tlElWidth="tlElWidth"
-				:tlRangeX="tlRangeX"
-				:tlPosX="tlPosX"
-				:selected="selectedClipIds.includes(clip.id)"
-				:active="!layer.isDisabled && isTimelineClipActive(clip, sceneTimeMs)"
-				:moving="moving && selectedClipIds.includes(clip.id)"
-				@moveStart="event => emit('clipMoveStart', event, { layerId: layer.id, clipId: clip.id })"
-				@trimStart="(event, edge) => emit('clipTrimStart', event, { layerId: layer.id, clipId: clip.id }, edge)"
-			/>
+			<div :class="$style.scrollingContent" :style="scrollingStyle">
+				<XClips
+					:items="clipItems"
+					:pixelsPerMs="pixelsPerMs"
+					:sceneTimeMs="sceneTimeMs"
+					:isDisabled="layer.isDisabled"
+					:selectedClipIds="selectedClipIds"
+					:moving="moving"
+					@moveStart="(event, clipId) => emit('clipMoveStart', event, { layerId: layer.id, clipId })"
+					@trimStart="(event, clipId, edge) => emit('clipTrimStart', event, { layerId: layer.id, clipId }, edge)"
+				/>
+			</div>
 		</div>
 	</div>
 	<div v-if="keyframeParameters.length > 0" :class="$style.localTicksLane">
 		<div :class="[$style.side, $style.localTicksLabel]">Clip time</div>
 		<div :class="[$style.tl, $style.localTicks]">
-			<div v-for="clip in layer.clips" :key="clip.id" :class="$style.localTicksRange" :style="{ left: timeToDomX(clip.startMs) + 'px', width: clip.durationMs / tlRangeX * tlElWidth + 'px' }">
-				<div v-for="tick of clipTicks.get(clip.id)?.major" :key="tick.contentTimeMs" :class="$style.localTick" class="_monospace" :style="{ left: (tick.sceneTimeMs - clip.startMs) / tlRangeX * tlElWidth + 'px' }">{{ formatTimelineTimecode(tick.contentTimeMs) }}</div>
-				<div v-for="tick of clipTicks.get(clip.id)?.minor" :key="tick.contentTimeMs" :class="$style.localMinorTick" :style="{ left: (tick.sceneTimeMs - clip.startMs) / tlRangeX * tlElWidth + 'px' }"></div>
+			<div v-for="{ clip, ticks } in visibleClipTicks" :key="clip.id" :class="$style.localTicksRange" :style="{ left: timeToDomX(clip.startMs) + 'px', width: clip.durationMs / tlRangeX * tlElWidth + 'px' }">
+				<div v-for="tick of ticks.major" :key="tick.contentTimeMs" :class="$style.localTick" class="_monospace" :style="{ left: (tick.sceneTimeMs - clip.startMs) / tlRangeX * tlElWidth + 'px' }">{{ formatTimelineTimecode(tick.contentTimeMs) }}</div>
+				<div v-for="tick of ticks.minor" :key="tick.contentTimeMs" :class="$style.localMinorTick" :style="{ left: (tick.sceneTimeMs - clip.startMs) / tlRangeX * tlElWidth + 'px' }"></div>
 			</div>
 		</div>
 	</div>
 	<div v-for="param in keyframeParameters" :key="param.key" :class="$style.keyframesLane" :data-parameter-target="param.target" :data-param-path="paramPathKey(param.paramPath)">
 		<div :class="$style.side"><div style="padding-right: 10px;">{{ param.label }}</div></div>
-		<div :class="$style.tl">
-			<XKeyframes
-				:keyframes="param.binding.keyframesTimeline.keyframes"
-				:startTime="0"
-				:tlElWidth="tlElWidth"
-				:tlRangeX="tlRangeX"
-				:tlPosX="tlPosX"
-				:selectedKeyframeIds="selectedKeyframes.filter(point => point.layerId === layer.id && point.target === param.target && paramPathKey(point.paramPath) === paramPathKey(param.paramPath)).map(point => point.keyframeId)"
-				@dragStart="(event, keyframeId) => emit('keyframeDragStart', event, { layerId: layer.id, target: param.target, paramPath: param.paramPath, keyframeId })"
-				@insert="onKeyframeInsert(param, $event)"
-			/>
+		<div :class="$style.tl" @dblclick.stop.prevent="onKeyframeBackgroundDoubleClick(param, $event)">
+			<div :class="$style.scrollingContent" :style="scrollingStyle">
+				<XKeyframes
+					:keyframes="param.binding.keyframesTimeline.keyframes"
+					:pixelsPerMs="pixelsPerMs"
+					:selectedKeyframeIds="selectedKeyframeIdsByParameter.get(param.key) ?? emptySelectionIds"
+					@dragStart="(event, keyframeId) => emit('keyframeDragStart', event, { layerId: layer.id, target: param.target, paramPath: param.paramPath, keyframeId })"
+				/>
+			</div>
 		</div>
 	</div>
 </div>
@@ -58,22 +53,22 @@
 
 <script lang="ts" setup>
 import { computed } from 'vue';
-import { timelineTimeToX } from '@/utility/timeline-coordinates.ts';
+import { timelineTimeToX, timelinePointerTime } from '@/utility/timeline-coordinates.ts';
 import { paramPathKey } from '@gs/shared/parameter/parameter-path.ts';
 import { effectDefinitions } from '@gs/subsystems_effect_shared/effect-definitions.ts';
 import { getSceneDuration } from '@gs/subsystems_timeline_shared/scenes.ts';
-import { getTimelineClipEnd, isTimelineClipActive } from '@gs/subsystems_timeline_shared/timing.ts';
+import { getTimelineClipEnd } from '@gs/subsystems_timeline_shared/timing.ts';
 import GsCondensedLine from './common/GsCondensedLine.vue';
-import XClip from './GsTimeline.Clip.vue';
+import XClips from './GsTimeline.Layer.Clips.vue';
 import XKeyframes from './GsTimeline.Layer.Keyframes.vue';
 import GsButton from './common/GsButton.vue';
 import type { TimelineClip, TimelineAssetClip, TimelineVideoClip, TimelineSceneClip } from '@gs/subsystems_timeline_shared/clip.ts';
 import type { TimelineKeyframeSelection, TimelineClipSelection } from '@/utility/timeline-selection.ts';
-import type { TimelineClipTicks } from '@/utility/timeline-ticks.ts';
+import type { TimelineTickMode, TimelineTickSubdivisions } from '@/utility/timeline-ticks.ts';
 import type { TimelineClipMediaInfo } from '@/utility/timeline-clip-media.ts';
 import type { TimelineLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import { appContext } from '@/app.ts';
-import { formatTimelineTimecode } from '@/utility/timeline-ticks.ts';
+import { formatTimelineTimecode, getTimelineVisibleClipTicks, getTimelineTickCount } from '@/utility/timeline-ticks.ts';
 import { resolveLayerParameter, getLayerKeyframeParameters } from '@/utility/timeline-scene.ts';
 import { insertInlineKeyframe } from '@/utility/keyframes-timeline.ts';
 
@@ -86,7 +81,8 @@ const props = defineProps<{
 	tlElWidth: number;
 	tlRangeX: number;
 	tlPosX: number;
-	clipTicks: ReadonlyMap<string, TimelineClipTicks>;
+	tickMode: TimelineTickMode;
+	tickSubdivisions: TimelineTickSubdivisions;
 	mediaInfo: ReadonlyMap<string, TimelineClipMediaInfo>;
 	selectedKeyframes: TimelineKeyframeSelection[];
 	selectedClipIds: string[];
@@ -106,8 +102,25 @@ const emit = defineEmits<{
 const layerIcon = computed(() => ({ image: 'ti-photo', video: 'ti-video', audio: 'ti-music', scene: 'ti-timeline', visualModule: 'ti-chart-dots-3', inlineVisualModule: 'ti-chart-dots-3', effect: 'ti-sparkles', shape: 'ti-shape' })[props.layer.layerType]);
 type Clip = TimelineClip | TimelineAssetClip | TimelineVideoClip | TimelineSceneClip;
 
+const pixelsPerMs = computed(() => props.tlElWidth / props.tlRangeX);
+const scrollingStyle = computed(() => ({ transform: 'translateX(' + (-props.tlPosX * pixelsPerMs.value) + 'px)' }));
+const sortedClips = computed(() => props.layer.clips.toSorted((a, b) => a.startMs - b.startMs));
+const clipItems = computed(() => props.layer.clips.map(clip => ({ clip, label: clipLabel(clip), sourceDurationMs: sourceDuration(clip) })));
+const emptySelectionIds: string[] = [];
+const selectedKeyframeIdsByParameter = computed(() => {
+	const result = new Map<string, string[]>();
+	for (const point of props.selectedKeyframes) {
+		if (point.layerId !== props.layer.id) continue;
+		const key = JSON.stringify([point.target, point.paramPath]);
+		const ids = result.get(key) ?? [];
+		ids.push(point.keyframeId);
+		result.set(key, ids);
+	}
+	return result;
+});
+
 const offscreenClips = computed(() => {
-	const clips = props.layer.clips.toSorted((a, b) => a.startMs - b.startMs);
+	const clips = sortedClips.value;
 	const viewportEnd = props.tlPosX + props.tlRangeX;
 	// 表示中のクリップの有無にかかわらず、左右それぞれの最寄りの画面外クリップを示す。
 	// 一部でも見えているクリップは対象にせず、空白を挟んだ先へ移動できるようにする。
@@ -147,12 +160,20 @@ function sourceDuration(clip: Clip): number | null {
 function onBackgroundDoubleClick(event: MouseEvent) {
 	if (event.button !== 0 || props.tlElWidth <= 0 || props.tlRangeX <= 0) return;
 	const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
-	const startMs = props.tlPosX + (event.clientX - rect.left) / props.tlElWidth * props.tlRangeX;
+	const startMs = timelinePointerTime(event.clientX, rect.left, props.tlPosX, pixelsPerMs.value);
 	if (startMs >= 0) emit('addClip', startMs);
 }
 
 type KeyframeParameter = ReturnType<typeof getLayerKeyframeParameters>[number];
 const keyframeParameters = computed(() => getLayerKeyframeParameters(stateManager.state, props.layer));
+
+// 背景の操作は移動しない表示領域で受け、移動済みDOMのleftを二重に補正しない。
+function onKeyframeBackgroundDoubleClick(param: KeyframeParameter, event: MouseEvent) {
+	if (event.button !== 0 || props.tlElWidth <= 0 || props.tlRangeX <= 0) return;
+	const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+	const time = timelinePointerTime(event.clientX, rect.left, props.tlPosX, pixelsPerMs.value);
+	onKeyframeInsert(param, Math.max(0, time));
+}
 
 function onKeyframeInsert(param: KeyframeParameter, x: number) {
 	const layer = props.layer;
@@ -169,6 +190,11 @@ function onKeyframeInsert(param: KeyframeParameter, x: number) {
 	});
 	emit('keyframeSelected', { layerId: layer.id, target: param.target, paramPath: param.paramPath, keyframeId: inserted.keyframeId });
 }
+
+// このレイヤーがマウントされ、キーのレーンを表示するときだけローカル目盛りを作る。
+const visibleClipTicks = computed(() => keyframeParameters.value.length === 0 ? [] : getTimelineVisibleClipTicks(
+	props.layer.clips, props.tlPosX, props.tlRangeX, getTimelineTickCount(props.tlElWidth), props.tickMode, props.tickSubdivisions,
+));
 
 function timeToDomX(time: number): number { return timelineTimeToX(time, props.tlPosX, props.tlRangeX, props.tlElWidth); }
 </script>
@@ -225,10 +251,18 @@ function timeToDomX(time: number): number { return timelineTimeToX(time, props.t
 }
 
 .tl {
+	overflow: clip;
 	position: relative;
 	flex: 1;
 	min-width: 0;
 	direction: ltr;
+}
+
+.scrollingContent {
+	position: absolute;
+	inset: 0;
+	// 横位置は親で一括更新する。子のクリップ・キーにスクロールを伝播させない。
+	overflow: visible;
 }
 
 .layerHeader {

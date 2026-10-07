@@ -1,16 +1,16 @@
 <template>
-<div :class="$style.root" @dblclick.stop.prevent="onBackgroundDoubleClick">
+<div :class="$style.root">
 	<div
 		v-for="{ keyframe, prevKeyframe } of keyframeSegments"
 		:key="keyframe.id"
 		:class="[$style.keyframeBg]"
-		:style="{ left: Math.round(timeToDomX(keyframeTime(prevKeyframe.x))) + 'px', width: Math.round(timeToDomX(keyframeTime(keyframe.x))) - Math.round(timeToDomX(keyframeTime(prevKeyframe.x))) + 'px' }"
+		:style="{ left: timelineKeyframePosition(prevKeyframe.x, pixelsPerMs) + 'px', width: timelineKeyframePosition(keyframe.x, pixelsPerMs) - timelineKeyframePosition(prevKeyframe.x, pixelsPerMs) + 'px' }"
 	></div>
 	<div
 		v-for="keyframe of keyframes"
 		:key="keyframe.id"
-		:class="[$style.keyframe, { [$style.selected]: selectedKeyframeIds.includes(keyframe.id) }]"
-		:style="{ left: Math.round(timeToDomX(keyframeTime(keyframe.x))) + 'px' }"
+		:class="[$style.keyframe, { [$style.selected]: selectedIds.has(keyframe.id) }]"
+		:style="{ left: timelineKeyframePosition(keyframe.x, pixelsPerMs) + 'px' }"
 		:data-timeline-keyframe-id="keyframe.id"
 		@pointerdown.stop="emit('dragStart', $event, keyframe.id)"
 		@click.stop.prevent
@@ -21,37 +21,20 @@
 
 <script lang="ts" setup>
 import { computed } from 'vue';
-import { timelineTimeToX } from '@/utility/timeline-coordinates.ts';
+import { timelineKeyframePosition } from '@/utility/timeline-coordinates.ts';
 import type { KeyframesTimelineKeyframe } from '@gs/shared/keyframes/keyframes-timeline.ts';
 
 const props = defineProps<{
 	keyframes: KeyframesTimelineKeyframe[];
-	startTime: number;
-	tlElWidth: number;
-	tlRangeX: number;
-	tlPosX: number;
+	pixelsPerMs: number;
 	selectedKeyframeIds: string[];
 }>();
 
 const emit = defineEmits<{
 	(ev: 'dragStart', event: PointerEvent, keyframeId: string): void;
-	(ev: 'insert', x: number): void;
 }>();
 
-function keyframeTime(x: number): number {
-	return props.startTime + x;
-}
-
-function timeToDomX(time: number): number {
-	return timelineTimeToX(time, props.tlPosX, props.tlRangeX, props.tlElWidth);
-}
-
-function onBackgroundDoubleClick(ev: MouseEvent) {
-	if (ev.button !== 0 || props.tlElWidth <= 0 || props.tlRangeX <= 0) return;
-	const rect = (ev.currentTarget as HTMLElement).getBoundingClientRect();
-	const time = props.tlPosX + (ev.clientX - rect.left) / props.tlElWidth * props.tlRangeX;
-	emit('insert', Math.max(0, time - props.startTime));
-}
+const selectedIds = computed(() => new Set(props.selectedKeyframeIds));
 
 const keyframeSegments = computed(() => {
 	const keyframes = props.keyframes.toSorted((a, b) => a.x - b.x);

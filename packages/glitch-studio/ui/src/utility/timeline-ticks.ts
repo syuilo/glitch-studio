@@ -6,6 +6,12 @@ export type TimelineTickSubdivisions = { halves: boolean; thirds: boolean };
 export type TimelineClipTick = { contentTimeMs: number; sceneTimeMs: number };
 export type TimelineClipTicks = { major: TimelineClipTick[]; minor: TimelineClipTick[] };
 
+/** 描画時はマウント中のレイヤー、スナップ時は操作対象のレイヤーだけから呼び出す。 */
+export function getTimelineVisibleClipTicks<T extends TimelineClipTiming>(clips: readonly T[], viewportStartMs: number, viewportDurationMs: number, count: number, mode: TimelineTickMode, subdivisions: TimelineTickSubdivisions): { clip: T; ticks: TimelineClipTicks }[] {
+	return clips.filter(clip => clip.startMs <= viewportStartMs + viewportDurationMs && clip.startMs + clip.durationMs > viewportStartMs)
+		.map(clip => ({ clip, ticks: getTimelineClipTicks(clip, viewportStartMs, viewportDurationMs, count, mode, subdivisions) }));
+}
+
 export function getTimelineTickCount(viewportWidth: number): number {
 	// 主目盛りの間隔は約120pxを目安とし、刻み方に応じた丸めは生成側で行う。
 	return Math.max(3, Math.floor(viewportWidth / 120) + 1);
