@@ -571,6 +571,8 @@ function seekToKeyframe(timeMs: number | null) {
 	selection.value = { kind: 'keyframes', keyframes };
 	// キーはクリップの区間外にも置けるため、Sceneの長さで移動先を制限しない。
 	previewPlayback.seekTimeline(timeMs);
+	// 移動先のキーを確認できるよう、再生追従の設定によらずシークバーを中央に置く。
+	tlPosX.value = timeMs - tlRangeX.value / 2;
 }
 
 const audioLayerOptions = computed(() => sceneLayers.value
