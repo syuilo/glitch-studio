@@ -37,8 +37,10 @@ const appBundle = await build({
 			build.onLoad({ filter: /.*/, namespace: 'audio-platform' }, () => ({ contents: `
 				export class TimelineAudioPreview {
 					error = { value: null }; buffering = { value: false }; time = 0;
-					starts = [];
-					start(time) { this.time = time; this.starts.push(time); } stop() {} currentTime() { return this.time; }
+					starts = []; projects = [];
+					constructor(_getOutput, getProject) { this.getProject = getProject; }
+					// postMessageと同じ複製を行い、VueのProxyを再生Workerへ渡す不具合も検出する。
+					start(time) { this.time = time; this.starts.push(time); this.projects.push(structuredClone(this.getProject())); } stop() {} currentTime() { return this.time; }
 				}
 				export class AudioOutput {}
 			`, loader: 'ts' }));
@@ -128,10 +130,66 @@ function project(overrides = {}) {
 	return {
 		timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 },
 		id: 'project-id', gsVersion: '2.0.0-alpha.2', name: 'Example', description: 'First line\n日本語の説明', author: 'Author',
-		assets: [], players: [], visualModules: [], timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [] }], resolution: { width: 640, height: 480 },
+		assets: [], generatedSpeech: [], players: [], visualModules: [], timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [] }], resolution: { width: 640, height: 480 },
 		...overrides,
 	};
 }
+
+// 【再生開始時の生成音声をシーク中も固定し、次回再生にだけ新しい結果を採用する】
+// 生成完了で音声Workerが再起動したり、描画用音声入力と再生音声が食い違うのを防ぐ。
+// 発話の編集とUndoは再生を停止し、字幕と音声に別の本文が使われないことも確認する。
+// 音声情報と入れ子のAudioQueryはVueでリアクティブになるため、Workerへ複製可能な状態で渡す。
+test('freezes prepared speech during playback and stops for utterance edits and undo', async t => {
+	const window = setup(t);
+	window.requestAnimationFrame = () => 1;
+	window.cancelAnimationFrame = () => {};
+	const { appContext } = evaluate(appBundle);
+	const key = JSON.stringify([1, 1, 'Hello']);
+	const speech = { key, sourceId: 'first', durationMs: 1000, fileData: new Blob(['first']), engineVersion: 'test', audioQuery: { accent_phrases: [{ moras: [{ text: 'ハ', vowel_length: 0.1 }] }] } };
+	const layer = { id: 'speech', name: 'Speech', layerType: 'voicevox', isDisabled: false, automationGraphs: [],
+		voicevox: { speedScale: 1 }, utterances: [{ id: 'key', timeMs: 0, text: 'Hello', reading: null, styleId: 1 }],
+		clips: [{ id: 'clip', startMs: 0, durationMs: 2000, contentOffsetMs: 0 }],
+		subtitleParamValues: {}, compositingParamValues: {}, audioParamValues: { volume: { inputSource: 'literal', value: 1 } } };
+	await appContext.ready(project({ generatedSpeech: [speech], timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [layer] }] }));
+	await nextTick();
+	const manager = appContext.projectContext.stateManager;
+	const playback = appContext.previewPlayback;
+	const audio = appContext.timelineAudioPreview;
+	playback.playTimeline();
+	try {
+		assert.equal(audio.projects.at(-1).generatedSpeech[0].sourceId, 'first');
+		manager.state.generatedSpeech.value = [{ ...speech, sourceId: 'second', fileData: new Blob(['second']) }];
+		await nextTick();
+		assert.equal(audio.starts.length, 1);
+		playback.seekTimeline(500);
+		assert.equal(audio.projects.at(-1).generatedSpeech[0].sourceId, 'first');
+		playback.pauseTimeline();
+		await nextTick();
+		playback.playTimeline();
+		assert.equal(audio.projects.at(-1).generatedSpeech[0].sourceId, 'second');
+		manager.commit('editVoicevoxLayer', { sceneId: 'scene', layerId: 'speech', voicevox: layer.voicevox,
+			utterances: [{ id: 'key', timeMs: 0, text: 'Edited', reading: null, styleId: 1 }] });
+		assert.equal(playback.isTimelinePlaying.value, false);
+		// Webでも旧結果を保存対象から外し、同じ操作のUndoで即座に再利用できるようにする。
+		assert.deepEqual(manager.state.generatedSpeech.value, []);
+		assert.deepEqual(appContext.projectContext.snapshot().generatedSpeech, []);
+		await nextTick();
+		playback.playTimeline();
+		manager.undo();
+		assert.equal(playback.isTimelinePlaying.value, false);
+		assert.equal(manager.state.generatedSpeech.value[0].sourceId, 'second');
+		assert.equal(appContext.projectContext.snapshot().generatedSpeech[0].sourceId, 'second');
+		await nextTick();
+		playback.playTimeline();
+		manager.commit('editVoicevoxLayer', { sceneId: 'scene', layerId: 'speech', voicevox: layer.voicevox,
+			utterances: [{ id: 'key', timeMs: 0, text: 'Hello', reading: null, styleId: 7 }] });
+		assert.equal(playback.isTimelinePlaying.value, false);
+		await nextTick();
+		playback.playTimeline();
+		manager.undo();
+		assert.equal(playback.isTimelinePlaying.value, false);
+	} finally { playback.dispose(); }
+});
 
 // 【描画設定を保存・復元し、Undo/Redoでもタイムラインだけへ同期する】
 // プレビュー用の値だけが変わって保存から漏れたり、LIVE側のfps制限を書き換えたりしないことを保証する。

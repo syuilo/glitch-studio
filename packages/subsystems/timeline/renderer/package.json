@@ -13,6 +13,7 @@
 		"./timeline-frame-renderer.ts": "./src/timeline-frame-renderer.ts",
 		"./timeline-renderer.ts": "./src/timeline-renderer.ts",
 		"./layers/effect/effect-timeline-layer.ts": "./src/layers/effect/effect-timeline-layer.ts",
+		"./layers/voicevox/voicevox-timeline-layer.ts": "./src/layers/voicevox/voicevox-timeline-layer.ts",
 		"./layers/text/text-timeline-layer.ts": "./src/layers/text/text-timeline-layer.ts",
 		"./layers/shape/shape-timeline-layer.ts": "./src/layers/shape/shape-timeline-layer.ts",
 		"./layers/image/image-timeline-layer.ts": "./src/layers/image/image-timeline-layer.ts",

@@ -1,5 +1,5 @@
 <template>
-<div :class="[$style.root, { [$style.selected]: selected, [$style.disabled]: layer.isDisabled, [$style.type_effect]: layer.layerType === 'effect', [$style.type_audio]: layer.layerType === 'audio', [$style.type_image]: layer.layerType === 'image', [$style.type_video]: layer.layerType === 'video', [$style.type_text]: layer.layerType === 'text' }]" :data-timeline-layer-id="layer.id">
+<div :class="[$style.root, { [$style.selected]: selected, [$style.disabled]: layer.isDisabled, [$style.type_effect]: layer.layerType === 'effect', [$style.type_audio]: layer.layerType === 'audio', [$style.type_image]: layer.layerType === 'image', [$style.type_video]: layer.layerType === 'video', [$style.type_text]: layer.layerType === 'text', [$style.type_voicevox]: layer.layerType === 'voicevox' }]" :data-timeline-layer-id="layer.id">
 	<div :class="$style.mainLane" data-timeline-clip-lane>
 		<div :class="$style.side">
 			<div :class="$style.layerHeader" draggable="true" @click="emit('selected', $event)" @dragstart.stop="emit('dragStart', $event)">
@@ -26,7 +26,7 @@
 			</div>
 		</div>
 	</div>
-	<div v-if="keyframeParameters.length > 0" :class="$style.localTicksLane">
+	<div v-if="keyframeParameters.length > 0 || layer.layerType === 'voicevox'" :class="$style.localTicksLane">
 		<div :class="[$style.side, $style.localTicksLabel]">Clip time</div>
 		<div :class="[$style.tl, $style.localTicks]">
 			<div v-for="{ clip, ticks } in visibleClipTicks" :key="clip.id" :class="$style.localTicksRange" :style="{ left: timeToDomX(clip.startMs) + 'px', width: clip.durationMs / tlRangeX * tlElWidth + 'px' }">
@@ -34,6 +34,15 @@
 				<div v-for="tick of ticks.minor" :key="tick.contentTimeMs" :class="$style.localMinorTick" :style="{ left: (tick.sceneTimeMs - clip.startMs) / tlRangeX * tlElWidth + 'px' }"></div>
 			</div>
 		</div>
+	</div>
+	<div v-if="layer.layerType === 'voicevox'" :class="$style.speechLane" data-parameter-target="utterance" :data-param-path="JSON.stringify(['utterances'])">
+		<div :class="$style.side" @click="emit('selected', $event)">Speech</div>
+		<VoicevoxKeys
+			:class="$style.tl" :sceneId="sceneId" :layer="layer" :pixelsPerMs="pixelsPerMs" :offsetMs="tlPosX"
+			:selectedKeyframeIds="selectedKeyframeIdsByParameter.get(JSON.stringify(['utterance', ['utterances']])) ?? emptySelectionIds"
+			@dragStart="(event, keyframeId) => emit('keyframeDragStart', event, { layerId: layer.id, target: 'utterance', paramPath: ['utterances'], keyframeId })"
+			@selected="keyframeId => emit('keyframeSelected', { layerId: layer.id, target: 'utterance', paramPath: ['utterances'], keyframeId })"
+		/>
 	</div>
 	<div v-for="param in keyframeParameters" :key="param.key" :class="$style.keyframesLane" :data-parameter-target="param.target" :data-param-path="paramPathKey(param.paramPath)">
 		<div :class="$style.side"><div style="padding-right: 10px;">{{ param.label }}</div></div>
@@ -58,6 +67,7 @@ import { effectDefinitions } from '@gs/subsystems_effect_shared/effect-definitio
 import { getSceneDuration } from '@gs/subsystems_timeline_shared/scenes.ts';
 import { getTimelineClipEnd } from '@gs/subsystems_timeline_shared/timing.ts';
 import GsCondensedLine from './common/GsCondensedLine.vue';
+import VoicevoxKeys from './GsTimeline.VoicevoxKeys.vue';
 import XClips from './GsTimeline.Layer.Clips.vue';
 import XKeyframes from './GsTimeline.Layer.Keyframes.vue';
 import GsButton from './common/GsButton.vue';
@@ -100,7 +110,7 @@ const emit = defineEmits<{
 	(ev: 'keyframeDragStart', event: PointerEvent, selection: TimelineKeyframeSelection): void;
 	(ev: 'keyframeSelected', selection: TimelineKeyframeSelection): void;
 }>();
-const layerIcon = computed(() => ({ image: 'ti-photo', video: 'ti-video', audio: 'ti-music', scene: 'ti-timeline', visualModule: 'ti-chart-dots-3', inlineVisualModule: 'ti-chart-dots-3', effect: 'ti-sparkles', shape: 'ti-shape', text: 'ti-typography' })[props.layer.layerType]);
+const layerIcon = computed(() => ({ voicevox: 'ti-microphone', image: 'ti-photo', video: 'ti-video', audio: 'ti-music', scene: 'ti-timeline', visualModule: 'ti-chart-dots-3', inlineVisualModule: 'ti-chart-dots-3', effect: 'ti-sparkles', shape: 'ti-shape', text: 'ti-typography' })[props.layer.layerType]);
 type Clip = TimelineClip | TimelineAssetClip | TimelineVideoClip | TimelineSceneClip;
 
 const pixelsPerMs = computed(() => props.tlElWidth / props.tlRangeX);
@@ -197,7 +207,7 @@ function onKeyframeInsert(param: KeyframeParameter, x: number) {
 }
 
 // このレイヤーがマウントされ、キーのレーンを表示するときだけローカル目盛りを作る。
-const visibleClipTicks = computed(() => keyframeParameters.value.length === 0 ? [] : getTimelineVisibleClipTicks(
+const visibleClipTicks = computed(() => keyframeParameters.value.length === 0 && props.layer.layerType !== 'voicevox' ? [] : getTimelineVisibleClipTicks(
 	props.layer.clips, props.tlPosX, props.tlRangeX, getTimelineTickCount(props.tlElWidth), props.tickMode, props.tickSubdivisions,
 ));
 
@@ -239,6 +249,9 @@ function timeToDomX(time: number): number { return timelineTimeToX(time, props.t
 	}
 	&.type_text {
 		--LAYER_COLOR: var(--THEME-layer-text);
+	}
+	&.type_voicevox {
+		--LAYER_COLOR: var(--THEME-layer-voicevox);
 	}
 }
 
@@ -339,6 +352,12 @@ function timeToDomX(time: number): number { return timelineTimeToX(time, props.t
 	height: 4px;
 	border-left: solid 1px #fff3;
 	pointer-events: none;
+}
+
+.speechLane {
+	display: flex;
+	height: 32px;
+	line-height: 32px;
 }
 
 .keyframesLane {

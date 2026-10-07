@@ -1,6 +1,6 @@
 import type { Asset } from '@gs/shared/types.ts';
 import { inspectVideoLayerAsset } from './video-layer-asset.ts';
-import { openAssetAudio } from '../audio/asset-audio-reader.ts';
+import { openAssetAudio } from '../audio/project-audio-reader.ts';
 
 export type TimelineClipMediaInfo = { durationMs: number; audioAvailable: boolean; audioError: string | null };
 

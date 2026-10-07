@@ -8,7 +8,7 @@ const bundle = await build({
 	stdin: { contents: `export { readMediaMetadata } from '@gs/shared/media/media-metadata.ts';
 		export { inspectVideoLayerAsset } from './utility/video-layer-asset.ts';
 		export { inspectTimelineClipMedia } from './utility/timeline-clip-media.ts';
-		export { openAssetAudio } from './audio/asset-audio-reader.ts';`,
+		export { openAssetAudio } from './audio/project-audio-reader.ts';`,
 		resolveDir: fileURLToPath(new URL('../src/', import.meta.url)), loader: 'ts' },
 	bundle: true, platform: 'node', format: 'cjs', write: false, external: ['mediabunny'],
 });

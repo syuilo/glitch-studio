@@ -631,6 +631,60 @@ test('cleans up pointer drags on release, cancellation, lost capture, blur and d
 	}
 });
 
+// 【背景クリックでは親要素にCaptureせず、ドラッグ開始後だけ捕捉する】
+// pointerdown直後に親へCaptureすると、子レーンのclick/dblclickも親へ送られ追加操作が届かない。
+// 微小な手ぶれでは捕捉せず、実際のドラッグは一覧要素で追跡し、終了前後のリスナーも解除する。
+test('defers ancestor pointer capture until dragging so lane clicks keep their target', () => {
+	for (const drag of [false, true]) {
+		for (const ending of ['pointerup', 'pointercancel', 'lostpointercapture', 'blur', 'pagehide', 'dispose']) {
+			const view = new EventTarget();
+			const element = new EventTarget();
+			element.ownerDocument = { defaultView: view };
+			let captured = false;
+			let captureCount = 0;
+			element.setPointerCapture = () => { captured = true; captureCount++; };
+			element.hasPointerCapture = () => captured;
+			element.releasePointerCapture = () => { captured = false; };
+			const moves = [];
+			let ended = 0;
+			const stop = listenPointerDrag({ pointerId: 1, clientX: 100, clientY: 200 },
+				event => moves.push([event.clientX, event.clientY]), () => ended++, element, { captureAfterDistance: 3 });
+			const dispatch = (target, type, pointerId, clientX, clientY) => target.dispatchEvent(Object.assign(new Event(type), { pointerId, clientX, clientY }));
+			assert.equal(captured, false);
+			dispatch(view, 'pointermove', 2, 150, 250);
+			dispatch(view, 'pointerup', 2, 150, 250);
+			assert.equal(captured, false);
+			assert.equal(ended, 0);
+			dispatch(view, 'pointermove', 1, 101, 202);
+			assert.equal(captured, false);
+			if (drag) {
+				dispatch(view, 'pointermove', 1, 100, 203);
+				assert.equal(captured, true);
+				// タッチ開始時の暗黙のCaptureが子から親へ移ると、子の喪失通知が親へバブルする。
+				const childLostCapture = Object.assign(new Event('lostpointercapture'), { pointerId: 1 });
+				Object.defineProperty(childLostCapture, 'target', { value: new EventTarget() });
+				element.dispatchEvent(childLostCapture);
+				assert.equal(ended, 0);
+				assert.equal(captured, true);
+				dispatch(view, 'pointermove', 1, 110, 210);
+				assert.equal(captureCount, 1);
+			}
+			if (ending === 'dispose') stop();
+			else dispatch(ending === 'lostpointercapture' ? element : view, ending, 1, 101, 202);
+			const moveCount = moves.length;
+			dispatch(view, 'pointermove', 1, 200, 300);
+			stop();
+			assert.equal(moves.length, moveCount);
+			assert.equal(ended, 1);
+			assert.equal(captured, false);
+			assert.equal(captureCount, drag ? 1 : 0);
+			const expectedMoves = drag ? [[101, 202], [100, 203], [110, 210]] : [[101, 202]];
+			if (ending === 'pointerup') expectedMoves.push([101, 202]);
+			assert.deepEqual(moves, expectedMoves);
+		}
+	}
+});
+
 // 【複数レイヤーのクリップを最も近い衝突位置で一括停止する】
 // 一つでも移動不能なら共通差分を制限する。最終位置に空きがあっても隣を飛び越さず、
 // 最後のクリップを削除した場合もレイヤー設定とキーを復元可能な形で残す。

@@ -2,9 +2,12 @@ import { paramPathKey } from '@gs/shared/parameter/parameter-path.ts';
 import type { ParamPath } from '@gs/shared/parameter/parameter-path.ts';
 import type { TimelineParameterTarget } from './timeline-scene.ts';
 
+// 発話キーはUIの選択対象として扱うが、パラメータBindingには変換しない。
+export type TimelineKeyTarget = TimelineParameterTarget | 'utterance';
+
 export type TimelineKeyframeSelection = {
 	layerId: string;
-	target: TimelineParameterTarget;
+	target: TimelineKeyTarget;
 	paramPath: ParamPath;
 	keyframeId: string;
 };
@@ -106,11 +109,11 @@ export function getTimelineSnappingTimes(points: TimelineMovePoint[], snapTimes:
 	return [...new Set(points.flatMap(point => (point.snapTimes ?? snapTimes).map(Math.round).filter(time => point.time + delta === time)))];
 }
 
-export function keyframeMoveBounds(keyframes: { id: string; x: number }[], selectedIds: ReadonlySet<string>, keyframeId: string): { minDelta: number; maxDelta: number } {
+export function keyframeMoveBounds(keyframes: { id: string; x: number }[], selectedIds: ReadonlySet<string>, keyframeId: string, minimumGap = 0): { minDelta: number; maxDelta: number } {
 	const sorted = keyframes.toSorted((a, b) => a.x - b.x);
 	const index = sorted.findIndex(point => point.id === keyframeId);
 	const point = sorted[index];
 	const previous = sorted.slice(0, index).findLast(entry => !selectedIds.has(entry.id));
 	const next = sorted.slice(index + 1).find(entry => !selectedIds.has(entry.id));
-	return { minDelta: Math.max(0, previous?.x ?? 0) - point.x, maxDelta: (next?.x ?? Infinity) - point.x };
+	return { minDelta: Math.max(0, previous ? previous.x + minimumGap : 0) - point.x, maxDelta: (next ? next.x - minimumGap : Infinity) - point.x };
 }

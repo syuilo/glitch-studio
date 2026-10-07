@@ -151,6 +151,15 @@
 		</div>
 
 		<Teleport v-if="props.subPanelTarget" defer :to="props.subPanelTarget">
+			<GsTimelineVoicevoxUtteranceSettings
+				v-if="selectedUtterance != null" :key="keyframeEditorKey" :sceneId="sceneId"
+				:layer="selectedUtterance.layer" :utterance="selectedUtterance.utterance"
+				@selected="keyframeId => onKeyframeSelected({ layerId: selectedUtterance!.layer.id, target: 'utterance', paramPath: ['utterances'], keyframeId })"
+			/>
+			<GsFolder v-if="selection.kind === 'keyframes' && selection.keyframes.length > 1" defaultOpen asSection>
+				<template #label>{{ selection.keyframes.length }} keyframes selected</template>
+				<GsButton danger small @click="removeSelectedKeyframes"><i class="ti ti-trash"></i> Remove Keyframes</GsButton>
+			</GsFolder>
 			<GsFolder v-if="selectedKeyframe != null" :key="keyframeEditorKey" defaultOpen asSection :withSpacer="false">
 				<template #icon><i class="ti ti-keyframe"></i></template>
 				<template #label>Keyframe: {{ selectedKeyframe.def.ui.label }}</template>
@@ -180,7 +189,7 @@
 								<template #label>Easing direction</template>
 							</GsSelect>
 						</template>
-						<GsButton danger small><i class="ti ti-trash"></i> Remove Keyframe</GsButton>
+						<GsButton danger small @click="removeSelectedKeyframes"><i class="ti ti-trash"></i> Remove Keyframe</GsButton>
 					</div>
 				</div>
 			</GsFolder>
@@ -221,6 +230,13 @@
 						:audioLayerOptions="audioLayerOptions"
 						@edit="event => onTimelineLayerParamEdit(event, 'effect')"
 						@resolution="resolution => stateManager.commit('changeEffectLayerResolution', { sceneId, layerId: selectedLayer!.id, resolution })"
+					/>
+					<GsTimelineVoicevoxSettings v-if="selectedLayer.layerType === 'voicevox'" :key="selectedLayer.id" :sceneId="sceneId" :layer="selectedLayer" @selected="keyframeId => onKeyframeSelected({ layerId: selectedLayer!.id, target: 'utterance', paramPath: ['utterances'], keyframeId })" />
+					<GsTimelineVoicevoxSubtitleSettings
+						v-if="selectedLayer.layerType === 'voicevox'"
+						:key="selectedLayer.id"
+						:layer="selectedLayer"
+						@edit="event => onTimelineLayerParamEdit(event, 'voicevoxSubtitle')"
 					/>
 					<GsTimelineTextSettings
 						v-if="selectedLayer.layerType === 'text'"
@@ -291,7 +307,7 @@
 							/>
 						</div>
 					</GsFolder>
-					<GsFolder v-if="selectedLayer.layerType === 'audio' || selectedLayer.layerType === 'video' || selectedLayer.layerType === 'scene'" :asSection="true" defaultOpen>
+					<GsFolder v-if="selectedLayer.layerType === 'voicevox' || selectedLayer.layerType === 'audio' || selectedLayer.layerType === 'video' || selectedLayer.layerType === 'scene'" :asSection="true" defaultOpen>
 						<template #icon><i class="ti ti-music"></i></template>
 						<template #label>Audio</template>
 						<div class="_gaps_m">
@@ -344,6 +360,8 @@ import { getTimelineVisualModuleArgumentDefault } from '@gs/subsystems_timeline_
 import { shapeDefinitions } from '@gs/subsystems_timeline_shared/layers/shape/shape.ts';
 import XLayer from './GsTimeline.Layer.vue';
 import GsTimelineEffectSettings from './GsTimeline.EffectSettings.vue';
+import GsTimelineVoicevoxUtteranceSettings from './GsTimeline.VoicevoxUtteranceSettings.vue';
+import GsTimelineVoicevoxSubtitleSettings from './GsTimeline.VoicevoxSubtitleSettings.vue';
 import GsTimelineTextSettings from './GsTimeline.TextSettings.vue';
 import GsTimelineShapeSettings from './GsTimeline.ShapeSettings.vue';
 import GsLiteralLeafValueControl from './GsLiteralLeafValueControl.vue';
@@ -378,18 +396,21 @@ import { getTimelineTickCount, getTimelineTicks, getTimelineMinorTicks, getTimel
 import { getTimelineClipSnapPoints, getTimelineSnapCandidates, getTimelineSeekPosition } from '@/utility/timeline-snapping.ts';
 import { preferences } from '@/preferences.ts';
 import { listenPointerDrag } from '@/utility/pointer-drag.ts';
-import { getLayerParameterValues, getLayerParameterDefinition, resolveLayerParameter, getLayerKeyframeParameters } from '@/utility/timeline-scene.ts';
+import { getTimelineKeyframeEntries, getTimelineKeyframeLanes } from '@/utility/timeline-keyframe-lanes.ts';
+import { getLayerParameterValues, getLayerParameterDefinition, resolveLayerParameter } from '@/utility/timeline-scene.ts';
 import { inspectTimelineClipMedia } from '@/utility/timeline-clip-media.ts';
 import { selectionRect, mergeTimelineRangeSelection, clipSelectionKey, keyframeSelectionKey, getTimelineStretchSelection, constrainTimelineMove, keyframeMoveBounds, getTimelineSnappingTimes } from '@/utility/timeline-selection.ts';
 import { canEditKeyframesTimeline, updateInlineKeyframe } from '@/utility/keyframes-timeline.ts';
 import { createEffectTimelineLayer } from '@/utility/effect-timeline-layer.ts';
 import { createShapeTimelineLayer } from '@/utility/shape-timeline-layer.ts';
+import GsTimelineVoicevoxSettings from './GsTimeline.VoicevoxSettings.vue';
+import { createVoicevoxTimelineLayer } from '@/utility/voicevox-timeline-layer.ts';
 import { createTextTimelineLayer } from '@/utility/text-timeline-layer.ts';
 import { appContext } from '@/app.ts';
 import { getTimelineEditorState, getSelectedTimelineLayerId, timelineClipboard } from '@/utility/timeline-editor-state.ts';
 import { copyTimelineClips, prepareTimelineClipPaste, canPasteTimelineClips } from '@/utility/timeline-clip-clipboard.ts';
 import { collectTimelineMarqueeCandidates, measureTimelineLayerSelection } from '@/utility/timeline-marquee.ts';
-import { copyTimelineKeyframes, prepareTimelineKeyframePaste } from '@/utility/timeline-keyframe-clipboard.ts';
+import { copyTimelineKeyframes, prepareTimelineKeyframePaste, getPastedTimelineKeySelection } from '@/utility/timeline-keyframe-clipboard.ts';
 import * as ui from '@/ui.ts';
 import { createInlineVisualModuleLayer } from '@/utility/inline-visual-module-layer.ts';
 import { commitVisualModuleEdit } from '@/utility/visual-module-edit.ts';
@@ -503,7 +524,7 @@ const virtualLayers = useTemplateRef('virtualLayers');
 const marqueeLayers = computed(() => sceneLayers.value.map(layer => ({
 	id: layer.id,
 	clips: layer.clips,
-	lanes: getLayerKeyframeParameters(stateManager.state, layer).map(param => ({ target: param.target, paramPath: param.paramPath, keyframes: param.binding.keyframesTimeline.keyframes })),
+	lanes: getTimelineKeyframeLanes(stateManager.state, layer),
 })));
 const layerSizeKeys = computed(() => new Map(marqueeLayers.value.map(layer => [layer.id, JSON.stringify(layer.lanes.map(lane => [lane.target, lane.paramPath]))])));
 
@@ -560,8 +581,8 @@ const selectedLayer = computed(() => sceneLayers.value.find(layer => layer.id ==
 const selectedLayerKeyframeTimes = computed(() => {
 	const layer = selectedLayer.value;
 	if (layer == null) return [];
-	return getLayerKeyframeParameters(stateManager.state, layer)
-		.flatMap(({ binding }) => binding.keyframesTimeline.keyframes.map(keyframe => keyframe.x))
+	return getTimelineKeyframeLanes(stateManager.state, layer)
+		.flatMap(({ keyframes }) => keyframes.map(keyframe => keyframe.x))
 		.sort((a, b) => a - b);
 });
 const getPreviousKeyframeTime = () => selectedLayerKeyframeTimes.value.findLast(keyframeTime => keyframeTime < time.value) ?? null;
@@ -602,9 +623,17 @@ const selectedKeyframeSelection = computed<TimelineKeyframeSelection | null>({
 });
 const keyframeValueMergeKey = ref<string | null>(null);
 const keyframeEditorKey = computed(() => JSON.stringify(selectedKeyframeSelection.value));
+const selectedUtterance = computed(() => {
+	const point = selectedKeyframeSelection.value;
+	if (point?.target !== 'utterance') return null;
+	const layer = sceneLayers.value.find(layer => layer.id === point.layerId);
+	if (layer?.layerType !== 'voicevox') return null;
+	const utterance = layer.utterances.find(utterance => utterance.id === point.keyframeId);
+	return utterance ? { layer, utterance } : null;
+});
 const selectedKeyframe = computed(() => {
 	const selection = selectedKeyframeSelection.value;
-	if (selection == null) return null;
+	if (selection == null || selection.target === 'utterance') return null;
 	const layer = sceneLayers.value.find(entry => entry.id === selection.layerId);
 	if (layer == null) return null;
 	let binding: TimelineEffectParameterBinding;
@@ -658,8 +687,14 @@ const keyframeInterpolationEditors = computed(() => {
 
 watch(selectedKeyframeSelection, () => { keyframeValueMergeKey.value = null; });
 watch(selectedKeyframe, value => {
-	if (value == null && selectedKeyframeSelection.value != null) selectedKeyframeSelection.value = null;
+	if (value == null && selectedKeyframeSelection.value != null && selectedKeyframeSelection.value.target !== 'utterance') selectedKeyframeSelection.value = null;
 });
+
+function removeSelectedKeyframes() {
+	if (selection.value.kind !== 'keyframes' || selection.value.keyframes.length === 0) return;
+	stateManager.commit('removeTimelineKeyframes', { sceneId: props.sceneId, keyframes: deepClone(selection.value.keyframes) });
+	selection.value = { kind: 'layers', ids: selectedLayerId.value ? [selectedLayerId.value] : [] };
+}
 
 function onKeyframeSelected(selection: TimelineKeyframeSelection) {
 	selectedKeyframeSelection.value = selection;
@@ -668,7 +703,7 @@ function onKeyframeSelected(selection: TimelineKeyframeSelection) {
 
 function updateKeyframe(keyframeId: string, patch: { x?: number; value?: unknown; interpolation?: KeyframeInterpolation }, mergeKey?: string | null) {
 	const selected = selectedKeyframe.value;
-	if (selected == null) return;
+	if (selected == null || selected.selection.target === 'utterance') return;
 	const value = updateInlineKeyframe(selected.binding, selected.def, keyframeId, patch);
 	if (value == null) return;
 	stateManager.commit('editTimelineLayerParam', {
@@ -848,14 +883,7 @@ function finishPan() {
 
 onBeforeUnmount(finishPan);
 
-const keyframeEntries = computed(() => sceneLayers.value.flatMap(layer => {
-	return getLayerKeyframeParameters(stateManager.state, layer).flatMap(({ target, paramPath, binding }) => {
-		return binding.keyframesTimeline.keyframes.map(point => ({
-			selection: { layerId: layer.id, target, paramPath, keyframeId: point.id },
-			x: point.x, time: point.x, keyframes: binding.keyframesTimeline.keyframes,
-		}));
-	});
-}));
+const keyframeEntries = computed(() => getTimelineKeyframeEntries(stateManager.state, sceneLayers.value));
 
 // clips配列の差し替えはレイヤー配列やキー一覧を変更しない。最後のクリップを
 // 削除した場合も選択を取り除き、続けてDeleteして存在しない対象を編集しない。
@@ -1005,6 +1033,7 @@ function onBackgroundPointerDown(event: PointerEvent) {
 	const stopHorizontalWatch = watch([tlPosX, tlRangeX], scheduleUpdate);
 	updateMarquee = scheduleUpdate;
 	layers.addEventListener('scroll', scheduleUpdate, { passive: true });
+	// 背景クリックは子レーンのダブルクリック追加へ届かせ、範囲選択の開始後だけ一覧で捕捉する。
 	const stopPointer = listenPointerDrag(event, current => {
 		pointer = { x: current.clientX, y: current.clientY };
 		scheduleUpdate();
@@ -1012,7 +1041,7 @@ function onBackgroundPointerDown(event: PointerEvent) {
 		// pointerupで予約した最後の判定を待つ。行を破棄してもCaptureは一覧要素に残る。
 		finishing = true;
 		if (!pending) cleanup();
-	}, layers);
+	}, layers, { captureAfterDistance: 3 });
 	cancelMarquee = () => { active = false; stopPointer(); cleanup(); };
 	stopSelectionDrag = cancelMarquee;
 	scheduleUpdate();
@@ -1114,11 +1143,21 @@ function onClipTrimStart(event: PointerEvent, target: TimelineClipSelection, edg
 function onKeyframeMoveStart(event: PointerEvent, point: TimelineKeyframeSelection) {
 	if (event.button !== 0 || !event.isPrimary || stopSelectionDrag || tlElWidth.value <= 0 || tlRangeX.value <= 0) return;
 	const key = keyframeSelectionKey(point);
-	const stretchSelection = event.shiftKey ? getTimelineStretchSelection(keyframeEntries.value.map(entry => entry.selection), selection.value, point) : [];
+	if (event.ctrlKey || event.metaKey) {
+		event.preventDefault();
+		const current = selection.value.kind === 'keyframes' ? selection.value.keyframes : [];
+		selection.value = { kind: 'keyframes', keyframes: current.some(entry => keyframeSelectionKey(entry) === key) ? current.filter(entry => keyframeSelectionKey(entry) !== key) : [...current, point] };
+		tlEl.value?.focus({ preventScroll: true });
+		revealDetails();
+		return;
+	}
+	// 発話は絶対時刻のイベントなので、Shiftの時間伸縮には含めず共通移動だけを行う。
+	const canStretch = point.target !== 'utterance' && !selectedTimelineKeyframes.value.some(entry => entry.target === 'utterance');
+	const stretchSelection = event.shiftKey && canStretch ? getTimelineStretchSelection(keyframeEntries.value.map(entry => entry.selection), selection.value, point) : [];
 	const stretchKeys = new Set(stretchSelection.map(keyframeSelectionKey));
 	const stretchEntries = keyframeEntries.value.filter(entry => stretchKeys.has(keyframeSelectionKey(entry.selection)));
 	const laneEntries = stretchEntries.filter(entry => entry.selection.target === point.target && paramPathKey(entry.selection.paramPath) === paramPathKey(point.paramPath));
-	const stretch = event.shiftKey ? createKeyframeStretch(laneEntries.map(entry => ({ id: entry.selection.keyframeId, x: entry.x })), point.keyframeId,
+	const stretch = event.shiftKey && canStretch ? createKeyframeStretch(laneEntries.map(entry => ({ id: entry.selection.keyframeId, x: entry.x })), point.keyframeId,
 		stretchEntries.map(entry => {
 			const ids = new Set(stretchSelection.filter(point => point.target === entry.selection.target && paramPathKey(point.paramPath) === paramPathKey(entry.selection.paramPath)).map(point => point.keyframeId));
 			return { x: entry.x, ...keyframeMoveBounds(entry.keyframes, ids, entry.selection.keyframeId) };
@@ -1145,7 +1184,7 @@ function onKeyframeMoveStart(event: PointerEvent, point: TimelineKeyframeSelecti
 	}));
 	const points = entries.filter(entry => stretch == null || keyframeSelectionKey(entry.selection) === key).map(entry => {
 		const ids = new Set(current.keyframes.filter(point => point.layerId === entry.selection.layerId && point.target === entry.selection.target && paramPathKey(point.paramPath) === paramPathKey(entry.selection.paramPath)).map(point => point.keyframeId));
-		const bounds = stretch ?? keyframeMoveBounds(entry.keyframes, ids, entry.selection.keyframeId);
+		const bounds = stretch ?? keyframeMoveBounds(entry.keyframes, ids, entry.selection.keyframeId, entry.selection.target === 'utterance' ? 1 : 0);
 		return { time: entry.time, minDelta: bounds.minDelta, maxDelta: bounds.maxDelta, snapTimes: candidatesByLayer.get(entry.selection.layerId) ?? [] };
 	});
 	const positions = entries.map(entry => ({ ...entry.selection, x: entry.x }));
@@ -1186,6 +1225,7 @@ async function onTlKeydown(ev: KeyboardEvent) {
 	if (target instanceof HTMLElement && (target.closest('input, textarea, select') || target.isContentEditable)) return;
 	const key = ev.key.toLowerCase();
 	if (key === 'c' && !(ev.ctrlKey || ev.metaKey || ev.altKey || ev.shiftKey)) { onCueKeyboardDown(ev); return; }
+	if ((key === 'delete' || key === 'backspace') && selection.value.kind === 'keyframes') { ev.preventDefault(); ev.stopPropagation(); removeSelectedKeyframes(); return; }
 	if ((key === 'delete' || key === 'backspace') && selection.value.kind === 'clips') { ev.preventDefault(); ev.stopPropagation(); removeSelectedClips(); return; }
 	if (!(ev.ctrlKey || ev.metaKey) || ev.altKey || ev.shiftKey) return;
 	if (key === 'c' && selection.value.kind === 'keyframes') {
@@ -1201,7 +1241,7 @@ async function onTlKeydown(ev: KeyboardEvent) {
 		const keyframes = prepareTimelineKeyframePaste(stateManager.state, editedScene, timelineClipboard.value, time.value);
 		if (!keyframes) return;
 		stateManager.commit('pasteTimelineKeyframes', { sceneId: props.sceneId, keyframes });
-		selection.value = { kind: 'keyframes', keyframes: keyframes.map(({ layerId, target, paramPath, keyframe }) => ({ layerId, target, paramPath, keyframeId: keyframe.id })) };
+		selection.value = { kind: 'keyframes', keyframes: keyframes.map(getPastedTimelineKeySelection) };
 		tlEl.value?.focus({ preventScroll: true });
 		return;
 	}
@@ -1377,6 +1417,7 @@ const selectedClipLabel = computed(() => {
 	if (entry.layer.layerType === 'visualModule') { const id = entry.layer.visualModuleId; return stateManager.state.visualModules.value.find(module => module.id === id)?.name ?? 'Missing module'; }
 	if (entry.layer.layerType === 'inlineVisualModule') return 'Inline Visual Module';
 	if (entry.layer.layerType === 'effect') { const id = entry.layer.effectId; return Object.entries(effectDefinitions).find(([key, effect]) => key === id)?.[1].displayName ?? 'Missing effect'; }
+	if (entry.layer.layerType === 'voicevox') return 'VOICEVOX';
 	if (entry.layer.layerType === 'text') return 'Text';
 	if (entry.layer.layerType === 'shape') return shapeDefinitions[entry.layer.shape.type].label;
 	return '?';
@@ -1679,6 +1720,18 @@ function showAddLayerMenu(ev: PointerEvent) {
 		text: 'Scene',
 		icon: 'ti ti-timeline',
 		action: () => addMediaLayer('scene'),
+	}, {
+		text: window.desktop ? 'VOICEVOX' : 'VOICEVOX (使用不可)',
+		icon: 'ti ti-microphone',
+		action: () => {
+			if (!window.desktop) {
+				void ui.alert({ type: 'error', text: 'VOICEVOXレイヤーの追加はWeb版では対応していません。Electron版を使用する必要があります。' });
+				return;
+			}
+			const layer = createVoicevoxTimelineLayer(Math.max(0, time.value));
+			stateManager.commit('addTimelineLayer', { sceneId: props.sceneId, layer });
+			selectLayer(layer);
+		},
 	}], ev.currentTarget ?? ev.target);
 }
 

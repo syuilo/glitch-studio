@@ -2,8 +2,10 @@ import { validateEffectResolution } from '@gs/subsystems_effect_shared/resolutio
 import { getTimelineClipEnd, validateTimelineClips } from './timing.ts';
 import { validateSceneResolution } from './scene-resolution.ts';
 import { validateTimelineParameterBinding } from './parameter-binding.ts';
+import { validateVoicevoxSubtitle } from './layers/voicevox/voicevox-subtitle-validation.ts';
 import { validateTimelineText } from './layers/text/text-layer.ts';
 import { validateTimelineShape } from './layers/shape/shape-layer.ts';
+import { validateVoicevoxLayer } from './layers/voicevox/voicevox.ts';
 import type { TimelineLayer, TimelineScene } from './types.ts';
 
 /** 子の長さを再帰計算しない。配置済みの区間は、参照先の編集でも変えない。 */
@@ -20,6 +22,10 @@ export function getTimelineScene(scenes: readonly TimelineScene[], sceneId: stri
 export function validateTimelineLayer(layer: TimelineLayer): void {
 	validateTimelineClips(layer.clips);
 	if (layer.layerType === 'text') validateTimelineText(layer.textParamValues);
+	if (layer.layerType === 'voicevox') {
+		validateVoicevoxLayer(layer);
+		validateVoicevoxSubtitle(layer.subtitleParamValues);
+	}
 	if (layer.layerType === 'shape') validateTimelineShape(layer.shape);
 	const parameterGroups = [
 		...('audioParamValues' in layer ? [layer.audioParamValues] : []),

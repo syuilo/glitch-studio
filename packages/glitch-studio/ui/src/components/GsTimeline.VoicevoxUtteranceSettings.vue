@@ -1,0 +1,102 @@
+<template>
+<GsFolder defaultOpen asSection :withSpacer="false">
+	<template #icon><i class="ti ti-keyframe"></i></template>
+	<template #label>Speech key</template>
+	<div class="_spacer _gaps_m">
+		<GsInput small type="number" :min="bounds?.min ?? 0" :max="bounds?.max" :modelValue="utterance.timeMs" @update:modelValue="editTime">
+			<template #label>Time</template><template #suffix>ms</template>
+		</GsInput>
+		<GsSelect small :modelValue="utterance.styleId" :items="voiceStyleItems" @update:modelValue="styleId => edit({ styleId })">
+			<template #label>Voice / style</template>
+		</GsSelect>
+		<GsTextarea :modelValue="utterance.text" @update:modelValue="text => edit({ text })"><template #label>Subtitle</template></GsTextarea>
+		<GsTextarea :modelValue="utterance.reading ?? ''" placeholder="Use subtitle text" @update:modelValue="reading => edit({ reading: reading.trim() || null })"><template #label>Reading (optional)</template></GsTextarea>
+		<div>{{ status }}</div>
+		<GsButton v-if="desktop && utterance.text" small :disabled="generating" @click="regenerate">Regenerate</GsButton>
+		<GsButton small @click="duplicate">Duplicate at playhead</GsButton>
+		<GsButton danger small @click="remove"><i class="ti ti-trash"></i> Remove Speech Key</GsButton>
+		<div v-if="error" :class="$style.error">{{ error }}</div>
+	</div>
+</GsFolder>
+</template>
+
+<script setup lang="ts">
+import { computed, ref } from 'vue';
+import { genId } from '@gs/shared/utility/id.ts';
+import { getVoicevoxRequest, getVoicevoxRequestKey } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox.ts';
+import type { VoicevoxUtterance } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox.ts';
+import type { TimelineVoicevoxLayer } from '@gs/subsystems_timeline_shared/types.ts';
+import GsFolder from './common/GsFolder.vue';
+import GsInput from './common/GsInput.vue';
+import GsSelect from './common/GsSelect.vue';
+import GsTextarea from './common/GsTextarea.vue';
+import GsButton from './common/GsButton.vue';
+import { appContext } from '@/app.ts';
+import { getVoicevoxUtteranceTimeBounds } from '@/utility/voicevox-utterance-edit.ts';
+
+const props = defineProps<{ sceneId: string; layer: TimelineVoicevoxLayer; utterance: VoicevoxUtterance }>();
+const emit = defineEmits<{ selected: [id: string] }>();
+const { stateManager } = appContext.projectContext;
+const desktop = window.desktop;
+const { speakers } = appContext.voicevoxConnection;
+const voiceStyleItems = computed(() => {
+	const items = speakers.value.flatMap(speaker => speaker.styles.filter(style => !style.type || style.type === 'talk')
+		.map(style => ({ value: style.id, label: `${speaker.name} / ${style.name}` })));
+	// 接続前やエンジンにない声も保存したIDを表示し、別の声へ暗黙に差し替えない。
+	if (!items.some(item => item.value === props.utterance.styleId)) items.unshift({
+		value: props.utterance.styleId,
+		label: `Style ${props.utterance.styleId} (${speakers.value.length ? 'unavailable' : 'connect to load voices'})`,
+	});
+	return items;
+});
+const error = ref('');
+const bounds = computed(() => getVoicevoxUtteranceTimeBounds(props.layer.utterances, props.utterance.id));
+const request = computed(() => getVoicevoxRequest(props.layer.voicevox, props.utterance));
+const key = computed(() => getVoicevoxRequestKey(request.value));
+const generation = computed(() => appContext.voicevoxGeneration.statuses.value[key.value]);
+const generating = computed(() => generation.value?.state === 'generating');
+const status = computed(() => {
+	if (!props.utterance.text) return 'Clear subtitle / stop speech';
+	if (generating.value) return 'Generating…';
+	if (generation.value?.state === 'error') return generation.value.message;
+	const speech = stateManager.state.generatedSpeech.value.find(item => item.key === key.value);
+	return speech ? `Ready · ${(speech.durationMs / 1000).toFixed(2)} s` : 'Not generated';
+});
+
+function commit(utterances: VoicevoxUtterance[]) {
+	error.value = '';
+	try {
+		stateManager.commit('editVoicevoxLayer', { sceneId: props.sceneId, layerId: props.layer.id, voicevox: props.layer.voicevox, utterances });
+		return true;
+	} catch (cause) { error.value = String(cause); return false; }
+}
+
+function edit(patch: Partial<VoicevoxUtterance>) {
+	commit(props.layer.utterances.map(utterance => utterance.id === props.utterance.id ? { ...utterance, ...patch } : utterance));
+}
+
+function editTime(value: string | number) {
+	const time = Number(value);
+	if (!Number.isFinite(time) || !bounds.value) return;
+	edit({ timeMs: Math.max(bounds.value.min, Math.min(bounds.value.max, Math.round(time))) });
+}
+
+function duplicate() {
+	const utterance = { ...props.utterance, id: genId(), timeMs: Math.round(appContext.previewPlayback.currentTimelineTime.value) };
+	if (commit([...props.layer.utterances, utterance])) emit('selected', utterance.id);
+}
+
+function remove() { commit(props.layer.utterances.filter(utterance => utterance.id !== props.utterance.id)); }
+
+async function regenerate() {
+	error.value = '';
+	try { await appContext.voicevoxGeneration.generate(request.value, true); } catch (cause) { error.value = String(cause); }
+}
+</script>
+
+<style module>
+.error {
+	color: #ff9b9b;
+	white-space: pre-wrap;
+}
+</style>

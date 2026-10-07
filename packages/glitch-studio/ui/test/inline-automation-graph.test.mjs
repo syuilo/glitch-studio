@@ -126,7 +126,7 @@ test('round-trips and undoes discrete keyframe creation insertion and editing on
 			const value = updateInlineKeyframe(inserted.value, definition, inserted.keyframeId, { value: second });
 			const edit = COMMAND_DEFS.editTimelineLayerParam.create({ ...target, edit: { kind: 'keyframesTimelineInline', value } });
 			edit.execute(state);
-			const restored = decodeProjectFile(await encodeProjectFile({ timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, assets: [], visualModules: state.visualModules.value, timelineScenes: state.timelineScenes.value }));
+			const restored = decodeProjectFile(await encodeProjectFile({ generatedSpeech: [], timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, assets: [], visualModules: state.visualModules.value, timelineScenes: state.timelineScenes.value }));
 			assert.deepEqual(restored.timelineScenes, state.timelineScenes.value);
 			value.keyframesTimeline.keyframes[0].value = 'mutated';
 			edit.undo(state);
@@ -162,7 +162,7 @@ test('round-trips easing family and direction and restores interpolation edits w
 		assert.deepEqual(layer.visualModuleParamValues.gain.keyframesTimeline.keyframes[0].interpolation, interpolation);
 		assert.deepEqual(layer.visualModuleParamValues.gain.keyframesTimeline.keyframes[1], initial.keyframesTimeline.keyframes[1]);
 		const after = structuredClone(layer.visualModuleParamValues.gain);
-		const restored = decodeProjectFile(await encodeProjectFile({ timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, assets: [], visualModules: state.visualModules.value, timelineScenes: state.timelineScenes.value }));
+		const restored = decodeProjectFile(await encodeProjectFile({ generatedSpeech: [], timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, assets: [], visualModules: state.visualModules.value, timelineScenes: state.timelineScenes.value }));
 		assert.deepEqual(restored.timelineScenes, state.timelineScenes.value);
 		edit.undo(state);
 		assert.deepEqual(layer.visualModuleParamValues.gain, before);
@@ -226,7 +226,7 @@ test('round-trips image assets and independently undoes timing, compositing and 
 	assert.equal(current().clips[0].contentOffsetMs, 0);
 	assert.equal(current().clips[0].durationMs, 60000);
 	assert.equal(current().compositingParamValues.opacity.inputSource, 'keyframesTimelineInline');
-	const restored = decodeProjectFile(await encodeProjectFile({ timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, assets: state.assets.value, timelineScenes: state.timelineScenes.value }));
+	const restored = decodeProjectFile(await encodeProjectFile({ generatedSpeech: [], timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, assets: state.assets.value, timelineScenes: state.timelineScenes.value }));
 	assert.deepEqual(restored.timelineScenes, state.timelineScenes.value);
 	assert.equal(await restored.assets.find(asset => asset.id === current().clips[0].assetId).fileData.text(), 'second');
 	for (const command of [source, opacity, timing]) command.undo(state);
@@ -249,7 +249,7 @@ test('preserves image references through asset deletion and keeps duplicated set
 	const remove = COMMAND_DEFS.removeAsset.create({ assetId: 'first' });
 	remove.execute(state);
 	assert.equal(current().clips[0].assetId, 'first');
-	const restored = decodeProjectFile(await encodeProjectFile({ timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, assets: state.assets.value, timelineScenes: state.timelineScenes.value }));
+	const restored = decodeProjectFile(await encodeProjectFile({ generatedSpeech: [], timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, assets: state.assets.value, timelineScenes: state.timelineScenes.value }));
 	assert.equal(restored.timelineScenes[0].layers.find(entry => entry.id === layer.id).clips[0].assetId, 'first');
 	const change = COMMAND_DEFS.changeTimelineClipSource.create({ ...target, assetId: 'second' });
 	change.execute(state);
@@ -291,7 +291,7 @@ test('round-trips video settings and undoes trimmed timing and independent audio
 	for (const command of [settings, fit, volume, timing]) command.execute(state);
 	assert.deepEqual(state.timelineScenes.value[0].layers.find(entry => entry.id === 'video').compositingParamValues.fitMode, { inputSource: 'literal', value: 'cover' });
 	const before = structuredClone(state.timelineScenes.value[0].layers);
-	const encoded = await encodeProjectFile({ timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, gsVersion: '2.0.0', assets: [], timelineScenes: state.timelineScenes.value });
+	const encoded = await encodeProjectFile({ generatedSpeech: [], timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, gsVersion: '2.0.0', assets: [], timelineScenes: state.timelineScenes.value });
 	assert.deepEqual(decodeProjectFile(encoded).timelineScenes[0].layers, before);
 	assert.throws(() => COMMAND_DEFS.editTimelineClipTiming.create({ ...target, edge: 'start', deltaMs: NaN, sourceDurationMs: 10000 }).execute(state), /Invalid trim/);
 	assert.deepEqual(state.timelineScenes.value[0].layers, before);
@@ -320,7 +320,7 @@ test('round-trips audio layers and undoes timing, volume and removal', async () 
 	remove.execute(state);
 	remove.undo(state);
 	assert.deepEqual(state.timelineScenes.value[0].layers, before);
-	const encoded = await encodeProjectFile({ timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, gsVersion: '2.0.0', assets: [], timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: state.timelineScenes.value[0].layers }] });
+	const encoded = await encodeProjectFile({ generatedSpeech: [], timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, gsVersion: '2.0.0', assets: [], timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: state.timelineScenes.value[0].layers }] });
 	assert.deepEqual(decodeProjectFile(encoded).timelineScenes[0].layers, before);
 	timing.undo(state);
 	volume.undo(state);
@@ -370,7 +370,7 @@ test('preserves compositing graphs and settings through edits and serialization'
 	inline.execute(state);
 	edit('rotation', { kind: 'automationGraphReference', value: 'graph', options: { trimmedDurationMs: 2500, offsetMode: 'start', wrapMode: 'clamp' } });
 	edit('blendMode', { kind: 'literal', value: 'replace' });
-	const restored = decodeProjectFile(await encodeProjectFile({ timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [layer] }], assets: [] })).timelineScenes[0].layers[0];
+	const restored = decodeProjectFile(await encodeProjectFile({ generatedSpeech: [], timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [layer] }], assets: [] })).timelineScenes[0].layers[0];
 	assert.deepEqual(restored.compositingParamValues, layer.compositingParamValues);
 	assert.deepEqual(restored.automationGraphs, layer.automationGraphs);
 	assert.equal(restored.compositingParamValues.rotation.trimmedDurationMs, 2500);
@@ -531,7 +531,7 @@ test('changes scene resolution with undo redo and project persistence', async ()
 	const command = COMMAND_DEFS.changeSceneResolution.create({ sceneId: scene.id, resolution });
 	command.execute(state);
 	assert.deepEqual(scene.resolution, resolution);
-	const restored = decodeProjectFile(await encodeProjectFile({ timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, assets: state.assets.value, timelineScenes: state.timelineScenes.value }));
+	const restored = decodeProjectFile(await encodeProjectFile({ generatedSpeech: [], timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, assets: state.assets.value, timelineScenes: state.timelineScenes.value }));
 	assert.deepEqual(restored.timelineScenes[0].resolution, resolution);
 	command.undo(state);
 	assert.deepEqual(scene.resolution, { mode: 'project' });

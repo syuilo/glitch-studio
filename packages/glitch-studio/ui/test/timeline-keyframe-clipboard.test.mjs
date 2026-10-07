@@ -35,7 +35,7 @@ const bundled = await build({
 });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', bundled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
-const { copyTimelineKeyframes, prepareTimelineKeyframePaste, getTimelineKeyframePasteUpdates, copyTimelineClips,
+const { copyTimelineKeyframes, prepareTimelineKeyframePaste, getPastedTimelineKeySelection, getTimelineKeyframePasteUpdates, copyTimelineClips,
 	COMMAND_DEFS, UndoRedo, createShapeTimelineLayer, createInlineKeyframesTimeline, resolveLayerParameter,
 	getLayerParameterDefinitions, getLayerParameterValues, resolveParameter, arrayDefinition, genId } = module.exports;
 
@@ -48,7 +48,7 @@ assert.ok(handler);
 const transformed = await transform(handler.getText(ast), { loader: 'ts' });
 const createHandler = new Function('context', `
 	const { HTMLElement, selection, editedScene, timelineClipboard, selectedLayer, props, stateManager,
-		tlEl, time, disposed, copyTimelineKeyframes, prepareTimelineKeyframePaste, copyTimelineClips } = context;
+		tlEl, time, disposed, copyTimelineKeyframes, prepareTimelineKeyframePaste, getPastedTimelineKeySelection, copyTimelineClips } = context;
 	const deepClone = structuredClone;
 	${transformed.code}
 	return onTlKeydown;
@@ -217,6 +217,55 @@ test('materializes default module arguments independently and validates enum opt
 	assert.equal(getTimelineKeyframePasteUpdates(f.state, f.scene, malformed), null);
 });
 
+// 【既定値から表示したキーをレイヤー側で削除し、Undoで未設定に戻す】
+// 未設定ルートの既定Bindingはコピーなので直接変更しても保存されない。配列・構造体は
+// 先にルートを用意し、同じルートの別レーンを一括削除しても互いの変更を残す必要がある。
+test('removes default keys from independent root drafts and restores unset arguments on undo', t => {
+	for (const nested of [false, true]) {
+		const f = fixture(t);
+		const scalar = { id: 'value', dataType: { kind: 'scalar' }, ui: { label: 'Value', control: {} }, defaultValue: { inputSource: 'literal', value: 0 } };
+		const keys = createInlineKeyframesTimeline(scalar);
+		keys.keyframesTimeline.keyframes = [
+			{ id: 'remove', x: 100, value: 0.5, interpolation: { type: 'linear' } },
+			{ id: 'keep', x: 200, value: 1, interpolation: { type: 'linear' } },
+		];
+		const def = nested ? { ...structuredClone(arrayDefinition.paramDefs.buzzs), id: 'value' } : scalar;
+		if (nested) {
+			def.defaultValue.value[0].binding.value.x = structuredClone(keys);
+			def.defaultValue.value[0].binding.value.y = structuredClone(keys);
+		} else def.defaultValue = keys;
+		const visualModule = { id: 'module', paramDefs: [def] };
+		f.state.visualModules.value.push(visualModule);
+		for (const id of ['edited', 'untouched']) f.scene.layers.push({ id, layerType: 'visualModule', visualModuleId: 'module',
+			visualModuleParamValues: {}, clips: [], compositingParamValues: {} });
+		const paths = nested ? [['value', 'first', 'x'], ['value', 'first', 'y']] : [['value']];
+		const selection = paths.map(paramPath => ({ layerId: 'edited', target: 'module', paramPath, keyframeId: 'remove' }));
+		const before = structuredClone(f.scene);
+		const originalDefault = structuredClone(def.defaultValue);
+		f.history.commit('removeTimelineKeyframes', { sceneId: 'scene', keyframes: selection });
+		const after = structuredClone(f.scene);
+		for (const point of selection) assert.deepEqual(f.read(point).keyframesTimeline.keyframes.map(key => key.id), ['keep']);
+		assert.deepEqual(def.defaultValue, originalDefault);
+		assert.deepEqual(f.scene.layers.at(-1).visualModuleParamValues, {});
+		assert.equal(f.history.undoStack.value.length, 1);
+		for (let repeat = 0; repeat < 2; repeat++) {
+			f.history.undo();
+			assert.deepEqual(f.scene, before);
+			f.history.redo();
+			assert.deepEqual(f.scene, after);
+		}
+		f.history.undo();
+		const changes = f.changes.length;
+		assert.throws(() => f.history.commit('removeTimelineKeyframes', { sceneId: 'scene',
+			keyframes: [...selection, { ...selection[0], keyframeId: 'missing' }] }), /Timeline keyframe not found/);
+		assert.deepEqual(f.scene, before);
+		assert.deepEqual(def.defaultValue, originalDefault);
+		assert.equal(f.changes.length, changes);
+		assert.equal(f.history.undoStack.value.length, 0);
+		assert.equal(f.history.redoStack.value.length, 1);
+	}
+});
+
 // 【Ctrl/Cmd+C・Vでキーを操作し、貼り付け後の選択とクリップボードの種類を更新する】
 // 選択対象が変わってもコピー元レーンへ貼り付け、入力欄のコピーやキーリピートは奪わない。
 test('copies and pastes keyframes through shortcuts and switches clipboard kinds correctly', async t => {
@@ -227,7 +276,7 @@ test('copies and pastes keyframes through shortcuts and switches clipboard kinds
 		const context = { HTMLElement: class {}, selection, editedScene: f.scene, timelineClipboard,
 			selectedLayer: { value: f.layer }, props: { sceneId: 'scene' }, stateManager: f.history,
 			tlEl: { value: { focus() {} } }, time: { value: 1000.4 }, disposed: false,
-			copyTimelineKeyframes, prepareTimelineKeyframePaste, copyTimelineClips };
+			copyTimelineKeyframes, prepareTimelineKeyframePaste, getPastedTimelineKeySelection, copyTimelineClips };
 		const keydown = createHandler(context);
 		const keyboard = (key, overrides = {}) => ({ key, ctrlKey: true, metaKey: false, ...modifiers,
 			repeat: false, defaultPrevented: false, target: null, preventDefault() { this.defaultPrevented = true; }, stopPropagation() {}, ...overrides });

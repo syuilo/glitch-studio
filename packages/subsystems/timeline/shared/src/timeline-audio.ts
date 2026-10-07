@@ -1,5 +1,5 @@
 import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
-import type { TimelineAudioLayer, TimelineVideoLayer, TimelineSceneLayer, TimelineLayer, TimelineScene } from './types.ts';
+import type { TimelineVoicevoxLayer, TimelineAudioLayer, TimelineVideoLayer, TimelineSceneLayer, TimelineLayer, TimelineScene } from './types.ts';
 
 export const timelineAudioParamDefs = {
 	volume: {
@@ -11,8 +11,8 @@ export const timelineAudioParamDefs = {
 } as const satisfies Record<string, ParameterDefinition>;
 
 /** Scene直下から選べる、音声出力を持つレイヤー。無効・空でも参照は維持できる。 */
-export function isTimelineAudioOutputLayer(layer: TimelineLayer): layer is TimelineAudioLayer | TimelineVideoLayer | TimelineSceneLayer {
-	return layer.layerType === 'audio' || layer.layerType === 'video' || layer.layerType === 'scene';
+export function isTimelineAudioOutputLayer(layer: TimelineLayer): layer is TimelineAudioLayer | TimelineVideoLayer | TimelineSceneLayer | TimelineVoicevoxLayer {
+	return layer.layerType === 'voicevox' || layer.layerType === 'audio' || layer.layerType === 'video' || layer.layerType === 'scene';
 }
 
 /**
@@ -20,7 +20,7 @@ export function isTimelineAudioOutputLayer(layer: TimelineLayer): layer is Timel
  * 無効・空のレイヤーも有効な参照先とする。解決できない場合の拒否や入力なしへの変換は
  * 呼び出し側で決め、削除後のUndoに必要な参照IDは書き換えない。
  */
-export function resolveTimelineAudioLayerReference(scene: TimelineScene, ownerLayerId: string, referencedLayerId: string | null): TimelineAudioLayer | TimelineVideoLayer | TimelineSceneLayer | null {
+export function resolveTimelineAudioLayerReference(scene: TimelineScene, ownerLayerId: string, referencedLayerId: string | null): TimelineAudioLayer | TimelineVideoLayer | TimelineSceneLayer | TimelineVoicevoxLayer | null {
 	if (referencedLayerId === null || referencedLayerId === ownerLayerId) return null;
 	const layer = scene.layers.find(candidate => candidate.id === referencedLayerId);
 	return layer && isTimelineAudioOutputLayer(layer) ? layer : null;

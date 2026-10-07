@@ -1,6 +1,6 @@
 import { paramPathKey } from '@gs/shared/parameter/parameter-path.ts';
 import type { ParamPath } from '@gs/shared/parameter/parameter-path.ts';
-import type { TimelineParameterTarget } from './timeline-scene.ts';
+import type { TimelineKeyTarget } from './timeline-selection.ts';
 import type { TimelineClipSelection, TimelineKeyframeSelection } from './timeline-selection.ts';
 import { timelineTimeToX, timelineKeyframePosition } from './timeline-coordinates.ts';
 
@@ -12,10 +12,10 @@ export type TimelineLayerSelectionLayout = {
 export type TimelineMarqueeLayer = {
 	id: string;
 	clips: readonly { id: string; startMs: number; durationMs: number }[];
-	lanes: readonly { target: TimelineParameterTarget; paramPath: ParamPath; keyframes: readonly { id: string; x: number }[] }[];
+	lanes: readonly { target: TimelineKeyTarget; paramPath: ParamPath; keyframes: readonly { id: string; x: number }[] }[];
 };
 
-export function timelineLaneKey(target: TimelineParameterTarget, paramPath: ParamPath): string {
+export function timelineLaneKey(target: TimelineKeyTarget, paramPath: ParamPath): string {
 	return JSON.stringify([target, paramPathKey(paramPath)]);
 }
 
@@ -29,7 +29,7 @@ export function measureTimelineLayerSelection(element: HTMLElement): TimelineLay
 	for (const lane of element.querySelectorAll<HTMLElement>('[data-parameter-target]')) {
 		const target = lane.dataset.parameterTarget;
 		const path = lane.dataset.paramPath;
-		if (!path || (target !== 'audio' && target !== 'module' && target !== 'compositing' && target !== 'effect' && target !== 'shape' && target !== 'text')) continue;
+		if (!path || (target !== 'audio' && target !== 'module' && target !== 'compositing' && target !== 'effect' && target !== 'shape' && target !== 'text' && target !== 'voicevoxSubtitle' && target !== 'utterance')) continue;
 		const rect = lane.getBoundingClientRect();
 		keyframeLanes.set(timelineLaneKey(target, JSON.parse(path) as ParamPath), (rect.top + rect.bottom) / 2 - top);
 	}

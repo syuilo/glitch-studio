@@ -1,3 +1,4 @@
+import type { GeneratedSpeech } from '@gs/glitch-studio_shared/voicevox.ts';
 import { openAudioFile } from '@gs/subsystems_audio_renderer/audio-file.ts';
 import { AudioFileReader } from '@gs/subsystems_audio_renderer/audio-file-reader.ts';
 import type { AudioFileReaderOptions } from '@gs/subsystems_audio_renderer/audio-file-reader.ts';
@@ -13,13 +14,15 @@ export async function openAssetAudio(asset: Asset) {
 	}
 }
 
-/** Assetの参照を解決する。PCM・デコーダー・キャッシュは音声subsystemが所有する。 */
-export class AssetAudioReader {
+/** Assetと生成音声の参照を解決する。PCM・デコーダーは音声subsystemが所有する。 */
+export class ProjectAudioReader {
 	private reader: AudioFileReader;
 
-	constructor(private assets: readonly Asset[], options: AudioFileReaderOptions & { open?: typeof openAssetAudio } = {}) {
+	constructor(private assets: readonly Asset[], options: AudioFileReaderOptions & { open?: typeof openAssetAudio; generatedSpeech?: readonly GeneratedSpeech[] } = {}) {
 		const open = options.open ?? openAssetAudio;
 		this.reader = new AudioFileReader(async assetId => {
+			const speech = options.generatedSpeech?.find(speech => speech.sourceId === assetId);
+			if (speech) return openAudioFile(speech.fileData);
 			const asset = this.assets.find(asset => asset.id === assetId);
 			if (!asset) throw new Error(`Audio asset not found: ${assetId}`);
 			return open(asset);

@@ -58,21 +58,3 @@ export type TextParameterValues = Record<keyof typeof textParamDefs, ValueParame
 export function createTextParameterValues(): TextParameterValues {
 	return Object.fromEntries(Object.entries(textParamDefs).map(([key, def]) => [key, deepClone(def.defaultValue)])) as TextParameterValues;
 }
-
-export type EvaluatedText = {
-	text: string;
-	font: string | null;
-	size: number;
-	overflow: 'none' | 'shrink' | 'compress';
-	maxWidth: number;
-	color: [number, number, number, number];
-	outlineWidth: number;
-	outlineColor: [number, number, number, number];
-	shadowEnabled: boolean;
-	shadowColor: [number, number, number, number];
-	shadowOffset: [number, number];
-	shadowBlur: number;
-	position: [number, number];
-	align: 'left' | 'center' | 'right';
-	lineHeight: number;
-};

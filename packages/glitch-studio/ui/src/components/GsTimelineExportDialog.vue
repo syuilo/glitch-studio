@@ -57,10 +57,11 @@ import GsSelect from './common/GsSelect.vue';
 import GsTabs from './common/GsTabs.vue';
 import type { ExportProgress, ExportQuality, TimelineExportSettings } from '@/export/timeline-export.ts';
 import { preferences } from '@/preferences.ts';
+import { getRequiredVoicevoxRequestsForRendering } from '@gs/subsystems_timeline_shared/voicevox-requests.ts';
 import { exportTimeline } from '@/export/client.ts';
 import { validateExportSettings } from '@/export/timeline-export.ts';
 import { estimateExportBytes, formatExportTime, parseExportTime, scaleExportResolution } from '@/export/export-settings.ts';
-import { getExportAudioClips, MP4_AUDIO_BITRATE } from '@/export/audio-export-settings.ts';
+import { hasExportAudio, MP4_AUDIO_BITRATE } from '@/export/audio-export-settings.ts';
 
 const { activeSceneId, previewPlayback } = appContext;
 const { stateManager } = appContext.projectContext;
@@ -124,7 +125,7 @@ const validationError = computed(() => {
 	if (mode.value === 'video' && !Number.isFinite(parseExportTime(endTime.value))) return 'Enter a valid end time (HH:MM:SS.mmm).';
 	return validateExportSettings(settings.value);
 });
-const includesAudio = computed(() => scene.value != null && getExportAudioClips(stateManager.state.timelineScenes.value, sceneId.value, settings.value).length > 0);
+const includesAudio = computed(() => scene.value != null && hasExportAudio(stateManager.state.timelineScenes.value, sceneId.value, settings.value, stateManager.state.generatedSpeech.value));
 const estimatedSize = computed(() => {
 	if (validationError.value) return '—';
 	const bytes = estimateExportBytes(settings.value, includesAudio.value ? MP4_AUDIO_BITRATE : 0);
@@ -163,6 +164,25 @@ async function doExport() {
 	let previewDisposed = false;
 	try {
 		const exportSettings = { ...settings.value };
+		const exportProject = deepClone({
+			resolution: stateManager.state.resolution.value,
+			timelineFps: stateManager.state.timelineFps.value,
+			timelineMotionBlur: stateManager.state.timelineMotionBlur.value,
+			assets: stateManager.state.assets.value,
+			generatedSpeech: stateManager.state.generatedSpeech.value,
+			visualModules: stateManager.state.visualModules.value,
+			timelineScenes: stateManager.state.timelineScenes.value,
+			sceneId: sceneId.value,
+		});
+		if (exportSettings.format === 'mp4') {
+			status.value = 'Preparing VOICEVOX audio…';
+			const requests = getRequiredVoicevoxRequestsForRendering(exportProject.timelineScenes, exportProject.sceneId, exportSettings.positionMs, exportSettings.endTimeMs);
+			const preparedSpeech = await appContext.voicevoxGeneration.prepare(requests, signal);
+			// 描画用の音声参照でも使えるよう、開始時点の生成済み音声を残して準備結果を加える。
+			// 待機中の編集や再生成を混ぜず、この書き出しが保持した結果だけをWorkerへ渡す。
+			exportProject.generatedSpeech = [...new Map([...exportProject.generatedSpeech, ...preparedSpeech].map(speech => [speech.key, speech])).values()];
+		}
+		signal.throwIfAborted();
 		const preferredFormat = navigator.gpu.getPreferredCanvasFormat();
 		// エクスポート中はリソース節約のためプレビュー用レンダラーは破棄
 		await appContext.suspendPreview();
@@ -171,15 +191,7 @@ async function doExport() {
 		const buffer = await exportTimeline({
 			settings: exportSettings,
 			resolutionScale: resolutionScale.value,
-			project: deepClone({
-				resolution: stateManager.state.resolution.value,
-				timelineFps: stateManager.state.timelineFps.value,
-				timelineMotionBlur: stateManager.state.timelineMotionBlur.value,
-				assets: stateManager.state.assets.value,
-				visualModules: stateManager.state.visualModules.value,
-				timelineScenes: stateManager.state.timelineScenes.value,
-				sceneId: sceneId.value,
-			}),
+			project: deepClone(exportProject),
 			// 書き出し開始時の環境設定から独立した設定を作る。
 			// プレビュー用Controllerの初期化・再読み込み状態には依存しない。
 			renderer: {

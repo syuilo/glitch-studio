@@ -76,7 +76,7 @@ test('renders a prepared timeline spectrum from scene-anchored stereo PCM', asyn
 		Float32Array.from({ length: frames }, (_, index) => Math.sin(2 * Math.PI * 3000 * (time + index / sampleRate))),
 		Float32Array.from({ length: frames }, (_, index) => 0.5 * Math.sin(2 * Math.PI * 6000 * (time + index / sampleRate))),
 	]);
-	const clips = [{ assetId: 'tone', startMs: 0, endMs: 1000, sourceStartMs: 0, gains: [] }];
+	const clips = [{ sourceId: 'tone', startMs: 0, endMs: 1000, sourceStartMs: 0, gains: [] }];
 	f.params.audio = createTimelineAudioInput(renderer, clips, 50.25, 'lower', false);
 	f.instance.prepare(f.params);
 	assert.equal(f.statuses.at(-1).type, 'loading');

@@ -24,6 +24,7 @@ after(() => {
 
 const load = path => loadShaderSource(fileURLToPath(import.meta.resolve(path)));
 const { TimelineRendererManager } = await load('../src/timeline-renderer-manager.ts');
+const { createVoicevoxSubtitleParameterValues } = await load('@gs/subsystems_timeline_shared/layers/voicevox/voicevox-subtitle.ts');
 const { createTextParameterValues } = await load('@gs/subsystems_timeline_shared/layers/text/text.ts');
 const { timelineCompositingParamDefs } = await load('@gs/subsystems_timeline_shared/timeline-compositing.ts');
 const literal = value => ({ inputSource: 'literal', value });
@@ -91,6 +92,25 @@ function fixture(t) {
 	return { manager, calls, setup, update, textDraws: () => calls.draws.filter(draw => draw.isText) };
 }
 const near = (actual, expected) => assert.ok(Math.abs(actual - expected) < 1e-6, `${actual} != ${expected}`);
+
+// 【VOICEVOXの字幕は音声生成や再生履歴によらずScene時刻で決まる】
+// 未生成でも本文を描画し、最初のキー前と空文字キー以降は前の字幕を残さない。
+test('renders VOICEVOX subtitles at scene time without requiring generated audio', async t => {
+	const f = fixture(t);
+	const speech = { id: 'speech', name: 'Speech', isDisabled: false, automationGraphs: [],
+		clips: [clip('speech-clip', 100, 1000, 20.5)], compositingParamValues: compositing(), subtitleParamValues: createVoicevoxSubtitleParameterValues(), layerType: 'voicevox', voicevox: { speedScale: 1 },
+		utterances: [{ id: 'first', timeMs: 300, text: 'Speech subtitle', reading: '別の読み', styleId: 1 }, { id: 'clear', timeMs: 600, text: '', reading: null, styleId: 1 }],
+		audioParamValues: { volume: literal(1) } };
+	await f.setup([speech]);
+	await f.manager.renderTimelineFrame(200, 0);
+	assert.deepEqual(f.calls.glyphs.map(glyph => glyph.text), ['']);
+	await f.manager.renderTimelineFrame(350, 0);
+	assert.equal(f.calls.glyphs.at(-1).text, 'Speech subtitle');
+	await f.manager.renderTimelineFrame(600, 0);
+	assert.equal(f.calls.glyphs.at(-1).text, '');
+	await f.manager.renderTimelineFrame(350, 0);
+	assert.equal(f.calls.glyphs.at(-1).text, 'Speech subtitle');
+});
 
 // 【TextをScene解像度で描画し、本文と色をScene時刻で評価する】
 // 倍率の二重適用と内容オフセットによる時刻ずれを防ぎ、半透明色は一度だけpremultiplyする。
@@ -173,4 +193,3 @@ test('uses child scene time and resolution when nested', async t => {
 	assert.deepEqual([draw.texture.width, draw.texture.height], [300, 200]);
 	assert.equal(f.calls.glyphs[0].text, '450.25');
 });
-

@@ -1,3 +1,5 @@
+import type { GeneratedSpeech } from '@gs/glitch-studio_shared/voicevox.ts';
+import { createSpeechResolver } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox.ts';
 import { ref } from 'vue';
 import workletUrl from './timeline-audio.worklet.js?url';
 import type { Asset } from '@gs/shared/types.ts';
@@ -21,7 +23,7 @@ export class TimelineAudioPreview {
 	private requestedTime = 0;
 	private rate = 48000;
 
-	constructor(private getOutput: () => Promise<GainNode>, private getProject: () => { assets: Asset[]; timelineScenes: TimelineScene[]; sceneId: string | null }) {}
+	constructor(private getOutput: () => Promise<GainNode>, private getProject: () => { assets: Asset[]; generatedSpeech: GeneratedSpeech[]; timelineScenes: TimelineScene[]; sceneId: string | null }) {}
 
 	start(time: number, duration: number) {
 		this.stop();
@@ -77,10 +79,10 @@ export class TimelineAudioPreview {
 			}
 		};
 		const project = this.getProject();
-		const clips = project.sceneId == null ? [] : getSceneAudioClips(project.timelineScenes, project.sceneId);
-		const assetIds = new Set(clips.map(clip => clip.assetId));
+		const clips = project.sceneId == null ? [] : getSceneAudioClips(project.timelineScenes, project.sceneId, { type: 'all' }, createSpeechResolver(project.generatedSpeech));
+		const assetIds = new Set(clips.map(clip => clip.sourceId));
 		worker.postMessage({
-			type: 'start', assets: project.assets.filter(asset => assetIds.has(asset.id)), clips,
+			type: 'start', generatedSpeech: project.generatedSpeech, assets: project.assets.filter(asset => assetIds.has(asset.id)), clips,
 			sampleRate: this.rate, startFrame: this.startFrame, endFrame: this.endFrame,
 		});
 		// 最大1秒を先読みする。消費したチャンク分だけ補充し、長さに比例してメモリを使わない。

@@ -1,6 +1,6 @@
 import { validateTimelineText } from '@gs/subsystems_timeline_shared/layers/text/text-layer.ts';
 import { TextParameters } from './text-parameters.ts';
-import { createTextRenderer } from './text-renderer.ts';
+import { createTextRenderer } from '../../text-rendering/text-renderer.ts';
 import { createTimelineCompositor } from '../../timeline-compositor.ts';
 import type { TimelineCompositingObserver } from '../../timeline-compositor.ts';
 import { TimelineCompositingParameters } from '../../timeline-compositing-parameters.ts';

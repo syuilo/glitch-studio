@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { layoutText } from '../src/layers/text/text-layout.ts';
+import { layoutText } from '../src/text-rendering/text-layout.ts';
 
 // 実際のフォント・Canvas・GPUは使わず、既知の寸法を持つ文字列で配置の契約を確認する。
 function createMeasurer(alignment, measureWidth = (text, size) => text.length * size) {

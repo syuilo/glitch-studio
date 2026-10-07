@@ -31,3 +31,17 @@ Scene・レイヤー・クリップと、その時間・合成・音声設定の
 描画用途ごとのサンプル数は呼び出し側が選ぶ。プレビュー品質の選択肢・プロジェクトの既定fps・既定ブラー設定はUIが所有し、このパッケージには含めない。
 
 `render-history-effects.ts`は配置されたエフェクトとVisual Moduleの定義から`dependsOnRenderHistory`を調べる。これは警告用の検査であり、実行制限や履歴リセットの方針ではない。
+
+## VOICEVOXレイヤー
+
+`TimelineVoicevoxLayer`は発話キー（ID・Scene上の整数ms・字幕本文・任意の読み・声のスタイルID）と、話速、字幕装飾、合成設定、音量を所有する。声は各発話の`styleId`に保存し、生成要求はその声とレイヤーの話速を組み合わせる。クリップは音声と字幕の有効区間だけを持ち、移動・トリムで発話キーを動かさない。内容オフセットは発話の時計に適用しない。同じ本文のキーも独立した発話で、同一時刻のキーは許可しない。空文字キーは直前の音声と字幕を終了する。最初のキー前は無音・字幕なし。
+
+音声はキーからの経過時間で読み出し、生成音声の末尾・次のキー・クリップ終端までに制限する。字幕は次のキーまたはクリップ終端まで表示する。`scene-audio.ts`は注入された`SpeechResolver`が返す準備済み音声だけを計画へ含める。音声計画の`sourceId`は素材と生成音声に共通の不透明な識別子であり、Blobの取得・VOICEVOXとの通信は扱わない。子Sceneの配置・下層音声・指定レイヤー音声にも同じ計画を使う。
+
+`layers/voicevox/voicevox-placement.ts`が発話区間の計算を所有する。`getVoicevoxUtteranceIntervals()`は次のキーまで、`getVoicevoxUtterancePlacements()`はさらにクリップと交差した区間を返す。どちらも音声の準備状況に依存しない。`assignPreparedSpeech()`で生成結果を割り当てたときに音声長で終端を制限する。UIの音声帯・クリップ終端の調整・再生でこの規則を共有する。
+
+`scene-audio.ts`の`getSceneAudioPlacements()`は素材・発話の配置を子Sceneから展開し、`resolveSceneAudioPlacements()`は配置を準備済み音声と未生成の発話に分ける。`getSceneAudioClips()`は両者を組み合わせ、準備済みだけを再生へ渡す。`voicevox-requests.ts`の`getRequiredVoicevoxRequests()`は配置から指定範囲の生成要求を列挙し、仮の生成音声を作らない。`getVoicevoxRequests()`は無効・クリップ外も含む現在の全発話の参照を返し、生成結果を保持する対象の判断に使う。
+
+`getRequiredVoicevoxRequestsForRendering()`は描画区間を各子Sceneの内容時刻へ変換し、それぞれのSceneの時刻0から描画区間の終端までの音声要求を集める。波形・スペクトラムが読む窓の長さをTimeline側で決めず、履歴を保守的に準備する。親のトリム前に終了した発話も子Scene内では履歴として必要になるため、親Sceneの音声出力だけでは判定しない。無効・描画区間外のScene配置は再帰せず、同じSceneの複数配置はそれぞれの内容時刻を扱い、同一の生成要求はまとめる。
+
+字幕装飾は`layers/voicevox/voicevox-subtitle.ts`が専用の定義・既定値・型を所有し、`subtitleParamValues`に保存する。編集対象は`voicevoxSubtitle`。Textレイヤーの定義・検証・保存型を継承せず、それぞれ独立して変更できる。

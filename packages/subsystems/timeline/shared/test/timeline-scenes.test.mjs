@@ -26,11 +26,11 @@ test('omits disabled audio video and scene layers without changing clip timing o
 	const root = scene('root', [placement]);
 	const scenes = [root, child];
 	const original = getSceneAudioClips(scenes, 'root');
-	assert.deepEqual(original.map(clip => clip.assetId), ['asset', 'movie']);
+	assert.deepEqual(original.map(clip => clip.sourceId), ['asset', 'movie']);
 	for (const layer of [sound, video, placement]) {
 		layer.isDisabled = true;
 		const clips = getSceneAudioClips(scenes, 'root');
-		assert.deepEqual(clips, layer === placement ? [] : original.filter(clip => clip.assetId !== (layer === sound ? 'asset' : 'movie')));
+		assert.deepEqual(clips, layer === placement ? [] : original.filter(clip => clip.sourceId !== (layer === sound ? 'asset' : 'movie')));
 		assert.equal(getSceneDuration(root), 1500);
 		assert.equal(getSceneDuration(child), 320);
 		layer.isDisabled = false;
@@ -46,7 +46,7 @@ test('collects video audio independently of visual settings and preserves scene 
 		compositingParamValues: { fitMode: { inputSource: 'literal', value: 'contain' } }, automationGraphs: [] };
 	const scenes = [scene('root', [nested('placement', 'child', 1000, 150, 100)]), scene('child', [video])];
 	const [clip] = getSceneAudioClips(scenes, 'root');
-	assert.deepEqual([clip.assetId, clip.sourceStartMs, clip.startMs, clip.endMs], ['movie', 1100, 1150, 1250]);
+	assert.deepEqual([clip.sourceId, clip.sourceStartMs, clip.startMs, clip.endMs], ['movie', 1100, 1150, 1250]);
 	assert.equal(clip.gains.at(-1).volume.value, 0.5);
 	assert.equal(clip.gains.length, 2);
 	video.compositingParamValues.fitMode = { inputSource: 'literal', value: 'cover' };
@@ -91,7 +91,7 @@ test('intersects ancestor windows while retaining independent content clocks', (
 	const child = scene('child', [nested('inner', 'leaf', 50, 100, 150)]);
 	const root = scene('root', [nested('outer', 'child', 1000, 180, 100)]);
 	const [clip] = getSceneAudioClips([root, child, leaf], 'root');
-	assert.equal(clip.assetId, leaf.layers[0].clips[0].assetId);
+	assert.equal(clip.sourceId, leaf.layers[0].clips[0].assetId);
 	assert.equal(clip.gains.at(-1).volume, leaf.layers[0].audioParamValues.volume);
 	assert.deepEqual([clip.startMs, clip.endMs, clip.sourceStartMs], [1180, 1280, 1150]);
 	assert.deepEqual(clip.gains.map(gain => gain.sceneStartMs), [0, 1000, 1050]);

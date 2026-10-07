@@ -1,5 +1,6 @@
+import type { GeneratedSpeech } from '@gs/glitch-studio_shared/voicevox.ts';
 import { TimelineAudioRenderer } from '@gs/subsystems_timeline_audio-renderer/timeline-audio-renderer.ts';
-import { AssetAudioReader } from '../audio/asset-audio-reader.ts';
+import { ProjectAudioReader } from '../audio/project-audio-reader.ts';
 import { MP4_AUDIO_SAMPLE_RATE } from './audio-export-settings.ts';
 import type { StereoPcm } from '@gs/subsystems_audio_shared/pcm.ts';
 import type { SceneAudioClip } from '@gs/subsystems_timeline_shared/scene-audio.ts';
@@ -8,14 +9,14 @@ import type { VideoExportSettings } from './timeline-export.ts';
 
 /** 書き出し専用のデコーダー・評価器。プレビューの再生位置や試聴音量を参照しない。 */
 export class TimelineAudioExport {
-	private reader: AssetAudioReader;
+	private reader: ProjectAudioReader;
 	private renderer: TimelineAudioRenderer;
 	private nextFrame = 0;
 	private startFrame: number;
 	private totalFrames: number;
 
-	constructor(assets: Asset[], private clips: SceneAudioClip[], settings: VideoExportSettings) {
-		this.reader = new AssetAudioReader(assets);
+	constructor(assets: Asset[], private clips: SceneAudioClip[], settings: VideoExportSettings, generatedSpeech: GeneratedSpeech[] = []) {
+		this.reader = new ProjectAudioReader(assets, { generatedSpeech });
 		this.renderer = new TimelineAudioRenderer((...args) => this.reader.read(...args));
 		// 開始時刻は整数msなので48kHzのサンプル境界と一致する。
 		this.startFrame = settings.positionMs * (MP4_AUDIO_SAMPLE_RATE / 1000);
