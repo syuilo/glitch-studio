@@ -2,6 +2,14 @@
 
 プロジェクトの操作はCommandを通し、Undo/Redoとレンダラー同期を同じ変更通知から行う。
 
+## Workspaceのパネル表示
+
+`WorkspaceController`をworkspaceの所有元で生成し、`workspaceControllerKey`でprovideする。タブ選択はコントローラーが実行時状態として保持し、非表示でアンマウントされたタブも選択できる。折りたたみ状態は従来どおりpreferencesのworkspace定義へ保存する。
+
+`revealPanel({ contentType, sourcePanelId })`は、操作元を隠す候補を除外してパネルを開き、対象ID（候補なしならnull）を返す。共通祖先のタブで別の枝に属する候補は対象外。必要なタブ切り替えと折りたたみ解除の合計回数が最小の候補を選び、同点ではツリー順を使う。探索・変更計画は`utility/workspace-panel-reveal.ts`の純粋な関数が担当する。
+
+Timelineはレイヤー・クリップ・キーの選択操作から表示を要求する。同じ対象の再選択でも開き、範囲選択は確定後に開く。選択状態の監視で開き続けないため、手動で閉じたパネルは次の選択操作まで閉じたままになる。Teleport先は固定DOM IDではなく、コントローラーの`panelTargets`へパネルIDで登録した要素を使う。
+
 ## プレビューのレイヤー変形
 
 `GsPreviewTransform.vue`は、停止中のTimelineで選択された単一レイヤーの合成設定を編集する。同じレイヤー内の複数クリップ・キーの選択も対象とし、選択は`getTimelineEditorState()`でタイムラインと共有する。音声・無効なレイヤー・現在時刻にクリップや出力がないレイヤーは対象外。プレビューから別レイヤーへの選択変更は行わない。

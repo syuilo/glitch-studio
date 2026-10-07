@@ -29,7 +29,8 @@
 
 <script lang="ts" setup>
 import { deepClone } from '@gs/shared/utility/deep-clone.js';
-import { computed, ref, watch } from 'vue';
+import { computed, inject } from 'vue';
+import { workspaceControllerKey } from '@/WorkspaceController.ts';
 import { genId } from '@gs/shared/utility/id.js';
 import type { MenuItem } from '@/types/menu.ts';
 import type { WorkspaceTabs } from '@/workspace.ts';
@@ -45,16 +46,12 @@ const props = withDefaults(defineProps<{
 
 });
 
-const selectedTabId = ref(props.tabs.children.at(0)?.element.id);
-const selectedTab = computed(() => props.tabs.children.find(tab => tab.element.id === selectedTabId.value));
-
-// 保存のたびにツリーが複製されるため、選択はオブジェクトではなくIDで保持する。
-// 選択中の要素が分割・削除された場合は、同じ位置（末尾なら直前）のタブを選ぶ。
-watch(() => props.tabs.children.map(tab => tab.element.id), (ids, oldIds) => {
-	if (selectedTabId.value != null && ids.includes(selectedTabId.value)) return;
-	const index = selectedTabId.value == null ? 0 : Math.max(0, oldIds.indexOf(selectedTabId.value));
-	selectedTabId.value = ids[Math.min(index, ids.length - 1)];
+const workspaceController = inject(workspaceControllerKey)!;
+const selectedTabId = computed({
+	get: () => workspaceController.getSelectedTabId(props.tabs),
+	set: id => { if (id != null) workspaceController.selectTab(props.tabs.id, id); },
 });
+const selectedTab = computed(() => props.tabs.children.find(tab => tab.element.id === selectedTabId.value));
 
 function select(tab: typeof props.tabs.children[0]) {
 	selectedTabId.value = tab.element.id;

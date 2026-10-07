@@ -276,8 +276,6 @@ export const workspacePanelDraggingContext = {
 	draggingId: ref<string | null>(null),
 };
 
-export const timelineSubPanelTeleportTargetAvailable = ref(false);
-
 const keymap = {
 	'space': () => {
 		if (appContext.previewPlayback.isTimelinePlaying.value) {

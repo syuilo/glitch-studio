@@ -150,7 +150,7 @@
 			</div>
 		</div>
 
-		<Teleport v-if="timelineSubPanelTeleportTargetAvailable" defer to="#timelineSubPanelTeleportTarget">
+		<Teleport v-if="props.subPanelTarget" defer :to="props.subPanelTarget">
 			<GsFolder v-if="selectedKeyframe != null" :key="keyframeEditorKey" defaultOpen asSection :withSpacer="false">
 				<template #icon><i class="ti ti-keyframe"></i></template>
 				<template #label>Keyframe: {{ selectedKeyframe.def.ui.label }}</template>
@@ -317,8 +317,8 @@
 				</div>
 			</GsFolder>
 		</Teleport>
-		<div v-else :class="$style.rightSidePanel">
-			<!-- TODO -->
+		<div v-else>
+			<!-- TODO: GsWindowとかで表示する -->
 		</div>
 	</div>
 </div>
@@ -385,7 +385,7 @@ import { canEditKeyframesTimeline, updateInlineKeyframe } from '@/utility/keyfra
 import { createEffectTimelineLayer } from '@/utility/effect-timeline-layer.ts';
 import { createShapeTimelineLayer } from '@/utility/shape-timeline-layer.ts';
 import { createTextTimelineLayer } from '@/utility/text-timeline-layer.ts';
-import { appContext, timelineSubPanelTeleportTargetAvailable } from '@/app.ts';
+import { appContext } from '@/app.ts';
 import { getTimelineEditorState, getSelectedTimelineLayerId, timelineClipboard } from '@/utility/timeline-editor-state.ts';
 import { copyTimelineClips, prepareTimelineClipPaste, canPasteTimelineClips } from '@/utility/timeline-clip-clipboard.ts';
 import { collectTimelineMarqueeCandidates, measureTimelineLayerSelection } from '@/utility/timeline-marquee.ts';
@@ -398,7 +398,14 @@ import { dragListen } from '@/utility/drag.ts';
 const { activeSceneId, previewPlayback, timelineAudioPreview, timelineRendererManagerController } = appContext;
 const { stateManager } = appContext.projectContext;
 
-const props = defineProps<{ sceneId: string }>();
+const props = defineProps<{ sceneId: string; subPanelTarget?: HTMLElement | null }>();
+const emit = defineEmits<{ revealDetails: [] }>();
+
+// 選択を保持している間は監視しない。手動で閉じた詳細を、値の編集や再描画で開き直さないため。
+function revealDetails() {
+	if (selectedLayer.value != null) emit('revealDetails');
+}
+
 const followPlayhead = preferences.model('timelineFollowPlayhead');
 const tickMode = preferences.model('timelineTickMode');
 const halfTicks = preferences.model('timelineHalfTicks');
@@ -569,6 +576,7 @@ function seekToKeyframe(timeMs: number | null) {
 	if (keyframes.length === 0) return;
 	// 同時刻のキーに優先順位を付けず、移動先のレイヤー内のキーをまとめて選択する。
 	selection.value = { kind: 'keyframes', keyframes };
+	revealDetails();
 	// キーはクリップの区間外にも置けるため、Sceneの長さで移動先を制限しない。
 	previewPlayback.seekTimeline(timeMs);
 	// 移動先のキーを確認できるよう、再生追従の設定によらずシークバーを中央に置く。
@@ -655,6 +663,7 @@ watch(selectedKeyframe, value => {
 
 function onKeyframeSelected(selection: TimelineKeyframeSelection) {
 	selectedKeyframeSelection.value = selection;
+	revealDetails();
 }
 
 function updateKeyframe(keyframeId: string, patch: { x?: number; value?: unknown; interpolation?: KeyframeInterpolation }, mergeKey?: string | null) {
@@ -970,6 +979,7 @@ function onBackgroundPointerDown(event: PointerEvent) {
 	}
 
 	function cleanup() {
+		const reveal = active && finishing && selectionArea.value != null;
 		active = false;
 		layers.removeEventListener('scroll', scheduleUpdate);
 		stopWatch();
@@ -980,6 +990,8 @@ function onBackgroundPointerDown(event: PointerEvent) {
 			cancelMarquee = undefined;
 			selectionArea.value = null;
 			stopSelectionDrag = undefined;
+			// 範囲選択中の展開はタイムラインの寸法を変えるため、確定後に一度だけ開く。
+			if (reveal) revealDetails();
 		}
 	}
 
@@ -1050,6 +1062,7 @@ function selectClip(target: TimelineClipSelection, additive = false) {
 		selection.value = { kind: 'clips', clips: clips.some(clip => clipSelectionKey(clip) === key)
 			? clips.filter(clip => clipSelectionKey(clip) !== key) : [...clips, target] };
 	} else selection.value = { kind: 'clips', clips: [target] };
+	revealDetails();
 }
 
 function onClipMoveStart(event: PointerEvent, target: TimelineClipSelection) {
@@ -1057,6 +1070,7 @@ function onClipMoveStart(event: PointerEvent, target: TimelineClipSelection) {
 	if (event.shiftKey || event.ctrlKey || event.metaKey) { selectClip(target, true); return; }
 	if (selection.value.kind !== 'clips' || !selection.value.clips.some(clip => clipSelectionKey(clip) === clipSelectionKey(target))) selectClip(target);
 	if (selection.value.kind !== 'clips') return;
+	revealDetails();
 	const targets = deepClone(selection.value.clips);
 	const entries = targets.map(resolveClip).filter(entry => entry != null);
 	const points = entries.flatMap(({ layer, clip }) => {
@@ -1115,6 +1129,7 @@ function onKeyframeMoveStart(event: PointerEvent, point: TimelineKeyframeSelecti
 	} else if (selection.value.kind !== 'keyframes' || !selection.value.keyframes.some(entry => keyframeSelectionKey(entry) === key)) onKeyframeSelected(point);
 	const current = selection.value;
 	if (current.kind !== 'keyframes') return;
+	revealDetails();
 	const selected = new Set(current.keyframes.map(keyframeSelectionKey));
 	const entries = keyframeEntries.value.filter(entry => selected.has(keyframeSelectionKey(entry.selection)));
 	const otherTimes = [0, ...sceneLayers.value.flatMap(entry => entry.clips.flatMap(clip => [clip.startMs, getTimelineClipEnd(clip)])),
@@ -1264,6 +1279,7 @@ function selectLayer(layer: TimelineLayer, event?: MouseEvent) {
 		const ids = selection.value.ids;
 		selection.value = { kind: 'layers', ids: ids.includes(layer.id) ? ids.filter(id => id !== layer.id) : [...ids, layer.id] };
 	} else selection.value = { kind: 'layers', ids: [layer.id] };
+	revealDetails();
 	tlEl.value?.focus({ preventScroll: true });
 }
 
@@ -2135,19 +2151,6 @@ onMounted(() => {
 			min-width: 4em;
 		}
 	}
-}
-
-.rightSidePanel {
-	overflow-y: auto;
-	position: absolute;
-	top: 0;
-	right: 0;
-	box-sizing: border-box;
-	width: 400px;
-	height: 100%;
-	background: #0008;
-	backdrop-filter: blur(4px);
-	color: #fff;
 }
 
 .inlineModuleEditor {

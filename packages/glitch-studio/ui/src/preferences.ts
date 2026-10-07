@@ -193,10 +193,26 @@ export const PREF_DEF = definePreferences({
 						}, {
 							ratio: 0.3,
 							element: {
-								id: '9547a31d6fcb4d9698ceb5136cc7621c',
-								type: 'panel',
+								id: '2ff9aef841c648b78c94a0c772ca391c',
+								type: 'tabs',
 								direction: 'horizontal',
-								contentType: 'visualModuleEditor',
+								children: [{
+									name: 'VM',
+									element: {
+										id: 'e329ef653d9b4742973426c99c431d68',
+										type: 'panel',
+										direction: 'horizontal',
+										contentType: 'visualModuleEditor',
+									},
+								}, {
+									name: 'TL',
+									element: {
+										id: '1f8dadc45b114c07a769d9f0a7141c56',
+										type: 'panel',
+										direction: 'horizontal',
+										contentType: 'timelineSubPanel',
+									},
+								}],
 							},
 						}],
 					},

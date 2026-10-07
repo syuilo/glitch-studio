@@ -1,6 +1,6 @@
 <template>
 <div :class="$style.root">
-	<GsTimeline v-if="activeScene" :key="activeScene.id" :sceneId="activeScene.id">
+	<GsTimeline v-if="activeScene" :key="activeScene.id" :sceneId="activeScene.id" :subPanelTarget="subPanelTarget" @revealDetails="revealDetails">
 		<GsButton small @click="showSceneSelectMenu">Scene: {{ activeScene.name }} <i class="ti ti-chevron-down"></i></GsButton>
 		<GsButton small iconOnly @click="showSceneMenu"><i class="ti ti-dots"></i></GsButton>
 	</GsTimeline>
@@ -10,7 +10,8 @@
 
 <script lang="ts" setup>
 import { appContext } from '@/app.ts';
-import { computed, ref, watch } from 'vue';
+import { computed, ref, watch, inject } from 'vue';
+import { workspaceControllerKey } from '@/WorkspaceController.ts';
 import { genId } from '@gs/shared/utility/id.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import GsButton from './common/GsButton.vue';
@@ -23,9 +24,20 @@ import * as ui from '@/ui.ts';
 const { activeSceneId, activeScene } = appContext;
 const { stateManager } = appContext.projectContext;
 
-defineProps<{
+const props = defineProps<{
 	panel: WorkspacePanel;
 }>();
+
+const workspaceController = inject(workspaceControllerKey)!;
+const revealRequest = () => ({ contentType: 'timelineSubPanel' as const, sourcePanelId: props.panel.id });
+const subPanelTarget = computed(() => {
+	const id = workspaceController.findVisiblePanel(revealRequest());
+	return id == null ? null : workspaceController.panelTargets.get(id) ?? null;
+});
+
+function revealDetails() {
+	workspaceController.revealPanel(revealRequest());
+}
 
 const references = computed(() => stateManager.state.timelineScenes.value.filter(scene => scene.layers.some(layer => layer.layerType === 'scene' && layer.clips.some(clip => clip.sceneId === activeSceneId.value))));
 

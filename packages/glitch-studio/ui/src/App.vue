@@ -66,10 +66,11 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, nextTick, onMounted, onBeforeUnmount, ref, shallowRef, useTemplateRef, watch } from 'vue';
+import { provide, computed, nextTick, onMounted, onBeforeUnmount, ref, shallowRef, useTemplateRef, watch } from 'vue';
 import { appContext, openProject } from './app.ts';
 import { TIMELINE_PREVIEW_MOTION_BLUR_SAMPLE_OPTIONS } from './AppContext.ts';
 import { preferences } from './preferences.ts';
+import { WorkspaceController, workspaceControllerKey } from './WorkspaceController.ts';
 import { desktopProjectFile } from './gsproj.ts';
 import GsRange from './components/common/GsRange.vue';
 import GsAboutDialog from '@/components/GsAboutDialog.vue';
@@ -82,6 +83,8 @@ import { i18n } from '@/i18n.ts';
 import GsButton from '@/components/common/GsButton.vue';
 import GsAudioLevelMeter from '@/components/common/GsAudioLevelMeter.vue';
 import * as ui from '@/ui.ts';
+
+provide(workspaceControllerKey, new WorkspaceController(preferences.r.workspaceDefinition, root => preferences.commit('workspaceDefinition', root)));
 
 const { audioOutput, activePreviewRenderer, previewPlayback, visualModuleRendererManagerController, resolutionFactor, liveFpsLimit, timelinePreviewFpsFactor, timelinePreviewMotionBlurSamples, liveTimeFactor, projectBackupAccess, projectBackupStatus } = appContext;
 const { stateManager } = appContext.projectContext;

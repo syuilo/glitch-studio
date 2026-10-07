@@ -1,27 +1,25 @@
 <template>
 <div :class="$style.root">
-	<div id="timelineSubPanelTeleportTarget"></div>
+	<div ref="target"></div>
 </div>
 </template>
 
 <script lang="ts" setup>
-import { watch, useTemplateRef, ref, onMounted, onBeforeUnmount, nextTick } from 'vue';
+import { inject, useTemplateRef, onMounted, onBeforeUnmount } from 'vue';
 import type { WorkspacePanel } from '@/workspace.ts';
-import { i18n } from '@/i18n.ts';
-import { timelineSubPanelTeleportTargetAvailable } from '@/app.ts';
+import { workspaceControllerKey } from '@/WorkspaceController.ts';
 
 const props = defineProps<{
 	panel: WorkspacePanel;
 }>();
 
+const workspaceController = inject(workspaceControllerKey)!;
+const target = useTemplateRef('target');
 onMounted(() => {
-	//nextTick(() => {
-	timelineSubPanelTeleportTargetAvailable.value = true;
-	//});
+	if (target.value) workspaceController.panelTargets.set(props.panel.id, target.value);
 });
-
 onBeforeUnmount(() => {
-	timelineSubPanelTeleportTargetAvailable.value = false;
+	workspaceController.panelTargets.delete(props.panel.id);
 });
 </script>
 
