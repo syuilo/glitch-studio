@@ -1,0 +1,17 @@
+{
+	"name": "@gs/docs-site",
+	"type": "module",
+	"private": true,
+	"scripts": {
+		"dev": "vitepress dev",
+		"build": "vitepress build",
+		"preview": "vitepress preview",
+		"typecheck": "tsc6 --noEmit",
+		"eslint": "eslint --quiet '.vitepress/**/*.ts'",
+		"lint": "pnpm typecheck && pnpm eslint"
+	},
+	"devDependencies": {
+		"vitepress": "1.6.4",
+		"vue": "3.5.42"
+	}
+}

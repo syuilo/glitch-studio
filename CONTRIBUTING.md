@@ -1,3 +1,7 @@
+## ユーザー向けドキュメント
+
+VitePressのサイトは `docs-site/` で管理します。開発方法・記事の追加・公開手順は [docs/docs-site.md](./docs/docs-site.md) を参照してください。
+
 ## Electronで起動する
 
 依存関係を `pnpm install` でインストールしてから実行します。

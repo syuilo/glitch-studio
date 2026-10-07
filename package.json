@@ -4,6 +4,7 @@
 	"version": "2.0.0-alpha.1",
 	"packageManager": "pnpm@12.3.4",
 	"workspaces": [
+		"docs-site",
 		"packages/shared",
 		"packages/subsystems/audio/shared",
 		"packages/subsystems/audio/renderer",
@@ -24,6 +25,9 @@
 		"dev": "pnpm --dir packages/glitch-studio/ui dev",
 		"build": "pnpm --dir packages/glitch-studio/ui build",
 		"preview": "pnpm --dir packages/glitch-studio/ui preview",
+		"docs:dev": "pnpm --dir docs-site dev",
+		"docs:build": "pnpm --dir docs-site build",
+		"docs:preview": "pnpm --dir docs-site preview",
 		"typecheck": "pnpm --no-bail -r typecheck",
 		"lint": "pnpm --no-bail -r lint",
 		"dev:desktop": "pnpm --dir packages/glitch-studio/desktop dev",
