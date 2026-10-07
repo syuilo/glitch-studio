@@ -67,6 +67,4 @@ pnpm docs:preview
 | アプリ | `https://syuilo.github.io/glitch-studio/` |
 | ユーザーガイド | `https://syuilo.github.io/glitch-studio/docs/` |
 
-ドキュメントの `base` は `/glitch-studio/docs/` です。GitHub Pagesで記事へ直接アクセスできるよう、`cleanUrls` はfalseにしています。公開URLを変更するときは、`base` と、アプリへのリンク・READMEの公開URLも見直してください。
-
 Pagesへのデプロイはサイト全体を置き換えるため、ドキュメントだけを別のworkflowから同じサイトへデプロイしないでください。PRのTest workflowでもドキュメントをビルドして、公開前にビルドエラーを検出します。

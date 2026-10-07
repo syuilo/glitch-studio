@@ -10,8 +10,7 @@ export default defineConfig({
 	description: 'フリーの画像・動画編集ソフト、Glitch Studioのユーザーガイド',
 	base,
 	appearance: 'dark',
-	// GitHub Pagesでは.html付きのURLを使い、記事への直接アクセスにも対応する。
-	cleanUrls: false,
+	cleanUrls: true,
 	head: [
 		['link', { rel: 'icon', type: 'image/svg+xml', href: `${base}gs.svg` }],
 		['meta', { name: 'theme-color', content: '#ff8400' }],
