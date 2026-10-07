@@ -2,14 +2,18 @@
 <GsFolder asSection defaultOpen :withSpacer="false">
 	<template #icon><i class="ti ti-microphone"></i></template>
 	<template #label>VOICEVOX</template>
-	<div :class="$style.body">
+	<div class="_spacer _gaps_m">
 		<template v-if="desktop">
-			<label>Engine URL<input v-model="endpoint" type="text"/></label>
+			<GsInput v-model="endpoint" small type="text">
+				<template #label>Engine URL</template>
+			</GsInput>
 			<GsButton small :disabled="connecting" @click="connect">Connect</GsButton>
 			<div v-if="version">Engine {{ version }}</div>
 		</template>
 		<div v-else>Generation requires the Electron app. Saved audio can be played here.</div>
-		<label>Speech speed<input type="number" min="0.5" max="2" step="0.05" :value="layer.voicevox.speedScale" @change="changeSettings({ speedScale: Number(($event.target as HTMLInputElement).value) })"/></label>
+		<GsInput small type="number" :min="0.5" :max="2" :step="0.05" :debounce="400" :modelValue="layer.voicevox.speedScale" @update:modelValue="speedScale => changeSettings({ speedScale })">
+			<template #label>Speech speed</template>
+		</GsInput>
 		<GsButton small @click="add">Add speech key at playhead</GsButton>
 		<GsButton small :disabled="layer.clips.length === 0" @click="fitLastClip">Fit last clip to speech</GsButton>
 		<div>Select a speech key in the timeline to edit its voice, text and reading.</div>
@@ -24,6 +28,7 @@ import { insertVoicevoxUtterance } from '@/utility/voicevox-utterance-edit.ts';
 import { getVoicevoxRequest, getVoicevoxRequestKey } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox.ts';
 import GsFolder from './common/GsFolder.vue';
 import GsButton from './common/GsButton.vue';
+import GsInput from './common/GsInput.vue';
 import type { VoicevoxSettings, VoicevoxUtterance } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox.ts';
 import type { TimelineVoicevoxLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import { appContext } from '@/app.ts';
@@ -89,35 +94,6 @@ function key(utterance: VoicevoxUtterance) { return getVoicevoxRequestKey(getVoi
 </script>
 
 <style module>
-.body {
-	display: grid;
-	gap: 10px;
-	padding: 12px;
-}
-
-.body label {
-	display: grid;
-	gap: 4px;
-}
-
-.body input,
-.body textarea,
-.body select {
-	box-sizing: border-box;
-	width: 100%;
-	color: inherit;
-	background: #0004;
-	border: 1px solid #fff3;
-	padding: 6px;
-	border-radius: 4px;
-	font: inherit;
-}
-
-.body textarea {
-	min-height: 52px;
-	resize: vertical;
-}
-
 .error {
 	color: #ff9b9b;
 	white-space: pre-wrap;
