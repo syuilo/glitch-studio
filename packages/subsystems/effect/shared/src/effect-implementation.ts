@@ -91,6 +91,8 @@ export type EffectImplementation<Definition extends Pick<EffectDefinition, 'para
 	needsPreviousFrame?: boolean;
 	/** 自動モードで使う素材の原寸。プレビュー倍率の適用はレンダラーが行う。ノード入力の寸法は返さない。 */
 	getIntrinsicResolution?: (params: RuntimeEffectParameters<Options>) => { width: number; height: number } | undefined;
+	/** 自動モードで使う入力の計算用寸法。複数入力などの選択に使い、プレビュー倍率は再適用しない。 */
+	getInputResolution?: (params: RuntimeEffectParameters<Options>) => { width: number; height: number } | undefined;
 	outputTextureFactories: {
 		// canLazyAllocation=trueのポートだけ遅延確保する。それ以外はレンダラー作成時に確保する。
 		[K in keyof Definition['outputDefs']]: (args: {

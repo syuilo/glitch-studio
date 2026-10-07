@@ -78,11 +78,15 @@ export function createEffectTimelineLayer(layer: TimelineEffectLayer, definition
 			}));
 			const resolutionInput = definition.resolutionInputParameter == null ? undefined : params[definition.resolutionInputParameter];
 			renderer.setUsedOutputPorts(usedOutputPorts);
-			renderer.setResolution(resolveEffectNodeResolution({ setting: layer.resolution,
-																																																								contextResolution: options.resolution, resolutionScale: options.resolutionScale,
-																																																								intrinsicResolution: layer.resolution.mode === 'auto' ? implementation.getIntrinsicResolution?.(params) : undefined,
-																																																								inputResolution: resolutionInput?.kind === 'texture' ? resolutionInput.texture : undefined,
-																																																								maxDimension: device.limits.maxTextureDimension2D }));
+			renderer.setResolution(resolveEffectNodeResolution({
+				setting: layer.resolution,
+				contextResolution: options.resolution, resolutionScale: options.resolutionScale,
+				intrinsicResolution: layer.resolution.mode === 'auto' ? implementation.getIntrinsicResolution?.(params) : undefined,
+				inputResolution: layer.resolution.mode === 'auto'
+					? implementation.getInputResolution?.(params) ?? (resolutionInput?.kind === 'texture' ? resolutionInput.texture : undefined)
+					: undefined,
+				maxDimension: device.limits.maxTextureDimension2D,
+			}));
 			renderer.prepare(params, signal);
 			if (!await renderer.waitUntilReady(signal) || signal.aborted || disposed) return { gpuTime: 0 };
 			const encoder = device.createCommandEncoder();

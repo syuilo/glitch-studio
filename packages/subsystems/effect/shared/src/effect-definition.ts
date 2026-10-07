@@ -62,7 +62,7 @@ export type EffectDefinition<In extends Record<string, ParameterDefinition> = Re
 	primaryInputParameter: Extract<keyof In, string> | null;
 	/** 音声の自動割当先。画像のバイパス・合成方法・解像度とは独立する。 */
 	primaryAudioInputParameter?: Extract<keyof In, string> | null;
-	// 自動解像度の基準。バイパスの主入力とは独立した役割で、nullなら描画先を使う。
+	// 自動解像度の基準となる単一入力。実装のgetInputResolutionが返す寸法を優先し、入力寸法がなければ描画先を使う。
 	resolutionInputParameter: Extract<keyof In, string> | null;
 	outputDefs: Out;
 	primaryOutput: Extract<keyof NoInfer<Out>, string> | null;

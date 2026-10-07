@@ -1,10 +1,13 @@
 import { implementEffect } from '../../effect-implementation.ts';
+import { getLargestInputResolution } from '../../effect-input-resolution.ts';
 import { constantShaderInput } from '@gs/shared/gpu/shader-input.ts';
 import { createShaderInputPipeline } from '@gs/shared/gpu/shader-input-pipeline.ts';
 import code from './shader.wgsl?raw';
 import type definition from './_def_.ts';
 
 export default implementEffect<typeof definition>({
+	// 選択中の入力だけで決めるとIndexの変更で出力サイズも変わるため、全候補から求める。
+	getInputResolution: params => getLargestInputResolution(params.inputs),
 	outputTextureFactories: {
 		output: ({ wgpu, resolution }) => wgpu.device.createTexture({
 			size: resolution,

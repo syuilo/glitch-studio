@@ -26,7 +26,7 @@ export default defineEffect({
 		// 選択は描画全体で共通にし、候補数によらず最大2入力だけをGPUへ渡す。
 		index: { dataType: { kind: 'scalar' }, ui: { label: 'Index', control: { controlType: 'number', min: 0, step: 0.01 } }, defaultValue: { inputSource: 'literal', value: 0 } },
 	},
-	// 配列の特定要素を主入力にせず、解像度は描画先に従う。
+	// 配列の特定要素を主入力にせず、自動解像度は実装側で全入力の最大画素数から求める。
 	primaryInputParameter: null,
 	resolutionInputParameter: null,
 	outputDefs: {

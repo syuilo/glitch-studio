@@ -524,7 +524,9 @@ export class VisualModuleRenderer {
 			setting: node.resolution, contextResolution: this.contextResolution,
 			resolutionScale: this.resolutionScale,
 			intrinsicResolution: node.resolution.mode === 'auto' ? effect.getIntrinsicResolution?.(params) : undefined,
-			inputResolution: input?.kind === 'texture' ? input.texture : undefined,
+			inputResolution: node.resolution.mode === 'auto'
+				? effect.getInputResolution?.(params) ?? (input?.kind === 'texture' ? input.texture : undefined)
+				: undefined,
 			maxDimension: this.gpuDevice.limits.maxTextureDimension2D,
 		}));
 	}
