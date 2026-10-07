@@ -6,7 +6,7 @@ const base = '/glitch-studio/docs/';
 export default defineConfig({
 	lang: 'ja-JP',
 	title: 'Glitch Studio',
-	titleTemplate: ':title | Glitch Studio Docs',
+	titleTemplate: ':title | Glitch Studio',
 	description: 'フリーの画像・動画編集ソフト、Glitch Studioのユーザーガイド',
 	base,
 	appearance: 'dark',
@@ -16,8 +16,8 @@ export default defineConfig({
 		['meta', { name: 'theme-color', content: '#ff8400' }],
 	],
 	themeConfig: {
-		logo: { src: '/gs.svg', alt: 'Glitch Studio' },
-		siteTitle: 'Glitch Studio Docs',
+		logo: { src: '/gs.svg', alt: '' },
+		siteTitle: 'Glitch Studio',
 		nav: [
 			{ text: 'ガイド', link: '/guide/getting-started', activeMatch: '/guide/' },
 			{ text: 'ダウンロード', link: '/guide/download' },
