@@ -9,12 +9,12 @@
 			<GsButton v-tooltip="'CUE [C]'" small :primary="cueActive" :class="$style.cueButton" @pointerdown="onCuePointerDown" @keydown="onCueButtonKeydown" @click.prevent><i class="ti ti-arrow-right-bar"></i></GsButton>
 			<div style="display: flex; gap: 4px;">
 				<GsButton v-tooltip="'Go to Start'" small iconOnly @click="seek(0)"><i class="ti ti-player-skip-back"></i></GsButton>
-				<GsButton v-tooltip="'Back 10 Seconds'" small iconOnly @click="seek(time - 10000)"><i class="ti ti-rewind-backward-10"></i></GsButton>
+				<!--<GsButton v-tooltip="'Back 10 Seconds'" small iconOnly @click="seek(time - 10000)"><i class="ti ti-rewind-backward-10"></i></GsButton>-->
 				<GsButton v-tooltip="'Back 5 Seconds'" small iconOnly @click="seek(time - 5000)"><i class="ti ti-rewind-backward-5"></i></GsButton>
 				<GsButton v-if="previewPlayback.isTimelinePlaying.value" v-tooltip="'PAUSE [SPACE]'" small primary @click="pause"><i class="ti ti-player-pause"></i></GsButton>
 				<GsButton v-else v-tooltip="'PLAY [SPACE]'" small @click="play"><i class="ti ti-player-play"></i></GsButton>
 				<GsButton v-tooltip="'Forward 5 Seconds'" small iconOnly @click="seek(time + 5000)"><i class="ti ti-rewind-forward-5"></i></GsButton>
-				<GsButton v-tooltip="'Forward 10 Seconds'" small iconOnly @click="seek(time + 10000)"><i class="ti ti-rewind-forward-10"></i></GsButton>
+				<!--<GsButton v-tooltip="'Forward 10 Seconds'" small iconOnly @click="seek(time + 10000)"><i class="ti ti-rewind-forward-10"></i></GsButton>-->
 			</div>
 			<div style="display: flex; gap: 4px;">
 			</div>
@@ -22,6 +22,8 @@
 		<div :class="$style.headerCenter">
 			<GsButton v-tooltip="'Prev Frame'" small iconOnly><i class="ti ti-chevron-left"></i></GsButton>
 			<GsButton v-tooltip="'Next Frame'" small iconOnly><i class="ti ti-chevron-right"></i></GsButton>
+			<GsButton v-tooltip="'Prev Keyframe'" small iconOnly><i class="ti ti-keyframe"></i><i class="ti ti-chevron-left"></i></GsButton>
+			<GsButton v-tooltip="'Next Keyframe'" small iconOnly><i class="ti ti-chevron-right"></i><i class="ti ti-keyframe"></i></GsButton>
 		</div>
 		<div :class="$style.headerCenter">
 			<span v-if="timelineAudioPreview.buffering.value"><i class="ti ti-loader"></i></span>
