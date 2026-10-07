@@ -1,8 +1,9 @@
-import { nextTick, ref, defineAsyncComponent } from 'vue';
+import { nextTick, ref } from 'vue';
 import getCaretCoordinates from 'textarea-caret';
 import type { Ref } from 'vue';
 import type { CompleteInfo } from '@/components/common/GsAutocomplete.vue';
 import { popup } from '@/ui.ts';
+import GsAutocomplete from '@/components/common/GsAutocomplete.vue';
 
 export type SuggestionType = keyof CompleteInfo;
 
@@ -114,7 +115,7 @@ export class Autocomplete {
 			const _y = ref(y);
 			const _q = ref(q);
 
-			const { dispose } = popup(defineAsyncComponent(() => import('@/components/common/GsAutocomplete.vue')), {
+			const { dispose } = popup(GsAutocomplete, {
 				textarea: this.textarea,
 				close: this.close,
 				type: type,

@@ -37,9 +37,10 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, defineAsyncComponent, onMounted, onUnmounted, onBeforeUnmount, ref, useTemplateRef, watch } from 'vue';
+import { computed, onMounted, onUnmounted, onBeforeUnmount, ref, useTemplateRef, watch } from 'vue';
 import { isTouchUsing } from '@/utility/touch.ts';
 import * as ui from '@/ui.ts';
+import GsTooltip from '@/components/common/GsTooltip.vue';
 
 const props = withDefaults(defineProps<{
 	modelValue: number;
@@ -177,7 +178,7 @@ function onMouseenter() {
 
 	tooltipForHoverShowing.value = true;
 
-	const { dispose } = ui.popup(defineAsyncComponent(() => import('@/components/common/GsTooltip.vue')), {
+	const { dispose } = ui.popup(GsTooltip, {
 		showing: computed(() => tooltipForHoverShowing.value && !tooltipForDragShowing.value),
 		text: computed(() => {
 			return formatValue(finalValue.value);
@@ -209,7 +210,7 @@ function onPointerdown(ev: PointerEvent) {
 
 	tooltipForDragShowing.value = true;
 
-	const { dispose } = ui.popup(defineAsyncComponent(() => import('@/components/common/GsTooltip.vue')), {
+	const { dispose } = ui.popup(GsTooltip, {
 		showing: tooltipForDragShowing,
 		text: computed(() => {
 			return formatValue(finalValue.value);

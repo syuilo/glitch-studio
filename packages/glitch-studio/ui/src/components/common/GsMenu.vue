@@ -191,7 +191,7 @@
 </template>
 
 <script lang="ts">
-import { computed, defineAsyncComponent, inject, nextTick, onBeforeUnmount, onMounted, ref, useTemplateRef, unref, watch, shallowRef, reactive, isRef } from 'vue';
+import { computed, inject, nextTick, onBeforeUnmount, onMounted, ref, useTemplateRef, unref, watch, shallowRef, reactive, isRef } from 'vue';
 import type { MenuItem, InnerMenuItem, MenuPending, MenuAction, MenuSwitch, MenuRadio, MenuRadioOption, MenuParent, MenuDivider } from '@/types/menu.ts';
 import type { Keymap } from '@/utility/hotkey.ts';
 import GsSwitchButton from '@/components/common/GsSwitch.button.vue';
@@ -205,7 +205,7 @@ const childrenCache = new WeakMap<MenuParent, MenuItem[]>();
 </script>
 
 <script lang="ts" setup>
-const XChild = defineAsyncComponent(() => import('./GsMenu.child.vue'));
+import XChild from './GsMenu.child.vue';
 
 const props = defineProps<{
 	items: MenuItem[];

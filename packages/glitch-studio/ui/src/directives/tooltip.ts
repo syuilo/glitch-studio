@@ -1,10 +1,11 @@
 // TODO: useTooltip関数使うようにしたい
 // ただディレクティブ内でonUnmountedなどのcomposition api使えるのか不明
 
-import { defineAsyncComponent, ref } from 'vue';
+import { ref } from 'vue';
 import type { Directive } from 'vue';
 import { isTouchUsing } from '@/utility/touch.ts';
 import { popup, alert } from '@/ui.ts';
+import GsTooltip from '@/components/common/GsTooltip.vue';
 
 const start = isTouchUsing ? 'touchstart' : 'mouseenter';
 const end = isTouchUsing ? 'touchend' : 'mouseleave';
@@ -64,7 +65,7 @@ export const tooltipDirective = {
 			if (state.text == null) return;
 
 			const showing = ref(true);
-			const { dispose } = popup(defineAsyncComponent(() => import('@/components/common/GsTooltip.vue')), {
+			const { dispose } = popup(GsTooltip, {
 				showing,
 				text: state.text,
 				direction: binding.modifiers.left ? 'left' : binding.modifiers.right ? 'right' : binding.modifiers.top ? 'top' : binding.modifiers.bottom ? 'bottom' : 'top',
