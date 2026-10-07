@@ -55,6 +55,10 @@ export function selectTimelineRange(rect: SelectionRect, geometry: TimelineSelec
 		&& clip.rect.top <= rect.bottom && clip.rect.bottom >= rect.top).map(clip => clip.selection);
 	const keyframes = geometry.keyframes.filter(point => point.x >= rect.left && point.x <= rect.right
 		&& point.y >= rect.top && point.y <= rect.bottom).map(point => point.selection);
+	return mergeTimelineRangeSelection(clips, keyframes, previous, additive);
+}
+
+export function mergeTimelineRangeSelection(clips: TimelineClipSelection[], keyframes: TimelineKeyframeSelection[], previous: TimelineSelection, additive: boolean): TimelineSelection {
 	const hasPrevious = previous.kind === 'layers' ? previous.ids.length > 0 : previous.kind === 'clips' ? previous.clips.length > 0 : previous.keyframes.length > 0;
 	// Shiftで追加する間は既存の種類を固定する。囲む途中で別の種類へ切り替わると、
 	// 追加したかったキーがクリップとの交差によって失われてしまうため。

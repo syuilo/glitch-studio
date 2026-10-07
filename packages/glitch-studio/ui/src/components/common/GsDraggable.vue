@@ -17,29 +17,10 @@
 		@drop.prevent.stop="onEmptyDrop($event)"
 	>
 	</div>
-	<section
-		v-for="(item, i) in modelValue"
-		:key="`GsDraggableRoot:${item.id}`"
-		:class="$style.item"
-		:draggable="!manualDragStart"
-		@dragstart.stop="onDragstart($event, item)"
-	>
-		<div
-			:class="[$style.forwardArea, { [$style.dropReady]: dropReadyArea[0] === item.id && dropReadyArea[1] === 'forward' }]"
-			@dragover.prevent.stop="onDragover($event, item, false)"
-			@dragleave="onDragleave($event, item)"
-			@drop.prevent.stop="onDrop($event, item, false)"
-		></div>
-		<div :key="`GsDraggableItem:${item.id}`" style="position: relative; z-index: 0;">
-			<slot :item="item" :index="i" :dragStart="(ev) => onDragstart(ev, item)"></slot>
-		</div>
-		<div
-			:class="[$style.backwardArea, { [$style.dropReady]: dropReadyArea[0] === item.id && dropReadyArea[1] === 'backward' }]"
-			@dragover.prevent.stop="onDragover($event, item, true)"
-			@dragleave="onDragleave($event, item)"
-			@drop.prevent.stop="onDrop($event, item, true)"
-		></div>
-	</section>
+	<!-- 並べ替えには全件を保持し、描画だけを仮想一覧などへ委ねられる。 -->
+	<slot name="items" :renderItem="renderItem" :draggingId="draggingId">
+		<component :is="renderItem" v-for="(item, index) in modelValue" :key="item.id" :item="item" :index="index"/>
+	</slot>
 	<slot name="footer"></slot>
 </TransitionGroup>
 </template>
@@ -54,13 +35,15 @@ let dropCallback: ((targetInstanceId: string) => void) | null = null;
 
 <script lang="ts" setup generic="T extends { id: string; }">
 import { genId } from '@gs/shared/utility/id.js';
-import { nextTick } from 'vue';
+import { h, nextTick, onBeforeUnmount, useCssModule } from 'vue';
+import type { FunctionalComponent } from 'vue';
 import { getDragData, setDragData } from '@/utility/drag-and-drop.ts';
 
 const slots = defineSlots<{
 	default(props: { item: T; index: number; dragStart: (ev: DragEvent) => void }): any;
 	header(): any;
 	footer(): any;
+	items(props: { renderItem: FunctionalComponent<{ item: T; index: number }>; draggingId: string | null }): any;
 }>();
 
 const props = withDefaults(defineProps<{
@@ -84,17 +67,47 @@ const emit = defineEmits<{
 const dropReadyArea = ref<[T['id'] | null, 'forward' | 'backward' | null]>([null, null]);
 const instanceId = genId();
 const group = props.group ?? instanceId;
+const style = useCssModule();
+const draggingId = ref<string | null>(null);
+let finishDrag: (() => void) | undefined;
+
+// 同じ行コンポーネントを通常一覧と仮想一覧で共有し、ドロップ領域の仕様を二重管理しない。
+const renderItem: FunctionalComponent<{ item: T; index: number }> = ({ item, index }) => {
+	const dropArea = (backward: boolean) => h('div', {
+		class: [backward ? style.backwardArea : style.forwardArea, { [style.dropReady]: dropReadyArea.value[0] === item.id && dropReadyArea.value[1] === (backward ? 'backward' : 'forward') }],
+		onDragover: (event: DragEvent) => { event.preventDefault(); event.stopPropagation(); onDragover(event, item, backward); },
+		onDragleave: (event: DragEvent) => onDragleave(event, item),
+		onDrop: (event: DragEvent) => { event.preventDefault(); event.stopPropagation(); onDrop(event, item, backward); },
+	});
+	return h('section', {
+		class: style.item,
+		draggable: !props.manualDragStart,
+		onDragstart: (event: DragEvent) => { event.stopPropagation(); onDragstart(event, item); },
+	}, [dropArea(false), h('div', { style: { position: 'relative', zIndex: 0 } }, slots.default({ item, index, dragStart: event => onDragstart(event, item) })), dropArea(true)]);
+};
+onBeforeUnmount(() => finishDrag?.());
 
 function onDragstart(ev: DragEvent, item: T) {
 	if (ev.dataTransfer == null) return;
+	finishDrag?.();
 	ev.dataTransfer.effectAllowed = 'move';
 	setDragData(ev, 'GsDraggable', { item, instanceId, group });
 
 	const target = ev.target as HTMLElement;
-	target.addEventListener('dragend', (ev) => {
+	const ownerWindow = target.ownerDocument.defaultView!;
+	const finish = () => {
+		ownerWindow.clearTimeout(timer);
+		target.removeEventListener('dragend', finish);
+		ownerWindow.removeEventListener('blur', finish);
 		dragging.value = false;
+		draggingId.value = null;
 		dropReadyArea.value = [null, null];
-	}, { once: true });
+		dropCallback = null;
+		finishDrag = undefined;
+	};
+	finishDrag = finish;
+	target.addEventListener('dragend', finish, { once: true });
+	ownerWindow.addEventListener('blur', finish);
 
 	dropCallback = (targetInstanceId) => {
 		if (targetInstanceId === instanceId) return;
@@ -105,8 +118,9 @@ function onDragstart(ev: DragEvent, item: T) {
 	// Chromeのバグで、Dragstartハンドラ内ですぐにDOMを変更する(=リアクティブなプロパティを変更する)とDragが終了してしまう
 	// SEE: https://stackoverflow.com/questions/19639969/html5-dragend-event-firing-immediately
 	// SEE: https://issues.chromium.org/issues/41150279
-	window.setTimeout(() => {
+	const timer = ownerWindow.setTimeout(() => {
 		dragging.value = true;
+		draggingId.value = item.id;
 	}, 10);
 }
 
@@ -130,10 +144,11 @@ function onDrop(ev: DragEvent, item: T, backward: boolean) {
 	let toIndex = props.modelValue.findIndex(x => x.id === item.id);
 
 	const newValue = [...props.modelValue];
+	const movedItem = fromIndex > -1 ? newValue[fromIndex] : dragged.item as T;
 	if (fromIndex > -1) newValue.splice(fromIndex, 1);
 	toIndex = newValue.findIndex(x => x.id === item.id);
 	if (backward) toIndex += 1;
-	newValue.splice(toIndex, 0, dragged.item as T);
+	newValue.splice(toIndex, 0, movedItem);
 
 	emit('update:modelValue', newValue);
 }
@@ -259,17 +274,17 @@ function onEmptyDrop(ev: DragEvent) {
 
 .items.vertical {
 	.forwardArea {
-		top: 0;
+		top: calc(var(--DRAGGABLE_DROP_GAP, 0px) / -2);
 		left: 0;
 		width: 100%;
-		height: 50%;
+		height: calc(50% + var(--DRAGGABLE_DROP_GAP, 0px) / 2);
 	}
 
 	.backwardArea {
-		bottom: 0;
+		bottom: calc(var(--DRAGGABLE_DROP_GAP, 0px) / -2);
 		left: 0;
 		width: 100%;
-		height: 50%;
+		height: calc(50% + var(--DRAGGABLE_DROP_GAP, 0px) / 2);
 	}
 }
 

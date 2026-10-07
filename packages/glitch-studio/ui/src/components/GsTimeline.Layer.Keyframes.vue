@@ -21,6 +21,7 @@
 
 <script lang="ts" setup>
 import { computed } from 'vue';
+import { timelineTimeToX } from '@/utility/timeline-coordinates.ts';
 import type { KeyframesTimelineKeyframe } from '@gs/shared/keyframes/keyframes-timeline.ts';
 
 const props = defineProps<{
@@ -42,7 +43,7 @@ function keyframeTime(x: number): number {
 }
 
 function timeToDomX(time: number): number {
-	return ((time - props.tlPosX) / props.tlRangeX) * props.tlElWidth;
+	return timelineTimeToX(time, props.tlPosX, props.tlRangeX, props.tlElWidth);
 }
 
 function onBackgroundDoubleClick(ev: MouseEvent) {

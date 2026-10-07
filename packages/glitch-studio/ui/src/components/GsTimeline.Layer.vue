@@ -1,6 +1,6 @@
 <template>
 <div :class="[$style.root, { [$style.selected]: selected, [$style.disabled]: layer.isDisabled, [$style.type_effect]: layer.layerType === 'effect', [$style.type_audio]: layer.layerType === 'audio', [$style.type_image]: layer.layerType === 'image', [$style.type_video]: layer.layerType === 'video' }]" :data-timeline-layer-id="layer.id">
-	<div :class="$style.mainLane">
+	<div :class="$style.mainLane" data-timeline-clip-lane>
 		<div :class="$style.side">
 			<div :class="$style.layerHeader" draggable="true" @click="emit('selected', $event)" @dragstart.stop="emit('dragStart', $event)">
 				<i class="ti ti-grip-vertical"></i>
@@ -58,6 +58,7 @@
 
 <script lang="ts" setup>
 import { computed } from 'vue';
+import { timelineTimeToX } from '@/utility/timeline-coordinates.ts';
 import { paramPathKey } from '@gs/shared/parameter/parameter-path.ts';
 import { effectDefinitions } from '@gs/subsystems_effect_shared/effect-definitions.ts';
 import { getSceneDuration } from '@gs/subsystems_timeline_shared/scenes.ts';
@@ -169,7 +170,7 @@ function onKeyframeInsert(param: KeyframeParameter, x: number) {
 	emit('keyframeSelected', { layerId: layer.id, target: param.target, paramPath: param.paramPath, keyframeId: inserted.keyframeId });
 }
 
-function timeToDomX(time: number): number { return (time - props.tlPosX) / props.tlRangeX * props.tlElWidth; }
+function timeToDomX(time: number): number { return timelineTimeToX(time, props.tlPosX, props.tlRangeX, props.tlElWidth); }
 </script>
 
 <style module lang="scss">

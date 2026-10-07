@@ -16,6 +16,7 @@
 
 <script lang="ts" setup>
 import GsCondensedLine from './common/GsCondensedLine.vue';
+import { timelineTimeToX } from '@/utility/timeline-coordinates.ts';
 import type { TimelineClip } from '@gs/subsystems_timeline_shared/clip.ts';
 
 const props = defineProps<{
@@ -35,7 +36,7 @@ const emit = defineEmits<{
 }>();
 
 function timeToDomX(time: number): number {
-	return (time - props.tlPosX) / props.tlRangeX * props.tlElWidth;
+	return timelineTimeToX(time, props.tlPosX, props.tlRangeX, props.tlElWidth);
 }
 </script>
 

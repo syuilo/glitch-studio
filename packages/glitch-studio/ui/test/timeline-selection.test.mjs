@@ -2,15 +2,12 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
-import { readFile } from 'node:fs/promises';
-import { build, transform } from 'esbuild';
-import { parse } from 'vue/compiler-sfc';
-import { createSourceFile, isFunctionDeclaration, ScriptTarget } from 'typescript';
+import { build } from 'esbuild';
 
 const bundled = await build({
 	absWorkingDir: fileURLToPath(new URL('../', import.meta.url)),
 	stdin: {
-		contents: "export * from './src/utility/timeline-selection.ts'; export * from './src/utility/timeline-snapping.ts'; export * from './src/utility/timeline-ticks.ts'; export * from './src/utility/timeline-keyframe-stretch.ts'; export * from './src/utility/timeline-zoom.ts'; export { ProjectContext } from './src/Project.ts'; export { listenPointerDrag } from './src/utility/pointer-drag.ts';",
+		contents: "export * from './src/utility/timeline-selection.ts'; export * from './src/utility/timeline-marquee.ts'; export * from './src/utility/timeline-snapping.ts'; export * from './src/utility/timeline-ticks.ts'; export * from './src/utility/timeline-keyframe-stretch.ts'; export * from './src/utility/timeline-zoom.ts'; export { ProjectContext } from './src/Project.ts'; export { listenPointerDrag } from './src/utility/pointer-drag.ts';",
 		resolveDir: fileURLToPath(new URL('../', import.meta.url)), loader: 'ts',
 	},
 	bundle: true, platform: 'node', format: 'cjs', write: false,
@@ -32,15 +29,7 @@ const { selectTimelineRange, selectionRect, timelineMarqueeRect, keyframeSelecti
 const { getTimelineSnapCandidates, getTimelineSnappingTimes, getTimelineSeekPosition, getTimelineLocalTicks, getTimelineClipTicks, formatTimelineTimecode } = module.exports;
 const { createKeyframeStretch, stretchKeyframeX, zoomTimelineX } = module.exports;
 
-// SFC内の対象収集処理そのものを実行し、描画するレーンと選択判定の対応漏れを検出する。
-// コンポーネント全体の初期化は不要なので、DOM計測に使うlayersElだけを差し込む。
-const timelineSource = await readFile(new URL('../src/components/GsTimeline.vue', import.meta.url), 'utf8');
-const timelineScript = parse(timelineSource).descriptor.scriptSetup.content;
-const timelineAst = createSourceFile('GsTimeline.ts', timelineScript, ScriptTarget.Latest);
-const geometryFunction = timelineAst.statements.find(statement => isFunctionDeclaration(statement) && statement.name?.text === 'readSelectionGeometry');
-assert.ok(geometryFunction);
-const geometryScript = await transform(geometryFunction.getText(timelineAst), { loader: 'ts' });
-const createGeometryReader = new Function('layersEl', `${geometryScript.code}\nreturn readSelectionGeometry;`);
+const { measureTimelineLayerSelection, collectTimelineMarqueeCandidates, timelineLaneKey, mergeTimelineRangeSelection } = module.exports;
 
 // 【拡大縮小してもカーソル直下の時刻を維持する】
 // 横スクロール済みの状態や左右端でも、ズーム操作によって注目している時刻を見失わないようにする。
@@ -173,37 +162,30 @@ const geometry = {
 	keyframes: [{ selection: key('long', 'a'), x: 10, y: 30 }, { selection: key('short', 'b'), x: 50, y: 80 }],
 };
 
-// 【Shapeを含む全パラメータ種別のキーをDOMから集めて複数選択する】
-// Shapeのキーは表示・単体操作できても、対象種別の許可リストから漏れると範囲選択だけが壊れる。
-// 配列・構造体のIDパスと所属レイヤーを維持し、通常選択とShiftによる追加選択の両方で確認する。
-test('collects and marquee-selects keyframes from every timeline parameter target', () => {
+// 【Shapeを含む全種別のレーンを実測し、DOMのない中間行と一緒に選択する】
+// 画面外の各キーのDOMに依存せず、IDパスとレーンの中心を対応付ける。
+// Shapeなどの種類が境界行でだけ選択できなくなる退行も検出する。
+test('measures all lane kinds and selects unmounted intermediate layers', () => {
 	const targets = ['audio', 'module', 'compositing', 'effect', 'shape'];
-	const selections = targets.flatMap(target => ['a', 'b'].map(keyframeId => ({
-		layerId: `${target}-layer`, target, paramPath: ['items', 'element-id', 'value'], keyframeId,
-	})));
-	const elements = selections.map((selection, index) => ({
-		dataset: { timelineKeyframeId: selection.keyframeId },
-		closest(selector) {
-			if (selector === '[data-timeline-layer-id]') return { dataset: { timelineLayerId: selection.layerId } };
-			if (selector === '[data-parameter-target]') return { dataset: {
-				parameterTarget: selection.target, paramPath: JSON.stringify(selection.paramPath),
-			} };
-			throw new Error(`Unexpected selector: ${selector}`);
-		},
-		getBoundingClientRect: () => ({ left: 10 + index * 10, right: 20 + index * 10, top: 30, bottom: 40 }),
-	}));
-	const readGeometry = createGeometryReader({ value: {
-		querySelectorAll: selector => selector === '[data-timeline-keyframe-id]' ? elements : [],
-	} });
-	const rect = selectionRect(0, 25, 150, 45);
-	const collected = readGeometry(rect);
-	assert.deepEqual(collected.keyframes.map(point => point.selection), selections);
-	assert.deepEqual(selectTimelineRange(rect, collected, empty, false), { kind: 'keyframes', keyframes: selections });
-	const shapeSelection = selections.filter(point => point.target === 'shape');
-	assert.deepEqual(selectTimelineRange(selectionRect(90, 25, 110, 45), collected,
-		{ kind: 'keyframes', keyframes: [selections[0], shapeSelection[0]] }, true), {
-		kind: 'keyframes', keyframes: [selections[0], ...shapeSelection],
-	});
+	const paramPath = ['items', 'element-id', 'value'];
+	const element = {
+		getBoundingClientRect: () => ({ top: 100 }),
+		querySelector: () => ({ getBoundingClientRect: () => ({ top: 100, bottom: 124 }) }),
+		querySelectorAll: () => targets.map((target, index) => ({
+			dataset: { parameterTarget: target, paramPath: JSON.stringify(paramPath) },
+			getBoundingClientRect: () => ({ top: 144 + index * 20, bottom: 164 + index * 20 }),
+		})),
+	};
+	const measured = measureTimelineLayerSelection(element);
+	assert.deepEqual(measured.clipLane, { top: 0, bottom: 24 });
+	assert.deepEqual(targets.map(target => measured.keyframeLanes.get(timelineLaneKey(target, paramPath))), [54, 74, 94, 114, 134]);
+	const layers = ['first', 'unmounted', 'last'].map(id => ({ id, clips: [], lanes: targets.map(target => ({ target, paramPath, keyframes: [{ id: 'point', x: 50 }] })) }));
+	const layouts = new Map([['first', measured], ['last', measured]]);
+	const candidates = collectTimelineMarqueeCandidates(layers, { layerId: 'first', offsetY: 130 }, { layerId: 'last', offsetY: 55 }, layouts,
+		{ left: 0, right: 100, position: 0, range: 100, width: 100 });
+	assert.deepEqual(candidates.keyframes.map(point => [point.layerId, point.target]), [['first', 'shape'], ...targets.map(target => ['unmounted', target]), ['last', 'audio']]);
+	assert.ok(candidates.keyframes.every(point => point.paramPath === paramPath));
+	assert.deepEqual(mergeTimelineRangeSelection(candidates.clips, candidates.keyframes, empty, false), { kind: 'keyframes', keyframes: candidates.keyframes });
 });
 
 // 【一部だけ重なる長いクリップも選び、キーよりクリップを優先する】
