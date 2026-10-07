@@ -143,13 +143,13 @@
 		/>
 	</div>
 	<div v-else-if="vectorControl?.controlType === 'xy'">
-		<GsXy :modelValue="value" :logarithmic="vectorControl.logarithmic" :step="vectorControl.step ?? 0.1" :min="vectorControl.min" :max="vectorControl.max ?? 1" @beginChanging="onBeginChanging" @update:modelValue="v => changeContinuous(v)" @changeFinished="onFinishChanging"/>
+		<GsXy :enableRatioLock="false" :modelValue="value" :logarithmic="vectorControl.logarithmic" :step="vectorControl.step ?? 0.1" :min="vectorControl.min" :max="vectorControl.max ?? 1" @beginChanging="onBeginChanging" @update:modelValue="v => changeContinuous(v)" @changeFinished="onFinishChanging"/>
 	</div>
 	<div v-else-if="vectorControl?.controlType === 'wh'">
-		<GsXy :modelValue="value" :logarithmic="vectorControl.logarithmic" :step="vectorControl.step ?? 0.1" :min="vectorControl.min" :max="vectorControl.max ?? 1" @beginChanging="onBeginChanging" @update:modelValue="v => changeContinuous(v)" @changeFinished="onFinishChanging"/>
+		<GsXy :enableRatioLock="true" :modelValue="value" :logarithmic="vectorControl.logarithmic" :step="vectorControl.step ?? 0.1" :min="vectorControl.min" :max="vectorControl.max ?? 1" @beginChanging="onBeginChanging" @update:modelValue="v => changeContinuous(v)" @changeFinished="onFinishChanging"/>
 	</div>
 	<div v-else-if="vectorControl?.controlType === 'vector'">
-		<GsXy :modelValue="value" :logarithmic="vectorControl.logarithmic" :step="vectorControl.step ?? 0.1" :min="vectorControl.min" :max="vectorControl.max ?? 1" @beginChanging="onBeginChanging" @update:modelValue="v => changeContinuous(v)" @changeFinished="onFinishChanging"/>
+		<GsXy :enableRatioLock="false" :modelValue="value" :logarithmic="vectorControl.logarithmic" :step="vectorControl.step ?? 0.1" :min="vectorControl.min" :max="vectorControl.max ?? 1" @beginChanging="onBeginChanging" @update:modelValue="v => changeContinuous(v)" @changeFinished="onFinishChanging"/>
 	</div>
 	<div v-else-if="dataType.kind === 'color'" :class="$style.colorControl">
 		<GsSignal
@@ -206,7 +206,6 @@
 </template>
 
 <script lang="ts" setup generic="T extends LeafDataType">
-import { appContext } from '@/app.ts';
 import { computed, ref } from 'vue';
 import GsXy from './common/GsXy.vue';
 import GsColorInput from './common/GsColorInput.vue';
@@ -219,6 +218,7 @@ import GsButton from './common/GsButton.vue';
 import GsSelect from './common/GsSelect.vue';
 import type { DataTypeUiControlDefinitionMap, DataTypeUiDefinition } from '@gs/shared/data-type/data-type-ui.ts';
 import type { LeafDataType } from '@gs/shared/data-type/data-type.ts';
+import { appContext } from '@/app.ts';
 import { i18n } from '@/i18n.ts';
 import { normalizeColor } from '@/utility/color-input.ts';
 

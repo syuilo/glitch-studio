@@ -43,6 +43,7 @@ const props = withDefaults(defineProps<{
 	logarithmic?: boolean;
 	min?: number;
 	max: number;
+	enableRatioLock: boolean;
 }>(), {
 	min: 0,
 });
@@ -127,7 +128,9 @@ function disableRatioLock() {
 	lockedRatio.value = null;
 }
 
-enableRatioLock();
+if (props.enableRatioLock) {
+	enableRatioLock();
+}
 
 function openGridPad() {
 	if (gridPadOpened.value) return;
