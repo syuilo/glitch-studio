@@ -75,14 +75,14 @@ export function getTimelineLocalTicks(originMs: number, viewportStartMs: number,
 	return getTimelineTicks(viewportStartMs - originMs, viewportDurationMs, count, mode);
 }
 
-export function formatTimelineTimecode(timeMs: number): string {
-	// 二分割の目盛りは62.5msなどにもなるため、表示時には整数msへ切り捨てない。
-	// 秒の小数点以下9桁までで浮動小数点の演算誤差を除き、不要な末尾の0を省く。
-	const [wholeSeconds, fractionalSeconds] = (Math.abs(timeMs) / 1000).toFixed(9).split('.');
-	const totalSeconds = Number(wholeSeconds);
+export function formatTimelineTimecode(timeMs: number, trimTrailingZeros = true): string {
+	// 表示だけを整数msに丸め、秒・分境界への繰り上がりも反映する。
+	const roundedMs = Math.round(Math.abs(timeMs));
+	const totalSeconds = Math.floor(roundedMs / 1000);
 	const minutes = Math.floor(totalSeconds / 60);
 	const seconds = String(totalSeconds % 60).padStart(2, '0');
-	const fractionDigits = fractionalSeconds.replace(/0+$/, '');
+	const fractionalSeconds = String(roundedMs % 1000).padStart(3, '0');
+	const fractionDigits = trimTrailingZeros ? fractionalSeconds.replace(/0+$/, '') : fractionalSeconds;
 	const fraction = fractionDigits === '' ? '' : `.${fractionDigits}`;
-	return `${timeMs < 0 && (totalSeconds !== 0 || fractionDigits !== '') ? '-' : ''}${minutes}:${seconds}${fraction}`;
+	return `${timeMs < 0 && roundedMs !== 0 ? '-' : ''}${minutes}:${seconds}${fraction}`;
 }

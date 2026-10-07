@@ -248,11 +248,14 @@ test('omits self-snapping while seeking and deduplicates coincident targets', ()
 	assert.deepEqual(getTimelineSnapCandidates({ ...snapSettings, enabled: false }, [500], [500], [500], 500), []);
 });
 
-// 【二分割の小数ミリ秒をラベルでも保持する】
-// 正確な位置に描いた62.5msの目盛りを62msと表示して、スナップ結果との関係を誤解させない。
-// 負の時刻・0・分境界と、演算誤差による不要な末尾の桁も確認する。
-test('formats fractional millisecond ticks without truncation or floating-point noise', () => {
-	for (const [time, label] of [[62.5, '0:00.0625'], [-31.25, '-0:00.03125'], [60062.5, '1:00.0625'], [0, '0:00'], [-0, '0:00'], [0.1 + 0.2, '0:00.0003']]) {
+// 【時刻表示を小数点以下3桁に丸め、末尾の0の省略を選べる】
+// 目盛りは簡潔な表示を維持し、シークバーはミリ秒の桁数を固定する。
+// 分境界の繰り上がりや、丸めて0になる負の時刻でも表示を崩さない。
+test('formats timecodes with millisecond precision and optional trailing zeros', () => {
+	for (const [time, label] of [[62.5, '0:00.063'], [-31.25, '-0:00.031'], [60062.5, '1:00.063'], [59999.5, '1:00'], [0, '0:00'], [-0, '0:00'], [0.1 + 0.2, '0:00'], [-0.2, '0:00']]) {
 		assert.equal(formatTimelineTimecode(time), label);
+	}
+	for (const [time, label] of [[0, '0:00.000'], [-0.2, '0:00.000'], [1500, '0:01.500'], [-61500, '-1:01.500'], [59999.5, '1:00.000'], [62.5, '0:00.063']]) {
+		assert.equal(formatTimelineTimecode(time, { trimTrailingZeros: false }), label);
 	}
 });
