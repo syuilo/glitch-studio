@@ -42,4 +42,6 @@ Scene・レイヤー・クリップと、その時間・合成・音声設定の
 
 `scene-audio.ts`の`getSceneAudioPlacements()`は素材・発話の配置を子Sceneから展開し、`resolveSceneAudioPlacements()`は配置を準備済み音声と未生成の発話に分ける。`getSceneAudioClips()`は両者を組み合わせ、準備済みだけを再生へ渡す。`voicevox-requests.ts`の`getRequiredVoicevoxRequests()`は配置から指定範囲の生成要求を列挙し、仮の生成音声を作らない。`getVoicevoxRequests()`は無効・クリップ外も含む現在の全発話の参照を返し、生成結果を保持する対象の判断に使う。
 
+`getRequiredVoicevoxRequestsForRendering()`は描画区間を各子Sceneの内容時刻へ変換し、それぞれのSceneの時刻0から描画区間の終端までの音声要求を集める。波形・スペクトラムが読む窓の長さをTimeline側で決めず、履歴を保守的に準備する。親のトリム前に終了した発話も子Scene内では履歴として必要になるため、親Sceneの音声出力だけでは判定しない。無効・描画区間外のScene配置は再帰せず、同じSceneの複数配置はそれぞれの内容時刻を扱い、同一の生成要求はまとめる。
+
 字幕装飾は`layers/voicevox/voicevox-subtitle.ts`が専用の定義・既定値・型を所有し、`subtitleParamValues`に保存する。編集対象は`voicevoxSubtitle`。Textレイヤーの定義・検証・保存型を継承せず、それぞれ独立して変更できる。

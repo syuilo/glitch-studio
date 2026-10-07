@@ -57,7 +57,7 @@ import GsSelect from './common/GsSelect.vue';
 import GsTabs from './common/GsTabs.vue';
 import type { ExportProgress, ExportQuality, TimelineExportSettings } from '@/export/timeline-export.ts';
 import { preferences } from '@/preferences.ts';
-import { getRequiredVoicevoxRequests } from '@gs/subsystems_timeline_shared/voicevox-requests.ts';
+import { getRequiredVoicevoxRequestsForRendering } from '@gs/subsystems_timeline_shared/voicevox-requests.ts';
 import { exportTimeline } from '@/export/client.ts';
 import { validateExportSettings } from '@/export/timeline-export.ts';
 import { estimateExportBytes, formatExportTime, parseExportTime, scaleExportResolution } from '@/export/export-settings.ts';
@@ -176,8 +176,11 @@ async function doExport() {
 		});
 		if (exportSettings.format === 'mp4') {
 			status.value = 'Preparing VOICEVOX audio…';
-			// 波形・スペクトラムが読む過去の窓も含め、書き出し開始前の発話を準備する。
-			exportProject.generatedSpeech = await appContext.voicevoxGeneration.prepare(getRequiredVoicevoxRequests(exportProject.timelineScenes, exportProject.sceneId, 0, exportSettings.endTimeMs), signal);
+			const requests = getRequiredVoicevoxRequestsForRendering(exportProject.timelineScenes, exportProject.sceneId, exportSettings.positionMs, exportSettings.endTimeMs);
+			const preparedSpeech = await appContext.voicevoxGeneration.prepare(requests, signal);
+			// 描画用の音声参照でも使えるよう、開始時点の生成済み音声を残して準備結果を加える。
+			// 待機中の編集や再生成を混ぜず、この書き出しが保持した結果だけをWorkerへ渡す。
+			exportProject.generatedSpeech = [...new Map([...exportProject.generatedSpeech, ...preparedSpeech].map(speech => [speech.key, speech])).values()];
 		}
 		signal.throwIfAborted();
 		const preferredFormat = navigator.gpu.getPreferredCanvasFormat();
