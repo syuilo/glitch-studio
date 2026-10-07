@@ -1,5 +1,5 @@
 <template>
-<div :class="[$style.root, { [$style.selected]: selected, [$style.disabled]: layer.isDisabled, [$style.type_effect]: layer.layerType === 'effect', [$style.type_audio]: layer.layerType === 'audio', [$style.type_image]: layer.layerType === 'image', [$style.type_video]: layer.layerType === 'video' }]" :data-timeline-layer-id="layer.id">
+<div :class="[$style.root, { [$style.selected]: selected, [$style.disabled]: layer.isDisabled, [$style.type_effect]: layer.layerType === 'effect', [$style.type_audio]: layer.layerType === 'audio', [$style.type_image]: layer.layerType === 'image', [$style.type_video]: layer.layerType === 'video', [$style.type_text]: layer.layerType === 'text' }]" :data-timeline-layer-id="layer.id">
 	<div :class="$style.mainLane" data-timeline-clip-lane>
 		<div :class="$style.side">
 			<div :class="$style.layerHeader" draggable="true" @click="emit('selected', $event)" @dragstart.stop="emit('dragStart', $event)">
@@ -53,7 +53,6 @@
 
 <script lang="ts" setup>
 import { computed } from 'vue';
-import { timelineTimeToX, timelinePointerTime } from '@/utility/timeline-coordinates.ts';
 import { paramPathKey } from '@gs/shared/parameter/parameter-path.ts';
 import { effectDefinitions } from '@gs/subsystems_effect_shared/effect-definitions.ts';
 import { getSceneDuration } from '@gs/subsystems_timeline_shared/scenes.ts';
@@ -67,6 +66,7 @@ import type { TimelineKeyframeSelection, TimelineClipSelection } from '@/utility
 import type { TimelineTickMode, TimelineTickSubdivisions } from '@/utility/timeline-ticks.ts';
 import type { TimelineClipMediaInfo } from '@/utility/timeline-clip-media.ts';
 import type { TimelineLayer } from '@gs/subsystems_timeline_shared/types.ts';
+import { timelineTimeToX, timelinePointerTime } from '@/utility/timeline-coordinates.ts';
 import { appContext } from '@/app.ts';
 import { formatTimelineTimecode, getTimelineVisibleClipTicks, getTimelineTickCount } from '@/utility/timeline-ticks.ts';
 import { resolveLayerParameter, getLayerKeyframeParameters } from '@/utility/timeline-scene.ts';
@@ -231,6 +231,9 @@ function timeToDomX(time: number): number { return timelineTimeToX(time, props.t
 	}
 	&.type_video {
 		--LAYER_COLOR: var(--THEME-layer-video);
+	}
+	&.type_text {
+		--LAYER_COLOR: var(--THEME-layer-text);
 	}
 }
 
