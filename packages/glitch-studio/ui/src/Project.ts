@@ -71,6 +71,7 @@ export class ProjectContext {
 	}
 
 	public load(project: Project) {
+		this.stateManager.cancelEdit();
 		this.stateManager.state.name.value = project.name;
 		this.stateManager.state.description.value = project.description;
 		this.stateManager.state.author.value = project.author;

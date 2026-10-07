@@ -325,7 +325,7 @@
 import { createTimelineClipTiming, getTimelineClipEnd, getTimelineClipInsertionDuration, getTimelineClipMoveBounds, getTimelineClipTrimBounds } from '@gs/subsystems_timeline_shared/timing.ts';
 import { isParameterType } from '@gs/shared/parameter/parameter-definition.ts';
 import { LAYER_VAR_DEFS } from '@gs/subsystems_timeline_shared/expression.ts';
-import { computed, onBeforeUnmount, onMounted, ref, shallowRef, useTemplateRef, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, shallowRef, toRef, useTemplateRef, watch } from 'vue';
 import { insertIntermediateNumbers, niceScale } from '@gs/shared/utility/misc.js';
 import { genId } from '@gs/shared/utility/id.js';
 import { timelineAudioParamDefs } from '@gs/subsystems_timeline_shared/timeline-audio.ts';
@@ -383,7 +383,7 @@ import { createEffectTimelineLayer } from '@/utility/effect-timeline-layer.ts';
 import { createShapeTimelineLayer } from '@/utility/shape-timeline-layer.ts';
 import { createTextTimelineLayer } from '@/utility/text-timeline-layer.ts';
 import { appContext, timelineSubPanelTeleportTargetAvailable } from '@/app.ts';
-import { sceneEditorStates, timelineClipboard } from '@/utility/timeline-editor-state.ts';
+import { getTimelineEditorState, getSelectedTimelineLayerId, timelineClipboard } from '@/utility/timeline-editor-state.ts';
 import { copyTimelineClips, prepareTimelineClipPaste, canPasteTimelineClips } from '@/utility/timeline-clip-clipboard.ts';
 import { collectTimelineMarqueeCandidates, measureTimelineLayerSelection } from '@/utility/timeline-marquee.ts';
 import { copyTimelineKeyframes, prepareTimelineKeyframePaste } from '@/utility/timeline-keyframe-clipboard.ts';
@@ -466,7 +466,7 @@ function showSnapMenu(event: PointerEvent) {
 }
 
 const editedScene = stateManager.state.timelineScenes.value.find(scene => scene.id === props.sceneId)!;
-const editorState = sceneEditorStates.get(editedScene);
+const editorState = getTimelineEditorState(editedScene);
 let disposed = false;
 const sceneLayers = computed(() => stateManager.state.timelineScenes.value.find(scene => scene.id === props.sceneId)?.layers ?? []);
 const availableScenes = computed(() => stateManager.state.timelineScenes.value.filter(scene => canReferenceScene(stateManager.state.timelineScenes.value, props.sceneId, scene.id)));
@@ -527,7 +527,7 @@ const cursorValue = ref(0);
 const selectionArea = ref<SelectionRect | null>(null);
 const movingSelection = ref(false);
 
-const selection = ref<TimelineSelection>(editorState?.selection ? deepClone(editorState.selection) : { kind: 'layers', ids: [] });
+const selection = toRef(editorState, 'selection');
 // スクロールや縦仮想一覧の更新で同じ選択配列を作り直さない。
 const emptySelectionIds: string[] = [];
 const emptyKeyframeSelection: TimelineKeyframeSelection[] = [];
@@ -544,7 +544,7 @@ const selectedClipIdsByLayer = computed(() => {
 });
 const selectionCount = computed(() => selection.value.kind === 'layers' ? selection.value.ids.length : selection.value.kind === 'clips' ? selection.value.clips.length : selection.value.keyframes.length);
 const selectedLayerId = computed(() => selection.value.kind === 'layers' ? selection.value.ids[0] ?? null : selection.value.kind === 'clips' ? selection.value.clips[0]?.layerId ?? null : selection.value.keyframes[0]?.layerId ?? null);
-const selectedLayer = computed(() => selectionCount.value > 1 ? null : sceneLayers.value.find(layer => layer.id === selectedLayerId.value) ?? null);
+const selectedLayer = computed(() => sceneLayers.value.find(layer => layer.id === getSelectedTimelineLayerId(selection.value)) ?? null);
 const audioLayerOptions = computed(() => sceneLayers.value
 	.filter(layer => layer.id !== selectedLayer.value?.id && isTimelineAudioOutputLayer(layer))
 	.map(layer => ({ value: layer.id, label: layer.name })));
@@ -1248,7 +1248,8 @@ onBeforeUnmount(() => {
 	stopCueHold?.();
 	disposed = true;
 	disposeEffectPicker?.();
-	sceneEditorStates.set(editedScene, { selection: deepClone(selection.value), rangeX: tlRangeX.value, positionX: tlPosX.value });
+	editorState.rangeX = tlRangeX.value;
+	editorState.positionX = tlPosX.value;
 });
 
 function showAddInlineEffectNodeMenu() {

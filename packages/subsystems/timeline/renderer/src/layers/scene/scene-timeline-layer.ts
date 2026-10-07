@@ -4,6 +4,7 @@ import type { UniformOrTexture } from '@gs/shared/gpu/uniform-or-texture.ts';
 import { TimelineRenderer } from '../../timeline-renderer.ts';
 import type { TimelineLayerRenderer } from '../../timeline-renderer.ts';
 import { createTimelineCompositor } from '../../timeline-compositor.ts';
+import type { TimelineCompositingObserver } from '../../timeline-compositor.ts';
 import { TimelineCompositingParameters } from '../../timeline-compositing-parameters.ts';
 import { createSceneOutput } from '../../scene-output.ts';
 
@@ -17,6 +18,7 @@ export function createSceneTimelineLayer(
 		resolution: { width: number; height: number };
 		sceneResolution: { width: number; height: number };
 		format: IntermediateTextureFormat;
+		onCompositing?: TimelineCompositingObserver;
 		createLayer: (entry: TimelineLayer, clipId: string) => TimelineLayerRenderer<UniformOrTexture>;
 		getLayerVersion?: (entry: TimelineLayer, clipId: string) => string | number;
 	},
@@ -28,7 +30,7 @@ export function createSceneTimelineLayer(
 		getLayerVersion: options.getLayerVersion,
 	});
 	const compositor = createTimelineCompositor({
-		device: options.device, vertex: options.vertex, resolution: options.resolution, format: options.format,
+		device: options.device, vertex: options.vertex, resolution: options.resolution, format: options.format, onCompositing: options.onCompositing,
 	});
 	const parameters = new TimelineCompositingParameters();
 	const sceneOutput = createSceneOutput({ ...options, resolution: options.sceneResolution });

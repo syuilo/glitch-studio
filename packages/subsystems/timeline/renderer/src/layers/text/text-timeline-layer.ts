@@ -2,12 +2,13 @@ import { validateTimelineText } from '@gs/subsystems_timeline_shared/layers/text
 import { TextParameters } from './text-parameters.ts';
 import { createTextRenderer } from './text-renderer.ts';
 import { createTimelineCompositor } from '../../timeline-compositor.ts';
+import type { TimelineCompositingObserver } from '../../timeline-compositor.ts';
 import { TimelineCompositingParameters } from '../../timeline-compositing-parameters.ts';
 import type { TimelineTextLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import type { UniformOrTexture } from '@gs/shared/gpu/uniform-or-texture.ts';
 import type { TimelineLayerRenderer } from '../../timeline-renderer.ts';
 
-export function createTextTimelineLayer(layer: TimelineTextLayer, options: Parameters<typeof createTextRenderer>[0] & { getFont: (id: string) => Blob | null }): TimelineLayerRenderer<UniformOrTexture> {
+export function createTextTimelineLayer(layer: TimelineTextLayer, options: Parameters<typeof createTextRenderer>[0] & { getFont: (id: string) => Blob | null; onCompositing?: TimelineCompositingObserver }): TimelineLayerRenderer<UniformOrTexture> {
 	validateTimelineText(layer.textParamValues);
 	const renderer = createTextRenderer(options);
 	const compositor = createTimelineCompositor(options);

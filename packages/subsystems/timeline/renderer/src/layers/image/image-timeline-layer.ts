@@ -1,6 +1,7 @@
 import { scaleResolution } from '@gs/shared/resolution.ts';
 import { createShaderInputPipeline } from '@gs/shared/gpu/shader-input-pipeline.ts';
 import { createTimelineCompositor } from '../../timeline-compositor.ts';
+import type { TimelineCompositingObserver } from '../../timeline-compositor.ts';
 import { TimelineCompositingParameters } from '../../timeline-compositing-parameters.ts';
 import type { TimelineImageLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import type { IntermediateTextureFormat } from '@gs/shared/types.ts';
@@ -13,6 +14,7 @@ export function createImageTimelineLayer(layer: TimelineImageLayer, sourceTextur
 	resolution: { width: number; height: number };
 	resolutionScale: number;
 	format: IntermediateTextureFormat;
+	onCompositing?: TimelineCompositingObserver;
 }): TimelineLayerRenderer<UniformOrTexture> {
 	const compositor = createTimelineCompositor(options);
 	const parameters = new TimelineCompositingParameters();

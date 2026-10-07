@@ -2,12 +2,13 @@ import { validateTimelineShape } from '@gs/subsystems_timeline_shared/layers/sha
 import { ShapeParameters } from './shape-parameters.ts';
 import { createShapeRenderer } from './shape-renderer.ts';
 import { createTimelineCompositor } from '../../timeline-compositor.ts';
+import type { TimelineCompositingObserver } from '../../timeline-compositor.ts';
 import { TimelineCompositingParameters } from '../../timeline-compositing-parameters.ts';
 import type { TimelineShapeLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import type { UniformOrTexture } from '@gs/shared/gpu/uniform-or-texture.ts';
 import type { TimelineLayerRenderer } from '../../timeline-renderer.ts';
 
-export function createShapeTimelineLayer(layer: TimelineShapeLayer, options: Parameters<typeof createShapeRenderer>[0]): TimelineLayerRenderer<UniformOrTexture> {
+export function createShapeTimelineLayer(layer: TimelineShapeLayer, options: Parameters<typeof createShapeRenderer>[0] & { onCompositing?: TimelineCompositingObserver }): TimelineLayerRenderer<UniformOrTexture> {
 	validateTimelineShape(layer.shape);
 	const renderer = createShapeRenderer(options);
 	const compositor = createTimelineCompositor(options);

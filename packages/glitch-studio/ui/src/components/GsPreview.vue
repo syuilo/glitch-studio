@@ -1,5 +1,5 @@
 <template>
-<GsDetachableView title="Preview">
+<GsDetachableView title="Preview" @changeWindow="onPreviewWindowChanged">
 	<div :class="$style.root" @dragover.prevent.stop @drop.prevent.stop="onDrop">
 		<div :class="$style.topLeft">
 			<div v-if="showTimecodeInPreview" :class="$style.time" class="_monospace">{{ formatTime(time) }}</div>
@@ -8,11 +8,12 @@
 			<div :class="$style.zoom">ZOOM: {{ Math.round(zoom * 100) }}%</div>
 			<button :class="$style.menuButton" class="_button" @click="showMenu"><i class="ti ti-dots"></i></button>
 		</div>
-		<div ref="containerContainer" :class="[$style.containerContainer, { [$style.animatedBg]: preferences.r.animatedBgInPreview.value }]" @wheel="onViewWheel" @click="onViewClick" @pointermove="onPointermove">
-			<div ref="canvasContainer" :class="$style.canvasContainer" :style="{ scale: zoom }"></div>
+		<div ref="containerContainer" :class="[$style.containerContainer, { [$style.animatedBg]: preferences.r.animatedBgInPreview.value, [$style.panning]: panning }]" @wheel="onViewWheel" @click="onViewClick" @pointermove="onPointermove" @pointerdown="onViewPointerdown" @auxclick.prevent>
+			<div ref="canvasContainer" :class="$style.canvasContainer" :style="{ scale: zoom, translate: `${pan[0]}px ${pan[1]}px` }"></div>
 			<div v-if="showGridInPreview" ref="gridOverlay" :class="$style.grid">
 				<div v-for="(line, index) in gridLines" :key="index" :class="$style.gridLine" :style="line"></div>
 			</div>
+			<GsPreviewTransform :canvasRect="previewCanvasRect"/>
 		</div>
 	</div>
 </GsDetachableView>
@@ -25,6 +26,9 @@ import type { CSSProperties } from 'vue';
 import { genId } from '@gs/shared/utility/id.ts';
 import { useRendererCanvas } from '@/use-renderer-canvas.ts';
 import GsDetachableView from './GsDetachableView.vue';
+import GsPreviewTransform from './GsPreviewTransform.vue';
+import { startPreviewPointerDrag } from '@/utility/preview-pointer-drag.ts';
+import type { PreviewCanvasRect } from '@/utility/preview-transform.ts';
 import * as api from '@/api.ts';
 import { preferences } from '@/preferences.ts';
 import * as ui from '@/ui.ts';
@@ -39,26 +43,64 @@ const gridLines = shallowRef<CSSProperties[]>([]);
 const ZOOM_STEP = 1.25;
 const gridLinePositions = [1 / 4, 1 / 3, 1 / 2, 2 / 3, 3 / 4];
 const zoom = ref(1 / ZOOM_STEP / ZOOM_STEP / ZOOM_STEP);
+const pan = ref<[number, number]>([0, 0]);
+const panning = ref(false);
+const previewCanvasRect = shallowRef<PreviewCanvasRect>({ left: 0, top: 0, width: 0, height: 0 });
+let stopPan: (() => void) | undefined;
 const liveTime = ref(0);
 const time = computed(() => previewPlayback.state.value.mode === 'timeline' ? previewPlayback.currentTimelineTime.value : liveTime.value);
 
 let latestTime: number | null = null;
 let latestGridGeometry = '';
 
-let timecodeRaf = window.requestAnimationFrame(function update(t) {
+let animationWindow = window;
+let timecodeRaf = animationWindow.requestAnimationFrame(update);
+
+function update(t: number) {
 	const delta = latestTime == null ? 0 : t - latestTime;
 	latestTime = t;
 	if (previewPlayback.state.value.mode === 'live') liveTime.value += delta * liveTimeFactor.value;
 	updateGridLines();
-	timecodeRaf = window.requestAnimationFrame(update);
-});
+	updatePreviewCanvasRect();
+	timecodeRaf = animationWindow.requestAnimationFrame(update);
+}
 
 watch(resolutionFactor, (newFactor, oldFactor) => {
 	zoom.value *= (oldFactor ?? 1) / newFactor;
 }, { immediate: true });
 
 useRendererCanvas(canvasContainer, activePreviewRenderer, () => 'canvas');
-onBeforeUnmount(() => window.cancelAnimationFrame(timecodeRaf));
+onBeforeUnmount(() => { animationWindow.cancelAnimationFrame(timecodeRaf); cancelPan(); });
+
+function onPreviewWindowChanged() {
+	cancelPan();
+	// 元のウィンドウが非表示でも、切り離したプレビューの寸法・DPRを更新し続ける。
+	animationWindow.cancelAnimationFrame(timecodeRaf);
+	animationWindow = canvasContainer.value?.ownerDocument.defaultView ?? window;
+	latestTime = null;
+	timecodeRaf = animationWindow.requestAnimationFrame(update);
+}
+
+function updatePreviewCanvasRect() {
+	if (!canvasContainer.value || !containerContainer.value) return;
+	const canvas = canvasContainer.value.getBoundingClientRect();
+	const container = containerContainer.value.getBoundingClientRect();
+	const next = { left: canvas.left - container.left, top: canvas.top - container.top, width: canvas.width, height: canvas.height };
+	const previous = previewCanvasRect.value;
+	if (next.left !== previous.left || next.top !== previous.top || next.width !== previous.width || next.height !== previous.height) previewCanvasRect.value = next;
+}
+
+function cancelPan() { stopPan?.(); }
+
+function onViewPointerdown(event: PointerEvent) {
+	if (event.button !== 1 || stopPan) return;
+	const initial = [...pan.value];
+	panning.value = true;
+	stopPan = startPreviewPointerDrag(event, {
+		move: next => { pan.value = [initial[0] + next.clientX - event.clientX, initial[1] + next.clientY - event.clientY]; },
+		end: cancelled => { if (cancelled) pan.value = [initial[0], initial[1]]; panning.value = false; stopPan = undefined; },
+	});
+}
 
 function updateGridLines() {
 	const overlay = gridOverlay.value;
@@ -167,11 +209,20 @@ function onPointermove(ev: PointerEvent) {
 
 function onViewWheel(ev: WheelEvent) {
 	ev.preventDefault();
-	if (ev.deltaY < 0) {
-		zoom.value = Math.max(0, Math.min(100, zoom.value * ZOOM_STEP));
-	} else {
-		zoom.value = Math.max(0, Math.min(100, zoom.value / ZOOM_STEP));
+	if (panning.value || ev.deltaY === 0) return;
+	const nextZoom = Math.max(0, Math.min(100, ev.deltaY < 0 ? zoom.value * ZOOM_STEP : zoom.value / ZOOM_STEP));
+	if (nextZoom === zoom.value) return;
+	const canvasRect = canvasContainer.value?.getBoundingClientRect();
+	if (canvasRect && zoom.value > 0) {
+		// CSSのscaleはCanvas中央を支点にするため、ポインターまでの距離の変化を
+		// panで相殺する。パン済みの表示位置と上限適用後の倍率を使い、直下の点を保つ。
+		const scaleChange = nextZoom / zoom.value;
+		pan.value = [
+			pan.value[0] + (ev.clientX - canvasRect.left - canvasRect.width / 2) * (1 - scaleChange),
+			pan.value[1] + (ev.clientY - canvasRect.top - canvasRect.height / 2) * (1 - scaleChange),
+		];
 	}
+	zoom.value = nextZoom;
 }
 
 function formatTime(timeMs: number): string {
@@ -186,6 +237,7 @@ function formatTime(timeMs: number): string {
 const animatedBgInPreview = preferences.model('animatedBgInPreview');
 const showTimecodeInPreview = preferences.model('showTimecodeInPreview');
 const showGridInPreview = preferences.model('showGridInPreview');
+const showTransformInPreview = preferences.model('showTransformInPreview');
 
 function showMenu(ev: PointerEvent) {
 	ui.popupMenu([{
@@ -208,6 +260,15 @@ function showMenu(ev: PointerEvent) {
 		icon: 'ti ti-grid-3x3',
 		type: 'switch',
 		ref: showGridInPreview,
+	}, {
+		text: 'Show Layer Transform',
+		icon: 'ti ti-transform',
+		type: 'switch',
+		ref: showTransformInPreview,
+	}, {
+		text: 'Center View',
+		icon: 'ti ti-focus-centered',
+		action: () => { pan.value = [0, 0]; },
 	}], ev.currentTarget ?? ev.target);
 }
 </script>
@@ -242,6 +303,8 @@ function showMenu(ev: PointerEvent) {
 .canvasContainer > canvas {
 	display: block;
 }
+
+.panning, .panning * { cursor: grabbing !important; }
 
 .grid {
 	position: absolute;

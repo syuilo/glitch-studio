@@ -31,6 +31,7 @@ export class UndoRedo<S, Change, Commands extends Record<string, CommandDef<S, a
 	private maxUndoStackSize = 100;
 	private changeListeners = new Set<(changes: Change[]) => void>();
 	private commandDefs: Commands;
+	private activeEdit: { finish(): void; cancel(): void } | null = null;
 
 	public onChange(listener: (changes: Change[]) => void): () => void {
 		this.changeListeners.add(listener);
@@ -42,7 +43,7 @@ export class UndoRedo<S, Change, Commands extends Record<string, CommandDef<S, a
 		this.commandDefs = commandDefs;
 	}
 
-	public commit<T extends keyof Commands>(type: T, payload: Parameters<Commands[T]['create']>[0], mergeKey?: string | null) {
+	private createCommand<T extends keyof Commands>(type: T, payload: Parameters<Commands[T]['create']>[0]) {
 		const commandDef = this.commandDefs[type] as CommandDef<S, Parameters<Commands[T]['create']>[0], Change>;
 		const savedPayload = deepClone(payload);
 		const actions = commandDef.create(savedPayload);
@@ -52,10 +53,55 @@ export class UndoRedo<S, Change, Commands extends Record<string, CommandDef<S, a
 		};
 		// 履歴へ通知込みの操作を保存する。マージされたRedoも最終payloadを通知し、
 		// Undoは最初のpayloadを使うので、ドラッグ中も確定後も同じ同期経路を通る。
-		const command = {
+		return {
 			execute: (state: S) => { actions.execute(state); notify(state); },
 			undo: (state: S) => { actions.undo(state); notify(state); },
 		};
+	}
+
+	/**
+	 * 連続操作は通常と同じ変更通知を出すが、確定まで履歴を追加・破棄しない。
+	 * キャンセルで既存のRedoまで失うことを防ぎ、複数値の更新も一操作として戻す。
+	 * 別コマンドの実行は先に確定し、後から古いドラッグで新しい編集を巻き戻さない。
+	 */
+	public beginEdit<T extends keyof Commands>(type: T) {
+		this.activeEdit?.finish();
+		let active = true;
+		let pending: CommandLog<S, Change, Commands> | null = null;
+		const end = () => { active = false; this.activeEdit = null; };
+		const session = {
+			get active() { return active; },
+			update: (payload: Parameters<Commands[T]['create']>[0]) => {
+				if (!active) return;
+				const command = this.createCommand(type, payload);
+				command.execute(this.state);
+				if (pending == null) pending = { type, date: Date.now(), ...command };
+				else pending.execute = command.execute;
+			},
+			finish: () => {
+				if (!active) return;
+				end();
+				if (pending == null) return;
+				this.undoStack.value.push(pending);
+				if (this.undoStack.value.length > this.maxUndoStackSize) this.undoStack.value.shift();
+				triggerRef(this.undoStack);
+				this.redoStack.value = [];
+			},
+			cancel: () => {
+				if (!active) return;
+				end();
+				pending?.undo(this.state);
+			},
+		};
+		this.activeEdit = session;
+		return session;
+	}
+
+	public cancelEdit() { this.activeEdit?.cancel(); }
+
+	public commit<T extends keyof Commands>(type: T, payload: Parameters<Commands[T]['create']>[0], mergeKey?: string | null) {
+		this.activeEdit?.finish();
+		const command = this.createCommand(type, payload);
 		command.execute(this.state);
 
 		const latest = this.undoStack.value.at(-1);
@@ -81,6 +127,7 @@ export class UndoRedo<S, Change, Commands extends Record<string, CommandDef<S, a
 	}
 
 	public undo() {
+		if (this.activeEdit != null) { this.activeEdit.cancel(); return; }
 		const command = this.undoStack.value.pop();
 		triggerRef(this.undoStack);
 		if (command == null) return;
@@ -90,6 +137,7 @@ export class UndoRedo<S, Change, Commands extends Record<string, CommandDef<S, a
 	}
 
 	public redo() {
+		if (this.activeEdit != null) this.activeEdit.cancel();
 		const command = this.redoStack.value.pop();
 		triggerRef(this.redoStack);
 		if (command == null) return;

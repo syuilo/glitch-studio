@@ -1,5 +1,7 @@
 # Timeline Shared
 
+`layer-transform.ts`は、合成前の素材寸法・Scene寸法・評価済みtransformから素材座標をScene座標へ写す純粋関数を持つ。fitの規則はGPU共通基盤の`input-fit.ts`を使い、透明な余白・origin・負のscale・画面アスペクト比を合成シェーダーと揃える。ポインター・ハンドル・スナップ・選択状態はUIが所有する。
+
 `src/layers/`にレイヤー種別固有の定義・初期値・検証をまとめる。`effect`・`visual-module`・`text`・`shape`の各ディレクトリに既存の実装を置き、Scene・クリップ・Binding・合成・音声などの共通契約は`src/`直下に置く。
 
 Scene・レイヤー・クリップと、その時間・合成・音声設定の契約を定義する。キーフレームの補間や式エンジンは共通基盤を利用し、Scene時刻で評価することや許可するBindingなどの規約をこのドメインで決める。

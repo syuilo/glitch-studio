@@ -35,6 +35,14 @@ function visualModule(circular) {
 	};
 }
 
+function constantVisualModule() {
+	return { ...visualModule(false), paramDefs: [{ id: 'color', nameForReference: 'color', dataType: { kind: 'color' },
+		ui: { label: 'Color', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [1, 0, 0, 1] } }], nodes: [
+		{ id: 'in', type: 'globalIn' },
+		{ id: 'out', type: 'globalOut', inputs: { output: { nodeId: 'in', outputPort: 'color' } } },
+	] };
+}
+
 function gpuFixture() {
 	const texture = ({ size = [1, 1], format = 'rgba8unorm' } = {}) => ({
 		width: size[0], height: size[1], depthOrArrayLayers: 1, mipLevelCount: 1, sampleCount: 1,
@@ -53,6 +61,76 @@ function gpuFixture() {
 	};
 	return { device, texture };
 }
+
+// 【選択レイヤーの変形情報だけを変更時に通知する】
+// ポーリングや全レイヤーの毎フレーム転送を避ける。選択解除・区間外・再描画での
+// 通知数を実Managerで検証し、同じ画像を再描画しただけでは通信を増やさない。
+test('publishes only the observed transform and deduplicates unchanged redraws', async t => {
+	const { renderer, errors } = await fixture(t, {}, TimelineRendererManager);
+	const events = [];
+	renderer.on('ev', event => { if (event.type === 'layerTransform') events.push(structuredClone(event.ctx)); });
+	const source = constantVisualModule();
+	await renderer.updateDynamicOptions({ visualModules: [source] });
+	await renderer.renderTimelineAt(0);
+	assert.equal(events.length, 0);
+	await renderer.updateDynamicOptions({ transformObserver: { sceneId: 'scene', layerId: 'layer', requestId: 1 } });
+	await renderer.renderTimelineAt(0);
+	assert.equal(events.length, 1);
+	assert.deepEqual(errors, []);
+	assert.equal(events[0].clipId, 'clip');
+	assert.deepEqual(events[0].geometry.sourceSize, { width: 1, height: 1 });
+	assert.deepEqual(events[0].geometry.transform.scale, [1, 1]);
+	await renderer.renderTimelineAt(0);
+	assert.equal(events.length, 1);
+	await renderer.renderTimelineAt(1000);
+	assert.equal(events.at(-1).geometry, null);
+	assert.equal(events.at(-1).clipId, null);
+	await renderer.updateDynamicOptions({ transformObserver: null });
+	await renderer.renderTimelineAt(0);
+	assert.equal(events.length, 2);
+});
+
+// 【選択が変わった後に完了したフレームを古い操作対象へ通知しない】
+// GPU完了待ち中にも選択・Sceneは変わり得る。画像の完了とは別に購読の世代を確認する。
+test('discards transform notifications for an obsolete selection', async t => {
+	const { renderer } = await fixture(t, {}, TimelineRendererManager);
+	const events = [];
+	renderer.on('ev', event => { if (event.type === 'layerTransform') events.push(event.ctx); });
+	await renderer.updateDynamicOptions({ visualModules: [visualModule(false)], transformObserver: { sceneId: 'scene', layerId: 'layer', requestId: 1 } });
+	const gate = Promise.withResolvers();
+	renderer.gpuDevice.queue.onSubmittedWorkDone = () => gate.promise;
+	const pending = renderer.renderTimelineAt(0);
+	await renderer.updateDynamicOptions({ transformObserver: { sceneId: 'scene', layerId: 'missing', requestId: 2 } });
+	gate.resolve();
+	await pending;
+	assert.equal(events.length, 0);
+	await renderer.renderTimelineAt(0);
+	assert.equal(events.length, 1);
+	assert.equal(events[0].request.requestId, 2);
+	assert.equal(events[0].geometry, null);
+});
+
+// 【モーションブラーは一画像に一通知とし、枠の変形を基準時刻で評価する】
+// 最終サンプルの時刻で枠を出すと、停止中のシーク位置・追加キーとずれてしまう。
+// ブラー用の全サンプルを通常どおり描きつつ、枠のための追加GPU描画は行わない。
+test('publishes one base-time transform for a motion-blurred frame', async t => {
+	const { renderer } = await fixture(t, { timelineMotionBlur: { enabled: true, shutterAngle: 180, samples: 4 } }, TimelineRendererManager);
+	const events = [];
+	renderer.on('ev', event => { if (event.type === 'layerTransform') events.push(event.ctx); });
+	const scenes = structuredClone(renderer.dynamicOptions.timelineScenes);
+	scenes[0].layers[0].compositingParamValues.rotation = { inputSource: 'expression', expression: 'TIME_MS / 1000' };
+	const source = constantVisualModule();
+	await renderer.updateDynamicOptions({ visualModules: [source], timelineScenes: scenes,
+		transformObserver: { sceneId: 'scene', layerId: 'layer', requestId: 1 } });
+	let evaluations = 0;
+	const evaluate = renderer.timelineRenderer.evaluateAt.bind(renderer.timelineRenderer);
+	renderer.timelineRenderer.evaluateAt = (...args) => { evaluations++; return evaluate(...args); };
+	await renderer.renderTimelineAt(200);
+	assert.equal(evaluations, 4);
+	assert.equal(events.length, 1);
+	assert.equal(events[0].time, 200);
+	assert.equal(events[0].geometry.transform.rotation, 0.2);
+});
 
 async function fixture(t, staticOptions = {}, Manager = VisualModuleRendererManager) {
 	const errors = [];

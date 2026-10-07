@@ -15,7 +15,7 @@ import { TimelineAudioPreview } from './audio/timeline-audio-preview.ts';
 import { PreviewPlaybackController } from './PreviewPlaybackController.ts';
 import { RendererProjectSynchronizer } from './RendererProjectSynchronizer.ts';
 import { ProjectSaveController } from './ProjectSaveController.ts';
-import { timelineClipboard } from './utility/timeline-editor-state.ts';
+import { timelineClipboard, getTimelineEditorState, getSelectedTimelineLayerId } from './utility/timeline-editor-state.ts';
 import type { Project, ProjectFileHandle } from './gsproj.ts';
 import type { WatchStopHandle } from 'vue';
 import type { IntermediateTextureFormat } from '@gs/shared/types.js';
@@ -38,6 +38,12 @@ export class AppContext {
 	public readonly projectContext: ProjectContext;
 	public activeSceneId = ref<string | null>(null);
 	public activeScene = computed(() => this.projectContext.stateManager.state.timelineScenes.value.find(scene => scene.id === this.activeSceneId.value) ?? null);
+	public selectedTimelineLayer = computed(() => {
+		const scene = this.activeScene.value;
+		if (scene == null) return null;
+		const layerId = getSelectedTimelineLayerId(getTimelineEditorState(scene).selection);
+		return scene.layers.find(layer => layer.id === layerId) ?? null;
+	});
 	public liveFpsLimit = ref<number | null>(60);
 	public timelinePreviewFpsFactor = ref(1);
 	public timelinePreviewMotionBlurSamples = ref<(typeof TIMELINE_PREVIEW_MOTION_BLUR_SAMPLE_OPTIONS)[number]>(DEFAULT_TIMELINE_PREVIEW_MOTION_BLUR_SAMPLES);

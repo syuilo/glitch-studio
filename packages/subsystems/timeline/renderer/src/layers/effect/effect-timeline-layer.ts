@@ -13,6 +13,7 @@ import { mapParameterTree } from '@gs/shared/parameter/parameter-tree.ts';
 import { isTimelineAudioInputBinding } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
 import { createTimelineAudioInputResolver } from '../../timeline-audio-input-resolver.ts';
 import { createTimelineCompositor } from '../../timeline-compositor.ts';
+import type { TimelineCompositingObserver } from '../../timeline-compositor.ts';
 import { TimelineCompositingParameters } from '../../timeline-compositing-parameters.ts';
 import type { EffectDefinition } from '@gs/subsystems_effect_shared/effect-definition.ts';
 import type { EffectImplementation, EffectGpuContext } from '@gs/subsystems_effect_shared/effect-implementation.ts';
@@ -36,6 +37,7 @@ export function createEffectTimelineLayer(layer: TimelineEffectLayer, definition
 	assetTextures: ReadonlyMap<string, GPUTexture>;
 	getAudioInput?: TimelineAudioInputProvider;
 	onState?: (state: EffectInstanceState | null) => void;
+	onCompositing?: TimelineCompositingObserver;
 }): TimelineLayerRenderer<UniformOrTexture> {
 	// 設定更新時はManagerがインスタンスを作り直す。Bindingの検証と既定値の補完は
 	// 受け入れ時に行い、毎フレーム、未評価のキーフレーム列まで複製・再検証しない。
@@ -46,7 +48,7 @@ export function createEffectTimelineLayer(layer: TimelineEffectLayer, definition
 	const { device } = options.wgpu;
 	const renderer = new EffectRenderer({ definition, implementation, wgpu: options.wgpu,
 																																							fallbackTexture: options.fallbackTexture, onState: options.onState });
-	const compositor = createTimelineCompositor({ device, vertex: options.wgpu.defaultVertexShaderModule,
+	const compositor = createTimelineCompositor({ device, vertex: options.wgpu.defaultVertexShaderModule, onCompositing: options.onCompositing,
 																																															resolution: options.resolution, format: options.wgpu.intermediateTextureFormat });
 	const evaluator = new TimelineParameterBindingEvaluator();
 	const compositing = new TimelineCompositingParameters();

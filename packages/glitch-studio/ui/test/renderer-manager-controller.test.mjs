@@ -77,6 +77,44 @@ async function initialize(controller, workers) {
 	return worker;
 }
 
+// 【購読をパネル間で共有し、古い編集世代のハンドル情報を採用しない】
+// 一方のPreviewを閉じても他方の購読を維持する。状態の世代は既存RPCに同梱し、
+// 追加の問い合わせなしで、数値編集前の遅延通知による巻き戻しを防ぐ。
+test('shares transform observation and rejects old state revisions', async t => {
+	const { controller, workers } = fixture(t, 'Timeline');
+	const worker = await initialize(controller, workers);
+	const first = {};
+	const second = {};
+	const subscribed = controller.observeLayerTransform(first, 'scene', 'layer');
+	const call = worker.calls('updateDynamicOptions').at(-1);
+	worker.returnValue(call, {});
+	await subscribed;
+	const options = call.args[0];
+	const packet = { request: options.transformObserver, revision: options.previewRevision, time: 0, clipId: 'clip', geometry: null };
+	const notify = value => worker.reply({ type: 'ev', ev: { type: 'layerTransform', ctx: value } });
+	notify(packet);
+	assert.equal(controller.layerTransform.value, packet);
+	await controller.observeLayerTransform(second, 'scene', 'layer');
+	await controller.observeLayerTransform(first, null, null);
+	assert.equal(worker.calls('updateDynamicOptions').length, 1);
+	const updated = controller.updateDynamicOptions({ resolutionScale: 0.5 });
+	assert.equal(controller.layerTransform.value, null);
+	notify(packet);
+	assert.equal(controller.layerTransform.value, null);
+	const change = worker.calls('updateDynamicOptions').at(-1);
+	worker.returnValue(change, {});
+	await updated;
+	notify({ ...packet, revision: change.args[0].previewRevision });
+	assert.ok(controller.layerTransform.value);
+	const unsubscribed = controller.observeLayerTransform(second, null, null);
+	const last = worker.calls('updateDynamicOptions').at(-1);
+	assert.equal(last.args[0].transformObserver, null);
+	worker.returnValue(last, {});
+	await unsubscribed;
+	notify(packet);
+	assert.equal(controller.layerTransform.value, null);
+});
+
 // 【fpsとモーションブラーを一度の再生成で反映し、同値の適用では再生成しない】
 // 1回の設定適用やUndoでWorkerを二重生成せず、旧Workerの完了通知で表示を巻き戻さない。
 test('recreates the timeline once for combined render settings and ignores unchanged settings', async t => {

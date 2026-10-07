@@ -1,6 +1,8 @@
 import type { UniformOrTexture, UniformValue, TextureValue } from './uniform-or-texture.ts';
+import { inputUvScale } from './input-fit.ts';
+import type { InputFitMode } from './input-fit.ts';
+export { inputUvScale } from './input-fit.ts';
 
-type InputFitMode = 'stretch' | 'cover' | 'contain';
 type InputWrapMode = 'repeat' | 'repeatMirrored' | 'clamp' | 'transparent';
 type InputFilterMode = 'nearest' | 'linear';
 
@@ -34,14 +36,6 @@ export function constantShaderInput(dataType: string, value: any): ShaderInput {
 	// 未接続や評価失敗のnullも、他の入力型と同様にゼロ値へ変換する。
 	if (dataType === 'any') return { kind: 'uniform', value: [value?.[0] ?? 0, value?.[1] ?? 0, value?.[2] ?? 0, value?.[3] ?? 0] };
 	throw new Error(`Unsupported shader input constant: ${dataType}`);
-}
-
-/** 出力座標から入力UVへの逆写像。倍率はフレーム内で共通なのでCPUで求める。 */
-export function inputUvScale(input: { width: number; height: number }, output: { width: number; height: number }, fit: InputFitMode): readonly [number, number] {
-	const ratio = (input.width / input.height) / (output.width / output.height);
-	if (fit === 'cover') return [Math.min(1, 1 / ratio), Math.min(1, ratio)];
-	if (fit === 'contain') return [Math.max(1, 1 / ratio), Math.max(1, ratio)];
-	return [1, 1];
 }
 
 export type ShaderInputType = 'scalar' | 'vector' | 'color' | 'any';

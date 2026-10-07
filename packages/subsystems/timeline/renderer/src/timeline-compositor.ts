@@ -1,11 +1,14 @@
 import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { createShaderInputPipeline } from '@gs/shared/gpu/shader-input-pipeline.ts';
-import { inputUvScale, toShaderInput } from '@gs/shared/gpu/shader-input.ts';
+import { toShaderInput } from '@gs/shared/gpu/shader-input.ts';
 import blendCode from '@gs/shared/color-blend.wgsl?raw';
 import code from './timeline-compositor.wgsl?raw';
 import type { IntermediateTextureFormat } from '@gs/shared/types.ts';
 import type { UniformOrTexture } from '@gs/shared/gpu/uniform-or-texture.ts';
 import type { TimelineCompositingSettings } from './timeline-compositing-parameters.ts';
+import { getTimelineFittedExtent } from '@gs/subsystems_timeline_shared/layer-transform.ts';
+
+export type TimelineCompositingObserver = (source: UniformOrTexture, settings: TimelineCompositingSettings) => void;
 
 // レイヤーごとに出力を所有し、同一フレーム内で下のレイヤーの出力を上書きしない。
 export function createTimelineCompositor(options: {
@@ -14,6 +17,7 @@ export function createTimelineCompositor(options: {
 	resolution: { width: number; height: number };
 	format: IntermediateTextureFormat;
 	beginPass?: (encoder: GPUCommandEncoder, descriptor: GPURenderPassDescriptor) => GPURenderPassEncoder;
+	onCompositing?: TimelineCompositingObserver;
 }) {
 	const { device, resolution } = options;
 	const uniforms = makeStructuredView(makeShaderDataDefinitions(code).uniforms.uniforms);
@@ -28,13 +32,14 @@ export function createTimelineCompositor(options: {
 	let texture: GPUTexture | undefined;
 	return {
 		render(encoder: GPUCommandEncoder, background: UniformOrTexture, source: UniformOrTexture, settings: TimelineCompositingSettings): UniformOrTexture {
+			options.onCompositing?.(source, settings);
 			const { fitMode } = settings;
 			if (settings.opacity === 0 || settings.blendMode === 10) return background;
 			// 共通サンプリングのfitは画面→素材の逆写像なので、割ると素材内のoriginを
 			// fit後の画面座標へ戻せる。元テクスチャ全体（透明な余白を含む）を基準にし、
 			// 寸法を持たない定数には画面と同じ大きさの仮想的な素材枠を与える。
-			const sourceUvScale = source.kind === 'texture' ? inputUvScale(source.texture, resolution, fitMode) : [1, 1];
-			const originInOutputSpace = settings.origin.map((value, index) => value / sourceUvScale[index]);
+			const sourceExtent = getTimelineFittedExtent(source.kind === 'texture' ? source.texture : resolution, resolution, fitMode);
+			const originInOutputSpace = settings.origin.map((value, index) => value * sourceExtent[index]);
 			// 置き換えだけなら借用出力をそのまま渡し、定数もテクスチャ化しない。
 			// 同じ縦横比ならfitによる余白・切り取りがなく、解像度が違っても借用出力を維持できる。
 			// 異なる比率では必ず描画し、後段のcoverでcontainなどが上書きされないようにする。

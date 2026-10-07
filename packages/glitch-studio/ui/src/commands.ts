@@ -58,6 +58,8 @@ import type { TimelineKeyframeSelection } from '@/utility/timeline-selection.ts'
 import type { TimelineClipPaste } from '@/utility/timeline-clip-clipboard.ts';
 import { getTimelineKeyframePasteUpdates } from '@/utility/timeline-keyframe-clipboard.ts';
 import type { TimelineKeyframePaste } from '@/utility/timeline-keyframe-clipboard.ts';
+import { canEditTimelineTransform } from './utility/timeline-transform-edit.ts';
+import type { TimelineTransformBindings, TimelineTransformKey } from './utility/timeline-transform-edit.ts';
 
 export type CommandDef<Payload> = UndoRedoCommandDef<ProjectState, Payload, AppStateChange>;
 
@@ -96,6 +98,51 @@ const stateUtility = {
 		return getVisualModule(state, target).nodes.find(node => node.id === target.nodeId);
 	},
 };
+
+const editTimelineLayerTransformCommandDef = defineCommand<{ sceneId: string; layerId: string; bindings: TimelineTransformBindings }>({
+	label: 'Transform timeline layer',
+	changes: (_state, payload) => [{ type: 'layer', sceneId: payload.sceneId, layerId: payload.layerId,
+		changes: [{ type: 'parameter', target: 'compositing', kind: 'value' }] }],
+	create: payload => {
+		let before: TimelineTransformBindings;
+		const keys = Object.keys(payload.bindings) as TimelineTransformKey[];
+		const getLayer = (state: ProjectState) => {
+			const layer = getScene(state, payload.sceneId).layers.find(entry => entry.id === payload.layerId);
+			if (!layer || layer.layerType === 'audio') throw new Error('Visual layer not found');
+			return layer;
+		};
+		return {
+			execute(state) {
+				const layer = getLayer(state);
+				// 全項目を先に検証してから反映し、片方だけ適用される状態を作らない。
+				for (const key of keys) {
+					if (!['position', 'scale', 'rotation'].includes(key)) throw new Error('Invalid transform parameter');
+					const binding = payload.bindings[key];
+					// 同じドラッグ中に開始値へ戻した項目は、未設定の状態も復元する。
+					if (binding === undefined) continue;
+					if (!canEditTimelineTransform(binding, key)) throw new Error('Invalid transform binding');
+					validateTimelineParameterTree(timelineCompositingParamDefs[key], binding, false, false);
+					const values = binding.inputSource === 'literal' ? [binding.value] : binding.inputSource === 'keyframesTimelineInline'
+						? binding.keyframesTimeline.keyframes.map(point => point.value) : [];
+					if (!values.every(value => key === 'rotation' ? typeof value === 'number' && Number.isFinite(value)
+						: Array.isArray(value) && value.length === 2 && value.every(component => typeof component === 'number' && Number.isFinite(component)))) throw new Error('Invalid transform value');
+				}
+				before = Object.fromEntries(keys.map(key => [key, deepClone(layer.compositingParamValues[key])])) as TimelineTransformBindings;
+				for (const key of keys) {
+					if (payload.bindings[key] === undefined) delete layer.compositingParamValues[key];
+					else layer.compositingParamValues[key] = deepClone(payload.bindings[key]!);
+				}
+			},
+			undo(state) {
+				const layer = getLayer(state);
+				for (const key of keys) {
+					if (before[key] == null) delete layer.compositingParamValues[key];
+					else layer.compositingParamValues[key] = deepClone(before[key]!);
+				}
+			},
+		};
+	},
+});
 
 const editTimelineLayerParamCommandDef = defineCommand<{
 	sceneId: string;
@@ -1573,6 +1620,7 @@ export const COMMAND_DEFS = {
 	reorderTimelineLayers: reorderTimelineLayersCommandDef,
 	removeTimelineLayer: removeTimelineLayerCommandDef,
 	editTimelineLayerParam: editTimelineLayerParamCommandDef,
+	editTimelineLayerTransform: editTimelineLayerTransformCommandDef,
 	setVisualModulePrimaryOutput: setVisualModulePrimaryOutputCommandDef,
 	setVisualModulePrimaryInput: setVisualModulePrimaryInputCommandDef,
 	setVisualModulePrimaryAudioInput: setVisualModulePrimaryAudioInputCommandDef,

@@ -23,6 +23,9 @@ import { CanvasRenderer } from './canvas-renderer.ts';
 import { createSceneOutput } from '@gs/subsystems_timeline_renderer/scene-output.ts';
 import { createTimelineCompositor } from '@gs/subsystems_timeline_renderer/timeline-compositor.ts';
 import { TimelineCompositingParameters } from '@gs/subsystems_timeline_renderer/timeline-compositing-parameters.ts';
+import type { TimelineCompositingObserver } from '@gs/subsystems_timeline_renderer/timeline-compositor.ts';
+import type { TimelineTransformObservation, TimelineTransformPreview } from '@gs/glitch-studio_shared/timeline-transform-preview.ts';
+import { isTimelineClipActive } from '@gs/subsystems_timeline_shared/timing.ts';
 import { createVideoTimelineLayer } from '@gs/subsystems_timeline_renderer/layers/video/video-timeline-layer.ts';
 import { TimelineRenderer } from '@gs/subsystems_timeline_renderer/timeline-renderer.ts';
 import { TimelinePreviewScheduler } from '@gs/subsystems_timeline_renderer/timeline-preview-scheduler.ts';
@@ -69,6 +72,9 @@ export type TimelineRendererManagerDynamicOptions = {
 	visualModules: ProjectVisualModule[];
 	timelineScenes: TimelineScene[];
 	sceneId: string | null;
+	transformObserver: TimelineTransformObservation | null;
+	/** UIから送られた状態の世代。既存の更新RPCに同梱し、古い枠の採用を防ぐ。 */
+	previewRevision: number;
 };
 
 // エフェクトは配置場所を知らず、インスタンスを所有するManagerが通知元を付加する。
@@ -80,6 +86,7 @@ export type TimelineRendererManagerEvents = {
 	'effectState': (ctx: { source: TimelineLayerStatusSource; nodeId: string; status: EffectInstanceState | null }) => void;
 	'effectLayerState': (ctx: { source: TimelineLayerStatusSource; status: EffectInstanceState | null }) => void;
 	'renderError': (ctx: { message: string | null }) => void;
+	'layerTransform': (ctx: TimelineTransformPreview) => void;
 };
 
 export class TimelineRendererManager extends EventEmitter<{
@@ -104,6 +111,9 @@ export class TimelineRendererManager extends EventEmitter<{
 	private effectImplementations: Record<string, EffectImplementation<any>>;
 	private currentRenderError: string | null = null;
 	private projectVersions = new ProjectStateVersions();
+	private pendingTransformPreview: TimelineTransformPreview | null = null;
+	private lastTransformPreview: TimelineTransformPreview | null = null;
+	private transformPreviewParameters = new TimelineCompositingParameters();
 
 	private readonly staticOptions: TimelineRendererManagerStaticOptions;
 	private dynamicOptions: TimelineRendererManagerDynamicOptions = {
@@ -116,6 +126,8 @@ export class TimelineRendererManager extends EventEmitter<{
 		visualModules: [],
 		timelineScenes: [],
 		sceneId: null,
+		transformObserver: null,
+		previewRevision: 0,
 	};
 
 	constructor(coreConfig: {
@@ -265,7 +277,7 @@ export class TimelineRendererManager extends EventEmitter<{
 		return { assetsCommitted };
 	}
 
-	public replaceProjectState(state: RendererProjectState) {
+	public replaceProjectState(state: RendererProjectState, previewRevision = this.dynamicOptions.previewRevision + 1) {
 		validateTimelineScenes(state.timelineScenes);
 		for (const scene of state.timelineScenes) for (const layer of scene.layers) {
 			if (layer.layerType === 'effect') validateTimelineEffectLayer(layer, this.effectDefinitions[layer.effectId]);
@@ -274,12 +286,13 @@ export class TimelineRendererManager extends EventEmitter<{
 		this.clearTimelineRenderers();
 		this.projectVersions = new ProjectStateVersions();
 		Object.assign(this.dynamicOptions, state);
+		this.dynamicOptions.previewRevision = previewRevision;
 		if (!state.timelineScenes.some(scene => scene.id === this.dynamicOptions.sceneId)) this.dynamicOptions.sceneId = null;
 		this.gpuContext.canvas.width = resolution.width;
 		this.gpuContext.canvas.height = resolution.height;
 	}
 
-	public applyProjectChanges(changes: readonly RendererProjectChange[]) {
+	public applyProjectChanges(changes: readonly RendererProjectChange[], previewRevision = this.dynamicOptions.previewRevision + 1) {
 		let next: RendererProjectState = this.dynamicOptions;
 		let validateSceneReferences = false;
 		for (const change of changes) {
@@ -317,6 +330,7 @@ export class TimelineRendererManager extends EventEmitter<{
 		this.frameRenderer.cancel();
 		this.motionBlurBoundaries = undefined;
 		Object.assign(this.dynamicOptions, next);
+		this.dynamicOptions.previewRevision = previewRevision;
 		this.projectVersions.apply(changes);
 		if (!next.timelineScenes.some(scene => scene.id === this.dynamicOptions.sceneId)) {
 			this.dynamicOptions.sceneId = null;
@@ -369,6 +383,11 @@ export class TimelineRendererManager extends EventEmitter<{
 
 	private async renderPreviewFrame(time: number): Promise<boolean> {
 		const generation = ++this.previewRenderGeneration;
+		const request = this.dynamicOptions.transformObserver;
+		const layer = request?.sceneId === this.dynamicOptions.sceneId ? this.getSceneLayers().find(layer => layer.id === request.layerId && !layer.isDisabled) : undefined;
+		const clip = layer?.clips.find(clip => isTimelineClipActive(clip, time));
+		const preview: TimelineTransformPreview | null = request ? { request, revision: this.dynamicOptions.previewRevision, time, clipId: clip?.id ?? null, geometry: null } : null;
+		this.pendingTransformPreview = preview;
 		try {
 			try {
 				if (!Number.isFinite(time)) throw new Error('Timeline time must be finite');
@@ -380,12 +399,48 @@ export class TimelineRendererManager extends EventEmitter<{
 				await this.gpuDevice.queue.onSubmittedWorkDone();
 			}
 			// 編集や破棄で無効になったフレームの完了で、エラー表示を変更しない。
-			if (generation === this.previewRenderGeneration) this.setRenderError(null);
+			if (generation === this.previewRenderGeneration) {
+				this.setRenderError(null);
+				if (preview && this.dynamicOptions.transformObserver === request) {
+					// ブラーのサブサンプルごとには通知しない。枠の変形は基準時刻で評価し、
+					// 寸法には実際の合成前出力を使う。画像の読み戻し・ハンドル用の再描画は不要。
+					const blur = this.staticOptions.timelineMotionBlur;
+					if (preview.geometry && layer && blur.enabled && blur.shutterAngle > 0 && blur.samples > 1) {
+						const { position, origin, scale, rotation, fitMode } = this.transformPreviewParameters.evaluate({
+							time, isExport: false, paramValues: layer.compositingParamValues, automationGraphs: layer.automationGraphs,
+						});
+						preview.geometry.transform = { position, origin, scale, rotation, fitMode };
+					}
+					this.publishTransformPreview(preview);
+				}
+			}
 			return true;
 		} catch (error) {
-			if (generation === this.previewRenderGeneration) this.setRenderError(error instanceof Error ? error.message : String(error));
+			if (generation === this.previewRenderGeneration) {
+				this.setRenderError(error instanceof Error ? error.message : String(error));
+				if (preview && this.dynamicOptions.transformObserver === request) this.publishTransformPreview({ ...preview, geometry: null });
+			}
 			return false;
+		} finally {
+			if (this.pendingTransformPreview === preview) this.pendingTransformPreview = null;
 		}
+	}
+
+	private publishTransformPreview(preview: TimelineTransformPreview) {
+		if (deepEqual(preview, this.lastTransformPreview)) return;
+		this.lastTransformPreview = preview;
+		this.emit('ev', { type: 'layerTransform', ctx: preview });
+	}
+
+	private createCompositingObserver(sceneId: string, layerId: string, clipId: string, layerPath: string[], sceneSize: Resolution): TimelineCompositingObserver | undefined {
+		if (layerPath.length !== 1) return undefined;
+		return (source, settings) => {
+			const preview = this.pendingTransformPreview;
+			if (!preview || preview.request.sceneId !== sceneId || preview.request.layerId !== layerId || preview.clipId !== clipId) return;
+			const size = source.kind === 'texture' ? source.texture : sceneSize;
+			const { position, origin, scale, rotation, fitMode } = settings;
+			preview.geometry = { sourceSize: { width: size.width, height: size.height }, sceneSize, transform: { position, origin, scale, rotation, fitMode } };
+		};
 	}
 
 	/** 専用インスタンスで順番に呼び、フレーム間の履歴と一定の経過時間を保持する。 */
@@ -426,16 +481,19 @@ export class TimelineRendererManager extends EventEmitter<{
 
 	private createTimelineLayer(layer: TimelineLayer, clipId: string, layerPath: string[], sceneBaseResolution: Resolution, sceneId = this.dynamicOptions.sceneId!): TimelineLayerRenderer<UniformOrTexture> {
 		const renderResolution = scaleResolution(sceneBaseResolution, this.dynamicOptions.resolutionScale);
+		const onCompositing = this.createCompositingObserver(sceneId, layer.id, clipId, layerPath, renderResolution);
 		// レイヤーの種類の解釈とリソース解決は、タイムライン制御の外側で行う。
 		switch (layer.layerType) {
 			case 'text':
 				return createTextTimelineLayer(layer, {
+					onCompositing,
 					device: this.gpuDevice, vertex: this.defaultVertexShaderModule,
 					resolution: renderResolution, format: this.staticOptions.intermediateTextureFormat,
 					getFont: id => this.dynamicOptions.assets.find(asset => asset.id === id && asset.fileDataType.startsWith('font/'))?.fileData ?? null,
 				});
 			case 'shape':
 				return createShapeTimelineLayer(layer, {
+					onCompositing,
 					device: this.gpuDevice, vertex: this.defaultVertexShaderModule,
 					resolution: renderResolution, format: this.staticOptions.intermediateTextureFormat,
 				});
@@ -445,6 +503,7 @@ export class TimelineRendererManager extends EventEmitter<{
 				if (!definition || !implementation) throw new Error(`Effect not found: ${layer.effectId}`);
 				const source = this.createLayerStatusSource(layer.id, clipId, layerPath);
 				return createEffectTimelineLayer(layer, definition, implementation, {
+					onCompositing,
 					wgpu: { device: this.gpuDevice, defaultVertexShaderModule: this.defaultVertexShaderModule,
 													enable32bitDataTextures: this.staticOptions.enable32bitDataTextures, intermediateTextureFormat: this.staticOptions.intermediateTextureFormat },
 					fallbackTexture: this.fallbackTexture, resolution: renderResolution, resolutionScale: this.dynamicOptions.resolutionScale,
@@ -460,6 +519,7 @@ export class TimelineRendererManager extends EventEmitter<{
 				// IDは保存したままエラーにし、Asset削除のUndoや参照画像の変更で復旧できるようにする。
 				if (!texture) throw new Error(`Image asset not found: ${clip.assetId}`);
 				return createImageTimelineLayer(layer, texture, {
+					onCompositing,
 					device: this.gpuDevice, vertex: this.defaultVertexShaderModule,
 					resolution: renderResolution, format: this.staticOptions.intermediateTextureFormat,
 					resolutionScale: this.dynamicOptions.resolutionScale,
@@ -470,6 +530,7 @@ export class TimelineRendererManager extends EventEmitter<{
 				const asset = this.dynamicOptions.assets.find(asset => asset.id === clip.assetId);
 				if (!asset) throw new Error(`Video asset not found: ${clip.assetId}`);
 				return createVideoTimelineLayer(layer, asset.fileData, {
+					onCompositing,
 					device: this.gpuDevice, vertex: this.defaultVertexShaderModule,
 					resolution: renderResolution, format: this.staticOptions.intermediateTextureFormat,
 					resolutionScale: this.dynamicOptions.resolutionScale,
@@ -480,6 +541,7 @@ export class TimelineRendererManager extends EventEmitter<{
 				const scene = getTimelineScene(this.dynamicOptions.timelineScenes, clip.sceneId);
 				const childBaseResolution = getSceneBaseResolution(scene.resolution, this.dynamicOptions.resolution);
 				return createSceneTimelineLayer(() => getTimelineScene(this.dynamicOptions.timelineScenes, scene.id), layer, {
+					onCompositing,
 					device: this.gpuDevice,
 					vertex: this.defaultVertexShaderModule,
 					resolution: renderResolution,
@@ -540,6 +602,7 @@ export class TimelineRendererManager extends EventEmitter<{
 		});
 		const compositingParameters = new TimelineCompositingParameters();
 		const compositor = createTimelineCompositor({
+			onCompositing: this.createCompositingObserver(sceneId, layer.id, clipId, layerPath, scaleResolution(sceneBaseResolution, this.dynamicOptions.resolutionScale)),
 			device: this.gpuDevice, vertex: this.defaultVertexShaderModule,
 			resolution: scaleResolution(sceneBaseResolution, this.dynamicOptions.resolutionScale), format: this.staticOptions.intermediateTextureFormat,
 			beginPass: (encoder, descriptor) => encoder.beginRenderPass(descriptor),

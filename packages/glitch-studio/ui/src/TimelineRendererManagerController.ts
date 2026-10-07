@@ -1,5 +1,6 @@
 import { scaleResolution } from '@gs/shared/resolution.ts';
-import { ref } from 'vue';
+import { ref, shallowRef } from 'vue';
+import type { TimelineTransformPreview } from '@gs/glitch-studio_shared/timeline-transform-preview.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { deepEqual } from '@gs/shared/utility/deep-equal.ts';
 import { validateTimelineFps, validateTimelineMotionBlur } from '@gs/subsystems_timeline_shared/motion-blur.ts';
@@ -14,6 +15,9 @@ import * as ui from '@/ui.ts';
 
 export class TimelineRendererManagerController extends RendererManagerControllerBase<TimelineRendererManager> {
 	public readonly canvasRevision = ref(0);
+	public readonly layerTransform = shallowRef<TimelineTransformPreview | null>(null);
+	private transformRequestId = 0;
+	private transformObservers = new Map<object, { sceneId: string; layerId: string }>();
 	public canvas: HTMLCanvasElement;
 	public histogramCanvas: HTMLCanvasElement;
 	public waveformHorizontalCanvas: HTMLCanvasElement;
@@ -22,6 +26,7 @@ export class TimelineRendererManagerController extends RendererManagerController
 	private initializationStaticOptions: TimelineRendererManagerStaticOptions | null = null;
 	private dynamicOptions: Partial<TimelineRendererManagerDynamicOptions> & Pick<TimelineRendererManagerDynamicOptions, 'assets'> = {
 		assets: [],
+		previewRevision: 0,
 	};
 	public errorMessage = ref<string | null>(null);
 	private effectStates = new TimelineEffectStateStore();
@@ -78,6 +83,10 @@ export class TimelineRendererManagerController extends RendererManagerController
 				if (error != null && !this.isReady.value) this.effectStates.clear();
 			},
 			eventHandlers: {
+				layerTransform: ctx => {
+					if (this.isReady.value && ctx.request.requestId === this.dynamicOptions.transformObserver?.requestId
+						&& ctx.revision === this.dynamicOptions.previewRevision) this.layerTransform.value = ctx;
+				},
 				effectState: (ctx) => {
 					if (this.isReady.value) this.effectStates.updateNode(ctx.source, ctx.nodeId, ctx.status);
 				},
@@ -96,6 +105,7 @@ export class TimelineRendererManagerController extends RendererManagerController
 			onCreated: () => {
 			},
 			onDisposed: () => {
+				this.layerTransform.value = null;
 				this.effectStates.clear();
 			},
 		});
@@ -146,6 +156,7 @@ export class TimelineRendererManagerController extends RendererManagerController
 
 	public async updateDynamicOptions(newDynamicOptions: Partial<TimelineRendererManagerDynamicOptions>) {
 		const options = deepClone(newDynamicOptions);
+		options.previewRevision = this.invalidateTransformPreview();
 		if (options.resolution !== undefined) {
 			options.resolution = {
 				width: Math.max(1, Math.floor(options.resolution.width)),
@@ -162,24 +173,26 @@ export class TimelineRendererManagerController extends RendererManagerController
 
 	public async replaceProjectState(state: RendererProjectState) {
 		const snapshot = deepClone(state);
+		const revision = this.invalidateTransformPreview();
 		this.dynamicOptions = { ...this.dynamicOptions, ...snapshot,
 			sceneId: snapshot.timelineScenes.some(scene => scene.id === this.dynamicOptions.sceneId) ? this.dynamicOptions.sceneId : null };
 		if (!this.isReady.value && !this.isInitializing) return;
 		if (!this.initialSnapshotTaken) return this.initializationReady;
-		await this.callAndWaitReturn('replaceProjectState', [snapshot]);
+		await this.callAndWaitReturn('replaceProjectState', [snapshot, revision]);
 		this.effectStates.clearLayerErrors();
 	}
 
 	public async applyProjectChanges(changes: readonly RendererProjectChange[]) {
 		const patch = deepClone(changes);
 		const next = applyRendererProjectChanges({ visualModules: this.dynamicOptions.visualModules ?? [], timelineScenes: this.dynamicOptions.timelineScenes ?? [] }, patch);
+		const revision = this.invalidateTransformPreview();
 		this.dynamicOptions = { ...this.dynamicOptions, ...next,
 			sceneId: next.timelineScenes.some(scene => scene.id === this.dynamicOptions.sceneId) ? this.dynamicOptions.sceneId : null };
 		if (!this.isReady.value && !this.isInitializing) return;
 		// 初期スナップショットへ取り込まれた差分は再送しない。削除済みノードへの
 		// 更新を初期化後に再生すると失敗するため、送信境界以降だけをキューへ積む。
 		if (!this.initialSnapshotTaken) return this.initializationReady;
-		await this.callAndWaitReturn('applyProjectChanges', [patch]);
+		await this.callAndWaitReturn('applyProjectChanges', [patch, revision]);
 		this.effectStates.clearLayerErrors();
 	}
 
@@ -200,6 +213,25 @@ export class TimelineRendererManagerController extends RendererManagerController
 
 	public renderTimelineAt(time: number) {
 		this.call('renderTimelineAt', [time]);
+	}
+
+	private invalidateTransformPreview() {
+		this.layerTransform.value = null;
+		return this.dynamicOptions.previewRevision = (this.dynamicOptions.previewRevision ?? 0) + 1;
+	}
+
+	public async observeLayerTransform(owner: object, sceneId: string | null, layerId: string | null) {
+		// 複数のPreviewパネルが同じCanvasを使っても、一方の閉鎖で他方の購読を止めない。
+		if (sceneId != null && layerId != null) this.transformObservers.set(owner, { sceneId, layerId });
+		else this.transformObservers.delete(owner);
+		const target = [...this.transformObservers.values()].at(-1);
+		sceneId = target?.sceneId ?? null;
+		layerId = target?.layerId ?? null;
+		const previous = this.dynamicOptions.transformObserver;
+		if ((previous?.sceneId ?? null) === sceneId && (previous?.layerId ?? null) === layerId) return;
+		this.layerTransform.value = null;
+		const transformObserver = sceneId != null && layerId != null ? { sceneId, layerId, requestId: ++this.transformRequestId } : null;
+		await this.updateDynamicOptions({ transformObserver });
 	}
 
 	public destroy() {
