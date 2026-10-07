@@ -6,7 +6,7 @@ import { createVisualModuleRenderer } from './helpers/create-visual-module-rende
 
 const load = path => loadShaderSource(fileURLToPath(import.meta.resolve(path)));
 const { genEmptyValue } = await load('@gs/shared/parameter/parameter-default.ts');
-const { createVisualModuleTimelineLayer } = await load('@gs/subsystems_timeline_renderer/visual-module-timeline-layer.ts');
+const { createVisualModuleTimelineLayer } = await load('@gs/subsystems_timeline_renderer/layers/visual-module/visual-module-timeline-layer.ts');
 const { IN_VISUAL_MODULE_VAR_DEFS } = await load('@gs/subsystems_visual-module_shared/expression.ts');
 const { LAYER_VAR_DEFS } = await load('@gs/subsystems_timeline_shared/expression.ts');
 // GPUを初期化せず、レンダラーが実際に構築する式のスコープを検証する。

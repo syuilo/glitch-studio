@@ -1,9 +1,9 @@
-import { getShapeParameterDefinitions } from '@gs/subsystems_timeline_shared/shape.ts';
+import { getShapeParameterDefinitions } from '@gs/subsystems_timeline_shared/layers/shape/shape.ts';
 import { TimelineParameterBindingEvaluator } from '@gs/subsystems_timeline_shared/parameter-binding-evaluator.ts';
 import { createTimelineLayerEvaluationScope } from '@gs/subsystems_timeline_shared/evaluation-scope.ts';
 import { genEmptyValue } from '@gs/shared/parameter/parameter-default.ts';
 import { coerceParameterValue } from '@gs/shared/parameter/coerce-parameter-value.ts';
-import type { Shape, EvaluatedShape } from '@gs/subsystems_timeline_shared/shape.ts';
+import type { Shape, EvaluatedShape } from '@gs/subsystems_timeline_shared/layers/shape/shape.ts';
 import type { AutomationGraph } from '@gs/shared/automation-graph/automation-graph.ts';
 import type { ValueParameterBinding } from '@gs/shared/parameter/value-parameter-binding.ts';
 

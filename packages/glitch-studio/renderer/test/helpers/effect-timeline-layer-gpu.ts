@@ -1,4 +1,4 @@
-import { createEffectTimelineLayer } from '@gs/subsystems_timeline_renderer/effect-timeline-layer.ts';
+import { createEffectTimelineLayer } from '@gs/subsystems_timeline_renderer/layers/effect/effect-timeline-layer.ts';
 import { TimelineRenderer } from '@gs/subsystems_timeline_renderer/timeline-renderer.ts';
 import type { UniformOrTexture } from '@gs/shared/gpu/uniform-or-texture.ts';
 import type { EffectDefinition } from '@gs/subsystems_effect_shared/effect-definition.ts';
@@ -9,7 +9,7 @@ import mixDefinition from '@gs/subsystems_effect_shared/fx/colorMix/_def_.ts';
 import mix from '@gs/subsystems_effect_shared/fx/colorMix/_impl_.ts';
 import meshDefinition from '@gs/subsystems_effect_shared/fx/meshGradient/_def_.ts';
 import mesh from '@gs/subsystems_effect_shared/fx/meshGradient/_impl_.ts';
-import { createLayerInputBinding, getEffectLayerParameterDefault } from '@gs/subsystems_timeline_shared/effect-layer.ts';
+import { createLayerInputBinding, getEffectLayerParameterDefault } from '@gs/subsystems_timeline_shared/layers/effect/effect-layer.ts';
 import { timelineCompositingParamDefs } from '@gs/subsystems_timeline_shared/timeline-compositing.ts';
 import type { TimelineEffectLayer } from '@gs/subsystems_timeline_shared/types.ts';
 

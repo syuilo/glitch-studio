@@ -1,4 +1,4 @@
-import { createTextParameterValues } from '@gs/subsystems_timeline_shared/text.ts';
+import { createTextParameterValues } from '@gs/subsystems_timeline_shared/layers/text/text.ts';
 import { createTimelineClipTiming } from '@gs/subsystems_timeline_shared/timing.ts';
 import { timelineCompositingParamDefs } from '@gs/subsystems_timeline_shared/timeline-compositing.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';

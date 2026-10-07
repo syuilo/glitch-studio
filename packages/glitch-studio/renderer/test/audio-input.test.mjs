@@ -10,7 +10,7 @@ const { AudioHistory } = await load('@gs/subsystems_audio_renderer/audio-history
 const { playerAudioSourceId } = await load('@gs/shared/audio.ts');
 const { PlayerAudioInputs } = await loadShaderSource(fileURLToPath(new URL('../src/player-audio-inputs.ts', import.meta.url)));
 const { VisualModuleRenderer } = await load('@gs/subsystems_visual-module_renderer/visual-module-renderer.ts');
-const { createVisualModuleTimelineLayer } = await load('@gs/subsystems_timeline_renderer/visual-module-timeline-layer.ts');
+const { createVisualModuleTimelineLayer } = await load('@gs/subsystems_timeline_renderer/layers/visual-module/visual-module-timeline-layer.ts');
 const { default: waveform } = await load('@gs/subsystems_effect_shared/fx/audioWaveform/_impl_.ts');
 const { default: waveformDefinition } = await load('@gs/subsystems_effect_shared/fx/audioWaveform/_def_.ts');
 const literal = value => ({ inputSource: 'literal', value });

@@ -2,8 +2,8 @@ import { validateEffectResolution } from '@gs/subsystems_effect_shared/resolutio
 import { getTimelineClipEnd, validateTimelineClips } from './timing.ts';
 import { validateSceneResolution } from './scene-resolution.ts';
 import { validateTimelineParameterBinding } from './parameter-binding.ts';
-import { validateTimelineText } from './text-layer.ts';
-import { validateTimelineShape } from './shape-layer.ts';
+import { validateTimelineText } from './layers/text/text-layer.ts';
+import { validateTimelineShape } from './layers/shape/shape-layer.ts';
 import type { TimelineLayer, TimelineScene } from './types.ts';
 
 /** 子の長さを再帰計算しない。配置済みの区間は、参照先の編集でも変えない。 */

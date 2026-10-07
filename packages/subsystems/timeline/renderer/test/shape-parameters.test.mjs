@@ -3,8 +3,8 @@ import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { loadSource } from './helpers/load-source.mjs';
 
-const { ShapeParameters } = await loadSource(fileURLToPath(new URL('../src/shape-parameters.ts', import.meta.url)));
-const { createShape } = await loadSource(fileURLToPath(import.meta.resolve('@gs/subsystems_timeline_shared/shape.ts')));
+const { ShapeParameters } = await loadSource(fileURLToPath(new URL('../src/layers/shape/shape-parameters.ts', import.meta.url)));
+const { createShape } = await loadSource(fileURLToPath(import.meta.resolve('@gs/subsystems_timeline_shared/layers/shape/shape.ts')));
 const literal = value => ({ inputSource: 'literal', value });
 const expression = expression => ({ inputSource: 'expression', expression });
 const scope = { time: 1500, isExport: true, automationGraphs: [] };

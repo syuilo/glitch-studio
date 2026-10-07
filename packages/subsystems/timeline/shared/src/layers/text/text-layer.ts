@@ -1,5 +1,5 @@
 import { textParamDefs } from './text.ts';
-import { validateTimelineParameterTree } from './parameter-binding.ts';
+import { validateTimelineParameterTree } from '../../parameter-binding.ts';
 import type { TextParameterValues } from './text.ts';
 import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
 

@@ -1,5 +1,5 @@
 import { createTimelineClipTiming } from '@gs/subsystems_timeline_shared/timing.ts';
-import { getEffectLayerParameterDefault } from '@gs/subsystems_timeline_shared/effect-layer.ts';
+import { getEffectLayerParameterDefault } from '@gs/subsystems_timeline_shared/layers/effect/effect-layer.ts';
 import { timelineCompositingParamDefs } from '@gs/subsystems_timeline_shared/timeline-compositing.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { genId } from '@gs/shared/utility/id.ts';

@@ -1,11 +1,11 @@
 import type { TimelineLayer, TimelineScene, TimelineSceneLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import type { IntermediateTextureFormat } from '@gs/shared/types.ts';
 import type { UniformOrTexture } from '@gs/shared/gpu/uniform-or-texture.ts';
-import { TimelineRenderer } from './timeline-renderer.ts';
-import type { TimelineLayerRenderer } from './timeline-renderer.ts';
-import { createTimelineCompositor } from './timeline-compositor.ts';
-import { TimelineCompositingParameters } from './timeline-compositing-parameters.ts';
-import { createSceneOutput } from './scene-output.ts';
+import { TimelineRenderer } from '../../timeline-renderer.ts';
+import type { TimelineLayerRenderer } from '../../timeline-renderer.ts';
+import { createTimelineCompositor } from '../../timeline-compositor.ts';
+import { TimelineCompositingParameters } from '../../timeline-compositing-parameters.ts';
+import { createSceneOutput } from '../../scene-output.ts';
 
 /** 解決済みのSceneを独立して評価し、配置の合成設定を親背景に適用する。 */
 export function createSceneTimelineLayer(

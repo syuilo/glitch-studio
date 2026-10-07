@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { loadSource } from './helpers/load-source.mjs';
 
-const { getShapeStrokeEndpoint } = await loadSource(fileURLToPath(new URL('../src/shape-stroke-progress.ts', import.meta.url)));
+const { getShapeStrokeEndpoint } = await loadSource(fileURLToPath(new URL('../src/layers/shape/shape-stroke-progress.ts', import.meta.url)));
 const near = (actual, expected, tolerance = 1e-10) => assert.ok(Math.abs(actual - expected) < tolerance, `${actual} != ${expected}`);
 const nearPoint = (actual, expected) => actual.forEach((value, index) => near(value, expected[index]));
 const ellipse = size => ({ type: 'ellipse', size });

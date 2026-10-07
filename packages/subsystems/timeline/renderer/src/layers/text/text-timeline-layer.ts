@@ -1,11 +1,11 @@
-import { validateTimelineText } from '@gs/subsystems_timeline_shared/text-layer.ts';
+import { validateTimelineText } from '@gs/subsystems_timeline_shared/layers/text/text-layer.ts';
 import { TextParameters } from './text-parameters.ts';
 import { createTextRenderer } from './text-renderer.ts';
-import { createTimelineCompositor } from './timeline-compositor.ts';
-import { TimelineCompositingParameters } from './timeline-compositing-parameters.ts';
+import { createTimelineCompositor } from '../../timeline-compositor.ts';
+import { TimelineCompositingParameters } from '../../timeline-compositing-parameters.ts';
 import type { TimelineTextLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import type { UniformOrTexture } from '@gs/shared/gpu/uniform-or-texture.ts';
-import type { TimelineLayerRenderer } from './timeline-renderer.ts';
+import type { TimelineLayerRenderer } from '../../timeline-renderer.ts';
 
 export function createTextTimelineLayer(layer: TimelineTextLayer, options: Parameters<typeof createTextRenderer>[0] & { getFont: (id: string) => Blob | null }): TimelineLayerRenderer<UniformOrTexture> {
 	validateTimelineText(layer.textParamValues);

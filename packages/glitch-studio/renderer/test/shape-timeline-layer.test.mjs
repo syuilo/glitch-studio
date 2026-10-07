@@ -24,7 +24,7 @@ after(() => {
 
 const load = path => loadShaderSource(fileURLToPath(import.meta.resolve(path)));
 const { TimelineRendererManager } = await load('../src/timeline-renderer-manager.ts');
-const { createShape } = await load('@gs/subsystems_timeline_shared/shape.ts');
+const { createShape } = await load('@gs/subsystems_timeline_shared/layers/shape/shape.ts');
 const { timelineCompositingParamDefs } = await load('@gs/subsystems_timeline_shared/timeline-compositing.ts');
 const literal = value => ({ inputSource: 'literal', value });
 const expression = expression => ({ inputSource: 'expression', expression });

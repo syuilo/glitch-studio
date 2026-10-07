@@ -18,9 +18,9 @@ const { VisualModuleRenderer } = await load('@gs/subsystems_visual-module_render
 const { UniformOrTextureToTextureResolver } = await load('@gs/shared/gpu/uniform-or-texture-to-texture-resolver.ts');
 const { toShaderInput } = await load('@gs/shared/gpu/shader-input.ts');
 const { TimelineRenderer } = await load('@gs/subsystems_timeline_renderer/timeline-renderer.ts');
-const { createVisualModuleTimelineLayer } = await load('@gs/subsystems_timeline_renderer/visual-module-timeline-layer.ts');
+const { createVisualModuleTimelineLayer } = await load('@gs/subsystems_timeline_renderer/layers/visual-module/visual-module-timeline-layer.ts');
 const { createTimelineCompositor } = await load('@gs/subsystems_timeline_renderer/timeline-compositor.ts');
-const { createImageTimelineLayer } = await load('@gs/subsystems_timeline_renderer/image-timeline-layer.ts');
+const { createImageTimelineLayer } = await load('@gs/subsystems_timeline_renderer/layers/image/image-timeline-layer.ts');
 const { createMotionBlurAccumulator } = await load('@gs/subsystems_timeline_renderer/motion-blur-accumulator.ts');
 
 // 【モーションブラーは浮動小数点の平均を保持し、読み書きを別テクスチャへ分ける】

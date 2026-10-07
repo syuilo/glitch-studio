@@ -20,7 +20,7 @@ const bundled = await build({
 		export { areNodeDataTypesCompatible } from '@gs/shared/data-type/node-compatibility.ts';
 		export { effectDefinitions } from '@gs/subsystems_effect_shared/effect-definitions.ts';
 		export { preferences } from './src/preferences.ts';
-		export { validateTimelineEffectLayer } from '@gs/subsystems_timeline_shared/effect-layer.ts';
+		export { validateTimelineEffectLayer } from '@gs/subsystems_timeline_shared/layers/effect/effect-layer.ts';
 	`, resolveDir: uiDirectory, loader: 'ts' },
 	bundle: true, platform: 'node', format: 'cjs', write: false,
 	plugins: [{ name: 'effect-layer-test', setup(build) {

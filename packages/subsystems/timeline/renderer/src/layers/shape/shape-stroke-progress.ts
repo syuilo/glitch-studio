@@ -1,4 +1,4 @@
-import type { EvaluatedShape } from '@gs/subsystems_timeline_shared/shape.ts';
+import type { EvaluatedShape } from '@gs/subsystems_timeline_shared/layers/shape/shape.ts';
 
 type StrokeEndpoint = { point: [number, number]; tangent: [number, number] };
 

@@ -3,8 +3,8 @@ import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { loadSource } from './helpers/load-source.mjs';
 
-const { TextParameters } = await loadSource(fileURLToPath(new URL('../src/text-parameters.ts', import.meta.url)));
-const { createTextParameterValues } = await loadSource(fileURLToPath(import.meta.resolve('@gs/subsystems_timeline_shared/text.ts')));
+const { TextParameters } = await loadSource(fileURLToPath(new URL('../src/layers/text/text-parameters.ts', import.meta.url)));
+const { createTextParameterValues } = await loadSource(fileURLToPath(import.meta.resolve('@gs/subsystems_timeline_shared/layers/text/text.ts')));
 const literal = value => ({ inputSource: 'literal', value });
 const scope = { time: 1500, isExport: true, automationGraphs: [] };
 

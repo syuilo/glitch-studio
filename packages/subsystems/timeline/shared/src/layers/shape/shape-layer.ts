@@ -1,5 +1,5 @@
 import { getShapeParameterDefinitions } from './shape.ts';
-import { validateTimelineParameterTree } from './parameter-binding.ts';
+import { validateTimelineParameterTree } from '../../parameter-binding.ts';
 import type { Shape } from './shape.ts';
 
 /** 保存・Command・レンダラーの受け入れ境界で、シェイプに許可するBindingを検証する。 */

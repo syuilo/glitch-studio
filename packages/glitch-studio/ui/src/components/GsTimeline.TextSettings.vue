@@ -21,7 +21,7 @@
 
 <script lang="ts" setup>
 import { computed } from 'vue';
-import { textParamDefs } from '@gs/subsystems_timeline_shared/text.ts';
+import { textParamDefs } from '@gs/subsystems_timeline_shared/layers/text/text.ts';
 import { LAYER_VAR_DEFS } from '@gs/subsystems_timeline_shared/expression.ts';
 import GsFolder from './common/GsFolder.vue';
 import GsVisualParam from './GsVisualParam.vue';

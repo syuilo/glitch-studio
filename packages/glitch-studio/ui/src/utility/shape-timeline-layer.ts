@@ -1,9 +1,9 @@
-import { createShape, shapeDefinitions } from '@gs/subsystems_timeline_shared/shape.ts';
+import { createShape, shapeDefinitions } from '@gs/subsystems_timeline_shared/layers/shape/shape.ts';
 import { createTimelineClipTiming } from '@gs/subsystems_timeline_shared/timing.ts';
 import { timelineCompositingParamDefs } from '@gs/subsystems_timeline_shared/timeline-compositing.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { genId } from '@gs/shared/utility/id.ts';
-import type { ShapeType } from '@gs/subsystems_timeline_shared/shape.ts';
+import type { ShapeType } from '@gs/subsystems_timeline_shared/layers/shape/shape.ts';
 import type { TimelineShapeLayer } from '@gs/subsystems_timeline_shared/types.ts';
 
 export function createShapeTimelineLayer(type: ShapeType, startMs: number): TimelineShapeLayer {

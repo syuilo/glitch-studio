@@ -5,14 +5,14 @@ import { validateEnumParameterValue } from '@gs/shared/parameter/parameter-defin
 import { coerceParameterValue } from '@gs/shared/parameter/coerce-parameter-value.ts';
 import { createTimelineLayerEvaluationScope } from '@gs/subsystems_timeline_shared/evaluation-scope.ts';
 import { isTimelineAudioInputBinding, validateTimelineParameterTree } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
-import { getTimelineVisualModuleArgumentDefault } from '@gs/subsystems_timeline_shared/visual-module-arguments.ts';
-import { createTimelineAudioInputResolver } from './timeline-audio-input-resolver.ts';
-import type { TimelineAudioInputProvider } from './timeline-audio-input-resolver.ts';
+import { getTimelineVisualModuleArgumentDefault } from '@gs/subsystems_timeline_shared/layers/visual-module/visual-module-arguments.ts';
+import { createTimelineAudioInputResolver } from '../../timeline-audio-input-resolver.ts';
+import type { TimelineAudioInputProvider } from '../../timeline-audio-input-resolver.ts';
 import type { VisualModuleCustomParameterId, VisualModule } from '@gs/subsystems_visual-module_shared/types.ts';
 import type { UniformOrTexture } from '@gs/shared/gpu/uniform-or-texture.ts';
 import type { TimelineVisualModuleLayer, TimelineInlineVisualModuleLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import type { VisualModuleRenderContext } from '@gs/subsystems_visual-module_renderer/visual-module-renderer.ts';
-import type { TimelineLayerContext, TimelineLayerRenderer } from './timeline-renderer.ts';
+import type { TimelineLayerContext, TimelineLayerRenderer } from '../../timeline-renderer.ts';
 import type { AudioInput } from '@gs/subsystems_audio_shared/audio-input.ts';
 
 // 主入力の割り当てやパラメータはVisual Moduleレイヤーだけの責務とする。

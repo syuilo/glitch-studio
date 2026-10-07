@@ -1,7 +1,7 @@
 import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import code from './shape-renderer.wgsl?raw';
 import { getShapeStrokeEndpoint } from './shape-stroke-progress.ts';
-import type { EvaluatedShape } from '@gs/subsystems_timeline_shared/shape.ts';
+import type { EvaluatedShape } from '@gs/subsystems_timeline_shared/layers/shape/shape.ts';
 import type { Resolution } from '@gs/shared/resolution.ts';
 import type { IntermediateTextureFormat } from '@gs/shared/types.ts';
 

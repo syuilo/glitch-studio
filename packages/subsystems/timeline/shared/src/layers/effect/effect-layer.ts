@@ -1,10 +1,10 @@
 import { validateEffectResolution } from '@gs/subsystems_effect_shared/resolution.js';
 import { deepClone } from '@gs/shared/utility/deep-clone.js';
-import { validateTimelineParameterTree } from './parameter-binding.ts';
-import type { TimelineEffectParameterBinding } from './types.ts';
-import type { TimelineEffectLayer } from './types.ts';
+import { validateTimelineParameterTree } from '../../parameter-binding.ts';
+import type { TimelineEffectParameterBinding } from '../../types.ts';
+import type { TimelineEffectLayer } from '../../types.ts';
 import type { EffectDefinition } from '@gs/subsystems_effect_shared/effect-definition.js';
-import type { TimelineLayerInputBinding } from './parameter-binding.ts';
+import type { TimelineLayerInputBinding } from '../../parameter-binding.ts';
 
 export function createLayerInputBinding(): TimelineLayerInputBinding {
 	return { inputSource: 'layerInput', fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' };

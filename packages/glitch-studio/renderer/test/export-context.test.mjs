@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { TimelineRenderer } from '@gs/subsystems_timeline_renderer/timeline-renderer.ts';
 import { loadShaderSource } from './helpers/load-shader-source.mjs';
 import { createVisualModuleRenderer } from './helpers/create-visual-module-renderer.mjs';
-const { createVisualModuleTimelineLayer } = await loadShaderSource(fileURLToPath(import.meta.resolve('@gs/subsystems_timeline_renderer/visual-module-timeline-layer.ts')));
+const { createVisualModuleTimelineLayer } = await loadShaderSource(fileURLToPath(import.meta.resolve('@gs/subsystems_timeline_renderer/layers/visual-module/visual-module-timeline-layer.ts')));
 
 globalThis.GPUQueue = class { submit() {} };
 const { VisualModuleRenderer } = await loadShaderSource(fileURLToPath(import.meta.resolve('@gs/subsystems_visual-module_renderer/visual-module-renderer.ts')));

@@ -4,14 +4,14 @@ import { resolveParameter, walkParameters } from '@gs/shared/parameter/parameter
 import { isValueParameterBinding } from '@gs/shared/parameter/parameter-binding.ts';
 import type { ParamPath } from '@gs/shared/parameter/parameter-path.ts';
 import type { TimelineParameterTarget } from './utility/timeline-scene.ts';
-import { getTimelineVisualModuleArgumentDefault } from '@gs/subsystems_timeline_shared/visual-module-arguments.ts';
+import { getTimelineVisualModuleArgumentDefault } from '@gs/subsystems_timeline_shared/layers/visual-module/visual-module-arguments.ts';
 import { validateVisualModuleAudioBinding } from '@gs/subsystems_visual-module_shared/audio-parameters.ts';
 import { mapParameterTree } from '@gs/shared/parameter/parameter-tree.ts';
 import { validateLiteralAudioSourceBinding } from '@gs/shared/parameter/audio-source.ts';
 import { validatePlayerAudioSourceSelection } from '@gs/glitch-studio_shared/player-audio-source.ts';
-import { createLayerInputBinding, getEffectLayerParameterDefault, validateTimelineEffectLayer } from '@gs/subsystems_timeline_shared/effect-layer.ts';
-import { validateTimelineText } from '@gs/subsystems_timeline_shared/text-layer.ts';
-import { validateTimelineShape } from '@gs/subsystems_timeline_shared/shape-layer.ts';
+import { createLayerInputBinding, getEffectLayerParameterDefault, validateTimelineEffectLayer } from '@gs/subsystems_timeline_shared/layers/effect/effect-layer.ts';
+import { validateTimelineText } from '@gs/subsystems_timeline_shared/layers/text/text-layer.ts';
+import { validateTimelineShape } from '@gs/subsystems_timeline_shared/layers/shape/shape-layer.ts';
 import { validateEffectResolution } from '@gs/subsystems_effect_shared/resolution.ts';
 import type { EffectResolution } from '@gs/subsystems_effect_shared/resolution.ts';
 import { getScene, getLayerParameterValues, getLayerParameterDefinitions, resolveLayerParameter } from './utility/timeline-scene.ts';

@@ -1,11 +1,11 @@
-import { validateTimelineShape } from '@gs/subsystems_timeline_shared/shape-layer.ts';
+import { validateTimelineShape } from '@gs/subsystems_timeline_shared/layers/shape/shape-layer.ts';
 import { ShapeParameters } from './shape-parameters.ts';
 import { createShapeRenderer } from './shape-renderer.ts';
-import { createTimelineCompositor } from './timeline-compositor.ts';
-import { TimelineCompositingParameters } from './timeline-compositing-parameters.ts';
+import { createTimelineCompositor } from '../../timeline-compositor.ts';
+import { TimelineCompositingParameters } from '../../timeline-compositing-parameters.ts';
 import type { TimelineShapeLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import type { UniformOrTexture } from '@gs/shared/gpu/uniform-or-texture.ts';
-import type { TimelineLayerRenderer } from './timeline-renderer.ts';
+import type { TimelineLayerRenderer } from '../../timeline-renderer.ts';
 
 export function createShapeTimelineLayer(layer: TimelineShapeLayer, options: Parameters<typeof createShapeRenderer>[0]): TimelineLayerRenderer<UniformOrTexture> {
 	validateTimelineShape(layer.shape);

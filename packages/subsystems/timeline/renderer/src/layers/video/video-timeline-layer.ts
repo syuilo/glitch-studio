@@ -1,11 +1,11 @@
 import { openVideoSource } from '@gs/shared/media/video-source.ts';
 import { createVideoTexture } from '@gs/shared/media/video-texture.ts';
-import { createTimelineCompositor } from './timeline-compositor.ts';
-import { TimelineCompositingParameters } from './timeline-compositing-parameters.ts';
+import { createTimelineCompositor } from '../../timeline-compositor.ts';
+import { TimelineCompositingParameters } from '../../timeline-compositing-parameters.ts';
 import type { TimelineVideoLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import type { IntermediateTextureFormat } from '@gs/shared/types.ts';
 import type { UniformOrTexture } from '@gs/shared/gpu/uniform-or-texture.ts';
-import type { TimelineLayerRenderer } from './timeline-renderer.ts';
+import type { TimelineLayerRenderer } from '../../timeline-renderer.ts';
 
 export function createVideoTimelineLayer(layer: TimelineVideoLayer, blob: Blob, options: {
 	device: GPUDevice;

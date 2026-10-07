@@ -6,7 +6,7 @@ import { loadShaderSource } from './helpers/load-shader-source.mjs';
 const load = path => loadShaderSource(fileURLToPath(import.meta.resolve(path)));
 const { EffectRenderer } = await load('@gs/subsystems_effect_renderer/effect-renderer.ts');
 const { VisualModuleRenderer } = await load('@gs/subsystems_visual-module_renderer/visual-module-renderer.ts');
-const { createVisualModuleTimelineLayer } = await load('@gs/subsystems_timeline_renderer/visual-module-timeline-layer.ts');
+const { createVisualModuleTimelineLayer } = await load('@gs/subsystems_timeline_renderer/layers/visual-module/visual-module-timeline-layer.ts');
 const { createVideoFrameLoader } = await load('@gs/subsystems_effect_shared/fx/videoFrame/frame-loader.ts');
 const { createTextFontLoader } = await load('@gs/subsystems_effect_shared/fx/text/font-loader.ts');
 

@@ -4,16 +4,16 @@ import { TimelineParameterBindingEvaluator } from '@gs/subsystems_timeline_share
 import { validateEnumParameterValue } from '@gs/shared/parameter/parameter-definition.ts';
 import { coerceParameterValue } from '@gs/shared/parameter/coerce-parameter-value.ts';
 import { createTimelineLayerEvaluationScope } from '@gs/subsystems_timeline_shared/evaluation-scope.ts';
-import { getEffectLayerParameterDefault, validateTimelineEffectLayer } from '@gs/subsystems_timeline_shared/effect-layer.ts';
+import { getEffectLayerParameterDefault, validateTimelineEffectLayer } from '@gs/subsystems_timeline_shared/layers/effect/effect-layer.ts';
 import { toShaderInput } from '@gs/shared/gpu/shader-input.ts';
 import { EffectRenderer } from '@gs/subsystems_effect_renderer/effect-renderer.ts';
 import { resolveEffectParameterValue } from '@gs/subsystems_effect_renderer/effect-parameter-value.ts';
 import { resolveEffectNodeResolution } from '@gs/subsystems_effect_shared/effect-node-resolution.ts';
 import { mapParameterTree } from '@gs/shared/parameter/parameter-tree.ts';
 import { isTimelineAudioInputBinding } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
-import { createTimelineAudioInputResolver } from './timeline-audio-input-resolver.ts';
-import { createTimelineCompositor } from './timeline-compositor.ts';
-import { TimelineCompositingParameters } from './timeline-compositing-parameters.ts';
+import { createTimelineAudioInputResolver } from '../../timeline-audio-input-resolver.ts';
+import { createTimelineCompositor } from '../../timeline-compositor.ts';
+import { TimelineCompositingParameters } from '../../timeline-compositing-parameters.ts';
 import type { EffectDefinition } from '@gs/subsystems_effect_shared/effect-definition.ts';
 import type { EffectImplementation, EffectGpuContext } from '@gs/subsystems_effect_shared/effect-implementation.ts';
 import type { EffectInstanceState } from '@gs/subsystems_effect_shared/effect-status.ts';
@@ -21,9 +21,9 @@ import type { TimelineEffectLayer } from '@gs/subsystems_timeline_shared/types.t
 import type { TimelineEffectParameterBinding } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
 import type { Resolution } from '@gs/shared/resolution.ts';
 import type { Asset } from '@gs/shared/types.ts';
-import type { TimelineLayerRenderer } from './timeline-renderer.ts';
+import type { TimelineLayerRenderer } from '../../timeline-renderer.ts';
 import type { UniformOrTexture } from '@gs/shared/gpu/uniform-or-texture.ts';
-import type { TimelineAudioInputProvider } from './timeline-audio-input-resolver.ts';
+import type { TimelineAudioInputProvider } from '../../timeline-audio-input-resolver.ts';
 
 /** レイヤーの評価スコープ・入力・合成を所有し、エフェクト自身の実行はEffectRendererへ委ねる。 */
 export function createEffectTimelineLayer(layer: TimelineEffectLayer, definition: EffectDefinition, implementation: EffectImplementation, options: {

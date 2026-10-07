@@ -6,8 +6,8 @@ import type { ParameterChangeKind } from '@gs/shared/parameter/parameter-definit
 import type { AutomationGraph } from '@gs/shared/automation-graph/automation-graph.ts';
 import type { TimelineParameterBinding, TimelineEffectParameterBinding, TimelineVisualModuleParameterBinding } from './parameter-binding.ts';
 import type { VisualModule } from '@gs/subsystems_visual-module_shared/types.js';
-import type { TextParameterValues } from './text.ts';
-import type { Shape } from './shape.ts';
+import type { TextParameterValues } from './layers/text/text.ts';
+import type { Shape } from './layers/shape/shape.ts';
 
 export type TimelineParameterTarget = 'module' | 'effect' | 'shape' | 'text' | 'compositing' | 'audio';
 

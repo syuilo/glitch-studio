@@ -4,7 +4,7 @@ import { createTextFontLoader } from './text-font-loader.ts';
 import { layoutText } from './text-layout.ts';
 import { createTextShadowMaskRenderer } from './text-shadow.ts';
 import code from './text-renderer.wgsl?raw';
-import type { EvaluatedText } from '@gs/subsystems_timeline_shared/text.ts';
+import type { EvaluatedText } from '@gs/subsystems_timeline_shared/layers/text/text.ts';
 import type { Resolution } from '@gs/shared/resolution.ts';
 import type { IntermediateTextureFormat } from '@gs/shared/types.ts';
 

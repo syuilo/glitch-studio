@@ -25,7 +25,7 @@
 
 <script lang="ts" setup>
 import { computed } from 'vue';
-import { getShapeParameterDefinitions, shapeDefinitions } from '@gs/subsystems_timeline_shared/shape.ts';
+import { getShapeParameterDefinitions, shapeDefinitions } from '@gs/subsystems_timeline_shared/layers/shape/shape.ts';
 import { LAYER_VAR_DEFS } from '@gs/subsystems_timeline_shared/expression.ts';
 import GsFolder from './common/GsFolder.vue';
 import GsVisualParam from './GsVisualParam.vue';

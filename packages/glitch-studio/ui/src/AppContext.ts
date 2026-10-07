@@ -4,7 +4,7 @@ import { deepClone } from '@gs/shared/utility/deep-clone.js';
 import { getSceneDuration, validateTimelineScenes } from '@gs/subsystems_timeline_shared/scenes.js';
 import { deepEqual } from '@gs/shared/utility/deep-equal.js';
 import { effectDefinitions } from '@gs/subsystems_effect_shared/effect-definitions.js';
-import { validateTimelineEffectLayer } from '@gs/subsystems_timeline_shared/effect-layer.js';
+import { validateTimelineEffectLayer } from '@gs/subsystems_timeline_shared/layers/effect/effect-layer.js';
 import { validateTimelineFps, validateTimelineMotionBlur } from '@gs/subsystems_timeline_shared/motion-blur.js';
 import { getSceneAudioClips } from '@gs/subsystems_timeline_shared/scene-audio.js';
 import { AudioOutput } from './audio/audio-output.ts';
