@@ -22,8 +22,8 @@
 		<div :class="$style.headerCenter">
 			<GsButton v-tooltip="'Prev Frame'" small iconOnly><i class="ti ti-chevron-left"></i></GsButton>
 			<GsButton v-tooltip="'Next Frame'" small iconOnly><i class="ti ti-chevron-right"></i></GsButton>
-			<GsButton v-tooltip="'Prev Keyframe'" small iconOnly><i class="ti ti-keyframe"></i><i class="ti ti-chevron-left"></i></GsButton>
-			<GsButton v-tooltip="'Next Keyframe'" small iconOnly><i class="ti ti-chevron-right"></i><i class="ti ti-keyframe"></i></GsButton>
+			<GsButton v-tooltip="'Prev Keyframe'" small iconOnly :disabled="previousKeyframeTime == null" @click="seekToKeyframe(previousKeyframeTime)"><i class="ti ti-keyframe"></i><i class="ti ti-chevron-left"></i></GsButton>
+			<GsButton v-tooltip="'Next Keyframe'" small iconOnly :disabled="nextKeyframeTime == null" @click="seekToKeyframe(nextKeyframeTime)"><i class="ti ti-chevron-right"></i><i class="ti ti-keyframe"></i></GsButton>
 		</div>
 		<div :class="$style.headerCenter">
 			<span v-if="timelineAudioPreview.buffering.value"><i class="ti ti-loader"></i></span>
@@ -550,6 +550,29 @@ const selectedClipIdsByLayer = computed(() => {
 const selectionCount = computed(() => selection.value.kind === 'layers' ? selection.value.ids.length : selection.value.kind === 'clips' ? selection.value.clips.length : selection.value.keyframes.length);
 const selectedLayerId = computed(() => selection.value.kind === 'layers' ? selection.value.ids[0] ?? null : selection.value.kind === 'clips' ? selection.value.clips[0]?.layerId ?? null : selection.value.keyframes[0]?.layerId ?? null);
 const selectedLayer = computed(() => sceneLayers.value.find(layer => layer.id === getSelectedTimelineLayerId(selection.value)) ?? null);
+const selectedLayerKeyframeTimes = computed(() => {
+	const layer = selectedLayer.value;
+	if (layer == null) return [];
+	return getLayerKeyframeParameters(stateManager.state, layer)
+		.flatMap(({ binding }) => binding.keyframesTimeline.keyframes.map(keyframe => keyframe.x))
+		.sort((a, b) => a - b);
+});
+const previousKeyframeTime = computed(() => selectedLayerKeyframeTimes.value.findLast(keyframeTime => keyframeTime < time.value) ?? null);
+const nextKeyframeTime = computed(() => selectedLayerKeyframeTimes.value.find(keyframeTime => keyframeTime > time.value) ?? null);
+
+function seekToKeyframe(timeMs: number | null) {
+	const layer = selectedLayer.value;
+	if (timeMs == null || layer == null) return;
+	const keyframes = keyframeEntries.value
+		.filter(entry => entry.selection.layerId === layer.id && entry.time === timeMs)
+		.map(entry => entry.selection);
+	if (keyframes.length === 0) return;
+	// 同時刻のキーに優先順位を付けず、移動先のレイヤー内のキーをまとめて選択する。
+	selection.value = { kind: 'keyframes', keyframes };
+	// キーはクリップの区間外にも置けるため、Sceneの長さで移動先を制限しない。
+	previewPlayback.seekTimeline(timeMs);
+}
+
 const audioLayerOptions = computed(() => sceneLayers.value
 	.filter(layer => layer.id !== selectedLayer.value?.id && isTimelineAudioOutputLayer(layer))
 	.map(layer => ({ value: layer.id, label: layer.name })));
