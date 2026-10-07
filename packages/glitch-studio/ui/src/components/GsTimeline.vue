@@ -1642,7 +1642,7 @@ onMounted(() => {
 	display: flex;
 	flex-direction: column;
 	height: 100%;
-	contain: content;
+	contain: strict;
 
 	--sideWidth: 300px;
 	--xTicksHeight: v-bind('X_TICKS_HEIGHT + "px"');

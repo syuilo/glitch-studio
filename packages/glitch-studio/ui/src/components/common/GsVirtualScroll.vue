@@ -13,8 +13,8 @@
 <script setup lang="ts" generic="T">
 import { computed, nextTick, onBeforeUnmount, shallowRef, useTemplateRef, watch } from 'vue';
 import type { ComponentPublicInstance } from 'vue';
-import { createVirtualScrollLayout, findVirtualScrollItem, getVirtualScrollAnchorOffset, getVirtualScrollItems } from '@/utility/virtual-scroll.ts';
 import type { VirtualScrollKey } from '@/utility/virtual-scroll.ts';
+import { createVirtualScrollLayout, findVirtualScrollItem, getVirtualScrollAnchorOffset, getVirtualScrollItems } from '@/utility/virtual-scroll.ts';
 
 const props = withDefaults(defineProps<{
 	items: readonly T[];
