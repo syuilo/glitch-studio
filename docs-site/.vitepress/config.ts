@@ -26,9 +26,27 @@ export default defineConfig({
 		],
 		sidebar: [
 			{
-				text: 'User Guide',
+				text: '基本ガイド',
 				items: [
 					{ text: 'Glitch Studioとは？', link: '/guide/getting-started' },
+					{ text: 'タイムライン', link: '/guide/timeline' },
+					{ text: 'Visual Module', link: '/guide/visual-module' },
+					{ text: 'パラメータ', link: '/guide/parameters' },
+				],
+			},
+			{
+				text: 'レイヤー',
+				items: [
+					{ text: '画像', link: '/guide/timeline/layers/image' },
+					{ text: '動画', link: '/guide/timeline/layers/video' },
+					{ text: '音声', link: '/guide/timeline/layers/audio' },
+					{ text: 'テキスト', link: '/guide/timeline/layers/text' },
+					{ text: 'シェイプ', link: '/guide/timeline/layers/shape' },
+					{ text: 'エフェクト', link: '/guide/timeline/layers/effect' },
+					{ text: 'Visual Module（インライン）', link: '/guide/timeline/layers/inline-visual-module' },
+					{ text: 'Visual Module（参照）', link: '/guide/timeline/layers/visual-module' },
+					{ text: 'シーン', link: '/guide/timeline/layers/scene' },
+					{ text: 'VOICEVOX', link: '/guide/timeline/layers/voicevox' },
 				],
 			},
 		],

@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="350" viewBox="0 0 960 350" role="img" aria-labelledby="title description">
+  <title id="title">16:9の入力画像を1:1の出力へ渡すFit Modeの比較</title>
+  <desc id="description">Stretchでは円が縦長に変形し、Coverでは縦横比を維持して左右が切れます。Containでは全体が収まり、Wrap ModeをTransparentにした場合は上下が透明になります。</desc>
+  <defs>
+    <pattern id="checker" width="20" height="20" patternUnits="userSpaceOnUse">
+      <rect width="20" height="20" fill="#34343c"/>
+      <path d="M0 0h10v10H0zM10 10h10v10H10z" fill="#45454e"/>
+    </pattern>
+    <g id="input">
+      <rect width="160" height="90" fill="#30476a"/>
+      <rect width="30" height="90" fill="#b56226"/>
+      <rect x="130" width="30" height="90" fill="#387c76"/>
+      <path d="M0 68L40 42 64 65 115 26 160 58V90H0z" fill="#708dbc"/>
+      <circle cx="80" cy="34" r="18" fill="#fff0c7"/>
+    </g>
+    <clipPath id="cover-clip"><rect x="520" y="95" width="180" height="180"/></clipPath>
+  </defs>
+  <rect width="960" height="350" rx="14" fill="#1b1b20"/>
+  <g fill="#f0f0f4" font-family="system-ui, sans-serif" text-anchor="middle">
+    <text x="480" y="35" font-size="24" font-weight="600">16:9の入力 → 1:1の出力</text>
+    <text x="120" y="77" font-size="20">入力画像</text>
+    <text x="370" y="77" font-size="20">Stretch</text>
+    <text x="610" y="77" font-size="20">Cover</text>
+    <text x="850" y="77" font-size="20">Contain</text>
+  </g>
+  <use href="#input" transform="translate(30 134.375) scale(1.125)"/>
+  <path d="M226 185h33m-9-9 9 9-9 9" fill="none" stroke="#ff9c43" stroke-width="2"/>
+  <use href="#input" transform="translate(280 95) scale(1.125 2)"/>
+  <g clip-path="url(#cover-clip)">
+    <use href="#input" transform="translate(450 95) scale(2)"/>
+  </g>
+  <rect x="760" y="95" width="180" height="180" fill="url(#checker)"/>
+  <use href="#input" transform="translate(760 134.375) scale(1.125)"/>
+  <g fill="none" stroke="#858591">
+    <rect x="30" y="134.375" width="180" height="101.25"/>
+    <rect x="280" y="95" width="180" height="180"/>
+    <rect x="520" y="95" width="180" height="180"/>
+    <rect x="760" y="95" width="180" height="180"/>
+  </g>
+  <g fill="#d2d2da" font-family="system-ui, sans-serif" text-anchor="middle" font-size="18">
+    <text x="120" y="304">元の縦横比</text>
+    <text x="370" y="304">縦横を別々に伸縮</text>
+    <text x="610" y="304">左右が画面外へ</text>
+    <text x="850" y="304">Wrap: Transparent</text>
+    <text x="850" y="326" font-size="16">市松模様は透明部分</text>
+  </g>
+</svg>
