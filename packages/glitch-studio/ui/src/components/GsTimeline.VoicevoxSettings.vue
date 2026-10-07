@@ -9,16 +9,10 @@
 			<div v-if="version">Engine {{ version }}</div>
 		</template>
 		<div v-else>Generation requires the Electron app. Saved audio can be played here.</div>
-		<label>Voice / style
-			<select :value="layer.voicevox.styleId" @change="changeSettings({ styleId: Number(($event.target as HTMLSelectElement).value) })">
-				<option v-if="!styles.some(style => style.id === layer.voicevox.styleId)" :value="layer.voicevox.styleId">Style {{ layer.voicevox.styleId }} (connect to load voices)</option>
-				<option v-for="style in styles" :key="style.id" :value="style.id">{{ style.label }}</option>
-			</select>
-		</label>
 		<label>Speech speed<input type="number" min="0.5" max="2" step="0.05" :value="layer.voicevox.speedScale" @change="changeSettings({ speedScale: Number(($event.target as HTMLInputElement).value) })"/></label>
 		<GsButton small @click="add">Add speech key at playhead</GsButton>
 		<GsButton small :disabled="layer.clips.length === 0" @click="fitLastClip">Fit last clip to speech</GsButton>
-		<div>Select a speech key in the timeline to edit its text and reading.</div>
+		<div>Select a speech key in the timeline to edit its voice, text and reading.</div>
 		<div v-if="error" :class="$style.error">{{ error }}</div>
 	</div>
 </GsFolder>
@@ -40,7 +34,6 @@ const { stateManager } = appContext.projectContext;
 const desktop = window.desktop;
 const { endpoint, version, speakers } = appContext.voicevoxConnection;
 const connecting = ref(false);
-const styles = computed(() => speakers.value.flatMap(speaker => speaker.styles.filter(style => !style.type || style.type === 'talk').map(style => ({ id: style.id, label: `${speaker.name} / ${style.name}` }))));
 const error = ref('');
 const sortedUtterances = computed(() => props.layer.utterances.toSorted((a, b) => a.timeMs - b.timeMs));
 

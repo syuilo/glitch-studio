@@ -98,8 +98,8 @@ const near = (actual, expected) => assert.ok(Math.abs(actual - expected) < 1e-6,
 test('renders VOICEVOX subtitles at scene time without requiring generated audio', async t => {
 	const f = fixture(t);
 	const speech = { id: 'speech', name: 'Speech', isDisabled: false, automationGraphs: [],
-		clips: [clip('speech-clip', 100, 1000, 20.5)], compositingParamValues: compositing(), subtitleParamValues: createVoicevoxSubtitleParameterValues(), layerType: 'voicevox', voicevox: { styleId: 1, speedScale: 1 },
-		utterances: [{ id: 'first', timeMs: 300, text: 'Speech subtitle', reading: '別の読み' }, { id: 'clear', timeMs: 600, text: '', reading: null }],
+		clips: [clip('speech-clip', 100, 1000, 20.5)], compositingParamValues: compositing(), subtitleParamValues: createVoicevoxSubtitleParameterValues(), layerType: 'voicevox', voicevox: { speedScale: 1 },
+		utterances: [{ id: 'first', timeMs: 300, text: 'Speech subtitle', reading: '別の読み', styleId: 1 }, { id: 'clear', timeMs: 600, text: '', reading: null, styleId: 1 }],
 		audioParamValues: { volume: literal(1) } };
 	await f.setup([speech]);
 	await f.manager.renderTimelineFrame(200, 0);

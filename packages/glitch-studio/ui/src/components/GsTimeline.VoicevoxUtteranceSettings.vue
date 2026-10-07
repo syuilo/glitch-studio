@@ -6,6 +6,9 @@
 		<GsInput small type="number" :min="bounds?.min ?? 0" :max="bounds?.max" :modelValue="utterance.timeMs" @update:modelValue="editTime">
 			<template #label>Time</template><template #suffix>ms</template>
 		</GsInput>
+		<GsSelect small :modelValue="utterance.styleId" :items="voiceStyleItems" @update:modelValue="styleId => edit({ styleId })">
+			<template #label>Voice / style</template>
+		</GsSelect>
 		<GsTextarea :modelValue="utterance.text" @update:modelValue="text => edit({ text })"><template #label>Subtitle</template></GsTextarea>
 		<GsTextarea :modelValue="utterance.reading ?? ''" placeholder="Use subtitle text" @update:modelValue="reading => edit({ reading: reading.trim() || null })"><template #label>Reading (optional)</template></GsTextarea>
 		<div>{{ status }}</div>
@@ -25,6 +28,7 @@ import type { VoicevoxUtterance } from '@gs/subsystems_timeline_shared/layers/vo
 import type { TimelineVoicevoxLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import GsFolder from './common/GsFolder.vue';
 import GsInput from './common/GsInput.vue';
+import GsSelect from './common/GsSelect.vue';
 import GsTextarea from './common/GsTextarea.vue';
 import GsButton from './common/GsButton.vue';
 import { appContext } from '@/app.ts';
@@ -34,6 +38,17 @@ const props = defineProps<{ sceneId: string; layer: TimelineVoicevoxLayer; utter
 const emit = defineEmits<{ selected: [id: string] }>();
 const { stateManager } = appContext.projectContext;
 const desktop = window.desktop;
+const { speakers } = appContext.voicevoxConnection;
+const voiceStyleItems = computed(() => {
+	const items = speakers.value.flatMap(speaker => speaker.styles.filter(style => !style.type || style.type === 'talk')
+		.map(style => ({ value: style.id, label: `${speaker.name} / ${style.name}` })));
+	// 接続前やエンジンにない声も保存したIDを表示し、別の声へ暗黙に差し替えない。
+	if (!items.some(item => item.value === props.utterance.styleId)) items.unshift({
+		value: props.utterance.styleId,
+		label: `Style ${props.utterance.styleId} (${speakers.value.length ? 'unavailable' : 'connect to load voices'})`,
+	});
+	return items;
+});
 const error = ref('');
 const bounds = computed(() => getVoicevoxUtteranceTimeBounds(props.layer.utterances, props.utterance.id));
 const request = computed(() => getVoicevoxRequest(props.layer.voicevox, props.utterance));

@@ -45,7 +45,7 @@ const bundled = await build({
 const module = { exports: {} };
 new Function('require', 'module', 'exports', bundled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
 const { createVoicevoxTimelineLayer, getVoicevoxRequest, getVoicevoxRequestKey, createSpeechResolver, getVoicevoxSubtitle,
-	getSceneAudioClips, TimelineAudioRenderer, VoicevoxGeneration, getRequiredVoicevoxRequests,
+	getSceneAudioClips, TimelineAudioRenderer, VoicevoxGeneration, getVoicevoxRequests, getRequiredVoicevoxRequests,
 	COMMAND_DEFS, UndoRedo, encodeProjectFile, decodeProjectFile, TimelineAudioExport, getExportAudioClips,
 	createTextTimelineLayer, resolveLayerParameter, getLayerKeyframeParameters, validateVoicevoxSubtitle } = module.exports;
 const { getTimelineKeyframeLanes, getTimelineKeyframeEntries, insertVoicevoxUtterance, getVoicevoxUtteranceTimeBounds,
@@ -63,7 +63,7 @@ async function loadHandler(name, context, component = 'GsTimeline.vue') {
 	return new Function('context', `const { ${Object.keys(context).join(', ')} } = context; ${code}; return ${name};`)(context);
 }
 const literal = value => ({ inputSource: 'literal', value });
-const utterance = (id, timeMs, text = 'Hello', reading = null) => ({ id, timeMs, text, reading });
+const utterance = (id, timeMs, text = 'Hello', reading = null, styleId = 1) => ({ id, timeMs, text, reading, styleId });
 const scene = (id, layers) => ({ id, name: id, resolution: { mode: 'project' }, layers });
 function fixture() {
 	const layer = createVoicevoxTimelineLayer(0);
@@ -151,6 +151,7 @@ test('snaps multiple utterances through the timeline drag handler and merges the
 // 横スクロールと倍率を反映し、二重作成や本文の上書きをせず追加直後のキーを選択する。
 test('adds and selects a speech key using the double-click handler', async t => {
 	const f = editFixture(t);
+	f.layer.utterances[1].styleId = 7;
 	let selected;
 	const add = await loadHandler('add', { insertVoicevoxUtterance, stateManager: f.history,
 		props: { layer: f.layer, sceneId: 'root', offsetMs: 100, pixelsPerMs: 2 }, emit(event, id) { assert.equal(event, 'selected'); selected = id; } }, 'GsTimeline.VoicevoxKeys.vue');
@@ -158,13 +159,70 @@ test('adds and selects a speech key using the double-click handler', async t => 
 	assert.equal(selected, 'b');
 	assert.equal(f.history.undoStack.value.length, 0);
 	add({ button: 0, clientX: 721, currentTarget: { getBoundingClientRect: () => ({ left: 20 }) } });
-	assert.deepEqual(f.layer.utterances.find(utterance => utterance.id === selected), { id: selected, timeMs: 451, text: '', reading: null });
+	assert.deepEqual(f.layer.utterances.find(utterance => utterance.id === selected), { id: selected, timeMs: 451, text: '', reading: null, styleId: 7 });
 	assert.deepEqual(getVoicevoxUtteranceTimeBounds(f.layer.utterances, selected), { min: 401, max: 599 });
 	f.history.undo();
 	assert.equal(f.layer.utterances.some(utterance => utterance.id === selected), false);
+	f.history.redo();
+	assert.equal(f.layer.utterances.find(utterance => utterance.id === selected).styleId, 7);
 });
 
-// 【単独選択した発話の本文・読み・時刻だけを編集する】
+// 【新しい発話は追加地点の直前の声を引き継ぎ、先頭と空レイヤーにも対応する】
+// 配列順や将来のキーまでの距離で声が変わらず、空文字の終了キーにも設定を保持する。
+// 追加時に値を確定するため、その後に継承元を変更しても追加済みの声は変わらない。
+test('inherits the preceding voice by scene time with first-key and empty-layer defaults', () => {
+	const keys = [utterance('later', 900, 'Later', null, 9), utterance('first', 100, 'First', null, 3), utterance('clear', 500, '', null, 7)];
+	const before = structuredClone(keys);
+	for (const [time, expectedStyle] of [[0, 3], [499, 3], [501, 7], [899, 7], [1000, 9]]) {
+		const result = insertVoicevoxUtterance(keys, time);
+		assert.equal(result.utterance.timeMs, time);
+		assert.equal(result.utterance.styleId, expectedStyle);
+		assert.equal(result.utterance.text, '');
+		assert.equal(result.utterance.reading, null);
+		assert.equal(result.utterances.length, 4);
+	}
+	const sameTime = insertVoicevoxUtterance(keys, 499.6);
+	assert.equal(sameTime.utterance, keys[2]);
+	assert.equal(sameTime.utterances, keys);
+	assert.deepEqual(keys, before);
+	const added = insertVoicevoxUtterance(keys, 300).utterance;
+	keys[1].styleId = 11;
+	assert.equal(added.styleId, 3);
+	assert.equal(insertVoicevoxUtterance([], 200).utterance.styleId, 1);
+	assert.equal(insertVoicevoxUtterance(keys, Infinity), null);
+});
+
+// 【シーク位置への追加と複製で、それぞれ継承元とコピー元の声を保持する】
+// ボタン追加もダブルクリックと同じ継承規則を使い、複製では配置先の声に書き換えない。
+test('inherits voice when adding at the playhead and preserves the original voice when duplicating', async t => {
+	const f = editFixture(t);
+	f.layer.utterances[0].styleId = 3;
+	f.layer.utterances[1].styleId = 7;
+	let selected;
+	const context = {
+		props: { layer: f.layer, sceneId: 'root', get utterance() { return f.layer.utterances[0]; } },
+		error: { value: '' }, stateManager: f.history, insertVoicevoxUtterance,
+		appContext: { previewPlayback: { currentTimelineTime: { value: 450 } } },
+		emit(event, id) { assert.equal(event, 'selected'); selected = id; },
+	};
+	const commitLayer = await loadHandler('commit', context, 'GsTimeline.VoicevoxSettings.vue');
+	const add = await loadHandler('add', { ...context, commit: commitLayer }, 'GsTimeline.VoicevoxSettings.vue');
+	add();
+	assert.equal(f.layer.utterances.find(utterance => utterance.id === selected).styleId, 7);
+	f.history.undo();
+	const component = 'GsTimeline.VoicevoxUtteranceSettings.vue';
+	const commit = await loadHandler('commit', context, component);
+	const duplicate = await loadHandler('duplicate', { ...context, commit, genId: () => 'duplicated' }, component);
+	duplicate();
+	assert.equal(selected, 'duplicated');
+	assert.deepEqual(f.layer.utterances.at(-1), { ...f.layer.utterances[0], id: 'duplicated', timeMs: 450 });
+	f.history.undo();
+	assert.equal(f.layer.utterances.length, 3);
+	f.history.redo();
+	assert.equal(f.layer.utterances.at(-1).styleId, 3);
+});
+
+// 【単独選択した発話の声・本文・読み・時刻だけを編集する】
 // 個別編集欄の値が別の発話へ波及せず、時刻の数値入力も隣の発話を追い越さないことを保証する。
 test('edits only the selected utterance and clamps its time between neighbours', async t => {
 	const f = editFixture(t);
@@ -175,6 +233,17 @@ test('edits only the selected utterance and clamps its time between neighbours',
 	const edit = await loadHandler('edit', { props, commit }, component);
 	const bounds = { get value() { return getVoicevoxUtteranceTimeBounds(f.layer.utterances, 'b'); } };
 	const editTime = await loadHandler('editTime', { bounds, edit }, component);
+	edit({ styleId: 7 });
+	assert.equal(props.utterance.styleId, 7);
+	assert.equal(f.layer.utterances[0].styleId, 1);
+	assert.equal(f.layer.utterances[2].styleId, 1);
+	assert.deepEqual(f.layer.voicevox, { speedScale: 1 });
+	for (const styleId of [-1, 0.5, NaN, Infinity, Number.MAX_SAFE_INTEGER + 1, undefined]) {
+		edit({ styleId });
+		assert.match(error.value, /Invalid VOICEVOX utterance style/);
+		assert.equal(props.utterance.styleId, 7);
+		assert.equal(f.history.undoStack.value.length, 1);
+	}
 	edit({ text: 'New subtitle', reading: 'ニューサブタイトル' });
 	assert.equal(f.layer.utterances[0].text, 'Hello');
 	assert.equal(props.utterance.text, 'New subtitle');
@@ -186,7 +255,11 @@ test('edits only the selected utterance and clamps its time between neighbours',
 	assert.equal(props.utterance.timeMs, 599);
 	f.history.undo();
 	f.history.undo();
+	assert.equal(props.utterance.styleId, 7);
+	f.history.undo();
 	assert.deepEqual(props.utterance, utterance('b', 400));
+	f.history.redo();
+	assert.equal(props.utterance.styleId, 7);
 	assert.equal(error.value, '');
 });
 
@@ -202,13 +275,16 @@ test('keeps mixed key moves and pastes atomic and restores mixed deletions', t =
 	assert.equal(binding.keyframesTimeline.keyframes[0].x, 120);
 	assert.equal(f.layer.utterances[0].timeMs, 100);
 	f.layer.utterances[0].reading = '読み';
+	f.layer.utterances[0].styleId = 7;
 	const clipboard = copyTimelineKeyframes(f.state, f.scenes[0], [f.point('a'), style]);
 	f.layer.utterances[0].text = 'Changed after copy';
+	f.layer.utterances[0].styleId = 9;
 	assert.equal(prepareTimelineKeyframePaste(f.state, f.scenes[0], clipboard, 400), null);
 	const paste = prepareTimelineKeyframePaste(f.state, f.scenes[0], clipboard, 800);
 	f.history.commit('pasteTimelineKeyframes', { sceneId: 'root', keyframes: paste });
 	assert.equal(f.layer.utterances.at(-1).text, 'Hello');
 	assert.equal(f.layer.utterances.at(-1).reading, '読み');
+	assert.equal(f.layer.utterances.at(-1).styleId, 7);
 	assert.equal(f.layer.utterances.at(-1).timeMs, 800);
 	assert.notEqual(f.layer.utterances.at(-1).id, 'a');
 	f.history.undo(); assert.equal(f.layer.utterances.length, 3);
@@ -305,7 +381,7 @@ test('edits speech through undoable commands and rejects duplicate times atomica
 // エンジンが利用できない環境でも同じ結果を再生するため、WAVと生成メタデータを往復する。
 test('persists generated speech separately from assets and keeps pending utterances', async () => {
 	const f = fixture();
-	f.layer.utterances.push(utterance('pending', 650, 'Not generated', '別の読み'));
+	f.layer.utterances.push(utterance('pending', 650, 'Not generated', '別の読み', 7));
 	const project = { id: 'p', gsVersion: '2.0.0-alpha.1', name: 'Speech', description: '', author: '', timelineFps: 60,
 		timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, resolution: { width: 640, height: 480 },
 		assets: [], players: [], visualModules: [], timelineScenes: f.scenes, generatedSpeech: [f.speech] };
@@ -320,10 +396,28 @@ test('persists generated speech separately from assets and keeps pending utteran
 // 【表示や配置だけを変えたときは音声を再合成しない】
 // 読みを明示した発話は表示本文が異なっても共有し、声・話速の変更だけを別要求にする。
 test('keys synthesis by reading and voice settings rather than placement or subtitles', () => {
-	const settings = { styleId: 1, speedScale: 1 };
+	const settings = { speedScale: 1 };
 	const first = getVoicevoxRequestKey(getVoicevoxRequest(settings, utterance('a', 0, 'WebGPU', 'ウェブジーピーユー')));
 	assert.equal(first, getVoicevoxRequestKey(getVoicevoxRequest(settings, utterance('b', 1234, 'WEB GPU', 'ウェブジーピーユー'))));
 	assert.notEqual(first, getVoicevoxRequestKey(getVoicevoxRequest({ ...settings, speedScale: 1.5 }, utterance('a', 0, 'WebGPU', 'ウェブジーピーユー'))));
+	assert.notEqual(first, getVoicevoxRequestKey(getVoicevoxRequest(settings, utterance('a', 0, 'WebGPU', 'ウェブジーピーユー', 7))));
+});
+
+// 【同じレイヤーで同じ本文でも発話ごとの声で生成・再生・書き出し要求を分ける】
+// 一つの発話の声を変えた際、隣の発話のキャッシュまで無効化したり旧音声を使わない。
+test('resolves generation, playback and export per utterance voice', () => {
+	const f = fixture();
+	f.layer.utterances[1].styleId = 7;
+	const requests = getVoicevoxRequests(f.scenes);
+	assert.deepEqual(requests, [{ styleId: 1, speedScale: 1, text: 'Hello' }, { styleId: 7, speedScale: 1, text: 'Hello' }]);
+	assert.deepEqual(getRequiredVoicevoxRequests(f.scenes, 'root', 200, 600), requests);
+	assert.deepEqual(getRequiredVoicevoxRequests(f.scenes, 'root', 450, 550), [requests[1]]);
+	const secondSpeech = { ...f.speech, key: getVoicevoxRequestKey(requests[1]), sourceId: 'second-voice' };
+	const plan = getSceneAudioClips(f.scenes, 'root', { type: 'all' }, createSpeechResolver([f.speech, secondSpeech]));
+	assert.deepEqual(plan.map(clip => [clip.sourceId, clip.startMs, clip.endMs]), [['generated', 200, 400], ['second-voice', 400, 600]]);
+	f.layer.utterances[1].styleId = 9;
+	const pendingPlan = getSceneAudioClips(f.scenes, 'root', { type: 'all' }, createSpeechResolver([f.speech, secondSpeech]));
+	assert.deepEqual(pendingPlan.map(clip => clip.sourceId), ['generated']);
 });
 
 // 【重複生成をまとめ、プロジェクト変更前の応答を捨てる】
