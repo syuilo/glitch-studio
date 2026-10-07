@@ -2,7 +2,7 @@
 
 # Glitch Studio (⚠️Under Development!!!)
 
-[アプリを開く](https://syuilo.github.io/glitch-studio/) · [ユーザーガイド](https://syuilo.github.io/glitch-studio/docs/)
+[アプリを開く](https://syuilo.dev/glitch-studio/) · [ユーザーガイド](https://syuilo.dev/glitch-studio/docs/)
 
 ![](./ss.webp)
 

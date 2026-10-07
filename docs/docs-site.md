@@ -64,7 +64,7 @@ pnpm docs:preview
 
 | 内容 | 公開URL |
 | --- | --- |
-| アプリ | `https://syuilo.github.io/glitch-studio/` |
-| ユーザーガイド | `https://syuilo.github.io/glitch-studio/docs/` |
+| アプリ | `https://syuilo.dev/glitch-studio/` |
+| ユーザーガイド | `https://syuilo.dev/glitch-studio/docs/` |
 
 Pagesへのデプロイはサイト全体を置き換えるため、ドキュメントだけを別のworkflowから同じサイトへデプロイしないでください。PRのTest workflowでもドキュメントをビルドして、公開前にビルドエラーを検出します。

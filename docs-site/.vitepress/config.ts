@@ -21,7 +21,7 @@ export default defineConfig({
 		nav: [
 			{ text: 'ガイド', link: '/guide/getting-started', activeMatch: '/guide/' },
 			{ text: 'ダウンロード', link: '/guide/download' },
-			{ text: 'Web版', link: 'https://syuilo.github.io/glitch-studio/' },
+			{ text: 'Web版', link: 'https://syuilo.dev/glitch-studio/' },
 			{ text: 'リリースノート', link: '/guide/release-notes' },
 		],
 		sidebar: [

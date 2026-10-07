@@ -18,7 +18,7 @@ hero:
       link: /guide/download
     - theme: alt
       text: Web版で遊ぶ
-      link: https://syuilo.github.io/glitch-studio/
+      link: https://syuilo.dev/glitch-studio/
 
 features:
   - title: 高速
@@ -42,5 +42,5 @@ features:
   - title: ブラウザ上でも
     details: "インストール不要でWebブラウザ上でも使用できます。ただし、一部対応しておらず、使用可能な機能に制限あり。"
     linkText: Web版を開く
-    link: https://syuilo.github.io/glitch-studio/
+    link: https://syuilo.dev/glitch-studio/
 ---
