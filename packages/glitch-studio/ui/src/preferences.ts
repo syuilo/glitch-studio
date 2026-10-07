@@ -147,6 +147,14 @@ export const PREF_DEF = definePreferences({
 												}],
 											},
 										}, {
+											name: 'Timeline',
+											element: {
+												id: '9fa7af18c11e42e78ef277c26aab5fa5',
+												type: 'panel',
+												direction: 'horizontal',
+												contentType: 'timeline',
+											},
+										}, {
 											name: 'Assets',
 											element: {
 												id: '824a5486145c4ba4911518b2bfc74a7c',
