@@ -11,7 +11,8 @@
 import { computed } from 'vue';
 import { insertVoicevoxUtterance } from '@/utility/voicevox-utterance-edit.ts';
 import { timelineKeyframePosition } from '@/utility/timeline-coordinates.ts';
-import { getVoicevoxRequest, getVoicevoxRequestKey } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox.ts';
+import { createSpeechResolver } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox.ts';
+import { assignPreparedSpeech, getVoicevoxUtterancePlacements } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox-placement.ts';
 import type { TimelineVoicevoxLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import { appContext } from '@/app.ts';
 
@@ -22,17 +23,12 @@ const { stateManager } = appContext.projectContext;
 const x = (time: number) => (time - props.offsetMs) * props.pixelsPerMs;
 const keyX = (time: number) => timelineKeyframePosition(time, props.pixelsPerMs) - props.offsetMs * props.pixelsPerMs;
 const ranges = computed(() => {
-	const utterances = props.layer.utterances.toSorted((a, b) => a.timeMs - b.timeMs);
-	return utterances.flatMap((utterance, index) => {
-		if (!utterance.text) return [];
-		const key = getVoicevoxRequestKey(getVoicevoxRequest(props.layer.voicevox, utterance));
-		const speech = stateManager.state.generatedSpeech.value.find(item => item.key === key);
+	const resolveSpeech = createSpeechResolver(stateManager.state.generatedSpeech.value);
+	return getVoicevoxUtterancePlacements(props.layer.voicevox, props.layer.utterances, props.layer.clips).flatMap(placement => {
+		const speech = resolveSpeech(placement.request);
 		if (!speech) return [];
-		return props.layer.clips.flatMap(clip => {
-			const startMs = Math.max(utterance.timeMs, clip.startMs);
-			const endMs = Math.min(utterance.timeMs + speech.durationMs, utterances[index + 1]?.timeMs ?? Infinity, clip.startMs + clip.durationMs);
-			return endMs > startMs ? [{ key: `${utterance.id}:${clip.id}`, startMs, endMs }] : [];
-		});
+		const interval = assignPreparedSpeech(placement, speech);
+		return interval ? [{ ...interval, key: `${placement.utteranceId}:${placement.clipId}` }] : [];
 	});
 });
 

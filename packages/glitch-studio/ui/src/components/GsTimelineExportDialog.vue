@@ -57,7 +57,7 @@ import GsSelect from './common/GsSelect.vue';
 import GsTabs from './common/GsTabs.vue';
 import type { ExportProgress, ExportQuality, TimelineExportSettings } from '@/export/timeline-export.ts';
 import { preferences } from '@/preferences.ts';
-import { getRequiredVoicevoxRequests } from '@/audio/voicevox-generation.ts';
+import { getRequiredVoicevoxRequests } from '@gs/subsystems_timeline_shared/voicevox-requests.ts';
 import { exportTimeline } from '@/export/client.ts';
 import { validateExportSettings } from '@/export/timeline-export.ts';
 import { estimateExportBytes, formatExportTime, parseExportTime, scaleExportResolution } from '@/export/export-settings.ts';
@@ -169,6 +169,7 @@ async function doExport() {
 			timelineFps: stateManager.state.timelineFps.value,
 			timelineMotionBlur: stateManager.state.timelineMotionBlur.value,
 			assets: stateManager.state.assets.value,
+			generatedSpeech: stateManager.state.generatedSpeech.value,
 			visualModules: stateManager.state.visualModules.value,
 			timelineScenes: stateManager.state.timelineScenes.value,
 			sceneId: sceneId.value,
@@ -176,7 +177,7 @@ async function doExport() {
 		if (exportSettings.format === 'mp4') {
 			status.value = 'Preparing VOICEVOX audio…';
 			// 波形・スペクトラムが読む過去の窓も含め、書き出し開始前の発話を準備する。
-			await appContext.voicevoxGeneration.prepare(getRequiredVoicevoxRequests(exportProject.timelineScenes, exportProject.sceneId, 0, exportSettings.endTimeMs), signal);
+			exportProject.generatedSpeech = await appContext.voicevoxGeneration.prepare(getRequiredVoicevoxRequests(exportProject.timelineScenes, exportProject.sceneId, 0, exportSettings.endTimeMs), signal);
 		}
 		signal.throwIfAborted();
 		const preferredFormat = navigator.gpu.getPreferredCanvasFormat();
@@ -187,10 +188,7 @@ async function doExport() {
 		const buffer = await exportTimeline({
 			settings: exportSettings,
 			resolutionScale: resolutionScale.value,
-			project: deepClone({
-				...exportProject,
-				generatedSpeech: stateManager.state.generatedSpeech.value,
-			}),
+			project: deepClone(exportProject),
 			// 書き出し開始時の環境設定から独立した設定を作る。
 			// プレビュー用Controllerの初期化・再読み込み状態には依存しない。
 			renderer: {

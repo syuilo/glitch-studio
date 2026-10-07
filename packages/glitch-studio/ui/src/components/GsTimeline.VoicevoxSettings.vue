@@ -23,9 +23,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { ref } from 'vue';
 import { insertVoicevoxUtterance } from '@/utility/voicevox-utterance-edit.ts';
-import { getVoicevoxRequest, getVoicevoxRequestKey } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox.ts';
+import { createSpeechResolver } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox.ts';
+import { assignPreparedSpeech, getVoicevoxUtteranceIntervals } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox-placement.ts';
 import GsFolder from './common/GsFolder.vue';
 import GsButton from './common/GsButton.vue';
 import GsInput from './common/GsInput.vue';
@@ -40,7 +41,6 @@ const desktop = window.desktop;
 const { endpoint, version, speakers } = appContext.voicevoxConnection;
 const connecting = ref(false);
 const error = ref('');
-const sortedUtterances = computed(() => props.layer.utterances.toSorted((a, b) => a.timeMs - b.timeMs));
 
 async function connect() {
 	connecting.value = true;
@@ -73,13 +73,14 @@ function fitLastClip() {
 	if (!clip) return;
 	try {
 		let endMs = clip.startMs + 1;
-		for (const [index, utterance] of sortedUtterances.value.entries()) {
-			if (!utterance.text) continue;
-			const nextTime = sortedUtterances.value[index + 1]?.timeMs ?? Infinity;
-			if (nextTime <= clip.startMs) continue;
-			const speech = stateManager.state.generatedSpeech.value.find(item => item.key === key(utterance));
+		const resolveSpeech = createSpeechResolver(stateManager.state.generatedSpeech.value);
+		// 長さを延長する操作なので、現在のクリップ終端を適用する前の発話区間を使う。
+		for (const interval of getVoicevoxUtteranceIntervals(props.layer.voicevox, props.layer.utterances)) {
+			if (interval.endMs <= clip.startMs) continue;
+			const speech = resolveSpeech(interval.request);
 			if (!speech) throw new Error('Generate the speech before fitting the clip.');
-			endMs = Math.max(endMs, Math.min(utterance.timeMs + speech.durationMs, nextTime));
+			const ready = assignPreparedSpeech(interval, speech);
+			if (ready) endMs = Math.max(endMs, ready.endMs);
 		}
 		// 生成音声の小数msの末尾を切らないよう切り上げる。キーは動かさない。
 		stateManager.commit('editTimelineClipTiming', {
@@ -88,8 +89,6 @@ function fitLastClip() {
 		});
 	} catch (cause) { error.value = String(cause); }
 }
-
-function key(utterance: VoicevoxUtterance) { return getVoicevoxRequestKey(getVoicevoxRequest(props.layer.voicevox, utterance)); }
 
 </script>
 

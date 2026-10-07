@@ -1,4 +1,5 @@
 import type { GeneratedSpeech } from '@gs/glitch-studio_shared/voicevox.ts';
+import { getReferencedGeneratedSpeech } from '@gs/glitch-studio_shared/voicevox.ts';
 import { validateTimelineFps, validateTimelineMotionBlur } from '@gs/subsystems_timeline_shared/motion-blur.ts';
 import { validateTimelineScenes } from '@gs/subsystems_timeline_shared/scenes.ts';
 import * as msgpack from '@msgpack/msgpack';
@@ -67,7 +68,8 @@ export async function encodeProjectFile(project: Project): Promise<Uint8Array> {
 			throw new Error(`Could not read asset "${asset.name}". Replace it with the source file and try saving again.`, { cause });
 		}
 	}));
-	const generatedSpeech = await Promise.all(project.generatedSpeech.map(async speech => ({ ...speech, fileData: new Uint8Array(await speech.fileData.arrayBuffer()) })));
+	const generatedSpeech = await Promise.all(getReferencedGeneratedSpeech(project.timelineScenes, project.generatedSpeech)
+		.map(async speech => ({ ...speech, fileData: new Uint8Array(await speech.fileData.arrayBuffer()) })));
 	return msgpack.encode({ ...project, assets, generatedSpeech } satisfies StoredProject);
 }
 

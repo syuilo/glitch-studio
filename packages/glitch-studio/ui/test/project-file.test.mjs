@@ -170,10 +170,15 @@ test('freezes prepared speech during playback and stops for utterance edits and 
 		manager.commit('editVoicevoxLayer', { sceneId: 'scene', layerId: 'speech', voicevox: layer.voicevox,
 			utterances: [{ id: 'key', timeMs: 0, text: 'Edited', reading: null, styleId: 1 }] });
 		assert.equal(playback.isTimelinePlaying.value, false);
+		// Webでも旧結果を保存対象から外し、同じ操作のUndoで即座に再利用できるようにする。
+		assert.deepEqual(manager.state.generatedSpeech.value, []);
+		assert.deepEqual(appContext.projectContext.snapshot().generatedSpeech, []);
 		await nextTick();
 		playback.playTimeline();
 		manager.undo();
 		assert.equal(playback.isTimelinePlaying.value, false);
+		assert.equal(manager.state.generatedSpeech.value[0].sourceId, 'second');
+		assert.equal(appContext.projectContext.snapshot().generatedSpeech[0].sourceId, 'second');
 		await nextTick();
 		playback.playTimeline();
 		manager.commit('editVoicevoxLayer', { sceneId: 'scene', layerId: 'speech', voicevox: layer.voicevox,

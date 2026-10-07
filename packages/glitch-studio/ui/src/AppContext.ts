@@ -1,4 +1,5 @@
-import { VoicevoxGeneration, getVoicevoxRequests } from './audio/voicevox-generation.ts';
+import { VoicevoxGeneration } from './audio/voicevox-generation.ts';
+import { getVoicevoxRequests } from '@gs/subsystems_timeline_shared/voicevox-requests.ts';
 import { getVoicevoxRequestKey, createSpeechResolver } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox.ts';
 import { openAudioFile } from '@gs/subsystems_audio_renderer/audio-file.ts';
 import { genId } from '@gs/shared/utility/id.ts';
@@ -288,7 +289,8 @@ export class AppContext {
 		}))), () => { if (this.previewPlayback.isTimelinePlaying.value) this.previewPlayback.pauseTimeline(); }, { flush: 'sync' }));
 		this.projectWatchers.push(watch(() => JSON.stringify(getVoicevoxRequests(this.projectContext.stateManager.state.timelineScenes.value)), () => {
 			if (window.desktop) this.voicevoxGeneration.schedule();
-		}, { immediate: true }));
+			else this.voicevoxGeneration.synchronizeSpeech();
+		}, { immediate: true, flush: 'sync' }));
 
 		// 1回のCommandで変わるfpsとブラー設定をまとめて送り、Undo/Redoも同じ再生成経路を通す。
 		this.projectWatchers.push(watch([this.projectContext.stateManager.state.timelineFps, this.projectContext.stateManager.state.timelineMotionBlur, this.timelinePreviewMotionBlurSamples], async () => {
