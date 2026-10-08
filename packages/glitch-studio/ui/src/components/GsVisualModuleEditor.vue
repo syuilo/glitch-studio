@@ -74,7 +74,6 @@
 
 		<div v-else-if="tab === 'other'" class="_spacer _gaps_m" style="height: 100%; overflow: auto;">
 			<GsButton :disabled="exporting" :wait="exporting" @click="emit('requestExport')"><i class="ti ti-download"></i> Export Visual Module…</GsButton>
-			<div>Save this Visual Module with its referenced Assets and Players as a .gsvm file.</div>
 		</div>
 	</div>
 </div>
