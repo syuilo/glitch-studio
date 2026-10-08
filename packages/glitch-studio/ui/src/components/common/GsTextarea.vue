@@ -187,7 +187,7 @@ onUnmounted(() => {
 	transition: border-color 0.1s ease-out;
 
 	&:hover {
-		border-color: var(--THEME-inputBorderHover) !important;
+		border-color: var(--THEME-accent) !important;
 	}
 }
 
