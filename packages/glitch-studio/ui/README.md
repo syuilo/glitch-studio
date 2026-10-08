@@ -6,7 +6,7 @@
 
 `gsvm.ts`は`.gsvm`（MessagePack）の依存収集・バイナリ変換・取り込み準備を担当する。ノードの値と公開パラメータの既定値・設定ツリーから静的な素材／Player参照を収集し、取り込み用のプロジェクト内IDを生成する。元PCのパスや利用側のレイヤー／LIVEの状態は保存しない。
 
-`utility/visual-module-file.ts`が選択・ダウンロード・エラー表示を担当する。共通のVisual ModuleエディターはOtherタブから`requestExport`を通知し、登録済み／インラインそれぞれの親が対象名とプロジェクトを渡す。Importは登録済みVisual Moduleの選択メニューから行い、`importVisualModule` Commandで依存リソースごと一括追加する。ファイル選択・読み出しの間に`ProjectContext.load()`の世代が変わった操作は破棄する。
+`utility/visual-module-file.ts`が選択・ダウンロード・エラー表示を担当する。共通のVisual ModuleエディターはOtherタブから`requestExport`を通知し、登録済み／インラインそれぞれの親が対象名とプロジェクトを渡す。ImportはApp.vueのFile → Import → Visual Module (.gsvm)、または登録済みVisual Moduleの選択メニューから同じ処理を呼び出し、`importVisualModule` Commandで依存リソースごと一括追加する。ファイル選択・読み出しの間に`ProjectContext.load()`の世代が変わった操作は破棄する。
 
 `visualModuleRegistration`の通知は追加・削除後の最終値を両レンダラーへ送る。同じターンの内部編集は登録データへ吸収し、UndoでLIVE対象が消えたときはTimeline表示へ戻す。
 

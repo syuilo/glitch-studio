@@ -224,7 +224,7 @@ Visual Moduleエディターの **Other → Export Visual Module…** から、�
 
 LIVEのPreview Params、配置先レイヤーのパラメータ値・クリップ・合成設定は含めません。インラインVisual Moduleを書き出す場合、レイヤー名がファイル名と取り込み後の表示名になります。
 
-取り込むには、Visual Moduleエディター上部の選択メニューで **Import Visual Module…** を選び、`.gsvm`ファイルを指定します。新しい登録済みVisual Moduleとして追加され、既存のVisual Moduleは上書きしません。素材・Playerも独立したコピーになり、取り込み全体を一回のUndo/Redoで戻したり復元したりできます。取り込んだVisual ModuleはLIVEや、タイムラインの[参照方式](./timeline/layers/visual-module.md)で利用できます。
+取り込むには、ナビゲーションメニューの **File → Import → Visual Module (.gsvm)**、またはVisual Moduleエディター上部の選択メニューの **Import Visual Module…** を選び、`.gsvm`ファイルを指定します。新しい登録済みVisual Moduleとして追加され、既存のVisual Moduleは上書きしません。素材・Playerも独立したコピーになり、取り込み全体を一回のUndo/Redoで戻したり復元したりできます。取り込んだVisual ModuleはLIVEや、タイムラインの[参照方式](./timeline/layers/visual-module.md)で利用できます。
 
 ファイル由来のPlayerは素材も一緒に復元します。カメラなどの外部入力は未指定で取り込み、再指定が必要なPlayer名を表示します。カメラを利用する場合は、Playersの該当Playerのメニューで **Webcam** を選んでください。マイク・ライブストリームを入力にするPlayerは現在未対応です。再生位置や再生中の状態は引き継ぎません。
 

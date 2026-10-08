@@ -72,6 +72,7 @@ import { TIMELINE_PREVIEW_MOTION_BLUR_SAMPLE_OPTIONS } from './AppContext.ts';
 import { preferences } from './preferences.ts';
 import { WorkspaceController, workspaceControllerKey } from './WorkspaceController.ts';
 import { desktopProjectFile } from './gsproj.ts';
+import { importVisualModuleFile } from './utility/visual-module-file.ts';
 import GsRange from './components/common/GsRange.vue';
 import GsAboutDialog from '@/components/GsAboutDialog.vue';
 import GsProjectSettingsDialog from '@/components/GsProjectSettingsDialog.vue';
@@ -301,6 +302,15 @@ function openHeaderFileMenu(ev: PointerEvent) {
 		action: () => { void appContext.saveProject(true); },
 	}, {
 		type: 'divider',
+	}, {
+		type: 'parent',
+		text: 'Import',
+		icon: 'ti ti-upload',
+		children: [{
+			text: 'Visual Module (.gsvm)',
+			icon: 'ti ti-box-multiple',
+			action: () => { void importVisualModuleFile(appContext.projectContext); },
+		}],
 	}, {
 		text: 'Save Preview Snapshot...',
 		icon: 'ti ti-photo',
