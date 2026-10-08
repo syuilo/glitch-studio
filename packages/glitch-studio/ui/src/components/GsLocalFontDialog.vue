@@ -104,7 +104,9 @@ async function importFont() {
 	gap: 6px;
 	height: min(400px, 50vh);
 	overflow: auto;
-	> * { flex-shrink: 0; }
+	> * {
+		flex-shrink: 0;
+	}
 }
 
 .fontName {

@@ -20,15 +20,15 @@
 </template>
 
 <script lang="ts" setup>
-import { appContext } from '@/app.ts';
 import { watch, useTemplateRef, ref, shallowRef, computed, onBeforeUnmount } from 'vue';
-import type { CSSProperties } from 'vue';
 import { genId } from '@gs/shared/utility/id.ts';
-import { useRendererCanvas } from '@/use-renderer-canvas.ts';
 import GsDetachableView from './GsDetachableView.vue';
 import GsPreviewTransform from './GsPreviewTransform.vue';
-import { startPreviewPointerDrag } from '@/utility/preview-pointer-drag.ts';
+import type { CSSProperties } from 'vue';
 import type { PreviewCanvasRect } from '@/utility/preview-transform.ts';
+import { startPreviewPointerDrag } from '@/utility/preview-pointer-drag.ts';
+import { useRendererCanvas } from '@/use-renderer-canvas.ts';
+import { appContext } from '@/app.ts';
 import * as api from '@/api.ts';
 import { preferences } from '@/preferences.ts';
 import * as ui from '@/ui.ts';
@@ -304,7 +304,9 @@ function showMenu(ev: PointerEvent) {
 	display: block;
 }
 
-.panning, .panning * { cursor: grabbing !important; }
+//.panning, .panning * {
+//	cursor: grabbing !important;
+//}
 
 .grid {
 	position: absolute;

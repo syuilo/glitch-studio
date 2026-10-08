@@ -162,7 +162,9 @@ watchEffect(onCleanup => {
 
 .header {
 	display: flex;
-	&.hasStatus { padding-right: 117px; }
+	&.hasStatus {
+		padding-right: 117px;
+	}
 	white-space: nowrap;
 	overflow: clip;
 	height: 32px;
@@ -225,7 +227,9 @@ watchEffect(onCleanup => {
 }
 
 @keyframes statusSpin {
-	to { transform: rotate(360deg); }
+	to {
+		transform: rotate(360deg);
+	}
 }
 
 .params {

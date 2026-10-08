@@ -78,5 +78,8 @@ onBeforeUnmount(close);
 	background: repeating-conic-gradient(#888 0% 25%, #ccc 0% 50%) 0 / 12px 12px;
 }
 
-.disabled { opacity: 0.5; cursor: default; }
+.disabled {
+	opacity: 0.5;
+	cursor: default;
+}
 </style>

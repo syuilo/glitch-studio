@@ -241,11 +241,36 @@ onBeforeUnmount(() => {
 	border-radius: 10px;
 }
 
-.title { font-size: 1.2em; font-weight: bold; }
-.row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-.note { opacity: 0.7; font-size: 0.9em; }
-.error { color: var(--THEME-error); }
-.actions { display: flex; justify-content: flex-end; gap: 12px; }
-.progress { height: 6px; background: var(--THEME-panel); border-radius: 3px; overflow: hidden; }
-.progressFill { height: 100%; background: var(--THEME-accent); transition: width 0.1s linear; }
+.title {
+	font-size: 1.2em;
+	font-weight: bold;
+}
+.row {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 16px;
+}
+.note {
+	opacity: 0.7;
+	font-size: 0.9em;
+}
+.error {
+	color: var(--THEME-error);
+}
+.actions {
+	display: flex;
+	justify-content: flex-end;
+	gap: 12px;
+}
+.progress {
+	height: 6px;
+	background: var(--THEME-panel);
+	border-radius: 3px;
+	overflow: hidden;
+}
+.progressFill {
+	height: 100%;
+	background: var(--THEME-accent);
+	transition: width 0.1s linear;
+}
 </style>

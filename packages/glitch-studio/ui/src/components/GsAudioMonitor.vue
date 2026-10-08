@@ -58,16 +58,76 @@ function onWheel(event: WheelEvent) {
 </script>
 
 <style module lang="scss">
-.root { position: relative; width: 100%; height: 100%; min-width: 0; min-height: 0; background: #111; }
-.plot { position: absolute; top: 30px; bottom: 18px; left: 8px; right: 8px; overflow: clip; }
-.canvas, .grid { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
-.grid { display: flex; flex-direction: column; }
-.lane { flex: 1; background: repeating-linear-gradient(to bottom, #ffffff18 0 1px, transparent 1px 25%); border-bottom: 1px solid #ffffff18; }
-.left, .right { position: absolute; top: 0; left: 0; font: 10px sans-serif; pointer-events: none; }
-.left { color: #ff8400; }
-.right { color: #c2fe0c; }
-.axis { position: absolute; bottom: 4px; left: 8px; right: 8px; height: 12px; color: #a1adaf; font: 10px sans-serif; pointer-events: none; }
-.axis > span { position: absolute; white-space: nowrap; }
-.error { position: absolute; inset: 30px 8px 18px; background: #111e; color: #ff8400; overflow: auto; }
-.option { display: flex; align-items: center; gap: 4px; font-size: 11px; }
+.root {
+	position: relative;
+	width: 100%;
+	height: 100%;
+	min-width: 0;
+	min-height: 0;
+	background: #111;
+}
+.plot {
+	position: absolute;
+	top: 30px;
+	bottom: 18px;
+	left: 8px;
+	right: 8px;
+	overflow: clip;
+}
+.canvas, .grid {
+	position: absolute;
+	inset: 0;
+	width: 100%;
+	height: 100%;
+	display: block;
+}
+.grid {
+	display: flex;
+	flex-direction: column;
+}
+.lane {
+	flex: 1;
+	background: repeating-linear-gradient(to bottom, #ffffff18 0 1px, transparent 1px 25%);
+	border-bottom: 1px solid #ffffff18;
+}
+.left, .right {
+	position: absolute;
+	top: 0;
+	left: 0;
+	font: 10px sans-serif;
+	pointer-events: none;
+}
+.left {
+	color: #ff8400;
+}
+.right {
+	color: #c2fe0c;
+}
+.axis {
+	position: absolute;
+	bottom: 4px;
+	left: 8px;
+	right: 8px;
+	height: 12px;
+	color: #a1adaf;
+	font: 10px sans-serif;
+	pointer-events: none;
+}
+.axis > span {
+	position: absolute;
+	white-space: nowrap;
+}
+.error {
+	position: absolute;
+	inset: 30px 8px 18px;
+	background: #111e;
+	color: #ff8400;
+	overflow: auto;
+}
+.option {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	font-size: 11px;
+}
 </style>

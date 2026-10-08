@@ -242,17 +242,80 @@ onBeforeUnmount(() => {
 </script>
 
 <style module lang="scss">
-.overlay { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
-.frame { fill: transparent; stroke: var(--THEME-accent); stroke-width: 1; pointer-events: all; touch-action: none; }
-.movable { cursor: move; }
-.line, .origin { stroke: var(--THEME-accent); stroke-width: 1; fill: none; }
-.origin { stroke-width: 2; }
-.handle { fill: #fff; stroke: #222; stroke-width: 1; pointer-events: all; touch-action: none; }
-.disabled { fill: #999; }
-.footer { position: absolute; bottom: 0; left: 0; right: 0; min-height: 32px; display: flex; align-items: center; gap: 8px; padding: 4px 8px; background: #161616ed; border-top: 1px solid #ffffff20; font-size: 11px; flex-wrap: wrap; }
-.layerName { max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.option { display: inline-flex; gap: 4px; align-items: center; padding: 4px 7px; border-radius: 4px; white-space: nowrap; }
-.option:hover { background: #ffffff20; }
-.active { color: var(--THEME-accent); background: #ffffff12; }
-.hint { opacity: 0.6; margin-left: auto; }
+.overlay {
+	position: absolute;
+	inset: 0;
+	width: 100%;
+	height: 100%;
+	overflow: visible;
+	pointer-events: none;
+}
+.frame {
+	fill: transparent;
+	stroke: var(--THEME-accent);
+	stroke-width: 1;
+	pointer-events: all;
+	touch-action: none;
+}
+.movable {
+	cursor: move;
+}
+.line, .origin {
+	stroke: var(--THEME-accent);
+	stroke-width: 1;
+	fill: none;
+}
+.origin {
+	stroke-width: 2;
+}
+.handle {
+	fill: #fff;
+	stroke: #222;
+	stroke-width: 1;
+	pointer-events: all;
+	touch-action: none;
+}
+.disabled {
+	fill: #999;
+}
+.footer {
+	position: absolute;
+	bottom: 0;
+	left: 0;
+	right: 0;
+	min-height: 32px;
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 4px 8px;
+	background: #161616ed;
+	border-top: 1px solid #ffffff20;
+	font-size: 11px;
+	flex-wrap: wrap;
+}
+.layerName {
+	max-width: 140px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.option {
+	display: inline-flex;
+	gap: 4px;
+	align-items: center;
+	padding: 4px 7px;
+	border-radius: 4px;
+	white-space: nowrap;
+}
+.option:hover {
+	background: #ffffff20;
+}
+.active {
+	color: var(--THEME-accent);
+	background: #ffffff12;
+}
+.hint {
+	opacity: 0.6;
+	margin-left: auto;
+}
 </style>

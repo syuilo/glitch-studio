@@ -199,8 +199,14 @@ function choose(key: string, effect: typeof effectDefinitions[keyof typeof effec
 	border-radius: 10px;
 }
 
-.header, .actions, .sliderRow { display: flex; align-items: center; gap: 12px; }
-.actions { gap: 6px; }
+.header, .actions, .sliderRow {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+}
+.actions {
+	gap: 6px;
+}
 
 .header {
 	padding: 16px;

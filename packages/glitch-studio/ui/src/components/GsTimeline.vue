@@ -2160,9 +2160,18 @@ onMounted(() => {
 }
 
 @keyframes blink {
-	0% { opacity: 1; transform: scale(1); }
-	30% { opacity: 1; transform: scale(1); }
-	90% { opacity: 0; transform: scale(0.5); }
+	0% {
+		opacity: 1;
+		transform: scale(1);
+	}
+	30% {
+		opacity: 1;
+		transform: scale(1);
+	}
+	90% {
+		opacity: 0;
+		transform: scale(0.5);
+	}
 }
 
 .tlRange {

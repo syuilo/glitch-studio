@@ -26,7 +26,26 @@ const { changeWindow, error } = useAudioPreview(canvas, options);
 </script>
 
 <style module lang="scss">
-.root { position: relative; flex: 1; min-height: 0; height: 100%; overflow: clip; background: #000; }
-.canvas { position: absolute; inset: 0; display: block; width: 100%; height: 100%; }
-.error { position: absolute; inset: 0; background: #111e; color: #ff8400; overflow: auto; }
+.root {
+	position: relative;
+	flex: 1;
+	min-height: 0;
+	height: 100%;
+	overflow: clip;
+	background: #000;
+}
+.canvas {
+	position: absolute;
+	inset: 0;
+	display: block;
+	width: 100%;
+	height: 100%;
+}
+.error {
+	position: absolute;
+	inset: 0;
+	background: #111e;
+	color: #ff8400;
+	overflow: auto;
+}
 </style>

@@ -4,8 +4,8 @@
 		<div>Scene resolution — {{ scene?.name }}</div>
 		<GsSelect v-model="mode" :items="modes"><template #label>Resolution</template></GsSelect>
 		<div v-if="mode === 'customAbsolute'" :class="$style.row">
-			<GsInput v-model="width" type="number" :min="1" :step="1"><template #label>Width</template><template #suffix>px</template></GsInput>
-			<GsInput v-model="height" type="number" :min="1" :step="1"><template #label>Height</template><template #suffix>px</template></GsInput>
+			<GsInput v-model="width" style="flex: 1; min-width: 0;" type="number" :min="1" :step="1"><template #label>Width</template><template #suffix>px</template></GsInput>
+			<GsInput v-model="height" style="flex: 1; min-width: 0;" type="number" :min="1" :step="1"><template #label>Height</template><template #suffix>px</template></GsInput>
 		</div>
 		<div v-else>{{ projectResolution.width }} × {{ projectResolution.height }} px</div>
 		<div>Base size. Preview and export resolution scales also apply to custom sizes.</div>
@@ -19,7 +19,6 @@
 </template>
 
 <script lang="ts" setup>
-import { appContext } from '@/app.ts';
 import { computed, ref, useTemplateRef } from 'vue';
 import { getSceneBaseResolution, validateSceneResolution } from '@gs/subsystems_timeline_shared/scene-resolution.ts';
 import GsModal from './common/GsModal.vue';
@@ -27,6 +26,7 @@ import GsSelect from './common/GsSelect.vue';
 import GsInput from './common/GsInput.vue';
 import GsButton from './common/GsButton.vue';
 import type { TimelineSceneResolution } from '@gs/subsystems_timeline_shared/scene-resolution.ts';
+import { appContext } from '@/app.ts';
 
 const { stateManager } = appContext.projectContext;
 
@@ -73,7 +73,6 @@ function apply() {
 .row {
 	display: flex;
 	gap: 12px;
-	> * { flex: 1; min-width: 0; }
 }
 .actions {
 	display: flex;

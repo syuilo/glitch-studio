@@ -48,9 +48,15 @@ const emit = defineEmits<{
 	border-radius: 8px 0 0 0;
 	corner-shape: bevel;
 }
-.selected { box-shadow: inset 0 0 0 2px var(--THEME-fg); }
-.active { background: var(--LAYER_COLOR); }
-.moving { cursor: grabbing; }
+.selected {
+	box-shadow: inset 0 0 0 2px var(--THEME-fg);
+}
+.active {
+	background: var(--LAYER_COLOR);
+}
+.moving {
+	cursor: grabbing;
+}
 .sourceGhost {
 	position: absolute;
 	height: var(--mainLaneHeight);
@@ -66,8 +72,14 @@ const emit = defineEmits<{
 	width: min(8px, 25%);
 	cursor: ew-resize;
 	touch-action: none;
-	&:hover { background: #fff8; }
+	&:hover {
+		background: #fff8;
+	}
 }
-.trimStart { left: 0; }
-.trimEnd { right: 0; }
+.trimStart {
+	left: 0;
+}
+.trimEnd {
+	right: 0;
+}
 </style>

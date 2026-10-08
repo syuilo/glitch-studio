@@ -55,14 +55,22 @@ function normalizedLevel(level: number): number {
 .horizontal {
 	flex-direction: column;
 
-	.track { background: linear-gradient(to right, #28c65c 0%, #87d444 55%, #efd43b 75%, #ef8636 88%, #ed4141 100%); }
-	.cover { transform-origin: right; }
+	.track {
+		background: linear-gradient(to right, #28c65c 0%, #87d444 55%, #efd43b 75%, #ef8636 88%, #ed4141 100%);
+	}
+	.cover {
+		transform-origin: right;
+	}
 }
 
 .vertical {
 	flex-direction: row;
 
-	.track { background: linear-gradient(to top, #28c65c 0%, #87d444 55%, #efd43b 75%, #ef8636 88%, #ed4141 100%); }
-	.cover { transform-origin: top; }
+	.track {
+		background: linear-gradient(to top, #28c65c 0%, #87d444 55%, #efd43b 75%, #ef8636 88%, #ed4141 100%);
+	}
+	.cover {
+		transform-origin: top;
+	}
 }
 </style>
