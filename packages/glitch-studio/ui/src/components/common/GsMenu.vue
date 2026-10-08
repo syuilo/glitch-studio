@@ -604,7 +604,8 @@ function guardMouseMove(ev: MouseEvent) {
 	display: flex;
 	align-items: center;
 	position: relative;
-	padding: 4px 16px;
+	//padding: 4px 16px;
+	padding: 4px 12px;
 	width: 100%;
 	box-sizing: border-box;
 	white-space: nowrap;
@@ -625,9 +626,10 @@ function guardMouseMove(ev: MouseEvent) {
 		left: 0;
 		right: 0;
 		margin: auto;
-		width: calc(100% - 16px);
+		//width: calc(100% - 16px);
+		width: 100%;
 		height: 100%;
-		border-radius: 4px;
+		//border-radius: 4px;
 	}
 
 	&:focus-visible {
