@@ -2,7 +2,7 @@
 
 ## Project Context
 
-- Glitch Studioは、ノードベースのエディタやタイムラインを通じてリアルタイムな画像・動画・音声の加工・編集・作成を行ったり、シェーダーのplaygroundとして使えるWebアプリケーションです。
+- Glitch Studioは、ノードベースのエディタやタイムラインを通じてリアルタイムな画像・動画・音声の加工・編集・作成を行えるWebベースのソフトウェアです。
 - WebWorkers上で動くWebGPUを用いたレンダラーを、Command patternを使用して状態管理を行うVue製WebUIから操作する構成です。
 - レンダラーにはノード情報やタイムライン情報が与えられます。各ノードは、それがどのような処理(エフェクト)を行うかという情報や、エフェクトに対するパラメータ情報(他のノードへの接続情報も含む)などを持ちます。
 - ユーザーは、各パラメータをUI上のスライダーなどを通じて設定できるほか、パラメータに式を記述することもできます。そのような式を評価したりする作業もレンダラーの役目です。
@@ -18,7 +18,7 @@
 - まだ開発初期段階のため、未実装の機能や動かない機能があります。
 - 最新のChromeを動作対象としています。サポートが限られる最新の構文やAPIを使うことを厭いません。
 - デスクトップPCで動かすことを想定しています。ただしスマホやタブレット対応を諦めているわけではなく、ポインターをマウスと決めつけずタッチであることも考慮するなど、それらの環境への配慮も可能であれば行います。ただし優先順位は低いです。
-- Electronで動作させることもできます。Electronの場合、OSのAPIを使用したより高度な機能を提供予定です。
+- Electronで動作させることもできます。Electronの場合、OSのAPIを使用したより高度な機能が使用できます。
 - 今後も様々な機能を実装予定です。
 - Tech Stack: TypeScript, Vite, Vue 3, WebGPU, WGSL, WebAudio, WebWorker, CSS Modules
 - Keywords: moduler, routing, signals, wiring, nodes, graph, chain, pipeline, compositor, playground, visualization, interactive performance
