@@ -383,6 +383,7 @@ onMounted(async () => {
 		if (startupProject && await openProject(undefined, desktopProjectFile(startupProject))) return;
 	} catch (error) {
 		await ui.alert({ type: 'error', text: error instanceof Error ? error.message : String(error) });
+		console.error(error);
 	}
 	// 通常起動時と読込失敗時には、別のプロジェクトを選べるようにする。
 	const { dispose } = ui.popup(GsDashboardDialog, {}, {

@@ -161,6 +161,24 @@ async function fixture(t, staticOptions = {}, Manager = VisualModuleRendererMana
 	} };
 }
 
+// 【取り込んだVisual ModuleをLIVEで使い、登録削除で実行インスタンスを解放する】
+// UIの登録一覧だけを変更してもWorkerが定義を持っていなければ描画できない。
+// Undoに相当する削除の後に古い描画ループやGPUインスタンスが残らないことを確認する。
+test('renders a newly registered Visual Module and stops LIVE when it is removed', async t => {
+	const { renderer, errors, frames, frame } = await fixture(t);
+	const imported = { ...constantVisualModule(), id: 'imported', name: 'Imported Visual Module' };
+	renderer.applyProjectChanges([{ type: 'visualModuleRegistration', visualModuleId: imported.id, visualModule: imported }]);
+	renderer.startLiveRenderLoopFor(imported.id);
+	frame(16);
+	assert.deepEqual(errors, []);
+	assert.equal(frames.size, 1);
+	renderer.applyProjectChanges([{ type: 'visualModuleRegistration', visualModuleId: imported.id, visualModule: null }]);
+	assert.equal(renderer.liveVisualModuleId, null);
+	assert.equal(renderer.liveVisualModuleRenderer, null);
+	assert.equal(frames.size, 0);
+	assert.ok(!renderer.dynamicOptions.visualModules.some(visualModule => visualModule.id === imported.id));
+});
+
 // LIVEの循環参照を修正すると、再初期化せず次のフレームで復旧する。
 // エラー文字列をthrowするだけのスタブでは、実際のノード評価が修正後のグラフを読む保証にならない。
 // 循環した二つのノードの配線を外し、例外がRAFから漏れずループも失われないことを確認する。

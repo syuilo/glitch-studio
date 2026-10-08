@@ -216,6 +216,20 @@ Visual Moduleエディターの上部で対象を選び、**LIVE** を押すと�
 登録済みのVisual Moduleは上部のメニューから選択できますが、同メニューの **New** による新規作成は未実装です。新しいノード構成を作るには、タイムラインに[インラインVisual Moduleレイヤー](./timeline/layers/inline-visual-module.md)を追加できます。
 :::
 
+## エクスポート・インポート
+
+Visual Moduleエディターの **Other → Export Visual Module…** から、編集中の構成を`.gsvm`ファイルとして保存できます。登録済みVisual Moduleと、タイムラインのインラインVisual Moduleのどちらからも書き出せます。
+
+ノード構成・配線・公開パラメータとその既定値・入出力・Automation Graph・内部のキーや式を保存します。参照している画像・動画・フォントなどのAsset原本と、Playerの定義も同梱するため、元の素材ファイルを別途コピーする必要はありません。無関係なAssetやPlayerは含めません。
+
+LIVEのPreview Params、配置先レイヤーのパラメータ値・クリップ・合成設定は含めません。インラインVisual Moduleを書き出す場合、レイヤー名がファイル名と取り込み後の表示名になります。
+
+取り込むには、Visual Moduleエディター上部の選択メニューで **Import Visual Module…** を選び、`.gsvm`ファイルを指定します。新しい登録済みVisual Moduleとして追加され、既存のVisual Moduleは上書きしません。素材・Playerも独立したコピーになり、取り込み全体を一回のUndo/Redoで戻したり復元したりできます。取り込んだVisual ModuleはLIVEや、タイムラインの[参照方式](./timeline/layers/visual-module.md)で利用できます。
+
+ファイル由来のPlayerは素材も一緒に復元します。カメラなどの外部入力は未指定で取り込み、再指定が必要なPlayer名を表示します。カメラを利用する場合は、Playersの該当Playerのメニューで **Webcam** を選んでください。マイク・ライブストリームを入力にするPlayerは現在未対応です。再生位置や再生中の状態は引き継ぎません。
+
+AssetやPlayerのIDを式・環境変数などから動的に返す構成は、同梱する素材を特定できないためエクスポートできません。素材を直接選択するか、公開パラメータ経由で指定してください。数値などを計算する式は保存できます。対応していない形式や、より新しいバージョンのGlitch Studioで作成されたファイルは読み込めません。
+
 ## タイムラインで使う
 
 タイムラインへの配置には、次の2種類があります。

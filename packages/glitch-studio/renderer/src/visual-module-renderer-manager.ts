@@ -288,14 +288,16 @@ export class VisualModuleRendererManager extends EventEmitter<{
 	}
 
 	public applyProjectChanges(changes: readonly RendererProjectChange[]) {
-		const relevant = changes.filter(change => (change.type === 'node' || change.type === 'visualModule') && 'visualModuleId' in change.target);
+		const relevant = changes.filter(change => change.type === 'visualModuleRegistration'
+			|| (change.type === 'node' || change.type === 'visualModule') && 'visualModuleId' in change.target);
 		const next = applyRendererProjectChanges({ visualModules: this.dynamicOptions.visualModules, timelineScenes: [] }, relevant);
 		this.dynamicOptions.visualModules = next.visualModules;
-		const liveChanges = relevant.filter(change => (change.type === 'node' || change.type === 'visualModule')
-			&& 'visualModuleId' in change.target && change.target.visualModuleId === this.liveVisualModuleId);
+		const liveChanges = relevant.filter(change => change.type === 'visualModuleRegistration' ? change.visualModuleId === this.liveVisualModuleId
+			: (change.type === 'node' || change.type === 'visualModule') && 'visualModuleId' in change.target && change.target.visualModuleId === this.liveVisualModuleId);
 		if (liveChanges.length > 0 && this.liveVisualModuleRenderer != null) {
-			const module = next.visualModules.find(module => module.id === this.liveVisualModuleId)!;
-			this.liveVisualModuleRenderer.updateVisualModule(module, liveChanges.every(change => change.type === 'node' && canPreserveNodeOutputCache(change.changes)));
+			const visualModule = next.visualModules.find(visualModule => visualModule.id === this.liveVisualModuleId);
+			if (visualModule == null) this.stopRenderLoop();
+			else this.liveVisualModuleRenderer.updateVisualModule(visualModule, liveChanges.every(change => change.type === 'node' && canPreserveNodeOutputCache(change.changes)));
 		}
 	}
 

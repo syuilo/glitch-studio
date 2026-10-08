@@ -20,7 +20,9 @@ export class ProjectStateVersions {
 	apply(changes: readonly RendererProjectChange[]) {
 		const revision = ++this.revision;
 		for (const change of changes) {
-			if (change.type === 'node' || change.type === 'visualModule') {
+			if (change.type === 'visualModuleRegistration') {
+				this.modules.set(visualModuleTargetKey({ visualModuleId: change.visualModuleId }), { revision, cacheResetRevision: revision });
+			} else if (change.type === 'node' || change.type === 'visualModule') {
 				const previous = this.module(change.target);
 				this.modules.set(visualModuleTargetKey(change.target), { revision,
 					cacheResetRevision: change.type === 'node' && canPreserveNodeOutputCache(change.changes) ? previous.cacheResetRevision : revision });

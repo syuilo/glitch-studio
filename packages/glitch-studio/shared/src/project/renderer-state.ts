@@ -11,6 +11,7 @@ export type RendererProjectState = {
 export type RendererProjectChange =
 	| { type: 'node'; target: VisualModuleTarget; node: VisualModuleNode; changes: VisualModuleNodeChange[] }
 	| { type: 'visualModule'; target: VisualModuleTarget; visualModule: VisualModule }
+	| { type: 'visualModuleRegistration'; visualModuleId: string; visualModule: ProjectVisualModule | null }
 	| { type: 'layer'; sceneId: string; layerId: string; layer: TimelineLayer | null; changes: TimelineLayerChange[] }
 	| { type: 'layerOrder'; sceneId: string; layerIds: string[] }
 	| { type: 'scene'; sceneId: string; scene: TimelineScene | null };
@@ -37,6 +38,15 @@ export function applyRendererProjectChanges(state: RendererProjectState, changes
 	};
 	for (const change of changes) {
 		switch (change.type) {
+			case 'visualModuleRegistration': {
+				if (change.visualModule == null) visualModules = visualModules.filter(visualModule => visualModule.id !== change.visualModuleId);
+				else {
+					if (change.visualModule.id !== change.visualModuleId) throw new Error('Visual Module ID does not match');
+					const index = visualModules.findIndex(visualModule => visualModule.id === change.visualModuleId);
+					visualModules = index < 0 ? [...visualModules, change.visualModule] : visualModules.with(index, change.visualModule);
+				}
+				break;
+			}
 			case 'node':
 			case 'visualModule': {
 				const update = (module: VisualModule): VisualModule => {

@@ -159,6 +159,7 @@ export class ProjectSaveController {
 					if (target) await this.projectBackupController.afterSave(target, saveBackupTime);
 				}
 			} catch (error) {
+				console.error(error);
 				await ui.alert({ type: 'error', text: error instanceof Error ? error.message : String(error) });
 			}
 		});

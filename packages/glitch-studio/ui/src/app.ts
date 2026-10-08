@@ -59,6 +59,7 @@ export async function openProject(file?: File, fileHandle?: ProjectFileHandle): 
 		return true;
 	} catch (error) {
 		await ui.alert({ type: 'error', text: error instanceof Error ? error.message : String(error) });
+		console.error(error);
 		return false;
 	}
 }

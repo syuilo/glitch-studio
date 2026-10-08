@@ -43,6 +43,7 @@ import type { ParameterChangeKind, ParameterDefinition } from '@gs/shared/parame
 import type { AppStateChange, ProjectState, ProjectAsset } from './Project.ts';
 import type { CommandDef as UndoRedoCommandDef } from './utility/undo-redo.ts';
 import type { Resolution } from '@gs/shared/resolution.ts';
+import type { VisualModuleImport } from './gsvm.ts';
 import type { Player } from '@gs/shared/types.ts';
 import type { AutomationGraphPlaybackOptions } from '@gs/shared/automation-graph/automation-graph.ts';
 import type { TimelineEffectParameterBinding, TimelineLayerInputBinding } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
@@ -265,6 +266,36 @@ const editTimelineLayerParamCommandDef = defineCommand<{
 			},
 		};
 	},
+});
+
+const importVisualModuleCommandDef = defineCommand<VisualModuleImport>({
+	label: 'Import Visual Module',
+	changes: (_state, payload) => [{ type: 'visualModuleRegistration', visualModuleId: payload.visualModule.id },
+		...payload.assets.map(asset => ({ type: 'asset' as const, assetId: asset.id })),
+		...payload.players.map(player => ({ type: 'player' as const, playerId: player.id }))],
+	create: payload => ({
+		execute(state) {
+			// 追加前に全て確認し、失敗した取り込みで一部の素材だけを残さない。
+			if (state.visualModules.value.some(visualModule => visualModule.id === payload.visualModule.id)) throw new Error('Visual Module ID already exists');
+			for (const [existing, added] of [[state.assets.value, payload.assets], [state.players.value, payload.players]]) {
+				const ids = new Set(existing.map(resource => resource.id));
+				for (const resource of added) {
+					if (ids.has(resource.id)) throw new Error('Resource ID already exists');
+					ids.add(resource.id);
+				}
+			}
+			state.assets.value.push(...deepClone(payload.assets));
+			state.players.value.push(...deepClone(payload.players));
+			state.visualModules.value.push(deepClone(payload.visualModule));
+		},
+		undo(state) {
+			state.visualModules.value = state.visualModules.value.filter(visualModule => visualModule.id !== payload.visualModule.id);
+			const assetIds = new Set(payload.assets.map(asset => asset.id));
+			const playerIds = new Set(payload.players.map(player => player.id));
+			state.assets.value = state.assets.value.filter(asset => !assetIds.has(asset.id));
+			state.players.value = state.players.value.filter(player => !playerIds.has(player.id));
+		},
+	}),
 });
 
 const addEffectNodeCommandDef = defineCommand<VisualModuleTarget & { id: string; effectId: string; params?: Record<string, VisualModuleParameterBinding> }>({
@@ -1693,6 +1724,7 @@ const removeTimelineKeyframesCommandDef = defineCommand<{ sceneId: string; keyfr
 });
 
 export const COMMAND_DEFS = {
+	importVisualModule: importVisualModuleCommandDef,
 	removeTimelineKeyframes: removeTimelineKeyframesCommandDef,
 	editVoicevoxLayer: editVoicevoxLayerCommandDef,
 	changeProjectResolution: changeProjectResolutionCommandDef,

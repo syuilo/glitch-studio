@@ -1,18 +1,18 @@
 import { scaleResolution } from '@gs/shared/resolution.ts';
-import type { ProjectVisualModule } from '@gs/glitch-studio_shared/project/types.ts';
 import { ref, shallowReactive } from 'vue';
 import { deepEqual } from '@gs/shared/utility/deep-equal.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { applyRendererProjectChanges } from '@gs/glitch-studio_shared/project/renderer-state.ts';
-import type { RendererProjectChange, RendererProjectState } from '@gs/glitch-studio_shared/project/renderer-state.ts';
 import { genId } from '@gs/shared/utility/id.ts';
 import { createVisualModuleRendererManagerWorker } from '@gs/glitch-studio_renderer/client.ts';
 import { isVideoFrameAvailable, playVideoAfterFirstFrameIsReady } from './utility/video.ts';
 import { LiveEffectStateStore } from './utility/live-effect-status.ts';
 import { AudioInputs } from './audio/audio-inputs.ts';
-import type { AudioOutput } from './audio/audio-output.ts';
 import { setupWebcam } from './utility/webcam.ts';
 import { RendererManagerControllerBase } from './RendererManagerControllerBase.ts';
+import type { AudioOutput } from './audio/audio-output.ts';
+import type { RendererProjectChange, RendererProjectState } from '@gs/glitch-studio_shared/project/renderer-state.ts';
+import type { ProjectVisualModule } from '@gs/glitch-studio_shared/project/types.ts';
 import type { Player } from '@gs/shared/types.ts';
 import type { VisualModuleArgumentBindings } from '@gs/subsystems_visual-module_shared/types.ts';
 import type { EffectInstanceState } from '@gs/subsystems_effect_shared/effect-status.ts';
@@ -292,7 +292,8 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 						video.removeEventListener('error', finish);
 						video.removeEventListener('emptied', finish);
 						if (video.error && this.videoElements.get(player.id) === video) {
-							void ui.alert({ type: 'error', text: video.error.message });
+							ui.alert({ type: 'error', text: video.error.message });
+							console.error(video.error);
 						}
 						resolve();
 					};
@@ -391,10 +392,12 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 	}
 
 	public async applyProjectChanges(changes: readonly RendererProjectChange[]) {
-		const patch = deepClone(changes.filter(change => (change.type === 'node' || change.type === 'visualModule') && 'visualModuleId' in change.target));
+		const patch = deepClone(changes.filter(change => change.type === 'visualModuleRegistration'
+			|| (change.type === 'node' || change.type === 'visualModule') && 'visualModuleId' in change.target));
 		if (patch.length === 0) return;
 		const next = applyRendererProjectChanges({ visualModules: this.dynamicOptions.visualModules ?? [], timelineScenes: [] }, patch);
 		this.dynamicOptions = { ...this.dynamicOptions, visualModules: next.visualModules };
+		if (this.liveVisualModuleId.value != null && !next.visualModules.some(visualModule => visualModule.id === this.liveVisualModuleId.value)) this.stopRenderLoop();
 		if (!this.isReady.value && !this.isInitializing) return;
 		if (!this.initialSnapshotTaken) return this.initializationReady;
 		await this.callAndWaitReturn('applyProjectChanges', [patch]);

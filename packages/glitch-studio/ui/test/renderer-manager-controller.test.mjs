@@ -230,6 +230,40 @@ for (const kind of ['VisualModule', 'Timeline']) test(`${kind} uses a snapshot b
 	assert.equal(restarted.calls('applyProjectChanges').length, 0);
 });
 
+// 【Visual Moduleの追加と削除を両ControllerからWorkerへ送り、再起動でも削除を維持する】
+// 既存定義の編集だけを送信するフィルタでは、取り込んだVisual ModuleをLIVEやTimelineから使えない。
+// 初期スナップショット・差分・再起動のどの境界でも、登録一覧が同じ最終状態になる必要がある。
+for (const kind of ['VisualModule', 'Timeline']) test(`${kind} synchronizes Visual Module registration and removal`, async t => {
+	const { controller, workers } = fixture(t, kind);
+	await controller.replaceProjectState({ visualModules: [], timelineScenes: [] });
+	const worker = await initialize(controller, workers);
+	const visualModule = { id: 'imported', name: 'Imported Visual Module', nodes: [], paramDefs: [], outputDefs: [],
+		primaryInputId: null, primaryOutputId: null, automationGraphs: [] };
+	const registration = { type: 'visualModuleRegistration', visualModuleId: visualModule.id, visualModule };
+	const adding = controller.applyProjectChanges([registration]);
+	const added = worker.calls('applyProjectChanges').at(-1);
+	assert.deepEqual(added.args[0], [registration]);
+	worker.returnValue(added);
+	await adding;
+	assert.equal(controller.dynamicOptions.visualModules[0].id, 'imported');
+	if (kind === 'VisualModule') controller.startLiveRenderLoopFor('imported');
+	const removal = { ...registration, visualModule: null };
+	const removing = controller.applyProjectChanges([removal]);
+	const removed = worker.calls('applyProjectChanges').at(-1);
+	assert.deepEqual(removed.args[0], [removal]);
+	worker.returnValue(removed);
+	await removing;
+	assert.equal(controller.dynamicOptions.visualModules.length, 0);
+	if (kind === 'VisualModule') assert.equal(controller.liveVisualModuleId.value, null);
+	const restarted = new FakeWorker();
+	controller.createWorker = () => restarted;
+	const reloading = controller.reload();
+	const initial = await restarted.initialization.promise;
+	assert.deepEqual(initial.dynamicOptions.visualModules, []);
+	restarted.reply({ type: 'inited' });
+	await reloading;
+});
+
 // 【全量復旧の再開要求は応答待ちより前に送り、後続編集やモード切替で巻き戻さない】
 // 置換の応答中に編集が続いてもLIVEを停止したままにせず、停止後に遅れた再開もしない。
 test('orders live recovery before later edits and does not restart after a mode switch', async t => {

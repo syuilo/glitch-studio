@@ -231,7 +231,7 @@
 						@edit="event => onTimelineLayerParamEdit(event, 'effect')"
 						@resolution="resolution => stateManager.commit('changeEffectLayerResolution', { sceneId, layerId: selectedLayer!.id, resolution })"
 					/>
-					<GsTimelineVoicevoxSettings v-if="selectedLayer.layerType === 'voicevox'" :key="selectedLayer.id" :sceneId="sceneId" :layer="selectedLayer" @selected="keyframeId => onKeyframeSelected({ layerId: selectedLayer!.id, target: 'utterance', paramPath: ['utterances'], keyframeId })" />
+					<GsTimelineVoicevoxSettings v-if="selectedLayer.layerType === 'voicevox'" :key="selectedLayer.id" :sceneId="sceneId" :layer="selectedLayer" @selected="keyframeId => onKeyframeSelected({ layerId: selectedLayer!.id, target: 'utterance', paramPath: ['utterances'], keyframeId })"/>
 					<GsTimelineVoicevoxSubtitleSettings
 						v-if="selectedLayer.layerType === 'voicevox'"
 						:key="selectedLayer.id"
@@ -259,8 +259,10 @@
 								:class="$style.inlineModuleEditor"
 								:visualModule="selectedLayer.visualModule"
 								:effectStates="inlineEffectStates"
+								:exporting="exportingVisualModule"
 								@edit="onInlineVisualModuleEdit"
 								@requestAddEffectNode="showAddInlineEffectNodeMenu"
+								@requestExport="exportInlineVisualModule"
 							/>
 						</div>
 					</GsFolder>
@@ -375,6 +377,7 @@ import GsVisualParam from './GsVisualParam.vue';
 import GsVisualModuleEditor from './GsVisualModuleEditor.vue';
 import GsEffectPicker from './GsEffectPicker.vue';
 import GsFolder from './common/GsFolder.vue';
+import GsTimelineVoicevoxSettings from './GsTimeline.VoicevoxSettings.vue';
 import type { TimelineMarqueeAnchor, TimelineLayerSelectionLayout } from '@/utility/timeline-marquee.ts';
 import type { TimelineParameterTarget } from '@/utility/timeline-scene.ts';
 import type { ParamPath } from '@gs/shared/parameter/parameter-path.ts';
@@ -403,7 +406,6 @@ import { selectionRect, mergeTimelineRangeSelection, clipSelectionKey, keyframeS
 import { canEditKeyframesTimeline, updateInlineKeyframe } from '@/utility/keyframes-timeline.ts';
 import { createEffectTimelineLayer } from '@/utility/effect-timeline-layer.ts';
 import { createShapeTimelineLayer } from '@/utility/shape-timeline-layer.ts';
-import GsTimelineVoicevoxSettings from './GsTimeline.VoicevoxSettings.vue';
 import { createVoicevoxTimelineLayer } from '@/utility/voicevox-timeline-layer.ts';
 import { createTextTimelineLayer } from '@/utility/text-timeline-layer.ts';
 import { appContext } from '@/app.ts';
@@ -414,6 +416,7 @@ import { copyTimelineKeyframes, prepareTimelineKeyframePaste, getPastedTimelineK
 import * as ui from '@/ui.ts';
 import { createInlineVisualModuleLayer } from '@/utility/inline-visual-module-layer.ts';
 import { commitVisualModuleEdit } from '@/utility/visual-module-edit.ts';
+import { exportVisualModuleFile } from '@/utility/visual-module-file.ts';
 import { dragListen } from '@/utility/drag.ts';
 
 const { activeSceneId, previewPlayback, timelineAudioPreview, timelineRendererManagerController } = appContext;
@@ -1280,7 +1283,8 @@ async function onTlKeydown(ev: KeyboardEvent) {
 			if (disposed || sceneLayers.value !== scene) return;
 			stateManager.commit('pasteTimelineLayer', { sceneId: props.sceneId, layer, sourceLayerId, sourceDurationsMs });
 		} catch (error) {
-			void ui.alert({ type: 'error', text: error instanceof Error ? error.message : String(error) });
+			console.error(error);
+			ui.alert({ type: 'error', text: error instanceof Error ? error.message : String(error) });
 			return;
 		}
 		selectLayer(layer);
@@ -1310,7 +1314,8 @@ async function pasteClips(clipboard: TimelineClipClipboard) {
 		selection.value = { kind: 'clips', clips: clips.map(({ layerId, clip }) => ({ layerId, clipId: clip.id })) };
 		tlEl.value?.focus({ preventScroll: true });
 	} catch (error) {
-		void ui.alert({ type: 'error', text: error instanceof Error ? error.message : String(error) });
+		console.error(error);
+		ui.alert({ type: 'error', text: error instanceof Error ? error.message : String(error) });
 	}
 }
 
@@ -1321,6 +1326,19 @@ function selectLayer(layer: TimelineLayer, event?: MouseEvent) {
 	} else selection.value = { kind: 'layers', ids: [layer.id] };
 	revealDetails();
 	tlEl.value?.focus({ preventScroll: true });
+}
+
+const exportingVisualModule = ref(false);
+
+async function exportInlineVisualModule() {
+	const layer = selectedLayer.value;
+	if (layer?.layerType !== 'inlineVisualModule' || exportingVisualModule.value) return;
+	exportingVisualModule.value = true;
+	try {
+		await exportVisualModuleFile(appContext.projectContext, layer.visualModule, layer.name);
+	} finally {
+		exportingVisualModule.value = false;
+	}
 }
 
 function onInlineVisualModuleEdit(event: VisualModuleEdit) {
@@ -1725,7 +1743,7 @@ function showAddLayerMenu(ev: PointerEvent) {
 		icon: 'ti ti-microphone',
 		action: () => {
 			if (!window.desktop) {
-				void ui.alert({ type: 'error', text: 'VOICEVOXレイヤーの追加はWeb版では対応していません。Electron版を使用する必要があります。' });
+				ui.alert({ type: 'error', text: 'VOICEVOXレイヤーの追加はWeb版では対応していません。Electron版を使用する必要があります。' });
 				return;
 			}
 			const layer = createVoicevoxTimelineLayer(Math.max(0, time.value));

@@ -120,7 +120,7 @@ function setDimension(axis: 'width' | 'height', value: number | null) {
 
 function showEffectError() {
 	if (effectStatus.value?.type !== 'error') return;
-	void ui.alert({ type: 'error', title: name.value, text: effectStatus.value.message });
+	ui.alert({ type: 'error', title: name.value, text: effectStatus.value.message });
 }
 
 function remove() {

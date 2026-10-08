@@ -1,10 +1,7 @@
-import { VoicevoxGeneration } from './audio/voicevox-generation.ts';
 import { getVoicevoxRequests } from '@gs/subsystems_timeline_shared/voicevox-requests.ts';
 import { getVoicevoxRequestKey, createSpeechResolver } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox.ts';
 import { openAudioFile } from '@gs/subsystems_audio_renderer/audio-file.ts';
 import { genId } from '@gs/shared/utility/id.ts';
-import type { VoicevoxSpeaker } from '@gs/glitch-studio_shared/voicevox.ts';
-import type { GeneratedSpeech } from '@gs/glitch-studio_shared/voicevox.ts';
 
 import { computed, ref, shallowRef, markRaw, watch } from 'vue';
 import { deepClone } from '@gs/shared/utility/deep-clone.js';
@@ -14,6 +11,7 @@ import { effectDefinitions } from '@gs/subsystems_effect_shared/effect-definitio
 import { validateTimelineEffectLayer } from '@gs/subsystems_timeline_shared/layers/effect/effect-layer.js';
 import { validateTimelineFps, validateTimelineMotionBlur } from '@gs/subsystems_timeline_shared/motion-blur.js';
 import { getSceneAudioClips } from '@gs/subsystems_timeline_shared/scene-audio.js';
+import { VoicevoxGeneration } from './audio/voicevox-generation.ts';
 import { AudioOutput } from './audio/audio-output.ts';
 import { VisualModuleRendererManagerController } from './VisualModuleRendererManagerController.ts';
 import { preferences } from './preferences.ts';
@@ -23,6 +21,8 @@ import { PreviewPlaybackController } from './PreviewPlaybackController.ts';
 import { RendererProjectSynchronizer } from './RendererProjectSynchronizer.ts';
 import { ProjectSaveController } from './ProjectSaveController.ts';
 import { timelineClipboard, getTimelineEditorState, getSelectedTimelineLayerId } from './utility/timeline-editor-state.ts';
+import type { GeneratedSpeech } from '@gs/glitch-studio_shared/voicevox.ts';
+import type { VoicevoxSpeaker } from '@gs/glitch-studio_shared/voicevox.ts';
 import type { Project, ProjectFileHandle } from './gsproj.ts';
 import type { WatchStopHandle } from 'vue';
 import type { IntermediateTextureFormat } from '@gs/shared/types.js';
@@ -126,7 +126,7 @@ export class AppContext {
 				const audio = await openAudioFile(fileData);
 				try {
 					return { key: getVoicevoxRequestKey(request), sourceId: genId(), durationMs: audio.durationSeconds * 1000,
-						fileData, engineVersion: result.engineVersion, audioQuery: result.audioQuery };
+														fileData, engineVersion: result.engineVersion, audioQuery: result.audioQuery };
 				} finally { audio.dispose(); }
 			},
 		}));
@@ -142,7 +142,8 @@ export class AppContext {
 		}, { flush: 'sync' });
 		watch(this.previewSpeech, speech => {
 			void this.timelineRendererManagerController.updateDynamicOptions({ generatedSpeech: deepClone(speech) }).then(() => this.previewPlayback.refresh()).catch(error => {
-				void ui.alert({ type: 'error', text: String(error) });
+				ui.alert({ type: 'error', text: String(error) });
+				console.error(error);
 			});
 		}, { flush: 'sync' });
 
@@ -300,7 +301,8 @@ export class AppContext {
 					timelineMotionBlur: { ...this.projectContext.stateManager.state.timelineMotionBlur.value, samples: this.timelinePreviewMotionBlurSamples.value },
 				});
 			} catch (error) {
-				void ui.alert({ type: 'error', text: error instanceof Error ? error.message : String(error) });
+				ui.alert({ type: 'error', text: error instanceof Error ? error.message : String(error) });
+				console.error(error);
 			}
 		}));
 
@@ -327,13 +329,21 @@ export class AppContext {
 				// 非同期の画像準備後にも、停止中のタイムラインを描き直す。
 				this.previewPlayback.refresh();
 			} catch (error) {
-				void ui.alert({ type: 'error', text: error instanceof Error ? error.message : String(error) });
+				ui.alert({ type: 'error', text: error instanceof Error ? error.message : String(error) });
+				console.error(error);
 			}
 		}, { deep: true }));
 
 		this.projectWatchers.push(watch(this.projectContext.stateManager.state.players, () => {
 			this.visualModuleRendererManagerController.updatePlayers(deepClone(this.projectContext.stateManager.state.players.value));
 		}, { deep: true }));
+
+		// UndoでLIVE対象が取り除かれたら、復旧や再初期化で存在しないVisual Moduleを再生しない。
+		this.projectWatchers.push(this.projectContext.stateManager.onChange(changes => {
+			const liveVisualModuleId = this.previewPlayback.liveVisualModuleId.value;
+			if (liveVisualModuleId != null && changes.some(change => change.type === 'visualModuleRegistration' && change.visualModuleId === liveVisualModuleId)
+				&& this.projectContext.getVisualModuleById(liveVisualModuleId) == null) this.previewPlayback.showTimeline();
+		}));
 
 		const rendererSync = new RendererProjectSynchronizer(this.projectContext.stateManager, {
 			apply: async changes => {
@@ -344,7 +354,10 @@ export class AppContext {
 			},
 			replace: state => this.replacePreviewProject(state),
 			onUpdated: () => this.previewPlayback.refresh(),
-			onError: error => { void ui.alert({ type: 'error', text: error instanceof Error ? error.message : String(error) }); },
+			onError: error => {
+				ui.alert({ type: 'error', text: error instanceof Error ? error.message : String(error) });
+				console.error(error);
+			},
 		});
 		this.projectWatchers.push(() => rendererSync.dispose());
 

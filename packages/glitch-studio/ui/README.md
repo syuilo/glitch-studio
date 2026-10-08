@@ -2,6 +2,14 @@
 
 プロジェクトの操作はCommandを通し、Undo/Redoとレンダラー同期を同じ変更通知から行う。
 
+## Visual Moduleのエクスポート・インポート
+
+`gsvm.ts`は`.gsvm`（MessagePack）の依存収集・バイナリ変換・取り込み準備を担当する。ノードの値と公開パラメータの既定値・設定ツリーから静的な素材／Player参照を収集し、取り込み用のプロジェクト内IDを生成する。元PCのパスや利用側のレイヤー／LIVEの状態は保存しない。
+
+`utility/visual-module-file.ts`が選択・ダウンロード・エラー表示を担当する。共通のVisual ModuleエディターはOtherタブから`requestExport`を通知し、登録済み／インラインそれぞれの親が対象名とプロジェクトを渡す。Importは登録済みVisual Moduleの選択メニューから行い、`importVisualModule` Commandで依存リソースごと一括追加する。ファイル選択・読み出しの間に`ProjectContext.load()`の世代が変わった操作は破棄する。
+
+`visualModuleRegistration`の通知は追加・削除後の最終値を両レンダラーへ送る。同じターンの内部編集は登録データへ吸収し、UndoでLIVE対象が消えたときはTimeline表示へ戻す。
+
 ## Workspaceのパネル表示
 
 `WorkspaceController`をworkspaceの所有元で生成し、`workspaceControllerKey`でprovideする。タブ選択はコントローラーが実行時状態として保持し、非表示でアンマウントされたタブも選択できる。折りたたみ状態は従来どおりpreferencesのworkspace定義へ保存する。

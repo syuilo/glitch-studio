@@ -27,10 +27,11 @@ export class RendererProjectSynchronizer {
 			// Assets・Players・プロジェクト解像度・タイムライン描画設定は専用同期経路が扱い、表示名は送らない。
 			// どの通知を描画へ送るかは、状態管理ではなくこの購読側で選ぶ。
 			const targets = changes.filter((change): change is ProjectContentChange =>
-				change.type === 'node' || change.type === 'visualModule' || change.type === 'layer' || change.type === 'layerOrder' || change.type === 'scene');
+				change.type === 'node' || change.type === 'visualModule' || change.type === 'visualModuleRegistration' || change.type === 'layer' || change.type === 'layerOrder' || change.type === 'scene');
 			for (let target of targets) {
 				const key = target.type === 'node' ? JSON.stringify([target.type, visualModuleTargetKey(target.target), target.nodeId])
 					: target.type === 'visualModule' ? JSON.stringify([target.type, visualModuleTargetKey(target.target)])
+					: target.type === 'visualModuleRegistration' ? JSON.stringify([target.type, target.visualModuleId])
 					: JSON.stringify([target.type, target.sceneId, target.type === 'layer' ? target.layerId : null]);
 				const previous = this.pending.get(key);
 				// 同じ種類の連続編集はまとめるが、途中の配列操作や接続変更などは捨てない。
@@ -58,10 +59,15 @@ export class RendererProjectSynchronizer {
 		// 部分編集同士ならModuleの変更種別も残すため、個別通知を吸収しない。
 		const layers = new Set(targets.flatMap(target => target.type === 'layer' && target.changes.some(change => change.type === 'definition') ? [JSON.stringify([target.sceneId, target.layerId])] : []));
 		const modules = new Set(targets.filter(target => target.type === 'visualModule').map(target => visualModuleTargetKey(target.target)));
+		const registeredVisualModuleIds = new Set(targets.filter(target => target.type === 'visualModuleRegistration').map(target => target.visualModuleId));
 		const changes: RendererProjectChange[] = [];
 		for (const target of targets) {
-			if (target.type === 'node' || target.type === 'visualModule') {
+			if (target.type === 'visualModuleRegistration') {
+				changes.push({ ...target, visualModule: this.manager.state.visualModules.value.find(visualModule => visualModule.id === target.visualModuleId) ?? null });
+			} else if (target.type === 'node' || target.type === 'visualModule') {
 				const moduleTarget = target.target;
+				// 追加直後の編集や同じターンのUndoは、登録の最終状態へまとめる。
+				if ('visualModuleId' in moduleTarget && registeredVisualModuleIds.has(moduleTarget.visualModuleId)) continue;
 				if (!('visualModuleId' in moduleTarget) && (scenes.has(moduleTarget.sceneId) || layers.has(JSON.stringify([moduleTarget.sceneId, moduleTarget.inlineVisualModuleLayerId])))) continue;
 				if (target.type === 'node' && modules.has(visualModuleTargetKey(moduleTarget))) continue;
 				const module = findVisualModule(this.manager.state, moduleTarget);

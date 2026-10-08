@@ -28,8 +28,10 @@
 		:class="$style.editor"
 		:visualModule="visualModule"
 		:effectStates="effectStates"
+		:exporting="exporting"
 		@edit="onEdit"
 		@requestAddEffectNode="showAddEffectNodeMenu"
+		@requestExport="exportCurrentVisualModule"
 	/>
 </div>
 </template>
@@ -59,6 +61,7 @@ import { commitVisualModuleEdit } from '@/utility/visual-module-edit.ts';
 import { createInlineAutomationGraph } from '@/utility/automation-graph.ts';
 import { createInlineKeyframesTimeline } from '@/utility/keyframes-timeline.ts';
 import { createResetParameterBinding } from '@/utility/parameter-default.ts';
+import { exportVisualModuleFile, importVisualModuleFile } from '@/utility/visual-module-file.ts';
 
 const { previewPlayback, visualModuleRendererManagerController } = appContext;
 const { stateManager } = appContext.projectContext;
@@ -66,6 +69,8 @@ const { stateManager } = appContext.projectContext;
 defineProps<{ panel: WorkspacePanel }>();
 
 const previewParamsShowing = ref(false);
+const exporting = ref(false);
+const importing = ref(false);
 const selectedModuleId = ref<ProjectVisualModule['id'] | null>(null);
 const visualModule = computed(() => stateManager.state.visualModules.value.find(module => module.id === selectedModuleId.value)
 	?? stateManager.state.visualModules.value[0] ?? null);
@@ -173,6 +178,10 @@ function previewLive() {
 
 function showSwitchMenu(ev: PointerEvent) {
 	ui.popupMenu([{
+		text: 'Import Visual Module…',
+		icon: 'ti ti-upload',
+		action: importVisualModule,
+	}, {
 		text: 'New',
 		icon: 'ti ti-plus',
 		action: () => {
@@ -187,6 +196,28 @@ function showSwitchMenu(ev: PointerEvent) {
 			selectedModuleId.value = _visualModule.id;
 		},
 	}))], ev.currentTarget ?? ev.target);
+}
+
+async function importVisualModule() {
+	if (importing.value) return;
+	importing.value = true;
+	try {
+		const id = await importVisualModuleFile(appContext.projectContext);
+		if (id != null) selectedModuleId.value = id;
+	} finally {
+		importing.value = false;
+	}
+}
+
+async function exportCurrentVisualModule() {
+	const currentVisualModule = visualModule.value;
+	if (currentVisualModule == null || exporting.value) return;
+	exporting.value = true;
+	try {
+		await exportVisualModuleFile(appContext.projectContext, currentVisualModule, currentVisualModule.name);
+	} finally {
+		exporting.value = false;
+	}
 }
 
 let disposeEffectPicker: (() => void) | undefined;

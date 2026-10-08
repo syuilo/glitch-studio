@@ -42,6 +42,7 @@ export type ProjectState = {
 export type ProjectContentChange =
 	| { type: 'node'; target: VisualModuleTarget; nodeId: string; changes: VisualModuleNodeChange[] }
 	| { type: 'visualModule'; target: VisualModuleTarget }
+	| { type: 'visualModuleRegistration'; visualModuleId: string }
 	| { type: 'layer'; sceneId: string; layerId: string; changes: TimelineLayerChange[] }
 	| { type: 'layerOrder'; sceneId: string }
 	| { type: 'scene'; sceneId: string };
@@ -57,6 +58,8 @@ export type AppStateChange = ProjectContentChange
 
 export class ProjectContext {
 	private projectId: Project['id'] | null = null;
+	private loadGeneration = 0;
+	public get generation() { return this.loadGeneration; }
 	public readonly stateManager: UndoRedo<ProjectState, AppStateChange, typeof COMMAND_DEFS>;
 
 	constructor() {
@@ -76,6 +79,7 @@ export class ProjectContext {
 	}
 
 	public load(project: Project) {
+		this.loadGeneration++;
 		this.stateManager.cancelEdit();
 		this.stateManager.state.name.value = project.name;
 		this.stateManager.state.description.value = project.description;

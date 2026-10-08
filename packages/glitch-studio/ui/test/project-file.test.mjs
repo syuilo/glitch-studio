@@ -95,7 +95,8 @@ const appBundle = await build({
 							Object.assign(this.options, this.timeline ? snapshot : { visualModules: snapshot.visualModules });
 						}
 						async applyProjectChanges(changes) {
-							const patch = deepClone(this.timeline ? changes : changes.filter(change => (change.type === 'node' || change.type === 'visualModule') && 'visualModuleId' in change.target));
+							const patch = deepClone(this.timeline ? changes : changes.filter(change => change.type === 'visualModuleRegistration'
+								|| (change.type === 'node' || change.type === 'visualModule') && 'visualModuleId' in change.target));
 							if (!patch.length) return;
 							this.patches.push(patch);
 							const next = applyRendererProjectChanges({ visualModules: this.options.visualModules, timelineScenes: this.options.timelineScenes ?? [] }, patch);
@@ -189,6 +190,36 @@ test('freezes prepared speech during playback and stops for utterance edits and 
 		manager.undo();
 		assert.equal(playback.isTimelinePlaying.value, false);
 	} finally { playback.dispose(); }
+});
+
+// 【取り込んだVisual ModuleのUndoではLIVE対象と両レンダラーの定義を解除する】
+// Workerだけを停止するとプレビューのモードがLIVEのまま残り、再起動時に削除済みの対象を再開してしまう。
+// AppContextの履歴購読まで実コードで通し、Redoでは意図せず自動再生しないことも確認する。
+test('leaves LIVE when an imported Visual Module is undone and restores its registration on redo', async t => {
+	setup(t);
+	const { appContext } = evaluate(appBundle);
+	await appContext.ready(project());
+	const manager = appContext.projectContext.stateManager;
+	const visualModule = { id: 'imported', name: 'Imported Visual Module', nodes: [], paramDefs: [], outputDefs: [],
+		primaryInputId: null, primaryOutputId: null, automationGraphs: [] };
+	manager.commit('importVisualModule', { visualModule, assets: [], players: [], unassignedPlayerNames: [] });
+	await setImmediate();
+	const live = appContext.visualModuleRendererManagerController;
+	const timeline = appContext.timelineRendererManagerController;
+	assert.ok(live.options.visualModules.some(entry => entry.id === 'imported'));
+	assert.ok(timeline.options.visualModules.some(entry => entry.id === 'imported'));
+	appContext.previewPlayback.startLive('imported');
+	manager.undo();
+	assert.equal(appContext.previewPlayback.liveVisualModuleId.value, null);
+	assert.equal(appContext.previewPlayback.state.value.mode, 'timeline');
+	await setImmediate();
+	assert.ok(!live.options.visualModules.some(entry => entry.id === 'imported'));
+	assert.ok(!timeline.options.visualModules.some(entry => entry.id === 'imported'));
+	manager.redo();
+	await setImmediate();
+	assert.ok(live.options.visualModules.some(entry => entry.id === 'imported'));
+	assert.ok(timeline.options.visualModules.some(entry => entry.id === 'imported'));
+	assert.equal(appContext.previewPlayback.liveVisualModuleId.value, null);
 });
 
 // 【描画設定を保存・復元し、Undo/Redoでもタイムラインだけへ同期する】
