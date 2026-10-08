@@ -27,9 +27,11 @@
 		:key="visualModule.id"
 		:class="$style.editor"
 		:visualModule="visualModule"
+		:visualModuleName="visualModule.name"
 		:effectStates="effectStates"
 		:exporting="exporting"
 		@edit="onEdit"
+		@rename="renameCurrentVisualModule"
 		@requestAddEffectNode="showAddEffectNodeMenu"
 		@requestExport="exportCurrentVisualModule"
 	/>
@@ -207,6 +209,12 @@ async function importVisualModule() {
 	} finally {
 		importing.value = false;
 	}
+}
+
+function renameCurrentVisualModule(name: string) {
+	const currentVisualModule = visualModule.value;
+	if (currentVisualModule == null || currentVisualModule.name === name) return;
+	stateManager.commit('renameVisualModule', { visualModuleId: currentVisualModule.id, name });
 }
 
 async function exportCurrentVisualModule() {

@@ -216,6 +216,10 @@ Visual Moduleエディターの上部で対象を選び、**LIVE** を押すと�
 登録済みのVisual Moduleは上部のメニューから選択できますが、同メニューの **New** による新規作成は未実装です。新しいノード構成を作るには、タイムラインに[インラインVisual Moduleレイヤー](./timeline/layers/inline-visual-module.md)を追加できます。
 :::
 
+## 名前を変更する
+
+Visual Moduleエディターの **Other → Name** で表示名を変更できます。登録済みVisual Moduleでは上部の選択メニューにも反映され、インラインVisual Moduleではレイヤー名と共通です。変更はUndo/Redoで戻したり復元したりでき、`.gsvm`への書き出しにも変更後の名前を使います。
+
 ## エクスポート・インポート
 
 Visual Moduleエディターの **Other → Export Visual Module…** から、編集中の構成を`.gsvm`ファイルとして保存できます。登録済みVisual Moduleと、タイムラインのインラインVisual Moduleのどちらからも書き出せます。

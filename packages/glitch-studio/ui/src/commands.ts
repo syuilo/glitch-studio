@@ -298,6 +298,24 @@ const importVisualModuleCommandDef = defineCommand<VisualModuleImport>({
 	}),
 });
 
+const renameVisualModuleCommandDef = defineCommand<{ visualModuleId: string; name: string }>({
+	label: 'Rename Visual Module',
+	// 名前は表示・保存用の情報なので、定義の登録変更として描画インスタンスを再作成しない。
+	changes: (_state, payload) => [{ type: 'visualModuleName', visualModuleId: payload.visualModuleId }],
+	create: payload => {
+		let before: string;
+		const getRegisteredVisualModule = (state: ProjectState) => {
+			const visualModule = state.visualModules.value.find(visualModule => visualModule.id === payload.visualModuleId);
+			if (visualModule == null) throw new Error('Visual Module not found');
+			return visualModule;
+		};
+		return {
+			execute(state) { const visualModule = getRegisteredVisualModule(state); before = visualModule.name; visualModule.name = payload.name; },
+			undo(state) { getRegisteredVisualModule(state).name = before; },
+		};
+	},
+});
+
 const addEffectNodeCommandDef = defineCommand<VisualModuleTarget & { id: string; effectId: string; params?: Record<string, VisualModuleParameterBinding> }>({
 	label: 'Add fx node',
 	changes: (_state, payload) => [{ type: 'visualModule', target: payload }],
@@ -1725,6 +1743,7 @@ const removeTimelineKeyframesCommandDef = defineCommand<{ sceneId: string; keyfr
 
 export const COMMAND_DEFS = {
 	importVisualModule: importVisualModuleCommandDef,
+	renameVisualModule: renameVisualModuleCommandDef,
 	removeTimelineKeyframes: removeTimelineKeyframesCommandDef,
 	editVoicevoxLayer: editVoicevoxLayerCommandDef,
 	changeProjectResolution: changeProjectResolutionCommandDef,

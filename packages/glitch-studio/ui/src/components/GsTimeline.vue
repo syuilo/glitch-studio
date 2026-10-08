@@ -258,9 +258,11 @@
 								:key="selectedLayer.id"
 								:class="$style.inlineModuleEditor"
 								:visualModule="selectedLayer.visualModule"
+								:visualModuleName="selectedLayer.name"
 								:effectStates="inlineEffectStates"
 								:exporting="exportingVisualModule"
 								@edit="onInlineVisualModuleEdit"
+								@rename="renameInlineVisualModule"
 								@requestAddEffectNode="showAddInlineEffectNodeMenu"
 								@requestExport="exportInlineVisualModule"
 							/>
@@ -1339,6 +1341,13 @@ async function exportInlineVisualModule() {
 	} finally {
 		exportingVisualModule.value = false;
 	}
+}
+
+function renameInlineVisualModule(name: string) {
+	const layer = selectedLayer.value;
+	if (layer?.layerType !== 'inlineVisualModule' || layer.name === name) return;
+	// インラインVisual Moduleの表示名は所属レイヤーが所有し、書き出し時にもその名前を使う。
+	stateManager.commit('renameTimelineLayer', { sceneId: props.sceneId, layerId: layer.id, name });
 }
 
 function onInlineVisualModuleEdit(event: VisualModuleEdit) {

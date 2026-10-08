@@ -239,6 +239,45 @@ test('publishes state changes independently of renderer subscriptions', async t 
 	assert.equal(notifications.length, 3);
 });
 
+// 【Visual Moduleの名前変更は履歴に残し、ノードや描画インスタンスへ影響させない】
+// 表示名の変更を登録変更として送ると、名前を入力するだけでLIVEや履歴を持つエフェクトが再初期化される。
+// 登録済みはVisual Module自身、インラインはレイヤーの名前を変更し、Undo/Redoでも同じIDと構成を維持する。
+test('renames registered and inline Visual Modules through history without renderer patches', async t => {
+	const f = fixture(t);
+	const registeredVisualModule = f.manager.state.visualModules.value[0];
+	const originalName = registeredVisualModule.name;
+	const originalNodes = registeredVisualModule.nodes;
+	const inlineLayer = createInlineVisualModuleLayer(0);
+	const originalLayerName = inlineLayer.name;
+	f.manager.state.timelineScenes.value[0].layers.push(inlineLayer);
+	const notifications = [];
+	f.manager.onChange(changes => notifications.push(changes));
+	f.manager.commit('renameVisualModule', { visualModuleId: registeredVisualModule.id, name: 'Renamed Visual Module' });
+	f.manager.commit('renameTimelineLayer', { sceneId: 'scene', layerId: inlineLayer.id, name: 'Renamed Inline Visual Module' });
+	await f.sync.flush();
+	assert.equal(registeredVisualModule.name, 'Renamed Visual Module');
+	assert.equal(f.manager.state.timelineScenes.value[0].layers[0].name, 'Renamed Inline Visual Module');
+	assert.equal(f.manager.undoStack.value.length, 2);
+	f.manager.undo();
+	f.manager.undo();
+	assert.equal(registeredVisualModule.name, originalName);
+	assert.equal(f.manager.state.timelineScenes.value[0].layers[0].name, originalLayerName);
+	f.manager.redo();
+	f.manager.redo();
+	await f.sync.flush();
+	assert.equal(registeredVisualModule.name, 'Renamed Visual Module');
+	assert.equal(f.manager.state.timelineScenes.value[0].layers[0].name, 'Renamed Inline Visual Module');
+	assert.equal(registeredVisualModule.id, 'module');
+	assert.equal(registeredVisualModule.nodes, originalNodes);
+	assert.equal(f.manager.state.timelineScenes.value[0].layers[0].id, inlineLayer.id);
+	assert.equal(f.manager.state.timelineScenes.value[0].layers[0].visualModule.name, undefined);
+	const registeredNameChange = [{ type: 'visualModuleName', visualModuleId: 'module' }];
+	const inlineNameChange = [{ type: 'layerName', sceneId: 'scene', layerId: inlineLayer.id }];
+	assert.deepEqual(notifications, [registeredNameChange, inlineNameChange, inlineNameChange, registeredNameChange, registeredNameChange, inlineNameChange]);
+	assert.deepEqual(f.batches, []);
+	assert.deepEqual(f.errors, []);
+});
+
 // 【差分失敗は最新スナップショットで復旧し、旧プロジェクトの完了通知は復旧を起動しない】
 // RPC失敗時の再送で古い編集を巻き戻したり、プロジェクト切替後に旧状態を送り直したりしない。
 test('recovers a failed patch from current state and ignores failures after disposal', async t => {

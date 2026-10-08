@@ -53,6 +53,7 @@ export type AppStateChange = ProjectContentChange
 	| { type: 'projectResolution' }
 	| { type: 'timelineRenderSettings' }
 	| { type: 'nodeName'; target: VisualModuleTarget; nodeId: string }
+	| { type: 'visualModuleName'; visualModuleId: string }
 	| { type: 'layerName'; sceneId: string; layerId: string }
 	| { type: 'sceneName'; sceneId: string };
 

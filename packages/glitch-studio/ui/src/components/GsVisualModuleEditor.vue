@@ -73,6 +73,7 @@
 		</div>
 
 		<div v-else-if="tab === 'other'" class="_spacer _gaps_m" style="height: 100%; overflow: auto;">
+			<GsInput :modelValue="visualModuleName" :debounce="400" @update:modelValue="name => emit('rename', name)"><template #label>Name</template></GsInput>
 			<GsButton :disabled="exporting" :wait="exporting" @click="emit('requestExport')"><i class="ti ti-download"></i> Export Visual Module…</GsButton>
 		</div>
 	</div>
@@ -83,6 +84,7 @@
 import { computed, ref } from 'vue';
 import GsWires from './GsWires.vue';
 import GsButton from './common/GsButton.vue';
+import GsInput from './common/GsInput.vue';
 import GsDraggable from './common/GsDraggable.vue';
 import XEffectNode from './GsEffectNode.vue';
 import XGlobalInNode from './GsGlobalInNode.vue';
@@ -99,12 +101,14 @@ provideVisualModuleWires();
 
 const props = defineProps<{
 	visualModule: VisualModule;
+	visualModuleName: string;
 	effectStates?: ReadonlyMap<string, EffectInstanceState>;
 	exporting?: boolean;
 }>();
 
 const emit = defineEmits<{
 	edit: [event: VisualModuleEdit];
+	rename: [name: string];
 	requestAddEffectNode: [];
 	requestExport: [];
 }>();
