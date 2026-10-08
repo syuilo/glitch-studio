@@ -1,19 +1,29 @@
 <template>
 <div :class="$style.lane" @dblclick.stop.prevent="add">
 	<div v-for="range in ranges" :key="range.key" :class="$style.audio" :style="{ left: x(range.startMs) + 'px', width: (range.endMs - range.startMs) * pixelsPerMs + 'px' }"></div>
-	<button v-for="utterance in layer.utterances" :key="utterance.id" class="_button" :class="[$style.key, { [$style.selected]: selectedIds.has(utterance.id) }]" :data-timeline-keyframe-id="utterance.id" :style="{ left: keyX(utterance.timeMs) + 'px' }" :title="`${utterance.timeMs} ms: ${utterance.text || '(clear)'}`" @pointerdown.stop="emit('dragStart', $event, utterance.id)" @click.stop.prevent @dblclick.stop.prevent>
-		<span>{{ utterance.text || '(clear)' }}</span>
+	<button
+		v-for="utterance in layer.utterances"
+		:key="utterance.id"
+		class="_button"
+		:class="[$style.key, { [$style.selected]: selectedIds.has(utterance.id) }]"
+		:data-timeline-keyframe-id="utterance.id"
+		:style="{ left: keyX(utterance.timeMs) + 'px' }"
+		@pointerdown.stop="emit('dragStart', $event, utterance.id)"
+		@click.stop.prevent
+		@dblclick.stop.prevent
+	>
+		<span :class="$style.serif">{{ utterance.text }}</span>
 	</button>
 </div>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue';
-import { insertVoicevoxUtterance } from '@/utility/voicevox-utterance-edit.ts';
-import { timelineKeyframePosition } from '@/utility/timeline-coordinates.ts';
 import { createSpeechResolver } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox.ts';
 import { assignPreparedSpeech, getVoicevoxUtterancePlacements } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox-placement.ts';
 import type { TimelineVoicevoxLayer } from '@gs/subsystems_timeline_shared/types.ts';
+import { timelineKeyframePosition } from '@/utility/timeline-coordinates.ts';
+import { insertVoicevoxUtterance } from '@/utility/voicevox-utterance-edit.ts';
 import { appContext } from '@/app.ts';
 
 const props = defineProps<{ sceneId: string; layer: TimelineVoicevoxLayer; pixelsPerMs: number; offsetMs: number; selectedKeyframeIds: string[] }>();
@@ -48,26 +58,33 @@ function add(event: MouseEvent) {
 
 <style module>
 .lane {
+	--lane-height: 32px;
+	--key-size: 17px;
+
 	position: relative;
-	height: 32px;
+	height: var(--lane-height);
 	overflow: hidden;
 	touch-action: none;
 }
 
 .audio {
 	position: absolute;
-	top: 26px;
-	height: 4px;
-	background: color(from var(--LAYER_COLOR) srgb r g b / 0.4);
+	top: 0;
+	bottom: 0;
+	margin: auto 0;
+	height: var(--key-size);
+	background: color(from var(--LAYER_COLOR) srgb r g b / 0.5);
 	pointer-events: none;
 }
 
 .key {
 	position: absolute;
-	top: calc(50% - 6.5px);
-	width: 13px;
-	height: 13px;
-	margin-left: -6.5px;
+	top: 0;
+	bottom: 0;
+	margin: auto 0;
+	width: var(--key-size);
+	height: var(--key-size);
+	margin-left: calc(var(--key-size) / -2);
 	background: var(--LAYER_COLOR);
 	color: var(--THEME-fg);
 	corner-shape: bevel;
@@ -82,18 +99,17 @@ function add(event: MouseEvent) {
 	box-shadow: 0 0 0 2px var(--LAYER_COLOR);
 }
 
-.key span {
+.serif {
 	position: absolute;
-	left: 18px;
-	top: -2px;
-	line-height: 17px;
+	top: 0;
+	left: calc(var(--key-size) + 4px);
+	line-height: var(--key-size);
 	display: inline-block;
 	max-width: 120px;
-	overflow: hidden;
+	font-size: 95%;
+	overflow: clip;
 	text-overflow: ellipsis;
-	font-size: 10px;
 	vertical-align: middle;
 	pointer-events: none;
 }
-
 </style>
