@@ -611,7 +611,7 @@ function guardMouseMove(ev: MouseEvent) {
 	font-size: 0.9em;
 	line-height: 20px;
 	text-align: left;
-	overflow: hidden;
+	overflow: clip;
 	text-overflow: ellipsis;
 	text-decoration: none !important;
 	color: var(--menuFg, var(--THEME-fg));
@@ -712,7 +712,7 @@ function guardMouseMove(ev: MouseEvent) {
 
 .item_content_text_title {
 	text-overflow: ellipsis;
-	overflow: hidden;
+	overflow: clip;
 }
 
 .item_content_text_caption {
@@ -728,7 +728,7 @@ function guardMouseMove(ev: MouseEvent) {
 
 .switchText {
 	margin-left: 8px;
-	overflow: hidden;
+	overflow: clip;
 	text-overflow: ellipsis;
 }
 
@@ -755,7 +755,7 @@ function guardMouseMove(ev: MouseEvent) {
 	white-space: nowrap;
 	font-size: 0.7em;
 	text-align: left;
-	overflow: hidden;
+	overflow: clip;
 	text-overflow: ellipsis;
 	opacity: 0.7;
 	pointer-events: none;

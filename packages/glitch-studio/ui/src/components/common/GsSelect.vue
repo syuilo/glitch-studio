@@ -312,7 +312,7 @@ function show() {
 	height: v-bind("height + 'px'");
 	min-width: 16px;
 	max-width: 150px;
-	overflow: hidden;
+	overflow: clip;
 	white-space: nowrap;
 	text-overflow: ellipsis;
 	box-sizing: border-box;

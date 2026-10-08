@@ -1,23 +1,32 @@
 <template>
 <template v-if="geometry && canvasRect.width > 0 && canvasRect.height > 0">
-	<svg ref="overlay" :class="$style.overlay" aria-label="Selected layer transform">
+	<svg ref="overlay" :class="$style.overlay">
 		<polygon :points="polygon" :class="[$style.frame, { [$style.movable]: editable.position }]" @pointerdown="startDrag($event, 'move')"/>
 		<line :x1="topHandle[0]" :y1="topHandle[1]" :x2="rotationHandle[0]" :y2="rotationHandle[1]" :class="$style.line"/>
-		<rect v-for="(point, index) in handlePositions" :key="index" :x="point[0] - 5" :y="point[1] - 5" width="10" height="10"
+		<rect
+			v-for="(point, index) in handlePositions" :key="index" :x="point[0] - 5" :y="point[1] - 5" width="10" height="10"
 			:class="[$style.handle, { [$style.disabled]: !editable.scale || zeroScale }]" :style="{ cursor: resizeCursor(index) }"
-			@pointerdown="startDrag($event, previewResizeHandles[index])"/>
-		<circle :cx="rotationHandle[0]" :cy="rotationHandle[1]" r="6" :class="[$style.handle, { [$style.disabled]: !editable.rotation }]"
-			:style="{ cursor: editable.rotation ? 'grab' : 'not-allowed' }" @pointerdown="startDrag($event, 'rotate')"/>
+			@pointerdown="startDrag($event, previewResizeHandles[index])"
+		/>
+		<circle
+			:cx="rotationHandle[0]" :cy="rotationHandle[1]" r="6" :class="[$style.handle, { [$style.disabled]: !editable.rotation }]"
+			:style="{ cursor: editable.rotation ? 'grab' : 'not-allowed' }" @pointerdown="startDrag($event, 'rotate')"
+		/>
 		<path :d="`M ${origin[0] - 6} ${origin[1]} h 12 M ${origin[0]} ${origin[1] - 6} v 12`" :class="$style.origin"/>
 	</svg>
 	<div :class="$style.footer" @pointerdown.stop>
 		<span :class="$style.layerName">{{ selectedTimelineLayer?.name }}</span>
-		<button class="_button" :class="[$style.option, { [$style.active]: snap }]" :aria-pressed="snap" :disabled="dragging"
-			title="Snap frame to canvas edges" @click="snap = !snap"><i class="ti ti-magnet"></i> Snap</button>
-		<button class="_button" :class="[$style.option, { [$style.active]: keepRatio }]" :aria-pressed="keepRatio" :disabled="dragging"
-			title="Keep aspect ratio when resizing corners" @click="keepRatio = !keepRatio"><i class="ti ti-aspect-ratio"></i> Keep ratio</button>
-		<button v-if="zeroScale && editable.scale" class="_button" :class="$style.option" :disabled="dragging" @click="resetScale">Reset scale</button>
-		<span :class="$style.hint">Alt: origin · Shift: 15° · Esc: cancel</span>
+
+		<GsButton
+			v-tooltip="'Snap frame to canvas edges'" :primary="snap"
+			style="margin-left: auto;"
+			iconOnly
+			small
+			@click="snap = !snap"
+		>
+			<i class="ti ti-magnet"></i>
+		</GsButton>
+		<GsButton v-if="zeroScale && editable.scale" small @click="resetScale">Reset scale</GsButton>
 	</div>
 </template>
 </template>
@@ -29,13 +38,14 @@ import { deepEqual } from '@gs/shared/utility/deep-equal.ts';
 import { isTimelineClipActive } from '@gs/subsystems_timeline_shared/timing.ts';
 import { getTimelineLayerCorners, timelineSourceToScene } from '@gs/subsystems_timeline_shared/layer-transform.ts';
 import type { TimelineLayerGeometry, TimelineLayerTransform, TimelinePoint } from '@gs/subsystems_timeline_shared/layer-transform.ts';
+import type { PreviewCanvasRect } from '@/utility/preview-transform.ts';
+import type { TimelineTransformBindings, TimelineTransformKey } from '@/utility/timeline-transform-edit.ts';
+import GsButton from '@/components/common/GsButton.vue';
 import { appContext } from '@/app.ts';
 import { preferences } from '@/preferences.ts';
 import { startPreviewPointerDrag } from '@/utility/preview-pointer-drag.ts';
 import { previewResizeHandles, sceneToPreview, previewDeltaToScene, resizePreviewLayer, snapPreviewLayerMove, snapPreviewLayerResize, unwrapPreviewRotation } from '@/utility/preview-transform.ts';
-import type { PreviewCanvasRect } from '@/utility/preview-transform.ts';
 import { canEditTimelineTransform, prepareTimelineTransformBindings, updateTimelineTransformBindings } from '@/utility/timeline-transform-edit.ts';
-import type { TimelineTransformBindings, TimelineTransformKey } from '@/utility/timeline-transform-edit.ts';
 
 const props = defineProps<{ canvasRect: PreviewCanvasRect }>();
 const { activeSceneId, selectedTimelineLayer, previewPlayback, timelineRendererManagerController } = appContext;
@@ -283,39 +293,16 @@ onBeforeUnmount(() => {
 	bottom: 0;
 	left: 0;
 	right: 0;
-	min-height: 32px;
 	display: flex;
 	align-items: center;
 	gap: 8px;
-	padding: 4px 8px;
-	background: #161616ed;
-	border-top: 1px solid #ffffff20;
-	font-size: 11px;
-	flex-wrap: wrap;
+	padding: 4px;
+	background: #0008;
 }
 .layerName {
 	max-width: 140px;
-	overflow: hidden;
+	overflow: clip;
 	text-overflow: ellipsis;
 	white-space: nowrap;
-}
-.option {
-	display: inline-flex;
-	gap: 4px;
-	align-items: center;
-	padding: 4px 7px;
-	border-radius: 4px;
-	white-space: nowrap;
-}
-.option:hover {
-	background: #ffffff20;
-}
-.active {
-	color: var(--THEME-accent);
-	background: #ffffff12;
-}
-.hint {
-	opacity: 0.6;
-	margin-left: auto;
 }
 </style>

@@ -161,21 +161,6 @@ hr {
 	}
 }
 
-._gs-container {
-	background: #202020;
-	border: solid 1px rgba(255, 255, 255, 0.1);
-	border-radius: 4px;
-	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
-	overflow: hidden;
-}
-
-._gs-no-contents {
-	margin: 16px;
-	text-align: center;
-	font-size: 90%;
-	opacity: 0.7;
-}
-
 ._selectable {
 	user-select: text;
 	-webkit-user-select: text;

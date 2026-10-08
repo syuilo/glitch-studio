@@ -229,7 +229,7 @@ onBeforeUnmount(() => {
 	font-size: 0.9em;
 	cursor: default;
 	user-select: none;
-	overflow: hidden;
+	overflow: clip;
 	text-overflow: ellipsis;
 
 	&:hover {

@@ -198,7 +198,7 @@ watch(opened, (isOpened) => {
 .headerText {
 	white-space: nowrap;
 	text-overflow: ellipsis;
-	overflow: hidden;
+	overflow: clip;
 	padding-right: 12px;
 }
 

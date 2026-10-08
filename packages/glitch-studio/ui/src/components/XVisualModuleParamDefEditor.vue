@@ -234,7 +234,7 @@ function remove() {
 	flex-shrink: 0;
 	white-space: nowrap;
 	text-overflow: ellipsis;
-	overflow: hidden;
+	overflow: clip;
 	cursor: pointer;
 }
 

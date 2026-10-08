@@ -567,7 +567,7 @@ defineExpose({
 	position: relative;
 	line-height: var(--height);
 	white-space: nowrap;
-	overflow: hidden;
+	overflow: clip;
 	text-overflow: ellipsis;
 	cursor: move;
 	touch-action: none;

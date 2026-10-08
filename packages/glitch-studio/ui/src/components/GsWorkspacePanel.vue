@@ -320,7 +320,7 @@ function popout() {
 .title {
 	display: inline-block;
 	align-items: center;
-	overflow: hidden;
+	overflow: clip;
 	text-overflow: ellipsis;
 	white-space: nowrap;
 	width: 100%;

@@ -111,7 +111,7 @@ function add(event: MouseEvent) {
 	line-height: var(--key-size);
 	font-size: 95%;
 	white-space: nowrap;
-	overflow: hidden;
+	overflow: clip;
 	text-overflow: ellipsis;
 	pointer-events: none;
 }

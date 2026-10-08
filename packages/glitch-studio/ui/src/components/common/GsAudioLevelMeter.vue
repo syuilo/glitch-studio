@@ -39,7 +39,7 @@ function normalizedLevel(level: number): number {
 	flex: 1;
 	min-width: 0;
 	min-height: 0;
-	overflow: hidden;
+	overflow: clip;
 	border-radius: 2px;
 }
 
