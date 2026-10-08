@@ -26,8 +26,6 @@
 		</div>
 		<GsButton inline :disabled="exporting || sceneId !== activeSceneId" @click="startTime = formatExportTime(currentTimelineTime)">Use current playhead</GsButton>
 		<div>Estimated size: {{ estimatedSize }}</div>
-		<div v-if="mode === 'video'" :class="$style.note">{{ includesAudio ? 'Timeline audio included: AAC, 48 kHz, stereo, 192 kbps.' : 'No timeline audio in the selected range.' }}</div>
-		<div :class="$style.note">{{ mode === 'video' ? 'No Player inputs. Transparent areas use a black background.' : 'No Player inputs. Transparency is preserved.' }}</div>
 		<div v-if="validationError" :class="$style.error">{{ validationError }}</div>
 		<div v-if="exporting" class="_gaps_m">
 			<div :class="$style.progress"><div :class="$style.progressFill" :style="{ width: `${progressPercent}%` }"></div></div>
@@ -181,6 +179,7 @@ async function doExport() {
 			// 描画用の音声参照でも使えるよう、開始時点の生成済み音声を残して準備結果を加える。
 			// 待機中の編集や再生成を混ぜず、この書き出しが保持した結果だけをWorkerへ渡す。
 			exportProject.generatedSpeech = [...new Map([...exportProject.generatedSpeech, ...preparedSpeech].map(speech => [speech.key, speech])).values()];
+			status.value = '';
 		}
 		signal.throwIfAborted();
 		const preferredFormat = navigator.gpu.getPreferredCanvasFormat();
@@ -249,10 +248,6 @@ onBeforeUnmount(() => {
 	display: grid;
 	grid-template-columns: 1fr 1fr;
 	gap: 16px;
-}
-.note {
-	opacity: 0.7;
-	font-size: 0.9em;
 }
 .error {
 	color: var(--THEME-error);
