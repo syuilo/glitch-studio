@@ -1,6 +1,12 @@
 <template>
 <div ref="rootEl" :class="[$style.root, { [$style.output]: output, [$style.placeholder]: placeholder }]" :data-type="dataType?.kind ?? 'any'" :data-wire-anchor="anchorName" :style="{ color: getNodeDataTypeColor(dataType), anchorName }">
-	<div :class="$style.icon"></div>
+	<svg :class="$style.icon" xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+		<path v-if="!placeholder" style="fill: currentColor;" shape-rendering="geometricPrecision" d="M64,0C99.323,0 128,28.677 128,64C128,99.323 99.323,128 64,128C28.677,128 0,99.323 0,64C0,28.677 28.677,0 64,0ZM64,12C35.3,12 12,35.3 12,64C12,92.7 35.3,116 64,116C92.7,116 116,92.7 116,64C116,35.3 92.7,12 64,12Z"/>
+		<circle v-if="output" style="fill: currentColor;" shape-rendering="geometricPrecision" cx="64" cy="64" r="12"/>
+		<g v-else transform="matrix(0.75,0,0,0.75,16,16)">
+			<path style="fill: currentColor;" shape-rendering="geometricPrecision" d="M64,32C81.661,32 96,46.339 96,64C96,81.661 81.661,96 64,96C46.339,96 32,81.661 32,64C32,46.339 46.339,32 64,32ZM64,48C55.169,48 48,55.169 48,64C48,72.831 55.169,80 64,80C72.831,80 80,72.831 80,64C80,55.169 72.831,48 64,48Z"/>
+		</g>
+	</svg>
 </div>
 </template>
 
@@ -41,10 +47,6 @@ onBeforeUnmount(() => emit('update:element', null));
 
 	&.placeholder {
 		color: #fff2 !important;
-
-		.icon {
-			border-color: transparent !important;
-		}
 	}
 }
 
@@ -52,34 +54,12 @@ onBeforeUnmount(() => emit('update:element', null));
 	position: relative;
 	width: 100%;
 	height: 100%;
-	border-radius: 100%;
 	box-sizing: border-box;
-	border: solid calc(var(--size) * 0.125) currentColor;
-
-	&:before {
-		content: '';
-		position: absolute;
-		top: 50%;
-		left: 50%;
-		width: 30%;
-		height: 30%;
-		border-radius: 100%;
-		background-color: transparent;
-		border: solid calc(var(--size) * 0.1) currentColor;
-		transform: translate(-50%, -50%);
-	}
 }
 
 .output {
 	width: var(--size);
 	cursor: crosshair;
 	touch-action: none;
-
-	.icon {
-		&:before {
-			background-color: currentColor;
-			border: none;
-		}
-	}
 }
 </style>
