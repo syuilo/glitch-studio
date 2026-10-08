@@ -1,6 +1,8 @@
 <template>
 <div :class="$style.lane" @dblclick.stop.prevent="add">
-	<div v-for="range in ranges" :key="range.key" :class="$style.audio" :style="{ left: x(range.startMs) + 'px', width: (range.endMs - range.startMs) * pixelsPerMs + 'px' }"></div>
+	<div v-for="range in ranges" :key="range.key" :class="$style.audio" :style="{ left: x(range.startMs) + 'px', width: (range.endMs - range.startMs) * pixelsPerMs + 'px' }">
+		<span :class="$style.serif"><GsCondensedLine>{{ range.text }}</GsCondensedLine></span>
+	</div>
 	<button
 		v-for="utterance in layer.utterances"
 		:key="utterance.id"
@@ -11,9 +13,7 @@
 		@pointerdown.stop="emit('dragStart', $event, utterance.id)"
 		@click.stop.prevent
 		@dblclick.stop.prevent
-	>
-		<span :class="$style.serif">{{ utterance.text }}</span>
-	</button>
+	></button>
 </div>
 </template>
 
@@ -25,6 +25,7 @@ import type { TimelineVoicevoxLayer } from '@gs/subsystems_timeline_shared/types
 import { timelineKeyframePosition } from '@/utility/timeline-coordinates.ts';
 import { insertVoicevoxUtterance } from '@/utility/voicevox-utterance-edit.ts';
 import { appContext } from '@/app.ts';
+import GsCondensedLine from '@/components/common/GsCondensedLine.vue';
 
 const props = defineProps<{ sceneId: string; layer: TimelineVoicevoxLayer; pixelsPerMs: number; offsetMs: number; selectedKeyframeIds: string[] }>();
 const emit = defineEmits<{ dragStart: [event: PointerEvent, id: string]; selected: [id: string] }>();
@@ -34,11 +35,12 @@ const x = (time: number) => (time - props.offsetMs) * props.pixelsPerMs;
 const keyX = (time: number) => timelineKeyframePosition(time, props.pixelsPerMs) - props.offsetMs * props.pixelsPerMs;
 const ranges = computed(() => {
 	const resolveSpeech = createSpeechResolver(stateManager.state.generatedSpeech.value);
+	const utteranceTexts = new Map(props.layer.utterances.map(utterance => [utterance.id, utterance.text]));
 	return getVoicevoxUtterancePlacements(props.layer.voicevox, props.layer.utterances, props.layer.clips).flatMap(placement => {
 		const speech = resolveSpeech(placement.request);
 		if (!speech) return [];
 		const interval = assignPreparedSpeech(placement, speech);
-		return interval ? [{ ...interval, key: `${placement.utteranceId}:${placement.clipId}` }] : [];
+		return interval ? [{ ...interval, key: `${placement.utteranceId}:${placement.clipId}`, text: utteranceTexts.get(placement.utteranceId) ?? '' }] : [];
 	});
 });
 
@@ -63,7 +65,7 @@ function add(event: MouseEvent) {
 
 	position: relative;
 	height: var(--lane-height);
-	overflow: hidden;
+	overflow: clip;
 	touch-action: none;
 }
 
@@ -74,6 +76,8 @@ function add(event: MouseEvent) {
 	margin: auto 0;
 	height: var(--key-size);
 	background: color(from var(--LAYER_COLOR) srgb r g b / 0.5);
+	color: var(--THEME-fg);
+	overflow: clip;
 	pointer-events: none;
 }
 
@@ -102,14 +106,13 @@ function add(event: MouseEvent) {
 .serif {
 	position: absolute;
 	top: 0;
-	left: calc(var(--key-size) + 4px);
+	left: calc(var(--key-size) / 2 + 4px);
+	right: 4px;
 	line-height: var(--key-size);
-	display: inline-block;
-	max-width: 120px;
 	font-size: 95%;
-	overflow: clip;
+	white-space: nowrap;
+	overflow: hidden;
 	text-overflow: ellipsis;
-	vertical-align: middle;
 	pointer-events: none;
 }
 </style>

@@ -367,7 +367,7 @@ test('displays the same prepared speech intervals as playback across separated c
 	assert.deepEqual(ranges(), []);
 	for (const durationMs of [50, 175.5, 1000]) {
 		state.generatedSpeech.value = [{ ...f.speech, durationMs }];
-		const displayed = ranges().map(({ key, ...interval }) => interval);
+		const displayed = ranges().map(({ key, text, ...interval }) => interval);
 		const playback = getSceneAudioClips(f.scenes, 'root', { type: 'all' }, createSpeechResolver(state.generatedSpeech.value)).map(({ gains, ...interval }) => interval);
 		assert.deepEqual(displayed, playback);
 	}
