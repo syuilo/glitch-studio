@@ -4,16 +4,19 @@
 	<template #label>VOICEVOX</template>
 	<div class="_spacer _gaps_m">
 		<template v-if="desktop">
-			<GsInput v-model="endpoint" small type="text">
-				<template #label>Engine URL</template>
-			</GsInput>
-			<GsButton small primary :disabled="connecting" @click="connect">Connect</GsButton>
-			<div v-if="version">Engine {{ version }}</div>
+			<div style="display: flex; align-items: center; gap: 8px;">
+				<GsInput v-model="endpoint" small type="text" style="flex: 1; min-width: 0;">
+					<template #label>Engine URL</template>
+					<template v-if="version != null && version !== ''" #caption><span style="color: var(--THEME-success);"><i class="ti ti-check"></i> Connected: Engine {{ version }}</span></template>
+				</GsInput>
+				<GsButton small primary :disabled="connecting" @click="connect">Connect</GsButton>
+			</div>
 		</template>
 		<div v-else>Generation requires the Electron app. Saved audio can be played here.</div>
 		<GsInput small type="number" :min="0.5" :max="2" :step="0.05" :debounce="400" :modelValue="layer.voicevox.speedScale" @update:modelValue="speedScale => changeSettings({ speedScale })">
 			<template #label>Speech speed</template>
 		</GsInput>
+		<hr>
 		<GsButton primary small @click="add"><i class="ti ti-plus"></i> Add Speech Key at Playhead</GsButton>
 		<GsButton v-if="layer.clips.length > 0" small @click="fitLastClip">Fit Last Clip to Speech</GsButton>
 		<div v-if="error" :class="$style.error">{{ error }}</div>
