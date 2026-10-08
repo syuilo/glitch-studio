@@ -1,7 +1,7 @@
 <template>
 <GsFolder defaultOpen asSection :withSpacer="false">
 	<template #icon><i class="ti ti-keyframe"></i></template>
-	<template #label>Speech key</template>
+	<template #label>Speech Key</template>
 	<div class="_spacer _gaps_m">
 		<GsInput small type="number" :min="bounds?.min ?? 0" :max="bounds?.max" :modelValue="utterance.timeMs" @update:modelValue="editTime">
 			<template #label>Time</template><template #suffix>ms</template>
@@ -13,7 +13,6 @@
 		<GsTextarea :modelValue="utterance.reading ?? ''" placeholder="Use subtitle text" @update:modelValue="reading => edit({ reading: reading.trim() || null })"><template #label>Reading (optional)</template></GsTextarea>
 		<div>{{ status }}</div>
 		<GsButton v-if="desktop && utterance.text" small :disabled="generating" @click="regenerate">Regenerate</GsButton>
-		<GsButton small @click="duplicate">Duplicate at playhead</GsButton>
 		<GsButton danger small @click="remove"><i class="ti ti-trash"></i> Remove Speech Key</GsButton>
 		<div v-if="error" :class="$style.error">{{ error }}</div>
 	</div>
@@ -24,13 +23,13 @@
 import { computed, ref } from 'vue';
 import { genId } from '@gs/shared/utility/id.ts';
 import { getVoicevoxRequest, getVoicevoxRequestKey } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox.ts';
-import type { VoicevoxUtterance } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox.ts';
-import type { TimelineVoicevoxLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import GsFolder from './common/GsFolder.vue';
 import GsInput from './common/GsInput.vue';
 import GsSelect from './common/GsSelect.vue';
 import GsTextarea from './common/GsTextarea.vue';
 import GsButton from './common/GsButton.vue';
+import type { TimelineVoicevoxLayer } from '@gs/subsystems_timeline_shared/types.ts';
+import type { VoicevoxUtterance } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox.ts';
 import { appContext } from '@/app.ts';
 import { getVoicevoxUtteranceTimeBounds } from '@/utility/voicevox-utterance-edit.ts';
 
@@ -79,11 +78,6 @@ function editTime(value: string | number) {
 	const time = Number(value);
 	if (!Number.isFinite(time) || !bounds.value) return;
 	edit({ timeMs: Math.max(bounds.value.min, Math.min(bounds.value.max, Math.round(time))) });
-}
-
-function duplicate() {
-	const utterance = { ...props.utterance, id: genId(), timeMs: Math.round(appContext.previewPlayback.currentTimelineTime.value) };
-	if (commit([...props.layer.utterances, utterance])) emit('selected', utterance.id);
 }
 
 function remove() { commit(props.layer.utterances.filter(utterance => utterance.id !== props.utterance.id)); }
