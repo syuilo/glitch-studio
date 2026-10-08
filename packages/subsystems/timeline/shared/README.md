@@ -1,5 +1,9 @@
 # Timeline Shared
 
+各種レイヤー固有の処理はlayersディレクトリ内の各エフェクトのディレクトリ内に置く。各種レイヤーの実装は分離・独立させ、あるレイヤーの実装が他のレイヤーに依存・参照したりしてはらない。
+
+---
+
 `layer-transform.ts`は、合成前の素材寸法・Scene寸法・評価済みtransformから素材座標をScene座標へ写す純粋関数を持つ。fitの規則はGPU共通基盤の`input-fit.ts`を使い、透明な余白・origin・負のscale・画面アスペクト比を合成シェーダーと揃える。ポインター・ハンドル・スナップ・選択状態はUIが所有する。
 
 `src/layers/`にレイヤー種別固有の定義・初期値・検証をまとめる。`effect`・`visual-module`・`text`・`shape`の各ディレクトリに既存の実装を置き、Scene・クリップ・Binding・合成・音声などの共通契約は`src/`直下に置く。
