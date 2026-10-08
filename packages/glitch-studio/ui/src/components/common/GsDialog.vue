@@ -46,6 +46,7 @@ import GsButton from '@/components/common/GsButton.vue';
 import GsSystemIcon from '@/components/common/GsSystemIcon.vue';
 import GsInput from '@/components/common/GsInput.vue';
 import GsSelect from '@/components/common/GsSelect.vue';
+import GsLoading from '@/components/common/GsLoading.vue';
 import { useGsSelect } from '@/composables/useGsSelect.ts';
 import { i18n } from '@/i18n.ts';
 

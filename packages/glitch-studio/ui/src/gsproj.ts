@@ -1,9 +1,9 @@
-import type { GeneratedSpeech } from '@gs/glitch-studio_shared/voicevox.ts';
 import { getReferencedGeneratedSpeech } from '@gs/glitch-studio_shared/voicevox.ts';
 import { validateTimelineFps, validateTimelineMotionBlur } from '@gs/subsystems_timeline_shared/motion-blur.ts';
 import { validateTimelineScenes } from '@gs/subsystems_timeline_shared/scenes.ts';
 import * as msgpack from '@msgpack/msgpack';
 import semverGt from 'semver/functions/gt.js';
+import type { GeneratedSpeech } from '@gs/glitch-studio_shared/voicevox.ts';
 import type { TimelineMotionBlurSettings } from '@gs/subsystems_timeline_shared/motion-blur.ts';
 import type { Player } from '@gs/shared/types.js';
 import type { ProjectVisualModule } from '@gs/glitch-studio_shared/project/types.ts';
