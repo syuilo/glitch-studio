@@ -330,15 +330,11 @@ function openHeaderEditMenu(ev: PointerEvent) {
 
 async function changeZoom(direction: 'in' | 'out') {
 	if (!__ELECTRON__) return;
-	try {
-		if (!window.desktop) throw new Error('Desktop API is unavailable');
-		if (direction === 'in') {
-			await window.desktop.zoomIn();
-		} else {
-			await window.desktop.zoomOut();
-		}
-	} catch (error) {
-		await ui.alert({ type: 'error', title: '拡大率を変更できませんでした', text: String(error) });
+	if (!window.desktop) throw new Error('Desktop API is unavailable');
+	if (direction === 'in') {
+		await window.desktop.zoomIn();
+	} else {
+		await window.desktop.zoomOut();
 	}
 }
 
@@ -356,12 +352,8 @@ function openHeaderViewMenu(ev: PointerEvent) {
 
 async function toggleDevTools() {
 	if (!__ELECTRON__) return;
-	try {
-		if (!window.desktop) throw new Error('Desktop API is unavailable');
-		await window.desktop.toggleDevTools();
-	} catch (error) {
-		await ui.alert({ type: 'error', title: '開発者ツールの表示を切り替えられませんでした', text: String(error) });
-	}
+	if (!window.desktop) throw new Error('Desktop API is unavailable');
+	await window.desktop.toggleDevTools();
 }
 
 function openHeaderHelpMenu(ev: PointerEvent) {
@@ -382,8 +374,8 @@ onMounted(async () => {
 		const startupProject = await window.desktop?.takeStartupProjectFile();
 		if (startupProject && await openProject(undefined, desktopProjectFile(startupProject))) return;
 	} catch (error) {
-		await ui.alert({ type: 'error', text: error instanceof Error ? error.message : String(error) });
 		console.error(error);
+		await ui.alert({ type: 'error', text: error instanceof Error ? error.message : String(error) });
 	}
 	// 通常起動時と読込失敗時には、別のプロジェクトを選べるようにする。
 	const { dispose } = ui.popup(GsDashboardDialog, {}, {
