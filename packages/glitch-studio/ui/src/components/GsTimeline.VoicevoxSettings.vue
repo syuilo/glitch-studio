@@ -7,16 +7,15 @@
 			<GsInput v-model="endpoint" small type="text">
 				<template #label>Engine URL</template>
 			</GsInput>
-			<GsButton small :disabled="connecting" @click="connect">Connect</GsButton>
+			<GsButton small primary :disabled="connecting" @click="connect">Connect</GsButton>
 			<div v-if="version">Engine {{ version }}</div>
 		</template>
 		<div v-else>Generation requires the Electron app. Saved audio can be played here.</div>
 		<GsInput small type="number" :min="0.5" :max="2" :step="0.05" :debounce="400" :modelValue="layer.voicevox.speedScale" @update:modelValue="speedScale => changeSettings({ speedScale })">
 			<template #label>Speech speed</template>
 		</GsInput>
-		<GsButton small @click="add">Add speech key at playhead</GsButton>
-		<GsButton small :disabled="layer.clips.length === 0" @click="fitLastClip">Fit last clip to speech</GsButton>
-		<div>Select a speech key in the timeline to edit its voice, text and reading.</div>
+		<GsButton primary small @click="add"><i class="ti ti-plus"></i> Add Speech Key at Playhead</GsButton>
+		<GsButton v-if="layer.clips.length > 0" small @click="fitLastClip">Fit Last Clip to Speech</GsButton>
 		<div v-if="error" :class="$style.error">{{ error }}</div>
 	</div>
 </GsFolder>
@@ -24,7 +23,6 @@
 
 <script setup lang="ts">
 import { ref } from 'vue';
-import { insertVoicevoxUtterance } from '@/utility/voicevox-utterance-edit.ts';
 import { createSpeechResolver } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox.ts';
 import { assignPreparedSpeech, getVoicevoxUtteranceIntervals } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox-placement.ts';
 import GsFolder from './common/GsFolder.vue';
@@ -32,6 +30,7 @@ import GsButton from './common/GsButton.vue';
 import GsInput from './common/GsInput.vue';
 import type { VoicevoxSettings, VoicevoxUtterance } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox.ts';
 import type { TimelineVoicevoxLayer } from '@gs/subsystems_timeline_shared/types.ts';
+import { insertVoicevoxUtterance } from '@/utility/voicevox-utterance-edit.ts';
 import { appContext } from '@/app.ts';
 
 const props = defineProps<{ layer: TimelineVoicevoxLayer; sceneId: string }>();
