@@ -282,6 +282,12 @@ function timeToDomX(time: number): number { return timelineTimeToX(time, props.t
 		opacity: 0.5;
 	}
 
+	&:hover {
+		.tl {
+			background: #ffffff06;
+		}
+	}
+
 	--LAYER_COLOR: var(--THEME-accent);
 	&.type_effect {
 		--LAYER_COLOR: var(--THEME-layer-effect);

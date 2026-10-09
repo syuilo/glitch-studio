@@ -57,8 +57,8 @@
 				-->
 				<div :class="$style.layersActions">
 					<GsButton v-tooltip="'Add Layer'" small iconOnly @click="showAddLayerMenu"><i class="ti ti-plus"></i></GsButton>
-					<GsButton small :disabled="!canGroupSelection" @click="groupSelection">Group</GsButton>
-					<GsButton v-if="selectedLayer?.layerType === 'group'" small @click="ungroupSelection">Ungroup</GsButton>
+					<GsButton v-tooltip="'Group'" iconOnly small :disabled="!canGroupSelection" @click="groupSelection"><i class="ti ti-folder-symlink"></i></GsButton>
+					<GsButton v-if="selectedLayer?.layerType === 'group'" v-tooltip="'Ungroup'" iconOnly small @click="ungroupSelection"><i class="ti ti-folder-open"></i></GsButton>
 					<GsButton v-if="selectedLayer && (layerAncestors.get(selectedLayer.id)?.length ?? 0) > 0" small @click="moveSelectedLayerOut">Move out</GsButton>
 				</div>
 			</div>
