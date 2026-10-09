@@ -63,14 +63,16 @@ onMounted(() => {
 		rootEl.value.style.left = `${left}px`;
 	}
 
-	window.document.body.addEventListener('mousedown', onMousedown);
+	// タイムラインなどがpointerdownをpreventDefaultすると、後続のmousedownは発生しない。
+	// 子要素が伝播を止める場合も外側の操作を検知できるよう、pointerdownをキャプチャで受ける。
+	window.document.addEventListener('pointerdown', onPointerDown, true);
 });
 
 onBeforeUnmount(() => {
-	window.document.body.removeEventListener('mousedown', onMousedown);
+	window.document.removeEventListener('pointerdown', onPointerDown, true);
 });
 
-function onMousedown(evt: MouseEvent) {
+function onPointerDown(evt: PointerEvent) {
 	if (!elementContains(rootEl.value, evt.target as Element) && (rootEl.value !== evt.target)) emit('closed');
 }
 </script>
