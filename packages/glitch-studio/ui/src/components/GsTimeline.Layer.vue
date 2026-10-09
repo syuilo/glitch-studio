@@ -94,7 +94,7 @@
 	</div>
 	<div :class="$style.gapLane">
 		<div :class="$style.side">
-			<div v-for="i in (depth ?? 0) + (layer.layerType === 'group' && !isLastOfGroup ? 1 : 0) + (isLastOfGroup ? -1 : 0)" :class="[$style.colorBar, $style.parentColorBar]"></div>
+			<div v-for="i in (depth ?? 0) + (isLastOfGroup ? -1 : layer.layerType === 'group' ? 1 : 0)" :class="[$style.colorBar, $style.parentColorBar]"></div>
 		</div>
 	</div>
 </div>
