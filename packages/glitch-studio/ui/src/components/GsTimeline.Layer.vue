@@ -94,7 +94,7 @@
 	</div>
 	<div :class="$style.gapLane">
 		<div :class="$style.side">
-			<div v-for="i in (depth ?? 0) + (isLastOfGroup ? -1 : layer.layerType === 'group' ? 1 : 0)" :class="[$style.colorBar, $style.parentColorBar]"></div>
+			<div v-for="i in (depth ?? 0) + (isLastOfGroup ? -1 : (layer.layerType === 'group' && !collapsed) ? 1 : 0)" :class="[$style.colorBar, $style.parentColorBar]"></div>
 		</div>
 	</div>
 </div>
@@ -331,6 +331,10 @@ function timeToDomX(time: number): number { return timelineTimeToX(time, props.t
 
 	&.parentColorBar {
 		background: var(--THEME-layer-group);
+	}
+
+	&:not(:first-child) {
+		margin-left: 8px;
 	}
 }
 
