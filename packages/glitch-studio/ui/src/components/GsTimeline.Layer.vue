@@ -14,7 +14,7 @@
 					<span :class="$style.layerHeaderTitle">
 						<GsCondensedLine>{{ layer.name }}</GsCondensedLine>
 					</span>
-					<button v-if="layer.layerType === 'group'" class="_button" :class="[$style.collapseButton]" :aria-expanded="!collapsed" @click.stop="emit('toggleGroup')"><i :class="collapsed ? 'ti ti-chevron-right' : 'ti ti-chevron-down'"></i></button>
+					<button class="_button" :class="[$style.collapseButton]" :aria-expanded="!collapsed" :aria-label="(collapsed ? 'Expand ' : 'Collapse ') + layer.name" @click.stop="emit('toggleCollapse')"><i :class="collapsed ? 'ti ti-chevron-right' : 'ti ti-chevron-down'"></i></button>
 					<button class="_button" :class="[$style.disableButton, { [$style.active]: !layer.isDisabled }]" @click.stop="toggleDisabled"><i :class="layer.isDisabled ? 'ti ti-eye-off' : 'ti ti-eye'"></i></button>
 				</div>
 			</div>
@@ -44,7 +44,7 @@
 			</div>
 		</div>
 	</div>
-	<div v-if="layer.layerType !== 'group' && (keyframeParameters.length > 0 || layer.layerType === 'voicevox')" :class="$style.localTicksLane">
+	<div v-if="!collapsed && layer.layerType !== 'group' && (keyframeParameters.length > 0 || layer.layerType === 'voicevox')" :class="$style.localTicksLane">
 		<div :class="$style.side">
 			<div v-for="i in (depth ?? 0) + 1" :class="[$style.colorBar, { [$style.parentColorBar]: i < (depth ?? 0) + 1 }]"></div>
 			<div :class="$style.sideBody">
@@ -58,7 +58,7 @@
 			</div>
 		</div>
 	</div>
-	<div v-if="layer.layerType === 'voicevox'" :class="$style.speechLane" data-parameter-target="utterance" :data-param-path="JSON.stringify(['utterances'])">
+	<div v-if="!collapsed && layer.layerType === 'voicevox'" :class="$style.speechLane" data-parameter-target="utterance" :data-param-path="JSON.stringify(['utterances'])">
 		<div :class="$style.side">
 			<div v-for="i in (depth ?? 0) + 1" :class="[$style.colorBar, { [$style.parentColorBar]: i < (depth ?? 0) + 1 }]"></div>
 			<div :class="$style.sideBody">
@@ -147,7 +147,7 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-	(ev: 'toggleGroup'): void;
+	(ev: 'toggleCollapse'): void;
 	(ev: 'groupMoveStart', event: PointerEvent): void;
 	(ev: 'dragStart', event: DragEvent): void;
 	(ev: 'selected', event: MouseEvent): void;
@@ -232,7 +232,7 @@ function onBackgroundDoubleClick(event: MouseEvent) {
 }
 
 type KeyframeParameter = ReturnType<typeof getLayerKeyframeParameters>[number];
-const keyframeParameters = computed(() => getLayerKeyframeParameters(stateManager.state, props.layer));
+const keyframeParameters = computed(() => props.collapsed && props.layer.layerType !== 'group' ? [] : getLayerKeyframeParameters(stateManager.state, props.layer));
 
 // 背景の操作は移動しない表示領域で受け、移動済みDOMのleftを二重に補正しない。
 function onKeyframeBackgroundDoubleClick(param: KeyframeParameter, event: MouseEvent) {
@@ -259,7 +259,7 @@ function onKeyframeInsert(param: KeyframeParameter, x: number) {
 }
 
 // このレイヤーがマウントされ、キーのレーンを表示するときだけローカル目盛りを作る。
-const visibleClipTicks = computed(() => keyframeParameters.value.length === 0 && props.layer.layerType !== 'voicevox' ? [] : getTimelineVisibleClipTicks(
+const visibleClipTicks = computed(() => props.collapsed || (keyframeParameters.value.length === 0 && props.layer.layerType !== 'voicevox') ? [] : getTimelineVisibleClipTicks(
 	layerClips.value, props.tlPosX, props.tlRangeX, getTimelineTickCount(props.tlElWidth), props.tickMode, props.tickSubdivisions,
 ));
 

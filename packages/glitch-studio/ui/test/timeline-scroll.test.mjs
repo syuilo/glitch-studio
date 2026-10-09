@@ -23,7 +23,7 @@ const result = await build({
 		build.onLoad({ filter: /.*/, namespace: 'test' }, ({ path }) => ({ loader: 'ts', contents: {
 			metrics: 'export const updates = new Map(); export const mounts = new Map();',
 			app: `import { ref } from 'vue'; export const commits = []; export const appContext = { projectContext: { stateManager: {
-				state: { assets: ref([{ id: 'sound', name: 'Sound' }]), timelineScenes: ref([]), visualModules: ref([]) },
+				state: { assets: ref([{ id: 'sound', name: 'Sound' }]), timelineScenes: ref([]), visualModules: ref([]), generatedSpeech: ref([]) },
 				commit: (...args) => commits.push(args),
 			} } };`,
 			effects: 'export const effectDefinitions = {};',
@@ -78,7 +78,7 @@ async function fixture(t) {
 	const visible = ref([0]);
 	const props = reactive({ sceneId: 'scene', sceneTimeMs: 0, tlElWidth: 1000, tlRangeX: 500, tlPosX: 0,
 		tickMode: 'binary', tickSubdivisions: { halves: true, thirds: false }, mediaInfo: new Map([['sound', { durationMs: 1000 }]]),
-		selectedKeyframes: [], selectedClipIds: [], selected: false, moving: false, optimizeHorizontalMovement: false,
+		selectedKeyframes: [], selectedClipIds: [], selected: false, moving: false, optimizeHorizontalMovement: false, isLastOfGroup: false,
 	});
 	const events = [];
 	const root = element();
@@ -88,6 +88,7 @@ async function fixture(t) {
 		onClipMoveStart: (_event, selection) => events.push(['move', selection]),
 		onClipTrimStart: (_event, selection, edge) => events.push(['trim', selection, edge]),
 		onKeyframeDragStart: (_event, selection) => events.push(['keyMove', selection]),
+		onToggleCollapse: () => { props.collapsed = !props.collapsed; },
 	}))) });
 	app.mount(root);
 	t.after(() => app.unmount());
@@ -95,6 +96,58 @@ async function fixture(t) {
 	updates.clear(); mounts.clear(); commits.length = 0;
 	return { props, layers, visible, root, events };
 }
+
+// 【通常レイヤーを折りたたんでもクリップを維持し、再展開でキーと目盛りを復元する】
+// キーを隠すだけの操作でデータや選択を失ったり、クリップまで再生成してはならない。
+// 実際の開閉ボタンを通して表示とaria-expandedが連動することも確認する。
+test('collapses ordinary layers to the main lane and restores keyframes on expansion', async t => {
+	const state = await fixture(t);
+	state.props.selectedKeyframes = [{ layerId: 'a', target: 'audio', paramPath: ['volume'], keyframeId: 'key-0' }];
+	await nextTick();
+	const nodes = () => descendants(state.root);
+	const toggle = nodes().find(node => node.props.class?.includes('collapseButton'));
+	const clip = nodes().find(node => node.props['data-timeline-clip-id'] === 'clip-0');
+	const originalKeys = structuredClone(state.layers[0].audioParamValues.volume.keyframesTimeline.keyframes.map(point => ({ ...point, interpolation: { ...point.interpolation } })));
+	assert.equal(toggle.props['aria-expanded'], true);
+	assert.ok(nodes().some(node => node.props.class === 'localTicksLane'));
+	toggle.props.onClick({ stopPropagation() {} });
+	await nextTick();
+	assert.equal(toggle.props['aria-expanded'], false);
+	assert.equal(nodes().find(node => node.props['data-timeline-clip-id'] === 'clip-0'), clip);
+	assert.ok(!nodes().some(node => node.props.class === 'localTicksLane' || node.props.class === 'keyframesLane'));
+	assert.ok(!nodes().some(node => node.props['data-timeline-keyframe-id']));
+	assert.equal(mounts.get('GsTimeline.Clip.vue') ?? 0, 0);
+	toggle.props.onClick({ stopPropagation() {} });
+	await nextTick();
+	assert.equal(toggle.props['aria-expanded'], true);
+	assert.ok(nodes().some(node => node.props.class === 'localTicksLane'));
+	assert.ok(nodes().some(node => node.props['data-timeline-keyframe-id'] === 'key-0' && node.props.class.includes('selected')));
+	assert.deepEqual(state.layers[0].audioParamValues.volume.keyframesTimeline.keyframes, originalKeys);
+	assert.equal(commits.length, 0);
+});
+
+// 【VOICEVOXの折りたたみでは発話レーンとローカル目盛りも隠す】
+// 発話は通常のパラメータキーとは別のレーンなので、通常キーだけの非表示では
+// メインレーンだけを残す仕様を満たせない。再展開時の復元も確認する。
+test('hides the speech lane and local ruler when a voicevox layer is collapsed', async t => {
+	const state = await fixture(t);
+	Object.assign(state.layers[0], { layerType: 'voicevox', voicevox: {}, utterances: [], compositingParamValues: {}, subtitleParamValues: {} });
+	await nextTick();
+	const hasLane = className => descendants(state.root).some(node => node.props.class === className);
+	assert.ok(hasLane('speechLane'));
+	assert.ok(hasLane('localTicksLane'));
+	state.props.collapsed = true;
+	await nextTick();
+	assert.ok(hasLane('mainLane'));
+	assert.ok(!hasLane('speechLane'));
+	assert.ok(!hasLane('localTicksLane'));
+	assert.ok(!hasLane('keyframesLane'));
+	state.props.collapsed = false;
+	await nextTick();
+	assert.ok(hasLane('speechLane'));
+	assert.ok(hasLane('localTicksLane'));
+	assert.equal(commits.length, 0);
+});
 
 // 【横移動では一覧・クリップ・キーを再評価せず、倍率変更では再配置する】
 // propsからtlPosXを外しても親のv-forや選択配列が毎回更新されると効果が失われるため、
