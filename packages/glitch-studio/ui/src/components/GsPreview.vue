@@ -4,6 +4,9 @@
 		<div :class="$style.topLeft">
 			<div v-if="showTimecodeInPreview" :class="$style.time" class="_monospace">{{ formatTime(time) }}</div>
 		</div>
+		<div :class="$style.topCenter">
+			<div v-if="previewTargetName" :class="$style.previewTargetName">{{ previewTargetName }}</div>
+		</div>
 		<div :class="$style.topRight">
 			<div :class="$style.zoom">ZOOM: {{ Math.round(zoom * 100) }}%</div>
 			<button :class="$style.menuButton" class="_button" @click="showMenu"><i class="ti ti-dots"></i></button>
@@ -33,7 +36,7 @@ import * as api from '@/api.ts';
 import { preferences } from '@/preferences.ts';
 import * as ui from '@/ui.ts';
 
-const { activePreviewRenderer, visualModuleRendererManagerController, previewPlayback, highlightClipping, resolutionFactor, liveTimeFactor } = appContext;
+const { activePreviewRenderer, visualModuleRendererManagerController, previewPlayback, highlightClipping, resolutionFactor, liveTimeFactor, activeScene } = appContext;
 const { stateManager } = appContext.projectContext;
 
 const canvasContainer = useTemplateRef('canvasContainer');
@@ -49,6 +52,12 @@ const previewCanvasRect = shallowRef<PreviewCanvasRect>({ left: 0, top: 0, width
 let stopPan: (() => void) | undefined;
 const liveTime = ref(0);
 const time = computed(() => previewPlayback.state.value.mode === 'timeline' ? previewPlayback.currentTimelineTime.value : liveTime.value);
+const previewTargetName = computed(() => {
+	const state = previewPlayback.state.value;
+	return state.mode === 'timeline'
+		? activeScene.value?.name ?? null
+		: stateManager.state.visualModules.value.find(visualModule => visualModule.id === state.visualModuleId)?.name ?? null;
+});
 
 let latestTime: number | null = null;
 let latestGridGeometry = '';
@@ -329,6 +338,23 @@ function showMenu(ev: PointerEvent) {
 	left: 0;
 	z-index: 1;
 	background: #0008;
+}
+
+.topCenter {
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	margin: 0 auto;
+	z-index: 1;
+	display: flex;
+	width: 300px;
+	align-items: center;
+	justify-content: center;
+}
+
+.previewTargetName {
+	padding: 4px 8px;
 }
 
 .topRight {
