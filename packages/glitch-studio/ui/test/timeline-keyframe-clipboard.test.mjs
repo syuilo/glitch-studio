@@ -1,16 +1,16 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
-import { build, transform } from 'esbuild';
-import { parse } from 'vue/compiler-sfc';
-import { createSourceFile, isFunctionDeclaration, ScriptTarget } from 'typescript';
+import { build } from 'esbuild';
+import { createTimelineClipboardHandlers } from './helpers/timeline-clipboard-actions.mjs';
 
 const uiDirectory = fileURLToPath(new URL('../', import.meta.url));
 const bundled = await build({
 	absWorkingDir: uiDirectory,
 	stdin: { contents: `
+		export { createTimelineClipboardActions } from './src/utility/timeline-clipboard-actions.ts';
+		export { flattenTimelineLayers } from '@gs/subsystems_timeline_shared/layer-tree.ts';
 		export * from './src/utility/timeline-keyframe-clipboard.ts';
 		export * from './src/utility/timeline-clip-clipboard.ts';
 		export * from './src/utility/timeline-scene.ts';
@@ -39,20 +39,7 @@ const { copyTimelineKeyframes, prepareTimelineKeyframePaste, getPastedTimelineKe
 	COMMAND_DEFS, UndoRedo, createShapeTimelineLayer, createInlineKeyframesTimeline, resolveLayerParameter,
 	getLayerParameterDefinitions, getLayerParameterValues, resolveParameter, arrayDefinition, genId } = module.exports;
 
-// 実際のショートカット処理を使い、クリップ・レイヤーのコピーとの切り替えも確認する。
-const source = await readFile(new URL('../src/components/GsTimeline.vue', import.meta.url), 'utf8');
-const script = parse(source).descriptor.scriptSetup.content;
-const ast = createSourceFile('GsTimeline.ts', script, ScriptTarget.Latest);
-const handler = ast.statements.find(statement => isFunctionDeclaration(statement) && statement.name?.text === 'onTlKeydown');
-assert.ok(handler);
-const transformed = await transform(handler.getText(ast), { loader: 'ts' });
-const createHandler = new Function('context', `
-	const { HTMLElement, selection, editedScene, timelineClipboard, selectedLayer, props, stateManager,
-		tlEl, time, disposed, copyTimelineKeyframes, prepareTimelineKeyframePaste, getPastedTimelineKeySelection, copyTimelineClips } = context;
-	const deepClone = structuredClone;
-	${transformed.code}
-	return onTlKeydown;
-`);
+const createHandler = context => createTimelineClipboardHandlers(module.exports, context).onTlKeydown;
 
 function fixture(t) {
 	t.mock.method(console, 'log', () => {});

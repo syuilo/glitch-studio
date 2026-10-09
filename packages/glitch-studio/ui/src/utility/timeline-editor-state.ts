@@ -28,4 +28,6 @@ export function getSelectedTimelineLayerId(selection: TimelineSelection): string
 	return ids.size === 1 ? [...ids][0] : null;
 }
 
-export const timelineClipboard: { value: { kind: 'layer'; layer: TimelineLayer } | TimelineClipClipboard | TimelineKeyframeClipboard | null } = { value: null };
+export type TimelineClipboard = { kind: 'layer'; layer: TimelineLayer } | TimelineClipClipboard | TimelineKeyframeClipboard;
+
+export const timelineClipboard: { value: TimelineClipboard | null } = { value: null };

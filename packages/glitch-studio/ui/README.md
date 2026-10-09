@@ -30,6 +30,8 @@ Timelineはレイヤー・クリップ・キーの選択操作から表示を要
 
 `composables/useTimelineSelectionDrag.ts`は移動・トリムのしきい値判定、現在のViewportでの座標変換、スナップ表示、mergeKeyとポインター追跡の寿命を担当し、同じ排他制御でシークも扱う。`utility/timeline-drag-actions.ts`はクリップ・グループ・キー・字幕ごとの開始時の対象と制約を準備し、共通ドラッグへCommandの適用関数を渡す。計算は既存のutility、変更は既存のCommandを使い、選択状態そのものは`GsTimeline.vue`が引き続き所有する。
 
+`utility/timeline-source-actions.ts`は素材・Sceneの選択、クリップ追加・素材差し替え、レイヤー追加メニュー、グループの子孫を含む素材長の読み込みを担当する。`utility/timeline-clipboard-actions.ts`は選択対象のコピーと、コピー内容の種類に応じた貼り付けの準備・Command適用を担当する。ダイアログ・素材情報の読み込み・選択更新・エラー表示は引数で受け取り、SFCではキー入力の振り分けとピッカーの寿命を管理する。非同期処理の完了後はScene定義・素材Blob・対象クリップ・空き区間を各操作に応じて再確認し、破棄済みのパネルや別プロジェクトへ結果を適用しない。
+
 ## プレビューのレイヤー変形
 
 `GsPreviewTransform.vue`は、停止中のTimelineで選択された単一レイヤーの合成設定を編集する。同じレイヤー内の複数クリップ・キーの選択も対象とし、選択は`getTimelineEditorState()`でタイムラインと共有する。音声・無効なレイヤー・現在時刻にクリップや出力がないレイヤーは対象外。プレビューから別レイヤーへの選択変更は行わない。

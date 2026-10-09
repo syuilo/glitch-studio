@@ -1,16 +1,16 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
-import { build, transform } from 'esbuild';
-import { parse } from 'vue/compiler-sfc';
-import { createSourceFile, isFunctionDeclaration, ScriptTarget } from 'typescript';
+import { build } from 'esbuild';
+import { createTimelineClipboardHandlers } from './helpers/timeline-clipboard-actions.mjs';
 
 const uiDirectory = fileURLToPath(new URL('../', import.meta.url));
 const bundled = await build({
 	absWorkingDir: uiDirectory,
 	stdin: { contents: `
+		export { createTimelineClipboardActions } from './src/utility/timeline-clipboard-actions.ts';
+		export { flattenTimelineLayers } from '@gs/subsystems_timeline_shared/layer-tree.ts';
 		export * from './src/utility/timeline-clip-clipboard.ts';
 		export { duplicateTimelineLayers } from './src/utility/timeline-group.ts';
 		export { findTimelineLayer } from '@gs/subsystems_timeline_shared/layer-tree.ts';
@@ -33,26 +33,7 @@ const module = { exports: {} };
 new Function('require', 'module', 'exports', bundled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
 const { copyTimelineClips, prepareTimelineClipPaste, canPasteTimelineClips, COMMAND_DEFS, UndoRedo, createShapeTimelineLayer, duplicateTimelineLayers, findTimelineLayer, genId } = module.exports;
 
-// ショートカットと非同期ペーストはSFCの本物を使い、DOM・メディア読み込みだけを差し込む。
-// 現在の選択種別や読み込み中の編集によって貼り付けの挙動が変わるため、純粋関数のテストだけでは不足する。
-const source = await readFile(new URL('../src/components/GsTimeline.vue', import.meta.url), 'utf8');
-const script = parse(source).descriptor.scriptSetup.content;
-const ast = createSourceFile('GsTimeline.ts', script, ScriptTarget.Latest);
-const handlers = ['onTlKeydown', 'pasteClips'].map(name => {
-	const declaration = ast.statements.find(statement => isFunctionDeclaration(statement) && statement.name?.text === name);
-	assert.ok(declaration);
-	return declaration.getText(ast);
-});
-const transformed = await transform(handlers.join('\n'), { loader: 'ts' });
-const createHandlers = new Function('context', `
-	const { HTMLElement, selection, editedScene, timelineClipboard, selectedLayer, props, stateManager, sceneLayers,
-		readLayerMediaDurations, selectLayer, ui, tlEl, time, inspectTimelineClipMedia, onCueKeyboardDown, removeSelectedClips,
-		copyTimelineClips, prepareTimelineClipPaste, canPasteTimelineClips, duplicateTimelineLayers, findTimelineLayer, genId } = context;
-	const deepClone = structuredClone;
-	let disposed = false;
-	${transformed.code}
-	return { onTlKeydown, pasteClips, dispose: () => { disposed = true; } };
-`);
+const createHandlers = context => createTimelineClipboardHandlers(module.exports, context);
 
 function fixture(t) {
 	t.mock.method(console, 'log', () => {});
