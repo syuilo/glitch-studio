@@ -50,6 +50,7 @@
 			<div :class="$style.scrollingContent" :style="scrollingStyle">
 				<XKeyframes
 					:keyframes="param.binding.keyframesTimeline.keyframes"
+					:paramDef="param.def"
 					:pixelsPerMs="pixelsPerMs"
 					:selectedKeyframeIds="selectedKeyframeIdsByParameter.get(param.key) ?? emptySelectionIds"
 					@dragStart="(event, keyframeId) => emit('keyframeDragStart', event, { layerId: layer.id, target: param.target, paramPath: param.paramPath, keyframeId })"
