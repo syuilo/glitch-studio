@@ -30,10 +30,10 @@
 <script lang="ts" setup>
 import { deepClone } from '@gs/shared/utility/deep-clone.js';
 import { computed, inject } from 'vue';
-import { workspaceControllerKey } from '@/WorkspaceController.ts';
 import { genId } from '@gs/shared/utility/id.js';
 import type { MenuItem } from '@/types/menu.ts';
 import type { WorkspaceTabs } from '@/workspace.ts';
+import { workspaceControllerKey } from '@/WorkspaceController.ts';
 import { getElementMenu, workspacePanelChoices } from '@/workspace.ts';
 import { findWorkspaceElement, findWorkspaceParent } from '@/utility/workspace.ts';
 import * as ui from '@/ui.ts';
@@ -106,7 +106,6 @@ function toggleCollapse() {
 	flex-direction: column;
 	min-width: 0;
 	min-height: 0;
-	contain: strict;
 
 	&.collapsed {
 		flex-grow: 0 !important;

@@ -38,7 +38,7 @@
 		@drop.prevent.stop="onDrop($event, 'center')"
 	></div>
 
-	<div :class="[$style.main]">
+	<div :class="[$style.main]" tabindex="0">
 		<header
 			:class="[$style.header]"
 			@click="goTop"
@@ -48,7 +48,7 @@
 					<path d="M149.512,4.707L108.507,4.707C116.252,4.719 118.758,14.958 118.758,14.958C118.758,14.958 121.381,25.283 129.009,25.209L149.512,25.209L149.512,4.707Z" style="fill:var(--THEME-globalBg);"/>
 				</g>
 			</svg>
-			<div :class="$style.color"></div>
+			<div :class="$style.headerIndicator"></div>
 			<button v-if="canCollapse" :class="$style.toggleCollapse" class="_button" @click="toggleCollapse">
 				<template v-if="stackingDirection === 'vertical'">
 					<template v-if="collapsed"><i class="ti ti-chevron-down"></i></template>
@@ -207,8 +207,6 @@ function popout() {
 
 	position: relative;
 	height: 100%;
-	overflow: clip;
-	contain: strict;
 
 	&.collapsed {
 		flex-grow: 0 !important;
@@ -247,7 +245,7 @@ function popout() {
 			display: none;
 		}
 
-		> .color {
+		> .headerIndicator {
 			width: calc(100% - 24px);
 			height: 3px;
 		}
@@ -284,6 +282,14 @@ function popout() {
 	height: 100%;
 	border-radius: 10px;
 	overflow: clip;
+
+	&:focus-within {
+		box-shadow: 0 0 0 1px color(from var(--THEME-accent) srgb r g b / 0.25);
+
+		.headerIndicator {
+			background: var(--THEME-accent);
+		}
+	}
 }
 
 .header {
@@ -299,13 +305,13 @@ function popout() {
 	user-select: none;
 }
 
-.color {
+.headerIndicator {
 	position: absolute;
 	top: 12px;
 	left: 12px;
 	width: 3px;
 	height: calc(100% - 24px);
-	background: var(--THEME-accent);
+	background: #000;
 	border-radius: 999px;
 }
 
@@ -368,6 +374,7 @@ function popout() {
 .body {
 	height: calc(100% - var(--headerHeight));
 	overflow: clip;
+	contain: strict;
 	box-sizing: border-box;
 	container-type: size;
 	background-color: var(--THEME-workspacePanelBody);

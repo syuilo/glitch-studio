@@ -169,7 +169,6 @@ function onDrop(ev: DragEvent, index: number) {
 	display: flex;
 	min-width: 0;
 	min-height: 0;
-	contain: strict;
 }
 
 .child {
