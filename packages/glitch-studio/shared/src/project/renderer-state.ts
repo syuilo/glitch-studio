@@ -1,7 +1,7 @@
 import { findTimelineLayer, updateTimelineLayer } from '@gs/subsystems_timeline_shared/layer-tree.ts';
 import type { ProjectVisualModule } from './types.ts';
 import type { VisualModule, VisualModuleNode, VisualModuleNodeChange } from '@gs/subsystems_visual-module_shared/types.ts';
-import type { TimelineLayer, TimelineLayerChange, TimelineScene } from '@gs/subsystems_timeline_shared/types.ts';
+import type { TimelineClipLayer, TimelineGroupLayer, TimelineLayer, TimelineLayerChange, TimelineScene } from '@gs/subsystems_timeline_shared/types.ts';
 import type { VisualModuleTarget } from './visual-module-target.ts';
 
 export type RendererProjectState = {
@@ -9,11 +9,23 @@ export type RendererProjectState = {
 	timelineScenes: TimelineScene[];
 };
 
+// 通信上の設定差分は子の配置を所有しない。保存形式の木はTimelineに残し、
+// Glitch Studioの同期契約でだけ設定と階層を分ける。
+export type RendererLayerState = TimelineClipLayer | (Omit<TimelineGroupLayer, 'layers'> & { layers?: never });
+
+export function getRendererLayerState(layer: TimelineLayer): RendererLayerState {
+	if (layer.layerType !== 'group') return layer;
+	const { layers, ...settings } = layer;
+	return settings;
+}
+
 export type RendererProjectChange =
 	| { type: 'node'; target: VisualModuleTarget; node: VisualModuleNode; changes: VisualModuleNodeChange[] }
 	| { type: 'visualModule'; target: VisualModuleTarget; visualModule: VisualModule }
 	| { type: 'visualModuleRegistration'; visualModuleId: string; visualModule: ProjectVisualModule | null }
-	| { type: 'layer'; sceneId: string; layerId: string; layer: TimelineLayer | null; changes: TimelineLayerChange[] }
+	| { type: 'layer'; sceneId: string; layerId: string; layer: RendererLayerState | null; changes: TimelineLayerChange[] }
+	// 階層の最終状態を一度だけ送る。同時に編集した設定・ノードの変更種別は別の差分に残す。
+	| { type: 'layerTree'; sceneId: string; layers: TimelineLayer[] }
 	| { type: 'layerOrder'; sceneId: string; layerIds: string[] }
 	| { type: 'scene'; sceneId: string; scene: TimelineScene | null };
 
@@ -80,8 +92,13 @@ export function applyRendererProjectChanges(state: RendererProjectState, changes
 					const previous = findTimelineLayer(scene.layers, change.layerId);
 					if (change.layer == null) return { ...scene, layers: updateTimelineLayer(scene.layers, change.layerId, () => null) };
 					if (change.layer.id !== change.layerId) throw new Error('Layer ID does not match');
-					return { ...scene, layers: previous == null ? [...scene.layers, change.layer] : updateTimelineLayer(scene.layers, change.layerId, () => change.layer) };
+					const layer: TimelineLayer = change.layer.layerType === 'group'
+						? { ...change.layer, layers: previous?.layerType === 'group' ? previous.layers : [] } : change.layer;
+					return { ...scene, layers: previous == null ? [...scene.layers, layer] : updateTimelineLayer(scene.layers, change.layerId, () => layer) };
 				});
+				break;
+			case 'layerTree':
+				updateScene(change.sceneId, scene => ({ ...scene, layers: change.layers }));
 				break;
 			case 'layerOrder':
 				updateScene(change.sceneId, scene => {

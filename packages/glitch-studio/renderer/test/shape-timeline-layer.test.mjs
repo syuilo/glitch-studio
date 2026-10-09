@@ -24,6 +24,7 @@ after(() => {
 
 const load = path => loadShaderSource(fileURLToPath(import.meta.resolve(path)));
 const { TimelineRendererManager } = await load('../src/timeline-renderer-manager.ts');
+const { getRendererLayerState } = await load('@gs/glitch-studio_shared/project/renderer-state.ts');
 const { createShape } = await load('@gs/subsystems_timeline_shared/layers/shape/shape.ts');
 const { timelineCompositingParamDefs } = await load('@gs/subsystems_timeline_shared/timeline-compositing.ts');
 const literal = value => ({ inputSource: 'literal', value });
@@ -233,7 +234,7 @@ test('updates group transforms while retaining child resources and reporting anc
 	assert.deepEqual(previews.at(-1).geometry.sourceSize, { width: 800, height: 450 });
 	const editedOuter = structuredClone(outer);
 	editedOuter.compositingParamValues.position = literal([0.5, 0]);
-	f.manager.applyProjectChanges([{ type: 'layer', sceneId: 'scene', layerId: 'outer', layer: editedOuter,
+	f.manager.applyProjectChanges([{ type: 'layer', sceneId: 'scene', layerId: 'outer', layer: getRendererLayerState(editedOuter),
 		changes: [{ type: 'parameter', target: 'compositing', kind: 'value' }] }]);
 	await f.manager.renderTimelineAt(200);
 	assert.equal(childTexture.destroyed, false);
@@ -245,7 +246,7 @@ test('updates group transforms while retaining child resources and reporting anc
 	assert.deepEqual(previews.at(-1).geometry.transform.position, [0.2, 0.3]);
 	assert.equal(previews.at(-1).parentGeometries.length, 1);
 	const disabled = { ...editedOuter, isDisabled: true };
-	f.manager.applyProjectChanges([{ type: 'layer', sceneId: 'scene', layerId: 'outer', layer: disabled, changes: [{ type: 'disabled' }] }]);
+	f.manager.applyProjectChanges([{ type: 'layer', sceneId: 'scene', layerId: 'outer', layer: getRendererLayerState(disabled), changes: [{ type: 'disabled' }] }]);
 	await f.manager.renderTimelineAt(200);
 	assert.equal(childTexture.destroyed, true);
 	assert.equal(previews.at(-1).geometry, null);

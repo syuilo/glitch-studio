@@ -95,6 +95,32 @@ test('maps preview coordinates independently of pan and unwraps rotations across
 	assert.ok(Math.abs(unwrapPreviewRotation(Math.PI - 0.1, -Math.PI + 0.1) - 0.2) < 1e-9);
 });
 
+// 【親グループの拡大・縮小・非等方拡縮・回転でも吸着距離を画面上で一定にする】
+// 子の座標系だけで距離を測ると、10倍の親で60px先へ吸着し、0.1倍の親では吸着しづらくなる。
+// 入れ子の回転で子のX軸が祖先のY軸へ移る場合も、移動と辺ハンドルの両方で同じ閾値を守る。
+test('uses screen distances through ancestor transforms for move and resize snapping', () => {
+	const rect = { left: 100, top: 80, width: 800, height: 450 };
+	const parent = transform => geometry({ fitMode: 'stretch', ...transform });
+	const cases = [
+		{ parents: [parent({ scale: [10, 10] })], pixelsPerX: 4000 },
+		{ parents: [parent({ scale: [0.1, 0.1] })], pixelsPerX: 40 },
+		{ parents: [parent({ scale: [10, 0.1], rotation: 0.27 }), parent({ scale: [-1, 1], rotation: 0.5 })], pixelsPerX: 40 },
+	];
+	for (const { parents, pixelsPerX } of cases) for (const distance of [5, 7]) {
+		const initial = geometry({ fitMode: 'stretch', scale: [0.4, 0.3], position: [0.6 - distance / pixelsPerX, 0.13] });
+		const moved = snapPreviewLayerMove(initial, rect, parents);
+		const resized = snapPreviewLayerResize(initial, initial.transform, [1, 0], false, false, rect, parents);
+		if (distance < 6) {
+			near(timelineSourceToScene([1, 0], { ...initial, transform: moved }), [1, 0.13]);
+			near(timelineSourceToScene([1, 0], { ...initial, transform: resized }), [1, 0.13]);
+			near(timelineSourceToScene([-1, 0], { ...initial, transform: resized }), timelineSourceToScene([-1, 0], initial));
+		} else {
+			assert.deepEqual(moved, initial.transform);
+			assert.deepEqual(resized, initial.transform);
+		}
+	}
+});
+
 function fixture(t) {
 	t.mock.method(console, 'log', () => {});
 	const layer = createShapeTimelineLayer('rectangle', 0);

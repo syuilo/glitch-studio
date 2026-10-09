@@ -398,6 +398,7 @@ import { getTimelineKeyframeEntries, getTimelineKeyframeLanes } from '@/utility/
 import { prepareTimelineClipMove } from '@/utility/timeline-clip-move.ts';
 import { getLayerParameterValues, getLayerParameterDefinition, resolveLayerParameter } from '@/utility/timeline-scene.ts';
 import { inspectTimelineClipMedia } from '@/utility/timeline-clip-media.ts';
+import type { TimelineClipSourceDurations } from '@/utility/timeline-clip-media.ts';
 import { selectionRect, mergeTimelineRangeSelection, clipSelectionKey, keyframeSelectionKey, getTimelineStretchSelection, constrainTimelineMove, keyframeMoveBounds, getTimelineSnappingTimes } from '@/utility/timeline-selection.ts';
 import { canEditKeyframesTimeline, updateInlineKeyframe } from '@/utility/keyframes-timeline.ts';
 import { createEffectTimelineLayer } from '@/utility/effect-timeline-layer.ts';
@@ -1445,14 +1446,16 @@ async function pasteClips(clipboard: TimelineClipClipboard) {
 			if (layer.layerType !== 'audio' && layer.layerType !== 'video') return [];
 			const asset = 'assetId' in clip ? stateManager.state.assets.value.find(asset => asset.id === clip.assetId) : undefined;
 			if (!asset) throw new Error('Missing media');
-			return [{ clipId: clip.id, asset, blob: asset.fileData }];
+			return [{ layerId, clipId: clip.id, asset, blob: asset.fileData }];
 		});
-		const durations = await Promise.all(sources.map(async ({ clipId, asset }) => [clipId, (await inspectTimelineClipMedia(asset)).durationMs] as const));
+		const durations = await Promise.all(sources.map(async ({ layerId, clipId, asset }) => ({ layerId, clipId, durationMs: (await inspectTimelineClipMedia(asset)).durationMs })));
 		if (disposed || stateManager.state.timelineScenes.value.find(entry => entry.id === props.sceneId) !== scene) return;
 		if (sources.some(({ asset, blob }) => !stateManager.state.assets.value.includes(asset) || asset.fileData !== blob)) return;
 		// 読み込み待ちの間にクリップが追加・移動されても、重なる場合は履歴を作らず終了する。
 		if (!canPasteTimelineClips(scene, clips)) return;
-		stateManager.commit('pasteTimelineClips', { sceneId: props.sceneId, clips, sourceDurationsMs: Object.fromEntries(durations) });
+		const sourceDurationsMs: TimelineClipSourceDurations = Object.create(null);
+		for (const { layerId, clipId, durationMs } of durations) (sourceDurationsMs[layerId] ??= Object.create(null))[clipId] = durationMs;
+		stateManager.commit('pasteTimelineClips', { sceneId: props.sceneId, clips, sourceDurationsMs });
 		selection.value = { kind: 'clips', clips: clips.map(({ layerId, clip }) => ({ layerId, clipId: clip.id })) };
 		tlEl.value?.focus({ preventScroll: true });
 	} catch (error) {
@@ -1692,8 +1695,8 @@ async function changeClipSource() {
 	} catch (error) { audioError.value = error instanceof Error ? error.message : String(error); }
 }
 
-async function readLayerMediaDurations(layer: TimelineLayer): Promise<Record<string, number> | undefined> {
-	if (layer.layerType === 'group') return Object.assign({}, ...await Promise.all(layer.layers.map(readLayerMediaDurations)));
+async function readLayerMediaDurations(layer: TimelineLayer): Promise<TimelineClipSourceDurations | undefined> {
+	if (layer.layerType === 'group') return Object.assign(Object.create(null), ...await Promise.all(layer.layers.map(readLayerMediaDurations)));
 	if (layer.layerType !== 'audio' && layer.layerType !== 'video') return undefined;
 	const sources = layer.clips.map(clip => {
 		const asset = stateManager.state.assets.value.find(asset => asset.id === clip.assetId);
@@ -1702,7 +1705,7 @@ async function readLayerMediaDurations(layer: TimelineLayer): Promise<Record<str
 	});
 	const durations = await Promise.all(sources.map(async ({ clipId, asset }) => [clipId, (await inspectTimelineClipMedia(asset)).durationMs] as const));
 	if (sources.some(({ asset, blob }) => !stateManager.state.assets.value.includes(asset) || asset.fileData !== blob)) throw new Error('Media changed during loading');
-	return Object.fromEntries(durations);
+	return { [layer.id]: Object.fromEntries(durations) };
 }
 
 function initialCompositingParameters() {
@@ -1724,7 +1727,7 @@ async function addMediaLayer(layerType: 'image' | 'video' | 'audio' | 'scene') {
 	else if (source.kind === 'asset' && layerType === 'audio') layer = { ...base, layerType, clips: [{ ...clip, assetId: source.asset.id }], audioParamValues };
 	else if (source.kind === 'asset' && layerType === 'video') layer = { ...base, layerType, clips: [{ ...clip, assetId: source.asset.id, audioEnabled: !!source.media?.audioAvailable }], audioParamValues, compositingParamValues };
 	else return;
-	stateManager.commit('addTimelineLayer', { sceneId: props.sceneId, layer, sourceDurationsMs: sourceDurationMs == null ? undefined : { [clip.id]: sourceDurationMs } });
+	stateManager.commit('addTimelineLayer', { sceneId: props.sceneId, layer, sourceDurationsMs: sourceDurationMs == null ? undefined : { [layer.id]: { [clip.id]: sourceDurationMs } } });
 	selectClip({ layerId: layer.id, clipId: clip.id });
 }
 

@@ -188,15 +188,40 @@ test('validates every descendant before adding or pasting a group', t => {
 	f.state.assets.value = [{ id: 'asset', fileDataType: 'audio/wav' }];
 	const before = structuredClone(f.scene);
 	for (const command of ['addTimelineLayer', 'pasteTimelineLayer']) {
-		const payload = { sceneId: 'scene', sourceLayerId: 'existing', layer: group('new', [group('nested', [sound('existing')])]), sourceDurationsMs: { clip: 1000 } };
+		const payload = { sceneId: 'scene', sourceLayerId: 'existing', layer: group('new', [group('nested', [sound('existing')])]), sourceDurationsMs: { fresh: { clip: 1000 } } };
 		assert.throws(() => f.history.commit(command, payload), /Duplicate layer ID/);
 		payload.layer.layers[0].layers[0].id = 'fresh';
 		assert.throws(() => f.history.commit(command, { ...payload, sourceDurationsMs: undefined }), /Media duration is required/);
-		assert.throws(() => f.history.commit(command, { ...payload, sourceDurationsMs: { clip: 100 } }), /media duration/);
+		assert.throws(() => f.history.commit(command, { ...payload, sourceDurationsMs: { fresh: { clip: 100 } } }), /media duration/);
 		assert.deepEqual(f.scene, before);
 		f.history.commit(command, payload);
 		assert.ok(findTimelineLayer(f.scene.layers, 'fresh'));
 		f.history.undo();
 		assert.deepEqual(f.scene, before);
+	}
+});
+
+// 【レイヤーをまたいでクリップIDが同じでも、それぞれの素材長で検証する】
+// グループ内の別素材に長い方の長さを流用すると、不正な区間を保存できてしまう。
+// 短い方で上書きされたために有効な貼り付けが失敗する逆方向の問題も防ぐ。
+test('scopes media durations by layer when clip IDs repeat inside groups', t => {
+	const f = fixture(t, []);
+	f.state.assets.value = ['short-asset', 'long-asset'].map(id => ({ id, fileDataType: 'audio/wav' }));
+	const short = sound('short');
+	short.clips[0] = { ...short.clips[0], assetId: 'short-asset', contentOffsetMs: 0, durationMs: 100 };
+	const long = sound('long');
+	long.clips[0] = { ...long.clips[0], assetId: 'long-asset', contentOffsetMs: 0, durationMs: 900 };
+	const root = group('root', [short, group('nested', [long])]);
+	const sourceDurationsMs = { short: { clip: 100 }, long: { clip: 1000 } };
+	for (const command of ['addTimelineLayer', 'pasteTimelineLayer']) {
+		const payload = { sceneId: 'scene', sourceLayerId: 'missing', layer: root, sourceDurationsMs };
+		f.history.commit(command, payload);
+		assert.deepEqual(f.scene.layers[0], root);
+		f.history.undo();
+		assert.deepEqual(f.scene.layers, []);
+		short.clips[0].durationMs = 101;
+		assert.throws(() => f.history.commit(command, payload), /Clip exceeds/);
+		assert.deepEqual(f.scene.layers, []);
+		short.clips[0].durationMs = 100;
 	}
 });

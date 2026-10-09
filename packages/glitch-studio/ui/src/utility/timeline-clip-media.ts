@@ -4,6 +4,9 @@ import { openAssetAudio } from '../audio/project-audio-reader.ts';
 
 export type TimelineClipMediaInfo = { durationMs: number; audioAvailable: boolean; audioError: string | null };
 
+// クリップIDはレイヤー内でだけ一意。同じIDのクリップを含むグループでも素材長を混同しない。
+export type TimelineClipSourceDurations = Record<string, Record<string, number>>;
+
 // 同じ素材を複数クリップに配置しても、メタデータを何度もデコードしない。
 // Blobの寿命に追従し、プロジェクトを閉じた後にファイルを保持し続けない。
 const metadataCache = new WeakMap<Blob, Promise<TimelineClipMediaInfo>>();

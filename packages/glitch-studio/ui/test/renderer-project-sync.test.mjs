@@ -174,6 +174,73 @@ test('absorbs child edits into newly added scenes and layers', async t => {
 	assert.deepEqual(f.errors, []);
 });
 
+const group = (id, layers = []) => ({ id, name: id, layerType: 'group', layers, isDisabled: false, automationGraphs: [],
+	compositingParamValues: {}, audioParamValues: { volume: { inputSource: 'literal', value: 1 } } });
+
+// 【階層変更と同時の子の編集を保持し、削除された子への差分は送らない】
+// Scene全体の置換に吸収すると、無関係の履歴まで破棄するか、保持すべきでない履歴を残してしまう。
+// グループのUndoで復活するインライン定義にも編集済みの値が含まれる必要がある。
+test('retains inline edit metadata across reparenting and restores edited deleted groups on undo', async t => {
+	const f = fixture(t);
+	const inline = { ...createInlineVisualModuleLayer(0), id: 'inline', visualModule: structuredClone(f.replica.visualModules[0]) };
+	f.manager.commit('addTimelineLayer', { sceneId: 'scene', layer: group('group', [inline]) });
+	await f.sync.flush();
+	const edit = value => f.manager.commit('updateParamAsLiteral', { sceneId: 'scene', inlineVisualModuleLayerId: 'inline', nodeId: 'node-0', paramPath: f.target.paramPath, value });
+	edit(0.4);
+	f.manager.commit('moveTimelineLayer', { sceneId: 'scene', layerId: 'inline', parentId: null, beforeId: null });
+	await f.sync.flush();
+	assert.deepEqual(f.batches.at(-1).map(change => change.type), ['layerTree', 'node']);
+	assert.deepEqual(f.batches.at(-1)[1].changes, [{ type: 'parameter', kind: 'value' }]);
+	assert.equal(f.replica.timelineScenes[0].layers[1].visualModule.nodes[0].params.buzzs.value[0].binding.value.x.value, 0.4);
+	f.manager.undo();
+	await f.sync.flush();
+	edit(0.8);
+	f.manager.commit('removeTimelineLayer', { sceneId: 'scene', layerId: 'group' });
+	await f.sync.flush();
+	assert.deepEqual(f.batches.at(-1).map(change => change.type), ['layerTree']);
+	assert.deepEqual(f.replica.timelineScenes[0].layers, []);
+	f.manager.undo();
+	await f.sync.flush();
+	assert.equal(f.replica.timelineScenes[0].layers[0].layers[0].visualModule.nodes[0].params.buzzs.value[0].binding.value.x.value, 0.8);
+	assert.deepEqual(f.errors, []);
+});
+
+// 【入れ子のグループ移動は各レイヤーの設定を一度だけ送る】
+// 親ごとに全子孫を複製すると深さに応じて送信量が二乗で増え、ドラッグのたびに遅延する。
+// Undo/Redoでも子の配置を失わず、クリップ移動などの変更種別を個別に保持する。
+test('sends each layer once without nested snapshots when moving a deep group', async t => {
+	const f = fixture(t);
+	let root = { ...createEffectTimelineLayer(definition, 1000), id: 'effect' };
+	for (let index = 0; index < 8; index++) root = group('group-' + index, [root]);
+	f.manager.commit('addTimelineLayer', { sceneId: 'scene', layer: root });
+	await f.sync.flush();
+	const before = structuredClone(f.replica);
+	f.manager.commit('moveTimelineGroup', { sceneId: 'scene', layerId: root.id, deltaMs: 100 });
+	await f.sync.flush();
+	const after = structuredClone(f.replica);
+	const assertBatch = () => {
+		const batch = f.batches.at(-1);
+		assert.equal(batch.length, 9);
+		assert.equal(new Set(batch.map(change => change.layerId)).size, 9);
+		for (const change of batch) {
+			assert.equal(change.type, 'layer');
+			assert.equal('layers' in change.layer, false);
+			if (change.layer.layerType === 'group') assert.ok(change.changes.every(edit => edit.type === 'parameter'));
+			else assert.ok(change.changes.some(edit => edit.type === 'clips'));
+		}
+	};
+	assertBatch();
+	f.manager.undo();
+	await f.sync.flush();
+	assertBatch();
+	assert.deepEqual(f.replica, before);
+	f.manager.redo();
+	await f.sync.flush();
+	assertBatch();
+	assert.deepEqual(f.replica, after);
+	assert.deepEqual(f.errors, []);
+});
+
 // 【Module引数の履歴と、同時に編集したノード・合成設定の変更内容を通知する】
 // 同じレイヤーだからと最後の編集種別だけ残すと、合成設定やリセットが通常の値編集に
 // 化けてしまう。Inline Moduleの部分編集も吸収せず、レンダラーが判断する材料を保つ。

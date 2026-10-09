@@ -60,6 +60,7 @@ import type { TimelineKeyframeSelection, TimelineKeyframePosition } from '@/util
 import type { TimelineClipMoveTarget } from '@/utility/timeline-clip-move.ts';
 import type { TimelineKeyframeMoveUpdate } from '@/utility/timeline-keyframe-move.ts';
 import type { TimelineClipPaste } from '@/utility/timeline-clip-clipboard.ts';
+import type { TimelineClipSourceDurations } from '@/utility/timeline-clip-media.ts';
 import { getTimelineKeyframePasteUpdates } from '@/utility/timeline-keyframe-clipboard.ts';
 import type { TimelineKeyframePaste } from '@/utility/timeline-keyframe-clipboard.ts';
 import type { TimelineTransformBindings, TimelineTransformKey } from './utility/timeline-transform-edit.ts';
@@ -1142,7 +1143,6 @@ const updateVisualModuleOutputDefCommandDef = defineCommand<VisualModuleTarget &
 
 type TimelineClipData = TimelineClip | TimelineAssetClip | TimelineVideoClip | TimelineSceneClip;
 type TimelineClipTarget = { layerId: string; clipId: string };
-type SourceDurations = Record<string, number>;
 
 function getTimelineLayer(state: ProjectState, sceneId: string, layerId: string): TimelineLayer {
 	const layer = findTimelineLayer(getScene(state, sceneId).layers, layerId);
@@ -1173,14 +1173,14 @@ function validateMediaClipTiming(clip: TimelineClip, sourceDurationMs: number | 
 }
 
 /** 異なる素材種類の混入をコマンド境界で拒否してから、型別のclips配列へ保存する。 */
-function validateLayerClips(state: ProjectState, sceneId: string, layer: TimelineLayer, clips: readonly TimelineClipData[], sourceDurationsMs?: SourceDurations) {
+function validateLayerClips(state: ProjectState, sceneId: string, layer: TimelineLayer, clips: readonly TimelineClipData[], sourceDurationsMs?: TimelineClipSourceDurations) {
 	validateTimelineClips(clips);
 	for (const clip of clips) {
 		if (layer.layerType === 'image' || layer.layerType === 'video' || layer.layerType === 'audio') {
 			if (!('assetId' in clip) || typeof clip.assetId !== 'string'
 				|| !state.assets.value.some(asset => asset.id === clip.assetId && asset.fileDataType.startsWith(layer.layerType + '/'))) throw new Error('Asset type does not match the layer');
 			if (layer.layerType === 'video' && (!('audioEnabled' in clip) || typeof clip.audioEnabled !== 'boolean')) throw new Error('Invalid video clip');
-			if (sourceDurationsMs && layer.layerType !== 'image') validateMediaClipTiming(clip, sourceDurationsMs[clip.id]);
+			if (sourceDurationsMs && layer.layerType !== 'image') validateMediaClipTiming(clip, sourceDurationsMs[layer.id]?.[clip.id]);
 		} else if (layer.layerType === 'scene') {
 			if (!('sceneId' in clip) || typeof clip.sceneId !== 'string' || !canReferenceScene(state.timelineScenes.value, sceneId, clip.sceneId)) throw new Error('Invalid or circular scene reference');
 		}
@@ -1188,7 +1188,7 @@ function validateLayerClips(state: ProjectState, sceneId: string, layer: Timelin
 }
 
 /** 子の一部だけが追加されることのないよう、グループ全体を変更前に検証する。 */
-function validateAddedTimelineLayer(state: ProjectState, sceneId: string, layer: TimelineLayer, sourceDurationsMs?: SourceDurations) {
+function validateAddedTimelineLayer(state: ProjectState, sceneId: string, layer: TimelineLayer, sourceDurationsMs?: TimelineClipSourceDurations) {
 	const ids = new Set(flattenTimelineLayers(getScene(state, sceneId).layers).map(entry => entry.id));
 	for (const entry of flattenTimelineLayers([layer])) {
 		if (ids.has(entry.id)) throw new Error('Duplicate layer ID');
@@ -1202,9 +1202,11 @@ function validateAddedTimelineLayer(state: ProjectState, sceneId: string, layer:
 	}
 }
 
-const addTimelineLayerCommandDef = defineCommand<{ sceneId: string; layer: TimelineLayer; sourceDurationsMs?: SourceDurations }>({
+const addTimelineLayerCommandDef = defineCommand<{ sceneId: string; layer: TimelineLayer; sourceDurationsMs?: TimelineClipSourceDurations }>({
 	label: 'Add timeline layer',
-	changes: (_state, payload) => [{ type: 'layer', sceneId: payload.sceneId, layerId: payload.layer.id, changes: [{ type: 'definition' }] }, { type: 'layerOrder', sceneId: payload.sceneId }],
+	// 単一レイヤーのルート追加では既存の兄弟を送り直さず、子孫を伴う追加だけ階層全体を通知する。
+	changes: (_state, payload) => payload.layer.layerType === 'group' ? [{ type: 'layerTree', sceneId: payload.sceneId }]
+		: [{ type: 'layer', sceneId: payload.sceneId, layerId: payload.layer.id, changes: [{ type: 'definition' }] }, { type: 'layerOrder', sceneId: payload.sceneId }],
 	create: payload => ({
 		execute(state) {
 			const scene = getScene(state, payload.sceneId);
@@ -1282,7 +1284,7 @@ const addTimelineClipCommandDef = defineCommand<{ sceneId: string; layerId: stri
 	}),
 });
 
-const pasteTimelineClipsCommandDef = defineCommand<{ sceneId: string; clips: TimelineClipPaste[]; sourceDurationsMs?: SourceDurations }>({
+const pasteTimelineClipsCommandDef = defineCommand<{ sceneId: string; clips: TimelineClipPaste[]; sourceDurationsMs?: TimelineClipSourceDurations }>({
 	label: 'Paste timeline clips',
 	changes: (_state, payload) => [...new Set(payload.clips.map(entry => entry.layerId))]
 		.map(layerId => ({ type: 'layer', sceneId: payload.sceneId, layerId, changes: [{ type: 'clips' }] })),
@@ -1296,7 +1298,7 @@ const pasteTimelineClipsCommandDef = defineCommand<{ sceneId: string; clips: Tim
 				validateTimelineClips(clips);
 				validateLayerClips(state, payload.sceneId, layer, added);
 				if (layer.layerType === 'video' || layer.layerType === 'audio') {
-					for (const clip of added) validateMediaClipTiming(clip, payload.sourceDurationsMs?.[clip.id]);
+					for (const clip of added) validateMediaClipTiming(clip, payload.sourceDurationsMs?.[layer.id]?.[clip.id]);
 				}
 				return { layer, clips };
 			});
@@ -1465,9 +1467,9 @@ const editVideoClipAudioCommandDef = defineCommand<TimelineClipTarget & { sceneI
 	},
 });
 
-const pasteTimelineLayerCommandDef = defineCommand<{ sceneId: string; layer: TimelineLayer; sourceLayerId: string; sourceDurationsMs?: SourceDurations }>({
+const pasteTimelineLayerCommandDef = defineCommand<{ sceneId: string; layer: TimelineLayer; sourceLayerId: string; sourceDurationsMs?: TimelineClipSourceDurations }>({
 	label: 'Paste timeline layer',
-	changes: (_state, payload) => [{ type: 'scene', sceneId: payload.sceneId }],
+	changes: (_state, payload) => [{ type: 'layerTree', sceneId: payload.sceneId }],
 	create: payload => ({
 		execute(state) {
 			validateAddedTimelineLayer(state, payload.sceneId, payload.layer, payload.sourceDurationsMs);
@@ -1507,7 +1509,7 @@ const reorderTimelineLayersCommandDef = defineCommand<{ sceneId: string; layerId
 
 const removeTimelineLayerCommandDef = defineCommand<{ sceneId: string; layerId: string }>({
 	label: 'Remove timeline layer',
-	changes: (_state, payload) => [{ type: 'scene', sceneId: payload.sceneId }],
+	changes: (_state, payload) => [{ type: 'layerTree', sceneId: payload.sceneId }],
 	create: payload => {
 		let before: TimelineLayer[];
 		return {
@@ -1749,7 +1751,7 @@ function editTimelineTree(sceneId: string, edit: (layers: TimelineLayer[]) => vo
 
 const groupTimelineLayersCommandDef = defineCommand<{ sceneId: string; layerIds: string[]; group: import('@gs/subsystems_timeline_shared/types.ts').TimelineGroupLayer }>({
 	label: 'Group timeline layers',
-	changes: (_state, payload) => [{ type: 'scene', sceneId: payload.sceneId }],
+	changes: (_state, payload) => [{ type: 'layerTree', sceneId: payload.sceneId }],
 	create: payload => editTimelineTree(payload.sceneId, layers => {
 		if (payload.group.layers.length || findTimelineLayer(layers, payload.group.id)) throw new Error('Invalid new group');
 		const locations = payload.layerIds.map(id => findTimelineLayerLocation(layers, id));
@@ -1765,7 +1767,7 @@ const groupTimelineLayersCommandDef = defineCommand<{ sceneId: string; layerIds:
 
 const ungroupTimelineLayerCommandDef = defineCommand<{ sceneId: string; layerId: string }>({
 	label: 'Ungroup timeline layer',
-	changes: (_state, payload) => [{ type: 'scene', sceneId: payload.sceneId }],
+	changes: (_state, payload) => [{ type: 'layerTree', sceneId: payload.sceneId }],
 	create: payload => editTimelineTree(payload.sceneId, layers => {
 		const location = findTimelineLayerLocation(layers, payload.layerId);
 		if (!location || location.layer.layerType !== 'group') throw new Error('Group not found');
@@ -1775,7 +1777,7 @@ const ungroupTimelineLayerCommandDef = defineCommand<{ sceneId: string; layerId:
 
 const moveTimelineLayerCommandDef = defineCommand<{ sceneId: string; layerId: string; parentId: string | null; beforeId: string | null }>({
 	label: 'Move timeline layer',
-	changes: (_state, payload) => [{ type: 'scene', sceneId: payload.sceneId }],
+	changes: (_state, payload) => [{ type: 'layerTree', sceneId: payload.sceneId }],
 	create: payload => editTimelineTree(payload.sceneId, layers => {
 		const source = findTimelineLayerLocation(layers, payload.layerId);
 		if (!source) throw new Error('Layer not found');
@@ -1795,10 +1797,13 @@ const moveTimelineGroupCommandDef = defineCommand<{ sceneId: string; layerId: st
 	label: 'Move timeline group',
 	changes: (state, payload) => {
 		const group = getTimelineLayer(state, payload.sceneId, payload.layerId);
-		return flattenTimelineLayers([group]).map(layer => ({ type: 'layer' as const, sceneId: payload.sceneId, layerId: layer.id,
-																																																								changes: layer.layerType === 'voicevox' ? [{ type: 'definition' as const }] : [
-																																																									{ type: 'clips' as const }, ...getLayerParameterTargets(layer).map(target => ({ type: 'parameter' as const, target, kind: 'value' as const })),
-																																																								] }));
+		return flattenTimelineLayers([group]).map(layer => ({
+			type: 'layer' as const, sceneId: payload.sceneId, layerId: layer.id,
+			changes: layer.layerType === 'voicevox' ? [{ type: 'definition' as const }] : [
+				...(layer.layerType === 'group' ? [] : [{ type: 'clips' as const }]),
+				...getLayerParameterTargets(layer).map(target => ({ type: 'parameter' as const, target, kind: 'value' as const })),
+			],
+		}));
 	},
 	create: payload => {
 		let before: (TimelineClipTarget & { startMs: number })[];

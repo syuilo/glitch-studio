@@ -160,6 +160,65 @@ test('resolves distinct layer audio inputs in nested effect parameters', async t
 	assert.equal(params.sounds.none, null);
 });
 
+// 【階層の並べ替え・空グループの削除・貼り付けで、残った配置の描画履歴を維持する】
+// Scene全体の世代を進めると、操作と無関係なエフェクトまで初期化される。
+// 同じバッチの設定編集は対象だけを破棄し、削除直後に描画せず復元したグループは作り直す。
+test('preserves unaffected effect instances across tree edits and resets restored removed groups', async t => {
+	const f = fixture(t);
+	const group = (id, layers = []) => ({ id, name: id, layerType: 'group', layers, isDisabled: false,
+		automationGraphs: [], compositingParamValues: compositing(), audioParamValues: { volume: literal(1) } });
+	const foreground = layer('foreground', { amount: literal(1) });
+	const nested = group('group', [layer('child', { amount: literal(2) })]);
+	const empty = group('empty');
+	await f.setup([foreground, nested, empty]);
+	await f.manager.renderTimelineFrame(350, 0);
+	const foregroundInstance = f.calls.renders.find(call => call.params.amount === 1).instance;
+	const childInstance = f.calls.renders.find(call => call.params.amount === 2).instance;
+	const treeChange = layers => ({ type: 'layerTree', sceneId: 'scene', layers: structuredClone(layers) });
+	for (const layers of [[empty, nested, foreground], [nested, foreground], [nested, group('pasted'), foreground]]) {
+		f.manager.applyProjectChanges([treeChange(layers)]);
+		await f.manager.renderTimelineFrame(350, 0);
+		assert.equal(foregroundInstance.disposed, false);
+		assert.equal(childInstance.disposed, false);
+		assert.equal(f.calls.instances.length, 2);
+	}
+	const edited = { ...foreground, effectParamValues: { ...foreground.effectParamValues, amount: literal(3) } };
+	f.manager.applyProjectChanges([treeChange([edited, nested]), { type: 'layer', sceneId: 'scene', layerId: edited.id, layer: edited,
+		changes: [{ type: 'parameter', target: 'effect', kind: 'value' }] }]);
+	await f.manager.renderTimelineFrame(350, 0);
+	const editedInstance = f.calls.renders.find(call => call.params.amount === 3).instance;
+	assert.equal(foregroundInstance.disposed, true);
+	assert.equal(childInstance.disposed, false);
+	assert.equal(f.calls.instances.length, 3);
+	f.manager.applyProjectChanges([treeChange([edited])]);
+	f.manager.applyProjectChanges([treeChange([edited, nested])]);
+	await f.manager.renderTimelineFrame(350, 0);
+	assert.equal(editedInstance.disposed, false);
+	assert.equal(childInstance.disposed, true);
+	assert.equal(f.calls.instances.length, 4);
+});
+
+// 【参照先Sceneの階層変更でも、親Sceneの配置と無関係な子の履歴を維持する】
+// 子Sceneの同期を解像度変更と同じ世代へまとめると、Sceneを利用する全配置が再生成される。
+test('keeps child scene instances while applying its current layer tree', async t => {
+	const f = fixture(t);
+	const child = { id: 'child', name: 'Child', resolution: { mode: 'project' }, layers: [layer('effect')] };
+	const parent = { id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [{
+		id: 'placement', name: 'Placement', layerType: 'scene', isDisabled: false, automationGraphs: [],
+		clips: [{ ...clip('clip', 0, 1000), sceneId: 'child' }], compositingParamValues: compositing(), audioParamValues: { volume: literal(1) },
+	}] };
+	await f.setup([], { timelineScenes: [parent, child] });
+	await f.manager.renderTimelineFrame(350, 0);
+	const instance = f.calls.instances[0];
+	f.manager.applyProjectChanges([{ type: 'layerTree', sceneId: 'child', layers: [...child.layers, {
+		id: 'empty', name: 'Empty', layerType: 'group', layers: [], isDisabled: false, automationGraphs: [],
+		compositingParamValues: compositing(), audioParamValues: { volume: literal(1) },
+	}] }]);
+	await f.manager.renderTimelineFrame(350, 0);
+	assert.equal(instance.disposed, false);
+	assert.equal(f.calls.instances.length, 1);
+});
+
 // 【直接エフェクトの編集では対象レイヤーだけを再生成する】
 // この種類の編集では対象の履歴リセットを許容するが、全タイムラインのリセットにはしない。
 // 不正なバッチは先行する編集も反映せず、次の正常な描画・編集を続けられる必要がある。

@@ -186,9 +186,9 @@ test('preserves video settings and validates only pasted media against its curre
 	f.selection.value.clips = [{ layerId: 'shape', clipId: 'video' }];
 	const clips = prepareTimelineClipPaste(f.scene, f.clipboard, 1000);
 	assert.equal(clips[0].clip.audioEnabled, false);
-	const sourceDurationsMs = { [clips[0].clip.id]: 120.25 };
+	const sourceDurationsMs = { [clips[0].layerId]: { [clips[0].clip.id]: 120.25 } };
 	assert.throws(() => f.history.commit('pasteTimelineClips', { sceneId: 'scene', clips }), /Invalid media duration/);
-	assert.throws(() => f.history.commit('pasteTimelineClips', { sceneId: 'scene', clips, sourceDurationsMs: { [clips[0].clip.id]: 119 } }), /Clip exceeds/);
+	assert.throws(() => f.history.commit('pasteTimelineClips', { sceneId: 'scene', clips, sourceDurationsMs: { [clips[0].layerId]: { [clips[0].clip.id]: 119 } } }), /Clip exceeds/);
 	f.layer.clips.push({ id: 'missing', startMs: 300, durationMs: 100, contentOffsetMs: 0, assetId: 'missing', audioEnabled: true });
 	f.history.commit('pasteTimelineClips', { sceneId: 'scene', clips, sourceDurationsMs });
 	assert.deepEqual(f.layer.clips.at(-1), clips[0].clip);

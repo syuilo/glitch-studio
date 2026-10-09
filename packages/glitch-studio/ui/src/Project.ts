@@ -44,6 +44,7 @@ export type ProjectContentChange =
 	| { type: 'visualModule'; target: VisualModuleTarget }
 	| { type: 'visualModuleRegistration'; visualModuleId: string }
 	| { type: 'layer'; sceneId: string; layerId: string; changes: TimelineLayerChange[] }
+	| { type: 'layerTree'; sceneId: string }
 	| { type: 'layerOrder'; sceneId: string }
 	| { type: 'scene'; sceneId: string };
 

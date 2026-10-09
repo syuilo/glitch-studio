@@ -88,10 +88,7 @@ const editable = computed(() => {
 	return Object.fromEntries((['position', 'scale', 'rotation'] as const).map(key => [key, canEditTimelineTransform(bindings[key], key)])) as Record<TimelineTransformKey, boolean>;
 });
 const zeroScale = computed(() => geometry.value?.transform.scale.some(value => Math.abs(value) < 0.000001) ?? false);
-const toScreen = (point: TimelinePoint) => {
-	for (const parent of [...(geometry.value?.parents ?? [])].reverse()) point = timelineSourceToScene(point, parent);
-	return sceneToPreview(point, props.canvasRect);
-};
+const toScreen = (point: TimelinePoint) => sceneToPreview(point, props.canvasRect, geometry.value?.parents);
 const handlePositions = computed(() => geometry.value ? previewResizeHandles.map(point => toScreen(timelineSourceToScene(point, geometry.value!))) : []);
 const polygon = computed(() => geometry.value ? getTimelineLayerCorners(geometry.value).map(point => toScreen(point).join(',')).join(' ') : '');
 const origin = computed(() => geometry.value ? toScreen(geometry.value.transform.position) : [0, 0]);
@@ -169,14 +166,14 @@ function startDrag(event: PointerEvent, handle: 'move' | 'rotate' | TimelinePoin
 		let transform: TimelineLayerTransform;
 		if (handle === 'move') {
 			transform = { ...initial.transform, position: [initial.transform.position[0] + delta[0], initial.transform.position[1] + delta[1]] };
-			if (snap.value && delta.some(value => value !== 0)) transform = snapPreviewLayerMove({ ...initial, transform }, rect);
+			if (snap.value && delta.some(value => value !== 0)) transform = snapPreviewLayerMove({ ...initial, transform }, rect, initial.parents);
 		} else if (handle === 'rotate') {
 			let rotation = initial.transform.rotation + accumulatedAngle / Math.PI;
 			if (latest.shift) rotation = Math.round(rotation * 12) / 12;
 			transform = { ...initial.transform, rotation };
 		} else {
 			transform = resizePreviewLayer(initial, handle, delta, keepRatio.value, latest.alt);
-			if (snap.value && delta.some(value => value !== 0)) transform = snapPreviewLayerResize(initial, transform, handle, keepRatio.value, latest.alt, rect);
+			if (snap.value && delta.some(value => value !== 0)) transform = snapPreviewLayerResize(initial, transform, handle, keepRatio.value, latest.alt, rect, initial.parents);
 		}
 		changed = keys.some(key => !deepEqual(initial!.transform[key], transform[key]));
 		// ポインターを動かさないクリックではキーも履歴も作らない。

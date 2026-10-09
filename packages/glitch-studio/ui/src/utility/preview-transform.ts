@@ -5,7 +5,9 @@ export type PreviewCanvasRect = { left: number; top: number; width: number; heig
 
 export const previewResizeHandles: TimelinePoint[] = [[-1, 1], [0, 1], [1, 1], [1, 0], [1, -1], [0, -1], [-1, -1], [-1, 0]];
 
-export function sceneToPreview(point: TimelinePoint, rect: PreviewCanvasRect): TimelinePoint {
+export function sceneToPreview(point: TimelinePoint, rect: PreviewCanvasRect, parentGeometries: readonly TimelineLayerGeometry[] = []): TimelinePoint {
+	// 祖先は外側から並ぶため、子の座標は内側のグループから順に画面へ変換する。
+	for (let index = parentGeometries.length - 1; index >= 0; index--) point = timelineSourceToScene(point, parentGeometries[index]);
 	return [rect.left + (point[0] + 1) * rect.width / 2, rect.top + (1 - point[1]) * rect.height / 2];
 }
 
@@ -47,16 +49,24 @@ export function resizePreviewLayer(geometry: TimelineLayerGeometry, handle: Time
 	return { ...initial, scale, position: fromOrigin ? [...initial.position] : positionForFixedPoint(geometry, fixed, scale) };
 }
 
-/** 移動では回転後の枠の外接矩形を画面端へ吸着させる。許容距離はCSS pxで一定。 */
-export function snapPreviewLayerMove(geometry: TimelineLayerGeometry, rect: PreviewCanvasRect, threshold = 6): TimelineLayerTransform {
+/** 移動では回転後の枠の外接矩形を所属キャンバス端へ吸着させる。許容距離はCSS pxで一定。 */
+export function snapPreviewLayerMove(geometry: TimelineLayerGeometry, rect: PreviewCanvasRect,
+	parentGeometries: readonly TimelineLayerGeometry[] = [], threshold = 6): TimelineLayerTransform {
 	const corners = getTimelineLayerCorners(geometry);
 	const position: TimelinePoint = [...geometry.transform.position];
+	const currentPosition = sceneToPreview(geometry.transform.position, rect, parentGeometries);
 	for (const axis of [0, 1] as const) {
-		let best = threshold * 2 / (axis === 0 ? rect.width : rect.height);
+		let best = threshold;
 		let correction = 0;
 		for (const bound of [Math.min(...corners.map(point => point[axis])), Math.max(...corners.map(point => point[axis]))]) {
 			for (const edge of [-1, 1]) {
-				if (Math.abs(edge - bound) < best) { best = Math.abs(edge - bound); correction = edge - bound; }
+				const candidate: TimelinePoint = [...geometry.transform.position];
+				candidate[axis] += edge - bound;
+				// 親の非等方拡縮・回転を合成すると、子の軸方向と画面の軸方向は一致しない。
+				// 補正による画面上の移動距離を測り、祖先の倍率で吸着範囲が伸縮するのを防ぐ。
+				const candidatePosition = sceneToPreview(candidate, rect, parentGeometries);
+				const distance = Math.hypot(candidatePosition[0] - currentPosition[0], candidatePosition[1] - currentPosition[1]);
+				if (distance < best) { best = distance; correction = edge - bound; }
 			}
 		}
 		position[axis] += correction;
@@ -69,13 +79,13 @@ export function snapPreviewLayerMove(geometry: TimelineLayerGeometry, rect: Prev
  * 掴んだハンドルが最も近くなる候補だけを採用する。回転・反転・比率固定でも使える。
  */
 export function snapPreviewLayerResize(initial: TimelineLayerGeometry, transform: TimelineLayerTransform, handle: TimelinePoint,
-	keepRatio: boolean, fromOrigin: boolean, rect: PreviewCanvasRect): TimelineLayerTransform {
+	keepRatio: boolean, fromOrigin: boolean, rect: PreviewCanvasRect, parentGeometries: readonly TimelineLayerGeometry[] = []): TimelineLayerTransform {
 	const fixed: TimelinePoint = fromOrigin ? initial.transform.origin : [-handle[0], -handle[1]];
 	const toTransform = (scale: TimelinePoint): TimelineLayerTransform => ({ ...transform, scale,
 		position: fromOrigin ? [...initial.transform.position] : positionForFixedPoint(initial, fixed, scale) });
 	const current = { ...initial, transform };
 	const corners = getTimelineLayerCorners(current);
-	const currentHandle = sceneToPreview(timelineSourceToScene(handle, current), rect);
+	const currentHandle = sceneToPreview(timelineSourceToScene(handle, current), rect, parentGeometries);
 	let result = transform;
 	let nearest = 6;
 	const variables = keepRatio && handle.every(value => value !== 0) ? ['ratio'] as const : [0, 1] as const;
@@ -91,7 +101,7 @@ export function snapPreviewLayerResize(initial: TimelineLayerGeometry, transform
 			const scale: TimelinePoint = [transform.scale[0] + increment[0] * amount, transform.scale[1] + increment[1] * amount];
 			if (scale.some((value, index) => value * Math.sign(initial.transform.scale[index]) < 0.000001)) continue;
 			const candidate = toTransform(scale);
-			const candidateHandle = sceneToPreview(timelineSourceToScene(handle, { ...initial, transform: candidate }), rect);
+			const candidateHandle = sceneToPreview(timelineSourceToScene(handle, { ...initial, transform: candidate }), rect, parentGeometries);
 			const distance = Math.hypot(candidateHandle[0] - currentHandle[0], candidateHandle[1] - currentHandle[1]);
 			if (distance < nearest) { nearest = distance; result = candidate; }
 		}

@@ -282,7 +282,7 @@ test('round-trips video settings and undoes trimmed timing and independent audio
 	const layer = { id: 'video', layerType: 'video', name: 'Layer', clips: [{ id: 'clip', startMs: 10000, contentOffsetMs: 2000, durationMs: 5000, assetId: 'movie', audioEnabled: true }], compositingParamValues: defaultCompositing(), audioParamValues: { volume: { inputSource: 'literal', value: 1 } }, automationGraphs: [] };
 	const target = { sceneId: 'scene', layerId: 'video', clipId: 'clip' };
 	state.assets = { value: [{ id: 'movie', fileDataType: 'video/mp4', fileData: new Blob() }] };
-	const add = COMMAND_DEFS.addTimelineLayer.create({ sceneId: 'scene', layer, sourceDurationsMs: { clip: 10000 } });
+	const add = COMMAND_DEFS.addTimelineLayer.create({ sceneId: 'scene', layer, sourceDurationsMs: { [layer.id]: { clip: 10000 } } });
 	add.execute(state);
 	const settings = COMMAND_DEFS.editVideoClipAudio.create({ ...target, audioEnabled: false });
 	const fit = COMMAND_DEFS.editTimelineLayerParam.create({ ...target, target: 'compositing', paramPath: ['fitMode'], edit: { kind: 'literal', value: 'cover' } });
@@ -309,7 +309,7 @@ test('round-trips audio layers and undoes timing, volume and removal', async () 
 	const layer = { id: 'audio', layerType: 'audio', name: 'Layer', clips: [{ id: 'clip', startMs: 150, contentOffsetMs: 50, durationMs: 1000, assetId: 'sound' }],
 		audioParamValues: { volume: { inputSource: 'literal', value: 1 } }, automationGraphs: [] };
 	state.assets = { value: [{ id: 'sound', fileDataType: 'audio/wav', fileData: new Blob() }] };
-	const add = COMMAND_DEFS.addTimelineLayer.create({ sceneId: 'scene', layer, sourceDurationsMs: { clip: 2000 } });
+	const add = COMMAND_DEFS.addTimelineLayer.create({ sceneId: 'scene', layer, sourceDurationsMs: { [layer.id]: { clip: 2000 } } });
 	add.execute(state);
 	const volume = COMMAND_DEFS.editTimelineLayerParam.create({ sceneId: 'scene', layerId: 'audio', target: 'audio', paramPath: ['volume'], edit: { kind: 'expression', value: 'TIME_MS / 1000' } });
 	volume.execute(state);
@@ -571,7 +571,7 @@ test('resets a video source within its gap and restores it on undo', () => {
 			{ id: 'a', assetId: 'old', audioEnabled: false, startMs: 100, durationMs: 100, contentOffsetMs: 50 },
 			{ id: 'b', assetId: 'old', audioEnabled: true, startMs: 400, durationMs: 100, contentOffsetMs: 0 },
 		] };
-	COMMAND_DEFS.addTimelineLayer.create({ sceneId: 'scene', layer, sourceDurationsMs: { a: 1000, b: 1000 } }).execute(state);
+	COMMAND_DEFS.addTimelineLayer.create({ sceneId: 'scene', layer, sourceDurationsMs: { [layer.id]: { a: 1000, b: 1000 } } }).execute(state);
 	const current = state.timelineScenes.value[0].layers[0];
 	const command = COMMAND_DEFS.changeTimelineClipSource.create({ sceneId: 'scene', layerId: 'video', clipId: 'a', assetId: 'new', sourceDurationMs: 1000 });
 	command.execute(state);
@@ -589,7 +589,7 @@ function mediaFixture(layerType, contentOffsetMs = 0.25, durationMs = 5000) {
 		...(layerType === 'video' ? { compositingParamValues: defaultCompositing() } : {}),
 		audioParamValues: { volume: { inputSource: 'literal', value: 0.5 } },
 		clips: [{ id: 'clip', startMs: 100, durationMs, contentOffsetMs, assetId: asset.id, ...(layerType === 'video' ? { audioEnabled: true } : {}) }] };
-	COMMAND_DEFS.addTimelineLayer.create({ sceneId: 'scene', layer, sourceDurationsMs: { clip: contentOffsetMs + durationMs } }).execute(state);
+	COMMAND_DEFS.addTimelineLayer.create({ sceneId: 'scene', layer, sourceDurationsMs: { [layer.id]: { clip: contentOffsetMs + durationMs } } }).execute(state);
 	return { state, asset, target: { sceneId: 'scene', layerId: layer.id, clipId: 'clip' }, current: state.timelineScenes.value[0].layers.find(entry => entry.id === layer.id) };
 }
 

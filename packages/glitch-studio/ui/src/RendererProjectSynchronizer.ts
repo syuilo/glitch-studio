@@ -1,6 +1,7 @@
 import { findTimelineLayer } from '@gs/subsystems_timeline_shared/layer-tree.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { visualModuleTargetKey } from '@gs/glitch-studio_shared/project/visual-module-target.ts';
+import { getRendererLayerState } from '@gs/glitch-studio_shared/project/renderer-state.ts';
 import { findVisualModule } from './utility/visual-module-target.ts';
 import type { VisualModuleTarget } from '@gs/glitch-studio_shared/project/visual-module-target.ts';
 import type { RendererProjectChange, RendererProjectState } from '@gs/glitch-studio_shared/project/renderer-state.ts';
@@ -28,7 +29,7 @@ export class RendererProjectSynchronizer {
 			// Assets・Players・プロジェクト解像度・タイムライン描画設定は専用同期経路が扱い、表示名は送らない。
 			// どの通知を描画へ送るかは、状態管理ではなくこの購読側で選ぶ。
 			const targets = changes.filter((change): change is ProjectContentChange =>
-				change.type === 'node' || change.type === 'visualModule' || change.type === 'visualModuleRegistration' || change.type === 'layer' || change.type === 'layerOrder' || change.type === 'scene');
+				change.type === 'node' || change.type === 'visualModule' || change.type === 'visualModuleRegistration' || change.type === 'layer' || change.type === 'layerTree' || change.type === 'layerOrder' || change.type === 'scene');
 			for (let target of targets) {
 				const key = target.type === 'node' ? JSON.stringify([target.type, visualModuleTargetKey(target.target), target.nodeId])
 					: target.type === 'visualModule' ? JSON.stringify([target.type, visualModuleTargetKey(target.target)])
@@ -56,6 +57,7 @@ export class RendererProjectSynchronizer {
 		const targets = [...this.pending.values()];
 		this.pending.clear();
 		const scenes = new Set(targets.filter(target => target.type === 'scene').map(target => target.sceneId));
+		const layerTrees = new Set(targets.filter(target => target.type === 'layerTree').map(target => target.sceneId));
 		// 追加・削除・置換されたレイヤーでは、内部Moduleもレイヤーの最終状態に含まれる。
 		// 部分編集同士ならModuleの変更種別も残すため、個別通知を吸収しない。
 		const layers = new Set(targets.flatMap(target => target.type === 'layer' && target.changes.some(change => change.type === 'definition') ? [JSON.stringify([target.sceneId, target.layerId])] : []));
@@ -71,14 +73,17 @@ export class RendererProjectSynchronizer {
 				if ('visualModuleId' in moduleTarget && registeredVisualModuleIds.has(moduleTarget.visualModuleId)) continue;
 				if (!('visualModuleId' in moduleTarget) && (scenes.has(moduleTarget.sceneId) || layers.has(JSON.stringify([moduleTarget.sceneId, moduleTarget.inlineVisualModuleLayerId])))) continue;
 				if (target.type === 'node' && modules.has(visualModuleTargetKey(moduleTarget))) continue;
-				const module = findVisualModule(this.manager.state, moduleTarget);
-				if (!module) throw new Error('Changed visual module not found');
+				const visualModule = findVisualModule(this.manager.state, moduleTarget);
+				// 編集後にグループごと削除された子への差分は送らない。残った子の編集は
+				// 階層スナップショットに含まれていても、描画履歴の判定に必要なので維持する。
+				if (!visualModule && !('visualModuleId' in moduleTarget) && layerTrees.has(moduleTarget.sceneId)) continue;
+				if (!visualModule) throw new Error('Changed visual module not found');
 				// コマンドpayloadには新しい値等も含まれる。通信では所在を示すIDだけを使う。
 				const address: VisualModuleTarget = 'visualModuleId' in moduleTarget ? { visualModuleId: moduleTarget.visualModuleId }
 					: { sceneId: moduleTarget.sceneId, inlineVisualModuleLayerId: moduleTarget.inlineVisualModuleLayerId };
-				if (target.type === 'visualModule') changes.push({ type: 'visualModule', target: address, visualModule: module });
+				if (target.type === 'visualModule') changes.push({ type: 'visualModule', target: address, visualModule });
 				else {
-					const node = module.nodes.find(node => node.id === target.nodeId);
+					const node = visualModule.nodes.find(node => node.id === target.nodeId);
 					if (!node) throw new Error('Changed node not found');
 					changes.push({ type: 'node', target: address, node, changes: target.changes });
 				}
@@ -87,12 +92,15 @@ export class RendererProjectSynchronizer {
 				const scene = this.manager.state.timelineScenes.value.find(scene => scene.id === target.sceneId);
 				if (target.type === 'scene') changes.push({ type: 'scene', sceneId: target.sceneId, scene: scene ?? null });
 				else if (!scene) throw new Error('Changed scene not found');
-				else if (target.type === 'layer') changes.push({ ...target, layer: findTimelineLayer(scene.layers, target.layerId) ?? null });
-				else changes.push({ ...target, layerIds: scene.layers.map(layer => layer.id) });
+				else if (target.type === 'layer') {
+					const layer = findTimelineLayer(scene.layers, target.layerId);
+					changes.push({ ...target, layer: layer ? getRendererLayerState(layer) : null });
+				} else if (target.type === 'layerTree') changes.push({ ...target, layers: scene.layers });
+				else if (!layerTrees.has(target.sceneId)) changes.push({ ...target, layerIds: scene.layers.map(layer => layer.id) });
 			}
 		}
-		// モジュール編集→引数更新→順序の順。追加・削除されたレイヤーも含む確定順序を最後に適用する。
-		const rank = (change: RendererProjectChange) => change.type === 'layerOrder' ? 2 : change.type === 'layer' ? 1 : 0;
+		// 階層を先に反映し、新しい所属先へのノード編集→引数更新→順序の順で適用する。
+		const rank = (change: RendererProjectChange) => change.type === 'layerTree' ? -1 : change.type === 'layerOrder' ? 2 : change.type === 'layer' ? 1 : 0;
 		changes.sort((a, b) => rank(a) - rank(b));
 		const update = this.destination.apply(deepClone(changes)).catch(async error => {
 			if (this.disposed) return;

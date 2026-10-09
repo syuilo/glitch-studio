@@ -312,9 +312,10 @@ export class TimelineRendererManager extends EventEmitter<{
 			const previous = change.type === 'layer' ? findTimelineLayer(next.timelineScenes.find(scene => scene.id === change.sceneId)?.layers ?? [], change.layerId) : undefined;
 			// 同じバッチのModule編集を後続の引数更新の検証にも使う。公開状態は最後まで変えない。
 			next = applyRendererProjectChanges(next, [change]);
-			if (change.type === 'scene') validateSceneReferences = true;
+			if (change.type === 'scene' || change.type === 'layerTree') validateSceneReferences = true;
 			if (change.type !== 'layer' || change.layer === null) continue;
-			validateTimelineLayer(change.layer);
+			// 設定差分はグループの子孫を含まない。子の再検証は階層変更か子自身の差分で行う。
+			validateTimelineLayer(change.layer.layerType === 'group' ? { ...change.layer, layers: [] } : change.layer);
 			if (change.layer.layerType === 'effect') validateTimelineEffectLayer(change.layer, this.effectDefinitions[change.layer.effectId]);
 			if (change.layer.layerType === 'scene') validateSceneReferences = true;
 			if (canPreserveModuleLayerInstance(change.changes)) {
@@ -342,9 +343,9 @@ export class TimelineRendererManager extends EventEmitter<{
 		this.timelineRenderer.cancelPendingRender();
 		this.frameRenderer.cancel();
 		this.motionBlurBoundaries = undefined;
+		this.projectVersions.apply(changes, this.dynamicOptions);
 		Object.assign(this.dynamicOptions, next);
 		this.dynamicOptions.previewRevision = previewRevision;
-		this.projectVersions.apply(changes);
 		if (!next.timelineScenes.some(scene => scene.id === this.dynamicOptions.sceneId)) {
 			this.dynamicOptions.sceneId = null;
 			this.clearTimelineRenderers();
@@ -375,7 +376,7 @@ export class TimelineRendererManager extends EventEmitter<{
 
 	private getLayerVersion(sceneId: string, layer: TimelineLayer, clipId: string | null): string {
 		const childId = layer.layerType === 'scene' ? layer.clips.find(clip => clip.id === clipId)!.sceneId : null;
-		return JSON.stringify([this.projectVersions.scene(sceneId), layer.layerType === 'group' ? 0 : this.projectVersions.layer(sceneId, layer.id),
+		return JSON.stringify([this.projectVersions.scene(sceneId), this.projectVersions.layer(sceneId, layer.id),
 																									childId == null ? 0 : this.projectVersions.scene(childId)]);
 	}
 
