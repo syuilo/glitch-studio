@@ -1,4 +1,5 @@
 import type { GeneratedSpeech } from '@gs/glitch-studio_shared/voicevox.ts';
+import { createSpeechResolver } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox.ts';
 import { validateTimelineFps, validateTimelineMotionBlur, getTimelineMotionBlurBoundaries, getTimelineSampleTimes } from '@gs/subsystems_timeline_shared/motion-blur.ts';
 import { TimelineFrameRenderer } from '@gs/subsystems_timeline_renderer/timeline-frame-renderer.ts';
 import { createMotionBlurAccumulator } from '@gs/subsystems_timeline_renderer/motion-blur-accumulator.ts';
@@ -100,6 +101,7 @@ export class TimelineRendererManager extends EventEmitter<{
 	private frameRenderer: TimelineFrameRenderer<UniformOrTexture>;
 	private motionBlurAccumulator: ReturnType<typeof createMotionBlurAccumulator> | undefined;
 	private motionBlurBoundaries: number[] | undefined;
+	private resolveSpeech = createSpeechResolver([]);
 	private nextTimelineLayerStatusId = 0;
 	private previewScheduler = new TimelinePreviewScheduler(time => this.renderPreviewFrame(time));
 	private gpuContext: GPUCanvasContext;
@@ -252,6 +254,7 @@ export class TimelineRendererManager extends EventEmitter<{
 		const { assets, ...synchronousOptions } = newOptions;
 		if (newOptions.generatedSpeech) {
 			this.frameRenderer.clear();
+			this.resolveSpeech = createSpeechResolver(newOptions.generatedSpeech);
 			this.audioInputs.setGeneratedSpeech(newOptions.generatedSpeech);
 		}
 		// 通常の設定は呼び出し順に反映する。画像のデコード完了を待ってから反映すると、
@@ -495,6 +498,8 @@ export class TimelineRendererManager extends EventEmitter<{
 			case 'voicevox':
 				return createVoicevoxTimelineLayer(layer, {
 					onCompositing,
+					// 再生時・書き出し時に渡された一覧を使い、音声長が更新されたら既存レイヤーも参照し直す。
+					resolveSpeech: request => this.resolveSpeech(request),
 					device: this.gpuDevice, vertex: this.defaultVertexShaderModule,
 					resolution: renderResolution, format: this.staticOptions.intermediateTextureFormat,
 					getFont: id => this.dynamicOptions.assets.find(asset => asset.id === id && asset.fileDataType.startsWith('font/'))?.fileData ?? null,

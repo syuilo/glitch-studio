@@ -25,6 +25,7 @@ after(() => {
 const load = path => loadShaderSource(fileURLToPath(import.meta.resolve(path)));
 const { TimelineRendererManager } = await load('../src/timeline-renderer-manager.ts');
 const { createVoicevoxSubtitleParameterValues } = await load('@gs/subsystems_timeline_shared/layers/voicevox/voicevox-subtitle.ts');
+const { getVoicevoxRequest, getVoicevoxRequestKey } = await load('@gs/subsystems_timeline_shared/layers/voicevox/voicevox.ts');
 const { createTextParameterValues } = await load('@gs/subsystems_timeline_shared/layers/text/text.ts');
 const { timelineCompositingParamDefs } = await load('@gs/subsystems_timeline_shared/timeline-compositing.ts');
 const literal = value => ({ inputSource: 'literal', value });
@@ -99,7 +100,7 @@ test('renders VOICEVOX subtitles at scene time without requiring generated audio
 	const f = fixture(t);
 	const speech = { id: 'speech', name: 'Speech', isDisabled: false, automationGraphs: [],
 		clips: [clip('speech-clip', 100, 1000, 20.5)], compositingParamValues: compositing(), subtitleParamValues: createVoicevoxSubtitleParameterValues(), layerType: 'voicevox', voicevox: { speedScale: 1 },
-		utterances: [{ id: 'first', timeMs: 300, text: 'Speech subtitle', reading: '別の読み', styleId: 1, subtitleDurationMs: 200 }, { id: 'clear', timeMs: 600, text: '', reading: null, styleId: 1, subtitleDurationMs: null }],
+		utterances: [{ id: 'first', timeMs: 300, text: 'Speech subtitle', reading: '別の読み', styleId: 1, subtitleDuration: { mode: 'specified', durationMs: 200 } }, { id: 'clear', timeMs: 600, text: '', reading: null, styleId: 1, subtitleDuration: { mode: 'automatic' } }],
 		audioParamValues: { volume: literal(1) } };
 	await f.setup([speech]);
 	await f.manager.renderTimelineFrame(200, 0);
@@ -111,6 +112,35 @@ test('renders VOICEVOX subtitles at scene time without requiring generated audio
 	await f.manager.renderTimelineFrame(600, 0);
 	assert.equal(f.calls.glyphs.at(-1).text, '');
 	await f.manager.renderTimelineFrame(350, 0);
+	assert.equal(f.calls.glyphs.at(-1).text, 'Speech subtitle');
+});
+
+// 【発話長モードは生成音声の末尾と延長を描画に反映する】
+// 音声一覧の更新では既存レイヤーを維持しても終了時刻を更新し、未生成・指定・自動の挙動を混同しない。
+// プレビューと書き出しは渡された音声一覧を使い、小数msの境界でも字幕を残さない。
+test('renders subtitles through speech duration and extension using updated prepared speech', async t => {
+	const f = fixture(t);
+	const key = { id: 'first', timeMs: 300, text: 'Speech subtitle', reading: null, styleId: 1, subtitleDuration: { mode: 'speech', extensionMs: 50 } };
+	const speechLayer = { id: 'speech', name: 'Speech', isDisabled: false, automationGraphs: [],
+		clips: [clip('speech-clip', 100, 1000)], compositingParamValues: compositing(), subtitleParamValues: createVoicevoxSubtitleParameterValues(),
+		layerType: 'voicevox', voicevox: { speedScale: 1 }, utterances: [key], audioParamValues: { volume: literal(1) } };
+	const speech = { key: getVoicevoxRequestKey(getVoicevoxRequest(speechLayer.voicevox, key)), sourceId: 'audio', durationMs: 125.5,
+		fileData: new Blob(['audio']), engineVersion: 'test', audioQuery: {} };
+	await f.setup([speechLayer]);
+	await f.manager.renderTimelineFrame(500, 0);
+	assert.equal(f.calls.glyphs.at(-1).text, 'Speech subtitle');
+	await f.manager.updateDynamicOptions({ generatedSpeech: [speech] });
+	await f.manager.renderTimelineFrame(475.49, 0);
+	assert.equal(f.calls.glyphs.at(-1).text, 'Speech subtitle');
+	await f.manager.renderTimelineFrame(475.5, 0);
+	assert.equal(f.calls.glyphs.at(-1).text, '');
+	await f.manager.updateDynamicOptions({ generatedSpeech: [{ ...speech, durationMs: 200 }] });
+	await f.manager.renderTimelineFrame(500, 0);
+	assert.equal(f.calls.glyphs.at(-1).text, 'Speech subtitle');
+	await f.manager.renderTimelineFrame(550, 0);
+	assert.equal(f.calls.glyphs.at(-1).text, '');
+	await f.manager.updateDynamicOptions({ generatedSpeech: [] });
+	await f.manager.renderTimelineFrame(550, 0);
 	assert.equal(f.calls.glyphs.at(-1).text, 'Speech subtitle');
 });
 

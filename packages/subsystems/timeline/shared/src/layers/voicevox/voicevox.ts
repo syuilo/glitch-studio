@@ -1,8 +1,7 @@
 
-import { getVoicevoxSubtitleIntervals } from './voicevox-subtitle-timing.ts';
-
 export type VoicevoxSettings = { speedScale: number };
-export type VoicevoxUtterance = { id: string; timeMs: number; text: string; reading: string | null; styleId: number; subtitleDurationMs: number | null };
+export type VoicevoxSubtitleDuration = { mode: 'automatic' } | { mode: 'specified'; durationMs: number } | { mode: 'speech'; extensionMs: number };
+export type VoicevoxUtterance = { id: string; timeMs: number; text: string; reading: string | null; styleId: number; subtitleDuration: VoicevoxSubtitleDuration };
 export type VoicevoxRequest = VoicevoxSettings & { styleId: number; text: string };
 /** バイナリの所在や生成処理は呼び出し側が所有する。 */
 export type PreparedSpeech = { key: string; sourceId: string; durationMs: number };
@@ -29,12 +28,11 @@ export function validateVoicevoxLayer(layer: { voicevox: VoicevoxSettings; utter
 	for (const utterance of layer.utterances) {
 		if (!utterance.id || ids.has(utterance.id) || times.has(utterance.timeMs) || !Number.isSafeInteger(utterance.timeMs) || utterance.timeMs < 0 || typeof utterance.text !== 'string' || (utterance.reading !== null && typeof utterance.reading !== 'string')) throw new Error('Invalid VOICEVOX utterance');
 		if (!Number.isSafeInteger(utterance.styleId) || utterance.styleId < 0) throw new Error('Invalid VOICEVOX utterance style');
-		if (utterance.subtitleDurationMs !== null && (!Number.isSafeInteger(utterance.subtitleDurationMs) || utterance.subtitleDurationMs < 0 || !Number.isSafeInteger(utterance.timeMs + utterance.subtitleDurationMs))) throw new Error('Invalid VOICEVOX subtitle duration');
+		const duration = utterance.subtitleDuration;
+		if (!duration || !['automatic', 'specified', 'speech'].includes(duration.mode)) throw new Error('Invalid VOICEVOX subtitle duration');
+		const durationMs = duration.mode === 'specified' ? duration.durationMs : duration.mode === 'speech' ? duration.extensionMs : null;
+		if (durationMs !== null && (!Number.isSafeInteger(durationMs) || durationMs < 0 || !Number.isSafeInteger(utterance.timeMs + durationMs))) throw new Error('Invalid VOICEVOX subtitle duration');
 		ids.add(utterance.id);
 		times.add(utterance.timeMs);
 	}
-}
-
-export function getVoicevoxSubtitle(utterances: readonly VoicevoxUtterance[], sceneTimeMs: number): string {
-	return getVoicevoxSubtitleIntervals(utterances).find(interval => interval.startMs <= sceneTimeMs && sceneTimeMs < interval.endMs)?.text ?? '';
 }

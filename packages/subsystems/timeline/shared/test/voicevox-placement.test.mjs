@@ -7,40 +7,71 @@ const { getVoicevoxUtterancePlacements, assignPreparedSpeech } = await loadSourc
 const { getSceneAudioPlacements, resolveSceneAudioPlacements } = await loadSource(fileURLToPath(new URL('../src/scene-audio.ts', import.meta.url)));
 const { getRequiredVoicevoxRequests, getRequiredVoicevoxRequestsForRendering } = await loadSource(fileURLToPath(new URL('../src/voicevox-requests.ts', import.meta.url)));
 const settings = { speedScale: 1 };
-const { getVoicevoxSubtitle, validateVoicevoxLayer } = await loadSource(fileURLToPath(new URL('../src/layers/voicevox/voicevox.ts', import.meta.url)));
-const { getVoicevoxSubtitlePlacements } = await loadSource(fileURLToPath(new URL('../src/layers/voicevox/voicevox-subtitle-timing.ts', import.meta.url)));
-const utterance = (id, timeMs, text) => ({ id, timeMs, text, reading: null, styleId: 1, subtitleDurationMs: null });
+const { createSpeechResolver, getVoicevoxRequest, getVoicevoxRequestKey, validateVoicevoxLayer } = await loadSource(fileURLToPath(new URL('../src/layers/voicevox/voicevox.ts', import.meta.url)));
+const { getVoicevoxSubtitle, getVoicevoxSubtitlePlacements } = await loadSource(fileURLToPath(new URL('../src/layers/voicevox/voicevox-subtitle-timing.ts', import.meta.url)));
+const utterance = (id, timeMs, text) => ({ id, timeMs, text, reading: null, styleId: 1, subtitleDuration: { mode: 'automatic' } });
 const clip = (id, startMs, durationMs) => ({ id, startMs, durationMs, contentOffsetMs: 987.5 });
 
 // 【字幕は指定長・次のキーで打ち切り、過去の字幕を再表示しない】
 // シークや書き出しでも同じ半開区間を使い、空文字・表示長0のキーは直前の字幕を終了させる。
 test('evaluates subtitle duration independently of speech and never revives earlier subtitles', () => {
-	const first = { ...utterance('first', 100, 'First'), subtitleDurationMs: 1000 };
-	const second = { ...utterance('second', 400, 'Second'), subtitleDurationMs: 75 };
-	const hidden = { ...utterance('hidden', 600, 'Hidden'), subtitleDurationMs: 0 };
+	const first = { ...utterance('first', 100, 'First'), subtitleDuration: { mode: 'specified', durationMs: 1000 } };
+	const second = { ...utterance('second', 400, 'Second'), subtitleDuration: { mode: 'specified', durationMs: 75 } };
+	const hidden = { ...utterance('hidden', 600, 'Hidden'), subtitleDuration: { mode: 'specified', durationMs: 0 } };
 	const last = utterance('last', 800, 'Last');
 	const clear = utterance('clear', 950, '');
 	const utterances = [clear, first, hidden, last, second];
 	for (const [time, text] of [[99, ''], [100, 'First'], [399.9, 'First'], [400, 'Second'], [474.9, 'Second'],
 		[475, ''], [599, ''], [600, ''], [800, 'Last'], [949.9, 'Last'], [950, ''], [2000, '']]) {
-		assert.equal(getVoicevoxSubtitle(utterances, time), text);
+		assert.equal(getVoicevoxSubtitle(settings, utterances, time), text);
 	}
-	const placements = getVoicevoxSubtitlePlacements(utterances, [clip('left', 200, 250), clip('right', 460, 600)]);
+	const placements = getVoicevoxSubtitlePlacements(settings, utterances, [clip('left', 200, 250), clip('right', 460, 600)]);
 	assert.deepEqual(placements.map(p => [p.utteranceId, p.startMs, p.endMs, p.canResize]), [
 		['first', 200, 400, false], ['second', 400, 450, false], ['second', 460, 475, true], ['last', 800, 950, false],
 	]);
-	assert.equal(first.subtitleDurationMs, 1000);
-	assert.equal(getVoicevoxSubtitle(utterances, 150), 'First');
+	assert.deepEqual(first.subtitleDuration, { mode: 'specified', durationMs: 1000 });
+	assert.equal(getVoicevoxSubtitle(settings, utterances, 150), 'First');
 });
 
-// 【字幕長は安全な整数msか自動に限定する】
+// 【指定字幕長と発話後の延長は安全な整数msに限定する】
 // 保存・Undo・ドラッグ経由でも同じ制約を使い、負数や終端の整数精度不足で区間が壊れない。
 test('validates explicit subtitle lengths including zero and rejects unsafe ends', () => {
 	const key = utterance('key', 100, 'First');
-	for (const subtitleDurationMs of [null, 0, 1, 5000]) validateVoicevoxLayer({ voicevox: settings, utterances: [{ ...key, subtitleDurationMs }] });
-	for (const subtitleDurationMs of [undefined, -1, 0.5, Infinity, NaN, Number.MAX_SAFE_INTEGER]) {
-		assert.throws(() => validateVoicevoxLayer({ voicevox: settings, utterances: [{ ...key, subtitleDurationMs }] }), /subtitle duration/);
+	validateVoicevoxLayer({ voicevox: settings, utterances: [key] });
+	for (const mode of ['specified', 'speech']) {
+		const field = mode === 'specified' ? 'durationMs' : 'extensionMs';
+		for (const ms of [0, 1, 5000]) validateVoicevoxLayer({ voicevox: settings, utterances: [{ ...key, subtitleDuration: { mode, [field]: ms } }] });
+		for (const ms of [undefined, -1, 0.5, Infinity, NaN, Number.MAX_SAFE_INTEGER]) {
+			assert.throws(() => validateVoicevoxLayer({ voicevox: settings, utterances: [{ ...key, subtitleDuration: { mode, [field]: ms } }] }), /subtitle duration/);
+		}
 	}
+	assert.throws(() => validateVoicevoxLayer({ voicevox: settings, utterances: [{ ...key, subtitleDuration: { mode: 'unknown' } }] }), /subtitle duration/);
+});
+
+// 【発話長に合わせた字幕は小数msの音声長と延長を使い、次のキー・クリップで打ち切る】
+// 生成前も編集できる仮表示を保ち、声を変えた後に旧音声の長さを使わない。
+// 延長0で音声と字幕の終端が一致し、発話長モードを帯のドラッグで明示指定へ変えない。
+test('matches subtitles to prepared speech with extension and preserves key and clip boundaries', () => {
+	const first = { ...utterance('first', 100, 'First'), subtitleDuration: { mode: 'speech', extensionMs: 0 } };
+	const second = { ...utterance('second', 400, 'Second'), subtitleDuration: { mode: 'specified', durationMs: 200 } };
+	const keys = [first, second];
+	const clips = [clip('left', 200, 150), clip('right', 380, 520)];
+	const prepared = { key: getVoicevoxRequestKey(getVoicevoxRequest(settings, first)), sourceId: 'speech', durationMs: 225.5 };
+	const resolver = createSpeechResolver([prepared]);
+	assert.equal(getVoicevoxSubtitle(settings, keys, 399), 'First');
+	assert.deepEqual(getVoicevoxSubtitlePlacements(settings, keys, clips, resolver).filter(p => p.utteranceId === 'first').map(p => [p.startMs, p.endMs, p.canResize]), [[200, 325.5, false]]);
+	assert.equal(getVoicevoxSubtitle(settings, keys, 325.49, resolver), 'First');
+	assert.equal(getVoicevoxSubtitle(settings, keys, 325.5, resolver), '');
+	first.subtitleDuration.extensionMs = 100;
+	assert.equal(getVoicevoxSubtitle(settings, keys, 399, resolver), 'First');
+	assert.equal(getVoicevoxSubtitle(settings, keys, 400, resolver), 'Second');
+	assert.deepEqual(getVoicevoxSubtitlePlacements(settings, keys, clips, resolver).filter(p => p.utteranceId === 'first').map(p => [p.startMs, p.endMs, p.canResize]), [[200, 350, false], [380, 400, false]]);
+	assert.equal(getVoicevoxSubtitle(settings, keys, 600, resolver), '');
+	first.styleId = 7;
+	assert.equal(getVoicevoxSubtitle(settings, keys, 399, resolver), 'First');
+	const newResolver = createSpeechResolver([{ ...prepared, key: getVoicevoxRequestKey(getVoicevoxRequest(settings, first)), durationMs: 50 }]);
+	assert.equal(getVoicevoxSubtitle(settings, keys, 249.9, newResolver), 'First');
+	assert.equal(getVoicevoxSubtitle(settings, keys, 250, newResolver), '');
 });
 
 // 【音声未生成でも次のキー・空文字・クリップ境界で配置を決める】

@@ -40,7 +40,7 @@ const selectedIds = computed(() => new Set(props.selectedKeyframeIds));
 const { stateManager } = appContext.projectContext;
 const x = (time: number) => (time - props.offsetMs) * props.pixelsPerMs;
 const keyX = (time: number) => timelineKeyframePosition(time, props.pixelsPerMs) - props.offsetMs * props.pixelsPerMs;
-const subtitleRanges = computed(() => getVoicevoxSubtitlePlacements(props.layer.utterances, props.layer.clips)
+const subtitleRanges = computed(() => getVoicevoxSubtitlePlacements(props.layer.voicevox, props.layer.utterances, props.layer.clips, createSpeechResolver(stateManager.state.generatedSpeech.value))
 	.map(placement => ({ ...placement, key: `${placement.utteranceId}:${placement.clipId}` })));
 const ranges = computed(() => {
 	const resolveSpeech = createSpeechResolver(stateManager.state.generatedSpeech.value);

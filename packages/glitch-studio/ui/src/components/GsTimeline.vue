@@ -1155,7 +1155,7 @@ function onSubtitleTrimStart(event: PointerEvent, layerId: string, utteranceId: 
 	if (event.button !== 0 || !event.isPrimary || stopSelectionDrag || tlElWidth.value <= 0 || tlRangeX.value <= 0) return;
 	const layer = sceneLayers.value.find(layer => layer.id === layerId);
 	if (layer?.layerType !== 'voicevox') return;
-	const bounds = getVoicevoxSubtitleTrimBounds(layer.utterances, layer.clips, utteranceId, clipId);
+	const bounds = getVoicevoxSubtitleTrimBounds(layer.voicevox, layer.utterances, layer.clips, utteranceId, clipId);
 	if (!bounds) return;
 	const utterance = layer.utterances.find(key => key.id === utteranceId)!;
 	onKeyframeSelected({ layerId, target: 'utterance', paramPath: ['utterances'], keyframeId: utteranceId });
@@ -1170,7 +1170,8 @@ function onSubtitleTrimStart(event: PointerEvent, layerId: string, utteranceId: 
 	const localTicks = snapSettings.value.localTicks ? getTimelineVisibleClipTicks(layer.clips, tlPosX.value, tlRangeX.value, xTicksCount.value, tickMode.value, tickSubdivisions.value)
 		.flatMap(({ ticks }) => [...ticks.major, ...ticks.minor].map(tick => Math.round(tick.sceneTimeMs))) : [];
 	const snapTimes = getTimelineSnapCandidates(snapSettings.value, otherTimes, xTicksWithMinor.value, localTicks, time.value);
-	const initialDuration = utterance.subtitleDurationMs!;
+	if (utterance.subtitleDuration.mode !== 'specified') return;
+	const initialDuration = utterance.subtitleDuration.durationMs;
 	const initialTime = utterance.timeMs;
 	const points = [{ time: bounds.endMs, minDelta: bounds.minDelta, maxDelta: bounds.maxDelta }];
 	startSelectionMove(event, points, snapTimes, (delta, mergeKey) => {
@@ -1178,9 +1179,9 @@ function onSubtitleTrimStart(event: PointerEvent, layerId: string, utteranceId: 
 		if (currentLayer?.layerType !== 'voicevox') return false;
 		const current = currentLayer.utterances.find(key => key.id === utteranceId);
 		// 設定画面で自動へ戻した場合や、別操作でキーが移動・削除された場合はドラッグを続けない。
-		if (!current || current.subtitleDurationMs === null || current.timeMs !== initialTime) return false;
+		if (!current || current.subtitleDuration.mode !== 'specified' || current.timeMs !== initialTime) return false;
 		stateManager.commit('editVoicevoxLayer', { sceneId: props.sceneId, layerId, voicevox: currentLayer.voicevox,
-			utterances: currentLayer.utterances.map(key => key.id === utteranceId ? { ...key, subtitleDurationMs: initialDuration + delta } : key) }, mergeKey);
+			utterances: currentLayer.utterances.map(key => key.id === utteranceId ? { ...key, subtitleDuration: { mode: 'specified' as const, durationMs: initialDuration + delta } } : key) }, mergeKey);
 		return true;
 	});
 }

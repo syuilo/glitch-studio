@@ -10,11 +10,14 @@
 			<template #label>Voice / style</template>
 		</GsSelect>
 		<GsTextarea :modelValue="utterance.text" @update:modelValue="text => edit({ text })"><template #label>Subtitle</template></GsTextarea>
-		<GsSelect small :modelValue="utterance.subtitleDurationMs === null ? 'automatic' : 'specified'" :items="subtitleDurationModes" @update:modelValue="changeSubtitleDurationMode">
+		<GsSelect small :modelValue="utterance.subtitleDuration.mode" :items="subtitleDurationModes" @update:modelValue="changeSubtitleDurationMode">
 			<template #label>Subtitle duration</template>
 		</GsSelect>
-		<GsInput v-if="utterance.subtitleDurationMs !== null" small type="number" :min="0" :max="Number.MAX_SAFE_INTEGER - utterance.timeMs" :step="1" :modelValue="utterance.subtitleDurationMs" @update:modelValue="editSubtitleDuration">
+		<GsInput v-if="utterance.subtitleDuration.mode === 'specified'" small type="number" :min="0" :max="Number.MAX_SAFE_INTEGER - utterance.timeMs" :step="1" :modelValue="utterance.subtitleDuration.durationMs" @update:modelValue="editSubtitleDuration">
 			<template #label>Display length (0 hides subtitle)</template><template #suffix>ms</template>
+		</GsInput>
+		<GsInput v-if="utterance.subtitleDuration.mode === 'speech'" small type="number" :min="0" :max="Number.MAX_SAFE_INTEGER - utterance.timeMs" :step="1" :modelValue="utterance.subtitleDuration.extensionMs" @update:modelValue="editSubtitleExtension">
+			<template #label>Extend after speech</template><template #suffix>ms</template>
 		</GsInput>
 		<GsTextarea :modelValue="utterance.reading ?? ''" placeholder="Use subtitle text" @update:modelValue="reading => edit({ reading: reading.trim() || null })"><template #label>Reading (optional)</template></GsTextarea>
 		<div>{{ status }}</div>
@@ -54,7 +57,11 @@ const voiceStyleItems = computed(() => {
 	return items;
 });
 const error = ref('');
-const subtitleDurationModes = [{ value: 'automatic', label: 'Automatic (until next speech key)' }, { value: 'specified', label: 'Specified' }];
+const subtitleDurationModes = [
+	{ value: 'automatic', label: 'Automatic (until next speech key)' },
+	{ value: 'specified', label: 'Specified' },
+	{ value: 'speech', label: 'Match speech duration' },
+];
 const bounds = computed(() => getVoicevoxUtteranceTimeBounds(props.layer.utterances, props.utterance.id));
 const request = computed(() => getVoicevoxRequest(props.layer.voicevox, props.utterance));
 const key = computed(() => getVoicevoxRequestKey(request.value));
@@ -87,18 +94,28 @@ function editTime(value: string | number) {
 }
 
 function changeSubtitleDurationMode(mode: string) {
+	if (mode === props.utterance.subtitleDuration.mode) return;
 	if (mode === 'automatic') {
-		if (props.utterance.subtitleDurationMs !== null) edit({ subtitleDurationMs: null });
-	} else if (mode === 'specified' && props.utterance.subtitleDurationMs === null) {
-		edit({ subtitleDurationMs: getDefaultVoicevoxSubtitleDuration(props.layer.utterances, props.layer.clips, props.utterance.id, stateManager.state.generatedSpeech.value.find(speech => speech.key === key.value)?.durationMs) });
+		edit({ subtitleDuration: { mode: 'automatic' } });
+	} else if (mode === 'specified') {
+		edit({ subtitleDuration: { mode: 'specified', durationMs: getDefaultVoicevoxSubtitleDuration(props.layer.utterances, props.layer.clips, props.utterance.id, stateManager.state.generatedSpeech.value.find(speech => speech.key === key.value)?.durationMs) } });
+	} else if (mode === 'speech') {
+		edit({ subtitleDuration: { mode: 'speech', extensionMs: 0 } });
 	}
 }
 
 function editSubtitleDuration(value: string | number) {
-	if (props.utterance.subtitleDurationMs === null) return;
+	if (props.utterance.subtitleDuration.mode !== 'specified') return;
 	const duration = Number(value);
 	if (!Number.isFinite(duration)) return;
-	edit({ subtitleDurationMs: Math.max(0, Math.min(Number.MAX_SAFE_INTEGER - props.utterance.timeMs, Math.round(duration))) });
+	edit({ subtitleDuration: { mode: 'specified', durationMs: Math.max(0, Math.min(Number.MAX_SAFE_INTEGER - props.utterance.timeMs, Math.round(duration))) } });
+}
+
+function editSubtitleExtension(value: string | number) {
+	if (props.utterance.subtitleDuration.mode !== 'speech') return;
+	const extension = Number(value);
+	if (!Number.isFinite(extension)) return;
+	edit({ subtitleDuration: { mode: 'speech', extensionMs: Math.max(0, Math.min(Number.MAX_SAFE_INTEGER - props.utterance.timeMs, Math.round(extension))) } });
 }
 
 function remove() { commit(props.layer.utterances.filter(utterance => utterance.id !== props.utterance.id)); }
