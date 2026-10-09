@@ -39,7 +39,7 @@
 			<GsButton v-tooltip="'Snap Settings...'" small iconOnly :primary="snapEnabled" @click="showSnapMenu"><i class="ti ti-magnet"></i></GsButton>
 		</div>
 	</div>
-	<div :class="$style.body" @pointerdown.capture="onBackgroundPointerDown" @click.capture="onTimelineClick" @mousedown.capture="onPanMousedown" @auxclick.capture="onPanAuxclick" @wheel.capture="onTimelineWheel">
+	<div :class="$style.body" @contextmenu.stop.prevent @pointerdown.capture="onBackgroundPointerDown" @click.capture="onTimelineClick" @mousedown.capture="onPanMousedown" @auxclick.capture="onPanAuxclick" @wheel.capture="onTimelineWheel">
 		<div :class="$style.tlBgWrapper" data-timeline-surface>
 			<div :class="$style.tlBgSideSpacer"></div>
 			<div ref="tlEl" :class="$style.tlBg" tabindex="-1" @wheel="onTlWheel" @mousemove="onTlMousemove">
