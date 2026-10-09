@@ -2,8 +2,9 @@
 <GsModal ref="modal" preferType="dialog" @closed="emit('closed')" @dragover.prevent.stop @drop.prevent.stop="onDrop">
 	<div :class="$style.root" class="_gaps_m">
 		<div>
-			<div><b>Glitch Studio</b></div>
+			<div><b>Glitch Studio{{ isElectron ? '' : ' (for Web)' }}</b></div>
 			<div>{{ version }}</div>
+			<div v-if="!isElectron">Web版には一部制限があります。<a class="_gs-link" href="https://syuilo.dev/glitch-studio/docs/guide/download" target="_blank">デスクトップ版</a></div>
 		</div>
 		<div>
 			<GsButton inline @click="_newProject">New project</GsButton>
@@ -25,6 +26,7 @@ import GsModal from './common/GsModal.vue';
 import { newProject, newProjectFromImageOrVideo, openProject } from '@/app.ts';
 
 const version = _VERSION_;
+const isElectron = __ELECTRON__;
 
 const modal = useTemplateRef('modal');
 
