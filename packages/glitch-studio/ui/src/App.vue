@@ -373,6 +373,12 @@ function openHeaderHelpMenu(ev: PointerEvent) {
 		action: () => {
 			showAbout();
 		},
+	}, {
+		text: 'User Guide',
+		icon: 'ti ti-help-circle',
+		action: () => {
+			window.open('https://syuilo.dev/glitch-studio/docs/', '_blank');
+		},
 	}, ...(__ELECTRON__ ? [{
 		text: 'Toggle Developer Tools',
 		action: () => { void toggleDevTools(); },
