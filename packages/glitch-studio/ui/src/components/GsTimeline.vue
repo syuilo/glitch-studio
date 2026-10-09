@@ -400,7 +400,7 @@ import { getTimelineKeyframeEntries, getTimelineKeyframeLanes } from '@/utility/
 import { prepareTimelineClipMove } from '@/utility/timeline-clip-move.ts';
 import { getLayerParameterValues, getLayerParameterDefinition, resolveLayerParameter } from '@/utility/timeline-scene.ts';
 import { inspectTimelineClipMedia } from '@/utility/timeline-clip-media.ts';
-import { selectionRect, mergeTimelineRangeSelection, clipSelectionKey, keyframeSelectionKey, getTimelineStretchSelection, constrainTimelineMove, keyframeMoveBounds, getTimelineSnappingTimes } from '@/utility/timeline-selection.ts';
+import { selectTimelineLayer, selectionRect, mergeTimelineRangeSelection, clipSelectionKey, keyframeSelectionKey, getTimelineStretchSelection, constrainTimelineMove, keyframeMoveBounds, getTimelineSnappingTimes } from '@/utility/timeline-selection.ts';
 import { canEditKeyframesTimeline, updateInlineKeyframe } from '@/utility/keyframes-timeline.ts';
 import { createEffectTimelineLayer } from '@/utility/effect-timeline-layer.ts';
 import { createShapeTimelineLayer } from '@/utility/shape-timeline-layer.ts';
@@ -1469,10 +1469,11 @@ async function pasteClips(clipboard: TimelineClipClipboard) {
 }
 
 function selectLayer(layer: TimelineLayer, event?: MouseEvent) {
-	if (event && (event.shiftKey || event.ctrlKey || event.metaKey) && selection.value.kind === 'layers') {
-		const ids = selection.value.ids;
-		selection.value = { kind: 'layers', ids: ids.includes(layer.id) ? ids.filter(id => id !== layer.id) : [...ids, layer.id] };
-	} else selection.value = { kind: 'layers', ids: [layer.id] };
+	const next = selectTimelineLayer(selection.value, visibleLayers.value.map(entry => entry.id), layer.id, editorState.layerSelectionAnchorId, {
+		range: event?.shiftKey ?? false, additive: (event?.ctrlKey || event?.metaKey) ?? false,
+	});
+	selection.value = next.selection;
+	editorState.layerSelectionAnchorId = next.anchorId;
 	revealDetails();
 	tlEl.value?.focus({ preventScroll: true });
 }

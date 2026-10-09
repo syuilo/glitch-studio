@@ -7,6 +7,7 @@ import { shallowReactive } from 'vue';
 // 表示状態は保存・Undoの対象にせず、Sceneの定義が破棄されれば一緒に回収する。
 export const sceneEditorStates = new WeakMap<TimelineScene, {
 	selection: TimelineSelection;
+	layerSelectionAnchorId: string | null;
 	rangeX: number;
 	positionX: number;
 }>();
@@ -14,7 +15,7 @@ export const sceneEditorStates = new WeakMap<TimelineScene, {
 export function getTimelineEditorState(scene: TimelineScene) {
 	let state = sceneEditorStates.get(scene);
 	if (state == null) {
-		state = shallowReactive({ selection: { kind: 'layers', ids: [] } as TimelineSelection, rangeX: 30000, positionX: -3000 });
+		state = shallowReactive({ selection: { kind: 'layers', ids: [] } as TimelineSelection, layerSelectionAnchorId: null as string | null, rangeX: 30000, positionX: -3000 });
 		sceneEditorStates.set(scene, state);
 	}
 	return state;

@@ -21,6 +21,25 @@ export type TimelineSelection =
 
 export type TimelineClipSelection = { layerId: string; clipId: string };
 
+export function selectTimelineLayer(previous: TimelineSelection, visibleLayerIds: readonly string[], layerId: string, anchorId: string | null, modifiers: { range: boolean; additive: boolean }): { selection: Extract<TimelineSelection, { kind: 'layers' }>; anchorId: string | null } {
+	const ids = previous.kind === 'layers' ? previous.ids : [];
+	if (modifiers.range) {
+		const anchor = anchorId != null && ids.includes(anchorId) && visibleLayerIds.includes(anchorId)
+			? anchorId : ids.find(id => visibleLayerIds.includes(id)) ?? layerId;
+		const start = visibleLayerIds.indexOf(anchor);
+		const end = visibleLayerIds.indexOf(layerId);
+		// 仮想スクロールで画面外にある行も含め、折りたたまれた子は含めない。
+		// Shift操作中は起点を固定し、終点を戻すことで選択範囲を縮められるようにする。
+		const range = start >= 0 && end >= 0 ? visibleLayerIds.slice(Math.min(start, end), Math.max(start, end) + 1) : [layerId];
+		return { selection: { kind: 'layers', ids: modifiers.additive ? [...new Set([...ids, ...range])] : range }, anchorId: anchor };
+	}
+	if (modifiers.additive) {
+		const next = ids.includes(layerId) ? ids.filter(id => id !== layerId) : [...ids, layerId];
+		return { selection: { kind: 'layers', ids: next }, anchorId: next.includes(layerId) ? layerId : next.at(-1) ?? null };
+	}
+	return { selection: { kind: 'layers', ids: [layerId] }, anchorId: layerId };
+}
+
 export function clipSelectionKey(selection: TimelineClipSelection): string {
 	return JSON.stringify([selection.layerId, selection.clipId]);
 }

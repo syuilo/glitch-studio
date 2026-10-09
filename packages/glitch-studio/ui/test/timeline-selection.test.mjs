@@ -30,6 +30,61 @@ const { getTimelineSnapCandidates, getTimelineSnappingTimes, getTimelineSeekPosi
 const { createKeyframeStretch, stretchKeyframeX, zoomTimelineX } = module.exports;
 
 const { measureTimelineLayerSelection, collectTimelineMarqueeCandidates, timelineLaneKey, mergeTimelineRangeSelection } = module.exports;
+const { selectTimelineLayer } = module.exports;
+
+// 【上下どちらの範囲も同じ起点から選び、終点を戻すと選択を縮める】
+// 連続したShiftクリックで起点が移ると、離れたレイヤーまで再選択したり範囲を縮めたりできない。
+// クリック済みの行も解除せず、両端と間の行を表示順に選ぶことを保証する。
+test('selects inclusive layer ranges in either direction with a fixed anchor', () => {
+	const visible = ['a', 'b', 'c', 'd', 'e'];
+	let state = selectTimelineLayer({ kind: 'layers', ids: [] }, visible, 'c', null, { range: false, additive: false });
+	for (const [target, expected] of [['e', ['c', 'd', 'e']], ['d', ['c', 'd']], ['a', ['a', 'b', 'c']], ['c', ['c']]]) {
+		state = selectTimelineLayer(state.selection, visible, target, state.anchorId, { range: true, additive: false });
+		assert.deepEqual(state.selection, { kind: 'layers', ids: expected });
+		assert.equal(state.anchorId, 'c');
+	}
+});
+
+// 【個別の追加・解除と、既存選択への範囲追加を両立する】
+// Ctrl／Commandの既存操作を維持し、Shift併用時には範囲外の選択を失わず重複も作らない。
+// 選択を全解除した場合は、古い起点を次の操作へ持ち越さない。
+test('toggles individual layers and adds ranges without duplicating selections', () => {
+	const visible = ['a', 'b', 'c', 'd', 'e'];
+	let state = selectTimelineLayer({ kind: 'layers', ids: ['a'] }, visible, 'c', 'a', { range: false, additive: true });
+	assert.deepEqual(state, { selection: { kind: 'layers', ids: ['a', 'c'] }, anchorId: 'c' });
+	state = selectTimelineLayer(state.selection, visible, 'e', state.anchorId, { range: true, additive: true });
+	assert.deepEqual(state, { selection: { kind: 'layers', ids: ['a', 'c', 'd', 'e'] }, anchorId: 'c' });
+	state = selectTimelineLayer(state.selection, visible, 'c', state.anchorId, { range: false, additive: true });
+	assert.deepEqual(state, { selection: { kind: 'layers', ids: ['a', 'd', 'e'] }, anchorId: 'e' });
+	assert.deepEqual(selectTimelineLayer({ kind: 'layers', ids: ['a'] }, visible, 'a', 'a', { range: false, additive: true }),
+		{ selection: { kind: 'layers', ids: [] }, anchorId: null });
+});
+
+// 【折りたたまれた子を除き、最新の表示順で範囲を選ぶ】
+// DOMにある行だけを使うと仮想スクロールの画面外を選べないため、一覧全体の表示順を入力する。
+// 並び替えや折りたたみで起点が見えなくなった場合も、隠れた子を巻き込まない。
+test('uses the current visible order and recovers from hidden or deleted anchors', () => {
+	const previous = { kind: 'layers', ids: ['hidden-child', 'group'] };
+	const visible = ['end', 'middle', 'group', 'start'];
+	for (const anchorId of ['hidden-child', 'deleted', null]) {
+		assert.deepEqual(selectTimelineLayer(previous, visible, 'end', anchorId, { range: true, additive: false }),
+			{ selection: { kind: 'layers', ids: ['end', 'middle', 'group'] }, anchorId: 'group' });
+	}
+	assert.deepEqual(previous.ids, ['hidden-child', 'group']);
+});
+
+// 【選択解除後や別種類の選択後のShiftクリックは対象の一行から始める】
+// 古いレイヤー起点が残っていても、クリップ・キー選択から意図しないレイヤー範囲を選ばない。
+test('starts a new layer selection when there is no selected visible anchor', () => {
+	const visible = ['a', 'b', 'c'];
+	for (const previous of [{ kind: 'layers', ids: [] }, { kind: 'layers', ids: ['hidden'] },
+		{ kind: 'clips', clips: [{ layerId: 'a', clipId: 'clip' }] }, { kind: 'keyframes', keyframes: [] }]) {
+		assert.deepEqual(selectTimelineLayer(previous, visible, 'c', 'a', { range: true, additive: false }),
+			{ selection: { kind: 'layers', ids: ['c'] }, anchorId: 'c' });
+	}
+	assert.deepEqual(selectTimelineLayer({ kind: 'layers', ids: ['a', 'b'] }, visible, 'c', 'a', { range: false, additive: false }),
+		{ selection: { kind: 'layers', ids: ['c'] }, anchorId: 'c' });
+});
 
 // 【拡大縮小してもカーソル直下の時刻を維持する】
 // 横スクロール済みの状態や左右端でも、ズーム操作によって注目している時刻を見失わないようにする。
