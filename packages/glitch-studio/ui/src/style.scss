@@ -264,6 +264,12 @@ hr {
 	overflow: clip;
 }
 
+._gaps_l {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+}
+
 ._gaps_m {
 	display: flex;
 	flex-direction: column;

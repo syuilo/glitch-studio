@@ -18,6 +18,7 @@
 				<a class="_gs-link" href="https://github.com/misskey-dev/misskey" target="_blank">https://github.com/misskey-dev/misskey</a>
 			</small>
 		</div>
+		<a class="_gs-link" href="https://syuilo.dev/glitch-studio/docs/" target="_blank">User Guide</a>
 		<GsButton inline @click="ok">OK</GsButton>
 	</div>
 </GsModal>
