@@ -252,7 +252,7 @@ export const PREF_DEF = definePreferences({
 																id: '5845486291544b84877198a20cbecb61',
 																type: 'panel',
 																direction: 'horizontal',
-																contentType: 'histogram',
+																contentType: 'audioSpectrogram',
 															},
 														}, {
 															ratio: 0.33,
@@ -260,15 +260,31 @@ export const PREF_DEF = definePreferences({
 																id: 'db466a3f5f064366abb30d21b52e4682',
 																type: 'panel',
 																direction: 'horizontal',
-																contentType: 'waveformHorizontal',
+																contentType: 'histogram',
 															},
 														}, {
 															ratio: 0.33,
 															element: {
 																id: 'b14cc29ebe304b3f8b7754e20b0fdc17',
-																type: 'panel',
+																type: 'divider',
 																direction: 'horizontal',
-																contentType: 'waveformVertical',
+																children: [{
+																	ratio: 0.5,
+																	element: {
+																		id: '5935a86886654a34aa9695812ba10764',
+																		type: 'panel',
+																		direction: 'horizontal',
+																		contentType: 'waveformHorizontal',
+																	},
+																}, {
+																	ratio: 0.5,
+																	element: {
+																		id: '1fbbb94aaa234419bf09c59731e98cab',
+																		type: 'panel',
+																		direction: 'horizontal',
+																		contentType: 'waveformVertical',
+																	},
+																}],
 															},
 														}],
 													},
