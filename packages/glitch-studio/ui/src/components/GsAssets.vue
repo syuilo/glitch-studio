@@ -15,12 +15,12 @@
 </template>
 
 <script lang="ts" setup>
-import { appContext } from '@/app.ts';
 import { onBeforeUnmount, ref } from 'vue';
 import { genId } from '@gs/shared/utility/id.ts';
 import GsButton from './common/GsButton.vue';
 import XAsset from './GsAssets.asset.vue';
 import GsLocalFontDialog from './GsLocalFontDialog.vue';
+import { appContext } from '@/app.ts';
 import * as api from '@/api.ts';
 import { popup } from '@/ui.ts';
 import { localFontErrorMessage, queryLocalFonts, supportsLocalFonts } from '@/utility/local-fonts.ts';

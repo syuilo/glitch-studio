@@ -943,6 +943,8 @@ function onBackgroundPointerDown(event: PointerEvent) {
 	event.stopPropagation();
 	timeline.focus({ preventScroll: true });
 	const previous = deepClone(selection.value);
+	// ドラッグ開始を待たずに背景を押した時点で解除する。Shiftでの追加選択は維持する。
+	if (!event.shiftKey) selection.value = { kind: 'layers', ids: [] };
 	const originX = event.clientX - bounds.left;
 	const initialY = event.clientY;
 	let origin: TimelineMarqueeAnchor | undefined;
