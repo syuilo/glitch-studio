@@ -256,6 +256,6 @@ test('formats timecodes with millisecond precision and optional trailing zeros',
 		assert.equal(formatTimelineTimecode(time), label);
 	}
 	for (const [time, label] of [[0, '0:00.000'], [-0.2, '0:00.000'], [1500, '0:01.500'], [-61500, '-1:01.500'], [59999.5, '1:00.000'], [62.5, '0:00.063']]) {
-		assert.equal(formatTimelineTimecode(time, { trimTrailingZeros: false }), label);
+		assert.equal(formatTimelineTimecode(time, false), label);
 	}
 });
