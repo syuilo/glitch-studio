@@ -967,7 +967,6 @@ function formatFullTimecode(timeMs: number): string {
 	height: 100%;
 	flex: 1;
 	overflow: clip;
-	contain: content;
 	position: relative;
 	pointer-events: none;
 	direction: ltr;
@@ -981,7 +980,7 @@ function formatFullTimecode(timeMs: number): string {
 		content: "";
 		display: block;
 		position: absolute;
-		z-index: 1100;
+		z-index: 0; // GsTimeline.Layer.vueの.stickyArrowよりは後ろに表示したいため
 		top: 0;
 		left: 0;
 		width: 20px;
