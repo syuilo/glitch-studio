@@ -100,6 +100,7 @@
 						@look="center => tlPosX = center - tlRangeX / 2"
 						@clipMoveStart="onClipMoveStart"
 						@clipTrimStart="onClipTrimStart"
+						@clipContextMenu="showClipMenu"
 						@keyframeDragStart="onKeyframeMoveStart"
 						@keyframeSelected="onKeyframeSelected"
 						@subtitleTrimStart="onSubtitleTrimStart"
@@ -657,6 +658,14 @@ watch(() => mediaAssets.value.map(asset => ({ asset, blob: asset.fileData })), a
 function removeSelectedClips() {
 	if (selection.value.kind !== 'clips' || selection.value.clips.length === 0) return;
 	stateManager.commit('removeTimelineClips', { sceneId: props.sceneId, clips: deepClone(selection.value.clips) });
+}
+
+function showClipMenu(event: PointerEvent, target: TimelineClipSelection) {
+	// 選択済みのクリップでは複数選択を保持し、修飾キーによる選択解除は行わない。
+	if (selection.value.kind !== 'clips' || !selection.value.clips.some(clip => clipSelectionKey(clip) === clipSelectionKey(target))) selectClip(target);
+	ui.contextMenu([{
+		text: 'Delete', icon: 'ti ti-trash', danger: true, action: removeSelectedClips,
+	}], event);
 }
 
 function initialCompositingParameters() {

@@ -40,6 +40,7 @@
 					:moving="moving"
 					@moveStart="(event, clipId) => emit('clipMoveStart', event, { layerId: layer.id, clipId })"
 					@trimStart="(event, clipId, edge) => emit('clipTrimStart', event, { layerId: layer.id, clipId }, edge)"
+					@contextMenu="(event, clipId) => emit('clipContextMenu', event, { layerId: layer.id, clipId })"
 				/>
 			</div>
 		</div>
@@ -156,6 +157,7 @@ const emit = defineEmits<{
 	(ev: 'look', centerTimeMs: number): void;
 	(ev: 'clipMoveStart', event: PointerEvent, selection: TimelineClipSelection): void;
 	(ev: 'clipTrimStart', event: PointerEvent, selection: TimelineClipSelection, edge: 'start' | 'end'): void;
+	(ev: 'clipContextMenu', event: PointerEvent, selection: TimelineClipSelection): void;
 	(ev: 'keyframeDragStart', event: PointerEvent, selection: TimelineKeyframeSelection): void;
 	(ev: 'keyframeSelected', selection: TimelineKeyframeSelection): void;
 	(ev: 'subtitleTrimStart', event: PointerEvent, layerId: string, utteranceId: string, clipId: string): void;

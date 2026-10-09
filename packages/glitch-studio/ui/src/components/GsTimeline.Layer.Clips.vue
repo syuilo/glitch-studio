@@ -12,6 +12,7 @@
 		:moving="moving && selectedIds.has(item.clip.id)"
 		@moveStart="event => emit('moveStart', event, item.clip.id)"
 		@trimStart="(event, edge) => emit('trimStart', event, item.clip.id, edge)"
+		@contextMenu="event => emit('contextMenu', event, item.clip.id)"
 	/>
 </div>
 </template>
@@ -40,6 +41,7 @@ const props = defineProps<{
 const emit = defineEmits<{
 	(ev: 'moveStart', event: PointerEvent, clipId: string): void;
 	(ev: 'trimStart', event: PointerEvent, clipId: string, edge: 'start' | 'end'): void;
+	(ev: 'contextMenu', event: PointerEvent, clipId: string): void;
 }>();
 const selectedIds = computed(() => new Set(props.selectedClipIds));
 </script>

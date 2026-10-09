@@ -7,6 +7,7 @@
 	@pointerdown.stop="emit('moveStart', $event)"
 	@click.stop
 	@dblclick.stop
+	@contextmenu.stop.prevent="emit('contextMenu', $event)"
 >
 	<div style="padding: 0 8px;"><GsCondensedLine>{{ label }}</GsCondensedLine></div>
 	<div :class="[$style.trimHandle, $style.trimStart]" @pointerdown.stop="emit('trimStart', $event, 'start')"></div>
@@ -30,6 +31,7 @@ const props = defineProps<{
 const emit = defineEmits<{
 	(ev: 'moveStart', event: PointerEvent): void;
 	(ev: 'trimStart', event: PointerEvent, edge: 'start' | 'end'): void;
+	(ev: 'contextMenu', event: PointerEvent): void;
 }>();
 
 </script>
