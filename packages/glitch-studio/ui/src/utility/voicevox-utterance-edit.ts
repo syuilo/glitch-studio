@@ -16,11 +16,11 @@ export function insertVoicevoxUtterance(utterances: readonly VoicevoxUtterance[]
 	// 値としてコピーするため、後から継承元を編集・移動しても新しい発話の声は変わらない。
 	const sorted = utterances.toSorted((a, b) => a.timeMs - b.timeMs);
 	const source = sorted.findLast(utterance => utterance.timeMs < time) ?? sorted[0];
-	const utterance: VoicevoxUtterance = { id: genId(), timeMs: time, text: '', reading: null, styleId: source?.styleId ?? 1, subtitleDuration: { mode: 'automatic' } };
+	const utterance: VoicevoxUtterance = { id: genId(), timeMs: time, text: '', reading: null, styleId: source?.styleId ?? 1, subtitleDuration: { mode: 'fill' } };
 	return { utterance, utterances: [...utterances, utterance] };
 }
 
-/** 自動から指定へ切り替える時だけ音声長を初期値に使い、未生成なら現在の表示区間を使う。 */
+/** 指定へ切り替える時だけ音声長を初期値に使い、未生成なら現在の表示区間を使う。 */
 export function getDefaultVoicevoxSubtitleDuration(utterances: readonly VoicevoxUtterance[], clips: readonly TimelineClip[], id: string, speechDurationMs?: number): number {
 	const utterance = utterances.find(utterance => utterance.id === id);
 	if (!utterance) return 0;
@@ -33,7 +33,7 @@ export function getDefaultVoicevoxSubtitleDuration(utterances: readonly Voicevox
 	return Math.max(0, end - utterance.timeMs);
 }
 
-/** 操作中に自動状態を指定へ変えない。ハンドルは保存した終端が見える配置だけで有効にする。 */
+/** 操作中にFill・発話長モードを指定へ変えない。ハンドルは保存した終端が見える配置だけで有効にする。 */
 export function getVoicevoxSubtitleTrimBounds(settings: VoicevoxSettings, utterances: readonly VoicevoxUtterance[], clips: readonly TimelineClip[], id: string, clipId: string) {
 	const utterance = utterances.find(key => key.id === id);
 	const clip = clips.find(clip => clip.id === clipId);

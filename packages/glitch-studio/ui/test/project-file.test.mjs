@@ -148,7 +148,7 @@ test('freezes prepared speech during playback and stops for utterance edits and 
 	const key = JSON.stringify([1, 1, 'Hello']);
 	const speech = { key, sourceId: 'first', durationMs: 1000, fileData: new Blob(['first']), engineVersion: 'test', audioQuery: { accent_phrases: [{ moras: [{ text: 'ハ', vowel_length: 0.1 }] }] } };
 	const layer = { id: 'speech', name: 'Speech', layerType: 'voicevox', isDisabled: false, automationGraphs: [],
-		voicevox: { speedScale: 1 }, utterances: [{ id: 'key', timeMs: 0, text: 'Hello', reading: null, styleId: 1, subtitleDuration: { mode: 'automatic' } }],
+		voicevox: { speedScale: 1 }, utterances: [{ id: 'key', timeMs: 0, text: 'Hello', reading: null, styleId: 1, subtitleDuration: { mode: 'fill' } }],
 		clips: [{ id: 'clip', startMs: 0, durationMs: 2000, contentOffsetMs: 0 }],
 		subtitleParamValues: {}, compositingParamValues: {}, audioParamValues: { volume: { inputSource: 'literal', value: 1 } } };
 	await appContext.ready(project({ generatedSpeech: [speech], timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [layer] }] }));
@@ -169,7 +169,7 @@ test('freezes prepared speech during playback and stops for utterance edits and 
 		playback.playTimeline();
 		assert.equal(audio.projects.at(-1).generatedSpeech[0].sourceId, 'second');
 		manager.commit('editVoicevoxLayer', { sceneId: 'scene', layerId: 'speech', voicevox: layer.voicevox,
-			utterances: [{ id: 'key', timeMs: 0, text: 'Edited', reading: null, styleId: 1, subtitleDuration: { mode: 'automatic' } }] });
+			utterances: [{ id: 'key', timeMs: 0, text: 'Edited', reading: null, styleId: 1, subtitleDuration: { mode: 'fill' } }] });
 		assert.equal(playback.isTimelinePlaying.value, false);
 		// Webでも旧結果を保存対象から外し、同じ操作のUndoで即座に再利用できるようにする。
 		assert.deepEqual(manager.state.generatedSpeech.value, []);
@@ -183,7 +183,7 @@ test('freezes prepared speech during playback and stops for utterance edits and 
 		await nextTick();
 		playback.playTimeline();
 		manager.commit('editVoicevoxLayer', { sceneId: 'scene', layerId: 'speech', voicevox: layer.voicevox,
-			utterances: [{ id: 'key', timeMs: 0, text: 'Hello', reading: null, styleId: 7, subtitleDuration: { mode: 'automatic' } }] });
+			utterances: [{ id: 'key', timeMs: 0, text: 'Hello', reading: null, styleId: 7, subtitleDuration: { mode: 'fill' } }] });
 		assert.equal(playback.isTimelinePlaying.value, false);
 		await nextTick();
 		playback.playTimeline();

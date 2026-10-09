@@ -3,7 +3,7 @@
 	<div v-for="range in ranges" :key="range.key" :class="$style.audio" :style="{ left: x(range.startMs) + 'px', width: (range.endMs - range.startMs) * pixelsPerMs + 'px' }">
 	</div>
 	<!-- 帯のダブルクリックはレーンへ伝播させ、帯の左端ではなくレーンの座標で追加時刻を求める。 -->
-	<div v-for="range in subtitleRanges" :key="range.key" :class="[$style.subtitle, { [$style.automatic]: range.isAutomatic, [$style.subtitleSelected]: selectedIds.has(range.utteranceId) }]"
+	<div v-for="range in subtitleRanges" :key="range.key" :class="[$style.subtitle, { [$style.derivedDuration]: !range.isSpecified, [$style.subtitleSelected]: selectedIds.has(range.utteranceId) }]"
 		:data-timeline-keyframe-id="range.utteranceId" :title="range.text" :style="{ left: x(range.startMs) + 'px', width: (range.endMs - range.startMs) * pixelsPerMs + 'px' }"
 		@pointerdown.stop="select($event, range.utteranceId)" @click.stop.prevent>
 		<span :class="$style.serif"><GsCondensedLine>{{ range.text }}</GsCondensedLine></span>
@@ -100,7 +100,7 @@ function add(event: MouseEvent) {
 	cursor: pointer;
 }
 
-.automatic {
+.derivedDuration {
 	border-bottom: 1px dashed var(--LAYER_COLOR);
 }
 

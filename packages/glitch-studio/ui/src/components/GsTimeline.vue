@@ -1178,7 +1178,7 @@ function onSubtitleTrimStart(event: PointerEvent, layerId: string, utteranceId: 
 		const currentLayer = sceneLayers.value.find(layer => layer.id === layerId);
 		if (currentLayer?.layerType !== 'voicevox') return false;
 		const current = currentLayer.utterances.find(key => key.id === utteranceId);
-		// 設定画面で自動へ戻した場合や、別操作でキーが移動・削除された場合はドラッグを続けない。
+		// 設定画面でFill・発話長モードへ変えた場合や、別操作でキーが移動・削除された場合はドラッグを続けない。
 		if (!current || current.subtitleDuration.mode !== 'specified' || current.timeMs !== initialTime) return false;
 		stateManager.commit('editVoicevoxLayer', { sceneId: props.sceneId, layerId, voicevox: currentLayer.voicevox,
 			utterances: currentLayer.utterances.map(key => key.id === utteranceId ? { ...key, subtitleDuration: { mode: 'specified' as const, durationMs: initialDuration + delta } } : key) }, mergeKey);

@@ -9,7 +9,7 @@ const { getRequiredVoicevoxRequests, getRequiredVoicevoxRequestsForRendering } =
 const settings = { speedScale: 1 };
 const { createSpeechResolver, getVoicevoxRequest, getVoicevoxRequestKey, validateVoicevoxLayer } = await loadSource(fileURLToPath(new URL('../src/layers/voicevox/voicevox.ts', import.meta.url)));
 const { getVoicevoxSubtitle, getVoicevoxSubtitlePlacements } = await loadSource(fileURLToPath(new URL('../src/layers/voicevox/voicevox-subtitle-timing.ts', import.meta.url)));
-const utterance = (id, timeMs, text) => ({ id, timeMs, text, reading: null, styleId: 1, subtitleDuration: { mode: 'automatic' } });
+const utterance = (id, timeMs, text) => ({ id, timeMs, text, reading: null, styleId: 1, subtitleDuration: { mode: 'fill' } });
 const clip = (id, startMs, durationMs) => ({ id, startMs, durationMs, contentOffsetMs: 987.5 });
 
 // 【字幕は指定長・次のキーで打ち切り、過去の字幕を再表示しない】

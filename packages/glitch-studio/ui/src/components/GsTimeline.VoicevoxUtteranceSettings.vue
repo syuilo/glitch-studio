@@ -58,7 +58,7 @@ const voiceStyleItems = computed(() => {
 });
 const error = ref('');
 const subtitleDurationModes = [
-	{ value: 'automatic', label: 'Automatic (until next speech key)' },
+	{ value: 'fill', label: 'Fill (until next speech key)' },
 	{ value: 'specified', label: 'Specified' },
 	{ value: 'speech', label: 'Match speech duration' },
 ];
@@ -95,8 +95,8 @@ function editTime(value: string | number) {
 
 function changeSubtitleDurationMode(mode: string) {
 	if (mode === props.utterance.subtitleDuration.mode) return;
-	if (mode === 'automatic') {
-		edit({ subtitleDuration: { mode: 'automatic' } });
+	if (mode === 'fill') {
+		edit({ subtitleDuration: { mode: 'fill' } });
 	} else if (mode === 'specified') {
 		edit({ subtitleDuration: { mode: 'specified', durationMs: getDefaultVoicevoxSubtitleDuration(props.layer.utterances, props.layer.clips, props.utterance.id, stateManager.state.generatedSpeech.value.find(speech => speech.key === key.value)?.durationMs) } });
 	} else if (mode === 'speech') {

@@ -3,7 +3,7 @@ import type { TimelineClip } from '../../clip.ts';
 import { getVoicevoxRequest } from './voicevox.ts';
 import type { SpeechResolver, VoicevoxSettings, VoicevoxUtterance } from './voicevox.ts';
 
-export type VoicevoxSubtitleInterval = { utteranceId: string; text: string; startMs: number; endMs: number; isAutomatic: boolean };
+export type VoicevoxSubtitleInterval = { utteranceId: string; text: string; startMs: number; endMs: number; isSpecified: boolean };
 export type VoicevoxSubtitlePlacement = VoicevoxSubtitleInterval & { clipId: string; canResize: boolean };
 
 /** 空文字・表示長0のキーでも前の字幕を打ち切り、後の字幕が終わっても前の字幕へ戻らない。 */
@@ -15,13 +15,13 @@ export function getVoicevoxSubtitleIntervals(settings: VoicevoxSettings, utteran
 		if (duration.mode === 'specified') durationMs = duration.durationMs;
 		if (duration.mode === 'speech') {
 			const speech = resolveSpeech?.(getVoicevoxRequest(settings, utterance));
-			// 未生成でも字幕を編集できるよう、音声長が分かるまでは従来の自動区間を仮表示する。
+			// 未生成でも字幕を編集できるよう、音声長が分かるまではFillの区間を仮表示する。
 			// 生成音声の小数msは丸めず、延長0で音声と字幕の終端を一致させる。
 			if (speech) durationMs = speech.durationMs + duration.extensionMs;
 		}
 		const endMs = Math.min(sorted[index + 1]?.timeMs ?? Infinity, utterance.timeMs + durationMs);
 		return utterance.text !== '' && endMs > utterance.timeMs ? [{
-			utteranceId: utterance.id, text: utterance.text, startMs: utterance.timeMs, endMs, isAutomatic: duration.mode !== 'specified',
+			utteranceId: utterance.id, text: utterance.text, startMs: utterance.timeMs, endMs, isSpecified: duration.mode === 'specified',
 		}] : [];
 	});
 }

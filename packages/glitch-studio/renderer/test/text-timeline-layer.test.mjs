@@ -100,7 +100,7 @@ test('renders VOICEVOX subtitles at scene time without requiring generated audio
 	const f = fixture(t);
 	const speech = { id: 'speech', name: 'Speech', isDisabled: false, automationGraphs: [],
 		clips: [clip('speech-clip', 100, 1000, 20.5)], compositingParamValues: compositing(), subtitleParamValues: createVoicevoxSubtitleParameterValues(), layerType: 'voicevox', voicevox: { speedScale: 1 },
-		utterances: [{ id: 'first', timeMs: 300, text: 'Speech subtitle', reading: '別の読み', styleId: 1, subtitleDuration: { mode: 'specified', durationMs: 200 } }, { id: 'clear', timeMs: 600, text: '', reading: null, styleId: 1, subtitleDuration: { mode: 'automatic' } }],
+		utterances: [{ id: 'first', timeMs: 300, text: 'Speech subtitle', reading: '別の読み', styleId: 1, subtitleDuration: { mode: 'specified', durationMs: 200 } }, { id: 'clear', timeMs: 600, text: '', reading: null, styleId: 1, subtitleDuration: { mode: 'fill' } }],
 		audioParamValues: { volume: literal(1) } };
 	await f.setup([speech]);
 	await f.manager.renderTimelineFrame(200, 0);
@@ -116,7 +116,7 @@ test('renders VOICEVOX subtitles at scene time without requiring generated audio
 });
 
 // 【発話長モードは生成音声の末尾と延長を描画に反映する】
-// 音声一覧の更新では既存レイヤーを維持しても終了時刻を更新し、未生成・指定・自動の挙動を混同しない。
+// 音声一覧の更新では既存レイヤーを維持しても終了時刻を更新し、未生成・指定・Fillの挙動を混同しない。
 // プレビューと書き出しは渡された音声一覧を使い、小数msの境界でも字幕を残さない。
 test('renders subtitles through speech duration and extension using updated prepared speech', async t => {
 	const f = fixture(t);
