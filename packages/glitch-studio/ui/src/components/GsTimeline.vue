@@ -64,7 +64,7 @@
 			</div>
 			<GsVirtualScroll
 				:key="sceneId" ref="virtualLayers" :items="visibleLayers" :itemKey="getLayerKey" :itemSizeKey="getLayerSizeKey"
-				:scrollElement="layersEl" :estimatedItemHeight="44" :gap="4" :overscan="0"
+				:scrollElement="layersEl" :estimatedItemHeight="44" :gap="0" :overscan="0"
 				:keepMountedKeys="draggingLayerId ? [draggingLayerId] : []" @layout="onVirtualLayersLayout"
 			>
 				<template #default="{ item: layer }">
@@ -388,6 +388,7 @@ import type { ParamEdit } from './GsVisualParam.vue';
 import type { TimelineClipMediaInfo } from '@/utility/timeline-clip-media.ts';
 import type { ShapeType } from '@gs/subsystems_timeline_shared/layers/shape/shape.ts';
 import type { TimelineClipClipboard } from '@/utility/timeline-clip-clipboard.ts';
+import type { TimelineClipSourceDurations } from '@/utility/timeline-clip-media.ts';
 import { createKeyframeStretch, stretchKeyframeX } from '@/utility/timeline-keyframe-stretch.ts';
 import { zoomTimelineX } from '@/utility/timeline-zoom.ts';
 import { getTimelineTickCount, getTimelineTicks, getTimelineMinorTicks, getTimelineVisibleClipTicks, formatTimelineTimecode as formatMsToTimecode } from '@/utility/timeline-ticks.ts';
@@ -398,7 +399,6 @@ import { getTimelineKeyframeEntries, getTimelineKeyframeLanes } from '@/utility/
 import { prepareTimelineClipMove } from '@/utility/timeline-clip-move.ts';
 import { getLayerParameterValues, getLayerParameterDefinition, resolveLayerParameter } from '@/utility/timeline-scene.ts';
 import { inspectTimelineClipMedia } from '@/utility/timeline-clip-media.ts';
-import type { TimelineClipSourceDurations } from '@/utility/timeline-clip-media.ts';
 import { selectionRect, mergeTimelineRangeSelection, clipSelectionKey, keyframeSelectionKey, getTimelineStretchSelection, constrainTimelineMove, keyframeMoveBounds, getTimelineSnappingTimes } from '@/utility/timeline-selection.ts';
 import { canEditKeyframesTimeline, updateInlineKeyframe } from '@/utility/keyframes-timeline.ts';
 import { createEffectTimelineLayer } from '@/utility/effect-timeline-layer.ts';
@@ -1936,9 +1936,6 @@ onMounted(() => {
 </script>
 
 <style module lang="scss">
-.drop_before { box-shadow: inset 0 2px var(--THEME-accent); }
-.drop_after { box-shadow: inset 0 -2px var(--THEME-accent); }
-.drop_inside { outline: 1px solid var(--THEME-accent); outline-offset: -1px; }
 .root {
 	display: flex;
 	flex-direction: column;
@@ -2421,4 +2418,50 @@ onMounted(() => {
 	padding: 16px;
 }
 
+.drop_before {
+	position: relative;
+	&:after {
+		content: '';
+		display: block;
+		position: absolute;
+		z-index: 1;
+		top: 0;
+		left: 0;
+		width: 100%;
+		height: 100%;
+		box-sizing: border-box;
+		border-top: solid 2px var(--THEME-accent);
+	}
+}
+.drop_after {
+	position: relative;
+	&:after {
+		content: '';
+		display: block;
+		position: absolute;
+		z-index: 1;
+		top: 0;
+		left: 0;
+		width: 100%;
+		height: 100%;
+		box-sizing: border-box;
+		border-bottom: solid 2px var(--THEME-accent);
+	}
+}
+.drop_inside {
+	position: relative;
+	&:after {
+		content: '';
+		display: block;
+		position: absolute;
+		z-index: 1;
+		top: 0;
+		left: 0;
+		width: 100%;
+		height: 100%;
+		box-sizing: border-box;
+		//border: solid 2px var(--THEME-accent);
+		background: color(from var(--THEME-accent) srgb r g b / 0.25);
+	}
+}
 </style>

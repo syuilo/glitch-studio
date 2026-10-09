@@ -1,19 +1,22 @@
 <template>
-<div :class="[$style.root, { [$style.selected]: selected, [$style.disabled]: layer.isDisabled || ancestorDisabled, [$style.type_effect]: layer.layerType === 'effect', [$style.type_audio]: layer.layerType === 'audio', [$style.type_image]: layer.layerType === 'image', [$style.type_video]: layer.layerType === 'video', [$style.type_text]: layer.layerType === 'text', [$style.type_voicevox]: layer.layerType === 'voicevox' }]" :data-timeline-layer-id="layer.id">
+<div :class="[$style.root, { [$style.selected]: selected, [$style.disabled]: layer.isDisabled || ancestorDisabled, [$style.groupExpanded]: layer.layerType === 'group' && !collapsed, [$style.type_effect]: layer.layerType === 'effect', [$style.type_audio]: layer.layerType === 'audio', [$style.type_image]: layer.layerType === 'image', [$style.type_video]: layer.layerType === 'video', [$style.type_text]: layer.layerType === 'text', [$style.type_voicevox]: layer.layerType === 'voicevox', [$style.type_group]: layer.layerType === 'group' }]" :data-timeline-layer-id="layer.id">
 	<div :class="$style.mainLane" data-timeline-clip-lane>
 		<div :class="$style.side">
-			<div :class="$style.layerHeader" :style="{ paddingLeft: (depth ?? 0) * 16 + 'px' }" draggable="true" @click="emit('selected', $event)" @dragstart.stop="emit('dragStart', $event)">
-				<div :class="$style.grabber">
-					<svg viewBox="0 0 16 16" version="1.1" :class="$style.grabberSvg">
-						<path fill="currentColor" d="M10 13a1 1 0 1 1 0-2 1 1 0 0 1 0 2Zm0-4a1 1 0 1 1 0-2 1 1 0 0 1 0 2Zm-4 4a1 1 0 1 1 0-2 1 1 0 0 1 0 2Zm5-9a1 1 0 1 1-2 0 1 1 0 0 1 2 0ZM7 8a1 1 0 1 1-2 0 1 1 0 0 1 2 0ZM6 5a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z"></path>
-					</svg>
+			<div v-for="i in (depth ?? 0) + 1" :class="[$style.colorBar, { [$style.parentColorBar]: i < (depth ?? 0) + 1 }]"></div>
+			<div :class="$style.sideBody">
+				<div :class="$style.layerHeader" draggable="true" @click="emit('selected', $event)" @dragstart.stop="emit('dragStart', $event)">
+					<div :class="$style.grabber">
+						<svg viewBox="0 0 16 16" version="1.1" :class="$style.grabberSvg">
+							<path fill="currentColor" d="M10 13a1 1 0 1 1 0-2 1 1 0 0 1 0 2Zm0-4a1 1 0 1 1 0-2 1 1 0 0 1 0 2Zm-4 4a1 1 0 1 1 0-2 1 1 0 0 1 0 2Zm5-9a1 1 0 1 1-2 0 1 1 0 0 1 2 0ZM7 8a1 1 0 1 1-2 0 1 1 0 0 1 2 0ZM6 5a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z"></path>
+						</svg>
+					</div>
+					<i :class="'ti ' + layerIcon"></i>
+					<span :class="$style.layerHeaderTitle">
+						<GsCondensedLine>{{ layer.name }}</GsCondensedLine>
+					</span>
+					<button v-if="layer.layerType === 'group'" class="_button" :class="[$style.collapseButton]" :aria-expanded="!collapsed" @click.stop="emit('toggleGroup')"><i :class="collapsed ? 'ti ti-chevron-right' : 'ti ti-chevron-down'"></i></button>
+					<button class="_button" :class="[$style.disableButton, { [$style.active]: !layer.isDisabled }]" @click.stop="toggleDisabled"><i :class="layer.isDisabled ? 'ti ti-eye-off' : 'ti ti-eye'"></i></button>
 				</div>
-				<i :class="'ti ' + layerIcon"></i>
-				<span :class="$style.layerHeaderTitle">
-					<GsCondensedLine>{{ layer.name }}</GsCondensedLine>
-				</span>
-				<button v-if="layer.layerType === 'group'" class="_button" :class="[$style.collapseButton]" :aria-expanded="!collapsed" @click.stop="emit('toggleGroup')"><i :class="collapsed ? 'ti ti-chevron-right' : 'ti ti-chevron-down'"></i></button>
-				<button class="_button" :class="[$style.disableButton, { [$style.active]: !layer.isDisabled }]" @click.stop="toggleDisabled"><i :class="layer.isDisabled ? 'ti ti-eye-off' : 'ti ti-eye'"></i></button>
 			</div>
 		</div>
 		<div :class="$style.tl" @dblclick.stop.prevent="onBackgroundDoubleClick">
@@ -42,7 +45,12 @@
 		</div>
 	</div>
 	<div v-if="layer.layerType !== 'group' && (keyframeParameters.length > 0 || layer.layerType === 'voicevox')" :class="$style.localTicksLane">
-		<div :class="[$style.side, $style.localTicksLabel]">Clip time</div>
+		<div :class="$style.side">
+			<div v-for="i in (depth ?? 0) + 1" :class="[$style.colorBar, { [$style.parentColorBar]: i < (depth ?? 0) + 1 }]"></div>
+			<div :class="$style.sideBody">
+				<div :class="[$style.localTicksLabel]">Clip time</div>
+			</div>
+		</div>
 		<div :class="[$style.tl, $style.localTicks]">
 			<div v-for="{ clip, ticks } in visibleClipTicks" :key="clip.id" :class="$style.localTicksRange" :style="{ left: timeToDomX(clip.startMs) + 'px', width: clip.durationMs / tlRangeX * tlElWidth + 'px' }">
 				<div v-for="tick of ticks.major" :key="tick.contentTimeMs" :class="$style.localTick" class="_monospace" :style="{ left: (tick.sceneTimeMs - clip.startMs) / tlRangeX * tlElWidth + 'px' }">{{ formatTimelineTimecode(tick.contentTimeMs) }}</div>
@@ -51,7 +59,12 @@
 		</div>
 	</div>
 	<div v-if="layer.layerType === 'voicevox'" :class="$style.speechLane" data-parameter-target="utterance" :data-param-path="JSON.stringify(['utterances'])">
-		<div :class="$style.side" @click="emit('selected', $event)">Speech</div>
+		<div :class="$style.side">
+			<div v-for="i in (depth ?? 0) + 1" :class="[$style.colorBar, { [$style.parentColorBar]: i < (depth ?? 0) + 1 }]"></div>
+			<div :class="$style.sideBody">
+				<div>Speech</div>
+			</div>
+		</div>
 		<VoicevoxKeys
 			:class="$style.tl" :sceneId="sceneId" :layer="layer" :pixelsPerMs="pixelsPerMs" :offsetMs="tlPosX"
 			:selectedKeyframeIds="selectedKeyframeIdsByParameter.get(JSON.stringify(['utterance', ['utterances']])) ?? emptySelectionIds"
@@ -61,7 +74,12 @@
 		/>
 	</div>
 	<div v-for="param in keyframeParameters" :key="param.key" :class="$style.keyframesLane" :data-parameter-target="param.target" :data-param-path="paramPathKey(param.paramPath)">
-		<div :class="$style.side"><div style="padding-right: 6px;">{{ param.label }}</div></div>
+		<div :class="$style.side">
+			<div v-for="i in (depth ?? 0) + 1" :class="[$style.colorBar, { [$style.parentColorBar]: i < (depth ?? 0) + 1 }]"></div>
+			<div :class="$style.sideBody">
+				<div style="padding-right: 6px;">{{ param.label }}</div>
+			</div>
+		</div>
 		<div :class="$style.tl" @dblclick.stop.prevent="onKeyframeBackgroundDoubleClick(param, $event)">
 			<div :class="$style.scrollingContent" :style="scrollingStyle">
 				<XKeyframes
@@ -72,6 +90,11 @@
 					@dragStart="(event, keyframeId) => emit('keyframeDragStart', event, { layerId: layer.id, target: param.target, paramPath: param.paramPath, keyframeId })"
 				/>
 			</div>
+		</div>
+	</div>
+	<div :class="$style.gapLane">
+		<div :class="$style.side">
+			<div v-for="i in (depth ?? 0) + (layer.layerType === 'group' && !isLastOfGroup ? 1 : 0)" :class="[$style.colorBar, $style.parentColorBar]"></div>
 		</div>
 	</div>
 </div>
@@ -120,7 +143,9 @@ const props = defineProps<{
 	selectedClipIds: string[];
 	selected: boolean;
 	moving: boolean;
+	isLastOfGroup: boolean;
 }>();
+
 const emit = defineEmits<{
 	(ev: 'toggleGroup'): void;
 	(ev: 'groupMoveStart', event: PointerEvent): void;
@@ -134,6 +159,7 @@ const emit = defineEmits<{
 	(ev: 'keyframeSelected', selection: TimelineKeyframeSelection): void;
 	(ev: 'subtitleTrimStart', event: PointerEvent, layerId: string, utteranceId: string, clipId: string): void;
 }>();
+
 const layerIcon = computed(() => ({ group: 'ti-folder', voicevox: 'ti-microphone', image: 'ti-photo', video: 'ti-video', audio: 'ti-music', scene: 'ti-memory', visualModule: 'ti-chart-dots-3', inlineVisualModule: 'ti-chart-dots-3', effect: 'ti-sparkles', shape: 'ti-shape', text: 'ti-typography' })[props.layer.layerType]);
 type Clip = TimelineClip | TimelineAssetClip | TimelineVideoClip | TimelineSceneClip;
 
@@ -241,33 +267,11 @@ function timeToDomX(time: number): number { return timelineTimeToX(time, props.t
 </script>
 
 <style module lang="scss">
-.groupClip {
-	position: absolute;
-	top: 2px;
-	height: 20px;
-	box-sizing: border-box;
-	border: 1px solid var(--THEME-accent);
-	border-radius: 4px;
-	background: color-mix(in srgb, var(--THEME-accent) 20%, transparent);
-	color: var(--THEME-fg);
-	cursor: grab;
-	touch-action: none;
-	overflow: hidden;
-	white-space: nowrap;
-	padding: 0 6px;
-	font-size: 11px;
-}
-.groupClipSelected { background: color-mix(in srgb, var(--THEME-accent) 40%, transparent); }
-
 .root {
 	--mainLaneHeight: 24px;
 	--keyframesLaneHeight: 20px;
 	--sideColor: #181818;
 	overflow: clip;
-
-	&:hover {
-		background: #ffffff06;
-	}
 
 	&.selected .layerHeader {
 		color: var(--THEME-accent);
@@ -297,6 +301,9 @@ function timeToDomX(time: number): number { return timelineTimeToX(time, props.t
 	&.type_voicevox {
 		--LAYER_COLOR: var(--THEME-layer-voicevox);
 	}
+	&.type_group {
+		--LAYER_COLOR: var(--THEME-layer-group);
+	}
 }
 
 .mainLane {
@@ -306,14 +313,29 @@ function timeToDomX(time: number): number { return timelineTimeToX(time, props.t
 }
 
 .side {
+	display: flex;
 	position: relative;
 	z-index: 1;
 	box-sizing: border-box;
 	width: var(--sideWidth);
 	flex-shrink: 0;
-	border-left: solid 3px var(--LAYER_COLOR);
 	background: var(--sideColor);
 	direction: ltr;
+}
+
+.colorBar {
+	width: 3px;
+	flex-shrink: 0;
+	margin-right: 4px;
+	background: var(--LAYER_COLOR);
+
+	&.parentColorBar {
+		background: var(--THEME-layer-group);
+	}
+}
+
+.sideBody {
+	flex: 1;
 }
 
 .tl {
@@ -322,6 +344,16 @@ function timeToDomX(time: number): number { return timelineTimeToX(time, props.t
 	flex: 1;
 	min-width: 0;
 	direction: ltr;
+}
+
+.gapLane {
+	display: flex;
+	width: 100%;
+	height: 4px;
+
+	.side {
+		background: transparent;
+	}
 }
 
 .scrollingContent {
@@ -459,5 +491,23 @@ function timeToDomX(time: number): number { return timelineTimeToX(time, props.t
 	line-height: var(--mainLaneHeight);
 	text-align: center;
 	background: var(--sideColor);
+}
+
+.groupClip {
+	position: absolute;
+	box-sizing: border-box;
+	height: var(--mainLaneHeight);
+	border-radius: 4px;
+	background: color-mix(in srgb, var(--THEME-accent) 20%, transparent);
+	color: var(--THEME-fg);
+	cursor: grab;
+	touch-action: none;
+	overflow: clip;
+	white-space: nowrap;
+	padding: 0 6px;
+}
+
+.groupClipSelected {
+	background: color-mix(in srgb, var(--THEME-accent) 40%, transparent);
 }
 </style>
