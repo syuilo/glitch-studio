@@ -49,6 +49,7 @@
 			:selectedKeyframeIds="selectedKeyframeIdsByParameter.get(JSON.stringify(['utterance', ['utterances']])) ?? emptySelectionIds"
 			@dragStart="(event, keyframeId) => emit('keyframeDragStart', event, { layerId: layer.id, target: 'utterance', paramPath: ['utterances'], keyframeId })"
 			@selected="keyframeId => emit('keyframeSelected', { layerId: layer.id, target: 'utterance', paramPath: ['utterances'], keyframeId })"
+			@subtitleTrimStart="(event, utteranceId, clipId) => emit('subtitleTrimStart', event, layer.id, utteranceId, clipId)"
 		/>
 	</div>
 	<div v-for="param in keyframeParameters" :key="param.key" :class="$style.keyframesLane" :data-parameter-target="param.target" :data-param-path="paramPathKey(param.paramPath)">
@@ -117,6 +118,7 @@ const emit = defineEmits<{
 	(ev: 'clipTrimStart', event: PointerEvent, selection: TimelineClipSelection, edge: 'start' | 'end'): void;
 	(ev: 'keyframeDragStart', event: PointerEvent, selection: TimelineKeyframeSelection): void;
 	(ev: 'keyframeSelected', selection: TimelineKeyframeSelection): void;
+	(ev: 'subtitleTrimStart', event: PointerEvent, layerId: string, utteranceId: string, clipId: string): void;
 }>();
 const layerIcon = computed(() => ({ voicevox: 'ti-microphone', image: 'ti-photo', video: 'ti-video', audio: 'ti-music', scene: 'ti-memory', visualModule: 'ti-chart-dots-3', inlineVisualModule: 'ti-chart-dots-3', effect: 'ti-sparkles', shape: 'ti-shape', text: 'ti-typography' })[props.layer.layerType]);
 type Clip = TimelineClip | TimelineAssetClip | TimelineVideoClip | TimelineSceneClip;

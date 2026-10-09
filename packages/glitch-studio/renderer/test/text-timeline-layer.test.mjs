@@ -99,13 +99,15 @@ test('renders VOICEVOX subtitles at scene time without requiring generated audio
 	const f = fixture(t);
 	const speech = { id: 'speech', name: 'Speech', isDisabled: false, automationGraphs: [],
 		clips: [clip('speech-clip', 100, 1000, 20.5)], compositingParamValues: compositing(), subtitleParamValues: createVoicevoxSubtitleParameterValues(), layerType: 'voicevox', voicevox: { speedScale: 1 },
-		utterances: [{ id: 'first', timeMs: 300, text: 'Speech subtitle', reading: '別の読み', styleId: 1 }, { id: 'clear', timeMs: 600, text: '', reading: null, styleId: 1 }],
+		utterances: [{ id: 'first', timeMs: 300, text: 'Speech subtitle', reading: '別の読み', styleId: 1, subtitleDurationMs: 200 }, { id: 'clear', timeMs: 600, text: '', reading: null, styleId: 1, subtitleDurationMs: null }],
 		audioParamValues: { volume: literal(1) } };
 	await f.setup([speech]);
 	await f.manager.renderTimelineFrame(200, 0);
 	assert.deepEqual(f.calls.glyphs.map(glyph => glyph.text), ['']);
 	await f.manager.renderTimelineFrame(350, 0);
 	assert.equal(f.calls.glyphs.at(-1).text, 'Speech subtitle');
+	await f.manager.renderTimelineFrame(500, 0);
+	assert.equal(f.calls.glyphs.at(-1).text, '');
 	await f.manager.renderTimelineFrame(600, 0);
 	assert.equal(f.calls.glyphs.at(-1).text, '');
 	await f.manager.renderTimelineFrame(350, 0);

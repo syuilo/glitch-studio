@@ -111,6 +111,7 @@
 						@clipTrimStart="onClipTrimStart"
 						@keyframeDragStart="onKeyframeMoveStart"
 						@keyframeSelected="onKeyframeSelected"
+						@subtitleTrimStart="onSubtitleTrimStart"
 					/>
 				</template>
 			</GsDraggable>
@@ -409,6 +410,9 @@ import { canEditKeyframesTimeline, updateInlineKeyframe } from '@/utility/keyfra
 import { createEffectTimelineLayer } from '@/utility/effect-timeline-layer.ts';
 import { createShapeTimelineLayer } from '@/utility/shape-timeline-layer.ts';
 import { createVoicevoxTimelineLayer } from '@/utility/voicevox-timeline-layer.ts';
+import { getVoicevoxSubtitleTrimBounds } from '@/utility/voicevox-utterance-edit.ts';
+import { createSpeechResolver } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox.ts';
+import { assignPreparedSpeech, getVoicevoxUtterancePlacements } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox-placement.ts';
 import { createTextTimelineLayer } from '@/utility/text-timeline-layer.ts';
 import { appContext } from '@/app.ts';
 import { getTimelineEditorState, getSelectedTimelineLayerId, timelineClipboard } from '@/utility/timeline-editor-state.ts';
@@ -1143,6 +1147,40 @@ function onClipTrimStart(event: PointerEvent, target: TimelineClipSelection, edg
 	startSelectionMove(event, points, snapTimes, (delta, mergeKey) => {
 		if (!resolveClip(target)) return false;
 		stateManager.commit('editTimelineClipTiming', { sceneId: props.sceneId, ...target, edge, deltaMs: delta, initialTiming, sourceDurationMs }, mergeKey);
+		return true;
+	});
+}
+
+function onSubtitleTrimStart(event: PointerEvent, layerId: string, utteranceId: string, clipId: string) {
+	if (event.button !== 0 || !event.isPrimary || stopSelectionDrag || tlElWidth.value <= 0 || tlRangeX.value <= 0) return;
+	const layer = sceneLayers.value.find(layer => layer.id === layerId);
+	if (layer?.layerType !== 'voicevox') return;
+	const bounds = getVoicevoxSubtitleTrimBounds(layer.utterances, layer.clips, utteranceId, clipId);
+	if (!bounds) return;
+	const utterance = layer.utterances.find(key => key.id === utteranceId)!;
+	onKeyframeSelected({ layerId, target: 'utterance', paramPath: ['utterances'], keyframeId: utteranceId });
+	const resolveSpeech = createSpeechResolver(stateManager.state.generatedSpeech.value);
+	const audioEnds = getVoicevoxUtterancePlacements(layer.voicevox, layer.utterances, layer.clips).flatMap(placement => {
+		const speech = resolveSpeech(placement.request);
+		const interval = speech && assignPreparedSpeech(placement, speech);
+		return interval ? [Math.round(interval.endMs)] : [];
+	});
+	const otherTimes = [0, ...sceneLayers.value.flatMap(layer => layer.clips.flatMap(clip => [clip.startMs, getTimelineClipEnd(clip)])),
+		...keyframeEntries.value.map(entry => entry.time), ...audioEnds];
+	const localTicks = snapSettings.value.localTicks ? getTimelineVisibleClipTicks(layer.clips, tlPosX.value, tlRangeX.value, xTicksCount.value, tickMode.value, tickSubdivisions.value)
+		.flatMap(({ ticks }) => [...ticks.major, ...ticks.minor].map(tick => Math.round(tick.sceneTimeMs))) : [];
+	const snapTimes = getTimelineSnapCandidates(snapSettings.value, otherTimes, xTicksWithMinor.value, localTicks, time.value);
+	const initialDuration = utterance.subtitleDurationMs!;
+	const initialTime = utterance.timeMs;
+	const points = [{ time: bounds.endMs, minDelta: bounds.minDelta, maxDelta: bounds.maxDelta }];
+	startSelectionMove(event, points, snapTimes, (delta, mergeKey) => {
+		const currentLayer = sceneLayers.value.find(layer => layer.id === layerId);
+		if (currentLayer?.layerType !== 'voicevox') return false;
+		const current = currentLayer.utterances.find(key => key.id === utteranceId);
+		// 設定画面で自動へ戻した場合や、別操作でキーが移動・削除された場合はドラッグを続けない。
+		if (!current || current.subtitleDurationMs === null || current.timeMs !== initialTime) return false;
+		stateManager.commit('editVoicevoxLayer', { sceneId: props.sceneId, layerId, voicevox: currentLayer.voicevox,
+			utterances: currentLayer.utterances.map(key => key.id === utteranceId ? { ...key, subtitleDurationMs: initialDuration + delta } : key) }, mergeKey);
 		return true;
 	});
 }

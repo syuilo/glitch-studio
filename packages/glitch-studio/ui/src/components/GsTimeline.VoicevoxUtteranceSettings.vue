@@ -10,6 +10,12 @@
 			<template #label>Voice / style</template>
 		</GsSelect>
 		<GsTextarea :modelValue="utterance.text" @update:modelValue="text => edit({ text })"><template #label>Subtitle</template></GsTextarea>
+		<GsSelect small :modelValue="utterance.subtitleDurationMs === null ? 'automatic' : 'specified'" :items="subtitleDurationModes" @update:modelValue="changeSubtitleDurationMode">
+			<template #label>Subtitle duration</template>
+		</GsSelect>
+		<GsInput v-if="utterance.subtitleDurationMs !== null" small type="number" :min="0" :max="Number.MAX_SAFE_INTEGER - utterance.timeMs" :step="1" :modelValue="utterance.subtitleDurationMs" @update:modelValue="editSubtitleDuration">
+			<template #label>Display length (0 hides subtitle)</template><template #suffix>ms</template>
+		</GsInput>
 		<GsTextarea :modelValue="utterance.reading ?? ''" placeholder="Use subtitle text" @update:modelValue="reading => edit({ reading: reading.trim() || null })"><template #label>Reading (optional)</template></GsTextarea>
 		<div>{{ status }}</div>
 		<GsButton v-if="desktop && utterance.text" small :disabled="generating" @click="regenerate">Regenerate</GsButton>
@@ -21,7 +27,6 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import { genId } from '@gs/shared/utility/id.ts';
 import { getVoicevoxRequest, getVoicevoxRequestKey } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox.ts';
 import GsFolder from './common/GsFolder.vue';
 import GsInput from './common/GsInput.vue';
@@ -31,7 +36,7 @@ import GsButton from './common/GsButton.vue';
 import type { TimelineVoicevoxLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import type { VoicevoxUtterance } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox.ts';
 import { appContext } from '@/app.ts';
-import { getVoicevoxUtteranceTimeBounds } from '@/utility/voicevox-utterance-edit.ts';
+import { getDefaultVoicevoxSubtitleDuration, getVoicevoxUtteranceTimeBounds } from '@/utility/voicevox-utterance-edit.ts';
 
 const props = defineProps<{ sceneId: string; layer: TimelineVoicevoxLayer; utterance: VoicevoxUtterance }>();
 const emit = defineEmits<{ selected: [id: string] }>();
@@ -49,6 +54,7 @@ const voiceStyleItems = computed(() => {
 	return items;
 });
 const error = ref('');
+const subtitleDurationModes = [{ value: 'automatic', label: 'Automatic (until next speech key)' }, { value: 'specified', label: 'Specified' }];
 const bounds = computed(() => getVoicevoxUtteranceTimeBounds(props.layer.utterances, props.utterance.id));
 const request = computed(() => getVoicevoxRequest(props.layer.voicevox, props.utterance));
 const key = computed(() => getVoicevoxRequestKey(request.value));
@@ -78,6 +84,21 @@ function editTime(value: string | number) {
 	const time = Number(value);
 	if (!Number.isFinite(time) || !bounds.value) return;
 	edit({ timeMs: Math.max(bounds.value.min, Math.min(bounds.value.max, Math.round(time))) });
+}
+
+function changeSubtitleDurationMode(mode: string) {
+	if (mode === 'automatic') {
+		if (props.utterance.subtitleDurationMs !== null) edit({ subtitleDurationMs: null });
+	} else if (mode === 'specified' && props.utterance.subtitleDurationMs === null) {
+		edit({ subtitleDurationMs: getDefaultVoicevoxSubtitleDuration(props.layer.utterances, props.layer.clips, props.utterance.id, stateManager.state.generatedSpeech.value.find(speech => speech.key === key.value)?.durationMs) });
+	}
+}
+
+function editSubtitleDuration(value: string | number) {
+	if (props.utterance.subtitleDurationMs === null) return;
+	const duration = Number(value);
+	if (!Number.isFinite(duration)) return;
+	edit({ subtitleDurationMs: Math.max(0, Math.min(Number.MAX_SAFE_INTEGER - props.utterance.timeMs, Math.round(duration))) });
 }
 
 function remove() { commit(props.layer.utterances.filter(utterance => utterance.id !== props.utterance.id)); }

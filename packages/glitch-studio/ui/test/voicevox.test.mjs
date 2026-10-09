@@ -35,6 +35,7 @@ const bundled = await build({
 		export * from './src/export/audio-export-settings.ts';
 		export * from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox.ts';
 		export * from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox-placement.ts';
+		export * from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox-subtitle-timing.ts';
 		export * from '@gs/subsystems_timeline_shared/voicevox-requests.ts';
 		export { getSceneAudioClips } from '@gs/subsystems_timeline_shared/scene-audio.ts';
 		export { TimelineAudioRenderer } from '@gs/subsystems_timeline_audio-renderer/timeline-audio-renderer.ts';
@@ -76,7 +77,7 @@ async function loadComputed(name, context, component) {
 }
 
 const literal = value => ({ inputSource: 'literal', value });
-const utterance = (id, timeMs, text = 'Hello', reading = null, styleId = 1) => ({ id, timeMs, text, reading, styleId });
+const utterance = (id, timeMs, text = 'Hello', reading = null, styleId = 1) => ({ id, timeMs, text, reading, styleId, subtitleDurationMs: null });
 const scene = (id, layers) => ({ id, name: id, resolution: { mode: 'project' }, layers });
 function fixture() {
 	const layer = createVoicevoxTimelineLayer(0);
@@ -172,7 +173,7 @@ test('adds and selects a speech key using the double-click handler', async t => 
 	assert.equal(selected, 'b');
 	assert.equal(f.history.undoStack.value.length, 0);
 	add({ button: 0, clientX: 721, currentTarget: { getBoundingClientRect: () => ({ left: 20 }) } });
-	assert.deepEqual(f.layer.utterances.find(utterance => utterance.id === selected), { id: selected, timeMs: 451, text: '', reading: null, styleId: 7 });
+	assert.deepEqual(f.layer.utterances.find(utterance => utterance.id === selected), { id: selected, timeMs: 451, text: '', reading: null, styleId: 7, subtitleDurationMs: null });
 	assert.deepEqual(getVoicevoxUtteranceTimeBounds(f.layer.utterances, selected), { min: 401, max: 599 });
 	f.history.undo();
 	assert.equal(f.layer.utterances.some(utterance => utterance.id === selected), false);
@@ -205,12 +206,13 @@ test('inherits the preceding voice by scene time with first-key and empty-layer 
 	assert.equal(insertVoicevoxUtterance(keys, Infinity), null);
 });
 
-// 【シーク位置への追加と複製で、それぞれ継承元とコピー元の声を保持する】
-// ボタン追加もダブルクリックと同じ継承規則を使い、複製では配置先の声に書き換えない。
-test('inherits voice when adding at the playhead and preserves the original voice when duplicating', async t => {
+// 【シーク位置への追加とコピーで、それぞれ継承元とコピー元の声・字幕長を保持する】
+// ボタン追加は自動表示で作成し、コピー＆ペーストでは配置先の声や字幕長に書き換えない。
+test('inherits voice for new keys and preserves voice and subtitle duration when copying', async t => {
 	const f = editFixture(t);
 	f.layer.utterances[0].styleId = 3;
 	f.layer.utterances[1].styleId = 7;
+	f.layer.utterances[0].subtitleDurationMs = 250;
 	let selected;
 	const context = {
 		props: { layer: f.layer, sceneId: 'root', get utterance() { return f.layer.utterances[0]; } },
@@ -222,17 +224,17 @@ test('inherits voice when adding at the playhead and preserves the original voic
 	const add = await loadHandler('add', { ...context, commit: commitLayer }, 'GsTimeline.VoicevoxSettings.vue');
 	add();
 	assert.equal(f.layer.utterances.find(utterance => utterance.id === selected).styleId, 7);
+	assert.equal(f.layer.utterances.find(utterance => utterance.id === selected).subtitleDurationMs, null);
 	f.history.undo();
-	const component = 'GsTimeline.VoicevoxUtteranceSettings.vue';
-	const commit = await loadHandler('commit', context, component);
-	const duplicate = await loadHandler('duplicate', { ...context, commit, genId: () => 'duplicated' }, component);
-	duplicate();
-	assert.equal(selected, 'duplicated');
-	assert.deepEqual(f.layer.utterances.at(-1), { ...f.layer.utterances[0], id: 'duplicated', timeMs: 450 });
+	const clipboard = copyTimelineKeyframes(f.state, f.scenes[0], [f.point('a')]);
+	const pasted = prepareTimelineKeyframePaste(f.state, f.scenes[0], clipboard, 450);
+	f.history.commit('pasteTimelineKeyframes', { sceneId: 'root', keyframes: pasted });
+	assert.deepEqual(f.layer.utterances.at(-1), { ...f.layer.utterances[0], id: pasted[0].utterance.id, timeMs: 450 });
 	f.history.undo();
 	assert.equal(f.layer.utterances.length, 3);
 	f.history.redo();
 	assert.equal(f.layer.utterances.at(-1).styleId, 3);
+	assert.equal(f.layer.utterances.at(-1).subtitleDurationMs, 250);
 });
 
 // 【単独選択した発話の声・本文・読み・時刻だけを編集する】
@@ -357,6 +359,106 @@ test('plans repeated speech and samples trimmed utterances at absolute scene tim
 	assert.equal(getVoicevoxSubtitle(f.layer.utterances, 600), '');
 });
 
+// 【字幕区間の編集は設定画面でだけ自動と指定を切り替えられる】
+// 詳細で長さを確定してからドラッグする仕様を守り、数値編集でも自動状態を暗黙に切り替えない。
+// 生成済みなら発話長を初期値にし、再生成でユーザーの指定長が変わらないことも確認する。
+test('changes subtitle duration mode only through utterance settings and keeps synthesis requests unchanged', async t => {
+	const f = editFixture(t);
+	const component = 'GsTimeline.VoicevoxUtteranceSettings.vue';
+	const props = { layer: f.layer, get utterance() { return f.layer.utterances[0]; } };
+	const edit = patch => f.history.commit('editVoicevoxLayer', { sceneId: 'root', layerId: 'speech', voicevox: f.layer.voicevox,
+		utterances: f.layer.utterances.map(key => key.id === 'a' ? { ...key, ...patch } : key) });
+	const state = { generatedSpeech: { value: [] } };
+	const context = { ...module.exports, props, edit, stateManager: { state }, key: { value: getVoicevoxRequestKey(f.request) } };
+	const mode = await loadHandler('changeSubtitleDurationMode', context, component);
+	const duration = await loadHandler('editSubtitleDuration', context, component);
+	duration(100);
+	assert.equal(props.utterance.subtitleDurationMs, null);
+	assert.equal(f.history.undoStack.value.length, 0);
+	mode('specified');
+	assert.equal(props.utterance.subtitleDurationMs, 300);
+	duration(120.4);
+	assert.equal(props.utterance.subtitleDurationMs, 120);
+	assert.equal(getVoicevoxSubtitle(f.layer.utterances, 219), 'Hello');
+	assert.equal(getVoicevoxSubtitle(f.layer.utterances, 220), '');
+	assert.deepEqual(getVoicevoxRequest(f.layer.voicevox, props.utterance), f.request);
+	duration(0);
+	assert.equal(props.utterance.subtitleDurationMs, 0);
+	mode('automatic');
+	assert.equal(props.utterance.subtitleDurationMs, null);
+	f.history.undo();
+	assert.equal(props.utterance.subtitleDurationMs, 0);
+	f.history.redo();
+	assert.equal(props.utterance.subtitleDurationMs, null);
+	// 明示指定へ切り替える時だけ、現在の発話に一致する生成音声の長さを採用する。
+	state.generatedSpeech.value = [{ ...f.speech, durationMs: 133.5 }];
+	mode('specified');
+	assert.equal(props.utterance.subtitleDurationMs, 134);
+	state.generatedSpeech.value = [{ ...f.speech, durationMs: 250 }];
+	assert.equal(props.utterance.subtitleDurationMs, 134);
+	mode('specified');
+	assert.equal(props.utterance.subtitleDurationMs, 134);
+	f.history.undo();
+	assert.equal(props.utterance.subtitleDurationMs, null);
+	f.history.redo();
+	assert.equal(props.utterance.subtitleDurationMs, 134);
+});
+
+// 【指定字幕の終端だけスナップ伸縮し、開始時刻や自動状態を変えない】
+// 次のキー・クリップを越えて伸ばさず、開始時の長さから移動量を適用して一回のUndoにする。
+test('snaps specified subtitle ends with one undo and refuses automatic or clipped ends', async t => {
+	const f = editFixture(t);
+	f.layer.utterances[0].subtitleDurationMs = 150;
+	const selection = { value: { kind: 'layers', ids: [] } };
+	let move;
+	let starts = 0;
+	const handler = await loadHandler('onSubtitleTrimStart', {
+		...module.exports, stopSelectionDrag: undefined, tlElWidth: { value: 1000 }, tlRangeX: { value: 1000 }, tlPosX: { value: 0 },
+		sceneLayers: { value: f.scenes[0].layers }, stateManager: { state: { ...f.history.state, generatedSpeech: { value: [{ ...f.speech, durationMs: 220 }] } }, commit: f.history.commit.bind(f.history) },
+		keyframeEntries: { get value() { return getTimelineKeyframeEntries(f.state, f.scenes[0].layers); } },
+		props: { sceneId: 'root' }, time: { value: 550 }, xTicksWithMinor: { value: [] }, xTicksCount: { value: 10 },
+		tickMode: { value: 'legacy' }, tickSubdivisions: { value: 1 },
+		snapSettings: { value: { enabled: true, globalTicks: false, localTicks: false, seekBar: true } },
+		onKeyframeSelected(point) { selection.value = { kind: 'keyframes', keyframes: [point] }; },
+		startSelectionMove(_event, points, snapTimes, apply) { starts++; move = delta => apply(constrainTimelineMove(delta, points, snapTimes, 1).delta, 'subtitle-drag'); },
+	});
+	const event = { button: 0, isPrimary: true };
+	handler(event, 'speech', 'a', 'visible');
+	assert.deepEqual(selection.value.keyframes, [f.point('a')]);
+	move(67); // 音声末尾320msへ吸着する。
+	assert.equal(f.layer.utterances[0].subtitleDurationMs, 220);
+	move(500);
+	assert.equal(f.layer.utterances[0].subtitleDurationMs, 300);
+	assert.equal(f.layer.utterances[0].timeMs, 100);
+	assert.equal(f.history.undoStack.value.length, 1);
+	f.history.undo();
+	assert.equal(f.layer.utterances[0].subtitleDurationMs, 150);
+	f.history.redo();
+	assert.equal(f.layer.utterances[0].subtitleDurationMs, 300);
+	f.layer.utterances[0].subtitleDurationMs = null;
+	assert.equal(move(-20), false);
+	handler(event, 'speech', 'a', 'visible');
+	assert.equal(starts, 1);
+	f.layer.utterances[0].subtitleDurationMs = 500;
+	handler(event, 'speech', 'a', 'visible');
+	assert.equal(starts, 1);
+	f.layer.utterances[1].subtitleDurationMs = 100;
+	f.layer.clips[0].durationMs = 250;
+	handler(event, 'speech', 'b', 'visible');
+	assert.equal(starts, 1);
+});
+
+// 【字幕帯は未生成でも表示し、自動とクリップによる切断箇所では伸縮させない】
+// 生成音声の長さと字幕の長さを別々に示し、帯の区間をレンダラーの表示判定と一致させる。
+test('shows subtitle ranges before synthesis and exposes resize handles only at specified ends', async () => {
+	const f = fixture();
+	f.layer.utterances[0].subtitleDurationMs = 250;
+	const ranges = await loadComputed('subtitleRanges', { ...module.exports, computed: getter => getter, props: { layer: f.layer } }, 'GsTimeline.VoicevoxKeys.vue');
+	assert.deepEqual(ranges().map(range => [range.utteranceId, range.startMs, range.endMs, range.canResize]), [['a', 200, 350, true], ['b', 400, 600, false]]);
+	f.layer.clips[0].durationMs = 120;
+	assert.deepEqual(ranges().map(range => [range.startMs, range.endMs, range.canResize]), [[200, 320, false]]);
+});
+
 // 【発話レーンの音声区間表示を再生計画と一致させる】
 // 次のキー・空文字キー・クリップ境界・音声末尾の規則をUI側へ複製せず、未生成では帯を表示しない。
 test('displays the same prepared speech intervals as playback across separated clips', async () => {
@@ -367,7 +469,7 @@ test('displays the same prepared speech intervals as playback across separated c
 	assert.deepEqual(ranges(), []);
 	for (const durationMs of [50, 175.5, 1000]) {
 		state.generatedSpeech.value = [{ ...f.speech, durationMs }];
-		const displayed = ranges().map(({ key, text, ...interval }) => interval);
+		const displayed = ranges().map(({ key, ...interval }) => interval);
 		const playback = getSceneAudioClips(f.scenes, 'root', { type: 'all' }, createSpeechResolver(state.generatedSpeech.value)).map(({ gains, ...interval }) => interval);
 		assert.deepEqual(displayed, playback);
 	}

@@ -7,8 +7,41 @@ const { getVoicevoxUtterancePlacements, assignPreparedSpeech } = await loadSourc
 const { getSceneAudioPlacements, resolveSceneAudioPlacements } = await loadSource(fileURLToPath(new URL('../src/scene-audio.ts', import.meta.url)));
 const { getRequiredVoicevoxRequests, getRequiredVoicevoxRequestsForRendering } = await loadSource(fileURLToPath(new URL('../src/voicevox-requests.ts', import.meta.url)));
 const settings = { speedScale: 1 };
-const utterance = (id, timeMs, text) => ({ id, timeMs, text, reading: null, styleId: 1 });
+const { getVoicevoxSubtitle, validateVoicevoxLayer } = await loadSource(fileURLToPath(new URL('../src/layers/voicevox/voicevox.ts', import.meta.url)));
+const { getVoicevoxSubtitlePlacements } = await loadSource(fileURLToPath(new URL('../src/layers/voicevox/voicevox-subtitle-timing.ts', import.meta.url)));
+const utterance = (id, timeMs, text) => ({ id, timeMs, text, reading: null, styleId: 1, subtitleDurationMs: null });
 const clip = (id, startMs, durationMs) => ({ id, startMs, durationMs, contentOffsetMs: 987.5 });
+
+// 【字幕は指定長・次のキーで打ち切り、過去の字幕を再表示しない】
+// シークや書き出しでも同じ半開区間を使い、空文字・表示長0のキーは直前の字幕を終了させる。
+test('evaluates subtitle duration independently of speech and never revives earlier subtitles', () => {
+	const first = { ...utterance('first', 100, 'First'), subtitleDurationMs: 1000 };
+	const second = { ...utterance('second', 400, 'Second'), subtitleDurationMs: 75 };
+	const hidden = { ...utterance('hidden', 600, 'Hidden'), subtitleDurationMs: 0 };
+	const last = utterance('last', 800, 'Last');
+	const clear = utterance('clear', 950, '');
+	const utterances = [clear, first, hidden, last, second];
+	for (const [time, text] of [[99, ''], [100, 'First'], [399.9, 'First'], [400, 'Second'], [474.9, 'Second'],
+		[475, ''], [599, ''], [600, ''], [800, 'Last'], [949.9, 'Last'], [950, ''], [2000, '']]) {
+		assert.equal(getVoicevoxSubtitle(utterances, time), text);
+	}
+	const placements = getVoicevoxSubtitlePlacements(utterances, [clip('left', 200, 250), clip('right', 460, 600)]);
+	assert.deepEqual(placements.map(p => [p.utteranceId, p.startMs, p.endMs, p.canResize]), [
+		['first', 200, 400, false], ['second', 400, 450, false], ['second', 460, 475, true], ['last', 800, 950, false],
+	]);
+	assert.equal(first.subtitleDurationMs, 1000);
+	assert.equal(getVoicevoxSubtitle(utterances, 150), 'First');
+});
+
+// 【字幕長は安全な整数msか自動に限定する】
+// 保存・Undo・ドラッグ経由でも同じ制約を使い、負数や終端の整数精度不足で区間が壊れない。
+test('validates explicit subtitle lengths including zero and rejects unsafe ends', () => {
+	const key = utterance('key', 100, 'First');
+	for (const subtitleDurationMs of [null, 0, 1, 5000]) validateVoicevoxLayer({ voicevox: settings, utterances: [{ ...key, subtitleDurationMs }] });
+	for (const subtitleDurationMs of [undefined, -1, 0.5, Infinity, NaN, Number.MAX_SAFE_INTEGER]) {
+		assert.throws(() => validateVoicevoxLayer({ voicevox: settings, utterances: [{ ...key, subtitleDurationMs }] }), /subtitle duration/);
+	}
+});
 
 // 【音声未生成でも次のキー・空文字・クリップ境界で配置を決める】
 // UIと生成対象の列挙で同じ規則を使い、クリップの間をまたいでも音声の原点は動かさない。
