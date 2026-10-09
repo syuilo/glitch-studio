@@ -27,11 +27,9 @@
 	},
 	"devDependencies": {
 		"@types/web": "0.0.352",
-		"@typescript-eslint/eslint-plugin": "8.59.2",
 		"@typescript-eslint/parser": "8.59.2",
 		"@webgpu/types": "0.1.72",
-		"vite": "8.2.2",
-		"vitest": "4.1.10"
+		"vite": "8.2.2"
 	},
 	"dependencies": {
 		"@gs/shared": "workspace:*",
@@ -40,7 +38,6 @@
 		"@gs/subsystems_timeline_shared": "workspace:*",
 		"@gs/subsystems_visual-module_renderer": "workspace:*",
 		"@gs/subsystems_visual-module_shared": "workspace:*",
-		"eventemitter3": "5.0.4",
 		"webgpu-utils": "2.1.1",
 		"@gs/subsystems_audio_shared": "workspace:*"
 	}
