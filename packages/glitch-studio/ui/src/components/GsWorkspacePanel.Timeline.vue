@@ -1,7 +1,7 @@
 <template>
 <div :class="$style.root">
 	<GsTimeline v-if="activeScene" :key="activeScene.id" :sceneId="activeScene.id" :subPanelTarget="subPanelTarget" @revealDetails="revealDetails">
-		<GsButton small @click="showSceneSelectMenu">Scene: {{ activeScene.name }} <i class="ti ti-chevron-down"></i></GsButton>
+		<GsButton small @click="showSceneSelectMenu">{{ activeScene.name }} <i class="ti ti-chevron-down"></i></GsButton>
 		<GsButton small iconOnly @click="showSceneMenu"><i class="ti ti-dots"></i></GsButton>
 	</GsTimeline>
 	<div v-else>Create a scene to start editing.</div>
@@ -9,15 +9,15 @@
 </template>
 
 <script lang="ts" setup>
-import { appContext } from '@/app.ts';
 import { computed, ref, watch, inject } from 'vue';
-import { workspaceControllerKey } from '@/WorkspaceController.ts';
 import { genId } from '@gs/shared/utility/id.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import GsButton from './common/GsButton.vue';
 import GsSceneResolutionDialog from './GsSceneResolutionDialog.vue';
 import type { WorkspacePanel } from '@/workspace.ts';
 import type { MenuItem } from '@/types/menu.ts';
+import { workspaceControllerKey } from '@/WorkspaceController.ts';
+import { appContext } from '@/app.ts';
 import GsTimeline from '@/components/GsTimeline.vue';
 import * as ui from '@/ui.ts';
 
@@ -79,7 +79,7 @@ function removeScene() {
 function showSceneSelectMenu(ev: PointerEvent) {
 	const menuItems = stateManager.state.timelineScenes.value.map(scene => ({
 		text: scene.name,
-		icon: 'ti ti-layout-dashboard',
+		icon: 'ti ti-memory',
 		active: activeSceneId.value === scene.id,
 		action: () => { activeSceneId.value = scene.id; },
 	})) satisfies MenuItem[];

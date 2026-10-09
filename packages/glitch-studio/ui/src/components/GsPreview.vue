@@ -261,7 +261,7 @@ function showPreviewTargetMenu(ev: PointerEvent) {
 	ui.popupMenu([{
 		type: 'parent',
 		text: 'Scene',
-		icon: 'ti ti-layout-dashboard',
+		icon: 'ti ti-memory',
 		children: () => stateManager.state.timelineScenes.value.map(scene => ({
 			text: scene.name,
 			active: previewPlayback.state.value.mode === 'timeline' && activeSceneId.value === scene.id,

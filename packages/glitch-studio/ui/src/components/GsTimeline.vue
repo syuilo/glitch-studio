@@ -1747,7 +1747,7 @@ function showAddLayerMenu(ev: PointerEvent) {
 		action: addReferencedModuleLayer,
 	}, {
 		text: 'Scene',
-		icon: 'ti ti-timeline',
+		icon: 'ti ti-memory',
 		action: () => addMediaLayer('scene'),
 	}, {
 		text: window.desktop ? 'VOICEVOX' : 'VOICEVOX (使用不可)',
