@@ -261,8 +261,6 @@ function timeToDomX(time: number): number { return timelineTimeToX(time, props.t
 	&.type_voicevox {
 		--LAYER_COLOR: var(--THEME-layer-voicevox);
 	}
-
-	border-left: solid 3px var(--LAYER_COLOR);
 }
 
 .mainLane {
@@ -277,6 +275,7 @@ function timeToDomX(time: number): number { return timelineTimeToX(time, props.t
 	box-sizing: border-box;
 	width: var(--sideWidth);
 	flex-shrink: 0;
+	border-left: solid 3px var(--LAYER_COLOR);
 	background: var(--sideColor);
 	direction: ltr;
 }
