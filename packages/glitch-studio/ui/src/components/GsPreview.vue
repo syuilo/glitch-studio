@@ -5,7 +5,7 @@
 			<div v-if="showTimecodeInPreview" :class="$style.time" class="_monospace">{{ formatTime(time) }}</div>
 		</div>
 		<div :class="$style.topCenter">
-			<div v-if="previewTargetName" :class="$style.previewTargetName">{{ previewTargetName }}</div>
+			<button v-if="previewTargetName" type="button" :class="$style.previewTargetName" class="_button" aria-haspopup="menu" @click="showPreviewTargetMenu">{{ previewTargetName }} <i class="ti ti-chevron-down"></i></button>
 		</div>
 		<div :class="$style.topRight">
 			<div :class="$style.zoom">ZOOM: {{ Math.round(zoom * 100) }}%</div>
@@ -36,7 +36,7 @@ import * as api from '@/api.ts';
 import { preferences } from '@/preferences.ts';
 import * as ui from '@/ui.ts';
 
-const { activePreviewRenderer, visualModuleRendererManagerController, previewPlayback, highlightClipping, resolutionFactor, liveTimeFactor, activeScene } = appContext;
+const { activePreviewRenderer, visualModuleRendererManagerController, previewPlayback, highlightClipping, resolutionFactor, liveTimeFactor, activeScene, activeSceneId } = appContext;
 const { stateManager } = appContext.projectContext;
 
 const canvasContainer = useTemplateRef('canvasContainer');
@@ -247,6 +247,34 @@ const animatedBgInPreview = preferences.model('animatedBgInPreview');
 const showTimecodeInPreview = preferences.model('showTimecodeInPreview');
 const showGridInPreview = preferences.model('showGridInPreview');
 const showTransformInPreview = preferences.model('showTransformInPreview');
+
+function showPreviewTargetMenu(ev: PointerEvent) {
+	ui.popupMenu([{
+		type: 'parent',
+		text: 'Scene',
+		icon: 'ti ti-layout-dashboard',
+		children: () => stateManager.state.timelineScenes.value.map(scene => ({
+			text: scene.name,
+			active: previewPlayback.state.value.mode === 'timeline' && activeSceneId.value === scene.id,
+			action: () => {
+				activeSceneId.value = scene.id;
+				previewPlayback.showTimeline();
+			},
+		})),
+	}, {
+		type: 'parent',
+		text: 'Visual Module',
+		icon: 'ti ti-box-multiple',
+		children: () => stateManager.state.visualModules.value.map(visualModule => ({
+			text: visualModule.name,
+			active: previewPlayback.liveVisualModuleId.value === visualModule.id,
+			action: () => {
+				// 同じLIVE対象の再選択では、Preview Paramsで設定した値を初期化しない。
+				if (previewPlayback.liveVisualModuleId.value !== visualModule.id) previewPlayback.startLive(visualModule.id);
+			},
+		})),
+	}], ev.currentTarget ?? ev.target);
+}
 
 function showMenu(ev: PointerEvent) {
 	ui.popupMenu([{
