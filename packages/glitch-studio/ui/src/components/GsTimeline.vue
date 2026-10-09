@@ -123,21 +123,6 @@
 				<div :class="$style.seekBar" class="_monospace" :style="{ left: seekBarPos + 'px' }"><div :class="$style.seekBarFrame">{{ formatMsToTimecode(time, false) }}</div></div>
 				<div v-if="cursorBarPos != null" :class="$style.cursorBar" :style="{ left: cursorBarPos + 'px' }"></div>
 				<div v-for="snappingTime in snappingTimes" :key="snappingTime" :class="$style.snapLine" :style="{ left: timeToDomX(snappingTime) + 'px' }"></div>
-
-				<!--
-			<div v-if="(nowSelecting || selectedKeyframes.length === 0) && tooltipDomPos" :class="$style.tooltip" class="_monospace" :style="{ left: tooltipDomPos[0] + 'px', top: tooltipDomPos[1] + 'px' }">
-				<div>T: {{ formatMsToTimecode(cursorTime) }}</div>
-				<div>V: {{ cursorValue }}</div>
-			</div>
-			-->
-
-				<!--
-
-				<div :class="$style.infoBar" class="_monospace">
-					<div><b>TL Offset</b>{{ tlPosX.toFixed(2) }}, {{ tlPosY.toFixed(2) }}</div>
-					<div><b>Cursor</b>{{ cursorTime }}, {{ cursorValue }}</div>
-				</div>
-							-->
 			</div>
 		</div>
 
@@ -159,8 +144,7 @@
 import { flattenTimelineLayers, findTimelineLayer, findTimelineLayerLocation } from '@gs/subsystems_timeline_shared/layer-tree.ts';
 import { getTimelineGroupRange } from '@gs/subsystems_timeline_shared/layers/group/group.ts';
 import { createTimelineClipTiming, getTimelineClipEnd, getTimelineClipInsertionDuration, getTimelineClipTrimBounds } from '@gs/subsystems_timeline_shared/timing.ts';
-import { computed, onBeforeUnmount, onMounted, ref, shallowRef, toRef, useTemplateRef, watch } from 'vue';
-import { insertIntermediateNumbers, niceScale } from '@gs/shared/utility/misc.js';
+import { computed, onBeforeUnmount, ref, shallowRef, toRef, useTemplateRef, watch } from 'vue';
 import { genId } from '@gs/shared/utility/id.js';
 import { timelineAudioParamDefs } from '@gs/subsystems_timeline_shared/timeline-audio.ts';
 import { timelineCompositingParamDefs } from '@gs/subsystems_timeline_shared/timeline-compositing.ts';
@@ -185,8 +169,8 @@ import type { TimelineClipClipboard } from '@/utility/timeline-clip-clipboard.ts
 import type { TimelineClipSourceDurations } from '@/utility/timeline-clip-media.ts';
 import { getTimelineKeyframeEditTarget } from '@/utility/timeline-keyframe-edit.ts';
 import { createKeyframeStretch, stretchKeyframeX } from '@/utility/timeline-keyframe-stretch.ts';
-import { zoomTimelineX } from '@/utility/timeline-zoom.ts';
-import { getTimelineTickCount, getTimelineTicks, getTimelineMinorTicks, getTimelineVisibleClipTicks, formatTimelineTimecode as formatMsToTimecode } from '@/utility/timeline-ticks.ts';
+import { useTimelineViewport } from '@/composables/useTimelineViewport.ts';
+import { getTimelineVisibleClipTicks, formatTimelineTimecode as formatMsToTimecode } from '@/utility/timeline-ticks.ts';
 import { getTimelineClipSnapPoints, getTimelineSnapCandidates, getTimelineSeekPosition } from '@/utility/timeline-snapping.ts';
 import { preferences } from '@/preferences.ts';
 import { listenPointerDrag } from '@/utility/pointer-drag.ts';
@@ -207,7 +191,6 @@ import { collectTimelineMarqueeCandidates, measureTimelineLayerSelection } from 
 import { copyTimelineKeyframes, prepareTimelineKeyframePaste, getPastedTimelineKeySelection } from '@/utility/timeline-keyframe-clipboard.ts';
 import * as ui from '@/ui.ts';
 import { createInlineVisualModuleLayer } from '@/utility/inline-visual-module-layer.ts';
-import { dragListen } from '@/utility/drag.ts';
 
 const { activeSceneId, previewPlayback, timelineAudioPreview, timelineRendererManagerController } = appContext;
 const { stateManager } = appContext.projectContext;
@@ -380,26 +363,30 @@ function getLayerKey(layer: TimelineLayer) { return layer.id; }
 
 function getLayerSizeKey(layer: TimelineLayer) { return layerSizeKeys.value.get(layer.id); }
 
-const panning = ref(false);
-// 連続的に横移動する間だけ描画の準備を促し、停止後はリソースを解放できるようにする。
-const optimizeHorizontalMovement = computed(() => (previewPlayback.isTimelinePlaying.value && followPlayhead.value) || panning.value);
-const tlElWidth = ref(0);
-const tlElHeight = ref(0);
-const tlRangeX = ref(editorState?.rangeX ?? 30000);
-const tlRangeY = ref(5);
-const tlPosX = ref(editorState?.positionX ?? -3000);
-const tlPosY = ref(-2.5);
-const snappingY = ref<number | null>(null);
+// キャンセル関数自体を操作中の状態にし、開始前のしきい値判定や非同期の範囲選択も追従停止に含める。
+const stopSelectionDrag = shallowRef<(() => void) | undefined>();
+const {
+	positionX: tlPosX, rangeX: tlRangeX, width: tlElWidth, height: tlElHeight, pixelsPerMs,
+	panning, optimizeHorizontalMovement,
+	tickCount: xTicksCount, ticks: xTicks, minorTicks: xMinorTicks, ticksWithMinor: xTicksWithMinor,
+	timeToX: timeToDomX, timeAtX, timeAtClientX,
+	onTimelineWheel, onBackgroundWheel: onTlWheel, onRulerWheel: onXTicksWheel, onPanMousedown, onPanAuxclick,
+} = useTimelineViewport({
+	timelineElement: tlEl, layersElement: layersEl, savedState: editorState,
+	currentTime: time, isPlaying: previewPlayback.isTimelinePlaying, followPlayhead, tickMode, tickSubdivisions,
+	interactionActive: computed(() => stopSelectionDrag.value != null),
+});
+
 const seekBarPos = computed(() => {
 	return timeToDomX(time.value);
 });
 const cursorBarPos = ref<number | null>(null);
 const snappingTimes = ref<number[]>([]);
 const tlRangeElPosX = computed(() => {
-	return -((tlPosX.value / tlRangeX.value) * tlElWidth.value);
+	return timeToDomX(0);
 });
 const tlRangeElWidth = computed(() => {
-	return (duration.value / tlRangeX.value) * tlElWidth.value;
+	return duration.value * pixelsPerMs.value;
 });
 const tooltipDomPos = ref<null | [number, number]>(null);
 const cursorTime = ref(0);
@@ -515,49 +502,6 @@ function onKeyframeSelected(selection: TimelineKeyframeSelection) {
 	revealDetails();
 }
 
-// レイヤー名の欄を除いた描画幅に合わせ、主目盛りの間隔を約120pxを目安に選ぶ。
-// ResizeObserverで更新される幅を使うことで、パネルのリサイズにも追従する。
-// 刻み方に応じた丸めは目盛り生成側で行い、全体・ローカル・スナップの密度を揃える。
-const xTicksCount = computed(() => getTimelineTickCount(tlElWidth.value));
-const xTicks = computed(() => getTimelineTicks(tlPosX.value, tlRangeX.value, xTicksCount.value, tickMode.value));
-const xMinorTicks = computed(() => getTimelineMinorTicks(xTicks.value, tickSubdivisions.value));
-const xTicksWithMinor = computed(() => [...xTicks.value, ...xMinorTicks.value].toSorted((a, b) => a - b));
-const yTicksCount = ref(6);
-const yTicks = computed(() => niceScale(tlPosY.value, tlPosY.value + tlRangeY.value, yTicksCount.value));
-const yTicksWithHalf = computed(() => insertIntermediateNumbers(yTicks.value));
-
-function timeToDomX(time: number): number {
-	return ((time - tlPosX.value) / tlRangeX.value) * tlElWidth.value;
-}
-
-function valueToDomY(value: number): number {
-	return tlElHeight.value - (((value - tlPosY.value) / tlRangeY.value) * tlElHeight.value);
-}
-
-function logicalXToDomX(x: number): number {
-	return timeToDomX(x);
-}
-
-function logicalYToDomY(y: number): number {
-	return valueToDomY(y);
-}
-
-function domXToLogicalX(x: number): number {
-	return ((x / tlElWidth.value) * tlRangeX.value);
-}
-
-function domXToTime(x: number): number {
-	return Math.round(domXToLogicalX(x) + tlPosX.value);
-}
-
-function domYToLogicalY(y: number): number {
-	return ((1 - (y / tlElHeight.value)) * tlRangeY.value);
-}
-
-function domYToValue(y: number): number {
-	return domYToLogicalY(y) + tlPosY.value;
-}
-
 function clearTimelineCursor() {
 	cursorBarPos.value = null;
 	tooltipDomPos.value = null;
@@ -576,96 +520,9 @@ function onTimelinePointerMove(ev: PointerEvent) {
 	// 背景の上にはレイヤー一覧と目盛りが重なるため、共通の親でcaptureして位置を追跡する。
 	// ガイド線は時刻の整数msへの丸めを経由せず、拡大中もポインターの画素位置に合わせる。
 	cursorBarPos.value = pointerX;
-	cursorTime.value = domXToTime(pointerX);
+	cursorTime.value = Math.round(timeAtX(pointerX));
 	tooltipDomPos.value = [pointerX + 10, pointerY + 10];
 }
-
-function onTimelineWheel(ev: WheelEvent) {
-	if (!ev.shiftKey || !(ev.target instanceof Element) || !ev.target.closest('[data-timeline-surface]')) return;
-	// レイヤーやキーの上でも同じ操作にし、通常のスクロール・背景の二軸ズームとの二重処理を防ぐ。
-	onXTicksWheel(ev);
-}
-
-function onTlWheel(ev: WheelEvent) {
-	if (tlEl.value == null) return;
-	ev.preventDefault();
-
-	const rect = tlEl.value.getBoundingClientRect();
-	const x = ev.clientX - rect.left;
-	const y = ev.clientY - rect.top;
-	const anchorTime = domXToLogicalX(x) + tlPosX.value;
-	const anchorValue = domYToValue(y);
-
-	tlRangeX.value *= 1 + (ev.deltaY / 1000);
-	tlRangeY.value *= 1 + (ev.deltaY / 1000);
-
-	// 拡大・縮小前にカーソル直下にあった時刻・値が、同じ画面位置に留まるように補正する。
-	tlPosX.value = anchorTime - domXToLogicalX(x);
-	tlPosY.value = anchorValue - domYToLogicalY(y);
-}
-
-function onXTicksWheel(ev: WheelEvent) {
-	if (tlEl.value == null || tlElWidth.value <= 0) return;
-	ev.preventDefault();
-	ev.stopPropagation();
-
-	const rect = tlEl.value.getBoundingClientRect();
-	const x = ev.clientX - rect.left;
-	// ShiftでdeltaXへ変換される環境と、行・ページ単位で届くホイールにも対応する。
-	const unit = ev.deltaMode === 1 ? 16 : ev.deltaMode === 2 ? tlElWidth.value : 1;
-	const delta = (ev.deltaY || ev.deltaX) * unit;
-	const viewport = zoomTimelineX(tlPosX.value, tlRangeX.value, Math.max(0, Math.min(1, x / tlElWidth.value)), delta);
-	tlRangeX.value = viewport.range;
-	tlPosX.value = viewport.start;
-}
-
-let stopPan: (() => void) | undefined;
-
-function onPanAuxclick(ev: MouseEvent) {
-	if (ev.button !== 1 || !(ev.target instanceof Element) || !ev.target.closest('[data-timeline-surface]')) return;
-	ev.preventDefault();
-	ev.stopPropagation();
-}
-
-function onPanMousedown(ev: MouseEvent) {
-	if (stopSelectionDrag != null) return;
-	if (ev.button !== 1 || !(ev.target instanceof Element) || !ev.target.closest('[data-timeline-surface]')) return;
-	if (layersEl.value == null || tlElWidth.value <= 0) return;
-	const layers = layersEl.value;
-	// パネルを別ウィンドウで開いた場合も、そのウィンドウ内の移動・終了を追跡する。
-	const ownerWindow = layers.ownerDocument.defaultView;
-	if (ownerWindow == null) return;
-	// 子のレイヤー・キー・シーク操作より先に受け取り、ブラウザーの自動スクロールも抑止する。
-	ev.preventDefault();
-	ev.stopPropagation();
-	stopPan?.();
-	tlEl.value?.focus({ preventScroll: true });
-	const baseX = ev.clientX;
-	const baseY = ev.clientY;
-	const baseTime = tlPosX.value;
-	const baseScrollTop = layers.scrollTop;
-	const msPerPixel = tlRangeX.value / tlElWidth.value;
-	panning.value = true;
-	stopPan = dragListen(event => {
-		if ((event.buttons & 4) === 0) { stopPan?.(); return; }
-		tlPosX.value = baseTime - (event.clientX - baseX) * msPerPixel;
-		// 縦方向は値の座標系ではなく、レイヤー一覧の実際のスクロール位置を動かす。
-		layers.scrollTop = baseScrollTop - (event.clientY - baseY);
-	}, () => {
-		panning.value = false;
-		stopPan = undefined;
-		ownerWindow.removeEventListener('blur', finishPan);
-		ownerWindow.removeEventListener('pagehide', finishPan);
-	}, ownerWindow);
-	ownerWindow.addEventListener('blur', finishPan);
-	ownerWindow.addEventListener('pagehide', finishPan);
-}
-
-function finishPan() {
-	stopPan?.();
-}
-
-onBeforeUnmount(finishPan);
 
 const keyframeEntries = computed(() => getTimelineKeyframeEntries(stateManager.state, sceneLayers.value));
 
@@ -686,14 +543,7 @@ watch([sceneLayers, keyframeEntries, () => clipLayers.value.flatMap(layer => lay
 	}
 }, { immediate: true });
 
-let stopSelectionDrag: (() => void) | undefined;
 let suppressTimelineClick = false;
-
-watch([time, previewPlayback.isTimelinePlaying, followPlayhead, tlRangeX, tlElWidth, panning, movingSelection], () => {
-	if (!followPlayhead.value || !previewPlayback.isTimelinePlaying.value || panning.value || stopSelectionDrag || tlElWidth.value <= 0 || tlRangeX.value <= 0) return;
-	// 再生位置を中央に保つ。ドラッグ中は座標変換の基準が動かないよう追従を止める。
-	tlPosX.value = time.value - tlRangeX.value / 2;
-}, { immediate: true });
 
 function onTimelineClick(event: MouseEvent) {
 	if (!suppressTimelineClick) return;
@@ -709,7 +559,7 @@ function onVirtualLayersLayout() { updateMarquee?.(); }
 
 function onBackgroundPointerDown(event: PointerEvent) {
 	suppressTimelineClick = false;
-	if (event.button !== 0 || !event.isPrimary || stopSelectionDrag || panning.value || tlEl.value == null || layersEl.value == null || virtualLayers.value == null || !(event.target instanceof Element)) return;
+	if (event.button !== 0 || !event.isPrimary || stopSelectionDrag.value || panning.value || tlEl.value == null || layersEl.value == null || virtualLayers.value == null || !(event.target instanceof Element)) return;
 	const timeline = tlEl.value;
 	const layers = layersEl.value;
 	const virtual = virtualLayers.value;
@@ -803,7 +653,7 @@ function onBackgroundPointerDown(event: PointerEvent) {
 			updateMarquee = undefined;
 			cancelMarquee = undefined;
 			selectionArea.value = null;
-			stopSelectionDrag = undefined;
+			stopSelectionDrag.value = undefined;
 			// 範囲選択中の展開はタイムラインの寸法を変えるため、確定後に一度だけ開く。
 			if (reveal) revealDetails();
 		}
@@ -829,37 +679,38 @@ function onBackgroundPointerDown(event: PointerEvent) {
 		if (!pending) cleanup();
 	}, layers, { captureAfterDistance: 3 });
 	cancelMarquee = () => { active = false; stopPointer(); cleanup(); };
-	stopSelectionDrag = cancelMarquee;
+	stopSelectionDrag.value = cancelMarquee;
 	scheduleUpdate();
 }
 
 function startSelectionMove(event: PointerEvent, points: TimelineMovePoint[], snapTimes: number[], apply: (delta: number, mergeKey: string) => boolean,
 	getSnapLines = (delta: number) => getTimelineSnappingTimes(points, snapTimes, delta)) {
 	const timeline = tlEl.value;
-	if (points.length === 0 || timeline == null) return;
+	const originTime = timeAtClientX(event.clientX);
+	if (points.length === 0 || timeline == null || originTime == null) return;
 	event.preventDefault();
 	timeline.focus({ preventScroll: true });
-	const originTime = tlPosX.value + (event.clientX - timeline.getBoundingClientRect().left) * tlRangeX.value / tlElWidth.value;
 	const mergeKey = genId();
 	let moved = false;
 	let previousDelta = 0;
-	stopSelectionDrag = listenPointerDrag(event, current => {
+	stopSelectionDrag.value = listenPointerDrag(event, current => {
 		if (!moved && Math.abs(current.clientX - event.clientX) < 3) return;
 		moved = true;
 		movingSelection.value = true;
 		suppressTimelineClick = true;
 		// ドラッグ中にズームしても、開始時の画素倍率ではなく現在の時刻座標で追従する。
-		const msPerPixel = tlRangeX.value / tlElWidth.value;
-		const pointerTime = tlPosX.value + (current.clientX - timeline.getBoundingClientRect().left) * msPerPixel;
+		const msPerPixel = 1 / pixelsPerMs.value;
+		const pointerTime = timeAtClientX(current.clientX);
+		if (pointerTime == null) return;
 		const result = constrainTimelineMove(pointerTime - originTime, points, snapTimes, msPerPixel);
 		snappingTimes.value = getSnapLines(result.delta);
 		if (result.delta === previousDelta) return;
-		if (!apply(result.delta, mergeKey)) { stopSelectionDrag?.(); return; }
+		if (!apply(result.delta, mergeKey)) { stopSelectionDrag.value?.(); return; }
 		previousDelta = result.delta;
 	}, () => {
 		snappingTimes.value = [];
 		movingSelection.value = false;
-		stopSelectionDrag = undefined;
+		stopSelectionDrag.value = undefined;
 	}, layersEl.value ?? timeline);
 }
 
@@ -881,7 +732,7 @@ function selectClip(target: TimelineClipSelection, additive = false) {
 }
 
 function onGroupMoveStart(event: PointerEvent, layer: TimelineLayer) {
-	if (layer.layerType !== 'group' || event.button !== 0 || !event.isPrimary || stopSelectionDrag || tlElWidth.value <= 0 || tlRangeX.value <= 0) return;
+	if (layer.layerType !== 'group' || event.button !== 0 || !event.isPrimary || stopSelectionDrag.value || tlElWidth.value <= 0 || tlRangeX.value <= 0) return;
 	selectLayer(layer);
 	const range = getTimelineGroupRange(layer);
 	if (!range) return;
@@ -898,7 +749,7 @@ function onGroupMoveStart(event: PointerEvent, layer: TimelineLayer) {
 }
 
 function onClipMoveStart(event: PointerEvent, target: TimelineClipSelection) {
-	if (event.button !== 0 || !event.isPrimary || stopSelectionDrag || tlElWidth.value <= 0 || tlRangeX.value <= 0) return;
+	if (event.button !== 0 || !event.isPrimary || stopSelectionDrag.value || tlElWidth.value <= 0 || tlRangeX.value <= 0) return;
 	if (event.shiftKey || event.ctrlKey || event.metaKey) { selectClip(target, true); return; }
 	if (selection.value.kind !== 'clips' || !selection.value.clips.some(clip => clipSelectionKey(clip) === clipSelectionKey(target))) selectClip(target);
 	if (selection.value.kind !== 'clips') return;
@@ -921,7 +772,7 @@ function onClipMoveStart(event: PointerEvent, target: TimelineClipSelection) {
 }
 
 function onClipTrimStart(event: PointerEvent, target: TimelineClipSelection, edge: 'start' | 'end') {
-	if (event.button !== 0 || !event.isPrimary || stopSelectionDrag || tlElWidth.value <= 0 || tlRangeX.value <= 0) return;
+	if (event.button !== 0 || !event.isPrimary || stopSelectionDrag.value || tlElWidth.value <= 0 || tlRangeX.value <= 0) return;
 	const entry = resolveClip(target);
 	if (!entry) return;
 	selectClip(target);
@@ -943,7 +794,7 @@ function onClipTrimStart(event: PointerEvent, target: TimelineClipSelection, edg
 }
 
 function onSubtitleTrimStart(event: PointerEvent, layerId: string, utteranceId: string, clipId: string) {
-	if (event.button !== 0 || !event.isPrimary || stopSelectionDrag || tlElWidth.value <= 0 || tlRangeX.value <= 0) return;
+	if (event.button !== 0 || !event.isPrimary || stopSelectionDrag.value || tlElWidth.value <= 0 || tlRangeX.value <= 0) return;
 	const layer = sceneLayers.value.find(layer => layer.id === layerId);
 	if (layer?.layerType !== 'voicevox') return;
 	const bounds = getVoicevoxSubtitleTrimBounds(layer.voicevox, layer.utterances, layer.clips, utteranceId, clipId);
@@ -978,7 +829,7 @@ function onSubtitleTrimStart(event: PointerEvent, layerId: string, utteranceId: 
 }
 
 function onKeyframeMoveStart(event: PointerEvent, point: TimelineKeyframeSelection) {
-	if (event.button !== 0 || !event.isPrimary || stopSelectionDrag || tlElWidth.value <= 0 || tlRangeX.value <= 0) return;
+	if (event.button !== 0 || !event.isPrimary || stopSelectionDrag.value || tlElWidth.value <= 0 || tlRangeX.value <= 0) return;
 	const key = keyframeSelectionKey(point);
 	if (event.ctrlKey || event.metaKey) {
 		event.preventDefault();
@@ -1037,22 +888,22 @@ function onKeyframeMoveStart(event: PointerEvent, point: TimelineKeyframeSelecti
 	})), [], 0));
 }
 
-onBeforeUnmount(() => stopSelectionDrag?.());
+onBeforeUnmount(() => stopSelectionDrag.value?.());
 
 function onSeekBarPointerDown(ev: PointerEvent) {
-	if (ev.button !== 0 || !ev.isPrimary || stopSelectionDrag || panning.value || tlEl.value == null || tlElWidth.value <= 0 || tlRangeX.value <= 0) return;
+	if (ev.button !== 0 || !ev.isPrimary || stopSelectionDrag.value || panning.value || tlEl.value == null || tlElWidth.value <= 0 || tlRangeX.value <= 0) return;
 	ev.preventDefault();
 	ev.stopPropagation();
-	const timeline = tlEl.value;
-	stopSelectionDrag = listenPointerDrag(ev, event => {
-		const x = event.clientX - timeline.getBoundingClientRect().left;
+	stopSelectionDrag.value = listenPointerDrag(ev, event => {
+		const pointerTime = timeAtClientX(event.clientX);
+		if (pointerTime == null) return;
 		const candidates = snapSeekBar.value ? getTimelineSnapCandidates(snapSettings.value, [], xTicksWithMinor.value) : [];
-		const result = getTimelineSeekPosition(domXToTime(x), duration.value, candidates, tlRangeX.value / tlElWidth.value);
+		const result = getTimelineSeekPosition(Math.round(pointerTime), duration.value, candidates, 1 / pixelsPerMs.value);
 		snappingTimes.value = result.snappingTime == null ? [] : [result.snappingTime];
 		previewPlayback.seekTimeline(result.timeMs);
 	}, () => {
 		snappingTimes.value = [];
-		stopSelectionDrag = undefined;
+		stopSelectionDrag.value = undefined;
 	});
 }
 
@@ -1168,8 +1019,6 @@ onBeforeUnmount(() => {
 	stopCueHold?.();
 	disposed = true;
 	disposeEffectPicker?.();
-	editorState.rangeX = tlRangeX.value;
-	editorState.positionX = tlPosX.value;
 });
 
 function showAddInlineEffectNodeMenu(layerId: string) {
@@ -1510,21 +1359,6 @@ function formatFullTimecode(timeMs: number): string {
 	return `${hours}:${minutes}:${seconds}.${milliseconds}`;
 }
 
-let resizeObserver: ResizeObserver | undefined;
-onBeforeUnmount(() => resizeObserver?.disconnect());
-onMounted(() => {
-	if (tlEl.value == null) return;
-	tlElWidth.value = tlEl.value.offsetWidth;
-	tlElHeight.value = tlEl.value.offsetHeight;
-
-	resizeObserver = new ResizeObserver(() => {
-		if (tlEl.value == null) return;
-		tlElWidth.value = tlEl.value.offsetWidth;
-		tlElHeight.value = tlEl.value.offsetHeight;
-	});
-
-	resizeObserver.observe(tlEl.value);
-});
 </script>
 
 <style module lang="scss">

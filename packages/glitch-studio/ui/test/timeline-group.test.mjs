@@ -157,7 +157,7 @@ test('moves virtual group clips through the timeline handler with stable snappin
 	const ast = createSourceFile('GsTimeline.vue', parse(source).descriptor.scriptSetup.content, ScriptTarget.Latest);
 	const handler = ast.statements.find(statement => isFunctionDeclaration(statement) && statement.name?.text === 'onGroupMoveStart');
 	const { code } = await transform(handler.getText(ast), { loader: 'ts' });
-	const context = { ...module.exports, stopSelectionDrag: undefined, tlElWidth: { value: 1000 }, tlRangeX: { value: 1000 },
+	const context = { ...module.exports, stopSelectionDrag: { value: undefined }, tlElWidth: { value: 1000 }, tlRangeX: { value: 1000 },
 		stateManager: f.history, props: { sceneId: 'scene' }, rootLayers: { value: f.scene.layers }, clipLayers: { value: [rootGroup.layers[0], outside] },
 		clipSnapSettings: { value: { start: true, end: true, contentStart: false } },
 		snapSettings: { value: { enabled: true, globalTicks: false, localTicks: false, seekBar: false } },

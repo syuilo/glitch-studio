@@ -24,6 +24,8 @@ Timelineはレイヤー・クリップ・キーの選択操作から表示を要
 
 `GsTimeline.vue`は選択状態・選択の検証・ショートカットと、詳細パネルの表示先を管理する。`GsTimeline.Inspector.vue`は選択から表示対象を解決し、`GsTimeline.Inspector.Keyframe.vue`・`GsTimeline.Inspector.Clip.vue`・`GsTimeline.Inspector.Layer.vue`がそれぞれの詳細編集をCommandで行う。選択変更とクリップ・キー削除は親へ通知し、パネルを閉じても同じ選択とショートカットを維持する。通常キーの編集対象は`utility/timeline-keyframe-edit.ts`で共通に解決する。素材選択・エフェクト追加のピッカーはタイムライン本体と共用するため親が所有し、Inspectorは対象のIDを渡して要求する。
 
+`composables/useTimelineViewport.ts`は表示範囲・DOMの実測寸法・座標変換・目盛り・ズーム・パン・再生追従を管理する。座標と目盛りの計算は既存のutilityを使い、ポインター時刻の整数化はシークなどの操作側で行う。選択・シーク操作のキャンセル関数は`GsTimeline.vue`がリアクティブに保持し、その有無を渡して操作中のパンと追従を止める。表示範囲の保存とリスナー・ResizeObserverの解除はcomposableのスコープ終了時に行い、親の`onBeforeUnmount`でCUEが戻した位置を次の表示へ引き継ぐ。表示状態はプロジェクトの保存・Undoの対象にしない。
+
 ## プレビューのレイヤー変形
 
 `GsPreviewTransform.vue`は、停止中のTimelineで選択された単一レイヤーの合成設定を編集する。同じレイヤー内の複数クリップ・キーの選択も対象とし、選択は`getTimelineEditorState()`でタイムラインと共有する。音声・無効なレイヤー・現在時刻にクリップや出力がないレイヤーは対象外。プレビューから別レイヤーへの選択変更は行わない。
