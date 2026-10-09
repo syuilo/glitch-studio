@@ -52,7 +52,7 @@
 		/>
 	</div>
 	<div v-for="param in keyframeParameters" :key="param.key" :class="$style.keyframesLane" :data-parameter-target="param.target" :data-param-path="paramPathKey(param.paramPath)">
-		<div :class="$style.side"><div style="padding-right: 10px;">{{ param.label }}</div></div>
+		<div :class="$style.side"><div style="padding-right: 6px;">{{ param.label }}</div></div>
 		<div :class="$style.tl" @dblclick.stop.prevent="onKeyframeBackgroundDoubleClick(param, $event)">
 			<div :class="$style.scrollingContent" :style="scrollingStyle">
 				<XKeyframes
@@ -362,7 +362,7 @@ function timeToDomX(time: number): number { return timelineTimeToX(time, props.t
 }
 
 .localTicksLabel {
-	padding-right: 10px;
+	padding-right: 6px;
 	text-align: right;
 	color: color-mix(in srgb, var(--THEME-fg) 60%, transparent);
 }

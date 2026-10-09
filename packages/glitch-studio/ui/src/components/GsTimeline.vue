@@ -2022,6 +2022,7 @@ onMounted(() => {
 	flex: 1;
 	overflow: clip;
 	contain: content;
+	position: relative;
 	pointer-events: none;
 	direction: ltr;
 
@@ -2029,6 +2030,18 @@ onMounted(() => {
 		outline: none;
 		//outline: solid 7px #fff;
 	}
+
+	//&:before {
+	//	content: "";
+	//	display: block;
+	//	position: absolute;
+	//	top: 0;
+	//	left: 0;
+	//	width: 30px;
+	//	height: 100%;
+	//	pointer-events: none;
+	//	background: linear-gradient(90deg, #0008, #0000);
+	//}
 }
 
 .lines {
