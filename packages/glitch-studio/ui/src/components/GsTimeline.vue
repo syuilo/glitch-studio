@@ -39,10 +39,10 @@
 			<GsButton v-tooltip="'Snap Settings...'" small iconOnly :primary="snapEnabled" @click="showSnapMenu"><i class="ti ti-magnet"></i></GsButton>
 		</div>
 	</div>
-	<div :class="$style.body" @contextmenu.stop.prevent @pointerdown.capture="onBackgroundPointerDown" @click.capture="onTimelineClick" @mousedown.capture="onPanMousedown" @auxclick.capture="onPanAuxclick" @wheel.capture="onTimelineWheel">
+	<div :class="$style.body" @contextmenu.stop.prevent @pointerdown.capture="onBackgroundPointerDown" @pointermove.capture="onTimelinePointerMove" @pointerleave="clearTimelineCursor" @click.capture="onTimelineClick" @mousedown.capture="onPanMousedown" @auxclick.capture="onPanAuxclick" @wheel.capture="onTimelineWheel">
 		<div :class="$style.tlBgWrapper" data-timeline-surface>
 			<div :class="$style.tlBgSideSpacer"></div>
-			<div ref="tlEl" :class="$style.tlBg" tabindex="-1" @wheel="onTlWheel" @mousemove="onTlMousemove">
+			<div ref="tlEl" :class="$style.tlBg" tabindex="-1" @wheel="onTlWheel">
 				<div :class="$style.ticksCorner"></div>
 				<div :class="$style.tlRange" :style="{ width: tlRangeElWidth + 'px', left: tlRangeElPosX + 'px' }"></div>
 				<div v-for="time of xTicks" :class="[$style.inTlXTick]" :style="{ left: timeToDomX(time) + 'px' }"></div>
@@ -121,7 +121,7 @@
 				<div v-if="selectionArea" :class="$style.selectedArea" :style="{ width: selectionArea.right - selectionArea.left + 'px', height: selectionArea.bottom - selectionArea.top + 'px', top: selectionArea.top + 'px', left: selectionArea.left + 'px' }"></div>
 				<div v-for="time of xTicks" :class="[$style.inTlXTick]" :style="{ left: timeToDomX(time) + 'px' }"></div>
 				<div :class="$style.seekBar" class="_monospace" :style="{ left: seekBarPos + 'px' }"><div :class="$style.seekBarFrame">{{ formatMsToTimecode(time, false) }}</div></div>
-				<!--<div :class="$style.cursorBar" :style="{ left: cursorBarPos + 'px' }"></div>-->
+				<div v-if="cursorBarPos != null" :class="$style.cursorBar" :style="{ left: cursorBarPos + 'px' }"></div>
 				<div v-for="snappingTime in snappingTimes" :key="snappingTime" :class="$style.snapLine" :style="{ left: timeToDomX(snappingTime) + 'px' }"></div>
 
 				<!--
@@ -172,7 +172,6 @@ import { createSpeechResolver } from '@gs/subsystems_timeline_shared/layers/voic
 import { assignPreparedSpeech, getVoicevoxUtterancePlacements } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox-placement.ts';
 import XLayer from './GsTimeline.Layer.vue';
 import GsTimelineInspector from './GsTimeline.Inspector.vue';
-import { getTimelineKeyframeEditTarget } from '@/utility/timeline-keyframe-edit.ts';
 import GsButton from './common/GsButton.vue';
 import GsVirtualScroll from './common/GsVirtualScroll.vue';
 import GsEffectPicker from './GsEffectPicker.vue';
@@ -184,6 +183,7 @@ import type { TimelineClipMediaInfo } from '@/utility/timeline-clip-media.ts';
 import type { ShapeType } from '@gs/subsystems_timeline_shared/layers/shape/shape.ts';
 import type { TimelineClipClipboard } from '@/utility/timeline-clip-clipboard.ts';
 import type { TimelineClipSourceDurations } from '@/utility/timeline-clip-media.ts';
+import { getTimelineKeyframeEditTarget } from '@/utility/timeline-keyframe-edit.ts';
 import { createKeyframeStretch, stretchKeyframeX } from '@/utility/timeline-keyframe-stretch.ts';
 import { zoomTimelineX } from '@/utility/timeline-zoom.ts';
 import { getTimelineTickCount, getTimelineTicks, getTimelineMinorTicks, getTimelineVisibleClipTicks, formatTimelineTimecode as formatMsToTimecode } from '@/utility/timeline-ticks.ts';
@@ -338,7 +338,7 @@ function onLayerDragOver(event: DragEvent, layer: TimelineLayer) {
 		layerId: layer.id, position,
 		parentId: position === 'inside' ? layer.id : location.ancestors.at(-1)?.id ?? null,
 		beforeId: position === 'inside' && layer.layerType === 'group' ? layer.layers[0]?.id ?? null
-			: position === 'before' ? layer.id : location.siblings[location.index + 1]?.id ?? null,
+		: position === 'before' ? layer.id : location.siblings[location.index + 1]?.id ?? null,
 	};
 	event.preventDefault();
 	if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
@@ -393,7 +393,7 @@ const snappingY = ref<number | null>(null);
 const seekBarPos = computed(() => {
 	return timeToDomX(time.value);
 });
-const cursorBarPos = ref(0);
+const cursorBarPos = ref<number | null>(null);
 const snappingTimes = ref<number[]>([]);
 const tlRangeElPosX = computed(() => {
 	return -((tlPosX.value / tlRangeX.value) * tlElWidth.value);
@@ -558,16 +558,26 @@ function domYToValue(y: number): number {
 	return domYToLogicalY(y) + tlPosY.value;
 }
 
-function onTlMousemove(ev: MouseEvent) {
+function clearTimelineCursor() {
+	cursorBarPos.value = null;
+	tooltipDomPos.value = null;
+}
+
+function onTimelinePointerMove(ev: PointerEvent) {
 	if (tlEl.value == null) return;
 	const rect = tlEl.value.getBoundingClientRect();
-	const mouseX = ev.clientX - rect.left;
-	const mouseY = ev.clientY - rect.top;
-	const time = domXToTime(mouseX);
-	cursorBarPos.value = timeToDomX(time);
+	const pointerX = ev.clientX - rect.left;
+	const pointerY = ev.clientY - rect.top;
+	if (pointerX < 0 || pointerX >= rect.width || pointerY < 0 || pointerY >= rect.height) {
+		clearTimelineCursor();
+		return;
+	}
 
-	cursorTime.value = time;
-	tooltipDomPos.value = [mouseX + 10, mouseY + 10];
+	// 背景の上にはレイヤー一覧と目盛りが重なるため、共通の親でcaptureして位置を追跡する。
+	// ガイド線は時刻の整数msへの丸めを経由せず、拡大中もポインターの画素位置に合わせる。
+	cursorBarPos.value = pointerX;
+	cursorTime.value = domXToTime(pointerX);
+	tooltipDomPos.value = [pointerX + 10, pointerY + 10];
 }
 
 function onTimelineWheel(ev: WheelEvent) {
