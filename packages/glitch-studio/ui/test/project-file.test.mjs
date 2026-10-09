@@ -871,6 +871,97 @@ test('rejects empty save data without opening a writable', async () => {
 	assert.deepEqual(handle.bytes, new Uint8Array([42]));
 });
 
+// 【手動保存した内容と比較し、履歴操作と履歴外の変更を反映する】
+// 履歴数だけの判定では、保存時に戻るUndoや、履歴を増やさない連続編集・メタデータ編集を扱えない。
+// 素材のBlobを変更検出のために読み出さず、プレビューの操作だけでは未保存にしないことも確認する。
+test('tracks unsaved content across undo, redo, continuous edits and direct changes', async t => {
+	const window = setup(t);
+	const app = evaluate(appBundle);
+	const { appContext } = app;
+	assert.equal(appContext.hasUnsavedChanges.value, false);
+	await app.newProject();
+	assert.equal(appContext.hasUnsavedChanges.value, true);
+	const handle = fileHandle('saved.gsproj');
+	window.selectProjectSaveFile = async () => handle;
+	await appContext.saveProject();
+	assert.equal(appContext.hasUnsavedChanges.value, false);
+	const manager = appContext.projectContext.stateManager;
+	manager.commit('addEffectNode', { visualModuleId: manager.state.visualModules.value[0].id, effectId: 'fill', id: 'unsaved-node' });
+	assert.equal(appContext.hasUnsavedChanges.value, true);
+	manager.undo();
+	assert.equal(appContext.hasUnsavedChanges.value, false);
+	manager.redo();
+	assert.equal(appContext.hasUnsavedChanges.value, true);
+	await appContext.saveProject();
+	assert.equal(appContext.hasUnsavedChanges.value, false);
+	manager.undo();
+	assert.equal(appContext.hasUnsavedChanges.value, true);
+	manager.redo();
+	assert.equal(appContext.hasUnsavedChanges.value, false);
+	const edit = manager.beginEdit('changeTimelineRenderSettings');
+	edit.update({ timelineFps: 30, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 8 } });
+	assert.equal(appContext.hasUnsavedChanges.value, true);
+	edit.cancel();
+	assert.equal(appContext.hasUnsavedChanges.value, false);
+	for (const key of ['name', 'description', 'author']) {
+		const saved = manager.state[key].value;
+		manager.state[key].value = 'Direct edit';
+		assert.equal(appContext.hasUnsavedChanges.value, true);
+		manager.state[key].value = saved;
+		assert.equal(appContext.hasUnsavedChanges.value, false);
+	}
+	appContext.resolutionFactor.value = 0.5;
+	appContext.timelinePreviewMotionBlurSamples.value = 4;
+	await nextTick();
+	assert.equal(appContext.hasUnsavedChanges.value, false);
+	class UnreadableBlob extends Blob {
+		async arrayBuffer() { assert.fail('Change detection must not read asset bytes'); }
+	}
+	manager.state.assets.value.push({ id: 'new-asset', name: 'image.png', fileData: new UnreadableBlob(['image']) });
+	assert.equal(appContext.hasUnsavedChanges.value, true);
+	manager.state.assets.value.pop();
+	assert.equal(appContext.hasUnsavedChanges.value, false);
+	const file = new File([handle.bytes], handle.name);
+	await app.openProject(file);
+	assert.equal(appContext.hasUnsavedChanges.value, false);
+	assert.equal(appContext.projectFileName.value, handle.name);
+	await app.newProject();
+	assert.equal(appContext.hasUnsavedChanges.value, true);
+});
+
+// 【保存完了前の編集と、別プロジェクトの変更を保存済みにしない】
+// 本体のcloseを待つ間にも操作できるため、成功時の現在値ではなく実際に書いた内容を基準にする。
+// 同じIDを開き直した後に古い保存が完了しても、新しいプロジェクトの未保存状態を消してはならない。
+test('keeps edits during writes unsaved and ignores saves completed after a reload', async t => {
+	const window = setup(t);
+	const app = evaluate(appBundle);
+	const { appContext } = app;
+	await app.newProject();
+	const handle = fileHandle('slow.gsproj');
+	window.selectProjectSaveFile = async () => handle;
+	for (const reload of [false, true]) {
+		const started = Promise.withResolvers();
+		const finish = Promise.withResolvers();
+		const createWritable = handle.createWritable;
+		handle.createWritable = async () => {
+			const stream = await createWritable();
+			return { ...stream, async close() { started.resolve(); await finish.promise; await stream.close(); } };
+		};
+		const snapshot = appContext.projectContext.snapshot();
+		const save = appContext.saveProject();
+		await started.promise;
+		if (reload) await appContext.ready({ ...snapshot, name: 'Reloaded' }, handle.name, handle);
+		appContext.projectContext.stateManager.state.name.value = 'Edited while saving';
+		finish.resolve();
+		await save;
+		assert.equal(appContext.hasUnsavedChanges.value, true);
+		assert.equal(decodeProjectFile(handle.bytes).name, snapshot.name);
+		appContext.projectContext.stateManager.state.name.value = reload ? 'Reloaded' : snapshot.name;
+		assert.equal(appContext.hasUnsavedChanges.value, false);
+		handle.createWritable = createWritable;
+	}
+});
+
 // プロジェクト情報の編集を保存し、再読込時に復元する。Undo履歴には追加しない。
 // メタデータ編集でRedoが消えたり、タイトルだけ変わって保存内容が古いままになることを防ぐ。
 test('saves editable project information, updates the title and preserves undo history', async t => {
@@ -920,19 +1011,25 @@ test('changes the Save target only after a successful Save as', async t => {
 	window.selectProjectSaveFile = async () => original;
 	await appContext.saveProject();
 	window.selectProjectSaveFile = async () => null;
+	appContext.projectContext.stateManager.state.name.value = 'Before cancellation';
 	await appContext.saveProject(true);
+	assert.equal(appContext.hasUnsavedChanges.value, true);
 	appContext.projectContext.stateManager.state.name.value = 'After cancellation';
 	await appContext.saveProject();
+	assert.equal(appContext.hasUnsavedChanges.value, false);
 	assert.equal(decodeProjectFile(original.bytes).name, 'After cancellation');
 	const failed = fileHandle('failed.gsproj', { fail: 'write' });
 	window.selectProjectSaveFile = async () => failed;
+	appContext.projectContext.stateManager.state.name.value = 'Before failure';
 	await appContext.saveProject(true);
+	assert.equal(appContext.hasUnsavedChanges.value, true);
 	appContext.projectContext.stateManager.state.name.value = 'After failure';
 	await appContext.saveProject();
 	assert.equal(decodeProjectFile(original.bytes).name, 'After failure');
 	assert.deepEqual(globalThis.projectAlerts, ['write failed']);
 	window.selectProjectSaveFile = async () => copy;
 	await appContext.saveProject(true);
+	assert.equal(appContext.hasUnsavedChanges.value, false);
 	window.selectProjectSaveFile = () => assert.fail('Save should reuse the new target');
 	appContext.projectContext.stateManager.state.name.value = 'After Save as';
 	await appContext.saveProject();
@@ -1322,9 +1419,11 @@ test('backs up the Save as destination and keeps automatic backups separate from
 	let now = Date.now();
 	t.mock.method(Date, 'now', () => now);
 	appContext.projectContext.stateManager.state.description.value = 'Unsaved description';
+	assert.equal(appContext.hasUnsavedChanges.value, true);
 	const historyLength = appContext.projectContext.stateManager.undoStack.value.length;
 	now += 180001;
 	await appContext.projectBackupController.tick();
+	assert.equal(appContext.hasUnsavedChanges.value, true);
 	const automatic = [...backups.get(destination.name)].filter(([name]) => name.includes('.auto-backup-'));
 	assert.equal(automatic.length, 1);
 	assert.equal(decodeProjectFile(automatic[0][1]).description, 'Unsaved description');
@@ -1332,6 +1431,7 @@ test('backs up the Save as destination and keeps automatic backups separate from
 	assert.notEqual(decodeProjectFile(destination.bytes).description, 'Unsaved description');
 	await appContext.saveProject();
 	assert.equal(decodeProjectFile(destination.bytes).description, 'Unsaved description');
+	assert.equal(appContext.hasUnsavedChanges.value, false);
 	assert.equal(decodeProjectFile(original.bytes).name, 'First file');
 	appContext.projectBackupController.setTarget(null);
 });

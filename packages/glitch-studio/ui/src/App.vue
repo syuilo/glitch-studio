@@ -19,6 +19,7 @@
 		</div>
 		<div :class="$style.headerCenter">
 			{{ projectName }}
+			<span v-if="hasUnsavedChanges" v-tooltip="'Unsaved changes'">*</span>
 			<span v-if="projectFileName" :class="$style.projectFileName">({{ projectFileName }})</span>
 		</div>
 		<div :class="$style.headerRight">
@@ -90,7 +91,7 @@ provide(workspaceControllerKey, new WorkspaceController(preferences.r.workspaceD
 const { audioOutput, activePreviewRenderer, previewPlayback, visualModuleRendererManagerController, resolutionFactor, liveFpsLimit, timelinePreviewFpsFactor, timelinePreviewMotionBlurSamples, liveTimeFactor, projectBackupAccess, projectBackupStatus } = appContext;
 const { stateManager } = appContext.projectContext;
 const { name: projectName } = appContext.projectContext.stateManager.state;
-const { projectFileName } = appContext;
+const { projectFileName, hasUnsavedChanges } = appContext;
 
 const releaseOutputCapture = audioOutput.retainOutputCapture();
 onBeforeUnmount(releaseOutputCapture);

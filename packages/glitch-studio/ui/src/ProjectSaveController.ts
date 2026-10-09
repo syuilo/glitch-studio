@@ -1,4 +1,4 @@
-import { ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { preferences } from './preferences.ts';
 import { projectSaveBackupWriter, ProjectSaveSession } from './project-save-session.ts';
 import { createProjectBackupFingerprint, DEFAULT_PROJECT_BACKUP_SETTINGS, ProjectBackupController } from './project-backups.ts';
@@ -42,9 +42,16 @@ function backupSettings() { return preferences.s.projectBackups ?? DEFAULT_PROJE
 /** 保存先の選択・権限・保存処理とバックアップをまとめ、プレビューの実装に依存させない。 */
 export class ProjectSaveController {
 	private projectGeneration = 0;
-	private projectReady = false;
+	private projectReady = ref(false);
 	private projectSaveSession: ProjectSaveSession;
 	private backupFingerprint = createProjectBackupFingerprint();
+	private savedFingerprint = ref<string | null>(null);
+	// 履歴の件数では、Undo・直接編集されるプロジェクト情報・生成音声の変更を判定できない。
+	// 保存対象そのものを比較し、不変なBlobはバックアップと同じ同一性で扱う。
+	public hasUnsavedChanges = computed(() => {
+		const project = this.projectReady.value ? this.getSnapshot() : null;
+		return project != null && this.backupFingerprint(project) !== this.savedFingerprint.value;
+	});
 	public projectFileName = ref<string | null>(null);
 	public projectBackupAccess = ref<'unsaved' | 'folder-required' | 'ready'>('unsaved');
 	public projectBackupStatus = ref<ProjectBackupStatus>({ lastAutoBackup: null, lastSaveBackup: null, error: null });
@@ -61,7 +68,7 @@ export class ProjectSaveController {
 			runExclusive: operation => this.projectSaveSession.runExclusive(operation),
 			settings: backupSettings,
 			snapshot: () => {
-				const project = this.projectReady ? this.getSnapshot() : null;
+				const project = this.projectReady.value ? this.getSnapshot() : null;
 				return project ? { fingerprint: this.backupFingerprint(project), encode: () => encodeProjectFile(project) } : null;
 			},
 			onStatus: status => { this.projectBackupStatus.value = status; },
@@ -76,13 +83,17 @@ export class ProjectSaveController {
 	// 読み込み開始で世代を進め、完了までは手動保存・自動バックアップの両方を止める。
 	public beginProjectLoad(): void {
 		this.projectGeneration++;
-		this.projectReady = false;
+		this.projectReady.value = false;
+		this.savedFingerprint.value = null;
 		this.projectSaveSession.setTarget(null);
 	}
 
 	public finishProjectLoad(fileName: string | null, fileHandle: ProjectFileHandle | null): void {
 		this.projectSaveSession.suggestedName = fileName ?? 'untitled.gsproj';
-		this.projectReady = true;
+		// Fileから開いた場合も読み込み直後は保存済みとする。新規プロジェクトは初回保存が必要。
+		const project = this.getSnapshot();
+		this.savedFingerprint.value = project && (fileName != null || fileHandle != null) ? this.backupFingerprint(project) : null;
+		this.projectReady.value = true;
 		try {
 			this.projectSaveSession.setTarget(fileHandle ? { handle: fileHandle, directory: null, backup: resolveBackupTarget(fileHandle, null) } : null);
 		} catch (error) {
@@ -113,8 +124,9 @@ export class ProjectSaveController {
 	}
 
 	public async saveProject(saveAs = false): Promise<void> {
-		const project = this.projectReady ? this.getSnapshot() : null;
+		const project = this.projectReady.value ? this.getSnapshot() : null;
 		if (!project) return;
+		const fingerprint = this.backupFingerprint(project);
 		const generation = this.projectGeneration;
 		const requestedHandle = saveAs ? null : this.projectSaveSession.target?.handle;
 		// 待ち行列やエンコードより前に権限要求を始め、クリックの有効期間を失わない。
@@ -155,6 +167,9 @@ export class ProjectSaveController {
 				if (generation !== this.projectGeneration) return;
 				await saveProjectFile(data, handle);
 				if (generation === this.projectGeneration) {
+					// 保存中の編集を保存済みにしないよう、書き込んだスナップショットを基準にする。
+					// バックアップ整理の成否ではなく、本体の書き込み成功時点で更新する。
+					this.savedFingerprint.value = fingerprint;
 					this.projectSaveSession.setTarget({ handle, directory, backup: target });
 					if (target) await this.projectBackupController.afterSave(target, saveBackupTime);
 				}
