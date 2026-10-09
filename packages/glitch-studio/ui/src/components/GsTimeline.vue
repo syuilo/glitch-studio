@@ -142,191 +142,11 @@
 		</div>
 
 		<Teleport v-if="props.subPanelTarget" defer :to="props.subPanelTarget">
-			<GsTimelineVoicevoxUtteranceSettings
-				v-if="selectedUtterance != null" :key="keyframeEditorKey" :sceneId="sceneId"
-				:layer="selectedUtterance.layer" :utterance="selectedUtterance.utterance"
-				@selected="keyframeId => onKeyframeSelected({ layerId: selectedUtterance!.layer.id, target: 'utterance', paramPath: ['utterances'], keyframeId })"
+			<GsTimelineInspector
+				:scene="editedScene" :selection="selection" :mediaInfo="mediaInfo"
+				@selectKeyframe="onKeyframeSelected" @removeKeyframes="removeSelectedKeyframes" @removeClips="removeSelectedClips"
+				@changeClipSource="changeClipSource" @requestAddInlineEffectNode="showAddInlineEffectNodeMenu"
 			/>
-			<GsFolder v-if="selection.kind === 'keyframes' && selection.keyframes.length > 1" defaultOpen asSection>
-				<template #label>{{ selection.keyframes.length }} keyframes selected</template>
-				<GsButton danger small @click="removeSelectedKeyframes"><i class="ti ti-trash"></i> Remove Keyframes</GsButton>
-			</GsFolder>
-			<GsFolder v-if="selectedKeyframe != null" :key="keyframeEditorKey" defaultOpen asSection :withSpacer="false">
-				<template #icon><i class="ti ti-keyframe"></i></template>
-				<template #label>Keyframe: {{ selectedKeyframe.def.ui.label }}</template>
-				<div style="margin-left: 16px; border-left: solid 1px #fff2;">
-					<div class="_spacer _gaps_m">
-						<GsInput small type="number" :min="selectedKeyframe.minX" :max="selectedKeyframe.maxX" :modelValue="selectedKeyframe.keyframe.x" @update:modelValue="updateKeyframeTime">
-							<template #label>Time</template>
-							<template #suffix>ms</template>
-						</GsInput>
-						<div>Value</div>
-						<GsLiteralLeafValueControl
-							:dataType="selectedKeyframe.def.dataType"
-							:control="selectedKeyframe.def.ui.control"
-							:value="selectedKeyframe.keyframe.value"
-							:title="selectedKeyframe.def.ui.label"
-							@input="value => updateKeyframeValue(value)"
-							@beginChanging="keyframeValueMergeKey = genId()"
-							@changeContinuous="value => updateKeyframeValue(value, keyframeValueMergeKey)"
-							@changeFinished="keyframeValueMergeKey = null"
-							@reset="updateKeyframeValue(selectedKeyframe.def.defaultValue.value)"
-						/>
-						<template v-for="editor in keyframeInterpolationEditors" :key="editor.keyframe.id">
-							<GsSelect small :modelValue="editor.keyframe.interpolation.type" :items="keyframeInterpolationItems" @update:modelValue="type => updateKeyframeInterpolationType(editor.keyframe.id, type)">
-								<template #label>{{ editor.label }}</template>
-							</GsSelect>
-							<GsSelect v-if="editor.direction != null" small :modelValue="editor.direction" :items="easingDirectionItems" @update:modelValue="direction => updateKeyframeEasingDirection(editor.keyframe.id, direction)">
-								<template #label>Easing direction</template>
-							</GsSelect>
-						</template>
-						<GsButton danger small @click="removeSelectedKeyframes"><i class="ti ti-trash"></i> Remove Keyframe</GsButton>
-					</div>
-				</div>
-			</GsFolder>
-			<GsFolder v-if="selectedClipEntry != null" defaultOpen asSection :withSpacer="false">
-				<template #icon><i class="ti ti-ticket"></i></template>
-				<template #label>Clip: {{ selectedClipLabel }}</template>
-				<div style="margin-left: 16px; border-left: solid 1px #fff2;">
-					<div class="_spacer _gaps_m">
-						<GsInput small type="number" :min="0" :modelValue="selectedClipEntry.clip.startMs" @update:modelValue="value => editSelectedClipTime('move', value)"><template #label>Start</template><template #suffix>ms</template></GsInput>
-						<GsInput small type="number" :min="0" :disabled="selectedClipNeedsMedia && !selectedClipMedia" :modelValue="selectedClipEntry.clip.startMs" @update:modelValue="value => editSelectedClipTime('start', value)"><template #label>Trim start</template><template #suffix>ms</template></GsInput>
-						<GsInput small type="number" :min="1" :disabled="selectedClipNeedsMedia && !selectedClipMedia" :modelValue="selectedClipEntry.clip.durationMs" @update:modelValue="value => editSelectedClipTime('duration', value)"><template #label>Duration</template><template #suffix>ms</template></GsInput>
-						<div>Content offset: {{ formatMsToTimecode(selectedClipEntry.clip.contentOffsetMs) }}</div>
-						<div v-if="selectedClipMedia">Source duration: {{ formatMsToTimecode(selectedClipMedia.durationMs) }}</div>
-						<template v-if="selectedVideoClip != null">
-							<GsSwitch :modelValue="selectedVideoClip.audioEnabled" :disabled="!selectedVideoClip.audioEnabled && !selectedClipMedia?.audioAvailable" @update:modelValue="editSelectedClipAudio">Audio enabled</GsSwitch>
-							<div v-if="selectedClipMedia?.audioError">{{ selectedClipMedia.audioError }}</div>
-						</template>
-						<GsButton v-if="selectedClipEntry.layer.layerType === 'image' || selectedClipEntry.layer.layerType === 'video' || selectedClipEntry.layer.layerType === 'audio' || selectedClipEntry.layer.layerType === 'scene'" small @click="changeClipSource">Change source</GsButton>
-						<GsButton v-if="selectedSceneClip != null" small @click="activeSceneId = selectedSceneClip.sceneId">Open scene</GsButton>
-						<GsButton danger small @click="removeSelectedClips"><i class="ti ti-trash"></i> Remove Clip</GsButton>
-					</div>
-				</div>
-			</GsFolder>
-			<GsFolder v-if="selectedLayer != null" defaultOpen asSection :withSpacer="false">
-				<template #icon><i class="ti ti-stack-middle"></i></template>
-				<template #label>Layer: {{ selectedLayer?.name }}</template>
-
-				<div style="margin-left: 16px; border-left: solid 1px #fff2;">
-					<div class="_spacer">
-						<GsInput small :modelValue="selectedLayer.name" @update:modelValue="name => stateManager.commit('renameTimelineLayer', { sceneId, layerId: selectedLayer!.id, name: String(name) })"><template #label>Layer Name</template></GsInput>
-					</div>
-					<GsTimelineEffectSettings
-						v-if="selectedLayer.layerType === 'effect'"
-						:key="selectedLayer.id"
-						:layer="selectedLayer"
-						:effectState="selectedEffectLayerState"
-						:contextResolution="getSceneBaseResolution(editedScene.resolution, stateManager.state.resolution.value)"
-						:audioLayerOptions="audioLayerOptions"
-						@edit="event => onTimelineLayerParamEdit(event, 'effect')"
-						@resolution="resolution => stateManager.commit('changeEffectLayerResolution', { sceneId, layerId: selectedLayer!.id, resolution })"
-					/>
-					<GsTimelineVoicevoxSettings v-if="selectedLayer.layerType === 'voicevox'" :key="selectedLayer.id" :sceneId="sceneId" :layer="selectedLayer" @selected="keyframeId => onKeyframeSelected({ layerId: selectedLayer!.id, target: 'utterance', paramPath: ['utterances'], keyframeId })"/>
-					<GsTimelineVoicevoxSubtitleSettings
-						v-if="selectedLayer.layerType === 'voicevox'"
-						:key="selectedLayer.id"
-						:layer="selectedLayer"
-						@edit="event => onTimelineLayerParamEdit(event, 'voicevoxSubtitle')"
-					/>
-					<GsTimelineTextSettings
-						v-if="selectedLayer.layerType === 'text'"
-						:key="selectedLayer.id"
-						:layer="selectedLayer"
-						@edit="event => onTimelineLayerParamEdit(event, 'text')"
-					/>
-					<GsTimelineShapeSettings
-						v-if="selectedLayer.layerType === 'shape'"
-						:key="selectedLayer.id"
-						:layer="selectedLayer"
-						@edit="event => onTimelineLayerParamEdit(event, 'shape')"
-					/>
-					<GsFolder v-if="selectedLayer.layerType === 'inlineVisualModule'" :asSection="true" defaultOpen :withSpacer="false">
-						<template #icon><i class="ti ti-chart-dots-3"></i></template>
-						<template #label>Visual Module</template>
-						<div>
-							<GsVisualModuleEditor
-								:key="selectedLayer.id"
-								:class="$style.inlineModuleEditor"
-								:visualModule="selectedLayer.visualModule"
-								:visualModuleName="selectedLayer.name"
-								:effectStates="inlineEffectStates"
-								:exporting="exportingVisualModule"
-								@edit="onInlineVisualModuleEdit"
-								@rename="renameInlineVisualModule"
-								@requestAddEffectNode="showAddInlineEffectNodeMenu"
-								@requestExport="exportInlineVisualModule"
-							/>
-						</div>
-					</GsFolder>
-					<GsFolder v-if="selectedLayerModule != null" :asSection="true" defaultOpen :withSpacer="false">
-						<template #icon><i class="ti ti-adjustments-horizontal"></i></template>
-						<template #label>Module Parameters</template>
-						<div style="padding: 8px 0;">
-							<!-- TODO: struct / array / anyのカスタムパラメータ編集UI。型定義では許可するが、子の編集や配列操作は未対応。 -->
-							<template
-								v-for="paramDef of selectedLayerModule?.paramDefs.filter(paramDef => paramDef.id !== selectedLayerModule?.primaryInputId) ?? []"
-								:key="`${selectedLayer.id}:${paramDef.id}`"
-							>
-								<div v-if="paramDef.dataType.kind === 'struct' || paramDef.dataType.kind === 'array' || isParameterType(paramDef, 'any')">{{ paramDef.ui.label }}: Editing is not yet supported.</div>
-								<GsVisualParam
-									v-else
-									keyframesEnabled
-									:automationGraphEndEnabled="false"
-									:availableVariables="LAYER_VAR_DEFS"
-									:automationGraphs="selectedLayer.automationGraphs"
-									:paramPath="[paramDef.id]"
-									:paramDef="{ ...paramDef, canNode: false }"
-									:audioLayerOptions="audioLayerOptions"
-									:paramValue="getLayerParameterValues(selectedLayer, 'module')[paramDef.id] ?? getTimelineVisualModuleArgumentDefault(selectedLayerModule!, paramDef)"
-									@edit="event => onTimelineLayerParamEdit(event, 'module')"
-								/>
-							</template>
-						</div>
-					</GsFolder>
-					<GsFolder v-if="selectedLayer.layerType !== 'audio'" :asSection="true" defaultOpen :withSpacer="false">
-						<template #icon><i class="ti ti-layers-selected"></i></template>
-						<template #label>Compositing</template>
-						<div style="padding: 8px 0;">
-							<GsVisualParam
-								v-for="(paramDef, paramId) in timelineCompositingParamDefs"
-								:key="paramId"
-								keyframesEnabled
-								:automationGraphEndEnabled="false"
-								:availableVariables="LAYER_VAR_DEFS"
-								:automationGraphs="selectedLayer.automationGraphs"
-								:paramPath="[paramId]"
-								:paramDef="paramDef"
-								:paramValue="selectedLayer.compositingParamValues[paramId]"
-								@edit="event => onTimelineLayerParamEdit(event, 'compositing')"
-							/>
-						</div>
-					</GsFolder>
-					<GsFolder v-if="isTimelineAudioOutputLayer(selectedLayer)" :asSection="true" defaultOpen>
-						<template #icon><i class="ti ti-music"></i></template>
-						<template #label>Audio</template>
-						<div class="_gaps_m">
-							<GsVisualParam
-								:key="selectedLayer.id"
-								keyframesEnabled
-								:automationGraphEndEnabled="false"
-								:availableVariables="LAYER_VAR_DEFS"
-								:automationGraphs="selectedLayer.automationGraphs"
-								:paramPath="['volume']"
-								:paramDef="timelineAudioParamDefs.volume"
-								:paramValue="selectedLayer.audioParamValues.volume"
-								@edit="event => onTimelineLayerParamEdit(event, 'audio')"
-							/>
-						</div>
-					</GsFolder>
-					<GsFolder :asSection="true" defaultOpen>
-						<template #label>Other</template>
-						<div class="_gaps_m">
-							<GsButton danger small @click="stateManager.commit('removeTimelineLayer', { sceneId: props.sceneId, layerId: selectedLayer.id })"><i class="ti ti-trash"></i> Remove Layer</GsButton>
-						</div>
-					</GsFolder>
-				</div>
-			</GsFolder>
 		</Teleport>
 		<div v-else>
 			<!-- TODO: GsWindowとかで表示する -->
@@ -339,8 +159,6 @@
 import { flattenTimelineLayers, findTimelineLayer, findTimelineLayerLocation } from '@gs/subsystems_timeline_shared/layer-tree.ts';
 import { getTimelineGroupRange } from '@gs/subsystems_timeline_shared/layers/group/group.ts';
 import { createTimelineClipTiming, getTimelineClipEnd, getTimelineClipInsertionDuration, getTimelineClipTrimBounds } from '@gs/subsystems_timeline_shared/timing.ts';
-import { isParameterType } from '@gs/shared/parameter/parameter-definition.ts';
-import { LAYER_VAR_DEFS } from '@gs/subsystems_timeline_shared/expression.ts';
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef, toRef, useTemplateRef, watch } from 'vue';
 import { insertIntermediateNumbers, niceScale } from '@gs/shared/utility/misc.js';
 import { genId } from '@gs/shared/utility/id.js';
@@ -348,44 +166,20 @@ import { timelineAudioParamDefs } from '@gs/subsystems_timeline_shared/timeline-
 import { timelineCompositingParamDefs } from '@gs/subsystems_timeline_shared/timeline-compositing.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { canReferenceScene } from '@gs/subsystems_timeline_shared/scenes.ts';
-import { getSceneBaseResolution } from '@gs/subsystems_timeline_shared/scene-resolution.ts';
 import { paramPathKey } from '@gs/shared/parameter/parameter-path.ts';
-import { supportsKeyframeInterpolation } from '@gs/shared/keyframes/keyframes-timeline.ts';
-import { effectDefinitions } from '@gs/subsystems_effect_shared/effect-definitions.ts';
-import { isTimelineAudioOutputLayer } from '@gs/subsystems_timeline_shared/timeline-audio.ts';
-import { getTimelineVisualModuleArgumentDefault } from '@gs/subsystems_timeline_shared/layers/visual-module/visual-module-arguments.ts';
 import { shapeDefinitions } from '@gs/subsystems_timeline_shared/layers/shape/shape.ts';
 import { createSpeechResolver } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox.ts';
 import { assignPreparedSpeech, getVoicevoxUtterancePlacements } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox-placement.ts';
 import XLayer from './GsTimeline.Layer.vue';
-import GsTimelineEffectSettings from './GsTimeline.EffectSettings.vue';
-import GsTimelineVoicevoxUtteranceSettings from './GsTimeline.VoicevoxUtteranceSettings.vue';
-import GsTimelineVoicevoxSubtitleSettings from './GsTimeline.VoicevoxSubtitleSettings.vue';
-import GsTimelineTextSettings from './GsTimeline.TextSettings.vue';
-import GsTimelineShapeSettings from './GsTimeline.ShapeSettings.vue';
-import GsLiteralLeafValueControl from './GsLiteralLeafValueControl.vue';
-import GsInput from './common/GsInput.vue';
-import GsSelect from './common/GsSelect.vue';
-import GsSwitch from './common/GsSwitch.vue';
+import GsTimelineInspector from './GsTimeline.Inspector.vue';
+import { getTimelineKeyframeEditTarget } from '@/utility/timeline-keyframe-edit.ts';
 import GsButton from './common/GsButton.vue';
 import GsVirtualScroll from './common/GsVirtualScroll.vue';
-import GsVisualParam from './GsVisualParam.vue';
-import GsVisualModuleEditor from './GsVisualModuleEditor.vue';
 import GsEffectPicker from './GsEffectPicker.vue';
-import GsFolder from './common/GsFolder.vue';
-import GsTimelineVoicevoxSettings from './GsTimeline.VoicevoxSettings.vue';
 import type { TimelineMarqueeAnchor, TimelineLayerSelectionLayout } from '@/utility/timeline-marquee.ts';
-import type { TimelineParameterTarget } from '@/utility/timeline-scene.ts';
-import type { ParamPath } from '@gs/shared/parameter/parameter-path.ts';
 import type { Asset } from '@gs/shared/types.ts';
-import type { VisualModuleEdit } from '@/types/visual-module-editor.ts';
 import type { TimelineGroupLayer, TimelineLayer, TimelineScene } from '@gs/subsystems_timeline_shared/types.ts';
-import type { TimelineEffectParameterBinding } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
-import type { KeyframeInterpolation } from '@gs/shared/keyframes/keyframes-timeline.ts';
-import type { EasingDirection } from '@gs/shared/easing.ts';
-import type { GsSelectItem } from './common/GsSelect.vue';
-import type { TimelineClipSelection, TimelineKeyframeSelection, TimelineSelection, SelectionRect, TimelineMovePoint } from '@/utility/timeline-selection.ts';
-import type { ParamEdit } from './GsVisualParam.vue';
+import type { TimelineClipSelection, TimelineKeyframeSelection, SelectionRect, TimelineMovePoint } from '@/utility/timeline-selection.ts';
 import type { TimelineClipMediaInfo } from '@/utility/timeline-clip-media.ts';
 import type { ShapeType } from '@gs/subsystems_timeline_shared/layers/shape/shape.ts';
 import type { TimelineClipClipboard } from '@/utility/timeline-clip-clipboard.ts';
@@ -398,10 +192,8 @@ import { preferences } from '@/preferences.ts';
 import { listenPointerDrag } from '@/utility/pointer-drag.ts';
 import { getTimelineKeyframeEntries, getTimelineKeyframeLanes } from '@/utility/timeline-keyframe-lanes.ts';
 import { prepareTimelineClipMove } from '@/utility/timeline-clip-move.ts';
-import { getLayerParameterValues, getLayerParameterDefinition, resolveLayerParameter } from '@/utility/timeline-scene.ts';
 import { inspectTimelineClipMedia } from '@/utility/timeline-clip-media.ts';
 import { selectTimelineLayer, selectionRect, mergeTimelineRangeSelection, clipSelectionKey, keyframeSelectionKey, getTimelineStretchSelection, constrainTimelineMove, keyframeMoveBounds, getTimelineSnappingTimes } from '@/utility/timeline-selection.ts';
-import { canEditKeyframesTimeline, updateInlineKeyframe } from '@/utility/keyframes-timeline.ts';
 import { createEffectTimelineLayer } from '@/utility/effect-timeline-layer.ts';
 import { createShapeTimelineLayer } from '@/utility/shape-timeline-layer.ts';
 import { createVoicevoxTimelineLayer } from '@/utility/voicevox-timeline-layer.ts';
@@ -415,8 +207,6 @@ import { collectTimelineMarqueeCandidates, measureTimelineLayerSelection } from 
 import { copyTimelineKeyframes, prepareTimelineKeyframePaste, getPastedTimelineKeySelection } from '@/utility/timeline-keyframe-clipboard.ts';
 import * as ui from '@/ui.ts';
 import { createInlineVisualModuleLayer } from '@/utility/inline-visual-module-layer.ts';
-import { commitVisualModuleEdit } from '@/utility/visual-module-edit.ts';
-import { exportVisualModuleFile } from '@/utility/visual-module-file.ts';
 import { dragListen } from '@/utility/drag.ts';
 
 const { activeSceneId, previewPlayback, timelineAudioPreview, timelineRendererManagerController } = appContext;
@@ -704,89 +494,12 @@ function seekToKeyframe(timeMs: number | null) {
 	tlPosX.value = timeMs - tlRangeX.value / 2;
 }
 
-const audioLayerOptions = computed(() => sceneLayers.value
-	.filter(layer => layer.id !== selectedLayer.value?.id && isTimelineAudioOutputLayer(layer))
-	.map(layer => ({ value: layer.id, label: layer.name })));
-const selectedLayerModule = computed(() => {
-	const layer = selectedLayer.value;
-	return layer?.layerType === 'inlineVisualModule' ? layer.visualModule
-		: layer?.layerType === 'visualModule' ? appContext.projectContext.getVisualModuleById(layer.visualModuleId) : null;
-});
-const inlineEffectStates = computed(() => previewPlayback.state.value.mode === 'timeline' && selectedLayer.value != null
-	? timelineRendererManagerController.getLayerEffectStates(props.sceneId, selectedLayer.value.id) : undefined);
-const selectedEffectLayerState = computed(() => previewPlayback.state.value.mode === 'timeline' && selectedLayer.value?.layerType === 'effect'
-	? timelineRendererManagerController.getEffectLayerState(props.sceneId, selectedLayer.value.id) : undefined);
-
 const selectedKeyframeSelection = computed<TimelineKeyframeSelection | null>({
 	get: () => selection.value.kind === 'keyframes' && selection.value.keyframes.length === 1 ? selection.value.keyframes[0] : null,
 	set: point => { selection.value = point ? { kind: 'keyframes', keyframes: [point] } : { kind: 'layers', ids: selectedLayerId.value ? [selectedLayerId.value] : [] }; },
 });
-const keyframeValueMergeKey = ref<string | null>(null);
-const keyframeEditorKey = computed(() => JSON.stringify(selectedKeyframeSelection.value));
-const selectedUtterance = computed(() => {
-	const point = selectedKeyframeSelection.value;
-	if (point?.target !== 'utterance') return null;
-	const layer = sceneLayers.value.find(layer => layer.id === point.layerId);
-	if (layer?.layerType !== 'voicevox') return null;
-	const utterance = layer.utterances.find(utterance => utterance.id === point.keyframeId);
-	return utterance ? { layer, utterance } : null;
-});
-const selectedKeyframe = computed(() => {
-	const selection = selectedKeyframeSelection.value;
-	if (selection == null || selection.target === 'utterance') return null;
-	const layer = sceneLayers.value.find(entry => entry.id === selection.layerId);
-	if (layer == null) return null;
-	let binding: TimelineEffectParameterBinding;
-	try { binding = resolveLayerParameter(stateManager.state, layer, selection.target, selection.paramPath).value; } catch { return null; }
-	if (binding?.inputSource !== 'keyframesTimelineInline') return null;
-	const def = getLayerParameterDefinition(stateManager.state, layer, selection.target, selection.paramPath);
-	if (def == null || !canEditKeyframesTimeline(def, binding)) return null;
-	const keyframes = binding.keyframesTimeline.keyframes.toSorted((a, b) => a.x - b.x);
-	const index = keyframes.findIndex(entry => entry.id === selection.keyframeId);
-	if (index < 0) return null;
-	const bounds = keyframeMoveBounds(keyframes, new Set([selection.keyframeId]), selection.keyframeId);
-	return {
-		selection, binding, def, keyframe: keyframes[index],
-		previousKeyframe: keyframes[index - 1] ?? null,
-		minX: keyframes[index].x + bounds.minDelta,
-		maxX: keyframes[index].x + bounds.maxDelta,
-	};
-});
-
-const keyframeInterpolationItems: GsSelectItem<KeyframeInterpolation['type']>[] = [
-	{ label: 'Hold', value: 'hold' },
-	{ label: 'Linear', value: 'linear' },
-	{ label: 'Sine', value: 'ease:sine' },
-	{ label: 'Quad', value: 'ease:quad' },
-	{ label: 'Cubic', value: 'ease:cubic' },
-	{ label: 'Quart', value: 'ease:quart' },
-	{ label: 'Quint', value: 'ease:quint' },
-	{ label: 'Expo', value: 'ease:expo' },
-	{ label: 'Circ', value: 'ease:circ' },
-	{ label: 'Back', value: 'ease:back' },
-	{ label: 'Elastic', value: 'ease:elastic' },
-	{ label: 'Bounce', value: 'ease:bounce' },
-];
-const easingDirectionItems: GsSelectItem<EasingDirection>[] = [
-	{ label: 'In', value: 'in' },
-	{ label: 'Out', value: 'out' },
-	{ label: 'InOut', value: 'inOut' },
-];
-const keyframeInterpolationEditors = computed(() => {
-	const selected = selectedKeyframe.value;
-	if (selected == null || !supportsKeyframeInterpolation(selected.def.dataType)) return [];
-	const editors = [{ keyframe: selected.keyframe, label: 'Interpolation to next keyframe' }];
-	// このキーまでの補間は直前のキーが所有する。選択は維持し、編集先のIDだけを切り替える。
-	if (selected.previousKeyframe != null) {
-		editors.unshift({ keyframe: selected.previousKeyframe, label: 'Interpolation from previous keyframe' });
-	}
-	return editors.map(editor => ({
-		...editor,
-		direction: 'direction' in editor.keyframe.interpolation ? editor.keyframe.interpolation.direction : null,
-	}));
-});
-
-watch(selectedKeyframeSelection, () => { keyframeValueMergeKey.value = null; });
+// 選択の整合性はInspectorの表示状態にかかわらず維持する。
+const selectedKeyframe = computed(() => getTimelineKeyframeEditTarget(stateManager.state, selectedLayer.value, selectedKeyframeSelection.value));
 watch(selectedKeyframe, value => {
 	if (value == null && selectedKeyframeSelection.value != null && selectedKeyframeSelection.value.target !== 'utterance') selectedKeyframeSelection.value = null;
 });
@@ -800,46 +513,6 @@ function removeSelectedKeyframes() {
 function onKeyframeSelected(selection: TimelineKeyframeSelection) {
 	selectedKeyframeSelection.value = selection;
 	revealDetails();
-}
-
-function updateKeyframe(keyframeId: string, patch: { x?: number; value?: unknown; interpolation?: KeyframeInterpolation }, mergeKey?: string | null) {
-	const selected = selectedKeyframe.value;
-	if (selected == null || selected.selection.target === 'utterance') return;
-	const value = updateInlineKeyframe(selected.binding, selected.def, keyframeId, patch);
-	if (value == null) return;
-	stateManager.commit('editTimelineLayerParam', {
-		sceneId: props.sceneId,
-		layerId: selected.selection.layerId, target: selected.selection.target,
-		paramPath: selected.selection.paramPath,
-		edit: { kind: 'keyframesTimelineInline', value },
-	}, mergeKey);
-}
-
-function updateKeyframeInterpolationType(keyframeId: string, type: KeyframeInterpolation['type']) {
-	const current = selectedKeyframe.value?.binding.keyframesTimeline.keyframes.find(keyframe => keyframe.id === keyframeId)?.interpolation;
-	if (current == null) return;
-	const interpolation: KeyframeInterpolation = type === 'linear' || type === 'hold' ? { type }
-		: { type, direction: 'direction' in current ? current.direction : 'inOut' };
-	updateKeyframe(keyframeId, { interpolation });
-}
-
-function updateKeyframeEasingDirection(keyframeId: string, direction: EasingDirection) {
-	const interpolation = selectedKeyframe.value?.binding.keyframesTimeline.keyframes.find(keyframe => keyframe.id === keyframeId)?.interpolation;
-	if (interpolation == null || !('direction' in interpolation)) return;
-	updateKeyframe(keyframeId, { interpolation: { ...interpolation, direction } });
-}
-
-function updateKeyframeValue(value: unknown, mergeKey?: string | null) {
-	const selected = selectedKeyframe.value;
-	if (selected == null) return;
-	updateKeyframe(selected.selection.keyframeId, { value }, mergeKey);
-}
-
-function updateKeyframeTime(value: string | number) {
-	const selected = selectedKeyframe.value;
-	const x = Number(value);
-	if (selected == null || !Number.isFinite(x)) return;
-	updateKeyframe(selected.selection.keyframeId, { x: Math.max(selected.minX, Math.min(selected.maxX, x)) });
 }
 
 // レイヤー名の欄を除いた描画幅に合わせ、主目盛りの間隔を約120pxを目安に選ぶ。
@@ -1480,32 +1153,6 @@ function selectLayer(layer: TimelineLayer, event?: MouseEvent) {
 	tlEl.value?.focus({ preventScroll: true });
 }
 
-const exportingVisualModule = ref(false);
-
-async function exportInlineVisualModule() {
-	const layer = selectedLayer.value;
-	if (layer?.layerType !== 'inlineVisualModule' || exportingVisualModule.value) return;
-	exportingVisualModule.value = true;
-	try {
-		await exportVisualModuleFile(appContext.projectContext, layer.visualModule, layer.name);
-	} finally {
-		exportingVisualModule.value = false;
-	}
-}
-
-function renameInlineVisualModule(name: string) {
-	const layer = selectedLayer.value;
-	if (layer?.layerType !== 'inlineVisualModule' || layer.name === name) return;
-	// インラインVisual Moduleの表示名は所属レイヤーが所有し、書き出し時にもその名前を使う。
-	stateManager.commit('renameTimelineLayer', { sceneId: props.sceneId, layerId: layer.id, name });
-}
-
-function onInlineVisualModuleEdit(event: VisualModuleEdit) {
-	const layer = selectedLayer.value;
-	if (layer?.layerType !== 'inlineVisualModule') return;
-	commitVisualModuleEdit(stateManager, { sceneId: props.sceneId, inlineVisualModuleLayerId: layer.id }, event);
-}
-
 let disposeEffectPicker: (() => void) | undefined;
 onBeforeUnmount(() => {
 	stopCueHold?.();
@@ -1515,10 +1162,9 @@ onBeforeUnmount(() => {
 	editorState.positionX = tlPosX.value;
 });
 
-function showAddInlineEffectNodeMenu() {
-	const layer = selectedLayer.value;
+function showAddInlineEffectNodeMenu(layerId: string) {
+	const layer = sceneLayers.value.find(layer => layer.id === layerId);
 	if (layer?.layerType !== 'inlineVisualModule') return;
-	const layerId = layer.id;
 	disposeEffectPicker?.();
 	const { dispose } = ui.popup(GsEffectPicker, {}, {
 		chosen: effect => {
@@ -1532,27 +1178,6 @@ function showAddInlineEffectNodeMenu() {
 		},
 	});
 	disposeEffectPicker = dispose;
-}
-
-function onTimelineLayerParamEdit(event: ParamEdit, target: TimelineParameterTarget) {
-	const layer = selectedLayer.value;
-	if (layer == null || event.kind === 'node' || event.kind === 'externalCustomParameterInput') return;
-	if (event.kind === 'inputSource' && (event.inputSource === 'node' || event.inputSource === 'externalCustomParameterInput')) return;
-	const mergeKey = event.mergeKey != null ? JSON.stringify([layer.id, target, event.paramPath, event.mergeKey]) : undefined;
-	if (event.kind === 'layerAudio' || (event.kind === 'inputSource' && (event.inputSource === 'lowerLayerAudio' || event.inputSource === 'layerAudio'))) {
-		if (target === 'effect' || target === 'module') stateManager.commit('editTimelineLayerParam', { sceneId: props.sceneId, layerId: layer.id, target, paramPath: event.paramPath, edit: event }, mergeKey);
-		return;
-	}
-	if (event.kind === 'layerInput' || (event.kind === 'inputSource' && event.inputSource === 'layerInput')) {
-		if (target !== 'effect') return;
-		stateManager.commit('editTimelineLayerParam', {
-			sceneId: props.sceneId, layerId: layer.id, target, paramPath: event.paramPath, edit: event,
-		}, mergeKey);
-		return;
-	}
-	stateManager.commit('editTimelineLayerParam', {
-		sceneId: props.sceneId, layerId: layer.id, target, paramPath: event.paramPath, edit: event,
-	}, mergeKey);
 }
 
 const audioError = ref<string | null>(null);
@@ -1572,59 +1197,9 @@ watch(() => mediaAssets.value.map(asset => ({ asset, blob: asset.fileData })), a
 	if (!cancelled) mediaInfo.value = result;
 }, { immediate: true });
 
-const selectedClipEntry = computed(() => selection.value.kind === 'clips' && selection.value.clips.length === 1 ? resolveClip(selection.value.clips[0]) : null);
-const selectedClipNeedsMedia = computed(() => selectedClipEntry.value?.layer.layerType === 'audio' || selectedClipEntry.value?.layer.layerType === 'video');
-const selectedClipMedia = computed(() => {
-	const clip = selectedClipEntry.value?.clip;
-	return clip && 'assetId' in clip && typeof clip.assetId === 'string' ? mediaInfo.value.get(clip.assetId) : undefined;
-});
-const selectedVideoClip = computed(() => {
-	const entry = selectedClipEntry.value;
-	return entry?.layer.layerType === 'video' ? entry.layer.clips.find(clip => clip.id === entry.clip.id) : null;
-});
-const selectedSceneClip = computed(() => {
-	const entry = selectedClipEntry.value;
-	return entry?.layer.layerType === 'scene' ? entry.layer.clips.find(clip => clip.id === entry.clip.id) : null;
-});
-const selectedClipLabel = computed(() => {
-	const entry = selectedClipEntry.value;
-	if (!entry) return '';
-	if ('assetId' in entry.clip) { const id = entry.clip.assetId; return stateManager.state.assets.value.find(asset => asset.id === id)?.name ?? 'Missing media'; }
-	if ('sceneId' in entry.clip) { const id = entry.clip.sceneId; return stateManager.state.timelineScenes.value.find(scene => scene.id === id)?.name ?? 'Missing scene'; }
-	if (entry.layer.layerType === 'visualModule') { const id = entry.layer.visualModuleId; return stateManager.state.visualModules.value.find(module => module.id === id)?.name ?? 'Missing module'; }
-	if (entry.layer.layerType === 'inlineVisualModule') return 'Inline Visual Module';
-	if (entry.layer.layerType === 'effect') { const id = entry.layer.effectId; return Object.entries(effectDefinitions).find(([key, effect]) => key === id)?.[1].displayName ?? 'Missing effect'; }
-	if (entry.layer.layerType === 'voicevox') return 'VOICEVOX';
-	if (entry.layer.layerType === 'text') return 'Text';
-	if (entry.layer.layerType === 'shape') return shapeDefinitions[entry.layer.shape.type].label;
-	return '?';
-});
-
 function removeSelectedClips() {
 	if (selection.value.kind !== 'clips' || selection.value.clips.length === 0) return;
 	stateManager.commit('removeTimelineClips', { sceneId: props.sceneId, clips: deepClone(selection.value.clips) });
-}
-
-function editSelectedClipTime(kind: 'move' | 'start' | 'duration', value: string | number) {
-	const entry = selectedClipEntry.value;
-	const next = Number(value);
-	if (!entry || !Number.isFinite(next)) return;
-	if (kind === 'move') stateManager.commit('moveTimelineClips', { sceneId: props.sceneId, clips: [entry.target], deltaMs: next - entry.clip.startMs });
-	else {
-		if (selectedClipNeedsMedia.value && !selectedClipMedia.value) return;
-		stateManager.commit('editTimelineClipTiming', {
-			sceneId: props.sceneId, ...entry.target,
-			edge: kind === 'start' ? 'start' : 'end',
-			deltaMs: kind === 'start' ? next - entry.clip.startMs : next - entry.clip.durationMs,
-			sourceDurationMs: selectedClipMedia.value?.durationMs,
-		});
-	}
-}
-
-function editSelectedClipAudio(audioEnabled: boolean) {
-	const entry = selectedClipEntry.value;
-	if (!entry || !selectedVideoClip.value) return;
-	stateManager.commit('editVideoClipAudio', { sceneId: props.sceneId, ...entry.target, audioEnabled });
 }
 
 type ClipSource = { kind: 'asset'; asset: Asset; media?: TimelineClipMediaInfo } | { kind: 'scene'; scene: TimelineScene };
@@ -1679,8 +1254,8 @@ async function addClip(layer: TimelineLayer, startMs: number) {
 	} catch (error) { audioError.value = error instanceof Error ? error.message : String(error); }
 }
 
-async function changeClipSource() {
-	const entry = selectedClipEntry.value;
+async function changeClipSource(target: TimelineClipSelection) {
+	const entry = resolveClip(target);
 	if (!entry) return;
 	const type = entry.layer.layerType;
 	if (type !== 'image' && type !== 'video' && type !== 'audio' && type !== 'scene') return;
@@ -2407,11 +1982,6 @@ onMounted(() => {
 			min-width: 4em;
 		}
 	}
-}
-
-.inlineModuleEditor {
-	flex: 1;
-	min-height: 0;
 }
 
 .layerSettings {
