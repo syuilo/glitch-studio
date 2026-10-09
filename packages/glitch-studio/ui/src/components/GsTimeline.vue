@@ -543,9 +543,12 @@ function onLayerDragOver(event: DragEvent, layer: TimelineLayer) {
 	const fraction = (event.clientY - bounds.top) / bounds.height;
 	const location = findTimelineLayerLocation(rootLayers.value, layer.id)!;
 	const position = layer.layerType === 'group' && fraction >= 0.25 && fraction <= 0.75 ? 'inside' : fraction < 0.5 ? 'before' : 'after';
-	dropTarget.value = { layerId: layer.id, position,
-																						parentId: position === 'inside' ? layer.id : location.ancestors.at(-1)?.id ?? null,
-																						beforeId: position === 'inside' ? null : position === 'before' ? layer.id : location.siblings[location.index + 1]?.id ?? null };
+	dropTarget.value = {
+		layerId: layer.id, position,
+		parentId: position === 'inside' ? layer.id : location.ancestors.at(-1)?.id ?? null,
+		beforeId: position === 'inside' && layer.layerType === 'group' ? layer.layers[0]?.id ?? null
+			: position === 'before' ? layer.id : location.siblings[location.index + 1]?.id ?? null,
+	};
 	event.preventDefault();
 	if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
 }
