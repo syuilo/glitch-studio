@@ -346,6 +346,7 @@ function timeToDomX(time: number): number { return timelineTimeToX(time, props.t
 
 .sideBody {
 	flex: 1;
+	min-width: 0;
 }
 
 .tl {
