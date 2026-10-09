@@ -658,6 +658,7 @@ function groupSelection() {
 		id, name: 'Group', layerType: 'group', layers: [], isDisabled: false, automationGraphs: [],
 		compositingParamValues: initialCompositingParameters(), audioParamValues: { volume: deepClone(timelineAudioParamDefs.volume.defaultValue) },
 	} });
+	collapsedGroups.value = new Set([...collapsedGroups.value, id]);
 	selection.value = { kind: 'layers', ids: [id] };
 }
 
