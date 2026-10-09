@@ -3,9 +3,16 @@
 	<div :class="$style.mainLane" data-timeline-clip-lane>
 		<div :class="$style.side">
 			<div :class="$style.layerHeader" draggable="true" @click="emit('selected', $event)" @dragstart.stop="emit('dragStart', $event)">
-				<i class="ti ti-grip-vertical"></i>
+				<div :class="$style.grabber">
+					<svg viewBox="0 0 16 16" version="1.1" :class="$style.grabberSvg">
+						<path fill="currentColor" d="M10 13a1 1 0 1 1 0-2 1 1 0 0 1 0 2Zm0-4a1 1 0 1 1 0-2 1 1 0 0 1 0 2Zm-4 4a1 1 0 1 1 0-2 1 1 0 0 1 0 2Zm5-9a1 1 0 1 1-2 0 1 1 0 0 1 2 0ZM7 8a1 1 0 1 1-2 0 1 1 0 0 1 2 0ZM6 5a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z"></path>
+					</svg>
+				</div>
 				<i :class="'ti ' + layerIcon"></i>
-				<GsCondensedLine style="flex: 1; min-width: 0;">{{ layer.name }}</GsCondensedLine>
+				<span :class="$style.layerHeaderTitle">
+					<GsCondensedLine>{{ layer.name }}</GsCondensedLine>
+				</span>
+				<button class="_button" :class="[$style.collapseButton]" @click.stop=""><i :class="layer.isCollapsed ? 'ti ti-chevron-down' : 'ti ti-chevron-up'"></i></button>
 				<button class="_button" :class="[$style.disableButton, { [$style.active]: !layer.isDisabled }]" @click.stop="toggleDisabled"><i :class="layer.isDisabled ? 'ti ti-eye-off' : 'ti ti-eye'"></i></button>
 			</div>
 		</div>
@@ -289,7 +296,6 @@ function timeToDomX(time: number): number { return timelineTimeToX(time, props.t
 
 .layerHeader {
 	display: flex;
-	gap: 4px;
 	height: var(--mainLaneHeight);
 	line-height: var(--mainLaneHeight);
 	align-items: center;
@@ -299,12 +305,46 @@ function timeToDomX(time: number): number { return timelineTimeToX(time, props.t
 	font-size: 90%;
 }
 
+.grabber {
+	display: grid;
+	padding: 4px 4px;
+	box-sizing: border-box;
+	height: var(--mainLaneHeight);
+	cursor: move;
+	user-select: none;
+	color: color(from currentColor srgb r g b / 0.5);
+}
+
+.grabberSvg {
+	height: 100%;
+	pointer-events: none;
+}
+
+.layerHeaderTitle {
+	flex: 1;
+	min-width: 0;
+	overflow: clip;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	margin-left: 4px;
+}
+
+.collapseButton {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: var(--mainLaneHeight);
+	height: var(--mainLaneHeight);
+	color: #fff;
+}
+
 .disableButton {
 	display: flex;
 	align-items: center;
 	justify-content: center;
 	width: var(--mainLaneHeight);
 	height: var(--mainLaneHeight);
+	margin-left: 4px;
 	color: #fff;
 
 	&.active {
