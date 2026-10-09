@@ -4,7 +4,7 @@
 		<div :class="$style.side">
 			<div v-for="i in (depth ?? 0) + 1" :class="[$style.colorBar, { [$style.parentColorBar]: i < (depth ?? 0) + 1 }]"></div>
 			<div :class="$style.sideBody">
-				<div :class="$style.layerHeader" draggable="true" @click="emit('selected', $event)" @dragstart.stop="emit('dragStart', $event)">
+				<div :class="$style.layerHeader" draggable="true" @click="emit('selected', $event)" @contextmenu.stop.prevent="emit('contextMenu', $event)" @dragstart.stop="emit('dragStart', $event)">
 					<div :class="$style.grabber">
 						<svg viewBox="0 0 16 16" version="1.1" :class="$style.grabberSvg">
 							<path fill="currentColor" d="M10 13a1 1 0 1 1 0-2 1 1 0 0 1 0 2Zm0-4a1 1 0 1 1 0-2 1 1 0 0 1 0 2Zm-4 4a1 1 0 1 1 0-2 1 1 0 0 1 0 2Zm5-9a1 1 0 1 1-2 0 1 1 0 0 1 2 0ZM7 8a1 1 0 1 1-2 0 1 1 0 0 1 2 0ZM6 5a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z"></path>
@@ -151,6 +151,7 @@ const emit = defineEmits<{
 	(ev: 'groupMoveStart', event: PointerEvent): void;
 	(ev: 'dragStart', event: DragEvent): void;
 	(ev: 'selected', event: MouseEvent): void;
+	(ev: 'contextMenu', event: PointerEvent): void;
 	(ev: 'addClip', startMs: number): void;
 	(ev: 'look', centerTimeMs: number): void;
 	(ev: 'clipMoveStart', event: PointerEvent, selection: TimelineClipSelection): void;

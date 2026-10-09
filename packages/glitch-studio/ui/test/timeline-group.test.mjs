@@ -13,6 +13,7 @@ const bundled = await build({
 		export { flattenTimelineLayers } from '@gs/subsystems_timeline_shared/layer-tree.ts';
 		export * from './src/utility/timeline-clip-move.ts';
 		export * from './src/utility/timeline-group.ts';
+		export { createTimelineLayerActions } from './src/utility/timeline-layer-actions.ts';
 		export * from '@gs/subsystems_timeline_shared/layers/group/group.ts';
 		export * from '@gs/subsystems_timeline_shared/layer-tree.ts';
 		export * from '@gs/glitch-studio_shared/project/renderer-state.ts';
@@ -41,7 +42,7 @@ const bundled = await build({
 const module = { exports: {} };
 new Function('require', 'module', 'exports', bundled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
 const { COMMAND_DEFS, UndoRedo, prepareTimelineGroupMove, duplicateTimelineLayers, findTimelineLayer,
-	createVoicevoxTimelineLayer, applyRendererProjectChanges, findRendererVisualModule } = module.exports;
+	createVoicevoxTimelineLayer, applyRendererProjectChanges, findRendererVisualModule, createTimelineLayerActions } = module.exports;
 const literal = value => ({ inputSource: 'literal', value });
 const keys = times => ({ inputSource: 'keyframesTimelineInline', offsetMode: 'start', wrapMode: 'clamp', trimmedDurationMs: null,
 	keyframesTimeline: { dataType: { kind: 'scalar' }, isNormalized: false,
@@ -56,6 +57,127 @@ function fixture(t, layers) {
 	const state = { timelineScenes: { value: [scene] }, visualModules: { value: [] }, assets: { value: [] } };
 	return { scene, state, history: new UndoRedo(state, COMMAND_DEFS) };
 }
+
+function layerMenuFixture(f, ids, overrides = {}) {
+	const selection = { value: { kind: 'layers', ids } };
+	let menu;
+	let active = true;
+	const alerts = [];
+	const actions = createTimelineLayerActions({
+		stateManager: f.history, scene: f.scene, selection, isActive: () => active,
+		readLayerMediaDurations: async layer => Object.fromEntries(module.exports.flattenTimelineLayers([layer])
+			.filter(child => child.layerType === 'audio').map(child => [child.id, Object.fromEntries(child.clips.map(clip => [clip.id, 5000]))])),
+		selectLayer: layer => { selection.value = { kind: 'layers', ids: [layer.id] }; },
+		canGroup: () => true, groupSelection: () => {}, focusTimeline: () => {},
+		ui: { contextMenu: items => { menu = items; }, inputText: async () => ({ canceled: false, result: 'Renamed' }), alert: error => alerts.push(error) },
+		...overrides,
+	});
+	return { selection, alerts, deactivate: () => { active = false; },
+		open(id) { actions.showMenu({ button: 2, ctrlKey: true }, findTimelineLayer(f.scene.layers, id)); return menu; },
+	};
+}
+
+// 【右クリックは複数選択を保持し、未選択の行だけ単独選択へ切り替える】
+// 選択済みの行で毎回単独選択すると、メニューからまとめて操作できなくなる。
+// クリップ選択中の右クリックもレイヤー操作へ切り替え、Renameは単独選択時だけ出す。
+test('keeps selected layers on right click and offers rename only for one layer', t => {
+	const f = fixture(t, [group('a'), group('b'), group('c')]);
+	const controls = layerMenuFixture(f, ['a', 'b']);
+	assert.deepEqual(controls.open('b').map(item => item.text), ['Group', 'Duplicate', 'Delete']);
+	assert.deepEqual(controls.selection.value.ids, ['a', 'b']);
+	assert.deepEqual(controls.open('c').map(item => item.text), ['Group', 'Rename', 'Duplicate', 'Delete']);
+	assert.deepEqual(controls.selection.value.ids, ['c']);
+	controls.selection.value = { kind: 'clips', clips: [{ layerId: 'a', clipId: 'clip' }] };
+	controls.open('a');
+	assert.deepEqual(controls.selection.value, { kind: 'layers', ids: ['a'] });
+});
+
+// 【複数複製は子を二重に作らず、階層・音声参照・一回のUndoを保つ】
+// グループと子の同時選択や、別々の選択レイヤーを参照するBindingでも、
+// 元の木を変更せずコピー側へ参照を付け替え、Redoで同じIDと配置を再現する。
+test('duplicates selected roots together above their sources with one undo', async t => {
+	const visual = { id: 'visual', name: 'Visual', layerType: 'visualModule', isDisabled: false, automationGraphs: [],
+		clips: [], compositingParamValues: {}, visualModuleId: 'shared', visualModuleParamValues: { audio: { inputSource: 'layerAudio', layerId: 'audio' } } };
+	const f = fixture(t, [group('parent', [sound('audio')]), visual]);
+	f.state.assets.value = [{ id: 'asset', fileDataType: 'audio/wav' }];
+	const before = structuredClone(f.scene);
+	const controls = layerMenuFixture(f, ['audio', 'visual', 'parent']);
+	await controls.open('parent').find(item => item.text === 'Duplicate').action();
+	const [parentCopy, parent, visualCopy, originalVisual] = f.scene.layers;
+	assert.equal(parent.id, 'parent');
+	assert.equal(originalVisual.id, 'visual');
+	assert.equal(parentCopy.layers.length, 1);
+	assert.equal(visualCopy.visualModuleParamValues.audio.layerId, parentCopy.layers[0].id);
+	assert.notEqual(parentCopy.layers[0].clips[0].id, 'clip');
+	assert.deepEqual(parent, before.layers[0]);
+	assert.deepEqual(controls.selection.value.ids, [visualCopy.id, parentCopy.id]);
+	assert.equal(f.history.undoStack.value.length, 1);
+	const after = structuredClone(f.scene);
+	f.history.undo(); assert.deepEqual(f.scene, before);
+	f.history.redo(); assert.deepEqual(f.scene, after);
+});
+
+// 【複数削除は親子の選択順に依存せず、一回で全階層を復元できる】
+// 子を先に削除した履歴を個別に残すと、Undo一回で元の状態に戻らない。
+test('deletes overlapping parent and child selections atomically', t => {
+	const f = fixture(t, [group('parent', [group('child')]), group('outside'), group('keep')]);
+	const before = structuredClone(f.scene);
+	const controls = layerMenuFixture(f, ['parent', 'child', 'outside']);
+	controls.open('child').find(item => item.text === 'Delete').action();
+	assert.deepEqual(f.scene.layers.map(layer => layer.id), ['keep']);
+	assert.deepEqual(controls.selection.value.ids, []);
+	assert.equal(f.history.undoStack.value.length, 1);
+	f.history.undo(); assert.deepEqual(f.scene, before);
+	f.history.redo(); assert.deepEqual(f.scene.layers.map(layer => layer.id), ['keep']);
+});
+
+// 【リネームはCommandで記録し、ダイアログ待ちのScene切り替えを無視する】
+// 非同期入力が完了した時点で閉じたタイムラインへ変更を適用しない。
+test('renames through history and ignores results after the timeline closes', async t => {
+	const f = fixture(t, [group('a')]);
+	const controls = layerMenuFixture(f, ['a']);
+	await controls.open('a').find(item => item.text === 'Rename').action();
+	assert.equal(f.scene.layers[0].name, 'Renamed');
+	f.history.undo(); assert.equal(f.scene.layers[0].name, 'a');
+	const pending = controls.open('a').find(item => item.text === 'Rename').action();
+	controls.deactivate();
+	await pending;
+	assert.equal(f.scene.layers[0].name, 'a');
+	assert.equal(f.history.undoStack.value.length, 0);
+});
+
+// 【複製の素材取得に失敗しても、一部だけを挿入せず選択と履歴を維持する】
+// 複数選択の途中で失敗した場合に、見えない部分変更を残さない。
+test('leaves the tree and history unchanged when duplication fails or becomes stale', async t => {
+	const f = fixture(t, [group('a'), group('b')]);
+	const before = structuredClone(f.scene);
+	const failure = layerMenuFixture(f, ['a', 'b'], { readLayerMediaDurations: async () => { throw new Error('Missing media'); } });
+	await failure.open('a').find(item => item.text === 'Duplicate').action();
+	assert.deepEqual(f.scene, before);
+	assert.equal(f.history.undoStack.value.length, 0);
+	assert.equal(failure.alerts[0].text, 'Missing media');
+	const stale = layerMenuFixture(f, ['a', 'b']);
+	const pending = stale.open('a').find(item => item.text === 'Duplicate').action();
+	f.scene.layers = [...f.scene.layers];
+	await pending;
+	assert.deepEqual(f.scene, before);
+	assert.equal(f.history.undoStack.value.length, 0);
+});
+
+// 【複数複製の全素材を検証してから木を適用する】
+// 最初の複製が有効でも、後続の素材長が不正なら全体を失敗させる。
+test('validates every duplicate before applying the tree', t => {
+	const f = fixture(t, [sound('a'), sound('b')]);
+	f.state.assets.value = [{ id: 'asset', fileDataType: 'audio/wav' }];
+	const copies = duplicateTimelineLayers(f.scene.layers);
+	const before = structuredClone(f.scene);
+	const sourceDurationsMs = Object.fromEntries(copies.map((layer, index) => [layer.id, { [layer.clips[0].id]: index ? 100 : 5000 }]));
+	assert.throws(() => f.history.commit('duplicateTimelineLayers', { sceneId: 'scene',
+		layers: copies.map((layer, index) => ({ layer, sourceLayerId: f.scene.layers[index].id })), sourceDurationsMs,
+	}), /media duration/);
+	assert.deepEqual(f.scene, before);
+	assert.equal(f.history.undoStack.value.length, 0);
+});
 
 // 【グループの往復ドラッグで区間外のキー・発話・入れ子も一度だけ移動する】
 // Scene参照の中身と素材オフセットは維持し、一回のUndo/Redoで最終位置を再現する。

@@ -95,6 +95,7 @@
 						@dragend="onLayerDragEnd"
 						@dragStart="event => onLayerDragStart(event, layer)"
 						@selected="event => selectLayer(layer, event)"
+						@contextMenu="event => layerActions.showMenu(event, layer)"
 						@addClip="startMs => addClip(layer, startMs)"
 						@look="center => tlPosX = center - tlRangeX / 2"
 						@clipMoveStart="onClipMoveStart"
@@ -174,6 +175,7 @@ import { getTimelineEditorState, getSelectedTimelineLayerId, timelineClipboard }
 import * as ui from '@/ui.ts';
 import { createTimelineSourceActions } from '@/utility/timeline-source-actions.ts';
 import { createTimelineClipboardActions } from '@/utility/timeline-clipboard-actions.ts';
+import { createTimelineLayerActions } from '@/utility/timeline-layer-actions.ts';
 
 const { activeSceneId, previewPlayback, timelineAudioPreview, timelineRendererManagerController } = appContext;
 const { stateManager } = appContext.projectContext;
@@ -570,6 +572,12 @@ const clipboardActions = createTimelineClipboardActions({
 		console.error(error);
 		ui.alert({ type: 'error', text: error instanceof Error ? error.message : String(error) });
 	},
+});
+
+const layerActions = createTimelineLayerActions({
+	stateManager, scene: editedScene, selection, isActive: isTimelineActive, readLayerMediaDurations,
+	selectLayer, canGroup: () => canGroupSelection.value, groupSelection, ui,
+	focusTimeline: () => tlEl.value?.focus({ preventScroll: true }),
 });
 
 async function onTlKeydown(ev: KeyboardEvent) {

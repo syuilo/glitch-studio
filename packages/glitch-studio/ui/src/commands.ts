@@ -1765,6 +1765,43 @@ const groupTimelineLayersCommandDef = defineCommand<{ sceneId: string; layerIds:
 	}),
 });
 
+const duplicateTimelineLayersCommandDef = defineCommand<{ sceneId: string; layers: { layer: TimelineLayer; sourceLayerId: string }[]; sourceDurationsMs?: TimelineClipSourceDurations }>({
+	label: 'Duplicate timeline layers',
+	changes: (_state, payload) => [{ type: 'layerTree', sceneId: payload.sceneId }],
+	create: payload => {
+		const treeEdit = editTimelineTree(payload.sceneId, layers => {
+			for (const entry of payload.layers) {
+				const location = findTimelineLayerLocation(layers, entry.sourceLayerId);
+				if (!location) throw new Error('Source layer not found');
+				location.siblings.splice(location.index, 0, deepClone(entry.layer));
+			}
+		});
+		return {
+			execute(state) {
+				// 全レイヤーの素材を検証してから木を適用し、失敗時に一部の複製だけを残さない。
+				for (const entry of payload.layers) validateAddedTimelineLayer(state, payload.sceneId, entry.layer, payload.sourceDurationsMs);
+				treeEdit.execute(state);
+			},
+			undo: treeEdit.undo,
+		};
+	},
+});
+
+const removeTimelineLayersCommandDef = defineCommand<{ sceneId: string; layerIds: string[] }>({
+	label: 'Remove timeline layers',
+	changes: (_state, payload) => [{ type: 'layerTree', sceneId: payload.sceneId }],
+	create: payload => editTimelineTree(payload.sceneId, layers => {
+		const locations = [...new Set(payload.layerIds)].map(id => findTimelineLayerLocation(layers, id));
+		if (locations.some(location => !location)) throw new Error('Layer not found');
+		// 親と子の同時選択では親だけを削除し、選択順に左右されない一操作にする。
+		const roots = locations.filter(location => !location!.ancestors.some(ancestor => payload.layerIds.includes(ancestor.id)));
+		for (const root of roots) {
+			const location = findTimelineLayerLocation(layers, root!.layer.id)!;
+			location.siblings.splice(location.index, 1);
+		}
+	}),
+});
+
 const ungroupTimelineLayerCommandDef = defineCommand<{ sceneId: string; layerId: string }>({
 	label: 'Ungroup timeline layer',
 	changes: (_state, payload) => [{ type: 'layerTree', sceneId: payload.sceneId }],
@@ -1859,8 +1896,10 @@ export const COMMAND_DEFS = {
 	renameScene: renameSceneCommandDef,
 	removeScene: removeSceneCommandDef,
 	pasteTimelineLayer: pasteTimelineLayerCommandDef,
+	duplicateTimelineLayers: duplicateTimelineLayersCommandDef,
 	reorderTimelineLayers: reorderTimelineLayersCommandDef,
 	removeTimelineLayer: removeTimelineLayerCommandDef,
+	removeTimelineLayers: removeTimelineLayersCommandDef,
 	editTimelineLayerParam: editTimelineLayerParamCommandDef,
 	editTimelineLayerTransform: editTimelineLayerTransformCommandDef,
 	setVisualModulePrimaryOutput: setVisualModulePrimaryOutputCommandDef,

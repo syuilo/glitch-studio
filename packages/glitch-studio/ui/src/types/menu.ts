@@ -15,6 +15,7 @@ export interface MenuButton {
 	icon?: string;
 	indicate?: boolean;
 	danger?: boolean;
+	disabled?: boolean | Ref<boolean>;
 	active?: boolean | ComputedRef<boolean>;
 	action: MenuAction;
 }
