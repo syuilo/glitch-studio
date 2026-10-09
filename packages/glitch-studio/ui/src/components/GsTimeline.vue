@@ -83,6 +83,7 @@
 						:selectedKeyframes="selectedTimelineKeyframes"
 						:class="[$style.layersLane, dropTarget?.layerId === layer.id ? $style['drop_' + dropTarget.position] : null]"
 						:depth="layerAncestors.get(layer.id)?.length ?? 0"
+						:isLastOfGroup="layerAncestors.get(layer.id)?.at(-1)?.layers.at(-1)?.id === layer.id"
 						:ancestorDisabled="layerAncestors.get(layer.id)?.some(group => group.isDisabled) ?? false"
 						:collapsed="collapsedGroups.has(layer.id)"
 						:selected="selection.kind === 'layers' && selection.ids.includes(layer.id)"
