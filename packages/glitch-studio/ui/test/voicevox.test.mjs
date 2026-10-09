@@ -134,7 +134,7 @@ test('snaps multiple utterances through the timeline drag handler and merges the
 		...module.exports, selection, selectedTimelineKeyframes: { get value() { return selection.value.keyframes; } }, keyframeEntries: entries,
 		stopSelectionDrag: undefined, tlElWidth: { value: 1000 }, tlRangeX: { value: 1000 }, tlPosX: { value: 0 },
 		tlEl: { value: { focus() {} } }, sceneLayers: { value: f.scenes[0].layers }, stateManager: f.history,
-		props: { sceneId: 'root' }, time: { value: 550 }, xTicksWithMinor: { value: [] },
+		props: { sceneId: 'root' }, time: { value: 480 }, xTicksWithMinor: { value: [] },
 		snapSettings: { value: { enabled: true, globalTicks: false, localTicks: false, seekBar: true } },
 		xTicksCount: { value: 10 }, tickMode: { value: 'time' }, tickSubdivisions: { value: 1 },
 		revealDetails() {}, onKeyframeSelected() { assert.fail('Existing multiple selection must be preserved'); },
@@ -142,18 +142,18 @@ test('snaps multiple utterances through the timeline drag handler and merges the
 	});
 	handler({ button: 0, isPrimary: true, shiftKey: false, ctrlKey: false, metaKey: false }, f.point('a'));
 	assert.equal(move.points.length, 2);
-	assert.equal(move.points[1].maxDelta, 199);
-	const snapped = constrainTimelineMove(148, move.points, move.times, 1);
-	assert.equal(snapped.delta, 150);
-	assert.equal(snapped.snappingTime, 550);
+	assert.equal(move.points[1].maxDelta, 100);
+	const snapped = constrainTimelineMove(78, move.points, move.times, 1);
+	assert.equal(snapped.delta, 80);
+	assert.equal(snapped.snappingTime, 480);
 	move.apply(snapped.delta, 'drag');
-	move.apply(160, 'drag');
-	assert.deepEqual(f.layer.utterances.map(utterance => utterance.timeMs), [260, 560, 600]);
+	move.apply(constrainTimelineMove(160, move.points, move.times, 1).delta, 'drag');
+	assert.deepEqual(f.layer.utterances.map(utterance => utterance.timeMs), [200, 500, 600]);
 	assert.equal(f.history.undoStack.value.length, 1);
 	f.history.undo();
 	assert.deepEqual(f.layer.utterances.map(utterance => utterance.timeMs), [100, 400, 600]);
 	f.history.redo();
-	assert.deepEqual(f.layer.utterances.map(utterance => utterance.timeMs), [260, 560, 600]);
+	assert.deepEqual(f.layer.utterances.map(utterance => utterance.timeMs), [200, 500, 600]);
 	assert.equal(constrainTimelineMove(-1000, move.points, [], 1).delta, -100);
 	handler({ button: 0, isPrimary: true, ctrlKey: true, preventDefault() {} }, f.point('b'));
 	assert.deepEqual(selection.value.keyframes, [f.point('a')]);
@@ -174,7 +174,7 @@ test('adds and selects a speech key using the double-click handler', async t => 
 	assert.equal(f.history.undoStack.value.length, 0);
 	add({ button: 0, clientX: 721, currentTarget: { getBoundingClientRect: () => ({ left: 20 }) } });
 	assert.deepEqual(f.layer.utterances.find(utterance => utterance.id === selected), { id: selected, timeMs: 451, text: '', reading: null, styleId: 7, subtitleDuration: { mode: 'fill' } });
-	assert.deepEqual(getVoicevoxUtteranceTimeBounds(f.layer.utterances, selected), { min: 401, max: 599 });
+	assert.deepEqual(getVoicevoxUtteranceTimeBounds(f.layer.utterances, selected), { min: 451, max: 500 });
 	f.history.undo();
 	assert.equal(f.layer.utterances.some(utterance => utterance.id === selected), false);
 	f.history.redo();
@@ -263,11 +263,11 @@ test('edits only the selected utterance and clamps its time between neighbours',
 	assert.equal(f.layer.utterances[0].text, 'Hello');
 	assert.equal(props.utterance.text, 'New subtitle');
 	editTime(999);
-	assert.equal(props.utterance.timeMs, 599);
+	assert.equal(props.utterance.timeMs, 500);
 	editTime(-10);
-	assert.equal(props.utterance.timeMs, 101);
+	assert.equal(props.utterance.timeMs, 200);
 	f.history.undo();
-	assert.equal(props.utterance.timeMs, 599);
+	assert.equal(props.utterance.timeMs, 500);
 	f.history.undo();
 	f.history.undo();
 	assert.equal(props.utterance.styleId, 7);
@@ -559,7 +559,7 @@ test('supports nested placements and audio layer selection without moving speech
 });
 
 // 【キーの編集と衝突拒否をCommandの原子性・Undo/Redoで保証する】
-// 無効な同時刻キーの追加が一部反映されたり、クリップ移動でキーが追従したりしない。
+// 無効な同時刻キーの追加を一部反映せず、クリップの移動では区間内の発話キーも追従させる。
 test('edits speech through undoable commands and rejects duplicate times atomically', t => {
 	t.mock.method(console, 'log', () => {});
 	const f = fixture();
@@ -574,7 +574,7 @@ test('edits speech through undoable commands and rejects duplicate times atomica
 	assert.throws(() => history.commit('editVoicevoxLayer', { ...payload, utterances: [utterance('a', 350), utterance('b', 350)] }), /Invalid/);
 	assert.deepEqual(f.layer.utterances, payload.utterances);
 	history.commit('moveTimelineClips', { sceneId: 'root', clips: [{ layerId: 'speech', clipId: 'visible' }], deltaMs: 500 });
-	assert.equal(f.layer.utterances[0].timeMs, 350);
+	assert.equal(f.layer.utterances[0].timeMs, 850);
 });
 
 // 【生成済みバイナリと読み・声設定をAssetなしで保存する】

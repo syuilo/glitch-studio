@@ -48,7 +48,7 @@ export function getVoicevoxSubtitleTrimBounds(settings: VoicevoxSettings, uttera
 export function getVoicevoxUtteranceTimeBounds(utterances: readonly VoicevoxUtterance[], id: string) {
 	const utterance = utterances.find(utterance => utterance.id === id);
 	if (!utterance) return null;
-	// 発話は同時刻を許可しないため、未選択の隣のキーとの間に1msを残す。
-	const bounds = keyframeMoveBounds(utterances.map(utterance => ({ id: utterance.id, x: utterance.timeMs })), new Set([id]), id, 1);
+	// 数値編集もドラッグと同じ間隔に制限し、入力方法によって衝突位置が変わらないようにする。
+	const bounds = keyframeMoveBounds(utterances.map(utterance => ({ id: utterance.id, x: utterance.timeMs })), new Set([id]), id);
 	return { min: utterance.timeMs + bounds.minDelta, max: utterance.timeMs + bounds.maxDelta };
 }

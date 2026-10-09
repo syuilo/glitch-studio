@@ -346,7 +346,7 @@
 </template>
 
 <script lang="ts" setup>
-import { createTimelineClipTiming, getTimelineClipEnd, getTimelineClipInsertionDuration, getTimelineClipMoveBounds, getTimelineClipTrimBounds } from '@gs/subsystems_timeline_shared/timing.ts';
+import { createTimelineClipTiming, getTimelineClipEnd, getTimelineClipInsertionDuration, getTimelineClipTrimBounds } from '@gs/subsystems_timeline_shared/timing.ts';
 import { isParameterType } from '@gs/shared/parameter/parameter-definition.ts';
 import { LAYER_VAR_DEFS } from '@gs/subsystems_timeline_shared/expression.ts';
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef, toRef, useTemplateRef, watch } from 'vue';
@@ -403,6 +403,7 @@ import { getTimelineClipSnapPoints, getTimelineSnapCandidates, getTimelineSeekPo
 import { preferences } from '@/preferences.ts';
 import { listenPointerDrag } from '@/utility/pointer-drag.ts';
 import { getTimelineKeyframeEntries, getTimelineKeyframeLanes } from '@/utility/timeline-keyframe-lanes.ts';
+import { prepareTimelineClipMove } from '@/utility/timeline-clip-move.ts';
 import { getLayerParameterValues, getLayerParameterDefinition, resolveLayerParameter } from '@/utility/timeline-scene.ts';
 import { inspectTimelineClipMedia } from '@/utility/timeline-clip-media.ts';
 import { selectionRect, mergeTimelineRangeSelection, clipSelectionKey, keyframeSelectionKey, getTimelineStretchSelection, constrainTimelineMove, keyframeMoveBounds, getTimelineSnappingTimes } from '@/utility/timeline-selection.ts';
@@ -653,11 +654,12 @@ const selectedKeyframe = computed(() => {
 	const keyframes = binding.keyframesTimeline.keyframes.toSorted((a, b) => a.x - b.x);
 	const index = keyframes.findIndex(entry => entry.id === selection.keyframeId);
 	if (index < 0) return null;
+	const bounds = keyframeMoveBounds(keyframes, new Set([selection.keyframeId]), selection.keyframeId);
 	return {
 		selection, binding, def, keyframe: keyframes[index],
 		previousKeyframe: keyframes[index - 1] ?? null,
-		minX: Math.max(0, keyframes[index - 1]?.x ?? -Infinity),
-		maxX: keyframes[index + 1]?.x ?? Infinity,
+		minX: keyframes[index].x + bounds.minDelta,
+		maxX: keyframes[index].x + bounds.maxDelta,
 	};
 });
 
@@ -1113,10 +1115,9 @@ function onClipMoveStart(event: PointerEvent, target: TimelineClipSelection) {
 	revealDetails();
 	const targets = deepClone(selection.value.clips);
 	const entries = targets.map(resolveClip).filter(entry => entry != null);
-	const points = entries.flatMap(({ layer, clip }) => {
-		const bounds = getTimelineClipMoveBounds(layer.clips, new Set(targets.filter(target => target.layerId === layer.id).map(target => target.clipId)), clip.id);
-		return getTimelineClipSnapPoints(clip, bounds, clipSnapSettings.value);
-	});
+	const move = prepareTimelineClipMove(stateManager.state, editedScene, targets);
+	const points = entries.flatMap(({ clip }) => getTimelineClipSnapPoints(clip,
+		{ minDelta: move.minDelta, maxDelta: move.maxDelta }, clipSnapSettings.value));
 	const selected = new Set(targets.map(clipSelectionKey));
 	const snapTimes = getTimelineSnapCandidates(snapSettings.value, [0, ...sceneLayers.value.flatMap(layer => layer.clips
 		.filter(clip => !selected.has(clipSelectionKey({ layerId: layer.id, clipId: clip.id })))
@@ -1124,7 +1125,7 @@ function onClipMoveStart(event: PointerEvent, target: TimelineClipSelection) {
 	const initialTargets = entries.map(({ target, clip }) => ({ ...target, initialStartMs: clip.startMs }));
 	startSelectionMove(event, points, snapTimes, (delta, mergeKey) => {
 		if (targets.some(target => !resolveClip(target))) return false;
-		stateManager.commit('moveTimelineClips', { sceneId: props.sceneId, clips: initialTargets, deltaMs: delta }, mergeKey);
+		stateManager.commit('moveTimelineClips', { sceneId: props.sceneId, clips: initialTargets, initialKeyframes: move.keyframes, deltaMs: delta }, mergeKey);
 		return true;
 	});
 }
@@ -1230,7 +1231,7 @@ function onKeyframeMoveStart(event: PointerEvent, point: TimelineKeyframeSelecti
 	}));
 	const points = entries.filter(entry => stretch == null || keyframeSelectionKey(entry.selection) === key).map(entry => {
 		const ids = new Set(current.keyframes.filter(point => point.layerId === entry.selection.layerId && point.target === entry.selection.target && paramPathKey(point.paramPath) === paramPathKey(entry.selection.paramPath)).map(point => point.keyframeId));
-		const bounds = stretch ?? keyframeMoveBounds(entry.keyframes, ids, entry.selection.keyframeId, entry.selection.target === 'utterance' ? 1 : 0);
+		const bounds = stretch ?? keyframeMoveBounds(entry.keyframes, ids, entry.selection.keyframeId);
 		return { time: entry.time, minDelta: bounds.minDelta, maxDelta: bounds.maxDelta, snapTimes: candidatesByLayer.get(entry.selection.layerId) ?? [] };
 	});
 	const positions = entries.map(entry => ({ ...entry.selection, x: entry.x }));

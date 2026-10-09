@@ -19,7 +19,7 @@ import { validateEffectResolution } from '@gs/subsystems_effect_shared/resolutio
 import type { EffectResolution } from '@gs/subsystems_effect_shared/resolution.ts';
 import { getScene, getLayerParameterValues, getLayerParameterDefinitions, resolveLayerParameter } from './utility/timeline-scene.ts';
 import { canReferenceScene, validateTimelineScenes } from '@gs/subsystems_timeline_shared/scenes.ts';
-import { getTimelineClipMoveBounds, getTimelineClipTrimBounds, getTimelineClipInsertionDuration, getTimelineMediaMaxDurationMs, validateTimelineClips } from '@gs/subsystems_timeline_shared/timing.ts';
+import { getTimelineClipTrimBounds, getTimelineClipInsertionDuration, getTimelineMediaMaxDurationMs, validateTimelineClips } from '@gs/subsystems_timeline_shared/timing.ts';
 import type { TimelineClipTiming } from '@gs/subsystems_timeline_shared/timing.ts';
 import type { TimelineClip, TimelineAssetClip, TimelineVideoClip, TimelineSceneClip } from '@gs/subsystems_timeline_shared/clip.ts';
 import { validateTimelineParameterTree } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
@@ -58,7 +58,11 @@ import { createInlineKeyframesTimeline } from '@/utility/keyframes-timeline.ts';
 import { createResetParameterBinding } from '@/utility/parameter-default.ts';
 import { getVisualModule, listVisualModules } from '@/utility/visual-module-target.ts';
 import type { VisualModuleTarget } from '@/utility/visual-module-target.ts';
-import type { TimelineKeyframeSelection } from '@/utility/timeline-selection.ts';
+import type { TimelineKeyframeSelection, TimelineKeyframePosition } from '@/utility/timeline-selection.ts';
+import { prepareTimelineClipMove } from '@/utility/timeline-clip-move.ts';
+import type { TimelineClipMoveTarget } from '@/utility/timeline-clip-move.ts';
+import { prepareTimelineKeyframeMove } from '@/utility/timeline-keyframe-move.ts';
+import type { TimelineKeyframeMoveUpdate } from '@/utility/timeline-keyframe-move.ts';
 import type { TimelineClipPaste } from '@/utility/timeline-clip-clipboard.ts';
 import { getTimelineKeyframePasteUpdates } from '@/utility/timeline-keyframe-clipboard.ts';
 import type { TimelineKeyframePaste } from '@/utility/timeline-keyframe-clipboard.ts';
@@ -1331,48 +1335,53 @@ const editTimelineClipTimingCommandDef = defineCommand<TimelineClipTarget & { sc
 	},
 });
 
-const moveTimelineClipsCommandDef = defineCommand<{ sceneId: string; clips: (TimelineClipTarget & { initialStartMs?: number })[]; deltaMs: number }>({
+function applyTimelineKeyframeMove(state: ProjectState, sceneId: string, updates: TimelineKeyframeMoveUpdate[], side: 'before' | 'after') {
+	for (const update of updates) {
+		const layer = getTimelineLayer(state, sceneId, update.layerId);
+		if (update.target === 'utterance') {
+			if (layer.layerType === 'voicevox') layer.utterances = deepClone(update[side]);
+		} else setTimelineLayerParameterRoot(layer, update.target, update.paramId, update[side]);
+	}
+}
+
+const moveTimelineClipsCommandDef = defineCommand<{ sceneId: string; clips: TimelineClipMoveTarget[]; deltaMs: number; initialKeyframes?: TimelineKeyframePosition[] }>({
 	label: 'Move timeline clips',
-	changes: (_state, payload) => payload.clips.map(clip => ({ type: 'layer', sceneId: payload.sceneId, layerId: clip.layerId, changes: [{ type: 'clips' }] })),
+	changes: (_state, payload) => [...new Set(payload.clips.map(clip => clip.layerId))].map(layerId => ({
+		type: 'layer', sceneId: payload.sceneId, layerId, changes: [
+			{ type: 'clips' },
+			...[...new Set(payload.initialKeyframes?.filter(point => point.layerId === layerId).map(point => point.target))].map(target => target === 'utterance'
+				? { type: 'definition' as const } : { type: 'parameter' as const, target, kind: 'value' as const }),
+		],
+	})),
 	create: payload => {
 		let before: (TimelineClipTarget & { startMs: number })[];
 		let after: (TimelineClipTarget & { startMs: number })[] | undefined;
+		let keyframeUpdates: TimelineKeyframeMoveUpdate[] = [];
+		const apply = (state: ProjectState, side: 'before' | 'after') => {
+			for (const position of side === 'before' ? before : after!) getTimelineClip(state, payload.sceneId, position).clip.startMs = position.startMs;
+			applyTimelineKeyframeMove(state, payload.sceneId, keyframeUpdates, side);
+		};
 		return {
 			execute(state) {
 				// Commandのマージは最後のexecuteだけを残す。差分を再実行するとRedoが
 				// 最後のpointermove一回分に縮むため、計算済みの絶対位置を復元する。
-				if (after) { for (const target of after) getTimelineClip(state, payload.sceneId, target).clip.startMs = target.startMs; return; }
+				if (after) { apply(state, 'after'); return; }
 				if (!Number.isFinite(payload.deltaMs)) throw new Error('Invalid clip move');
 				if (payload.clips.length === 0) { before = []; after = []; return; }
-				if (new Set(payload.clips.map(target => JSON.stringify([target.layerId, target.clipId]))).size !== payload.clips.length) throw new Error('Duplicate clip move target');
-				const entries = payload.clips.map(({ initialStartMs, ...target }) => ({ target, initialStartMs, ...getTimelineClip(state, payload.sceneId, target) }));
-				// ドラッグは開始時の配置から計算する。各pointermoveの小数差分を個別に
-				// 丸めて足すと、イベントの頻度によって最終位置が変わってしまうため。
-				const initialClipsByLayer = new Map([...new Set(entries.map(entry => entry.layer))].map(layer => {
-					const clips = layer.clips.map(clip => {
-						const entry = entries.find(entry => entry.layer === layer && entry.clip === clip);
-						return entry?.initialStartMs == null ? clip : { ...clip, startMs: entry.initialStartMs };
-					});
-					validateTimelineClips(clips);
-					return [layer, clips] as const;
-				}));
-				const bounds = entries.map(({ layer, clip }) => getTimelineClipMoveBounds(initialClipsByLayer.get(layer)!,
-					new Set(payload.clips.filter(target => target.layerId === layer.id).map(target => target.clipId)), clip.id));
-				const delta = Math.max(Math.max(...bounds.map(bound => bound.minDelta)), Math.min(Math.min(...bounds.map(bound => bound.maxDelta)), Math.round(payload.deltaMs)));
-				before = entries.map(({ target, clip }) => ({ ...target, startMs: clip.startMs }));
-				// 全対象の制限を交差させた単一の移動量を適用する。隣を飛び越す移動も許可しない。
-				// TODO: 移動区間内のレイヤーのキーフレームを追従させるオプション。
-				const proposed = entries.map(({ target, clip, initialStartMs }) => ({ ...target, startMs: (initialStartMs ?? clip.startMs) + delta }));
-				for (const layer of new Set(entries.map(entry => entry.layer))) {
-					validateTimelineClips(layer.clips.map(clip => {
-						const position = proposed.find(target => target.layerId === layer.id && target.clipId === clip.id);
-						return position ? { ...clip, startMs: position.startMs } : clip;
-					}));
-				}
-				after = proposed;
-				for (const position of after) getTimelineClip(state, payload.sceneId, position).clip.startMs = position.startMs;
+				const scene = getScene(state, payload.sceneId);
+				const move = prepareTimelineClipMove(state, scene, payload.clips, payload.initialKeyframes);
+				const delta = Math.max(move.minDelta, Math.min(move.maxDelta, Math.round(payload.deltaMs)));
+				// キーも全件検証してから適用する。発話の不正な終端などで、一部のクリップ
+				// だけが動いた状態を残さない。ルート単位で保存するため既定Bindingも壊さない。
+				keyframeUpdates = prepareTimelineKeyframeMove(state, scene, move.keyframes.map(point => ({ ...point, x: point.x + delta })));
+				before = move.clips.map(target => ({ ...target, startMs: getTimelineClip(state, payload.sceneId, target).clip.startMs }));
+				after = move.clips.map(target => ({ ...target, startMs: target.startMs + delta }));
+				// UndoRedoが複製したpayloadに対象を残し、数値入力による一回の移動でも
+				// 実行・Undo・Redoが同じパラメータ変更をレンダラーへ通知する。
+				payload.initialKeyframes = move.keyframes;
+				apply(state, 'after');
 			},
-			undo(state) { for (const target of before) getTimelineClip(state, payload.sceneId, target).clip.startMs = target.startMs; },
+			undo(state) { apply(state, 'before'); },
 		};
 	},
 });
@@ -1637,43 +1646,18 @@ const pasteTimelineKeyframesCommandDef = defineCommand<{ sceneId: string; keyfra
 	},
 });
 
-const moveTimelineKeyframesCommandDef = defineCommand<{ sceneId: string; positions: (TimelineKeyframeSelection & { x: number })[] }>({
+const moveTimelineKeyframesCommandDef = defineCommand<{ sceneId: string; positions: TimelineKeyframePosition[] }>({
 	label: 'Move timeline keyframes',
 	changes: (_state, payload) => payload.positions.map(position => ({ type: 'layer', sceneId: payload.sceneId, layerId: position.layerId,
 		changes: position.target === 'utterance' ? [{ type: 'definition' }] : [{ type: 'parameter', target: position.target, kind: 'value' }] })),
 	create: payload => {
-		let before: typeof payload.positions;
-		const apply = (state: ProjectState, positions: typeof payload.positions) => {
-			const layers = getScene(state, payload.sceneId).layers;
-			const speechUpdates = new Map<string, VoicevoxUtterance[]>();
-			const updates = positions.map(position => {
-				const layer = layers.find(layer => layer.id === position.layerId);
-				if (layer == null || !Number.isSafeInteger(Math.round(position.x)) || position.x < 0) throw new Error('Invalid keyframe move');
-				if (position.target === 'utterance') {
-					if (layer.layerType !== 'voicevox' || (position.paramPath.length !== 1 || position.paramPath[0] !== 'utterances')) throw new Error('Invalid utterance target');
-					const utterance = layer.utterances.find(utterance => utterance.id === position.keyframeId);
-					if (!utterance) throw new Error('Utterance not found');
-					const proposed = speechUpdates.get(layer.id) ?? deepClone(layer.utterances);
-					proposed.find(utterance => utterance.id === position.keyframeId)!.timeMs = Math.round(position.x);
-					speechUpdates.set(layer.id, proposed);
-					return { before: { ...position, x: utterance.timeMs }, apply: () => { layer.utterances = proposed; } };
-				}
-				const binding = resolveLayerParameter(state, layer, position.target, position.paramPath).value;
-				const point = binding?.inputSource === 'keyframesTimelineInline' ? binding.keyframesTimeline.keyframes.find(point => point.id === position.keyframeId) : undefined;
-				if (point == null) throw new Error('Timeline keyframe not found');
-				return { before: { ...position, x: point.x }, apply: () => { point.x = Math.round(position.x); } };
-			});
-			// 異なるレイヤーや通常キーを同時に動かす場合も、発話の衝突を全件検証してから保存する。
-			for (const [id, utterances] of speechUpdates) {
-				const layer = layers.find(layer => layer.id === id)!;
-				if (layer.layerType === 'voicevox') validateVoicevoxLayer({ voicevox: layer.voicevox, utterances });
-			}
-			for (const update of updates) update.apply();
-			return updates.map(update => update.before);
-		};
+		let updates: TimelineKeyframeMoveUpdate[] | undefined;
 		return {
-			execute(state) { before = apply(state, payload.positions); },
-			undo(state) { apply(state, before); },
+			execute(state) {
+				updates ??= prepareTimelineKeyframeMove(state, getScene(state, payload.sceneId), payload.positions);
+				applyTimelineKeyframeMove(state, payload.sceneId, updates, 'after');
+			},
+			undo(state) { applyTimelineKeyframeMove(state, payload.sceneId, updates!, 'before'); },
 		};
 	},
 });

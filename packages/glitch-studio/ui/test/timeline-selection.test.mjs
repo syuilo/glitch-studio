@@ -119,17 +119,17 @@ test('preserves partial selections across lanes when choosing stretch targets', 
 });
 
 // 【未選択キーとの境界で全体のストレッチを止める】
-// 選択範囲外・範囲内に未選択キーがある場合も、動くキーが追い越して順序を変えないようにする。
+// 選択範囲外・範囲内に未選択キーがある場合も、100msまたは開始時の短い間隔を残す。
 // 共通固定端の左右で移動方向が逆になる場合の制約も確認する。
 test('constrains partial stretching against unselected neighbors on either side of the anchor', () => {
 	const lane = [{ id: 'a', x: 100 }, { id: 'b', x: 150 }, { id: 'c', x: 200 }, { id: 'd', x: 800 }];
 	const selected = new Set(['a', 'c']);
 	const affected = lane.filter(point => selected.has(point.id)).map(point => ({ ...point, ...keyframeMoveBounds(lane, selected, point.id) }));
 	const first = createKeyframeStretch(affected, 'a', affected);
-	assert.equal(first.maxDelta, 50);
-	assert.equal(stretchKeyframeX(100, first, 100), 150);
+	assert.equal(first.maxDelta, 0);
+	assert.equal(stretchKeyframeX(100, first, 100), 100);
 	const last = createKeyframeStretch(affected, 'c', [...affected, { x: 50, minDelta: -25, maxDelta: 25 }]);
-	assert.equal(last.minDelta, -50);
+	assert.equal(last.minDelta, 0);
 	assert.equal(last.maxDelta, 50);
 	assert.equal(stretchKeyframeX(200, last, 100), 250);
 	assert.equal(stretchKeyframeX(50, last, 100), 25);
@@ -270,15 +270,15 @@ test('clamps and snaps one shared delta without changing layer spacing', () => {
 });
 
 // 【選択したキー同士は移動を妨げず、未選択の隣接キーは越えない】
-// 連続する複数キーだけでなく、間に未選択キーがある場合も同じ移動量を制限して順序を保つ。
+// 連続する複数キーだけでなく、間に未選択キーがある場合も100msを残して順序を保つ。
 test('constrains keyframes against unselected neighbors and local time zero', () => {
 	const points = [0, 100, 200, 300].map(x => ({ id: String(x), x }));
 	const selected = new Set(['100', '200']);
 	const bounds = ['100', '200'].map(id => keyframeMoveBounds(points, selected, id));
-	assert.deepEqual(bounds, [{ minDelta: -100, maxDelta: 200 }, { minDelta: -200, maxDelta: 100 }]);
-	assert.equal(constrainTimelineMove(250, bounds.map((bound, index) => ({ ...bound, time: 1000 + index * 100 })), [], 1).delta, 100);
-	assert.deepEqual(keyframeMoveBounds(points, new Set(['0', '200']), '0'), { minDelta: 0, maxDelta: 100 });
-	assert.deepEqual(keyframeMoveBounds(points, new Set(['0', '200']), '200'), { minDelta: -100, maxDelta: 100 });
+	assert.deepEqual(bounds, [{ minDelta: 0, maxDelta: 100 }, { minDelta: -100, maxDelta: 0 }]);
+	assert.equal(constrainTimelineMove(250, bounds.map((bound, index) => ({ ...bound, time: 1000 + index * 100 })), [], 1).delta, 0);
+	assert.deepEqual(keyframeMoveBounds(points, new Set(['0', '200']), '0'), { minDelta: 0, maxDelta: 0 });
+	assert.deepEqual(keyframeMoveBounds(points, new Set(['0', '200']), '200'), { minDelta: 0, maxDelta: 0 });
 	assert.deepEqual(keyframeMoveBounds(points, new Set(points.map(point => point.id)), '100'), { minDelta: -100, maxDelta: Infinity });
 });
 
@@ -511,13 +511,13 @@ test('stretches only selected keys across lanes and restores them with one undo'
 		new Set(positions.filter(entry => entry.target === point.target).map(entry => entry.keyframeId)), point.keyframeId) }));
 	const stretch = createKeyframeStretch(opacity.filter(point => point.id !== '2'), '1', bounds);
 	assert.equal(stretch.anchorX, 100);
-	assert.equal(stretch.maxDelta, 200);
+	assert.equal(stretch.maxDelta, 500 / 3);
 	for (const delta of [50, 500, 100, 200]) manager.commit('moveTimelineKeyframes', {
 		sceneId: 'scene', positions: positions.map(point => ({ ...point, x: stretchKeyframeX(point.x, stretch, delta) })),
 	}, 'partial-stretch');
 	const expected = structuredClone(before);
-	expected[1].compositingParamValues.opacity.keyframesTimeline.keyframes[1].x = 400;
-	expected[1].audioParamValues.volume.keyframesTimeline.keyframes[1].x = 1000;
+	expected[1].compositingParamValues.opacity.keyframesTimeline.keyframes[1].x = 367;
+	expected[1].audioParamValues.volume.keyframesTimeline.keyframes[1].x = 900;
 	assert.deepEqual(snapshot(manager), expected);
 	assert.deepEqual(selection.keyframes, selected);
 	assert.equal(manager.undoStack.value.length, 1);
@@ -551,13 +551,16 @@ test('undoes and redoes a stretch as one command while preserving other paramete
 });
 
 // 【一括クリップ移動を1回のUndoで戻し、同じ結果へRedoする】
-// ドラッグの更新回数にかかわらず履歴を1件にまとめ、素材のトリムやパラメータ値を変更しない。
+// ドラッグの更新回数にかかわらず履歴を1件にまとめ、区間内のキーだけを追従させる。
+// 素材のトリム・キーの値と補間は変更しない。
 test('undoes and redoes a multi-clip drag as one history entry', () => {
 	const manager = fixture();
 	const before = snapshot(manager);
 	for (const deltaMs of [20, 40, 40]) manager.commit('moveTimelineClips', { sceneId: 'scene', clips: before.map(layer => ({ layerId: layer.id, clipId: 'clip' })), deltaMs }, 'drag');
 	assert.equal(manager.undoStack.value.length, 1);
 	const after = before.map(layer => ({ ...layer, clips: layer.clips.map(clip => ({ ...clip, startMs: clip.startMs + 100 })) }));
+	after[0].audioParamValues = structuredClone(before[0].audioParamValues);
+	after[0].audioParamValues.volume.keyframesTimeline.keyframes.forEach(point => { point.x += 100; });
 	assert.deepEqual(snapshot(manager), after);
 	for (let i = 0; i < 2; i++) {
 		manager.undo();

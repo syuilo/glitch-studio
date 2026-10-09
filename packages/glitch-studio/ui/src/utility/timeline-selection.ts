@@ -12,6 +12,8 @@ export type TimelineKeyframeSelection = {
 	keyframeId: string;
 };
 
+export type TimelineKeyframePosition = TimelineKeyframeSelection & { x: number };
+
 export type TimelineSelection =
 	| { kind: 'layers'; ids: string[] }
 	| { kind: 'clips'; clips: TimelineClipSelection[] }
@@ -109,11 +111,16 @@ export function getTimelineSnappingTimes(points: TimelineMovePoint[], snapTimes:
 	return [...new Set(points.flatMap(point => (point.snapTimes ?? snapTimes).map(Math.round).filter(time => point.time + delta === time)))];
 }
 
-export function keyframeMoveBounds(keyframes: { id: string; x: number }[], selectedIds: ReadonlySet<string>, keyframeId: string, minimumGap = 0): { minDelta: number; maxDelta: number } {
+export function keyframeMoveBounds(keyframes: readonly { id: string; x: number }[], selectedIds: ReadonlySet<string>, keyframeId: string): { minDelta: number; maxDelta: number } {
 	const sorted = keyframes.toSorted((a, b) => a.x - b.x);
 	const index = sorted.findIndex(point => point.id === keyframeId);
 	const point = sorted[index];
 	const previous = sorted.slice(0, index).findLast(entry => !selectedIds.has(entry.id));
 	const next = sorted.slice(index + 1).find(entry => !selectedIds.has(entry.id));
-	return { minDelta: Math.max(0, previous ? previous.x + minimumGap : 0) - point.x, maxDelta: (next ? next.x - minimumGap : Infinity) - point.x };
+	// 既存の短い間隔を操作開始時に広げると、触れただけでキーが飛んでしまう。
+	// 100ms未満なら元の間隔を下限にし、同じ操作の往復でも開始位置まで戻せるようにする。
+	return {
+		minDelta: Math.max(0, previous ? previous.x + Math.min(100, point.x - previous.x) : 0) - point.x,
+		maxDelta: (next ? next.x - Math.min(100, next.x - point.x) : Infinity) - point.x,
+	};
 }
