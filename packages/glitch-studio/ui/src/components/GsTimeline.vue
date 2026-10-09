@@ -85,10 +85,10 @@
 						:depth="layerAncestors.get(layer.id)?.length ?? 0"
 						:isLastOfGroup="layerAncestors.get(layer.id)?.at(-1)?.layers.at(-1)?.id === layer.id"
 						:ancestorDisabled="layerAncestors.get(layer.id)?.some(group => group.isDisabled) ?? false"
-						:collapsed="collapsedLayers.has(layer.id)"
+						:collapsed="!expandedLayers.has(layer.id)"
 						:selected="selection.kind === 'layers' && selection.ids.includes(layer.id)"
 						:moving="movingSelection"
-						@toggleCollapse="toggleLayerCollapse(layer.id)"
+						@toggleCollapse="toggleLayerExpansion(layer.id)"
 						@groupMoveStart="event => onGroupMoveStart(event, layer)"
 						@dragover="onLayerDragOver($event, layer)"
 						@drop="onLayerDrop"
@@ -505,9 +505,10 @@ let disposed = false;
 const rootLayers = computed(() => stateManager.state.timelineScenes.value.find(scene => scene.id === props.sceneId)?.layers ?? []);
 const sceneLayers = computed(() => flattenTimelineLayers(rootLayers.value));
 const clipLayers = computed(() => sceneLayers.value.filter(layer => layer.layerType !== 'group'));
-const collapsedLayers = ref(new Set<string>());
+// 展開したレイヤーだけを保持し、既存・新規レイヤーとも初期状態は折りたたみにする。
+const expandedLayers = ref(new Set<string>());
 const visibleLayers = computed(() => {
-	const visit = (layers: TimelineLayer[]): TimelineLayer[] => layers.flatMap(layer => layer.layerType === 'group' && !collapsedLayers.value.has(layer.id) ? [layer, ...visit(layer.layers)] : [layer]);
+	const visit = (layers: TimelineLayer[]): TimelineLayer[] => layers.flatMap(layer => layer.layerType === 'group' && expandedLayers.value.has(layer.id) ? [layer, ...visit(layer.layers)] : [layer]);
 	return visit(rootLayers.value);
 });
 const layerAncestors = computed(() => {
@@ -522,10 +523,10 @@ const layerAncestors = computed(() => {
 	return result;
 });
 
-function toggleLayerCollapse(id: string) {
-	const next = new Set(collapsedLayers.value);
+function toggleLayerExpansion(id: string) {
+	const next = new Set(expandedLayers.value);
 	if (next.has(id)) next.delete(id); else next.add(id);
-	collapsedLayers.value = next;
+	expandedLayers.value = next;
 }
 
 const draggingLayerId = ref<string | null>(null);
@@ -580,7 +581,7 @@ const marqueeLayers = computed(() => visibleLayers.value.map(layer => ({
 	id: layer.id,
 	clips: layer.layerType === 'group' ? [] : layer.clips,
 	// 範囲選択は未描画の中間行も対象にするため、DOMだけでなく候補からも非表示のレーンを除く。
-	lanes: layer.layerType !== 'group' && collapsedLayers.value.has(layer.id) ? [] : getTimelineKeyframeLanes(stateManager.state, layer),
+	lanes: layer.layerType !== 'group' && !expandedLayers.value.has(layer.id) ? [] : getTimelineKeyframeLanes(stateManager.state, layer),
 })));
 const layerSizeKeys = computed(() => new Map(marqueeLayers.value.map(layer => [layer.id, JSON.stringify(layer.lanes.map(lane => [lane.target, lane.paramPath]))])));
 
@@ -659,7 +660,6 @@ function groupSelection() {
 		id, name: 'Group', layerType: 'group', layers: [], isDisabled: false, automationGraphs: [],
 		compositingParamValues: initialCompositingParameters(), audioParamValues: { volume: deepClone(timelineAudioParamDefs.volume.defaultValue) },
 	} });
-	collapsedLayers.value = new Set([...collapsedLayers.value, id]);
 	selection.value = { kind: 'layers', ids: [id] };
 }
 
