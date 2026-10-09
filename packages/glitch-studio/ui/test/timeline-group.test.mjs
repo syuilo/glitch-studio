@@ -1,16 +1,16 @@
+import { createDragActionsFixture } from './helpers/timeline-drag-actions.mjs';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
-import { build, transform } from 'esbuild';
-import { readFile } from 'node:fs/promises';
-import { parse } from 'vue/compiler-sfc';
-import { createSourceFile, isFunctionDeclaration, ScriptTarget } from 'typescript';
+import { build } from 'esbuild';
 
 const uiDirectory = fileURLToPath(new URL('../', import.meta.url));
 const bundled = await build({
 	absWorkingDir: uiDirectory,
 	stdin: { resolveDir: uiDirectory, loader: 'ts', contents: `
+		export { createTimelineDragActions } from './src/utility/timeline-drag-actions.ts';
+		export { flattenTimelineLayers } from '@gs/subsystems_timeline_shared/layer-tree.ts';
 		export * from './src/utility/timeline-clip-move.ts';
 		export * from './src/utility/timeline-group.ts';
 		export * from '@gs/subsystems_timeline_shared/layers/group/group.ts';
@@ -151,22 +151,10 @@ test('moves virtual group clips through the timeline handler with stable snappin
 	const outside = sound('outside', 3000);
 	const f = fixture(t, [rootGroup, outside]);
 	const before = structuredClone(f.scene);
-	let drag;
-	let selected;
-	const source = await readFile(new URL('../src/components/GsTimeline.vue', import.meta.url), 'utf8');
-	const ast = createSourceFile('GsTimeline.vue', parse(source).descriptor.scriptSetup.content, ScriptTarget.Latest);
-	const handler = ast.statements.find(statement => isFunctionDeclaration(statement) && statement.name?.text === 'onGroupMoveStart');
-	const { code } = await transform(handler.getText(ast), { loader: 'ts' });
-	const context = { ...module.exports, stopSelectionDrag: { value: undefined }, tlElWidth: { value: 1000 }, tlRangeX: { value: 1000 },
-		stateManager: f.history, props: { sceneId: 'scene' }, rootLayers: { value: f.scene.layers }, clipLayers: { value: [rootGroup.layers[0], outside] },
-		clipSnapSettings: { value: { start: true, end: true, contentStart: false } },
-		snapSettings: { value: { enabled: true, globalTicks: false, localTicks: false, seekBar: false } },
-		xTicksWithMinor: { value: [] }, time: { value: 4000 },
-		selectLayer(layer) { selected = layer.id; }, startSelectionMove(event, points, times, apply) { drag = { points, times, apply }; },
-	};
-	const start = new Function('context', `const { ${Object.keys(context).join(', ')} } = context; ${code}; return onGroupMoveStart;`)(context);
-	start({ button: 0, isPrimary: true }, rootGroup);
-	assert.equal(selected, 'group');
+	const controls = createDragActionsFixture(module.exports, f, { currentTime: 4000 });
+	controls.actions.onGroupMoveStart({ button: 0, isPrimary: true }, rootGroup);
+	const drag = controls.move;
+	assert.deepEqual(controls.selection.value, { kind: 'layers', ids: ['group'] });
 	assert.ok(drag.points.length > 0);
 	assert.equal(drag.times.includes(1000), false);
 	assert.equal(drag.times.includes(1500), false);

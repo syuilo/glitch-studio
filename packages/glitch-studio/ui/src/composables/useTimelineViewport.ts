@@ -6,6 +6,8 @@ import { getTimelineTickCount, getTimelineTicks, getTimelineMinorTicks } from '@
 import { zoomTimelineX } from '@/utility/timeline-zoom.ts';
 import { dragListen } from '@/utility/drag.ts';
 
+export type TimelineViewport = ReturnType<typeof useTimelineViewport>;
+
 type TimelineViewportOptions = {
 	timelineElement: Readonly<Ref<HTMLElement | null>>;
 	layersElement: Readonly<Ref<HTMLElement | null>>;

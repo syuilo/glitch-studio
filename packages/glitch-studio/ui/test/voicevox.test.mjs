@@ -1,3 +1,4 @@
+import { createDragActionsFixture } from './helpers/timeline-drag-actions.mjs';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { build } from 'esbuild';
@@ -12,6 +13,8 @@ const root = fileURLToPath(new URL('../', import.meta.url));
 const bundled = await build({
 	absWorkingDir: root,
 	stdin: { resolveDir: root, loader: 'ts', contents: `
+		export { createTimelineDragActions } from './src/utility/timeline-drag-actions.ts';
+		export { flattenTimelineLayers } from '@gs/subsystems_timeline_shared/layer-tree.ts';
 		export * from './src/audio/voicevox-generation.ts';
 		export * from './src/audio/generated-speech-cache.ts';
 		export * from './src/utility/voicevox-timeline-layer.ts';
@@ -127,20 +130,13 @@ test('includes utterances in marquee selection and selects speech when seeking t
 // 通常キーと同じドラッグ処理を通し、一連の移動が一回のUndoになり、最小時刻も負にならない。
 test('snaps multiple utterances through the timeline drag handler and merges their history', async t => {
 	const f = editFixture(t);
-	const selection = { value: { kind: 'keyframes', keyframes: [f.point('a'), f.point('b')] } };
-	const entries = { get value() { return getTimelineKeyframeEntries(f.state, f.scenes[0].layers); } };
-	let move;
-	const handler = await loadHandler('onKeyframeMoveStart', {
-		...module.exports, selection, selectedTimelineKeyframes: { get value() { return selection.value.keyframes; } }, keyframeEntries: entries,
-		stopSelectionDrag: { value: undefined }, tlElWidth: { value: 1000 }, tlRangeX: { value: 1000 }, tlPosX: { value: 0 },
-		tlEl: { value: { focus() {} } }, sceneLayers: { value: f.scenes[0].layers }, clipLayers: { value: f.scenes[0].layers }, stateManager: f.history,
-		props: { sceneId: 'root' }, time: { value: 480 }, xTicksWithMinor: { value: [] },
-		snapSettings: { value: { enabled: true, globalTicks: false, localTicks: false, seekBar: true } },
-		xTicksCount: { value: 10 }, tickMode: { value: 'time' }, tickSubdivisions: { value: 1 },
-		revealDetails() {}, onKeyframeSelected() { assert.fail('Existing multiple selection must be preserved'); },
-		startSelectionMove(event, points, times, apply) { move = { points, times, apply }; },
+	const controls = createDragActionsFixture(module.exports, { ...f, scene: f.scenes[0] }, {
+		selection: { kind: 'keyframes', keyframes: [f.point('a'), f.point('b')] }, currentTime: 480, snapToSeekBar: true,
 	});
+	const selection = controls.selection;
+	const handler = controls.actions.onKeyframeMoveStart;
 	handler({ button: 0, isPrimary: true, shiftKey: false, ctrlKey: false, metaKey: false }, f.point('a'));
+	const move = controls.move;
 	assert.equal(move.points.length, 2);
 	assert.equal(move.points[1].maxDelta, 100);
 	const snapped = constrainTimelineMove(78, move.points, move.times, 1);
@@ -454,19 +450,19 @@ test('edits speech duration extension with undo and preserves it when copying', 
 test('snaps specified subtitle ends with one undo and refuses fill and speech modes or clipped ends', async t => {
 	const f = editFixture(t);
 	f.layer.utterances[0].subtitleDuration = { mode: 'specified', durationMs: 150 };
-	const selection = { value: { kind: 'layers', ids: [] } };
-	let move;
+	f.state.generatedSpeech = { value: [{ ...f.speech, durationMs: 220 }] };
+	const controls = createDragActionsFixture(module.exports, { ...f, scene: f.scenes[0] }, { currentTime: 550, snapToSeekBar: true });
+	const selection = controls.selection;
 	let starts = 0;
-	const handler = await loadHandler('onSubtitleTrimStart', {
-		...module.exports, stopSelectionDrag: { value: undefined }, tlElWidth: { value: 1000 }, tlRangeX: { value: 1000 }, tlPosX: { value: 0 },
-		sceneLayers: { value: f.scenes[0].layers }, clipLayers: { value: f.scenes[0].layers }, stateManager: { state: { ...f.history.state, generatedSpeech: { value: [{ ...f.speech, durationMs: 220 }] } }, commit: f.history.commit.bind(f.history) },
-		keyframeEntries: { get value() { return getTimelineKeyframeEntries(f.state, f.scenes[0].layers); } },
-		props: { sceneId: 'root' }, time: { value: 550 }, xTicksWithMinor: { value: [] }, xTicksCount: { value: 10 },
-		tickMode: { value: 'legacy' }, tickSubdivisions: { value: 1 },
-		snapSettings: { value: { enabled: true, globalTicks: false, localTicks: false, seekBar: true } },
-		onKeyframeSelected(point) { selection.value = { kind: 'keyframes', keyframes: [point] }; },
-		startSelectionMove(_event, points, snapTimes, apply) { starts++; move = delta => apply(constrainTimelineMove(delta, points, snapTimes, 1).delta, 'subtitle-drag'); },
-	});
+	const handler = (...args) => {
+		const previous = controls.move;
+		controls.actions.onSubtitleTrimStart(...args);
+		if (controls.move !== previous) starts++;
+	};
+	const move = delta => {
+		const { points, times, apply } = controls.move;
+		return apply(constrainTimelineMove(delta, points, times, 1).delta, 'subtitle-drag');
+	};
 	const event = { button: 0, isPrimary: true };
 	handler(event, 'speech', 'a', 'visible');
 	assert.deepEqual(selection.value.keyframes, [f.point('a')]);

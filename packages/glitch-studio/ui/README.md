@@ -24,7 +24,11 @@ Timelineはレイヤー・クリップ・キーの選択操作から表示を要
 
 `GsTimeline.vue`は選択状態・選択の検証・ショートカットと、詳細パネルの表示先を管理する。`GsTimeline.Inspector.vue`は選択から表示対象を解決し、`GsTimeline.Inspector.Keyframe.vue`・`GsTimeline.Inspector.Clip.vue`・`GsTimeline.Inspector.Layer.vue`がそれぞれの詳細編集をCommandで行う。選択変更とクリップ・キー削除は親へ通知し、パネルを閉じても同じ選択とショートカットを維持する。通常キーの編集対象は`utility/timeline-keyframe-edit.ts`で共通に解決する。素材選択・エフェクト追加のピッカーはタイムライン本体と共用するため親が所有し、Inspectorは対象のIDを渡して要求する。
 
-`composables/useTimelineViewport.ts`は表示範囲・DOMの実測寸法・座標変換・目盛り・ズーム・パン・再生追従を管理する。座標と目盛りの計算は既存のutilityを使い、ポインター時刻の整数化はシークなどの操作側で行う。選択・シーク操作のキャンセル関数は`GsTimeline.vue`がリアクティブに保持し、その有無を渡して操作中のパンと追従を止める。表示範囲の保存とリスナー・ResizeObserverの解除はcomposableのスコープ終了時に行い、親の`onBeforeUnmount`でCUEが戻した位置を次の表示へ引き継ぐ。表示状態はプロジェクトの保存・Undoの対象にしない。
+`composables/useTimelineViewport.ts`は表示範囲・DOMの実測寸法・座標変換・目盛り・ズーム・パン・再生追従を管理する。座標と目盛りの計算は既存のutilityを使い、ポインター時刻の整数化はシークなどの操作側で行う。`composables/useTimelineInteraction.ts`が選択・移動・シークの所有権とキャンセル関数、ドラッグ後のクリック抑止を保持し、その操作中の状態をViewportへ渡してパンと追従を止める。表示範囲の保存とリスナー・ResizeObserverの解除はcomposableのスコープ終了時に行い、親の`onBeforeUnmount`でCUEが戻した位置を次の表示へ引き継ぐ。表示状態はプロジェクトの保存・Undoの対象にしない。
+
+`composables/useTimelineMarqueeSelection.ts`は仮想一覧の境界計測・再計算・選択確定を担当する。pointerup後も最後の計測が終わるまで操作の所有権を保持し、レーン構成・寸法・Sceneの変更やスコープ終了でキャンセルする。キャンセル済みの計測結果は採用せず、その完了で次の操作を解除しない。
+
+`composables/useTimelineSelectionDrag.ts`は移動・トリムのしきい値判定、現在のViewportでの座標変換、スナップ表示、mergeKeyとポインター追跡の寿命を担当し、同じ排他制御でシークも扱う。`utility/timeline-drag-actions.ts`はクリップ・グループ・キー・字幕ごとの開始時の対象と制約を準備し、共通ドラッグへCommandの適用関数を渡す。計算は既存のutility、変更は既存のCommandを使い、選択状態そのものは`GsTimeline.vue`が引き続き所有する。
 
 ## プレビューのレイヤー変形
 

@@ -1,16 +1,16 @@
+import { createDragActionsFixture } from './helpers/timeline-drag-actions.mjs';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
-import { readFile } from 'node:fs/promises';
-import { build, transform } from 'esbuild';
-import { parse } from 'vue/compiler-sfc';
-import { createSourceFile, isFunctionDeclaration, ScriptTarget } from 'typescript';
+import { build } from 'esbuild';
 
 const uiDirectory = fileURLToPath(new URL('../', import.meta.url));
 const bundled = await build({
 	absWorkingDir: uiDirectory,
 	stdin: { resolveDir: uiDirectory, loader: 'ts', contents: `
+		export { createTimelineDragActions } from './src/utility/timeline-drag-actions.ts';
+		export { flattenTimelineLayers } from '@gs/subsystems_timeline_shared/layer-tree.ts';
 		export * from './src/utility/timeline-clip-move.ts';
 		export * from './src/utility/timeline-selection.ts';
 		export * from './src/utility/timeline-keyframe-lanes.ts';
@@ -224,22 +224,11 @@ test('uses the same bounds and captured keys in the actual clip drag handler', a
 	const layer = audioLayer('audio', [clip('a', 1000, 1000), clip('b', 2400, 1000)], [1500, 2000, 2400]);
 	const f = fixture(t, [layer]);
 	const target = f.targets[0];
-	let drag;
-	const source = await readFile(new URL('../src/components/GsTimeline.vue', import.meta.url), 'utf8');
-	const ast = createSourceFile('GsTimeline.vue', parse(source).descriptor.scriptSetup.content, ScriptTarget.Latest);
-	const handler = ast.statements.find(statement => isFunctionDeclaration(statement) && statement.name?.text === 'onClipMoveStart');
-	const { code } = await transform(handler.getText(ast), { loader: 'ts' });
-	const context = { ...module.exports, deepClone: structuredClone, editedScene: f.scene,
-		selection: { value: { kind: 'clips', clips: [target] } }, stopSelectionDrag: { value: undefined },
-		tlElWidth: { value: 1000 }, tlRangeX: { value: 1000 }, sceneLayers: { value: f.scene.layers }, clipLayers: { value: f.scene.layers }, stateManager: f.history,
-		props: { sceneId: 'scene' }, time: { value: 2400 }, xTicksWithMinor: { value: [] },
-		clipSnapSettings: { value: { start: true, end: true } },
-		snapSettings: { value: { enabled: true, globalTicks: false, localTicks: false, seekBar: true } },
-		revealDetails() {}, resolveClip: target => ({ target, layer, clip: layer.clips.find(clip => clip.id === target.clipId) }),
-		startSelectionMove(event, points, times, apply) { drag = { points, times, apply }; },
-	};
-	const start = new Function('context', `const { ${Object.keys(context).join(', ')} } = context; ${code}; return onClipMoveStart;`)(context);
-	start({ button: 0, isPrimary: true }, target);
+	const controls = createDragActionsFixture(module.exports, f, {
+		selection: { kind: 'clips', clips: [target] }, currentTime: 2400, snapToSeekBar: true,
+	});
+	controls.actions.onClipMoveStart({ button: 0, isPrimary: true }, target);
+	const drag = controls.move;
 	const before = structuredClone(f.scene);
 	const constrained = constrainTimelineMove(399, drag.points, drag.times, 1);
 	assert.equal(constrained.delta, 300);
@@ -257,22 +246,11 @@ test('uses the shared collision gap for ordinary keyframe dragging and allows re
 	const layer = audioLayer('audio', [clip('clip', 0, 5000)], [1000, 1050, 1400]);
 	const f = fixture(t, [layer]);
 	const point = { layerId: 'audio', target: 'audio', paramPath: ['volume'], keyframeId: '1050' };
-	let drag;
-	const source = await readFile(new URL('../src/components/GsTimeline.vue', import.meta.url), 'utf8');
-	const ast = createSourceFile('GsTimeline.vue', parse(source).descriptor.scriptSetup.content, ScriptTarget.Latest);
-	const handler = ast.statements.find(statement => isFunctionDeclaration(statement) && statement.name?.text === 'onKeyframeMoveStart');
-	const { code } = await transform(handler.getText(ast), { loader: 'ts' });
-	const context = { ...module.exports,
-		selection: { value: { kind: 'keyframes', keyframes: [point] } }, selectedTimelineKeyframes: { value: [point] },
-		keyframeEntries: { get value() { return module.exports.getTimelineKeyframeEntries(f.state, f.scene.layers); } },
-		stopSelectionDrag: { value: undefined }, tlElWidth: { value: 1000 }, tlRangeX: { value: 1000 },
-		sceneLayers: { value: [layer] }, clipLayers: { value: [layer] }, stateManager: f.history, props: { sceneId: 'scene' },
-		time: { value: 1400 }, xTicksWithMinor: { value: [] },
-		snapSettings: { value: { enabled: true, globalTicks: false, localTicks: false, seekBar: true } },
-		revealDetails() {}, startSelectionMove(event, points, times, apply) { drag = { points, times, apply }; },
-	};
-	const start = new Function('context', `const { ${Object.keys(context).join(', ')} } = context; ${code}; return onKeyframeMoveStart;`)(context);
-	start({ button: 0, isPrimary: true }, point);
+	const controls = createDragActionsFixture(module.exports, f, {
+		selection: { kind: 'keyframes', keyframes: [point] }, currentTime: 1400, snapToSeekBar: true,
+	});
+	controls.actions.onKeyframeMoveStart({ button: 0, isPrimary: true }, point);
+	const drag = controls.move;
 	assert.equal(drag.points[0].minDelta, 0);
 	assert.equal(drag.points[0].maxDelta, 250);
 	const constrained = constrainTimelineMove(350, drag.points, drag.times, 1);

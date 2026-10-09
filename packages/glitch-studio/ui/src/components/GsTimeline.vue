@@ -142,52 +142,46 @@
 
 <script lang="ts" setup>
 import { flattenTimelineLayers, findTimelineLayer, findTimelineLayerLocation } from '@gs/subsystems_timeline_shared/layer-tree.ts';
-import { getTimelineGroupRange } from '@gs/subsystems_timeline_shared/layers/group/group.ts';
-import { createTimelineClipTiming, getTimelineClipEnd, getTimelineClipInsertionDuration, getTimelineClipTrimBounds } from '@gs/subsystems_timeline_shared/timing.ts';
+import { createTimelineClipTiming, getTimelineClipEnd, getTimelineClipInsertionDuration } from '@gs/subsystems_timeline_shared/timing.ts';
 import { computed, onBeforeUnmount, ref, shallowRef, toRef, useTemplateRef, watch } from 'vue';
 import { genId } from '@gs/shared/utility/id.js';
 import { timelineAudioParamDefs } from '@gs/subsystems_timeline_shared/timeline-audio.ts';
 import { timelineCompositingParamDefs } from '@gs/subsystems_timeline_shared/timeline-compositing.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { canReferenceScene } from '@gs/subsystems_timeline_shared/scenes.ts';
-import { paramPathKey } from '@gs/shared/parameter/parameter-path.ts';
 import { shapeDefinitions } from '@gs/subsystems_timeline_shared/layers/shape/shape.ts';
-import { createSpeechResolver } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox.ts';
-import { assignPreparedSpeech, getVoicevoxUtterancePlacements } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox-placement.ts';
 import XLayer from './GsTimeline.Layer.vue';
 import GsTimelineInspector from './GsTimeline.Inspector.vue';
 import GsButton from './common/GsButton.vue';
 import GsVirtualScroll from './common/GsVirtualScroll.vue';
 import GsEffectPicker from './GsEffectPicker.vue';
-import type { TimelineMarqueeAnchor, TimelineLayerSelectionLayout } from '@/utility/timeline-marquee.ts';
 import type { Asset } from '@gs/shared/types.ts';
 import type { TimelineGroupLayer, TimelineLayer, TimelineScene } from '@gs/subsystems_timeline_shared/types.ts';
-import type { TimelineClipSelection, TimelineKeyframeSelection, SelectionRect, TimelineMovePoint } from '@/utility/timeline-selection.ts';
+import type { TimelineClipSelection, TimelineKeyframeSelection } from '@/utility/timeline-selection.ts';
 import type { TimelineClipMediaInfo } from '@/utility/timeline-clip-media.ts';
 import type { ShapeType } from '@gs/subsystems_timeline_shared/layers/shape/shape.ts';
 import type { TimelineClipClipboard } from '@/utility/timeline-clip-clipboard.ts';
 import type { TimelineClipSourceDurations } from '@/utility/timeline-clip-media.ts';
 import { getTimelineKeyframeEditTarget } from '@/utility/timeline-keyframe-edit.ts';
-import { createKeyframeStretch, stretchKeyframeX } from '@/utility/timeline-keyframe-stretch.ts';
+import { useTimelineInteraction } from '@/composables/useTimelineInteraction.ts';
+import { useTimelineMarqueeSelection } from '@/composables/useTimelineMarqueeSelection.ts';
+import { useTimelineSelectionDrag } from '@/composables/useTimelineSelectionDrag.ts';
+import { createTimelineDragActions } from '@/utility/timeline-drag-actions.ts';
 import { useTimelineViewport } from '@/composables/useTimelineViewport.ts';
-import { getTimelineVisibleClipTicks, formatTimelineTimecode as formatMsToTimecode } from '@/utility/timeline-ticks.ts';
-import { getTimelineClipSnapPoints, getTimelineSnapCandidates, getTimelineSeekPosition } from '@/utility/timeline-snapping.ts';
+import { formatTimelineTimecode as formatMsToTimecode } from '@/utility/timeline-ticks.ts';
 import { preferences } from '@/preferences.ts';
 import { listenPointerDrag } from '@/utility/pointer-drag.ts';
 import { getTimelineKeyframeEntries, getTimelineKeyframeLanes } from '@/utility/timeline-keyframe-lanes.ts';
-import { prepareTimelineClipMove } from '@/utility/timeline-clip-move.ts';
 import { inspectTimelineClipMedia } from '@/utility/timeline-clip-media.ts';
-import { selectTimelineLayer, selectionRect, mergeTimelineRangeSelection, clipSelectionKey, keyframeSelectionKey, getTimelineStretchSelection, constrainTimelineMove, keyframeMoveBounds, getTimelineSnappingTimes } from '@/utility/timeline-selection.ts';
+import { selectTimelineLayer, clipSelectionKey, keyframeSelectionKey } from '@/utility/timeline-selection.ts';
 import { createEffectTimelineLayer } from '@/utility/effect-timeline-layer.ts';
 import { createShapeTimelineLayer } from '@/utility/shape-timeline-layer.ts';
 import { createVoicevoxTimelineLayer } from '@/utility/voicevox-timeline-layer.ts';
-import { getVoicevoxSubtitleTrimBounds } from '@/utility/voicevox-utterance-edit.ts';
-import { prepareTimelineGroupMove, duplicateTimelineLayers } from '@/utility/timeline-group.ts';
+import { duplicateTimelineLayers } from '@/utility/timeline-group.ts';
 import { createTextTimelineLayer } from '@/utility/text-timeline-layer.ts';
 import { appContext } from '@/app.ts';
 import { getTimelineEditorState, getSelectedTimelineLayerId, timelineClipboard } from '@/utility/timeline-editor-state.ts';
 import { copyTimelineClips, prepareTimelineClipPaste, canPasteTimelineClips } from '@/utility/timeline-clip-clipboard.ts';
-import { collectTimelineMarqueeCandidates, measureTimelineLayerSelection } from '@/utility/timeline-marquee.ts';
 import { copyTimelineKeyframes, prepareTimelineKeyframePaste, getPastedTimelineKeySelection } from '@/utility/timeline-keyframe-clipboard.ts';
 import * as ui from '@/ui.ts';
 import { createInlineVisualModuleLayer } from '@/utility/inline-visual-module-layer.ts';
@@ -363,25 +357,24 @@ function getLayerKey(layer: TimelineLayer) { return layer.id; }
 
 function getLayerSizeKey(layer: TimelineLayer) { return layerSizeKeys.value.get(layer.id); }
 
-// キャンセル関数自体を操作中の状態にし、開始前のしきい値判定や非同期の範囲選択も追従停止に含める。
-const stopSelectionDrag = shallowRef<(() => void) | undefined>();
-const {
-	positionX: tlPosX, rangeX: tlRangeX, width: tlElWidth, height: tlElHeight, pixelsPerMs,
-	panning, optimizeHorizontalMovement,
-	tickCount: xTicksCount, ticks: xTicks, minorTicks: xMinorTicks, ticksWithMinor: xTicksWithMinor,
-	timeToX: timeToDomX, timeAtX, timeAtClientX,
-	onTimelineWheel, onBackgroundWheel: onTlWheel, onRulerWheel: onXTicksWheel, onPanMousedown, onPanAuxclick,
-} = useTimelineViewport({
+const interaction = useTimelineInteraction();
+const { onTimelineClick } = interaction;
+const viewport = useTimelineViewport({
 	timelineElement: tlEl, layersElement: layersEl, savedState: editorState,
 	currentTime: time, isPlaying: previewPlayback.isTimelinePlaying, followPlayhead, tickMode, tickSubdivisions,
-	interactionActive: computed(() => stopSelectionDrag.value != null),
+	interactionActive: interaction.active,
 });
+const {
+	positionX: tlPosX, rangeX: tlRangeX, width: tlElWidth, pixelsPerMs, optimizeHorizontalMovement,
+	ticks: xTicks, minorTicks: xMinorTicks,
+	timeToX: timeToDomX, timeAtX,
+	onTimelineWheel, onBackgroundWheel: onTlWheel, onRulerWheel: onXTicksWheel, onPanMousedown, onPanAuxclick,
+} = viewport;
 
 const seekBarPos = computed(() => {
 	return timeToDomX(time.value);
 });
 const cursorBarPos = ref<number | null>(null);
-const snappingTimes = ref<number[]>([]);
 const tlRangeElPosX = computed(() => {
 	return timeToDomX(0);
 });
@@ -391,8 +384,6 @@ const tlRangeElWidth = computed(() => {
 const tooltipDomPos = ref<null | [number, number]>(null);
 const cursorTime = ref(0);
 const cursorValue = ref(0);
-const selectionArea = ref<SelectionRect | null>(null);
-const movingSelection = ref(false);
 
 const selection = toRef(editorState, 'selection');
 // スクロールや縦仮想一覧の更新で同じ選択配列を作り直さない。
@@ -543,183 +534,6 @@ watch([sceneLayers, keyframeEntries, () => clipLayers.value.flatMap(layer => lay
 	}
 }, { immediate: true });
 
-let suppressTimelineClick = false;
-
-function onTimelineClick(event: MouseEvent) {
-	if (!suppressTimelineClick) return;
-	suppressTimelineClick = false;
-	event.preventDefault();
-	event.stopPropagation();
-}
-
-let updateMarquee: (() => void) | undefined;
-let cancelMarquee: (() => void) | undefined;
-
-function onVirtualLayersLayout() { updateMarquee?.(); }
-
-function onBackgroundPointerDown(event: PointerEvent) {
-	suppressTimelineClick = false;
-	if (event.button !== 0 || !event.isPrimary || stopSelectionDrag.value || panning.value || tlEl.value == null || layersEl.value == null || virtualLayers.value == null || !(event.target instanceof Element)) return;
-	const timeline = tlEl.value;
-	const layers = layersEl.value;
-	const virtual = virtualLayers.value;
-	const target = event.target;
-	if (!layers.contains(target) && !timeline.contains(target)) return;
-	if (target.closest('[data-timeline-clip-id], [data-timeline-keyframe-id], button, input, select, textarea, [draggable="true"]')) return;
-	const bounds = timeline.getBoundingClientRect();
-	if (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top + X_TICKS_HEIGHT || event.clientY > bounds.bottom) return;
-	event.preventDefault();
-	event.stopPropagation();
-	timeline.focus({ preventScroll: true });
-	const previous = deepClone(selection.value);
-	// ドラッグ開始を待たずに背景を押した時点で解除する。Shiftでの追加選択は維持する。
-	if (!event.shiftKey) selection.value = { kind: 'layers', ids: [] };
-	const originX = event.clientX - bounds.left;
-	const initialY = event.clientY;
-	let origin: TimelineMarqueeAnchor | undefined;
-	let pointer = { x: event.clientX, y: event.clientY };
-	const boundaryLayouts = new Map<string, TimelineLayerSelectionLayout>();
-	let active = true;
-	let finishing = false;
-	let revision = 0;
-	let pending: Promise<void> | undefined;
-
-	function anchorAt(clientY: number): TimelineMarqueeAnchor | undefined {
-		const y = clientY - virtual.getClientTop();
-		const item = virtual.getItemAt(y);
-		return item ? { layerId: String(item.key), offsetY: y - item.top } : undefined;
-	}
-
-	function measureBoundary(anchor: TimelineMarqueeAnchor): boolean {
-		if (boundaryLayouts.has(anchor.layerId)) return true;
-		const element = [...layers.querySelectorAll<HTMLElement>('[data-timeline-layer-id]')].find(element => element.dataset.timelineLayerId === anchor.layerId);
-		if (!element) return false;
-		const measured = measureTimelineLayerSelection(element);
-		if (!measured) return false;
-		boundaryLayouts.set(anchor.layerId, measured);
-		return true;
-	}
-
-	// 開始時の行内位置を先に確保し、後続の実測による上方の高さ補正に影響されないようにする。
-	const initialLayer = target.closest<HTMLElement>('[data-timeline-layer-id]');
-	origin = initialLayer?.dataset.timelineLayerId
-		? { layerId: initialLayer.dataset.timelineLayerId, offsetY: initialY - initialLayer.getBoundingClientRect().top }
-		: anchorAt(initialY);
-	if (origin && !measureBoundary(origin)) origin = undefined;
-
-	function scheduleUpdate() {
-		if (!active) return;
-		revision++;
-		if (pending) return;
-		pending = (async () => {
-			let processed = -1;
-			while (active && processed !== revision) {
-				processed = revision;
-				// スクロールイベント時点では、新しい境界行のDOMがまだ存在しない場合がある。
-				// 推定値で確定せず、仮想一覧が実測まで終えた後に判定する。
-				await virtual.refresh();
-				if (!active) break;
-				const bounds = timeline.getBoundingClientRect();
-				const endY = Math.max(bounds.top + X_TICKS_HEIGHT, Math.min(bounds.bottom, pointer.y));
-				origin ??= anchorAt(initialY);
-				const end = anchorAt(endY);
-				if (!origin || !end || !measureBoundary(origin) || !measureBoundary(end)) continue;
-				const originItem = virtual.getLayout().byKey.get(origin.layerId);
-				if (!originItem) continue;
-				const originY = virtual.getClientTop() + originItem.top + origin.offsetY;
-				const endX = Math.max(0, Math.min(tlElWidth.value, pointer.x - bounds.left));
-				const rect = selectionRect(originX, originY - bounds.top, endX, endY - bounds.top);
-				if (!selectionArea.value && Math.hypot(rect.right - rect.left, rect.bottom - rect.top) < 3) continue;
-				suppressTimelineClick = true;
-				selectionArea.value = rect;
-				const candidates = collectTimelineMarqueeCandidates(marqueeLayers.value, origin, end, boundaryLayouts, {
-					left: rect.left, right: rect.right, position: tlPosX.value, range: tlRangeX.value, width: tlElWidth.value,
-				});
-				selection.value = mergeTimelineRangeSelection(candidates.clips, candidates.keyframes, previous, event.shiftKey);
-				// 開始行と現在の境界以外のレーン座標は不要。高速スクロールでもメモリを増やさない。
-				for (const id of boundaryLayouts.keys()) if (id !== origin.layerId && id !== end.layerId) boundaryLayouts.delete(id);
-			}
-		})().finally(() => { pending = undefined; if (finishing) cleanup(); });
-	}
-
-	function cleanup() {
-		const reveal = active && finishing && selectionArea.value != null;
-		active = false;
-		layers.removeEventListener('scroll', scheduleUpdate);
-		stopWatch();
-		stopHorizontalWatch();
-		// キャンセル後に次の操作が始まっていても、古い非同期計測の完了で消さない。
-		if (updateMarquee === scheduleUpdate) {
-			updateMarquee = undefined;
-			cancelMarquee = undefined;
-			selectionArea.value = null;
-			stopSelectionDrag.value = undefined;
-			// 範囲選択中の展開はタイムラインの寸法を変えるため、確定後に一度だけ開く。
-			if (reveal) revealDetails();
-		}
-	}
-
-	// レーン構成や並び順が変わる操作では古い行内計測を使わない。横ズームは再計算で追従する。
-	const stopWatch = watch([
-		() => props.sceneId,
-		() => JSON.stringify([...layerSizeKeys.value]),
-		tlElWidth,
-		tlElHeight,
-	], () => cancelMarquee?.(), { flush: 'sync' });
-	const stopHorizontalWatch = watch([tlPosX, tlRangeX], scheduleUpdate);
-	updateMarquee = scheduleUpdate;
-	layers.addEventListener('scroll', scheduleUpdate, { passive: true });
-	// 背景クリックは子レーンのダブルクリック追加へ届かせ、範囲選択の開始後だけ一覧で捕捉する。
-	const stopPointer = listenPointerDrag(event, current => {
-		pointer = { x: current.clientX, y: current.clientY };
-		scheduleUpdate();
-	}, () => {
-		// pointerupで予約した最後の判定を待つ。行を破棄してもCaptureは一覧要素に残る。
-		finishing = true;
-		if (!pending) cleanup();
-	}, layers, { captureAfterDistance: 3 });
-	cancelMarquee = () => { active = false; stopPointer(); cleanup(); };
-	stopSelectionDrag.value = cancelMarquee;
-	scheduleUpdate();
-}
-
-function startSelectionMove(event: PointerEvent, points: TimelineMovePoint[], snapTimes: number[], apply: (delta: number, mergeKey: string) => boolean,
-	getSnapLines = (delta: number) => getTimelineSnappingTimes(points, snapTimes, delta)) {
-	const timeline = tlEl.value;
-	const originTime = timeAtClientX(event.clientX);
-	if (points.length === 0 || timeline == null || originTime == null) return;
-	event.preventDefault();
-	timeline.focus({ preventScroll: true });
-	const mergeKey = genId();
-	let moved = false;
-	let previousDelta = 0;
-	stopSelectionDrag.value = listenPointerDrag(event, current => {
-		if (!moved && Math.abs(current.clientX - event.clientX) < 3) return;
-		moved = true;
-		movingSelection.value = true;
-		suppressTimelineClick = true;
-		// ドラッグ中にズームしても、開始時の画素倍率ではなく現在の時刻座標で追従する。
-		const msPerPixel = 1 / pixelsPerMs.value;
-		const pointerTime = timeAtClientX(current.clientX);
-		if (pointerTime == null) return;
-		const result = constrainTimelineMove(pointerTime - originTime, points, snapTimes, msPerPixel);
-		snappingTimes.value = getSnapLines(result.delta);
-		if (result.delta === previousDelta) return;
-		if (!apply(result.delta, mergeKey)) { stopSelectionDrag.value?.(); return; }
-		previousDelta = result.delta;
-	}, () => {
-		snappingTimes.value = [];
-		movingSelection.value = false;
-		stopSelectionDrag.value = undefined;
-	}, layersEl.value ?? timeline);
-}
-
-function resolveClip(target: TimelineClipSelection) {
-	const layer = clipLayers.value.find(layer => layer.id === target.layerId);
-	const clip = layer?.clips.find(clip => clip.id === target.clipId);
-	return layer && clip ? { layer, clip, target } : null;
-}
-
 function selectClip(target: TimelineClipSelection, additive = false) {
 	tlEl.value?.focus({ preventScroll: true });
 	if (additive && selection.value.kind === 'clips') {
@@ -731,181 +545,22 @@ function selectClip(target: TimelineClipSelection, additive = false) {
 	revealDetails();
 }
 
-function onGroupMoveStart(event: PointerEvent, layer: TimelineLayer) {
-	if (layer.layerType !== 'group' || event.button !== 0 || !event.isPrimary || stopSelectionDrag.value || tlElWidth.value <= 0 || tlRangeX.value <= 0) return;
-	selectLayer(layer);
-	const range = getTimelineGroupRange(layer);
-	if (!range) return;
-	const initial = prepareTimelineGroupMove(stateManager.state, layer);
-	const points = getTimelineClipSnapPoints({ ...range, contentOffsetMs: 0 }, { minDelta: initial.minDelta, maxDelta: initial.maxDelta }, clipSnapSettings.value);
-	const excluded = new Set(flattenTimelineLayers([layer]).map(child => child.id));
-	const snapTimes = getTimelineSnapCandidates(snapSettings.value, [0, ...clipLayers.value.filter(child => !excluded.has(child.id))
-		.flatMap(child => child.clips.flatMap(clip => [clip.startMs, getTimelineClipEnd(clip)]))], xTicksWithMinor.value, [], time.value);
-	startSelectionMove(event, points, snapTimes, (delta, mergeKey) => {
-		if (!findTimelineLayer(rootLayers.value, layer.id)) return false;
-		stateManager.commit('moveTimelineGroup', { sceneId: props.sceneId, layerId: layer.id, deltaMs: delta, initial }, mergeKey);
-		return true;
-	});
-}
-
-function onClipMoveStart(event: PointerEvent, target: TimelineClipSelection) {
-	if (event.button !== 0 || !event.isPrimary || stopSelectionDrag.value || tlElWidth.value <= 0 || tlRangeX.value <= 0) return;
-	if (event.shiftKey || event.ctrlKey || event.metaKey) { selectClip(target, true); return; }
-	if (selection.value.kind !== 'clips' || !selection.value.clips.some(clip => clipSelectionKey(clip) === clipSelectionKey(target))) selectClip(target);
-	if (selection.value.kind !== 'clips') return;
-	revealDetails();
-	const targets = deepClone(selection.value.clips);
-	const entries = targets.map(resolveClip).filter(entry => entry != null);
-	const move = prepareTimelineClipMove(stateManager.state, editedScene, targets);
-	const points = entries.flatMap(({ clip }) => getTimelineClipSnapPoints(clip,
-		{ minDelta: move.minDelta, maxDelta: move.maxDelta }, clipSnapSettings.value));
-	const selected = new Set(targets.map(clipSelectionKey));
-	const snapTimes = getTimelineSnapCandidates(snapSettings.value, [0, ...clipLayers.value.flatMap(layer => layer.clips
-		.filter(clip => !selected.has(clipSelectionKey({ layerId: layer.id, clipId: clip.id })))
-		.flatMap(clip => [clip.startMs, getTimelineClipEnd(clip)]))], xTicksWithMinor.value, [], time.value);
-	const initialTargets = entries.map(({ target, clip }) => ({ ...target, initialStartMs: clip.startMs }));
-	startSelectionMove(event, points, snapTimes, (delta, mergeKey) => {
-		if (targets.some(target => !resolveClip(target))) return false;
-		stateManager.commit('moveTimelineClips', { sceneId: props.sceneId, clips: initialTargets, initialKeyframes: move.keyframes, deltaMs: delta }, mergeKey);
-		return true;
-	});
-}
-
-function onClipTrimStart(event: PointerEvent, target: TimelineClipSelection, edge: 'start' | 'end') {
-	if (event.button !== 0 || !event.isPrimary || stopSelectionDrag.value || tlElWidth.value <= 0 || tlRangeX.value <= 0) return;
-	const entry = resolveClip(target);
-	if (!entry) return;
-	selectClip(target);
-	const { layer, clip } = entry;
-	const media = layer.layerType === 'audio' || layer.layerType === 'video';
-	const sourceDurationMs = 'assetId' in clip && typeof clip.assetId === 'string' ? mediaInfo.value.get(clip.assetId)?.durationMs : undefined;
-	if (media && sourceDurationMs == null) return;
-	const bounds = getTimelineClipTrimBounds(layer.clips, clip.id, edge, media || layer.layerType === 'scene', sourceDurationMs);
-	if (bounds.minDelta > bounds.maxDelta) return;
-	const points = getTimelineClipSnapPoints(clip, bounds, clipSnapSettings.value, edge);
-	const snapTimes = getTimelineSnapCandidates(snapSettings.value, [0, ...clipLayers.value.flatMap(entry => entry.clips
-		.filter(other => entry.id !== layer.id || other.id !== clip.id).flatMap(other => [other.startMs, getTimelineClipEnd(other)]))], xTicksWithMinor.value, [], time.value);
-	const initialTiming = { startMs: clip.startMs, durationMs: clip.durationMs, contentOffsetMs: clip.contentOffsetMs };
-	startSelectionMove(event, points, snapTimes, (delta, mergeKey) => {
-		if (!resolveClip(target)) return false;
-		stateManager.commit('editTimelineClipTiming', { sceneId: props.sceneId, ...target, edge, deltaMs: delta, initialTiming, sourceDurationMs }, mergeKey);
-		return true;
-	});
-}
-
-function onSubtitleTrimStart(event: PointerEvent, layerId: string, utteranceId: string, clipId: string) {
-	if (event.button !== 0 || !event.isPrimary || stopSelectionDrag.value || tlElWidth.value <= 0 || tlRangeX.value <= 0) return;
-	const layer = sceneLayers.value.find(layer => layer.id === layerId);
-	if (layer?.layerType !== 'voicevox') return;
-	const bounds = getVoicevoxSubtitleTrimBounds(layer.voicevox, layer.utterances, layer.clips, utteranceId, clipId);
-	if (!bounds) return;
-	const utterance = layer.utterances.find(key => key.id === utteranceId)!;
-	onKeyframeSelected({ layerId, target: 'utterance', paramPath: ['utterances'], keyframeId: utteranceId });
-	const resolveSpeech = createSpeechResolver(stateManager.state.generatedSpeech.value);
-	const audioEnds = getVoicevoxUtterancePlacements(layer.voicevox, layer.utterances, layer.clips).flatMap(placement => {
-		const speech = resolveSpeech(placement.request);
-		const interval = speech && assignPreparedSpeech(placement, speech);
-		return interval ? [Math.round(interval.endMs)] : [];
-	});
-	const otherTimes = [0, ...clipLayers.value.flatMap(layer => layer.clips.flatMap(clip => [clip.startMs, getTimelineClipEnd(clip)])),
-																					...keyframeEntries.value.map(entry => entry.time), ...audioEnds];
-	const localTicks = snapSettings.value.localTicks ? getTimelineVisibleClipTicks(layer.clips, tlPosX.value, tlRangeX.value, xTicksCount.value, tickMode.value, tickSubdivisions.value)
-		.flatMap(({ ticks }) => [...ticks.major, ...ticks.minor].map(tick => Math.round(tick.sceneTimeMs))) : [];
-	const snapTimes = getTimelineSnapCandidates(snapSettings.value, otherTimes, xTicksWithMinor.value, localTicks, time.value);
-	if (utterance.subtitleDuration.mode !== 'specified') return;
-	const initialDuration = utterance.subtitleDuration.durationMs;
-	const initialTime = utterance.timeMs;
-	const points = [{ time: bounds.endMs, minDelta: bounds.minDelta, maxDelta: bounds.maxDelta }];
-	startSelectionMove(event, points, snapTimes, (delta, mergeKey) => {
-		const currentLayer = sceneLayers.value.find(layer => layer.id === layerId);
-		if (currentLayer?.layerType !== 'voicevox') return false;
-		const current = currentLayer.utterances.find(key => key.id === utteranceId);
-		// 設定画面でFill・発話長モードへ変えた場合や、別操作でキーが移動・削除された場合はドラッグを続けない。
-		if (!current || current.subtitleDuration.mode !== 'specified' || current.timeMs !== initialTime) return false;
-		stateManager.commit('editVoicevoxLayer', { sceneId: props.sceneId, layerId, voicevox: currentLayer.voicevox,
-																																													utterances: currentLayer.utterances.map(key => key.id === utteranceId ? { ...key, subtitleDuration: { mode: 'specified' as const, durationMs: initialDuration + delta } } : key) }, mergeKey);
-		return true;
-	});
-}
-
-function onKeyframeMoveStart(event: PointerEvent, point: TimelineKeyframeSelection) {
-	if (event.button !== 0 || !event.isPrimary || stopSelectionDrag.value || tlElWidth.value <= 0 || tlRangeX.value <= 0) return;
-	const key = keyframeSelectionKey(point);
-	if (event.ctrlKey || event.metaKey) {
-		event.preventDefault();
-		const current = selection.value.kind === 'keyframes' ? selection.value.keyframes : [];
-		selection.value = { kind: 'keyframes', keyframes: current.some(entry => keyframeSelectionKey(entry) === key) ? current.filter(entry => keyframeSelectionKey(entry) !== key) : [...current, point] };
-		tlEl.value?.focus({ preventScroll: true });
-		revealDetails();
-		return;
-	}
-	// 発話は絶対時刻のイベントなので、Shiftの時間伸縮には含めず共通移動だけを行う。
-	const canStretch = point.target !== 'utterance' && !selectedTimelineKeyframes.value.some(entry => entry.target === 'utterance');
-	const stretchSelection = event.shiftKey && canStretch ? getTimelineStretchSelection(keyframeEntries.value.map(entry => entry.selection), selection.value, point) : [];
-	const stretchKeys = new Set(stretchSelection.map(keyframeSelectionKey));
-	const stretchEntries = keyframeEntries.value.filter(entry => stretchKeys.has(keyframeSelectionKey(entry.selection)));
-	const laneEntries = stretchEntries.filter(entry => entry.selection.target === point.target && paramPathKey(entry.selection.paramPath) === paramPathKey(point.paramPath));
-	const stretch = event.shiftKey && canStretch ? createKeyframeStretch(laneEntries.map(entry => ({ id: entry.selection.keyframeId, x: entry.x })), point.keyframeId,
-		stretchEntries.map(entry => {
-			const ids = new Set(stretchSelection.filter(point => point.target === entry.selection.target && paramPathKey(point.paramPath) === paramPathKey(entry.selection.paramPath)).map(point => point.keyframeId));
-			return { x: entry.x, ...keyframeMoveBounds(entry.keyframes, ids, entry.selection.keyframeId) };
-		})) : null;
-	if (stretch != null) {
-		// 同じレイヤーの選択済みキーを、ドラッグしたレーンの選択範囲を基準に変形する。
-		selection.value = { kind: 'keyframes', keyframes: stretchSelection };
-	} else if (selection.value.kind !== 'keyframes' || !selection.value.keyframes.some(entry => keyframeSelectionKey(entry) === key)) onKeyframeSelected(point);
-	const current = selection.value;
-	if (current.kind !== 'keyframes') return;
-	revealDetails();
-	const selected = new Set(current.keyframes.map(keyframeSelectionKey));
-	const entries = keyframeEntries.value.filter(entry => selected.has(keyframeSelectionKey(entry.selection)));
-	const otherTimes = [0, ...clipLayers.value.flatMap(entry => entry.clips.flatMap(clip => [clip.startMs, getTimelineClipEnd(clip)])),
-																					...keyframeEntries.value.filter(entry => !selected.has(keyframeSelectionKey(entry.selection))).map(entry => entry.time)];
-	const affectedLayerIds = new Set(entries.map(entry => entry.selection.layerId));
-	const candidatesByLayer = new Map(sceneLayers.value.filter(layer => affectedLayerIds.has(layer.id)).map(layer => {
-		// キーはScene時刻のまま、所属レイヤーの各クリップに描いた目盛りへ吸着させる。
-		// 空白区間にはローカル目盛りがなく、別レイヤーのクリップも候補に含めない。
-		const localTimes = snapSettings.value.localTicks ? getTimelineVisibleClipTicks(
-			layer.layerType === 'group' ? [] : layer.clips, tlPosX.value, tlRangeX.value, xTicksCount.value, tickMode.value, tickSubdivisions.value,
-		).flatMap(({ ticks }) => [...ticks.major, ...ticks.minor].map(tick => tick.sceneTimeMs)).toSorted((a, b) => a - b) : [];
-		return [layer.id, getTimelineSnapCandidates(snapSettings.value, otherTimes, xTicksWithMinor.value, localTimes, time.value)];
-	}));
-	const points = entries.filter(entry => stretch == null || keyframeSelectionKey(entry.selection) === key).map(entry => {
-		const ids = new Set(current.keyframes.filter(point => point.layerId === entry.selection.layerId && point.target === entry.selection.target && paramPathKey(point.paramPath) === paramPathKey(entry.selection.paramPath)).map(point => point.keyframeId));
-		const bounds = stretch ?? keyframeMoveBounds(entry.keyframes, ids, entry.selection.keyframeId);
-		return { time: entry.time, minDelta: bounds.minDelta, maxDelta: bounds.maxDelta, snapTimes: candidatesByLayer.get(entry.selection.layerId) ?? [] };
-	});
-	const positions = entries.map(entry => ({ ...entry.selection, x: entry.x }));
-	const movedX = (x: number, delta: number) => Math.round(stretch == null ? x + delta : stretchKeyframeX(x, stretch, delta));
-	startSelectionMove(event, points, [], (delta, mergeKey) => {
-		const available = new Set(keyframeEntries.value.map(entry => keyframeSelectionKey(entry.selection)));
-		if (positions.some(position => !available.has(keyframeSelectionKey(position)))) return false;
-		stateManager.commit('moveTimelineKeyframes', { sceneId: props.sceneId, positions: positions.map(position => ({ ...position, x: movedX(position.x, delta) })) }, mergeKey);
-		return true;
-	}, delta => getTimelineSnappingTimes(entries.map(entry => ({
-		time: entry.time + movedX(entry.x, delta) - entry.x,
-		minDelta: 0, maxDelta: 0, snapTimes: candidatesByLayer.get(entry.selection.layerId) ?? [],
-	})), [], 0));
-}
-
-onBeforeUnmount(() => stopSelectionDrag.value?.());
-
-function onSeekBarPointerDown(ev: PointerEvent) {
-	if (ev.button !== 0 || !ev.isPrimary || stopSelectionDrag.value || panning.value || tlEl.value == null || tlElWidth.value <= 0 || tlRangeX.value <= 0) return;
-	ev.preventDefault();
-	ev.stopPropagation();
-	stopSelectionDrag.value = listenPointerDrag(ev, event => {
-		const pointerTime = timeAtClientX(event.clientX);
-		if (pointerTime == null) return;
-		const candidates = snapSeekBar.value ? getTimelineSnapCandidates(snapSettings.value, [], xTicksWithMinor.value) : [];
-		const result = getTimelineSeekPosition(Math.round(pointerTime), duration.value, candidates, 1 / pixelsPerMs.value);
-		snappingTimes.value = result.snappingTime == null ? [] : [result.snappingTime];
-		previewPlayback.seekTimeline(result.timeMs);
-	}, () => {
-		snappingTimes.value = [];
-		stopSelectionDrag.value = undefined;
-	});
-}
+const { selectionArea, onBackgroundPointerDown, onVirtualLayersLayout } = useTimelineMarqueeSelection({
+	sceneId: () => props.sceneId, timelineElement: tlEl, layersElement: layersEl, virtualLayers,
+	viewport, interaction, layers: marqueeLayers, layerSizeKeys, rulerHeight: X_TICKS_HEIGHT, selection, revealDetails,
+});
+const selectionDrag = useTimelineSelectionDrag({
+	timelineElement: tlEl, layersElement: layersEl, viewport, interaction, duration, snapSettings, snapSeekBar,
+	seek: timeMs => previewPlayback.seekTimeline(timeMs),
+});
+const { movingSelection, snappingTimes, onSeekBarPointerDown } = selectionDrag;
+const mediaInfo = shallowRef<ReadonlyMap<string, TimelineClipMediaInfo>>(new Map());
+const { resolveClip, onGroupMoveStart, onClipMoveStart, onClipTrimStart, onSubtitleTrimStart, onKeyframeMoveStart } = createTimelineDragActions({
+	stateManager, scene: editedScene, sceneLayers, keyframeEntries, selection, mediaInfo, viewport, drag: selectionDrag,
+	snapping: { settings: snapSettings, clipSettings: clipSnapSettings, tickMode, tickSubdivisions, currentTime: time },
+	selectLayer, selectClip, selectKeyframe: onKeyframeSelected, revealDetails,
+	focusTimeline: () => tlEl.value?.focus({ preventScroll: true }),
+});
 
 async function onTlKeydown(ev: KeyboardEvent) {
 	if (ev.defaultPrevented) return;
@@ -1040,7 +695,6 @@ function showAddInlineEffectNodeMenu(layerId: string) {
 }
 
 const audioError = ref<string | null>(null);
-const mediaInfo = shallowRef<ReadonlyMap<string, TimelineClipMediaInfo>>(new Map());
 const mediaAssets = computed(() => {
 	const ids = new Set(sceneLayers.value.flatMap(layer => layer.layerType === 'video' || layer.layerType === 'audio' ? layer.clips.map(clip => clip.assetId) : []));
 	return stateManager.state.assets.value.filter(asset => ids.has(asset.id));
