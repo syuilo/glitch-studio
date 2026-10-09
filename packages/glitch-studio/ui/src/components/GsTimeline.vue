@@ -156,6 +156,7 @@ import GsEffectPicker from './GsEffectPicker.vue';
 import type { TimelineGroupLayer, TimelineLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import type { TimelineClipSelection, TimelineKeyframeSelection } from '@/utility/timeline-selection.ts';
 import type { TimelineClipMediaInfo } from '@/utility/timeline-clip-media.ts';
+import type { EffectDefinition } from '@gs/subsystems_effect_shared/effect-definition.ts';
 import { getTimelineKeyframeEditTarget } from '@/utility/timeline-keyframe-edit.ts';
 import { useTimelineInteraction } from '@/composables/useTimelineInteraction.ts';
 import { useTimelineMarqueeSelection } from '@/composables/useTimelineMarqueeSelection.ts';
@@ -171,7 +172,6 @@ import { selectTimelineLayer, clipSelectionKey, keyframeSelectionKey } from '@/u
 import { appContext } from '@/app.ts';
 import { getTimelineEditorState, getSelectedTimelineLayerId, timelineClipboard } from '@/utility/timeline-editor-state.ts';
 import * as ui from '@/ui.ts';
-import type { EffectDefinition } from '@gs/subsystems_effect_shared/effect-definition.ts';
 import { createTimelineSourceActions } from '@/utility/timeline-source-actions.ts';
 import { createTimelineClipboardActions } from '@/utility/timeline-clipboard-actions.ts';
 
@@ -977,17 +977,18 @@ function formatFullTimecode(timeMs: number): string {
 		//outline: solid 7px #fff;
 	}
 
-	//&:before {
-	//	content: "";
-	//	display: block;
-	//	position: absolute;
-	//	top: 0;
-	//	left: 0;
-	//	width: 30px;
-	//	height: 100%;
-	//	pointer-events: none;
-	//	background: linear-gradient(90deg, #0008, #0000);
-	//}
+	&:before {
+		content: "";
+		display: block;
+		position: absolute;
+		z-index: 1100;
+		top: 0;
+		left: 0;
+		width: 20px;
+		height: 100%;
+		pointer-events: none;
+		background: linear-gradient(90deg, #0008, #0000);
+	}
 }
 
 .lines {
