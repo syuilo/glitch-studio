@@ -12,6 +12,8 @@ const bundled = await build({
 	absWorkingDir: uiDirectory,
 	stdin: { contents: `
 		export * from './src/utility/timeline-clip-clipboard.ts';
+		export { duplicateTimelineLayers } from './src/utility/timeline-group.ts';
+		export { findTimelineLayer } from '@gs/subsystems_timeline_shared/layer-tree.ts';
 		export { COMMAND_DEFS } from './src/commands.ts';
 		export { UndoRedo } from './src/utility/undo-redo.ts';
 		export { createShapeTimelineLayer } from './src/utility/shape-timeline-layer.ts';
@@ -29,7 +31,7 @@ const bundled = await build({
 });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', bundled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
-const { copyTimelineClips, prepareTimelineClipPaste, canPasteTimelineClips, COMMAND_DEFS, UndoRedo, createShapeTimelineLayer, genId } = module.exports;
+const { copyTimelineClips, prepareTimelineClipPaste, canPasteTimelineClips, COMMAND_DEFS, UndoRedo, createShapeTimelineLayer, duplicateTimelineLayers, findTimelineLayer, genId } = module.exports;
 
 // ショートカットと非同期ペーストはSFCの本物を使い、DOM・メディア読み込みだけを差し込む。
 // 現在の選択種別や読み込み中の編集によって貼り付けの挙動が変わるため、純粋関数のテストだけでは不足する。
@@ -45,7 +47,7 @@ const transformed = await transform(handlers.join('\n'), { loader: 'ts' });
 const createHandlers = new Function('context', `
 	const { HTMLElement, selection, editedScene, timelineClipboard, selectedLayer, props, stateManager, sceneLayers,
 		readLayerMediaDurations, selectLayer, ui, tlEl, time, inspectTimelineClipMedia, onCueKeyboardDown, removeSelectedClips,
-		copyTimelineClips, prepareTimelineClipPaste, canPasteTimelineClips, genId } = context;
+		copyTimelineClips, prepareTimelineClipPaste, canPasteTimelineClips, duplicateTimelineLayers, findTimelineLayer, genId } = context;
 	const deepClone = structuredClone;
 	let disposed = false;
 	${transformed.code}
@@ -76,7 +78,7 @@ function fixture(t) {
 		selectLayer: layer => { selection.value = { kind: 'layers', ids: [layer.id] }; },
 		ui: { alert: alert => { alerts.push(alert); } }, tlEl: { value: { focus() {} } }, time,
 		inspectTimelineClipMedia: async () => ({ durationMs: 10000 }), onCueKeyboardDown() {}, removeSelectedClips() {},
-		copyTimelineClips, prepareTimelineClipPaste, canPasteTimelineClips, genId,
+		copyTimelineClips, prepareTimelineClipPaste, canPasteTimelineClips, duplicateTimelineLayers, findTimelineLayer, genId,
 	};
 	return { scene, layer, state, history, changes, selection, time, timelineClipboard, alerts, context,
 		get clipboard() { return copyTimelineClips(scene, selection.value.clips); },

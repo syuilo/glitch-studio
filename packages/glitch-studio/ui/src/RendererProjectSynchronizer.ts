@@ -1,3 +1,4 @@
+import { findTimelineLayer } from '@gs/subsystems_timeline_shared/layer-tree.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { visualModuleTargetKey } from '@gs/glitch-studio_shared/project/visual-module-target.ts';
 import { findVisualModule } from './utility/visual-module-target.ts';
@@ -86,7 +87,7 @@ export class RendererProjectSynchronizer {
 				const scene = this.manager.state.timelineScenes.value.find(scene => scene.id === target.sceneId);
 				if (target.type === 'scene') changes.push({ type: 'scene', sceneId: target.sceneId, scene: scene ?? null });
 				else if (!scene) throw new Error('Changed scene not found');
-				else if (target.type === 'layer') changes.push({ ...target, layer: scene.layers.find(layer => layer.id === target.layerId) ?? null });
+				else if (target.type === 'layer') changes.push({ ...target, layer: findTimelineLayer(scene.layers, target.layerId) ?? null });
 				else changes.push({ ...target, layerIds: scene.layers.map(layer => layer.id) });
 			}
 		}

@@ -212,3 +212,41 @@ test('updates animated wrapped stroke intervals without changing fill or texture
 	near(wrapped.uniforms.strokeEndPoint[0], 0);
 	near(wrapped.uniforms.strokeEndPoint[1], -0.5);
 });
+
+// 【グループ設定の変更で子の描画履歴を捨てず、入れ子の枠を現在の変形で返す】
+// 子はScene上のレイヤーとして直接編集できる。親の設定を閉じ込めた古いクロージャや、
+// 根のレイヤーだけを調べる参照処理では、描画とハンドルが食い違う。
+test('updates group transforms while retaining child resources and reporting ancestor geometry', async t => {
+	const f = fixture(t);
+	const group = (id, layers, position) => ({ id, name: id, layerType: 'group', isDisabled: false, layers, automationGraphs: [],
+		compositingParamValues: { ...compositing(), position: literal(position) }, audioParamValues: { volume: literal(1) } });
+	const child = layer('child');
+	const inner = group('inner', [child], [0.2, 0.3]);
+	const outer = group('outer', [inner], [-0.5, 0]);
+	const previews = [];
+	f.manager.on('ev', event => { if (event.type === 'layerTransform') previews.push(structuredClone(event.ctx)); });
+	await f.setup([outer], { transformObserver: { sceneId: 'scene', layerId: 'child', requestId: 1 } });
+	await f.manager.renderTimelineAt(200);
+	const childTexture = f.shapeDraws()[0].texture;
+	assert.equal(previews.at(-1).clipId, 'clip');
+	assert.deepEqual(previews.at(-1).parentGeometries.map(parent => parent.transform.position), [[-0.5, 0], [0.2, 0.3]]);
+	assert.deepEqual(previews.at(-1).geometry.sourceSize, { width: 800, height: 450 });
+	const editedOuter = structuredClone(outer);
+	editedOuter.compositingParamValues.position = literal([0.5, 0]);
+	f.manager.applyProjectChanges([{ type: 'layer', sceneId: 'scene', layerId: 'outer', layer: editedOuter,
+		changes: [{ type: 'parameter', target: 'compositing', kind: 'value' }] }]);
+	await f.manager.renderTimelineAt(200);
+	assert.equal(childTexture.destroyed, false);
+	assert.equal(f.shapeDraws().length, 1);
+	assert.deepEqual(previews.at(-1).parentGeometries[0].transform.position, [0.5, 0]);
+	await f.manager.updateDynamicOptions({ transformObserver: { sceneId: 'scene', layerId: 'inner', requestId: 2 } });
+	await f.manager.renderTimelineAt(200);
+	assert.equal(previews.at(-1).clipId, null);
+	assert.deepEqual(previews.at(-1).geometry.transform.position, [0.2, 0.3]);
+	assert.equal(previews.at(-1).parentGeometries.length, 1);
+	const disabled = { ...editedOuter, isDisabled: true };
+	f.manager.applyProjectChanges([{ type: 'layer', sceneId: 'scene', layerId: 'outer', layer: disabled, changes: [{ type: 'disabled' }] }]);
+	await f.manager.renderTimelineAt(200);
+	assert.equal(childTexture.destroyed, true);
+	assert.equal(previews.at(-1).geometry, null);
+});

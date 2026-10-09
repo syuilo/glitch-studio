@@ -382,3 +382,19 @@ test('rejects invalid nested bindings when accepting layer settings', async t =>
 	await assert.rejects(f.setup([invalid]), /Unsupported layer parameter input source/);
 	assert.equal(f.calls.instances.length, 0);
 });
+
+// 【グループ内のエフェクト状態を所属Sceneのレイヤーとして取得できる】
+// グループをSceneの配置と同じパス要素にすると、詳細パネルが状態やエラーを見つけられない。
+// 参照先Sceneの配置パスとは区別し、入れ子の深さで通知先を変えない。
+test('reports grouped effect states at their owning scene layer address', async t => {
+	const f = fixture(t);
+	const group = (id, layers) => ({ id, name: id, layerType: 'group', layers, isDisabled: false, automationGraphs: [],
+		compositingParamValues: compositing(), audioParamValues: { volume: literal(1) } });
+	await f.setup([group('outer', [group('inner', [layer('effect')])])]);
+	await f.manager.renderTimelineAt(200);
+	const state = f.calls.states.find(entry => entry.status !== null);
+	assert.ok(state);
+	assert.equal(state.source.rootSceneId, 'scene');
+	assert.equal(state.source.layerId, 'effect');
+	assert.deepEqual(state.source.layerPath, ['effect']);
+});

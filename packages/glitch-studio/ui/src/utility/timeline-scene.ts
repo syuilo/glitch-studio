@@ -26,6 +26,7 @@ export function getLayerParameterTargets(layer: TimelineLayer): readonly Timelin
 	switch (layer.layerType) {
 		case 'audio': return ['audio'];
 		case 'image': return ['compositing'];
+		case 'group':
 		case 'video':
 		case 'scene': return ['compositing', 'audio'];
 		case 'visualModule':
@@ -45,7 +46,7 @@ export function getLayerParameterValues(layer: TimelineLayer, target: 'compositi
 export function getLayerParameterValues(layer: TimelineLayer, target: TimelineParameterTarget): Readonly<Record<string, TimelineEffectParameterBinding>>;
 export function getLayerParameterValues(layer: TimelineLayer, target: TimelineParameterTarget): Readonly<Record<string, TimelineEffectParameterBinding>> {
 	if (target === 'compositing' && layer.layerType !== 'audio') return layer.compositingParamValues;
-	if (target === 'audio' && (layer.layerType === 'voicevox' || layer.layerType === 'scene' || layer.layerType === 'video' || layer.layerType === 'audio')) return layer.audioParamValues;
+	if (target === 'audio' && (layer.layerType === 'group' || layer.layerType === 'voicevox' || layer.layerType === 'scene' || layer.layerType === 'video' || layer.layerType === 'audio')) return layer.audioParamValues;
 	if (target === 'module' && (layer.layerType === 'visualModule' || layer.layerType === 'inlineVisualModule')) return layer.visualModuleParamValues;
 	if (target === 'effect' && layer.layerType === 'effect') return layer.effectParamValues;
 	if (target === 'text' && layer.layerType === 'text') return layer.textParamValues;

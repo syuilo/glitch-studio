@@ -1,3 +1,4 @@
+import { findTimelineLayer } from '@gs/subsystems_timeline_shared/layer-tree.ts';
 import { getTimelineClipEnd, getTimelineClipMoveBounds, isTimelineClipActive, validateTimelineClips } from '@gs/subsystems_timeline_shared/timing.ts';
 import { getTimelineKeyframeLanes } from './timeline-keyframe-lanes.ts';
 import { clipSelectionKey, keyframeMoveBounds, keyframeSelectionKey } from './timeline-selection.ts';
@@ -16,8 +17,8 @@ export function prepareTimelineClipMove(state: Pick<ProjectState, 'visualModules
 	let minDelta = -Infinity;
 	let maxDelta = Infinity;
 	for (const layerId of new Set(targets.map(target => target.layerId))) {
-		const layer = scene.layers.find(layer => layer.id === layerId);
-		if (!layer) throw new Error('Timeline layer not found');
+		const layer = findTimelineLayer(scene.layers, layerId);
+		if (!layer || layer.layerType === 'group') throw new Error('Timeline clip layer not found');
 		const layerTargets = targets.filter(target => target.layerId === layerId);
 		const selectedIds = new Set(layerTargets.map(target => target.clipId));
 		const initialClips = layer.clips.map(clip => {

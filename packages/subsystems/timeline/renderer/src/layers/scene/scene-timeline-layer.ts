@@ -19,8 +19,8 @@ export function createSceneTimelineLayer(
 		sceneResolution: { width: number; height: number };
 		format: IntermediateTextureFormat;
 		onCompositing?: TimelineCompositingObserver;
-		createLayer: (entry: TimelineLayer, clipId: string) => TimelineLayerRenderer<UniformOrTexture>;
-		getLayerVersion?: (entry: TimelineLayer, clipId: string) => string | number;
+		createLayer: (entry: TimelineLayer, clipId: string | null) => TimelineLayerRenderer<UniformOrTexture>;
+		getLayerVersion?: (entry: TimelineLayer, clipId: string | null) => string | number;
 	},
 ): TimelineLayerRenderer<UniformOrTexture> {
 	// 定義が同じでも履歴・出力の所有者は配置ごとに分ける。親背景は子に渡さない。

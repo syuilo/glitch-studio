@@ -1,12 +1,9 @@
+import { flattenTimelineLayers, findTimelineLayer, findTimelineLayerLocation, getTimelineClipLayers, updateTimelineLayer } from '@gs/subsystems_timeline_shared/layer-tree.ts';
 import { validateVoicevoxSubtitle } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox-subtitle-validation.ts';
 import { validateVoicevoxLayer } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox.ts';
-import type { VoicevoxSettings, VoicevoxUtterance } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox.ts';
 import { validateTimelineFps, validateTimelineMotionBlur } from '@gs/subsystems_timeline_shared/motion-blur.ts';
-import type { TimelineMotionBlurSettings } from '@gs/subsystems_timeline_shared/motion-blur.ts';
 import { resolveParameter, walkParameters } from '@gs/shared/parameter/parameter-path.ts';
 import { isValueParameterBinding } from '@gs/shared/parameter/parameter-binding.ts';
-import type { ParamPath } from '@gs/shared/parameter/parameter-path.ts';
-import type { TimelineParameterTarget } from './utility/timeline-scene.ts';
 import { getTimelineVisualModuleArgumentDefault } from '@gs/subsystems_timeline_shared/layers/visual-module/visual-module-arguments.ts';
 import { validateVisualModuleAudioBinding } from '@gs/subsystems_visual-module_shared/audio-parameters.ts';
 import { mapParameterTree } from '@gs/shared/parameter/parameter-tree.ts';
@@ -16,9 +13,7 @@ import { createLayerInputBinding, getEffectLayerParameterDefault, validateTimeli
 import { validateTimelineText } from '@gs/subsystems_timeline_shared/layers/text/text-layer.ts';
 import { validateTimelineShape } from '@gs/subsystems_timeline_shared/layers/shape/shape-layer.ts';
 import { validateEffectResolution } from '@gs/subsystems_effect_shared/resolution.ts';
-import type { EffectResolution } from '@gs/subsystems_effect_shared/resolution.ts';
-import { getScene, getLayerParameterValues, getLayerParameterDefinitions, resolveLayerParameter } from './utility/timeline-scene.ts';
-import { canReferenceScene, validateTimelineScenes } from '@gs/subsystems_timeline_shared/scenes.ts';
+import { canReferenceScene, validateTimelineLayer, validateTimelineScenes } from '@gs/subsystems_timeline_shared/scenes.ts';
 import { getTimelineClipTrimBounds, getTimelineClipInsertionDuration, getTimelineMediaMaxDurationMs, validateTimelineClips } from '@gs/subsystems_timeline_shared/timing.ts';
 import type { TimelineClipTiming } from '@gs/subsystems_timeline_shared/timing.ts';
 import type { TimelineClip, TimelineAssetClip, TimelineVideoClip, TimelineSceneClip } from '@gs/subsystems_timeline_shared/clip.ts';
@@ -37,6 +32,15 @@ import type { TimelineScene, TimelineLayer } from '@gs/subsystems_timeline_share
 import { validateSceneResolution } from '@gs/subsystems_timeline_shared/scene-resolution.ts';
 import type { TimelineSceneResolution } from '@gs/subsystems_timeline_shared/scene-resolution.ts';
 import { timelineCompositingParamDefs } from '@gs/subsystems_timeline_shared/timeline-compositing.ts';
+import { canEditTimelineTransform } from './utility/timeline-transform-edit.ts';
+import { getScene, getLayerParameterTargets, getLayerParameterValues, getLayerParameterDefinitions, resolveLayerParameter } from './utility/timeline-scene.ts';
+import { prepareTimelineGroupMove } from './utility/timeline-group.ts';
+import type { EffectResolution } from '@gs/subsystems_effect_shared/resolution.ts';
+import type { TimelineParameterTarget } from './utility/timeline-scene.ts';
+import type { ParamPath } from '@gs/shared/parameter/parameter-path.ts';
+import type { TimelineMotionBlurSettings } from '@gs/subsystems_timeline_shared/motion-blur.ts';
+import type { VoicevoxSettings, VoicevoxUtterance } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox.ts';
+import type { TimelineGroupMove } from './utility/timeline-group.ts';
 import type { VisualModuleCustomParameterId, VisualModuleEffectNode, VisualModuleNode, NodeOutputReference, VisualModule, VisualModuleParamDef, VisualModuleOutputDef } from '@gs/subsystems_visual-module_shared/types.ts';
 import type { ParameterArrayElement } from '@gs/shared/parameter/parameter-binding.ts';
 import type { ParameterChangeKind, ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
@@ -51,23 +55,22 @@ import type { ValueParameterEdit } from '@/types/parameter-edit.ts';
 import type { VisualModuleParameterBinding } from '@gs/subsystems_visual-module_shared/types.ts';
 import type { NodeParamTarget as EffectNodeParamTarget } from '@/utility/node-params.ts';
 import type { ExpressionVariableName } from '@gs/shared/expression/expression-environment.ts';
-import { canConnectNodeDataTypes } from '@/utility/node-outputs.ts';
-import { resolveNodeParam, walkNodeParams } from '@/utility/node-params.ts';
-import { createInlineAutomationGraph } from '@/utility/automation-graph.ts';
-import { createInlineKeyframesTimeline } from '@/utility/keyframes-timeline.ts';
-import { createResetParameterBinding } from '@/utility/parameter-default.ts';
-import { getVisualModule, listVisualModules } from '@/utility/visual-module-target.ts';
 import type { VisualModuleTarget } from '@/utility/visual-module-target.ts';
 import type { TimelineKeyframeSelection, TimelineKeyframePosition } from '@/utility/timeline-selection.ts';
-import { prepareTimelineClipMove } from '@/utility/timeline-clip-move.ts';
 import type { TimelineClipMoveTarget } from '@/utility/timeline-clip-move.ts';
-import { prepareTimelineKeyframeMove } from '@/utility/timeline-keyframe-move.ts';
 import type { TimelineKeyframeMoveUpdate } from '@/utility/timeline-keyframe-move.ts';
 import type { TimelineClipPaste } from '@/utility/timeline-clip-clipboard.ts';
 import { getTimelineKeyframePasteUpdates } from '@/utility/timeline-keyframe-clipboard.ts';
 import type { TimelineKeyframePaste } from '@/utility/timeline-keyframe-clipboard.ts';
-import { canEditTimelineTransform } from './utility/timeline-transform-edit.ts';
 import type { TimelineTransformBindings, TimelineTransformKey } from './utility/timeline-transform-edit.ts';
+import { prepareTimelineKeyframeMove } from '@/utility/timeline-keyframe-move.ts';
+import { prepareTimelineClipMove } from '@/utility/timeline-clip-move.ts';
+import { getVisualModule, listVisualModules } from '@/utility/visual-module-target.ts';
+import { createResetParameterBinding } from '@/utility/parameter-default.ts';
+import { createInlineKeyframesTimeline } from '@/utility/keyframes-timeline.ts';
+import { createInlineAutomationGraph } from '@/utility/automation-graph.ts';
+import { resolveNodeParam, walkNodeParams } from '@/utility/node-params.ts';
+import { canConnectNodeDataTypes } from '@/utility/node-outputs.ts';
 
 export type CommandDef<Payload> = UndoRedoCommandDef<ProjectState, Payload, AppStateChange>;
 
@@ -110,12 +113,12 @@ const stateUtility = {
 const editTimelineLayerTransformCommandDef = defineCommand<{ sceneId: string; layerId: string; bindings: TimelineTransformBindings }>({
 	label: 'Transform timeline layer',
 	changes: (_state, payload) => [{ type: 'layer', sceneId: payload.sceneId, layerId: payload.layerId,
-		changes: [{ type: 'parameter', target: 'compositing', kind: 'value' }] }],
+																																		changes: [{ type: 'parameter', target: 'compositing', kind: 'value' }] }],
 	create: payload => {
 		let before: TimelineTransformBindings;
 		const keys = Object.keys(payload.bindings) as TimelineTransformKey[];
 		const getLayer = (state: ProjectState) => {
-			const layer = getScene(state, payload.sceneId).layers.find(entry => entry.id === payload.layerId);
+			const layer = findTimelineLayer(getScene(state, payload.sceneId).layers, payload.layerId);
 			if (!layer || layer.layerType === 'audio') throw new Error('Visual layer not found');
 			return layer;
 		};
@@ -174,7 +177,7 @@ const editTimelineLayerParamCommandDef = defineCommand<{
 			default: kind = 'value'; break;
 		}
 		return [{ type: 'layer', sceneId: payload.sceneId, layerId: payload.layerId,
-			changes: [{ type: 'parameter', target: payload.target ?? 'module', kind }] }];
+												changes: [{ type: 'parameter', target: payload.target ?? 'module', kind }] }];
 	},
 	create: payload => {
 		let before: TimelineEffectParameterBinding | undefined;
@@ -182,7 +185,7 @@ const editTimelineLayerParamCommandDef = defineCommand<{
 		const target = payload.target ?? 'module';
 		const rootKey = payload.paramPath[0];
 		const getLayer = (state: ProjectState) => {
-			const layer = getScene(state, payload.sceneId).layers.find(layer => layer.id === payload.layerId);
+			const layer = findTimelineLayer(getScene(state, payload.sceneId).layers, payload.layerId);
 			if (layer == null) throw new Error('Timeline layer not found');
 			getLayerParameterValues(layer, target);
 			return layer;
@@ -229,7 +232,7 @@ const editTimelineLayerParamCommandDef = defineCommand<{
 							if (payload.paramPath.length === 1 && def.dataType.kind === 'audioSource') { next = deepClone(defaultBinding); break; }
 							next = target === 'effect' && layer.layerType === 'effect' && payload.paramPath.length === 1
 							&& effectDefinitions[layer.effectId].kind === 'modify' && effectDefinitions[layer.effectId].primaryInputParameter === rootKey
-							? createLayerInputBinding() : createResetParameterBinding(def); break;
+								? createLayerInputBinding() : createResetParameterBinding(def); break;
 						case 'addElement':
 						case 'removeElement': {
 							if (def.dataType.kind !== 'array' || current.inputSource !== 'literal') throw new Error('Expected array parameter');
@@ -275,8 +278,8 @@ const editTimelineLayerParamCommandDef = defineCommand<{
 const importVisualModuleCommandDef = defineCommand<VisualModuleImport>({
 	label: 'Import Visual Module',
 	changes: (_state, payload) => [{ type: 'visualModuleRegistration', visualModuleId: payload.visualModule.id },
-		...payload.assets.map(asset => ({ type: 'asset' as const, assetId: asset.id })),
-		...payload.players.map(player => ({ type: 'player' as const, playerId: player.id }))],
+																																...payload.assets.map(asset => ({ type: 'asset' as const, assetId: asset.id })),
+																																...payload.players.map(player => ({ type: 'player' as const, playerId: player.id }))],
 	create: payload => ({
 		execute(state) {
 			// 追加前に全て確認し、失敗した取り込みで一部の素材だけを残さない。
@@ -502,7 +505,7 @@ const addAssetCommandDef = defineCommand<ProjectAsset>({
 const removeAssetCommandDef = defineCommand<{ assetId: string }>({
 	label: 'Remove asset',
 	changes: (state, payload) => [{ type: 'asset', assetId: payload.assetId },
-		...listVisualModules(state).map(({ target }) => ({ type: 'visualModule' as const, target }))],
+																															...listVisualModules(state).map(({ target }) => ({ type: 'visualModule' as const, target }))],
 	create: payload => {
 		let before: {
 			assets: ProjectAsset[];
@@ -1142,13 +1145,19 @@ type TimelineClipTarget = { layerId: string; clipId: string };
 type SourceDurations = Record<string, number>;
 
 function getTimelineLayer(state: ProjectState, sceneId: string, layerId: string): TimelineLayer {
-	const layer = getScene(state, sceneId).layers.find(layer => layer.id === layerId);
+	const layer = findTimelineLayer(getScene(state, sceneId).layers, layerId);
 	if (!layer) throw new Error('Timeline layer not found');
 	return layer;
 }
 
+function getTimelineClipLayer(state: ProjectState, sceneId: string, layerId: string) {
+	const layer = getTimelineLayer(state, sceneId, layerId);
+	if (layer.layerType === 'group') throw new Error('Group has no clips');
+	return layer;
+}
+
 function getTimelineClip(state: ProjectState, sceneId: string, target: TimelineClipTarget) {
-	const layer = getTimelineLayer(state, sceneId, target.layerId);
+	const layer = getTimelineClipLayer(state, sceneId, target.layerId);
 	const clip = layer.clips.find(clip => clip.id === target.clipId);
 	if (!clip) throw new Error('Timeline clip not found');
 	return { layer, clip };
@@ -1178,22 +1187,28 @@ function validateLayerClips(state: ProjectState, sceneId: string, layer: Timelin
 	}
 }
 
+/** 子の一部だけが追加されることのないよう、グループ全体を変更前に検証する。 */
+function validateAddedTimelineLayer(state: ProjectState, sceneId: string, layer: TimelineLayer, sourceDurationsMs?: SourceDurations) {
+	const ids = new Set(flattenTimelineLayers(getScene(state, sceneId).layers).map(entry => entry.id));
+	for (const entry of flattenTimelineLayers([layer])) {
+		if (ids.has(entry.id)) throw new Error('Duplicate layer ID');
+		ids.add(entry.id);
+	}
+	validateTimelineLayer(layer);
+	for (const child of getTimelineClipLayers([layer])) {
+		if (child.layerType === 'effect') validateTimelineEffectLayer(child, effectDefinitions[child.effectId]);
+		if ((child.layerType === 'video' || child.layerType === 'audio') && child.clips.length > 0 && !sourceDurationsMs) throw new Error('Media duration is required');
+		validateLayerClips(state, sceneId, child, child.clips, sourceDurationsMs);
+	}
+}
+
 const addTimelineLayerCommandDef = defineCommand<{ sceneId: string; layer: TimelineLayer; sourceDurationsMs?: SourceDurations }>({
 	label: 'Add timeline layer',
 	changes: (_state, payload) => [{ type: 'layer', sceneId: payload.sceneId, layerId: payload.layer.id, changes: [{ type: 'definition' }] }, { type: 'layerOrder', sceneId: payload.sceneId }],
 	create: payload => ({
 		execute(state) {
 			const scene = getScene(state, payload.sceneId);
-			if (scene.layers.some(layer => layer.id === payload.layer.id)) throw new Error('Duplicate layer ID');
-			if (payload.layer.layerType === 'effect') validateTimelineEffectLayer(payload.layer, effectDefinitions[payload.layer.effectId]);
-			if (payload.layer.layerType === 'voicevox') {
-				validateVoicevoxLayer(payload.layer);
-				validateVoicevoxSubtitle(payload.layer.subtitleParamValues);
-			}
-			if (payload.layer.layerType === 'text') validateTimelineText(payload.layer.textParamValues);
-			if (payload.layer.layerType === 'shape') validateTimelineShape(payload.layer.shape);
-			if ((payload.layer.layerType === 'video' || payload.layer.layerType === 'audio') && payload.layer.clips.length > 0 && !payload.sourceDurationsMs) throw new Error('Media duration is required');
-			validateLayerClips(state, payload.sceneId, payload.layer, payload.layer.clips, payload.sourceDurationsMs);
+			validateAddedTimelineLayer(state, payload.sceneId, payload.layer, payload.sourceDurationsMs);
 			scene.layers.unshift(deepClone(payload.layer));
 		},
 		undo(state) { const scene = getScene(state, payload.sceneId); scene.layers = scene.layers.filter(layer => layer.id !== payload.layer.id); },
@@ -1255,7 +1270,7 @@ const addTimelineClipCommandDef = defineCommand<{ sceneId: string; layerId: stri
 	changes: (_state, payload) => [{ type: 'layer', sceneId: payload.sceneId, layerId: payload.layerId, changes: [{ type: 'clips' }] }],
 	create: payload => ({
 		execute(state) {
-			const layer = getTimelineLayer(state, payload.sceneId, payload.layerId);
+			const layer = getTimelineClipLayer(state, payload.sceneId, payload.layerId);
 			const clips = [...layer.clips, deepClone(payload.clip)];
 			validateTimelineClips(clips);
 			validateLayerClips(state, payload.sceneId, layer, [payload.clip]);
@@ -1263,7 +1278,7 @@ const addTimelineClipCommandDef = defineCommand<{ sceneId: string; layerId: stri
 			// validateLayerClipsが保存先の種類と素材の対応を検証済み。キーや設定は変更しない。
 			Object.assign(layer, { clips });
 		},
-		undo(state) { const layer = getTimelineLayer(state, payload.sceneId, payload.layerId); Object.assign(layer, { clips: layer.clips.filter(clip => clip.id !== payload.clip.id) }); },
+		undo(state) { const layer = getTimelineClipLayer(state, payload.sceneId, payload.layerId); Object.assign(layer, { clips: layer.clips.filter(clip => clip.id !== payload.clip.id) }); },
 	}),
 });
 
@@ -1275,7 +1290,7 @@ const pasteTimelineClipsCommandDef = defineCommand<{ sceneId: string; clips: Tim
 		execute(state) {
 			if (payload.clips.length === 0) throw new Error('No clips to paste');
 			const proposed = [...new Set(payload.clips.map(entry => entry.layerId))].map(layerId => {
-				const layer = getTimelineLayer(state, payload.sceneId, layerId);
+				const layer = getTimelineClipLayer(state, payload.sceneId, layerId);
 				const added = payload.clips.filter(entry => entry.layerId === layerId).map(entry => entry.clip);
 				const clips = [...layer.clips, ...deepClone(added)];
 				validateTimelineClips(clips);
@@ -1290,7 +1305,7 @@ const pasteTimelineClipsCommandDef = defineCommand<{ sceneId: string; clips: Tim
 		},
 		undo(state) {
 			for (const layerId of new Set(payload.clips.map(entry => entry.layerId))) {
-				const layer = getTimelineLayer(state, payload.sceneId, layerId);
+				const layer = getTimelineClipLayer(state, payload.sceneId, layerId);
 				const ids = new Set(payload.clips.filter(entry => entry.layerId === layerId).map(entry => entry.clip.id));
 				Object.assign(layer, { clips: layer.clips.filter(clip => !ids.has(clip.id)) });
 			}
@@ -1394,12 +1409,12 @@ const removeTimelineClipsCommandDef = defineCommand<{ sceneId: string; clips: Ti
 		return {
 			execute(state) {
 				for (const target of payload.clips) getTimelineClip(state, payload.sceneId, target);
-				const layers = [...new Set(payload.clips.map(target => target.layerId))].map(id => getTimelineLayer(state, payload.sceneId, id));
+				const layers = [...new Set(payload.clips.map(target => target.layerId))].map(id => getTimelineClipLayer(state, payload.sceneId, id));
 				before = layers.map(layer => ({ layerId: layer.id, clips: deepClone(layer.clips) }));
 				// 空になってもレイヤー・キー・合成設定を残し、次の追加で再利用できるようにする。
 				for (const layer of layers) Object.assign(layer, { clips: layer.clips.filter(clip => !payload.clips.some(target => target.layerId === layer.id && target.clipId === clip.id)) });
 			},
-			undo(state) { for (const entry of before) Object.assign(getTimelineLayer(state, payload.sceneId, entry.layerId), { clips: deepClone(entry.clips) }); },
+			undo(state) { for (const entry of before) Object.assign(getTimelineClipLayer(state, payload.sceneId, entry.layerId), { clips: deepClone(entry.clips) }); },
 		};
 	},
 });
@@ -1415,9 +1430,9 @@ const changeTimelineClipSourceCommandDef = defineCommand<TimelineClipTarget & { 
 				const media = layer.layerType === 'video' || layer.layerType === 'audio';
 				if (media) requireMediaDurationMs(payload.sourceDurationMs);
 				const next = { ...clip, contentOffsetMs: 0,
-					durationMs: media ? getTimelineClipInsertionDuration(layer.clips.filter(entry => entry.id !== clip.id), clip.startMs, payload.sourceDurationMs) : clip.durationMs,
-					...(layer.layerType === 'scene' ? { sceneId: payload.referencedSceneId } : { assetId: payload.assetId }),
-					...(layer.layerType === 'video' ? { audioEnabled: payload.audioEnabled ?? ('audioEnabled' in clip && clip.audioEnabled) } : {}),
+																			durationMs: media ? getTimelineClipInsertionDuration(layer.clips.filter(entry => entry.id !== clip.id), clip.startMs, payload.sourceDurationMs) : clip.durationMs,
+																			...(layer.layerType === 'scene' ? { sceneId: payload.referencedSceneId } : { assetId: payload.assetId }),
+																			...(layer.layerType === 'video' ? { audioEnabled: payload.audioEnabled ?? ('audioEnabled' in clip && clip.audioEnabled) } : {}),
 				};
 				if (layer.layerType !== 'scene' && layer.layerType !== 'image' && !media) throw new Error('Layer has no clip source');
 				validateTimelineClips(layer.clips.map(entry => entry.id === clip.id ? next : entry));
@@ -1437,7 +1452,7 @@ const editVideoClipAudioCommandDef = defineCommand<TimelineClipTarget & { sceneI
 	create: payload => {
 		let before: boolean;
 		const find = (state: ProjectState) => {
-			const layer = getTimelineLayer(state, payload.sceneId, payload.layerId);
+			const layer = getTimelineClipLayer(state, payload.sceneId, payload.layerId);
 			if (layer.layerType !== 'video') throw new Error('Video layer not found');
 			const clip = layer.clips.find(clip => clip.id === payload.clipId);
 			if (!clip) throw new Error('Video clip not found');
@@ -1452,25 +1467,17 @@ const editVideoClipAudioCommandDef = defineCommand<TimelineClipTarget & { sceneI
 
 const pasteTimelineLayerCommandDef = defineCommand<{ sceneId: string; layer: TimelineLayer; sourceLayerId: string; sourceDurationsMs?: SourceDurations }>({
 	label: 'Paste timeline layer',
-	changes: (_state, payload) => [{ type: 'layer', sceneId: payload.sceneId, layerId: payload.layer.id, changes: [{ type: 'definition' }] }, { type: 'layerOrder', sceneId: payload.sceneId }],
+	changes: (_state, payload) => [{ type: 'scene', sceneId: payload.sceneId }],
 	create: payload => ({
 		execute(state) {
-			if (getScene(state, payload.sceneId).layers.some(layer => layer.id === payload.layer.id)) throw new Error('Duplicate layer ID');
-			if (payload.layer.layerType === 'effect') validateTimelineEffectLayer(payload.layer, effectDefinitions[payload.layer.effectId]);
-			if (payload.layer.layerType === 'voicevox') {
-				validateVoicevoxLayer(payload.layer);
-				validateVoicevoxSubtitle(payload.layer.subtitleParamValues);
-			}
-			if (payload.layer.layerType === 'text') validateTimelineText(payload.layer.textParamValues);
-			if (payload.layer.layerType === 'shape') validateTimelineShape(payload.layer.shape);
-			if ((payload.layer.layerType === 'video' || payload.layer.layerType === 'audio') && payload.layer.clips.length > 0 && !payload.sourceDurationsMs) throw new Error('Media duration is required');
-			validateLayerClips(state, payload.sceneId, payload.layer, payload.layer.clips, payload.sourceDurationsMs);
-			const sourceIndex = getScene(state, payload.sceneId).layers.findIndex(layer => layer.id === payload.sourceLayerId);
+			validateAddedTimelineLayer(state, payload.sceneId, payload.layer, payload.sourceDurationsMs);
+			const location = findTimelineLayerLocation(getScene(state, payload.sceneId).layers, payload.sourceLayerId);
+			const siblings = location?.siblings ?? getScene(state, payload.sceneId).layers;
 			// 表示順は先頭が最上層。コピー元が削除済みなら最上層へ挿入する。
-			getScene(state, payload.sceneId).layers.splice(Math.max(0, sourceIndex), 0, deepClone(payload.layer));
+			siblings.splice(location?.index ?? 0, 0, deepClone(payload.layer));
 		},
 		undo(state) {
-			getScene(state, payload.sceneId).layers = getScene(state, payload.sceneId).layers.filter(layer => layer.id !== payload.layer.id);
+			getScene(state, payload.sceneId).layers = updateTimelineLayer(getScene(state, payload.sceneId).layers, payload.layer.id, () => null);
 		},
 	}),
 });
@@ -1500,18 +1507,17 @@ const reorderTimelineLayersCommandDef = defineCommand<{ sceneId: string; layerId
 
 const removeTimelineLayerCommandDef = defineCommand<{ sceneId: string; layerId: string }>({
 	label: 'Remove timeline layer',
-	changes: (_state, payload) => [{ type: 'layer', sceneId: payload.sceneId, layerId: payload.layerId, changes: [{ type: 'definition' }] }, { type: 'layerOrder', sceneId: payload.sceneId }],
+	changes: (_state, payload) => [{ type: 'scene', sceneId: payload.sceneId }],
 	create: payload => {
-		let before: TimelineLayer;
-		let index: number;
+		let before: TimelineLayer[];
 		return {
 			execute(state) {
-				index = getScene(state, payload.sceneId).layers.findIndex(layer => layer.id === payload.layerId);
-				if (index < 0) throw new Error('Timeline layer not found');
-				before = deepClone(getScene(state, payload.sceneId).layers[index]);
-				getScene(state, payload.sceneId).layers.splice(index, 1);
+				const scene = getScene(state, payload.sceneId);
+				getTimelineLayer(state, payload.sceneId, payload.layerId);
+				before = deepClone(scene.layers);
+				scene.layers = updateTimelineLayer(scene.layers, payload.layerId, () => null);
 			},
-			undo(state) { getScene(state, payload.sceneId).layers.splice(index, 0, deepClone(before)); },
+			undo(state) { getScene(state, payload.sceneId).layers = deepClone(before); },
 		};
 	},
 });
@@ -1604,7 +1610,7 @@ const removeSceneCommandDef = defineCommand<{ sceneId: string }>({
 		let index: number;
 		return {
 			execute(state) {
-				const references = state.timelineScenes.value.filter(scene => scene.layers.some(layer => layer.layerType === 'scene' && layer.clips.some(clip => clip.sceneId === payload.sceneId)));
+				const references = state.timelineScenes.value.filter(scene => flattenTimelineLayers(scene.layers).some(layer => layer.layerType === 'scene' && layer.clips.some(clip => clip.sceneId === payload.sceneId)));
 				if (references.length > 0) throw new Error('Scene is used by: ' + references.map(scene => scene.name).join(', '));
 				before = deepClone(getScene(state, payload.sceneId));
 				index = state.timelineScenes.value.findIndex(scene => scene.id === payload.sceneId);
@@ -1618,8 +1624,8 @@ const removeSceneCommandDef = defineCommand<{ sceneId: string }>({
 const pasteTimelineKeyframesCommandDef = defineCommand<{ sceneId: string; keyframes: TimelineKeyframePaste[] }>({
 	label: 'Paste timeline keyframes',
 	changes: (_state, payload) => [...new Map(payload.keyframes.map(entry => [JSON.stringify([entry.layerId, entry.target]),
-		{ type: 'layer' as const, sceneId: payload.sceneId, layerId: entry.layerId,
-			changes: entry.target === 'utterance' ? [{ type: 'definition' as const }] : [{ type: 'parameter' as const, target: entry.target, kind: 'value' as const }] }])).values()],
+																																																																											{ type: 'layer' as const, sceneId: payload.sceneId, layerId: entry.layerId,
+																																																																													changes: entry.target === 'utterance' ? [{ type: 'definition' as const }] : [{ type: 'parameter' as const, target: entry.target, kind: 'value' as const }] }])).values()],
 	create: payload => {
 		let updates: NonNullable<ReturnType<typeof getTimelineKeyframePasteUpdates>>;
 		return {
@@ -1649,7 +1655,7 @@ const pasteTimelineKeyframesCommandDef = defineCommand<{ sceneId: string; keyfra
 const moveTimelineKeyframesCommandDef = defineCommand<{ sceneId: string; positions: TimelineKeyframePosition[] }>({
 	label: 'Move timeline keyframes',
 	changes: (_state, payload) => payload.positions.map(position => ({ type: 'layer', sceneId: payload.sceneId, layerId: position.layerId,
-		changes: position.target === 'utterance' ? [{ type: 'definition' }] : [{ type: 'parameter', target: position.target, kind: 'value' }] })),
+																																																																				changes: position.target === 'utterance' ? [{ type: 'definition' }] : [{ type: 'parameter', target: position.target, kind: 'value' }] })),
 	create: payload => {
 		let updates: TimelineKeyframeMoveUpdate[] | undefined;
 		return {
@@ -1695,7 +1701,7 @@ const removeTimelineKeyframesCommandDef = defineCommand<{ sceneId: string; keyfr
 			execute(state) {
 				const scene = getScene(state, payload.sceneId);
 				const ids = new Set(payload.keyframes.map(point => point.layerId));
-				before = deepClone(scene.layers.filter(layer => ids.has(layer.id)));
+				before = deepClone(flattenTimelineLayers(scene.layers).filter(layer => ids.has(layer.id)));
 				const proposed = deepClone(before);
 				for (const point of payload.keyframes) {
 					const layer = proposed.find(layer => layer.id === point.layerId);
@@ -1715,17 +1721,115 @@ const removeTimelineKeyframesCommandDef = defineCommand<{ sceneId: string; keyfr
 						setTimelineLayerParameterRoot(layer, point.target, rootKey, draft[rootKey]);
 					}
 				}
-				for (const layer of proposed) scene.layers[scene.layers.findIndex(entry => entry.id === layer.id)] = layer;
+				for (const layer of proposed) scene.layers = updateTimelineLayer(scene.layers, layer.id, () => layer);
 			},
 			undo(state) {
 				const scene = getScene(state, payload.sceneId);
-				for (const layer of before) scene.layers[scene.layers.findIndex(entry => entry.id === layer.id)] = deepClone(layer);
+				for (const layer of before) scene.layers = updateTimelineLayer(scene.layers, layer.id, () => deepClone(layer));
 			},
 		};
 	},
 });
 
+/** 階層編集は完成した木を検証してから一度だけ適用し、Undoでは所属と順序も復元する。 */
+function editTimelineTree(sceneId: string, edit: (layers: TimelineLayer[]) => void) {
+	let before: TimelineLayer[];
+	return {
+		execute(state: ProjectState) {
+			const scene = getScene(state, sceneId);
+			const next = deepClone(scene.layers);
+			edit(next);
+			validateTimelineScenes(state.timelineScenes.value.map(entry => entry.id === sceneId ? { ...entry, layers: next } : entry));
+			before = deepClone(scene.layers);
+			scene.layers = next;
+		},
+		undo(state: ProjectState) { getScene(state, sceneId).layers = deepClone(before); },
+	};
+}
+
+const groupTimelineLayersCommandDef = defineCommand<{ sceneId: string; layerIds: string[]; group: import('@gs/subsystems_timeline_shared/types.ts').TimelineGroupLayer }>({
+	label: 'Group timeline layers',
+	changes: (_state, payload) => [{ type: 'scene', sceneId: payload.sceneId }],
+	create: payload => editTimelineTree(payload.sceneId, layers => {
+		if (payload.group.layers.length || findTimelineLayer(layers, payload.group.id)) throw new Error('Invalid new group');
+		const locations = payload.layerIds.map(id => findTimelineLayerLocation(layers, id));
+		if (!locations.length) { layers.unshift(deepClone(payload.group)); return; }
+		const first = locations[0];
+		if (!first || locations.some(location => !location || location.siblings !== first.siblings)) throw new Error('Group requires sibling layers');
+		const indexes = locations.map(location => location!.index).sort((a, b) => a - b);
+		if (indexes.some((index, offset) => index !== indexes[0] + offset)) throw new Error('Group requires consecutive layers');
+		const children = first.siblings.splice(indexes[0], indexes.length);
+		first.siblings.splice(indexes[0], 0, { ...deepClone(payload.group), layers: children });
+	}),
+});
+
+const ungroupTimelineLayerCommandDef = defineCommand<{ sceneId: string; layerId: string }>({
+	label: 'Ungroup timeline layer',
+	changes: (_state, payload) => [{ type: 'scene', sceneId: payload.sceneId }],
+	create: payload => editTimelineTree(payload.sceneId, layers => {
+		const location = findTimelineLayerLocation(layers, payload.layerId);
+		if (!location || location.layer.layerType !== 'group') throw new Error('Group not found');
+		location.siblings.splice(location.index, 1, ...location.layer.layers);
+	}),
+});
+
+const moveTimelineLayerCommandDef = defineCommand<{ sceneId: string; layerId: string; parentId: string | null; beforeId: string | null }>({
+	label: 'Move timeline layer',
+	changes: (_state, payload) => [{ type: 'scene', sceneId: payload.sceneId }],
+	create: payload => editTimelineTree(payload.sceneId, layers => {
+		const source = findTimelineLayerLocation(layers, payload.layerId);
+		if (!source) throw new Error('Layer not found');
+		if (payload.parentId && findTimelineLayer([source.layer], payload.parentId)) throw new Error('Cannot move a group into itself');
+		const parent = payload.parentId ? findTimelineLayer(layers, payload.parentId) : null;
+		if (payload.parentId && parent?.layerType !== 'group') throw new Error('Parent group not found');
+		const destination = parent?.layerType === 'group' ? parent.layers : layers;
+		if (payload.beforeId === source.layer.id && destination === source.siblings) return;
+		const before = payload.beforeId ? destination.find(layer => layer.id === payload.beforeId) : null;
+		if (payload.beforeId && !before) throw new Error('Destination layer not found');
+		source.siblings.splice(source.index, 1);
+		destination.splice(before ? destination.indexOf(before) : destination.length, 0, source.layer);
+	}),
+});
+
+const moveTimelineGroupCommandDef = defineCommand<{ sceneId: string; layerId: string; deltaMs: number; initial?: TimelineGroupMove }>({
+	label: 'Move timeline group',
+	changes: (state, payload) => {
+		const group = getTimelineLayer(state, payload.sceneId, payload.layerId);
+		return flattenTimelineLayers([group]).map(layer => ({ type: 'layer' as const, sceneId: payload.sceneId, layerId: layer.id,
+																																																								changes: layer.layerType === 'voicevox' ? [{ type: 'definition' as const }] : [
+																																																									{ type: 'clips' as const }, ...getLayerParameterTargets(layer).map(target => ({ type: 'parameter' as const, target, kind: 'value' as const })),
+																																																								] }));
+	},
+	create: payload => {
+		let before: (TimelineClipTarget & { startMs: number })[];
+		let after: (TimelineClipTarget & { startMs: number })[] | undefined;
+		let updates: TimelineKeyframeMoveUpdate[] = [];
+		const apply = (state: ProjectState, side: 'before' | 'after') => {
+			for (const position of side === 'before' ? before : after!) getTimelineClip(state, payload.sceneId, position).clip.startMs = position.startMs;
+			applyTimelineKeyframeMove(state, payload.sceneId, updates, side);
+		};
+		return {
+			execute(state) {
+				if (after) { apply(state, 'after'); return; }
+				const group = getTimelineLayer(state, payload.sceneId, payload.layerId);
+				if (group.layerType !== 'group' || !Number.isFinite(payload.deltaMs)) throw new Error('Invalid group move');
+				const initial = payload.initial ?? prepareTimelineGroupMove(state, group);
+				const delta = Math.max(initial.minDelta, Math.min(initial.maxDelta, Math.round(payload.deltaMs)));
+				updates = prepareTimelineKeyframeMove(state, getScene(state, payload.sceneId), initial.keyframes.map(point => ({ ...point, x: point.x + delta })));
+				before = initial.clips.map(clip => ({ ...clip, startMs: getTimelineClip(state, payload.sceneId, clip).clip.startMs }));
+				after = initial.clips.map(clip => ({ ...clip, startMs: clip.startMs + delta }));
+				apply(state, 'after');
+			},
+			undo(state) { apply(state, 'before'); },
+		};
+	},
+});
+
 export const COMMAND_DEFS = {
+	groupTimelineLayers: groupTimelineLayersCommandDef,
+	ungroupTimelineLayer: ungroupTimelineLayerCommandDef,
+	moveTimelineLayer: moveTimelineLayerCommandDef,
+	moveTimelineGroup: moveTimelineGroupCommandDef,
 	importVisualModule: importVisualModuleCommandDef,
 	renameVisualModule: renameVisualModuleCommandDef,
 	removeTimelineKeyframes: removeTimelineKeyframesCommandDef,

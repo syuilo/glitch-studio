@@ -18,7 +18,7 @@
 		<span :class="$style.layerName">{{ selectedTimelineLayer?.name }}</span>
 
 		<GsButton
-			v-tooltip="'Snap frame to canvas edges'" :primary="snap"
+			v-tooltip="geometry.parents.length ? 'Snap frame to group canvas edges' : 'Snap frame to canvas edges'" :primary="snap"
 			style="margin-left: auto;"
 			iconOnly
 			small
@@ -36,7 +36,7 @@ import { computed, onBeforeUnmount, ref, shallowRef, useTemplateRef, watch } fro
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { deepEqual } from '@gs/shared/utility/deep-equal.ts';
 import { isTimelineClipActive } from '@gs/subsystems_timeline_shared/timing.ts';
-import { getTimelineLayerCorners, timelineSourceToScene } from '@gs/subsystems_timeline_shared/layer-transform.ts';
+import { getTimelineLayerCorners, timelineSourceToScene, timelineSceneToSource } from '@gs/subsystems_timeline_shared/layer-transform.ts';
 import type { TimelineLayerGeometry, TimelineLayerTransform, TimelinePoint } from '@gs/subsystems_timeline_shared/layer-transform.ts';
 import type { PreviewCanvasRect } from '@/utility/preview-transform.ts';
 import type { TimelineTransformBindings, TimelineTransformKey } from '@/utility/timeline-transform-edit.ts';
@@ -54,7 +54,8 @@ const overlay = useTemplateRef('overlay');
 const snap = preferences.model('previewTransformSnap');
 const keepRatio = preferences.model('previewTransformKeepRatio');
 const dragging = ref(false);
-const draft = shallowRef<TimelineLayerGeometry | null>(null);
+type PreviewGeometry = TimelineLayerGeometry & { parents: TimelineLayerGeometry[] };
+const draft = shallowRef<PreviewGeometry | null>(null);
 let stopDrag: (() => void) | undefined;
 const transformObserver = {};
 
@@ -62,6 +63,7 @@ const target = computed(() => {
 	const layer = selectedTimelineLayer.value;
 	if (!preferences.r.showTransformInPreview.value || !timelineRendererManagerController.isReady.value || previewPlayback.state.value.mode !== 'timeline' || previewPlayback.isTimelinePlaying.value
 		|| !layer || layer.layerType === 'audio' || layer.isDisabled || activeSceneId.value == null) return null;
+	if (layer.layerType === 'group') return { sceneId: activeSceneId.value, layerId: layer.id, clipId: null };
 	const clip = layer.clips.find(clip => isTimelineClipActive(clip, previewPlayback.currentTimelineTime.value));
 	return clip ? { sceneId: activeSceneId.value, layerId: layer.id, clipId: clip.id } : null;
 });
@@ -77,7 +79,7 @@ const renderedGeometry = computed(() => {
 	const current = target.value;
 	const preview = timelineRendererManagerController.layerTransform.value;
 	return current && preview && preview.request.sceneId === current.sceneId && preview.request.layerId === current.layerId
-		&& preview.clipId === current.clipId && preview.time === previewPlayback.currentTimelineTime.value ? preview.geometry : null;
+		&& preview.clipId === current.clipId && preview.time === previewPlayback.currentTimelineTime.value ? preview.geometry && { ...preview.geometry, parents: preview.parentGeometries ?? [] } : null;
 });
 const geometry = computed(() => draft.value ?? renderedGeometry.value);
 const editable = computed(() => {
@@ -86,7 +88,10 @@ const editable = computed(() => {
 	return Object.fromEntries((['position', 'scale', 'rotation'] as const).map(key => [key, canEditTimelineTransform(bindings[key], key)])) as Record<TimelineTransformKey, boolean>;
 });
 const zeroScale = computed(() => geometry.value?.transform.scale.some(value => Math.abs(value) < 0.000001) ?? false);
-const toScreen = (point: TimelinePoint) => sceneToPreview(point, props.canvasRect);
+const toScreen = (point: TimelinePoint) => {
+	for (const parent of [...(geometry.value?.parents ?? [])].reverse()) point = timelineSourceToScene(point, parent);
+	return sceneToPreview(point, props.canvasRect);
+};
 const handlePositions = computed(() => geometry.value ? previewResizeHandles.map(point => toScreen(timelineSourceToScene(point, geometry.value!))) : []);
 const polygon = computed(() => geometry.value ? getTimelineLayerCorners(geometry.value).map(point => toScreen(point).join(',')).join(' ') : '');
 const origin = computed(() => geometry.value ? toScreen(geometry.value.transform.position) : [0, 0]);
@@ -132,7 +137,7 @@ function startDrag(event: PointerEvent, handle: 'move' | 'rotate' | TimelinePoin
 	// 新時刻の応答待ちでSVGをunmountするとpointer captureまで失われるため、
 	// 操作開始時の枠を残し、正しい時刻の評価が届いてから編集を開始する。
 	draft.value = pendingGeometry;
-	let initial: TimelineLayerGeometry | null = null;
+	let initial: PreviewGeometry | null = null;
 	let session: ReturnType<typeof stateManager.beginEdit<'editTimelineLayerTransform'>> | undefined;
 	let prepared: TimelineTransformBindings;
 	let initialBindings: TimelineTransformBindings;
@@ -142,14 +147,24 @@ function startDrag(event: PointerEvent, handle: 'move' | 'rotate' | TimelinePoin
 	let accumulatedAngle = 0;
 	let changed = false;
 	let lastBindings: TimelineTransformBindings | null = null;
+	// 保存値は子の座標系のまま編集する。祖先の非等方拡縮・回転・反転も順に逆変換する。
+	const localPointer = (x: number, y: number): TimelinePoint => {
+		let point: TimelinePoint = [(x - overlayRect.left - rect.left) * 2 / rect.width - 1, 1 - (y - overlayRect.top - rect.top) * 2 / rect.height];
+		for (const parent of initial?.parents ?? []) point = timelineSceneToSource(point, parent) ?? point;
+		const result = sceneToPreview(point, rect);
+		return [result[0] + overlayRect.left, result[1] + overlayRect.top];
+	};
 	const angleAt = (x: number, y: number) => {
 		const center = sceneToPreview(initial!.transform.position, rect);
+		[x, y] = localPointer(x, y);
 		return Math.atan2(y - overlayRect.top - center[1], x - overlayRect.left - center[0]);
 	};
 	const update = () => {
 		frame = null;
 		if (!initial || !session?.active) return;
-		const delta = previewDeltaToScene([latest.x - start[0], latest.y - start[1]], rect);
+		const currentPointer = localPointer(latest.x, latest.y);
+		const initialPointer = localPointer(start[0], start[1]);
+		const delta = previewDeltaToScene([currentPointer[0] - initialPointer[0], currentPointer[1] - initialPointer[1]], rect);
 		if (delta[0] === 0 && delta[1] === 0 && accumulatedAngle === 0 && lastBindings == null) return;
 		let transform: TimelineLayerTransform;
 		if (handle === 'move') {

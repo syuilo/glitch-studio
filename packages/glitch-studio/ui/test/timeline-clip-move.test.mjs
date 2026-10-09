@@ -231,7 +231,7 @@ test('uses the same bounds and captured keys in the actual clip drag handler', a
 	const { code } = await transform(handler.getText(ast), { loader: 'ts' });
 	const context = { ...module.exports, deepClone: structuredClone, editedScene: f.scene,
 		selection: { value: { kind: 'clips', clips: [target] } }, stopSelectionDrag: undefined,
-		tlElWidth: { value: 1000 }, tlRangeX: { value: 1000 }, sceneLayers: { value: f.scene.layers }, stateManager: f.history,
+		tlElWidth: { value: 1000 }, tlRangeX: { value: 1000 }, sceneLayers: { value: f.scene.layers }, clipLayers: { value: f.scene.layers }, stateManager: f.history,
 		props: { sceneId: 'scene' }, time: { value: 2400 }, xTicksWithMinor: { value: [] },
 		clipSnapSettings: { value: { start: true, end: true } },
 		snapSettings: { value: { enabled: true, globalTicks: false, localTicks: false, seekBar: true } },
@@ -266,7 +266,7 @@ test('uses the shared collision gap for ordinary keyframe dragging and allows re
 		selection: { value: { kind: 'keyframes', keyframes: [point] } }, selectedTimelineKeyframes: { value: [point] },
 		keyframeEntries: { get value() { return module.exports.getTimelineKeyframeEntries(f.state, f.scene.layers); } },
 		stopSelectionDrag: undefined, tlElWidth: { value: 1000 }, tlRangeX: { value: 1000 },
-		sceneLayers: { value: [layer] }, stateManager: f.history, props: { sceneId: 'scene' },
+		sceneLayers: { value: [layer] }, clipLayers: { value: [layer] }, stateManager: f.history, props: { sceneId: 'scene' },
 		time: { value: 1400 }, xTicksWithMinor: { value: [] },
 		snapSettings: { value: { enabled: true, globalTicks: false, localTicks: false, seekBar: true } },
 		revealDetails() {}, startSelectionMove(event, points, times, apply) { drag = { points, times, apply }; },

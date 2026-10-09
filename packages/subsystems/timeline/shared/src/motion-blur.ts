@@ -1,3 +1,4 @@
+import { getEnabledTimelineLayers } from './layer-tree.ts';
 import { getSceneDuration, getTimelineScene } from './scenes.ts';
 import { getTimelineClipEnd } from './timing.ts';
 import type { TimelineScene } from './types.ts';
@@ -30,9 +31,9 @@ export function getTimelineMotionBlurBoundaries(scenes: readonly TimelineScene[]
 		if (cached) return cached;
 		const scene = getTimelineScene(scenes, id);
 		const boundaries = new Set([0, getSceneDuration(scene)]);
-		for (const layer of scene.layers) {
+		for (const layer of getEnabledTimelineLayers(scene.layers)) {
 			// 非表示のカットで露光を切り詰めると、表示中のレイヤーの動きまで変わってしまう。
-			if (layer.isDisabled || layer.layerType === 'audio') continue;
+			if (layer.layerType === 'group' || layer.layerType === 'audio') continue;
 			for (const clip of layer.clips) {
 				boundaries.add(clip.startMs);
 				boundaries.add(getTimelineClipEnd(clip));

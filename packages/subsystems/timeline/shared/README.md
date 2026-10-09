@@ -22,13 +22,13 @@ Scene・レイヤー・クリップと、その時間・合成・音声設定の
 
 `expression.ts`はレイヤーに公開する変数名、`evaluation-scope.ts`は映像と音声で共通のScene時刻の評価スコープを定義する。Visual Module内部の変数・カスタムパラメータ・グラフ一覧は継承しない。
 
-`parameter-binding.ts`は共通方式だけの`TimelineParameterBinding`、音声入力用の`lowerLayerAudio` / `layerAudio`を加えた`TimelineVisualModuleParameterBinding`、さらに画像入力用の`layerInput`を加えた`TimelineEffectParameterBinding`を定義する。合成設定・音量は共通方式だけを使う。音声入力Bindingは`audioSource`型だけで選択できる。`layerAudio`は`layerId: string | null`を保存し、引数を所有するレイヤーと同じSceneの直下から音声・動画・Sceneレイヤーを選ぶ。`null`や削除・欠落した参照先は入力なしとして扱うが、保存したIDは維持する。TimelineではPlayerを指定できず、音声入力の式・キー・automationも扱わない。
+`parameter-binding.ts`は共通方式だけの`TimelineParameterBinding`、音声入力用の`lowerLayerAudio` / `layerAudio`を加えた`TimelineVisualModuleParameterBinding`、さらに画像入力用の`layerInput`を加えた`TimelineEffectParameterBinding`を定義する。合成設定・音量は共通方式だけを使う。音声入力Bindingは`audioSource`型だけで選択できる。`layerAudio`は`layerId: string | null`を保存し、引数を所有するレイヤーと同じSceneのグループ内を含め、音声・動画・VOICEVOX・Scene・グループレイヤーを選ぶ。`null`や削除・欠落した参照先は入力なしとして扱うが、保存したIDは維持する。TimelineではPlayerを指定できず、音声入力の式・キー・automationも扱わない。
 
-`timeline-audio.ts`の`resolveTimelineAudioLayerReference()`は、所属Scene直下の探索・自身の除外・音声出力の有無による参照可否を判定する純粋関数。Commandと描画側で同じ規則を使い、解決できない選択の拒否や入力なしへの変換はそれぞれの呼び出し側が行う。無効・空のレイヤーや音声無効の動画も有効な参照先として返す。
+`timeline-audio.ts`の`resolveTimelineAudioLayerReference()`は、所属Scene内のグループを含む探索・自身の除外・音声出力の有無による参照可否を判定する純粋関数。Commandと描画側で同じ規則を使い、解決できない選択の拒否や入力なしへの変換はそれぞれの呼び出し側が行う。無効・空のレイヤーや音声無効の動画も有効な参照先として返す。
 
 `parameter-binding.ts`で保存データの制約を配列・構造体内部まで検証し、`TimelineParameterBindingEvaluator`はCPU値として扱えるBindingだけを共通評価器へ渡す。`layerInput`はTimeline Renderer内のエフェクトレイヤーが下層の合成結果として解決する。他ドメインの入力方式を列挙せず、このスコープが扱える方式だけを受け入れる。
 
-`getSceneAudioClips(scenes, sceneId, selection)`は音声計画を作る。選択は`{ type: 'all' }`（既定値）、`{ type: 'belowLayer', layerId }`、`{ type: 'layer', layerId }`。下層指定では自分と上層を除外し、レイヤー指定では並び順によらず指定レイヤー単体の出力を使う。範囲は取得元Sceneの直下に適用し、選んだSceneレイヤーはその配置のトリムと音量を適用した子Scene全体を含める。子Scene内部のレイヤーは直接選べない。無効レイヤー・音声無効の動画を除外し、各階層の音量はミックス側へ渡す。`primaryAudioInputParameter` / `primaryAudioInputId`を持つエフェクト・Visual Moduleの主音声入力は、初期値・リセット時に`lowerLayerAudio`になる。画像の主入力と合成設定は独立する。
+`getSceneAudioClips(scenes, sceneId, selection)`は音声計画を作る。選択は`{ type: 'all' }`（既定値）、`{ type: 'belowLayer', layerId }`、`{ type: 'layer', layerId }`。下層指定では自分と上層を除外し、レイヤー指定では並び順によらず指定レイヤー単体の出力を使う。下層指定は取得元と同じ親の兄弟に適用し、指定レイヤーの取得はScene内のグループをまたいで解決する。参照先の祖先の音量は含めないが、祖先が無効なら入力なしとする。選んだSceneレイヤーはその配置のトリムと音量を適用した子Scene全体を含める。子Scene内部のレイヤーは直接選べない。無効レイヤー・音声無効の動画を除外し、各階層の音量はミックス側へ渡す。`primaryAudioInputParameter` / `primaryAudioInputId`を持つエフェクト・Visual Moduleの主音声入力は、初期値・リセット時に`lowerLayerAudio`になる。画像の主入力と合成設定は独立する。
 
 `motion-blur.ts`はシャッター角・サンプル数の設定と検証、Sceneの端と映像クリップ境界の収集、中央露光のサンプル時刻計算を担当する。子Sceneの境界は配置の内容オフセットを反映し、表示区間内だけ親へ渡す。切り詰めた露光区間へ指定数のサンプルを等間隔で再配置するため、重みは均等で合計1となる。0・1サンプル、角度0、無効時は基準時刻を1回評価する。時間は整数msに丸めない。
 
@@ -51,3 +51,9 @@ Scene・レイヤー・クリップと、その時間・合成・音声設定の
 `getRequiredVoicevoxRequestsForRendering()`は描画区間を各子Sceneの内容時刻へ変換し、それぞれのSceneの時刻0から描画区間の終端までの音声要求を集める。波形・スペクトラムが読む窓の長さをTimeline側で決めず、履歴を保守的に準備する。親のトリム前に終了した発話も子Scene内では履歴として必要になるため、親Sceneの音声出力だけでは判定しない。無効・描画区間外のScene配置は再帰せず、同じSceneの複数配置はそれぞれの内容時刻を扱い、同一の生成要求はまとめる。
 
 字幕装飾は`layers/voicevox/voicevox-subtitle.ts`が専用の定義・既定値・型を所有し、`subtitleParamValues`に保存する。編集対象は`voicevoxSubtitle`。Textレイヤーの定義・検証・保存型を継承せず、それぞれ独立して変更できる。
+
+## グループレイヤー
+
+`TimelineGroupLayer`は通常の合成設定・音量・キーを持ち、`clips`の代わりに`layers`を所有する。`layer-tree.ts`がScene参照を跨がない探索・更新・有効レイヤーの列挙を提供する。Sceneの長さ、Scene循環参照、履歴依存エフェクト、VOICEVOX要求、モーションブラーの検査にも同じ木構造を使う。
+
+`layers/group/group.ts`が子孫クリップの最小開始〜最大終了を仮クリップの表示範囲として返す。この範囲を音声・映像の有効判定には使用しない。音声計画はグループの子へ同じScene時刻と音量の積を引き継ぐ。`layerAudio`の初期探索だけ祖先の音量を除外し、祖先の無効状態は引き続き適用する。

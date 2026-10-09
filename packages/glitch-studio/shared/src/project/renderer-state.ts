@@ -1,3 +1,4 @@
+import { findTimelineLayer, updateTimelineLayer } from '@gs/subsystems_timeline_shared/layer-tree.ts';
 import type { ProjectVisualModule } from './types.ts';
 import type { VisualModule, VisualModuleNode, VisualModuleNodeChange } from '@gs/subsystems_visual-module_shared/types.ts';
 import type { TimelineLayer, TimelineLayerChange, TimelineScene } from '@gs/subsystems_timeline_shared/types.ts';
@@ -18,7 +19,7 @@ export type RendererProjectChange =
 
 export function findRendererVisualModule(state: RendererProjectState, target: VisualModuleTarget): VisualModule | undefined {
 	if ('visualModuleId' in target) return state.visualModules.find(module => module.id === target.visualModuleId);
-	const layer = state.timelineScenes.find(scene => scene.id === target.sceneId)?.layers.find(layer => layer.id === target.inlineVisualModuleLayerId);
+	const layer = findTimelineLayer(state.timelineScenes.find(scene => scene.id === target.sceneId)?.layers ?? [], target.inlineVisualModuleLayerId);
 	return layer?.layerType === 'inlineVisualModule' ? layer.visualModule : undefined;
 }
 
@@ -67,20 +68,19 @@ export function applyRendererProjectChanges(state: RendererProjectState, changes
 					visualModules = visualModules.with(index, { ...update(previous), id: previous.id, name: previous.name });
 				} else {
 					updateScene(target.sceneId, scene => {
-						const index = scene.layers.findIndex(layer => layer.id === target.inlineVisualModuleLayerId);
-						const layer = scene.layers[index];
+						const layer = findTimelineLayer(scene.layers, target.inlineVisualModuleLayerId);
 						if (layer?.layerType !== 'inlineVisualModule') throw new Error('Inline visual module not found');
-						return { ...scene, layers: scene.layers.with(index, { ...layer, visualModule: update(layer.visualModule) }) };
+						return { ...scene, layers: updateTimelineLayer(scene.layers, layer.id, () => ({ ...layer, visualModule: update(layer.visualModule) })) };
 					});
 				}
 				break;
 			}
 			case 'layer':
 				updateScene(change.sceneId, scene => {
-					const index = scene.layers.findIndex(layer => layer.id === change.layerId);
-					if (change.layer == null) return { ...scene, layers: scene.layers.filter(layer => layer.id !== change.layerId) };
+					const previous = findTimelineLayer(scene.layers, change.layerId);
+					if (change.layer == null) return { ...scene, layers: updateTimelineLayer(scene.layers, change.layerId, () => null) };
 					if (change.layer.id !== change.layerId) throw new Error('Layer ID does not match');
-					return { ...scene, layers: index < 0 ? [...scene.layers, change.layer] : scene.layers.with(index, change.layer) };
+					return { ...scene, layers: previous == null ? [...scene.layers, change.layer] : updateTimelineLayer(scene.layers, change.layerId, () => change.layer) };
 				});
 				break;
 			case 'layerOrder':

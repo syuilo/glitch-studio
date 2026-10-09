@@ -133,7 +133,7 @@ test('snaps multiple utterances through the timeline drag handler and merges the
 	const handler = await loadHandler('onKeyframeMoveStart', {
 		...module.exports, selection, selectedTimelineKeyframes: { get value() { return selection.value.keyframes; } }, keyframeEntries: entries,
 		stopSelectionDrag: undefined, tlElWidth: { value: 1000 }, tlRangeX: { value: 1000 }, tlPosX: { value: 0 },
-		tlEl: { value: { focus() {} } }, sceneLayers: { value: f.scenes[0].layers }, stateManager: f.history,
+		tlEl: { value: { focus() {} } }, sceneLayers: { value: f.scenes[0].layers }, clipLayers: { value: f.scenes[0].layers }, stateManager: f.history,
 		props: { sceneId: 'root' }, time: { value: 480 }, xTicksWithMinor: { value: [] },
 		snapSettings: { value: { enabled: true, globalTicks: false, localTicks: false, seekBar: true } },
 		xTicksCount: { value: 10 }, tickMode: { value: 'time' }, tickSubdivisions: { value: 1 },
@@ -459,7 +459,7 @@ test('snaps specified subtitle ends with one undo and refuses fill and speech mo
 	let starts = 0;
 	const handler = await loadHandler('onSubtitleTrimStart', {
 		...module.exports, stopSelectionDrag: undefined, tlElWidth: { value: 1000 }, tlRangeX: { value: 1000 }, tlPosX: { value: 0 },
-		sceneLayers: { value: f.scenes[0].layers }, stateManager: { state: { ...f.history.state, generatedSpeech: { value: [{ ...f.speech, durationMs: 220 }] } }, commit: f.history.commit.bind(f.history) },
+		sceneLayers: { value: f.scenes[0].layers }, clipLayers: { value: f.scenes[0].layers }, stateManager: { state: { ...f.history.state, generatedSpeech: { value: [{ ...f.speech, durationMs: 220 }] } }, commit: f.history.commit.bind(f.history) },
 		keyframeEntries: { get value() { return getTimelineKeyframeEntries(f.state, f.scenes[0].layers); } },
 		props: { sceneId: 'root' }, time: { value: 550 }, xTicksWithMinor: { value: [] }, xTicksCount: { value: 10 },
 		tickMode: { value: 'legacy' }, tickSubdivisions: { value: 1 },

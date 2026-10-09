@@ -2,7 +2,7 @@
 
 各レイヤーのcompositorは任意の`onCompositing`で合成前の`UniformOrTexture`と評価済み設定を呼び出し側へ渡せる。opacity=0やreplaceの短絡経路でも通知する。通知の購読対象・Worker通信・プレビューのハンドルはGlitch Studio側が所有し、このパッケージはUIの選択状態を知らない。
 
-`src/layers/`にレイヤー種別ごとの実装をまとめる。`effect`・`image`・`scene`・`video`・`visual-module`・`text`・`shape`の各ディレクトリに、レイヤーの描画処理と種別固有の補助処理・シェーダーを置く。Timeline全体の評価・合成・Scene出力・音声入力の解決など、複数種別で使う処理は`src/`直下に置く。
+`src/layers/`にレイヤー種別ごとの実装をまとめる。`group`・`effect`・`image`・`scene`・`video`・`visual-module`・`text`・`shape`の各ディレクトリに、レイヤーの描画処理と種別固有の補助処理・シェーダーを置く。Timeline全体の評価・合成・Scene出力・音声入力の解決など、複数種別で使う処理は`src/`直下に置く。
 
 RendererはWeb Worker内で動作し、DOM・UIの実装にアクセスできないため、意図しないそれらへの参照/依存が原理的に発生しないように別パッケージとする
 
@@ -27,3 +27,8 @@ Textレイヤーは`TextParameters`でScene時刻の値を評価し、`createTex
 VOICEVOXレイヤーは`layers/voicevox/`で発話キーからScene時刻の本文を選択し、専用の`VoicevoxSubtitleParameters`で装飾を評価する。Textレイヤーとは互いの実装を参照しない。生成済み音声の有無や再生履歴には依存しない。
 
 両レイヤーが共有するテキスト描画部分は`src/text-rendering/`に置く。`TextRenderValues`は評価済みの文字列・装飾だけの契約で、レイヤー・Binding・パラメータ定義・発話キーを知らない。フォント読み込み・文字配置・マスク・シェーダーを共有し、評価・合成の呼出し・リソース寿命は各レイヤーが独立して管理する。
+
+
+グループは`layers/group/group-timeline-layer.ts`が専用の`TimelineRenderer`を持ち、透明背景から子孫を合成する。親と同じScene時刻・解像度を使い、親の背景を子の入力へ流さない。`createSceneOutput()`で画面全体へ確定してから、グループ自身の変形・不透明度・合成方法を適用する。
+
+`TimelineRenderEntry.clips`の省略は常時存在するコンテナを表し、実際のクリップや時計を合成しない。`evaluateAt().hasOutput`で子孫に映像出力があったかを伝え、空白区間と有効な透明出力を区別する。グループの設定取得関数は現在の設定を返し、子の再生成が不要な設定変更では描画履歴を維持する。無効化・削除時は内部のレイヤーとGPU資源を再帰的に破棄する。

@@ -1,3 +1,4 @@
+import { findTimelineLayer } from '@gs/subsystems_timeline_shared/layer-tree.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { genId } from '@gs/shared/utility/id.ts';
 import { areDataTypesEqual } from '@gs/shared/data-type/data-type.ts';
@@ -49,7 +50,7 @@ export function copyTimelineKeyframes(state: ParameterState, scene: TimelineScen
 	const keyframes: TimelineKeyframePaste[] = [];
 	try {
 		for (const point of selection) {
-			const layer = scene.layers.find(layer => layer.id === point.layerId);
+			const layer = findTimelineLayer(scene.layers, point.layerId);
 			if (!layer) return null;
 			if (point.target === 'utterance') {
 				if (layer.layerType !== 'voicevox') return null;
@@ -77,7 +78,7 @@ export function getTimelineKeyframePasteUpdates(state: ParameterState, scene: Ti
 	const lanes = new Map<string, Exclude<TimelineKeyframePaste, { target: 'utterance' }>[]>();
 	for (const entry of keyframes) {
 		if (entry.target === 'utterance') {
-			const layer = scene.layers.find(layer => layer.id === entry.layerId);
+			const layer = findTimelineLayer(scene.layers, entry.layerId);
 			if (layer?.layerType !== 'voicevox' || entry.paramPath.length !== 1 || entry.paramPath[0] !== 'utterances') return null;
 			const update = speechUpdates.get(layer.id) ?? { layerId: layer.id, target: 'utterance', before: deepClone(layer.utterances), after: deepClone(layer.utterances) };
 			update.after.push(deepClone(entry.utterance));
@@ -91,12 +92,12 @@ export function getTimelineKeyframePasteUpdates(state: ParameterState, scene: Ti
 	}
 	try {
 		for (const update of speechUpdates.values()) {
-			const layer = scene.layers.find(layer => layer.id === update.layerId)!;
+			const layer = findTimelineLayer(scene.layers, update.layerId)!;
 			if (layer.layerType === 'voicevox') validateVoicevoxLayer({ voicevox: layer.voicevox, utterances: update.after });
 		}
 		for (const lane of lanes.values()) {
 			const entry = lane[0];
-			const layer = scene.layers.find(layer => layer.id === entry.layerId);
+			const layer = findTimelineLayer(scene.layers, entry.layerId);
 			if (!layer) return null;
 			const defs = getLayerParameterDefinitions(state, layer, entry.target);
 			const paramId = entry.paramPath[0];

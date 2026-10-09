@@ -19,14 +19,15 @@ export type TimelineLayerChange =
 	| { type: 'parameter'; target: TimelineParameterTarget; kind: ParameterChangeKind }
 	| { type: 'definition' | 'clips' | 'resolution' | 'disabled' };
 
-type TimelineLayerBase<Clip extends TimelineClip> = {
+type TimelineLayerCommon = {
 	id: string;
 	name: string;
-	clips: Clip[];
 	automationGraphs: AutomationGraph[];
 	/** 無効時は映像・音声とも評価せず、クリップの配置やSceneの長さは維持する。 */
 	isDisabled: boolean;
 };
+
+type TimelineLayerBase<Clip extends TimelineClip> = TimelineLayerCommon & { clips: Clip[] };
 
 type TimelineAudioLayerBase = {
 	audioParamValues: { volume: TimelineParameterBinding };
@@ -96,9 +97,16 @@ export type TimelineSceneLayer = TimelineLayerBase<TimelineSceneClip> & Timeline
 	layerType: 'scene';
 };
 
-export type TimelineLayer = TimelineVisualModuleLayer | TimelineInlineVisualModuleLayer | TimelineEffectLayer | TimelineShapeLayer | TimelineTextLayer | TimelineAudioLayer | TimelineImageLayer | TimelineVideoLayer | TimelineSceneLayer | TimelineVoicevoxLayer;
+/** 子は同じSceneの時刻・画面を使う。グループ自身は配置クリップを持たない。 */
+export type TimelineGroupLayer = TimelineLayerCommon & TimelineAudioLayerBase & TimelineVisualLayerBase & {
+	layerType: 'group';
+	layers: TimelineLayer[];
+};
 
-/** 長さは直下の全クリップの終了時刻の最大値から求め、空の場合は0とする。 */
+export type TimelineClipLayer = TimelineVisualModuleLayer | TimelineInlineVisualModuleLayer | TimelineEffectLayer | TimelineShapeLayer | TimelineTextLayer | TimelineAudioLayer | TimelineImageLayer | TimelineVideoLayer | TimelineSceneLayer | TimelineVoicevoxLayer;
+export type TimelineLayer = TimelineClipLayer | TimelineGroupLayer;
+
+/** 長さはグループ内部も含む全配置クリップの終端から求める。参照先Sceneの内部は含めない。 */
 export type TimelineScene = {
 	id: string;
 	name: string;

@@ -1,10 +1,11 @@
+import { findTimelineLayerLocation } from './layer-tree.ts';
 import { getSceneDuration, getTimelineScene, validateTimelineScenes } from './scenes.ts';
 import { getTimelineClipEnd } from './timing.ts';
 import { isTimelineAudioOutputLayer } from './timeline-audio.ts';
 import { assignPreparedSpeech, getVoicevoxUtterancePlacements } from './layers/voicevox/voicevox-placement.ts';
 import type { SpeechResolver, VoicevoxRequest } from './layers/voicevox/voicevox.ts';
 import type { AutomationGraph } from '@gs/shared/automation-graph/automation-graph.ts';
-import type { TimelineParameterBinding, TimelineScene } from './types.ts';
+import type { TimelineParameterBinding, TimelineLayer, TimelineScene } from './types.ts';
 
 export type SceneAudioGain = {
 	/** 最上位Scene上で、音量を所有するSceneの時刻0が置かれる位置。 */
@@ -38,21 +39,23 @@ export function getSceneAudioPlacements(scenes: readonly TimelineScene[], sceneI
 	const rootScene = getTimelineScene(scenes, sceneId);
 	let rootLayers = rootScene.layers;
 	if (selection.type !== 'all') {
-		const index = rootLayers.findIndex(layer => layer.id === selection.layerId);
-		if (index === -1) throw new Error('Audio input layer not found in scene');
-		if (selection.type === 'layer' && !isTimelineAudioOutputLayer(rootLayers[index])) throw new Error('Layer has no audio output');
-		rootLayers = selection.type === 'layer' ? [rootLayers[index]] : rootLayers.slice(index + 1);
+		const location = findTimelineLayerLocation(rootScene.layers, selection.layerId);
+		if (!location) throw new Error('Audio input layer not found in scene');
+		if (selection.type === 'layer' && !isTimelineAudioOutputLayer(location.layer)) throw new Error('Layer has no audio output');
+		// 祖先の音量は取得しないが、無効化は子孫の直接参照にも適用する。
+		rootLayers = location.ancestors.some(group => group.isDisabled) ? []
+			: selection.type === 'layer' ? [location.layer] : location.siblings.slice(location.index + 1);
 	}
 	const placements: SceneAudioPlacement[] = [];
-	const visit = (id: string, sceneStartMs: number, start: number, end: number, gains: SceneAudioGain[]) => {
-		const scene = getTimelineScene(scenes, id);
-		end = Math.min(end, sceneStartMs + getSceneDuration(scene));
-		// 選択は取得元Sceneの直下だけに適用する。Sceneレイヤーは子Sceneの音声全体を出力する。
-		const layers = gains.length === 0 ? rootLayers : scene.layers;
+	const visit = (layers: readonly TimelineLayer[], sceneStartMs: number, start: number, end: number, gains: SceneAudioGain[]) => {
 		for (const layer of layers) {
 			if (layer.isDisabled) continue;
 			if (!isTimelineAudioOutputLayer(layer)) continue;
 			const layerGains = [...gains, { sceneStartMs, volume: layer.audioParamValues.volume, automationGraphs: layer.automationGraphs }];
+			if (layer.layerType === 'group') {
+				visit(layer.layers, sceneStartMs, start, end, layerGains);
+				continue;
+			}
 			if (layer.layerType === 'voicevox') {
 				for (const placement of getVoicevoxUtterancePlacements(layer.voicevox, layer.utterances, layer.clips)) {
 					const sourceStartMs = sceneStartMs + placement.sourceStartMs;
@@ -70,14 +73,15 @@ export function getSceneAudioPlacements(scenes: readonly TimelineScene[], sceneI
 				// 親Sceneに固定する。トリムしても親の音量キーまで移動してはいけない。
 				const sourceStartMs = sceneStartMs + clip.startMs - clip.contentOffsetMs;
 				if ('sceneId' in clip) {
-					visit(clip.sceneId, sourceStartMs, startMs, endMs, layerGains);
+					const childScene = getTimelineScene(scenes, clip.sceneId);
+					visit(childScene.layers, sourceStartMs, startMs, Math.min(endMs, sourceStartMs + getSceneDuration(childScene)), layerGains);
 				} else if (!('audioEnabled' in clip) || clip.audioEnabled) {
 					placements.push({ type: 'asset', sourceId: clip.assetId, sourceStartMs, startMs, endMs, gains: layerGains });
 				}
 			}
 		}
 	};
-	visit(sceneId, 0, 0, Infinity, []);
+	visit(rootLayers, 0, 0, getSceneDuration(rootScene), []);
 	return placements;
 }
 

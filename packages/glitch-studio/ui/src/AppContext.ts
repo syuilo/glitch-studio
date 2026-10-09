@@ -1,3 +1,4 @@
+import { findTimelineLayer, flattenTimelineLayers } from '@gs/subsystems_timeline_shared/layer-tree.ts';
 import { getVoicevoxRequests } from '@gs/subsystems_timeline_shared/voicevox-requests.ts';
 import { getVoicevoxRequestKey, createSpeechResolver } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox.ts';
 import { openAudioFile } from '@gs/subsystems_audio_renderer/audio-file.ts';
@@ -49,7 +50,7 @@ export class AppContext {
 		const scene = this.activeScene.value;
 		if (scene == null) return null;
 		const layerId = getSelectedTimelineLayerId(getTimelineEditorState(scene).selection);
-		return scene.layers.find(layer => layer.id === layerId) ?? null;
+		return (layerId == null ? null : findTimelineLayer(scene.layers, layerId)) ?? null;
 	});
 	public liveFpsLimit = ref<number | null>(60);
 	public timelinePreviewFpsFactor = ref(1);
@@ -230,7 +231,7 @@ export class AppContext {
 		validateTimelineScenes(project.timelineScenes);
 		validateTimelineFps(project.timelineFps);
 		validateTimelineMotionBlur(project.timelineMotionBlur);
-		for (const scene of project.timelineScenes) for (const layer of scene.layers) {
+		for (const scene of project.timelineScenes) for (const layer of flattenTimelineLayers(scene.layers)) {
 			if (layer.layerType === 'effect') validateTimelineEffectLayer(layer, effectDefinitions[layer.effectId]);
 		}
 		timelineClipboard.value = null;
@@ -284,7 +285,7 @@ export class AppContext {
 
 		// 発話編集・削除・Undo/Redoでは、旧音声と新字幕を混在させず再生を停止する。
 		this.projectWatchers.push(watch(() => JSON.stringify(this.projectContext.stateManager.state.timelineScenes.value.map(scene => ({
-			id: scene.id, layers: scene.layers.filter(layer => layer.layerType === 'voicevox').map(layer => ({
+			id: scene.id, layers: flattenTimelineLayers(scene.layers).filter(layer => layer.layerType === 'voicevox').map(layer => ({
 				id: layer.id, voicevox: layer.voicevox, utterances: layer.utterances, clips: layer.clips, isDisabled: layer.isDisabled,
 			})),
 		}))), () => { if (this.previewPlayback.isTimelinePlaying.value) this.previewPlayback.pauseTimeline(); }, { flush: 'sync' }));

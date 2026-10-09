@@ -2,7 +2,8 @@ import { getTimelineClipContentTime, isTimelineClipActive } from '@gs/subsystems
 import type { TimelineClip } from '@gs/subsystems_timeline_shared/clip.ts';
 
 // 制御に必要なID・期間・有効状態だけを要求し、レイヤー固有のデータは生成関数にそのまま渡す。
-export type TimelineRenderEntry = { id: string; clips: readonly TimelineClip[]; isDisabled: boolean };
+// clipsの省略は同じ時計を使うコンテナ。空配列はクリップのない通常レイヤーを表す。
+export type TimelineRenderEntry = { id: string; clips?: readonly TimelineClip[]; isDisabled: boolean };
 
 export type TimelineLayerContext<Output> = {
 	isExport: boolean;
@@ -25,9 +26,9 @@ export type TimelineLayerRenderer<Output> = {
 
 type TimelineRendererOptions<Output, Entry extends TimelineRenderEntry> = {
 	fallbackOutput: Output;
-	createLayer: (entry: Entry, clipId: string) => TimelineLayerRenderer<Output>;
+	createLayer: (entry: Entry, clipId: string | null) => TimelineLayerRenderer<Output>;
 	/** 定義の変更によって再生成が必要なときだけ変わる値。配置先の解釈は呼び出し側が行う。 */
-	getLayerVersion?: (entry: Entry, clipId: string) => string | number;
+	getLayerVersion?: (entry: Entry, clipId: string | null) => string | number;
 	present?: (output: Output, gpuTime: number) => void;
 	onClear?: () => void;
 };
@@ -70,7 +71,7 @@ export class TimelineRenderer<Output, Entry extends TimelineRenderEntry = Timeli
 	}
 
 	/** 子Sceneも同じ評価を使い、Canvasへの表示は最上位だけで行う。 */
-	public async evaluateAt(time: number, timeline: readonly Entry[], timeDelta = 0, isExport = false, parentSignal?: AbortSignal): Promise<{ output: Output; gpuTime: number } | undefined> {
+	public async evaluateAt(time: number, timeline: readonly Entry[], timeDelta = 0, isExport = false, parentSignal?: AbortSignal): Promise<{ output: Output; gpuTime: number; hasOutput: boolean } | undefined> {
 		this.controller?.abort();
 		const controller = new AbortController();
 		this.controller = controller;
@@ -82,9 +83,10 @@ export class TimelineRenderer<Output, Entry extends TimelineRenderEntry = Timeli
 			if (isCancelled()) return;
 			// 配列は先頭が最上層の表示順。下層の合成結果を上層へ渡すため、描画は逆順に行う。
 			// 終端を含めず、隣接するレイヤーを境界で重ねない。
-			const visibleEntries = timeline.flatMap(entry => {
+			const visibleEntries = timeline.flatMap<{ entry: Entry; clip: TimelineClip | null; instanceKey: string }>(entry => {
 				// 無効なレイヤーは区間外と同様に扱い、履歴・メディア・子Sceneのリソースも解放する。
 				if (entry.isDisabled) return [];
+				if (!entry.clips) return [{ entry, clip: null, instanceKey: JSON.stringify([entry.id, null]) }];
 				const clip = entry.clips.find(clip => isTimelineClipActive(clip, time));
 				return clip ? [{ entry, clip, instanceKey: JSON.stringify([entry.id, clip.id]) }] : [];
 			}).reverse();
@@ -114,13 +116,14 @@ export class TimelineRenderer<Output, Entry extends TimelineRenderEntry = Timeli
 	}
 
 	/** 表示範囲の判定やpresentは行わず、指定された対象を内容時刻で評価・合成する。 */
-	private async evaluateLayers(time: number, entries: readonly { entry: Entry; clip: TimelineClip; instanceKey: string }[], timeDelta: number, isExport: boolean, signal: AbortSignal) {
+	private async evaluateLayers(time: number, entries: readonly { entry: Entry; clip: TimelineClip | null; instanceKey: string }[], timeDelta: number, isExport: boolean, signal: AbortSignal) {
 		let output = this.options.fallbackOutput;
 		let gpuTime = 0;
+		let hasOutput = false;
 		for (const { entry, clip, instanceKey } of entries) {
 			// IDはレイヤー内だけで一意。同じモジュール・子Sceneの隣接クリップも別の履歴を持つ。
 			let layer = this.layers.get(instanceKey);
-			const version = this.options.getLayerVersion?.(entry, clip.id);
+			const version = this.options.getLayerVersion?.(entry, clip?.id ?? null);
 			if (layer != null && layer.version !== version) {
 				layer.renderer.destroy();
 				this.layers.delete(instanceKey);
@@ -128,27 +131,27 @@ export class TimelineRenderer<Output, Entry extends TimelineRenderEntry = Timeli
 			}
 			const isNewLayer = layer == null;
 			if (layer == null) {
-				layer = { renderer: this.options.createLayer(entry, clip.id), version };
+				layer = { renderer: this.options.createLayer(entry, clip?.id ?? null), version };
 				this.layers.set(instanceKey, layer);
 			}
 			const context: TimelineLayerContext<Output> = {
 				isExport,
 				sceneTimeMs: time,
-				contentTimeMs: getTimelineClipContentTime(clip, time),
-				clipElapsedTimeMs: time - clip.startMs,
-				clipDurationMs: clip.durationMs,
+				contentTimeMs: clip ? getTimelineClipContentTime(clip, time) : time,
+				clipElapsedTimeMs: clip ? time - clip.startMs : 0,
+				clipDurationMs: clip?.durationMs ?? 0,
 				// 新規レイヤーには履歴がない。途中からの書き出しでも過去のフレームは再現しない。
 				timeDelta: isNewLayer ? 0 : timeDelta,
 				// 終端は内容の座標系、進行率は表示区間で定義する。TIME / END_TIMEでは求められない。
-				contentEndTimeMs: clip.contentOffsetMs + clip.durationMs,
+				contentEndTimeMs: clip ? clip.contentOffsetMs + clip.durationMs : 0,
 				input: output,
 			};
 			const result = await layer.renderer.evaluate(context, signal);
 			// 準備・描画・計測の待機中に別のシークが開始された場合は表示しない。
 			if (signal.aborted) return;
 			gpuTime += result.gpuTime;
-			if (result.output != null) output = result.output;
+			if (result.output != null) { output = result.output; hasOutput = true; }
 		}
-		return { output, gpuTime };
+		return { output, gpuTime, hasOutput };
 	}
 }

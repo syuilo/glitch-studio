@@ -1,3 +1,4 @@
+import { flattenTimelineLayers, getTimelineClipLayers } from './layer-tree.ts';
 import { validateEffectResolution } from '@gs/subsystems_effect_shared/resolution.js';
 import { getTimelineClipEnd, validateTimelineClips } from './timing.ts';
 import { validateSceneResolution } from './scene-resolution.ts';
@@ -10,7 +11,7 @@ import type { TimelineLayer, TimelineScene } from './types.ts';
 
 /** 子の長さを再帰計算しない。配置済みの区間は、参照先の編集でも変えない。 */
 export function getSceneDuration(scene: TimelineScene): number {
-	return scene.layers.reduce((duration, layer) => layer.clips.reduce((end, clip) => Math.max(end, getTimelineClipEnd(clip)), duration), 0);
+	return getTimelineClipLayers(scene.layers).reduce((duration, layer) => layer.clips.reduce((end, clip) => Math.max(end, getTimelineClipEnd(clip)), duration), 0);
 }
 
 export function getTimelineScene(scenes: readonly TimelineScene[], sceneId: string): TimelineScene {
@@ -20,7 +21,9 @@ export function getTimelineScene(scenes: readonly TimelineScene[], sceneId: stri
 }
 
 export function validateTimelineLayer(layer: TimelineLayer): void {
-	validateTimelineClips(layer.clips);
+	if (layer.layerType === 'group') {
+		for (const child of layer.layers) validateTimelineLayer(child);
+	} else validateTimelineClips(layer.clips);
 	if (layer.layerType === 'text') validateTimelineText(layer.textParamValues);
 	if (layer.layerType === 'voicevox') {
 		validateVoicevoxLayer(layer);
@@ -53,10 +56,10 @@ export function validateTimelineScenes(scenes: readonly TimelineScene[]): void {
 		const scene = byId.get(id);
 		if (scene == null) throw new Error(`Scene not found: ${id}`);
 		validateSceneResolution(scene.resolution);
-		if (new Set(scene.layers.map(layer => layer.id)).size !== scene.layers.length) throw new Error(`Duplicate layer ID in scene: ${scene.name}`);
+		if (new Set(flattenTimelineLayers(scene.layers).map(layer => layer.id)).size !== flattenTimelineLayers(scene.layers).length) throw new Error(`Duplicate layer ID in scene: ${scene.name}`);
 		path.push(id);
-		for (const layer of scene.layers) {
-			validateTimelineLayer(layer);
+		for (const layer of scene.layers) validateTimelineLayer(layer);
+		for (const layer of flattenTimelineLayers(scene.layers)) {
 			if (layer.layerType === 'scene') for (const clip of layer.clips) visit(clip.sceneId);
 		}
 		path.pop();
@@ -71,7 +74,7 @@ export function canReferenceScene(scenes: readonly TimelineScene[], parentId: st
 		if (id === parentId) return true;
 		if (visited.has(id)) return false;
 		visited.add(id);
-		return getTimelineScene(scenes, id).layers.some(layer => layer.layerType === 'scene' && layer.clips.some(clip => reachesParent(clip.sceneId)));
+		return flattenTimelineLayers(getTimelineScene(scenes, id).layers).some(layer => layer.layerType === 'scene' && layer.clips.some(clip => reachesParent(clip.sceneId)));
 	};
 	return !reachesParent(childId);
 }

@@ -1,3 +1,4 @@
+import { getTimelineClipLayers } from '@gs/subsystems_timeline_shared/layer-tree.ts';
 import { getTimelineClipEnd } from '@gs/subsystems_timeline_shared/timing.ts';
 import type { TimelineLayer } from '@gs/subsystems_timeline_shared/types.ts';
 export type ExportQuality = 'low' | 'medium' | 'high' | 'very-high';
@@ -29,7 +30,7 @@ export type ExportProgress = {
 };
 
 export function getTimelineEnd(timeline: readonly TimelineLayer[]): number {
-	return timeline.reduce((end, entry) => entry.clips.reduce((end, clip) => Math.max(end, getTimelineClipEnd(clip)), end), 0);
+	return getTimelineClipLayers(timeline).reduce((end, entry) => entry.clips.reduce((end, clip) => Math.max(end, getTimelineClipEnd(clip)), end), 0);
 }
 
 export function validateExportSettings(settings: TimelineExportSettings): string | null {

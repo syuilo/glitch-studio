@@ -1,3 +1,4 @@
+import { getTimelineClipLayers } from './layer-tree.ts';
 import type { TimelineScene } from './types.ts';
 import type { VisualModule } from '@gs/subsystems_visual-module_shared/types.ts';
 import type { EffectDefinition } from '@gs/subsystems_effect_shared/effect-definition.ts';
@@ -8,7 +9,7 @@ export function findTimelineHistoryEffects(scenes: readonly TimelineScene[], get
 	const inspectEffect = (id: string) => {
 		if (definitions[id]?.dependsOnRenderHistory) result.add(id);
 	};
-	for (const scene of scenes) for (const layer of scene.layers) {
+	for (const scene of scenes) for (const layer of getTimelineClipLayers(scene.layers)) {
 		if (layer.clips.length === 0) continue;
 		if (layer.layerType === 'effect') inspectEffect(layer.effectId);
 		const visualModule = layer.layerType === 'inlineVisualModule' ? layer.visualModule

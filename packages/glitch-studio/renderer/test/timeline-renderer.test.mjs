@@ -489,7 +489,7 @@ test('evaluates offscreen results and propagates parent cancellation', async () 
 	assert.equal(await pending, undefined);
 	assert.deepEqual(f.presented, []);
 	const result = await f.renderer.evaluateAt(200, [], 0, false);
-	assert.deepEqual(result, { output: 'transparent', gpuTime: 0 });
+	assert.deepEqual(result, { output: 'transparent', gpuTime: 0, hasOutput: false });
 	assert.deepEqual(f.presented, []);
 	f.renderer.clear();
 });

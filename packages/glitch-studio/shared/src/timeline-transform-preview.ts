@@ -8,4 +8,6 @@ export type TimelineTransformPreview = {
 	time: number;
 	clipId: string | null;
 	geometry: TimelineLayerGeometry | null;
+	/** 同じScene内の祖先グループ。外側から内側の順で、ポインターの逆変換に使う。 */
+	parentGeometries?: TimelineLayerGeometry[];
 };

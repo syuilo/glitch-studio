@@ -9,6 +9,8 @@
 </template>
 
 <script lang="ts" setup>
+import { flattenTimelineLayers } from '@gs/subsystems_timeline_shared/layer-tree.ts';
+import { duplicateTimelineLayers } from '@/utility/timeline-group.ts';
 import { computed, ref, watch, inject } from 'vue';
 import { genId } from '@gs/shared/utility/id.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
@@ -39,7 +41,7 @@ function revealDetails() {
 	workspaceController.revealPanel(revealRequest());
 }
 
-const references = computed(() => stateManager.state.timelineScenes.value.filter(scene => scene.layers.some(layer => layer.layerType === 'scene' && layer.clips.some(clip => clip.sceneId === activeSceneId.value))));
+const references = computed(() => stateManager.state.timelineScenes.value.filter(scene => flattenTimelineLayers(scene.layers).some(layer => layer.layerType === 'scene' && layer.clips.some(clip => clip.sceneId === activeSceneId.value))));
 
 function createScene() {
 	const id = genId();
@@ -53,7 +55,7 @@ function duplicateScene() {
 	scene.id = genId();
 	scene.name += ' (copy)';
 	// 内部レイヤーは独立させ、別Sceneへの参照は通常のレイヤー複製と同じく共有する。
-	for (const layer of scene.layers) layer.id = genId();
+	scene.layers = duplicateTimelineLayers(scene.layers);
 	stateManager.commit('addScene', scene);
 	activeSceneId.value = scene.id;
 }

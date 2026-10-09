@@ -45,6 +45,7 @@ export default defineConfig({
 					{ text: 'エフェクト', link: '/guide/timeline/layers/effect' },
 					{ text: 'Visual Module（インライン）', link: '/guide/timeline/layers/inline-visual-module' },
 					{ text: 'Visual Module（参照）', link: '/guide/timeline/layers/visual-module' },
+					{ text: 'グループ', link: '/guide/timeline/layers/group' },
 					{ text: 'シーン', link: '/guide/timeline/layers/scene' },
 					{ text: 'VOICEVOX', link: '/guide/timeline/layers/voicevox' },
 				],

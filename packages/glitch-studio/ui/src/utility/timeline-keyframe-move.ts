@@ -1,3 +1,4 @@
+import { findTimelineLayer } from '@gs/subsystems_timeline_shared/layer-tree.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { resolveParameter } from '@gs/shared/parameter/parameter-path.ts';
 import { validateTimelineParameterTree } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
@@ -22,7 +23,7 @@ export function prepareTimelineKeyframeMove(state: Pick<ProjectState, 'visualMod
 	const parameters = new Map<string, ParameterUpdate>();
 	const speeches = new Map<string, UtteranceUpdate>();
 	for (const position of positions) {
-		const layer = scene.layers.find(layer => layer.id === position.layerId);
+		const layer = findTimelineLayer(scene.layers, position.layerId);
 		if (!layer || !Number.isSafeInteger(Math.round(position.x)) || position.x < 0) throw new Error('Invalid keyframe move');
 		if (position.target === 'utterance') {
 			if (layer.layerType !== 'voicevox' || position.paramPath.length !== 1 || position.paramPath[0] !== 'utterances') throw new Error('Invalid utterance target');
@@ -49,7 +50,7 @@ export function prepareTimelineKeyframeMove(state: Pick<ProjectState, 'visualMod
 		parameters.set(rootKey, update);
 	}
 	for (const update of speeches.values()) {
-		const layer = scene.layers.find(layer => layer.id === update.layerId)!;
+		const layer = findTimelineLayer(scene.layers, update.layerId)!;
 		if (layer.layerType === 'voicevox') validateVoicevoxLayer({ voicevox: layer.voicevox, utterances: update.after });
 	}
 	return [...parameters.values(), ...speeches.values()];

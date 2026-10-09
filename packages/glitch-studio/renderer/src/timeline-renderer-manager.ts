@@ -1,3 +1,5 @@
+import { flattenTimelineLayers, findTimelineLayer, findTimelineLayerLocation } from '@gs/subsystems_timeline_shared/layer-tree.ts';
+import { createGroupTimelineLayer } from '@gs/subsystems_timeline_renderer/layers/group/group-timeline-layer.ts';
 import type { GeneratedSpeech } from '@gs/glitch-studio_shared/voicevox.ts';
 import { createSpeechResolver } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox.ts';
 import { validateTimelineFps, validateTimelineMotionBlur, getTimelineMotionBlurBoundaries, getTimelineSampleTimes } from '@gs/subsystems_timeline_shared/motion-blur.ts';
@@ -247,7 +249,7 @@ export class TimelineRendererManager extends EventEmitter<{
 	public async updateDynamicOptions(newOptions: Partial<TimelineRendererManagerDynamicOptions>) {
 		if (newOptions.timelineScenes != null) {
 			validateTimelineScenes(newOptions.timelineScenes);
-			for (const scene of newOptions.timelineScenes) for (const layer of scene.layers) {
+			for (const scene of newOptions.timelineScenes) for (const layer of flattenTimelineLayers(scene.layers)) {
 				if (layer.layerType === 'effect') validateTimelineEffectLayer(layer, this.effectDefinitions[layer.effectId]);
 			}
 		}
@@ -290,7 +292,7 @@ export class TimelineRendererManager extends EventEmitter<{
 
 	public replaceProjectState(state: RendererProjectState, previewRevision = this.dynamicOptions.previewRevision + 1) {
 		validateTimelineScenes(state.timelineScenes);
-		for (const scene of state.timelineScenes) for (const layer of scene.layers) {
+		for (const scene of state.timelineScenes) for (const layer of flattenTimelineLayers(scene.layers)) {
 			if (layer.layerType === 'effect') validateTimelineEffectLayer(layer, this.effectDefinitions[layer.effectId]);
 		}
 		const resolution = this.resolveProjectOutputResolution(state);
@@ -307,7 +309,7 @@ export class TimelineRendererManager extends EventEmitter<{
 		let next: RendererProjectState = this.dynamicOptions;
 		let validateSceneReferences = false;
 		for (const change of changes) {
-			const previous = change.type === 'layer' ? next.timelineScenes.find(scene => scene.id === change.sceneId)?.layers.find(layer => layer.id === change.layerId) : undefined;
+			const previous = change.type === 'layer' ? findTimelineLayer(next.timelineScenes.find(scene => scene.id === change.sceneId)?.layers ?? [], change.layerId) : undefined;
 			// 同じバッチのModule編集を後続の引数更新の検証にも使う。公開状態は最後まで変えない。
 			next = applyRendererProjectChanges(next, [change]);
 			if (change.type === 'scene') validateSceneReferences = true;
@@ -327,7 +329,7 @@ export class TimelineRendererManager extends EventEmitter<{
 		}
 		if (validateSceneReferences) {
 			validateTimelineScenes(next.timelineScenes);
-			for (const scene of next.timelineScenes) for (const layer of scene.layers) {
+			for (const scene of next.timelineScenes) for (const layer of flattenTimelineLayers(scene.layers)) {
 				if (layer.layerType === 'effect') validateTimelineEffectLayer(layer, this.effectDefinitions[layer.effectId]);
 			}
 		}
@@ -368,12 +370,12 @@ export class TimelineRendererManager extends EventEmitter<{
 	}
 
 	private getLayer(sceneId: string, layerId: string) {
-		return getTimelineScene(this.dynamicOptions.timelineScenes, sceneId).layers.find(layer => layer.id === layerId);
+		return findTimelineLayer(getTimelineScene(this.dynamicOptions.timelineScenes, sceneId).layers, layerId);
 	}
 
-	private getLayerVersion(sceneId: string, layer: TimelineLayer, clipId: string): string {
+	private getLayerVersion(sceneId: string, layer: TimelineLayer, clipId: string | null): string {
 		const childId = layer.layerType === 'scene' ? layer.clips.find(clip => clip.id === clipId)!.sceneId : null;
-		return JSON.stringify([this.projectVersions.scene(sceneId), this.projectVersions.layer(sceneId, layer.id),
+		return JSON.stringify([this.projectVersions.scene(sceneId), layer.layerType === 'group' ? 0 : this.projectVersions.layer(sceneId, layer.id),
 																									childId == null ? 0 : this.projectVersions.scene(childId)]);
 	}
 
@@ -395,8 +397,9 @@ export class TimelineRendererManager extends EventEmitter<{
 	private async renderPreviewFrame(time: number): Promise<boolean> {
 		const generation = ++this.previewRenderGeneration;
 		const request = this.dynamicOptions.transformObserver;
-		const layer = request?.sceneId === this.dynamicOptions.sceneId ? this.getSceneLayers().find(layer => layer.id === request.layerId && !layer.isDisabled) : undefined;
-		const clip = layer?.clips.find(clip => isTimelineClipActive(clip, time));
+		const location = request?.sceneId === this.dynamicOptions.sceneId ? findTimelineLayerLocation(this.getSceneLayers(), request.layerId) : undefined;
+		const layer = location && !location.layer.isDisabled && !location.ancestors.some(group => group.isDisabled) && location.layer.layerType !== 'audio' ? location.layer : undefined;
+		const clip = layer && layer.layerType !== 'group' ? layer.clips.find(clip => isTimelineClipActive(clip, time)) : undefined;
 		const preview: TimelineTransformPreview | null = request ? { request, revision: this.dynamicOptions.previewRevision, time, clipId: clip?.id ?? null, geometry: null } : null;
 		this.pendingTransformPreview = preview;
 		try {
@@ -443,14 +446,21 @@ export class TimelineRendererManager extends EventEmitter<{
 		this.emit('ev', { type: 'layerTransform', ctx: preview });
 	}
 
-	private createCompositingObserver(sceneId: string, layerId: string, clipId: string, layerPath: string[], sceneSize: Resolution): TimelineCompositingObserver | undefined {
-		if (layerPath.length !== 1) return undefined;
+	private createCompositingObserver(sceneId: string, layerId: string, clipId: string | null, sceneSize: Resolution): TimelineCompositingObserver | undefined {
+		if (sceneId !== this.dynamicOptions.sceneId) return undefined;
 		return (source, settings) => {
 			const preview = this.pendingTransformPreview;
 			if (!preview || preview.request.sceneId !== sceneId || preview.request.layerId !== layerId || preview.clipId !== clipId) return;
 			const size = source.kind === 'texture' ? source.texture : sceneSize;
 			const { position, origin, scale, rotation, fitMode } = settings;
 			preview.geometry = { sourceSize: { width: size.width, height: size.height }, sceneSize, transform: { position, origin, scale, rotation, fitMode } };
+			const location = findTimelineLayerLocation(this.getSceneLayers(), layerId);
+			preview.parentGeometries = location?.ancestors.map(group => {
+				const settings = this.transformPreviewParameters.evaluate({ time: preview.time, isExport: false,
+					paramValues: group.compositingParamValues, automationGraphs: group.automationGraphs });
+				return { sourceSize: sceneSize, sceneSize, transform: settings };
+			}) ?? [];
+			if (preview.parentGeometries.some(parent => parent.transform.scale.some(value => value === 0))) preview.geometry = null;
 		};
 	}
 
@@ -490,9 +500,25 @@ export class TimelineRendererManager extends EventEmitter<{
 		return this.dynamicOptions.sceneId == null ? [] : getTimelineScene(this.dynamicOptions.timelineScenes, this.dynamicOptions.sceneId).layers.filter(layer => layer.layerType !== 'audio');
 	}
 
-	private createTimelineLayer(layer: TimelineLayer, clipId: string, layerPath: string[], sceneBaseResolution: Resolution, sceneId = this.dynamicOptions.sceneId!): TimelineLayerRenderer<UniformOrTexture> {
+	private createTimelineLayer(layer: TimelineLayer, clipId: string | null, layerPath: string[], sceneBaseResolution: Resolution, sceneId = this.dynamicOptions.sceneId!): TimelineLayerRenderer<UniformOrTexture> {
 		const renderResolution = scaleResolution(sceneBaseResolution, this.dynamicOptions.resolutionScale);
-		const onCompositing = this.createCompositingObserver(sceneId, layer.id, clipId, layerPath, renderResolution);
+		if (layer.layerType === 'group') {
+			return createGroupTimelineLayer(() => {
+				const current = this.getLayer(sceneId, layer.id);
+				if (current?.layerType !== 'group') throw new Error('Group not found');
+				return current;
+			}, {
+				device: this.gpuDevice, vertex: this.defaultVertexShaderModule, resolution: renderResolution,
+				format: this.staticOptions.intermediateTextureFormat,
+				onCompositing: this.createCompositingObserver(sceneId, layer.id, null, renderResolution),
+				// グループは別Sceneの配置ではない。同じSceneの子レイヤーは従来どおり
+				// [Scene配置の経路, レイヤーID]で状態を通知し、詳細パネルから参照できるようにする。
+				createLayer: (entry, childClipId) => this.createTimelineLayer(entry, childClipId, [...layerPath.slice(0, -1), entry.id], sceneBaseResolution, sceneId),
+				getLayerVersion: (entry, childClipId) => this.getLayerVersion(sceneId, entry, childClipId),
+			});
+		}
+		if (clipId === null) throw new Error('Clip is required');
+		const onCompositing = this.createCompositingObserver(sceneId, layer.id, clipId, renderResolution);
 		// レイヤーの種類の解釈とリソース解決は、タイムライン制御の外側で行う。
 		switch (layer.layerType) {
 			case 'voicevox':
@@ -622,7 +648,7 @@ export class TimelineRendererManager extends EventEmitter<{
 		});
 		const compositingParameters = new TimelineCompositingParameters();
 		const compositor = createTimelineCompositor({
-			onCompositing: this.createCompositingObserver(sceneId, layer.id, clipId, layerPath, scaleResolution(sceneBaseResolution, this.dynamicOptions.resolutionScale)),
+			onCompositing: this.createCompositingObserver(sceneId, layer.id, clipId, scaleResolution(sceneBaseResolution, this.dynamicOptions.resolutionScale)),
 			device: this.gpuDevice, vertex: this.defaultVertexShaderModule,
 			resolution: scaleResolution(sceneBaseResolution, this.dynamicOptions.resolutionScale), format: this.staticOptions.intermediateTextureFormat,
 			beginPass: (encoder, descriptor) => encoder.beginRenderPass(descriptor),

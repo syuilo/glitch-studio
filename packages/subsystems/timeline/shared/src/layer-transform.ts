@@ -44,6 +44,15 @@ export function timelineSourceToScene(point: TimelinePoint, geometry: TimelineLa
 	return [rotated[0] + transform.position[0], rotated[1] + transform.position[1]];
 }
 
+/** グループの変形を逆に辿り、親画面上のポインターを子が編集する座標へ戻す。 */
+export function timelineSceneToSource(point: TimelinePoint, geometry: TimelineLayerGeometry): TimelinePoint | null {
+	const { transform, sceneSize, sourceSize } = geometry;
+	if (transform.scale.some(value => value === 0)) return null;
+	const extent = getTimelineFittedExtent(sourceSize, sceneSize, transform.fitMode);
+	const local = rotateTimelineVector([point[0] - transform.position[0], point[1] - transform.position[1]], -transform.rotation, sceneSize);
+	return [local[0] / (extent[0] * transform.scale[0]) + transform.origin[0], local[1] / (extent[1] * transform.scale[1]) + transform.origin[1]];
+}
+
 export function getTimelineLayerCorners(geometry: TimelineLayerGeometry): TimelinePoint[] {
 	return ([[-1, 1], [1, 1], [1, -1], [-1, -1]] as TimelinePoint[]).map(point => timelineSourceToScene(point, geometry));
 }

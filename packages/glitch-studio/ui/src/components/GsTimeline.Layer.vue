@@ -1,8 +1,8 @@
 <template>
-<div :class="[$style.root, { [$style.selected]: selected, [$style.disabled]: layer.isDisabled, [$style.type_effect]: layer.layerType === 'effect', [$style.type_audio]: layer.layerType === 'audio', [$style.type_image]: layer.layerType === 'image', [$style.type_video]: layer.layerType === 'video', [$style.type_text]: layer.layerType === 'text', [$style.type_voicevox]: layer.layerType === 'voicevox' }]" :data-timeline-layer-id="layer.id">
+<div :class="[$style.root, { [$style.selected]: selected, [$style.disabled]: layer.isDisabled || ancestorDisabled, [$style.type_effect]: layer.layerType === 'effect', [$style.type_audio]: layer.layerType === 'audio', [$style.type_image]: layer.layerType === 'image', [$style.type_video]: layer.layerType === 'video', [$style.type_text]: layer.layerType === 'text', [$style.type_voicevox]: layer.layerType === 'voicevox' }]" :data-timeline-layer-id="layer.id">
 	<div :class="$style.mainLane" data-timeline-clip-lane>
 		<div :class="$style.side">
-			<div :class="$style.layerHeader" draggable="true" @click="emit('selected', $event)" @dragstart.stop="emit('dragStart', $event)">
+			<div :class="$style.layerHeader" :style="{ paddingLeft: (depth ?? 0) * 16 + 'px' }" draggable="true" @click="emit('selected', $event)" @dragstart.stop="emit('dragStart', $event)">
 				<div :class="$style.grabber">
 					<svg viewBox="0 0 16 16" version="1.1" :class="$style.grabberSvg">
 						<path fill="currentColor" d="M10 13a1 1 0 1 1 0-2 1 1 0 0 1 0 2Zm0-4a1 1 0 1 1 0-2 1 1 0 0 1 0 2Zm-4 4a1 1 0 1 1 0-2 1 1 0 0 1 0 2Zm5-9a1 1 0 1 1-2 0 1 1 0 0 1 2 0ZM7 8a1 1 0 1 1-2 0 1 1 0 0 1 2 0ZM6 5a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z"></path>
@@ -12,7 +12,7 @@
 				<span :class="$style.layerHeaderTitle">
 					<GsCondensedLine>{{ layer.name }}</GsCondensedLine>
 				</span>
-				<button class="_button" :class="[$style.collapseButton]" @click.stop=""><i :class="layer.isCollapsed ? 'ti ti-chevron-down' : 'ti ti-chevron-up'"></i></button>
+				<button v-if="layer.layerType === 'group'" class="_button" :class="[$style.collapseButton]" :aria-expanded="!collapsed" @click.stop="emit('toggleGroup')"><i :class="collapsed ? 'ti ti-chevron-right' : 'ti ti-chevron-down'"></i></button>
 				<button class="_button" :class="[$style.disableButton, { [$style.active]: !layer.isDisabled }]" @click.stop="toggleDisabled"><i :class="layer.isDisabled ? 'ti ti-eye-off' : 'ti ti-eye'"></i></button>
 			</div>
 		</div>
@@ -20,7 +20,15 @@
 			<button v-if="offscreenClips.previous" class="_button" :class="$style.stickyArrow" style="left: 0;" @click.stop="look(offscreenClips.previous)" @dblclick.stop><i class="ti ti-arrow-left"></i></button>
 			<button v-if="offscreenClips.next" class="_button" :class="$style.stickyArrow" style="right: 0;" @click.stop="look(offscreenClips.next)" @dblclick.stop><i class="ti ti-arrow-right"></i></button>
 			<div :class="$style.scrollingContent" :style="scrollingStyle">
+				<button
+					v-if="groupRange" type="button" class="_button" :class="[$style.groupClip, { [$style.groupClipSelected]: selected }]"
+					:style="{ left: groupRange.startMs * pixelsPerMs + 'px', width: groupRange.durationMs * pixelsPerMs + 'px' }"
+					:aria-label="'Move group ' + layer.name" @pointerdown.stop="emit('groupMoveStart', $event)" @dblclick.stop
+				>
+					<span>{{ layer.name }}</span>
+				</button>
 				<XClips
+					v-if="layer.layerType !== 'group'"
 					:items="clipItems"
 					:pixelsPerMs="pixelsPerMs"
 					:sceneTimeMs="sceneTimeMs"
@@ -33,7 +41,7 @@
 			</div>
 		</div>
 	</div>
-	<div v-if="keyframeParameters.length > 0 || layer.layerType === 'voicevox'" :class="$style.localTicksLane">
+	<div v-if="layer.layerType !== 'group' && (keyframeParameters.length > 0 || layer.layerType === 'voicevox')" :class="$style.localTicksLane">
 		<div :class="[$style.side, $style.localTicksLabel]">Clip time</div>
 		<div :class="[$style.tl, $style.localTicks]">
 			<div v-for="{ clip, ticks } in visibleClipTicks" :key="clip.id" :class="$style.localTicksRange" :style="{ left: timeToDomX(clip.startMs) + 'px', width: clip.durationMs / tlRangeX * tlElWidth + 'px' }">
@@ -70,6 +78,7 @@
 </template>
 
 <script lang="ts" setup>
+import { getTimelineGroupRange } from '@gs/subsystems_timeline_shared/layers/group/group.ts';
 import { computed } from 'vue';
 import { paramPathKey } from '@gs/shared/parameter/parameter-path.ts';
 import { effectDefinitions } from '@gs/subsystems_effect_shared/effect-definitions.ts';
@@ -97,6 +106,9 @@ const props = defineProps<{
 	sceneId: string;
 	sceneTimeMs: number;
 	layer: TimelineLayer;
+	depth?: number;
+	ancestorDisabled?: boolean;
+	collapsed?: boolean;
 	tlElWidth: number;
 	tlRangeX: number;
 	tlPosX: number;
@@ -110,6 +122,8 @@ const props = defineProps<{
 	moving: boolean;
 }>();
 const emit = defineEmits<{
+	(ev: 'toggleGroup'): void;
+	(ev: 'groupMoveStart', event: PointerEvent): void;
 	(ev: 'dragStart', event: DragEvent): void;
 	(ev: 'selected', event: MouseEvent): void;
 	(ev: 'addClip', startMs: number): void;
@@ -120,7 +134,7 @@ const emit = defineEmits<{
 	(ev: 'keyframeSelected', selection: TimelineKeyframeSelection): void;
 	(ev: 'subtitleTrimStart', event: PointerEvent, layerId: string, utteranceId: string, clipId: string): void;
 }>();
-const layerIcon = computed(() => ({ voicevox: 'ti-microphone', image: 'ti-photo', video: 'ti-video', audio: 'ti-music', scene: 'ti-memory', visualModule: 'ti-chart-dots-3', inlineVisualModule: 'ti-chart-dots-3', effect: 'ti-sparkles', shape: 'ti-shape', text: 'ti-typography' })[props.layer.layerType]);
+const layerIcon = computed(() => ({ group: 'ti-folder', voicevox: 'ti-microphone', image: 'ti-photo', video: 'ti-video', audio: 'ti-music', scene: 'ti-memory', visualModule: 'ti-chart-dots-3', inlineVisualModule: 'ti-chart-dots-3', effect: 'ti-sparkles', shape: 'ti-shape', text: 'ti-typography' })[props.layer.layerType]);
 type Clip = TimelineClip | TimelineAssetClip | TimelineVideoClip | TimelineSceneClip;
 
 const pixelsPerMs = computed(() => props.tlElWidth / props.tlRangeX);
@@ -129,8 +143,10 @@ const scrollingStyle = computed(() => ({
 	// クリップ・キー個別ではなく、実際に横移動する親だけを最適化の対象にする。
 	willChange: props.optimizeHorizontalMovement ? 'transform' : 'auto',
 }));
-const sortedClips = computed(() => props.layer.clips.toSorted((a, b) => a.startMs - b.startMs));
-const clipItems = computed(() => props.layer.clips.map(clip => ({ clip, label: clipLabel(clip), sourceDurationMs: sourceDuration(clip) })));
+const groupRange = computed(() => props.layer.layerType === 'group' ? getTimelineGroupRange(props.layer) : null);
+const layerClips = computed(() => props.layer.layerType === 'group' ? [] : props.layer.clips);
+const sortedClips = computed(() => layerClips.value.toSorted((a, b) => a.startMs - b.startMs));
+const clipItems = computed(() => layerClips.value.map(clip => ({ clip, label: clipLabel(clip), sourceDurationMs: sourceDuration(clip) })));
 const emptySelectionIds: string[] = [];
 const selectedKeyframeIdsByParameter = computed(() => {
 	const result = new Map<string, string[]>();
@@ -183,7 +199,7 @@ function sourceDuration(clip: Clip): number | null {
 }
 
 function onBackgroundDoubleClick(event: MouseEvent) {
-	if (event.button !== 0 || props.tlElWidth <= 0 || props.tlRangeX <= 0) return;
+	if (props.layer.layerType === 'group' || event.button !== 0 || props.tlElWidth <= 0 || props.tlRangeX <= 0) return;
 	const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
 	const startMs = timelinePointerTime(event.clientX, rect.left, props.tlPosX, pixelsPerMs.value);
 	if (startMs >= 0) emit('addClip', startMs);
@@ -218,13 +234,31 @@ function onKeyframeInsert(param: KeyframeParameter, x: number) {
 
 // このレイヤーがマウントされ、キーのレーンを表示するときだけローカル目盛りを作る。
 const visibleClipTicks = computed(() => keyframeParameters.value.length === 0 && props.layer.layerType !== 'voicevox' ? [] : getTimelineVisibleClipTicks(
-	props.layer.clips, props.tlPosX, props.tlRangeX, getTimelineTickCount(props.tlElWidth), props.tickMode, props.tickSubdivisions,
+	layerClips.value, props.tlPosX, props.tlRangeX, getTimelineTickCount(props.tlElWidth), props.tickMode, props.tickSubdivisions,
 ));
 
 function timeToDomX(time: number): number { return timelineTimeToX(time, props.tlPosX, props.tlRangeX, props.tlElWidth); }
 </script>
 
 <style module lang="scss">
+.groupClip {
+	position: absolute;
+	top: 2px;
+	height: 20px;
+	box-sizing: border-box;
+	border: 1px solid var(--THEME-accent);
+	border-radius: 4px;
+	background: color-mix(in srgb, var(--THEME-accent) 20%, transparent);
+	color: var(--THEME-fg);
+	cursor: grab;
+	touch-action: none;
+	overflow: hidden;
+	white-space: nowrap;
+	padding: 0 6px;
+	font-size: 11px;
+}
+.groupClipSelected { background: color-mix(in srgb, var(--THEME-accent) 40%, transparent); }
+
 .root {
 	--mainLaneHeight: 24px;
 	--keyframesLaneHeight: 20px;

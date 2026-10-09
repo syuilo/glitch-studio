@@ -1,3 +1,4 @@
+import { flattenTimelineLayers, getEnabledTimelineLayers } from './layer-tree.ts';
 import { getVoicevoxRequest, getVoicevoxRequestKey } from './layers/voicevox/voicevox.ts';
 import { getSceneAudioPlacements } from './scene-audio.ts';
 import { getSceneDuration, getTimelineScene } from './scenes.ts';
@@ -7,7 +8,7 @@ import type { TimelineScene } from './types.ts';
 
 /** 無効・クリップ外の発話も編集状態の一部なので、生成と保存の参照として保持する。 */
 export function getVoicevoxRequests(scenes: readonly TimelineScene[]): VoicevoxRequest[] {
-	return scenes.flatMap(scene => scene.layers.flatMap(layer => layer.layerType === 'voicevox'
+	return scenes.flatMap(scene => flattenTimelineLayers(scene.layers).flatMap(layer => layer.layerType === 'voicevox'
 		? layer.utterances.filter(utterance => utterance.text !== '').map(utterance => getVoicevoxRequest(layer.voicevox, utterance)) : []));
 }
 
@@ -35,7 +36,7 @@ export function getRequiredVoicevoxRequestsForRendering(scenes: readonly Timelin
 		for (const request of getRequiredVoicevoxRequests(scenes, id, 0, end)) {
 			requests.set(getVoicevoxRequestKey(request), request);
 		}
-		for (const layer of scene.layers) {
+		for (const layer of getEnabledTimelineLayers(scene.layers)) {
 			if (layer.isDisabled || layer.layerType !== 'scene') continue;
 			for (const clip of layer.clips) {
 				const visibleStart = Math.max(start, clip.startMs);
