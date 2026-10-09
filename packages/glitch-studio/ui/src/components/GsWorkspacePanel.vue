@@ -346,7 +346,7 @@ function popout() {
 }
 
 .popoutButton {
-	opacity: 0.5; // TODO: opacityを使わずに表現する
+	color: color(from currentColor srgb r g b / 0.5);
 	margin-left: auto;
 }
 
@@ -359,7 +359,7 @@ function popout() {
 	height: var(--headerHeight);
 	cursor: move;
 	user-select: none;
-	opacity: 0.5; // TODO: opacityを使わずに表現する
+	color: color(from currentColor srgb r g b / 0.5);
 }
 
 .grabberSvg {
