@@ -8,8 +8,8 @@
 			<div :class="$style.zoom">ZOOM: {{ Math.round(zoom * 100) }}%</div>
 			<button :class="$style.menuButton" class="_button" @click="showMenu"><i class="ti ti-dots"></i></button>
 		</div>
-		<div ref="containerContainer" :class="[$style.containerContainer, { [$style.animatedBg]: preferences.r.animatedBgInPreview.value, [$style.panning]: panning }]" @wheel="onViewWheel" @click="onViewClick" @pointermove="onPointermove" @pointerdown="onViewPointerdown" @auxclick.prevent>
-			<div ref="canvasContainer" :class="$style.canvasContainer" :style="{ scale: zoom, translate: `${pan[0]}px ${pan[1]}px` }"></div>
+		<div ref="containerContainer" :class="[$style.containerContainer, { [$style.panning]: panning }]" @wheel="onViewWheel" @click="onViewClick" @pointermove="onPointermove" @pointerdown="onViewPointerdown" @auxclick.prevent>
+			<div ref="canvasContainer" :class="[$style.canvasContainer, { [$style.animatedBg]: preferences.r.animatedBgInPreview.value }]" :style="{ scale: zoom, translate: `${pan[0]}px ${pan[1]}px` }"></div>
 			<div v-if="showGridInPreview" ref="gridOverlay" :class="$style.grid">
 				<div v-for="(line, index) in gridLines" :key="index" :class="$style.gridLine" :style="line"></div>
 			</div>
@@ -288,13 +288,17 @@ function showMenu(ev: PointerEvent) {
 	overflow: clip;
 	contain: content;
 	background: #080808;
+}
+
+.canvasContainer {
+	background: #000;
 
 	&.animatedBg {
 		$color1: #1a1a1a;
 		$color2: #101010;
 		background-color: $color1;
 		background-image: linear-gradient(45deg, $color2 25%, transparent 25%, transparent 75%, $color2 75%, $color2), linear-gradient(-45deg, $color2 25%, transparent 25%, transparent 75%, $color2 75%, $color2);
-		background-size: 32px 32px;
+		background-size: 64px 64px;
 		animation: bg 0.7s linear infinite;
 	}
 }
@@ -358,7 +362,7 @@ function showMenu(ev: PointerEvent) {
 	}
 
 	100% {
-		background-position: -32px -32px;
+		background-position: -64px -64px;
 	}
 }
 </style>
