@@ -206,7 +206,7 @@ for (const isExport of [false, true]) {
 			assert.equal(calls.instances[0].disposed, false);
 			assert.equal(calls.presented.length, 2);
 			assert.equal(manager.motionBlurAccumulator, undefined);
-			assert.equal(manager.motionBlurBoundaries, undefined);
+			assert.equal(manager.motionBlurTiming, undefined);
 			assert.deepEqual(calls.errors, []);
 		});
 	}

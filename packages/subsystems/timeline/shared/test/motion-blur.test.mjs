@@ -55,6 +55,21 @@ test('redistributes samples inside half-open clip intervals', () => {
 	assert.deepEqual(getTimelineSampleTimes(-1, 50, settings, boundaries), [-1]);
 });
 
+// 【キャッシュしたカット区間を、表示中の各ループの前後だけで狭める】
+// 異なる周期の重なりでは最も近い境界を左右別々に採用し、開始前・終了済みの配置は除外する。
+// 整列済みのカット配列を書き換えると後続フレームの二分探索が壊れるため、凍結した配列を渡す。
+test('intersects active loop intervals with cached clip boundaries', () => {
+	const boundaries = Object.freeze([0, 115, 125, 200]);
+	const loops = [
+		{ startMs: 100, endMs: 140, loopStartMs: 100, loopDurationMs: 10 },
+		{ startMs: 102, endMs: 140, loopStartMs: 102, loopDurationMs: 8 },
+		{ startMs: 120, endMs: 150, loopStartMs: 119, loopDurationMs: 1 },
+		{ startMs: 0, endMs: 119, loopStartMs: 0, loopDurationMs: 1 },
+	];
+	const samples = getTimelineSampleTimes(119, 10, { enabled: true, shutterAngle: 360, samples: 4 }, boundaries, loops);
+	assert.deepEqual(samples, [118.25, 118.75, 119.25, 119.75]);
+});
+
 // 【シャッター角と基準fpsから露光を計算し、サンプル数だけの変更では露光時間を保つ】
 // 描画頻度を落としても長いブラーにならず、書き出しfpsを変えたときだけ露光時間が変わる。
 test('separates preview quality from exposure and scales exposure with output fps', () => {

@@ -5,7 +5,7 @@ import { loadSource } from './helpers/load-source.mjs';
 import { getTimelineVideoSourceTime, getTimelineVideoTrimBounds, getTimelineVideoLoopBounds, trimTimelineVideoClip, validateTimelineVideoClipTiming } from '../src/layers/video/video-timing.ts';
 
 const { getSceneAudioClips } = await loadSource(fileURLToPath(new URL('../src/scene-audio.ts', import.meta.url)));
-const { getTimelineMotionBlurBoundaries, getTimelineMotionBlurLoopBoundaries, getTimelineSampleTimes } = await loadSource(fileURLToPath(new URL('../src/motion-blur.ts', import.meta.url)));
+const { getTimelineMotionBlurBoundaries, getTimelineMotionBlurLoops, getTimelineSampleTimes } = await loadSource(fileURLToPath(new URL('../src/motion-blur.ts', import.meta.url)));
 const clip = () => ({ id: 'clip', startMs: 1000, durationMs: 8000, contentOffsetMs: 2000.25, loopDurationMs: 3000 });
 
 // 【トリム範囲だけを繰り返し、境界は次の周の先頭に属する】
@@ -47,8 +47,10 @@ test('preserves loop phase through nested scene clipping and audio selections', 
 	assert.deepEqual(audio.loop, { startMs: 3500, durationMs: 3000, contentOffsetMs: 2000.25 });
 	assert.equal(audio.gains[1].sceneStartMs, 2500);
 	assert.deepEqual(getSceneAudioClips(scenes, 'root', { type: 'layer', layerId: 'parent' }), [audio]);
-	const boundaries = [...getTimelineMotionBlurBoundaries(scenes, 'root'), ...getTimelineMotionBlurLoopBoundaries(scenes, 'root', 6500)].sort((a, b) => a - b);
-	const samples = getTimelineSampleTimes(6500, 30, { enabled: true, shutterAngle: 360, samples: 8 }, boundaries);
+	const boundaries = getTimelineMotionBlurBoundaries(scenes, 'root');
+	const loops = getTimelineMotionBlurLoops(scenes, 'root');
+	assert.deepEqual(loops, [{ startMs: 5000, endMs: 9500, loopStartMs: 3500, loopDurationMs: 3000 }]);
+	const samples = getTimelineSampleTimes(6500, 30, { enabled: true, shutterAngle: 360, samples: 8 }, boundaries, loops);
 	assert.ok(samples.every(time => time >= 6500 && time < 9500));
 	video.clips[0].audioEnabled = false;
 	assert.deepEqual(getSceneAudioClips(scenes, 'root'), []);
@@ -62,5 +64,8 @@ test('keeps long short-period loops compact', () => {
 		automationGraphs: [], compositingParamValues: {}, audioParamValues: { volume: { inputSource: 'literal', value: 1 } } };
 	const scenes = [{ id: 'scene', resolution: { mode: 'project' }, layers: [video] }];
 	assert.equal(getSceneAudioClips(scenes, 'scene').length, 1);
-	assert.deepEqual(getTimelineMotionBlurLoopBoundaries(scenes, 'scene', 1800000.5), [1800000, 1800001]);
+	const loops = getTimelineMotionBlurLoops(scenes, 'scene');
+	assert.deepEqual(loops, [{ startMs: 1000, endMs: 3601000, loopStartMs: 1000, loopDurationMs: 1 }]);
+	const samples = getTimelineSampleTimes(1800000.5, 30, { enabled: true, shutterAngle: 360, samples: 8 }, getTimelineMotionBlurBoundaries(scenes, 'scene'), loops);
+	assert.ok(samples.every(time => time > 1800000 && time < 1800001));
 });

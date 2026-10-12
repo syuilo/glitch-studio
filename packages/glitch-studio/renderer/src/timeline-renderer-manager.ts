@@ -2,7 +2,8 @@ import { flattenTimelineLayers, findTimelineLayer, findTimelineLayerLocation } f
 import { createGroupTimelineLayer } from '@gs/subsystems_timeline_renderer/layers/group/group-timeline-layer.ts';
 import type { GeneratedSpeech } from '@gs/glitch-studio_shared/voicevox.ts';
 import { createSpeechResolver } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox.ts';
-import { validateTimelineFps, validateTimelineMotionBlur, getTimelineMotionBlurBoundaries, getTimelineMotionBlurLoopBoundaries, getTimelineSampleTimes } from '@gs/subsystems_timeline_shared/motion-blur.ts';
+import { validateTimelineFps, validateTimelineMotionBlur, getTimelineMotionBlurBoundaries, getTimelineMotionBlurLoops, getTimelineSampleTimes } from '@gs/subsystems_timeline_shared/motion-blur.ts';
+import type { TimelineMotionBlurLoop } from '@gs/subsystems_timeline_shared/motion-blur.ts';
 import { TimelineFrameRenderer } from '@gs/subsystems_timeline_renderer/timeline-frame-renderer.ts';
 import { createMotionBlurAccumulator } from '@gs/subsystems_timeline_renderer/motion-blur-accumulator.ts';
 import { scaleResolution, type Resolution } from '@gs/shared/resolution.ts';
@@ -102,7 +103,7 @@ export class TimelineRendererManager extends EventEmitter<{
 	private previewRenderGeneration = 0;
 	private frameRenderer: TimelineFrameRenderer<UniformOrTexture>;
 	private motionBlurAccumulator: ReturnType<typeof createMotionBlurAccumulator> | undefined;
-	private motionBlurBoundaries: number[] | undefined;
+	private motionBlurTiming: { boundaries: number[]; loops: TimelineMotionBlurLoop[] } | undefined;
 	private resolveSpeech = createSpeechResolver([]);
 	private nextTimelineLayerStatusId = 0;
 	private previewScheduler = new TimelinePreviewScheduler(time => this.renderPreviewFrame(time));
@@ -235,7 +236,7 @@ export class TimelineRendererManager extends EventEmitter<{
 
 	private clearTimelineRenderers() {
 		this.frameRenderer.clear();
-		this.motionBlurBoundaries = undefined;
+		this.motionBlurTiming = undefined;
 		this.motionBlurAccumulator?.dispose();
 		this.motionBlurAccumulator = undefined;
 		this.previewScheduler.clear();
@@ -342,7 +343,7 @@ export class TimelineRendererManager extends EventEmitter<{
 		this.previewRenderGeneration++;
 		this.timelineRenderer.cancelPendingRender();
 		this.frameRenderer.cancel();
-		this.motionBlurBoundaries = undefined;
+		this.motionBlurTiming = undefined;
 		this.projectVersions.apply(changes, this.dynamicOptions);
 		Object.assign(this.dynamicOptions, next);
 		this.dynamicOptions.previewRevision = previewRevision;
@@ -480,10 +481,11 @@ export class TimelineRendererManager extends EventEmitter<{
 			this.frameRenderer.cancel();
 			return this.timelineRenderer.renderAt(time, this.getSceneLayers(), initialTimeDelta, isExport);
 		}
-		this.motionBlurBoundaries ??= this.dynamicOptions.sceneId == null ? []
-			: getTimelineMotionBlurBoundaries(this.dynamicOptions.timelineScenes, this.dynamicOptions.sceneId);
-		const loopBoundaries = this.dynamicOptions.sceneId == null ? [] : getTimelineMotionBlurLoopBoundaries(this.dynamicOptions.timelineScenes, this.dynamicOptions.sceneId, time);
-		const times = getTimelineSampleTimes(time, fps, settings, [...this.motionBlurBoundaries, ...loopBoundaries].sort((a, b) => a - b));
+		this.motionBlurTiming ??= this.dynamicOptions.sceneId == null ? { boundaries: [], loops: [] } : {
+			boundaries: getTimelineMotionBlurBoundaries(this.dynamicOptions.timelineScenes, this.dynamicOptions.sceneId),
+			loops: getTimelineMotionBlurLoops(this.dynamicOptions.timelineScenes, this.dynamicOptions.sceneId),
+		};
+		const times = getTimelineSampleTimes(time, fps, settings, this.motionBlurTiming.boundaries, this.motionBlurTiming.loops);
 		return this.frameRenderer.render(times, isExport, initialTimeDelta);
 	}
 
@@ -578,11 +580,7 @@ export class TimelineRendererManager extends EventEmitter<{
 				const asset = this.dynamicOptions.assets.find(asset => asset.id === clip.assetId);
 				if (!asset) throw new Error(`Video asset not found: ${clip.assetId}`);
 				return createVideoTimelineLayer(layer, asset.fileData, {
-					getClip: () => {
-						const current = this.getLayer(sceneId, layer.id);
-						if (current?.layerType !== 'video') throw new Error('Video layer not found');
-						return current.clips.find(entry => entry.id === clipId)!;
-					},
+					clipTiming: clip,
 					onCompositing,
 					device: this.gpuDevice, vertex: this.defaultVertexShaderModule,
 					resolution: renderResolution, format: this.staticOptions.intermediateTextureFormat,

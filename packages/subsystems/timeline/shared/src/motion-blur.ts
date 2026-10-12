@@ -1,6 +1,6 @@
 import { getEnabledTimelineLayers } from './layer-tree.ts';
 import { getSceneDuration, getTimelineScene } from './scenes.ts';
-import { getTimelineClipEnd, isTimelineClipActive, getTimelineClipContentTime } from './timing.ts';
+import { getTimelineClipEnd } from './timing.ts';
 import type { TimelineScene } from './types.ts';
 
 export type TimelineMotionBlurSettings = {
@@ -53,30 +53,39 @@ export function getTimelineMotionBlurBoundaries(scenes: readonly TimelineScene[]
 	return collect(sceneId);
 }
 
-/** 長い配置の全周を列挙せず、露光中心を挟むループ境界だけを求める。 */
-export function getTimelineMotionBlurLoopBoundaries(scenes: readonly TimelineScene[], sceneId: string, timeMs: number): number[] {
-	const boundaries: number[] = [];
-	const visit = (id: string, time: number, sceneStartMs: number) => {
+/** 最上位Scene上の表示区間と周期。親のトリムで表示開始が変わっても周期の原点は維持する。 */
+export type TimelineMotionBlurLoop = {
+	startMs: number;
+	endMs: number;
+	loopStartMs: number;
+	loopDurationMs: number;
+};
+
+/** 編集時にだけSceneを探索し、周回数によらない配置単位の情報をキャッシュできるようにする。 */
+export function getTimelineMotionBlurLoops(scenes: readonly TimelineScene[], sceneId: string): TimelineMotionBlurLoop[] {
+	const loops: TimelineMotionBlurLoop[] = [];
+	const visit = (id: string, sceneStartMs: number, startMs: number, endMs: number) => {
 		for (const layer of getEnabledTimelineLayers(getTimelineScene(scenes, id).layers)) {
 			if (layer.layerType !== 'video' && layer.layerType !== 'scene') continue;
 			for (const clip of layer.clips) {
-				if (!isTimelineClipActive(clip, time)) continue;
+				const clipStartMs = sceneStartMs + clip.startMs;
+				const visibleStartMs = Math.max(startMs, clipStartMs);
+				const visibleEndMs = Math.min(endMs, sceneStartMs + getTimelineClipEnd(clip));
+				if (visibleEndMs <= visibleStartMs) continue;
 				if ('sceneId' in clip) {
-					visit(clip.sceneId, getTimelineClipContentTime(clip, time), sceneStartMs + clip.startMs - clip.contentOffsetMs);
+					visit(clip.sceneId, clipStartMs - clip.contentOffsetMs, visibleStartMs, visibleEndMs);
 				} else if (clip.loopDurationMs !== null) {
-					const period = clip.loopDurationMs;
-					const start = clip.startMs + Math.floor((time - clip.startMs) / period) * period;
-					boundaries.push(sceneStartMs + start, sceneStartMs + Math.min(start + period, getTimelineClipEnd(clip)));
+					loops.push({ startMs: visibleStartMs, endMs: visibleEndMs, loopStartMs: clipStartMs, loopDurationMs: clip.loopDurationMs });
 				}
 			}
 		}
 	};
-	visit(sceneId, timeMs, 0);
-	return boundaries;
+	visit(sceneId, 0, 0, getSceneDuration(getTimelineScene(scenes, sceneId)));
+	return loops;
 }
 
 /** 出力fpsと露光時間の関係だけを扱い、プレビューの描画頻度や書き出し範囲には依存しない。 */
-export function getTimelineSampleTimes(time: number, fps: number, settings: TimelineMotionBlurSettings, boundaries: readonly number[]): number[] {
+export function getTimelineSampleTimes(time: number, fps: number, settings: TimelineMotionBlurSettings, boundaries: readonly number[], loops: readonly TimelineMotionBlurLoop[] = []): number[] {
 	const count = settings.samples;
 	if (!settings.enabled || settings.shutterAngle === 0 || count <= 1) return [time];
 	// upper_boundで境界ちょうどを後ろの区間に所属させ、既存の[start, end)と一致させる。
@@ -90,8 +99,16 @@ export function getTimelineSampleTimes(time: number, fps: number, settings: Time
 	// Scene外のシークでは通常の透明出力を保ち、終端直後へ残像を持ち出さない。
 	if (low === 0 || low === boundaries.length) return [time];
 	const halfExposure = 500 / fps * settings.shutterAngle / 360;
-	const start = Math.max(time - halfExposure, boundaries[low - 1]);
-	const end = Math.min(time + halfExposure, boundaries[low]);
+	let start = Math.max(time - halfExposure, boundaries[low - 1]);
+	let end = Math.min(time + halfExposure, boundaries[low]);
+	// 静的な境界は二分探索で再利用し、表示中のループの前後だけで露光を狭める。
+	// 全境界を結合・再ソートせず、ループのないSceneでは追加の探索を行わない。
+	for (const loop of loops) {
+		if (time < loop.startMs || time >= loop.endMs) continue;
+		const cycleStartMs = loop.loopStartMs + Math.floor((time - loop.loopStartMs) / loop.loopDurationMs) * loop.loopDurationMs;
+		start = Math.max(start, loop.startMs, cycleStartMs);
+		end = Math.min(end, loop.endMs, cycleStartMs + loop.loopDurationMs);
+	}
 	if (end <= start) return [time];
 	// 切り詰めた区間内に再配置することで、サンプル数と重みの合計1を維持する。
 	// 編集時の整数ms丸めは適用せず、細かい動きも小数時刻で評価する。

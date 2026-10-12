@@ -96,7 +96,7 @@ function timelineFixture(t) {
 
 // 【映像のシークと書き出しはトリム範囲を同じ時刻で折り返し、設定変更も反映する】
 // 時間計算単体が正しくても、Managerから動画レンダラーへ周期が渡らなければ映像だけが直進する。
-// 実際の差分同期も通し、保持していたクリップ参照の古い周期を使い続けないことを確認する。
+// 実際の差分同期も通し、配置編集によるレンダラーの再生成で新しい周期が渡されることを確認する。
 test('loops decoded video timestamps in preview and export and applies clip edits', async t => {
 	const { manager, calls } = timelineFixture(t);
 	const video = { id: 'video', name: 'Video', layerType: 'video', isDisabled: false, automationGraphs: [], compositingParamValues: {}, audioParamValues: { volume: literal(1) },

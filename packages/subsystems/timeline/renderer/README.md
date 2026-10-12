@@ -18,6 +18,8 @@ Textレイヤーは`TextParameters`でScene時刻の値を評価し、`createTex
 
 エフェクトとVisual Moduleのレイヤーは音声Bindingを解決する関数を呼び出し側から受け取る。`timeline-audio-input-resolver.ts`で同じ評価内の同一参照だけを共有し、下層音声と指定レイヤー、異なるレイヤーの入力を混同しない。取得時刻は内容時刻ではなく所属Scene時刻を渡す。PCMのデコードや再生状態は所有しない。
 
+動画レイヤーは生成時に`TimelineVideoClipTiming`を受け取り、所属Scene時刻からトリム・ループ後の素材時刻を求める。呼び出し側は配置の編集時にレンダラーを再生成し、描画ごとのクリップ再検索は行わない。
+
 `TimelineFrameRenderer`は1出力フレームに属するサブサンプルの直列評価・蓄積・中断を管理する。各サンプルでScene全体を合成し、最上位でだけ平均する。子Sceneは単一時刻で評価するため、入れ子でサンプル数は増殖しない。
 
 `motion-blur-accumulator.ts`はpremultiplied RGBAを逐次平均する2枚のGPUテクスチャを所有する。内部計算用の精度設定に従い、rgba16float / rgba32floatを使う。借用出力を読むコマンドは、次の評価でその出力が上書きされる前にsubmitする。表示とエンコードは平均結果に対して1回だけ行う。
