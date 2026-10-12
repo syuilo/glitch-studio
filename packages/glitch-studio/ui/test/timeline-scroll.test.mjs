@@ -120,27 +120,28 @@ async function fixture(t) {
 
 // 【通常レイヤーを折りたたんでもクリップを維持し、再展開でキーと目盛りを復元する】
 // キーを隠すだけの操作でデータや選択を失ったり、クリップまで再生成してはならない。
-// 実際の開閉ボタンを通して表示とaria-expandedが連動することも確認する。
+// 実際の開閉ボタンを通してレーンの表示と開閉アイコンが連動することも確認する。
 test('collapses ordinary layers to the main lane and restores keyframes on expansion', async t => {
 	const state = await fixture(t);
 	state.props.selectedKeyframes = [{ layerId: 'a', target: 'audio', paramPath: ['volume'], keyframeId: 'key-0' }];
 	await nextTick();
 	const nodes = () => descendants(state.root);
 	const toggle = nodes().find(node => node.props.class?.includes('collapseButton'));
+	const toggleIcon = () => descendants(toggle).find(node => node.tag === 'i');
 	const clip = nodes().find(node => node.props['data-timeline-clip-id'] === 'clip-0');
 	const originalKeys = structuredClone(state.layers[0].audioParamValues.volume.keyframesTimeline.keyframes.map(point => ({ ...point, interpolation: { ...point.interpolation } })));
-	assert.equal(toggle.props['aria-expanded'], true);
+	assert.equal(toggleIcon().props.class, 'ti ti-chevron-down');
 	assert.ok(nodes().some(node => node.props.class === 'localTicksLane'));
 	toggle.props.onClick({ stopPropagation() {} });
 	await nextTick();
-	assert.equal(toggle.props['aria-expanded'], false);
+	assert.equal(toggleIcon().props.class, 'ti ti-chevron-right');
 	assert.equal(nodes().find(node => node.props['data-timeline-clip-id'] === 'clip-0'), clip);
 	assert.ok(!nodes().some(node => node.props.class === 'localTicksLane' || node.props.class === 'keyframesLane'));
 	assert.ok(!nodes().some(node => node.props['data-timeline-keyframe-id']));
 	assert.equal(mounts.get('GsTimeline.Clip.vue') ?? 0, 0);
 	toggle.props.onClick({ stopPropagation() {} });
 	await nextTick();
-	assert.equal(toggle.props['aria-expanded'], true);
+	assert.equal(toggleIcon().props.class, 'ti ti-chevron-down');
 	assert.ok(nodes().some(node => node.props.class === 'localTicksLane'));
 	assert.ok(nodes().some(node => node.props['data-timeline-keyframe-id'] === 'key-0' && node.props.class.includes('selected')));
 	assert.deepEqual(state.layers[0].audioParamValues.volume.keyframesTimeline.keyframes, originalKeys);
