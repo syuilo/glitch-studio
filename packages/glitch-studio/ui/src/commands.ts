@@ -1585,7 +1585,6 @@ const pasteTimelineLayerCommandDef = defineCommand<{ sceneId: string; layer: Tim
 		execute(state) {
 			validateAddedTimelineLayer(state, payload.sceneId, payload.layer, payload.sourceDurationsMs);
 			const location = findTimelineLayerLocation(getScene(state, payload.sceneId).layers, payload.sourceLayerId);
-			if (location?.ancestors.some(parent => parent.layerType === 'group') && flattenTimelineLayers([payload.layer]).some(layer => layer.layerType === 'camera')) throw new Error('Camera layers cannot be placed inside a Group');
 			const siblings = location?.siblings ?? getScene(state, payload.sceneId).layers;
 			// 表示順は先頭が最上層。コピー元が削除済みなら最上層へ挿入する。
 			siblings.splice(location?.index ?? 0, 0, deepClone(payload.layer));

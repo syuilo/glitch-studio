@@ -1,9 +1,20 @@
 import { getTimelineClipEnd, isTimelineClipActive } from './timing.ts';
 import { TimelineCameraParameters } from './layers/camera/camera-parameters.ts';
 import { TimelineTransformParameters } from './layers/transform/transform-parameters.ts';
+import { isTimelineContainerLayer } from './types.ts';
 import type { TimelineLayer, TimelineCameraLayer, TimelineTransformLayer } from './types.ts';
 
 type CameraCandidate = { layer: TimelineCameraLayer; ancestors: TimelineTransformLayer[]; frozen: boolean };
+
+// 編集途中の配置は保存・同期できるようにし、Sceneの描画時だけ拒否する。
+// カメラの無効化やクリップの空白で構成エラーを隠すと、時刻の変更で突然失敗するため、
+// 有効なカメラの選択とは分けて、Transformを挟んだ子孫を含めて検証する。
+function validateCameraPlacement(layers: readonly TimelineLayer[], insideGroup = false): void {
+	for (const layer of layers) {
+		if (insideGroup && layer.layerType === 'camera') throw new Error(`Camera "${layer.name}" is inside a Group. Move it outside the Group to render this scene.`);
+		if (isTimelineContainerLayer(layer)) validateCameraPlacement(layer.layers, insideGroup || layer.layerType === 'group');
+	}
+}
 
 /** Groupは合成境界なので探索せず、Transformだけを表示順に透過する。 */
 export function getTimelineCameraCandidates(layers: readonly TimelineLayer[], ancestors: TimelineTransformLayer[] = [], frozen = false): CameraCandidate[] {
@@ -73,6 +84,7 @@ export class TimelineSceneCamera {
 	private transforms = new TimelineTransformParameters();
 
 	evaluate(layers: readonly TimelineLayer[], time: number, isExport: boolean, referenceTime = time) {
+		validateCameraPlacement(layers);
 		const active = getActiveTimelineCamera(layers, time, referenceTime);
 		const settings = active && { paramValues: active.layer.cameraParamValues, automationGraphs: active.layer.automationGraphs };
 		const camera = this.parameters.evaluate(settings, active?.time ?? time, isExport);

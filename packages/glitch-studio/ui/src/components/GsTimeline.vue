@@ -57,8 +57,8 @@
 				-->
 				<div :class="$style.layersActions">
 					<GsButton v-tooltip="'Add Layer'" small iconOnly @click="showAddLayerMenu"><i class="ti ti-plus"></i></GsButton>
-					<GsButton v-tooltip="'Wrap in Transform'" iconOnly small :disabled="!canTransformSelection" @click="transformSelection"><i class="ti ti-gizmo"></i></GsButton>
-					<GsButton v-tooltip="'Group'" iconOnly small :disabled="!canGroupSelection" @click="groupSelection"><i class="ti ti-folder-symlink"></i></GsButton>
+					<GsButton v-tooltip="'Wrap in Transform'" iconOnly small :disabled="!canWrapSelection" @click="transformSelection"><i class="ti ti-gizmo"></i></GsButton>
+					<GsButton v-tooltip="'Group'" iconOnly small :disabled="!canWrapSelection" @click="groupSelection"><i class="ti ti-folder-symlink"></i></GsButton>
 					<GsButton v-if="selectedLayer && isTimelineContainerLayer(selectedLayer)" v-tooltip="'Unwrap container'" iconOnly small @click="ungroupSelection"><i class="ti ti-folder-open"></i></GsButton>
 					<GsButton v-if="selectedLayer && (layerAncestors.get(selectedLayer.id)?.length ?? 0) > 0" small @click="moveSelectedLayerOut">Move out</GsButton>
 				</div>
@@ -306,9 +306,6 @@ function onLayerDragOver(event: DragEvent, layer: TimelineLayer) {
 	const fraction = (event.clientY - bounds.top) / bounds.height;
 	const location = findTimelineLayerLocation(rootLayers.value, layer.id)!;
 	const position = isTimelineContainerLayer(layer) && fraction >= 0.25 && fraction <= 0.75 ? 'inside' : fraction < 0.5 ? 'before' : 'after';
-	// カメラを含むTransformもGroup配下には移動させない。Transform間の移動は可能。
-	if (flattenTimelineLayers([source]).some(child => child.layerType === 'camera')
-		&& (location.ancestors.some(parent => parent.layerType === 'group') || (position === 'inside' && layer.layerType === 'group'))) { dropTarget.value = null; return; }
 	dropTarget.value = {
 		layerId: layer.id, position,
 		parentId: position === 'inside' ? layer.id : location.ancestors.at(-1)?.id ?? null,
@@ -399,7 +396,7 @@ const selectedClipIdsByLayer = computed(() => {
 const selectionCount = computed(() => selection.value.kind === 'layers' ? selection.value.ids.length : selection.value.kind === 'clips' ? selection.value.clips.length : selection.value.keyframes.length);
 const selectedLayerId = computed(() => selection.value.kind === 'layers' ? selection.value.ids[0] ?? null : selection.value.kind === 'clips' ? selection.value.clips[0]?.layerId ?? null : selection.value.keyframes[0]?.layerId ?? null);
 const selectedLayer = computed(() => sceneLayers.value.find(layer => layer.id === getSelectedTimelineLayerId(selection.value)) ?? null);
-const canTransformSelection = computed(() => {
+const canWrapSelection = computed(() => {
 	if (selection.value.kind !== 'layers' || !selection.value.ids.length) return false;
 	const locations = selection.value.ids.map(id => findTimelineLayerLocation(rootLayers.value, id));
 	const first = locations[0];
@@ -408,11 +405,8 @@ const canTransformSelection = computed(() => {
 	return indexes.every((index, offset) => index === indexes[0] + offset);
 });
 
-const canGroupSelection = computed(() => canTransformSelection.value && selection.value.kind === 'layers'
-	&& selection.value.ids.every(id => !flattenTimelineLayers([findTimelineLayer(rootLayers.value, id)!]).some(layer => layer.layerType === 'camera')));
-
 function transformSelection() {
-	if (!canTransformSelection.value || selection.value.kind !== 'layers') return;
+	if (!canWrapSelection.value || selection.value.kind !== 'layers') return;
 	const transform = createTransformTimelineLayer();
 	stateManager.commit('transformTimelineLayers', { sceneId: props.sceneId, layerIds: [...selection.value.ids], transform });
 	selection.value = { kind: 'layers', ids: [transform.id] };
@@ -429,7 +423,7 @@ function addEmptyGroup() {
 }
 
 function groupSelection() {
-	if (!canGroupSelection.value || selection.value.kind !== 'layers') return;
+	if (!canWrapSelection.value || selection.value.kind !== 'layers') return;
 	const id = genId();
 	stateManager.commit('groupTimelineLayers', { sceneId: props.sceneId, layerIds: [...selection.value.ids], group: {
 		id, name: 'Group', layerType: 'group', layers: [], isDisabled: false, forceDisableMotionBlur: false, automationGraphs: [],
@@ -594,7 +588,7 @@ const clipboardActions = createTimelineClipboardActions({
 
 const layerActions = createTimelineLayerActions({
 	stateManager, scene: editedScene, selection, isActive: isTimelineActive, readLayerMediaDurations,
-	selectLayer, canGroup: () => canGroupSelection.value, groupSelection, canTransform: () => canTransformSelection.value, transformSelection, ui,
+	selectLayer, canWrap: () => canWrapSelection.value, groupSelection, transformSelection, ui,
 	focusTimeline: () => tlEl.value?.focus({ preventScroll: true }),
 });
 

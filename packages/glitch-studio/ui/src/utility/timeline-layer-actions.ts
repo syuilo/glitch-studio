@@ -16,16 +16,15 @@ type TimelineLayerActionsOptions = {
 	isActive: () => boolean;
 	readLayerMediaDurations: (layer: TimelineLayer) => Promise<TimelineClipSourceDurations | undefined>;
 	selectLayer: (layer: TimelineLayer) => void;
-	canGroup: () => boolean;
+	canWrap: () => boolean;
 	groupSelection: () => void;
-	canTransform: () => boolean;
 	transformSelection: () => void;
 	focusTimeline: () => void;
 	ui: Pick<typeof import('@/ui.ts'), 'contextMenu' | 'inputText' | 'alert'>;
 };
 
 export function createTimelineLayerActions(options: TimelineLayerActionsOptions) {
-	const { stateManager, scene, selection, isActive, readLayerMediaDurations, selectLayer, canGroup, groupSelection, focusTimeline, ui } = options;
+	const { stateManager, scene, selection, isActive, readLayerMediaDurations, selectLayer, canWrap, groupSelection, transformSelection, focusTimeline, ui } = options;
 
 	function showMenu(event: PointerEvent, layer: TimelineLayer) {
 		if (!isActive()) return;
@@ -33,7 +32,7 @@ export function createTimelineLayerActions(options: TimelineLayerActionsOptions)
 		if (selection.value.kind !== 'layers' || !selection.value.ids.includes(layer.id)) selectLayer(layer);
 		if (selection.value.kind !== 'layers') return;
 		const ids = [...selection.value.ids];
-		const menu: MenuItem[] = [{ text: 'Wrap in Transform', icon: 'ti ti-gizmo', disabled: !options.canTransform(), action: options.transformSelection }, { text: 'Group', icon: 'ti ti-folder-symlink', disabled: !canGroup(), action: groupSelection }];
+		const menu: MenuItem[] = [{ text: 'Wrap in Transform', icon: 'ti ti-gizmo', disabled: !canWrap(), action: transformSelection }, { text: 'Group', icon: 'ti ti-folder-symlink', disabled: !canWrap(), action: groupSelection }];
 		if (ids.length === 1) menu.push({ text: 'Rename', icon: 'ti ti-edit', action: () => rename(ids[0]) });
 		menu.push({ text: 'Duplicate', icon: 'ti ti-copy', action: () => duplicate(ids) }, {
 			text: 'Delete', icon: 'ti ti-trash', danger: true, action: () => remove(ids),

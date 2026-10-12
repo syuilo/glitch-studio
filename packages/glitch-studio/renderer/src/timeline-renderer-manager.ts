@@ -328,7 +328,6 @@ export class TimelineRendererManager extends EventEmitter<{
 			next = applyRendererProjectChanges(next, [change]);
 			if (change.type === 'scene' || change.type === 'layerTree') validateSceneReferences = true;
 			if (change.type !== 'layer' || change.layer === null) continue;
-			if (change.layer.layerType === 'camera') validateSceneReferences = true;
 			// 設定差分はコンテナの子孫を含まない。子の再検証は階層変更か子自身の差分で行う。
 			validateTimelineLayer((change.layer.layerType === 'group' || change.layer.layerType === 'transform') ? { ...change.layer, layers: [] } : change.layer);
 			if (change.layer.layerType === 'effect') validateTimelineEffectLayer(change.layer, this.effectDefinitions[change.layer.effectId]);

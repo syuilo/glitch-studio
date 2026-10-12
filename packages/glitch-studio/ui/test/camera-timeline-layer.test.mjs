@@ -89,28 +89,34 @@ test('edits camera keyframes through timeline lanes and clipboard with undo and 
 	assert.deepEqual(f.layer.clips, [clip]);
 });
 
-// 【カメラのグループ化・子への移動・子の位置への貼り付けを原子的に拒否する】
-// UI上のドロップ制限だけではショートカットやCommand経由で不正なSceneを作れてしまう。
-// 拒否後に元のツリーとUndo履歴が維持されることも確認する。
-test('rejects camera nesting through group, move, and paste commands', t => {
+// 【カメラのGroup内への配置も通常の編集・Undo/Redoとして扱う】
+// 描画できない構成を編集側で拒否せず、移動・貼り付け・グループ化のどの入口でも修正可能にする。
+test('allows camera nesting through group, move, and paste commands with undo and redo', t => {
 	const f = fixture(t);
+	const cameraId = f.layer.id;
+	const copy = { ...structuredClone(f.layer), id: 'copy' };
 	const group = { id: 'group', name: 'Group', layerType: 'group', layers: [], isDisabled: false,
 		forceDisableMotionBlur: false, automationGraphs: [], compositingParamValues: {}, audioParamValues: {} };
 	f.history.commit('addTimelineLayer', { sceneId: 'scene', layer: group });
 	const before = structuredClone(f.scene.layers);
-	const undoCount = f.history.undoStack.value.length;
-	assert.throws(() => f.history.commit('groupTimelineLayers', { sceneId: 'scene', layerIds: [f.layer.id], group: { ...group, id: 'new-group' } }), /inside a Group/);
-	assert.throws(() => f.history.commit('moveTimelineLayer', { sceneId: 'scene', layerId: f.layer.id, parentId: 'group', beforeId: null }), /inside a Group/);
+	f.history.commit('groupTimelineLayers', { sceneId: 'scene', layerIds: [cameraId], group: { ...group, id: 'new-group' } });
+	assert.equal(findTimelineLayer(f.scene.layers, 'new-group').layers[0].id, cameraId);
+	f.history.undo();
 	assert.deepEqual(f.scene.layers, before);
-	assert.equal(f.history.undoStack.value.length, undoCount);
-	const child = { id: 'child', name: 'Child', layerType: 'audio', isDisabled: false, automationGraphs: [], clips: [], audioParamValues: {} };
-	f.scene.layers.find(layer => layer.id === 'group').layers.push(child);
-	assert.throws(() => f.history.commit('pasteTimelineLayer', { sceneId: 'scene', sourceLayerId: 'child', layer: { ...f.layer, id: 'copy' } }), /inside a Group/);
-	assert.equal(f.scene.layers.find(layer => layer.id === 'group').layers.length, 1);
+	f.history.commit('moveTimelineLayer', { sceneId: 'scene', layerId: cameraId, parentId: 'group', beforeId: null });
+	assert.equal(findTimelineLayer(f.scene.layers, 'group').layers[0].id, cameraId);
+	f.history.undo();
+	assert.deepEqual(f.scene.layers, before);
+	f.history.redo();
+	f.history.commit('pasteTimelineLayer', { sceneId: 'scene', sourceLayerId: cameraId, layer: copy });
+	assert.deepEqual(findTimelineLayer(f.scene.layers, 'group').layers.map(layer => layer.id), ['copy', cameraId]);
+	f.history.undo();
+	assert.equal(findTimelineLayer(f.scene.layers, 'group').layers.length, 1);
 });
 
 // 【カメラの式・キー・クリップを保存し、複製後は独立して編集できる】
-// カメラがScene設定に残っていたり、複製でBindingを共有すると、切り替え先の編集が元の視点を変えてしまう。
+// 複製でBindingを共有すると、切り替え先の編集が元の視点を変えてしまう。
+// Group内へ置いた描画不能な状態も保存・読み込みでき、修正のための編集を再開できるようにする。
 test('round-trips camera layers and duplicates independent camera settings', async t => {
 	const f = fixture(t);
 	f.edit('z', { kind: 'expression', value: '3 + TIME' });
@@ -121,6 +127,10 @@ test('round-trips camera layers and duplicates independent camera settings', asy
 	f.history.commit('pasteTimelineLayer', { sceneId: 'scene', sourceLayerId: f.layer.id, layer: copy });
 	f.history.commit('editTimelineLayerParam', { ...f.target, layerId: copy.id, paramPath: ['z'], edit: { kind: 'literal', value: 5 } });
 	assert.equal(f.layer.cameraParamValues.z.expression, '3 + TIME');
+	f.history.commit('groupTimelineLayers', { sceneId: 'scene', layerIds: [copy.id, f.layer.id], group: {
+		id: 'group', name: 'Group', layerType: 'group', layers: [], isDisabled: false,
+		forceDisableMotionBlur: false, automationGraphs: [], compositingParamValues: {}, audioParamValues: {},
+	} });
 	const project = { id: 'project', gsVersion: '2.0.0-alpha', name: 'Cameras', description: '', author: '',
 		resolution: { width: 1920, height: 1080 }, timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 },
 		assets: [], generatedSpeech: [], players: [], visualModules: [], timelineScenes: f.state.timelineScenes.value };
@@ -162,9 +172,9 @@ test('wraps cameras and images in Transform and edits their shared timeline with
 	assert.equal(parent().layers.length, 2);
 });
 
-// 【カメラを含むTransformのGroupへの移動・貼り付け・グループ化を原子的に拒否する】
-// 直接の子だけを見ると、Transformを使ってカメラの配置制限をすり抜けてしまう。
-test('rejects cameras hidden under Transform when editing group boundaries', t => {
+// 【カメラを含むTransformもGroupの境界を越えて編集できる】
+// 配置エラーは描画側に任せ、入れ子でも複製やUndoが途中の構成を失わないようにする。
+test('allows cameras under Transform when editing group boundaries', t => {
 	const f = fixture(t);
 	const cameraId = f.layer.id;
 	const transform = createTransformTimelineLayer();
@@ -173,13 +183,18 @@ test('rejects cameras hidden under Transform when editing group boundaries', t =
 		forceDisableMotionBlur: false, automationGraphs: [], compositingParamValues: {}, audioParamValues: {} };
 	f.history.commit('addTimelineLayer', { sceneId: 'scene', layer: group });
 	const before = structuredClone(f.scene.layers);
-	const count = f.history.undoStack.value.length;
-	assert.throws(() => f.history.commit('moveTimelineLayer', { sceneId: 'scene', layerId: transform.id, parentId: group.layers[0].id, beforeId: null }), /inside a Group/);
-	assert.throws(() => f.history.commit('groupTimelineLayers', { sceneId: 'scene', layerIds: [transform.id], group: { ...group, id: 'other', layers: [] } }), /inside a Group/);
-	const copy = duplicateTimelineLayers([findTimelineLayer(f.scene.layers, transform.id)])[0];
-	assert.throws(() => f.history.commit('pasteTimelineLayer', { sceneId: 'scene', sourceLayerId: group.layers[0].id, layer: copy }), /inside a Group/);
+	f.history.commit('moveTimelineLayer', { sceneId: 'scene', layerId: transform.id, parentId: group.layers[0].id, beforeId: null });
+	assert.equal(findTimelineLayer(f.scene.layers, group.layers[0].id).layers[0].layers[0].id, cameraId);
+	f.history.undo();
 	assert.deepEqual(f.scene.layers, before);
-	assert.equal(f.history.undoStack.value.length, count);
+	f.history.commit('groupTimelineLayers', { sceneId: 'scene', layerIds: [transform.id], group: { ...group, id: 'other', layers: [] } });
+	assert.equal(findTimelineLayer(f.scene.layers, 'other').layers[0].id, transform.id);
+	f.history.undo();
+	const copy = duplicateTimelineLayers([findTimelineLayer(f.scene.layers, transform.id)])[0];
+	f.history.commit('pasteTimelineLayer', { sceneId: 'scene', sourceLayerId: group.layers[0].id, layer: copy });
+	assert.equal(findTimelineLayer(f.scene.layers, 'group').layers[0].id, copy.id);
+	f.history.undo();
+	assert.deepEqual(f.scene.layers, before);
 	// Transform同士の移動は認め、同じカメラID・クリップ・キーを保つ。
 	const outer = createTransformTimelineLayer();
 	f.history.commit('addTimelineLayer', { sceneId: 'scene', layer: outer });

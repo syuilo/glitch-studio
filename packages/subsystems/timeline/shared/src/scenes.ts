@@ -24,11 +24,10 @@ export function getTimelineScene(scenes: readonly TimelineScene[], sceneId: stri
 	return scene;
 }
 
-export function validateTimelineLayer(layer: TimelineLayer, insideGroup = false): void {
-	if (insideGroup && layer.layerType === 'camera') throw new Error('Camera layers cannot be placed inside a Group');
+export function validateTimelineLayer(layer: TimelineLayer): void {
 	if (isTimelineContainerLayer(layer)) {
 		for (const child of layer.layers) {
-			validateTimelineLayer(child, insideGroup || layer.layerType === 'group');
+			validateTimelineLayer(child);
 		}
 	} else validateTimelineClips(layer.clips);
 	if (layer.layerType === 'video' || layer.layerType === 'audio') {

@@ -68,7 +68,7 @@ function layerMenuFixture(f, ids, overrides = {}) {
 		readLayerMediaDurations: async layer => Object.fromEntries(module.exports.flattenTimelineLayers([layer])
 			.filter(child => child.layerType === 'audio').map(child => [child.id, Object.fromEntries(child.clips.map(clip => [clip.id, 5000]))])),
 		selectLayer: layer => { selection.value = { kind: 'layers', ids: [layer.id] }; },
-		canGroup: () => true, groupSelection: () => {}, canTransform: () => true, transformSelection: () => {}, focusTimeline: () => {},
+		canWrap: () => true, groupSelection: () => {}, transformSelection: () => {}, focusTimeline: () => {},
 		ui: { contextMenu: items => { menu = items; }, inputText: async () => ({ canceled: false, result: 'Renamed' }), alert: error => alerts.push(error) },
 		...overrides,
 	});

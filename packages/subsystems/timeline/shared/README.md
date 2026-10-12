@@ -72,7 +72,7 @@ Scene直下またはTransform配下の`camera`レイヤーは`cameraParamValues`
 
 `affine.ts`・`spatial.ts`・`group-space.ts`は平面の変換・投影・グループ境界を所有する。GPUに依存せず、レンダラーとプレビューの逆変換で同じ規則を使用する。グループの`compositingMode`は`flat`（内部2D合成）または`preserveDepth`（子を投影後にグループ合成）。レイヤーの`placement`は`world`または`screen`で、後者は現在の合成先のGroupの変形・カメラを適用しない。TransformのXYは`screenParent`として別に蓄積し、画面配置にも反映する。
 
-カメラのキー・式はScene時刻で評価し、クリップの内容オフセットは使用しない。カメラはグループへ入れられず、音声・画素・合成パラメータを持たない。合成設定を持つレイヤーは`isTimelineVisualLayer`、子の描画走査を行うTransformも含めた対象は`isTimelineRenderLayer`で区別する。
+カメラのキー・式はScene時刻で評価し、クリップの内容オフセットは使用しない。カメラは音声・画素・合成パラメータを持たない。合成設定を持つレイヤーは`isTimelineVisualLayer`、子の描画走査を行うTransformも含めた対象は`isTimelineRenderLayer`で区別する。
 
 `TimelineCameraCuts`は描画と同じカメラ選択規則で、実際に選択が変わる境界だけを計算する。ブラー無効のカメラは基準時刻で有効状態を固定し、最上段の有効な固定カメラごとに結果をキャッシュする。`getTimelineMotionBlurBoundaries()`は通常の映像カットを収集し、カメラは`getTimelineMotionBlurCameraCuts()`で配置ごとのScene時計・トリム範囲と選択計画を保持する。`getTimelineSampleTimes()`へ両方を渡すことで、未採用のカメラに露光を制限されず、子Sceneの固定カメラも配置ごとに解釈できる。計画はプロジェクト変更時に作り直す。
 
@@ -80,6 +80,8 @@ Scene直下またはTransform配下の`camera`レイヤーは`cameraParamValues`
 
 `TimelineTransformLayer`は`layers`とXYZ移動のBinding、Automation Graph、`forceDisableMotionBlur`を所有する。Groupと合わせて`TimelineContainerLayer`とし、木の走査・時間移動・範囲計算を共有する。自身のクリップ・画像・合成設定・音量は持たない。`layers/transform`が定義と評価器、`transform-space.ts`が親空間への移動の累積を担当する。
 
-カメラ選択はTransformだけを再帰し、無効な枝を除いた表示順で行う。カメラ配下の計算ではなく、Scene側で選択したカメラの祖先を評価するため循環しない。祖先Transformのブラー無効は子のクリップ選択とカット計画にも引き継ぐ。カメラ自身だけを固定した場合は祖先のサンプル時刻を維持する。Groupを祖先に持つカメラは検証時に拒否する。
+カメラ選択はTransformだけを再帰し、無効な枝を除いた表示順で行う。カメラ配下の計算ではなく、Scene側で選択したカメラの祖先を評価するため循環しない。祖先Transformのブラー無効は子のクリップ選択とカット計画にも引き継ぐ。カメラ自身だけを固定した場合は祖先のサンプル時刻を維持する。
+
+Groupを祖先に持つカメラも保存・読み込み・状態同期の構造検証では受け入れる。配置の描画可否は`TimelineSceneCamera.evaluate()`で検証し、無効な枝やクリップ期間外も含めてエラーにする。描画対象Sceneごとに検証するため、参照先SceneのエラーはそのSceneを描画するときに伝わる。編集側で配置を拒否せず、既存の描画エラー通知と修正後の再評価を利用できる。
 
 音声計画はTransformを音量なしで透過し、下層入力も外側へ継続する。Group・Sceneは従来の合成境界を維持する。

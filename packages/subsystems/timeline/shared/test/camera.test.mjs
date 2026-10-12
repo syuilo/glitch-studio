@@ -49,9 +49,9 @@ test('evaluates camera animation in scene time with an independent motion blur o
 	assert.equal(getActiveTimelineCamera([{ ...animated, forceDisableMotionBlur: true }], 100, 99), undefined);
 });
 
-// 【カメラの切り替え境界で露光を制限し、グループ内部のカメラは拒否する】
-// カットをまたいだ視点を平均すると意図しない二重像になる。Scene限定の配置も読み込み時に保証する。
-test('clips motion blur at camera cuts and rejects cameras inside groups', () => {
+// 【カメラの切り替え境界で露光を制限する】
+// カットをまたいだ視点を平均すると意図しない二重像になるため、選択が変わる時刻で露光を切る。
+test('clips motion blur at camera cuts', () => {
 	const scene = { id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [cameraLayer('first', 0, 100), cameraLayer('second', 100, 200)] };
 	const boundaries = getTimelineMotionBlurBoundaries([scene], scene.id);
 	const cameras = getTimelineMotionBlurCameraCuts([scene], scene.id);
@@ -60,7 +60,31 @@ test('clips motion blur at camera cuts and rejects cameras inside groups', () =>
 	const samples = getTimelineSampleTimes(100, 60, { enabled: true, shutterAngle: 360, samples: 8 }, boundaries, [], cameras);
 	assert.ok(samples.every(time => time >= 100));
 	validateTimelineScenes([scene]);
-	assert.throws(() => validateTimelineScenes([{ ...scene, layers: [{ id: 'group', layerType: 'group', layers: scene.layers }] }]), /inside a Group/);
+});
+
+// 【Group内のカメラは編集状態として受け入れ、描画時だけエラーにする】
+// 読み込みや同期を拒否すると、編集途中の構成を保存できず、修正するための差分も届かなくなる。
+// 配置自体のエラーなので、Groupのモード・無効化・カメラのクリップ期間では隠さない。
+test('accepts grouped cameras as scene data but rejects their placement during camera evaluation', () => {
+	const sceneCamera = new TimelineSceneCamera();
+	for (const compositingMode of ['flat', 'preserveDepth']) {
+		const nested = cameraLayer('Nested camera', 100, 100);
+		const group = { id: 'group', name: 'Group', layerType: 'group', compositingMode, layers: [nested],
+			isDisabled: false, automationGraphs: [], compositingParamValues: {}, audioParamValues: {} };
+		const scene = { id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [group] };
+		assert.doesNotThrow(() => validateTimelineScenes([scene]));
+		for (const time of [0, 150, 300]) {
+			assert.throws(() => sceneCamera.evaluate(scene.layers, time, false), /Camera "Nested camera" is inside a Group/);
+		}
+		group.isDisabled = true;
+		nested.isDisabled = true;
+		nested.clips = [];
+		assert.throws(() => sceneCamera.evaluate(scene.layers, 0, true), /inside a Group/);
+		// 同じ評価器で修正を受け入れ、古い構成エラーを残さず既定の視点へ戻る。
+		group.layers = [];
+		scene.layers.push(nested);
+		assert.deepEqual(sceneCamera.evaluate(scene.layers, 0, false), camera);
+	}
 });
 
 // 【上段に隠れたカメラの開始・終了で映像全体のブラーを短くしない】
