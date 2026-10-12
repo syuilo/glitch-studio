@@ -441,45 +441,6 @@ test('preserves Transform child instances and outside inputs across project patc
 	assert.equal(instance.disposed, true);
 });
 
-for (const sceneId of ['scene', 'parent']) {
-	for (const samples of [1, 4]) {
-		// 【Group内のカメラを同期エラーにせず、描画エラーとして通知し修正後に復帰する】
-		// 差分・全状態のどちらも受け入れ、既存のエラー通知を使って編集を継続する。
-		// 子Scene・ブラー・書き出しでも、Group内のカメラを黙って無視して映像を返してはいけない。
-		test(`reports grouped cameras during rendering and recovers in ${sceneId} with ${samples} samples`, async t => {
-			const { manager, calls } = fixture(t, { timelineMotionBlur: { enabled: true, shutterAngle: 180, samples } });
-			const camera = { id: 'camera', name: 'Nested camera', layerType: 'camera', isDisabled: false, forceDisableMotionBlur: false,
-				automationGraphs: [], cameraParamValues: {}, clips: [{ id: 'camera-clip', startMs: 0, durationMs: 1000, contentOffsetMs: 0 }] };
-			const transform = { id: 'transform', name: 'Transform', layerType: 'transform', isDisabled: false, forceDisableMotionBlur: false,
-				automationGraphs: [], transformParamValues: createTimelineTransformParameterValues(), layers: [camera] };
-			const group = { id: 'group', name: 'Group', layerType: 'group', isDisabled: false, forceDisableMotionBlur: false,
-				automationGraphs: [], compositingParamValues: {}, audioParamValues: {}, layers: [] };
-			const scene = { id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [group, transform, layer('image', visualModule())] };
-			const parent = { id: 'parent', name: 'Parent scene', resolution: { mode: 'project' }, layers: [{
-				id: 'reference', name: 'Child scene', layerType: 'scene', isDisabled: false, forceDisableMotionBlur: false,
-				automationGraphs: [], compositingParamValues: {}, audioParamValues: {},
-				clips: [{ id: 'scene-clip', startMs: 0, durationMs: 1000, contentOffsetMs: 0, sceneId: scene.id }],
-			}] };
-			await manager.updateDynamicOptions({ timelineScenes: [scene, parent], sceneId });
-			await manager.renderTimelineAt(350);
-			assert.deepEqual(calls.errors, []);
-			const outputsBeforeError = calls.outputs.length;
-			const invalidLayers = [{ ...group, layers: [transform] }, scene.layers[2]];
-			manager.applyProjectChanges([{ type: 'layerTree', sceneId: scene.id, layers: invalidLayers }]);
-			await manager.renderTimelineAt(350);
-			assert.match(calls.errors.at(-1), /Camera "Nested camera" is inside a Group/);
-			assert.equal(calls.outputs.length, outputsBeforeError);
-			// 再読み込み相当の全状態更新も受け入れ、書き出しだけを描画時の例外で止める。
-			manager.replaceProjectState({ timelineScenes: [{ ...scene, layers: invalidLayers }, parent], visualModules: [] });
-			await assert.rejects(manager.renderTimelineFrame(350, 0), /inside a Group/);
-			manager.applyProjectChanges([{ type: 'layerTree', sceneId: scene.id, layers: scene.layers }]);
-			await manager.renderTimelineAt(350);
-			assert.equal(calls.errors.at(-1), null);
-			assert.ok(calls.outputs.length > outputsBeforeError);
-		});
-	}
-}
-
 // 【値編集と接続変更の扱いをレンダラー側で決め、同じバッチの変更内容を全て考慮する】
 // 通知から保持フラグを外しても、通常の値編集では上流を描き直さず、接続変更を含む
 // 編集ではModule全体のキャッシュを更新する。どちらも既存のエフェクトインスタンスは保つ。
@@ -697,23 +658,7 @@ test('applies opacity and the same transform uniforms to inline and referenced l
 	assert.deepEqual(calls.writes, inlineWrites);
 });
 
-// 【インラインの循環参照エラーを通知し、修正後に復旧する】
-// プレビューは編集を続けられるように通知し、書き出しは失敗を呼び出し元へ返す。
-test('reports invalid inline graphs, rejects exports and recovers after editing', async t => {
-	const { manager, calls } = fixture(t);
-	const module = visualModule({ params: { input: connection('node') } });
-	const entry = layer('inline', module);
-	await manager.updateDynamicOptions({ timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [entry] }], sceneId: 'scene' });
-	await manager.renderTimelineAt(100);
-	assert.equal(calls.errors.at(-1), 'circular dependency detected');
-	await assert.rejects(manager.renderTimelineFrame(100, 0), /circular dependency detected/);
-	const repaired = structuredClone(entry);
-	repaired.visualModule.nodes.find(node => node.type === 'effect').params.input = connection('in', 'input');
-	await manager.updateDynamicOptions({ timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [repaired] }], sceneId: 'scene' });
-	await manager.renderTimelineAt(100);
-	assert.equal(calls.errors.at(-1), null);
-	assert.equal(calls.outputs.length, 1);
-});
+
 
 const sceneLayer = (id, sceneId, positionMs = 0) => ({
 	id, name: id, layerType: 'scene', clips: [{ id: 'clip', sceneId, startMs: positionMs, contentOffsetMs: 0, durationMs: 1000 }],

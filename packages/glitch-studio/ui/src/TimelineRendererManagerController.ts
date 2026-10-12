@@ -3,7 +3,6 @@ import { ref, shallowRef } from 'vue';
 import type { TimelineTransformPreview } from '@gs/glitch-studio_shared/timeline-transform-preview.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { deepEqual } from '@gs/shared/utility/deep-equal.ts';
-import { validateTimelineFps, validateTimelineMotionBlur } from '@gs/subsystems_timeline_shared/motion-blur.ts';
 import { applyRendererProjectChanges } from '@gs/glitch-studio_shared/project/renderer-state.ts';
 import type { RendererProjectChange, RendererProjectState } from '@gs/glitch-studio_shared/project/renderer-state.ts';
 import { createTimelineRendererManagerWorker } from '@gs/glitch-studio_renderer/client.ts';
@@ -88,18 +87,15 @@ export class TimelineRendererManagerController extends RendererManagerController
 						&& ctx.revision === this.dynamicOptions.previewRevision) this.layerTransform.value = ctx;
 				},
 				effectState: (ctx) => {
+					if (ctx.status?.status.type === 'error') { this.reportRenderFailure(new Error(ctx.status.status.message)); return; }
 					if (this.isReady.value) this.effectStates.updateNode(ctx.source, ctx.nodeId, ctx.status);
 				},
 				effectLayerState: (ctx) => {
+					if (ctx.status?.status.type === 'error') { this.reportRenderFailure(new Error(ctx.status.status.message)); return; }
 					if (this.isReady.value) this.effectStates.updateLayer(ctx.source, ctx.status);
 				},
 				renderError: (ctx) => {
-					// 描画できないグラフでも、修正するための更新は送り続ける。
-					// 致命的なWorkerエラー後の遅延通知では、そのエラー表示を上書きしない。
-					if (this.isReady.value) {
-						this.errorMessage.value = ctx.message;
-						if (ctx.message == null) this.effectStates.clearLayerErrors();
-					}
+					if (ctx.message != null) this.reportRenderFailure(new Error(ctx.message));
 				},
 			},
 			onCreated: () => {
@@ -198,8 +194,6 @@ export class TimelineRendererManagerController extends RendererManagerController
 
 	public async updateStaticOptions(newStaticOptions: Partial<TimelineRendererManagerStaticOptions>): Promise<void> {
 		const options = { ...this.staticOptions, ...deepClone(newStaticOptions) };
-		validateTimelineFps(options.timelineFps);
-		validateTimelineMotionBlur(options.timelineMotionBlur);
 		this.staticOptions = options;
 		// 解放中は設定のみ保持する。Worker障害時は再生成して復旧できるようにする。
 		if (!this.hasManager && !this.isInitializing) return;
@@ -212,7 +206,7 @@ export class TimelineRendererManagerController extends RendererManagerController
 	}
 
 	public renderTimelineAt(time: number) {
-		this.call('renderTimelineAt', [time]);
+		if (this.isReady.value) this.call('renderTimelineAt', [time]);
 	}
 
 	private invalidateTransformPreview() {

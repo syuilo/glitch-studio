@@ -29,7 +29,8 @@ import { getNodeInputDataType } from '@gs/shared/data-type/node-compatibility.ts
 import { isTextureDataType } from '@gs/shared/data-type/data-type.ts';
 import { resolveTimelineAudioLayerReference, timelineAudioParamDefs } from '@gs/subsystems_timeline_shared/timeline-audio.ts';
 import { validateSceneResolution } from '@gs/subsystems_timeline_shared/scene-resolution.ts';
-import { timelineCompositingParamDefs, type TimelineLayerCoordinateSpace } from '@gs/subsystems_timeline_shared/timeline-compositing.ts';
+import { timelineCompositingParamDefs } from '@gs/subsystems_timeline_shared/timeline-compositing.ts';
+import type { TimelineLayerCoordinateSpace } from '@gs/subsystems_timeline_shared/timeline-compositing.ts';
 import { canEditTimelineTransform } from './utility/timeline-transform-edit.ts';
 import { getScene, getLayerParameterTargets, getLayerParameterValues, getLayerParameterDefinitions, resolveLayerParameter } from './utility/timeline-scene.ts';
 import { prepareTimelineContainerMove } from './utility/timeline-container.ts';
@@ -266,8 +267,8 @@ const editTimelineLayerParamCommandDef = defineCommand<{
 					for (const { value } of walkParameters<TimelineEffectParameterBinding>({ [rootKey]: rootDef }, draft)) {
 						if (value.inputSource === 'keyframesTimelineInline') for (const point of value.keyframesTimeline.keyframes) point.x = Math.round(point.x);
 					}
-					validateTimelineParameterTree(rootDef, draft[rootKey], target === 'effect', target === 'effect' || target === 'module');
-					// 生成済みの要素IDをRedoでも使う。検証に失敗した編集は保存しない。
+					// 静的な構造検証は変更通知を受けるProjectRenderValidationが担当する。
+					// 生成済みの要素IDをRedoでも使う。
 					after = draft[rootKey];
 				}
 				setTimelineLayerParameterRoot(layer, target, rootKey, after);

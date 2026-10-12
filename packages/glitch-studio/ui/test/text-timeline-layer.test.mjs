@@ -117,7 +117,8 @@ test('round-trips and duplicates text layers without sharing parameter values', 
 	const invalid = structuredClone(project);
 	invalid.timelineScenes[0].layers[0].textParamValues.color = { inputSource: 'layerInput' };
 	const invalidFile = await encodeProjectFile(invalid);
-	assert.throws(() => decodeProjectFile(invalidFile), /Layer input/);
+	// 読み込みは編集状態を保持する。描画可否はUIの静的検証で決める。
+	assert.equal(decodeProjectFile(invalidFile).timelineScenes[0].layers[0].textParamValues.color.inputSource, 'layerInput');
 	f.history.undo();
 	assert.equal(f.scene.layers.length, 1);
 	f.history.redo();

@@ -65,8 +65,6 @@ test('edits same-scene audio references with undo, reset, and command validation
 	}
 	for (const id of ['outside', 'image', f.layer.id, 'missing']) assert.throws(() => f.edit(['audio'], { kind: 'layerAudio', value: id }), /same scene/);
 	assert.equal(f.read(['audio']).layerId, 'child');
-	assert.throws(() => f.edit(['amplitude'], { kind: 'layerAudio', value: 'sound' }), /not available/);
-	assert.throws(() => f.edit(['amplitude'], { kind: 'inputSource', inputSource: 'layerAudio' }), /not available/);
 	const reset = f.edit(['audio'], { kind: 'reset' });
 	assert.deepEqual(f.read(['audio']), { inputSource: 'lowerLayerAudio' });
 	reset.undo(f.state);
@@ -135,13 +133,6 @@ for (const effectId of ['audioWaveform', 'audioSpectrum']) test(`defaults ${effe
 	reset.execute(f.state);
 	assert.equal(f.read(['audio']).inputSource, 'lowerLayerAudio');
 	assert.deepEqual(effectDefinitions[effectId].paramDefs.audio.defaultValue, literal(null));
-	for (const edit of [
-		{ kind: 'literal', value: { type: 'player', playerId: 'player' } },
-		{ kind: 'inputSource', inputSource: 'expression' },
-		{ kind: 'inputSource', inputSource: 'keyframesTimelineInline' },
-		{ kind: 'inputSource', inputSource: 'layerInput' },
-	]) assert.throws(() => f.edit(['audio'], edit));
-	assert.throws(() => f.edit([effectId === 'audioWaveform' ? 'amplitude' : 'smoothing'], { kind: 'inputSource', inputSource: 'lowerLayerAudio' }));
 	assert.equal(f.read(['audio']).inputSource, 'lowerLayerAudio');
 });
 
@@ -165,8 +156,6 @@ test('validates and edits nested audio bindings using stable parameter paths', t
 	assert.deepEqual(f.read(path), literal(null));
 	reset.undo(f.state);
 	assert.equal(f.read(path).inputSource, 'lowerLayerAudio');
-	assert.throws(() => f.edit(path, { kind: 'expression', value: 'null' }));
-	assert.throws(() => f.edit(['inputs'], { kind: 'literal', value: [{ id: 'first', binding: literal({ source: literal({ type: 'player', playerId: 'x' }) }) }] }));
 	f.state.timelineScenes.value[0].layers.push(audioLayer('sound'));
 	f.edit(path, { kind: 'layerAudio', value: 'sound' });
 	assert.deepEqual(f.read(path), { inputSource: 'layerAudio', layerId: 'sound' });
@@ -351,7 +340,6 @@ test('supports secondary layer inputs and enforces their scope independently of 
 	f.edit(path, { kind: 'inputSource', inputSource: 'layerInput' });
 	f.edit(path, { kind: 'layerInput', value: { ...f.read(path), fitMode: 'contain', wrapMode: 'transparent', filterMode: 'nearest' } });
 	assert.equal(f.read(path).filterMode, 'nearest');
-	for (const invalid of [['buzzs', 'first', 'x'], ['buzzs']]) assert.throws(() => f.edit(invalid, { kind: 'inputSource', inputSource: 'layerInput' }));
 	assert.throws(() => COMMAND_DEFS.editTimelineLayerParam.create({ ...f.target, target: 'compositing', paramPath: ['opacity'], edit: { kind: 'inputSource', inputSource: 'layerInput' } }).execute(f.state));
 	for (const inputSource of ['node', 'externalCustomParameterInput']) assert.throws(() => f.edit(path, { kind: 'inputSource', inputSource }));
 	const input = { kind: 'scalar' };

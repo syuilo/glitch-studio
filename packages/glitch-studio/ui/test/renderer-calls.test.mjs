@@ -126,37 +126,37 @@ async function fixture(t, options = {}) {
 	return { controller, workers, pending, instances, notifications };
 }
 
-// 描画エラー後もノード編集を送信でき、描画復旧時だけエラー表示を解除する。
-// 従来は描画例外でisReadyがfalseになり、原因ノードを削除する更新まで拒否されていた。
-// WorkerとControllerの実際の通信を通し、修正の受信・イベント転送・復旧をまとめて保証する。
-test('keeps edits available after preview errors and clears the message on recovery', async t => {
+// 【実行時失敗でWorkerを破棄し、編集した最新状態を再生成へ渡す】
+// エラー中の編集はControllerに保持し、破棄済みWorkerからの遅延成功ではエラーを消さない。
+test('disposes after preview errors and restores edited settings on retry', async t => {
 	const { controller, instances, notifications } = await fixture(t);
 	instances[0].reportPreviewError('circular dependency detected');
 	instances[0].reportPreviewError('circular dependency detected');
 	await Promise.resolve();
 	assert.equal(controller.errorMessage.value, 'circular dependency detected');
-	assert.equal(controller.isReady.value, true);
+	assert.equal(controller.isReady.value, false);
 	await controller.updateDynamicOptions({ visualModules: [{ id: 'repaired', nodes: [] }] });
-	assert.equal(instances[0].dynamicOptions.visualModules[0].id, 'repaired');
 	assert.equal(controller.errorMessage.value, 'circular dependency detected');
 	instances[0].reportPreviewError(null);
 	await Promise.resolve();
+	assert.equal(controller.errorMessage.value, 'circular dependency detected');
+	await controller.reload();
+	assert.equal(instances.at(-1).dynamicOptions.visualModules[0].id, 'repaired');
 	assert.equal(controller.errorMessage.value, null);
 	assert.deepEqual(notifications.filter(message => message.type === 'ev' && message.ev.type === 'renderError').map(message => message.ev.ctx.message), ['circular dependency detected', 'circular dependency detected', null]);
 });
 
 // 応答を待たない操作の同期・非同期失敗も未処理例外にせず通知する。
 // タイムライン描画などは戻り値を要求しないため、RPCの戻り値経路だけのcatchでは保護できない。
-// 操作失敗後もWorkerへアクセスでき、次の正常な描画でfooterのエラーを解除できる必要がある。
-test('reports fire-and-forget failures without disabling the worker', async t => {
+// 操作失敗でWorkerを破棄し、明示的に再生成するまで停止を維持する。
+test('disposes after fire-and-forget failures and permits explicit retries', async t => {
 	const { controller, instances } = await fixture(t);
 	for (const [method, message] of [['failSync', 'sync failure'], ['failAsync', 'async failure']]) {
 		controller.call(method, []);
-		await controller.callAndWaitReturn('echo', []);
-		assert.equal(controller.isReady.value, true);
+		await new Promise(resolve => setImmediate(resolve));
+		assert.equal(controller.isReady.value, false);
 		assert.equal(controller.errorMessage.value, message);
-		instances[0].reportPreviewError(null);
-		await Promise.resolve();
+		await controller.reload();
 		assert.equal(controller.errorMessage.value, null);
 	}
 });
@@ -172,8 +172,8 @@ test('rejects initialization failures before assets are prepared', async t => {
 });
 
 // 致命的なWorkerエラーの表示を、遅れて届いた描画成功で消さない。
-// 描画失敗なら編集を続けられるが、Worker自体の障害は再初期化が必要。
-// この違いを失うと、利用不能なのにfooterからエラーだけ消えてしまう。
+// UIの編集は続けられるが、描画再開には新しいWorkerが必要。
+// 利用不能なのに遅延成功通知からエラーだけが消えることを防ぐ。
 test('retains fatal errors until the worker is reinitialized', async t => {
 	const { controller, workers, instances } = await fixture(t);
 	workers[0].onerror({ message: 'worker crashed' });
@@ -354,9 +354,13 @@ test('returns values and matches out-of-order asynchronous responses', { timeout
 test('rejects failed calls and removes their pending entries', { timeout: 2000 }, async t => {
 	const { controller } = await fixture(t);
 	await assert.rejects(controller.callAndWaitReturn('failSync', []), { name: 'TypeError', message: 'sync failure' });
+	await controller.reload();
 	await assert.rejects(controller.callAndWaitReturn('failAsync', []), /async failure/);
+	await controller.reload();
 	await assert.rejects(controller.callAndWaitReturn('failNonError', []), /non-error failure/);
+	await controller.reload();
 	await assert.rejects(controller.callAndWaitReturn('uncloneable', []), { name: 'DataCloneError' });
+	await controller.reload();
 	assert.equal(controller.returnHooks.size, 0);
 	assert.equal(await controller.callAndWaitReturn('echo', [42]), 42);
 });

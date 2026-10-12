@@ -1,7 +1,7 @@
 import { ParameterBindingEvaluator } from '@gs/shared/parameter/parameter-binding-evaluator.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { visualModuleCustomParameterName } from '@gs/subsystems_visual-module_shared/types.ts';
-import { isValueParameterBinding } from '@gs/shared/parameter/parameter-binding.ts';
+import type { ValueParameterBinding } from '@gs/shared/parameter/value-parameter-binding.ts';
 import type { VisualModuleParameterBinding } from '@gs/subsystems_visual-module_shared/types.ts';
 import type { ParameterEvaluationScope } from '@gs/shared/parameter/parameter-evaluation-scope.ts';
 import type { VisualModuleEvaluatedParameterValues } from '@gs/subsystems_visual-module_shared/parameter-evaluation.ts';
@@ -21,8 +21,7 @@ export class VisualModuleParameterBindingEvaluator {
 		if (binding.inputSource === 'externalCustomParameterInput') {
 			return context.evaluatedParamValues.has(binding.parameterId) ? deepClone(context.evaluatedParamValues.get(binding.parameterId)) : fallback;
 		}
-		if (!isValueParameterBinding(binding)) throw new Error('Unsupported visual module parameter input source');
-		return this.valueEvaluator.evaluate(binding, {
+		return this.valueEvaluator.evaluate(binding as ValueParameterBinding, {
 			...context,
 			functions: {
 				...context.functions,

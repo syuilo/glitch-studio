@@ -37,11 +37,13 @@ export class PreviewPlaybackController {
 		private readonly getTimelinePreviewFps: () => number | null,
 		private readonly getDuration: () => number = () => Infinity,
 		private readonly audio?: TimelineAudio,
+		private readonly onLiveInputsChanged?: (visualModuleId: string, params: VisualModuleArgumentBindings) => void,
 	) {}
 
 	public startLive(visualModuleId: ProjectVisualModule['id'], params: VisualModuleArgumentBindings = {}) {
 		this.pauseTimeline();
 		this.liveParams = deepClone(params);
+		this.onLiveInputsChanged?.(visualModuleId, params);
 		if (!this.suspended.value) this.liveRenderer.startLiveRenderLoopFor(visualModuleId, params);
 		this.playbackState.value = { mode: 'live', visualModuleId };
 	}
@@ -52,6 +54,7 @@ export class PreviewPlaybackController {
 			return;
 		}
 		this.liveParams = deepClone(params);
+		this.onLiveInputsChanged?.(visualModuleId, params);
 		if (!this.suspended.value) this.liveRenderer.updateLiveParamValues(visualModuleId, params);
 	}
 

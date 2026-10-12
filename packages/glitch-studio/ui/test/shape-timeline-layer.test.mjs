@@ -130,7 +130,8 @@ test('round-trips animated shapes and duplicates their independent settings', as
 	const invalidProject = structuredClone(project);
 	invalidProject.timelineScenes[0].layers[0].shape.paramValues.fillColor = { inputSource: 'layerInput' };
 	const invalidFile = await encodeProjectFile(invalidProject);
-	assert.throws(() => decodeProjectFile(invalidFile), /Layer input/);
+	// 読み込みは編集状態を保持する。描画可否はUIの静的検証で決める。
+	assert.equal(decodeProjectFile(invalidFile).timelineScenes[0].layers[0].shape.paramValues.fillColor.inputSource, 'layerInput');
 	f.history.undo();
 	assert.equal(f.scene.layers.length, 1);
 	f.history.redo();

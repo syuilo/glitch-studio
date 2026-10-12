@@ -16,6 +16,7 @@ type ManagerEventHandlers<T extends RendererManager> = {
 export abstract class RendererManagerControllerBase<T extends RendererManager> {
 	private worker: Worker | null = null;
 	private reloadPromise: Promise<void> | null = null;
+	private relaunchPromise: Promise<void> | null = null;
 	private rejectInitialization: ((reason: Error) => void) | null = null;
 	private generation = 0;
 	private pendingCalls: { message: unknown; options?: StructuredSerializeOptions; onError?: (error: unknown) => void }[] = [];
@@ -30,6 +31,13 @@ export abstract class RendererManagerControllerBase<T extends RendererManager> {
 	private onError: (error: Error | null) => void;
 
 	public readonly isReady = ref(false);
+	public onRenderFailure?: (error: Error) => void;
+
+	protected reportRenderFailure(error: Error) {
+		this.disposeManager(error);
+		this.onError(error);
+		this.onRenderFailure?.(error);
+	}
 
 	protected get isInitializing(): boolean {
 		return this.rejectInitialization != null;
@@ -128,13 +136,8 @@ export abstract class RendererManagerControllerBase<T extends RendererManager> {
 			if (!isCurrent()) return;
 			const error = reason instanceof Error ? reason : new Error(String(reason));
 			// 障害後に届いたinitedや描画通知で利用可能な状態へ戻さない。
-			this.generation++;
-			this.isReady.value = false;
-			this.rejectPendingReturns(error);
 			rejectReady(error);
-			this.rejectInitialization = null;
-			this.pendingCalls = [];
-			this.onError(error);
+			this.reportRenderFailure(error);
 		};
 
 		const initialize = async () => {
@@ -183,6 +186,7 @@ export abstract class RendererManagerControllerBase<T extends RendererManager> {
 								reason.name = error.name;
 								reason.stack = error.stack;
 								hook.reject(reason);
+								this.reportRenderFailure(reason);
 							}
 						}
 						break;
@@ -196,7 +200,7 @@ export abstract class RendererManagerControllerBase<T extends RendererManager> {
 						break;
 					}
 					case 'callError': {
-						this.onError(new Error(event.data.message));
+						this.reportRenderFailure(new Error(event.data.message));
 						break;
 					}
 				}
@@ -215,18 +219,19 @@ export abstract class RendererManagerControllerBase<T extends RendererManager> {
 
 	public reload(): Promise<void> {
 		if (this.reloadPromise) return this.reloadPromise;
-		if (!this.worker || this.rejectInitialization != null) return Promise.reject(new Error('Renderer is not initialized'));
+		if (!this.worker && !this.isInitializing) return this.relaunchManager();
+		if (this.rejectInitialization != null) return Promise.reject(new Error('Renderer is not initialized'));
 		this.disposeManager();
 		this.reloadPromise = this.launchManager(true).finally(() => { this.reloadPromise = null; });
 		return this.reloadPromise;
 	}
 
-	public disposeManager() {
+	public disposeManager(reason?: Error) {
 		this.generation++;
-		this.rejectPendingReturns(new Error('Engine reloaded during renderer call'));
+		this.rejectPendingReturns(reason ?? new Error('Engine reloaded during renderer call'));
 		// エクスポート開始時は初期化途中でも破棄する。待機を残すとreloadPromiseが
 		// 解決されず、復帰後の設定変更でもWorkerを再読み込みできなくなる。
-		this.rejectInitialization?.(new Error('Engine disposed during initialization'));
+		this.rejectInitialization?.(reason ?? new Error('Engine disposed during initialization'));
 		this.rejectInitialization = null;
 		this.pendingCalls = [];
 		this.isReady.value = false;
@@ -236,9 +241,16 @@ export abstract class RendererManagerControllerBase<T extends RendererManager> {
 	}
 
 	/** エクスポート等で解放したManagerを、保持中の設定と新しいCanvasで再生成する。 */
-	public async relaunchManager(): Promise<void> {
+	public relaunchManager(): Promise<void> {
+		if (this.relaunchPromise) return this.relaunchPromise;
+		this.relaunchPromise = this.relaunch().finally(() => { this.relaunchPromise = null; });
+		return this.relaunchPromise;
+	}
+
+	private async relaunch(): Promise<void> {
 		// 破棄によってrejectされたreloadの後処理を先に終わらせる。
-		await this.reloadPromise?.catch(() => {});
+		if (this.reloadPromise) await this.reloadPromise.catch(() => {});
+		if (this.isReady.value) return;
 		await this.launchManager(true);
 	}
 

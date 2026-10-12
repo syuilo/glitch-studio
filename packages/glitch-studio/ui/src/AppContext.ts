@@ -6,11 +6,9 @@ import { genId } from '@gs/shared/utility/id.ts';
 
 import { computed, ref, shallowRef, markRaw, watch } from 'vue';
 import { deepClone } from '@gs/shared/utility/deep-clone.js';
-import { getSceneDuration, validateTimelineScenes } from '@gs/subsystems_timeline_shared/scenes.js';
+import { getSceneDuration } from '@gs/subsystems_timeline_shared/scenes.js';
 import { deepEqual } from '@gs/shared/utility/deep-equal.js';
 import { effectDefinitions } from '@gs/subsystems_effect_shared/effect-definitions.js';
-import { validateTimelineEffectLayer } from '@gs/subsystems_timeline_shared/layers/effect/effect-layer.js';
-import { validateTimelineFps, validateTimelineMotionBlur } from '@gs/subsystems_timeline_shared/motion-blur.js';
 import { getSceneAudioClips } from '@gs/subsystems_timeline_shared/scene-audio.js';
 import { VoicevoxGeneration } from './audio/voicevox-generation.ts';
 import { AudioOutput } from './audio/audio-output.ts';
@@ -20,6 +18,8 @@ import { TimelineRendererManagerController } from './TimelineRendererManagerCont
 import { TimelineAudioPreview } from './audio/timeline-audio-preview.ts';
 import { PreviewPlaybackController } from './PreviewPlaybackController.ts';
 import { RendererProjectSynchronizer } from './RendererProjectSynchronizer.ts';
+import { ProjectRenderValidation } from './ProjectRenderValidation.ts';
+import { PreviewRenderEngine } from './PreviewRenderEngine.ts';
 import { ProjectSaveController } from './ProjectSaveController.ts';
 import { timelineClipboard, getTimelineEditorState, getSelectedTimelineLayerId } from './utility/timeline-editor-state.ts';
 import type { GeneratedSpeech } from '@gs/glitch-studio_shared/voicevox.ts';
@@ -68,7 +68,8 @@ export class AppContext {
 	private readonly previewSpeech = shallowRef<GeneratedSpeech[]>([]);
 	private pendingSceneSeek: number | null = null;
 	private scenePlaybackTimes = new Map<string, number>();
-	private rendererInitialization: Promise<void> | null = null;
+	public readonly renderValidation: ProjectRenderValidation;
+	public readonly renderEngine: PreviewRenderEngine;
 	private projectWatchers: WatchStopHandle[] = [];
 	private projectSaveController: ProjectSaveController;
 	public activePreviewRenderer = computed(() => this.previewPlayback.state.value.mode === 'live' ? this.visualModuleRendererManagerController : this.timelineRendererManagerController);
@@ -80,6 +81,7 @@ export class AppContext {
 
 	constructor(projectContext: ProjectContext) {
 		this.projectContext = projectContext;
+		this.renderValidation = markRaw(new ProjectRenderValidation(projectContext.stateManager.state, effectDefinitions));
 
 		// Sceneを削除・Undoした場合にも、UIが存在しないSceneを編集し続けないようにする。
 		watch(() => this.projectContext.stateManager.state.timelineScenes.value.map(scene => scene.id), ids => {
@@ -115,7 +117,52 @@ export class AppContext {
 			() => this.projectContext.stateManager.state.timelineFps.value * this.timelinePreviewFpsFactor.value,
 			() => this.activeScene.value == null ? 0 : getSceneDuration(this.activeScene.value),
 			this.timelineAudioPreview,
+			(visualModuleId, params) => {
+				this.renderValidation.setLiveInputs(visualModuleId, params);
+				this.renderEngine.setValidationError(this.renderValidation.errorMessage.value);
+				queueMicrotask(() => { void this.renderEngine.retry(); });
+			},
 		));
+		this.renderEngine = markRaw(new PreviewRenderEngine({
+			dispose: () => {
+				this.previewPlayback.suspend();
+				this.visualModuleRendererManagerController.disposeManager();
+				this.timelineRendererManagerController.disposeManager();
+			},
+			create: async isCurrent => {
+				if (!isCurrent()) return;
+				if (this.visualModuleRendererManagerController.isReady.value && this.timelineRendererManagerController.isReady.value) return;
+				// エラー中の差分は送らない。再生成時に、UIの最新状態を一度だけ取り込む。
+				const state = this.projectContext.stateManager.state;
+				await this.replacePreviewProject({ visualModules: state.visualModules.value, timelineScenes: state.timelineScenes.value });
+				await this.updatePreviewOptions({ assets: deepClone(state.assets.value), resolution: { ...state.resolution.value }, resolutionScale: this.resolutionFactor.value });
+				await this.timelineRendererManagerController.updateDynamicOptions({ sceneId: this.activeSceneId.value, generatedSpeech: deepClone(this.previewSpeech.value) });
+				if (!isCurrent()) return;
+				const results = await Promise.allSettled([
+					this.visualModuleRendererManagerController.relaunchManager(),
+					this.timelineRendererManagerController.relaunchManager(),
+				]);
+				const failure = results.find(result => result.status === 'rejected');
+				if (failure?.status === 'rejected') throw failure.reason;
+				if (isCurrent()) this.previewPlayback.resume();
+			},
+		}));
+		for (const controller of [this.visualModuleRendererManagerController, this.timelineRendererManagerController]) {
+			controller.onRenderFailure = error => this.renderEngine.fail(error);
+		}
+		watch(this.previewPlayback.liveVisualModuleId, id => {
+			if (id != null) return;
+			this.renderValidation.setLiveInputs(null);
+			this.renderEngine.setValidationError(this.renderValidation.errorMessage.value);
+		}, { flush: 'sync' });
+		watch(() => this.timelineAudioPreview.error.value, message => { if (message) this.renderEngine.fail(new Error(message)); });
+		projectContext.stateManager.onChange(changes => {
+			this.renderValidation.update(changes);
+			this.renderEngine.setValidationError(this.renderValidation.errorMessage.value);
+			if (changes.some(change => !['nodeName', 'visualModuleName', 'layerName', 'sceneName'].includes(change.type))) {
+				queueMicrotask(() => { void this.renderEngine.retry(); });
+			}
+		});
 
 		this.voicevoxGeneration = markRaw(new VoicevoxGeneration({
 			getScenes: () => this.projectContext.stateManager.state.timelineScenes.value,
@@ -212,29 +259,15 @@ export class AppContext {
 
 	/** 再生要求を止めてからGPUリソースを解放し、復帰完了後にだけ再生を戻す。 */
 	public async suspendPreview() {
-		this.previewPlayback.suspend();
-		this.visualModuleRendererManagerController.disposeManager();
-		this.timelineRendererManagerController.disposeManager();
+		this.renderEngine.suspend();
 	}
 
 	public async resumePreview() {
-		// 一方が失敗しても他方の初期化が終わるまで待ち、次の操作との競合を防ぐ。
-		const results = await Promise.allSettled([
-			this.visualModuleRendererManagerController.relaunchManager(),
-			this.timelineRendererManagerController.relaunchManager(),
-		]);
-		const failure = results.find(result => result.status === 'rejected');
-		if (failure?.status === 'rejected') throw failure.reason;
-		this.previewPlayback.resume();
+		await this.renderEngine.resume();
 	}
 
 	public async ready(project: Project, fileName: string | null = null, fileHandle: ProjectFileHandle | null = null) {
-		validateTimelineScenes(project.timelineScenes);
-		validateTimelineFps(project.timelineFps);
-		validateTimelineMotionBlur(project.timelineMotionBlur);
-		for (const scene of project.timelineScenes) for (const layer of flattenTimelineLayers(scene.layers)) {
-			if (layer.layerType === 'effect') validateTimelineEffectLayer(layer, effectDefinitions[layer.effectId]);
-		}
+		this.renderEngine.suspend();
 		timelineClipboard.value = null;
 		this.scenePlaybackTimes.clear();
 		// 画像からの新規作成とプロジェクト読込で同じ基準を使い、初回のGPU初期化にも反映する。
@@ -244,15 +277,6 @@ export class AppContext {
 			timelineFps: project.timelineFps,
 			timelineMotionBlur: { ...project.timelineMotionBlur, samples: DEFAULT_TIMELINE_PREVIEW_MOTION_BLUR_SAMPLES },
 		};
-		if (this.rendererInitialization == null) {
-			// 初回からプロジェクトの設定を使い、既定設定で起動してすぐ再生成するのを避ける。
-			await this.timelineRendererManagerController.updateStaticOptions(timelineRenderSettings);
-			this.rendererInitialization = Promise.all([
-				this.visualModuleRendererManagerController,
-				this.timelineRendererManagerController,
-			].map(controller => controller.init(project.resolution, initialResolutionFactor))).then(() => {});
-		}
-		await this.rendererInitialization;
 
 		// 読み込み途中の状態を、直前のプロジェクトのファイルへ保存させない。
 		this.projectSaveController.beginProjectLoad();
@@ -274,6 +298,8 @@ export class AppContext {
 
 		this.voicevoxGeneration.reset();
 		this.projectContext.load(project);
+		this.renderValidation.reset();
+		this.renderEngine.setValidationError(this.renderValidation.errorMessage.value);
 
 		this.activeSceneId.value = project.timelineScenes[0]?.id ?? null;
 		this.scenePlaybackTimes.clear();
@@ -311,7 +337,7 @@ export class AppContext {
 		// 音声の内容・参照素材・ループ長だけを比較する。Blobは不変なので同一性で判定し、
 		// 素材名や映像パラメータの編集では再生中のWorkerと先読みPCMを維持する。
 		this.projectWatchers.push(watch(() => {
-			const layers = this.activeSceneId.value == null ? [] : getSceneAudioClips(this.projectContext.stateManager.state.timelineScenes.value, this.activeSceneId.value, { type: 'all' }, createSpeechResolver(this.previewSpeech.value));
+			const layers = this.renderValidation.errorMessage.value || this.activeSceneId.value == null ? [] : getSceneAudioClips(this.projectContext.stateManager.state.timelineScenes.value, this.activeSceneId.value, { type: 'all' }, createSpeechResolver(this.previewSpeech.value));
 			const assetIds = new Set(layers.map(clip => clip.sourceId));
 			return {
 				layers: deepClone(layers),
@@ -349,16 +375,16 @@ export class AppContext {
 
 		const rendererSync = new RendererProjectSynchronizer(this.projectContext.stateManager, {
 			apply: async changes => {
+				if (!this.renderEngine.canRender.value) return;
 				await Promise.all([
 					this.visualModuleRendererManagerController.applyProjectChanges(changes),
 					this.timelineRendererManagerController.applyProjectChanges(changes),
 				]);
 			},
-			replace: state => this.replacePreviewProject(state),
+			replace: state => this.renderEngine.canRender.value ? this.replacePreviewProject(state) : Promise.resolve(),
 			onUpdated: () => this.previewPlayback.refresh(),
 			onError: error => {
-				ui.alert({ type: 'error', text: error instanceof Error ? error.message : String(error) });
-				console.error(error);
+				if (this.renderEngine.canRender.value) this.renderEngine.fail(error);
 			},
 		});
 		this.projectWatchers.push(() => rendererSync.dispose());
@@ -382,6 +408,8 @@ export class AppContext {
 
 		this.previewPlayback.seekTimeline(0);
 		if (project.visualModules[0] != null) this.previewPlayback.startLive(project.visualModules[0].id);
+		await this.renderEngine.enable();
+		await this.renderEngine.resume();
 	}
 
 	public grantProjectBackupAccess(): Promise<void> {

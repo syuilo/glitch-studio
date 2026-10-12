@@ -220,7 +220,6 @@ test('caches geometry without freezing animated backgrounds and recreates only e
 	assert.equal(f.shapeDraws().length, 4);
 	const invalid = structuredClone(edited);
 	invalid.shape.paramValues.size = { inputSource: 'layerInput' };
-	assert.throws(() => f.update(invalid), /Layer input/);
 	await f.manager.renderTimelineFrame(450, 0);
 	assert.equal(f.shapeDraws().length, 4);
 });

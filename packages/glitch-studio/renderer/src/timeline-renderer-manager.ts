@@ -4,14 +4,13 @@ import { isTimelineRenderLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import { flattenTimelineLayers, findTimelineLayer, findTimelineLayerLocation } from '@gs/subsystems_timeline_shared/layer-tree.ts';
 import { createGroupTimelineLayer } from '@gs/subsystems_timeline_renderer/layers/group/group-timeline-layer.ts';
 import { createSpeechResolver } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox.ts';
-import { validateTimelineFps, validateTimelineMotionBlur, getTimelineMotionBlurBoundaries, getTimelineMotionBlurCameraCuts, getTimelineMotionBlurLoops, getTimelineSampleTimes } from '@gs/subsystems_timeline_shared/motion-blur.ts';
+import { getTimelineMotionBlurBoundaries, getTimelineMotionBlurCameraCuts, getTimelineMotionBlurLoops, getTimelineSampleTimes } from '@gs/subsystems_timeline_shared/motion-blur.ts';
 import { TimelineFrameRenderer } from '@gs/subsystems_timeline_renderer/timeline-frame-renderer.ts';
 import { createMotionBlurAccumulator } from '@gs/subsystems_timeline_renderer/motion-blur-accumulator.ts';
 import { scaleResolution, type Resolution } from '@gs/shared/resolution.ts';
-import { getTimelineScene, validateTimelineLayer, validateTimelineScenes } from '@gs/subsystems_timeline_shared/scenes.ts';
+import { getTimelineScene } from '@gs/subsystems_timeline_shared/scenes.ts';
 import { applyRendererProjectChanges, findRendererVisualModule } from '@gs/glitch-studio_shared/project/renderer-state.ts';
 import { deepEqual } from '@gs/shared/utility/deep-equal.ts';
-import { validateTimelineEffectLayer } from '@gs/subsystems_timeline_shared/layers/effect/effect-layer.ts';
 import { getSceneBaseResolution, resolveSceneResolution } from '@gs/subsystems_timeline_shared/scene-resolution.ts';
 import EventEmitter from 'eventemitter3';
 import { VisualModuleRenderer } from '@gs/subsystems_visual-module_renderer/visual-module-renderer.ts';
@@ -38,7 +37,6 @@ import defaultVertexShaderCode from '@gs/shared/gpu/vertex.wgsl?raw';
 import { CanvasRenderer } from './canvas-renderer.ts';
 import { ProjectStateVersions } from './project-state-versions.ts';
 import { AssetTextures } from './asset-textures.ts';
-import { canPreserveModuleLayerInstance } from './project-change-policy.ts';
 import { TimelineAudioInputs } from './timeline-audio-inputs.ts';
 import type { TimelineTransformObservation, TimelineTransformPreview } from '@gs/glitch-studio_shared/timeline-transform-preview.ts';
 import type { TimelineCompositingObserver } from '@gs/subsystems_timeline_renderer/timeline-compositor.ts';
@@ -159,9 +157,6 @@ export class TimelineRendererManager extends EventEmitter<{
 		effectImplementations: Record<string, EffectImplementation<any>>;
 	}, staticOptions: TimelineRendererManagerStaticOptions) {
 		super();
-
-		validateTimelineFps(staticOptions.timelineFps);
-		validateTimelineMotionBlur(staticOptions.timelineMotionBlur);
 		this.staticOptions = { ...staticOptions, timelineMotionBlur: { ...staticOptions.timelineMotionBlur } };
 
 		this.gpuDevice = coreConfig.gpuDevice;
@@ -261,12 +256,6 @@ export class TimelineRendererManager extends EventEmitter<{
 
 	// (非workerで)呼び出すときは値を独立した参照にすること！ パフォーマンス上の理由でこちら側ではdeepCloneしません
 	public async updateDynamicOptions(newOptions: Partial<TimelineRendererManagerDynamicOptions>) {
-		if (newOptions.timelineScenes != null) {
-			validateTimelineScenes(newOptions.timelineScenes);
-			for (const scene of newOptions.timelineScenes) for (const layer of flattenTimelineLayers(scene.layers)) {
-				if (layer.layerType === 'effect') validateTimelineEffectLayer(layer, this.effectDefinitions[layer.effectId]);
-			}
-		}
 		const { assets, ...synchronousOptions } = newOptions;
 		if (newOptions.generatedSpeech) {
 			this.frameRenderer.clear();
@@ -305,10 +294,6 @@ export class TimelineRendererManager extends EventEmitter<{
 	}
 
 	public replaceProjectState(state: RendererProjectState, previewRevision = this.dynamicOptions.previewRevision + 1) {
-		validateTimelineScenes(state.timelineScenes);
-		for (const scene of state.timelineScenes) for (const layer of flattenTimelineLayers(scene.layers)) {
-			if (layer.layerType === 'effect') validateTimelineEffectLayer(layer, this.effectDefinitions[layer.effectId]);
-		}
 		const resolution = this.resolveProjectOutputResolution(state);
 		this.clearTimelineRenderers();
 		this.projectVersions = new ProjectStateVersions();
@@ -320,34 +305,7 @@ export class TimelineRendererManager extends EventEmitter<{
 	}
 
 	public applyProjectChanges(changes: readonly RendererProjectChange[], previewRevision = this.dynamicOptions.previewRevision + 1) {
-		let next: RendererProjectState = this.dynamicOptions;
-		let validateSceneReferences = false;
-		for (const change of changes) {
-			const previous = change.type === 'layer' ? findTimelineLayer(next.timelineScenes.find(scene => scene.id === change.sceneId)?.layers ?? [], change.layerId) : undefined;
-			// 同じバッチのModule編集を後続の引数更新の検証にも使う。公開状態は最後まで変えない。
-			next = applyRendererProjectChanges(next, [change]);
-			if (change.type === 'scene' || change.type === 'layerTree') validateSceneReferences = true;
-			if (change.type !== 'layer' || change.layer === null) continue;
-			// 設定差分はコンテナの子孫を含まない。子の再検証は階層変更か子自身の差分で行う。
-			validateTimelineLayer((change.layer.layerType === 'group' || change.layer.layerType === 'transform') ? { ...change.layer, layers: [] } : change.layer);
-			if (change.layer.layerType === 'effect') validateTimelineEffectLayer(change.layer, this.effectDefinitions[change.layer.effectId]);
-			if (change.layer.layerType === 'scene') validateSceneReferences = true;
-			if (canPreserveModuleLayerInstance(change.changes)) {
-				if (!previous || !('visualModuleParamValues' in previous) || !('visualModuleParamValues' in change.layer)) {
-					throw new Error('Only module arguments can preserve a layer instance');
-				}
-				// 表示名は描画へ通知しないため、直前のUI状態とは異なることがある。
-				const { visualModuleParamValues: previousValues, name: previousName, ...previousRest } = previous;
-				const { visualModuleParamValues: nextValues, name: nextName, ...nextRest } = change.layer;
-				if (!deepEqual(previousRest, nextRest)) throw new Error('Layer structure changed while preserving its instance');
-			}
-		}
-		if (validateSceneReferences) {
-			validateTimelineScenes(next.timelineScenes);
-			for (const scene of next.timelineScenes) for (const layer of flattenTimelineLayers(scene.layers)) {
-				if (layer.layerType === 'effect') validateTimelineEffectLayer(layer, this.effectDefinitions[layer.effectId]);
-			}
-		}
+		const next = applyRendererProjectChanges(this.dynamicOptions, changes);
 		const changesRootScene = changes.some(change => change.type === 'scene' && change.sceneId === this.dynamicOptions.sceneId);
 		const resolution = changesRootScene ? this.resolveProjectOutputResolution(next) : null;
 		// 差分の検証が成功するまで公開状態を変更しない。編集中の非同期フレームは
@@ -485,7 +443,6 @@ export class TimelineRendererManager extends EventEmitter<{
 	/** 専用インスタンスで順番に呼び、フレーム間の履歴と一定の経過時間を保持する。 */
 	public async renderTimelineFrame(time: number, timeDelta: number, fps = this.staticOptions.timelineFps): Promise<void> {
 		// 書き出しfpsはプロジェクト基準とは別に指定できるため、呼び出し境界で検証する。
-		validateTimelineFps(fps);
 		await this.renderFrame(time, true, fps, timeDelta);
 	}
 
@@ -791,6 +748,8 @@ export async function createManager(options: {
 			effectDefinitions: options.effectDefinitions,
 			effectImplementations: options.effectImplementations,
 		}, options.staticOptions);
+		device.addEventListener?.('uncapturederror', event => manager?.emit('ev', { type: 'renderError', ctx: { message: event.error.message } }));
+		void device.lost?.then(info => { if (info.reason !== 'destroyed') manager?.emit('ev', { type: 'renderError', ctx: { message: info.message || 'GPU device was lost' } }); });
 
 		await manager.updateDynamicOptions(options.dynamicOptions);
 

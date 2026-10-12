@@ -1,0 +1,168 @@
+import assert from 'node:assert/strict';
+import { test } from 'node:test';
+import { build } from 'esbuild';
+import { createRequire } from 'node:module';
+import { fileURLToPath } from 'node:url';
+
+const directory = fileURLToPath(new URL('../', import.meta.url));
+const bundle = await build({
+	stdin: { resolveDir: directory, loader: 'ts', contents: `
+		export { ProjectRenderValidation } from './src/ProjectRenderValidation.ts';
+		export { PreviewRenderEngine } from './src/PreviewRenderEngine.ts';
+		export { ref } from 'vue';
+	` },
+	absWorkingDir: directory, bundle: true, platform: 'node', format: 'cjs', write: false,
+	plugins: [{ name: 'definitions', setup(build) {
+		build.onResolve({ filter: /effect-definitions\.[jt]s$/ }, args => ({ path: args.path, namespace: 'fixture' }));
+		build.onLoad({ filter: /.*/, namespace: 'fixture' }, () => ({ contents: 'export const effectDefinitions = {};' }));
+	} }],
+});
+const module = { exports: {} };
+new Function('require', 'module', 'exports', bundle.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
+const { ProjectRenderValidation, PreviewRenderEngine, ref } = module.exports;
+const literal = value => ({ inputSource: 'literal', value });
+const scalar = { dataType: { kind: 'scalar' }, canNode: true, ui: { label: 'Amount', control: { controlType: 'number' } }, defaultValue: literal(0) };
+const definitions = { effect: { id: 'effect', paramDefs: { amount: scalar }, outputDefs: { output: { dataType: { kind: 'scalar' } } }, primaryInputParameter: 'amount' } };
+const node = (id, amount = literal(0)) => ({ id, type: 'effect', effectId: 'effect', resolution: { mode: 'context' }, params: { amount }, isBypass: false });
+const connection = id => ({ inputSource: 'node', nodeId: id, outputPort: 'output', fitMode: 'contain', wrapMode: 'clamp', filterMode: 'linear' });
+const visualModule = (nodes, id = 'visualModule') => ({ id, nodes, paramDefs: [], outputDefs: [], primaryInputId: null, primaryOutputId: null, automationGraphs: [] });
+const scene = (id, layers = []) => ({ id, name: id, resolution: { mode: 'project' }, layers });
+const sceneLayer = (id, sceneId) => ({ id, name: id, layerType: 'scene', clips: [{ id: 'clip', sceneId, startMs: 0, durationMs: 1000, contentOffsetMs: 0 }], compositingParamValues: {}, audioParamValues: {}, automationGraphs: [] });
+function fixture(visualModules = [], timelineScenes = []) {
+	const state = { visualModules: ref(visualModules), timelineScenes: ref(timelineScenes), assets: ref([]), players: ref([]), resolution: ref({ width: 16, height: 16 }), timelineFps: ref(60), timelineMotionBlur: ref({ enabled: false, shutterAngle: 180, samples: 0 }) };
+	const validation = new ProjectRenderValidation(state, definitions);
+	validation.reset();
+	return { state, validation };
+}
+const nodeChange = nodeId => [{ type: 'node', target: { visualModuleId: 'visualModule' }, nodeId, changes: [{ type: 'parameter', kind: 'value' }] }];
+
+// 【通常のliteral編集では静的検証も循環探索も繰り返さない】
+// 値調整のたびに全グラフを走査すると、描画から検証を移しても編集負荷が残る。
+// 検証済み単位の検査を計数し、別ノードの検証も発生しないことを確認する。
+test('reuses static validation for ordinary literal edits', () => {
+	const { state, validation } = fixture([visualModule([node('first'), node('second')])]);
+	let checks = 0;
+	const check = validation.check.bind(validation);
+	validation.check = (key, shape, inspect, ...options) => check(key, shape, () => { checks++; inspect(); }, ...options);
+	let graphChecks = 0;
+	const graphCheck = validation.checkNodeGraph.bind(validation);
+	validation.checkNodeGraph = key => { graphChecks++; graphCheck(key); };
+	state.visualModules.value[0].nodes[0].params.amount = literal('invalid numeric value');
+	validation.update(nodeChange('first'));
+	assert.equal(validation.errorMessage.value, null);
+	assert.equal(checks, 0);
+	assert.equal(graphChecks, 0);
+});
+
+// 【無効な枝の循環も編集時に検出し、配線修正で解除する】
+// 描画経路やバイパスによって検証範囲を変えると、再有効化した時に初めて失敗する。
+test('detects cycles in unused and bypassed nodes and clears them after editing', () => {
+	const { state, validation } = fixture([visualModule([node('first', connection('second')), { ...node('second', connection('first')), isBypass: true }])]);
+	assert.match(validation.errorMessage.value, /Circular node reference/);
+	state.visualModules.value[0].nodes[1].params.amount = literal(1);
+	validation.update(nodeChange('second'));
+	assert.equal(validation.errorMessage.value, null);
+});
+
+// 【Scene参照の循環を描画開始前に止め、変更されたレイヤーから更新する】
+// 音声計画や参照先Sceneの生成に入ってから無限再帰することを防ぐ。
+test('updates scene cycles when a referenced scene clip changes', () => {
+	const { state, validation } = fixture([], [scene('first', [sceneLayer('child', 'second')]), scene('second', [sceneLayer('child', 'first')])]);
+	assert.match(validation.errorMessage.value, /Circular scene reference/);
+	state.timelineScenes.value[1].layers[0].clips = [];
+	validation.update([{ type: 'layer', sceneId: 'second', layerId: 'child', changes: [{ type: 'clips' }] }]);
+	assert.equal(validation.errorMessage.value, null);
+});
+
+// 【参照先の追加・削除では利用単位だけ再検証する】
+// 不足していたVisual Moduleを追加した場合にも、レイヤーを編集し直す必要がない。
+test('revalidates references after registration and deletion', () => {
+	const layer = { ...sceneLayer('layer', 'unused'), layerType: 'visualModule', visualModuleId: 'missing', visualModuleParamValues: {} };
+	const { state, validation } = fixture([], [scene('scene', [layer])]);
+	assert.match(validation.errorMessage.value, /Visual Module not found/);
+	state.visualModules.value = [visualModule([], 'missing')];
+	validation.update([{ type: 'visualModuleRegistration', visualModuleId: 'missing' }]);
+	assert.equal(validation.errorMessage.value, null);
+	state.visualModules.value = [];
+	validation.update([{ type: 'visualModuleRegistration', visualModuleId: 'missing' }]);
+	assert.match(validation.errorMessage.value, /Visual Module not found/);
+});
+
+// 【静的エラー中はエンジンを持たず、修正後に最新設定で生成する】
+// 同じエラー状態で編集を重ねても破棄を繰り返さず、差分を再送する必要をなくす。
+test('disposes once on static failure and recreates only after correction', async () => {
+	let created = 0, disposed = 0;
+	const engine = new PreviewRenderEngine({ create: async () => { created++; }, dispose: () => { disposed++; } });
+	await engine.enable();
+	engine.setValidationError('cycle');
+	engine.setValidationError('another cycle');
+	await engine.retry();
+	assert.equal(created, 1);
+	assert.equal(disposed, 1);
+	engine.setValidationError(null);
+	await engine.retry();
+	assert.equal(created, 2);
+});
+
+// 【実行時エラー後は再試行を要求されるまで停止する】
+// 時間経過で自動的に再生成すると、同じ式の失敗による再起動ループが発生する。
+test('latches runtime failures until an explicit retry', async () => {
+	let created = 0, disposed = 0;
+	const engine = new PreviewRenderEngine({ create: async () => { created++; }, dispose: () => { disposed++; } });
+	await engine.enable();
+	engine.fail(new Error('invalid enum'));
+	assert.equal(engine.canRender.value, false);
+	await Promise.resolve();
+	assert.equal(created, 1);
+	assert.equal(disposed, 1);
+	await engine.retry();
+	assert.equal(created, 2);
+	assert.equal(engine.canRender.value, true);
+});
+
+// 【初期化中の再試行をまとめ、書き出しのための停止後には再生成しない】
+// 生成待ちに設定変更が重なっても、停止より前に予約された再試行でエンジンを復活させない。
+test('coalesces retries and keeps queued retries suspended', async () => {
+	const gate = Promise.withResolvers();
+	let created = 0;
+	const engine = new PreviewRenderEngine({ create: async () => { created++; await gate.promise; }, dispose() {} });
+	const starting = engine.enable();
+	const retry = engine.retry();
+	engine.suspend();
+	gate.resolve();
+	await Promise.all([starting, retry]);
+	assert.equal(created, 1);
+	assert.equal(engine.canRender.value, false);
+});
+
+// 【初期化待ちにエラーと修正が起きても、旧設定の生成を復活させない】
+// 診断が正常へ戻ったことだけを見ると、中断前のスナップショットを使って起動してしまう。
+test('invalidates an old creation even if static errors are already corrected', async () => {
+	const gate = Promise.withResolvers();
+	const adopted = [];
+	let version = 1;
+	const engine = new PreviewRenderEngine({ create: async isCurrent => {
+		const snapshot = version;
+		await gate.promise;
+		if (isCurrent()) adopted.push(snapshot);
+	}, dispose() {} });
+	const starting = engine.enable();
+	engine.setValidationError('cycle');
+	version = 2;
+	engine.setValidationError(null);
+	const corrected = engine.retry();
+	gate.resolve();
+	await Promise.all([starting, corrected]);
+	assert.deepEqual(adopted, [2]);
+});
+
+// 【音声以外へ下層音声を渡す構造エラーは、Commandの拒否に依存せず診断する】
+// 外部から読み込んだ設定や編集途中の状態もUIで一貫して扱うために必要な検査。
+test('diagnoses invalid layer audio bindings before rendering', () => {
+	const layer = { ...sceneLayer('layer', 'unused'), layerType: 'effect', effectId: 'effect', resolution: { mode: 'context' }, effectParamValues: { amount: { inputSource: 'lowerLayerAudio' } } };
+	const { state, validation } = fixture([], [scene('scene', [layer])]);
+	assert.match(validation.errorMessage.value, /Layer audio is not available/);
+	state.timelineScenes.value[0].layers[0].effectParamValues.amount = literal(1);
+	validation.update([{ type: 'layer', sceneId: 'scene', layerId: 'layer', changes: [{ type: 'parameter', target: 'effect', kind: 'inputSource' }] }]);
+	assert.equal(validation.errorMessage.value, null);
+});

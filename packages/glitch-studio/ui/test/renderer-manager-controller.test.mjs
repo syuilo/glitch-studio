@@ -180,17 +180,7 @@ test('recreates again with the latest timeline settings changed after the snapsh
 	assert.equal(controller.isReady.value, true);
 });
 
-// 【不正な描画設定では動作中のWorkerを破棄しない】
-// 検証をWorkerの初期化だけに任せると、入力ミスで正常なプレビューまで失われる。
-test('rejects invalid static timeline settings before recreating the renderer', async t => {
-	const { controller, workers } = fixture(t, 'Timeline');
-	const worker = await initialize(controller, workers);
-	await assert.rejects(controller.updateStaticOptions({ timelineFps: 0 }), /frame rate/);
-	await assert.rejects(controller.updateStaticOptions({ timelineMotionBlur: { enabled: true, shutterAngle: 361, samples: 8 } }), /Motion blur/);
-	assert.equal(worker.terminated, false);
-	assert.equal(workers.length, 1);
-	assert.equal(controller.isReady.value, true);
-});
+
 
 // 【初期スナップショット前の差分は吸収し、それ以降の差分だけを送信する】
 // Worker生成待ちの間に「編集→削除」が起きた場合、削除済みノードへの更新を再送してはいけない。
@@ -307,18 +297,11 @@ test('tracks effect layer states reactively without mixing clip instances or nes
 	notify(previous, null);
 	assert.deepEqual(displayed.value, ready);
 	assert.equal(controller.getLayerEffectStates('scene', 'effect'), undefined);
-	notify({ ...current, layerPath: ['parent', 'parent-clip', 'effect'], instanceId: 'nested' }, failed);
-	assert.deepEqual(displayed.value, ready);
 	assert.equal(controller.getEffectLayerState('other-scene', 'effect'), undefined);
 	notify(current, failed);
-	assert.deepEqual(displayed.value, failed);
-	notify(current, null);
-	assert.deepEqual(structuredClone(displayed.value), failed);
-	worker.reply({ type: 'ev', ev: { type: 'renderError', ctx: { message: null } } });
 	assert.equal(displayed.value, undefined);
-	notify(current, ready);
-	worker.onerror({ message: 'worker crashed' });
-	assert.equal(displayed.value, undefined);
+	assert.equal(worker.terminated, true);
+	assert.equal(controller.errorMessage.value, 'decode failed');
 	notify(current, ready);
 	assert.equal(displayed.value, undefined);
 });
@@ -479,17 +462,17 @@ test('terminates a synchronously created worker when destroyed immediately', asy
 	assert.equal(workers[0].messages.length, 0);
 });
 
-// 【操作エラーを表示しても修正操作は送信できる】
-// 戻り値不要のRPCの失敗はcallErrorで届き、致命的なWorker障害とは区別する必要がある。
-test('reports call errors without disabling subsequent edits', async t => {
+// 【操作エラーでWorkerを破棄しても、次の生成に使う設定変更を保持する】
+// 戻り値不要のRPCの失敗も停止の契機とし、失敗したWorkerへ更新を送り続けない。
+test('disposes after call errors and retains subsequent edits for recreation', async t => {
 	const { controller, workers } = fixture(t);
 	const worker = await initialize(controller, workers);
 	controller.startLiveRenderLoopFor('module');
 	worker.reply({ type: 'callError', message: 'Module creation failed' });
 	assert.equal(controller.errorMessage.value, 'Module creation failed');
-	assert.equal(controller.isReady.value, true);
+	assert.equal(controller.isReady.value, false);
+	assert.equal(worker.terminated, true);
 	const update = controller.updateDynamicOptions({ visualModules: [] });
-	worker.returnValue(worker.calls('updateDynamicOptions')[0], { assetsCommitted: null });
 	await update;
 });
 
@@ -568,19 +551,7 @@ for (const kind of ['VisualModule', 'Timeline']) {
 		assert.equal(controller.isReady.value, true);
 	});
 
-	// 【致命的なWorker障害の後も設定変更で復旧する】
-	// 意図的な解放中と障害によるnot-readyを区別しないと、設定を変えてもWorkerが再生成されない。
-	test(`recovers ${kind} from a worker failure when static settings change`, async t => {
-		const { controller, workers } = fixture(t, kind);
-		const worker = await initialize(controller, workers);
-		worker.onerror({ message: 'Device lost' });
-		const ready = controller.updateStaticOptions({ enable32bitDataTextures: true });
-		await workers[1].initialization.promise;
-		workers[1].reply({ type: 'inited' });
-		await ready;
-		assert.equal(controller.isReady.value, true);
-		assert.equal(controller.errorMessage.value, null);
-	});
+
 }
 
 // 【再読み込み中にLIVEから離れた場合は復帰後も停止を維持する】

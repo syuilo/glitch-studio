@@ -107,6 +107,7 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 					this.gpuMemoryUsage.value = ctx.usage;
 				},
 				effectState: (ctx) => {
+					if (ctx.status?.status.type === 'error') { this.reportRenderFailure(new Error(ctx.status.status.message)); return; }
 					const { source, nodeId, status } = ctx;
 					this.liveEffectStateStore.update(source, nodeId, status);
 				},
@@ -118,9 +119,7 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 					this.gpuAverageDisplaySlow.value = ctx.gpuAverageSlow * 1.2;
 				},
 				renderError: (ctx) => {
-					// 描画できないグラフでも、修正するための更新は送り続ける。
-					// 致命的なWorkerエラー後の遅延通知では、そのエラー表示を上書きしない。
-					if (this.isReady.value) this.errorMessage.value = ctx.message;
+					if (ctx.message != null) this.reportRenderFailure(new Error(ctx.message));
 				},
 			},
 			onCreated: () => {

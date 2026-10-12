@@ -3,9 +3,7 @@ import { applyRendererProjectChanges } from '@gs/glitch-studio_shared/project/re
 import { AudioHistory } from '@gs/subsystems_audio_renderer/audio-history.ts';
 import { genId } from '@gs/shared/utility/id.ts';
 import { genEmptyValue } from '@gs/shared/parameter/parameter-default.ts';
-import { validateLiteralAudioSourceBinding } from '@gs/shared/parameter/audio-source.ts';
 import { PlayerAudioInputs } from './player-audio-inputs.ts';
-import { validatePlayerAudioSourceSelection } from '@gs/glitch-studio_shared/player-audio-source.ts';
 import EventEmitter from 'eventemitter3';
 import { ParameterBindingEvaluator } from '@gs/shared/parameter/parameter-binding-evaluator.ts';
 import { validateEnumParameterValue } from '@gs/shared/parameter/parameter-definition.ts';
@@ -358,11 +356,9 @@ export class VisualModuleRendererManager extends EventEmitter<{
 			for (const def of visualModule.paramDefs) {
 				if (def.dataType.kind === 'audioSource') {
 					const binding = this.liveParamValues[def.id] ?? def.defaultValue;
-					validateLiteralAudioSourceBinding(binding);
-					validatePlayerAudioSourceSelection(binding.value);
 					// 未使用の公開入力では履歴をコピーしない。実際の読み手が必要になった時に
 					// 注入したresolveAudioSourceで取得する。音声の指定はPARAMへ公開されない。
-					evaluatedParamValues.set(def.id, binding.value);
+					evaluatedParamValues.set(def.id, (binding as { value: unknown }).value);
 					continue;
 				}
 				if (this.liveParamValues[def.id] == null) {
@@ -490,6 +486,8 @@ export async function createManager(options: {
 			effectDefinitions: options.effectDefinitions,
 			effectImplementations: options.effectImplementations,
 		}, options.staticOptions);
+		device.addEventListener?.('uncapturederror', event => manager?.emit('ev', { type: 'renderError', ctx: { message: event.error.message } }));
+		void device.lost?.then(info => { if (info.reason !== 'destroyed') manager?.emit('ev', { type: 'renderError', ctx: { message: info.message || 'GPU device was lost' } }); });
 
 		await manager.updateDynamicOptions(options.dynamicOptions);
 

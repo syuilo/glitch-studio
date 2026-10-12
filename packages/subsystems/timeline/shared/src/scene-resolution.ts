@@ -13,7 +13,6 @@ export function validateSceneResolution(setting: TimelineSceneResolution): void 
 
 /** projectは親Sceneではなく、プロジェクト自身の基準寸法を参照する。 */
 export function getSceneBaseResolution(setting: TimelineSceneResolution, projectResolution: Resolution): Resolution {
-	validateSceneResolution(setting);
 	const { width, height } = setting.mode === 'customAbsolute' ? setting : projectResolution;
 	return { width, height };
 }

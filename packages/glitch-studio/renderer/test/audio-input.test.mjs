@@ -178,7 +178,6 @@ test('invalidates player snapshots on append, reset, replacement, and disconnect
 	sources.clear();
 	assert.equal(inputs.resolve(selection), null);
 	assert.equal(inputs.resolve(null), null);
-	assert.throws(() => inputs.resolve({ type: 'layer', layerId: 'layer' }), /Invalid player audio source/);
 });
 
 // 【音声公開パラメータは専用入力として渡し、PARAM式には公開しない】
@@ -196,32 +195,10 @@ test('resolves public audio inputs independently of PARAM and image parameters',
 	const params = renderer.resolveParams(node, renderer.evaledNodeParams.get(node.id));
 	assert.equal(params.audio, source);
 	assert.equal(params.amount, 0);
-	assert.throws(() => {
-		node.params.amount = { inputSource: 'externalCustomParameterInput', parameterId: publicAudio.id };
-		renderer.evaluateParameters(context);
-	}, /audio parameter/);
 	renderer.destroy();
 });
 
-// 【LIVEでは音声の静的なPlayer指定を解決し、式による切り替えを拒否する】
-// 値評価器へ渡す前に検証することで、式がPlayer IDを返して音声配線を動的に変更する抜け道を防ぐ。
-test('resolves live player selections and rejects dynamic audio bindings', () => {
-	const history = new AudioHistory();
-	history.append({ generation: 1, startFrame: 0, sampleRate: 1000, channelCount: 1, frameCount: 2, buffer: Float32Array.from([1, -1]).buffer });
-	const inputs = new PlayerAudioInputs(new Map([[playerAudioSourceId('player'), history]]));
-	const renderer = createVisualModuleRenderer(VisualModuleRenderer, { resolveAudioSource: selection => inputs.resolve(selection) });
-	const node = { id: 'node', type: 'effect', effectId: 'probe', params: { audio: literal({ type: 'player', playerId: 'player' }) } };
-	Object.assign(renderer, { nodes: [node], effectDefinitions: { probe: { paramDefs: { audio: audioDef } } } });
-	const context = { time: 0, endTime: Infinity, isExport: false, evaluatedParamValues: new Map() };
-	renderer.evaluateParameters(context);
-	const input = renderer.resolveParams(node, renderer.evaledNodeParams.get(node.id)).audio;
-	assert.deepEqual(samples(input.readWindow(0.002, signal())), Float32Array.from([1, -1]));
-	for (const binding of [{ inputSource: 'expression', expression: 'null' }, { inputSource: 'node', nodeId: null, outputPort: null }]) {
-		node.params.audio = binding;
-		assert.throws(() => renderer.evaluateParameters(context), /static input/);
-	}
-	renderer.destroy();
-});
+
 
 // 【Visual Moduleは呼び出し側の取得元指定を解釈せずに渡す】
 // Player以外の利用ドメインを追加しても、共通型やVisual Moduleへ選択肢を増やす必要がない。

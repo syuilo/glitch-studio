@@ -118,12 +118,13 @@ const settings = computed<TimelineExportSettings>(() => {
 		: { ...common, format: 'mp4', quality: videoQuality.value, fps: fps.value, endTimeMs: parseExportTime(endTime.value) };
 });
 const validationError = computed(() => {
+	if (appContext.renderValidation.errorMessage.value) return appContext.renderValidation.errorMessage.value;
 	if (scene.value == null) return 'Choose a scene to export.';
 	if (getSceneDuration(scene.value) <= 0) return 'Cannot export an empty scene.';
 	if (mode.value === 'video' && !Number.isFinite(parseExportTime(endTime.value))) return 'Enter a valid end time (HH:MM:SS.mmm).';
 	return validateExportSettings(settings.value);
 });
-const includesAudio = computed(() => scene.value != null && hasExportAudio(stateManager.state.timelineScenes.value, sceneId.value, settings.value, stateManager.state.generatedSpeech.value));
+const includesAudio = computed(() => !appContext.renderValidation.errorMessage.value && scene.value != null && hasExportAudio(stateManager.state.timelineScenes.value, sceneId.value, settings.value, stateManager.state.generatedSpeech.value));
 const estimatedSize = computed(() => {
 	if (validationError.value) return '—';
 	const bytes = estimateExportBytes(settings.value, includesAudio.value ? MP4_AUDIO_BITRATE : 0);

@@ -1,4 +1,4 @@
-import { getTimelineScene, getSceneDuration, validateTimelineScenes } from '@gs/subsystems_timeline_shared/scenes.ts';
+import { getTimelineScene, getSceneDuration } from '@gs/subsystems_timeline_shared/scenes.ts';
 import { getSceneBaseResolution } from '@gs/subsystems_timeline_shared/scene-resolution.ts';
 import { TimelineRendererManager } from '@gs/glitch-studio_renderer/timeline-renderer-manager.ts';
 import { effectDefinitions } from '@gs/subsystems_effect_shared/effect-definitions.ts';
@@ -28,7 +28,6 @@ self.onmessage = async (event: MessageEvent<ExportRequest>) => {
 		const { settings: requestedSettings, project, resolutionScale, renderer: rendererSettings } = event.data;
 		const { timelineFps, timelineMotionBlur, ...dynamicProjectOptions } = project;
 		// UI以外から呼ばれても、Canvasとエンコーダーに同じ調整済みサイズを使う。
-		validateTimelineScenes(project.timelineScenes);
 		const scene = getTimelineScene(project.timelineScenes, project.sceneId);
 		const settings = { ...requestedSettings, ...scaleExportResolution(getSceneBaseResolution(scene.resolution, project.resolution), resolutionScale, requestedSettings.format) };
 		if (getSceneDuration(scene) <= 0) throw new Error('Cannot export an empty scene.');

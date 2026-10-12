@@ -9,6 +9,10 @@
 		</div>
 		<div :class="$style.topCenter">
 			<button v-if="previewTargetName" type="button" :class="$style.previewTargetName" class="_button" aria-haspopup="menu" @click="showPreviewTargetMenu">{{ previewTargetName }} <i class="ti ti-chevron-down"></i></button>
+			<div v-if="renderEngine.errorMessage.value" :class="$style.renderError" class="_gaps_s" role="alert">
+				<div>{{ renderEngine.errorMessage.value }}</div>
+				<button type="button" class="_button" :disabled="renderValidation.errorMessage.value != null" @click="renderEngine.retry()">Retry rendering</button>
+			</div>
 		</div>
 		<div :class="$style.topRight">
 			<div :class="$style.zoom">ZOOM: {{ Math.round(zoom * 100) }}%</div>
@@ -39,7 +43,7 @@ import * as api from '@/api.ts';
 import { preferences } from '@/preferences.ts';
 import * as ui from '@/ui.ts';
 
-const { activePreviewRenderer, visualModuleRendererManagerController, previewPlayback, highlightClipping, resolutionFactor, liveTimeFactor, activeScene, activeSceneId } = appContext;
+const { activePreviewRenderer, visualModuleRendererManagerController, previewPlayback, highlightClipping, resolutionFactor, liveTimeFactor, activeScene, activeSceneId, renderEngine, renderValidation } = appContext;
 const { stateManager } = appContext.projectContext;
 
 const canvasContainer = useTemplateRef('canvasContainer');
@@ -385,9 +389,17 @@ function showMenu(ev: PointerEvent) {
 	margin: 0 auto;
 	z-index: 1;
 	display: flex;
+	flex-direction: column;
 	width: 300px;
 	align-items: center;
 	justify-content: center;
+}
+
+.renderError {
+	padding: 8px;
+	background: #000c;
+	color: #fff;
+	overflow-wrap: anywhere;
 }
 
 .previewTargetName {
