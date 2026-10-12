@@ -10,11 +10,11 @@
 							<path fill="currentColor" d="M10 13a1 1 0 1 1 0-2 1 1 0 0 1 0 2Zm0-4a1 1 0 1 1 0-2 1 1 0 0 1 0 2Zm-4 4a1 1 0 1 1 0-2 1 1 0 0 1 0 2Zm5-9a1 1 0 1 1-2 0 1 1 0 0 1 2 0ZM7 8a1 1 0 1 1-2 0 1 1 0 0 1 2 0ZM6 5a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z"></path>
 						</svg>
 					</div>
+					<button class="_button" :class="[$style.collapseButton]" @click.stop="emit('toggleCollapse')"><i :class="collapsed ? 'ti ti-chevron-right' : 'ti ti-chevron-down'"></i></button>
 					<i :class="'ti ' + layerIcon"></i>
 					<span :class="$style.layerHeaderTitle">
 						<GsCondensedLine>{{ layer.name }}</GsCondensedLine>
 					</span>
-					<button class="_button" :class="[$style.collapseButton]" :aria-expanded="!collapsed" :aria-label="(collapsed ? 'Expand ' : 'Collapse ') + layer.name" @click.stop="emit('toggleCollapse')"><i :class="collapsed ? 'ti ti-chevron-right' : 'ti ti-chevron-down'"></i></button>
 					<button class="_button" :class="[$style.disableButton, { [$style.active]: !layer.isDisabled }]" @click.stop="toggleDisabled"><i :class="layer.isDisabled ? 'ti ti-eye-off' : 'ti ti-eye'"></i></button>
 				</div>
 			</div>
@@ -26,7 +26,7 @@
 				<button
 					v-if="groupRange" type="button" class="_button" :class="[$style.groupClip, { [$style.groupClipSelected]: selected }]"
 					:style="{ left: groupRange.startMs * pixelsPerMs + 'px', width: groupRange.durationMs * pixelsPerMs + 'px' }"
-					:aria-label="'Move container ' + layer.name" @pointerdown.stop="emit('groupMoveStart', $event)" @dblclick.stop
+					@pointerdown.stop="emit('groupMoveStart', $event)" @dblclick.stop
 				>
 					<span>{{ layer.name }}</span>
 				</button>
