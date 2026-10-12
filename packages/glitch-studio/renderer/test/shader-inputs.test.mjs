@@ -19,7 +19,8 @@ const { UniformOrTextureToTextureResolver } = await load('@gs/shared/gpu/uniform
 const { toShaderInput } = await load('@gs/shared/gpu/shader-input.ts');
 const { TimelineRenderer } = await load('@gs/subsystems_timeline_renderer/timeline-renderer.ts');
 const { createVisualModuleTimelineLayer } = await load('@gs/subsystems_timeline_renderer/layers/visual-module/visual-module-timeline-layer.ts');
-const { createTimelineCompositor } = await load('@gs/subsystems_timeline_renderer/timeline-compositor.ts');
+const { createTimelineCompositor, getTimelinePlacement } = await load('@gs/subsystems_timeline_renderer/timeline-compositor.ts');
+const { createSceneOutput } = await load('@gs/subsystems_timeline_renderer/scene-output.ts');
 const { createImageTimelineLayer } = await load('@gs/subsystems_timeline_renderer/layers/image/image-timeline-layer.ts');
 const { createMotionBlurAccumulator } = await load('@gs/subsystems_timeline_renderer/motion-blur-accumulator.ts');
 
@@ -152,6 +153,62 @@ test('composites native-resolution sources with the selected fit before replacin
 	assert.equal(texture.destroyed, false);
 });
 
+// 【StretchのReplaceで素材を借用しても、親にはScene基準の配置済み画像として渡す】
+// 縦横比の違う素材を返すだけでは、親のContainで子のStretchが取り消される。
+// 元のGPUテクスチャは維持しつつ、親が使う論理寸法だけをSceneへ切り替える。
+test('keeps stretched replace outputs in scene coordinates without copying the source texture', () => {
+	const { device, calls, encoder } = gpuFixture();
+	const resolution = { width: 8, height: 4 };
+	const compositor = createTimelineCompositor({ device, vertex: {}, resolution, format: 'rgba16float' });
+	const source = { kind: 'texture', texture: device.createTexture({ size: [16, 16], format: 'rgba16float' }) };
+	const background = { kind: 'uniform', value: [0, 0, 0, 0] };
+	const settings = { blendMode: 19, opacity: 1, fitMode: 'stretch', position: [0, 0], origin: [0, 0], scale: [1, 1], rotation: 0, depth: 0 };
+	const output = compositor.render(encoder, background, source, settings);
+	assert.equal(output.texture, source.texture);
+	assert.equal(source.region, undefined);
+	assert.deepEqual(output.region, { bounds: { left: -1, bottom: -1, right: 1, top: 1 }, frameSize: resolution });
+	assert.deepEqual(getTimelinePlacement(output, resolution, { ...settings, fitMode: 'contain' }), [1, 0, 0, 1, 0, 0]);
+	assert.equal(calls.draws, 0);
+	assert.equal(calls.textures.length, 1);
+	compositor.dispose();
+	assert.equal(source.texture.destroyed, false);
+});
+
+// 【ノード入力では論理的なStretchを画素へ確定し、同じ比率の素材解像度は維持する】
+// EffectとVisual ModuleはTimelineのregionを知らないため、正方形の物理テクスチャを
+// 横長の合成結果としてそのまま渡すと入力サンプリングで再びFitされてしまう。
+test('materializes stretched node inputs while borrowing matching native-resolution frames', () => {
+	const { device, calls, encoder } = gpuFixture();
+	const resolution = { width: 8, height: 4 };
+	const output = createSceneOutput({ device, vertex: {}, resolution, format: 'rgba16float' });
+	const region = { bounds: { left: -1, bottom: -1, right: 1, top: 1 }, frameSize: resolution };
+	const matching = { kind: 'texture', texture: device.createTexture({ size: [16, 8], format: 'rgba16float' }), region };
+	assert.equal(output.renderInput(encoder, matching), matching);
+	assert.equal(calls.draws, 0);
+	const stretched = { kind: 'texture', texture: device.createTexture({ size: [16, 16], format: 'rgba16float' }), region };
+	const normalized = output.renderInput(encoder, stretched);
+	assert.notEqual(normalized.texture, stretched.texture);
+	assert.deepEqual([normalized.texture.width, normalized.texture.height], [8, 4]);
+	assert.equal(calls.draws, 1);
+	output.dispose();
+	assert.equal(matching.texture.destroyed, false);
+	assert.equal(stretched.texture.destroyed, false);
+});
+
+// 【平面化グループの画面外領域が増えても背景のFitを再計算しない】
+// 描画先が横に広がったときにCoverで背景を読み直すと、静止した背景の上下が切れる。
+// 実際の入力bindingへ渡すUV倍率を調べ、描画先の物理比率が背景へ混入しないことを保証する。
+test('keeps background sampling unchanged when the composite bounds expand', () => {
+	const { device, calls, encoder } = gpuFixture();
+	const compositor = createTimelineCompositor({ device, vertex: {}, resolution: { width: 8, height: 4 }, format: 'rgba16float' });
+	const background = { kind: 'texture', texture: device.createTexture({ size: [8, 4], format: 'rgba16float' }) };
+	const settings = { blendMode: 0, opacity: 1, fitMode: 'contain', position: [2, 0], origin: [0, 0], scale: [1, 1], rotation: 0, depth: 0 };
+	const output = compositor.render(encoder, background, { kind: 'uniform', value: [0, 0, 0, 0] }, settings, { parent: [1, 0, 0, 1, 0, 0], depth: 0 });
+	assert.deepEqual([output.texture.width, output.texture.height], [16, 4]);
+	assert.deepEqual([...calls.writes.at(-1).slice(4, 6)], [1, 1]);
+	compositor.dispose();
+});
+
 // 【素材寸法とfitに応じて支点だけを画面座標へ変換する】
 // originを画面基準のまま渡すと、縦横比が違う素材の端を固定できない。
 // 同じcompositorへの入力サイズ・fit・uniform切り替えでも毎回換算し、Positionは保持する。
@@ -189,7 +246,9 @@ test('only bypasses anchor placement when position cancels the fitted origin', (
 	const settings = { blendMode: 19, opacity: 1, fitMode: 'contain', position: [0, 0], origin: [1, -1], scale: [1, 1], rotation: 0 };
 	for (const source of [textureSource, { kind: 'uniform', value: [1, 0, 0, 1] }]) {
 		assert.notEqual(compositor.render(encoder, background, source, settings), source);
-		assert.equal(compositor.render(encoder, background, source, { ...settings, position: [1, -1] }), source);
+		assert.deepEqual(compositor.render(encoder, background, source, { ...settings, position: [1, -1] }), {
+			...source, region: { bounds: { left: -1, bottom: -1, right: 1, top: 1 }, frameSize: { width: 8, height: 4 } },
+		});
 	}
 	assert.equal(calls.draws, 2);
 	compositor.dispose();
@@ -218,14 +277,15 @@ test('renders the selected module primary output after updates', () => {
 	} finally { renderer.destroy(); }
 });
 
-// 不透明度0と無変形の置き換えは借用出力をそのまま返し、余分なテクスチャを作らない。
+// 【不透明度0と無変形の置き換えで余分なテクスチャを作らない】
+// 置き換え後の座標情報は更新するが、借用した画素の所有権は取得せず破棄もしない。
 test('passes through timeline outputs without taking ownership', () => {
 	const { device, calls, encoder } = gpuFixture();
 	const compositor = createTimelineCompositor({ device, vertex: {}, resolution: { width: 8, height: 4 }, format: 'rgba16float' });
 	const background = { kind: 'uniform', value: [0, 0, 0, 0] };
 	const source = { kind: 'texture', texture: device.createTexture({ size: [4, 2], format: 'rgba16float' }) };
 	const settings = { blendMode: 19, opacity: 1, fitMode: 'contain', position: [0, 0], origin: [0, 0], scale: [1, 1], rotation: 0 };
-	assert.equal(compositor.render(encoder, background, source, settings), source);
+	assert.equal(compositor.render(encoder, background, source, settings).texture, source.texture);
 	assert.equal(compositor.render(encoder, background, source, { ...settings, opacity: 0 }), background);
 	assert.equal(compositor.render(encoder, background, source, { ...settings, blendMode: 10 }), background);
 	assert.equal(calls.textures.length, 1);

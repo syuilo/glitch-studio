@@ -44,6 +44,15 @@ export async function run() {
 		textParamValues: { ...createTextParameterValues(), text: literal('OFFSCREEN'), size: literal(0.3), position: literal([position, 0]) }, compositingParamValues: composite() });
 	let sceneLayers: TimelineLayer[] = [];
 	let childScene: TimelineScene;
+	const imageSources = new Map<string, GPUTexture>();
+	const image = (width: number, height: number, pixel: (x: number, y: number) => number[]): TimelineLayer => {
+		const id = `image${nextId++}`;
+		const texture = device.createTexture({ size: { width, height }, format: 'rgba8unorm', usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST });
+		const pixels = new Uint8Array(Array.from({ length: height }, (_, y) => Array.from({ length: width }, (_, x) => pixel(x, y))).flat(2));
+		device.queue.writeTexture({ texture }, pixels, { bytesPerRow: width * 4 }, { width, height });
+		imageSources.set(id, texture);
+		return { ...base, id, name: id, layerType: 'image', clips: [{ ...base.clips[0], assetId: id }], compositingParamValues: composite({ fitMode: 'stretch', blendMode: 'replace' }) };
+	};
 	const createLayer = (layer: TimelineLayer, clipId: string | null): TimelineLayerRenderer<TimelineImage> => {
 		switch (layer.layerType) {
 			case 'group': return createGroupTimelineLayer(() => layer, { ...options, createLayer, getLayerVersion: () => 0 });
@@ -55,7 +64,8 @@ export async function run() {
 				return { async evaluate(context) {
 					const encoder = device.createCommandEncoder();
 					const settings = parameters.evaluate({ time: context.sceneTimeMs, isExport: context.isExport, paramValues: layer.compositingParamValues, automationGraphs: [] });
-					const source: TimelineImage = { kind: 'uniform', value: layer.name === 'red' ? [1, 0, 0, 1] : [0, 0, 0, 0] };
+					const texture = imageSources.get(layer.clips[0].assetId);
+					const source: TimelineImage = texture ? { kind: 'texture', texture } : { kind: 'uniform', value: layer.name === 'red' ? [1, 0, 0, 1] : [0, 0, 0, 0] };
 					const result = compositor.render(encoder, context.input, source, settings, context.renderSpace);
 					device.queue.submit([encoder.finish()]);
 					return { output: result, gpuTime: 0 };
@@ -128,6 +138,13 @@ export async function run() {
 		same('screen layer ignores camera and depth', await render([shape(undefined, {}, { placement: 'screen', depth: 100 })], view({ position: [5, 4], z: 0 })), baseline);
 		same('screen child avoids inherited projection', await render([group([shape(undefined, {}, { placement: 'screen' })], 'preserveDepth', { position: [1, 1], depth: 1 })], view({ position: [5, 4], z: 0 })), baseline);
 		const constant = (name: string, placement = {}): TimelineLayer => ({ ...base, id: 'constant' + nextId++, name, layerType: 'image', clips: [{ ...base.clips[0], assetId: 'unused' }], compositingParamValues: composite(placement) });
+		// 【正方形素材のStretchを、親グループのContainで取り消さない】
+		// Replaceが元テクスチャを借用する場合も、親は子のScene基準の配置を維持する。
+		same('flat groups preserve stretched replace images', await render([group([image(128, 128, () => [255, 0, 0, 255])])]), await render([constant('red')]));
+		// 【画面外へ透明レイヤーを動かしても、静止した背景画像を再クロップしない】
+		// 上下の色を変え、拡張後の横長テクスチャに対するCoverが入り込むと画素比較が失敗する。
+		const stripedBackground = image(128, 64, (_x, y) => y < 16 ? [255, 0, 0, 255] : [0, 0, 255, 255]);
+		same('expanded flat groups preserve background texture sampling', await render([group([constant('transparent', { position: [2, 0] }), stripedBackground])]), await render([stripedBackground]));
 		same('uniform backgrounds stay bounded when flat group bounds expand', await render([group([constant('transparent', { position: [2, 0] }), constant('red', { blendMode: 'replace' })], 'flat', { position: [-2, 0] })]), new Array(baseline.length).fill(0));
 		const blue = shape([0, 0, 1, 1]);
 		same('timeline order wins over Z', await render([shape(undefined, {}, { depth: -1 }), blue]), await render([shape(undefined, {}, { scale: [DEFAULT_CAMERA_DISTANCE / (DEFAULT_CAMERA_DISTANCE + 1), DEFAULT_CAMERA_DISTANCE / (DEFAULT_CAMERA_DISTANCE + 1)] }), shape([0, 0, 1, 1])]));
@@ -140,5 +157,5 @@ export async function run() {
 		const error = await device.popErrorScope();
 		if (error) throw new Error(error.message);
 		return completed;
-	} finally { renderer.clear(); output.dispose(); readback.destroy(); target.destroy(); device.destroy(); }
+	} finally { renderer.clear(); output.dispose(); readback.destroy(); target.destroy(); for (const texture of imageSources.values()) texture.destroy(); device.destroy(); }
 }

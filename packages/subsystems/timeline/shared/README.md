@@ -73,3 +73,5 @@ Scene直下の`camera`レイヤーは`cameraParamValues`にXY・Z・縦画角の
 `affine.ts`・`spatial.ts`・`group-space.ts`は平面の変換・投影・グループ境界を所有する。GPUに依存せず、レンダラーとプレビューの逆変換で同じ規則を使用する。グループの`compositingMode`は`flat`（内部2D合成）または`preserveDepth`（子を投影後にグループ合成）。レイヤーの`placement`は`world`または`screen`で、後者は現在の合成先の親変形・カメラを適用しない。
 
 カメラのキー・式はScene時刻で評価し、クリップの内容オフセットは使用しない。カメラはグループへ入れられず、音声・画素・合成パラメータを持たない。映像合成対象の選択は`isTimelineVisualLayer`で統一する。
+
+`TimelineCameraCuts`は描画と同じカメラ選択規則で、実際に選択が変わる境界だけを計算する。ブラー無効のカメラは基準時刻で有効状態を固定し、最上段の有効な固定カメラごとに結果をキャッシュする。`getTimelineMotionBlurBoundaries()`は通常の映像カットを収集し、カメラは`getTimelineMotionBlurCameraCuts()`で配置ごとのScene時計・トリム範囲と選択計画を保持する。`getTimelineSampleTimes()`へ両方を渡すことで、未採用のカメラに露光を制限されず、子Sceneの固定カメラも配置ごとに解釈できる。計画はプロジェクト変更時に作り直す。

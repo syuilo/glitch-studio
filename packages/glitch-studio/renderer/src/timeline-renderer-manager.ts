@@ -1,7 +1,7 @@
 import { flattenTimelineLayers, findTimelineLayer, findTimelineLayerLocation } from '@gs/subsystems_timeline_shared/layer-tree.ts';
 import { createGroupTimelineLayer } from '@gs/subsystems_timeline_renderer/layers/group/group-timeline-layer.ts';
 import { createSpeechResolver } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox.ts';
-import { validateTimelineFps, validateTimelineMotionBlur, getTimelineMotionBlurBoundaries, getTimelineMotionBlurLoops, getTimelineSampleTimes } from '@gs/subsystems_timeline_shared/motion-blur.ts';
+import { validateTimelineFps, validateTimelineMotionBlur, getTimelineMotionBlurBoundaries, getTimelineMotionBlurCameraCuts, getTimelineMotionBlurLoops, getTimelineSampleTimes } from '@gs/subsystems_timeline_shared/motion-blur.ts';
 import { TimelineFrameRenderer } from '@gs/subsystems_timeline_renderer/timeline-frame-renderer.ts';
 import { createMotionBlurAccumulator } from '@gs/subsystems_timeline_renderer/motion-blur-accumulator.ts';
 import { scaleResolution, type Resolution } from '@gs/shared/resolution.ts';
@@ -39,7 +39,7 @@ import { canPreserveModuleLayerInstance } from './project-change-policy.ts';
 import { TimelineAudioInputs } from './timeline-audio-inputs.ts';
 import type { TimelineTransformObservation, TimelineTransformPreview } from '@gs/glitch-studio_shared/timeline-transform-preview.ts';
 import type { TimelineCompositingObserver } from '@gs/subsystems_timeline_renderer/timeline-compositor.ts';
-import type { TimelineMotionBlurLoop } from '@gs/subsystems_timeline_shared/motion-blur.ts';
+import type { TimelineMotionBlurCameraCuts, TimelineMotionBlurLoop } from '@gs/subsystems_timeline_shared/motion-blur.ts';
 import type { GeneratedSpeech } from '@gs/glitch-studio_shared/voicevox.ts';
 import type { TimelineMotionBlurSettings } from '@gs/subsystems_timeline_shared/motion-blur.ts';
 import type { VisualModuleTarget } from '@gs/glitch-studio_shared/project/visual-module-target.ts';
@@ -108,7 +108,7 @@ export class TimelineRendererManager extends EventEmitter<{
 	private previewRenderGeneration = 0;
 	private frameRenderer: TimelineFrameRenderer<TimelineImage>;
 	private motionBlurAccumulator: ReturnType<typeof createMotionBlurAccumulator> | undefined;
-	private motionBlurTiming: { boundaries: number[]; loops: TimelineMotionBlurLoop[] } | undefined;
+	private motionBlurTiming: { boundaries: number[]; loops: TimelineMotionBlurLoop[]; cameras: TimelineMotionBlurCameraCuts[] } | undefined;
 	private resolveSpeech = createSpeechResolver([]);
 	private nextTimelineLayerStatusId = 0;
 	private previewScheduler = new TimelinePreviewScheduler(time => this.renderPreviewFrame(time));
@@ -492,11 +492,12 @@ export class TimelineRendererManager extends EventEmitter<{
 			this.frameRenderer.cancel();
 			return this.timelineRenderer.renderAt(time, this.getSceneLayers(), initialTimeDelta, isExport);
 		}
-		this.motionBlurTiming ??= this.dynamicOptions.sceneId == null ? { boundaries: [], loops: [] } : {
+		this.motionBlurTiming ??= this.dynamicOptions.sceneId == null ? { boundaries: [], loops: [], cameras: [] } : {
 			boundaries: getTimelineMotionBlurBoundaries(this.dynamicOptions.timelineScenes, this.dynamicOptions.sceneId),
 			loops: getTimelineMotionBlurLoops(this.dynamicOptions.timelineScenes, this.dynamicOptions.sceneId),
+			cameras: getTimelineMotionBlurCameraCuts(this.dynamicOptions.timelineScenes, this.dynamicOptions.sceneId),
 		};
-		const times = getTimelineSampleTimes(time, fps, settings, this.motionBlurTiming.boundaries, this.motionBlurTiming.loops);
+		const times = getTimelineSampleTimes(time, fps, settings, this.motionBlurTiming.boundaries, this.motionBlurTiming.loops, this.motionBlurTiming.cameras);
 		return this.frameRenderer.render(time, times, isExport, initialTimeDelta);
 	}
 

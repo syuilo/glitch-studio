@@ -70,9 +70,10 @@ export async function checkTimelineCompositor(device: GPUDevice, vertex: GPUShad
 		// テクスチャ入力の左右反転と、uniform/texture切り替え時のpipeline更新を確認する。
 		const striped = texture(8, 4, pixels(x => x < 4 ? [255, 0, 0, 255] : [0, 255, 0, 255]));
 		await check('timeline negative scale flips texture source', transparent, striped, { scale: [-1, 1] }, pixels(x => x < 4 ? [0, 255, 0, 255] : [255, 0, 0, 255]));
-		// 異なる比率の背景でも、その背景自身のサイズを使ってcoverする。
+		// 【背景は配置済みのScene画像として読み、素材の比率で再度Coverしない】
+		// 無変形Replaceは素材を借用するため、物理テクスチャの比率がSceneと異なる場合もある。
 		const wideBackground = texture(16, 4, Array.from({ length: 4 }, () => Array.from({ length: 16 }, (_, x) => x >= 4 && x < 12 ? [0, 255, 0, 255] : [255, 0, 0, 255])).flat(2));
-		await check('timeline fits background using its own dimensions', wideBackground, transparent, {}, solid([0, 255, 0, 255]));
+		await check('timeline preserves the full placed background', wideBackground, transparent, {}, pixels(x => x >= 2 && x < 6 ? [0, 255, 0, 255] : [255, 0, 0, 255]));
 		await check('timeline fits source using its own dimensions', transparent, wideBackground, { fitMode: 'cover' }, solid([0, 255, 0, 255]));
 		if (device.features.has('float32-filterable')) {
 			const floatSource = texture(8, 4, solid([0.5, 0, 0, 0.5]), 'rgba32float');

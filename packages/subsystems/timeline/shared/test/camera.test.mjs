@@ -8,9 +8,9 @@ const { projectTimelineMatrix, TIMELINE_IDENTITY, timelineGeometryMatrix, multip
 const { getTimelinePreviewParent } = await loadSource(fileURLToPath(new URL('../src/group-space.ts', import.meta.url)));
 const { TimelineCameraParameters } = await loadSource(fileURLToPath(new URL('../src/layers/camera/camera-parameters.ts', import.meta.url)));
 const evaluator = new TimelineCameraParameters();
-const { TimelineSceneCamera, getActiveTimelineCamera } = await loadSource(fileURLToPath(new URL('../src/scene-camera.ts', import.meta.url)));
+const { TimelineSceneCamera, TimelineCameraCuts, getActiveTimelineCamera } = await loadSource(fileURLToPath(new URL('../src/scene-camera.ts', import.meta.url)));
 const { validateTimelineScenes } = await loadSource(fileURLToPath(new URL('../src/scenes.ts', import.meta.url)));
-const { getTimelineMotionBlurBoundaries, getTimelineSampleTimes } = await loadSource(fileURLToPath(new URL('../src/motion-blur.ts', import.meta.url)));
+const { getTimelineMotionBlurBoundaries, getTimelineMotionBlurCameraCuts, getTimelineSampleTimes } = await loadSource(fileURLToPath(new URL('../src/motion-blur.ts', import.meta.url)));
 const camera = evaluator.evaluate(undefined, 0, false);
 const frame = { width: 1920, height: 1080 };
 const settings = { position: [0, 0], origin: [0, 0], scale: [1, 1], rotation: 0, fitMode: 'contain', placement: 'world', depth: 0 };
@@ -54,11 +54,82 @@ test('evaluates camera animation in scene time with an independent motion blur o
 test('clips motion blur at camera cuts and rejects cameras inside groups', () => {
 	const scene = { id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [cameraLayer('first', 0, 100), cameraLayer('second', 100, 200)] };
 	const boundaries = getTimelineMotionBlurBoundaries([scene], scene.id);
-	assert.deepEqual(boundaries, [0, 100, 300]);
-	const samples = getTimelineSampleTimes(100, 60, { enabled: true, shutterAngle: 360, samples: 8 }, boundaries);
+	const cameras = getTimelineMotionBlurCameraCuts([scene], scene.id);
+	assert.deepEqual(boundaries, [0, 300]);
+	assert.deepEqual(cameras[0].cuts.getBoundaries(100), [0, 100, 300]);
+	const samples = getTimelineSampleTimes(100, 60, { enabled: true, shutterAngle: 360, samples: 8 }, boundaries, [], cameras);
 	assert.ok(samples.every(time => time >= 100));
 	validateTimelineScenes([scene]);
 	assert.throws(() => validateTimelineScenes([{ ...scene, layers: [{ id: 'group', layerType: 'group', layers: scene.layers }] }]), /directly in a Scene/);
+});
+
+// 【上段に隠れたカメラの開始・終了で映像全体のブラーを短くしない】
+// 未採用のカメラを追加しただけで露光が変わる退行を防ぐ。切り替えがない区間では
+// カメラなしの場合と同じサンプル時刻を使い、基準時刻の前後へ均等に露光する。
+test('ignores camera clips hidden behind a higher active camera', () => {
+	const scene = { id: 'scene', layers: [cameraLayer('upper', 0, 1000), cameraLayer('hidden', 100, 100)] };
+	const cameras = getTimelineMotionBlurCameraCuts([scene], scene.id);
+	const boundaries = getTimelineMotionBlurBoundaries([scene], scene.id);
+	const settings = { enabled: true, shutterAngle: 360, samples: 8 };
+	assert.deepEqual(cameras[0].cuts.getBoundaries(100), [0, 1000]);
+	for (const time of [99, 100, 199, 200]) {
+		assert.deepEqual(getTimelineSampleTimes(time, 60, settings, boundaries, [], cameras), getTimelineSampleTimes(time, 60, settings, [0, 1000]));
+	}
+});
+
+// 【優先順位・空白・隣接クリップを、描画時と同じカメラ選択で判定する】
+// カメラが変わる区間は露光を区切る一方、同じレイヤーの連続クリップはScene時計と
+// 設定を共有するためカットにしない。無効なカメラや並べ替えにも同じ規則を適用する。
+test('retains effective camera cuts across gaps and priority changes without splitting adjacent clips', () => {
+	const upper = cameraLayer('upper', 100, 200);
+	const lower = cameraLayer('lower', 0, 500);
+	const disabled = { ...cameraLayer('disabled', 50, 50), isDisabled: true };
+	assert.deepEqual(new TimelineCameraCuts([disabled, upper, lower]).getBoundaries(150), [0, 100, 300, 500]);
+	assert.deepEqual(new TimelineCameraCuts([lower, upper]).getBoundaries(150), [0, 500]);
+	const split = { ...lower, clips: [
+		{ id: 'a', startMs: 0, durationMs: 100 }, { id: 'b', startMs: 100, durationMs: 100 },
+		{ id: 'c', startMs: 300, durationMs: 100 },
+	] };
+	assert.deepEqual(new TimelineCameraCuts([split]).getBoundaries(150), [0, 200, 300, 400]);
+});
+
+// 【ブラー無効のカメラは基準時刻で固定し、その間は下位のカットも無効にする】
+// 固定カメラが開始する直前のフレームでは、その開始後のサンプルでも固定カメラは
+// 無効のままになる。静的な可視区間だけで下位のカットを除くと、そのフレームで二重像になる。
+test('resolves cuts using frozen camera visibility at the frame reference time', () => {
+	const frozen = { ...cameraLayer('frozen', 100, 100), forceDisableMotionBlur: true };
+	const lower = cameraLayer('lower', 102, 48);
+	const cuts = new TimelineCameraCuts([frozen, lower]);
+	assert.deepEqual(cuts.getBoundaries(99), [102, 150]);
+	assert.deepEqual(cuts.getBoundaries(110), []);
+	assert.deepEqual(cuts.getBoundaries(200), [102, 150]);
+	const higher = cameraLayer('higher', 120, 10);
+	assert.deepEqual(new TimelineCameraCuts([higher, frozen, lower]).getBoundaries(110), [120, 130]);
+	const scene = { id: 'scene', layers: [frozen, lower, { layerType: 'image', clips: [{ startMs: 0, durationMs: 1000 }] }] };
+	const boundaries = getTimelineMotionBlurBoundaries([scene], scene.id);
+	const cameras = getTimelineMotionBlurCameraCuts([scene], scene.id);
+	const settings = { enabled: true, shutterAngle: 360, samples: 8 };
+	assert.ok(getTimelineSampleTimes(99, 60, settings, boundaries, [], cameras).every(time => time < 102));
+	assert.deepEqual(getTimelineSampleTimes(110, 60, settings, boundaries, [], cameras), getTimelineSampleTimes(110, 60, settings, boundaries));
+});
+
+// 【同じ子Sceneのカメラを、配置の内容オフセットと固定状態ごとに扱う】
+// 共有するのは選択計画だけで、どの固定カメラが有効かは配置ごとのScene時刻で決まる。
+// 非表示・ブラー無効のScene配置は、他の映像の露光へカットを持ち込まない。
+test('maps child camera cuts through placement offsets and skips frozen or disabled scenes', () => {
+	const child = { id: 'child', layers: [
+		{ ...cameraLayer('frozen', 100, 100), forceDisableMotionBlur: true }, cameraLayer('lower', 102, 48),
+	] };
+	const placement = (id, contentOffsetMs, extra = {}) => ({ id, layerType: 'scene', clips: [{ startMs: 0, durationMs: 1000, sceneId: child.id, contentOffsetMs }], ...extra });
+	const root = { id: 'root', layers: [placement('first', 0), placement('second', 50.25),
+		placement('fixed', 80, { forceDisableMotionBlur: true }), placement('hidden', 80, { isDisabled: true })] };
+	const scenes = [root, child];
+	const cameras = getTimelineMotionBlurCameraCuts(scenes, root.id);
+	assert.equal(cameras.length, 2);
+	const settings = { enabled: true, shutterAngle: 360, samples: 8 };
+	const boundaries = getTimelineMotionBlurBoundaries(scenes, root.id);
+	assert.ok(getTimelineSampleTimes(49, 60, settings, boundaries, [], cameras).every(time => time < 51.75));
+	assert.deepEqual(getTimelineSampleTimes(105, 60, settings, boundaries, [], cameras), getTimelineSampleTimes(105, 60, settings, boundaries));
 });
 
 // 【基準カメラはZ=0の従来の配置を維持する】
@@ -91,6 +162,19 @@ test('evaluates camera expressions and keyframes at scene sample time', () => {
 		} },
 	} }, 500, true);
 	assert.deepEqual(result, { position: [0.5, 0.5], z: 0.5, fieldOfView: 50 });
+});
+
+// 【カメラにも通常レイヤーと共通の式スコープを渡す】
+// 時刻だけを手書きしたスコープでは、共通の環境変数追加時にカメラだけ未定義になる。
+// レイヤー用の検証変数と書き出し状態が、式と環境変数Bindingの両方から読めることを保証する。
+test('uses the shared layer variables for camera expressions and environment bindings', () => {
+	const camera = { automationGraphs: [], paramValues: {
+		position: { inputSource: 'expression', expression: '[TIME, TIME_MS]' },
+		z: { inputSource: 'envVariable', variable: 'TEST_SAME_NAME' },
+		fieldOfView: { inputSource: 'expression', expression: 'if TEST_ONLY_LAYER && IS_EXPORT { 60 } else { 45 }' },
+	} };
+	assert.deepEqual(evaluator.evaluate(camera, 250, true), { position: [0.25, 250], z: 2, fieldOfView: 60 });
+	assert.equal(evaluator.evaluate(camera, 250, false).fieldOfView, 45);
 });
 
 // 【平面化境界より内側のZを無視し、外側のZだけで投影する】

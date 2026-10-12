@@ -56,7 +56,11 @@ export function createTimelineCompositor(options: {
 			// 次のEffectが素材解像度を選べる既存の動作と余分なパスの省略を維持する。
 			if (!fixedBounds && settings.blendMode === 19 && settings.opacity === 1 && !settings.clipToFrame
 				&& matrix && matrix.every((value, index) => Math.abs(value - TIMELINE_IDENTITY[index]) < 1e-12)
-				&& Object.keys(sourceBounds).every(key => sourceBounds[key as keyof TimelineBounds] === outputBounds[key as keyof TimelineBounds])) return source;
+				&& Object.keys(sourceBounds).every(key => sourceBounds[key as keyof TimelineBounds] === outputBounds[key as keyof TimelineBounds])) {
+				// 画素を借用しても配置後の基準枠はSceneへ変わる。素材寸法のまま返すと、
+				// Stretch済みの画像を親グループが再度Fitし、子の配置を失ってしまう。
+				return { ...source, region: { bounds: outputBounds, frameSize: resolution } };
+			}
 			const size = timelineTextureSize(outputBounds, resolution, device.limits.maxTextureDimension2D);
 			if (!texture || texture.width !== size.width || texture.height !== size.height) {
 				texture?.destroy();
@@ -70,7 +74,9 @@ export function createTimelineCompositor(options: {
 				opacity: settings.opacity, blendMode: settings.blendMode, sourceVisible: Number(foregroundBounds != null), clipToFrame: Number(settings.clipToFrame) });
 			device.queue.writeBuffer(buffer, 0, uniforms.arrayBuffer);
 			const variant = pipelines.update({
-				background: toShaderInput(background, { fitMode: background.region ? 'stretch' : 'cover', wrapMode: 'transparent', filterMode: 'linear' }),
+				// 背景は合成先へ配置済み。座標範囲への写像はWGSL側で行うため、
+				// 拡張された描画先の物理寸法でFitし直すと、静止した背景までクロップされる。
+				background: toShaderInput(background, { fitMode: 'stretch', wrapMode: 'transparent', filterMode: 'linear' }),
 				source: toShaderInput(source, { fitMode: 'stretch', wrapMode: 'transparent', filterMode: 'linear' }),
 			}, size);
 			const descriptor: GPURenderPassDescriptor = { colorAttachments: [{ view: texture.createView(), loadOp: 'clear', storeOp: 'store', clearValue: [0, 0, 0, 0] }] };

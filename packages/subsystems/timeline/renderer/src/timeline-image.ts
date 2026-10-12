@@ -3,7 +3,11 @@ import type { UniformOrTexture } from '@gs/shared/gpu/uniform-or-texture.ts';
 import type { Resolution } from '@gs/shared/resolution.ts';
 import type { TimelineBounds } from '@gs/subsystems_timeline_shared/spatial.ts';
 
-/** 素材の基準枠と、その枠の外側を含む実際の画素範囲。GPU共通の値型には持ち込まない。 */
+/**
+ * 素材の基準枠と、その枠の外側を含む実際の画素範囲。GPU共通の値型には持ち込まない。
+ * regionのない素材はテクスチャ寸法を基準とする。合成後は画素を借用する場合も
+ * Scene基準のregionを付け、親や後続レイヤーが素材としてFitし直すことを防ぐ。
+ */
 export type TimelineImage = UniformOrTexture & { region?: { bounds: TimelineBounds; frameSize: Resolution } };
 export function timelineImageBounds(image: TimelineImage): TimelineBounds { return image.region?.bounds ?? TIMELINE_FRAME; }
 export function timelineImageFrame(image: TimelineImage, fallback: Resolution): Resolution {

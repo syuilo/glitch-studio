@@ -14,7 +14,11 @@ export function createSceneOutput(options: { device: GPUDevice; vertex: GPUShade
 		/** ノード入力の画面が既に確定していれば、定数や素材の解像度をそのまま借用する。 */
 		renderInput(encoder: GPUCommandEncoder, output: TimelineImage): TimelineImage {
 			const bounds = timelineImageBounds(output);
-			return bounds.left === -1 && bounds.bottom === -1 && bounds.right === 1 && bounds.top === 1
+			// ノードはTimelineのregionを解釈しない。Stretchで借用した素材など、
+			// 物理寸法の比率がSceneと異なる入力はここで画素へ確定してから渡す。
+			const sameAspectRatio = output.kind !== 'texture'
+				|| output.texture.width * options.resolution.height === output.texture.height * options.resolution.width;
+			return sameAspectRatio && bounds.left === -1 && bounds.bottom === -1 && bounds.right === 1 && bounds.top === 1
 				? output : { kind: 'texture', texture: this.render(encoder, output) };
 		},
 		render(encoder: GPUCommandEncoder, output: TimelineImage): GPUTexture {
