@@ -620,7 +620,9 @@ onBeforeUnmount(() => {
 
 function showEffectPicker(chosen: (definition: EffectDefinition) => void) {
 	disposeEffectPicker?.();
-	const { dispose } = ui.popup(GsEffectPicker, {}, {
+	const { dispose } = ui.popup(GsEffectPicker, {
+		selectedOutputType: 'color',
+	}, {
 		chosen,
 		closed: () => {
 			dispose();

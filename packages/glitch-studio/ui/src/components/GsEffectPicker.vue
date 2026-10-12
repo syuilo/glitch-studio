@@ -84,6 +84,10 @@ import type { EffectTags } from '@gs/subsystems_effect_shared/effect-definition.
 import { i18n } from '@/i18n.ts';
 import { getEffectInputPorts, getEffectOutputPorts } from '@/utility/effect-ports.ts';
 
+const props = defineProps<{
+	selectedOutputType?: TextureDataType['kind'] | null;
+}>();
+
 const emit = defineEmits<{
 	(ev: 'chosen', effect: typeof effectDefinitions[keyof typeof effectDefinitions]): void;
 	(ev: 'closed'): void;
@@ -95,7 +99,7 @@ const searchInput = useTemplateRef('searchInput');
 const query = ref('');
 const selectedTags = ref<EffectTags[]>([]);
 const selectedInputType = ref<TextureDataType['kind'] | null>(null);
-const selectedOutputType = ref<TextureDataType['kind'] | null>(null);
+const selectedOutputType = ref<TextureDataType['kind'] | null>(props.selectedOutputType ?? null);
 const dataTypeItems: { value: TextureDataType['kind'] | null; label: string }[] = [
 	{ value: null, label: i18n.ts._EffectPicker.NoTypeFilter },
 	{ value: 'color', label: i18n.ts._EffectPicker._DataTypes.color },
