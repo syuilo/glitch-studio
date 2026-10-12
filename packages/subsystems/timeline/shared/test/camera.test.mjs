@@ -76,15 +76,41 @@ test('accepts grouped cameras as scene data but rejects their placement during c
 		for (const time of [0, 150, 300]) {
 			assert.throws(() => sceneCamera.evaluate(scene.layers, time, false), /Camera "Nested camera" is inside a Group/);
 		}
-		group.isDisabled = true;
-		nested.isDisabled = true;
-		nested.clips = [];
-		assert.throws(() => sceneCamera.evaluate(scene.layers, 0, true), /inside a Group/);
+		const disabledCamera = { ...nested, isDisabled: true, clips: [] };
+		const disabledGroup = { ...group, isDisabled: true, layers: [disabledCamera] };
+		assert.throws(() => sceneCamera.evaluate([disabledGroup], 0, true), /inside a Group/);
 		// 同じ評価器で修正を受け入れ、古い構成エラーを残さず既定の視点へ戻る。
-		group.layers = [];
-		scene.layers.push(nested);
-		assert.deepEqual(sceneCamera.evaluate(scene.layers, 0, false), camera);
+		assert.deepEqual(sceneCamera.evaluate([{ ...disabledGroup, layers: [] }, disabledCamera], 0, false), camera);
 	}
+});
+
+// 【配置が変わらなければ、成功・エラーのどちらも階層を再検証しない】
+// フレームやブラーのサンプルごとにGroupの子を走査しないことを確認する。
+// 子Sceneの評価器が再生成されても同じ結果を使い、編集後の新しい木だけを再検証する。
+test('reuses camera placement validation across frames and evaluators until the layer tree changes', () => {
+	let childReads = 0;
+	const nested = cameraLayer('Nested camera', 0, 1000);
+	const group = children => ({ layerType: 'group', isDisabled: false, get layers() { childReads++; return children; } });
+	const validLayers = [group([]), nested];
+	const invalidLayers = [group([nested])];
+	const sceneCamera = new TimelineSceneCamera();
+	assert.deepEqual(sceneCamera.evaluate(validLayers, 0, false), camera);
+	const afterFirstFrame = childReads;
+	for (const time of [100, 200]) {
+		assert.deepEqual(sceneCamera.evaluate(validLayers, time, false), camera);
+		assert.deepEqual(new TimelineSceneCamera().evaluate(validLayers, time, true), camera);
+	}
+	assert.equal(childReads, afterFirstFrame);
+	assert.throws(() => sceneCamera.evaluate(invalidLayers, 0, false), /inside a Group/);
+	assert.ok(childReads > afterFirstFrame);
+	const afterInvalidFrame = childReads;
+	for (const time of [100, 200]) {
+		assert.throws(() => sceneCamera.evaluate(invalidLayers, time, false), /inside a Group/);
+		assert.throws(() => new TimelineSceneCamera().evaluate(invalidLayers, time, true), /inside a Group/);
+	}
+	assert.equal(childReads, afterInvalidFrame);
+	assert.deepEqual(sceneCamera.evaluate([group([]), nested], 300, false), camera);
+	assert.ok(childReads > afterInvalidFrame);
 });
 
 // 【上段に隠れたカメラの開始・終了で映像全体のブラーを短くしない】
