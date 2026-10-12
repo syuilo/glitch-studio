@@ -17,17 +17,17 @@
 					</span>
 					<button
 						v-if="isTimelineVisualLayer(layer)"
+						v-tooltip="'Coordinate space: ' + (layer.coordinateSpace === 'world' ? 'In space' : 'On screen')"
 						type="button"
 						class="_button"
 						:class="[$style.layerSwitch, { [$style.active]: layer.coordinateSpace === 'world' }]"
-						:title="'Coordinate space: ' + (layer.coordinateSpace === 'world' ? 'In space' : 'On screen')"
-						aria-label="In space"
-						:aria-pressed="layer.coordinateSpace === 'world'"
 						@click.stop="toggleCoordinateSpace"
 						@dblclick.stop
 						@dragstart.stop.prevent
-					><i class="ti ti-cube" aria-hidden="true"></i></button>
-					<button class="_button" :class="[$style.layerSwitch, { [$style.active]: !layer.isDisabled }]" @click.stop="toggleDisabled"><i :class="layer.isDisabled ? 'ti ti-eye-off' : 'ti ti-eye'"></i></button>
+					>
+						<i :class="layer.coordinateSpace === 'world' ? 'ti ti-cube' : 'ti ti-cube-off'"></i>
+					</button>
+					<button class="_button" :class="[$style.disableButton, { [$style.active]: !layer.isDisabled }]" @click.stop="toggleDisabled"><i :class="layer.isDisabled ? 'ti ti-eye-off' : 'ti ti-eye'"></i></button>
 				</div>
 			</div>
 		</div>
@@ -356,7 +356,6 @@ function timeToDomX(time: number): number { return timelineTimeToX(time, props.t
 .colorBar {
 	width: 3px;
 	flex-shrink: 0;
-	margin-right: 4px;
 	background: var(--LAYER_COLOR);
 
 	&.parentColorBar {
@@ -411,7 +410,7 @@ function timeToDomX(time: number): number { return timelineTimeToX(time, props.t
 
 .grabber {
 	display: grid;
-	padding: 4px 4px;
+	padding: 4px 2px 4px 8px;
 	box-sizing: border-box;
 	height: var(--mainLaneHeight);
 	cursor: move;
@@ -437,12 +436,27 @@ function timeToDomX(time: number): number { return timelineTimeToX(time, props.t
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	width: var(--mainLaneHeight);
 	height: var(--mainLaneHeight);
-	color: #fff;
+	padding: 0 6px 0 0;
 }
 
 .layerSwitch {
+	display: flex;
+	flex-shrink: 0;
+	align-items: center;
+	justify-content: center;
+	width: var(--mainLaneHeight);
+	height: var(--mainLaneHeight);
+	margin-left: 4px;
+	font-size: 90%;
+	color: #fff4;
+
+	&.active {
+		color: var(--THEME-accent);
+	}
+}
+
+.disableButton {
 	display: flex;
 	flex-shrink: 0;
 	align-items: center;
