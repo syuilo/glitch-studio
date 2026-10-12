@@ -22,7 +22,9 @@ export function createGroupTimelineLayer(getGroup: () => TimelineGroupLayer, opt
 	return {
 		async evaluate(context, signal) {
 			const group = getGroup();
-			const result = await renderer.evaluateAt(context.sceneTimeMs, group.layers.filter(layer => layer.layerType !== 'audio'), context.timeDelta, context.isExport, signal);
+			// 親が固定した評価時刻を配下にも使い、子自身の無効化用には元の基準時刻を保持する。
+			const referenceTime = context.referenceTime && { timeMs: context.referenceTime.sceneTimeMs, timeDelta: context.referenceTime.timeDelta };
+			const result = await renderer.evaluateAt(context.sceneTimeMs, group.layers.filter(layer => layer.layerType !== 'audio'), context.timeDelta, context.isExport, signal, referenceTime);
 			if (!result || signal.aborted) return { gpuTime: 0 };
 			// 空白区間と、有効な子が返す透明画像は異なる。後者ではreplaceも実行する。
 			if (!result.hasOutput) return { gpuTime: result.gpuTime };

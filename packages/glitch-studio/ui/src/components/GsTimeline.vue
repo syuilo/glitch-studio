@@ -405,7 +405,7 @@ const canGroupSelection = computed(() => {
 function addEmptyGroup() {
 	const id = genId();
 	stateManager.commit('groupTimelineLayers', { sceneId: props.sceneId, layerIds: [], group: {
-		id, name: 'Group', layerType: 'group', layers: [], isDisabled: false, automationGraphs: [],
+		id, name: 'Group', layerType: 'group', layers: [], isDisabled: false, forceDisableMotionBlur: false, automationGraphs: [],
 		compositingParamValues: initialCompositingParameters(), audioParamValues: { volume: deepClone(timelineAudioParamDefs.volume.defaultValue) },
 	} });
 	selection.value = { kind: 'layers', ids: [id] };
@@ -415,7 +415,7 @@ function groupSelection() {
 	if (!canGroupSelection.value || selection.value.kind !== 'layers') return;
 	const id = genId();
 	stateManager.commit('groupTimelineLayers', { sceneId: props.sceneId, layerIds: [...selection.value.ids], group: {
-		id, name: 'Group', layerType: 'group', layers: [], isDisabled: false, automationGraphs: [],
+		id, name: 'Group', layerType: 'group', layers: [], isDisabled: false, forceDisableMotionBlur: false, automationGraphs: [],
 		compositingParamValues: initialCompositingParameters(), audioParamValues: { volume: deepClone(timelineAudioParamDefs.volume.defaultValue) },
 	} });
 	selection.value = { kind: 'layers', ids: [id] };

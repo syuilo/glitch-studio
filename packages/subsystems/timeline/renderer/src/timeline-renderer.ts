@@ -4,13 +4,18 @@ import { getTimelineMediaSourceTime } from '@gs/subsystems_timeline_shared/media
 
 // 制御に必要なID・期間・有効状態だけを要求し、レイヤー固有のデータは生成関数にそのまま渡す。
 // clipsの省略は同じ時計を使うコンテナ。空配列はクリップのない通常レイヤーを表す。
-export type TimelineRenderEntry = { id: string; clips?: readonly TimelineClip[]; isDisabled: boolean };
+export type TimelineRenderEntry = { id: string; clips?: readonly TimelineClip[]; isDisabled: boolean; forceDisableMotionBlur?: boolean };
+
+/** 露光が境界で短縮されても、フレーム本来の時刻と経過時間を保持する。 */
+export type TimelineFrameReferenceTime = { timeMs: number; timeDelta: number };
 
 export type TimelineLayerContext<Output> = {
 	isExport: boolean;
 	/** レイヤー設定・キーは所属Scene上、素材・モジュールは内容時刻で評価する。 */
 	sceneTimeMs: number;
 	contentTimeMs: number;
+	/** 子Sceneでは内容時刻へ変換して渡す。サンプル時刻を新しい基準時刻にしない。 */
+	referenceTime?: { sceneTimeMs: number; contentTimeMs: number; timeDelta: number };
 	clipElapsedTimeMs: number;
 	clipDurationMs: number;
 	contentEndTimeMs: number;
@@ -72,7 +77,7 @@ export class TimelineRenderer<Output, Entry extends TimelineRenderEntry = Timeli
 	}
 
 	/** 子Sceneも同じ評価を使い、Canvasへの表示は最上位だけで行う。 */
-	public async evaluateAt(time: number, timeline: readonly Entry[], timeDelta = 0, isExport = false, parentSignal?: AbortSignal): Promise<{ output: Output; gpuTime: number; hasOutput: boolean } | undefined> {
+	public async evaluateAt(time: number, timeline: readonly Entry[], timeDelta = 0, isExport = false, parentSignal?: AbortSignal, referenceTime?: TimelineFrameReferenceTime): Promise<{ output: Output; gpuTime: number; hasOutput: boolean } | undefined> {
 		this.controller?.abort();
 		const controller = new AbortController();
 		this.controller = controller;
@@ -84,18 +89,20 @@ export class TimelineRenderer<Output, Entry extends TimelineRenderEntry = Timeli
 			if (isCancelled()) return;
 			// 配列は先頭が最上層の表示順。下層の合成結果を上層へ渡すため、描画は逆順に行う。
 			// 終端を含めず、隣接するレイヤーを境界で重ねない。
-			const visibleEntries = timeline.flatMap<{ entry: Entry; clip: TimelineClip | null; instanceKey: string }>(entry => {
+			const visibleEntries = timeline.flatMap<{ entry: Entry; clip: TimelineClip | null; instanceKey: string; time: number }>(entry => {
 				// 無効なレイヤーは区間外と同様に扱い、履歴・メディア・子Sceneのリソースも解放する。
 				if (entry.isDisabled) return [];
-				if (!entry.clips) return [{ entry, clip: null, instanceKey: JSON.stringify([entry.id, null]) }];
-				const clip = entry.clips.find(clip => isTimelineClipActive(clip, time));
-				return clip ? [{ entry, clip, instanceKey: JSON.stringify([entry.id, clip.id]) }] : [];
+				// 内容だけでなく表示クリップも固定し、露光が開始・終了を跨いでも残像を出さない。
+				const evaluationTime = entry.forceDisableMotionBlur && referenceTime ? referenceTime.timeMs : time;
+				if (!entry.clips) return [{ entry, clip: null, instanceKey: JSON.stringify([entry.id, null]), time: evaluationTime }];
+				const clip = entry.clips.find(clip => isTimelineClipActive(clip, evaluationTime));
+				return clip ? [{ entry, clip, instanceKey: JSON.stringify([entry.id, clip.id]), time: evaluationTime }] : [];
 			}).reverse();
 			// 現時点では表示するレイヤーだけを評価する。事前評価を追加するときは、
 			// 必要な下層も含む評価対象をここで決め、表示判定とは独立して寿命を管理する。
 			const evaluationEntries = visibleEntries;
 			this.releaseUnusedLayers(new Set(evaluationEntries.map(entry => entry.instanceKey)));
-			const result = await this.evaluateLayers(time, evaluationEntries, timeDelta, isExport, controller.signal);
+			const result = await this.evaluateLayers(evaluationEntries, timeDelta, isExport, controller.signal, referenceTime);
 			if (result == null || isCancelled()) return;
 			// レイヤーがない場合も透明な出力を表示し、前回の表示を残さない。
 			return result;
@@ -117,11 +124,11 @@ export class TimelineRenderer<Output, Entry extends TimelineRenderEntry = Timeli
 	}
 
 	/** 表示範囲の判定やpresentは行わず、指定された対象を内容時刻で評価・合成する。 */
-	private async evaluateLayers(time: number, entries: readonly { entry: Entry; clip: TimelineClip | null; instanceKey: string }[], timeDelta: number, isExport: boolean, signal: AbortSignal) {
+	private async evaluateLayers(entries: readonly { entry: Entry; clip: TimelineClip | null; instanceKey: string; time: number }[], timeDelta: number, isExport: boolean, signal: AbortSignal, referenceTime?: TimelineFrameReferenceTime) {
 		let output = this.options.fallbackOutput;
 		let gpuTime = 0;
 		let hasOutput = false;
-		for (const { entry, clip, instanceKey } of entries) {
+		for (const { entry, clip, instanceKey, time } of entries) {
 			// IDはレイヤー内だけで一意。同じモジュール・子Sceneの隣接クリップも別の履歴を持つ。
 			let layer = this.layers.get(instanceKey);
 			const version = this.options.getLayerVersion?.(entry, clip?.id ?? null);
@@ -136,13 +143,16 @@ export class TimelineRenderer<Output, Entry extends TimelineRenderEntry = Timeli
 				this.layers.set(instanceKey, layer);
 			}
 			let contentTimeMs = time;
+			let referenceContentTimeMs = referenceTime?.timeMs ?? time;
 			let contentEndTimeMs = 0;
 			if (clip) {
 				if ('sourceInMs' in clip) {
 					contentTimeMs = getTimelineMediaSourceTime(clip, time);
+					referenceContentTimeMs = getTimelineMediaSourceTime(clip, referenceContentTimeMs);
 					contentEndTimeMs = clip.playbackRate > 0 ? clip.sourceOutMs : clip.sourceInMs;
 				} else {
 					contentTimeMs = getTimelineClipContentTime(clip, time);
+					referenceContentTimeMs = getTimelineClipContentTime(clip, referenceContentTimeMs);
 					contentEndTimeMs = clip.contentOffsetMs + clip.durationMs;
 				}
 			}
@@ -150,10 +160,11 @@ export class TimelineRenderer<Output, Entry extends TimelineRenderEntry = Timeli
 				isExport,
 				sceneTimeMs: time,
 				contentTimeMs,
+				referenceTime: referenceTime && { sceneTimeMs: referenceTime.timeMs, contentTimeMs: referenceContentTimeMs, timeDelta: referenceTime.timeDelta },
 				clipElapsedTimeMs: clip ? time - clip.startMs : 0,
 				clipDurationMs: clip?.durationMs ?? 0,
 				// 新規レイヤーには履歴がない。途中からの書き出しでも過去のフレームは再現しない。
-				timeDelta: isNewLayer ? 0 : timeDelta,
+				timeDelta: isNewLayer ? 0 : entry.forceDisableMotionBlur && referenceTime ? referenceTime.timeDelta : timeDelta,
 				// 終端は内容の座標系、進行率は表示区間で定義する。TIME / END_TIMEでは求められない。
 				contentEndTimeMs,
 				input: output,

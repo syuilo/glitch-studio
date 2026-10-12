@@ -11,6 +11,7 @@ export function createShapeTimelineLayer(type: ShapeType, startMs: number): Time
 		id: genId(), name: shapeDefinitions[type].label, layerType: 'shape', shape: createShape(type),
 		isDisabled: false, automationGraphs: [],
 		clips: [{ id: genId(), ...createTimelineClipTiming(startMs, 5000) }],
+		forceDisableMotionBlur: false,
 		compositingParamValues: {
 			fitMode: deepClone(timelineCompositingParamDefs.fitMode.defaultValue),
 			blendMode: deepClone(timelineCompositingParamDefs.blendMode.defaultValue),

@@ -8,6 +8,7 @@ export function createImageLayer(assetId: string, startMs: number, name = 'Image
 	return {
 		id: genId(), name, layerType: 'image',
 		isDisabled: false,
+		forceDisableMotionBlur: false,
 		clips: [{ id: genId(), assetId, ...createTimelineClipTiming(startMs, 5000) }],
 		automationGraphs: [],
 		compositingParamValues: deepClone({

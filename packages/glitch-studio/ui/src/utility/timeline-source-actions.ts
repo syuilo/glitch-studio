@@ -154,10 +154,10 @@ export function createTimelineSourceActions(options: TimelineSourceActionsOption
 		const audioParamValues = { volume: deepClone(timelineAudioParamDefs.volume.defaultValue) };
 		const compositingParamValues = initialCompositingParameters();
 		let layer: TimelineLayer;
-		if (layerType === 'scene' && source.kind === 'scene') layer = { ...base, layerType, clips: [{ ...clip, sceneId: source.scene.id }], audioParamValues, compositingParamValues };
-		else if (source.kind === 'asset' && layerType === 'image') layer = { ...base, layerType, clips: [{ ...clip, assetId: source.asset.id }], compositingParamValues };
+		if (layerType === 'scene' && source.kind === 'scene') layer = { ...base, layerType, clips: [{ ...clip, sceneId: source.scene.id }], audioParamValues, compositingParamValues, forceDisableMotionBlur: false };
+		else if (source.kind === 'asset' && layerType === 'image') layer = { ...base, layerType, clips: [{ ...clip, assetId: source.asset.id }], compositingParamValues, forceDisableMotionBlur: false };
 		else if (source.kind === 'asset' && layerType === 'audio') layer = { ...base, layerType, clips: [{ id: clip.id, ...createTimelineMediaClipTiming(clip.startMs, clip.durationMs), assetId: source.asset.id }], audioParamValues };
-		else if (source.kind === 'asset' && layerType === 'video') layer = { ...base, layerType, clips: [{ id: clip.id, ...createTimelineMediaClipTiming(clip.startMs, clip.durationMs), assetId: source.asset.id, audioEnabled: !!source.media?.audioAvailable }], audioParamValues, compositingParamValues };
+		else if (source.kind === 'asset' && layerType === 'video') layer = { ...base, layerType, clips: [{ id: clip.id, ...createTimelineMediaClipTiming(clip.startMs, clip.durationMs), assetId: source.asset.id, audioEnabled: !!source.media?.audioAvailable }], audioParamValues, compositingParamValues, forceDisableMotionBlur: false };
 		else return;
 		stateManager.commit('addTimelineLayer', { sceneId: scene.id, layer, sourceDurationsMs: sourceDurationMs == null ? undefined : { [layer.id]: { [clip.id]: sourceDurationMs } } });
 		selectClip({ layerId: layer.id, clipId: clip.id });
@@ -171,6 +171,7 @@ export function createTimelineSourceActions(options: TimelineSourceActionsOption
 		const layer: TimelineLayer = {
 			id: genId(), name: visualModule.name,
 			layerType: 'visualModule',
+			forceDisableMotionBlur: false,
 			isDisabled: false,
 			visualModuleId: visualModule.id,
 			clips: [{ id: genId(), ...createTimelineClipTiming(Math.max(0, time.value), 5000) }],

@@ -82,6 +82,12 @@
 		<GsFolder v-if="layer.layerType !== 'audio'" :asSection="true" defaultOpen :withSpacer="false">
 			<template #icon><i class="ti ti-layers-selected"></i></template>
 			<template #label>Compositing</template>
+			<div class="_spacer">
+				<GsSwitch :modelValue="layer.forceDisableMotionBlur" @update:modelValue="forceDisableMotionBlur => stateManager.commit('setTimelineLayerMotionBlurDisabled', { sceneId, layerId: layer.id, forceDisableMotionBlur })">
+					Disable motion blur
+					<template #caption>Overrides project motion blur for this layer, including its group or scene contents. Motion from a parent group or scene layer can still cause blur.</template>
+				</GsSwitch>
+			</div>
 			<div style="padding: 8px 0;">
 				<GsVisualParam
 					v-for="(paramDef, paramId) in timelineCompositingParamDefs"
@@ -145,6 +151,7 @@ import { appContext } from '@/app.ts';
 import GsButton from './common/GsButton.vue';
 import GsFolder from './common/GsFolder.vue';
 import GsInput from './common/GsInput.vue';
+import GsSwitch from './common/GsSwitch.vue';
 import GsVisualParam from './GsVisualParam.vue';
 import GsVisualModuleEditor from './GsVisualModuleEditor.vue';
 import GsTimelineEffectSettings from './GsTimeline.EffectSettings.vue';

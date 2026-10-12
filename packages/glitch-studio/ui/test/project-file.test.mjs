@@ -322,6 +322,45 @@ test('persists disabled layers and refreshes the paused preview on visibility ed
 	assert.equal(timeline.options.timelineScenes[0].layers[0].isDisabled, true);
 });
 
+// 【ブラーの強制無効を保存・復元し、停止中のプレビューにも即時反映する】
+// プロジェクト全体のブラーとは別のレイヤー設定として保持し、Undo・Redoや保存し直しで
+// 消えないことを確認する。初期値falseはプロジェクト設定へ従うことを表す。
+test('persists layer motion blur overrides and refreshes paused previews through undo and redo', async t => {
+	const window = setup(t);
+	const app = evaluate(appBundle);
+	const { appContext } = app;
+	await app.newProject();
+	const manager = appContext.projectContext.stateManager;
+	const scene = manager.state.timelineScenes.value[0];
+	const layer = scene.layers[0];
+	assert.equal(layer.forceDisableMotionBlur, false);
+	const timeline = appContext.timelineRendererManagerController;
+	appContext.previewPlayback.seekTimeline(500);
+	timeline.renders.length = 0;
+	manager.commit('setTimelineLayerMotionBlurDisabled', { sceneId: scene.id, layerId: layer.id, forceDisableMotionBlur: true });
+	await nextTick();
+	await setImmediate();
+	assert.equal(timeline.options.timelineScenes[0].layers[0].forceDisableMotionBlur, true);
+	assert.ok(timeline.renders.length > 0);
+	manager.undo();
+	await nextTick();
+	await setImmediate();
+	assert.equal(timeline.options.timelineScenes[0].layers[0].forceDisableMotionBlur, false);
+	manager.redo();
+	await nextTick();
+	await setImmediate();
+	assert.equal(timeline.options.timelineScenes[0].layers[0].forceDisableMotionBlur, true);
+	const handle = fileHandle('motion-blur-layer.gsproj');
+	window.selectProjectSaveFile = async () => handle;
+	await appContext.saveProject();
+	assert.equal(decodeProjectFile(handle.bytes).timelineScenes[0].layers[0].forceDisableMotionBlur, true);
+	await app.newProject();
+	window.showOpenFilePicker = async () => [handle];
+	assert.equal(await app.openProject(), true);
+	assert.equal(manager.state.timelineScenes.value[0].layers[0].forceDisableMotionBlur, true);
+	assert.equal(timeline.options.timelineScenes[0].layers[0].forceDisableMotionBlur, true);
+});
+
 // 【初回生成からプロジェクトのfps・ブラー設定とプレビュー既定の0サンプルを使う】
 // プレビューのブラーは既定でオフにし、保存された書き出し用サンプル数は維持する。
 // 初期化後にwatchで設定を変えると、初回表示が遅れ、読込中の動的更新も中断される。

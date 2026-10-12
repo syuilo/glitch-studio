@@ -3,11 +3,40 @@ import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { loadSource } from './helpers/load-source.mjs';
 
-const { getTimelineMotionBlurBoundaries, getTimelineSampleTimes, validateTimelineFps, validateTimelineMotionBlur } = await loadSource(fileURLToPath(new URL('../src/motion-blur.ts', import.meta.url)));
+const { getTimelineMotionBlurBoundaries, getTimelineMotionBlurLoops, getTimelineSampleTimes, validateTimelineFps, validateTimelineMotionBlur } = await loadSource(fileURLToPath(new URL('../src/motion-blur.ts', import.meta.url)));
 const { findTimelineHistoryEffects } = await loadSource(fileURLToPath(new URL('../src/render-history-effects.ts', import.meta.url)));
 const settings = { enabled: true, shutterAngle: 180, samples: 8 };
 const clip = (startMs, durationMs, extra = {}) => ({ startMs, durationMs, contentOffsetMs: 0, ...extra });
 const scene = (id, layers) => ({ id, layers });
+
+// 【ブラーを固定する枝のカット・ループ境界は他のレイヤーの露光を制限しない】
+// 非表示とは異なり描画自体は続くが、クリップの選択も基準時刻で固定される。
+// グループの子孫と子Scene参照を除外しつつ、同じ子Sceneの通常配置は境界を維持する。
+test('excludes frozen layers and subtrees from cuts and loops without changing shared scene definitions', () => {
+	const frozenImage = { layerType: 'image', forceDisableMotionBlur: true, clips: [clip(100, 100)] };
+	const frozenGroup = { layerType: 'group', forceDisableMotionBlur: true, layers: [
+		{ layerType: 'image', forceDisableMotionBlur: false, clips: [clip(300, 100)] },
+	] };
+	const scenes = [scene('root', [
+		{ layerType: 'image', forceDisableMotionBlur: false, clips: [clip(0, 2000)] }, frozenImage, frozenGroup,
+		{ layerType: 'scene', forceDisableMotionBlur: true, clips: [clip(500, 400, { sceneId: 'child', contentOffsetMs: 50 })] },
+		{ layerType: 'scene', forceDisableMotionBlur: false, clips: [clip(1000, 400, { sceneId: 'child', contentOffsetMs: 50 })] },
+	]), scene('child', [
+		{ layerType: 'image', forceDisableMotionBlur: false, clips: [clip(100, 200)] },
+		{ layerType: 'video', forceDisableMotionBlur: false, clips: [{ startMs: 200, durationMs: 400, sourceInMs: 0, sourceOutMs: 50, playbackRate: 1, loop: true }] },
+	])];
+	assert.deepEqual(getTimelineMotionBlurBoundaries(scenes, 'root'), [0, 1000, 1050, 1150, 1250, 1400, 2000]);
+	assert.deepEqual(getTimelineMotionBlurLoops(scenes, 'root'), [{ startMs: 1150, endMs: 1400, loopStartMs: 1150, loopDurationMs: 50 }]);
+	assert.deepEqual(getTimelineMotionBlurBoundaries(scenes, 'child'), [0, 100, 200, 300, 600]);
+	const samples = getTimelineSampleTimes(100, 50, settings, getTimelineMotionBlurBoundaries(scenes, 'root'));
+	assert.ok(samples[0] < 100 && samples.at(-1) > 100);
+	frozenImage.forceDisableMotionBlur = false;
+	assert.deepEqual(getTimelineMotionBlurBoundaries(scenes, 'root'), [0, 100, 200, 1000, 1050, 1150, 1250, 1400, 2000]);
+	frozenGroup.forceDisableMotionBlur = false;
+	assert.ok(getTimelineMotionBlurBoundaries(scenes, 'root').includes(300));
+	scenes[1].layers[1].forceDisableMotionBlur = true;
+	assert.deepEqual(getTimelineMotionBlurLoops(scenes, 'root'), []);
+});
 
 // 【子Sceneの境界を内容オフセットで変換し、音声とトリム区間外の境界を除外する】
 // 異なる位置に配置した同じ子Sceneが、他の配置の境界や素材の未使用範囲に影響されないことを保証する。

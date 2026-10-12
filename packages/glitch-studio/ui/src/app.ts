@@ -121,6 +121,7 @@ export async function newProject() {
 			isDisabled: false,
 			visualModuleId: initialVisualModule.id,
 			visualModuleParamValues: {},
+			forceDisableMotionBlur: false,
 			compositingParamValues: deepClone({
 				fitMode: timelineCompositingParamDefs.fitMode.defaultValue,
 				blendMode: timelineCompositingParamDefs.blendMode.defaultValue,
@@ -255,6 +256,7 @@ export async function newProjectFromImageOrVideo(file?: File) {
 			isDisabled: false,
 			visualModuleId: initialVisualModule.id,
 			visualModuleParamValues: {},
+			forceDisableMotionBlur: false,
 			compositingParamValues: deepClone({
 				fitMode: timelineCompositingParamDefs.fitMode.defaultValue,
 				blendMode: timelineCompositingParamDefs.blendMode.defaultValue,

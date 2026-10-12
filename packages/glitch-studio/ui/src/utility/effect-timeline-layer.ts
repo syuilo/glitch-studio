@@ -13,6 +13,7 @@ export function createEffectTimelineLayer(definition: EffectDefinition, startMs:
 		clips: [{ id: genId(), ...createTimelineClipTiming(startMs, 5000) }],
 		resolution: { mode: 'auto' }, automationGraphs: [],
 		effectParamValues: Object.fromEntries(Object.keys(definition.paramDefs).map(key => [key, getEffectLayerParameterDefault(definition, key)])),
+		forceDisableMotionBlur: false,
 		compositingParamValues: {
 			fitMode: deepClone(timelineCompositingParamDefs.fitMode.defaultValue),
 			blendMode: { inputSource: 'literal', value: definition.kind === 'modify' ? 'replace' : 'normal' },

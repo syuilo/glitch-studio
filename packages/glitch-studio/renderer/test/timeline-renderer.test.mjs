@@ -9,6 +9,46 @@ const entry = (id, positionMs = 0, endTimeMs = 1000, type = 'test') => ({
 	id, isDisabled: false, clips: [{ id: 'clip', startMs: positionMs, contentOffsetMs: 0, durationMs: endTimeMs - positionMs }], layer: { type },
 });
 
+// 【固定レイヤーの内容と表示区間を基準時刻に揃え、下層入力だけは各サンプルで更新する】
+// クリップ終端を跨ぐ露光でも前後のクリップを混ぜず、固定済みの合成画像を再利用して
+// 動く下層まで止めてしまう実装を防ぐ。プレビューと書き出しは同じ評価経路を使う。
+test('freezes clip selection and local time while consuming each sampled background', async () => {
+	for (const isExport of [false, true]) {
+		const calls = [];
+		const renderer = new TimelineRenderer({ fallbackOutput: 'transparent', createLayer: (layer, clipId) => ({
+			async evaluate(context) {
+				calls.push({ id: layer.id, clipId, ...context });
+				return { output: `${layer.id}@${context.sceneTimeMs}`, gpuTime: 0 };
+			}, destroy() {},
+		}) });
+		const foreground = { ...entry('foreground'), forceDisableMotionBlur: true, clips: [
+			{ id: 'before', startMs: 100, durationMs: 100, contentOffsetMs: 30 },
+			{ id: 'after', startMs: 200, durationMs: 100, contentOffsetMs: 0 },
+		] };
+		const layers = [foreground, entry('background')];
+		for (const sample of [196, 202]) await renderer.evaluateAt(sample, layers, 6, isExport, undefined, { timeMs: 199, timeDelta: 0 });
+		const fixed = calls.filter(call => call.id === 'foreground');
+		assert.deepEqual(fixed.map(call => [call.clipId, call.sceneTimeMs, call.contentTimeMs, call.clipElapsedTimeMs, call.input]), [
+			['before', 199, 129, 99, 'background@196'], ['before', 199, 129, 99, 'background@202'],
+		]);
+		calls.length = 0;
+		await renderer.evaluateAt(196, layers, 6, isExport, undefined, { timeMs: 200, timeDelta: 1 });
+		assert.equal(calls.at(-1).clipId, 'after');
+		for (const [reference, sample] of [[99, 101], [300, 298]]) {
+			calls.length = 0;
+			await renderer.evaluateAt(sample, layers, 0, isExport, undefined, { timeMs: reference, timeDelta: 0 });
+			assert.deepEqual(calls.map(call => call.id), ['background']);
+		}
+		// 単発描画ではプロジェクトのブラー無効時と同じ時刻・経過時間の契約を維持する。
+		calls.length = 0;
+		await renderer.evaluateAt(150, layers, 0, isExport);
+		await renderer.evaluateAt(160, layers, 10, isExport);
+		assert.equal(calls.at(-1).sceneTimeMs, 160);
+		assert.equal(calls.at(-1).timeDelta, 10);
+		renderer.clear();
+	}
+});
+
 // 【非表示レイヤーを評価せず、下層の合成結果をそのまま上層へ渡す】
 // opacityを0にするだけではreplace合成で背景が消えたり、不要な素材読み出しが発生する。
 // 書き出しでも同じ判定を使い、全レイヤー非表示時は前回の表示を残さない。

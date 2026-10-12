@@ -12,6 +12,7 @@ export function createVoicevoxTimelineLayer(startMs: number): TimelineVoicevoxLa
 		voicevox: { speedScale: 1 }, utterances: [],
 		audioParamValues: { volume: { inputSource: 'literal', value: 1 } },
 		clips: [{ id: genId(), ...createTimelineClipTiming(startMs, 5000) }],
+		forceDisableMotionBlur: false,
 		compositingParamValues: {
 			fitMode: deepClone(timelineCompositingParamDefs.fitMode.defaultValue),
 			blendMode: deepClone(timelineCompositingParamDefs.blendMode.defaultValue),

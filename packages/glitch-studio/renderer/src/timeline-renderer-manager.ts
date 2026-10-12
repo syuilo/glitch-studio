@@ -197,7 +197,7 @@ export class TimelineRendererManager extends EventEmitter<{
 			},
 		});
 		this.frameRenderer = new TimelineFrameRenderer({
-			evaluate: (time, delta, isExport, signal) => this.timelineRenderer.evaluateAt(time, this.getSceneLayers(), delta, isExport, signal),
+			evaluate: (time, delta, isExport, signal, referenceTime) => this.timelineRenderer.evaluateAt(time, this.getSceneLayers(), delta, isExport, signal, referenceTime),
 			accumulate: (output, index) => {
 				this.motionBlurAccumulator ??= createMotionBlurAccumulator({
 					device: this.gpuDevice,
@@ -486,7 +486,7 @@ export class TimelineRendererManager extends EventEmitter<{
 			loops: getTimelineMotionBlurLoops(this.dynamicOptions.timelineScenes, this.dynamicOptions.sceneId),
 		};
 		const times = getTimelineSampleTimes(time, fps, settings, this.motionBlurTiming.boundaries, this.motionBlurTiming.loops);
-		return this.frameRenderer.render(times, isExport, initialTimeDelta);
+		return this.frameRenderer.render(time, times, isExport, initialTimeDelta);
 	}
 
 	private get renderResolution(): Resolution {

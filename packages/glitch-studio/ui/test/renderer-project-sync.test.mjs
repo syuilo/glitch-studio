@@ -53,6 +53,39 @@ function fixture(t, count = 1, overrides = {}) {
 	return { manager, sync, target, batches, snapshots, errors, value: () => value(replica), get replica() { return replica; } };
 }
 
+// 【ブラー無効化をレイヤー差分として同期し、Undo・Redoでも子の保存値を変更しない】
+// グループの配下への適用は描画時の規則であり、子のbooleanを書き換えるとグループ解除や
+// 別配置で元の設定へ戻れない。音声レイヤーには映像専用の設定を持ち込まない。
+test('synchronizes motion blur overrides through undo and redo without mutating descendants', async t => {
+	const f = fixture(t);
+	f.manager.state.assets.value = [{ id: 'asset', name: 'Image', fileDataType: 'image/png', fileData: new Blob([], { type: 'image/png' }) }];
+	const child = createImageLayer('asset', 0);
+	assert.equal(child.forceDisableMotionBlur, false);
+	const group = { id: 'group', name: 'Group', layerType: 'group', layers: [child], isDisabled: false,
+		forceDisableMotionBlur: false, automationGraphs: [], compositingParamValues: {}, audioParamValues: { volume: { inputSource: 'literal', value: 1 } } };
+	f.manager.commit('addTimelineLayer', { sceneId: 'scene', layer: child });
+	f.manager.commit('groupTimelineLayers', { sceneId: 'scene', layerIds: [child.id], group: { ...group, layers: [] } });
+	await f.sync.flush();
+	for (const layerId of [child.id, group.id]) {
+		f.manager.commit('setTimelineLayerMotionBlurDisabled', { sceneId: 'scene', layerId, forceDisableMotionBlur: true });
+		await f.sync.flush();
+		assert.deepEqual(f.batches.at(-1)[0].changes, [{ type: 'motionBlur' }]);
+		assert.equal(f.batches.at(-1)[0].layer.forceDisableMotionBlur, true);
+		f.manager.undo();
+		await f.sync.flush();
+		assert.equal(f.batches.at(-1)[0].layer.forceDisableMotionBlur, false);
+		f.manager.redo();
+		await f.sync.flush();
+		assert.equal(f.batches.at(-1)[0].layer.forceDisableMotionBlur, true);
+		f.manager.undo();
+		await f.sync.flush();
+	}
+	assert.equal(f.manager.state.timelineScenes.value[0].layers[0].layers[0].forceDisableMotionBlur, false);
+	f.manager.state.timelineScenes.value[0].layers.push({ id: 'audio', layerType: 'audio' });
+	assert.throws(() => f.manager.commit('setTimelineLayerMotionBlurDisabled', { sceneId: 'scene', layerId: 'audio', forceDisableMotionBlur: true }), /visual layer/);
+	assert.deepEqual(f.errors, []);
+});
+
 // 【プロジェクトのノード数を増やしても、通常編集の送信量は変更ノード一つ分に収まる】
 // deep watchで全Moduleを複製する経路が復活しないことを、実際の送信データで確認する。
 // 配列内の末端値も、履歴のマージ・Undo・Redoを含めて確定値と編集内容の通知が一致する必要がある。

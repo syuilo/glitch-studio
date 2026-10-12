@@ -37,7 +37,9 @@ export function createSceneTimelineLayer(
 	return {
 		evaluate: async (context, signal) => {
 			const scene = typeof sceneSource === 'function' ? sceneSource() : sceneSource;
-			const result = await renderer.evaluateAt(context.contentTimeMs, scene.layers.filter(entry => entry.layerType !== 'audio'), context.timeDelta, context.isExport, signal);
+			// 参照先Sceneの時計へ両方の時刻を変換する。配置ごとの無効化は保存された子の設定を変更しない。
+			const referenceTime = context.referenceTime && { timeMs: context.referenceTime.contentTimeMs, timeDelta: context.referenceTime.timeDelta };
+			const result = await renderer.evaluateAt(context.contentTimeMs, scene.layers.filter(entry => entry.layerType !== 'audio'), context.timeDelta, context.isExport, signal, referenceTime);
 			if (result == null || signal.aborted) return { gpuTime: 0 };
 			const encoder = options.device.createCommandEncoder();
 			try {

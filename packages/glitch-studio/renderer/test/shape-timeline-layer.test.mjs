@@ -34,11 +34,11 @@ const clip = (id, startMs, durationMs, contentOffsetMs = 0) => ({ id, startMs, d
 function layer(id, type = 'ellipse', values = {}) {
 	const shape = createShape(type);
 	Object.assign(shape.paramValues, values);
-	return { id, name: id, layerType: 'shape', shape, isDisabled: false,
+	return { id, name: id, layerType: 'shape', shape, isDisabled: false, forceDisableMotionBlur: false,
 		clips: [clip('clip', 100, 1000, 20.5)], automationGraphs: [], compositingParamValues: compositing() };
 }
-function fixture(t) {
-	const calls = { draws: [], outputs: [], submits: 0 };
+function fixture(t, staticOptions = {}) {
+	const calls = { draws: [], outputs: [], evaluations: [], submits: 0 };
 	const texture = ({ size = [16, 16], format = 'rgba8unorm' } = {}) => ({
 		width: size.width ?? size[0], height: size.height ?? size[1], format, destroyed: false,
 		createView() { return { texture: this }; }, destroy() { this.destroyed = true; },
@@ -56,8 +56,9 @@ function fixture(t) {
 				draw() {
 					const code = pipeline.fragment.module.code;
 					const isShape = code.includes('fn ellipseDistance(');
-					const uniforms = isShape ? makeStructuredView(makeShaderDataDefinitions(code).uniforms.uniforms, groups[0].entries[0].resource.buffer.data).views : undefined;
-					calls.draws.push({ isShape, uniforms, texture: descriptor.colorAttachments[0].view.texture });
+					const isCompositing = code.includes('fn readTransformedSource(');
+					const uniforms = isShape || isCompositing ? makeStructuredView(makeShaderDataDefinitions(code).uniforms.uniforms, groups[0].entries[0].resource.buffer.data).views : undefined;
+					calls.draws.push({ isShape, isCompositing, uniforms, texture: descriptor.colorAttachments[0].view.texture });
 				},
 			};
 		} }),
@@ -68,7 +69,15 @@ function fixture(t) {
 	const manager = new TimelineRendererManager({
 		gpuDevice: device, gpuContext: { canvas: { width: 16, height: 16 }, configure() {}, getCurrentTexture: texture },
 		effectDefinitions: {}, effectImplementations: {},
-	}, { timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba16float' });
+	}, { timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba16float', ...staticOptions });
+	const createLayer = manager.createTimelineLayer.bind(manager);
+	manager.createTimelineLayer = (...args) => {
+		const renderer = createLayer(...args);
+		return { ...renderer, evaluate(context, signal) {
+			calls.evaluations.push({ layerId: args[0].id, layerPath: args[2], context });
+			return renderer.evaluate(context, signal);
+		} };
+	};
 	manager.presentOutput = output => calls.outputs.push(output);
 	t.after(() => manager.destroy());
 	const setup = (layers, extra = {}) => manager.updateDynamicOptions({
@@ -80,6 +89,82 @@ function fixture(t) {
 	return { manager, calls, setup, update, shapeDraws: () => calls.draws.filter(draw => draw.isShape) };
 }
 const near = (actual, expected) => assert.ok(Math.abs(actual - expected) < 1e-6, `${actual} != ${expected}`);
+
+// 【プレビュー・書き出しで固定レイヤーの内容と合成設定を揃え、設定変更時に境界を再収集する】
+// レイヤー自身の生成値だけを止めてもCompositingが動けばぼける。逆に合成後の出力を
+// 固定すると下層の動きが止まるため、実Managerの評価順とGPUへ渡す値を合わせて確認する。
+test('freezes layer content and compositing in preview and export and refreshes cut boundaries after editing', async t => {
+	for (const isExport of [false, true]) {
+		const f = fixture(t, { timelineMotionBlur: { enabled: true, shutterAngle: 180, samples: 4 } });
+		const background = layer('background', 'ellipse', { position: expression('[TIME, 0]') });
+		background.clips = [clip('background', 0, 2000)];
+		const foreground = layer('foreground', 'rectangle', { position: expression('[TIME, 0]') });
+		foreground.forceDisableMotionBlur = true;
+		foreground.compositingParamValues.position = expression('[TIME, 0]');
+		await f.setup([foreground, background]);
+		const render = time => isExport ? f.manager.renderTimelineFrame(time, 1000 / 60) : f.manager.renderTimelineAt(time);
+		await render(99);
+		assert.ok(f.calls.evaluations.some(call => call.context.sceneTimeMs > 100));
+		assert.ok(f.calls.evaluations.every(call => call.layerId === 'background'));
+		f.calls.evaluations.length = 0;
+		f.calls.draws.length = 0;
+		await render(100);
+		assert.equal(f.calls.outputs.length, 2);
+		const fixed = f.calls.evaluations.filter(call => call.layerId === 'foreground');
+		assert.equal(fixed.length, 4);
+		assert.ok(fixed.every(call => call.context.sceneTimeMs === 100 && call.context.contentTimeMs === 20.5));
+		const moving = f.calls.evaluations.filter(call => call.layerId === 'background');
+		assert.equal(new Set(moving.map(call => call.context.sceneTimeMs)).size, 4);
+		assert.ok(moving[0].context.sceneTimeMs < 100 && moving.at(-1).context.sceneTimeMs > 100);
+		const composites = f.calls.draws.filter(draw => draw.isCompositing);
+		assert.equal(composites.length, 8);
+		for (let index = 1; index < composites.length; index += 2) near(composites[index].uniforms.position[0], 0.1);
+		const edited = { ...foreground, forceDisableMotionBlur: false };
+		f.manager.applyProjectChanges([{ type: 'layer', sceneId: 'scene', layerId: edited.id, layer: edited, changes: [{ type: 'motionBlur' }] }]);
+		f.calls.evaluations.length = 0;
+		await render(100);
+		assert.ok(f.calls.evaluations.every(call => call.context.sceneTimeMs > 100));
+		assert.equal(new Set(f.calls.evaluations.filter(call => call.layerId === 'foreground').map(call => call.context.sceneTimeMs)).size, 4);
+	}
+});
+
+// 【グループと子Sceneの入れ子でも基準時刻を保ち、配置単位の強制無効を配下へ適用する】
+// 親のサンプル時刻を子の基準時刻として使うと子のbooleanが効かなくなる。同じSceneの
+// 別配置には影響させず、親グループの変形だけを動かす場合も子の内容は基準時刻に保つ。
+test('propagates frame reference times through nested groups and trimmed scenes without changing other placements', async t => {
+	const f = fixture(t, { timelineMotionBlur: { enabled: true, shutterAngle: 180, samples: 4 } });
+	const fixed = layer('fixed');
+	fixed.forceDisableMotionBlur = true;
+	const moving = layer('moving');
+	const group = (id, layers, forceDisableMotionBlur = false) => ({ id, name: id, layerType: 'group', layers,
+		isDisabled: false, forceDisableMotionBlur, automationGraphs: [], compositingParamValues: compositing(), audioParamValues: { volume: literal(1) } });
+	const child = { id: 'child', name: 'Child', resolution: { mode: 'project' }, layers: [group('inner', [fixed, moving])] };
+	const placement = (id, forceDisableMotionBlur) => ({ id, name: id, layerType: 'scene', isDisabled: false, forceDisableMotionBlur,
+		clips: [{ ...clip('clip', 100, 1000, 500), sceneId: 'child' }], automationGraphs: [],
+		compositingParamValues: compositing(), audioParamValues: { volume: literal(1) } });
+	const outer = group('outer', [placement('sampled', false)]);
+	outer.compositingParamValues.position = expression('[TIME, 0]');
+	const root = { id: 'scene', name: 'Root', resolution: { mode: 'project' }, layers: [outer, placement('frozen', true)] };
+	await f.setup([], { timelineScenes: [root, child] });
+	await f.manager.renderTimelineFrame(200, 1000 / 60);
+	const childCalls = (placementId, layerId) => f.calls.evaluations.filter(call => call.layerId === layerId && call.layerPath.includes(placementId));
+	assert.equal(childCalls('sampled', 'fixed').length, 4);
+	assert.ok(childCalls('sampled', 'fixed').every(call => call.context.sceneTimeMs === 600));
+	assert.equal(new Set(childCalls('sampled', 'moving').map(call => call.context.sceneTimeMs)).size, 4);
+	assert.ok(childCalls('sampled', 'moving').every(call => call.context.referenceTime.sceneTimeMs === 600));
+	assert.ok(childCalls('frozen', 'moving').every(call => call.context.sceneTimeMs === 600));
+	assert.equal(new Set(f.calls.evaluations.filter(call => call.layerId === 'outer').map(call => call.context.sceneTimeMs)).size, 4);
+	assert.equal(f.calls.outputs.length, 1);
+	const edited = { ...outer, forceDisableMotionBlur: true };
+	f.manager.applyProjectChanges([{ type: 'layer', sceneId: 'scene', layerId: 'outer', layer: getRendererLayerState(edited), changes: [{ type: 'motionBlur' }] }]);
+	f.calls.evaluations.length = 0;
+	await f.manager.renderTimelineFrame(200, 1000 / 60);
+	assert.ok(childCalls('sampled', 'moving').every(call => call.context.sceneTimeMs === 600));
+	assert.deepEqual(childCalls('sampled', 'moving').map(call => call.context.timeDelta), [1000 / 60, 0, 0, 0]);
+	assert.ok(f.calls.evaluations.filter(call => call.layerId === 'outer').every(call => call.context.sceneTimeMs === 200));
+	assert.equal(moving.forceDisableMotionBlur, false);
+	assert.equal(child.layers[0].forceDisableMotionBlur, false);
+});
 
 // 【Scene高さの共通単位と輪郭配置を、倍率適用済みの固定解像度へ渡す】
 // 形状の移動・回転でテクスチャ寸法が変わったり、プレビュー倍率を二重適用したりすると、

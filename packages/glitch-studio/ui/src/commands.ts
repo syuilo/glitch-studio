@@ -1254,6 +1254,27 @@ const setTimelineLayerDisabledCommandDef = defineCommand<{ sceneId: string; laye
 	},
 });
 
+const setTimelineLayerMotionBlurDisabledCommandDef = defineCommand<{ sceneId: string; layerId: string; forceDisableMotionBlur: boolean }>({
+	label: 'Change timeline layer motion blur',
+	changes: (_state, payload) => [{ type: 'layer', sceneId: payload.sceneId, layerId: payload.layerId, changes: [{ type: 'motionBlur' }] }],
+	create: payload => {
+		let before: boolean;
+		const getLayer = (state: ProjectState) => {
+			const layer = getTimelineLayer(state, payload.sceneId, payload.layerId);
+			if (layer.layerType === 'audio') throw new Error('Motion blur requires a visual layer');
+			return layer;
+		};
+		return {
+			execute(state) {
+				const layer = getLayer(state);
+				before = layer.forceDisableMotionBlur;
+				layer.forceDisableMotionBlur = payload.forceDisableMotionBlur;
+			},
+			undo(state) { getLayer(state).forceDisableMotionBlur = before; },
+		};
+	},
+});
+
 const changeEffectLayerResolutionCommandDef = defineCommand<{ sceneId: string; layerId: string; resolution: EffectResolution }>({
 	label: 'Change effect layer resolution',
 	changes: (_state, payload) => [{ type: 'layer', sceneId: payload.sceneId, layerId: payload.layerId, changes: [{ type: 'resolution' }] }],
@@ -1954,6 +1975,7 @@ export const COMMAND_DEFS = {
 	addTimelineLayer: addTimelineLayerCommandDef,
 	renameTimelineLayer: renameTimelineLayerCommandDef,
 	setTimelineLayerDisabled: setTimelineLayerDisabledCommandDef,
+	setTimelineLayerMotionBlurDisabled: setTimelineLayerMotionBlurDisabledCommandDef,
 	addTimelineClip: addTimelineClipCommandDef,
 	pasteTimelineClips: pasteTimelineClipsCommandDef,
 	editTimelineClipTiming: editTimelineClipTimingCommandDef,

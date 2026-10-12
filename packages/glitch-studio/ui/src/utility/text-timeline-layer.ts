@@ -10,6 +10,7 @@ export function createTextTimelineLayer(startMs: number): TimelineTextLayer {
 		id: genId(), name: 'Text', layerType: 'text', textParamValues: createTextParameterValues(),
 		isDisabled: false, automationGraphs: [],
 		clips: [{ id: genId(), ...createTimelineClipTiming(startMs, 5000) }],
+		forceDisableMotionBlur: false,
 		compositingParamValues: {
 			fitMode: deepClone(timelineCompositingParamDefs.fitMode.defaultValue),
 			blendMode: deepClone(timelineCompositingParamDefs.blendMode.defaultValue),

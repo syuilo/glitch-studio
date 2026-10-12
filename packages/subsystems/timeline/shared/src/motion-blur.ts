@@ -1,8 +1,7 @@
-import { getEnabledTimelineLayers } from './layer-tree.ts';
 import { getSceneDuration, getTimelineScene } from './scenes.ts';
 import { getTimelineClipEnd, getTimelineLoopCycle } from './timing.ts';
 import { getTimelineMediaPeriod } from './media-timing.ts';
-import type { TimelineScene } from './types.ts';
+import type { TimelineClipLayer, TimelineLayer, TimelineScene } from './types.ts';
 
 export type TimelineMotionBlurSettings = {
 	enabled: boolean;
@@ -24,6 +23,15 @@ export function validateTimelineMotionBlur(settings: TimelineMotionBlurSettings)
 	}
 }
 
+/** 基準時刻で固定する枝の境界は、他のレイヤーの露光を制限しない。Scene参照は呼び出し側で辿る。 */
+function* getMotionBlurLayers(layers: readonly TimelineLayer[]): Generator<TimelineClipLayer> {
+	for (const layer of layers) {
+		if (layer.isDisabled || layer.layerType === 'audio' || layer.forceDisableMotionBlur) continue;
+		if (layer.layerType === 'group') yield* getMotionBlurLayers(layer.layers);
+		else yield layer;
+	}
+}
+
 /** 検証済みのSceneグラフから境界を収集する。親のトリム区間外の境界は持ち込まない。 */
 export function getTimelineMotionBlurBoundaries(scenes: readonly TimelineScene[], sceneId: string): number[] {
 	const cache = new Map<string, number[]>();
@@ -32,9 +40,7 @@ export function getTimelineMotionBlurBoundaries(scenes: readonly TimelineScene[]
 		if (cached) return cached;
 		const scene = getTimelineScene(scenes, id);
 		const boundaries = new Set([0, getSceneDuration(scene)]);
-		for (const layer of getEnabledTimelineLayers(scene.layers)) {
-			// 非表示のカットで露光を切り詰めると、表示中のレイヤーの動きまで変わってしまう。
-			if (layer.layerType === 'group' || layer.layerType === 'audio') continue;
+		for (const layer of getMotionBlurLayers(scene.layers)) {
 			for (const clip of layer.clips) {
 				boundaries.add(clip.startMs);
 				boundaries.add(getTimelineClipEnd(clip));
@@ -66,7 +72,7 @@ export type TimelineMotionBlurLoop = {
 export function getTimelineMotionBlurLoops(scenes: readonly TimelineScene[], sceneId: string): TimelineMotionBlurLoop[] {
 	const loops: TimelineMotionBlurLoop[] = [];
 	const visit = (id: string, sceneStartMs: number, startMs: number, endMs: number) => {
-		for (const layer of getEnabledTimelineLayers(getTimelineScene(scenes, id).layers)) {
+		for (const layer of getMotionBlurLayers(getTimelineScene(scenes, id).layers)) {
 			if (layer.layerType !== 'video' && layer.layerType !== 'scene') continue;
 			for (const clip of layer.clips) {
 				const clipStartMs = sceneStartMs + clip.startMs;

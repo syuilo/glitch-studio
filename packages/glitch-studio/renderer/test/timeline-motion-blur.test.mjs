@@ -4,6 +4,20 @@ import { fileURLToPath } from 'node:url';
 import { loadShaderSource } from './helpers/load-shader-source.mjs';
 const { TimelineFrameRenderer } = await loadShaderSource(fileURLToPath(import.meta.resolve('@gs/subsystems_timeline_renderer/timeline-frame-renderer.ts')));
 
+// 【片側へ短縮された露光でも元の基準時刻を渡し、固定レイヤーの時間を一度だけ進める】
+// サンプルの平均時刻を基準にするとカット付近で位置がずれる。フレームの経過時間を
+// 全サンプルに渡すと、履歴を持つ処理の時間がサンプル数倍進んでしまう。
+test('preserves the frame reference time and advances its delta only on the first sample', async () => {
+	const references = [];
+	const renderer = new TimelineFrameRenderer({
+		async evaluate(time, delta, isExport, signal, referenceTime) { references.push([time, referenceTime]); return { output: time, gpuTime: 0 }; },
+		accumulate: output => output,
+		present() {},
+	});
+	await renderer.render(100, [101, 103], true, 20);
+	assert.deepEqual(references, [[101, { timeMs: 100, timeDelta: 20 }], [103, { timeMs: 100, timeDelta: 0 }]]);
+});
+
 // 【借用出力を次の描画の前に蓄積し、最後に一度だけ表示する】
 // 出力テクスチャは再利用されるため、全サンプルの参照だけを保存して後から平均してはいけない。
 test('consumes reused output immediately and presents a single premultiplied average', async () => {
@@ -23,14 +37,14 @@ test('consumes reused output immediately and presents a single premultiplied ave
 		},
 		present(value, gpuTime) { events.push(['present', value, gpuTime]); },
 	});
-	await renderer.render([1, 3], true);
+	await renderer.render(2, [1, 3], true);
 	assert.deepEqual(events, [
 		['evaluate', 1, 0, true], ['accumulate', 0], ['evaluate', 3, 2, true], ['accumulate', 1],
 		['present', [0.5, 0, 0, 0.5], 4],
 	]);
 	// 次の出力フレームの平均に、前の平均を混ぜない。
 	events.length = 0;
-	await renderer.render([5, 6], true);
+	await renderer.render(5.5, [5, 6], true);
 	assert.deepEqual(events.at(-1), ['present', [0, 0, 0, 0], 4]);
 });
 
@@ -51,9 +65,9 @@ test('cancels all remaining subsamples when a newer frame arrives', async () => 
 		accumulate(output, index) { accumulated.push([output, index]); return output; },
 		present(output) { presented.push(output); },
 	});
-	const old = renderer.render([1, 2, 3], false);
+	const old = renderer.render(2, [1, 2, 3], false);
 	const oldSignal = await entered.promise;
-	await renderer.render([10, 11], false);
+	await renderer.render(10.5, [10, 11], false);
 	assert.equal(oldSignal.aborted, true);
 	pending.resolve();
 	await old;
@@ -72,13 +86,13 @@ test('keeps overlapping sample times and bypasses accumulation for a single samp
 		accumulate(value) { accumulations++; return value; },
 		present() {},
 	});
-	await renderer.render([1, 5], false);
-	await renderer.render([3, 7], false);
-	await renderer.render([10], true);
+	await renderer.render(3, [1, 5], false);
+	await renderer.render(5, [3, 7], false);
+	await renderer.render(10, [10], true);
 	assert.deepEqual(calls, [[1, 0], [5, 4], [3, -2], [7, 4], [10, 0]]);
 	assert.equal(accumulations, 4);
 	renderer.clear();
-	await renderer.render([20], false);
+	await renderer.render(20, [20], false);
 	assert.deepEqual(calls.at(-1), [20, 0]);
 });
 
@@ -91,7 +105,7 @@ test('does not accumulate or present an explicitly cancelled frame', async () =>
 		accumulate: () => assert.fail('cancelled accumulation'),
 		present: () => assert.fail('cancelled presentation'),
 	});
-	const rendering = renderer.render([1, 2], false);
+	const rendering = renderer.render(1.5, [1, 2], false);
 	renderer.clear();
 	pending.resolve({ output: 1, gpuTime: 0 });
 	await rendering;

@@ -12,14 +12,14 @@ export async function checkTimelineGroups(device: GPUDevice, vertex: GPUShaderMo
 	const resolution = { width: 8, height: 4 };
 	const blue: UniformOrTexture = { kind: 'uniform', value: [0, 0, 1, 1] };
 	const transparent: UniformOrTexture = { kind: 'uniform', value: [0, 0, 0, 0] };
-	const child: TimelineLayer = { id: 'child', name: 'child', isDisabled: false, automationGraphs: [], layerType: 'image',
+	const child: TimelineLayer = { id: 'child', name: 'child', isDisabled: false, forceDisableMotionBlur: false, automationGraphs: [], layerType: 'image',
 		compositingParamValues: Object.fromEntries(Object.entries(timelineCompositingParamDefs).map(([key, def]) => [key, structuredClone(def.defaultValue)])) as TimelineGroupLayer['compositingParamValues'],
 		clips: [
 			{ id: 'red', assetId: 'red', startMs: 100, durationMs: 100, contentOffsetMs: 25 },
 			{ id: 'transparent', assetId: 'transparent', startMs: 300, durationMs: 100, contentOffsetMs: 0 },
 		] };
 	const group = (id: string, layers: TimelineLayer[]): TimelineGroupLayer => ({ id, name: id, layerType: 'group', layers,
-		isDisabled: false, automationGraphs: [], audioParamValues: { volume: { inputSource: 'literal', value: 1 } },
+		isDisabled: false, forceDisableMotionBlur: false, automationGraphs: [], audioParamValues: { volume: { inputSource: 'literal', value: 1 } },
 		compositingParamValues: { ...structuredClone(child.compositingParamValues), opacity: { inputSource: 'literal', value: 0.5 } } });
 	const inner = group('inner', [child]);
 	const outer = group('outer', [inner]);
