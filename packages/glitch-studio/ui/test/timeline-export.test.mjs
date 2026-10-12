@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { getTimelineEnd, renderExportFrames, validateExportSettings } from '../src/export/timeline-export.ts';
-import { exportTimeline } from '../src/export/client.ts';
+import { fileURLToPath } from 'node:url';
+import { loadSource } from './helpers/load-source.mjs';
+const { exportTimeline } = await loadSource(fileURLToPath(new URL('../src/export/client.ts', import.meta.url)));
 
 const settings = {
 	format: 'mp4', quality: 'high', width: 1920, height: 1080,
@@ -100,6 +102,22 @@ test('rejects invalid dimensions, frame rates, ranges and encoding settings', ()
 	]) assert.equal(typeof validateExportSettings({ ...settings, ...invalid }), 'string');
 });
 
+function exportRequest() {
+	return {
+		settings, resolutionScale: 1,
+		project: {
+			assets: [{ id: 'asset' }], visualModules: [], sceneId: 'scene',
+			resolution: { width: 1920, height: 1080 }, timelineFps: 60,
+			timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 0 },
+			timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [
+				{ id: 'image', name: 'Image', layerType: 'image', automationGraphs: [], compositingParamValues: {},
+					clips: [{ id: 'clip', assetId: 'asset', startMs: 0, durationMs: 10000, contentOffsetMs: 0 }] },
+			] }],
+		},
+	};
+}
+
+// 【書き出しの終了経路でWorkerと待機を解放する】
 // 準備やエンコードが停止していても、キャンセルはWorkerを終了して待機Promiseを解決する。
 test('terminates the worker on abort, success, errors and postMessage failure', async t => {
 	let worker;
@@ -118,7 +136,7 @@ test('terminates the worker on abort, success, errors and postMessage failure', 
 	for (const mode of ['abort', 'complete', 'error', 'post-failure']) {
 		const controller = new AbortController();
 		if (mode === 'post-failure') FakeWorker.prototype.postMessage = () => { throw new Error('clone failed'); };
-		const job = exportTimeline({}, controller.signal, () => {});
+		const job = exportTimeline(exportRequest(), controller.signal, () => {});
 		if (mode === 'abort') controller.abort();
 		if (mode === 'complete') worker.onmessage({ data: { type: 'complete', buffer: new ArrayBuffer(4) } });
 		if (mode === 'error') worker.onmessage({ data: { type: 'error', message: 'GPU failed' } });
@@ -126,4 +144,21 @@ test('terminates the worker on abort, success, errors and postMessage failure', 
 		else await assert.rejects(job);
 		assert.equal(worker.terminated, true);
 	}
+});
+
+// 【書き出しの静的エラーはWorker起動前にUIで報告する】
+// プレビューとは別の固定設定でも検査を省略しない。GPUやエンコーダーを起動してから
+// 設定ミスを見つけると、不要なリソース準備やフレームごとの重複検査につながる。
+test('rejects static export errors before creating a worker', async t => {
+	const originalWorker = Object.getOwnPropertyDescriptor(globalThis, 'Worker');
+	let workers = 0;
+	globalThis.Worker = class { constructor() { workers++; } };
+	t.after(() => {
+		if (originalWorker) Object.defineProperty(globalThis, 'Worker', originalWorker);
+		else delete globalThis.Worker;
+	});
+	const request = exportRequest();
+	request.project.timelineFps = 0;
+	await assert.rejects(exportTimeline(request, new AbortController().signal, () => {}), /frame rate/);
+	assert.equal(workers, 0);
 });

@@ -4,6 +4,8 @@ import { readFile } from 'node:fs/promises';
 import { runInNewContext } from 'node:vm';
 import { test } from 'node:test';
 import { build } from 'esbuild';
+import { loadSource } from './helpers/load-source.mjs';
+const { ProjectValidationController } = await loadSource(fileURLToPath(new URL('../src/ProjectValidationController.ts', import.meta.url)));
 
 // ControllerとWorkerの実コードを接続し、DOM・GPU・音声など通信以外の依存だけ置き換える。
 async function bundle(path) {
@@ -17,6 +19,7 @@ async function bundle(path) {
 				build.onResolve({ filter: /.*/ }, args => args.kind === 'entry-point' || args.path === './RendererManagerControllerBase.ts' || args.path === '@gs/subsystems_timeline_shared/layer-tree.ts' || args.path === '@gs/subsystems_timeline_shared/types.ts' || args.path === './types.ts' || args.path === '@gs/shared/resolution.ts' || args.path === '@gs/glitch-studio_shared/project/renderer-state.ts' ? undefined : { path: args.path, namespace: 'stub' });
 				build.onLoad({ filter: /.*/, namespace: 'stub' }, () => ({ contents: `
 					export const ref = value => ({ value });
+					export const computed = get => ({ get value() { return get(); } });
 					export const shallowReactive = value => value;
 					export const createVisualModuleRendererManagerWorker = () => dependencies.createWorker();
 					export const VisualModuleRendererManager = dependencies.VisualModuleRendererManager;
@@ -28,7 +31,7 @@ async function bundle(path) {
 					export const playVideoAfterFirstFrameIsReady = () => {}, setupWebcam = () => {};
 					export const alert = () => {};
 					export class AudioInputs { dispose() {} reconnectRenderer() {} }
-					export class LiveEffectStateStore { stop() {} }
+					export class LiveEffectStateStore { stop() {} start() {} }
 				` }));
 			},
 		}],
@@ -51,13 +54,15 @@ async function fixture(t, options = {}) {
 	class VisualModuleRendererManager {
 		constructor(settings, staticOptions) { this.settings = settings; this.staticOptions = staticOptions; instances.push(this); }
 		dynamicOptions = {};
+		replaceProjectState(state) { Object.assign(this.dynamicOptions, state); }
+		startLiveRenderLoopFor(...args) { this.liveSelection = args; }
+		stopRenderLoop() {}
 		async updateDynamicOptions(update) {
 			Object.assign(this.dynamicOptions, update);
 			const assetsCommitted = update.assets === undefined ? null : await (options.updateAssets?.(update.assets) ?? true);
 			return { assetsCommitted };
 		}
 		on(name, handler) { this.handler = handler; }
-		publishValidationState() { this.reportPreviewError(null); }
 		reportPreviewError(message) { this.handler({ type: 'renderError', ctx: { message } }); }
 		gpuMemory = { getUsage: () => ({}) };
 		destroy() { options.onDestroy?.(); }
@@ -93,7 +98,7 @@ async function fixture(t, options = {}) {
 						if (!terminated) void context.onmessage({ data });
 					});
 				},
-				terminate() { terminated = true; },
+				terminate() { terminated = true; worker.terminated = true; },
 			};
 			const context = {
 				dependencies, structuredClone, Error, TypeError, GPUCanvasContext, console,
@@ -121,7 +126,7 @@ async function fixture(t, options = {}) {
 	runInNewContext(controllerCode, context);
 	const controller = new context.module.exports.VisualModuleRendererManagerController({
 		enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm', enableStats: false,
-	}, { fpsLimit: null });
+	}, { fpsLimit: null }, undefined, options.validation);
 	t.after(() => controller.destroy());
 	if (options.initialize !== false) await controller.init({ width: 1, height: 1 });
 	return { controller, workers, pending, instances, notifications };
@@ -143,7 +148,7 @@ test('keeps edits available after preview errors and clears the message on recov
 	instances[0].reportPreviewError(null);
 	await Promise.resolve();
 	assert.equal(controller.errorMessage.value, null);
-	assert.deepEqual(notifications.filter(message => message.type === 'ev' && message.ev.type === 'renderError').map(message => message.ev.ctx.message), [null, 'circular dependency detected', 'circular dependency detected', null]);
+	assert.deepEqual(notifications.filter(message => message.type === 'ev' && message.ev.type === 'renderError').map(message => message.ev.ctx.message), ['circular dependency detected', 'circular dependency detected', null]);
 });
 
 // 応答を待たない操作の同期・非同期失敗も未処理例外にせず通知する。
@@ -383,3 +388,58 @@ for (const action of ['destroy', 'reload', 'error']) {
 		if (action === 'reload') assert.equal(await controller.callAndWaitReturn('echo', [42]), 42);
 	});
 }
+
+function validationFixture() {
+	const definition = { dataType: { kind: 'color' }, canNode: true, ui: { label: 'Input', control: {} }, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } };
+	const validation = new ProjectValidationController({ pass: { paramDefs: { input: definition } } });
+	const visualModule = id => ({ id, name: id, nodes: [], paramDefs: [], outputDefs: [], primaryInputId: null, primaryOutputId: null, automationGraphs: [] });
+	const cyclic = { ...visualModule('unused'), nodes: ['a', 'b'].map((id, index) => ({ id, type: 'effect', effectId: 'pass', isBypass: true, resolution: { mode: 'context' }, params: { input: { inputSource: 'node', nodeId: index ? 'a' : 'b', outputPort: 'output' } } })) };
+	return { validation, visualModule, cyclic };
+}
+
+// 【UIの静的エラーでWorkerを終了し、停止中の編集を最新スナップショットで復元する】
+// 未使用の循環もプロジェクト全体を停止する。無効な差分は送らず、旧Workerの通知で
+// 静的診断を消さない。正常復帰ではWorkerとLIVEの実行履歴を新規生成する。
+test('suspends workers for UI diagnostics and restores the latest snapshot on recovery', async t => {
+	const { validation, visualModule, cyclic } = validationFixture();
+	validation.replace({ visualModules: [visualModule('live')], timelineScenes: [] });
+	const { controller, workers, instances } = await fixture(t, { validation });
+	await controller.replaceProjectState({ visualModules: [visualModule('live')], timelineScenes: [] });
+	controller.startLiveRenderLoopFor('live');
+	const invalid = [{ type: 'visualModuleRegistration', visualModuleId: 'unused', visualModule: cyclic }];
+	validation.apply(invalid);
+	await controller.applyProjectChanges(invalid);
+	assert.equal(workers[0].terminated, true);
+	assert.equal(controller.isReady.value, false);
+	assert.match(controller.errorMessage.value, /Circular reference/);
+	workers[0].onmessage({ data: { type: 'ev', ev: { type: 'renderError', ctx: { message: null } } } });
+	assert.match(controller.errorMessage.value, /Circular reference/);
+	await controller.updateDynamicOptions({ resolution: { width: 640, height: 360 }, liveTimeFactor: 2 });
+	assert.equal(instances.length, 1);
+	const repaired = [{ type: 'visualModuleRegistration', visualModuleId: 'unused', visualModule: null }];
+	validation.apply(repaired);
+	await controller.applyProjectChanges(repaired);
+	await controller.waitForValidationRecovery();
+	assert.equal(controller.isReady.value, true);
+	assert.equal(instances.length, 2);
+	assert.equal(instances[1].dynamicOptions.resolution.width, 640);
+	assert.equal(instances[1].dynamicOptions.liveTimeFactor, 2);
+	assert.deepEqual(instances[1].dynamicOptions.visualModules.map(item => item.id), ['live']);
+	assert.equal(instances[1].liveSelection[0], 'live');
+	assert.equal(controller.errorMessage.value, null);
+});
+
+// 【不正な初期設定ではWorkerを作らず、修正後に初めて初期化する】
+// 読込時に既にエラーがあっても編集を許し、初期化用のGPU設定へ不正な値を送らない。
+test('defers initial worker creation until UI validation succeeds', async t => {
+	const { validation, cyclic } = validationFixture();
+	validation.replace({ visualModules: [cyclic], timelineScenes: [] });
+	const { controller, workers } = await fixture(t, { validation });
+	await controller.replaceProjectState({ visualModules: [cyclic], timelineScenes: [] });
+	assert.equal(workers.length, 0);
+	validation.replace({ visualModules: [], timelineScenes: [] });
+	await controller.replaceProjectState({ visualModules: [], timelineScenes: [] });
+	await controller.waitForValidationRecovery();
+	assert.equal(workers.length, 1);
+	assert.equal(controller.isReady.value, true);
+});

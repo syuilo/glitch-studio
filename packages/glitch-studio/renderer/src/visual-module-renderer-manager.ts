@@ -1,7 +1,5 @@
 import { resolveEvaluatedParameterValue } from '@gs/shared/parameter/evaluated-parameter-value.ts';
-import { ProjectValidationState } from './project-validation-state.ts';
-import { inspectRenderOptions } from './render-options-validation.ts';
-import { scaleResolution, type Resolution } from '@gs/shared/resolution.ts';
+import { scaleConfiguredResolution, type Resolution } from '@gs/shared/resolution.ts';
 import { applyRendererProjectChanges } from '@gs/glitch-studio_shared/project/renderer-state.ts';
 import { AudioHistory } from '@gs/subsystems_audio_renderer/audio-history.ts';
 import { genId } from '@gs/shared/utility/id.ts';
@@ -28,7 +26,6 @@ import type { AudioCaptureMessage } from '@gs/subsystems_audio_shared/audio-capt
 import type { Asset, IntermediateTextureFormat, Player } from '@gs/shared/types.ts';
 import type { EffectImplementation } from '@gs/subsystems_effect_shared/effect-implementation.js';
 import type { EffectDefinition } from '@gs/subsystems_effect_shared/effect-definition.js';
-import type { TimelineScene } from '@gs/subsystems_timeline_shared/types.ts';
 import type { LIVE_VAR_DEFS } from '@gs/glitch-studio_shared/live-expression.js';
 
 /**
@@ -57,7 +54,6 @@ export type VisualModuleRendererManagerDynamicOptions = {
 	fpsLimit: number | null;
 	assets: Asset[];
 	visualModules: ProjectVisualModule[];
-	timelineScenes: TimelineScene[];
 };
 
 export type LiveEffectStatusSource = { type: 'live'; instanceId: string; visualModuleId: string };
@@ -73,8 +69,6 @@ export type VisualModuleRendererManagerEvents = {
 export class VisualModuleRendererManager extends EventEmitter<{
 	'ev': (ctx: { [K in keyof VisualModuleRendererManagerEvents]: { type: K; ctx: Parameters<VisualModuleRendererManagerEvents[K]>[0] } }[keyof VisualModuleRendererManagerEvents]) => void;
 }> {
-	private validation: ProjectValidationState;
-	private validationBlocked = false;
 	private pendingAssetUpdates = 0;
 	private liveStatusInstanceId = genId();
 	private previewRenderGeneration = 0;
@@ -120,7 +114,6 @@ export class VisualModuleRendererManager extends EventEmitter<{
 		opaqueOutput: false,
 		assets: [],
 		visualModules: [],
-		timelineScenes: [],
 	};
 
 	constructor(coreConfig: {
@@ -141,10 +134,10 @@ export class VisualModuleRendererManager extends EventEmitter<{
 		this.liveRenderLoop = new LiveRenderLoop({
 			scheduler: this.frameScheduler,
 			onFrame: timing => {
-				if (this.validationBlocked || this.pendingAssetUpdates > 0) return;
 				// 式評価・GPU実行の失敗でWorkerを利用不能にしない。静的な設定エラーは入口で停止する。
 				try {
-					this.renderLiveFrame(timing);
+					if (this.pendingAssetUpdates > 0) return;
+				this.renderLiveFrame(timing);
 					this.setRenderError(null);
 				} catch (error) {
 					this.setRenderError(error instanceof Error ? error.message : String(error));
@@ -159,7 +152,6 @@ export class VisualModuleRendererManager extends EventEmitter<{
 		this.gpuContext = coreConfig.gpuContext;
 		this.effectDefinitions = coreConfig.effectDefinitions;
 		this.effectImplementations = coreConfig.effectImplementations;
-		this.validation = new ProjectValidationState(this.effectDefinitions);
 
 		this.gpuMemory = new GpuMemoryTracker(this.gpuDevice);
 		this.timingHelper = new TimingHelper(this.gpuDevice);
@@ -260,20 +252,15 @@ export class VisualModuleRendererManager extends EventEmitter<{
 	// (非workerで)呼び出すときは値を独立した参照にすること！ パフォーマンス上の理由でこちら側ではdeepCloneしません
 	public async updateDynamicOptions(newOptions: Partial<VisualModuleRendererManagerDynamicOptions>) {
 		const { assets, ...synchronousOptions } = newOptions;
-		if (assets !== undefined) this.validation.updateAssets(assets);
 		// 通常の設定は呼び出し順に反映する。画像のデコード完了を待ってから反映すると、
 		// 後から届いたモジュール編集やFPS変更を古い更新で巻き戻してしまう。
 		// Asset一覧だけはテクスチャと同時に切り替えるため、ここではマージしない。
 		this.dynamicOptions = { ...this.dynamicOptions, ...synchronousOptions };
-		if (newOptions.visualModules !== undefined || newOptions.timelineScenes !== undefined) this.validation.replace(this.dynamicOptions);
-		this.validation.setOptions(inspectRenderOptions(this.dynamicOptions, this.gpuDevice.limits.maxTextureDimension2D), this.dynamicOptions.resolutionScale, this.gpuDevice.limits.maxTextureDimension2D);
-		if (newOptions.visualModules !== undefined) this.validation.updateLiveArguments(this.liveVisualModuleId, this.liveParamValues);
-		this.refreshValidationState();
 		this.canvasRenderer.highlightClipping = this.dynamicOptions.highlightClipping;
 		this.canvasRenderer.opaqueOutput = this.dynamicOptions.opaqueOutput;
 
-		if (!this.validationBlocked && (newOptions.resolution !== undefined || newOptions.resolutionScale !== undefined)) {
-			this.updateCanvasResolution(scaleResolution(this.dynamicOptions.resolution, this.dynamicOptions.resolutionScale));
+		if (newOptions.resolution !== undefined || newOptions.resolutionScale !== undefined) {
+			this.updateCanvasResolution(scaleConfiguredResolution(this.dynamicOptions.resolution, this.dynamicOptions.resolutionScale));
 			this.liveVisualModuleRenderer?.resize(this.dynamicOptions.resolution, this.dynamicOptions.resolutionScale);
 		}
 		if (newOptions.fpsLimit !== undefined) {
@@ -294,26 +281,16 @@ export class VisualModuleRendererManager extends EventEmitter<{
 		return { assetsCommitted };
 	}
 
-	public replaceProjectState(state: RendererProjectState) {
+	public replaceProjectState(state: Pick<RendererProjectState, 'visualModules'>) {
 		// 全量置換は初期化・復旧の境界。差分更新と違い、同じIDでも履歴を引き継がない。
 		this.stopRenderLoop();
 		Object.assign(this.dynamicOptions, state);
-		this.validation.replace(state);
-		this.validation.setOptions(inspectRenderOptions(this.dynamicOptions, this.gpuDevice.limits.maxTextureDimension2D), this.dynamicOptions.resolutionScale, this.gpuDevice.limits.maxTextureDimension2D);
-		this.validation.updateLiveArguments(null, {});
-		this.refreshValidationState();
 	}
 
 	public applyProjectChanges(changes: readonly RendererProjectChange[]) {
-		const next = applyRendererProjectChanges(this.dynamicOptions, changes);
-		Object.assign(this.dynamicOptions, next);
+		const next = applyRendererProjectChanges({ visualModules: this.dynamicOptions.visualModules, timelineScenes: [] }, changes);
+		this.dynamicOptions.visualModules = next.visualModules;
 		if (this.liveVisualModuleId != null && !next.visualModules.some(visualModule => visualModule.id === this.liveVisualModuleId)) this.stopRenderLoop();
-		this.validation.apply(next, changes);
-		if (changes.some(change => change.type === 'visualModuleRegistration' ? change.visualModuleId === this.liveVisualModuleId
-			: change.type === 'visualModule' && 'visualModuleId' in change.target && change.target.visualModuleId === this.liveVisualModuleId)) {
-			this.validation.updateLiveArguments(this.liveVisualModuleId, this.liveParamValues);
-		}
-		this.refreshValidationState();
 		const liveChanges = changes.filter(change => change.type === 'visualModuleRegistration' ? change.visualModuleId === this.liveVisualModuleId
 			: (change.type === 'node' || change.type === 'visualModule') && 'visualModuleId' in change.target && change.target.visualModuleId === this.liveVisualModuleId);
 		if (liveChanges.length > 0 && this.liveVisualModuleRenderer != null) {
@@ -329,22 +306,14 @@ export class VisualModuleRendererManager extends EventEmitter<{
 			// 世代管理で採用された更新だけが一覧とキャッシュを切り替える。
 			// 中断されたデコードの完了後に、Asset一覧だけを上書きしてはいけない。
 			this.dynamicOptions.assets = assets;
-			this.validation.updateAssets(assets);
-			this.refreshValidationState();
 			this.liveVisualModuleRenderer?.updateAssets(assets);
 		}).finally(() => {
 			this.pendingAssetUpdates--;
-			if (this.pendingAssetUpdates === 0) {
-				this.validation.updateAssets(this.dynamicOptions.assets);
-				this.refreshValidationState();
-			}
 		});
 	}
 
 	public updateLiveParamValues(paramValues: VisualModuleArgumentBindings) {
 		this.liveParamValues = paramValues;
-		this.validation.updateLiveArguments(this.liveVisualModuleId, paramValues);
-		this.refreshValidationState();
 	}
 
 	public startLiveRenderLoopFor(visualModuleId: string, paramValues: VisualModuleArgumentBindings = {}, statusInstanceId = genId()) {
@@ -356,16 +325,15 @@ export class VisualModuleRendererManager extends EventEmitter<{
 		this.liveVisualModuleId = visualModuleId;
 		this.liveParamValues = paramValues;
 		this.liveStatusInstanceId = statusInstanceId;
-		this.validation.updateLiveArguments(visualModuleId, paramValues);
-		this.refreshValidationState();
+		this.resumeLiveRenderer();
 	}
 
 	private resumeLiveRenderer() {
-		if (this.validationBlocked || this.liveVisualModuleId == null || this.liveVisualModuleRenderer != null) return;
+		if (this.liveVisualModuleId == null || this.liveVisualModuleRenderer != null) return;
 		const visualModuleId = this.liveVisualModuleId;
 		const visualModule = this.dynamicOptions.visualModules.find(visualModule => visualModule.id === visualModuleId);
 		if (!visualModule) return;
-		this.updateCanvasResolution(scaleResolution(this.dynamicOptions.resolution, this.dynamicOptions.resolutionScale));
+		this.updateCanvasResolution(scaleConfiguredResolution(this.dynamicOptions.resolution, this.dynamicOptions.resolutionScale));
 		const statusInstanceId = this.liveStatusInstanceId;
 		const statusSource: LiveEffectStatusSource = { type: 'live', instanceId: statusInstanceId, visualModuleId };
 		this.liveVisualModuleRenderer = new VisualModuleRenderer({
@@ -390,24 +358,6 @@ export class VisualModuleRendererManager extends EventEmitter<{
 		});
 
 		this.liveRenderLoop.start();
-	}
-
-	public publishValidationState() { this.emit('ev', { type: 'renderError', ctx: { message: this.currentRenderError } }); }
-
-	public getValidationDiagnostics() { return { revision: this.validation.revision, errorCount: this.validation.diagnostics.errorCount, units: this.validation.diagnostics.entries }; }
-
-	private refreshValidationState() {
-		this.previewRenderGeneration++;
-		const wasBlocked = this.validationBlocked;
-		this.validationBlocked = !this.validation.valid;
-		if (this.validationBlocked || wasBlocked) {
-			this.previewRenderGeneration++;
-			this.liveRenderLoop.stop();
-			this.liveVisualModuleRenderer?.destroy();
-			this.liveVisualModuleRenderer = null;
-		}
-		if (this.validationBlocked || wasBlocked) this.setRenderError(this.validation.diagnostics.firstMessage);
-		this.resumeLiveRenderer();
 	}
 
 	private renderLiveFrame(timing: LiveFrameTiming) {
@@ -453,7 +403,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 			}, commandEncoder) ?? { kind: 'uniform', value: [0, 0, 0, 0] };
 
 			// 定数を表示用に1x1へ変換しても、表示枠の寸法は1x1にしない。
-			this.updateCanvasResolution(nodeOutput.kind === 'texture' ? nodeOutput.texture : scaleResolution(this.dynamicOptions.resolution, this.dynamicOptions.resolutionScale));
+			this.updateCanvasResolution(nodeOutput.kind === 'texture' ? nodeOutput.texture : scaleConfiguredResolution(this.dynamicOptions.resolution, this.dynamicOptions.resolutionScale));
 			const tex = this.outputTextures.resolve(nodeOutput);
 			this.canvasRenderer.renderToCanvas(tex, commandEncoder);
 
@@ -489,10 +439,8 @@ export class VisualModuleRendererManager extends EventEmitter<{
 		this.previewRenderGeneration++;
 		this.liveRenderLoop.stop();
 		this.liveVisualModuleId = null;
-		this.validation.updateLiveArguments(null, {});
 		this.liveVisualModuleRenderer?.destroy();
 		this.liveVisualModuleRenderer = null;
-		this.refreshValidationState();
 	}
 
 	public destroy() {

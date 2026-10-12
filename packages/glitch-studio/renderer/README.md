@@ -26,4 +26,4 @@ GPUを所有するManagerが、最終表示とモーションブラーの全サ�
 
 TimelineはVisual Moduleを使用し、Visual ModuleはEffectを使用するという依存の階層構造自体はあるが、それは「Glitch Studioにおいてはタイムラインがメイン機能であり、タイムラインがすべてをk管理する」などということは意味せず、Glitch Studio自体の設計とは全く関係がない。
 
-`ProjectValidationState`が静的な設定診断をノード・レイヤー・接続グラフごとに保持する。値編集では変更対象だけを検証し、接続先一覧が変わった場合だけグラフを検証する。エラー中はLIVE/Timelineの描画を開始せず、設定更新は受け取り続ける。正常復帰時は実行インスタンスを作り直す。詳細はdocs/renderer.mdを参照。
+静的な設定はUIの`ProjectValidationController`が増分検査し、正常な設定だけを同期する。Managerは静的診断を持たず、式の評価結果・素材デコード・GPU等の実行時エラーを報告する。静的エラー中はUIがWorkerを終了し、正常復帰時は最新設定からWorkerごと作り直す。直接利用する呼び出し側も静的検査を行う。詳細はdocs/renderer.mdを参照。

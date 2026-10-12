@@ -182,50 +182,6 @@ test('renders a newly registered Visual Module and stops LIVE when it is removed
 
 
 
-// 【未使用のVisual ModuleのエラーでもLIVEを停止し、修正後は新しいインスタンスで再開する】
-// エラーのある定義を描画するまで待たず、設定更新だけで停止を確定する。
-// 復帰時には選択と入力を維持する一方、旧エフェクトの履歴を引き継がない。
-test('blocks LIVE for unused project errors and recreates its instance on recovery', async t => {
-	const { renderer, frames, frame } = await fixture(t);
-	renderer.startLiveRenderLoopFor('module');
-	frame(16);
-	const previous = renderer.liveVisualModuleRenderer;
-	const unused = { ...visualModule(true), id: 'unused' };
-	renderer.applyProjectChanges([{ type: 'visualModuleRegistration', visualModuleId: unused.id, visualModule: unused }]);
-	assert.equal(renderer.liveVisualModuleId, 'module');
-	assert.equal(renderer.liveVisualModuleRenderer, null);
-	assert.equal(previous.destroyed, true);
-	assert.equal(frames.size, 0);
-	assert.ok(renderer.getValidationDiagnostics().errorCount > 0);
-	renderer.applyProjectChanges([{ type: 'visualModuleRegistration', visualModuleId: unused.id, visualModule: null }]);
-	assert.equal(renderer.getValidationDiagnostics().errorCount, 0);
-	assert.notEqual(renderer.liveVisualModuleRenderer, previous);
-	assert.equal(frames.size, 1);
-	frame(32);
-});
-
-// 【静的エラー中はTimelineの評価を開始せず、正常復帰で配置を新規生成する】
-// previewとexportの両方を入口で止める。修正の差分は受け取り続け、
-// 描画しなかった期間の編集を古い実行インスタンスへ継ぎ足さない。
-test('blocks preview and export before evaluation and rebuilds timeline placements after recovery', async t => {
-	const { renderer } = await fixture(t, {}, TimelineRendererManager);
-	await renderer.renderTimelineFrame(0, 0);
-	const previous = renderer.timelineRenderer.layers.values().next().value.renderer;
-	let evaluations = 0;
-	const evaluate = renderer.timelineRenderer.evaluateAt.bind(renderer.timelineRenderer);
-	renderer.timelineRenderer.evaluateAt = (...args) => { evaluations++; return evaluate(...args); };
-	const unused = { ...visualModule(true), id: 'unused' };
-	renderer.applyProjectChanges([{ type: 'visualModuleRegistration', visualModuleId: unused.id, visualModule: unused }]);
-	await renderer.renderTimelineAt(0);
-	await assert.rejects(renderer.renderTimelineFrame(0, 0), /Circular reference/);
-	assert.equal(evaluations, 0);
-	assert.equal(renderer.timelineRenderer.layers.size, 0);
-	renderer.applyProjectChanges([{ type: 'visualModuleRegistration', visualModuleId: unused.id, visualModule: null }]);
-	await renderer.renderTimelineFrame(0, 0);
-	assert.equal(evaluations, 1);
-	assert.notEqual(renderer.timelineRenderer.layers.values().next().value.renderer, previous);
-});
-
 // 【破棄後に完了したシークは通知しない】
 // モード切り替え時はmanager自体が独立している。旧managerの完了通知を防ぐ。
 test('ignores obsolete timeline completions after destruction', async t => {

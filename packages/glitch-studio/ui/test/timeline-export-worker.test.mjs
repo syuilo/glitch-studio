@@ -4,7 +4,7 @@ import { runInNewContext } from 'node:vm';
 import { test } from 'node:test';
 import { build } from 'esbuild';
 
-// Workerの設定変換・フレーム供給は実コードを使い、GPUとエンコーダーだけを置き換える。
+// Workerのフレーム供給は実コードを使い、GPUとエンコーダーだけを置き換える。
 const bundled = await build({
 	entryPoints: [fileURLToPath(new URL('../src/export/timeline-export.worker.ts', import.meta.url))],
 	bundle: true, platform: 'node', format: 'cjs', write: false,
@@ -79,7 +79,7 @@ function fixture() {
 }
 
 // 【基準解像度を維持し、最終出力だけをエンコード用寸法へ補正する】
-// 書き出し用の静的・動的設定を分け、素材の準備完了まで描画を待つ。
+// UIで検査・補正済みの設定を受け取り、素材の準備完了まで描画を待つ。
 // プレビュー設定の転記漏れや旧コンストラクター呼び出しを防ぎ、MP4の黒背景と
 // WebPの透過を維持する。計測を無効にするためtimestamp-queryは要求しない。
 for (const format of ['mp4', 'webp']) {
@@ -87,7 +87,7 @@ for (const format of ['mp4', 'webp']) {
 		const f = fixture();
 		const request = {
 			resolutionScale: 1,
-			settings: { format, quality: 'high', width: 3, height: 5, positionMs: 1000,
+			settings: { format, quality: 'high', width: format === 'mp4' ? 4 : 3, height: format === 'mp4' ? 6 : 5, positionMs: 1000,
 				...(format === 'mp4' ? { fps: 30, endTimeMs: 1010 } : {}) },
 			renderer: { enable32bitDataTextures: true, intermediateTextureFormat: 'rgba16float' },
 			project: { timelineFps: 60, timelineMotionBlur: { enabled: true, shutterAngle: 180, samples: 16 }, resolution: { width: 3, height: 5 }, assets: [{ id: 'image' }], visualModules: [{ id: 'module' }], timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [{ id: 'layer', layerType: 'effect', effectId: 'test', resolution: { mode: 'auto' }, effectParamValues: {}, name: 'Layer', clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 2000 }] }] }], sceneId: 'scene' },

@@ -19,7 +19,7 @@ type VisualModuleValidationRecord = { visualModule: VisualModule; nodes: Map<str
 type LayerValidationRecord = { sceneId: string; layer: TimelineLayer; visualModuleId?: string; assetIds: Set<string> };
 
 /**
- * 受信した設定の診断を所有し、実行インスタンスを所有しない。
+ * UIで設定の診断を所有し、実行インスタンスを所有しない。
  * 値編集では一つの検証単位だけを置換する。参照索引は公開契約・Assetの変更に
  * 必要なものだけを持ち、診断を親Sceneへ複製・伝播しない。
  */

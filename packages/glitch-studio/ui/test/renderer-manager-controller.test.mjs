@@ -6,6 +6,8 @@ import { test } from 'node:test';
 import { setImmediate } from 'node:timers/promises';
 import { build } from 'esbuild';
 import { computed } from 'vue';
+import { loadSource } from './helpers/load-source.mjs';
+const { ProjectValidationController } = await loadSource(fileURLToPath(new URL('../src/ProjectValidationController.ts', import.meta.url)));
 
 // Controller間の連携は実コードを使い、ブラウザーのリソース生成だけ置き換える。
 const result = await build({
@@ -49,7 +51,7 @@ class FakeWorker {
 	calls(fn) { return this.messages.filter(message => message.type === 'call' && message.fn === fn); }
 }
 
-function fixture(t, kind = 'VisualModule') {
+function fixture(t, kind = 'VisualModule', validation) {
 	const workers = [];
 	const canvas = () => ({
 		style: {}, transferControlToOffscreen: () => ({}), cloneNode: canvas, replaceWith() {},
@@ -63,7 +65,7 @@ function fixture(t, kind = 'VisualModule') {
 	const controller = new module.exports[kind + 'RendererManagerController']({
 		...(kind === 'Timeline' ? { timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 } } : {}),
 		enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm', enableStats: false,
-	}, { assets: [], fpsLimit: null });
+	}, { assets: [], fpsLimit: null }, ...(kind === 'Timeline' ? [validation] : [undefined, validation]));
 	t.after(() => controller.destroy());
 	return { controller, workers, Base: module.exports.RendererManagerControllerBase };
 }
@@ -180,16 +182,24 @@ test('recreates again with the latest timeline settings changed after the snapsh
 	assert.equal(controller.isReady.value, true);
 });
 
-// 【不正な描画設定では動作中のWorkerを破棄しない】
-// 検証をWorkerの初期化だけに任せると、入力ミスで正常なプレビューまで失われる。
-test('rejects invalid static timeline settings before recreating the renderer', async t => {
-	const { controller, workers } = fixture(t, 'Timeline');
+// 【UIで不正な描画設定を保持し、Workerを停止して修正後に再生成する】
+// 設定ミスも編集状態として採用する。復旧時に古い履歴や描画を引き継がないことを確認する。
+test('suspends for invalid static timeline settings and recreates after repair', async t => {
+	const validation = new ProjectValidationController({});
+	const { controller, workers } = fixture(t, 'Timeline', validation);
 	const worker = await initialize(controller, workers);
-	await assert.rejects(controller.updateStaticOptions({ timelineFps: 0 }), /frame rate/);
-	await assert.rejects(controller.updateStaticOptions({ timelineMotionBlur: { enabled: true, shutterAngle: 361, samples: 8 } }), /Motion blur/);
-	assert.equal(worker.terminated, false);
-	assert.equal(workers.length, 1);
+	await controller.updateStaticOptions({ timelineFps: 0 });
+	assert.equal(worker.terminated, true);
+	assert.equal(controller.isReady.value, false);
+	assert.match(controller.errorMessage.value, /frame rate/);
+	await controller.updateStaticOptions({ timelineFps: 30 });
+	const replacement = workers[1];
+	const options = await replacement.initialization.promise;
+	assert.equal(options.staticOptions.timelineFps, 30);
+	replacement.reply({ type: 'inited' });
+	await controller.waitForValidationRecovery();
 	assert.equal(controller.isReady.value, true);
+	assert.equal(controller.errorMessage.value, null);
 });
 
 // 【初期スナップショット前の差分は吸収し、それ以降の差分だけを送信する】

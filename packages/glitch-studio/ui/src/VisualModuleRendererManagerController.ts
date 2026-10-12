@@ -1,5 +1,6 @@
+import type { ProjectValidationController } from './ProjectValidationController.ts';
 import { scaleResolution } from '@gs/shared/resolution.ts';
-import { ref, shallowReactive } from 'vue';
+import { computed, ref, shallowReactive } from 'vue';
 import { deepEqual } from '@gs/shared/utility/deep-equal.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { applyRendererProjectChanges } from '@gs/glitch-studio_shared/project/renderer-state.ts';
@@ -34,6 +35,7 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 	private dynamicOptions: Partial<VisualModuleRendererManagerDynamicOptions> & Pick<VisualModuleRendererManagerDynamicOptions, 'assets'> = {
 		assets: [],
 	};
+	private projectState: RendererProjectState = { visualModules: [], timelineScenes: [] };
 	private players: Player[] = [];
 	private videoElements = shallowReactive(new Map<Player['id'], HTMLMediaElement>());
 	private playerAssetFiles = new Map<Player['id'], Blob>();
@@ -48,7 +50,8 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 	public gpuAverageDisplaySlow = ref(0);
 	public fpsDisplay = ref(0);
 	public gpuMemoryUsage = ref<Parameters<VisualModuleRendererManagerEvents['gpuMemory']>[0]['usage'] | null>(null);
-	public errorMessage = ref<string | null>(null);
+	private runtimeErrorMessage = ref<string | null>(null);
+	public readonly errorMessage = computed(() => this.projectValidation?.errorMessage.value ?? this.runtimeErrorMessage.value);
 	private liveEffectStateStore = new LiveEffectStateStore(shallowReactive(new Map<string, EffectInstanceState>()));
 
 	public getLiveEffectState(visualModuleId: ProjectVisualModule['id'], nodeId: string): EffectInstanceState | undefined {
@@ -56,7 +59,7 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 		return this.liveEffectStateStore.get(visualModuleId, nodeId);
 	}
 
-	constructor(staticOptions: VisualModuleRendererManagerStaticOptions, dynamicOptions: Partial<VisualModuleRendererManagerDynamicOptions>, audioOutput: AudioOutput) {
+	constructor(staticOptions: VisualModuleRendererManagerStaticOptions, dynamicOptions: Partial<VisualModuleRendererManagerDynamicOptions>, audioOutput: AudioOutput, validation?: ProjectValidationController) {
 		super({
 			getInitialOptions: async (isReload) => {
 				if (isReload) {
@@ -68,6 +71,10 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 					this.canvasRevision.value++;
 				}
 
+				// 停止中の寸法変更も、新しいCanvasの初期表示寸法に反映する。
+				const resolution = scaleResolution(this.dynamicOptions.resolution ?? { width: 1, height: 1 }, this.dynamicOptions.resolutionScale ?? 1);
+				this.canvas.width = resolution.width;
+				this.canvas.height = resolution.height;
 				const offscreen = this.canvas.transferControlToOffscreen();
 				const histogramOffscreen = this.histogramCanvas.transferControlToOffscreen();
 				const waveformHorizontalOffscreen = this.waveformHorizontalCanvas.transferControlToOffscreen();
@@ -95,7 +102,7 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 				return createVisualModuleRendererManagerWorker();
 			},
 			onError: error => {
-				this.errorMessage.value = error?.message ?? null;
+				this.runtimeErrorMessage.value = error?.message ?? null;
 			},
 			eventHandlers: {
 				outputResolution: ctx => {
@@ -118,13 +125,12 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 					this.gpuAverageDisplaySlow.value = ctx.gpuAverageSlow * 1.2;
 				},
 				renderError: (ctx) => {
-					// 描画できないグラフでも、修正するための更新は送り続ける。
+					// 静的診断はUIが所有する。Workerの通知は実行時エラーだけを更新する。
 					// 致命的なWorkerエラー後の遅延通知では、そのエラー表示を上書きしない。
-					if (this.isReady.value) this.errorMessage.value = ctx.message;
+					if (this.isReady.value) this.runtimeErrorMessage.value = ctx.message;
 				},
 			},
 			onCreated: () => {
-				this.call('publishValidationState', []);
 				this.audioInputs.reconnectRenderer();
 				// 一時停止中の動画には新しいフレーム通知が来ないため、現在のフレームも送り直す。
 				for (const [id, media] of this.videoElements) {
@@ -150,7 +156,11 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 		});
 
 		this.audioInputs = new AudioInputs(audioOutput,
-			(id, port) => this.call('attachAudioSource', [id, port], [port]),
+			(id, port) => {
+				// 設定エラー中もPlayerの試聴は可能にする。描画用の接続は復旧時に作り直す。
+				if (this.isReady.value) this.call('attachAudioSource', [id, port], [port]);
+				else port.close();
+			},
 			(id, generation) => { if (this.isReady.value) this.call('resetAudioSource', [id, generation]); },
 		);
 
@@ -173,6 +183,8 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 		this.waveformVerticalCanvas.style.height = '100%';
 		this.staticOptions = staticOptions;
 		this.dynamicOptions = { ...this.dynamicOptions, ...dynamicOptions };
+		this.projectState.visualModules = this.dynamicOptions.visualModules ?? [];
+		this.connectValidation(validation);
 	}
 
 	private async sendPendingVideoFrame(playerId: string) {
@@ -183,7 +195,7 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 		const id = this.nextVideoFrameId++;
 		this.inFlightVideoFrames.set(playerId, id);
 		try {
-			await this.callAndWaitReturn('updateVideoFrame', [playerId, frame], [frame]);
+			await this.synchronize(this.callAndWaitReturn('updateVideoFrame', [playerId, frame], [frame]), undefined);
 		} catch (error) {
 			if (this.inFlightVideoFrames.get(playerId) === id) this.inFlightVideoFrames.delete(playerId);
 			frame.close();
@@ -196,21 +208,10 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 	}
 
 	public async init(resolution: { width: number; height: number }, resolutionScale = 1) {
-		const renderResolution = scaleResolution(resolution, resolutionScale);
 		this.dynamicOptions.resolutionScale = resolutionScale;
-		if (renderResolution.width > 8192 || renderResolution.height > 8192) {
-			ui.alert({
-				type: 'error',
-				text: 'maximum supported resolution is 8192x8192',
-			});
-			throw new Error('maximum supported resolution is 8192x8192');
-		}
-
-		// 基準寸法と倍率を別々に保存し、計算用寸法の丸めは共通処理で行う。
-		this.dynamicOptions.resolution = {
-			width: Math.max(1, Math.floor(resolution.width)),
-			height: Math.max(1, Math.floor(resolution.height)),
-		};
+		this.dynamicOptions.resolution = { ...resolution };
+		this.projectValidation?.updateRenderOptions({ resolution, resolutionScale });
+		const renderResolution = this.projectValidation?.validation.valid === false ? { width: 1, height: 1 } : scaleResolution(resolution, resolutionScale);
 
 		this.canvas.width = renderResolution.width;
 		this.canvas.height = renderResolution.height;
@@ -220,6 +221,7 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 
 	public startLiveRenderLoopFor(visualModuleId: ProjectVisualModule['id'], paramValues: VisualModuleArgumentBindings = {}) {
 		this.liveParamValues = deepClone(paramValues);
+		this.projectValidation?.updateLiveArguments(visualModuleId, this.liveParamValues);
 		const statusInstanceId = genId();
 		// 再初期化中のモード変更はonCreatedで最新状態だけを復元し、古い開始要求をキューに残さない。
 		if (this.isReady.value) this.call('startLiveRenderLoopFor', [visualModuleId, this.liveParamValues, statusInstanceId]);
@@ -235,6 +237,7 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 		}
 		// 同じモジュールの操作ではインスタンスを維持し、履歴を初期化しない。
 		this.liveParamValues = deepClone(paramValues);
+		this.projectValidation?.updateLiveArguments(visualModuleId, this.liveParamValues);
 		if (this.isReady.value) this.call('updateLiveParamValues', [this.liveParamValues]);
 	}
 
@@ -243,6 +246,7 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 		this.renderLoopRunning = false;
 		this.liveEffectStateStore.stop();
 		this.liveVisualModuleId.value = null;
+		this.projectValidation?.updateLiveArguments(null, {});
 	}
 
 	public async updatePlayers(newPlayers: Player[]) {
@@ -360,16 +364,12 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 
 	public async updateDynamicOptions(newDynamicOptions: Partial<VisualModuleRendererManagerDynamicOptions>) {
 		const options = deepClone(newDynamicOptions);
-		if (options.resolution !== undefined) {
-			options.resolution = {
-				width: Math.max(1, Math.floor(options.resolution.width)),
-				height: Math.max(1, Math.floor(options.resolution.height)),
-			};
-		}
+
 		this.dynamicOptions = { ...this.dynamicOptions, ...options };
+		if (options.visualModules !== undefined) this.projectState = { ...this.projectState, visualModules: options.visualModules };
 		// 初回init前の設定は初期化メッセージに含める。初期化中はRPCのキューに積む。
 		if (!this.isReady.value && !this.isInitializing) return { assetsCommitted: null };
-		const result = await this.callAndWaitReturn('updateDynamicOptions', [options]);
+		const result = await this.synchronize(this.callAndWaitReturn('updateDynamicOptions', [options]), { assetsCommitted: null });
 		if (result.assetsCommitted && options.assets === this.dynamicOptions.assets) {
 			// 素材の差し替え・削除ではPlayer定義は変わらないため、ここで参照先を同期する。
 			// 後続のAsset更新がある場合は、その完了側に同期を任せる。
@@ -380,27 +380,32 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 
 	public async replaceProjectState(state: RendererProjectState) {
 		const snapshot = deepClone(state);
-		this.dynamicOptions = { ...this.dynamicOptions, ...snapshot };
+		this.projectState = snapshot;
+		this.dynamicOptions = { ...this.dynamicOptions, visualModules: snapshot.visualModules };
 		if (!this.isReady.value && !this.isInitializing) return;
 		if (!this.initialSnapshotTaken) return this.initializationReady;
-		const replacement = this.callAndWaitReturn('replaceProjectState', [snapshot]);
+		const replacement = this.callAndWaitReturn('replaceProjectState', [{ visualModules: snapshot.visualModules }]);
 		// 復旧用の再開も置換の直後に送る。応答待ちの後に送ると、その間の
 		// パラメータ編集で再開を取りこぼしたり、モード切替後に古いLIVEを開始したりする。
 		if (this.renderLoopRunning && this.liveVisualModuleId.value != null) {
 			this.startLiveRenderLoopFor(this.liveVisualModuleId.value, this.liveParamValues);
 		}
-		await replacement;
+		await this.synchronize(replacement, undefined);
 	}
 
 	public async applyProjectChanges(changes: readonly RendererProjectChange[]) {
 		const patch = deepClone(changes);
 		if (patch.length === 0) return;
-		const next = applyRendererProjectChanges({ visualModules: this.dynamicOptions.visualModules ?? [], timelineScenes: this.dynamicOptions.timelineScenes ?? [] }, patch);
-		this.dynamicOptions = { ...this.dynamicOptions, ...next };
+		const next = applyRendererProjectChanges(this.projectState, patch);
+		this.projectState = next;
+		this.dynamicOptions = { ...this.dynamicOptions, visualModules: next.visualModules };
 		if (this.liveVisualModuleId.value != null && !next.visualModules.some(visualModule => visualModule.id === this.liveVisualModuleId.value)) this.stopRenderLoop();
 		if (!this.isReady.value && !this.isInitializing) return;
 		if (!this.initialSnapshotTaken) return this.initializationReady;
-		await this.callAndWaitReturn('applyProjectChanges', [patch]);
+		// LIVEは登録Visual Moduleだけを実行する。Scene・インライン定義はUIの静的検査で扱う。
+		const liveChanges = patch.filter(change => change.type === 'visualModuleRegistration'
+			|| (change.type === 'visualModule' || change.type === 'node') && 'visualModuleId' in change.target);
+		if (liveChanges.length > 0) await this.synchronize(this.callAndWaitReturn('applyProjectChanges', [liveChanges]), undefined);
 	}
 
 	public updateStaticOptions(newStaticOptions: Partial<VisualModuleRendererManagerStaticOptions>): Promise<void> {

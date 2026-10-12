@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { loadShaderSource } from './helpers/load-shader-source.mjs';
+import { loadSource } from './helpers/load-source.mjs';
 
-const { ProjectValidationState } = await loadShaderSource(fileURLToPath(new URL('../src/project-validation-state.ts', import.meta.url)));
+const { ProjectValidationState } = await loadSource(fileURLToPath(new URL('../src/project-validation-state.ts', import.meta.url)));
 const literal = value => ({ inputSource: 'literal', value });
 const scalar = { dataType: { kind: 'scalar' }, ui: { label: 'Amount', control: {} }, defaultValue: literal(0) };
 const color = { dataType: { kind: 'color' }, ui: { label: 'Input', control: {} }, canNode: true, defaultValue: literal([0, 0, 0, 0]) };
@@ -91,4 +91,22 @@ test('refreshes configured dimension limits without revisiting parameters', () =
 	assert.match(validation.diagnostics.firstMessage, /resolution exceeds/);
 	validation.setOptions([], 0.5, 8192);
 	assert.equal(validation.valid, true);
+});
+
+const { ProjectValidationController } = await loadSource(fileURLToPath(new URL('../src/ProjectValidationController.ts', import.meta.url)));
+
+// 【全量置換でも描画設定の診断を消さず、プレビュー品質で保存設定のエラーを隠さない】
+// ノードの修正や読込で診断の領域を作り直しても、fps・保存するブラー設定は独立して検査する。
+// プレビューのサンプル数を下げただけで、書き出し用の不正な設定を正常扱いしない。
+test('retains option diagnostics across snapshots and checks stored blur settings independently', () => {
+	const controller = new ProjectValidationController(definitions);
+	controller.updateTimelineOptions({ timelineFps: 0 });
+	controller.replace({ visualModules: [], timelineScenes: [] });
+	assert.equal(controller.canRender.value, false);
+	assert.match(controller.errorMessage.value, /frame rate/);
+	controller.updateTimelineOptions({ timelineFps: 60, timelineMotionBlur: { enabled: true, shutterAngle: 180, samples: 129 } });
+	controller.updatePreviewTimelineOptions({ timelineFps: 60, timelineMotionBlur: { enabled: true, shutterAngle: 180, samples: 0 } });
+	assert.equal(controller.canRender.value, false);
+	controller.updateTimelineOptions({ timelineMotionBlur: { enabled: true, shutterAngle: 180, samples: 16 } });
+	assert.equal(controller.canRender.value, true);
 });
