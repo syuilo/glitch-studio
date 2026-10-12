@@ -1,5 +1,6 @@
 import { getTimelineClipMoveBounds, getTimelineLoopCycle, getTimelineMediaMaxDurationMs, isTimelineClipTimingValid } from './timing.ts';
 import type { TimelineClipPlacement } from './timing.ts';
+import type { ValidationDiagnostic } from '@gs/shared/validation/diagnostic.ts';
 
 // 極端な倍率では音声の帯域制限フィルターと映像のデコード負荷が大きくなるため、
 // 操作可能な範囲をUIと保存データで共通にする。0倍のフリーズは別の時間モデルで扱う。
@@ -31,16 +32,22 @@ export function getTimelineMediaSingleDuration(clip: TimelineMediaSourceTiming):
 }
 
 export function validateTimelineMediaClipTiming(clip: TimelineMediaClipTiming, sourceDurationMs = Infinity): void {
+	const diagnostics = inspectTimelineMediaClipTiming(clip, sourceDurationMs);
+	if (diagnostics.length) throw new Error(diagnostics[0].message);
+}
+
+export function inspectTimelineMediaClipTiming(clip: TimelineMediaClipTiming, sourceDurationMs = Infinity): ValidationDiagnostic[] {
 	if (![clip.sourceInMs, clip.sourceOutMs, clip.playbackRate].every(Number.isFinite)
 		|| clip.sourceInMs < 0 || clip.sourceOutMs <= clip.sourceInMs || clip.playbackRate === 0
-		|| typeof clip.loop !== 'boolean') throw new Error('Invalid media timing');
-	validatePlaybackRate(clip.playbackRate);
-	if (!isTimelineClipTimingValid(clip)) throw new Error('Invalid media placement: duration must be at least 1 ms and start and duration must be safe integer milliseconds');
+		|| typeof clip.loop !== 'boolean') return [{ code: 'clip.media', message: 'Invalid media timing' }];
+	const diagnostics = inspectPlaybackRate(clip.playbackRate);
+	if (!isTimelineClipTimingValid(clip)) diagnostics.push({ code: 'clip.timing', message: 'Invalid media placement: duration must be at least 1 ms and start and duration must be safe integer milliseconds' });
 	const singleDuration = getTimelineMediaSingleDuration(clip);
 	if (!Number.isSafeInteger(singleDuration) || singleDuration < 1
-		|| (clip.loop ? clip.durationMs <= singleDuration : clip.durationMs !== singleDuration)) throw new Error('Invalid media duration');
+		|| (clip.loop ? clip.durationMs <= singleDuration : clip.durationMs !== singleDuration)) diagnostics.push({ code: 'clip.duration', message: 'Invalid media duration' });
 	const error = 4 * Number.EPSILON * Math.max(1, clip.sourceOutMs, sourceDurationMs);
-	if (clip.sourceOutMs > sourceDurationMs + error) throw new Error('Clip exceeds the media duration');
+	if (clip.sourceOutMs > sourceDurationMs + error) diagnostics.push({ code: 'clip.sourceDuration', message: 'Clip exceeds the media duration' });
+	return diagnostics;
 }
 
 export function getTimelineMediaCycle(clip: TimelineMediaSourceTiming, sceneTimeMs: number): number {
@@ -65,9 +72,13 @@ export function changeTimelineMediaPlaybackRate<T extends TimelineMediaClipTimin
 }
 
 function validatePlaybackRate(playbackRate: number): void {
-	if (!Number.isFinite(playbackRate) || Math.abs(playbackRate) < timelineMediaMinPlaybackSpeed || Math.abs(playbackRate) > timelineMediaMaxPlaybackSpeed) {
-		throw new Error(`Playback speed must be between ${timelineMediaMinPlaybackSpeed * 100}% and ${timelineMediaMaxPlaybackSpeed * 100}%`);
-	}
+	const diagnostics = inspectPlaybackRate(playbackRate);
+	if (diagnostics.length) throw new Error(diagnostics[0].message);
+}
+
+function inspectPlaybackRate(playbackRate: number): ValidationDiagnostic[] {
+	return !Number.isFinite(playbackRate) || Math.abs(playbackRate) < timelineMediaMinPlaybackSpeed || Math.abs(playbackRate) > timelineMediaMaxPlaybackSpeed
+		? [{ code: 'clip.playbackRate', message: `Playback speed must be between ${timelineMediaMinPlaybackSpeed * 100}% and ${timelineMediaMaxPlaybackSpeed * 100}%` }] : [];
 }
 
 type ClipWithId = TimelineClipPlacement & { id: string };

@@ -11,3 +11,8 @@ export function scaleResolution(resolution: Resolution, scale: number): Resoluti
 		height: Math.max(1, Math.round(resolution.height * scale)),
 	};
 }
+
+/** 明示設定は更新境界で検証済み。素材の原寸にはscaleResolutionを使う。 */
+export function scaleConfiguredResolution(resolution: Resolution, scale: number): Resolution {
+	return { width: Math.max(1, Math.round(resolution.width * scale)), height: Math.max(1, Math.round(resolution.height * scale)) };
+}

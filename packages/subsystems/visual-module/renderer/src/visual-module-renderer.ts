@@ -1,15 +1,13 @@
+import { resolveEvaluatedParameterValue } from '@gs/shared/parameter/evaluated-parameter-value.ts';
 import { scaleResolution, type Resolution } from '@gs/shared/resolution.ts';
 import { visualModuleCustomParameterId, type VisualModuleCustomParameterId } from '@gs/subsystems_visual-module_shared/types.ts';
 import { constantShaderInput, toShaderInput } from '@gs/shared/gpu/shader-input.ts';
 import { getNodeOutputs } from '@gs/subsystems_visual-module_shared/node-outputs.ts';
 import { playerAudioSourceId } from '@gs/shared/audio.ts';
 import { AudioHistory } from '@gs/subsystems_audio_renderer/audio-history.ts';
-import { validateVisualModuleAudioBinding } from '@gs/subsystems_visual-module_shared/audio-parameters.ts';
 import type { AudioInput } from '@gs/subsystems_audio_shared/audio-input.ts';
 import { genEmptyValue } from '@gs/shared/parameter/parameter-default.ts';
 import { VisualModuleParameterBindingEvaluator } from './visual-module-parameter-binding-evaluator.ts';
-import { validateEnumParameterValue } from '@gs/shared/parameter/parameter-definition.ts';
-import { coerceParameterValue } from '@gs/shared/parameter/coerce-parameter-value.ts';
 import { EffectRenderer } from '@gs/subsystems_effect_renderer/effect-renderer.ts';
 import { resolveEffectNodeResolution } from '@gs/subsystems_effect_shared/effect-node-resolution.ts';
 import { resolveEffectParameterValue } from '@gs/subsystems_effect_renderer/effect-parameter-value.ts';
@@ -195,10 +193,9 @@ export class VisualModuleRenderer {
 			for (const [key, def] of Object.entries(paramDefs)) {
 				if (node.isBypass && key !== this.effectDefinitions[node.effectId].primaryInputParameter) continue;
 				evaluatedParamsPerNode[key] = mapParameterTree<VisualModuleParameterBinding>(def, node.params[key], [key], (def, param) => {
-					validateVisualModuleAudioBinding(def, param, this.paramDefs);
 					if (def.dataType.kind === 'audioSource' && param.inputSource === 'externalCustomParameterInput') return null;
-					return coerceParameterValue(def, validateEnumParameterValue(def, this.parameterEvaluator.evaluate(param, evalCtx,
-						def.dataType.kind === 'enum' ? undefined : genEmptyValue(def)))); // TODO: genEmptyValueを遅延評価したい
+					return resolveEvaluatedParameterValue(def, param, this.parameterEvaluator.evaluate(param, evalCtx,
+						def.dataType.kind === 'enum' ? undefined : genEmptyValue(def))); // TODO: genEmptyValueを遅延評価したい
 				});
 			}
 			evaluated.set(node.id, evaluatedParamsPerNode);
@@ -208,11 +205,7 @@ export class VisualModuleRenderer {
 		this.evaledNodeParams = evaluated;
 	}
 
-	private evalCacheKey(node: VisualModuleNode, visited: VisualModuleNode['id'][] = [], outputPort?: string): string | null {
-		if (visited.includes(node.id)) {
-			throw new Error('circular dependency detected');
-		}
-
+	private evalCacheKey(node: VisualModuleNode, outputPort?: string): string | null {
 		if (node.type === 'globalIn') {
 			// 定数は値でキャッシュできる。借用テクスチャは同一オブジェクトでも内容が変わり得る。
 			// 別の公開入力の値変更を、このポートだけを読む枝へ伝播させない。
@@ -229,7 +222,7 @@ export class VisualModuleRenderer {
 			// 出力元のIDもキーに含め、同じパラメータの別ノードへの切り替えを検出する。
 			const output = this.getOutputNode(node);
 			if (output == null) return `${key}output=none;`;
-			const outputKey = this.evalCacheKey(output.node, [...visited, node.id], output.outputPort);
+			const outputKey = this.evalCacheKey(output.node, output.outputPort);
 			return outputKey == null ? null : `${key}port=${output.outputPort};output=${outputKey};`;
 		} else {
 			if (this.effectImplementations[node.effectId].disableCache) { // TODO: 廃止(cacheVersionに一本化)
@@ -267,8 +260,7 @@ export class VisualModuleRenderer {
 				if (def.dataType.kind === 'audioSource') key += JSON.stringify([path, this.resolveAudioInput(node.id, path, param, v)?.cacheKey ?? null]);
 				if (def.canNode && param.inputSource === 'node' && param.nodeId != null) {
 					const targetNode = this.allNodeIdMap.get(param.nodeId);
-					if (targetNode == null) throw new Error('Referenced node not found');
-					const targetNodeCacheKey = this.evalCacheKey(targetNode, [...visited, node.id], param.outputPort ?? undefined);
+					const targetNodeCacheKey = this.evalCacheKey(targetNode!, param.outputPort ?? undefined);
 					if (targetNodeCacheKey == null) return null;
 					key += JSON.stringify([path, targetNodeCacheKey]);
 				}
@@ -400,9 +392,7 @@ export class VisualModuleRenderer {
 
 	// relayと無効なエフェクトは入力をそのまま公開する。テクスチャの所有権や履歴は元のノードに残す。
 	// 描画・入力参照・キャッシュが同じ接続関係を扱うよう、ここで共通して解決する。
-	private getOutputNode(node: VisualModuleNode, outputPort?: string, visited: VisualModuleNode['id'][] = []): { node: VisualModuleEffectNode | VisualModuleGlobalInNode; outputPort: string } | undefined {
-		if (visited.includes(node.id)) throw new Error('circular dependency detected');
-		const nextVisited = [...visited, node.id];
+	private getOutputNode(node: VisualModuleNode, outputPort?: string): { node: VisualModuleEffectNode | VisualModuleGlobalInNode; outputPort: string } | undefined {
 		if (node.type === 'relay') {
 			if (outputPort != null && outputPort !== 'output') return;
 			const input = node.input;
@@ -412,7 +402,7 @@ export class VisualModuleRenderer {
 			// relayの宣言型で入力を拒否・変換せず、元の出力をそのまま渡す。
 			const outputs = source.type === 'effect' ? this.effectDefinitions[source.effectId].outputDefs : getNodeOutputs(source, this.paramDefs);
 			if (outputs[input.outputPort] == null) return;
-			return this.getOutputNode(source, input.outputPort, nextVisited);
+			return this.getOutputNode(source, input.outputPort);
 		}
 		if (node.type === 'globalIn') {
 			const port = outputPort ?? this.primaryInputId;
@@ -423,7 +413,7 @@ export class VisualModuleRenderer {
 			if (port == null || !this.outputDefs.some(def => def.id === port)) return;
 			const input = node.inputs[port];
 			const source = input?.nodeId == null ? undefined : this.allNodeIdMap.get(input.nodeId);
-			return source == null ? undefined : this.getOutputNode(source, input.outputPort ?? undefined, nextVisited);
+			return source == null ? undefined : this.getOutputNode(source, input.outputPort ?? undefined);
 		}
 		if (!node.isBypass) {
 			const port = outputPort ?? this.effectDefinitions[node.effectId].primaryOutput;
@@ -433,7 +423,7 @@ export class VisualModuleRenderer {
 		const input: NodeOutputReference | null = primary !== null ? this.evaledNodeParams.get(node.id)![primary] : null;
 		// バイパスでは自身の出力名ではなく、主入力が選択した出力ポートを公開する。
 		const source = input == null ? undefined : this.allNodeIdMap.get(input.nodeId);
-		return source == null ? undefined : this.getOutputNode(source, input!.outputPort, nextVisited);
+		return source == null ? undefined : this.getOutputNode(source, input!.outputPort);
 	}
 
 	private getOutputValue(node: VisualModuleNode, outputPort: string): UniformOrTexture | undefined {
@@ -445,7 +435,6 @@ export class VisualModuleRenderer {
 	}
 
 	private renderNode(node: VisualModuleNode, commandEncoder: GPUCommandEncoder, context: VisualModuleRenderContext & {
-		visited: Set<VisualModuleNode['id']>;
 		rendered: Set<VisualModuleNode['id']>;
 	}): void {
 		if (node.type === 'globalIn') return;
@@ -455,9 +444,6 @@ export class VisualModuleRenderer {
 				if (output != null) this.renderNode(output.node, commandEncoder, context);
 			}
 			return;
-		}
-		if (context.visited.has(node.id)) {
-			throw new Error('circular dependency detected');
 		}
 		if (context.rendered.has(node.id)) { // キャッシュが無効だったとしても同じフレーム内に同じノードを複数回レンダリングするのは無駄(というかping-pongするエフェクトなら結果がおかしくなる)なため弾く
 			return;
@@ -470,7 +456,6 @@ export class VisualModuleRenderer {
 			if (output == null) return;
 			return this.renderNode(output.node, commandEncoder, {
 				...context,
-				visited: new Set([...context.visited, node.id]),
 				rendered: context.rendered,
 			});
 		}
@@ -480,10 +465,8 @@ export class VisualModuleRenderer {
 		for (const { def, param } of walkParameterLeaves<VisualModuleParameterBinding>(this.effectDefinitions[node.effectId].paramDefs, node.params)) {
 			if (!def.canNode || param.inputSource !== 'node' || param.nodeId == null) continue;
 			const targetNode = this.allNodeIdMap.get(param.nodeId);
-			if (targetNode == null) throw new Error('Referenced node not found');
-			this.renderNode(targetNode, commandEncoder, {
+			this.renderNode(targetNode!, commandEncoder, {
 				...context,
-				visited: new Set([...context.visited, node.id]),
 				rendered: context.rendered,
 			});
 		}
@@ -544,8 +527,7 @@ export class VisualModuleRenderer {
 
 		const prepared = new Set<string>();
 
-		const visit = (target: VisualModuleNode, visited: string[], port?: string) => {
-			if (visited.includes(target.id)) throw new Error('circular dependency detected');
+		const visit = (target: VisualModuleNode, port?: string) => {
 			if (prepared.has(target.id)) return;
 			const output = this.getOutputNode(target, port);
 			if (output == null || output.node.type === 'globalIn') return;
@@ -554,8 +536,7 @@ export class VisualModuleRenderer {
 		for (const { def, param } of walkParameterLeaves<VisualModuleParameterBinding>(this.effectDefinitions[effectNode.effectId].paramDefs, effectNode.params)) {
 				if (!def.canNode || param.inputSource !== 'node' || param.nodeId == null) continue;
 				const source = this.allNodeIdMap.get(param.nodeId);
-				if (source == null) throw new Error('Referenced node not found');
-				visit(source, [...visited, target.id, effectNode.id], param.outputPort ?? undefined);
+				visit(source!, param.outputPort ?? undefined);
 			}
 			const params = this.resolveParams(effectNode, this.evaledNodeParams.get(effectNode.id)!);
 			this.ensureNodeResolution(effectNode, params);
@@ -564,7 +545,7 @@ export class VisualModuleRenderer {
 		};
 
 		for (const id of this.getRequestedOutputIds(context)) {
-			visit(node, [], id);
+			visit(node, id);
 		}
 
 		// 各エフェクトの準備は先に開始し、待機だけをまとめる。失敗時には他の待機も
@@ -604,7 +585,6 @@ export class VisualModuleRenderer {
 
 		this.renderNode(node, commandEncoder, {
 			...context,
-			visited: new Set<VisualModuleNode['id']>(),
 			rendered: new Set<VisualModuleNode['id']>(),
 		});
 

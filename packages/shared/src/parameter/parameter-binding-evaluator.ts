@@ -39,7 +39,7 @@ export class ParameterBindingEvaluator {
 			}
 			case 'automationGraphInline': return evaluateAutomationGraph(binding.automationGraph, binding, scope.time, scope.endTime);
 			case 'keyframesTimelineInline': return evaluateKeyframesTimeline(binding.keyframesTimeline, binding, scope.time, scope.endTime, fallback);
-			default: throw new Error('Unsupported value parameter input source');
+			default: return fallback;
 		}
 	}
 }

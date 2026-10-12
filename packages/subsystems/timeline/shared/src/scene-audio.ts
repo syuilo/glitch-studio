@@ -1,5 +1,5 @@
 import { findTimelineLayerLocation } from './layer-tree.ts';
-import { getSceneDuration, getTimelineScene, validateTimelineScenes } from './scenes.ts';
+import { getSceneDuration, getTimelineScene } from './scenes.ts';
 import { getTimelineClipEnd } from './timing.ts';
 import { isTimelineAudioOutputLayer } from './timeline-audio.ts';
 import { assignPreparedSpeech, getVoicevoxUtterancePlacements } from './layers/voicevox/voicevox-placement.ts';
@@ -35,7 +35,6 @@ export type SceneAudioPlacement = {
 
 /** 祖先クリップすべての表示区間を交差させ、素材と各階層の音量の時計を別々に展開する。 */
 export function getSceneAudioPlacements(scenes: readonly TimelineScene[], sceneId: string, selection: SceneAudioSelection = { type: 'all' }): SceneAudioPlacement[] {
-	validateTimelineScenes(scenes);
 	const rootScene = getTimelineScene(scenes, sceneId);
 	let rootLayers = rootScene.layers;
 	if (selection.type !== 'all') {

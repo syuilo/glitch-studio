@@ -32,7 +32,7 @@ Scene・レイヤー・クリップと、その時間・合成・音声設定の
 
 `timeline-audio.ts`の`resolveTimelineAudioLayerReference()`は、所属Scene内のグループを含む探索・自身の除外・音声出力の有無による参照可否を判定する純粋関数。Commandと描画側で同じ規則を使い、解決できない選択の拒否や入力なしへの変換はそれぞれの呼び出し側が行う。無効・空のレイヤーや音声無効の動画も有効な参照先として返す。
 
-`parameter-binding.ts`で保存データの制約を配列・構造体内部まで検証し、`TimelineParameterBindingEvaluator`はCPU値として扱えるBindingだけを共通評価器へ渡す。`layerInput`はTimeline Renderer内のエフェクトレイヤーが下層の合成結果として解決する。他ドメインの入力方式を列挙せず、このスコープが扱える方式だけを受け入れる。
+`parameter-validation.ts`の純粋な関数で保存データの制約を配列・構造体内部まで検証する。編集側のassert APIも同じ結果を使う。`TimelineParameterBindingEvaluator`はCPU値として扱えるBindingだけを共通評価器へ渡す。`layerInput`はTimeline Renderer内のエフェクトレイヤーが下層の合成結果として解決する。他ドメインの入力方式を列挙せず、このスコープが扱える方式だけを受け入れる。
 
 `getSceneAudioClips(scenes, sceneId, selection)`は音声計画を作る。選択は`{ type: 'all' }`（既定値）、`{ type: 'belowLayer', layerId }`、`{ type: 'layer', layerId }`。下層指定では自分と上層を除外し、レイヤー指定では並び順によらず指定レイヤー単体の出力を使う。下層指定はTransformの境界を透過し、最も近いGroupまたはSceneの下層までを対象にし、指定レイヤーの取得はScene内のグループをまたいで解決する。参照先の祖先の音量は含めないが、祖先が無効なら入力なしとする。選んだSceneレイヤーはその配置のトリムと音量を適用した子Scene全体を含める。子Scene内部のレイヤーは直接選べない。無効レイヤー・音声無効の動画を除外し、各階層の音量はミックス側へ渡す。`primaryAudioInputParameter` / `primaryAudioInputId`を持つエフェクト・Visual Moduleの主音声入力は、初期値・リセット時に`lowerLayerAudio`になる。画像の主入力と合成設定は独立する。
 
@@ -82,6 +82,8 @@ Scene直下またはTransform配下の`camera`レイヤーは`cameraParamValues`
 
 カメラ選択はTransformだけを再帰し、無効な枝を除いた表示順で行う。カメラ配下の計算ではなく、Scene側で選択したカメラの祖先を評価するため循環しない。祖先Transformのブラー無効は子のクリップ選択とカット計画にも引き継ぐ。カメラ自身だけを固定した場合は祖先のサンプル時刻を維持する。
 
-Groupを祖先に持つカメラも保存・読み込み・状態同期の構造検証では受け入れる。配置の描画可否は`TimelineSceneCamera.evaluate()`で検証し、無効な枝やクリップ期間外も含めてエラーにする。描画対象Sceneごとに検証するため、参照先SceneのエラーはそのSceneを描画するときに伝わる。編集側で配置を拒否せず、既存の描画エラー通知と修正後の再評価を利用できる。
+Groupを祖先に持つカメラも編集状態として受け入れるが、呼び出し側が階層の更新時に配置エラーを記録する。無効な枝やクリップ期間外も対象とする。`TimelineSceneCamera.evaluate()`は検証済みの階層からカメラを選択・評価し、配置の検証や検証結果のキャッシュを持たない。
 
 音声計画はTransformを音量なしで透過し、下層入力も外側へ継続する。Group・Sceneは従来の合成境界を維持する。
+
+`static-validation.ts`はScene設定・レイヤー設定の診断を返す。接続グラフの検証結果の保持・描画の停止・更新範囲の管理は呼び出し側の責務とする。音声計画とパラメータ評価は検証済み設定を受け取り、設定全体の検証を繰り返さない。

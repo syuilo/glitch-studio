@@ -42,10 +42,10 @@ test('rounds source dimensions and preserves at least one pixel per axis', () =>
 	assert.deepEqual(resolve({ inputResolution: { width: 2, height: 1 }, resolutionScale: 0.25 }), { width: 2, height: 1 });
 });
 
-// 【無効な寸法・倍率とGPU上限超過を確保前に拒否する】
+// 【実行時に得られた素材寸法とGPU上限超過を確保前に拒否する】
 // 原寸という指定を暗黙の縮小で置き換えず、失敗理由をユーザーへ返すための境界。
-test('rejects invalid dimensions and dimensions exceeding the device limit', () => {
-	for (const width of [0, -1, 1.5, NaN, Infinity]) assert.throws(() => resolve({ setting: { mode: 'customAbsolute', width, height: 10 } }));
+test('rejects invalid intrinsic dimensions and dimensions exceeding the device limit', () => {
+	for (const width of [0, -1, 1.5, NaN, Infinity]) assert.throws(() => resolve({ intrinsicResolution: { width, height: 10 } }));
 	for (const scale of [0, -1, NaN, Infinity]) assert.throws(() => scaleResolution({ width: 10, height: 10 }, scale));
-	assert.throws(() => resolve({ setting: { mode: 'customAbsolute', width: 20000, height: 10 } }), /8192/);
+	assert.throws(() => resolve({ intrinsicResolution: { width: 20000, height: 10 } }), /8192/);
 });

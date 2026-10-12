@@ -226,6 +226,9 @@ importers:
 
   packages/glitch-studio/shared:
     dependencies:
+      '@gs/shared':
+        specifier: workspace:*
+        version: link:../../shared
       '@gs/subsystems_timeline_shared':
         specifier: workspace:*
         version: link:../../subsystems/timeline/shared

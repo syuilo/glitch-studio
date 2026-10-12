@@ -1,15 +1,14 @@
+import { resolveEvaluatedParameterValue } from '@gs/shared/parameter/evaluated-parameter-value.ts';
+import { ProjectValidationState } from './project-validation-state.ts';
+import { inspectRenderOptions } from './render-options-validation.ts';
 import { scaleResolution, type Resolution } from '@gs/shared/resolution.ts';
 import { applyRendererProjectChanges } from '@gs/glitch-studio_shared/project/renderer-state.ts';
 import { AudioHistory } from '@gs/subsystems_audio_renderer/audio-history.ts';
 import { genId } from '@gs/shared/utility/id.ts';
 import { genEmptyValue } from '@gs/shared/parameter/parameter-default.ts';
-import { validateLiteralAudioSourceBinding } from '@gs/shared/parameter/audio-source.ts';
 import { PlayerAudioInputs } from './player-audio-inputs.ts';
-import { validatePlayerAudioSourceSelection } from '@gs/glitch-studio_shared/player-audio-source.ts';
 import EventEmitter from 'eventemitter3';
 import { ParameterBindingEvaluator } from '@gs/shared/parameter/parameter-binding-evaluator.ts';
-import { validateEnumParameterValue } from '@gs/shared/parameter/parameter-definition.ts';
-import { coerceParameterValue } from '@gs/shared/parameter/coerce-parameter-value.ts';
 import { UniformOrTextureToTextureResolver } from '@gs/shared/gpu/uniform-or-texture-to-texture-resolver.ts';
 import { VisualModuleRenderer } from '@gs/subsystems_visual-module_renderer/visual-module-renderer.ts';
 import { browserFrameScheduler, LiveRenderLoop } from '@gs/subsystems_visual-module_renderer/live-render-loop.ts';
@@ -29,6 +28,7 @@ import type { AudioCaptureMessage } from '@gs/subsystems_audio_shared/audio-capt
 import type { Asset, IntermediateTextureFormat, Player } from '@gs/shared/types.ts';
 import type { EffectImplementation } from '@gs/subsystems_effect_shared/effect-implementation.js';
 import type { EffectDefinition } from '@gs/subsystems_effect_shared/effect-definition.js';
+import type { TimelineScene } from '@gs/subsystems_timeline_shared/types.ts';
 import type { LIVE_VAR_DEFS } from '@gs/glitch-studio_shared/live-expression.js';
 
 /**
@@ -57,6 +57,7 @@ export type VisualModuleRendererManagerDynamicOptions = {
 	fpsLimit: number | null;
 	assets: Asset[];
 	visualModules: ProjectVisualModule[];
+	timelineScenes: TimelineScene[];
 };
 
 export type LiveEffectStatusSource = { type: 'live'; instanceId: string; visualModuleId: string };
@@ -72,6 +73,10 @@ export type VisualModuleRendererManagerEvents = {
 export class VisualModuleRendererManager extends EventEmitter<{
 	'ev': (ctx: { [K in keyof VisualModuleRendererManagerEvents]: { type: K; ctx: Parameters<VisualModuleRendererManagerEvents[K]>[0] } }[keyof VisualModuleRendererManagerEvents]) => void;
 }> {
+	private validation: ProjectValidationState;
+	private validationBlocked = false;
+	private pendingAssetUpdates = 0;
+	private liveStatusInstanceId = genId();
 	private previewRenderGeneration = 0;
 	private gpuContext: GPUCanvasContext;
 	private gpuDevice: GPUDevice;
@@ -115,6 +120,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 		opaqueOutput: false,
 		assets: [],
 		visualModules: [],
+		timelineScenes: [],
 	};
 
 	constructor(coreConfig: {
@@ -135,7 +141,8 @@ export class VisualModuleRendererManager extends EventEmitter<{
 		this.liveRenderLoop = new LiveRenderLoop({
 			scheduler: this.frameScheduler,
 			onFrame: timing => {
-				// グラフのエラーでWorkerを利用不能にしない。次のフレームで修正後の状態を再試行する。
+				if (this.validationBlocked || this.pendingAssetUpdates > 0) return;
+				// 式評価・GPU実行の失敗でWorkerを利用不能にしない。静的な設定エラーは入口で停止する。
 				try {
 					this.renderLiveFrame(timing);
 					this.setRenderError(null);
@@ -152,6 +159,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 		this.gpuContext = coreConfig.gpuContext;
 		this.effectDefinitions = coreConfig.effectDefinitions;
 		this.effectImplementations = coreConfig.effectImplementations;
+		this.validation = new ProjectValidationState(this.effectDefinitions);
 
 		this.gpuMemory = new GpuMemoryTracker(this.gpuDevice);
 		this.timingHelper = new TimingHelper(this.gpuDevice);
@@ -252,14 +260,19 @@ export class VisualModuleRendererManager extends EventEmitter<{
 	// (非workerで)呼び出すときは値を独立した参照にすること！ パフォーマンス上の理由でこちら側ではdeepCloneしません
 	public async updateDynamicOptions(newOptions: Partial<VisualModuleRendererManagerDynamicOptions>) {
 		const { assets, ...synchronousOptions } = newOptions;
+		if (assets !== undefined) this.validation.updateAssets(assets);
 		// 通常の設定は呼び出し順に反映する。画像のデコード完了を待ってから反映すると、
 		// 後から届いたモジュール編集やFPS変更を古い更新で巻き戻してしまう。
 		// Asset一覧だけはテクスチャと同時に切り替えるため、ここではマージしない。
 		this.dynamicOptions = { ...this.dynamicOptions, ...synchronousOptions };
+		if (newOptions.visualModules !== undefined || newOptions.timelineScenes !== undefined) this.validation.replace(this.dynamicOptions);
+		this.validation.setOptions(inspectRenderOptions(this.dynamicOptions, this.gpuDevice.limits.maxTextureDimension2D), this.dynamicOptions.resolutionScale, this.gpuDevice.limits.maxTextureDimension2D);
+		if (newOptions.visualModules !== undefined) this.validation.updateLiveArguments(this.liveVisualModuleId, this.liveParamValues);
+		this.refreshValidationState();
 		this.canvasRenderer.highlightClipping = this.dynamicOptions.highlightClipping;
 		this.canvasRenderer.opaqueOutput = this.dynamicOptions.opaqueOutput;
 
-		if (newOptions.resolution !== undefined || newOptions.resolutionScale !== undefined) {
+		if (!this.validationBlocked && (newOptions.resolution !== undefined || newOptions.resolutionScale !== undefined)) {
 			this.updateCanvasResolution(scaleResolution(this.dynamicOptions.resolution, this.dynamicOptions.resolutionScale));
 			this.liveVisualModuleRenderer?.resize(this.dynamicOptions.resolution, this.dynamicOptions.resolutionScale);
 		}
@@ -284,15 +297,24 @@ export class VisualModuleRendererManager extends EventEmitter<{
 	public replaceProjectState(state: RendererProjectState) {
 		// 全量置換は初期化・復旧の境界。差分更新と違い、同じIDでも履歴を引き継がない。
 		this.stopRenderLoop();
-		this.dynamicOptions.visualModules = state.visualModules;
+		Object.assign(this.dynamicOptions, state);
+		this.validation.replace(state);
+		this.validation.setOptions(inspectRenderOptions(this.dynamicOptions, this.gpuDevice.limits.maxTextureDimension2D), this.dynamicOptions.resolutionScale, this.gpuDevice.limits.maxTextureDimension2D);
+		this.validation.updateLiveArguments(null, {});
+		this.refreshValidationState();
 	}
 
 	public applyProjectChanges(changes: readonly RendererProjectChange[]) {
-		const relevant = changes.filter(change => change.type === 'visualModuleRegistration'
-			|| (change.type === 'node' || change.type === 'visualModule') && 'visualModuleId' in change.target);
-		const next = applyRendererProjectChanges({ visualModules: this.dynamicOptions.visualModules, timelineScenes: [] }, relevant);
-		this.dynamicOptions.visualModules = next.visualModules;
-		const liveChanges = relevant.filter(change => change.type === 'visualModuleRegistration' ? change.visualModuleId === this.liveVisualModuleId
+		const next = applyRendererProjectChanges(this.dynamicOptions, changes);
+		Object.assign(this.dynamicOptions, next);
+		if (this.liveVisualModuleId != null && !next.visualModules.some(visualModule => visualModule.id === this.liveVisualModuleId)) this.stopRenderLoop();
+		this.validation.apply(next, changes);
+		if (changes.some(change => change.type === 'visualModuleRegistration' ? change.visualModuleId === this.liveVisualModuleId
+			: change.type === 'visualModule' && 'visualModuleId' in change.target && change.target.visualModuleId === this.liveVisualModuleId)) {
+			this.validation.updateLiveArguments(this.liveVisualModuleId, this.liveParamValues);
+		}
+		this.refreshValidationState();
+		const liveChanges = changes.filter(change => change.type === 'visualModuleRegistration' ? change.visualModuleId === this.liveVisualModuleId
 			: (change.type === 'node' || change.type === 'visualModule') && 'visualModuleId' in change.target && change.target.visualModuleId === this.liveVisualModuleId);
 		if (liveChanges.length > 0 && this.liveVisualModuleRenderer != null) {
 			const visualModule = next.visualModules.find(visualModule => visualModule.id === this.liveVisualModuleId);
@@ -302,16 +324,27 @@ export class VisualModuleRendererManager extends EventEmitter<{
 	}
 
 	private updateAssets(assets: Asset[]): Promise<boolean> {
+		this.pendingAssetUpdates++;
 		return this.assetTextures.update(assets, () => {
 			// 世代管理で採用された更新だけが一覧とキャッシュを切り替える。
 			// 中断されたデコードの完了後に、Asset一覧だけを上書きしてはいけない。
 			this.dynamicOptions.assets = assets;
+			this.validation.updateAssets(assets);
+			this.refreshValidationState();
 			this.liveVisualModuleRenderer?.updateAssets(assets);
+		}).finally(() => {
+			this.pendingAssetUpdates--;
+			if (this.pendingAssetUpdates === 0) {
+				this.validation.updateAssets(this.dynamicOptions.assets);
+				this.refreshValidationState();
+			}
 		});
 	}
 
 	public updateLiveParamValues(paramValues: VisualModuleArgumentBindings) {
 		this.liveParamValues = paramValues;
+		this.validation.updateLiveArguments(this.liveVisualModuleId, paramValues);
+		this.refreshValidationState();
 	}
 
 	public startLiveRenderLoopFor(visualModuleId: string, paramValues: VisualModuleArgumentBindings = {}, statusInstanceId = genId()) {
@@ -322,6 +355,18 @@ export class VisualModuleRendererManager extends EventEmitter<{
 
 		this.liveVisualModuleId = visualModuleId;
 		this.liveParamValues = paramValues;
+		this.liveStatusInstanceId = statusInstanceId;
+		this.validation.updateLiveArguments(visualModuleId, paramValues);
+		this.refreshValidationState();
+	}
+
+	private resumeLiveRenderer() {
+		if (this.validationBlocked || this.liveVisualModuleId == null || this.liveVisualModuleRenderer != null) return;
+		const visualModuleId = this.liveVisualModuleId;
+		const visualModule = this.dynamicOptions.visualModules.find(visualModule => visualModule.id === visualModuleId);
+		if (!visualModule) return;
+		this.updateCanvasResolution(scaleResolution(this.dynamicOptions.resolution, this.dynamicOptions.resolutionScale));
+		const statusInstanceId = this.liveStatusInstanceId;
 		const statusSource: LiveEffectStatusSource = { type: 'live', instanceId: statusInstanceId, visualModuleId };
 		this.liveVisualModuleRenderer = new VisualModuleRenderer({
 			gpuDevice: this.gpuDevice,
@@ -347,8 +392,26 @@ export class VisualModuleRendererManager extends EventEmitter<{
 		this.liveRenderLoop.start();
 	}
 
+	public publishValidationState() { this.emit('ev', { type: 'renderError', ctx: { message: this.currentRenderError } }); }
+
+	public getValidationDiagnostics() { return { revision: this.validation.revision, errorCount: this.validation.diagnostics.errorCount, units: this.validation.diagnostics.entries }; }
+
+	private refreshValidationState() {
+		this.previewRenderGeneration++;
+		const wasBlocked = this.validationBlocked;
+		this.validationBlocked = !this.validation.valid;
+		if (this.validationBlocked || wasBlocked) {
+			this.previewRenderGeneration++;
+			this.liveRenderLoop.stop();
+			this.liveVisualModuleRenderer?.destroy();
+			this.liveVisualModuleRenderer = null;
+		}
+		if (this.validationBlocked || wasBlocked) this.setRenderError(this.validation.diagnostics.firstMessage);
+		this.resumeLiveRenderer();
+	}
+
 	private renderLiveFrame(timing: LiveFrameTiming) {
-		if (this.liveVisualModuleRenderer == null) return;
+		if (this.liveVisualModuleRenderer == null || this.pendingAssetUpdates > 0) return;
 		const generation = ++this.previewRenderGeneration;
 		const visualModule = this.dynamicOptions.visualModules.find(module => module.id === this.liveVisualModuleId)!;
 		const commandEncoder = this.gpuDevice.createCommandEncoder();
@@ -358,18 +421,16 @@ export class VisualModuleRendererManager extends EventEmitter<{
 			for (const def of visualModule.paramDefs) {
 				if (def.dataType.kind === 'audioSource') {
 					const binding = this.liveParamValues[def.id] ?? def.defaultValue;
-					validateLiteralAudioSourceBinding(binding);
-					validatePlayerAudioSourceSelection(binding.value);
 					// 未使用の公開入力では履歴をコピーしない。実際の読み手が必要になった時に
 					// 注入したresolveAudioSourceで取得する。音声の指定はPARAMへ公開されない。
-					evaluatedParamValues.set(def.id, binding.value);
+					evaluatedParamValues.set(def.id, 'value' in binding ? binding.value : null);
 					continue;
 				}
 				if (this.liveParamValues[def.id] == null) {
-					evaluatedParamValues.set(def.id, coerceParameterValue(def, validateEnumParameterValue(def, def.defaultValue.value)));
+					evaluatedParamValues.set(def.id, resolveEvaluatedParameterValue(def, def.defaultValue, def.defaultValue.value));
 					continue;
 				}
-				evaluatedParamValues.set(def.id, coerceParameterValue(def, validateEnumParameterValue(def, this.liveParamEvaluator.evaluate(this.liveParamValues[def.id], {
+				evaluatedParamValues.set(def.id, resolveEvaluatedParameterValue(def, this.liveParamValues[def.id], this.liveParamEvaluator.evaluate(this.liveParamValues[def.id], {
 					variables: {
 						TIME: timing.time / 1000,
 						TIME_MS: timing.time,
@@ -377,7 +438,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 					automationGraphs: [],
 					time: timing.time,
 					endTime: Infinity,
-				}, def.dataType.kind === 'enum' ? undefined : genEmptyValue(def))))); // TODO: genEmptyValueを遅延評価したい
+				}, def.dataType.kind === 'enum' ? undefined : genEmptyValue(def)))); // TODO: genEmptyValueを遅延評価したい
 			}
 
 			// Outが未接続でも透明な出力を描画し、前の映像や集計結果を残さない。
@@ -428,8 +489,10 @@ export class VisualModuleRendererManager extends EventEmitter<{
 		this.previewRenderGeneration++;
 		this.liveRenderLoop.stop();
 		this.liveVisualModuleId = null;
+		this.validation.updateLiveArguments(null, {});
 		this.liveVisualModuleRenderer?.destroy();
 		this.liveVisualModuleRenderer = null;
+		this.refreshValidationState();
 	}
 
 	public destroy() {

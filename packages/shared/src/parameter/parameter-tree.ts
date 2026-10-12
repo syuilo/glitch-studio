@@ -1,5 +1,4 @@
 import { getArrayElementDefinition, getStructFieldDefinitions } from './parameter-definition.ts';
-import { isLiteralParameterBinding } from './parameter-binding.ts';
 import type { ParameterArrayElement, ParameterBindingBase } from './parameter-binding.ts';
 import type { ParameterDefinition } from './parameter-definition.ts';
 
@@ -13,12 +12,11 @@ export type EvaluatedParameterPath = (string | number)[];
 export function mapParameterTree<Binding extends ParameterBindingBase = never>(def: ParameterDefinition, param: NoInfer<Binding>, path: EvaluatedParameterPath,
 	mapLeaf: NoInfer<(def: ParameterDefinition, param: Binding, path: EvaluatedParameterPath) => any>): any {
 	if (def.dataType.kind === 'array' || def.dataType.kind === 'struct') {
-		if (!isLiteralParameterBinding(param)) throw new Error(`Container parameter must be literal: ${JSON.stringify(path)}`);
+		const container = param as Binding & { value: any };
 		if (def.dataType.kind === 'array') {
-			if (!Array.isArray(param.value)) throw new Error(`Expected array parameter: ${JSON.stringify(path)}`);
-			return param.value.map((element: ParameterArrayElement<Binding>, index: number) => mapParameterTree<Binding>(getArrayElementDefinition(def), element.binding, [...path, index], mapLeaf));
+			return container.value.map((element: ParameterArrayElement<Binding>, index: number) => mapParameterTree<Binding>(getArrayElementDefinition(def), element.binding, [...path, index], mapLeaf));
 		}
-		const fields = param.value as Record<string, Binding>;
+		const fields = container.value as Record<string, Binding>;
 		return Object.fromEntries(Object.entries(getStructFieldDefinitions(def)).map(([key, field]) =>
 			[key, mapParameterTree<Binding>(field, fields[key], [...path, key], mapLeaf)]));
 	}
@@ -30,12 +28,11 @@ export function* walkParameterLeaves<Binding extends ParameterBindingBase = neve
 }> {
 	function* walk(def: ParameterDefinition, param: Binding, path: EvaluatedParameterPath): ReturnType<typeof walkParameterLeaves<Binding>> {
 		if (def.dataType.kind === 'array' || def.dataType.kind === 'struct') {
-			if (!isLiteralParameterBinding(param)) throw new Error(`Container parameter must be literal: ${JSON.stringify(path)}`);
+			const container = param as Binding & { value: any };
 			if (def.dataType.kind === 'array') {
-				if (!Array.isArray(param.value)) throw new Error(`Expected array parameter: ${JSON.stringify(path)}`);
-				for (const [index, element] of (param.value as ParameterArrayElement<Binding>[]).entries()) yield* walk(getArrayElementDefinition(def), element.binding, [...path, index]);
+				for (const [index, element] of (container.value as ParameterArrayElement<Binding>[]).entries()) yield* walk(getArrayElementDefinition(def), element.binding, [...path, index]);
 			} else {
-				const fields = param.value as Record<string, Binding>;
+				const fields = container.value as Record<string, Binding>;
 				for (const [key, field] of Object.entries(getStructFieldDefinitions(def))) yield* walk(field, fields[key], [...path, key]);
 			}
 		} else {

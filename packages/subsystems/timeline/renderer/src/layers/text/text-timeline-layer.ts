@@ -1,4 +1,3 @@
-import { validateTimelineText } from '@gs/subsystems_timeline_shared/layers/text/text-layer.ts';
 import { createTextRenderer } from '../../text-rendering/text-renderer.ts';
 import { createTimelineCompositor } from '../../timeline-compositor.ts';
 import { TimelineCompositingParameters } from '../../timeline-compositing-parameters.ts';
@@ -9,7 +8,6 @@ import type { TimelineImage } from '../../timeline-image.ts';
 import type { TimelineLayerRenderer } from '../../timeline-renderer.ts';
 
 export function createTextTimelineLayer(layer: TimelineTextLayer, options: Parameters<typeof createTextRenderer>[0] & { getFont: (id: string) => Blob | null; onCompositing?: TimelineCompositingObserver }): TimelineLayerRenderer<TimelineImage> {
-	validateTimelineText(layer.textParamValues);
 	const renderer = createTextRenderer(options);
 	const compositor = createTimelineCompositor(options);
 	const parameters = new TextParameters();

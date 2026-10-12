@@ -4,7 +4,7 @@ import type { TimelineParameterBinding } from '@gs/subsystems_timeline_shared/ty
 import { TimelineParameterBindingEvaluator } from '@gs/subsystems_timeline_shared/parameter-binding-evaluator.ts';
 import { createTimelineLayerEvaluationScope } from '@gs/subsystems_timeline_shared/evaluation-scope.ts';
 import { timelineAudioParamDefs } from '@gs/subsystems_timeline_shared/timeline-audio.ts';
-import { coerceParameterValue } from '@gs/shared/parameter/coerce-parameter-value.ts';
+import { resolveEvaluatedParameterValue } from '@gs/shared/parameter/evaluated-parameter-value.ts';
 import type { StereoPcm, AudioPcmReadOptions } from '@gs/subsystems_audio_shared/pcm.ts';
 import { getTimelineMediaCycle, getTimelineMediaPeriod, getTimelineMediaSourceTime } from '@gs/subsystems_timeline_shared/media-timing.ts';
 
@@ -74,7 +74,7 @@ export class TimelineAudioRenderer {
 	private createGain(binding: TimelineParameterBinding, getScope: (time: number) => ParameterEvaluationScope) {
 		const cache = new Map<number, number>();
 		const evaluate = (time: number) => {
-			const value = coerceParameterValue(timelineAudioParamDefs.volume, this.evaluator.evaluate(binding, getScope(time), 0));
+			const value = resolveEvaluatedParameterValue(timelineAudioParamDefs.volume, binding, this.evaluator.evaluate(binding, getScope(time), 0));
 			return typeof value === 'number' && Number.isFinite(value) ? Math.max(0, value) : 0;
 		};
 		const control = (index: number) => {

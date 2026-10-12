@@ -103,6 +103,7 @@ export class TimelineRendererManagerController extends RendererManagerController
 				},
 			},
 			onCreated: () => {
+				this.call('publishValidationState', []);
 			},
 			onDisposed: () => {
 				this.layerTransform.value = null;

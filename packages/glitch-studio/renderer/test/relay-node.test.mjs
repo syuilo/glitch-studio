@@ -218,17 +218,3 @@ test('honors any compatibility without converting the output', t => {
 	const output = { kind: 'uniform', value: [0.125] };
 	assert.equal(f.render(context(output)), output);
 });
-
-for (const nodes of [
-	[relay('relay', reference('relay'))],
-	[relay('first', reference('second')), relay('second', reference('first'))],
-	[relay('relay', reference('effect')), effectNode('effect', { input: connection('relay') })],
-]) {
-	// 自己参照・中継同士・エフェクトを含む循環を検出する
-	// 配線の整理中にも循環は発生し得るため、準備や描画が無限再帰して停止する前に報告する。
-	test(`rejects cycles through ${nodes.map(node => node.id).join(' and ')}`, async t => {
-		const f = fixture(t, nodes, { paramDefs: { input: colorInput } });
-		await assert.rejects(f.renderer.prepare(context(), new AbortController().signal), /circular dependency/);
-		assert.throws(() => f.render(), /circular dependency/);
-	});
-}

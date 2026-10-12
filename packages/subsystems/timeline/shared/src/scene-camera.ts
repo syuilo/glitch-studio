@@ -1,28 +1,9 @@
 import { getTimelineClipEnd, isTimelineClipActive } from './timing.ts';
 import { TimelineCameraParameters } from './layers/camera/camera-parameters.ts';
 import { TimelineTransformParameters } from './layers/transform/transform-parameters.ts';
-import { isTimelineContainerLayer } from './types.ts';
 import type { TimelineLayer, TimelineCameraLayer, TimelineTransformLayer } from './types.ts';
 
 type CameraCandidate = { layer: TimelineCameraLayer; ancestors: TimelineTransformLayer[]; frozen: boolean };
-
-// layersは変更経路を置換する不変のスナップショットとして受け取る。
-// 配置の検証結果は評価器の寿命と分け、子Sceneの再生成やプレビュー枠の評価でも再利用する。
-// エラーも保持して再描画での走査を防ぎ、古いスナップショットはWeakMapで解放可能にする。
-const cameraPlacementErrors = new WeakMap<readonly TimelineLayer[], Error | null>();
-
-// カメラの無効化やクリップの空白で構成エラーを隠すと、時刻の変更で突然失敗するため、
-// 有効なカメラの選択とは分けて、Transformを挟んだ子孫を含めて検証する。
-function findCameraPlacementError(layers: readonly TimelineLayer[], insideGroup = false): Error | null {
-	for (const layer of layers) {
-		if (insideGroup && layer.layerType === 'camera') return new Error(`Camera "${layer.name}" is inside a Group. Move it outside the Group to render this scene.`);
-		if (isTimelineContainerLayer(layer)) {
-			const error = findCameraPlacementError(layer.layers, insideGroup || layer.layerType === 'group');
-			if (error) return error;
-		}
-	}
-	return null;
-}
 
 /** Groupは合成境界なので探索せず、Transformだけを表示順に透過する。 */
 export function getTimelineCameraCandidates(layers: readonly TimelineLayer[], ancestors: TimelineTransformLayer[] = [], frozen = false): CameraCandidate[] {
@@ -92,13 +73,6 @@ export class TimelineSceneCamera {
 	private transforms = new TimelineTransformParameters();
 
 	evaluate(layers: readonly TimelineLayer[], time: number, isExport: boolean, referenceTime = time) {
-		let placementError = cameraPlacementErrors.get(layers);
-		if (placementError === undefined) {
-			placementError = findCameraPlacementError(layers);
-			cameraPlacementErrors.set(layers, placementError);
-		}
-		// 編集状態の同期では拒否せず、描画時に既存のエラー通知へ渡す。
-		if (placementError) throw placementError;
 		const active = getActiveTimelineCamera(layers, time, referenceTime);
 		const settings = active && { paramValues: active.layer.cameraParamValues, automationGraphs: active.layer.automationGraphs };
 		const camera = this.parameters.evaluate(settings, active?.time ?? time, isExport);

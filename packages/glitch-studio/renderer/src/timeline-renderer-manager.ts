@@ -1,17 +1,18 @@
+import { ProjectValidationState } from './project-validation-state.ts';
+import { inspectRenderOptions } from './render-options-validation.ts';
 import { createTransformTimelineLayer } from '@gs/subsystems_timeline_renderer/layers/transform/transform-timeline-layer.ts';
 import { TimelineTransformParameters } from '@gs/subsystems_timeline_shared/layers/transform/transform-parameters.ts';
 import { isTimelineRenderLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import { flattenTimelineLayers, findTimelineLayer, findTimelineLayerLocation } from '@gs/subsystems_timeline_shared/layer-tree.ts';
 import { createGroupTimelineLayer } from '@gs/subsystems_timeline_renderer/layers/group/group-timeline-layer.ts';
 import { createSpeechResolver } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox.ts';
-import { validateTimelineFps, validateTimelineMotionBlur, getTimelineMotionBlurBoundaries, getTimelineMotionBlurCameraCuts, getTimelineMotionBlurLoops, getTimelineSampleTimes } from '@gs/subsystems_timeline_shared/motion-blur.ts';
+import { validateTimelineFps, getTimelineMotionBlurBoundaries, getTimelineMotionBlurCameraCuts, getTimelineMotionBlurLoops, getTimelineSampleTimes } from '@gs/subsystems_timeline_shared/motion-blur.ts';
 import { TimelineFrameRenderer } from '@gs/subsystems_timeline_renderer/timeline-frame-renderer.ts';
 import { createMotionBlurAccumulator } from '@gs/subsystems_timeline_renderer/motion-blur-accumulator.ts';
 import { scaleResolution, type Resolution } from '@gs/shared/resolution.ts';
-import { getTimelineScene, validateTimelineLayer, validateTimelineScenes } from '@gs/subsystems_timeline_shared/scenes.ts';
+import { getTimelineScene } from '@gs/subsystems_timeline_shared/scenes.ts';
 import { applyRendererProjectChanges, findRendererVisualModule } from '@gs/glitch-studio_shared/project/renderer-state.ts';
 import { deepEqual } from '@gs/shared/utility/deep-equal.ts';
-import { validateTimelineEffectLayer } from '@gs/subsystems_timeline_shared/layers/effect/effect-layer.ts';
 import { getSceneBaseResolution, resolveSceneResolution } from '@gs/subsystems_timeline_shared/scene-resolution.ts';
 import EventEmitter from 'eventemitter3';
 import { VisualModuleRenderer } from '@gs/subsystems_visual-module_renderer/visual-module-renderer.ts';
@@ -38,7 +39,6 @@ import defaultVertexShaderCode from '@gs/shared/gpu/vertex.wgsl?raw';
 import { CanvasRenderer } from './canvas-renderer.ts';
 import { ProjectStateVersions } from './project-state-versions.ts';
 import { AssetTextures } from './asset-textures.ts';
-import { canPreserveModuleLayerInstance } from './project-change-policy.ts';
 import { TimelineAudioInputs } from './timeline-audio-inputs.ts';
 import type { TimelineTransformObservation, TimelineTransformPreview } from '@gs/glitch-studio_shared/timeline-transform-preview.ts';
 import type { TimelineCompositingObserver } from '@gs/subsystems_timeline_renderer/timeline-compositor.ts';
@@ -108,6 +108,9 @@ export class TimelineRendererManager extends EventEmitter<{
 	'ev': (ctx: { [K in keyof TimelineRendererManagerEvents]: { type: K; ctx: Parameters<TimelineRendererManagerEvents[K]>[0] } }[keyof TimelineRendererManagerEvents]) => void;
 }> {
 	private timelineRenderer: TimelineRenderer<TimelineImage, TimelineLayer>;
+	private validation: ProjectValidationState;
+	private validationBlocked = false;
+	private pendingAssetUpdates = 0;
 	private previewRenderGeneration = 0;
 	private frameRenderer: TimelineFrameRenderer<TimelineImage>;
 	private motionBlurAccumulator: ReturnType<typeof createMotionBlurAccumulator> | undefined;
@@ -160,8 +163,6 @@ export class TimelineRendererManager extends EventEmitter<{
 	}, staticOptions: TimelineRendererManagerStaticOptions) {
 		super();
 
-		validateTimelineFps(staticOptions.timelineFps);
-		validateTimelineMotionBlur(staticOptions.timelineMotionBlur);
 		this.staticOptions = { ...staticOptions, timelineMotionBlur: { ...staticOptions.timelineMotionBlur } };
 
 		this.gpuDevice = coreConfig.gpuDevice;
@@ -169,6 +170,8 @@ export class TimelineRendererManager extends EventEmitter<{
 		this.gpuContext = coreConfig.gpuContext;
 		this.effectDefinitions = coreConfig.effectDefinitions;
 		this.effectImplementations = coreConfig.effectImplementations;
+		this.validation = new ProjectValidationState(this.effectDefinitions);
+		this.validation.setOptions(inspectRenderOptions(this.dynamicOptions, this.gpuDevice.limits.maxTextureDimension2D, this.staticOptions), this.dynamicOptions.resolutionScale, this.gpuDevice.limits.maxTextureDimension2D);
 
 		this.gpuContext.configure({
 			device: this.gpuDevice,
@@ -206,7 +209,7 @@ export class TimelineRendererManager extends EventEmitter<{
 			getLayerVersion: (entry, clipId) => this.getLayerVersion(this.dynamicOptions.sceneId!, entry, clipId),
 			present: output => this.presentOutput(output),
 			onClear: () => {
-				this.canvasRenderer.clear();
+				if (!this.validationBlocked) this.canvasRenderer.clear();
 			},
 		});
 		this.frameRenderer = new TimelineFrameRenderer({
@@ -226,6 +229,7 @@ export class TimelineRendererManager extends EventEmitter<{
 			},
 			present: output => this.presentOutput(output),
 		});
+		this.refreshValidationState();
 	}
 
 	private presentOutput(output: TimelineImage) {
@@ -247,6 +251,27 @@ export class TimelineRendererManager extends EventEmitter<{
 		this.emit('ev', { type: 'renderError', ctx: { message } });
 	}
 
+	public publishValidationState() { this.emit('ev', { type: 'renderError', ctx: { message: this.currentRenderError } }); }
+
+	public getValidationDiagnostics() { return { revision: this.validation.revision, errorCount: this.validation.diagnostics.errorCount, units: this.validation.diagnostics.entries }; }
+
+	private refreshValidationState() {
+		const wasBlocked = this.validationBlocked;
+		this.validationBlocked = !this.validation.valid;
+		if (this.validationBlocked || wasBlocked) {
+			// 正常復帰では既存の履歴を再利用しない。次の描画で最新設定から生成する。
+			this.clearTimelineRenderers();
+			this.projectVersions = new ProjectStateVersions();
+		}
+		if (wasBlocked && !this.validationBlocked) {
+			// 停止中に解像度を編集していた場合も、復帰した設定の表示先へ揃える。
+			const resolution = this.resolveProjectOutputResolution(this.dynamicOptions);
+			this.gpuContext.canvas.width = resolution.width;
+			this.gpuContext.canvas.height = resolution.height;
+		}
+		if (this.validationBlocked || wasBlocked) this.setRenderError(this.validation.diagnostics.firstMessage);
+	}
+
 	private clearTimelineRenderers() {
 		this.frameRenderer.clear();
 		this.motionBlurTiming = undefined;
@@ -261,13 +286,8 @@ export class TimelineRendererManager extends EventEmitter<{
 
 	// (非workerで)呼び出すときは値を独立した参照にすること！ パフォーマンス上の理由でこちら側ではdeepCloneしません
 	public async updateDynamicOptions(newOptions: Partial<TimelineRendererManagerDynamicOptions>) {
-		if (newOptions.timelineScenes != null) {
-			validateTimelineScenes(newOptions.timelineScenes);
-			for (const scene of newOptions.timelineScenes) for (const layer of flattenTimelineLayers(scene.layers)) {
-				if (layer.layerType === 'effect') validateTimelineEffectLayer(layer, this.effectDefinitions[layer.effectId]);
-			}
-		}
 		const { assets, ...synchronousOptions } = newOptions;
+		if (assets !== undefined) this.validation.updateAssets(assets);
 		if (newOptions.generatedSpeech) {
 			this.frameRenderer.clear();
 			this.resolveSpeech = createSpeechResolver(newOptions.generatedSpeech);
@@ -277,13 +297,16 @@ export class TimelineRendererManager extends EventEmitter<{
 		// 後から届いたモジュール編集やFPS変更を古い更新で巻き戻してしまう。
 		// Asset一覧だけはテクスチャと同時に切り替えるため、ここではマージしない。
 		this.dynamicOptions = { ...this.dynamicOptions, ...synchronousOptions };
+		if (newOptions.timelineScenes !== undefined || newOptions.visualModules !== undefined) this.validation.replace(this.dynamicOptions);
+		this.validation.setOptions(inspectRenderOptions(this.dynamicOptions, this.gpuDevice.limits.maxTextureDimension2D, this.staticOptions), this.dynamicOptions.resolutionScale, this.gpuDevice.limits.maxTextureDimension2D);
+		this.refreshValidationState();
 		this.canvasRenderer.highlightClipping = this.dynamicOptions.highlightClipping;
 		this.canvasRenderer.opaqueOutput = this.dynamicOptions.opaqueOutput;
 
 		if (newOptions.resolution !== undefined || newOptions.resolutionScale !== undefined || newOptions.visualModules !== undefined || newOptions.timelineScenes !== undefined || newOptions.sceneId !== undefined) {
 			this.clearTimelineRenderers();
 		}
-		if (newOptions.resolution !== undefined || newOptions.resolutionScale !== undefined || newOptions.timelineScenes !== undefined || newOptions.sceneId !== undefined || newOptions.outputResolution !== undefined) {
+		if (!this.validationBlocked && (newOptions.resolution !== undefined || newOptions.resolutionScale !== undefined || newOptions.timelineScenes !== undefined || newOptions.sceneId !== undefined || newOptions.outputResolution !== undefined)) {
 			try {
 				// 出力寸法を上書きする書き出しでも、Scene内部の寸法を先に検証する。
 				const sceneResolution = this.renderResolution;
@@ -305,52 +328,27 @@ export class TimelineRendererManager extends EventEmitter<{
 	}
 
 	public replaceProjectState(state: RendererProjectState, previewRevision = this.dynamicOptions.previewRevision + 1) {
-		validateTimelineScenes(state.timelineScenes);
-		for (const scene of state.timelineScenes) for (const layer of flattenTimelineLayers(scene.layers)) {
-			if (layer.layerType === 'effect') validateTimelineEffectLayer(layer, this.effectDefinitions[layer.effectId]);
-		}
-		const resolution = this.resolveProjectOutputResolution(state);
 		this.clearTimelineRenderers();
 		this.projectVersions = new ProjectStateVersions();
 		Object.assign(this.dynamicOptions, state);
+		this.validation.replace(state);
+		this.validation.setOptions(inspectRenderOptions(this.dynamicOptions, this.gpuDevice.limits.maxTextureDimension2D, this.staticOptions), this.dynamicOptions.resolutionScale, this.gpuDevice.limits.maxTextureDimension2D);
+		this.refreshValidationState();
 		this.dynamicOptions.previewRevision = previewRevision;
 		if (!state.timelineScenes.some(scene => scene.id === this.dynamicOptions.sceneId)) this.dynamicOptions.sceneId = null;
-		this.gpuContext.canvas.width = resolution.width;
-		this.gpuContext.canvas.height = resolution.height;
+		if (!this.validationBlocked) {
+			const resolution = this.resolveProjectOutputResolution(state);
+			this.gpuContext.canvas.width = resolution.width;
+			this.gpuContext.canvas.height = resolution.height;
+		}
 	}
 
 	public applyProjectChanges(changes: readonly RendererProjectChange[], previewRevision = this.dynamicOptions.previewRevision + 1) {
-		let next: RendererProjectState = this.dynamicOptions;
-		let validateSceneReferences = false;
-		for (const change of changes) {
-			const previous = change.type === 'layer' ? findTimelineLayer(next.timelineScenes.find(scene => scene.id === change.sceneId)?.layers ?? [], change.layerId) : undefined;
-			// 同じバッチのModule編集を後続の引数更新の検証にも使う。公開状態は最後まで変えない。
-			next = applyRendererProjectChanges(next, [change]);
-			if (change.type === 'scene' || change.type === 'layerTree') validateSceneReferences = true;
-			if (change.type !== 'layer' || change.layer === null) continue;
-			// 設定差分はコンテナの子孫を含まない。子の再検証は階層変更か子自身の差分で行う。
-			validateTimelineLayer((change.layer.layerType === 'group' || change.layer.layerType === 'transform') ? { ...change.layer, layers: [] } : change.layer);
-			if (change.layer.layerType === 'effect') validateTimelineEffectLayer(change.layer, this.effectDefinitions[change.layer.effectId]);
-			if (change.layer.layerType === 'scene') validateSceneReferences = true;
-			if (canPreserveModuleLayerInstance(change.changes)) {
-				if (!previous || !('visualModuleParamValues' in previous) || !('visualModuleParamValues' in change.layer)) {
-					throw new Error('Only module arguments can preserve a layer instance');
-				}
-				// 表示名は描画へ通知しないため、直前のUI状態とは異なることがある。
-				const { visualModuleParamValues: previousValues, name: previousName, ...previousRest } = previous;
-				const { visualModuleParamValues: nextValues, name: nextName, ...nextRest } = change.layer;
-				if (!deepEqual(previousRest, nextRest)) throw new Error('Layer structure changed while preserving its instance');
-			}
-		}
-		if (validateSceneReferences) {
-			validateTimelineScenes(next.timelineScenes);
-			for (const scene of next.timelineScenes) for (const layer of flattenTimelineLayers(scene.layers)) {
-				if (layer.layerType === 'effect') validateTimelineEffectLayer(layer, this.effectDefinitions[layer.effectId]);
-			}
-		}
+		const next = applyRendererProjectChanges(this.dynamicOptions, changes);
+		this.validation.apply(next, changes);
 		const changesRootScene = changes.some(change => change.type === 'scene' && change.sceneId === this.dynamicOptions.sceneId);
-		const resolution = changesRootScene ? this.resolveProjectOutputResolution(next) : null;
-		// 差分の検証が成功するまで公開状態を変更しない。編集中の非同期フレームは
+		const resolution = changesRootScene && this.validation.valid ? this.resolveProjectOutputResolution(next) : null;
+		// 設定エラーも最新状態として受け取る。編集中の非同期フレームは
 		// 中断するが、履歴とキャッシュの破棄は変更された配置だけが次の評価で行う。
 		this.previewScheduler.clear();
 		this.previewRenderGeneration++;
@@ -359,6 +357,7 @@ export class TimelineRendererManager extends EventEmitter<{
 		this.motionBlurTiming = undefined;
 		this.projectVersions.apply(changes, this.dynamicOptions);
 		Object.assign(this.dynamicOptions, next);
+		this.refreshValidationState();
 		this.dynamicOptions.previewRevision = previewRevision;
 		if (!next.timelineScenes.some(scene => scene.id === this.dynamicOptions.sceneId)) {
 			this.dynamicOptions.sceneId = null;
@@ -376,7 +375,7 @@ export class TimelineRendererManager extends EventEmitter<{
 	private resolveProjectOutputResolution(state: RendererProjectState): Resolution {
 		const scene = state.timelineScenes.find(scene => scene.id === this.dynamicOptions.sceneId);
 		const sceneResolution = resolveSceneResolution(scene?.resolution ?? { mode: 'project' }, this.dynamicOptions.resolution,
-			this.dynamicOptions.resolutionScale, this.gpuDevice.limits.maxTextureDimension2D);
+			this.dynamicOptions.resolutionScale);
 		const resolution = this.dynamicOptions.outputResolution ?? sceneResolution;
 		if (![resolution.width, resolution.height].every(value => Number.isSafeInteger(value) && value > 0 && value <= this.gpuDevice.limits.maxTextureDimension2D)) {
 			throw new Error(`Invalid output resolution: ${resolution.width} × ${resolution.height}`);
@@ -395,12 +394,21 @@ export class TimelineRendererManager extends EventEmitter<{
 	}
 
 	private updateAssets(assets: Asset[]): Promise<boolean> {
+		this.pendingAssetUpdates++;
 		return this.assetTextures.update(assets, () => {
 			// 世代管理で採用された更新だけが一覧とキャッシュを切り替える。
 			// 中断されたデコードの完了後に、Asset一覧だけを上書きしてはいけない。
 			this.clearTimelineRenderers();
 			this.dynamicOptions.assets = assets;
+			this.validation.updateAssets(assets);
+			this.refreshValidationState();
 			this.audioInputs.setAssets(assets);
+		}).finally(() => {
+			this.pendingAssetUpdates--;
+			if (this.pendingAssetUpdates === 0) {
+				this.validation.updateAssets(this.dynamicOptions.assets);
+				this.refreshValidationState();
+			}
 		});
 	}
 
@@ -410,6 +418,7 @@ export class TimelineRendererManager extends EventEmitter<{
 	}
 
 	private async renderPreviewFrame(time: number): Promise<boolean> {
+		if (this.validationBlocked || this.pendingAssetUpdates > 0) return false;
 		const generation = ++this.previewRenderGeneration;
 		const request = this.dynamicOptions.transformObserver;
 		const location = request?.sceneId === this.dynamicOptions.sceneId ? findTimelineLayerLocation(this.getSceneLayers(), request.layerId) : undefined;
@@ -490,6 +499,8 @@ export class TimelineRendererManager extends EventEmitter<{
 	}
 
 	private renderFrame(time: number, isExport: boolean, fps = this.staticOptions.timelineFps, initialTimeDelta = 0) {
+		if (this.validationBlocked) throw new Error(this.validation.diagnostics.firstMessage ?? 'Invalid project settings');
+		if (this.pendingAssetUpdates > 0) throw new Error('Assets are being updated');
 		const settings = this.staticOptions.timelineMotionBlur;
 		if (!settings.enabled || settings.shutterAngle === 0 || settings.samples <= 1) {
 			// 単発描画ではサンプル配列や露光全体用の中断管理を作らない。
@@ -509,7 +520,7 @@ export class TimelineRendererManager extends EventEmitter<{
 	private get renderResolution(): Resolution {
 		return resolveSceneResolution(this.dynamicOptions.sceneId == null ? { mode: 'project' }
 			: getTimelineScene(this.dynamicOptions.timelineScenes, this.dynamicOptions.sceneId).resolution,
-		this.dynamicOptions.resolution, this.dynamicOptions.resolutionScale, this.gpuDevice.limits.maxTextureDimension2D);
+		this.dynamicOptions.resolution, this.dynamicOptions.resolutionScale);
 	}
 
 	private get sceneBaseResolution(): Resolution {
@@ -626,7 +637,7 @@ export class TimelineRendererManager extends EventEmitter<{
 					vertex: this.defaultVertexShaderModule,
 					resolution: renderResolution,
 					sceneResolution: resolveSceneResolution(scene.resolution, this.dynamicOptions.resolution,
-						this.dynamicOptions.resolutionScale, this.gpuDevice.limits.maxTextureDimension2D),
+						this.dynamicOptions.resolutionScale),
 					format: this.staticOptions.intermediateTextureFormat,
 					createLayer: (entry, childClipId) => this.createTimelineLayer(entry, childClipId, [...layerPath, clipId, entry.id], childBaseResolution, scene.id),
 					getLayerVersion: (entry, childClipId) => this.getLayerVersion(scene.id, entry, childClipId),

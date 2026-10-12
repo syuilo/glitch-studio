@@ -57,6 +57,7 @@ async function fixture(t, options = {}) {
 			return { assetsCommitted };
 		}
 		on(name, handler) { this.handler = handler; }
+		publishValidationState() { this.reportPreviewError(null); }
 		reportPreviewError(message) { this.handler({ type: 'renderError', ctx: { message } }); }
 		gpuMemory = { getUsage: () => ({}) };
 		destroy() { options.onDestroy?.(); }
@@ -142,7 +143,7 @@ test('keeps edits available after preview errors and clears the message on recov
 	instances[0].reportPreviewError(null);
 	await Promise.resolve();
 	assert.equal(controller.errorMessage.value, null);
-	assert.deepEqual(notifications.filter(message => message.type === 'ev' && message.ev.type === 'renderError').map(message => message.ev.ctx.message), ['circular dependency detected', 'circular dependency detected', null]);
+	assert.deepEqual(notifications.filter(message => message.type === 'ev' && message.ev.type === 'renderError').map(message => message.ev.ctx.message), [null, 'circular dependency detected', 'circular dependency detected', null]);
 });
 
 // 応答を待たない操作の同期・非同期失敗も未処理例外にせず通知する。

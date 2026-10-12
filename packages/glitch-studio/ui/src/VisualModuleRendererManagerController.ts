@@ -124,6 +124,7 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 				},
 			},
 			onCreated: () => {
+				this.call('publishValidationState', []);
 				this.audioInputs.reconnectRenderer();
 				// 一時停止中の動画には新しいフレーム通知が来ないため、現在のフレームも送り直す。
 				for (const [id, media] of this.videoElements) {
@@ -378,8 +379,8 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 	}
 
 	public async replaceProjectState(state: RendererProjectState) {
-		const snapshot = { visualModules: deepClone(state.visualModules), timelineScenes: [] };
-		this.dynamicOptions = { ...this.dynamicOptions, visualModules: snapshot.visualModules };
+		const snapshot = deepClone(state);
+		this.dynamicOptions = { ...this.dynamicOptions, ...snapshot };
 		if (!this.isReady.value && !this.isInitializing) return;
 		if (!this.initialSnapshotTaken) return this.initializationReady;
 		const replacement = this.callAndWaitReturn('replaceProjectState', [snapshot]);
@@ -392,11 +393,10 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 	}
 
 	public async applyProjectChanges(changes: readonly RendererProjectChange[]) {
-		const patch = deepClone(changes.filter(change => change.type === 'visualModuleRegistration'
-			|| (change.type === 'node' || change.type === 'visualModule') && 'visualModuleId' in change.target));
+		const patch = deepClone(changes);
 		if (patch.length === 0) return;
-		const next = applyRendererProjectChanges({ visualModules: this.dynamicOptions.visualModules ?? [], timelineScenes: [] }, patch);
-		this.dynamicOptions = { ...this.dynamicOptions, visualModules: next.visualModules };
+		const next = applyRendererProjectChanges({ visualModules: this.dynamicOptions.visualModules ?? [], timelineScenes: this.dynamicOptions.timelineScenes ?? [] }, patch);
+		this.dynamicOptions = { ...this.dynamicOptions, ...next };
 		if (this.liveVisualModuleId.value != null && !next.visualModules.some(visualModule => visualModule.id === this.liveVisualModuleId.value)) this.stopRenderLoop();
 		if (!this.isReady.value && !this.isInitializing) return;
 		if (!this.initialSnapshotTaken) return this.initializationReady;

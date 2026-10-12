@@ -5,8 +5,12 @@ export type EffectResolution =
 	| { mode: 'customAbsolute'; width: number; height: number };
 
 export function validateEffectResolution(resolution: EffectResolution): void {
-	if (!['auto', 'context', 'customAbsolute'].includes(resolution.mode)) throw new Error('Invalid effect resolution mode');
-	if (resolution.mode === 'customAbsolute' && ![resolution.width, resolution.height].every(value => Number.isSafeInteger(value) && value > 0)) {
-		throw new Error('Effect resolution must use positive integer dimensions');
-	}
+	const diagnostics = inspectEffectResolution(resolution);
+	if (diagnostics.length) throw new Error(diagnostics[0].message);
+}
+
+export function inspectEffectResolution(resolution: EffectResolution): import('@gs/shared/validation/diagnostic.ts').ValidationDiagnostic[] {
+	if (!['auto', 'context', 'customAbsolute'].includes(resolution.mode)) return [{ code: 'effect.resolution', message: 'Invalid effect resolution mode' }];
+	return resolution.mode === 'customAbsolute' && ![resolution.width, resolution.height].every(value => Number.isSafeInteger(value) && value > 0)
+		? [{ code: 'effect.resolution', message: 'Effect resolution must use positive integer dimensions' }] : [];
 }

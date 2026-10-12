@@ -2,9 +2,12 @@
 export type PlayerAudioSourceSelection = { type: 'player'; playerId: string } | null;
 
 export function validatePlayerAudioSourceSelection(value: unknown): asserts value is PlayerAudioSourceSelection {
-	if (value === null) return;
-	if (typeof value !== 'object' || !('type' in value) || value.type !== 'player'
-		|| !('playerId' in value) || typeof value.playerId !== 'string' || !value.playerId) {
-		throw new Error('Invalid player audio source');
-	}
+	const diagnostics = inspectPlayerAudioSourceSelection(value);
+	if (diagnostics.length) throw new Error(diagnostics[0].message);
+}
+
+export function inspectPlayerAudioSourceSelection(value: unknown): import('@gs/shared/validation/diagnostic.ts').ValidationDiagnostic[] {
+	return value === null || (typeof value === 'object' && value != null && 'type' in value && value.type === 'player'
+		&& 'playerId' in value && typeof value.playerId === 'string' && value.playerId.length > 0)
+		? [] : [{ code: 'audio.player', message: 'Invalid player audio source' }];
 }
