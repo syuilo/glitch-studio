@@ -34,12 +34,12 @@ function* getMotionBlurLayers(layers: readonly TimelineLayer[]): Generator<Timel
 
 /** 検証済みのSceneグラフから境界を収集する。親のトリム区間外の境界は持ち込まない。 */
 export function getTimelineMotionBlurBoundaries(scenes: readonly TimelineScene[], sceneId: string): number[] {
-	const cache = new Map<string, number[]>();
-	const collect = (id: string): number[] => {
+	const cache = new Map<string, ReadonlySet<number>>();
+	const collect = (id: string): ReadonlySet<number> => {
 		const cached = cache.get(id);
 		if (cached) return cached;
 		const scene = getTimelineScene(scenes, id);
-		const boundaries = new Set([0, getSceneDuration(scene)]);
+		const boundaries = new Set<number>();
 		for (const layer of getMotionBlurLayers(scene.layers)) {
 			for (const clip of layer.clips) {
 				boundaries.add(clip.startMs);
@@ -53,11 +53,16 @@ export function getTimelineMotionBlurBoundaries(scenes: readonly TimelineScene[]
 				}
 			}
 		}
-		const result = [...boundaries].sort((a, b) => a - b);
-		cache.set(id, result);
-		return result;
+		cache.set(id, boundaries);
+		return boundaries;
 	};
-	return collect(sceneId);
+	// Sceneの長さには固定・非表示・音声レイヤーも含まれる。子Sceneの長さを
+	// カットとして親へ戻すと、走査から除外したレイヤーの終端が露光を制限してしまう。
+	// 保存上の長さは変えず、描画対象となる最上位Sceneの範囲だけを最後に加える。
+	const boundaries = new Set(collect(sceneId));
+	boundaries.add(0);
+	boundaries.add(getSceneDuration(getTimelineScene(scenes, sceneId)));
+	return [...boundaries].sort((a, b) => a - b);
 }
 
 /** 最上位Scene上の表示区間と周期。親のトリムで表示開始が変わっても周期の原点は維持する。 */

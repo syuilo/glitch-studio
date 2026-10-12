@@ -70,13 +70,17 @@ function gpuFixture(t) {
 	return { device, texture, sample, calls };
 }
 
-function timelineFixture(t) {
+function timelineFixture(t, { timelineMotionBlur = { enabled: false, shutterAngle: 180, samples: 16 }, readSample } = {}) {
 	const fixture = gpuFixture(t);
 	const { device, texture, sample, calls } = fixture;
 	const module = { exports: {} };
 	const require = createRequire(import.meta.url);
 	new Function('require', 'module', 'exports', managerBundle.outputFiles[0].text)(name => name === videoSourceModule
-		? { openVideoSource: () => ({ getSample: async (time, reverse) => { calls.sampleTimes.push(time); calls.sampleDirections.push(reverse); return sample(3840, 2160); }, dispose() {} }) }
+		? { openVideoSource: () => ({ getSample: async (time, reverse) => {
+			calls.sampleTimes.push(time);
+			calls.sampleDirections.push(reverse);
+			return readSample ? readSample(time, reverse) : sample(3840, 2160);
+		}, dispose() {} }) }
 		: require(name), module, module.exports);
 	const input = { dataType: { kind: 'color' }, canNode: true, defaultValue: literal([0, 0, 0, 0]) };
 	const manager = new module.exports.TimelineRendererManager({
@@ -87,12 +91,61 @@ function timelineFixture(t) {
 			outputTextureFactories: { output: ({ resolution }) => texture({ size: resolution }) },
 			init: () => ({ render: ctx => calls.renders.push(ctx), dispose() {} }),
 		} },
-	}, { timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm' });
+	}, { timelineFps: 60, timelineMotionBlur, enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm' });
+	calls.compositing = [];
+	manager.createCompositingObserver = (_sceneId, layerId) => (foreground, settings) => calls.compositing.push({ layerId, foreground, settings });
 	manager.on('ev', event => { if (event.type === 'renderError') calls.errors.push(event.ctx.message); });
 	manager.presentOutput = output => calls.outputs.push(output);
 	t.after(() => manager.destroy());
 	return { ...fixture, manager };
 }
+
+// 【固定動画は露光内で一度だけ転送し、合成と次のフレームの更新は続ける】
+// 読み出し側のデコードキャッシュだけではCanvas描画とGPU転送がサンプル数倍残る。
+// プレビューと書き出しの両方で前景を再利用し、合成自体を省略しないことを確認する。
+test('uploads frozen video once per source time while compositing every motion blur sample', async t => {
+	const { manager, calls } = timelineFixture(t, { timelineMotionBlur: { enabled: true, shutterAngle: 180, samples: 4 } });
+	const video = { id: 'video', name: 'Video', layerType: 'video', isDisabled: false, forceDisableMotionBlur: true,
+		automationGraphs: [], compositingParamValues: {}, audioParamValues: { volume: literal(1) },
+		clips: [{ id: 'clip', startMs: 0, durationMs: 2000, sourceInMs: 0, sourceOutMs: 2000, playbackRate: 1, loop: false, assetId: 'asset', audioEnabled: false }] };
+	await manager.updateDynamicOptions({ assets: [{ id: 'asset', fileDataType: 'video/mp4', fileData: new Blob() }],
+		resolution: { width: 1920, height: 1080 }, resolutionScale: 0.5, sceneId: 'scene',
+		timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [video] }] });
+	await manager.renderTimelineAt(500);
+	assert.deepEqual(calls.sampleTimes, [0.5]);
+	assert.equal(calls.uploads.length, 1);
+	assert.equal(calls.draws.length, 1);
+	assert.equal(calls.compositing.length, 4);
+	await manager.renderTimelineFrame(500, 0);
+	assert.deepEqual(calls.sampleTimes, [0.5]);
+	assert.equal(calls.uploads.length, 1);
+	assert.equal(calls.compositing.length, 8);
+	await manager.renderTimelineFrame(600, 100);
+	assert.deepEqual(calls.sampleTimes, [0.5, 0.6]);
+	assert.equal(calls.uploads.length, 2);
+	assert.equal(calls.compositing.length, 12);
+	assert.deepEqual(calls.errors, []);
+});
+
+// 【同じ素材時刻へ戻るループでも合成設定を更新し、透明区間を過去の映像で埋めない】
+// 前景の再利用を合成結果の再利用にするとScene時刻の式が止まる。映像のない時刻も
+// 独立した結果として保持し、再び映像へ戻るときは上書き済みの一枚を読み直す必要がある。
+test('refreshes composition at repeated video times and caches transparent foregrounds', async t => {
+	const { manager, calls, sample } = timelineFixture(t, { readSample: time => time === 0.6 ? null : sample(3840, 2160) });
+	const video = { id: 'video', name: 'Video', layerType: 'video', isDisabled: false, forceDisableMotionBlur: false,
+		automationGraphs: [], compositingParamValues: { opacity: { inputSource: 'expression', expression: 'TIME' } }, audioParamValues: { volume: literal(1) },
+		clips: [{ id: 'clip', startMs: 0, durationMs: 3000, sourceInMs: 0, sourceOutMs: 1000, playbackRate: 1, loop: true, assetId: 'asset', audioEnabled: false }] };
+	await manager.updateDynamicOptions({ assets: [{ id: 'asset', fileDataType: 'video/mp4', fileData: new Blob() }],
+		resolution: { width: 1920, height: 1080 }, resolutionScale: 1, sceneId: 'scene',
+		timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [video] }] });
+	for (const time of [500, 1500, 1600, 2600, 1500]) await manager.renderTimelineFrame(time, 0);
+	assert.deepEqual(calls.sampleTimes, [0.5, 0.6, 0.5]);
+	assert.equal(calls.uploads.length, 2);
+	assert.deepEqual(calls.compositing.map(call => call.settings.opacity), [0.5, 1, 1, 1, 1]);
+	assert.deepEqual(calls.compositing.map(call => call.foreground.kind), ['texture', 'texture', 'uniform', 'uniform', 'texture']);
+	assert.deepEqual(calls.compositing[2].foreground.value, [0, 0, 0, 0]);
+	assert.deepEqual(calls.errors, []);
+});
 
 // 【映像のシークと書き出しはトリム範囲を同じ時刻で折り返し、設定変更も反映する】
 // 時間計算単体が正しくても、動画レイヤーが評価済みの素材時刻を使わなければ映像だけが直進する。

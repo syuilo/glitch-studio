@@ -38,6 +38,27 @@ test('excludes frozen layers and subtrees from cuts and loops without changing s
 	assert.deepEqual(getTimelineMotionBlurLoops(scenes, 'root'), []);
 });
 
+// 【子Sceneの長さを決める固定レイヤーの終端を、親の露光境界へ戻さない】
+// ブラー対象だけを列挙してもScene全体の終端を再帰的に加えると、固定字幕の出入りで
+// 背景の露光が短くなる。子を直接描画するときの範囲制限と、通常レイヤーのカットは維持する。
+test('keeps frozen child scene endings out of parent exposure while retaining root bounds and sampled cuts', () => {
+	const scenes = [scene('root', [
+		{ layerType: 'image', clips: [clip(0, 2000)] },
+		{ layerType: 'scene', clips: [clip(0, 2000, { sceneId: 'child' })] },
+	]), scene('child', [
+		{ layerType: 'image', forceDisableMotionBlur: true, clips: [clip(100, 900)] },
+		{ layerType: 'image', forceDisableMotionBlur: false, clips: [clip(200, 300)] },
+	])];
+	const boundaries = getTimelineMotionBlurBoundaries(scenes, 'root');
+	assert.deepEqual(boundaries, [0, 200, 500, 2000]);
+	const samples = getTimelineSampleTimes(999, 50, settings, boundaries);
+	assert.ok(samples[0] < 999 && samples.at(-1) > 1000);
+	assert.deepEqual(getTimelineSampleTimes(2000, 50, settings, boundaries), [2000]);
+	const childBoundaries = getTimelineMotionBlurBoundaries(scenes, 'child');
+	assert.deepEqual(childBoundaries, [0, 200, 500, 1000]);
+	assert.ok(getTimelineSampleTimes(999, 50, settings, childBoundaries).every(time => time < 1000));
+});
+
 // 【子Sceneの境界を内容オフセットで変換し、音声とトリム区間外の境界を除外する】
 // 異なる位置に配置した同じ子Sceneが、他の配置の境界や素材の未使用範囲に影響されないことを保証する。
 test('collects nested visible boundaries without audio cuts or rounded offsets', () => {
@@ -64,9 +85,9 @@ test('excludes disabled cuts and scene descendants from motion blur boundaries',
 	hiddenScene.isDisabled = false;
 	assert.deepEqual(getTimelineMotionBlurBoundaries(scenes, 'root'), [0, 200, 300, 500, 600, 1000]);
 	scenes[1].layers[0].isDisabled = true;
-	assert.deepEqual(getTimelineMotionBlurBoundaries(scenes, 'root'), [0, 200, 500, 600, 1000]);
+	assert.deepEqual(getTimelineMotionBlurBoundaries(scenes, 'root'), [0, 200, 600, 1000]);
 	hiddenImage.isDisabled = false;
-	assert.deepEqual(getTimelineMotionBlurBoundaries(scenes, 'root'), [0, 100, 200, 300, 500, 600, 1000]);
+	assert.deepEqual(getTimelineMotionBlurBoundaries(scenes, 'root'), [0, 100, 200, 300, 600, 1000]);
 });
 
 // 【切り詰めた露光区間へ再配置し、カットちょうどは次の区間に属する】

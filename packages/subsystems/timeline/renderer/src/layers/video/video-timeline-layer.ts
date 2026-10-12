@@ -24,25 +24,35 @@ export function createVideoTimelineLayer(layer: TimelineVideoLayer, blob: Blob, 
 	const parameters = new TimelineCompositingParameters();
 	let disposed = false;
 	let pending: Promise<unknown> = Promise.resolve();
+	let cachedFrame: { contentTimeMs: number; foreground: UniformOrTexture } | undefined;
 	return {
 		evaluate(context, signal) {
 			// 同じ配置の連続シークはデコーダーを直列に使う。待機中に不要になった要求は
 			// デコードせず、完了が遅れた旧フレームも新しいテクスチャへ書き込まない。
 			const render = async () => {
 				if (disposed || signal.aborted) return { gpuTime: 0 };
-				const sample = await source.getSample(context.contentTimeMs / 1000, options.reversePlayback);
-				try {
-					if (disposed || signal.aborted) return { gpuTime: 0 };
-					// replaceの無変形時はcompositorが素材を直接返すため、合成前に原寸へ倍率を
-					// 一度だけ適用する。後続モジュールの自動解像度は、この計算用寸法を継承する。
-					const foreground: UniformOrTexture = sample ? { kind: 'texture', texture: texture.upload(sample, options.resolutionScale) }
-						: { kind: 'uniform', value: [0, 0, 0, 0] };
-					const encoder = options.device.createCommandEncoder();
+				// 素材・再生方向・倍率はインスタンス内で不変。同じ素材時刻なら、固定された
+				// ブラーの各サンプルでも読み出しとGPU転送を繰り返さない。保持するのは直前の
+				// 前景だけで、時刻が変われば同じテクスチャを書き換えるため過去の結果は残さない。
+				if (cachedFrame?.contentTimeMs !== context.contentTimeMs) {
+					const sample = await source.getSample(context.contentTimeMs / 1000, options.reversePlayback);
 					try {
-						const settings = parameters.evaluate({ time: context.sceneTimeMs, isExport: context.isExport, paramValues: layer.compositingParamValues, automationGraphs: layer.automationGraphs });
-						return { output: compositor.render(encoder, context.input, foreground, settings), gpuTime: 0 };
-					} finally { options.device.queue.submit([encoder.finish()]); }
-				} finally { sample?.close(); }
+						if (disposed || signal.aborted) return { gpuTime: 0 };
+						// 転送中の失敗でテクスチャが変更・再確保されても、古い時刻のキャッシュを使わない。
+						cachedFrame = undefined;
+						// replaceの無変形時はcompositorが素材を直接返すため、合成前に原寸へ倍率を
+						// 一度だけ適用する。後続モジュールの自動解像度は、この計算用寸法を継承する。
+						const foreground: UniformOrTexture = sample ? { kind: 'texture', texture: texture.upload(sample, options.resolutionScale) }
+							: { kind: 'uniform', value: [0, 0, 0, 0] };
+						cachedFrame = { contentTimeMs: context.contentTimeMs, foreground };
+					} finally { sample?.close(); }
+				}
+				const encoder = options.device.createCommandEncoder();
+				try {
+					// 前景が同じでも下層入力・Scene時刻は変わり得るため、設定の評価と合成は毎回行う。
+					const settings = parameters.evaluate({ time: context.sceneTimeMs, isExport: context.isExport, paramValues: layer.compositingParamValues, automationGraphs: layer.automationGraphs });
+					return { output: compositor.render(encoder, context.input, cachedFrame.foreground, settings), gpuTime: 0 };
+				} finally { options.device.queue.submit([encoder.finish()]); }
 			};
 			const result = pending.then(render);
 			pending = result.catch(() => {});
@@ -50,6 +60,7 @@ export function createVideoTimelineLayer(layer: TimelineVideoLayer, blob: Blob, 
 		},
 		destroy() {
 			disposed = true;
+			cachedFrame = undefined;
 			source.dispose();
 			texture.dispose();
 			compositor.dispose();
