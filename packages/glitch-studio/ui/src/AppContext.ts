@@ -120,14 +120,14 @@ export class AppContext {
 			(visualModuleId, params) => {
 				this.renderValidation.setLiveInputs(visualModuleId, params);
 				this.renderEngine.setValidationError(this.renderValidation.errorMessage.value);
-				queueMicrotask(() => { void this.renderEngine.retry(); });
+				this.renderEngine.requestRetry();
 			},
 		));
 		this.renderEngine = markRaw(new PreviewRenderEngine({
-			dispose: () => {
+			dispose: reason => {
 				this.previewPlayback.suspend();
-				this.visualModuleRendererManagerController.disposeManager();
-				this.timelineRendererManagerController.disposeManager();
+				this.visualModuleRendererManagerController.disposeManager(reason);
+				this.timelineRendererManagerController.disposeManager(reason);
 			},
 			create: async isCurrent => {
 				if (!isCurrent()) return;
@@ -160,7 +160,7 @@ export class AppContext {
 			this.renderValidation.update(changes);
 			this.renderEngine.setValidationError(this.renderValidation.errorMessage.value);
 			if (changes.some(change => !['nodeName', 'visualModuleName', 'layerName', 'sceneName'].includes(change.type))) {
-				queueMicrotask(() => { void this.renderEngine.retry(); });
+				this.renderEngine.requestRetry();
 			}
 		});
 
@@ -210,22 +210,27 @@ export class AppContext {
 
 		watch(this.highlightClipping, async value => {
 			await this.updatePreviewOptions({ highlightClipping: value });
+			this.renderEngine.requestRetry();
 			this.previewPlayback.refresh();
 		});
 
-		watch(this.liveFpsLimit, () => {
-			this.visualModuleRendererManagerController.updateDynamicOptions({ fpsLimit: this.liveFpsLimit.value });
+		watch(this.liveFpsLimit, async value => {
+			await this.visualModuleRendererManagerController.updateDynamicOptions({ fpsLimit: value });
+			this.renderEngine.requestRetry();
 		});
 
-		watch(this.liveTimeFactor, value => {
-			this.visualModuleRendererManagerController.updateDynamicOptions({ liveTimeFactor: value });
+		watch(this.liveTimeFactor, async value => {
+			await this.visualModuleRendererManagerController.updateDynamicOptions({ liveTimeFactor: value });
+			this.renderEngine.requestRetry();
 		});
+		watch(this.timelinePreviewFpsFactor, () => this.renderEngine.requestRetry());
 
 		watch([this.projectContext.stateManager.state.resolution, this.resolutionFactor], async () => {
 			await this.updatePreviewOptions({
 				resolution: { ...this.projectContext.stateManager.state.resolution.value },
 				resolutionScale: this.resolutionFactor.value,
 			});
+			this.renderEngine.requestRetry();
 			this.previewPlayback.refresh();
 		});
 
@@ -238,6 +243,7 @@ export class AppContext {
 				this.visualModuleRendererManagerController.updateStaticOptions(options),
 				this.timelineRendererManagerController.updateStaticOptions(options),
 			]);
+			this.renderEngine.requestRetry();
 		});
 
 		this.projectSaveController = new ProjectSaveController(() => this.projectContext.snapshot());
@@ -328,6 +334,7 @@ export class AppContext {
 					timelineFps: this.projectContext.stateManager.state.timelineFps.value,
 					timelineMotionBlur: { ...this.projectContext.stateManager.state.timelineMotionBlur.value, samples: this.timelinePreviewMotionBlurSamples.value },
 				});
+				this.renderEngine.requestRetry();
 			} catch (error) {
 				ui.alert({ type: 'error', text: error instanceof Error ? error.message : String(error) });
 				console.error(error);
@@ -381,7 +388,6 @@ export class AppContext {
 					this.timelineRendererManagerController.applyProjectChanges(changes),
 				]);
 			},
-			replace: state => this.renderEngine.canRender.value ? this.replacePreviewProject(state) : Promise.resolve(),
 			onUpdated: () => this.previewPlayback.refresh(),
 			onError: error => {
 				if (this.renderEngine.canRender.value) this.renderEngine.fail(error);

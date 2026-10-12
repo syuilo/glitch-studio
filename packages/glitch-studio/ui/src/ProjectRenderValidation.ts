@@ -65,6 +65,11 @@ export class ProjectRenderValidation {
 				if (change.type === 'visualModule') {
 					this.replaceVisualModule(change.target, visualModule);
 					if ('visualModuleId' in change.target) this.recheckDependents('visualModule:' + change.target.visualModuleId);
+					else {
+						// 公開定義の型・canNodeの変更は、Bindingの形が同じでも引数の許可条件を変える。
+						// Inlineの利用先は所有レイヤー一つなので、参照索引を経由せず再検証する。
+						this.checkLayer(change.target.sceneId, change.target.inlineVisualModuleLayerId, false, true);
+					}
 				} else if (visualModule) {
 					this.visualModules.set(visualModuleTargetKey(change.target), visualModule);
 					const node = visualModule.nodes.find(node => node.id === change.nodeId);
@@ -251,7 +256,7 @@ export class ProjectRenderValidation {
 		this.checkSceneGraph();
 	}
 
-	private checkLayer(sceneId: string, id: string, graph = true) {
+	private checkLayer(sceneId: string, id: string, graph = true, force = false) {
 		const layer = this.layer(sceneId, id);
 		if (!layer) return;
 		const visualModule = layer.layerType === 'inlineVisualModule' ? layer.visualModule : layer.layerType === 'visualModule' ? this.state.visualModules.value.find(visualModule => visualModule.id === layer.visualModuleId) : undefined;
@@ -273,7 +278,7 @@ export class ProjectRenderValidation {
 			if (layer.layerType === 'image' || layer.layerType === 'video' || layer.layerType === 'audio') for (const clip of layer.clips) this.asset(clip.assetId, dependencies);
 			const currentVisualModule = layer.layerType === 'visualModule' ? this.state.visualModules.value.find(visualModule => visualModule.id === layer.visualModuleId) : visualModule;
 			inspectTimelineLayer(layer, currentVisualModule, effect, (def, binding) => this.value(def, binding, dependencies));
-		}, dependencies);
+		}, dependencies, force);
 		if (!changed) return;
 		this.sceneEdges.get(sceneId)?.set(id, edges);
 		if (graph && JSON.stringify(previous) !== JSON.stringify(edges)) this.checkSceneGraph();

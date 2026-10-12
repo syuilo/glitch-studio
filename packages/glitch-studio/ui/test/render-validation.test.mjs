@@ -88,6 +88,40 @@ test('revalidates references after registration and deletion', () => {
 	assert.match(validation.errorMessage.value, /Visual Module not found/);
 });
 
+// 【Inline Visual Moduleの公開型変更では、同じ形の引数も所有レイヤーで再検証する】
+// expressionという入力方式はscalarでは使えるがaudioSourceでは使えない。
+// Bindingの形だけのキャッシュでは型変更を見落とすため、修正による診断解除まで確認する。
+test('revalidates inline arguments when the public parameter type changes', () => {
+	const parameter = { ...scalar, id: 'amount', nameForReference: 'Amount', canNode: false };
+	const inlineVisualModule = { ...visualModule([]), paramDefs: [parameter] };
+	const layer = { ...sceneLayer('inline', 'unused'), layerType: 'inlineVisualModule', visualModule: inlineVisualModule,
+		visualModuleParamValues: { amount: { inputSource: 'expression', expression: '1' } } };
+	const { state, validation } = fixture([], [scene('scene', [layer])]);
+	assert.equal(validation.errorMessage.value, null);
+	const current = state.timelineScenes.value[0].layers[0].visualModule;
+	const changes = [{ type: 'visualModule', target: { sceneId: 'scene', inlineVisualModuleLayerId: 'inline' } }];
+	current.paramDefs[0] = { ...parameter, dataType: { kind: 'audioSource' }, defaultValue: literal(null) };
+	validation.update(changes);
+	assert.match(validation.errorMessage.value, /static input/);
+	current.paramDefs[0] = parameter;
+	validation.update(changes);
+	assert.equal(validation.errorMessage.value, null);
+});
+
+// 【音声Bindingをscalarへ変わったInline引数に渡さない】
+// 公開定義だけを変更しても既存のレイヤー引数は残る。
+// レンダラーへ到達して実行時エラーになる前に、所有レイヤーで入力方式を拒否する。
+test('rejects retained inline audio arguments after changing their public type', () => {
+	const audio = { ...scalar, id: 'audio', nameForReference: 'Audio', canNode: false, dataType: { kind: 'audioSource' }, defaultValue: literal(null) };
+	const layer = { ...sceneLayer('inline', 'unused'), layerType: 'inlineVisualModule',
+		visualModule: { ...visualModule([]), paramDefs: [audio] }, visualModuleParamValues: { audio: { inputSource: 'lowerLayerAudio' } } };
+	const { state, validation } = fixture([], [scene('scene', [layer])]);
+	assert.equal(validation.errorMessage.value, null);
+	state.timelineScenes.value[0].layers[0].visualModule.paramDefs[0] = { ...audio, dataType: { kind: 'scalar' }, defaultValue: literal(0) };
+	validation.update([{ type: 'visualModule', target: { sceneId: 'scene', inlineVisualModuleLayerId: 'inline' } }]);
+	assert.match(validation.errorMessage.value, /Layer audio is not available/);
+});
+
 // 【静的エラー中はエンジンを持たず、修正後に最新設定で生成する】
 // 同じエラー状態で編集を重ねても破棄を繰り返さず、差分を再送する必要をなくす。
 test('disposes once on static failure and recreates only after correction', async () => {
@@ -118,6 +152,39 @@ test('latches runtime failures until an explicit retry', async () => {
 	await engine.retry();
 	assert.equal(created, 2);
 	assert.equal(engine.canRender.value, true);
+});
+
+// 【編集通知がなくても静的診断の解除後に一度だけ再生成する】
+// LIVEからTimelineへの切り替えはProjectの変更通知を出さない。
+// その切り替えで診断が消えた場合にも、停止したエンジンを残してはいけない。
+test('restarts after validation clears and coalesces retry requests', async () => {
+	let created = 0;
+	const engine = new PreviewRenderEngine({ create: async () => { created++; }, dispose() {} });
+	await engine.enable();
+	engine.setValidationError('invalid live input');
+	engine.setValidationError(null);
+	engine.requestRetry();
+	engine.requestRetry();
+	await new Promise(resolve => setTimeout(resolve, 0));
+	assert.equal(created, 2);
+	assert.equal(engine.canRender.value, true);
+});
+
+// 【予約済みの再試行で、その後に発生した実行時エラーを解除しない】
+// 設定変更と失敗通知が同じターンで届くことがある。
+// 失敗以前の予約を実行すると、修正していない設定で自動再起動してしまう。
+test('cancels scheduled retries on a subsequent runtime failure', async () => {
+	let created = 0;
+	const failure = new Error('draw failed');
+	const reasons = [];
+	const engine = new PreviewRenderEngine({ create: async () => { created++; }, dispose: reason => reasons.push(reason) });
+	await engine.enable();
+	engine.requestRetry();
+	engine.fail(failure);
+	await new Promise(resolve => setTimeout(resolve, 0));
+	assert.equal(created, 1);
+	assert.deepEqual(reasons, [failure]);
+	assert.equal(engine.errorMessage.value, 'draw failed');
 });
 
 // 【初期化中の再試行をまとめ、書き出しのための停止後には再生成しない】

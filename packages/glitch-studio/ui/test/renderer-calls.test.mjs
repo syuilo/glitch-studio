@@ -121,6 +121,7 @@ async function fixture(t, options = {}) {
 	const controller = new context.module.exports.VisualModuleRendererManagerController({
 		enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm', enableStats: false,
 	}, { fpsLimit: null });
+	controller.onRenderFailure = error => controller.disposeManager(error);
 	t.after(() => controller.destroy());
 	if (options.initialize !== false) await controller.init({ width: 1, height: 1 });
 	return { controller, workers, pending, instances, notifications };

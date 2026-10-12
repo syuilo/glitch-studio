@@ -162,6 +162,62 @@ test('keeps invalid projects editable and recreates both previews after correcti
 	}
 });
 
+// 【LIVE引数だけの静的エラーは、Timelineへ切り替えると診断解除と再生成を行う】
+// プレビュー対象の変更はProjectの編集通知を出さない。
+// エラー表示だけが消えてWorkerを持たない状態のままにならないよう、両エンジンの復帰を確認する。
+test('recreates previews after switching away from invalid live inputs', async t => {
+	setup(t);
+	const { appContext } = evaluate(appBundle);
+	await appContext.ready(project({ visualModules: [{ id: 'visualModule', nodes: [], paramDefs: [{
+		id: 'audio', nameForReference: 'Audio', dataType: { kind: 'audioSource' }, canNode: false,
+		ui: { label: 'Audio', control: { controlType: 'audioSource' } }, defaultValue: { inputSource: 'literal', value: null },
+	}] }] }));
+	appContext.previewPlayback.updateLiveParamValues('visualModule', { audio: { inputSource: 'literal', value: { type: 'player', playerId: 'missing' } } });
+	assert.match(appContext.renderValidation.errorMessage.value, /Player not found/);
+	assert.equal(appContext.timelineRendererManagerController.isReady.value, false);
+	appContext.previewPlayback.showTimeline();
+	assert.equal(appContext.renderValidation.errorMessage.value, null);
+	await setImmediate();
+	assert.equal(appContext.renderEngine.errorMessage.value, null);
+	for (const controller of [appContext.visualModuleRendererManagerController, appContext.timelineRendererManagerController]) {
+		assert.equal(controller.isReady.value, true);
+	}
+	assert.equal(appContext.previewPlayback.state.value.mode, 'timeline');
+	assert.equal(appContext.timelineRendererManagerController.renders.at(-1), 0);
+});
+
+// 【プレビュー固有設定の修正でも、実行時失敗後に最新設定から再生成する】
+// これらの値はProjectのCommand通知を出さないため、編集通知だけに再試行を任せると復帰できない。
+// 解像度・サンプル数・GPU設定を含む各経路が、正常な最新設定を持つ両エンジンへ反映されることを確認する。
+for (const [setting, change, inspect] of [
+	['resolution scale', appContext => { appContext.resolutionFactor.value = 0.5; }, appContext => {
+		assert.equal(appContext.timelineRendererManagerController.initialResolutionScale, 0.5);
+	}],
+	['motion blur samples', appContext => { appContext.timelinePreviewMotionBlurSamples.value = 4; }, appContext => {
+		assert.equal(appContext.timelineRendererManagerController.initialStaticOptions.timelineMotionBlur.samples, 4);
+	}],
+	['GPU precision', () => { window.testPreferences.enable32bitDataTextures = true; }, appContext => {
+		assert.equal(appContext.timelineRendererManagerController.initialStaticOptions.enable32bitDataTextures, true);
+	}],
+	['timeline preview fps', appContext => { appContext.timelinePreviewFpsFactor.value = 2; }],
+	['live fps limit', appContext => { appContext.liveFpsLimit.value = 24; }],
+	['live time factor', appContext => { appContext.liveTimeFactor.value = 0.5; }],
+	['clipping display', appContext => { appContext.highlightClipping.value = true; }],
+]) test(`retries runtime failures after changing ${setting}`, async t => {
+	setup(t);
+	const { appContext } = evaluate(appBundle);
+	await appContext.ready(project());
+	appContext.renderEngine.fail(new Error('draw failed'));
+	change(appContext);
+	await setImmediate();
+	assert.equal(appContext.renderEngine.errorMessage.value, null);
+	for (const controller of [appContext.visualModuleRendererManagerController, appContext.timelineRendererManagerController]) {
+		assert.equal(controller.isReady.value, true);
+		assert.equal(controller.lifecycle.filter(event => event === 'relaunch').length, 2);
+	}
+	inspect?.(appContext);
+});
+
 // 【再生開始時の生成音声をシーク中も固定し、次回再生にだけ新しい結果を採用する】
 // 生成完了で音声Workerが再起動したり、描画用音声入力と再生音声が食い違うのを防ぐ。
 // 発話の編集とUndoは再生を停止し、字幕と音声に別の本文が使われないことも確認する。

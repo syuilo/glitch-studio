@@ -34,9 +34,9 @@ export abstract class RendererManagerControllerBase<T extends RendererManager> {
 	public onRenderFailure?: (error: Error) => void;
 
 	protected reportRenderFailure(error: Error) {
-		this.disposeManager(error);
-		this.onError(error);
+		// LIVE・Timelineの破棄は所有者がまとめて行う。ここでは同じManagerを重ねて破棄しない。
 		this.onRenderFailure?.(error);
+		this.onError(error);
 	}
 
 	protected get isInitializing(): boolean {

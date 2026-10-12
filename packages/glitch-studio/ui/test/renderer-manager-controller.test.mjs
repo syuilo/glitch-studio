@@ -64,6 +64,8 @@ function fixture(t, kind = 'VisualModule') {
 		...(kind === 'Timeline' ? { timelineFps: 60, timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 } } : {}),
 		enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm', enableStats: false,
 	}, { assets: [], fpsLimit: null });
+	// 本番のPreviewRenderEngineと同様に、エンジンの所有者が失敗通知を受けて解放する。
+	controller.onRenderFailure = error => controller.disposeManager(error);
 	t.after(() => controller.destroy());
 	return { controller, workers, Base: module.exports.RendererManagerControllerBase };
 }
@@ -347,9 +349,28 @@ function baseFixture(t, overrides) {
 		eventHandlers: {}, onCreated: () => { created++; }, onDisposed() {},
 		onError: error => errors.push(error?.message ?? null), ...overrides,
 	});
+	controller.onRenderFailure = error => controller.disposeManager(error);
 	t.after(() => controller.destroy());
 	return { controller, errors, get created() { return created; } };
 }
+
+// 【Controllerは通知だけを行い、所有者がManagerを一度だけ破棄する】
+// Controller自身とPreviewRenderEngineの両方が破棄すると、世代更新や購読解除が重複する。
+// 失敗通知から待機中RPCの終了までを、一回の解放で完了させる。
+test('delegates failure disposal to the owner exactly once', async t => {
+	const { controller, workers } = fixture(t);
+	const worker = await initialize(controller, workers);
+	let disposed = 0;
+	const dispose = controller.disposeManager.bind(controller);
+	controller.disposeManager = reason => { disposed++; dispose(reason); };
+	const request = controller.updateDynamicOptions({ fpsLimit: 30 });
+	const rejected = assert.rejects(request, /draw failed/);
+	worker.reply({ type: 'ev', ev: { type: 'renderError', ctx: { message: 'draw failed' } } });
+	await rejected;
+	assert.equal(disposed, 1);
+	assert.equal(worker.terminated, true);
+	assert.equal(controller.errorMessage.value, 'draw failed');
+});
 
 // 【初期化中の編集を順序どおり送信し応答を待つ】
 // GPU初期化や画像デコード中にも編集されるため、送信済みの初期設定だけでは最新状態にならない。
