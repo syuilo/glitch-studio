@@ -27,7 +27,7 @@ export function getTimelineMediaPeriod(clip: TimelineMediaSourceTiming): number 
 
 /** 素材端を越えない整数msにする。端数は素材範囲に保持し、倍率の往復で範囲を削らない。 */
 export function getTimelineMediaSingleDuration(clip: TimelineMediaSourceTiming): number {
-	return getTimelineMediaMaxDurationMs(0, getTimelineMediaPeriod(clip));
+	return getTimelineMediaMaxDurationMs(clip.sourceInMs, clip.sourceOutMs, clip.playbackRate);
 }
 
 export function validateTimelineMediaClipTiming(clip: TimelineMediaClipTiming, sourceDurationMs = Infinity): void {
@@ -74,14 +74,19 @@ type ClipWithId = TimelineClipPlacement & { id: string };
 
 export function getTimelineMediaTrimBounds(clips: readonly ClipWithId[], clip: TimelineMediaClipTiming & { id: string }, edge: 'start' | 'end', sourceDurationMs: number) {
 	const bounds = getTimelineClipMoveBounds(clips, new Set([clip.id]), clip.id);
-	const speed = Math.abs(clip.playbackRate);
-	const period = getTimelineMediaPeriod(clip);
 	const singleDuration = getTimelineMediaSingleDuration(clip);
-	const before = (clip.playbackRate > 0 ? clip.sourceInMs : sourceDurationMs - clip.sourceOutMs) / speed;
-	const after = (clip.playbackRate > 0 ? sourceDurationMs - clip.sourceOutMs : clip.sourceInMs) / speed;
+	const before = clip.playbackRate > 0
+		? getTimelineMediaMaxDurationMs(0, clip.sourceInMs, clip.playbackRate)
+		: getTimelineMediaMaxDurationMs(clip.sourceOutMs, sourceDurationMs, clip.playbackRate);
+	const after = clip.playbackRate > 0
+		? getTimelineMediaMaxDurationMs(clip.sourceOutMs, sourceDurationMs, clip.playbackRate)
+		: getTimelineMediaMaxDurationMs(0, clip.sourceInMs, clip.playbackRate);
+	// floor(全体長 - 周期) = 全体長 + floor(-周期)。周期だけを先に整数化すると
+	// 本来の端数まで延長できてしまうため、負の素材範囲にも同じ誤差補正を適用する。
+	const loopExtension = clip.durationMs + getTimelineMediaMaxDurationMs(clip.sourceOutMs, clip.sourceInMs, clip.playbackRate);
 	return edge === 'start'
-		? { minDelta: Math.max(bounds.minDelta, -getTimelineMediaMaxDurationMs(0, before)), maxDelta: singleDuration - 1 }
-		: { minDelta: 1 - singleDuration, maxDelta: getTimelineMediaMaxDurationMs(0, Math.min(clip.loop ? clip.durationMs - period : bounds.maxDelta, after)) };
+		? { minDelta: Math.max(bounds.minDelta, -before), maxDelta: singleDuration - 1 }
+		: { minDelta: 1 - singleDuration, maxDelta: Math.min(clip.loop ? loopExtension : bounds.maxDelta, after) };
 }
 
 export function trimTimelineMediaClip(clip: TimelineMediaClipTiming, edge: 'start' | 'end', deltaMs: number): TimelineMediaClipTiming {

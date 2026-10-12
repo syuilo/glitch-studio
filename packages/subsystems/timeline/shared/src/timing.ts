@@ -43,14 +43,17 @@ export function isTimelineClipTimingValid(timing: TimelineClipPlacement): boolea
 }
 
 /** 素材の残り時間に収まる整数msの長さ。表示区間の衝突判定には使わない。 */
-export function getTimelineMediaMaxDurationMs(contentOffsetMs: number, sourceDurationMs: number): number {
+export function getTimelineMediaMaxDurationMs(contentOffsetMs: number, sourceDurationMs: number, playbackRate = 1): number {
 	if (sourceDurationMs === Infinity) return Infinity;
-	const remainingMs = sourceDurationMs - contentOffsetMs;
+	const speed = Math.abs(playbackRate);
+	const remainingMs = (sourceDurationMs - contentOffsetMs) / speed;
 	const nearestMs = Math.round(remainingMs);
 	// 小数の内容オフセットを左トリムで進めた際、加減算の誤差で残り時間が
 	// 整数の直前になることがある。その誤差だけを吸収し、丸々1ms短くなるのを防ぐ。
 	// 通常の小数部分は切り捨て、トリム制限と保存時の素材長検証で同じ上限を使う。
-	const roundingErrorMs = 4 * Number.EPSILON * Math.max(1, Math.abs(sourceDurationMs), Math.abs(contentOffsetMs));
+	// 短くトリムすると、両端の減算誤差が残り時間に対して大きくなる。
+	// 減算前の素材時刻を基準とし、スローで拡大される誤差も配置の時計へ換算する。
+	const roundingErrorMs = 4 * Number.EPSILON * Math.max(1, Math.abs(sourceDurationMs), Math.abs(contentOffsetMs)) / speed;
 	return Math.abs(remainingMs - nearestMs) <= roundingErrorMs ? nearestMs : Math.floor(remainingMs);
 }
 

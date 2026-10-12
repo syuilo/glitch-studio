@@ -10,19 +10,21 @@ const module = { exports: {} };
 new Function('require', 'module', 'exports', bundle.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
 const { VideoSampleReader } = module.exports;
 
-function samplesFixture(timestamps) {
+function samplesFixture(timestamps, { width = 512, height = 512 } = {}) {
 	const live = new Set();
 	const starts = [];
+	const copied = [];
 	let peak = 0;
 	let returned = 0;
 	function sample(timestamp) {
-		const value = { timestamp, duration: 1 / 60, format: 'RGBA', codedWidth: 512, codedHeight: 512,
-			displayWidth: 512, displayHeight: 512, rotation: 0,
-			allocationSize: () => 1024 * 1024,
+		const value = { timestamp, duration: 1 / 60, format: 'RGBA', codedWidth: width, codedHeight: height,
+			displayWidth: width, displayHeight: height, rotation: 0,
+			allocationSize: () => width * height * 4,
 			async copyTo(data) {
 				assert.ok(live.has(value), 'copy must finish before releasing the decoder frame');
+				copied.push(timestamp);
 				data[0] = Math.round(timestamp * 1000) % 256;
-				return [{ offset: 0, stride: 512 * 4 }];
+				return [{ offset: 0, stride: width * 4 }];
 			}, clone: () => sample(timestamp), close() {
 			assert.ok(live.delete(value), 'samples must be closed exactly once');
 		} };
@@ -37,8 +39,32 @@ function samplesFixture(timestamps) {
 			for (const time of timestamps.slice(first)) yield sample(time);
 		} finally { returned++; }
 	} };
-	return { sink, starts, live, sample, get peak() { return peak; }, get returned() { return returned; } };
+	return { sink, starts, live, copied, sample, get peak() { return peak; }, get returned() { return returned; } };
 }
+
+// 【大きい逆再生フレームは保持できる区間だけを画素へコピーする】
+// 32MiBのフレームは2枚しか保持できない。固定0.5秒分の約30枚をコピーして捨てると、
+// 数枚再生するたびに同じ転送負荷を繰り返す。初回も補充時も必要な2枚に絞る。
+// コピーの省略によってフレーム選択やデコーダー資源の解放を壊さないことも確認する。
+test('copies only the frames that fit a large-frame reverse window', async () => {
+	const timestamps = Array.from({ length: 60 }, (_, i) => i / 60);
+	const h = samplesFixture(timestamps, { width: 4096, height: 2048 });
+	const reader = new VideoSampleReader(h.sink);
+	try {
+		for (const time of [0.99, 0.98, 0.97, 0.96, 0.94, 0.92]) {
+			const copiesBefore = h.copied.length;
+			const frame = await reader.getSample(time, true);
+			try {
+				assert.equal(frame.timestamp, timestamps.findLast(timestamp => timestamp <= time));
+				assert.ok(h.copied.length - copiesBefore <= 2, 'discarded frames must not be copied');
+				if (time === 0.97) assert.equal(h.copied.length, 2, 'reuse the frame covering the window start');
+			} finally { frame?.close(); }
+		}
+		assert.ok(h.starts.length > 1, 'the fixture must exercise window refills');
+	} finally { reader.dispose(); }
+	assert.equal(h.live.size, 0);
+	assert.equal(h.peak, 1, 'decoded surfaces must be released before requesting another frame');
+});
 
 // 【逆再生の窓を読む間もデコーダーの出力面を即時解放する】
 // デコーダーには保持可能なフレーム数の上限がある。上限より長い窓を読み終えるまで

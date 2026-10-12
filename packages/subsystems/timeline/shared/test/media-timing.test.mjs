@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { changeTimelineMediaPlaybackRate, getTimelineMediaPeriod, getTimelineMediaSourceTime, getTimelineMediaTrimBounds, trimTimelineMediaClip, validateTimelineMediaClipTiming } from '../src/media-timing.ts';
+import { changeTimelineMediaPlaybackRate, getTimelineMediaPeriod, getTimelineMediaSingleDuration, getTimelineMediaSourceTime, getTimelineMediaTrimBounds, trimTimelineMediaClip, validateTimelineMediaClipTiming } from '../src/media-timing.ts';
 
 const clip = { id: 'clip', startMs: 1000, durationMs: 6000, sourceInMs: 2000, sourceOutMs: 8000, playbackRate: 1, loop: false };
 
@@ -56,6 +56,38 @@ test('extends fractional source edges without losing a millisecond to rounding',
 	assert.equal(extended.sourceInMs, 0);
 	assert.equal(extended.durationMs, 1003);
 	validateTimelineMediaClipTiming(extended, 100.6);
+});
+
+// 【小数倍率で素材末尾付近だけを残しても、正当なトリムを拒否しない】
+// 大きい素材時刻同士の差には、短くなった周期より大きい桁の丸め誤差が残る。
+// 順再生の左トリム・逆再生の右トリムと、その後のループ範囲の延長で同じ補正を使う。
+test('preserves short trimmed durations after subtracting fractional source positions', () => {
+	for (const playbackRate of [0.1, -0.1]) {
+		const original = { ...clip, sourceInMs: 0, sourceOutMs: 1000, durationMs: 10000, playbackRate };
+		const trimmed = trimTimelineMediaClip(original, playbackRate > 0 ? 'start' : 'end', playbackRate > 0 ? 9997 : -9997);
+		assert.equal(trimmed.durationMs, 3);
+		assert.equal(getTimelineMediaSingleDuration(trimmed), 3);
+		validateTimelineMediaClipTiming(trimmed, 1000);
+	}
+	const loop = { ...clip, sourceInMs: 999.7, sourceOutMs: 1000, durationMs: 4, playbackRate: 0.1, loop: true };
+	assert.equal(getTimelineMediaTrimBounds([loop], loop, 'end', 1001).maxDelta, 1);
+	const extended = trimTimelineMediaClip(loop, 'end', 1);
+	assert.equal(extended.loop, false);
+	validateTimelineMediaClipTiming(extended, 1001);
+});
+
+// 【素材端への延長でも素材時刻の減算誤差を吸収し、本来の端数は切り捨てる】
+// 長さの検証だけを補正しても、ハンドルの制約が1ms手前で止まれば素材端へ戻せない。
+// 一方、誤差補正によって実際の素材範囲やループの全体長を越える延長は許可しない。
+test('shares source-scaled rounding with trim bounds without rounding real fractions up', () => {
+	const original = { ...clip, sourceInMs: 0, sourceOutMs: 1000, durationMs: 10000, playbackRate: 0.1 };
+	assert.equal(getTimelineMediaTrimBounds([original], original, 'end', 1000.3).maxDelta, 3);
+	const reversed = { ...original, playbackRate: -0.1 };
+	assert.equal(getTimelineMediaTrimBounds([reversed], reversed, 'start', 1000.3).minDelta, -3);
+	const fractional = { ...original, sourceInMs: 999.7001, durationMs: 2 };
+	assert.equal(getTimelineMediaSingleDuration(fractional), 2);
+	const loop = { ...fractional, durationMs: 4, loop: true };
+	assert.equal(getTimelineMediaTrimBounds([loop], loop, 'end', 1001).maxDelta, 1);
 });
 
 // 【不正な倍率・空の素材範囲・素材超過を保存しない】

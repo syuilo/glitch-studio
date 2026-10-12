@@ -1,6 +1,4 @@
 import { openVideoSource } from '@gs/shared/media/video-source.ts';
-import { getTimelineMediaSourceTime } from '@gs/subsystems_timeline_shared/media-timing.ts';
-import type { TimelineMediaClipTiming } from '@gs/subsystems_timeline_shared/media-timing.ts';
 import { createVideoTexture } from '@gs/shared/media/video-texture.ts';
 import { createTimelineCompositor } from '../../timeline-compositor.ts';
 import type { TimelineCompositingObserver } from '../../timeline-compositor.ts';
@@ -11,8 +9,8 @@ import type { UniformOrTexture } from '@gs/shared/gpu/uniform-or-texture.ts';
 import type { TimelineLayerRenderer } from '../../timeline-renderer.ts';
 
 export function createVideoTimelineLayer(layer: TimelineVideoLayer, blob: Blob, options: {
-	/** 配置の編集時はレンダラーを再生成するため、生成時の時間情報を保持する。 */
-	clipTiming: Readonly<TimelineMediaClipTiming>;
+	/** 方向の編集時はレンダラーを再生成する。素材時刻の変換はTimelineRendererが担当する。 */
+	reversePlayback: boolean;
 	device: GPUDevice;
 	vertex: GPUShaderModule;
 	resolution: { width: number; height: number };
@@ -32,7 +30,7 @@ export function createVideoTimelineLayer(layer: TimelineVideoLayer, blob: Blob, 
 			// デコードせず、完了が遅れた旧フレームも新しいテクスチャへ書き込まない。
 			const render = async () => {
 				if (disposed || signal.aborted) return { gpuTime: 0 };
-				const sample = await source.getSample(getTimelineMediaSourceTime(options.clipTiming, context.sceneTimeMs) / 1000, options.clipTiming.playbackRate < 0);
+				const sample = await source.getSample(context.contentTimeMs / 1000, options.reversePlayback);
 				try {
 					if (disposed || signal.aborted) return { gpuTime: 0 };
 					// replaceの無変形時はcompositorが素材を直接返すため、合成前に原寸へ倍率を

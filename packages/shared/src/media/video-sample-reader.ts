@@ -1,6 +1,10 @@
 import { VideoSample } from 'mediabunny';
 import type { VideoSampleSink } from 'mediabunny';
 
+const reverseCacheBytes = 64 * 1024 * 1024;
+const reverseCacheFrames = 90;
+const maxReverseWindowSeconds = 0.5;
+
 type ReadingSession = {
 	iterator: AsyncIterator<VideoSample>;
 	current: VideoSample | null;
@@ -18,6 +22,7 @@ export class VideoSampleReader {
 	private reverseSamples: VideoSample[] = [];
 	private reverseRange: { start: number; end: number } | null = null;
 	private reverseIterator: AsyncIterator<VideoSample> | null = null;
+	private reverseWindowSeconds = maxReverseWindowSeconds;
 	private generation = 0;
 
 	constructor(private sink: Pick<VideoSampleSink, 'samples'>) {}
@@ -68,9 +73,11 @@ export class VideoSampleReader {
 		if (!this.reverseRange || time < this.reverseRange.start || time > this.reverseRange.end) {
 			this.reset();
 			const generation = this.generation;
-			const start = Math.max(0, time - 0.5);
+			let start = Math.max(0, time - this.reverseWindowSeconds);
+			const end = time + Number.EPSILON * Math.max(1, time);
 			let bytes = 0;
-			const iterator = this.reverseIterator = this.sink.samples(start, time + Number.EPSILON * Math.max(1, time));
+			let firstSample = true;
+			let iterator = this.reverseIterator = this.sink.samples(start, end);
 			try {
 				// デコード自体は表示順で行い、短い窓を逆順に再利用する。全動画やGOP全体を
 				// 保持せず、64MiB・90枚を上限とする（単独の巨大フレームは1枚だけ保持）。
@@ -83,24 +90,45 @@ export class VideoSampleReader {
 					if (result.done) break;
 					const sample = result.value;
 					if (sample.timestamp > time) { sample.close(); break; }
-					// デコード済みVideoFrame（cloneも同じ資源を参照する）を蓄積すると、
-					// ハードウェアの出力面を使い切り、窓を読み終わる前にデコーダーが停止する。
-					// CPUの画素へコピーして元のフレームを即時解放し、保持上限から切り離す。
 					let cached: VideoSample;
-					try { cached = await copyVideoSample(sample); } finally { sample.close(); }
+					try {
+						// format=nullのGPUフレームも、コピー後のRGBAサイズで容量を見積もる。
+						const options: VideoFrameCopyToOptions = sample.format == null ? { format: 'RGBA', colorSpace: 'srgb' } : {};
+						const byteLength = sample.allocationSize(options);
+						const capacity = Math.max(1, Math.min(reverseCacheFrames, Math.floor(reverseCacheBytes / byteLength)));
+						this.reverseWindowSeconds = capacity === 1 ? 0 : sample.duration > 0
+							? Math.min(maxReverseWindowSeconds, (capacity - 1) * sample.duration) : maxReverseWindowSeconds;
+						if (firstSample) {
+							firstSample = false;
+							const adjustedStart = Math.max(0, time - this.reverseWindowSeconds);
+							if (adjustedStart > start) {
+								// 初回や解像度変更時は、容量が判明してから一度だけ読み始めを絞る。
+								// 直後に捨てる多数の画素をCPUへコピーせず、次の補充にも窓幅を引き継ぐ。
+								this.stopReverseRead();
+								start = adjustedStart;
+								iterator = this.reverseIterator = this.sink.samples(start, end);
+								continue;
+							}
+						}
+						// durationは窓幅の見積もりだけに使う。可変FPSでもフレーム選択はtimestampで行い、
+						// 見積もりより密な区間は下の容量制限で収める。デコーダーの出力面は蓄積しない。
+						cached = await copyVideoSample(sample, options, byteLength);
+					} finally { sample.close(); }
 					if (this.disposed || generation !== this.generation) {
 						cached.close();
 						throw new Error('Video sample reader was reset or disposed.');
 					}
 					this.reverseSamples.push(cached);
 					bytes += cached.allocationSize();
-					while (this.reverseSamples.length > 1 && (bytes > 64 * 1024 * 1024 || this.reverseSamples.length > 90)) {
+					while (this.reverseSamples.length > 1 && (bytes > reverseCacheBytes || this.reverseSamples.length > reverseCacheFrames)) {
 						const oldest = this.reverseSamples.shift()!;
 						bytes -= oldest.allocationSize();
 						oldest.close();
 					}
 				}
-				this.reverseRange = { start: Math.max(start, this.reverseSamples[0]?.timestamp ?? start), end: time };
+				// samples(start)はstartを含むフレームも返す。読み始めより前でも、そのtimestamp
+				// までは同じ画素を使えるため、1枚しか保持できない場合のスロー逆再生でも再利用する。
+				this.reverseRange = { start: this.reverseSamples[0]?.timestamp ?? start, end: time };
 			} catch (error) {
 				this.reset();
 				throw error;
@@ -143,10 +171,8 @@ export class VideoSampleReader {
 }
 
 /** デコーダーとは独立した画素を所有する。clone()ではデコード用の出力面を解放できない。 */
-async function copyVideoSample(sample: VideoSample): Promise<VideoSample> {
-	// 一部のGPU専用フォーマットではformatがnullになる。明示的なRGBA/sRGB変換でコピーする。
-	const options: VideoFrameCopyToOptions = sample.format == null ? { format: 'RGBA', colorSpace: 'srgb' } : {};
-	const data = new Uint8Array(sample.allocationSize(options));
+async function copyVideoSample(sample: VideoSample, options: VideoFrameCopyToOptions, byteLength: number): Promise<VideoSample> {
+	const data = new Uint8Array(byteLength);
 	const layout = await sample.copyTo(data, options);
 	return new VideoSample(data, {
 		format: sample.format ?? 'RGBA', layout,
