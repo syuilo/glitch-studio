@@ -1,6 +1,15 @@
 import { ALL_FORMATS, BlobSource, Input, VideoSampleSink } from 'mediabunny';
 import { VideoSampleReader } from './video-sample-reader.ts';
 
+/** 排他的な境界の直前。FPSではなく隣接する浮動小数点数を使い、可変FPSにも対応する。 */
+function before(time: number): number {
+	if (time === 0) return -Number.MIN_VALUE;
+	const bits = new DataView(new ArrayBuffer(8));
+	bits.setFloat64(0, time);
+	bits.setBigUint64(0, bits.getBigUint64(0) + (time > 0 ? -1n : 1n));
+	return bits.getFloat64(0);
+}
+
 /** コンテナの時刻をそのまま使う。映像だけの先頭を0へずらすと音声との同期が失われる。 */
 export function openVideoSource(blob: Blob) {
 	const input = new Input({ source: new BlobSource(blob), formats: ALL_FORMATS });
@@ -25,8 +34,9 @@ export function openVideoSource(blob: Blob) {
 	};
 	return {
 		prepare,
-		async getSample(timeSeconds: number) {
+		async getSample(timeSeconds: number, reverse = false) {
 			if (!Number.isFinite(timeSeconds)) throw new Error('Video time must be finite.');
+			if (reverse) timeSeconds = before(timeSeconds);
 			const entry = await prepare();
 			// getSampleは終端以降も最終フレームを返すので、タイムライン側の透明区間を明示する。
 			if (timeSeconds < 0 || timeSeconds < entry.firstTimestamp || timeSeconds >= entry.endTimestamp) {
@@ -34,7 +44,7 @@ export function openVideoSource(blob: Blob) {
 				return null;
 			}
 			reader ??= new VideoSampleReader(entry.sink);
-			return reader.getSample(timeSeconds);
+			return reader.getSample(timeSeconds, reverse);
 		},
 		dispose() {
 			if (disposed) return;

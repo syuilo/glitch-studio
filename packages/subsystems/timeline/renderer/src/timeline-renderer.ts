@@ -1,5 +1,6 @@
 import { getTimelineClipContentTime, isTimelineClipActive } from '@gs/subsystems_timeline_shared/timing.ts';
 import type { TimelineClip } from '@gs/subsystems_timeline_shared/clip.ts';
+import { getTimelineMediaSourceTime } from '@gs/subsystems_timeline_shared/media-timing.ts';
 
 // 制御に必要なID・期間・有効状態だけを要求し、レイヤー固有のデータは生成関数にそのまま渡す。
 // clipsの省略は同じ時計を使うコンテナ。空配列はクリップのない通常レイヤーを表す。
@@ -134,16 +135,27 @@ export class TimelineRenderer<Output, Entry extends TimelineRenderEntry = Timeli
 				layer = { renderer: this.options.createLayer(entry, clip?.id ?? null), version };
 				this.layers.set(instanceKey, layer);
 			}
+			let contentTimeMs = time;
+			let contentEndTimeMs = 0;
+			if (clip) {
+				if ('sourceInMs' in clip) {
+					contentTimeMs = getTimelineMediaSourceTime(clip, time);
+					contentEndTimeMs = clip.playbackRate > 0 ? clip.sourceOutMs : clip.sourceInMs;
+				} else {
+					contentTimeMs = getTimelineClipContentTime(clip, time);
+					contentEndTimeMs = clip.contentOffsetMs + clip.durationMs;
+				}
+			}
 			const context: TimelineLayerContext<Output> = {
 				isExport,
 				sceneTimeMs: time,
-				contentTimeMs: clip ? getTimelineClipContentTime(clip, time) : time,
+				contentTimeMs,
 				clipElapsedTimeMs: clip ? time - clip.startMs : 0,
 				clipDurationMs: clip?.durationMs ?? 0,
 				// 新規レイヤーには履歴がない。途中からの書き出しでも過去のフレームは再現しない。
 				timeDelta: isNewLayer ? 0 : timeDelta,
 				// 終端は内容の座標系、進行率は表示区間で定義する。TIME / END_TIMEでは求められない。
-				contentEndTimeMs: clip ? clip.contentOffsetMs + clip.durationMs : 0,
+				contentEndTimeMs,
 				input: output,
 			};
 			const result = await layer.renderer.evaluate(context, signal);

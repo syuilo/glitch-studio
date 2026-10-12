@@ -1,5 +1,9 @@
 import { niceScale } from '@gs/shared/utility/misc.ts';
 import type { TimelineClipTiming } from '@gs/subsystems_timeline_shared/timing.ts';
+import { getTimelineMediaPeriod } from '@gs/subsystems_timeline_shared/media-timing.ts';
+import type { TimelineMediaClipTiming } from '@gs/subsystems_timeline_shared/media-timing.ts';
+
+type ClipTiming = TimelineClipTiming | TimelineMediaClipTiming;
 
 export type TimelineTickMode = 'legacy' | 'binary' | 'decimal125';
 export type TimelineTickSubdivisions = { halves: boolean; thirds: boolean };
@@ -7,7 +11,7 @@ export type TimelineClipTick = { contentTimeMs: number; sceneTimeMs: number };
 export type TimelineClipTicks = { major: TimelineClipTick[]; minor: TimelineClipTick[] };
 
 /** 描画時はマウント中のレイヤー、スナップ時は操作対象のレイヤーだけから呼び出す。 */
-export function getTimelineVisibleClipTicks<T extends TimelineClipTiming>(clips: readonly T[], viewportStartMs: number, viewportDurationMs: number, count: number, mode: TimelineTickMode, subdivisions: TimelineTickSubdivisions): { clip: T; ticks: TimelineClipTicks }[] {
+export function getTimelineVisibleClipTicks<T extends ClipTiming>(clips: readonly T[], viewportStartMs: number, viewportDurationMs: number, count: number, mode: TimelineTickMode, subdivisions: TimelineTickSubdivisions): { clip: T; ticks: TimelineClipTicks }[] {
 	return clips.filter(clip => clip.startMs <= viewportStartMs + viewportDurationMs && clip.startMs + clip.durationMs > viewportStartMs)
 		.map(clip => ({ clip, ticks: getTimelineClipTicks(clip, viewportStartMs, viewportDurationMs, count, mode, subdivisions) }));
 }
@@ -56,33 +60,34 @@ export function getTimelineMinorTicks(majorTicks: readonly number[], subdivision
 }
 
 /** 表示・スナップで同じ目盛りを使い、内容時刻とScene上の位置を取り違えないようにする。 */
-export function getTimelineClipTicks(clip: TimelineClipTiming, viewportStartMs: number, viewportDurationMs: number, count: number, mode: TimelineTickMode = 'legacy', subdivisions: TimelineTickSubdivisions = { halves: true, thirds: false }): TimelineClipTicks {
-	if ('loopDurationMs' in clip && typeof clip.loopDurationMs === 'number') {
-		const period = clip.loopDurationMs;
-		const start = Math.max(clip.startMs, viewportStartMs);
-		const end = Math.min(clip.startMs + clip.durationMs, viewportStartMs + viewportDurationMs);
-		const result: TimelineClipTicks = { major: [], minor: [] };
-		// 周期が画面の目盛りより極端に短いときは読めないラベルを描かない。
-		// 表示領域だけを列挙し、ズームアウトでも周回数に比例した配列を作らない。
-		if (period <= 0 || period < viewportDurationMs / (Math.max(1, count) * 8) || end <= start) return result;
-		for (let cycle = Math.floor((start - clip.startMs) / period); clip.startMs + cycle * period < end; cycle++) {
-			const cycleStart = clip.startMs + cycle * period;
-			const ticks = getTimelineClipTicks({ startMs: cycleStart, durationMs: Math.min(period, clip.startMs + clip.durationMs - cycleStart), contentOffsetMs: clip.contentOffsetMs }, viewportStartMs, viewportDurationMs, count, mode, subdivisions);
-			result.major.push(...ticks.major);
-			result.minor.push(...ticks.minor);
-		}
-		return result;
+export function getTimelineClipTicks(clip: ClipTiming, viewportStartMs: number, viewportDurationMs: number, count: number, mode: TimelineTickMode = 'legacy', subdivisions: TimelineTickSubdivisions = { halves: true, thirds: false }): TimelineClipTicks {
+	const media = 'sourceInMs' in clip ? clip : null;
+	const rate = media?.playbackRate ?? 1;
+	const sourceStart = media ? rate > 0 ? media.sourceInMs : media.sourceOutMs : (clip as TimelineClipTiming).contentOffsetMs;
+	const period = media ? getTimelineMediaPeriod(media) : clip.durationMs;
+	const start = Math.max(clip.startMs, viewportStartMs);
+	const end = Math.min(clip.startMs + clip.durationMs, viewportStartMs + viewportDurationMs);
+	const result: TimelineClipTicks = { major: [], minor: [] };
+	if (end <= start || (media?.loop && period < viewportDurationMs / (Math.max(1, count) * 8))) return result;
+	const firstCycle = media?.loop ? Math.floor((start - clip.startMs) / period) : 0;
+	const lastCycle = media?.loop ? Math.ceil((end - clip.startMs) / period) - 1 : 0;
+	// 画面に見える周だけを列挙する。目盛りは素材時刻に置き、倍率と方向でSceneへ戻す。
+	// 逆再生の目盛りも昇順で生成でき、表示とキーフレームのスナップが同じ位置を使う。
+	for (let cycle = firstCycle; cycle <= lastCycle; cycle++) {
+		const cycleStart = clip.startMs + cycle * period;
+		const cycleEnd = Math.min(clip.startMs + clip.durationMs, cycleStart + period);
+		const sourceAtViewportStart = sourceStart + (viewportStartMs - cycleStart) * rate;
+		const sourceAtViewportEnd = sourceAtViewportStart + viewportDurationMs * rate;
+		const major = getTimelineTicks(Math.min(sourceAtViewportStart, sourceAtViewportEnd), viewportDurationMs * Math.abs(rate), count, mode);
+		const toTick = (contentTimeMs: number): TimelineClipTick => ({ contentTimeMs, sceneTimeMs: cycleStart + (contentTimeMs - sourceStart) / rate });
+		const visible = (tick: TimelineClipTick) => tick.sceneTimeMs >= cycleStart && tick.sceneTimeMs < cycleEnd
+			&& tick.sceneTimeMs >= viewportStartMs && tick.sceneTimeMs <= viewportStartMs + viewportDurationMs;
+		result.major.push(...major.map(toTick).filter(visible));
+		result.minor.push(...getTimelineMinorTicks(major, subdivisions).map(toTick).filter(visible));
 	}
-	// トリムしても内容の時間原点は変わらない。目盛り間隔はクリップ長ではなく画面の倍率で決める。
-	const originMs = clip.startMs - clip.contentOffsetMs;
-	const ticks = getTimelineLocalTicks(originMs, viewportStartMs, viewportDurationMs, count, mode);
-	const toTick = (contentTimeMs: number): TimelineClipTick => ({ contentTimeMs, sceneTimeMs: originMs + contentTimeMs });
-	const inVisibleRange = (tick: TimelineClipTick) => tick.contentTimeMs >= clip.contentOffsetMs
-		&& tick.contentTimeMs < clip.contentOffsetMs + clip.durationMs
-		&& tick.sceneTimeMs >= viewportStartMs && tick.sceneTimeMs <= viewportStartMs + viewportDurationMs;
-	// 先に主目盛りを絞ると、端の区間や短いクリップにある補助目盛りまで失われる。
-	const minor = getTimelineMinorTicks(ticks, subdivisions);
-	return { major: ticks.map(toTick).filter(inVisibleRange), minor: minor.map(toTick).filter(inVisibleRange) };
+	result.major.sort((a, b) => a.sceneTimeMs - b.sceneTimeMs);
+	result.minor.sort((a, b) => a.sceneTimeMs - b.sceneTimeMs);
+	return result;
 }
 
 /** 表示範囲を内容の時間原点へ移してから目盛りを生成する。戻り値もローカル時刻。 */

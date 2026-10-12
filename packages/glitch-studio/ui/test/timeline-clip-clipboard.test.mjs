@@ -162,7 +162,7 @@ test('rejects conflicting or invalid batches before mutating any layer or histor
 test('preserves video settings and validates only pasted media against its current duration', t => {
 	const f = fixture(t);
 	f.layer.layerType = 'video';
-	f.layer.clips = [{ id: 'video', startMs: 100, durationMs: 100, contentOffsetMs: 20.25, assetId: 'movie', loopDurationMs: null, audioEnabled: false }];
+	f.layer.clips = [{ id: 'video', startMs: 100, durationMs: 100, sourceInMs: 20.25, sourceOutMs: 120.25, playbackRate: 1, loop: false, assetId: 'movie', audioEnabled: false }];
 	f.state.assets.value = [{ id: 'movie', fileDataType: 'video/mp4' }];
 	f.selection.value.clips = [{ layerId: 'shape', clipId: 'video' }];
 	const clips = prepareTimelineClipPaste(f.scene, f.clipboard, 1000);
@@ -170,7 +170,7 @@ test('preserves video settings and validates only pasted media against its curre
 	const sourceDurationsMs = { [clips[0].layerId]: { [clips[0].clip.id]: 120.25 } };
 	assert.throws(() => f.history.commit('pasteTimelineClips', { sceneId: 'scene', clips }), /Invalid media duration/);
 	assert.throws(() => f.history.commit('pasteTimelineClips', { sceneId: 'scene', clips, sourceDurationsMs: { [clips[0].layerId]: { [clips[0].clip.id]: 119 } } }), /Clip exceeds/);
-	f.layer.clips.push({ id: 'missing', startMs: 300, durationMs: 100, contentOffsetMs: 0, assetId: 'missing', loopDurationMs: null, audioEnabled: true });
+	f.layer.clips.push({ id: 'missing', startMs: 300, durationMs: 100, sourceInMs: 0, sourceOutMs: 100, playbackRate: 1, loop: false, assetId: 'missing', audioEnabled: true });
 	f.history.commit('pasteTimelineClips', { sceneId: 'scene', clips, sourceDurationsMs });
 	assert.deepEqual(f.layer.clips.at(-1), clips[0].clip);
 });
@@ -227,7 +227,7 @@ test('keeps the requested seek time and rechecks state after asynchronous media 
 	for (const change of ['seek', 'overlap', 'reload', 'dispose', 'asset']) {
 		const f = fixture(t);
 		f.layer.layerType = 'audio';
-		f.layer.clips = [{ id: 'audio', startMs: 100, durationMs: 100, contentOffsetMs: 10.25, assetId: 'sound' }];
+		f.layer.clips = [{ id: 'audio', startMs: 100, durationMs: 100, sourceInMs: 10.25, sourceOutMs: 110.25, playbackRate: 1, loop: false, assetId: 'sound' }];
 		const asset = { id: 'sound', fileDataType: 'audio/wav', fileData: new Blob() };
 		f.state.assets.value = [asset];
 		f.selection.value.clips = [{ layerId: 'shape', clipId: 'audio' }];

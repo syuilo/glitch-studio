@@ -1,6 +1,7 @@
 import { PcmResampler, resamplingPaddingSeconds } from './pcm-resampler.ts';
+import { isPcmTimeBefore } from './pcm-time.ts';
 import type { AudioFile } from './audio-file.ts';
-import type { DecodedPcmBlock, StereoPcm } from '@gs/subsystems_audio_shared/pcm.ts';
+import type { AudioPcmReadOptions, DecodedPcmBlock, StereoPcm } from '@gs/subsystems_audio_shared/pcm.ts';
 
 type DecodedWindow = { blocks: DecodedPcmBlock[]; bytes: number };
 
@@ -64,21 +65,33 @@ export class AudioFileReader {
 	}
 
 	/** 素材時刻は秒。指定レートでframes個ずつの左右PCMを返し、素材外は無音にする。 */
-	async read(sourceId: string, time: number, frames: number, rate: number, signal?: AbortSignal): Promise<StereoPcm> {
+	async read(sourceId: string, time: number, frames: number, rate: number, signal?: AbortSignal, options: AudioPcmReadOptions = {}): Promise<StereoPcm> {
 		signal?.throwIfAborted();
+		const playbackRate = options.playbackRate ?? 1;
+		if (!Number.isFinite(playbackRate) || playbackRate === 0) throw new Error('Invalid audio playback rate');
 		const entry = await this.getEntry(sourceId);
 		signal?.throwIfAborted();
+		const start = Math.max(0, options.sourceStartSeconds ?? 0);
+		const end = Math.min(entry.durationSeconds, options.sourceEndSeconds ?? Infinity);
+		// PCMは各サンプルの左端で値を持つ。逆再生の排他的な素材時刻から1素材サンプル戻すと、
+		// 等速逆再生で末尾のサンプルから始まり、出力レートやチャンク境界にも依存しない。
+		if (playbackRate < 0) time -= 1 / entry.sampleRate;
+		const effectiveRate = rate / Math.abs(playbackRate);
 		const output: StereoPcm = [new Float32Array(frames), new Float32Array(frames)];
 		for (let frame = 0; frame < frames;) {
 			signal?.throwIfAborted();
-			const position = time + frame / rate;
-			if (position >= entry.durationSeconds) break;
-			if (position < 0) { frame += Math.max(1, Math.ceil(-position * rate)); continue; }
+			const position = time + frame * playbackRate / rate;
+			if (playbackRate > 0 ? !isPcmTimeBefore(position, end) : isPcmTimeBefore(position, start)) break;
+			if (isPcmTimeBefore(position, start) || !isPcmTimeBefore(position, end)) {
+				frame += Math.max(1, Math.ceil((playbackRate > 0 ? start - position : position - end) * effectiveRate));
+				continue;
+			}
 			const window = Math.floor(position / 2);
-			const count = Math.min(frames - frame, Math.max(1, Math.ceil((Math.min((window + 1) * 2, entry.durationSeconds) - position) * rate)));
-			const blocks = await this.readWindow(sourceId, entry, window, rate, signal);
+			const distance = playbackRate > 0 ? Math.min((window + 1) * 2, end) - position : position - Math.max(window * 2, start);
+			const count = Math.min(frames - frame, Math.max(1, playbackRate > 0 ? Math.ceil(distance * effectiveRate) : Math.floor(distance * effectiveRate) + 1));
+			const blocks = await this.readWindow(sourceId, entry, window, effectiveRate, signal);
 			signal?.throwIfAborted();
-			const channels = this.resampler.resample(blocks, position, count, rate);
+			const channels = this.resampler.resample(blocks, position, count, rate, { ...options, sourceStartSeconds: start, sourceEndSeconds: end });
 			output[0].set(channels[0], frame);
 			output[1].set(channels[1], frame);
 			frame += count;

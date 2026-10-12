@@ -1,4 +1,5 @@
 import { createTimelineClipTiming, getTimelineClipInsertionDuration } from '@gs/subsystems_timeline_shared/timing.ts';
+import { createTimelineMediaClipTiming } from '@gs/subsystems_timeline_shared/media-timing.ts';
 import { canReferenceScene } from '@gs/subsystems_timeline_shared/scenes.ts';
 import { shapeDefinitions } from '@gs/subsystems_timeline_shared/layers/shape/shape.ts';
 import { timelineAudioParamDefs } from '@gs/subsystems_timeline_shared/timeline-audio.ts';
@@ -93,9 +94,9 @@ export function createTimelineSourceActions(options: TimelineSourceActionsOption
 		if (durationMs <= 0) return;
 		const clip = {
 			id: genId(),
-			...createTimelineClipTiming(startMs, durationMs),
+			...(type === 'audio' || type === 'video' ? createTimelineMediaClipTiming(startMs, durationMs) : createTimelineClipTiming(startMs, durationMs)),
 			...(source?.kind === 'scene' ? { sceneId: source.scene.id } : source?.kind === 'asset' ? { assetId: source.asset.id } : {}),
-			...(type === 'video' ? { loopDurationMs: null, audioEnabled: source?.kind === 'asset' && !!source.media?.audioAvailable } : {}),
+			...(type === 'video' ? { audioEnabled: source?.kind === 'asset' && !!source.media?.audioAvailable } : {}),
 		};
 		try {
 			stateManager.commit('addTimelineClip', { sceneId: scene.id, layerId: layer.id, clip, sourceDurationMs });
@@ -155,8 +156,8 @@ export function createTimelineSourceActions(options: TimelineSourceActionsOption
 		let layer: TimelineLayer;
 		if (layerType === 'scene' && source.kind === 'scene') layer = { ...base, layerType, clips: [{ ...clip, sceneId: source.scene.id }], audioParamValues, compositingParamValues };
 		else if (source.kind === 'asset' && layerType === 'image') layer = { ...base, layerType, clips: [{ ...clip, assetId: source.asset.id }], compositingParamValues };
-		else if (source.kind === 'asset' && layerType === 'audio') layer = { ...base, layerType, clips: [{ ...clip, assetId: source.asset.id }], audioParamValues };
-		else if (source.kind === 'asset' && layerType === 'video') layer = { ...base, layerType, clips: [{ ...clip, assetId: source.asset.id, loopDurationMs: null, audioEnabled: !!source.media?.audioAvailable }], audioParamValues, compositingParamValues };
+		else if (source.kind === 'asset' && layerType === 'audio') layer = { ...base, layerType, clips: [{ id: clip.id, ...createTimelineMediaClipTiming(clip.startMs, clip.durationMs), assetId: source.asset.id }], audioParamValues };
+		else if (source.kind === 'asset' && layerType === 'video') layer = { ...base, layerType, clips: [{ id: clip.id, ...createTimelineMediaClipTiming(clip.startMs, clip.durationMs), assetId: source.asset.id, audioEnabled: !!source.media?.audioAvailable }], audioParamValues, compositingParamValues };
 		else return;
 		stateManager.commit('addTimelineLayer', { sceneId: scene.id, layer, sourceDurationsMs: sourceDurationMs == null ? undefined : { [layer.id]: { [clip.id]: sourceDurationMs } } });
 		selectClip({ layerId: layer.id, clipId: clip.id });

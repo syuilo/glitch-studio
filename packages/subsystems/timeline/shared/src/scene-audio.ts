@@ -6,6 +6,7 @@ import { assignPreparedSpeech, getVoicevoxUtterancePlacements } from './layers/v
 import type { SpeechResolver, VoicevoxRequest } from './layers/voicevox/voicevox.ts';
 import type { AutomationGraph } from '@gs/shared/automation-graph/automation-graph.ts';
 import type { TimelineParameterBinding, TimelineLayer, TimelineScene } from './types.ts';
+import type { TimelineMediaSourceTiming } from './media-timing.ts';
 
 export type SceneAudioGain = {
 	/** 最上位Scene上で、音量を所有するSceneの時刻0が置かれる位置。 */
@@ -16,26 +17,21 @@ export type SceneAudioGain = {
 
 export type SceneAudioClip = {
 	sourceId: string;
-	/** 最上位Scene上での素材時刻0。ループ時は最初の周の原点。音量の評価基準には使用しない。 */
-	sourceStartMs: number;
+	/** 親Sceneで表示区間を切っても、素材の時計の原点と範囲は変更しない。 */
+	sourceTiming: TimelineMediaSourceTiming;
 	startMs: number;
 	endMs: number;
 	gains: SceneAudioGain[];
-	loop?: SceneAudioLoop;
 };
-
-/** 表示区間を親Sceneで切り詰めても、周期の原点と素材範囲は変更しない。 */
-export type SceneAudioLoop = { startMs: number; durationMs: number; contentOffsetMs: number };
 
 export type SceneAudioSelection = { type: 'all' } | { type: 'belowLayer'; layerId: string } | { type: 'layer'; layerId: string };
 
 /** 音声の準備状況から独立した、最上位Scene上の配置。 */
 export type SceneAudioPlacement = {
-	sourceStartMs: number;
 	startMs: number;
 	endMs: number;
 	gains: SceneAudioGain[];
-} & ({ type: 'asset'; sourceId: string; loop?: SceneAudioLoop } | { type: 'speech'; request: VoicevoxRequest });
+} & ({ type: 'asset'; sourceId: string; sourceTiming: TimelineMediaSourceTiming } | { type: 'speech'; request: VoicevoxRequest; sourceStartMs: number });
 
 /** 祖先クリップすべての表示区間を交差させ、素材と各階層の音量の時計を別々に展開する。 */
 export function getSceneAudioPlacements(scenes: readonly TimelineScene[], sceneId: string, selection: SceneAudioSelection = { type: 'all' }): SceneAudioPlacement[] {
@@ -75,14 +71,13 @@ export function getSceneAudioPlacements(scenes: readonly TimelineScene[], sceneI
 				if (endMs <= startMs) continue;
 				// 子Sceneの時刻0と素材の時刻0は同じ変換式だが、親レイヤーのキーは
 				// 親Sceneに固定する。トリムしても親の音量キーまで移動してはいけない。
-				const sourceStartMs = sceneStartMs + clip.startMs - clip.contentOffsetMs;
 				if ('sceneId' in clip) {
+					const sourceStartMs = sceneStartMs + clip.startMs - clip.contentOffsetMs;
 					const childScene = getTimelineScene(scenes, clip.sceneId);
 					visit(childScene.layers, sourceStartMs, startMs, Math.min(endMs, sourceStartMs + getSceneDuration(childScene)), layerGains);
 				} else if (!('audioEnabled' in clip) || clip.audioEnabled) {
-					const loop = 'loopDurationMs' in clip && clip.loopDurationMs !== null
-						? { startMs: sceneStartMs + clip.startMs, durationMs: clip.loopDurationMs, contentOffsetMs: clip.contentOffsetMs } : undefined;
-					placements.push({ type: 'asset', sourceId: clip.assetId, sourceStartMs, startMs, endMs, gains: layerGains, ...(loop ? { loop } : {}) });
+					const sourceTiming = { startMs: sceneStartMs + clip.startMs, sourceInMs: clip.sourceInMs, sourceOutMs: clip.sourceOutMs, playbackRate: clip.playbackRate, loop: clip.loop };
+					placements.push({ type: 'asset', sourceId: clip.assetId, sourceTiming, startMs, endMs, gains: layerGains });
 				}
 			}
 		}
@@ -96,8 +91,8 @@ export function resolveSceneAudioPlacements(placements: readonly SceneAudioPlace
 	const missingSpeech: Extract<SceneAudioPlacement, { type: 'speech' }>[] = [];
 	for (const placement of placements) {
 		if (placement.type === 'asset') {
-			const { sourceId, sourceStartMs, startMs, endMs, gains, loop } = placement;
-			clips.push({ sourceId, sourceStartMs, startMs, endMs, gains, ...(loop ? { loop } : {}) });
+			const { sourceId, sourceTiming, startMs, endMs, gains } = placement;
+			clips.push({ sourceId, sourceTiming, startMs, endMs, gains });
 		} else {
 			const speech = resolveSpeech(placement.request);
 			if (!speech) {
@@ -105,7 +100,8 @@ export function resolveSceneAudioPlacements(placements: readonly SceneAudioPlace
 				continue;
 			}
 			const interval = assignPreparedSpeech(placement, speech);
-			if (interval) clips.push({ ...interval, gains: placement.gains });
+			if (interval) clips.push({ sourceId: interval.sourceId, startMs: interval.startMs, endMs: interval.endMs, gains: placement.gains,
+				sourceTiming: { startMs: interval.sourceStartMs, sourceInMs: 0, sourceOutMs: speech.durationMs, playbackRate: 1, loop: false } });
 		}
 	}
 	return { clips, missingSpeech };

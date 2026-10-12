@@ -1,5 +1,5 @@
 import type { timelineCompositingParamDefs } from './timeline-compositing.ts';
-import type { TimelineClip, TimelineAssetClip, TimelineVideoClip, TimelineSceneClip } from './clip.ts';
+import type { TimelineClip, TimelineContentClip, TimelineMediaClip, TimelineAssetClip, TimelineVideoClip, TimelineSceneClip } from './clip.ts';
 import type { TimelineSceneResolution } from './scene-resolution.ts';
 import type { EffectResolution } from '@gs/subsystems_effect_shared/resolution.js';
 import type { ParameterChangeKind } from '@gs/shared/parameter/parameter-definition.ts';
@@ -39,19 +39,19 @@ type TimelineVisualLayerBase = {
 
 export type { TimelineParameterBinding, TimelineEffectParameterBinding } from './parameter-binding.ts';
 
-export type TimelineVisualModuleLayer = TimelineLayerBase<TimelineClip> & TimelineVisualLayerBase & {
+export type TimelineVisualModuleLayer = TimelineLayerBase<TimelineContentClip> & TimelineVisualLayerBase & {
 	layerType: 'visualModule';
 	visualModuleId: string;
 	visualModuleParamValues: Record<string, TimelineVisualModuleParameterBinding>;
 };
 
-export type TimelineInlineVisualModuleLayer = TimelineLayerBase<TimelineClip> & TimelineVisualLayerBase & {
+export type TimelineInlineVisualModuleLayer = TimelineLayerBase<TimelineContentClip> & TimelineVisualLayerBase & {
 	layerType: 'inlineVisualModule';
 	visualModule: VisualModule;
 	visualModuleParamValues: Record<string, TimelineVisualModuleParameterBinding>;
 };
 
-export type TimelineEffectLayer = TimelineLayerBase<TimelineClip> & TimelineVisualLayerBase & {
+export type TimelineEffectLayer = TimelineLayerBase<TimelineContentClip> & TimelineVisualLayerBase & {
 	layerType: 'effect';
 	effectId: string;
 	effectParamValues: Record<string, TimelineEffectParameterBinding>;
@@ -59,23 +59,23 @@ export type TimelineEffectLayer = TimelineLayerBase<TimelineClip> & TimelineVisu
 };
 
 /** シェイプはレイヤー所有。クリップは表示区間だけを持ち、形状のキーはScene時刻で評価する。 */
-export type TimelineShapeLayer = TimelineLayerBase<TimelineClip> & TimelineVisualLayerBase & {
+export type TimelineShapeLayer = TimelineLayerBase<TimelineContentClip> & TimelineVisualLayerBase & {
 	layerType: 'shape';
 	shape: Shape;
 };
 
 /** 本文と装飾はレイヤー所有。クリップは表示区間だけを持つ。 */
-export type TimelineTextLayer = TimelineLayerBase<TimelineClip> & TimelineVisualLayerBase & {
+export type TimelineTextLayer = TimelineLayerBase<TimelineContentClip> & TimelineVisualLayerBase & {
 	layerType: 'text';
 	textParamValues: TextParameterValues;
 };
 
-export type TimelineAudioLayer = TimelineLayerBase<TimelineAssetClip> & TimelineAudioLayerBase & {
+export type TimelineAudioLayer = TimelineLayerBase<TimelineMediaClip> & TimelineAudioLayerBase & {
 	layerType: 'audio';
 };
 
 /** 発話はScene時刻に固定し、クリップは発話と字幕の有効区間だけを所有する。 */
-export type TimelineVoicevoxLayer = TimelineLayerBase<TimelineClip> & TimelineAudioLayerBase & TimelineVisualLayerBase & {
+export type TimelineVoicevoxLayer = TimelineLayerBase<TimelineContentClip> & TimelineAudioLayerBase & TimelineVisualLayerBase & {
 	layerType: 'voicevox';
 	voicevox: VoicevoxSettings;
 	utterances: VoicevoxUtterance[];

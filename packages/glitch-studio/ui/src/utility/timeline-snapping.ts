@@ -1,6 +1,6 @@
 import { constrainTimelineMove } from './timeline-selection.ts';
 import type { TimelineMovePoint } from './timeline-selection.ts';
-import type { TimelineClipTiming } from '@gs/subsystems_timeline_shared/timing.ts';
+import type { TimelineClipPlacement } from '@gs/subsystems_timeline_shared/timing.ts';
 
 export type TimelineSnapSettings = {
 	enabled: boolean;
@@ -12,7 +12,7 @@ export type TimelineSnapSettings = {
 export type TimelineClipSnapSettings = { start: boolean; end: boolean };
 
 /** 移動では両端、トリムでは操作中の端だけを吸着元にする。 */
-export function getTimelineClipSnapPoints(clip: TimelineClipTiming, bounds: { minDelta: number; maxDelta: number }, settings: TimelineClipSnapSettings, edge?: 'start' | 'end'): TimelineMovePoint[] {
+export function getTimelineClipSnapPoints(clip: TimelineClipPlacement, bounds: { minDelta: number; maxDelta: number }, settings: TimelineClipSnapSettings, edge?: 'start' | 'end'): TimelineMovePoint[] {
 	const edges = edge == null ? ['start', 'end'] as const : [edge];
 	// 無効な端も移動制約の計算には残し、吸着候補だけを空にする。
 	// 両端をオフにしても移動でき、複数移動でも全クリップの衝突制限を守れる。

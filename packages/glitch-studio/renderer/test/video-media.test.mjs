@@ -11,8 +11,11 @@ const bundle = await build({
 
 function setup() {
 	const calls = { starts: [], disposed: 0, returned: 0 };
-	const sample = timestamp => ({ timestamp, clone: () => sample(timestamp), close() {} });
+	const sample = timestamp => ({ timestamp, duration: 1, format: 'RGBA', codedWidth: 16, codedHeight: 16,
+		displayWidth: 16, displayHeight: 16, rotation: 0, allocationSize: () => 1024,
+		async copyTo() { return [{ offset: 0, stride: 64 }]; }, clone: () => sample(timestamp), close() {} });
 	const stub = {
+		VideoSample: class { constructor(_data, init) { Object.assign(this, sample(init.timestamp)); } },
 		ALL_FORMATS: [], BlobSource: class {},
 		Input: class {
 			async getPrimaryVideoTrack() {
@@ -34,6 +37,20 @@ function setup() {
 	new Function('require', 'module', 'exports', bundle.outputFiles[0].text)(name => name === 'mediabunny' ? stub : require(name), module, module.exports);
 	return { ...module.exports, calls };
 }
+
+// 【逆再生では半開区間の末尾直前を選び、素材終端で透明な先頭フレームを作らない】
+// 内部のフレーム境界も左側のフレームに所属させる。順方向の終端以降は従来どおり透明。
+test('selects the frame before exclusive reverse boundaries', async () => {
+	const source = setup().openVideoSource(new Blob());
+	for (const [time, expected] of [[8, 7], [7, 6], [6.5, 6], [3, 2]]) {
+		const sample = await source.getSample(time, true);
+		assert.equal(sample.timestamp, expected);
+		sample.close();
+	}
+	assert.equal(await source.getSample(2, true), null);
+	assert.equal(await source.getSample(8), null);
+	source.dispose();
+});
 
 // 【映像の開始が遅い素材でもコンテナの時刻を維持し、区間外では先読みを解放する】
 // 先頭を0へ詰めると音声とずれる。音声だけが続く末尾区間では、最終映像を保持せず透明にする。

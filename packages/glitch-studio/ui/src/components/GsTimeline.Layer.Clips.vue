@@ -4,7 +4,6 @@
 		v-for="item in items"
 		:key="item.clip.id"
 		:clip="item.clip"
-		:loopDurationMs="item.loopDurationMs"
 		:label="item.label"
 		:sourceDurationMs="item.sourceDurationMs"
 		:pixelsPerMs="pixelsPerMs"
@@ -21,7 +20,7 @@
 <script lang="ts">
 import type { TimelineClip } from '@gs/subsystems_timeline_shared/clip.ts';
 
-export type TimelineClipPresentation = { clip: TimelineClip; label: string; sourceDurationMs: number | null; loopDurationMs?: number | null };
+export type TimelineClipPresentation = { clip: TimelineClip; label: string; sourceDurationMs: number | null };
 </script>
 
 <script setup lang="ts">

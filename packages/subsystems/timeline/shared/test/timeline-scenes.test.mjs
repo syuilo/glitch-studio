@@ -11,7 +11,7 @@ const nested = (id, sceneId, positionMs, trimStartMs, trimmedDurationMs) => ({
 	id, name: id, layerType: 'scene', clips: [{ id: 'clip', sceneId, startMs: positionMs + trimStartMs, contentOffsetMs: trimStartMs, durationMs: trimmedDurationMs }],
 	compositingParamValues: {}, audioParamValues: { volume: { inputSource: 'literal', value: 1 } }, automationGraphs: [],
 });
-const audio = { id: 'audio', layerType: 'audio', name: 'Layer', clips: [{ id: 'clip', startMs: 120, contentOffsetMs: 20, durationMs: 200, assetId: 'asset' }],
+const audio = { id: 'audio', layerType: 'audio', name: 'Layer', clips: [{ id: 'clip', startMs: 120, sourceInMs: 20, sourceOutMs: 220, playbackRate: 1, loop: false, durationMs: 200, assetId: 'asset' }],
 	audioParamValues: { volume: { inputSource: 'literal', value: 1 } }, automationGraphs: [] };
 
 // 【非表示の音声・動画・子Sceneを音声計画から除外し、Sceneの長さを維持する】
@@ -20,7 +20,7 @@ const audio = { id: 'audio', layerType: 'audio', name: 'Layer', clips: [{ id: 'c
 test('omits disabled audio video and scene layers without changing clip timing or scene duration', () => {
 	const sound = { ...structuredClone(audio), isDisabled: false };
 	const video = { ...structuredClone(audio), id: 'video', layerType: 'video', isDisabled: false,
-		clips: [{ ...audio.clips[0], assetId: 'movie', loopDurationMs: null, audioEnabled: true }], compositingParamValues: {} };
+		clips: [{ ...audio.clips[0], assetId: 'movie', audioEnabled: true }], compositingParamValues: {} };
 	const placement = { ...nested('placement', 'child', 1000, 0, 500), isDisabled: false };
 	const child = scene('child', [sound, video]);
 	const root = scene('root', [placement]);
@@ -42,11 +42,11 @@ test('omits disabled audio video and scene layers without changing clip timing o
 // 音声へレイヤー全体を渡すとfitやopacityの編集でも先読みPCMを破棄してしまう。
 // 音声無効化は再生計画だけを変え、素材位置やSceneの長さには影響しない。
 test('collects video audio independently of visual settings and preserves scene trims', () => {
-	const video = { id: 'video', layerType: 'video', name: 'Layer', clips: [{ id: 'clip', startMs: 120, contentOffsetMs: 20, durationMs: 200, assetId: 'movie', loopDurationMs: null, audioEnabled: true }], audioParamValues: { volume: { inputSource: 'literal', value: 0.5 } },
+	const video = { id: 'video', layerType: 'video', name: 'Layer', clips: [{ id: 'clip', startMs: 120, sourceInMs: 20, sourceOutMs: 220, playbackRate: 1, loop: false, durationMs: 200, assetId: 'movie', audioEnabled: true }], audioParamValues: { volume: { inputSource: 'literal', value: 0.5 } },
 		compositingParamValues: { fitMode: { inputSource: 'literal', value: 'contain' } }, automationGraphs: [] };
 	const scenes = [scene('root', [nested('placement', 'child', 1000, 150, 100)]), scene('child', [video])];
 	const [clip] = getSceneAudioClips(scenes, 'root');
-	assert.deepEqual([clip.sourceId, clip.sourceStartMs, clip.startMs, clip.endMs], ['movie', 1100, 1150, 1250]);
+	assert.deepEqual([clip.sourceId, (clip.sourceTiming.startMs - clip.sourceTiming.sourceInMs), clip.startMs, clip.endMs], ['movie', 1100, 1150, 1250]);
 	assert.equal(clip.gains.at(-1).volume.value, 0.5);
 	assert.equal(clip.gains.length, 2);
 	video.compositingParamValues.fitMode = { inputSource: 'literal', value: 'cover' };
@@ -93,9 +93,10 @@ test('intersects ancestor windows while retaining independent content clocks', (
 	const [clip] = getSceneAudioClips([root, child, leaf], 'root');
 	assert.equal(clip.sourceId, leaf.layers[0].clips[0].assetId);
 	assert.equal(clip.gains.at(-1).volume, leaf.layers[0].audioParamValues.volume);
-	assert.deepEqual([clip.startMs, clip.endMs, clip.sourceStartMs], [1180, 1280, 1150]);
+	assert.deepEqual([clip.startMs, clip.endMs, (clip.sourceTiming.startMs - clip.sourceTiming.sourceInMs)], [1180, 1280, 1150]);
 	assert.deepEqual(clip.gains.map(gain => gain.sceneStartMs), [0, 1000, 1050]);
 	leaf.layers[0].clips[0].durationMs = 50;
+	leaf.layers[0].clips[0].sourceOutMs = leaf.layers[0].clips[0].sourceInMs + 50;
 	const [shortened] = getSceneAudioClips([root, child, leaf], 'root');
 	assert.equal(shortened.endMs, 1220);
 	assert.equal(getSceneDuration(root), 1280);
@@ -107,7 +108,7 @@ test('keeps repeated audio scene placements and handles empty children', () => {
 	const child = scene('child', [structuredClone(audio)]);
 	const root = scene('root', [nested('a', 'child', 0, 0, 400), nested('b', 'child', 1000, 0, 400)]);
 	const clips = getSceneAudioClips([root, child], 'root');
-	assert.deepEqual(clips.map(clip => [clip.startMs, clip.endMs, clip.sourceStartMs]), [[120, 320, 100], [1120, 1320, 1100]]);
+	assert.deepEqual(clips.map(clip => [clip.startMs, clip.endMs, (clip.sourceTiming.startMs - clip.sourceTiming.sourceInMs)]), [[120, 320, 100], [1120, 1320, 1100]]);
 	child.layers = [];
 	assert.deepEqual(getSceneAudioClips([root, child], 'root'), []);
 	assert.equal(getSceneDuration(root), 1400);

@@ -12,6 +12,32 @@ const module = { exports: {} };
 new Function('require', 'module', 'exports', bundle.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
 const { AudioFileReader, openAudioFile } = module.exports;
 
+// 【実際のPCMを速度変更・逆再生し、窓境界とチャンク分割でも同じ音を得る】
+// 逆再生の先頭が無音になったり、早送りで出力帯域外の音が折り返したりしないことを確認する。
+// 素材の読み出し方向と出力サンプルレートは独立した値として扱う。
+test('resamples decoded audio at signed rates across windows and chunk boundaries', async () => {
+	const sampleRate = 8000;
+	const file = wav(sampleRate, time => 0.25 * Math.sin(2 * Math.PI * 200 * time));
+	const reader = new AudioFileReader(() => openAudioFile(file));
+	try {
+		for (const playbackRate of [0.5, 2, -1, -2]) {
+			const options = { playbackRate, sourceStartSeconds: 0.5, sourceEndSeconds: 2.5 };
+			const start = playbackRate > 0 ? 1.99 : 2.01;
+			const whole = await reader.read('wav', start, 400, sampleRate, undefined, options);
+			const chunks = [];
+			for (let i = 0; i < 400; i += 37) chunks.push(...(await reader.read('wav', start + i * playbackRate / sampleRate, Math.min(37, 400 - i), sampleRate, undefined, options))[0]);
+			for (let i = 0; i < 400; i++) {
+				const sourceTime = start + i * playbackRate / sampleRate - (playbackRate < 0 ? 1 / sampleRate : 0);
+				assert.ok(Math.abs(whole[0][i] - 0.25 * Math.sin(2 * Math.PI * 200 * sourceTime)) < 0.0002, `rate ${playbackRate}, sample ${i}`);
+				assert.ok(Math.abs(whole[0][i] - chunks[i]) < 0.00002);
+			}
+		}
+		const forward = await reader.read('wav', 0.5, 16000, sampleRate, undefined, { sourceStartSeconds: 0.5, sourceEndSeconds: 2.5 });
+		const reverse = await reader.read('wav', 2.5, 16000, sampleRate, undefined, { playbackRate: -1, sourceStartSeconds: 0.5, sourceEndSeconds: 2.5 });
+		assert.deepEqual(reverse[0], forward[0].toReversed());
+	} finally { reader.dispose(); }
+});
+
 function wav(rate = 8000, valueAt = () => 0.25, seconds = 3) {
 	const frames = rate * seconds;
 	const buffer = new ArrayBuffer(44 + frames * 2);

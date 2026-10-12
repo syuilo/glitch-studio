@@ -82,7 +82,7 @@ function descendants(root) { return [root, ...root.children.flatMap(descendants)
 function textContent(node) { return node.text + node.children.map(textContent).join(''); }
 const keySelection = (layerId, keyframeId) => ({ layerId, target: 'audio', paramPath: ['volume'], keyframeId });
 const makeLayer = id => ({ id, name: id, layerType: 'audio', isDisabled: false, automationGraphs: [],
-	clips: [{ id: 'clip', assetId: 'sound', startMs: 0, durationMs: 5000, contentOffsetMs: 0 }],
+	clips: [{ id: 'clip', assetId: 'sound', startMs: 0, durationMs: 5000, sourceInMs: 0, sourceOutMs: 5000, playbackRate: 1, loop: false }],
 	audioParamValues: { volume: { inputSource: 'keyframesTimelineInline', offsetMode: 'start', wrapMode: 'clamp', trimmedDurationMs: null, keyframesTimeline: {
 		dataType: { kind: 'scalar' }, isNormalized: false,
 		keyframes: [100, 300, 600].map((x, index) => ({ id: `key-${index}`, x, value: 1, interpolation: { type: 'linear' } })),
@@ -96,21 +96,56 @@ test('edits video total duration independently of the trimmed range in the inspe
 	const layer = f.scene.layers[0];
 	layer.layerType = 'video';
 	layer.compositingParamValues = {};
-	Object.assign(layer.clips[0], { loopDurationMs: null, audioEnabled: false });
+	Object.assign(layer.clips[0], { audioEnabled: false });
 	f.props.selection = { kind: 'clips', clips: [{ layerId: 'a', clipId: 'clip' }] };
 	f.props.mediaInfo = new Map([['sound', { durationMs: 5000, audioAvailable: true, audioError: null }]]);
 	await nextTick();
 	f.control('GsInput', 'Total duration').props['onUpdate:modelValue'](13000);
 	await nextTick();
-	assert.deepEqual([layer.clips[0].durationMs, layer.clips[0].loopDurationMs], [13000, 5000]);
+	assert.deepEqual([layer.clips[0].durationMs, (layer.clips[0].loop ? layer.clips[0].sourceOutMs - layer.clips[0].sourceInMs : null)], [13000, 5000]);
 	f.control('GsInput', 'Trimmed duration').props['onUpdate:modelValue'](3000);
 	await nextTick();
-	assert.deepEqual([layer.clips[0].durationMs, layer.clips[0].loopDurationMs], [13000, 3000]);
+	assert.deepEqual([layer.clips[0].durationMs, (layer.clips[0].loop ? layer.clips[0].sourceOutMs - layer.clips[0].sourceInMs : null)], [13000, 3000]);
 	f.control('GsButton', 'Remove loop').props.onClick();
 	await nextTick();
-	assert.deepEqual([layer.clips[0].durationMs, layer.clips[0].loopDurationMs], [3000, null]);
+	assert.deepEqual([layer.clips[0].durationMs, (layer.clips[0].loop ? layer.clips[0].sourceOutMs - layer.clips[0].sourceInMs : null)], [3000, null]);
 	f.history.undo();
-	assert.deepEqual([layer.clips[0].durationMs, layer.clips[0].loopDurationMs], [13000, 3000]);
+	assert.deepEqual([layer.clips[0].durationMs, (layer.clips[0].loop ? layer.clips[0].sourceOutMs - layer.clips[0].sourceInMs : null)], [13000, 3000]);
+});
+
+// 【Inspectorから速度と逆再生を設定し、衝突する変更は適用させない】
+// 実際のSFCの入力・ボタンとCommandを結び、表示だけが変わって再生設定が保存されない不具合を防ぐ。
+// 音声クリップでも同じ操作を使い、キーフレームはScene時刻に残す。
+test('applies speed and reverse controls and previews collision errors', async t => {
+	const f = await fixture(t);
+	const layer = f.scene.layers[0];
+	const clip = layer.clips[0];
+	const original = structuredClone({ ...clip });
+	const keyTimes = layer.audioParamValues.volume.keyframesTimeline.keyframes.map(key => key.x);
+	f.props.selection = { kind: 'clips', clips: [{ layerId: 'a', clipId: 'clip' }] };
+	f.props.mediaInfo = new Map([['sound', { durationMs: 5000, audioAvailable: true, audioError: null }]]);
+	await nextTick();
+	f.control('GsInput', 'Speed').props['onUpdate:modelValue'](50);
+	await nextTick();
+	assert.equal(f.control('GsButton', 'Apply speed').props.disabled, false);
+	f.control('GsButton', 'Apply speed').props.onClick();
+	await nextTick();
+	assert.equal(clip.durationMs, 10000);
+	f.control('GsSwitch', 'Reverse playback').props['onUpdate:modelValue'](true);
+	await nextTick();
+	f.control('GsButton', 'Apply speed').props.onClick();
+	await nextTick();
+	assert.equal(clip.playbackRate, -0.5);
+	assert.deepEqual(layer.audioParamValues.volume.keyframesTimeline.keyframes.map(key => key.x), keyTimes);
+	f.history.undo();
+	f.history.undo();
+	await nextTick();
+	assert.deepEqual({ ...clip }, original);
+	layer.clips.push({ ...clip, id: 'next', startMs: 6000 });
+	f.control('GsInput', 'Speed').props['onUpdate:modelValue'](50);
+	await nextTick();
+	assert.equal(f.control('GsButton', 'Apply speed').props.disabled, true);
+	assert.ok(textContent(f.root).includes('Overlapping clips'));
 });
 
 async function fixture(t, component = Inspector) {
@@ -202,13 +237,13 @@ test('waits for media metadata before trimming and forwards the clip identity', 
 	const f = await fixture(t);
 	f.props.selection = { kind: 'clips', clips: [{ layerId: 'b', clipId: 'clip' }] };
 	await nextTick();
-	assert.equal(f.control('GsInput', 'Duration').props.disabled, true);
-	f.control('GsInput', 'Duration').props['onUpdate:modelValue'](4000);
+	assert.equal(f.control('GsInput', 'Trimmed duration').props.disabled, true);
+	f.control('GsInput', 'Trimmed duration').props['onUpdate:modelValue'](4000);
 	assert.equal(f.history.undoStack.value.length, 0);
 	f.props.mediaInfo = new Map([['sound', { durationMs: 5000, audioAvailable: true, audioError: null }]]);
 	await nextTick();
-	assert.equal(f.control('GsInput', 'Duration').props.disabled, false);
-	f.control('GsInput', 'Duration').props['onUpdate:modelValue'](4000);
+	assert.equal(f.control('GsInput', 'Trimmed duration').props.disabled, false);
+	f.control('GsInput', 'Trimmed duration').props['onUpdate:modelValue'](4000);
 	assert.equal(f.scene.layers[1].clips[0].durationMs, 4000);
 	assert.equal(f.scene.layers[0].clips[0].durationMs, 5000);
 	f.control('GsButton', 'Change source').props.onClick();

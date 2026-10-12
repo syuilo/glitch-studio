@@ -1,8 +1,11 @@
 /** Scene上の表示区間と、素材・モジュールの内容時刻を独立して保持する。 */
-export type TimelineClipTiming = {
+export type TimelineClipPlacement = {
 	/** Scene上の配置と長さは安全な整数ミリ秒。 */
 	startMs: number;
 	durationMs: number;
+};
+
+export type TimelineClipTiming = TimelineClipPlacement & {
 	/** 素材のフレーム・サンプル位置を失わないよう、小数ミリ秒を保持する。 */
 	contentOffsetMs: number;
 };
@@ -12,11 +15,11 @@ export function createTimelineClipTiming(startMs: number, durationMs: number): T
 	return { startMs: Math.round(startMs), durationMs: Math.floor(durationMs), contentOffsetMs: 0 };
 }
 
-export function getTimelineClipEnd(timing: TimelineClipTiming): number {
+export function getTimelineClipEnd(timing: TimelineClipPlacement): number {
 	return timing.startMs + timing.durationMs;
 }
 
-export function isTimelineClipActive(timing: TimelineClipTiming, sceneTimeMs: number): boolean {
+export function isTimelineClipActive(timing: TimelineClipPlacement, sceneTimeMs: number): boolean {
 	return timing.startMs <= sceneTimeMs && sceneTimeMs < getTimelineClipEnd(timing);
 }
 
@@ -25,10 +28,18 @@ export function getTimelineClipContentTime(timing: TimelineClipTiming, sceneTime
 	return timing.contentOffsetMs + (sceneTimeMs - timing.startMs);
 }
 
-export function isTimelineClipTimingValid(timing: TimelineClipTiming): boolean {
+/** 小数周期の境界を音声・映像・露光で同じ周に所属させる。周期そのものは丸めない。 */
+export function getTimelineLoopCycle(startMs: number, periodMs: number, sceneTimeMs: number): number {
+	const position = (sceneTimeMs - startMs) / periodMs;
+	const nearest = Math.round(position);
+	// 配置開始の減算に伴う誤差も含めるが、実際に境界から離れた時刻は丸めない。
+	const error = Math.min(1e-7, 4 * Number.EPSILON * Math.max(1, Math.abs(sceneTimeMs), Math.abs(startMs)) / periodMs);
+	return Math.floor(Math.abs(position - nearest) <= error ? nearest : position);
+}
+
+export function isTimelineClipTimingValid(timing: TimelineClipPlacement): boolean {
 	return [timing.startMs, timing.durationMs, getTimelineClipEnd(timing)].every(Number.isSafeInteger)
-		&& [timing.contentOffsetMs, timing.contentOffsetMs + timing.durationMs].every(Number.isFinite)
-		&& timing.startMs >= 0 && timing.durationMs > 0 && timing.contentOffsetMs >= 0;
+		&& timing.startMs >= 0 && timing.durationMs > 0;
 }
 
 /** 素材の残り時間に収まる整数msの長さ。表示区間の衝突判定には使わない。 */
@@ -44,7 +55,7 @@ export function getTimelineMediaMaxDurationMs(contentOffsetMs: number, sourceDur
 }
 
 /** 境界の接触は許可する。素材の未使用部分は衝突判定に含めない。 */
-export function validateTimelineClips(clips: readonly (TimelineClipTiming & { id: string })[]): void {
+export function validateTimelineClips(clips: readonly (TimelineClipPlacement & { id: string })[]): void {
 	if (new Set(clips.map(clip => clip.id)).size !== clips.length) throw new Error('Duplicate clip ID in layer');
 	const sorted = clips.toSorted((a, b) => a.startMs - b.startMs);
 	for (let index = 0; index < sorted.length; index++) {
@@ -54,7 +65,7 @@ export function validateTimelineClips(clips: readonly (TimelineClipTiming & { id
 }
 
 /** 選択中のクリップ同士は同量だけ移動するため、非選択の隣接区間だけで制限する。 */
-export function getTimelineClipMoveBounds(clips: readonly (TimelineClipTiming & { id: string })[], selectedIds: ReadonlySet<string>, clipId: string): { minDelta: number; maxDelta: number } {
+export function getTimelineClipMoveBounds(clips: readonly (TimelineClipPlacement & { id: string })[], selectedIds: ReadonlySet<string>, clipId: string): { minDelta: number; maxDelta: number } {
 	const sorted = clips.toSorted((a, b) => a.startMs - b.startMs);
 	const index = sorted.findIndex(clip => clip.id === clipId);
 	if (index < 0) throw new Error('Timeline clip not found');
@@ -68,17 +79,15 @@ export function getTimelineClipMoveBounds(clips: readonly (TimelineClipTiming & 
 }
 
 /** 追加場所が既存クリップ内なら追加しない。次の開始位置までに必ず収める。 */
-export function getTimelineClipInsertionDuration(clips: readonly TimelineClipTiming[], startMs: number, requestedDurationMs = 5000): number {
+export function getTimelineClipInsertionDuration(clips: readonly TimelineClipPlacement[], startMs: number, requestedDurationMs = 5000): number {
 	if (!Number.isSafeInteger(startMs) || startMs < 0 || clips.some(clip => isTimelineClipActive(clip, startMs))) return 0;
 	const nextStart = clips.reduce((next, clip) => clip.startMs > startMs ? Math.min(next, clip.startMs) : next, Infinity);
 	return Math.max(0, Math.floor(Math.min(requestedDurationMs, nextStart - startMs, Number.MAX_SAFE_INTEGER - startMs)));
 }
 
 /** UIとコマンドで同じ制限を使う。生成系は左への延長を行わず、Undoだけで元の区間に戻す。 */
-export function getTimelineClipTrimBounds(clips: readonly (TimelineClipTiming & { id: string })[], clipId: string, edge: 'start' | 'end', canExtendStart: boolean, sourceDurationMs = Infinity): { minDelta: number; maxDelta: number } {
-	const clip = clips.find(clip => clip.id === clipId);
-	if (!clip) throw new Error('Timeline clip not found');
-	const bounds = getTimelineClipMoveBounds(clips, new Set([clipId]), clipId);
+export function getTimelineClipTrimBounds(clips: readonly (TimelineClipPlacement & { id: string })[], clip: TimelineClipTiming & { id: string }, edge: 'start' | 'end', canExtendStart: boolean, sourceDurationMs = Infinity): { minDelta: number; maxDelta: number } {
+	const bounds = getTimelineClipMoveBounds(clips, new Set([clip.id]), clip.id);
 	// 内容オフセットと素材長は小数でも、実際に適用できる移動量は整数msに限る。
 	// 下限は切り上げ、上限は切り捨てることで内容時刻0や素材終端を越えない。
 	return edge === 'start'

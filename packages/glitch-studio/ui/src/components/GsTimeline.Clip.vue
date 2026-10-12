@@ -1,5 +1,5 @@
 <template>
-<div v-if="selected && sourceDurationMs != null" :class="$style.sourceGhost" :style="{ left: (clip.startMs - clip.contentOffsetMs) * pixelsPerMs + 'px', width: sourceDurationMs * pixelsPerMs + 'px' }"></div>
+<div v-if="selected && sourceGhost" :class="$style.sourceGhost" :style="{ left: sourceGhost.startMs * pixelsPerMs + 'px', width: sourceGhost.durationMs * pixelsPerMs + 'px' }"></div>
 <div
 	:data-timeline-clip-id="clip.id"
 	:class="[$style.clip, { [$style.selected]: selected, [$style.active]: active, [$style.moving]: moving }]"
@@ -9,21 +9,22 @@
 	@dblclick.stop
 	@contextmenu.stop.prevent="emit('contextMenu', $event)"
 >
-	<div v-if="loopDurationMs != null" :class="$style.loopFill" :style="{ left: loopDurationMs * pixelsPerMs + 'px', '--loopPeriod': Math.max(6, loopDurationMs * pixelsPerMs) + 'px', '--loopLine': loopDurationMs * pixelsPerMs >= 6 ? '#fff5' : 'transparent' }"></div>
-	<div style="padding: 0 8px;"><GsCondensedLine>{{ label }}</GsCondensedLine></div>
+	<div v-if="mediaClip?.loop" :class="$style.loopFill" :style="{ left: periodMs * pixelsPerMs + 'px', '--loopPeriod': Math.max(6, periodMs * pixelsPerMs) + 'px', '--loopLine': periodMs * pixelsPerMs >= 6 ? '#fff5' : 'transparent' }"></div>
+	<div style="padding: 0 8px;"><GsCondensedLine>{{ label }}<template v-if="mediaClip && mediaClip.playbackRate !== 1"> · {{ mediaClip.playbackRate < 0 ? 'Reverse ' : '' }}{{ Math.abs(mediaClip.playbackRate) }}×</template></GsCondensedLine></div>
 	<div :class="[$style.trimHandle, $style.trimStart]" title="Trim source start" @pointerdown.stop="emit('trimStart', $event, 'start')"></div>
-	<div :class="[$style.trimHandle, $style.trimEnd, { [$style.videoTrimEnd]: loopDurationMs !== undefined }]" :style="{ right: (clip.durationMs - (loopDurationMs ?? clip.durationMs)) * pixelsPerMs + 'px' }" title="Trim source end" @pointerdown.stop="emit('trimStart', $event, 'end')"></div>
-	<div v-if="loopDurationMs !== undefined" :class="[$style.trimHandle, $style.loopEnd]" title="Extend to loop the trimmed range" aria-label="Resize video loop" @pointerdown.stop="emit('trimStart', $event, 'loop')"><i class="ti ti-repeat"></i></div>
+	<div :class="[$style.trimHandle, $style.trimEnd, { [$style.mediaTrimEnd]: mediaClip }]" :style="{ right: (clip.durationMs - Math.min(clip.durationMs, periodMs)) * pixelsPerMs + 'px' }" title="Trim source end" @pointerdown.stop="emit('trimStart', $event, 'end')"></div>
+	<div v-if="mediaClip" :class="[$style.trimHandle, $style.loopEnd]" title="Extend to loop the trimmed range" aria-label="Resize media loop" @pointerdown.stop="emit('trimStart', $event, 'loop')"><i class="ti ti-repeat"></i></div>
 </div>
 </template>
 
 <script lang="ts" setup>
 import GsCondensedLine from './common/GsCondensedLine.vue';
+import { computed } from 'vue';
+import { getTimelineMediaPeriod } from '@gs/subsystems_timeline_shared/media-timing.ts';
 import type { TimelineClip } from '@gs/subsystems_timeline_shared/clip.ts';
 
 const props = defineProps<{
 	clip: TimelineClip;
-	loopDurationMs?: number | null;
 	label: string;
 	sourceDurationMs: number | null;
 	pixelsPerMs: number;
@@ -31,6 +32,16 @@ const props = defineProps<{
 	active: boolean;
 	moving: boolean;
 }>();
+const mediaClip = computed(() => 'sourceInMs' in props.clip ? props.clip : null);
+const periodMs = computed(() => mediaClip.value ? getTimelineMediaPeriod(mediaClip.value) : props.clip.durationMs);
+const sourceGhost = computed(() => {
+	if (props.sourceDurationMs == null) return null;
+	const clip = props.clip;
+	if ('contentOffsetMs' in clip) return { startMs: clip.startMs - clip.contentOffsetMs, durationMs: props.sourceDurationMs };
+	const speed = Math.abs(clip.playbackRate);
+	const before = clip.playbackRate > 0 ? clip.sourceInMs : props.sourceDurationMs - clip.sourceOutMs;
+	return { startMs: clip.startMs - before / speed, durationMs: props.sourceDurationMs / speed };
+});
 const emit = defineEmits<{
 	(ev: 'moveStart', event: PointerEvent): void;
 	(ev: 'trimStart', event: PointerEvent, edge: 'start' | 'end' | 'loop'): void;
@@ -87,7 +98,7 @@ const emit = defineEmits<{
 .trimEnd {
 	right: 0;
 }
-.videoTrimEnd {
+.mediaTrimEnd {
 	bottom: 50%;
 	background: #ffffff30;
 }

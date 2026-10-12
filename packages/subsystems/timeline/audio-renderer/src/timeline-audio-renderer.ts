@@ -5,10 +5,11 @@ import { TimelineParameterBindingEvaluator } from '@gs/subsystems_timeline_share
 import { createTimelineLayerEvaluationScope } from '@gs/subsystems_timeline_shared/evaluation-scope.ts';
 import { timelineAudioParamDefs } from '@gs/subsystems_timeline_shared/timeline-audio.ts';
 import { coerceParameterValue } from '@gs/shared/parameter/coerce-parameter-value.ts';
-import type { StereoPcm } from '@gs/subsystems_audio_shared/pcm.ts';
+import type { StereoPcm, AudioPcmReadOptions } from '@gs/subsystems_audio_shared/pcm.ts';
+import { getTimelineMediaCycle, getTimelineMediaPeriod, getTimelineMediaSourceTime } from '@gs/subsystems_timeline_shared/media-timing.ts';
 
 /** 指定素材時刻（秒）から、指定レートでframes個ずつの左右PCMを返す。素材外は無音とする。 */
-export type AudioPcmReader = (sourceId: string, timeSeconds: number, frames: number, sampleRate: number, signal?: AbortSignal) => Promise<StereoPcm>;
+export type AudioPcmReader = (sourceId: string, timeSeconds: number, frames: number, sampleRate: number, signal?: AbortSignal, options?: AudioPcmReadOptions) => Promise<StereoPcm>;
 
 function frameAtOrAfter(timeMs: number, sampleRate: number): number {
 	const position = timeMs * sampleRate / 1000;
@@ -39,19 +40,22 @@ export class TimelineAudioRenderer {
 			}));
 			for (let partStart = first; partStart < end;) {
 				let partEnd = end;
-				let sourceTimeMs = partStart / sampleRate * 1000 - clip.sourceStartMs;
-				if (clip.loop) {
+				const timing = clip.sourceTiming;
+				const timeMs = partStart / sampleRate * 1000;
+				let sourceTimeMs = getTimelineMediaSourceTime(timing, timeMs);
+				if (timing.loop) {
 					// 各周期の境界を絶対サンプル位置から求める。周期をサンプル数に丸めて
 					// 足し続けると44.1kHzなどで周回ごとに音声と映像の位置がずれてしまう。
-					const loop = clip.loop;
-					const elapsedMs = partStart / sampleRate * 1000 - loop.startMs;
-					let cycle = Math.floor(elapsedMs / loop.durationMs);
+					const period = getTimelineMediaPeriod(timing);
+					let cycle = getTimelineMediaCycle(timing, timeMs);
 					// 時刻の減算が境界の直前へ丸まった場合も、絶対サンプル位置を優先する。
-					if (frameAtOrAfter(loop.startMs + (cycle + 1) * loop.durationMs, sampleRate) <= partStart) cycle++;
-					sourceTimeMs = loop.contentOffsetMs + Math.max(0, elapsedMs - cycle * loop.durationMs);
-					partEnd = Math.min(end, Math.max(partStart + 1, frameAtOrAfter(loop.startMs + (cycle + 1) * loop.durationMs, sampleRate)));
+					if (frameAtOrAfter(timing.startMs + (cycle + 1) * period, sampleRate) <= partStart) cycle++;
+					sourceTimeMs = (timing.playbackRate > 0 ? timing.sourceInMs : timing.sourceOutMs)
+						+ Math.max(0, timeMs - timing.startMs - cycle * period) * timing.playbackRate;
+					partEnd = Math.min(end, Math.max(partStart + 1, frameAtOrAfter(timing.startMs + (cycle + 1) * period, sampleRate)));
 				}
-				const pcm = await this.read(clip.sourceId, sourceTimeMs / 1000, partEnd - partStart, sampleRate, signal);
+				const pcm = await this.read(clip.sourceId, sourceTimeMs / 1000, partEnd - partStart, sampleRate, signal,
+					{ playbackRate: timing.playbackRate, sourceStartSeconds: timing.sourceInMs / 1000, sourceEndSeconds: timing.sourceOutMs / 1000 });
 				// 読み取り側が即時中断できなくても、古い要求をミックスしない。
 				signal?.throwIfAborted();
 				for (let frame = partStart; frame < partEnd; frame++) {

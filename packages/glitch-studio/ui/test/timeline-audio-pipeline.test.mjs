@@ -41,7 +41,7 @@ function fixture() {
 	const literal = value => ({ inputSource: 'literal', value });
 	const audioLayer = (id, startMs, durationMs, contentOffsetMs, volume) => ({
 		id, name: id, layerType: 'audio', isDisabled: false, automationGraphs: [], audioParamValues: { volume },
-		clips: [{ id: 'clip', assetId: 'sound', startMs, durationMs, contentOffsetMs }],
+		clips: [{ id: 'clip', assetId: 'sound', startMs, durationMs, sourceInMs: contentOffsetMs, sourceOutMs: contentOffsetMs + durationMs, playbackRate: 1, loop: false }],
 	});
 	const root = { id: 'root', name: 'Root', resolution: { mode: 'project' }, layers: [
 		audioLayer('main', 100, 400, 50, literal(0.5)),
@@ -49,9 +49,9 @@ function fixture() {
 			audioParamValues: { volume: literal(2) }, compositingParamValues: {},
 			clips: [{ id: 'clip', sceneId: 'child', startMs: 200, durationMs: 250, contentOffsetMs: 100 }] },
 		{ ...audioLayer('disabled', 0, 600, 0, literal(1)), isDisabled: true,
-			clips: [{ id: 'clip', assetId: 'missing', startMs: 0, durationMs: 600, contentOffsetMs: 0 }] },
+			clips: [{ id: 'clip', assetId: 'missing', startMs: 0, durationMs: 600, sourceInMs: 0, sourceOutMs: 600, playbackRate: 1, loop: false }] },
 		{ ...audioLayer('silent-video', 0, 600, 0, literal(1)), layerType: 'video', compositingParamValues: {},
-			clips: [{ id: 'clip', assetId: 'missing-video', loopDurationMs: null, audioEnabled: false, startMs: 0, durationMs: 600, contentOffsetMs: 0 }] },
+			clips: [{ id: 'clip', assetId: 'missing-video', audioEnabled: false, startMs: 0, durationMs: 600, sourceInMs: 0, sourceOutMs: 600, playbackRate: 1, loop: false }] },
 	] };
 	const child = { id: 'child', name: 'Child', resolution: { mode: 'project' },
 		layers: [audioLayer('child-sound', 0, 500, 20, { inputSource: 'expression', expression: 'TIME_MS / 1000' })] };
@@ -102,6 +102,34 @@ async function exportAudio(settings, startMs, endMs, renderUntil = [(endMs - sta
 	return collectPackets(packets);
 }
 
+// 【子Scene内の速度変更と逆再生ループを、実際の再生Workerと書き出しで一致させる】
+// 親の途中トリムや端数周期でも素材の時計は移動しない。音声読み出しの追加引数が
+// Worker・ProjectAudioReader・書き出しのどこかで落ちると、この比較で検出できる。
+test('matches retimed reverse loop audio through nested preview and export pipelines', async () => {
+	for (const playbackRate of [0.5, 2, -1, -1.5]) {
+		const child = { id: 'child', name: 'Child', resolution: { mode: 'project' }, layers: [{
+			id: 'video', name: 'Video', layerType: 'video', isDisabled: false, automationGraphs: [], compositingParamValues: {},
+			audioParamValues: { volume: { inputSource: 'literal', value: 1 } },
+			clips: [{ id: 'clip', assetId: 'sound', audioEnabled: true, startMs: 10, durationMs: 800,
+				sourceInMs: 50.25, sourceOutMs: 250.25, playbackRate, loop: true }],
+		}] };
+		const root = { id: 'root', name: 'Root', resolution: { mode: 'project' }, layers: [{
+			id: 'placement', name: 'Child', layerType: 'scene', isDisabled: false, automationGraphs: [], compositingParamValues: {},
+			audioParamValues: { volume: { inputSource: 'literal', value: 1 } },
+			clips: [{ id: 'placement', sceneId: 'child', startMs: 100, durationMs: 600, contentOffsetMs: 75.25 }],
+		}] };
+		const settings = { assets: [stereoWav()], clips: getSceneAudioClips([root, child], 'root'), endFrame: 700 * sampleRate / 1000 };
+		const playback = startPlayback(settings, 150);
+		const packets = await Promise.all([playback.pull(), playback.pull()]);
+		assert.ok(packets.every(packet => packet.type === 'pcm'));
+		const preview = collectPackets(packets.map(packet => packet.channels), sampleRate / 2);
+		const exported = await exportAudio(settings, 150, 650, [0.123, 0.5]);
+		for (let i = 0; i < sampleRate / 2; i++) assert.ok(Math.abs(preview[0][i] - exported[0][i]) < 0.00001, `rate ${playbackRate}, sample ${i}`);
+		assert.ok(exported[0].some(value => value > 0.49));
+		assert.ok(exported[0].some(value => value > 0.24 && value < 0.26));
+	}
+});
+
 // 【再生Workerと書き出しが同じ素材・Scene時刻から同じPCMを生成する】
 // パッケージ移設後の接続を実際のWAVデコードまで通して検証する。先読みの250msと
 // 書き出しの4096サンプルで区切りが違っても、途中開始・子Sceneのトリム・各階層の音量を維持する。
@@ -143,8 +171,7 @@ test('joins the scene end and beginning when a playback packet crosses the loop 
 // IS_EXPORTを使う音量は意図的に再生時と異なる。両経路を単に同一結果へ揃える変更を防ぐ。
 test('retains the explicit export flag in the audio expression scope', { timeout: 10000 }, async () => {
 	const settings = fixture();
-	settings.clips = [{ sourceId: 'sound', sourceStartMs: 0, startMs: 0, endMs: 600,
-		gains: [{ sceneStartMs: 0, volume: { inputSource: 'expression', expression: 'if IS_EXPORT { 1 } else { 0.5 }' }, automationGraphs: [] }] }];
+	settings.clips = [{ sourceId: 'sound', sourceTiming: { startMs: 0, sourceInMs: 0, sourceOutMs: 600 - (0), playbackRate: 1, loop: false }, startMs: 0, endMs: 600, gains: [{ sceneStartMs: 0, volume: { inputSource: 'expression', expression: 'if IS_EXPORT { 1 } else { 0.5 }' }, automationGraphs: [] }] }];
 	const preview = await startPlayback(settings, 50).pull();
 	assert.equal(preview.type, 'pcm');
 	const exported = await exportAudio(settings, 50, 150);

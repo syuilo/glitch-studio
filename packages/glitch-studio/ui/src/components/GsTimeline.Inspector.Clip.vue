@@ -6,13 +6,22 @@
 		<div class="_spacer _gaps_m">
 			<GsInput small type="number" :min="0" :modelValue="selectedClipEntry.clip.startMs" @update:modelValue="value => editSelectedClipTime('move', value)"><template #label>Start</template><template #suffix>ms</template></GsInput>
 			<GsInput small type="number" :min="0" :disabled="selectedClipNeedsMedia && !selectedClipMedia" :modelValue="selectedClipEntry.clip.startMs" @update:modelValue="value => editSelectedClipTime('start', value)"><template #label>Trim start</template><template #suffix>ms</template></GsInput>
-			<GsInput small type="number" :min="1" :disabled="selectedClipNeedsMedia && !selectedClipMedia" :modelValue="selectedVideoClip?.loopDurationMs ?? selectedClipEntry.clip.durationMs" @update:modelValue="value => editSelectedClipTime('duration', value)"><template #label>{{ selectedVideoClip ? 'Trimmed duration' : 'Duration' }}</template><template #suffix>ms</template></GsInput>
-			<div>Content offset: {{ formatMsToTimecode(selectedClipEntry.clip.contentOffsetMs) }}</div>
+			<GsInput small type="number" :min="1" :disabled="selectedClipNeedsMedia && !selectedClipMedia" :modelValue="selectedMediaClip ? getTimelineMediaSingleDuration(selectedMediaClip) : selectedClipEntry.clip.durationMs" @update:modelValue="value => editSelectedClipTime('duration', value)"><template #label>{{ selectedMediaClip ? 'Trimmed duration' : 'Duration' }}</template><template #suffix>ms</template></GsInput>
+			<div v-if="'contentOffsetMs' in selectedClipEntry.clip">Content offset: {{ formatMsToTimecode(selectedClipEntry.clip.contentOffsetMs) }}</div>
 			<div v-if="selectedClipMedia">Source duration: {{ formatMsToTimecode(selectedClipMedia.durationMs) }}</div>
-			<template v-if="selectedVideoClip != null">
-				<GsInput small type="number" :min="selectedVideoClip.loopDurationMs ?? selectedVideoClip.durationMs" :disabled="!selectedClipMedia" :modelValue="selectedVideoClip.durationMs" @update:modelValue="editSelectedClipLoop"><template #label>Total duration</template><template #suffix>ms</template></GsInput>
+			<template v-if="selectedMediaClip != null">
+				<div>Source range: {{ formatMsToTimecode(selectedMediaClip.sourceInMs) }} – {{ formatMsToTimecode(selectedMediaClip.sourceOutMs) }}</div>
+				<GsInput small type="number" :min="timelineMediaMinPlaybackSpeed * 100" :max="timelineMediaMaxPlaybackSpeed * 100" :modelValue="speedPercent" @update:modelValue="value => speedPercent = Number(value)"><template #label>Speed</template><template #suffix>%</template></GsInput>
+				<GsSwitch v-model="reversePlayback">Reverse playback</GsSwitch>
+				<div v-if="speedChange.timing">Duration at this speed: {{ formatMsToTimecode(speedChange.timing.durationMs) }}</div>
+				<div v-if="speedChange.error || speedError" role="alert">{{ speedChange.error || speedError }}</div>
+				<GsButton small :disabled="!selectedClipMedia || !!speedChange.error || speedChange.timing?.playbackRate === selectedMediaClip.playbackRate" @click="editSelectedClipSpeed">Apply speed</GsButton>
+				<div>Preserves the source range. Audio pitch follows the speed; reverse playback also reverses audio.</div>
+				<GsInput small type="number" :min="getTimelineMediaSingleDuration(selectedMediaClip)" :disabled="!selectedClipMedia" :modelValue="selectedMediaClip.durationMs" @update:modelValue="editSelectedClipLoop"><template #label>Total duration</template><template #suffix>ms</template></GsInput>
 				<div>Extend Total duration to repeat the trimmed range.</div>
-				<GsButton v-if="selectedVideoClip.loopDurationMs !== null" small :disabled="!selectedClipMedia" @click="editSelectedClipLoop(selectedVideoClip.loopDurationMs)">Remove loop</GsButton>
+				<GsButton v-if="selectedMediaClip.loop" small :disabled="!selectedClipMedia" @click="editSelectedClipLoop(getTimelineMediaSingleDuration(selectedMediaClip))">Remove loop</GsButton>
+			</template>
+			<template v-if="selectedVideoClip != null">
 				<GsSwitch :modelValue="selectedVideoClip.audioEnabled" :disabled="!selectedVideoClip.audioEnabled && !selectedClipMedia?.audioAvailable" @update:modelValue="editSelectedClipAudio">Audio enabled</GsSwitch>
 				<div v-if="selectedClipMedia?.audioError">{{ selectedClipMedia.audioError }}</div>
 			</template>
@@ -25,7 +34,10 @@
 </template>
 
 <script lang="ts" setup>
-import { computed } from 'vue';
+import { computed, ref, watch } from 'vue';
+import { changeTimelineMediaPlaybackRate, getTimelineMediaSingleDuration, timelineMediaMinPlaybackSpeed, timelineMediaMaxPlaybackSpeed } from '@gs/subsystems_timeline_shared/media-timing.ts';
+import { validateTimelineClips } from '@gs/subsystems_timeline_shared/timing.ts';
+import type { TimelineMediaClipTiming } from '@gs/subsystems_timeline_shared/media-timing.ts';
 import { effectDefinitions } from '@gs/subsystems_effect_shared/effect-definitions.ts';
 import { shapeDefinitions } from '@gs/subsystems_timeline_shared/layers/shape/shape.ts';
 import type { TimelineClipLayer } from '@gs/subsystems_timeline_shared/types.ts';
@@ -56,6 +68,29 @@ const selectedVideoClip = computed(() => {
 	const entry = selectedClipEntry.value;
 	return entry?.layer.layerType === 'video' ? entry.layer.clips.find(clip => clip.id === entry.clip.id) : null;
 });
+const selectedMediaClip = computed(() => {
+	const clip = selectedClipEntry.value?.clip;
+	return clip && 'sourceInMs' in clip ? clip : null;
+});
+const speedPercent = ref(100);
+const reversePlayback = ref(false);
+const speedError = ref('');
+watch(() => [props.sceneId, props.layer.id, props.clipId, selectedMediaClip.value?.playbackRate], () => {
+	speedPercent.value = Math.abs(selectedMediaClip.value?.playbackRate ?? 1) * 100;
+	reversePlayback.value = (selectedMediaClip.value?.playbackRate ?? 1) < 0;
+	speedError.value = '';
+}, { immediate: true });
+const speedChange = computed((): { timing: TimelineMediaClipTiming | null; error: string } => {
+	const clip = selectedMediaClip.value;
+	if (!clip) return { timing: null, error: '' };
+	let timing: (typeof clip) | null = null;
+	try {
+		if (!Number.isFinite(speedPercent.value) || speedPercent.value <= 0) throw new Error('Speed must be greater than zero.');
+		timing = changeTimelineMediaPlaybackRate(clip, speedPercent.value / 100 * (reversePlayback.value ? -1 : 1));
+		validateTimelineClips(props.layer.clips.map(entry => entry.id === clip.id ? timing! : entry));
+		return { timing, error: '' };
+	} catch (error) { return { timing, error: error instanceof Error ? error.message : String(error) }; }
+});
 const selectedSceneClip = computed(() => {
 	const entry = selectedClipEntry.value;
 	return entry?.layer.layerType === 'scene' ? entry.layer.clips.find(clip => clip.id === entry.clip.id) : null;
@@ -84,21 +119,32 @@ function editSelectedClipTime(kind: 'move' | 'start' | 'duration', value: string
 		stateManager.commit('editTimelineClipTiming', {
 			sceneId: props.sceneId, ...entry.target,
 			edge: kind === 'start' ? 'start' : 'end',
-			deltaMs: kind === 'start' ? next - entry.clip.startMs : next - (selectedVideoClip.value?.loopDurationMs ?? entry.clip.durationMs),
+			deltaMs: kind === 'start' ? next - entry.clip.startMs : next - (selectedMediaClip.value ? getTimelineMediaSingleDuration(selectedMediaClip.value) : entry.clip.durationMs),
 			sourceDurationMs: selectedClipMedia.value?.durationMs,
 		});
 	}
 }
 
 function editSelectedClipLoop(value: string | number) {
-	const clip = selectedVideoClip.value;
+	const clip = selectedMediaClip.value;
 	const media = selectedClipMedia.value;
 	const next = Number(value);
 	if (!clip || !media || !Number.isFinite(next)) return;
-	stateManager.commit('editVideoClipLoop', {
+	stateManager.commit('editMediaClipLoop', {
 		sceneId: props.sceneId, layerId: props.layer.id, clipId: clip.id,
 		deltaMs: next - clip.durationMs, sourceDurationMs: media.durationMs,
 	});
+}
+
+function editSelectedClipSpeed() {
+	const clip = selectedMediaClip.value;
+	const media = selectedClipMedia.value;
+	const timing = speedChange.value.timing;
+	if (!clip || !media || !timing || speedChange.value.error) return;
+	try {
+		stateManager.commit('editMediaClipPlaybackRate', { sceneId: props.sceneId, layerId: props.layer.id, clipId: clip.id, playbackRate: timing.playbackRate, sourceDurationMs: media.durationMs });
+		speedError.value = '';
+	} catch (error) { speedError.value = error instanceof Error ? error.message : String(error); }
 }
 
 function editSelectedClipAudio(audioEnabled: boolean) {

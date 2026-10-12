@@ -175,10 +175,7 @@ const scrollingStyle = computed(() => ({
 const groupRange = computed(() => props.layer.layerType === 'group' ? getTimelineGroupRange(props.layer) : null);
 const layerClips = computed(() => props.layer.layerType === 'group' ? [] : props.layer.clips);
 const sortedClips = computed(() => layerClips.value.toSorted((a, b) => a.startMs - b.startMs));
-const clipItems = computed(() => {
-	const present = (clip: Clip, loopDurationMs?: number | null) => ({ clip, label: clipLabel(clip), sourceDurationMs: sourceDuration(clip), loopDurationMs });
-	return props.layer.layerType === 'video' ? props.layer.clips.map(clip => present(clip, clip.loopDurationMs)) : layerClips.value.map(clip => present(clip));
-});
+const clipItems = computed(() => layerClips.value.map(clip => ({ clip, label: clipLabel(clip), sourceDurationMs: sourceDuration(clip) })));
 const emptySelectionIds: string[] = [];
 const selectedKeyframeIdsByParameter = computed(() => {
 	const result = new Map<string, string[]>();
@@ -265,7 +262,7 @@ function onKeyframeInsert(param: KeyframeParameter, x: number) {
 }
 
 // このレイヤーがマウントされ、キーのレーンを表示するときだけローカル目盛りを作る。
-const visibleClipTicks = computed(() => props.collapsed || (keyframeParameters.value.length === 0 && props.layer.layerType !== 'voicevox') ? [] : getTimelineVisibleClipTicks(
+const visibleClipTicks = computed(() => props.collapsed || (keyframeParameters.value.length === 0 && props.layer.layerType !== 'voicevox') ? [] : getTimelineVisibleClipTicks<TimelineClip>(
 	layerClips.value, props.tlPosX, props.tlRangeX, getTimelineTickCount(props.tlElWidth), props.tickMode, props.tickSubdivisions,
 ));
 

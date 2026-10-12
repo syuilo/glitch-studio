@@ -1,6 +1,7 @@
 import { getEnabledTimelineLayers } from './layer-tree.ts';
 import { getSceneDuration, getTimelineScene } from './scenes.ts';
-import { getTimelineClipEnd } from './timing.ts';
+import { getTimelineClipEnd, getTimelineLoopCycle } from './timing.ts';
+import { getTimelineMediaPeriod } from './media-timing.ts';
 import type { TimelineScene } from './types.ts';
 
 export type TimelineMotionBlurSettings = {
@@ -74,8 +75,8 @@ export function getTimelineMotionBlurLoops(scenes: readonly TimelineScene[], sce
 				if (visibleEndMs <= visibleStartMs) continue;
 				if ('sceneId' in clip) {
 					visit(clip.sceneId, clipStartMs - clip.contentOffsetMs, visibleStartMs, visibleEndMs);
-				} else if (clip.loopDurationMs !== null) {
-					loops.push({ startMs: visibleStartMs, endMs: visibleEndMs, loopStartMs: clipStartMs, loopDurationMs: clip.loopDurationMs });
+				} else if (clip.loop) {
+					loops.push({ startMs: visibleStartMs, endMs: visibleEndMs, loopStartMs: clipStartMs, loopDurationMs: getTimelineMediaPeriod(clip) });
 				}
 			}
 		}
@@ -105,7 +106,7 @@ export function getTimelineSampleTimes(time: number, fps: number, settings: Time
 	// 全境界を結合・再ソートせず、ループのないSceneでは追加の探索を行わない。
 	for (const loop of loops) {
 		if (time < loop.startMs || time >= loop.endMs) continue;
-		const cycleStartMs = loop.loopStartMs + Math.floor((time - loop.loopStartMs) / loop.loopDurationMs) * loop.loopDurationMs;
+		const cycleStartMs = loop.loopStartMs + getTimelineLoopCycle(loop.loopStartMs, loop.loopDurationMs, time) * loop.loopDurationMs;
 		start = Math.max(start, loop.startMs, cycleStartMs);
 		end = Math.min(end, loop.endMs, cycleStartMs + loop.loopDurationMs);
 	}

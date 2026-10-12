@@ -16,7 +16,14 @@ function samplesFixture(timestamps) {
 	let peak = 0;
 	let returned = 0;
 	function sample(timestamp) {
-		const value = { timestamp, clone: () => sample(timestamp), close() {
+		const value = { timestamp, duration: 1 / 60, format: 'RGBA', codedWidth: 512, codedHeight: 512,
+			displayWidth: 512, displayHeight: 512, rotation: 0,
+			allocationSize: () => 1024 * 1024,
+			async copyTo(data) {
+				assert.ok(live.has(value), 'copy must finish before releasing the decoder frame');
+				data[0] = Math.round(timestamp * 1000) % 256;
+				return [{ offset: 0, stride: 512 * 4 }];
+			}, clone: () => sample(timestamp), close() {
 			assert.ok(live.delete(value), 'samples must be closed exactly once');
 		} };
 		live.add(value);
@@ -32,6 +39,143 @@ function samplesFixture(timestamps) {
 	} };
 	return { sink, starts, live, sample, get peak() { return peak; }, get returned() { return returned; } };
 }
+
+// 【逆再生の窓を読む間もデコーダーの出力面を即時解放する】
+// デコーダーには保持可能なフレーム数の上限がある。上限より長い窓を読み終えるまで
+// 元フレームを保持するとプレビューも書き出しも停止するため、独立した画素を保持する。
+test('releases decoder surfaces before requesting the next reverse frame', async () => {
+	const h = samplesFixture([]);
+	const reader = new VideoSampleReader({ async *samples() {
+		for (let i = 0; i < 30; i++) {
+			assert.equal(h.live.size, 0, 'retained decoder surfaces would prevent further output');
+			yield h.sample(i / 60);
+		}
+	} });
+	try {
+		for (const time of [29 / 60, 15 / 60, 0]) {
+			const frame = await reader.getSample(time, true);
+			try {
+				assert.equal(frame.timestamp, time);
+				const data = new Uint8Array(frame.allocationSize());
+				await frame.copyTo(data);
+				assert.equal(data[0], Math.round(time * 1000) % 256, 'copied pixels survive decoder release');
+			} finally { frame?.close(); }
+		}
+	} finally { reader.dispose(); }
+	assert.equal(h.live.size, 0);
+});
+
+// 【逆再生キャッシュのコピーで切り抜き・回転・表示比率を重複適用しない】
+// copyToは表示領域を切り出して返すため、元フレームの切り抜き位置を再設定すると画素が欠ける。
+// 回転後の表示寸法と色空間、時刻はデコーダーのフレームと一致させる。
+test('preserves reverse sample metadata while copying only the visible pixels', async () => {
+	const h = samplesFixture([]);
+	const original = h.sample(0.25);
+	Object.assign(original, { codedWidth: 4, codedHeight: 2, displayWidth: 4, displayHeight: 8, rotation: 90,
+		visibleRect: { left: 8, top: 4, width: 4, height: 2 },
+		colorSpace: { primaries: 'bt709', transfer: 'iec61966-2-1', matrix: 'rgb', fullRange: true },
+		allocationSize: () => 32, async copyTo(data) { data.fill(123); return [{ offset: 0, stride: 16 }]; },
+	});
+	const reader = new VideoSampleReader({ async *samples() { yield original; } });
+	try {
+		const frame = await reader.getSample(0.3, true);
+		try {
+			assert.deepEqual([frame.timestamp, frame.duration, frame.rotation, frame.displayWidth, frame.displayHeight], [0.25, 1 / 60, 90, 4, 8]);
+			assert.deepEqual(frame.visibleRect, { left: 0, top: 0, width: 4, height: 2 });
+			assert.equal(frame.colorSpace.transfer, 'iec61966-2-1');
+			const data = new Uint8Array(frame.allocationSize());
+			await frame.copyTo(data);
+			assert.ok(data.every(value => value === 123));
+		} finally { frame?.close(); }
+	} finally { reader.dispose(); }
+	assert.equal(h.live.size, 0);
+});
+
+// 【内部画素形式が非公開のGPUフレームも逆再生キャッシュへコピーする】
+// format=nullのままallocationSizeを呼ぶと失敗する。RGBA/sRGBを明示し、
+// 変換後の画素へ変換前の色空間を付けて再変換しないことを確認する。
+test('copies opaque GPU formats using an explicit RGB format and color space', async () => {
+	const h = samplesFixture([]);
+	const original = h.sample(0);
+	const copyOptions = { format: 'RGBA', colorSpace: 'srgb' };
+	Object.assign(original, { format: null, colorSpace: { matrix: 'bt709' },
+		allocationSize(options) { assert.deepEqual(options, copyOptions); return 1024 * 1024; },
+		async copyTo(data, options) { assert.deepEqual(options, copyOptions); data[0] = 123; return [{ offset: 0, stride: 2048 }]; },
+	});
+	const reader = new VideoSampleReader({ async *samples() { yield original; } });
+	try {
+		const frame = await reader.getSample(0.1, true);
+		try {
+			assert.equal(frame.format, 'RGBA');
+			assert.equal(frame.colorSpace.matrix, 'rgb');
+			assert.equal(frame.colorSpace.transfer, 'iec61966-2-1');
+		} finally { frame?.close(); }
+	} finally { reader.dispose(); }
+	assert.equal(h.live.size, 0);
+});
+
+// 【逆再生のデコード待機と画素コピー待機の両方を破棄できる】
+// シークやレイヤー削除のあとも窓読み取りが生き残ると、フレーム資源を保持し続ける。
+// 破棄時はiteratorを停止し、遅れて完了したフレームとコピーも公開しない。
+for (const phase of ['decode', 'copy']) {
+	test(`stops reverse iteration and closes late frames during ${phase}`, async () => {
+		const h = samplesFixture([]);
+		const started = Promise.withResolvers();
+		const gate = Promise.withResolvers();
+		const sample = h.sample(0);
+		let returns = 0;
+		if (phase === 'copy') sample.copyTo = async () => { started.resolve(); await gate.promise; return [{ offset: 0, stride: 2048 }]; };
+		const reader = new VideoSampleReader({ samples() {
+			return {
+				async next() { if (phase === 'decode') { started.resolve(); await gate.promise; } return { done: false, value: sample }; },
+				async return() { returns++; return { done: true }; },
+			};
+		} });
+		const read = reader.getSample(0.2, true);
+		await started.promise;
+		reader.dispose();
+		assert.equal(returns, 1);
+		gate.resolve();
+		await assert.rejects(read, /disposed/);
+		assert.equal(h.live.size, 0);
+		assert.equal(returns, 1);
+	});
+}
+
+// 【逆再生は短いデコード窓を再利用し、可変FPSの表示順でフレームを選ぶ】
+// 毎フレーム新しくシークする負荷を避けつつ、FPSから時刻を推測して誤ったフレームを返さない。
+// 順再生へ戻したときや破棄したときに、逆方向のキャッシュを残さないことも確認する。
+test('reuses a bounded reverse window and releases it on direction changes', async () => {
+	const h = samplesFixture([0, 0.12, 0.19, 0.24, 0.4, 0.8]);
+	const reader = new VideoSampleReader(h.sink);
+	for (const [time, expected] of [[0.5, 0.4], [0.39, 0.24], [0.2, 0.19], [0.18, 0.12]]) {
+		const frame = await reader.getSample(time, true);
+		assert.equal(frame.timestamp, expected);
+		frame.close();
+	}
+	assert.deepEqual(h.starts, [0]);
+	const forward = await reader.getSample(0.8);
+	forward.close();
+	assert.ok(h.live.size <= 2);
+	reader.dispose();
+	assert.equal(h.live.size, 0);
+});
+
+// 【高FPSの逆再生でも保持枚数とメモリを制限する】
+// キャッシュから追い出した位置へ戻ると必要な窓だけ読み直し、古いフレームも全てcloseする。
+test('bounds reverse frame memory and refills evicted ranges', async () => {
+	const h = samplesFixture(Array.from({ length: 501 }, (_, i) => i / 1000));
+	const reader = new VideoSampleReader(h.sink);
+	for (const time of [0.499, 0.498, 0.1]) {
+		const frame = await reader.getSample(time, true);
+		assert.equal(frame.timestamp, time);
+		frame.close();
+		assert.ok(h.live.size <= 64);
+	}
+	assert.equal(h.starts.length, 2);
+	reader.dispose();
+	assert.equal(h.live.size, 0);
+});
 
 // 【可変FPSと同じフレームの繰り返しでもデコーダーを維持する】
 // 出力FPSが素材と異なってもtimestampで選び、返却フレームのcloseが内部キャッシュを壊さないことを確認する。

@@ -38,7 +38,7 @@ const module = { exports: {} };
 new Function('require', 'module', 'exports', bundled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
 const { prepareTimelineClipMove, COMMAND_DEFS, UndoRedo, createVoicevoxTimelineLayer, resolveLayerParameter, arrayDefinition, constrainTimelineMove } = module.exports;
 
-const clip = (id, startMs, durationMs) => ({ id, startMs, durationMs, contentOffsetMs: 12.25, assetId: 'sound' });
+const clip = (id, startMs, durationMs) => ({ id, startMs, durationMs, sourceInMs: 12.25, sourceOutMs: 12.25 + durationMs, playbackRate: 1, loop: false, assetId: 'sound' });
 const keys = times => ({ inputSource: 'keyframesTimelineInline', offsetMode: 'start', wrapMode: 'clamp', trimmedDurationMs: null,
 	keyframesTimeline: { dataType: { kind: 'scalar' }, isNormalized: false,
 		keyframes: times.map(x => ({ id: String(x), x, value: x / 1000, interpolation: { type: 'ease:quad', direction: 'inOut' } })) } });
@@ -104,7 +104,7 @@ test('clamps a multi-layer move at a stationary key and restores the entire edit
 	assert.deepEqual(times(audio), [900, 1400, 2200, 2300, 2400]);
 	assert.deepEqual(times(other), [0, 900]);
 	assert.deepEqual(f.scene.layers.map(layer => layer.clips[0].startMs), [1300, 800]);
-	assert.equal(audio.clips[0].contentOffsetMs, 12.25);
+	assert.equal(audio.clips[0].sourceInMs, 12.25);
 	assert.equal(f.history.undoStack.value.length, 1);
 	const after = structuredClone(f.scene);
 	for (let repeat = 0; repeat < 2; repeat++) {

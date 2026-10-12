@@ -17,7 +17,7 @@ const samples = (window, channel = 'left') => Float32Array.from({ length: window
 const contents = window => ({ sampleRate: window.sampleRate, channels: [samples(window), samples(window, 'right')] });
 const literal = value => ({ inputSource: 'literal', value });
 const signal = () => new AbortController().signal;
-const clip = (assetId, changes = {}) => ({ id: assetId, assetId, startMs: 0, durationMs: 100, contentOffsetMs: 0, ...changes });
+const clip = (assetId, changes = {}) => ({ id: assetId, assetId, startMs: 0, durationMs: 100, sourceInMs: 0, sourceOutMs: 100, playbackRate: 1, loop: false, ...changes });
 const audio = (id, changes = {}) => ({ id, name: id, layerType: 'audio', isDisabled: false,
 	clips: [clip(id)], audioParamValues: { volume: literal(1) }, automationGraphs: [], ...changes });
 const scene = (id, layers) => ({ id, name: id, resolution: { mode: 'project' }, layers });
@@ -29,7 +29,7 @@ const constant = async (_id, _time, frames) => [new Float32Array(frames).fill(1)
 // 上層も参照できる一方、子Scene内部のIDを直接指定することはできない。
 // 無効・空・音声無効の動画を選んでも、別のレイヤーへフォールバックさせない。
 test('selects one direct audio output regardless of order and rejects descendants', () => {
-	const video = audio('video', { layerType: 'video', clips: [clip('muted', { loopDurationMs: null, audioEnabled: false }), clip('audible', { startMs: 100, loopDurationMs: null, audioEnabled: true })], compositingParamValues: {} });
+	const video = audio('video', { layerType: 'video', clips: [clip('muted', { audioEnabled: false }), clip('audible', { startMs: 100, audioEnabled: true })], compositingParamValues: {} });
 	const root = scene('root', [audio('above'), waveform, video, audio('hidden', { isDisabled: true }), audio('empty', { clips: [] })]);
 	const child = scene('child', [audio('descendant')]);
 	const select = id => getSceneAudioClips([root, child], 'root', { type: 'layer', layerId: id });
@@ -54,7 +54,7 @@ test('mixes only the selected scene placement with its offsets, bounds, and gain
 		audioParamValues: { volume: { inputSource: 'expression', expression: 'TIME_MS / 20' } }, compositingParamValues: {} });
 	const root = scene('root', [audio('unrelated'), nested, waveform, { ...nested, id: 'other-placement', clips: [{ ...nested.clips[0], contentOffsetMs: 50 }] }]);
 	const plan = getSceneAudioClips([root, child], 'root', { type: 'layer', layerId: 'nested' });
-	assert.deepEqual(plan.map(item => [item.sourceId, item.sourceStartMs, item.startMs, item.endMs]), [['child-a', 14.875, 20, 30], ['child-b', 14.875, 20, 30]]);
+	assert.deepEqual(plan.map(item => [item.sourceId, (item.sourceTiming.startMs - item.sourceTiming.sourceInMs), item.startMs, item.endMs]), [['child-a', 14.875, 20, 30], ['child-b', 14.875, 20, 30]]);
 	assert.deepEqual(plan[0].gains.map(gain => gain.sceneStartMs), [0, 14.875]);
 	const renderer = new TimelineAudioRenderer(constant);
 	const read = (time, isExport) => createTimelineAudioInput(renderer, plan, time, 'selected', isExport).readWindow(0.012, signal());
@@ -76,7 +76,7 @@ test('selects only lower layers and includes complete nested scene audio', async
 	const child = scene('child', [audio('child-top'), audio('child-bottom')]);
 	const nested = audio('nested', { layerType: 'scene', clips: [{ id: 'nested', sceneId: 'child', startMs: 0, durationMs: 100, contentOffsetMs: 0 }],
 		audioParamValues: { volume: literal(0.5) }, compositingParamValues: {} });
-	const video = audio('video', { layerType: 'video', clips: [clip('video', { loopDurationMs: null, audioEnabled: true }), clip('muted-video', { startMs: 100, loopDurationMs: null, audioEnabled: false })], compositingParamValues: {} });
+	const video = audio('video', { layerType: 'video', clips: [clip('video', { audioEnabled: true }), clip('muted-video', { startMs: 100, audioEnabled: false })], compositingParamValues: {} });
 	const root = scene('root', [audio('above'), waveform, nested, video, audio('hidden', { isDisabled: true })]);
 	const plan = getSceneAudioClips([root, child], 'root', { type: 'belowLayer', layerId: 'waveform' });
 	assert.deepEqual(plan.map(item => item.sourceId), ['child-top', 'child-bottom', 'video']);
@@ -97,7 +97,7 @@ test('selects only lower layers and includes complete nested scene audio', async
 test('reads historical clips across silence and preserves fractional source offsets and gain', async () => {
 	const calls = [];
 	const renderer = new TimelineAudioRenderer(async (...args) => { calls.push(args.slice(0, 4)); return constant(...args); });
-	const root = scene('root', [waveform, audio('short', { clips: [clip('short', { durationMs: 2, contentOffsetMs: 0.125 })], audioParamValues: { volume: literal(3) } })]);
+	const root = scene('root', [waveform, audio('short', { clips: [clip('short', { durationMs: 2, sourceInMs: 0.125, sourceOutMs: 2.125 })], audioParamValues: { volume: literal(3) } })]);
 	const input = createTimelineAudioInput(renderer, getSceneAudioClips([root], 'root', { type: 'belowLayer', layerId: 'waveform' }), 4, 'r', false);
 	assert.equal(input.sampleRate, 48000);
 	assert.equal(input.startFrame, -Infinity);

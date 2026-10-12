@@ -84,7 +84,7 @@ test('rechecks available space after selection and adds a clip with one undo ent
 	const choice = deferred();
 	f.options.ui.select = () => choice.promise;
 	const pending = f.create().addClip(f.scene.layers[0], 1000.4);
-	f.scene.layers[0].clips.push({ id: 'blocking', assetId: f.asset.id, startMs: 1500, durationMs: 100, contentOffsetMs: 0 });
+	f.scene.layers[0].clips.push({ id: 'blocking', assetId: f.asset.id, startMs: 1500, durationMs: 100, sourceInMs: 0, sourceOutMs: 100, playbackRate: 1, loop: false });
 	const before = structuredClone(f.scene);
 	choice.resolve({ canceled: false, result: f.asset.id });
 	await pending;
@@ -161,7 +161,7 @@ test('changes only the original clip source and restores its timing on undo', as
 	for (const change of ['none', 'remove', 'replace']) {
 		const f = fixture(t);
 		const layer = f.scene.layers[0];
-		const clip = { id: 'clip', assetId: 'old', startMs: 1000, durationMs: 500, contentOffsetMs: 50 };
+		const clip = { id: 'clip', assetId: 'old', startMs: 1000, durationMs: 500, sourceInMs: 50, sourceOutMs: 550, playbackRate: 1, loop: false };
 		layer.clips = [clip];
 		const before = structuredClone(f.scene);
 		const choice = deferred();
@@ -174,7 +174,7 @@ test('changes only the original clip source and restores its timing on undo', as
 		assert.equal(f.history.undoStack.value.length, change === 'none' ? 1 : 0);
 		if (change === 'none') {
 			assert.equal(clip.assetId, f.asset.id);
-			assert.equal(clip.contentOffsetMs, 0);
+			assert.equal(clip.sourceInMs, 0);
 			f.history.undo();
 			assert.deepEqual(f.scene, before);
 		}
@@ -207,8 +207,8 @@ test('adds referenced visual module layers and rejects results after scene repla
 test('loads grouped media durations by layer and pastes the group through clipboard actions', async t => {
 	const short = mediaLayer('audio', 'short');
 	const long = mediaLayer('audio', 'long');
-	short.clips = [{ id: 'clip', assetId: 'short-asset', startMs: 0, durationMs: 100, contentOffsetMs: 0 }];
-	long.clips = [{ id: 'clip', assetId: 'long-asset', startMs: 0, durationMs: 1000, contentOffsetMs: 0 }];
+	short.clips = [{ id: 'clip', assetId: 'short-asset', startMs: 0, durationMs: 100, sourceInMs: 0, sourceOutMs: 100, playbackRate: 1, loop: false }];
+	long.clips = [{ id: 'clip', assetId: 'long-asset', startMs: 0, durationMs: 1000, sourceInMs: 0, sourceOutMs: 1000, playbackRate: 1, loop: false }];
 	const group = { id: 'group', name: 'Group', layerType: 'group', layers: [short, long], isDisabled: false, automationGraphs: [], audioParamValues: {}, compositingParamValues: {} };
 	const f = fixture(t, [group]);
 	f.state.assets.value = [short, long].map(layer => ({ ...f.asset, id: layer.clips[0].assetId, fileData: new Blob() }));

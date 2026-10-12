@@ -12,7 +12,7 @@ const bundle = await build({ stdin: {
 const module = { exports: {} };
 new Function('require', 'module', 'exports', bundle.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
 const { TimelineAudioRenderer, getSceneAudioClips } = module.exports;
-const layer = (changes = {}) => ({ id: 'audio', layerType: 'audio', name: 'Layer', isDisabled: false, clips: [{ id: 'clip', startMs: 100, contentOffsetMs: 20, durationMs: 100, assetId: 'asset' }], audioParamValues: { volume: { inputSource: 'literal', value: 1 } }, automationGraphs: [], ...changes });
+const layer = (changes = {}) => ({ id: 'audio', layerType: 'audio', name: 'Layer', isDisabled: false, clips: [{ id: 'clip', startMs: 100, sourceInMs: 20, sourceOutMs: 120, playbackRate: 1, loop: false, durationMs: 100, assetId: 'asset' }], audioParamValues: { volume: { inputSource: 'literal', value: 1 } }, automationGraphs: [], ...changes });
 
 function renderSceneAudio(renderer, layers, ...args) {
 	const scene = { id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers };
@@ -25,8 +25,7 @@ function renderSceneAudio(renderer, layers, ...args) {
 test('uses scene time for video volume without shifting audio timestamps', async () => {
 	const calls = [];
 	const renderer = new TimelineAudioRenderer(async (...args) => { calls.push(args.slice(0, 4)); return constant(...args); });
-	const clip = { sourceId: 'movie', sourceStartMs: 8000, startMs: 10000, endMs: 11000,
-		gains: [{ sceneStartMs: 0, volume: { inputSource: 'expression', expression: 'TIME_MS / 20000' }, automationGraphs: [] }] };
+	const clip = { sourceId: 'movie', sourceTiming: { startMs: 8000, sourceInMs: 0, sourceOutMs: 11000 - (8000), playbackRate: 1, loop: false }, startMs: 10000, endMs: 11000, gains: [{ sceneStartMs: 0, volume: { inputSource: 'expression', expression: 'TIME_MS / 20000' }, automationGraphs: [] }] };
 	const result = await renderer.renderClips([clip], 10000, 1, 1000);
 	assert.deepEqual(calls, [['movie', 2, 1, 1000]]);
 	assert.equal(result[0][0], 0.5);
@@ -39,7 +38,7 @@ const constant = async (_id, _time, frames) => [new Float32Array(frames).fill(1)
 test('does not read an extra sample across a fractional scene loop boundary', async () => {
 	const calls = [];
 	const renderer = new TimelineAudioRenderer(async (...args) => { calls.push(args.slice(0, 4)); return constant(...args); });
-	const clip = { sourceId: 'movie', sourceStartMs: 0, startMs: 0, endMs: 2000, gains: [], loop: { startMs: -1000 / 3, durationMs: 1000, contentOffsetMs: 20 } };
+	const clip = { sourceId: 'movie', sourceTiming: { startMs: -1000 / 3, sourceInMs: 20, sourceOutMs: 1020, playbackRate: 1, loop: true }, startMs: 0, endMs: 2000, gains: [] };
 	await renderer.renderClips([clip], 31990, 20, 48000);
 	assert.deepEqual(calls.map(call => call[2]), [10, 10]);
 	assert.ok(Math.abs(calls[1][1] - 0.02) < 1e-12);
@@ -50,7 +49,7 @@ test('does not read an extra sample across a fractional scene loop boundary', as
 // プレビュー・書き出し・途中シークでも同じ配置計画から同じ値を得る。
 test('splits video audio at loop boundaries while preserving scene-time gain', async () => {
 	const video = layer({ layerType: 'video', compositingParamValues: {},
-		clips: [{ id: 'clip', startMs: 100, contentOffsetMs: 20, durationMs: 85, loopDurationMs: 30, assetId: 'movie', audioEnabled: true }],
+		clips: [{ id: 'clip', startMs: 100, sourceInMs: 20, sourceOutMs: 50, playbackRate: 1, loop: true, durationMs: 85, assetId: 'movie', audioEnabled: true }],
 		audioParamValues: { volume: { inputSource: 'expression', expression: 'TIME_MS / 1000' } } });
 	for (const isExport of [false, true]) {
 		const calls = [];
@@ -71,7 +70,7 @@ test('keeps fractional-sample loop periods aligned across arbitrary chunks', asy
 		const channel = Float32Array.from({ length: frames }, (_, index) => time + index / rate);
 		return [channel, channel];
 	});
-	const clip = { sourceId: 'movie', sourceStartMs: 0, startMs: 0, endMs: 1000, gains: [], loop: { startMs: -0.25, durationMs: 1, contentOffsetMs: 50.25 } };
+	const clip = { sourceId: 'movie', sourceTiming: { startMs: -0.25, sourceInMs: 50.25, sourceOutMs: 51.25, playbackRate: 1, loop: true }, startMs: 0, endMs: 1000, gains: [] };
 	const rate = 44100;
 	const whole = await renderer.renderClips([clip], 0, 44100, rate);
 	const chunks = [];
@@ -106,7 +105,7 @@ test('skips disabled audio layers before reading media in preview and export', a
 test('trims audio relative to a fixed source origin', async () => {
 	const calls = [];
 	const renderer = new TimelineAudioRenderer(async (...args) => { calls.push(args.slice(0, 4)); return constant(...args); });
-	const output = await renderSceneAudio(renderer, [layer({ name: 'Layer', clips: [{ id: 'clip', startMs: 140, contentOffsetMs: 40, durationMs: 60, assetId: 'asset' }] })], 100, 110, 1000);
+	const output = await renderSceneAudio(renderer, [layer({ name: 'Layer', clips: [{ id: 'clip', startMs: 140, sourceInMs: 40, sourceOutMs: 100, playbackRate: 1, loop: false, durationMs: 60, assetId: 'asset' }] })], 100, 110, 1000);
 	assert.deepEqual(calls, [['asset', 0.04, 60, 1000]]);
 	assert.deepEqual([...output[0].slice(0, 40)], Array(40).fill(0));
 	assert.deepEqual([...output[0].slice(40, 100)], Array(60).fill(1));
@@ -144,9 +143,9 @@ test('evaluates scene-time expressions consistently across chunk boundaries', as
 // 音量はレイヤー所有なので、クリップの長さとオフセットは音量の時計に影響しない。
 test('keeps expression timing unchanged when either audio edge is trimmed', async () => {
 	const renderer = new TimelineAudioRenderer(constant);
-	const original = layer({ name: 'Layer', clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 200, assetId: 'asset' }],
+	const original = layer({ name: 'Layer', clips: [{ id: 'clip', startMs: 0, sourceInMs: 0, sourceOutMs: 200, playbackRate: 1, loop: false, durationMs: 200, assetId: 'asset' }],
 		audioParamValues: { volume: { inputSource: 'expression', expression: 'TIME_MS / 1000' } } });
-	const trimmed = { ...original, clips: [{ ...original.clips[0], startMs: 40, contentOffsetMs: 40, durationMs: 80 }] };
+	const trimmed = { ...original, clips: [{ ...original.clips[0], startMs: 40, sourceInMs: 40, sourceOutMs: 120, durationMs: 80 }] };
 	const whole = await renderSceneAudio(renderer, [original], 0, 200, 1000);
 	const part = await renderSceneAudio(renderer, [trimmed], 40, 80, 1000);
 	assert.deepEqual(part[0], whole[0].slice(40, 120));
@@ -162,7 +161,7 @@ test('evaluates audio keyframes at absolute scene times', async () => {
 			{ id: 'start', x: 100, value: 0, interpolation: { type: 'linear' } },
 			{ id: 'end', x: 200, value: 1, interpolation: { type: 'linear' } },
 		] } };
-	const pcm = await renderSceneAudio(renderer, [layer({ name: 'Layer', clips: [{ id: 'clip', startMs: 100, contentOffsetMs: 100, durationMs: 60, assetId: 'asset' }], audioParamValues: { volume: binding } })], 150, 1, 1000);
+	const pcm = await renderSceneAudio(renderer, [layer({ name: 'Layer', clips: [{ id: 'clip', startMs: 100, sourceInMs: 100, sourceOutMs: 160, playbackRate: 1, loop: false, durationMs: 60, assetId: 'asset' }], audioParamValues: { volume: binding } })], 150, 1, 1000);
 	assert.equal(pcm[0][0], 0.5);
 });
 
@@ -221,15 +220,11 @@ test('rejects invalid numeric gain strings instead of silently muting them', asy
 test('mixes scene gains using local clocks independently of chunk boundaries', async () => {
 	const calls = [];
 	const renderer = new TimelineAudioRenderer(async (...args) => { calls.push(args.slice(0, 4)); return constant(...args); });
-	const clip = {
-		sourceId: 'asset',
-		sourceStartMs: 1150, startMs: 1180, endMs: 1280,
-		gains: [
+	const clip = { sourceId: 'asset', sourceTiming: { startMs: 1150, sourceInMs: 0, sourceOutMs: 1280 - (1150), playbackRate: 1, loop: false }, startMs: 1180, endMs: 1280, gains: [
 			{ sceneStartMs: 0, volume: { inputSource: 'literal', value: 2 }, automationGraphs: [] },
 			{ sceneStartMs: 1000, volume: { inputSource: 'literal', value: 0.25 }, automationGraphs: [] },
 			{ sceneStartMs: 1050, volume: { inputSource: 'expression', expression: 'TIME_MS / 100' }, automationGraphs: [] },
-		],
-	};
+		] };
 	const whole = await renderer.renderClips([clip], 1170, 120, 1000);
 	const first = await renderer.renderClips([clip], 1170, 47, 1000);
 	const second = await renderer.renderClips([clip], 1217, 73, 1000);
@@ -248,13 +243,9 @@ test('isolates scene gain variables and graphs from the audio layer scope', asyn
 	const graph = value => ({ id: 'shared', name: 'Shared', isNormalized: true,
 		points: [{ id: 'point', x: 0, y: value, bezierControlPointA: [0, 0], bezierControlPointB: [0, 0] }] });
 	const renderer = new TimelineAudioRenderer(constant);
-	const clip = {
-		sourceId: 'asset',
-		sourceStartMs: 1000, startMs: 1400, endMs: 1600,
-		gains: [{ sceneStartMs: 900,
+	const clip = { sourceId: 'asset', sourceTiming: { startMs: 1000, sourceInMs: 0, sourceOutMs: 1600 - (1000), playbackRate: 1, loop: false }, startMs: 1400, endMs: 1600, gains: [{ sceneStartMs: 900,
 			volume: expression('if IS_EXPORT { TEST_SAME_NAME + GRAPH("Shared", 0, "clamp") } else { 0 }'), automationGraphs: [graph(0.5)] }, { sceneStartMs: 1000,
-			volume: expression('if IS_EXPORT { TIME + GRAPH("Shared", 0, "clamp") } else { 0 }'), automationGraphs: [graph(0.25)] }],
-	};
+			volume: expression('if IS_EXPORT { TIME + GRAPH("Shared", 0, "clamp") } else { 0 }'), automationGraphs: [graph(0.25)] }] };
 	assert.equal((await renderer.renderClips([clip], 1500, 1, 1000, true))[0][0], 1.875);
 	assert.equal((await renderer.renderClips([clip], 1500, 1, 1000, false))[0][0], 0);
 	for (const variable of ['END_TIME', 'END_TIME_MS', 'PROGRESS']) {

@@ -12,7 +12,7 @@ const { timelineSceneToSource, timelineSourceToScene } = await load('layer-trans
 const { getTimelineGroupRange } = await load('layers/group/group.ts');
 const literal = value => ({ inputSource: 'literal', value });
 const sound = (id, startMs = 100, durationMs = 100) => ({ id, name: id, layerType: 'audio', isDisabled: false,
-	automationGraphs: [], audioParamValues: { volume: literal(0.8) }, clips: [{ id: 'clip', startMs, durationMs, contentOffsetMs: 12.5, assetId: id }] });
+	automationGraphs: [], audioParamValues: { volume: literal(0.8) }, clips: [{ id: 'clip', startMs, durationMs, sourceInMs: 12.5, sourceOutMs: 12.5 + durationMs, playbackRate: 1, loop: false, assetId: id }] });
 const group = (id, layers) => ({ id, name: id, layerType: 'group', layers, isDisabled: false, automationGraphs: [],
 	compositingParamValues: {}, audioParamValues: { volume: literal(0.5) } });
 const scene = (id, layers) => ({ id, name: id, resolution: { mode: 'project' }, layers });
@@ -29,7 +29,7 @@ test('references any layer in the scene without ancestor gains and honors ancest
 	assert.deepEqual(getSceneAudioClips([root], 'root', { type: 'layer', layerId: 'inner' })[0].gains.map(gain => gain.volume.value), [0.5, 0.8]);
 	const direct = () => getSceneAudioClips([root], 'root', { type: 'layer', layerId: 'sound' });
 	assert.deepEqual(direct()[0].gains.map(gain => gain.volume.value), [0.8]);
-	assert.deepEqual([direct()[0].startMs, direct()[0].sourceStartMs], [100, 87.5]);
+	assert.deepEqual([direct()[0].startMs, (direct()[0].sourceTiming.startMs - direct()[0].sourceTiming.sourceInMs)], [100, 87.5]);
 	outer.audioParamValues.volume = literal(0);
 	assert.equal(direct().length, 1);
 	outer.isDisabled = true;

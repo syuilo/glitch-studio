@@ -109,7 +109,7 @@ test('refreshes lower audio inputs after timeline edits without recreating the r
 		calls.push(args);
 		return { cacheKey: String(calls.length), readWindow: () => assert.fail('the effect controls window reads') };
 	};
-	const below = { id: 'sound', name: 'Sound', layerType: 'audio', isDisabled: false, clips: [{ ...clip('sound', 0, 1000), assetId: 'asset' }],
+	const below = { id: 'sound', name: 'Sound', layerType: 'audio', isDisabled: false, clips: [{ id: 'sound', startMs: 0, durationMs: 1000, sourceInMs: 0, sourceOutMs: 1000, playbackRate: 1, loop: false, assetId: 'asset' }],
 		audioParamValues: { volume: literal(1) }, automationGraphs: [] };
 	await f.setup([layer('effect', { audio: { inputSource: 'lowerLayerAudio' } }), below]);
 	await f.manager.renderTimelineFrame(350.25, 0);

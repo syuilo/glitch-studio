@@ -17,8 +17,8 @@ test('validates displayed intervals and local IDs independently of source offset
 	assert.equal(getTimelineClipContentTime(clips[1], 100.25), 600.75);
 	assert.throws(() => validateTimelineClips([clips[0], clip('b', 99, 1)]), /Overlapping/);
 	assert.throws(() => validateTimelineClips([clips[0], clip('a', 100, 1)]), /Duplicate/);
-	for (const invalid of [clip('a', -1, 1), clip('a', 0, 0), clip('a', 0, 1, -1), clip('a', 0, Infinity), clip('a', NaN, 1),
-		clip('a', 0.5, 1), clip('a', 0, 0.5), clip('a', 0, 1000.1), clip('a', Number.MAX_SAFE_INTEGER, 1), clip('a', 0, 1, Infinity)]) {
+	for (const invalid of [clip('a', -1, 1), clip('a', 0, 0), clip('a', 0, Infinity), clip('a', NaN, 1),
+		clip('a', 0.5, 1), clip('a', 0, 0.5), clip('a', 0, 1000.1), clip('a', Number.MAX_SAFE_INTEGER, 1)]) {
 		assert.throws(() => validateTimelineClips([invalid]), /Invalid clip timing/);
 	}
 });
@@ -53,10 +53,10 @@ test('limits insertion and trimming while prohibiting generated left extension',
 	assert.equal(getTimelineClipInsertionDuration(clips, 300), 100);
 	assert.equal(getTimelineClipInsertionDuration(clips, 100), 0);
 	assert.equal(getTimelineClipInsertionDuration(clips, 500), 5000);
-	assert.deepEqual(getTimelineClipTrimBounds(clips, 'a', 'start', true, 500), { minDelta: -50, maxDelta: 199 });
-	assert.deepEqual(getTimelineClipTrimBounds(clips, 'a', 'start', false), { minDelta: 0, maxDelta: 199 });
-	assert.deepEqual(getTimelineClipTrimBounds(clips, 'a', 'end', true, 500), { minDelta: -199, maxDelta: 100 });
-	assert.deepEqual(getTimelineClipTrimBounds(clips, 'a', 'end', true, 260), { minDelta: -199, maxDelta: 10 });
+	assert.deepEqual(getTimelineClipTrimBounds(clips, clips[0], 'start', true, 500), { minDelta: -50, maxDelta: 199 });
+	assert.deepEqual(getTimelineClipTrimBounds(clips, clips[0], 'start', false), { minDelta: 0, maxDelta: 199 });
+	assert.deepEqual(getTimelineClipTrimBounds(clips, clips[0], 'end', true, 500), { minDelta: -199, maxDelta: 100 });
+	assert.deepEqual(getTimelineClipTrimBounds(clips, clips[0], 'end', true, 260), { minDelta: -199, maxDelta: 10 });
 });
 
 // 【小数の素材位置を保ったまま、長さとトリム量を整数msの範囲内に制限する】
@@ -67,9 +67,9 @@ test('bounds integer edits by fractional media times and shorter replacements', 
 	assert.equal(getTimelineClipInsertionDuration([], 0, 1234.75), 1234);
 	assert.equal(getTimelineClipInsertionDuration([], 0, 0.75), 0);
 	assert.equal(getTimelineClipInsertionDuration([], 0.5), 0);
-	assert.deepEqual(getTimelineClipTrimBounds(clips, 'a', 'start', true, 300.6), { minDelta: -50, maxDelta: 199 });
-	assert.deepEqual(getTimelineClipTrimBounds(clips, 'a', 'end', true, 300.6), { minDelta: -199, maxDelta: 50 });
-	assert.deepEqual(getTimelineClipTrimBounds(clips, 'a', 'end', true, 150.6), { minDelta: -199, maxDelta: -100 });
+	assert.deepEqual(getTimelineClipTrimBounds(clips, clips[0], 'start', true, 300.6), { minDelta: -50, maxDelta: 199 });
+	assert.deepEqual(getTimelineClipTrimBounds(clips, clips[0], 'end', true, 300.6), { minDelta: -199, maxDelta: 50 });
+	assert.deepEqual(getTimelineClipTrimBounds(clips, clips[0], 'end', true, 150.6), { minDelta: -199, maxDelta: -100 });
 });
 
 // 【素材終端の減算誤差でクリップを余分に1ms短くしない】

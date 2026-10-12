@@ -1,4 +1,5 @@
-import type { DecodedPcmBlock, StereoPcm } from '@gs/subsystems_audio_shared/pcm.ts';
+import type { AudioPcmReadOptions, DecodedPcmBlock, StereoPcm } from '@gs/subsystems_audio_shared/pcm.ts';
+import { isPcmTimeBefore } from './pcm-time.ts';
 
 const lobes = 32;
 const phases = 1024;
@@ -50,37 +51,47 @@ export class PcmResampler {
 		return kernel;
 	}
 
-	resample(blocks: readonly DecodedPcmBlock[], time: number, frames: number, rate: number): StereoPcm {
+	resample(blocks: readonly DecodedPcmBlock[], time: number, frames: number, rate: number, options: AudioPcmReadOptions = {}): StereoPcm {
 		const output: StereoPcm = [new Float32Array(frames), new Float32Array(frames)];
-		let blockIndex = 0;
+		const playbackRate = options.playbackRate ?? 1;
+		const effectiveRate = rate / Math.abs(playbackRate);
+		const start = options.sourceStartSeconds ?? 0;
+		const end = options.sourceEndSeconds ?? Infinity;
+		let blockIndex = playbackRate > 0 ? 0 : Math.max(0, blocks.length - 1);
 		for (let frame = 0; frame < frames; frame++) {
-			const position = time + frame / rate;
-			while (blockIndex < blocks.length && position >= blocks[blockIndex].time + blocks[blockIndex].channels[0].length / blocks[blockIndex].rate) blockIndex++;
+			const position = time + frame * playbackRate / rate;
+			if (isPcmTimeBefore(position, start) || !isPcmTimeBefore(position, end)) continue;
+			while (blockIndex > 0 && (blockIndex >= blocks.length || isPcmTimeBefore(position, blocks[blockIndex].time))) blockIndex--;
+			while (blockIndex < blocks.length && !isPcmTimeBefore(position, blocks[blockIndex].time + blocks[blockIndex].channels[0].length / blocks[blockIndex].rate)) blockIndex++;
 			const block = blocks[blockIndex];
-			if (!block || position < block.time) continue;
+			if (!block || isPcmTimeBefore(position, block.time)) continue;
 			const x = (position - block.time) * block.rate;
 			// 同じレート・サンプル境界なら無加工で渡す。浮動小数点の秒変換誤差だけを許容する。
 			const nearest = Math.round(x);
-			if (block.rate === rate && Math.abs(x - nearest) < 1e-7 && nearest < block.channels[0].length) {
+			if (block.rate === effectiveRate && Math.abs(x - nearest) < 1e-7 && nearest < block.channels[0].length) {
 				output[0][frame] = block.channels[0][nearest];
 				output[1][frame] = block.channels[1][nearest];
 				continue;
 			}
 			const low = Math.floor(x);
-			const { radius, width, coefficients } = this.kernel(block.rate, rate);
+			// 早送りでは読み出し間隔が広がるため、その実効レートで帯域を制限する。
+			const { radius, width, coefficients } = this.kernel(block.rate, effectiveRate);
 			const coefficientOffset = Math.round((x - low) * phases) * width;
 			let left = 0;
 			let right = 0;
 			for (let tap = 0; tap < width; tap++) {
 				const index = low + tap - radius;
+				const tapTime = block.time + index / block.rate;
+				// フィルターの裾からトリム範囲外の音が混ざらないようにする。
+				if (isPcmTimeBefore(tapTime, start) || !isPcmTimeBefore(tapTime, end)) continue;
 				let source = block;
 				let sourceIndex = index;
 				if (index < 0 || index >= block.channels[0].length) {
 					// デコードの区切りをまたぐタップは隣接ブロックへ読む。素材の外と実際の欠落は0。
 					const sampleTime = block.time + index / block.rate;
 					let neighbor = blockIndex;
-					while (neighbor > 0 && sampleTime < blocks[neighbor].time) neighbor--;
-					while (neighbor < blocks.length - 1 && sampleTime >= blocks[neighbor].time + blocks[neighbor].channels[0].length / blocks[neighbor].rate) neighbor++;
+					while (neighbor > 0 && isPcmTimeBefore(sampleTime, blocks[neighbor].time)) neighbor--;
+					while (neighbor < blocks.length - 1 && !isPcmTimeBefore(sampleTime, blocks[neighbor].time + blocks[neighbor].channels[0].length / blocks[neighbor].rate)) neighbor++;
 					source = blocks[neighbor];
 					sourceIndex = Math.round((sampleTime - source.time) * source.rate);
 					if (sourceIndex < 0 || sourceIndex >= source.channels[0].length) continue;

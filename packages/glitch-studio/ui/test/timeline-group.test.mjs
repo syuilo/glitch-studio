@@ -48,7 +48,7 @@ const keys = times => ({ inputSource: 'keyframesTimelineInline', offsetMode: 'st
 	keyframesTimeline: { dataType: { kind: 'scalar' }, isNormalized: false,
 		keyframes: times.map(x => ({ id: String(x), x, value: 1, interpolation: { type: 'linear' } })) } });
 const sound = (id, start = 1000) => ({ id, name: id, layerType: 'audio', isDisabled: false, automationGraphs: [],
-	clips: [{ id: 'clip', startMs: start, durationMs: 500, contentOffsetMs: 12.25, assetId: 'asset' }], audioParamValues: { volume: keys([100, 2000]) } });
+	clips: [{ id: 'clip', startMs: start, durationMs: 500, sourceInMs: 12.25, sourceOutMs: 512.25, playbackRate: 1, loop: false, assetId: 'asset' }], audioParamValues: { volume: keys([100, 2000]) } });
 const group = (id, layers = []) => ({ id, name: id, layerType: 'group', layers, isDisabled: false, automationGraphs: [],
 	compositingParamValues: { opacity: keys([200, 3000]) }, audioParamValues: { volume: literal(0.5) } });
 function fixture(t, layers) {
@@ -200,7 +200,7 @@ test('moves the entire group including keys outside clips and restores merged dr
 	}
 	assert.equal(findTimelineLayer(f.scene.layers, 'sound').clips[0].startMs, 1300);
 	assert.deepEqual(findTimelineLayer(f.scene.layers, 'sound').audioParamValues.volume.keyframesTimeline.keyframes.map(key => key.x), [400, 2300]);
-	assert.equal(findTimelineLayer(f.scene.layers, 'sound').clips[0].contentOffsetMs, 12.25);
+	assert.equal(findTimelineLayer(f.scene.layers, 'sound').clips[0].sourceInMs, 12.25);
 	assert.equal(speech.utterances[0].timeMs, 550);
 	assert.equal(speech.utterances[0].subtitleDuration.durationMs, 300);
 	assert.equal(placement.clips[0].contentOffsetMs, 20.5);
@@ -318,9 +318,9 @@ test('scopes media durations by layer when clip IDs repeat inside groups', t => 
 	const f = fixture(t, []);
 	f.state.assets.value = ['short-asset', 'long-asset'].map(id => ({ id, fileDataType: 'audio/wav' }));
 	const short = sound('short');
-	short.clips[0] = { ...short.clips[0], assetId: 'short-asset', contentOffsetMs: 0, durationMs: 100 };
+	short.clips[0] = { ...short.clips[0], assetId: 'short-asset', sourceInMs: 0, sourceOutMs: 100, playbackRate: 1, loop: false, durationMs: 100 };
 	const long = sound('long');
-	long.clips[0] = { ...long.clips[0], assetId: 'long-asset', contentOffsetMs: 0, durationMs: 900 };
+	long.clips[0] = { ...long.clips[0], assetId: 'long-asset', sourceInMs: 0, sourceOutMs: 900, playbackRate: 1, loop: false, durationMs: 900 };
 	const root = group('root', [short, group('nested', [long])]);
 	const sourceDurationsMs = { short: { clip: 100 }, long: { clip: 1000 } };
 	for (const command of ['addTimelineLayer', 'pasteTimelineLayer']) {
@@ -330,8 +330,10 @@ test('scopes media durations by layer when clip IDs repeat inside groups', t => 
 		f.history.undo();
 		assert.deepEqual(f.scene.layers, []);
 		short.clips[0].durationMs = 101;
+		short.clips[0].sourceOutMs = 101;
 		assert.throws(() => f.history.commit(command, payload), /Clip exceeds/);
 		assert.deepEqual(f.scene.layers, []);
 		short.clips[0].durationMs = 100;
+		short.clips[0].sourceOutMs = 100;
 	}
 });

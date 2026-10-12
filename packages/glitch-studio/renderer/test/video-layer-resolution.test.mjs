@@ -100,7 +100,7 @@ function timelineFixture(t) {
 test('loops decoded video timestamps in preview and export and applies clip edits', async t => {
 	const { manager, calls } = timelineFixture(t);
 	const video = { id: 'video', name: 'Video', layerType: 'video', isDisabled: false, automationGraphs: [], compositingParamValues: {}, audioParamValues: { volume: literal(1) },
-		clips: [{ id: 'clip', startMs: 1000, contentOffsetMs: 2000.25, durationMs: 8000, loopDurationMs: 3000, assetId: 'asset', audioEnabled: false }] };
+		clips: [{ id: 'clip', startMs: 1000, sourceInMs: 2000.25, sourceOutMs: 5000.25, playbackRate: 1, loop: true, durationMs: 8000, assetId: 'asset', audioEnabled: false }] };
 	await manager.updateDynamicOptions({ assets: [{ id: 'asset', fileDataType: 'video/mp4', fileData: new Blob() }],
 		resolution: { width: 1920, height: 1080 }, resolutionScale: 1, sceneId: 'scene',
 		timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [video] }] });
@@ -111,7 +111,7 @@ test('loops decoded video timestamps in preview and export and applies clip edit
 	await manager.renderTimelineFrame(7000, 0);
 	assert.equal(calls.sampleTimes.at(-1), 2.00025);
 	const updated = structuredClone(video);
-	updated.clips[0].loopDurationMs = 2000;
+	updated.clips[0].sourceOutMs = updated.clips[0].sourceInMs + 2000;
 	manager.applyProjectChanges([{ type: 'layer', sceneId: 'scene', layerId: 'video', layer: updated, changes: [{ type: 'clips' }] }]);
 	await manager.renderTimelineAt(4000);
 	assert.equal(calls.sampleTimes.at(-1), 3.00025);
@@ -125,7 +125,7 @@ test('loops decoded video timestamps in preview and export and applies clip edit
 test('scales video sources once through replace composition and automatic processing', async t => {
 	const { manager, calls } = timelineFixture(t);
 	const timing = { name: 'Layer', clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 1000 }], automationGraphs: [] };
-	const video = { ...timing, id: 'video', layerType: 'video', clips: [{ ...timing.clips[0], assetId: 'asset', loopDurationMs: null, audioEnabled: false }], audioParamValues: { volume: literal(1) }, compositingParamValues: { fitMode: { inputSource: 'literal', value: 'cover' } } };
+	const video = { ...timing, id: 'video', layerType: 'video', clips: [{ id: 'clip', startMs: 0, durationMs: 1000, sourceInMs: 0, sourceOutMs: 1000, playbackRate: 1, loop: false, assetId: 'asset', audioEnabled: false }], audioParamValues: { volume: literal(1) }, compositingParamValues: { fitMode: { inputSource: 'literal', value: 'cover' } } };
 	const processing = { ...timing, id: 'processing', layerType: 'inlineVisualModule', visualModuleParamValues: {},
 		compositingParamValues: { blendMode: literal('replace') },
 		visualModule: {

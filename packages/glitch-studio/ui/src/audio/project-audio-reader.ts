@@ -2,7 +2,7 @@ import type { GeneratedSpeech } from '@gs/glitch-studio_shared/voicevox.ts';
 import { openAudioFile } from '@gs/subsystems_audio_renderer/audio-file.ts';
 import { AudioFileReader } from '@gs/subsystems_audio_renderer/audio-file-reader.ts';
 import type { AudioFileReaderOptions } from '@gs/subsystems_audio_renderer/audio-file-reader.ts';
-import type { StereoPcm } from '@gs/subsystems_audio_shared/pcm.ts';
+import type { StereoPcm, AudioPcmReadOptions } from '@gs/subsystems_audio_shared/pcm.ts';
 import type { Asset } from '@gs/shared/types.ts';
 
 export async function openAssetAudio(asset: Asset) {
@@ -29,8 +29,8 @@ export class ProjectAudioReader {
 		}, options);
 	}
 
-	read(assetId: string, time: number, frames: number, rate: number, signal?: AbortSignal): Promise<StereoPcm> {
-		return this.reader.read(assetId, time, frames, rate, signal);
+	read(assetId: string, time: number, frames: number, rate: number, signal?: AbortSignal, options?: AudioPcmReadOptions): Promise<StereoPcm> {
+		return this.reader.read(assetId, time, frames, rate, signal, options);
 	}
 
 	dispose() { this.reader.dispose(); }

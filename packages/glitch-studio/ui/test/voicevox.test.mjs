@@ -342,7 +342,7 @@ test('edits subtitle parameters independently from text layers', t => {
 test('plans repeated speech and samples trimmed utterances at absolute scene time', async () => {
 	const f = fixture();
 	const plan = getSceneAudioClips(f.scenes, 'root', { type: 'all' }, createSpeechResolver([f.speech]));
-	assert.deepEqual(plan.map(clip => [clip.sourceStartMs, clip.startMs, clip.endMs]), [[100, 200, 400], [400, 400, 600]]);
+	assert.deepEqual(plan.map(clip => [(clip.sourceTiming.startMs - clip.sourceTiming.sourceInMs), clip.startMs, clip.endMs]), [[100, 200, 400], [400, 400, 600]]);
 	assert.deepEqual(getSceneAudioClips(f.scenes, 'root'), []);
 	const reads = [];
 	const renderer = new TimelineAudioRenderer(async (...args) => { reads.push(args); return [new Float32Array(args[2]).fill(1), new Float32Array(args[2]).fill(1)]; });
@@ -516,7 +516,8 @@ test('displays the same prepared speech intervals as playback across separated c
 	for (const durationMs of [50, 175.5, 1000]) {
 		state.generatedSpeech.value = [{ ...f.speech, durationMs }];
 		const displayed = ranges().map(({ key, ...interval }) => interval);
-		const playback = getSceneAudioClips(f.scenes, 'root', { type: 'all' }, createSpeechResolver(state.generatedSpeech.value)).map(({ gains, ...interval }) => interval);
+		const playback = getSceneAudioClips(f.scenes, 'root', { type: 'all' }, createSpeechResolver(state.generatedSpeech.value))
+			.map(({ sourceTiming, gains, ...interval }) => ({ ...interval, sourceStartMs: sourceTiming.startMs - sourceTiming.sourceInMs }));
 		assert.deepEqual(displayed, playback);
 	}
 	assert.deepEqual(ranges().map(range => range.key), ['a:left', 'a:right', 'b:right']);
@@ -547,7 +548,7 @@ test('supports nested placements and audio layer selection without moving speech
 	const parent = { id: 'child', name: 'Child', layerType: 'scene', isDisabled: false, automationGraphs: [], compositingParamValues: {}, audioParamValues: { volume: literal(0.5) }, clips: [{ id: 'placement', sceneId: 'root', startMs: 1000, contentOffsetMs: 250, durationMs: 400 }] };
 	const scenes = [...f.scenes, scene('parent', [parent])];
 	const plan = getSceneAudioClips(scenes, 'parent', { type: 'layer', layerId: 'child' }, createSpeechResolver([f.speech]));
-	assert.deepEqual(plan.map(clip => [clip.sourceStartMs, clip.startMs, clip.endMs]), [[850, 1000, 1150], [1150, 1150, 1350]]);
+	assert.deepEqual(plan.map(clip => [(clip.sourceTiming.startMs - clip.sourceTiming.sourceInMs), clip.startMs, clip.endMs]), [[850, 1000, 1150], [1150, 1150, 1350]]);
 	assert.equal(plan[0].gains.length, 2);
 	assert.equal(getSceneAudioClips(f.scenes, 'root', { type: 'layer', layerId: 'speech' }, createSpeechResolver([f.speech])).length, 2);
 	f.layer.isDisabled = true;
