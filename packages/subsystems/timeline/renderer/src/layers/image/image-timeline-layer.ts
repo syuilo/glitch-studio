@@ -1,11 +1,11 @@
 import { scaleResolution } from '@gs/shared/resolution.ts';
 import { createShaderInputPipeline } from '@gs/shared/gpu/shader-input-pipeline.ts';
 import { createTimelineCompositor } from '../../timeline-compositor.ts';
-import type { TimelineCompositingObserver } from '../../timeline-compositor.ts';
 import { TimelineCompositingParameters } from '../../timeline-compositing-parameters.ts';
+import type { TimelineCompositingObserver } from '../../timeline-compositor.ts';
 import type { TimelineImageLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import type { IntermediateTextureFormat } from '@gs/shared/types.ts';
-import type { UniformOrTexture } from '@gs/shared/gpu/uniform-or-texture.ts';
+import type { TimelineImage } from '../../timeline-image.ts';
 import type { TimelineLayerRenderer } from '../../timeline-renderer.ts';
 
 export function createImageTimelineLayer(layer: TimelineImageLayer, sourceTexture: GPUTexture, options: {
@@ -15,7 +15,7 @@ export function createImageTimelineLayer(layer: TimelineImageLayer, sourceTextur
 	resolutionScale: number;
 	format: IntermediateTextureFormat;
 	onCompositing?: TimelineCompositingObserver;
-}): TimelineLayerRenderer<UniformOrTexture> {
+}): TimelineLayerRenderer<TimelineImage> {
 	const compositor = createTimelineCompositor(options);
 	const parameters = new TimelineCompositingParameters();
 	const sourceResolution = scaleResolution(sourceTexture, options.resolutionScale);
@@ -48,8 +48,8 @@ export function createImageTimelineLayer(layer: TimelineImageLayer, sourceTextur
 					pass.draw(6);
 					pass.end();
 				}
-				const foreground: UniformOrTexture = { kind: 'texture', texture: scaledTexture ?? sourceTexture };
-				return { output: compositor.render(encoder, context.input, foreground, settings), gpuTime: 0 };
+				const foreground: TimelineImage = { kind: 'texture', texture: scaledTexture ?? sourceTexture };
+				return { output: compositor.render(encoder, context.input, foreground, settings, context.renderSpace), gpuTime: 0 };
 			} finally { options.device.queue.submit([encoder.finish()]); }
 		},
 		destroy() {

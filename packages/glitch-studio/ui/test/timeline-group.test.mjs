@@ -337,3 +337,17 @@ test('scopes media durations by layer when clip IDs repeat inside groups', t => 
 		short.clips[0].sourceOutMs = 100;
 	}
 });
+
+// 【グループの平面化方式だけを変更してUndoで戻す】
+// 深度モードの切り替えは子のZや合成設定を書き換えない。解除・再選択したときも、
+// 元の値を再利用でき、Redoで同じ階層を保持できることを確認する。
+test('changes group depth mode without rewriting descendants', t => {
+	const f = fixture(t, [group('group', [sound('audio')])]);
+	const descendants = structuredClone(f.scene.layers[0].layers);
+	f.history.commit('changeTimelineGroupMode', { sceneId: 'scene', layerId: 'group', mode: 'preserveDepth' });
+	assert.equal(f.scene.layers[0].compositingMode, 'preserveDepth');
+	assert.deepEqual(f.scene.layers[0].layers, descendants);
+	f.history.undo(); assert.equal(f.scene.layers[0].compositingMode, undefined);
+	f.history.redo(); assert.equal(f.scene.layers[0].compositingMode, 'preserveDepth');
+	assert.deepEqual(f.scene.layers[0].layers, descendants);
+});

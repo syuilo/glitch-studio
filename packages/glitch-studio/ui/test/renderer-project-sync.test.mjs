@@ -14,6 +14,7 @@ const bundle = await build({
 		export { default as definition } from '@gs/subsystems_effect_shared/fx/testStructArray/_def_.ts';
 		export { createEffectTimelineLayer } from './src/utility/effect-timeline-layer.ts';
 		export { createInlineVisualModuleLayer } from './src/utility/inline-visual-module-layer.ts';
+		export { createCameraTimelineLayer } from './src/utility/camera-timeline-layer.ts';
 		export { createImageLayer } from './src/utility/image-layer.ts';
 	` },
 	absWorkingDir: directory, bundle: true, platform: 'node', format: 'cjs', write: false,
@@ -28,7 +29,7 @@ const bundle = await build({
 const module = { exports: {} };
 new Function('require', 'module', 'exports', 'console', bundle.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports, { ...console, log() {} });
 const { ProjectContext, RendererProjectSynchronizer, applyRendererProjectChanges, definition,
-	createEffectTimelineLayer, createInlineVisualModuleLayer, createImageLayer } = module.exports;
+	createEffectTimelineLayer, createInlineVisualModuleLayer, createImageLayer, createCameraTimelineLayer } = module.exports;
 
 function fixture(t, count = 1, overrides = {}) {
 	const manager = new ProjectContext().stateManager;
@@ -398,4 +399,33 @@ test('recovers a failed patch from current state and ignores failures after disp
 	await oldFlushed;
 	assert.deepEqual(old.snapshots, []);
 	assert.deepEqual(old.errors, []);
+});
+
+// 【カメラの編集・Undo・Redoを通常のレイヤー差分として同期する】
+// カメラだけの編集でScene全体を置換すると、他レイヤーの動画・履歴が再生成される。
+// 既存の差分経路に統合し、映像レイヤーの参照を維持することを確認する。
+test('synchronizes camera layer edits and undo without replacing other layers', async t => {
+	const f = fixture(t);
+	const camera = createCameraTimelineLayer(0);
+	const image = createInlineVisualModuleLayer(0);
+	f.manager.commit('addTimelineLayer', { sceneId: 'scene', layer: image });
+	f.manager.commit('addTimelineLayer', { sceneId: 'scene', layer: camera });
+	await f.sync.flush();
+	const originalImage = f.replica.timelineScenes[0].layers.find(layer => layer.id === image.id);
+	const target = { sceneId: 'scene', layerId: camera.id, target: 'camera' };
+	f.manager.commit('editTimelineLayerParam', { ...target, paramPath: ['position'], edit: { kind: 'literal', value: [0.4, 0.2] } });
+	f.manager.commit('editTimelineLayerParam', { ...target, paramPath: ['z'], edit: { kind: 'expression', value: 'TIME + 3' } });
+	await f.sync.flush();
+	const values = () => f.replica.timelineScenes[0].layers.find(layer => layer.id === camera.id).cameraParamValues;
+	assert.equal(f.batches.at(-1).length, 1);
+	assert.equal(f.batches.at(-1)[0].type, 'layer');
+	assert.equal(values().z.expression, 'TIME + 3');
+	f.manager.undo(); await f.sync.flush();
+	assert.deepEqual(values().z, camera.cameraParamValues.z);
+	f.manager.undo(); await f.sync.flush();
+	assert.deepEqual(values().position.value, [0, 0]);
+	f.manager.redo(); f.manager.redo(); await f.sync.flush();
+	assert.deepEqual(values().position.value, [0.4, 0.2]);
+	assert.equal(f.replica.timelineScenes[0].layers.find(layer => layer.id === image.id), originalImage);
+	assert.deepEqual(f.errors, []);
 });

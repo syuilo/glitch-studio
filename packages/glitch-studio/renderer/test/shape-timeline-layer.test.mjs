@@ -25,6 +25,7 @@ after(() => {
 const load = path => loadShaderSource(fileURLToPath(import.meta.resolve(path)));
 const { TimelineRendererManager } = await load('../src/timeline-renderer-manager.ts');
 const { getRendererLayerState } = await load('@gs/glitch-studio_shared/project/renderer-state.ts');
+const { createTimelineCameraParameterValues } = await load('@gs/subsystems_timeline_shared/layers/camera/camera.ts');
 const { createShape } = await load('@gs/subsystems_timeline_shared/layers/shape/shape.ts');
 const { timelineCompositingParamDefs } = await load('@gs/subsystems_timeline_shared/timeline-compositing.ts');
 const literal = value => ({ inputSource: 'literal', value });
@@ -88,7 +89,7 @@ function fixture(t, staticOptions = {}) {
 		changes: [{ type: 'parameter', target: 'shape', kind: 'value' }] }]);
 	return { manager, calls, setup, update, shapeDraws: () => calls.draws.filter(draw => draw.isShape) };
 }
-const near = (actual, expected) => assert.ok(Math.abs(actual - expected) < 1e-6, `${actual} != ${expected}`);
+const near = (actual, expected, tolerance = 1e-6) => assert.ok(Math.abs(actual - expected) < tolerance, `${actual} != ${expected}`);
 
 // 【プレビュー・書き出しで固定レイヤーの内容と合成設定を揃え、設定変更時に境界を再収集する】
 // レイヤー自身の生成値だけを止めてもCompositingが動けばぼける。逆に合成後の出力を
@@ -118,7 +119,7 @@ test('freezes layer content and compositing in preview and export and refreshes 
 		assert.ok(moving[0].context.sceneTimeMs < 100 && moving.at(-1).context.sceneTimeMs > 100);
 		const composites = f.calls.draws.filter(draw => draw.isCompositing);
 		assert.equal(composites.length, 8);
-		for (let index = 1; index < composites.length; index += 2) near(composites[index].uniforms.position[0], 0.1);
+		for (let index = 1; index < composites.length; index += 2) near(composites[index].uniforms.inverseX[2], -0.1);
 		const edited = { ...foreground, forceDisableMotionBlur: false };
 		f.manager.applyProjectChanges([{ type: 'layer', sceneId: 'scene', layerId: edited.id, layer: edited, changes: [{ type: 'motionBlur' }] }]);
 		f.calls.evaluations.length = 0;
@@ -166,9 +167,9 @@ test('propagates frame reference times through nested groups and trimmed scenes 
 	assert.equal(child.layers[0].forceDisableMotionBlur, false);
 });
 
-// 【Scene高さの共通単位と輪郭配置を、倍率適用済みの固定解像度へ渡す】
-// 形状の移動・回転でテクスチャ寸法が変わったり、プレビュー倍率を二重適用したりすると、
-// レイヤーの合成設定との組み合わせが破綻する。Scene時刻の小数も保持する。
+// 【描画範囲を切り出してもScene高さの単位と輪郭配置を維持する】
+// 画面外も描くためテクスチャ寸法は変わるが、形状・輪郭・回転の基準寸法は変えない。
+// プレビュー倍率の二重適用とScene時刻の小数の喪失を防ぐ。
 test('renders all stroke alignments at scene resolution and evaluates subframe scene time', async t => {
 	const f = fixture(t);
 	await f.setup(['inside', 'center', 'outside'].map(alignment => layer(alignment, 'rectangle', {
@@ -179,7 +180,9 @@ test('renders all stroke alignments at scene resolution and evaluates subframe s
 	const draws = f.shapeDraws();
 	assert.equal(draws.length, 3);
 	for (const [index, draw] of draws.entries()) {
-		assert.deepEqual([draw.texture.width, draw.texture.height, draw.texture.format], [800, 450, 'rgba16float']);
+		assert.equal(draw.texture.format, 'rgba16float');
+		assert.ok(draw.texture.width < 800 && draw.texture.height < 450);
+		near(draw.uniforms.bounds[2] * 800 / draw.texture.width, 1, 0.01);
 		near(draw.uniforms.position[0], 0.35025);
 		near(draw.uniforms.halfSize[0], 0.3);
 		near(draw.uniforms.halfSize[1], 0.15);
@@ -187,7 +190,7 @@ test('renders all stroke alignments at scene resolution and evaluates subframe s
 		near(draw.uniforms.rotation[0], Math.PI / 2);
 		near(draw.uniforms.strokeInside[0], index * 0.01);
 		near(draw.uniforms.strokeOutside[0], 0.02 - index * 0.01);
-		near(draw.uniforms.pixelSize[0], 1 / 450);
+		near(draw.uniforms.pixelSize[0], draw.uniforms.bounds[3] / draw.texture.height);
 		near(draw.uniforms.aspectRatio[0], 1600 / 900);
 	}
 });
@@ -205,13 +208,15 @@ test('caches geometry without freezing animated backgrounds and recreates only e
 	await f.manager.renderTimelineFrame(450, 100);
 	assert.equal(f.shapeDraws().length, 3);
 	assert.equal(f.calls.draws.length, 7);
-	assert.equal(f.shapeDraws()[2].texture, backgroundDraw.texture);
+	const updatedBackground = f.shapeDraws()[2].texture;
+	assert.equal(backgroundDraw.texture.destroyed, true);
+	assert.equal(updatedBackground.destroyed, false);
 	const edited = structuredClone(foreground);
 	edited.shape.paramValues.size = literal([0.2, 0.4]);
 	f.update(edited);
 	await f.manager.renderTimelineFrame(450, 0);
 	assert.equal(foregroundDraw.texture.destroyed, true);
-	assert.equal(backgroundDraw.texture.destroyed, false);
+	assert.equal(updatedBackground.destroyed, false);
 	assert.equal(f.shapeDraws().length, 4);
 	const invalid = structuredClone(edited);
 	invalid.shape.paramValues.size = { inputSource: 'layerInput' };
@@ -232,8 +237,8 @@ test('preserves transparent replace output and releases resources across clip ga
 	await f.manager.renderTimelineFrame(150, 0);
 	const first = f.shapeDraws()[0];
 	assert.equal(first.uniforms.halfSize[0], 0);
-	assert.equal(f.calls.outputs.at(-1).texture, first.texture);
-	assert.equal(f.calls.draws.length, 1);
+	assert.notEqual(f.calls.outputs.at(-1).texture, first.texture);
+	assert.equal(f.calls.draws.length, 2);
 	await f.manager.renderTimelineFrame(200, 50);
 	assert.equal(first.texture.destroyed, true);
 	assert.equal(f.calls.outputs.at(-1).kind, 'uniform');
@@ -258,7 +263,8 @@ test('uses the owning child scene resolution and time when nested', async t => {
 	await f.setup([], { timelineScenes: [parent, child] });
 	await f.manager.renderTimelineFrame(350.25, 0);
 	const draw = f.shapeDraws()[0];
-	assert.deepEqual([draw.texture.width, draw.texture.height], [300, 200]);
+	near(draw.uniforms.aspectRatio[0], 1.5);
+	near(draw.uniforms.bounds[3] / draw.texture.height, 1 / 200);
 	near(draw.uniforms.position[0], 0.45025);
 });
 
@@ -315,7 +321,7 @@ test('updates group transforms while retaining child resources and reporting anc
 	await f.manager.renderTimelineAt(200);
 	const childTexture = f.shapeDraws()[0].texture;
 	assert.equal(previews.at(-1).clipId, 'clip');
-	assert.deepEqual(previews.at(-1).parentGeometries.map(parent => parent.transform.position), [[-0.5, 0], [0.2, 0.3]]);
+	assert.deepEqual(previews.at(-1).parentGeometries[0].matrix.map(value => Math.round(value * 1e6) / 1e6), [1, 0, 0, 1, -0.3, 0.3]);
 	assert.deepEqual(previews.at(-1).geometry.sourceSize, { width: 800, height: 450 });
 	const editedOuter = structuredClone(outer);
 	editedOuter.compositingParamValues.position = literal([0.5, 0]);
@@ -324,7 +330,7 @@ test('updates group transforms while retaining child resources and reporting anc
 	await f.manager.renderTimelineAt(200);
 	assert.equal(childTexture.destroyed, false);
 	assert.equal(f.shapeDraws().length, 1);
-	assert.deepEqual(previews.at(-1).parentGeometries[0].transform.position, [0.5, 0]);
+	assert.deepEqual(previews.at(-1).parentGeometries[0].matrix.map(value => Math.round(value * 1e6) / 1e6), [1, 0, 0, 1, 0.7, 0.3]);
 	await f.manager.updateDynamicOptions({ transformObserver: { sceneId: 'scene', layerId: 'inner', requestId: 2 } });
 	await f.manager.renderTimelineAt(200);
 	assert.equal(previews.at(-1).clipId, null);
@@ -335,4 +341,27 @@ test('updates group transforms while retaining child resources and reporting anc
 	await f.manager.renderTimelineAt(200);
 	assert.equal(childTexture.destroyed, true);
 	assert.equal(previews.at(-1).geometry, null);
+});
+
+// 【レイヤーを固定してもカメラのサブサンプル投影は止めない】
+// カメラの値をレイヤーの基準時刻で評価するとカメラ移動のブラーが失われる。
+// カメラ編集でも静止した形状のGPU資源を作り直さないことを同時に確認する。
+test('samples camera motion independently of frozen layer content and keeps cached shapes on camera edits', async t => {
+	const f = fixture(t, { timelineMotionBlur: { enabled: true, shutterAngle: 180, samples: 4 } });
+	const entry = layer('fixed');
+	entry.forceDisableMotionBlur = true;
+	const camera = { id: 'camera', name: 'Camera', layerType: 'camera', clips: [clip('view', 0, 1000)], isDisabled: false, forceDisableMotionBlur: false, automationGraphs: [],
+		cameraParamValues: { ...createTimelineCameraParameterValues(), position: expression('[TIME, 0]') } };
+	await f.setup([camera, entry]);
+	await f.manager.renderTimelineFrame(200, 1000 / 60);
+	const texture = f.shapeDraws()[0].texture;
+	assert.equal(f.shapeDraws().length, 1);
+	const positions = f.calls.draws.filter(draw => draw.isCompositing).map(draw => draw.uniforms.inverseX[2]);
+	assert.equal(new Set(positions).size, 4);
+	assert.ok(positions[0] < 0.2 && positions.at(-1) > 0.2);
+	f.manager.applyProjectChanges([{ type: 'layer', sceneId: 'scene', layerId: camera.id, changes: [{ type: 'parameter', target: 'camera', kind: 'value' }],
+		layer: { ...camera, cameraParamValues: { ...camera.cameraParamValues, position: literal([0.4, 0]) } } }]);
+	await f.manager.renderTimelineFrame(200, 0);
+	assert.equal(f.shapeDraws().length, 1);
+	assert.equal(texture.destroyed, false);
 });

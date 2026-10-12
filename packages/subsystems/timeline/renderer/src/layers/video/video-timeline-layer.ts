@@ -1,11 +1,11 @@
 import { openVideoSource } from '@gs/shared/media/video-source.ts';
 import { createVideoTexture } from '@gs/shared/media/video-texture.ts';
 import { createTimelineCompositor } from '../../timeline-compositor.ts';
-import type { TimelineCompositingObserver } from '../../timeline-compositor.ts';
 import { TimelineCompositingParameters } from '../../timeline-compositing-parameters.ts';
+import type { TimelineCompositingObserver } from '../../timeline-compositor.ts';
 import type { TimelineVideoLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import type { IntermediateTextureFormat } from '@gs/shared/types.ts';
-import type { UniformOrTexture } from '@gs/shared/gpu/uniform-or-texture.ts';
+import type { TimelineImage } from '../../timeline-image.ts';
 import type { TimelineLayerRenderer } from '../../timeline-renderer.ts';
 
 export function createVideoTimelineLayer(layer: TimelineVideoLayer, blob: Blob, options: {
@@ -17,14 +17,14 @@ export function createVideoTimelineLayer(layer: TimelineVideoLayer, blob: Blob, 
 	resolutionScale: number;
 	format: IntermediateTextureFormat;
 	onCompositing?: TimelineCompositingObserver;
-}): TimelineLayerRenderer<UniformOrTexture> {
+}): TimelineLayerRenderer<TimelineImage> {
 	const source = openVideoSource(blob);
 	const texture = createVideoTexture(options.device, options.format);
 	const compositor = createTimelineCompositor(options);
 	const parameters = new TimelineCompositingParameters();
 	let disposed = false;
 	let pending: Promise<unknown> = Promise.resolve();
-	let cachedFrame: { contentTimeMs: number; foreground: UniformOrTexture } | undefined;
+	let cachedFrame: { contentTimeMs: number; foreground: TimelineImage } | undefined;
 	return {
 		evaluate(context, signal) {
 			// 同じ配置の連続シークはデコーダーを直列に使う。待機中に不要になった要求は
@@ -42,7 +42,7 @@ export function createVideoTimelineLayer(layer: TimelineVideoLayer, blob: Blob, 
 						cachedFrame = undefined;
 						// replaceの無変形時はcompositorが素材を直接返すため、合成前に原寸へ倍率を
 						// 一度だけ適用する。後続モジュールの自動解像度は、この計算用寸法を継承する。
-						const foreground: UniformOrTexture = sample ? { kind: 'texture', texture: texture.upload(sample, options.resolutionScale) }
+						const foreground: TimelineImage = sample ? { kind: 'texture', texture: texture.upload(sample, options.resolutionScale) }
 							: { kind: 'uniform', value: [0, 0, 0, 0] };
 						cachedFrame = { contentTimeMs: context.contentTimeMs, foreground };
 					} finally { sample?.close(); }
@@ -51,7 +51,7 @@ export function createVideoTimelineLayer(layer: TimelineVideoLayer, blob: Blob, 
 				try {
 					// 前景が同じでも下層入力・Scene時刻は変わり得るため、設定の評価と合成は毎回行う。
 					const settings = parameters.evaluate({ time: context.sceneTimeMs, isExport: context.isExport, paramValues: layer.compositingParamValues, automationGraphs: layer.automationGraphs });
-					return { output: compositor.render(encoder, context.input, cachedFrame.foreground, settings), gpuTime: 0 };
+					return { output: compositor.render(encoder, context.input, cachedFrame.foreground, settings, context.renderSpace), gpuTime: 0 };
 				} finally { options.device.queue.submit([encoder.finish()]); }
 			};
 			const result = pending.then(render);

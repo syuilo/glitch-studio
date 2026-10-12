@@ -7,6 +7,11 @@
 		<div class="_spacer">
 			<GsInput small :modelValue="layer.name" @update:modelValue="name => stateManager.commit('renameTimelineLayer', { sceneId, layerId: layer.id, name: String(name) })"><template #label>Layer Name</template></GsInput>
 		</div>
+		<div v-if="layer.layerType === 'group'" class="_spacer">
+			<GsSelect :modelValue="layer.compositingMode ?? 'flat'" :items="groupModes" @update:modelValue="mode => stateManager.commit('changeTimelineGroupMode', { sceneId, layerId: layer.id, mode })">
+				<template #label>Group compositing</template>
+			</GsSelect>
+		</div>
 		<GsTimelineEffectSettings
 			v-if="layer.layerType === 'effect'"
 			:key="layer.id"
@@ -29,6 +34,13 @@
 			:key="layer.id"
 			:layer="layer"
 			@edit="event => onTimelineLayerParamEdit(event, 'text')"
+		/>
+		<GsTimelineCameraSettings
+			v-if="layer.layerType === 'camera'"
+			:key="layer.id"
+			:layer="layer"
+			@edit="event => onTimelineLayerParamEdit(event, 'camera')"
+			@motionBlur="forceDisableMotionBlur => stateManager.commit('setTimelineLayerMotionBlurDisabled', { sceneId, layerId: layer.id, forceDisableMotionBlur })"
 		/>
 		<GsTimelineShapeSettings
 			v-if="layer.layerType === 'shape'"
@@ -79,7 +91,7 @@
 				</template>
 			</div>
 		</GsFolder>
-		<GsFolder v-if="layer.layerType !== 'audio'" :asSection="true" defaultOpen :withSpacer="false">
+		<GsFolder v-if="isTimelineVisualLayer(layer)" :asSection="true" defaultOpen :withSpacer="false">
 			<template #icon><i class="ti ti-layers-selected"></i></template>
 			<template #label>Compositing</template>
 			<div class="_spacer">
@@ -98,7 +110,7 @@
 					:automationGraphs="layer.automationGraphs"
 					:paramPath="[paramId]"
 					:paramDef="paramDef"
-					:paramValue="layer.compositingParamValues[paramId]"
+					:paramValue="layer.compositingParamValues[paramId] ?? paramDef.defaultValue"
 					@edit="event => onTimelineLayerParamEdit(event, 'compositing')"
 				/>
 			</div>
@@ -132,6 +144,7 @@
 
 <script lang="ts" setup>
 import { computed, ref } from 'vue';
+import { isTimelineVisualLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import { flattenTimelineLayers } from '@gs/subsystems_timeline_shared/layer-tree.ts';
 import { isParameterType } from '@gs/shared/parameter/parameter-definition.ts';
 import { LAYER_VAR_DEFS } from '@gs/subsystems_timeline_shared/expression.ts';
@@ -139,15 +152,7 @@ import { timelineAudioParamDefs, isTimelineAudioOutputLayer } from '@gs/subsyste
 import { timelineCompositingParamDefs } from '@gs/subsystems_timeline_shared/timeline-compositing.ts';
 import { getSceneBaseResolution } from '@gs/subsystems_timeline_shared/scene-resolution.ts';
 import { getTimelineVisualModuleArgumentDefault } from '@gs/subsystems_timeline_shared/layers/visual-module/visual-module-arguments.ts';
-import type { TimelineLayer, TimelineScene } from '@gs/subsystems_timeline_shared/types.ts';
-import type { TimelineKeyframeSelection } from '@/utility/timeline-selection.ts';
-import type { TimelineParameterTarget } from '@/utility/timeline-scene.ts';
-import type { ParamEdit } from './GsVisualParam.vue';
-import type { VisualModuleEdit } from '@/types/visual-module-editor.ts';
-import { getLayerParameterValues } from '@/utility/timeline-scene.ts';
-import { commitVisualModuleEdit } from '@/utility/visual-module-edit.ts';
-import { exportVisualModuleFile } from '@/utility/visual-module-file.ts';
-import { appContext } from '@/app.ts';
+import GsSelect from './common/GsSelect.vue';
 import GsButton from './common/GsButton.vue';
 import GsFolder from './common/GsFolder.vue';
 import GsInput from './common/GsInput.vue';
@@ -159,10 +164,21 @@ import GsTimelineVoicevoxSettings from './GsTimeline.VoicevoxSettings.vue';
 import GsTimelineVoicevoxSubtitleSettings from './GsTimeline.VoicevoxSubtitleSettings.vue';
 import GsTimelineTextSettings from './GsTimeline.TextSettings.vue';
 import GsTimelineShapeSettings from './GsTimeline.ShapeSettings.vue';
+import GsTimelineCameraSettings from './GsTimeline.CameraSettings.vue';
+import type { VisualModuleEdit } from '@/types/visual-module-editor.ts';
+import type { ParamEdit } from './GsVisualParam.vue';
+import type { TimelineParameterTarget } from '@/utility/timeline-scene.ts';
+import type { TimelineLayer, TimelineScene } from '@gs/subsystems_timeline_shared/types.ts';
+import type { TimelineKeyframeSelection } from '@/utility/timeline-selection.ts';
+import { appContext } from '@/app.ts';
+import { exportVisualModuleFile } from '@/utility/visual-module-file.ts';
+import { commitVisualModuleEdit } from '@/utility/visual-module-edit.ts';
+import { getLayerParameterValues } from '@/utility/timeline-scene.ts';
 
 const props = defineProps<{ scene: TimelineScene; layer: TimelineLayer }>();
 const emit = defineEmits<{ selectKeyframe: [selection: TimelineKeyframeSelection]; requestAddInlineEffectNode: [layerId: string] }>();
 const { previewPlayback, timelineRendererManagerController } = appContext;
+const groupModes = [{ value: 'flat' as const, label: 'Single plane (2D contents)' }, { value: 'preserveDepth' as const, label: 'Preserve child depth' }];
 const { stateManager } = appContext.projectContext;
 const sceneId = computed(() => props.scene.id);
 const sceneLayers = computed(() => flattenTimelineLayers(props.scene.layers));

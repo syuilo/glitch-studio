@@ -2,20 +2,26 @@ import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { createShaderInputPipeline } from '@gs/shared/gpu/shader-input-pipeline.ts';
 import { toShaderInput } from '@gs/shared/gpu/shader-input.ts';
 import blendCode from '@gs/shared/color-blend.wgsl?raw';
+import { TIMELINE_FRAME, TIMELINE_IDENTITY, intersectTimelineBounds, invertTimelineAffine, multiplyTimelineAffine, projectTimelineMatrix, timelineGeometryMatrix, transformTimelineBounds, unionTimelineBounds } from '@gs/subsystems_timeline_shared/spatial.ts';
 import code from './timeline-compositor.wgsl?raw';
+import { timelineImageBounds, timelineImageFrame, timelineTextureSize } from './timeline-image.ts';
 import type { IntermediateTextureFormat } from '@gs/shared/types.ts';
-import type { UniformOrTexture } from '@gs/shared/gpu/uniform-or-texture.ts';
 import type { TimelineCompositingSettings } from './timeline-compositing-parameters.ts';
-import { getTimelineFittedExtent } from '@gs/subsystems_timeline_shared/layer-transform.ts';
+import type { TimelineAffine, TimelineBounds, TimelineRenderSpace } from '@gs/subsystems_timeline_shared/spatial.ts';
+import type { TimelineImage } from './timeline-image.ts';
 
-export type TimelineCompositingObserver = (source: UniformOrTexture, settings: TimelineCompositingSettings) => void;
+export type TimelineCompositingObserver = (source: TimelineImage, settings: TimelineCompositingSettings, space?: TimelineRenderSpace) => void;
+const boundsUniform = (bounds: TimelineBounds) => [(bounds.left + bounds.right) / 2, (bounds.bottom + bounds.top) / 2, (bounds.right - bounds.left) / 2, (bounds.top - bounds.bottom) / 2];
+const rows = (matrix: TimelineAffine) => ({ x: [matrix[0], matrix[2], matrix[4], 0], y: [matrix[1], matrix[3], matrix[5], 0] });
 
-// レイヤーごとに出力を所有し、同一フレーム内で下のレイヤーの出力を上書きしない。
+export function getTimelinePlacement(source: TimelineImage, resolution: { width: number; height: number }, settings: TimelineCompositingSettings, space?: TimelineRenderSpace) {
+	const local = timelineGeometryMatrix({ sourceSize: timelineImageFrame(source, resolution), sceneSize: resolution, transform: settings });
+	return settings.placement === 'screen' ? local : projectTimelineMatrix(multiplyTimelineAffine(space?.parent ?? TIMELINE_IDENTITY, local), (space?.depth ?? 0) + settings.depth, space?.camera);
+}
+
+// 合成先の画素範囲は可変でも、fit・origin・位置の基準となるScene寸法は変えない。
 export function createTimelineCompositor(options: {
-	device: GPUDevice;
-	vertex: GPUShaderModule;
-	resolution: { width: number; height: number };
-	format: IntermediateTextureFormat;
+	device: GPUDevice; vertex: GPUShaderModule; resolution: { width: number; height: number }; format: IntermediateTextureFormat;
 	beginPass?: (encoder: GPUCommandEncoder, descriptor: GPURenderPassDescriptor) => GPURenderPassEncoder;
 	onCompositing?: TimelineCompositingObserver;
 }) {
@@ -26,39 +32,47 @@ export function createTimelineCompositor(options: {
 	const group = device.createBindGroup({ layout, entries: [{ binding: 0, resource: { buffer } }] });
 	const pipelines = createShaderInputPipeline({
 		device, vertex: options.vertex, code: blendCode + code,
-		schema: { background: 'color', source: 'color' }, targets: [{ format: options.format }],
-		internalLayouts: [layout], sampling: 'level0',
-	});
+		schema: { background: 'color', source: 'color' }, targets: [{ format: options.format }], internalLayouts: [layout], sampling: 'level0' });
 	let texture: GPUTexture | undefined;
 	return {
-		render(encoder: GPUCommandEncoder, background: UniformOrTexture, source: UniformOrTexture, settings: TimelineCompositingSettings): UniformOrTexture {
-			options.onCompositing?.(source, settings);
-			const { fitMode } = settings;
+		render(encoder: GPUCommandEncoder, background: TimelineImage, source: TimelineImage, settings: TimelineCompositingSettings,
+			space: TimelineRenderSpace = { parent: TIMELINE_IDENTITY, depth: 0, viewport: TIMELINE_FRAME }, projected = false, fixedBounds?: TimelineBounds): TimelineImage {
+			options.onCompositing?.(source, settings, space);
 			if (settings.opacity === 0 || settings.blendMode === 10) return background;
-			// 共通サンプリングのfitは画面→素材の逆写像なので、割ると素材内のoriginを
-			// fit後の画面座標へ戻せる。元テクスチャ全体（透明な余白を含む）を基準にし、
-			// 寸法を持たない定数には画面と同じ大きさの仮想的な素材枠を与える。
-			const sourceExtent = getTimelineFittedExtent(source.kind === 'texture' ? source.texture : resolution, resolution, fitMode);
-			const originInOutputSpace = settings.origin.map((value, index) => value * sourceExtent[index]);
-			// 置き換えだけなら借用出力をそのまま渡し、定数もテクスチャ化しない。
-			// 同じ縦横比ならfitによる余白・切り取りがなく、解像度が違っても借用出力を維持できる。
-			// 異なる比率では必ず描画し、後段のcoverでcontainなどが上書きされないようにする。
-			const sameAspectRatio = source.kind === 'uniform' || source.texture.width * resolution.height === source.texture.height * resolution.width;
-			// アンカーポイント方式では、無回転・等倍でもpositionとoriginの差だけ移動する。
-			if (sameAspectRatio && settings.blendMode === 19 && settings.opacity === 1 && settings.rotation === 0
-				&& settings.position.every((value, index) => value === originInOutputSpace[index]) && settings.scale.every(value => value === 1)) return source;
-			texture ??= device.createTexture({ size: resolution, format: options.format, usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT });
+			const placement = getTimelinePlacement(source, resolution, settings, space);
+			// カメラの背後はレイヤーが存在しない扱い。Replaceでも背景を消さない。
+			if (!projected && !placement) return background;
+			const matrix = projected ? TIMELINE_IDENTITY : placement;
+			const inverse = matrix && invertTimelineAffine(matrix);
+			const clipInverse = placement && invertTimelineAffine(placement);
+			const sourceBounds = timelineImageBounds(source);
+			let foregroundBounds = matrix && inverse ? transformTimelineBounds(sourceBounds, matrix) : null;
+			if (settings.clipToFrame) foregroundBounds = foregroundBounds && placement && clipInverse ? intersectTimelineBounds(foregroundBounds, transformTimelineBounds(TIMELINE_FRAME, placement)) : null;
+			const backgroundBounds = timelineImageBounds(background);
+			let outputBounds = foregroundBounds ? unionTimelineBounds(backgroundBounds, foregroundBounds) : backgroundBounds;
+			if (space?.viewport) outputBounds = intersectTimelineBounds(outputBounds, space.viewport) ?? space.viewport;
+			outputBounds = fixedBounds ?? outputBounds;
+			// 無変形のReplaceは素材を借用する。高解像度の動画・画像をここで縮小せず、
+			// 次のEffectが素材解像度を選べる既存の動作と余分なパスの省略を維持する。
+			if (!fixedBounds && settings.blendMode === 19 && settings.opacity === 1 && !settings.clipToFrame
+				&& matrix && matrix.every((value, index) => Math.abs(value - TIMELINE_IDENTITY[index]) < 1e-12)
+				&& Object.keys(sourceBounds).every(key => sourceBounds[key as keyof TimelineBounds] === outputBounds[key as keyof TimelineBounds])) return source;
+			const size = timelineTextureSize(outputBounds, resolution, device.limits.maxTextureDimension2D);
+			if (!texture || texture.width !== size.width || texture.height !== size.height) {
+				texture?.destroy();
+				texture = device.createTexture({ size, format: options.format, usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT });
+			}
+			const inverseRows = rows(inverse ?? TIMELINE_IDENTITY);
+			const clipRows = rows(clipInverse ?? TIMELINE_IDENTITY);
 			uniforms.set({
-				position: settings.position, originInOutputSpace, scale: settings.scale, rotation: settings.rotation,
-				opacity: settings.opacity, blendMode: settings.blendMode,
-				aspectRatio: resolution.width / resolution.height, sourceIsUniform: Number(source.kind === 'uniform'),
-			});
+				inverseX: inverseRows.x, inverseY: inverseRows.y, clipX: clipRows.x, clipY: clipRows.y,
+				sourceBounds: boundsUniform(sourceBounds), backgroundBounds: boundsUniform(backgroundBounds), outputBounds: boundsUniform(outputBounds),
+				opacity: settings.opacity, blendMode: settings.blendMode, sourceVisible: Number(foregroundBounds != null), clipToFrame: Number(settings.clipToFrame) });
 			device.queue.writeBuffer(buffer, 0, uniforms.arrayBuffer);
-			// fitは読み取り座標にだけ適用する。表示枠で先に切り取らず、元画像の細部を保持する。
 			const variant = pipelines.update({
-				background: toShaderInput(background, { fitMode: 'cover', wrapMode: 'clamp', filterMode: 'linear' }),
-				source: toShaderInput(source, { fitMode, wrapMode: 'transparent', filterMode: 'linear' }),
-			}, resolution);
+				background: toShaderInput(background, { fitMode: background.region ? 'stretch' : 'cover', wrapMode: 'transparent', filterMode: 'linear' }),
+				source: toShaderInput(source, { fitMode: 'stretch', wrapMode: 'transparent', filterMode: 'linear' }),
+			}, size);
 			const descriptor: GPURenderPassDescriptor = { colorAttachments: [{ view: texture.createView(), loadOp: 'clear', storeOp: 'store', clearValue: [0, 0, 0, 0] }] };
 			const pass = options.beginPass?.(encoder, descriptor) ?? encoder.beginRenderPass(descriptor);
 			pass.setPipeline(variant.pipeline);
@@ -66,12 +80,8 @@ export function createTimelineCompositor(options: {
 			pass.setBindGroup(pipelines.inputGroup, variant.bindGroup);
 			pass.draw(6);
 			pass.end();
-			return { kind: 'texture', texture };
+			return { kind: 'texture', texture, region: { bounds: outputBounds, frameSize: resolution } };
 		},
-		dispose() {
-			texture?.destroy();
-			buffer.destroy();
-			pipelines.dispose();
-		},
+		dispose() { texture?.destroy(); buffer.destroy(); pipelines.dispose(); },
 	};
 }

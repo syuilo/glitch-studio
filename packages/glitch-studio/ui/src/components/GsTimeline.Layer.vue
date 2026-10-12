@@ -163,7 +163,7 @@ const emit = defineEmits<{
 	(ev: 'subtitleTrimStart', event: PointerEvent, layerId: string, utteranceId: string, clipId: string): void;
 }>();
 
-const layerIcon = computed(() => ({ group: 'ti-folder', voicevox: 'ti-microphone', image: 'ti-photo', video: 'ti-video', audio: 'ti-music', scene: 'ti-memory', visualModule: 'ti-chart-dots-3', inlineVisualModule: 'ti-chart-dots-3', effect: 'ti-sparkles', shape: 'ti-shape', text: 'ti-typography' })[props.layer.layerType]);
+const layerIcon = computed(() => ({ group: 'ti-folder', camera: 'ti-camera', voicevox: 'ti-microphone', image: 'ti-photo', video: 'ti-video', audio: 'ti-music', scene: 'ti-memory', visualModule: 'ti-chart-dots-3', inlineVisualModule: 'ti-chart-dots-3', effect: 'ti-sparkles', shape: 'ti-shape', text: 'ti-typography' })[props.layer.layerType]);
 type Clip = TimelineClip | TimelineAssetClip | TimelineVideoClip | TimelineSceneClip;
 
 const pixelsPerMs = computed(() => props.tlElWidth / props.tlRangeX);

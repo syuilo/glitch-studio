@@ -1,3 +1,4 @@
+import { timelineCameraParamDefs } from '@gs/subsystems_timeline_shared/layers/camera/camera.ts';
 import { getTimelineScene } from '@gs/subsystems_timeline_shared/scenes.ts';
 import { timelineAudioParamDefs } from '@gs/subsystems_timeline_shared/timeline-audio.ts';
 import { timelineCompositingParamDefs } from '@gs/subsystems_timeline_shared/timeline-compositing.ts';
@@ -25,6 +26,7 @@ export function getScene(state: ProjectState, sceneId: string) {
 export function getLayerParameterTargets(layer: TimelineLayer): readonly TimelineParameterTarget[] {
 	switch (layer.layerType) {
 		case 'audio': return ['audio'];
+		case 'camera': return ['camera'];
 		case 'image': return ['compositing'];
 		case 'group':
 		case 'video':
@@ -42,16 +44,17 @@ export function getLayerParameterTargets(layer: TimelineLayer): readonly Timelin
 // 動的なtargetで取得する一覧は読み取り専用にし、音量や合成設定へのlayerInputの書き込みを防ぐ。
 export function getLayerParameterValues(layer: TimelineLayer, target: 'module'): Record<string, TimelineVisualModuleParameterBinding>;
 export function getLayerParameterValues(layer: TimelineLayer, target: 'effect'): Record<string, TimelineEffectParameterBinding>;
-export function getLayerParameterValues(layer: TimelineLayer, target: 'compositing' | 'audio' | 'shape' | 'text' | 'voicevoxSubtitle'): Record<string, TimelineParameterBinding>;
+export function getLayerParameterValues(layer: TimelineLayer, target: 'compositing' | 'audio' | 'camera' | 'shape' | 'text' | 'voicevoxSubtitle'): Record<string, TimelineParameterBinding>;
 export function getLayerParameterValues(layer: TimelineLayer, target: TimelineParameterTarget): Readonly<Record<string, TimelineEffectParameterBinding>>;
 export function getLayerParameterValues(layer: TimelineLayer, target: TimelineParameterTarget): Readonly<Record<string, TimelineEffectParameterBinding>> {
-	if (target === 'compositing' && layer.layerType !== 'audio') return layer.compositingParamValues;
+	if (target === 'compositing' && 'compositingParamValues' in layer) return layer.compositingParamValues;
 	if (target === 'audio' && (layer.layerType === 'group' || layer.layerType === 'voicevox' || layer.layerType === 'scene' || layer.layerType === 'video' || layer.layerType === 'audio')) return layer.audioParamValues;
 	if (target === 'module' && (layer.layerType === 'visualModule' || layer.layerType === 'inlineVisualModule')) return layer.visualModuleParamValues;
 	if (target === 'effect' && layer.layerType === 'effect') return layer.effectParamValues;
 	if (target === 'text' && layer.layerType === 'text') return layer.textParamValues;
 	if (target === 'voicevoxSubtitle' && layer.layerType === 'voicevox') return layer.subtitleParamValues;
 	if (target === 'shape' && layer.layerType === 'shape') return layer.shape.paramValues;
+	if (target === 'camera' && layer.layerType === 'camera') return layer.cameraParamValues;
 	throw new Error('Invalid layer parameter target');
 }
 
@@ -59,6 +62,7 @@ export function getLayerParameterValues(layer: TimelineLayer, target: TimelinePa
 export function getLayerParameterDefinitions(state: Pick<ProjectState, 'visualModules'>, layer: TimelineLayer, target: TimelineParameterTarget): Record<string, ParameterDefinition> {
 	if (!getLayerParameterTargets(layer).includes(target)) throw new Error('Invalid layer parameter target');
 	if (target === 'audio') return timelineAudioParamDefs;
+	if (target === 'camera') return timelineCameraParamDefs;
 	if (target === 'compositing') return timelineCompositingParamDefs;
 	if (target === 'effect' && layer.layerType === 'effect') return effectDefinitions[layer.effectId].paramDefs;
 	if (target === 'text' && layer.layerType === 'text') return textParamDefs;
@@ -92,7 +96,7 @@ export function getLayerParameterDefinition(state: Pick<ProjectState, 'visualMod
 }
 
 export function getLayerKeyframeParameters(state: Pick<ProjectState, 'visualModules'>, layer: TimelineLayer) {
-	const targetLabels: Record<TimelineParameterTarget, string> = { module: 'Module', effect: 'Effect', shape: 'Shape', text: 'Text', voicevoxSubtitle: 'Subtitle', compositing: 'Compositing', audio: 'Audio' };
+	const targetLabels: Record<TimelineParameterTarget, string> = { module: 'Module', effect: 'Effect', shape: 'Shape', text: 'Text', voicevoxSubtitle: 'Subtitle', compositing: 'Compositing', audio: 'Audio', camera: 'Camera' };
 	return getLayerParameterTargets(layer).flatMap(target => {
 		const defs = getLayerParameterDefinitions(state, layer, target);
 		const values = getLayerParameterValues(layer, target);

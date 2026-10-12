@@ -1,5 +1,6 @@
-import { flattenTimelineLayers, getTimelineClipLayers } from './layer-tree.ts';
 import { validateEffectResolution } from '@gs/subsystems_effect_shared/resolution.js';
+import { validateTimelineCamera } from './layers/camera/camera.ts';
+import { flattenTimelineLayers, getTimelineClipLayers } from './layer-tree.ts';
 import { getTimelineClipEnd, validateTimelineClips } from './timing.ts';
 import { validateSceneResolution } from './scene-resolution.ts';
 import { validateTimelineParameterBinding } from './parameter-binding.ts';
@@ -23,7 +24,10 @@ export function getTimelineScene(scenes: readonly TimelineScene[], sceneId: stri
 
 export function validateTimelineLayer(layer: TimelineLayer): void {
 	if (layer.layerType === 'group') {
-		for (const child of layer.layers) validateTimelineLayer(child);
+		for (const child of layer.layers) {
+			if (child.layerType === 'camera') throw new Error('Camera layers must be placed directly in a Scene');
+			validateTimelineLayer(child);
+		}
 	} else validateTimelineClips(layer.clips);
 	if (layer.layerType === 'video' || layer.layerType === 'audio') {
 		for (const clip of layer.clips) validateTimelineMediaClipTiming(clip);
@@ -32,6 +36,7 @@ export function validateTimelineLayer(layer: TimelineLayer): void {
 			if (!Number.isFinite(clip.contentOffsetMs) || clip.contentOffsetMs < 0 || !Number.isFinite(clip.contentOffsetMs + clip.durationMs)) throw new Error('Invalid content offset');
 		}
 	}
+	if (layer.layerType === 'camera') validateTimelineCamera({ paramValues: layer.cameraParamValues, automationGraphs: layer.automationGraphs });
 	if (layer.layerType === 'text') validateTimelineText(layer.textParamValues);
 	if (layer.layerType === 'voicevox') {
 		validateVoicevoxLayer(layer);

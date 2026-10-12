@@ -1,14 +1,14 @@
 import { validateTimelineShape } from '@gs/subsystems_timeline_shared/layers/shape/shape-layer.ts';
+import { createTimelineCompositor } from '../../timeline-compositor.ts';
+import { TimelineCompositingParameters } from '../../timeline-compositing-parameters.ts';
 import { ShapeParameters } from './shape-parameters.ts';
 import { createShapeRenderer } from './shape-renderer.ts';
-import { createTimelineCompositor } from '../../timeline-compositor.ts';
 import type { TimelineCompositingObserver } from '../../timeline-compositor.ts';
-import { TimelineCompositingParameters } from '../../timeline-compositing-parameters.ts';
 import type { TimelineShapeLayer } from '@gs/subsystems_timeline_shared/types.ts';
-import type { UniformOrTexture } from '@gs/shared/gpu/uniform-or-texture.ts';
+import type { TimelineImage } from '../../timeline-image.ts';
 import type { TimelineLayerRenderer } from '../../timeline-renderer.ts';
 
-export function createShapeTimelineLayer(layer: TimelineShapeLayer, options: Parameters<typeof createShapeRenderer>[0] & { onCompositing?: TimelineCompositingObserver }): TimelineLayerRenderer<UniformOrTexture> {
+export function createShapeTimelineLayer(layer: TimelineShapeLayer, options: Parameters<typeof createShapeRenderer>[0] & { onCompositing?: TimelineCompositingObserver }): TimelineLayerRenderer<TimelineImage> {
 	validateTimelineShape(layer.shape);
 	const renderer = createShapeRenderer(options);
 	const compositor = createTimelineCompositor(options);
@@ -24,7 +24,7 @@ export function createShapeTimelineLayer(layer: TimelineShapeLayer, options: Par
 			const encoder = options.device.createCommandEncoder();
 			try {
 				const texture = renderer.render(encoder, shape);
-				return { output: compositor.render(encoder, context.input, { kind: 'texture', texture }, settings), gpuTime: 0 };
+				return { output: compositor.render(encoder, context.input, texture, settings, context.renderSpace), gpuTime: 0 };
 			} finally {
 				// クリップごとの借用出力を、次の評価や破棄より前に読み終える順序を保証する。
 				options.device.queue.submit([encoder.finish()]);

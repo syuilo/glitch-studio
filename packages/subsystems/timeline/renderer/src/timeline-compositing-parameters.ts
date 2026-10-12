@@ -9,6 +9,9 @@ import type { FitMode } from '@gs/shared/types.ts';
 import type { TimelineParameterBinding } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
 
 export type TimelineCompositingSettings = {
+	placement: 'world' | 'screen';
+	depth: number;
+	clipToFrame: boolean;
 	blendMode: number;
 	opacity: number;
 	fitMode: FitMode;
@@ -43,6 +46,9 @@ export class TimelineCompositingParameters {
 		const mode = values.get('blendMode');
 		const fitMode = values.get('fitMode');
 		return {
+			placement: values.get('placement') === 'screen' ? 'screen' : 'world',
+			depth: number('depth', 0),
+			clipToFrame: values.get('clipToFrame') === true,
 			blendMode: isBlendMode(mode) ? colorBlendModes[mode] : 0,
 			opacity: Math.min(1, Math.max(0, number('opacity', 1))),
 			fitMode: fitMode === 'contain' || fitMode === 'cover' || fitMode === 'stretch' ? fitMode : timelineCompositingParamDefs.fitMode.defaultValue.value,

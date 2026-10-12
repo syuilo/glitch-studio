@@ -9,7 +9,7 @@ import { getTimelineVisualModuleArgumentDefault } from '@gs/subsystems_timeline_
 import { createTimelineAudioInputResolver } from '../../timeline-audio-input-resolver.ts';
 import type { TimelineAudioInputProvider } from '../../timeline-audio-input-resolver.ts';
 import type { VisualModuleCustomParameterId, VisualModule } from '@gs/subsystems_visual-module_shared/types.ts';
-import type { UniformOrTexture } from '@gs/shared/gpu/uniform-or-texture.ts';
+import type { TimelineImage } from '../../timeline-image.ts';
 import type { TimelineVisualModuleLayer, TimelineInlineVisualModuleLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import type { VisualModuleRenderContext } from '@gs/subsystems_visual-module_renderer/visual-module-renderer.ts';
 import type { TimelineLayerContext, TimelineLayerRenderer } from '../../timeline-renderer.ts';
@@ -21,19 +21,20 @@ export function createVisualModuleTimelineLayer(
 	layerSource: TimelineVisualModuleLayer | TimelineInlineVisualModuleLayer | (() => TimelineVisualModuleLayer | TimelineInlineVisualModuleLayer),
 	renderer: {
 		getAudioInput?: TimelineAudioInputProvider;
+		getImageInput?: (input: TimelineImage) => TimelineImage;
 		prepare: (context: VisualModuleRenderContext, signal: AbortSignal) => Promise<void>;
-		render: (context: VisualModuleRenderContext, layerContext: TimelineLayerContext<UniformOrTexture>) => ReturnType<TimelineLayerRenderer<UniformOrTexture>['evaluate']>;
+		render: (context: VisualModuleRenderContext, layerContext: TimelineLayerContext<TimelineImage>) => ReturnType<TimelineLayerRenderer<TimelineImage>['evaluate']>;
 		destroy: () => void;
 	},
-): TimelineLayerRenderer<UniformOrTexture> {
+): TimelineLayerRenderer<TimelineImage> {
 	const evaluator = new TimelineParameterBindingEvaluator();
 	return {
 		evaluate: async (context, signal) => {
 			if (signal.aborted) return { gpuTime: 0 };
 			const visualModule = typeof moduleSource === 'function' ? moduleSource() : moduleSource;
 			const layer = typeof layerSource === 'function' ? layerSource() : layerSource;
-			const paramInputs = new Map<VisualModuleCustomParameterId, UniformOrTexture>();
-			if (visualModule.primaryInputId !== null) paramInputs.set(visualModule.primaryInputId, context.input);
+			const paramInputs = new Map<VisualModuleCustomParameterId, TimelineImage>();
+			if (visualModule.primaryInputId !== null) paramInputs.set(visualModule.primaryInputId, renderer.getImageInput?.(context.input) ?? context.input);
 			const evaluationContext = createTimelineLayerEvaluationScope({ time: context.sceneTimeMs, isExport: context.isExport, automationGraphs: layer.automationGraphs });
 			const evaluatedParamValues = new Map<VisualModuleCustomParameterId, any>();
 			const audioParamInputs = new Map<VisualModuleCustomParameterId, AudioInput | null>();

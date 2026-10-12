@@ -10,7 +10,6 @@
 
 <script lang="ts" setup>
 import { flattenTimelineLayers } from '@gs/subsystems_timeline_shared/layer-tree.ts';
-import { duplicateTimelineLayers } from '@/utility/timeline-group.ts';
 import { computed, ref, watch, inject } from 'vue';
 import { genId } from '@gs/shared/utility/id.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
@@ -18,6 +17,7 @@ import GsButton from './common/GsButton.vue';
 import GsSceneResolutionDialog from './GsSceneResolutionDialog.vue';
 import type { WorkspacePanel } from '@/workspace.ts';
 import type { MenuItem } from '@/types/menu.ts';
+import { duplicateTimelineLayers } from '@/utility/timeline-group.ts';
 import { workspaceControllerKey } from '@/WorkspaceController.ts';
 import { appContext } from '@/app.ts';
 import GsTimeline from '@/components/GsTimeline.vue';

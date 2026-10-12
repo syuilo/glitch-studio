@@ -1,3 +1,4 @@
+import { checkTimelineCompositor } from './timeline-compositor-gpu.ts';
 import vertexCode from '@gs/shared/gpu/vertex.wgsl?raw';
 import { createShaderInputPipeline } from '@gs/shared/gpu/shader-input-pipeline.ts';
 import { textureShaderInput } from '@gs/shared/gpu/shader-input.ts';
@@ -83,7 +84,7 @@ export async function run() {
 	const copy = createShaderInputPipeline({ device, vertex, schema: { source: 'color' }, targets: [{ format: 'rgba8unorm' }],
 		code: '@fragment fn fs(@location(0) position: vec2f) -> @location(0) vec4f { return read_source(position); }' });
 	try {
-		const completed = await checkTimelineGroups(device, vertex, async output => {
+		const read = async (output: GPUTexture) => {
 			const encoder = device.createCommandEncoder();
 			const variant = copy.update({ source: textureShaderInput(output, { fitMode: 'stretch', wrapMode: 'clamp', filterMode: 'nearest' }) }, { width: 8, height: 4 });
 			const pass = encoder.beginRenderPass({ colorAttachments: [{ view: target.createView(), loadOp: 'clear', storeOp: 'store' }] });
@@ -98,7 +99,8 @@ export async function run() {
 			const pixels = Array.from({ length: 4 }, (_, y) => Array.from(bytes.slice(y * 256, y * 256 + 32))).flat();
 			buffer.unmap();
 			return pixels;
-		});
+		};
+		const completed = [...await checkTimelineGroups(device, vertex, read), ...await checkTimelineCompositor(device, vertex, read)];
 		const error = await device.popErrorScope();
 		if (error) throw new Error(error.message);
 		return completed;

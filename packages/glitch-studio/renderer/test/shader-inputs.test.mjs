@@ -143,9 +143,9 @@ test('composites native-resolution sources with the selected fit before replacin
 	const contained = compositor.render(encoder, background, source, settings);
 	assert.notEqual(contained, source);
 	assert.deepEqual([contained.texture.width, contained.texture.height], [100, 100]);
-	assert.deepEqual([...calls.writes.at(-1).slice(12, 14)], [1, Math.fround(3840 / 2160)]);
+	assert.deepEqual([calls.writes.at(-2)[0], calls.writes.at(-2)[5]], [1, Math.fround(3840 / 2160)]);
 	compositor.render(encoder, background, source, { ...settings, fitMode: 'cover', scale: [0.5, 0.5] });
-	assert.deepEqual([...calls.writes.at(-1).slice(12, 14)], [2160 / 3840, 1]);
+	assert.deepEqual([calls.writes.at(-2)[0], calls.writes.at(-2)[5]], [2 * 2160 / 3840, 2]);
 	assert.ok(calls.groups.some(group => group.entries.some(entry => entry.resource.texture === texture)));
 	assert.deepEqual(calls.textures.map(texture => [texture.width, texture.height]), [[3840, 2160], [100, 100]]);
 	compositor.dispose();
@@ -169,8 +169,11 @@ test('maps source-relative origins through fit while keeping positions in output
 		const writeIndex = calls.writes.length;
 		compositor.render(encoder, background, source, { ...settings, fitMode: fit });
 		const uniforms = calls.writes[writeIndex];
-		assert.deepEqual([...uniforms.slice(0, 2)], settings.position);
-		assert.deepEqual([...uniforms.slice(2, 4)], expectedOrigin);
+		// 逆行列へPositionを渡すと、fit前の素材支点に戻る。
+		const mapped = [uniforms[0] * settings.position[0] + uniforms[1] * settings.position[1] + uniforms[2], uniforms[4] * settings.position[0] + uniforms[5] * settings.position[1] + uniforms[6]];
+		assert.deepEqual(mapped, settings.origin);
+		assert.equal(1 / uniforms[0], Math.abs(expectedOrigin[0]));
+		assert.equal(1 / uniforms[5], Math.abs(expectedOrigin[1]));
 	}
 	compositor.dispose();
 });

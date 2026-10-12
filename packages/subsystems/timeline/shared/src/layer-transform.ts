@@ -1,4 +1,6 @@
 import { inputUvScale } from '@gs/shared/gpu/input-fit.ts';
+import { transformTimelinePoint, invertTimelineAffine } from './affine.ts';
+import type { TimelineAffine } from './affine.ts';
 import type { Resolution } from '@gs/shared/resolution.ts';
 import type { FitMode } from '@gs/shared/types.ts';
 
@@ -17,6 +19,8 @@ export type TimelineLayerGeometry = {
 	sourceSize: Resolution;
 	sceneSize: Resolution;
 	transform: TimelineLayerTransform;
+	/** 編集対象自身の値はtransformに残し、投影済みの親座標だけに使う。 */
+	matrix?: TimelineAffine;
 };
 
 export function getTimelineFittedExtent(sourceSize: Resolution, sceneSize: Resolution, fitMode: FitMode): TimelinePoint {
@@ -35,6 +39,7 @@ export function rotateTimelineVector(vector: TimelinePoint, rotation: number, sc
 
 /** timeline-compositor.wgslの逆写像に対応する順写像。透明な余白も素材枠に含める。 */
 export function timelineSourceToScene(point: TimelinePoint, geometry: TimelineLayerGeometry): TimelinePoint {
+	if (geometry.matrix) return transformTimelinePoint(geometry.matrix, point);
 	const { transform, sceneSize, sourceSize } = geometry;
 	const extent = getTimelineFittedExtent(sourceSize, sceneSize, transform.fitMode);
 	const rotated = rotateTimelineVector([
@@ -46,6 +51,10 @@ export function timelineSourceToScene(point: TimelinePoint, geometry: TimelineLa
 
 /** グループの変形を逆に辿り、親画面上のポインターを子が編集する座標へ戻す。 */
 export function timelineSceneToSource(point: TimelinePoint, geometry: TimelineLayerGeometry): TimelinePoint | null {
+	if (geometry.matrix) {
+		const inverse = invertTimelineAffine(geometry.matrix);
+		return inverse ? transformTimelinePoint(inverse, point) : null;
+	}
 	const { transform, sceneSize, sourceSize } = geometry;
 	if (transform.scale.some(value => value === 0)) return null;
 	const extent = getTimelineFittedExtent(sourceSize, sceneSize, transform.fitMode);

@@ -9,7 +9,7 @@ export async function checkTimelineCompositor(device: GPUDevice, vertex: GPUShad
 	const compositor = createTimelineCompositor({ device, vertex, resolution, format: 'rgba8unorm' });
 	const textures: GPUTexture[] = [];
 	const completed: string[] = [];
-	const defaults: TimelineCompositingSettings = { blendMode: 0, opacity: 1, fitMode: 'contain', position: [0, 0], origin: [0, 0], scale: [1, 1], rotation: 0 };
+	const defaults: TimelineCompositingSettings = { placement: 'world', depth: 0, clipToFrame: false, blendMode: 0, opacity: 1, fitMode: 'contain', position: [0, 0], origin: [0, 0], scale: [1, 1], rotation: 0 };
 	const uniform = (value: number[]): UniformOrTexture => ({ kind: 'uniform', value });
 	const blue = uniform([0, 0, 1, 1]);
 	const red = uniform([1, 0, 0, 1]);

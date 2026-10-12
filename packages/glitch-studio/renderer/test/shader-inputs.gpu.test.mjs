@@ -4,7 +4,7 @@ import { createServer } from 'node:http';
 import { spawn } from 'node:child_process';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve, dirname, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { bundleSource } from './helpers/load-shader-source.mjs';
 
@@ -27,7 +27,8 @@ try { const { run } = await import('/test.js'); await fetch('/result', { method:
 catch (error) { await fetch('/result', { method: 'POST', body: JSON.stringify({ error: error.stack }) }); }</script>`);
 		}
 	});
-	const profile = await mkdtemp(join(tmpdir(), 'glitch-shader-test-'));
+	const temporaryRoot = resolve(tmpdir());
+	const profile = await mkdtemp(join(temporaryRoot, 'glitch-shader-test-'));
 	let browser;
 	let timer;
 	try {
@@ -38,6 +39,7 @@ catch (error) { await fetch('/result', { method: 'POST', body: JSON.stringify({ 
 		const output = await result;
 		assert.equal(output.error, undefined, output.error);
 		assert.ok(output.passed.length >= minimumChecks);
+		return output.passed;
 	} finally {
 		clearTimeout(timer);
 		if (browser && browser.exitCode === null) {
@@ -47,6 +49,8 @@ catch (error) { await fetch('/result', { method: 'POST', body: JSON.stringify({ 
 		}
 		server.closeAllConnections();
 		await new Promise(resolve => server.close(resolve));
+		assert.equal(dirname(resolve(profile)), temporaryRoot);
+		assert.ok(basename(profile).startsWith('glitch-shader-test-'));
 		await rm(profile, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
 	}
 }
@@ -62,3 +66,13 @@ test('renders extracted effects, visual modules and timeline effects on WebGPU',
 // 【グループの入れ子・空白・透明出力をChromeのWebGPUで検証する】
 // Scene時刻と背景の分離、各段階のopacity、replace、無効化時の資源解放を実装経由で確認する。
 test('renders nested timeline groups on WebGPU', { skip: !process.env.CHROME_PATH, timeout: 60000 }, () => runGpuTest('./helpers/timeline-group-gpu.ts', 5));
+
+// 【カメラ投影とグループの2モードを実GPUで描画する】
+// 画面外のText・Shapeの回復、Z、画面配置、子Scene、合成後のopacityを画素比較する。
+test('renders timeline cameras and unbounded groups on WebGPU', { skip: !process.env.CHROME_PATH, timeout: 60000 }, () => runGpuTest('./helpers/timeline-camera-gpu.ts', 17));
+
+// 【描画方式の変更による定常時の処理時間を同じシーンで計測する】
+// GPU・ドライバーで変動するため任意実行の診断とし、時間の大小をテストの合否にしない。
+test('benchmarks timeline plane compositing', { skip: !process.env.CHROME_PATH || !process.env.GS_CAMERA_BENCHMARK, timeout: 60000 }, async t => {
+	for (const result of await runGpuTest('./helpers/timeline-camera-benchmark.ts', 2)) t.diagnostic(result);
+});

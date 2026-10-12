@@ -77,6 +77,24 @@ function fixture(t, layers = [mediaLayer()]) {
 
 function addLayerMenu(actions) { actions.showAddLayerMenu({ currentTarget: null, target: null }); }
 
+// 【追加メニューからカメラを作り、再生位置に有効クリップを配置する】
+// 型や評価器だけ追加してもUIから作れなければ編集できない。通常の追加Commandと選択への接続を確認する。
+test('adds camera layers at the playhead through the layer menu', t => {
+	const f = fixture(t, []);
+	const actions = f.create();
+	addLayerMenu(actions);
+	f.menu.find(item => item.text === 'Camera').action();
+	const camera = f.scene.layers[0];
+	assert.equal(camera.layerType, 'camera');
+	assert.equal(camera.clips[0].startMs, 1000);
+	assert.deepEqual(f.selection.value, { kind: 'layers', ids: [camera.id] });
+	assert.equal('compositingParamValues' in camera, false);
+	f.history.undo();
+	assert.equal(f.scene.layers.length, 0);
+	f.history.redo();
+	assert.equal(f.scene.layers[0].id, camera.id);
+});
+
 // 【素材選択を待つ間のクリップ追加を反映し、追加したクリップを一回のUndoで戻す】
 // 操作時点の空きを使い続けると後から追加されたクリップと重なるため、commit直前に長さを再計算する。
 test('rechecks available space after selection and adds a clip with one undo entry', async t => {

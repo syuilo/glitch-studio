@@ -1,42 +1,42 @@
 struct Uniforms {
-	position: vec2f,
-	originInOutputSpace: vec2f,
-	scale: vec2f,
-	rotation: f32,
+	inverseX: vec4f,
+	inverseY: vec4f,
+	clipX: vec4f,
+	clipY: vec4f,
+	sourceBounds: vec4f,
+	backgroundBounds: vec4f,
+	outputBounds: vec4f,
 	opacity: f32,
-	aspectRatio: f32,
 	blendMode: u32,
-	sourceIsUniform: u32,
+	sourceVisible: u32,
+	clipToFrame: u32,
 };
 @group(0) @binding(0) var<uniform> uniforms: Uniforms;
-
+fn mapBounds(point: vec2f, bounds: vec4f) -> vec2f {
+	return (point - bounds.xy) / bounds.zw;
+}
 fn readTransformedSource(position: vec2f) -> vec4f {
-	if (any(abs(uniforms.scale) < vec2f(0.000001))) { return vec4f(0.0); }
-	// Positionは素材内のOriginの配置先（位置の1は半画面、角度の1は時計回り180度）。
-	// 配置→回転→拡縮の順に逆変換し、最後にfit後のOriginへ戻して入力を読む。
-	// 回転時の距離だけアスペクト比で揃え、長方形の画面でも歪ませない。
-	let extent = vec2f(uniforms.aspectRatio, 1.0);
-	let translated = (position - uniforms.position) * extent;
-	let angle = -uniforms.rotation * 3.141592653589793;
-	let c = cos(angle);
-	let s = sin(angle);
-	let rotated = vec2f(c * translated.x + s * translated.y, -s * translated.x + c * translated.y);
-	let sourcePosition = rotated / (uniforms.scale * extent) + uniforms.originInOutputSpace;
-	// 定数には元画像の境界がないので出力枠を与える。テクスチャはfit後の元画像の境界で
-	// transparent wrapを適用する。ここで出力枠に切るとcoverの画面外部分を移動して見せられない。
-	if (uniforms.sourceIsUniform != 0u && any(abs(sourcePosition) > vec2f(1.0))) { return vec4f(0.0); }
+	if (uniforms.sourceVisible == 0u) { return vec4f(0.0); }
+	let homogeneous = vec3f(position, 1.0);
+	if (uniforms.clipToFrame != 0u) {
+		let clipPosition = vec2f(dot(uniforms.clipX.xyz, homogeneous), dot(uniforms.clipY.xyz, homogeneous));
+		if (any(abs(clipPosition) > vec2f(1.0))) { return vec4f(0.0); }
+	}
+	let local = vec2f(dot(uniforms.inverseX.xyz, homogeneous), dot(uniforms.inverseY.xyz, homogeneous));
+	let sourcePosition = mapBounds(local, uniforms.sourceBounds);
+	if (any(abs(sourcePosition) > vec2f(1.0))) { return vec4f(0.0); }
 	return read_source(sourcePosition);
 }
-
 @fragment
 fn fs(@location(0) position: vec2f) -> @location(0) vec4f {
-	let background = read_background(position);
-	let source = readTransformedSource(position);
-	// Replaceは透明部分も含めたRGBAの置き換え。opacity=0なら背景を維持する。
+	let outputPosition = uniforms.outputBounds.xy + position * uniforms.outputBounds.zw;
+	let backgroundPosition = mapBounds(outputPosition, uniforms.backgroundBounds);
+	// 定数出力にも有限の範囲がある。グループの合成範囲を広げたときに、
+	// 下層の一様色が新しくできた余白まで無限に塗り広がらないようにする。
+	var background = vec4f(0.0);
+	if (all(abs(backgroundPosition) <= vec2f(1.0))) { background = read_background(backgroundPosition); }
+	let source = readTransformedSource(outputPosition);
+	// Replaceは透明な画素も置き換える。範囲の最適化で背景を残してはいけない。
 	if (uniforms.blendMode == 19u) { return mix(background, source, uniforms.opacity); }
-	if (uniforms.blendMode == 10u) { return background; }
-
-	// 既にpremultiply済み。opacityはRGBとalphaの両方に一度だけ掛ける。
-	let foreground = source * uniforms.opacity;
-	return blendColor(uniforms.blendMode, background, foreground);
+	return blendColor(uniforms.blendMode, background, source * uniforms.opacity);
 }

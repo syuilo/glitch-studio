@@ -12,9 +12,10 @@ import { resolveEffectNodeResolution } from '@gs/subsystems_effect_shared/effect
 import { mapParameterTree } from '@gs/shared/parameter/parameter-tree.ts';
 import { isTimelineAudioInputBinding } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
 import { createTimelineAudioInputResolver } from '../../timeline-audio-input-resolver.ts';
+import { createSceneOutput } from '../../scene-output.ts';
 import { createTimelineCompositor } from '../../timeline-compositor.ts';
-import type { TimelineCompositingObserver } from '../../timeline-compositor.ts';
 import { TimelineCompositingParameters } from '../../timeline-compositing-parameters.ts';
+import type { TimelineCompositingObserver } from '../../timeline-compositor.ts';
 import type { EffectDefinition } from '@gs/subsystems_effect_shared/effect-definition.ts';
 import type { EffectImplementation, EffectGpuContext } from '@gs/subsystems_effect_shared/effect-implementation.ts';
 import type { EffectInstanceState } from '@gs/subsystems_effect_shared/effect-status.ts';
@@ -23,7 +24,7 @@ import type { TimelineEffectParameterBinding } from '@gs/subsystems_timeline_sha
 import type { Resolution } from '@gs/shared/resolution.ts';
 import type { Asset } from '@gs/shared/types.ts';
 import type { TimelineLayerRenderer } from '../../timeline-renderer.ts';
-import type { UniformOrTexture } from '@gs/shared/gpu/uniform-or-texture.ts';
+import type { TimelineImage } from '../../timeline-image.ts';
 import type { TimelineAudioInputProvider } from '../../timeline-audio-input-resolver.ts';
 
 /** レイヤーの評価スコープ・入力・合成を所有し、エフェクト自身の実行はEffectRendererへ委ねる。 */
@@ -38,7 +39,7 @@ export function createEffectTimelineLayer(layer: TimelineEffectLayer, definition
 	getAudioInput?: TimelineAudioInputProvider;
 	onState?: (state: EffectInstanceState | null) => void;
 	onCompositing?: TimelineCompositingObserver;
-}): TimelineLayerRenderer<UniformOrTexture> {
+}): TimelineLayerRenderer<TimelineImage> {
 	// 設定更新時はManagerがインスタンスを作り直す。Bindingの検証と既定値の補完は
 	// 受け入れ時に行い、毎フレーム、未評価のキーフレーム列まで複製・再検証しない。
 	validateTimelineEffectLayer(layer, definition);
@@ -46,10 +47,13 @@ export function createEffectTimelineLayer(layer: TimelineEffectLayer, definition
 	// 出力のないエフェクトは透明画像としてreplaceせず、合成自体をスキップする。
 	if (port == null) return { evaluate: async () => ({ gpuTime: 0 }), destroy() {} };
 	const { device } = options.wgpu;
-	const renderer = new EffectRenderer({ definition, implementation, wgpu: options.wgpu,
-																																							fallbackTexture: options.fallbackTexture, onState: options.onState });
-	const compositor = createTimelineCompositor({ device, vertex: options.wgpu.defaultVertexShaderModule, onCompositing: options.onCompositing,
-																																															resolution: options.resolution, format: options.wgpu.intermediateTextureFormat });
+	const renderer = new EffectRenderer({
+		definition, implementation, wgpu: options.wgpu,
+		fallbackTexture: options.fallbackTexture, onState: options.onState });
+	const compositor = createTimelineCompositor({
+		device, vertex: options.wgpu.defaultVertexShaderModule, onCompositing: options.onCompositing,
+		resolution: options.resolution, format: options.wgpu.intermediateTextureFormat });
+	const inputFrame = createSceneOutput({ device, vertex: options.wgpu.defaultVertexShaderModule, resolution: options.resolution, format: options.wgpu.intermediateTextureFormat });
 	const evaluator = new TimelineParameterBindingEvaluator();
 	const compositing = new TimelineCompositingParameters();
 	const usedOutputPorts = new Set([port]);
@@ -62,9 +66,19 @@ export function createEffectTimelineLayer(layer: TimelineEffectLayer, definition
 			if (disposed || signal.aborted) return { gpuTime: 0 };
 			const scope = createTimelineLayerEvaluationScope({ time: context.sceneTimeMs, isExport: context.isExport, automationGraphs: layer.automationGraphs });
 			const resolveAudioInput = createTimelineAudioInputResolver(options.getAudioInput, context.sceneTimeMs, context.isExport);
+			// Effectの入力は有限のSceneフレーム。中間画像の可変範囲をノードへ漏らさない。
+			let input: TimelineImage | undefined;
+			const getInput = () => {
+				if (!input) {
+					const encoder = device.createCommandEncoder();
+					input = inputFrame.renderInput(encoder, context.input);
+					device.queue.submit([encoder.finish()]);
+				}
+				return input;
+			};
 			const params = Object.fromEntries(parameters.map(({ key, def, binding }) => {
 				return [key, mapParameterTree<TimelineEffectParameterBinding>(def, binding, [key], (leaf, value) => {
-					if (value.inputSource === 'layerInput') return toShaderInput(context.input, value);
+					if (value.inputSource === 'layerInput') return toShaderInput(getInput(), value);
 					if (isTimelineAudioInputBinding(value)) return resolveAudioInput(value);
 					const fallback = value.inputSource === 'automationGraphReference' || (leaf.dataType.kind === 'enum' && value.inputSource === 'keyframesTimelineInline')
 						? leaf.defaultValue.value : leaf.dataType.kind === 'enum' ? undefined : genEmptyValue(leaf);
@@ -92,14 +106,16 @@ export function createEffectTimelineLayer(layer: TimelineEffectLayer, definition
 			const encoder = device.createCommandEncoder();
 			try {
 				// キー・式はScene時刻だが、エフェクト固有のアニメーションには内容時刻（秒）を渡す。
-				renderer.render({ params, time: context.contentTimeMs / 1000, timeDelta: context.timeDelta,
-																						pointerPosition: { x: -99999, y: -99999 }, pointerVector: { x: 0, y: 0 },
-																						usedOutputPorts, commandEncoder: encoder });
+				renderer.render({
+					params, time: context.contentTimeMs / 1000, timeDelta: context.timeDelta,
+					pointerPosition: { x: -99999, y: -99999 }, pointerVector: { x: 0, y: 0 },
+					usedOutputPorts, commandEncoder: encoder });
 				const texture = renderer.getOutputTexture(port);
 				if (texture == null) return { gpuTime: 0 };
-				const settings = compositing.evaluate({ time: context.sceneTimeMs, isExport: context.isExport,
-																																												paramValues: layer.compositingParamValues, automationGraphs: layer.automationGraphs });
-				return { output: compositor.render(encoder, context.input, { kind: 'texture', texture }, settings), gpuTime: 0 };
+				const settings = compositing.evaluate({
+					time: context.sceneTimeMs, isExport: context.isExport,
+					paramValues: layer.compositingParamValues, automationGraphs: layer.automationGraphs });
+				return { output: compositor.render(encoder, context.input, { kind: 'texture', texture }, settings, context.renderSpace), gpuTime: 0 };
 			} finally {
 				// 次のフレームによる出力の再利用・破棄より先に、その出力を読む合成もsubmitする。
 				device.queue.submit([encoder.finish()]);
@@ -108,6 +124,7 @@ export function createEffectTimelineLayer(layer: TimelineEffectLayer, definition
 		destroy() {
 			disposed = true;
 			renderer.dispose();
+			inputFrame.dispose();
 			compositor.dispose();
 		},
 	};

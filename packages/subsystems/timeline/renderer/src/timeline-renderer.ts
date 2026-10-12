@@ -1,6 +1,7 @@
 import { getTimelineClipContentTime, isTimelineClipActive } from '@gs/subsystems_timeline_shared/timing.ts';
-import type { TimelineClip } from '@gs/subsystems_timeline_shared/clip.ts';
 import { getTimelineMediaSourceTime } from '@gs/subsystems_timeline_shared/media-timing.ts';
+import type { TimelineClip } from '@gs/subsystems_timeline_shared/clip.ts';
+import type { TimelineRenderSpace } from '@gs/subsystems_timeline_shared/spatial.ts';
 
 // 制御に必要なID・期間・有効状態だけを要求し、レイヤー固有のデータは生成関数にそのまま渡す。
 // clipsの省略は同じ時計を使うコンテナ。空配列はクリップのない通常レイヤーを表す。
@@ -10,6 +11,7 @@ export type TimelineRenderEntry = { id: string; clips?: readonly TimelineClip[];
 export type TimelineFrameReferenceTime = { timeMs: number; timeDelta: number };
 
 export type TimelineLayerContext<Output> = {
+	renderSpace?: TimelineRenderSpace;
 	isExport: boolean;
 	/** レイヤー設定・キーは所属Scene上、素材・モジュールは内容時刻で評価する。 */
 	sceneTimeMs: number;
@@ -31,6 +33,7 @@ export type TimelineLayerRenderer<Output> = {
 };
 
 type TimelineRendererOptions<Output, Entry extends TimelineRenderEntry> = {
+	getRenderSpace?: (time: number, isExport: boolean, referenceTime?: TimelineFrameReferenceTime) => TimelineRenderSpace;
 	fallbackOutput: Output;
 	createLayer: (entry: Entry, clipId: string | null) => TimelineLayerRenderer<Output>;
 	/** 定義の変更によって再生成が必要なときだけ変わる値。配置先の解釈は呼び出し側が行う。 */
@@ -77,7 +80,7 @@ export class TimelineRenderer<Output, Entry extends TimelineRenderEntry = Timeli
 	}
 
 	/** 子Sceneも同じ評価を使い、Canvasへの表示は最上位だけで行う。 */
-	public async evaluateAt(time: number, timeline: readonly Entry[], timeDelta = 0, isExport = false, parentSignal?: AbortSignal, referenceTime?: TimelineFrameReferenceTime): Promise<{ output: Output; gpuTime: number; hasOutput: boolean } | undefined> {
+	public async evaluateAt(time: number, timeline: readonly Entry[], timeDelta = 0, isExport = false, parentSignal?: AbortSignal, referenceTime?: TimelineFrameReferenceTime, renderSpace?: TimelineRenderSpace): Promise<{ output: Output; gpuTime: number; hasOutput: boolean } | undefined> {
 		this.controller?.abort();
 		const controller = new AbortController();
 		this.controller = controller;
@@ -102,7 +105,7 @@ export class TimelineRenderer<Output, Entry extends TimelineRenderEntry = Timeli
 			// 必要な下層も含む評価対象をここで決め、表示判定とは独立して寿命を管理する。
 			const evaluationEntries = visibleEntries;
 			this.releaseUnusedLayers(new Set(evaluationEntries.map(entry => entry.instanceKey)));
-			const result = await this.evaluateLayers(evaluationEntries, timeDelta, isExport, controller.signal, referenceTime);
+			const result = await this.evaluateLayers(evaluationEntries, timeDelta, isExport, controller.signal, referenceTime, renderSpace ?? this.options.getRenderSpace?.(time, isExport, referenceTime));
 			if (result == null || isCancelled()) return;
 			// レイヤーがない場合も透明な出力を表示し、前回の表示を残さない。
 			return result;
@@ -124,7 +127,7 @@ export class TimelineRenderer<Output, Entry extends TimelineRenderEntry = Timeli
 	}
 
 	/** 表示範囲の判定やpresentは行わず、指定された対象を内容時刻で評価・合成する。 */
-	private async evaluateLayers(entries: readonly { entry: Entry; clip: TimelineClip | null; instanceKey: string; time: number }[], timeDelta: number, isExport: boolean, signal: AbortSignal, referenceTime?: TimelineFrameReferenceTime) {
+	private async evaluateLayers(entries: readonly { entry: Entry; clip: TimelineClip | null; instanceKey: string; time: number }[], timeDelta: number, isExport: boolean, signal: AbortSignal, referenceTime?: TimelineFrameReferenceTime, renderSpace?: TimelineRenderSpace) {
 		let output = this.options.fallbackOutput;
 		let gpuTime = 0;
 		let hasOutput = false;
@@ -157,6 +160,7 @@ export class TimelineRenderer<Output, Entry extends TimelineRenderEntry = Timeli
 				}
 			}
 			const context: TimelineLayerContext<Output> = {
+				renderSpace,
 				isExport,
 				sceneTimeMs: time,
 				contentTimeMs,

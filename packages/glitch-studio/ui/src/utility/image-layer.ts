@@ -12,6 +12,9 @@ export function createImageLayer(assetId: string, startMs: number, name = 'Image
 		clips: [{ id: genId(), assetId, ...createTimelineClipTiming(startMs, 5000) }],
 		automationGraphs: [],
 		compositingParamValues: deepClone({
+			placement: timelineCompositingParamDefs.placement.defaultValue,
+			depth: timelineCompositingParamDefs.depth.defaultValue,
+			clipToFrame: timelineCompositingParamDefs.clipToFrame.defaultValue,
 			fitMode: timelineCompositingParamDefs.fitMode.defaultValue,
 			blendMode: timelineCompositingParamDefs.blendMode.defaultValue,
 			opacity: timelineCompositingParamDefs.opacity.defaultValue,

@@ -15,6 +15,9 @@ export function createInlineVisualModuleLayer(startMs: number): TimelineInlineVi
 		visualModuleParamValues: {}, automationGraphs: [],
 		forceDisableMotionBlur: false,
 		compositingParamValues: deepClone({
+			placement: timelineCompositingParamDefs.placement.defaultValue,
+			depth: timelineCompositingParamDefs.depth.defaultValue,
+			clipToFrame: timelineCompositingParamDefs.clipToFrame.defaultValue,
 			fitMode: timelineCompositingParamDefs.fitMode.defaultValue,
 			blendMode: timelineCompositingParamDefs.blendMode.defaultValue,
 			opacity: timelineCompositingParamDefs.opacity.defaultValue,

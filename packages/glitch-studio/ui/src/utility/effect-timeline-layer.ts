@@ -15,6 +15,9 @@ export function createEffectTimelineLayer(definition: EffectDefinition, startMs:
 		effectParamValues: Object.fromEntries(Object.keys(definition.paramDefs).map(key => [key, getEffectLayerParameterDefault(definition, key)])),
 		forceDisableMotionBlur: false,
 		compositingParamValues: {
+			placement: { inputSource: 'literal', value: definition.kind === 'modify' ? 'screen' : 'world' },
+			depth: { inputSource: 'literal', value: 0 },
+			clipToFrame: { inputSource: 'literal', value: false },
 			fitMode: deepClone(timelineCompositingParamDefs.fitMode.defaultValue),
 			blendMode: { inputSource: 'literal', value: definition.kind === 'modify' ? 'replace' : 'normal' },
 			opacity: deepClone(timelineCompositingParamDefs.opacity.defaultValue),

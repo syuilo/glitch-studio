@@ -1,4 +1,5 @@
 import type { timelineCompositingParamDefs } from './timeline-compositing.ts';
+import type { TimelineCameraParameterValues } from './layers/camera/camera.ts';
 import type { TimelineClip, TimelineContentClip, TimelineMediaClip, TimelineAssetClip, TimelineVideoClip, TimelineSceneClip } from './clip.ts';
 import type { TimelineSceneResolution } from './scene-resolution.ts';
 import type { EffectResolution } from '@gs/subsystems_effect_shared/resolution.js';
@@ -11,7 +12,7 @@ import type { TextParameterValues } from './layers/text/text.ts';
 import type { Shape } from './layers/shape/shape.ts';
 import type { VoicevoxSettings, VoicevoxUtterance } from './layers/voicevox/voicevox.ts';
 
-export type TimelineParameterTarget = 'module' | 'effect' | 'shape' | 'text' | 'voicevoxSubtitle' | 'compositing' | 'audio';
+export type TimelineParameterTarget = 'module' | 'effect' | 'shape' | 'text' | 'voicevoxSubtitle' | 'camera' | 'compositing' | 'audio';
 
 // definitionはレイヤー全体の追加・削除・置換。部分編集では変更した内容を列挙し、
 // 実行インスタンスの扱いは利用側へ委ねる。
@@ -76,6 +77,13 @@ export type TimelineAudioLayer = TimelineLayerBase<TimelineMediaClip> & Timeline
 	layerType: 'audio';
 };
 
+/** Scene直下で視点を制御する。画素の合成設定は持たず、キーはScene時刻で評価する。 */
+export type TimelineCameraLayer = TimelineLayerBase<TimelineContentClip> & {
+	layerType: 'camera';
+	cameraParamValues: TimelineCameraParameterValues;
+	forceDisableMotionBlur: boolean;
+};
+
 /** 発話はScene時刻に固定し、クリップは発話と字幕の有効区間だけを所有する。 */
 export type TimelineVoicevoxLayer = TimelineLayerBase<TimelineContentClip> & TimelineAudioLayerBase & TimelineVisualLayerBase & {
 	layerType: 'voicevox';
@@ -102,11 +110,20 @@ export type TimelineSceneLayer = TimelineLayerBase<TimelineSceneClip> & Timeline
 /** 子は同じSceneの時刻・画面を使う。グループ自身は配置クリップを持たない。 */
 export type TimelineGroupLayer = TimelineLayerCommon & TimelineAudioLayerBase & TimelineVisualLayerBase & {
 	layerType: 'group';
+	/** 未指定は平面化。空間の奥行きを保つ場合だけ明示する。 */
+	compositingMode?: 'flat' | 'preserveDepth';
 	layers: TimelineLayer[];
 };
 
-export type TimelineClipLayer = TimelineVisualModuleLayer | TimelineInlineVisualModuleLayer | TimelineEffectLayer | TimelineShapeLayer | TimelineTextLayer | TimelineAudioLayer | TimelineImageLayer | TimelineVideoLayer | TimelineSceneLayer | TimelineVoicevoxLayer;
+export type TimelineClipLayer = TimelineVisualModuleLayer | TimelineInlineVisualModuleLayer | TimelineEffectLayer | TimelineShapeLayer | TimelineTextLayer | TimelineAudioLayer | TimelineImageLayer | TimelineVideoLayer | TimelineSceneLayer | TimelineVoicevoxLayer | TimelineCameraLayer;
 export type TimelineLayer = TimelineClipLayer | TimelineGroupLayer;
+
+export type TimelineVisualLayer = Exclude<TimelineLayer, TimelineAudioLayer | TimelineCameraLayer>;
+
+/** 映像合成・プレビュー変形の対象。カメラはSceneの視点を制御する別の役割を持つ。 */
+export function isTimelineVisualLayer(layer: TimelineLayer): layer is TimelineVisualLayer {
+	return layer.layerType !== 'audio' && layer.layerType !== 'camera';
+}
 
 /** 長さはグループ内部も含む全配置クリップの終端から求める。参照先Sceneの内部は含めない。 */
 export type TimelineScene = {

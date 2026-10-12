@@ -303,6 +303,8 @@ function onLayerDragOver(event: DragEvent, layer: TimelineLayer) {
 	const fraction = (event.clientY - bounds.top) / bounds.height;
 	const location = findTimelineLayerLocation(rootLayers.value, layer.id)!;
 	const position = layer.layerType === 'group' && fraction >= 0.25 && fraction <= 0.75 ? 'inside' : fraction < 0.5 ? 'before' : 'after';
+	// カメラの座標系はScene全体に固定し、グループ内部へ入るドロップは提示しない。
+	if (source.layerType === 'camera' && (position === 'inside' || location.ancestors.length > 0)) { dropTarget.value = null; return; }
 	dropTarget.value = {
 		layerId: layer.id, position,
 		parentId: position === 'inside' ? layer.id : location.ancestors.at(-1)?.id ?? null,
@@ -397,7 +399,7 @@ const canGroupSelection = computed(() => {
 	if (selection.value.kind !== 'layers' || !selection.value.ids.length) return false;
 	const locations = selection.value.ids.map(id => findTimelineLayerLocation(rootLayers.value, id));
 	const first = locations[0];
-	if (!first || locations.some(location => !location || location.siblings !== first.siblings)) return false;
+	if (!first || locations.some(location => !location || location.layer.layerType === 'camera' || location.siblings !== first.siblings)) return false;
 	const indexes = locations.map(location => location!.index).sort((a, b) => a - b);
 	return indexes.every((index, offset) => index === indexes[0] + offset);
 });

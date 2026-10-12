@@ -18,6 +18,7 @@ import type { TimelineClipSelection } from './timeline-selection.ts';
 import type { TimelineClipMediaInfo, TimelineClipSourceDurations } from './timeline-clip-media.ts';
 import { createEffectTimelineLayer } from './effect-timeline-layer.ts';
 import { createShapeTimelineLayer } from './shape-timeline-layer.ts';
+import { createCameraTimelineLayer } from './camera-timeline-layer.ts';
 import { createVoicevoxTimelineLayer } from './voicevox-timeline-layer.ts';
 import { createTextTimelineLayer } from './text-timeline-layer.ts';
 import { createInlineVisualModuleLayer } from './inline-visual-module-layer.ts';
@@ -195,6 +196,14 @@ export function createTimelineSourceActions(options: TimelineSourceActionsOption
 	function showAddLayerMenu(ev: PointerEvent) {
 		ui.popupMenu([{
 			text: 'Group', icon: 'ti ti-folder-plus', action: addEmptyGroup,
+		}, {
+			text: 'Camera', icon: 'ti ti-camera',
+			action: () => {
+				const layer = createCameraTimelineLayer(Math.max(0, time.value));
+				stateManager.commit('addTimelineLayer', { sceneId: scene.id, layer });
+				selectLayer(layer);
+				seek(layer.clips[0].startMs);
+			},
 		}, {
 			text: 'Effect',
 			icon: 'ti ti-sparkles',

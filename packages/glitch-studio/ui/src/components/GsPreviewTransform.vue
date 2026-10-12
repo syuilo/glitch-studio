@@ -35,6 +35,7 @@
 import { computed, onBeforeUnmount, ref, shallowRef, useTemplateRef, watch } from 'vue';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { deepEqual } from '@gs/shared/utility/deep-equal.ts';
+import { isTimelineVisualLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import { isTimelineClipActive } from '@gs/subsystems_timeline_shared/timing.ts';
 import { getTimelineLayerCorners, timelineSourceToScene, timelineSceneToSource } from '@gs/subsystems_timeline_shared/layer-transform.ts';
 import type { TimelineLayerGeometry, TimelineLayerTransform, TimelinePoint } from '@gs/subsystems_timeline_shared/layer-transform.ts';
@@ -62,7 +63,7 @@ const transformObserver = {};
 const target = computed(() => {
 	const layer = selectedTimelineLayer.value;
 	if (!preferences.r.showTransformInPreview.value || !timelineRendererManagerController.isReady.value || previewPlayback.state.value.mode !== 'timeline' || previewPlayback.isTimelinePlaying.value
-		|| !layer || layer.layerType === 'audio' || layer.isDisabled || activeSceneId.value == null) return null;
+		|| !layer || !isTimelineVisualLayer(layer) || layer.isDisabled || activeSceneId.value == null) return null;
 	if (layer.layerType === 'group') return { sceneId: activeSceneId.value, layerId: layer.id, clipId: null };
 	const clip = layer.clips.find(clip => isTimelineClipActive(clip, previewPlayback.currentTimelineTime.value));
 	return clip ? { sceneId: activeSceneId.value, layerId: layer.id, clipId: clip.id } : null;
@@ -84,7 +85,7 @@ const renderedGeometry = computed(() => {
 const geometry = computed(() => draft.value ?? renderedGeometry.value);
 const editable = computed(() => {
 	const layer = selectedTimelineLayer.value;
-	const bindings: TimelineTransformBindings = layer && layer.layerType !== 'audio' ? layer.compositingParamValues : {};
+	const bindings: TimelineTransformBindings = layer && isTimelineVisualLayer(layer) ? layer.compositingParamValues : {};
 	return Object.fromEntries((['position', 'scale', 'rotation'] as const).map(key => [key, canEditTimelineTransform(bindings[key], key)])) as Record<TimelineTransformKey, boolean>;
 });
 const zeroScale = computed(() => geometry.value?.transform.scale.some(value => Math.abs(value) < 0.000001) ?? false);
@@ -118,7 +119,7 @@ function startDrag(event: PointerEvent, handle: 'move' | 'rotate' | TimelinePoin
 	event.stopPropagation();
 	const address = { ...target.value };
 	const layer = selectedTimelineLayer.value!;
-	if (layer.layerType === 'audio') return;
+	if (!isTimelineVisualLayer(layer)) return;
 	const view = (event.currentTarget as Element).ownerDocument.defaultView!;
 	const rect = { ...props.canvasRect };
 	const overlayRect = overlay.value!.getBoundingClientRect();
@@ -248,7 +249,7 @@ function resetScale() {
 	const current = target.value;
 	const layer = selectedTimelineLayer.value;
 	const initial = geometry.value;
-	if (!current || !layer || layer.layerType === 'audio' || !initial) return;
+	if (!current || !layer || !isTimelineVisualLayer(layer) || !initial) return;
 	const time = layer.compositingParamValues.scale?.inputSource === 'keyframesTimelineInline'
 		? Math.round(previewPlayback.currentTimelineTime.value) : previewPlayback.currentTimelineTime.value;
 	previewPlayback.seekTimeline(time);

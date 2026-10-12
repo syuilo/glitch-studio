@@ -1,17 +1,19 @@
 import { createShaderInputPipeline } from '@gs/shared/gpu/shader-input-pipeline.ts';
 import { constantShaderInput } from '@gs/shared/gpu/shader-input.ts';
+import { timelineTextureSize } from '../timeline-image.ts';
 import { createTextFontLoader } from './text-font-loader.ts';
 import { layoutText } from './text-layout.ts';
-import { createTextShadowMaskRenderer } from './text-shadow.ts';
+import { measureTextInkBounds } from './text-bounds.ts';
+import { getTextShadowMetrics, createTextShadowMaskRenderer } from './text-shadow.ts';
 import code from './text-renderer.wgsl?raw';
+import type { TimelineImage } from '../timeline-image.ts';
 import type { TextRenderValues } from './text-render-values.ts';
 import type { Resolution } from '@gs/shared/resolution.ts';
 import type { IntermediateTextureFormat } from '@gs/shared/types.ts';
 
 /** 呼び出し元のレイヤーを知らず、評価済みの文字・装飾を指定解像度のpremultiplied RGBAへ描く。 */
 export function createTextRenderer(options: { device: GPUDevice; vertex: GPUShaderModule; resolution: Resolution; format: IntermediateTextureFormat }) {
-	const output = options.device.createTexture({ size: options.resolution, format: options.format,
-		usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT });
+	let output: GPUTexture | undefined;
 	const canvas = new OffscreenCanvas(1, 1);
 	const context = canvas.getContext('2d');
 	if (context == null) throw new Error('Could not create a text canvas.');
@@ -34,7 +36,7 @@ export function createTextRenderer(options: { device: GPUDevice; vertex: GPUShad
 	let maskKey: string | null = null;
 	let shadowRenderer: ReturnType<typeof createTextShadowMaskRenderer> | null = null;
 
-	function updateMask(values: TextRenderValues, width: number, height: number) {
+	function updateMask(values: TextRenderValues, width: number, height: number, plan: ReturnType<typeof planSurface>) {
 		const text = values.text;
 		// 色のアニメーションでは、Canvas描画と転送を繰り返さない。
 		const key = JSON.stringify([
@@ -67,30 +69,13 @@ export function createTextRenderer(options: { device: GPUDevice; vertex: GPUShad
 			] });
 		}
 		context!.clearRect(0, 0, width, height);
-		const x = (values.position[0] + 1) * width / 2;
-		const y = (1 - values.position[1]) * height / 2;
-		let layout: ReturnType<typeof layoutText> = null;
-		if ([x, y].every(Number.isFinite)) {
-			context!.fillStyle = '#ffffff';
-			context!.strokeStyle = '#ffffff';
-			// miterの鋭い角が設定幅より遠くへ突き出すことを避け、最大幅の計測と一致させる。
-			context!.lineJoin = 'round';
-			context!.textAlign = values.align;
-			context!.textBaseline = 'alphabetic';
-			context!.direction = 'ltr';
-			layout = layoutText({
-				text,
-				fontSize: values.size * height,
-				outlineWidth: values.outlineWidth,
-				lineHeight: values.lineHeight,
-				alignment: values.align,
-				overflow: values.overflow,
-				maxWidth: values.maxWidth * width,
-			}, (line, size) => {
-				context!.font = `${size}px ${font.family}`;
-				return context!.measureText(line);
-			});
-		}
+		const { x, y, layout } = plan;
+		context!.fillStyle = '#ffffff';
+		context!.strokeStyle = '#ffffff';
+		context!.lineJoin = 'round';
+		context!.textAlign = values.align;
+		context!.textBaseline = 'alphabetic';
+		context!.direction = 'ltr';
 		context!.save();
 		try {
 			if (layout != null) {
@@ -144,31 +129,85 @@ export function createTextRenderer(options: { device: GPUDevice; vertex: GPUShad
 		maskKey = key;
 	}
 
+	function planSurface(values: TextRenderValues) {
+		const frame = options.resolution;
+		context!.textAlign = values.align;
+		context!.textBaseline = 'alphabetic';
+		context!.direction = 'ltr';
+		const layout = layoutText({
+			text: values.text, fontSize: values.size * frame.height,
+			outlineWidth: values.outlineWidth, lineHeight: values.lineHeight, alignment: values.align,
+			overflow: values.overflow, maxWidth: values.maxWidth * frame.width }, (line, size) => {
+			context!.font = `${size}px ${font.family}`;
+			return context!.measureText(line);
+		});
+		if (layout) context!.font = `${layout.fontSize}px ${font.family}`;
+		const ink = layout && measureTextInkBounds(layout, line => context!.measureText(line));
+		const positionX = (values.position[0] + 1) * frame.width / 2;
+		const positionY = (1 - values.position[1]) * frame.height / 2;
+		let pixels = { left: 0, top: 0, right: 1, bottom: 1 };
+		const valid = ink && Number.isFinite(positionX) && Number.isFinite(positionY);
+		if (valid) {
+			pixels = { left: ink.left + positionX, top: ink.top + positionY, right: ink.right + positionX, bottom: ink.bottom + positionY };
+			const shadow = values.shadowEnabled && getTextShadowMetrics({ blur: values.shadowBlur, offset: values.shadowOffset }, layout!.fontSize);
+			if (shadow) pixels = {
+				left: Math.min(pixels.left, pixels.left + shadow.offsetX - shadow.padding),
+				right: Math.max(pixels.right, pixels.right + shadow.offsetX + shadow.padding),
+				top: Math.min(pixels.top, pixels.top + shadow.offsetY - shadow.padding),
+				bottom: Math.max(pixels.bottom, pixels.bottom + shadow.offsetY + shadow.padding),
+			};
+		}
+		// 補間とアンチエイリアスの余白を取り、整数画素へ外向きに丸める。
+		pixels = { left: Math.floor(pixels.left) - 2, top: Math.floor(pixels.top) - 2, right: Math.ceil(pixels.right) + 2, bottom: Math.ceil(pixels.bottom) + 2 };
+		const bounds = {
+			left: pixels.left * 2 / frame.width - 1, right: pixels.right * 2 / frame.width - 1,
+			top: 1 - pixels.top * 2 / frame.height, bottom: 1 - pixels.bottom * 2 / frame.height };
+		const size = timelineTextureSize(bounds, frame, options.device.limits.maxTextureDimension2D);
+		const density = Math.min(size.width / (pixels.right - pixels.left), size.height / (pixels.bottom - pixels.top));
+		// 丸めによる微小な縦横比差を座標範囲へ戻す。字形自体を歪ませない。
+		bounds.right = bounds.left + size.width / density * 2 / frame.width;
+		bounds.bottom = bounds.top - size.height / density * 2 / frame.height;
+		return {
+			bounds, size, x: valid ? (positionX - pixels.left) * density : 0, y: valid ? (positionY - pixels.top) * density : 0,
+			layout: valid && layout ? {
+				...layout, fontSize: layout.fontSize * density, outlineWidth: layout.outlineWidth * density,
+				lineAdvance: layout.lineAdvance * density, firstBaselineOffset: layout.firstBaselineOffset * density } : null };
+	}
+
 	let outputKey: string | null = null;
+	let result: TimelineImage;
 	return {
 		prepare: (blob: Blob | null, signal: AbortSignal) => font.prepare(blob, signal),
-		render(encoder: GPUCommandEncoder, values: TextRenderValues): GPUTexture {
+		render(encoder: GPUCommandEncoder, values: TextRenderValues): TimelineImage {
 			const key = JSON.stringify([font.cacheVersion, values]);
-			if (key === outputKey) return output;
-			updateMask(values, output.width, output.height);
-			const current = pipeline.update({ color: constantShaderInput('color', values.color),
+			if (key === outputKey) return result;
+			const plan = planSurface(values);
+			if (!output || output.width !== plan.size.width || output.height !== plan.size.height) {
+				output?.destroy();
+				output = options.device.createTexture({ size: plan.size, format: options.format, usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT });
+			}
+			updateMask(values, output.width, output.height, plan);
+			const current = pipeline.update({
+				color: constantShaderInput('color', values.color),
 				outlineColor: constantShaderInput('color', values.outlineColor), shadowColor: constantShaderInput('color', values.shadowColor) }, output);
-			const pass = encoder.beginRenderPass({ colorAttachments: [{ view: output.createView(),
-				clearValue: [0, 0, 0, 0], loadOp: 'clear', storeOp: 'store' }] });
+			const pass = encoder.beginRenderPass({
+				colorAttachments: [{
+					view: output.createView(),
+					clearValue: [0, 0, 0, 0], loadOp: 'clear', storeOp: 'store' }] });
 			pass.setPipeline(current.pipeline);
 			pass.setBindGroup(0, maskBinding);
 			pass.setBindGroup(pipeline.inputGroup, current.bindGroup);
 			pass.draw(6);
 			pass.end();
 			outputKey = key;
-			return output;
+			return result = { kind: 'texture', texture: output, region: { bounds: plan.bounds, frameSize: options.resolution } };
 		},
 		dispose() {
 			font.dispose();
 			pipeline.dispose();
 			maskTexture?.destroy();
 			shadowRenderer?.dispose();
-			output.destroy();
+			output?.destroy();
 			canvas.width = 1;
 			canvas.height = 1;
 		},

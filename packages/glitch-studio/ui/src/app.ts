@@ -123,6 +123,9 @@ export async function newProject() {
 			visualModuleParamValues: {},
 			forceDisableMotionBlur: false,
 			compositingParamValues: deepClone({
+				placement: timelineCompositingParamDefs.placement.defaultValue,
+				depth: timelineCompositingParamDefs.depth.defaultValue,
+				clipToFrame: timelineCompositingParamDefs.clipToFrame.defaultValue,
 				fitMode: timelineCompositingParamDefs.fitMode.defaultValue,
 				blendMode: timelineCompositingParamDefs.blendMode.defaultValue,
 				opacity: timelineCompositingParamDefs.opacity.defaultValue,
@@ -258,6 +261,9 @@ export async function newProjectFromImageOrVideo(file?: File) {
 			visualModuleParamValues: {},
 			forceDisableMotionBlur: false,
 			compositingParamValues: deepClone({
+				placement: timelineCompositingParamDefs.placement.defaultValue,
+				depth: timelineCompositingParamDefs.depth.defaultValue,
+				clipToFrame: timelineCompositingParamDefs.clipToFrame.defaultValue,
 				fitMode: timelineCompositingParamDefs.fitMode.defaultValue,
 				blendMode: timelineCompositingParamDefs.blendMode.defaultValue,
 				opacity: timelineCompositingParamDefs.opacity.defaultValue,

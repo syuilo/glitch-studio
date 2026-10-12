@@ -13,7 +13,7 @@ const evaluate = (values, graphs = [], overrides = {}) => new TimelineCompositin
 // 【初期値は通常合成・不透明・contain・無変形として評価する】
 // 素材の比率が画面と異なっても、種類によらず全体を収める初期状態に揃える。
 test('defaults to normal compositing with an identity transform', () => {
-	assert.deepEqual(evaluate({}), { blendMode: 0, opacity: 1, fitMode: 'contain', position: [0, 0], origin: [0, 0], scale: [1, 1], rotation: 0 });
+	assert.deepEqual(evaluate({}), { placement: 'world', depth: 0, clipToFrame: false, blendMode: 0, opacity: 1, fitMode: 'contain', position: [0, 0], origin: [0, 0], scale: [1, 1], rotation: 0 });
 });
 
 // 合成設定にはレイヤーの変数だけを公開し、Scene時刻を明示し、モジュールの進行率や解像度は継承しない。
@@ -24,7 +24,7 @@ test('evaluates expressions and environment variables in layer context', () => {
 		rotation: expression('if IS_EXPORT { 0.5 } else { 0 }'),
 		opacity: expression('TEST_SAME_NAME / 4'), blendMode: expression('"replace"'),
 	}, [], { isExport: true });
-	assert.deepEqual(result, { blendMode: 19, opacity: 0.5, fitMode: 'contain', position: [2, 0], origin: [0, 0], scale: [2, 0], rotation: 0.5 });
+	assert.deepEqual(result, { placement: 'world', depth: 0, clipToFrame: false, blendMode: 19, opacity: 0.5, fitMode: 'contain', position: [2, 0], origin: [0, 0], scale: [2, 0], rotation: 0.5 });
 	assert.deepEqual(evaluate({ position: expression('[HEIGHT / WIDTH, 0]') }).position, [0, 0]);
 	assert.deepEqual(evaluate({ position: { inputSource: 'envVariable', variable: 'PROGRESS' } }).position, [0, 0]);
 });
@@ -52,7 +52,7 @@ test('reads named graphs and falls back for missing graph references', () => {
 // 不正な型・非有限値をGPUへ流さず、負の倍率は反転、0は透明化のために保持する。
 test('sanitizes invalid values while preserving flips and zero scales', () => {
 	const result = evaluate({ opacity: literal(2), position: literal([Infinity, 'bad']), scale: literal([-2, 0]), rotation: literal(NaN), blendMode: literal('constructor') });
-	assert.deepEqual(result, { blendMode: 0, opacity: 1, fitMode: 'contain', position: [0, 0], origin: [0, 0], scale: [-2, 0], rotation: 0 });
+	assert.deepEqual(result, { placement: 'world', depth: 0, clipToFrame: false, blendMode: 0, opacity: 1, fitMode: 'contain', position: [0, 0], origin: [0, 0], scale: [-2, 0], rotation: 0 });
 	assert.equal(evaluate({ opacity: literal(-1) }).opacity, 0);
 });
 

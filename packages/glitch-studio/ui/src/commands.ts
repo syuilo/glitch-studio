@@ -15,10 +15,7 @@ import { validateTimelineShape } from '@gs/subsystems_timeline_shared/layers/sha
 import { validateEffectResolution } from '@gs/subsystems_effect_shared/resolution.ts';
 import { canReferenceScene, validateTimelineLayer, validateTimelineScenes } from '@gs/subsystems_timeline_shared/scenes.ts';
 import { getTimelineClipTrimBounds, getTimelineClipInsertionDuration, validateTimelineClips } from '@gs/subsystems_timeline_shared/timing.ts';
-import type { TimelineClipTiming } from '@gs/subsystems_timeline_shared/timing.ts';
 import { changeTimelineMediaPlaybackRate, createTimelineMediaClipTiming, getTimelineMediaLoopBounds, getTimelineMediaSingleDuration, getTimelineMediaTrimBounds, trimTimelineMediaClip, validateTimelineMediaClipTiming } from '@gs/subsystems_timeline_shared/media-timing.ts';
-import type { TimelineMediaClipTiming } from '@gs/subsystems_timeline_shared/media-timing.ts';
-import type { TimelineClip, TimelineAssetClip, TimelineVideoClip, TimelineSceneClip } from '@gs/subsystems_timeline_shared/clip.ts';
 import { validateTimelineParameterTree } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
 import { getArrayElementDefinition, isParameterType } from '@gs/shared/parameter/parameter-definition.ts';
 import { visualModuleCustomParameterId } from '@gs/subsystems_visual-module_shared/types.ts';
@@ -30,13 +27,16 @@ import { getNodeOutputs } from '@gs/subsystems_visual-module_shared/node-outputs
 import { getNodeInputDataType } from '@gs/shared/data-type/node-compatibility.ts';
 import { isTextureDataType } from '@gs/shared/data-type/data-type.ts';
 import { resolveTimelineAudioLayerReference, timelineAudioParamDefs } from '@gs/subsystems_timeline_shared/timeline-audio.ts';
-import type { TimelineScene, TimelineLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import { validateSceneResolution } from '@gs/subsystems_timeline_shared/scene-resolution.ts';
-import type { TimelineSceneResolution } from '@gs/subsystems_timeline_shared/scene-resolution.ts';
 import { timelineCompositingParamDefs } from '@gs/subsystems_timeline_shared/timeline-compositing.ts';
 import { canEditTimelineTransform } from './utility/timeline-transform-edit.ts';
 import { getScene, getLayerParameterTargets, getLayerParameterValues, getLayerParameterDefinitions, resolveLayerParameter } from './utility/timeline-scene.ts';
 import { prepareTimelineGroupMove } from './utility/timeline-group.ts';
+import type { TimelineSceneResolution } from '@gs/subsystems_timeline_shared/scene-resolution.ts';
+import type { TimelineScene, TimelineLayer } from '@gs/subsystems_timeline_shared/types.ts';
+import type { TimelineClip, TimelineAssetClip, TimelineVideoClip, TimelineSceneClip } from '@gs/subsystems_timeline_shared/clip.ts';
+import type { TimelineMediaClipTiming } from '@gs/subsystems_timeline_shared/media-timing.ts';
+import type { TimelineClipTiming } from '@gs/subsystems_timeline_shared/timing.ts';
 import type { EffectResolution } from '@gs/subsystems_effect_shared/resolution.ts';
 import type { TimelineParameterTarget } from './utility/timeline-scene.ts';
 import type { ParamPath } from '@gs/shared/parameter/parameter-path.ts';
@@ -63,9 +63,9 @@ import type { TimelineClipMoveTarget } from '@/utility/timeline-clip-move.ts';
 import type { TimelineKeyframeMoveUpdate } from '@/utility/timeline-keyframe-move.ts';
 import type { TimelineClipPaste } from '@/utility/timeline-clip-clipboard.ts';
 import type { TimelineClipSourceDurations } from '@/utility/timeline-clip-media.ts';
-import { getTimelineKeyframePasteUpdates } from '@/utility/timeline-keyframe-clipboard.ts';
 import type { TimelineKeyframePaste } from '@/utility/timeline-keyframe-clipboard.ts';
 import type { TimelineTransformBindings, TimelineTransformKey } from './utility/timeline-transform-edit.ts';
+import { getTimelineKeyframePasteUpdates } from '@/utility/timeline-keyframe-clipboard.ts';
 import { prepareTimelineKeyframeMove } from '@/utility/timeline-keyframe-move.ts';
 import { prepareTimelineClipMove } from '@/utility/timeline-clip-move.ts';
 import { getVisualModule, listVisualModules } from '@/utility/visual-module-target.ts';
@@ -122,7 +122,7 @@ const editTimelineLayerTransformCommandDef = defineCommand<{ sceneId: string; la
 		const keys = Object.keys(payload.bindings) as TimelineTransformKey[];
 		const getLayer = (state: ProjectState) => {
 			const layer = findTimelineLayer(getScene(state, payload.sceneId).layers, payload.layerId);
-			if (!layer || layer.layerType === 'audio') throw new Error('Visual layer not found');
+			if (!layer || !('compositingParamValues' in layer)) throw new Error('Visual layer not found');
 			return layer;
 		};
 		return {
@@ -274,6 +274,23 @@ const editTimelineLayerParamCommandDef = defineCommand<{
 			undo(state) {
 				setTimelineLayerParameterRoot(getLayer(state), target, rootKey, before);
 			},
+		};
+	},
+});
+
+const changeTimelineGroupModeCommandDef = defineCommand<{ sceneId: string; layerId: string; mode: 'flat' | 'preserveDepth' }>({
+	label: 'Change group compositing mode',
+	changes: (_state, payload) => [{ type: 'layer', sceneId: payload.sceneId, layerId: payload.layerId, changes: [{ type: 'parameter', target: 'compositing', kind: 'value' }] }],
+	create: payload => {
+		let before: 'flat' | 'preserveDepth' | undefined;
+		const group = (state: ProjectState) => {
+			const layer = findTimelineLayer(getScene(state, payload.sceneId).layers, payload.layerId);
+			if (layer?.layerType !== 'group') throw new Error('Group not found');
+			return layer;
+		};
+		return {
+			execute(state) { before = group(state).compositingMode; group(state).compositingMode = payload.mode; },
+			undo(state) { group(state).compositingMode = before; },
 		};
 	},
 });
@@ -1567,6 +1584,7 @@ const pasteTimelineLayerCommandDef = defineCommand<{ sceneId: string; layer: Tim
 		execute(state) {
 			validateAddedTimelineLayer(state, payload.sceneId, payload.layer, payload.sourceDurationsMs);
 			const location = findTimelineLayerLocation(getScene(state, payload.sceneId).layers, payload.sourceLayerId);
+			if (payload.layer.layerType === 'camera' && location?.ancestors.length) throw new Error('Camera layers must be placed directly in a Scene');
 			const siblings = location?.siblings ?? getScene(state, payload.sceneId).layers;
 			// 表示順は先頭が最上層。コピー元が削除済みなら最上層へ挿入する。
 			siblings.splice(location?.index ?? 0, 0, deepClone(payload.layer));
@@ -1989,6 +2007,7 @@ export const COMMAND_DEFS = {
 	pasteTimelineKeyframes: pasteTimelineKeyframesCommandDef,
 	addScene: addSceneCommandDef,
 	changeSceneResolution: changeSceneResolutionCommandDef,
+	changeTimelineGroupMode: changeTimelineGroupModeCommandDef,
 	renameScene: renameSceneCommandDef,
 	removeScene: removeSceneCommandDef,
 	pasteTimelineLayer: pasteTimelineLayerCommandDef,

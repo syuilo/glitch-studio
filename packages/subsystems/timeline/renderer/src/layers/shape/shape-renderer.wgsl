@@ -1,4 +1,5 @@
 struct Uniforms {
+	bounds: vec4f,
 	position: vec2f,
 	halfSize: vec2f,
 	fillColor: vec4f,
@@ -119,7 +120,7 @@ fn fs(@location(0) position: vec2f) -> @location(0) vec4f {
 	if (any(uniforms.halfSize <= vec2f(0.0))) { return vec4f(0.0); }
 	// Positionだけは既存の画面座標（端が±1）。寸法・輪郭幅には縦横共通の
 	// Scene高さ単位を使い、時計回りの回転を逆変換して形状の座標へ戻す。
-	let translated = (position - uniforms.position) * vec2f(uniforms.aspectRatio, 1.0) * 0.5;
+	let translated = (uniforms.bounds.xy + position * uniforms.bounds.zw - uniforms.position) * vec2f(uniforms.aspectRatio, 1.0) * 0.5;
 	let c = cos(uniforms.rotation);
 	let s = sin(uniforms.rotation);
 	let point = vec2f(c * translated.x - s * translated.y, s * translated.x + c * translated.y);

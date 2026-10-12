@@ -1,4 +1,3 @@
-import type { GeneratedSpeech } from '@gs/glitch-studio_shared/voicevox.ts';
 import { getReferencedGeneratedSpeech } from '@gs/glitch-studio_shared/voicevox.ts';
 import { ref } from 'vue';
 import { deepClone } from '@gs/shared/utility/deep-clone.js';
@@ -6,6 +5,7 @@ import { DEFAULT_TIMELINE_FPS, DEFAULT_TIMELINE_MOTION_BLUR } from './project-de
 import { COMMAND_DEFS } from './commands.ts';
 import { UndoRedo } from './utility/undo-redo.ts';
 import { DEFAULT_PROJECT_NAME } from './gsproj.ts';
+import type { GeneratedSpeech } from '@gs/glitch-studio_shared/voicevox.ts';
 import type { Project } from './gsproj.ts';
 import type { Ref } from 'vue';
 import type { TimelineScene } from '@gs/subsystems_timeline_shared/types.ts';

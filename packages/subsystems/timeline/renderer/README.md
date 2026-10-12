@@ -1,6 +1,6 @@
 # Timeline Renderer
 
-各レイヤーのcompositorは任意の`onCompositing`で合成前の`UniformOrTexture`と評価済み設定を呼び出し側へ渡せる。opacity=0やreplaceの短絡経路でも通知する。通知の購読対象・Worker通信・プレビューのハンドルはGlitch Studio側が所有し、このパッケージはUIの選択状態を知らない。
+各レイヤーのcompositorは任意の`onCompositing`で合成前の`TimelineImage`と評価済み設定を呼び出し側へ渡せる。opacity=0やreplaceの短絡経路でも通知する。通知の購読対象・Worker通信・プレビューのハンドルはGlitch Studio側が所有し、このパッケージはUIの選択状態を知らない。
 
 `src/layers/`にレイヤー種別ごとの実装をまとめる。`group`・`effect`・`image`・`scene`・`video`・`visual-module`・`text`・`shape`の各ディレクトリに、レイヤーの描画処理と種別固有の補助処理・シェーダーを置く。Timeline全体の評価・合成・Scene出力・音声入力の解決など、複数種別で使う処理は`src/`直下に置く。
 
@@ -8,9 +8,9 @@ RendererはWeb Worker内で動作し、DOM・UIの実装にアクセスできな
 
 ただし、必要に応じて(別スレッドとして動かすとかえってパフォーマンスが悪化する環境で動かす場合)メインスレッドから直接利用することもできる設計
 
-Textレイヤーは`TextParameters`でScene時刻の値を評価し、`createTextRenderer()`がOffscreenCanvasの本体・輪郭・影マスクを作成してWebGPUで色を合成する。出力はScene解像度・`intermediateTextureFormat`のpremultiplied RGBA。Textエフェクトへの参照は持たず、レイアウト・影・フォント読み込みもTimeline内で独立して所有する。色だけの変化ではマスクを再利用し、静止時も下層との合成は毎回行う。空文字やサイズ0は透明な出力を返す。フォントBlobは呼び出し側がAsset IDから解決し、読み込み完了をプレビュー・書き出しの双方で待つ。シークの中断・フォント変更・破棄より古い結果は描画へ使わず、クリップ区間外ではGPUリソースとFontFaceを解放する。
+Textレイヤーは`TextParameters`でScene時刻の値を評価し、`createTextRenderer()`がOffscreenCanvasの本体・輪郭・影マスクを作成してWebGPUで色を合成する。描画基準は倍率適用後のScene解像度で、出力は字形・輪郭・影を囲う可変範囲の`intermediateTextureFormat`のpremultiplied RGBA。Textエフェクトへの参照は持たず、レイアウト・影・フォント読み込みもTimeline内で独立して所有する。色だけの変化ではマスクを再利用し、静止時も下層との合成は毎回行う。空文字やサイズ0は透明な出力を返す。フォントBlobは呼び出し側がAsset IDから解決し、読み込み完了をプレビュー・書き出しの双方で待つ。シークの中断・フォント変更・破棄より古い結果は描画へ使わず、クリップ区間外ではGPUリソースとFontFaceを解放する。
 
-シェイプレイヤーは`ShapeParameters`で所属Scene時刻の値を評価し、`createShapeRenderer()`が評価済みの形状だけを受け取ってWebGPUで描画する。テクスチャは倍率適用後のScene解像度を保ち、形状の移動・寸法・回転はその内部で反映する。画面外は切り取り、出力は`intermediateTextureFormat`のpremultiplied RGBA。`createShapeTimelineLayer()`がその出力へ通常のレイヤー変形・不透明度・合成方法を適用するため、形状編集で合成設定を変更する必要はない。
+シェイプレイヤーは`ShapeParameters`で所属Scene時刻の値を評価し、`createShapeRenderer()`が評価済みの形状だけを受け取ってWebGPUで描画する。倍率適用後のScene解像度を基準に、回転・輪郭を囲う範囲だけを描き、画面外も保持する。出力は`intermediateTextureFormat`のpremultiplied RGBA。`createShapeTimelineLayer()`がその出力へ通常のレイヤー変形・不透明度・合成方法を適用するため、形状編集で合成設定を変更する必要はない。
 
 楕円は実際の輪郭までの距離で太さを保ち、長方形は内外周を別々に構築して角丸0の直角を保つ。静止した形状のテクスチャは再利用するが、下層との合成は毎回行う。寸法0でも透明な出力を返して`replace`の意味を保ち、クリップ区間外ではリソースを破棄する。直接編集用のハンドルやUI状態は描画処理へ含めない。
 
@@ -35,6 +35,16 @@ VOICEVOXレイヤーは`layers/voicevox/`で発話キーからScene時刻の本�
 両レイヤーが共有するテキスト描画部分は`src/text-rendering/`に置く。`TextRenderValues`は評価済みの文字列・装飾だけの契約で、レイヤー・Binding・パラメータ定義・発話キーを知らない。フォント読み込み・文字配置・マスク・シェーダーを共有し、評価・合成の呼出し・リソース寿命は各レイヤーが独立して管理する。
 
 
-グループは`layers/group/group-timeline-layer.ts`が専用の`TimelineRenderer`を持ち、透明背景から子孫を合成する。親と同じScene時刻・解像度を使い、親の背景を子の入力へ流さない。`createSceneOutput()`で画面全体へ確定してから、グループ自身の変形・不透明度・合成方法を適用する。
+グループは`layers/group/group-timeline-layer.ts`が専用の`TimelineRenderer`を持ち、透明背景から子孫を合成する。親と同じScene時刻・解像度を使い、親の背景を子の入力へ流さない。`flat`は内部をカメラなしの2Dで合成し、可変範囲の画像を一枚の平面として配置する。`preserveDepth`は親変換・Z・カメラを子へ伝え、投影済みの子を隔離された画面で合成してからopacity・blendを一度だけ適用する。
 
 `TimelineRenderEntry.clips`の省略は常時存在するコンテナを表し、実際のクリップや時計を合成しない。`evaluateAt().hasOutput`で子孫に映像出力があったかを伝え、空白区間と有効な透明出力を区別する。グループの設定取得関数は現在の設定を返し、子の再生成が不要な設定変更では描画履歴を維持する。無効化・削除時は内部のレイヤーとGPU資源を再帰的に破棄する。
+
+## カメラと描画領域
+
+Timeline固有の`TimelineImage`はGPU共通の値に`region.bounds`と`frameSize`を付加する。テクスチャの実寸と、fit・origin・文字サイズの論理的な基準寸法を分離する。平面はカメラと平行なので、投影はZごとに一定倍率のアフィン変換になる。タイムライン順で合成し、depth bufferやZソートは使わない。
+
+`TimelineRenderSpace`は親の変換・加算Z・カメラ・任意の最終viewportを伝える。平面化境界内はviewportを省略して合成範囲の和集合を保持する。Text・Shapeも基準枠外を含む領域を生成する。Scene出力とノードの下層入力でのみ有限のScene枠へ確定する。既に枠が確定した入力・無変形Replaceは、素材や定数を借用する既存の最適化を維持する。
+
+可変テクスチャの画素数は、Scene画素数の4倍・16,777,216画素の小さい方を目安にする。ただし基準Scene自体がそれを超える場合は基準Scene分を確保し、書き出し解像度を暗黙に縮めない。GPU最大辺長も上限とする。範囲は保ち、画素密度を下げる。画素数はテクスチャごとの上限であり、Scene全体のメモリー予算ではない。カメラ倍率に応じた再ラスタライズやタイル化は行わない。
+
+カメラはScene直下の有効クリップを持つ最上段のカメラレイヤーから選ぶ。カメラの描画インスタンスは作らず、Sceneの共通描画空間へ投影設定を渡す。評価は各サブサンプルのScene時刻に行い、映像レイヤー自身のブラー無効化より外側に置く。カメラレイヤー自身のブラー無効化では基準時刻で選択・評価する。子Sceneのカメラは子Sceneの時計を使う。親Sceneレイヤーを固定すると、子の時計に属するカメラも固定される。
