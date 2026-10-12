@@ -849,6 +849,7 @@ function formatFullTimecode(timeMs: number): string {
 	align-items: center;
 	justify-content: center;
 	gap: 8px;
+	margin-top: 8px;
 	margin-bottom: 8px;
 }
 
