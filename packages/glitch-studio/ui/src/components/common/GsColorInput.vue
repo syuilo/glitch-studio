@@ -1,6 +1,8 @@
 <template>
 <div ref="preview" :class="[$style.root, { [$style.disabled]: disabled }]" tabindex="0" @click="open" @keydown.enter.prevent="open" @keydown.space.prevent="open">
-	<div :class="$style.color" :style="{ background: colorCss(modelValue) }"></div>
+	<div :class="$style.colorContainer">
+		<div :class="$style.color" :style="{ background: colorCss(modelValue) }"></div>
+	</div>
 	<div class="_monospace">{{ colorHex(modelValue) }}</div>
 </div>
 </template>
@@ -70,12 +72,16 @@ onBeforeUnmount(close);
 	cursor: pointer;
 }
 
-.color {
+.colorContainer {
 	width: 24px;
 	height: 24px;
 	border-radius: 4px;
 	overflow: clip;
 	background: repeating-conic-gradient(#888 0% 25%, #ccc 0% 50%) 0 / 12px 12px;
+}
+.color {
+	width: 100%;
+	height: 100%;
 }
 
 .disabled {
