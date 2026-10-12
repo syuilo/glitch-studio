@@ -249,7 +249,7 @@ test('sends each layer once without nested snapshots when moving a deep group', 
 	f.manager.commit('addTimelineLayer', { sceneId: 'scene', layer: root });
 	await f.sync.flush();
 	const before = structuredClone(f.replica);
-	f.manager.commit('moveTimelineGroup', { sceneId: 'scene', layerId: root.id, deltaMs: 100 });
+	f.manager.commit('moveTimelineContainer', { sceneId: 'scene', layerId: root.id, deltaMs: 100 });
 	await f.sync.flush();
 	const after = structuredClone(f.replica);
 	const assertBatch = () => {

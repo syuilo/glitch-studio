@@ -1,14 +1,15 @@
+import { isTimelineContainerLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { genId } from '@gs/shared/utility/id.ts';
 import { flattenTimelineLayers, getTimelineClipLayers } from '@gs/subsystems_timeline_shared/layer-tree.ts';
 import { getTimelineKeyframeEntries } from './timeline-keyframe-lanes.ts';
-import type { TimelineGroupLayer, TimelineLayer } from '@gs/subsystems_timeline_shared/types.ts';
+import type { TimelineContainerLayer, TimelineLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import type { ProjectState } from '../Project.ts';
 
-/** グループに含まれる全キーを対象にし、クリップ内への所属判定や別Sceneへの再帰は行わない。 */
-export function prepareTimelineGroupMove(state: Pick<ProjectState, 'visualModules'>, group: TimelineGroupLayer) {
-	const layers = flattenTimelineLayers([group]);
-	const clips = getTimelineClipLayers([group]).flatMap(layer => layer.clips.map(clip => ({ layerId: layer.id, clipId: clip.id,
+/** コンテナに含まれる全キーを対象にし、クリップ内への所属判定や別Sceneへの再帰は行わない。 */
+export function prepareTimelineContainerMove(state: Pick<ProjectState, 'visualModules'>, container: TimelineContainerLayer) {
+	const layers = flattenTimelineLayers([container]);
+	const clips = getTimelineClipLayers([container]).flatMap(layer => layer.clips.map(clip => ({ layerId: layer.id, clipId: clip.id,
 		startMs: clip.startMs, endMs: clip.startMs + clip.durationMs })));
 	const keyframes = getTimelineKeyframeEntries(state, layers).map(entry => ({ ...entry.selection, x: entry.time }));
 	const times = [...clips.map(clip => clip.startMs), ...keyframes.map(point => point.x)];
@@ -21,7 +22,7 @@ export function prepareTimelineGroupMove(state: Pick<ProjectState, 'visualModule
 		maxDelta: ends.length ? Number.MAX_SAFE_INTEGER - ends.reduce((max, time) => Math.max(max, time), 0) : 0 };
 }
 
-export type TimelineGroupMove = ReturnType<typeof prepareTimelineGroupMove>;
+export type TimelineContainerMove = ReturnType<typeof prepareTimelineContainerMove>;
 
 /** 保存されたBinding内の参照だけを付け替え、式・共有Visual Module・参照先Sceneは変更しない。 */
 export function duplicateTimelineLayers(source: readonly TimelineLayer[]): TimelineLayer[] {
@@ -37,7 +38,7 @@ export function duplicateTimelineLayers(source: readonly TimelineLayer[]): Timel
 	};
 	for (const layer of layers) {
 		layer.id = ids.get(layer.id)!;
-		if (layer.layerType !== 'group') for (const clip of layer.clips) clip.id = genId();
+		if (!isTimelineContainerLayer(layer)) for (const clip of layer.clips) clip.id = genId();
 		if ('effectParamValues' in layer) remapReferences(layer.effectParamValues);
 		if ('visualModuleParamValues' in layer) remapReferences(layer.visualModuleParamValues);
 	}

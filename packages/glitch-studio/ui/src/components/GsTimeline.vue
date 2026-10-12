@@ -57,8 +57,9 @@
 				-->
 				<div :class="$style.layersActions">
 					<GsButton v-tooltip="'Add Layer'" small iconOnly @click="showAddLayerMenu"><i class="ti ti-plus"></i></GsButton>
+					<GsButton v-tooltip="'Wrap in Transform'" iconOnly small :disabled="!canTransformSelection" @click="transformSelection"><i class="ti ti-gizmo"></i></GsButton>
 					<GsButton v-tooltip="'Group'" iconOnly small :disabled="!canGroupSelection" @click="groupSelection"><i class="ti ti-folder-symlink"></i></GsButton>
-					<GsButton v-if="selectedLayer?.layerType === 'group'" v-tooltip="'Ungroup'" iconOnly small @click="ungroupSelection"><i class="ti ti-folder-open"></i></GsButton>
+					<GsButton v-if="selectedLayer && isTimelineContainerLayer(selectedLayer)" v-tooltip="'Unwrap container'" iconOnly small @click="ungroupSelection"><i class="ti ti-folder-open"></i></GsButton>
 					<GsButton v-if="selectedLayer && (layerAncestors.get(selectedLayer.id)?.length ?? 0) > 0" small @click="moveSelectedLayerOut">Move out</GsButton>
 				</div>
 			</div>
@@ -143,6 +144,7 @@
 </template>
 
 <script lang="ts" setup>
+import { isTimelineContainerLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import { flattenTimelineLayers, findTimelineLayer, findTimelineLayerLocation } from '@gs/subsystems_timeline_shared/layer-tree.ts';
 import { getTimelineClipEnd } from '@gs/subsystems_timeline_shared/timing.ts';
 import { computed, onBeforeUnmount, ref, shallowRef, toRef, useTemplateRef, watch } from 'vue';
@@ -150,12 +152,13 @@ import { genId } from '@gs/shared/utility/id.js';
 import { timelineAudioParamDefs } from '@gs/subsystems_timeline_shared/timeline-audio.ts';
 import { timelineCompositingParamDefs } from '@gs/subsystems_timeline_shared/timeline-compositing.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
+import { createTransformTimelineLayer } from '../utility/transform-timeline-layer.ts';
 import XLayer from './GsTimeline.Layer.vue';
 import GsTimelineInspector from './GsTimeline.Inspector.vue';
 import GsButton from './common/GsButton.vue';
 import GsVirtualScroll from './common/GsVirtualScroll.vue';
 import GsEffectPicker from './GsEffectPicker.vue';
-import type { TimelineGroupLayer, TimelineLayer } from '@gs/subsystems_timeline_shared/types.ts';
+import type { TimelineContainerLayer, TimelineLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import type { TimelineClipSelection, TimelineKeyframeSelection } from '@/utility/timeline-selection.ts';
 import type { TimelineClipMediaInfo } from '@/utility/timeline-clip-media.ts';
 import type { EffectDefinition } from '@gs/subsystems_effect_shared/effect-definition.ts';
@@ -263,19 +266,19 @@ const editorState = getTimelineEditorState(editedScene);
 let disposed = false;
 const rootLayers = computed(() => stateManager.state.timelineScenes.value.find(scene => scene.id === props.sceneId)?.layers ?? []);
 const sceneLayers = computed(() => flattenTimelineLayers(rootLayers.value));
-const clipLayers = computed(() => sceneLayers.value.filter(layer => layer.layerType !== 'group'));
+const clipLayers = computed(() => sceneLayers.value.filter(layer => !isTimelineContainerLayer(layer)));
 // 展開したレイヤーだけを保持し、既存・新規レイヤーとも初期状態は折りたたみにする。
 const expandedLayers = ref(new Set<string>());
 const visibleLayers = computed(() => {
-	const visit = (layers: TimelineLayer[]): TimelineLayer[] => layers.flatMap(layer => layer.layerType === 'group' && expandedLayers.value.has(layer.id) ? [layer, ...visit(layer.layers)] : [layer]);
+	const visit = (layers: TimelineLayer[]): TimelineLayer[] => layers.flatMap(layer => isTimelineContainerLayer(layer) && expandedLayers.value.has(layer.id) ? [layer, ...visit(layer.layers)] : [layer]);
 	return visit(rootLayers.value);
 });
 const layerAncestors = computed(() => {
-	const result = new Map<string, TimelineGroupLayer[]>();
-	const visit = (layers: TimelineLayer[], ancestors: TimelineGroupLayer[]) => {
+	const result = new Map<string, TimelineContainerLayer[]>();
+	const visit = (layers: TimelineLayer[], ancestors: TimelineContainerLayer[]) => {
 		for (const layer of layers) {
 			result.set(layer.id, ancestors);
-			if (layer.layerType === 'group') visit(layer.layers, [...ancestors, layer]);
+			if (isTimelineContainerLayer(layer)) visit(layer.layers, [...ancestors, layer]);
 		}
 	};
 	visit(rootLayers.value, []);
@@ -302,13 +305,14 @@ function onLayerDragOver(event: DragEvent, layer: TimelineLayer) {
 	const bounds = (event.currentTarget as HTMLElement).getBoundingClientRect();
 	const fraction = (event.clientY - bounds.top) / bounds.height;
 	const location = findTimelineLayerLocation(rootLayers.value, layer.id)!;
-	const position = layer.layerType === 'group' && fraction >= 0.25 && fraction <= 0.75 ? 'inside' : fraction < 0.5 ? 'before' : 'after';
-	// カメラの座標系はScene全体に固定し、グループ内部へ入るドロップは提示しない。
-	if (source.layerType === 'camera' && (position === 'inside' || location.ancestors.length > 0)) { dropTarget.value = null; return; }
+	const position = isTimelineContainerLayer(layer) && fraction >= 0.25 && fraction <= 0.75 ? 'inside' : fraction < 0.5 ? 'before' : 'after';
+	// カメラを含むTransformもGroup配下には移動させない。Transform間の移動は可能。
+	if (flattenTimelineLayers([source]).some(child => child.layerType === 'camera')
+		&& (location.ancestors.some(parent => parent.layerType === 'group') || (position === 'inside' && layer.layerType === 'group'))) { dropTarget.value = null; return; }
 	dropTarget.value = {
 		layerId: layer.id, position,
 		parentId: position === 'inside' ? layer.id : location.ancestors.at(-1)?.id ?? null,
-		beforeId: position === 'inside' && layer.layerType === 'group' ? layer.layers[0]?.id ?? null
+		beforeId: position === 'inside' && isTimelineContainerLayer(layer) ? layer.layers[0]?.id ?? null
 		: position === 'before' ? layer.id : location.siblings[location.index + 1]?.id ?? null,
 	};
 	event.preventDefault();
@@ -338,9 +342,9 @@ const layersEl = useTemplateRef('layersEl');
 const virtualLayers = useTemplateRef('virtualLayers');
 const marqueeLayers = computed(() => visibleLayers.value.map(layer => ({
 	id: layer.id,
-	clips: layer.layerType === 'group' ? [] : layer.clips,
+	clips: isTimelineContainerLayer(layer) ? [] : layer.clips,
 	// 範囲選択は未描画の中間行も対象にするため、DOMだけでなく候補からも非表示のレーンを除く。
-	lanes: layer.layerType !== 'group' && !expandedLayers.value.has(layer.id) ? [] : getTimelineKeyframeLanes(stateManager.state, layer),
+	lanes: !isTimelineContainerLayer(layer) && !expandedLayers.value.has(layer.id) ? [] : getTimelineKeyframeLanes(stateManager.state, layer),
 })));
 const layerSizeKeys = computed(() => new Map(marqueeLayers.value.map(layer => [layer.id, JSON.stringify(layer.lanes.map(lane => [lane.target, lane.paramPath]))])));
 
@@ -395,14 +399,25 @@ const selectedClipIdsByLayer = computed(() => {
 const selectionCount = computed(() => selection.value.kind === 'layers' ? selection.value.ids.length : selection.value.kind === 'clips' ? selection.value.clips.length : selection.value.keyframes.length);
 const selectedLayerId = computed(() => selection.value.kind === 'layers' ? selection.value.ids[0] ?? null : selection.value.kind === 'clips' ? selection.value.clips[0]?.layerId ?? null : selection.value.keyframes[0]?.layerId ?? null);
 const selectedLayer = computed(() => sceneLayers.value.find(layer => layer.id === getSelectedTimelineLayerId(selection.value)) ?? null);
-const canGroupSelection = computed(() => {
+const canTransformSelection = computed(() => {
 	if (selection.value.kind !== 'layers' || !selection.value.ids.length) return false;
 	const locations = selection.value.ids.map(id => findTimelineLayerLocation(rootLayers.value, id));
 	const first = locations[0];
-	if (!first || locations.some(location => !location || location.layer.layerType === 'camera' || location.siblings !== first.siblings)) return false;
+	if (!first || locations.some(location => !location || location.siblings !== first.siblings)) return false;
 	const indexes = locations.map(location => location!.index).sort((a, b) => a - b);
 	return indexes.every((index, offset) => index === indexes[0] + offset);
 });
+
+const canGroupSelection = computed(() => canTransformSelection.value && selection.value.kind === 'layers'
+	&& selection.value.ids.every(id => !flattenTimelineLayers([findTimelineLayer(rootLayers.value, id)!]).some(layer => layer.layerType === 'camera')));
+
+function transformSelection() {
+	if (!canTransformSelection.value || selection.value.kind !== 'layers') return;
+	const transform = createTransformTimelineLayer();
+	stateManager.commit('transformTimelineLayers', { sceneId: props.sceneId, layerIds: [...selection.value.ids], transform });
+	selection.value = { kind: 'layers', ids: [transform.id] };
+	expandedLayers.value = new Set([...expandedLayers.value, transform.id]);
+}
 
 function addEmptyGroup() {
 	const id = genId();
@@ -424,9 +439,9 @@ function groupSelection() {
 }
 
 function ungroupSelection() {
-	if (selectedLayer.value?.layerType !== 'group') return;
+	if (!selectedLayer.value || !isTimelineContainerLayer(selectedLayer.value)) return;
 	const ids = selectedLayer.value.layers.map(layer => layer.id);
-	stateManager.commit('ungroupTimelineLayer', { sceneId: props.sceneId, layerId: selectedLayer.value.id });
+	stateManager.commit('unwrapTimelineLayer', { sceneId: props.sceneId, layerId: selectedLayer.value.id });
 	selection.value = { kind: 'layers', ids };
 }
 
@@ -579,7 +594,7 @@ const clipboardActions = createTimelineClipboardActions({
 
 const layerActions = createTimelineLayerActions({
 	stateManager, scene: editedScene, selection, isActive: isTimelineActive, readLayerMediaDurations,
-	selectLayer, canGroup: () => canGroupSelection.value, groupSelection, ui,
+	selectLayer, canGroup: () => canGroupSelection.value, groupSelection, canTransform: () => canTransformSelection.value, transformSelection, ui,
 	focusTimeline: () => tlEl.value?.focus({ preventScroll: true }),
 });
 

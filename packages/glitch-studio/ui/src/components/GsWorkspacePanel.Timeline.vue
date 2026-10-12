@@ -17,7 +17,7 @@ import GsButton from './common/GsButton.vue';
 import GsSceneResolutionDialog from './GsSceneResolutionDialog.vue';
 import type { WorkspacePanel } from '@/workspace.ts';
 import type { MenuItem } from '@/types/menu.ts';
-import { duplicateTimelineLayers } from '@/utility/timeline-group.ts';
+import { duplicateTimelineLayers } from '@/utility/timeline-container.ts';
 import { workspaceControllerKey } from '@/WorkspaceController.ts';
 import { appContext } from '@/app.ts';
 import GsTimeline from '@/components/GsTimeline.vue';

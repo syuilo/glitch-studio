@@ -32,6 +32,8 @@ export function intersectTimelineBounds(a: TimelineBounds, b: TimelineBounds): T
 }
 export type TimelineRenderSpace = {
 	parent: TimelineAffine;
+	/** On screenにもTransformのXY移動は反映する。カメラ・Groupの変形とは分けて蓄積する。 */
+	screenParent?: TimelineAffine;
 	depth: number;
 	/** 平面化境界ではcameraを外し、その内側のZを使わない。 */
 	camera?: EvaluatedTimelineCamera;

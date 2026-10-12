@@ -12,7 +12,7 @@ const bundled = await build({
 		export { createTimelineClipboardActions } from './src/utility/timeline-clipboard-actions.ts';
 		export { flattenTimelineLayers } from '@gs/subsystems_timeline_shared/layer-tree.ts';
 		export * from './src/utility/timeline-clip-clipboard.ts';
-		export { duplicateTimelineLayers } from './src/utility/timeline-group.ts';
+		export { duplicateTimelineLayers } from './src/utility/timeline-container.ts';
 		export { findTimelineLayer } from '@gs/subsystems_timeline_shared/layer-tree.ts';
 		export { COMMAND_DEFS } from './src/commands.ts';
 		export { UndoRedo } from './src/utility/undo-redo.ts';

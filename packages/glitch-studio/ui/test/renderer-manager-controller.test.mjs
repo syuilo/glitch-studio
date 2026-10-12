@@ -56,7 +56,7 @@ function fixture(t, kind = 'VisualModule') {
 	});
 	const module = { exports: {} };
 	runInNewContext(result.outputFiles[0].text, {
-		module, require: createRequire(import.meta.url), console, Blob, Error,
+		module, require: createRequire(import.meta.url), console, Blob, Error, TextEncoder, TextDecoder,
 		window: { document: { createElement: canvas } },
 		dependencies: { createWorker() { const worker = new FakeWorker(); workers.push(worker); return worker; } },
 	});

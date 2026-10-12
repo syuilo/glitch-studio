@@ -1,3 +1,5 @@
+import { createTransformTimelineLayer } from './transform-timeline-layer.ts';
+import { isTimelineContainerLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import { createTimelineClipTiming, getTimelineClipInsertionDuration } from '@gs/subsystems_timeline_shared/timing.ts';
 import { createTimelineMediaClipTiming } from '@gs/subsystems_timeline_shared/media-timing.ts';
 import { canReferenceScene } from '@gs/subsystems_timeline_shared/scenes.ts';
@@ -50,7 +52,7 @@ export function createTimelineSourceActions(options: TimelineSourceActionsOption
 
 	function resolveClip(target: TimelineClipSelection) {
 		const layer = sceneLayers.value.find(layer => layer.id === target.layerId);
-		if (layer == null || layer.layerType === 'group') return null;
+		if (layer == null || isTimelineContainerLayer(layer)) return null;
 		const clip = layer.clips.find(clip => clip.id === target.clipId);
 		return clip ? { layer, clip, target } : null;
 	}
@@ -82,7 +84,7 @@ export function createTimelineSourceActions(options: TimelineSourceActionsOption
 	}
 
 	async function addClip(layer: TimelineLayer, startMs: number) {
-		if (layer.layerType === 'group') return;
+		if (isTimelineContainerLayer(layer)) return;
 		startMs = Math.round(startMs);
 		if (getTimelineClipInsertionDuration(layer.clips, startMs) <= 0) return;
 		const type = layer.layerType;
@@ -129,7 +131,7 @@ export function createTimelineSourceActions(options: TimelineSourceActionsOption
 	}
 
 	async function readLayerMediaDurations(layer: TimelineLayer): Promise<TimelineClipSourceDurations | undefined> {
-		if (layer.layerType === 'group') return Object.assign(Object.create(null), ...await Promise.all(layer.layers.map(readLayerMediaDurations)));
+		if (isTimelineContainerLayer(layer)) return Object.assign(Object.create(null), ...await Promise.all(layer.layers.map(readLayerMediaDurations)));
 		if (layer.layerType !== 'audio' && layer.layerType !== 'video') return undefined;
 		const sources = layer.clips.map(clip => {
 			const asset = stateManager.state.assets.value.find(asset => asset.id === clip.assetId);
@@ -196,6 +198,13 @@ export function createTimelineSourceActions(options: TimelineSourceActionsOption
 	function showAddLayerMenu(ev: PointerEvent) {
 		ui.popupMenu([{
 			text: 'Group', icon: 'ti ti-folder-plus', action: addEmptyGroup,
+		}, {
+			text: 'Transform', icon: 'ti ti-gizmo',
+			action: () => {
+				const layer = createTransformTimelineLayer();
+				stateManager.commit('addTimelineLayer', { sceneId: scene.id, layer });
+				selectLayer(layer);
+			},
 		}, {
 			text: 'Camera', icon: 'ti ti-camera',
 			action: () => {

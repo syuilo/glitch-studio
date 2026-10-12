@@ -10,7 +10,7 @@ import type { TimelineSelection } from './timeline-selection.ts';
 import type { TimelineClipboard } from './timeline-editor-state.ts';
 import type { TimelineClipClipboard } from './timeline-clip-clipboard.ts';
 import type { TimelineClipMediaInfo, TimelineClipSourceDurations } from './timeline-clip-media.ts';
-import { duplicateTimelineLayers } from './timeline-group.ts';
+import { duplicateTimelineLayers } from './timeline-container.ts';
 import { copyTimelineClips, prepareTimelineClipPaste, canPasteTimelineClips } from './timeline-clip-clipboard.ts';
 import { copyTimelineKeyframes, prepareTimelineKeyframePaste, getPastedTimelineKeySelection } from './timeline-keyframe-clipboard.ts';
 

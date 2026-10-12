@@ -9,7 +9,7 @@ const { getSceneAudioClips } = await load('scene-audio.ts');
 const { getTimelineMotionBlurBoundaries } = await load('motion-blur.ts');
 const { resolveTimelineAudioLayerReference } = await load('timeline-audio.ts');
 const { timelineSceneToSource, timelineSourceToScene } = await load('layer-transform.ts');
-const { getTimelineGroupRange } = await load('layers/group/group.ts');
+const { getTimelineContainerRange } = await load('container-range.ts');
 const literal = value => ({ inputSource: 'literal', value });
 const sound = (id, startMs = 100, durationMs = 100) => ({ id, name: id, layerType: 'audio', isDisabled: false,
 	automationGraphs: [], audioParamValues: { volume: literal(0.8) }, clips: [{ id: 'clip', startMs, durationMs, sourceInMs: 12.5, sourceOutMs: 12.5 + durationMs, playbackRate: 1, loop: false, assetId: id }] });
@@ -56,13 +56,13 @@ test('derives group ranges and scene duration without retiming referenced scenes
 	const nested = group('nested', [image, group('inner', [placement])]);
 	const root = scene('root', [nested]);
 	const child = scene('child', [sound('long', 0, 10000)]);
-	assert.deepEqual(getTimelineGroupRange(nested), { startMs: 100, durationMs: 600 });
+	assert.deepEqual(getTimelineContainerRange(nested), { startMs: 100, durationMs: 600 });
 	assert.equal(getSceneDuration(root), 700);
 	assert.deepEqual(getTimelineMotionBlurBoundaries([root, child], 'root'), [0, 100, 200, 500, 700]);
 	nested.isDisabled = true;
 	assert.equal(getSceneDuration(root), 700);
 	assert.deepEqual(getTimelineMotionBlurBoundaries([root, child], 'root'), [0, 700]);
-	assert.equal(getTimelineGroupRange(group('empty', [])), null);
+	assert.equal(getTimelineContainerRange(group('empty', [])), null);
 });
 
 // 【Scene参照とレイヤーIDの検証はグループ境界を越える】

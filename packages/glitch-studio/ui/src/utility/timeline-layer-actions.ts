@@ -7,7 +7,7 @@ import type { MenuItem } from '@/types/menu.ts';
 import type { UndoRedo } from './undo-redo.ts';
 import type { TimelineSelection } from './timeline-selection.ts';
 import type { TimelineClipSourceDurations } from './timeline-clip-media.ts';
-import { duplicateTimelineLayers } from './timeline-group.ts';
+import { duplicateTimelineLayers } from './timeline-container.ts';
 
 type TimelineLayerActionsOptions = {
 	stateManager: Pick<UndoRedo<ProjectState, AppStateChange, typeof COMMAND_DEFS>, 'state' | 'commit'>;
@@ -18,6 +18,8 @@ type TimelineLayerActionsOptions = {
 	selectLayer: (layer: TimelineLayer) => void;
 	canGroup: () => boolean;
 	groupSelection: () => void;
+	canTransform: () => boolean;
+	transformSelection: () => void;
 	focusTimeline: () => void;
 	ui: Pick<typeof import('@/ui.ts'), 'contextMenu' | 'inputText' | 'alert'>;
 };
@@ -31,7 +33,7 @@ export function createTimelineLayerActions(options: TimelineLayerActionsOptions)
 		if (selection.value.kind !== 'layers' || !selection.value.ids.includes(layer.id)) selectLayer(layer);
 		if (selection.value.kind !== 'layers') return;
 		const ids = [...selection.value.ids];
-		const menu: MenuItem[] = [{ text: 'Group', icon: 'ti ti-folder-symlink', disabled: !canGroup(), action: groupSelection }];
+		const menu: MenuItem[] = [{ text: 'Wrap in Transform', icon: 'ti ti-gizmo', disabled: !options.canTransform(), action: options.transformSelection }, { text: 'Group', icon: 'ti ti-folder-symlink', disabled: !canGroup(), action: groupSelection }];
 		if (ids.length === 1) menu.push({ text: 'Rename', icon: 'ti ti-edit', action: () => rename(ids[0]) });
 		menu.push({ text: 'Duplicate', icon: 'ti ti-copy', action: () => duplicate(ids) }, {
 			text: 'Delete', icon: 'ti ti-trash', danger: true, action: () => remove(ids),

@@ -1,7 +1,8 @@
+import { isTimelineContainerLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import { computed } from 'vue';
 import type { TimelineClip } from '@gs/subsystems_timeline_shared/clip.ts';
 import { flattenTimelineLayers } from '@gs/subsystems_timeline_shared/layer-tree.ts';
-import { getTimelineGroupRange } from '@gs/subsystems_timeline_shared/layers/group/group.ts';
+import { getTimelineContainerRange } from '@gs/subsystems_timeline_shared/container-range.ts';
 import { getTimelineClipEnd, getTimelineClipTrimBounds } from '@gs/subsystems_timeline_shared/timing.ts';
 import { getTimelineMediaTrimBounds, getTimelineMediaPeriod, getTimelineMediaLoopBounds } from '@gs/subsystems_timeline_shared/media-timing.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
@@ -21,7 +22,7 @@ import type { TimelineViewport } from '@/composables/useTimelineViewport.ts';
 import type { TimelineSelectionDrag } from '@/composables/useTimelineSelectionDrag.ts';
 import type { getTimelineKeyframeEntries } from './timeline-keyframe-lanes.ts';
 import { prepareTimelineClipMove } from './timeline-clip-move.ts';
-import { prepareTimelineGroupMove } from './timeline-group.ts';
+import { prepareTimelineContainerMove } from './timeline-container.ts';
 import { getTimelineClipSnapPoints, getTimelineSnapCandidates } from './timeline-snapping.ts';
 import { getTimelineVisibleClipTicks } from './timeline-ticks.ts';
 import { clipSelectionKey, keyframeSelectionKey, getTimelineStretchSelection, keyframeMoveBounds, getTimelineSnappingTimes } from './timeline-selection.ts';
@@ -57,7 +58,7 @@ export function createTimelineDragActions(options: TimelineDragActionsOptions) {
 		selectLayer, selectClip, selectKeyframe: onKeyframeSelected, revealDetails, focusTimeline } = options;
 	const { positionX, rangeX, tickCount, ticksWithMinor } = options.viewport;
 	const { settings: snapSettings, clipSettings: clipSnapSettings, tickMode, tickSubdivisions, currentTime: time } = options.snapping;
-	const clipLayers = computed(() => sceneLayers.value.filter(layer => layer.layerType !== 'group'));
+	const clipLayers = computed(() => sceneLayers.value.filter(layer => !isTimelineContainerLayer(layer)));
 
 	function resolveClip(target: TimelineClipSelection) {
 		const layer = clipLayers.value.find(layer => layer.id === target.layerId);
@@ -66,18 +67,18 @@ export function createTimelineDragActions(options: TimelineDragActionsOptions) {
 	}
 
 	function onGroupMoveStart(event: PointerEvent, layer: TimelineLayer) {
-		if (layer.layerType !== 'group' || !drag.canStart(event)) return;
+		if (!isTimelineContainerLayer(layer) || !drag.canStart(event)) return;
 		selectLayer(layer);
-		const range = getTimelineGroupRange(layer);
+		const range = getTimelineContainerRange(layer);
 		if (!range) return;
-		const initial = prepareTimelineGroupMove(stateManager.state, layer);
+		const initial = prepareTimelineContainerMove(stateManager.state, layer);
 		const points = getTimelineClipSnapPoints(range, { minDelta: initial.minDelta, maxDelta: initial.maxDelta }, clipSnapSettings.value);
 		const excluded = new Set(flattenTimelineLayers([layer]).map(child => child.id));
 		const snapTimes = getTimelineSnapCandidates(snapSettings.value, [0, ...clipLayers.value.filter(child => !excluded.has(child.id))
 			.flatMap(child => child.clips.flatMap(clip => [clip.startMs, getTimelineClipEnd(clip)]))], ticksWithMinor.value, [], time.value);
 		drag.startSelectionMove(event, points, snapTimes, (delta, mergeKey) => {
 			if (!sceneLayers.value.some(current => current.id === layer.id)) return false;
-			stateManager.commit('moveTimelineGroup', { sceneId: scene.id, layerId: layer.id, deltaMs: delta, initial }, mergeKey);
+			stateManager.commit('moveTimelineContainer', { sceneId: scene.id, layerId: layer.id, deltaMs: delta, initial }, mergeKey);
 			return true;
 		});
 	}
@@ -226,7 +227,7 @@ export function createTimelineDragActions(options: TimelineDragActionsOptions) {
 			// キーはScene時刻のまま、所属レイヤーの各クリップに描いた目盛りへ吸着させる。
 			// 空白区間にはローカル目盛りがなく、別レイヤーのクリップも候補に含めない。
 			const localTimes = snapSettings.value.localTicks ? getTimelineVisibleClipTicks<TimelineClip>(
-				layer.layerType === 'group' ? [] : layer.clips, positionX.value, rangeX.value, tickCount.value, tickMode.value, tickSubdivisions.value,
+				isTimelineContainerLayer(layer) ? [] : layer.clips, positionX.value, rangeX.value, tickCount.value, tickMode.value, tickSubdivisions.value,
 			).flatMap(({ ticks }) => [...ticks.major, ...ticks.minor].map(tick => tick.sceneTimeMs)).toSorted((a, b) => a - b) : [];
 			return [layer.id, getTimelineSnapCandidates(snapSettings.value, otherTimes, ticksWithMinor.value, localTimes, time.value)];
 		}));

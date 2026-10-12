@@ -1,5 +1,6 @@
 import type { timelineCompositingParamDefs } from './timeline-compositing.ts';
 import type { TimelineCameraParameterValues } from './layers/camera/camera.ts';
+import type { TimelineTransformParameterValues } from './layers/transform/transform.ts';
 import type { TimelineClip, TimelineContentClip, TimelineMediaClip, TimelineAssetClip, TimelineVideoClip, TimelineSceneClip } from './clip.ts';
 import type { TimelineSceneResolution } from './scene-resolution.ts';
 import type { EffectResolution } from '@gs/subsystems_effect_shared/resolution.js';
@@ -12,7 +13,7 @@ import type { TextParameterValues } from './layers/text/text.ts';
 import type { Shape } from './layers/shape/shape.ts';
 import type { VoicevoxSettings, VoicevoxUtterance } from './layers/voicevox/voicevox.ts';
 
-export type TimelineParameterTarget = 'module' | 'effect' | 'shape' | 'text' | 'voicevoxSubtitle' | 'camera' | 'compositing' | 'audio';
+export type TimelineParameterTarget = 'module' | 'effect' | 'shape' | 'text' | 'voicevoxSubtitle' | 'camera' | 'transform' | 'compositing' | 'audio';
 
 // definitionはレイヤー全体の追加・削除・置換。部分編集では変更した内容を列挙し、
 // 実行インスタンスの扱いは利用側へ委ねる。
@@ -77,7 +78,7 @@ export type TimelineAudioLayer = TimelineLayerBase<TimelineMediaClip> & Timeline
 	layerType: 'audio';
 };
 
-/** Scene直下で視点を制御する。画素の合成設定は持たず、キーはScene時刻で評価する。 */
+/** Scene直下またはTransform配下で視点を制御する。キーはScene時刻で評価する。 */
 export type TimelineCameraLayer = TimelineLayerBase<TimelineContentClip> & {
 	layerType: 'camera';
 	cameraParamValues: TimelineCameraParameterValues;
@@ -116,13 +117,31 @@ export type TimelineGroupLayer = TimelineLayerCommon & TimelineAudioLayerBase & 
 };
 
 export type TimelineClipLayer = TimelineVisualModuleLayer | TimelineInlineVisualModuleLayer | TimelineEffectLayer | TimelineShapeLayer | TimelineTextLayer | TimelineAudioLayer | TimelineImageLayer | TimelineVideoLayer | TimelineSceneLayer | TimelineVoicevoxLayer | TimelineCameraLayer;
-export type TimelineLayer = TimelineClipLayer | TimelineGroupLayer;
+/** 子を平面化せず、座標系の移動だけを継承する。自身の画像・クリップ・音量は持たない。 */
+export type TimelineTransformLayer = TimelineLayerCommon & {
+	layerType: 'transform';
+	transformParamValues: TimelineTransformParameterValues;
+	forceDisableMotionBlur: boolean;
+	layers: TimelineLayer[];
+};
 
-export type TimelineVisualLayer = Exclude<TimelineLayer, TimelineAudioLayer | TimelineCameraLayer>;
+export type TimelineContainerLayer = TimelineGroupLayer | TimelineTransformLayer;
+export type TimelineLayer = TimelineClipLayer | TimelineContainerLayer;
+
+export function isTimelineContainerLayer(layer: TimelineLayer): layer is TimelineContainerLayer {
+	return layer.layerType === 'group' || layer.layerType === 'transform';
+}
+
+export type TimelineVisualLayer = Exclude<TimelineLayer, TimelineAudioLayer | TimelineCameraLayer | TimelineTransformLayer>;
 
 /** 映像合成・プレビュー変形の対象。カメラはSceneの視点を制御する別の役割を持つ。 */
 export function isTimelineVisualLayer(layer: TimelineLayer): layer is TimelineVisualLayer {
-	return layer.layerType !== 'audio' && layer.layerType !== 'camera';
+	return layer.layerType !== 'audio' && layer.layerType !== 'camera' && layer.layerType !== 'transform';
+}
+
+/** 描画走査には、画像を持たないTransformも含めて子へ入力と座標系を渡す。 */
+export function isTimelineRenderLayer(layer: TimelineLayer): layer is TimelineVisualLayer | TimelineTransformLayer {
+	return layer.layerType === 'transform' || isTimelineVisualLayer(layer);
 }
 
 /** 長さはグループ内部も含む全配置クリップの終端から求める。参照先Sceneの内部は含めない。 */

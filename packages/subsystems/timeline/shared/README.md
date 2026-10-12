@@ -34,7 +34,7 @@ Scene・レイヤー・クリップと、その時間・合成・音声設定の
 
 `parameter-binding.ts`で保存データの制約を配列・構造体内部まで検証し、`TimelineParameterBindingEvaluator`はCPU値として扱えるBindingだけを共通評価器へ渡す。`layerInput`はTimeline Renderer内のエフェクトレイヤーが下層の合成結果として解決する。他ドメインの入力方式を列挙せず、このスコープが扱える方式だけを受け入れる。
 
-`getSceneAudioClips(scenes, sceneId, selection)`は音声計画を作る。選択は`{ type: 'all' }`（既定値）、`{ type: 'belowLayer', layerId }`、`{ type: 'layer', layerId }`。下層指定では自分と上層を除外し、レイヤー指定では並び順によらず指定レイヤー単体の出力を使う。下層指定は取得元と同じ親の兄弟に適用し、指定レイヤーの取得はScene内のグループをまたいで解決する。参照先の祖先の音量は含めないが、祖先が無効なら入力なしとする。選んだSceneレイヤーはその配置のトリムと音量を適用した子Scene全体を含める。子Scene内部のレイヤーは直接選べない。無効レイヤー・音声無効の動画を除外し、各階層の音量はミックス側へ渡す。`primaryAudioInputParameter` / `primaryAudioInputId`を持つエフェクト・Visual Moduleの主音声入力は、初期値・リセット時に`lowerLayerAudio`になる。画像の主入力と合成設定は独立する。
+`getSceneAudioClips(scenes, sceneId, selection)`は音声計画を作る。選択は`{ type: 'all' }`（既定値）、`{ type: 'belowLayer', layerId }`、`{ type: 'layer', layerId }`。下層指定では自分と上層を除外し、レイヤー指定では並び順によらず指定レイヤー単体の出力を使う。下層指定はTransformの境界を透過し、最も近いGroupまたはSceneの下層までを対象にし、指定レイヤーの取得はScene内のグループをまたいで解決する。参照先の祖先の音量は含めないが、祖先が無効なら入力なしとする。選んだSceneレイヤーはその配置のトリムと音量を適用した子Scene全体を含める。子Scene内部のレイヤーは直接選べない。無効レイヤー・音声無効の動画を除外し、各階層の音量はミックス側へ渡す。`primaryAudioInputParameter` / `primaryAudioInputId`を持つエフェクト・Visual Moduleの主音声入力は、初期値・リセット時に`lowerLayerAudio`になる。画像の主入力と合成設定は独立する。
 
 `motion-blur.ts`はシャッター角・サンプル数の設定と検証、最上位Sceneの端と映像クリップ境界の収集、中央露光のサンプル時刻計算を担当する。子Sceneのブラー対象のカットは配置の内容オフセットを反映し、表示区間内だけ親へ渡す。子Sceneの長さ自体は境界に含めず、固定・非表示・音声レイヤーの終端がSceneの長さを通じて露光を制限することを防ぐ。映像レイヤーの`forceDisableMotionBlur`がtrueなら、その枝のカットとループ境界を露光制限から除外する。グループ・Sceneの配下も除外するが、Sceneの長さや子の保存設定は変更しない。切り詰めた露光区間へ指定数のサンプルを等間隔で再配置するため、重みは均等で合計1となる。0・1サンプル、角度0、無効時は基準時刻を1回評価する。時間は整数msに丸めない。
 
@@ -62,16 +62,24 @@ Scene・レイヤー・クリップと、その時間・合成・音声設定の
 
 `TimelineGroupLayer`は通常の合成設定・音量・キーを持ち、`clips`の代わりに`layers`を所有する。`layer-tree.ts`がScene参照を跨がない探索・更新・有効レイヤーの列挙を提供する。Sceneの長さ、Scene循環参照、履歴依存エフェクト、VOICEVOX要求、モーションブラーの検査にも同じ木構造を使う。
 
-`layers/group/group.ts`が子孫クリップの最小開始〜最大終了を仮クリップの表示範囲として返す。この範囲を音声・映像の有効判定には使用しない。音声計画はグループの子へ同じScene時刻と音量の積を引き継ぐ。`layerAudio`の初期探索だけ祖先の音量を除外し、祖先の無効状態は引き続き適用する。
+`container-range.ts`が子孫クリップの最小開始〜最大終了を仮クリップの表示範囲として返す。この範囲を音声・映像の有効判定には使用しない。音声計画はグループの子へ同じScene時刻と音量の積を引き継ぐ。`layerAudio`の初期探索だけ祖先の音量を除外し、祖先の無効状態は引き続き適用する。
 
 動画・音声の倍率の絶対値は0.01〜16（1〜1600%）とし、負なら逆再生する。極端な早送りによるデコード・音声フィルターの負荷を制限するため、UI・Command・読み込み時に同じ範囲を検証する。0倍は許可しない。
 
 ## カメラと空間
 
-Scene直下の`camera`レイヤーは`cameraParamValues`にXY・Z・縦画角のBindingを持ち、通常のレイヤーとしてAutomation Graphと有効クリップを所有する。`scene-camera.ts`が表示順で最上段の有効なカメラを選び、`layers/camera`の評価器へ渡す。該当なしならXY=0、Z=cot(22.5°)、縦画角45°の基準カメラとなり、Z=0の2D配置を維持する。Zの単位はSceneの半高で、正がカメラ方向。視点と平面の距離が0.001未満なら非表示。
+Scene直下またはTransform配下の`camera`レイヤーは`cameraParamValues`にXY・Z・縦画角のBindingを持ち、通常のレイヤーとしてAutomation Graphと有効クリップを所有する。`scene-camera.ts`が表示順で最上段の有効なカメラを選び、`layers/camera`の評価器へ渡す。該当なしならXY=0、Z=cot(22.5°)、縦画角45°の基準カメラとなり、Z=0の2D配置を維持する。Zの単位はSceneの半高で、正がカメラ方向。視点と平面の距離が0.001未満なら非表示。
 
-`affine.ts`・`spatial.ts`・`group-space.ts`は平面の変換・投影・グループ境界を所有する。GPUに依存せず、レンダラーとプレビューの逆変換で同じ規則を使用する。グループの`compositingMode`は`flat`（内部2D合成）または`preserveDepth`（子を投影後にグループ合成）。レイヤーの`placement`は`world`または`screen`で、後者は現在の合成先の親変形・カメラを適用しない。
+`affine.ts`・`spatial.ts`・`group-space.ts`は平面の変換・投影・グループ境界を所有する。GPUに依存せず、レンダラーとプレビューの逆変換で同じ規則を使用する。グループの`compositingMode`は`flat`（内部2D合成）または`preserveDepth`（子を投影後にグループ合成）。レイヤーの`placement`は`world`または`screen`で、後者は現在の合成先のGroupの変形・カメラを適用しない。TransformのXYは`screenParent`として別に蓄積し、画面配置にも反映する。
 
-カメラのキー・式はScene時刻で評価し、クリップの内容オフセットは使用しない。カメラはグループへ入れられず、音声・画素・合成パラメータを持たない。映像合成対象の選択は`isTimelineVisualLayer`で統一する。
+カメラのキー・式はScene時刻で評価し、クリップの内容オフセットは使用しない。カメラはグループへ入れられず、音声・画素・合成パラメータを持たない。合成設定を持つレイヤーは`isTimelineVisualLayer`、子の描画走査を行うTransformも含めた対象は`isTimelineRenderLayer`で区別する。
 
 `TimelineCameraCuts`は描画と同じカメラ選択規則で、実際に選択が変わる境界だけを計算する。ブラー無効のカメラは基準時刻で有効状態を固定し、最上段の有効な固定カメラごとに結果をキャッシュする。`getTimelineMotionBlurBoundaries()`は通常の映像カットを収集し、カメラは`getTimelineMotionBlurCameraCuts()`で配置ごとのScene時計・トリム範囲と選択計画を保持する。`getTimelineSampleTimes()`へ両方を渡すことで、未採用のカメラに露光を制限されず、子Sceneの固定カメラも配置ごとに解釈できる。計画はプロジェクト変更時に作り直す。
+
+## Transformレイヤー
+
+`TimelineTransformLayer`は`layers`とXYZ移動のBinding、Automation Graph、`forceDisableMotionBlur`を所有する。Groupと合わせて`TimelineContainerLayer`とし、木の走査・時間移動・範囲計算を共有する。自身のクリップ・画像・合成設定・音量は持たない。`layers/transform`が定義と評価器、`transform-space.ts`が親空間への移動の累積を担当する。
+
+カメラ選択はTransformだけを再帰し、無効な枝を除いた表示順で行う。カメラ配下の計算ではなく、Scene側で選択したカメラの祖先を評価するため循環しない。祖先Transformのブラー無効は子のクリップ選択とカット計画にも引き継ぐ。カメラ自身だけを固定した場合は祖先のサンプル時刻を維持する。Groupを祖先に持つカメラは検証時に拒否する。
+
+音声計画はTransformを音量なしで透過し、下層入力も外側へ継続する。Group・Sceneは従来の合成境界を維持する。

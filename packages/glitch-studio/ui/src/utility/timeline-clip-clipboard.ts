@@ -1,3 +1,4 @@
+import { isTimelineContainerLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import { findTimelineLayer } from '@gs/subsystems_timeline_shared/layer-tree.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { genId } from '@gs/shared/utility/id.ts';
@@ -22,7 +23,7 @@ export function copyTimelineClips(scene: TimelineScene, selection: readonly Time
 	const clips: TimelineClipPaste[] = [];
 	for (const target of selection) {
 		const layer = findTimelineLayer(scene.layers, target.layerId);
-		const clip = layer && layer.layerType !== 'group' ? layer.clips.find(clip => clip.id === target.clipId) : undefined;
+		const clip = layer && !isTimelineContainerLayer(layer) ? layer.clips.find(clip => clip.id === target.clipId) : undefined;
 		if (!clip) return null;
 		clips.push({ layerId: target.layerId, clip: deepClone(clip) });
 	}
@@ -34,7 +35,7 @@ export function canPasteTimelineClips(scene: TimelineScene, clips: readonly Time
 	if (clips.length === 0) return false;
 	for (const layerId of new Set(clips.map(entry => entry.layerId))) {
 		const layer = findTimelineLayer(scene.layers, layerId);
-		if (!layer || layer.layerType === 'group') return false;
+		if (!layer || isTimelineContainerLayer(layer)) return false;
 		try {
 			validateTimelineClips([...layer.clips, ...clips.filter(entry => entry.layerId === layerId).map(entry => entry.clip)]);
 		} catch { return false; }

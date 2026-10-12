@@ -80,7 +80,7 @@ export class TimelineRenderer<Output, Entry extends TimelineRenderEntry = Timeli
 	}
 
 	/** 子Sceneも同じ評価を使い、Canvasへの表示は最上位だけで行う。 */
-	public async evaluateAt(time: number, timeline: readonly Entry[], timeDelta = 0, isExport = false, parentSignal?: AbortSignal, referenceTime?: TimelineFrameReferenceTime, renderSpace?: TimelineRenderSpace): Promise<{ output: Output; gpuTime: number; hasOutput: boolean } | undefined> {
+	public async evaluateAt(time: number, timeline: readonly Entry[], timeDelta = 0, isExport = false, parentSignal?: AbortSignal, referenceTime?: TimelineFrameReferenceTime, renderSpace?: TimelineRenderSpace, input = this.options.fallbackOutput): Promise<{ output: Output; gpuTime: number; hasOutput: boolean } | undefined> {
 		this.controller?.abort();
 		const controller = new AbortController();
 		this.controller = controller;
@@ -105,7 +105,7 @@ export class TimelineRenderer<Output, Entry extends TimelineRenderEntry = Timeli
 			// 必要な下層も含む評価対象をここで決め、表示判定とは独立して寿命を管理する。
 			const evaluationEntries = visibleEntries;
 			this.releaseUnusedLayers(new Set(evaluationEntries.map(entry => entry.instanceKey)));
-			const result = await this.evaluateLayers(evaluationEntries, timeDelta, isExport, controller.signal, referenceTime, renderSpace ?? this.options.getRenderSpace?.(time, isExport, referenceTime));
+			const result = await this.evaluateLayers(evaluationEntries, timeDelta, isExport, controller.signal, referenceTime, renderSpace ?? this.options.getRenderSpace?.(time, isExport, referenceTime), input);
 			if (result == null || isCancelled()) return;
 			// レイヤーがない場合も透明な出力を表示し、前回の表示を残さない。
 			return result;
@@ -127,8 +127,8 @@ export class TimelineRenderer<Output, Entry extends TimelineRenderEntry = Timeli
 	}
 
 	/** 表示範囲の判定やpresentは行わず、指定された対象を内容時刻で評価・合成する。 */
-	private async evaluateLayers(entries: readonly { entry: Entry; clip: TimelineClip | null; instanceKey: string; time: number }[], timeDelta: number, isExport: boolean, signal: AbortSignal, referenceTime?: TimelineFrameReferenceTime, renderSpace?: TimelineRenderSpace) {
-		let output = this.options.fallbackOutput;
+	private async evaluateLayers(entries: readonly { entry: Entry; clip: TimelineClip | null; instanceKey: string; time: number }[], timeDelta: number, isExport: boolean, signal: AbortSignal, referenceTime?: TimelineFrameReferenceTime, renderSpace?: TimelineRenderSpace, input = this.options.fallbackOutput) {
+		let output = input;
 		let gpuTime = 0;
 		let hasOutput = false;
 		for (const { entry, clip, instanceKey, time } of entries) {

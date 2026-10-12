@@ -1,5 +1,5 @@
 import { TimelineSceneCamera } from '@gs/subsystems_timeline_shared/scene-camera.ts';
-import { isTimelineVisualLayer } from '@gs/subsystems_timeline_shared/types.ts';
+import { isTimelineRenderLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import { TIMELINE_IDENTITY, TIMELINE_FRAME } from '@gs/subsystems_timeline_shared/spatial.ts';
 import { TimelineRenderer } from '../../timeline-renderer.ts';
 import { createTimelineCompositor } from '../../timeline-compositor.ts';
@@ -43,7 +43,7 @@ export function createSceneTimelineLayer(
 			const scene = typeof sceneSource === 'function' ? sceneSource() : sceneSource;
 			// 参照先Sceneの時計へ両方の時刻を変換する。配置ごとの無効化は保存された子の設定を変更しない。
 			const referenceTime = context.referenceTime && { timeMs: context.referenceTime.contentTimeMs, timeDelta: context.referenceTime.timeDelta };
-			const result = await renderer.evaluateAt(context.contentTimeMs, scene.layers.filter(isTimelineVisualLayer), context.timeDelta, context.isExport, signal, referenceTime,
+			const result = await renderer.evaluateAt(context.contentTimeMs, scene.layers.filter(isTimelineRenderLayer), context.timeDelta, context.isExport, signal, referenceTime,
 				{ parent: TIMELINE_IDENTITY, depth: 0, viewport: TIMELINE_FRAME, camera: camera.evaluate(scene.layers, context.contentTimeMs, context.isExport, referenceTime?.timeMs) });
 			if (result == null || signal.aborted) return { gpuTime: 0 };
 			const encoder = options.device.createCommandEncoder();

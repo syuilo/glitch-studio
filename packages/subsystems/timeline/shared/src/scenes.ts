@@ -1,3 +1,5 @@
+import { isTimelineContainerLayer } from './types.ts';
+import { validateTimelineTransform } from './layers/transform/transform.ts';
 import { validateEffectResolution } from '@gs/subsystems_effect_shared/resolution.js';
 import { validateTimelineCamera } from './layers/camera/camera.ts';
 import { flattenTimelineLayers, getTimelineClipLayers } from './layer-tree.ts';
@@ -22,20 +24,21 @@ export function getTimelineScene(scenes: readonly TimelineScene[], sceneId: stri
 	return scene;
 }
 
-export function validateTimelineLayer(layer: TimelineLayer): void {
-	if (layer.layerType === 'group') {
+export function validateTimelineLayer(layer: TimelineLayer, insideGroup = false): void {
+	if (insideGroup && layer.layerType === 'camera') throw new Error('Camera layers cannot be placed inside a Group');
+	if (isTimelineContainerLayer(layer)) {
 		for (const child of layer.layers) {
-			if (child.layerType === 'camera') throw new Error('Camera layers must be placed directly in a Scene');
-			validateTimelineLayer(child);
+			validateTimelineLayer(child, insideGroup || layer.layerType === 'group');
 		}
 	} else validateTimelineClips(layer.clips);
 	if (layer.layerType === 'video' || layer.layerType === 'audio') {
 		for (const clip of layer.clips) validateTimelineMediaClipTiming(clip);
-	} else if (layer.layerType !== 'group') {
+	} else if (!isTimelineContainerLayer(layer)) {
 		for (const clip of layer.clips) {
 			if (!Number.isFinite(clip.contentOffsetMs) || clip.contentOffsetMs < 0 || !Number.isFinite(clip.contentOffsetMs + clip.durationMs)) throw new Error('Invalid content offset');
 		}
 	}
+	if (layer.layerType === 'transform') validateTimelineTransform(layer.transformParamValues);
 	if (layer.layerType === 'camera') validateTimelineCamera({ paramValues: layer.cameraParamValues, automationGraphs: layer.automationGraphs });
 	if (layer.layerType === 'text') validateTimelineText(layer.textParamValues);
 	if (layer.layerType === 'voicevox') {

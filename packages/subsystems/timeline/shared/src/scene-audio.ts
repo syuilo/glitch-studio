@@ -43,13 +43,23 @@ export function getSceneAudioPlacements(scenes: readonly TimelineScene[], sceneI
 		if (!location) throw new Error('Audio input layer not found in scene');
 		if (selection.type === 'layer' && !isTimelineAudioOutputLayer(location.layer)) throw new Error('Layer has no audio output');
 		// 祖先の音量は取得しないが、無効化は子孫の直接参照にも適用する。
-		rootLayers = location.ancestors.some(group => group.isDisabled) ? []
+		rootLayers = location.ancestors.some(parent => parent.isDisabled) ? []
 			: selection.type === 'layer' ? [location.layer] : location.siblings.slice(location.index + 1);
+		if (selection.type === 'belowLayer' && !location.ancestors.some(parent => parent.isDisabled)) {
+			// Transformは音声にも合成境界を作らない。GroupまたはSceneの境界まで
+			// 親の下の兄弟を追加し、映像の下層入力と同じ範囲を参照する。
+			for (const parent of location.ancestors.toReversed()) {
+				if (parent.layerType === 'group') break;
+				const parentLocation = findTimelineLayerLocation(rootScene.layers, parent.id)!;
+				rootLayers.push(...parentLocation.siblings.slice(parentLocation.index + 1));
+			}
+		}
 	}
 	const placements: SceneAudioPlacement[] = [];
 	const visit = (layers: readonly TimelineLayer[], sceneStartMs: number, start: number, end: number, gains: SceneAudioGain[]) => {
 		for (const layer of layers) {
 			if (layer.isDisabled) continue;
+			if (layer.layerType === 'transform') { visit(layer.layers, sceneStartMs, start, end, gains); continue; }
 			if (!isTimelineAudioOutputLayer(layer)) continue;
 			const layerGains = [...gains, { sceneStartMs, volume: layer.audioParamValues.volume, automationGraphs: layer.automationGraphs }];
 			if (layer.layerType === 'group') {

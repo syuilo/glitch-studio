@@ -12,9 +12,9 @@ const bundled = await build({
 		export { createTimelineDragActions } from './src/utility/timeline-drag-actions.ts';
 		export { flattenTimelineLayers } from '@gs/subsystems_timeline_shared/layer-tree.ts';
 		export * from './src/utility/timeline-clip-move.ts';
-		export * from './src/utility/timeline-group.ts';
+		export * from './src/utility/timeline-container.ts';
 		export { createTimelineLayerActions } from './src/utility/timeline-layer-actions.ts';
-		export * from '@gs/subsystems_timeline_shared/layers/group/group.ts';
+		export * from '@gs/subsystems_timeline_shared/container-range.ts';
 		export * from '@gs/subsystems_timeline_shared/layer-tree.ts';
 		export * from '@gs/glitch-studio_shared/project/renderer-state.ts';
 		export * from './src/utility/timeline-selection.ts';
@@ -41,7 +41,7 @@ const bundled = await build({
 });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', bundled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
-const { COMMAND_DEFS, UndoRedo, prepareTimelineGroupMove, duplicateTimelineLayers, findTimelineLayer,
+const { COMMAND_DEFS, UndoRedo, prepareTimelineContainerMove, duplicateTimelineLayers, findTimelineLayer,
 	createVoicevoxTimelineLayer, applyRendererProjectChanges, findRendererVisualModule, createTimelineLayerActions } = module.exports;
 const literal = value => ({ inputSource: 'literal', value });
 const keys = times => ({ inputSource: 'keyframesTimelineInline', offsetMode: 'start', wrapMode: 'clamp', trimmedDurationMs: null,
@@ -68,7 +68,7 @@ function layerMenuFixture(f, ids, overrides = {}) {
 		readLayerMediaDurations: async layer => Object.fromEntries(module.exports.flattenTimelineLayers([layer])
 			.filter(child => child.layerType === 'audio').map(child => [child.id, Object.fromEntries(child.clips.map(clip => [clip.id, 5000]))])),
 		selectLayer: layer => { selection.value = { kind: 'layers', ids: [layer.id] }; },
-		canGroup: () => true, groupSelection: () => {}, focusTimeline: () => {},
+		canGroup: () => true, groupSelection: () => {}, canTransform: () => true, transformSelection: () => {}, focusTimeline: () => {},
 		ui: { contextMenu: items => { menu = items; }, inputText: async () => ({ canceled: false, result: 'Renamed' }), alert: error => alerts.push(error) },
 		...overrides,
 	});
@@ -83,9 +83,9 @@ function layerMenuFixture(f, ids, overrides = {}) {
 test('keeps selected layers on right click and offers rename only for one layer', t => {
 	const f = fixture(t, [group('a'), group('b'), group('c')]);
 	const controls = layerMenuFixture(f, ['a', 'b']);
-	assert.deepEqual(controls.open('b').map(item => item.text), ['Group', 'Duplicate', 'Delete']);
+	assert.deepEqual(controls.open('b').map(item => item.text), ['Wrap in Transform', 'Group', 'Duplicate', 'Delete']);
 	assert.deepEqual(controls.selection.value.ids, ['a', 'b']);
-	assert.deepEqual(controls.open('c').map(item => item.text), ['Group', 'Rename', 'Duplicate', 'Delete']);
+	assert.deepEqual(controls.open('c').map(item => item.text), ['Wrap in Transform', 'Group', 'Rename', 'Duplicate', 'Delete']);
 	assert.deepEqual(controls.selection.value.ids, ['c']);
 	controls.selection.value = { kind: 'clips', clips: [{ layerId: 'a', clipId: 'clip' }] };
 	controls.open('a');
@@ -192,10 +192,10 @@ test('moves the entire group including keys outside clips and restores merged dr
 	const child = { id: 'child', name: 'Child', resolution: { mode: 'project' }, layers: [sound('child-audio')] };
 	f.state.timelineScenes.value.push(child);
 	const before = structuredClone(f.state.timelineScenes.value);
-	const initial = prepareTimelineGroupMove(f.state, rootGroup);
+	const initial = prepareTimelineContainerMove(f.state, rootGroup);
 	assert.equal(initial.minDelta, -100);
 	for (const deltaMs of [1000, 0, -500, 300]) {
-		f.history.commit('moveTimelineGroup', { sceneId: 'scene', layerId: 'group', initial, deltaMs }, 'drag');
+		f.history.commit('moveTimelineContainer', { sceneId: 'scene', layerId: 'group', initial, deltaMs }, 'drag');
 		if (deltaMs === 0) assert.deepEqual(f.state.timelineScenes.value, before);
 	}
 	assert.equal(findTimelineLayer(f.scene.layers, 'sound').clips[0].startMs, 1300);
@@ -229,7 +229,7 @@ test('groups, reparents and ungroups atomically with stable child IDs', t => {
 	f.history.commit('moveTimelineLayer', { sceneId: 'scene', layerId: 'c', parentId: 'nested', beforeId: 'b' });
 	assert.deepEqual(findTimelineLayer(f.scene.layers, 'nested').layers.map(layer => layer.id), ['c', 'b']);
 	f.history.undo(); assert.deepEqual(f.scene, grouped);
-	f.history.commit('ungroupTimelineLayer', { sceneId: 'scene', layerId: 'group' });
+	f.history.commit('unwrapTimelineLayer', { sceneId: 'scene', layerId: 'group' });
 	assert.deepEqual(f.scene.layers.map(layer => layer.id), ['a', 'nested', 'c']);
 	f.history.undo(); assert.deepEqual(f.scene, grouped);
 });

@@ -1,3 +1,5 @@
+import { isTimelineContainerLayer } from './types.ts';
+import { getTimelineCameraCandidates } from './scene-camera.ts';
 import { getSceneDuration, getTimelineScene } from './scenes.ts';
 import { getTimelineClipEnd, getTimelineLoopCycle } from './timing.ts';
 import { getTimelineMediaPeriod } from './media-timing.ts';
@@ -28,7 +30,7 @@ export function validateTimelineMotionBlur(settings: TimelineMotionBlurSettings)
 function* getMotionBlurLayers(layers: readonly TimelineLayer[]): Generator<TimelineClipLayer> {
 	for (const layer of layers) {
 		if (layer.isDisabled || layer.layerType === 'audio' || layer.layerType === 'camera' || layer.forceDisableMotionBlur) continue;
-		if (layer.layerType === 'group') yield* getMotionBlurLayers(layer.layers);
+		if (isTimelineContainerLayer(layer)) yield* getMotionBlurLayers(layer.layers);
 		else yield layer;
 	}
 }
@@ -80,7 +82,7 @@ export function getTimelineMotionBlurCameraCuts(scenes: readonly TimelineScene[]
 	const plans = new Map<string, TimelineCameraCuts>();
 	const visit = (id: string, sceneStartMs: number, startMs: number, endMs: number) => {
 		const scene = getTimelineScene(scenes, id);
-		if (scene.layers.some(layer => layer.layerType === 'camera' && !layer.isDisabled)) {
+		if (getTimelineCameraCandidates(scene.layers).length > 0) {
 			let cuts = plans.get(id);
 			if (!cuts) { cuts = new TimelineCameraCuts(scene.layers); plans.set(id, cuts); }
 			placements.push({ startMs, endMs, sceneStartMs, cuts });

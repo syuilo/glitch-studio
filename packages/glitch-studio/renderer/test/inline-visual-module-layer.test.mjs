@@ -23,6 +23,7 @@ after(() => {
 const load = path => loadShaderSource(fileURLToPath(import.meta.resolve(path)));
 const { TimelineRendererManager } = await load('../src/timeline-renderer-manager.ts');
 const { timelineCompositingParamDefs } = await load('@gs/subsystems_timeline_shared/timeline-compositing.ts');
+const { createTimelineTransformParameterValues } = await load('@gs/subsystems_timeline_shared/layers/transform/transform.ts');
 const literal = value => ({ inputSource: 'literal', value });
 const expression = expression => ({ inputSource: 'expression', expression });
 const connection = (nodeId, outputPort = 'output') => ({ inputSource: 'node', nodeId, outputPort, fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' });
@@ -411,6 +412,35 @@ test('applies visibility patches to nested layers while retaining parent and sib
 	assert.deepEqual(calls.errors, []);
 });
 
+// 【TransformのWorker差分は子を再生成せず、下層入力と状態通知の経路を維持する】
+// 親の移動量を編集するたびに子のEffectやVisual Moduleを破棄すると履歴が途切れる。
+// 無効化の場合だけ子を解放し、子の木を設定差分で失わないことも確認する。
+test('preserves Transform child instances and outside inputs across project patches', async t => {
+	const { manager, calls } = fixture(t, { disableCache: false });
+	const child = layer('child', visualModule({ primaryInput: true, params: { amount: literal(1) } }));
+	const background = layer('background', visualModule());
+	const parent = { id: 'parent', name: 'Transform', layerType: 'transform', isDisabled: false, forceDisableMotionBlur: false,
+		automationGraphs: [], transformParamValues: createTimelineTransformParameterValues(), layers: [child] };
+	await manager.updateDynamicOptions({ timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [parent, background] }], sceneId: 'scene' });
+	await manager.renderTimelineFrame(350, 20);
+	assert.equal(calls.instances.length, 1);
+	const instance = calls.instances[0];
+	assert.deepEqual(calls.renders.at(-1).params.input, { kind: 'uniform', value: [0.5, 0, 0, 0.5] });
+	assert.deepEqual(calls.statuses[0].source.layerPath, ['child']);
+	const { layers, ...settings } = parent;
+	manager.applyProjectChanges([{ type: 'layer', sceneId: 'scene', layerId: parent.id, layer: {
+		...settings, transformParamValues: { ...settings.transformParamValues, position: literal([0.1, 0.2]), z: literal(0.2) },
+	}, changes: [{ type: 'parameter', target: 'transform', kind: 'value' }] }]);
+	await manager.renderTimelineFrame(400, 20);
+	assert.equal(calls.instances.length, 1);
+	assert.equal(instance.disposed, false);
+	assert.equal(calls.renders.at(-1).instance, instance);
+	assert.deepEqual(calls.errors, []);
+	manager.applyProjectChanges([{ type: 'layer', sceneId: 'scene', layerId: parent.id, layer: { ...settings, isDisabled: true }, changes: [{ type: 'disabled' }] }]);
+	await manager.renderTimelineFrame(450, 20);
+	assert.equal(instance.disposed, true);
+});
+
 // 【値編集と接続変更の扱いをレンダラー側で決め、同じバッチの変更内容を全て考慮する】
 // 通知から保持フラグを外しても、通常の値編集では上流を描き直さず、接続変更を含む
 // 編集ではModule全体のキャッシュを更新する。どちらも既存のエフェクトインスタンスは保つ。
@@ -514,7 +544,9 @@ test('renders inline definitions without a registry and matches referenced modul
 	const inline = layer('inline', module);
 	await manager.updateDynamicOptions({ timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [inline] }], sceneId: 'scene', visualModules: [] });
 	await manager.renderTimelineAt(350);
-	assert.deepEqual(calls.outputs.at(-1), { kind: 'uniform', value: [0.5, 0, 0, 0.5] });
+	// Replaceで借用した一様色も、配置後の有限なScene領域を持つ。
+	assert.deepEqual(calls.outputs.at(-1), { kind: 'uniform', value: [0.5, 0, 0, 0.5],
+		region: { bounds: { left: -1, bottom: -1, right: 1, top: 1 }, frameSize: { width: 1, height: 1 } } });
 	assert.deepEqual(calls.errors, []);
 	const { visualModule: _, ...reference } = inline;
 	await manager.updateDynamicOptions({ timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [{ ...reference, layerType: 'visualModule', visualModuleId: 'registered' }] }], sceneId: 'scene', visualModules: [{ ...module, id: 'registered', name: 'Registered' }] });
@@ -607,7 +639,9 @@ test('applies opacity and the same transform uniforms to inline and referenced l
 	top.visualModuleParamValues.input = literal([0, 1, 0, 1]);
 	await manager.updateDynamicOptions({ timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [bottom, top] }], sceneId: 'scene' });
 	await manager.renderTimelineFrame(100, 0);
-	assert.deepEqual(calls.outputs.at(-1), { kind: 'uniform', value: [0.5, 0, 0, 0.5] });
+	// Replaceで借用した一様色も、配置後の有限なScene領域を持つ。
+	assert.deepEqual(calls.outputs.at(-1), { kind: 'uniform', value: [0.5, 0, 0, 0.5],
+		region: { bounds: { left: -1, bottom: -1, right: 1, top: 1 }, frameSize: { width: 1, height: 1 } } });
 	top.compositingParamValues.opacity = literal(0.5);
 	top.compositingParamValues.position = literal([0.2, -0.3]);
 	top.compositingParamValues.origin = literal([1, -1]);

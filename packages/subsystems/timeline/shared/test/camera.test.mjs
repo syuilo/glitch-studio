@@ -60,7 +60,7 @@ test('clips motion blur at camera cuts and rejects cameras inside groups', () =>
 	const samples = getTimelineSampleTimes(100, 60, { enabled: true, shutterAngle: 360, samples: 8 }, boundaries, [], cameras);
 	assert.ok(samples.every(time => time >= 100));
 	validateTimelineScenes([scene]);
-	assert.throws(() => validateTimelineScenes([{ ...scene, layers: [{ id: 'group', layerType: 'group', layers: scene.layers }] }]), /directly in a Scene/);
+	assert.throws(() => validateTimelineScenes([{ ...scene, layers: [{ id: 'group', layerType: 'group', layers: scene.layers }] }]), /inside a Group/);
 });
 
 // 【上段に隠れたカメラの開始・終了で映像全体のブラーを短くしない】

@@ -1,3 +1,6 @@
+import { createTransformTimelineLayer } from '@gs/subsystems_timeline_renderer/layers/transform/transform-timeline-layer.ts';
+import { TimelineTransformParameters } from '@gs/subsystems_timeline_shared/layers/transform/transform-parameters.ts';
+import { isTimelineRenderLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import { flattenTimelineLayers, findTimelineLayer, findTimelineLayerLocation } from '@gs/subsystems_timeline_shared/layer-tree.ts';
 import { createGroupTimelineLayer } from '@gs/subsystems_timeline_renderer/layers/group/group-timeline-layer.ts';
 import { createSpeechResolver } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox.ts';
@@ -127,6 +130,7 @@ export class TimelineRendererManager extends EventEmitter<{
 	private pendingTransformPreview: TimelineTransformPreview | null = null;
 	private lastTransformPreview: TimelineTransformPreview | null = null;
 	private transformPreviewParameters = new TimelineCompositingParameters();
+	private transformPreviewTranslationParameters = new TimelineTransformParameters();
 
 	private readonly staticOptions: TimelineRendererManagerStaticOptions;
 	private dynamicOptions: TimelineRendererManagerDynamicOptions = {
@@ -325,8 +329,8 @@ export class TimelineRendererManager extends EventEmitter<{
 			if (change.type === 'scene' || change.type === 'layerTree') validateSceneReferences = true;
 			if (change.type !== 'layer' || change.layer === null) continue;
 			if (change.layer.layerType === 'camera') validateSceneReferences = true;
-			// 設定差分はグループの子孫を含まない。子の再検証は階層変更か子自身の差分で行う。
-			validateTimelineLayer(change.layer.layerType === 'group' ? { ...change.layer, layers: [] } : change.layer);
+			// 設定差分はコンテナの子孫を含まない。子の再検証は階層変更か子自身の差分で行う。
+			validateTimelineLayer((change.layer.layerType === 'group' || change.layer.layerType === 'transform') ? { ...change.layer, layers: [] } : change.layer);
 			if (change.layer.layerType === 'effect') validateTimelineEffectLayer(change.layer, this.effectDefinitions[change.layer.effectId]);
 			if (change.layer.layerType === 'scene') validateSceneReferences = true;
 			if (canPreserveModuleLayerInstance(change.changes)) {
@@ -470,7 +474,9 @@ export class TimelineRendererManager extends EventEmitter<{
 				time: preview.time, isExport: false, paramValues: entry.compositingParamValues, automationGraphs: entry.automationGraphs });
 			const settings = evaluate(layer);
 			const camera = new TimelineSceneCamera().evaluate(this.dynamicOptions.timelineScenes.find(scene => scene.id === sceneId)?.layers ?? [], preview.time, false);
-			const parent = getTimelinePreviewParent(location.ancestors.map(group => ({ settings: evaluate(group), compositingMode: group.compositingMode })), settings, sceneSize,
+			const parent = getTimelinePreviewParent(location.ancestors.map(parent => parent.layerType === 'transform'
+				? { translation: this.transformPreviewTranslationParameters.evaluate(parent.transformParamValues, parent.automationGraphs, preview.time, false) }
+				: { settings: evaluate(parent), compositingMode: parent.compositingMode }), settings, sceneSize,
 				{ parent: TIMELINE_IDENTITY, depth: 0, camera, viewport: TIMELINE_FRAME });
 			preview.geometry = parent && invertTimelineAffine(parent) ? { sourceSize: timelineImageFrame(source, sceneSize), sceneSize, transform: settings } : null;
 			preview.parentGeometries = parent ? [{ sourceSize: sceneSize, sceneSize, transform: { position: [0, 0], origin: [0, 0], scale: [1, 1], rotation: 0, fitMode: 'stretch' }, matrix: parent }] : [];
@@ -513,11 +519,22 @@ export class TimelineRendererManager extends EventEmitter<{
 	}
 
 	private getSceneLayers() {
-		return this.dynamicOptions.sceneId == null ? [] : getTimelineScene(this.dynamicOptions.timelineScenes, this.dynamicOptions.sceneId).layers.filter(isTimelineVisualLayer);
+		return this.dynamicOptions.sceneId == null ? [] : getTimelineScene(this.dynamicOptions.timelineScenes, this.dynamicOptions.sceneId).layers.filter(isTimelineRenderLayer);
 	}
 
 	private createTimelineLayer(layer: TimelineLayer, clipId: string | null, layerPath: string[], sceneBaseResolution: Resolution, sceneId = this.dynamicOptions.sceneId!): TimelineLayerRenderer<TimelineImage> {
 		const renderResolution = scaleResolution(sceneBaseResolution, this.dynamicOptions.resolutionScale);
+		if (layer.layerType === 'transform') {
+			return createTransformTimelineLayer(() => {
+				const current = this.getLayer(sceneId, layer.id);
+				if (current?.layerType !== 'transform') throw new Error('Transform not found');
+				return current;
+			}, {
+				fallbackOutput: { kind: 'uniform', value: [0, 0, 0, 0] } as TimelineImage,
+				createLayer: (entry, childClipId) => this.createTimelineLayer(entry, childClipId, [...layerPath.slice(0, -1), entry.id], sceneBaseResolution, sceneId),
+				getLayerVersion: (entry, childClipId) => this.getLayerVersion(sceneId, entry, childClipId),
+			});
+		}
 		if (layer.layerType === 'group') {
 			return createGroupTimelineLayer(() => {
 				const current = this.getLayer(sceneId, layer.id);

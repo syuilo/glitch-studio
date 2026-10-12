@@ -35,6 +35,13 @@
 			:layer="layer"
 			@edit="event => onTimelineLayerParamEdit(event, 'text')"
 		/>
+		<GsTimelineTransformSettings
+			v-if="layer.layerType === 'transform'"
+			:key="layer.id"
+			:layer="layer"
+			@edit="event => onTimelineLayerParamEdit(event, 'transform')"
+			@motionBlur="forceDisableMotionBlur => stateManager.commit('setTimelineLayerMotionBlurDisabled', { sceneId, layerId: layer.id, forceDisableMotionBlur })"
+		/>
 		<GsTimelineCameraSettings
 			v-if="layer.layerType === 'camera'"
 			:key="layer.id"
@@ -164,6 +171,7 @@ import GsTimelineVoicevoxSettings from './GsTimeline.VoicevoxSettings.vue';
 import GsTimelineVoicevoxSubtitleSettings from './GsTimeline.VoicevoxSubtitleSettings.vue';
 import GsTimelineTextSettings from './GsTimeline.TextSettings.vue';
 import GsTimelineShapeSettings from './GsTimeline.ShapeSettings.vue';
+import GsTimelineTransformSettings from './GsTimeline.TransformSettings.vue';
 import GsTimelineCameraSettings from './GsTimeline.CameraSettings.vue';
 import type { VisualModuleEdit } from '@/types/visual-module-editor.ts';
 import type { ParamEdit } from './GsVisualParam.vue';

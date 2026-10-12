@@ -1,3 +1,5 @@
+import { createTransformTimelineLayer } from '@gs/subsystems_timeline_renderer/layers/transform/transform-timeline-layer.ts';
+import { createTimelineTransformParameterValues } from '@gs/subsystems_timeline_shared/layers/transform/transform.ts';
 import vertexCode from '@gs/shared/gpu/vertex.wgsl?raw';
 import { TimelineRenderer } from '@gs/subsystems_timeline_renderer/timeline-renderer.ts';
 import { createGroupTimelineLayer } from '@gs/subsystems_timeline_renderer/layers/group/group-timeline-layer.ts';
@@ -12,9 +14,9 @@ import { createTextParameterValues } from '@gs/subsystems_timeline_shared/layers
 import { timelineCompositingParamDefs } from '@gs/subsystems_timeline_shared/timeline-compositing.ts';
 import { createTimelineCameraParameterValues, DEFAULT_CAMERA_DISTANCE } from '@gs/subsystems_timeline_shared/layers/camera/camera.ts';
 import { TimelineSceneCamera } from '@gs/subsystems_timeline_shared/scene-camera.ts';
-import { isTimelineVisualLayer } from '@gs/subsystems_timeline_shared/types.ts';
+import { isTimelineRenderLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import { TIMELINE_IDENTITY, TIMELINE_FRAME } from '@gs/subsystems_timeline_shared/spatial.ts';
-import type { TimelineLayer, TimelineScene, TimelineGroupLayer, TimelineCameraLayer } from '@gs/subsystems_timeline_shared/types.ts';
+import type { TimelineLayer, TimelineScene, TimelineGroupLayer, TimelineTransformLayer, TimelineCameraLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import type { TimelineLayerRenderer } from '@gs/subsystems_timeline_renderer/timeline-renderer.ts';
 import type { TimelineImage } from '@gs/subsystems_timeline_renderer/timeline-image.ts';
 
@@ -40,6 +42,7 @@ export async function run() {
 		return { ...base, id: 'shape' + nextId++, name: 'shape', layerType: 'shape', shape, compositingParamValues: composite(compositing) };
 	};
 	const group = (layers: TimelineLayer[], mode: 'flat' | 'preserveDepth' = 'flat', values = {}): TimelineGroupLayer => ({ isDisabled: false, forceDisableMotionBlur: false, automationGraphs: [], id: `group${nextId++}`, name: 'group', layerType: 'group', layers, compositingMode: mode, compositingParamValues: composite(values), audioParamValues: { volume: literal(1) } });
+	const transform = (layers: TimelineLayer[], values = {}): TimelineTransformLayer => ({ isDisabled: false, forceDisableMotionBlur: false, automationGraphs: [], id: `transform${nextId++}`, name: 'Transform', layerType: 'transform', layers, transformParamValues: { ...createTimelineTransformParameterValues(), ...Object.fromEntries(Object.entries(values).map(([key, value]) => [key, literal(value)])) } });
 	const text = (position: number): TimelineLayer => ({ ...base, id: `text${nextId++}`, name: 'text', layerType: 'text',
 		textParamValues: { ...createTextParameterValues(), text: literal('OFFSCREEN'), size: literal(0.3), position: literal([position, 0]) }, compositingParamValues: composite() });
 	let sceneLayers: TimelineLayer[] = [];
@@ -55,6 +58,7 @@ export async function run() {
 	};
 	const createLayer = (layer: TimelineLayer, clipId: string | null): TimelineLayerRenderer<TimelineImage> => {
 		switch (layer.layerType) {
+			case 'transform': return createTransformTimelineLayer(() => layer, { fallbackOutput: { kind: 'uniform', value: [0, 0, 0, 0] } as TimelineImage, createLayer });
 			case 'group': return createGroupTimelineLayer(() => layer, { ...options, createLayer, getLayerVersion: () => 0 });
 			case 'shape': return createShapeTimelineLayer(layer, options);
 			case 'image': {
@@ -87,7 +91,7 @@ export async function run() {
 	async function render(layers: TimelineLayer[], settings?: TimelineCameraLayer, time = 100) {
 		renderer.clear();
 		sceneLayers = settings ? [settings, ...layers] : layers;
-		const result = await renderer.evaluateAt(time, sceneLayers.filter(isTimelineVisualLayer), 0, true);
+		const result = await renderer.evaluateAt(time, sceneLayers.filter(isTimelineRenderLayer), 0, true);
 		if (!result) throw new Error('Cancelled frame');
 		const encoder = device.createCommandEncoder();
 		const texture = output.render(encoder, result.output);
@@ -154,6 +158,24 @@ export async function run() {
 		childScene = { id: 'child', name: 'child', resolution: { mode: 'project' }, layers: [view({ z: DEFAULT_CAMERA_DISTANCE / 2 }), shape()] };
 		const nested: TimelineLayer = { ...base, id: 'scene', name: 'scene', layerType: 'scene', clips: [{ ...base.clips[0], sceneId: 'child' }], compositingParamValues: composite(), audioParamValues: { volume: literal(1) } };
 		same('child scene uses its own camera and is a plane in its parent', await render([nested]), twice);
+		// 【Transformは子の深度と合成を保ち、カメラにも同じ親移動を与える】
+		// ピクセル比較により、早すぎる切り取り、二重投影、Group化による背景分離を検出する。
+		same('transform recovers offscreen text', await render([transform([text(2)], { position: [-2, 0] })]), textBaseline, 0.06);
+		same('nested transforms add depth before projection', await render([transform([transform([shape()], { z: DEFAULT_CAMERA_DISTANCE / 4 })], { z: DEFAULT_CAMERA_DISTANCE / 4 })]), twice);
+		same('transform shares translation with its camera', await render([transform([view({}), shape()], { position: [0.75, -0.25], z: 0.5 })]), baseline);
+		same('parented camera moves world in the opposite direction', await render([transform([view({})], { position: [0.4, -0.2] }), shape()]), await render([shape(undefined, {}, { position: [-0.4, 0.2] })]));
+		same('disabled transform does not supply a camera', await render([{ ...transform([view({ z: DEFAULT_CAMERA_DISTANCE / 2 })]), isDisabled: true }, shape()]), baseline);
+		same('screen children inherit transform XY without camera or depth', await render([transform([shape(undefined, {}, { placement: 'screen' })], { position: [0.25, 0], z: 100 })], view({ position: [5, 5], z: 0 })), await render([shape(undefined, {}, { position: [0.25, 0] })]));
+		same('flat group ignores transform depth inside it', await render([group([transform([shape()], { z: 100 })])]), baseline);
+		same('transform outside flat group sets plane depth once', await render([transform([group([transform([shape()], { z: 100 })])], { z: DEFAULT_CAMERA_DISTANCE / 2 })]), twice);
+		same('transform and preserved group share depth', await render([transform([group([shape()], 'preserveDepth', { depth: DEFAULT_CAMERA_DISTANCE / 4 })], { z: DEFAULT_CAMERA_DISTANCE / 4 })]), twice);
+		const translucent = shape([1, 0, 0, 1], {}, { opacity: 0.5, blendMode: 'multiply' });
+		same('transform preserves blending against the outside background', await render([transform([translucent]), blue]), await render([translucent, blue]));
+		const partial = shape(undefined, {}, { opacity: 0.5 });
+		const otherPartial = shape(undefined, {}, { opacity: 0.5 });
+		same('transform does not merge overlapping child opacity', await render([transform([partial, otherPartial]), blue]), await render([partial, otherPartial, blue]));
+		childScene.layers = [transform([view({ z: DEFAULT_CAMERA_DISTANCE / 2 })]), shape()];
+		same('child scene resolves its own transform-parented camera', await render([nested]), twice);
 		const error = await device.popErrorScope();
 		if (error) throw new Error(error.message);
 		return completed;

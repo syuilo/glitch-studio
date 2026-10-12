@@ -1,3 +1,4 @@
+import { isTimelineContainerLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import { flattenTimelineLayers, findTimelineLayer, findTimelineLayerLocation, getTimelineClipLayers, updateTimelineLayer } from '@gs/subsystems_timeline_shared/layer-tree.ts';
 import { validateVoicevoxSubtitle } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox-subtitle-validation.ts';
 import { validateVoicevoxLayer } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox.ts';
@@ -31,7 +32,7 @@ import { validateSceneResolution } from '@gs/subsystems_timeline_shared/scene-re
 import { timelineCompositingParamDefs } from '@gs/subsystems_timeline_shared/timeline-compositing.ts';
 import { canEditTimelineTransform } from './utility/timeline-transform-edit.ts';
 import { getScene, getLayerParameterTargets, getLayerParameterValues, getLayerParameterDefinitions, resolveLayerParameter } from './utility/timeline-scene.ts';
-import { prepareTimelineGroupMove } from './utility/timeline-group.ts';
+import { prepareTimelineContainerMove } from './utility/timeline-container.ts';
 import type { TimelineSceneResolution } from '@gs/subsystems_timeline_shared/scene-resolution.ts';
 import type { TimelineScene, TimelineLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import type { TimelineClip, TimelineAssetClip, TimelineVideoClip, TimelineSceneClip } from '@gs/subsystems_timeline_shared/clip.ts';
@@ -42,7 +43,7 @@ import type { TimelineParameterTarget } from './utility/timeline-scene.ts';
 import type { ParamPath } from '@gs/shared/parameter/parameter-path.ts';
 import type { TimelineMotionBlurSettings } from '@gs/subsystems_timeline_shared/motion-blur.ts';
 import type { VoicevoxSettings, VoicevoxUtterance } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox.ts';
-import type { TimelineGroupMove } from './utility/timeline-group.ts';
+import type { TimelineContainerMove } from './utility/timeline-container.ts';
 import type { VisualModuleCustomParameterId, VisualModuleEffectNode, VisualModuleNode, NodeOutputReference, VisualModule, VisualModuleParamDef, VisualModuleOutputDef } from '@gs/subsystems_visual-module_shared/types.ts';
 import type { ParameterArrayElement } from '@gs/shared/parameter/parameter-binding.ts';
 import type { ParameterChangeKind, ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
@@ -1171,7 +1172,7 @@ function getTimelineLayer(state: ProjectState, sceneId: string, layerId: string)
 
 function getTimelineClipLayer(state: ProjectState, sceneId: string, layerId: string) {
 	const layer = getTimelineLayer(state, sceneId, layerId);
-	if (layer.layerType === 'group') throw new Error('Group has no clips');
+	if (isTimelineContainerLayer(layer)) throw new Error('Container has no clips');
 	return layer;
 }
 
@@ -1231,7 +1232,7 @@ function validateAddedTimelineLayer(state: ProjectState, sceneId: string, layer:
 const addTimelineLayerCommandDef = defineCommand<{ sceneId: string; layer: TimelineLayer; sourceDurationsMs?: TimelineClipSourceDurations }>({
 	label: 'Add timeline layer',
 	// 単一レイヤーのルート追加では既存の兄弟を送り直さず、子孫を伴う追加だけ階層全体を通知する。
-	changes: (_state, payload) => payload.layer.layerType === 'group' ? [{ type: 'layerTree', sceneId: payload.sceneId }]
+	changes: (_state, payload) => isTimelineContainerLayer(payload.layer) ? [{ type: 'layerTree', sceneId: payload.sceneId }]
 		: [{ type: 'layer', sceneId: payload.sceneId, layerId: payload.layer.id, changes: [{ type: 'definition' }] }, { type: 'layerOrder', sceneId: payload.sceneId }],
 	create: payload => ({
 		execute(state) {
@@ -1584,7 +1585,7 @@ const pasteTimelineLayerCommandDef = defineCommand<{ sceneId: string; layer: Tim
 		execute(state) {
 			validateAddedTimelineLayer(state, payload.sceneId, payload.layer, payload.sourceDurationsMs);
 			const location = findTimelineLayerLocation(getScene(state, payload.sceneId).layers, payload.sourceLayerId);
-			if (payload.layer.layerType === 'camera' && location?.ancestors.length) throw new Error('Camera layers must be placed directly in a Scene');
+			if (location?.ancestors.some(parent => parent.layerType === 'group') && flattenTimelineLayers([payload.layer]).some(layer => layer.layerType === 'camera')) throw new Error('Camera layers cannot be placed inside a Group');
 			const siblings = location?.siblings ?? getScene(state, payload.sceneId).layers;
 			// 表示順は先頭が最上層。コピー元が削除済みなら最上層へ挿入する。
 			siblings.splice(location?.index ?? 0, 0, deepClone(payload.layer));
@@ -1860,20 +1861,30 @@ function editTimelineTree(sceneId: string, edit: (layers: TimelineLayer[]) => vo
 	};
 }
 
+function wrapTimelineLayers(sceneId: string, layerIds: string[], container: import('@gs/subsystems_timeline_shared/types.ts').TimelineContainerLayer) {
+	return editTimelineTree(sceneId, layers => {
+		if (container.layers.length || findTimelineLayer(layers, container.id)) throw new Error('Invalid new container');
+		const locations = layerIds.map(id => findTimelineLayerLocation(layers, id));
+		if (!locations.length) { layers.unshift(deepClone(container)); return; }
+		const first = locations[0];
+		if (!first || locations.some(location => !location || location.siblings !== first.siblings)) throw new Error('Container requires sibling layers');
+		const indexes = locations.map(location => location!.index).sort((a, b) => a - b);
+		if (indexes.some((index, offset) => index !== indexes[0] + offset)) throw new Error('Container requires consecutive layers');
+		const children = first.siblings.splice(indexes[0], indexes.length);
+		first.siblings.splice(indexes[0], 0, { ...deepClone(container), layers: children });
+	});
+}
+
 const groupTimelineLayersCommandDef = defineCommand<{ sceneId: string; layerIds: string[]; group: import('@gs/subsystems_timeline_shared/types.ts').TimelineGroupLayer }>({
 	label: 'Group timeline layers',
 	changes: (_state, payload) => [{ type: 'layerTree', sceneId: payload.sceneId }],
-	create: payload => editTimelineTree(payload.sceneId, layers => {
-		if (payload.group.layers.length || findTimelineLayer(layers, payload.group.id)) throw new Error('Invalid new group');
-		const locations = payload.layerIds.map(id => findTimelineLayerLocation(layers, id));
-		if (!locations.length) { layers.unshift(deepClone(payload.group)); return; }
-		const first = locations[0];
-		if (!first || locations.some(location => !location || location.siblings !== first.siblings)) throw new Error('Group requires sibling layers');
-		const indexes = locations.map(location => location!.index).sort((a, b) => a - b);
-		if (indexes.some((index, offset) => index !== indexes[0] + offset)) throw new Error('Group requires consecutive layers');
-		const children = first.siblings.splice(indexes[0], indexes.length);
-		first.siblings.splice(indexes[0], 0, { ...deepClone(payload.group), layers: children });
-	}),
+	create: payload => wrapTimelineLayers(payload.sceneId, payload.layerIds, payload.group),
+});
+
+const transformTimelineLayersCommandDef = defineCommand<{ sceneId: string; layerIds: string[]; transform: import('@gs/subsystems_timeline_shared/types.ts').TimelineTransformLayer }>({
+	label: 'Wrap timeline layers in Transform',
+	changes: (_state, payload) => [{ type: 'layerTree', sceneId: payload.sceneId }],
+	create: payload => wrapTimelineLayers(payload.sceneId, payload.layerIds, payload.transform),
 });
 
 const duplicateTimelineLayersCommandDef = defineCommand<{ sceneId: string; layers: { layer: TimelineLayer; sourceLayerId: string }[]; sourceDurationsMs?: TimelineClipSourceDurations }>({
@@ -1913,12 +1924,12 @@ const removeTimelineLayersCommandDef = defineCommand<{ sceneId: string; layerIds
 	}),
 });
 
-const ungroupTimelineLayerCommandDef = defineCommand<{ sceneId: string; layerId: string }>({
-	label: 'Ungroup timeline layer',
+const unwrapTimelineLayerCommandDef = defineCommand<{ sceneId: string; layerId: string }>({
+	label: 'Unwrap timeline container',
 	changes: (_state, payload) => [{ type: 'layerTree', sceneId: payload.sceneId }],
 	create: payload => editTimelineTree(payload.sceneId, layers => {
 		const location = findTimelineLayerLocation(layers, payload.layerId);
-		if (!location || location.layer.layerType !== 'group') throw new Error('Group not found');
+		if (!location || !isTimelineContainerLayer(location.layer)) throw new Error('Container not found');
 		location.siblings.splice(location.index, 1, ...location.layer.layers);
 	}),
 });
@@ -1929,10 +1940,10 @@ const moveTimelineLayerCommandDef = defineCommand<{ sceneId: string; layerId: st
 	create: payload => editTimelineTree(payload.sceneId, layers => {
 		const source = findTimelineLayerLocation(layers, payload.layerId);
 		if (!source) throw new Error('Layer not found');
-		if (payload.parentId && findTimelineLayer([source.layer], payload.parentId)) throw new Error('Cannot move a group into itself');
+		if (payload.parentId && findTimelineLayer([source.layer], payload.parentId)) throw new Error('Cannot move a container into itself');
 		const parent = payload.parentId ? findTimelineLayer(layers, payload.parentId) : null;
-		if (payload.parentId && parent?.layerType !== 'group') throw new Error('Parent group not found');
-		const destination = parent?.layerType === 'group' ? parent.layers : layers;
+		if (payload.parentId && (!parent || !isTimelineContainerLayer(parent))) throw new Error('Parent container not found');
+		const destination = parent && isTimelineContainerLayer(parent) ? parent.layers : layers;
 		if (payload.beforeId === source.layer.id && destination === source.siblings) return;
 		const before = payload.beforeId ? destination.find(layer => layer.id === payload.beforeId) : null;
 		if (payload.beforeId && !before) throw new Error('Destination layer not found');
@@ -1941,14 +1952,14 @@ const moveTimelineLayerCommandDef = defineCommand<{ sceneId: string; layerId: st
 	}),
 });
 
-const moveTimelineGroupCommandDef = defineCommand<{ sceneId: string; layerId: string; deltaMs: number; initial?: TimelineGroupMove }>({
-	label: 'Move timeline group',
+const moveTimelineContainerCommandDef = defineCommand<{ sceneId: string; layerId: string; deltaMs: number; initial?: TimelineContainerMove }>({
+	label: 'Move timeline container',
 	changes: (state, payload) => {
 		const group = getTimelineLayer(state, payload.sceneId, payload.layerId);
 		return flattenTimelineLayers([group]).map(layer => ({
 			type: 'layer' as const, sceneId: payload.sceneId, layerId: layer.id,
 			changes: layer.layerType === 'voicevox' ? [{ type: 'definition' as const }] : [
-				...(layer.layerType === 'group' ? [] : [{ type: 'clips' as const }]),
+				...(isTimelineContainerLayer(layer) ? [] : [{ type: 'clips' as const }]),
 				...getLayerParameterTargets(layer).map(target => ({ type: 'parameter' as const, target, kind: 'value' as const })),
 			],
 		}));
@@ -1965,8 +1976,8 @@ const moveTimelineGroupCommandDef = defineCommand<{ sceneId: string; layerId: st
 			execute(state) {
 				if (after) { apply(state, 'after'); return; }
 				const group = getTimelineLayer(state, payload.sceneId, payload.layerId);
-				if (group.layerType !== 'group' || !Number.isFinite(payload.deltaMs)) throw new Error('Invalid group move');
-				const initial = payload.initial ?? prepareTimelineGroupMove(state, group);
+				if (!isTimelineContainerLayer(group) || !Number.isFinite(payload.deltaMs)) throw new Error('Invalid container move');
+				const initial = payload.initial ?? prepareTimelineContainerMove(state, group);
 				const delta = Math.max(initial.minDelta, Math.min(initial.maxDelta, Math.round(payload.deltaMs)));
 				updates = prepareTimelineKeyframeMove(state, getScene(state, payload.sceneId), initial.keyframes.map(point => ({ ...point, x: point.x + delta })));
 				before = initial.clips.map(clip => ({ ...clip, startMs: getTimelineClip(state, payload.sceneId, clip).clip.startMs }));
@@ -1980,9 +1991,10 @@ const moveTimelineGroupCommandDef = defineCommand<{ sceneId: string; layerId: st
 
 export const COMMAND_DEFS = {
 	groupTimelineLayers: groupTimelineLayersCommandDef,
-	ungroupTimelineLayer: ungroupTimelineLayerCommandDef,
+	transformTimelineLayers: transformTimelineLayersCommandDef,
+	unwrapTimelineLayer: unwrapTimelineLayerCommandDef,
 	moveTimelineLayer: moveTimelineLayerCommandDef,
-	moveTimelineGroup: moveTimelineGroupCommandDef,
+	moveTimelineContainer: moveTimelineContainerCommandDef,
 	importVisualModule: importVisualModuleCommandDef,
 	renameVisualModule: renameVisualModuleCommandDef,
 	removeTimelineKeyframes: removeTimelineKeyframesCommandDef,

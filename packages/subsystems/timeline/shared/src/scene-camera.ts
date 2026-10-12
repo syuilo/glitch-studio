@@ -1,19 +1,34 @@
 import { getTimelineClipEnd, isTimelineClipActive } from './timing.ts';
 import { TimelineCameraParameters } from './layers/camera/camera-parameters.ts';
-import type { TimelineLayer, TimelineCameraLayer } from './types.ts';
+import { TimelineTransformParameters } from './layers/transform/transform-parameters.ts';
+import type { TimelineLayer, TimelineCameraLayer, TimelineTransformLayer } from './types.ts';
+
+type CameraCandidate = { layer: TimelineCameraLayer; ancestors: TimelineTransformLayer[]; frozen: boolean };
+
+/** Groupは合成境界なので探索せず、Transformだけを表示順に透過する。 */
+export function getTimelineCameraCandidates(layers: readonly TimelineLayer[], ancestors: TimelineTransformLayer[] = [], frozen = false): CameraCandidate[] {
+	return layers.flatMap<CameraCandidate>(layer => {
+		if (layer.isDisabled) return [];
+		if (layer.layerType === 'transform') return getTimelineCameraCandidates(layer.layers, [...ancestors, layer], frozen || layer.forceDisableMotionBlur);
+		return layer.layerType === 'camera' ? [{ layer, ancestors, frozen: frozen || layer.forceDisableMotionBlur }] : [];
+	});
+}
+
+function selectCamera(candidates: readonly CameraCandidate[], time: number, referenceTime: number) {
+	for (const candidate of candidates) {
+		const evaluationTime = candidate.frozen ? referenceTime : time;
+		if (candidate.layer.clips.some(clip => isTimelineClipActive(clip, evaluationTime))) return { ...candidate, time: evaluationTime };
+	}
+	return undefined;
+}
 
 /**
  * 表示順の先頭から、クリップが有効なカメラを一つ選ぶ。映像レイヤーとの位置関係には依存しない。
- * グループの内部は探索しない。平面化や親変形とは独立した、Scene全体の視点であるため。
+ * Transformの配下も同じ表示順に並べ、折りたたみ状態に依存しない。
  * ブラー無効時はクリップの選択も基準時刻へ固定し、露光の途中で別カメラへ切り替わるのを防ぐ。
  */
-export function getActiveTimelineCamera(layers: readonly TimelineLayer[], time: number, referenceTime = time): { layer: TimelineCameraLayer; time: number } | undefined {
-	for (const layer of layers) {
-		if (layer.layerType !== 'camera' || layer.isDisabled) continue;
-		const evaluationTime = layer.forceDisableMotionBlur ? referenceTime : time;
-		if (layer.clips.some(clip => isTimelineClipActive(clip, evaluationTime))) return { layer, time: evaluationTime };
-	}
-	return undefined;
+export function getActiveTimelineCamera(layers: readonly TimelineLayer[], time: number, referenceTime = time) {
+	return selectCamera(getTimelineCameraCandidates(layers), time, referenceTime);
 }
 
 /**
@@ -23,26 +38,26 @@ export function getActiveTimelineCamera(layers: readonly TimelineLayer[], time: 
  * レイヤーの編集時には所有側がこの計画を作り直す。
  */
 export class TimelineCameraCuts {
-	private readonly cameras: TimelineCameraLayer[];
-	private readonly frozenCameras: TimelineCameraLayer[];
+	private readonly cameras: CameraCandidate[];
+	private readonly frozenCameras: CameraCandidate[];
 	private readonly candidateTimes: number[];
 	private readonly cache = new Map<TimelineCameraLayer | undefined, readonly number[]>();
 
 	constructor(layers: readonly TimelineLayer[]) {
-		this.cameras = layers.filter((layer): layer is TimelineCameraLayer => layer.layerType === 'camera' && !layer.isDisabled);
-		this.frozenCameras = this.cameras.filter(layer => layer.forceDisableMotionBlur);
-		this.candidateTimes = [...new Set(this.cameras.filter(layer => !layer.forceDisableMotionBlur)
-			.flatMap(layer => layer.clips.flatMap(clip => [clip.startMs, getTimelineClipEnd(clip)])))].sort((a, b) => a - b);
+		this.cameras = getTimelineCameraCandidates(layers);
+		this.frozenCameras = this.cameras.filter(candidate => candidate.frozen);
+		this.candidateTimes = [...new Set(this.cameras.filter(candidate => !candidate.frozen)
+			.flatMap(({ layer }) => layer.clips.flatMap(clip => [clip.startMs, getTimelineClipEnd(clip)])))].sort((a, b) => a - b);
 	}
 
 	getBoundaries(referenceTime: number): readonly number[] {
-		const frozen = getActiveTimelineCamera(this.frozenCameras, referenceTime)?.layer;
+		const frozen = selectCamera(this.frozenCameras, referenceTime, referenceTime)?.layer;
 		const cached = this.cache.get(frozen);
 		if (cached) return cached;
 		const boundaries: number[] = [];
-		let previous = getActiveTimelineCamera(this.cameras, -Infinity, referenceTime)?.layer;
+		let previous = selectCamera(this.cameras, -Infinity, referenceTime)?.layer;
 		for (const time of this.candidateTimes) {
-			const current = getActiveTimelineCamera(this.cameras, time, referenceTime)?.layer;
+			const current = selectCamera(this.cameras, time, referenceTime)?.layer;
 			// 同じカメラの隣接クリップは同じScene時計・設定を共有し、カットではない。
 			if (current !== previous) boundaries.push(time);
 			previous = current;
@@ -55,10 +70,22 @@ export class TimelineCameraCuts {
 /** 最上位Scene・参照先Scene・プレビューで、同じ選択規則と基準カメラを使う。 */
 export class TimelineSceneCamera {
 	private parameters = new TimelineCameraParameters();
+	private transforms = new TimelineTransformParameters();
 
 	evaluate(layers: readonly TimelineLayer[], time: number, isExport: boolean, referenceTime = time) {
 		const active = getActiveTimelineCamera(layers, time, referenceTime);
 		const settings = active && { paramValues: active.layer.cameraParamValues, automationGraphs: active.layer.automationGraphs };
-		return this.parameters.evaluate(settings, active?.time ?? time, isExport);
+		const camera = this.parameters.evaluate(settings, active?.time ?? time, isExport);
+		let ancestorTime = time;
+		for (const parent of active?.ancestors ?? []) {
+			// 子カメラだけのブラー無効では親の揺れを止めない。親を固定した場合は
+			// そこから下の時計を固定し、映像のTransform走査と同じ継承規則にする。
+			if (parent.forceDisableMotionBlur) ancestorTime = referenceTime;
+			const translation = this.transforms.evaluate(parent.transformParamValues, parent.automationGraphs, ancestorTime, isExport);
+			camera.position[0] += translation.position[0];
+			camera.position[1] += translation.position[1];
+			camera.z += translation.z;
+		}
+		return camera;
 	}
 }

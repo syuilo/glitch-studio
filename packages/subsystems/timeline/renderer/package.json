@@ -9,6 +9,7 @@
 		"lint": "pnpm typecheck && pnpm eslint"
 	},
 	"exports": {
+		"./layers/transform/transform-timeline-layer.ts": "./src/layers/transform/transform-timeline-layer.ts",
 		"./timeline-image.ts": "./src/timeline-image.ts",
 		"./layers/group/group-timeline-layer.ts": "./src/layers/group/group-timeline-layer.ts",
 		"./motion-blur-accumulator.ts": "./src/motion-blur-accumulator.ts",

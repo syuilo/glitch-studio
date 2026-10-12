@@ -1,5 +1,5 @@
 <template>
-<div :class="[$style.root, { [$style.selected]: selected, [$style.disabled]: layer.isDisabled || ancestorDisabled, [$style.groupExpanded]: layer.layerType === 'group' && !collapsed, [$style.type_effect]: layer.layerType === 'effect', [$style.type_audio]: layer.layerType === 'audio', [$style.type_image]: layer.layerType === 'image', [$style.type_video]: layer.layerType === 'video', [$style.type_text]: layer.layerType === 'text', [$style.type_voicevox]: layer.layerType === 'voicevox', [$style.type_group]: layer.layerType === 'group' }]" :data-timeline-layer-id="layer.id">
+<div :class="[$style.root, { [$style.selected]: selected, [$style.disabled]: layer.isDisabled || ancestorDisabled, [$style.groupExpanded]: isTimelineContainerLayer(layer) && !collapsed, [$style.type_effect]: layer.layerType === 'effect', [$style.type_audio]: layer.layerType === 'audio', [$style.type_image]: layer.layerType === 'image', [$style.type_video]: layer.layerType === 'video', [$style.type_text]: layer.layerType === 'text', [$style.type_voicevox]: layer.layerType === 'voicevox', [$style.type_group]: isTimelineContainerLayer(layer) }]" :data-timeline-layer-id="layer.id">
 	<div :class="$style.mainLane" data-timeline-clip-lane>
 		<div :class="$style.side">
 			<div v-for="i in (depth ?? 0) + 1" :class="[$style.colorBar, { [$style.parentColorBar]: i < (depth ?? 0) + 1 }]"></div>
@@ -26,12 +26,12 @@
 				<button
 					v-if="groupRange" type="button" class="_button" :class="[$style.groupClip, { [$style.groupClipSelected]: selected }]"
 					:style="{ left: groupRange.startMs * pixelsPerMs + 'px', width: groupRange.durationMs * pixelsPerMs + 'px' }"
-					:aria-label="'Move group ' + layer.name" @pointerdown.stop="emit('groupMoveStart', $event)" @dblclick.stop
+					:aria-label="'Move container ' + layer.name" @pointerdown.stop="emit('groupMoveStart', $event)" @dblclick.stop
 				>
 					<span>{{ layer.name }}</span>
 				</button>
 				<XClips
-					v-if="layer.layerType !== 'group'"
+					v-if="!isTimelineContainerLayer(layer)"
 					:items="clipItems"
 					:pixelsPerMs="pixelsPerMs"
 					:sceneTimeMs="sceneTimeMs"
@@ -45,7 +45,7 @@
 			</div>
 		</div>
 	</div>
-	<div v-if="!collapsed && layer.layerType !== 'group' && (keyframeParameters.length > 0 || layer.layerType === 'voicevox')" :class="$style.localTicksLane">
+	<div v-if="!collapsed && !isTimelineContainerLayer(layer) && (keyframeParameters.length > 0 || layer.layerType === 'voicevox')" :class="$style.localTicksLane">
 		<div :class="$style.side">
 			<div v-for="i in (depth ?? 0) + 1" :class="[$style.colorBar, { [$style.parentColorBar]: i < (depth ?? 0) + 1 }]"></div>
 			<div :class="$style.sideBody">
@@ -95,14 +95,16 @@
 	</div>
 	<div :class="$style.gapLane">
 		<div :class="$style.side">
-			<div v-for="i in (depth ?? 0) + (isLastOfGroup ? -1 : (layer.layerType === 'group' && !collapsed) ? 1 : 0)" :class="[$style.colorBar, $style.parentColorBar]"></div>
+			<div v-for="i in (depth ?? 0) + (isLastOfGroup ? -1 : (isTimelineContainerLayer(layer) && !collapsed) ? 1 : 0)" :class="[$style.colorBar, $style.parentColorBar]"></div>
 		</div>
 	</div>
 </div>
 </template>
 
 <script lang="ts" setup>
-import { getTimelineGroupRange } from '@gs/subsystems_timeline_shared/layers/group/group.ts';
+import { isTimelineContainerLayer } from '@gs/subsystems_timeline_shared/types.ts';
+
+import { getTimelineContainerRange } from '@gs/subsystems_timeline_shared/container-range.ts';
 import { computed } from 'vue';
 import { paramPathKey } from '@gs/shared/parameter/parameter-path.ts';
 import { effectDefinitions } from '@gs/subsystems_effect_shared/effect-definitions.ts';
@@ -163,7 +165,7 @@ const emit = defineEmits<{
 	(ev: 'subtitleTrimStart', event: PointerEvent, layerId: string, utteranceId: string, clipId: string): void;
 }>();
 
-const layerIcon = computed(() => ({ group: 'ti-folder', camera: 'ti-camera', voicevox: 'ti-microphone', image: 'ti-photo', video: 'ti-video', audio: 'ti-music', scene: 'ti-memory', visualModule: 'ti-chart-dots-3', inlineVisualModule: 'ti-chart-dots-3', effect: 'ti-sparkles', shape: 'ti-shape', text: 'ti-typography' })[props.layer.layerType]);
+const layerIcon = computed(() => ({ group: 'ti-folder', transform: 'ti-gizmo', camera: 'ti-camera', voicevox: 'ti-microphone', image: 'ti-photo', video: 'ti-video', audio: 'ti-music', scene: 'ti-memory', visualModule: 'ti-chart-dots-3', inlineVisualModule: 'ti-chart-dots-3', effect: 'ti-sparkles', shape: 'ti-shape', text: 'ti-typography' })[props.layer.layerType]);
 type Clip = TimelineClip | TimelineAssetClip | TimelineVideoClip | TimelineSceneClip;
 
 const pixelsPerMs = computed(() => props.tlElWidth / props.tlRangeX);
@@ -172,8 +174,8 @@ const scrollingStyle = computed(() => ({
 	// クリップ・キー個別ではなく、実際に横移動する親だけを最適化の対象にする。
 	willChange: props.optimizeHorizontalMovement ? 'transform' : 'auto',
 }));
-const groupRange = computed(() => props.layer.layerType === 'group' ? getTimelineGroupRange(props.layer) : null);
-const layerClips = computed(() => props.layer.layerType === 'group' ? [] : props.layer.clips);
+const groupRange = computed(() => isTimelineContainerLayer(props.layer) ? getTimelineContainerRange(props.layer) : null);
+const layerClips = computed(() => isTimelineContainerLayer(props.layer) ? [] : props.layer.clips);
 const sortedClips = computed(() => layerClips.value.toSorted((a, b) => a.startMs - b.startMs));
 const clipItems = computed(() => layerClips.value.map(clip => ({ clip, label: clipLabel(clip), sourceDurationMs: sourceDuration(clip) })));
 const emptySelectionIds: string[] = [];
@@ -228,14 +230,14 @@ function sourceDuration(clip: Clip): number | null {
 }
 
 function onBackgroundDoubleClick(event: MouseEvent) {
-	if (props.layer.layerType === 'group' || event.button !== 0 || props.tlElWidth <= 0 || props.tlRangeX <= 0) return;
+	if (isTimelineContainerLayer(props.layer) || event.button !== 0 || props.tlElWidth <= 0 || props.tlRangeX <= 0) return;
 	const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
 	const startMs = timelinePointerTime(event.clientX, rect.left, props.tlPosX, pixelsPerMs.value);
 	if (startMs >= 0) emit('addClip', startMs);
 }
 
 type KeyframeParameter = ReturnType<typeof getLayerKeyframeParameters>[number];
-const keyframeParameters = computed(() => props.collapsed && props.layer.layerType !== 'group' ? [] : getLayerKeyframeParameters(stateManager.state, props.layer));
+const keyframeParameters = computed(() => props.collapsed && !isTimelineContainerLayer(props.layer) ? [] : getLayerKeyframeParameters(stateManager.state, props.layer));
 
 // 背景の操作は移動しない表示領域で受け、移動済みDOMのleftを二重に補正しない。
 function onKeyframeBackgroundDoubleClick(param: KeyframeParameter, event: MouseEvent) {

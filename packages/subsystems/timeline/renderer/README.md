@@ -2,7 +2,7 @@
 
 各レイヤーのcompositorは任意の`onCompositing`で合成前の`TimelineImage`と評価済み設定を呼び出し側へ渡せる。opacity=0やreplaceの短絡経路でも通知する。通知の購読対象・Worker通信・プレビューのハンドルはGlitch Studio側が所有し、このパッケージはUIの選択状態を知らない。
 
-`src/layers/`にレイヤー種別ごとの実装をまとめる。`group`・`effect`・`image`・`scene`・`video`・`visual-module`・`text`・`shape`の各ディレクトリに、レイヤーの描画処理と種別固有の補助処理・シェーダーを置く。Timeline全体の評価・合成・Scene出力・音声入力の解決など、複数種別で使う処理は`src/`直下に置く。
+`src/layers/`にレイヤー種別ごとの実装をまとめる。`group`・`transform`・`effect`・`image`・`scene`・`video`・`visual-module`・`text`・`shape`の各ディレクトリに、レイヤーの描画処理と種別固有の補助処理・シェーダーを置く。Timeline全体の評価・合成・Scene出力・音声入力の解決など、複数種別で使う処理は`src/`直下に置く。
 
 RendererはWeb Worker内で動作し、DOM・UIの実装にアクセスできないため、意図しないそれらへの参照/依存が原理的に発生しないように別パッケージとする
 
@@ -48,3 +48,5 @@ Timeline固有の`TimelineImage`はGPU共通の値に`region.bounds`と`frameSiz
 可変テクスチャの画素数は、Scene画素数の4倍・16,777,216画素の小さい方を目安にする。ただし基準Scene自体がそれを超える場合は基準Scene分を確保し、書き出し解像度を暗黙に縮めない。GPU最大辺長も上限とする。範囲は保ち、画素密度を下げる。画素数はテクスチャごとの上限であり、Scene全体のメモリー予算ではない。カメラ倍率に応じた再ラスタライズやタイル化は行わない。
 
 カメラはScene直下の有効クリップを持つ最上段のカメラレイヤーから選ぶ。カメラの描画インスタンスは作らず、Sceneの共通描画空間へ投影設定を渡す。評価は各サブサンプルのScene時刻に行い、映像レイヤー自身のブラー無効化より外側に置く。カメラレイヤー自身のブラー無効化では基準時刻で選択・評価する。子Sceneのカメラは子Sceneの時計を使う。親Sceneレイヤーを固定すると、子の時計に属するカメラも固定される。
+
+Transformは`layers/transform/transform-timeline-layer.ts`が子の寿命を管理する。親の合成結果を`TimelineRenderer.evaluateAt`の初期入力へ渡し、子の出力をそのまま返すため、GPUの中間画像・追加合成は不要。`transform-space.ts`でXYZを継承し、子の設定・カメラを含めて投影する。設定差分ではコンテナを再生成せず、子のEffectや動画の履歴を保持する。

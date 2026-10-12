@@ -47,6 +47,7 @@ export default defineConfig({
 					{ text: 'Visual Module（参照）', link: '/guide/timeline/layers/visual-module' },
 					{ text: 'カメラ', link: '/guide/timeline/layers/camera' },
 					{ text: 'グループ', link: '/guide/timeline/layers/group' },
+					{ text: 'Transform', link: '/guide/timeline/layers/transform' },
 					{ text: 'シーン', link: '/guide/timeline/layers/scene' },
 					{ text: 'VOICEVOX', link: '/guide/timeline/layers/voicevox' },
 				],

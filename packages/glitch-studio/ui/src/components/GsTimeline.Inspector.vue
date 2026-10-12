@@ -24,6 +24,7 @@
 </template>
 
 <script lang="ts" setup>
+import { isTimelineContainerLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import { computed } from 'vue';
 import { flattenTimelineLayers } from '@gs/subsystems_timeline_shared/layer-tree.ts';
 import type { TimelineScene } from '@gs/subsystems_timeline_shared/types.ts';
@@ -62,5 +63,5 @@ const selectedUtterance = computed(() => {
 });
 
 const selectedClipSelection = computed(() => props.selection.kind === 'clips' && props.selection.clips.length === 1 ? props.selection.clips[0] : null);
-const selectedClipLayer = computed(() => selectedLayer.value?.layerType !== 'group' ? selectedLayer.value : null);
+const selectedClipLayer = computed(() => selectedLayer.value && !isTimelineContainerLayer(selectedLayer.value) ? selectedLayer.value : null);
 </script>
