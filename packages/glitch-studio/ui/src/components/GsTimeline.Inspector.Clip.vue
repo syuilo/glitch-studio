@@ -6,10 +6,13 @@
 		<div class="_spacer _gaps_m">
 			<GsInput small type="number" :min="0" :modelValue="selectedClipEntry.clip.startMs" @update:modelValue="value => editSelectedClipTime('move', value)"><template #label>Start</template><template #suffix>ms</template></GsInput>
 			<GsInput small type="number" :min="0" :disabled="selectedClipNeedsMedia && !selectedClipMedia" :modelValue="selectedClipEntry.clip.startMs" @update:modelValue="value => editSelectedClipTime('start', value)"><template #label>Trim start</template><template #suffix>ms</template></GsInput>
-			<GsInput small type="number" :min="1" :disabled="selectedClipNeedsMedia && !selectedClipMedia" :modelValue="selectedClipEntry.clip.durationMs" @update:modelValue="value => editSelectedClipTime('duration', value)"><template #label>Duration</template><template #suffix>ms</template></GsInput>
+			<GsInput small type="number" :min="1" :disabled="selectedClipNeedsMedia && !selectedClipMedia" :modelValue="selectedVideoClip?.loopDurationMs ?? selectedClipEntry.clip.durationMs" @update:modelValue="value => editSelectedClipTime('duration', value)"><template #label>{{ selectedVideoClip ? 'Trimmed duration' : 'Duration' }}</template><template #suffix>ms</template></GsInput>
 			<div>Content offset: {{ formatMsToTimecode(selectedClipEntry.clip.contentOffsetMs) }}</div>
 			<div v-if="selectedClipMedia">Source duration: {{ formatMsToTimecode(selectedClipMedia.durationMs) }}</div>
 			<template v-if="selectedVideoClip != null">
+				<GsInput small type="number" :min="selectedVideoClip.loopDurationMs ?? selectedVideoClip.durationMs" :disabled="!selectedClipMedia" :modelValue="selectedVideoClip.durationMs" @update:modelValue="editSelectedClipLoop"><template #label>Total duration</template><template #suffix>ms</template></GsInput>
+				<div>Extend Total duration to repeat the trimmed range.</div>
+				<GsButton v-if="selectedVideoClip.loopDurationMs !== null" small :disabled="!selectedClipMedia" @click="editSelectedClipLoop(selectedVideoClip.loopDurationMs)">Remove loop</GsButton>
 				<GsSwitch :modelValue="selectedVideoClip.audioEnabled" :disabled="!selectedVideoClip.audioEnabled && !selectedClipMedia?.audioAvailable" @update:modelValue="editSelectedClipAudio">Audio enabled</GsSwitch>
 				<div v-if="selectedClipMedia?.audioError">{{ selectedClipMedia.audioError }}</div>
 			</template>
@@ -81,10 +84,21 @@ function editSelectedClipTime(kind: 'move' | 'start' | 'duration', value: string
 		stateManager.commit('editTimelineClipTiming', {
 			sceneId: props.sceneId, ...entry.target,
 			edge: kind === 'start' ? 'start' : 'end',
-			deltaMs: kind === 'start' ? next - entry.clip.startMs : next - entry.clip.durationMs,
+			deltaMs: kind === 'start' ? next - entry.clip.startMs : next - (selectedVideoClip.value?.loopDurationMs ?? entry.clip.durationMs),
 			sourceDurationMs: selectedClipMedia.value?.durationMs,
 		});
 	}
+}
+
+function editSelectedClipLoop(value: string | number) {
+	const clip = selectedVideoClip.value;
+	const media = selectedClipMedia.value;
+	const next = Number(value);
+	if (!clip || !media || !Number.isFinite(next)) return;
+	stateManager.commit('editVideoClipLoop', {
+		sceneId: props.sceneId, layerId: props.layer.id, clipId: clip.id,
+		deltaMs: next - clip.durationMs, sourceDurationMs: media.durationMs,
+	});
 }
 
 function editSelectedClipAudio(audioEnabled: boolean) {

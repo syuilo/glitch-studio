@@ -279,7 +279,7 @@ test('rejects invalid image sources and timing without mutating layers', () => {
 // 音声無効化が配置長や音量キーを変更しないこと、範囲外トリムが状態を壊さないことも確認する。
 test('round-trips video settings and undoes trimmed timing and independent audio controls', async () => {
 	const { state } = fixture();
-	const layer = { id: 'video', layerType: 'video', name: 'Layer', clips: [{ id: 'clip', startMs: 10000, contentOffsetMs: 2000, durationMs: 5000, assetId: 'movie', audioEnabled: true }], compositingParamValues: defaultCompositing(), audioParamValues: { volume: { inputSource: 'literal', value: 1 } }, automationGraphs: [] };
+	const layer = { id: 'video', layerType: 'video', name: 'Layer', clips: [{ id: 'clip', startMs: 10000, contentOffsetMs: 2000, durationMs: 5000, assetId: 'movie', loopDurationMs: null, audioEnabled: true }], compositingParamValues: defaultCompositing(), audioParamValues: { volume: { inputSource: 'literal', value: 1 } }, automationGraphs: [] };
 	const target = { sceneId: 'scene', layerId: 'video', clipId: 'clip' };
 	state.assets = { value: [{ id: 'movie', fileDataType: 'video/mp4', fileData: new Blob() }] };
 	const add = COMMAND_DEFS.addTimelineLayer.create({ sceneId: 'scene', layer, sourceDurationsMs: { [layer.id]: { clip: 10000 } } });
@@ -568,14 +568,14 @@ test('resets a video source within its gap and restores it on undo', () => {
 	state.assets = { value: ['old', 'new'].map(id => ({ id, fileDataType: 'video/mp4', fileData: new Blob() })) };
 	const layer = { id: 'video', name: 'Video', layerType: 'video', automationGraphs: [], compositingParamValues: defaultCompositing(),
 		audioParamValues: { volume: { inputSource: 'literal', value: 0.5 } }, clips: [
-			{ id: 'a', assetId: 'old', audioEnabled: false, startMs: 100, durationMs: 100, contentOffsetMs: 50 },
-			{ id: 'b', assetId: 'old', audioEnabled: true, startMs: 400, durationMs: 100, contentOffsetMs: 0 },
+			{ id: 'a', assetId: 'old', loopDurationMs: null, audioEnabled: false, startMs: 100, durationMs: 100, contentOffsetMs: 50 },
+			{ id: 'b', assetId: 'old', loopDurationMs: null, audioEnabled: true, startMs: 400, durationMs: 100, contentOffsetMs: 0 },
 		] };
 	COMMAND_DEFS.addTimelineLayer.create({ sceneId: 'scene', layer, sourceDurationsMs: { [layer.id]: { a: 1000, b: 1000 } } }).execute(state);
 	const current = state.timelineScenes.value[0].layers[0];
 	const command = COMMAND_DEFS.changeTimelineClipSource.create({ sceneId: 'scene', layerId: 'video', clipId: 'a', assetId: 'new', sourceDurationMs: 1000 });
 	command.execute(state);
-	assert.deepEqual(current.clips[0], { id: 'a', assetId: 'new', audioEnabled: false, startMs: 100, durationMs: 300, contentOffsetMs: 0 });
+	assert.deepEqual(current.clips[0], { id: 'a', assetId: 'new', loopDurationMs: null, audioEnabled: false, startMs: 100, durationMs: 300, contentOffsetMs: 0 });
 	assert.deepEqual(current.clips[1], layer.clips[1]);
 	command.undo(state);
 	assert.deepEqual(current, layer);
@@ -588,7 +588,7 @@ function mediaFixture(layerType, contentOffsetMs = 0.25, durationMs = 5000) {
 	const layer = { id: 'media-layer', name: 'Media', layerType, automationGraphs: [],
 		...(layerType === 'video' ? { compositingParamValues: defaultCompositing() } : {}),
 		audioParamValues: { volume: { inputSource: 'literal', value: 0.5 } },
-		clips: [{ id: 'clip', startMs: 100, durationMs, contentOffsetMs, assetId: asset.id, ...(layerType === 'video' ? { audioEnabled: true } : {}) }] };
+		clips: [{ id: 'clip', startMs: 100, durationMs, contentOffsetMs, assetId: asset.id, ...(layerType === 'video' ? { loopDurationMs: null, audioEnabled: true } : {}) }] };
 	COMMAND_DEFS.addTimelineLayer.create({ sceneId: 'scene', layer, sourceDurationsMs: { [layer.id]: { clip: contentOffsetMs + durationMs } } }).execute(state);
 	return { state, asset, target: { sceneId: 'scene', layerId: layer.id, clipId: 'clip' }, current: state.timelineScenes.value[0].layers.find(entry => entry.id === layer.id) };
 }

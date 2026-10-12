@@ -95,7 +95,7 @@ export function createTimelineSourceActions(options: TimelineSourceActionsOption
 			id: genId(),
 			...createTimelineClipTiming(startMs, durationMs),
 			...(source?.kind === 'scene' ? { sceneId: source.scene.id } : source?.kind === 'asset' ? { assetId: source.asset.id } : {}),
-			...(type === 'video' ? { audioEnabled: source?.kind === 'asset' && !!source.media?.audioAvailable } : {}),
+			...(type === 'video' ? { loopDurationMs: null, audioEnabled: source?.kind === 'asset' && !!source.media?.audioAvailable } : {}),
 		};
 		try {
 			stateManager.commit('addTimelineClip', { sceneId: scene.id, layerId: layer.id, clip, sourceDurationMs });
@@ -156,7 +156,7 @@ export function createTimelineSourceActions(options: TimelineSourceActionsOption
 		if (layerType === 'scene' && source.kind === 'scene') layer = { ...base, layerType, clips: [{ ...clip, sceneId: source.scene.id }], audioParamValues, compositingParamValues };
 		else if (source.kind === 'asset' && layerType === 'image') layer = { ...base, layerType, clips: [{ ...clip, assetId: source.asset.id }], compositingParamValues };
 		else if (source.kind === 'asset' && layerType === 'audio') layer = { ...base, layerType, clips: [{ ...clip, assetId: source.asset.id }], audioParamValues };
-		else if (source.kind === 'asset' && layerType === 'video') layer = { ...base, layerType, clips: [{ ...clip, assetId: source.asset.id, audioEnabled: !!source.media?.audioAvailable }], audioParamValues, compositingParamValues };
+		else if (source.kind === 'asset' && layerType === 'video') layer = { ...base, layerType, clips: [{ ...clip, assetId: source.asset.id, loopDurationMs: null, audioEnabled: !!source.media?.audioAvailable }], audioParamValues, compositingParamValues };
 		else return;
 		stateManager.commit('addTimelineLayer', { sceneId: scene.id, layer, sourceDurationsMs: sourceDurationMs == null ? undefined : { [layer.id]: { [clip.id]: sourceDurationMs } } });
 		selectClip({ layerId: layer.id, clipId: clip.id });

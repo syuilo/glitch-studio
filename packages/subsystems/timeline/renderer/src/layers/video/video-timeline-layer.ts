@@ -1,4 +1,6 @@
 import { openVideoSource } from '@gs/shared/media/video-source.ts';
+import { getTimelineVideoSourceTime } from '@gs/subsystems_timeline_shared/layers/video/video-timing.ts';
+import type { TimelineVideoClip } from '@gs/subsystems_timeline_shared/clip.ts';
 import { createVideoTexture } from '@gs/shared/media/video-texture.ts';
 import { createTimelineCompositor } from '../../timeline-compositor.ts';
 import type { TimelineCompositingObserver } from '../../timeline-compositor.ts';
@@ -9,6 +11,7 @@ import type { UniformOrTexture } from '@gs/shared/gpu/uniform-or-texture.ts';
 import type { TimelineLayerRenderer } from '../../timeline-renderer.ts';
 
 export function createVideoTimelineLayer(layer: TimelineVideoLayer, blob: Blob, options: {
+	getClip: () => TimelineVideoClip;
 	device: GPUDevice;
 	vertex: GPUShaderModule;
 	resolution: { width: number; height: number };
@@ -28,7 +31,7 @@ export function createVideoTimelineLayer(layer: TimelineVideoLayer, blob: Blob, 
 			// デコードせず、完了が遅れた旧フレームも新しいテクスチャへ書き込まない。
 			const render = async () => {
 				if (disposed || signal.aborted) return { gpuTime: 0 };
-				const sample = await source.getSample(context.contentTimeMs / 1000);
+				const sample = await source.getSample(getTimelineVideoSourceTime(options.getClip(), context.sceneTimeMs) / 1000);
 				try {
 					if (disposed || signal.aborted) return { gpuTime: 0 };
 					// replaceの無変形時はcompositorが素材を直接返すため、合成前に原寸へ倍率を

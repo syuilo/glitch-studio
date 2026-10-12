@@ -66,6 +66,27 @@ const renderer = createRenderer({
 function descendants(root) { return [root, ...root.children.flatMap(descendants)]; }
 const components = ['GsTimeline.Layer.Clips.vue', 'GsTimeline.Clip.vue', 'GsTimeline.Layer.Keyframes.vue'];
 
+// 【動画の二つの右ハンドルが、素材トリムとループ延長を別々に通知する】
+// 両者が同じ位置にある初期状態でも別操作として伝わり、延長後は一周目のハンドルを残す。
+// 音声レイヤーなどに動画用ハンドルを表示しないことも実際のSFCで確認する。
+test('routes source trim and loop handles separately through the layer components', async t => {
+	const f = await fixture(t);
+	assert.ok(!descendants(f.root).some(node => node.props.class?.includes('loopEnd')));
+	f.layers[0].layerType = 'video';
+	f.layers[0].compositingParamValues = {};
+	for (const clip of f.layers[0].clips) Object.assign(clip, { audioEnabled: false, loopDurationMs: null });
+	await nextTick();
+	const clip = descendants(f.root).find(node => node.props['data-timeline-clip-id'] === 'clip-0');
+	const handle = name => descendants(clip).find(node => node.props.class?.includes(name));
+	handle('loopEnd').props.onPointerdown({ stopPropagation() {} });
+	handle('trimEnd').props.onPointerdown({ stopPropagation() {} });
+	assert.deepEqual(f.events, [['trim', { layerId: 'a', clipId: 'clip-0' }, 'loop'], ['trim', { layerId: 'a', clipId: 'clip-0' }, 'end']]);
+	Object.assign(f.layers[0].clips[0], { loopDurationMs: 100, durationMs: 180 });
+	await nextTick();
+	assert.equal(handle('trimEnd').props.style.right, '160px');
+	assert.equal(descendants(clip).find(node => node.props.class === 'loopFill').props.style.left, '200px');
+});
+
 async function fixture(t) {
 	const makeLayer = id => ({ id, layerType: 'audio', name: id, isDisabled: false,
 		clips: [100, 300, 600].map((startMs, index) => ({ id: 'clip-' + index, assetId: 'sound', startMs, durationMs: 100, contentOffsetMs: 30 })),

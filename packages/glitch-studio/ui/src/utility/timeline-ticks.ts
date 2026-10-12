@@ -57,6 +57,22 @@ export function getTimelineMinorTicks(majorTicks: readonly number[], subdivision
 
 /** 表示・スナップで同じ目盛りを使い、内容時刻とScene上の位置を取り違えないようにする。 */
 export function getTimelineClipTicks(clip: TimelineClipTiming, viewportStartMs: number, viewportDurationMs: number, count: number, mode: TimelineTickMode = 'legacy', subdivisions: TimelineTickSubdivisions = { halves: true, thirds: false }): TimelineClipTicks {
+	if ('loopDurationMs' in clip && typeof clip.loopDurationMs === 'number') {
+		const period = clip.loopDurationMs;
+		const start = Math.max(clip.startMs, viewportStartMs);
+		const end = Math.min(clip.startMs + clip.durationMs, viewportStartMs + viewportDurationMs);
+		const result: TimelineClipTicks = { major: [], minor: [] };
+		// 周期が画面の目盛りより極端に短いときは読めないラベルを描かない。
+		// 表示領域だけを列挙し、ズームアウトでも周回数に比例した配列を作らない。
+		if (period <= 0 || period < viewportDurationMs / (Math.max(1, count) * 8) || end <= start) return result;
+		for (let cycle = Math.floor((start - clip.startMs) / period); clip.startMs + cycle * period < end; cycle++) {
+			const cycleStart = clip.startMs + cycle * period;
+			const ticks = getTimelineClipTicks({ startMs: cycleStart, durationMs: Math.min(period, clip.startMs + clip.durationMs - cycleStart), contentOffsetMs: clip.contentOffsetMs }, viewportStartMs, viewportDurationMs, count, mode, subdivisions);
+			result.major.push(...ticks.major);
+			result.minor.push(...ticks.minor);
+		}
+		return result;
+	}
 	// トリムしても内容の時間原点は変わらない。目盛り間隔はクリップ長ではなく画面の倍率で決める。
 	const originMs = clip.startMs - clip.contentOffsetMs;
 	const ticks = getTimelineLocalTicks(originMs, viewportStartMs, viewportDurationMs, count, mode);

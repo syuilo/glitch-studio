@@ -16,6 +16,8 @@ import { validateEffectResolution } from '@gs/subsystems_effect_shared/resolutio
 import { canReferenceScene, validateTimelineLayer, validateTimelineScenes } from '@gs/subsystems_timeline_shared/scenes.ts';
 import { getTimelineClipTrimBounds, getTimelineClipInsertionDuration, getTimelineMediaMaxDurationMs, validateTimelineClips } from '@gs/subsystems_timeline_shared/timing.ts';
 import type { TimelineClipTiming } from '@gs/subsystems_timeline_shared/timing.ts';
+import { getTimelineVideoLoopBounds, getTimelineVideoSourceDuration, getTimelineVideoTrimBounds, trimTimelineVideoClip, validateTimelineVideoClipTiming } from '@gs/subsystems_timeline_shared/layers/video/video-timing.ts';
+import type { TimelineVideoClipTiming } from '@gs/subsystems_timeline_shared/layers/video/video-timing.ts';
 import type { TimelineClip, TimelineAssetClip, TimelineVideoClip, TimelineSceneClip } from '@gs/subsystems_timeline_shared/clip.ts';
 import { validateTimelineParameterTree } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
 import { getArrayElementDefinition, isParameterType } from '@gs/shared/parameter/parameter-definition.ts';
@@ -1168,8 +1170,10 @@ function requireMediaDurationMs(sourceDurationMs: number | undefined): number {
 	return sourceDurationMs;
 }
 
-function validateMediaClipTiming(clip: TimelineClip, sourceDurationMs: number | undefined) {
-	if (clip.durationMs > getTimelineMediaMaxDurationMs(clip.contentOffsetMs, requireMediaDurationMs(sourceDurationMs))) throw new Error('Clip exceeds the media duration');
+function validateMediaClipTiming(clip: TimelineClipData, sourceDurationMs: number | undefined) {
+	if ('loopDurationMs' in clip) validateTimelineVideoClipTiming(clip);
+	const sourceLength = 'loopDurationMs' in clip ? getTimelineVideoSourceDuration(clip) : clip.durationMs;
+	if (sourceLength > getTimelineMediaMaxDurationMs(clip.contentOffsetMs, requireMediaDurationMs(sourceDurationMs))) throw new Error('Clip exceeds the media duration');
 }
 
 /** 異なる素材種類の混入をコマンド境界で拒否してから、型別のclips配列へ保存する。 */
@@ -1179,7 +1183,10 @@ function validateLayerClips(state: ProjectState, sceneId: string, layer: Timelin
 		if (layer.layerType === 'image' || layer.layerType === 'video' || layer.layerType === 'audio') {
 			if (!('assetId' in clip) || typeof clip.assetId !== 'string'
 				|| !state.assets.value.some(asset => asset.id === clip.assetId && asset.fileDataType.startsWith(layer.layerType + '/'))) throw new Error('Asset type does not match the layer');
-			if (layer.layerType === 'video' && (!('audioEnabled' in clip) || typeof clip.audioEnabled !== 'boolean')) throw new Error('Invalid video clip');
+			if (layer.layerType === 'video') {
+				if (!('audioEnabled' in clip) || typeof clip.audioEnabled !== 'boolean' || !('loopDurationMs' in clip)) throw new Error('Invalid video clip');
+				validateTimelineVideoClipTiming(clip);
+			}
 			if (sourceDurationsMs && layer.layerType !== 'image') validateMediaClipTiming(clip, sourceDurationsMs[layer.id]?.[clip.id]);
 		} else if (layer.layerType === 'scene') {
 			if (!('sceneId' in clip) || typeof clip.sceneId !== 'string' || !canReferenceScene(state.timelineScenes.value, sceneId, clip.sceneId)) throw new Error('Invalid or circular scene reference');
@@ -1315,12 +1322,12 @@ const pasteTimelineClipsCommandDef = defineCommand<{ sceneId: string; clips: Tim
 	}),
 });
 
-const editTimelineClipTimingCommandDef = defineCommand<TimelineClipTarget & { sceneId: string; edge: 'start' | 'end'; deltaMs: number; sourceDurationMs?: number; initialTiming?: TimelineClipTiming }>({
+const editTimelineClipTimingCommandDef = defineCommand<TimelineClipTarget & { sceneId: string; edge: 'start' | 'end'; deltaMs: number; sourceDurationMs?: number; initialTiming?: TimelineClipTiming | TimelineVideoClipTiming }>({
 	label: 'Trim timeline clip',
 	changes: (_state, payload) => [{ type: 'layer', sceneId: payload.sceneId, layerId: payload.layerId, changes: [{ type: 'clips' }] }],
 	create: payload => {
-		let before: TimelineClipTiming;
-		let after: TimelineClipTiming | undefined;
+		let before: TimelineClipData;
+		let after: TimelineClipData | undefined;
 		return {
 			execute(state) {
 				const { layer, clip } = getTimelineClip(state, payload.sceneId, payload);
@@ -1335,19 +1342,59 @@ const editTimelineClipTimingCommandDef = defineCommand<TimelineClipTarget & { sc
 				const initial = { ...clip, ...payload.initialTiming };
 				const initialClips = layer.clips.map(entry => entry.id === clip.id ? initial : entry);
 				validateTimelineClips(initialClips);
-				const bounds = getTimelineClipTrimBounds(initialClips, clip.id, payload.edge, media || layer.layerType === 'scene', sourceDurationMs);
+				const bounds = 'loopDurationMs' in initial
+					? getTimelineVideoTrimBounds(initialClips, initial, payload.edge, sourceDurationMs!)
+					: getTimelineClipTrimBounds(initialClips, clip.id, payload.edge, media || layer.layerType === 'scene', sourceDurationMs);
 				if (bounds.minDelta > bounds.maxDelta) throw new Error('No valid clip duration within the media');
 				const delta = Math.max(bounds.minDelta, Math.min(bounds.maxDelta, Math.round(payload.deltaMs)));
-				before = { startMs: clip.startMs, durationMs: clip.durationMs, contentOffsetMs: clip.contentOffsetMs };
-				const next = payload.edge === 'start'
+				before = deepClone(clip);
+				const next = 'loopDurationMs' in initial ? { ...clip, ...trimTimelineVideoClip(initial, payload.edge, delta) } : payload.edge === 'start'
 					? { ...clip, startMs: initial.startMs + delta, durationMs: initial.durationMs - delta, contentOffsetMs: initial.contentOffsetMs + delta }
 					: { ...clip, durationMs: initial.durationMs + delta };
 				validateTimelineClips(layer.clips.map(entry => entry.id === clip.id ? next : entry));
 				if (media) validateMediaClipTiming(next, payload.sourceDurationMs);
-				after = { startMs: next.startMs, durationMs: next.durationMs, contentOffsetMs: next.contentOffsetMs };
+				after = next;
 				Object.assign(clip, after);
 			},
 			undo(state) { Object.assign(getTimelineClip(state, payload.sceneId, payload).clip, before); },
+		};
+	},
+});
+
+const editVideoClipLoopCommandDef = defineCommand<TimelineClipTarget & { sceneId: string; deltaMs: number; sourceDurationMs: number; initialTiming?: TimelineVideoClipTiming }>({
+	label: 'Resize video loop',
+	changes: (_state, payload) => [{ type: 'layer', sceneId: payload.sceneId, layerId: payload.layerId, changes: [{ type: 'clips' }] }],
+	create: payload => {
+		let before: Pick<TimelineVideoClipTiming, 'durationMs' | 'loopDurationMs'>;
+		let after: typeof before | undefined;
+		const find = (state: ProjectState) => {
+			const layer = getTimelineClipLayer(state, payload.sceneId, payload.layerId);
+			if (layer.layerType !== 'video') throw new Error('Video layer not found');
+			const clip = layer.clips.find(entry => entry.id === payload.clipId);
+			if (!clip) throw new Error('Video clip not found');
+			return { layer, clip };
+		};
+		return {
+			execute(state) {
+				const { layer, clip } = find(state);
+				if (after) { Object.assign(clip, after); return; }
+				if (!Number.isFinite(payload.deltaMs)) throw new Error('Invalid loop resize');
+				const initial = { ...clip, ...payload.initialTiming };
+				const initialClips = layer.clips.map(entry => entry.id === clip.id ? initial : entry);
+				validateTimelineClips(initialClips);
+				validateMediaClipTiming(initial, payload.sourceDurationMs);
+				const bounds = getTimelineVideoLoopBounds(initialClips, initial);
+				const delta = Math.max(bounds.minDelta, Math.min(bounds.maxDelta, Math.round(payload.deltaMs)));
+				const durationMs = initial.durationMs + delta;
+				const period = getTimelineVideoSourceDuration(initial);
+				const next = { ...clip, durationMs, loopDurationMs: durationMs === period ? null : period };
+				validateTimelineClips(layer.clips.map(entry => entry.id === clip.id ? next : entry));
+				validateMediaClipTiming(next, payload.sourceDurationMs);
+				before = { durationMs: clip.durationMs, loopDurationMs: clip.loopDurationMs };
+				after = { durationMs: next.durationMs, loopDurationMs: next.loopDurationMs };
+				Object.assign(clip, after);
+			},
+			undo(state) { Object.assign(find(state).clip, before); },
 		};
 	},
 });
@@ -1434,7 +1481,7 @@ const changeTimelineClipSourceCommandDef = defineCommand<TimelineClipTarget & { 
 				const next = { ...clip, contentOffsetMs: 0,
 																			durationMs: media ? getTimelineClipInsertionDuration(layer.clips.filter(entry => entry.id !== clip.id), clip.startMs, payload.sourceDurationMs) : clip.durationMs,
 																			...(layer.layerType === 'scene' ? { sceneId: payload.referencedSceneId } : { assetId: payload.assetId }),
-																			...(layer.layerType === 'video' ? { audioEnabled: payload.audioEnabled ?? ('audioEnabled' in clip && clip.audioEnabled) } : {}),
+																			...(layer.layerType === 'video' ? { audioEnabled: payload.audioEnabled ?? ('audioEnabled' in clip && clip.audioEnabled), loopDurationMs: null } : {}),
 				};
 				if (layer.layerType !== 'scene' && layer.layerType !== 'image' && !media) throw new Error('Layer has no clip source');
 				validateTimelineClips(layer.clips.map(entry => entry.id === clip.id ? next : entry));
@@ -1889,6 +1936,7 @@ export const COMMAND_DEFS = {
 	removeTimelineClips: removeTimelineClipsCommandDef,
 	changeTimelineClipSource: changeTimelineClipSourceCommandDef,
 	editVideoClipAudio: editVideoClipAudioCommandDef,
+	editVideoClipLoop: editVideoClipLoopCommandDef,
 	moveTimelineKeyframes: moveTimelineKeyframesCommandDef,
 	pasteTimelineKeyframes: pasteTimelineKeyframesCommandDef,
 	addScene: addSceneCommandDef,

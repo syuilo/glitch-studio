@@ -23,7 +23,7 @@ const connection = nodeId => ({ inputSource: 'node', nodeId, outputPort: 'output
 const dimensions = value => [value.width, value.height];
 
 function gpuFixture(t) {
-	const calls = { uploads: [], draws: [], renders: [], outputs: [], errors: [] };
+	const calls = { uploads: [], draws: [], renders: [], outputs: [], errors: [], sampleTimes: [] };
 	const globals = {
 		GPUQueue: class { submit() {} },
 		GPUTextureUsage: { RENDER_ATTACHMENT: 1, TEXTURE_BINDING: 2, COPY_DST: 4 },
@@ -76,7 +76,7 @@ function timelineFixture(t) {
 	const module = { exports: {} };
 	const require = createRequire(import.meta.url);
 	new Function('require', 'module', 'exports', managerBundle.outputFiles[0].text)(name => name === videoSourceModule
-		? { openVideoSource: () => ({ getSample: async () => sample(3840, 2160), dispose() {} }) }
+		? { openVideoSource: () => ({ getSample: async time => { calls.sampleTimes.push(time); return sample(3840, 2160); }, dispose() {} }) }
 		: require(name), module, module.exports);
 	const input = { dataType: { kind: 'color' }, canNode: true, defaultValue: literal([0, 0, 0, 0]) };
 	const manager = new module.exports.TimelineRendererManager({
@@ -94,6 +94,30 @@ function timelineFixture(t) {
 	return { ...fixture, manager };
 }
 
+// 【映像のシークと書き出しはトリム範囲を同じ時刻で折り返し、設定変更も反映する】
+// 時間計算単体が正しくても、Managerから動画レンダラーへ周期が渡らなければ映像だけが直進する。
+// 実際の差分同期も通し、保持していたクリップ参照の古い周期を使い続けないことを確認する。
+test('loops decoded video timestamps in preview and export and applies clip edits', async t => {
+	const { manager, calls } = timelineFixture(t);
+	const video = { id: 'video', name: 'Video', layerType: 'video', isDisabled: false, automationGraphs: [], compositingParamValues: {}, audioParamValues: { volume: literal(1) },
+		clips: [{ id: 'clip', startMs: 1000, contentOffsetMs: 2000.25, durationMs: 8000, loopDurationMs: 3000, assetId: 'asset', audioEnabled: false }] };
+	await manager.updateDynamicOptions({ assets: [{ id: 'asset', fileDataType: 'video/mp4', fileData: new Blob() }],
+		resolution: { width: 1920, height: 1080 }, resolutionScale: 1, sceneId: 'scene',
+		timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [video] }] });
+	for (const time of [3999, 4000, 8000, 1000]) {
+		await manager.renderTimelineAt(time);
+		assert.equal(calls.sampleTimes.at(-1), (2000.25 + ((time - 1000) % 3000)) / 1000);
+	}
+	await manager.renderTimelineFrame(7000, 0);
+	assert.equal(calls.sampleTimes.at(-1), 2.00025);
+	const updated = structuredClone(video);
+	updated.clips[0].loopDurationMs = 2000;
+	manager.applyProjectChanges([{ type: 'layer', sceneId: 'scene', layerId: 'video', layer: updated, changes: [{ type: 'clips' }] }]);
+	await manager.renderTimelineAt(4000);
+	assert.equal(calls.sampleTimes.at(-1), 3.00025);
+	assert.deepEqual(calls.errors, []);
+});
+
 // 【動画のreplace出力を引き継ぐ自動解像度にも倍率を一度だけ適用する】
 // 同じ比率の無変形replaceは合成を省略するため、転送時に縮小しないと原寸が後段へ漏れる。
 // プロジェクトより大きい素材を使い、プロジェクト寸法への強制変換・二重縮小も検出する。
@@ -101,7 +125,7 @@ function timelineFixture(t) {
 test('scales video sources once through replace composition and automatic processing', async t => {
 	const { manager, calls } = timelineFixture(t);
 	const timing = { name: 'Layer', clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 1000 }], automationGraphs: [] };
-	const video = { ...timing, id: 'video', layerType: 'video', clips: [{ ...timing.clips[0], assetId: 'asset', audioEnabled: false }], audioParamValues: { volume: literal(1) }, compositingParamValues: { fitMode: { inputSource: 'literal', value: 'cover' } } };
+	const video = { ...timing, id: 'video', layerType: 'video', clips: [{ ...timing.clips[0], assetId: 'asset', loopDurationMs: null, audioEnabled: false }], audioParamValues: { volume: literal(1) }, compositingParamValues: { fitMode: { inputSource: 'literal', value: 'cover' } } };
 	const processing = { ...timing, id: 'processing', layerType: 'inlineVisualModule', visualModuleParamValues: {},
 		compositingParamValues: { blendMode: literal('replace') },
 		visualModule: {

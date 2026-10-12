@@ -16,12 +16,16 @@ export type SceneAudioGain = {
 
 export type SceneAudioClip = {
 	sourceId: string;
-	/** 最上位Scene上での素材時刻0。音量の評価基準には使用しない。 */
+	/** 最上位Scene上での素材時刻0。ループ時は最初の周の原点。音量の評価基準には使用しない。 */
 	sourceStartMs: number;
 	startMs: number;
 	endMs: number;
 	gains: SceneAudioGain[];
+	loop?: SceneAudioLoop;
 };
+
+/** 表示区間を親Sceneで切り詰めても、周期の原点と素材範囲は変更しない。 */
+export type SceneAudioLoop = { startMs: number; durationMs: number; contentOffsetMs: number };
 
 export type SceneAudioSelection = { type: 'all' } | { type: 'belowLayer'; layerId: string } | { type: 'layer'; layerId: string };
 
@@ -31,7 +35,7 @@ export type SceneAudioPlacement = {
 	startMs: number;
 	endMs: number;
 	gains: SceneAudioGain[];
-} & ({ type: 'asset'; sourceId: string } | { type: 'speech'; request: VoicevoxRequest });
+} & ({ type: 'asset'; sourceId: string; loop?: SceneAudioLoop } | { type: 'speech'; request: VoicevoxRequest });
 
 /** 祖先クリップすべての表示区間を交差させ、素材と各階層の音量の時計を別々に展開する。 */
 export function getSceneAudioPlacements(scenes: readonly TimelineScene[], sceneId: string, selection: SceneAudioSelection = { type: 'all' }): SceneAudioPlacement[] {
@@ -76,7 +80,9 @@ export function getSceneAudioPlacements(scenes: readonly TimelineScene[], sceneI
 					const childScene = getTimelineScene(scenes, clip.sceneId);
 					visit(childScene.layers, sourceStartMs, startMs, Math.min(endMs, sourceStartMs + getSceneDuration(childScene)), layerGains);
 				} else if (!('audioEnabled' in clip) || clip.audioEnabled) {
-					placements.push({ type: 'asset', sourceId: clip.assetId, sourceStartMs, startMs, endMs, gains: layerGains });
+					const loop = 'loopDurationMs' in clip && clip.loopDurationMs !== null
+						? { startMs: sceneStartMs + clip.startMs, durationMs: clip.loopDurationMs, contentOffsetMs: clip.contentOffsetMs } : undefined;
+					placements.push({ type: 'asset', sourceId: clip.assetId, sourceStartMs, startMs, endMs, gains: layerGains, ...(loop ? { loop } : {}) });
 				}
 			}
 		}
@@ -90,8 +96,8 @@ export function resolveSceneAudioPlacements(placements: readonly SceneAudioPlace
 	const missingSpeech: Extract<SceneAudioPlacement, { type: 'speech' }>[] = [];
 	for (const placement of placements) {
 		if (placement.type === 'asset') {
-			const { sourceId, sourceStartMs, startMs, endMs, gains } = placement;
-			clips.push({ sourceId, sourceStartMs, startMs, endMs, gains });
+			const { sourceId, sourceStartMs, startMs, endMs, gains, loop } = placement;
+			clips.push({ sourceId, sourceStartMs, startMs, endMs, gains, ...(loop ? { loop } : {}) });
 		} else {
 			const speech = resolveSpeech(placement.request);
 			if (!speech) {

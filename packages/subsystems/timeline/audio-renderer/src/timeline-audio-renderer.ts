@@ -10,6 +10,14 @@ import type { StereoPcm } from '@gs/subsystems_audio_shared/pcm.ts';
 /** 指定素材時刻（秒）から、指定レートでframes個ずつの左右PCMを返す。素材外は無音とする。 */
 export type AudioPcmReader = (sourceId: string, timeSeconds: number, frames: number, sampleRate: number, signal?: AbortSignal) => Promise<StereoPcm>;
 
+function frameAtOrAfter(timeMs: number, sampleRate: number): number {
+	const position = timeMs * sampleRate / 1000;
+	const nearest = Math.round(position);
+	// 子Sceneの小数オフセットの加減算で、整数サンプル境界がわずかにずれる。
+	// この誤差だけを吸収し、境界直後の1サンプルを前の周から読まないようにする。
+	return Math.abs(position - nearest) <= 4 * Number.EPSILON * Math.max(1, Math.abs(position)) ? nearest : Math.ceil(position);
+}
+
 /** DOM・GPU・再生状態を持たない。書き出しも独立インスタンスで同じPCMを生成できる。 */
 export class TimelineAudioRenderer {
 	private evaluator = new TimelineParameterBindingEvaluator();
@@ -21,22 +29,38 @@ export class TimelineAudioRenderer {
 		const output: StereoPcm = [new Float32Array(frames), new Float32Array(frames)];
 		for (const clip of clips) {
 			signal?.throwIfAborted();
-			const first = Math.max(startFrame, Math.ceil(clip.startMs * sampleRate / 1000));
-			const end = Math.min(startFrame + frames, Math.ceil(clip.endMs * sampleRate / 1000));
+			const first = Math.max(startFrame, frameAtOrAfter(clip.startMs, sampleRate));
+			const end = Math.min(startFrame + frames, frameAtOrAfter(clip.endMs, sampleRate));
 			if (end <= first) continue;
-			const pcm = await this.read(clip.sourceId, (first / sampleRate * 1000 - clip.sourceStartMs) / 1000, end - first, sampleRate, signal);
-			// 読み取り側が即時中断できなくても、古い要求のミックスや残りの素材取得は進めない。
-			signal?.throwIfAborted();
 			const gains = clip.gains.map(gain => ({ sceneStartMs: gain.sceneStartMs,
 				evaluate: this.createGain(gain.volume, time => createTimelineLayerEvaluationScope({
 					time, automationGraphs: gain.automationGraphs, isExport,
 				})),
 			}));
-			for (let frame = first; frame < end; frame++) {
-				const time = frame / sampleRate * 1000;
-				// 各階層の音量は所属Sceneの時刻で評価する。素材の内容時刻と混同しない。
-				const gain = gains.reduce((value, control) => value * control.evaluate(time - control.sceneStartMs), 1);
-				for (let channel = 0; channel < 2; channel++) output[channel][frame - startFrame] += pcm[channel][frame - first] * gain;
+			for (let partStart = first; partStart < end;) {
+				let partEnd = end;
+				let sourceTimeMs = partStart / sampleRate * 1000 - clip.sourceStartMs;
+				if (clip.loop) {
+					// 各周期の境界を絶対サンプル位置から求める。周期をサンプル数に丸めて
+					// 足し続けると44.1kHzなどで周回ごとに音声と映像の位置がずれてしまう。
+					const loop = clip.loop;
+					const elapsedMs = partStart / sampleRate * 1000 - loop.startMs;
+					let cycle = Math.floor(elapsedMs / loop.durationMs);
+					// 時刻の減算が境界の直前へ丸まった場合も、絶対サンプル位置を優先する。
+					if (frameAtOrAfter(loop.startMs + (cycle + 1) * loop.durationMs, sampleRate) <= partStart) cycle++;
+					sourceTimeMs = loop.contentOffsetMs + Math.max(0, elapsedMs - cycle * loop.durationMs);
+					partEnd = Math.min(end, Math.max(partStart + 1, frameAtOrAfter(loop.startMs + (cycle + 1) * loop.durationMs, sampleRate)));
+				}
+				const pcm = await this.read(clip.sourceId, sourceTimeMs / 1000, partEnd - partStart, sampleRate, signal);
+				// 読み取り側が即時中断できなくても、古い要求をミックスしない。
+				signal?.throwIfAborted();
+				for (let frame = partStart; frame < partEnd; frame++) {
+					const time = frame / sampleRate * 1000;
+					// 音量は周期の先頭に戻さず、所属Sceneの時計で連続して評価する。
+					const gain = gains.reduce((value, control) => value * control.evaluate(time - control.sceneStartMs), 1);
+					for (let channel = 0; channel < 2; channel++) output[channel][frame - startFrame] += pcm[channel][frame - partStart] * gain;
+				}
+				partStart = partEnd;
 			}
 		}
 		// 子Sceneごとにはクリップせず、すべての音声を浮動小数点のまま加算する。

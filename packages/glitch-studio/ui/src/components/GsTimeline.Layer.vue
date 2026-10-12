@@ -156,7 +156,7 @@ const emit = defineEmits<{
 	(ev: 'addClip', startMs: number): void;
 	(ev: 'look', centerTimeMs: number): void;
 	(ev: 'clipMoveStart', event: PointerEvent, selection: TimelineClipSelection): void;
-	(ev: 'clipTrimStart', event: PointerEvent, selection: TimelineClipSelection, edge: 'start' | 'end'): void;
+	(ev: 'clipTrimStart', event: PointerEvent, selection: TimelineClipSelection, edge: 'start' | 'end' | 'loop'): void;
 	(ev: 'clipContextMenu', event: PointerEvent, selection: TimelineClipSelection): void;
 	(ev: 'keyframeDragStart', event: PointerEvent, selection: TimelineKeyframeSelection): void;
 	(ev: 'keyframeSelected', selection: TimelineKeyframeSelection): void;
@@ -175,7 +175,10 @@ const scrollingStyle = computed(() => ({
 const groupRange = computed(() => props.layer.layerType === 'group' ? getTimelineGroupRange(props.layer) : null);
 const layerClips = computed(() => props.layer.layerType === 'group' ? [] : props.layer.clips);
 const sortedClips = computed(() => layerClips.value.toSorted((a, b) => a.startMs - b.startMs));
-const clipItems = computed(() => layerClips.value.map(clip => ({ clip, label: clipLabel(clip), sourceDurationMs: sourceDuration(clip) })));
+const clipItems = computed(() => {
+	const present = (clip: Clip, loopDurationMs?: number | null) => ({ clip, label: clipLabel(clip), sourceDurationMs: sourceDuration(clip), loopDurationMs });
+	return props.layer.layerType === 'video' ? props.layer.clips.map(clip => present(clip, clip.loopDurationMs)) : layerClips.value.map(clip => present(clip));
+});
 const emptySelectionIds: string[] = [];
 const selectedKeyframeIdsByParameter = computed(() => {
 	const result = new Map<string, string[]>();

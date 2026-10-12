@@ -33,6 +33,56 @@ test('uses scene time for video volume without shifting audio timestamps', async
 });
 const constant = async (_id, _time, frames) => [new Float32Array(frames).fill(1), new Float32Array(frames).fill(0.5)];
 
+// 【小数オフセットの演算誤差でループ境界を1サンプル遅らせない】
+// 1000/3msをトリムした子Sceneでは、境界のサンプル位置が32000の直後へ丸まり得る。
+// そこを単純に切り上げると前の周の範囲外を読むため、整数境界の誤差だけを吸収する。
+test('does not read an extra sample across a fractional scene loop boundary', async () => {
+	const calls = [];
+	const renderer = new TimelineAudioRenderer(async (...args) => { calls.push(args.slice(0, 4)); return constant(...args); });
+	const clip = { sourceId: 'movie', sourceStartMs: 0, startMs: 0, endMs: 2000, gains: [], loop: { startMs: -1000 / 3, durationMs: 1000, contentOffsetMs: 20 } };
+	await renderer.renderClips([clip], 31990, 20, 48000);
+	assert.deepEqual(calls.map(call => call[2]), [10, 10]);
+	assert.ok(Math.abs(calls[1][1] - 0.02) < 1e-12);
+});
+
+// 【ループ境界を跨ぐ読み出しを分割し、最後の端数周とScene時刻の音量を保つ】
+// 一度のPCM読み出しで素材終端へ進んだり、音量まで周期ごとに戻ったりしてはいけない。
+// プレビュー・書き出し・途中シークでも同じ配置計画から同じ値を得る。
+test('splits video audio at loop boundaries while preserving scene-time gain', async () => {
+	const video = layer({ layerType: 'video', compositingParamValues: {},
+		clips: [{ id: 'clip', startMs: 100, contentOffsetMs: 20, durationMs: 85, loopDurationMs: 30, assetId: 'movie', audioEnabled: true }],
+		audioParamValues: { volume: { inputSource: 'expression', expression: 'TIME_MS / 1000' } } });
+	for (const isExport of [false, true]) {
+		const calls = [];
+		const renderer = new TimelineAudioRenderer(async (...args) => { calls.push(args.slice(0, 4)); return constant(...args); });
+		const output = await renderSceneAudio(renderer, [video], 125, 70, 1000, isExport);
+		assert.deepEqual(calls, [['movie', 0.045, 5, 1000], ['movie', 0.02, 30, 1000], ['movie', 0.02, 25, 1000]]);
+		assert.equal(output[0][5], Math.fround(0.13));
+		assert.equal(output[0][35], Math.fround(0.16));
+		assert.deepEqual([...output[0].slice(60)], Array(10).fill(0));
+	}
+});
+
+// 【整数サンプル数にならない周期でも、チャンク長や周回数によって位相をずらさない】
+// 44.1kHzの1msは44.1サンプルであり、44サンプルへ丸めた周期の累積は許可しない。
+// 素材位置を信号値として返すことで、境界で読み出しを分割しただけの実装でも位相の誤りを検出する。
+test('keeps fractional-sample loop periods aligned across arbitrary chunks', async () => {
+	const renderer = new TimelineAudioRenderer(async (_id, time, frames, rate) => {
+		const channel = Float32Array.from({ length: frames }, (_, index) => time + index / rate);
+		return [channel, channel];
+	});
+	const clip = { sourceId: 'movie', sourceStartMs: 0, startMs: 0, endMs: 1000, gains: [], loop: { startMs: -0.25, durationMs: 1, contentOffsetMs: 50.25 } };
+	const rate = 44100;
+	const whole = await renderer.renderClips([clip], 0, 44100, rate);
+	const chunks = [];
+	for (let frame = 0; frame < 44100; frame += 137) chunks.push(...(await renderer.renderClips([clip], frame, Math.min(137, 44100 - frame), rate))[0]);
+	for (let frame = 0; frame < 44100; frame++) {
+		const expected = (50.25 + ((frame / rate * 1000 + 0.25) % 1)) / 1000;
+		assert.ok(Math.abs(whole[0][frame] - expected) < 1e-7, `phase at frame ${frame}`);
+		assert.ok(Math.abs(whole[0][frame] - chunks[frame]) < 1e-7, `chunk at frame ${frame}`);
+	}
+});
+
 // 【非表示の音声レイヤーは素材を読み出さず、再表示すると元の時刻で音声を出力する】
 // 音量0として評価すると不要なデコードやエラーが残るため、期間内でも完全にスキップする。
 // 本番と同じSceneの音声計画を使い、計画作成側で除外した素材へアクセスしないことを確認する。

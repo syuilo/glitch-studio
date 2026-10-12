@@ -9,9 +9,11 @@
 	@dblclick.stop
 	@contextmenu.stop.prevent="emit('contextMenu', $event)"
 >
+	<div v-if="loopDurationMs != null" :class="$style.loopFill" :style="{ left: loopDurationMs * pixelsPerMs + 'px', '--loopPeriod': Math.max(6, loopDurationMs * pixelsPerMs) + 'px', '--loopLine': loopDurationMs * pixelsPerMs >= 6 ? '#fff5' : 'transparent' }"></div>
 	<div style="padding: 0 8px;"><GsCondensedLine>{{ label }}</GsCondensedLine></div>
-	<div :class="[$style.trimHandle, $style.trimStart]" @pointerdown.stop="emit('trimStart', $event, 'start')"></div>
-	<div :class="[$style.trimHandle, $style.trimEnd]" @pointerdown.stop="emit('trimStart', $event, 'end')"></div>
+	<div :class="[$style.trimHandle, $style.trimStart]" title="Trim source start" @pointerdown.stop="emit('trimStart', $event, 'start')"></div>
+	<div :class="[$style.trimHandle, $style.trimEnd, { [$style.videoTrimEnd]: loopDurationMs !== undefined }]" :style="{ right: (clip.durationMs - (loopDurationMs ?? clip.durationMs)) * pixelsPerMs + 'px' }" title="Trim source end" @pointerdown.stop="emit('trimStart', $event, 'end')"></div>
+	<div v-if="loopDurationMs !== undefined" :class="[$style.trimHandle, $style.loopEnd]" title="Extend to loop the trimmed range" aria-label="Resize video loop" @pointerdown.stop="emit('trimStart', $event, 'loop')"><i class="ti ti-repeat"></i></div>
 </div>
 </template>
 
@@ -21,6 +23,7 @@ import type { TimelineClip } from '@gs/subsystems_timeline_shared/clip.ts';
 
 const props = defineProps<{
 	clip: TimelineClip;
+	loopDurationMs?: number | null;
 	label: string;
 	sourceDurationMs: number | null;
 	pixelsPerMs: number;
@@ -30,7 +33,7 @@ const props = defineProps<{
 }>();
 const emit = defineEmits<{
 	(ev: 'moveStart', event: PointerEvent): void;
-	(ev: 'trimStart', event: PointerEvent, edge: 'start' | 'end'): void;
+	(ev: 'trimStart', event: PointerEvent, edge: 'start' | 'end' | 'loop'): void;
 	(ev: 'contextMenu', event: PointerEvent): void;
 }>();
 
@@ -83,5 +86,27 @@ const emit = defineEmits<{
 }
 .trimEnd {
 	right: 0;
+}
+.videoTrimEnd {
+	bottom: 50%;
+	background: #ffffff30;
+}
+.loopEnd {
+	top: 50%;
+	right: 0;
+	width: min(20px, 50%);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: #0005;
+	font-size: 12px;
+}
+.loopFill {
+	position: absolute;
+	top: 0;
+	bottom: 0;
+	right: 0;
+	pointer-events: none;
+	background-image: repeating-linear-gradient(90deg, var(--loopLine) 0 1px, transparent 1px var(--loopPeriod)), repeating-linear-gradient(135deg, #0002 0 4px, transparent 4px 8px);
 }
 </style>

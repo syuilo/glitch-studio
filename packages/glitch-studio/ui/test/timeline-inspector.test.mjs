@@ -89,6 +89,30 @@ const makeLayer = id => ({ id, name: id, layerType: 'audio', isDisabled: false, 
 	} } },
 });
 
+// 【動画の詳細から全体長と素材範囲を別々に変更し、ループ解除をUndoできる】
+// 数値入力が通常の右トリムへ誤接続されると、全体長の変更でループ範囲まで変わってしまう。
+test('edits video total duration independently of the trimmed range in the inspector', async t => {
+	const f = await fixture(t);
+	const layer = f.scene.layers[0];
+	layer.layerType = 'video';
+	layer.compositingParamValues = {};
+	Object.assign(layer.clips[0], { loopDurationMs: null, audioEnabled: false });
+	f.props.selection = { kind: 'clips', clips: [{ layerId: 'a', clipId: 'clip' }] };
+	f.props.mediaInfo = new Map([['sound', { durationMs: 5000, audioAvailable: true, audioError: null }]]);
+	await nextTick();
+	f.control('GsInput', 'Total duration').props['onUpdate:modelValue'](13000);
+	await nextTick();
+	assert.deepEqual([layer.clips[0].durationMs, layer.clips[0].loopDurationMs], [13000, 5000]);
+	f.control('GsInput', 'Trimmed duration').props['onUpdate:modelValue'](3000);
+	await nextTick();
+	assert.deepEqual([layer.clips[0].durationMs, layer.clips[0].loopDurationMs], [13000, 3000]);
+	f.control('GsButton', 'Remove loop').props.onClick();
+	await nextTick();
+	assert.deepEqual([layer.clips[0].durationMs, layer.clips[0].loopDurationMs], [3000, null]);
+	f.history.undo();
+	assert.deepEqual([layer.clips[0].durationMs, layer.clips[0].loopDurationMs], [13000, 3000]);
+});
+
 async function fixture(t, component = Inspector) {
 	t.mock.method(console, 'log', () => {});
 	const previousResizeObserver = globalThis.ResizeObserver;

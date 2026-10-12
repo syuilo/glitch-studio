@@ -51,7 +51,7 @@ function fixture() {
 		{ ...audioLayer('disabled', 0, 600, 0, literal(1)), isDisabled: true,
 			clips: [{ id: 'clip', assetId: 'missing', startMs: 0, durationMs: 600, contentOffsetMs: 0 }] },
 		{ ...audioLayer('silent-video', 0, 600, 0, literal(1)), layerType: 'video', compositingParamValues: {},
-			clips: [{ id: 'clip', assetId: 'missing-video', audioEnabled: false, startMs: 0, durationMs: 600, contentOffsetMs: 0 }] },
+			clips: [{ id: 'clip', assetId: 'missing-video', loopDurationMs: null, audioEnabled: false, startMs: 0, durationMs: 600, contentOffsetMs: 0 }] },
 	] };
 	const child = { id: 'child', name: 'Child', resolution: { mode: 'project' },
 		layers: [audioLayer('child-sound', 0, 500, 20, { inputSource: 'expression', expression: 'TIME_MS / 1000' })] };

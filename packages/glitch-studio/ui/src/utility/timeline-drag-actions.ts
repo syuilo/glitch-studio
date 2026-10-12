@@ -2,6 +2,7 @@ import { computed } from 'vue';
 import { flattenTimelineLayers } from '@gs/subsystems_timeline_shared/layer-tree.ts';
 import { getTimelineGroupRange } from '@gs/subsystems_timeline_shared/layers/group/group.ts';
 import { getTimelineClipEnd, getTimelineClipTrimBounds } from '@gs/subsystems_timeline_shared/timing.ts';
+import { getTimelineVideoTrimBounds, getTimelineVideoSourceDuration, getTimelineVideoLoopBounds } from '@gs/subsystems_timeline_shared/layers/video/video-timing.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { paramPathKey } from '@gs/shared/parameter/parameter-path.ts';
 import { createSpeechResolver } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox.ts';
@@ -103,24 +104,52 @@ export function createTimelineDragActions(options: TimelineDragActionsOptions) {
 		});
 	}
 
-	function onClipTrimStart(event: PointerEvent, target: TimelineClipSelection, edge: 'start' | 'end') {
+	function onClipTrimStart(event: PointerEvent, target: TimelineClipSelection, edge: 'start' | 'end' | 'loop') {
+		if (edge === 'loop') { onClipLoopStart(event, target); return; }
 		if (!drag.canStart(event)) return;
 		const entry = resolveClip(target);
 		if (!entry) return;
 		selectClip(target);
 		const { layer, clip } = entry;
+		const videoClip = layer.layerType === 'video' ? layer.clips.find(entry => entry.id === clip.id)! : null;
 		const media = layer.layerType === 'audio' || layer.layerType === 'video';
 		const sourceDurationMs = 'assetId' in clip && typeof clip.assetId === 'string' ? mediaInfo.value.get(clip.assetId)?.durationMs : undefined;
 		if (media && sourceDurationMs == null) return;
-		const bounds = getTimelineClipTrimBounds(layer.clips, clip.id, edge, media || layer.layerType === 'scene', sourceDurationMs);
+		const bounds = videoClip ? getTimelineVideoTrimBounds(layer.clips, videoClip, edge, sourceDurationMs!)
+			: getTimelineClipTrimBounds(layer.clips, clip.id, edge, media || layer.layerType === 'scene', sourceDurationMs);
 		if (bounds.minDelta > bounds.maxDelta) return;
-		const points = getTimelineClipSnapPoints(clip, bounds, clipSnapSettings.value, edge);
+		const sourceTiming = videoClip ? { ...clip, durationMs: getTimelineVideoSourceDuration(videoClip) } : clip;
+		const points = getTimelineClipSnapPoints(sourceTiming, bounds, clipSnapSettings.value, edge);
 		const snapTimes = getTimelineSnapCandidates(snapSettings.value, [0, ...clipLayers.value.flatMap(entry => entry.clips
 			.filter(other => entry.id !== layer.id || other.id !== clip.id).flatMap(other => [other.startMs, getTimelineClipEnd(other)]))], ticksWithMinor.value, [], time.value);
-		const initialTiming = { startMs: clip.startMs, durationMs: clip.durationMs, contentOffsetMs: clip.contentOffsetMs };
+		const initialTiming = { startMs: clip.startMs, durationMs: clip.durationMs, contentOffsetMs: clip.contentOffsetMs,
+			...(videoClip ? { loopDurationMs: videoClip.loopDurationMs } : {}) };
 		drag.startSelectionMove(event, points, snapTimes, (delta, mergeKey) => {
 			if (!resolveClip(target)) return false;
 			stateManager.commit('editTimelineClipTiming', { sceneId: scene.id, ...target, edge, deltaMs: delta, initialTiming, sourceDurationMs }, mergeKey);
+			return true;
+		});
+	}
+
+	function onClipLoopStart(event: PointerEvent, target: TimelineClipSelection) {
+		if (!drag.canStart(event)) return;
+		const entry = resolveClip(target);
+		if (!entry || entry.layer.layerType !== 'video') return;
+		const clip = entry.layer.clips.find(clip => clip.id === target.clipId)!;
+		const sourceDurationMs = mediaInfo.value.get(clip.assetId)?.durationMs;
+		if (sourceDurationMs == null) return;
+		selectClip(target);
+		const bounds = getTimelineVideoLoopBounds(entry.layer.clips, clip);
+		const points = getTimelineClipSnapPoints(clip, bounds, clipSnapSettings.value, 'end');
+		if (snapSettings.value.enabled && clipSnapSettings.value.end) {
+			points[0].snapPeriod = { startMs: clip.startMs, durationMs: getTimelineVideoSourceDuration(clip) };
+		}
+		const snapTimes = getTimelineSnapCandidates(snapSettings.value, [0, ...clipLayers.value.flatMap(layer => layer.clips
+			.filter(other => layer.id !== entry.layer.id || other.id !== clip.id).flatMap(other => [other.startMs, getTimelineClipEnd(other)]))], ticksWithMinor.value, [], time.value);
+		const initialTiming = { startMs: clip.startMs, durationMs: clip.durationMs, contentOffsetMs: clip.contentOffsetMs, loopDurationMs: clip.loopDurationMs };
+		drag.startSelectionMove(event, points, snapTimes, (delta, mergeKey) => {
+			if (!resolveClip(target)) return false;
+			stateManager.commit('editVideoClipLoop', { sceneId: scene.id, ...target, deltaMs: delta, sourceDurationMs, initialTiming }, mergeKey);
 			return true;
 		});
 	}

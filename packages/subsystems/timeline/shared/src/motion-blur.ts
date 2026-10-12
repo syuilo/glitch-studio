@@ -1,6 +1,6 @@
 import { getEnabledTimelineLayers } from './layer-tree.ts';
 import { getSceneDuration, getTimelineScene } from './scenes.ts';
-import { getTimelineClipEnd } from './timing.ts';
+import { getTimelineClipEnd, isTimelineClipActive, getTimelineClipContentTime } from './timing.ts';
 import type { TimelineScene } from './types.ts';
 
 export type TimelineMotionBlurSettings = {
@@ -51,6 +51,28 @@ export function getTimelineMotionBlurBoundaries(scenes: readonly TimelineScene[]
 		return result;
 	};
 	return collect(sceneId);
+}
+
+/** 長い配置の全周を列挙せず、露光中心を挟むループ境界だけを求める。 */
+export function getTimelineMotionBlurLoopBoundaries(scenes: readonly TimelineScene[], sceneId: string, timeMs: number): number[] {
+	const boundaries: number[] = [];
+	const visit = (id: string, time: number, sceneStartMs: number) => {
+		for (const layer of getEnabledTimelineLayers(getTimelineScene(scenes, id).layers)) {
+			if (layer.layerType !== 'video' && layer.layerType !== 'scene') continue;
+			for (const clip of layer.clips) {
+				if (!isTimelineClipActive(clip, time)) continue;
+				if ('sceneId' in clip) {
+					visit(clip.sceneId, getTimelineClipContentTime(clip, time), sceneStartMs + clip.startMs - clip.contentOffsetMs);
+				} else if (clip.loopDurationMs !== null) {
+					const period = clip.loopDurationMs;
+					const start = clip.startMs + Math.floor((time - clip.startMs) / period) * period;
+					boundaries.push(sceneStartMs + start, sceneStartMs + Math.min(start + period, getTimelineClipEnd(clip)));
+				}
+			}
+		}
+	};
+	visit(sceneId, timeMs, 0);
+	return boundaries;
 }
 
 /** 出力fpsと露光時間の関係だけを扱い、プレビューの描画頻度や書き出し範囲には依存しない。 */

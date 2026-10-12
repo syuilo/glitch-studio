@@ -4,6 +4,7 @@
 		v-for="item in items"
 		:key="item.clip.id"
 		:clip="item.clip"
+		:loopDurationMs="item.loopDurationMs"
 		:label="item.label"
 		:sourceDurationMs="item.sourceDurationMs"
 		:pixelsPerMs="pixelsPerMs"
@@ -20,7 +21,7 @@
 <script lang="ts">
 import type { TimelineClip } from '@gs/subsystems_timeline_shared/clip.ts';
 
-export type TimelineClipPresentation = { clip: TimelineClip; label: string; sourceDurationMs: number | null };
+export type TimelineClipPresentation = { clip: TimelineClip; label: string; sourceDurationMs: number | null; loopDurationMs?: number | null };
 </script>
 
 <script setup lang="ts">
@@ -40,7 +41,7 @@ const props = defineProps<{
 }>();
 const emit = defineEmits<{
 	(ev: 'moveStart', event: PointerEvent, clipId: string): void;
-	(ev: 'trimStart', event: PointerEvent, clipId: string, edge: 'start' | 'end'): void;
+	(ev: 'trimStart', event: PointerEvent, clipId: string, edge: 'start' | 'end' | 'loop'): void;
 	(ev: 'contextMenu', event: PointerEvent, clipId: string): void;
 }>();
 const selectedIds = computed(() => new Set(props.selectedClipIds));

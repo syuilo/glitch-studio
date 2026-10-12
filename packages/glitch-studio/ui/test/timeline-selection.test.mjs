@@ -508,7 +508,7 @@ function fixture() {
 		keyframesTimeline: { dataType: { kind: 'scalar' }, isNormalized: false, keyframes: [100, 200, 800].map((x, index) => ({ id: String(index), x, value: index, interpolation: { type: 'linear' } })) } });
 	manager.state.timelineScenes.value = [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [
 		{ id: 'audio', layerType: 'audio', name: 'Layer', clips: [{ id: 'clip', startMs: 100, contentOffsetMs: 200, durationMs: 1000, assetId: 'sound' }], audioParamValues: { volume: binding() }, automationGraphs: [] },
-		{ id: 'video', layerType: 'video', name: 'Layer', clips: [{ id: 'clip', startMs: 1050, contentOffsetMs: 50, durationMs: 2000, assetId: 'movie', audioEnabled: true }],
+		{ id: 'video', layerType: 'video', name: 'Layer', clips: [{ id: 'clip', startMs: 1050, contentOffsetMs: 50, durationMs: 2000, assetId: 'movie', loopDurationMs: null, audioEnabled: true }],
 			compositingParamValues: { opacity: binding() }, audioParamValues: { volume: binding() }, automationGraphs: [] },
 	] }];
 	return manager;

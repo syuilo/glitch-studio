@@ -29,7 +29,7 @@ const constant = async (_id, _time, frames) => [new Float32Array(frames).fill(1)
 // 上層も参照できる一方、子Scene内部のIDを直接指定することはできない。
 // 無効・空・音声無効の動画を選んでも、別のレイヤーへフォールバックさせない。
 test('selects one direct audio output regardless of order and rejects descendants', () => {
-	const video = audio('video', { layerType: 'video', clips: [clip('muted', { audioEnabled: false }), clip('audible', { startMs: 100, audioEnabled: true })], compositingParamValues: {} });
+	const video = audio('video', { layerType: 'video', clips: [clip('muted', { loopDurationMs: null, audioEnabled: false }), clip('audible', { startMs: 100, loopDurationMs: null, audioEnabled: true })], compositingParamValues: {} });
 	const root = scene('root', [audio('above'), waveform, video, audio('hidden', { isDisabled: true }), audio('empty', { clips: [] })]);
 	const child = scene('child', [audio('descendant')]);
 	const select = id => getSceneAudioClips([root, child], 'root', { type: 'layer', layerId: id });
@@ -76,7 +76,7 @@ test('selects only lower layers and includes complete nested scene audio', async
 	const child = scene('child', [audio('child-top'), audio('child-bottom')]);
 	const nested = audio('nested', { layerType: 'scene', clips: [{ id: 'nested', sceneId: 'child', startMs: 0, durationMs: 100, contentOffsetMs: 0 }],
 		audioParamValues: { volume: literal(0.5) }, compositingParamValues: {} });
-	const video = audio('video', { layerType: 'video', clips: [clip('video', { audioEnabled: true }), clip('muted-video', { startMs: 100, audioEnabled: false })], compositingParamValues: {} });
+	const video = audio('video', { layerType: 'video', clips: [clip('video', { loopDurationMs: null, audioEnabled: true }), clip('muted-video', { startMs: 100, loopDurationMs: null, audioEnabled: false })], compositingParamValues: {} });
 	const root = scene('root', [audio('above'), waveform, nested, video, audio('hidden', { isDisabled: true })]);
 	const plan = getSceneAudioClips([root, child], 'root', { type: 'belowLayer', layerId: 'waveform' });
 	assert.deepEqual(plan.map(item => item.sourceId), ['child-top', 'child-bottom', 'video']);

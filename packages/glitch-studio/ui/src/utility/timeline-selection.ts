@@ -100,7 +100,17 @@ export type TimelineMovePoint = {
 	maxDelta: number;
 	/** 指定時は共通候補を置き換える。別レイヤーのローカル目盛りへ吸着させないため。 */
 	snapTimes?: number[];
+	/** 周期全体を列挙せず、ドラッグ位置に最も近い境界だけを吸着候補にする。 */
+	snapPeriod?: { startMs: number; durationMs: number };
 };
+
+function getMovePointSnapTimes(point: TimelineMovePoint, snapTimes: number[], delta: number): number[] {
+	const times = point.snapTimes ?? snapTimes;
+	const period = point.snapPeriod;
+	if (!period) return times;
+	const cycle = Math.max(1, Math.round((point.time + delta - period.startMs) / period.durationMs));
+	return [...times, period.startMs + cycle * period.durationMs];
+}
 
 export function constrainTimelineMove(rawDelta: number, points: TimelineMovePoint[], snapTimes: number[], msPerPixel: number): { delta: number; snappingTime: number | null } {
 	const minDelta = Math.ceil(Math.max(...points.map(point => point.minDelta)));
@@ -110,7 +120,7 @@ export function constrainTimelineMove(rawDelta: number, points: TimelineMovePoin
 	let nearestDistance = 5;
 	// 各要素を個別にクランプせず、共通の移動量を制限して相対位置を守る。
 	for (const point of points) {
-		for (const time of point.snapTimes ?? snapTimes) {
+		for (const time of getMovePointSnapTimes(point, snapTimes, rawDelta)) {
 			// 素材の小数オフセット由来の目盛りにも、最寄りの整数msで吸着する。
 			const candidateDelta = Math.round(time) - point.time;
 			if (candidateDelta < minDelta || candidateDelta > maxDelta) continue;
@@ -127,7 +137,7 @@ export function constrainTimelineMove(rawDelta: number, points: TimelineMovePoin
 export function getTimelineSnappingTimes(points: TimelineMovePoint[], snapTimes: number[], delta: number): number[] {
 	// 表示する線にも各点の候補を使う。別レイヤーの目盛りとの偶然の一致は表示しない。
 	// 保存される整数msの位置と線を一致させ、元の小数目盛りに線だけ残さない。
-	return [...new Set(points.flatMap(point => (point.snapTimes ?? snapTimes).map(Math.round).filter(time => point.time + delta === time)))];
+	return [...new Set(points.flatMap(point => getMovePointSnapTimes(point, snapTimes, delta).map(Math.round).filter(time => point.time + delta === time)))];
 }
 
 export function keyframeMoveBounds(keyframes: readonly { id: string; x: number }[], selectedIds: ReadonlySet<string>, keyframeId: string): { minDelta: number; maxDelta: number } {
