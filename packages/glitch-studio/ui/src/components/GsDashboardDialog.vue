@@ -17,7 +17,14 @@
 				<GsButton full style="text-align: left;" @click="_newProjectFromImageOrVideo"><i class="ti ti-photo-video" style="margin-right: 1em;"></i>Open image/video/audio...</GsButton>
 				<GsButton full style="text-align: left;" @click="_openProject"><i class="ti ti-folder-open" style="margin-right: 1em;"></i>Open Project...</GsButton>
 			</div>
-			<button class="_textButton" @click="showAbout()">About</button>
+			<button class="_textButton" style="margin-top: auto;" @click="showAbout()">About</button>
+		</div>
+		<div :class="$style.side">
+			<GsFolder defaultOpen asSection>
+				<template #icon><i class="ti ti-clock"></i></template>
+				<template #label>Recent Projects</template>
+				<div></div>
+			</GsFolder>
 		</div>
 	</div>
 </GsModal>
@@ -28,6 +35,7 @@ import { useTemplateRef } from 'vue';
 import GsButton from './common/GsButton.vue';
 import GsModal from './common/GsModal.vue';
 import GsAboutDialog from './GsAboutDialog.vue';
+import GsFolder from './common/GsFolder.vue';
 import { newProject, newProjectFromImageOrVideo, openProject } from '@/app.ts';
 import * as ui from '@/ui.ts';
 
@@ -92,5 +100,9 @@ function showAbout() {
 .main {
 	padding: 32px;
 	border-right: solid 1px #fff1;
+}
+
+.side {
+	flex: 1;
 }
 </style>
