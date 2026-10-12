@@ -20,7 +20,7 @@ export function createShapeTimelineLayer(layer: TimelineShapeLayer, options: Par
 			if (disposed || signal.aborted) return { gpuTime: 0 };
 			const scope = { time: context.sceneTimeMs, isExport: context.isExport, automationGraphs: layer.automationGraphs };
 			const shape = parameters.evaluate(layer.shape, scope);
-			const settings = compositing.evaluate({ ...scope, paramValues: layer.compositingParamValues });
+			const settings = compositing.evaluate({ ...scope, coordinateSpace: layer.coordinateSpace, paramValues: layer.compositingParamValues });
 			const encoder = options.device.createCommandEncoder();
 			try {
 				const texture = renderer.render(encoder, shape);

@@ -14,8 +14,8 @@ export function createEffectTimelineLayer(definition: EffectDefinition, startMs:
 		resolution: { mode: 'auto' }, automationGraphs: [],
 		effectParamValues: Object.fromEntries(Object.keys(definition.paramDefs).map(key => [key, getEffectLayerParameterDefault(definition, key)])),
 		forceDisableMotionBlur: false,
+		coordinateSpace: 'screen',
 		compositingParamValues: {
-			placement: { inputSource: 'literal', value: definition.kind === 'modify' ? 'screen' : 'world' },
 			depth: { inputSource: 'literal', value: 0 },
 			clipToFrame: { inputSource: 'literal', value: false },
 			fitMode: deepClone(timelineCompositingParamDefs.fitMode.defaultValue),

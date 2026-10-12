@@ -436,7 +436,7 @@ export class TimelineRendererManager extends EventEmitter<{
 					const blur = this.staticOptions.timelineMotionBlur;
 					if (preview.geometry && layer && blur.enabled && blur.shutterAngle > 0 && blur.samples > 1) {
 						const { position, origin, scale, rotation, fitMode } = this.transformPreviewParameters.evaluate({
-							time, isExport: false, paramValues: layer.compositingParamValues, automationGraphs: layer.automationGraphs,
+							time, isExport: false, coordinateSpace: layer.coordinateSpace, paramValues: layer.compositingParamValues, automationGraphs: layer.automationGraphs,
 						});
 						preview.geometry.transform = { position, origin, scale, rotation, fitMode };
 					}
@@ -470,7 +470,7 @@ export class TimelineRendererManager extends EventEmitter<{
 			const layer = location?.layer;
 			if (!layer || !isTimelineVisualLayer(layer)) return;
 			const evaluate = (entry: Extract<TimelineLayer, { compositingParamValues: unknown }>) => this.transformPreviewParameters.evaluate({
-				time: preview.time, isExport: false, paramValues: entry.compositingParamValues, automationGraphs: entry.automationGraphs });
+				time: preview.time, isExport: false, coordinateSpace: entry.coordinateSpace, paramValues: entry.compositingParamValues, automationGraphs: entry.automationGraphs });
 			const settings = evaluate(layer);
 			const camera = new TimelineSceneCamera().evaluate(this.dynamicOptions.timelineScenes.find(scene => scene.id === sceneId)?.layers ?? [], preview.time, false);
 			const parent = getTimelinePreviewParent(location.ancestors.map(parent => parent.layerType === 'transform'
@@ -709,6 +709,7 @@ export class TimelineRendererManager extends EventEmitter<{
 						const settings = compositingParameters.evaluate({
 							time: layerContext.sceneTimeMs,
 							isExport: context.isExport,
+							coordinateSpace: getLayer().coordinateSpace,
 							paramValues: getLayer().compositingParamValues,
 							automationGraphs: getLayer().automationGraphs,
 						});

@@ -1,10 +1,12 @@
 import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
 
+/**
+ * worldは親から受け継ぐ空間座標、screenは現在の合成先の画面座標。
+ * 座標空間はレイヤーの静的な属性とし、式・キーフレームでは切り替えない。
+ */
+export type TimelineLayerCoordinateSpace = 'world' | 'screen';
+
 export const timelineCompositingParamDefs = {
-	placement: {
-		dataType: { kind: 'enum', options: ['world', 'screen'] },
-		ui: { label: 'Placement', control: { labels: { world: 'In space', screen: 'On screen' } } }, defaultValue: { inputSource: 'literal', value: 'world' },
-	},
 	depth: {
 		dataType: { kind: 'scalar' }, ui: { label: 'Z', control: { controlType: 'range', min: -10, max: 10, step: 0.01 } },
 		defaultValue: { inputSource: 'literal', value: 0 }, canNode: false,

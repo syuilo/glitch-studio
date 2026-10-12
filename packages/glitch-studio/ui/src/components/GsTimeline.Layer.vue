@@ -15,7 +15,19 @@
 					<span :class="$style.layerHeaderTitle">
 						<GsCondensedLine>{{ layer.name }}</GsCondensedLine>
 					</span>
-					<button class="_button" :class="[$style.disableButton, { [$style.active]: !layer.isDisabled }]" @click.stop="toggleDisabled"><i :class="layer.isDisabled ? 'ti ti-eye-off' : 'ti ti-eye'"></i></button>
+					<button
+						v-if="isTimelineVisualLayer(layer)"
+						type="button"
+						class="_button"
+						:class="[$style.layerSwitch, { [$style.active]: layer.coordinateSpace === 'world' }]"
+						:title="'Coordinate space: ' + (layer.coordinateSpace === 'world' ? 'In space' : 'On screen')"
+						aria-label="In space"
+						:aria-pressed="layer.coordinateSpace === 'world'"
+						@click.stop="toggleCoordinateSpace"
+						@dblclick.stop
+						@dragstart.stop.prevent
+					><i class="ti ti-cube" aria-hidden="true"></i></button>
+					<button class="_button" :class="[$style.layerSwitch, { [$style.active]: !layer.isDisabled }]" @click.stop="toggleDisabled"><i :class="layer.isDisabled ? 'ti ti-eye-off' : 'ti ti-eye'"></i></button>
 				</div>
 			</div>
 		</div>
@@ -102,7 +114,7 @@
 </template>
 
 <script lang="ts" setup>
-import { isTimelineContainerLayer } from '@gs/subsystems_timeline_shared/types.ts';
+import { isTimelineContainerLayer, isTimelineVisualLayer } from '@gs/subsystems_timeline_shared/types.ts';
 
 import { getTimelineContainerRange } from '@gs/subsystems_timeline_shared/container-range.ts';
 import { computed } from 'vue';
@@ -209,6 +221,13 @@ function look(clip: TimelineClip) {
 function toggleDisabled() {
 	stateManager.commit('setTimelineLayerDisabled', {
 		sceneId: props.sceneId, layerId: props.layer.id, isDisabled: !props.layer.isDisabled,
+	});
+}
+
+function toggleCoordinateSpace() {
+	if (!isTimelineVisualLayer(props.layer)) return;
+	stateManager.commit('setTimelineLayerCoordinateSpace', {
+		sceneId: props.sceneId, layerId: props.layer.id, coordinateSpace: props.layer.coordinateSpace === 'world' ? 'screen' : 'world',
 	});
 }
 
@@ -423,8 +442,9 @@ function timeToDomX(time: number): number { return timelineTimeToX(time, props.t
 	color: #fff;
 }
 
-.disableButton {
+.layerSwitch {
 	display: flex;
+	flex-shrink: 0;
 	align-items: center;
 	justify-content: center;
 	width: var(--mainLaneHeight);

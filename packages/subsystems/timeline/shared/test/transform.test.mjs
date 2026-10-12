@@ -111,14 +111,14 @@ test('finds visual boundaries through transforms without extending their childre
 // 【プレビューの逆変換もTransformとGroupの境界を共有する】
 // 平面化の内側ではZを使わず、On screenにはTransformのXYだけを反映する。
 test('matches preview transforms across flat, preserved and screen spaces', () => {
-	const settings = { position: [0, 0], origin: [0, 0], scale: [1, 1], rotation: 0, fitMode: 'stretch', placement: 'world', depth: 0 };
+	const settings = { position: [0, 0], origin: [0, 0], scale: [1, 1], rotation: 0, fitMode: 'stretch', coordinateSpace: 'world', depth: 0 };
 	const frame = { width: 1920, height: 1080 };
 	const view = new TimelineSceneCamera().evaluate([], 0, false);
 	const root = { parent: TIMELINE_IDENTITY, depth: 0, camera: view };
 	const translation = { position: [0.3, 0.2], z: 0.5 };
 	const preview = (ancestors, own = settings) => getTimelinePreviewParent(ancestors, own, frame, root);
 	near(preview([{ translation }]), projectTimelineMatrix([1, 0, 0, 1, 0.3, 0.2], 0.5, view));
-	near(preview([{ translation }], { ...settings, placement: 'screen' }), [1, 0, 0, 1, 0.3, 0.2]);
+	near(preview([{ translation }], { ...settings, coordinateSpace: 'screen' }), [1, 0, 0, 1, 0.3, 0.2]);
 	const flat = { settings: { ...settings, position: [-0.3, 0], depth: 0.25 }, compositingMode: 'flat' };
 	near(preview([{ translation }, flat, { translation: { position: [0.1, 0], z: 100 } }]),
 		multiplyTimelineAffine(projectTimelineMatrix([1, 0, 0, 1, 0, 0.2], 0.75, view), [1, 0, 0, 1, 0.1, 0]));

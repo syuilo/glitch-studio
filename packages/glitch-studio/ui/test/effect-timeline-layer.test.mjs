@@ -279,11 +279,17 @@ test('labels keyframe rows by owner and current array order while preserving pat
 // 【主入力がある生成系と加工系で初期入力・合成を分ける】
 // 背景入力の存在だけでGridを加工系にすると背景を二重に合成してしまう。
 // リセットはレイヤーとしての初期入力に戻し、共有するエフェクト定義を変更しない。
+// 座標空間の初期値は生成系・加工系とも画面配置とし、パラメータBindingには含めない。
 test('initializes kinds independently of primary input presence and resets the layer input', () => {
 	const generated = fixture('grid');
 	assert.deepEqual(generated.layer.effectParamValues.background, effectDefinitions.grid.paramDefs.background.defaultValue);
 	assert.deepEqual(generated.layer.compositingParamValues.blendMode, literal('normal'));
 	const modified = fixture('colorMix');
+	for (const { layer } of [generated, modified]) {
+		assert.equal(layer.coordinateSpace, 'screen');
+		assert.equal('coordinateSpace' in layer.compositingParamValues, false);
+		assert.equal('placement' in layer.compositingParamValues, false);
+	}
 	assert.deepEqual(modified.read(['inputA']), { inputSource: 'layerInput', fitMode: 'cover', wrapMode: 'repeatMirrored', filterMode: 'linear' });
 	assert.deepEqual(modified.layer.compositingParamValues.blendMode, literal('replace'));
 	modified.edit(['inputA'], { kind: 'literal', value: [1, 0, 0, 1] });

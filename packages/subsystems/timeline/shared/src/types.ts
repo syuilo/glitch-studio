@@ -1,4 +1,4 @@
-import type { timelineCompositingParamDefs } from './timeline-compositing.ts';
+import type { timelineCompositingParamDefs, TimelineLayerCoordinateSpace } from './timeline-compositing.ts';
 import type { TimelineCameraParameterValues } from './layers/camera/camera.ts';
 import type { TimelineTransformParameterValues } from './layers/transform/transform.ts';
 import type { TimelineClip, TimelineContentClip, TimelineMediaClip, TimelineAssetClip, TimelineVideoClip, TimelineSceneClip } from './clip.ts';
@@ -19,7 +19,7 @@ export type TimelineParameterTarget = 'module' | 'effect' | 'shape' | 'text' | '
 // 実行インスタンスの扱いは利用側へ委ねる。
 export type TimelineLayerChange =
 	| { type: 'parameter'; target: TimelineParameterTarget; kind: ParameterChangeKind }
-	| { type: 'definition' | 'clips' | 'resolution' | 'disabled' | 'motionBlur' };
+	| { type: 'definition' | 'clips' | 'resolution' | 'disabled' | 'motionBlur' | 'coordinateSpace' };
 
 type TimelineLayerCommon = {
 	id: string;
@@ -36,6 +36,7 @@ type TimelineAudioLayerBase = {
 };
 
 type TimelineVisualLayerBase = {
+	coordinateSpace: TimelineLayerCoordinateSpace;
 	/** 内容・合成設定をフレームの基準時刻で評価する。グループ・Sceneでは配下にも適用する。 */
 	forceDisableMotionBlur: boolean;
 	compositingParamValues: Record<keyof typeof timelineCompositingParamDefs, TimelineParameterBinding>;

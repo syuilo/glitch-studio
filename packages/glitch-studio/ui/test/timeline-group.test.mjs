@@ -49,7 +49,7 @@ const keys = times => ({ inputSource: 'keyframesTimelineInline', offsetMode: 'st
 		keyframes: times.map(x => ({ id: String(x), x, value: 1, interpolation: { type: 'linear' } })) } });
 const sound = (id, start = 1000) => ({ id, name: id, layerType: 'audio', isDisabled: false, automationGraphs: [],
 	clips: [{ id: 'clip', startMs: start, durationMs: 500, sourceInMs: 12.25, sourceOutMs: 512.25, playbackRate: 1, loop: false, assetId: 'asset' }], audioParamValues: { volume: keys([100, 2000]) } });
-const group = (id, layers = []) => ({ id, name: id, layerType: 'group', layers, isDisabled: false, automationGraphs: [],
+const group = (id, layers = []) => ({ id, name: id, layerType: 'group', layers, isDisabled: false, coordinateSpace: 'screen', automationGraphs: [],
 	compositingParamValues: { opacity: keys([200, 3000]) }, audioParamValues: { volume: literal(0.5) } });
 function fixture(t, layers) {
 	t.mock.method(console, 'log', () => {});
@@ -350,4 +350,41 @@ test('changes group depth mode without rewriting descendants', t => {
 	f.history.undo(); assert.equal(f.scene.layers[0].compositingMode, undefined);
 	f.history.redo(); assert.equal(f.scene.layers[0].compositingMode, 'preserveDepth');
 	assert.deepEqual(f.scene.layers[0].layers, descendants);
+});
+
+// 【座標空間の切り替えはZのキーや子レイヤーを保持し、Undo/Redoでもレンダラーへ通知する】
+// 画面配置へ戻しても空間配置用のアニメーションを失わないようにする。
+// グループと配下の映像レイヤーを独立に変更でき、時間によるBindingは作られない。
+test('changes coordinate space independently of animated parameters and descendants', t => {
+	const child = createVoicevoxTimelineLayer(0);
+	const root = group('root', [child]);
+	const f = fixture(t, [root]);
+	for (const layer of [root, child]) {
+		assert.equal(layer.coordinateSpace, 'screen');
+		layer.compositingParamValues.depth = keys([100, 400]);
+		const original = structuredClone(layer);
+		const notifications = [];
+		const unsubscribe = f.history.onChange(changes => notifications.push(changes));
+		f.history.commit('setTimelineLayerCoordinateSpace', { sceneId: 'scene', layerId: layer.id, coordinateSpace: 'world' });
+		assert.deepEqual(layer, { ...original, coordinateSpace: 'world' });
+		f.history.undo();
+		assert.deepEqual(layer, original);
+		f.history.redo();
+		assert.deepEqual(layer, { ...original, coordinateSpace: 'world' });
+		assert.deepEqual(notifications, Array.from({ length: 3 }, () => [{ type: 'layer', sceneId: 'scene', layerId: layer.id, changes: [{ type: 'coordinateSpace' }] }]));
+		unsubscribe();
+	}
+});
+
+// 【音声・カメラ・Transformには座標空間の設定を付加しない】
+// 映像を平面として合成しないレイヤーへ設定が漏れると、UIと保存形式の責務が曖昧になる。
+test('rejects coordinate space changes for nonvisual layers without modifying history', t => {
+	for (const layerType of ['audio', 'camera', 'transform']) {
+		const layer = { ...sound('layer'), layerType };
+		const original = structuredClone(layer);
+		const f = fixture(t, [layer]);
+		assert.throws(() => f.history.commit('setTimelineLayerCoordinateSpace', { sceneId: 'scene', layerId: layer.id, coordinateSpace: 'world' }), /Coordinate space requires a visual layer/);
+		assert.deepEqual(layer, original);
+		assert.equal(f.history.undoStack.value.length, 0);
+	}
 });

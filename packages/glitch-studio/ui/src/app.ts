@@ -122,8 +122,8 @@ export async function newProject() {
 			visualModuleId: initialVisualModule.id,
 			visualModuleParamValues: {},
 			forceDisableMotionBlur: false,
+			coordinateSpace: 'screen',
 			compositingParamValues: deepClone({
-				placement: timelineCompositingParamDefs.placement.defaultValue,
 				depth: timelineCompositingParamDefs.depth.defaultValue,
 				clipToFrame: timelineCompositingParamDefs.clipToFrame.defaultValue,
 				fitMode: timelineCompositingParamDefs.fitMode.defaultValue,
@@ -260,8 +260,8 @@ export async function newProjectFromImageOrVideo(file?: File) {
 			visualModuleId: initialVisualModule.id,
 			visualModuleParamValues: {},
 			forceDisableMotionBlur: false,
+			coordinateSpace: 'screen',
 			compositingParamValues: deepClone({
-				placement: timelineCompositingParamDefs.placement.defaultValue,
 				depth: timelineCompositingParamDefs.depth.defaultValue,
 				clipToFrame: timelineCompositingParamDefs.clipToFrame.defaultValue,
 				fitMode: timelineCompositingParamDefs.fitMode.defaultValue,

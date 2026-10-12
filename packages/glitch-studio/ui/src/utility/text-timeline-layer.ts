@@ -11,8 +11,8 @@ export function createTextTimelineLayer(startMs: number): TimelineTextLayer {
 		isDisabled: false, automationGraphs: [],
 		clips: [{ id: genId(), ...createTimelineClipTiming(startMs, 5000) }],
 		forceDisableMotionBlur: false,
+		coordinateSpace: 'screen',
 		compositingParamValues: {
-			placement: { inputSource: 'literal', value: 'world' },
 			depth: { inputSource: 'literal', value: 0 },
 			clipToFrame: { inputSource: 'literal', value: false },
 			fitMode: deepClone(timelineCompositingParamDefs.fitMode.defaultValue),

@@ -1534,7 +1534,7 @@ test('round-trips camera layers and group compositing modes', async () => {
 	const original = project({ timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' },
 		layers: [{ id: 'camera', name: 'Camera', layerType: 'camera', isDisabled: false, forceDisableMotionBlur: false, automationGraphs: [],
 			clips: [{ id: 'view', startMs: 0, durationMs: 5000, contentOffsetMs: 0 }], cameraParamValues: { z: { inputSource: 'expression', expression: '3 + TIME' }, position: { inputSource: 'literal', value: [0.2, 0.4] } } }, { id: 'group', name: 'Group', layerType: 'group', compositingMode: 'preserveDepth', layers: [], isDisabled: false,
-			forceDisableMotionBlur: false, automationGraphs: [], compositingParamValues: { depth: { inputSource: 'literal', value: 0.5 }, placement: { inputSource: 'literal', value: 'world' }, clipToFrame: { inputSource: 'literal', value: true } }, audioParamValues: { volume: { inputSource: 'literal', value: 1 } } }],
+			forceDisableMotionBlur: false, coordinateSpace: 'world', automationGraphs: [], compositingParamValues: { depth: { inputSource: 'literal', value: 0.5 }, clipToFrame: { inputSource: 'literal', value: true } }, audioParamValues: { volume: { inputSource: 'literal', value: 1 } } }],
 	}] });
 	const decoded = decodeProjectFile(await encodeProjectFile(original));
 	assert.deepEqual(decoded.timelineScenes, original.timelineScenes);

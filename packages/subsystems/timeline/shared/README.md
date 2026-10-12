@@ -70,7 +70,7 @@ Scene・レイヤー・クリップと、その時間・合成・音声設定の
 
 Scene直下またはTransform配下の`camera`レイヤーは`cameraParamValues`にXY・Z・縦画角のBindingを持ち、通常のレイヤーとしてAutomation Graphと有効クリップを所有する。`scene-camera.ts`が表示順で最上段の有効なカメラを選び、`layers/camera`の評価器へ渡す。該当なしならXY=0、Z=cot(22.5°)、縦画角45°の基準カメラとなり、Z=0の2D配置を維持する。Zの単位はSceneの半高で、正がカメラ方向。視点と平面の距離が0.001未満なら非表示。
 
-`affine.ts`・`spatial.ts`・`group-space.ts`は平面の変換・投影・グループ境界を所有する。GPUに依存せず、レンダラーとプレビューの逆変換で同じ規則を使用する。グループの`compositingMode`は`flat`（内部2D合成）または`preserveDepth`（子を投影後にグループ合成）。レイヤーの`placement`は`world`または`screen`で、後者は現在の合成先のGroupの変形・カメラを適用しない。TransformのXYは`screenParent`として別に蓄積し、画面配置にも反映する。
+`affine.ts`・`spatial.ts`・`group-space.ts`は平面の変換・投影・グループ境界を所有する。GPUに依存せず、レンダラーとプレビューの逆変換で同じ規則を使用する。グループの`compositingMode`は`flat`（内部2D合成）または`preserveDepth`（子を投影後にグループ合成）。映像レイヤーの`coordinateSpace`は`world`または`screen`の静的な属性で、新規作成時は`screen`とする。`compositingParamValues`には含めず、式・キーフレームで評価しない。`screen`は現在の合成先のGroupの変形・カメラを適用しない。TransformのXYは`screenParent`として別に蓄積し、画面配置にも反映する。
 
 カメラのキー・式はScene時刻で評価し、クリップの内容オフセットは使用しない。カメラは音声・画素・合成パラメータを持たない。合成設定を持つレイヤーは`isTimelineVisualLayer`、子の描画走査を行うTransformも含めた対象は`isTimelineRenderLayer`で区別する。
 

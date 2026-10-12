@@ -11,7 +11,7 @@ import { TimelineCompositingParameters } from '@gs/subsystems_timeline_renderer/
 import { createSceneOutput } from '@gs/subsystems_timeline_renderer/scene-output.ts';
 import { createShape } from '@gs/subsystems_timeline_shared/layers/shape/shape.ts';
 import { createTextParameterValues } from '@gs/subsystems_timeline_shared/layers/text/text.ts';
-import { timelineCompositingParamDefs } from '@gs/subsystems_timeline_shared/timeline-compositing.ts';
+import { timelineCompositingParamDefs, type TimelineLayerCoordinateSpace } from '@gs/subsystems_timeline_shared/timeline-compositing.ts';
 import { createTimelineCameraParameterValues, DEFAULT_CAMERA_DISTANCE } from '@gs/subsystems_timeline_shared/layers/camera/camera.ts';
 import { TimelineSceneCamera } from '@gs/subsystems_timeline_shared/scene-camera.ts';
 import { isTimelineRenderLayer } from '@gs/subsystems_timeline_shared/types.ts';
@@ -36,14 +36,14 @@ export async function run() {
 	const composite = (values = {}) => ({ ...Object.fromEntries(Object.entries(timelineCompositingParamDefs).map(([key, def]) => [key, structuredClone(def.defaultValue)])), ...Object.fromEntries(Object.entries(values).map(([key, value]) => [key, literal(value)])) } as TimelineGroupLayer['compositingParamValues']);
 	const base = { isDisabled: false, forceDisableMotionBlur: false, automationGraphs: [], clips: [{ id: 'clip', startMs: 0, durationMs: 1000, contentOffsetMs: 0 }] };
 	let nextId = 0;
-	const shape = (color = [1, 0, 0, 1], values = {}, compositing = {}): TimelineLayer => {
+	const shape = (color = [1, 0, 0, 1], values = {}, compositing = {}, coordinateSpace: TimelineLayerCoordinateSpace = 'world'): TimelineLayer => {
 		const shape = createShape('rectangle');
 		Object.assign(shape.paramValues, { size: literal([0.5, 0.5]), fillColor: literal(color), strokeWidth: literal(0) }, Object.fromEntries(Object.entries(values).map(([key, value]) => [key, literal(value)])));
-		return { ...base, id: 'shape' + nextId++, name: 'shape', layerType: 'shape', shape, compositingParamValues: composite(compositing) };
+		return { ...base, id: 'shape' + nextId++, name: 'shape', layerType: 'shape', shape, coordinateSpace, compositingParamValues: composite(compositing) };
 	};
-	const group = (layers: TimelineLayer[], mode: 'flat' | 'preserveDepth' = 'flat', values = {}): TimelineGroupLayer => ({ isDisabled: false, forceDisableMotionBlur: false, automationGraphs: [], id: `group${nextId++}`, name: 'group', layerType: 'group', layers, compositingMode: mode, compositingParamValues: composite(values), audioParamValues: { volume: literal(1) } });
+	const group = (layers: TimelineLayer[], mode: 'flat' | 'preserveDepth' = 'flat', values = {}): TimelineGroupLayer => ({ isDisabled: false, forceDisableMotionBlur: false, automationGraphs: [], id: `group${nextId++}`, name: 'group', layerType: 'group', layers, coordinateSpace: 'world', compositingMode: mode, compositingParamValues: composite(values), audioParamValues: { volume: literal(1) } });
 	const transform = (layers: TimelineLayer[], values = {}): TimelineTransformLayer => ({ isDisabled: false, forceDisableMotionBlur: false, automationGraphs: [], id: `transform${nextId++}`, name: 'Transform', layerType: 'transform', layers, transformParamValues: { ...createTimelineTransformParameterValues(), ...Object.fromEntries(Object.entries(values).map(([key, value]) => [key, literal(value)])) } });
-	const text = (position: number): TimelineLayer => ({ ...base, id: `text${nextId++}`, name: 'text', layerType: 'text',
+	const text = (position: number): TimelineLayer => ({ ...base, id: `text${nextId++}`, name: 'text', layerType: 'text', coordinateSpace: 'world',
 		textParamValues: { ...createTextParameterValues(), text: literal('OFFSCREEN'), size: literal(0.3), position: literal([position, 0]) }, compositingParamValues: composite() });
 	let sceneLayers: TimelineLayer[] = [];
 	let childScene: TimelineScene;
@@ -54,7 +54,7 @@ export async function run() {
 		const pixels = new Uint8Array(Array.from({ length: height }, (_, y) => Array.from({ length: width }, (_, x) => pixel(x, y))).flat(2));
 		device.queue.writeTexture({ texture }, pixels, { bytesPerRow: width * 4 }, { width, height });
 		imageSources.set(id, texture);
-		return { ...base, id, name: id, layerType: 'image', clips: [{ ...base.clips[0], assetId: id }], compositingParamValues: composite({ fitMode: 'stretch', blendMode: 'replace' }) };
+		return { ...base, id, name: id, layerType: 'image', coordinateSpace: 'world', clips: [{ ...base.clips[0], assetId: id }], compositingParamValues: composite({ fitMode: 'stretch', blendMode: 'replace' }) };
 	};
 	const createLayer = (layer: TimelineLayer, clipId: string | null): TimelineLayerRenderer<TimelineImage> => {
 		switch (layer.layerType) {
@@ -67,7 +67,7 @@ export async function run() {
 				const parameters = new TimelineCompositingParameters();
 				return { async evaluate(context) {
 					const encoder = device.createCommandEncoder();
-					const settings = parameters.evaluate({ time: context.sceneTimeMs, isExport: context.isExport, paramValues: layer.compositingParamValues, automationGraphs: [] });
+					const settings = parameters.evaluate({ time: context.sceneTimeMs, isExport: context.isExport, coordinateSpace: layer.coordinateSpace, paramValues: layer.compositingParamValues, automationGraphs: [] });
 					const texture = imageSources.get(layer.clips[0].assetId);
 					const source: TimelineImage = texture ? { kind: 'texture', texture } : { kind: 'uniform', value: layer.name === 'red' ? [1, 0, 0, 1] : [0, 0, 0, 0] };
 					const result = compositor.render(encoder, context.input, source, settings, context.renderSpace);
@@ -139,9 +139,9 @@ export async function run() {
 		same('disabled cameras fall back to the next camera', await render([shape(), { ...upperCamera, isDisabled: true }, lowerCamera], undefined, 50), baseline);
 		same('gaps use the default camera', await render([upperCamera, shape()], undefined, 150), baseline);
 		same('camera XY moves the world in the opposite direction', await render([shape()], view({ position: [0.4, -0.2] })), await render([shape(undefined, {}, { position: [-0.4, 0.2] })]));
-		same('screen layer ignores camera and depth', await render([shape(undefined, {}, { placement: 'screen', depth: 100 })], view({ position: [5, 4], z: 0 })), baseline);
-		same('screen child avoids inherited projection', await render([group([shape(undefined, {}, { placement: 'screen' })], 'preserveDepth', { position: [1, 1], depth: 1 })], view({ position: [5, 4], z: 0 })), baseline);
-		const constant = (name: string, placement = {}): TimelineLayer => ({ ...base, id: 'constant' + nextId++, name, layerType: 'image', clips: [{ ...base.clips[0], assetId: 'unused' }], compositingParamValues: composite(placement) });
+		same('screen layer ignores camera and depth', await render([shape(undefined, {}, { depth: 100 }, 'screen')], view({ position: [5, 4], z: 0 })), baseline);
+		same('screen child avoids inherited projection', await render([group([shape(undefined, {}, {}, 'screen')], 'preserveDepth', { position: [1, 1], depth: 1 })], view({ position: [5, 4], z: 0 })), baseline);
+		const constant = (name: string, compositing = {}): TimelineLayer => ({ ...base, id: 'constant' + nextId++, name, layerType: 'image', coordinateSpace: 'world', clips: [{ ...base.clips[0], assetId: 'unused' }], compositingParamValues: composite(compositing) });
 		// 【正方形素材のStretchを、親グループのContainで取り消さない】
 		// Replaceが元テクスチャを借用する場合も、親は子のScene基準の配置を維持する。
 		same('flat groups preserve stretched replace images', await render([group([image(128, 128, () => [255, 0, 0, 255])])]), await render([constant('red')]));
@@ -156,7 +156,7 @@ export async function run() {
 		same('a plane behind the camera does not erase the background with replace', await render([shape(undefined, {}, { depth: 10, blendMode: 'replace' }), blue]), await render([blue]));
 		same('explicit clipping restores the old frame crop', await render([group([shape(undefined, { position: [2, 0] })], 'flat', { position: [-2, 0], clipToFrame: true })]), new Array(baseline.length).fill(0));
 		childScene = { id: 'child', name: 'child', resolution: { mode: 'project' }, layers: [view({ z: DEFAULT_CAMERA_DISTANCE / 2 }), shape()] };
-		const nested: TimelineLayer = { ...base, id: 'scene', name: 'scene', layerType: 'scene', clips: [{ ...base.clips[0], sceneId: 'child' }], compositingParamValues: composite(), audioParamValues: { volume: literal(1) } };
+		const nested: TimelineLayer = { ...base, id: 'scene', name: 'scene', layerType: 'scene', coordinateSpace: 'world', clips: [{ ...base.clips[0], sceneId: 'child' }], compositingParamValues: composite(), audioParamValues: { volume: literal(1) } };
 		same('child scene uses its own camera and is a plane in its parent', await render([nested]), twice);
 		// 【Transformは子の深度と合成を保ち、カメラにも同じ親移動を与える】
 		// ピクセル比較により、早すぎる切り取り、二重投影、Group化による背景分離を検出する。
@@ -165,7 +165,7 @@ export async function run() {
 		same('transform shares translation with its camera', await render([transform([view({}), shape()], { position: [0.75, -0.25], z: 0.5 })]), baseline);
 		same('parented camera moves world in the opposite direction', await render([transform([view({})], { position: [0.4, -0.2] }), shape()]), await render([shape(undefined, {}, { position: [-0.4, 0.2] })]));
 		same('disabled transform does not supply a camera', await render([{ ...transform([view({ z: DEFAULT_CAMERA_DISTANCE / 2 })]), isDisabled: true }, shape()]), baseline);
-		same('screen children inherit transform XY without camera or depth', await render([transform([shape(undefined, {}, { placement: 'screen' })], { position: [0.25, 0], z: 100 })], view({ position: [5, 5], z: 0 })), await render([shape(undefined, {}, { position: [0.25, 0] })]));
+		same('screen children inherit transform XY without camera or depth', await render([transform([shape(undefined, {}, {}, 'screen')], { position: [0.25, 0], z: 100 })], view({ position: [5, 5], z: 0 })), await render([shape(undefined, {}, { position: [0.25, 0] })]));
 		same('flat group ignores transform depth inside it', await render([group([transform([shape()], { z: 100 })])]), baseline);
 		same('transform outside flat group sets plane depth once', await render([transform([group([transform([shape()], { z: 100 })])], { z: DEFAULT_CAMERA_DISTANCE / 2 })]), twice);
 		same('transform and preserved group share depth', await render([transform([group([shape()], 'preserveDepth', { depth: DEFAULT_CAMERA_DISTANCE / 4 })], { z: DEFAULT_CAMERA_DISTANCE / 4 })]), twice);

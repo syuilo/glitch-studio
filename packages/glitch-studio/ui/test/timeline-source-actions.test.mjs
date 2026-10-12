@@ -89,6 +89,7 @@ test('adds camera layers at the playhead through the layer menu', t => {
 	assert.equal(camera.clips[0].startMs, 1000);
 	assert.deepEqual(f.selection.value, { kind: 'layers', ids: [camera.id] });
 	assert.equal('compositingParamValues' in camera, false);
+	assert.equal('coordinateSpace' in camera, false);
 	f.history.undo();
 	assert.equal(f.scene.layers.length, 0);
 	f.history.redo();
@@ -215,6 +216,7 @@ test('adds referenced visual module layers and rejects results after scene repla
 		assert.equal(f.history.undoStack.value.length, reload ? 0 : 1);
 		if (!reload) {
 			assert.equal(f.scene.layers[0].visualModuleId, 'visual-module');
+			assert.equal(f.scene.layers[0].coordinateSpace, 'screen');
 			assert.deepEqual(f.selection.value.ids, [f.scene.layers[0].id]);
 		}
 	}

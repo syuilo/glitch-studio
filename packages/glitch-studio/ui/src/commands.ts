@@ -1,4 +1,4 @@
-import { isTimelineContainerLayer } from '@gs/subsystems_timeline_shared/types.ts';
+import { isTimelineContainerLayer, isTimelineVisualLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import { flattenTimelineLayers, findTimelineLayer, findTimelineLayerLocation, getTimelineClipLayers, updateTimelineLayer } from '@gs/subsystems_timeline_shared/layer-tree.ts';
 import { validateVoicevoxSubtitle } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox-subtitle-validation.ts';
 import { validateVoicevoxLayer } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox.ts';
@@ -29,7 +29,7 @@ import { getNodeInputDataType } from '@gs/shared/data-type/node-compatibility.ts
 import { isTextureDataType } from '@gs/shared/data-type/data-type.ts';
 import { resolveTimelineAudioLayerReference, timelineAudioParamDefs } from '@gs/subsystems_timeline_shared/timeline-audio.ts';
 import { validateSceneResolution } from '@gs/subsystems_timeline_shared/scene-resolution.ts';
-import { timelineCompositingParamDefs } from '@gs/subsystems_timeline_shared/timeline-compositing.ts';
+import { timelineCompositingParamDefs, type TimelineLayerCoordinateSpace } from '@gs/subsystems_timeline_shared/timeline-compositing.ts';
 import { canEditTimelineTransform } from './utility/timeline-transform-edit.ts';
 import { getScene, getLayerParameterTargets, getLayerParameterValues, getLayerParameterDefinitions, resolveLayerParameter } from './utility/timeline-scene.ts';
 import { prepareTimelineContainerMove } from './utility/timeline-container.ts';
@@ -1272,6 +1272,27 @@ const setTimelineLayerDisabledCommandDef = defineCommand<{ sceneId: string; laye
 	},
 });
 
+const setTimelineLayerCoordinateSpaceCommandDef = defineCommand<{ sceneId: string; layerId: string; coordinateSpace: TimelineLayerCoordinateSpace }>({
+	label: 'Change timeline layer coordinate space',
+	changes: (_state, payload) => [{ type: 'layer', sceneId: payload.sceneId, layerId: payload.layerId, changes: [{ type: 'coordinateSpace' }] }],
+	create: payload => {
+		let before: TimelineLayerCoordinateSpace;
+		const getLayer = (state: ProjectState) => {
+			const layer = getTimelineLayer(state, payload.sceneId, payload.layerId);
+			if (!isTimelineVisualLayer(layer)) throw new Error('Coordinate space requires a visual layer');
+			return layer;
+		};
+		return {
+			execute(state) {
+				const layer = getLayer(state);
+				before = layer.coordinateSpace;
+				layer.coordinateSpace = payload.coordinateSpace;
+			},
+			undo(state) { getLayer(state).coordinateSpace = before; },
+		};
+	},
+});
+
 const setTimelineLayerMotionBlurDisabledCommandDef = defineCommand<{ sceneId: string; layerId: string; forceDisableMotionBlur: boolean }>({
 	label: 'Change timeline layer motion blur',
 	changes: (_state, payload) => [{ type: 'layer', sceneId: payload.sceneId, layerId: payload.layerId, changes: [{ type: 'motionBlur' }] }],
@@ -2004,6 +2025,7 @@ export const COMMAND_DEFS = {
 	addTimelineLayer: addTimelineLayerCommandDef,
 	renameTimelineLayer: renameTimelineLayerCommandDef,
 	setTimelineLayerDisabled: setTimelineLayerDisabledCommandDef,
+	setTimelineLayerCoordinateSpace: setTimelineLayerCoordinateSpaceCommandDef,
 	setTimelineLayerMotionBlurDisabled: setTimelineLayerMotionBlurDisabledCommandDef,
 	addTimelineClip: addTimelineClipCommandDef,
 	pasteTimelineClips: pasteTimelineClipsCommandDef,

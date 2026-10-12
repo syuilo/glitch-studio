@@ -14,8 +14,8 @@ export function createInlineVisualModuleLayer(startMs: number): TimelineInlineVi
 		clips: [{ id: genId(), ...createTimelineClipTiming(startMs, 5000) }],
 		visualModuleParamValues: {}, automationGraphs: [],
 		forceDisableMotionBlur: false,
+		coordinateSpace: 'screen',
 		compositingParamValues: deepClone({
-			placement: timelineCompositingParamDefs.placement.defaultValue,
 			depth: timelineCompositingParamDefs.depth.defaultValue,
 			clipToFrame: timelineCompositingParamDefs.clipToFrame.defaultValue,
 			fitMode: timelineCompositingParamDefs.fitMode.defaultValue,

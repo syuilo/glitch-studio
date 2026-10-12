@@ -13,7 +13,7 @@ const { validateTimelineScenes } = await loadSource(fileURLToPath(new URL('../sr
 const { getTimelineMotionBlurBoundaries, getTimelineMotionBlurCameraCuts, getTimelineSampleTimes } = await loadSource(fileURLToPath(new URL('../src/motion-blur.ts', import.meta.url)));
 const camera = evaluator.evaluate(undefined, 0, false);
 const frame = { width: 1920, height: 1080 };
-const settings = { position: [0, 0], origin: [0, 0], scale: [1, 1], rotation: 0, fitMode: 'contain', placement: 'world', depth: 0 };
+const settings = { position: [0, 0], origin: [0, 0], scale: [1, 1], rotation: 0, fitMode: 'contain', coordinateSpace: 'world', depth: 0 };
 const near = (actual, expected) => actual.forEach((value, index) => assert.ok(Math.abs(value - expected[index]) < 1e-9, `${actual} != ${expected}`));
 const parent = (ancestors, own = settings) => getTimelinePreviewParent(ancestors, own, frame, { parent: TIMELINE_IDENTITY, depth: 0, camera });
 
@@ -242,6 +242,6 @@ test('matches preview coordinates across flat and preserved depth boundaries', (
 // 画面フィルターは奥行き維持グループ内でも画面座標を使う。一方、平面化境界の外側の配置は残す。
 test('resets preserved transforms for screen placement inside the current flat boundary', () => {
 	const outer = { compositingMode: 'preserveDepth', settings: { ...settings, depth: 1, position: [0.3, 0.5] } };
-	near(parent([outer], { ...settings, placement: 'screen' }), TIMELINE_IDENTITY);
-	near(parent([{ ...outer, compositingMode: 'flat' }], { ...settings, placement: 'screen' }), projectTimelineMatrix([1, 0, 0, 1, 0.3, 0.5], 1, camera));
+	near(parent([outer], { ...settings, coordinateSpace: 'screen' }), TIMELINE_IDENTITY);
+	near(parent([{ ...outer, compositingMode: 'flat' }], { ...settings, coordinateSpace: 'screen' }), projectTimelineMatrix([1, 0, 0, 1, 0.3, 0.5], 1, camera));
 });

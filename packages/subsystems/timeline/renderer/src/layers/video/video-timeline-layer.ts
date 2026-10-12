@@ -50,7 +50,7 @@ export function createVideoTimelineLayer(layer: TimelineVideoLayer, blob: Blob, 
 				const encoder = options.device.createCommandEncoder();
 				try {
 					// 前景が同じでも下層入力・Scene時刻は変わり得るため、設定の評価と合成は毎回行う。
-					const settings = parameters.evaluate({ time: context.sceneTimeMs, isExport: context.isExport, paramValues: layer.compositingParamValues, automationGraphs: layer.automationGraphs });
+					const settings = parameters.evaluate({ time: context.sceneTimeMs, isExport: context.isExport, coordinateSpace: layer.coordinateSpace, paramValues: layer.compositingParamValues, automationGraphs: layer.automationGraphs });
 					return { output: compositor.render(encoder, context.input, cachedFrame.foreground, settings, context.renderSpace), gpuTime: 0 };
 				} finally { options.device.queue.submit([encoder.finish()]); }
 			};
