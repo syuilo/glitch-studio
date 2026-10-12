@@ -1,12 +1,9 @@
-import { getTimelineScene, getSceneDuration, validateTimelineScenes } from '@gs/subsystems_timeline_shared/scenes.ts';
-import { getSceneBaseResolution } from '@gs/subsystems_timeline_shared/scene-resolution.ts';
 import { TimelineRendererManager } from '@gs/glitch-studio_renderer/timeline-renderer-manager.ts';
 import { effectDefinitions } from '@gs/subsystems_effect_shared/effect-definitions.ts';
 import { effectImplementations } from '@gs/subsystems_effect_shared/effect-implementations.ts';
 import { createMp4Writer } from './mp4-writer.ts';
-import { scaleExportResolution } from './export-settings.ts';
 import { encodeStillWebp } from './still-webp.ts';
-import { renderExportFrames, validateExportSettings } from './timeline-export.ts';
+import { renderExportFrames } from './timeline-export.ts';
 import { getExportAudioClips } from './audio-export-settings.ts';
 import { TimelineAudioExport } from './timeline-audio-export.ts';
 import type { ExportRequest, ExportResponse } from './types.ts';
@@ -27,13 +24,8 @@ self.onmessage = async (event: MessageEvent<ExportRequest>) => {
 	try {
 		const { settings: requestedSettings, project, resolutionScale, renderer: rendererSettings } = event.data;
 		const { timelineFps, timelineMotionBlur, ...dynamicProjectOptions } = project;
-		// UI以外から呼ばれても、Canvasとエンコーダーに同じ調整済みサイズを使う。
-		validateTimelineScenes(project.timelineScenes);
-		const scene = getTimelineScene(project.timelineScenes, project.sceneId);
-		const settings = { ...requestedSettings, ...scaleExportResolution(getSceneBaseResolution(scene.resolution, project.resolution), resolutionScale, requestedSettings.format) };
-		if (getSceneDuration(scene) <= 0) throw new Error('Cannot export an empty scene.');
-		const validationError = validateExportSettings(settings);
-		if (validationError) throw new Error(validationError);
+		// プロジェクトと書き出し設定はUIで検査済み。Workerはこの固定スナップショットを実行する。
+		const settings = requestedSettings;
 		send({ type: 'progress', progress: { phase: 'preparing', completedFrames: 0, totalFrames: 0 } });
 		const canvas = new OffscreenCanvas(settings.width, settings.height);
 		if (settings.format === 'mp4') {

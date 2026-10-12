@@ -1,16 +1,8 @@
+import { inspectReferenceGraph } from '@gs/shared/validation/diagnostic.ts';
+import { inspectTimelineLayer, inspectTimelineSceneSettings } from './static-validation.ts';
 import { isTimelineContainerLayer } from './types.ts';
-import { validateTimelineTransform } from './layers/transform/transform.ts';
-import { validateEffectResolution } from '@gs/subsystems_effect_shared/resolution.js';
-import { validateTimelineCamera } from './layers/camera/camera.ts';
 import { flattenTimelineLayers, getTimelineClipLayers } from './layer-tree.ts';
-import { getTimelineClipEnd, validateTimelineClips } from './timing.ts';
-import { validateSceneResolution } from './scene-resolution.ts';
-import { validateTimelineParameterBinding } from './parameter-binding.ts';
-import { validateVoicevoxSubtitle } from './layers/voicevox/voicevox-subtitle-validation.ts';
-import { validateTimelineText } from './layers/text/text-layer.ts';
-import { validateTimelineShape } from './layers/shape/shape-layer.ts';
-import { validateVoicevoxLayer } from './layers/voicevox/voicevox.ts';
-import { validateTimelineMediaClipTiming } from './media-timing.ts';
+import { getTimelineClipEnd } from './timing.ts';
 import type { TimelineLayer, TimelineScene } from './types.ts';
 
 /** 子の長さを再帰計算しない。配置済みの区間は、参照先の編集でも変えない。 */
@@ -25,62 +17,24 @@ export function getTimelineScene(scenes: readonly TimelineScene[], sceneId: stri
 }
 
 export function validateTimelineLayer(layer: TimelineLayer): void {
-	if (isTimelineContainerLayer(layer)) {
-		for (const child of layer.layers) {
-			validateTimelineLayer(child);
-		}
-	} else validateTimelineClips(layer.clips);
-	if (layer.layerType === 'video' || layer.layerType === 'audio') {
-		for (const clip of layer.clips) validateTimelineMediaClipTiming(clip);
-	} else if (!isTimelineContainerLayer(layer)) {
-		for (const clip of layer.clips) {
-			if (!Number.isFinite(clip.contentOffsetMs) || clip.contentOffsetMs < 0 || !Number.isFinite(clip.contentOffsetMs + clip.durationMs)) throw new Error('Invalid content offset');
-		}
-	}
-	if (layer.layerType === 'transform') validateTimelineTransform(layer.transformParamValues);
-	if (layer.layerType === 'camera') validateTimelineCamera({ paramValues: layer.cameraParamValues, automationGraphs: layer.automationGraphs });
-	if (layer.layerType === 'text') validateTimelineText(layer.textParamValues);
-	if (layer.layerType === 'voicevox') {
-		validateVoicevoxLayer(layer);
-		validateVoicevoxSubtitle(layer.subtitleParamValues);
-	}
-	if (layer.layerType === 'shape') validateTimelineShape(layer.shape);
-	const parameterGroups = [
-		...('audioParamValues' in layer ? [layer.audioParamValues] : []),
-		...('compositingParamValues' in layer ? [layer.compositingParamValues] : []),
-	];
-	for (const values of parameterGroups) for (const binding of Object.values(values)) validateTimelineParameterBinding(binding);
-	if ('visualModuleParamValues' in layer) {
-		for (const binding of Object.values(layer.visualModuleParamValues)) validateTimelineParameterBinding(binding, false, true);
-	}
-	if (layer.layerType === 'effect') {
-		validateEffectResolution(layer.resolution);
-		for (const binding of Object.values(layer.effectParamValues)) validateTimelineParameterBinding(binding, true);
-	}
+	const diagnostics = inspectTimelineLayer(layer);
+	if (diagnostics.length) throw new Error(diagnostics[0].message);
+	if (isTimelineContainerLayer(layer)) for (const child of layer.layers) validateTimelineLayer(child);
 }
 
-/** 同じSceneの複数配置は許可し、現在の参照経路に戻る場合だけ循環と判定する。 */
+/** 編集側のassert API。レンダラーは検証単位ごとの診断を保持する。 */
 export function validateTimelineScenes(scenes: readonly TimelineScene[]): void {
-	const byId = new Map(scenes.map(scene => [scene.id, scene]));
-	if (byId.size !== scenes.length) throw new Error('Duplicate scene ID');
-	const visited = new Set<string>();
-	const path: string[] = [];
-	const visit = (id: string) => {
-		if (path.includes(id)) throw new Error(`Circular scene reference: ${[...path, id].join(' → ')}`);
-		if (visited.has(id)) return;
-		const scene = byId.get(id);
-		if (scene == null) throw new Error(`Scene not found: ${id}`);
-		validateSceneResolution(scene.resolution);
-		if (new Set(flattenTimelineLayers(scene.layers).map(layer => layer.id)).size !== flattenTimelineLayers(scene.layers).length) throw new Error(`Duplicate layer ID in scene: ${scene.name}`);
-		path.push(id);
+	const graph = new Map(scenes.map(scene => [scene.id, flattenTimelineLayers(scene.layers).flatMap(layer => layer.layerType === 'scene' ? layer.clips.map(clip => clip.sceneId) : [])]));
+	if (graph.size !== scenes.length) throw new Error('Duplicate scene ID');
+	for (const scene of scenes) {
+		const diagnostics = inspectTimelineSceneSettings(scene);
+		if (diagnostics.length) throw new Error(diagnostics[0].message);
+		const layers = flattenTimelineLayers(scene.layers);
+		if (new Set(layers.map(layer => layer.id)).size !== layers.length) throw new Error(`Duplicate layer ID in scene: ${scene.name}`);
 		for (const layer of scene.layers) validateTimelineLayer(layer);
-		for (const layer of flattenTimelineLayers(scene.layers)) {
-			if (layer.layerType === 'scene') for (const clip of layer.clips) visit(clip.sceneId);
-		}
-		path.pop();
-		visited.add(id);
-	};
-	for (const scene of scenes) visit(scene.id);
+	}
+	const diagnostics = inspectReferenceGraph(graph);
+	if (diagnostics.length) throw new Error(diagnostics[0].code === 'reference.cycle' ? `Circular scene reference: ${diagnostics[0].message}` : `Scene not found: ${diagnostics[0].message}`);
 }
 
 export function canReferenceScene(scenes: readonly TimelineScene[], parentId: string, childId: string): boolean {

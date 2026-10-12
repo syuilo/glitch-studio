@@ -204,11 +204,11 @@ test('converts numeric gain strings before applying gain limits', async () => {
 // 【数値に変換できない音量文字列は設定エラーとして伝える】
 // 無音へ置き換えると設定ミスに気づけず、一部だけ数値として読むと意図しない音量になる。
 // 空白や非有限数を表す文字列も、共通のパラメータ評価の規則に従って拒否する。
-test('rejects invalid numeric gain strings instead of silently muting them', async () => {
+test('rejects invalid numeric strings returned by expressions', async () => {
 	const renderer = new TimelineAudioRenderer(constant);
 	for (const value of ['bad', '', ' ', '1foo', 'NaN', 'Infinity']) {
 		await assert.rejects(
-			renderSceneAudio(renderer, [layer({ audioParamValues: { volume: { inputSource: 'literal', value } } })], 100, 2, 1000),
+			renderSceneAudio(renderer, [layer({ audioParamValues: { volume: { inputSource: 'expression', expression: JSON.stringify(value) } } })], 100, 2, 1000),
 			{ message: `Invalid numeric string ${JSON.stringify(value)} for parameter "Volume". Expected a finite number.` },
 		);
 	}

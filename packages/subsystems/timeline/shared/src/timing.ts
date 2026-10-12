@@ -1,3 +1,5 @@
+import type { ValidationDiagnostic } from '@gs/shared/validation/diagnostic.ts';
+
 /** Scene上の表示区間と、素材・モジュールの内容時刻を独立して保持する。 */
 export type TimelineClipPlacement = {
 	/** Scene上の配置と長さは安全な整数ミリ秒。 */
@@ -59,12 +61,19 @@ export function getTimelineMediaMaxDurationMs(contentOffsetMs: number, sourceDur
 
 /** 境界の接触は許可する。素材の未使用部分は衝突判定に含めない。 */
 export function validateTimelineClips(clips: readonly (TimelineClipPlacement & { id: string })[]): void {
-	if (new Set(clips.map(clip => clip.id)).size !== clips.length) throw new Error('Duplicate clip ID in layer');
+	const diagnostics = inspectTimelineClips(clips);
+	if (diagnostics.length) throw new Error(diagnostics[0].message);
+}
+
+export function inspectTimelineClips(clips: readonly (TimelineClipPlacement & { id: string })[]): ValidationDiagnostic[] {
+	const diagnostics: ValidationDiagnostic[] = [];
+	if (new Set(clips.map(clip => clip.id)).size !== clips.length) diagnostics.push({ code: 'clip.id', message: 'Duplicate clip ID in layer' });
 	const sorted = clips.toSorted((a, b) => a.startMs - b.startMs);
 	for (let index = 0; index < sorted.length; index++) {
-		if (!isTimelineClipTimingValid(sorted[index])) throw new Error('Invalid clip timing');
-		if (index > 0 && getTimelineClipEnd(sorted[index - 1]) > sorted[index].startMs) throw new Error('Overlapping clips in layer');
+		if (!isTimelineClipTimingValid(sorted[index])) diagnostics.push({ code: 'clip.timing', message: 'Invalid clip timing' });
+		if (index > 0 && getTimelineClipEnd(sorted[index - 1]) > sorted[index].startMs) diagnostics.push({ code: 'clip.overlap', message: 'Overlapping clips in layer' });
 	}
+	return diagnostics;
 }
 
 /** 選択中のクリップ同士は同量だけ移動するため、非選択の隣接区間だけで制限する。 */

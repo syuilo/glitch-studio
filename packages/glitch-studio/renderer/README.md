@@ -25,3 +25,5 @@ GPUを所有するManagerが、最終表示とモーションブラーの全サ�
 注意する必要があるのは、すべてのサブシステムは公平だということです。
 
 TimelineはVisual Moduleを使用し、Visual ModuleはEffectを使用するという依存の階層構造自体はあるが、それは「Glitch Studioにおいてはタイムラインがメイン機能であり、タイムラインがすべてをk管理する」などということは意味せず、Glitch Studio自体の設計とは全く関係がない。
+
+静的な設定はUIの`ProjectValidationController`が増分検査し、正常な設定だけを同期する。Managerは静的診断を持たず、式の評価結果・素材デコード・GPU等の実行時エラーを報告する。静的エラー中はUIがWorkerを終了し、正常復帰時は最新設定からWorkerごと作り直す。直接利用する呼び出し側も静的検査を行う。詳細はdocs/renderer.mdを参照。

@@ -109,6 +109,7 @@ test('refreshes lower audio inputs after timeline edits without recreating the r
 		calls.push(args);
 		return { cacheKey: String(calls.length), readWindow: () => assert.fail('the effect controls window reads') };
 	};
+	await f.manager.updateDynamicOptions({ assets: [{ id: 'asset', name: 'Sound', fileDataType: 'audio/wav', fileData: new Blob() }] });
 	const below = { id: 'sound', name: 'Sound', layerType: 'audio', isDisabled: false, clips: [{ id: 'sound', startMs: 0, durationMs: 1000, sourceInMs: 0, sourceOutMs: 1000, playbackRate: 1, loop: false, assetId: 'asset' }],
 		audioParamValues: { volume: literal(1) }, automationGraphs: [] };
 	await f.setup([layer('effect', { audio: { inputSource: 'lowerLayerAudio' } }), below]);
@@ -430,17 +431,6 @@ test('snapshots evaluated leaf arrays before asynchronous preparation', async t 
 	assert.deepEqual(f.calls.renders[0].params.vectors, [[1, 2]]);
 });
 
-// 【レイヤーのBinding制約は描画開始前の受け入れ境界で検証する】
-// 毎フレームの検証を省く代わりに、不正なネスト接続を持つインスタンスを作らせない。
-// Manager経由の更新とアダプターの直接利用の両方で、GPU処理前に拒否する。
-test('rejects invalid nested bindings when accepting layer settings', async t => {
-	const f = fixture(t);
-	const invalid = layer('effect');
-	invalid.effectParamValues.buzzs.value[0].binding.value.image = { inputSource: 'node', nodeId: 'outside' };
-	assert.throws(() => createEffectTimelineLayer(invalid, definition, f.implementation, f.directOptions), /Unsupported layer parameter input source/);
-	await assert.rejects(f.setup([invalid]), /Unsupported layer parameter input source/);
-	assert.equal(f.calls.instances.length, 0);
-});
 
 // 【グループ内のエフェクト状態を所属Sceneのレイヤーとして取得できる】
 // グループをSceneの配置と同じパス要素にすると、詳細パネルが状態やエラーを見つけられない。

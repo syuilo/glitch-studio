@@ -181,9 +181,7 @@ test('reuses glyph masks for animated colors and recreates only edited layers', 
 	assert.equal(front.texture.destroyed, true);
 	assert.equal(background.texture.destroyed, false);
 	assert.equal(f.textDraws().length, 4);
-	const invalid = structuredClone(edited);
-	invalid.textParamValues.color = { inputSource: 'layerInput' };
-	assert.throws(() => f.update(invalid), /Layer input/);
+
 });
 
 // 【空のTextもreplaceで合成し、区間外ではGPUリソースを解放する】

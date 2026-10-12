@@ -1,5 +1,5 @@
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
-import { validateTimelineParameterTree } from '../../parameter-binding.ts';
+import { inspectTimelineParameters } from '../../parameter-validation.ts';
 import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
 import type { AutomationGraph } from '@gs/shared/automation-graph/automation-graph.ts';
 import type { TimelineParameterBinding } from '../../parameter-binding.ts';
@@ -28,9 +28,7 @@ export type EvaluatedTimelineCamera = { position: [number, number]; z: number; f
 
 export function validateTimelineCamera(camera: TimelineCamera | undefined): void {
 	if (!camera) return;
-	for (const [key, binding] of Object.entries(camera.paramValues)) {
-		if (!Object.hasOwn(timelineCameraParamDefs, key)) throw new Error(`Unknown camera parameter: ${key}`);
-		if (binding) validateTimelineParameterTree(timelineCameraParamDefs[key as keyof typeof timelineCameraParamDefs], binding);
-	}
+	const diagnostics = inspectTimelineParameters(timelineCameraParamDefs, camera.paramValues, false, false, 'camera parameter');
+	if (diagnostics.length) throw new Error(diagnostics[0].message);
 }
 

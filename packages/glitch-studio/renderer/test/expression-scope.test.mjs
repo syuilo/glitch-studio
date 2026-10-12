@@ -52,7 +52,7 @@ test('passes discrete layer keyframes to modules consistently during preview exp
 // 【enumの空タイムラインは既定値、無効になった保存値はエラーとして扱う】
 // 候補の削除・改名で別の値を黙って選ぶと、ユーザーの設定を失いUndoでも意図を復元できない。
 // 保存した型の候補に残っていても、現在の定義で検証することを保証する。
-test('uses current enum defaults only for empty timelines and rejects obsolete keyframe values', async () => {
+test('uses current enum defaults for empty timelines', async () => {
 	const definition = { ...def('mode', 'b'), dataType: { kind: 'enum', options: ['a', 'b'] } };
 	const input = { inputSource: 'keyframesTimelineInline', offsetMode: 'start', wrapMode: 'clamp', trimmedDurationMs: null,
 		keyframesTimeline: { dataType: { kind: 'enum', options: ['obsolete', 'a'] }, isNormalized: false, keyframes: [] } };
@@ -66,12 +66,7 @@ test('uses current enum defaults only for empty timelines and rejects obsolete k
 	definition.defaultValue.value = 'a';
 	await evaluate();
 	assert.equal(resolved, 'a');
-	input.keyframesTimeline.keyframes.push({ id: 'key', x: 0, value: 'obsolete', interpolation: { type: 'hold' } });
-	await assert.rejects(evaluate, /Invalid enum value/);
-	assert.equal(input.keyframesTimeline.keyframes[0].value, 'obsolete');
-	input.keyframesTimeline.keyframes[0].value = 'b';
-	await evaluate();
-	assert.equal(resolved, 'b');
+
 });
 const layerScope = { ...frame, endTime: Infinity, variables: { TIME: 0.5, TIME_MS: 500, TEST_ONLY_LAYER: true, TEST_SAME_NAME: 2, IS_EXPORT: true }, automationGraphs: [] };
 const moduleScope = { ...frame, variables: {

@@ -1,0 +1,548 @@
+レンダラーの静的バリデーション仕様・実装の洗い出し（作業用）
+調査日: 2026-10-12
+
+このファイルは刷新前の実装を記録した作業資料です。
+刷新後の検証・停止・復帰の構成はdocs/renderer.mdを参照してください。
+
+目的・読み方
+============
+バリデーション刷新に先立ち、現行実装の検証条件と実装箇所を残す。
+このファイルを作成した段階では実装・テストを削除していない。
+パスはリポジトリルートからの相対パス。関数名は現行実装の検索用。
+ここに列挙した条件は現在のコードが実際に検査する条件であり、
+望ましいが未実装の制約を新たな仕様として追加してはいない。
+
+S: 入力データ・定義・参照関係だけで判定できる検証。
+   現在の実行タイミングが描画中でも、時刻や評価結果を必要としなければS。
+M: 静的な値と実行時の値の両方に同じ検証処理を使っているもの。
+   実行時の検証まで関数ごと削除しないため、入力の由来を区別する必要がある。
+R: 式の評価結果、取得した素材、GPU環境、リソースの寿命等に依存する検証。
+B: 例外による拒否ではない参照解決・フォールバック、または周辺APIの検査。
+   静的な判定を含むが、通常の未接続動作等と一体なので別記する。
+
+調査範囲
+========
+packages/glitch-studio/renderer/src
+packages/subsystems/{visual-module,effect,timeline,audio}/renderer/src
+packages/subsystems/timeline/audio-renderer/src
+上記から呼ばれる各shared層の検証・パラメータ評価・GPU共通処理と関連テスト。
+UI専用のCommand・ファイル読み込み検証、TypeScriptの型制約は対象の本体ではない。
+ただし同じ検証関数をUIも利用する場合、その呼び出し元を末尾に記録した。
+
+1. Visual Moduleのノード・パラメータ
+===================================
+S01 ノードの依存関係に循環を作れない。
+  エフェクトの入力、Relay、バイパスをたどる経路が自分に戻ると例外。
+  複数の枝で同じノードを共有すること自体は禁止していない。
+  実装: packages/subsystems/visual-module/renderer/src/visual-module-renderer.ts
+    evalCacheKey / getOutputNode / renderNode / prepare内のvisit
+  エラー: circular dependency detected
+  注意: visitedは循環検出、rendered・preparedは重複処理防止。
+    後者まで削除すると描画回数や履歴が変わる。
+    現状は探索された経路で検出し、updateNodesで未使用の枝まで一括検証はしない。
+
+S02 接続したノードが存在しなければならない（例外になる経路）。
+  canNodeの末端BindingがinputSource: nodeでnodeIdを指定した場合、
+  キャッシュ計算・描画・prepareの上流探索で参照先がなければ例外。
+  実装: 上記visual-module-renderer.tsのevalCacheKey / renderNode / prepare
+  エラー: Referenced node not found
+  注意: Relay・Out・バイパス経由には「出力なし」にする経路もある（B01）。
+
+S03 array / structパラメータのコンテナはliteralでなければならない。
+  arrayのvalueは配列でなければならない。子の末端Bindingは別途評価する。
+  実装: packages/shared/src/parameter/parameter-tree.ts
+    mapParameterTree / walkParameterLeaves
+  エラー: Container parameter must be literal / Expected array parameter
+  注意: この共通実装はstructの値の形・未知フィールドを網羅検証してはいない。
+
+S04 各評価スコープが扱わないinputSourceを拒否する。
+  共通の値評価はliteral / envVariable / expression / automationGraphReference /
+  automationGraphInline / keyframesTimelineInlineを扱い、その他は例外。
+  Visual Moduleは上記にnode / externalCustomParameterInputを追加して扱う。
+  Timelineの値評価は共通の値Bindingだけを受け入れる。
+  実装: packages/shared/src/parameter/parameter-binding-evaluator.ts: evaluate
+    packages/subsystems/visual-module/renderer/src/visual-module-parameter-binding-evaluator.ts: evaluate
+    packages/subsystems/timeline/shared/src/parameter-binding-evaluator.ts: evaluate
+  注意: inputSourceの識別はBindingの構造検査。式の結果検証とは異なる。
+
+S05 audioSourceの直接入力は静的なliteralで、valueプロパティが必要。
+  式・環境変数・ノード入力・グラフ・キーフレーム等を直接の音声指定に使えない。
+  実装: packages/shared/src/parameter/audio-source.ts: validateLiteralAudioSourceBinding
+    VisualModuleRenderer.evaluateParametersとLIVEのrenderLiveFrameから呼ばれる。
+  エラー: Audio sources must use a static input
+
+S06 公開音声パラメータの参照は音声型同士に限る。
+  audioSourceのexternalCustomParameterInputが非空のparameterIdを持つとき、
+  参照先は存在し、audioSource型で、canNodeがfalse相当でなければならない。
+  非audioSourceのパラメータから公開audioSourceを参照した場合も例外。
+  実装: packages/subsystems/visual-module/shared/src/audio-parameters.ts
+    validateVisualModuleAudioBinding（VisualModuleRenderer.evaluateParametersで使用）
+  エラー: Invalid custom audio parameter / Audio sources require an audio parameter
+  注意: 空のparameterIdはこの存在チェックから除外される。
+
+S07 LIVEの音声指定はnull、またはPlayer指定の所定の形に限る。
+  type: player、playerId: 非空文字列が必要。Playerの実在はこの関数では検査しない。
+  実装: packages/glitch-studio/shared/src/player-audio-source.ts
+    validatePlayerAudioSourceSelection
+    packages/glitch-studio/renderer/src/visual-module-renderer-manager.ts: renderLiveFrame
+    packages/glitch-studio/renderer/src/player-audio-inputs.ts: resolve
+  エラー: Invalid player audio source
+
+S08 Timelineで使うVisual Moduleの主音声入力IDは有効な公開音声入力を指す。
+  primaryAudioInputIdが非nullなら、同じIDのparamDefが存在し、
+  audioSource型かつcanNodeがfalse相当でなければならない。
+  実装: packages/subsystems/timeline/renderer/src/layers/visual-module/visual-module-timeline-layer.ts
+    createVisualModuleTimelineLayerのevaluate
+  エラー: Invalid primary audio input
+
+2. エフェクト定義
+=================
+S09 主入力・主出力・解像度入力・主音声入力の指定先を検証する。
+  primaryInputParameter: 非nullなら存在するcanNode: trueのパラメータ。
+  resolutionInputParameter: 非nullなら存在するcanNode: trueのパラメータ。
+  primaryOutput: 非nullならoutputDefs自身に存在するキー。
+  primaryAudioInputParameter: 非nullなら存在するaudioSource型パラメータ。
+  実装: packages/subsystems/effect/shared/src/effect-definition.ts: defineEffect
+  注意: これはユーザーのノードグラフではなく、実装者のエフェクト定義の検査。
+    現行チェックは画像主入力のcolor型や主音声入力のcanNodeまでは検査しない。
+
+3. TimelineのScene・レイヤー・クリップ
+======================================
+S10 Scene IDはScene一覧内で一意。
+S11 レイヤーIDは同じScene内で一意（Group・Transform配下も含む）。
+S12 Sceneレイヤーのクリップが参照するSceneは存在しなければならない。
+S13 Sceneの直接・間接の自己参照は禁止。同じ子Sceneの複数配置は許可する。
+  S10-S13の実装: packages/subsystems/timeline/shared/src/scenes.ts
+    validateTimelineScenes / getTimelineScene
+  呼び出し: TimelineRendererManagerのupdateDynamicOptions / replaceProjectState /
+    applyProjectChanges、音声計画作成のgetSceneAudioPlacements等。
+  注意: disabledのレイヤーや表示時刻外のクリップも参照検証の対象。
+
+S14 クリップIDは同じレイヤー内で一意。
+S15 startMs・durationMs・startMs + durationMsは安全な整数。
+  startMs >= 0、durationMs > 0（最短1ms）。
+S16 同じレイヤー内の表示区間は重ならない。区間端の接触は許可する。
+  S14-S16の実装: packages/subsystems/timeline/shared/src/timing.ts
+    isTimelineClipTimingValid / validateTimelineClips
+  呼び出し: validateTimelineLayer（コンテナ以外の各レイヤー）。
+
+S17 動画・音声以外のクリップのcontentOffsetMsは有限かつ非負。
+  contentOffsetMs + durationMsも有限でなければならない。小数は許可する。
+  実装: packages/subsystems/timeline/shared/src/scenes.ts: validateTimelineLayer
+  エラー: Invalid content offset
+
+S18 動画・音声クリップの素材範囲・再生速度・loopの形を検証する。
+  sourceInMs / sourceOutMs / playbackRateは有限。
+  sourceInMs >= 0、sourceOutMs > sourceInMs、playbackRate != 0。
+  loopはboolean。速度の絶対値は0.01〜16（逆再生は負の速度）。
+  実装: packages/subsystems/timeline/shared/src/media-timing.ts
+    validateTimelineMediaClipTiming / validatePlaybackRate
+  呼び出し: validateTimelineLayer。changeTimelineMediaPlaybackRateも同じ検証を使う。
+
+S19 素材範囲・速度から算出する1周の整数ms長とdurationMsを整合させる。
+  getTimelineMediaSingleDurationの結果は安全な整数かつ1ms以上。
+  loopがfalseならdurationMsはこの長さと一致。
+  loopがtrueならdurationMsはこの長さを超える。
+  実装: 上記media-timing.ts: validateTimelineMediaClipTiming
+  注意: 切り捨てと浮動小数点誤差の補正はtiming.tsの
+    getTimelineMediaMaxDurationMsで行う計算であり、それ自体は検証ではない。
+    実際の素材長を超える検査はM06に分離。
+
+S20 カメラをGroupの子孫に配置できない（途中にTransformがあっても禁止）。
+  Scene直下・Groupを祖先に持たないTransform配下は許可。
+  disabledやクリップ空白でもこの配置エラーを隠さない。
+  実装: packages/subsystems/timeline/shared/src/scene-camera.ts
+    findCameraPlacementError / TimelineSceneCamera.evaluate / cameraPlacementErrors
+  注意: 現在は状態同期で拒否せず、描画時に例外を出す。
+    ただし判定に評価時刻やカメラの評価値は不要で、静的な階層の検証。
+
+S21 登録型Visual ModuleレイヤーのvisualModuleIdは登録一覧に存在する。
+  EffectレイヤーのeffectIdには定義と実装が存在する。
+  未対応のlayerTypeはレイヤー生成時に拒否する。
+  実装: packages/glitch-studio/renderer/src/timeline-renderer-manager.ts: createTimelineLayer
+    packages/subsystems/timeline/shared/src/layers/effect/effect-layer.ts: validateTimelineEffectLayer
+  注意: Inline Visual Moduleに登録一覧の存在チェックは不要。
+    画像・動画・音声のAsset存在と資源取得の混在はM05。
+
+4. Timelineパラメータの構造・入力方式
+=====================================
+S22 Timelineの通常BindingはS04の共通値入力方式だけを扱う。
+  layerInputは許可されたエフェクト入力でだけ使用可能。
+  lowerLayerAudio / layerAudioは許可された音声入力でだけ使用可能。
+  実装: packages/subsystems/timeline/shared/src/parameter-binding.ts
+    validateTimelineParameterBinding / validateTimelineParameterTree
+  詳細なツリー検証ではlayerInputにdef.canNode === trueが必要、
+  音声入力にdef.dataType.kind === audioSourceが必要。
+  注意: validateTimelineLayerの一括Binding検証と、定義を使った
+    validateTimelineParameterTreeでは検証の深さが異なる。
+
+S23 layerAudio.layerIdはnull、または非空文字列。
+  実装: 上記parameter-binding.ts: validateTimelineParameterBinding
+  注意: ここでは参照先の存在・種類・同じSceneかどうかは検査しない（S32 / B03）。
+
+S24 layerInputのサンプリング設定は次の候補に限る。
+  fitMode: cover / contain / stretch
+  wrapMode: clamp / repeat / repeatMirrored / transparent
+  filterMode: linear / nearest
+  実装: 上記parameter-binding.ts: validateTimelineParameterBinding
+
+S25 TimelineのautomationGraphInline / automationGraphReferenceはoffsetMode: start。
+S26 TimelineのkeyframesTimelineInlineはSceneの絶対時刻を使う。
+  isNormalizedはfalse相当、offsetMode: start、wrapMode: clamp、
+  trimmedDurationMsはnullまたはundefined。
+  キーのxは非負の安全な整数ms。
+  S25-S26の実装: 上記parameter-binding.ts: validateTimelineParameterBinding
+
+S27 Timelineのarray / structコンテナはliteral。
+  arrayのvalueは配列で、同じ配列内の要素IDは重複しない。
+  配列要素・structの定義済みフィールドへ再帰してBindingを検証する。
+  実装: 上記parameter-binding.ts: validateTimelineParameterTree
+  注意: S03と一部重複。要素IDの重複検証はTimelineのこの関数に存在する。
+
+S28 TimelineのaudioSourceのliteralはvalue: null（未選択）だけを許可する。
+  Timelineの音声入力はlowerLayerAudio / layerAudioで指定する。
+  非音声パラメータにそれらの音声Bindingを渡すと拒否する。
+  実装: 上記parameter-binding.ts: validateTimelineParameterTree
+    packages/subsystems/timeline/renderer/src/layers/visual-module/visual-module-timeline-layer.ts
+    evaluate内のExpected audio parameterチェック
+
+S29 Text・VOICEVOX字幕・Shape・Camera・Transformの未知パラメータキーを拒否。
+  既知キーのBindingはvalidateTimelineParameterTreeで検証する。
+  ShapeのtypeはshapeDefinitionsに存在するものだけ。
+  実装: packages/subsystems/timeline/shared/src/layers/
+    text/text-layer.ts: validateTimelineText
+    voicevox/voicevox-subtitle-validation.ts: validateVoicevoxSubtitle
+    shape/shape-layer.ts: validateTimelineShape
+    shape/shape.ts: getShapeParameterDefinitions
+    camera/camera.ts: validateTimelineCamera
+    transform/transform.ts: validateTimelineTransform
+  注意: Cameraはbindingがtruthyの既知キーについてツリー検証する。
+    Effectレイヤーの検証は定義のキーを走査し、余分なキーを明示拒否してはいない。
+
+S30 Effectレイヤーの解像度設定と定義に沿った末端Bindingを検証する。
+  省略されたパラメータはgetEffectLayerParameterDefaultで補って検証する。
+  実装: packages/subsystems/timeline/shared/src/layers/effect/effect-layer.ts
+    validateTimelineEffectLayer
+  呼び出し: TimelineRendererManagerの設定受け入れとcreateEffectTimelineLayer。
+  注意: 独立した追加制約ではなくS21 / S22-S28 / S34をまとめる入口。
+
+S31 VOICEVOXの設定・発話キー・字幕長を検証する。
+  speedScale: 有限かつ0.5〜2。
+  発話id: truthyで重複なし。timeMs: 非負の安全な整数で重複なし。
+  textは文字列。readingはnullまたは文字列。
+  styleIdは非負の安全な整数。
+  subtitleDuration.modeはfill / specified / speech。
+  specified.durationMs / speech.extensionMsは、値がnullでない場合、
+  非負の安全な整数でtimeMsとの和も安全な整数。0は許可する。
+  実装: packages/subsystems/timeline/shared/src/layers/voicevox/voicevox.ts
+    validateVoicevoxLayer（validateTimelineLayerから呼ばれる）
+  注意: idの文字列型や字幕長のnullを厳格に拒否する検査は現行コードにはない。
+
+S32 音声計画を指定レイヤーから作る場合、そのレイヤーは取得元Scene内に存在する。
+  selection.type: layerの場合は音声出力を持つ種類でなければならない。
+  対象: audio / video / scene / voicevox / group。
+  実装: packages/subsystems/timeline/shared/src/scene-audio.ts: getSceneAudioPlacements
+  注意: RendererのlayerAudio解決では不適切な参照を先にnullへ変換する（B03）。
+
+5. 設定・解像度
+===============
+S33 Scene解像度はproject、またはcustomAbsolute。
+  customAbsoluteの幅・高さは正の安全な整数。
+  実装: packages/subsystems/timeline/shared/src/scene-resolution.ts
+    validateSceneResolution / getSceneBaseResolution
+
+S34 Effect解像度はauto / context / customAbsolute。
+  validateEffectResolutionはcustomAbsoluteの幅・高さが正の安全な整数か検査する。
+  resolveEffectNodeResolutionもmodeを検証し、解決した寸法を別途検証する（M03）。
+  実装: packages/subsystems/effect/shared/src/resolution.ts: validateEffectResolution
+    packages/subsystems/effect/shared/src/effect-node-resolution.ts: resolveEffectNodeResolution
+
+S35 明示された解像度の幅・高さは正の安全な整数。倍率は有限かつ正。
+  実装: packages/shared/src/resolution.ts: scaleResolution
+  注意: 素材原寸にも同じ関数を使うため関数全体はM03として扱う。
+
+S36 Timelineのfpsは有限で1〜120。整数である必要はない。
+  実装: packages/subsystems/timeline/shared/src/motion-blur.ts: validateTimelineFps
+  呼び出し: TimelineRendererManagerのconstructor / renderTimelineFrame。
+
+S37 モーションブラー設定は以下を満たす。
+  enabled: boolean、shutterAngle: 有限で0〜360、samples: 整数で0〜128。
+  実装: 上記motion-blur.ts: validateTimelineMotionBlur
+  呼び出し: TimelineRendererManagerのconstructor。
+
+6. レンダラー状態同期の契約（グラフ自体の制約とは別）
+====================================================
+S38 差分が指定した更新対象とID・種類の整合性を検証する。
+  Scene更新先、ノード更新先、登録Visual Module更新先が存在する。
+  Inline Visual Module更新先はinlineVisualModuleレイヤーである。
+  visualModuleRegistration / layer / sceneの値のIDが差分の対象IDと一致する。
+  個別node更新ではnode.typeとeffectIdを変更できない。
+  layerOrderはScene直下の全レイヤーIDを重複・不足・未知IDなしで含む。
+  実装: packages/glitch-studio/shared/src/project/renderer-state.ts
+    applyRendererProjectChanges
+  注意: 新規登録・追加・削除を一般に禁止する仕様ではない。
+    差分と受信済み状態の比較で判定可能だが、通信契約の検査でもある。
+
+S39 既存レイヤーのインスタンスを保持する引数差分の構造を検証する。
+  変更前後の両方にvisualModuleParamValuesが必要。
+  visualModuleParamValuesとname以外の構造はdeepEqualで一致しなければならない。
+  実装: packages/glitch-studio/renderer/src/timeline-renderer-manager.ts: applyProjectChanges
+  エラー: Only module arguments can preserve a layer instance /
+    Layer structure changed while preserving its instance
+
+7. 静的な値と実行時の値が混在するチェック
+========================================
+M01 enum値は文字列で、定義のoptionsに含まれなければならない。
+  literal・defaultValue・保存済みキーフレーム値は静的に検証可能。
+  式・環境変数・外部の評価済み値は実行時の検証が必要。
+  実装: packages/shared/src/parameter/parameter-definition.ts: validateEnumParameterValue
+  使用先: VisualModuleRenderer、LIVE Manager、Visual Moduleレイヤー、
+    Effectレイヤー、TextParameters、VoicevoxSubtitleParameters。
+  注意: 現行処理は評価後の値を検査し、全キーフレームを事前走査してはいない。
+
+M02 scalarへ渡す文字列は、空白だけではなく、全体が有限数値に変換できる。
+  literalなら静的。式・グラフ・外部入力の結果なら実行時。
+  実装: packages/shared/src/parameter/coerce-parameter-value.ts: coerceParameterValue
+  使用先: 上記M01の各評価器に加えShapeParameters・TimelineAudioRenderer。
+  注意: Numberによる変換自体は通常の値変換として必要。
+
+M03 解決後の解像度・GPU最大辺長のチェック。
+  resolveEffectNodeResolution: 幅・高さが正の安全な整数かつmaxDimension以下。
+  resolveSceneResolution: 倍率適用後の幅・高さがmaxDimension以下。
+  TimelineRendererManager: 出力寸法が正の安全な整数かつGPU最大辺長以下。
+  scaleResolution: 入力の幅・高さ・倍率のチェック（S35）。
+  実装: packages/subsystems/effect/shared/src/effect-node-resolution.ts
+    packages/subsystems/timeline/shared/src/scene-resolution.ts
+    packages/glitch-studio/renderer/src/timeline-renderer-manager.ts
+      updateDynamicOptions / resolveProjectOutputResolution
+    packages/shared/src/resolution.ts
+  区別: 明示設定の整数・正数制約は静的。
+    autoの素材原寸・入力テクスチャ寸法、GPUの実際のlimitsは実行環境に依存。
+
+M04 シェーダー入力構成の検証。
+  schemaの名前: /^[a-zA-Z][a-zA-Z0-9_]*$/を満たし、__を含めない（静的）。
+  scalarGradients: samplingがlevel0でなければならない（静的な実装設定）。
+  constantShaderInputが扱う型: scalar / vector / color / any。
+  shaderInputVariantKey: 各schemaキーに値があり、単体/配列の形が一致する。
+  bindings.update: 生成時から配列長・uniform/textureの種別が変わっていない。
+  createShaderInputBindings: texture/sampler数・uniform bytes・binding数がGPU上限内。
+  実装: packages/shared/src/gpu/shader-input.ts
+  区別: schema自体は静的。渡す値の形・種別は評価済み入力や資源の有無、
+    上限はGPU環境に依存する。variantの選択・キャッシュは検証とは別の通常処理。
+
+M05 Assetの参照存在と実際のリソース取得。
+  動画レイヤーはassetIdがAsset一覧に存在することを検査（静的に判定可能）。
+  音声Assetを開く際も一覧に存在することを検査。
+  画像レイヤーはAsset一覧ではなくデコード済みGPUTextureの存在を検査。
+  実装: packages/glitch-studio/renderer/src/timeline-renderer-manager.ts: createTimelineLayer
+    packages/glitch-studio/renderer/src/timeline-audio-inputs.ts: getRenderer内のopen処理
+  区別: Asset参照の実在は静的、画像のデコード成功・Texture生成成功は実行時。
+    エラー処理ごと削除すると後者も失う。
+
+M06 動画・音声クリップのsourceOutMsが実際の素材長を超えない。
+  validateTimelineMediaClipTimingのsourceDurationMs引数が有限なら検査する。
+  誤差許容: 4 * Number.EPSILON * max(1, sourceOutMs, sourceDurationMs)。
+  実装: packages/subsystems/timeline/shared/src/media-timing.ts
+  注意: validateTimelineLayerは素材長を渡さずInfinityが既定値なので、
+    この経路では実素材長超過を検出していない。UI/ファイル境界の検査も混在する。
+
+M07 式の構文解析失敗と実行失敗のフォールバック。
+  構文の妥当性自体は静的に判定できるが、現行実装はparseとexecSyncを
+  同じtry/catchで扱い、どちらの失敗もfallbackへ戻す。
+  実装: packages/shared/src/expression/expression-evaluator.ts: evaluate
+  注意: 独立した静的構文バリデータはない。式エンジンの解析処理自体は必要。
+
+8. 関連する静的判定・周辺の検査（例外バリデーションと区別）
+===========================================================
+B01 ノードのポート・接続解決に伴う「出力なし」。
+  Relayの未知出力ポート、未接続、参照先不在、選択した入力ポート不在、
+  In/Out/Effectの出力定義にないポート、主出力未選択等はundefinedを返す。
+  主入力未接続のバイパス等も出力なし。最終表示は透明出力になる経路がある。
+  実装: VisualModuleRenderer.getOutputNode / getOutputValue / getRequestedOutputIds
+  注意: Relayの宣言型と実入力の型の不一致は拒否・変換していない。
+
+B02 未解決の公開パラメータ・グラフ・環境変数はfallbackへ戻す。
+  externalCustomParameterInputは評価済みMapにIDがなければfallback。
+  automationGraphReferenceは現在のスコープにIDがなければfallback。
+  envVariableは現在のスコープに名前がなければfallback。
+  実装: VisualModuleParameterBindingEvaluator.evaluate / ParameterBindingEvaluator.evaluate
+  注意: 静的なBindingの参照名と、呼び出し側が供給する実行時のスコープが混在する。
+
+B03 TimelineのlayerAudioは未選択・自己参照・他Scene・存在しないレイヤー・
+  音声出力を持たないレイヤーを入力なしにする。参照IDは修復・削除しない。
+  実装: packages/subsystems/timeline/shared/src/timeline-audio.ts
+    resolveTimelineAudioLayerReference
+    packages/glitch-studio/renderer/src/timeline-audio-inputs.ts: getInput
+  注意: S32の音声計画APIが出す例外とは別の挙動。
+
+B04 Effectの画像・動画・フォント等の資源解決は不適切な参照をnullにする。
+  videoAssetReference / fontAssetReferenceではfileDataTypeの種類も判定する。
+  Playerの履歴や映像が未提供の場合も入力なしにする。
+  実装: packages/subsystems/effect/renderer/src/effect-parameter-value.ts
+    VisualModuleRenderer.resolveParams / PlayerAudioInputs.resolve
+  注意: 入力なしを許容する通常動作を、一律に「参照は必ず実在」の仕様に置換しない。
+
+B05 定義ヘルパーの引数検査。
+  getArrayElementDefinitionはarray、getStructFieldDefinitionsはstructが必要。
+  genEmptyValueでstructの初期値を作る際はfields設定が必要。
+  実装: packages/shared/src/parameter/parameter-definition.ts / parameter-default.ts
+  注意: 不適切な内部API呼び出しの検出でもあり、プロジェクト専用の検証ではない。
+
+B06 レイヤー生成時の内部契約。
+  Group・Transformの再取得では該当IDが同じ種類のレイヤーである必要がある。
+  非コンテナのレイヤー生成にはclipIdが必要。
+  実装: TimelineRendererManager.createTimelineLayer
+  注意: 同期済み構造を使う検査だが、インスタンス寿命・呼び出し契約とも関係する。
+
+B07 音声デコーダーのキャッシュ容量は有限かつ非負。
+  実装: packages/subsystems/audio/renderer/src/audio-file-reader.ts: constructor
+  注意: 静的なライブラリ設定の検査で、プロジェクトの音声ノード仕様ではない。
+
+9. 残すべき実行時検証・エラー処理
+==================================
+R01 式の実行時エラー・不適切な関数引数・取得できない動的参照。
+  GRAPH: 引数数、名前の文字列型、有限な数値座標、wrapMode、解決先の有無。
+  PARAM: 引数数、文字列名、参照名から解決できるID、評価済み値の利用可否。
+  公開関数へAiScriptのfn値を渡すことの拒否（配列・object内も再帰）。
+  実装: ParameterBindingEvaluator.graphReader、
+    VisualModuleParameterBindingEvaluatorのPARAM、ExpressionEvaluator。
+  注意: 関数の引数や名前は式で動的に生成できる。文字列リテラルの例だけを
+    見て関数内の検証を静的と分類してはいけない。
+
+R02 評価済み値のenum検証・数値文字列変換の妥当性（M01 / M02の動的部分）。
+  カメラ・Transform・合成設定・Shape・Text・字幕・音量・音声解析等で行う
+  型/有限値チェック、f32範囲、クランプ、既定値への置換も残す。
+  例: Cameraの視野角、Shapeのsize/alpha/輪郭進行率、音量の負数/非有限値。
+
+R03 評価時刻・音声読み出し要求の妥当性。
+  Timeline/動画の時刻は有限。音声読み出し速度は有限かつ非ゼロ。
+  AudioHistoryの窓フレーム数は非負の安全な整数。
+  実装: TimelineRendererManagerの描画処理、video-sample-reader.ts / video-source.ts /
+    videoFrame/frame-loader.ts、AudioFileReader.read / AudioHistorySnapshot.readWindow。
+  注意: 一般の要求引数の検査。保存されたクリップ時刻の検証S15とは別。
+
+R04 実際に開いた素材の検査。
+  音声/動画トラックの有無、デコード可能性、対応コーデック/チャンネル、
+  素材の有限な長さ・有効なpresentation interval等。
+  実装: packages/subsystems/audio/renderer/src/audio-file.ts / audio-track-support.ts
+    packages/shared/src/media/video-source.ts / media-metadata.ts
+
+R05 GPU・Canvas・描画領域に依存する検査。
+  WebGPU adapter/device/context、Canvas 2D contextの取得失敗。
+  GPU binding/texture/storage buffer上限、auto解像度の実寸法（M03 / M04）。
+  Pixel Sortの行/列がstorage buffer上限を超える場合。
+  実際の解像度に対して大きすぎるText/字幕の影ぼかし。
+  TimelineImageのboundsが有限かつ非空かの検査、Scene出力がtextureかの検査。
+  実装: 各Managerのfactory、shader-input.ts、pixelSort/_impl_.ts、
+    Effect/Textのshadow.ts・text-shadow.ts、timeline-image.ts、scene-output.ts。
+
+R06 初期化・破棄・非同期処理・リソース寿命の検査と復旧。
+  disposed/destroyed、解像度未解決、Worker Manager未初期化、未知RPC method、
+  中断・世代違い・古い処理の完了/失敗、デコード/GPU生成/prepare/render失敗。
+  例外の通知・伝播・再試行・リソース解放を含む。
+  注意: 検証用の不正グラフを使うテストに同居していても、
+    これらの一般的なエラー復旧機構自体は静的検証の削除対象にしない。
+
+10. 関連テスト（削除段階での参照用。現時点ではすべて維持）
+=========================================================
+以下は検証を直接assertする箇所・その通知/復旧の統合テスト。
+同一ファイルに通常動作と実行時検証のテストが混在するため、
+ファイルごとの一括削除はしない。行番号は調査時点の目安。
+
+S01 / S02 / B01:
+  packages/glitch-studio/renderer/test/relay-node.test.mjs:229
+    rejects cycles through ...（prepareとrenderの両方）
+  同ファイル:186 / 195: unavailable relay input / unknown relay output port。
+  同ファイル:205 / 216: mismatched relay declarations / any互換性を許可するテスト。
+  packages/glitch-studio/renderer/test/preview-errors.test.mjs:185 / 200 / 212
+    circular graphのLIVE/Timeline復旧、export拒否。
+  packages/glitch-studio/renderer/test/inline-visual-module-layer.test.mjs:702
+    invalid inline graphsの通知・export拒否・復旧。
+
+S05-S07:
+  packages/glitch-studio/renderer/test/audio-input.test.mjs:181 / 199 / 208
+    不正なPlayer指定、公開音声型の誤参照、dynamic audio bindingsの拒否。
+  同ファイル内の通常のPCM共有・キャンセル・入力解決テストは独立して維持する。
+
+S10-S19 / S25-S26:
+  packages/subsystems/timeline/shared/test/timeline-scenes.test.mjs:75
+    accepts shared descendants and rejects direct and indirect cycles
+  packages/subsystems/timeline/shared/test/timeline-groups.test.mjs:70
+    rejects duplicate IDs and scene cycles hidden inside groups
+  packages/subsystems/timeline/shared/test/timeline-clips.test.mjs:11 / 87 / 98
+    displayed intervals/local IDs、keyframe timing modes、saved key positions。
+  packages/subsystems/timeline/shared/test/media-timing.test.mjs:95
+    rejects invalid rates ranges and durations（M06の素材長検査も同居）。
+  packages/subsystems/timeline/shared/test/video-loop.test.mjs:19
+    通常のループ時刻テストに速度の拒否assertが同居。
+
+S20:
+  packages/subsystems/timeline/shared/test/camera.test.mjs:68 / 90
+    Group内カメラの描画拒否と検証結果の再利用。
+  packages/subsystems/timeline/shared/test/transform.test.mjs:71
+    Transform越しのGroup内カメラ拒否。
+  packages/glitch-studio/renderer/test/inline-visual-module-layer.test.mjs:449
+    grouped camerasの描画エラー・export拒否・階層修正後の復旧。
+
+S22-S30 / S38:
+  packages/glitch-studio/renderer/test/effect-timeline-layer.test.mjs:225
+    recreates only an edited effect layer and rejects invalid batches atomically
+    （Invalid layer orderのassertは:236。正常な再生成の検証も同居）。
+  同ファイル:436: rejects invalid nested bindings when accepting layer settings
+  packages/glitch-studio/renderer/test/text-timeline-layer.test.mjs:186
+    通常のレイヤー再利用テスト内のlayerInput拒否assert。
+  packages/glitch-studio/renderer/test/shape-timeline-layer.test.mjs:223
+    通常のレイヤー再利用テスト内のlayerInput拒否assert。
+
+S31:
+  packages/subsystems/timeline/shared/test/voicevox-placement.test.mjs:38
+    validates explicit subtitle lengths including zero and rejects unsafe ends
+  packages/glitch-studio/ui/test/voicevox.test.mjs:285 / 326 / 560
+    発話重複・未知字幕パラメータの検査（共通関数のUI利用への影響確認用）。
+
+S33-S37 / M03:
+  packages/subsystems/timeline/shared/test/scene-resolution.test.mjs:24
+    rejects invalid settings and scaled dimensions exceeding the device limit
+  packages/glitch-studio/renderer/test/effect-node-resolution.test.mjs:47
+    rejects invalid dimensions and dimensions exceeding the device limit
+  packages/subsystems/timeline/shared/test/motion-blur.test.mjs:147
+    validates finite fps, angles and bounded integer sample counts
+  注意: 解像度のテストは静的な設定検証とGPU上限検証が混在する。
+
+M01 / M02 / M04:
+  packages/glitch-studio/renderer/test/expression-scope.test.mjs:55
+    uses current enum defaults only for empty timelines and rejects obsolete keyframe values
+  packages/subsystems/timeline/audio-renderer/test/timeline-audio-renderer.test.mjs:196 / 207
+    numeric gain stringsの変換・不正文字列の拒否。
+  packages/glitch-studio/renderer/test/shader-input-arrays.test.mjs:33 / 74 / 87
+    update時のshape変化、schemaとの単体/配列不一致、GPU binding上限。
+  注意: 動的評価結果の検証・通常の変換・GPU構成検査をまとめて消さない。
+
+検証専用テストを今回の検索で特定できなかった条件:
+  S03 / S08 / S09 / S23 / S24 / S27の要素ID重複 / S32 / S39等。
+  「テストがない」と断定はしない。通常動作テストやUI側の検証も確認すること。
+  effect-definition-migration.test.mjs内の定義整合性assertや型テストは、
+  レンダラーの拒否動作そのもののテストではない。
+
+11. 共通関数削除時に巻き込まれるレンダラー外の利用先
+====================================================
+packages/glitch-studio/ui/src/AppContext.ts / gsproj.ts
+  Scene・Effectレイヤー・fps・モーションブラーの読み込み検証。
+packages/glitch-studio/ui/src/commands.ts
+  Timeline・Text・Shape・Camera・Transform・VOICEVOX・音声Binding等の編集時検証。
+packages/glitch-studio/ui/src/export/timeline-export.worker.ts
+  音声書き出しでvalidateTimelineScenesを利用。
+packages/glitch-studio/ui/src/TimelineRendererManagerController.ts
+  fps・モーションブラー設定の検証。
+packages/glitch-studio/ui/src/components/GsProjectSettingsDialog.vue
+packages/glitch-studio/ui/src/components/GsSceneResolutionDialog.vue
+packages/glitch-studio/ui/src/components/GsTimeline.Inspector.Clip.vue
+  ダイアログ・Inspectorで共通の設定/クリップ検証を利用。
+packages/glitch-studio/ui/src/gsvm.ts
+  Player音声指定の形の検証。
+packages/shared/src/parameter/parameter-path.ts
+  UIのパラメータ編集先の存在/パス検証。レンダラーはindexパスの別処理を使う。
+
+今回は調査ファイルの作成までであり、削除作業はまだ行っていない。
+レンダラーの静的検証、共通関数のUI側の用途、通常の入力解決、
+動的評価結果と環境依存の検証を区別して次の作業に使う。

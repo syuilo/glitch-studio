@@ -29,7 +29,8 @@ import { getNodeInputDataType } from '@gs/shared/data-type/node-compatibility.ts
 import { isTextureDataType } from '@gs/shared/data-type/data-type.ts';
 import { resolveTimelineAudioLayerReference, timelineAudioParamDefs } from '@gs/subsystems_timeline_shared/timeline-audio.ts';
 import { validateSceneResolution } from '@gs/subsystems_timeline_shared/scene-resolution.ts';
-import { timelineCompositingParamDefs, type TimelineLayerCoordinateSpace } from '@gs/subsystems_timeline_shared/timeline-compositing.ts';
+import { timelineCompositingParamDefs } from '@gs/subsystems_timeline_shared/timeline-compositing.ts';
+import type { TimelineLayerCoordinateSpace } from '@gs/subsystems_timeline_shared/timeline-compositing.ts';
 import { canEditTimelineTransform } from './utility/timeline-transform-edit.ts';
 import { getScene, getLayerParameterTargets, getLayerParameterValues, getLayerParameterDefinitions, resolveLayerParameter } from './utility/timeline-scene.ts';
 import { prepareTimelineContainerMove } from './utility/timeline-container.ts';

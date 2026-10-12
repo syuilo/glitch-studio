@@ -69,8 +69,6 @@ export async function renderExportFrames(settings: VideoExportSettings, callback
 	onProgress: (progress: ExportProgress) => void;
 	signal: AbortSignal;
 }): Promise<void> {
-	const error = validateExportSettings(settings);
-	if (error) throw new Error(error);
 	const duration = (settings.endTimeMs - settings.positionMs) / 1000;
 	const totalFrames = Math.ceil(duration * settings.fps);
 	for (let index = 0; index < totalFrames; index++) {

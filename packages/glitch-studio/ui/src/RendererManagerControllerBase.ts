@@ -1,6 +1,7 @@
 import { ref } from 'vue';
 import type { VisualModuleRendererManager } from '@gs/glitch-studio_renderer/visual-module-renderer-manager.ts';
 import type { TimelineRendererManager } from '@gs/glitch-studio_renderer/timeline-renderer-manager.ts';
+import type { ProjectValidationController } from './ProjectValidationController.ts';
 
 type ManagerMethods<T> = {
 	[K in keyof T as T[K] extends (...args: never[]) => unknown ? K : never]: Extract<T[K], (...args: never[]) => unknown>;
@@ -18,6 +19,11 @@ export abstract class RendererManagerControllerBase<T extends RendererManager> {
 	private reloadPromise: Promise<void> | null = null;
 	private rejectInitialization: ((reason: Error) => void) | null = null;
 	private generation = 0;
+	private managerRequested = false;
+	private validationRecovery: Promise<void> | null = null;
+	private staticSuspensionRevision = 0;
+	private unsubscribeValidation: (() => void) | null = null;
+	protected projectValidation?: ProjectValidationController;
 	private pendingCalls: { message: unknown; options?: StructuredSerializeOptions; onError?: (error: unknown) => void }[] = [];
 	protected initialSnapshotTaken = false;
 	protected initializationReady: Promise<void> = Promise.resolve();
@@ -30,6 +36,47 @@ export abstract class RendererManagerControllerBase<T extends RendererManager> {
 	private onError: (error: Error | null) => void;
 
 	public readonly isReady = ref(false);
+
+	protected connectValidation(validation?: ProjectValidationController) {
+		this.projectValidation = validation;
+		if (!validation) return;
+		const update = () => {
+			if (!validation.canRender.value) {
+				const requested = this.managerRequested;
+				// Worker自体を終了することで、自走するLIVEと準備中の非同期描画も止める。
+				// 復旧時には最新スナップショットからGPU・実行履歴をまとめて作り直す。
+				if (this.hasManager || this.isInitializing) {
+					this.staticSuspensionRevision++;
+					this.disposeManager();
+				}
+				this.managerRequested = requested;
+			} else if (this.managerRequested && !this.hasManager && !this.isInitializing && !this.validationRecovery) {
+				const suspensionRevision = this.staticSuspensionRevision;
+				// 同じ更新処理内で各Controllerが設定を保持し終えてから初期スナップショットを取る。
+				this.validationRecovery = Promise.resolve().then(async () => {
+					if (this.managerRequested && validation.canRender.value) await this.relaunchManager();
+				}).catch(error => {
+					if (validation.canRender.value) this.onError(error instanceof Error ? error : new Error(String(error)));
+				}).finally(() => {
+					this.validationRecovery = null;
+					// 初期化中に再び不正→正常となった場合も、再開要求を取りこぼさない。
+					if (suspensionRevision !== this.staticSuspensionRevision && this.managerRequested && validation.canRender.value && !this.hasManager && !this.isInitializing) update();
+				});
+			}
+		};
+		this.unsubscribeValidation = validation.subscribe(update);
+	}
+
+	protected get staticallyBlocked() { return this.projectValidation?.canRender.value === false; }
+
+	/** 静的停止によるRPCの中断は同期失敗として扱わない。復旧時に全量送信する。 */
+	protected async synchronize<V>(operation: Promise<V>, fallback: V): Promise<V> {
+		const suspensionRevision = this.staticSuspensionRevision;
+		try { return await operation; } catch (error) {
+			if (this.staticallyBlocked || suspensionRevision !== this.staticSuspensionRevision) return fallback;
+			throw error;
+		}
+	}
 
 	protected get isInitializing(): boolean {
 		return this.rejectInitialization != null;
@@ -116,8 +163,11 @@ export abstract class RendererManagerControllerBase<T extends RendererManager> {
 	}
 
 	protected async launchManager(isReload: boolean) {
+		this.managerRequested = true;
+		if (this.staticallyBlocked) return;
 		if (this.worker != null || this.isInitializing) throw new Error('Renderer is already initialized or initializing');
 		const generation = ++this.generation;
+		const suspensionRevision = this.staticSuspensionRevision;
 		const isCurrent = () => generation === this.generation;
 		const { promise: ready, resolve: resolveReady, reject: rejectReady } = Promise.withResolvers<void>();
 		this.initialSnapshotTaken = false;
@@ -208,7 +258,10 @@ export abstract class RendererManagerControllerBase<T extends RendererManager> {
 
 		// 準備の完了とは独立してreadyを待ち、生成が未完了でも破棄時に呼び出し元を解放する。
 		void initialize().catch(fail);
-		await ready;
+		try { await ready; } catch (error) {
+			if (this.staticallyBlocked || suspensionRevision !== this.staticSuspensionRevision) return;
+			throw error;
+		}
 		if (!isCurrent()) throw new Error('Engine disposed during initialization');
 		this.onCreated();
 	}
@@ -222,6 +275,7 @@ export abstract class RendererManagerControllerBase<T extends RendererManager> {
 	}
 
 	public disposeManager() {
+		this.managerRequested = false;
 		this.generation++;
 		this.rejectPendingReturns(new Error('Engine reloaded during renderer call'));
 		// エクスポート開始時は初期化途中でも破棄する。待機を残すとreloadPromiseが
@@ -242,7 +296,12 @@ export abstract class RendererManagerControllerBase<T extends RendererManager> {
 		await this.launchManager(true);
 	}
 
+	public async waitForValidationRecovery(): Promise<void> {
+		await this.validationRecovery;
+	}
+
 	public destroy() {
+		this.unsubscribeValidation?.();
 		this.disposeManager();
 	}
 }

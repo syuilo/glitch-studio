@@ -107,6 +107,7 @@ const appBundle = await build({
 						renderTimelineAt(time) { this.renders.push(time); }
 						disposeManager() { this.lifecycle.push('dispose'); this.isReady.value = false; }
 						async relaunchManager() { this.lifecycle.push('relaunch'); this.isReady.value = true; }
+						async waitForValidationRecovery() {}
 					}
 					export class TimelineRendererManagerController extends VisualModuleRendererManagerController { timeline = true; }
 					` : args.path.endsWith('.vue') ? `export default { name: '${args.path.split('/').at(-1)}' };` : `
@@ -1180,7 +1181,7 @@ test('synchronizes both previews and routes timeline-only edits', async t => {
 	setup(t);
 	const app = evaluate(appBundle);
 	const { appContext } = app;
-	const first = project({ visualModules: [{ id: 'first', nodes: [], paramDefs: [] }] });
+	const first = project({ visualModules: [{ id: 'first', name: 'First', nodes: [], paramDefs: [], outputDefs: [], primaryInputId: null, primaryOutputId: null, automationGraphs: [] }] });
 	await appContext.ready(first);
 	const live = appContext.visualModuleRendererManagerController;
 	const timeline = appContext.timelineRendererManagerController;
@@ -1222,6 +1223,7 @@ test('refreshes audio only for audio content, source files or loop duration chan
 	const app = evaluate(appBundle);
 	const { appContext } = app;
 	await appContext.ready(project({
+		visualModules: [{ id: 'module', name: 'Visual Module', nodes: [], paramDefs: [], outputDefs: [], primaryInputId: null, primaryOutputId: null, automationGraphs: [] }],
 		assets: [{ id: 'audio', name: 'sound.wav', fileData: new Blob(['audio']) }, { id: 'image', fileData: new Blob(['image']) }],
 		timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [
 			{ id: 'visual', isDisabled: false, layerType: 'visualModule', visualModuleId: 'module', name: 'Layer', clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 10000 }], visualModuleParamValues: {}, compositingParamValues: { opacity: { inputSource: 'literal', value: 1 } }, automationGraphs: [] },

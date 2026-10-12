@@ -62,56 +62,7 @@ test('clips motion blur at camera cuts', () => {
 	validateTimelineScenes([scene]);
 });
 
-// 【Group内のカメラは編集状態として受け入れ、描画時だけエラーにする】
-// 読み込みや同期を拒否すると、編集途中の構成を保存できず、修正するための差分も届かなくなる。
-// 配置自体のエラーなので、Groupのモード・無効化・カメラのクリップ期間では隠さない。
-test('accepts grouped cameras as scene data but rejects their placement during camera evaluation', () => {
-	const sceneCamera = new TimelineSceneCamera();
-	for (const compositingMode of ['flat', 'preserveDepth']) {
-		const nested = cameraLayer('Nested camera', 100, 100);
-		const group = { id: 'group', name: 'Group', layerType: 'group', compositingMode, layers: [nested],
-			isDisabled: false, automationGraphs: [], compositingParamValues: {}, audioParamValues: {} };
-		const scene = { id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [group] };
-		assert.doesNotThrow(() => validateTimelineScenes([scene]));
-		for (const time of [0, 150, 300]) {
-			assert.throws(() => sceneCamera.evaluate(scene.layers, time, false), /Camera "Nested camera" is inside a Group/);
-		}
-		const disabledCamera = { ...nested, isDisabled: true, clips: [] };
-		const disabledGroup = { ...group, isDisabled: true, layers: [disabledCamera] };
-		assert.throws(() => sceneCamera.evaluate([disabledGroup], 0, true), /inside a Group/);
-		// 同じ評価器で修正を受け入れ、古い構成エラーを残さず既定の視点へ戻る。
-		assert.deepEqual(sceneCamera.evaluate([{ ...disabledGroup, layers: [] }, disabledCamera], 0, false), camera);
-	}
-});
 
-// 【配置が変わらなければ、成功・エラーのどちらも階層を再検証しない】
-// フレームやブラーのサンプルごとにGroupの子を走査しないことを確認する。
-// 子Sceneの評価器が再生成されても同じ結果を使い、編集後の新しい木だけを再検証する。
-test('reuses camera placement validation across frames and evaluators until the layer tree changes', () => {
-	let childReads = 0;
-	const nested = cameraLayer('Nested camera', 0, 1000);
-	const group = children => ({ layerType: 'group', isDisabled: false, get layers() { childReads++; return children; } });
-	const validLayers = [group([]), nested];
-	const invalidLayers = [group([nested])];
-	const sceneCamera = new TimelineSceneCamera();
-	assert.deepEqual(sceneCamera.evaluate(validLayers, 0, false), camera);
-	const afterFirstFrame = childReads;
-	for (const time of [100, 200]) {
-		assert.deepEqual(sceneCamera.evaluate(validLayers, time, false), camera);
-		assert.deepEqual(new TimelineSceneCamera().evaluate(validLayers, time, true), camera);
-	}
-	assert.equal(childReads, afterFirstFrame);
-	assert.throws(() => sceneCamera.evaluate(invalidLayers, 0, false), /inside a Group/);
-	assert.ok(childReads > afterFirstFrame);
-	const afterInvalidFrame = childReads;
-	for (const time of [100, 200]) {
-		assert.throws(() => sceneCamera.evaluate(invalidLayers, time, false), /inside a Group/);
-		assert.throws(() => new TimelineSceneCamera().evaluate(invalidLayers, time, true), /inside a Group/);
-	}
-	assert.equal(childReads, afterInvalidFrame);
-	assert.deepEqual(sceneCamera.evaluate([group([]), nested], 300, false), camera);
-	assert.ok(childReads > afterInvalidFrame);
-});
 
 // 【上段に隠れたカメラの開始・終了で映像全体のブラーを短くしない】
 // 未採用のカメラを追加しただけで露光が変わる退行を防ぐ。切り替えがない区間では

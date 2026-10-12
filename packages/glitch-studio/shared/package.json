@@ -18,6 +18,7 @@
 		"vite": "8.2.2"
 	},
 	"dependencies": {
+		"@gs/shared": "workspace:*",
 		"@gs/subsystems_timeline_shared": "workspace:*",
 		"@gs/subsystems_visual-module_shared": "workspace:*"
 	}

@@ -1,5 +1,5 @@
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
-import { validateTimelineParameterTree } from '../../parameter-binding.ts';
+import { inspectTimelineParameters } from '../../parameter-validation.ts';
 import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
 import type { TimelineParameterBinding } from '../../parameter-binding.ts';
 
@@ -16,8 +16,6 @@ export function createTimelineTransformParameterValues(): TimelineTransformParam
 }
 
 export function validateTimelineTransform(values: TimelineTransformParameterValues): void {
-	for (const [key, binding] of Object.entries(values)) {
-		if (!Object.hasOwn(timelineTransformParamDefs, key)) throw new Error(`Unknown transform parameter: ${key}`);
-		validateTimelineParameterTree(timelineTransformParamDefs[key as keyof typeof timelineTransformParamDefs], binding);
-	}
+	const diagnostics = inspectTimelineParameters(timelineTransformParamDefs, values, false, false, 'transform parameter');
+	if (diagnostics.length) throw new Error(diagnostics[0].message);
 }

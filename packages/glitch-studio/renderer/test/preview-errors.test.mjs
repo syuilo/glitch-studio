@@ -151,7 +151,7 @@ async function fixture(t, staticOptions = {}, Manager = VisualModuleRendererMana
 	t.after(() => renderer.destroy());
 	await renderer.updateDynamicOptions({
 		resolution: { width: 1, height: 1 },
-		visualModules: [visualModule(true)],
+		visualModules: [visualModule(false)],
 		...(Manager === TimelineRendererManager ? { timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [{ id: 'layer', layerType: 'visualModule', visualModuleId: 'module', name: 'Layer', clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 1000 }], visualModuleParamValues: {}, compositingParamValues: {}, automationGraphs: [] }] }], sceneId: 'scene' } : {}),
 	});
 	return { renderer, errors, frames, frame(timestamp) {
@@ -179,41 +179,8 @@ test('renders a newly registered Visual Module and stops LIVE when it is removed
 	assert.ok(!renderer.dynamicOptions.visualModules.some(visualModule => visualModule.id === imported.id));
 });
 
-// LIVEの循環参照を修正すると、再初期化せず次のフレームで復旧する。
-// エラー文字列をthrowするだけのスタブでは、実際のノード評価が修正後のグラフを読む保証にならない。
-// 循環した二つのノードの配線を外し、例外がRAFから漏れずループも失われないことを確認する。
-test('recovers live rendering after repairing a circular graph', async t => {
-	const { renderer, errors, frames, frame } = await fixture(t);
-	renderer.startLiveRenderLoopFor('module');
-	assert.doesNotThrow(() => frame(16));
-	assert.equal(errors.at(-1), 'circular dependency detected');
-	assert.equal(frames.size, 1);
-	await renderer.updateDynamicOptions({ visualModules: [visualModule(false)] });
-	assert.doesNotThrow(() => frame(32));
-	assert.equal(errors.at(-1), null);
-	assert.equal(frames.size, 1);
-});
 
-// 停止中のタイムラインも、循環参照を修正して再描画すると復旧する。
-// LIVEのRAFだけを保護しても、非同期のprepareで失敗するタイムラインのシークは救えない。
-// 同じ位置で再描画でき、前回のエラーが成功後に解除されることを保証する。
-test('recovers timeline preview after repairing a circular graph', async t => {
-	const { renderer, errors } = await fixture(t, {}, TimelineRendererManager);
-	await renderer.renderTimelineAt(0);
-	assert.equal(errors.at(-1), 'circular dependency detected');
-	await renderer.updateDynamicOptions({ visualModules: [visualModule(false)] });
-	await renderer.renderTimelineAt(0);
-	assert.equal(errors.at(-1), null);
-});
 
-// 書き出しの描画エラーはプレビューのように握りつぶさず、呼び出し元へ返す。
-// 動画出力で失敗を成功扱いすると欠落したフレームを含むファイルを生成してしまうため、
-// 今回の復旧用catchをエクスポート経路に広げないことを保証する。
-test('still rejects export frames for invalid graphs', async t => {
-	const { renderer, errors } = await fixture(t, {}, TimelineRendererManager);
-	await assert.rejects(renderer.renderTimelineFrame(0, 0), /circular dependency detected/);
-	assert.deepEqual(errors, []);
-});
 
 // 【破棄後に完了したシークは通知しない】
 // モード切り替え時はmanager自体が独立している。旧managerの完了通知を防ぐ。
@@ -314,8 +281,9 @@ for (const invalidation of ['edit', 'scene change', 'destroy']) {
 // 古い成功で既存のエラーを消さず、古い失敗で修正後の描画を止めないことを確認する。
 test('ignores obsolete frame results after edits and renders the updated state', async t => {
 	const { renderer, errors } = await fixture(t, {}, TimelineRendererManager);
+	renderer.renderFrame = async () => { throw new Error('initial failure'); };
 	await renderer.renderTimelineAt(0);
-	assert.equal(errors.at(-1), 'circular dependency detected');
+	assert.equal(errors.at(-1), 'initial failure');
 	for (const fails of [false, true]) {
 		const gate = Promise.withResolvers();
 		const times = [];
@@ -333,11 +301,11 @@ test('ignores obsolete frame results after edits and renders the updated state',
 		else gate.resolve();
 		await pending;
 		assert.deepEqual(times, [0, 20]);
-		assert.deepEqual(errors, ['circular dependency detected', 'updated failure']);
+		assert.deepEqual(errors, ['initial failure', 'updated failure']);
 	}
 	renderer.renderFrame = async () => {};
 	await renderer.renderTimelineAt(30);
-	assert.deepEqual(errors, ['circular dependency detected', 'updated failure', null]);
+	assert.deepEqual(errors, ['initial failure', 'updated failure', null]);
 });
 
 // LIVE描画の途中で例外が起きても、GPUコマンドと計測を終了して次のフレームへ進む。
