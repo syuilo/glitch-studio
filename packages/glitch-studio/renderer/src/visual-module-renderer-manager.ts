@@ -62,7 +62,7 @@ export type LiveEffectStatusSource = { type: 'live'; instanceId: string; visualM
 export type VisualModuleRendererManagerEvents = {
 	'outputResolution': (ctx: Resolution) => void;
 	'effectState': (ctx: { source: LiveEffectStatusSource; nodeId: string; status: EffectInstanceState | null }) => void;
-	'renderError': (ctx: { message: string | null }) => void;
+	'renderError': (ctx: { message: string }) => void;
 	'telemetry': (ctx: { fpsAverage: number; gpuAverageFast: number; gpuAverageMedium: number; gpuAverageSlow: number; }) => void;
 	'gpuMemory': (ctx: { usage: { total: number; textures: number; buffers: number; } }) => void;
 };
@@ -100,7 +100,6 @@ export class VisualModuleRendererManager extends EventEmitter<{
 	private telemetryReportIntervalId: number;
 	private gpuMemory: GpuMemoryTracker;
 	private gpuMemoryReportIntervalId: number;
-	private currentRenderError: string | null = null;
 	private displayedResolution: Resolution | null = null;
 
 	private readonly staticOptions: VisualModuleRendererManagerStaticOptions;
@@ -133,12 +132,11 @@ export class VisualModuleRendererManager extends EventEmitter<{
 		this.liveRenderLoop = new LiveRenderLoop({
 			scheduler: this.frameScheduler,
 			onFrame: timing => {
-				// グラフのエラーでWorkerを利用不能にしない。次のフレームで修正後の状態を再試行する。
+				// 描画失敗は所有者へ通知する。エンジンの破棄と再生成は所有者が行う。
 				try {
 					this.renderLiveFrame(timing);
-					this.setRenderError(null);
 				} catch (error) {
-					this.setRenderError(error instanceof Error ? error.message : String(error));
+					this.reportRenderError(error instanceof Error ? error.message : String(error));
 				}
 			},
 			fpsLimit: this.dynamicOptions.fpsLimit,
@@ -190,10 +188,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 		}, 1000);
 	}
 
-	// 毎フレーム通知を発生させないように前回から変わっている場合のみ通知
-	private setRenderError(message: string | null) {
-		if (this.currentRenderError === message) return;
-		this.currentRenderError = message;
+	private reportRenderError(message: string) {
 		this.emit('ev', { type: 'renderError', ctx: { message } });
 	}
 
@@ -405,7 +400,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 					this.gpuAverageMedium.addSample(gpuTime / 1000);
 					this.gpuAverageSlow.addSample(gpuTime / 1000);
 				}).catch(error => {
-					if (generation === this.previewRenderGeneration) this.setRenderError(error instanceof Error ? error.message : String(error));
+					if (generation === this.previewRenderGeneration) this.reportRenderError(error instanceof Error ? error.message : String(error));
 				});
 			}
 		}

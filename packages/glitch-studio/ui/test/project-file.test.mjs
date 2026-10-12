@@ -73,12 +73,6 @@ const appBundle = await build({
 						patches = []; snapshots = [];
 						options = {};
 						constructor(staticOptions) { this.staticOptions = deepClone(staticOptions); }
-						async init(resolution, resolutionScale) {
-							this.initialStaticOptions = deepClone(this.staticOptions);
-							this.initialResolution = resolution;
-							this.initialResolutionScale = resolutionScale;
-							this.isReady.value = true;
-						}
 						async updateDynamicOptions(options) {
 							this.updates.push(options);
 							Object.assign(this.options, options);

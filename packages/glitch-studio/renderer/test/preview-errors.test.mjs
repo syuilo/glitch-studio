@@ -239,7 +239,8 @@ for (const failure of ['render', 'GPU completion']) {
 		assert.deepEqual(times, [0]);
 		await renderer.renderTimelineAt(20);
 		assert.deepEqual(times, [0, 20]);
-		assert.deepEqual(errors, [message, null]);
+		// 正常フレームはエラー解除を通知しない。復旧の表示はUIの再生成完了が担当する。
+		assert.deepEqual(errors, [message]);
 	});
 }
 
@@ -279,15 +280,16 @@ for (const invalidation of ['edit', 'scene change', 'destroy']) {
 	});
 }
 
-// 【編集前の描画結果でエラーを変更せず、編集後の要求を実行する】
+// 【編集前の描画エラーは通知せず、編集後の要求の失敗だけを通知する】
 // 描画を直列化した後も、待機中に受信した編集による無効化は必要になる。
-// 古い成功で既存のエラーを消さず、古い失敗で修正後の描画を止めないことを確認する。
+// 古い失敗で修正後の描画を止めず、成功フレームからは解除通知が来ないことを確認する。
 test('ignores obsolete frame results after edits and renders the updated state', async t => {
 	const { renderer, errors } = await fixture(t, {}, TimelineRendererManager);
 	// 構造エラーはUIで検証する。ここでは描画処理の失敗を使って世代管理だけを確認する。
 	renderer.renderFrame = async () => { throw new Error('initial failure'); };
 	await renderer.renderTimelineAt(0);
 	assert.equal(errors.at(-1), 'initial failure');
+	const expectedErrors = ['initial failure'];
 	for (const fails of [false, true]) {
 		const gate = Promise.withResolvers();
 		const times = [];
@@ -305,14 +307,15 @@ test('ignores obsolete frame results after edits and renders the updated state',
 		else gate.resolve();
 		await pending;
 		assert.deepEqual(times, [0, 20]);
-		assert.deepEqual(errors, ['initial failure', 'updated failure']);
+		expectedErrors.push('updated failure');
+		assert.deepEqual(errors, expectedErrors);
 	}
 	renderer.renderFrame = async () => {};
 	await renderer.renderTimelineAt(30);
-	assert.deepEqual(errors, ['initial failure', 'updated failure', null]);
+	assert.deepEqual(errors, expectedErrors);
 });
 
-// LIVE描画の途中で例外が起きても、GPUコマンドと計測を終了して次のフレームへ進む。
+// 【LIVE描画の途中で例外が起きてもGPUコマンドと計測を終了する】
 // 循環参照のような描画前の失敗だけを確認すると、計測中の失敗でTimingHelperが
 // 前のencoderを保持し続け、原因を直しても描画できなくなる不具合を見逃す。
 test('finishes partial live frames before retrying', async t => {
@@ -336,7 +339,7 @@ test('finishes partial live frames before retrying', async t => {
 	assert.equal(collected, 1);
 	fail = false;
 	frame(32);
-	assert.equal(errors.at(-1), null);
+	assert.deepEqual(errors, ['partial render failed']);
 	assert.equal(collected, 2);
 	await Promise.resolve();
 });

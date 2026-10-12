@@ -23,7 +23,7 @@ export abstract class RendererManagerControllerBase<T extends RendererManager> {
 	protected initialSnapshotTaken = false;
 	protected initializationReady: Promise<void> = Promise.resolve();
 
-	private getInitialOptions: ((isReload: boolean) => Promise<{ options: Record<string, unknown>; transfer: Transferable[] }>);
+	private getInitialOptions: (() => Promise<{ options: Record<string, unknown>; transfer: Transferable[] }>);
 	private createWorker: () => Worker | Promise<Worker>;
 	private managerEventHandlers: ManagerEventHandlers<T>;
 	private onCreated: (() => void);
@@ -123,7 +123,7 @@ export abstract class RendererManagerControllerBase<T extends RendererManager> {
 		this.returnHooks.clear();
 	}
 
-	protected async launchManager(isReload: boolean) {
+	private async launchManager() {
 		if (this.worker != null || this.isInitializing) throw new Error('Renderer is already initialized or initializing');
 		const generation = ++this.generation;
 		const isCurrent = () => generation === this.generation;
@@ -159,7 +159,7 @@ export abstract class RendererManagerControllerBase<T extends RendererManager> {
 					case 'inited': {
 						this.isReady.value = true;
 						this.rejectInitialization = null;
-						// 新しいManagerは正常描画時のnull通知を省略するため、ここで解除する。
+						// エラーからの復旧は新しいManagerの生成で行うため、初期化完了時に解除する。
 						this.onError(null);
 						for (const { message, options, onError } of this.pendingCalls) {
 							try {
@@ -205,7 +205,7 @@ export abstract class RendererManagerControllerBase<T extends RendererManager> {
 					}
 				}
 			};
-			const { options: initOptions, transfer: initTransfer } = await this.getInitialOptions(isReload);
+			const { options: initOptions, transfer: initTransfer } = await this.getInitialOptions();
 			if (!isCurrent()) return;
 			worker.postMessage({ type: 'init', ...initOptions }, initTransfer);
 		};
@@ -222,7 +222,7 @@ export abstract class RendererManagerControllerBase<T extends RendererManager> {
 		if (!this.worker && !this.isInitializing) return this.relaunchManager();
 		if (this.rejectInitialization != null) return Promise.reject(new Error('Renderer is not initialized'));
 		this.disposeManager();
-		this.reloadPromise = this.launchManager(true).finally(() => { this.reloadPromise = null; });
+		this.reloadPromise = this.launchManager().finally(() => { this.reloadPromise = null; });
 		return this.reloadPromise;
 	}
 
@@ -240,7 +240,7 @@ export abstract class RendererManagerControllerBase<T extends RendererManager> {
 		this.onDisposed();
 	}
 
-	/** エクスポート等で解放したManagerを、保持中の設定と新しいCanvasで再生成する。 */
+	/** 初回起動・破棄後の再生成ともに、保持中の設定と新しいCanvasからManagerを生成する。 */
 	public relaunchManager(): Promise<void> {
 		if (this.relaunchPromise) return this.relaunchPromise;
 		this.relaunchPromise = this.relaunch().finally(() => { this.relaunchPromise = null; });
@@ -251,7 +251,7 @@ export abstract class RendererManagerControllerBase<T extends RendererManager> {
 		// 破棄によってrejectされたreloadの後処理を先に終わらせる。
 		if (this.reloadPromise) await this.reloadPromise.catch(() => {});
 		if (this.isReady.value) return;
-		await this.launchManager(true);
+		await this.launchManager();
 	}
 
 	public destroy() {

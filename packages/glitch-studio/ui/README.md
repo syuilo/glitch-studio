@@ -79,4 +79,6 @@ UIの`timeline-keyframe-lanes.ts`が選択・スナップ・移動に必要な�
 
 Controllerは失敗を通知し、破棄の調整は`PreviewRenderEngine`に集約する。`RendererProjectSynchronizer`は差分の送信と成功・失敗の通知だけを担当し、失敗後の全量同期を行わない。静的診断の解除とプレビュー固有設定の変更では再試行を予約し、同じターンの通知をまとめる。Inline Visual Moduleの公開定義変更時は所有レイヤーの引数も再検証する。
 
+Controllerの初回起動と破棄後の再生成は`relaunchManager()`を使い、保持した最新設定と新しいCanvasから生成する。レンダラーの`renderError`は失敗のみを通知し、Controllerのエラー表示は新しいManagerの初期化完了で解除する。Timelineの状態ストアは描画失敗を保持せず、Managerの破棄時に全状態を解除する。
+
 書き出しは編集時の検証結果を使用し、開始時のプロジェクト全体の再検証は行わない。書き出し専用の出力設定と、実素材・GPU・エンコーダーの検証は別途行う。

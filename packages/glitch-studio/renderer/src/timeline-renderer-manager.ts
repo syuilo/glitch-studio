@@ -98,7 +98,7 @@ export type TimelineLayerStatusSource = {
 export type TimelineRendererManagerEvents = {
 	'effectState': (ctx: { source: TimelineLayerStatusSource; nodeId: string; status: EffectInstanceState | null }) => void;
 	'effectLayerState': (ctx: { source: TimelineLayerStatusSource; status: EffectInstanceState | null }) => void;
-	'renderError': (ctx: { message: string | null }) => void;
+	'renderError': (ctx: { message: string }) => void;
 	'layerTransform': (ctx: TimelineTransformPreview) => void;
 };
 
@@ -123,7 +123,6 @@ export class TimelineRendererManager extends EventEmitter<{
 	private audioInputs = new TimelineAudioInputs();
 	private effectDefinitions: Record<string, EffectDefinition<any>>;
 	private effectImplementations: Record<string, EffectImplementation<any>>;
-	private currentRenderError: string | null = null;
 	private projectVersions = new ProjectStateVersions();
 	private pendingTransformPreview: TimelineTransformPreview | null = null;
 	private lastTransformPreview: TimelineTransformPreview | null = null;
@@ -235,10 +234,7 @@ export class TimelineRendererManager extends EventEmitter<{
 		this.gpuDevice.queue.submit([encoder.finish()]);
 	}
 
-	// 毎フレーム通知を発生させないように前回から変わっている場合のみ通知
-	private setRenderError(message: string | null) {
-		if (this.currentRenderError === message) return;
-		this.currentRenderError = message;
+	private reportRenderError(message: string) {
 		this.emit('ev', { type: 'renderError', ctx: { message } });
 	}
 
@@ -284,7 +280,7 @@ export class TimelineRendererManager extends EventEmitter<{
 				if (canvas.width !== resolution.width) canvas.width = resolution.width;
 				if (canvas.height !== resolution.height) canvas.height = resolution.height;
 			} catch (error) {
-				this.setRenderError(error instanceof Error ? error.message : String(error));
+				this.reportRenderError(error instanceof Error ? error.message : String(error));
 				throw error;
 			}
 		}
@@ -385,26 +381,23 @@ export class TimelineRendererManager extends EventEmitter<{
 				// 途中で失敗・編集による中断が起きても、送信済みの処理は待ち切る。
 				await this.gpuDevice.queue.onSubmittedWorkDone();
 			}
-			// 編集や破棄で無効になったフレームの完了で、エラー表示を変更しない。
-			if (generation === this.previewRenderGeneration) {
-				this.setRenderError(null);
-				if (preview && this.dynamicOptions.transformObserver === request) {
-					// ブラーのサブサンプルごとには通知しない。枠の変形は基準時刻で評価し、
-					// 寸法には実際の合成前出力を使う。画像の読み戻し・ハンドル用の再描画は不要。
-					const blur = this.staticOptions.timelineMotionBlur;
-					if (preview.geometry && layer && blur.enabled && blur.shutterAngle > 0 && blur.samples > 1) {
-						const { position, origin, scale, rotation, fitMode } = this.transformPreviewParameters.evaluate({
-							time, isExport: false, coordinateSpace: layer.coordinateSpace, paramValues: layer.compositingParamValues, automationGraphs: layer.automationGraphs,
-						});
-						preview.geometry.transform = { position, origin, scale, rotation, fitMode };
-					}
-					this.publishTransformPreview(preview);
+			// 編集や破棄で無効になったフレームの変形情報を、現在の表示へ反映しない。
+			if (generation === this.previewRenderGeneration && preview && this.dynamicOptions.transformObserver === request) {
+				// ブラーのサブサンプルごとには通知しない。枠の変形は基準時刻で評価し、
+				// 寸法には実際の合成前出力を使う。画像の読み戻し・ハンドル用の再描画は不要。
+				const blur = this.staticOptions.timelineMotionBlur;
+				if (preview.geometry && layer && blur.enabled && blur.shutterAngle > 0 && blur.samples > 1) {
+					const { position, origin, scale, rotation, fitMode } = this.transformPreviewParameters.evaluate({
+						time, isExport: false, coordinateSpace: layer.coordinateSpace, paramValues: layer.compositingParamValues, automationGraphs: layer.automationGraphs,
+					});
+					preview.geometry.transform = { position, origin, scale, rotation, fitMode };
 				}
+				this.publishTransformPreview(preview);
 			}
 			return true;
 		} catch (error) {
 			if (generation === this.previewRenderGeneration) {
-				this.setRenderError(error instanceof Error ? error.message : String(error));
+				this.reportRenderError(error instanceof Error ? error.message : String(error));
 				if (preview && this.dynamicOptions.transformObserver === request) this.publishTransformPreview({ ...preview, geometry: null });
 			}
 			return false;

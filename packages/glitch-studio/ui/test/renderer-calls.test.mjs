@@ -120,15 +120,15 @@ async function fixture(t, options = {}) {
 	runInNewContext(controllerCode, context);
 	const controller = new context.module.exports.VisualModuleRendererManagerController({
 		enable32bitDataTextures: false, intermediateTextureFormat: 'rgba8unorm', enableStats: false,
-	}, { fpsLimit: null });
+	}, { fpsLimit: null, resolution: { width: 1, height: 1 }, resolutionScale: 1 });
 	controller.onRenderFailure = error => controller.disposeManager(error);
 	t.after(() => controller.destroy());
-	if (options.initialize !== false) await controller.init({ width: 1, height: 1 });
+	if (options.initialize !== false) await controller.relaunchManager();
 	return { controller, workers, pending, instances, notifications };
 }
 
 // 【実行時失敗でWorkerを破棄し、編集した最新状態を再生成へ渡す】
-// エラー中の編集はControllerに保持し、破棄済みWorkerからの遅延成功ではエラーを消さない。
+// エラー中の編集はControllerに保持し、破棄済みWorkerからの遅延通知ではエラーを変更しない。
 test('disposes after preview errors and restores edited settings on retry', async t => {
 	const { controller, instances, notifications } = await fixture(t);
 	instances[0].reportPreviewError('circular dependency detected');
@@ -138,13 +138,13 @@ test('disposes after preview errors and restores edited settings on retry', asyn
 	assert.equal(controller.isReady.value, false);
 	await controller.updateDynamicOptions({ visualModules: [{ id: 'repaired', nodes: [] }] });
 	assert.equal(controller.errorMessage.value, 'circular dependency detected');
-	instances[0].reportPreviewError(null);
+	instances[0].reportPreviewError('old frame failure');
 	await Promise.resolve();
 	assert.equal(controller.errorMessage.value, 'circular dependency detected');
 	await controller.reload();
 	assert.equal(instances.at(-1).dynamicOptions.visualModules[0].id, 'repaired');
 	assert.equal(controller.errorMessage.value, null);
-	assert.deepEqual(notifications.filter(message => message.type === 'ev' && message.ev.type === 'renderError').map(message => message.ev.ctx.message), ['circular dependency detected', 'circular dependency detected', null]);
+	assert.deepEqual(notifications.filter(message => message.type === 'ev' && message.ev.type === 'renderError').map(message => message.ev.ctx.message), ['circular dependency detected', 'circular dependency detected', 'old frame failure']);
 });
 
 // 応答を待たない操作の同期・非同期失敗も未処理例外にせず通知する。
@@ -162,24 +162,23 @@ test('disposes after fire-and-forget failures and permits explicit retries', asy
 	}
 });
 
-// GPU初期化に失敗した場合は、描画エラーと区別して初期化をrejectする。
+// 【GPU初期化に失敗した場合は描画エラーと区別して起動要求をrejectする】
 // 初期化全体がasyncなので、画像準備だけをcatchするとアダプター取得失敗で待機が終わらない。
 // 初期化できていないWorkerに編集を送ることも防ぎ、失敗理由をfooter用の状態へ残す。
 test('rejects initialization failures before assets are prepared', async t => {
 	const { controller } = await fixture(t, { initialize: false, adapterError: new Error('GPU unavailable') });
-	await assert.rejects(controller.init({ width: 1, height: 1 }), /GPU unavailable/);
+	await assert.rejects(controller.relaunchManager(), /GPU unavailable/);
 	assert.equal(controller.isReady.value, false);
 	assert.equal(controller.errorMessage.value, 'GPU unavailable');
 });
 
-// 致命的なWorkerエラーの表示を、遅れて届いた描画成功で消さない。
+// 【致命的なWorkerエラーの表示を遅延通知で変更しない】
 // UIの編集は続けられるが、描画再開には新しいWorkerが必要。
-// 利用不能なのに遅延成功通知からエラーだけが消えることを防ぐ。
+// 旧Workerの通知で停止した原因を書き換えないことを確認する。
 test('retains fatal errors until the worker is reinitialized', async t => {
 	const { controller, workers, instances } = await fixture(t);
 	workers[0].onerror({ message: 'worker crashed' });
 	instances[0].reportPreviewError('old frame failure');
-	instances[0].reportPreviewError(null);
 	await Promise.resolve();
 	assert.equal(controller.isReady.value, false);
 	assert.equal(controller.errorMessage.value, 'worker crashed');
@@ -188,9 +187,9 @@ test('retains fatal errors until the worker is reinitialized', async t => {
 	assert.equal(controller.errorMessage.value, null);
 });
 
-// 画像のデコード完了前にはreadyにせず、初期化中の変更と失敗を待機元へ返す。
+// 【画像のデコード完了前にはreadyにせず、初期化中の変更と失敗を待機元へ返す】
 // Blobからの画像準備は非同期なので、Worker生成だけでreadyにすると最初の描画で画像が欠落する。
-// また、初期化中の例外を応答しないとinit()の呼び出し元が永久に待機するため、失敗経路も確認する。
+// また、初期化中の例外を応答しないと起動要求元が永久に待機するため、失敗経路も確認する。
 for (const failure of [false, true]) {
 	test(`queues updates during initialization and ${failure ? 'rejects failures' : 'applies them when ready'}`, { timeout: 2000 }, async t => {
 		const gate = Promise.withResolvers();
@@ -201,7 +200,7 @@ for (const failure of [false, true]) {
 			updateAssets: () => { requested.resolve(); return gate.promise; },
 			onDestroy: () => { destroyed = true; },
 		});
-		const initializing = controller.init({ width: 1, height: 1 });
+		const initializing = controller.relaunchManager();
 		const rejected = failure ? assert.rejects(initializing, /image decode failed/) : null;
 		await requested.promise;
 		assert.equal(controller.isReady.value, false);
@@ -295,8 +294,8 @@ test('reloads the preview worker with updated static settings', async t => {
 	assert.equal(instances[1].staticOptions.enable32bitDataTextures, true);
 });
 
-// 初期化・再読み込み中に破棄しても待機を解除し、復帰後に再び設定変更できる。
-// エクスポート開始で画像準備中のWorkerが終了しても、旧initやreloadを未完了にせず、
+// 【初期化・再読み込み中に破棄しても待機を解除し、復帰後に再び設定変更できる】
+// エクスポート開始で画像準備中のWorkerが終了しても、旧起動要求やreloadを未完了にせず、
 // キューに残った操作を新Workerへ再送しない。設定変更まで確認しreloadPromiseの残留を検出する。
 for (const phase of ['initialization', 'reload']) {
 	test(`disposes during ${phase} and allows subsequent static settings updates`, { timeout: 2000 }, async t => {
@@ -311,9 +310,9 @@ for (const phase of ['initialization', 'reload']) {
 				return gate.promise;
 			},
 		});
-		if (phase === 'reload') await controller.init({ width: 1, height: 1 });
+		if (phase === 'reload') await controller.relaunchManager();
 		hold = true;
-		const starting = phase === 'reload' ? controller.reload() : controller.init({ width: 1, height: 1 });
+		const starting = phase === 'reload' ? controller.reload() : controller.relaunchManager();
 		const stopped = assert.rejects(starting, /disposed during initialization/);
 		await requested.promise;
 		const updateStopped = assert.rejects(controller.updateDynamicOptions({ highlightClipping: true }), /Engine reloaded/);
