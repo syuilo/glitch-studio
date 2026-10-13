@@ -73,7 +73,7 @@ const emit = defineEmits<{
 
 <style module lang="scss">
 .root {
-	position: relative;
+	position: absolute;
 	display: flex;
 	flex-direction: column;
 	height: var(--MAIN_LANE_HEIGHT);

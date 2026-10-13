@@ -543,7 +543,7 @@ function timeToDomX(time: number): number { return timelineTimeToX(time, props.t
 	position: absolute;
 	z-index: 1;
 	top: 0;
-	width: var(--MAIN_LANE_HEIGHT);
+	width: var(--BASE_MAIN_LANE_HEIGHT);
 	height: var(--MAIN_LANE_HEIGHT);
 	line-height: var(--MAIN_LANE_HEIGHT);
 	text-align: center;
