@@ -172,7 +172,7 @@ const emit = defineEmits<{
 	(ev: 'clipContextMenu', event: PointerEvent, selection: TimelineClipSelection): void;
 	(ev: 'keyframeDragStart', event: PointerEvent, selection: TimelineKeyframeSelection): void;
 	(ev: 'keyframeSelected', selection: TimelineKeyframeSelection): void;
-	(ev: 'keyframeAdded', layerId: string): void;
+	(ev: 'expandRequested', layerId: string): void;
 	(ev: 'subtitleTrimStart', event: PointerEvent, layerId: string, utteranceId: string, clipId: string): void;
 }>();
 
@@ -279,7 +279,7 @@ function onKeyframeInsert(param: KeyframeParameter, x: number) {
 			sceneId: props.sceneId, layerId: layer.id, target: param.target, paramPath: param.paramPath,
 			edit: { kind: 'keyframesTimelineInline', value: inserted.value },
 		});
-		emit('keyframeAdded', layer.id);
+		emit('expandRequested', layer.id);
 	}
 	emit('keyframeSelected', { layerId: layer.id, target: param.target, paramPath: param.paramPath, keyframeId: inserted.keyframeId });
 }

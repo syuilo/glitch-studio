@@ -37,7 +37,7 @@ import { insertVoicevoxUtterance } from '@/utility/voicevox-utterance-edit.ts';
 import { appContext } from '@/app.ts';
 
 const props = defineProps<{ layer: TimelineVoicevoxLayer; sceneId: string }>();
-const emit = defineEmits<{ selected: [id: string]; keyframeAdded: [] }>();
+const emit = defineEmits<{ selected: [id: string]; expandRequested: [] }>();
 const { stateManager } = appContext.projectContext;
 const desktop = window.desktop;
 const { endpoint, version, speakers } = appContext.voicevoxConnection;
@@ -73,7 +73,7 @@ function add() {
 	if (!inserted) return;
 	if (inserted.utterances !== props.layer.utterances) {
 		if (!commit([...inserted.utterances])) return;
-		emit('keyframeAdded');
+		emit('expandRequested');
 	}
 	emit('selected', inserted.utterance.id);
 }

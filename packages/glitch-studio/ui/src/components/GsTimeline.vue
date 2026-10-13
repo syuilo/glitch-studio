@@ -104,7 +104,7 @@
 						@clipContextMenu="showClipMenu"
 						@keyframeDragStart="onKeyframeMoveStart"
 						@keyframeSelected="onKeyframeSelected"
-						@keyframeAdded="expandLayer"
+						@expandRequested="expandLayer"
 						@subtitleTrimStart="onSubtitleTrimStart"
 					/>
 				</template>
@@ -135,7 +135,7 @@
 				:scene="editedScene" :selection="selection" :mediaInfo="mediaInfo"
 				@selectKeyframe="onKeyframeSelected" @removeKeyframes="removeSelectedKeyframes" @removeClips="removeSelectedClips"
 				@changeClipSource="changeClipSource" @requestAddInlineEffectNode="showAddInlineEffectNodeMenu"
-				@keyframeAdded="expandLayer"
+				@expandRequested="expandLayer"
 			/>
 		</Teleport>
 		<div v-else>

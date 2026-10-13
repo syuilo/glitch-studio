@@ -20,7 +20,7 @@
 <GsTimelineInspectorLayer
 	v-if="selectedLayer" :scene="scene" :layer="selectedLayer"
 	@selectKeyframe="emit('selectKeyframe', $event)" @requestAddInlineEffectNode="emit('requestAddInlineEffectNode', $event)"
-	@keyframeAdded="emit('keyframeAdded', $event)"
+	@expandRequested="emit('expandRequested', $event)"
 />
 </template>
 
@@ -42,7 +42,7 @@ import GsTimelineVoicevoxUtteranceSettings from './GsTimeline.VoicevoxUtteranceS
 const props = defineProps<{ scene: TimelineScene; selection: TimelineSelection; mediaInfo: ReadonlyMap<string, TimelineClipMediaInfo> }>();
 const emit = defineEmits<{
 	selectKeyframe: [selection: TimelineKeyframeSelection];
-	keyframeAdded: [layerId: string];
+	expandRequested: [layerId: string];
 	removeKeyframes: [];
 	removeClips: [];
 	changeClipSource: [target: TimelineClipSelection];
