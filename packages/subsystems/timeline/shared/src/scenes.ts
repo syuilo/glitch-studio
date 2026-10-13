@@ -4,7 +4,6 @@ import { validateEffectResolution } from '@gs/subsystems_effect_shared/resolutio
 import { validateTimelineCamera } from './layers/camera/camera.ts';
 import { flattenTimelineLayers, getTimelineClipLayers } from './layer-tree.ts';
 import { getTimelineClipEnd, validateTimelineClips } from './timing.ts';
-import { validateSceneResolution } from './scene-resolution.ts';
 import { validateTimelineParameterBinding } from './parameter-binding.ts';
 import { validateVoicevoxSubtitle } from './layers/voicevox/voicevox-subtitle-validation.ts';
 import { validateTimelineText } from './layers/text/text-layer.ts';
@@ -61,30 +60,6 @@ export function validateTimelineLayer(layer: TimelineLayer): void {
 	if (layer.layerType === 'effect') {
 		for (const binding of Object.values(layer.effectParamValues)) validateTimelineParameterBinding(binding, true);
 	}
-}
-
-/** 同じSceneの複数配置は許可し、現在の参照経路に戻る場合だけ循環と判定する。 */
-export function validateTimelineScenes(scenes: readonly TimelineScene[]): void {
-	const byId = new Map(scenes.map(scene => [scene.id, scene]));
-	if (byId.size !== scenes.length) throw new Error('Duplicate scene ID');
-	const visited = new Set<string>();
-	const path: string[] = [];
-	const visit = (id: string) => {
-		if (path.includes(id)) throw new Error(`Circular scene reference: ${[...path, id].join(' → ')}`);
-		if (visited.has(id)) return;
-		const scene = byId.get(id);
-		if (scene == null) throw new Error(`Scene not found: ${id}`);
-		validateSceneResolution(scene.resolution);
-		if (new Set(flattenTimelineLayers(scene.layers).map(layer => layer.id)).size !== flattenTimelineLayers(scene.layers).length) throw new Error(`Duplicate layer ID in scene: ${scene.name}`);
-		path.push(id);
-		for (const layer of scene.layers) validateTimelineLayer(layer);
-		for (const layer of flattenTimelineLayers(scene.layers)) {
-			if (layer.layerType === 'scene') for (const clip of layer.clips) visit(clip.sceneId);
-		}
-		path.pop();
-		visited.add(id);
-	};
-	for (const scene of scenes) visit(scene.id);
 }
 
 export function canReferenceScene(scenes: readonly TimelineScene[], parentId: string, childId: string): boolean {

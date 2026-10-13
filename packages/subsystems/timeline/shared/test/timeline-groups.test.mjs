@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { loadSource } from './helpers/load-source.mjs';
 
 const load = name => loadSource(fileURLToPath(new URL('../src/' + name, import.meta.url)));
-const { getSceneDuration, validateTimelineScenes, canReferenceScene } = await load('scenes.ts');
+const { getSceneDuration, canReferenceScene } = await load('scenes.ts');
 const { getSceneAudioClips } = await load('scene-audio.ts');
 const { getTimelineMotionBlurBoundaries } = await load('motion-blur.ts');
 const { resolveTimelineAudioLayerReference } = await load('timeline-audio.ts');
@@ -65,16 +65,15 @@ test('derives group ranges and scene duration without retiming referenced scenes
 	assert.equal(getTimelineContainerRange(group('empty', [])), null);
 });
 
-// 【Scene参照とレイヤーIDの検証はグループ境界を越える】
-// 入れ子へ移しただけで循環や重複IDが見逃されると、描画と編集の対象が不定になる。
-test('rejects duplicate IDs and scene cycles hidden inside groups', () => {
-	const root = scene('root', [sound('same'), group('g', [sound('same')])]);
-	assert.throws(() => validateTimelineScenes([root]), /Duplicate layer ID/);
+// 【参照先の選択可否はグループ内のScene参照も考慮する】
+// 入れ子へ移しただけで循環を作る参照先が選べるようにならないことを保証する。
+test('rejects scene reference selections that introduce cycles through groups', () => {
 	const placement = { ...sound('placement'), layerType: 'scene', compositingParamValues: {},
-		clips: [{ id: 'clip', startMs: 0, durationMs: 10, contentOffsetMs: 0, sceneId: 'root' }] };
-	root.layers = [group('g', [placement])];
-	assert.throws(() => validateTimelineScenes([root]), /Circular scene reference/);
-	assert.equal(canReferenceScene([root], 'root', 'root'), false);
+		clips: [{ id: 'clip', startMs: 0, durationMs: 10, contentOffsetMs: 0, sceneId: 'child' }] };
+	const root = scene('root', [group('g', [placement])]);
+	const child = scene('child', []);
+	assert.equal(canReferenceScene([root, child], 'root', 'child'), true);
+	assert.equal(canReferenceScene([root, child], 'child', 'root'), false);
 });
 
 // 【非等方拡縮・回転・反転のある祖先でもポインターを元の座標へ戻す】

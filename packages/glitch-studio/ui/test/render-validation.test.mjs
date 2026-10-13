@@ -10,6 +10,8 @@ const bundle = await build({
 		export { ProjectRenderValidation } from './src/ProjectRenderValidation.ts';
 		export { PreviewRenderEngine } from './src/PreviewRenderEngine.ts';
 		export { inspectTimelineLayer } from '@gs/subsystems_timeline_shared/static-validation.ts';
+		export { createTimelineCameraParameterValues } from '@gs/subsystems_timeline_shared/layers/camera/camera.ts';
+		export { createTimelineTransformParameterValues } from '@gs/subsystems_timeline_shared/layers/transform/transform.ts';
 		export { ref } from 'vue';
 	` },
 	absWorkingDir: directory, bundle: true, platform: 'node', format: 'cjs', write: false,
@@ -20,7 +22,7 @@ const bundle = await build({
 });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', bundle.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
-const { ProjectRenderValidation, PreviewRenderEngine, inspectTimelineLayer, ref } = module.exports;
+const { ProjectRenderValidation, PreviewRenderEngine, inspectTimelineLayer, createTimelineCameraParameterValues, createTimelineTransformParameterValues, ref } = module.exports;
 const literal = value => ({ inputSource: 'literal', value });
 const scalar = { dataType: { kind: 'scalar' }, canNode: true, ui: { label: 'Amount', control: { controlType: 'number' } }, defaultValue: literal(0) };
 const definitions = { effect: { id: 'effect', paramDefs: { amount: scalar }, outputDefs: { output: { dataType: { kind: 'scalar' } } }, primaryInputParameter: 'amount' } };
@@ -29,6 +31,7 @@ const connection = id => ({ inputSource: 'node', nodeId: id, outputPort: 'output
 const visualModule = (nodes, id = 'visualModule') => ({ id, nodes, paramDefs: [], outputDefs: [], primaryInputId: null, primaryOutputId: null, automationGraphs: [] });
 const scene = (id, layers = []) => ({ id, name: id, resolution: { mode: 'project' }, layers });
 const sceneLayer = (id, sceneId) => ({ id, name: id, layerType: 'scene', clips: [{ id: 'clip', sceneId, startMs: 0, durationMs: 1000, contentOffsetMs: 0 }], compositingParamValues: {}, audioParamValues: {}, automationGraphs: [] });
+const groupLayer = (id, layers) => ({ id, name: id, layerType: 'group', layers, compositingParamValues: {}, audioParamValues: {}, automationGraphs: [], isDisabled: false });
 function fixture(visualModules = [], timelineScenes = []) {
 	const state = { visualModules: ref(visualModules), timelineScenes: ref(timelineScenes), assets: ref([]), players: ref([]), resolution: ref({ width: 16, height: 16 }), timelineFps: ref(60), timelineMotionBlur: ref({ enabled: false, shutterAngle: 180, samples: 0 }) };
 	const validation = new ProjectRenderValidation(state, definitions);
@@ -136,6 +139,80 @@ test('updates scene cycles when a referenced scene clip changes', () => {
 	state.timelineScenes.value[1].layers[0].clips = [];
 	validation.update([{ type: 'layer', sceneId: 'second', layerId: 'child', changes: [{ type: 'clips' }] }]);
 	assert.equal(validation.errorMessage.value, null);
+});
+
+// 【共通の子Sceneを複数配置しても、循環参照とは診断しない】
+// 旧全量検証の仕様をUIの検証入口へ移し、共有の子孫と現在の参照経路の循環を区別する。
+test('accepts repeated scene placements and shared descendants in UI validation', () => {
+	const scenes = [scene('root', [sceneLayer('first', 'child'), sceneLayer('second', 'child')]),
+		scene('child', [sceneLayer('leaf', 'leaf')]), scene('leaf')];
+	const { validation } = fixture([], scenes);
+	assert.equal(validation.errorMessage.value, null);
+});
+
+for (const cycle of ['direct', 'indirect', 'disabled group']) {
+	// 【直接・間接・無効なグループ内のScene循環をUIで診断する】
+	// 描画経路から外れた枝でも、参照先を生成する前に循環を検出する必要がある。
+	// 旧全量検証を削除しても、プロジェクト全体を停止する仕様を維持する。
+	test(`diagnoses a ${cycle} scene cycle in UI validation`, () => {
+		const root = scene('root', [sceneLayer('placement', cycle === 'indirect' ? 'child' : 'root')]);
+		const scenes = cycle === 'indirect' ? [root, scene('child', [sceneLayer('back', 'root')])] : [root];
+		if (cycle === 'disabled group') root.layers = [{ ...groupLayer('group', root.layers), isDisabled: true }];
+		const { validation } = fixture([], scenes);
+		assert.ok(validation.diagnostics.value.some(diagnostic => /Circular scene reference/.test(diagnostic.message)));
+	});
+}
+
+// 【参照先Sceneの欠落を診断し、追加・削除でも利用レイヤーの診断を更新する】
+// 編集したレイヤーだけの検証では、参照先を追加しても古いエラーが残り得る。
+// 復旧と再度の欠落までを、新しいUI検証の入口で確認する。
+test('diagnoses missing scenes and updates references after scene registration changes', () => {
+	const { state, validation } = fixture([], [scene('root', [sceneLayer('placement', 'missing')])]);
+	assert.match(validation.errorMessage.value, /Scene not found/);
+	state.timelineScenes.value.push(scene('missing'));
+	validation.update([{ type: 'scene', sceneId: 'missing' }]);
+	assert.equal(validation.errorMessage.value, null);
+	state.timelineScenes.value.pop();
+	validation.update([{ type: 'scene', sceneId: 'missing' }]);
+	assert.match(validation.errorMessage.value, /Scene not found/);
+});
+
+// 【Scene IDとグループをまたぐレイヤーIDの重複をUIで診断する】
+// 旧全量検証を削除しても、IDで参照する対象が一意であることを検証する。
+// グループ内のIDを修正した際に診断を解除できることも保証する。
+test('diagnoses duplicate scene and nested layer IDs in UI validation', () => {
+	const duplicates = fixture([], [scene('same'), scene('same')]);
+	assert.match(duplicates.validation.errorMessage.value, /Duplicate scene ID/);
+	const { state, validation } = fixture([], [scene('root', [groupLayer('same', []), groupLayer('parent', [groupLayer('same', [])])])]);
+	assert.match(validation.errorMessage.value, /Duplicate layer ID/);
+	state.timelineScenes.value[0].layers[1].layers[0].id = 'unique';
+	validation.update([{ type: 'layerTree', sceneId: 'root' }]);
+	assert.equal(validation.errorMessage.value, null);
+});
+
+// 【Sceneの解像度設定を旧全量検証ではなくUIの検証単位で診断する】
+// 読み込み元がCommandを通らない場合にも、不正な寸法で描画を始めない。
+// 設定変更で正常な解像度へ戻すと診断が解除されることを確認する。
+test('diagnoses invalid scene resolutions and clears them after correction', () => {
+	const root = { ...scene('root'), resolution: { mode: 'customAbsolute', width: 0, height: 16 } };
+	const { state, validation } = fixture([], [root]);
+	assert.match(validation.errorMessage.value, /Scene resolution/);
+	state.timelineScenes.value[0].resolution.width = 16;
+	validation.update([{ type: 'scene', sceneId: 'root' }]);
+	assert.equal(validation.errorMessage.value, null);
+});
+
+// 【ルートとTransform配下のカメラ設定をUIで検証し、Group配下では診断する】
+// 旧検証関数に付随していた正常な配置の確認を、実際の描画前検証へ移す。
+// Transformはカメラの配置を許可し、Groupの境界は越えられない仕様を維持する。
+test('accepts cameras under transforms and diagnoses cameras under groups in UI validation', () => {
+	const camera = { id: 'camera', name: 'Camera', layerType: 'camera', automationGraphs: [],
+		cameraParamValues: createTimelineCameraParameterValues(), clips: [{ id: 'clip', startMs: 0, durationMs: 1000, contentOffsetMs: 0 }] };
+	assert.equal(fixture([], [scene('root', [camera])]).validation.errorMessage.value, null);
+	const transform = { id: 'transform', name: 'Transform', layerType: 'transform', layers: [camera], automationGraphs: [],
+		transformParamValues: createTimelineTransformParameterValues() };
+	assert.equal(fixture([], [scene('root', [transform])]).validation.errorMessage.value, null);
+	assert.match(fixture([], [scene('root', [groupLayer('group', [transform])])]).validation.errorMessage.value, /Camera is inside a Group/);
 });
 
 // 【参照先の追加・削除では利用単位だけ再検証する】

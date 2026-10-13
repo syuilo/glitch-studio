@@ -9,7 +9,6 @@ const { getTimelinePreviewParent } = await loadSource(fileURLToPath(new URL('../
 const { TimelineCameraParameters } = await loadSource(fileURLToPath(new URL('../src/layers/camera/camera-parameters.ts', import.meta.url)));
 const evaluator = new TimelineCameraParameters();
 const { TimelineSceneCamera, TimelineCameraCuts, getActiveTimelineCamera } = await loadSource(fileURLToPath(new URL('../src/scene-camera.ts', import.meta.url)));
-const { validateTimelineScenes } = await loadSource(fileURLToPath(new URL('../src/scenes.ts', import.meta.url)));
 const { getTimelineMotionBlurBoundaries, getTimelineMotionBlurCameraCuts, getTimelineSampleTimes } = await loadSource(fileURLToPath(new URL('../src/motion-blur.ts', import.meta.url)));
 const camera = evaluator.evaluate(undefined, 0, false);
 const frame = { width: 1920, height: 1080 };
@@ -59,7 +58,6 @@ test('clips motion blur at camera cuts', () => {
 	assert.deepEqual(cameras[0].cuts.getBoundaries(100), [0, 100, 300]);
 	const samples = getTimelineSampleTimes(100, 60, { enabled: true, shutterAngle: 360, samples: 8 }, boundaries, [], cameras);
 	assert.ok(samples.every(time => time >= 100));
-	validateTimelineScenes([scene]);
 });
 
 

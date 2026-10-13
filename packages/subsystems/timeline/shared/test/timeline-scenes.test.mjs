@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { loadSource } from './helpers/load-source.mjs';
 
-const { getSceneDuration, validateTimelineScenes, canReferenceScene } = await loadSource(fileURLToPath(new URL('../src/scenes.ts', import.meta.url)));
+const { getSceneDuration, canReferenceScene } = await loadSource(fileURLToPath(new URL('../src/scenes.ts', import.meta.url)));
 const { getSceneAudioClips } = await loadSource(fileURLToPath(new URL('../src/scene-audio.ts', import.meta.url)));
 
 const scene = (id, layers = []) => ({ id, name: id, resolution: { mode: 'project' }, layers });
@@ -70,18 +70,17 @@ test('derives duration from direct placements including silent layers', () => {
 	assert.equal(getSceneDuration(scene('empty')), 0);
 });
 
-// 【共有Sceneの複数配置は許可し、参照経路に戻る循環だけを拒否する】
-// 全訪問済みIDを循環扱いすると正当な再利用も拒否される。間接循環も描画開始前に検出する。
-test('accepts shared descendants and rejects direct and indirect cycles', () => {
+// 【共有Sceneは参照先に選べるが、間接循環や自己参照を作る選択は拒否する】
+// 全訪問済みIDを循環扱いすると正当な再利用も選べなくなる。
+// 保存済み設定の診断とは分けて、追加する参照の選択可否を確認する。
+test('allows shared scene references while rejecting selections that introduce cycles', () => {
 	const root = scene('root', [nested('a', 'child', 0, 0, 100), nested('b', 'child', 100, 0, 100)]);
 	const child = scene('child');
-	validateTimelineScenes([root, child]);
 	assert.equal(canReferenceScene([root, child], 'child', 'root'), false);
 	assert.equal(canReferenceScene([root, child], 'root', 'child'), true);
 	child.layers.push(nested('back', 'root', 0, 0, 100));
-	assert.throws(() => validateTimelineScenes([root, child]), /Circular scene reference/);
-	assert.throws(() => validateTimelineScenes([scene('self', [nested('self-layer', 'self', 0, 0, 100)])]), /Circular scene reference/);
-	assert.throws(() => validateTimelineScenes([root]), /Scene not found/);
+	assert.equal(canReferenceScene([root, child], 'root', 'child'), false);
+	assert.equal(canReferenceScene([root, child], 'root', 'root'), false);
 });
 
 // 【多段トリムは祖先の区間を交差させ、元の音量キーと素材時刻を移動しない】

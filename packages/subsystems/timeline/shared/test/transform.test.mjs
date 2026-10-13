@@ -8,7 +8,7 @@ const { createTimelineTransformParameterValues } = await load('layers/transform/
 const { TimelineTransformParameters } = await load('layers/transform/transform-parameters.ts');
 const { createTimelineCameraParameterValues, DEFAULT_CAMERA_DISTANCE } = await load('layers/camera/camera.ts');
 const { TimelineSceneCamera, TimelineCameraCuts, getActiveTimelineCamera } = await load('scene-camera.ts');
-const { validateTimelineScenes, getSceneDuration } = await load('scenes.ts');
+const { getSceneDuration } = await load('scenes.ts');
 const { getSceneAudioClips } = await load('scene-audio.ts');
 const { getTimelineContainerRange } = await load('container-range.ts');
 const { getTimelineMotionBlurCameraCuts, getTimelineMotionBlurBoundaries } = await load('motion-blur.ts');
@@ -51,7 +51,6 @@ test('selects cameras in depth-first order and plans cuts using inherited visibi
 	const lower = camera('lower', 0, 500);
 	const parent = transform('parent', [transform('inner', [upper])]);
 	const layers = [parent, lower];
-	validateTimelineScenes([scene(layers)]);
 	assert.equal(getActiveTimelineCamera(layers, 150).layer.id, 'upper');
 	assert.equal(getActiveTimelineCamera(layers, 200).layer.id, 'lower');
 	assert.deepEqual(new TimelineCameraCuts(layers).getBoundaries(150), [0, 100, 200, 500]);
