@@ -74,7 +74,7 @@ const emit = defineEmits<{
 	(ev: 'closed'): void;
 }>();
 
-const sceneId = ref('');
+const sceneId = ref(previewPlayback.state.value.mode === 'timeline' ? (appContext.activeScene.value?.id ?? '') : '');
 const sceneItems = computed(() => [{ label: 'Choose scene', value: '' }, ...stateManager.state.timelineScenes.value.map(scene => ({ label: scene.name, value: scene.id }))]);
 const scene = computed(() => stateManager.state.timelineScenes.value.find(scene => scene.id === sceneId.value));
 const mode = ref('video');
@@ -103,7 +103,7 @@ const resolution = computed(() => scaleExportResolution(getSceneBaseResolution(s
 const fps = ref(stateManager.state.timelineFps.value);
 const startTime = ref('00:00:00.000');
 const endTime = ref(formatExportTime(0));
-watch(sceneId, () => { startTime.value = formatExportTime(0); endTime.value = formatExportTime(scene.value == null ? 0 : getSceneDuration(scene.value)); });
+watch(sceneId, () => { startTime.value = formatExportTime(0); endTime.value = formatExportTime(scene.value == null ? 0 : getSceneDuration(scene.value)); }, { immediate: true });
 const exporting = ref(false);
 const error = ref('');
 const status = ref('');
