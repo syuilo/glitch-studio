@@ -67,17 +67,19 @@ export class TimelineCameraCuts {
 	}
 }
 
-/** 最上位Scene・参照先Scene・プレビューで、同じ選択規則と基準カメラを使う。 */
+/** 最上位Scene・参照先Scene・プレビューで、同じカメラ選択規則を使う。 */
 export class TimelineSceneCamera {
 	private parameters = new TimelineCameraParameters();
 	private transforms = new TimelineTransformParameters();
 
 	evaluate(layers: readonly TimelineLayer[], time: number, isExport: boolean, referenceTime = time) {
 		const active = getActiveTimelineCamera(layers, time, referenceTime);
-		const settings = active && { paramValues: active.layer.cameraParamValues, automationGraphs: active.layer.automationGraphs };
-		const camera = this.parameters.evaluate(settings, active?.time ?? time, isExport);
+		// 有効なカメラがない区間は2D合成とし、Zによる拡縮・近接面での非表示を行わない。
+		if (!active) return undefined;
+		const settings = { paramValues: active.layer.cameraParamValues, automationGraphs: active.layer.automationGraphs };
+		const camera = this.parameters.evaluate(settings, active.time, isExport);
 		let ancestorTime = time;
-		for (const parent of active?.ancestors ?? []) {
+		for (const parent of active.ancestors) {
 			// 子カメラだけのブラー無効では親の揺れを止めない。親を固定した場合は
 			// そこから下の時計を固定し、映像のTransform走査と同じ継承規則にする。
 			if (parent.forceDisableMotionBlur) ancestorTime = referenceTime;

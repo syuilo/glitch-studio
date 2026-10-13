@@ -104,7 +104,7 @@ test('finds visual boundaries through transforms without extending their childre
 test('matches preview transforms across flat, preserved and screen spaces', () => {
 	const settings = { position: [0, 0], origin: [0, 0], scale: [1, 1], rotation: 0, fitMode: 'stretch', coordinateSpace: 'world', depth: 0 };
 	const frame = { width: 1920, height: 1080 };
-	const view = new TimelineSceneCamera().evaluate([], 0, false);
+	const view = new TimelineSceneCamera().evaluate([camera('camera')], 0, false);
 	const root = { parent: TIMELINE_IDENTITY, depth: 0, camera: view };
 	const translation = { position: [0.3, 0.2], z: 0.5 };
 	const preview = (ancestors, own = settings) => getTimelinePreviewParent(ancestors, own, frame, root);

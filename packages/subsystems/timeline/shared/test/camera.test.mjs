@@ -24,7 +24,7 @@ const cameraLayer = (id, startMs, durationMs, paramValues = {}) => ({
 
 // 【最上段の有効なカメラを選び、無効化・空白区間・並べ替えを反映する】
 // カメラの順序は映像合成の順序と別に解決し、該当なしでは前フレームの視点を残さない。
-test('selects the topmost active camera and restores the default during gaps', () => {
+test('selects the topmost active camera and disables projection during gaps', () => {
 	const upper = cameraLayer('upper', 100, 200, { z: { inputSource: 'literal', value: 4 } });
 	const lower = cameraLayer('lower', 0, 500, { z: { inputSource: 'literal', value: 8 } });
 	const sceneCamera = new TimelineSceneCamera();
@@ -34,7 +34,28 @@ test('selects the topmost active camera and restores the default during gaps', (
 	assert.equal(getActiveTimelineCamera([upper, lower], 500), undefined);
 	assert.equal(sceneCamera.evaluate([lower, upper], 150, false).z, 8);
 	assert.equal(sceneCamera.evaluate([{ ...upper, isDisabled: true }, lower], 150, false).z, 8);
-	assert.deepEqual(sceneCamera.evaluate([upper, lower], 500, false), camera);
+	assert.equal(sceneCamera.evaluate([upper, lower], 500, false), undefined);
+});
+
+// 【有効なカメラがない区間ではZを変えても2D配置とプレビューを維持する】
+// 未配置・無効化・クリップ外を同じ規則で扱い、近接面を越えるZでも消えないようにする。
+// カメラの有効区間だけ透視投影へ切り替わり、終了後は元の配置へ戻る。
+test('preserves 2D geometry at every depth without an active camera', () => {
+	const sceneCamera = new TimelineSceneCamera();
+	const entry = cameraLayer('camera', 100, 100);
+	const matrix = [2, 0, 0, 3, 0.2, -0.3];
+	for (const isExport of [false, true]) {
+		for (const [layers, time] of [[[], 150], [[entry], 99], [[entry], 200], [[{ ...entry, isDisabled: true }], 150]]) {
+			const view = sceneCamera.evaluate(layers, time, isExport);
+			assert.equal(view, undefined);
+			for (const depth of [-100, 0, 1, 100]) {
+				assert.deepEqual(projectTimelineMatrix(matrix, depth, view), matrix);
+				assert.deepEqual(getTimelinePreviewParent([], { ...settings, depth }, frame,
+					{ parent: matrix, depth: 10, camera: view }), matrix);
+			}
+		}
+		assert.notDeepEqual(projectTimelineMatrix(matrix, 1, sceneCamera.evaluate([entry], 100, isExport)), matrix);
+	}
 });
 
 // 【カメラのキーはクリップのトリムに依存せず、ブラー無効時だけ基準時刻へ固定する】
