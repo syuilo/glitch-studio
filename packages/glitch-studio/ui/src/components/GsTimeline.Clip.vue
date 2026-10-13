@@ -1,28 +1,44 @@
 <template>
-<div v-if="selected && sourceGhost" :class="$style.sourceGhost" :style="{ left: sourceGhost.startMs * pixelsPerMs + 'px', width: sourceGhost.durationMs * pixelsPerMs + 'px' }"></div>
-<div
-	:data-timeline-clip-id="clip.id"
-	:class="[$style.clip, { [$style.selected]: selected, [$style.active]: active, [$style.moving]: moving }]"
-	:style="{ left: clip.startMs * pixelsPerMs + 'px', width: clip.durationMs * pixelsPerMs + 'px' }"
-	@pointerdown.stop="emit('moveStart', $event)"
-	@click.stop
-	@dblclick.stop
-	@contextmenu.stop.prevent="emit('contextMenu', $event)"
->
-	<div v-if="mediaClip?.loop" :class="$style.loopFill" :style="{ left: periodMs * pixelsPerMs + 'px', '--loopPeriod': Math.max(6, periodMs * pixelsPerMs) + 'px', '--loopLine': periodMs * pixelsPerMs >= 6 ? '#fff5' : 'transparent' }"></div>
-	<div style="padding: 0 8px;"><GsCondensedLine>{{ label }}<template v-if="'sourceTimeMs' in clip"> · Hold {{ formatTimelineTimecode(clip.sourceTimeMs) }}</template><template v-else-if="mediaClip && mediaClip.playbackRate !== 1"> · {{ mediaClip.playbackRate < 0 ? 'Reverse ' : '' }}{{ Math.abs(mediaClip.playbackRate) }}×</template></GsCondensedLine></div>
-	<div :class="[$style.trimHandle, $style.trimStart]" title="Trim source start" @pointerdown.stop="emit('trimStart', $event, 'start')"></div>
-	<div :class="[$style.trimHandle, $style.trimEnd, { [$style.mediaTrimEnd]: mediaClip }]" :style="{ right: (clip.durationMs - Math.min(clip.durationMs, periodMs)) * pixelsPerMs + 'px' }" title="Trim source end" @pointerdown.stop="emit('trimStart', $event, 'end')"></div>
-	<div v-if="mediaClip" :class="[$style.trimHandle, $style.loopEnd]" title="Extend to loop the trimmed range" aria-label="Resize media loop" @pointerdown.stop="emit('trimStart', $event, 'loop')"><i class="ti ti-repeat"></i></div>
+<div :class="$style.root" :data-timeline-clip-id="clip.id">
+	<div :class="$style.topLane">
+		<div v-if="mediaClip" :style="{ left: clip.startMs * pixelsPerMs + 'px', width: clip.durationMs * pixelsPerMs + 'px' }" :class="$style.clipTopHandleArea">
+			<div v-tooltip.bottom="'Trim source end'" :class="[$style.topTrimHandle]" :style="{ right: (clip.durationMs - Math.min(clip.durationMs, periodMs)) * pixelsPerMs + 'px' }" @pointerdown.stop="emit('trimStart', $event, 'end')"></div>
+		</div>
+	</div>
+	<div :class="$style.mainLane">
+		<div v-if="selected && sourceGhost" :class="$style.sourceGhost" :style="{ left: sourceGhost.startMs * pixelsPerMs + 'px', width: sourceGhost.durationMs * pixelsPerMs + 'px' }"></div>
+		<div
+			:class="[$style.clip, { [$style.selected]: selected, [$style.active]: active, [$style.moving]: moving }]"
+			:style="{ left: clip.startMs * pixelsPerMs + 'px', width: clip.durationMs * pixelsPerMs + 'px' }"
+			@pointerdown.stop="emit('moveStart', $event)"
+			@click.stop
+			@dblclick.stop
+			@contextmenu.stop.prevent="emit('contextMenu', $event)"
+		>
+			<div :class="$style.clipInner">
+				<div v-if="mediaClip?.loop" :class="$style.loopFill" :style="{ left: periodMs * pixelsPerMs + 'px', '--loopPeriod': Math.max(6, periodMs * pixelsPerMs) + 'px', '--loopLine': periodMs * pixelsPerMs >= 6 ? '#fff8' : 'transparent' }"></div>
+				<div :class="$style.clipInnerLeft">
+					<div v-tooltip.bottom="'Trim source start'" :class="[$style.trimStart]" @pointerdown.stop="emit('trimStart', $event, 'start')"></div>
+				</div>
+				<div :class="$style.clipLabel"><GsCondensedLine>{{ label }}<template v-if="'sourceTimeMs' in clip"> · Hold {{ formatTimelineTimecode(clip.sourceTimeMs) }}</template><template v-else-if="mediaClip && mediaClip.playbackRate !== 1"> · {{ mediaClip.playbackRate < 0 ? 'Reverse ' : '' }}{{ Math.abs(mediaClip.playbackRate) }}×</template></GsCondensedLine></div>
+				<div :class="$style.clipInnerRight">
+					<div v-if="!mediaClip" v-tooltip.bottom="'Trim source end'" :class="[$style.trimEnd]" :style="{ right: (clip.durationMs - Math.min(clip.durationMs, periodMs)) * pixelsPerMs + 'px' }" @pointerdown.stop="emit('trimStart', $event, 'end')"></div>
+					<div v-if="mediaClip" v-tooltip.bottom="'Extend to loop the trimmed range'" :class="[ $style.loopEnd]" @pointerdown.stop="emit('trimStart', $event, 'loop')"><i class="ti ti-repeat"></i></div>
+				</div>
+			</div>
+		</div>
+	</div>
+	<div :class="$style.bottomLane">
+	</div>
 </div>
 </template>
 
 <script lang="ts" setup>
-import GsCondensedLine from './common/GsCondensedLine.vue';
 import { computed } from 'vue';
 import { getTimelineMediaPeriod } from '@gs/subsystems_timeline_shared/media-timing.ts';
-import { formatTimelineTimecode } from '@/utility/timeline-ticks.ts';
+import GsCondensedLine from './common/GsCondensedLine.vue';
 import type { TimelineClip } from '@gs/subsystems_timeline_shared/clip.ts';
+import { formatTimelineTimecode } from '@/utility/timeline-ticks.ts';
 
 const props = defineProps<{
 	clip: TimelineClip;
@@ -53,9 +69,71 @@ const emit = defineEmits<{
 </script>
 
 <style module lang="scss">
+.root {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	height: var(--MAIN_LANE_HEIGHT);
+}
+
+.topLane {
+	position: relative;
+}
+
+.mainLane {
+	position: relative;
+	flex: 1;
+	min-height: 0;
+}
+
+.bottomLane {
+	position: relative;
+}
+
+.sourceGhost {
+	position: absolute;
+	bottom: 0;
+	height: 100%;
+	box-sizing: border-box;
+	background: color-mix(in srgb, var(--LAYER_COLOR) 15%, transparent);
+	border: 1px dashed color-mix(in srgb, var(--LAYER_COLOR) 45%, transparent);
+	pointer-events: none;
+}
+
 .clip {
 	position: absolute;
-	height: var(--mainLaneHeight);
+	height: 100%;
+	box-sizing: border-box;
+	display: flex;
+	flex-direction: column;
+}
+
+.clipTopHandleArea {
+	position: relative;
+	height: 20px;
+}
+
+.topTrimHandle {
+	position: absolute;
+	top: 0;
+	right: 0;
+	width: min(8px, 25%);
+	height: 100%;
+	background: var(--LAYER_COLOR);
+	border-radius: 0 0 0 8px;
+	corner-shape: bevel;
+	cursor: ew-resize;
+	touch-action: none;
+
+	&:hover {
+		background: #fff;
+	}
+}
+
+.clipInner {
+	position: relative;
+	height: 100%;
+	display: flex;
 	box-sizing: border-box;
 	overflow: clip;
 	cursor: grab;
@@ -67,59 +145,79 @@ const emit = defineEmits<{
 	corner-shape: bevel;
 }
 .selected {
-	box-shadow: inset 0 0 0 2px var(--THEME-fg);
+	.clipInner {
+		box-shadow: inset 0 0 0 2px #fff;
+	}
 }
 .active {
-	background: var(--LAYER_COLOR);
+	.clipInner {
+		background: var(--LAYER_COLOR);
+	}
 }
 .moving {
-	cursor: grabbing;
+	.clipInner {
+		cursor: grabbing;
+	}
 }
-.sourceGhost {
-	position: absolute;
-	height: var(--mainLaneHeight);
+
+.clipInnerLeft {
+	position: relative;
+	z-index: 1;
+}
+
+.clipLabel {
+	flex: 1;
 	box-sizing: border-box;
-	background: color-mix(in srgb, var(--LAYER_COLOR) 15%, transparent);
-	border: 1px dashed color-mix(in srgb, var(--LAYER_COLOR) 45%, transparent);
-	pointer-events: none;
+	min-width: 0;
+	overflow: clip;
 }
-.trimHandle {
-	position: absolute;
-	top: 0;
-	bottom: 0;
-	width: min(8px, 25%);
+
+.clipInnerRight {
+	position: relative;
+	z-index: 1;
+	display: flex;
+	flex-direction: column;
+}
+
+.trimStart {
+	width: 8px;
+	height: 100%;
 	cursor: ew-resize;
 	touch-action: none;
 	&:hover {
 		background: #fff8;
 	}
 }
-.trimStart {
-	left: 0;
-}
 .trimEnd {
-	right: 0;
-}
-.mediaTrimEnd {
-	bottom: 50%;
-	background: #ffffff30;
+	width: 8px;
+	height: 100%;
+	cursor: ew-resize;
+	touch-action: none;
+	&:hover {
+		background: #fff8;
+	}
 }
 .loopEnd {
-	top: 50%;
-	right: 0;
-	width: min(20px, 50%);
+	height: 50%;
+	width: 20px;
+	margin-top: auto;
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	background: #0005;
-	font-size: 12px;
+	background: hsl(from var(--LAYER_COLOR) h s calc(l + 10));
+	border-radius: 6px 0 0 0;
+	corner-shape: bevel;
+	font-size: 90%;
+	//cursor: url('cursor/loop-right-handle.svg'), auto;
+	cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="%23fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon icon-tabler icons-tabler-outline icon-tabler-arrow-iteration"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M8.5 16a5.5 5.5 0 1 0 -5.5 -5.5v.5" /><path d="M3 16h18" /><path d="M18 13l3 3l-3 3" /></svg>') 8 8, auto;
 }
+
 .loopFill {
 	position: absolute;
 	top: 0;
 	bottom: 0;
 	right: 0;
 	pointer-events: none;
-	background-image: repeating-linear-gradient(90deg, var(--loopLine) 0 1px, transparent 1px var(--loopPeriod)), repeating-linear-gradient(135deg, #0002 0 4px, transparent 4px 8px);
+	background-image: repeating-linear-gradient(90deg, var(--loopLine) 0 1px, transparent 1px var(--loopPeriod)), repeating-linear-gradient(135deg, #0003 0 4px, transparent 4px 8px);
 }
 </style>

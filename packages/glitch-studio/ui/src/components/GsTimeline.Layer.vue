@@ -115,7 +115,6 @@
 
 <script lang="ts" setup>
 import { isTimelineContainerLayer, isTimelineVisualLayer } from '@gs/subsystems_timeline_shared/types.ts';
-
 import { getTimelineContainerRange } from '@gs/subsystems_timeline_shared/container-range.ts';
 import { computed } from 'vue';
 import { paramPathKey } from '@gs/shared/parameter/parameter-path.ts';
@@ -126,7 +125,6 @@ import GsCondensedLine from './common/GsCondensedLine.vue';
 import VoicevoxKeys from './GsTimeline.VoicevoxKeys.vue';
 import XClips from './GsTimeline.Layer.Clips.vue';
 import XKeyframes from './GsTimeline.Layer.Keyframes.vue';
-import GsButton from './common/GsButton.vue';
 import type { TimelineClip, TimelineAssetClip, TimelineVideoClip, TimelineSceneClip } from '@gs/subsystems_timeline_shared/clip.ts';
 import type { TimelineKeyframeSelection, TimelineClipSelection } from '@/utility/timeline-selection.ts';
 import type { TimelineTickMode, TimelineTickSubdivisions } from '@/utility/timeline-ticks.ts';
@@ -292,8 +290,9 @@ function timeToDomX(time: number): number { return timelineTimeToX(time, props.t
 
 <style module lang="scss">
 .root {
-	--mainLaneHeight: 24px;
-	--keyframesLaneHeight: 20px;
+	--BASE_MAIN_LANE_HEIGHT: 24px;
+	--MAIN_LANE_HEIGHT: var(--BASE_MAIN_LANE_HEIGHT);
+	--KEYFRAMES_LANE_HEIGHT: 20px;
 	--sideColor: #181818;
 	overflow: clip;
 
@@ -324,6 +323,7 @@ function timeToDomX(time: number): number { return timelineTimeToX(time, props.t
 	}
 	&.type_video {
 		--LAYER_COLOR: var(--THEME-layer-video);
+		--MAIN_LANE_HEIGHT: 60px;
 	}
 	&.type_text {
 		--LAYER_COLOR: var(--THEME-layer-text);
@@ -339,7 +339,7 @@ function timeToDomX(time: number): number { return timelineTimeToX(time, props.t
 .mainLane {
 	display: flex;
 	width: 100%;
-	height: var(--mainLaneHeight);
+	height: var(--MAIN_LANE_HEIGHT);
 }
 
 .side {
@@ -399,8 +399,8 @@ function timeToDomX(time: number): number { return timelineTimeToX(time, props.t
 
 .layerHeader {
 	display: flex;
-	height: var(--mainLaneHeight);
-	line-height: var(--mainLaneHeight);
+	height: var(--MAIN_LANE_HEIGHT);
+	line-height: var(--MAIN_LANE_HEIGHT);
 	align-items: center;
 	overflow: clip;
 	user-select: none;
@@ -412,7 +412,8 @@ function timeToDomX(time: number): number { return timelineTimeToX(time, props.t
 	display: grid;
 	padding: 4px 2px 4px 8px;
 	box-sizing: border-box;
-	height: var(--mainLaneHeight);
+	width: var(--BASE_MAIN_LANE_HEIGHT);
+	height: var(--MAIN_LANE_HEIGHT);
 	cursor: move;
 	user-select: none;
 	color: color(from currentColor srgb r g b / 0.5);
@@ -420,6 +421,7 @@ function timeToDomX(time: number): number { return timelineTimeToX(time, props.t
 
 .grabberSvg {
 	height: 100%;
+	width: 100%;
 	pointer-events: none;
 }
 
@@ -436,7 +438,7 @@ function timeToDomX(time: number): number { return timelineTimeToX(time, props.t
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	height: var(--mainLaneHeight);
+	height: var(--MAIN_LANE_HEIGHT);
 	padding: 0 6px 0 0;
 }
 
@@ -445,8 +447,8 @@ function timeToDomX(time: number): number { return timelineTimeToX(time, props.t
 	flex-shrink: 0;
 	align-items: center;
 	justify-content: center;
-	width: var(--mainLaneHeight);
-	height: var(--mainLaneHeight);
+	width: var(--BASE_MAIN_LANE_HEIGHT);
+	height: var(--MAIN_LANE_HEIGHT);
 	margin-left: 4px;
 	font-size: 90%;
 	color: #fff4;
@@ -461,8 +463,8 @@ function timeToDomX(time: number): number { return timelineTimeToX(time, props.t
 	flex-shrink: 0;
 	align-items: center;
 	justify-content: center;
-	width: var(--mainLaneHeight);
-	height: var(--mainLaneHeight);
+	width: var(--BASE_MAIN_LANE_HEIGHT);
+	height: var(--MAIN_LANE_HEIGHT);
 	margin-left: 4px;
 	color: #fff;
 
@@ -523,8 +525,8 @@ function timeToDomX(time: number): number { return timelineTimeToX(time, props.t
 .keyframesLane {
 	display: flex;
 	width: 100%;
-	height: var(--keyframesLaneHeight);
-	line-height: var(--keyframesLaneHeight);
+	height: var(--KEYFRAMES_LANE_HEIGHT);
+	line-height: var(--KEYFRAMES_LANE_HEIGHT);
 	text-align: right;
 
 	&:hover {
@@ -536,9 +538,9 @@ function timeToDomX(time: number): number { return timelineTimeToX(time, props.t
 	position: absolute;
 	z-index: 1;
 	top: 0;
-	width: var(--mainLaneHeight);
-	height: var(--mainLaneHeight);
-	line-height: var(--mainLaneHeight);
+	width: var(--MAIN_LANE_HEIGHT);
+	height: var(--MAIN_LANE_HEIGHT);
+	line-height: var(--MAIN_LANE_HEIGHT);
 	text-align: center;
 	background: var(--sideColor);
 }
@@ -546,7 +548,7 @@ function timeToDomX(time: number): number { return timelineTimeToX(time, props.t
 .groupClip {
 	position: absolute;
 	box-sizing: border-box;
-	height: var(--mainLaneHeight);
+	height: var(--MAIN_LANE_HEIGHT);
 	border-radius: 4px;
 	background: color-mix(in srgb, var(--THEME-accent) 20%, transparent);
 	color: var(--THEME-fg);
