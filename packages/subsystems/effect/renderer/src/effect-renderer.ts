@@ -21,15 +21,15 @@ type RenderContext<Definition extends Pick<EffectDefinition, 'paramDefs' | 'outp
  * 返した出力を読むコマンドは、次の描画・再確保・破棄より前に呼び出し側でsubmitする。
  */
 export class EffectRenderer<Definition extends Pick<EffectDefinition, 'paramDefs' | 'outputDefs'> = EffectDefinition<any, any>> {
-	private instance?: EffectInstance<Definition['paramDefs'], Definition['outputDefs']>;
+	private instance: EffectInstance<Definition['paramDefs'], Definition['outputDefs']> | null = null;
 	private instanceGeneration = 0;
 	private resourceVersionValue = ++nextResourceVersion;
-	private currentResolution?: Resolution;
+	private currentResolution: Resolution | null = null;
 	private readonly outputs = new Map<string, EffectOutputData>();
 	private readonly lazyPorts: string[];
-	private status?: EffectStatus;
+	private status: EffectStatus | null = null;
 	private outputState: EffectInstanceState['outputs'];
-	private publishedStateKey?: string;
+	private publishedStateKey: string | null = null;
 	private readonly statusWaiters = new Set<() => void>();
 	private disposed = false;
 
@@ -39,12 +39,12 @@ export class EffectRenderer<Definition extends Pick<EffectDefinition, 'paramDefs
 		wgpu: EffectGpuContext;
 		fallbackTexture: GPUTexture;
 		/** 未確定なら非遅延出力を1x1で仮確保し、初期化前にsetResolutionで確定する。 */
-		resolution?: Resolution;
+		resolution?: Resolution | null;
 		onState?: (state: EffectInstanceState | null) => void;
 		timingHelper?: TimingHelper | null;
 		enableStats?: boolean;
 	}) {
-		this.currentResolution = options.resolution == null ? undefined : { ...options.resolution };
+		this.currentResolution = options.resolution == null ? null : { ...options.resolution };
 		this.lazyPorts = Object.keys(options.definition.outputDefs).filter(port => options.definition.outputDefs[port].canLazyAllocation);
 		this.outputState = this.emptyOutputState();
 		try {
@@ -59,14 +59,14 @@ export class EffectRenderer<Definition extends Pick<EffectDefinition, 'paramDefs
 		}
 	}
 
-	get resolution(): Readonly<Resolution> | undefined { return this.currentResolution; }
+	get resolution(): Readonly<Resolution> | null { return this.currentResolution; }
 	get resourceVersion(): number { return this.resourceVersionValue; }
 	get cacheVersion(): number { return this.instance?.cacheVersion ?? 0; }
 	get hasLazyOutputs(): boolean { return this.lazyPorts.length > 0; }
 
 	/** 出力は借用。準備中は未描画のテクスチャも返し、上流の寸法・入力を解決できる。 */
-	getOutputTexture(port: Extract<keyof Definition['outputDefs'], string>): GPUTexture | undefined {
-		return this.outputs.get(port)?.texture;
+	getOutputTexture(port: Extract<keyof Definition['outputDefs'], string>): GPUTexture | null {
+		return this.outputs.get(port)?.texture ?? null;
 	}
 
 	private assertAlive() {
@@ -76,12 +76,12 @@ export class EffectRenderer<Definition extends Pick<EffectDefinition, 'paramDefs
 	private createOutput(port: string, resolution: Resolution): EffectOutputData {
 		const createTexture = this.options.implementation.outputTextureFactories[port];
 		const args = { resolution, wgpu: this.options.wgpu };
-		let texture: GPUTexture | undefined;
-		let previousFrameTexture: GPUTexture | undefined;
+		let texture: GPUTexture | null = null;
+		let previousFrameTexture: GPUTexture | null = null;
 		try {
 			texture = createTexture(args);
-			previousFrameTexture = this.options.implementation.needsPreviousFrame ? createTexture(args) : undefined;
-			return { texture, textureView: texture.createView(), previousFrameTexture, previousFrameTextureView: previousFrameTexture?.createView() };
+			previousFrameTexture = this.options.implementation.needsPreviousFrame ? createTexture(args) : null;
+			return { texture, textureView: texture.createView(), previousFrameTexture, previousFrameTextureView: previousFrameTexture?.createView() ?? null };
 		} catch (error) {
 			texture?.destroy();
 			previousFrameTexture?.destroy();
@@ -122,7 +122,7 @@ export class EffectRenderer<Definition extends Pick<EffectDefinition, 'paramDefs
 		this.releaseInstance();
 		// ポートごとに交換し、全出力の新旧を同時に保持してピークメモリを増やさない。
 		// 途中で確保に失敗した場合は寸法を未確定にして、再試行前の描画を防ぐ。
-		this.currentResolution = undefined;
+		this.currentResolution = null;
 		for (const [port, previous] of this.outputs) {
 			const output = this.createOutput(port, resolution);
 			this.destroyOutput(previous);
@@ -188,8 +188,8 @@ export class EffectRenderer<Definition extends Pick<EffectDefinition, 'paramDefs
 		for (const [port, output] of this.outputs) {
 			outputDataMap[port] = {
 				// 公開中の結果を前回値として読み、もう1枚へ書く。成功するまでは公開先を変更しない。
-				previousFrameTexture: needsPreviousFrame ? output.texture : undefined,
-				previousFrameTextureView: needsPreviousFrame ? output.textureView : undefined,
+				previousFrameTexture: needsPreviousFrame ? output.texture : null,
+				previousFrameTextureView: needsPreviousFrame ? output.textureView : null,
 				texture: needsPreviousFrame ? output.previousFrameTexture! : output.texture,
 				textureView: needsPreviousFrame ? output.previousFrameTextureView! : output.textureView,
 			};
@@ -256,11 +256,11 @@ export class EffectRenderer<Definition extends Pick<EffectDefinition, 'paramDefs
 		++this.instanceGeneration;
 		this.resourceVersionValue = ++nextResourceVersion;
 		const instance = this.instance;
-		this.instance = undefined;
+		this.instance = null;
 		const hadStatus = this.status != null;
-		this.status = undefined;
+		this.status = null;
 		this.outputState = this.emptyOutputState();
-		this.publishedStateKey = undefined;
+		this.publishedStateKey = null;
 		for (const notify of this.statusWaiters) notify();
 		if (hadStatus) this.options.onState?.(null);
 		instance?.dispose();

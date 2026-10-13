@@ -36,12 +36,12 @@ export class TimelineEffectStateStore {
 		}
 	}
 
-	public getNodes(sceneId: string, layerId: string): ReadonlyMap<string, EffectInstanceState> | undefined {
-		return this.nodeStates.get(JSON.stringify([sceneId, layerId]))?.states;
+	public getNodes(sceneId: string, layerId: string): ReadonlyMap<string, EffectInstanceState> | null {
+		return this.nodeStates.get(JSON.stringify([sceneId, layerId]))?.states ?? null;
 	}
 
-	public getLayer(sceneId: string, layerId: string): EffectInstanceState | undefined {
-		return this.layerStates.get(JSON.stringify([sceneId, layerId]))?.state;
+	public getLayer(sceneId: string, layerId: string): EffectInstanceState | null {
+		return this.layerStates.get(JSON.stringify([sceneId, layerId]))?.state ?? null;
 	}
 
 	public clear() {

@@ -3,8 +3,9 @@ import { deepClone } from '../utility/deep-clone.ts';
 import { RESERVED_EXPRESSION_WORDS, singleVariableExpression } from './expression-syntax.ts';
 import type { ExpressionEnvironment } from './expression-environment.ts';
 
+// AiScriptのネイティブ関数引数は省略時にundefinedになる。JSのデフォルト引数を適用するため、そのまま渡す。
 function expressionArgumentToJs(value: AiScript.values.Value | undefined): unknown {
-	if (value === undefined) return undefined;
+	if (value == null) return undefined;
 	// valToJsは関数を表示用の文字列にするため、名前を受け取る公開関数の引数には使えない。
 	// 公開関数との境界ではデータだけを受け渡し、関数の暗黙の文字列化を防ぐ。
 	switch (value.type) {
@@ -32,6 +33,7 @@ export class ExpressionEvaluator {
 			}
 			const constants = Object.fromEntries(Object.entries(variables).map(([key, value]) => [key, AiScript.utils.jsToVal(value)]));
 			for (const [name, fn] of Object.entries(functions)) {
+				// AiScriptのFN_NATIVEが指定する省略可能引数の型に合わせる。
 				const invoke = (args: (AiScript.values.Value | undefined)[]) => AiScript.utils.jsToVal(
 					fn(...args.map(expressionArgumentToJs)));
 				constants[name] = AiScript.values.FN_NATIVE(invoke, invoke);
@@ -41,7 +43,7 @@ export class ExpressionEvaluator {
 			const ast = cachedAst ?? this.parser.parse(expression);
 			if (cachedAst == null) this.astCache.set(expression, ast);
 			const value = interpreter.execSync(ast);
-			return value === undefined ? null : AiScript.utils.valToJs(value);
+			return value == null ? null : AiScript.utils.valToJs(value);
 		} catch {
 			return fallback;
 		}

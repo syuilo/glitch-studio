@@ -77,7 +77,7 @@ test('rejects overlapping speed changes without altering any clips or keys', t =
 test('resizes loops from the gesture snapshot and preserves merged undo and redo', t => {
 	const f = fixture(t);
 	f.drag.actions.onClipTrimStart({}, target, 'loop');
-	assert.deepEqual(f.drag.move.points[0], { time: 4000, minDelta: 0, maxDelta: 8000, snapTimes: undefined, snapPeriod: { startMs: 1000, durationMs: 3000 } });
+	assert.deepEqual(f.drag.move.points[0], { time: 4000, minDelta: 0, maxDelta: 8000, snapTimes: null, snapPeriod: { startMs: 1000, durationMs: 3000 } });
 	for (const delta of [5000, 0, 20000]) f.drag.move.apply(delta, 'loop-drag');
 	assert.deepEqual([f.clip.durationMs, (f.clip.loop ? f.clip.sourceOutMs - f.clip.sourceInMs : null)], [11000, 3000]);
 	assert.equal(f.history.undoStack.value.length, 1);

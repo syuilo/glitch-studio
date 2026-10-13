@@ -12,7 +12,7 @@ import type { VoicevoxUtterance } from '@gs/subsystems_timeline_shared/layers/vo
 import type { ProjectState } from '../Project.ts';
 
 type ParameterUpdate = { layerId: string; target: TimelineParameterTarget; paramId: string;
-	before: TimelineEffectParameterBinding | undefined; after: TimelineEffectParameterBinding };
+	before: TimelineEffectParameterBinding | null; after: TimelineEffectParameterBinding };
 type UtteranceUpdate = { layerId: string; target: 'utterance'; before: VoicevoxUtterance[]; after: VoicevoxUtterance[] };
 export type TimelineKeyframeMoveUpdate = ParameterUpdate | UtteranceUpdate;
 
@@ -37,13 +37,13 @@ export function prepareTimelineKeyframeMove(state: Pick<ProjectState, 'visualMod
 		const paramId = position.paramPath[0];
 		const rootKey = JSON.stringify([layer.id, position.target, paramId]);
 		const update = parameters.get(rootKey) ?? { layerId: layer.id, target: position.target, paramId,
-			before: deepClone(getLayerParameterValues(layer, position.target)[paramId]),
+			before: deepClone(getLayerParameterValues(layer, position.target)[paramId] ?? null),
 			after: deepClone(resolveLayerParameter(state, layer, position.target, [paramId]).value) };
 		const definitions = getLayerParameterDefinitions(state, layer, position.target);
 		// 同じ配列・構造体の別レーンも一つの案にまとめる。未設定の引数は既定値の
 		// 独立したコピーへ書き込み、共有定義を変更せずUndoで未設定へ戻せるようにする。
 		const binding = resolveParameter<TimelineEffectParameterBinding>(definitions, { [paramId]: update.after }, position.paramPath).value;
-		const point = binding.inputSource === 'keyframesTimelineInline' ? binding.keyframesTimeline.keyframes.find(point => point.id === position.keyframeId) : undefined;
+		const point = binding.inputSource === 'keyframesTimelineInline' ? binding.keyframesTimeline.keyframes.find(point => point.id === position.keyframeId) : null;
 		if (!point) throw new Error('Timeline keyframe not found');
 		point.x = Math.round(position.x);
 		validateTimelineParameterTree(definitions[paramId], update.after, position.target === 'effect', position.target === 'effect' || position.target === 'module');

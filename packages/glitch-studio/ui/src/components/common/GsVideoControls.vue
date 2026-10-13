@@ -58,12 +58,12 @@ const frameRate = ref(30);
 const frameTime = ref<number | null>(null);
 const isVideo = computed(() => props.video instanceof HTMLVideoElement);
 const currentFrame = computed(() => {
-	if (frameTime.value === null || !Number.isFinite(frameRate.value) || frameRate.value <= 0) return null;
+	if (frameTime.value == null || !Number.isFinite(frameRate.value) || frameRate.value <= 0) return null;
 	// 指定FPSで固定フレームレートと仮定した0始まりの番号。時刻の丸め誤差を吸収する。
 	return Math.max(0, Math.round(frameTime.value * frameRate.value));
 });
 const totalFrames = computed(() => {
-	if (frameTime.value === null || !Number.isFinite(frameRate.value) || frameRate.value <= 0) return null;
+	if (frameTime.value == null || !Number.isFinite(frameRate.value) || frameRate.value <= 0) return null;
 	return Math.max(0, Math.round(duration.value * frameRate.value));
 });
 const rangePercent = computed({
@@ -104,8 +104,8 @@ watch(() => props.video, (video, _, onCleanup) => {
 		duration.value = video && Number.isFinite(video.duration) ? video.duration : 0;
 		if (!video || video.readyState === video.HAVE_NOTHING) frameTime.value = null;
 		if (video && !video.paused && !video.ended && !video.error) {
-			if (animationFrameId === null) animationFrameId = requestAnimationFrame(updateCurrentTime);
-		} else if (animationFrameId !== null) {
+			if (animationFrameId == null) animationFrameId = requestAnimationFrame(updateCurrentTime);
+		} else if (animationFrameId != null) {
 			cancelAnimationFrame(animationFrameId);
 			animationFrameId = null;
 		}
@@ -125,8 +125,8 @@ watch(() => props.video, (video, _, onCleanup) => {
 	const events = ['play', 'pause', 'ended', 'timeupdate', 'seeking', 'seeked', 'loadeddata', 'loadedmetadata', 'durationchange', 'volumechange', 'emptied', 'error'] as const;
 	for (const event of events) video.addEventListener(event, sync);
 	onCleanup(() => {
-		if (animationFrameId !== null) cancelAnimationFrame(animationFrameId);
-		if (video instanceof HTMLVideoElement && videoFrameCallbackId !== null) video.cancelVideoFrameCallback(videoFrameCallbackId);
+		if (animationFrameId != null) cancelAnimationFrame(animationFrameId);
+		if (video instanceof HTMLVideoElement && videoFrameCallbackId != null) video.cancelVideoFrameCallback(videoFrameCallbackId);
 		for (const event of events) video.removeEventListener(event, sync);
 	});
 }, { immediate: true });

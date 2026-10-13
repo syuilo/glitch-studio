@@ -4,9 +4,9 @@ import type { EffectStatus } from './effect-status.ts';
 
 /** 描画を進めず音声だけ準備する。古いシークの完了は次の窓や状態を上書きしない。 */
 export function createAudioWindowLoader(reportStatus: (status: EffectStatus) => void) {
-	let controller: AbortController | undefined;
-	let requestKey: string | undefined;
-	let requestSignal: AbortSignal | undefined;
+	let controller: AbortController | null = null;
+	let requestKey: string | null = null;
+	let requestSignal: AbortSignal | null = null;
 	let window: AudioWindow | null = null;
 	let revision = 0;
 	return {
@@ -33,7 +33,7 @@ export function createAudioWindowLoader(reportStatus: (status: EffectStatus) => 
 			};
 			const fail = (error: unknown) => {
 				if (currentSignal.aborted || controller !== current) return;
-				requestKey = undefined;
+				requestKey = null;
 				reportStatus({ type: 'error', message: error instanceof Error ? error.message : String(error) });
 			};
 			try {

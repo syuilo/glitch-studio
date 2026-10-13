@@ -4,6 +4,25 @@ import { fileURLToPath } from 'node:url';
 import { loadShaderSource } from './helpers/load-shader-source.mjs';
 const { TimelineFrameRenderer } = await loadShaderSource(fileURLToPath(import.meta.resolve('@gs/subsystems_timeline_renderer/timeline-frame-renderer.ts')));
 
+// 【汎用出力のnullと、評価結果がない状態を区別する】
+// Outputの型は呼び出し側が決めるので、nullも有効な出力になり得る。
+// 初期値と出力値を同じnullで表すと、評価済みのフレームを表示しなくなる。
+test('presents null output values while skipping absent evaluation results', async () => {
+	const presented = [];
+	let result = { output: null, gpuTime: 2 };
+	const renderer = new TimelineFrameRenderer({
+		async evaluate() { return result; },
+		accumulate: output => output,
+		present(output, gpuTime) { presented.push([output, gpuTime]); },
+	});
+	await renderer.render(0, [], false);
+	await renderer.render(0, [0], false);
+	await renderer.render(1, [1, 2], false);
+	result = null;
+	await renderer.render(3, [3], false);
+	assert.deepEqual(presented, [[null, 2], [null, 4]]);
+});
+
 // 【片側へ短縮された露光でも元の基準時刻を渡し、固定レイヤーの時間を一度だけ進める】
 // サンプルの平均時刻を基準にするとカット付近で位置がずれる。フレームの経過時間を
 // 全サンプルに渡すと、履歴を持つ処理の時間がサンプル数倍進んでしまう。

@@ -14,17 +14,17 @@ export class GeneratedSpeechCache {
 
 	has(key: string): boolean { return this.entries.has(key); }
 
-	get(key: string): GeneratedSpeech | undefined {
+	get(key: string): GeneratedSpeech | null {
 		const entry = this.entries.get(key);
-		if (!entry) return undefined;
+		if (!entry) return null;
 		this.entries.delete(key);
 		this.entries.set(key, entry);
 		return entry.speech;
 	}
 
-	take(key: string): GeneratedSpeech | undefined {
+	take(key: string): GeneratedSpeech | null {
 		const entry = this.entries.get(key);
-		if (!entry) return undefined;
+		if (!entry) return null;
 		this.entries.delete(key);
 		this.bytes -= entry.bytes;
 		return entry.speech;

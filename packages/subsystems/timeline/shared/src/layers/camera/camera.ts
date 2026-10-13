@@ -26,7 +26,8 @@ export type TimelineCamera = {
 };
 export type EvaluatedTimelineCamera = { position: [number, number]; z: number; fieldOfView: number };
 
-export function validateTimelineCamera(camera: TimelineCamera | undefined): void {
+// 省略可能プロパティや検索結果を直接受け取る境界なので、入力のundefinedも未指定として受け入れる。
+export function validateTimelineCamera(camera: TimelineCamera | null | undefined): void {
 	if (!camera) return;
 	for (const [key, binding] of Object.entries(camera.paramValues)) {
 		if (!Object.hasOwn(timelineCameraParamDefs, key)) throw new Error(`Unknown camera parameter: ${key}`);

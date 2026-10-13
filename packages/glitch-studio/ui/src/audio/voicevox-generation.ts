@@ -24,7 +24,7 @@ export class VoicevoxGeneration {
 	private running = false;
 	private exportRequests = new Map<string, number>();
 	private cache: GeneratedSpeechCache;
-	private timer: ReturnType<typeof globalThis.setTimeout> | undefined;
+	private timer: ReturnType<typeof globalThis.setTimeout> | null = null;
 
 	constructor(private options: {
 		getScenes(): readonly TimelineScene[];
@@ -38,7 +38,7 @@ export class VoicevoxGeneration {
 
 	reset() {
 		this.epoch++;
-		globalThis.clearTimeout(this.timer);
+		if (this.timer != null) globalThis.clearTimeout(this.timer);
 		for (const job of this.queue) job.completion.reject(new Error('Project changed'));
 		this.queue = [];
 		this.pending.clear();
@@ -48,7 +48,7 @@ export class VoicevoxGeneration {
 	}
 
 	schedule() {
-		globalThis.clearTimeout(this.timer);
+		if (this.timer != null) globalThis.clearTimeout(this.timer);
 		this.synchronizeSpeech();
 		// デバウンス期間中も古い文章を待たせない。実行中の合成はqueueから外れているので維持する。
 		this.discardUnusedRequests();
@@ -81,7 +81,7 @@ export class VoicevoxGeneration {
 		this.pruneStatuses(current);
 	}
 
-	private findSpeech(key: string): GeneratedSpeech | undefined {
+	private findSpeech(key: string): GeneratedSpeech | null {
 		return this.options.getSpeech().find(speech => speech.key === key) ?? this.cache.get(key);
 	}
 

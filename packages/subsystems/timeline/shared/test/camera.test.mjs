@@ -31,10 +31,10 @@ test('selects the topmost active camera and disables projection during gaps', ()
 	assert.equal(getActiveTimelineCamera([upper, lower], 99).layer.id, 'lower');
 	assert.equal(getActiveTimelineCamera([upper, lower], 100).layer.id, 'upper');
 	assert.equal(getActiveTimelineCamera([upper, lower], 300).layer.id, 'lower');
-	assert.equal(getActiveTimelineCamera([upper, lower], 500), undefined);
+	assert.equal(getActiveTimelineCamera([upper, lower], 500), null);
 	assert.equal(sceneCamera.evaluate([lower, upper], 150, false).z, 8);
 	assert.equal(sceneCamera.evaluate([{ ...upper, isDisabled: true }, lower], 150, false).z, 8);
-	assert.equal(sceneCamera.evaluate([upper, lower], 500, false), undefined);
+	assert.equal(sceneCamera.evaluate([upper, lower], 500, false), null);
 });
 
 // 【有効なカメラがない区間ではZを変えても2D配置とプレビューを維持する】
@@ -47,7 +47,7 @@ test('preserves 2D geometry at every depth without an active camera', () => {
 	for (const isExport of [false, true]) {
 		for (const [layers, time] of [[[], 150], [[entry], 99], [[entry], 200], [[{ ...entry, isDisabled: true }], 150]]) {
 			const view = sceneCamera.evaluate(layers, time, isExport);
-			assert.equal(view, undefined);
+			assert.equal(view, null);
 			for (const depth of [-100, 0, 1, 100]) {
 				assert.deepEqual(projectTimelineMatrix(matrix, depth, view), matrix);
 				assert.deepEqual(getTimelinePreviewParent([], { ...settings, depth }, frame,
@@ -66,7 +66,7 @@ test('evaluates camera animation in scene time with an independent motion blur o
 	assert.deepEqual(sceneCamera.evaluate([animated], 500, true, 400).position, [0.5, 0]);
 	assert.deepEqual(sceneCamera.evaluate([{ ...animated, forceDisableMotionBlur: true }], 500, true, 400).position, [0.4, 0]);
 	assert.equal(getActiveTimelineCamera([{ ...animated, forceDisableMotionBlur: true }], 99, 100).layer.id, animated.id);
-	assert.equal(getActiveTimelineCamera([{ ...animated, forceDisableMotionBlur: true }], 100, 99), undefined);
+	assert.equal(getActiveTimelineCamera([{ ...animated, forceDisableMotionBlur: true }], 100, 99), null);
 });
 
 // 【カメラの切り替え境界で露光を制限する】

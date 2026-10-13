@@ -40,7 +40,7 @@ export default implementEffect<typeof definition>({
 		});
 		let spectrum = new AudioInputSpectrum(2048);
 		let request: SpectrumAnalysisRequest | null = null;
-		let requestKey: string | undefined;
+		let requestKey: string | null = null;
 		const prepare = (params: RuntimeEffectParameters<typeof definition.paramDefs>, signal?: AbortSignal) => {
 			const size = 2 ** Math.round(Math.log2(finiteNumber(Number(params.fftSize), 2048, 256, 32768)));
 			const key = JSON.stringify([params.audio?.cacheKey ?? null, size, params.channel, params.window]);

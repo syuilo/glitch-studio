@@ -41,7 +41,7 @@ export type ItemOption<T extends OptionValue = OptionValue> = {
 	value: T;
 	label: string;
 	caption?: string;
-	icon?: string;
+	icon?: string | null;
 };
 
 export type ItemGroup<T extends OptionValue = OptionValue> = {

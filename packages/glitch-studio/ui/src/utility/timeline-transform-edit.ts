@@ -7,7 +7,8 @@ import type { TimelineLayerTransform } from '@gs/subsystems_timeline_shared/laye
 export type TimelineTransformKey = 'position' | 'scale' | 'rotation';
 export type TimelineTransformBindings = Partial<Record<TimelineTransformKey, TimelineParameterBinding>>;
 
-export function canEditTimelineTransform(binding: TimelineParameterBinding | undefined, key: TimelineTransformKey): boolean {
+// 省略可能プロパティや検索結果を直接受け取る境界なので、入力のundefinedも未指定として受け入れる。
+export function canEditTimelineTransform(binding: TimelineParameterBinding | null | undefined, key: TimelineTransformKey): boolean {
 	return binding == null || binding.inputSource === 'literal'
 		|| (binding.inputSource === 'keyframesTimelineInline' && canEditKeyframesTimeline(timelineCompositingParamDefs[key], binding));
 }

@@ -5,7 +5,8 @@ import type { TimelineCamera, EvaluatedTimelineCamera } from './camera.ts';
 
 export class TimelineCameraParameters {
 	private evaluator = new TimelineParameterBindingEvaluator();
-	evaluate(camera: TimelineCamera | undefined, time: number, isExport: boolean): EvaluatedTimelineCamera {
+	// 省略可能プロパティや検索結果を直接受け取る境界なので、入力のundefinedも未指定として受け入れる。
+	evaluate(camera: TimelineCamera | null | undefined, time: number, isExport: boolean): EvaluatedTimelineCamera {
 		const scope = createTimelineLayerEvaluationScope({ time, isExport, automationGraphs: camera?.automationGraphs ?? [] });
 		const read = (key: keyof typeof timelineCameraParamDefs): unknown => {
 			const fallback = timelineCameraParamDefs[key].defaultValue.value;

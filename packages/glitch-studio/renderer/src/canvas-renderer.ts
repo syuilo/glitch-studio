@@ -13,9 +13,9 @@ export class CanvasRenderer {
 	private finalRenderUniformBuffer: GPUBuffer;
 	private finalRenderBindGroup: GPUBindGroup | null = null;
 	private latestRenderedToCanasTexture: GPUTexture | null = null;
-	private gpuHistogram?: GpuHistogram;
-	private gpuWaveformHorizontal?: GpuWaveform;
-	private gpuWaveformVertical?: GpuWaveform;
+	private gpuHistogram: GpuHistogram | null = null;
+	private gpuWaveformHorizontal: GpuWaveform | null = null;
+	private gpuWaveformVertical: GpuWaveform | null = null;
 	public highlightClipping = false;
 	public opaqueOutput = false;
 

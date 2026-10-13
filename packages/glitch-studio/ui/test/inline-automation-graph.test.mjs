@@ -38,6 +38,23 @@ const { createInlineKeyframesTimeline, insertInlineKeyframe, updateInlineKeyfram
 
 const keyframeDefinition = (dataType, value) => ({ dataType, defaultValue: { inputSource: 'literal', value }, ui: { label: 'Value', control: {} } });
 
+// 【キー編集のPartial差分は、省略した項目を維持して指定した値を検証する】
+// nullやundefinedの座標・補間を「変更なし」と扱ってからマージすると、無効なキーを保存してしまう。
+// prototype上の項目も差分に含めず、valueだけの編集で既存の時刻と補間を維持する。
+test('validates present keyframe fields without treating missing fields as updates', () => {
+	const definition = keyframeDefinition({ kind: 'scalar' }, 1);
+	const input = createInlineKeyframesTimeline(definition, { inputSource: 'literal', value: 1 });
+	const keyframe = input.keyframesTimeline.keyframes[0];
+	const updated = updateInlineKeyframe(input, definition, keyframe.id, { value: 2 });
+	assert.equal(updated.keyframesTimeline.keyframes[0].x, keyframe.x);
+	assert.deepEqual(updated.keyframesTimeline.keyframes[0].interpolation, keyframe.interpolation);
+	for (const patch of [{ x: null }, { x: undefined }, { interpolation: null }, { interpolation: undefined }]) {
+		assert.equal(updateInlineKeyframe(input, definition, keyframe.id, patch), null);
+	}
+	assert.equal(updateInlineKeyframe(input, definition, keyframe.id, Object.create({ x: -1 })), null);
+	assert.equal(input.keyframesTimeline.keyframes[0].value, 1);
+});
+
 // 【キーフレームへの切り替えは現在の値を維持し、型ごとに正しい初期キーを作る】
 // 数値の0→1を一律に生成すると、変換した瞬間に文字や色が変わってしまう。
 // false・空文字列を欠損値と扱わず、式からの切り替えは定義の初期値に戻す。

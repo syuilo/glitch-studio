@@ -27,17 +27,17 @@ export function createVideoFrameLoader<Sample extends { close: () => void }>(opt
 	publish: (sample: Sample | null) => void;
 	reportStatus: (status: EffectStatus) => void;
 }) {
-	let desired: { blob: Blob | null; time: number | null } | undefined;
+	let desired: { blob: Blob | null; time: number | null } | null = null;
 	let revision = 0;
 	let disposed = false;
 	let running = false;
-	let source: VideoFrameSource<Sample> | undefined;
-	let sourceBlob: Blob | undefined;
+	let source: VideoFrameSource<Sample> | null = null;
+	let sourceBlob: Blob | null = null;
 
 	const releaseSource = () => {
 		source?.dispose();
-		source = undefined;
-		sourceBlob = undefined;
+		source = null;
+		sourceBlob = null;
 	};
 
 	const drain = async () => {
@@ -84,7 +84,7 @@ export function createVideoFrameLoader<Sample extends { close: () => void }>(opt
 				position = normalizeVideoTime(time, mode);
 			} catch (error) {
 				++revision;
-				desired = undefined;
+				desired = null;
 				releaseSource();
 				options.publish(null);
 				options.reportStatus({ type: 'error', message: (error as Error).message });
@@ -107,7 +107,7 @@ export function createVideoFrameLoader<Sample extends { close: () => void }>(opt
 			if (disposed) return;
 			disposed = true;
 			++revision;
-			desired = undefined;
+			desired = null;
 			releaseSource();
 		},
 	};

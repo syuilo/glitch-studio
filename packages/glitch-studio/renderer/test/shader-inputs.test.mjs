@@ -272,7 +272,7 @@ test('renders the selected module primary output after updates', () => {
 		renderer.updateVisualModule({ ...module, primaryOutputId: 'a' });
 		assert.deepEqual(renderer.render(context(), encoder).value, [1, 0, 0, 1]);
 		renderer.updateVisualModule({ ...module, primaryOutputId: null });
-		assert.equal(renderer.render(context(), encoder), undefined);
+		assert.equal(renderer.render(context(), encoder), null);
 		assert.deepEqual([...renderer.renderOutputs({ ...context(), outputIds: ['b'] }, encoder).keys()], ['b']);
 	} finally { renderer.destroy(); }
 });

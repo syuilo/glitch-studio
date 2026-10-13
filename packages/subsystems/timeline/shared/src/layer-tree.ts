@@ -13,7 +13,7 @@ export function getTimelineClipLayers(layers: readonly TimelineLayer[]): Timelin
 /** 親の情報は探索結果に付加し、子レイヤーの保存データには重複して持たせない。 */
 export function findTimelineLayerLocation(layers: TimelineLayer[], id: string, ancestors: TimelineContainerLayer[] = []): {
 	layer: TimelineLayer; siblings: TimelineLayer[]; index: number; ancestors: TimelineContainerLayer[];
-} | undefined {
+} | null {
 	for (const [index, layer] of layers.entries()) {
 		if (layer.id === id) return { layer, siblings: layers, index, ancestors };
 		if (isTimelineContainerLayer(layer)) {
@@ -21,10 +21,10 @@ export function findTimelineLayerLocation(layers: TimelineLayer[], id: string, a
 			if (found) return found;
 		}
 	}
-	return undefined;
+	return null;
 }
 
-export function findTimelineLayer(layers: readonly TimelineLayer[], id: string): TimelineLayer | undefined {
+export function findTimelineLayer(layers: readonly TimelineLayer[], id: string): TimelineLayer | null {
 	for (const layer of layers) {
 		if (layer.id === id) return layer;
 		if (isTimelineContainerLayer(layer)) {
@@ -32,7 +32,7 @@ export function findTimelineLayer(layers: readonly TimelineLayer[], id: string):
 			if (found) return found;
 		}
 	}
-	return undefined;
+	return null;
 }
 
 /** 無効なコンテナの子孫は評価しない。期間・保存・編集の走査とは区別する。 */

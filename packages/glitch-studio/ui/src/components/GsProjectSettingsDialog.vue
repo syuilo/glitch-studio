@@ -63,7 +63,7 @@ const renderSettingsError = computed(() => {
 });
 const exposureMs = computed(() => renderSettingsError.value ? '—' : (1000 / timelineFps.value * timelineMotionBlur.value.shutterAngle / 360).toFixed(2));
 const historyEffects = computed(() => findTimelineHistoryEffects(stateManager.state.timelineScenes.value,
-	id => stateManager.state.visualModules.value.find(visualModule => visualModule.id === id), effectDefinitions)
+	id => stateManager.state.visualModules.value.find(visualModule => visualModule.id === id) ?? null, effectDefinitions)
 	.map(id => effectDefinitions[id].displayName));
 const lockedAspectRatio = ref<number | null>(width.value / height.value);
 const isResolutionValid = computed(() => isValidDimension(width.value) && isValidDimension(height.value));

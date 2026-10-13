@@ -23,7 +23,7 @@ export function copyTimelineClips(scene: TimelineScene, selection: readonly Time
 	const clips: TimelineClipPaste[] = [];
 	for (const target of selection) {
 		const layer = findTimelineLayer(scene.layers, target.layerId);
-		const clip = layer && !isTimelineContainerLayer(layer) ? layer.clips.find(clip => clip.id === target.clipId) : undefined;
+		const clip = layer && !isTimelineContainerLayer(layer) ? layer.clips.find(clip => clip.id === target.clipId) : null;
 		if (!clip) return null;
 		clips.push({ layerId: target.layerId, clip: deepClone(clip) });
 	}

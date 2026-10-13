@@ -102,7 +102,7 @@ provideVisualModuleWires();
 const props = defineProps<{
 	visualModule: VisualModule;
 	visualModuleName: string;
-	effectStates?: ReadonlyMap<string, EffectInstanceState>;
+	effectStates?: ReadonlyMap<string, EffectInstanceState> | null;
 	exporting?: boolean;
 }>();
 

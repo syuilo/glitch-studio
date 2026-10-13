@@ -14,7 +14,7 @@ function before(time: number): number {
 export function openVideoSource(blob: Blob) {
 	const input = new Input({ source: new BlobSource(blob), formats: ALL_FORMATS });
 	let disposed = false;
-	let reader: VideoSampleReader | undefined;
+	let reader: VideoSampleReader | null = null;
 	const initialize = async () => {
 		const track = await input.getPrimaryVideoTrack();
 		if (!track || !await track.canDecode()) throw new Error('Video track cannot be decoded.');
@@ -25,7 +25,7 @@ export function openVideoSource(blob: Blob) {
 		}
 		return { sink: new VideoSampleSink(track), firstTimestamp, endTimestamp };
 	};
-	let ready: ReturnType<typeof initialize> | undefined;
+	let ready: ReturnType<typeof initialize> | null = null;
 	const prepare = async () => {
 		if (disposed) throw new Error('Video source is disposed.');
 		const entry = await (ready ??= initialize());

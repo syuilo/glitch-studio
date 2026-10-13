@@ -38,7 +38,7 @@ type ParameterUpdate = {
 	layerId: string;
 	target: TimelineParameterTarget;
 	paramId: string;
-	before: TimelineEffectParameterBinding | undefined;
+	before: TimelineEffectParameterBinding | null;
 	after: TimelineEffectParameterBinding;
 };
 type UtteranceUpdate = { layerId: string; target: 'utterance'; before: VoicevoxUtterance[]; after: VoicevoxUtterance[] };
@@ -104,7 +104,7 @@ export function getTimelineKeyframePasteUpdates(state: ParameterState, scene: Ti
 			const key = JSON.stringify([entry.layerId, entry.target, paramId]);
 			let update = updates.get(key);
 			if (!update) {
-				const before = getLayerParameterValues(layer, entry.target)[paramId];
+				const before = getLayerParameterValues(layer, entry.target)[paramId] ?? null;
 				update = { layerId: layer.id, target: entry.target, paramId, before: deepClone(before),
 					after: deepClone(resolveLayerParameter(state, layer, entry.target, [paramId]).value) };
 				updates.set(key, update);

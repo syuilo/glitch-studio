@@ -67,7 +67,7 @@ async function onDrop(event: DragEvent) {
 	const item = Array.from(event.dataTransfer!.items).find(item => item.kind === 'file');
 	const handle = file.name.toLowerCase().endsWith('.gsproj') ? await item?.getAsFileSystemHandle?.().catch(() => null) : null;
 	const opened = file.name.toLowerCase().endsWith('.gsproj')
-		? await openProject(file, handle?.kind === 'file' ? handle as FileSystemFileHandle : undefined)
+		? await openProject(file, handle?.kind === 'file' ? handle as FileSystemFileHandle : null)
 		: await newProjectFromImageOrVideo(file);
 	if (opened) modal.value!.close();
 }

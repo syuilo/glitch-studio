@@ -140,7 +140,7 @@ watch(() => [props.modelValue, props.min, props.max, props.logarithmic] as const
 	rawValue.value = newRawValue;
 });
 
-let ro: ResizeObserver | undefined;
+let ro: ResizeObserver | null = null;
 
 onMounted(() => {
 	ro = new ResizeObserver((entries, observer) => {
@@ -183,7 +183,7 @@ function onMouseenter() {
 		text: computed(() => {
 			return formatValue(finalValue.value);
 		}),
-		anchorElement: thumbEl.value ?? undefined,
+		anchorElement: thumbEl.value ?? null,
 	}, {
 		closed: () => dispose(),
 	});
@@ -215,7 +215,7 @@ function onPointerdown(ev: PointerEvent) {
 		text: computed(() => {
 			return formatValue(finalValue.value);
 		}),
-		anchorElement: thumbEl.value ?? undefined,
+		anchorElement: thumbEl.value ?? null,
 	}, {
 		closed: () => dispose(),
 	});

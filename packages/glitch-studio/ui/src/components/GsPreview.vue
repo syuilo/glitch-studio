@@ -63,7 +63,7 @@ const zoom = ref(1 / ZOOM_STEP / ZOOM_STEP / ZOOM_STEP);
 const pan = ref<[number, number]>([0, 0]);
 const panning = ref(false);
 const previewCanvasRect = shallowRef<PreviewCanvasRect>({ left: 0, top: 0, width: 0, height: 0 });
-let stopPan: (() => void) | undefined;
+let stopPan: (() => void) | null = null;
 const liveTime = ref(0);
 const time = computed(() => previewPlayback.state.value.mode === 'timeline' ? previewPlayback.currentTimelineTime.value : liveTime.value);
 const currentFrameNumber = computed(() => {
@@ -127,7 +127,7 @@ function onViewPointerdown(event: PointerEvent) {
 	panning.value = true;
 	stopPan = startPreviewPointerDrag(event, {
 		move: next => { pan.value = [initial[0] + next.clientX - event.clientX, initial[1] + next.clientY - event.clientY]; },
-		end: cancelled => { if (cancelled) pan.value = [initial[0], initial[1]]; panning.value = false; stopPan = undefined; },
+		end: cancelled => { if (cancelled) pan.value = [initial[0], initial[1]]; panning.value = false; stopPan = null; },
 	});
 }
 

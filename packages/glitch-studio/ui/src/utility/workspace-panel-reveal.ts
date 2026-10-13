@@ -11,9 +11,9 @@ export type WorkspacePanelRevealPlan = {
 	expandIds: string[];
 };
 
-export function getWorkspaceSelectedTabId(tabs: WorkspaceTabs, selections: ReadonlyMap<string, string>): string | undefined {
+export function getWorkspaceSelectedTabId(tabs: WorkspaceTabs, selections: ReadonlyMap<string, string>): string | null {
 	const selected = selections.get(tabs.id);
-	return tabs.children.find(child => child.element.id === selected)?.element.id ?? tabs.children[0]?.element.id;
+	return tabs.children.find(child => child.element.id === selected)?.element.id ?? tabs.children[0]?.element.id ?? null;
 }
 
 export function getWorkspacePanelRevealCost(plan: WorkspacePanelRevealPlan): number {
@@ -39,7 +39,7 @@ export function findWorkspacePanelRevealPlan(root: WorkspaceElement, selections:
 	visit(root, null, new Map(), []);
 	const source = panels.find(entry => entry.panel.id === request.sourcePanelId);
 	if (!source) return null;
-	const selectedIds = new Map<string, string | undefined>();
+	const selectedIds = new Map<string, string | null>();
 
 	function collectSelections(element: WorkspaceElement) {
 		if (element.type === 'panel') return;

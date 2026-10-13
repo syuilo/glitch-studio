@@ -11,7 +11,7 @@ const start = isTouchUsing ? 'touchstart' : 'mouseenter';
 const end = isTouchUsing ? 'touchend' : 'mouseleave';
 
 type TooltipDirectiveState = {
-	text: string | null | undefined;
+	text: string | null;
 	_close: null | (() => void);
 	show: () => void;
 	close: () => void;
@@ -47,7 +47,7 @@ export const tooltipDirective = {
 
 		if (binding.arg === 'dialog') {
 			el.addEventListener('click', (ev) => {
-				const text = state.text ?? undefined;
+				const text = state.text ?? null;
 				if (text == null) return;
 				ev.preventDefault();
 				ev.stopPropagation();
@@ -129,4 +129,4 @@ export const tooltipDirective = {
 
 		states.delete(el);
 	},
-} as Directive<HTMLElement, string | null | undefined, TooltipDirectiveModifiers, TooltipDirectiveArg>;
+} as Directive<HTMLElement, string | null, TooltipDirectiveModifiers, TooltipDirectiveArg>;

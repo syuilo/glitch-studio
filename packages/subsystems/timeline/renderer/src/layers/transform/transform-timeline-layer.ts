@@ -23,7 +23,7 @@ export function createTransformTimelineLayer<Output>(getTransform: () => Timelin
 			const result = await renderer.evaluateAt(context.sceneTimeMs, layer.layers.filter(isTimelineRenderLayer), context.timeDelta, context.isExport, signal, referenceTime,
 				getTimelineTransformSpace(translation, context.renderSpace), context.input);
 			if (!result || signal.aborted) return { gpuTime: 0 };
-			return { output: result.hasOutput ? result.output : undefined, gpuTime: result.gpuTime };
+			return { output: result.hasOutput ? result.output : null, gpuTime: result.gpuTime };
 		},
 		destroy() { renderer.clear(); },
 	};

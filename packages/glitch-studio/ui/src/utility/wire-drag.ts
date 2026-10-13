@@ -15,7 +15,7 @@ type WireInput = {
 };
 
 const inputPorts = new WeakMap<HTMLElement, WireInput>();
-let cancelCurrentDrag: (() => void) | undefined;
+let cancelCurrentDrag: (() => void) | null = null;
 let highlightedInput: HTMLElement | null = null;
 
 function highlightInput(el: HTMLElement | null, typeCompatible = true) {
@@ -54,7 +54,7 @@ export function startWireDrag(event: PointerEvent, connection: NodeOutputReferen
 		let target = doc.elementFromPoint(clientX, clientY);
 		while (target != null) {
 			if (target.closest('[inert]')) return null;
-			const input = target instanceof HTMLElement ? inputPorts.get(target) : undefined;
+			const input = target instanceof HTMLElement ? inputPorts.get(target) : null;
 			if (input) {
 				// 配線は同じエディタ内だけで行う。別レイヤーに同じノードIDがあっても接続しない。
 				if (source.closest('[data-visual-module-editor]') !== target.closest('[data-visual-module-editor]')) return null;
@@ -93,7 +93,7 @@ export function startWireDrag(event: PointerEvent, connection: NodeOutputReferen
 		source.removeEventListener('lostpointercapture', onCancel);
 		if (source.hasPointerCapture(pointerId)) source.releasePointerCapture(pointerId);
 		wireDrag.value = null;
-		if (cancelCurrentDrag === cancel) cancelCurrentDrag = undefined;
+		if (cancelCurrentDrag === cancel) cancelCurrentDrag = null;
 	}
 
 	function onCancel(event: PointerEvent) {

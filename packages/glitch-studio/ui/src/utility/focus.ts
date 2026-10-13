@@ -3,6 +3,7 @@ import { getElementOrNull, getNodeOrNull } from '@/utility/get-dom-node-or-null.
 
 type MaybeHTMLElement = EventTarget | Node | Element | HTMLElement;
 
+// DOMや省略可能な参照の読み取り結果を渡せるよう、入力ではundefinedも受け入れる。
 export const isFocusable = (input: MaybeHTMLElement | null | undefined): input is HTMLElement => {
 	if (input == null || !(input instanceof HTMLElement)) return false;
 
@@ -21,6 +22,7 @@ export const isFocusable = (input: MaybeHTMLElement | null | undefined): input i
 	return true;
 };
 
+// DOMや省略可能な参照の読み取り結果を渡せるよう、入力ではundefinedも受け入れる。
 export const focusPrev = (input: MaybeHTMLElement | null | undefined, self = false, scroll = true) => {
 	const element = self ? input : getElementOrNull(input)?.previousElementSibling;
 	if (element == null) return;
@@ -31,6 +33,7 @@ export const focusPrev = (input: MaybeHTMLElement | null | undefined, self = fal
 	}
 };
 
+// DOMや省略可能な参照の読み取り結果を渡せるよう、入力ではundefinedも受け入れる。
 export const focusNext = (input: MaybeHTMLElement | null | undefined, self = false, scroll = true) => {
 	const element = self ? input : getElementOrNull(input)?.nextElementSibling;
 	if (element == null) return;
@@ -41,6 +44,7 @@ export const focusNext = (input: MaybeHTMLElement | null | undefined, self = fal
 	}
 };
 
+// DOMや省略可能な参照の読み取り結果を渡せるよう、入力ではundefinedも受け入れる。
 export const focusParent = (input: MaybeHTMLElement | null | undefined, self = false, scroll = true) => {
 	const element = self ? input : getNodeOrNull(input)?.parentElement;
 	if (element == null) return;

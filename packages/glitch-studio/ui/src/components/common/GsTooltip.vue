@@ -25,7 +25,7 @@ import { preferences } from '@/preferences.ts';
 
 const props = withDefaults(defineProps<{
 	showing: boolean;
-	anchorElement?: HTMLElement;
+	anchorElement?: HTMLElement | null;
 	x?: number;
 	y?: number;
 	text?: string;

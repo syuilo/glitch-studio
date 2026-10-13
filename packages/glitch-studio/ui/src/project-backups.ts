@@ -69,7 +69,7 @@ export async function writeProjectBackup(target: ProjectBackupTarget, kind: Proj
 	}
 }
 
-export async function pruneProjectBackups(target: ProjectBackupTarget, kind: ProjectBackupKind, retentionDays: number, time: number, protectedName?: string): Promise<void> {
+export async function pruneProjectBackups(target: ProjectBackupTarget, kind: ProjectBackupKind, retentionDays: number, time: number, protectedName?: string | null): Promise<void> {
 	if (!Number.isSafeInteger(retentionDays) || retentionDays < 1) throw new Error('Invalid backup retention period.');
 	if (!await target.directory.hasPermission()) throw new Error('Backup folder access is required. Open Preferences to grant access.');
 	const cutoff = time - retentionDays * 86400000;
@@ -105,7 +105,7 @@ export class ProjectBackupController {
 	private target: ProjectBackupTarget | null = null;
 	private generation = 0;
 	private lastFingerprint: string | null = null;
-	private lastAutoBackupName: string | undefined;
+	private lastAutoBackupName: string | null = null;
 	private autoBackupFailed = false;
 	private nextAutoBackup = 0;
 	private timer: unknown;
@@ -117,7 +117,7 @@ export class ProjectBackupController {
 		this.target = target;
 		this.generation++;
 		this.lastFingerprint = null;
-		this.lastAutoBackupName = undefined;
+		this.lastAutoBackupName = null;
 		this.autoBackupFailed = false;
 		this.status = { lastAutoBackup: null, lastSaveBackup: null, error: null };
 		this.publish();
@@ -126,7 +126,7 @@ export class ProjectBackupController {
 
 	refreshSchedule(): void {
 		this.options.cancel(this.timer);
-		this.timer = undefined;
+		this.timer = null;
 		this.nextAutoBackup = this.options.now() + this.options.settings().autoIntervalMinutes * 60000;
 		this.schedule();
 	}
@@ -140,7 +140,7 @@ export class ProjectBackupController {
 
 	private schedule(): void {
 		this.options.cancel(this.timer);
-		this.timer = undefined;
+		this.timer = null;
 		const settings = this.options.settings();
 		if (!this.target || (!settings.autoEnabled && !settings.saveEnabled)) return;
 		try { validateProjectBackupSettings(settings); } catch (error) { this.reportError(error); return; }

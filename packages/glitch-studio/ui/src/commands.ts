@@ -83,21 +83,22 @@ function defineCommand<Payload>(def: CommandDef<Payload>) {
 type NodeTarget = VisualModuleTarget & { nodeId: string };
 type NodeParamTarget = EffectNodeParamTarget & VisualModuleTarget;
 
-function setTimelineLayerParameterRoot(layer: TimelineLayer, target: TimelineParameterTarget, rootKey: string, binding: TimelineEffectParameterBinding | undefined) {
+// 省略可能プロパティや検索結果を直接受け取る境界なので、入力のundefinedも未指定として受け入れる。
+function setTimelineLayerParameterRoot(layer: TimelineLayer, target: TimelineParameterTarget, rootKey: string, binding: TimelineEffectParameterBinding | null | undefined) {
 	if (target === 'effect') {
 		const values = getLayerParameterValues(layer, target);
-		if (binding === undefined) delete values[rootKey];
+		if (binding == null) delete values[rootKey];
 		else values[rootKey] = deepClone(binding);
 	} else if (target === 'module') {
 		const values = getLayerParameterValues(layer, target);
-		if (binding === undefined) delete values[rootKey];
+		if (binding == null) delete values[rootKey];
 		else {
 			if (binding.inputSource === 'layerInput') throw new Error('Image layer input is not a module argument');
 			values[rootKey] = deepClone(binding);
 		}
 	} else {
 		const values = getLayerParameterValues(layer, target);
-		if (binding === undefined) delete values[rootKey];
+		if (binding == null) delete values[rootKey];
 		else {
 			if (!isValueParameterBinding(binding)) throw new Error('Unsupported layer parameter input source');
 			values[rootKey] = deepClone(binding);
@@ -107,8 +108,8 @@ function setTimelineLayerParameterRoot(layer: TimelineLayer, target: TimelinePar
 
 const stateUtility = {
 	getVisualModule,
-	findNode: (state: ProjectState, target: NodeTarget): VisualModuleNode | undefined => {
-		return getVisualModule(state, target).nodes.find(node => node.id === target.nodeId);
+	findNode: (state: ProjectState, target: NodeTarget): VisualModuleNode | null => {
+		return getVisualModule(state, target).nodes.find(node => node.id === target.nodeId) ?? null;
 	},
 };
 
@@ -132,7 +133,7 @@ const editTimelineLayerTransformCommandDef = defineCommand<{ sceneId: string; la
 					if (!['position', 'scale', 'rotation'].includes(key)) throw new Error('Invalid transform parameter');
 					const binding = payload.bindings[key];
 					// 同じドラッグ中に開始値へ戻した項目は、未設定の状態も復元する。
-					if (binding === undefined) continue;
+					if (binding == null) continue;
 					if (!canEditTimelineTransform(binding, key)) throw new Error('Invalid transform binding');
 					validateTimelineParameterTree(timelineCompositingParamDefs[key], binding, false, false);
 					const values = binding.inputSource === 'literal' ? [binding.value] : binding.inputSource === 'keyframesTimelineInline'
@@ -142,7 +143,7 @@ const editTimelineLayerTransformCommandDef = defineCommand<{ sceneId: string; la
 				}
 				before = Object.fromEntries(keys.map(key => [key, deepClone(layer.compositingParamValues[key])])) as TimelineTransformBindings;
 				for (const key of keys) {
-					if (payload.bindings[key] === undefined) delete layer.compositingParamValues[key];
+					if (payload.bindings[key] == null) delete layer.compositingParamValues[key];
 					else layer.compositingParamValues[key] = deepClone(payload.bindings[key]!);
 				}
 			},
@@ -182,8 +183,8 @@ const editTimelineLayerParamCommandDef = defineCommand<{
 												changes: [{ type: 'parameter', target: payload.target ?? 'module', kind }] }];
 	},
 	create: payload => {
-		let before: TimelineEffectParameterBinding | undefined;
-		let after: TimelineEffectParameterBinding | undefined;
+		let before: TimelineEffectParameterBinding | null = null;
+		let after: TimelineEffectParameterBinding | null = null;
 		const target = payload.target ?? 'module';
 		const rootKey = payload.paramPath[0];
 		const getLayer = (state: ProjectState) => {
@@ -200,10 +201,10 @@ const editTimelineLayerParamCommandDef = defineCommand<{
 				const rootDef = defs[rootKey];
 				if (rootDef == null) throw new Error('Timeline parameter not found');
 				const module = target === 'module' && (layer.layerType === 'visualModule' || layer.layerType === 'inlineVisualModule')
-					? layer.layerType === 'inlineVisualModule' ? layer.visualModule : stateUtility.getVisualModule(state, layer) : undefined;
+					? layer.layerType === 'inlineVisualModule' ? layer.visualModule : stateUtility.getVisualModule(state, layer) : null;
 				if (module?.primaryInputId === rootKey) throw new Error('Cannot edit the visual module primary input');
-				if (after === undefined) {
-					before = deepClone(values[rootKey]);
+				if (after == null) {
+					before = deepClone(values[rootKey] ?? null);
 					const defaultBinding = module ? getTimelineVisualModuleArgumentDefault(module, module.paramDefs.find(def => def.id === rootKey)!)
 						: target === 'effect' && layer.layerType === 'effect' ? getEffectLayerParameterDefault(effectDefinitions[layer.effectId], rootKey) : rootDef.defaultValue;
 					const draft = { [rootKey]: deepClone(before ?? defaultBinding) };
@@ -220,7 +221,7 @@ const editTimelineLayerParamCommandDef = defineCommand<{
 						case 'layerInput': next = deepClone(edit.value); break;
 						case 'layerAudio': {
 							const source = resolveTimelineAudioLayerReference(getScene(state, payload.sceneId), layer.id, edit.value);
-							if (edit.value !== null && source === null) throw new Error('Audio source must be an audio, video, or scene layer in the same scene');
+							if (edit.value != null && source == null) throw new Error('Audio source must be an audio, video, or scene layer in the same scene');
 							next = { inputSource: 'layerAudio', layerId: edit.value };
 							break;
 						}
@@ -281,15 +282,15 @@ const changeTimelineGroupModeCommandDef = defineCommand<{ sceneId: string; layer
 	label: 'Change group compositing mode',
 	changes: (_state, payload) => [{ type: 'layer', sceneId: payload.sceneId, layerId: payload.layerId, changes: [{ type: 'parameter', target: 'compositing', kind: 'value' }] }],
 	create: payload => {
-		let before: 'flat' | 'preserveDepth' | undefined;
+		let before: 'flat' | 'preserveDepth' | null = null;
 		const group = (state: ProjectState) => {
 			const layer = findTimelineLayer(getScene(state, payload.sceneId).layers, payload.layerId);
 			if (layer?.layerType !== 'group') throw new Error('Group not found');
 			return layer;
 		};
 		return {
-			execute(state) { before = group(state).compositingMode; group(state).compositingMode = payload.mode; },
-			undo(state) { group(state).compositingMode = before; },
+			execute(state) { before = group(state).compositingMode ?? null; group(state).compositingMode = payload.mode; },
+			undo(state) { if (before == null) delete group(state).compositingMode; else group(state).compositingMode = before; },
 		};
 	},
 });
@@ -346,15 +347,15 @@ const addEffectNodeCommandDef = defineCommand<VisualModuleTarget & { id: string;
 	label: 'Add fx node',
 	changes: (_state, payload) => [{ type: 'visualModule', target: payload }],
 	create: payload => {
-		let addedNode: VisualModuleEffectNode | undefined;
+		let addedNode: VisualModuleEffectNode | null = null;
 		// ノード追加だけで既存の配線が変わらないよう、自動接続処理を無効化する。
 		/*
 		let outputConnection: {
 			nodeId: string;
 			outputId: string;
-			before: { nodeId: string; outputPort: string } | { nodeId: null; outputPort: null } | undefined;
+			before: { nodeId: string; outputPort: string } | { nodeId: null; outputPort: null } | null;
 			after: { nodeId: string; outputPort: string };
-		} | undefined;
+		} | null;
 		*/
 		return {
 			execute(state) {
@@ -364,8 +365,8 @@ const addEffectNodeCommandDef = defineCommand<VisualModuleTarget & { id: string;
 					/*
 					const globalOut = visualModule.nodes.find(node => node.type === 'globalOut');
 					const primaryOutput = visualModule.outputDefs.find(def => def.id === visualModule.primaryOutputId);
-					const previousInput = primaryOutput == null ? undefined : globalOut?.inputs[primaryOutput.id];
-					const previous = previousInput?.nodeId == null ? undefined : visualModule.nodes.find(node => node.id === previousInput.nodeId);
+					const previousInput = primaryOutput == null ? null : globalOut?.inputs[primaryOutput.id];
+					const previous = previousInput?.nodeId == null ? null : visualModule.nodes.find(node => node.id === previousInput.nodeId);
 					*/
 					const params: VisualModuleEffectNode['params'] = {};
 					for (const [key, def] of Object.entries(paramDefs)) {
@@ -462,10 +463,10 @@ const removeNodeCommandDef = defineCommand<NodeTarget>({
 				if (removedNode == null) return;
 				if (removedNode.type !== 'effect') throw new Error('In/Out nodes cannot be removed');
 				const primary = effectDefinitions[removedNode.effectId].primaryInputParameter;
-				const input = primary === null ? undefined : removedNode.params[primary];
+				const input = primary == null ? null : removedNode.params[primary];
 				const replacement: Pick<NodeOutputReference, 'nodeId' | 'outputPort'> | null = input?.inputSource === 'node' && input.nodeId != null && input.nodeId !== payload.nodeId
 					? { nodeId: input.nodeId, outputPort: input.outputPort } : null;
-				const replacementOutput = replacement == null ? undefined : getNodeOutputs(visualModule.nodes.find(node => node.id === replacement.nodeId), visualModule.paramDefs)[replacement.outputPort];
+				const replacementOutput = replacement == null ? null : getNodeOutputs(visualModule.nodes.find(node => node.id === replacement.nodeId), visualModule.paramDefs)[replacement.outputPort];
 				// 削除したノードの主入力へ接続し直す。globalOutの参照も同じ操作で復元可能にする。
 				for (const node of visualModule.nodes) {
 					if (node.id === payload.nodeId) continue;
@@ -642,13 +643,13 @@ function defineNodeParamCommand<Payload extends NodeParamTarget>(
 		changes: (_state, payload) => [{ type: 'node', target: payload, nodeId: payload.nodeId, changes: [{ type: 'parameter', kind }] }],
 		create: payload => {
 			let before: VisualModuleParameterBinding;
-			let after: VisualModuleParameterBinding | undefined;
+			let after: VisualModuleParameterBinding | null = null;
 			return {
 				execute(state) {
 					const node = stateUtility.findNode(state, payload);
 					if (node?.type !== 'effect') throw new Error('Effect node not found');
 					const target = resolveNodeParam(node, payload.paramPath);
-					if (after === undefined) {
+					if (after == null) {
 						before = deepClone(target.value);
 						// 追加・リセットで発行した要素IDも、Redoでは同じ状態に戻す。
 						after = deepClone(update(target, payload));
@@ -776,7 +777,7 @@ const updateParamAsNodeCommandDef = defineNodeParamCommand<NodeParamTarget & { v
 		if (payload.value == null) return { inputSource: 'node', nodeId: null, outputPort: null };
 		// 配線操作の候補にも既定のサンプリング設定が入るため、設定変更とは明示的に区別する。
 		// 読み取り方法は接続先の入力に属するので、配線操作では同じ出力への再接続でも維持する。
-		const previous = target.value.inputSource === 'node' && target.value.nodeId != null ? target.value : undefined;
+		const previous = target.value.inputSource === 'node' && target.value.nodeId != null ? target.value : null;
 		const sampling = payload.preserveSampling && previous != null ? previous : payload.value;
 		return { inputSource: 'node', ...payload.value, fitMode: sampling.fitMode, wrapMode: sampling.wrapMode, filterMode: sampling.filterMode };
 	},
@@ -881,7 +882,7 @@ const updateGlobalOutInputCommandDef = defineCommand<NodeTarget & { outputId: st
 	label: 'Update global output input',
 	changes: (_state, payload) => [{ type: 'visualModule', target: payload }],
 	create: payload => {
-		let before: { nodeId: string; outputPort: string } | { nodeId: null; outputPort: null } | undefined;
+		let before: { nodeId: string; outputPort: string } | { nodeId: null; outputPort: null } | null = null;
 		return {
 			execute(state) {
 				const node = stateUtility.findNode(state, payload);
@@ -892,7 +893,7 @@ const updateGlobalOutInputCommandDef = defineCommand<NodeTarget & { outputId: st
 					const source = stateUtility.findNode(state, { ...payload, nodeId: payload.value.nodeId });
 					if (getNodeOutputs(source, stateUtility.getVisualModule(state, payload).paramDefs)[payload.value.outputPort] == null) throw new Error('Node output not found in this visualModule');
 				}
-				before = deepClone(node.inputs[payload.outputId]);
+				before = deepClone(node.inputs[payload.outputId] ?? null);
 				node.inputs[payload.outputId] = payload.value == null ? { nodeId: null, outputPort: null }
 					: { nodeId: payload.value.nodeId, outputPort: payload.value.outputPort };
 			},
@@ -909,6 +910,7 @@ const updateGlobalOutInputCommandDef = defineCommand<NodeTarget & { outputId: st
 function validateVisualModuleParamDef(module: VisualModule, def: VisualModuleParamDef, previousId?: VisualModuleCustomParameterId) {
 	if (def.dataType.kind === 'audioSource') {
 		validateLiteralAudioSourceBinding(def.defaultValue);
+		// 音声の既定値は明示的なnullだけを許可する。defaultValue.valueの欠落は定義不備。
 		if (def.defaultValue.value !== null) throw new Error('The default audio source must be unselected');
 	}
 	if (isParameterType(def, 'enum')) {
@@ -935,6 +937,7 @@ const setVisualModulePrimaryInputCommandDef = defineCommand<VisualModuleTarget &
 		return {
 			execute(state) {
 				const module = stateUtility.getVisualModule(state, payload);
+				// nullは主入力の解除。payloadの必須IDがundefinedなら検証で拒否する。
 				if (payload.primaryInputId !== null && !module.paramDefs.some(def => def.id === payload.primaryInputId && def.canNode && def.dataType.kind === 'color')) {
 					throw new Error('Primary input must reference a node-capable color parameter');
 				}
@@ -952,14 +955,15 @@ const setVisualModulePrimaryAudioInputCommandDef = defineCommand<VisualModuleTar
 	label: 'Set visual module primary audio input',
 	changes: (_state, payload) => [{ type: 'visualModule', target: payload }],
 	create: payload => {
-		let before: VisualModuleCustomParameterId | null | undefined;
+		let before: VisualModuleCustomParameterId | null = null;
 		return {
 			execute(state) {
 				const visualModule = stateUtility.getVisualModule(state, payload);
+				// nullは主音声入力の解除。payloadの必須IDがundefinedなら検証で拒否する。
 				if (payload.primaryAudioInputId !== null && !visualModule.paramDefs.some(def => def.id === payload.primaryAudioInputId && !def.canNode && def.dataType.kind === 'audioSource')) {
 					throw new Error('Primary audio input must reference an audio parameter');
 				}
-				before = visualModule.primaryAudioInputId;
+				before = visualModule.primaryAudioInputId ?? null;
 				visualModule.primaryAudioInputId = payload.primaryAudioInputId;
 			},
 			undo(state) {
@@ -992,7 +996,7 @@ const removeVisualModuleParamDefCommandDef = defineCommand<VisualModuleTarget & 
 		let before: VisualModuleParamDef;
 		let index: number;
 		let primaryInputId: VisualModuleCustomParameterId | null;
-		let primaryAudioInputId: VisualModuleCustomParameterId | null | undefined;
+		let primaryAudioInputId: VisualModuleCustomParameterId | null = null;
 		return {
 			execute(state) {
 				const module = stateUtility.getVisualModule(state, payload);
@@ -1000,7 +1004,7 @@ const removeVisualModuleParamDefCommandDef = defineCommand<VisualModuleTarget & 
 				if (index < 0) throw new Error('Visual module parameter not found');
 				before = deepClone(module.paramDefs[index]);
 				primaryInputId = module.primaryInputId;
-				primaryAudioInputId = module.primaryAudioInputId;
+				primaryAudioInputId = module.primaryAudioInputId ?? null;
 				if (module.primaryInputId === payload.defId) module.primaryInputId = null;
 				if (module.primaryAudioInputId === payload.defId) module.primaryAudioInputId = null;
 				// ノードからの参照IDやレイヤーの値は保持する。未解決になった参照はUndoで再び有効になる。
@@ -1024,7 +1028,7 @@ const updateVisualModuleParamDefCommandDef = defineCommand<VisualModuleTarget & 
 	create: payload => {
 		let before: VisualModuleParamDef;
 		let primaryInputId: VisualModuleCustomParameterId | null;
-		let primaryAudioInputId: VisualModuleCustomParameterId | null | undefined;
+		let primaryAudioInputId: VisualModuleCustomParameterId | null = null;
 		return {
 			execute(state) {
 				const module = stateUtility.getVisualModule(state, payload);
@@ -1034,7 +1038,7 @@ const updateVisualModuleParamDefCommandDef = defineCommand<VisualModuleTarget & 
 				validateVisualModuleParamDef(module, next, payload.defId);
 				before = deepClone(module.paramDefs[index]);
 				primaryInputId = module.primaryInputId;
-				primaryAudioInputId = module.primaryAudioInputId;
+				primaryAudioInputId = module.primaryAudioInputId ?? null;
 				// 主入力の条件を失う変更と指定の解除を、同じUndo単位で扱う。
 				if (module.primaryInputId === payload.defId && (!next.canNode || next.dataType.kind !== 'color')) module.primaryInputId = null;
 				if (module.primaryAudioInputId === payload.defId && next.dataType.kind !== 'audioSource') module.primaryAudioInputId = null;
@@ -1069,7 +1073,7 @@ const addVisualModuleOutputDefCommandDef = defineCommand<VisualModuleTarget & { 
 				validateVisualModuleOutputDef(module, payload.def);
 				primaryOutputId = module.primaryOutputId;
 				module.outputDefs.push(deepClone(payload.def));
-				if (module.primaryOutputId === null && payload.def.dataType.kind === 'color') module.primaryOutputId = payload.def.id;
+				if (module.primaryOutputId == null && payload.def.dataType.kind === 'color') module.primaryOutputId = payload.def.id;
 			},
 			undo(state) {
 				const module = stateUtility.getVisualModule(state, payload);
@@ -1088,6 +1092,7 @@ const setVisualModulePrimaryOutputCommandDef = defineCommand<VisualModuleTarget 
 		return {
 			execute(state) {
 				const module = stateUtility.getVisualModule(state, payload);
+				// nullは主出力の解除。payloadの必須IDがundefinedなら検証で拒否する。
 				if (payload.primaryOutputId !== null && !module.outputDefs.some(def => def.id === payload.primaryOutputId && def.dataType.kind === 'color')) {
 					throw new Error('Primary output must reference a color output');
 				}
@@ -1181,18 +1186,20 @@ function getTimelineClip(state: ProjectState, sceneId: string, target: TimelineC
 	return { layer, clip };
 }
 
-function requireMediaDurationMs(sourceDurationMs: number | undefined): number {
+// 省略可能プロパティや検索結果を直接受け取る境界なので、入力のundefinedも未指定として受け入れる。
+function requireMediaDurationMs(sourceDurationMs: number | null | undefined): number {
 	if (sourceDurationMs == null || !Number.isFinite(sourceDurationMs) || sourceDurationMs <= 0) throw new Error('Invalid media duration');
 	return sourceDurationMs;
 }
 
-function validateMediaClipTiming(clip: TimelineClipData, sourceDurationMs: number | undefined) {
+// 省略可能プロパティや検索結果を直接受け取る境界なので、入力のundefinedも未指定として受け入れる。
+function validateMediaClipTiming(clip: TimelineClipData, sourceDurationMs: number | null | undefined) {
 	if (!('sourceInMs' in clip)) throw new Error('Invalid media clip');
 	validateTimelineMediaClipTiming(clip, requireMediaDurationMs(sourceDurationMs));
 }
 
 /** 異なる素材種類の混入をコマンド境界で拒否してから、型別のclips配列へ保存する。 */
-function validateLayerClips(state: ProjectState, sceneId: string, layer: TimelineLayer, clips: readonly TimelineClipData[], sourceDurationsMs?: TimelineClipSourceDurations) {
+function validateLayerClips(state: ProjectState, sceneId: string, layer: TimelineLayer, clips: readonly TimelineClipData[], sourceDurationsMs?: TimelineClipSourceDurations | null) {
 	validateTimelineClips(clips);
 	for (const clip of clips) {
 		if (layer.layerType === 'video' || layer.layerType === 'audio') {
@@ -1213,7 +1220,7 @@ function validateLayerClips(state: ProjectState, sceneId: string, layer: Timelin
 }
 
 /** 子の一部だけが追加されることのないよう、グループ全体を変更前に検証する。 */
-function validateAddedTimelineLayer(state: ProjectState, sceneId: string, layer: TimelineLayer, sourceDurationsMs?: TimelineClipSourceDurations) {
+function validateAddedTimelineLayer(state: ProjectState, sceneId: string, layer: TimelineLayer, sourceDurationsMs?: TimelineClipSourceDurations | null) {
 	const ids = new Set(flattenTimelineLayers(getScene(state, sceneId).layers).map(entry => entry.id));
 	for (const entry of flattenTimelineLayers([layer])) {
 		if (ids.has(entry.id)) throw new Error('Duplicate layer ID');
@@ -1227,7 +1234,7 @@ function validateAddedTimelineLayer(state: ProjectState, sceneId: string, layer:
 	}
 }
 
-const addTimelineLayerCommandDef = defineCommand<{ sceneId: string; layer: TimelineLayer; sourceDurationsMs?: TimelineClipSourceDurations }>({
+const addTimelineLayerCommandDef = defineCommand<{ sceneId: string; layer: TimelineLayer; sourceDurationsMs?: TimelineClipSourceDurations | null }>({
 	label: 'Add timeline layer',
 	// 単一レイヤーのルート追加では既存の兄弟を送り直さず、子孫を伴う追加だけ階層全体を通知する。
 	changes: (_state, payload) => isTimelineContainerLayer(payload.layer) ? [{ type: 'layerTree', sceneId: payload.sceneId }]
@@ -1334,7 +1341,7 @@ const changeEffectLayerResolutionCommandDef = defineCommand<{ sceneId: string; l
 	},
 });
 
-const addTimelineClipCommandDef = defineCommand<{ sceneId: string; layerId: string; clip: TimelineClipData; sourceDurationMs?: number }>({
+const addTimelineClipCommandDef = defineCommand<{ sceneId: string; layerId: string; clip: TimelineClipData; sourceDurationMs?: number | null }>({
 	label: 'Add timeline clip',
 	changes: (_state, payload) => [{ type: 'layer', sceneId: payload.sceneId, layerId: payload.layerId, changes: [{ type: 'clips' }] }],
 	create: payload => ({
@@ -1351,7 +1358,7 @@ const addTimelineClipCommandDef = defineCommand<{ sceneId: string; layerId: stri
 	}),
 });
 
-const pasteTimelineClipsCommandDef = defineCommand<{ sceneId: string; clips: TimelineClipPaste[]; sourceDurationsMs?: TimelineClipSourceDurations }>({
+const pasteTimelineClipsCommandDef = defineCommand<{ sceneId: string; clips: TimelineClipPaste[]; sourceDurationsMs?: TimelineClipSourceDurations | null }>({
 	label: 'Paste timeline clips',
 	changes: (_state, payload) => [...new Set(payload.clips.map(entry => entry.layerId))]
 		.map(layerId => ({ type: 'layer', sceneId: payload.sceneId, layerId, changes: [{ type: 'clips' }] })),
@@ -1382,12 +1389,12 @@ const pasteTimelineClipsCommandDef = defineCommand<{ sceneId: string; clips: Tim
 	}),
 });
 
-const editTimelineClipTimingCommandDef = defineCommand<TimelineClipTarget & { sceneId: string; edge: 'start' | 'end'; deltaMs: number; sourceDurationMs?: number; initialTiming?: TimelineClipTiming | TimelineMediaClipTiming }>({
+const editTimelineClipTimingCommandDef = defineCommand<TimelineClipTarget & { sceneId: string; edge: 'start' | 'end'; deltaMs: number; sourceDurationMs?: number | null; initialTiming?: TimelineClipTiming | TimelineMediaClipTiming }>({
 	label: 'Trim timeline clip',
 	changes: (_state, payload) => [{ type: 'layer', sceneId: payload.sceneId, layerId: payload.layerId, changes: [{ type: 'clips' }] }],
 	create: payload => {
 		let before: TimelineClipData;
-		let after: TimelineClipData | undefined;
+		let after: TimelineClipData | null = null;
 		return {
 			execute(state) {
 				const { layer, clip } = getTimelineClip(state, payload.sceneId, payload);
@@ -1396,7 +1403,7 @@ const editTimelineClipTimingCommandDef = defineCommand<TimelineClipTarget & { sc
 				const media = layer.layerType === 'audio' || layer.layerType === 'video';
 				// Asset一覧で短い素材へ置き換えると、現在の区間は素材長を超え得る。
 				// 変更前の長さでは拒否せず、素材長自体と、修復後の区間を別々に検証する。
-				const sourceDurationMs = media ? requireMediaDurationMs(payload.sourceDurationMs) : undefined;
+				const sourceDurationMs = media ? requireMediaDurationMs(payload.sourceDurationMs) : null;
 				// ドラッグの途中でポインターを戻す操作は、確定済みクリップの左延長とは別。
 				// 開始時の区間から制限し、同じドラッグ内では開始状態まで戻れるようにする。
 				const initial = { ...clip, ...payload.initialTiming };
@@ -1404,7 +1411,7 @@ const editTimelineClipTimingCommandDef = defineCommand<TimelineClipTarget & { sc
 				validateTimelineClips(initialClips);
 				const bounds = 'sourceInMs' in initial
 					? getTimelineMediaTrimBounds(initialClips, initial, payload.edge, sourceDurationMs!)
-					: getTimelineClipTrimBounds(initialClips, initial, payload.edge, layer.layerType === 'scene', sourceDurationMs);
+					: getTimelineClipTrimBounds(initialClips, initial, payload.edge, layer.layerType === 'scene', sourceDurationMs ?? Infinity);
 				if (bounds.minDelta > bounds.maxDelta) throw new Error('No valid clip duration within the media');
 				const delta = Math.max(bounds.minDelta, Math.min(bounds.maxDelta, Math.round(payload.deltaMs)));
 				before = deepClone(clip);
@@ -1426,7 +1433,7 @@ const editMediaClipLoopCommandDef = defineCommand<TimelineClipTarget & { sceneId
 	changes: (_state, payload) => [{ type: 'layer', sceneId: payload.sceneId, layerId: payload.layerId, changes: [{ type: 'clips' }] }],
 	create: payload => {
 		let before: Pick<TimelineMediaClipTiming, 'durationMs' | 'loop'>;
-		let after: typeof before | undefined;
+		let after: typeof before | null = null;
 		const find = (state: ProjectState) => {
 			const layer = getTimelineClipLayer(state, payload.sceneId, payload.layerId);
 			if (layer.layerType !== 'video' && layer.layerType !== 'audio') throw new Error('Media layer not found');
@@ -1463,7 +1470,7 @@ const editMediaClipPlaybackRateCommandDef = defineCommand<TimelineClipTarget & {
 	changes: (_state, payload) => [{ type: 'layer', sceneId: payload.sceneId, layerId: payload.layerId, changes: [{ type: 'clips' }] }],
 	create: payload => {
 		let before: TimelineMediaClipTiming;
-		let after: TimelineMediaClipTiming | undefined;
+		let after: TimelineMediaClipTiming | null = null;
 		return {
 			execute(state) {
 				const { layer, clip } = getTimelineClip(state, payload.sceneId, payload);
@@ -1502,7 +1509,7 @@ const moveTimelineClipsCommandDef = defineCommand<{ sceneId: string; clips: Time
 	})),
 	create: payload => {
 		let before: (TimelineClipTarget & { startMs: number })[];
-		let after: (TimelineClipTarget & { startMs: number })[] | undefined;
+		let after: (TimelineClipTarget & { startMs: number })[] | null = null;
 		let keyframeUpdates: TimelineKeyframeMoveUpdate[] = [];
 		const apply = (state: ProjectState, side: 'before' | 'after') => {
 			for (const position of side === 'before' ? before : after!) getTimelineClip(state, payload.sceneId, position).clip.startMs = position.startMs;
@@ -1551,7 +1558,7 @@ const removeTimelineClipsCommandDef = defineCommand<{ sceneId: string; clips: Ti
 	},
 });
 
-const changeTimelineClipSourceCommandDef = defineCommand<TimelineClipTarget & { sceneId: string; assetId?: string; referencedSceneId?: string; sourceDurationMs?: number; audioEnabled?: boolean }>({
+const changeTimelineClipSourceCommandDef = defineCommand<TimelineClipTarget & { sceneId: string; assetId?: string; referencedSceneId?: string; sourceDurationMs?: number | null; audioEnabled?: boolean }>({
 	label: 'Change timeline clip source',
 	changes: (_state, payload) => [{ type: 'layer', sceneId: payload.sceneId, layerId: payload.layerId, changes: [{ type: 'clips' }] }],
 	create: payload => {
@@ -1562,7 +1569,7 @@ const changeTimelineClipSourceCommandDef = defineCommand<TimelineClipTarget & { 
 				const media = layer.layerType === 'video' || layer.layerType === 'audio';
 				if (media) requireMediaDurationMs(payload.sourceDurationMs);
 				const next = { ...clip,
-					...(media ? createTimelineMediaClipTiming(clip.startMs, getTimelineClipInsertionDuration(layer.clips.filter(entry => entry.id !== clip.id), clip.startMs, payload.sourceDurationMs)) : { contentOffsetMs: 0 }),
+					...(media ? createTimelineMediaClipTiming(clip.startMs, getTimelineClipInsertionDuration(layer.clips.filter(entry => entry.id !== clip.id), clip.startMs, requireMediaDurationMs(payload.sourceDurationMs))) : { contentOffsetMs: 0 }),
 					...(layer.layerType === 'scene' ? { sceneId: payload.referencedSceneId } : { assetId: payload.assetId }),
 					...(layer.layerType === 'video' ? { audioEnabled: payload.audioEnabled ?? ('audioEnabled' in clip && clip.audioEnabled) } : {}),
 				};
@@ -1597,7 +1604,7 @@ const editVideoClipAudioCommandDef = defineCommand<TimelineClipTarget & { sceneI
 	},
 });
 
-const pasteTimelineLayerCommandDef = defineCommand<{ sceneId: string; layer: TimelineLayer; sourceLayerId: string; sourceDurationsMs?: TimelineClipSourceDurations }>({
+const pasteTimelineLayerCommandDef = defineCommand<{ sceneId: string; layer: TimelineLayer; sourceLayerId: string; sourceDurationsMs?: TimelineClipSourceDurations | null }>({
 	label: 'Paste timeline layer',
 	changes: (_state, payload) => [{ type: 'layerTree', sceneId: payload.sceneId }],
 	create: payload => ({
@@ -1791,7 +1798,7 @@ const moveTimelineKeyframesCommandDef = defineCommand<{ sceneId: string; positio
 	changes: (_state, payload) => payload.positions.map(position => ({ type: 'layer', sceneId: payload.sceneId, layerId: position.layerId,
 																																																																				changes: position.target === 'utterance' ? [{ type: 'definition' }] : [{ type: 'parameter', target: position.target, kind: 'value' }] })),
 	create: payload => {
-		let updates: TimelineKeyframeMoveUpdate[] | undefined;
+		let updates: TimelineKeyframeMoveUpdate[] | null = null;
 		return {
 			execute(state) {
 				updates ??= prepareTimelineKeyframeMove(state, getScene(state, payload.sceneId), payload.positions);
@@ -1908,7 +1915,7 @@ const transformTimelineLayersCommandDef = defineCommand<{ sceneId: string; layer
 	create: payload => wrapTimelineLayers(payload.sceneId, payload.layerIds, payload.transform),
 });
 
-const duplicateTimelineLayersCommandDef = defineCommand<{ sceneId: string; layers: { layer: TimelineLayer; sourceLayerId: string }[]; sourceDurationsMs?: TimelineClipSourceDurations }>({
+const duplicateTimelineLayersCommandDef = defineCommand<{ sceneId: string; layers: { layer: TimelineLayer; sourceLayerId: string }[]; sourceDurationsMs?: TimelineClipSourceDurations | null }>({
 	label: 'Duplicate timeline layers',
 	changes: (_state, payload) => [{ type: 'layerTree', sceneId: payload.sceneId }],
 	create: payload => {
@@ -1987,7 +1994,7 @@ const moveTimelineContainerCommandDef = defineCommand<{ sceneId: string; layerId
 	},
 	create: payload => {
 		let before: (TimelineClipTarget & { startMs: number })[];
-		let after: (TimelineClipTarget & { startMs: number })[] | undefined;
+		let after: (TimelineClipTarget & { startMs: number })[] | null = null;
 		let updates: TimelineKeyframeMoveUpdate[] = [];
 		const apply = (state: ProjectState, side: 'before' | 'after') => {
 			for (const position of side === 'before' ? before : after!) getTimelineClip(state, payload.sceneId, position).clip.startMs = position.startMs;

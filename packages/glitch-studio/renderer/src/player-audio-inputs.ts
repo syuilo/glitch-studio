@@ -13,6 +13,7 @@ export class PlayerAudioInputs {
 	constructor(private sources: ReadonlyMap<AudioSourceId, AudioHistory>) {}
 
 	resolve(selection: unknown): AudioInput | null {
+		// nullだけが明示的な未選択。undefinedの入力を未選択に読み替えると、壊れた指定を黙って受け入れてしまう。
 		if (selection === null) return null;
 		const { playerId } = selection as { playerId: string };
 		const history = this.sources.get(playerAudioSourceId(playerId));

@@ -46,12 +46,14 @@ export function createInlineKeyframesTimeline(definition: ParameterDefinition, c
 export function updateInlineKeyframe(input: InlineKeyframesTimeline, definition: ParameterDefinition, keyframeId: string,
 	patch: { x?: number; value?: unknown; interpolation?: KeyframeInterpolation }): InlineKeyframesTimeline | null {
 	if (!canEditKeyframesTimeline(definition, input)) return null;
-	if (patch.x !== undefined && (!Number.isFinite(patch.x) || patch.x < 0)) return null;
+	if (Object.hasOwn(patch, 'x') && (patch.x == null || !Number.isFinite(patch.x) || patch.x < 0)) return null;
 	if (Object.hasOwn(patch, 'value')) {
 		if (!isKeyframeValue(definition.dataType, patch.value)) return null;
 		validateEnumParameterValue(definition, patch.value);
 	}
-	if (patch.interpolation != null && !supportsKeyframeInterpolation(definition.dataType) && patch.interpolation.type !== 'hold') return null;
+	if (Object.hasOwn(patch, 'interpolation')) {
+		if (patch.interpolation == null || (!supportsKeyframeInterpolation(definition.dataType) && patch.interpolation.type !== 'hold')) return null;
+	}
 	const keyframe = input.keyframesTimeline.keyframes.find(point => point.id === keyframeId);
 	if (keyframe == null || Object.entries(patch).every(([key, value]) => JSON.stringify(keyframe[key as keyof KeyframesTimelineKeyframe]) === JSON.stringify(value))) return null;
 	const keyframes = input.keyframesTimeline.keyframes.map(point => point.id === keyframeId ? { ...point, ...patch } : point);

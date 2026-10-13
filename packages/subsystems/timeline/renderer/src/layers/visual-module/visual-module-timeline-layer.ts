@@ -35,7 +35,7 @@ export function createVisualModuleTimelineLayer(
 			const visualModule = typeof moduleSource === 'function' ? moduleSource() : moduleSource;
 			const layer = typeof layerSource === 'function' ? layerSource() : layerSource;
 			const paramInputs = new Map<VisualModuleCustomParameterId, TimelineImage>();
-			if (visualModule.primaryInputId !== null) paramInputs.set(visualModule.primaryInputId, renderer.getImageInput?.(context.input) ?? context.input);
+			if (visualModule.primaryInputId != null) paramInputs.set(visualModule.primaryInputId, renderer.getImageInput?.(context.input) ?? context.input);
 			const evaluationContext = createTimelineLayerEvaluationScope({ time: context.sceneTimeMs, isExport: context.isExport, automationGraphs: layer.automationGraphs });
 			const evaluatedParamValues = new Map<VisualModuleCustomParameterId, any>();
 			const audioParamInputs = new Map<VisualModuleCustomParameterId, AudioInput | null>();
@@ -49,7 +49,7 @@ export function createVisualModuleTimelineLayer(
 					continue;
 				}
 				// 空のenumキーフレームには有効な既定値が必要。保存済みの無効値は置換せず下で報告する。
-				const enumFallback = value?.inputSource === 'keyframesTimelineInline' ? def.defaultValue.value : undefined;
+				const enumFallback = value?.inputSource === 'keyframesTimelineInline' ? def.defaultValue.value : null;
 				const evaluated = value == null ? def.defaultValue.value : evaluator.evaluate(value as TimelineParameterBinding, evaluationContext,
 					def.dataType.kind === 'enum' ? enumFallback : value.inputSource === 'automationGraphReference' ? def.defaultValue.value : genEmptyValue(def));
 				// prepare待機中にliteralの配列が編集されても、このフレームの値は変えない。

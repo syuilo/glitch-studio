@@ -10,7 +10,7 @@ import type { IntermediateTextureFormat } from '@gs/shared/types.ts';
 /** 親背景から独立した画面を、同じScene時刻で合成する。独立した配置・時計は作らない。 */
 export function createGroupTimelineLayer(getGroup: () => TimelineGroupLayer, options: {
 	device: GPUDevice; vertex: GPUShaderModule; resolution: { width: number; height: number }; format: IntermediateTextureFormat;
-	onCompositing?: TimelineCompositingObserver;
+	onCompositing?: TimelineCompositingObserver | null;
 	createLayer: (layer: TimelineLayer, clipId: string | null) => TimelineLayerRenderer<TimelineImage>;
 	getLayerVersion: (layer: TimelineLayer, clipId: string | null) => string | number;
 }): TimelineLayerRenderer<TimelineImage> {

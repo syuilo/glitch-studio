@@ -16,6 +16,7 @@
 		@click.stop.prevent
 		@dblclick.stop.prevent
 	></div>
+	<!-- VueのCSSPropertiesはnullを受け付けないため、最後のキーではmaxWidthをundefinedで省略する。 -->
 	<div
 		v-for="{ keyframe, label, nextKeyframe } of enumKeyframeLabels"
 		:key="keyframe.id"
@@ -39,7 +40,7 @@ import { timelineKeyframePosition } from '@/utility/timeline-coordinates.ts';
 
 const props = defineProps<{
 	keyframes: KeyframesTimelineKeyframe[];
-	paramDef: ParameterDefinition | undefined;
+	paramDef: ParameterDefinition | null;
 	pixelsPerMs: number;
 	selectedKeyframeIds: string[];
 }>();

@@ -7,7 +7,7 @@ import type { TimelineTextLayer } from '@gs/subsystems_timeline_shared/types.ts'
 import type { TimelineImage } from '../../timeline-image.ts';
 import type { TimelineLayerRenderer } from '../../timeline-renderer.ts';
 
-export function createTextTimelineLayer(layer: TimelineTextLayer, options: Parameters<typeof createTextRenderer>[0] & { getFont: (id: string) => Blob | null; onCompositing?: TimelineCompositingObserver }): TimelineLayerRenderer<TimelineImage> {
+export function createTextTimelineLayer(layer: TimelineTextLayer, options: Parameters<typeof createTextRenderer>[0] & { getFont: (id: string) => Blob | null; onCompositing?: TimelineCompositingObserver | null }): TimelineLayerRenderer<TimelineImage> {
 	const renderer = createTextRenderer(options);
 	const compositor = createTimelineCompositor(options);
 	const parameters = new TextParameters();

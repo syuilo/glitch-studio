@@ -66,7 +66,7 @@ export default implementEffect<typeof definition>({
 			layout: captureLayout,
 			entries: [uniformEntry],
 		});
-		let previousInputSettings: string | undefined;
+		let previousInputSettings: string | null = null;
 		let current = 0;
 		let hasPrevious = false;
 		const attachment = (view: GPUTextureView): GPURenderPassDescriptor => ({

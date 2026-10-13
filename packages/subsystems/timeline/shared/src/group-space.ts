@@ -16,7 +16,7 @@ export function getTimelineGroupSpace(group: GroupPlacement, frame: Resolution, 
 	return { parent: multiplyTimelineAffine(screen ? space?.screenParent ?? TIMELINE_IDENTITY : space?.parent ?? TIMELINE_IDENTITY, local),
 										screenParent: space?.screenParent,
 										depth: (screen ? 0 : space?.depth ?? 0) + group.settings.depth,
-										camera: screen ? undefined : space?.camera, viewport: space?.viewport };
+										camera: screen ? null : space?.camera, viewport: space?.viewport };
 }
 
 /**

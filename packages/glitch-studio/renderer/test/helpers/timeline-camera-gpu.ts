@@ -36,6 +36,7 @@ export async function run() {
 	const composite = (values = {}) => ({ ...Object.fromEntries(Object.entries(timelineCompositingParamDefs).map(([key, def]) => [key, structuredClone(def.defaultValue)])), ...Object.fromEntries(Object.entries(values).map(([key, value]) => [key, literal(value)])) } as TimelineGroupLayer['compositingParamValues']);
 	const base = { isDisabled: false, forceDisableMotionBlur: false, automationGraphs: [], clips: [{ id: 'clip', startMs: 0, durationMs: 1000, contentOffsetMs: 0 }] };
 	let nextId = 0;
+	// colorをundefinedで省略する呼び出しは既定の赤を適用し、後続の変形・合成引数だけを指定する。
 	const shape = (color = [1, 0, 0, 1], values = {}, compositing = {}, coordinateSpace: TimelineLayerCoordinateSpace = 'world'): TimelineLayer => {
 		const shape = createShape('rectangle');
 		Object.assign(shape.paramValues, { size: literal([0.5, 0.5]), fillColor: literal(color), strokeWidth: literal(0) }, Object.fromEntries(Object.entries(values).map(([key, value]) => [key, literal(value)])));

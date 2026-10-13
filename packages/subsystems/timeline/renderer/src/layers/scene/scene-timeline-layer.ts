@@ -21,7 +21,7 @@ export function createSceneTimelineLayer(
 		resolution: { width: number; height: number };
 		sceneResolution: { width: number; height: number };
 		format: IntermediateTextureFormat;
-		onCompositing?: TimelineCompositingObserver;
+		onCompositing?: TimelineCompositingObserver | null;
 		createLayer: (entry: TimelineLayer, clipId: string | null) => TimelineLayerRenderer<TimelineImage>;
 		getLayerVersion?: (entry: TimelineLayer, clipId: string | null) => string | number;
 	},

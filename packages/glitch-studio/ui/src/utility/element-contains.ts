@@ -1,5 +1,5 @@
 export function elementContains(parent: Element | null, child: Element | null, checkSame = true) {
-	if (parent === null || child === null) return false;
+	if (parent == null || child == null) return false;
 	if (checkSame && parent === child) return true;
 	let node = child.parentNode;
 	while (node) {

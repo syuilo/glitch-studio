@@ -107,7 +107,7 @@ test('validates player audio selections at the application command boundary', ()
 	const edit = command(selection);
 	edit.execute(state);
 	assert.deepEqual(node.params.audio, literal(selection));
-	for (const invalid of [{ type: 'player', playerId: '' }, { type: 'layer', layerId: 'audio' }, 'player']) {
+	for (const invalid of [undefined, { type: 'player', playerId: '' }, { type: 'layer', layerId: 'audio' }, 'player']) {
 		assert.throws(() => command(invalid).execute(state), /Invalid player audio source/);
 		assert.deepEqual(node.params.audio, literal(selection));
 	}

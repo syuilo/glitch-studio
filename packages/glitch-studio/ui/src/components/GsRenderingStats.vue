@@ -79,8 +79,8 @@ const xTicks = computed(() => [
 	{ x: chartWidth.value - plotRight, label: '0s', anchor: 'end' as const },
 ]);
 
-let timer: number | undefined;
-let resizeObserver: ResizeObserver | undefined;
+let timer: number | null = null;
+let resizeObserver: ResizeObserver | null = null;
 
 function recordSample() {
 	if (previewPlayback.state.value.mode !== 'live') {

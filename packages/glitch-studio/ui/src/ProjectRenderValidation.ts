@@ -153,7 +153,7 @@ export class ProjectRenderValidation {
 		}
 	}
 
-	private asset(id: string, dependencies: Set<string>, kind?: string) {
+	private asset(id: string, dependencies: Set<string>, kind?: string | null) {
 		dependencies.add('asset:' + id);
 		const type = this.assets.get(id);
 		if (!type || (kind && !type.startsWith(kind + '/'))) throw new Error('Asset not found or incompatible: ' + id);
@@ -162,7 +162,7 @@ export class ProjectRenderValidation {
 	private value(definition: ParameterDefinition, binding: any, dependencies: Set<string>) {
 		if (binding.inputSource !== 'literal' || binding.value == null) return;
 		const kind = definition.dataType.kind;
-		if (kind === 'assetReference' || kind === 'videoAssetReference' || kind === 'fontAssetReference') this.asset(binding.value, dependencies, kind === 'videoAssetReference' ? 'video' : kind === 'fontAssetReference' ? 'font' : undefined);
+		if (kind === 'assetReference' || kind === 'videoAssetReference' || kind === 'fontAssetReference') this.asset(binding.value, dependencies, kind === 'videoAssetReference' ? 'video' : kind === 'fontAssetReference' ? 'font' : null);
 		if (kind === 'playerReference' || kind === 'audioSource') {
 			if (kind === 'audioSource') validatePlayerAudioSourceSelection(binding.value);
 			const id = kind === 'audioSource' ? binding.value.playerId : binding.value;
@@ -171,13 +171,13 @@ export class ProjectRenderValidation {
 		}
 	}
 
-	private resolveVisualModule(target: VisualModuleTarget): VisualModule | undefined {
-		if ('visualModuleId' in target) return this.state.visualModules.value.find(visualModule => visualModule.id === target.visualModuleId);
+	private resolveVisualModule(target: VisualModuleTarget): VisualModule | null {
+		if ('visualModuleId' in target) return this.state.visualModules.value.find(visualModule => visualModule.id === target.visualModuleId) ?? null;
 		const layer = this.layer(target.sceneId, target.inlineVisualModuleLayerId);
-		return layer?.layerType === 'inlineVisualModule' ? layer.visualModule : undefined;
+		return layer?.layerType === 'inlineVisualModule' ? layer.visualModule : null;
 	}
 
-	private replaceVisualModule(target: VisualModuleTarget, visualModule?: VisualModule) {
+	private replaceVisualModule(target: VisualModuleTarget, visualModule?: VisualModule | null) {
 		const key = visualModuleTargetKey(target);
 		for (const nodeId of this.nodeEdges.get(key)?.keys() ?? []) this.removeUnit(key + '/node:' + nodeId);
 		this.removeUnit(key); this.removeUnit(key + '/connections');
@@ -215,12 +215,12 @@ export class ProjectRenderValidation {
 		});
 	}
 
-	private layer(sceneId: string, layerId: string): TimelineLayer | undefined {
+	private layer(sceneId: string, layerId: string): TimelineLayer | null {
 		const location = this.locations.get(sceneId)?.get(layerId);
-		let layers = this.state.timelineScenes.value.find(scene => scene.id === sceneId)?.layers;
-		let layer: TimelineLayer | undefined;
+		let layers = this.state.timelineScenes.value.find(scene => scene.id === sceneId)?.layers ?? null;
+		let layer: TimelineLayer | null = null;
 		for (const index of location?.path ?? []) {
-			layer = layers?.[index]; layers = layer && isTimelineContainerLayer(layer) ? layer.layers : undefined;
+			layer = layers?.[index] ?? null; layers = layer && isTimelineContainerLayer(layer) ? layer.layers : null;
 		}
 		return layer;
 	}
@@ -259,8 +259,8 @@ export class ProjectRenderValidation {
 	private checkLayer(sceneId: string, id: string, graph = true, force = false) {
 		const layer = this.layer(sceneId, id);
 		if (!layer) return;
-		const visualModule = layer.layerType === 'inlineVisualModule' ? layer.visualModule : layer.layerType === 'visualModule' ? this.state.visualModules.value.find(visualModule => visualModule.id === layer.visualModuleId) : undefined;
-		const effect = layer.layerType === 'effect' ? this.definitions[layer.effectId] : undefined;
+		const visualModule = layer.layerType === 'inlineVisualModule' ? layer.visualModule : layer.layerType === 'visualModule' ? this.state.visualModules.value.find(visualModule => visualModule.id === layer.visualModuleId) : null;
+		const effect = layer.layerType === 'effect' ? this.definitions[layer.effectId] : null;
 		const dependencies = new Set<string>();
 		if (layer.layerType === 'visualModule') dependencies.add('visualModule:' + layer.visualModuleId);
 		const edges = layer.layerType === 'scene' ? layer.clips.map(clip => clip.sceneId) : [];

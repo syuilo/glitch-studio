@@ -27,12 +27,12 @@ const emit = defineEmits<{
 }>();
 
 const preview = useTemplateRef('preview');
-let dispose: (() => void) | undefined;
+let dispose: (() => void) | null = null;
 let changing = false;
 
 function close() {
 	dispose?.();
-	dispose = undefined;
+	dispose = null;
 	if (changing) {
 		changing = false;
 		emit('changeFinished');

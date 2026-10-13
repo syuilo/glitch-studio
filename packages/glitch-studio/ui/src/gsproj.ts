@@ -139,7 +139,7 @@ export async function saveProjectFile(data: Uint8Array, handle: ProjectFileHandl
 	}
 }
 
-export async function loadProjectFile(file?: File, handle?: ProjectFileHandle): Promise<{ project: Project; name: string; handle?: ProjectFileHandle } | null> {
+export async function loadProjectFile(file?: File | null, handle?: ProjectFileHandle | null): Promise<{ project: Project; name: string; handle?: ProjectFileHandle | null } | null> {
 	if (file == null && handle != null) return loadProjectFile(await handle.getFile(), handle);
 	if (file != null) {
 		if (window.desktop?.registerProjectFile && handle?.kind !== 'desktop-project-file') {
@@ -155,7 +155,7 @@ export async function loadProjectFile(file?: File, handle?: ProjectFileHandle): 
 		return loadProjectFile(await selected.getFile(), selected);
 	}
 	if (typeof window.showOpenFilePicker === 'function') {
-		let selectedHandle: FileSystemFileHandle | undefined;
+		let selectedHandle: FileSystemFileHandle | null = null;
 		try {
 			[selectedHandle] = await window.showOpenFilePicker({ ...projectFilePickerOptions, multiple: false });
 		} catch (error) {

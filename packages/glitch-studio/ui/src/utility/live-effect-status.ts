@@ -28,8 +28,8 @@ export class LiveEffectStateStore {
 		else this.statuses.delete(nodeId);
 	}
 
-	public get(visualModuleId: string, nodeId: string): EffectInstanceState | undefined {
-		if (this.current?.visualModuleId !== visualModuleId) return;
-		return this.statuses.get(nodeId);
+	public get(visualModuleId: string, nodeId: string): EffectInstanceState | null {
+		if (this.current?.visualModuleId !== visualModuleId) return null;
+		return this.statuses.get(nodeId) ?? null;
 	}
 }

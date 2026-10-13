@@ -21,7 +21,7 @@
 							<div :class="$style.typeFilterLabel">{{ i18n.ts._EffectPicker.InputType }}</div>
 							<div :class="$style.tags">
 								<button v-for="{ value, label } in dataTypeItems" :key="value ?? 'all'" type="button" class="_button" :class="[$style.tag, { [$style.selected]: selectedInputType === value }]" @click="selectedInputType = value">
-									<GsNodePort v-if="value !== null" :dataType="{ kind: value }" :class="$style.typePort"/>
+									<GsNodePort v-if="value != null" :dataType="{ kind: value }" :class="$style.typePort"/>
 									<span>{{ label }}</span>
 								</button>
 							</div>
@@ -30,7 +30,7 @@
 							<div :class="$style.typeFilterLabel">{{ i18n.ts._EffectPicker.OutputType }}</div>
 							<div :class="$style.tags">
 								<button v-for="{ value, label } in dataTypeItems" :key="value ?? 'all'" type="button" class="_button" :class="[$style.tag, { [$style.selected]: selectedOutputType === value }]" @click="selectedOutputType = value">
-									<GsNodePort v-if="value !== null" output :dataType="{ kind: value }" :class="$style.typePort"/>
+									<GsNodePort v-if="value != null" output :dataType="{ kind: value }" :class="$style.typePort"/>
 									<span>{{ label }}</span>
 								</button>
 							</div>
@@ -135,8 +135,8 @@ const results = computed(() => {
 		// 接続互換性ではなく定義された型で検索する。any型と「指定なし」も区別する。
 		return effect.displayName.toLowerCase().includes(keyword)
 			&& selectedTags.value.every(tag => effect.tags.includes(tag))
-			&& (inputType === null || inputPorts.some(port => port.dataType.kind === inputType))
-			&& (outputType === null || outputPorts.some(port => port.dataType.kind === outputType));
+			&& (inputType == null || inputPorts.some(port => port.dataType.kind === inputType))
+			&& (outputType == null || outputPorts.some(port => port.dataType.kind === outputType));
 	}).map(item => ({
 		...item,
 		// 両方指定した場合は主入出力の両方が一致、片方が一致、どちらも一致しない順。

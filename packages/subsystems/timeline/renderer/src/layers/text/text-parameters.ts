@@ -21,7 +21,7 @@ export class TextParameters {
 		}
 		// 式が返した値は保存値を変更せず描画境界で整える。色はここでは未乗算。
 		const number = (value: unknown) => typeof value === 'number' && Number.isFinite(Math.fround(value)) ? value : 0;
-		const components = (value: unknown, count: number) => Array.from({ length: count }, (_, index) => number(Array.isArray(value) ? value[index] : undefined));
+		const components = (value: unknown, count: number) => Array.from({ length: count }, (_, index) => number(Array.isArray(value) ? value[index] : null));
 		const vector = (value: unknown) => components(value, 2) as [number, number];
 		const color = (value: unknown): [number, number, number, number] => {
 			const [r, g, b, a] = components(value, 4);

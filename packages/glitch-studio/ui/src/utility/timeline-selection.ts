@@ -99,7 +99,7 @@ export type TimelineMovePoint = {
 	minDelta: number;
 	maxDelta: number;
 	/** 指定時は共通候補を置き換える。別レイヤーのローカル目盛りへ吸着させないため。 */
-	snapTimes?: number[];
+	snapTimes?: number[] | null;
 	/** 周期全体を列挙せず、ドラッグ位置に最も近い境界だけを吸着候補にする。 */
 	snapPeriod?: { startMs: number; durationMs: number };
 };

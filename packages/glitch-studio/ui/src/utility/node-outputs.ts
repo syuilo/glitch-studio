@@ -6,11 +6,13 @@ import type { VisualModuleNode, NodeOutputReference, VisualModule } from '@gs/su
 import { preferences } from '@/preferences.ts';
 import { getEffectNodeName } from './node-name.ts';
 
+// 省略可能プロパティや検索結果を直接受け取る境界なので、入力のundefinedも未指定として受け入れる。
 export function getNodeDataTypeColor(dataType: TextureDataType | null | undefined): string {
 	return `var(--THEME-dataType-${dataType?.kind ?? 'any'})`;
 }
 
-export function canConnectNodeDataTypes(output: TextureDataType | undefined, input: TextureDataType | null): boolean {
+// 省略可能プロパティや検索結果を直接受け取る境界なので、入力のundefinedも未指定として受け入れる。
+export function canConnectNodeDataTypes(output: TextureDataType | null | undefined, input: TextureDataType | null): boolean {
 	if (output == null || input == null) return false;
 	return !preferences.s.forceTypeSafety || areNodeDataTypesCompatible(output, input);
 }
@@ -32,7 +34,9 @@ export function hasNodeInputTypeMismatch(nodes: VisualModuleNode[], connection: 
 	});
 }
 
-export function getNodeOutputItems(nodes: VisualModuleNode[], excludedNodeId?: string, inputDataType?: TextureDataType | null, paramDefs: VisualModule['paramDefs'] = []): { label: string; value: string; connection: NodeOutputReference; dataType: TextureDataType; typeCompatible: boolean; icon?: string }[] {
+// undefinedは入力型による絞り込みを省略、nullは接続可能な入力型がないことを表す。
+// getNodeInputDataTypeのnullを「全型を許可」に変えないため、ここでは省略と明示的なnullを区別する。
+export function getNodeOutputItems(nodes: VisualModuleNode[], excludedNodeId?: string, inputDataType?: TextureDataType | null, paramDefs: VisualModule['paramDefs'] = []): { label: string; value: string; connection: NodeOutputReference; dataType: TextureDataType; typeCompatible: boolean; icon?: string | null }[] {
 	return nodes.flatMap(node => {
 		if (node.id === excludedNodeId) return [];
 		const name = node.type === 'effect' ? getEffectNodeName(node) : node.type === 'globalIn' ? 'In' : 'Out';
@@ -45,7 +49,7 @@ export function getNodeOutputItems(nodes: VisualModuleNode[], excludedNodeId?: s
 				connection,
 				dataType: output.dataType,
 				typeCompatible,
-				icon: typeCompatible ? undefined : 'ti ti-alert-triangle',
+				icon: typeCompatible ? null : 'ti ti-alert-triangle',
 			};
 		});
 		return outputs;

@@ -24,7 +24,7 @@ type TimelineClipboardActionsOptions = {
 	currentTime: Readonly<Ref<number>>;
 	isActive: () => boolean;
 	inspectMedia: (asset: Asset) => Promise<TimelineClipMediaInfo>;
-	readLayerMediaDurations: (layer: TimelineLayer) => Promise<TimelineClipSourceDurations | undefined>;
+	readLayerMediaDurations: (layer: TimelineLayer) => Promise<TimelineClipSourceDurations | null>;
 	selectLayer: (layer: TimelineLayer) => void;
 	focusTimeline: () => void;
 	reportError: (error: unknown) => void;
@@ -62,7 +62,7 @@ export function createTimelineClipboardActions(options: TimelineClipboardActions
 			const sources = clips.flatMap(({ layerId, clip }) => {
 				const layer = findTimelineLayer(scene.layers, layerId)!;
 				if (layer.layerType !== 'audio' && layer.layerType !== 'video') return [];
-				const asset = 'assetId' in clip ? stateManager.state.assets.value.find(asset => asset.id === clip.assetId) : undefined;
+				const asset = 'assetId' in clip ? stateManager.state.assets.value.find(asset => asset.id === clip.assetId) : null;
 				if (!asset) throw new Error('Missing media');
 				return [{ layerId, clipId: clip.id, asset, blob: asset.fileData }];
 			});

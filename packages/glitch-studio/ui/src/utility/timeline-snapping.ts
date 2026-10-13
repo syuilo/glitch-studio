@@ -19,7 +19,7 @@ export function getTimelineClipSnapPoints(clip: TimelineClipPlacement, bounds: {
 	return edges.map(sourceEdge => ({
 		time: sourceEdge === 'start' ? clip.startMs : clip.startMs + clip.durationMs,
 		...bounds,
-		snapTimes: settings[sourceEdge] ? undefined : [],
+		snapTimes: settings[sourceEdge] ? null : [],
 	}));
 }
 

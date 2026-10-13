@@ -28,11 +28,11 @@ export class TimelineRendererManagerController extends RendererManagerController
 	public errorMessage = ref<string | null>(null);
 	private effectStates = new TimelineEffectStateStore();
 
-	public getLayerEffectStates(sceneId: string, layerId: string): ReadonlyMap<string, EffectInstanceState> | undefined {
+	public getLayerEffectStates(sceneId: string, layerId: string): ReadonlyMap<string, EffectInstanceState> | null {
 		return this.effectStates.getNodes(sceneId, layerId);
 	}
 
-	public getEffectLayerState(sceneId: string, layerId: string): EffectInstanceState | undefined {
+	public getEffectLayerState(sceneId: string, layerId: string): EffectInstanceState | null {
 		return this.effectStates.getLayer(sceneId, layerId);
 	}
 
@@ -126,7 +126,9 @@ export class TimelineRendererManagerController extends RendererManagerController
 	public async updateDynamicOptions(newDynamicOptions: Partial<TimelineRendererManagerDynamicOptions>) {
 		const options = deepClone(newDynamicOptions);
 		options.previewRevision = this.invalidateTransformPreview();
-		if (options.resolution !== undefined) {
+		// Partialのresolution省略は変更なし。指定された場合だけ検証・正規化する。
+		if (Object.hasOwn(options, 'resolution')) {
+			if (options.resolution == null) throw new Error('Resolution must be specified');
 			options.resolution = {
 				width: Math.max(1, Math.floor(options.resolution.width)),
 				height: Math.max(1, Math.floor(options.resolution.height)),

@@ -19,7 +19,7 @@ function selectCamera(candidates: readonly CameraCandidate[], time: number, refe
 		const evaluationTime = candidate.frozen ? referenceTime : time;
 		if (candidate.layer.clips.some(clip => isTimelineClipActive(clip, evaluationTime))) return { ...candidate, time: evaluationTime };
 	}
-	return undefined;
+	return null;
 }
 
 /**
@@ -41,7 +41,7 @@ export class TimelineCameraCuts {
 	private readonly cameras: CameraCandidate[];
 	private readonly frozenCameras: CameraCandidate[];
 	private readonly candidateTimes: number[];
-	private readonly cache = new Map<TimelineCameraLayer | undefined, readonly number[]>();
+	private readonly cache = new Map<TimelineCameraLayer | null, readonly number[]>();
 
 	constructor(layers: readonly TimelineLayer[]) {
 		this.cameras = getTimelineCameraCandidates(layers);
@@ -51,7 +51,7 @@ export class TimelineCameraCuts {
 	}
 
 	getBoundaries(referenceTime: number): readonly number[] {
-		const frozen = selectCamera(this.frozenCameras, referenceTime, referenceTime)?.layer;
+		const frozen = selectCamera(this.frozenCameras, referenceTime, referenceTime)?.layer ?? null;
 		const cached = this.cache.get(frozen);
 		if (cached) return cached;
 		const boundaries: number[] = [];
@@ -75,7 +75,7 @@ export class TimelineSceneCamera {
 	evaluate(layers: readonly TimelineLayer[], time: number, isExport: boolean, referenceTime = time) {
 		const active = getActiveTimelineCamera(layers, time, referenceTime);
 		// 有効なカメラがない区間は2D合成とし、Zによる拡縮・近接面での非表示を行わない。
-		if (!active) return undefined;
+		if (!active) return null;
 		const settings = { paramValues: active.layer.cameraParamValues, automationGraphs: active.layer.automationGraphs };
 		const camera = this.parameters.evaluate(settings, active.time, isExport);
 		let ancestorTime = time;

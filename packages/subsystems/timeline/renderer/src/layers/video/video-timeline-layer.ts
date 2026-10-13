@@ -16,7 +16,7 @@ export function createVideoTimelineLayer(layer: TimelineVideoLayer, blob: Blob, 
 	resolution: { width: number; height: number };
 	resolutionScale: number;
 	format: IntermediateTextureFormat;
-	onCompositing?: TimelineCompositingObserver;
+	onCompositing?: TimelineCompositingObserver | null;
 }): TimelineLayerRenderer<TimelineImage> {
 	const source = openVideoSource(blob);
 	const texture = createVideoTexture(options.device, options.format);
@@ -24,7 +24,7 @@ export function createVideoTimelineLayer(layer: TimelineVideoLayer, blob: Blob, 
 	const parameters = new TimelineCompositingParameters();
 	let disposed = false;
 	let pending: Promise<unknown> = Promise.resolve();
-	let cachedFrame: { contentTimeMs: number; foreground: TimelineImage } | undefined;
+	let cachedFrame: { contentTimeMs: number; foreground: TimelineImage } | null = null;
 	return {
 		evaluate(context, signal) {
 			// 同じ配置の連続シークはデコーダーを直列に使う。待機中に不要になった要求は
@@ -39,7 +39,7 @@ export function createVideoTimelineLayer(layer: TimelineVideoLayer, blob: Blob, 
 					try {
 						if (disposed || signal.aborted) return { gpuTime: 0 };
 						// 転送中の失敗でテクスチャが変更・再確保されても、古い時刻のキャッシュを使わない。
-						cachedFrame = undefined;
+						cachedFrame = null;
 						// replaceの無変形時はcompositorが素材を直接返すため、合成前に原寸へ倍率を
 						// 一度だけ適用する。後続モジュールの自動解像度は、この計算用寸法を継承する。
 						const foreground: TimelineImage = sample ? { kind: 'texture', texture: texture.upload(sample, options.resolutionScale) }
@@ -60,7 +60,7 @@ export function createVideoTimelineLayer(layer: TimelineVideoLayer, blob: Blob, 
 		},
 		destroy() {
 			disposed = true;
-			cachedFrame = undefined;
+			cachedFrame = null;
 			source.dispose();
 			texture.dispose();
 			compositor.dispose();

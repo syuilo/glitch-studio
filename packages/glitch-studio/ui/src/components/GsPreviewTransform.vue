@@ -57,7 +57,7 @@ const keepRatio = preferences.model('previewTransformKeepRatio');
 const dragging = ref(false);
 type PreviewGeometry = TimelineLayerGeometry & { parents: TimelineLayerGeometry[] };
 const draft = shallowRef<PreviewGeometry | null>(null);
-let stopDrag: (() => void) | undefined;
+let stopDrag: (() => void) | null = null;
 const transformObserver = {};
 
 const target = computed(() => {
@@ -136,7 +136,7 @@ function startDrag(event: PointerEvent, handle: 'move' | 'rotate' | TimelinePoin
 	// 操作開始時の枠を残し、正しい時刻の評価が届いてから編集を開始する。
 	draft.value = pendingGeometry;
 	let initial: PreviewGeometry | null = null;
-	let session: ReturnType<typeof stateManager.beginEdit<'editTimelineLayerTransform'>> | undefined;
+	let session: ReturnType<typeof stateManager.beginEdit<'editTimelineLayerTransform'>> | null = null;
 	let prepared: TimelineTransformBindings;
 	let initialBindings: TimelineTransformBindings;
 	let latest = { x: event.clientX, y: event.clientY, alt: event.altKey, shift: event.shiftKey };
@@ -223,7 +223,7 @@ function startDrag(event: PointerEvent, handle: 'move' | 'rotate' | TimelinePoin
 			stopWaiting();
 			if (cancelled || !changed) session?.cancel();
 			else session?.finish();
-			stopDrag = undefined;
+			stopDrag = null;
 			dragging.value = false;
 			// 最後の値がWorkerへ反映されるまで手元の枠を保ち、古い応答へ一瞬戻さない。
 			if (cancelled || !changed) draft.value = null;

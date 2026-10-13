@@ -36,11 +36,11 @@ export type TimelineRenderSpace = {
 	screenParent?: TimelineAffine;
 	depth: number;
 	/** 平面化境界ではcameraを外し、その内側のZを使わない。 */
-	camera?: EvaluatedTimelineCamera;
+	camera?: EvaluatedTimelineCamera | null;
 	/** 出力が確定する画面。平面化の内部では省略して画面外を保持する。 */
 	viewport?: TimelineBounds;
 };
-export function projectTimelineMatrix(matrix: TimelineAffine, depth: number, camera?: EvaluatedTimelineCamera): TimelineAffine | null {
+export function projectTimelineMatrix(matrix: TimelineAffine, depth: number, camera?: EvaluatedTimelineCamera | null): TimelineAffine | null {
 	if (!camera) return matrix;
 	const distance = camera.z - depth;
 	if (distance < CAMERA_NEAR_DISTANCE) return null;

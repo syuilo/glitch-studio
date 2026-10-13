@@ -15,7 +15,7 @@ export async function playVideoAfterFirstFrameIsReady(video: HTMLVideoElement): 
 export function waitForVideoFrame(video: HTMLVideoElement): Promise<void> {
 	return new Promise((resolve, reject) => {
 		// eslint-disable-next-line prefer-const
-		let videoFrameCallbackId: number | undefined;
+		let videoFrameCallbackId: number | null = null;
 
 		const cleanup = () => {
 			video.removeEventListener('loadeddata', onLoadedData);
@@ -33,7 +33,7 @@ export function waitForVideoFrame(video: HTMLVideoElement): Promise<void> {
 
 		const onError = () => {
 			cleanup();
-			if (videoFrameCallbackId !== undefined) {
+			if (videoFrameCallbackId != null) {
 				video.cancelVideoFrameCallback(videoFrameCallbackId);
 			}
 			reject(video.error ?? new Error('Failed to load the video frame.'));

@@ -29,7 +29,7 @@ export async function checkTimelineGroups(device: GPUDevice, vertex: GPUShaderMo
 	const completed: string[] = [];
 	const createLayer = (layer: TimelineLayer, clipId: string | null): TimelineLayerRenderer<UniformOrTexture> => {
 		if (layer.layerType === 'group') {
-			if (clipId !== null) throw new Error('Groups must not create artificial clips');
+			if (clipId != null) throw new Error('Groups must not create artificial clips');
 			return createGroupTimelineLayer(() => layer, { device, vertex, resolution, format: 'rgba8unorm', createLayer, getLayerVersion: () => 0 });
 		}
 		return { async evaluate(context) {

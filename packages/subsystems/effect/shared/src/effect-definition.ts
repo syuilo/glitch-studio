@@ -76,6 +76,7 @@ export function defineEffect<const In extends Record<string, ParameterDefinition
 	if (def.primaryAudioInputParameter != null && def.paramDefs[def.primaryAudioInputParameter]?.dataType.kind !== 'audioSource') {
 		throw new Error(`Primary audio input must reference an audio parameter: ${def.id}.${def.primaryAudioInputParameter}`);
 	}
+	// 必須の主入出力・解像度入力はnullで未選択を表す。undefinedによる定義の欠落は許容しない。
 	// 画像の主入力は接続を受け取るため、通常の数値設定やコンテナは指定できない。
 	if (def.primaryInputParameter !== null && def.paramDefs[def.primaryInputParameter]?.canNode !== true) {
 		throw new Error(`Primary input must reference a node-capable parameter: ${def.id}.${def.primaryInputParameter}`);

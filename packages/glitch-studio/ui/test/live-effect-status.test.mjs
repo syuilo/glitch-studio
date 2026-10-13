@@ -16,7 +16,7 @@ test('keeps timeline layer loading out of the editor status', () => {
 	// シークでLIVEが停止した後も、レイヤーの通知でEditorの表示を復活させない。
 	store.stop();
 	store.update(layer, 'video-node', { status: { type: 'loading' }, outputs: { output: null } });
-	assert.equal(store.get('module', 'video-node'), undefined);
+	assert.equal(store.get('module', 'video-node'), null);
 });
 
 // 同じVisual Moduleを再度LIVE表示しても、旧インスタンスの遅延通知を採用しない。
@@ -28,15 +28,15 @@ test('ignores stale live status after replacing an instance', () => {
 	store.start('module', previous.instanceId);
 	store.update(previous, 'video-node', { status: { type: 'loading' }, outputs: { output: null } });
 	store.start('module', current.instanceId);
-	assert.equal(store.get('module', 'video-node'), undefined);
+	assert.equal(store.get('module', 'video-node'), null);
 
 	store.update(previous, 'video-node', { status: { type: 'ready' }, outputs: { output: { width: 640, height: 480 } } });
-	assert.equal(store.get('module', 'video-node'), undefined);
+	assert.equal(store.get('module', 'video-node'), null);
 	store.update(current, 'video-node', { status: { type: 'error', message: 'decode failed' }, outputs: { output: null } });
 	store.update(previous, 'video-node', null);
 	assert.deepEqual(store.get('module', 'video-node'), { status: { type: 'error', message: 'decode failed' }, outputs: { output: null } });
-	assert.equal(store.get('another-module', 'video-node'), undefined);
+	assert.equal(store.get('another-module', 'video-node'), null);
 
 	store.update(current, 'video-node', null);
-	assert.equal(store.get('module', 'video-node'), undefined);
+	assert.equal(store.get('module', 'video-node'), null);
 });

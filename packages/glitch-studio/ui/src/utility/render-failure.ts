@@ -12,13 +12,14 @@ export type RenderFailureOrigin =
 
 export type RenderFailureDiagnostic = { message: string; origin?: RenderFailureOrigin };
 
-function label(kind: string, id: string, name?: string): string {
+function label(kind: string, id: string, name?: string | null): string {
 	return name ? `${kind} "${name}" (${id})` : `${kind} "${id}"`;
 }
 
-function nodeLabel(visualModule: VisualModule | undefined, nodeId: string): string {
-	const sourceNode: VisualModuleNode | undefined = visualModule?.nodes.find(node => node.id === nodeId);
-	return label('Node', nodeId, sourceNode?.type === 'effect' ? sourceNode.displayName || sourceNode.effectId : sourceNode?.type === 'relay' ? sourceNode.label : undefined);
+// 省略可能プロパティや検索結果を直接受け取る境界なので、入力のundefinedも未指定として受け入れる。
+function nodeLabel(visualModule: VisualModule | null | undefined, nodeId: string): string {
+	const sourceNode: VisualModuleNode | null = visualModule?.nodes.find(node => node.id === nodeId) ?? null;
+	return label('Node', nodeId, sourceNode?.type === 'effect' ? sourceNode.displayName || sourceNode.effectId : sourceNode?.type === 'relay' ? sourceNode.label : null);
 }
 
 /**
@@ -36,24 +37,24 @@ export function formatRenderFailureOrigin(origin: DeepReadonly<RenderFailureOrig
 	}
 	let currentScene = scenes.find(scene => scene.id === source.rootSceneId);
 	const parts = [label('Scene', source.rootSceneId, currentScene?.name)];
-	let layer: TimelineLayer | undefined;
+	let layer: TimelineLayer | null = null;
 	// layerPathは[レイヤーID, 子Sceneを配置するクリップID, レイヤーID, ...]。
 	// Group・TransformはSceneを変えないため、その子のIDを同じScene内から探す。
 	for (let index = 0; index < source.layerPath.length; index += 2) {
 		const layerId = source.layerPath[index];
-		layer = currentScene && findTimelineLayer(currentScene.layers, layerId);
+		layer = currentScene == null ? null : findTimelineLayer(currentScene.layers, layerId);
 		parts.push(label('Layer', layerId, layer?.name));
 		const clipId = source.layerPath[index + 1] ?? source.clipId;
-		const placementClip = layer && 'clips' in layer ? layer.clips.find(clip => clip.id === clipId) : undefined;
+		const placementClip = layer && 'clips' in layer ? layer.clips.find(clip => clip.id === clipId) : null;
 		parts.push(placementClip ? `Clip at ${placementClip.startMs / 1000}s (${clipId})` : label('Clip', clipId));
 		if (index + 1 < source.layerPath.length) {
-			const childSceneId = placementClip && 'sceneId' in placementClip ? placementClip.sceneId : undefined;
+			const childSceneId = placementClip && 'sceneId' in placementClip ? placementClip.sceneId : null;
 			currentScene = scenes.find(scene => scene.id === childSceneId);
 		}
 	}
 	if (nodeId != null) {
 		const sourceVisualModule = layer?.layerType === 'inlineVisualModule' ? layer.visualModule
-			: layer?.layerType === 'visualModule' ? visualModules.find(visualModule => visualModule.id === layer.visualModuleId) : undefined;
+			: layer?.layerType === 'visualModule' ? visualModules.find(visualModule => visualModule.id === layer.visualModuleId) : null;
 		parts.push(nodeLabel(sourceVisualModule, nodeId));
 	}
 	return parts.join(' / ');

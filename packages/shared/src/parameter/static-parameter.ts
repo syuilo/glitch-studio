@@ -29,7 +29,8 @@ export function inspectStaticParameter<Binding extends ParameterBindingBase>(def
  * 通常のliteral値や式本文を検証キャッシュのキーに含めない。
  * 参照・入力方式・配列構造・キーの配置は静的制約を変えるため、同じ「値編集」でも含める。
  */
-export function staticParameterShape(definition: ParameterDefinition | undefined, binding: any): unknown {
+// 省略可能プロパティや検索結果を直接受け取る境界なので、入力のundefinedも未指定として受け入れる。
+export function staticParameterShape(definition: ParameterDefinition | null | undefined, binding: any): unknown {
 	if (!binding) return null;
 	if (binding.inputSource === 'literal') {
 		if (definition?.dataType.kind === 'array' && Array.isArray(binding.value)) {

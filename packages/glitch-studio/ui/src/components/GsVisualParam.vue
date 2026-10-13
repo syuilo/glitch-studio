@@ -242,7 +242,7 @@ const layerInputConnection = computed(() => props.paramValue.inputSource === 'la
 const audioLayerItems = computed(() => {
 	const items: { value: string | null; label: string }[] = [{ value: null, label: i18n.ts.None }, ...props.audioLayerOptions ?? []];
 	const id = props.paramValue.inputSource === 'layerAudio' ? props.paramValue.layerId : null;
-	if (id !== null && !items.some(item => item.value === id)) items.push({ value: id, label: `Missing layer (${id})` });
+	if (id != null && !items.some(item => item.value === id)) items.push({ value: id, label: `Missing layer (${id})` });
 	return items;
 });
 
@@ -256,7 +256,7 @@ const nodes = computed(() => props.visualModule?.nodes ?? []);
 const selectedAutomationGraph = computed(() => {
 	const value = props.paramValue;
 	return value.inputSource === 'automationGraphInline' ? { ...value.automationGraph, name: 'Inline graph' }
-		: value.inputSource === 'automationGraphReference' ? props.automationGraphs.find(graph => graph.id === value.automationGraphId) : undefined;
+		: value.inputSource === 'automationGraphReference' ? props.automationGraphs.find(graph => graph.id === value.automationGraphId) : null;
 });
 const graphTimeAxisItems = [
 	{ label: 'Normalized (0–1)', value: 'normalized' },

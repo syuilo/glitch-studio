@@ -34,13 +34,13 @@ const heights = new Map<VirtualScrollKey, number>();
 const elements = new Map<VirtualScrollKey, HTMLElement>();
 const layout = shallowRef(createVirtualScrollLayout([], heights, props.estimatedItemHeight, props.gap));
 const viewport = shallowRef({ top: 0, height: 0 });
-let observer: ResizeObserver | undefined;
+let observer: ResizeObserver | null = null;
 let disposed = false;
-let pending: Promise<void> | undefined;
+let pending: Promise<void> | null = null;
 let dirty = false;
 let layoutDirty = true;
 let itemKeys: VirtualScrollKey[] = [];
-let measuredWidth: number | undefined;
+let measuredWidth: number | null = null;
 const currentItems = computed(() => new Map(props.items.map((item, index) => [props.itemKey(item), { item, index }])));
 
 const renderedItems = computed(() => {
@@ -98,7 +98,7 @@ function refresh(): Promise<void> {
 			// 非表示パネルの0を計測値にすると一覧全体が潰れるため、再表示まで保持する。
 			if (!scroller || !container || scroller.clientHeight === 0 || container.getBoundingClientRect().width === 0) break;
 			const width = container.getBoundingClientRect().width;
-			if (measuredWidth !== undefined && measuredWidth !== width) { heights.clear(); layoutDirty = true; }
+			if (measuredWidth != null && measuredWidth !== width) { heights.clear(); layoutDirty = true; }
 			measuredWidth = width;
 			for (const [key, element] of elements) {
 				const height = element.getBoundingClientRect().height;
@@ -123,7 +123,7 @@ function refresh(): Promise<void> {
 			dirty = true;
 		}
 		if (changed && !disposed) emit('layout');
-	})().finally(() => { pending = undefined; });
+	})().finally(() => { pending = null; });
 	return pending;
 }
 
@@ -160,7 +160,7 @@ watch([root, () => props.scrollElement], ([container, scroller], _previous, onCl
 		scroller.removeEventListener('scroll', onScroll);
 		scroller.style.overflowAnchor = previousAnchor;
 		observer?.disconnect();
-		observer = undefined;
+		observer = null;
 	});
 }, { flush: 'post' });
 onBeforeUnmount(() => { disposed = true; observer?.disconnect(); });

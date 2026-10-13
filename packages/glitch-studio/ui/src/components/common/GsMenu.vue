@@ -40,6 +40,7 @@
 				<component :is="item.component" v-bind="item.props"/>
 			</div>
 
+			<!-- VueのAnchorHTMLAttributesではrelの省略をundefinedで表す。 -->
 			<a
 				v-else-if="item.type === 'a'"
 				role="menuitem"
@@ -253,7 +254,7 @@ const childShowingItem = ref<MenuItem | null>();
 let preferClick = isTouchUsing || props.asDrawer;
 
 watch(() => props.items, () => {
-	const items = [...props.items].filter(item => item !== undefined) as (NonNullable<MenuItem> | MenuPending)[];
+	const items = [...props.items].filter(item => item != null) as (NonNullable<MenuItem> | MenuPending)[];
 
 	for (let i = 0; i < items.length; i++) {
 		const item = items[i];
@@ -384,7 +385,7 @@ function close(actioned = false) {
 }
 
 function switchItem(item: MenuSwitch) {
-	if (item.disabled !== undefined && (typeof item.disabled === 'boolean' ? item.disabled : item.disabled.value)) return;
+	if (item.disabled != null && (typeof item.disabled === 'boolean' ? item.disabled : item.disabled.value)) return;
 	if (isRef(item.ref)) {
 		item.ref.value = !item.ref.value;
 	} else {

@@ -526,7 +526,7 @@ test('evaluates offscreen results and propagates parent cancellation', async () 
 	controller.abort();
 	assert.equal(f.prepared[0].signal.aborted, true);
 	waiting.resolve();
-	assert.equal(await pending, undefined);
+	assert.equal(await pending, null);
 	assert.deepEqual(f.presented, []);
 	const result = await f.renderer.evaluateAt(200, [], 0, false);
 	assert.deepEqual(result, { output: 'transparent', gpuTime: 0, hasOutput: false });

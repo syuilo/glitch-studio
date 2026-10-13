@@ -50,9 +50,9 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 	public errorMessage = ref<string | null>(null);
 	private liveEffectStateStore = new LiveEffectStateStore(shallowReactive(new Map<string, EffectInstanceState>()));
 
-	public getLiveEffectState(visualModuleId: ProjectVisualModule['id'], nodeId: string): EffectInstanceState | undefined {
-		if (this.liveVisualModuleId.value !== visualModuleId) return;
-		return this.liveEffectStateStore.get(visualModuleId, nodeId);
+	public getLiveEffectState(visualModuleId: ProjectVisualModule['id'], nodeId: string): EffectInstanceState | null {
+		if (this.liveVisualModuleId.value !== visualModuleId) return null;
+		return this.liveEffectStateStore.get(visualModuleId, nodeId) ?? null;
 	}
 
 	constructor(staticOptions: VisualModuleRendererManagerStaticOptions, dynamicOptions: Partial<VisualModuleRendererManagerDynamicOptions>, audioOutput: AudioOutput) {
@@ -231,7 +231,7 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 				|| (newPlayer.sourceType === 'asset' && this.playerAssetFiles.get(id) !== asset?.fileData)) {
 				this.audioInputs.removePlayer(id);
 				const callbackId = this.videoFrameCallbacks.get(id);
-				if (callbackId !== undefined && video instanceof HTMLVideoElement) video.cancelVideoFrameCallback(callbackId);
+				if (callbackId != null && video instanceof HTMLVideoElement) video.cancelVideoFrameCallback(callbackId);
 				this.videoFrameCallbacks.delete(id);
 				this.pendingVideoFrames.get(id)?.close();
 				this.pendingVideoFrames.delete(id);
@@ -333,7 +333,9 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 
 	public async updateDynamicOptions(newDynamicOptions: Partial<VisualModuleRendererManagerDynamicOptions>) {
 		const options = deepClone(newDynamicOptions);
-		if (options.resolution !== undefined) {
+		// Partialのresolution省略は変更なし。指定された場合だけ検証・正規化する。
+		if (Object.hasOwn(options, 'resolution')) {
+			if (options.resolution == null) throw new Error('Resolution must be specified');
 			options.resolution = {
 				width: Math.max(1, Math.floor(options.resolution.width)),
 				height: Math.max(1, Math.floor(options.resolution.height)),
@@ -393,7 +395,7 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 		this.audioInputs.dispose();
 		for (const [id, media] of this.videoElements) {
 			const callback = this.videoFrameCallbacks.get(id);
-			if (callback !== undefined && media instanceof HTMLVideoElement) media.cancelVideoFrameCallback(callback);
+			if (callback != null && media instanceof HTMLVideoElement) media.cancelVideoFrameCallback(callback);
 			media.pause();
 			if (media.srcObject instanceof MediaStream) {
 				for (const track of media.srcObject.getTracks()) track.stop();

@@ -19,9 +19,9 @@ export function createShapeRenderer(options: { device: GPUDevice; vertex: GPUSha
 		primitive: { topology: 'triangle-list' },
 	});
 	const group = device.createBindGroup({ layout: pipeline.getBindGroupLayout(0), entries: [{ binding: 0, resource: { buffer } }] });
-	let texture: GPUTexture | undefined;
+	let texture: GPUTexture | null = null;
 	let result: TimelineImage;
-	let previousKey: string | undefined;
+	let previousKey: string | null = null;
 	return {
 		render(encoder: GPUCommandEncoder, shape: EvaluatedShape): TimelineImage {
 			// 背景を含まない自前の出力だけを再利用する。背景の動画が変化した場合も、

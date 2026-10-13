@@ -34,7 +34,7 @@ export class ProjectSaveSession {
 }
 
 export function projectSaveBackupWriter(handle: ProjectFileHandle, directory: ProjectBackupDirectory): SaveBackupWriter {
-	let previous: Uint8Array | undefined;
+	let previous: Uint8Array | null = null;
 	return async name => {
 		// 動画入りの旧プロジェクトをIPCで往復させず、登録された実ファイルをmain側でコピーする。
 		if (handle.kind === 'desktop-project-file') return window.desktop!.copyProjectBackup(handle.id, name);

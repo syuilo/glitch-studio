@@ -88,12 +88,13 @@ export function onScrollBottom(el: HTMLElement, cb: () => unknown, tolerance = 1
 	return removeListener;
 }
 
-export function scrollInContainer(el: HTMLElement, options: ScrollToOptions | undefined) {
+// 省略可能なスクロール設定も受け付け、nullとundefinedは同じ既定設定へ正規化する。
+export function scrollInContainer(el: HTMLElement, options: ScrollToOptions | null | undefined) {
 	const container = getScrollContainer(el);
 	if (container == null) {
-		window.scroll(options);
+		window.scroll(options ?? {});
 	} else {
-		container.scroll(options);
+		container.scroll(options ?? {});
 	}
 }
 

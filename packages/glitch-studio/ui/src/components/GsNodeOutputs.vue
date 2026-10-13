@@ -24,12 +24,12 @@ const wireMap = useVisualModuleWires();
 const props = defineProps<{
 	node: VisualModuleNode;
 	paramDefs?: VisualModule['paramDefs'];
-	outputResolutions?: EffectInstanceState['outputs']
+	outputResolutions?: EffectInstanceState['outputs'] | null
 }>();
 
 const ports = computed(() => getNodeOutputs(props.node, props.paramDefs));
 const elements = new Map<string, HTMLElement>();
-let cancelDrag: (() => void) | undefined;
+let cancelDrag: (() => void) | null = null;
 
 function startDrag(event: PointerEvent, port: string) {
 	const source = elements.get(port);

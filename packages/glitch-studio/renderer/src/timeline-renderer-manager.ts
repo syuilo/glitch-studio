@@ -108,8 +108,8 @@ export class TimelineRendererManager extends EventEmitter<{
 	private timelineRenderer: TimelineRenderer<TimelineImage, TimelineLayer>;
 	private previewRenderGeneration = 0;
 	private frameRenderer: TimelineFrameRenderer<TimelineImage>;
-	private motionBlurAccumulator: ReturnType<typeof createMotionBlurAccumulator> | undefined;
-	private motionBlurTiming: { boundaries: number[]; loops: TimelineMotionBlurLoop[]; cameras: TimelineMotionBlurCameraCuts[] } | undefined;
+	private motionBlurAccumulator: ReturnType<typeof createMotionBlurAccumulator> | null = null;
+	private motionBlurTiming: { boundaries: number[]; loops: TimelineMotionBlurLoop[]; cameras: TimelineMotionBlurCameraCuts[] } | null = null;
 	private resolveSpeech = createSpeechResolver([]);
 	private nextTimelineLayerStatusId = 0;
 	private previewScheduler = new TimelinePreviewScheduler(time => this.renderPreviewFrame(time));
@@ -118,7 +118,7 @@ export class TimelineRendererManager extends EventEmitter<{
 	private canvasRenderer: CanvasRenderer;
 	private defaultVertexShaderModule: GPUShaderModule;
 	private fallbackTexture: GPUTexture;
-	private sceneOutput: ReturnType<typeof createSceneOutput> | undefined;
+	private sceneOutput: ReturnType<typeof createSceneOutput> | null = null;
 	private assetTextures: AssetTextures;
 	private audioInputs = new TimelineAudioInputs();
 	private effectDefinitions: Record<string, EffectDefinition<any>>;
@@ -240,14 +240,14 @@ export class TimelineRendererManager extends EventEmitter<{
 
 	private clearTimelineRenderers() {
 		this.frameRenderer.clear();
-		this.motionBlurTiming = undefined;
+		this.motionBlurTiming = null;
 		this.motionBlurAccumulator?.dispose();
-		this.motionBlurAccumulator = undefined;
+		this.motionBlurAccumulator = null;
 		this.previewScheduler.clear();
 		this.previewRenderGeneration++;
 		this.timelineRenderer.clear();
 		this.sceneOutput?.dispose();
-		this.sceneOutput = undefined;
+		this.sceneOutput = null;
 	}
 
 	// (非workerで)呼び出すときは値を独立した参照にすること！ パフォーマンス上の理由でこちら側ではdeepCloneしません
@@ -265,10 +265,12 @@ export class TimelineRendererManager extends EventEmitter<{
 		this.canvasRenderer.highlightClipping = this.dynamicOptions.highlightClipping;
 		this.canvasRenderer.opaqueOutput = this.dynamicOptions.opaqueOutput;
 
-		if (newOptions.resolution !== undefined || newOptions.resolutionScale !== undefined || newOptions.visualModules !== undefined || newOptions.timelineScenes !== undefined || newOptions.sceneId !== undefined) {
+		// Scene選択・出力解像度のnullは解除要求なので、差分のプロパティの有無で判定する。
+		// Partialの差分では省略は変更なし、明示的なnullは解除要求。値の有無ではなくown propertyで判定する。
+		if (Object.hasOwn(newOptions, 'resolution') || Object.hasOwn(newOptions, 'resolutionScale') || Object.hasOwn(newOptions, 'visualModules') || Object.hasOwn(newOptions, 'timelineScenes') || Object.hasOwn(newOptions, 'sceneId')) {
 			this.clearTimelineRenderers();
 		}
-		if (newOptions.resolution !== undefined || newOptions.resolutionScale !== undefined || newOptions.timelineScenes !== undefined || newOptions.sceneId !== undefined || newOptions.outputResolution !== undefined) {
+		if (Object.hasOwn(newOptions, 'resolution') || Object.hasOwn(newOptions, 'resolutionScale') || Object.hasOwn(newOptions, 'timelineScenes') || Object.hasOwn(newOptions, 'sceneId') || Object.hasOwn(newOptions, 'outputResolution')) {
 			try {
 				// 出力寸法を上書きする書き出しでも、Scene内部の寸法を先に検証する。
 				const sceneResolution = this.renderResolution;
@@ -285,7 +287,7 @@ export class TimelineRendererManager extends EventEmitter<{
 			}
 		}
 
-		const assetsCommitted = assets === undefined ? null : await this.updateAssets(assets);
+		const assetsCommitted = Object.hasOwn(newOptions, 'assets') ? await this.updateAssets(assets!) : null;
 		return { assetsCommitted };
 	}
 
@@ -310,7 +312,7 @@ export class TimelineRendererManager extends EventEmitter<{
 		this.previewRenderGeneration++;
 		this.timelineRenderer.cancelPendingRender();
 		this.frameRenderer.cancel();
-		this.motionBlurTiming = undefined;
+		this.motionBlurTiming = null;
 		this.projectVersions.apply(changes, this.dynamicOptions);
 		Object.assign(this.dynamicOptions, next);
 		this.dynamicOptions.previewRevision = previewRevision;
@@ -319,9 +321,9 @@ export class TimelineRendererManager extends EventEmitter<{
 			this.clearTimelineRenderers();
 		} else if (resolution != null) {
 			this.motionBlurAccumulator?.dispose();
-			this.motionBlurAccumulator = undefined;
+			this.motionBlurAccumulator = null;
 			this.sceneOutput?.dispose();
-			this.sceneOutput = undefined;
+			this.sceneOutput = null;
 			this.gpuContext.canvas.width = resolution.width;
 			this.gpuContext.canvas.height = resolution.height;
 		}
@@ -366,9 +368,9 @@ export class TimelineRendererManager extends EventEmitter<{
 	private async renderPreviewFrame(time: number): Promise<boolean> {
 		const generation = ++this.previewRenderGeneration;
 		const request = this.dynamicOptions.transformObserver;
-		const location = request?.sceneId === this.dynamicOptions.sceneId ? findTimelineLayerLocation(this.getSceneLayers(), request.layerId) : undefined;
-		const layer = location && !location.layer.isDisabled && !location.ancestors.some(group => group.isDisabled) && isTimelineVisualLayer(location.layer) ? location.layer : undefined;
-		const clip = layer && layer.layerType !== 'group' ? layer.clips.find(clip => isTimelineClipActive(clip, time)) : undefined;
+		const location = request?.sceneId === this.dynamicOptions.sceneId ? findTimelineLayerLocation(this.getSceneLayers(), request.layerId) : null;
+		const layer = location && !location.layer.isDisabled && !location.ancestors.some(group => group.isDisabled) && isTimelineVisualLayer(location.layer) ? location.layer : null;
+		const clip = layer && layer.layerType !== 'group' ? layer.clips.find(clip => isTimelineClipActive(clip, time)) : null;
 		const preview: TimelineTransformPreview | null = request ? { request, revision: this.dynamicOptions.previewRevision, time, clipId: clip?.id ?? null, geometry: null } : null;
 		this.pendingTransformPreview = preview;
 		try {
@@ -412,8 +414,8 @@ export class TimelineRendererManager extends EventEmitter<{
 		this.emit('ev', { type: 'layerTransform', ctx: preview });
 	}
 
-	private createCompositingObserver(sceneId: string, layerId: string, clipId: string | null, sceneSize: Resolution): TimelineCompositingObserver | undefined {
-		if (sceneId !== this.dynamicOptions.sceneId) return undefined;
+	private createCompositingObserver(sceneId: string, layerId: string, clipId: string | null, sceneSize: Resolution): TimelineCompositingObserver | null {
+		if (sceneId !== this.dynamicOptions.sceneId) return null;
 		return (source) => {
 			const preview = this.pendingTransformPreview;
 			if (!preview || preview.request.sceneId !== sceneId || preview.request.layerId !== layerId || preview.clipId !== clipId) return;
@@ -499,7 +501,7 @@ export class TimelineRendererManager extends EventEmitter<{
 				getLayerVersion: (entry, childClipId) => this.getLayerVersion(sceneId, entry, childClipId),
 			});
 		}
-		if (clipId === null) throw new Error('Clip is required');
+		if (clipId == null) throw new Error('Clip is required');
 		const onCompositing = this.createCompositingObserver(sceneId, layer.id, clipId, renderResolution);
 		// レイヤーの種類の解釈とリソース解決は、タイムライン制御の外側で行う。
 		switch (layer.layerType) {
@@ -651,7 +653,7 @@ export class TimelineRendererManager extends EventEmitter<{
 			prepare: (context, signal) => renderer.prepare(context, signal),
 			render: async (context, layerContext) => {
 				const commandEncoder = this.gpuDevice.createCommandEncoder();
-				let output: TimelineImage | undefined;
+				let output: TimelineImage | null = null;
 				const gpuTime = 0;
 				try {
 					output = renderer.render(context, commandEncoder);
@@ -722,7 +724,7 @@ export async function createManager(options: {
 		throw new Error('need a browser that supports WebGPU');
 	}
 
-	let manager: TimelineRendererManager | undefined;
+	let manager: TimelineRendererManager | null = null;
 	try {
 		const context = options.canvas.getContext('webgpu');
 		const histogramContext = options.histogramCanvas.getContext('webgpu');

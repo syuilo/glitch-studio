@@ -3,6 +3,7 @@ let nextFontId = 0;
 /** クリップ単位でフォントを所有し、準備完了をプレビュー・書き出しの双方で待つ。 */
 export function createTextFontLoader() {
 	const family = `GlitchTimelineTextFont${++nextFontId}`;
+	// undefinedは未要求、nullは標準フォントを要求済み。初回のprepare(null)でも準備と状態通知を行うため区別する。
 	let requestedBlob: Blob | null | undefined;
 	let face: FontFace | null = null;
 	let fontSet: FontFaceSet | null = null;
@@ -54,7 +55,7 @@ export function createTextFontLoader() {
 			disposed = true;
 			++revision;
 			release();
-			requestedBlob = undefined;
+			requestedBlob = undefined; // 未要求状態に戻す（nullは標準フォントの要求を表す）。
 		},
 	};
 }

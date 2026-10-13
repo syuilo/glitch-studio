@@ -205,9 +205,9 @@ const visualModule = computed(() => {
 		: layer.layerType === 'visualModule' ? appContext.projectContext.getVisualModuleById(layer.visualModuleId) : null;
 });
 const inlineEffectStates = computed(() => previewPlayback.state.value.mode === 'timeline'
-	? timelineRendererManagerController.getLayerEffectStates(props.scene.id, props.layer.id) : undefined);
+	? timelineRendererManagerController.getLayerEffectStates(props.scene.id, props.layer.id) : null);
 const effectLayerState = computed(() => previewPlayback.state.value.mode === 'timeline' && props.layer.layerType === 'effect'
-	? timelineRendererManagerController.getEffectLayerState(props.scene.id, props.layer.id) : undefined);
+	? timelineRendererManagerController.getEffectLayerState(props.scene.id, props.layer.id) : null);
 
 const exportingVisualModule = ref(false);
 
@@ -239,7 +239,7 @@ function onTimelineLayerParamEdit(event: ParamEdit, target: TimelineParameterTar
 	const layer = props.layer;
 	if (event.kind === 'node' || event.kind === 'externalCustomParameterInput') return;
 	if (event.kind === 'inputSource' && (event.inputSource === 'node' || event.inputSource === 'externalCustomParameterInput')) return;
-	const mergeKey = event.mergeKey != null ? JSON.stringify([layer.id, target, event.paramPath, event.mergeKey]) : undefined;
+	const mergeKey = event.mergeKey != null ? JSON.stringify([layer.id, target, event.paramPath, event.mergeKey]) : null;
 	if (event.kind === 'layerAudio' || (event.kind === 'inputSource' && (event.inputSource === 'lowerLayerAudio' || event.inputSource === 'layerAudio'))) {
 		if (target === 'effect' || target === 'module') stateManager.commit('editTimelineLayerParam', { sceneId: props.scene.id, layerId: layer.id, target, paramPath: event.paramPath, edit: event }, mergeKey);
 		return;

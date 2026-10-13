@@ -62,7 +62,7 @@ export class VisualModuleRenderer {
 	private paramInputs: ReadonlyMap<VisualModuleCustomParameterId, UniformOrTexture> = new Map();
 	private audioParamInputs: ReadonlyMap<VisualModuleCustomParameterId, AudioInput | null> = new Map();
 	private resolvedAudioInputs = new Map<string, AudioInput | null>();
-	private resolveAudioSource?: (selection: unknown) => AudioInput | null;
+	private resolveAudioSource: ((selection: unknown) => AudioInput | null) | null = null;
 	private preparedContext: VisualModuleRenderContext | null = null;
 	private preparationVersion = 0;
 	private destroyed = false;
@@ -72,7 +72,7 @@ export class VisualModuleRenderer {
 	private effectCacheKeys: Map<VisualModuleEffectNode['id'], string> = new Map();
 	private lazyEffectRenderers = new Map<string, EffectRenderer>();
 	private usedOutputPorts = new Map<string, Set<string>>();
-	private onEffectState?: (nodeId: string, state: EffectInstanceState | null) => void;
+	private onEffectState: ((nodeId: string, state: EffectInstanceState | null) => void) | null = null;
 	private automationGraphs: AutomationGraph[] = [];
 	private enable32bitDataTextures = false;
 	private readonly intermediateTextureFormat: IntermediateTextureFormat;
@@ -112,7 +112,7 @@ export class VisualModuleRenderer {
 		this.gpuDevice = options.gpuDevice;
 		this.fallbackTexture = options.fallbackTexture;
 		this.paramDefs = options.visualModule.paramDefs;
-		this.onEffectState = options.onEffectState;
+		this.onEffectState = options.onEffectState ?? null;
 		this.enableStats = options.enableStats;
 		this.resolutionScale = options.resolutionScale ?? 1;
 		this.contextResolution = scaleResolution(options.resolution, this.resolutionScale);
@@ -123,7 +123,7 @@ export class VisualModuleRenderer {
 		this.assetTextures = options.assetTextures;
 		this.assets = options.assets;
 		this.audioSources = options.audioSources;
-		this.resolveAudioSource = options.resolveAudioSource;
+		this.resolveAudioSource = options.resolveAudioSource ?? null;
 		this.timingHelper = options.timingHelper;
 		this.effectDefinitions = options.effectDefinitions;
 		this.effectImplementations = options.effectImplementations;
@@ -148,9 +148,9 @@ export class VisualModuleRenderer {
 		this.updateNodes(visualModule.nodes);
 	}
 
-	private getParamOutput(paramId: VisualModuleCustomParameterId): UniformOrTexture | undefined {
+	private getParamOutput(paramId: VisualModuleCustomParameterId): UniformOrTexture | null {
 		const def = this.paramDefs.find(def => def.id === paramId);
-		if (def == null || !def.canNode) return undefined;
+		if (def == null || !def.canNode) return null;
 		const input = this.paramInputs.get(paramId);
 		if (input != null) return input;
 		const value = this.paramValues.get(paramId);
@@ -196,7 +196,7 @@ export class VisualModuleRenderer {
 				evaluatedParamsPerNode[key] = mapParameterTree<VisualModuleParameterBinding>(def, node.params[key], [key], (def, param) => {
 					if (def.dataType.kind === 'audioSource' && param.inputSource === 'externalCustomParameterInput') return null;
 					return coerceParameterValue(def, validateEnumParameterValue(def, this.parameterEvaluator.evaluate(param, evalCtx,
-						def.dataType.kind === 'enum' ? undefined : genEmptyValue(def)))); // TODO: genEmptyValueを遅延評価したい
+						def.dataType.kind === 'enum' ? null : genEmptyValue(def)))); // TODO: genEmptyValueを遅延評価したい
 				});
 			}
 			evaluated.set(node.id, evaluatedParamsPerNode);
@@ -206,7 +206,7 @@ export class VisualModuleRenderer {
 		this.evaledNodeParams = evaluated;
 	}
 
-	private evalCacheKey(node: VisualModuleNode, outputPort?: string): string | null {
+	private evalCacheKey(node: VisualModuleNode, outputPort?: string | null): string | null {
 		if (node.type === 'globalIn') {
 			// 定数は値でキャッシュできる。借用テクスチャは同一オブジェクトでも内容が変わり得る。
 			// 別の公開入力の値変更を、このポートだけを読む枝へ伝播させない。
@@ -255,13 +255,13 @@ export class VisualModuleRenderer {
 				}
 				if (def.dataType.kind === 'playerReference') {
 					key += JSON.stringify([path, 'videoFrameVersion', v == null ? 0 : this.videoFrameVersions.get(v) ?? 0]);
-					const audio = v == null ? undefined : this.audioSources.get(playerAudioSourceId(v));
+					const audio = v == null ? null : this.audioSources.get(playerAudioSourceId(v));
 					key += JSON.stringify([path, 'audio', audio == null ? null : [audio.generation, audio.revision, audio.endFrame]]);
 				}
 				if (def.dataType.kind === 'audioSource') key += JSON.stringify([path, this.resolveAudioInput(node.id, path, param, v)?.cacheKey ?? null]);
 				if (def.canNode && param.inputSource === 'node' && param.nodeId != null) {
 					const targetNode = this.allNodeIdMap.get(param.nodeId);
-					const targetNodeCacheKey = this.evalCacheKey(targetNode!, param.outputPort ?? undefined);
+					const targetNodeCacheKey = this.evalCacheKey(targetNode!, param.outputPort ?? null);
 					if (targetNodeCacheKey == null) return null;
 					key += JSON.stringify([path, targetNodeCacheKey]);
 				}
@@ -321,7 +321,7 @@ export class VisualModuleRenderer {
 			for (const { def, param } of walkParameterLeaves<VisualModuleParameterBinding>(this.effectDefinitions[output.node.effectId].paramDefs, output.node.params)) {
 				if (!def.canNode || param.inputSource !== 'node' || param.nodeId == null) continue;
 				const source = this.allNodeIdMap.get(param.nodeId);
-				if (source != null) visit(source, param.outputPort ?? undefined);
+				if (source != null) visit(source, param.outputPort ?? null);
 			}
 		};
 		for (const id of outputIds) visit(node, id);
@@ -352,7 +352,7 @@ export class VisualModuleRenderer {
 
 		for (const node of addedNodes) {
 			// 自動解像度は上流・素材の解決まで未確定。それまでは小さい仮出力を使う。
-			const resolution = node.resolution.mode === 'auto' ? undefined : resolveEffectNodeResolution({
+			const resolution = node.resolution.mode === 'auto' ? null : resolveEffectNodeResolution({
 				setting: node.resolution, contextResolution: this.contextResolution, resolutionScale: this.resolutionScale,
 				maxDimension: this.gpuDevice.limits.maxTextureDimension2D,
 			});
@@ -393,49 +393,49 @@ export class VisualModuleRenderer {
 
 	// relayと無効なエフェクトは入力をそのまま公開する。テクスチャの所有権や履歴は元のノードに残す。
 	// 描画・入力参照・キャッシュが同じ接続関係を扱うよう、ここで共通して解決する。
-	private getOutputNode(node: VisualModuleNode, outputPort?: string): { node: VisualModuleEffectNode | VisualModuleGlobalInNode; outputPort: string } | undefined {
+	private getOutputNode(node: VisualModuleNode, outputPort?: string | null): { node: VisualModuleEffectNode | VisualModuleGlobalInNode; outputPort: string } | null {
 		if (node.type === 'relay') {
-			if (outputPort != null && outputPort !== 'output') return;
+			if (outputPort != null && outputPort !== 'output') return null;
 			const input = node.input;
-			const source = input.nodeId == null ? undefined : this.allNodeIdMap.get(input.nodeId);
-			if (source == null || input.outputPort == null) return;
+			const source = input.nodeId == null ? null : this.allNodeIdMap.get(input.nodeId);
+			if (source == null || input.outputPort == null) return null;
 			// 出力ポートの存在だけ確認する。異なる型の接続も許容するため、
 			// relayの宣言型で入力を拒否・変換せず、元の出力をそのまま渡す。
 			const outputs = source.type === 'effect' ? this.effectDefinitions[source.effectId].outputDefs : getNodeOutputs(source, this.paramDefs);
-			if (outputs[input.outputPort] == null) return;
+			if (outputs[input.outputPort] == null) return null;
 			return this.getOutputNode(source, input.outputPort);
 		}
 		if (node.type === 'globalIn') {
 			const port = outputPort ?? this.primaryInputId;
-			return port != null && getNodeOutputs(node, this.paramDefs)[port] != null ? { node, outputPort: port } : undefined;
+			return port != null && getNodeOutputs(node, this.paramDefs)[port] != null ? { node, outputPort: port } : null;
 		}
 		if (node.type === 'globalOut') {
 			const port = outputPort ?? this.primaryOutputId;
-			if (port == null || !this.outputDefs.some(def => def.id === port)) return;
+			if (port == null || !this.outputDefs.some(def => def.id === port)) return null;
 			const input = node.inputs[port];
-			const source = input?.nodeId == null ? undefined : this.allNodeIdMap.get(input.nodeId);
-			return source == null ? undefined : this.getOutputNode(source, input.outputPort ?? undefined);
+			const source = input?.nodeId == null ? null : this.allNodeIdMap.get(input.nodeId);
+			return source == null ? null : this.getOutputNode(source, input.outputPort ?? null);
 		}
 		if (!node.isBypass) {
 			const port = outputPort ?? this.effectDefinitions[node.effectId].primaryOutput;
-			return port == null || this.effectDefinitions[node.effectId].outputDefs[port] == null ? undefined : { node, outputPort: port };
+			return port == null || this.effectDefinitions[node.effectId].outputDefs[port] == null ? null : { node, outputPort: port };
 		}
 		const primary = this.effectDefinitions[node.effectId].primaryInputParameter;
 		// 接続は保存されたBindingで決まる。式や外部値がnodeIdを含むobjectを返しても、
 		// 静的検証したグラフにない辺をバイパス時だけ作ってはいけない。
-		const input = primary !== null ? node.params[primary] : undefined;
-		if (input?.inputSource !== 'node' || input.nodeId == null) return;
+		const input = primary != null ? node.params[primary] : null;
+		if (input?.inputSource !== 'node' || input.nodeId == null) return null;
 		// バイパスでは自身の出力名ではなく、主入力が選択した出力ポートを公開する。
 		const source = this.allNodeIdMap.get(input.nodeId);
-		return source == null ? undefined : this.getOutputNode(source, input.outputPort);
+		return source == null ? null : this.getOutputNode(source, input.outputPort);
 	}
 
-	private getOutputValue(node: VisualModuleNode, outputPort: string): UniformOrTexture | undefined {
+	private getOutputValue(node: VisualModuleNode, outputPort: string): UniformOrTexture | null {
 		const output = this.getOutputNode(node, outputPort);
-		if (output == null) return undefined;
+		if (output == null) return null;
 		if (output.node.type === 'globalIn') return this.getParamOutput(visualModuleCustomParameterId(output.outputPort));
 		const texture = this.effectRenderers.get(output.node.id)?.getOutputTexture(output.outputPort);
-		return texture == null ? undefined : { kind: 'texture', texture };
+		return texture == null ? null : { kind: 'texture', texture };
 	}
 
 	private renderNode(node: VisualModuleNode, commandEncoder: GPUCommandEncoder, context: VisualModuleRenderContext & {
@@ -506,14 +506,14 @@ export class VisualModuleRenderer {
 	private ensureNodeResolution(node: VisualModuleEffectNode, params: Record<string, any>) {
 		const effect = this.effectImplementations[node.effectId];
 		const inputKey = this.effectDefinitions[node.effectId].resolutionInputParameter;
-		const input = inputKey == null ? undefined : params[inputKey];
+		const input = inputKey == null ? null : params[inputKey];
 		this.effectRenderers.get(node.id)!.setResolution(resolveEffectNodeResolution({
 			setting: node.resolution, contextResolution: this.contextResolution,
 			resolutionScale: this.resolutionScale,
-			intrinsicResolution: node.resolution.mode === 'auto' ? effect.getIntrinsicResolution?.(params) : undefined,
+			intrinsicResolution: node.resolution.mode === 'auto' ? effect.getIntrinsicResolution?.(params) : null,
 			inputResolution: node.resolution.mode === 'auto'
-				? effect.getInputResolution?.(params) ?? (input?.kind === 'texture' ? input.texture : undefined)
-				: undefined,
+				? effect.getInputResolution?.(params) ?? (input?.kind === 'texture' ? input.texture : null)
+				: null,
 			maxDimension: this.gpuDevice.limits.maxTextureDimension2D,
 		}));
 	}
@@ -523,7 +523,7 @@ export class VisualModuleRenderer {
 		if (signal.aborted || this.destroyed) return;
 		const preparationVersion = ++this.preparationVersion;
 		this.preparedContext = null;
-		const node = this.renderNodeId == null ? undefined : this.allNodeIdMap.get(this.renderNodeId);
+		const node = this.renderNodeId == null ? null : this.allNodeIdMap.get(this.renderNodeId);
 		if (node == null) return;
 
 		this.evaluateParameters(context);
@@ -540,7 +540,7 @@ export class VisualModuleRenderer {
 			for (const { def, param } of walkParameterLeaves<VisualModuleParameterBinding>(this.effectDefinitions[effectNode.effectId].paramDefs, effectNode.params)) {
 				if (!def.canNode || param.inputSource !== 'node' || param.nodeId == null) continue;
 				const source = this.allNodeIdMap.get(param.nodeId);
-				visit(source!, param.outputPort ?? undefined);
+				visit(source!, param.outputPort ?? null);
 			}
 			const params = this.resolveParams(effectNode, this.evaledNodeParams.get(effectNode.id)!);
 			this.ensureNodeResolution(effectNode, params);
@@ -599,9 +599,9 @@ export class VisualModuleRenderer {
 		return outputs;
 	}
 
-	public render(context: VisualModuleRenderContext, commandEncoder: GPUCommandEncoder): UniformOrTexture | undefined {
+	public render(context: VisualModuleRenderContext, commandEncoder: GPUCommandEncoder): UniformOrTexture | null {
 		const outputs = this.renderOutputs(context, commandEncoder);
-		return this.primaryOutputId == null ? undefined : outputs.get(this.primaryOutputId);
+		return this.primaryOutputId == null ? null : outputs.get(this.primaryOutputId) ?? null;
 	}
 
 	public resize(resolution: Resolution, resolutionScale = 1) {

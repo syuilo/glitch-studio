@@ -64,7 +64,7 @@ export type ExportFrame = {
 export async function renderExportFrames(settings: VideoExportSettings, callbacks: {
 	render: (frame: ExportFrame) => Promise<void>;
 	addFrame: (frame: ExportFrame) => Promise<void>;
-	addAudioUntil?: (timeSeconds: number) => Promise<void>;
+	addAudioUntil?: ((timeSeconds: number) => Promise<void>) | null;
 	finalize: () => Promise<void>;
 	onProgress: (progress: ExportProgress) => void;
 	signal: AbortSignal;

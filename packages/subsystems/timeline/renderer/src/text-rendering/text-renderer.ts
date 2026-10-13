@@ -13,7 +13,7 @@ import type { IntermediateTextureFormat } from '@gs/shared/types.ts';
 
 /** 呼び出し元のレイヤーを知らず、評価済みの文字・装飾を指定解像度のpremultiplied RGBAへ描く。 */
 export function createTextRenderer(options: { device: GPUDevice; vertex: GPUShaderModule; resolution: Resolution; format: IntermediateTextureFormat }) {
-	let output: GPUTexture | undefined;
+	let output: GPUTexture | null = null;
 	const canvas = new OffscreenCanvas(1, 1);
 	const context = canvas.getContext('2d');
 	if (context == null) throw new Error('Could not create a text canvas.');

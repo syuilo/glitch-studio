@@ -34,6 +34,7 @@ export function validateTimelineParameterBinding(binding: ParameterBindingBase, 
 export function validateTimelineParameterBinding(binding: ParameterBindingBase, allowLayerInput = false, allowAudioInput = allowLayerInput): asserts binding is TimelineEffectParameterBinding {
 	if (isTimelineAudioInputBinding(binding)) {
 		if (!allowAudioInput) throw new Error('Layer audio is not available in this parameter');
+		// layerIdのnullは明示的な未選択。省略されたundefinedではBindingの必須フィールドを満たさない。
 		if (binding.inputSource === 'layerAudio' && binding.layerId !== null && (typeof binding.layerId !== 'string' || binding.layerId.length === 0)) throw new Error('Invalid audio layer reference');
 		return;
 	}
@@ -71,6 +72,7 @@ export function validateTimelineParameterTree(def: ParameterDefinition, binding:
 		validateTimelineParameterBinding(value, allowLayerInput && leaf.canNode === true, allowAudioInput && leaf.dataType.kind === 'audioSource');
 		if (leaf.dataType.kind === 'audioSource' && !isTimelineAudioInputBinding(value)) {
 			validateLiteralAudioSourceBinding(value);
+			// nullリテラルだけが未選択を表す。undefinedを通すと検証後の値の型を保証できない。
 			if (value.value !== null) throw new Error('Timeline audio literals must be unselected');
 		}
 		onValue?.(leaf, value);

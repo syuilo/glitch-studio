@@ -87,8 +87,8 @@ const connections = computed(() => {
 	const result: {
 		key: string;
 		from: HTMLElement;
-		input: HTMLElement | undefined;
-		allIn: HTMLElement | undefined;
+		input: HTMLElement | null;
+		allIn: HTMLElement | null;
 		fromColor: string;
 		toColor: string;
 	}[] = [];
@@ -102,8 +102,8 @@ const connections = computed(() => {
 				if (from) result.push({
 					key: JSON.stringify([node.id, def.id, nodeId, outputPort]),
 					from,
-					input: wireMap.in[node.id]?.[def.id],
-					allIn: undefined,
+					input: wireMap.in[node.id]?.[def.id] ?? null,
+					allIn: null,
 					...getWireColors(getNodeOutputs(nodesById.value.get(nodeId), paramDefs.value)[outputPort]?.dataType ?? { kind: 'any' }, def.dataType),
 				});
 			}
@@ -118,8 +118,8 @@ const connections = computed(() => {
 			result.push({
 				key: JSON.stringify([node.id, path, value.nodeId, value.outputPort]),
 				from,
-				input: wireMap.in[node.id]?.[paramPathKey(path)],
-				allIn: wireMap.allIn[node.id],
+				input: wireMap.in[node.id]?.[paramPathKey(path)] ?? null,
+				allIn: wireMap.allIn[node.id] ?? null,
 				...getWireColors(getNodeOutputs(nodesById.value.get(value.nodeId), paramDefs.value)[value.outputPort]?.dataType ?? { kind: 'any' }, getNodeInputDataType(def) ?? { kind: 'any' }),
 			});
 		}
@@ -129,8 +129,8 @@ const connections = computed(() => {
 
 const dragSource = computed(() => {
 	const source = wireDrag.value?.source;
-	if (!source) return undefined;
-	return [...nodesById.value.keys()].some(id => Object.values(wireMap.out[id] ?? {}).includes(source)) ? source : undefined;
+	if (!source) return null;
+	return [...nodesById.value.keys()].some(id => Object.values(wireMap.out[id] ?? {}).includes(source)) ? source : null;
 });
 const measuredPorts = computed(() => {
 	const elements = new Set<HTMLElement>();

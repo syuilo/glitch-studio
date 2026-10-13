@@ -18,7 +18,7 @@ import type { TimelineLayer } from './types.ts';
 
 type ParameterGroup = { name: string; definitions: Record<string, ParameterDefinition>; values: Record<string, ParameterBindingBase>; layerInput?: boolean; audioInput?: boolean };
 
-function parameterGroups(layer: TimelineLayer, visualModule?: VisualModule, effect?: EffectDefinition): ParameterGroup[] {
+function parameterGroups(layer: TimelineLayer, visualModule?: VisualModule | null, effect?: EffectDefinition | null): ParameterGroup[] {
 	const groups: ParameterGroup[] = [];
 	const add = (name: string, definitions: Record<string, ParameterDefinition>, values: Record<string, ParameterBindingBase>) => groups.push({ name, definitions, values });
 	if ('compositingParamValues' in layer) add('compositingParamValues', timelineCompositingParamDefs, layer.compositingParamValues);
@@ -36,7 +36,7 @@ function parameterGroups(layer: TimelineLayer, visualModule?: VisualModule, effe
 	return groups;
 }
 
-export function timelineLayerStaticShape(layer: TimelineLayer, visualModule?: VisualModule, effect?: EffectDefinition): unknown {
+export function timelineLayerStaticShape(layer: TimelineLayer, visualModule?: VisualModule | null, effect?: EffectDefinition | null): unknown {
 	const { name, automationGraphs, isDisabled, ...shape } = layer;
 	const result: Record<string, unknown> = { ...shape };
 	delete result.layers;
@@ -48,7 +48,8 @@ export function timelineLayerStaticShape(layer: TimelineLayer, visualModule?: Vi
 	return result;
 }
 
-export function inspectTimelineLayer(layer: TimelineLayer, visualModule: VisualModule | undefined, effect: EffectDefinition | undefined,
+// 省略可能プロパティや検索結果を直接受け取る境界なので、入力のundefinedも未指定として受け入れる。
+export function inspectTimelineLayer(layer: TimelineLayer, visualModule: VisualModule | null | undefined, effect: EffectDefinition | null | undefined,
 	onValue: (definition: ParameterDefinition, binding: unknown) => void): void {
 	// コンテナの設定編集で子孫を再検証しない。子は各自の検証単位を持つ。
 	validateTimelineLayerStructure(layer);

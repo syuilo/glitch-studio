@@ -229,19 +229,19 @@ export function select<C extends OptionValue, D extends C | null = null>(props: 
 	title?: string;
 	text?: string;
 	default?: D;
-	items: (GsSelectItem<C> | undefined)[];
-}): Promise<GsDialogReturnType<Exclude<D, undefined> extends null ? C | null : C>> {
+	items: (GsSelectItem<C> | null)[];
+}): Promise<GsDialogReturnType<D extends null ? C | null : C>> {
 	return new Promise(resolve => {
 		const { dispose } = popup(GsDialog, {
 			title: props.title,
 			text: props.text,
 			select: {
-				items: props.items.filter(x => x !== undefined),
+				items: props.items.filter(x => x != null),
 				default: props.default ?? null,
 			},
 		}, {
 			done: result => {
-				resolve(result as GsDialogReturnType<Exclude<D, undefined> extends null ? C | null : C>);
+				resolve(result as GsDialogReturnType<D extends null ? C | null : C>);
 			},
 			closed: () => dispose(),
 		});

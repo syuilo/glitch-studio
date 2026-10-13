@@ -110,7 +110,7 @@ const status = ref('');
 const progress = ref<ExportProgress>({ phase: 'preparing', completedFrames: 0, totalFrames: 0 });
 const downloadUrl = ref('');
 const downloadName = ref('');
-let abortController: AbortController | undefined;
+let abortController: AbortController | null = null;
 const settings = computed<TimelineExportSettings>(() => {
 	const common = { ...resolution.value, positionMs: parseExportTime(startTime.value) };
 	return mode.value === 'still'
@@ -220,7 +220,7 @@ async function doExport() {
 			error.value = [error.value, `Preview restart failed: ${message}`].filter(Boolean).join('\n');
 		}
 		exporting.value = false;
-		abortController = undefined;
+		abortController = null;
 	}
 }
 

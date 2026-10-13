@@ -48,7 +48,7 @@ export function createTimelineSourceActions(options: TimelineSourceActionsOption
 		desktopAvailable, selectLayer, selectClip, addEmptyGroup, seek, reportError } = options;
 	const availableScenes = () => stateManager.state.timelineScenes.value.filter(candidate => canReferenceScene(stateManager.state.timelineScenes.value, scene.id, candidate.id));
 
-	type ClipSource = { kind: 'asset'; asset: Asset; media?: TimelineClipMediaInfo } | { kind: 'scene'; scene: TimelineScene };
+	type ClipSource = { kind: 'asset'; asset: Asset; media?: TimelineClipMediaInfo | null } | { kind: 'scene'; scene: TimelineScene };
 
 	function resolveClip(target: TimelineClipSelection) {
 		const layer = sceneLayers.value.find(layer => layer.id === target.layerId);
@@ -73,7 +73,7 @@ export function createTimelineSourceActions(options: TimelineSourceActionsOption
 		if (canceled || !asset || !isActive() || sceneLayers.value !== initialLayers || stateManager.state.assets.value !== assets) return null;
 		const blob = asset.fileData;
 		try {
-			const media = layerType === 'image' ? undefined : await inspectMedia(asset);
+			const media = layerType === 'image' ? null : await inspectMedia(asset);
 			if (!isActive() || sceneLayers.value !== initialLayers || !stateManager.state.assets.value.includes(asset) || asset.fileData !== blob) return null;
 			if (media?.audioError) {
 				const result = await ui.confirm({ type: 'warning', title: asset.name, text: media.audioError, okText: 'Add without audio' });
@@ -92,7 +92,7 @@ export function createTimelineSourceActions(options: TimelineSourceActionsOption
 		if (!isActive() || !sceneLayers.value.includes(layer)) return;
 		if ((type === 'image' || type === 'video' || type === 'audio' || type === 'scene') && !source) return;
 		// ピッカー待機中にも他のクリップが動くので、追加直前の空きを使う。
-		const sourceDurationMs = source?.kind === 'asset' ? source.media?.durationMs : undefined;
+		const sourceDurationMs = source?.kind === 'asset' ? source.media?.durationMs : null;
 		const durationMs = getTimelineClipInsertionDuration(layer.clips, startMs, sourceDurationMs ?? 5000);
 		if (durationMs <= 0) return;
 		const clip = {
@@ -130,9 +130,9 @@ export function createTimelineSourceActions(options: TimelineSourceActionsOption
 		} catch (error) { reportError(error); }
 	}
 
-	async function readLayerMediaDurations(layer: TimelineLayer): Promise<TimelineClipSourceDurations | undefined> {
+	async function readLayerMediaDurations(layer: TimelineLayer): Promise<TimelineClipSourceDurations | null> {
 		if (isTimelineContainerLayer(layer)) return Object.assign(Object.create(null), ...await Promise.all(layer.layers.map(readLayerMediaDurations)));
-		if (layer.layerType !== 'audio' && layer.layerType !== 'video') return undefined;
+		if (layer.layerType !== 'audio' && layer.layerType !== 'video') return null;
 		const sources = layer.clips.map(clip => {
 			const asset = stateManager.state.assets.value.find(asset => asset.id === clip.assetId);
 			if (!asset) throw new Error('Missing media');
@@ -150,7 +150,7 @@ export function createTimelineSourceActions(options: TimelineSourceActionsOption
 	async function addMediaLayer(layerType: 'image' | 'video' | 'audio' | 'scene') {
 		const source = await chooseClipSource(layerType);
 		if (!source || !isActive()) return;
-		const sourceDurationMs = source.kind === 'asset' ? source.media?.durationMs : undefined;
+		const sourceDurationMs = source.kind === 'asset' ? source.media?.durationMs : null;
 		const clip = { id: genId(), ...createTimelineClipTiming(Math.max(0, time.value), sourceDurationMs ?? 5000) };
 		if (clip.durationMs < 1) { reportError(new Error('Media is shorter than 1 ms.')); return; }
 		const base = { id: genId(), name: source.kind === 'asset' ? source.asset.name : source.scene.name, automationGraphs: [], isDisabled: false };
@@ -162,7 +162,7 @@ export function createTimelineSourceActions(options: TimelineSourceActionsOption
 		else if (source.kind === 'asset' && layerType === 'audio') layer = { ...base, layerType, clips: [{ id: clip.id, ...createTimelineMediaClipTiming(clip.startMs, clip.durationMs), assetId: source.asset.id }], audioParamValues };
 		else if (source.kind === 'asset' && layerType === 'video') layer = { ...base, layerType, clips: [{ id: clip.id, ...createTimelineMediaClipTiming(clip.startMs, clip.durationMs), assetId: source.asset.id, audioEnabled: !!source.media?.audioAvailable }], audioParamValues, compositingParamValues, coordinateSpace: 'screen', forceDisableMotionBlur: false };
 		else return;
-		stateManager.commit('addTimelineLayer', { sceneId: scene.id, layer, sourceDurationsMs: sourceDurationMs == null ? undefined : { [layer.id]: { [clip.id]: sourceDurationMs } } });
+		stateManager.commit('addTimelineLayer', { sceneId: scene.id, layer, sourceDurationsMs: sourceDurationMs == null ? null : { [layer.id]: { [clip.id]: sourceDurationMs } } });
 		selectClip({ layerId: layer.id, clipId: clip.id });
 	}
 

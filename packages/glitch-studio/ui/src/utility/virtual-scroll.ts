@@ -14,7 +14,7 @@ export function createVirtualScrollLayout(keys: readonly VirtualScrollKey[], hei
 }
 
 /** 行間は直前の行に属する。前後の余白も端の行からの相対位置として表せる。 */
-export function findVirtualScrollItem(layout: VirtualScrollLayout, y: number): VirtualScrollItemLayout | undefined {
+export function findVirtualScrollItem(layout: VirtualScrollLayout, y: number): VirtualScrollItemLayout | null {
 	let low = 0;
 	let high = layout.items.length;
 	while (low < high) {
@@ -22,7 +22,7 @@ export function findVirtualScrollItem(layout: VirtualScrollLayout, y: number): V
 		if (layout.items[middle].top <= y) low = middle + 1;
 		else high = middle;
 	}
-	return layout.items[Math.max(0, low - 1)];
+	return layout.items[Math.max(0, low - 1)] ?? null;
 }
 
 /** 可視範囲外で操作中の行だけも保持し、間の全行をマウントすることは避ける。 */

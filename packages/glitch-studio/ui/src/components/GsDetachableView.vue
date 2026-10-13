@@ -76,7 +76,7 @@ async function openView(mode: 'pip' | 'window') {
 		return;
 	}
 	openingView = true;
-	let pip: Window | undefined;
+	let pip: Window | null = null;
 	try {
 		const { width, height } = view.value.getBoundingClientRect();
 		const size = { width: Math.max(240, Math.round(width)), height: Math.max(160, Math.round(height)) };
@@ -84,7 +84,7 @@ async function openView(mode: 'pip' | 'window') {
 			pip = await pipApi!.requestWindow(size);
 		} else {
 			// Open synchronously within the menu click's user activation.
-			pip = window.open('', '_blank', `popup,width=${size.width},height=${size.height}`) ?? undefined;
+			pip = window.open('', '_blank', `popup,width=${size.width},height=${size.height}`) ?? null;
 			if (!pip) throw new Error('The popup was blocked. Please allow popups for this site and try again.');
 		}
 		if (disposed || pip.closed) {

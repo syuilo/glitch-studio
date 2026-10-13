@@ -36,7 +36,7 @@ const props = defineProps<{
 	asset: Asset;
 }>();
 
-const imageUrl = shallowRef<string>();
+const imageUrl = shallowRef<string | null>(null);
 
 function remove() {
 	stateManager.commit('removeAsset', {
@@ -72,7 +72,7 @@ async function replace() {
 }
 
 watch(() => [props.asset.fileData, props.asset.fileDataType] as const, ([file, type], _previous, onCleanup) => {
-	imageUrl.value = undefined;
+	imageUrl.value = null;
 	if (!type.startsWith('image/')) return;
 	const url = URL.createObjectURL(file);
 	imageUrl.value = url;

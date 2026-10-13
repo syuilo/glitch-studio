@@ -206,8 +206,8 @@ for (const isExport of [false, true]) {
 			assert.equal(calls.instances.length, 1);
 			assert.equal(calls.instances[0].disposed, false);
 			assert.equal(calls.presented.length, 2);
-			assert.equal(manager.motionBlurAccumulator, undefined);
-			assert.equal(manager.motionBlurTiming, undefined);
+			assert.equal(manager.motionBlurAccumulator, null);
+			assert.equal(manager.motionBlurTiming, null);
 			assert.deepEqual(calls.errors, []);
 		});
 	}
@@ -243,7 +243,7 @@ for (const isExport of [false, true]) {
 			const oldSignal = await entered.promise;
 			manager.destroy();
 			assert.equal(oldSignal.aborted, true);
-			assert.equal(manager.motionBlurAccumulator, undefined);
+			assert.equal(manager.motionBlurAccumulator, null);
 			const replacement = fixture(t, { timelineMotionBlur: { ...settings, enabled: !initiallyEnabled } });
 			await replacement.manager.updateDynamicOptions(dynamicOptions);
 			await render(replacement.manager, 700);

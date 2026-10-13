@@ -16,15 +16,15 @@ import type { AudioFile } from '@gs/subsystems_audio_renderer/audio-file.ts';
 
 /** 描画用デコーダーの寿命とAssetの解決を所有する。再生Workerの時計やデコーダーは共有しない。 */
 export class TimelineAudioInputs {
-	private current?: { renderer: TimelineAudioRenderer; dispose: () => void };
-	private scenes?: readonly TimelineScene[];
+	private current: { renderer: TimelineAudioRenderer; dispose: () => void } | null = null;
+	private scenes: readonly TimelineScene[] | null = null;
 	private plans = new Map<string, SceneAudioClip[]>();
 	private revision = 0;
 	private generatedSpeech: readonly GeneratedSpeech[] = [];
 
 	setGeneratedSpeech(speech: readonly GeneratedSpeech[]) {
 		this.current?.dispose();
-		this.current = undefined;
+		this.current = null;
 		this.generatedSpeech = speech;
 		this.plans.clear();
 		this.revision++;
@@ -34,7 +34,7 @@ export class TimelineAudioInputs {
 
 	setAssets(assets: readonly Asset[]) {
 		this.current?.dispose();
-		this.current = undefined;
+		this.current = null;
 		this.assets = assets;
 		this.revision++;
 	}
@@ -84,7 +84,7 @@ export class TimelineAudioInputs {
 		if (binding.inputSource === 'layerAudio') {
 			const source = resolveTimelineAudioLayerReference(getTimelineScene(scenes, sceneId), layerId, binding.layerId);
 			// 削除された参照は保存してUndoで復旧できるようにし、評価時は入力なしにする。
-			if (source === null) return null;
+			if (source == null) return null;
 			selection = { type: 'layer', layerId: source.id };
 		} else {
 			selection = { type: 'belowLayer', layerId };
@@ -100,8 +100,8 @@ export class TimelineAudioInputs {
 
 	dispose() {
 		this.current?.dispose();
-		this.current = undefined;
+		this.current = null;
 		this.plans.clear();
-		this.scenes = undefined;
+		this.scenes = null;
 	}
 }

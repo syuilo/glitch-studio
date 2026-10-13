@@ -252,17 +252,19 @@ export class VisualModuleRendererManager extends EventEmitter<{
 		this.canvasRenderer.highlightClipping = this.dynamicOptions.highlightClipping;
 		this.canvasRenderer.opaqueOutput = this.dynamicOptions.opaqueOutput;
 
-		if (newOptions.resolution !== undefined || newOptions.resolutionScale !== undefined) {
+		// Partialの差分では省略は変更なし、明示的なnullは解除要求。値の有無ではなくown propertyで判定する。
+		if (Object.hasOwn(newOptions, 'resolution') || Object.hasOwn(newOptions, 'resolutionScale')) {
 			this.updateCanvasResolution(scaleResolution(this.dynamicOptions.resolution, this.dynamicOptions.resolutionScale));
 			this.liveVisualModuleRenderer?.resize(this.dynamicOptions.resolution, this.dynamicOptions.resolutionScale);
 		}
-		if (newOptions.fpsLimit !== undefined) {
-			this.liveRenderLoop.fpsLimit = newOptions.fpsLimit;
+		// nullはFPS制限の解除なので、値ではなく差分にプロパティが含まれるかで更新を判定する。
+		if (Object.hasOwn(newOptions, 'fpsLimit')) {
+			this.liveRenderLoop.fpsLimit = this.dynamicOptions.fpsLimit;
 		}
-		if (newOptions.liveTimeFactor !== undefined) {
-			this.liveRenderLoop.timeFactor = newOptions.liveTimeFactor;
+		if (Object.hasOwn(newOptions, 'liveTimeFactor')) {
+			this.liveRenderLoop.timeFactor = this.dynamicOptions.liveTimeFactor;
 		}
-		if (newOptions.visualModules !== undefined) {
+		if (Object.hasOwn(newOptions, 'visualModules')) {
 			if (this.liveVisualModuleRenderer != null) {
 				const visualModule = this.dynamicOptions.visualModules.find(visualModule => visualModule.id === this.liveVisualModuleId);
 				if (visualModule == null) this.stopRenderLoop();
@@ -270,7 +272,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 			}
 		}
 
-		const assetsCommitted = assets === undefined ? null : await this.updateAssets(assets);
+		const assetsCommitted = Object.hasOwn(newOptions, 'assets') ? await this.updateAssets(assets!) : null;
 		return { assetsCommitted };
 	}
 
@@ -368,7 +370,7 @@ export class VisualModuleRendererManager extends EventEmitter<{
 					automationGraphs: [],
 					time: timing.time,
 					endTime: Infinity,
-				}, def.dataType.kind === 'enum' ? undefined : genEmptyValue(def))))); // TODO: genEmptyValueを遅延評価したい
+				}, def.dataType.kind === 'enum' ? null : genEmptyValue(def))))); // TODO: genEmptyValueを遅延評価したい
 			}
 
 			// Outが未接続でも透明な出力を描画し、前の映像や集計結果を残さない。
@@ -462,7 +464,7 @@ export async function createManager(options: {
 		throw new Error('need a browser that supports WebGPU');
 	}
 
-	let manager: VisualModuleRendererManager | undefined;
+	let manager: VisualModuleRendererManager | null = null;
 	try {
 		const context = options.canvas.getContext('webgpu');
 		const histogramContext = options.histogramCanvas.getContext('webgpu');

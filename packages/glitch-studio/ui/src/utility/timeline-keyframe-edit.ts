@@ -8,6 +8,7 @@ import { keyframeMoveBounds } from './timeline-selection.ts';
 
 // 選択の検証と詳細編集で同じ対象を解決する。Inspectorを閉じても、編集できなくなったキーの選択は解除する。
 export function getTimelineKeyframeEditTarget(
+	// 省略可能プロパティや検索結果を直接受け取る境界なので、入力のundefinedも未指定として受け入れる。
 	state: Pick<ProjectState, 'visualModules'>, layer: TimelineLayer | null | undefined, selection: TimelineKeyframeSelection | null,
 ) {
 	if (selection == null || selection.target === 'utterance') return null;

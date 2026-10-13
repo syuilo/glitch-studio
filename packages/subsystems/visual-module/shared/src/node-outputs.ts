@@ -4,7 +4,8 @@ import type { EffectOutputDefinitions } from '@gs/subsystems_effect_shared/effec
 import type { VisualModuleNode, VisualModule } from './types.ts';
 
 // 無効化してもポートの定義は変えない。globalOutは入力だけを持つ。
-export function getNodeOutputs(node: VisualModuleNode | undefined, paramDefs: VisualModule['paramDefs'] = []): EffectOutputDefinitions {
+// 省略可能プロパティや検索結果を直接受け取る境界なので、入力のundefinedも未指定として受け入れる。
+export function getNodeOutputs(node: VisualModuleNode | null | undefined, paramDefs: VisualModule['paramDefs'] = []): EffectOutputDefinitions {
 	if (node == null) return {};
 	if (node.type === 'globalIn') {
 		// 表示名や配列順を変更しても配線を維持するため、パラメータIDをポートIDにする。

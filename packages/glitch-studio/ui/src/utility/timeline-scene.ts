@@ -73,7 +73,7 @@ export function getLayerParameterDefinitions(state: Pick<ProjectState, 'visualMo
 	if (target === 'voicevoxSubtitle' && layer.layerType === 'voicevox') return voicevoxSubtitleParamDefs;
 	if (target === 'shape' && layer.layerType === 'shape') return getShapeParameterDefinitions(layer.shape.type);
 	const module = layer.layerType === 'inlineVisualModule' ? layer.visualModule
-		: layer.layerType === 'visualModule' ? state.visualModules.value.find(module => module.id === layer.visualModuleId) : undefined;
+		: layer.layerType === 'visualModule' ? state.visualModules.value.find(module => module.id === layer.visualModuleId) : null;
 	return Object.fromEntries(module?.paramDefs.map(def => [def.id, def]) ?? []);
 }
 
@@ -84,7 +84,7 @@ export function resolveLayerParameter(state: Pick<ProjectState, 'visualModules'>
 	if (path.length === 1 && values[path[0]] == null && defs[path[0]] != null) {
 		if (target === 'module') {
 			const visualModule = layer.layerType === 'inlineVisualModule' ? layer.visualModule
-				: layer.layerType === 'visualModule' ? state.visualModules.value.find(visualModule => visualModule.id === layer.visualModuleId) : undefined;
+				: layer.layerType === 'visualModule' ? state.visualModules.value.find(visualModule => visualModule.id === layer.visualModuleId) : null;
 			const def = visualModule?.paramDefs.find(def => def.id === path[0]);
 			if (visualModule && def) return { def, value: getTimelineVisualModuleArgumentDefault(visualModule, def) };
 		}
@@ -95,8 +95,8 @@ export function resolveLayerParameter(state: Pick<ProjectState, 'visualModules'>
 	return { def, value };
 }
 
-export function getLayerParameterDefinition(state: Pick<ProjectState, 'visualModules'>, layer: TimelineLayer, target: TimelineParameterTarget, path: ParamPath): ParameterDefinition | undefined {
-	try { return resolveLayerParameter(state, layer, target, path).def; } catch { return undefined; }
+export function getLayerParameterDefinition(state: Pick<ProjectState, 'visualModules'>, layer: TimelineLayer, target: TimelineParameterTarget, path: ParamPath): ParameterDefinition | null {
+	try { return resolveLayerParameter(state, layer, target, path).def; } catch { return null; }
 }
 
 export function getLayerKeyframeParameters(state: Pick<ProjectState, 'visualModules'>, layer: TimelineLayer) {

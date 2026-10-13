@@ -83,7 +83,7 @@ export function useTimelineViewport(options: TimelineViewportOptions) {
 		positionX.value = viewport.start;
 	}
 
-	let stopPan: (() => void) | undefined;
+	let stopPan: (() => void) | null = null;
 
 	function finishPan() {
 		stopPan?.();
@@ -121,7 +121,7 @@ export function useTimelineViewport(options: TimelineViewportOptions) {
 			layers.scrollTop = baseScrollTop - (current.clientY - baseY);
 		}, () => {
 			panning.value = false;
-			stopPan = undefined;
+			stopPan = null;
 			ownerWindow.removeEventListener('blur', finishPan);
 			ownerWindow.removeEventListener('pagehide', finishPan);
 		}, ownerWindow);
@@ -135,7 +135,7 @@ export function useTimelineViewport(options: TimelineViewportOptions) {
 		positionX.value = options.currentTime.value - rangeX.value / 2;
 	}, { immediate: true });
 
-	let resizeObserver: ResizeObserver | undefined;
+	let resizeObserver: ResizeObserver | null = null;
 	onMounted(() => {
 		const element = options.timelineElement.value;
 		if (element == null) return;

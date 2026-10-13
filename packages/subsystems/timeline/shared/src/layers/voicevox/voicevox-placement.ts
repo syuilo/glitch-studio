@@ -30,8 +30,8 @@ export function getVoicevoxUtterancePlacements(settings: VoicevoxSettings, utter
 }
 
 /** 配置と生成結果を結び付ける。生成済みでも配置区間より前に音声が終われば出力しない。 */
-export function assignPreparedSpeech(interval: SpeechInterval, speech: PreparedSpeech): (SpeechInterval & { sourceId: string }) | undefined {
+export function assignPreparedSpeech(interval: SpeechInterval, speech: PreparedSpeech): (SpeechInterval & { sourceId: string }) | null {
 	const endMs = Math.min(interval.endMs, interval.sourceStartMs + speech.durationMs);
-	if (endMs <= interval.startMs) return undefined;
+	if (endMs <= interval.startMs) return null;
 	return { sourceId: speech.sourceId, sourceStartMs: interval.sourceStartMs, startMs: interval.startMs, endMs };
 }

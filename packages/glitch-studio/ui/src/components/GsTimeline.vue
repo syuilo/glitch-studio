@@ -332,7 +332,7 @@ const Y_TICKS_WIDTH = 0;
 const duration = computed(() => clipLayers.value.reduce((max, layer) => layer.clips.reduce((end, clip) => Math.max(end, getTimelineClipEnd(clip)), max), 0));
 const time = previewPlayback.currentTimelineTime;
 const cueActive = ref(false);
-let stopCueHold: (() => void) | undefined;
+let stopCueHold: (() => void) | null = null;
 
 const tlEl = useTemplateRef('tlEl');
 const layersEl = useTemplateRef('layersEl');
@@ -622,7 +622,7 @@ function selectLayer(layer: TimelineLayer, event?: MouseEvent) {
 	tlEl.value?.focus({ preventScroll: true });
 }
 
-let disposeEffectPicker: (() => void) | undefined;
+let disposeEffectPicker: (() => void) | null = null;
 onBeforeUnmount(() => {
 	stopCueHold?.();
 	disposed = true;
@@ -637,7 +637,7 @@ function showEffectPicker(chosen: (definition: EffectDefinition) => void) {
 		chosen,
 		closed: () => {
 			dispose();
-			if (disposeEffectPicker === dispose) disposeEffectPicker = undefined;
+			if (disposeEffectPicker === dispose) disposeEffectPicker = null;
 		},
 	});
 	disposeEffectPicker = dispose;
@@ -713,7 +713,7 @@ function startCue(): () => void {
 	return () => {
 		if (!cueActive.value) return;
 		cueActive.value = false;
-		stopCueHold = undefined;
+		stopCueHold = null;
 		// Scene切替やプロジェクト読み込み後に、旧Sceneの位置を新しいSceneへ反映しない。
 		if (activeSceneId.value !== props.sceneId || stateManager.state.timelineScenes.value.find(scene => scene.id === props.sceneId) !== editedScene) return;
 		previewPlayback.pauseTimeline();

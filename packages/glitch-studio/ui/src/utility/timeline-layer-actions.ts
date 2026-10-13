@@ -14,7 +14,7 @@ type TimelineLayerActionsOptions = {
 	scene: TimelineScene;
 	selection: Ref<TimelineSelection>;
 	isActive: () => boolean;
-	readLayerMediaDurations: (layer: TimelineLayer) => Promise<TimelineClipSourceDurations | undefined>;
+	readLayerMediaDurations: (layer: TimelineLayer) => Promise<TimelineClipSourceDurations | null>;
 	selectLayer: (layer: TimelineLayer) => void;
 	canWrap: () => boolean;
 	groupSelection: () => void;

@@ -40,14 +40,15 @@ export type RuntimeEffectParameters<T extends Record<string, ParameterDefinition
 };
 
 export type EffectOutputData = {
-	previousFrameTexture?: GPUTexture;
-	previousFrameTextureView?: GPUTextureView;
+	previousFrameTexture: GPUTexture | null;
+	previousFrameTextureView: GPUTextureView | null;
 	texture: GPUTexture;
 	textureView: GPUTextureView;
 };
 
 // 遅延出力は未使用時には存在しない。定義を広い型で扱う場合も、
 // trueの可能性が残るポートは、エフェクト側で確保の有無を確認する。
+// 遅延ポートはマップのキー自体を省略するため、未確保の読み取り結果はundefinedになる。
 export type EffectOutputDataMap<Outputs extends EffectOutputDefinitions> = {
 	[K in keyof Outputs]: 'canLazyAllocation' extends keyof Outputs[K]
 		? true extends Outputs[K]['canLazyAllocation'] ? EffectOutputData | undefined : EffectOutputData
@@ -90,9 +91,9 @@ export type EffectImplementation<Definition extends Pick<EffectDefinition, 'para
 	disableCache?: boolean;
 	needsPreviousFrame?: boolean;
 	/** 自動モードで使う素材の原寸。プレビュー倍率の適用はレンダラーが行う。ノード入力の寸法は返さない。 */
-	getIntrinsicResolution?: (params: RuntimeEffectParameters<Options>) => { width: number; height: number } | undefined;
+	getIntrinsicResolution?: (params: RuntimeEffectParameters<Options>) => { width: number; height: number } | null;
 	/** 自動モードで使う入力の計算用寸法。複数入力などの選択に使い、プレビュー倍率は再適用しない。 */
-	getInputResolution?: (params: RuntimeEffectParameters<Options>) => { width: number; height: number } | undefined;
+	getInputResolution?: (params: RuntimeEffectParameters<Options>) => { width: number; height: number } | null;
 	outputTextureFactories: {
 		// canLazyAllocation=trueのポートだけ遅延確保する。それ以外はレンダラー作成時に確保する。
 		[K in keyof Definition['outputDefs']]: (args: {

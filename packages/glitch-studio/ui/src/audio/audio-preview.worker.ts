@@ -10,20 +10,20 @@ type Panel = {
 	options: PreviewOptions;
 	size: PreviewSize;
 	context?: GPUCanvasContext;
-	spectrogram?: ReturnType<typeof createAudioSpectrogram>;
-	spectrum?: ReturnType<typeof createPreviewSpectrum>;
-	waveform?: ReturnType<typeof createPreviewWaveform>;
+	spectrogram?: ReturnType<typeof createAudioSpectrogram> | null;
+	spectrum?: ReturnType<typeof createPreviewSpectrum> | null;
+	waveform?: ReturnType<typeof createPreviewWaveform> | null;
 };
 const panels = new Map<number, Panel>();
 const meters = new Map<number, MessagePort>();
 const readings = new Map<number, MeterReading>();
 const history = new AudioHistory();
-let audioPort: MessagePort | undefined;
+let audioPort: MessagePort | null = null;
 let running = false;
 let meterPending = false;
-let device: GPUDevice | undefined;
-let deviceReady: Promise<GPUDevice> | undefined;
-let vertex: GPUShaderModule | undefined;
+let device: GPUDevice | null = null;
+let deviceReady: Promise<GPUDevice> | null = null;
+let vertex: GPUShaderModule | null = null;
 
 function send(message: PreviewResponse) { self.postMessage(message); }
 
@@ -42,9 +42,9 @@ function configurePanel(panel: Panel) {
 	panel.spectrogram?.dispose();
 	panel.spectrum?.dispose();
 	panel.waveform?.dispose();
-	panel.spectrogram = undefined;
-	panel.spectrum = undefined;
-	panel.waveform = undefined;
+	panel.spectrogram = null;
+	panel.spectrum = null;
+	panel.waveform = null;
 	if (panel.options.mode === 'spectrogram') panel.spectrogram = createAudioSpectrogram({
 		device,
 		vertexShaderModule: vertex!,
@@ -75,12 +75,12 @@ struct VertexOut { @builtin(position) position: vec4f, @location(0) uv: vec2f };
 		void created.lost.then(info => {
 			if (device !== created) return;
 			for (const id of [...panels.keys()]) removePanel(id);
-			device = undefined;
-			deviceReady = undefined;
+			device = null;
+			deviceReady = null;
 			send({ type: 'error', message: info.message || 'Audio preview GPU device was lost.' });
 		});
 		return created;
-	})().catch(error => { deviceReady = undefined; throw error; });
+	})().catch(error => { deviceReady = null; throw error; });
 	return deviceReady;
 }
 
@@ -139,7 +139,7 @@ onmessage = ({ data }: MessageEvent<PreviewRequest>) => {
 			};
 			break;
 		}
-		case 'resetAudio': audioPort?.close(); audioPort = undefined; history.reset(); break;
+		case 'resetAudio': audioPort?.close(); audioPort = null; history.reset(); break;
 		case 'running': running = data.running; break;
 		case 'meter': {
 			const { id, port } = data;

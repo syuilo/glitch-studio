@@ -17,7 +17,7 @@ type TimelineMarqueeSelectionOptions = {
 	virtualLayers: Readonly<Ref<{
 		refresh(): Promise<void>;
 		getClientTop(): number;
-		getItemAt(y: number): VirtualScrollItemLayout | undefined;
+		getItemAt(y: number): VirtualScrollItemLayout | null;
 		getLayout(): VirtualScrollLayout;
 	} | null>>;
 	viewport: Pick<TimelineViewport, 'positionX' | 'rangeX' | 'width' | 'height' | 'panning'>;
@@ -35,7 +35,7 @@ export function useTimelineMarqueeSelection(options: TimelineMarqueeSelectionOpt
 		layers: marqueeLayers, layerSizeKeys, rulerHeight, selection, revealDetails } = options;
 	const { positionX, rangeX, width, height } = viewport;
 	const selectionArea = ref<SelectionRect | null>(null);
-	let updateMarquee: (() => void) | undefined;
+	let updateMarquee: (() => void) | null = null;
 
 	function onVirtualLayersLayout() { updateMarquee?.(); }
 
@@ -61,18 +61,18 @@ export function useTimelineMarqueeSelection(options: TimelineMarqueeSelectionOpt
 		if (!event.shiftKey) selection.value = { kind: 'layers', ids: [] };
 		const originX = event.clientX - bounds.left;
 		const initialY = event.clientY;
-		let origin: TimelineMarqueeAnchor | undefined;
+		let origin: TimelineMarqueeAnchor | null = null;
 		let pointer = { x: event.clientX, y: event.clientY };
 		const boundaryLayouts = new Map<string, TimelineLayerSelectionLayout>();
 		let active = true;
 		let finishing = false;
 		let revision = 0;
-		let pending: Promise<void> | undefined;
+		let pending: Promise<void> | null = null;
 
-		function anchorAt(clientY: number): TimelineMarqueeAnchor | undefined {
+		function anchorAt(clientY: number): TimelineMarqueeAnchor | null {
 			const y = clientY - virtual.getClientTop();
 			const item = virtual.getItemAt(y);
-			return item ? { layerId: String(item.key), offsetY: y - item.top } : undefined;
+			return item ? { layerId: String(item.key), offsetY: y - item.top } : null;
 		}
 
 		function measureBoundary(anchor: TimelineMarqueeAnchor): boolean {
@@ -90,7 +90,7 @@ export function useTimelineMarqueeSelection(options: TimelineMarqueeSelectionOpt
 		origin = initialLayer?.dataset.timelineLayerId
 			? { layerId: initialLayer.dataset.timelineLayerId, offsetY: initialY - initialLayer.getBoundingClientRect().top }
 			: anchorAt(initialY);
-		if (origin && !measureBoundary(origin)) origin = undefined;
+		if (origin && !measureBoundary(origin)) origin = null;
 
 		function scheduleUpdate() {
 			if (!active) return;
@@ -124,7 +124,7 @@ export function useTimelineMarqueeSelection(options: TimelineMarqueeSelectionOpt
 					// 開始行と現在の境界以外のレーン座標は不要。高速スクロールでもメモリを増やさない。
 					for (const id of boundaryLayouts.keys()) if (id !== origin.layerId && id !== end.layerId) boundaryLayouts.delete(id);
 				}
-			})().finally(() => { pending = undefined; if (finishing) cleanup(); });
+			})().finally(() => { pending = null; if (finishing) cleanup(); });
 		}
 
 		function cleanup() {
@@ -135,7 +135,7 @@ export function useTimelineMarqueeSelection(options: TimelineMarqueeSelectionOpt
 			stopHorizontalWatch();
 			// キャンセル後に次の操作が始まっていても、古い非同期計測の完了で消さない。
 			if (updateMarquee === scheduleUpdate) {
-				updateMarquee = undefined;
+				updateMarquee = null;
 				selectionArea.value = null;
 				release();
 				// 範囲選択中の展開はタイムラインの寸法を変えるため、確定後に一度だけ開く。

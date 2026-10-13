@@ -114,10 +114,10 @@ export function createTimelineDragActions(options: TimelineDragActionsOptions) {
 		selectClip(target);
 		const { layer, clip } = entry;
 		const media = layer.layerType === 'audio' || layer.layerType === 'video';
-		const sourceDurationMs = 'assetId' in clip && typeof clip.assetId === 'string' ? mediaInfo.value.get(clip.assetId)?.durationMs : undefined;
+		const sourceDurationMs = 'assetId' in clip && typeof clip.assetId === 'string' ? mediaInfo.value.get(clip.assetId)?.durationMs : null;
 		if (media && sourceDurationMs == null) return;
 		const bounds = 'sourceInMs' in clip ? getTimelineMediaTrimBounds(layer.clips, clip, edge, sourceDurationMs!)
-			: getTimelineClipTrimBounds(layer.clips, clip, edge, layer.layerType === 'scene', sourceDurationMs);
+			: getTimelineClipTrimBounds(layer.clips, clip, edge, layer.layerType === 'scene', sourceDurationMs ?? Infinity);
 		if (bounds.minDelta > bounds.maxDelta) return;
 		const sourceTiming = 'sourceInMs' in clip ? { ...clip, durationMs: Math.min(clip.durationMs, getTimelineMediaPeriod(clip)) } : clip;
 		const points = getTimelineClipSnapPoints(sourceTiming, bounds, clipSnapSettings.value, edge);

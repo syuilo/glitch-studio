@@ -186,7 +186,7 @@ test('does not interpret evaluated parameter objects as bypass connections', t =
 	const f = fixture(t, [effectNode('bypass', { input: { inputSource: 'externalCustomParameterInput', parameterId: 'input' } }, true)], { paramDefs: { input: colorInput } });
 	f.module.paramDefs[0].canNode = false;
 	const ctx = { ...context(), evaluatedParamValues: new Map([['input', { nodeId: 'bypass', outputPort: 'output' }]]) };
-	assert.equal(f.render(ctx), undefined);
+	assert.equal(f.render(ctx), null);
 	assert.equal(f.calls.renders.length, 0);
 });
 
@@ -196,7 +196,7 @@ for (const input of [{ nodeId: null, outputPort: null }, reference('missing'), r
 	test(`returns no output for unavailable relay input ${JSON.stringify(input)}`, async t => {
 		const f = fixture(t, [relay('relay', input)]);
 		await f.renderer.prepare(context(), new AbortController().signal);
-		assert.equal(f.render(), undefined);
+		assert.equal(f.render(), null);
 	});
 }
 
@@ -205,7 +205,7 @@ for (const input of [{ nodeId: null, outputPort: null }, reference('missing'), r
 test('does not resolve an unknown relay output port', t => {
 	const f = fixture(t, [relay('relay')]);
 	f.module.nodes.at(-1).inputs.out.outputPort = 'missing';
-	assert.equal(f.render(), undefined);
+	assert.equal(f.render(), null);
 });
 
 for (const output of [{ kind: 'uniform', value: [0.25, 0, 0, 0.5] }, { kind: 'texture', texture: {} }]) {

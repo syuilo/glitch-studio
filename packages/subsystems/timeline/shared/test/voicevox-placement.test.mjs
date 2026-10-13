@@ -12,6 +12,17 @@ const { getVoicevoxSubtitle, getVoicevoxSubtitlePlacements } = await loadSource(
 const utterance = (id, timeMs, text) => ({ id, timeMs, text, reading: null, styleId: 1, subtitleDuration: { mode: 'fill' } });
 const clip = (id, startMs, durationMs) => ({ id, startMs, durationMs, contentOffsetMs: 987.5 });
 
+// 【読みのnullは本文を使う指定であり、必須フィールドの欠落ではない】
+// 読みを消す編集は有効な操作だが、undefinedやreading自体を欠いたデータでは保存形式の型を保証できない。
+// 存在判定を一律に緩めても、未選択の指定と欠落の検証を混同しないようにする。
+test('accepts explicit null reading and rejects missing reading fields', () => {
+	const key = utterance('key', 0, 'Hello');
+	validateVoicevoxLayer({ voicevox: settings, utterances: [key] });
+	assert.throws(() => validateVoicevoxLayer({ voicevox: settings, utterances: [{ ...key, reading: undefined }] }), /Invalid VOICEVOX utterance/);
+	const { reading, ...missingReading } = key;
+	assert.throws(() => validateVoicevoxLayer({ voicevox: settings, utterances: [missingReading] }), /Invalid VOICEVOX utterance/);
+});
+
 // 【字幕は指定長・次のキーで打ち切り、過去の字幕を再表示しない】
 // シークや書き出しでも同じ半開区間を使い、空文字・表示長0のキーは直前の字幕を終了させる。
 test('evaluates subtitle duration independently of speech and never revives earlier subtitles', () => {
@@ -86,7 +97,7 @@ test('places utterances independently of synthesis without restarting after gaps
 	assert.deepEqual(utterances.map(key => key.id), ['last', 'clear', 'first', 'middle']);
 	const speech = { key: 'first', sourceId: 'audio', durationMs: 175.5 };
 	assert.deepEqual(assignPreparedSpeech(placements[0], speech), { sourceId: 'audio', sourceStartMs: 100, startMs: 200, endMs: 275.5 });
-	assert.equal(assignPreparedSpeech(placements[1], speech), undefined);
+	assert.equal(assignPreparedSpeech(placements[1], speech), null);
 	assert.deepEqual(getVoicevoxUtterancePlacements(settings, utterances, []), []);
 });
 

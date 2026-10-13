@@ -17,7 +17,8 @@ export function getEffectLayerParameterDefault(definition: EffectDefinition, key
 		? createLayerInputBinding() : deepClone(definition.paramDefs[key].defaultValue);
 }
 
-export function validateTimelineEffectLayer(layer: TimelineEffectLayer, definition: EffectDefinition | undefined): void {
+// 省略可能プロパティや検索結果を直接受け取る境界なので、入力のundefinedも未指定として受け入れる。
+export function validateTimelineEffectLayer(layer: TimelineEffectLayer, definition: EffectDefinition | null | undefined): void {
 	if (definition == null) throw new Error(`Effect not found: ${layer.effectId}`);
 	validateEffectResolution(layer.resolution);
 	for (const [key, def] of Object.entries(definition.paramDefs)) {

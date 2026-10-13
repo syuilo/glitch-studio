@@ -20,6 +20,7 @@
 			</button>
 		</template>
 
+		<!-- VueのCSSPropertiesはnullを受け付けないため、未指定のstyle値はundefinedを使う。 -->
 		<div v-if="openedAtLeastOnce" :class="[$style.body, { [$style.bgSame]: bgSame }]" :style="{ maxHeight: maxHeight ? `${maxHeight}px` : undefined, overflow: maxHeight ? `auto` : undefined }" :aria-hidden="!opened">
 			<Transition
 				:enterActiveClass="preferences.s.animation ? $style.transition_toggle_enterActive : ''"

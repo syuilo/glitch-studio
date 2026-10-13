@@ -38,7 +38,7 @@ export function createEffectTimelineLayer(layer: TimelineEffectLayer, definition
 	assetTextures: ReadonlyMap<string, GPUTexture>;
 	getAudioInput?: TimelineAudioInputProvider;
 	onState?: (state: EffectInstanceState | null) => void;
-	onCompositing?: TimelineCompositingObserver;
+	onCompositing?: TimelineCompositingObserver | null;
 }): TimelineLayerRenderer<TimelineImage> {
 	// 設定更新時はManagerがインスタンスを作り直す。Bindingの検証と既定値の補完は
 	// 受け入れ時に行い、毎フレーム、未評価のキーフレーム列まで複製・再検証しない。
@@ -66,7 +66,7 @@ export function createEffectTimelineLayer(layer: TimelineEffectLayer, definition
 			const scope = createTimelineLayerEvaluationScope({ time: context.sceneTimeMs, isExport: context.isExport, automationGraphs: layer.automationGraphs });
 			const resolveAudioInput = createTimelineAudioInputResolver(options.getAudioInput, context.sceneTimeMs, context.isExport);
 			// Effectの入力は有限のSceneフレーム。中間画像の可変範囲をノードへ漏らさない。
-			let input: TimelineImage | undefined;
+			let input: TimelineImage | null = null;
 			const getInput = () => {
 				if (!input) {
 					const encoder = device.createCommandEncoder();
@@ -80,7 +80,7 @@ export function createEffectTimelineLayer(layer: TimelineEffectLayer, definition
 					if (value.inputSource === 'layerInput') return toShaderInput(getInput(), value);
 					if (isTimelineAudioInputBinding(value)) return resolveAudioInput(value);
 					const fallback = value.inputSource === 'automationGraphReference' || (leaf.dataType.kind === 'enum' && value.inputSource === 'keyframesTimelineInline')
-						? leaf.defaultValue.value : leaf.dataType.kind === 'enum' ? undefined : genEmptyValue(leaf);
+						? leaf.defaultValue.value : leaf.dataType.kind === 'enum' ? null : genEmptyValue(leaf);
 					// await前に評価結果だけを固定する。literalの配列を準備中の編集と共有せず、
 					// AssetやGPUリソースはこの後の変換で借用する。
 					const evaluated = coerceParameterValue(leaf, deepClone(validateEnumParameterValue(leaf, evaluator.evaluate(value, scope, fallback))));
@@ -89,15 +89,15 @@ export function createEffectTimelineLayer(layer: TimelineEffectLayer, definition
 					return resolveEffectParameterValue(leaf, evaluated, options);
 				})];
 			}));
-			const resolutionInput = definition.resolutionInputParameter == null ? undefined : params[definition.resolutionInputParameter];
+			const resolutionInput = definition.resolutionInputParameter == null ? null : params[definition.resolutionInputParameter];
 			renderer.setUsedOutputPorts(usedOutputPorts);
 			renderer.setResolution(resolveEffectNodeResolution({
 				setting: layer.resolution,
 				contextResolution: options.resolution, resolutionScale: options.resolutionScale,
-				intrinsicResolution: layer.resolution.mode === 'auto' ? implementation.getIntrinsicResolution?.(params) : undefined,
+				intrinsicResolution: layer.resolution.mode === 'auto' ? implementation.getIntrinsicResolution?.(params) : null,
 				inputResolution: layer.resolution.mode === 'auto'
-					? implementation.getInputResolution?.(params) ?? (resolutionInput?.kind === 'texture' ? resolutionInput.texture : undefined)
-					: undefined,
+					? implementation.getInputResolution?.(params) ?? (resolutionInput?.kind === 'texture' ? resolutionInput.texture : null)
+					: null,
 				maxDimension: device.limits.maxTextureDimension2D,
 			}));
 			renderer.prepare(params, signal);

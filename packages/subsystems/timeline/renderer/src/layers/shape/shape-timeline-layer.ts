@@ -7,7 +7,7 @@ import type { TimelineShapeLayer } from '@gs/subsystems_timeline_shared/types.ts
 import type { TimelineImage } from '../../timeline-image.ts';
 import type { TimelineLayerRenderer } from '../../timeline-renderer.ts';
 
-export function createShapeTimelineLayer(layer: TimelineShapeLayer, options: Parameters<typeof createShapeRenderer>[0] & { onCompositing?: TimelineCompositingObserver }): TimelineLayerRenderer<TimelineImage> {
+export function createShapeTimelineLayer(layer: TimelineShapeLayer, options: Parameters<typeof createShapeRenderer>[0] & { onCompositing?: TimelineCompositingObserver | null }): TimelineLayerRenderer<TimelineImage> {
 	const renderer = createShapeRenderer(options);
 	const compositor = createTimelineCompositor(options);
 	const parameters = new ShapeParameters();

@@ -18,10 +18,10 @@ function send(message: ExportResponse, transfer: Transferable[] = []) {
 // 1ジョブにつき1Worker。Playerのライブ入力は接続せず、専用のGPUDeviceと履歴を持つ。
 // キャンセル時は呼び出し元がWorkerを終了し、準備待ち・エンコード待ちも即座に中断する。
 self.onmessage = async (event: MessageEvent<ExportRequest>) => {
-	let renderer: TimelineRendererManager | undefined;
-	let device: GPUDevice | undefined;
-	let writer: Awaited<ReturnType<typeof createMp4Writer>> | undefined;
-	let audio: TimelineAudioExport | undefined;
+	let renderer: TimelineRendererManager | null = null;
+	let device: GPUDevice | null = null;
+	let writer: Awaited<ReturnType<typeof createMp4Writer>> | null = null;
+	let audio: TimelineAudioExport | null = null;
 	const controller = new AbortController();
 	let finished = false;
 	try {
@@ -96,7 +96,7 @@ self.onmessage = async (event: MessageEvent<ExportRequest>) => {
 			signal: controller.signal,
 			render: frame => renderer!.renderTimelineFrame(frame.timeMs, frame.timeDeltaMs, settings.fps),
 			addFrame: frame => writer!.addFrame(frame.timestamp, frame.duration),
-			addAudioUntil: audio ? time => audio!.renderUntil(time, (pcm, timestamp) => writer!.addAudio(pcm, timestamp), controller.signal) : undefined,
+			addAudioUntil: audio ? time => audio!.renderUntil(time, (pcm, timestamp) => writer!.addAudio(pcm, timestamp), controller.signal) : null,
 			finalize: () => writer!.finalize(),
 			onProgress: progress => {
 				const now = performance.now();

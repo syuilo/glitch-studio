@@ -14,13 +14,13 @@ export function createImageTimelineLayer(layer: TimelineImageLayer, sourceTextur
 	resolution: { width: number; height: number };
 	resolutionScale: number;
 	format: IntermediateTextureFormat;
-	onCompositing?: TimelineCompositingObserver;
+	onCompositing?: TimelineCompositingObserver | null;
 }): TimelineLayerRenderer<TimelineImage> {
 	const compositor = createTimelineCompositor(options);
 	const parameters = new TimelineCompositingParameters();
 	const sourceResolution = scaleResolution(sourceTexture, options.resolutionScale);
-	let scaledTexture: GPUTexture | undefined;
-	let scalingPipeline: ReturnType<typeof createShaderInputPipeline> | undefined;
+	let scaledTexture: GPUTexture | null = null;
+	let scalingPipeline: ReturnType<typeof createShaderInputPipeline> | null = null;
 	let disposed = false;
 	return {
 		async evaluate(context, signal) {

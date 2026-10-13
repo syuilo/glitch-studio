@@ -62,7 +62,7 @@ const selectedClipEntry = computed(() => {
 const selectedClipNeedsMedia = computed(() => selectedClipEntry.value?.layer.layerType === 'audio' || selectedClipEntry.value?.layer.layerType === 'video');
 const selectedClipMedia = computed(() => {
 	const clip = selectedClipEntry.value?.clip;
-	return clip && 'assetId' in clip && typeof clip.assetId === 'string' ? props.mediaInfo.get(clip.assetId) : undefined;
+	return clip && 'assetId' in clip && typeof clip.assetId === 'string' ? props.mediaInfo.get(clip.assetId) : null;
 });
 const selectedVideoClip = computed(() => {
 	const entry = selectedClipEntry.value;

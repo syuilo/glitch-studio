@@ -9,7 +9,7 @@ import type { TimelineVoicevoxLayer } from '@gs/subsystems_timeline_shared/types
 import type { TimelineImage } from '../../timeline-image.ts';
 import type { TimelineLayerRenderer } from '../../timeline-renderer.ts';
 
-export function createVoicevoxTimelineLayer(layer: TimelineVoicevoxLayer, options: Parameters<typeof createTextRenderer>[0] & { getFont: (id: string) => Blob | null; resolveSpeech: SpeechResolver; onCompositing?: TimelineCompositingObserver }): TimelineLayerRenderer<TimelineImage> {
+export function createVoicevoxTimelineLayer(layer: TimelineVoicevoxLayer, options: Parameters<typeof createTextRenderer>[0] & { getFont: (id: string) => Blob | null; resolveSpeech: SpeechResolver; onCompositing?: TimelineCompositingObserver | null }): TimelineLayerRenderer<TimelineImage> {
 	const renderer = createTextRenderer(options);
 	const compositor = createTimelineCompositor(options);
 	const parameters = new VoicevoxSubtitleParameters();

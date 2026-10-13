@@ -23,7 +23,7 @@ export function getTimelinePlacement(source: TimelineImage, resolution: { width:
 export function createTimelineCompositor(options: {
 	device: GPUDevice; vertex: GPUShaderModule; resolution: { width: number; height: number }; format: IntermediateTextureFormat;
 	beginPass?: (encoder: GPUCommandEncoder, descriptor: GPURenderPassDescriptor) => GPURenderPassEncoder;
-	onCompositing?: TimelineCompositingObserver;
+	onCompositing?: TimelineCompositingObserver | null;
 }) {
 	const { device, resolution } = options;
 	const uniforms = makeStructuredView(makeShaderDataDefinitions(code).uniforms.uniforms);
@@ -33,7 +33,7 @@ export function createTimelineCompositor(options: {
 	const pipelines = createShaderInputPipeline({
 		device, vertex: options.vertex, code: blendCode + code,
 		schema: { background: 'color', source: 'color' }, targets: [{ format: options.format }], internalLayouts: [layout], sampling: 'level0' });
-	let texture: GPUTexture | undefined;
+	let texture: GPUTexture | null = null;
 	return {
 		render(encoder: GPUCommandEncoder, background: TimelineImage, source: TimelineImage, settings: TimelineCompositingSettings,
 			space: TimelineRenderSpace = { parent: TIMELINE_IDENTITY, depth: 0, viewport: TIMELINE_FRAME }, projected = false, fixedBounds?: TimelineBounds): TimelineImage {

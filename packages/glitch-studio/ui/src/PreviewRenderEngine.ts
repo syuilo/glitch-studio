@@ -58,7 +58,10 @@ export class PreviewRenderEngine {
 		if (!this.enabled.value || this.suspended.value || this.staticError.value) return Promise.resolve();
 		this.runtimeError.value = null;
 		// 初期化中の複数変更は、同じ生成を待つ。エラーで無効化した生成は再利用しない。
-		if (this.restarting) return this.restarting.then(() => this.canRender.value ? this.createIfNeeded() : undefined);
+		if (this.restarting != null) return this.restarting.then(() => {
+			if (this.canRender.value) return this.createIfNeeded();
+			return;
+		});
 		return this.createIfNeeded();
 	}
 

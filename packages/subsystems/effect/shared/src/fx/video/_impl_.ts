@@ -4,7 +4,7 @@ import code from './shader.wgsl?raw';
 import type definition from './_def_.ts';
 
 export default implementEffect<typeof definition>({
-	getIntrinsicResolution: params => params.player?.videoFrame == null ? undefined : {
+	getIntrinsicResolution: params => params.player?.videoFrame == null ? null : {
 		width: params.player.videoFrame.displayWidth, height: params.player.videoFrame.displayHeight,
 	},
 	outputTextureFactories: {

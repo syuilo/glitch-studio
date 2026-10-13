@@ -160,9 +160,9 @@ const parseKeyCode = (input?: string | null) => {
 const getValueByKey = <
 	T extends Record<keyof any, unknown>,
 	K extends keyof T | keyof any,
-	R extends K extends keyof T ? T[K] : T[keyof T] | undefined,
+	R extends K extends keyof T ? T[K] : T[keyof T] | null,
 >(obj: T, key: K) => {
-	return obj[key] as R;
+	return (obj[key] ?? null) as R;
 };
 
 const trimLower = (str: string) => str.trim().toLowerCase();

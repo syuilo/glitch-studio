@@ -101,8 +101,8 @@ for (const [kind, event, nodeId] of [['VisualModule', 'effectState', 'node'], ['
 		assert.equal(worker.terminated, true);
 		assert.equal(controller.isReady.value, false);
 		assert.deepEqual(structuredClone(diagnostic), { message: 'decode failed', origin: nodeId == null ? { source } : { source, nodeId } });
-		if (kind === 'Timeline') assert.equal(controller.getLayerEffectStates('root', 'layer'), undefined);
-		else assert.equal(controller.getLiveEffectState('visualModule', 'node'), undefined);
+		if (kind === 'Timeline') assert.equal(controller.getLayerEffectStates('root', 'layer'), null);
+		else assert.equal(controller.getLiveEffectState('visualModule', 'node'), null);
 		notify('obsolete failure');
 		assert.equal(diagnostic.message, 'decode failed');
 	});
@@ -322,23 +322,23 @@ test('tracks effect layer states reactively without mixing clip instances or nes
 	const failed = { status: { type: 'error', message: 'decode failed' }, outputs: { output: null } };
 	const notify = (source, status) => worker.reply({ type: 'ev', ev: { type: 'effectLayerState', ctx: { source, status } } });
 	const displayed = computed(() => controller.getEffectLayerState('scene', 'effect'));
-	assert.equal(displayed.value, undefined);
+	assert.equal(displayed.value, null);
 	notify(previous, loading);
 	assert.deepEqual(displayed.value, loading);
 	notify(current, ready);
 	notify(previous, null);
 	assert.deepEqual(displayed.value, ready);
-	assert.equal(controller.getLayerEffectStates('scene', 'effect'), undefined);
-	assert.equal(controller.getEffectLayerState('other-scene', 'effect'), undefined);
+	assert.equal(controller.getLayerEffectStates('scene', 'effect'), null);
+	assert.equal(controller.getEffectLayerState('other-scene', 'effect'), null);
 	notify(current, null);
-	assert.equal(displayed.value, undefined);
+	assert.equal(displayed.value, null);
 	notify(current, ready);
 	notify(current, failed);
-	assert.equal(displayed.value, undefined);
+	assert.equal(displayed.value, null);
 	assert.equal(worker.terminated, true);
 	assert.equal(controller.errorMessage.value, 'decode failed');
 	notify(current, ready);
-	assert.equal(displayed.value, undefined);
+	assert.equal(displayed.value, null);
 });
 
 // 【モジュール内ノードの状態はレイヤー本体の状態と別に維持する】
@@ -357,15 +357,15 @@ test('preserves per-node timeline states across clip replacement and individual 
 	notify(previous, 'node', null);
 	assert.equal(controller.getLayerEffectStates('scene', 'module').size, 1);
 	assert.deepEqual(controller.getLayerEffectStates('scene', 'module').get('node'), ready);
-	assert.equal(controller.getEffectLayerState('scene', 'module'), undefined);
+	assert.equal(controller.getEffectLayerState('scene', 'module'), null);
 	notify(current, 'another', ready);
 	notify(current, 'node', null);
 	assert.equal(controller.getLayerEffectStates('scene', 'module').has('another'), true);
 	notify(current, 'another', null);
-	assert.equal(controller.getLayerEffectStates('scene', 'module'), undefined);
+	assert.equal(controller.getLayerEffectStates('scene', 'module'), null);
 	notify(current, 'node', ready);
 	controller.destroy();
-	assert.equal(controller.getLayerEffectStates('scene', 'module'), undefined);
+	assert.equal(controller.getLayerEffectStates('scene', 'module'), null);
 });
 
 function baseFixture(t, overrides) {

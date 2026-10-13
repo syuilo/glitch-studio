@@ -22,7 +22,7 @@ export class ShapeParameters {
 		}
 		// 式は任意の型を返せる。保存値は変更せず、GPUへ渡す境界で有限なf32だけを採用する。
 		const number = (value: unknown, fallback = 0) => typeof value === 'number' && Number.isFinite(Math.fround(value)) ? value : fallback;
-		const components = (value: unknown, count: number) => Array.from({ length: count }, (_, index) => number(Array.isArray(value) ? value[index] : undefined));
+		const components = (value: unknown, count: number) => Array.from({ length: count }, (_, index) => number(Array.isArray(value) ? value[index] : null));
 		const size = components(values.size, 2).map(value => Math.max(0, value)) as [number, number];
 		const color = (value: unknown, enabled: unknown): [number, number, number, number] => {
 			const [r, g, b, alpha] = components(value, 4);

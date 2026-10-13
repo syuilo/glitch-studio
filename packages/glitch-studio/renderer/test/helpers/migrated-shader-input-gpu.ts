@@ -68,7 +68,7 @@ export async function checkMigratedEffects(device: GPUDevice, vertex: GPUShaderM
 				}
 				const output = implementation.outputTextureFactories.output!(context);
 				textures.push(output);
-				let baseline: number[] | undefined;
+				let baseline: number[] | null = null;
 				// 最後にuniform構成へ戻し、キャッシュ退避後の再生成も検証する。
 				for (let iteration = 0; iteration <= 2 ** inputs.length; iteration++) {
 					const mask = iteration % (2 ** inputs.length);

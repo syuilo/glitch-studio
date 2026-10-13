@@ -51,7 +51,7 @@ export const rendererEnv = {
 	mouseY: 0,
 };
 
-export async function openProject(file?: File, fileHandle?: ProjectFileHandle): Promise<boolean> {
+export async function openProject(file?: File | null, fileHandle?: ProjectFileHandle | null): Promise<boolean> {
 	try {
 		const result = await loadProjectFile(file, fileHandle);
 		if (result == null) return false;

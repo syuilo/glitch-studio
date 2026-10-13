@@ -117,6 +117,6 @@ export function resolveSceneAudioPlacements(placements: readonly SceneAudioPlace
 }
 
 /** 再生は準備済みの音声だけを受け取る。未生成の配置は生成対象の列挙・書き出し検証側で扱う。 */
-export function getSceneAudioClips(scenes: readonly TimelineScene[], sceneId: string, selection: SceneAudioSelection = { type: 'all' }, resolveSpeech: SpeechResolver = () => undefined): SceneAudioClip[] {
+export function getSceneAudioClips(scenes: readonly TimelineScene[], sceneId: string, selection: SceneAudioSelection = { type: 'all' }, resolveSpeech: SpeechResolver = () => null): SceneAudioClip[] {
 	return resolveSceneAudioPlacements(getSceneAudioPlacements(scenes, sceneId, selection), resolveSpeech).clips;
 }

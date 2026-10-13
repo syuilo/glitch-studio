@@ -69,7 +69,7 @@ const instanceId = genId();
 const group = props.group ?? instanceId;
 const style = useCssModule();
 const draggingId = ref<string | null>(null);
-let finishDrag: (() => void) | undefined;
+let finishDrag: (() => void) | null = null;
 
 // 同じ行コンポーネントを通常一覧と仮想一覧で共有し、ドロップ領域の仕様を二重管理しない。
 const renderItem: FunctionalComponent<{ item: T; index: number }> = ({ item, index }) => {
@@ -103,7 +103,7 @@ function onDragstart(ev: DragEvent, item: T) {
 		draggingId.value = null;
 		dropReadyArea.value = [null, null];
 		dropCallback = null;
-		finishDrag = undefined;
+		finishDrag = null;
 	};
 	finishDrag = finish;
 	target.addEventListener('dragend', finish, { once: true });

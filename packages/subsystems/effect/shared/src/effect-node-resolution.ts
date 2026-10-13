@@ -6,8 +6,8 @@ export function resolveEffectNodeResolution(options: {
 	setting: EffectResolution;
 	contextResolution: Resolution;
 	resolutionScale: number;
-	intrinsicResolution?: Resolution;
-	inputResolution?: Resolution;
+	intrinsicResolution?: Resolution | null;
+	inputResolution?: Resolution | null;
 	maxDimension: number;
 }): Resolution {
 	const { setting } = options;

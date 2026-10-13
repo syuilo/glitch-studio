@@ -12,7 +12,7 @@
 			<GsSwitch
 				v-if="def.dataType.kind === 'color'"
 				:modelValue="visualModule.primaryOutputId === def.id"
-				:disabled="visualModule.primaryOutputId !== null && visualModule.primaryOutputId !== def.id"
+				:disabled="visualModule.primaryOutputId != null && visualModule.primaryOutputId !== def.id"
 				@update:modelValue="emit('setPrimaryOutput', $event ? def.id : null)"
 			>
 				Primary output

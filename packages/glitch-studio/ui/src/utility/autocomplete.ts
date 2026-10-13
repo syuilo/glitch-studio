@@ -20,7 +20,7 @@ export class Autocomplete {
 		close: () => void;
 	} | null;
 	private textarea: HTMLInputElement | HTMLTextAreaElement;
-	private currentType: keyof CompleteInfo | undefined;
+	private currentType: keyof CompleteInfo | null = null;
 	private textRef: Ref<string | number | null>;
 	private opening: boolean;
 	private onlyType: SuggestionType[];

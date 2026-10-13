@@ -28,7 +28,7 @@ export type TimelineLayerContext<Output> = {
 export type TimelineLayerRenderer<Output> = {
 	// 準備・描画・GPUコマンドの送信・計測を含む。非同期待機後はsignalを確認し、
 	// 中断されていれば次の描画へ進まない。送信済みのGPU処理は取り消せない。
-	evaluate: (context: TimelineLayerContext<Output>, signal: AbortSignal) => Promise<{ output?: Output; gpuTime: number }>;
+	evaluate: (context: TimelineLayerContext<Output>, signal: AbortSignal) => Promise<{ output?: Output | null; gpuTime: number }>;
 	destroy: () => void;
 };
 
@@ -45,7 +45,7 @@ type TimelineRendererOptions<Output, Entry extends TimelineRenderEntry> = {
 // レイヤーの順序と寿命、非同期シークを管理する。GPUやCanvasには依存しない。
 export class TimelineRenderer<Output, Entry extends TimelineRenderEntry = TimelineRenderEntry> {
 	private options: TimelineRendererOptions<Output, Entry>;
-	private layers = new Map<string, { renderer: TimelineLayerRenderer<Output>; version: string | number | undefined }>();
+	private layers = new Map<string, { renderer: TimelineLayerRenderer<Output>; version: string | number | null }>();
 	private controller: AbortController | null = null;
 
 	constructor(options: TimelineRendererOptions<Output, Entry>) {
@@ -80,7 +80,7 @@ export class TimelineRenderer<Output, Entry extends TimelineRenderEntry = Timeli
 	}
 
 	/** 子Sceneも同じ評価を使い、Canvasへの表示は最上位だけで行う。 */
-	public async evaluateAt(time: number, timeline: readonly Entry[], timeDelta = 0, isExport = false, parentSignal?: AbortSignal, referenceTime?: TimelineFrameReferenceTime, renderSpace?: TimelineRenderSpace, input = this.options.fallbackOutput): Promise<{ output: Output; gpuTime: number; hasOutput: boolean } | undefined> {
+	public async evaluateAt(time: number, timeline: readonly Entry[], timeDelta = 0, isExport = false, parentSignal?: AbortSignal, referenceTime?: TimelineFrameReferenceTime, renderSpace?: TimelineRenderSpace, input = this.options.fallbackOutput): Promise<{ output: Output; gpuTime: number; hasOutput: boolean } | null> {
 		this.controller?.abort();
 		const controller = new AbortController();
 		this.controller = controller;
@@ -89,7 +89,7 @@ export class TimelineRenderer<Output, Entry extends TimelineRenderEntry = Timeli
 		if (parentSignal?.aborted) abort();
 		const isCancelled = () => controller.signal.aborted;
 		try {
-			if (isCancelled()) return;
+			if (isCancelled()) return null;
 			// 配列は先頭が最上層の表示順。下層の合成結果を上層へ渡すため、描画は逆順に行う。
 			// 終端を含めず、隣接するレイヤーを境界で重ねない。
 			const visibleEntries = timeline.flatMap<{ entry: Entry; clip: TimelineClip | null; instanceKey: string; time: number }>(entry => {
@@ -106,11 +106,11 @@ export class TimelineRenderer<Output, Entry extends TimelineRenderEntry = Timeli
 			const evaluationEntries = visibleEntries;
 			this.releaseUnusedLayers(new Set(evaluationEntries.map(entry => entry.instanceKey)));
 			const result = await this.evaluateLayers(evaluationEntries, timeDelta, isExport, controller.signal, referenceTime, renderSpace ?? this.options.getRenderSpace?.(time, isExport, referenceTime), input);
-			if (result == null || isCancelled()) return;
+			if (result == null || isCancelled()) return null;
 			// レイヤーがない場合も透明な出力を表示し、前回の表示を残さない。
 			return result;
 		} catch (error) {
-			if (isCancelled()) return;
+			if (isCancelled()) return null;
 			this.clear();
 			throw error;
 		} finally {
@@ -133,12 +133,12 @@ export class TimelineRenderer<Output, Entry extends TimelineRenderEntry = Timeli
 		let hasOutput = false;
 		for (const { entry, clip, instanceKey, time } of entries) {
 			// IDはレイヤー内だけで一意。同じモジュール・子Sceneの隣接クリップも別の履歴を持つ。
-			let layer = this.layers.get(instanceKey);
-			const version = this.options.getLayerVersion?.(entry, clip?.id ?? null);
+			let layer = this.layers.get(instanceKey) ?? null;
+			const version = this.options.getLayerVersion?.(entry, clip?.id ?? null) ?? null;
 			if (layer != null && layer.version !== version) {
 				layer.renderer.destroy();
 				this.layers.delete(instanceKey);
-				layer = undefined;
+				layer = null;
 			}
 			const isNewLayer = layer == null;
 			if (layer == null) {

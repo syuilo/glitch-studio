@@ -27,9 +27,9 @@ export default class TimingHelper {
 	#canTimestamp;
 	#device;
 	#queryBatches: { querySet: GPUQuerySet; resolveBuffer: GPUBuffer; }[] = [];
-	#resultBuffer: GPUBuffer | undefined;
-	#commandBuffer: GPUCommandBuffer | undefined;
-	#commandEncoder: GPUCommandEncoder | undefined;
+	#resultBuffer: GPUBuffer | null = null;
+	#commandBuffer: GPUCommandBuffer | null = null;
+	#commandEncoder: GPUCommandEncoder | null = null;
 	#passCount = 0;
 	#resultBuffers: GPUBuffer[] = [];
 	#state: 'free' | 'recording' | 'need finish' | 'wait for result' = 'free';
@@ -147,8 +147,8 @@ export default class TimingHelper {
 			'you must submit the command buffer before you can read the result',
 		);
 		const queryCount = this.#passCount * 2;
-		this.#commandBuffer = undefined;
-		this.#commandEncoder = undefined;
+		this.#commandBuffer = null;
+		this.#commandEncoder = null;
 		this.#passCount = 0;
 		this.#state = 'free';
 

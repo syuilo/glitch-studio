@@ -51,7 +51,7 @@
 		/>
 	</div>
 
-	<GsNodeOutputs style="margin-top: 4px;" :node="node" :outputResolutions="node.isBypass ? undefined : effectState?.outputs"/>
+	<GsNodeOutputs style="margin-top: 4px;" :node="node" :outputResolutions="node.isBypass ? null : effectState?.outputs"/>
 </div>
 </template>
 
@@ -84,7 +84,7 @@ const wireMap = useVisualModuleWires();
 const props = defineProps<{
 	visualModule: VisualModule;
 	node: VisualModuleEffectNode;
-	effectState?: EffectInstanceState;
+	effectState?: EffectInstanceState | null;
 }>();
 
 const emit = defineEmits<{

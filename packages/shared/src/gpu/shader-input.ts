@@ -62,7 +62,7 @@ export function generateShaderInputs(schema: ShaderInputSchema, inputs: ShaderIn
 	for (const name of names) {
 		if (!/^[a-zA-Z][a-zA-Z0-9_]*$/.test(name) || name.includes('__')) throw new Error(`Invalid shader input name: ${name}`);
 	}
-	const slots: { name: string; sourceName: string; elementIndex?: number; type: ShaderInputType; index: number; kind: ShaderInput['kind']; textureBinding: number; samplerBinding: number }[] = [];
+	const slots: { name: string; sourceName: string; elementIndex?: number | null; type: ShaderInputType; index: number; kind: ShaderInput['kind']; textureBinding: number; samplerBinding: number }[] = [];
 	const arrays: { name: string; type: ShaderInputType; elements: string[] }[] = [];
 	for (const [sourceName, type] of Object.entries(schema)) {
 		const value = inputs[sourceName];
@@ -77,7 +77,7 @@ export function generateShaderInputs(schema: ShaderInputSchema, inputs: ShaderIn
 				names.add(name);
 			}
 			const index = slots.length;
-			slots.push({ name, sourceName, elementIndex: typeof type === 'object' ? elementIndex : undefined,
+			slots.push({ name, sourceName, elementIndex: typeof type === 'object' ? elementIndex : null,
 																type: typeof type === 'object' ? type.array : type, index, kind: input.kind,
 																textureBinding: index * 2 + 1, samplerBinding: index * 2 + 2 });
 			elementNames.push(name);

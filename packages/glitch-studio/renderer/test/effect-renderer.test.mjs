@@ -245,7 +245,7 @@ test('reinitializes on resize and ignores notifications from released instances'
 	assert.equal(await pending, false);
 	assert.equal(output.destroyed, 1);
 	assert.equal(old.disposed, 1);
-	assert.equal(f.renderer.getOutputTexture('extra'), undefined);
+	assert.equal(f.renderer.getOutputTexture('extra'), null);
 	f.renderer.prepare({});
 	assert.deepEqual(f.instances[1].args.resolution, { width: 32, height: 18 });
 	const count = f.states.length;

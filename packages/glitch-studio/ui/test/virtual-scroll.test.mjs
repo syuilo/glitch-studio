@@ -34,7 +34,7 @@ test('locates variable rows and retains isolated items without filling the gap',
 	assert.deepEqual(visible.map(item => item.key), ['2', '900']);
 	assert.deepEqual(getVirtualScrollItems(layout, -50, -1, []), []);
 	assert.equal(createVirtualScrollLayout([], new Map(), 40, 4).height, 0);
-	assert.equal(findVirtualScrollItem(createVirtualScrollLayout([], new Map(), 40, 4), 10), undefined);
+	assert.equal(findVirtualScrollItem(createVirtualScrollLayout([], new Map(), 40, 4), 10), null);
 });
 
 // 【画面より上の実測値変更・並べ替え・削除でも注目行の位置を維持する】

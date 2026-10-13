@@ -22,7 +22,7 @@ export class AudioPreview {
 						this.send({ type: 'metersReceived' });
 					}
 				} else if (data.type === 'sampleRate') this.sampleRate.value = data.sampleRate;
-				else if (data.id !== undefined) this.errors.get(data.id)?.(data.message);
+				else if (data.id != null) this.errors.get(data.id)?.(data.message);
 				else for (const error of [...this.errors.values()]) error(data.message);
 			};
 			this.worker.onerror = event => {

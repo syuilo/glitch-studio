@@ -11,8 +11,8 @@ export type MenuAction = (ev: PointerEvent) => void;
 export interface MenuButton {
 	type?: 'button';
 	text: Text;
-	caption?: Text | null | undefined | ComputedRef<null | undefined>;
-	icon?: string;
+	caption?: Text | null | ComputedRef<null>;
+	icon?: string | null;
 	indicate?: boolean;
 	danger?: boolean;
 	disabled?: boolean | Ref<boolean>;
@@ -26,8 +26,8 @@ interface MenuBase {
 
 interface TextMenuBase extends MenuBase {
 	text: Text;
-	caption?: Text | null | undefined | ComputedRef<null | undefined>;
-	icon?: string;
+	caption?: Text | null | ComputedRef<null>;
+	icon?: string | null;
 }
 
 export interface MenuDivider extends MenuBase {
@@ -37,7 +37,7 @@ export interface MenuDivider extends MenuBase {
 export interface MenuLabel extends MenuBase {
 	type: 'label';
 	text: Text;
-	caption?: Text | null | undefined | ComputedRef<null | undefined>;
+	caption?: Text | null | ComputedRef<null>;
 }
 
 export interface MenuA extends TextMenuBase {
@@ -68,7 +68,7 @@ export interface MenuRadio extends TextMenuBase {
 export interface MenuRadioOption extends MenuBase {
 	type: 'radioOption';
 	text: Text;
-	caption?: Text | null | undefined | ComputedRef<null | undefined>;
+	caption?: Text | null | ComputedRef<null>;
 	action: MenuAction;
 	active?: boolean | ComputedRef<boolean>;
 }

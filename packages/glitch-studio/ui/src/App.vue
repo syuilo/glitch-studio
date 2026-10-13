@@ -389,7 +389,7 @@ function openHeaderHelpMenu(ev: PointerEvent) {
 onMounted(async () => {
 	try {
 		const startupProject = await window.desktop?.takeStartupProjectFile();
-		if (startupProject && await openProject(undefined, desktopProjectFile(startupProject))) return;
+		if (startupProject && await openProject(null, desktopProjectFile(startupProject))) return;
 	} catch (error) {
 		console.error(error);
 		await ui.alert({ type: 'error', text: error instanceof Error ? error.message : String(error) });

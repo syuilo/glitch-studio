@@ -30,10 +30,10 @@ export type RendererProjectChange =
 	| { type: 'layerOrder'; sceneId: string; layerIds: string[] }
 	| { type: 'scene'; sceneId: string; scene: TimelineScene | null };
 
-export function findRendererVisualModule(state: RendererProjectState, target: VisualModuleTarget): VisualModule | undefined {
-	if ('visualModuleId' in target) return state.visualModules.find(module => module.id === target.visualModuleId);
+export function findRendererVisualModule(state: RendererProjectState, target: VisualModuleTarget): VisualModule | null {
+	if ('visualModuleId' in target) return state.visualModules.find(visualModule => visualModule.id === target.visualModuleId) ?? null;
 	const layer = findTimelineLayer(state.timelineScenes.find(scene => scene.id === target.sceneId)?.layers ?? [], target.inlineVisualModuleLayerId);
-	return layer?.layerType === 'inlineVisualModule' ? layer.visualModule : undefined;
+	return layer?.layerType === 'inlineVisualModule' ? layer.visualModule : null;
 }
 
 /**

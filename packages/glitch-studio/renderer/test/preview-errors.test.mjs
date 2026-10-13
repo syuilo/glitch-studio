@@ -161,6 +161,44 @@ async function fixture(t, staticOptions = {}, Manager = VisualModuleRendererMana
 	} };
 }
 
+// 【PartialなLIVE設定の省略は維持し、明示的なnullではFPS制限を解除する】
+// 解除を値の存在判定で除外すると、設定画面では無制限でも描画ループには制限が残る。
+// prototype上の値は差分ではないため、解像度や描画速度の更新を発生させない。
+test('preserves omitted live options and clears an explicit FPS limit', async t => {
+	const { renderer } = await fixture(t);
+	await renderer.updateDynamicOptions({ fpsLimit: 30, liveTimeFactor: 2 });
+	const resize = t.mock.method(renderer, 'updateCanvasResolution');
+	const assets = t.mock.method(renderer, 'updateAssets', async () => true);
+	await renderer.updateDynamicOptions(Object.create({ resolution: { width: 99, height: 99 }, fpsLimit: null, liveTimeFactor: 9, assets: [] }));
+	assert.equal(renderer.liveRenderLoop.fpsLimit, 30);
+	assert.equal(renderer.liveRenderLoop.timeFactor, 2);
+	assert.equal(resize.mock.calls.length, 0);
+	assert.equal(assets.mock.calls.length, 0);
+	await renderer.updateDynamicOptions({ fpsLimit: null });
+	assert.equal(renderer.liveRenderLoop.fpsLimit, null);
+	await renderer.updateDynamicOptions({ assets: [] });
+	assert.equal(assets.mock.calls.length, 1);
+});
+
+// 【PartialなTimeline設定の省略と、Scene・出力解像度・監視対象の解除を区別する】
+// 解除要求を無視すると、前のSceneの描画や書き出し用の出力寸法がプレビューに残る。
+// 無関係な更新では描画履歴を破棄せず、明示的な解除でのみ必要な再初期化を行う。
+test('preserves omitted timeline options and applies explicit null resets', async t => {
+	const { renderer } = await fixture(t, {}, TimelineRendererManager);
+	await renderer.updateDynamicOptions({ outputResolution: { width: 8, height: 6 }, transformObserver: { sceneId: 'scene', layerId: 'layer', requestId: 1 } });
+	const clear = t.mock.method(renderer, 'clearTimelineRenderers');
+	await renderer.updateDynamicOptions(Object.create({ resolution: { width: 99, height: 99 }, sceneId: null, outputResolution: null }));
+	assert.equal(clear.mock.calls.length, 0);
+	assert.equal(renderer.dynamicOptions.sceneId, 'scene');
+	assert.deepEqual(renderer.dynamicOptions.outputResolution, { width: 8, height: 6 });
+	await renderer.updateDynamicOptions({ outputResolution: null, transformObserver: null });
+	assert.deepEqual([renderer.gpuContext.canvas.width, renderer.gpuContext.canvas.height], [1, 1]);
+	assert.equal(renderer.dynamicOptions.transformObserver, null);
+	await renderer.updateDynamicOptions({ sceneId: null });
+	assert.equal(clear.mock.calls.length, 1);
+	assert.equal(renderer.dynamicOptions.sceneId, null);
+});
+
 // 【取り込んだVisual ModuleをLIVEで使い、登録削除で実行インスタンスを解放する】
 // UIの登録一覧だけを変更してもWorkerが定義を持っていなければ描画できない。
 // Undoに相当する削除の後に古い描画ループやGPUインスタンスが残らないことを確認する。

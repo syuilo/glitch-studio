@@ -96,7 +96,7 @@ const effectStates = computed(() => {
 
 const previewParamValues = ref<VisualModuleArgumentBindings>({});
 const editedPreviewParamIds = new Set<VisualModuleCustomParameterId>();
-let previewModuleId: string | undefined;
+let previewModuleId: string | null = null;
 let previewParamTypes = new Map<string, VisualModuleParamDef['dataType']>();
 
 watch(visualModule, module => {
@@ -228,7 +228,7 @@ async function exportCurrentVisualModule() {
 	}
 }
 
-let disposeEffectPicker: (() => void) | undefined;
+let disposeEffectPicker: (() => void) | null = null;
 onBeforeUnmount(() => disposeEffectPicker?.());
 
 function showAddEffectNodeMenu() {
@@ -240,7 +240,7 @@ function showAddEffectNodeMenu() {
 		},
 		closed: () => {
 			dispose();
-			if (disposeEffectPicker === dispose) disposeEffectPicker = undefined;
+			if (disposeEffectPicker === dispose) disposeEffectPicker = null;
 		},
 	});
 	disposeEffectPicker = dispose;

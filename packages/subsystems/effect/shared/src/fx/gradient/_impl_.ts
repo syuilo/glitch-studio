@@ -31,7 +31,7 @@ export default implementEffect<typeof definition>({
 		const scalarFormat = wgpu.enable32bitDataTextures ? 'r32float' : 'r16float';
 		const scalarPipelines = createShaderInputPipeline({ ...options, internalLayouts: [layout], entryPoint: 'fs', targets: [{ format: scalarFormat }] });
 		// vector未使用時は追加pipeline・入力bufferを生成せず、微分計算もoverrideで除去する。
-		let gradientPipelines: typeof scalarPipelines | undefined;
+		let gradientPipelines: typeof scalarPipelines | null = null;
 		const getGradientPipelines = () => gradientPipelines ??= createShaderInputPipeline({
 			...options, internalLayouts: [layout], entryPoint: 'fsWithGradient', constants: { CALCULATE_GRADIENT: 1 },
 			targets: [{ format: scalarFormat }, { format: wgpu.enable32bitDataTextures ? 'rg32float' : 'rg16float' }],

@@ -10,7 +10,7 @@ export class TimelineFrameRenderer<Output> {
 	private previousSampleTime: number | null = null;
 
 	constructor(private callbacks: {
-		evaluate: (time: number, timeDelta: number, isExport: boolean, signal: AbortSignal, referenceTime: TimelineFrameReferenceTime) => Promise<{ output: Output; gpuTime: number } | undefined>;
+		evaluate: (time: number, timeDelta: number, isExport: boolean, signal: AbortSignal, referenceTime: TimelineFrameReferenceTime) => Promise<{ output: Output; gpuTime: number } | null>;
 		accumulate: (output: Output, index: number) => Output;
 		present: (output: Output, gpuTime: number) => void;
 	}) {}
@@ -29,7 +29,8 @@ export class TimelineFrameRenderer<Output> {
 		this.cancel();
 		const controller = new AbortController();
 		this.controller = controller;
-		let output: Output | undefined;
+		// Output自体にnullを使う呼び出し側も扱うため、未評価状態は値とは別のラッパーで表す。
+		let frame: { output: Output } | null = null;
 		let gpuTime = 0;
 		try {
 			for (let index = 0; index < times.length; index++) {
@@ -41,10 +42,10 @@ export class TimelineFrameRenderer<Output> {
 				if (controller.signal.aborted || result == null) return;
 				// 履歴依存エフェクトは動作保証対象外。時刻の巻き戻りによる特別なリセットはしない。
 				this.previousSampleTime = time;
-				output = times.length === 1 ? result.output : this.callbacks.accumulate(result.output, index);
+				frame = { output: times.length === 1 ? result.output : this.callbacks.accumulate(result.output, index) };
 				gpuTime += result.gpuTime;
 			}
-			if (output !== undefined) this.callbacks.present(output, gpuTime);
+			if (frame != null) this.callbacks.present(frame.output, gpuTime);
 		} catch (error) {
 			if (!controller.signal.aborted) throw error;
 		} finally {

@@ -6,13 +6,13 @@ import { appContext } from './app.ts';
 export function useAudioPreview(canvas: Readonly<Ref<HTMLCanvasElement | null>>, options: Readonly<Ref<PreviewOptions>>) {
 	const { audioOutput } = appContext;
 	const error = ref('');
-	let panel: ReturnType<typeof audioOutput.preview.add> | undefined;
-	let releaseCapture: (() => void) | undefined;
-	let observer: ResizeObserver | undefined;
-	let intersection: IntersectionObserver | undefined;
-	let doc: Document | undefined;
+	let panel: ReturnType<typeof audioOutput.preview.add> | null = null;
+	let releaseCapture: (() => void) | null = null;
+	let observer: ResizeObserver | null = null;
+	let intersection: IntersectionObserver | null = null;
+	let doc: Document | null = null;
 	let viewWindow: Window | null = null;
-	let density: MediaQueryList | undefined;
+	let density: MediaQueryList | null = null;
 	let intersecting = true;
 
 	function resize() {
@@ -25,7 +25,7 @@ export function useAudioPreview(canvas: Readonly<Ref<HTMLCanvasElement | null>>,
 
 	function watchDensity() {
 		density?.removeEventListener('change', watchDensity);
-		density = viewWindow?.matchMedia(`(resolution: ${viewWindow.devicePixelRatio}dppx)`);
+		density = viewWindow?.matchMedia(`(resolution: ${viewWindow.devicePixelRatio}dppx)`) ?? null;
 		density?.addEventListener('change', watchDensity);
 		resize();
 	}
@@ -33,7 +33,7 @@ export function useAudioPreview(canvas: Readonly<Ref<HTMLCanvasElement | null>>,
 	function changeWindow() {
 		doc?.removeEventListener('visibilitychange', resize);
 		viewWindow?.removeEventListener('resize', resize);
-		doc = canvas.value?.ownerDocument;
+		doc = canvas.value?.ownerDocument ?? null;
 		viewWindow = doc?.defaultView ?? null;
 		doc?.addEventListener('visibilitychange', resize);
 		viewWindow?.addEventListener('resize', resize);
@@ -48,9 +48,9 @@ export function useAudioPreview(canvas: Readonly<Ref<HTMLCanvasElement | null>>,
 
 	function stop() {
 		panel?.dispose();
-		panel = undefined;
+		panel = null;
 		releaseCapture?.();
-		releaseCapture = undefined;
+		releaseCapture = null;
 		observer?.disconnect();
 		intersection?.disconnect();
 		doc?.removeEventListener('visibilitychange', resize);

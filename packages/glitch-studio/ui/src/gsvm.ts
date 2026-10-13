@@ -42,6 +42,7 @@ function getResourceReference(def: ParameterDefinition, binding: VisualModulePar
 	if (binding.inputSource !== 'literal') {
 		throw new Error(`Cannot transfer "${def.ui.label}": Asset and Player references must use a fixed value or a Custom Parameter.`);
 	}
+	// nullは明示的な未選択。valueの欠落をここで省略すると、不正な参照を転送時に見落としてしまう。
 	if (binding.value === null) return null;
 	if (kind === 'audioSource') {
 		validatePlayerAudioSourceSelection(binding.value);
@@ -98,7 +99,7 @@ export function collectVisualModuleFile(input: {
 		if (!asset) throw new Error(`Missing Asset: ${id}`);
 		// 元ファイルの絶対パスなど、取り込み元PC固有の情報は同梱しない。
 		const { name, width, height, fileDataType, fileData, hash } = asset;
-		assets.set(id, { id, name, width, height, fileDataType, fileData, ...(hash === undefined ? {} : { hash }) });
+		assets.set(id, { id, name, width, height, fileDataType, fileData, ...(hash == null ? {} : { hash }) });
 	};
 	visitResourceBindings(visualModule, definitions, (_def, _binding, reference) => {
 		if (reference.kind === 'asset') { addAsset(reference.id); return; }

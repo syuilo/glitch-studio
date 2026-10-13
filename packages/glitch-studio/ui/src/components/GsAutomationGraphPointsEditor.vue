@@ -145,9 +145,9 @@ const emit = defineEmits<{
 const ppints = ref(deepClone(props.points));
 let publishedPoints = JSON.stringify(props.points);
 let dragMergeKey: string | null = null;
-let stopPointDrag: (() => void) | undefined;
+let stopPointDrag: (() => void) | null = null;
 let mounted = true;
-let resizeObserver: ResizeObserver | undefined;
+let resizeObserver: ResizeObserver | null = null;
 
 function publishPoints() {
 	const snapshot = JSON.stringify(ppints.value);
@@ -171,7 +171,7 @@ function listenPointDrag(move: (ev: MouseEvent) => void, end: () => void) {
 		// watcherの実行前にmouseupしても、最後の変更を同じ履歴へ含める。
 		publishPoints();
 		dragMergeKey = null;
-		stopPointDrag = undefined;
+		stopPointDrag = null;
 		end();
 	});
 }
@@ -402,9 +402,9 @@ function domYToValueY(y: number): number {
 	return domYToLogicalY(y) + tlPosY.value;
 }
 
-function addPoint(x: number, y: number): BezierAnchorPoint | undefined {
+function addPoint(x: number, y: number): BezierAnchorPoint | null {
 	// 正規化された曲線の両端は既存のポイントで維持する。貼り付けも同じ制限に従う。
-	if (props.isNormalized && (x <= 0 || x >= 1)) return;
+	if (props.isNormalized && (x <= 0 || x >= 1)) return null;
 	const _points = [] as BezierAnchorPoint[];
 	const point: BezierAnchorPoint = {
 		id: genId(),
@@ -414,7 +414,7 @@ function addPoint(x: number, y: number): BezierAnchorPoint | undefined {
 		bezierControlPointB: [props.isNormalized ? 0.1 : toMs(0.1), 0],
 	};
 	let pushed = false;
-	if (ppints.value.filter(kf => kf.x === x).length > 1) return;
+	if (ppints.value.filter(kf => kf.x === x).length > 1) return null;
 	for (const kf of ppints.value) {
 		if (!pushed && kf.x > x) {
 			_points.push(point);
@@ -432,7 +432,7 @@ function addPoint(x: number, y: number): BezierAnchorPoint | undefined {
 }
 
 function onTlMousemove(ev: MouseEvent) {
-	if (tlEl.value === null) return;
+	if (tlEl.value == null) return;
 	const rect = tlEl.value.getBoundingClientRect();
 	const mouseX = ev.clientX - rect.left;
 	const mouseY = ev.clientY - rect.top;
@@ -446,7 +446,7 @@ function onTlMousemove(ev: MouseEvent) {
 }
 
 function onTlWheel(ev: WheelEvent) {
-	if (tlEl.value === null) return;
+	if (tlEl.value == null) return;
 	ev.preventDefault();
 
 	const rect = tlEl.value.getBoundingClientRect();
@@ -464,7 +464,7 @@ function onTlWheel(ev: WheelEvent) {
 }
 
 function onXTicksWheel(ev: WheelEvent) {
-	if (tlEl.value === null) return;
+	if (tlEl.value == null) return;
 	ev.preventDefault();
 	ev.stopPropagation();
 
@@ -477,7 +477,7 @@ function onXTicksWheel(ev: WheelEvent) {
 }
 
 function onYTicksWheel(ev: WheelEvent) {
-	if (tlEl.value === null) return;
+	if (tlEl.value == null) return;
 	ev.preventDefault();
 	ev.stopPropagation();
 
@@ -490,7 +490,7 @@ function onYTicksWheel(ev: WheelEvent) {
 }
 
 function onTlDblclick(ev: MouseEvent) {
-	if (tlEl.value === null) return;
+	if (tlEl.value == null) return;
 	if (ev.button === 1) return;
 
 	const rect = tlEl.value.getBoundingClientRect();
@@ -519,7 +519,7 @@ function onTlDblclick(ev: MouseEvent) {
 let beforeClickedAt = 0;
 
 function onTlMousedown(ev: MouseEvent) {
-	if (tlEl.value === null) return;
+	if (tlEl.value == null) return;
 	ev.preventDefault();
 	tlEl.value.focus();
 
@@ -927,12 +927,12 @@ function formatValueXWithUnit(x: number): string {
 }
 
 onMounted(() => {
-	if (tlEl.value === null) return;
+	if (tlEl.value == null) return;
 	tlElWidth.value = tlEl.value.offsetWidth;
 	tlElHeight.value = tlEl.value.offsetHeight;
 
 	resizeObserver = new ResizeObserver(() => {
-		if (tlEl.value === null) return;
+		if (tlEl.value == null) return;
 		tlElWidth.value = tlEl.value.offsetWidth;
 		tlElHeight.value = tlEl.value.offsetHeight;
 	});

@@ -54,10 +54,10 @@ import type { EffectResolution } from '@gs/subsystems_effect_shared/resolution.t
 import type { Resolution } from '@gs/shared/resolution.ts';
 import type { EffectInstanceState } from '@gs/subsystems_effect_shared/effect-status.ts';
 
-const props = defineProps<{ layer: TimelineEffectLayer; contextResolution: Resolution; effectState?: EffectInstanceState; audioLayerOptions: readonly AudioLayerOption[] }>();
+const props = defineProps<{ layer: TimelineEffectLayer; contextResolution: Resolution; effectState?: EffectInstanceState | null; audioLayerOptions: readonly AudioLayerOption[] }>();
 const emit = defineEmits<{ edit: [event: ParamEdit]; resolution: [resolution: EffectResolution] }>();
 const definition = computed(() => effectDefinitions[props.layer.effectId]);
-const outputResolution = computed(() => definition.value.primaryOutput == null ? undefined : props.effectState?.outputs[definition.value.primaryOutput]);
+const outputResolution = computed(() => definition.value.primaryOutput == null ? null : props.effectState?.outputs[definition.value.primaryOutput]);
 const resolutionModes: { value: EffectResolution['mode']; label: string }[] = [
 	{ value: 'auto', label: 'Auto' }, { value: 'context', label: 'Context resolution' }, { value: 'customAbsolute', label: 'Custom (Absolute)' },
 ];
