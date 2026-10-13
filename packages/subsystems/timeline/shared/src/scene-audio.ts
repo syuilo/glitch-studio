@@ -84,7 +84,7 @@ export function getSceneAudioPlacements(scenes: readonly TimelineScene[], sceneI
 					const sourceStartMs = sceneStartMs + clip.startMs - clip.contentOffsetMs;
 					const childScene = getTimelineScene(scenes, clip.sceneId);
 					visit(childScene.layers, sourceStartMs, startMs, Math.min(endMs, sourceStartMs + getSceneDuration(childScene)), layerGains);
-				} else if (!('audioEnabled' in clip) || clip.audioEnabled) {
+				} else if (!('sourceTimeMs' in clip) && (!('audioEnabled' in clip) || clip.audioEnabled)) {
 					const sourceTiming = { startMs: sceneStartMs + clip.startMs, sourceInMs: clip.sourceInMs, sourceOutMs: clip.sourceOutMs, playbackRate: clip.playbackRate, loop: clip.loop };
 					placements.push({ type: 'asset', sourceId: clip.assetId, sourceTiming, startMs, endMs, gains: layerGains });
 				}

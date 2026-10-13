@@ -22,7 +22,14 @@
 				<GsButton v-if="selectedMediaClip.loop" small :disabled="!selectedClipMedia" @click="editSelectedClipLoop(getTimelineMediaSingleDuration(selectedMediaClip))">Remove loop</GsButton>
 			</template>
 			<template v-if="selectedVideoClip != null">
-				<GsSwitch :modelValue="selectedVideoClip.audioEnabled" :disabled="!selectedVideoClip.audioEnabled && !selectedClipMedia?.audioAvailable" @update:modelValue="editSelectedClipAudio">Audio enabled</GsSwitch>
+				<GsButton v-if="!('sourceTimeMs' in selectedVideoClip)" small :disabled="!canHoldCurrentFrame || holdingFrame" @click="holdCurrentFrame">Hold current frame</GsButton>
+				<template v-if="'sourceTimeMs' in selectedVideoClip">
+					<GsInput small manualSave type="number" step="any" :min="0" :disabled="holdingFrame || selectedClipMedia == null" :modelValue="selectedVideoClip.sourceTimeMs" @update:modelValue="editHoldSourceTime"><template #label>Hold source time</template><template #suffix>ms</template></GsInput>
+					<div>Holds the source frame while transforms and opacity continue. Audio is silent.</div>
+				</template>
+				<div v-else>Seek within this clip, then hold its current frame. Start and duration are preserved.</div>
+				<div v-if="holdError" role="alert">{{ holdError }}</div>
+				<GsSwitch :modelValue="selectedVideoClip.audioEnabled" :disabled="'sourceTimeMs' in selectedVideoClip || (!selectedVideoClip.audioEnabled && !selectedClipMedia?.audioAvailable)" @update:modelValue="editSelectedClipAudio">Audio enabled</GsSwitch>
 				<div v-if="selectedClipMedia?.audioError">{{ selectedClipMedia.audioError }}</div>
 			</template>
 			<GsButton v-if="selectedClipEntry.layer.layerType === 'image' || selectedClipEntry.layer.layerType === 'video' || selectedClipEntry.layer.layerType === 'audio' || selectedClipEntry.layer.layerType === 'scene'" small @click="emit('changeSource', selectedClipEntry.target)">Change source</GsButton>
@@ -34,9 +41,9 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, ref, watch } from 'vue';
-import { changeTimelineMediaPlaybackRate, getTimelineMediaSingleDuration, timelineMediaMinPlaybackSpeed, timelineMediaMaxPlaybackSpeed } from '@gs/subsystems_timeline_shared/media-timing.ts';
-import { validateTimelineClips } from '@gs/subsystems_timeline_shared/timing.ts';
+import { computed, onUnmounted, ref, watch } from 'vue';
+import { changeTimelineMediaPlaybackRate, getTimelineMediaSourceTime, getTimelineMediaSingleDuration, timelineMediaMinPlaybackSpeed, timelineMediaMaxPlaybackSpeed } from '@gs/subsystems_timeline_shared/media-timing.ts';
+import { isTimelineClipActive, validateTimelineClips } from '@gs/subsystems_timeline_shared/timing.ts';
 import type { TimelineMediaClipTiming } from '@gs/subsystems_timeline_shared/media-timing.ts';
 import { effectDefinitions } from '@gs/subsystems_effect_shared/effect-definitions.ts';
 import { shapeDefinitions } from '@gs/subsystems_timeline_shared/layers/shape/shape.ts';
@@ -44,6 +51,7 @@ import type { TimelineClipLayer } from '@gs/subsystems_timeline_shared/types.ts'
 import type { TimelineClipSelection } from '@/utility/timeline-selection.ts';
 import type { TimelineClipMediaInfo } from '@/utility/timeline-clip-media.ts';
 import { formatTimelineTimecode as formatMsToTimecode } from '@/utility/timeline-ticks.ts';
+import { readTimelineVideoHoldFrame } from '@/utility/timeline-video-hold.ts';
 import { appContext } from '@/app.ts';
 import GsButton from './common/GsButton.vue';
 import GsFolder from './common/GsFolder.vue';
@@ -53,6 +61,7 @@ import GsSwitch from './common/GsSwitch.vue';
 const props = defineProps<{ sceneId: string; layer: TimelineClipLayer; clipId: string; mediaInfo: ReadonlyMap<string, TimelineClipMediaInfo> }>();
 const emit = defineEmits<{ remove: []; changeSource: [target: TimelineClipSelection] }>();
 const { activeSceneId } = appContext;
+const { currentTimelineTime } = appContext.previewPlayback;
 const { stateManager } = appContext.projectContext;
 const selectedClipEntry = computed(() => {
 	const layer = props.layer;
@@ -72,6 +81,17 @@ const selectedMediaClip = computed(() => {
 	const clip = selectedClipEntry.value?.clip;
 	return clip && 'sourceInMs' in clip ? clip : null;
 });
+const canHoldCurrentFrame = computed(() => selectedVideoClip.value != null && selectedClipMedia.value != null
+	&& isTimelineClipActive(selectedVideoClip.value, currentTimelineTime.value));
+const holdingFrame = ref(false);
+const holdError = ref('');
+let holdGeneration = 0;
+watch(() => [props.sceneId, props.layer.id, props.clipId], () => {
+	holdGeneration++;
+	holdingFrame.value = false;
+	holdError.value = '';
+});
+onUnmounted(() => { holdGeneration++; });
 const speedPercent = ref(100);
 const reversePlayback = ref(false);
 const speedError = ref('');
@@ -151,5 +171,46 @@ function editSelectedClipAudio(audioEnabled: boolean) {
 	const entry = selectedClipEntry.value;
 	if (!entry || !selectedVideoClip.value) return;
 	stateManager.commit('editVideoClipAudio', { sceneId: props.sceneId, ...entry.target, audioEnabled });
+}
+
+function holdCurrentFrame() {
+	const clip = selectedVideoClip.value;
+	if (clip == null || !canHoldCurrentFrame.value) return;
+	const sourceTimeMs = 'sourceTimeMs' in clip ? clip.sourceTimeMs : getTimelineMediaSourceTime(clip, currentTimelineTime.value);
+	void holdVideoFrame(sourceTimeMs, 'sourceInMs' in clip && clip.playbackRate < 0);
+}
+
+function editHoldSourceTime(value: string | number) {
+	const clip = selectedVideoClip.value;
+	if (clip == null || !('sourceTimeMs' in clip)) return;
+	void holdVideoFrame(Number(value));
+}
+
+async function holdVideoFrame(sourceTimeMs: number, reversePlayback = false) {
+	const entry = selectedClipEntry.value;
+	const clip = selectedVideoClip.value;
+	if (entry == null || clip == null || holdingFrame.value) return;
+	const asset = stateManager.state.assets.value.find(asset => asset.id === clip.assetId);
+	if (asset == null) return;
+	const blob = asset.fileData;
+	const sceneId = props.sceneId;
+	const scene = stateManager.state.timelineScenes.value.find(scene => scene.id === sceneId);
+	const snapshot = JSON.stringify(clip);
+	const generation = ++holdGeneration;
+	holdingFrame.value = true;
+	holdError.value = '';
+	try {
+		const frame = await readTimelineVideoHoldFrame(blob, sourceTimeMs, reversePlayback);
+		// デコード待ちの間に選択・素材・プロジェクト・クリップ設定が変わったら適用しない。
+		// 再生ヘッドだけの移動は許可し、ボタンを押した瞬間のフレームを保存する。
+		if (generation !== holdGeneration || selectedVideoClip.value !== clip || JSON.stringify(clip) !== snapshot
+			|| stateManager.state.timelineScenes.value.find(scene => scene.id === sceneId) !== scene
+			|| !stateManager.state.assets.value.includes(asset) || asset.fileData !== blob) return;
+		stateManager.commit('holdVideoClipFrame', { sceneId, ...entry.target, ...frame });
+	} catch (error) {
+		if (generation === holdGeneration) holdError.value = error instanceof Error ? error.message : String(error);
+	} finally {
+		if (generation === holdGeneration) holdingFrame.value = false;
+	}
 }
 </script>

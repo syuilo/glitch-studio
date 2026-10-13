@@ -99,7 +99,7 @@ export type TimelineImageLayer = TimelineLayerBase<TimelineAssetClip> & Timeline
 	layerType: 'image';
 };
 
-/** 映像と音声は同じ素材時刻・トリムを共有する。Playerの再生状態には依存しない。 */
+/** 通常再生では映像と音声の時計を共有し、固定表示では映像だけを出力する。Playerには依存しない。 */
 export type TimelineVideoLayer = TimelineLayerBase<TimelineVideoClip> & TimelineAudioLayerBase & TimelineVisualLayerBase & {
 	layerType: 'video';
 };

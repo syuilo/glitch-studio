@@ -137,3 +137,68 @@ test('repeats source-time ticks within the visible interval', () => {
 	assert.ok(ticks.major.every(tick => tick.sceneTimeMs < 9000 && tick.contentTimeMs < 5000));
 	assert.deepEqual(api.getTimelineClipTicks({ ...clip, durationMs: 3600000, sourceOutMs: clip.sourceInMs + 1 }, 0, 3600000, 10), { major: [], minor: [] });
 });
+
+// 【固定表示の切り替え・地点変更・トリムは一回ずつUndoでき、旧時計を残さない】
+// 固定表示を素材範囲の再生として検証すると伸縮できなくなる。左端を戻すドラッグと
+// Redoでも固定地点と音声無効が維持され、通常再生へのUndoでは元の速度・音声を戻す。
+test('holds frames and resizes the placement with reversible timing model changes', t => {
+	const f = fixture(t);
+	f.clip.playbackRate = -1;
+	const original = structuredClone(f.clip);
+	f.history.commit('holdVideoClipFrame', { ...target, sourceTimeMs: 2345.25, sourceDurationMs: 6000.25 });
+	const held = { id: 'clip', assetId: 'movie', startMs: 1000, durationMs: 3000, sourceTimeMs: 2345.25, audioEnabled: false };
+	assert.deepEqual(f.clip, held);
+	assert.throws(() => f.history.commit('editVideoClipAudio', { ...target, audioEnabled: true }), /silent/);
+	assert.throws(() => f.history.commit('editMediaClipLoop', { ...target, deltaMs: 1000, sourceDurationMs: 6000.25 }), /Media clip not found/);
+	assert.throws(() => f.history.commit('holdVideoClipFrame', { ...target, sourceTimeMs: 6000.25, sourceDurationMs: 6000.25 }), /within/);
+	assert.deepEqual(f.clip, held);
+	f.drag.actions.onClipTrimStart({}, target, 'start');
+	f.drag.move.apply(-500, 'hold-left');
+	f.drag.move.apply(-1000, 'hold-left');
+	assert.deepEqual(f.clip, { ...held, startMs: 0, durationMs: 4000 });
+	f.history.undo();
+	assert.deepEqual(f.clip, held);
+	f.history.redo();
+	assert.deepEqual(f.clip, { ...held, startMs: 0, durationMs: 4000 });
+	f.drag.actions.onClipTrimStart({}, target, 'end');
+	f.drag.move.apply(20000, 'hold-right');
+	assert.deepEqual(f.clip, { ...held, startMs: 0, durationMs: 12000 });
+	f.history.undo();
+	f.history.undo();
+	f.history.undo();
+	assert.deepEqual(f.clip, original);
+	f.history.redo();
+	assert.deepEqual(f.clip, held);
+	f.history.commit('holdVideoClipFrame', { ...target, sourceTimeMs: 100.125, sourceDurationMs: 6000.25 });
+	assert.equal(f.clip.sourceTimeMs, 100.125);
+	f.history.undo();
+	assert.deepEqual(f.clip, held);
+	assert.deepEqual(api.getTimelineClipTicks(held, 0, 10000, 10), { major: [], minor: [] });
+});
+
+// 【固定地点と素材より長い表示区間をコピー・保存し、素材変更のUndoでも復元する】
+// 素材変更で通常再生へ戻るときに固定地点が残ると、動画を差し替えても静止し続ける。
+// 貼り付けでは表示長でなく固定地点を素材長と照合し、他のクリップには影響させない。
+test('persists and pastes held video and removes hold timing during source replacement', async t => {
+	const f = fixture(t);
+	f.history.commit('holdVideoClipFrame', { ...target, sourceTimeMs: 2345.25, sourceDurationMs: 6000.25 });
+	f.history.commit('editTimelineClipTiming', { ...target, edge: 'end', deltaMs: 7000, sourceDurationMs: 6000.25 });
+	const held = structuredClone(f.clip);
+	const clipboard = api.copyTimelineClips(f.scene, [target]);
+	const paste = api.prepareTimelineClipPaste(f.scene, clipboard, 16000);
+	assert.throws(() => f.history.commit('pasteTimelineClips', { sceneId: 'scene', clips: paste,
+		sourceDurationsMs: { video: { [paste[0].clip.id]: 2000 } } }), /within/);
+	f.history.commit('pasteTimelineClips', { sceneId: 'scene', clips: paste,
+		sourceDurationsMs: { video: { [paste[0].clip.id]: 6000.25 } } });
+	assert.deepEqual(f.layer.clips.at(-1), { ...held, id: paste[0].clip.id, startMs: 16000 });
+	const encoded = await api.encodeProjectFile({ generatedSpeech: [], timelineFps: 60,
+		timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, assets: [], timelineScenes: [f.scene] });
+	assert.deepEqual(api.decodeProjectFile(encoded).timelineScenes[0], f.scene);
+	f.history.commit('changeTimelineClipSource', { ...target, assetId: 'movie', sourceDurationMs: 4000 });
+	assert.equal('sourceTimeMs' in f.clip, false);
+	assert.deepEqual([f.clip.sourceInMs, f.clip.playbackRate, f.clip.loop, f.clip.durationMs], [0, 1, false, 4000]);
+	f.history.undo();
+	assert.deepEqual(f.clip, held);
+	f.history.redo();
+	assert.equal('sourceTimeMs' in f.clip, false);
+});

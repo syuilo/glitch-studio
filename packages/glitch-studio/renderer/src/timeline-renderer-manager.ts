@@ -561,7 +561,7 @@ export class TimelineRendererManager extends EventEmitter<{
 				const asset = this.dynamicOptions.assets.find(asset => asset.id === clip.assetId);
 				if (!asset) throw new Error(`Video asset not found: ${clip.assetId}`);
 				return createVideoTimelineLayer(layer, asset.fileData, {
-					reversePlayback: clip.playbackRate < 0,
+					reversePlayback: 'sourceInMs' in clip && clip.playbackRate < 0,
 					onCompositing,
 					device: this.gpuDevice, vertex: this.defaultVertexShaderModule,
 					resolution: renderResolution, format: this.staticOptions.intermediateTextureFormat,

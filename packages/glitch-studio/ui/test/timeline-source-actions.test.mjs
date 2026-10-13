@@ -77,6 +77,23 @@ function fixture(t, layers = [mediaLayer()]) {
 
 function addLayerMenu(actions) { actions.showAddLayerMenu({ currentTarget: null, target: null }); }
 
+// 【固定動画で同じ素材を選び直すと通常再生へ戻り、Undoで固定地点を復元する】
+// 通常の素材変更では同一Assetを選ぶ操作を省略するが、固定表示では時間モデルを戻す
+// 操作として必要になる。素材の追加や画像生成を要求せず、元の動画の再生に戻せるようにする。
+test('returns held video to playback when selecting the same asset again', async t => {
+	const layer = mediaLayer('video');
+	const f = fixture(t, [layer]);
+	f.asset.fileDataType = 'video/mp4';
+	const held = { id: 'clip', assetId: f.asset.id, startMs: 1000, durationMs: 15000, sourceTimeMs: 2500.25, audioEnabled: false };
+	layer.clips = [{ ...held }];
+	await f.create().changeClipSource({ layerId: layer.id, clipId: 'clip' });
+	assert.deepEqual(layer.clips[0], { id: 'clip', assetId: f.asset.id, startMs: 1000, durationMs: 10000,
+		sourceInMs: 0, sourceOutMs: 10000, playbackRate: 1, loop: false, audioEnabled: false });
+	f.history.undo();
+	assert.deepEqual(layer.clips[0], held);
+	assert.deepEqual(f.errors, []);
+});
+
 // 【動画・音声レイヤーの初期クリップを素材の長さに合わせる】
 // 5秒を超える素材が途中で切れないことと、短い素材や小数msの素材でも
 // 素材端を越えず配置されることを、追加メニューとCommandを通して確認する。

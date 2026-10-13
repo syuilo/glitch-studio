@@ -10,7 +10,7 @@
 	@contextmenu.stop.prevent="emit('contextMenu', $event)"
 >
 	<div v-if="mediaClip?.loop" :class="$style.loopFill" :style="{ left: periodMs * pixelsPerMs + 'px', '--loopPeriod': Math.max(6, periodMs * pixelsPerMs) + 'px', '--loopLine': periodMs * pixelsPerMs >= 6 ? '#fff5' : 'transparent' }"></div>
-	<div style="padding: 0 8px;"><GsCondensedLine>{{ label }}<template v-if="mediaClip && mediaClip.playbackRate !== 1"> · {{ mediaClip.playbackRate < 0 ? 'Reverse ' : '' }}{{ Math.abs(mediaClip.playbackRate) }}×</template></GsCondensedLine></div>
+	<div style="padding: 0 8px;"><GsCondensedLine>{{ label }}<template v-if="'sourceTimeMs' in clip"> · Hold {{ formatTimelineTimecode(clip.sourceTimeMs) }}</template><template v-else-if="mediaClip && mediaClip.playbackRate !== 1"> · {{ mediaClip.playbackRate < 0 ? 'Reverse ' : '' }}{{ Math.abs(mediaClip.playbackRate) }}×</template></GsCondensedLine></div>
 	<div :class="[$style.trimHandle, $style.trimStart]" title="Trim source start" @pointerdown.stop="emit('trimStart', $event, 'start')"></div>
 	<div :class="[$style.trimHandle, $style.trimEnd, { [$style.mediaTrimEnd]: mediaClip }]" :style="{ right: (clip.durationMs - Math.min(clip.durationMs, periodMs)) * pixelsPerMs + 'px' }" title="Trim source end" @pointerdown.stop="emit('trimStart', $event, 'end')"></div>
 	<div v-if="mediaClip" :class="[$style.trimHandle, $style.loopEnd]" title="Extend to loop the trimmed range" aria-label="Resize media loop" @pointerdown.stop="emit('trimStart', $event, 'loop')"><i class="ti ti-repeat"></i></div>
@@ -21,6 +21,7 @@
 import GsCondensedLine from './common/GsCondensedLine.vue';
 import { computed } from 'vue';
 import { getTimelineMediaPeriod } from '@gs/subsystems_timeline_shared/media-timing.ts';
+import { formatTimelineTimecode } from '@/utility/timeline-ticks.ts';
 import type { TimelineClip } from '@gs/subsystems_timeline_shared/clip.ts';
 
 const props = defineProps<{
@@ -37,6 +38,7 @@ const periodMs = computed(() => mediaClip.value ? getTimelineMediaPeriod(mediaCl
 const sourceGhost = computed(() => {
 	if (props.sourceDurationMs == null) return null;
 	const clip = props.clip;
+	if ('sourceTimeMs' in clip) return null;
 	if ('contentOffsetMs' in clip) return { startMs: clip.startMs - clip.contentOffsetMs, durationMs: props.sourceDurationMs };
 	const speed = Math.abs(clip.playbackRate);
 	const before = clip.playbackRate > 0 ? clip.sourceInMs : props.sourceDurationMs - clip.sourceOutMs;

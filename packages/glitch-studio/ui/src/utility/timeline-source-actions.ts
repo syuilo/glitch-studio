@@ -114,7 +114,7 @@ export function createTimelineSourceActions(options: TimelineSourceActionsOption
 		if (type !== 'image' && type !== 'video' && type !== 'audio' && type !== 'scene') return;
 		const source = await chooseClipSource(type);
 		if (!source || !isActive() || resolveClip(entry.target)?.clip !== entry.clip) return;
-		if (source.kind === 'asset' && 'assetId' in entry.clip && entry.clip.assetId === source.asset.id) return;
+		if (source.kind === 'asset' && 'assetId' in entry.clip && entry.clip.assetId === source.asset.id && !('sourceTimeMs' in entry.clip)) return;
 		if (source.kind === 'scene' && 'sceneId' in entry.clip && entry.clip.sceneId === source.scene.id) return;
 		try {
 			stateManager.commit('changeTimelineClipSource', {

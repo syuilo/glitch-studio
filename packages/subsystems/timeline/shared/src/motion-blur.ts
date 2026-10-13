@@ -123,7 +123,7 @@ export function getTimelineMotionBlurLoops(scenes: readonly TimelineScene[], sce
 				if (visibleEndMs <= visibleStartMs) continue;
 				if ('sceneId' in clip) {
 					visit(clip.sceneId, clipStartMs - clip.contentOffsetMs, visibleStartMs, visibleEndMs);
-				} else if (clip.loop) {
+				} else if ('sourceInMs' in clip && clip.loop) {
 					loops.push({ startMs: visibleStartMs, endMs: visibleEndMs, loopStartMs: clipStartMs, loopDurationMs: getTimelineMediaPeriod(clip) });
 				}
 			}

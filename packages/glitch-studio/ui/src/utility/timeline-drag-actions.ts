@@ -5,6 +5,7 @@ import { flattenTimelineLayers } from '@gs/subsystems_timeline_shared/layer-tree
 import { getTimelineContainerRange } from '@gs/subsystems_timeline_shared/container-range.ts';
 import { getTimelineClipEnd, getTimelineClipTrimBounds } from '@gs/subsystems_timeline_shared/timing.ts';
 import { getTimelineMediaTrimBounds, getTimelineMediaPeriod, getTimelineMediaLoopBounds } from '@gs/subsystems_timeline_shared/media-timing.ts';
+import { getTimelineVideoHoldTrimBounds } from '@gs/subsystems_timeline_shared/layers/video/video-hold.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { paramPathKey } from '@gs/shared/parameter/parameter-path.ts';
 import { createSpeechResolver } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox.ts';
@@ -116,7 +117,8 @@ export function createTimelineDragActions(options: TimelineDragActionsOptions) {
 		const media = layer.layerType === 'audio' || layer.layerType === 'video';
 		const sourceDurationMs = 'assetId' in clip && typeof clip.assetId === 'string' ? mediaInfo.value.get(clip.assetId)?.durationMs : null;
 		if (media && sourceDurationMs == null) return;
-		const bounds = 'sourceInMs' in clip ? getTimelineMediaTrimBounds(layer.clips, clip, edge, sourceDurationMs!)
+		const bounds = 'sourceTimeMs' in clip ? getTimelineVideoHoldTrimBounds(layer.clips, clip, edge)
+			: 'sourceInMs' in clip ? getTimelineMediaTrimBounds(layer.clips, clip, edge, sourceDurationMs!)
 			: getTimelineClipTrimBounds(layer.clips, clip, edge, layer.layerType === 'scene', sourceDurationMs ?? Infinity);
 		if (bounds.minDelta > bounds.maxDelta) return;
 		const sourceTiming = 'sourceInMs' in clip ? { ...clip, durationMs: Math.min(clip.durationMs, getTimelineMediaPeriod(clip)) } : clip;
@@ -136,6 +138,7 @@ export function createTimelineDragActions(options: TimelineDragActionsOptions) {
 		const entry = resolveClip(target);
 		if (!entry || (entry.layer.layerType !== 'video' && entry.layer.layerType !== 'audio')) return;
 		const clip = entry.layer.clips.find(clip => clip.id === target.clipId)!;
+		if (!('sourceInMs' in clip)) return;
 		const sourceDurationMs = mediaInfo.value.get(clip.assetId)?.durationMs;
 		if (sourceDurationMs == null) return;
 		selectClip(target);

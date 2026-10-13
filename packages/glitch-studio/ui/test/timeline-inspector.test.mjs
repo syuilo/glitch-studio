@@ -21,6 +21,7 @@ const result = await build({
 		export { UndoRedo } from './src/utility/undo-redo.ts';
 		export { getTimelineEditorState } from './src/utility/timeline-editor-state.ts';
 		export { createInlineVisualModuleLayer } from './src/utility/inline-visual-module-layer.ts';
+		export { videoHoldTest } from '@/utility/timeline-video-hold.ts';
 	`, resolveDir: directory, loader: 'ts' },
 	bundle: true, platform: 'node', format: 'cjs', external: ['vue'], write: false,
 	plugins: [{ name: 'timeline-inspector', setup(build) {
@@ -29,6 +30,7 @@ const result = await build({
 		build.onResolve({ filter: /preferences\.ts$/ }, () => ({ path: 'preferences', namespace: 'test' }));
 		build.onResolve({ filter: /^@\/ui\.ts$/ }, () => ({ path: 'ui', namespace: 'test' }));
 		build.onResolve({ filter: /^@\/utility\/(timeline-clip-media|visual-module-file)\.ts$/ }, () => ({ path: 'media', namespace: 'test' }));
+		build.onResolve({ filter: /^@\/utility\/timeline-video-hold\.ts$/ }, () => ({ path: 'video-hold', namespace: 'test' }));
 		build.onResolve({ filter: /\.vue$/ }, ({ path }) => {
 			if (/GsTimeline(?:\.Inspector(?:\.(?:Clip|Keyframe|Layer))?)?\.vue$/.test(path)) return;
 			return { path: basename(path, '.vue'), namespace: 'control' };
@@ -45,6 +47,11 @@ const result = await build({
 				model: key => ref(key === 'timelineTickMode' ? 'binary' : false) };`,
 			ui: 'export function popupMenu() {} export function popup() {} export function alert() {} export function select() {} export function confirm() {}',
 			media: 'export async function inspectTimelineClipMedia() { return { durationMs: 5000, audioAvailable: true }; } export async function exportVisualModuleFile() {}',
+			'video-hold': `export const videoHoldTest = { calls: [], read: null };
+				export async function readTimelineVideoHoldFrame(blob, sourceTimeMs, reverse) {
+					videoHoldTest.calls.push({ blob, sourceTimeMs, reverse });
+					return videoHoldTest.read ? videoHoldTest.read() : { sourceTimeMs: Math.floor(sourceTimeMs / 100) * 100, sourceDurationMs: 5000 };
+				}`,
 		}[path] }));
 		build.onLoad({ filter: /.*/, namespace: 'control' }, ({ path }) => ({ loader: 'ts', contents: `
 			import { h } from 'vue'; export default { inheritAttrs: false, setup(_, { attrs, slots }) {
@@ -62,7 +69,7 @@ const result = await build({
 });
 const bundled = { exports: {} };
 new Function('require', 'module', 'exports', result.outputFiles[0].text)(createRequire(import.meta.url), bundled, bundled.exports);
-const { Timeline, Inspector, appContext, COMMAND_DEFS, UndoRedo, getTimelineEditorState, createInlineVisualModuleLayer } = bundled.exports;
+const { Timeline, Inspector, appContext, COMMAND_DEFS, UndoRedo, getTimelineEditorState, createInlineVisualModuleLayer, videoHoldTest } = bundled.exports;
 
 function element(tag = 'div') { return { tag, parent: null, children: [], props: {}, text: '', offsetWidth: 1000, offsetHeight: 500 }; }
 const renderer = createRenderer({
@@ -149,6 +156,9 @@ test('applies speed and reverse controls and previews collision errors', async t
 });
 
 async function fixture(t, component = Inspector) {
+	videoHoldTest.calls = [];
+	videoHoldTest.read = null;
+	appContext.previewPlayback.currentTimelineTime.value = 0;
 	t.mock.method(console, 'log', () => {});
 	const previousResizeObserver = globalThis.ResizeObserver;
 	const previousHTMLElement = globalThis.HTMLElement;
@@ -185,6 +195,80 @@ async function fixture(t, component = Inspector) {
 	const control = (tag, label) => controls(tag).find(node => label == null || textContent(node).includes(label));
 	return { props, scene, history, events, root, controls, control };
 }
+
+// 【Inspectorで現在地点を固定し、地点と表示長を編集してUndoで通常再生へ戻せる】
+// 逆再生・ループからの素材時刻と方向をフレーム読取へ渡し、固定後は音声・速度・ループの
+// 操作を使わせない。固定地点の数値変更はフレームを選び直し、表示区間を変えない。
+test('holds the current source frame and edits hold time and duration in the inspector', async t => {
+	const f = await fixture(t);
+	const layer = f.scene.layers[0];
+	layer.layerType = 'video';
+	layer.compositingParamValues = {};
+	const clip = layer.clips[0];
+	Object.assign(clip, { audioEnabled: true, sourceInMs: 1000, sourceOutMs: 2000, playbackRate: -0.5, loop: true });
+	const original = { ...clip };
+	f.props.selection = { kind: 'clips', clips: [{ layerId: 'a', clipId: 'clip' }] };
+	f.props.mediaInfo = new Map([['sound', { durationMs: 5000, audioAvailable: true, audioError: null }]]);
+	appContext.previewPlayback.currentTimelineTime.value = 2500;
+	await nextTick();
+	f.control('GsButton', 'Hold current frame').props.onClick();
+	await nextTick();
+	await nextTick();
+	assert.deepEqual([videoHoldTest.calls[0].sourceTimeMs, videoHoldTest.calls[0].reverse], [1750, true]);
+	assert.equal(clip.sourceTimeMs, 1700);
+	assert.equal(clip.durationMs, 5000);
+	assert.equal(f.control('GsSwitch', 'Audio enabled').props.disabled, true);
+	assert.equal(f.control('GsInput', 'Speed'), undefined);
+	assert.equal(f.control('GsInput', 'Total duration'), undefined);
+	f.control('GsInput', 'Hold source time').props['onUpdate:modelValue'](2345);
+	await nextTick();
+	await nextTick();
+	assert.equal(clip.sourceTimeMs, 2300);
+	f.control('GsInput', 'Duration').props['onUpdate:modelValue'](15000);
+	await nextTick();
+	assert.equal(clip.durationMs, 15000);
+	assert.equal(clip.sourceTimeMs, 2300);
+	f.history.undo();
+	f.history.undo();
+	f.history.undo();
+	await nextTick();
+	assert.deepEqual({ ...clip }, original);
+	assert.equal(f.control('GsButton', 'Hold current frame').props.disabled, false);
+	appContext.previewPlayback.currentTimelineTime.value = 5000;
+	await nextTick();
+	assert.equal(f.control('GsButton', 'Hold current frame').props.disabled, true);
+});
+
+// 【デコード待機中の古い固定操作を別クリップ・変更済み素材へ適用しない】
+// 動画のデコードは非同期なので、選択変更やトリムの後に古い地点を保存する競合を防ぐ。
+// 対象フレームがない場合も設定・履歴を変更せず、Inspectorに理由を表示する。
+test('discards stale hold results and reports missing frames without changing history', async t => {
+	for (const change of ['selection', 'timing', 'asset', 'error']) {
+		const f = await fixture(t);
+		const layer = f.scene.layers[0];
+		layer.layerType = 'video';
+		layer.compositingParamValues = {};
+		const clip = layer.clips[0];
+		clip.audioEnabled = true;
+		f.props.selection = { kind: 'clips', clips: [{ layerId: 'a', clipId: 'clip' }] };
+		f.props.mediaInfo = new Map([['sound', { durationMs: 5000, audioAvailable: true }]]);
+		let resolve, reject;
+		videoHoldTest.read = () => new Promise((done, failed) => { resolve = done; reject = failed; });
+		await nextTick();
+		f.control('GsButton', 'Hold current frame').props.onClick();
+		if (change === 'selection') f.props.selection = { kind: 'layers', ids: ['b'] };
+		if (change === 'timing') clip.durationMs = 3000;
+		if (change === 'asset') f.history.state.assets.value[0].fileData = new Blob(['replacement']);
+		await nextTick();
+		if (change === 'error') reject(new Error('There is no video frame at this source time.'));
+		else resolve({ sourceTimeMs: 0, sourceDurationMs: 5000 });
+		await new Promise(resolve => setImmediate(resolve));
+		await nextTick();
+		assert.equal('sourceTimeMs' in clip, false);
+		assert.equal(f.history.undoStack.value.length, 0);
+		if (change === 'error') assert.ok(textContent(f.root).includes('There is no video frame'));
+	}
+});
 
 // 【キーの詳細編集は連続変更を一回のUndoにまとめ、直前のキーの補間も編集できる】
 // 分割でmergeKeyや編集先のIDが失われると、値を戻せなくなったり選択中のキーだけを書き換えてしまう。

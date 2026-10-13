@@ -6,6 +6,8 @@
 
 複数クリップの追加に使う素材長は`TimelineClipSourceDurations`で扱い、レイヤーID→クリップIDの順に参照する。クリップIDの一意性は所属レイヤー内に限られるため、グループの子孫をまとめて扱う場合もクリップIDだけでは索引しない。
 
+動画の固定表示はInspectorのHold current frameから設定する。`utility/timeline-video-hold.ts`は通常描画と同じ素材リーダーでフレームのtimestampを確定し、逆再生境界・可変FPS・秒とmsの往復誤差を考慮する。非同期読取の間に選択・クリップ設定・Asset・Sceneが変わった結果は破棄する。`holdVideoClipFrame` Commandは表示区間を維持して素材時計を固定地点へ置き換え、旧時計をUndo/Redoでも残さない。固定地点の数値入力は明示保存し、素材変更（固定表示では同一Assetの再選択も含む）で通常再生へ戻す。
+
 ## Visual Moduleのエクスポート・インポート
 
 `gsvm.ts`は`.gsvm`（MessagePack）の依存収集・バイナリ変換・取り込み準備を担当する。ノードの値と公開パラメータの既定値・設定ツリーから静的な素材／Player参照を収集し、取り込み用のプロジェクト内IDを生成する。元PCのパスや利用側のレイヤー／LIVEの状態は保存しない。

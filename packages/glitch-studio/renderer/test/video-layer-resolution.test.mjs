@@ -100,6 +100,34 @@ function timelineFixture(t, { timelineMotionBlur = { enabled: false, shutterAngl
 	return { ...fixture, manager };
 }
 
+// 【固定地点は任意のシーク・露光・書き出しで同じ画像を使い、Scene時刻の合成を止めない】
+// フリーズをレイヤー全体の描画停止で実装すると不透明度や変形まで止まってしまう。
+// 先頭以外からの描画と戻りシークでも、動画の読み出しとGPU転送は一度だけで済む。
+test('holds the same source frame across seeks and export while animating composition', async t => {
+	const { manager, calls } = timelineFixture(t, { timelineMotionBlur: { enabled: true, shutterAngle: 180, samples: 4 } });
+	const video = { id: 'video', name: 'Video', layerType: 'video', isDisabled: false, forceDisableMotionBlur: false,
+		automationGraphs: [], coordinateSpace: 'screen',
+		compositingParamValues: { opacity: { inputSource: 'expression', expression: 'TIME / 10' } }, audioParamValues: { volume: literal(1) },
+		clips: [{ id: 'hold', startMs: 1000, durationMs: 10000, sourceTimeMs: 2000.25, assetId: 'asset', audioEnabled: false }] };
+	await manager.updateDynamicOptions({ assets: [{ id: 'asset', fileDataType: 'video/mp4', fileData: new Blob() }],
+		resolution: { width: 1920, height: 1080 }, resolutionScale: 1, sceneId: 'scene',
+		timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [video] }] });
+	await manager.renderTimelineAt(5000);
+	await manager.renderTimelineFrame(8000, 0);
+	await manager.renderTimelineFrame(2000, 0);
+	assert.deepEqual(calls.sampleTimes, [2.00025]);
+	assert.deepEqual(calls.sampleDirections, [false]);
+	assert.equal(calls.uploads.length, 1);
+	assert.equal(calls.compositing.length, 12);
+	const opacities = calls.compositing.map(call => call.settings.opacity);
+	assert.ok(opacities.slice(0, 4).every(value => Math.abs(value - 0.5) < 0.01));
+	assert.ok(opacities.slice(4, 8).every(value => Math.abs(value - 0.8) < 0.01));
+	assert.ok(opacities.slice(8).every(value => Math.abs(value - 0.2) < 0.01));
+	await manager.renderTimelineFrame(11000, 0);
+	assert.equal(calls.compositing.length, 12);
+	assert.deepEqual(calls.errors, []);
+});
+
 // 【固定動画は露光内で一度だけ転送し、合成と次のフレームの更新は続ける】
 // 読み出し側のデコードキャッシュだけではCanvas描画とGPU転送がサンプル数倍残る。
 // プレビューと書き出しの両方で前景を再利用し、合成自体を省略しないことを確認する。

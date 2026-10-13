@@ -149,7 +149,11 @@ export class TimelineRenderer<Output, Entry extends TimelineRenderEntry = Timeli
 			let referenceContentTimeMs = referenceTime?.timeMs ?? time;
 			let contentEndTimeMs = 0;
 			if (clip) {
-				if ('sourceInMs' in clip) {
+				if ('sourceTimeMs' in clip) {
+					contentTimeMs = clip.sourceTimeMs;
+					referenceContentTimeMs = clip.sourceTimeMs;
+					contentEndTimeMs = clip.sourceTimeMs;
+				} else if ('sourceInMs' in clip) {
 					contentTimeMs = getTimelineMediaSourceTime(clip, time);
 					referenceContentTimeMs = getTimelineMediaSourceTime(clip, referenceContentTimeMs);
 					contentEndTimeMs = clip.playbackRate > 0 ? clip.sourceOutMs : clip.sourceInMs;

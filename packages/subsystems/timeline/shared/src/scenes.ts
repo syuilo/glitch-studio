@@ -10,6 +10,7 @@ import { validateTimelineText } from './layers/text/text-layer.ts';
 import { validateTimelineShape } from './layers/shape/shape-layer.ts';
 import { validateVoicevoxLayer } from './layers/voicevox/voicevox.ts';
 import { validateTimelineMediaClipTiming } from './media-timing.ts';
+import { validateTimelineVideoHoldTiming } from './layers/video/video-hold.ts';
 import type { TimelineLayer, TimelineScene } from './types.ts';
 
 /** 子の長さを再帰計算しない。配置済みの区間は、参照先の編集でも変えない。 */
@@ -27,7 +28,13 @@ export function getTimelineScene(scenes: readonly TimelineScene[], sceneId: stri
 export function validateTimelineLayerStructure(layer: TimelineLayer): void {
 	if (!isTimelineContainerLayer(layer)) validateTimelineClips(layer.clips);
 	if (layer.layerType === 'video' || layer.layerType === 'audio') {
-		for (const clip of layer.clips) validateTimelineMediaClipTiming(clip);
+		for (const clip of layer.clips) {
+			if ('sourceTimeMs' in clip) {
+				if (layer.layerType !== 'video') throw new Error('Only video clips can hold frames');
+				validateTimelineVideoHoldTiming(clip);
+				if (clip.audioEnabled !== false) throw new Error('Video hold must be silent');
+			} else validateTimelineMediaClipTiming(clip);
+		}
 	} else if (!isTimelineContainerLayer(layer)) {
 		for (const clip of layer.clips) {
 			if (!Number.isFinite(clip.contentOffsetMs) || clip.contentOffsetMs < 0 || !Number.isFinite(clip.contentOffsetMs + clip.durationMs)) throw new Error('Invalid content offset');

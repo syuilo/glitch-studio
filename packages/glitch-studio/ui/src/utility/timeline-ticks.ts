@@ -2,8 +2,9 @@ import { niceScale } from '@gs/shared/utility/misc.ts';
 import type { TimelineClipTiming } from '@gs/subsystems_timeline_shared/timing.ts';
 import { getTimelineMediaPeriod } from '@gs/subsystems_timeline_shared/media-timing.ts';
 import type { TimelineMediaClipTiming } from '@gs/subsystems_timeline_shared/media-timing.ts';
+import type { TimelineVideoHoldTiming } from '@gs/subsystems_timeline_shared/layers/video/video-hold.ts';
 
-type ClipTiming = TimelineClipTiming | TimelineMediaClipTiming;
+type ClipTiming = TimelineClipTiming | TimelineMediaClipTiming | TimelineVideoHoldTiming;
 
 export type TimelineTickMode = 'legacy' | 'binary' | 'decimal125';
 export type TimelineTickSubdivisions = { halves: boolean; thirds: boolean };
@@ -61,6 +62,8 @@ export function getTimelineMinorTicks(majorTicks: readonly number[], subdivision
 
 /** 表示・スナップで同じ目盛りを使い、内容時刻とScene上の位置を取り違えないようにする。 */
 export function getTimelineClipTicks(clip: ClipTiming, viewportStartMs: number, viewportDurationMs: number, count: number, mode: TimelineTickMode = 'legacy', subdivisions: TimelineTickSubdivisions = { halves: true, thirds: false }): TimelineClipTicks {
+	// 固定地点は進行する時計ではないため、素材時刻の目盛りやそのスナップ候補を作らない。
+	if ('sourceTimeMs' in clip) return { major: [], minor: [] };
 	const media = 'sourceInMs' in clip ? clip : null;
 	const rate = media?.playbackRate ?? 1;
 	const sourceStart = media ? rate > 0 ? media.sourceInMs : media.sourceOutMs : (clip as TimelineClipTiming).contentOffsetMs;

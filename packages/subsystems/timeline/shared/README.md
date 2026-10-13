@@ -10,7 +10,9 @@
 
 Scene・レイヤー・クリップと、その時間・合成・音声設定の契約を定義する。キーフレームの補間や式エンジンは共通基盤を利用し、Scene時刻で評価することや許可するBindingなどの規約をこのドメインで決める。
 
-`timing.ts`はScene上の共通配置`TimelineClipPlacement`と、生成系・Scene参照の`TimelineClipTiming`を定義する。動画・音声は`media-timing.ts`の`TimelineMediaClipTiming`を使い、`sourceInMs`・`sourceOutMs`の半開素材範囲、符号付き`playbackRate`、`loop`を所有する。内容オフセットと素材範囲を重複保存しない。速度は有限・非ゼロで、1周が1ms以上となる配置を扱う。
+`timing.ts`はScene上の共通配置`TimelineClipPlacement`と、生成系・Scene参照の`TimelineClipTiming`を定義する。通常再生の動画・音声は`media-timing.ts`の`TimelineMediaClipTiming`を使い、`sourceInMs`・`sourceOutMs`の半開素材範囲、符号付き`playbackRate`、`loop`を所有する。内容オフセットと素材範囲を重複保存しない。速度は有限・非ゼロで、1周が1ms以上となる配置を扱う。
+
+動画の固定表示は`layers/video/video-hold.ts`の`TimelineVideoHoldTiming`を使い、素材内の`sourceTimeMs`だけを時計として持つ。`clip.ts`の`TimelineVideoClip`は通常再生と固定表示のunionで、`sourceInMs`と`sourceTimeMs`の存在で区別する。固定表示に通常再生の時計を重複保存せず、`audioEnabled`はfalse。固定地点だけを素材長と照合し、表示長と両端の伸縮は素材長から独立する。移動・伸縮で固定地点は変えず、音声計画とループ計画から除外する。動画レンダラーへ渡す素材時刻は固定するが、合成設定とキーはScene時刻で評価する。
 
 `media-timing.ts`は素材時刻・周期・トリム制約・速度変更を所有する。素材範囲と周期は小数ms、配置開始と全体長は整数ms。通常の長さは素材範囲を絶対倍率で割り、丸め誤差だけを吸収して切り捨てる。長さとトリム制約は`timing.ts`の共通処理で丸め、減算前の素材の両端と倍率から誤差を見積もる。短くトリムした後も誤差許容を残り時間だけで縮めず、本来の端数は切り捨てる。速度変更は素材範囲を維持し、ループ中は全体長も同じ比率で変更する。方向反転で素材範囲は移動しない。素材長検証は素材範囲、隣接衝突は全体長に適用する。ループ中のトリムは全体終端を固定し、ループ延長は素材範囲を固定する。素材変更で等速順再生・ループなしへ戻す。
 

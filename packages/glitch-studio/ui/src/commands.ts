@@ -14,6 +14,8 @@ import { validateEffectResolution } from '@gs/subsystems_effect_shared/resolutio
 import { canReferenceScene, validateTimelineLayer } from '@gs/subsystems_timeline_shared/scenes.ts';
 import { getTimelineClipTrimBounds, getTimelineClipInsertionDuration, validateTimelineClips } from '@gs/subsystems_timeline_shared/timing.ts';
 import { changeTimelineMediaPlaybackRate, createTimelineMediaClipTiming, getTimelineMediaLoopBounds, getTimelineMediaSingleDuration, getTimelineMediaTrimBounds, trimTimelineMediaClip, validateTimelineMediaClipTiming } from '@gs/subsystems_timeline_shared/media-timing.ts';
+import { getTimelineVideoHoldTrimBounds, trimTimelineVideoHold, validateTimelineVideoHoldTiming } from '@gs/subsystems_timeline_shared/layers/video/video-hold.ts';
+import type { TimelineVideoHoldTiming } from '@gs/subsystems_timeline_shared/layers/video/video-hold.ts';
 import { validateTimelineParameterTree } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
 import { getArrayElementDefinition, isParameterType } from '@gs/shared/parameter/parameter-definition.ts';
 import { visualModuleCustomParameterId } from '@gs/subsystems_visual-module_shared/types.ts';
@@ -1194,6 +1196,10 @@ function requireMediaDurationMs(sourceDurationMs: number | null | undefined): nu
 
 // 省略可能プロパティや検索結果を直接受け取る境界なので、入力のundefinedも未指定として受け入れる。
 function validateMediaClipTiming(clip: TimelineClipData, sourceDurationMs: number | null | undefined) {
+	if ('sourceTimeMs' in clip) {
+		validateTimelineVideoHoldTiming(clip, requireMediaDurationMs(sourceDurationMs));
+		return;
+	}
 	if (!('sourceInMs' in clip)) throw new Error('Invalid media clip');
 	validateTimelineMediaClipTiming(clip, requireMediaDurationMs(sourceDurationMs));
 }
@@ -1202,7 +1208,10 @@ function validateMediaClipTiming(clip: TimelineClipData, sourceDurationMs: numbe
 function validateLayerClips(state: ProjectState, sceneId: string, layer: TimelineLayer, clips: readonly TimelineClipData[], sourceDurationsMs?: TimelineClipSourceDurations | null) {
 	validateTimelineClips(clips);
 	for (const clip of clips) {
-		if (layer.layerType === 'video' || layer.layerType === 'audio') {
+		if (layer.layerType === 'video' && 'sourceTimeMs' in clip) {
+			validateTimelineVideoHoldTiming(clip);
+			if (!('audioEnabled' in clip) || clip.audioEnabled !== false) throw new Error('Video hold must be silent');
+		} else if (layer.layerType === 'video' || layer.layerType === 'audio') {
 			if (!('sourceInMs' in clip)) throw new Error('Invalid media clip');
 			validateTimelineMediaClipTiming(clip);
 		} else if (!('contentOffsetMs' in clip) || !Number.isFinite(clip.contentOffsetMs) || clip.contentOffsetMs < 0) throw new Error('Invalid content offset');
@@ -1389,7 +1398,7 @@ const pasteTimelineClipsCommandDef = defineCommand<{ sceneId: string; clips: Tim
 	}),
 });
 
-const editTimelineClipTimingCommandDef = defineCommand<TimelineClipTarget & { sceneId: string; edge: 'start' | 'end'; deltaMs: number; sourceDurationMs?: number | null; initialTiming?: TimelineClipTiming | TimelineMediaClipTiming }>({
+const editTimelineClipTimingCommandDef = defineCommand<TimelineClipTarget & { sceneId: string; edge: 'start' | 'end'; deltaMs: number; sourceDurationMs?: number | null; initialTiming?: TimelineClipTiming | TimelineMediaClipTiming | TimelineVideoHoldTiming }>({
 	label: 'Trim timeline clip',
 	changes: (_state, payload) => [{ type: 'layer', sceneId: payload.sceneId, layerId: payload.layerId, changes: [{ type: 'clips' }] }],
 	create: payload => {
@@ -1409,15 +1418,19 @@ const editTimelineClipTimingCommandDef = defineCommand<TimelineClipTarget & { sc
 				const initial = { ...clip, ...payload.initialTiming };
 				const initialClips = layer.clips.map(entry => entry.id === clip.id ? initial : entry);
 				validateTimelineClips(initialClips);
-				const bounds = 'sourceInMs' in initial
+				const bounds = 'sourceTimeMs' in initial
+					? getTimelineVideoHoldTrimBounds(initialClips, initial, payload.edge) : 'sourceInMs' in initial
 					? getTimelineMediaTrimBounds(initialClips, initial, payload.edge, sourceDurationMs!)
 					: getTimelineClipTrimBounds(initialClips, initial, payload.edge, layer.layerType === 'scene', sourceDurationMs ?? Infinity);
 				if (bounds.minDelta > bounds.maxDelta) throw new Error('No valid clip duration within the media');
 				const delta = Math.max(bounds.minDelta, Math.min(bounds.maxDelta, Math.round(payload.deltaMs)));
 				before = deepClone(clip);
-				const next = 'sourceInMs' in initial ? { ...clip, ...trimTimelineMediaClip(initial, payload.edge, delta) } : payload.edge === 'start'
-					? { ...clip, startMs: initial.startMs + delta, durationMs: initial.durationMs - delta, contentOffsetMs: initial.contentOffsetMs + delta }
-					: { ...clip, durationMs: initial.durationMs + delta };
+				let next: TimelineClipData;
+				if ('sourceTimeMs' in initial) next = { ...clip, ...trimTimelineVideoHold(initial, payload.edge, delta) };
+				else if ('sourceInMs' in initial) next = { ...clip, ...trimTimelineMediaClip(initial, payload.edge, delta) };
+				else if (payload.edge === 'start') next = { ...clip, startMs: initial.startMs + delta,
+					durationMs: initial.durationMs - delta, contentOffsetMs: initial.contentOffsetMs + delta };
+				else next = { ...clip, durationMs: initial.durationMs + delta };
 				validateTimelineClips(layer.clips.map(entry => entry.id === clip.id ? next : entry));
 				if (media) validateMediaClipTiming(next, payload.sourceDurationMs);
 				after = next;
@@ -1438,7 +1451,7 @@ const editMediaClipLoopCommandDef = defineCommand<TimelineClipTarget & { sceneId
 			const layer = getTimelineClipLayer(state, payload.sceneId, payload.layerId);
 			if (layer.layerType !== 'video' && layer.layerType !== 'audio') throw new Error('Media layer not found');
 			const clip = layer.clips.find(entry => entry.id === payload.clipId);
-			if (!clip) throw new Error('Media clip not found');
+			if (clip == null || !('sourceInMs' in clip)) throw new Error('Media clip not found');
 			return { layer, clip };
 		};
 		return {
@@ -1568,7 +1581,7 @@ const changeTimelineClipSourceCommandDef = defineCommand<TimelineClipTarget & { 
 				const { layer, clip } = getTimelineClip(state, payload.sceneId, payload);
 				const media = layer.layerType === 'video' || layer.layerType === 'audio';
 				if (media) requireMediaDurationMs(payload.sourceDurationMs);
-				const next = { ...clip,
+				const next = { ...(media ? { id: clip.id, startMs: clip.startMs, durationMs: clip.durationMs } : clip),
 					...(media ? createTimelineMediaClipTiming(clip.startMs, getTimelineClipInsertionDuration(layer.clips.filter(entry => entry.id !== clip.id), clip.startMs, requireMediaDurationMs(payload.sourceDurationMs))) : { contentOffsetMs: 0 }),
 					...(layer.layerType === 'scene' ? { sceneId: payload.referencedSceneId } : { assetId: payload.assetId }),
 					...(layer.layerType === 'video' ? { audioEnabled: payload.audioEnabled ?? ('audioEnabled' in clip && clip.audioEnabled) } : {}),
@@ -1578,9 +1591,46 @@ const changeTimelineClipSourceCommandDef = defineCommand<TimelineClipTarget & { 
 				// 他のクリップが参照切れでも、選択した素材の修復を妨げない。
 				validateLayerClips(state, payload.sceneId, layer, [next]);
 				before = deepClone(clip);
-				Object.assign(clip, next);
+				replaceTimelineClipData(clip, next);
 			},
-			undo(state) { Object.assign(getTimelineClip(state, payload.sceneId, payload).clip, deepClone(before)); },
+			undo(state) { replaceTimelineClipData(getTimelineClip(state, payload.sceneId, payload).clip, deepClone(before)); },
+		};
+	},
+});
+
+/** 時間モデルの切り替えでは、旧モデルのフィールドをUndo/Redoでも残さない。 */
+function replaceTimelineClipData(clip: TimelineClipData, next: TimelineClipData): void {
+	for (const key of Object.keys(clip)) {
+		if (!(key in next)) delete (clip as unknown as Record<string, unknown>)[key];
+	}
+	Object.assign(clip, next);
+}
+
+const holdVideoClipFrameCommandDef = defineCommand<TimelineClipTarget & { sceneId: string; sourceTimeMs: number; sourceDurationMs: number }>({
+	label: 'Hold video frame',
+	changes: (_state, payload) => [{ type: 'layer', sceneId: payload.sceneId, layerId: payload.layerId, changes: [{ type: 'clips' }] }],
+	create: payload => {
+		let before: TimelineVideoClip;
+		let after: TimelineVideoClip | null = null;
+		const find = (state: ProjectState) => {
+			const layer = getTimelineClipLayer(state, payload.sceneId, payload.layerId);
+			if (layer.layerType !== 'video') throw new Error('Video layer not found');
+			const clip = layer.clips.find(clip => clip.id === payload.clipId);
+			if (clip == null) throw new Error('Video clip not found');
+			return clip;
+		};
+		return {
+			execute(state) {
+				const clip = find(state);
+				if (after != null) { replaceTimelineClipData(clip, after); return; }
+				const next: TimelineVideoClip = { id: clip.id, assetId: clip.assetId, startMs: clip.startMs,
+					durationMs: clip.durationMs, sourceTimeMs: payload.sourceTimeMs, audioEnabled: false };
+				validateTimelineVideoHoldTiming(next, requireMediaDurationMs(payload.sourceDurationMs));
+				before = deepClone(clip);
+				after = next;
+				replaceTimelineClipData(clip, next);
+			},
+			undo(state) { replaceTimelineClipData(find(state), before); },
 		};
 	},
 });
@@ -1598,7 +1648,12 @@ const editVideoClipAudioCommandDef = defineCommand<TimelineClipTarget & { sceneI
 			return clip;
 		};
 		return {
-			execute(state) { const clip = find(state); before = clip.audioEnabled; clip.audioEnabled = payload.audioEnabled; },
+			execute(state) {
+				const clip = find(state);
+				if ('sourceTimeMs' in clip && payload.audioEnabled) throw new Error('Video hold must be silent');
+				before = clip.audioEnabled;
+				clip.audioEnabled = payload.audioEnabled;
+			},
 			undo(state) { find(state).audioEnabled = before; },
 		};
 	},
@@ -2044,6 +2099,7 @@ export const COMMAND_DEFS = {
 	editVideoClipAudio: editVideoClipAudioCommandDef,
 	editMediaClipLoop: editMediaClipLoopCommandDef,
 	editMediaClipPlaybackRate: editMediaClipPlaybackRateCommandDef,
+	holdVideoClipFrame: holdVideoClipFrameCommandDef,
 	moveTimelineKeyframes: moveTimelineKeyframesCommandDef,
 	pasteTimelineKeyframes: pasteTimelineKeyframesCommandDef,
 	addScene: addSceneCommandDef,
