@@ -68,7 +68,7 @@
 				:scrollElement="layersEl" :estimatedItemHeight="44" :gap="0" :overscan="0"
 				:keepMountedKeys="draggingLayerId ? [draggingLayerId] : []" @layout="onVirtualLayersLayout"
 			>
-				<template #default="{ item: layer }">
+				<template #default="{ item: layer, index }">
 					<XLayer
 						:tlPosX="tlPosX"
 						:optimizeHorizontalMovement="optimizeHorizontalMovement"
@@ -84,7 +84,7 @@
 						:selectedKeyframes="selectedTimelineKeyframes"
 						:class="[$style.layersLane, dropTarget?.layerId === layer.id ? $style['drop_' + dropTarget.position] : null]"
 						:depth="layerAncestors.get(layer.id)?.length ?? 0"
-						:isLastOfGroup="layerAncestors.get(layer.id)?.at(-1)?.layers.at(-1)?.id === layer.id"
+						:nextLayerDepth="index + 1 < visibleLayers.length ? (layerAncestors.get(visibleLayers[index + 1].id)?.length ?? 0) : 0"
 						:ancestorDisabled="layerAncestors.get(layer.id)?.some(group => group.isDisabled) ?? false"
 						:collapsed="!expandedLayers.has(layer.id)"
 						:selected="selection.kind === 'layers' && selection.ids.includes(layer.id)"

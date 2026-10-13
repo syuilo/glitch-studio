@@ -2,7 +2,7 @@
 <div :class="[$style.root, { [$style.selected]: selected, [$style.disabled]: layer.isDisabled || ancestorDisabled, [$style.groupExpanded]: isTimelineContainerLayer(layer) && !collapsed, [$style.type_effect]: layer.layerType === 'effect', [$style.type_audio]: layer.layerType === 'audio', [$style.type_image]: layer.layerType === 'image', [$style.type_video]: layer.layerType === 'video', [$style.type_text]: layer.layerType === 'text', [$style.type_voicevox]: layer.layerType === 'voicevox', [$style.type_group]: isTimelineContainerLayer(layer) }]" :data-timeline-layer-id="layer.id">
 	<div :class="$style.mainLane" data-timeline-clip-lane>
 		<div :class="$style.side">
-			<div v-for="i in (depth ?? 0) + 1" :class="[$style.colorBar, { [$style.parentColorBar]: i < (depth ?? 0) + 1 }]"></div>
+			<div v-for="i in depth + 1" :class="[$style.colorBar, { [$style.parentColorBar]: i < depth + 1 }]"></div>
 			<div :class="$style.sideBody">
 				<div :class="$style.layerHeader" draggable="true" @click="emit('selected', $event)" @contextmenu.stop.prevent="emit('contextMenu', $event)" @dragstart.stop="emit('dragStart', $event)">
 					<div :class="$style.grabber">
@@ -59,7 +59,7 @@
 	</div>
 	<div v-if="!collapsed && !isTimelineContainerLayer(layer) && (keyframeParameters.length > 0 || layer.layerType === 'voicevox')" :class="$style.localTicksLane">
 		<div :class="$style.side">
-			<div v-for="i in (depth ?? 0) + 1" :class="[$style.colorBar, { [$style.parentColorBar]: i < (depth ?? 0) + 1 }]"></div>
+			<div v-for="i in depth + 1" :class="[$style.colorBar, { [$style.parentColorBar]: i < depth + 1 }]"></div>
 			<div :class="$style.sideBody">
 				<div :class="[$style.localTicksLabel]">Clip time</div>
 			</div>
@@ -73,7 +73,7 @@
 	</div>
 	<div v-if="!collapsed && layer.layerType === 'voicevox'" :class="$style.speechLane" data-parameter-target="utterance" :data-param-path="JSON.stringify(['utterances'])">
 		<div :class="$style.side">
-			<div v-for="i in (depth ?? 0) + 1" :class="[$style.colorBar, { [$style.parentColorBar]: i < (depth ?? 0) + 1 }]"></div>
+			<div v-for="i in depth + 1" :class="[$style.colorBar, { [$style.parentColorBar]: i < depth + 1 }]"></div>
 			<div :class="$style.sideBody">
 				<div>Speech</div>
 			</div>
@@ -88,7 +88,7 @@
 	</div>
 	<div v-for="param in keyframeParameters" :key="param.key" :class="$style.keyframesLane" :data-parameter-target="param.target" :data-param-path="paramPathKey(param.paramPath)">
 		<div :class="$style.side">
-			<div v-for="i in (depth ?? 0) + 1" :class="[$style.colorBar, { [$style.parentColorBar]: i < (depth ?? 0) + 1 }]"></div>
+			<div v-for="i in depth + 1" :class="[$style.colorBar, { [$style.parentColorBar]: i < depth + 1 }]"></div>
 			<div :class="$style.sideBody">
 				<div style="padding-right: 6px;">{{ param.label }}</div>
 			</div>
@@ -107,7 +107,7 @@
 	</div>
 	<div :class="$style.gapLane">
 		<div :class="$style.side">
-			<div v-for="i in (depth ?? 0) + (isLastOfGroup ? -1 : (isTimelineContainerLayer(layer) && !collapsed) ? 1 : 0)" :class="[$style.colorBar, $style.parentColorBar]"></div>
+			<div v-for="i in depth + (nextLayerDepth < depth ? (nextLayerDepth - depth) : (isTimelineContainerLayer(layer) && !collapsed) ? 1 : 0)" :class="[$style.colorBar, $style.parentColorBar]"></div>
 		</div>
 	</div>
 </div>
@@ -144,7 +144,7 @@ const props = defineProps<{
 	sceneId: string;
 	sceneTimeMs: number;
 	layer: TimelineLayer;
-	depth?: number;
+	depth: number;
 	ancestorDisabled?: boolean;
 	collapsed?: boolean;
 	tlElWidth: number;
@@ -158,7 +158,7 @@ const props = defineProps<{
 	selectedClipIds: string[];
 	selected: boolean;
 	moving: boolean;
-	isLastOfGroup: boolean;
+	nextLayerDepth: number;
 }>();
 
 const emit = defineEmits<{
