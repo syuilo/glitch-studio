@@ -3,9 +3,10 @@
 	<div :class="$style.header">
 		<div :class="$style.headerLeft">
 			<slot></slot>
+			<GsButton style="margin-left: 15px;" small :primary="previewPlayback.state.value.mode === 'timeline'" @click="previewPlayback.showTimeline()">Preview</GsButton>
+			<span :class="$style.headerMajorDivider"></span>
 		</div>
 		<div :class="$style.headerCenter" style="gap: 20px;">
-			<GsButton small :primary="previewPlayback.state.value.mode === 'timeline'" @click="previewPlayback.showTimeline()">Preview</GsButton>
 			<GsButton v-tooltip="'CUE [C]'" small :primary="cueActive" :class="$style.cueButton" @pointerdown="onCuePointerDown" @keydown="onCueButtonKeydown" @click.prevent><i class="ti ti-arrow-right-bar"></i></GsButton>
 			<div style="display: flex; gap: 4px;">
 				<GsButton v-tooltip="'Go to Start'" small iconOnly @click="seek(0)"><i class="ti ti-player-skip-back"></i></GsButton>
@@ -17,23 +18,22 @@
 				<!--<GsButton v-tooltip="'Forward 10 Seconds'" small iconOnly @click="seek(time + 10000)"><i class="ti ti-rewind-forward-10"></i></GsButton>-->
 			</div>
 			<div style="display: flex; gap: 4px;">
+				<GsButton v-tooltip="'Prev Frame'" small iconOnly @click="stepFrame(-1)"><i class="ti ti-chevron-left"></i></GsButton>
+				<GsButton v-tooltip="'Next Frame'" small iconOnly @click="stepFrame(1)"><i class="ti ti-chevron-right"></i></GsButton>
+				<GsButton v-tooltip="'Prev Keyframe'" small iconOnly @click="seekToKeyframe(getPreviousKeyframeTime())"><i class="ti ti-keyframe"></i><i class="ti ti-chevron-left"></i></GsButton>
+				<GsButton v-tooltip="'Next Keyframe'" small iconOnly @click="seekToKeyframe(getNextKeyframeTime())"><i class="ti ti-chevron-right"></i><i class="ti ti-keyframe"></i></GsButton>
 			</div>
-		</div>
-		<div :class="$style.headerCenter">
-			<GsButton v-tooltip="'Prev Frame'" small iconOnly @click="stepFrame(-1)"><i class="ti ti-chevron-left"></i></GsButton>
-			<GsButton v-tooltip="'Next Frame'" small iconOnly @click="stepFrame(1)"><i class="ti ti-chevron-right"></i></GsButton>
-			<GsButton v-tooltip="'Prev Keyframe'" small iconOnly @click="seekToKeyframe(getPreviousKeyframeTime())"><i class="ti ti-keyframe"></i><i class="ti ti-chevron-left"></i></GsButton>
-			<GsButton v-tooltip="'Next Keyframe'" small iconOnly @click="seekToKeyframe(getNextKeyframeTime())"><i class="ti ti-chevron-right"></i><i class="ti ti-keyframe"></i></GsButton>
 		</div>
 		<div :class="$style.headerCenter">
 			<span v-if="timelineAudioPreview.buffering.value"><i class="ti ti-loader"></i></span>
 			<span v-if="audioError || timelineAudioPreview.error.value || timelineRendererManagerController.errorMessage.value" v-tooltip="audioError || timelineAudioPreview.error.value || timelineRendererManagerController.errorMessage.value"><i class="ti ti-alert-triangle"></i></span>
 		</div>
 		<div :class="$style.headerRight">
+			<span :class="$style.headerMajorDivider"></span>
 			<GsButton small iconOnly><i class="ti ti-pointer"></i></GsButton>
 			<GsButton small iconOnly><i class="ti ti-select-all"></i></GsButton>
 			<GsButton small iconOnly><i class="ti ti-cut"></i></GsButton>
-			<span>|</span>
+			<span :class="$style.headerMinorDivider"></span>
 			<GsButton v-tooltip="'Follow Playhead'" small iconOnly :primary="followPlayhead" @click="followPlayhead = !followPlayhead"><i class="ti ti-arrow-narrow-right-dashed"></i></GsButton>
 			<GsButton v-tooltip="'Timeline Tick Settings...'" small iconOnly @click="showTickMenu"><i class="ti ti-ruler-2"></i></GsButton>
 			<GsButton v-tooltip="'Snap Settings...'" small iconOnly :primary="snapEnabled" @click="showSnapMenu"><i class="ti ti-magnet"></i></GsButton>
@@ -785,7 +785,7 @@ function formatFullTimecode(timeMs: number): string {
 
 .header {
 	display: grid;
-	grid-template-columns: 1fr 1fr 1fr 1fr 1fr;
+	grid-template-columns: 1fr 1fr 1fr 1fr;
 	gap: 4px;
 	padding: 4px;
 }
@@ -794,6 +794,7 @@ function formatFullTimecode(timeMs: number): string {
 	align-items: center;
 	gap: 4px;
 	justify-content: flex-start;
+	margin-right: 20px;
 }
 .headerCenter {
 	display: flex;
@@ -806,6 +807,21 @@ function formatFullTimecode(timeMs: number): string {
 	align-items: center;
 	gap: 4px;
 	justify-content: flex-end;
+	margin-left: 20px;
+}
+
+.headerMajorDivider {
+	width: 1px;
+	height: 100%;
+	margin: 0 8px;
+	background-color: #fff2;
+}
+
+.headerMinorDivider {
+	width: 1px;
+	height: 50%;
+	margin: 0 4px;
+	background-color: #fff2;
 }
 
 .audioAssetSelect {
