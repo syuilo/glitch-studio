@@ -317,6 +317,7 @@ function timeToDomX(time: number): number { return timelineTimeToX(time, props.t
 	}
 	&.type_audio {
 		--LAYER_COLOR: var(--THEME-layer-audio);
+		--MAIN_LANE_HEIGHT: 60px;
 	}
 	&.type_image {
 		--LAYER_COLOR: var(--THEME-layer-image);

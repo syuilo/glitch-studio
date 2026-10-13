@@ -20,7 +20,10 @@
 				<div :class="$style.clipInnerLeft">
 					<div v-tooltip.bottom="'Trim source start'" :class="[$style.trimStart]" @pointerdown.stop="emit('trimStart', $event, 'start')"></div>
 				</div>
-				<div :class="$style.clipLabel"><GsCondensedLine>{{ label }}<template v-if="'sourceTimeMs' in clip"> · Hold {{ formatTimelineTimecode(clip.sourceTimeMs) }}</template><template v-else-if="mediaClip && mediaClip.playbackRate !== 1"> · {{ mediaClip.playbackRate < 0 ? 'Reverse ' : '' }}{{ Math.abs(mediaClip.playbackRate) }}×</template></GsCondensedLine></div>
+				<div :class="$style.clipInnerCenter">
+					<div :class="$style.clipLabel"><GsCondensedLine>{{ label }}</GsCondensedLine></div>
+					<div v-if="mediaClip" :class="$style.clipLabel"><GsCondensedLine><template v-if="'sourceTimeMs' in clip"> · Hold {{ formatTimelineTimecode(clip.sourceTimeMs) }}</template><template v-else-if="mediaClip && mediaClip.playbackRate !== 1"> · {{ mediaClip.playbackRate < 0 ? 'Reverse ' : '' }}{{ Math.abs(mediaClip.playbackRate) }}×</template></GsCondensedLine></div>
+				</div>
 				<div :class="$style.clipInnerRight">
 					<div v-if="!mediaClip" v-tooltip.bottom="'Trim source end'" :class="[$style.trimEnd]" :style="{ right: (clip.durationMs - Math.min(clip.durationMs, periodMs)) * pixelsPerMs + 'px' }" @pointerdown.stop="emit('trimStart', $event, 'end')"></div>
 					<div v-if="mediaClip" v-tooltip.bottom="'Extend to loop the trimmed range'" :class="[ $style.loopEnd]" @pointerdown.stop="emit('trimStart', $event, 'loop')"><i class="ti ti-repeat"></i></div>
@@ -165,11 +168,12 @@ const emit = defineEmits<{
 	z-index: 1;
 }
 
-.clipLabel {
+.clipInnerCenter {
+	position: relative;
+	z-index: 1;
 	flex: 1;
-	box-sizing: border-box;
 	min-width: 0;
-	overflow: clip;
+	box-sizing: border-box;
 }
 
 .clipInnerRight {
@@ -177,6 +181,10 @@ const emit = defineEmits<{
 	z-index: 1;
 	display: flex;
 	flex-direction: column;
+}
+
+.clipLabel {
+	overflow: clip;
 }
 
 .trimStart {
