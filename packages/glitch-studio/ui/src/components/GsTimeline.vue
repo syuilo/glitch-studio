@@ -104,6 +104,7 @@
 						@clipContextMenu="showClipMenu"
 						@keyframeDragStart="onKeyframeMoveStart"
 						@keyframeSelected="onKeyframeSelected"
+						@keyframeAdded="expandLayer"
 						@subtitleTrimStart="onSubtitleTrimStart"
 					/>
 				</template>
@@ -134,6 +135,7 @@
 				:scene="editedScene" :selection="selection" :mediaInfo="mediaInfo"
 				@selectKeyframe="onKeyframeSelected" @removeKeyframes="removeSelectedKeyframes" @removeClips="removeSelectedClips"
 				@changeClipSource="changeClipSource" @requestAddInlineEffectNode="showAddInlineEffectNodeMenu"
+				@keyframeAdded="expandLayer"
 			/>
 		</Teleport>
 		<div v-else>
@@ -289,6 +291,10 @@ function toggleLayerExpansion(id: string) {
 	const next = new Set(expandedLayers.value);
 	if (next.has(id)) next.delete(id); else next.add(id);
 	expandedLayers.value = next;
+}
+
+function expandLayer(id: string) {
+	expandedLayers.value.add(id);
 }
 
 const draggingLayerId = ref<string | null>(null);

@@ -22,7 +22,7 @@
 			@edit="event => onTimelineLayerParamEdit(event, 'effect')"
 			@resolution="resolution => stateManager.commit('changeEffectLayerResolution', { sceneId, layerId: layer.id, resolution })"
 		/>
-		<GsTimelineVoicevoxSettings v-if="layer.layerType === 'voicevox'" :key="layer.id" :sceneId="sceneId" :layer="layer" @selected="keyframeId => emit('selectKeyframe', { layerId: layer.id, target: 'utterance', paramPath: ['utterances'], keyframeId })"/>
+		<GsTimelineVoicevoxSettings v-if="layer.layerType === 'voicevox'" :key="layer.id" :sceneId="sceneId" :layer="layer" @keyframeAdded="emit('keyframeAdded', layer.id)" @selected="keyframeId => emit('selectKeyframe', { layerId: layer.id, target: 'utterance', paramPath: ['utterances'], keyframeId })"/>
 		<GsTimelineVoicevoxSubtitleSettings
 			v-if="layer.layerType === 'voicevox'"
 			:key="layer.id"
@@ -185,10 +185,10 @@ import type { TimelineKeyframeSelection } from '@/utility/timeline-selection.ts'
 import { appContext } from '@/app.ts';
 import { exportVisualModuleFile } from '@/utility/visual-module-file.ts';
 import { commitVisualModuleEdit } from '@/utility/visual-module-edit.ts';
-import { getLayerParameterValues } from '@/utility/timeline-scene.ts';
+import { getLayerParameterValues, resolveLayerParameter } from '@/utility/timeline-scene.ts';
 
 const props = defineProps<{ scene: TimelineScene; layer: TimelineLayer }>();
-const emit = defineEmits<{ selectKeyframe: [selection: TimelineKeyframeSelection]; requestAddInlineEffectNode: [layerId: string] }>();
+const emit = defineEmits<{ selectKeyframe: [selection: TimelineKeyframeSelection]; keyframeAdded: [layerId: string]; requestAddInlineEffectNode: [layerId: string] }>();
 const { previewPlayback, timelineRendererManagerController } = appContext;
 const groupModes = [{ value: 'flat' as const, label: 'Single plane (2D contents)' }, { value: 'preserveDepth' as const, label: 'Preserve child depth' }];
 const coordinateSpaces = [{ value: 'screen' as const, label: 'On screen' }, { value: 'world' as const, label: 'In space' }];
@@ -250,9 +250,20 @@ function onTimelineLayerParamEdit(event: ParamEdit, target: TimelineParameterTar
 		}, mergeKey);
 		return;
 	}
+	// キーの追加だけを通知し、値・時刻の編集や削除では手動の折りたたみ状態を維持する。
+	// 入力方式の切り替えでも最初のキーが生成されるため、追加として扱う。
+	let keyframeAdded = false;
+	if (event.kind === 'keyframesTimelineInline' || (event.kind === 'inputSource' && event.inputSource === 'keyframesTimelineInline')) {
+		const current = resolveLayerParameter(stateManager.state, layer, target, event.paramPath).value;
+		const existingIds = new Set(current.inputSource === 'keyframesTimelineInline' ? current.keyframesTimeline.keyframes.map(keyframe => keyframe.id) : []);
+		keyframeAdded = event.kind === 'inputSource'
+			? current.inputSource !== 'keyframesTimelineInline'
+			: event.value.keyframesTimeline.keyframes.some(keyframe => !existingIds.has(keyframe.id));
+	}
 	stateManager.commit('editTimelineLayerParam', {
 		sceneId: props.scene.id, layerId: layer.id, target, paramPath: event.paramPath, edit: event,
 	}, mergeKey);
+	if (keyframeAdded) emit('keyframeAdded', layer.id);
 }
 </script>
 

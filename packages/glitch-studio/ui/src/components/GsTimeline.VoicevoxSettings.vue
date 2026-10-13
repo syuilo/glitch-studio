@@ -37,7 +37,7 @@ import { insertVoicevoxUtterance } from '@/utility/voicevox-utterance-edit.ts';
 import { appContext } from '@/app.ts';
 
 const props = defineProps<{ layer: TimelineVoicevoxLayer; sceneId: string }>();
-const emit = defineEmits<{ selected: [id: string] }>();
+const emit = defineEmits<{ selected: [id: string]; keyframeAdded: [] }>();
 const { stateManager } = appContext.projectContext;
 const desktop = window.desktop;
 const { endpoint, version, speakers } = appContext.voicevoxConnection;
@@ -57,7 +57,13 @@ async function connect() {
 
 function commit(utterances: VoicevoxUtterance[], voicevox = props.layer.voicevox) {
 	error.value = '';
-	try { stateManager.commit('editVoicevoxLayer', { sceneId: props.sceneId, layerId: props.layer.id, voicevox, utterances }); } catch (cause) { error.value = String(cause); }
+	try {
+		stateManager.commit('editVoicevoxLayer', { sceneId: props.sceneId, layerId: props.layer.id, voicevox, utterances });
+		return true;
+	} catch (cause) {
+		error.value = String(cause);
+		return false;
+	}
 }
 
 function changeSettings(settings: Partial<VoicevoxSettings>) { commit(props.layer.utterances, { ...props.layer.voicevox, ...settings }); }
@@ -65,7 +71,10 @@ function changeSettings(settings: Partial<VoicevoxSettings>) { commit(props.laye
 function add() {
 	const inserted = insertVoicevoxUtterance(props.layer.utterances, appContext.previewPlayback.currentTimelineTime.value);
 	if (!inserted) return;
-	if (inserted.utterances !== props.layer.utterances) commit([...inserted.utterances]);
+	if (inserted.utterances !== props.layer.utterances) {
+		if (!commit([...inserted.utterances])) return;
+		emit('keyframeAdded');
+	}
 	emit('selected', inserted.utterance.id);
 }
 
