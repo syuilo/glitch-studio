@@ -1,6 +1,7 @@
 import { ref } from 'vue';
 import type { VisualModuleRendererManager } from '@gs/glitch-studio_renderer/visual-module-renderer-manager.ts';
 import type { TimelineRendererManager } from '@gs/glitch-studio_renderer/timeline-renderer-manager.ts';
+import type { RenderFailureOrigin } from './utility/render-failure.ts';
 
 type ManagerMethods<T> = {
 	[K in keyof T as T[K] extends (...args: never[]) => unknown ? K : never]: Extract<T[K], (...args: never[]) => unknown>;
@@ -31,11 +32,11 @@ export abstract class RendererManagerControllerBase<T extends RendererManager> {
 	private onError: (error: Error | null) => void;
 
 	public readonly isReady = ref(false);
-	public onRenderFailure?: (error: Error) => void;
+	public onRenderFailure?: (error: Error, origin?: RenderFailureOrigin) => void;
 
-	protected reportRenderFailure(error: Error) {
+	protected reportRenderFailure(error: Error, origin?: RenderFailureOrigin) {
 		// LIVE・Timelineの破棄は所有者がまとめて行う。ここでは同じManagerを重ねて破棄しない。
-		this.onRenderFailure?.(error);
+		this.onRenderFailure?.(error, origin);
 		this.onError(error);
 	}
 

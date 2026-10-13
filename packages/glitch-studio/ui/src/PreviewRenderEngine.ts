@@ -1,15 +1,17 @@
-import { computed, ref } from 'vue';
+import { computed, readonly, ref, shallowRef } from 'vue';
+import type { RenderFailureDiagnostic, RenderFailureOrigin } from './utility/render-failure.ts';
 
 /** エラー中はエンジンを持たない。再試行は設定変更か明示操作だけで行う。 */
 export class PreviewRenderEngine {
 	private staticError = ref<string | null>(null);
-	private runtimeError = ref<string | null>(null);
+	private runtimeError = shallowRef<RenderFailureDiagnostic | null>(null);
 	private suspended = ref(false);
 	private enabled = ref(false);
 	private generation = 0;
 	private restarting: Promise<void> | null = null;
 	private retryScheduled = false;
-	public readonly errorMessage = computed(() => this.staticError.value ?? this.runtimeError.value);
+	public readonly runtimeDiagnostic = readonly(this.runtimeError);
+	public readonly errorMessage = computed(() => this.staticError.value ?? this.runtimeError.value?.message ?? null);
 	public readonly canRender = computed(() => this.enabled.value && !this.suspended.value && this.errorMessage.value == null);
 
 	constructor(private operations: { dispose: (reason?: Error) => void; create: (isCurrent: () => boolean) => Promise<void> }) {}
@@ -21,9 +23,10 @@ export class PreviewRenderEngine {
 		if (message == null && previous != null) this.requestRetry();
 	}
 
-	public fail(error: unknown) {
+	public fail(error: unknown, origin?: RenderFailureOrigin) {
 		const reason = error instanceof Error ? error : new Error(String(error));
-		this.runtimeError.value = reason.message;
+		// 実行中の状態ストアとは別に保持し、disposeで通知元の情報まで消さない。
+		this.runtimeError.value = { message: reason.message, origin };
 		this.stop(reason);
 	}
 

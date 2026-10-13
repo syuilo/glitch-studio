@@ -10,6 +10,7 @@
 		<div :class="$style.topCenter">
 			<button v-if="previewTargetName" type="button" :class="$style.previewTargetName" class="_button" aria-haspopup="menu" @click="showPreviewTargetMenu">{{ previewTargetName }} <i class="ti ti-chevron-down"></i></button>
 			<div v-if="renderEngine.errorMessage.value" :class="$style.renderError" class="_gaps_s" role="alert">
+				<div v-if="renderFailureLocation">{{ renderFailureLocation }}</div>
 				<div>{{ renderEngine.errorMessage.value }}</div>
 				<button type="button" class="_button" :disabled="renderValidation.errorMessage.value != null" @click="renderEngine.retry()">Retry rendering</button>
 			</div>
@@ -38,6 +39,7 @@ import type { CSSProperties } from 'vue';
 import type { PreviewCanvasRect } from '@/utility/preview-transform.ts';
 import { startPreviewPointerDrag } from '@/utility/preview-pointer-drag.ts';
 import { useRendererCanvas } from '@/use-renderer-canvas.ts';
+import { formatRenderFailureOrigin } from '@/utility/render-failure.ts';
 import { appContext } from '@/app.ts';
 import * as api from '@/api.ts';
 import { preferences } from '@/preferences.ts';
@@ -45,6 +47,11 @@ import * as ui from '@/ui.ts';
 
 const { activePreviewRenderer, visualModuleRendererManagerController, previewPlayback, highlightClipping, resolutionFactor, liveTimeFactor, activeScene, activeSceneId, renderEngine, renderValidation } = appContext;
 const { stateManager } = appContext.projectContext;
+const renderFailureLocation = computed(() => {
+	const origin = renderEngine.runtimeDiagnostic.value?.origin;
+	return origin && renderValidation.errorMessage.value == null
+		? formatRenderFailureOrigin(origin, stateManager.state.visualModules.value, stateManager.state.timelineScenes.value) : null;
+});
 
 const canvasContainer = useTemplateRef('canvasContainer');
 const containerContainer = useTemplateRef('containerContainer');

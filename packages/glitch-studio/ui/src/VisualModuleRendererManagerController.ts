@@ -105,7 +105,7 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 					this.gpuMemoryUsage.value = ctx.usage;
 				},
 				effectState: (ctx) => {
-					if (ctx.status?.status.type === 'error') { this.reportRenderFailure(new Error(ctx.status.status.message)); return; }
+					if (ctx.status?.status.type === 'error') { this.reportRenderFailure(new Error(ctx.status.status.message), { source: ctx.source, nodeId: ctx.nodeId }); return; }
 					const { source, nodeId, status } = ctx;
 					this.liveEffectStateStore.update(source, nodeId, status);
 				},

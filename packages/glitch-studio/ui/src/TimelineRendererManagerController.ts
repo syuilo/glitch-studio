@@ -83,11 +83,11 @@ export class TimelineRendererManagerController extends RendererManagerController
 						&& ctx.revision === this.dynamicOptions.previewRevision) this.layerTransform.value = ctx;
 				},
 				effectState: (ctx) => {
-					if (ctx.status?.status.type === 'error') { this.reportRenderFailure(new Error(ctx.status.status.message)); return; }
+					if (ctx.status?.status.type === 'error') { this.reportRenderFailure(new Error(ctx.status.status.message), { source: ctx.source, nodeId: ctx.nodeId }); return; }
 					if (this.isReady.value) this.effectStates.updateNode(ctx.source, ctx.nodeId, ctx.status);
 				},
 				effectLayerState: (ctx) => {
-					if (ctx.status?.status.type === 'error') { this.reportRenderFailure(new Error(ctx.status.status.message)); return; }
+					if (ctx.status?.status.type === 'error') { this.reportRenderFailure(new Error(ctx.status.status.message), { source: ctx.source }); return; }
 					if (this.isReady.value) this.effectStates.updateLayer(ctx.source, ctx.status);
 				},
 				renderError: (ctx) => {

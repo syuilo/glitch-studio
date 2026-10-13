@@ -79,6 +79,35 @@ async function initialize(controller, workers) {
 	return worker;
 }
 
+// 【発生元付きのエラーを所有者へ渡してから実行状態を破棄する】
+// LIVEノード・Timeline内ノード・Effectレイヤーの通知経路は異なる。
+// 各経路で場所を落とさず、破棄済みWorkerの遅延通知でも診断を上書きしないことを確認する。
+for (const [kind, event, nodeId] of [['VisualModule', 'effectState', 'node'], ['Timeline', 'effectState', 'node'], ['Timeline', 'effectLayerState', undefined]]) {
+	test(`preserves failure location after disposal for ${kind} ${event}`, async t => {
+		const { controller, workers } = fixture(t, kind);
+		const worker = await initialize(controller, workers);
+		let diagnostic;
+		controller.onRenderFailure = (error, origin) => {
+			diagnostic = { message: error.message, origin };
+			controller.disposeManager(error);
+		};
+		const source = kind === 'VisualModule' ? { type: 'live', instanceId: 'instance', visualModuleId: 'visualModule' }
+			: { type: 'timelineLayer', instanceId: 'instance', rootSceneId: 'root', layerId: 'layer',
+				clipId: 'clip', layerPath: ['sceneLayer', 'placement', 'layer'] };
+		const notify = message => worker.reply({ type: 'ev', ev: { type: event, ctx: {
+			source, nodeId, status: { status: { type: 'error', message }, outputs: {} },
+		} } });
+		notify('decode failed');
+		assert.equal(worker.terminated, true);
+		assert.equal(controller.isReady.value, false);
+		assert.deepEqual(structuredClone(diagnostic), { message: 'decode failed', origin: nodeId == null ? { source } : { source, nodeId } });
+		if (kind === 'Timeline') assert.equal(controller.getLayerEffectStates('root', 'layer'), undefined);
+		else assert.equal(controller.getLiveEffectState('visualModule', 'node'), undefined);
+		notify('obsolete failure');
+		assert.equal(diagnostic.message, 'decode failed');
+	});
+}
+
 // 【購読をパネル間で共有し、古い編集世代のハンドル情報を採用しない】
 // 一方のPreviewを閉じても他方の購読を維持する。状態の世代は既存RPCに同梱し、
 // 追加の問い合わせなしで、数値編集前の遅延通知による巻き戻しを防ぐ。

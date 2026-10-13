@@ -148,7 +148,7 @@ export class AppContext {
 			},
 		}));
 		for (const controller of [this.visualModuleRendererManagerController, this.timelineRendererManagerController]) {
-			controller.onRenderFailure = error => this.renderEngine.fail(error);
+			controller.onRenderFailure = (error, origin) => this.renderEngine.fail(error, origin);
 		}
 		watch(this.previewPlayback.liveVisualModuleId, id => {
 			if (id != null) return;
