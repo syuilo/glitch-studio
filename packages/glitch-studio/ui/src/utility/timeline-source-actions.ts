@@ -1,4 +1,3 @@
-import { createTransformTimelineLayer } from './transform-timeline-layer.ts';
 import { isTimelineContainerLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import { createTimelineClipTiming, getTimelineClipInsertionDuration } from '@gs/subsystems_timeline_shared/timing.ts';
 import { createTimelineMediaClipTiming } from '@gs/subsystems_timeline_shared/media-timing.ts';
@@ -8,8 +7,14 @@ import { timelineAudioParamDefs } from '@gs/subsystems_timeline_shared/timeline-
 import { timelineCompositingParamDefs } from '@gs/subsystems_timeline_shared/timeline-compositing.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { genId } from '@gs/shared/utility/id.ts';
+import { createTransformTimelineLayer } from './transform-timeline-layer.ts';
+import { createEffectTimelineLayer } from './effect-timeline-layer.ts';
+import { createShapeTimelineLayer } from './shape-timeline-layer.ts';
+import { createCameraTimelineLayer } from './camera-timeline-layer.ts';
+import { createVoicevoxTimelineLayer } from './voicevox-timeline-layer.ts';
+import { createTextTimelineLayer } from './text-timeline-layer.ts';
+import { createInlineVisualModuleLayer } from './inline-visual-module-layer.ts';
 import type { Ref } from 'vue';
-import type { Asset } from '@gs/shared/types.ts';
 import type { EffectDefinition } from '@gs/subsystems_effect_shared/effect-definition.ts';
 import type { TimelineLayer, TimelineScene } from '@gs/subsystems_timeline_shared/types.ts';
 import type { ShapeType } from '@gs/subsystems_timeline_shared/layers/shape/shape.ts';
@@ -18,12 +23,7 @@ import type { COMMAND_DEFS } from '@/commands.ts';
 import type { UndoRedo } from './undo-redo.ts';
 import type { TimelineClipSelection } from './timeline-selection.ts';
 import type { TimelineClipMediaInfo, TimelineClipSourceDurations } from './timeline-clip-media.ts';
-import { createEffectTimelineLayer } from './effect-timeline-layer.ts';
-import { createShapeTimelineLayer } from './shape-timeline-layer.ts';
-import { createCameraTimelineLayer } from './camera-timeline-layer.ts';
-import { createVoicevoxTimelineLayer } from './voicevox-timeline-layer.ts';
-import { createTextTimelineLayer } from './text-timeline-layer.ts';
-import { createInlineVisualModuleLayer } from './inline-visual-module-layer.ts';
+import type { Asset } from '@gs/shared/types.ts';
 
 type TimelineSourceActionsOptions = {
 	stateManager: Pick<UndoRedo<ProjectState, AppStateChange, typeof COMMAND_DEFS>, 'state' | 'commit'>;
@@ -45,7 +45,7 @@ type TimelineSourceActionsOptions = {
 /** 素材・Sceneの選択、クリップの追加・差し替え、レイヤー追加をCommandへつなぐ。DOMとピッカーの寿命は呼び出し側が所有する。 */
 export function createTimelineSourceActions(options: TimelineSourceActionsOptions) {
 	const { stateManager, scene, sceneLayers, currentTime: time, isActive, inspectMedia, ui, pickEffect,
-		desktopAvailable, selectLayer, selectClip, addEmptyGroup, seek, reportError } = options;
+									desktopAvailable, selectLayer, selectClip, addEmptyGroup, seek, reportError } = options;
 	const availableScenes = () => stateManager.state.timelineScenes.value.filter(candidate => canReferenceScene(stateManager.state.timelineScenes.value, scene.id, candidate.id));
 
 	type ClipSource = { kind: 'asset'; asset: Asset; media?: TimelineClipMediaInfo | null } | { kind: 'scene'; scene: TimelineScene };
@@ -198,23 +198,6 @@ export function createTimelineSourceActions(options: TimelineSourceActionsOption
 
 	function showAddLayerMenu(ev: PointerEvent) {
 		ui.popupMenu([{
-			text: 'Group', icon: 'ti ti-folder-plus', action: addEmptyGroup,
-		}, {
-			text: 'Transform', icon: 'ti ti-gizmo',
-			action: () => {
-				const layer = createTransformTimelineLayer();
-				stateManager.commit('addTimelineLayer', { sceneId: scene.id, layer });
-				selectLayer(layer);
-			},
-		}, {
-			text: 'Camera', icon: 'ti ti-camera',
-			action: () => {
-				const layer = createCameraTimelineLayer(Math.max(0, time.value));
-				stateManager.commit('addTimelineLayer', { sceneId: scene.id, layer });
-				selectLayer(layer);
-				seek(layer.clips[0].startMs);
-			},
-		}, {
 			text: 'Effect',
 			icon: 'ti ti-sparkles',
 			action: showAddEffectLayerMenu,
@@ -267,10 +250,6 @@ export function createTimelineSourceActions(options: TimelineSourceActionsOption
 			icon: 'ti ti-chart-dots-3',
 			action: addReferencedVisualModuleLayer,
 		}, {
-			text: 'Scene',
-			icon: 'ti ti-memory',
-			action: () => addMediaLayer('scene'),
-		}, {
 			text: desktopAvailable() ? 'VOICEVOX' : 'VOICEVOX (使用不可)',
 			icon: 'ti ti-microphone',
 			action: () => {
@@ -281,6 +260,33 @@ export function createTimelineSourceActions(options: TimelineSourceActionsOption
 				const layer = createVoicevoxTimelineLayer(Math.max(0, time.value));
 				stateManager.commit('addTimelineLayer', { sceneId: scene.id, layer });
 				selectLayer(layer);
+			},
+		}, {
+			type: 'divider',
+		}, {
+			text: 'Scene',
+			icon: 'ti ti-memory',
+			action: () => addMediaLayer('scene'),
+		}, {
+			text: 'Group',
+			icon: 'ti ti-folder',
+			action: addEmptyGroup,
+		}, {
+			text: 'Transform',
+			icon: 'ti ti-gizmo',
+			action: () => {
+				const layer = createTransformTimelineLayer();
+				stateManager.commit('addTimelineLayer', { sceneId: scene.id, layer });
+				selectLayer(layer);
+			},
+		}, {
+			text: 'Camera',
+			icon: 'ti ti-camera',
+			action: () => {
+				const layer = createCameraTimelineLayer(Math.max(0, time.value));
+				stateManager.commit('addTimelineLayer', { sceneId: scene.id, layer });
+				selectLayer(layer);
+				seek(layer.clips[0].startMs);
 			},
 		}], ev.currentTarget ?? ev.target);
 	}
