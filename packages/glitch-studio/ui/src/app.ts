@@ -1,4 +1,6 @@
 import { createTimelineClipTiming } from '@gs/subsystems_timeline_shared/timing.ts';
+import { createTimelineMediaClipTiming } from '@gs/subsystems_timeline_shared/media-timing.ts';
+import { timelineAudioParamDefs } from '@gs/subsystems_timeline_shared/timeline-audio.ts';
 import { visualModuleCustomParameterId, visualModuleCustomParameterName } from '@gs/subsystems_visual-module_shared/types.ts';
 import { computed, ref, markRaw, watch } from 'vue';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
@@ -13,6 +15,7 @@ import { DEFAULT_PROJECT_NAME, loadProjectFile } from './gsproj.ts';
 import { makeHotkey } from './utility/hotkey.ts';
 import { AppContext } from './AppContext.ts';
 import { ProjectContext } from './Project.ts';
+import { inspectTimelineClipMedia } from './utility/timeline-clip-media.ts';
 import type { ProjectAsset } from './Project.ts';
 import type { Keymap } from './utility/hotkey.ts';
 import type { ProjectVisualModule } from '@gs/glitch-studio_shared/project/types.ts';
@@ -158,6 +161,17 @@ export async function newProjectFromImageOrVideo(file?: File) {
 		hash: result.hash,
 	} satisfies ProjectAsset;
 
+	const videoMedia = result.type.startsWith('video/') ? await inspectTimelineClipMedia(asset) : null;
+	if (videoMedia != null) {
+		if (videoMedia.durationMs < 1) {
+			await ui.alert({ type: 'error', text: 'Media is shorter than 1 ms.' });
+			return false;
+		}
+		if (videoMedia.audioError != null) {
+			await ui.alert({ type: 'warning', title: asset.name, text: videoMedia.audioError });
+		}
+	}
+
 	const player = result.type.startsWith('video/') || result.type.startsWith('audio/') ? {
 		id: genId(),
 		name: result.name,
@@ -251,14 +265,23 @@ export async function newProjectFromImageOrVideo(file?: File) {
 		author: '',
 		visualModules: [initialVisualModule],
 		assets: [asset],
-		players: player ? [player] : [],
+		players: player != null ? [player] : [],
 		generatedSpeech: [],
 		timelineScenes: [{ id: genId(), name: 'Main Scene', resolution: { mode: 'project' }, layers: [{
 			id: genId(),
-			layerType: 'visualModule',
 			isDisabled: false,
-			visualModuleId: initialVisualModule.id,
-			visualModuleParamValues: {},
+			...(videoMedia != null ? {
+				layerType: 'video' as const,
+				name: asset.name,
+				clips: [{ id: genId(), ...createTimelineMediaClipTiming(0, videoMedia.durationMs), assetId: asset.id, audioEnabled: videoMedia.audioAvailable }],
+				audioParamValues: { volume: deepClone(timelineAudioParamDefs.volume.defaultValue) },
+			} : {
+				layerType: 'visualModule' as const,
+				name: 'Visual Module',
+				visualModuleId: initialVisualModule.id,
+				visualModuleParamValues: {},
+				clips: [{ id: genId(), ...createTimelineClipTiming(0, 1000 * 10) }],
+			}),
 			forceDisableMotionBlur: false,
 			coordinateSpace: 'screen',
 			compositingParamValues: deepClone({
@@ -273,7 +296,6 @@ export async function newProjectFromImageOrVideo(file?: File) {
 				rotation: timelineCompositingParamDefs.rotation.defaultValue,
 			}),
 			automationGraphs: [],
-			name: 'Visual Module', clips: [{ id: genId(), ...createTimelineClipTiming(0, 1000 * 10) }],
 		}] }],
 		timelineFps: DEFAULT_TIMELINE_FPS,
 		timelineMotionBlur: { ...DEFAULT_TIMELINE_MOTION_BLUR },
