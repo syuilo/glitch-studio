@@ -1,9 +1,7 @@
-import { scaleResolution } from '@gs/shared/resolution.ts';
 import { ref, shallowRef } from 'vue';
 import type { TimelineTransformPreview } from '@gs/glitch-studio_shared/timeline-transform-preview.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { deepEqual } from '@gs/shared/utility/deep-equal.ts';
-import { validateTimelineFps, validateTimelineMotionBlur } from '@gs/subsystems_timeline_shared/motion-blur.ts';
 import { applyRendererProjectChanges } from '@gs/glitch-studio_shared/project/renderer-state.ts';
 import type { RendererProjectChange, RendererProjectState } from '@gs/glitch-studio_shared/project/renderer-state.ts';
 import { createTimelineRendererManagerWorker } from '@gs/glitch-studio_renderer/client.ts';
@@ -11,7 +9,6 @@ import { RendererManagerControllerBase } from './RendererManagerControllerBase.t
 import { TimelineEffectStateStore } from './utility/timeline-effect-status.ts';
 import type { TimelineRendererManager, TimelineRendererManagerStaticOptions, TimelineRendererManagerDynamicOptions } from '@gs/glitch-studio_renderer/timeline-renderer-manager.ts';
 import type { EffectInstanceState } from '@gs/subsystems_effect_shared/effect-status.ts';
-import * as ui from '@/ui.ts';
 
 export class TimelineRendererManagerController extends RendererManagerControllerBase<TimelineRendererManager> {
 	public readonly canvasRevision = ref(0);
@@ -41,15 +38,14 @@ export class TimelineRendererManagerController extends RendererManagerController
 
 	constructor(staticOptions: TimelineRendererManagerStaticOptions, dynamicOptions: Partial<TimelineRendererManagerDynamicOptions>) {
 		super({
-			getInitialOptions: async (isReload) => {
-				if (isReload) {
-					// 転送済みcanvasは再転送できない。属性を引き継ぎ、表示先への付け替えはUIに通知する。
-					for (const key of ['canvas', 'histogramCanvas', 'waveformHorizontalCanvas', 'waveformVerticalCanvas'] as const) {
-						const previous = this[key];
-						this[key] = previous.cloneNode(false) as HTMLCanvasElement;
-					}
-					this.canvasRevision.value++;
+			getInitialOptions: async () => {
+				// 転送済みcanvasは再転送できないため、起動ごとに属性を引き継いだcanvasを用意する。
+				// 初回も同じ手順に揃え、表示先への付け替えはUIに通知する。
+				for (const key of ['canvas', 'histogramCanvas', 'waveformHorizontalCanvas', 'waveformVerticalCanvas'] as const) {
+					const previous = this[key];
+					this[key] = previous.cloneNode(false) as HTMLCanvasElement;
 				}
+				this.canvasRevision.value++;
 
 				const offscreen = this.canvas.transferControlToOffscreen();
 				const histogramOffscreen = this.histogramCanvas.transferControlToOffscreen();
@@ -80,7 +76,6 @@ export class TimelineRendererManagerController extends RendererManagerController
 			},
 			onError: error => {
 				this.errorMessage.value = error?.message ?? null;
-				if (error != null && !this.isReady.value) this.effectStates.clear();
 			},
 			eventHandlers: {
 				layerTransform: ctx => {
@@ -88,18 +83,15 @@ export class TimelineRendererManagerController extends RendererManagerController
 						&& ctx.revision === this.dynamicOptions.previewRevision) this.layerTransform.value = ctx;
 				},
 				effectState: (ctx) => {
+					if (ctx.status?.status.type === 'error') { this.reportRenderFailure(new Error(ctx.status.status.message)); return; }
 					if (this.isReady.value) this.effectStates.updateNode(ctx.source, ctx.nodeId, ctx.status);
 				},
 				effectLayerState: (ctx) => {
+					if (ctx.status?.status.type === 'error') { this.reportRenderFailure(new Error(ctx.status.status.message)); return; }
 					if (this.isReady.value) this.effectStates.updateLayer(ctx.source, ctx.status);
 				},
 				renderError: (ctx) => {
-					// 描画できないグラフでも、修正するための更新は送り続ける。
-					// 致命的なWorkerエラー後の遅延通知では、そのエラー表示を上書きしない。
-					if (this.isReady.value) {
-						this.errorMessage.value = ctx.message;
-						if (ctx.message == null) this.effectStates.clearLayerErrors();
-					}
+					this.reportRenderFailure(new Error(ctx.message));
 				},
 			},
 			onCreated: () => {
@@ -131,29 +123,6 @@ export class TimelineRendererManagerController extends RendererManagerController
 		this.dynamicOptions = { ...this.dynamicOptions, ...dynamicOptions };
 	}
 
-	public async init(resolution: { width: number; height: number }, resolutionScale = 1) {
-		const renderResolution = scaleResolution(resolution, resolutionScale);
-		this.dynamicOptions.resolutionScale = resolutionScale;
-		if (renderResolution.width > 8192 || renderResolution.height > 8192) {
-			ui.alert({
-				type: 'error',
-				text: 'maximum supported resolution is 8192x8192',
-			});
-			throw new Error('maximum supported resolution is 8192x8192');
-		}
-
-		// 基準寸法と倍率を別々に保存し、計算用寸法の丸めは共通処理で行う。
-		this.dynamicOptions.resolution = {
-			width: Math.max(1, Math.floor(resolution.width)),
-			height: Math.max(1, Math.floor(resolution.height)),
-		};
-
-		this.canvas.width = renderResolution.width;
-		this.canvas.height = renderResolution.height;
-
-		await this.launchManager(false);
-	}
-
 	public async updateDynamicOptions(newDynamicOptions: Partial<TimelineRendererManagerDynamicOptions>) {
 		const options = deepClone(newDynamicOptions);
 		options.previewRevision = this.invalidateTransformPreview();
@@ -164,11 +133,9 @@ export class TimelineRendererManagerController extends RendererManagerController
 			};
 		}
 		this.dynamicOptions = { ...this.dynamicOptions, ...options };
-		// 初回init前の設定は初期化メッセージに含める。初期化中はRPCのキューに積む。
+		// 初回起動前の設定は初期化メッセージに含める。初期化中はRPCのキューに積む。
 		if (!this.isReady.value && !this.isInitializing) return { assetsCommitted: null };
-		const result = await this.callAndWaitReturn('updateDynamicOptions', [options]);
-		this.effectStates.clearLayerErrors();
-		return result;
+		return this.callAndWaitReturn('updateDynamicOptions', [options]);
 	}
 
 	public async replaceProjectState(state: RendererProjectState) {
@@ -179,7 +146,6 @@ export class TimelineRendererManagerController extends RendererManagerController
 		if (!this.isReady.value && !this.isInitializing) return;
 		if (!this.initialSnapshotTaken) return this.initializationReady;
 		await this.callAndWaitReturn('replaceProjectState', [snapshot, revision]);
-		this.effectStates.clearLayerErrors();
 	}
 
 	public async applyProjectChanges(changes: readonly RendererProjectChange[]) {
@@ -193,13 +159,10 @@ export class TimelineRendererManagerController extends RendererManagerController
 		// 更新を初期化後に再生すると失敗するため、送信境界以降だけをキューへ積む。
 		if (!this.initialSnapshotTaken) return this.initializationReady;
 		await this.callAndWaitReturn('applyProjectChanges', [patch, revision]);
-		this.effectStates.clearLayerErrors();
 	}
 
 	public async updateStaticOptions(newStaticOptions: Partial<TimelineRendererManagerStaticOptions>): Promise<void> {
 		const options = { ...this.staticOptions, ...deepClone(newStaticOptions) };
-		validateTimelineFps(options.timelineFps);
-		validateTimelineMotionBlur(options.timelineMotionBlur);
 		this.staticOptions = options;
 		// 解放中は設定のみ保持する。Worker障害時は再生成して復旧できるようにする。
 		if (!this.hasManager && !this.isInitializing) return;
@@ -212,7 +175,7 @@ export class TimelineRendererManagerController extends RendererManagerController
 	}
 
 	public renderTimelineAt(time: number) {
-		this.call('renderTimelineAt', [time]);
+		if (this.isReady.value) this.call('renderTimelineAt', [time]);
 	}
 
 	private invalidateTransformPreview() {

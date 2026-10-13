@@ -180,6 +180,16 @@ test('resolves relays on both sides of a bypassed effect', t => {
 	assert.equal(f.calls.renders.length, 0);
 });
 
+// 【公開入力の評価値からバイパスの接続を動的に作らない】
+// 静的検証したBindingにない自己参照を、値のobjectから作ると循環検査の前提が崩れる。
+test('does not interpret evaluated parameter objects as bypass connections', t => {
+	const f = fixture(t, [effectNode('bypass', { input: { inputSource: 'externalCustomParameterInput', parameterId: 'input' } }, true)], { paramDefs: { input: colorInput } });
+	f.module.paramDefs[0].canNode = false;
+	const ctx = { ...context(), evaluatedParamValues: new Map([['input', { nodeId: 'bypass', outputPort: 'output' }]]) };
+	assert.equal(f.render(ctx), undefined);
+	assert.equal(f.calls.renders.length, 0);
+});
+
 for (const input of [{ nodeId: null, outputPort: null }, reference('missing'), reference('in', 'missing')]) {
 	// 未接続・欠落した参照は出力なしとして扱う
 	// 前段の削除や交換の途中に古い出力を公開せず、Outノードの未接続と同じように扱う。
@@ -218,17 +228,3 @@ test('honors any compatibility without converting the output', t => {
 	const output = { kind: 'uniform', value: [0.125] };
 	assert.equal(f.render(context(output)), output);
 });
-
-for (const nodes of [
-	[relay('relay', reference('relay'))],
-	[relay('first', reference('second')), relay('second', reference('first'))],
-	[relay('relay', reference('effect')), effectNode('effect', { input: connection('relay') })],
-]) {
-	// 自己参照・中継同士・エフェクトを含む循環を検出する
-	// 配線の整理中にも循環は発生し得るため、準備や描画が無限再帰して停止する前に報告する。
-	test(`rejects cycles through ${nodes.map(node => node.id).join(' and ')}`, async t => {
-		const f = fixture(t, nodes, { paramDefs: { input: colorInput } });
-		await assert.rejects(f.renderer.prepare(context(), new AbortController().signal), /circular dependency/);
-		assert.throws(() => f.render(), /circular dependency/);
-	});
-}

@@ -4,7 +4,7 @@ import { visualModuleTargetKey } from '@gs/glitch-studio_shared/project/visual-m
 import { getRendererLayerState } from '@gs/glitch-studio_shared/project/renderer-state.ts';
 import { findVisualModule } from './utility/visual-module-target.ts';
 import type { VisualModuleTarget } from '@gs/glitch-studio_shared/project/visual-module-target.ts';
-import type { RendererProjectChange, RendererProjectState } from '@gs/glitch-studio_shared/project/renderer-state.ts';
+import type { RendererProjectChange } from '@gs/glitch-studio_shared/project/renderer-state.ts';
 import type { ProjectContentChange, ProjectContext } from './Project.ts';
 
 function mergeChanges<T>(previous: readonly T[], next: readonly T[]): T[] {
@@ -21,7 +21,6 @@ export class RendererProjectSynchronizer {
 
 	constructor(private manager: ProjectContext['stateManager'], private destination: {
 		apply: (changes: RendererProjectChange[]) => Promise<void>;
-		replace: (state: RendererProjectState) => Promise<void>;
 		onUpdated: () => void;
 		onError: (error: unknown) => void;
 	}) {
@@ -46,10 +45,6 @@ export class RendererProjectSynchronizer {
 			this.scheduled = true;
 			queueMicrotask(() => { this.scheduled = false; void this.flush().catch(error => this.destination.onError(error)); });
 		});
-	}
-
-	public snapshot(): RendererProjectState {
-		return { visualModules: this.manager.state.visualModules.value, timelineScenes: this.manager.state.timelineScenes.value };
 	}
 
 	public async flush(): Promise<void> {
@@ -102,12 +97,12 @@ export class RendererProjectSynchronizer {
 		// 階層を先に反映し、新しい所属先へのノード編集→引数更新→順序の順で適用する。
 		const rank = (change: RendererProjectChange) => change.type === 'layerTree' ? -1 : change.type === 'layerOrder' ? 2 : change.type === 'layer' ? 1 : 0;
 		changes.sort((a, b) => rank(a) - rank(b));
-		const update = this.destination.apply(deepClone(changes)).catch(async error => {
-			if (this.disposed) return;
-			// RPCの適用失敗は最新の確定状態から復旧する。古い差分をリプレイしない。
-			this.destination.onError(error);
-			await this.destination.replace(deepClone(this.snapshot()));
-		}).then(() => { if (!this.disposed) this.destination.onUpdated(); });
+		const update = this.destination.apply(deepClone(changes)).then(() => {
+			if (!this.disposed) this.destination.onUpdated();
+		}, error => {
+			// 同期は差分の送信だけを担当する。失敗後の破棄・再生成はエンジンの所有者に委ねる。
+			if (!this.disposed) this.destination.onError(error);
+		});
 		const pending = Promise.all([this.inFlight, update]).then(() => {});
 		this.inFlight = pending;
 		void pending.finally(() => { if (this.inFlight === pending) this.inFlight = Promise.resolve(); }).catch(() => {});

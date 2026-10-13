@@ -4,7 +4,7 @@ import { TimelineParameterBindingEvaluator } from '@gs/subsystems_timeline_share
 import { validateEnumParameterValue } from '@gs/shared/parameter/parameter-definition.ts';
 import { coerceParameterValue } from '@gs/shared/parameter/coerce-parameter-value.ts';
 import { createTimelineLayerEvaluationScope } from '@gs/subsystems_timeline_shared/evaluation-scope.ts';
-import { getEffectLayerParameterDefault, validateTimelineEffectLayer } from '@gs/subsystems_timeline_shared/layers/effect/effect-layer.ts';
+import { getEffectLayerParameterDefault } from '@gs/subsystems_timeline_shared/layers/effect/effect-layer.ts';
 import { toShaderInput } from '@gs/shared/gpu/shader-input.ts';
 import { EffectRenderer } from '@gs/subsystems_effect_renderer/effect-renderer.ts';
 import { resolveEffectParameterValue } from '@gs/subsystems_effect_renderer/effect-parameter-value.ts';
@@ -42,7 +42,6 @@ export function createEffectTimelineLayer(layer: TimelineEffectLayer, definition
 }): TimelineLayerRenderer<TimelineImage> {
 	// 設定更新時はManagerがインスタンスを作り直す。Bindingの検証と既定値の補完は
 	// 受け入れ時に行い、毎フレーム、未評価のキーフレーム列まで複製・再検証しない。
-	validateTimelineEffectLayer(layer, definition);
 	const port = definition.primaryOutput;
 	// 出力のないエフェクトは透明画像としてreplaceせず、合成自体をスキップする。
 	if (port == null) return { evaluate: async () => ({ gpuTime: 0 }), destroy() {} };

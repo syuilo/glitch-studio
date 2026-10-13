@@ -1,6 +1,4 @@
 import { getReferencedGeneratedSpeech } from '@gs/glitch-studio_shared/voicevox.ts';
-import { validateTimelineFps, validateTimelineMotionBlur } from '@gs/subsystems_timeline_shared/motion-blur.ts';
-import { validateTimelineScenes } from '@gs/subsystems_timeline_shared/scenes.ts';
 import * as msgpack from '@msgpack/msgpack';
 import semverGt from 'semver/functions/gt.js';
 import type { GeneratedSpeech } from '@gs/glitch-studio_shared/voicevox.ts';
@@ -79,9 +77,6 @@ export function decodeProjectFile(bin: Uint8Array, currentVersion?: string): Pro
 	if (currentVersion != null && semverGt(project.gsVersion, currentVersion)) {
 		throw new Error(`未来のバージョンのプロジェクトファイルの読み込みはサポートしていません。（ファイル: ${project.gsVersion} / 現在: ${currentVersion}）`);
 	}
-	validateTimelineScenes(project.timelineScenes);
-	validateTimelineFps(project.timelineFps);
-	validateTimelineMotionBlur(project.timelineMotionBlur);
 	return {
 		...project,
 		generatedSpeech: project.generatedSpeech.map(speech => ({ ...speech, fileData: new Blob([new Uint8Array(speech.fileData)], { type: 'audio/wav' }) })),

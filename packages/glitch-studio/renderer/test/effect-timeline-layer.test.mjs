@@ -221,8 +221,7 @@ test('keeps child scene instances while applying its current layer tree', async 
 
 // 【直接エフェクトの編集では対象レイヤーだけを再生成する】
 // この種類の編集では対象の履歴リセットを許容するが、全タイムラインのリセットにはしない。
-// 不正なバッチは先行する編集も反映せず、次の正常な描画・編集を続けられる必要がある。
-test('recreates only an edited effect layer and rejects invalid batches atomically', async t => {
+test('recreates only an edited effect layer', async t => {
 	const f = fixture(t);
 	const first = layer('first', { amount: literal(1) });
 	const second = layer('second', { amount: literal(2) });
@@ -233,7 +232,6 @@ test('recreates only an edited effect layer and rejects invalid batches atomical
 	const edited = structuredClone(first);
 	edited.effectParamValues.amount = literal(3);
 	const patch = { type: 'layer', sceneId: 'scene', layerId: first.id, layer: edited, changes: [{ type: 'parameter', target: 'effect', kind: 'value' }] };
-	assert.throws(() => f.manager.applyProjectChanges([patch, { type: 'layerOrder', sceneId: 'scene', layerIds: ['missing'] }]), /Invalid layer order/);
 	await f.manager.renderTimelineFrame(350, 20);
 	assert.equal(firstInstance.disposed, false);
 	assert.equal(f.calls.renders.at(-1).params.amount, 1);
@@ -430,17 +428,7 @@ test('snapshots evaluated leaf arrays before asynchronous preparation', async t 
 	assert.deepEqual(f.calls.renders[0].params.vectors, [[1, 2]]);
 });
 
-// 【レイヤーのBinding制約は描画開始前の受け入れ境界で検証する】
-// 毎フレームの検証を省く代わりに、不正なネスト接続を持つインスタンスを作らせない。
-// Manager経由の更新とアダプターの直接利用の両方で、GPU処理前に拒否する。
-test('rejects invalid nested bindings when accepting layer settings', async t => {
-	const f = fixture(t);
-	const invalid = layer('effect');
-	invalid.effectParamValues.buzzs.value[0].binding.value.image = { inputSource: 'node', nodeId: 'outside' };
-	assert.throws(() => createEffectTimelineLayer(invalid, definition, f.implementation, f.directOptions), /Unsupported layer parameter input source/);
-	await assert.rejects(f.setup([invalid]), /Unsupported layer parameter input source/);
-	assert.equal(f.calls.instances.length, 0);
-});
+
 
 // 【グループ内のエフェクト状態を所属Sceneのレイヤーとして取得できる】
 // グループをSceneの配置と同じパス要素にすると、詳細パネルが状態やエラーを見つけられない。

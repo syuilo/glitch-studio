@@ -34,6 +34,10 @@ Scene・レイヤー・クリップと、その時間・合成・音声設定の
 
 `parameter-binding.ts`で保存データの制約を配列・構造体内部まで検証し、`TimelineParameterBindingEvaluator`はCPU値として扱えるBindingだけを共通評価器へ渡す。`layerInput`はTimeline Renderer内のエフェクトレイヤーが下層の合成結果として解決する。他ドメインの入力方式を列挙せず、このスコープが扱える方式だけを受け入れる。
 
+UIの静的検証で使う`inspectTimelineLayer()`は、`validateTimelineLayerStructure()`でレイヤー自身の区間・解像度・固有設定を検証し、パラメータは`validateTimelineParameterTree()`で一度だけ走査する。コンテナの構造・末端の入力方式の検証と、呼び出し側による参照収集を同じ走査で行う。子レイヤーの検証は含めず、それぞれを独立した検証単位として扱う。
+
+Scene一覧の重複ID・参照先の欠落・循環参照などの診断は、状態を所有する呼び出し側が管理する。`scenes.ts`の`canReferenceScene()`は追加する参照の選択可否を扱い、Scene一覧全体を検証する入口は設けない。
+
 `getSceneAudioClips(scenes, sceneId, selection)`は音声計画を作る。選択は`{ type: 'all' }`（既定値）、`{ type: 'belowLayer', layerId }`、`{ type: 'layer', layerId }`。下層指定では自分と上層を除外し、レイヤー指定では並び順によらず指定レイヤー単体の出力を使う。下層指定はTransformの境界を透過し、最も近いGroupまたはSceneの下層までを対象にし、指定レイヤーの取得はScene内のグループをまたいで解決する。参照先の祖先の音量は含めないが、祖先が無効なら入力なしとする。選んだSceneレイヤーはその配置のトリムと音量を適用した子Scene全体を含める。子Scene内部のレイヤーは直接選べない。無効レイヤー・音声無効の動画を除外し、各階層の音量はミックス側へ渡す。`primaryAudioInputParameter` / `primaryAudioInputId`を持つエフェクト・Visual Moduleの主音声入力は、初期値・リセット時に`lowerLayerAudio`になる。画像の主入力と合成設定は独立する。
 
 `motion-blur.ts`はシャッター角・サンプル数の設定と検証、最上位Sceneの端と映像クリップ境界の収集、中央露光のサンプル時刻計算を担当する。子Sceneのブラー対象のカットは配置の内容オフセットを反映し、表示区間内だけ親へ渡す。子Sceneの長さ自体は境界に含めず、固定・非表示・音声レイヤーの終端がSceneの長さを通じて露光を制限することを防ぐ。映像レイヤーの`forceDisableMotionBlur`がtrueなら、その枝のカットとループ境界を露光制限から除外する。グループ・Sceneの配下も除外するが、Sceneの長さや子の保存設定は変更しない。切り詰めた露光区間へ指定数のサンプルを等間隔で再配置するため、重みは均等で合計1となる。0・1サンプル、角度0、無効時は基準時刻を1回評価する。時間は整数msに丸めない。
@@ -82,6 +86,6 @@ Scene直下またはTransform配下の`camera`レイヤーは`cameraParamValues`
 
 カメラ選択はTransformだけを再帰し、無効な枝を除いた表示順で行う。カメラ配下の計算ではなく、Scene側で選択したカメラの祖先を評価するため循環しない。祖先Transformのブラー無効は子のクリップ選択とカット計画にも引き継ぐ。カメラ自身だけを固定した場合は祖先のサンプル時刻を維持する。
 
-Groupを祖先に持つカメラも保存・読み込み・状態同期の構造検証では受け入れる。配置の描画可否は`TimelineSceneCamera.evaluate()`で検証し、無効な枝やクリップ期間外も含めてエラーにする。描画対象Sceneごとに検証するため、参照先SceneのエラーはそのSceneを描画するときに伝わる。編集側で配置を拒否せず、既存の描画エラー通知と修正後の再評価を利用できる。
+Groupを祖先に持つカメラはUIの静的検証で診断する。無効な枝やクリップ期間外も含めてプロジェクト全体の描画を停止する。`TimelineSceneCamera.evaluate()`は検証済みの階層から選択・評価だけを行い、配置の検証を繰り返さない。
 
 音声計画はTransformを音量なしで透過し、下層入力も外側へ継続する。Group・Sceneは従来の合成境界を維持する。

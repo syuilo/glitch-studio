@@ -1,7 +1,8 @@
-import { type ParameterDefinition, getArrayElementDefinition, getStructFieldDefinitions } from '@gs/shared/parameter/parameter-definition.ts';
+import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definition.ts';
 import { isValueParameterBinding } from '@gs/shared/parameter/parameter-binding.ts';
+import { inspectStaticParameter } from '@gs/shared/parameter/static-parameter.ts';
 import { validateLiteralAudioSourceBinding } from '@gs/shared/parameter/audio-source.ts';
-import type { ParameterArrayElement, ParameterBindingBase } from '@gs/shared/parameter/parameter-binding.ts';
+import type { ParameterBindingBase } from '@gs/shared/parameter/parameter-binding.ts';
 import type { ValueParameterBinding } from '@gs/shared/parameter/value-parameter-binding.ts';
 import type { FitMode, WrapMode } from '@gs/shared/types.ts';
 
@@ -56,25 +57,22 @@ export function validateTimelineParameterBinding(binding: ParameterBindingBase, 
 	}
 }
 
-/** 保存と評価で同じ制約を使い、配列内への不正なBindingの混入も防ぐ。互換性の強制はUI設定に従う。 */
+/**
+ * コンテナの構造と末端の入力方式を、一度のツリー走査で検証する。
+ * 参照の収集も同じ走査へ渡せるようにし、検証後に同じパラメータをたどり直さない。
+ * 通常のliteral値の妥当性は、評価結果を扱う側に残す。
+ */
 export function validateTimelineParameterTree(def: ParameterDefinition, binding: ParameterBindingBase, allowLayerInput?: false): asserts binding is TimelineParameterBinding;
-export function validateTimelineParameterTree(def: ParameterDefinition, binding: ParameterBindingBase, allowLayerInput: boolean, allowAudioInput?: boolean): asserts binding is TimelineEffectParameterBinding;
-export function validateTimelineParameterTree(def: ParameterDefinition, binding: ParameterBindingBase, allowLayerInput = false, allowAudioInput = allowLayerInput): asserts binding is TimelineEffectParameterBinding {
-	validateTimelineParameterBinding(binding, allowLayerInput && def.canNode === true, allowAudioInput && def.dataType.kind === 'audioSource');
-	if (def.dataType.kind === 'audioSource') {
-		if (isTimelineAudioInputBinding(binding)) return;
-		validateLiteralAudioSourceBinding(binding);
-		if (binding.value !== null) throw new Error('Timeline audio literals must be unselected');
-		return;
-	}
-	if (def.dataType.kind !== 'array' && def.dataType.kind !== 'struct') return;
-	if (binding.inputSource !== 'literal') throw new Error('Container parameter must be literal');
-	if (def.dataType.kind === 'array') {
-		if (!Array.isArray(binding.value)) throw new Error('Expected array parameter');
-		const elements = binding.value as ParameterArrayElement<ParameterBindingBase>[];
-		if (new Set(elements.map(element => element.id)).size !== elements.length) throw new Error('Duplicate array element ID');
-		for (const element of elements) validateTimelineParameterTree(getArrayElementDefinition(def), element.binding, allowLayerInput, allowAudioInput);
-	} else {
-		for (const [key, field] of Object.entries(getStructFieldDefinitions(def))) validateTimelineParameterTree(field, binding.value[key], allowLayerInput, allowAudioInput);
-	}
+export function validateTimelineParameterTree(def: ParameterDefinition, binding: ParameterBindingBase, allowLayerInput: boolean, allowAudioInput?: boolean,
+	onValue?: (definition: ParameterDefinition, binding: ParameterBindingBase) => void): asserts binding is TimelineEffectParameterBinding;
+export function validateTimelineParameterTree(def: ParameterDefinition, binding: ParameterBindingBase, allowLayerInput = false, allowAudioInput = allowLayerInput,
+	onValue?: (definition: ParameterDefinition, binding: ParameterBindingBase) => void): asserts binding is TimelineEffectParameterBinding {
+	inspectStaticParameter(def, binding, (leaf, value) => {
+		validateTimelineParameterBinding(value, allowLayerInput && leaf.canNode === true, allowAudioInput && leaf.dataType.kind === 'audioSource');
+		if (leaf.dataType.kind === 'audioSource' && !isTimelineAudioInputBinding(value)) {
+			validateLiteralAudioSourceBinding(value);
+			if (value.value !== null) throw new Error('Timeline audio literals must be unselected');
+		}
+		onValue?.(leaf, value);
+	});
 }

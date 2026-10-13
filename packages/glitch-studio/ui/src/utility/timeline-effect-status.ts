@@ -31,21 +31,8 @@ export class TimelineEffectStateStore {
 		if (status != null) {
 			this.layerStates.set(key, { instanceId: source.instanceId, state: status });
 		} else if (entry?.instanceId === source.instanceId) {
-			// TimelineRendererは描画失敗時にもリソースを破棄する。そのnull通知で
-			// 原因まで消さず、復旧・設定更新までは最後のエラーを表示する。
-			// 破棄した出力の寸法は表示しない。
-			if (entry.state.status.type === 'error') {
-				this.layerStates.set(key, { ...entry, state: { status: entry.state.status,
-					outputs: Object.fromEntries(Object.keys(entry.state.outputs).map(port => [port, null])) } });
-			} else {
-				this.layerStates.delete(key);
-			}
-		}
-	}
-
-	public clearLayerErrors() {
-		for (const [key, entry] of this.layerStates) {
-			if (entry.state.status.type === 'error') this.layerStates.delete(key);
+			// 旧クリップの破棄通知で、新しい実行インスタンスの状態を消さない。
+			this.layerStates.delete(key);
 		}
 	}
 

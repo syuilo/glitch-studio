@@ -23,6 +23,7 @@ const bundled = await build({
 		export * from './src/utility/timeline-scene.ts';
 		export { createVoicevoxTimelineLayer } from './src/utility/voicevox-timeline-layer.ts';
 		export { COMMAND_DEFS } from './src/commands.ts';
+		export { ProjectRenderValidation } from './src/ProjectRenderValidation.ts';
 		export { UndoRedo } from './src/utility/undo-redo.ts';
 		export { getTimelineClipMoveBounds, getTimelineClipEnd } from '@gs/subsystems_timeline_shared/timing.ts';
 		export { paramPathKey } from '@gs/shared/parameter/parameter-path.ts';
@@ -41,7 +42,7 @@ const bundled = await build({
 });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', bundled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
-const { COMMAND_DEFS, UndoRedo, prepareTimelineContainerMove, duplicateTimelineLayers, findTimelineLayer,
+const { COMMAND_DEFS, UndoRedo, ProjectRenderValidation, prepareTimelineContainerMove, duplicateTimelineLayers, findTimelineLayer,
 	createVoicevoxTimelineLayer, applyRendererProjectChanges, findRendererVisualModule, createTimelineLayerActions } = module.exports;
 const literal = value => ({ inputSource: 'literal', value });
 const keys = times => ({ inputSource: 'keyframesTimelineInline', offsetMode: 'start', wrapMode: 'clamp', trimmedDurationMs: null,
@@ -57,6 +58,59 @@ function fixture(t, layers) {
 	const state = { timelineScenes: { value: [scene] }, visualModules: { value: [] }, assets: { value: [] } };
 	return { scene, state, history: new UndoRedo(state, COMMAND_DEFS) };
 }
+
+function observeValidation(f) {
+	const validation = new ProjectRenderValidation({ ...f.state, players: { value: [] }, resolution: { value: { width: 16, height: 16 } },
+		timelineFps: { value: 60 }, timelineMotionBlur: { value: { enabled: false, shutterAngle: 180, samples: 0 } } }, {});
+	validation.reset();
+	f.history.onChange(changes => validation.update(changes));
+	return validation;
+}
+
+// 【別Sceneに静的エラーがあっても、階層編集とScene追加を妨げない】
+// Commandで全Sceneを再検証すると、無関係なエラーを修正するための操作まで失敗する。
+// 診断を保持したまま変更対象だけを検証し、Undo/Redoでも同じ経路を使うことを確認する。
+test('edits a tree and adds a scene without revalidating unrelated scene parameters', t => {
+	const f = fixture(t, [group('first'), group('second')]);
+	const brokenLayer = group('broken-layer');
+	brokenLayer.compositingParamValues.opacity = { inputSource: 'node', nodeId: 'missing' };
+	f.state.timelineScenes.value.push({ id: 'broken', name: 'Broken', resolution: { mode: 'project' }, layers: [brokenLayer] });
+	const validation = observeValidation(f);
+	const diagnostic = validation.errorMessage.value;
+	assert.match(diagnostic, /Unsupported layer parameter input source/);
+	let reads = 0;
+	const brokenParameters = brokenLayer.compositingParamValues;
+	Object.defineProperty(brokenLayer, 'compositingParamValues', { get() { reads++; return brokenParameters; } });
+	f.history.commit('groupTimelineLayers', { sceneId: 'scene', layerIds: ['first', 'second'], group: group('parent') });
+	assert.equal(validation.errorMessage.value, diagnostic);
+	f.history.undo();
+	f.history.redo();
+	f.history.commit('addScene', { id: 'added', name: 'Added', resolution: { mode: 'project' }, layers: [] });
+	assert.equal(validation.errorMessage.value, diagnostic);
+	f.history.undo();
+	f.history.redo();
+	assert.equal(reads, 0);
+	assert.deepEqual(f.scene.layers[0].layers.map(layer => layer.id), ['first', 'second']);
+	assert.equal(f.state.timelineScenes.value.at(-1).id, 'added');
+});
+
+// 【Scene追加の静的エラーはCommandを拒否せず診断し、Undoで解除する】
+// 不正な編集状態もプロジェクトに保持する方針に揃え、検証の入口を二重にしない。
+// ID衝突だけはUndoで別Sceneを削除し得るため、追加前に拒否する必要がある。
+test('diagnoses added scene settings through validation while rejecting duplicate scene IDs', t => {
+	const f = fixture(t, []);
+	const validation = observeValidation(f);
+	const added = { id: 'added', name: 'Added', resolution: { mode: 'customAbsolute', width: 0, height: 0 }, layers: [] };
+	f.history.commit('addScene', added);
+	assert.notEqual(validation.errorMessage.value, null);
+	assert.equal(f.state.timelineScenes.value.at(-1).id, 'added');
+	f.history.undo();
+	assert.equal(validation.errorMessage.value, null);
+	f.history.redo();
+	assert.notEqual(validation.errorMessage.value, null);
+	assert.throws(() => f.history.commit('addScene', added), /Duplicate scene ID/);
+	assert.equal(f.state.timelineScenes.value.length, 2);
+});
 
 function layerMenuFixture(f, ids, overrides = {}) {
 	const selection = { value: { kind: 'layers', ids } };

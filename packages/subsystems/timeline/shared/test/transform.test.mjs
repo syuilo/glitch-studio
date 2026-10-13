@@ -8,7 +8,7 @@ const { createTimelineTransformParameterValues } = await load('layers/transform/
 const { TimelineTransformParameters } = await load('layers/transform/transform-parameters.ts');
 const { createTimelineCameraParameterValues, DEFAULT_CAMERA_DISTANCE } = await load('layers/camera/camera.ts');
 const { TimelineSceneCamera, TimelineCameraCuts, getActiveTimelineCamera } = await load('scene-camera.ts');
-const { validateTimelineScenes, getSceneDuration } = await load('scenes.ts');
+const { getSceneDuration } = await load('scenes.ts');
 const { getSceneAudioClips } = await load('scene-audio.ts');
 const { getTimelineContainerRange } = await load('container-range.ts');
 const { getTimelineMotionBlurCameraCuts, getTimelineMotionBlurBoundaries } = await load('motion-blur.ts');
@@ -51,7 +51,6 @@ test('selects cameras in depth-first order and plans cuts using inherited visibi
 	const lower = camera('lower', 0, 500);
 	const parent = transform('parent', [transform('inner', [upper])]);
 	const layers = [parent, lower];
-	validateTimelineScenes([scene(layers)]);
 	assert.equal(getActiveTimelineCamera(layers, 150).layer.id, 'upper');
 	assert.equal(getActiveTimelineCamera(layers, 200).layer.id, 'lower');
 	assert.deepEqual(new TimelineCameraCuts(layers).getBoundaries(150), [0, 100, 200, 500]);
@@ -66,15 +65,7 @@ test('selects cameras in depth-first order and plans cuts using inherited visibi
 	assert.deepEqual(new TimelineCameraCuts(layers).getBoundaries(150), [0, 500]);
 });
 
-// 【Groupの間にTransformが入っていても、カメラの配置エラーを描画時に検出する】
-// 無効なTransform配下も保存・編集できる一方、カメラ選択から除外するだけで誤った映像を返してはいけない。
-test('accepts nested transforms in scene data while rejecting grouped cameras for rendering', () => {
-	const nested = camera('Nested camera');
-	const parent = transform('outer', [group([transform('inner', [nested])])]);
-	parent.isDisabled = true;
-	assert.doesNotThrow(() => validateTimelineScenes([scene([parent])]));
-	assert.throws(() => new TimelineSceneCamera().evaluate([parent], 0, false), /Camera "Nested camera" is inside a Group/);
-});
+
 
 // 【Transformは音量・合成境界を増やさず、時間範囲と無効化は子孫を含める】
 // 下層音声がTransformの外側まで届く一方、Groupの境界は越えないことを保証する。

@@ -1,4 +1,3 @@
-import { scaleResolution } from '@gs/shared/resolution.ts';
 import { ref, shallowReactive } from 'vue';
 import { deepEqual } from '@gs/shared/utility/deep-equal.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
@@ -58,15 +57,14 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 
 	constructor(staticOptions: VisualModuleRendererManagerStaticOptions, dynamicOptions: Partial<VisualModuleRendererManagerDynamicOptions>, audioOutput: AudioOutput) {
 		super({
-			getInitialOptions: async (isReload) => {
-				if (isReload) {
-					// 転送済みcanvasは再転送できない。属性を引き継ぎ、表示先への付け替えはUIに通知する。
-					for (const key of ['canvas', 'histogramCanvas', 'waveformHorizontalCanvas', 'waveformVerticalCanvas'] as const) {
-						const previous = this[key];
-						this[key] = previous.cloneNode(false) as HTMLCanvasElement;
-					}
-					this.canvasRevision.value++;
+			getInitialOptions: async () => {
+				// 転送済みcanvasは再転送できないため、起動ごとに属性を引き継いだcanvasを用意する。
+				// 初回も同じ手順に揃え、表示先への付け替えはUIに通知する。
+				for (const key of ['canvas', 'histogramCanvas', 'waveformHorizontalCanvas', 'waveformVerticalCanvas'] as const) {
+					const previous = this[key];
+					this[key] = previous.cloneNode(false) as HTMLCanvasElement;
 				}
+				this.canvasRevision.value++;
 
 				const offscreen = this.canvas.transferControlToOffscreen();
 				const histogramOffscreen = this.histogramCanvas.transferControlToOffscreen();
@@ -107,6 +105,7 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 					this.gpuMemoryUsage.value = ctx.usage;
 				},
 				effectState: (ctx) => {
+					if (ctx.status?.status.type === 'error') { this.reportRenderFailure(new Error(ctx.status.status.message)); return; }
 					const { source, nodeId, status } = ctx;
 					this.liveEffectStateStore.update(source, nodeId, status);
 				},
@@ -118,9 +117,7 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 					this.gpuAverageDisplaySlow.value = ctx.gpuAverageSlow * 1.2;
 				},
 				renderError: (ctx) => {
-					// 描画できないグラフでも、修正するための更新は送り続ける。
-					// 致命的なWorkerエラー後の遅延通知では、そのエラー表示を上書きしない。
-					if (this.isReady.value) this.errorMessage.value = ctx.message;
+					this.reportRenderFailure(new Error(ctx.message));
 				},
 			},
 			onCreated: () => {
@@ -192,29 +189,6 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 		if (this.inFlightVideoFrames.get(playerId) !== id) return;
 		this.inFlightVideoFrames.delete(playerId);
 		this.sendPendingVideoFrame(playerId);
-	}
-
-	public async init(resolution: { width: number; height: number }, resolutionScale = 1) {
-		const renderResolution = scaleResolution(resolution, resolutionScale);
-		this.dynamicOptions.resolutionScale = resolutionScale;
-		if (renderResolution.width > 8192 || renderResolution.height > 8192) {
-			ui.alert({
-				type: 'error',
-				text: 'maximum supported resolution is 8192x8192',
-			});
-			throw new Error('maximum supported resolution is 8192x8192');
-		}
-
-		// 基準寸法と倍率を別々に保存し、計算用寸法の丸めは共通処理で行う。
-		this.dynamicOptions.resolution = {
-			width: Math.max(1, Math.floor(resolution.width)),
-			height: Math.max(1, Math.floor(resolution.height)),
-		};
-
-		this.canvas.width = renderResolution.width;
-		this.canvas.height = renderResolution.height;
-
-		await this.launchManager(false);
 	}
 
 	public startLiveRenderLoopFor(visualModuleId: ProjectVisualModule['id'], paramValues: VisualModuleArgumentBindings = {}) {
@@ -366,7 +340,7 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 			};
 		}
 		this.dynamicOptions = { ...this.dynamicOptions, ...options };
-		// 初回init前の設定は初期化メッセージに含める。初期化中はRPCのキューに積む。
+		// 初回起動前の設定は初期化メッセージに含める。初期化中はRPCのキューに積む。
 		if (!this.isReady.value && !this.isInitializing) return { assetsCommitted: null };
 		const result = await this.callAndWaitReturn('updateDynamicOptions', [options]);
 		if (result.assetsCommitted && options.assets === this.dynamicOptions.assets) {

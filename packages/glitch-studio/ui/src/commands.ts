@@ -1,6 +1,5 @@
 import { isTimelineContainerLayer, isTimelineVisualLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import { flattenTimelineLayers, findTimelineLayer, findTimelineLayerLocation, getTimelineClipLayers, updateTimelineLayer } from '@gs/subsystems_timeline_shared/layer-tree.ts';
-import { validateVoicevoxSubtitle } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox-subtitle-validation.ts';
 import { validateVoicevoxLayer } from '@gs/subsystems_timeline_shared/layers/voicevox/voicevox.ts';
 import { validateTimelineFps, validateTimelineMotionBlur } from '@gs/subsystems_timeline_shared/motion-blur.ts';
 import { resolveParameter, walkParameters } from '@gs/shared/parameter/parameter-path.ts';
@@ -11,10 +10,8 @@ import { mapParameterTree } from '@gs/shared/parameter/parameter-tree.ts';
 import { validateLiteralAudioSourceBinding } from '@gs/shared/parameter/audio-source.ts';
 import { validatePlayerAudioSourceSelection } from '@gs/glitch-studio_shared/player-audio-source.ts';
 import { createLayerInputBinding, getEffectLayerParameterDefault, validateTimelineEffectLayer } from '@gs/subsystems_timeline_shared/layers/effect/effect-layer.ts';
-import { validateTimelineText } from '@gs/subsystems_timeline_shared/layers/text/text-layer.ts';
-import { validateTimelineShape } from '@gs/subsystems_timeline_shared/layers/shape/shape-layer.ts';
 import { validateEffectResolution } from '@gs/subsystems_effect_shared/resolution.ts';
-import { canReferenceScene, validateTimelineLayer, validateTimelineScenes } from '@gs/subsystems_timeline_shared/scenes.ts';
+import { canReferenceScene, validateTimelineLayer } from '@gs/subsystems_timeline_shared/scenes.ts';
 import { getTimelineClipTrimBounds, getTimelineClipInsertionDuration, validateTimelineClips } from '@gs/subsystems_timeline_shared/timing.ts';
 import { changeTimelineMediaPlaybackRate, createTimelineMediaClipTiming, getTimelineMediaLoopBounds, getTimelineMediaSingleDuration, getTimelineMediaTrimBounds, trimTimelineMediaClip, validateTimelineMediaClipTiming } from '@gs/subsystems_timeline_shared/media-timing.ts';
 import { validateTimelineParameterTree } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
@@ -29,7 +26,8 @@ import { getNodeInputDataType } from '@gs/shared/data-type/node-compatibility.ts
 import { isTextureDataType } from '@gs/shared/data-type/data-type.ts';
 import { resolveTimelineAudioLayerReference, timelineAudioParamDefs } from '@gs/subsystems_timeline_shared/timeline-audio.ts';
 import { validateSceneResolution } from '@gs/subsystems_timeline_shared/scene-resolution.ts';
-import { timelineCompositingParamDefs, type TimelineLayerCoordinateSpace } from '@gs/subsystems_timeline_shared/timeline-compositing.ts';
+import { timelineCompositingParamDefs } from '@gs/subsystems_timeline_shared/timeline-compositing.ts';
+import type { TimelineLayerCoordinateSpace } from '@gs/subsystems_timeline_shared/timeline-compositing.ts';
 import { canEditTimelineTransform } from './utility/timeline-transform-edit.ts';
 import { getScene, getLayerParameterTargets, getLayerParameterValues, getLayerParameterDefinitions, resolveLayerParameter } from './utility/timeline-scene.ts';
 import { prepareTimelineContainerMove } from './utility/timeline-container.ts';
@@ -266,8 +264,8 @@ const editTimelineLayerParamCommandDef = defineCommand<{
 					for (const { value } of walkParameters<TimelineEffectParameterBinding>({ [rootKey]: rootDef }, draft)) {
 						if (value.inputSource === 'keyframesTimelineInline') for (const point of value.keyframesTimeline.keyframes) point.x = Math.round(point.x);
 					}
-					validateTimelineParameterTree(rootDef, draft[rootKey], target === 'effect', target === 'effect' || target === 'module');
-					// 生成済みの要素IDをRedoでも使う。検証に失敗した編集は保存しない。
+					// 静的な構造検証は変更通知を受けるProjectRenderValidationが担当する。
+					// 生成済みの要素IDをRedoでも使う。
 					after = draft[rootKey];
 				}
 				setTimelineLayerParameterRoot(layer, target, rootKey, after);
@@ -1661,7 +1659,9 @@ const addSceneCommandDef = defineCommand<TimelineScene>({
 	changes: (_state, payload) => [{ type: 'scene', sceneId: payload.id }],
 	create: payload => ({
 		execute(state) {
-			validateTimelineScenes([...state.timelineScenes.value, payload]);
+			// Undoの削除対象を一意にするため、追加先のID衝突だけは適用前に拒否する。
+			// 描画の静的制約は変更通知を受けるProjectRenderValidationに任せる。
+			if (state.timelineScenes.value.some(scene => scene.id === payload.id)) throw new Error('Duplicate scene ID');
 			state.timelineScenes.value.push(deepClone(payload));
 		},
 		undo(state) { state.timelineScenes.value = state.timelineScenes.value.filter(scene => scene.id !== payload.id); },
@@ -1865,7 +1865,7 @@ const removeTimelineKeyframesCommandDef = defineCommand<{ sceneId: string; keyfr
 	},
 });
 
-/** 階層編集は完成した木を検証してから一度だけ適用し、Undoでは所属と順序も復元する。 */
+/** 階層編集の操作条件を独立した木で確認してから一度だけ適用し、Undoでは所属と順序も復元する。 */
 function editTimelineTree(sceneId: string, edit: (layers: TimelineLayer[]) => void) {
 	let before: TimelineLayer[];
 	return {
@@ -1873,7 +1873,8 @@ function editTimelineTree(sceneId: string, edit: (layers: TimelineLayer[]) => vo
 			const scene = getScene(state, sceneId);
 			const next = deepClone(scene.layers);
 			edit(next);
-			validateTimelineScenes(state.timelineScenes.value.map(entry => entry.id === sceneId ? { ...entry, layers: next } : entry));
+			// 描画の静的制約は適用後の変更通知で検証する。
+			// 操作対象外のSceneのエラーで、階層編集や修正まで拒否しない。
 			before = deepClone(scene.layers);
 			scene.layers = next;
 		},

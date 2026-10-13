@@ -73,12 +73,6 @@ const appBundle = await build({
 						patches = []; snapshots = [];
 						options = {};
 						constructor(staticOptions) { this.staticOptions = deepClone(staticOptions); }
-						async init(resolution, resolutionScale) {
-							this.initialStaticOptions = deepClone(this.staticOptions);
-							this.initialResolution = resolution;
-							this.initialResolutionScale = resolutionScale;
-							this.isReady.value = true;
-						}
 						async updateDynamicOptions(options) {
 							this.updates.push(options);
 							Object.assign(this.options, options);
@@ -106,7 +100,12 @@ const appBundle = await build({
 						stopRenderLoop() { this.lifecycle.push('stop'); }
 						renderTimelineAt(time) { this.renders.push(time); }
 						disposeManager() { this.lifecycle.push('dispose'); this.isReady.value = false; }
-						async relaunchManager() { this.lifecycle.push('relaunch'); this.isReady.value = true; }
+						async relaunchManager() {
+							this.initialStaticOptions = deepClone(this.staticOptions);
+							this.initialResolution = this.options.resolution;
+							this.initialResolutionScale = this.options.resolutionScale;
+							this.lifecycle.push('relaunch'); this.isReady.value = true;
+						}
 					}
 					export class TimelineRendererManagerController extends VisualModuleRendererManagerController { timeline = true; }
 					` : args.path.endsWith('.vue') ? `export default { name: '${args.path.split('/').at(-1)}' };` : `
@@ -133,8 +132,85 @@ function project(overrides = {}) {
 		id: 'project-id', gsVersion: '2.0.0-alpha.2', name: 'Example', description: 'First line\n日本語の説明', author: 'Author',
 		assets: [], generatedSpeech: [], players: [], visualModules: [], timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [] }], resolution: { width: 640, height: 480 },
 		...overrides,
+		visualModules: (overrides.visualModules ?? []).map(visualModule => ({ outputDefs: [], primaryInputId: null, primaryOutputId: null, automationGraphs: [], ...visualModule })),
+		assets: (overrides.assets ?? []).map(asset => ({ fileDataType: asset.fileData?.type || (asset.id === 'audio' ? 'audio/wav' : 'image/png'), ...asset })),
 	};
 }
+
+// 【不正な設定も読み込んで編集でき、修正した最新状態から両エンジンを生成する】
+// レンダラー側で更新を拒否するとUIとWorkerの状態が食い違い、循環を直す編集も失敗する。
+test('keeps invalid projects editable and recreates both previews after correction', async t => {
+	setup(t);
+	const { appContext } = evaluate(appBundle);
+	await appContext.ready(project({ visualModules: [{ id: 'invalid', paramDefs: [], nodes: [
+		{ id: 'effect', type: 'effect', effectId: 'fill', resolution: { mode: 'invalid' }, params: { color: { inputSource: 'literal', value: [1, 0, 0, 1] } } },
+	] }] }));
+	assert.match(appContext.renderValidation.errorMessage.value, /Invalid effect resolution/);
+	for (const controller of [appContext.visualModuleRendererManagerController, appContext.timelineRendererManagerController]) assert.equal(controller.isReady.value, false);
+	appContext.projectContext.stateManager.commit('removeNode', { visualModuleId: 'invalid', nodeId: 'effect' });
+	assert.equal(appContext.renderValidation.errorMessage.value, null);
+	await setImmediate();
+	for (const controller of [appContext.visualModuleRendererManagerController, appContext.timelineRendererManagerController]) {
+		assert.equal(controller.isReady.value, true);
+		assert.deepEqual(controller.options.visualModules[0].nodes, []);
+	}
+});
+
+// 【LIVE引数だけの静的エラーは、Timelineへ切り替えると診断解除と再生成を行う】
+// プレビュー対象の変更はProjectの編集通知を出さない。
+// エラー表示だけが消えてWorkerを持たない状態のままにならないよう、両エンジンの復帰を確認する。
+test('recreates previews after switching away from invalid live inputs', async t => {
+	setup(t);
+	const { appContext } = evaluate(appBundle);
+	await appContext.ready(project({ visualModules: [{ id: 'visualModule', nodes: [], paramDefs: [{
+		id: 'audio', nameForReference: 'Audio', dataType: { kind: 'audioSource' }, canNode: false,
+		ui: { label: 'Audio', control: { controlType: 'audioSource' } }, defaultValue: { inputSource: 'literal', value: null },
+	}] }] }));
+	appContext.previewPlayback.updateLiveParamValues('visualModule', { audio: { inputSource: 'literal', value: { type: 'player', playerId: 'missing' } } });
+	assert.match(appContext.renderValidation.errorMessage.value, /Player not found/);
+	assert.equal(appContext.timelineRendererManagerController.isReady.value, false);
+	appContext.previewPlayback.showTimeline();
+	assert.equal(appContext.renderValidation.errorMessage.value, null);
+	await setImmediate();
+	assert.equal(appContext.renderEngine.errorMessage.value, null);
+	for (const controller of [appContext.visualModuleRendererManagerController, appContext.timelineRendererManagerController]) {
+		assert.equal(controller.isReady.value, true);
+	}
+	assert.equal(appContext.previewPlayback.state.value.mode, 'timeline');
+	assert.equal(appContext.timelineRendererManagerController.renders.at(-1), 0);
+});
+
+// 【プレビュー固有設定の修正でも、実行時失敗後に最新設定から再生成する】
+// これらの値はProjectのCommand通知を出さないため、編集通知だけに再試行を任せると復帰できない。
+// 解像度・サンプル数・GPU設定を含む各経路が、正常な最新設定を持つ両エンジンへ反映されることを確認する。
+for (const [setting, change, inspect] of [
+	['resolution scale', appContext => { appContext.resolutionFactor.value = 0.5; }, appContext => {
+		assert.equal(appContext.timelineRendererManagerController.initialResolutionScale, 0.5);
+	}],
+	['motion blur samples', appContext => { appContext.timelinePreviewMotionBlurSamples.value = 4; }, appContext => {
+		assert.equal(appContext.timelineRendererManagerController.initialStaticOptions.timelineMotionBlur.samples, 4);
+	}],
+	['GPU precision', () => { window.testPreferences.enable32bitDataTextures = true; }, appContext => {
+		assert.equal(appContext.timelineRendererManagerController.initialStaticOptions.enable32bitDataTextures, true);
+	}],
+	['timeline preview fps', appContext => { appContext.timelinePreviewFpsFactor.value = 2; }],
+	['live fps limit', appContext => { appContext.liveFpsLimit.value = 24; }],
+	['live time factor', appContext => { appContext.liveTimeFactor.value = 0.5; }],
+	['clipping display', appContext => { appContext.highlightClipping.value = true; }],
+]) test(`retries runtime failures after changing ${setting}`, async t => {
+	setup(t);
+	const { appContext } = evaluate(appBundle);
+	await appContext.ready(project());
+	appContext.renderEngine.fail(new Error('draw failed'));
+	change(appContext);
+	await setImmediate();
+	assert.equal(appContext.renderEngine.errorMessage.value, null);
+	for (const controller of [appContext.visualModuleRendererManagerController, appContext.timelineRendererManagerController]) {
+		assert.equal(controller.isReady.value, true);
+		assert.equal(controller.lifecycle.filter(event => event === 'relaunch').length, 2);
+	}
+	inspect?.(appContext);
+});
 
 // 【再生開始時の生成音声をシーク中も固定し、次回再生にだけ新しい結果を採用する】
 // 生成完了で音声Workerが再起動したり、描画用音声入力と再生音声が食い違うのを防ぐ。
@@ -1168,8 +1244,9 @@ test('passes unscaled project dimensions and resets the preview scale for smalle
 		assert.deepEqual(appContext.projectContext.stateManager.state.resolution.value, resolution);
 	}
 	for (const controller of [appContext.visualModuleRendererManagerController, appContext.timelineRendererManagerController]) {
-		assert.deepEqual(controller.initialResolution, { width: 12000, height: 8000 });
-		assert.equal(controller.initialResolutionScale, 0.25);
+		// プロジェクト切り替えでもエンジンを作り直し、最新の基準寸法から初期化する。
+		assert.deepEqual(controller.initialResolution, { width: 1500, height: 1500 });
+		assert.equal(controller.initialResolutionScale, 1);
 	}
 	assert.deepEqual(globalThis.projectAlerts, []);
 });
@@ -1222,6 +1299,7 @@ test('refreshes audio only for audio content, source files or loop duration chan
 	const app = evaluate(appBundle);
 	const { appContext } = app;
 	await appContext.ready(project({
+		visualModules: [{ id: 'module', nodes: [], paramDefs: [] }],
 		assets: [{ id: 'audio', name: 'sound.wav', fileData: new Blob(['audio']) }, { id: 'image', fileData: new Blob(['image']) }],
 		timelineScenes: [{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [
 			{ id: 'visual', isDisabled: false, layerType: 'visualModule', visualModuleId: 'module', name: 'Layer', clips: [{ id: 'clip', startMs: 0, contentOffsetMs: 0, durationMs: 10000 }], visualModuleParamValues: {}, compositingParamValues: { opacity: { inputSource: 'literal', value: 1 } }, automationGraphs: [] },
@@ -1300,7 +1378,7 @@ test('waits for both preview workers before restoring the paused timeline', asyn
 	const gate = Promise.withResolvers();
 	live.relaunchManager = async () => { await gate.promise; live.isReady.value = true; };
 	const restarting = appContext.resumePreview();
-	await nextTick();
+	await setImmediate();
 	assert.equal(timeline.isReady.value, true);
 	assert.deepEqual(timeline.renders, []);
 	gate.resolve();
@@ -1324,11 +1402,12 @@ test('keeps playback suspended and waits for the other worker after a restart fa
 	timeline.relaunchManager = async () => { await gate.promise; timeline.isReady.value = true; };
 	let settled = false;
 	const restarting = appContext.resumePreview();
-	const rejected = assert.rejects(restarting, /GPU unavailable/).then(() => { settled = true; });
+	const completed = restarting.then(() => { settled = true; });
 	await setImmediate();
 	assert.equal(settled, false);
 	gate.resolve();
-	await rejected;
+	await completed;
+	assert.equal(appContext.renderEngine.errorMessage.value, 'GPU unavailable');
 	await nextTick();
 	appContext.previewPlayback.refresh();
 	assert.deepEqual(timeline.renders, []);

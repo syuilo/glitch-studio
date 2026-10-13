@@ -4,13 +4,14 @@ import { TimelineParameterBindingEvaluator } from '@gs/subsystems_timeline_share
 import { validateEnumParameterValue } from '@gs/shared/parameter/parameter-definition.ts';
 import { coerceParameterValue } from '@gs/shared/parameter/coerce-parameter-value.ts';
 import { createTimelineLayerEvaluationScope } from '@gs/subsystems_timeline_shared/evaluation-scope.ts';
-import { isTimelineAudioInputBinding, validateTimelineParameterTree } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
+import { isTimelineAudioInputBinding } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
 import { getTimelineVisualModuleArgumentDefault } from '@gs/subsystems_timeline_shared/layers/visual-module/visual-module-arguments.ts';
 import { createTimelineAudioInputResolver } from '../../timeline-audio-input-resolver.ts';
 import type { TimelineAudioInputProvider } from '../../timeline-audio-input-resolver.ts';
 import type { VisualModuleCustomParameterId, VisualModule } from '@gs/subsystems_visual-module_shared/types.ts';
 import type { TimelineImage } from '../../timeline-image.ts';
 import type { TimelineVisualModuleLayer, TimelineInlineVisualModuleLayer } from '@gs/subsystems_timeline_shared/types.ts';
+import type { TimelineParameterBinding } from '@gs/subsystems_timeline_shared/parameter-binding.ts';
 import type { VisualModuleRenderContext } from '@gs/subsystems_visual-module_renderer/visual-module-renderer.ts';
 import type { TimelineLayerContext, TimelineLayerRenderer } from '../../timeline-renderer.ts';
 import type { AudioInput } from '@gs/subsystems_audio_shared/audio-input.ts';
@@ -39,20 +40,17 @@ export function createVisualModuleTimelineLayer(
 			const evaluatedParamValues = new Map<VisualModuleCustomParameterId, any>();
 			const audioParamInputs = new Map<VisualModuleCustomParameterId, AudioInput | null>();
 			const resolveAudioInput = createTimelineAudioInputResolver(renderer.getAudioInput, context.sceneTimeMs, context.isExport);
-			if (visualModule.primaryAudioInputId != null && !visualModule.paramDefs.some(def => def.id === visualModule.primaryAudioInputId && def.dataType.kind === 'audioSource' && !def.canNode)) throw new Error('Invalid primary audio input');
 			for (const def of visualModule.paramDefs) {
 				// 主入力はuniformでもCPU式には公開せず、Inノードからのみ読む。
 				if (paramInputs.has(def.id)) continue;
 				const value = layer.visualModuleParamValues[def.id] ?? getTimelineVisualModuleArgumentDefault(visualModule, def);
-				validateTimelineParameterTree(def, value, false, true);
 				if (def.dataType.kind === 'audioSource') {
 					audioParamInputs.set(def.id, isTimelineAudioInputBinding(value) ? resolveAudioInput(value) : null);
 					continue;
 				}
-				if (isTimelineAudioInputBinding(value)) throw new Error('Expected audio parameter');
 				// 空のenumキーフレームには有効な既定値が必要。保存済みの無効値は置換せず下で報告する。
 				const enumFallback = value?.inputSource === 'keyframesTimelineInline' ? def.defaultValue.value : undefined;
-				const evaluated = value == null ? def.defaultValue.value : evaluator.evaluate(value, evaluationContext,
+				const evaluated = value == null ? def.defaultValue.value : evaluator.evaluate(value as TimelineParameterBinding, evaluationContext,
 					def.dataType.kind === 'enum' ? enumFallback : value.inputSource === 'automationGraphReference' ? def.defaultValue.value : genEmptyValue(def));
 				// prepare待機中にliteralの配列が編集されても、このフレームの値は変えない。
 				evaluatedParamValues.set(def.id, coerceParameterValue(def, deepClone(validateEnumParameterValue(def, evaluated))));

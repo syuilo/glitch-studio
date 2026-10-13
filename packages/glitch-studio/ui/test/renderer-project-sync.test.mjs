@@ -42,16 +42,15 @@ function fixture(t, count = 1, overrides = {}) {
 	manager.state.visualModules.value = [visualModule];
 	manager.state.timelineScenes.value = [scene];
 	let replica = structuredClone({ visualModules: [visualModule], timelineScenes: [scene] });
-	const batches = [], snapshots = [], errors = [];
+	const batches = [], errors = [];
 	const sync = new RendererProjectSynchronizer(manager, {
 		apply: async changes => { batches.push(changes); replica = applyRendererProjectChanges(replica, changes); },
-		replace: async state => { snapshots.push(state); replica = state; },
 		onUpdated() {}, onError: error => errors.push(error), ...overrides,
 	});
 	t.after(() => sync.dispose());
 	const target = { visualModuleId: 'module', nodeId: 'node-0', paramPath: ['buzzs', 'first', 'x'] };
 	const value = state => state.visualModules[0].nodes[0].params.buzzs.value[0].binding.value.x.value;
-	return { manager, sync, target, batches, snapshots, errors, value: () => value(replica), get replica() { return replica; } };
+	return { manager, sync, target, batches, errors, value: () => value(replica), get replica() { return replica; } };
 }
 
 // 【ブラー無効化をレイヤー差分として同期し、Undo・Redoでも子の保存値を変更しない】
@@ -379,17 +378,21 @@ test('renames registered and inline Visual Modules through history without rende
 	assert.deepEqual(f.errors, []);
 });
 
-// 【差分失敗は最新スナップショットで復旧し、旧プロジェクトの完了通知は復旧を起動しない】
-// RPC失敗時の再送で古い編集を巻き戻したり、プロジェクト切替後に旧状態を送り直したりしない。
-test('recovers a failed patch from current state and ignores failures after disposal', async t => {
+// 【差分失敗は所有者へ通知し、全量再送や成功通知を行わない】
+// 失敗後のエンジン破棄・再生成はPreviewRenderEngineが担当する。
+// Synchronizerが独自に再同期すると、停止状態や旧プロジェクトの処理を復活させてしまう。
+test('reports failed patches without resynchronizing and ignores failures after disposal', async t => {
 	const gate = Promise.withResolvers();
-	const f = fixture(t, 1, { apply: () => gate.promise });
+	let updated = 0;
+	const f = fixture(t, 1, { apply: () => gate.promise, onUpdated: () => { updated++; } });
 	f.manager.commit('updateParamAsLiteral', { ...f.target, value: 0.5 });
 	const flushed = f.sync.flush();
 	gate.reject(new Error('patch rejected'));
 	await flushed;
-	assert.equal(f.snapshots.length, 1);
-	assert.equal(f.value(), 0.5);
+	assert.equal(f.errors.length, 1);
+	assert.equal(f.errors[0].message, 'patch rejected');
+	assert.equal(f.value(), 0);
+	assert.equal(updated, 0);
 	const oldGate = Promise.withResolvers();
 	const old = fixture(t, 1, { apply: () => oldGate.promise });
 	old.manager.commit('updateParamAsLiteral', { ...old.target, value: 0.25 });
@@ -397,7 +400,6 @@ test('recovers a failed patch from current state and ignores failures after disp
 	old.sync.dispose();
 	oldGate.reject(new Error('old worker'));
 	await oldFlushed;
-	assert.deepEqual(old.snapshots, []);
 	assert.deepEqual(old.errors, []);
 });
 

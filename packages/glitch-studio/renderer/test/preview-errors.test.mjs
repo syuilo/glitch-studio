@@ -179,41 +179,11 @@ test('renders a newly registered Visual Module and stops LIVE when it is removed
 	assert.ok(!renderer.dynamicOptions.visualModules.some(visualModule => visualModule.id === imported.id));
 });
 
-// LIVEの循環参照を修正すると、再初期化せず次のフレームで復旧する。
-// エラー文字列をthrowするだけのスタブでは、実際のノード評価が修正後のグラフを読む保証にならない。
-// 循環した二つのノードの配線を外し、例外がRAFから漏れずループも失われないことを確認する。
-test('recovers live rendering after repairing a circular graph', async t => {
-	const { renderer, errors, frames, frame } = await fixture(t);
-	renderer.startLiveRenderLoopFor('module');
-	assert.doesNotThrow(() => frame(16));
-	assert.equal(errors.at(-1), 'circular dependency detected');
-	assert.equal(frames.size, 1);
-	await renderer.updateDynamicOptions({ visualModules: [visualModule(false)] });
-	assert.doesNotThrow(() => frame(32));
-	assert.equal(errors.at(-1), null);
-	assert.equal(frames.size, 1);
-});
 
-// 停止中のタイムラインも、循環参照を修正して再描画すると復旧する。
-// LIVEのRAFだけを保護しても、非同期のprepareで失敗するタイムラインのシークは救えない。
-// 同じ位置で再描画でき、前回のエラーが成功後に解除されることを保証する。
-test('recovers timeline preview after repairing a circular graph', async t => {
-	const { renderer, errors } = await fixture(t, {}, TimelineRendererManager);
-	await renderer.renderTimelineAt(0);
-	assert.equal(errors.at(-1), 'circular dependency detected');
-	await renderer.updateDynamicOptions({ visualModules: [visualModule(false)] });
-	await renderer.renderTimelineAt(0);
-	assert.equal(errors.at(-1), null);
-});
 
-// 書き出しの描画エラーはプレビューのように握りつぶさず、呼び出し元へ返す。
-// 動画出力で失敗を成功扱いすると欠落したフレームを含むファイルを生成してしまうため、
-// 今回の復旧用catchをエクスポート経路に広げないことを保証する。
-test('still rejects export frames for invalid graphs', async t => {
-	const { renderer, errors } = await fixture(t, {}, TimelineRendererManager);
-	await assert.rejects(renderer.renderTimelineFrame(0, 0), /circular dependency detected/);
-	assert.deepEqual(errors, []);
-});
+
+
+
 
 // 【破棄後に完了したシークは通知しない】
 // モード切り替え時はmanager自体が独立している。旧managerの完了通知を防ぐ。
@@ -269,7 +239,8 @@ for (const failure of ['render', 'GPU completion']) {
 		assert.deepEqual(times, [0]);
 		await renderer.renderTimelineAt(20);
 		assert.deepEqual(times, [0, 20]);
-		assert.deepEqual(errors, [message, null]);
+		// 正常フレームはエラー解除を通知しない。復旧の表示はUIの再生成完了が担当する。
+		assert.deepEqual(errors, [message]);
 	});
 }
 
@@ -309,13 +280,16 @@ for (const invalidation of ['edit', 'scene change', 'destroy']) {
 	});
 }
 
-// 【編集前の描画結果でエラーを変更せず、編集後の要求を実行する】
+// 【編集前の描画エラーは通知せず、編集後の要求の失敗だけを通知する】
 // 描画を直列化した後も、待機中に受信した編集による無効化は必要になる。
-// 古い成功で既存のエラーを消さず、古い失敗で修正後の描画を止めないことを確認する。
+// 古い失敗で修正後の描画を止めず、成功フレームからは解除通知が来ないことを確認する。
 test('ignores obsolete frame results after edits and renders the updated state', async t => {
 	const { renderer, errors } = await fixture(t, {}, TimelineRendererManager);
+	// 構造エラーはUIで検証する。ここでは描画処理の失敗を使って世代管理だけを確認する。
+	renderer.renderFrame = async () => { throw new Error('initial failure'); };
 	await renderer.renderTimelineAt(0);
-	assert.equal(errors.at(-1), 'circular dependency detected');
+	assert.equal(errors.at(-1), 'initial failure');
+	const expectedErrors = ['initial failure'];
 	for (const fails of [false, true]) {
 		const gate = Promise.withResolvers();
 		const times = [];
@@ -333,14 +307,15 @@ test('ignores obsolete frame results after edits and renders the updated state',
 		else gate.resolve();
 		await pending;
 		assert.deepEqual(times, [0, 20]);
-		assert.deepEqual(errors, ['circular dependency detected', 'updated failure']);
+		expectedErrors.push('updated failure');
+		assert.deepEqual(errors, expectedErrors);
 	}
 	renderer.renderFrame = async () => {};
 	await renderer.renderTimelineAt(30);
-	assert.deepEqual(errors, ['circular dependency detected', 'updated failure', null]);
+	assert.deepEqual(errors, expectedErrors);
 });
 
-// LIVE描画の途中で例外が起きても、GPUコマンドと計測を終了して次のフレームへ進む。
+// 【LIVE描画の途中で例外が起きてもGPUコマンドと計測を終了する】
 // 循環参照のような描画前の失敗だけを確認すると、計測中の失敗でTimingHelperが
 // 前のencoderを保持し続け、原因を直しても描画できなくなる不具合を見逃す。
 test('finishes partial live frames before retrying', async t => {
@@ -364,7 +339,7 @@ test('finishes partial live frames before retrying', async t => {
 	assert.equal(collected, 1);
 	fail = false;
 	frame(32);
-	assert.equal(errors.at(-1), null);
+	assert.deepEqual(errors, ['partial render failed']);
 	assert.equal(collected, 2);
 	await Promise.resolve();
 });

@@ -914,6 +914,7 @@ test('resets queued work without releasing new-project export reservations for t
 test('evaluates export dialog audio presence without requiring prepared speech', async () => {
 	const f = fixture();
 	const context = { ...module.exports, computed: getter => getter, scene: { value: f.scenes[0] }, sceneId: { value: 'root' },
+		appContext: { renderValidation: { errorMessage: { value: null } } },
 		settings: { value: { format: 'mp4', positionMs: 250, endTimeMs: 300 } },
 		stateManager: { state: { timelineScenes: { value: f.scenes }, generatedSpeech: { value: [] } } } };
 	const includesAudio = await loadComputed('includesAudio', context, 'GsTimelineExportDialog.vue');
