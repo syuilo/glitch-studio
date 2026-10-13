@@ -101,17 +101,6 @@
 		<GsFolder v-if="isTimelineVisualLayer(layer)" :asSection="true" defaultOpen :withSpacer="false">
 			<template #icon><i class="ti ti-layers-selected"></i></template>
 			<template #label>Compositing</template>
-			<div class="_spacer">
-				<GsSelect :modelValue="layer.coordinateSpace" :items="coordinateSpaces" @update:modelValue="coordinateSpace => stateManager.commit('setTimelineLayerCoordinateSpace', { sceneId, layerId: layer.id, coordinateSpace })">
-					<template #label>Coordinate space</template>
-				</GsSelect>
-			</div>
-			<div class="_spacer">
-				<GsSwitch :modelValue="layer.forceDisableMotionBlur" @update:modelValue="forceDisableMotionBlur => stateManager.commit('setTimelineLayerMotionBlurDisabled', { sceneId, layerId: layer.id, forceDisableMotionBlur })">
-					Disable motion blur
-					<template #caption>Overrides project motion blur for this layer, including its group or scene contents. Motion from a parent group or scene layer can still cause blur.</template>
-				</GsSwitch>
-			</div>
 			<div style="padding: 8px 0;">
 				<GsVisualParam
 					v-for="(paramDef, paramId) in timelineCompositingParamDefs"
@@ -125,6 +114,16 @@
 					:paramValue="layer.compositingParamValues[paramId] ?? paramDef.defaultValue"
 					@edit="event => onTimelineLayerParamEdit(event, 'compositing')"
 				/>
+			</div>
+			<div class="_spacer">
+				<GsSelect :modelValue="layer.coordinateSpace" :items="coordinateSpaces" @update:modelValue="coordinateSpace => stateManager.commit('setTimelineLayerCoordinateSpace', { sceneId, layerId: layer.id, coordinateSpace })">
+					<template #label>Coordinate space</template>
+				</GsSelect>
+			</div>
+			<div class="_spacer">
+				<GsSwitch :modelValue="layer.forceDisableMotionBlur" @update:modelValue="forceDisableMotionBlur => stateManager.commit('setTimelineLayerMotionBlurDisabled', { sceneId, layerId: layer.id, forceDisableMotionBlur })">
+					<template #label>Disable Motion Blur</template>
+				</GsSwitch>
 			</div>
 		</GsFolder>
 		<GsFolder v-if="isTimelineAudioOutputLayer(layer)" :asSection="true" defaultOpen>

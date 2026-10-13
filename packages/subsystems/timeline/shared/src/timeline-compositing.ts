@@ -11,10 +11,6 @@ export const timelineCompositingParamDefs = {
 		dataType: { kind: 'scalar' }, ui: { label: 'Z', control: { controlType: 'range', min: -10, max: 10, step: 0.01 } },
 		defaultValue: { inputSource: 'literal', value: 0 }, canNode: false,
 	},
-	clipToFrame: {
-		dataType: { kind: 'bool' }, ui: { label: 'Clip to frame', control: {} },
-		defaultValue: { inputSource: 'literal', value: false }, canNode: false,
-	},
 	blendMode: {
 		dataType: { kind: 'blendMode' },
 		ui: { label: 'Blend mode', control: {} },
@@ -53,5 +49,9 @@ export const timelineCompositingParamDefs = {
 		dataType: { kind: 'scalar' },
 		ui: { label: 'Rotation', control: { controlType: 'angle' } },
 		defaultValue: { inputSource: 'literal', value: 0 }, canNode: false,
+	},
+	clipToFrame: {
+		dataType: { kind: 'bool' }, ui: { label: 'Clip to Frame', control: {} },
+		defaultValue: { inputSource: 'literal', value: false }, canNode: false,
 	},
 } as const satisfies Record<string, ParameterDefinition>;
