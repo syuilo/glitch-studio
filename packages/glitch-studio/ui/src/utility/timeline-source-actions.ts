@@ -93,7 +93,7 @@ export function createTimelineSourceActions(options: TimelineSourceActionsOption
 		if ((type === 'image' || type === 'video' || type === 'audio' || type === 'scene') && !source) return;
 		// ピッカー待機中にも他のクリップが動くので、追加直前の空きを使う。
 		const sourceDurationMs = source?.kind === 'asset' ? source.media?.durationMs : undefined;
-		const durationMs = getTimelineClipInsertionDuration(layer.clips, startMs, Math.min(5000, sourceDurationMs ?? Infinity));
+		const durationMs = getTimelineClipInsertionDuration(layer.clips, startMs, sourceDurationMs ?? 5000);
 		if (durationMs <= 0) return;
 		const clip = {
 			id: genId(),
@@ -151,7 +151,7 @@ export function createTimelineSourceActions(options: TimelineSourceActionsOption
 		const source = await chooseClipSource(layerType);
 		if (!source || !isActive()) return;
 		const sourceDurationMs = source.kind === 'asset' ? source.media?.durationMs : undefined;
-		const clip = { id: genId(), ...createTimelineClipTiming(Math.max(0, time.value), Math.min(5000, sourceDurationMs ?? Infinity)) };
+		const clip = { id: genId(), ...createTimelineClipTiming(Math.max(0, time.value), sourceDurationMs ?? 5000) };
 		if (clip.durationMs < 1) { reportError(new Error('Media is shorter than 1 ms.')); return; }
 		const base = { id: genId(), name: source.kind === 'asset' ? source.asset.name : source.scene.name, automationGraphs: [], isDisabled: false };
 		const audioParamValues = { volume: deepClone(timelineAudioParamDefs.volume.defaultValue) };

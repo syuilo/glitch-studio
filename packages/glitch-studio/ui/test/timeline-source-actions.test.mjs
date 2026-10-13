@@ -77,6 +77,59 @@ function fixture(t, layers = [mediaLayer()]) {
 
 function addLayerMenu(actions) { actions.showAddLayerMenu({ currentTarget: null, target: null }); }
 
+// 【動画・音声レイヤーの初期クリップを素材の長さに合わせる】
+// 5秒を超える素材が途中で切れないことと、短い素材や小数msの素材でも
+// 素材端を越えず配置されることを、追加メニューとCommandを通して確認する。
+test('adds video and audio layers with the source duration and restores them on redo', async t => {
+	for (const layerType of ['video', 'audio']) {
+		for (const sourceDurationMs of [12500, 3000, 12500.75]) {
+			const f = fixture(t, []);
+			f.asset.fileDataType = layerType === 'video' ? 'video/mp4' : 'audio/wav';
+			f.options.inspectMedia = async () => ({ durationMs: sourceDurationMs, audioAvailable: true, audioError: null });
+			addLayerMenu(f.create());
+			await f.menu.find(item => item.text === (layerType === 'video' ? 'Video' : 'Audio')).action();
+			const layer = f.scene.layers[0];
+			assert.equal(layer.layerType, layerType);
+			assert.deepEqual(layer.clips[0], {
+				id: layer.clips[0].id, assetId: f.asset.id, startMs: 1000, durationMs: Math.floor(sourceDurationMs),
+				sourceInMs: 0, sourceOutMs: Math.floor(sourceDurationMs), playbackRate: 1, loop: false,
+				...(layerType === 'video' ? { audioEnabled: true } : {}),
+			});
+			const added = structuredClone(f.scene);
+			f.history.undo();
+			assert.deepEqual(f.scene.layers, []);
+			f.history.redo();
+			assert.deepEqual(f.scene, added);
+			assert.deepEqual(f.errors, []);
+		}
+	}
+});
+
+// 【既存の動画・音声レイヤーへの追加も素材長を使い、隣のクリップを越えない】
+// レイヤー追加だけを修正すると後から追加したクリップは5秒で切れてしまう。
+// 5秒より広い空きでも、素材全体か次のクリップまでの区間を使うことを保証する。
+test('adds media clips with the source duration limited by the next clip', async t => {
+	for (const layerType of ['video', 'audio']) {
+		for (const nextStartMs of [null, 9000]) {
+			const f = fixture(t, [mediaLayer(layerType)]);
+			f.asset.fileDataType = layerType === 'video' ? 'video/mp4' : 'audio/wav';
+			const layer = f.scene.layers[0];
+			if (nextStartMs != null) layer.clips.push({ id: 'next', assetId: f.asset.id,
+				startMs: nextStartMs, durationMs: 1000, sourceInMs: 0, sourceOutMs: 1000,
+				playbackRate: 1, loop: false, ...(layerType === 'video' ? { audioEnabled: true } : {}),
+			});
+			const before = structuredClone(f.scene);
+			await f.create().addClip(layer, 1000);
+			const clip = layer.clips.find(clip => clip.id !== 'next');
+			const expectedDurationMs = nextStartMs == null ? 10000 : nextStartMs - 1000;
+			assert.deepEqual([clip.startMs, clip.durationMs, clip.sourceInMs, clip.sourceOutMs], [1000, expectedDurationMs, 0, expectedDurationMs]);
+			f.history.undo();
+			assert.deepEqual(f.scene, before);
+			assert.deepEqual(f.errors, []);
+		}
+	}
+});
+
 // 【追加メニューからカメラを作り、再生位置に有効クリップを配置する】
 // 型や評価器だけ追加してもUIから作れなければ編集できない。通常の追加Commandと選択への接続を確認する。
 test('adds camera layers at the playhead through the layer menu', t => {
