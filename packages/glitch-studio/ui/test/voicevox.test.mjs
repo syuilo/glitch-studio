@@ -204,21 +204,26 @@ test('inherits the preceding voice by scene time with first-key and empty-layer 
 
 // 【シーク位置への追加とコピーで、それぞれ継承元とコピー元の声・字幕長を保持する】
 // ボタン追加はFillで作成し、コピー＆ペーストでは配置先の声や字幕長に書き換えない。
+// 新しい発話を追加したときはレーンを展開してから選択し、折りたたみ中でも追加結果を確認できる。
 test('inherits voice for new keys and preserves voice and subtitle duration when copying', async t => {
 	const f = editFixture(t);
 	f.layer.utterances[0].styleId = 3;
 	f.layer.utterances[1].styleId = 7;
 	f.layer.utterances[0].subtitleDuration = { mode: 'specified', durationMs: 250 };
-	let selected;
+	const events = [];
 	const context = {
 		props: { layer: f.layer, sceneId: 'root', get utterance() { return f.layer.utterances[0]; } },
 		error: { value: '' }, stateManager: f.history, insertVoicevoxUtterance,
 		appContext: { previewPlayback: { currentTimelineTime: { value: 450 } } },
-		emit(event, id) { assert.equal(event, 'selected'); selected = id; },
+		emit(...args) { events.push(args); },
 	};
 	const commitLayer = await loadHandler('commit', context, 'GsTimeline.VoicevoxSettings.vue');
 	const add = await loadHandler('add', { ...context, commit: commitLayer }, 'GsTimeline.VoicevoxSettings.vue');
 	add();
+	assert.equal(events.length, 2);
+	assert.deepEqual(events[0], ['expandRequested']);
+	assert.equal(events[1][0], 'selected');
+	const selected = events[1][1];
 	assert.equal(f.layer.utterances.find(utterance => utterance.id === selected).styleId, 7);
 	assert.deepEqual(f.layer.utterances.find(utterance => utterance.id === selected).subtitleDuration, { mode: 'fill' });
 	f.history.undo();

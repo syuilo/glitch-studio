@@ -79,11 +79,11 @@ test('routes source trim and loop handles separately through the layer component
 	const clip = descendants(f.root).find(node => node.props['data-timeline-clip-id'] === 'clip-0');
 	const handle = name => descendants(clip).find(node => node.props.class?.includes(name));
 	handle('loopEnd').props.onPointerdown({ stopPropagation() {} });
-	handle('trimEnd').props.onPointerdown({ stopPropagation() {} });
+	handle('topTrimHandle').props.onPointerdown({ stopPropagation() {} });
 	assert.deepEqual(f.events, [['trim', { layerId: 'a', clipId: 'clip-0' }, 'loop'], ['trim', { layerId: 'a', clipId: 'clip-0' }, 'end']]);
 	Object.assign(f.layers[0].clips[0], { loop: true, durationMs: 180 });
 	await nextTick();
-	assert.equal(handle('trimEnd').props.style.right, '160px');
+	assert.equal(handle('topTrimHandle').props.style.right, '160px');
 	assert.equal(descendants(clip).find(node => node.props.class === 'loopFill').props.style.left, '200px');
 });
 
@@ -97,7 +97,7 @@ async function fixture(t) {
 	});
 	const layers = reactive(['a', 'b', 'c'].map(makeLayer));
 	const visible = ref([0]);
-	const props = reactive({ sceneId: 'scene', sceneTimeMs: 0, tlElWidth: 1000, tlRangeX: 500, tlPosX: 0,
+	const props = reactive({ sceneId: 'scene', sceneTimeMs: 0, depth: 0, nextLayerDepth: 0, tlElWidth: 1000, tlRangeX: 500, tlPosX: 0,
 		tickMode: 'binary', tickSubdivisions: { halves: true, thirds: false }, mediaInfo: new Map([['sound', { durationMs: 1000 }]]),
 		selectedKeyframes: [], selectedClipIds: [], selected: false, moving: false, optimizeHorizontalMovement: false, isLastOfGroup: false,
 	});
@@ -111,6 +111,8 @@ async function fixture(t) {
 		onKeyframeDragStart: (_event, selection) => events.push(['keyMove', selection]),
 		onToggleCollapse: () => { props.collapsed = !props.collapsed; },
 	}))) });
+	// ツールチップのDOM操作は座標・イベントの検証対象ではないため、ディレクティブだけ置き換える。
+	app.directive('tooltip', {});
 	app.mount(root);
 	t.after(() => app.unmount());
 	await nextTick();
@@ -223,7 +225,8 @@ test('updates selection, clip timing and playback while positioning source ghost
 	assert.equal(updates.get('GsTimeline.Clip.vue'), 1);
 	const ghost = descendants(state.root).find(node => node.props.class === 'sourceGhost');
 	assert.deepEqual(ghost.props.style, { left: '140px', width: '2000px' });
-	const clip = descendants(state.root).find(node => node.props['data-timeline-clip-id'] === 'clip-0');
+	const clipRoot = descendants(state.root).find(node => node.props['data-timeline-clip-id'] === 'clip-0');
+	const clip = descendants(clipRoot).find(node => node.props.class?.split(' ').includes('clip'));
 	assert.equal(clip.props.style.left, '200px');
 	state.layers[0].clips[0].startMs = 120;
 	await nextTick();
@@ -254,10 +257,11 @@ test('converts background gestures at the viewport and preserves clip and key ev
 	const edit = commits.at(-1);
 	assert.equal(edit[0], 'editTimelineLayerParam');
 	assert.ok(edit[1].edit.value.keyframesTimeline.keyframes.some(point => point.x === 115));
-	const clip = nodes.find(node => node.props['data-timeline-clip-id'] === 'clip-0');
+	const clipRoot = nodes.find(node => node.props['data-timeline-clip-id'] === 'clip-0');
+	const clip = descendants(clipRoot).find(node => node.props.class?.split(' ').includes('clip'));
 	clip.props.onPointerdown(event(clip));
 	assert.deepEqual(state.events.at(-1), ['move', { layerId: 'a', clipId: 'clip-0' }]);
-	const trim = clip.children.find(node => node.props.class?.includes('trimStart'));
+	const trim = descendants(clip).find(node => node.props.class?.includes('trimStart'));
 	trim.props.onPointerdown(event(trim));
 	assert.deepEqual(state.events.at(-1), ['trim', { layerId: 'a', clipId: 'clip-0' }, 'start']);
 	const key = nodes.find(node => node.props['data-timeline-keyframe-id'] === 'key-0');
