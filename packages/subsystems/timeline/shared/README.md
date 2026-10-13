@@ -34,6 +34,8 @@ Scene・レイヤー・クリップと、その時間・合成・音声設定の
 
 `parameter-binding.ts`で保存データの制約を配列・構造体内部まで検証し、`TimelineParameterBindingEvaluator`はCPU値として扱えるBindingだけを共通評価器へ渡す。`layerInput`はTimeline Renderer内のエフェクトレイヤーが下層の合成結果として解決する。他ドメインの入力方式を列挙せず、このスコープが扱える方式だけを受け入れる。
 
+UIの静的検証で使う`inspectTimelineLayer()`は、`validateTimelineLayerStructure()`でレイヤー自身の区間・解像度・固有設定を検証し、パラメータは`validateTimelineParameterTree()`で一度だけ走査する。コンテナの構造・末端の入力方式の検証と、呼び出し側による参照収集を同じ走査で行う。子レイヤーの検証は含めず、それぞれを独立した検証単位として扱う。
+
 `getSceneAudioClips(scenes, sceneId, selection)`は音声計画を作る。選択は`{ type: 'all' }`（既定値）、`{ type: 'belowLayer', layerId }`、`{ type: 'layer', layerId }`。下層指定では自分と上層を除外し、レイヤー指定では並び順によらず指定レイヤー単体の出力を使う。下層指定はTransformの境界を透過し、最も近いGroupまたはSceneの下層までを対象にし、指定レイヤーの取得はScene内のグループをまたいで解決する。参照先の祖先の音量は含めないが、祖先が無効なら入力なしとする。選んだSceneレイヤーはその配置のトリムと音量を適用した子Scene全体を含める。子Scene内部のレイヤーは直接選べない。無効レイヤー・音声無効の動画を除外し、各階層の音量はミックス側へ渡す。`primaryAudioInputParameter` / `primaryAudioInputId`を持つエフェクト・Visual Moduleの主音声入力は、初期値・リセット時に`lowerLayerAudio`になる。画像の主入力と合成設定は独立する。
 
 `motion-blur.ts`はシャッター角・サンプル数の設定と検証、最上位Sceneの端と映像クリップ境界の収集、中央露光のサンプル時刻計算を担当する。子Sceneのブラー対象のカットは配置の内容オフセットを反映し、表示区間内だけ親へ渡す。子Sceneの長さ自体は境界に含めず、固定・非表示・音声レイヤーの終端がSceneの長さを通じて露光を制限することを防ぐ。映像レイヤーの`forceDisableMotionBlur`がtrueなら、その枝のカットとループ境界を露光制限から除外する。グループ・Sceneの配下も除外するが、Sceneの長さや子の保存設定は変更しない。切り詰めた露光区間へ指定数のサンプルを等間隔で再配置するため、重みは均等で合計1となる。0・1サンプル、角度0、無効時は基準時刻を1回評価する。時間は整数msに丸めない。

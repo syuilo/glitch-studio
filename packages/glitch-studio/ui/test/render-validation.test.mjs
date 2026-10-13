@@ -9,6 +9,7 @@ const bundle = await build({
 	stdin: { resolveDir: directory, loader: 'ts', contents: `
 		export { ProjectRenderValidation } from './src/ProjectRenderValidation.ts';
 		export { PreviewRenderEngine } from './src/PreviewRenderEngine.ts';
+		export { inspectTimelineLayer } from '@gs/subsystems_timeline_shared/static-validation.ts';
 		export { ref } from 'vue';
 	` },
 	absWorkingDir: directory, bundle: true, platform: 'node', format: 'cjs', write: false,
@@ -19,7 +20,7 @@ const bundle = await build({
 });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', bundle.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
-const { ProjectRenderValidation, PreviewRenderEngine, ref } = module.exports;
+const { ProjectRenderValidation, PreviewRenderEngine, inspectTimelineLayer, ref } = module.exports;
 const literal = value => ({ inputSource: 'literal', value });
 const scalar = { dataType: { kind: 'scalar' }, canNode: true, ui: { label: 'Amount', control: { controlType: 'number' } }, defaultValue: literal(0) };
 const definitions = { effect: { id: 'effect', paramDefs: { amount: scalar }, outputDefs: { output: { dataType: { kind: 'scalar' } } }, primaryInputParameter: 'amount' } };
@@ -35,6 +36,69 @@ function fixture(visualModules = [], timelineScenes = []) {
 	return { state, validation };
 }
 const nodeChange = nodeId => [{ type: 'node', target: { visualModuleId: 'visualModule' }, nodeId, changes: [{ type: 'parameter', kind: 'value' }] }];
+
+function nestedParameterDefinition() {
+	return {
+		dataType: { kind: 'array', elementType: { kind: 'struct', fields: { asset: { kind: 'assetReference' } } } },
+		ui: { label: 'Inputs', control: { element: { fields: { asset: { label: 'Asset', control: {} } } } } },
+		element: { fields: { asset: { defaultValue: literal(null), canNode: false } }, defaultValue: literal({ asset: literal(null) }) },
+		defaultValue: literal([]),
+	};
+}
+
+// 【入れ子のパラメータ検証と参照収集を一度の走査で行う】
+// 配列・構造体を検証後に再走査すると、入れ子や要素数に比例して編集の負荷が増える。
+// 要素Bindingと末端Bindingの読み出しを数え、参照収集も同じ走査で行えることを確認する。
+test('inspects nested timeline bindings once while collecting references', () => {
+	const reads = [];
+	const elements = ['first', 'second'].map(id => ({ id, get binding() {
+		reads.push(id);
+		return literal({ get asset() { reads.push(id + '/asset'); return literal(id + '-asset'); } });
+	} }));
+	const effect = { ...definitions.effect, paramDefs: { inputs: nestedParameterDefinition() } };
+	const layer = { ...sceneLayer('layer', 'unused'), layerType: 'effect', effectId: 'effect',
+		resolution: { mode: 'context' }, effectParamValues: { inputs: literal(elements) } };
+	const references = [];
+	inspectTimelineLayer(layer, undefined, effect, (def, binding) => {
+		assert.equal(def.dataType.kind, 'assetReference');
+		references.push(binding.value);
+	});
+	assert.deepEqual(reads, ['first', 'first/asset', 'second', 'second/asset']);
+	assert.deepEqual(references, ['first-asset', 'second-asset']);
+});
+
+// 【レイヤー固有のパラメータも重複検証せず、通常のliteral値は静的検査から除外する】
+// Textなどの個別検証器を共通検証より先に呼ぶと、同じパラメータが複数回検証される。
+// literal値の型や範囲を検証する責務は、従来どおり実行時の評価側に残す。
+test('inspects text parameters once without validating ordinary literal values', () => {
+	let reads = 0;
+	const layer = { ...sceneLayer('layer', 'unused'), layerType: 'text',
+		textParamValues: { get text() { reads++; return literal(123); } } };
+	const values = [];
+	inspectTimelineLayer(layer, undefined, undefined, (_def, binding) => values.push(binding.value));
+	assert.equal(reads, 1);
+	assert.deepEqual(values, [123]);
+});
+
+for (const invalid of ['duplicate element', 'unknown field', 'missing field', 'container input', 'leaf input']) {
+	// 【走査を統合しても、コンテナの構造と末端の入力制約を検証する】
+	// 不正なBindingを配列・構造体内へ隠せると、レンダラーの検証済み設定という契約が崩れる。
+	// 配列ID、構造体の項目、コンテナのliteral制約、末端のcanNodeをそれぞれ確認する。
+	test(`rejects an invalid nested timeline parameter with ${invalid}`, () => {
+		const values = { asset: literal(null) };
+		const binding = literal([{ id: 'element', binding: literal(values) }]);
+		let message;
+		if (invalid === 'duplicate element') { binding.value.push({ id: 'element', binding: literal(values) }); message = /Duplicate array element ID/; }
+		else if (invalid === 'unknown field') { values.other = literal(0); message = /Unknown struct field/; }
+		else if (invalid === 'missing field') { delete values.asset; message = /Missing parameter binding/; }
+		else if (invalid === 'container input') { binding.inputSource = 'layerInput'; message = /Container parameter must be literal/; }
+		else { values.asset = { inputSource: 'layerInput' }; message = /Layer input is only available/; }
+		const effect = { ...definitions.effect, paramDefs: { inputs: nestedParameterDefinition() } };
+		const layer = { ...sceneLayer('layer', 'unused'), layerType: 'effect', effectId: 'effect',
+			resolution: { mode: 'context' }, effectParamValues: { inputs: binding } };
+		assert.throws(() => inspectTimelineLayer(layer, undefined, effect, () => {}), message);
+	});
+}
 
 // 【通常のliteral編集では静的検証も循環探索も繰り返さない】
 // 値調整のたびに全グラフを走査すると、描画から検証を移しても編集負荷が残る。

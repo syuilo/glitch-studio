@@ -1,5 +1,5 @@
-import { inspectStaticParameter, staticParameterShape } from '@gs/shared/parameter/static-parameter.ts';
-import { validateTimelineLayer } from './scenes.ts';
+import { staticParameterShape } from '@gs/shared/parameter/static-parameter.ts';
+import { validateTimelineLayerStructure } from './scenes.ts';
 import { validateTimelineParameterTree } from './parameter-binding.ts';
 import { getEffectLayerParameterDefault } from './layers/effect/effect-layer.ts';
 import { getTimelineVisualModuleArgumentDefault } from './layers/visual-module/visual-module-arguments.ts';
@@ -51,15 +51,14 @@ export function timelineLayerStaticShape(layer: TimelineLayer, visualModule?: Vi
 export function inspectTimelineLayer(layer: TimelineLayer, visualModule: VisualModule | undefined, effect: EffectDefinition | undefined,
 	onValue: (definition: ParameterDefinition, binding: unknown) => void): void {
 	// コンテナの設定編集で子孫を再検証しない。子は各自の検証単位を持つ。
-	validateTimelineLayer(layer.layerType === 'group' || layer.layerType === 'transform' ? { ...layer, layers: [] } : layer);
+	validateTimelineLayerStructure(layer);
 	if (layer.layerType === 'effect' && !effect) throw new Error('Effect not found: ' + layer.effectId);
 	if ('visualModuleParamValues' in layer && !visualModule) throw new Error('Visual Module not found');
 	for (const group of parameterGroups(layer, visualModule, effect)) {
 		for (const [key, binding] of Object.entries(group.values)) {
 			const definition = group.definitions[key];
 			if (!definition) throw new Error('Unknown layer parameter: ' + key);
-			validateTimelineParameterTree(definition, binding, group.layerInput ?? false, group.audioInput ?? false);
-			inspectStaticParameter(definition, binding, onValue);
+			validateTimelineParameterTree(definition, binding, group.layerInput ?? false, group.audioInput ?? false, onValue);
 		}
 	}
 }

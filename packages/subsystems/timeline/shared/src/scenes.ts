@@ -24,12 +24,9 @@ export function getTimelineScene(scenes: readonly TimelineScene[], sceneId: stri
 	return scene;
 }
 
-export function validateTimelineLayer(layer: TimelineLayer): void {
-	if (isTimelineContainerLayer(layer)) {
-		for (const child of layer.layers) {
-			validateTimelineLayer(child);
-		}
-	} else validateTimelineClips(layer.clips);
+/** パラメータや子孫をたどらず、レイヤー自身の区間・解像度・固有設定だけを検証する。 */
+export function validateTimelineLayerStructure(layer: TimelineLayer): void {
+	if (!isTimelineContainerLayer(layer)) validateTimelineClips(layer.clips);
 	if (layer.layerType === 'video' || layer.layerType === 'audio') {
 		for (const clip of layer.clips) validateTimelineMediaClipTiming(clip);
 	} else if (!isTimelineContainerLayer(layer)) {
@@ -37,11 +34,19 @@ export function validateTimelineLayer(layer: TimelineLayer): void {
 			if (!Number.isFinite(clip.contentOffsetMs) || clip.contentOffsetMs < 0 || !Number.isFinite(clip.contentOffsetMs + clip.durationMs)) throw new Error('Invalid content offset');
 		}
 	}
+	if (layer.layerType === 'voicevox') validateVoicevoxLayer(layer);
+	if (layer.layerType === 'effect') validateEffectResolution(layer.resolution);
+}
+
+export function validateTimelineLayer(layer: TimelineLayer): void {
+	validateTimelineLayerStructure(layer);
+	if (isTimelineContainerLayer(layer)) {
+		for (const child of layer.layers) validateTimelineLayer(child);
+	}
 	if (layer.layerType === 'transform') validateTimelineTransform(layer.transformParamValues);
 	if (layer.layerType === 'camera') validateTimelineCamera({ paramValues: layer.cameraParamValues, automationGraphs: layer.automationGraphs });
 	if (layer.layerType === 'text') validateTimelineText(layer.textParamValues);
 	if (layer.layerType === 'voicevox') {
-		validateVoicevoxLayer(layer);
 		validateVoicevoxSubtitle(layer.subtitleParamValues);
 	}
 	if (layer.layerType === 'shape') validateTimelineShape(layer.shape);
@@ -54,7 +59,6 @@ export function validateTimelineLayer(layer: TimelineLayer): void {
 		for (const binding of Object.values(layer.visualModuleParamValues)) validateTimelineParameterBinding(binding, false, true);
 	}
 	if (layer.layerType === 'effect') {
-		validateEffectResolution(layer.resolution);
 		for (const binding of Object.values(layer.effectParamValues)) validateTimelineParameterBinding(binding, true);
 	}
 }
