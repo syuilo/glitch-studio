@@ -9,6 +9,7 @@
 		"lint": "pnpm typecheck && pnpm eslint"
 	},
 	"exports": {
+		"./audio-input-spectrogram.ts": "./src/audio-input-spectrogram.ts",
 		"./audio-input-spectrum.ts": "./src/audio-input-spectrum.ts",
 		"./audio-file.ts": "./src/audio-file.ts",
 		"./pcm-resampler.ts": "./src/pcm-resampler.ts",

@@ -4,15 +4,15 @@ export default defineEffect({
 	id: 'audioSpectrogram',
 	displayName: 'Audio Spectrogram',
 	description: {
-		'ja-JP': 'Playerの音声の周波数成分と時間変化をスペクトログラムで表示します。',
-		'en-US': 'Visualizes audio from a Player as a spectrogram showing frequency content over time.',
+		'ja-JP': '入力音声の周波数成分と時間変化をスペクトログラムで表示します。表示は描画履歴に依存します。',
+		'en-US': 'Visualizes input audio as a spectrogram showing frequency content over time. The display depends on render history.',
 	},
 	kind: 'generate',
 	// 入力音声の履歴に加え、過去の描画で解析したスペクトラムを内部に蓄積する。
 	dependsOnRenderHistory: true,
 	tags: ['audio', 'analysis', 'temporal'],
 	paramDefs: {
-		player: { dataType: { kind: 'playerReference' }, ui: { label: 'Player', control: {} }, defaultValue: { inputSource: 'literal', value: null } },
+		audio: { dataType: { kind: 'audioSource' }, ui: { label: 'Audio', control: {} }, canNode: false, defaultValue: { inputSource: 'literal', value: null } },
 		channel: {
 			dataType: { kind: 'enum', options: ['left', 'right', 'mix', 'stereo'] },
 			ui: { label: 'Channel', control: { labels: { 'left': 'Left', 'right': 'Right', 'mix': 'Mix (L + R)', 'stereo': 'Stereo' } } },
@@ -48,6 +48,7 @@ export default defineEffect({
 		flipFrequency: { dataType: { kind: 'bool' }, ui: { label: 'Reverse frequency axis', control: {} }, defaultValue: { inputSource: 'literal', value: false } },
 	},
 	primaryInputParameter: null,
+	primaryAudioInputParameter: 'audio',
 	resolutionInputParameter: null,
 	outputDefs: {
 		output: { dataType: { kind: 'color' } },

@@ -3,7 +3,7 @@ struct Uniforms {
 	timeline: vec4f,
 	// x: 横向き、y: 逆方向、z: 周波数反転、w: stereo
 	display: vec4f,
-	// x: 最小dB、y: 最大dB
+	// x: 最小dB、y: 最大dB、z: 表示有効（入力未選択は透明）
 	levels: vec4f,
 };
 @group(0) @binding(0) var<uniform> uniforms: Uniforms;
@@ -21,6 +21,7 @@ fn heatmap(value: f32) -> vec3f {
 
 @fragment
 fn fs(@location(0) uv: vec2f) -> @location(0) vec4f {
+	if (uniforms.levels.z < 0.5) { return vec4f(0.0); }
 	let point = clamp(uv * 0.5 + 0.5, vec2f(0.0), vec2f(1.0));
 	let horizontal = uniforms.display.x > 0.5;
 	// 通常方向では横向きは右、縦向きは上が最新。
