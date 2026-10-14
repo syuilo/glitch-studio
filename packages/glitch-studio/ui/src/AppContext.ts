@@ -275,6 +275,8 @@ export class AppContext {
 	}
 
 	public async ready(project: Project, fileName: string | null = null, fileHandle: ProjectFileHandle | null = null) {
+		const waiting = ui.waiting({ text: 'Initializing project' });
+
 		this.renderEngine.suspend();
 		timelineClipboard.value = null;
 		this.scenePlaybackTimes.clear();
@@ -416,8 +418,12 @@ export class AppContext {
 
 		this.previewPlayback.seekTimeline(0);
 		if (project.visualModules[0] != null) this.previewPlayback.startLive(project.visualModules[0].id);
+
+		waiting.setText('Initializing renderer');
 		await this.renderEngine.enable();
 		await this.renderEngine.resume();
+
+		waiting.done();
 	}
 
 	public grantProjectBackupAccess(): Promise<void> {

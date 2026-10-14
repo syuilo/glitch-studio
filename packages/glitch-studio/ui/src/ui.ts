@@ -319,6 +319,7 @@ export function waiting(options: { text?: string } = {}) {
 	window.document.body.setAttribute('inert', 'true');
 
 	const showing = ref(true);
+	const text = ref(options.text);
 	const isSuccess = ref(false);
 
 	function done(doneOptions: { success?: boolean } = {}) {
@@ -332,10 +333,14 @@ export function waiting(options: { text?: string } = {}) {
 		}
 	}
 
+	function setText(value: string) {
+		text.value = value;
+	}
+
 	const { dispose } = popup(GsWaitingDialog, {
 		success: isSuccess,
 		showing: showing,
-		text: options.text,
+		text: text,
 	}, {
 		closed: () => {
 			window.document.body.removeAttribute('inert');
@@ -343,7 +348,10 @@ export function waiting(options: { text?: string } = {}) {
 		},
 	});
 
-	return done;
+	return {
+		done,
+		setText,
+	};
 }
 
 export function progress(options: { text?: string } = { }) {
