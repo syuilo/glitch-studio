@@ -16,6 +16,11 @@
 	</svg>
 	<div :class="$style.footer" @pointerdown.stop>
 		<span :class="$style.layerName">{{ selectedTimelineLayer?.name }}</span>
+		<span
+			v-if="outputResolution != null"
+			v-tooltip="'Layer output resolution at the current preview resolution scale'"
+			:class="$style.outputResolution"
+		>{{ outputResolution.width }} × {{ outputResolution.height }} px</span>
 
 		<GsButton
 			v-tooltip="geometry.parents.length ? 'Snap frame to group canvas edges' : 'Snap frame to canvas edges'" :primary="snap"
@@ -76,12 +81,18 @@ watch(() => target.value ? JSON.stringify([target.value.sceneId, target.value.la
 	previewPlayback.refresh();
 }, { immediate: true });
 
-const renderedGeometry = computed(() => {
+const renderedPreview = computed(() => {
 	const current = target.value;
 	const preview = timelineRendererManagerController.layerTransform.value;
-	return current && preview && preview.request.sceneId === current.sceneId && preview.request.layerId === current.layerId
-		&& preview.clipId === current.clipId && preview.time === previewPlayback.currentTimelineTime.value ? preview.geometry && { ...preview.geometry, parents: preview.parentGeometries ?? [] } : null;
+	if (current == null || preview == null || preview.request.sceneId !== current.sceneId || preview.request.layerId !== current.layerId
+		|| preview.clipId !== current.clipId || preview.time !== previewPlayback.currentTimelineTime.value) return null;
+	return preview;
 });
+const renderedGeometry = computed(() => {
+	const preview = renderedPreview.value;
+	return preview?.geometry == null ? null : { ...preview.geometry, parents: preview.parentGeometries ?? [] };
+});
+const outputResolution = computed(() => renderedPreview.value?.outputResolution ?? null);
 const geometry = computed(() => draft.value ?? renderedGeometry.value);
 const editable = computed(() => {
 	const layer = selectedTimelineLayer.value;
@@ -316,6 +327,10 @@ onBeforeUnmount(() => {
 	max-width: 140px;
 	overflow: clip;
 	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.outputResolution {
+	flex-shrink: 0;
 	white-space: nowrap;
 }
 </style>

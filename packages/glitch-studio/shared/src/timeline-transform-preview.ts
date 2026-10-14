@@ -1,4 +1,5 @@
 import type { TimelineLayerGeometry } from '@gs/subsystems_timeline_shared/layer-transform.ts';
+import type { Resolution } from '@gs/shared/resolution.ts';
 
 /** プレビューの購読先。選択・再生状態はUIが所有し、保存データには含めない。 */
 export type TimelineTransformObservation = { sceneId: string; layerId: string; requestId: number };
@@ -8,6 +9,8 @@ export type TimelineTransformPreview = {
 	time: number;
 	clipId: string | null;
 	geometry: TimelineLayerGeometry | null;
+	/** 合成前の実テクスチャ寸法（プレビュー倍率適用済み）。定数出力・未描画はnullで、配置用の基準寸法とは分離する。 */
+	outputResolution: Resolution | null;
 	/** 同じScene内の祖先グループ。外側から内側の順で、ポインターの逆変換に使う。 */
 	parentGeometries?: TimelineLayerGeometry[];
 };

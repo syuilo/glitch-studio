@@ -371,7 +371,9 @@ export class TimelineRendererManager extends EventEmitter<{
 		const location = request?.sceneId === this.dynamicOptions.sceneId ? findTimelineLayerLocation(this.getSceneLayers(), request.layerId) : null;
 		const layer = location && !location.layer.isDisabled && !location.ancestors.some(group => group.isDisabled) && isTimelineVisualLayer(location.layer) ? location.layer : null;
 		const clip = layer && layer.layerType !== 'group' ? layer.clips.find(clip => isTimelineClipActive(clip, time)) : null;
-		const preview: TimelineTransformPreview | null = request ? { request, revision: this.dynamicOptions.previewRevision, time, clipId: clip?.id ?? null, geometry: null } : null;
+		const preview: TimelineTransformPreview | null = request ? {
+			request, revision: this.dynamicOptions.previewRevision, time, clipId: clip?.id ?? null, geometry: null, outputResolution: null,
+		} : null;
 		this.pendingTransformPreview = preview;
 		try {
 			try {
@@ -400,7 +402,7 @@ export class TimelineRendererManager extends EventEmitter<{
 		} catch (error) {
 			if (generation === this.previewRenderGeneration) {
 				this.reportRenderError(error instanceof Error ? error.message : String(error));
-				if (preview && this.dynamicOptions.transformObserver === request) this.publishTransformPreview({ ...preview, geometry: null });
+				if (preview != null && this.dynamicOptions.transformObserver === request) this.publishTransformPreview({ ...preview, geometry: null, outputResolution: null });
 			}
 			return false;
 		} finally {
@@ -422,6 +424,9 @@ export class TimelineRendererManager extends EventEmitter<{
 			const location = findTimelineLayerLocation(this.getSceneLayers(), layerId);
 			const layer = location?.layer;
 			if (!layer || !isTimelineVisualLayer(layer)) return;
+			// 文字やグループのframeSizeは配置用の基準枠で、枠外の画素や画素密度の制限を含む
+			// 実テクスチャ寸法とは異なる。表示する解像度は実寸を既存の購読通知へ同梱する。
+			preview.outputResolution = source.kind === 'texture' ? { width: source.texture.width, height: source.texture.height } : null;
 			const evaluate = (entry: Extract<TimelineLayer, { compositingParamValues: unknown }>) => this.transformPreviewParameters.evaluate({
 				time: preview.time, isExport: false, coordinateSpace: entry.coordinateSpace, paramValues: entry.compositingParamValues, automationGraphs: entry.automationGraphs });
 			const settings = evaluate(layer);
