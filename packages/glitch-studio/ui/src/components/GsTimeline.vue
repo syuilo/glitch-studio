@@ -1,5 +1,8 @@
 <template>
-<div :class="$style.root" @keydown="onTlKeydown">
+<div ref="root" :class="$style.root" @keydown="onTlKeydown"
+	@dragenter.capture="assetDrop.onDragenter" @dragover.capture="assetDrop.onDragover"
+	@dragleave.capture="assetDrop.onDragleave" @drop.capture="assetDrop.onDrop"
+>
 	<div :class="$style.header">
 		<div :class="$style.headerLeft">
 			<slot></slot>
@@ -138,6 +141,7 @@
 			<!-- TODO: GsWindowとかで表示する -->
 		</div>
 	</div>
+	<GsDropOverlay v-if="assetDrop.hovering.value" data-test-timeline-drop-overlay/>
 </div>
 </template>
 
@@ -154,6 +158,7 @@ import { createTransformTimelineLayer } from '../utility/transform-timeline-laye
 import XLayer from './GsTimeline.Layer.vue';
 import GsTimelineInspector from './GsTimeline.Inspector.vue';
 import GsButton from './common/GsButton.vue';
+import GsDropOverlay from './common/GsDropOverlay.vue';
 import GsVirtualScroll from './common/GsVirtualScroll.vue';
 import GsEffectPicker from './GsEffectPicker.vue';
 import type { TimelineContainerLayer, TimelineLayer } from '@gs/subsystems_timeline_shared/types.ts';
@@ -178,12 +183,14 @@ import * as ui from '@/ui.ts';
 import { createTimelineSourceActions } from '@/utility/timeline-source-actions.ts';
 import { createTimelineClipboardActions } from '@/utility/timeline-clipboard-actions.ts';
 import { createTimelineLayerActions } from '@/utility/timeline-layer-actions.ts';
+import { createTimelineDropActions } from '@/utility/timeline-drop-actions.ts';
+import { useTimelineAssetDrop } from '@/composables/useTimelineAssetDrop.ts';
 
 const { activeSceneId, previewPlayback, timelineAudioPreview, timelineRendererManagerController } = appContext;
 const { stateManager } = appContext.projectContext;
 
 const props = defineProps<{ sceneId: string; subPanelTarget?: HTMLElement | null }>();
-const emit = defineEmits<{ revealDetails: [] }>();
+const emit = defineEmits<{ revealDetails: []; revealAssets: [] }>();
 
 // 選択を保持している間は監視しない。手動で閉じた詳細を、値の編集や再描画で開き直さないため。
 function revealDetails() {
@@ -571,6 +578,13 @@ function isTimelineActive() {
 	return !disposed && props.sceneId === editedScene.id && stateManager.state.timelineScenes.value.find(scene => scene.id === editedScene.id) === editedScene;
 }
 
+const assetDrop = useTimelineAssetDrop({
+	target: useTemplateRef<HTMLElement>('root'),
+	...createTimelineDropActions({ context: appContext.projectContext, sceneId: editedScene.id, currentTime: () => time.value,
+		isActive: isTimelineActive, inspectMedia: inspectTimelineClipMedia, revealAssets: () => emit('revealAssets') }),
+	reportError: error => { void ui.alert({ type: 'error', title: 'Timeline drop', text: error instanceof Error ? error.message : String(error) }); },
+});
+
 const { addClip, changeClipSource, showAddLayerMenu, readLayerMediaDurations } = createTimelineSourceActions({
 	stateManager, scene: editedScene, sceneLayers, currentTime: time, isActive: isTimelineActive,
 	inspectMedia: inspectTimelineClipMedia, ui, pickEffect: showEffectPicker, desktopAvailable: () => !!window.desktop,
@@ -769,6 +783,7 @@ function formatFullTimecode(timeMs: number): string {
 
 <style module lang="scss">
 .root {
+	position: relative;
 	display: flex;
 	flex-direction: column;
 	height: 100%;

@@ -14,6 +14,7 @@ import { createCameraTimelineLayer } from './camera-timeline-layer.ts';
 import { createVoicevoxTimelineLayer } from './voicevox-timeline-layer.ts';
 import { createTextTimelineLayer } from './text-timeline-layer.ts';
 import { createInlineVisualModuleLayer } from './inline-visual-module-layer.ts';
+import { createTimelineAssetLayer } from './timeline-asset-layer.ts';
 import type { Ref } from 'vue';
 import type { EffectDefinition } from '@gs/subsystems_effect_shared/effect-definition.ts';
 import type { TimelineLayer, TimelineScene } from '@gs/subsystems_timeline_shared/types.ts';
@@ -151,18 +152,23 @@ export function createTimelineSourceActions(options: TimelineSourceActionsOption
 		const source = await chooseClipSource(layerType);
 		if (!source || !isActive()) return;
 		const sourceDurationMs = source.kind === 'asset' ? source.media?.durationMs : null;
-		const clip = { id: genId(), ...createTimelineClipTiming(Math.max(0, time.value), sourceDurationMs ?? 5000) };
-		if (clip.durationMs < 1) { reportError(new Error('Media is shorter than 1 ms.')); return; }
-		const base = { id: genId(), name: source.kind === 'asset' ? source.asset.name : source.scene.name, automationGraphs: [], isDisabled: false };
+		if (source.kind === 'asset') {
+			try {
+				const layer = createTimelineAssetLayer(source.asset, time.value, source.media ?? null);
+				if (layer == null) return;
+				const clip = layer.clips[0];
+				stateManager.commit('addTimelineLayer', { sceneId: scene.id, layer,
+					sourceDurationsMs: sourceDurationMs == null ? null : { [layer.id]: { [clip.id]: sourceDurationMs } } });
+				selectClip({ layerId: layer.id, clipId: clip.id });
+			} catch (error) { reportError(error); }
+			return;
+		}
+		const clip = { id: genId(), ...createTimelineClipTiming(Math.max(0, time.value), 5000) };
+		const base = { id: genId(), name: source.scene.name, automationGraphs: [], isDisabled: false };
 		const audioParamValues = { volume: deepClone(timelineAudioParamDefs.volume.defaultValue) };
 		const compositingParamValues = initialCompositingParameters();
-		let layer: TimelineLayer;
-		if (layerType === 'scene' && source.kind === 'scene') layer = { ...base, layerType, clips: [{ ...clip, sceneId: source.scene.id }], audioParamValues, compositingParamValues, coordinateSpace: 'screen', forceDisableMotionBlur: false };
-		else if (source.kind === 'asset' && layerType === 'image') layer = { ...base, layerType, clips: [{ ...clip, assetId: source.asset.id }], compositingParamValues, coordinateSpace: 'screen', forceDisableMotionBlur: false };
-		else if (source.kind === 'asset' && layerType === 'audio') layer = { ...base, layerType, clips: [{ id: clip.id, ...createTimelineMediaClipTiming(clip.startMs, clip.durationMs), assetId: source.asset.id }], audioParamValues };
-		else if (source.kind === 'asset' && layerType === 'video') layer = { ...base, layerType, clips: [{ id: clip.id, ...createTimelineMediaClipTiming(clip.startMs, clip.durationMs), assetId: source.asset.id, audioEnabled: !!source.media?.audioAvailable }], audioParamValues, compositingParamValues, coordinateSpace: 'screen', forceDisableMotionBlur: false };
-		else return;
-		stateManager.commit('addTimelineLayer', { sceneId: scene.id, layer, sourceDurationsMs: sourceDurationMs == null ? null : { [layer.id]: { [clip.id]: sourceDurationMs } } });
+		const layer: TimelineLayer = { ...base, layerType: 'scene', clips: [{ ...clip, sceneId: source.scene.id }], audioParamValues, compositingParamValues, coordinateSpace: 'screen', forceDisableMotionBlur: false };
+		stateManager.commit('addTimelineLayer', { sceneId: scene.id, layer });
 		selectClip({ layerId: layer.id, clipId: clip.id });
 	}
 

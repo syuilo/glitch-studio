@@ -22,13 +22,14 @@ const result = await build({
 		export { getTimelineEditorState } from './src/utility/timeline-editor-state.ts';
 		export { createInlineVisualModuleLayer } from './src/utility/inline-visual-module-layer.ts';
 		export { videoHoldTest } from '@/utility/timeline-video-hold.ts';
+		export { dropUiTest } from '@/ui.ts';
 	`, resolveDir: directory, loader: 'ts' },
 	bundle: true, platform: 'node', format: 'cjs', external: ['vue'], write: false,
 	plugins: [{ name: 'timeline-inspector', setup(build) {
 		build.onResolve({ filter: /^@\/app\.ts$/ }, () => ({ path: 'app', namespace: 'test' }));
 		build.onResolve({ filter: /effect-definitions\.[jt]s$/ }, () => ({ path: 'effects', namespace: 'test' }));
 		build.onResolve({ filter: /preferences\.ts$/ }, () => ({ path: 'preferences', namespace: 'test' }));
-		build.onResolve({ filter: /^@\/ui\.ts$/ }, () => ({ path: 'ui', namespace: 'test' }));
+		build.onResolve({ filter: /ui\.ts$/ }, () => ({ path: 'ui', namespace: 'test' }));
 		build.onResolve({ filter: /^@\/utility\/(timeline-clip-media|visual-module-file)\.ts$/ }, () => ({ path: 'media', namespace: 'test' }));
 		build.onResolve({ filter: /^@\/utility\/timeline-video-hold\.ts$/ }, () => ({ path: 'video-hold', namespace: 'test' }));
 		build.onResolve({ filter: /\.vue$/ }, ({ path }) => {
@@ -45,7 +46,9 @@ const result = await build({
 			effects: 'export const effectDefinitions = {};',
 			preferences: `import { ref } from 'vue'; export const preferences = { s: { forceTypeSafety: true },
 				model: key => ref(key === 'timelineTickMode' ? 'binary' : false) };`,
-			ui: 'export function popupMenu() {} export function popup() {} export function alert() {} export function select() {} export function confirm() {}',
+			ui: `export const dropUiTest = { dialogs: 0 };
+				export function progress() { dropUiTest.dialogs++; return { setProgress() {}, setSubProgress() {}, setText() {}, done() {} }; }
+				export function popupMenu() {} export function popup() {} export function alert() {} export function select() {} export function confirm() {}`,
 			media: 'export async function inspectTimelineClipMedia() { return { durationMs: 5000, audioAvailable: true }; } export async function exportVisualModuleFile() {}',
 			'video-hold': `export const videoHoldTest = { calls: [], read: null };
 				export async function readTimelineVideoHoldFrame(blob, sourceTimeMs, reverse) {
@@ -69,7 +72,7 @@ const result = await build({
 });
 const bundled = { exports: {} };
 new Function('require', 'module', 'exports', result.outputFiles[0].text)(createRequire(import.meta.url), bundled, bundled.exports);
-const { Timeline, Inspector, appContext, COMMAND_DEFS, UndoRedo, getTimelineEditorState, createInlineVisualModuleLayer, videoHoldTest } = bundled.exports;
+const { Timeline, Inspector, appContext, COMMAND_DEFS, UndoRedo, getTimelineEditorState, createInlineVisualModuleLayer, videoHoldTest, dropUiTest } = bundled.exports;
 
 function element(tag = 'div') { return { tag, parent: null, children: [], props: {}, text: '', offsetWidth: 1000, offsetHeight: 500 }; }
 const renderer = createRenderer({
@@ -87,6 +90,60 @@ const renderer = createRenderer({
 });
 function descendants(root) { return [root, ...root.children.flatMap(descendants)]; }
 function textContent(node) { return node.text + node.children.map(textContent).join(''); }
+
+// 【Timeline全体に素材ドロップの表示を出し、子要素間の移動やフォントにも対応する】
+// 行の並び替えは通過させ、素材ドロップだけをAppやレイヤー行へ伝播させない。
+// 既存Assetはドロップ後に複製せず最上段へ配置し、配置対象外のAssetは履歴を作らない。
+test('shows the full timeline drop overlay and consumes only file and asset drags', async t => {
+	const f = await fixture(t, Timeline);
+	const target = descendants(f.root).find(node => node.props.onDropCapture != null);
+	const overlay = () => descendants(f.root).find(node => 'data-test-timeline-drop-overlay' in node.props);
+	function event(types, assetId = 'sound') {
+		const value = new Event('drop', { cancelable: true });
+		value.dataTransfer = { types, files: [], getData: type => type === 'misskey/gsasset' ? JSON.stringify({ assetId }) : '' };
+		let stopped = false;
+		value.stopPropagation = () => { stopped = true; };
+		return { value, isStopped: () => stopped };
+	}
+	const internal = event(['misskey/gsdraggable']);
+	target.props.onDragoverCapture(internal.value);
+	assert.equal(internal.value.defaultPrevented, false);
+	assert.equal(internal.isStopped(), false);
+	assert.equal(overlay(), undefined);
+	// カスタム型が先頭にない場合もGsAssetとして受け付ける。
+	const asset = event(['text/plain', 'misskey/gsasset']);
+	target.props.onDragenterCapture(asset.value);
+	target.props.onDragenterCapture(asset.value);
+	target.props.onDragleaveCapture(asset.value);
+	await nextTick();
+	assert.ok(overlay());
+	assert.equal(asset.isStopped(), true);
+	assert.equal(asset.value.dataTransfer.dropEffect, 'copy');
+	await target.props.onDropCapture(asset.value);
+	await nextTick();
+	assert.equal(overlay(), undefined);
+	assert.equal(f.scene.layers[0].clips[0].assetId, 'sound');
+	assert.equal(f.scene.layers[0].clips[0].startMs, 0);
+	assert.equal(f.scene.layers.length, 3);
+	assert.equal(f.history.state.assets.value.length, 1);
+	assert.equal(f.history.undoStack.value.length, 1);
+	assert.equal(dropUiTest.dialogs, 1);
+	f.history.state.assets.value.push({ id: 'font', name: 'Font', fileDataType: 'font/ttf', fileData: new Blob() });
+	const font = event(['misskey/gsasset'], 'font');
+	target.props.onDragenterCapture(font.value);
+	await nextTick();
+	assert.ok(overlay());
+	await target.props.onDropCapture(font.value);
+	assert.equal(f.history.undoStack.value.length, 1);
+	assert.equal(dropUiTest.dialogs, 1);
+	const files = event(['Files']);
+	target.props.onDragenterCapture(files.value);
+	await nextTick();
+	assert.ok(overlay());
+	target.props.onDragleaveCapture(files.value);
+	await nextTick();
+	assert.equal(overlay(), undefined);
+});
 const keySelection = (layerId, keyframeId) => ({ layerId, target: 'audio', paramPath: ['volume'], keyframeId });
 const makeLayer = id => ({ id, name: id, layerType: 'audio', isDisabled: false, automationGraphs: [],
 	clips: [{ id: 'clip', assetId: 'sound', startMs: 0, durationMs: 5000, sourceInMs: 0, sourceOutMs: 5000, playbackRate: 1, loop: false }],
@@ -156,6 +213,7 @@ test('applies speed and reverse controls and previews collision errors', async t
 });
 
 async function fixture(t, component = Inspector) {
+	dropUiTest.dialogs = 0;
 	videoHoldTest.calls = [];
 	videoHoldTest.read = null;
 	appContext.previewPlayback.currentTimelineTime.value = 0;
@@ -167,7 +225,7 @@ async function fixture(t, component = Inspector) {
 	t.after(() => { globalThis.ResizeObserver = previousResizeObserver; globalThis.HTMLElement = previousHTMLElement; });
 	const state = { timelineScenes: ref([{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [makeLayer('a'), makeLayer('b')] }]),
 		assets: ref([{ id: 'sound', name: 'Sound', fileDataType: 'audio/wav', fileData: new Blob() }]), visualModules: ref([]),
-		generatedSpeech: ref([]), resolution: ref({ width: 1920, height: 1080 }), timelineFps: ref(30) };
+		players: ref([]), generatedSpeech: ref([]), resolution: ref({ width: 1920, height: 1080 }), timelineFps: ref(30) };
 	const history = new UndoRedo(state, COMMAND_DEFS);
 	appContext.projectContext.stateManager = history;
 	const scene = state.timelineScenes.value[0];

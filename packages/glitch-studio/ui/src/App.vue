@@ -63,6 +63,7 @@
 			</div>
 		</div>
 	</div>
+	<GsDropOverlay v-if="fileDropHovering" data-test-app-drop-overlay/>
 </div>
 </template>
 
@@ -77,6 +78,7 @@ import { importVisualModuleFile } from './utility/visual-module-file.ts';
 import { importAssets } from './utility/import-assets.ts';
 import { fileDropTargetInstallerKey, installFileDropHandlers } from './utility/file-drop.ts';
 import GsRange from './components/common/GsRange.vue';
+import GsDropOverlay from './components/common/GsDropOverlay.vue';
 import GsAboutDialog from '@/components/GsAboutDialog.vue';
 import GsProjectSettingsDialog from '@/components/GsProjectSettingsDialog.vue';
 import GsSettingsDialog from '@/components/GsSettingsDialog.vue';
@@ -102,10 +104,12 @@ async function onFileDrop(files: File[]) {
 function installFileDrops(target: HTMLElement) {
 	return installFileDropHandlers(target, onFileDrop,
 		error => { void ui.alert({ type: 'error', text: error instanceof Error ? error.message : String(error) }); },
-		() => window.document.body.hasAttribute('inert'));
+		() => window.document.body.hasAttribute('inert'),
+		target === root.value ? hovering => { fileDropHovering.value = hovering; } : undefined);
 }
 
 const root = useTemplateRef('root');
+const fileDropHovering = ref(false);
 let disposeFileDrops: (() => void) | null = null;
 onMounted(() => {
 	if (root.value != null) disposeFileDrops = installFileDrops(root.value);

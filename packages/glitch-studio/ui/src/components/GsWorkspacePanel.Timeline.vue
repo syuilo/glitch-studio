@@ -1,6 +1,6 @@
 <template>
 <div :class="$style.root">
-	<GsTimeline v-if="activeScene" :key="activeScene.id" :sceneId="activeScene.id" :subPanelTarget="subPanelTarget" @revealDetails="revealDetails">
+	<GsTimeline v-if="activeScene" :key="activeScene.id" :sceneId="activeScene.id" :subPanelTarget="subPanelTarget" @revealDetails="revealDetails" @revealAssets="revealAssets">
 		<GsButton small @click="showSceneSelectMenu">{{ activeScene.name }} <i class="ti ti-chevron-down"></i></GsButton>
 		<GsButton small iconOnly @click="showSceneMenu"><i class="ti ti-dots"></i></GsButton>
 	</GsTimeline>
@@ -39,6 +39,10 @@ const subPanelTarget = computed(() => {
 
 function revealDetails() {
 	workspaceController.revealPanel(revealRequest());
+}
+
+function revealAssets() {
+	workspaceController.revealPanel({ contentType: 'assets', sourcePanelId: props.panel.id });
 }
 
 const references = computed(() => stateManager.state.timelineScenes.value.filter(scene => flattenTimelineLayers(scene.layers).some(layer => layer.layerType === 'scene' && layer.clips.some(clip => clip.sceneId === activeSceneId.value))));

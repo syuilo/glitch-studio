@@ -16,6 +16,7 @@ const { installFileDropHandlers } = module.exports;
 // DOMを起動せず、登録されたハンドラーのバブリングとstopPropagationだけを再現する。
 class TestElement extends EventTarget {
 	constructor(parent = null) { super(); this.parent = parent; }
+	contains(node) { return node === this || (node?.parent != null && this.contains(node.parent)); }
 	dispatchEvent(event) {
 		let stopped = false;
 		const previousStop = event.stopPropagation;
@@ -31,23 +32,64 @@ function fixture(t, onDrop, isApplicationBlocked = () => false) {
 	const root = new TestElement();
 	const registrations = [];
 	let blocked = false;
-	root.ownerDocument = { body: { hasAttribute: () => blocked } };
+	let hovering = false;
+	const windowTarget = new EventTarget();
+	root.ownerDocument = { body: { hasAttribute: () => blocked }, defaultView: windowTarget };
 	const original = root.addEventListener.bind(root);
 	root.addEventListener = (name, listener, options) => { registrations.push([name, options]); original(name, listener, options); };
 	const errors = [];
-	const dispose = installFileDropHandlers(root, onDrop, error => errors.push(error), isApplicationBlocked);
+	const dispose = installFileDropHandlers(root, onDrop, error => errors.push(error), isApplicationBlocked, value => { hovering = value; });
 	t.after(dispose);
-	function dispatch(name, files, extra = {}, target = root) {
+	function dispatch(name, files, extra = {}, target = root, relatedTarget = null) {
 		const event = new Event(name, { cancelable: true, bubbles: true });
 		let stopped = false;
 		const stop = event.stopPropagation.bind(event);
 		event.stopPropagation = () => { stopped = true; stop(); };
 		event.dataTransfer = { types: ['Files'], files, items: [], dropEffect: 'move', ...extra };
+		event.relatedTarget = relatedTarget;
+		// windowの表示リセットを先に実行し、その後の通常バブリングで受け付けた範囲だけ表示する。
+		windowTarget.dispatchEvent(event);
 		target.dispatchEvent(event);
 		return { event, stopped };
 	}
-	return { root, registrations, errors, dispose, dispatch, block: value => { blocked = value; } };
+	return { root, windowTarget, registrations, errors, dispose, dispatch, block: value => { blocked = value; }, get hovering() { return hovering; } };
 }
+
+// 【全体受付まで届いたファイルのホバーだけを表示し、専用受付への移動時に表示を消す】
+// 子が伝播を止めても以前のオーバーレイを残さず、子要素間の移動では表示を維持する。
+// ドロップ・ドラッグ終了・ウィンドウ離脱・破棄の後にも表示を残さない。
+test('shows global hover only for accepted files and clears it over dedicated targets', t => {
+	const f = fixture(t, async () => {});
+	const child = new TestElement(f.root);
+	const dedicated = new TestElement(f.root);
+	dedicated.addEventListener('dragover', event => event.stopPropagation());
+	f.dispatch('dragenter', [], {}, child);
+	assert.equal(f.hovering, true);
+	f.dispatch('dragleave', [], {}, child, f.root);
+	assert.equal(f.hovering, true);
+	f.dispatch('dragover', [], {}, dedicated);
+	assert.equal(f.hovering, false);
+	f.dispatch('dragover', [], {}, child);
+	assert.equal(f.hovering, true);
+	f.dispatch('dragover', [], { types: ['misskey/gsasset'] }, child);
+	assert.equal(f.hovering, false);
+	f.block(true);
+	f.dispatch('dragover', []);
+	assert.equal(f.hovering, false);
+	f.block(false);
+	for (const name of ['drop', 'dragend', 'blur']) {
+		f.dispatch('dragover', []);
+		assert.equal(f.hovering, true);
+		f.dispatch(name, []);
+		assert.equal(f.hovering, false);
+	}
+	f.dispatch('dragover', []);
+	f.dispatch('dragleave', []);
+	assert.equal(f.hovering, false);
+	f.dispatch('dragover', []);
+	f.dispose();
+	assert.equal(f.hovering, false);
+});
 
 // 【子要素から伝播したファイルをルートで受け付け、FileListを非同期処理の前に保存する】
 // バブリング段階の受付にし、イベント終了後に空になるFileListに依存しない。

@@ -4,7 +4,7 @@ import type { OpenedMediaFile, OpenMediaFileOptions } from '../api.ts';
 
 type ImportMediaFilesOptions = OpenMediaFileOptions & {
 	/** 素材のプロジェクト反映までダイアログを維持する。 */
-	onImported?: (files: OpenedMediaFile[]) => void | Promise<void>;
+	onImported?: (files: OpenedMediaFile[], dialog: ReturnType<typeof progress>) => void | Promise<void>;
 };
 
 export async function importMediaFiles(files: readonly File[], options: ImportMediaFilesOptions = {}): Promise<OpenedMediaFile[]> {
@@ -29,7 +29,7 @@ export async function importMediaFiles(files: readonly File[], options: ImportMe
 			dialog.setText('Adding assets');
 			if (files.length > 1) dialog.setSubProgress(null);
 			else dialog.setProgress(null);
-			await options.onImported(imported);
+			await options.onImported(imported, dialog);
 		}
 		return imported;
 	} finally {

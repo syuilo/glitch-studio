@@ -28,6 +28,7 @@ import { appContext } from '@/app.ts';
 import { openMediaFile } from '@/utility/open-media-file.ts';
 import { popup } from '@/ui.ts';
 import * as ui from '@/ui.ts';
+import { setDragData } from '@/utility/drag-and-drop.ts';
 
 const { stateManager } = appContext.projectContext;
 
@@ -117,10 +118,9 @@ function onContextmenu(ev: PointerEvent) {
 }
 
 function onDragstart(ev: DragEvent) {
-	if (ev.dataTransfer) {
-		ev.dataTransfer.effectAllowed = 'move';
-		// TODO
-		//setDragData(ev, 'assets', [props.asset]);
+	if (ev.dataTransfer != null) {
+		ev.dataTransfer.effectAllowed = 'copy';
+		setDragData(ev, 'GsAsset', { assetId: props.asset.id });
 	}
 	isDragging.value = true;
 

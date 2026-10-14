@@ -23,6 +23,8 @@ import { effectDefinitions } from '@gs/subsystems_effect_shared/effect-definitio
 import { AiSON } from '@syuilo/aiscript';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { genId } from '@gs/shared/utility/id.ts';
+import { ref } from 'vue';
+import type { TimelineAssetPlacement } from './utility/timeline-asset-layer.ts';
 import { getNodeOutputs } from '@gs/subsystems_visual-module_shared/node-outputs.ts';
 import { getNodeInputDataType } from '@gs/shared/data-type/node-compatibility.ts';
 import { isTextureDataType } from '@gs/shared/data-type/data-type.ts';
@@ -500,11 +502,12 @@ const removeNodeCommandDef = defineCommand<NodeTarget>({
 	},
 });
 
-const importAssetsCommandDef = defineCommand<{ assets: ProjectAsset[]; players: Player[] }>({
+const importAssetsCommandDef = defineCommand<{ assets: ProjectAsset[]; players: Player[]; timeline?: TimelineAssetPlacement | null }>({
 	label: 'Import assets',
 	changes: (_state, payload) => [
 		...payload.assets.map(asset => ({ type: 'asset' as const, assetId: asset.id })),
 		...payload.players.map(player => ({ type: 'player' as const, playerId: player.id })),
+		...getTimelineAssetPlacementChanges(payload.timeline ?? null),
 	],
 	create: payload => ({
 		execute(state) {
@@ -516,14 +519,20 @@ const importAssetsCommandDef = defineCommand<{ assets: ProjectAsset[]; players: 
 					ids.add(resource.id);
 				}
 			}
+			if (payload.timeline != null) {
+				// 新規Assetを含む仮の状態で配置を検証し、失敗時には素材もレイヤーも追加しない。
+				validateTimelineAssetPlacement({ ...state, assets: ref([...state.assets.value, ...payload.assets]) }, payload.timeline);
+			}
 			state.assets.value.push(...deepClone(payload.assets));
 			state.players.value.push(...deepClone(payload.players));
+			if (payload.timeline != null) getScene(state, payload.timeline.sceneId).layers.unshift(...deepClone(payload.timeline.layers));
 		},
 		undo(state) {
 			const assetIds = new Set(payload.assets.map(asset => asset.id));
 			const playerIds = new Set(payload.players.map(player => player.id));
 			state.assets.value = state.assets.value.filter(asset => !assetIds.has(asset.id));
 			state.players.value = state.players.value.filter(player => !playerIds.has(player.id));
+			if (payload.timeline != null) removeTimelineAssetPlacement(state, payload.timeline);
 		},
 	}),
 });
@@ -1289,6 +1298,42 @@ const addTimelineLayerCommandDef = defineCommand<{ sceneId: string; layer: Timel
 			scene.layers.unshift(deepClone(payload.layer));
 		},
 		undo(state) { const scene = getScene(state, payload.sceneId); scene.layers = scene.layers.filter(layer => layer.id !== payload.layer.id); },
+	}),
+});
+
+function getTimelineAssetPlacementChanges(placement: TimelineAssetPlacement | null): AppStateChange[] {
+	if (placement == null || placement.layers.length === 0) return [];
+	return [
+		...placement.layers.map(layer => ({ type: 'layer' as const, sceneId: placement.sceneId, layerId: layer.id, changes: [{ type: 'definition' as const }] })),
+		{ type: 'layerOrder', sceneId: placement.sceneId },
+	];
+}
+
+function validateTimelineAssetPlacement(state: ProjectState, placement: TimelineAssetPlacement) {
+	getScene(state, placement.sceneId);
+	const ids = new Set<string>();
+	for (const layer of placement.layers) {
+		if (ids.has(layer.id)) throw new Error('Duplicate layer ID');
+		ids.add(layer.id);
+		validateAddedTimelineLayer(state, placement.sceneId, layer, placement.sourceDurationsMs);
+	}
+}
+
+function removeTimelineAssetPlacement(state: ProjectState, placement: TimelineAssetPlacement) {
+	const ids = new Set(placement.layers.map(layer => layer.id));
+	const scene = getScene(state, placement.sceneId);
+	scene.layers = scene.layers.filter(layer => !ids.has(layer.id));
+}
+
+const addTimelineAssetLayersCommandDef = defineCommand<TimelineAssetPlacement>({
+	label: 'Add timeline asset layers',
+	changes: (_state, payload) => getTimelineAssetPlacementChanges(payload),
+	create: payload => ({
+		execute(state) {
+			validateTimelineAssetPlacement(state, payload);
+			getScene(state, payload.sceneId).layers.unshift(...deepClone(payload.layers));
+		},
+		undo(state) { removeTimelineAssetPlacement(state, payload); },
 	}),
 });
 
@@ -2120,6 +2165,7 @@ export const COMMAND_DEFS = {
 	changeTimelineRenderSettings: changeTimelineRenderSettingsCommandDef,
 	changeEffectLayerResolution: changeEffectLayerResolutionCommandDef,
 	addTimelineLayer: addTimelineLayerCommandDef,
+	addTimelineAssetLayers: addTimelineAssetLayersCommandDef,
 	renameTimelineLayer: renameTimelineLayerCommandDef,
 	setTimelineLayerDisabled: setTimelineLayerDisabledCommandDef,
 	setTimelineLayerCoordinateSpace: setTimelineLayerCoordinateSpaceCommandDef,

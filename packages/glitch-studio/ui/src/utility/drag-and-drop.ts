@@ -1,6 +1,7 @@
 type DragDataMap = {
 	GsDraggable: { item: { id: string }; instanceId: string; group: string; };
 	WorkspacePanel: { id: string; };
+	GsAsset: { assetId: string; };
 };
 
 // NOTE: dataTransfer の format は大文字小文字区別されないっぽいので toLowerCase が必要
@@ -53,8 +54,5 @@ export function checkDragDataType(
 ): boolean {
 	if (event.dataTransfer == null) return false;
 
-	const dataType = event.dataTransfer.types[0];
-	if (dataType == null || dataType === '') return false;
-
-	return types.some((type) => `misskey/${type}`.toLowerCase() === dataType.toLowerCase());
+	return event.dataTransfer.types.some(dataType => types.some(type => `misskey/${type}`.toLowerCase() === dataType.toLowerCase()));
 }
