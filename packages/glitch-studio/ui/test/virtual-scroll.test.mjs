@@ -215,9 +215,7 @@ const draggableAst = createSourceFile('GsDraggable.ts', draggableScript, ScriptT
 const dropFunction = draggableAst.statements.find(statement => isFunctionDeclaration(statement) && statement.name?.text === 'onDrop');
 const { createDropHandler } = await bundle(`export function createDropHandler(props, dragged, emit) {
 	const dropReadyArea = { value: [null, null] };
-	const getDragData = () => dragged;
-	const dropCallback = null;
-	const instanceId = 'instance';
+	const dragSession = { read: () => dragged, complete() {} };
 	const group = 'group';
 	${dropFunction.getText(draggableAst)}
 	return onDrop;
@@ -230,10 +228,10 @@ test('reorders against the full model and keeps the current dragged item', () =>
 	const dragged = { group: 'group', item: { id: 'a', name: 'old snapshot' } };
 	let reordered;
 	const onDrop = createDropHandler({ modelValue }, dragged, (_event, value) => { reordered = value; });
-	onDrop({}, modelValue[2], true);
+	onDrop({ preventDefault() {}, stopPropagation() {} }, modelValue[2], true);
 	assert.deepEqual(reordered.map(item => item.id), ['b', 'c', 'a', 'd']);
 	assert.equal(reordered[2], modelValue[0]);
-	onDrop({}, modelValue[2], false);
+	onDrop({ preventDefault() {}, stopPropagation() {} }, modelValue[2], false);
 	assert.deepEqual(reordered.map(item => item.id), ['b', 'a', 'c', 'd']);
 	assert.deepEqual(modelValue.map(item => item.id), ['a', 'b', 'c', 'd']);
 });

@@ -1,5 +1,6 @@
 <template>
 <div
+	:data-test-asset="asset.id"
 	:class="[$style.root, { [$style.isSelected]: isSelected }]"
 	draggable="true"
 	:title="title"
@@ -19,7 +20,7 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, ref } from 'vue';
+import { computed } from 'vue';
 import GsDialog from './common/GsDialog.vue';
 import GsAssetThumbnail from './GsAssetThumbnail.vue';
 import type { ProjectAsset } from '@/Project.ts';
@@ -28,7 +29,7 @@ import { appContext } from '@/app.ts';
 import { openMediaFile } from '@/utility/open-media-file.ts';
 import { popup } from '@/ui.ts';
 import * as ui from '@/ui.ts';
-import { setDragData } from '@/utility/drag-and-drop.ts';
+import { useDragSession } from '@/composables/useDragSession.ts';
 
 const { stateManager } = appContext.projectContext;
 
@@ -42,7 +43,7 @@ const emit = defineEmits<{
 	(ev: 'dragend'): void;
 }>();
 
-const isDragging = ref(false);
+const dragSession = useDragSession();
 
 const bytes = (v: number | null, digits = 0) => {
 	if (v == null) return '?';
@@ -120,15 +121,14 @@ function onContextmenu(ev: PointerEvent) {
 function onDragstart(ev: DragEvent) {
 	if (ev.dataTransfer != null) {
 		ev.dataTransfer.effectAllowed = 'copy';
-		setDragData(ev, 'GsAsset', { assetId: props.asset.id });
+		dragSession.start(ev, 'GsAsset', { assetId: props.asset.id });
 	}
-	isDragging.value = true;
 
 	emit('dragstart', ev);
 }
 
 function onDragend() {
-	isDragging.value = false;
+	dragSession.finish();
 	emit('dragend');
 }
 </script>

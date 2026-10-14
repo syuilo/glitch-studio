@@ -12,9 +12,10 @@
 	<div
 		v-if="modelValue.length === 0"
 		:class="$style.emptyDropArea"
-		@dragover.prevent.stop="() => {}"
+		data-test-draggable-empty
+		@dragover="onEmptyDragover"
 		@dragleave="() => {}"
-		@drop.prevent.stop="onEmptyDrop($event)"
+		@drop="onEmptyDrop($event)"
 	>
 	</div>
 	<!-- 並べ替えには全件を保持し、描画だけを仮想一覧などへ委ねられる。 -->
@@ -25,19 +26,10 @@
 </TransitionGroup>
 </template>
 
-<script lang="ts">
-import { ref } from 'vue';
-
-// 別々のコンポーネントインスタンス間でD&Dを融通するためにグローバルに状態を持っておく必要がある
-const dragging = ref(false);
-let dropCallback: ((targetInstanceId: string) => void) | null = null;
-</script>
-
 <script lang="ts" setup generic="T extends { id: string; }">
-import { genId } from '@gs/shared/utility/id.js';
-import { h, nextTick, onBeforeUnmount, useCssModule } from 'vue';
+import { h, ref, computed, watch, useCssModule } from 'vue';
 import type { FunctionalComponent } from 'vue';
-import { getDragData, setDragData } from '@/utility/drag-and-drop.ts';
+import { useDragSession } from '@/composables/useDragSession.ts';
 
 const slots = defineSlots<{
 	default(props: { item: T; index: number; dragStart: (ev: DragEvent) => void }): any;
@@ -65,69 +57,56 @@ const emit = defineEmits<{
 }>();
 
 const dropReadyArea = ref<[T['id'] | null, 'forward' | 'backward' | null]>([null, null]);
-const instanceId = genId();
-const group = props.group ?? instanceId;
+const dragSession = useDragSession();
+const group = props.group ?? dragSession.sourceId;
 const style = useCssModule();
-const draggingId = ref<string | null>(null);
-let finishDrag: (() => void) | null = null;
+const dragged = dragSession.data('GsDraggable');
+const draggedSource = dragSession.sourceData('GsDraggable');
+const dragging = computed(() => dragged.value?.group === group);
+const draggingId = computed(() => draggedSource.value?.item.id ?? null);
+watch(dragged, data => { if (data == null) dropReadyArea.value = [null, null]; });
 
 // 同じ行コンポーネントを通常一覧と仮想一覧で共有し、ドロップ領域の仕様を二重管理しない。
 const renderItem: FunctionalComponent<{ item: T; index: number }> = ({ item, index }) => {
 	const dropArea = (backward: boolean) => h('div', {
+		'data-test-draggable-drop': backward ? 'after' : 'before',
 		class: [backward ? style.backwardArea : style.forwardArea, { [style.dropReady]: dropReadyArea.value[0] === item.id && dropReadyArea.value[1] === (backward ? 'backward' : 'forward') }],
-		onDragover: (event: DragEvent) => { event.preventDefault(); event.stopPropagation(); onDragover(event, item, backward); },
+		onDragover: (event: DragEvent) => onDragover(event, item, backward),
 		onDragleave: (event: DragEvent) => onDragleave(event, item),
-		onDrop: (event: DragEvent) => { event.preventDefault(); event.stopPropagation(); onDrop(event, item, backward); },
+		onDrop: (event: DragEvent) => onDrop(event, item, backward),
 	});
 	return h('section', {
+		'data-test-draggable-item': item.id,
 		class: style.item,
 		draggable: !props.manualDragStart,
 		onDragstart: (event: DragEvent) => { event.stopPropagation(); onDragstart(event, item); },
 	}, [dropArea(false), h('div', { style: { position: 'relative', zIndex: 0 } }, slots.default({ item, index, dragStart: event => onDragstart(event, item) })), dropArea(true)]);
 };
-onBeforeUnmount(() => finishDrag?.());
 
 function onDragstart(ev: DragEvent, item: T) {
 	if (ev.dataTransfer == null) return;
-	finishDrag?.();
 	ev.dataTransfer.effectAllowed = 'move';
-	setDragData(ev, 'GsDraggable', { item, instanceId, group });
-
-	const target = ev.target as HTMLElement;
-	const ownerWindow = target.ownerDocument.defaultView!;
-	const finish = () => {
-		ownerWindow.clearTimeout(timer);
-		target.removeEventListener('dragend', finish);
-		ownerWindow.removeEventListener('blur', finish);
-		dragging.value = false;
-		draggingId.value = null;
-		dropReadyArea.value = [null, null];
-		dropCallback = null;
-		finishDrag = null;
-	};
-	finishDrag = finish;
-	target.addEventListener('dragend', finish, { once: true });
-	ownerWindow.addEventListener('blur', finish);
-
-	dropCallback = (targetInstanceId) => {
-		if (targetInstanceId === instanceId) return;
+	dragSession.start(ev, 'GsDraggable', { item, group }, () => {
 		const newValue = props.modelValue.filter(x => x.id !== item.id);
 		emit('update:modelValue', newValue);
-	};
-
-	// Chromeのバグで、Dragstartハンドラ内ですぐにDOMを変更する(=リアクティブなプロパティを変更する)とDragが終了してしまう
-	// SEE: https://stackoverflow.com/questions/19639969/html5-dragend-event-firing-immediately
-	// SEE: https://issues.chromium.org/issues/41150279
-	const timer = ownerWindow.setTimeout(() => {
-		dragging.value = true;
-		draggingId.value = item.id;
-	}, 10);
+	});
 }
 
 function onDragover(ev: DragEvent, item: T, backward: boolean) {
-	nextTick(() => {
-		dropReadyArea.value = [item.id, backward ? 'backward' : 'forward'];
-	});
+	const data = dragSession.read(ev, 'GsDraggable');
+	if (data == null || data.group !== group || data.item.id === item.id) return;
+	ev.preventDefault();
+	ev.stopPropagation();
+	if (ev.dataTransfer != null) ev.dataTransfer.dropEffect = 'move';
+	dropReadyArea.value = [item.id, backward ? 'backward' : 'forward'];
+}
+
+function onEmptyDragover(ev: DragEvent) {
+	const data = dragSession.read(ev, 'GsDraggable');
+	if (data == null || data.group !== group) return;
+	ev.preventDefault();
+	ev.stopPropagation();
+	if (ev.dataTransfer != null) ev.dataTransfer.dropEffect = 'move';
 }
 
 function onDragleave(ev: DragEvent, item: T) {
@@ -135,10 +114,11 @@ function onDragleave(ev: DragEvent, item: T) {
 }
 
 function onDrop(ev: DragEvent, item: T, backward: boolean) {
-	const dragged = getDragData(ev, 'GsDraggable');
+	const dragged = dragSession.read(ev, 'GsDraggable');
 	dropReadyArea.value = [null, null];
 	if (dragged == null || dragged.group !== group || dragged.item.id === item.id) return;
-	dropCallback?.(instanceId);
+	ev.preventDefault();
+	ev.stopPropagation();
 
 	const fromIndex = props.modelValue.findIndex(x => x.id === dragged.item.id);
 	let toIndex = props.modelValue.findIndex(x => x.id === item.id);
@@ -150,13 +130,16 @@ function onDrop(ev: DragEvent, item: T, backward: boolean) {
 	if (backward) toIndex += 1;
 	newValue.splice(toIndex, 0, movedItem);
 
+	dragSession.complete(ev);
 	emit('update:modelValue', newValue);
 }
 
 function onEmptyDrop(ev: DragEvent) {
-	const dragged = getDragData(ev, 'GsDraggable');
-	if (dragged == null) return;
-	dropCallback?.(instanceId);
+	const dragged = dragSession.read(ev, 'GsDraggable');
+	if (dragged == null || dragged.group !== group) return;
+	ev.preventDefault();
+	ev.stopPropagation();
+	dragSession.complete(ev);
 
 	emit('update:modelValue', [dragged.item as T]);
 }

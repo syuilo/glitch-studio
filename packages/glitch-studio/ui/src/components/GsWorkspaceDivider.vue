@@ -1,5 +1,5 @@
 <template>
-<div ref="root" :class="[$style.root, { [$style.horizontal]: divider.direction === 'horizontal', [$style.vertical]: divider.direction === 'vertical' }]">
+<div ref="root" :data-test-workspace-divider="divider.id" :class="[$style.root, { [$style.horizontal]: divider.direction === 'horizontal', [$style.vertical]: divider.direction === 'vertical' }]">
 	<template v-for="(child, i) in divider.children" :key="child.element.id">
 		<GsWorkspaceElement
 			:element="child.element"
@@ -15,11 +15,12 @@
 			@pointercancel="onPointerEnd"
 		>
 			<div
-				v-if="workspacePanelDraggingContext.draggingId.value != null"
+				v-if="draggedPanel != null"
+				:data-test-workspace-divider-drop="i"
 				:class="[$style.dropArea, { [$style.dropReady]: dropReadyIndex === i }]"
-				@dragover.prevent.stop="onDragover($event, i)"
+				@dragover="onDragover($event, i)"
 				@dragleave="onDragleave($event)"
-				@drop.prevent.stop="onDrop($event, i)"
+				@drop="onDrop($event, i)"
 			></div>
 		</div>
 	</template>
@@ -28,10 +29,10 @@
 
 <script lang="ts" setup>
 import { deepClone } from '@gs/shared/utility/deep-clone.js';
-import { computed, nextTick, ref, useTemplateRef } from 'vue';
+import { computed, ref, useTemplateRef, watch } from 'vue';
 import type { WorkspaceDivider } from '@/workspace.ts';
 import GsWorkspaceElement from '@/components/GsWorkspaceElement.vue';
-import { workspacePanelDraggingContext } from '@/app.ts';
+import { useDragSession } from '@/composables/useDragSession.ts';
 import { cleanupWorkspaceDefinition, findWorkspaceElement, findWorkspaceParent } from '@/utility/workspace.ts';
 import { preferences } from '@/preferences.ts';
 
@@ -122,11 +123,16 @@ function onPointerEnd(ev: PointerEvent) {
 }
 
 const dropReadyIndex = ref<number | null>(null);
+const dragSession = useDragSession();
+const draggedPanel = dragSession.data('WorkspacePanel');
+watch(draggedPanel, data => { if (data == null) dropReadyIndex.value = null; });
 
 function onDragover(ev: DragEvent, index: number) {
-	nextTick(() => {
-		dropReadyIndex.value = index;
-	});
+	if (dragSession.read(ev, 'WorkspacePanel') == null) return;
+	ev.preventDefault();
+	ev.stopPropagation();
+	if (ev.dataTransfer != null) ev.dataTransfer.dropEffect = 'move';
+	dropReadyIndex.value = index;
 }
 
 function onDragleave(ev: DragEvent) {
@@ -135,9 +141,11 @@ function onDragleave(ev: DragEvent) {
 
 function onDrop(ev: DragEvent, index: number) {
 	dropReadyIndex.value = null;
-	const draggingId = workspacePanelDraggingContext.draggingId.value;
-	workspacePanelDraggingContext.draggingId.value = null;
-	if (draggingId == null) return;
+	const data = dragSession.read(ev, 'WorkspacePanel');
+	if (data == null) return;
+	ev.preventDefault();
+	ev.stopPropagation();
+	const draggingId = data.id;
 
 	const workspace = deepClone(preferences.s.workspaceDefinition);
 	const sourceParent = findWorkspaceParent(workspace, draggingId);
@@ -159,6 +167,7 @@ function onDrop(ev: DragEvent, index: number) {
 	}
 	sourceParent.children.splice(sourceIndex, 1);
 	target.children.splice(insertionIndex, 0, { ratio, element: source.element });
+	dragSession.complete(ev);
 	preferences.commit('workspaceDefinition', cleanupWorkspaceDefinition(workspace));
 }
 

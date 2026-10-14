@@ -1,6 +1,6 @@
 import { onBeforeUnmount, onMounted, ref } from 'vue';
 import type { Ref } from 'vue';
-import { checkDragDataType, getDragData } from '../utility/drag-and-drop.ts';
+import { getActiveDragData } from '../utility/drag-and-drop.ts';
 
 export function useTimelineAssetDrop(options: {
 	target: Readonly<Ref<HTMLElement | null>>;
@@ -13,7 +13,7 @@ export function useTimelineAssetDrop(options: {
 	let busy = false;
 	let windowTarget: Window | null = null;
 	const accepts = (event: DragEvent) => event.dataTransfer != null
-		&& (event.dataTransfer.types.includes('Files') || checkDragDataType(event, ['GsAsset']));
+		&& (event.dataTransfer.types.includes('Files') || getActiveDragData(event, 'GsAsset') != null);
 
 	function clear() { depth = 0; hovering.value = false; }
 
@@ -50,7 +50,7 @@ export function useTimelineAssetDrop(options: {
 		if (busy) return;
 		busy = true;
 		try {
-			const data = getDragData(event, 'GsAsset');
+			const data = getActiveDragData(event, 'GsAsset');
 			if (data != null) await options.dropAsset(data.assetId);
 			else await options.dropFiles(Array.from(event.dataTransfer?.files ?? []));
 		} catch (error) { options.reportError(error); } finally { busy = false; }

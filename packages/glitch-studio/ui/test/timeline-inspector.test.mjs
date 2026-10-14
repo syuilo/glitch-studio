@@ -23,6 +23,7 @@ const result = await build({
 		export { createInlineVisualModuleLayer } from './src/utility/inline-visual-module-layer.ts';
 		export { videoHoldTest } from '@/utility/timeline-video-hold.ts';
 		export { dropUiTest } from '@/ui.ts';
+		export { startDragSession, finishDragSession } from './src/utility/drag-and-drop.ts';
 	`, resolveDir: directory, loader: 'ts' },
 	bundle: true, platform: 'node', format: 'cjs', external: ['vue'], write: false,
 	plugins: [{ name: 'timeline-inspector', setup(build) {
@@ -75,8 +76,10 @@ const result = await build({
 const bundled = { exports: {} };
 new Function('require', 'module', 'exports', result.outputFiles[0].text)(createRequire(import.meta.url), bundled, bundled.exports);
 const { Timeline, Inspector, appContext, COMMAND_DEFS, UndoRedo, getTimelineEditorState, createInlineVisualModuleLayer, videoHoldTest, dropUiTest } = bundled.exports;
+const { startDragSession, finishDragSession } = bundled.exports;
+let dragWindow = null;
 
-function element(tag = 'div') { return { tag, parent: null, children: [], props: {}, text: '', offsetWidth: 1000, offsetHeight: 500 }; }
+function element(tag = 'div') { return { tag, parent: null, children: [], props: {}, text: '', offsetWidth: 1000, offsetHeight: 500, ownerDocument: { defaultView: dragWindow } }; }
 
 const renderer = createRenderer({
 	createElement: element, createText: text => ({ ...element('text'), text }), createComment: () => element('comment'),
@@ -105,11 +108,14 @@ test('shows the full timeline drop overlay and consumes only file and asset drag
 	const overlay = () => descendants(f.root).find(node => 'data-test-timeline-drop-overlay' in node.props);
 
 	function event(types, assetId = 'sound') {
-		const value = new Event('drop', { cancelable: true });
-		value.dataTransfer = { types, files: [], getData: type => type === 'glitch-studio/gsasset' ? JSON.stringify({ assetId }) : '' };
+		const transfer = layerDragTransfer();
+		for (const type of types) transfer.setData(type, '');
+		const value = layerDragEvent(transfer, 90, 'dragover');
+		if (types.includes('glitch-studio/gsasset')) startDragSession(value, 'test-asset', 'GsAsset', { assetId });
+		const drop = () => { transfer.allowReading(); return layerDragEvent(transfer); };
 		let stopped = false;
 		value.stopPropagation = () => { stopped = true; };
-		return { value, isStopped: () => stopped };
+		return { value, drop, isStopped: () => stopped };
 	}
 
 	const internal = event(['glitch-studio/gsdraggable']);
@@ -126,7 +132,7 @@ test('shows the full timeline drop overlay and consumes only file and asset drag
 	assert.ok(overlay());
 	assert.equal(asset.isStopped(), true);
 	assert.equal(asset.value.dataTransfer.dropEffect, 'copy');
-	await target.props.onDropCapture(asset.value);
+	await target.props.onDropCapture(asset.drop());
 	await nextTick();
 	assert.equal(overlay(), undefined);
 	assert.equal(f.scene.layers[0].clips[0].assetId, 'sound');
@@ -140,7 +146,7 @@ test('shows the full timeline drop overlay and consumes only file and asset drag
 	target.props.onDragenterCapture(font.value);
 	await nextTick();
 	assert.ok(overlay());
-	await target.props.onDropCapture(font.value);
+	await target.props.onDropCapture(font.drop());
 	assert.equal(f.history.undoStack.value.length, 1);
 	assert.equal(dropUiTest.dialogs, 1);
 	const files = event(['Files']);
@@ -155,6 +161,7 @@ function layerDragTransfer() {
 	const values = new Map();
 	let readable = false;
 	return {
+		files: [],
 		get types() { return [...values.keys()]; },
 		setData: (type, value) => values.set(type, value),
 		getData(type) { assert.equal(readable, true, 'Drag data must only be read on drop'); return values.get(type) ?? ''; },
@@ -162,11 +169,11 @@ function layerDragTransfer() {
 	};
 }
 
-function layerDragEvent(transfer, clientY = 90) {
-	const event = new Event('drop', { cancelable: true });
+function layerDragEvent(transfer, clientY = 90, type = 'drop') {
+	const event = new Event(type, { cancelable: true });
 	event.dataTransfer = transfer;
 	event.clientY = clientY;
-	Object.defineProperty(event, 'currentTarget', { value: { getBoundingClientRect: () => ({ top: 0, height: 100 }) } });
+	Object.defineProperty(event, 'currentTarget', { value: { ownerDocument: { defaultView: dragWindow }, getBoundingClientRect: () => ({ top: 0, height: 100 }) } });
 	return event;
 }
 
@@ -177,13 +184,15 @@ test('reorders layers with typed drag data while preserving undo and the mounted
 	const f = await fixture(t, Timeline);
 	const row = id => f.controls('GsTimeline.Layer').find(node => node.props['data-test-timeline-layer'] === id);
 	const transfer = layerDragTransfer();
-	row('a').props.onDragStart(layerDragEvent(transfer));
-	assert.deepEqual([...transfer.values.keys()], ['glitch-studio/timelinelayer']);
+	row('a').props.onDragStart(layerDragEvent(transfer, 90, 'dragstart'));
+	assert.equal(transfer.types.includes('glitch-studio/timelinelayer'), true);
+	assert.equal(transfer.types.includes('text/plain'), false);
 	assert.deepEqual(JSON.parse(transfer.values.get('glitch-studio/timelinelayer')), { sceneId: 'scene', layerId: 'a' });
 	assert.equal(transfer.effectAllowed, 'move');
+	await new Promise(resolve => setTimeout(resolve, 20));
 	await nextTick();
 	assert.deepEqual(f.control('GsVirtualScroll').props.keepMountedKeys, ['a']);
-	const over = layerDragEvent(transfer);
+	const over = layerDragEvent(transfer, 90, 'dragover');
 	row('b').props.onDragover(over);
 	assert.equal(over.defaultPrevented, true);
 	assert.equal(transfer.dropEffect, 'move');
@@ -207,8 +216,8 @@ test('rejects unrelated drops and layer payloads that do not match the local dra
 	const row = id => f.controls('GsTimeline.Layer').find(node => node.props['data-test-timeline-layer'] === id);
 	for (const payload of [null, { sceneId: 'other-scene', layerId: 'a' }, { sceneId: 'scene', layerId: 'b' }]) {
 		const transfer = layerDragTransfer();
-		row('a').props.onDragStart(layerDragEvent(transfer));
-		row('b').props.onDragover(layerDragEvent(transfer));
+		row('a').props.onDragStart(layerDragEvent(transfer, 90, 'dragstart'));
+		row('b').props.onDragover(layerDragEvent(transfer, 90, 'dragover'));
 		if (payload == null) {
 			transfer.values.clear();
 			transfer.setData('text/plain', 'a');
@@ -222,16 +231,16 @@ test('rejects unrelated drops and layer payloads that do not match the local dra
 	}
 	const foreign = layerDragTransfer();
 	foreign.setData('glitch-studio/timelinelayer', JSON.stringify({ sceneId: 'scene', layerId: 'a' }));
-	const over = layerDragEvent(foreign);
+	const over = layerDragEvent(foreign, 90, 'dragover');
 	row('b').props.onDragover(over);
 	assert.equal(over.defaultPrevented, false);
 	foreign.allowReading();
 	row('b').props.onDrop(layerDragEvent(foreign));
 	assert.equal(f.history.undoStack.value.length, 0);
 	const cancelled = layerDragTransfer();
-	row('a').props.onDragStart(layerDragEvent(cancelled));
-	row('b').props.onDragover(layerDragEvent(cancelled));
-	row('a').props.onDragend();
+	row('a').props.onDragStart(layerDragEvent(cancelled, 90, 'dragstart'));
+	row('b').props.onDragover(layerDragEvent(cancelled, 90, 'dragover'));
+	dragWindow.dispatchEvent(new Event('dragend'));
 	cancelled.allowReading();
 	row('b').props.onDrop(layerDragEvent(cancelled));
 	assert.equal(f.history.undoStack.value.length, 0);
@@ -306,6 +315,8 @@ test('applies speed and reverse controls and previews collision errors', async t
 });
 
 async function fixture(t, component = Inspector) {
+	dragWindow = new EventTarget();
+	t.after(() => finishDragSession('test-asset'));
 	dropUiTest.dialogs = 0;
 	videoHoldTest.calls = [];
 	videoHoldTest.read = null;

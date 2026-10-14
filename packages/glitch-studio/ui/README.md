@@ -30,6 +30,8 @@ title属性を使わないでください。v-tooltipディレクティブを使
 
 ## Workspaceのパネル表示
 
+アプリ内のHTML Drag and Dropは`composables/useDragSession.ts`を使う。`utility/drag-and-drop.ts`が型付きデータのスナップショット・開始元の識別・終了処理を所有し、dragoverでも同じセッションのデータを参照できる。GsTimeline、GsDraggable、GsWorkspacePanel、GsWorkspaceDivider、GsAssetはドラッグ状態をこの仕組みへ委ねる。操作ごとの移動条件や配置計算、Command・preferencesへの反映は各コンポーネントが所有する。APIと寿命の詳細は[UIのドラッグセッション](../../../docs/drag-and-drop.md)を参照。
+
 `WorkspaceController`をworkspaceの所有元で生成し、`workspaceControllerKey`でprovideする。タブ選択はコントローラーが実行時状態として保持し、非表示でアンマウントされたタブも選択できる。折りたたみ状態は従来どおりpreferencesのworkspace定義へ保存する。
 
 `revealPanel({ contentType, sourcePanelId })`は、操作元を隠す候補を除外してパネルを開き、対象ID（候補なしならnull）を返す。共通祖先のタブで別の枝に属する候補は対象外。sourcePanelIdがnullの場合は全体ドロップなど操作元パネルのない要求として扱い、別タブも候補に含める。指定されたパネルIDが存在しない場合は何もしない。必要なタブ切り替えと折りたたみ解除の合計回数が最小の候補を選び、同点ではツリー順を使う。探索・変更計画は`utility/workspace-panel-reveal.ts`の純粋な関数が担当する。

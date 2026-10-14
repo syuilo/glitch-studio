@@ -2,7 +2,7 @@ import { createTimelineClipTiming } from '@gs/subsystems_timeline_shared/timing.
 import { createTimelineMediaClipTiming } from '@gs/subsystems_timeline_shared/media-timing.ts';
 import { timelineAudioParamDefs } from '@gs/subsystems_timeline_shared/timeline-audio.ts';
 import { visualModuleCustomParameterId, visualModuleCustomParameterName } from '@gs/subsystems_visual-module_shared/types.ts';
-import { computed, ref, markRaw, watch } from 'vue';
+import { computed, markRaw, watch } from 'vue';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { timelineCompositingParamDefs } from '@gs/subsystems_timeline_shared/timeline-compositing.ts';
 import { genId } from '@gs/shared/utility/id.ts';
@@ -305,10 +305,6 @@ export async function newProjectFromImageOrVideo(file?: File) {
 
 	return true;
 }
-
-export const workspacePanelDraggingContext = {
-	draggingId: ref<string | null>(null),
-};
 
 const keymap = {
 	'space': () => {

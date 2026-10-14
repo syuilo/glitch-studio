@@ -1,41 +1,47 @@
 <template>
 <div
+	:data-test-workspace-panel="panel.id"
 	:class="[$style.root, { [$style.collapsed]: collapsed, [$style.horizontal]: stackingDirection === 'horizontal', [$style.verticalHeader]: verticalHeader }]"
 >
 	<div
-		v-if="workspacePanelDraggingContext.draggingId.value != null && workspacePanelDraggingContext.draggingId.value !== panel.id"
+		v-if="canDropPanel"
+		data-test-workspace-panel-drop="top"
 		:class="[$style.dropAreaTop, { [$style.dropReady]: dropReadyArea === 'top' }]"
-		@dragover.prevent.stop="onDragover($event, 'top')"
+		@dragover="onDragover($event, 'top')"
 		@dragleave="onDragleave($event)"
-		@drop.prevent.stop="onDrop($event, 'top')"
+		@drop="onDrop($event, 'top')"
 	></div>
 	<div
-		v-if="workspacePanelDraggingContext.draggingId.value != null && workspacePanelDraggingContext.draggingId.value !== panel.id"
+		v-if="canDropPanel"
+		data-test-workspace-panel-drop="bottom"
 		:class="[$style.dropAreaBottom, { [$style.dropReady]: dropReadyArea === 'bottom' }]"
-		@dragover.prevent.stop="onDragover($event, 'bottom')"
+		@dragover="onDragover($event, 'bottom')"
 		@dragleave="onDragleave($event)"
-		@drop.prevent.stop="onDrop($event, 'bottom')"
+		@drop="onDrop($event, 'bottom')"
 	></div>
 	<div
-		v-if="workspacePanelDraggingContext.draggingId.value != null && workspacePanelDraggingContext.draggingId.value !== panel.id"
+		v-if="canDropPanel"
+		data-test-workspace-panel-drop="left"
 		:class="[$style.dropAreaLeft, { [$style.dropReady]: dropReadyArea === 'left' }]"
-		@dragover.prevent.stop="onDragover($event, 'left')"
+		@dragover="onDragover($event, 'left')"
 		@dragleave="onDragleave($event)"
-		@drop.prevent.stop="onDrop($event, 'left')"
+		@drop="onDrop($event, 'left')"
 	></div>
 	<div
-		v-if="workspacePanelDraggingContext.draggingId.value != null && workspacePanelDraggingContext.draggingId.value !== panel.id"
+		v-if="canDropPanel"
+		data-test-workspace-panel-drop="right"
 		:class="[$style.dropAreaRight, { [$style.dropReady]: dropReadyArea === 'right' }]"
-		@dragover.prevent.stop="onDragover($event, 'right')"
+		@dragover="onDragover($event, 'right')"
 		@dragleave="onDragleave($event)"
-		@drop.prevent.stop="onDrop($event, 'right')"
+		@drop="onDrop($event, 'right')"
 	></div>
 	<div
-		v-if="workspacePanelDraggingContext.draggingId.value != null && workspacePanelDraggingContext.draggingId.value !== panel.id"
+		v-if="canDropPanel"
+		data-test-workspace-panel-drop="center"
 		:class="[$style.dropAreaCenter, { [$style.dropReady]: dropReadyArea === 'center' }]"
-		@dragover.prevent.stop="onDragover($event, 'center')"
+		@dragover="onDragover($event, 'center')"
 		@dragleave="onDragleave($event)"
-		@drop.prevent.stop="onDrop($event, 'center')"
+		@drop="onDrop($event, 'center')"
 	></div>
 
 	<div :class="[$style.main]" tabindex="0">
@@ -61,7 +67,7 @@
 			</button>
 			<span :class="$style.title"><i :class="workspacePanelDefinitions[panel.contentType].icon" style="margin-inline-end: 0.5em;"></i>{{ workspacePanelDefinitions[panel.contentType].label }}</span>
 			<button :class="$style.popoutButton" class="_button" @click="popout"><i class="ti ti-external-link"></i></button>
-			<div :class="$style.grabber" draggable="true" @dragstart.stop="onDragstart">
+			<div :class="$style.grabber" data-test-workspace-panel-grabber draggable="true" @dragstart.stop="onDragstart">
 				<svg viewBox="0 0 16 16" version="1.1" :class="$style.grabberSvg">
 					<path fill="currentColor" d="M10 13a1 1 0 1 1 0-2 1 1 0 0 1 0 2Zm0-4a1 1 0 1 1 0-2 1 1 0 0 1 0 2Zm-4 4a1 1 0 1 1 0-2 1 1 0 0 1 0 2Zm5-9a1 1 0 1 1-2 0 1 1 0 0 1 2 0ZM7 8a1 1 0 1 1-2 0 1 1 0 0 1 2 0ZM6 5a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z"></path>
 				</svg>
@@ -82,14 +88,13 @@
 
 <script lang="ts" setup>
 import { deepClone } from '@gs/shared/utility/deep-clone.js';
-import { useTemplateRef, ref, computed, nextTick } from 'vue';
+import { useTemplateRef, ref, computed, watch } from 'vue';
 import GsDetachableView from './GsDetachableView.vue';
 import type { MenuItem } from '@/types/menu.ts';
 import type { WorkspacePanel } from '@/workspace.ts';
 import { getElementMenu, workspacePanelDefinitions } from '@/workspace.ts';
 import * as ui from '@/ui.ts';
-import { workspacePanelDraggingContext } from '@/app.ts';
-import { setDragData } from '@/utility/drag-and-drop.ts';
+import { useDragSession } from '@/composables/useDragSession.ts';
 import { cleanupWorkspaceDefinition, findWorkspaceElement, findWorkspaceParent, splitWorkspaceElement } from '@/utility/workspace.ts';
 import { preferences } from '@/preferences.ts';
 
@@ -136,30 +141,24 @@ function goTop(ev: PointerEvent) {
 }
 
 const dropReadyArea = ref<'top' | 'bottom' | 'left' | 'right' | 'center' | null>(null);
+const dragSession = useDragSession();
+const draggedPanel = dragSession.data('WorkspacePanel');
+const canDropPanel = computed(() => draggedPanel.value != null && draggedPanel.value.id !== props.panel.id);
+watch(draggedPanel, data => { if (data == null) dropReadyArea.value = null; });
 
 function onDragstart(ev: DragEvent) {
 	if (ev.dataTransfer == null) return;
 	ev.dataTransfer.effectAllowed = 'move';
-	setDragData(ev, 'WorkspacePanel', { id: props.panel.id });
-
-	const target = ev.target as HTMLElement;
-	target.addEventListener('dragend', (ev) => {
-		workspacePanelDraggingContext.draggingId.value = null;
-		dropReadyArea.value = null;
-	}, { once: true });
-
-	// Chromeのバグで、Dragstartハンドラ内ですぐにDOMを変更する(=リアクティブなプロパティを変更する)とDragが終了してしまう
-	// SEE: https://stackoverflow.com/questions/19639969/html5-dragend-event-firing-immediately
-	// SEE: https://issues.chromium.org/issues/41150279
-	window.setTimeout(() => {
-		workspacePanelDraggingContext.draggingId.value = props.panel.id;
-	}, 10);
+	dragSession.start(ev, 'WorkspacePanel', { id: props.panel.id });
 }
 
 function onDragover(ev: DragEvent, area: 'top' | 'bottom' | 'left' | 'right' | 'center') {
-	nextTick(() => {
-		dropReadyArea.value = area;
-	});
+	const data = dragSession.read(ev, 'WorkspacePanel');
+	if (data == null || data.id === props.panel.id) return;
+	ev.preventDefault();
+	ev.stopPropagation();
+	if (ev.dataTransfer != null) ev.dataTransfer.dropEffect = 'move';
+	dropReadyArea.value = area;
 }
 
 function onDragleave(ev: DragEvent) {
@@ -168,9 +167,11 @@ function onDragleave(ev: DragEvent) {
 
 function onDrop(ev: DragEvent, area: 'top' | 'bottom' | 'left' | 'right' | 'center') {
 	dropReadyArea.value = null;
-	const draggingId = workspacePanelDraggingContext.draggingId.value;
-	workspacePanelDraggingContext.draggingId.value = null;
-	if (draggingId == null || draggingId === props.panel.id) return;
+	const data = dragSession.read(ev, 'WorkspacePanel');
+	if (data == null || data.id === props.panel.id) return;
+	ev.preventDefault();
+	ev.stopPropagation();
+	const draggingId = data.id;
 
 	let workspace = deepClone(preferences.s.workspaceDefinition);
 	const sourceParent = findWorkspaceParent(workspace, draggingId);
@@ -193,6 +194,7 @@ function onDrop(ev: DragEvent, area: 'top' | 'bottom' | 'left' | 'right' | 'cent
 		const direction = area === 'top' || area === 'bottom' ? 'vertical' : 'horizontal';
 		workspace = splitWorkspaceElement(workspace, target.element, panel.element, direction, area === 'top' || area === 'left');
 	}
+	dragSession.complete(ev);
 	preferences.commit('workspaceDefinition', cleanupWorkspaceDefinition(workspace));
 }
 
