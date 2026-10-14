@@ -220,6 +220,8 @@ async function doExport() {
 		link.download = downloadName.value;
 		link.click();
 		status.value = 'Export complete.';
+		// ファイル生成の成功だけを通知し、通知の失敗をエクスポート失敗として扱わない。
+		void window.desktop?.notifyExportComplete(downloadName.value).catch(console.error);
 	} catch (cause) {
 		if (signal.aborted) status.value = 'Export canceled.';
 		else error.value = cause instanceof Error ? cause.message : String(cause);

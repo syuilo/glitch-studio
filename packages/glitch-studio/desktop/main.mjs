@@ -1,7 +1,7 @@
 import { registerVoicevoxIpc } from './voicevox.mjs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { app, BrowserWindow, dialog, ipcMain, Menu, net, protocol, shell } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, Menu, net, Notification, protocol, shell } from 'electron';
 import { resolveAppPath } from './protocol-path.mjs';
 import { ProjectFiles } from './project-files.mjs';
 import { registerProjectFileIpc } from './project-file-ipc.mjs';
@@ -21,6 +21,8 @@ const uiRoot = app.isPackaged
 	: path.resolve(import.meta.dirname, '../ui/dist-electron');
 const iconPath = path.join(developmentUrl ? path.resolve(import.meta.dirname, '../ui/public') : uiRoot, 'icon-512.png');
 let mainWindow;
+// 通知をGCで失わないよう、次のエクスポートが完了するまで最新の通知を保持する。
+let exportCompleteNotification = null;
 
 // WorkerやWebGPUを通常のWebページと同じオリジン・secure contextで動かす。
 protocol.registerSchemesAsPrivileged([{
@@ -134,6 +136,30 @@ app.whenReady().then(() => {
 			throw new Error('Invalid progress value');
 		}
 		window.setProgressBar(progress ?? -1);
+	});
+
+	ipcMain.handle('desktop:notify-export-complete', (event, fileName) => {
+		const window = getTrustedMainWindow(event);
+		if (typeof fileName !== 'string' || fileName.length === 0) {
+			throw new Error('Invalid export file name');
+		}
+		if (!Notification.isSupported()) return;
+		exportCompleteNotification?.close();
+		const notification = new Notification({
+			title: 'Glitch Studio — Export complete',
+			body: fileName,
+			icon: iconPath,
+		});
+		exportCompleteNotification = notification;
+		notification.on('click', () => {
+			if (window.isDestroyed()) return;
+			if (window.isMinimized()) window.restore();
+			window.show();
+			window.focus();
+		});
+		// OSの通知設定などによる非同期の失敗も、エクスポート結果には影響させない。
+		notification.on('failed', (_event, error) => console.error('Export notification failed:', error));
+		notification.show();
 	});
 
 	registerVoicevoxIpc(ipcMain, getTrustedMainWindow);

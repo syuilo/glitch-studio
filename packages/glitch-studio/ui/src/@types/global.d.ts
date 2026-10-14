@@ -26,5 +26,6 @@ interface Window {
 		zoomOut(): Promise<void>;
 		/** nullで非表示、0〜1で進捗率、1より大きい値で処理中表示。 */
 		setProgressBar(progress: number | null): Promise<void>;
+		notifyExportComplete(fileName: string): Promise<void>;
 	};
 }
