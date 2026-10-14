@@ -23,7 +23,7 @@ import type { EffectNodeOf } from '@gs/subsystems_visual-module_shared/types.ts'
 import type { Player } from '@gs/shared/types.ts';
 import type { ProjectFileHandle } from './gsproj.ts';
 import * as ui from '@/ui.ts';
-import * as api from '@/api.ts';
+import { openMediaFile } from '@/utility/open-media-file.ts';
 
 export const appContext = new AppContext(new ProjectContext());
 
@@ -147,7 +147,7 @@ export async function newProject() {
 }
 
 export async function newProjectFromImageOrVideo(file?: File) {
-	const result = await api.openMediaFile({ file });
+	const result = await openMediaFile({ file });
 	if (result == null) return false;
 
 	const asset = {
@@ -158,6 +158,7 @@ export async function newProjectFromImageOrVideo(file?: File) {
 		fileDataType: result.type,
 		fileData: result.fileData,
 		sourceFilePath: result.sourceFilePath,
+		thumbnailSequence: result.thumbnailSequence,
 		hash: result.hash,
 	} satisfies ProjectAsset;
 

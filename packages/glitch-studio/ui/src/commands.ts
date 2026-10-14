@@ -514,6 +514,7 @@ const addAssetCommandDef = defineCommand<ProjectAsset>({
 					fileDataType: payload.fileDataType,
 					fileData: payload.fileData, // blobはimmutableなので多分deepCloneの必要なし
 					sourceFilePath: payload.sourceFilePath,
+					thumbnailSequence: deepClone(payload.thumbnailSequence),
 					hash: payload.hash,
 				});
 			},
@@ -582,19 +583,24 @@ const replaceAssetCommandDef = defineCommand<ProjectAsset & { assetId: string }>
 	label: 'Replace asset',
 	changes: (_state, payload) => [{ type: 'asset', assetId: payload.assetId }],
 	create: (payload) => {
+		let before: ProjectAsset;
 		return {
 			execute(state) {
 				const asset = state.assets.value.find(asset => asset.id === payload.assetId)!;
+				before = deepClone(asset);
 				asset.width = payload.width;
 				asset.height = payload.height;
 				asset.fileDataType = payload.fileDataType;
 				asset.fileData = payload.fileData; // blobはimmutableなので多分deepCloneの必要なし
 				// 取得できない素材へ差し替えたときも、以前の原本のパスを残さない。
 				asset.sourceFilePath = payload.sourceFilePath;
+				asset.thumbnailSequence = deepClone(payload.thumbnailSequence);
 				asset.hash = payload.hash;
 			},
 			undo(state) {
-				// TODO
+				const asset = state.assets.value.find(asset => asset.id === payload.assetId)!;
+				Object.assign(asset, deepClone(before));
+				asset.hash = before.hash;
 			},
 		};
 	},

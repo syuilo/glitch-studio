@@ -19,7 +19,7 @@ import GsButton from './common/GsButton.vue';
 import GsAsset from './GsAsset.vue';
 import GsLocalFontDialog from './GsLocalFontDialog.vue';
 import { appContext } from '@/app.ts';
-import * as api from '@/api.ts';
+import { openMediaFile } from '@/utility/open-media-file.ts';
 import { popup } from '@/ui.ts';
 import { localFontErrorMessage, queryLocalFonts, supportsLocalFonts } from '@/utility/local-fonts.ts';
 
@@ -47,8 +47,8 @@ async function addLocalFont() {
 }
 
 async function addAsset() {
-	const results = await api.openMediaFile({ multiple: true, includeFonts: true });
-	if (!results) return;
+	const results = await openMediaFile({ multiple: true, includeFonts: true });
+	if (results == null) return;
 	for (const result of results) {
 		const assetId = genId();
 		stateManager.commit('addAsset', {
@@ -59,6 +59,7 @@ async function addAsset() {
 			fileDataType: result.type,
 			fileData: result.fileData,
 			sourceFilePath: result.sourceFilePath,
+			thumbnailSequence: result.thumbnailSequence,
 			hash: result.hash, // TODO
 		});
 		if (result.type.startsWith('audio/') || result.type.startsWith('video/')) {

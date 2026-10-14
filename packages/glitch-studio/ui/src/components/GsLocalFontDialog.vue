@@ -75,6 +75,7 @@ async function importFont() {
 			fileDataType: 'font/sfnt',
 			fileData: blob.slice(0, blob.size, 'font/sfnt'),
 			sourceFilePath: null,
+			thumbnailSequence: null,
 		});
 		modal.value?.close();
 	} catch (cause) {

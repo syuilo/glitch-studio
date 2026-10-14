@@ -41,7 +41,7 @@ import { startPreviewPointerDrag } from '@/utility/preview-pointer-drag.ts';
 import { useRendererCanvas } from '@/use-renderer-canvas.ts';
 import { formatRenderFailureOrigin } from '@/utility/render-failure.ts';
 import { appContext } from '@/app.ts';
-import * as api from '@/api.ts';
+import { openMediaFile } from '@/utility/open-media-file.ts';
 import { preferences } from '@/preferences.ts';
 import * as ui from '@/ui.ts';
 
@@ -182,7 +182,7 @@ async function onDrop(event: DragEvent) {
 async function addMedia(file?: File) {
 	const visualModuleId = previewPlayback.liveVisualModuleId.value;
 	if (visualModuleId == null) return;
-	const result = await api.openMediaFile({ file });
+	const result = await openMediaFile({ file });
 	if (result == null) return;
 
 	const assetId = genId();
@@ -194,6 +194,7 @@ async function addMedia(file?: File) {
 		fileDataType: result.type,
 		fileData: result.fileData,
 		sourceFilePath: result.sourceFilePath,
+		thumbnailSequence: result.thumbnailSequence,
 		hash: result.hash,
 	});
 

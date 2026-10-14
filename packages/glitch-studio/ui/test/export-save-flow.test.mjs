@@ -11,6 +11,12 @@ const ast = createSourceFile('GsTimelineExportDialog.ts', parse(source).descript
 const handler = ast.statements.find(statement => isFunctionDeclaration(statement) && statement.name?.text === 'doExport');
 const { code } = await transform(handler.getText(ast), { loader: 'ts' });
 
+const { code: rendererAssetsCode } = await transform(await readFile(new URL('../src/utility/renderer-assets.ts', import.meta.url), 'utf8'),
+	{ loader: 'ts', format: 'cjs' });
+const rendererAssetsModule = { exports: {} };
+new Function('module', 'exports', rendererAssetsCode)(rendererAssetsModule, rendererAssetsModule.exports);
+const { getRendererAssets } = rendererAssetsModule.exports;
+
 function fixture({ browser = false, choose = null, save = null, renderError = null } = {}) {
 	const events = [];
 	const ref = value => ({ value });
@@ -33,7 +39,7 @@ function fixture({ browser = false, choose = null, save = null, renderError = nu
 		downloadUrl: ref('previous'), downloadName: ref('previous.mp4'),
 		settings: ref({ format: 'mp4', quality: 'high', width: 1920, height: 1080, positionMs: 0, endTimeMs: 100, fps: 30 }),
 		resolutionScale: ref(1), sceneId: ref('scene'), scene: ref({ name: 'Scene' }), projectName: ref('Project'),
-		stateManager: { state }, preferences: { s: {} }, deepClone: structuredClone,
+		stateManager: { state }, preferences: { s: {} }, deepClone: structuredClone, getRendererAssets,
 		getRequiredVoicevoxRequestsForRendering: () => [],
 		appContext: {
 			voicevoxGeneration: { async prepare() { events.push(['prepare']); return []; } },

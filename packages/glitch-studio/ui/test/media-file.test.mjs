@@ -19,6 +19,9 @@ new Function('require', 'module', 'exports', bundled.outputFiles[0].text)(create
 const { openMediaFile, encodeProjectFile, decodeProjectFile } = module.exports;
 
 function setupMedia(t) {
+	// このファイルは原本コピーの検証用で、動画のバイト列は実際のコンテナではない。
+	// サムネイル生成の成功・失敗はvideo-thumbnails.test.mjsで別途検証する。
+	t.mock.method(console, 'warn', () => {});
 	const previous = ['window', 'HTMLVideoElement', 'createImageBitmap'].map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]);
 	t.after(() => {
 		for (const [key, descriptor] of previous) {

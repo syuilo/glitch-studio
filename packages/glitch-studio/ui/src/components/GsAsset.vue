@@ -19,22 +19,20 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, ref, shallowRef, watch } from 'vue';
+import { computed, ref } from 'vue';
 import GsDialog from './common/GsDialog.vue';
 import GsAssetThumbnail from './GsAssetThumbnail.vue';
-import type { Asset } from '@gs/shared/types.ts';
+import type { ProjectAsset } from '@/Project.ts';
 import type { MenuItem } from '@/types/menu.ts';
 import { appContext } from '@/app.ts';
-import { i18n } from '@/i18n.ts';
-import * as api from '@/api.ts';
+import { openMediaFile } from '@/utility/open-media-file.ts';
 import { popup } from '@/ui.ts';
-import { setDragData } from '@/utility/drag-and-drop.ts';
 import * as ui from '@/ui.ts';
 
 const { stateManager } = appContext.projectContext;
 
 const props = defineProps<{
-	asset: Asset;
+	asset: ProjectAsset;
 	isSelected?: boolean;
 }>();
 
@@ -75,8 +73,8 @@ async function rename() {
 }
 
 async function replace() {
-	const result = await api.openMediaFile({ includeFonts: true });
-	if (!result) return;
+	const result = await openMediaFile({ includeFonts: true });
+	if (result == null) return;
 	stateManager.commit('replaceAsset', {
 		id: props.asset.id,
 		name: props.asset.name,
@@ -86,6 +84,7 @@ async function replace() {
 		fileDataType: result.type,
 		fileData: result.fileData,
 		sourceFilePath: result.sourceFilePath,
+		thumbnailSequence: result.thumbnailSequence,
 		hash: result.hash, // TODO
 	});
 }

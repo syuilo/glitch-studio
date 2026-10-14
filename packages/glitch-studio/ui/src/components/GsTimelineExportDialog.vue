@@ -47,6 +47,7 @@ import { computed, onBeforeUnmount, ref, watch, useTemplateRef } from 'vue';
 import { getSceneDuration } from '@gs/subsystems_timeline_shared/scenes.ts';
 import { getSceneBaseResolution } from '@gs/subsystems_timeline_shared/scene-resolution.ts';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
+import { getRendererAssets } from '../utility/renderer-assets.ts';
 import { getRequiredVoicevoxRequestsForRendering } from '@gs/subsystems_timeline_shared/voicevox-requests.ts';
 import GsModal from './common/GsModal.vue';
 import GsButton from './common/GsButton.vue';
@@ -191,7 +192,7 @@ async function doExport() {
 			resolution: stateManager.state.resolution.value,
 			timelineFps: stateManager.state.timelineFps.value,
 			timelineMotionBlur: stateManager.state.timelineMotionBlur.value,
-			assets: stateManager.state.assets.value,
+			assets: getRendererAssets(stateManager.state.assets.value),
 			generatedSpeech: stateManager.state.generatedSpeech.value,
 			visualModules: stateManager.state.visualModules.value,
 			timelineScenes: stateManager.state.timelineScenes.value,

@@ -10,6 +10,7 @@ import type { Project } from './gsproj.ts';
 import type { Ref } from 'vue';
 import type { TimelineScene } from '@gs/subsystems_timeline_shared/types.ts';
 import type { Asset, Player } from '@gs/shared/types.js';
+import type { AssetThumbnailSequence } from './asset-thumbnail.ts';
 import type { ProjectVisualModule } from '@gs/glitch-studio_shared/project/types.ts';
 import type { TimelineMotionBlurSettings } from '@gs/subsystems_timeline_shared/motion-blur.js';
 import type { VisualModuleNodeChange } from '@gs/subsystems_visual-module_shared/types.ts';
@@ -21,6 +22,7 @@ import type { VisualModuleTarget } from '@gs/glitch-studio_shared/project/visual
 export type ProjectAsset = Asset & {
 	// Electronで取得できた元ファイルの絶対パス。ブラウザやディスクにない素材はnull。
 	sourceFilePath: string | null;
+	thumbnailSequence: AssetThumbnailSequence | null;
 };
 
 export type ProjectState = {

@@ -21,6 +21,7 @@ import { RendererProjectSynchronizer } from './RendererProjectSynchronizer.ts';
 import { ProjectRenderValidation } from './ProjectRenderValidation.ts';
 import { PreviewRenderEngine } from './PreviewRenderEngine.ts';
 import { ProjectSaveController } from './ProjectSaveController.ts';
+import { getRendererAssets } from './utility/renderer-assets.ts';
 import { timelineClipboard, getTimelineEditorState, getSelectedTimelineLayerId } from './utility/timeline-editor-state.ts';
 import type { GeneratedSpeech } from '@gs/glitch-studio_shared/voicevox.ts';
 import type { VoicevoxSpeaker } from '@gs/glitch-studio_shared/voicevox.ts';
@@ -250,6 +251,7 @@ export class AppContext {
 	}
 
 	private async updatePreviewOptions(options: Partial<Pick<TimelineRendererManagerDynamicOptions, 'assets' | 'resolution' | 'resolutionScale' | 'highlightClipping'>>) {
+		if (options.assets != null) options = { ...options, assets: getRendererAssets(options.assets) };
 		await Promise.all([
 			this.visualModuleRendererManagerController.updateDynamicOptions(options),
 			this.timelineRendererManagerController.updateDynamicOptions(options),

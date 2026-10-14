@@ -6,6 +6,7 @@ import type { TimelineMotionBlurSettings } from '@gs/subsystems_timeline_shared/
 import type { Player } from '@gs/shared/types.js';
 import type { ProjectVisualModule } from '@gs/glitch-studio_shared/project/types.ts';
 import type { ProjectAsset } from './Project.ts';
+import type { AssetThumbnailSequence } from './asset-thumbnail.ts';
 import type { TimelineScene } from '@gs/subsystems_timeline_shared/types.ts';
 
 export const DEFAULT_PROJECT_NAME = 'Untitled Project';
@@ -53,15 +54,31 @@ export type Project = ProjectInfo & {
 };
 
 // BlobはMessagePackで直接保存できないため、フォントを含む素材の原本をバイト列にする。
+type StoredThumbnailSequence = Omit<AssetThumbnailSequence, 'frames'> & {
+	frames: { timestampSeconds: number; fileData: Uint8Array; fileDataType: string }[];
+};
+
 type StoredProject = Omit<Project, 'assets' | 'generatedSpeech'> & {
 	generatedSpeech: (Omit<GeneratedSpeech, 'fileData'> & { fileData: Uint8Array })[];
-	assets: (Omit<ProjectAsset, 'fileData'> & { fileData: Uint8Array })[];
+	assets: (Omit<ProjectAsset, 'fileData' | 'thumbnailSequence'> & { fileData: Uint8Array; thumbnailSequence: StoredThumbnailSequence | null })[];
 };
 
 export async function encodeProjectFile(project: Project): Promise<Uint8Array> {
 	const assets = await Promise.all(project.assets.map(async asset => {
 		try {
-			return { ...asset, fileData: new Uint8Array(await asset.fileData.arrayBuffer()) };
+			const sequence = asset.thumbnailSequence;
+			return {
+				...asset,
+				fileData: new Uint8Array(await asset.fileData.arrayBuffer()),
+				thumbnailSequence: sequence == null ? null : {
+					...sequence,
+					frames: await Promise.all(sequence.frames.map(async frame => ({
+						timestampSeconds: frame.timestampSeconds,
+						fileDataType: frame.fileData.type,
+						fileData: new Uint8Array(await frame.fileData.arrayBuffer()),
+					}))),
+				},
+			};
 		} catch (cause) {
 			throw new Error(`Could not read asset "${asset.name}". Replace it with the source file and try saving again.`, { cause });
 		}
@@ -83,6 +100,14 @@ export function decodeProjectFile(bin: Uint8Array, currentVersion?: string): Pro
 		assets: project.assets.map(asset => ({
 			...asset,
 			fileData: new Blob([new Uint8Array(asset.fileData)], { type: asset.fileDataType }),
+			thumbnailSequence: asset.thumbnailSequence == null ? null : {
+				width: asset.thumbnailSequence.width,
+				height: asset.thumbnailSequence.height,
+				frames: asset.thumbnailSequence.frames.map(frame => ({
+					timestampSeconds: frame.timestampSeconds,
+					fileData: new Blob([new Uint8Array(frame.fileData)], { type: frame.fileDataType }),
+				})),
+			},
 		})),
 	};
 }

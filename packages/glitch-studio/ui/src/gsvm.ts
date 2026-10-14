@@ -167,7 +167,7 @@ export function prepareVisualModuleImport(file: VisualModuleFile, definitions: E
 	});
 	return {
 		visualModule: { ...collected.visualModule, id: createId(), name: collected.name },
-		assets: collected.assets.map(asset => ({ ...asset, id: assetIds.get(asset.id)!, sourceFilePath: null })),
+		assets: collected.assets.map(asset => ({ ...asset, id: assetIds.get(asset.id)!, sourceFilePath: null, thumbnailSequence: null })),
 		players, unassignedPlayerNames,
 	};
 }
