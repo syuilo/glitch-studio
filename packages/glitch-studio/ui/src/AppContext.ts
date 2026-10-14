@@ -53,7 +53,7 @@ export class AppContext {
 		return (layerId == null ? null : findTimelineLayer(scene.layers, layerId)) ?? null;
 	});
 	public liveFpsLimit = ref<number | null>(60);
-	public timelinePreviewFpsFactor = ref(1);
+	public timelinePreviewFpsFactor = ref(0.5);
 	public timelinePreviewMotionBlurSamples = ref<(typeof TIMELINE_PREVIEW_MOTION_BLUR_SAMPLE_OPTIONS)[number]>(DEFAULT_TIMELINE_PREVIEW_MOTION_BLUR_SAMPLES);
 	public liveTimeFactor = ref(1);
 	public resolutionFactor = ref(1);
@@ -298,7 +298,7 @@ export class AppContext {
 		// 初回や同値の設定では再生成しない。通常編集のwatchは読込完了後に登録する。
 		await this.timelineRendererManagerController.updateStaticOptions(timelineRenderSettings);
 
-		this.timelinePreviewFpsFactor.value = 1;
+		this.timelinePreviewFpsFactor.value = 0.5;
 		this.timelinePreviewMotionBlurSamples.value = DEFAULT_TIMELINE_PREVIEW_MOTION_BLUR_SAMPLES;
 		this.resolutionFactor.value = initialResolutionFactor;
 
