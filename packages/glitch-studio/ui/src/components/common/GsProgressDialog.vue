@@ -9,12 +9,13 @@
 </template>
 
 <script lang="ts" setup>
-import { watch, useTemplateRef } from 'vue';
+import { watchPostEffect, useTemplateRef } from 'vue';
 import GsModal from './GsModal.vue';
 import GsProgressBar from './GsProgressBar.vue';
 import GsEllipsis from './GsEllipsis.vue';
 
 const modal = useTemplateRef('modal');
+let finished = false;
 
 const props = defineProps<{
 	progress: number | null; // nullでwaiting状態を表す
@@ -29,11 +30,16 @@ const emit = defineEmits<{
 }>();
 
 function done() {
+	const currentModal = modal.value;
+	if (finished || currentModal == null) return;
+	finished = true;
 	emit('done');
-	modal.value?.close();
+	currentModal.close();
 }
 
-watch(() => props.showing, () => {
+// 同期で終わる処理では、初回描画時点でshowing=falseになっている。
+// 値の変化だけを監視せず、初回も含めて描画後にModalの参照を得てから閉じる。
+watchPostEffect(() => {
 	if (!props.showing) done();
 });
 </script>
