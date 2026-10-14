@@ -24,4 +24,5 @@ contextBridge.exposeInMainWorld('desktop', {
 	toggleDevTools: () => ipcRenderer.invoke('desktop:toggle-dev-tools'),
 	zoomIn: () => ipcRenderer.invoke('desktop:zoom-in'),
 	zoomOut: () => ipcRenderer.invoke('desktop:zoom-out'),
+	setProgressBar: (progress) => ipcRenderer.invoke('desktop:set-progress-bar', progress),
 });

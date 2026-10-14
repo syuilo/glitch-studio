@@ -148,6 +148,11 @@ function cancel() {
 	else closeDialog();
 }
 
+function setTaskbarProgress(value: number | null) {
+	// OS側の表示に失敗しても、エクスポート自体は継続する。
+	void window.desktop?.setProgressBar(value).catch(console.error);
+}
+
 async function doExport() {
 	if (exporting.value || validationError.value) return;
 	// 無効化するEXPORTボタンからフォーカスを移し、背後の編集ショートカットへイベントを流さない。
@@ -162,6 +167,8 @@ async function doExport() {
 	downloadUrl.value = '';
 	let previewDisposed = false;
 	try {
+		// 準備やエンコードは残り時間を計算できないため、Windowsでは処理中表示にする。
+		setTaskbarProgress(2);
 		const exportSettings = { ...settings.value };
 		const exportProject = deepClone({
 			resolution: stateManager.state.resolution.value,
@@ -199,7 +206,12 @@ async function doExport() {
 				intermediateTextureFormat: preferences.s.intermediateTextureFormat
 					?? (preferredFormat === 'bgra8unorm' ? 'bgra8unorm' : 'rgba8unorm'),
 			},
-		}, signal, value => { progress.value = value; });
+		}, signal, value => {
+			progress.value = value;
+			setTaskbarProgress(value.phase === 'rendering' && value.totalFrames > 0
+				? Math.min(0.99, value.completedFrames / value.totalFrames)
+				: 2);
+		});
 		signal.throwIfAborted();
 		downloadName.value = `${projectName.value || 'project'}-${scene.value?.name || 'scene'}.${exportSettings.format}`;
 		downloadUrl.value = URL.createObjectURL(new Blob([buffer], { type: exportSettings.format === 'mp4' ? 'video/mp4' : 'image/webp' }));
@@ -212,6 +224,7 @@ async function doExport() {
 		if (signal.aborted) status.value = 'Export canceled.';
 		else error.value = cause instanceof Error ? cause.message : String(cause);
 	} finally {
+		setTaskbarProgress(null);
 		// 再初期化が終わるまで操作を戻さず、次の書き出しによる初期化の中断を防ぐ。
 		try {
 			if (previewDisposed) await appContext.resumePreview();
@@ -226,6 +239,7 @@ async function doExport() {
 
 onBeforeUnmount(() => {
 	abortController?.abort();
+	if (exporting.value) setTaskbarProgress(null);
 	if (downloadUrl.value) URL.revokeObjectURL(downloadUrl.value);
 });
 </script>

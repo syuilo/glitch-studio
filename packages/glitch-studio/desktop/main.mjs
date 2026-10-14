@@ -128,6 +128,14 @@ app.whenReady().then(() => {
 		contents.setZoomFactor(Math.max(0.5, contents.getZoomFactor() / 1.2));
 	});
 
+	ipcMain.handle('desktop:set-progress-bar', (event, progress) => {
+		const window = getTrustedMainWindow(event);
+		if (progress != null && (typeof progress !== 'number' || !Number.isFinite(progress))) {
+			throw new Error('Invalid progress value');
+		}
+		window.setProgressBar(progress ?? -1);
+	});
+
 	registerVoicevoxIpc(ipcMain, getTrustedMainWindow);
 	registerProjectFileIpc(ipcMain, dialog, projectFiles, getTrustedMainWindow, startupProjectPath);
 
