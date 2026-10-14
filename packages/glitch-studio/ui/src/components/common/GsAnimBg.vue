@@ -36,6 +36,7 @@ function defineBgRenderer(def: BgRendererDef): BgRendererDef {
 
 const defaultBgRendererDef = defineBgRenderer({
 	init: async ({ width, height, wgpu, canvas }) => {
+		const dotSpacing = 24;
 		const code = `
 struct Uniforms {
 	aspectRatio: f32,
@@ -291,7 +292,7 @@ fn fsPointerTrail(fragData: FragmentIn) -> @location(0) vec4f {
 
 				uniformValues.set({
 					aspectRatio: width / height,
-					divisions: 64,
+					divisions: Math.max(width, height) / dotSpacing,
 				});
 				wgpu.device.queue.writeBuffer(uniformBuffer, 0, uniformValues.arrayBuffer);
 
