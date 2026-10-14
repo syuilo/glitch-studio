@@ -18,6 +18,7 @@
 			:asset="asset"
 			:isSelected="selectedAssets.some(x => x.id === asset.id)"
 			@click="onAssetClick($event, asset)"
+			@dblclick="emit('assetDoubleClicked', asset)"
 		/>
 	</div>
 </div>
@@ -50,6 +51,7 @@ const props = withDefaults(defineProps<{
 
 const emit = defineEmits<{
 	(ev: 'changeSelectedAssets', v: ProjectAsset[]): void;
+	(ev: 'assetDoubleClicked', asset: ProjectAsset): void;
 }>();
 
 const { stateManager } = appContext.projectContext;

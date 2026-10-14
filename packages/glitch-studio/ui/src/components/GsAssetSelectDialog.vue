@@ -15,7 +15,13 @@
 		{{ multiple ? 'Select Assets' : 'Select Asset' }}
 		<span v-if="selected.length > 0" style="margin-left: 8px; opacity: 0.5;">({{ selected.length }})</span>
 	</template>
-	<GsAssets :multiple="multiple" :mimeType="mimeType" select="asset" @changeSelectedAssets="onChangeSelection"/>
+	<GsAssets
+		:multiple="multiple"
+		:mimeType="mimeType"
+		select="asset"
+		@changeSelectedAssets="onChangeSelection"
+		@assetDoubleClicked="onAssetDoubleClick"
+	/>
 </GsModalWindow>
 </template>
 
@@ -26,7 +32,7 @@ import GsAssets from './GsAssets.vue';
 import GsModalWindow from './common/GsModalWindow.vue';
 import type { ProjectAsset } from '@/Project.ts';
 
-withDefaults(defineProps<{
+const props = withDefaults(defineProps<{
 	multiple: boolean;
 	mimeType: string | null;
 }>(), {
@@ -53,5 +59,12 @@ function cancel() {
 
 function onChangeSelection(v: ProjectAsset[]) {
 	selected.value = v;
+}
+
+function onAssetDoubleClick(asset: ProjectAsset) {
+	if (props.multiple) return;
+	// 選択変更のwatchによる通知を待たず、ダブルクリックされたAssetそのものを確定する。
+	selected.value = [asset];
+	ok();
 }
 </script>
