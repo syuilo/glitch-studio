@@ -26,4 +26,7 @@ contextBridge.exposeInMainWorld('desktop', {
 	zoomOut: () => ipcRenderer.invoke('desktop:zoom-out'),
 	setProgressBar: (progress) => ipcRenderer.invoke('desktop:set-progress-bar', progress),
 	notifyExportComplete: (fileName) => ipcRenderer.invoke('desktop:notify-export-complete', fileName),
+	chooseExportSaveFile: (name, format) => ipcRenderer.invoke('desktop:choose-export-save-file', name, format),
+	writeExportFile: (id, data) => ipcRenderer.invoke('desktop:write-export-file', id, data),
+	releaseExportFile: (id) => ipcRenderer.invoke('desktop:release-export-file', id),
 });

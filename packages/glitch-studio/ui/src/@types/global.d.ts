@@ -27,5 +27,8 @@ interface Window {
 		/** nullで非表示、0〜1で進捗率、1より大きい値で処理中表示。 */
 		setProgressBar(progress: number | null): Promise<void>;
 		notifyExportComplete(fileName: string): Promise<void>;
+		chooseExportSaveFile(name: string, format: 'mp4' | 'webp'): Promise<{ id: string; name: string } | null>;
+		writeExportFile(id: string, data: Uint8Array): Promise<void>;
+		releaseExportFile(id: string): Promise<void>;
 	};
 }

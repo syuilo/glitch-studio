@@ -6,8 +6,11 @@ import { resolveAppPath } from './protocol-path.mjs';
 import { ProjectFiles } from './project-files.mjs';
 import { registerProjectFileIpc } from './project-file-ipc.mjs';
 import { getStartupProjectPath } from './startup-project.mjs';
+import { ExportFiles } from './export-files.mjs';
+import { registerExportFileIpc } from './export-file-ipc.mjs';
 
 const projectFiles = new ProjectFiles();
+const exportFiles = new ExportFiles();
 const startupProjectPath = getStartupProjectPath(process.argv, { defaultApp: process.defaultApp });
 
 // Windowsのファイル関連付けからの起動はプロセスごとに別ウィンドウを開く。
@@ -74,7 +77,7 @@ function createWindow() {
 		}
 		return { action: 'deny' };
 	});
-	mainWindow.on('closed', () => { projectFiles.clear(); mainWindow = undefined; });
+	mainWindow.on('closed', () => { projectFiles.clear(); exportFiles.clear(); mainWindow = undefined; });
 	void mainWindow.loadURL(entryUrl).catch(error => {
 		console.error('Failed to load Glitch Studio. Run pnpm build:desktop first for a production launch.', error);
 		app.exit(1);
@@ -164,6 +167,7 @@ app.whenReady().then(() => {
 
 	registerVoicevoxIpc(ipcMain, getTrustedMainWindow);
 	registerProjectFileIpc(ipcMain, dialog, projectFiles, getTrustedMainWindow, startupProjectPath);
+	registerExportFileIpc(ipcMain, dialog, exportFiles, getTrustedMainWindow);
 
 	createWindow();
 	app.on('activate', () => {

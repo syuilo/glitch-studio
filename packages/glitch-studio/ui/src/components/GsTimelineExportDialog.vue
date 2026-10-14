@@ -27,7 +27,7 @@
 		<GsButton inline :disabled="exporting || sceneId !== activeSceneId" @click="startTime = formatExportTime(currentTimelineTime)">Use current playhead</GsButton>
 		<div>Estimated size: {{ estimatedSize }}</div>
 		<div v-if="validationError" :class="$style.error">{{ validationError }}</div>
-		<div v-if="exporting" class="_gaps_m">
+		<div v-if="exporting && !choosingSaveFile" class="_gaps_m">
 			<div :class="$style.progress"><div :class="$style.progressFill" :style="{ width: `${progressPercent}%` }"></div></div>
 			<div>{{ progressText }}</div>
 		</div>
@@ -35,7 +35,7 @@
 		<div v-if="status">{{ status }}</div>
 		<a v-if="downloadUrl && !exporting" :href="downloadUrl" :download="downloadName">Download {{ downloadName }}</a>
 		<div :class="$style.actions">
-			<GsButton inline @click="cancel">{{ exporting ? 'Cancel export' : 'Close' }}</GsButton>
+			<GsButton inline :disabled="choosingSaveFile || savingFile" @click="cancel">{{ exporting ? 'Cancel export' : 'Close' }}</GsButton>
 			<GsButton inline primary :disabled="exporting || validationError != null" @click="doExport">EXPORT</GsButton>
 		</div>
 	</div>
@@ -105,6 +105,8 @@ const startTime = ref('00:00:00.000');
 const endTime = ref(formatExportTime(0));
 watch(sceneId, () => { startTime.value = formatExportTime(0); endTime.value = formatExportTime(scene.value == null ? 0 : getSceneDuration(scene.value)); }, { immediate: true });
 const exporting = ref(false);
+const choosingSaveFile = ref(false);
+const savingFile = ref(false);
 const error = ref('');
 const status = ref('');
 const progress = ref<ExportProgress>({ phase: 'preparing', completedFrames: 0, totalFrames: 0 });
@@ -134,6 +136,7 @@ const estimatedSize = computed(() => {
 });
 const progressPercent = computed(() => progress.value.totalFrames === 0 ? 0 : Math.min(99, progress.value.completedFrames / progress.value.totalFrames * 100));
 const progressText = computed(() => {
+	if (savingFile.value) return 'Saving file…';
 	if (progress.value.phase === 'preparing') return 'Preparing…';
 	if (progress.value.phase === 'finalizing') return mode.value === 'still' ? 'Encoding WebP…' : 'Finalizing MP4…';
 	return `Rendering ${progress.value.completedFrames} / ${progress.value.totalFrames} frames (${Math.floor(progressPercent.value)}%)`;
@@ -163,13 +166,27 @@ async function doExport() {
 	progress.value = { phase: 'preparing', completedFrames: 0, totalFrames: 0 };
 	abortController = new AbortController();
 	const signal = abortController.signal;
-	if (downloadUrl.value) URL.revokeObjectURL(downloadUrl.value);
-	downloadUrl.value = '';
+	const desktop = window.desktop;
+	let exportSaveFile: { id: string; name: string } | null = null;
 	let previewDisposed = false;
 	try {
+		const exportSettings = { ...settings.value };
+		const exportResolutionScale = resolutionScale.value;
+		const exportSceneId = sceneId.value;
+		const suggestedName = `${projectName.value || 'project'}-${scene.value?.name || 'scene'}.${exportSettings.format}`;
+		if (desktop != null) {
+			// 保存先の確定前に、音声生成・プレビュー停止・Workerでの描画を開始しない。
+			choosingSaveFile.value = true;
+			exportSaveFile = await desktop.chooseExportSaveFile(suggestedName, exportSettings.format);
+			choosingSaveFile.value = false;
+			if (exportSaveFile == null) return;
+		}
+		signal.throwIfAborted();
+		if (downloadUrl.value) URL.revokeObjectURL(downloadUrl.value);
+		downloadUrl.value = '';
+		downloadName.value = exportSaveFile?.name ?? suggestedName;
 		// 準備やエンコードは残り時間を計算できないため、Windowsでは処理中表示にする。
 		setTaskbarProgress(2);
-		const exportSettings = { ...settings.value };
 		const exportProject = deepClone({
 			resolution: stateManager.state.resolution.value,
 			timelineFps: stateManager.state.timelineFps.value,
@@ -178,7 +195,7 @@ async function doExport() {
 			generatedSpeech: stateManager.state.generatedSpeech.value,
 			visualModules: stateManager.state.visualModules.value,
 			timelineScenes: stateManager.state.timelineScenes.value,
-			sceneId: sceneId.value,
+			sceneId: exportSceneId,
 		});
 		if (exportSettings.format === 'mp4') {
 			status.value = 'Preparing VOICEVOX audio…';
@@ -197,7 +214,7 @@ async function doExport() {
 		// VueのProxyを外し、編集中の状態とWorkerの状態を独立させる。
 		const buffer = await exportTimeline({
 			settings: exportSettings,
-			resolutionScale: resolutionScale.value,
+			resolutionScale: exportResolutionScale,
 			project: deepClone(exportProject),
 			// 書き出し開始時の環境設定から独立した設定を作る。
 			// プレビュー用Controllerの初期化・再読み込み状態には依存しない。
@@ -213,19 +230,27 @@ async function doExport() {
 				: 2);
 		});
 		signal.throwIfAborted();
-		downloadName.value = `${projectName.value || 'project'}-${scene.value?.name || 'scene'}.${exportSettings.format}`;
-		downloadUrl.value = URL.createObjectURL(new Blob([buffer], { type: exportSettings.format === 'mp4' ? 'video/mp4' : 'image/webp' }));
-		const link = window.document.createElement('a');
-		link.href = downloadUrl.value;
-		link.download = downloadName.value;
-		link.click();
+		if (desktop != null && exportSaveFile != null) {
+			savingFile.value = true;
+			setTaskbarProgress(2);
+			await desktop.writeExportFile(exportSaveFile.id, new Uint8Array(buffer));
+		} else {
+			downloadUrl.value = URL.createObjectURL(new Blob([buffer], { type: exportSettings.format === 'mp4' ? 'video/mp4' : 'image/webp' }));
+			const link = window.document.createElement('a');
+			link.href = downloadUrl.value;
+			link.download = downloadName.value;
+			link.click();
+		}
 		status.value = 'Export complete.';
-		// ファイル生成の成功だけを通知し、通知の失敗をエクスポート失敗として扱わない。
-		void window.desktop?.notifyExportComplete(downloadName.value).catch(console.error);
+		// Electron版では保存の成功後に通知し、通知の失敗をエクスポート失敗として扱わない。
+		void desktop?.notifyExportComplete(downloadName.value).catch(console.error);
 	} catch (cause) {
 		if (signal.aborted) status.value = 'Export canceled.';
 		else error.value = cause instanceof Error ? cause.message : String(cause);
 	} finally {
+		if (exportSaveFile != null) void desktop?.releaseExportFile(exportSaveFile.id).catch(console.error);
+		choosingSaveFile.value = false;
+		savingFile.value = false;
 		setTaskbarProgress(null);
 		// 再初期化が終わるまで操作を戻さず、次の書き出しによる初期化の中断を防ぐ。
 		try {
