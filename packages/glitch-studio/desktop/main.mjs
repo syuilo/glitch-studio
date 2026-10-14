@@ -22,7 +22,18 @@ const entryUrl = developmentUrl ?? 'app://glitch-studio/';
 const uiRoot = app.isPackaged
 	? path.join(process.resourcesPath, 'ui')
 	: path.resolve(import.meta.dirname, '../ui/dist-electron');
-const iconPath = path.join(developmentUrl ? path.resolve(import.meta.dirname, '../ui/public') : uiRoot, 'icon-512.png');
+const iconPath = path.join(app.isPackaged ? uiRoot : path.resolve(import.meta.dirname, '../ui/public'), 'icon-512.png');
+// WindowsのタスクバーはPNGではなく、ICOや実行ファイル内のアイコンリソースを参照する。
+// 開発起動ではelectron.exeにGlitch Studioのアイコンがないため、専用のICOを常に使う。
+const windowsIconPath = app.isPackaged
+	? path.join(process.resourcesPath, 'icon.ico')
+	: path.join(import.meta.dirname, 'resources/icon.ico');
+// WindowsはAppUserModelIDごとにタスクバーの表示情報を保持する。
+// electron.exeで動く開発版の情報が配布版へ混ざらないよう、開発版だけ別のIDにする。
+// 配布版のIDはelectron-builder.config.cjsのappIdと一致させる。
+const windowsAppUserModelId = app.isPackaged
+	? 'io.github.syuilo.glitch-studio'
+	: 'io.github.syuilo.glitch-studio.development';
 let mainWindow;
 // 通知をGCで失わないよう、次のエクスポートが完了するまで最新の通知を保持する。
 let exportCompleteNotification = null;
@@ -58,7 +69,6 @@ function createWindow() {
 			color: '#000',
 			symbolColor: '#fff',
 		} } : {}),
-		icon: iconPath,
 		webPreferences: {
 			preload: path.join(import.meta.dirname, 'preload.cjs'),
 			nodeIntegration: false,
@@ -86,8 +96,22 @@ function createWindow() {
 
 app.whenReady().then(() => {
 	Menu.setApplicationMenu(null);
-	if (process.platform === 'win32') app.setAppUserModelId('io.github.syuilo.glitch-studio');
+	if (process.platform === 'win32') app.setAppUserModelId(windowsAppUserModelId);
 	if (process.platform === 'darwin') app.dock.setIcon(iconPath);
+	// window.openで作られる切り離しプレビューにも、メインウィンドウと同じアイコンを設定する。
+	app.on('browser-window-created', (_event, window) => {
+		if (process.platform === 'win32') {
+			window.setIcon(windowsIconPath);
+			// ウィンドウのアイコンだけでは、タスクバーがelectron.exeのアイコンを使う場合がある。
+			window.setAppDetails({
+				appId: windowsAppUserModelId,
+				appIconPath: windowsIconPath,
+				appIconIndex: 0,
+			});
+		} else if (process.platform !== 'darwin') {
+			window.setIcon(iconPath);
+		}
+	});
 	protocol.handle('app', async request => {
 		try {
 			const filePath = resolveAppPath(request.url, uiRoot);
