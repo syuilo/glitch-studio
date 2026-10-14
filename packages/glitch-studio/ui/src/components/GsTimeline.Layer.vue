@@ -57,11 +57,11 @@
 			</div>
 		</div>
 	</div>
-	<div v-if="!collapsed && !isTimelineContainerLayer(layer) && (keyframeParameters.length > 0 || layer.layerType === 'voicevox')" :class="$style.localTicksLane">
+	<div v-if="!collapsed && !isTimelineContainerLayer(layer)" :class="$style.localTicksLane">
 		<div :class="$style.side">
 			<div v-for="i in depth + 1" :class="[$style.colorBar, { [$style.parentColorBar]: i < depth + 1 }]"></div>
 			<div :class="$style.sideBody">
-				<div :class="[$style.localTicksLabel]">Clip time</div>
+				<div :class="[$style.localTicksLabel]">Local Time</div>
 			</div>
 		</div>
 		<div :class="[$style.tl, $style.localTicks]">
@@ -284,8 +284,7 @@ function onKeyframeInsert(param: KeyframeParameter, x: number) {
 	emit('keyframeSelected', { layerId: layer.id, target: param.target, paramPath: param.paramPath, keyframeId: inserted.keyframeId });
 }
 
-// このレイヤーがマウントされ、キーのレーンを表示するときだけローカル目盛りを作る。
-const visibleClipTicks = computed(() => props.collapsed || (keyframeParameters.value.length === 0 && props.layer.layerType !== 'voicevox') ? [] : getTimelineVisibleClipTicks<TimelineClip>(
+const visibleClipTicks = computed(() => props.collapsed ? [] : getTimelineVisibleClipTicks<TimelineClip>(
 	layerClips.value, props.tlPosX, props.tlRangeX, getTimelineTickCount(props.tlElWidth), props.tickMode, props.tickSubdivisions,
 ));
 
