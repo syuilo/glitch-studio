@@ -42,7 +42,7 @@ export const timelineCompositingParamDefs = {
 	},
 	scale: {
 		dataType: { kind: 'vector' },
-		ui: { label: 'Scale', control: { controlType: 'xy', min: -2, max: 2, step: 0.01 } },
+		ui: { label: 'Scale', control: { controlType: 'dimension', min: -2, max: 2, step: 0.01 } },
 		defaultValue: { inputSource: 'literal', value: [1, 1] }, canNode: false,
 	},
 	rotation: {

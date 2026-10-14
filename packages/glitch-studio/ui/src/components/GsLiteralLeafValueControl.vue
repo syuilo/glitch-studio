@@ -145,7 +145,7 @@
 	<div v-else-if="vectorControl?.controlType === 'xy'">
 		<GsXy :enableRatioLock="false" :modelValue="value" :logarithmic="vectorControl.logarithmic" :step="vectorControl.step ?? 0.1" :min="vectorControl.min" :max="vectorControl.max ?? 1" @beginChanging="onBeginChanging" @update:modelValue="v => changeContinuous(v)" @changeFinished="onFinishChanging"/>
 	</div>
-	<div v-else-if="vectorControl?.controlType === 'wh'">
+	<div v-else-if="vectorControl?.controlType === 'dimension'">
 		<GsXy :enableRatioLock="true" :modelValue="value" :logarithmic="vectorControl.logarithmic" :step="vectorControl.step ?? 0.1" :min="vectorControl.min" :max="vectorControl.max ?? 1" @beginChanging="onBeginChanging" @update:modelValue="v => changeContinuous(v)" @changeFinished="onFinishChanging"/>
 	</div>
 	<div v-else-if="vectorControl?.controlType === 'vector'">

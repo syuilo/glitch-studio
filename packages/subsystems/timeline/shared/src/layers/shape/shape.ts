@@ -51,7 +51,7 @@ const commonShapeParamDefs = {
 // 寸法は輪郭を付ける前の全幅・全高。縦横とも描画先の高さを1とするため、
 // 正方形や真円が横長のSceneで歪まず、プレビュー倍率によって大きさも変わらない。
 const sizeParamDef = {
-	dataType: { kind: 'vector' }, ui: { label: 'Size', control: { controlType: 'wh', min: 0, max: 2, step: 0.01 } },
+	dataType: { kind: 'vector' }, ui: { label: 'Size', control: { controlType: 'dimension', min: 0, max: 2, step: 0.01 } },
 	defaultValue: { inputSource: 'literal', value: [0.5, 0.5] }, canNode: false,
 } as const satisfies ParameterDefinition;
 

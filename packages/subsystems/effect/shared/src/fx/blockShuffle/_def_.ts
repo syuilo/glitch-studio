@@ -15,9 +15,9 @@ export default defineEffect({
 		amount: { dataType: { kind: 'scalar' }, ui: { label: 'Amount', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } }, defaultValue: { inputSource: 'literal', value: 0.5 } },
 		density: {
 			dataType: { kind: 'vector' },
-			ui: { label: 'Density', control: { controlType: 'vector', min: 1, max: 1000, logarithmic: true } },
+			ui: { label: 'Density', control: { controlType: 'dimension', min: 1, max: 1000, logarithmic: true } },
 			canNode: true,
-			defaultValue: { inputSource: 'literal', value: [0.1, 0.1] },
+			defaultValue: { inputSource: 'literal', value: [20, 20] },
 		},
 		fitMode: { dataType: { kind: 'fitMode' }, ui: { label: 'Fit Mode', control: {} }, defaultValue: { inputSource: 'literal', value: 'contain' } },
 		randomSwap: { dataType: { kind: 'bool' }, ui: { label: 'Random swap', control: {} }, defaultValue: { inputSource: 'literal', value: true } },

@@ -14,7 +14,7 @@ export default defineEffect({
 		input: { dataType: { kind: 'color' }, ui: { label: 'Input', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },
 		density: {
 			dataType: { kind: 'vector' },
-			ui: { label: 'Density', control: { controlType: 'vector', min: 1, max: 1000, logarithmic: true } },
+			ui: { label: 'Density', control: { controlType: 'dimension', min: 1, max: 1000, logarithmic: true } },
 			canNode: true,
 			defaultValue: { inputSource: 'literal', value: [3, 3] },
 		},
