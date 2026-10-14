@@ -63,6 +63,7 @@ function createWindow() {
 	mainWindow = new BrowserWindow({
 		width: 1440,
 		height: 960,
+		show: false,
 		title: 'Glitch Studio',
 		titleBarStyle: 'hidden',
 		...(process.platform !== 'darwin' ? { titleBarOverlay: {
@@ -76,6 +77,9 @@ function createWindow() {
 			sandbox: true,
 		},
 	});
+	// 通常サイズのウィンドウが一瞬表示されないよう、最大化してから表示する。
+	mainWindow.maximize();
+	mainWindow.show();
 	mainWindow.webContents.on('will-navigate', (event, url) => {
 		if (!isAppUrl(url)) event.preventDefault();
 	});
