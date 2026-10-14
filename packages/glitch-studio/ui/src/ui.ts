@@ -11,6 +11,8 @@ import { focusParent } from '@/utility/focus.ts';
 import GsPopupMenu from '@/components/common/GsPopupMenu.vue';
 import GsContextMenu from '@/components/common/GsContextMenu.vue';
 import GsDialog from '@/components/common/GsDialog.vue';
+import GsWaitingDialog from '@/components/common/GsWaitingDialog.vue';
+import GsProgressDialog from '@/components/common/GsProgressDialog.vue';
 
 export const DI = {
 	currentStickyTop: Symbol() as InjectionKey<Ref<number>>,
@@ -309,4 +311,67 @@ export function inputText(props: {
 			closed: () => dispose(),
 		});
 	});
+}
+
+export function waiting(options: { text?: string } = {}) {
+	window.document.body.setAttribute('inert', 'true');
+
+	const showing = ref(true);
+	const isSuccess = ref(false);
+
+	function done(doneOptions: { success?: boolean } = {}) {
+		if (doneOptions.success) {
+			isSuccess.value = true;
+			window.setTimeout(() => {
+				showing.value = false;
+			}, 1000);
+		} else {
+			showing.value = false;
+		}
+	}
+
+	const { dispose } = popup(GsWaitingDialog, {
+		success: isSuccess,
+		showing: showing,
+		text: options.text,
+	}, {
+		closed: () => {
+			window.document.body.removeAttribute('inert');
+			dispose();
+		},
+	});
+
+	return done;
+}
+
+export function progress(options: { text?: string } = { }) {
+	window.document.body.setAttribute('inert', 'true');
+
+	const showing = ref(true);
+	const progress = ref(0);
+
+	function done() {
+		showing.value = false;
+		progress.value = 1;
+	}
+
+	function setProgress(value: number) {
+		progress.value = value;
+	}
+
+	const { dispose } = popup(GsProgressDialog, {
+		showing: showing,
+		text: options.text,
+		progress: progress,
+	}, {
+		closed: () => {
+			window.document.body.removeAttribute('inert');
+			dispose();
+		},
+	});
+
+	return {
+		done,
+		setProgress,
+	};
 }
