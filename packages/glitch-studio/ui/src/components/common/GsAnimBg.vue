@@ -6,6 +6,7 @@
 import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 
 type BgRendererInstance = {
+	resize: (width: number, height: number) => void;
 	render: (ctx: {
 		time: number;
 		timeDelta: number;
@@ -155,12 +156,13 @@ fn fsPointerTrail(fragData: FragmentIn) -> @location(0) vec4f {
 			layout: 'auto',
 		});
 
-		const pointerTrailBuffers = [0, 1].map(() => wgpu.device.createTexture({
+		const createPointerTrailBuffers = () => [0, 1].map(() => wgpu.device.createTexture({
 			size: { width, height },
 			format: pointerTrailTextureFormat,
 			usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
 		}));
-		const pointerTrailBufferViews = pointerTrailBuffers.map(pointerTrailBuffer => pointerTrailBuffer.createView());
+		let pointerTrailBuffers = createPointerTrailBuffers();
+		let pointerTrailBufferViews = pointerTrailBuffers.map(pointerTrailBuffer => pointerTrailBuffer.createView());
 
 		const pointerTrailUniformValues = makeStructuredView(shaderDataDefinitions.uniforms.pointerTrailUniforms);
 		const pointerTrailUniformBuffer = wgpu.device.createBuffer({
@@ -168,7 +170,7 @@ fn fsPointerTrail(fragData: FragmentIn) -> @location(0) vec4f {
 			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
 		});
 
-		const pointerTrailBindGroups = pointerTrailBufferViews.map(pointerTrailBufferView => wgpu.device.createBindGroup({
+		const createPointerTrailBindGroups = () => pointerTrailBufferViews.map(pointerTrailBufferView => wgpu.device.createBindGroup({
 			layout: pointerTrailPipeline.getBindGroupLayout(1),
 			entries: [
 				{ binding: 1, resource: { buffer: pointerTrailUniformBuffer } },
@@ -176,6 +178,7 @@ fn fsPointerTrail(fragData: FragmentIn) -> @location(0) vec4f {
 				{ binding: 3, resource: pointerTrailBufferView },
 			],
 		}));
+		let pointerTrailBindGroups = createPointerTrailBindGroups();
 		let currentPointerTrailBufferIndex = 0;
 
 		let pointerX = -99999.0;
@@ -222,7 +225,7 @@ fn fsPointerTrail(fragData: FragmentIn) -> @location(0) vec4f {
 			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
 		});
 
-		const bindGroups = pointerTrailBufferViews.map(pointerTrailBufferView => wgpu.device.createBindGroup({
+		const createBindGroups = () => pointerTrailBufferViews.map(pointerTrailBufferView => wgpu.device.createBindGroup({
 			layout: pipeline.getBindGroupLayout(0),
 			entries: [
 				{ binding: 1, resource: { buffer: uniformBuffer } },
@@ -230,8 +233,24 @@ fn fsPointerTrail(fragData: FragmentIn) -> @location(0) vec4f {
 				{ binding: 3, resource: pointerTrailBufferView },
 			],
 		}));
+		let bindGroups = createBindGroups();
 
 		return {
+			resize: (newWidth, newHeight) => {
+				if (width === newWidth && height === newHeight) return;
+				width = newWidth;
+				height = newHeight;
+
+				for (const pointerTrailBuffer of pointerTrailBuffers) pointerTrailBuffer.destroy();
+				pointerTrailBuffers = createPointerTrailBuffers();
+				pointerTrailBufferViews = pointerTrailBuffers.map(pointerTrailBuffer => pointerTrailBuffer.createView());
+				pointerTrailBindGroups = createPointerTrailBindGroups();
+				bindGroups = createBindGroups();
+				currentPointerTrailBufferIndex = 0;
+				pointerX = pointerXPrev = -99999.0;
+				pointerY = pointerYPrev = -99999.0;
+				lastPointerMovedAt = 0;
+			},
 			render: ctx => {
 				if (lastPointerMovedAt + 30 < performance.now()) {
 					pointerX = -99999.0;
@@ -285,6 +304,7 @@ fn fsPointerTrail(fragData: FragmentIn) -> @location(0) vec4f {
 			dispose() {
 				window.removeEventListener('pointermove', onPointerMove);
 				for (const pointerTrailBuffer of pointerTrailBuffers) pointerTrailBuffer.destroy();
+				pointerTrailUniformBuffer.destroy();
 				uniformBuffer.destroy();
 			},
 		};
@@ -298,12 +318,14 @@ import { onBeforeUnmount, onMounted, useTemplateRef } from 'vue';
 const canvas = useTemplateRef('canvas');
 
 let dispose: (() => void) | null = null;
+let unmounted = false;
 
 const pixelRatio = 1;
 const fps: number | null = null;
 
 onMounted(async () => {
 	if (canvas.value == null) return;
+	const canvasElement = canvas.value;
 
 	const adapter = await navigator.gpu?.requestAdapter({
 		powerPreference: 'low-power',
@@ -311,13 +333,27 @@ onMounted(async () => {
 	const _device = await adapter?.requestDevice();
 	if (_device == null) return;
 	const device = _device as GPUDevice;
+	if (unmounted) {
+		device.destroy();
+		return;
+	}
 
-	const _context = canvas.value.getContext('webgpu');
-	if (_context == null) return;
+	const _context = canvasElement.getContext('webgpu');
+	if (_context == null) {
+		device.destroy();
+		return;
+	}
 	const context = _context as GPUCanvasContext;
 
-	canvas.value.width = Math.max(1, Math.min(canvas.value.offsetWidth * pixelRatio, device.limits.maxTextureDimension2D));
-	canvas.value.height = Math.max(1, Math.min(canvas.value.offsetHeight * pixelRatio, device.limits.maxTextureDimension2D));
+	const updateCanvasSize = () => {
+		const width = Math.max(1, Math.min(Math.floor(canvasElement.offsetWidth * pixelRatio), device.limits.maxTextureDimension2D));
+		const height = Math.max(1, Math.min(Math.floor(canvasElement.offsetHeight * pixelRatio), device.limits.maxTextureDimension2D));
+		if (canvasElement.width === width && canvasElement.height === height) return false;
+		canvasElement.width = width;
+		canvasElement.height = height;
+		return true;
+	};
+	updateCanvasSize();
 
 	context.configure({
 		device,
@@ -365,11 +401,23 @@ fn vs(@builtin(vertex_index) vertexIndex: u32) -> VertexOut {
 	const initialTime = (Date.now() % (1000 * 60 * 60 * 24));
 
 	const bgRendererInstance = await defaultBgRendererDef.init({
-		width: canvas.value.width,
-		height: canvas.value.height,
+		width: canvasElement.width,
+		height: canvasElement.height,
 		wgpu: { device, context, sampler, defaultVertexShaderModule },
-		canvas: canvas.value,
+		canvas: canvasElement,
 	});
+	if (unmounted) {
+		bgRendererInstance.dispose?.();
+		context.unconfigure();
+		device.destroy();
+		return;
+	}
+
+	const resizeObserver = new ResizeObserver(() => {
+		if (!updateCanvasSize()) return;
+		bgRendererInstance.resize(canvasElement.width, canvasElement.height);
+	});
+	resizeObserver.observe(canvasElement);
 
 	let disposed = false;
 	let latestTimestamp = performance.now();
@@ -423,13 +471,15 @@ fn vs(@builtin(vertex_index) vertexIndex: u32) -> VertexOut {
 
 	dispose = () => {
 		disposed = true;
-		device.destroy();
-		context.unconfigure();
+		resizeObserver.disconnect();
 		bgRendererInstance.dispose?.();
+		context.unconfigure();
+		device.destroy();
 	};
 });
 
 onBeforeUnmount(() => {
+	unmounted = true;
 	if (dispose != null) dispose();
 });
 </script>
