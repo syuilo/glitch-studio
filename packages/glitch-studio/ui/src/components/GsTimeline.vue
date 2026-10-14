@@ -43,18 +43,15 @@
 		<div :class="$style.tlBgWrapper" data-timeline-surface>
 			<div :class="$style.tlBgSideSpacer"></div>
 			<div ref="tlEl" :class="$style.tlBg" tabindex="-1" @wheel="onTlWheel">
-				<div :class="$style.ticksCorner"></div>
 				<div :class="$style.tlRange" :style="{ width: tlRangeElWidth + 'px', left: tlRangeElPosX + 'px' }"></div>
 				<div v-for="time of xTicks" :class="[$style.inTlXTick]" :style="{ left: timeToDomX(time) + 'px' }"></div>
 			</div>
 		</div>
 		<div ref="layersEl" :class="$style.layers" data-timeline-surface>
 			<div style="direction: ltr;">
-				<!--
 				<div :class="$style.layersHeader">
 					<span class="_monospace">{{ formatFullTimecode(time) }}</span>
 				</div>
-				-->
 				<div :class="$style.layersActions">
 					<GsButton v-tooltip="'Add Layer'" small iconOnly @click="showAddLayerMenu"><i class="ti ti-plus"></i></GsButton>
 					<GsButton v-tooltip="'Wrap in Transform'" iconOnly small :disabled="!canWrapSelection" @click="transformSelection"><i class="ti ti-gizmo"></i></GsButton>
@@ -121,7 +118,6 @@
 					<div v-for="time of xMinorTicks" :class="$style.xMinorTick" :style="{ left: timeToDomX(time) + 'px' }"></div>
 					<div :class="$style.xTicksSeekBar" :style="{ left: (seekBarPos - 1) + 'px' }" @pointerdown="onSeekBarPointerDown"></div>
 				</div>
-				<div :class="$style.ticksCorner"></div>
 				<div v-if="selectionArea" :class="$style.selectedArea" :style="{ width: selectionArea.right - selectionArea.left + 'px', height: selectionArea.bottom - selectionArea.top + 'px', top: selectionArea.top + 'px', left: selectionArea.left + 'px' }"></div>
 				<div v-for="time of xTicks" :class="[$style.inTlXTick]" :style="{ left: timeToDomX(time) + 'px' }"></div>
 				<div :class="$style.seekBar" class="_monospace" :style="{ left: seekBarPos + 'px' }"><div :class="$style.seekBarFrame">{{ formatMsToTimecode(time, false) }}</div></div>
@@ -333,7 +329,6 @@ function onLayerDrop(event: DragEvent) {
 function onLayerDragEnd() { draggingLayerId.value = null; dropTarget.value = null; }
 
 const X_TICKS_HEIGHT = 20;
-const Y_TICKS_WIDTH = 0;
 
 const duration = computed(() => clipLayers.value.reduce((max, layer) => layer.clips.reduce((end, clip) => Math.max(end, getTimelineClipEnd(clip)), max), 0));
 const time = previewPlayback.currentTimelineTime;
@@ -781,7 +776,6 @@ function formatFullTimecode(timeMs: number): string {
 
 	--sideWidth: 300px;
 	--xTicksHeight: v-bind('X_TICKS_HEIGHT + "px"');
-	--yTicksWidth: v-bind('Y_TICKS_WIDTH + "px"');
 
 	--accentAlphaMiddle: color(from var(--THEME-accent) srgb r g b / 0.5);
 	--accentAlphaLow: color(from var(--THEME-accent) srgb r g b / 0.25);
@@ -869,10 +863,12 @@ function formatFullTimecode(timeMs: number): string {
 	flex-shrink: 0;
 	display: flex;
 	width: var(--sideWidth);
+	height: var(--xTicksHeight);
 	align-items: center;
 	justify-content: center;
 	gap: 8px;
 	margin-bottom: 8px;
+	background: var(--THEME-bg);
 }
 
 .layersActions {
@@ -893,32 +889,6 @@ function formatFullTimecode(timeMs: number): string {
 
 .layersLane {
 	direction: ltr;
-}
-
-.yTicks {
-	position: absolute;
-	z-index: 1000;
-	top: 0;
-	left: 0;
-	height: 100%;
-	width: var(--yTicksWidth);
-	background: #181818aa;
-	backdrop-filter: blur(24px);
-	overflow: clip;
-	contain: content;
-}
-.yTick {
-	position: absolute;
-	left: 0;
-	width: 100%;
-	font-size: 12px;
-	padding: 4px 8px 0 0;
-	box-sizing: border-box;
-	border-top: solid 1px #fff1;
-	text-align: right;
-}
-.yTickActive {
-	border-top: solid 1px var(--accentAlphaMiddle);
 }
 
 .xTicks {
@@ -951,16 +921,6 @@ function formatFullTimecode(timeMs: number): string {
 	bottom: 0;
 	height: 5px;
 	border-left: solid 1px #fff3;
-}
-
-.ticksCorner {
-	position: absolute;
-	z-index: 1000;
-	top: 0;
-	left: 0;
-	width: var(--yTicksWidth);
-	height: var(--xTicksHeight);
-	background: #181818;
 }
 
 .tlBgWrapper { /* tl自体はスクロールバーを表示しないが、layers側で表示するスクロールバーにより位置がずれるため、補正するためにこっちでもスクロールバーの幅だけは確保しておく */
@@ -1128,22 +1088,6 @@ function formatFullTimecode(timeMs: number): string {
 	border-radius: 0 0 6px 0;
 }
 
-.valueBar {
-	position: absolute;
-	left: var(--yTicksWidth);
-	width: calc(100% - var(--yTicksWidth));
-	height: 1px;
-	background: #FF5500;
-	pointer-events: none;
-	will-change: top;
-}
-.valueBarValue {
-	display: inline-block;
-	background: #FF5500;
-	color: #fff;
-	min-width: 40px;
-}
-
 .crossPoint {
 	position: absolute;
 	z-index: 10;
@@ -1217,43 +1161,6 @@ function formatFullTimecode(timeMs: number): string {
 	color: #fff;
 	padding: 6px 10px;
 	font-size: 13px;
-}
-
-.infoBar {
-	display: flex;
-	position: absolute;
-	bottom: 0;
-	left: var(--yTicksWidth);
-	box-sizing: border-box;
-	padding: 0 8px;
-	width: calc(100% - var(--yTicksWidth));
-	height: 22px;
-	line-height: 22px;
-	font-size: 13px;
-	background: #0008;
-	color: #fff;
-	overflow: clip;
-	contain: strict;
-	pointer-events: none;
-
-	> div { // TODO: ちゃんとクラス指定する
-		flex: 1;
-
-		> b {
-			margin-right: 1em;
-			font-weight: normal;
-			opacity: 0.7;
-
-			&:after {
-				content: ':';
-			}
-		}
-
-		> code {
-			display: inline-block;
-			min-width: 4em;
-		}
-	}
 }
 
 .layerSettings {

@@ -480,8 +480,8 @@ function timeToDomX(time: number): number { return timelineTimeToX(time, props.t
 
 .localTicksLane {
 	display: flex;
-	height: var(--xTicksHeight);
-	line-height: var(--xTicksHeight);
+	height: 20px;
+	line-height: 20px;
 	font-size: 12px;
 }
 
