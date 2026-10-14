@@ -1,4 +1,5 @@
 import { markRaw, ref, nextTick } from 'vue';
+import GsAssetSelectDialog from './components/GsAssetSelectDialog.vue';
 import type { Component, MaybeRef, InjectionKey, Ref } from 'vue';
 import type { ComponentEmit, ComponentProps as CP } from 'vue-component-type-helpers';
 import type { MenuItem } from '@/types/menu.ts';
@@ -6,6 +7,7 @@ import type { OverloadToUnion } from '@/types/overload-to-union.ts';
 import type { GsSelectItem } from './components/common/GsSelect.vue';
 import type { OptionValue } from './types/option-value.ts';
 import type { GsDialogReturnType } from '@/components/common/GsDialog.vue';
+import type { ProjectAsset } from './Project.ts';
 import { getHTMLElementOrNull } from '@/utility/get-dom-node-or-null.ts';
 import { focusParent } from '@/utility/focus.ts';
 import GsPopupMenu from '@/components/common/GsPopupMenu.vue';
@@ -387,4 +389,23 @@ export function progress(options: { text?: string } = { }) {
 		setSubProgress,
 		setText,
 	};
+}
+
+export function selectAsset(options: {
+	multiple: boolean;
+	mimeType: string | null;
+}): Promise<ProjectAsset[]> {
+	return new Promise((resolve, rej) => {
+		const { dispose } = popup(GsAssetSelectDialog, {
+			multiple: options.multiple,
+			mimeType: options.mimeType,
+		}, {
+			done: assets => {
+				if (assets != null) {
+					resolve(assets);
+				}
+			},
+			closed: () => dispose(),
+		});
+	});
 }
