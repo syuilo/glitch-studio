@@ -27,8 +27,8 @@
 			<GsPreviewTransform :canvasRect="previewCanvasRect"/>
 		</div>
 		<div :class="$style.bottomLeft">
-			<div :class="$style.sceneInfo" class="_monospace">
-				<div>Resolution: {{ sceneResolution?.width ?? '-' }} x {{ sceneResolution?.height ?? '-' }}</div>
+			<div :class="$style.resolution" class="_monospace">
+				<div>{{ sceneResolution?.width ?? '-' }} x {{ sceneResolution?.height ?? '-' }} px</div>
 			</div>
 		</div>
 	</div>
@@ -403,7 +403,7 @@ function showMenu(ev: PointerEvent) {
 	background: #0008;
 }
 
-.sceneInfo {
+.resolution {
 	padding: 4px 8px;
 }
 
