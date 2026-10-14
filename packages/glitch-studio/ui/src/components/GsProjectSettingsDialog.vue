@@ -2,23 +2,30 @@
 <GsModal ref="modal" preferType="dialog" @opened="dialogContent?.focus()" @closed="emit('closed')" @esc="closeDialog" @click="closeDialog">
 	<div ref="dialogContent" :class="$style.root" class="_gaps_m" tabindex="-1" @keydown.stop @keydown.esc.prevent="closeDialog">
 		<div>Project settings</div>
-		<div>Resolution</div>
+		<div>Base Resolution</div>
 		<div style="display: flex; gap: 12px;">
 			<GsInput style="flex: 1; min-width: 0;" :modelValue="width" type="number" :min="1" :step="1" @update:modelValue="updateWidth"><template #label>Width</template><template #suffix>px</template></GsInput>
+			<GsButton small iconOnly :primary="lockedAspectRatio != null" @click="toggleAspectRatioLock"><i class="ti ti-link"></i></GsButton>
 			<GsInput style="flex: 1; min-width: 0;" :modelValue="height" type="number" :min="1" :step="1" @update:modelValue="updateHeight"><template #label>Height</template><template #suffix>px</template></GsInput>
 		</div>
-		<GsSwitch :modelValue="lockedAspectRatio != null" :disabled="lockedAspectRatio == null && !isResolutionValid" @update:modelValue="setAspectRatioLocked">Keep aspect ratio</GsSwitch>
 		<div v-if="!isResolutionValid">Width and height must be positive integers.</div>
-		<GsInput v-model="timelineFps" type="number" :min="1" :max="120" :step="'any'"><template #label>Timeline frame rate</template><template #suffix>fps</template></GsInput>
-		<GsSwitch v-model="timelineMotionBlur.enabled">Motion blur</GsSwitch>
-		<div class="_gaps_m" :inert="!timelineMotionBlur.enabled">
-			<GsInput v-model="timelineMotionBlur.shutterAngle" type="number" :min="0" :max="360" :step="'any'"><template #label>Shutter angle</template><template #suffix>°</template><template #caption>Centered exposure: {{ exposureMs }} ms at the project frame rate. Clip boundaries shorten the exposure.</template></GsInput>
-			<GsInput v-model="timelineMotionBlur.samples" type="number" :min="0" :max="MAX_MOTION_BLUR_SAMPLES" :step="1"><template #label>Export samples</template><template #caption>0 disables motion blur for export; 1 renders the current time without blur. Preview samples are set in the footer.</template></GsInput>
-		</div>
-		<div v-if="timelineMotionBlur.enabled && historyEffects.length" :class="$style.warning">
-			Motion blur does not support effects that depend on render history: {{ historyEffects.join(', ') }}.
-			Rendering is allowed, but results may vary with sample count and preview frame rate, and may differ from export.
-		</div>
+		<GsInput v-model="timelineFps" type="number" :min="1" :max="120" :step="'any'"><template #label>Base Timeline FPS</template><template #suffix>fps</template></GsInput>
+		<GsFolder>
+			<template #icon><i class="ti ti-reduce-motion"></i></template>
+			<template #label>Timeline Motion Blur</template>
+			<template #suffix>{{ timelineMotionBlur.enabled ? 'Enabled' : 'Disabled' }}</template>
+			<div class="_gaps_l">
+				<GsSwitch v-model="timelineMotionBlur.enabled">Enable</GsSwitch>
+				<div class="_gaps_m" :inert="!timelineMotionBlur.enabled">
+					<GsInput v-model="timelineMotionBlur.shutterAngle" type="number" :min="0" :max="360" :step="'any'"><template #label>Shutter angle</template><template #suffix>°</template><template #caption>Centered exposure: {{ exposureMs }} ms at the project frame rate. Clip boundaries shorten the exposure.</template></GsInput>
+					<GsInput v-model="timelineMotionBlur.samples" type="number" :min="0" :max="MAX_MOTION_BLUR_SAMPLES" :step="1"><template #label>Export samples</template><template #caption>0 disables motion blur for export; 1 renders the current time without blur. Preview samples are set in the footer.</template></GsInput>
+				</div>
+				<div v-if="timelineMotionBlur.enabled && historyEffects.length" :class="$style.warning">
+					Motion blur does not support effects that depend on render history: {{ historyEffects.join(', ') }}.
+					Rendering is allowed, but results may vary with sample count and preview frame rate, and may differ from export.
+				</div>
+			</div>
+		</GsFolder>
 		<div v-if="renderSettingsError">{{ renderSettingsError }}</div>
 		<div :class="$style.actions">
 			<GsButton inline @click="closeDialog">Cancel</GsButton>
@@ -29,17 +36,18 @@
 </template>
 
 <script lang="ts" setup>
-import { appContext } from '@/app.ts';
 import { computed, ref, useTemplateRef } from 'vue';
-import GsModal from './common/GsModal.vue';
-import GsButton from './common/GsButton.vue';
-import GsInput from './common/GsInput.vue';
-import GsSwitch from './common/GsSwitch.vue';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { deepEqual } from '@gs/shared/utility/deep-equal.ts';
 import { MAX_MOTION_BLUR_SAMPLES, validateTimelineFps, validateTimelineMotionBlur } from '@gs/subsystems_timeline_shared/motion-blur.ts';
 import { findTimelineHistoryEffects } from '@gs/subsystems_timeline_shared/render-history-effects.ts';
 import { effectDefinitions } from '@gs/subsystems_effect_shared/effect-definitions.ts';
+import GsSwitch from './common/GsSwitch.vue';
+import GsInput from './common/GsInput.vue';
+import GsButton from './common/GsButton.vue';
+import GsModal from './common/GsModal.vue';
+import GsFolder from './common/GsFolder.vue';
+import { appContext } from '@/app.ts';
 
 const { stateManager } = appContext.projectContext;
 
@@ -76,6 +84,10 @@ function setAspectRatioLocked(locked: boolean) {
 	if (locked && !isResolutionValid.value) return;
 	// 整数pxへの丸めで比率が少し変わっても、連続編集で誤差が蓄積しないよう固定時の比率を保持する。
 	lockedAspectRatio.value = locked ? width.value / height.value : null;
+}
+
+function toggleAspectRatioLock() {
+	setAspectRatioLocked(lockedAspectRatio.value == null);
 }
 
 function updateWidth(value: number) {
