@@ -6,10 +6,13 @@ import type { progress } from '../ui.ts';
 import type { ProjectContext, ProjectAsset } from '../Project.ts';
 import type { Player } from '@gs/shared/types.ts';
 import type { TimelineAssetPlacement } from './timeline-asset-layer.ts';
+import type { VisualModuleAssetPlacement } from './visual-module-asset-node.ts';
+
+export type AssetImportPlacement = { timeline?: TimelineAssetPlacement | null; visualModule?: VisualModuleAssetPlacement | null };
 
 /** ファイル選択と全体ドロップで同じ取り込み・Player作成・Undo単位を使う。 */
 export async function importAssets(context: ProjectContext, files?: readonly File[], prepareProject?: () => Promise<void>,
-	prepareTimeline?: (assets: ProjectAsset[], dialog: ReturnType<typeof progress>) => Promise<TimelineAssetPlacement | null>): Promise<string[]> {
+	preparePlacement?: (assets: ProjectAsset[], players: Player[], dialog: ReturnType<typeof progress>) => AssetImportPlacement | null | Promise<AssetImportPlacement | null>): Promise<string[]> {
 	const selected = await selectMediaFiles({ files, multiple: true, includeFonts: true });
 	if (selected == null || selected.length === 0) return [];
 	const errors: string[] = [];
@@ -31,8 +34,8 @@ export async function importAssets(context: ProjectContext, files?: readonly Fil
 						players.push({ id: genId(), name: result.name, sourceType: 'asset', assetId: id });
 					}
 				}
-				const timeline = await prepareTimeline?.(assets, dialog) ?? null;
-				context.stateManager.commit('importAssets', { assets, players, timeline });
+				const placement = await preparePlacement?.(assets, players, dialog) ?? {};
+				context.stateManager.commit('importAssets', { assets, players, ...placement });
 			},
 		});
 	} catch (error) {

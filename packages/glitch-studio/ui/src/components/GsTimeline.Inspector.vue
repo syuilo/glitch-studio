@@ -21,6 +21,7 @@
 	v-else-if="selectedLayer" :scene="scene" :layer="selectedLayer"
 	@selectKeyframe="emit('selectKeyframe', $event)" @requestAddInlineEffectNode="emit('requestAddInlineEffectNode', $event)"
 	@expandRequested="emit('expandRequested', $event)"
+	@revealAssets="emit('revealAssets')"
 />
 </template>
 
@@ -47,6 +48,7 @@ const emit = defineEmits<{
 	removeClips: [];
 	changeClipSource: [target: TimelineClipSelection];
 	requestAddInlineEffectNode: [layerId: string];
+	revealAssets: [];
 }>();
 
 // 選択はタイムラインが所有し、詳細パネルでは表示対象の解決だけを行う。

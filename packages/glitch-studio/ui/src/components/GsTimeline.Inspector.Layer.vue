@@ -64,6 +64,7 @@
 					:class="$style.inlineVisualModuleEditor"
 					:visualModule="layer.visualModule"
 					:visualModuleName="layer.name"
+					:assetDropActions="inlineAssetDropActions"
 					:effectStates="inlineEffectStates"
 					:exporting="exportingVisualModule"
 					@edit="onInlineVisualModuleEdit"
@@ -154,7 +155,7 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, ref } from 'vue';
+import { computed, ref, onBeforeUnmount } from 'vue';
 import { isTimelineVisualLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import { flattenTimelineLayers } from '@gs/subsystems_timeline_shared/layer-tree.ts';
 import { isParameterType } from '@gs/shared/parameter/parameter-definition.ts';
@@ -186,13 +187,22 @@ import { appContext } from '@/app.ts';
 import { exportVisualModuleFile } from '@/utility/visual-module-file.ts';
 import { commitVisualModuleEdit } from '@/utility/visual-module-edit.ts';
 import { getLayerParameterValues, resolveLayerParameter } from '@/utility/timeline-scene.ts';
+import { createVisualModuleDropActions } from '@/utility/visual-module-drop-actions.ts';
 
 const props = defineProps<{ scene: TimelineScene; layer: TimelineLayer }>();
-const emit = defineEmits<{ selectKeyframe: [selection: TimelineKeyframeSelection]; expandRequested: [layerId: string]; requestAddInlineEffectNode: [layerId: string] }>();
+const emit = defineEmits<{ selectKeyframe: [selection: TimelineKeyframeSelection]; expandRequested: [layerId: string]; requestAddInlineEffectNode: [layerId: string]; revealAssets: [] }>();
 const { previewPlayback, timelineRendererManagerController } = appContext;
 const groupModes = [{ value: 'flat' as const, label: 'Single plane (2D contents)' }, { value: 'preserveDepth' as const, label: 'Preserve child depth' }];
 const coordinateSpaces = [{ value: 'screen' as const, label: 'On screen' }, { value: 'world' as const, label: 'In space' }];
 const { stateManager } = appContext.projectContext;
+let disposed = false;
+onBeforeUnmount(() => { disposed = true; });
+const inlineAssetDropActions = computed(() => {
+	const layer = props.layer;
+	return layer.layerType !== 'inlineVisualModule' ? null : createVisualModuleDropActions({ context: appContext.projectContext,
+		target: { sceneId: props.scene.id, inlineVisualModuleLayerId: layer.id }, isActive: () => !disposed && props.layer === layer,
+		revealAssets: () => emit('revealAssets') });
+});
 const sceneId = computed(() => props.scene.id);
 const sceneLayers = computed(() => flattenTimelineLayers(props.scene.layers));
 const audioLayerOptions = computed(() => sceneLayers.value

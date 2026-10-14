@@ -2,7 +2,8 @@ import { onBeforeUnmount, onMounted, ref } from 'vue';
 import type { Ref } from 'vue';
 import { getActiveDragData } from '../utility/drag-and-drop.ts';
 
-export function useTimelineAssetDrop(options: {
+export function useAssetDrop(options: {
+	enabled?: () => boolean;
 	target: Readonly<Ref<HTMLElement | null>>;
 	dropFiles: (files: readonly File[]) => Promise<void>;
 	dropAsset: (assetId: string) => Promise<void>;
@@ -12,7 +13,7 @@ export function useTimelineAssetDrop(options: {
 	let depth = 0;
 	let busy = false;
 	let windowTarget: Window | null = null;
-	const accepts = (event: DragEvent) => event.dataTransfer != null
+	const accepts = (event: DragEvent) => (options.enabled?.() ?? true) && event.dataTransfer != null
 		&& (event.dataTransfer.types.includes('Files') || getActiveDragData(event, 'GsAsset') != null);
 
 	function clear() { depth = 0; hovering.value = false; }
@@ -20,7 +21,7 @@ export function useTimelineAssetDrop(options: {
 	function accept(event: DragEvent) {
 		if (!accepts(event)) return false;
 		event.preventDefault();
-		// Appの通常バブリングと、レイヤー行の並び替え処理の両方へ渡さない。
+		// Appの通常バブリングと、内部の並び替え処理の両方へ渡さない。
 		event.stopPropagation();
 		if (event.dataTransfer != null) event.dataTransfer.dropEffect = 'copy';
 		return true;

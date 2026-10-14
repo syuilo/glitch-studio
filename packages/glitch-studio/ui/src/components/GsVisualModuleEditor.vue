@@ -1,8 +1,11 @@
 <template>
-<div :class="$style.root" data-visual-module-editor>
+<div ref="root" :class="$style.root" data-visual-module-editor data-test-visual-module-editor
+	@dragenter.capture="assetDrop.onDragenter" @dragover.capture="assetDrop.onDragover"
+	@dragleave.capture="assetDrop.onDragleave" @drop.capture="assetDrop.onDrop"
+>
 	<div :class="$style.header">
 		<div style="padding: 8px;">
-			<GsTabs v-model="tab" :def="tabs"/>
+			<GsTabs v-model="tab" :def="tabs" data-test-visual-module-tabs/>
 		</div>
 	</div>
 
@@ -77,15 +80,17 @@
 			<GsButton :disabled="exporting" :wait="exporting" @click="emit('requestExport')"><i class="ti ti-download"></i> Export Visual Module…</GsButton>
 		</div>
 	</div>
+	<GsDropOverlay v-if="assetDrop.hovering.value" data-test-visual-module-drop-overlay/>
 </div>
 </template>
 
 <script lang="ts" setup>
-import { computed, ref } from 'vue';
+import { computed, ref, useTemplateRef } from 'vue';
 import GsWires from './GsWires.vue';
 import GsButton from './common/GsButton.vue';
 import GsInput from './common/GsInput.vue';
 import GsDraggable from './common/GsDraggable.vue';
+import GsDropOverlay from './common/GsDropOverlay.vue';
 import XEffectNode from './GsEffectNode.vue';
 import XGlobalInNode from './GsGlobalInNode.vue';
 import XGlobalOutNode from './GsGlobalOutNode.vue';
@@ -94,8 +99,10 @@ import XOutputDefsEditor from './GsVisualModuleEditor.OutputDefsEditor.vue';
 import GsTabs from './common/GsTabs.vue';
 import type { VisualModule, VisualModuleGlobalInNode, VisualModuleGlobalOutNode, VisualModuleNode, NodeOutputReference } from '@gs/subsystems_visual-module_shared/types.ts';
 import type { EffectInstanceState } from '@gs/subsystems_effect_shared/effect-status.ts';
-import type { VisualModuleEdit } from '@/types/visual-module-editor.ts';
+import type { VisualModuleEdit, VisualModuleAssetDropActions } from '@/types/visual-module-editor.ts';
 import { provideVisualModuleWires } from '@/utility/visual-module-wires.ts';
+import { useAssetDrop } from '@/composables/useAssetDrop.ts';
+import * as ui from '@/ui.ts';
 
 provideVisualModuleWires();
 
@@ -104,6 +111,7 @@ const props = defineProps<{
 	visualModuleName: string;
 	effectStates?: ReadonlyMap<string, EffectInstanceState> | null;
 	exporting?: boolean;
+	assetDropActions: VisualModuleAssetDropActions | null;
 }>();
 
 const emit = defineEmits<{
@@ -114,6 +122,12 @@ const emit = defineEmits<{
 }>();
 
 const tab = ref('nodes');
+const assetDrop = useAssetDrop({
+	target: useTemplateRef<HTMLElement>('root'), enabled: () => props.assetDropActions != null,
+	dropFiles: async files => { if (await props.assetDropActions?.dropFiles(files) === true) tab.value = 'nodes'; },
+	dropAsset: async assetId => { if (await props.assetDropActions?.dropAsset(assetId) === true) tab.value = 'nodes'; },
+	reportError: error => { void ui.alert({ type: 'error', title: 'Visual Module drop', text: error instanceof Error ? error.message : String(error) }); },
+});
 const tabs = [
 	{ id: 'nodes', label: 'Nodes' },
 	{ id: 'inputs', label: 'Input Defs' },
@@ -136,6 +150,7 @@ function onOutputInputChange(outputId: string, value: NodeOutputReference | null
 
 <style module lang="scss">
 .root {
+	position: relative;
 	display: flex;
 	flex-direction: column;
 	height: 100%;

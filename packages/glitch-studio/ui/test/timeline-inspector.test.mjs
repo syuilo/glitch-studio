@@ -539,6 +539,28 @@ test('edits layer parameters through commands and identifies the inline Visual M
 	assert.deepEqual(f.events, [['addEffect', layer.id]]);
 });
 
+// 【インラインEditorの素材ドロップを、詳細パネルが正しい保存先のCommandへ接続する】
+// 共通Editorへ渡した処理が登録済みVisual Moduleを編集したり、新しいタイムラインレイヤーを作らない。
+// Assetと対応Player・音声ノードの関係を実際の親SFCとCommandで確認する。
+test('routes inline editor asset drops into the selected Visual Module', async t => {
+	const f = await fixture(t);
+	const layer = createInlineVisualModuleLayer(0);
+	f.scene.layers.push(layer);
+	f.props.selection = { kind: 'layers', ids: [layer.id] };
+	await nextTick();
+	const editor = f.control('GsVisualModuleEditor');
+	const originalCount = layer.visualModule.nodes.length;
+	assert.equal(await editor.props.assetDropActions.dropAsset('sound'), true);
+	assert.equal(f.scene.layers.length, 3);
+	assert.equal(layer.visualModule.nodes.length, originalCount + 1);
+	const node = layer.visualModule.nodes.find(node => node.type === 'effect' && node.effectId === 'audioWaveform');
+	assert.equal(node.params.audio.value.playerId, f.history.state.players.value[0].id);
+	assert.equal(f.history.state.players.value[0].assetId, 'sound');
+	f.history.undo();
+	assert.equal(layer.visualModule.nodes.length, originalCount);
+	assert.equal(f.history.state.players.value.length, 0);
+});
+
 // 【詳細パネルを閉じて開き直しても選択を保持し、削除ボタンは親の操作へ接続される】
 // TeleportとInspectorの境界を実際に通し、単体では動いても親へイベントが届かない退行を防ぐ。
 // 表示の切り替え自体からrevealDetailsを出さず、手動で閉じたパネルを再表示しない。

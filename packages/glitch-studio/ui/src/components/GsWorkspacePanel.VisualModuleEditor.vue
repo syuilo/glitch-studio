@@ -28,6 +28,7 @@
 		:class="$style.editor"
 		:visualModule="visualModule"
 		:visualModuleName="visualModule.name"
+		:assetDropActions="assetDropActions"
 		:effectStates="effectStates"
 		:exporting="exporting"
 		@edit="onEdit"
@@ -41,7 +42,7 @@
 <script lang="ts" setup>
 import { areDataTypesEqual } from '@gs/shared/data-type/data-type.ts';
 import { isParameterType } from '@gs/shared/parameter/parameter-definition.ts';
-import { computed, ref, watch, onBeforeUnmount } from 'vue';
+import { computed, ref, watch, onBeforeUnmount, inject } from 'vue';
 import { AiSON } from '@syuilo/aiscript';
 import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { genId, prettyId } from '@gs/shared/utility/id.ts';
@@ -64,11 +65,16 @@ import { createInlineAutomationGraph } from '@/utility/automation-graph.ts';
 import { createInlineKeyframesTimeline } from '@/utility/keyframes-timeline.ts';
 import { createResetParameterBinding } from '@/utility/parameter-default.ts';
 import { exportVisualModuleFile, importVisualModuleFile } from '@/utility/visual-module-file.ts';
+import { createVisualModuleDropActions } from '@/utility/visual-module-drop-actions.ts';
+import { workspaceControllerKey } from '@/WorkspaceController.ts';
 
 const { previewPlayback, visualModuleRendererManagerController } = appContext;
 const { stateManager } = appContext.projectContext;
 
-defineProps<{ panel: WorkspacePanel }>();
+const props = defineProps<{ panel: WorkspacePanel }>();
+const workspaceController = inject(workspaceControllerKey)!;
+let disposed = false;
+onBeforeUnmount(() => { disposed = true; });
 
 const previewParamsShowing = ref(false);
 const exporting = ref(false);
@@ -76,6 +82,12 @@ const importing = ref(false);
 const selectedModuleId = ref<ProjectVisualModule['id'] | null>(null);
 const visualModule = computed(() => stateManager.state.visualModules.value.find(module => module.id === selectedModuleId.value)
 	?? stateManager.state.visualModules.value[0] ?? null);
+const assetDropActions = computed(() => {
+	const currentVisualModule = visualModule.value;
+	return currentVisualModule == null ? null : createVisualModuleDropActions({ context: appContext.projectContext,
+		target: { visualModuleId: currentVisualModule.id }, isActive: () => !disposed && visualModule.value === currentVisualModule,
+		revealAssets: () => workspaceController.revealPanel({ contentType: 'assets', sourcePanelId: props.panel.id }) });
+});
 
 // 選択した定義が削除・置換されても、常に現在のプロジェクトから対象を解決する。
 watch(() => visualModule.value?.id, id => {

@@ -22,6 +22,8 @@ title属性を使わないでください。v-tooltipディレクティブを使
 
 ## Visual Moduleのエクスポート・インポート
 
+`GsVisualModuleEditor`はファイル・Assetのドロップ受付と表示を担当し、親が渡す`VisualModuleAssetDropActions`で保存先へ反映する。登録済みとインラインの両方で`utility/visual-module-drop-actions.ts`を使い、画像・動画・音声からImage・Video・Audio Waveformノードを通常ノード一覧の末尾へ追加する。ノード生成は`visual-module-asset-node.ts`、Asset・Player・ノードの一括追加とUndo/RedoはCommandが担当する。既存の配線と出力接続は変更しない。
+
 `gsvm.ts`は`.gsvm`（MessagePack）の依存収集・バイナリ変換・取り込み準備を担当する。ノードの値と公開パラメータの既定値・設定ツリーから静的な素材／Player参照を収集し、取り込み用のプロジェクト内IDを生成する。元PCのパスや利用側のレイヤー／LIVEの状態は保存しない。
 
 `utility/visual-module-file.ts`が選択・ダウンロード・エラー表示を担当する。共通のVisual ModuleエディターはOtherタブから`requestExport`を通知し、登録済み／インラインそれぞれの親が対象名とプロジェクトを渡す。ImportはApp.vueのFile → Import → Visual Module (.gsvm)、または登録済みVisual Moduleの選択メニューから同じ処理を呼び出し、`importVisualModule` Commandで依存リソースごと一括追加する。ファイル選択・読み出しの間に`ProjectContext.load()`の世代が変わった操作は破棄する。

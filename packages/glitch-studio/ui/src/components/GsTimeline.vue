@@ -135,6 +135,7 @@
 				@selectKeyframe="onKeyframeSelected" @removeKeyframes="removeSelectedKeyframes" @removeClips="removeSelectedClips"
 				@changeClipSource="changeClipSource" @requestAddInlineEffectNode="showAddInlineEffectNodeMenu"
 				@expandRequested="expandLayer"
+				@revealAssets="emit('revealAssets')"
 			/>
 		</Teleport>
 		<div v-else>
@@ -184,7 +185,7 @@ import { createTimelineSourceActions } from '@/utility/timeline-source-actions.t
 import { createTimelineClipboardActions } from '@/utility/timeline-clipboard-actions.ts';
 import { createTimelineLayerActions } from '@/utility/timeline-layer-actions.ts';
 import { createTimelineDropActions } from '@/utility/timeline-drop-actions.ts';
-import { useTimelineAssetDrop } from '@/composables/useTimelineAssetDrop.ts';
+import { useAssetDrop } from '@/composables/useAssetDrop.ts';
 import { useDragSession } from '@/composables/useDragSession.ts';
 
 const { activeSceneId, previewPlayback, timelineAudioPreview, timelineRendererManagerController } = appContext;
@@ -586,7 +587,7 @@ function isTimelineActive() {
 	return !disposed && props.sceneId === editedScene.id && stateManager.state.timelineScenes.value.find(scene => scene.id === editedScene.id) === editedScene;
 }
 
-const assetDrop = useTimelineAssetDrop({
+const assetDrop = useAssetDrop({
 	target: useTemplateRef<HTMLElement>('root'),
 	...createTimelineDropActions({ context: appContext.projectContext, sceneId: editedScene.id, currentTime: () => time.value,
 		isActive: isTimelineActive, inspectMedia: inspectTimelineClipMedia, revealAssets: () => emit('revealAssets') }),

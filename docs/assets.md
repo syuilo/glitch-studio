@@ -30,6 +30,12 @@ Glitch Studioのメディアの扱いにあたっては、以下の概念があ�
 
 App.vueの全体受付でも、ファイルのホバー中は「Drop here」を表示します。専用受付で伝播が止められた場合や、アプリ外へ離れた場合は全体表示を消します。windowのcaptureでは表示状態だけをリセットし、ファイルの受付自体はルートの通常バブリングで行います。
 
+## Visual Module Editorへのドロップ
+
+`GsVisualModuleEditor.vue`はTimelineと共通の`useAssetDrop`でファイル・Assetのホバー表示と受付を行います。編集先と処理は親が`VisualModuleAssetDropActions`として渡し、登録済み・インラインの違いを共通Editorへ持ち込みません。画像はImage、動画はVideo、音声はAudio Waveformのノードを通常ノード一覧の末尾（出力ノードの直前）へ追加し、既存の配線と出力接続は保持します。動画・音声はそのAssetのPlayerを参照し、Playerがなければ作成します。
+
+ファイルの読み込み・サムネイル生成からノード反映まで同じprogressダイアログを維持します。`importAssets`の配置準備コールバックへ読み込んだAsset・Player・ダイアログを渡し、`AssetImportPlacement`でTimelineまたはVisual Moduleへの配置を指定します。Asset・Player・ノードを一つのCommandで反映し、参照の検証が失敗した場合は部分追加しません。既存Assetは`addVisualModuleAssetNodes`で不足するPlayerとノードだけを追加します。ノードに対応しないファイルはAssetsへ取り込んでパネルを開き、同じ種類の既存Assetは無視します。
+
 ## 動画サムネイル
 
 動画の取り込み・差し替え時には、主映像トラックの0%から100%まで10%間隔でサムネイルを生成します。100%は最後のフレームです。長辺を320px以下に縮小し、小さな動画は拡大しません。同じtimestampに対応する地点は重複保存しません。

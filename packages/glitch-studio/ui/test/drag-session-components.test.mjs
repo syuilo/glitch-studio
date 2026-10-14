@@ -15,14 +15,16 @@ const bundle = await build({ absWorkingDir: directory,
 		export { default as Panel } from './src/components/GsWorkspacePanel.vue';
 		export { default as Divider } from './src/components/GsWorkspaceDivider.vue';
 		export { default as Asset } from './src/components/GsAsset.vue';
+		export { default as VisualModuleEditor } from './src/components/GsVisualModuleEditor.vue';
 		export { preferences } from '@/preferences.ts';
 		export { getActiveDragData, getDragSessionData } from './src/utility/drag-and-drop.ts';` },
 	bundle: true, platform: 'node', format: 'cjs', external: ['vue'], write: false,
 	plugins: [{ name: 'drag-session-components', setup(build) {
 		build.onResolve({ filter: /^@\/(preferences|workspace|app|ui)\.ts$/ }, ({ path }) => ({ path: path.slice(2), namespace: 'test' }));
 		build.onResolve({ filter: /open-media-file\.ts$/ }, () => ({ path: 'media', namespace: 'test' }));
+		build.onResolve({ filter: /visual-module-wires\.ts$/ }, () => ({ path: 'wires', namespace: 'test' }));
 		build.onResolve({ filter: /\.vue$/ }, ({ path }) => {
-			if (/Gs(?:Draggable|WorkspacePanel|WorkspaceDivider|Asset)\.vue$/.test(path)) return;
+			if (/Gs(?:Draggable|WorkspacePanel|WorkspaceDivider|Asset|VisualModuleEditor)\.vue$/.test(path)) return;
 			return { path: basename(path, '.vue'), namespace: 'control' };
 		});
 		build.onLoad({ filter: /.*/, namespace: 'test' }, ({ path }) => ({ loader: 'ts', contents: {
@@ -33,6 +35,7 @@ const bundle = await build({ absWorkingDir: directory,
 			'app.ts': `export const appContext = { projectContext: { stateManager: { commit() {} } } };`,
 			'ui.ts': 'export function popup() {} export function popupMenu() {} export function contextMenu() {} export function alert() {}',
 			media: 'export async function openMediaFile() {}',
+			wires: 'export function provideVisualModuleWires() {}',
 		}[path] }));
 		build.onLoad({ filter: /.*/, namespace: 'control' }, ({ path }) => ({ loader: 'ts', contents: `
 			import { h } from 'vue'; export default { setup(_, { attrs, slots }) { return () => h(${JSON.stringify(path)}, attrs,
@@ -50,7 +53,7 @@ const bundle = await build({ absWorkingDir: directory,
 });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', bundle.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
-const { Draggable, Panel, Divider, Asset, preferences, getActiveDragData, getDragSessionData } = module.exports;
+const { Draggable, Panel, Divider, Asset, VisualModuleEditor, preferences, getActiveDragData, getDragSessionData } = module.exports;
 
 function fixture(t, render) {
 	const windowTarget = new EventTarget();
@@ -203,4 +206,55 @@ test('shares asset drag data and clears it when the asset view is removed', asyn
 	shown.value = false;
 	await settle();
 	assert.equal(getActiveDragData(event('dragover', data, source), 'GsAsset'), null);
+});
+
+// 【Visual Module Editor全体でファイルとAssetを受け付け、対象外Assetにもホバー表示を出す】
+// Nodes以外のタブからの追加も可能にし、成功後はNodesを表示する。対象外のAssetはタブを変えない。
+// ファイル一覧はイベント中に保存し、内部ノード並び替えのドラッグはそのまま通過させる。
+test('accepts files and assets across the Visual Module editor and selects nodes after an addition', async t => {
+	const calls = [];
+	const asset = { id: 'font', name: 'Font', fileDataType: 'font/ttf', fileData: new Blob() };
+	const actions = { dropFiles: async files => { calls.push(files.map(file => file.name)); return true; },
+		dropAsset: async assetId => { calls.push(assetId); return false; } };
+	const f = fixture(t, () => h('div', [h(Asset, { asset }), h(VisualModuleEditor, {
+		visualModule: { nodes: [], paramDefs: [], outputDefs: [] }, visualModuleName: 'Visual Module', assetDropActions: actions,
+	})]));
+	const editor = f.find('data-test-visual-module-editor');
+	const tabs = f.find('data-test-visual-module-tabs');
+	tabs.props['onUpdate:modelValue']('other');
+	await nextTick();
+	const files = transfer();
+	files.setData('Files', '');
+	files.files.push(new File([], 'image.png'), new File([], 'video.mp4'));
+	const entered = event('dragenter', files, editor);
+	editor.props.onDragenterCapture(entered);
+	await nextTick();
+	assert.ok(f.find('data-test-visual-module-drop-overlay'));
+	assert.equal(entered.defaultPrevented, true);
+	assert.equal(entered.cancelBubble, true);
+	const dropped = editor.props.onDropCapture(event('drop', files, editor));
+	files.files.length = 0;
+	await dropped;
+	await nextTick();
+	assert.deepEqual(calls[0], ['image.png', 'video.mp4']);
+	assert.equal(tabs.props.modelValue, 'nodes');
+	assert.equal(f.find('data-test-visual-module-drop-overlay'), undefined);
+	tabs.props['onUpdate:modelValue']('other');
+	await nextTick();
+	const source = f.find('data-test-asset', 'font');
+	const data = transfer();
+	source.props.onDragstart(event('dragstart', data, source));
+	editor.props.onDragenterCapture(event('dragenter', data, editor));
+	await nextTick();
+	assert.ok(f.find('data-test-visual-module-drop-overlay'));
+	await editor.props.onDropCapture(event('drop', data, editor));
+	await nextTick();
+	assert.equal(calls.at(-1), 'font');
+	assert.equal(tabs.props.modelValue, 'other');
+	const internal = transfer();
+	internal.setData('glitch-studio/gsdraggable', '');
+	const over = event('dragover', internal, editor);
+	editor.props.onDragoverCapture(over);
+	assert.equal(over.defaultPrevented, false);
+	assert.equal(over.cancelBubble, false);
 });

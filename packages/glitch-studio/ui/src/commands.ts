@@ -25,6 +25,8 @@ import { deepClone } from '@gs/shared/utility/deep-clone.ts';
 import { genId } from '@gs/shared/utility/id.ts';
 import { ref } from 'vue';
 import type { TimelineAssetPlacement } from './utility/timeline-asset-layer.ts';
+import type { VisualModuleAssetPlacement } from './utility/visual-module-asset-node.ts';
+import type { AssetImportPlacement } from './utility/import-assets.ts';
 import { getNodeOutputs } from '@gs/subsystems_visual-module_shared/node-outputs.ts';
 import { getNodeInputDataType } from '@gs/shared/data-type/node-compatibility.ts';
 import { isTextureDataType } from '@gs/shared/data-type/data-type.ts';
@@ -502,12 +504,13 @@ const removeNodeCommandDef = defineCommand<NodeTarget>({
 	},
 });
 
-const importAssetsCommandDef = defineCommand<{ assets: ProjectAsset[]; players: Player[]; timeline?: TimelineAssetPlacement | null }>({
+const importAssetsCommandDef = defineCommand<{ assets: ProjectAsset[]; players: Player[] } & AssetImportPlacement>({
 	label: 'Import assets',
 	changes: (_state, payload) => [
 		...payload.assets.map(asset => ({ type: 'asset' as const, assetId: asset.id })),
 		...payload.players.map(player => ({ type: 'player' as const, playerId: player.id })),
 		...getTimelineAssetPlacementChanges(payload.timeline ?? null),
+		...getVisualModuleAssetPlacementChanges(payload.visualModule ?? null),
 	],
 	create: payload => ({
 		execute(state) {
@@ -523,9 +526,12 @@ const importAssetsCommandDef = defineCommand<{ assets: ProjectAsset[]; players: 
 				// 新規Assetを含む仮の状態で配置を検証し、失敗時には素材もレイヤーも追加しない。
 				validateTimelineAssetPlacement({ ...state, assets: ref([...state.assets.value, ...payload.assets]) }, payload.timeline);
 			}
+			if (payload.visualModule != null) validateVisualModuleAssetPlacement({ ...state,
+				assets: ref([...state.assets.value, ...payload.assets]), players: ref([...state.players.value, ...payload.players]) }, payload.visualModule);
 			state.assets.value.push(...deepClone(payload.assets));
 			state.players.value.push(...deepClone(payload.players));
 			if (payload.timeline != null) getScene(state, payload.timeline.sceneId).layers.unshift(...deepClone(payload.timeline.layers));
+			if (payload.visualModule != null) appendVisualModuleAssetNodes(state, payload.visualModule);
 		},
 		undo(state) {
 			const assetIds = new Set(payload.assets.map(asset => asset.id));
@@ -533,6 +539,70 @@ const importAssetsCommandDef = defineCommand<{ assets: ProjectAsset[]; players: 
 			state.assets.value = state.assets.value.filter(asset => !assetIds.has(asset.id));
 			state.players.value = state.players.value.filter(player => !playerIds.has(player.id));
 			if (payload.timeline != null) removeTimelineAssetPlacement(state, payload.timeline);
+			if (payload.visualModule != null) removeVisualModuleAssetNodes(state, payload.visualModule);
+		},
+	}),
+});
+
+function getVisualModuleAssetPlacementChanges(placement: VisualModuleAssetPlacement | null): AppStateChange[] {
+	return placement == null || placement.nodes.length === 0 ? [] : [{ type: 'visualModule', target: placement.target }];
+}
+
+/** リソースの追加前に全ノードと参照を検証し、Undo不能な部分反映を残さない。 */
+function validateVisualModuleAssetPlacement(state: ProjectState, placement: VisualModuleAssetPlacement) {
+	const visualModule = getVisualModule(state, placement.target);
+	const ids = new Set(visualModule.nodes.map(node => node.id));
+	for (const node of placement.nodes) {
+		if (ids.has(node.id)) throw new Error('Duplicate node ID');
+		ids.add(node.id);
+		if (node.effectId === 'image') {
+			const image = node.params.image;
+			if (image?.inputSource !== 'literal' || !state.assets.value.some(asset => asset.id === image.value && asset.fileDataType.startsWith('image/'))) throw new Error('Image asset not found');
+			continue;
+		}
+		let playerId: unknown = null;
+		if (node.effectId === 'video' && node.params.player?.inputSource === 'literal') playerId = node.params.player.value;
+		else if (node.effectId === 'audioWaveform' && node.params.audio?.inputSource === 'literal') {
+			const audio = node.params.audio.value;
+			if (audio != null && typeof audio === 'object' && 'type' in audio && audio.type === 'player' && 'playerId' in audio) playerId = audio.playerId;
+		} else throw new Error('Unsupported asset node');
+		const player = state.players.value.find(player => player.id === playerId);
+		const assetType = node.effectId === 'video' ? 'video/' : 'audio/';
+		if (player?.sourceType !== 'asset' || !state.assets.value.some(asset => asset.id === player.assetId && asset.fileDataType.startsWith(assetType))) throw new Error('Media player asset not found');
+	}
+}
+
+function appendVisualModuleAssetNodes(state: ProjectState, placement: VisualModuleAssetPlacement) {
+	const visualModule = getVisualModule(state, placement.target);
+	const outputIndex = visualModule.nodes.findIndex(node => node.type === 'globalOut');
+	// Add Effect Nodeと同じく通常ノードの末尾へ追加し、出力ノードと既存の配線は保持する。
+	visualModule.nodes.splice(outputIndex < 0 ? visualModule.nodes.length : outputIndex, 0, ...deepClone(placement.nodes));
+}
+
+function removeVisualModuleAssetNodes(state: ProjectState, placement: VisualModuleAssetPlacement) {
+	const ids = new Set(placement.nodes.map(node => node.id));
+	const visualModule = getVisualModule(state, placement.target);
+	visualModule.nodes = visualModule.nodes.filter(node => !ids.has(node.id));
+}
+
+const addVisualModuleAssetNodesCommandDef = defineCommand<{ placement: VisualModuleAssetPlacement; players: Player[] }>({
+	label: 'Add asset nodes',
+	changes: (_state, payload) => [...payload.players.map(player => ({ type: 'player' as const, playerId: player.id })), ...getVisualModuleAssetPlacementChanges(payload.placement)],
+	create: payload => ({
+		execute(state) {
+			const ids = new Set(state.players.value.map(player => player.id));
+			for (const player of payload.players) {
+				if (ids.has(player.id)) throw new Error('Player ID already exists');
+				ids.add(player.id);
+			}
+			validateVisualModuleAssetPlacement({ ...state, players: ref([...state.players.value, ...payload.players]) }, payload.placement);
+			state.players.value.push(...deepClone(payload.players));
+			appendVisualModuleAssetNodes(state, payload.placement);
+		},
+		undo(state) {
+			removeVisualModuleAssetNodes(state, payload.placement);
+			const ids = new Set(payload.players.map(player => player.id));
+			state.players.value = state.players.value.filter(player => !ids.has(player.id));
 		},
 	}),
 });
@@ -2211,6 +2281,7 @@ export const COMMAND_DEFS = {
 	removeNode: removeNodeCommandDef,
 	addAsset: addAssetCommandDef,
 	importAssets: importAssetsCommandDef,
+	addVisualModuleAssetNodes: addVisualModuleAssetNodesCommandDef,
 	removeAsset: removeAssetCommandDef,
 	renameAsset: renameAssetCommandDef,
 	replaceAsset: replaceAssetCommandDef,

@@ -2,6 +2,11 @@ import type { EffectResolution } from '@gs/subsystems_effect_shared/resolution.t
 import type { NodeOutputReference, VisualModuleCustomParameterId, VisualModuleOutputDef, VisualModuleParamDef } from '@gs/subsystems_visual-module_shared/types.ts';
 import type { ParamEdit } from '@/components/GsVisualParam.vue';
 
+export type VisualModuleAssetDropActions = {
+	dropFiles: (files: readonly File[]) => Promise<boolean>;
+	dropAsset: (assetId: string) => Promise<boolean>;
+};
+
 // 編集操作だけを通知し、保存先の特定とUndo/Redo用コマンドへの変換は親が行う。
 export type VisualModuleEdit =
 	| { kind: 'removeNode'; nodeId: string }

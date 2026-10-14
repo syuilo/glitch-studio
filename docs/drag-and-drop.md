@@ -19,6 +19,6 @@ UI用の`data(type)`と`sourceData(type)`はComputedRefです。dragoverの読�
 - GsTimelineは`readSource`で同じTimeline内の並び替えだけを受け付け、`sourceData`から仮想スクロールに保持するレイヤーIDを算出します。挿入位置・階層の判定とCommandによる移動はTimelineが所有します。
 - GsDraggableは`data`で同じグループのドラッグ領域を表示し、空一覧への移動にも同じグループ条件を適用します。確定コールバックでインスタンス間の移動元を更新します。対象外のファイルイベントは伝播を止めず、App.vueの全体受付へ渡します。
 - GsWorkspacePanel・GsWorkspaceDividerはWorkspacePanelのセッションを共有し、パネル移動・交換を行います。app.tsに専用のドラッグ状態は置きません。
-- GsAssetはAsset IDをセッションへ渡し、Timelineの素材受付が`getActiveDragData`で参照します。
+- GsAssetはAsset IDをセッションへ渡し、Timeline・Visual Module Editorの素材受付が`getActiveDragData`で参照します。共通の`useAssetDrop`がホバー表示とファイル／Assetの受付を行い、対象イベントをAppや内部の並び替えへ伝播させません。
 
 外部ファイルはセッションに載せず、イベント中にDataTransfer.filesを保存して取り込み処理へ渡します。`setDragData`・`getDragData`・`checkDragDataType`はDataTransfer自体を扱う低水準のユーティリティとして残します。
