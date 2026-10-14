@@ -1,5 +1,6 @@
 <template>
 <div
+	:key="key"
 	:class="[$style.root, { [$style.waiting]: progress == null }]" :style="{
 		'--p': progress != null ? `${progress * 100}%` : '0%',
 	}"
@@ -8,12 +9,25 @@
 </template>
 
 <script lang="ts" setup>
-import { } from 'vue';
+import { ref, watch } from 'vue';
 
 const props = withDefaults(defineProps<{
 	progress: number | null; // nullでwaiting状態を表す
 }>(), {
 });
+
+// 進捗が0にリセットされたとき(減少したとき)やwaiting状態への移行ではtransitionさせないためのkey
+const key = ref(0);
+
+watch(() => props.progress, (after, before) => {
+	if (after == null || before == null) {
+		key.value++;
+		return;
+	}
+
+	if (after < before) key.value++;
+});
+
 </script>
 
 <style lang="scss" module>
