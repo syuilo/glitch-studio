@@ -7,9 +7,7 @@
 	<div v-if="!localFontsSupported">Local fonts are unavailable. Use Add asset to import a font file.</div>
 	<div v-if="localFontError">{{ localFontError }}</div>
 	<div :class="$style.assets">
-		<div v-for="asset in stateManager.state.assets.value" :key="asset.id" :class="$style.asset">
-			<XAsset :asset="asset"/>
-		</div>
+		<GsAsset v-for="asset in stateManager.state.assets.value" :key="asset.id" :asset="asset"/>
 	</div>
 </div>
 </template>
@@ -18,7 +16,7 @@
 import { onBeforeUnmount, ref } from 'vue';
 import { genId } from '@gs/shared/utility/id.ts';
 import GsButton from './common/GsButton.vue';
-import XAsset from './GsAssets.asset.vue';
+import GsAsset from './GsAsset.vue';
 import GsLocalFontDialog from './GsLocalFontDialog.vue';
 import { appContext } from '@/app.ts';
 import * as api from '@/api.ts';
@@ -88,11 +86,9 @@ async function addAsset() {
 .assets {
 	flex: 1;
 	display: grid;
-	grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+	grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
 	gap: 8px;
 	overflow: auto;
 }
 
-.asset {
-}
 </style>
