@@ -1,6 +1,6 @@
 <template>
 <GsDetachableView title="Preview" @changeWindow="onPreviewWindowChanged">
-	<div :class="$style.root" @dragover.prevent.stop @drop.prevent.stop="onDrop">
+	<div :class="$style.root">
 		<div :class="$style.topLeft">
 			<div v-if="showTimecodeInPreview" :class="$style.time" class="_monospace">
 				<div>{{ formatTime(time) }}</div>
@@ -171,61 +171,6 @@ function updateGridLines() {
 
 async function onViewClick() {
 
-}
-
-async function onDrop(event: DragEvent) {
-	const file = event.dataTransfer?.files[0];
-	if (file == null) return;
-	await addMedia(file);
-}
-
-async function addMedia(file?: File) {
-	const visualModuleId = previewPlayback.liveVisualModuleId.value;
-	if (visualModuleId == null) return;
-	const result = await openMediaFile({ file });
-	if (result == null) return;
-
-	const assetId = genId();
-	stateManager.commit('addAsset', {
-		id: assetId,
-		name: result.name,
-		width: result.width,
-		height: result.height,
-		fileDataType: result.type,
-		fileData: result.fileData,
-		sourceFilePath: result.sourceFilePath,
-		thumbnailSequence: result.thumbnailSequence,
-		hash: result.hash,
-	});
-
-	if (result.type.startsWith('image/')) {
-		stateManager.commit('addEffectNode', {
-			visualModuleId,
-			effectId: 'image',
-			id: genId(),
-			params: {
-				image: { inputSource: 'literal', value: assetId },
-			},
-		});
-	} else if (result.type.startsWith('video/') || result.type.startsWith('audio/')) {
-		const playerId = genId();
-
-		stateManager.commit('addPlayer', {
-			id: playerId,
-			name: result.name,
-			sourceType: 'asset',
-			assetId: assetId,
-		});
-
-		stateManager.commit('addEffectNode', {
-			visualModuleId,
-			effectId: result.type.startsWith('audio/') ? 'audioWaveform' : 'video',
-			id: genId(),
-			params: {
-				player: { inputSource: 'literal', value: playerId },
-			},
-		});
-	}
 }
 
 function onPointermove(ev: PointerEvent) {
