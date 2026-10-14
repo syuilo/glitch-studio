@@ -7,7 +7,7 @@
 			<span :class="$style.headerMajorDivider"></span>
 		</div>
 		<div :class="$style.headerCenter" style="gap: 20px;">
-			<GsButton v-tooltip="'CUE [C]'" small :primary="cueActive" :class="$style.cueButton" @pointerdown="onCuePointerDown" @keydown="onCueButtonKeydown" @click.prevent><i class="ti ti-arrow-right-bar"></i></GsButton>
+			<GsButton v-tooltip="'CUE [C]'" small :primary="cueActive" :class="$style.cueButton" @pointerdown="onCuePointerDown" @keydown="onCueButtonKeydown" @click.prevent>CUE</GsButton>
 			<div style="display: flex; gap: 4px;">
 				<GsButton v-tooltip="'Go to Start'" small iconOnly @click="seek(0)"><i class="ti ti-player-skip-back"></i></GsButton>
 				<!--<GsButton v-tooltip="'Back 10 Seconds'" small iconOnly @click="seek(time - 10000)"><i class="ti ti-rewind-backward-10"></i></GsButton>-->
