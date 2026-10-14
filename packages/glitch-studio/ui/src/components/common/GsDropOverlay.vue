@@ -4,16 +4,20 @@
 
 <style module lang="scss">
 .root {
+	--c1: color(from var(--THEME-accent) srgb r g b / 0.4);
+	--c2: color(from var(--THEME-accent) srgb r g b / 0.3);
+
 	position: absolute;
 	inset: 0;
 	z-index: 10000;
 	display: grid;
 	place-items: center;
 	box-sizing: border-box;
+	font-size: 200%;
 	border: 2px dashed var(--THEME-accent);
-	background: color(from var(--THEME-panel) srgb r g b / 0.85);
+	background: linear-gradient(-45deg, var(--c2) 25%, var(--c1) 25%,var(--c1) 50%, var(--c2) 50%, var(--c2) 75%, var(--c1) 75%, var(--c1));
+	background-size: 30px 30px;
 	color: var(--THEME-accent);
-	font-size: 24px;
 	pointer-events: none;
 }
 </style>
