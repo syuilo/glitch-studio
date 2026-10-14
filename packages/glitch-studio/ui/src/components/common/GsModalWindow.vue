@@ -7,7 +7,7 @@
 				<slot name="header"></slot>
 			</span>
 			<div v-if="withOkButton" style="padding: 0 16px; place-content: center;">
-				<MkButton primary gradate small rounded :disabled="okButtonDisabled" @click="emit('ok')">Done <i class="ti ti-check"></i></MkButton>
+				<GsButton primary small rounded :disabled="okButtonDisabled" @click="emit('ok')">Done <i class="ti ti-check"></i></GsButton>
 			</div>
 		</div>
 		<div :class="$style.body">
@@ -23,6 +23,7 @@
 <script lang="ts" setup>
 import { onMounted, onUnmounted, useTemplateRef, ref } from 'vue';
 import GsModal from './GsModal.vue';
+import GsButton from './GsButton.vue';
 
 const props = withDefaults(defineProps<{
 	withOkButton?: boolean;

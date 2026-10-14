@@ -395,17 +395,16 @@ export function selectAsset(options: {
 	multiple: boolean;
 	mimeType: string | null;
 }): Promise<ProjectAsset[]> {
-	return new Promise((resolve, rej) => {
+	return new Promise(resolve => {
 		const { dispose } = popup(GsAssetSelectDialog, {
 			multiple: options.multiple,
 			mimeType: options.mimeType,
 		}, {
-			done: assets => {
-				if (assets != null) {
-					resolve(assets);
-				}
+			done: assets => resolve(assets ?? []),
+			closed: () => {
+				resolve([]);
+				dispose();
 			},
-			closed: () => dispose(),
 		});
 	});
 }

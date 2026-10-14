@@ -33,7 +33,7 @@ type TimelineSourceActionsOptions = {
 	currentTime: Readonly<Ref<number>>;
 	isActive: () => boolean;
 	inspectMedia: (asset: Asset) => Promise<TimelineClipMediaInfo>;
-	ui: Pick<typeof import('@/ui.ts'), 'select' | 'confirm' | 'popupMenu' | 'alert'>;
+	ui: Pick<typeof import('@/ui.ts'), 'select' | 'selectAsset' | 'confirm' | 'popupMenu' | 'alert'>;
 	pickEffect: (chosen: (definition: EffectDefinition) => void) => void;
 	desktopAvailable: () => boolean;
 	selectLayer: (layer: TimelineLayer) => void;
@@ -60,18 +60,16 @@ export function createTimelineSourceActions(options: TimelineSourceActionsOption
 
 	async function chooseClipSource(layerType: 'image' | 'video' | 'audio' | 'scene'): Promise<ClipSource | null> {
 		const initialLayers = sceneLayers.value;
-		const assets = stateManager.state.assets.value;
 		if (layerType === 'scene') {
 			const { canceled, result: id } = await ui.select({ title: 'Select Scene', items: availableScenes().map(scene => ({ label: scene.name, value: scene.id })) });
 			const selected = availableScenes().find(scene => scene.id === id);
 			return canceled || !selected || !isActive() || sceneLayers.value !== initialLayers ? null : { kind: 'scene', scene: selected };
 		}
-		const { canceled, result: id } = await ui.select({
-			title: 'Select ' + layerType + ' asset',
-			items: assets.filter(asset => asset.fileDataType.startsWith(layerType + '/')).map(asset => ({ label: asset.name, value: asset.id })),
-		});
-		const asset = assets.find(asset => asset.id === id);
-		if (canceled || !asset || !isActive() || sceneLayers.value !== initialLayers || stateManager.state.assets.value !== assets) return null;
+		const [selectedAsset] = await ui.selectAsset({ multiple: false, mimeType: layerType + '/*' });
+		// ピッカーはAssetのコピーを返す。選択中のインポートも許容しつつ、
+		// 削除済みのAssetや古いBlobを使わないよう現在のプロジェクトから解決し直す。
+		const asset = stateManager.state.assets.value.find(asset => asset.id === selectedAsset?.id);
+		if (asset == null || !asset.fileDataType.startsWith(layerType + '/') || !isActive() || sceneLayers.value !== initialLayers) return null;
 		const blob = asset.fileData;
 		try {
 			const media = layerType === 'image' ? null : await inspectMedia(asset);

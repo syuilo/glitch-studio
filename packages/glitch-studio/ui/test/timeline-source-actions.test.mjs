@@ -58,6 +58,7 @@ function fixture(t, layers = [mediaLayer()]) {
 		inspectMedia: async () => ({ durationMs: 10000, audioAvailable: true, audioError: null }),
 		ui: {
 			select: async () => ({ canceled: false, result: asset.id }),
+			selectAsset: async () => [structuredClone(asset)],
 			confirm: async () => ({ canceled: false }),
 			popupMenu: items => { menu = items; },
 			alert: error => { errors.push(error); },
@@ -171,11 +172,11 @@ test('adds camera layers at the playhead through the layer menu', t => {
 test('rechecks available space after selection and adds a clip with one undo entry', async t => {
 	const f = fixture(t);
 	const choice = deferred();
-	f.options.ui.select = () => choice.promise;
+	f.options.ui.selectAsset = () => choice.promise;
 	const pending = f.create().addClip(f.scene.layers[0], 1000.4);
 	f.scene.layers[0].clips.push({ id: 'blocking', assetId: f.asset.id, startMs: 1500, durationMs: 100, sourceInMs: 0, sourceOutMs: 100, playbackRate: 1, loop: false });
 	const before = structuredClone(f.scene);
-	choice.resolve({ canceled: false, result: f.asset.id });
+	choice.resolve([structuredClone(f.asset)]);
 	await pending;
 	const clip = f.scene.layers[0].clips.find(clip => clip.id !== 'blocking');
 	assert.deepEqual([clip.startMs, clip.durationMs, clip.assetId], [1000, 500, 'asset']);
@@ -195,9 +196,9 @@ test('rejects stale selections and metadata after scene, asset or lifetime chang
 			f.asset.fileDataType = 'video/mp4';
 			const wait = deferred();
 			const started = deferred();
-			const result = phase === 'select' ? { canceled: false, result: f.asset.id }
+			const result = phase === 'select' ? [structuredClone(f.asset)]
 				: phase === 'inspect' ? { durationMs: 10000, audioAvailable: true, audioError: null } : { canceled: false };
-			if (phase === 'select') f.options.ui.select = () => { started.resolve(); return wait.promise; };
+			if (phase === 'select') f.options.ui.selectAsset = () => { started.resolve(); return wait.promise; };
 			if (phase === 'inspect') f.options.inspectMedia = () => { started.resolve(); return wait.promise; };
 			if (phase === 'confirm') {
 				f.options.inspectMedia = async () => ({ durationMs: 10000, audioAvailable: false, audioError: 'Unsupported audio' });
@@ -254,11 +255,11 @@ test('changes only the original clip source and restores its timing on undo', as
 		layer.clips = [clip];
 		const before = structuredClone(f.scene);
 		const choice = deferred();
-		f.options.ui.select = () => choice.promise;
+		f.options.ui.selectAsset = () => choice.promise;
 		const pending = f.create().changeClipSource({ layerId: layer.id, clipId: clip.id });
 		if (change === 'remove') layer.clips = [];
 		if (change === 'replace') layer.clips = [{ ...clip }];
-		choice.resolve({ canceled: false, result: f.asset.id });
+		choice.resolve([structuredClone(f.asset)]);
 		await pending;
 		assert.equal(f.history.undoStack.value.length, change === 'none' ? 1 : 0);
 		if (change === 'none') {

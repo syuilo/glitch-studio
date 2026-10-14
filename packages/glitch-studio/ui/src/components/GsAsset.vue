@@ -21,17 +21,11 @@
 
 <script lang="ts" setup>
 import { computed } from 'vue';
-import GsDialog from './common/GsDialog.vue';
 import GsAssetThumbnail from './GsAssetThumbnail.vue';
 import type { ProjectAsset } from '@/Project.ts';
-import type { MenuItem } from '@/types/menu.ts';
-import { appContext } from '@/app.ts';
-import { openMediaFile } from '@/utility/open-media-file.ts';
-import { popup } from '@/ui.ts';
-import * as ui from '@/ui.ts';
+import { getAssetMenu } from '@/utility/asset-menu.ts';
+import { contextMenu } from '@/ui.ts';
 import { useDragSession } from '@/composables/useDragSession.ts';
-
-const { stateManager } = appContext.projectContext;
 
 const props = defineProps<{
 	asset: ProjectAsset;
@@ -57,65 +51,8 @@ const bytes = (v: number | null, digits = 0) => {
 
 const title = computed(() => `${props.asset.name}\n${props.asset.fileDataType} ${bytes(props.asset.fileData.size)}`);
 
-function remove() {
-	stateManager.commit('removeAsset', {
-		assetId: props.asset.id,
-	});
-}
-
-async function rename() {
-	const { dispose } = popup(GsDialog, { input: { default: props.asset.name } }, {
-		done: result => {
-			if (!result.canceled && typeof result.result === 'string') {
-				stateManager.commit('renameAsset', { assetId: props.asset.id, name: result.result });
-			}
-		},
-		closed: () => dispose(),
-	});
-}
-
-async function replace() {
-	const result = await openMediaFile({ includeFonts: true });
-	if (result == null) return;
-	stateManager.commit('replaceAsset', {
-		id: props.asset.id,
-		name: props.asset.name,
-		assetId: props.asset.id,
-		width: result.width,
-		height: result.height,
-		fileDataType: result.type,
-		fileData: result.fileData,
-		sourceFilePath: result.sourceFilePath,
-		thumbnailSequence: result.thumbnailSequence,
-		hash: result.hash, // TODO
-	});
-}
-
-function getMenu() {
-	const menuItems: MenuItem[] = [];
-
-	menuItems.push({
-		text: 'Rename',
-		icon: 'ti ti-cursor-text',
-		action: () => rename(),
-	}, {
-		text: 'Replace',
-		icon: 'ti ti-replace',
-		action: () => replace(),
-	}, {
-		type: 'divider',
-	}, {
-		text: 'Remove',
-		icon: 'ti ti-trash',
-		danger: true,
-		action: () => remove(),
-	});
-
-	return menuItems;
-}
-
 function onContextmenu(ev: PointerEvent) {
-	ui.contextMenu(getMenu(), ev);
+	contextMenu(getAssetMenu(props.asset), ev);
 }
 
 function onDragstart(ev: DragEvent) {

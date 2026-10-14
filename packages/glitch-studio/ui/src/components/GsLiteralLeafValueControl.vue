@@ -169,20 +169,9 @@
 		<GsInput style="flex: 1;" type="number" :modelValue="value" @focusin="onBeginChanging" @update:modelValue="changeContinuous(parseInt(String($event), 10))" @focusout="onFinishChanging"/>
 		<GsButton small iconOnly :title="i18n.ts.Random" @click="() => changeValue(Math.floor(Math.random() * 16384))"><i class="ti ti-dice-5"></i></GsButton>
 	</div>
-	<div v-else-if="dataType.kind === 'assetReference' || dataType.kind === 'videoAssetReference' || dataType.kind === 'fontAssetReference'">
-		<GsSelect
-			small
-			:modelValue="value"
-			:items="[
-				{ label: i18n.ts.None, value: null },
-				...(stateManager.state.assets.value.length > 0 ? [{
-					type: 'group' as const,
-					label: 'Assets',
-					items: stateManager.state.assets.value.filter(asset => asset.fileDataType.startsWith(dataType.kind === 'fontAssetReference' ? 'font/' : dataType.kind === 'videoAssetReference' ? 'video/' : 'image/')).map(asset => ({ label: asset.name, value: asset.id })),
-				}] : []),
-			]"
-			@update:modelValue="v => changeValue(v)"
-		/>
+	<div v-else-if="dataType.kind === 'assetReference' || dataType.kind === 'videoAssetReference' || dataType.kind === 'fontAssetReference'" :class="$style.assetControl">
+		<GsButton small :class="$style.assetButton" @click="chooseAsset">{{ selectedAsset?.name ?? (value == null ? 'Select Asset...' : 'Missing Asset') }}</GsButton>
+		<GsButton v-if="value != null" small iconOnly :title="i18n.ts.None" @click="changeValue(null)"><i class="ti ti-x"></i></GsButton>
 	</div>
 	<div v-else-if="dataType.kind === 'audioSource'">
 		<GsSelect small :modelValue="value?.playerId ?? null" :items="[{ label: i18n.ts.None, value: null }, ...stateManager.state.players.value.map(player => ({ label: player.name, value: player.id }))]" @update:modelValue="v => changeValue(v == null ? null : { type: 'player', playerId: v })"/>
@@ -206,7 +195,7 @@
 </template>
 
 <script lang="ts" setup generic="T extends LeafDataType">
-import { computed, ref } from 'vue';
+import { computed, onBeforeUnmount, ref } from 'vue';
 import GsXy from './common/GsXy.vue';
 import GsColorInput from './common/GsColorInput.vue';
 import GsSignal from './common/GsSignal.vue';
@@ -221,6 +210,7 @@ import type { LeafDataType } from '@gs/shared/data-type/data-type.ts';
 import { appContext } from '@/app.ts';
 import { i18n } from '@/i18n.ts';
 import { normalizeColor } from '@/utility/color-input.ts';
+import { selectAsset } from '@/ui.ts';
 
 const { stateManager } = appContext.projectContext;
 
@@ -258,6 +248,19 @@ const enumItems = computed(() => {
 });
 
 const directEditMode = ref(false);
+const selectedAsset = computed(() => stateManager.state.assets.value.find(asset => asset.id === props.value) ?? null);
+let disposed = false;
+onBeforeUnmount(() => { disposed = true; });
+
+async function chooseAsset() {
+	const kind = props.dataType.kind;
+	if (kind !== 'assetReference' && kind !== 'videoAssetReference' && kind !== 'fontAssetReference') return;
+	const mimeType = kind === 'fontAssetReference' ? 'font/*' : kind === 'videoAssetReference' ? 'video/*' : 'image/*';
+	const [selected] = await selectAsset({ multiple: false, mimeType });
+	if (disposed || selected == null || props.dataType.kind !== kind) return;
+	const asset = stateManager.state.assets.value.find(asset => asset.id === selected.id);
+	if (asset != null) changeValue(asset.id);
+}
 
 function changeValue(value: any) {
 	emit('input', value);
@@ -313,6 +316,17 @@ defineExpose({
 .colorControl {
 	display: flex;
 	gap: 16px;
+}
+
+.assetControl {
+	display: flex;
+	gap: 8px;
+}
+
+.assetButton {
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
 }
 
 .enumError {

@@ -3,7 +3,7 @@
 	<div :class="$style.actions">
 		<GsButton primary @click="addAsset"><i class="ti ti-plus"></i> Add Asset...</GsButton>
 		<GsButton :disabled="!localFontsSupported || loadingLocalFonts" :wait="loadingLocalFonts" @click="addLocalFont">Import local font</GsButton>
-		<GsInput ref="searchInput" v-model="query" type="search" placeholder="Search" :class="$style.searchInput" @keydown.enter.stop.prevent="chooseFirstResult">
+		<GsInput v-model="query" type="search" placeholder="Search by filename" :class="$style.searchInput" @keydown.enter.stop.prevent="chooseFirstResult">
 			<template #prefix>
 				<i class="ti ti-search"></i>
 			</template>
@@ -13,7 +13,7 @@
 	<div v-if="localFontError">{{ localFontError }}</div>
 	<div :class="$style.assets">
 		<GsAsset
-			v-for="asset in stateManager.state.assets.value"
+			v-for="asset in filteredAssets"
 			:key="asset.id"
 			:asset="asset"
 			:isSelected="selectedAssets.some(x => x.id === asset.id)"
@@ -24,7 +24,7 @@
 </template>
 
 <script lang="ts" setup>
-import { inject, onBeforeUnmount, ref, watch } from 'vue';
+import { computed, inject, onBeforeUnmount, ref, watch } from 'vue';
 import GsButton from './common/GsButton.vue';
 import GsAsset from './GsAsset.vue';
 import GsInput from './common/GsInput.vue';
@@ -32,11 +32,13 @@ import GsLocalFontDialog from './GsLocalFontDialog.vue';
 import type { ProjectAsset } from '@/Project.ts';
 import { appContext } from '@/app.ts';
 import { importAssets } from '@/utility/import-assets.ts';
+import { getAssetMenu } from '@/utility/asset-menu.ts';
 import { workspaceControllerKey } from '@/WorkspaceController.ts';
-import { popup } from '@/ui.ts';
+import { popup, popupMenu } from '@/ui.ts';
 import { localFontErrorMessage, queryLocalFonts, supportsLocalFonts } from '@/utility/local-fonts.ts';
 
 const props = withDefaults(defineProps<{
+	/** 完全なMIMEタイプ、image/*などのワイルドカード、またはnull（絞り込みなし）。 */
 	mimeType?: string | null;
 	multiple?: boolean;
 	select?: 'asset' | 'folder' | null;
@@ -63,39 +65,49 @@ const isEditMode = ref(false);
 
 const query = ref('');
 
+const assetsByMimeType = computed(() => {
+	const mimeType = props.mimeType?.trim().toLowerCase() ?? null;
+	return stateManager.state.assets.value.filter(asset => {
+		if (mimeType == null || mimeType === '' || mimeType === '*/*') return true;
+		const assetMimeType = asset.fileDataType.toLowerCase();
+		return mimeType.endsWith('/*')
+			? assetMimeType.startsWith(mimeType.slice(0, -1))
+			: assetMimeType === mimeType;
+	});
+});
+
+const filteredAssets = computed(() => {
+	const filenameQuery = query.value.trim().toLowerCase();
+	return assetsByMimeType.value.filter(asset => asset.name.toLowerCase().includes(filenameQuery));
+});
+
+watch(assetsByMimeType, assets => {
+	// 検索中も選択は保持するが、削除された素材やMIMEタイプの条件から外れた素材は確定できないようにする。
+	const availableIds = new Set(assets.map(asset => asset.id));
+	const selected = selectedAssets.value.filter(asset => availableIds.has(asset.id));
+	if (selected.length !== selectedAssets.value.length) selectedAssets.value = selected;
+});
+
 function onAssetClick(ev: PointerEvent, asset: ProjectAsset) {
-	if (ev.shiftKey) {
+	if (props.select == null && ev.shiftKey) {
 		isEditMode.value = true;
 	}
+	if (props.select == null && !isEditMode.value) {
+		popupMenu(getAssetMenu(asset), ev.currentTarget ?? ev.target);
+		return;
+	}
+	toggleAssetSelection(asset);
+}
 
-	if (props.select === 'asset' || isEditMode.value) {
-		const isAlreadySelected = selectedAssets.value.some(x => x.id === asset.id);
-
-		if (isEditMode.value) {
-			if (isAlreadySelected) {
-				selectedAssets.value = selectedAssets.value.filter(x => x.id !== asset.id);
-			} else {
-				selectedAssets.value.push(asset);
-			}
-			return;
-		}
-
-		if (props.multiple) {
-			if (isAlreadySelected) {
-				selectedAssets.value = selectedAssets.value.filter(x => x.id !== asset.id);
-			} else {
-				selectedAssets.value.push(asset);
-			}
-		} else {
-			if (isAlreadySelected) {
-				//emit('selected', file);
-			} else {
-				selectedAssets.value = [asset];
-			}
-		}
+function toggleAssetSelection(asset: ProjectAsset) {
+	if (props.select !== 'asset' && !isEditMode.value) return;
+	const isAlreadySelected = selectedAssets.value.some(selected => selected.id === asset.id);
+	if (props.multiple || isEditMode.value) {
+		selectedAssets.value = isAlreadySelected
+			? selectedAssets.value.filter(selected => selected.id !== asset.id)
+			: [...selectedAssets.value, asset];
 	} else {
-		// TODO
-		//ui.popupMenu(getAssetMenu(asset), (ev.currentTarget ?? ev.target ?? undefined) as HTMLElement | undefined);
+		selectedAssets.value = [asset];
 	}
 }
 
@@ -126,7 +138,8 @@ async function addAsset() {
 }
 
 function chooseFirstResult() {
-	// TODO
+	const asset = filteredAssets.value[0];
+	if (asset != null) toggleAssetSelection(asset);
 }
 </script>
 
@@ -140,8 +153,14 @@ function chooseFirstResult() {
 
 .actions {
 	display: flex;
+	flex-wrap: wrap;
 	gap: 8px;
 	margin-bottom: 12px;
+}
+
+.searchInput {
+	flex: 1;
+	min-width: 160px;
 }
 
 .assets {

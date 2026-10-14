@@ -7,6 +7,7 @@
 	:okButtonDisabled="selected.length === 0"
 	@click="cancel()"
 	@close="cancel()"
+	@esc="cancel()"
 	@ok="ok()"
 	@closed="emit('closed')"
 >
@@ -14,7 +15,7 @@
 		{{ multiple ? 'Select Assets' : 'Select Asset' }}
 		<span v-if="selected.length > 0" style="margin-left: 8px; opacity: 0.5;">({{ selected.length }})</span>
 	</template>
-	<GsAssets :multiple="multiple" select="asset" @changeSelectedAssets="onChangeSelection"/>
+	<GsAssets :multiple="multiple" :mimeType="mimeType" select="asset" @changeSelectedAssets="onChangeSelection"/>
 </GsModalWindow>
 </template>
 
