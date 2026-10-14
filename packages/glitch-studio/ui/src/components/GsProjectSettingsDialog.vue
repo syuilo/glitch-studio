@@ -17,12 +17,11 @@
 			<div class="_gaps_l">
 				<GsSwitch v-model="timelineMotionBlur.enabled">Enable</GsSwitch>
 				<div class="_gaps_m" :inert="!timelineMotionBlur.enabled">
-					<GsInput v-model="timelineMotionBlur.shutterAngle" type="number" :min="0" :max="360" :step="'any'"><template #label>Shutter angle</template><template #suffix>°</template><template #caption>Centered exposure: {{ exposureMs }} ms at the project frame rate. Clip boundaries shorten the exposure.</template></GsInput>
-					<GsInput v-model="timelineMotionBlur.samples" type="number" :min="0" :max="MAX_MOTION_BLUR_SAMPLES" :step="1"><template #label>Export samples</template><template #caption>0 disables motion blur for export; 1 renders the current time without blur. Preview samples are set in the footer.</template></GsInput>
+					<GsInput v-model="timelineMotionBlur.shutterAngle" type="number" :min="0" :max="360" :step="'any'"><template #label>Shutter angle</template><template #suffix>°</template></GsInput>
+					<GsInput v-model="timelineMotionBlur.samples" type="number" :min="0" :max="MAX_MOTION_BLUR_SAMPLES" :step="1"><template #label>Export samples</template></GsInput>
 				</div>
 				<div v-if="timelineMotionBlur.enabled && historyEffects.length" :class="$style.warning">
-					Motion blur does not support effects that depend on render history: {{ historyEffects.join(', ') }}.
-					Rendering is allowed, but results may vary with sample count and preview frame rate, and may differ from export.
+					<i class="ti ti-alert-triangle" style="color: var(--THEME-warn);"></i> Motion blur does not support effects that depend on render history: {{ historyEffects.join(', ') }}.
 				</div>
 			</div>
 		</GsFolder>
