@@ -1,5 +1,8 @@
 <template>
-<div ref="root" :class="$style.root" @keydown="onTlKeydown"
+<div
+	ref="root"
+	:class="$style.root"
+	@keydown="onTlKeydown"
 	@dragenter.capture="assetDrop.onDragenter" @dragover.capture="assetDrop.onDragover"
 	@dragleave.capture="assetDrop.onDragleave" @drop.capture="assetDrop.onDrop"
 >
@@ -590,7 +593,7 @@ function isTimelineActive() {
 const assetDrop = useAssetDrop({
 	target: useTemplateRef<HTMLElement>('root'),
 	...createTimelineDropActions({ context: appContext.projectContext, sceneId: editedScene.id, currentTime: () => time.value,
-		isActive: isTimelineActive, inspectMedia: inspectTimelineClipMedia, revealAssets: () => emit('revealAssets') }),
+																																isActive: isTimelineActive, inspectMedia: inspectTimelineClipMedia, revealAssets: () => emit('revealAssets') }),
 	reportError: error => { void ui.alert({ type: 'error', title: 'Timeline drop', text: error instanceof Error ? error.message : String(error) }); },
 });
 
@@ -846,10 +849,6 @@ function formatFullTimecode(timeMs: number): string {
 	height: 50%;
 	margin: 0 4px;
 	background-color: #fff2;
-}
-
-.audioAssetSelect {
-	width: 180px;
 }
 
 .cueButton {
