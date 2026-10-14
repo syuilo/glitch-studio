@@ -2,6 +2,7 @@ type DragDataMap = {
 	GsDraggable: { item: { id: string }; instanceId: string; group: string; };
 	WorkspacePanel: { id: string; };
 	GsAsset: { assetId: string; };
+	TimelineLayer: { sceneId: string; layerId: string; };
 };
 
 // NOTE: dataTransfer の format は大文字小文字区別されないっぽいので toLowerCase が必要

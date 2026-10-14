@@ -70,6 +70,7 @@
 			>
 				<template #default="{ item: layer, index }">
 					<XLayer
+						:data-test-timeline-layer="layer.id"
 						:tlPosX="tlPosX"
 						:optimizeHorizontalMovement="optimizeHorizontalMovement"
 						:layer="layer"
@@ -185,6 +186,7 @@ import { createTimelineClipboardActions } from '@/utility/timeline-clipboard-act
 import { createTimelineLayerActions } from '@/utility/timeline-layer-actions.ts';
 import { createTimelineDropActions } from '@/utility/timeline-drop-actions.ts';
 import { useTimelineAssetDrop } from '@/composables/useTimelineAssetDrop.ts';
+import { setDragData, getDragData, checkDragDataType } from '@/utility/drag-and-drop.ts';
 
 const { activeSceneId, previewPlayback, timelineAudioPreview, timelineRendererManagerController } = appContext;
 const { stateManager } = appContext.projectContext;
@@ -304,13 +306,17 @@ const draggingLayerId = ref<string | null>(null);
 const dropTarget = ref<{ layerId: string; parentId: string | null; beforeId: string | null; position: 'before' | 'after' | 'inside' } | null>(null);
 
 function onLayerDragStart(event: DragEvent, layer: TimelineLayer) {
+	if (event.dataTransfer == null) return;
 	draggingLayerId.value = layer.id;
-	if (event.dataTransfer) { event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/plain', layer.id); }
+	event.dataTransfer.effectAllowed = 'move';
+	setDragData(event, 'TimelineLayer', { sceneId: props.sceneId, layerId: layer.id });
 }
 
 function onLayerDragOver(event: DragEvent, layer: TimelineLayer) {
-	const source = draggingLayerId.value && findTimelineLayer(rootLayers.value, draggingLayerId.value);
-	if (!source || findTimelineLayer([source], layer.id)) { dropTarget.value = null; return; }
+	// dragoverではデータ本体を読めない。ローカルIDは移動可否の判定とドラッグ元のDOM保持に使う。
+	if (!checkDragDataType(event, ['TimelineLayer']) || draggingLayerId.value == null) { dropTarget.value = null; return; }
+	const source = findTimelineLayer(rootLayers.value, draggingLayerId.value);
+	if (source == null || findTimelineLayer([source], layer.id) != null) { dropTarget.value = null; return; }
 	const bounds = (event.currentTarget as HTMLElement).getBoundingClientRect();
 	const fraction = (event.clientY - bounds.top) / bounds.height;
 	const location = findTimelineLayerLocation(rootLayers.value, layer.id)!;
@@ -322,15 +328,20 @@ function onLayerDragOver(event: DragEvent, layer: TimelineLayer) {
 		: position === 'before' ? layer.id : location.siblings[location.index + 1]?.id ?? null,
 	};
 	event.preventDefault();
-	if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+	if (event.dataTransfer != null) event.dataTransfer.dropEffect = 'move';
 }
 
 function onLayerDrop(event: DragEvent) {
-	event.preventDefault();
-	if (draggingLayerId.value && dropTarget.value) stateManager.commit('moveTimelineLayer', {
-		sceneId: props.sceneId, layerId: draggingLayerId.value, parentId: dropTarget.value.parentId, beforeId: dropTarget.value.beforeId,
-	});
-	onLayerDragEnd();
+	try {
+		if (!checkDragDataType(event, ['TimelineLayer'])) return;
+		event.preventDefault();
+		const data = getDragData(event, 'TimelineLayer');
+		// 同じSceneの別Timelineからのドロップも、ローカルのドラッグ開始がなければ受け付けない。
+		if (data == null || data.sceneId !== props.sceneId || data.layerId !== draggingLayerId.value || dropTarget.value == null) return;
+		stateManager.commit('moveTimelineLayer', {
+			sceneId: data.sceneId, layerId: data.layerId, parentId: dropTarget.value.parentId, beforeId: dropTarget.value.beforeId,
+		});
+	} finally { onLayerDragEnd(); }
 }
 
 function onLayerDragEnd() { draggingLayerId.value = null; dropTarget.value = null; }

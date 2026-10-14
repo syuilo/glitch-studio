@@ -58,7 +58,9 @@ const result = await build({
 		}[path] }));
 		build.onLoad({ filter: /.*/, namespace: 'control' }, ({ path }) => ({ loader: 'ts', contents: `
 			import { h } from 'vue'; export default { inheritAttrs: false, setup(_, { attrs, slots }) {
-				return () => h(${JSON.stringify(path)}, attrs, ${path === 'GsVirtualScroll' ? '[]' : 'Object.values(slots).flatMap(slot => slot())'});
+				return () => h(${JSON.stringify(path)}, attrs, ${path === 'GsVirtualScroll'
+					? '(attrs.items ?? []).flatMap((item, index) => slots.default({ item, index }))'
+					: 'Object.values(slots).flatMap(slot => slot())'});
 			} };` }));
 		build.onLoad({ filter: /\.vue$/ }, async ({ path }) => {
 			const source = await readFile(path, 'utf8');
@@ -149,6 +151,92 @@ test('shows the full timeline drop overlay and consumes only file and asset drag
 	await nextTick();
 	assert.equal(overlay(), undefined);
 });
+function layerDragTransfer() {
+	const values = new Map();
+	let readable = false;
+	return {
+		get types() { return [...values.keys()]; },
+		setData: (type, value) => values.set(type, value),
+		getData(type) { assert.equal(readable, true, 'Drag data must only be read on drop'); return values.get(type) ?? ''; },
+		values, allowReading: () => { readable = true; },
+	};
+}
+
+function layerDragEvent(transfer, clientY = 90) {
+	const event = new Event('drop', { cancelable: true });
+	event.dataTransfer = transfer;
+	event.clientY = clientY;
+	Object.defineProperty(event, 'currentTarget', { value: { getBoundingClientRect: () => ({ top: 0, height: 100 }) } });
+	return event;
+}
+
+// 【レイヤーの型付きドラッグデータで並び替え、Undo/Redoとドラッグ元のDOM保持を維持する】
+// dragover中にデータ本体を読めない制約を再現し、ローカル状態で位置を計算できることを確認する。
+// text/plainへ内部IDを書き出さず、Sceneとレイヤーの参照だけをドロップ時に受け渡す。
+test('reorders layers with typed drag data while preserving undo and the mounted source', async t => {
+	const f = await fixture(t, Timeline);
+	const row = id => f.controls('GsTimeline.Layer').find(node => node.props['data-test-timeline-layer'] === id);
+	const transfer = layerDragTransfer();
+	row('a').props.onDragStart(layerDragEvent(transfer));
+	assert.deepEqual([...transfer.values.keys()], ['glitch-studio/timelinelayer']);
+	assert.deepEqual(JSON.parse(transfer.values.get('glitch-studio/timelinelayer')), { sceneId: 'scene', layerId: 'a' });
+	assert.equal(transfer.effectAllowed, 'move');
+	await nextTick();
+	assert.deepEqual(f.control('GsVirtualScroll').props.keepMountedKeys, ['a']);
+	const over = layerDragEvent(transfer);
+	row('b').props.onDragover(over);
+	assert.equal(over.defaultPrevented, true);
+	assert.equal(transfer.dropEffect, 'move');
+	transfer.allowReading();
+	row('b').props.onDrop(layerDragEvent(transfer));
+	await nextTick();
+	assert.deepEqual(f.scene.layers.map(layer => layer.id), ['b', 'a']);
+	assert.deepEqual(f.control('GsVirtualScroll').props.keepMountedKeys, []);
+	assert.equal(f.history.undoStack.value.length, 1);
+	f.history.undo();
+	assert.deepEqual(f.scene.layers.map(layer => layer.id), ['a', 'b']);
+	f.history.redo();
+	assert.deepEqual(f.scene.layers.map(layer => layer.id), ['b', 'a']);
+});
+
+// 【別Scene・別レイヤー・他種別のドロップやドラッグ開始のない操作では並び替えない】
+// ホバー時の候補が残っていても、不一致のデータで前回のドラッグ元を移動しない。
+// 同じSceneを表示する別Timelineからのドロップも、ローカル状態がなければ受け付けない。
+test('rejects unrelated drops and layer payloads that do not match the local drag', async t => {
+	const f = await fixture(t, Timeline);
+	const row = id => f.controls('GsTimeline.Layer').find(node => node.props['data-test-timeline-layer'] === id);
+	for (const payload of [null, { sceneId: 'other-scene', layerId: 'a' }, { sceneId: 'scene', layerId: 'b' }]) {
+		const transfer = layerDragTransfer();
+		row('a').props.onDragStart(layerDragEvent(transfer));
+		row('b').props.onDragover(layerDragEvent(transfer));
+		if (payload == null) {
+			transfer.values.clear();
+			transfer.setData('text/plain', 'a');
+		} else transfer.setData('glitch-studio/timelinelayer', JSON.stringify(payload));
+		transfer.allowReading();
+		row('b').props.onDrop(layerDragEvent(transfer));
+		await nextTick();
+		assert.deepEqual(f.scene.layers.map(layer => layer.id), ['a', 'b']);
+		assert.equal(f.history.undoStack.value.length, 0);
+		assert.deepEqual(f.control('GsVirtualScroll').props.keepMountedKeys, []);
+	}
+	const foreign = layerDragTransfer();
+	foreign.setData('glitch-studio/timelinelayer', JSON.stringify({ sceneId: 'scene', layerId: 'a' }));
+	const over = layerDragEvent(foreign);
+	row('b').props.onDragover(over);
+	assert.equal(over.defaultPrevented, false);
+	foreign.allowReading();
+	row('b').props.onDrop(layerDragEvent(foreign));
+	assert.equal(f.history.undoStack.value.length, 0);
+	const cancelled = layerDragTransfer();
+	row('a').props.onDragStart(layerDragEvent(cancelled));
+	row('b').props.onDragover(layerDragEvent(cancelled));
+	row('a').props.onDragend();
+	cancelled.allowReading();
+	row('b').props.onDrop(layerDragEvent(cancelled));
+	assert.equal(f.history.undoStack.value.length, 0);
+});
+
 const keySelection = (layerId, keyframeId) => ({ layerId, target: 'audio', paramPath: ['volume'], keyframeId });
 const makeLayer = id => ({ id, name: id, layerType: 'audio', isDisabled: false, automationGraphs: [],
 																											clips: [{ id: 'clip', assetId: 'sound', startMs: 0, durationMs: 5000, sourceInMs: 0, sourceOutMs: 5000, playbackRate: 1, loop: false }],
