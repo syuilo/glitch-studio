@@ -80,6 +80,7 @@ test('imports media nodes in order with one undo and preserves existing wiring',
 
 // 【既存素材のPlayerを使い、Playerがない素材ではノードとまとめて作成する】
 // Assetを再取り込みせず、必要なPlayerだけ増やす。Undoで他ノードが利用する既存Playerを消さない。
+// ファイル読み込みのない既存Assetの配置では、進捗ダイアログで操作を止めない。
 test('reuses existing players and creates missing players with an atomic node addition', async t => {
 	const f = fixture(t);
 	f.state.assets.value.push({ id: 'video', name: 'Movie', fileDataType: 'video/mp4', fileData: new Blob() },
@@ -98,16 +99,19 @@ test('reuses existing players and creates missing players with an atomic node ad
 	assert.equal(await f.actions.dropAsset('missing'), false);
 	assert.equal(f.history.undoStack.value.length, 1);
 	assert.equal(f.events.includes('revealAssets'), false);
+	assert.equal(f.events.includes('progress'), false);
 });
 
 // 【インラインVisual Moduleも登録済みと同じ素材追加を行う】
 // タイムラインのレイヤーを新しく作らず、親から渡されたSceneとレイヤーの保存先だけを更新する。
+// 保存先がインラインの場合も、既存Assetの配置では進捗ダイアログを表示しない。
 test('adds asset nodes to the selected inline Visual Module', async t => {
 	const f = fixture(t, true);
 	f.state.assets.value.push({ id: 'image', name: 'Image', fileDataType: 'image/png', fileData: new Blob() });
 	assert.equal(await f.actions.dropAsset('image'), true);
 	assert.equal(f.state.timelineScenes.value[0].layers.length, 1);
 	assert.equal(f.visualModule.nodes[2].effectId, 'image');
+	assert.equal(f.events.includes('progress'), false);
 	assert.ok(f.events.find(event => Array.isArray(event) && event[0] === 'commit')[2].some(change => change.type === 'visualModule' && change.target.inlineVisualModuleLayerId === 'inline'));
 	f.history.undo();
 	assert.deepEqual(f.visualModule.nodes.map(node => node.id), ['in', 'old', 'out']);

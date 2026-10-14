@@ -1,7 +1,6 @@
 import { importAssets } from './import-assets.ts';
 import { createVisualModuleAssetNode } from './visual-module-asset-node.ts';
 import { findVisualModule } from './visual-module-target.ts';
-import { progress } from '../ui.ts';
 import type { ProjectContext } from '../Project.ts';
 import type { Asset, Player } from '@gs/shared/types.ts';
 import type { VisualModuleTarget } from './visual-module-target.ts';
@@ -52,11 +51,8 @@ export function createVisualModuleDropActions(options: {
 		if (asset == null || !active()) return false;
 		const prepared = prepare([asset], context.stateManager.state.players.value);
 		if (prepared.placement.nodes.length === 0) return false;
-		const dialog = progress({ text: 'Adding Visual Module nodes' });
-		try {
-			context.stateManager.commit('addVisualModuleAssetNodes', { placement: prepared.placement, players: prepared.players });
-			return true;
-		} finally { dialog.done(); }
+		context.stateManager.commit('addVisualModuleAssetNodes', { placement: prepared.placement, players: prepared.players });
+		return true;
 	}
 
 	return { dropFiles, dropAsset };
