@@ -24,6 +24,7 @@
 		"@msgpack/msgpack": "3.1.3",
 		"@syuilo/aiscript": "1.2.1",
 		"@tabler/icons-webfont": "3.35.0",
+		"webgpu-utils": "2.1.1",
 		"eventemitter3": "5.0.4",
 		"mediabunny": "1.56.2",
 		"semver": "7.8.5",

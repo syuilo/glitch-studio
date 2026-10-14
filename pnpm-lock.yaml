@@ -311,6 +311,9 @@ importers:
       vue-component-type-helpers:
         specifier: 3.3.11
         version: 3.3.11
+      webgpu-utils:
+        specifier: 2.1.1
+        version: 2.1.1
     devDependencies:
       '@misskey-dev/eslint-plugin':
         specifier: 2.1.0
