@@ -2,7 +2,7 @@ import type { WorkspaceElement, WorkspacePanel, WorkspaceTabs } from '@/workspac
 
 export type WorkspacePanelRevealRequest = {
 	contentType: WorkspacePanel['contentType'];
-	sourcePanelId: string;
+	sourcePanelId: string | null;
 };
 
 export type WorkspacePanelRevealPlan = {
