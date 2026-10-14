@@ -16,7 +16,7 @@ import GsEllipsis from './GsEllipsis.vue';
 const modal = useTemplateRef('modal');
 
 const props = defineProps<{
-	progress: number;
+	progress: number | null; // nullでwaiting状態を表す
 	showing: boolean;
 	text?: string | null;
 }>();

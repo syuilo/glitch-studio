@@ -1,6 +1,6 @@
 <template>
 <div
-	:class="[$style.root, { [$style.waiting]: waiting }]" :style="{
+	:class="[$style.root, { [$style.waiting]: progress == null }]" :style="{
 		'--p': progress != null ? `${progress * 100}%` : '0%',
 	}"
 >
@@ -11,11 +11,8 @@
 import { } from 'vue';
 
 const props = withDefaults(defineProps<{
-	progress?: number;
-	waiting?: boolean;
+	progress: number | null; // nullでwaiting状態を表す
 }>(), {
-	progress: 0,
-	waiting: false,
 });
 </script>
 
@@ -44,7 +41,11 @@ const props = withDefaults(defineProps<{
 	}
 
 	&.waiting {
-		// TODO
+		--c1: var(--THEME-accent);
+		--c2: color(from var(--THEME-accent) srgb r g b / 0.5);
+
+		background: linear-gradient(-45deg, var(--c2) 25%, var(--c1) 25%,var(--c1) 50%, var(--c2) 50%, var(--c2) 75%, var(--c1) 75%, var(--c1));
+		background-size: 30px 30px;
 	}
 }
 

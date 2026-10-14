@@ -348,14 +348,14 @@ export function progress(options: { text?: string } = { }) {
 	window.document.body.setAttribute('inert', 'true');
 
 	const showing = ref(true);
-	const progress = ref(0);
+	const progress = ref<number | null>(null); // nullでwaiting状態を表す
 
 	function done() {
 		showing.value = false;
 		progress.value = 1;
 	}
 
-	function setProgress(value: number) {
+	function setProgress(value: number | null) {
 		progress.value = value;
 	}
 
