@@ -13,17 +13,18 @@
 </template>
 
 <script lang="ts" setup>
-import { onBeforeUnmount, ref } from 'vue';
-import { genId } from '@gs/shared/utility/id.ts';
+import { inject, onBeforeUnmount, ref } from 'vue';
 import GsButton from './common/GsButton.vue';
 import GsAsset from './GsAsset.vue';
 import GsLocalFontDialog from './GsLocalFontDialog.vue';
 import { appContext } from '@/app.ts';
-import { openMediaFile } from '@/utility/open-media-file.ts';
+import { importAssets } from '@/utility/import-assets.ts';
+import { workspaceControllerKey } from '@/WorkspaceController.ts';
 import { popup } from '@/ui.ts';
 import { localFontErrorMessage, queryLocalFonts, supportsLocalFonts } from '@/utility/local-fonts.ts';
 
 const { stateManager } = appContext.projectContext;
+const workspaceController = inject(workspaceControllerKey)!;
 
 const localFontsSupported = supportsLocalFonts();
 const loadingLocalFonts = ref(false);
@@ -47,25 +48,8 @@ async function addLocalFont() {
 }
 
 async function addAsset() {
-	const results = await openMediaFile({ multiple: true, includeFonts: true });
-	if (results == null) return;
-	for (const result of results) {
-		const assetId = genId();
-		stateManager.commit('addAsset', {
-			id: assetId,
-			name: result.name,
-			width: result.width,
-			height: result.height,
-			fileDataType: result.type,
-			fileData: result.fileData,
-			sourceFilePath: result.sourceFilePath,
-			thumbnailSequence: result.thumbnailSequence,
-			hash: result.hash, // TODO
-		});
-		if (result.type.startsWith('audio/') || result.type.startsWith('video/')) {
-			stateManager.commit('addPlayer', { id: genId(), name: result.name, sourceType: 'asset', assetId });
-		}
-	}
+	const ids = await importAssets(appContext.projectContext);
+	if (ids.length > 0) workspaceController.revealPanel({ contentType: 'assets', sourcePanelId: null });
 }
 
 </script>

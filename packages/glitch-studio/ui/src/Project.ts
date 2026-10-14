@@ -64,6 +64,7 @@ export class ProjectContext {
 	private projectId: Project['id'] | null = null;
 	private loadGeneration = 0;
 	public get generation() { return this.loadGeneration; }
+	public get hasProject() { return this.projectId != null; }
 	public readonly stateManager: UndoRedo<ProjectState, AppStateChange, typeof COMMAND_DEFS>;
 
 	constructor() {

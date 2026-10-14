@@ -68,12 +68,14 @@
 
 <script lang="ts" setup>
 import { provide, computed, nextTick, onMounted, onBeforeUnmount, ref, shallowRef, useTemplateRef, watch } from 'vue';
-import { appContext, openProject } from './app.ts';
+import { appContext, newProject, openProject } from './app.ts';
 import { TIMELINE_PREVIEW_MOTION_BLUR_SAMPLE_OPTIONS } from './AppContext.ts';
 import { preferences } from './preferences.ts';
 import { WorkspaceController, workspaceControllerKey } from './WorkspaceController.ts';
 import { desktopProjectFile } from './gsproj.ts';
 import { importVisualModuleFile } from './utility/visual-module-file.ts';
+import { importAssets } from './utility/import-assets.ts';
+import { fileDropDocumentInstallerKey, installFileDropHandlers } from './utility/file-drop.ts';
 import GsRange from './components/common/GsRange.vue';
 import GsAboutDialog from '@/components/GsAboutDialog.vue';
 import GsProjectSettingsDialog from '@/components/GsProjectSettingsDialog.vue';
@@ -86,7 +88,24 @@ import GsButton from '@/components/common/GsButton.vue';
 import GsAudioLevelMeter from '@/components/common/GsAudioLevelMeter.vue';
 import * as ui from '@/ui.ts';
 
-provide(workspaceControllerKey, new WorkspaceController(preferences.r.workspaceDefinition, root => preferences.commit('workspaceDefinition', root)));
+const workspaceController = new WorkspaceController(preferences.r.workspaceDefinition, root => preferences.commit('workspaceDefinition', root));
+provide(workspaceControllerKey, workspaceController);
+provide(fileDropDocumentInstallerKey, installFileDrops);
+
+async function onFileDrop(files: File[]) {
+	const ids = await importAssets(appContext.projectContext, files, async () => {
+		if (!appContext.projectContext.hasProject) await newProject();
+	});
+	if (ids.length > 0) workspaceController.revealPanel({ contentType: 'assets', sourcePanelId: null });
+}
+
+function installFileDrops(document: Document) {
+	return installFileDropHandlers(document, onFileDrop,
+		error => { void ui.alert({ type: 'error', text: error instanceof Error ? error.message : String(error) }); },
+		() => window.document.body.hasAttribute('inert'));
+}
+
+onMounted(() => { onBeforeUnmount(installFileDrops(window.document)); });
 
 const { audioOutput, activePreviewRenderer, previewPlayback, visualModuleRendererManagerController, resolutionFactor, liveFpsLimit, timelinePreviewFpsFactor, timelinePreviewMotionBlurSamples, liveTimeFactor, projectBackupAccess, projectBackupStatus } = appContext;
 const { stateManager } = appContext.projectContext;

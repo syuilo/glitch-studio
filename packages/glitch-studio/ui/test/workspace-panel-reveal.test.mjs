@@ -65,6 +65,19 @@ test('handles absent panels and supports other content types', () => {
 	assert.equal(find(root, new Map(), { ...request, contentType: 'assets' }).panelId, 'assets');
 });
 
+// 【操作元パネルのない全体取り込みでは、別タブにあるAssetsも開ける】
+// Timelineからの要求には操作元を隠さない制約を残し、全体ドロップだけで制約を外す。
+// Assetsパネルを削除したレイアウトには新しいパネルを作らない。
+test('reveals assets across tabs for global requests without relaxing panel-specific requests', () => {
+	const root = tabs('outer', [source(), panel('assets', 'assets')]);
+	assert.equal(find(root, new Map(), { contentType: 'assets', sourcePanelId: 'source' }), null);
+	assert.deepEqual(find(root, new Map(), { contentType: 'assets', sourcePanelId: null }), {
+		panelId: 'assets', tabSelections: [{ tabsId: 'outer', childId: 'assets' }], expandIds: [],
+	});
+	assert.equal(find(root, new Map(), { contentType: 'assets', sourcePanelId: 'missing' }), null);
+	assert.equal(find(source(), new Map(), { contentType: 'assets', sourcePanelId: null }), null);
+});
+
 // 【折りたたみ不能な位置のフラグを表示コストに含めない】
 // 移動前のcollapsedが残っていても、実際のコンポーネントと同じ表示判定にする。
 test('ignores collapse flags outside divider children', () => {

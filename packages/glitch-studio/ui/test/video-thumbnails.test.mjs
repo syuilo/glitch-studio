@@ -9,6 +9,7 @@ const bundle = await build({
 	stdin: { contents: `export { generateVideoThumbnails } from './utility/video-thumbnails.ts';
 		export { openMediaFile } from './api.ts';
 		export { openMediaFile as openWithProgress } from './utility/open-media-file.ts';
+		export { importAssets } from './utility/import-assets.ts';
 		export { encodeProjectFile, decodeProjectFile } from './gsproj.ts';
 		export { ProjectContext } from './Project.ts';
 		export { getRendererAssets } from './utility/renderer-assets.ts';`,
@@ -24,7 +25,7 @@ const bundle = await build({
 
 function setup(t, overrides = {}) {
 	const options = { start: 2, end: 12, width: 1920, height: 1080, ...overrides };
-	const calls = { disposed: 0, encoded: [], timestamps: [], progress: [], closedIterators: 0, dialogs: 0, done: 0 };
+	const calls = { disposed: 0, encoded: [], timestamps: [], progress: [], subProgress: [], text: [], alerts: [], closedIterators: 0, dialogs: 0, done: 0 };
 	const previousCanvas = Object.getOwnPropertyDescriptor(globalThis, 'OffscreenCanvas');
 	class Canvas {
 		async convertToBlob() {
@@ -64,9 +65,10 @@ function setup(t, overrides = {}) {
 	};
 	const require = createRequire(import.meta.url);
 	const mocks = { mediabunny, 'test-preferences': { preferences: { s: { forceTypeSafety: false } } },
-		'test-effects': { effectDefinitions: {} }, 'test-ui': { progress() {
+		'test-effects': { effectDefinitions: {} }, 'test-ui': { alert: async options => { calls.alerts.push(options); }, progress() {
 			calls.dialogs++;
-			return { setProgress: value => calls.progress.push(value), done: () => { calls.done++; } };
+			return { setProgress: value => calls.progress.push(value), setSubProgress: value => calls.subProgress.push(value),
+				setText: value => calls.text.push(value), done: () => { calls.done++; } };
 		} } };
 	const module = { exports: {} };
 	new Function('require', 'module', 'exports', bundle.outputFiles[0].text)(name => mocks[name] ?? require(name), module, module.exports);
@@ -227,6 +229,83 @@ test('waits for multiple video sequences and closes a single progress dialog', a
 	assert.equal(f.calls.progress[0], 0);
 	assert.equal(f.calls.progress.at(-1), 1);
 	assert.ok(f.calls.progress.every((value, index, values) => index === 0 || value >= values[index - 1]));
+	assert.equal(f.calls.subProgress[0], null);
+	assert.equal(f.calls.subProgress.at(-1), 1);
+	assert.ok(f.calls.subProgress.includes(1 / 11));
+	assert.ok(f.calls.text.includes('Reading: a.mp4 (1/2)'));
+	assert.ok(f.calls.text.includes('Generating thumbnails: b.mp4 (2/2)'));
+});
+
+// 【原本を読む前から待機ダイアログを表示し、単一ファイルはメイン進捗だけを使う】
+// サムネイル開始前や画像だけの取り込みにも操作ロックを適用する。
+// 計測できないファイル読み込みを0%と見せず、nullの待機状態で表現する。
+test('opens progress before reading source bytes and uses only main progress for one file', async t => {
+	const f = setup(t);
+	setupImport(t);
+	const gate = Promise.withResolvers();
+	const file = new File(['video'], 'movie.mp4', { type: 'video/mp4' });
+	Object.defineProperty(file, 'arrayBuffer', { value: async () => {
+		assert.equal(f.calls.dialogs, 1);
+		assert.equal(f.calls.progress.at(-1), null);
+		await gate.promise;
+		return new TextEncoder().encode('video').buffer;
+	} });
+	const pending = f.openWithProgress({ file });
+	await new Promise(resolve => setImmediate(resolve));
+	assert.equal(f.calls.done, 0);
+	gate.resolve();
+	await pending;
+	assert.equal(f.calls.subProgress.length, 0);
+	assert.equal(f.calls.progress.at(-1), 1);
+	assert.equal(f.calls.done, 1);
+});
+
+// 【対応素材だけを直列で読み込み、一括反映まで操作ロックを維持する】
+// 不正なファイルが途中にあっても残りを取り込み、サムネイル・原本パスを保つ。
+// AssetとPlayerを一度のUndoで除去し、失敗内容はダイアログを閉じてからまとめて通知する。
+test('imports valid files in order with one undo and reports failures after closing progress', async t => {
+	const f = setup(t);
+	setupImport(t);
+	t.mock.method(console, 'log', () => {});
+	globalThis.createImageBitmap = async () => ({ width: 2, height: 1, close() {} });
+	const context = new f.ProjectContext();
+	const files = [new File(['video'], 'movie.mp4', { type: 'video/mp4' }), new File(['bad'], 'bad.bin'),
+		new File(['image'], 'image.png', { type: 'image/png' }), new File(['font'], 'font.ttf')];
+	let prepared = false;
+	const stop = context.stateManager.onChange(() => { assert.equal(f.calls.done, 0); });
+	const ids = await f.importAssets(context, files, async () => {
+		assert.equal(f.calls.done, 0);
+		prepared = true;
+	});
+	assert.equal(prepared, true);
+	assert.equal(ids.length, 3);
+	assert.deepEqual(context.stateManager.state.assets.value.map(asset => asset.name), ['movie.mp4', 'image.png', 'font.ttf']);
+	assert.equal(context.stateManager.state.players.value.length, 1);
+	assert.equal(context.stateManager.undoStack.value.length, 1);
+	assert.equal(f.calls.done, 1);
+	assert.equal(f.calls.alerts.length, 1);
+	assert.match(f.calls.alerts[0].text, /bad.bin/);
+	stop();
+	context.stateManager.undo();
+	assert.equal(context.stateManager.state.assets.value.length, 0);
+	assert.equal(context.stateManager.state.players.value.length, 0);
+	context.stateManager.redo();
+	assert.equal(context.stateManager.state.assets.value[0].thumbnailSequence.frames.length, 11);
+	assert.equal(context.stateManager.state.players.value[0].assetId, ids[0]);
+});
+
+// 【すべてのファイルが未対応の場合はプロジェクトとUndo履歴を作らない】
+// Dashboardへ誤ったファイルをドロップしても、空のプロジェクトで画面を閉じない。
+test('does not prepare a project or commit history when every file fails', async t => {
+	const f = setup(t);
+	setupImport(t);
+	const context = new f.ProjectContext();
+	const ids = await f.importAssets(context, [new File(['bad'], 'bad.bin')], async () => assert.fail('No project should be created'));
+	assert.deepEqual(ids, []);
+	assert.equal(context.hasProject, false);
+	assert.equal(context.stateManager.undoStack.value.length, 0);
+	assert.equal(f.calls.done, 1);
+	assert.equal(f.calls.alerts.length, 1);
 });
 
 // 【サムネイル失敗では素材を取り込み、後続素材の失敗でも進捗ダイアログを閉じる】

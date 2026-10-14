@@ -500,6 +500,34 @@ const removeNodeCommandDef = defineCommand<NodeTarget>({
 	},
 });
 
+const importAssetsCommandDef = defineCommand<{ assets: ProjectAsset[]; players: Player[] }>({
+	label: 'Import assets',
+	changes: (_state, payload) => [
+		...payload.assets.map(asset => ({ type: 'asset' as const, assetId: asset.id })),
+		...payload.players.map(player => ({ type: 'player' as const, playerId: player.id })),
+	],
+	create: payload => ({
+		execute(state) {
+			// 一度のドロップを一つの履歴にする。追加前に確認し、不完全な取り込みを残さない。
+			for (const [existing, added] of [[state.assets.value, payload.assets], [state.players.value, payload.players]]) {
+				const ids = new Set(existing.map(resource => resource.id));
+				for (const resource of added) {
+					if (ids.has(resource.id)) throw new Error('Resource ID already exists');
+					ids.add(resource.id);
+				}
+			}
+			state.assets.value.push(...deepClone(payload.assets));
+			state.players.value.push(...deepClone(payload.players));
+		},
+		undo(state) {
+			const assetIds = new Set(payload.assets.map(asset => asset.id));
+			const playerIds = new Set(payload.players.map(player => player.id));
+			state.assets.value = state.assets.value.filter(asset => !assetIds.has(asset.id));
+			state.players.value = state.players.value.filter(player => !playerIds.has(player.id));
+		},
+	}),
+});
+
 const addAssetCommandDef = defineCommand<ProjectAsset>({
 	label: 'Add asset',
 	changes: (_state, payload) => [{ type: 'asset', assetId: payload.id }],
@@ -2136,6 +2164,7 @@ export const COMMAND_DEFS = {
 	moveNode: moveNodeCommandDef,
 	removeNode: removeNodeCommandDef,
 	addAsset: addAssetCommandDef,
+	importAssets: importAssetsCommandDef,
 	removeAsset: removeAssetCommandDef,
 	renameAsset: renameAssetCommandDef,
 	replaceAsset: replaceAssetCommandDef,

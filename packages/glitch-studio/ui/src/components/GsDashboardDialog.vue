@@ -1,5 +1,5 @@
 <template>
-<GsModal ref="modal" preferType="dialog" @closed="emit('closed')" @dragover.prevent.stop @drop.prevent.stop="onDrop">
+<GsModal ref="modal" data-file-drop-target data-test-dashboard-file-drop preferType="dialog" @closed="emit('closed')" @dragover="onDragover" @drop="onDrop">
 	<div :class="$style.root">
 		<div :class="$style.main" class="_gaps_l">
 			<div style="display: flex; align-items: center; gap: 16px;">
@@ -31,18 +31,22 @@
 </template>
 
 <script lang="ts" setup>
-import { useTemplateRef } from 'vue';
+import { inject, useTemplateRef } from 'vue';
 import GsButton from './common/GsButton.vue';
 import GsModal from './common/GsModal.vue';
 import GsAboutDialog from './GsAboutDialog.vue';
 import GsFolder from './common/GsFolder.vue';
-import { newProject, newProjectFromImageOrVideo, openProject } from '@/app.ts';
+import { appContext, newProject, newProjectFromImageOrVideo, openProject } from '@/app.ts';
+import { workspaceControllerKey } from '@/WorkspaceController.ts';
+import { importAssets } from '@/utility/import-assets.ts';
 import * as ui from '@/ui.ts';
 
 const version = _VERSION_;
 const isElectron = __ELECTRON__;
 
 const modal = useTemplateRef('modal');
+const workspaceController = inject(workspaceControllerKey)!;
+let importing = false;
 
 const emit = defineEmits<{
 	(ev: 'closed'): void;
@@ -60,16 +64,44 @@ async function _newProjectFromImageOrVideo() {
 	}
 }
 
+function onDragover(event: DragEvent) {
+	if (event.dataTransfer?.types.includes('Files') !== true) return;
+	event.preventDefault();
+	event.stopPropagation();
+	event.dataTransfer.dropEffect = importing || window.document.body.hasAttribute('inert') ? 'none' : 'copy';
+}
+
 async function onDrop(event: DragEvent) {
-	const file = event.dataTransfer?.files[0];
-	if (file == null) return;
-	// DataTransferItemはdropイベント中に取得し、非同期読み込み後にも保存先を保持する。
-	const item = Array.from(event.dataTransfer!.items).find(item => item.kind === 'file');
-	const handle = file.name.toLowerCase().endsWith('.gsproj') ? await item?.getAsFileSystemHandle?.().catch(() => null) : null;
-	const opened = file.name.toLowerCase().endsWith('.gsproj')
-		? await openProject(file, handle?.kind === 'file' ? handle as FileSystemFileHandle : null)
-		: await newProjectFromImageOrVideo(file);
-	if (opened) modal.value!.close();
+	if (event.dataTransfer?.types.includes('Files') !== true) return;
+	event.preventDefault();
+	event.stopPropagation();
+	if (importing || window.document.body.hasAttribute('inert')) return;
+	const files = Array.from(event.dataTransfer.files);
+	if (files.length === 0) return;
+	importing = true;
+	try {
+		let opened = false;
+		if (files.length === 1 && files[0].name.toLowerCase().endsWith('.gsproj')) {
+			// ハンドル取得はdrop中に開始する。取得失敗時もFileからプロジェクトを開ける。
+			const item = Array.from(event.dataTransfer.items).find(item => item.kind === 'file');
+			const handle = await item?.getAsFileSystemHandle?.().catch(() => null);
+			opened = await openProject(files[0], handle?.kind === 'file' ? handle as FileSystemFileHandle : null);
+		} else if (files.length === 1 && /^(image|video|audio)\//.test(files[0].type)) {
+			// ファイル選択ボタンと同じ入口を使い、素材に対応したノード・レイヤー・解像度を設定する。
+			opened = await newProjectFromImageOrVideo(files[0]);
+		} else {
+			const ids = await importAssets(appContext.projectContext, files, async () => {
+				if (!appContext.projectContext.hasProject) await newProject();
+			});
+			opened = ids.length > 0;
+			if (opened) workspaceController.revealPanel({ contentType: 'assets', sourcePanelId: null });
+		}
+		if (opened) modal.value!.close();
+	} catch (error) {
+		await ui.alert({ type: 'error', text: error instanceof Error ? error.message : String(error) });
+	} finally {
+		importing = false;
+	}
 }
 
 async function _openProject() {

@@ -38,7 +38,8 @@ export function findWorkspacePanelRevealPlan(root: WorkspaceElement, selections:
 
 	visit(root, null, new Map(), []);
 	const source = panels.find(entry => entry.panel.id === request.sourcePanelId);
-	if (!source) return null;
+	// 全体ドロップなどの要求には操作元パネルがない。指定された古いIDだけを拒否する。
+	if (request.sourcePanelId != null && source == null) return null;
 	const selectedIds = new Map<string, string | null>();
 
 	function collectSelections(element: WorkspaceElement) {
@@ -53,7 +54,7 @@ export function findWorkspacePanelRevealPlan(root: WorkspaceElement, selections:
 		if (entry.panel.contentType !== request.contentType) continue;
 		// 共通の祖先タブで別の枝を選ぶと、操作元そのものがアンマウントされる。
 		// 直近の親だけの判定では、入れ子になったworkspaceでこれを防げない。
-		if ([...source.tabs].some(([id, child]) => entry.tabs.has(id) && entry.tabs.get(id) !== child)) continue;
+		if (source != null && [...source.tabs].some(([id, child]) => entry.tabs.has(id) && entry.tabs.get(id) !== child)) continue;
 		const plan: WorkspacePanelRevealPlan = {
 			panelId: entry.panel.id,
 			tabSelections: [...entry.tabs].filter(([id, child]) => selectedIds.get(id) !== child).map(([tabsId, childId]) => ({ tabsId, childId })),

@@ -46,7 +46,7 @@ const appBundle = await build({
 			`, loader: 'ts' }));
 			// 相対パスとaliasからの参照でも、本番と同じ設定インスタンスを共有する。
 			// 別々に生成すると、クラスへの分離でimport順が変わっただけでテスト側の設定変更が届かなくなる。
-			build.onResolve({ filter: /RendererManagerController\.ts$|\.vue$|^@\/ui\.ts$|effect-definitions\.[jt]s$|preferences\.ts$/ }, args => ({
+			build.onResolve({ filter: /RendererManagerController\.ts$|\.vue$|(?:^|\/)ui\.ts$|effect-definitions\.[jt]s$|preferences\.ts$/ }, args => ({
 				path: /preferences\.ts$/.test(args.path) ? 'preferences.ts'
 					: /effect-definitions\.[jt]s$/.test(args.path) ? 'effect-definitions.ts' : args.path,
 				namespace: 'platform',
@@ -110,6 +110,7 @@ const appBundle = await build({
 					export class TimelineRendererManagerController extends VisualModuleRendererManagerController { timeline = true; }
 					` : args.path.endsWith('.vue') ? `export default { name: '${args.path.split('/').at(-1)}' };` : `
 					export async function alert(options) { globalThis.projectAlerts.push(options.text); }
+					export function progress() { return { setProgress() {}, setSubProgress() {}, setText() {}, done() {} }; }
 						export function popup(component, props, events) {
 							if (component.name === 'GsProjectSaveDialog.vue') {
 								queueMicrotask(async () => {
