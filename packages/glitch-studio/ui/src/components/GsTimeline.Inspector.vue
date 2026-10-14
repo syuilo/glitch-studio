@@ -1,24 +1,24 @@
 <template>
 <GsTimelineVoicevoxUtteranceSettings
-	v-if="selectedUtterance != null" :key="keyframeEditorKey" :sceneId="scene.id"
+	v-if="selectedUtterance != null" :key="'VoicevoxUtterance:'+ keyframeEditorKey" :sceneId="scene.id"
 	:layer="selectedUtterance.layer" :utterance="selectedUtterance.utterance"
 	@selected="keyframeId => emit('selectKeyframe', { layerId: selectedUtterance!.layer.id, target: 'utterance', paramPath: ['utterances'], keyframeId })"
 />
-<GsFolder v-if="selection.kind === 'keyframes' && selection.keyframes.length > 1" defaultOpen asSection>
+<GsFolder v-else-if="selection.kind === 'keyframes' && selection.keyframes.length > 1" defaultOpen asSection>
 	<template #label>{{ selection.keyframes.length }} keyframes selected</template>
 	<GsButton danger small @click="emit('removeKeyframes')"><i class="ti ti-trash"></i> Remove Keyframes</GsButton>
 </GsFolder>
 <GsTimelineInspectorKeyframe
-	v-if="selectedLayer && selectedKeyframeSelection && selectedKeyframeSelection.target !== 'utterance'" :key="keyframeEditorKey"
+	v-else-if="selectedLayer && selectedKeyframeSelection && selectedKeyframeSelection.target !== 'utterance'" :key="'Keyframe:'+ keyframeEditorKey"
 	:sceneId="scene.id" :layer="selectedLayer" :selection="selectedKeyframeSelection"
 	@remove="emit('removeKeyframes')"
 />
 <GsTimelineInspectorClip
-	v-if="selectedClipLayer && selectedClipSelection" :sceneId="scene.id" :layer="selectedClipLayer" :clipId="selectedClipSelection.clipId" :mediaInfo="mediaInfo"
+	v-else-if="selectedClipLayer && selectedClipSelection" :sceneId="scene.id" :layer="selectedClipLayer" :clipId="selectedClipSelection.clipId" :mediaInfo="mediaInfo"
 	@remove="emit('removeClips')" @changeSource="emit('changeClipSource', $event)"
 />
 <GsTimelineInspectorLayer
-	v-if="selectedLayer" :scene="scene" :layer="selectedLayer"
+	v-else-if="selectedLayer" :scene="scene" :layer="selectedLayer"
 	@selectKeyframe="emit('selectKeyframe', $event)" @requestAddInlineEffectNode="emit('requestAddInlineEffectNode', $event)"
 	@expandRequested="emit('expandRequested', $event)"
 />
@@ -28,16 +28,16 @@
 import { isTimelineContainerLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import { computed } from 'vue';
 import { flattenTimelineLayers } from '@gs/subsystems_timeline_shared/layer-tree.ts';
-import type { TimelineScene } from '@gs/subsystems_timeline_shared/types.ts';
-import type { TimelineClipSelection, TimelineKeyframeSelection, TimelineSelection } from '@/utility/timeline-selection.ts';
-import type { TimelineClipMediaInfo } from '@/utility/timeline-clip-media.ts';
-import { getSelectedTimelineLayerId } from '@/utility/timeline-editor-state.ts';
 import GsButton from './common/GsButton.vue';
 import GsFolder from './common/GsFolder.vue';
 import GsTimelineInspectorKeyframe from './GsTimeline.Inspector.Keyframe.vue';
 import GsTimelineInspectorClip from './GsTimeline.Inspector.Clip.vue';
 import GsTimelineInspectorLayer from './GsTimeline.Inspector.Layer.vue';
 import GsTimelineVoicevoxUtteranceSettings from './GsTimeline.VoicevoxUtteranceSettings.vue';
+import type { TimelineClipMediaInfo } from '@/utility/timeline-clip-media.ts';
+import type { TimelineClipSelection, TimelineKeyframeSelection, TimelineSelection } from '@/utility/timeline-selection.ts';
+import type { TimelineScene } from '@gs/subsystems_timeline_shared/types.ts';
+import { getSelectedTimelineLayerId } from '@/utility/timeline-editor-state.ts';
 
 const props = defineProps<{ scene: TimelineScene; selection: TimelineSelection; mediaInfo: ReadonlyMap<string, TimelineClipMediaInfo> }>();
 const emit = defineEmits<{
