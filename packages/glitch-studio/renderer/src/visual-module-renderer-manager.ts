@@ -311,6 +311,9 @@ export class VisualModuleRendererManager extends EventEmitter<{
 
 	public startLiveRenderLoopFor(visualModuleId: string, paramValues: VisualModuleArgumentBindings = {}, statusInstanceId = genId()) {
 		this.stopRenderLoop();
+		// 初期設定の通知は購読開始前に行われ得るため、最初の描画では同じ寸法でも通知する。
+		// 対象の切り替え時も、UIが前のVisual Moduleの寸法を使い続けないようにする。
+		this.displayedResolution = null;
 
 		const visualModule = this.dynamicOptions.visualModules.find(g => g.id === visualModuleId);
 		if (visualModule == null) return;

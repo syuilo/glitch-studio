@@ -28,7 +28,7 @@
 		</div>
 		<div :class="$style.bottomLeft">
 			<div :class="$style.resolution" class="_monospace">
-				<div>{{ sceneResolution?.width ?? '-' }} x {{ sceneResolution?.height ?? '-' }} px</div>
+				<div>{{ previewResolution?.width ?? '-' }} x {{ previewResolution?.height ?? '-' }} px</div>
 			</div>
 		</div>
 	</div>
@@ -85,9 +85,10 @@ const previewTargetName = computed(() => {
 		? activeScene.value?.name ?? null
 		: stateManager.state.visualModules.value.find(visualModule => visualModule.id === state.visualModuleId)?.name ?? null;
 });
-const sceneResolution = computed(() => {
+const previewResolution = computed(() => {
+	if (previewPlayback.state.value.mode === 'live') return visualModuleRendererManagerController.outputResolution.value;
 	const scene = activeScene.value;
-	if (previewPlayback.state.value.mode !== 'timeline' || scene == null) return null;
+	if (scene == null) return null;
 	return scaleResolution(getSceneBaseResolution(scene.resolution, stateManager.state.resolution.value), resolutionFactor.value);
 });
 

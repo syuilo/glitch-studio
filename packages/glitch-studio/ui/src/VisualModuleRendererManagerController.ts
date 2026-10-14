@@ -13,6 +13,7 @@ import type { AudioOutput } from './audio/audio-output.ts';
 import type { RendererProjectChange, RendererProjectState } from '@gs/glitch-studio_shared/project/renderer-state.ts';
 import type { ProjectVisualModule } from '@gs/glitch-studio_shared/project/types.ts';
 import type { Player } from '@gs/shared/types.ts';
+import type { Resolution } from '@gs/shared/resolution.ts';
 import type { VisualModuleArgumentBindings } from '@gs/subsystems_visual-module_shared/types.ts';
 import type { EffectInstanceState } from '@gs/subsystems_effect_shared/effect-status.ts';
 import type { VisualModuleRendererManager, VisualModuleRendererManagerStaticOptions, VisualModuleRendererManagerDynamicOptions, VisualModuleRendererManagerEvents } from '@gs/glitch-studio_renderer/visual-module-renderer-manager.ts';
@@ -20,6 +21,7 @@ import * as ui from '@/ui.ts';
 
 export class VisualModuleRendererManagerController extends RendererManagerControllerBase<VisualModuleRendererManager> {
 	public readonly canvasRevision = ref(0);
+	public readonly outputResolution = ref<Resolution | null>(null);
 	public canvas: HTMLCanvasElement;
 	public histogramCanvas: HTMLCanvasElement;
 	public waveformHorizontalCanvas: HTMLCanvasElement;
@@ -97,6 +99,7 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 			},
 			eventHandlers: {
 				outputResolution: ctx => {
+					this.outputResolution.value = ctx;
 					// 転送済みcanvasのwidth属性は変更せず、表示枠だけをWorkerの実寸に合わせる。
 					this.canvas.style.width = ctx.width + 'px';
 					this.canvas.style.height = ctx.height + 'px';
@@ -133,6 +136,7 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 				if (this.renderLoopRunning && this.liveVisualModuleId.value != null) this.startLiveRenderLoopFor(this.liveVisualModuleId.value, this.liveParamValues);
 			},
 			onDisposed: () => {
+				this.outputResolution.value = null;
 				this.inFlightVideoFrames.clear();
 				for (const frame of this.pendingVideoFrames.values()) frame.close();
 				this.pendingVideoFrames.clear();
@@ -192,6 +196,7 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 	}
 
 	public startLiveRenderLoopFor(visualModuleId: ProjectVisualModule['id'], paramValues: VisualModuleArgumentBindings = {}) {
+		this.outputResolution.value = null;
 		this.liveParamValues = deepClone(paramValues);
 		const statusInstanceId = genId();
 		// 再初期化中のモード変更はonCreatedで最新状態だけを復元し、古い開始要求をキューに残さない。
@@ -214,6 +219,7 @@ export class VisualModuleRendererManagerController extends RendererManagerContro
 	public stopRenderLoop() {
 		if (this.isReady.value) this.call('stopRenderLoop', []);
 		this.renderLoopRunning = false;
+		this.outputResolution.value = null;
 		this.liveEffectStateStore.stop();
 		this.liveVisualModuleId.value = null;
 	}
