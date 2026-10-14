@@ -60,10 +60,6 @@
 				</div>
 				<div :class="$style.layersActions">
 					<GsButton v-tooltip="'Add Layer'" small iconOnly @click="showAddLayerMenu"><i class="ti ti-plus"></i></GsButton>
-					<GsButton v-tooltip="'Wrap in Transform'" iconOnly small :disabled="!canWrapSelection" @click="transformSelection"><i class="ti ti-gizmo"></i></GsButton>
-					<GsButton v-tooltip="'Group'" iconOnly small :disabled="!canWrapSelection" @click="groupSelection"><i class="ti ti-folder-symlink"></i></GsButton>
-					<GsButton v-if="selectedLayer && isTimelineContainerLayer(selectedLayer)" v-tooltip="'Unwrap container'" iconOnly small @click="ungroupSelection"><i class="ti ti-folder-open"></i></GsButton>
-					<GsButton v-if="selectedLayer && (layerAncestors.get(selectedLayer.id)?.length ?? 0) > 0" small @click="moveSelectedLayerOut">Move out</GsButton>
 				</div>
 			</div>
 			<GsVirtualScroll
