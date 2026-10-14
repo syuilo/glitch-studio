@@ -1,8 +1,9 @@
 <template>
 <GsModal ref="modal" :preferType="'dialog'" :zPriority="'high'" @closed="emit('closed')">
-	<div :class="[$style.root]">
+	<div :class="[$style.root]" class="_gaps_l">
 		<div v-if="text" :class="$style.text">{{ text }}<GsEllipsis/></div>
 		<GsProgressBar :progress="props.progress"/>
+		<GsProgressBar v-if="props.subProgress !== undefined" :progress="props.subProgress"/>
 	</div>
 </GsModal>
 </template>
@@ -17,6 +18,7 @@ const modal = useTemplateRef('modal');
 
 const props = defineProps<{
 	progress: number | null; // nullでwaiting状態を表す
+	subProgress?: number | null | undefined; // nullでwaiting状態を表す。undefinedは未設定を表す
 	showing: boolean;
 	text?: string | null;
 }>();
@@ -49,6 +51,5 @@ watch(() => props.showing, () => {
 }
 
 .text {
-	margin-bottom: 16px;
 }
 </style>
