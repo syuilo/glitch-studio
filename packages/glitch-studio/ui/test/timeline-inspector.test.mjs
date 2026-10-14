@@ -75,6 +75,7 @@ new Function('require', 'module', 'exports', result.outputFiles[0].text)(createR
 const { Timeline, Inspector, appContext, COMMAND_DEFS, UndoRedo, getTimelineEditorState, createInlineVisualModuleLayer, videoHoldTest, dropUiTest } = bundled.exports;
 
 function element(tag = 'div') { return { tag, parent: null, children: [], props: {}, text: '', offsetWidth: 1000, offsetHeight: 500 }; }
+
 const renderer = createRenderer({
 	createElement: element, createText: text => ({ ...element('text'), text }), createComment: () => element('comment'),
 	setText: (node, text) => { node.text = text; }, setElementText: (node, text) => { node.text = text; },
@@ -88,7 +89,9 @@ const renderer = createRenderer({
 	parentNode: node => node.parent,
 	nextSibling: node => node.parent?.children[node.parent.children.indexOf(node) + 1] ?? null,
 });
+
 function descendants(root) { return [root, ...root.children.flatMap(descendants)]; }
+
 function textContent(node) { return node.text + node.children.map(textContent).join(''); }
 
 // 【Timeline全体に素材ドロップの表示を出し、子要素間の移動やフォントにも対応する】
@@ -98,20 +101,22 @@ test('shows the full timeline drop overlay and consumes only file and asset drag
 	const f = await fixture(t, Timeline);
 	const target = descendants(f.root).find(node => node.props.onDropCapture != null);
 	const overlay = () => descendants(f.root).find(node => 'data-test-timeline-drop-overlay' in node.props);
+
 	function event(types, assetId = 'sound') {
 		const value = new Event('drop', { cancelable: true });
-		value.dataTransfer = { types, files: [], getData: type => type === 'misskey/gsasset' ? JSON.stringify({ assetId }) : '' };
+		value.dataTransfer = { types, files: [], getData: type => type === 'glitch-studio/gsasset' ? JSON.stringify({ assetId }) : '' };
 		let stopped = false;
 		value.stopPropagation = () => { stopped = true; };
 		return { value, isStopped: () => stopped };
 	}
-	const internal = event(['misskey/gsdraggable']);
+
+	const internal = event(['glitch-studio/gsdraggable']);
 	target.props.onDragoverCapture(internal.value);
 	assert.equal(internal.value.defaultPrevented, false);
 	assert.equal(internal.isStopped(), false);
 	assert.equal(overlay(), undefined);
 	// カスタム型が先頭にない場合もGsAssetとして受け付ける。
-	const asset = event(['text/plain', 'misskey/gsasset']);
+	const asset = event(['text/plain', 'glitch-studio/gsasset']);
 	target.props.onDragenterCapture(asset.value);
 	target.props.onDragenterCapture(asset.value);
 	target.props.onDragleaveCapture(asset.value);
@@ -129,7 +134,7 @@ test('shows the full timeline drop overlay and consumes only file and asset drag
 	assert.equal(f.history.undoStack.value.length, 1);
 	assert.equal(dropUiTest.dialogs, 1);
 	f.history.state.assets.value.push({ id: 'font', name: 'Font', fileDataType: 'font/ttf', fileData: new Blob() });
-	const font = event(['misskey/gsasset'], 'font');
+	const font = event(['glitch-studio/gsasset'], 'font');
 	target.props.onDragenterCapture(font.value);
 	await nextTick();
 	assert.ok(overlay());
@@ -146,11 +151,11 @@ test('shows the full timeline drop overlay and consumes only file and asset drag
 });
 const keySelection = (layerId, keyframeId) => ({ layerId, target: 'audio', paramPath: ['volume'], keyframeId });
 const makeLayer = id => ({ id, name: id, layerType: 'audio', isDisabled: false, automationGraphs: [],
-	clips: [{ id: 'clip', assetId: 'sound', startMs: 0, durationMs: 5000, sourceInMs: 0, sourceOutMs: 5000, playbackRate: 1, loop: false }],
-	audioParamValues: { volume: { inputSource: 'keyframesTimelineInline', offsetMode: 'start', wrapMode: 'clamp', trimmedDurationMs: null, keyframesTimeline: {
-		dataType: { kind: 'scalar' }, isNormalized: false,
-		keyframes: [100, 300, 600].map((x, index) => ({ id: `key-${index}`, x, value: 1, interpolation: { type: 'linear' } })),
-	} } },
+																											clips: [{ id: 'clip', assetId: 'sound', startMs: 0, durationMs: 5000, sourceInMs: 0, sourceOutMs: 5000, playbackRate: 1, loop: false }],
+																											audioParamValues: { volume: { inputSource: 'keyframesTimelineInline', offsetMode: 'start', wrapMode: 'clamp', trimmedDurationMs: null, keyframesTimeline: {
+																												dataType: { kind: 'scalar' }, isNormalized: false,
+																												keyframes: [100, 300, 600].map((x, index) => ({ id: `key-${index}`, x, value: 1, interpolation: { type: 'linear' } })),
+																											} } },
 });
 
 // 【動画の詳細から全体長と素材範囲を別々に変更し、ループ解除をUndoできる】
@@ -224,13 +229,13 @@ async function fixture(t, component = Inspector) {
 	globalThis.HTMLElement = class {};
 	t.after(() => { globalThis.ResizeObserver = previousResizeObserver; globalThis.HTMLElement = previousHTMLElement; });
 	const state = { timelineScenes: ref([{ id: 'scene', name: 'Scene', resolution: { mode: 'project' }, layers: [makeLayer('a'), makeLayer('b')] }]),
-		assets: ref([{ id: 'sound', name: 'Sound', fileDataType: 'audio/wav', fileData: new Blob() }]), visualModules: ref([]),
-		players: ref([]), generatedSpeech: ref([]), resolution: ref({ width: 1920, height: 1080 }), timelineFps: ref(30) };
+																	assets: ref([{ id: 'sound', name: 'Sound', fileDataType: 'audio/wav', fileData: new Blob() }]), visualModules: ref([]),
+																	players: ref([]), generatedSpeech: ref([]), resolution: ref({ width: 1920, height: 1080 }), timelineFps: ref(30) };
 	const history = new UndoRedo(state, COMMAND_DEFS);
 	appContext.projectContext.stateManager = history;
 	const scene = state.timelineScenes.value[0];
 	const props = reactive({ scene, sceneId: scene.id, selection: { kind: 'keyframes', keyframes: [keySelection('a', 'key-1')] },
-		mediaInfo: new Map(), subPanelTarget: null });
+																										mediaInfo: new Map(), subPanelTarget: null });
 	const events = [];
 	const root = element();
 	const app = renderer.createApp({ setup: () => () => h(component, {

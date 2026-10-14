@@ -8,7 +8,7 @@ import { parse } from 'vue/compiler-sfc';
 import { createSourceFile, isFunctionDeclaration, ScriptTarget } from 'typescript';
 
 const bundle = await build({ entryPoints: [fileURLToPath(new URL('../src/utility/file-drop.ts', import.meta.url))],
-	bundle: true, platform: 'node', format: 'cjs', write: false });
+																													bundle: true, platform: 'node', format: 'cjs', write: false });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', bundle.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
 const { installFileDropHandlers } = module.exports;
@@ -40,6 +40,7 @@ function fixture(t, onDrop, isApplicationBlocked = () => false) {
 	const errors = [];
 	const dispose = installFileDropHandlers(root, onDrop, error => errors.push(error), isApplicationBlocked, value => { hovering = value; });
 	t.after(dispose);
+
 	function dispatch(name, files, extra = {}, target = root, relatedTarget = null) {
 		const event = new Event(name, { cancelable: true, bubbles: true });
 		let stopped = false;
@@ -52,6 +53,7 @@ function fixture(t, onDrop, isApplicationBlocked = () => false) {
 		target.dispatchEvent(event);
 		return { event, stopped };
 	}
+
 	return { root, windowTarget, registrations, errors, dispose, dispatch, block: value => { blocked = value; }, get hovering() { return hovering; } };
 }
 
@@ -71,7 +73,7 @@ test('shows global hover only for accepted files and clears it over dedicated ta
 	assert.equal(f.hovering, false);
 	f.dispatch('dragover', [], {}, child);
 	assert.equal(f.hovering, true);
-	f.dispatch('dragover', [], { types: ['misskey/gsasset'] }, child);
+	f.dispatch('dragover', [], { types: ['glitch-studio/gsasset'] }, child);
 	assert.equal(f.hovering, false);
 	f.block(true);
 	f.dispatch('dragover', []);
@@ -124,11 +126,11 @@ test('accepts bubbling file drops synchronously and prevents duplicate imports w
 test('leaves internal drags unchanged and rejects file drops while the application is inert', t => {
 	let count = 0;
 	const f = fixture(t, async () => { count++; });
-	const internal = f.dispatch('dragover', [], { types: ['misskey/workspacepanel'] });
+	const internal = f.dispatch('dragover', [], { types: ['glitch-studio/workspacepanel'] });
 	assert.equal(internal.event.defaultPrevented, false);
 	assert.equal(internal.stopped, false);
 	assert.equal(internal.event.dataTransfer.dropEffect, 'move');
-	f.dispatch('drop', [], { types: ['misskey/workspacepanel'] });
+	f.dispatch('drop', [], { types: ['glitch-studio/workspacepanel'] });
 	f.block(true);
 	assert.equal(f.dispatch('dragover', []).event.dataTransfer.dropEffect, 'none');
 	const drop = f.dispatch('drop', [new File(['a'], 'a.png')]);
@@ -268,7 +270,7 @@ test('opens project files in the dashboard and requests handles synchronously', 
 		const handle = { kind: 'file' };
 		let requested = false;
 		const event = dashboardEvent([new File(['project'], 'project.GSPROJ')], [{ kind: 'file',
-			getAsFileSystemHandle() { requested = true; return Promise.resolve(handle); } }]);
+																																																																													getAsFileSystemHandle() { requested = true; return Promise.resolve(handle); } }]);
 		const pending = f.onDrop(event);
 		assert.equal(requested, true);
 		assert.equal(event.defaultPrevented, true);
@@ -278,7 +280,7 @@ test('opens project files in the dashboard and requests handles synchronously', 
 	}
 	const rejected = dashboardFixture();
 	await rejected.onDrop(dashboardEvent([new File(['project'], 'project.gsproj')], [{ kind: 'file',
-		getAsFileSystemHandle: () => Promise.reject(new Error('No handle')) }]));
+																																																																																				getAsFileSystemHandle: () => Promise.reject(new Error('No handle')) }]));
 	assert.deepEqual(rejected.events, [['project', 'project.gsproj', null], 'close']);
 });
 

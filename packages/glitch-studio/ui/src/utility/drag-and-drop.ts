@@ -13,7 +13,7 @@ export function setDragData<T extends keyof DragDataMap>(
 ) {
 	if (event.dataTransfer == null) return;
 
-	event.dataTransfer.setData(`misskey/${type}`.toLowerCase(), JSON.stringify(data));
+	event.dataTransfer.setData(`glitch-studio/${type}`.toLowerCase(), JSON.stringify(data));
 }
 
 export function setPlainDragData(
@@ -31,7 +31,7 @@ export function getDragData<T extends keyof DragDataMap>(
 ): DragDataMap[T] | null {
 	if (event.dataTransfer == null) return null;
 
-	const data = event.dataTransfer.getData(`misskey/${type}`.toLowerCase());
+	const data = event.dataTransfer.getData(`glitch-studio/${type}`.toLowerCase());
 	if (data == null || data === '') return null;
 
 	return JSON.parse(data);
@@ -54,5 +54,5 @@ export function checkDragDataType(
 ): boolean {
 	if (event.dataTransfer == null) return false;
 
-	return event.dataTransfer.types.some(dataType => types.some(type => `misskey/${type}`.toLowerCase() === dataType.toLowerCase()));
+	return event.dataTransfer.types.some(dataType => types.some(type => `glitch-studio/${type}`.toLowerCase() === dataType.toLowerCase()));
 }
