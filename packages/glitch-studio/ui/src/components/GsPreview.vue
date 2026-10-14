@@ -26,6 +26,11 @@
 			</div>
 			<GsPreviewTransform :canvasRect="previewCanvasRect"/>
 		</div>
+		<div :class="$style.bottomLeft">
+			<div :class="$style.sceneInfo" class="_monospace">
+				<div>Resolution: {{ sceneResolution?.width ?? '-' }} x {{ sceneResolution?.height ?? '-' }}</div>
+			</div>
+		</div>
 	</div>
 </GsDetachableView>
 </template>
@@ -33,6 +38,8 @@
 <script lang="ts" setup>
 import { watch, useTemplateRef, ref, shallowRef, computed, onBeforeUnmount } from 'vue';
 import { genId } from '@gs/shared/utility/id.ts';
+import { scaleResolution } from '@gs/shared/resolution.js';
+import { getSceneBaseResolution } from '@gs/subsystems_timeline_shared/scene-resolution.js';
 import GsDetachableView from './GsDetachableView.vue';
 import GsPreviewTransform from './GsPreviewTransform.vue';
 import type { CSSProperties } from 'vue';
@@ -77,6 +84,11 @@ const previewTargetName = computed(() => {
 	return state.mode === 'timeline'
 		? activeScene.value?.name ?? null
 		: stateManager.state.visualModules.value.find(visualModule => visualModule.id === state.visualModuleId)?.name ?? null;
+});
+const sceneResolution = computed(() => {
+	const scene = activeScene.value;
+	if (previewPlayback.state.value.mode !== 'timeline' || scene == null) return null;
+	return scaleResolution(getSceneBaseResolution(scene.resolution, stateManager.state.resolution.value), resolutionFactor.value);
 });
 
 let latestTime: number | null = null;
@@ -381,6 +393,18 @@ function showMenu(ev: PointerEvent) {
 
 .menuButton {
 	font-size: 90%;
+}
+
+.bottomLeft {
+	position: absolute;
+	bottom: 0;
+	left: 0;
+	z-index: 1;
+	background: #0008;
+}
+
+.sceneInfo {
+	padding: 4px 8px;
 }
 
 @keyframes bg {
