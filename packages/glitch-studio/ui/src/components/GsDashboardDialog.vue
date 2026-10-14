@@ -1,5 +1,5 @@
 <template>
-<GsModal ref="modal" data-file-drop-target data-test-dashboard-file-drop preferType="dialog" @closed="emit('closed')" @dragover="onDragover" @drop="onDrop">
+<GsModal ref="modal" data-test-dashboard-file-drop preferType="dialog" @closed="emit('closed')" @dragover="onDragover" @drop="onDrop">
 	<div :class="$style.root">
 		<div :class="$style.main" class="_gaps_l">
 			<div style="display: flex; align-items: center; gap: 16px;">

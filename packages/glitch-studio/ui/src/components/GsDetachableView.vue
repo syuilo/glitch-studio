@@ -14,7 +14,7 @@
 
 <script lang="ts" setup>
 import { inject, useTemplateRef, ref, shallowRef, onBeforeUnmount } from 'vue';
-import { fileDropDocumentInstallerKey } from '@/utility/file-drop.ts';
+import { fileDropTargetInstallerKey } from '@/utility/file-drop.ts';
 import type { MenuItem } from '@/types/menu.ts';
 import * as ui from '@/ui.ts';
 
@@ -29,7 +29,7 @@ const view = useTemplateRef('view');
 const viewWindow = shallowRef<Window | null>(null);
 const windowMode = ref<'pip' | 'window'>('pip');
 const fullscreen = ref(false);
-const installFileDrops = inject(fileDropDocumentInstallerKey, null);
+const installFileDrops = inject(fileDropTargetInstallerKey, null);
 let disposeFileDrops: (() => void) | null = null;
 
 function updateFullscreen() {
@@ -105,7 +105,7 @@ async function openView(mode: 'pip' | 'window') {
 			pip.document.head.append(style.cloneNode(true));
 		}
 		pip.document.body.append(view.value!);
-		disposeFileDrops = installFileDrops?.(pip.document) ?? null;
+		disposeFileDrops = installFileDrops?.(view.value!) ?? null;
 		emit('changeWindow');
 	} catch (error) {
 		restoreView();

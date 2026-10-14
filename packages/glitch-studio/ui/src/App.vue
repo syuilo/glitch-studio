@@ -7,7 +7,7 @@
 	v-on="popup.events"
 />
 
-<div :class="$style.root">
+<div ref="root" :class="$style.root">
 	<div :class="$style.header">
 		<div :class="$style.headerLeft">
 			<button class="_button" :class="$style.undoRedo" :disabled="!stateManager.canUndo.value" @click="stateManager.undo()"><i class="ti ti-arrow-back-up"></i></button>
@@ -75,7 +75,7 @@ import { WorkspaceController, workspaceControllerKey } from './WorkspaceControll
 import { desktopProjectFile } from './gsproj.ts';
 import { importVisualModuleFile } from './utility/visual-module-file.ts';
 import { importAssets } from './utility/import-assets.ts';
-import { fileDropDocumentInstallerKey, installFileDropHandlers } from './utility/file-drop.ts';
+import { fileDropTargetInstallerKey, installFileDropHandlers } from './utility/file-drop.ts';
 import GsRange from './components/common/GsRange.vue';
 import GsAboutDialog from '@/components/GsAboutDialog.vue';
 import GsProjectSettingsDialog from '@/components/GsProjectSettingsDialog.vue';
@@ -90,7 +90,7 @@ import * as ui from '@/ui.ts';
 
 const workspaceController = new WorkspaceController(preferences.r.workspaceDefinition, root => preferences.commit('workspaceDefinition', root));
 provide(workspaceControllerKey, workspaceController);
-provide(fileDropDocumentInstallerKey, installFileDrops);
+provide(fileDropTargetInstallerKey, installFileDrops);
 
 async function onFileDrop(files: File[]) {
 	const ids = await importAssets(appContext.projectContext, files, async () => {
@@ -99,13 +99,18 @@ async function onFileDrop(files: File[]) {
 	if (ids.length > 0) workspaceController.revealPanel({ contentType: 'assets', sourcePanelId: null });
 }
 
-function installFileDrops(document: Document) {
-	return installFileDropHandlers(document, onFileDrop,
+function installFileDrops(target: HTMLElement) {
+	return installFileDropHandlers(target, onFileDrop,
 		error => { void ui.alert({ type: 'error', text: error instanceof Error ? error.message : String(error) }); },
 		() => window.document.body.hasAttribute('inert'));
 }
 
-onMounted(() => { onBeforeUnmount(installFileDrops(window.document)); });
+const root = useTemplateRef('root');
+let disposeFileDrops: (() => void) | null = null;
+onMounted(() => {
+	if (root.value != null) disposeFileDrops = installFileDrops(root.value);
+});
+onBeforeUnmount(() => { disposeFileDrops?.(); });
 
 const { audioOutput, activePreviewRenderer, previewPlayback, visualModuleRendererManagerController, resolutionFactor, liveFpsLimit, timelinePreviewFpsFactor, timelinePreviewMotionBlurSamples, liveTimeFactor, projectBackupAccess, projectBackupStatus } = appContext;
 const { stateManager } = appContext.projectContext;

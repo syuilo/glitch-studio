@@ -13,42 +13,56 @@ const module = { exports: {} };
 new Function('require', 'module', 'exports', bundle.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
 const { installFileDropHandlers } = module.exports;
 
+// DOMを起動せず、登録されたハンドラーのバブリングとstopPropagationだけを再現する。
+class TestElement extends EventTarget {
+	constructor(parent = null) { super(); this.parent = parent; }
+	dispatchEvent(event) {
+		let stopped = false;
+		const previousStop = event.stopPropagation;
+		event.stopPropagation = () => { stopped = true; previousStop.call(event); };
+		const result = super.dispatchEvent(event);
+		event.stopPropagation = previousStop;
+		if (event.bubbles && !stopped && this.parent != null) return this.parent.dispatchEvent(event);
+		return result;
+	}
+}
+
 function fixture(t, onDrop, isApplicationBlocked = () => false) {
-	const document = new EventTarget();
+	const root = new TestElement();
 	const registrations = [];
 	let blocked = false;
-	document.body = { hasAttribute: () => blocked };
-	const original = document.addEventListener.bind(document);
-	document.addEventListener = (name, listener, options) => { registrations.push([name, options]); original(name, listener, options); };
+	root.ownerDocument = { body: { hasAttribute: () => blocked } };
+	const original = root.addEventListener.bind(root);
+	root.addEventListener = (name, listener, options) => { registrations.push([name, options]); original(name, listener, options); };
 	const errors = [];
-	const dispose = installFileDropHandlers(document, onDrop, error => errors.push(error), isApplicationBlocked);
+	const dispose = installFileDropHandlers(root, onDrop, error => errors.push(error), isApplicationBlocked);
 	t.after(dispose);
-	function dispatch(name, files, extra = {}, path = null) {
-		const event = new Event(name, { cancelable: true });
+	function dispatch(name, files, extra = {}, target = root) {
+		const event = new Event(name, { cancelable: true, bubbles: true });
 		let stopped = false;
 		const stop = event.stopPropagation.bind(event);
 		event.stopPropagation = () => { stopped = true; stop(); };
 		event.dataTransfer = { types: ['Files'], files, items: [], dropEffect: 'move', ...extra };
-		if (path != null) event.composedPath = () => path;
-		document.dispatchEvent(event);
+		target.dispatchEvent(event);
 		return { event, stopped };
 	}
-	return { document, registrations, errors, dispose, dispatch, block: value => { blocked = value; } };
+	return { root, registrations, errors, dispose, dispatch, block: value => { blocked = value; } };
 }
 
-// 【全体ドロップをキャプチャで一度だけ受け付け、FileListを非同期処理の前に保存する】
-// 子パネルのstopPropagationより先に処理し、イベント終了後に空になるFileListに依存しない。
+// 【子要素から伝播したファイルをルートで受け付け、FileListを非同期処理の前に保存する】
+// バブリング段階の受付にし、イベント終了後に空になるFileListに依存しない。
 // 取り込み中の再ドロップも別の取り込みとして並行開始しない。
-test('captures external files synchronously and prevents duplicate imports while busy', async t => {
+test('accepts bubbling file drops synchronously and prevents duplicate imports while busy', async t => {
 	const gate = Promise.withResolvers();
 	const imported = [];
 	const f = fixture(t, async files => { await gate.promise; imported.push(files); });
-	assert.ok(f.registrations.every(([_name, options]) => options.capture === true));
+	assert.ok(f.registrations.every(([_name, options]) => options == null || options.capture !== true));
+	const child = new TestElement(f.root);
 	const files = [new File(['a'], 'a.png'), new File(['b'], 'b.mp4')];
-	const over = f.dispatch('dragover', files);
+	const over = f.dispatch('dragover', files, {}, child);
 	assert.equal(over.event.defaultPrevented, true);
 	assert.equal(over.event.dataTransfer.dropEffect, 'copy');
-	const drop = f.dispatch('drop', files);
+	const drop = f.dispatch('drop', files, {}, child);
 	assert.equal(drop.stopped, true);
 	assert.equal(drop.event.defaultPrevented, true);
 	drop.event.dataTransfer.files.length = 0;
@@ -95,20 +109,32 @@ test('respects the application lock when receiving drops in another document', a
 	assert.equal(imported, 1);
 });
 
-// 【Dashboardなどの専用ドロップ対象にはキャプチャ段階で干渉しない】
-// 専用側でプロジェクトを開く操作が、全体側の素材取り込みに横取りされないようにする。
-// 別ウィンドウ由来でも使えるよう、要素のクラスではなくドロップ対象の属性で判定する。
-test('leaves dedicated drop targets to their own dragover and drop handlers', t => {
+// 【子要素が伝播を止めたドロップを全体側では取り込まない】
+// 専用受付や書き出しダイアログの拒否を尊重し、特別な識別属性を必要としない。
+test('respects child handlers that stop dragover and drop propagation', t => {
 	let imported = 0;
 	const f = fixture(t, async () => { imported++; });
-	const target = { hasAttribute: name => name === 'data-file-drop-target' };
+	const child = new TestElement(f.root);
 	const files = [new File(['project'], 'project.gsproj')];
 	for (const name of ['dragover', 'drop']) {
-		const result = f.dispatch(name, files, {}, [{}, target, f.document]);
-		assert.equal(result.event.defaultPrevented, false);
-		assert.equal(result.stopped, false);
+		child.addEventListener(name, event => { event.preventDefault(); event.stopPropagation(); });
+		const result = f.dispatch(name, files, {}, child);
+		assert.equal(result.event.defaultPrevented, true);
+		assert.equal(result.stopped, true);
+		assert.equal(result.event.dataTransfer.dropEffect, 'move', 'The global handler must not alter the child feedback');
 	}
 	assert.equal(imported, 0);
+});
+
+// 【App.vueのルートの外にあるダイアログは全体受付へ伝播しない】
+// popupはルートと同じ階層にあり、documentへの受付に戻すと不要な取り込みが起きる。
+test('does not receive drops outside the application root', t => {
+	let imported = 0;
+	const f = fixture(t, async () => { imported++; });
+	const popup = new TestElement();
+	const result = f.dispatch('drop', [new File(['a'], 'a.png')], {}, popup);
+	assert.equal(imported, 0);
+	assert.equal(result.event.defaultPrevented, false);
 });
 
 const source = await readFile(new URL('../src/App.vue', import.meta.url), 'utf8');
