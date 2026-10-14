@@ -38,6 +38,7 @@ function fixture(t) {
 			selectMediaFiles: async options => options.files,
 			openMediaFile: async options => {
 				assert.equal(dialogs, 1, 'Import progress must open before reading');
+				assert.equal(options.allowAnyFile, true);
 				return options.files.map(file => ({ name: file.name, type: file.type, fileData: file,
 					width: 100, height: 100, hash: file.name, thumbnailSequence: null, sourceFilePath: null }));
 			},
@@ -67,12 +68,13 @@ function fixture(t) {
 }
 
 // 【複数ファイルを入力順に最上段へ配置し、Asset・Player・レイヤーを一度にUndoする】
-// メタデータ取得中に再生ヘッドが進んでも全素材の開始を揃える。フォントは素材として残し、
+// メタデータ取得中に再生ヘッドが進んでも全素材の開始を揃える。フォント・テキストは素材として残し、
 // 配置対象外が含まれる場合はAssetsを開く。通知・履歴も一括で反映する。
 test('imports a mixed batch at the captured playhead with one atomic undo and redo', async t => {
 	const f = fixture(t);
 	const files = [new File(['image'], 'photo.png', { type: 'image/png' }), new File(['video'], 'movie.mp4', { type: 'video/mp4' }),
-		new File(['audio'], 'sound.wav', { type: 'audio/wav' }), new File(['font'], 'font.ttf', { type: 'font/ttf' })];
+		new File(['audio'], 'sound.wav', { type: 'audio/wav' }), new File(['font'], 'font.ttf', { type: 'font/ttf' }),
+		new File(['text'], 'notes.txt', { type: 'text/plain' })];
 	f.media.set('movie.mp4', Promise.resolve().then(() => {
 		f.time.value = 5000; return { durationMs: 9000.5, audioAvailable: true, audioError: null };
 	}));
@@ -81,7 +83,7 @@ test('imports a mixed batch at the captured playhead with one atomic undo and re
 	assert.deepEqual(f.scene.layers.map(layer => layer.clips[0].startMs), [1234, 1234, 1234]);
 	assert.deepEqual(f.scene.layers.map(layer => layer.clips[0].durationMs), [5000, 9000, 9000]);
 	assert.equal(f.scene.layers[1].clips[0].audioEnabled, true);
-	assert.equal(f.state.assets.value.length, 4);
+	assert.equal(f.state.assets.value.length, 5);
 	assert.equal(f.state.players.value.length, 2);
 	assert.equal(f.history.undoStack.value.length, 1);
 	assert.equal(f.changes.length, 1);

@@ -175,3 +175,39 @@ test('rejects unreadable sources before decoding and identifies the file', async
 	await assert.rejects(openMediaFile({ file }), error => error.message.includes('missing.png') && error.cause === cause);
 	assert.deepEqual(platform.decodedSources, []);
 });
+
+// 【任意のファイルをデコードせず取り込み、プロジェクト保存後もバイト列とMIMEを保持する】
+// テキスト・アーカイブ・MIME不明のファイルを画像として扱うと取り込みに失敗する。
+// フォントの正規化は維持し、ファイル選択にも種類の制限をかけない。
+test('imports arbitrary files without decoding and retains their contents through project serialization', async t => {
+	const platform = setupMedia(t);
+	const files = [new File(['text'], 'notes.txt', { type: 'text/plain' }),
+		new File([new Uint8Array([0, 255, 128])], 'archive.zip', { type: 'application/zip' }),
+		new File(['unknown'], 'unknown'), new File(['font'], 'font.woff2')];
+	const pending = openMediaFile({ multiple: true, allowAnyFile: true });
+	assert.equal(platform.input.accept, '');
+	platform.input.files = files;
+	platform.input.onchange();
+	const imported = await pending;
+	const types = ['text/plain', 'application/zip', 'application/octet-stream', 'font/woff2'];
+	assert.deepEqual(imported.map(source => source.type), types);
+	assert.deepEqual(platform.decodedSources, []);
+	assert.ok(imported.every(source => source.width === 0 && source.height === 0 && source.thumbnailSequence === null));
+	const encoded = await encodeProjectFile({ generatedSpeech: [], timelineFps: 60,
+		timelineMotionBlur: { enabled: false, shutterAngle: 180, samples: 16 }, timelineScenes: [],
+		assets: imported.map((source, index) => ({ id: String(index), ...source, fileDataType: source.type })) });
+	const restored = decodeProjectFile(encoded).assets;
+	assert.deepEqual(restored.map(asset => asset.fileDataType), types);
+	for (let index = 0; index < files.length; index++) {
+		assert.notEqual(imported[index].fileData, files[index]);
+		assert.deepEqual(await restored[index].fileData.arrayBuffer(), await files[index].arrayBuffer());
+	}
+});
+
+// 【メディア専用の入口は引き続き任意ファイルを拒否する】
+// Open image/video/audioは素材に対応したプロジェクトを作るため、汎用ファイルを渡さない。
+test('keeps media-only imports restricted when arbitrary file support is not requested', async t => {
+	const platform = setupMedia(t);
+	await assert.rejects(openMediaFile({ file: new File(['text'], 'notes.txt', { type: 'text/plain' }) }), /Unsupported media type/);
+	assert.deepEqual(platform.decodedSources, []);
+});

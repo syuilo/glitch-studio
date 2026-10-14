@@ -220,11 +220,11 @@ test('initializes a project only when needed and reveals assets after successful
 });
 
 // 【アプリ全体へのgsprojドロップはプロジェクトを開かない】
-// 素材として使えないファイルの失敗を通知する共通経路を使い、既存プロジェクトを置き換えない。
+// 任意ファイルの取り込み経路でAssetsに保存し、既存プロジェクトを置き換えない。
 test('does not open project files through the global asset drop handler', async () => {
-	const f = appFixture({ hasProject: true, ids: [] });
+	const f = appFixture({ hasProject: true });
 	await f.run([new File(['project'], 'project.gsproj')]);
-	assert.deepEqual(f.events, [['assets', ['project.gsproj']]]);
+	assert.deepEqual(f.events, [['assets', ['project.gsproj']], ['reveal', { contentType: 'assets', sourcePanelId: null }]]);
 });
 
 const dashboardSource = await readFile(new URL('../src/components/GsDashboardDialog.vue', import.meta.url), 'utf8');
@@ -313,10 +313,12 @@ test('opens single dropped media through the same project factory as the file pi
 	}
 });
 
-// 【単一フォントのドロップはメディア新規作成へ渡さずアセットとして取り込む】
-// Open image/video/audioではフォントを扱えないため、既存のフォント取り込み経路を維持する。
-test('keeps single font drops on the asset import path', async () => {
-	const f = dashboardFixture();
-	await f.onDrop(dashboardEvent([new File(['font'], 'font.ttf', { type: 'font/ttf' })]));
-	assert.deepEqual(f.events, ['newProject', ['assets', ['font.ttf']], ['reveal', { contentType: 'assets', sourcePanelId: null }], 'close']);
+// 【単一の汎用ファイルやフォントはメディア新規作成へ渡さずアセットとして取り込む】
+// Open image/video/audioで使えないファイルでも、取り込み成功後はAssetsを開いてDashboardを閉じる。
+test('keeps single non-media drops on the asset import path', async () => {
+	for (const file of [new File(['font'], 'font.ttf', { type: 'font/ttf' }), new File(['archive'], 'archive.zip', { type: 'application/zip' }), new File(['unknown'], 'unknown')]) {
+		const f = dashboardFixture();
+		await f.onDrop(dashboardEvent([file]));
+		assert.deepEqual(f.events, ['newProject', ['assets', [file.name]], ['reveal', { contentType: 'assets', sourcePanelId: null }], 'close']);
+	}
 });

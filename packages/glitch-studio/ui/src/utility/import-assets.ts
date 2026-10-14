@@ -13,13 +13,13 @@ export type AssetImportPlacement = { timeline?: TimelineAssetPlacement | null; v
 /** ファイル選択と全体ドロップで同じ取り込み・Player作成・Undo単位を使う。 */
 export async function importAssets(context: ProjectContext, files?: readonly File[], prepareProject?: () => Promise<void>,
 	preparePlacement?: (assets: ProjectAsset[], players: Player[], dialog: ReturnType<typeof progress>) => AssetImportPlacement | null | Promise<AssetImportPlacement | null>): Promise<string[]> {
-	const selected = await selectMediaFiles({ files, multiple: true, includeFonts: true });
+	const selected = await selectMediaFiles({ files, multiple: true, allowAnyFile: true });
 	if (selected == null || selected.length === 0) return [];
 	const errors: string[] = [];
 	const assets: ProjectAsset[] = [];
 	try {
 		await importMediaFiles(selected, {
-			includeFonts: true,
+			allowAnyFile: true,
 			onFileError(file, error) { errors.push(`${file.name}: ${error instanceof Error ? error.message : String(error)}`); },
 			onImported: async (imported, dialog) => {
 				if (imported.length === 0) return;

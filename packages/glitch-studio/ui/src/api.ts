@@ -49,6 +49,8 @@ export type OpenMediaFileOptions = {
 	file?: File;
 	files?: readonly File[];
 	includeFonts?: boolean;
+	/** Assetsへの取り込みでは種類を制限せず、メディア以外は原本だけ保存する。 */
+	allowAnyFile?: boolean;
 	onThumbnailProgress?: (value: number) => void;
 	onReadProgress?: (progress: MediaFileReadProgress) => void;
 	/** 設定された場合は失敗を通知し、残りのファイルを続ける。未設定ではエラーを返す。 */
@@ -62,7 +64,7 @@ export function selectMediaFiles(options: OpenMediaFileOptions = {}): Promise<Fi
 	return new Promise(resolve => {
 		const input = window.document.createElement('input');
 		input.type = 'file';
-		input.accept = options.includeFonts === true ? 'image/*,video/*,audio/*,.ttf,.otf,.woff,.woff2' : 'image/*,video/*,audio/*';
+		input.accept = options.allowAnyFile === true ? '' : options.includeFonts === true ? 'image/*,video/*,audio/*,.ttf,.otf,.woff,.woff2' : 'image/*,video/*,audio/*';
 		input.multiple = options.multiple ?? false;
 		input.addEventListener('cancel', () => resolve(null), { once: true });
 		input.onchange = () => resolve(Array.from(input.files ?? []));
@@ -75,9 +77,10 @@ export function openMediaFile(options?: OpenMediaFileOptions & { multiple?: fals
 export function openMediaFile(options: OpenMediaFileOptions): Promise<OpenedMediaFile | OpenedMediaFile[] | null>;
 export async function openMediaFile(options: OpenMediaFileOptions = {}): Promise<OpenedMediaFile | OpenedMediaFile[] | null> {
 	const loadFile = async (file: File, onThumbnailProgress: (value: number) => void): Promise<OpenedMediaFile> => {
-		const fontType = options.includeFonts ? getFontFileType(file) : null;
-		const type = fontType ?? file.type;
-		if (fontType == null && !/^(image|audio|video)\//.test(type)) throw new Error('Unsupported media type');
+		const fontType = options.includeFonts === true || options.allowAnyFile === true ? getFontFileType(file) : null;
+		const type = fontType ?? (file.type === '' ? 'application/octet-stream' : file.type);
+		const isMedia = /^(image|audio|video)\//.test(type);
+		if (options.allowAnyFile !== true && fontType == null && !isMedia) throw new Error('Unsupported media type');
 		// パスは元のFileからだけ取得できる。ブラウザのfakepathや相対パスは原本の場所を示さない。
 		// ElectronでもJSで生成したFileにはパスがないため、空文字列は未取得として扱う。
 		const sourceFilePath = window.desktop?.getPathForFile(file) || null;
@@ -91,8 +94,9 @@ export async function openMediaFile(options: OpenMediaFileOptions = {}): Promise
 			throw new Error(`Could not read "${file.name}". Select the source file again.`, { cause });
 		}
 		const source = { name: file.name, type, fileData, sourceFilePath, thumbnailSequence: null };
-		if (fontType != null) {
-			// フォントは画像へデコードせず、使用するエフェクトがFontFaceとして読み込む。
+		if (fontType != null || !isMedia) {
+			// 汎用ファイルはデコードの対象にせず、プロジェクトに原本を保存する。
+			// フォントもここではデコードせず、使用するエフェクトがFontFaceとして読み込む。
 			return { ...source, width: 0, height: 0 };
 		}
 		if (type.startsWith('audio/') || type.startsWith('video/')) {

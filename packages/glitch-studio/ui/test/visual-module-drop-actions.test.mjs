@@ -21,6 +21,7 @@ function fixture(t, inline = false) {
 	let dialogs = 0;
 	const api = { selectMediaFiles: async options => options.files, openMediaFile: async options => {
 		assert.equal(dialogs, 1);
+		assert.equal(options.allowAnyFile, true);
 		return options.files.map(file => ({ name: file.name, type: file.type, fileData: file,
 			width: 100, height: 100, hash: file.name, thumbnailSequence: null, sourceFilePath: null }));
 	} };
@@ -48,12 +49,13 @@ function fixture(t, inline = false) {
 }
 
 // 【混在するファイルを取り込み、対応ノードを入力順に末尾へ追加して一度にUndoする】
-// 画像・動画・音声の参照先とPlayerを揃え、フォントはAssetsに残す。配線と出力ノードの位置は保持する。
+// 画像・動画・音声の参照先とPlayerを揃え、フォント・アーカイブはAssetsに残す。配線と出力ノードの位置は保持する。
 // 読み込みからCommand反映まで一つの進捗ダイアログを維持し、RedoでもIDと設定を変えない。
 test('imports media nodes in order with one undo and preserves existing wiring', async t => {
 	const f = fixture(t);
 	const files = [new File(['image'], 'photo.png', { type: 'image/png' }), new File(['video'], 'movie.mp4', { type: 'video/mp4' }),
-		new File(['audio'], 'sound.wav', { type: 'audio/wav' }), new File(['font'], 'font.ttf', { type: 'font/ttf' })];
+		new File(['audio'], 'sound.wav', { type: 'audio/wav' }), new File(['font'], 'font.ttf', { type: 'font/ttf' }),
+		new File(['archive'], 'archive.zip', { type: 'application/zip' })];
 	assert.equal(await f.actions.dropFiles(files), true);
 	assert.deepEqual(f.visualModule.nodes.map(node => node.effectId ?? node.type), ['globalIn', 'fill', 'image', 'video', 'audioWaveform', 'globalOut']);
 	const nodes = f.visualModule.nodes.slice(2, 5);
@@ -62,7 +64,7 @@ test('imports media nodes in order with one undo and preserves existing wiring',
 	assert.equal(nodes[1].params.player.value, f.state.players.value[0].id);
 	assert.deepEqual(nodes[2].params.audio.value, { type: 'player', playerId: f.state.players.value[1].id });
 	assert.equal(nodes[2].params.channel.value, 'stereo');
-	assert.equal(f.state.assets.value.length, 4);
+	assert.equal(f.state.assets.value.length, 5);
 	assert.equal(f.state.players.value.length, 2);
 	assert.equal(f.history.undoStack.value.length, 1);
 	assert.ok(f.events.includes('revealAssets'));

@@ -260,8 +260,9 @@ test('opens progress before reading source bytes and uses only main progress for
 	assert.equal(f.calls.done, 1);
 });
 
-// 【対応素材だけを直列で読み込み、一括反映まで操作ロックを維持する】
-// 不正なファイルが途中にあっても残りを取り込み、サムネイル・原本パスを保つ。
+// 【任意ファイルも直列で読み込み、一括反映まで操作ロックを維持する】
+// 読めないファイルが途中にあっても残りを取り込み、サムネイル・原本パスを保つ。
+// メディア以外もAssetに保存し、Playerは動画・音声だけに作成する。
 // AssetとPlayerを一度のUndoで除去し、失敗内容はダイアログを閉じてからまとめて通知する。
 test('imports valid files in order with one undo and reports failures after closing progress', async t => {
 	const f = setup(t);
@@ -269,7 +270,9 @@ test('imports valid files in order with one undo and reports failures after clos
 	t.mock.method(console, 'log', () => {});
 	globalThis.createImageBitmap = async () => ({ width: 2, height: 1, close() {} });
 	const context = new f.ProjectContext();
-	const files = [new File(['video'], 'movie.mp4', { type: 'video/mp4' }), new File(['bad'], 'bad.bin'),
+	const unreadable = new File(['bad'], 'bad.bin');
+	t.mock.method(unreadable, 'arrayBuffer', async () => { throw new Error('Unreadable source'); });
+	const files = [new File(['video'], 'movie.mp4', { type: 'video/mp4' }), unreadable, new File(['notes'], 'notes.txt', { type: 'text/plain' }),
 		new File(['image'], 'image.png', { type: 'image/png' }), new File(['font'], 'font.ttf')];
 	let prepared = false;
 	const stop = context.stateManager.onChange(() => { assert.equal(f.calls.done, 0); });
@@ -278,8 +281,9 @@ test('imports valid files in order with one undo and reports failures after clos
 		prepared = true;
 	});
 	assert.equal(prepared, true);
-	assert.equal(ids.length, 3);
-	assert.deepEqual(context.stateManager.state.assets.value.map(asset => asset.name), ['movie.mp4', 'image.png', 'font.ttf']);
+	assert.equal(ids.length, 4);
+	assert.deepEqual(context.stateManager.state.assets.value.map(asset => asset.name), ['movie.mp4', 'notes.txt', 'image.png', 'font.ttf']);
+	assert.equal(await context.stateManager.state.assets.value[1].fileData.text(), 'notes');
 	assert.equal(context.stateManager.state.players.value.length, 1);
 	assert.equal(context.stateManager.undoStack.value.length, 1);
 	assert.equal(f.calls.done, 1);
@@ -294,13 +298,15 @@ test('imports valid files in order with one undo and reports failures after clos
 	assert.equal(context.stateManager.state.players.value[0].assetId, ids[0]);
 });
 
-// 【すべてのファイルが未対応の場合はプロジェクトとUndo履歴を作らない】
-// Dashboardへ誤ったファイルをドロップしても、空のプロジェクトで画面を閉じない。
+// 【すべてのファイルが読み込めない場合はプロジェクトとUndo履歴を作らない】
+// 原本の読み込みに失敗したとき、空のプロジェクトでDashboardを閉じない。
 test('does not prepare a project or commit history when every file fails', async t => {
 	const f = setup(t);
 	setupImport(t);
 	const context = new f.ProjectContext();
-	const ids = await f.importAssets(context, [new File(['bad'], 'bad.bin')], async () => assert.fail('No project should be created'));
+	const unreadable = new File(['bad'], 'bad.bin');
+	t.mock.method(unreadable, 'arrayBuffer', async () => { throw new Error('Unreadable source'); });
+	const ids = await f.importAssets(context, [unreadable], async () => assert.fail('No project should be created'));
 	assert.deepEqual(ids, []);
 	assert.equal(context.hasProject, false);
 	assert.equal(context.stateManager.undoStack.value.length, 0);
