@@ -348,6 +348,7 @@ export function progress(options: { text?: string } = { }) {
 	window.document.body.setAttribute('inert', 'true');
 
 	const showing = ref(true);
+	const text = ref(options.text);
 	const progress = ref<number | null>(null); // nullでwaiting状態を表す
 	const subProgress = ref<number | null | undefined>(undefined); // nullでwaiting状態を表す。undefinedは未設定を表す
 
@@ -364,9 +365,13 @@ export function progress(options: { text?: string } = { }) {
 		subProgress.value = value;
 	}
 
+	function setText(value: string) {
+		text.value = value;
+	}
+
 	const { dispose } = popup(GsProgressDialog, {
 		showing: showing,
-		text: options.text,
+		text: text,
 		progress: progress,
 		subProgress: subProgress,
 	}, {
@@ -380,5 +385,6 @@ export function progress(options: { text?: string } = { }) {
 		done,
 		setProgress,
 		setSubProgress,
+		setText,
 	};
 }
