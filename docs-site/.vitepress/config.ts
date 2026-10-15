@@ -35,14 +35,6 @@ export default defineConfig({
 				],
 			},
 			{
-				text: 'エフェクト',
-				items: [
-					{ text: 'Adaptive block glitch', link: '/guide/effects/adaptive-block-glitch' },
-					{ text: 'Content error propagation', link: '/guide/effects/content-error-propagation' },
-					{ text: 'JPEG glitch', link: '/guide/effects/jpeg-glitch' },
-				],
-			},
-			{
 				text: 'レイヤー',
 				items: [
 					{ text: '画像', link: '/guide/timeline/layers/image' },
