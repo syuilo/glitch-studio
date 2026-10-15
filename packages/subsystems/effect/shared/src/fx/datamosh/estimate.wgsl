@@ -30,7 +30,7 @@ fn search_cost(center: vec2f, displacement: vec2f, level: f32) -> f32 {
 fn estimate(@builtin(position) position: vec4f) -> @location(0) vec2f {
 	if (uniforms.hasMotion == 0u || uniforms.seconds <= 0.0) { return vec2f(0.0); }
 	let cell = vec2u(position.xy);
-	let center = (vec2f(cell) + 0.5) * uniforms.blockSize;
+	let center = block_center(cell);
 	let zeroError = match_error(center, vec2f(0.0), 0.0);
 	var velocity = vec2f(0.0);
 	if (uniforms.searchRadius > 0.0 && zeroError > uniforms.motionThreshold) {

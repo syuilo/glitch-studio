@@ -19,6 +19,11 @@ export default defineEffect({
 		},
 		motionInput: { dataType: { kind: 'color' }, ui: { label: 'Motion input', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },
 		blockSize: { dataType: { kind: 'scalar' }, ui: { label: 'Block size (% of short side)', control: { controlType: 'range', min: 1, max: 20, step: 0.1 } }, defaultValue: { inputSource: 'literal', value: 4 } },
+		blockOrigin: {
+			dataType: { kind: 'enum', options: ['topLeft', 'center'] },
+			ui: { label: 'Block origin', control: { labels: { topLeft: 'Top left', center: 'Image center' } } },
+			defaultValue: { inputSource: 'literal', value: 'center' },
+		},
 		searchRange: { dataType: { kind: 'scalar' }, ui: { label: 'Motion search range (% of short side)', control: { controlType: 'range', min: 0, max: 25, step: 0.1 } }, defaultValue: { inputSource: 'literal', value: 8 } },
 		motionStrength: { dataType: { kind: 'scalar' }, ui: { label: 'Motion strength', control: { controlType: 'range', min: -4, max: 4, step: 0.01 } }, defaultValue: { inputSource: 'literal', value: 1 } },
 		motionThreshold: { dataType: { kind: 'scalar' }, ui: { label: 'Motion change threshold', control: { controlType: 'range', min: 0, max: 0.1, step: 0.001 } }, defaultValue: { inputSource: 'literal', value: 0.001 } },

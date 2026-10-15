@@ -1,6 +1,7 @@
 struct Uniforms {
 	analysisSize: vec2f,
 	blockSize: vec2f,
+	gridOrigin: vec2f,
 	seconds: f32,
 	searchRadius: f32,
 	motionStrength: f32,
@@ -23,4 +24,14 @@ struct Uniforms {
 
 fn texture_position(position: vec2f) -> vec2f {
 	return position * vec2f(0.5, -0.5) + 0.5;
+}
+
+// 動き推定・ブロック更新・ベクトルの補間で同じ配置を使う。
+// grid_positionはブロック境界を整数、ブロック中心を整数+0.5とする連続座標。
+fn grid_position(uv: vec2f) -> vec2f {
+	return (uv - uniforms.gridOrigin) / uniforms.blockSize;
+}
+
+fn block_center(cell: vec2u) -> vec2f {
+	return uniforms.gridOrigin + (vec2f(cell) + 0.5) * uniforms.blockSize;
 }

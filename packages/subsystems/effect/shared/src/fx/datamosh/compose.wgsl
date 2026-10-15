@@ -39,15 +39,16 @@ fn compose(@location(0) position: vec2f) -> FragmentOutput {
 	var color = current;
 	if (uniforms.reset == 0u) {
 		let uv = texture_position(position);
-		let cell = vec2u(floor(uv / uniforms.blockSize));
+		let gridPosition = grid_position(uv);
+		let cell = vec2u(floor(gridPosition));
 		var velocity = vec2f(0.0);
 		if (uniforms.blockyMotion != 0u) {
 			// ブロック境界を保つモードでは、動きベクトルを隣のブロックと混ぜない。
 			let point = clamp(vec2i(cell), vec2i(0), vec2i(textureDimensions(flow)) - 1);
 			velocity = textureLoad(flow, point, 0).rg;
 		} else {
-			// 最後のブロックは画面外にはみ出すため、実際のブロック寸法で参照座標を補正する。
-			let flowPosition = uv / (uniforms.blockSize * vec2f(textureDimensions(flow)));
+			// 端のブロックは画面外にはみ出すため、配置原点と実際のブロック寸法を反映する。
+			let flowPosition = gridPosition / vec2f(textureDimensions(flow));
 			velocity = textureSampleLevel(flow, flowSampler, flowPosition, 0.0).rg;
 		}
 		let warped = sample_history(uv + velocity * uniforms.seconds * uniforms.motionStrength);

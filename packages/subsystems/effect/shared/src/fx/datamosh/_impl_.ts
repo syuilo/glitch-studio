@@ -90,17 +90,23 @@ export default implementEffect<typeof definition>({
 		const histories = [createTexture(resolution, historyFormat), createTexture(resolution, historyFormat)];
 		const historyViews = histories.map(texture => texture.createView());
 
-		const getGeometry = (blockSize: number) => {
+		const getGeometry = (blockSize: number, centered: boolean) => {
 			if (!Number.isFinite(blockSize) || blockSize <= 0) throw new Error('Datamoshing: block size must be a positive finite number.');
 			const shortSide = Math.min(resolution.width, resolution.height);
 			const block = [blockSize / 100 * shortSide / resolution.width, blockSize / 100 * shortSide / resolution.height];
-			const width = Math.max(1, Math.ceil(1 / block[0]));
-			const height = Math.max(1, Math.ceil(1 / block[1]));
+			// 配置全体を中央寄せするだけでは、ブロック数の偶奇が変わるたびに中心が半ブロック
+			// 移動してしまう。中央モードは必ず奇数個とし、中央のブロック中心を画像中央に固定する。
+			const countBlocks = (axisBlockSize: number) => centered
+				? Math.max(1, Math.ceil(0.5 / axisBlockSize - 0.5) * 2 + 1)
+				: Math.max(1, Math.ceil(1 / axisBlockSize));
+			const width = countBlocks(block[0]);
+			const height = countBlocks(block[1]);
 			if (!Number.isSafeInteger(width) || !Number.isSafeInteger(height)
 				|| width > device.limits.maxTextureDimension2D || height > device.limits.maxTextureDimension2D) {
 				throw new Error('Datamoshing: motion grid exceeds GPU texture limits. Increase Block size.');
 			}
-			return { width, height, block };
+			const origin = centered ? [0.5 - width * block[0] * 0.5, 0.5 - height * block[1] * 0.5] : [0, 0];
+			return { width, height, block, origin };
 		};
 		const createMotionResources = (size: { width: number; height: number }) => {
 			const textures: GPUTexture[] = [];
@@ -152,6 +158,7 @@ export default implementEffect<typeof definition>({
 		let hasMotion = false;
 		let hasFlow = false;
 		let previousMotionSettings: string | null = null;
+		let previousGridSettings: string | null = null;
 		let elapsedSinceReset = 0;
 		let frameIndex = 0;
 		const seedValue = new Float64Array(1);
@@ -163,13 +170,20 @@ export default implementEffect<typeof definition>({
 		return {
 			render: ctx => {
 				const params = ctx.params;
-				const geometry = getGeometry(params.blockSize);
+				const geometry = getGeometry(params.blockSize, params.blockOrigin === 'center');
 				if (motionResources == null || motionResources.width !== geometry.width || motionResources.height !== geometry.height) {
 					const next = createMotionResources(geometry);
 					motionResources?.dispose();
 					motionResources = next;
 					hasFlow = false;
 				}
+				const gridSettings = `${params.blockSize}:${params.blockOrigin}`;
+				if (gridSettings !== previousGridSettings) {
+					// 寸法が同じでも配置やサイズが変われば、同じセル番号は別の領域を表す。
+					// 旧グリッドの速度との平滑化だけを止め、蓄積した映像の履歴は保持する。
+					hasFlow = false;
+				}
+				previousGridSettings = gridSettings;
 				const motionInput = params.motionSource === 'input' ? params.input : params.motionInput;
 				const motionSettings = params.motionSource + ':' + (motionInput.kind === 'texture'
 					? `${motionInput.kind}:${motionInput.texture.width}:${motionInput.texture.height}:${motionInput.fitMode}:${motionInput.wrapMode}:${motionInput.filterMode}`
@@ -194,6 +208,7 @@ export default implementEffect<typeof definition>({
 				uniformValues.set({
 					analysisSize: [analysisSize.width, analysisSize.height],
 					blockSize: geometry.block,
+					gridOrigin: geometry.origin,
 					seconds, searchRadius,
 					motionStrength: params.motionStrength,
 					motionRetention: halfLife > 0 ? Math.exp(-Math.LN2 * seconds / halfLife) : 0,
