@@ -27,6 +27,8 @@ features:
     details: "Glitch Studioは、原則<b>Resolution-independent</b>な設計になっています。\nどのような解像度でレンダリングしたとしても見た目の比率が変わらず、後から解像度を変更したくなった時にプロジェクトを作り直したりする手間がありません。"
   - title: FPS非依存
     details: "Glitch Studioは、原則<b>FPS-independent</b>な設計になっています。\nどのようなフレームレートでレンダリングしてもアニメーション速度が変わらず、一貫した映像が得られます。"
+  - title: 決定論的
+    details: "Glitch Studioは、原則<b>Deterministic</b>な設計になっています。\n同じ入力なら同じ出力が得られ、一貫した映像が得られます。"
   - title: 画像編集
     details: ノードベースのエディタで「Visual Module」を構築し、画像を作成・加工できます。
     link: /guide/visual-module
