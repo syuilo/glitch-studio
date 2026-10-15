@@ -6,6 +6,17 @@ var<workgroup> spectrum: array<f32, 64>;
 var<workgroup> horizontal: array<f32, 64>;
 var<workgroup> basis: array<f32, 64>;
 
+fn reconstruction_basis(frequency: u32, sampleIndex: u32) -> f32 {
+	if (uniforms.inverseTransform == 1u) {
+		// Sylvester順のHadamard基底。行番号と列番号のANDのビット数の偶奇で符号を決める。
+		// 1/sqrt(8)で正規直交化し、DCの基底をDCTと揃えることで平均色とDC誤差の尺度を保つ。
+		// 正変換はDCTのままにし、復元方式の食い違い自体をグリッチとして使う。
+		let negative = (countOneBits(frequency & sampleIndex) & 1u) != 0u;
+		return select(0.3535533905932738, -0.3535533905932738, negative);
+	}
+	return dct_basis(frequency, sampleIndex);
+}
+
 fn corrupt_ac(value: f32, block: u32, sourceBlock: u32, frequency: u32, component: u32) -> f32 {
 	if (uniforms.acEnabled == 0u || frequency == 0u || uniforms.acStrength == 0.0) { return value; }
 	if (random(block, 20u) >= uniforms.acProbability) { return value; }
@@ -48,10 +59,11 @@ fn decode(@builtin(workgroup_id) group: vec3u, @builtin(local_invocation_id) loc
 	var value = corrupt_ac(source, block, state.sourceBlock, index, component) * quantization_step(index, component);
 	if (index == 0u) { value += state.dcError; }
 	spectrum[index] = value;
-	basis[index] = dct_basis(local.x, local.y);
+	basis[index] = reconstruction_basis(local.x, local.y);
 	workgroupBarrier();
 
-	// 正変換の基底を転置し、横・縦の順に逆変換する。1ブロックの64画素で中間値を共有する。
+	// 選択した復元基底を使い、横・縦の順に変換する。1ブロックの64画素で中間値を共有する。
+	// 細部保持用の比較画像は通常のDCT復元相当のままなので、Hadamardによる変化も差分に残る。
 	value = 0.0;
 	for (var x = 0u; x < 8u; x++) { value += spectrum[local.y * 8u + x] * basis[local.x * 8u + x]; }
 	horizontal[index] = value;

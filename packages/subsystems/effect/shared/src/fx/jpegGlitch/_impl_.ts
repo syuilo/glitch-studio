@@ -10,6 +10,7 @@ import outputCode from './output.wgsl?raw';
 import type definition from './_def_.ts';
 
 const acModes = { mixed: 0, drop: 1, invert: 2, amplify: 3, shift: 4 };
+const inverseTransforms = { dct: 0, hadamard: 1 };
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
 export default implementEffect<typeof definition>({
@@ -201,6 +202,7 @@ export default implementEffect<typeof definition>({
 					shiftAmount: clamp(Math.round(params.shiftAmount), 0, geometry.mcuCount),
 					segmentLength,
 					preserveDetails: Number(params.preserveDetails),
+					inverseTransform: inverseTransforms[params.inverseTransform],
 				});
 				device.queue.writeBuffer(uniformBuffer, 0, uniformValues.arrayBuffer);
 				const variant = getVariant(params.input);
