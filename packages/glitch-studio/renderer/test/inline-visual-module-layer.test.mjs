@@ -153,6 +153,7 @@ for (const samples of [1, 4]) {
 		gpuFinished.resolve();
 		await first;
 		assert.deepEqual(render.mock.calls.map(call => call.arguments[0]), [200, 900]);
+		assert.deepEqual(render.mock.calls.map(call => call.arguments[3]), [0, 700]);
 		assert.equal(waits, 2);
 		assert.equal(calls.presented.length, 2);
 		assert.deepEqual(calls.errors, []);
@@ -202,7 +203,7 @@ for (const isExport of [false, true]) {
 			assert.equal(frameRender.mock.callCount(), 0);
 			assert.equal(evaluate.mock.callCount(), 2);
 			assert.ok(evaluate.mock.calls.every(call => call.arguments[4] === undefined));
-			assert.deepEqual(calls.renders.map(call => [call.params.localTime, call.timeDelta]), [[100, 0], [125, isExport ? 25 : 0]]);
+			assert.deepEqual(calls.renders.map(call => [call.params.localTime, call.timeDelta]), [[100, 0], [125, 25]]);
 			assert.equal(calls.instances.length, 1);
 			assert.equal(calls.instances[0].disposed, false);
 			assert.equal(calls.presented.length, 2);

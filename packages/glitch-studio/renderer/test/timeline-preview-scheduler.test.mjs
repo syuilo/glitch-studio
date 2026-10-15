@@ -5,12 +5,56 @@ import { loadShaderSource } from './helpers/load-shader-source.mjs';
 
 const { TimelinePreviewScheduler } = await loadShaderSource(fileURLToPath(import.meta.resolve('@gs/subsystems_timeline_renderer/timeline-preview-scheduler.ts')));
 
+// 【初回は0、その後は実際に描画したタイムライン時刻の差を渡す】
+// 固定fpsや実時間を使うと、停止中の再描画でも蓄積が進み、シーク時の入力間隔と食い違う。
+// 逆方向も差分をそのまま渡し、負の経過時間への対応は各エフェクトの責務とする。
+test('passes timeline time differences for forward, repeated and backward previews', async () => {
+	const frames = [];
+	const scheduler = new TimelinePreviewScheduler(async (time, timeDelta) => {
+		frames.push([time, timeDelta]);
+		return true;
+	});
+	for (const time of [100, 125, 125, 80, 1000]) await scheduler.render(time);
+	assert.deepEqual(frames, [[100, 0], [125, 25], [125, 0], [80, -45], [1000, 920]]);
+});
+
+// 【Scene切り替え中に完了した旧フレームの時刻を新しい基準にしない】
+// clear中もGPUの完了を待つため、旧世代の成功が後から返ることがある。
+// 待機要求を維持する場合も初回は0から始め、その後の描画から差分を計算する。
+test('resets preview time on clear even when an older frame completes successfully', async () => {
+	for (const preservePendingTime of [false, true]) {
+		const gate = Promise.withResolvers();
+		const frames = [];
+		const scheduler = new TimelinePreviewScheduler(async (time, timeDelta) => {
+			frames.push([time, timeDelta]);
+			if (time === 150) await gate.promise;
+			return true;
+		});
+		await scheduler.render(100);
+		const pending = scheduler.render(150);
+		await scheduler.render(300);
+		scheduler.clear(preservePendingTime);
+		if (!preservePendingTime) await scheduler.render(300);
+		gate.resolve();
+		await pending;
+		await scheduler.render(320);
+		assert.deepEqual(frames, [[100, 0], [150, 50], [300, 0], [320, 20]]);
+	}
+});
+
 // 【デコードより速い再生要求でも処理中のフレームを完成させる】
 // 毎回中断すると一枚も表示できなくなる。未処理の中間要求は捨て、最新の音声時刻へ追従する。
+// 経過時間も最後の要求との差ではなく、実際に描画したフレーム間の差を渡す。
 test('finishes the current frame and coalesces pending preview requests', async () => {
 	const gate = Promise.withResolvers();
 	const times = [];
-	const scheduler = new TimelinePreviewScheduler(async time => { times.push(time); if (time === 0) await gate.promise; return true; });
+	const deltas = [];
+	const scheduler = new TimelinePreviewScheduler(async (time, timeDelta) => {
+		times.push(time);
+		deltas.push(timeDelta);
+		if (time === 0) await gate.promise;
+		return true;
+	});
 	const pending = scheduler.render(0);
 	await scheduler.render(10);
 	await scheduler.render(20);
@@ -18,6 +62,7 @@ test('finishes the current frame and coalesces pending preview requests', async 
 	gate.resolve();
 	await pending;
 	assert.deepEqual(times, [0, 20]);
+	assert.deepEqual(deltas, [0, 20]);
 });
 
 // 【連続シークは処理中のフレームを完了させてから最後の位置だけを描画する】

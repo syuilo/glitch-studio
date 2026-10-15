@@ -112,7 +112,7 @@ export class TimelineRendererManager extends EventEmitter<{
 	private motionBlurTiming: { boundaries: number[]; loops: TimelineMotionBlurLoop[]; cameras: TimelineMotionBlurCameraCuts[] } | null = null;
 	private resolveSpeech = createSpeechResolver([]);
 	private nextTimelineLayerStatusId = 0;
-	private previewScheduler = new TimelinePreviewScheduler(time => this.renderPreviewFrame(time));
+	private previewScheduler = new TimelinePreviewScheduler((time, timeDelta) => this.renderPreviewFrame(time, timeDelta));
 	private gpuContext: GPUCanvasContext;
 	private gpuDevice: GPUDevice;
 	private canvasRenderer: CanvasRenderer;
@@ -367,7 +367,7 @@ export class TimelineRendererManager extends EventEmitter<{
 		return this.previewScheduler.render(time);
 	}
 
-	private async renderPreviewFrame(time: number): Promise<boolean> {
+	private async renderPreviewFrame(time: number, timeDelta: number): Promise<boolean> {
 		const generation = ++this.previewRenderGeneration;
 		const request = this.dynamicOptions.transformObserver;
 		const location = request?.sceneId === this.dynamicOptions.sceneId ? findTimelineLayerLocation(this.getSceneLayers(), request.layerId) : null;
@@ -380,7 +380,7 @@ export class TimelineRendererManager extends EventEmitter<{
 		try {
 			try {
 				if (!Number.isFinite(time)) throw new Error('Timeline time must be finite');
-				await this.renderFrame(time, false);
+				await this.renderFrame(time, false, this.staticOptions.timelineFps, timeDelta);
 			} finally {
 				// submitはGPUへの実行予約であり、描画完了ではない。最終表示・ブラーの
 				// 全サンプルを含めて待ち、重いフレームの後ろにGPU処理を積み重ねない。
