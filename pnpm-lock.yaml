@@ -288,8 +288,8 @@ importers:
         specifier: 1.2.1
         version: 1.2.1
       '@tabler/icons-webfont':
-        specifier: 3.35.0
-        version: 3.35.0
+        specifier: 3.49.0
+        version: 3.49.0
       eventemitter3:
         specifier: 5.0.4
         version: 5.0.4
@@ -1606,11 +1606,11 @@ packages:
     resolution: {integrity: sha512-4BAffykYOgO+5nzBWYwE3W90sBgLJoUPRWWcL8wlyiM8IB8ipJz3UMJ9KXQd1RKQXpKp8Tutn80HZtWsu2u76w==}
     engines: {node: '>=10'}
 
-  '@tabler/icons-webfont@3.35.0':
-    resolution: {integrity: sha512-PRnv+lgj2Va6S1nTVcZoYDWZPXUaVNromQ9uxn0B1CbBOjqKXAzC/8yLc8XOXD2fH2DWT2XNw1XaNtlNpc0/Tw==}
+  '@tabler/icons-webfont@3.49.0':
+    resolution: {integrity: sha512-kWgnmEzo17dzQyMqRmlfj+TiGV0clLMYfUtKp2WG7M+TH5418o6fsoaSlrOTK3lwESg0xS7jVfOozYrR02Ryxw==}
 
-  '@tabler/icons@3.35.0':
-    resolution: {integrity: sha512-yYXe+gJ56xlZFiXwV9zVoe3FWCGuZ/D7/G4ZIlDtGxSx5CGQK110wrnT29gUj52kEZoxqF7oURTk97GQxELOFQ==}
+  '@tabler/icons@3.49.0':
+    resolution: {integrity: sha512-l+GnSkFETx0U26icxv1VUFnxxiTqXfCcVRiRAnyMwibupM2S2L/hSaZ9gmSgz01rkrsH/93NvLsxykqdanc6lw==}
 
   '@types/cacheable-request@6.0.3':
     resolution: {integrity: sha512-IQ3EbTzGxIigb1I3qPZc1rWJnH0BmSKv5QYTalEwweFvyBDLSAe24zP0le/hyi7ecGfZVlIVAg4BZqb8WBwKqw==}
@@ -4730,11 +4730,11 @@ snapshots:
     dependencies:
       defer-to-connect: 2.0.1
 
-  '@tabler/icons-webfont@3.35.0':
+  '@tabler/icons-webfont@3.49.0':
     dependencies:
-      '@tabler/icons': 3.35.0
+      '@tabler/icons': 3.49.0
 
-  '@tabler/icons@3.35.0': {}
+  '@tabler/icons@3.49.0': {}
 
   '@types/cacheable-request@6.0.3':
     dependencies:
