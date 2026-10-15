@@ -1,4 +1,5 @@
 @group(0) @binding(1) var<storage, read_write> coefficients: array<f32>;
+@group(0) @binding(4) var<storage, read_write> referenceSamples: array<f32>;
 
 var<workgroup> samples: array<f32, 64>;
 var<workgroup> horizontal: array<f32, 64>;
@@ -24,8 +25,6 @@ fn capture_component(origin: vec2u, samplePosition: vec2u, stride: u32, componen
 	var value = dot(rgb, vec3f(0.299, 0.587, 0.114)) * 255.0 - 128.0;
 	if (component == 1u) { value = dot(rgb, vec3f(-0.168736, -0.331264, 0.5)) * 255.0; }
 	if (component == 2u) { value = dot(rgb, vec3f(0.5, -0.418688, -0.081312)) * 255.0; }
-	// 圧縮時は8bit JPEGと同じ成分精度にする。量子化を無効にした場合は浮動小数点を保つ。
-	if (uniforms.quantization != 0u) { value = clamp(round(value), -128.0, 127.0); }
 	return value;
 }
 
@@ -43,7 +42,18 @@ fn encode(@builtin(workgroup_id) group: vec3u, @builtin(local_invocation_id) loc
 			stride = 2u;
 		}
 	}
-	samples[index] = capture_component(origin, local.xy, stride, component);
+	let block = (group.y * uniforms.mcuColumns + group.x) * uniforms.blocksPerMcu + slot;
+	var captured = capture_component(origin, local.xy, stride, component);
+	if (uniforms.preserveDetails != 0u) {
+		// 量子化なしのDCT→IDCTは元のサンプルへ戻るため、変換前の値を保存すれば
+		// 追加のDCT・IDCTをせずに、細部の合成に必要な未圧縮の比較画像を得られる。
+		// 8bitへの丸めより前に保存し、量子化による色の誤差は比較画像へ含めない。
+		let levelShift = select(0.0, 128.0, component == 0u);
+		referenceSamples[block * 64u + index] = (captured + levelShift) / 255.0;
+	}
+	// 圧縮時は8bit JPEGと同じ成分精度にする。量子化を無効にした場合は浮動小数点を保つ。
+	if (uniforms.quantization != 0u) { captured = clamp(round(captured), -128.0, 127.0); }
+	samples[index] = captured;
 	basis[index] = dct_basis(local.x, local.y);
 	workgroupBarrier();
 
@@ -53,7 +63,6 @@ fn encode(@builtin(workgroup_id) group: vec3u, @builtin(local_invocation_id) loc
 	workgroupBarrier();
 	value = 0.0;
 	for (var y = 0u; y < 8u; y++) { value += horizontal[y * 8u + local.x] * basis[y * 8u + local.y]; }
-	let block = (group.y * uniforms.mcuColumns + group.x) * uniforms.blocksPerMcu + slot;
 	// 無効時は丸めを行わず、DCT→IDCTの間に量子化誤差を持ち込まない。
 	if (uniforms.quantization != 0u) { value = round(value / quantization_step(index, component)); }
 	coefficients[block * 64u + index] = value;

@@ -26,6 +26,7 @@ struct Uniforms {
 	shiftProbability: f32,
 	shiftAmount: u32,
 	segmentLength: u32,
+	preserveDetails: u32,
 };
 
 @group(0) @binding(0) var<uniform> uniforms: Uniforms;

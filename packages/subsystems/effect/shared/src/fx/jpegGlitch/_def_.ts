@@ -13,6 +13,7 @@ export default defineEffect({
 	paramDefs: {
 		input: { dataType: { kind: 'color' }, ui: { label: 'Input', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },
 		blockSize: { dataType: { kind: 'scalar' }, ui: { label: 'Block size (% of short side)', control: { controlType: 'range', min: 0.5, max: 10, step: 0.1 } }, defaultValue: { inputSource: 'literal', value: 2 } },
+		preserveDetails: { dataType: { kind: 'bool' }, ui: { label: 'Preserve input detail', control: {} }, defaultValue: { inputSource: 'literal', value: true } },
 		quantization: { dataType: { kind: 'bool' }, ui: { label: 'Quantization', control: {} }, defaultValue: { inputSource: 'literal', value: true } },
 		quality: { dataType: { kind: 'scalar' }, ui: { label: 'JPEG quality', control: { controlType: 'range', min: 1, max: 100, step: 1 } }, defaultValue: { inputSource: 'literal', value: 60 } },
 		chromaSubsampling: {

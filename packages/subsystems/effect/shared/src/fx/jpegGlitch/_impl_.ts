@@ -27,6 +27,7 @@ export default implementEffect<typeof definition>({
 		const encodeLayout = device.createBindGroupLayout({ entries: [
 			{ binding: 0, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'uniform' } },
 			{ binding: 1, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'storage' } },
+			{ binding: 4, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'storage' } },
 		] });
 		const scanLayout = device.createBindGroupLayout({ entries: [
 			{ binding: 0, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'uniform' } },
@@ -40,7 +41,9 @@ export default implementEffect<typeof definition>({
 		] });
 		const outputLayout = device.createBindGroupLayout({ entries: [
 			{ binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },
+			{ binding: 2, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'read-only-storage' } },
 			{ binding: 3, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'read-only-storage' } },
+			{ binding: 4, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'read-only-storage' } },
 		] });
 		const scan = device.createComputePipeline({
 			layout: device.createPipelineLayout({ bindGroupLayouts: [scanLayout] }),
@@ -107,7 +110,7 @@ export default implementEffect<typeof definition>({
 			}
 			return { virtualSize, mcuColumns, mcuRows, mcuCount, blocksPerMcu, coefficientBytes, stateBytes };
 		};
-		const createResources = (geometry: ReturnType<typeof getGeometry>) => {
+		const createResources = (geometry: ReturnType<typeof getGeometry>, preserveDetails: boolean) => {
 			const buffers: GPUBuffer[] = [];
 			const createBuffer = (size: number) => {
 				const buffer = device.createBuffer({ size, usage: GPUBufferUsage.STORAGE });
@@ -120,17 +123,21 @@ export default implementEffect<typeof definition>({
 				const coefficients = createBuffer(geometry.coefficientBytes);
 				const scanStates = createBuffer(geometry.stateBytes);
 				const decoded = createBuffer(geometry.coefficientBytes);
+				// 無効時はbindingを満たす1要素だけ確保し、追加の画像バッファは保持しない。
+				const referenceSamples = createBuffer(preserveDetails ? geometry.coefficientBytes : 4);
 				const coefficientEntry = { binding: 1, resource: { buffer: coefficients } };
 				const scanEntry = { binding: 2, resource: { buffer: scanStates } };
 				const decodedEntry = { binding: 3, resource: { buffer: decoded } };
+				const referenceEntry = { binding: 4, resource: { buffer: referenceSamples } };
 				return {
 					mcuColumns: geometry.mcuColumns,
 					mcuRows: geometry.mcuRows,
 					blocksPerMcu: geometry.blocksPerMcu,
-					encodeGroup: device.createBindGroup({ layout: encodeLayout, entries: [uniformEntry, coefficientEntry] }),
+					preserveDetails,
+					encodeGroup: device.createBindGroup({ layout: encodeLayout, entries: [uniformEntry, coefficientEntry, referenceEntry] }),
 					scanGroup: device.createBindGroup({ layout: scanLayout, entries: [uniformEntry, scanEntry] }),
 					decodeGroup: device.createBindGroup({ layout: decodeLayout, entries: [uniformEntry, coefficientEntry, scanEntry, decodedEntry] }),
-					outputGroup: device.createBindGroup({ layout: outputLayout, entries: [uniformEntry, decodedEntry] }),
+					outputGroup: device.createBindGroup({ layout: outputLayout, entries: [uniformEntry, scanEntry, decodedEntry, referenceEntry] }),
 					dispose: () => { for (const buffer of buffers) buffer.destroy(); },
 				};
 			} catch (error) {
@@ -147,8 +154,9 @@ export default implementEffect<typeof definition>({
 				const params = ctx.params;
 				const subsample = params.chromaSubsampling === '420';
 				const geometry = getGeometry(params.blockSize, subsample);
-				if (resources == null || resources.mcuColumns !== geometry.mcuColumns || resources.mcuRows !== geometry.mcuRows || resources.blocksPerMcu !== geometry.blocksPerMcu) {
-					const next = createResources(geometry);
+				if (resources == null || resources.mcuColumns !== geometry.mcuColumns || resources.mcuRows !== geometry.mcuRows
+					|| resources.blocksPerMcu !== geometry.blocksPerMcu || resources.preserveDetails !== params.preserveDetails) {
+					const next = createResources(geometry, params.preserveDetails);
 					resources?.dispose();
 					resources = next;
 				}
@@ -192,6 +200,7 @@ export default implementEffect<typeof definition>({
 					shiftProbability: clamp(params.shiftProbability, 0, 1),
 					shiftAmount: clamp(Math.round(params.shiftAmount), 0, geometry.mcuCount),
 					segmentLength,
+					preserveDetails: Number(params.preserveDetails),
 				});
 				device.queue.writeBuffer(uniformBuffer, 0, uniformValues.arrayBuffer);
 				const variant = getVariant(params.input);
