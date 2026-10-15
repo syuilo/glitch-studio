@@ -393,7 +393,7 @@ export class TimelineRendererManager extends EventEmitter<{
 				const blur = this.staticOptions.timelineMotionBlur;
 				if (preview.geometry && layer && blur.enabled && blur.shutterAngle > 0 && blur.samples > 1) {
 					const { position, origin, scale, rotation, fitMode } = this.transformPreviewParameters.evaluate({
-						time, isExport: false, coordinateSpace: layer.coordinateSpace, paramValues: layer.compositingParamValues, automationGraphs: layer.automationGraphs,
+						time, isExport: false, coordinateSpace: layer.coordinateSpace, mask: layer.mask, paramValues: layer.compositingParamValues, automationGraphs: layer.automationGraphs,
 					});
 					preview.geometry.transform = { position, origin, scale, rotation, fitMode };
 				}
@@ -429,7 +429,7 @@ export class TimelineRendererManager extends EventEmitter<{
 			// 実テクスチャ寸法とは異なる。表示する解像度は実寸を既存の購読通知へ同梱する。
 			preview.outputResolution = source.kind === 'texture' ? { width: source.texture.width, height: source.texture.height } : null;
 			const evaluate = (entry: Extract<TimelineLayer, { compositingParamValues: unknown }>) => this.transformPreviewParameters.evaluate({
-				time: preview.time, isExport: false, coordinateSpace: entry.coordinateSpace, paramValues: entry.compositingParamValues, automationGraphs: entry.automationGraphs });
+				time: preview.time, isExport: false, coordinateSpace: entry.coordinateSpace, mask: entry.mask, paramValues: entry.compositingParamValues, automationGraphs: entry.automationGraphs });
 			const settings = evaluate(layer);
 			const camera = new TimelineSceneCamera().evaluate(this.dynamicOptions.timelineScenes.find(scene => scene.id === sceneId)?.layers ?? [], preview.time, false, sceneSize);
 			const parent = getTimelinePreviewParent(location.ancestors.map(parent => parent.layerType === 'transform'
@@ -668,7 +668,7 @@ export class TimelineRendererManager extends EventEmitter<{
 						const settings = compositingParameters.evaluate({
 							time: layerContext.sceneTimeMs,
 							isExport: context.isExport,
-							coordinateSpace: getLayer().coordinateSpace,
+							coordinateSpace: getLayer().coordinateSpace, mask: getLayer().mask,
 							paramValues: getLayer().compositingParamValues,
 							automationGraphs: getLayer().automationGraphs,
 						});

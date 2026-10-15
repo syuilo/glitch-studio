@@ -255,6 +255,57 @@ const makeLayer = id => ({ id, name: id, layerType: 'audio', isDisabled: false, 
 																											} } },
 });
 
+// 【Inspectorでマスクの役割・チャンネル・反転を編集し、通常描画の設定をUndo/Redoで復元する】
+// スイッチだけ変わって描画側に通知されない不具合と、マスク切り替え時に保存済みの
+// ブレンドモードやopacityのキーが失われる不具合を防ぐ。参照するUIには専用data属性を使う。
+test('edits layer masks through the inspector without losing normal compositing settings', async t => {
+	const f = await fixture(t);
+	const layer = createInlineVisualModuleLayer(0);
+	layer.compositingParamValues.blendMode = { inputSource: 'literal', value: 'multiply' };
+	layer.compositingParamValues.opacity = { inputSource: 'expression', expression: 'TIME_MS / 1000' };
+	f.scene.layers.push(layer);
+	f.props.selection = { kind: 'layers', ids: [layer.id] };
+	await nextTick();
+	const control = attribute => descendants(f.root).find(node => attribute in node.props);
+	const parameter = id => descendants(f.root).find(node => node.props['data-test-timeline-compositing-parameter'] === id);
+	assert.equal(layer.mask, null);
+	assert.equal(parameter('opacity').props.paramDef.ui.label, 'Opacity');
+	assert.ok(parameter('blendMode'));
+	control('data-test-timeline-mask-enabled').props['onUpdate:modelValue'](true);
+	await nextTick();
+	assert.deepEqual(layer.mask, { channel: 'alpha', inverted: false });
+	assert.equal(parameter('opacity').props.paramDef.ui.label, 'Mask strength');
+	assert.equal(parameter('blendMode'), undefined);
+	control('data-test-timeline-mask-channel').props['onUpdate:modelValue']('luminance');
+	await nextTick();
+	control('data-test-timeline-mask-inverted').props['onUpdate:modelValue'](true);
+	await nextTick();
+	assert.deepEqual(layer.mask, { channel: 'luminance', inverted: true });
+	assert.equal(f.history.undoStack.value.length, 3);
+	f.history.undo();
+	assert.deepEqual(layer.mask, { channel: 'luminance', inverted: false });
+	f.history.redo();
+	control('data-test-timeline-mask-enabled').props['onUpdate:modelValue'](false);
+	await nextTick();
+	assert.equal(layer.mask, null);
+	assert.equal(parameter('opacity').props.paramDef.ui.label, 'Opacity');
+	assert.equal(parameter('blendMode').props.paramValue.value, 'multiply');
+	assert.deepEqual(layer.compositingParamValues.opacity, { inputSource: 'expression', expression: 'TIME_MS / 1000' });
+	f.history.undo();
+	assert.deepEqual(layer.mask, { channel: 'luminance', inverted: true });
+});
+
+// 【画像を持たないレイヤーにはマスク設定を出さず、Commandからも適用させない】
+// 共通の一覧に音声・Camera・Transformが含まれても、無意味なマスク設定を保存しない。
+test('does not expose or accept masks on nonvisual layers', async t => {
+	const f = await fixture(t);
+	f.props.selection = { kind: 'layers', ids: ['a'] };
+	await nextTick();
+	assert.equal(descendants(f.root).some(node => 'data-test-timeline-mask-enabled' in node.props), false);
+	assert.throws(() => f.history.commit('setTimelineLayerMask', { sceneId: f.scene.id, layerId: 'a', mask: { channel: 'alpha', inverted: false } }), /visual layer/);
+	assert.equal('mask' in f.scene.layers[0], false);
+});
+
 // 【動画の詳細から全体長と素材範囲を別々に変更し、ループ解除をUndoできる】
 // 数値入力が通常の右トリムへ誤接続されると、全体長の変更でループ範囲まで変わってしまう。
 test('edits video total duration independently of the trimmed range in the inspector', async t => {

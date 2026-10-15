@@ -67,6 +67,26 @@ function observeValidation(f) {
 	return validation;
 }
 
+// 【マスクの設定と通常描画用のキーを複製・移動でも保持する】
+// マスク時に使わないブレンド設定も保存データの一部であり、表示を隠すことを理由に
+// Group移動への追従対象や複製対象から外すと、通常描画へ戻した際の動きが変わってしまう。
+test('preserves mask settings and inactive blend keys when duplicating or moving a group', () => {
+	const layer = group('masked');
+	layer.mask = { channel: 'luminance', inverted: true };
+	layer.compositingParamValues.blendMode = keys([400, 700]);
+	layer.compositingParamValues.blendMode.keyframesTimeline.dataType = { kind: 'blendMode' };
+	for (const key of layer.compositingParamValues.blendMode.keyframesTimeline.keyframes) key.value = 'multiply';
+	const state = { visualModules: { value: [] } };
+	const move = prepareTimelineContainerMove(state, layer);
+	assert.deepEqual(move.keyframes.filter(key => key.paramPath[0] === 'blendMode').map(key => key.x), [400, 700]);
+	const [copy] = duplicateTimelineLayers([layer]);
+	assert.deepEqual(copy.mask, layer.mask);
+	assert.notEqual(copy.mask, layer.mask);
+	assert.deepEqual(copy.compositingParamValues, layer.compositingParamValues);
+	const parameters = module.exports.getLayerKeyframeParameters(state, layer);
+	assert.equal(parameters.find(parameter => parameter.paramPath[0] === 'opacity').def.ui.label, 'Mask strength');
+});
+
 // 【別Sceneに静的エラーがあっても、階層編集とScene追加を妨げない】
 // Commandで全Sceneを再検証すると、無関係なエラーを修正するための操作まで失敗する。
 // 診断を保持したまま変更対象だけを検証し、Undo/Redoでも同じ経路を使うことを確認する。

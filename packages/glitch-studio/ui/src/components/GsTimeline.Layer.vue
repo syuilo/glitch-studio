@@ -15,6 +15,7 @@
 					<span :class="$style.layerHeaderTitle">
 						<GsCondensedLine>{{ layer.name }}</GsCondensedLine>
 					</span>
+					<i v-if="isTimelineVisualLayer(layer) && layer.mask != null" class="ti ti-mask" data-test-timeline-mask-indicator :title="(layer.mask.inverted ? 'Inverted ' : '') + (layer.mask.channel === 'alpha' ? 'alpha mask' : 'luminance mask')"></i>
 					<button
 						v-if="isTimelineVisualLayer(layer)"
 						v-tooltip="'Coordinate space: ' + (layer.coordinateSpace === 'world' ? 'In space' : 'On screen')"

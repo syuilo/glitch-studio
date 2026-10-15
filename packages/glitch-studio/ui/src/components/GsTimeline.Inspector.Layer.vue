@@ -102,19 +102,34 @@
 		<GsFolder v-if="isTimelineVisualLayer(layer)" :asSection="true" defaultOpen :withSpacer="false">
 			<template #icon><i class="ti ti-layers-selected"></i></template>
 			<template #label>Compositing</template>
+			<div class="_spacer">
+				<GsSwitch data-test-timeline-mask-enabled :modelValue="layer.mask != null" @update:modelValue="enabled => setMask(enabled ? { channel: 'alpha', inverted: false } : null)">
+					<template #label>Use as mask</template>
+				</GsSwitch>
+			</div>
+			<div v-if="layer.mask != null" class="_spacer _gaps_m">
+				<GsSelect data-test-timeline-mask-channel :modelValue="layer.mask.channel" :items="maskChannels" @update:modelValue="channel => updateMask({ channel })">
+					<template #label>Mask channel</template>
+				</GsSelect>
+				<GsSwitch data-test-timeline-mask-inverted :modelValue="layer.mask.inverted" @update:modelValue="inverted => updateMask({ inverted })">
+					<template #label>Invert mask</template>
+				</GsSwitch>
+			</div>
 			<div style="padding: 8px 0;">
-				<GsVisualParam
-					v-for="(paramDef, paramId) in timelineCompositingParamDefs"
-					:key="paramId"
-					keyframesEnabled
-					:automationGraphEndEnabled="false"
-					:availableVariables="LAYER_VAR_DEFS"
-					:automationGraphs="layer.automationGraphs"
-					:paramPath="[paramId]"
-					:paramDef="paramDef"
-					:paramValue="layer.compositingParamValues[paramId] ?? paramDef.defaultValue"
-					@edit="event => onTimelineLayerParamEdit(event, 'compositing')"
-				/>
+				<template v-for="(paramDef, paramId) in getTimelineCompositingParameterDefinitions(layer.mask)" :key="paramId">
+					<GsVisualParam
+						v-if="paramId !== 'blendMode' || layer.mask == null"
+						:data-test-timeline-compositing-parameter="paramId"
+						keyframesEnabled
+						:automationGraphEndEnabled="false"
+						:availableVariables="LAYER_VAR_DEFS"
+						:automationGraphs="layer.automationGraphs"
+						:paramPath="[paramId]"
+						:paramDef="paramDef"
+						:paramValue="layer.compositingParamValues[paramId] ?? paramDef.defaultValue"
+						@edit="event => onTimelineLayerParamEdit(event, 'compositing')"
+					/>
+				</template>
 			</div>
 			<div class="_spacer">
 				<GsSelect :modelValue="layer.coordinateSpace" :items="coordinateSpaces" @update:modelValue="coordinateSpace => stateManager.commit('setTimelineLayerCoordinateSpace', { sceneId, layerId: layer.id, coordinateSpace })">
@@ -161,7 +176,8 @@ import { flattenTimelineLayers } from '@gs/subsystems_timeline_shared/layer-tree
 import { isParameterType } from '@gs/shared/parameter/parameter-definition.ts';
 import { LAYER_VAR_DEFS } from '@gs/subsystems_timeline_shared/expression.ts';
 import { timelineAudioParamDefs, isTimelineAudioOutputLayer } from '@gs/subsystems_timeline_shared/timeline-audio.ts';
-import { timelineCompositingParamDefs } from '@gs/subsystems_timeline_shared/timeline-compositing.ts';
+import { getTimelineCompositingParameterDefinitions } from '@gs/subsystems_timeline_shared/timeline-compositing.ts';
+import type { TimelineMask } from '@gs/subsystems_timeline_shared/timeline-compositing.ts';
 import { getSceneBaseResolution } from '@gs/subsystems_timeline_shared/scene-resolution.ts';
 import { getTimelineVisualModuleArgumentDefault } from '@gs/subsystems_timeline_shared/layers/visual-module/visual-module-arguments.ts';
 import GsSelect from './common/GsSelect.vue';
@@ -194,6 +210,7 @@ const emit = defineEmits<{ selectKeyframe: [selection: TimelineKeyframeSelection
 const { previewPlayback, timelineRendererManagerController } = appContext;
 const groupModes = [{ value: 'flat' as const, label: 'Single plane (2D contents)' }, { value: 'preserveDepth' as const, label: 'Preserve child depth' }];
 const coordinateSpaces = [{ value: 'screen' as const, label: 'On screen' }, { value: 'world' as const, label: 'In space' }];
+const maskChannels = [{ value: 'alpha' as const, label: 'Alpha' }, { value: 'luminance' as const, label: 'Luminance' }];
 const { stateManager } = appContext.projectContext;
 let disposed = false;
 onBeforeUnmount(() => { disposed = true; });
@@ -219,6 +236,15 @@ const effectLayerState = computed(() => previewPlayback.state.value.mode === 'ti
 	? timelineRendererManagerController.getEffectLayerState(props.scene.id, props.layer.id) : null);
 
 const exportingVisualModule = ref(false);
+
+function setMask(mask: TimelineMask | null) {
+	stateManager.commit('setTimelineLayerMask', { sceneId: props.scene.id, layerId: props.layer.id, mask });
+}
+
+function updateMask(change: Partial<TimelineMask>) {
+	const layer = props.layer;
+	if (isTimelineVisualLayer(layer) && layer.mask != null) setMask({ ...layer.mask, ...change });
+}
 
 async function exportInlineVisualModule() {
 	const layer = props.layer;

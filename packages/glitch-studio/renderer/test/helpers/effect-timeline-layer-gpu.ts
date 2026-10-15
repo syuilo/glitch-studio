@@ -25,7 +25,7 @@ export async function checkEffectTimelineLayers(device: GPUDevice, vertex: GPUSh
 			clips: [{ id: 'clip', startMs: 100, durationMs: 5000, contentOffsetMs: 0 }],
 			resolution: { mode: 'auto' }, automationGraphs: [],
 			forceDisableMotionBlur: false,
-			coordinateSpace: 'screen',
+			mask: null, coordinateSpace: 'screen',
 			effectParamValues: Object.fromEntries(Object.keys(definition.paramDefs).map(key => [key, getEffectLayerParameterDefault(definition, key)])),
 			compositingParamValues: {
 				fitMode: structuredClone(timelineCompositingParamDefs.fitMode.defaultValue),

@@ -12,7 +12,7 @@ export function createShapeTimelineLayer(type: ShapeType, startMs: number): Time
 		isDisabled: false, automationGraphs: [],
 		clips: [{ id: genId(), ...createTimelineClipTiming(startMs, 5000) }],
 		forceDisableMotionBlur: false,
-		coordinateSpace: 'screen',
+		mask: null, coordinateSpace: 'screen',
 		compositingParamValues: {
 			depth: { inputSource: 'literal', value: 0 },
 			clipToFrame: { inputSource: 'literal', value: false },

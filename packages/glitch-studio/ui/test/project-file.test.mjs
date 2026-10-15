@@ -111,6 +111,7 @@ const appBundle = await build({
 					` : args.path.endsWith('.vue') ? `export default { name: '${args.path.split('/').at(-1)}' };` : `
 					export async function alert(options) { globalThis.projectAlerts.push(options.text); }
 					export function progress() { return { setProgress() {}, setSubProgress() {}, setText() {}, done() {} }; }
+					export function waiting() { return { setText() {}, done() {} }; }
 						export function popup(component, props, events) {
 							if (component.name === 'GsProjectSaveDialog.vue') {
 								queueMicrotask(async () => {
@@ -397,6 +398,47 @@ test('persists disabled layers and refreshes the paused preview on visibility ed
 	assert.equal(await app.openProject(), true);
 	assert.equal(manager.state.timelineScenes.value[0].layers[0].isDisabled, true);
 	assert.equal(timeline.options.timelineScenes[0].layers[0].isDisabled, true);
+});
+
+// 【マスクを保存・再読込でき、設定変更とUndo/Redoを停止中のプレビューへ反映する】
+// Inspectorの表示や一時的なGPU状態だけに設定を持つと、保存や再読込でマスクが失われる。
+// 実際のプロジェクト・Command・同期・ファイル入出力を通して静的な設定の寿命を検証する。
+test('persists timeline masks and refreshes paused previews through undo and redo', async t => {
+	const window = setup(t);
+	const app = evaluate(appBundle);
+	const { appContext } = app;
+	await app.newProject();
+	const manager = appContext.projectContext.stateManager;
+	const scene = manager.state.timelineScenes.value[0];
+	const layer = scene.layers[0];
+	assert.equal(layer.mask, null);
+	const timeline = appContext.timelineRendererManagerController;
+	appContext.previewPlayback.seekTimeline(500);
+	timeline.renders.length = 0;
+	const mask = { channel: 'luminance', inverted: true };
+	manager.commit('setTimelineLayerMask', { sceneId: scene.id, layerId: layer.id, mask });
+	await nextTick();
+	await setImmediate();
+	assert.deepEqual(timeline.options.timelineScenes[0].layers[0].mask, mask);
+	assert.ok(timeline.renders.length > 0);
+	manager.undo();
+	await nextTick();
+	await setImmediate();
+	assert.equal(timeline.options.timelineScenes[0].layers[0].mask, null);
+	manager.redo();
+	await nextTick();
+	await setImmediate();
+	assert.deepEqual(timeline.options.timelineScenes[0].layers[0].mask, mask);
+	assert.equal(appContext.previewPlayback.currentTimelineTime.value, 500);
+	const handle = fileHandle('masked-layer.gsproj');
+	window.selectProjectSaveFile = async () => handle;
+	await appContext.saveProject();
+	assert.deepEqual(decodeProjectFile(handle.bytes).timelineScenes[0].layers[0].mask, mask);
+	await app.newProject();
+	window.showOpenFilePicker = async () => [handle];
+	assert.equal(await app.openProject(), true);
+	assert.deepEqual(manager.state.timelineScenes.value[0].layers[0].mask, mask);
+	assert.deepEqual(timeline.options.timelineScenes[0].layers[0].mask, mask);
 });
 
 // 【ブラーの強制無効を保存・復元し、停止中のプレビューにも即時反映する】

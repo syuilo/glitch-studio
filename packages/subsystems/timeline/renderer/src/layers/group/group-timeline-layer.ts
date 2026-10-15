@@ -24,7 +24,7 @@ export function createGroupTimelineLayer(getGroup: () => TimelineGroupLayer, opt
 			const group = getGroup();
 			const settings = parameters.evaluate({
 				time: context.sceneTimeMs, isExport: context.isExport,
-				coordinateSpace: group.coordinateSpace, paramValues: group.compositingParamValues, automationGraphs: group.automationGraphs });
+				coordinateSpace: group.coordinateSpace, mask: group.mask, paramValues: group.compositingParamValues, automationGraphs: group.automationGraphs });
 			const preserveDepth = group.compositingMode === 'preserveDepth';
 			const childSpace = getTimelineGroupSpace({ settings, compositingMode: group.compositingMode }, options.resolution, context.renderSpace);
 			// 親が固定した評価時刻を配下にも使い、子自身の無効化用には元の基準時刻を保持する。

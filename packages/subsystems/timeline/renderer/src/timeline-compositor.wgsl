@@ -10,6 +10,8 @@ struct Uniforms {
 	blendMode: u32,
 	sourceVisible: u32,
 	clipToFrame: u32,
+	maskChannel: u32,
+	maskInverted: u32,
 };
 @group(0) @binding(0) var<uniform> uniforms: Uniforms;
 fn mapBounds(point: vec2f, bounds: vec4f) -> vec2f {
@@ -36,6 +38,15 @@ fn fs(@location(0) position: vec2f) -> @location(0) vec4f {
 	var background = vec4f(0.0);
 	if (all(abs(backgroundPosition) <= vec2f(1.0))) { background = read_background(backgroundPosition); }
 	let source = readTransformedSource(outputPosition);
+	if (uniforms.maskChannel != 0u) {
+		// RGBは既にalpha乗算済みなので、輝度にも透明度が含まれている。
+		// ここでalphaを再乗算すると、半透明の白マスクの効きが二重に弱まる。
+		var mask = clamp(select(dot(source.rgb, vec3f(0.2126, 0.7152, 0.0722)), source.a, uniforms.maskChannel == 1u), 0.0, 1.0);
+		if (uniforms.maskInverted != 0u) { mask = 1.0 - mask; }
+		// opacityは適用の強さ。0では下層を保ち、1では透明部分も切り抜く。
+		// premultiplied RGBAのRGBとalphaを同じ割合で減衰させる。
+		return background * mix(1.0, mask, uniforms.opacity);
+	}
 	// Replaceは透明な画素も置き換える。範囲の最適化で背景を残してはいけない。
 	if (uniforms.blendMode == 19u) { return mix(background, source, uniforms.opacity); }
 	return blendColor(uniforms.blendMode, background, source * uniforms.opacity);

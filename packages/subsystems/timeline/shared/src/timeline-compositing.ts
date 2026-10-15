@@ -6,6 +6,17 @@ import type { ParameterDefinition } from '@gs/shared/parameter/parameter-definit
  */
 export type TimelineLayerCoordinateSpace = 'world' | 'screen';
 
+/** 素材の色を重ねる代わりに、同じ合成境界の下層を切り抜く静的な設定。 */
+export type TimelineMask = {
+	channel: 'alpha' | 'luminance';
+	inverted: boolean;
+};
+
+export function validateTimelineMask(mask: TimelineMask | null): void {
+	if (mask == null) return;
+	if ((mask.channel !== 'alpha' && mask.channel !== 'luminance') || typeof mask.inverted !== 'boolean') throw new Error('Invalid timeline mask');
+}
+
 export const timelineCompositingParamDefs = {
 	depth: {
 		dataType: { kind: 'scalar' }, ui: { label: 'Z', control: { controlType: 'range', min: -10, max: 10, step: 0.01 } },
@@ -55,3 +66,13 @@ export const timelineCompositingParamDefs = {
 		defaultValue: { inputSource: 'literal', value: false }, canNode: false,
 	},
 } as const satisfies Record<string, ParameterDefinition>;
+
+const timelineMaskCompositingParamDefs = {
+	...timelineCompositingParamDefs,
+	opacity: { ...timelineCompositingParamDefs.opacity, ui: { ...timelineCompositingParamDefs.opacity.ui, label: 'Mask strength' } },
+};
+
+/** Bindingの保存先は変えず、Inspectorとキーフレームで強度の呼び名を揃える。 */
+export function getTimelineCompositingParameterDefinitions(mask: TimelineMask | null): Record<keyof typeof timelineCompositingParamDefs, ParameterDefinition> {
+	return mask == null ? timelineCompositingParamDefs : timelineMaskCompositingParamDefs;
+}

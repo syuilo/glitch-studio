@@ -165,7 +165,7 @@ export function createTimelineSourceActions(options: TimelineSourceActionsOption
 		const base = { id: genId(), name: source.scene.name, automationGraphs: [], isDisabled: false };
 		const audioParamValues = { volume: deepClone(timelineAudioParamDefs.volume.defaultValue) };
 		const compositingParamValues = initialCompositingParameters();
-		const layer: TimelineLayer = { ...base, layerType: 'scene', clips: [{ ...clip, sceneId: source.scene.id }], audioParamValues, compositingParamValues, coordinateSpace: 'screen', forceDisableMotionBlur: false };
+		const layer: TimelineLayer = { ...base, layerType: 'scene', clips: [{ ...clip, sceneId: source.scene.id }], audioParamValues, compositingParamValues, mask: null, coordinateSpace: 'screen', forceDisableMotionBlur: false };
 		stateManager.commit('addTimelineLayer', { sceneId: scene.id, layer });
 		selectClip({ layerId: layer.id, clipId: clip.id });
 	}
@@ -178,7 +178,7 @@ export function createTimelineSourceActions(options: TimelineSourceActionsOption
 		const layer: TimelineLayer = {
 			id: genId(), name: visualModule.name,
 			layerType: 'visualModule',
-			coordinateSpace: 'screen',
+			mask: null, coordinateSpace: 'screen',
 			forceDisableMotionBlur: false,
 			isDisabled: false,
 			visualModuleId: visualModule.id,
