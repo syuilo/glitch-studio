@@ -65,11 +65,11 @@ defineExpose({
 <style lang="scss" module>
 .root {
 	margin: auto;
-	overflow: hidden;
+	overflow: clip;
 	display: flex;
 	flex-direction: column;
 	contain: content;
-	border-radius: var(--MI-radius);
+	border-radius: 8px;
 
 	--root-margin: 24px;
 
