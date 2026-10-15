@@ -7,8 +7,8 @@ export class TimelinePreviewScheduler {
 	// コールバックは準備・描画だけでなく、送信済みGPU処理の完了まで待つこと。
 	constructor(private renderFrame: (time: number) => Promise<boolean>) {}
 
-	clear() {
-		this.pendingTime = null;
+	clear(preservePendingTime = false) {
+		if (!preservePendingTime) this.pendingTime = null;
 		this.generation++;
 		// 編集・Scene切り替えで要求を破棄しても、送信済みGPU処理は取り消せない。
 		// renderingは維持し、新しい状態のフレームも進行中の処理が終わってから開始する。

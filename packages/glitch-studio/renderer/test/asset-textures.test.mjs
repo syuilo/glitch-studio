@@ -81,14 +81,19 @@ test('publishes a complete texture set atomically and closes decoded images', as
 	assert.equal(f.copies[1][1].premultipliedAlpha, true);
 });
 
-// 差し替え完了後に旧デコードが戻っても、最新のAssetを上書きしない。
+// 【差し替え完了後に旧デコードが戻っても、最新のAssetを上書きしない】
 // デコードの完了順は操作順と一致しない。重い画像から軽い画像へ差し替えると、
 // 古い要求が最後に完了して画面が元に戻り得るため、最新の更新だけを公開する。
 test('discards an older update that completes after its replacement', async t => {
 	const f = fixture(t);
 	const first = f.store.update([asset('same')], () => assert.fail('stale commit'));
+	assert.equal(f.store.isReady, false);
+	const waiting = f.store.waitUntilReady();
 	const oldRequest = f.requests.at(-1);
 	await f.load('same');
+	// 描画の待機は、完了しない古い読み込みに取り残されず最新の画像だけで解除される。
+	assert.equal(await waiting, true);
+	assert.equal(f.store.isReady, true);
 	const current = f.store.textures.get('same');
 	const obsolete = bitmap();
 	oldRequest.resolve(obsolete);
@@ -118,7 +123,7 @@ test('deletes assets during a partially prepared update', async t => {
 	assert.equal(f.store.textures.size, 0);
 });
 
-// デコード失敗・アップロード失敗のどちらも、途中のリソースだけを捨て旧表示を保つ。
+// 【デコード失敗・アップロード失敗のどちらも、途中のリソースだけを捨て旧表示を保つ】
 // 一つの不正な画像で、それまで描画できていた素材まで失われてはいけない。
 // 失敗をUIへ返すと同時に、先に成功した画像や転送途中のテクスチャのリークも防ぐ。
 for (const failure of ['decode', 'upload']) {
@@ -127,6 +132,8 @@ for (const failure of ['decode', 'upload']) {
 		const old = await f.load();
 		const update = f.store.update([asset('a'), asset('b')], () => assert.fail('failed commit'));
 		const rejected = assert.rejects(update, /failed/);
+		// 更新RPCと描画側の待機の両方に、欠落したAssetではなく実際の失敗を返す。
+		const waiting = assert.rejects(f.store.waitUntilReady(), /failed/);
 		f.requests.at(-1).resolve(bitmap());
 		await Promise.resolve();
 		const last = bitmap();
@@ -135,7 +142,8 @@ for (const failure of ['decode', 'upload']) {
 			f.device.queue.copyExternalImageToTexture = () => { throw new Error('upload failed'); };
 			f.requests.at(-1).resolve(last);
 		}
-		await rejected;
+		await Promise.all([rejected, waiting]);
+		assert.equal(f.store.isReady, false);
 		assert.equal(f.store.textures.get('old'), old);
 		assert.equal(old.destroyed, 0);
 		assert.ok(f.textures.slice(1).every(texture => texture.destroyed === 1));
@@ -143,14 +151,16 @@ for (const failure of ['decode', 'upload']) {
 	});
 }
 
-// レンダラー破棄後にはGPUリソースを生成せず、遅れて届いたImageBitmapだけを閉じる。
+// 【レンダラー破棄後にはGPUリソースを生成せず、遅れて届いたImageBitmapだけを閉じる】
 // createImageBitmapの待機はレンダラー破棄で自動的に中止されない。
 // 完了後に破棄済みGPUDeviceを使ったり、デコード済み画像を閉じ忘れたりしないことを保証する。
 test('disposes active textures and ignores pending decodes after destruction', async t => {
 	const f = fixture(t);
 	const old = await f.load();
 	const update = f.store.update([asset('new')], () => assert.fail('disposed commit'));
+	const waiting = f.store.waitUntilReady();
 	f.store.dispose();
+	assert.equal(await waiting, false);
 	const late = bitmap();
 	f.requests.at(-1).resolve(late);
 	assert.equal(await update, false);
@@ -160,13 +170,15 @@ test('disposes active textures and ignores pending decodes after destruction', a
 	assert.equal(await f.store.update([], () => assert.fail('disposed commit')), false);
 });
 
-// 既に取り消された要求の失敗は、新しいAssetのエラーとして通知しない。
+// 【既に取り消された要求の失敗は、新しいAssetのエラーとして通知しない】
 // ユーザーが問題の画像を削除・差し替え済みでも、古い読み込みから遅れて例外が届き得る。
 // その例外で現在の正常な操作を失敗扱いにしないよう、不要になった要求の失敗を無視する。
 test('ignores a decoding failure after the assets have been removed', async t => {
 	const f = fixture(t);
 	const update = f.store.update([asset('removed')], () => assert.fail('stale commit'));
+	const waiting = f.store.waitUntilReady();
 	await f.store.update([], () => {});
+	assert.equal(await waiting, true);
 	f.requests[0].reject(new Error('obsolete decode failed'));
 	assert.equal(await update, false);
 });

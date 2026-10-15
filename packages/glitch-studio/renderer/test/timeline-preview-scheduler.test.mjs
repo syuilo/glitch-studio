@@ -69,6 +69,22 @@ test('drops pending requests on clear without restarting after completion', asyn
 	assert.deepEqual(times, [0]);
 });
 
+// 【準備完了によるキャッシュ破棄では最新の待機位置を維持する】
+// 素材の準備中に届いたシークを失わず、旧フレームの失敗によって新しい描画まで中止しない。
+// キャッシュを無効にすることと、まだ実行していない描画要求を取り消すことを分離する。
+test('invalidates the current frame while preserving the latest pending position', async () => {
+	const gate = Promise.withResolvers();
+	const times = [];
+	const scheduler = new TimelinePreviewScheduler(async time => { times.push(time); return time === 0 ? gate.promise : true; });
+	const pending = scheduler.render(0);
+	await scheduler.render(10);
+	await scheduler.render(20);
+	scheduler.clear(true);
+	gate.resolve(false);
+	await pending;
+	assert.deepEqual(times, [0, 20]);
+});
+
 // 【描画失敗後は待機フレームを実行しない】
 // エラー表示を後続フレームの成功で消さず、呼び出し側が再生を停止できるようにする。
 // 失敗後に改めて届くシーク・再試行は受け付け、処理中フラグを残さない。

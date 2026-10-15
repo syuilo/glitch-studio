@@ -62,6 +62,135 @@ function gpuFixture() {
 	return { device, texture };
 }
 
+function deferredImageDecodes(t) {
+	const previous = Object.getOwnPropertyDescriptor(globalThis, 'createImageBitmap');
+	const requests = [];
+	globalThis.createImageBitmap = blob => {
+		const request = { blob, ...Promise.withResolvers() };
+		requests.push(request);
+		return request.promise;
+	};
+	t.after(() => {
+		if (previous != null) Object.defineProperty(globalThis, 'createImageBitmap', previous);
+		else delete globalThis.createImageBitmap;
+	});
+	return requests;
+}
+
+function imageAsset(id) {
+	return { id, name: id, width: 4, height: 2, fileDataType: 'image/png', fileData: new Blob([id], { type: 'image/png' }) };
+}
+
+function applyImageLayer(renderer, assetId) {
+	const scene = structuredClone(renderer.dynamicOptions.timelineScenes[0]);
+	scene.layers = [{ id: 'image-layer', name: 'Image', layerType: 'image', isDisabled: false, coordinateSpace: 'screen', mask: null,
+		forceDisableMotionBlur: false, automationGraphs: [], compositingParamValues: {},
+		clips: [{ id: 'image-clip', assetId, startMs: 0, contentOffsetMs: 0, durationMs: 1000 }] }];
+	renderer.applyProjectChanges([{ type: 'scene', sceneId: scene.id, scene }]);
+}
+
+// 【画像の準備完了前に追加レイヤーが届いても描画を待ち、最新の待機位置へ追従する】
+// Assetとレイヤーは別のRPCで同期される。送信順を揃えてもデコード中には後続RPCを実行できるため、
+// 実ManagerでImage asset not foundを再現する順序にし、Assetの公開前には描画しないことを確認する。
+test('waits for image assets before rendering added layers and preserves the latest queued seek', async t => {
+	const { renderer, errors } = await fixture(t, {}, TimelineRendererManager);
+	const requests = deferredImageDecodes(t);
+	const present = t.mock.method(renderer.canvasRenderer, 'renderToCanvas');
+	const times = [];
+	const renderAt = renderer.timelineRenderer.renderAt.bind(renderer.timelineRenderer);
+	t.mock.method(renderer.timelineRenderer, 'renderAt', (time, ...args) => { times.push(time); return renderAt(time, ...args); });
+	const update = renderer.updateDynamicOptions({ assets: [imageAsset('new-image')] });
+	applyImageLayer(renderer, 'new-image');
+	const pending = renderer.renderTimelineAt(0);
+	await renderer.renderTimelineAt(10);
+	await renderer.renderTimelineAt(20);
+	await new Promise(resolve => setImmediate(resolve));
+	assert.deepEqual(errors, []);
+	assert.equal(present.mock.callCount(), 0);
+	requests[0].resolve({ width: 4, height: 2, close() {} });
+	await Promise.all([update, pending]);
+	assert.deepEqual(times, [0, 20]);
+	assert.equal(present.mock.callCount(), 2);
+	assert.deepEqual(errors, []);
+});
+
+// 【差し替え後の画像が準備できたら、未完了の古い画像を待たずに描画する】
+// 連続ドロップやUndoで最新の定義と素材が変わり得る。取り消された重いデコードの
+// 完了順に依存せず、最新のレイヤーとテクスチャで描画を再開する。
+test('renders the replacement assets without waiting for an obsolete decode', async t => {
+	const { renderer, errors } = await fixture(t, {}, TimelineRendererManager);
+	const requests = deferredImageDecodes(t);
+	const first = renderer.updateDynamicOptions({ assets: [imageAsset('old-image')] });
+	applyImageLayer(renderer, 'old-image');
+	const pending = renderer.renderTimelineAt(0);
+	const second = renderer.updateDynamicOptions({ assets: [imageAsset('new-image')] });
+	applyImageLayer(renderer, 'new-image');
+	requests[1].resolve({ width: 4, height: 2, close() {} });
+	await Promise.all([second, pending]);
+	assert.equal(renderer.assetTextures.textures.has('new-image'), true);
+	assert.deepEqual(errors, []);
+	requests[0].reject(new Error('Obsolete decode failed'));
+	assert.equal((await first).assetsCommitted, false);
+	assert.deepEqual(errors, []);
+});
+
+// 【画像の準備失敗を描画側へ通知し、差し替え後には描画を再開できる】
+// 待機を単に解除するだけではImage asset not foundに置き換わってしまう。
+// 更新RPCとプレビューの両方で本来のデコード失敗を扱い、次の正常な更新で復旧する。
+test('reports the asset preparation failure and renders after a successful replacement', async t => {
+	const { renderer, errors } = await fixture(t, {}, TimelineRendererManager);
+	const requests = deferredImageDecodes(t);
+	const update = renderer.updateDynamicOptions({ assets: [imageAsset('image')] });
+	const rejected = assert.rejects(update, /Image decoding failed/);
+	applyImageLayer(renderer, 'image');
+	const pending = renderer.renderTimelineAt(0);
+	requests[0].reject(new Error('Image decoding failed'));
+	await Promise.all([rejected, pending]);
+	assert.deepEqual(errors, ['Image decoding failed']);
+	const present = t.mock.method(renderer.canvasRenderer, 'renderToCanvas');
+	const replacement = renderer.updateDynamicOptions({ assets: [imageAsset('image')] });
+	const retry = renderer.renderTimelineAt(0);
+	requests[1].resolve({ width: 4, height: 2, close() {} });
+	await Promise.all([replacement, retry]);
+	assert.equal(present.mock.callCount(), 1);
+	assert.deepEqual(errors, ['Image decoding failed']);
+});
+
+// 【破棄で画像の準備待ちを解除し、GPUを使わず描画要求を終了する】
+// createImageBitmapが戻らなくても、閉じたManagerの描画Promiseを残さない。
+// 遅れてデコードが完了した場合の画像解放は、AssetTexturesの既存世代管理へ任せる。
+test('releases preview waits on destruction without rendering disposed resources', async t => {
+	const { renderer, errors } = await fixture(t, {}, TimelineRendererManager);
+	const requests = deferredImageDecodes(t);
+	const update = renderer.updateDynamicOptions({ assets: [imageAsset('image')] });
+	applyImageLayer(renderer, 'image');
+	const present = t.mock.method(renderer.canvasRenderer, 'renderToCanvas');
+	const pending = renderer.renderTimelineAt(0);
+	renderer.destroy();
+	await pending;
+	assert.equal(present.mock.callCount(), 0);
+	assert.deepEqual(errors, []);
+	requests[0].resolve({ width: 4, height: 2, close() {} });
+	assert.equal((await update).assetsCommitted, false);
+});
+
+// 【書き出し用の描画もAsset準備の完了後に開始する】
+// プレビューだけを待たせると、同じManagerの画像評価経路で書き出しには競合が残る。
+test('waits for image preparation when rendering an export frame', async t => {
+	const { renderer, errors } = await fixture(t, {}, TimelineRendererManager);
+	const requests = deferredImageDecodes(t);
+	const present = t.mock.method(renderer.canvasRenderer, 'renderToCanvas');
+	const update = renderer.updateDynamicOptions({ assets: [imageAsset('image')] });
+	applyImageLayer(renderer, 'image');
+	const pending = renderer.renderTimelineFrame(0, 0);
+	await new Promise(resolve => setImmediate(resolve));
+	assert.equal(present.mock.callCount(), 0);
+	requests[0].resolve({ width: 4, height: 2, close() {} });
+	await Promise.all([update, pending]);
+	assert.equal(present.mock.callCount(), 1);
+	assert.deepEqual(errors, []);
+});
+
 // 【選択レイヤーの変形情報だけを変更時に通知する】
 // ポーリングや全レイヤーの毎フレーム転送を避ける。選択解除・区間外・再描画での
 // 通知数を実Managerで検証し、同じ画像を再描画しただけでは通信を増やさない。

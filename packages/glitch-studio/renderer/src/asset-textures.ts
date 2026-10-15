@@ -1,15 +1,58 @@
 import type { Asset } from '@gs/shared/types.ts';
 
+type AssetTextureUpdate = {
+	completion: Promise<void>; finish: () => void; finished: boolean; failure: { error: unknown } | null;
+};
+
 /** 画像の原本から作ったGPUリソースだけを所有し、デコード済み画素をプロジェクトへ持ち込まない。 */
 export class AssetTextures {
 	// VisualModuleRendererが参照するため、更新時もMap自体は置き換えない。
 	public readonly textures = new Map<string, GPUTexture>();
 	private generation = 0;
 	private disposed = false;
+	private latestUpdate: AssetTextureUpdate | null = null;
 
 	constructor(private readonly device: GPUDevice) {}
 
+	public get isReady(): boolean {
+		return !this.disposed && (this.latestUpdate == null || (this.latestUpdate.finished && this.latestUpdate.failure == null));
+	}
+
+	/** 最新のAsset一覧が公開されるまで待つ。差し替え前のデコードや破棄を待ち続けない。 */
+	public async waitUntilReady(): Promise<boolean> {
+		while (!this.disposed) {
+			const update = this.latestUpdate;
+			if (update == null) return true;
+			await update.completion;
+			if (this.disposed) return false;
+			if (update !== this.latestUpdate) continue;
+			if (update.failure != null) throw update.failure.error;
+			return true;
+		}
+		return false;
+	}
+
 	public async update(assets: readonly Asset[], onCommit: () => void): Promise<boolean> {
+		if (this.disposed) return false;
+		const { promise, resolve } = Promise.withResolvers<void>();
+		const update: AssetTextureUpdate = { completion: promise, finish: resolve, finished: false, failure: null };
+		const previous = this.latestUpdate;
+		this.latestUpdate = update;
+		// 新しい要求が来たら待機先も切り替える。古いcreateImageBitmapは中断できないので、
+		// そのPromiseを待たせると、削除や軽い画像への差し替えまで古い画像に阻まれてしまう。
+		previous?.finish();
+		try {
+			return await this.prepareTextures(assets, onCommit);
+		} catch (error) {
+			update.failure = { error };
+			throw error;
+		} finally {
+			update.finished = true;
+			update.finish();
+		}
+	}
+
+	private async prepareTextures(assets: readonly Asset[], onCommit: () => void): Promise<boolean> {
 		if (this.disposed) return false;
 		const generation = ++this.generation;
 		const pending = new Map<string, GPUTexture>();
@@ -66,6 +109,7 @@ export class AssetTextures {
 	public dispose() {
 		this.disposed = true;
 		this.generation++;
+		this.latestUpdate?.finish();
 		for (const texture of this.textures.values()) texture.destroy();
 		this.textures.clear();
 	}

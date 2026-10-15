@@ -239,12 +239,12 @@ export class TimelineRendererManager extends EventEmitter<{
 		this.emit('ev', { type: 'renderError', ctx: { message } });
 	}
 
-	private clearTimelineRenderers() {
+	private clearTimelineRenderers(preservePreviewRequests = false) {
 		this.frameRenderer.clear();
 		this.motionBlurTiming = null;
 		this.motionBlurAccumulator?.dispose();
 		this.motionBlurAccumulator = null;
-		this.previewScheduler.clear();
+		this.previewScheduler.clear(preservePreviewRequests);
 		this.previewRenderGeneration++;
 		this.timelineRenderer.clear();
 		this.sceneOutput?.dispose();
@@ -355,7 +355,8 @@ export class TimelineRendererManager extends EventEmitter<{
 		return this.assetTextures.update(assets, () => {
 			// 世代管理で採用された更新だけが一覧とキャッシュを切り替える。
 			// 中断されたデコードの完了後に、Asset一覧だけを上書きしてはいけない。
-			this.clearTimelineRenderers();
+			// Assetの準備を待つフレームと最新のシーク要求は、公開後に描画できるので維持する。
+			this.clearTimelineRenderers(true);
 			this.dynamicOptions.assets = assets;
 			this.audioInputs.setAssets(assets);
 		});
@@ -447,7 +448,13 @@ export class TimelineRendererManager extends EventEmitter<{
 		await this.renderFrame(time, true, fps, timeDelta);
 	}
 
-	private renderFrame(time: number, isExport: boolean, fps = this.staticOptions.timelineFps, initialTimeDelta = 0) {
+	private async renderFrame(time: number, isExport: boolean, fps = this.staticOptions.timelineFps, initialTimeDelta = 0) {
+		// Assetとレイヤーの同期は別経路で、Workerもデコード待ち中に次のRPCを処理する。
+		// 新しいレイヤーが先に届いてもGPUテクスチャの公開までは評価しない。待機中の
+		// 更新・削除は最新の一覧へ追従し、破棄後にはGPUを使用しない。
+		while (!this.assetTextures.isReady) {
+			if (!await this.assetTextures.waitUntilReady()) return false;
+		}
 		const settings = this.staticOptions.timelineMotionBlur;
 		if (!settings.enabled || settings.shutterAngle === 0 || settings.samples <= 1) {
 			// 単発描画ではサンプル配列や露光全体用の中断管理を作らない。
