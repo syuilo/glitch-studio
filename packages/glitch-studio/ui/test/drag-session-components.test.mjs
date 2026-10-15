@@ -168,7 +168,7 @@ test('imports file batches in the asset picker without confirming the selection 
 	await new Promise(resolve => setImmediate(resolve));
 	await nextTick();
 	assert.equal(f.find('data-test-asset-select-drop-overlay'), undefined);
-	assert.deepEqual(reveals, [{ contentType: 'assets', sourcePanelId: null }]);
+	assert.deepEqual(reveals, []);
 	assert.deepEqual(confirmations, []);
 	f.body.hasAttribute = () => true;
 	background.dispatchEvent(event('drop', { types: ['Files'], files }, background));
@@ -369,4 +369,46 @@ test('accepts files and assets across the Visual Module editor and selects nodes
 	editor.props.onDragoverCapture(over);
 	assert.equal(over.defaultPrevented, false);
 	assert.equal(over.cancelBubble, false);
+});
+
+// 【VueのAsset受付も共通の操作ロック・二重処理防止・有効状態に従う】
+// ユーティリティ単体だけを確認すると、Composableがロック判定やライフサイクルを接続し忘れた
+// 不具合を見逃す。ファイルと既存Assetの両方を拒否し、対象外のドラッグは伝播させる。
+test('applies shared locking and disabled state to the Vue asset drop target', async t => {
+	const calls = [];
+	const gate = Promise.withResolvers();
+	const actions = ref({ dropFiles: async files => { calls.push(files); await gate.promise; return true; },
+		dropAsset: async assetId => { calls.push(assetId); return true; } });
+	const asset = { id: 'asset', name: 'Image', fileDataType: 'image/png', fileData: new Blob() };
+	const f = fixture(t, () => h('div', [h(Asset, { asset }), h(VisualModuleEditor, {
+		visualModule: { nodes: [], paramDefs: [], outputDefs: [] }, visualModuleName: 'Visual Module', assetDropActions: actions.value,
+	})]));
+	const editor = f.find('data-test-visual-module-editor');
+	const files = transfer();
+	files.setData('Files', '');
+	files.files.push(new File([], 'image.png'));
+	const data = transfer();
+	const source = f.find('data-test-asset', 'asset');
+	source.props.onDragstart(event('dragstart', data, source));
+	f.body.hasAttribute = () => true;
+	for (const drag of [files, data]) {
+		const over = event('dragover', drag, editor);
+		editor.props.onDragoverCapture(over);
+		assert.equal(over.defaultPrevented, true);
+		assert.equal(drag.dropEffect, 'none');
+		await editor.props.onDropCapture(event('drop', drag, editor));
+	}
+	assert.deepEqual(calls, []);
+	f.body.hasAttribute = () => false;
+	const pending = editor.props.onDropCapture(event('drop', files, editor));
+	await editor.props.onDropCapture(event('drop', files, editor));
+	assert.equal(calls.length, 1);
+	gate.resolve();
+	await pending;
+	actions.value = null;
+	await nextTick();
+	const disabled = event('dragover', files, editor);
+	editor.props.onDragoverCapture(disabled);
+	assert.equal(disabled.defaultPrevented, false);
+	assert.equal(disabled.cancelBubble, false);
 });

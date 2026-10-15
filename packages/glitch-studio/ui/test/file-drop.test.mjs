@@ -7,11 +7,12 @@ import { build, transform } from 'esbuild';
 import { parse } from 'vue/compiler-sfc';
 import { createSourceFile, isFunctionDeclaration, ScriptTarget } from 'typescript';
 
-const bundle = await build({ entryPoints: [fileURLToPath(new URL('../src/utility/file-drop.ts', import.meta.url))],
-																													bundle: true, platform: 'node', format: 'cjs', write: false });
+const bundle = await build({ stdin: { loader: 'ts', resolveDir: fileURLToPath(new URL('../src/utility/', import.meta.url)),
+	contents: "export { installFileDropHandlers } from './file-drop.ts'; export { createDropTargetHandlers } from './drop-target.ts';" },
+	bundle: true, platform: 'node', format: 'cjs', write: false });
 const module = { exports: {} };
 new Function('require', 'module', 'exports', bundle.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
-const { installFileDropHandlers } = module.exports;
+const { installFileDropHandlers, createDropTargetHandlers } = module.exports;
 
 // DOMを起動せず、登録されたハンドラーのバブリングとstopPropagationだけを再現する。
 class TestElement extends EventTarget {
@@ -27,6 +28,125 @@ class TestElement extends EventTarget {
 		return result;
 	}
 }
+
+function handlerFixture(t, onDrop) {
+	const root = new TestElement();
+	const windowTarget = new EventTarget();
+	let hovering = false, blocked = false, enabled = true;
+	const errors = [];
+	root.ownerDocument = { body: { hasAttribute: () => blocked }, defaultView: windowTarget };
+	const handlers = createDropTargetHandlers({ target: () => root, enabled: () => enabled,
+		accepts: event => event.dataTransfer?.types.includes('asset') === true,
+		readDropData: event => event.dataTransfer.assetId,
+		onDrop, onError: error => errors.push(error), onHoverChange: value => { hovering = value; } });
+	handlers.observeWindow();
+	t.after(handlers.dispose);
+	const event = (type, relatedTarget = null) => {
+		const result = new Event(type, { cancelable: true });
+		result.dataTransfer = { types: ['asset'], assetId: 'asset', dropEffect: 'move' };
+		result.relatedTarget = relatedTarget;
+		return result;
+	};
+	return { root, windowTarget, handlers, event, errors, block: value => { blocked = value; }, enable: value => { enabled = value; },
+		get hovering() { return hovering; } };
+}
+
+// 【共通の受付処理で種類に依存せず操作ロック・二重処理防止・有効状態を扱う】
+// Vue用のAsset受付だけが操作ロックを無視したり、内部ドラッグを横取りする経路を残さない。
+// dropイベントの寿命内でデータとコールバックを扱い、待機中にもドラッグ表示を拒否できる必要がある。
+test('shares locking and enabled state across payload types and captures data before awaiting', async t => {
+	const gate = Promise.withResolvers();
+	const calls = [];
+	const f = handlerFixture(t, async (assetId, event) => { calls.push([assetId, event]); await gate.promise; });
+	const dropped = f.event('drop');
+	const pending = f.handlers.onDrop(dropped);
+	dropped.dataTransfer.assetId = 'changed';
+	assert.equal(calls[0][0], 'asset');
+	assert.equal(calls[0][1], dropped);
+	const busy = f.event('dragover');
+	f.handlers.onDragover(busy);
+	assert.equal(busy.dataTransfer.dropEffect, 'none');
+	assert.equal(f.hovering, false);
+	await f.handlers.onDrop(f.event('drop'));
+	assert.equal(calls.length, 1);
+	gate.resolve();
+	await pending;
+	f.block(true);
+	const blocked = f.event('drop');
+	await f.handlers.onDrop(blocked);
+	assert.equal(blocked.defaultPrevented, true);
+	assert.equal(calls.length, 1);
+	f.block(false);
+	f.enable(false);
+	const disabled = f.event('dragover');
+	f.handlers.onDragover(disabled);
+	assert.equal(disabled.defaultPrevented, false);
+	assert.equal(disabled.cancelBubble, false);
+	f.enable(true);
+	const unrelated = f.event('dragover');
+	unrelated.dataTransfer.types = ['other'];
+	f.handlers.onDragover(unrelated);
+	assert.equal(unrelated.defaultPrevented, false);
+	await f.handlers.onDrop(f.event('drop'));
+	assert.equal(calls.length, 2);
+});
+
+// 【子要素間の移動とウィンドウの表示リセットで受付範囲のホバー状態を失わない】
+// relatedTargetがないenter/leaveもあるため、captureでホバーを隠す際にネスト数まで消さない。
+// ドラッグ終了・ウィンドウ離脱・破棄ではホバーとリスナーを確実に解放する。
+test('preserves hover through nested children and clears it on leaving or disposal', t => {
+	const f = handlerFixture(t, async () => {});
+	for (let index = 0; index < 2; index++) {
+		const entered = f.event('dragenter');
+		f.windowTarget.dispatchEvent(entered);
+		f.handlers.onDragenter(entered);
+	}
+	f.handlers.onDragleave(f.event('dragleave'));
+	assert.equal(f.hovering, true);
+	f.handlers.onDragleave(f.event('dragleave'));
+	assert.equal(f.hovering, false);
+	const child = new TestElement(f.root);
+	f.handlers.onDragover(f.event('dragover'));
+	f.handlers.onDragleave(f.event('dragleave', child));
+	assert.equal(f.hovering, true);
+	f.handlers.onDragleave(f.event('dragleave', new TestElement()));
+	assert.equal(f.hovering, false);
+	for (const name of ['drop', 'dragend', 'blur']) {
+		f.handlers.onDragover(f.event('dragover'));
+		f.windowTarget.dispatchEvent(f.event(name));
+		assert.equal(f.hovering, false);
+	}
+	f.handlers.onDragover(f.event('dragover'));
+	f.handlers.dispose();
+	const afterDispose = f.event('dragover');
+	f.handlers.onDragover(afterDispose);
+	assert.equal(afterDispose.defaultPrevented, false);
+	assert.equal(f.hovering, false);
+});
+
+// 【同期・非同期のドロップ失敗を通知し、後続の操作へbusy状態を持ち越さない】
+// データ読み取りやコールバックの即時throwでも、Promiseのrejectと同じ後始末を行う。
+// 共通化でエラーが未処理になったり、再試行を永続的に拒否したりしない。
+test('reports synchronous and asynchronous drop failures and allows subsequent drops', async t => {
+	let phase = 'sync';
+	const f = handlerFixture(t, () => {
+		if (phase === 'sync') throw new Error('Sync failure');
+		if (phase === 'async') return Promise.reject(new Error('Async failure'));
+		return Promise.resolve();
+	});
+	await f.handlers.onDrop(f.event('drop'));
+	phase = 'async';
+	await f.handlers.onDrop(f.event('drop'));
+	phase = 'success';
+	const unreadable = f.event('drop');
+	Object.defineProperty(unreadable.dataTransfer, 'assetId', { get() { throw new Error('Read failure'); } });
+	await f.handlers.onDrop(unreadable);
+	await f.handlers.onDrop(f.event('drop'));
+	assert.deepEqual(f.errors.map(error => error.message), ['Sync failure', 'Async failure', 'Read failure']);
+	const over = f.event('dragover');
+	f.handlers.onDragover(over);
+	assert.equal(over.dataTransfer.dropEffect, 'copy');
+});
 
 function fixture(t, onDrop, isApplicationBlocked = () => false) {
 	const root = new TestElement();
