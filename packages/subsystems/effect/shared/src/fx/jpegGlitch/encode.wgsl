@@ -15,7 +15,7 @@ fn capture_component(origin: vec2u, samplePosition: vec2u, stride: u32, componen
 			let localPosition = (vec2f(f32(x), f32(y)) + 0.5) / vec2f(grid);
 			let pixel = vec2f(origin) + (vec2f(samplePosition) + localPosition) * f32(stride);
 			// MCUへのパディングは端の色を延長する。入力接続自体のfit/wrapは参照関数に任せる。
-			let imagePosition = clamp(pixel / uniforms.virtualSize, vec2f(0.0), vec2f(1.0));
+			let imagePosition = clamp(grid_to_image(pixel), vec2f(0.0), vec2f(1.0));
 			color += read_input(imagePosition * vec2f(2.0, -2.0) + vec2f(-1.0, 1.0));
 		}
 	}

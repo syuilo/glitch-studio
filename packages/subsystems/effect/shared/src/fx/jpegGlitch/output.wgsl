@@ -8,7 +8,9 @@ struct FragmentIn {
 
 fn component_sample(pixel: vec2i, component: u32) -> vec2f {
 	let stride = select(1u, 2u, uniforms.subsample != 0u && component != 0u);
-	let size = vec2i(ceil(uniforms.virtualSize / f32(stride)));
+	// 中央寄せでは画像の四辺にパディングがあり、画像座標とバッファの先頭は一致しない。
+	// サンプル位置はパディングを含む計算領域で制限し、対応するMCUを正しく読む。
+	let size = vec2i(uniforms.gridSize / stride);
 	let point = vec2u(clamp(pixel, vec2i(0), size - 1));
 	let blockPosition = point / 8u;
 	var mcu = blockPosition;
@@ -35,7 +37,7 @@ fn component_sample(pixel: vec2i, component: u32) -> vec2f {
 
 fn sample_component(imagePosition: vec2f, component: u32) -> vec2f {
 	let stride = select(1.0, 2.0, uniforms.subsample != 0u && component != 0u);
-	let pixel = imagePosition * uniforms.virtualSize / stride - 0.5;
+	let pixel = image_to_grid(imagePosition) / stride - 0.5;
 	let base = vec2i(floor(pixel));
 	let weight = fract(pixel);
 	// 仮想画像の拡大と色差の復元は、同じ成分の隣接サンプル間で双線形補間する。
@@ -52,7 +54,7 @@ fn ycbcr_to_rgb(color: vec3f) -> vec3f {
 
 fn detail_source(imagePosition: vec2f, original: vec4f) -> vec4f {
 	let size = f32(mcu_size());
-	let pixel = imagePosition * uniforms.virtualSize;
+	let pixel = image_to_grid(imagePosition);
 	let destination = vec2u(floor(pixel / size));
 	let destinationMcu = destination.y * uniforms.mcuColumns + destination.x;
 	let sourceMcu = scanStates[destinationMcu * uniforms.blocksPerMcu].sourceBlock / uniforms.blocksPerMcu;
@@ -61,7 +63,7 @@ fn detail_source(imagePosition: vec2f, original: vec4f) -> vec4f {
 	// 配置ずれの上に移動前の輪郭が残るため、MCU内の座標を保ったまま移動する。
 	let source = vec2u(sourceMcu % uniforms.mcuColumns, sourceMcu / uniforms.mcuColumns);
 	let sourcePixel = pixel + (vec2f(source) - vec2f(destination)) * size;
-	let sourcePosition = clamp(sourcePixel / uniforms.virtualSize, vec2f(0.0), vec2f(1.0));
+	let sourcePosition = clamp(grid_to_image(sourcePixel), vec2f(0.0), vec2f(1.0));
 	return read_input(sourcePosition * vec2f(2.0, -2.0) + vec2f(-1.0, 1.0));
 }
 

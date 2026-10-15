@@ -1,5 +1,6 @@
 struct Uniforms {
 	virtualSize: vec2f,
+	gridSize: vec2u,
 	samplingGrid: vec2u,
 	mcuColumns: u32,
 	mcuCount: u32,
@@ -87,6 +88,17 @@ fn random(index: u32, salt: u32) -> f32 {
 
 fn mcu_size() -> u32 {
 	return select(8u, 16u, uniforms.subsample != 0u);
+}
+
+// 画像の仮想寸法と、MCU単位の計算領域を分けて扱う。両方の中心を重ねることで、
+// ブロックサイズを変えても画像中央を拡縮の原点に保つ。入力・出力・細部保持は
+// 必ずこの相互変換を使い、端のパディングによって格子や参照元が食い違うことを防ぐ。
+fn image_to_grid(imagePosition: vec2f) -> vec2f {
+	return (imagePosition - 0.5) * uniforms.virtualSize + vec2f(uniforms.gridSize) * 0.5;
+}
+
+fn grid_to_image(gridPosition: vec2f) -> vec2f {
+	return (gridPosition - vec2f(uniforms.gridSize) * 0.5) / uniforms.virtualSize + 0.5;
 }
 
 fn block_component(slot: u32) -> u32 {

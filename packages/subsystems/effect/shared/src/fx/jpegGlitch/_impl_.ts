@@ -96,8 +96,12 @@ export default implementEffect<typeof definition>({
 			const scale = (8 * 100 / blockSize) / shortSide;
 			const virtualSize = [resolution.width * scale, resolution.height * scale];
 			const mcuSize = subsample ? 16 : 8;
-			const mcuColumns = Math.max(1, Math.ceil(virtualSize[0] / mcuSize));
-			const mcuRows = Math.max(1, Math.ceil(virtualSize[1] / mcuSize));
+			// 中央MCUの中心を画像中央へ固定し、画像を覆うまで両側にMCUを追加する。
+			// 単純にceilした個数で中央寄せすると、偶数・奇数の切り替わりで格子が半MCUずれる。
+			// 常に奇数個なら、個数が変わっても同じ格子を整数MCUずつ外側へ広げるだけになる。
+			const mcuColumns = 2 * Math.ceil(Math.max(0, virtualSize[0] / mcuSize - 1) / 2) + 1;
+			const mcuRows = 2 * Math.ceil(Math.max(0, virtualSize[1] / mcuSize - 1) / 2) + 1;
+			const gridSize = [mcuColumns * mcuSize, mcuRows * mcuSize];
 			const mcuCount = mcuColumns * mcuRows;
 			const blocksPerMcu = subsample ? 6 : 3;
 			const coefficientBytes = mcuCount * blocksPerMcu * 64 * 4;
@@ -109,7 +113,7 @@ export default implementEffect<typeof definition>({
 				// 無断で処理解像度を落とすと出力によって見た目が変わるため、設定の変更を求める。
 				throw new Error('JPEG glitch: virtual image exceeds GPU resource limits. Increase Block size.');
 			}
-			return { virtualSize, mcuColumns, mcuRows, mcuCount, blocksPerMcu, coefficientBytes, stateBytes };
+			return { virtualSize, gridSize, mcuColumns, mcuRows, mcuCount, blocksPerMcu, coefficientBytes, stateBytes };
 		};
 		const createResources = (geometry: ReturnType<typeof getGeometry>, preserveDetails: boolean) => {
 			const buffers: GPUBuffer[] = [];
@@ -175,6 +179,7 @@ export default implementEffect<typeof definition>({
 				seedValue[0] = params.seed;
 				uniformValues.set({
 					virtualSize: geometry.virtualSize,
+					gridSize: geometry.gridSize,
 					samplingGrid,
 					mcuColumns: geometry.mcuColumns,
 					mcuCount: geometry.mcuCount,
