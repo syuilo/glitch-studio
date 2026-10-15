@@ -1,0 +1,35 @@
+import { defineEffect } from '../../effect-definition.ts';
+
+export default defineEffect({
+	id: 'frequencyTransplant',
+	displayName: 'Frequency transplant',
+	description: {
+		'ja-JP': '別の画像から指定した周波数帯のDCT係数を移植し、元画像の形と別画像の模様を組み合わせます。',
+		'en-US': 'Transplants a selected band of DCT coefficients from another image to combine the original structure with donor textures.',
+	},
+	kind: 'modify',
+	dependsOnRenderHistory: false,
+	tags: ['glitch', 'composite', 'color', 'stylized'],
+	paramDefs: {
+		input: { dataType: { kind: 'color' }, ui: { label: 'Input', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },
+		donor: { dataType: { kind: 'color' }, ui: { label: 'Donor', control: {} }, canNode: true, defaultValue: { inputSource: 'literal', value: [0, 0, 0, 0] } },
+		amount: { dataType: { kind: 'scalar' }, ui: { label: 'Amount', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } }, canNode: true, defaultValue: { inputSource: 'literal', value: 1 } },
+		blockSize: { dataType: { kind: 'scalar' }, ui: { label: 'Block size (% of short side)', control: { controlType: 'range', min: 1, max: 25, step: 0.1 } }, defaultValue: { inputSource: 'literal', value: 2 } },
+		minFrequency: { dataType: { kind: 'scalar' }, ui: { label: 'Minimum frequency', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } }, defaultValue: { inputSource: 'literal', value: 0.2 } },
+		maxFrequency: { dataType: { kind: 'scalar' }, ui: { label: 'Maximum frequency', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } }, defaultValue: { inputSource: 'literal', value: 1 } },
+		softness: { dataType: { kind: 'scalar' }, ui: { label: 'Frequency boundary softness', control: { controlType: 'range', min: 0, max: 1, step: 0.01 } }, defaultValue: { inputSource: 'literal', value: 0.05 } },
+		components: {
+			dataType: { kind: 'enum', options: ['all', 'luminance', 'chroma'] },
+			ui: { label: 'Components', control: { labels: { all: 'Luminance and chroma', luminance: 'Luminance only', chroma: 'Chroma only' } } },
+			defaultValue: { inputSource: 'literal', value: 'all' },
+		},
+		includeDc: { dataType: { kind: 'bool' }, ui: { label: 'Include DC (average color)', control: {} }, defaultValue: { inputSource: 'literal', value: false } },
+		donorGain: { dataType: { kind: 'scalar' }, ui: { label: 'Donor gain', control: { controlType: 'range', min: 0, max: 4, step: 0.01 } }, defaultValue: { inputSource: 'literal', value: 1 } },
+		donorOffset: { dataType: { kind: 'vector' }, ui: { label: 'Donor offset', control: { controlType: 'xy', min: -1, max: 1, step: 0.01 } }, defaultValue: { inputSource: 'literal', value: [0, 0] } },
+		preserveDetails: { dataType: { kind: 'bool' }, ui: { label: 'Preserve input detail', control: {} }, defaultValue: { inputSource: 'literal', value: true } },
+	},
+	primaryInputParameter: 'input',
+	resolutionInputParameter: 'input',
+	outputDefs: { output: { dataType: { kind: 'color' } } },
+	primaryOutput: 'output',
+});
