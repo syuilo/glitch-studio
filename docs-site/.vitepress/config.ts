@@ -37,6 +37,7 @@ export default defineConfig({
 			{
 				text: 'エフェクト',
 				items: [
+					{ text: 'Content error propagation', link: '/guide/effects/content-error-propagation' },
 					{ text: 'JPEG glitch', link: '/guide/effects/jpeg-glitch' },
 				],
 			},
