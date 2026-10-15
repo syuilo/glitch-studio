@@ -38,7 +38,7 @@ export function createTimelineCompositor(options: {
 		render(encoder: GPUCommandEncoder, background: TimelineImage, source: TimelineImage, settings: TimelineCompositingSettings,
 			space: TimelineRenderSpace = { parent: TIMELINE_IDENTITY, depth: 0, viewport: TIMELINE_FRAME }, projected = false, fixedBounds?: TimelineBounds): TimelineImage {
 			options.onCompositing?.(source, settings, space);
-			if (settings.opacity === 0 || settings.blendMode === 10) return background;
+			if (settings.opacity === 0 || (settings.mask == null && settings.blendMode === 10)) return background;
 			const placement = getTimelinePlacement(source, resolution, settings, space);
 			// カメラの背後はレイヤーが存在しない扱い。Replaceでも背景を消さない。
 			if (!projected && !placement) return background;
@@ -49,12 +49,14 @@ export function createTimelineCompositor(options: {
 			let foregroundBounds = matrix && inverse ? transformTimelineBounds(sourceBounds, matrix) : null;
 			if (settings.clipToFrame) foregroundBounds = foregroundBounds && placement && clipInverse ? intersectTimelineBounds(foregroundBounds, transformTimelineBounds(TIMELINE_FRAME, placement)) : null;
 			const backgroundBounds = timelineImageBounds(background);
-			let outputBounds = foregroundBounds ? unionTimelineBounds(backgroundBounds, foregroundBounds) : backgroundBounds;
+			// マスクは下層の被覆率だけを変える。素材の領域を合成範囲へ足すと、
+			// 大きなマスクを動かすだけで親Groupのfit・originや画素密度まで変わってしまう。
+			let outputBounds = settings.mask == null && foregroundBounds ? unionTimelineBounds(backgroundBounds, foregroundBounds) : backgroundBounds;
 			if (space?.viewport) outputBounds = intersectTimelineBounds(outputBounds, space.viewport) ?? space.viewport;
 			outputBounds = fixedBounds ?? outputBounds;
 			// 無変形のReplaceは素材を借用する。高解像度の動画・画像をここで縮小せず、
 			// 次のEffectが素材解像度を選べる既存の動作と余分なパスの省略を維持する。
-			if (!fixedBounds && settings.blendMode === 19 && settings.opacity === 1 && !settings.clipToFrame
+			if (settings.mask == null && !fixedBounds && settings.blendMode === 19 && settings.opacity === 1 && !settings.clipToFrame
 				&& matrix && matrix.every((value, index) => Math.abs(value - TIMELINE_IDENTITY[index]) < 1e-12)
 				&& Object.keys(sourceBounds).every(key => sourceBounds[key as keyof TimelineBounds] === outputBounds[key as keyof TimelineBounds])) {
 				// 画素を借用しても配置後の基準枠はSceneへ変わる。素材寸法のまま返すと、
@@ -71,7 +73,8 @@ export function createTimelineCompositor(options: {
 			uniforms.set({
 				inverseX: inverseRows.x, inverseY: inverseRows.y, clipX: clipRows.x, clipY: clipRows.y,
 				sourceBounds: boundsUniform(sourceBounds), backgroundBounds: boundsUniform(backgroundBounds), outputBounds: boundsUniform(outputBounds),
-				opacity: settings.opacity, blendMode: settings.blendMode, sourceVisible: Number(foregroundBounds != null), clipToFrame: Number(settings.clipToFrame) });
+				opacity: settings.opacity, blendMode: settings.blendMode, sourceVisible: Number(foregroundBounds != null), clipToFrame: Number(settings.clipToFrame),
+				maskChannel: settings.mask == null ? 0 : settings.mask.channel === 'alpha' ? 1 : 2, maskInverted: Number(settings.mask?.inverted === true) });
 			device.queue.writeBuffer(buffer, 0, uniforms.arrayBuffer);
 			const variant = pipelines.update({
 				// 背景は合成先へ配置済み。座標範囲への写像はWGSL側で行うため、

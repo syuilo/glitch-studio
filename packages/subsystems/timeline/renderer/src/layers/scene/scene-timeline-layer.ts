@@ -50,7 +50,7 @@ export function createSceneTimelineLayer(
 			try {
 				const settings = parameters.evaluate({
 					time: context.sceneTimeMs, isExport: context.isExport,
-					coordinateSpace: layer.coordinateSpace, paramValues: layer.compositingParamValues, automationGraphs: layer.automationGraphs });
+					coordinateSpace: layer.coordinateSpace, mask: layer.mask, paramValues: layer.compositingParamValues, automationGraphs: layer.automationGraphs });
 				const source: TimelineImage = { kind: 'texture', texture: sceneOutput.render(encoder, result.output) };
 				return { output: compositor.render(encoder, context.input, source, settings, context.renderSpace), gpuTime: result.gpuTime };
 			} finally {

@@ -2,6 +2,8 @@
 
 各レイヤーのcompositorは任意の`onCompositing`で合成前の`TimelineImage`と評価済み設定を呼び出し側へ渡せる。opacity=0やreplaceの短絡経路でも通知する。通知の購読対象・Worker通信・プレビューのハンドルはGlitch Studio側が所有し、このパッケージはUIの選択状態を知らない。
 
+マスクも各レイヤー共通のcompositorで処理する。変形後の素材からAlphaまたは輝度を読み、必要なら反転し、下層のpremultiplied RGBA全体を減衰させる。opacityは適用強度、blendModeは無視する。描画範囲は下層のまま保ち、素材の領域を加えない。Group・Sceneも通常の描画結果を素材として渡すため、個別のマスク用レンダラーや別レイヤーへの参照は不要。区間外・無効・Groupの映像出力なしでは既存の評価規則でスキップする。
+
 `src/layers/`にレイヤー種別ごとの実装をまとめる。`group`・`transform`・`effect`・`image`・`scene`・`video`・`visual-module`・`text`・`shape`の各ディレクトリに、レイヤーの描画処理と種別固有の補助処理・シェーダーを置く。Timeline全体の評価・合成・Scene出力・音声入力の解決など、複数種別で使う処理は`src/`直下に置く。
 
 RendererはWeb Worker内で動作し、DOM・UIの実装にアクセスできないため、意図しないそれらへの参照/依存が原理的に発生しないように別パッケージとする

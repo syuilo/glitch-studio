@@ -17,7 +17,7 @@ export async function run() {
 	const options = { device, vertex, resolution: { width: 1920, height: 1080 }, format: 'rgba16float' as const };
 	const literal = (value: any) => ({ inputSource: 'literal' as const, value });
 	const compositing = () => Object.fromEntries(Object.entries(timelineCompositingParamDefs).map(([key, def]) => [key, structuredClone(def.defaultValue)])) as TimelineGroupLayer['compositingParamValues'];
-	const common = { isDisabled: false, forceDisableMotionBlur: false, coordinateSpace: 'world' as const, automationGraphs: [] };
+	const common = { isDisabled: false, forceDisableMotionBlur: false, mask: null, coordinateSpace: 'world' as const, automationGraphs: [] };
 	const shapes: TimelineLayer[] = Array.from({ length: 12 }, (_, index) => {
 		const shape = createShape('rectangle');
 		shape.paramValues.size = literal([0.25, 0.2]);

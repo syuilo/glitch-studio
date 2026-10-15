@@ -14,14 +14,14 @@ export async function checkTimelineGroups(device: GPUDevice, vertex: GPUShaderMo
 	const blue: UniformOrTexture = { kind: 'uniform', value: [0, 0, 1, 1] };
 	const transparent: UniformOrTexture = { kind: 'uniform', value: [0, 0, 0, 0] };
 	const child: TimelineLayer = { id: 'child', name: 'child', isDisabled: false, forceDisableMotionBlur: false, automationGraphs: [], layerType: 'image',
-		coordinateSpace: 'screen', compositingParamValues: Object.fromEntries(Object.entries(timelineCompositingParamDefs).map(([key, def]) => [key, structuredClone(def.defaultValue)])) as TimelineGroupLayer['compositingParamValues'],
+		mask: null, coordinateSpace: 'screen', compositingParamValues: Object.fromEntries(Object.entries(timelineCompositingParamDefs).map(([key, def]) => [key, structuredClone(def.defaultValue)])) as TimelineGroupLayer['compositingParamValues'],
 		clips: [
 			{ id: 'red', assetId: 'red', startMs: 100, durationMs: 100, contentOffsetMs: 25 },
 			{ id: 'transparent', assetId: 'transparent', startMs: 300, durationMs: 100, contentOffsetMs: 0 },
 		] };
 	const group = (id: string, layers: TimelineLayer[]): TimelineGroupLayer => ({ id, name: id, layerType: 'group', layers,
 		isDisabled: false, forceDisableMotionBlur: false, automationGraphs: [], audioParamValues: { volume: { inputSource: 'literal', value: 1 } },
-		coordinateSpace: 'screen', compositingParamValues: { ...structuredClone(child.compositingParamValues), opacity: { inputSource: 'literal', value: 0.5 } } });
+		mask: null, coordinateSpace: 'screen', compositingParamValues: { ...structuredClone(child.compositingParamValues), opacity: { inputSource: 'literal', value: 0.5 } } });
 	const inner = group('inner', [child]);
 	const outer = group('outer', [inner]);
 	const contexts: TimelineLayerContext<UniformOrTexture>[] = [];
@@ -67,6 +67,20 @@ export async function checkTimelineGroups(device: GPUDevice, vertex: GPUShaderMo
 		outer.isDisabled = true;
 		await check('disabling an ancestor releases nested instances', 320, [0, 0, 255, 255]);
 		if (destroyed.join() !== 'red,transparent' || contexts.length !== 3) throw new Error('Disabled descendants were evaluated or retained');
+		// 【Group全体をマスク素材にし、内部の描画結果のAlphaを外側の下層へ適用する】
+		// 子自身のopacityとマスク強度を混同せず、GroupのReplace設定は無視する。
+		outer.isDisabled = false;
+		outer.mask = { channel: 'alpha', inverted: false };
+		inner.compositingParamValues.opacity = { inputSource: 'literal', value: 0.25 };
+		await check('group mask applies isolated child coverage to parent background', 150, [0, 0, 64, 64]);
+		// 【マスクの空白区間では処理をスキップし、有効な透明出力では下層を消す】
+		// 仮のGroup表示範囲を使うとクリップの隙間も消えてしまうため、hasOutputを維持する。
+		await check('group mask gap leaves parent background intact', 250, [0, 0, 255, 255]);
+		await check('active transparent group mask clears parent background', 300, [0, 0, 0, 0]);
+		// 【反転は内部Groupの合成後に一度だけ適用する】
+		// 子ごとに反転すると、複数の子をまとめて一つのマスクとして扱えなくなる。
+		outer.mask = { channel: 'alpha', inverted: true };
+		await check('inverted group mask uses combined child coverage', 150, [0, 0, 191, 191]);
 		return completed;
 	} finally { renderer.clear(); }
 }

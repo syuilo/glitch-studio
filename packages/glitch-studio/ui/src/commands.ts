@@ -32,8 +32,8 @@ import { getNodeInputDataType } from '@gs/shared/data-type/node-compatibility.ts
 import { isTextureDataType } from '@gs/shared/data-type/data-type.ts';
 import { resolveTimelineAudioLayerReference, timelineAudioParamDefs } from '@gs/subsystems_timeline_shared/timeline-audio.ts';
 import { validateSceneResolution } from '@gs/subsystems_timeline_shared/scene-resolution.ts';
-import { timelineCompositingParamDefs } from '@gs/subsystems_timeline_shared/timeline-compositing.ts';
-import type { TimelineLayerCoordinateSpace } from '@gs/subsystems_timeline_shared/timeline-compositing.ts';
+import { timelineCompositingParamDefs, validateTimelineMask } from '@gs/subsystems_timeline_shared/timeline-compositing.ts';
+import type { TimelineLayerCoordinateSpace, TimelineMask } from '@gs/subsystems_timeline_shared/timeline-compositing.ts';
 import { canEditTimelineTransform } from './utility/timeline-transform-edit.ts';
 import { getScene, getLayerParameterTargets, getLayerParameterValues, getLayerParameterDefinitions, resolveLayerParameter } from './utility/timeline-scene.ts';
 import { prepareTimelineContainerMove } from './utility/timeline-container.ts';
@@ -1456,6 +1456,28 @@ const setTimelineLayerCoordinateSpaceCommandDef = defineCommand<{ sceneId: strin
 	},
 });
 
+const setTimelineLayerMaskCommandDef = defineCommand<{ sceneId: string; layerId: string; mask: TimelineMask | null }>({
+	label: 'Change timeline layer mask',
+	changes: (_state, payload) => [{ type: 'layer', sceneId: payload.sceneId, layerId: payload.layerId, changes: [{ type: 'mask' }] }],
+	create: payload => {
+		let before: TimelineMask | null;
+		const getLayer = (state: ProjectState) => {
+			const layer = getTimelineLayer(state, payload.sceneId, payload.layerId);
+			if (!isTimelineVisualLayer(layer)) throw new Error('Mask requires a visual layer');
+			return layer;
+		};
+		return {
+			execute(state) {
+				validateTimelineMask(payload.mask);
+				const layer = getLayer(state);
+				before = deepClone(layer.mask);
+				layer.mask = deepClone(payload.mask);
+			},
+			undo(state) { getLayer(state).mask = deepClone(before); },
+		};
+	},
+});
+
 const setTimelineLayerMotionBlurDisabledCommandDef = defineCommand<{ sceneId: string; layerId: string; forceDisableMotionBlur: boolean }>({
 	label: 'Change timeline layer motion blur',
 	changes: (_state, payload) => [{ type: 'layer', sceneId: payload.sceneId, layerId: payload.layerId, changes: [{ type: 'motionBlur' }] }],
@@ -2239,6 +2261,7 @@ export const COMMAND_DEFS = {
 	renameTimelineLayer: renameTimelineLayerCommandDef,
 	setTimelineLayerDisabled: setTimelineLayerDisabledCommandDef,
 	setTimelineLayerCoordinateSpace: setTimelineLayerCoordinateSpaceCommandDef,
+	setTimelineLayerMask: setTimelineLayerMaskCommandDef,
 	setTimelineLayerMotionBlurDisabled: setTimelineLayerMotionBlurDisabledCommandDef,
 	addTimelineClip: addTimelineClipCommandDef,
 	pasteTimelineClips: pasteTimelineClipsCommandDef,

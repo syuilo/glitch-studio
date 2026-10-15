@@ -9,7 +9,7 @@ export async function checkTimelineCompositor(device: GPUDevice, vertex: GPUShad
 	const compositor = createTimelineCompositor({ device, vertex, resolution, format: 'rgba8unorm' });
 	const textures: GPUTexture[] = [];
 	const completed: string[] = [];
-	const defaults: TimelineCompositingSettings = { coordinateSpace: 'world', depth: 0, clipToFrame: false, blendMode: 0, opacity: 1, fitMode: 'contain', position: [0, 0], origin: [0, 0], scale: [1, 1], rotation: 0 };
+	const defaults: TimelineCompositingSettings = { mask: null, coordinateSpace: 'world', depth: 0, clipToFrame: false, blendMode: 0, opacity: 1, fitMode: 'contain', position: [0, 0], origin: [0, 0], scale: [1, 1], rotation: 0 };
 	const uniform = (value: number[]): UniformOrTexture => ({ kind: 'uniform', value });
 	const blue = uniform([0, 0, 1, 1]);
 	const red = uniform([1, 0, 0, 1]);
@@ -28,8 +28,7 @@ export async function checkTimelineCompositor(device: GPUDevice, vertex: GPUShad
 		const encoder = device.createCommandEncoder();
 		const output = compositor.render(encoder, background, source, { ...defaults, ...settings });
 		device.queue.submit([encoder.finish()]);
-		if (output.kind !== 'texture') throw new Error(`${name}: expected a rendered texture`);
-		const actual = await read(output.texture);
+		const actual = output.kind === 'texture' ? await read(output.texture) : solid(output.value.map(value => Math.round(value * 255)));
 		if (actual.length !== expected.length || actual.some((value, i) => Math.abs(value - expected[i]) > 2)) {
 			throw new Error(`${name}: ${actual} != ${expected}`);
 		}
@@ -37,6 +36,34 @@ export async function checkTimelineCompositor(device: GPUDevice, vertex: GPUShad
 	}
 
 	try {
+		const alphaMask = { channel: 'alpha' as const, inverted: false };
+		const luminanceMask = { channel: 'luminance' as const, inverted: false };
+		// 【Alphaマスクは素材の色を描かず、下層のpremultiplied RGBAをまとめて減衰させる】
+		// alphaだけを書き換えると透明な輪郭に元のRGBが残る。半透明の下層でも検証する。
+		await check('timeline alpha mask attenuates premultiplied background', uniform([0.2, 0.1, 0.05, 0.5]), uniform([0.3, 0.1, 0, 0.5]), { mask: alphaMask }, solid([26, 13, 6, 64]));
+		// 【輝度マスクは色と素材自身の透明度を一度だけ反映する】
+		// Alphaとの取り違えと、premultiplied RGBへのalpha二重乗算を実画素で検出する。
+		await check('timeline luminance mask reads colored source', blue, red, { mask: luminanceMask }, solid([0, 0, 54, 54]));
+		await check('timeline luminance mask counts source alpha once', blue, uniform([0.5, 0.5, 0.5, 0.5]), { mask: luminanceMask }, solid([0, 0, 128, 128]));
+		// 【強度0では下層を保持し、中間値はマスク適用前後を補間する】
+		// 透明な素材へopacityを掛ける実装では、0にしても下層が消えてしまう。
+		await check('timeline zero mask strength preserves background', blue, transparent, { mask: alphaMask, opacity: 0 }, solid([0, 0, 255, 255]));
+		await check('timeline partial mask strength interpolates coverage', blue, transparent, { mask: alphaMask, opacity: 0.25 }, solid([0, 0, 191, 191]));
+		// 【マスク時は保存済みのNone・Replaceを含むブレンド設定を使わない】
+		// 通常描画へ戻すための設定を保持していても、マスクがスキップ・素材へ置換されてはならない。
+		await check('timeline mask ignores none blend mode', blue, transparent, { mask: alphaMask, blendMode: 10 }, solid([0, 0, 0, 0]));
+		await check('timeline mask ignores replace fast path', blue, red, { mask: alphaMask, blendMode: 19 }, solid([0, 0, 255, 255]));
+		// 【配置後の素材範囲外は0とし、反転はその範囲外にも作用する】
+		// 素材の矩形だけ描画すると、通常マスクの外側が残ったり反転の外側まで消えてしまう。
+		await check('timeline mask uses transformed source bounds', blue, red, { mask: alphaMask, position: [1, 0] }, pixels(x => x < 4 ? [0, 0, 0, 0] : [0, 0, 255, 255]));
+		await check('timeline inverted mask retains outside source bounds', blue, red, { mask: { ...alphaMask, inverted: true }, position: [1, 0] }, pixels(x => x < 4 ? [0, 0, 255, 255] : [0, 0, 0, 0]));
+		// 【倍率0は区間外ではなく、有効な透明マスクとして扱う】
+		// 透明な生成結果・素材が画面外へ出た場合も同じ被覆率の規則で処理できる。
+		await check('timeline zero scale mask clears background', blue, red, { mask: alphaMask, scale: [0, 1] }, solid([0, 0, 0, 0]));
+		// 【画像テクスチャのAlphaも、定数のAlphaと同じ規則で読み取る】
+		// 動画・画像のマスクを使う経路で、型別のpipeline切り替えと補間を検証する。
+		const maskTexture = texture(8, 4, pixels(x => x < 4 ? [255, 0, 0, 255] : [0, 0, 0, 0]));
+		await check('timeline texture mask reads alpha without drawing its color', blue, maskTexture, { mask: alphaMask }, pixels(x => x < 4 ? [0, 0, 255, 255] : [0, 0, 0, 0]));
 		// 半透明の素材にopacityを掛けても、RGBへalphaを二重乗算しない。
 		await check('timeline normal opacity preserves premultiplied colors', blue, uniform([0.5, 0, 0, 0.5]), { opacity: 0.5 }, solid([64, 0, 191, 255]));
 		await check('timeline normal combines two translucent layers', uniform([0, 0, 0.5, 0.5]), uniform([0.5, 0, 0, 0.5]), { opacity: 0.5 }, solid([64, 0, 96, 159]));

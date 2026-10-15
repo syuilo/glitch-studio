@@ -1,8 +1,9 @@
 import { timelineTransformParamDefs } from '@gs/subsystems_timeline_shared/layers/transform/transform.ts';
 import { timelineCameraParamDefs } from '@gs/subsystems_timeline_shared/layers/camera/camera.ts';
+import { isTimelineVisualLayer } from '@gs/subsystems_timeline_shared/types.ts';
 import { getTimelineScene } from '@gs/subsystems_timeline_shared/scenes.ts';
 import { timelineAudioParamDefs } from '@gs/subsystems_timeline_shared/timeline-audio.ts';
-import { timelineCompositingParamDefs } from '@gs/subsystems_timeline_shared/timeline-compositing.ts';
+import { getTimelineCompositingParameterDefinitions } from '@gs/subsystems_timeline_shared/timeline-compositing.ts';
 import { effectDefinitions } from '@gs/subsystems_effect_shared/effect-definitions.ts';
 import { getTimelineVisualModuleArgumentDefault } from '@gs/subsystems_timeline_shared/layers/visual-module/visual-module-arguments.ts';
 import { getEffectLayerParameterDefault } from '@gs/subsystems_timeline_shared/layers/effect/effect-layer.ts';
@@ -67,7 +68,7 @@ export function getLayerParameterDefinitions(state: Pick<ProjectState, 'visualMo
 	if (target === 'audio') return timelineAudioParamDefs;
 	if (target === 'transform') return timelineTransformParamDefs;
 	if (target === 'camera') return timelineCameraParamDefs;
-	if (target === 'compositing') return timelineCompositingParamDefs;
+	if (target === 'compositing' && isTimelineVisualLayer(layer)) return getTimelineCompositingParameterDefinitions(layer.mask);
 	if (target === 'effect' && layer.layerType === 'effect') return effectDefinitions[layer.effectId].paramDefs;
 	if (target === 'text' && layer.layerType === 'text') return textParamDefs;
 	if (target === 'voicevoxSubtitle' && layer.layerType === 'voicevox') return voicevoxSubtitleParamDefs;

@@ -29,7 +29,7 @@ export function createTimelineAssetLayer(asset: Asset, startMs: number, media: T
 	const audioParamValues = { volume: deepClone(timelineAudioParamDefs.volume.defaultValue) };
 	if (layerType === 'audio') return { ...base, layerType,
 		clips: [{ id: clip.id, assetId: asset.id, ...createTimelineMediaClipTiming(clip.startMs, durationMs) }], audioParamValues };
-	const visual = { coordinateSpace: 'screen' as const, forceDisableMotionBlur: false,
+	const visual = { mask: null, coordinateSpace: 'screen' as const, forceDisableMotionBlur: false,
 		compositingParamValues: deepClone(Object.fromEntries(Object.entries(timelineCompositingParamDefs)
 			.map(([key, def]) => [key, def.defaultValue]))) as TimelineImageLayer['compositingParamValues'] };
 	if (layerType === 'image') return { ...base, ...visual, layerType, clips: [clip] };

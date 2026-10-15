@@ -209,6 +209,23 @@ test('keeps background sampling unchanged when the composite bounds expand', () 
 	compositor.dispose();
 });
 
+// 【マスク素材の大きさや位置で下層の描画領域を拡張しない】
+// Groupを親でfitするときの枠・原点・画素密度が、切り抜く図形の移動で変わることを防ぐ。
+test('preserves background bounds and frame size when applying an oversized mask', () => {
+	const { device, encoder } = gpuFixture();
+	const resolution = { width: 8, height: 4 };
+	const compositor = createTimelineCompositor({ device, vertex: {}, resolution, format: 'rgba16float' });
+	const region = { bounds: { left: -2, right: 3, bottom: -1, top: 2 }, frameSize: resolution };
+	const background = { kind: 'uniform', value: [0, 0, 1, 1], region };
+	const settings = { mask: { channel: 'alpha', inverted: false }, coordinateSpace: 'screen', blendMode: 0, opacity: 1,
+		fitMode: 'contain', position: [10, 0], origin: [0, 0], scale: [5, 5], rotation: 0, depth: 0 };
+	try {
+		const output = compositor.render(encoder, background, { kind: 'uniform', value: [1, 1, 1, 1] }, settings, { parent: [1, 0, 0, 1, 0, 0], depth: 0 });
+		assert.deepEqual(output.region, region);
+		assert.deepEqual([output.texture.width, output.texture.height], [20, 6]);
+	} finally { compositor.dispose(); }
+});
+
 // 【素材寸法とfitに応じて支点だけを画面座標へ変換する】
 // originを画面基準のまま渡すと、縦横比が違う素材の端を固定できない。
 // 同じcompositorへの入力サイズ・fit・uniform切り替えでも毎回換算し、Positionは保持する。

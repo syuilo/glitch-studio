@@ -13,7 +13,7 @@ export function createVoicevoxTimelineLayer(startMs: number): TimelineVoicevoxLa
 		audioParamValues: { volume: { inputSource: 'literal', value: 1 } },
 		clips: [{ id: genId(), ...createTimelineClipTiming(startMs, 5000) }],
 		forceDisableMotionBlur: false,
-		coordinateSpace: 'screen',
+		mask: null, coordinateSpace: 'screen',
 		compositingParamValues: {
 			depth: { inputSource: 'literal', value: 0 },
 			clipToFrame: { inputSource: 'literal', value: false },
