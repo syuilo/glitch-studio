@@ -25,7 +25,7 @@ export default defineEffect({
 			defaultValue: { inputSource: 'literal', value: 'dct' },
 		},
 		quantization: { dataType: { kind: 'bool' }, ui: { label: 'Quantization', control: {} }, defaultValue: { inputSource: 'literal', value: true } },
-		quality: { dataType: { kind: 'scalar' }, ui: { label: 'JPEG Quality', control: { controlType: 'range', min: 1, max: 100, step: 1 } }, defaultValue: { inputSource: 'literal', value: 60 } },
+		quality: { dataType: { kind: 'scalar' }, ui: { label: 'JPEG Quality', control: { controlType: 'range', min: 0, max: 1, step: 0.001 } }, defaultValue: { inputSource: 'literal', value: 0.6 } },
 		chromaSubsampling: {
 			dataType: { kind: 'enum', options: ['444', '420'] },
 			ui: { label: 'Chroma Subsampling', control: { labels: { '444': '4:4:4 (Off)', '420': '4:2:0' } } },
