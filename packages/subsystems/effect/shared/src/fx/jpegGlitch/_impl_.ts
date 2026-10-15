@@ -193,9 +193,8 @@ export default implementEffect<typeof definition>({
 					blocksPerMcu: geometry.blocksPerMcu,
 					subsample: Number(subsample),
 					quantization: Number(params.quantization),
-					// 公開値は0〜1とし、量子化表の計算へ渡す境界で従来の整数Qualityへ変換する。
-					// 0は最低品質の1、1は最高品質の100に対応し、既定の0.6は従来と同じ60になる。
-					quality: Math.round(1 + clamp(params.quality, 0, 1) * 99),
+					// GPU側にも0〜1の値をそのまま渡し、Qualityの細かな変化を整数化で失わないようにする。
+					quality: clamp(params.quality, 0, 1),
 					seed: (seedWords[0] ^ seedWords[1]) >>> 0,
 					dcEnabled: Number(params.dcCorruption),
 					dcProbability: clamp(params.dcProbability, 0, 1),

@@ -56,10 +56,8 @@ fn compress(@builtin(workgroup_id) group: vec3u, @builtin(local_invocation_id) l
 		// 画像位置ごとのQualityをブロック中心で1回だけ評価し、全64係数で共有する。
 		// 色差ブロックは覆う範囲が2倍になるため、その範囲の中心で評価する。
 		let center = clamp(grid_to_image(vec2f(origin) + vec2f(4.0 * f32(stride))), vec2f(0.0), vec2f(1.0));
-		let quality = clamp(read_quality(center * vec2f(2.0, -2.0) + vec2f(-1.0, 1.0)), 0.0, 1.0);
-		// ノード入力も固定値も0〜1で受け取り、量子化表の計算に使う整数1〜100へ変換する。
-		// 0を1へ対応させるため除算は0にならず、既定の0.6は従来と同じQuality=60になる。
-		blockQuality = round(1.0 + quality * 99.0);
+		// 固定値・ノード入力ともに0〜1の値を保ち、Qualityの細かな変化を整数化で失わないようにする。
+		blockQuality = clamp(read_quality(center * vec2f(2.0, -2.0) + vec2f(-1.0, 1.0)), 0.0, 1.0);
 	}
 	workgroupBarrier();
 

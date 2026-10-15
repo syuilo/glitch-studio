@@ -114,9 +114,12 @@ fn block_component(slot: u32) -> u32 {
 fn quantization_step(frequency: u32, component: u32) -> f32 {
 	if (uniforms.quantization == 0u) { return 1.0; }
 	let base = select(CHROMA_QUANTIZATION[frequency], LUMA_QUANTIZATION[frequency], component == 0u);
-	// QualityはIJG方式の尺度。100でも整数への量子化は残るため、無効化は別の設定にする。
-	let scale = select(200.0 - 2.0 * uniforms.quality, 5000.0 / uniforms.quality, uniforms.quality < 50.0);
-	return clamp(floor((base * scale + 50.0) / 100.0), 1.0, 255.0);
+	// 0〜1のQualityから量子化表へ掛ける倍率を直接求める。従来のIJG尺度を
+	// q=1+99Qで置き換え、百分率の係数も倍率へまとめた式。分岐点はq=50に対応する。
+	// Quality自体は整数化せず、JPEGの量子化表の値だけを丸める。Q=1でも量子化幅は1となる。
+	let quality = clamp(uniforms.quality, 0.0, 1.0);
+	let scale = select(1.98 * (1.0 - quality), 50.0 / (1.0 + 99.0 * quality), quality < 49.0 / 99.0);
+	return clamp(floor(base * scale + 0.5), 1.0, 255.0);
 }
 
 fn dct_basis(frequency: u32, sampleIndex: u32) -> f32 {
