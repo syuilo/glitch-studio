@@ -35,6 +35,12 @@ export default defineConfig({
 				],
 			},
 			{
+				text: 'エフェクト',
+				items: [
+					{ text: 'JPEG glitch', link: '/guide/effects/jpeg-glitch' },
+				],
+			},
+			{
 				text: 'レイヤー',
 				items: [
 					{ text: '画像', link: '/guide/timeline/layers/image' },
